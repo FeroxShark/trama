@@ -1,0 +1,39 @@
+{
+  "name": "hilos",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "license": "MIT",
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "build": "tsc && vite build && tsc -p tsconfig.electron.json && node scripts/build-listo.mjs",
+    "start": "electron .",
+    "bench": "bash scripts/bench.sh",
+    "postinstall": "node node_modules/electron/install.js",
+    "test": "node --test tests/",
+    "prueba": "node scripts/prueba-todas.mjs",
+    "visual": "node scripts/visual.mjs"
+  },
+  "dependencies": {
+    "lucide-react": "^0.540.0",
+    "motion": "^12",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4",
+    "@types/node": "^24",
+    "@types/react": "^19.1.8",
+    "@types/react-dom": "^19.1.6",
+    "@vitejs/plugin-react": "^4.6.0",
+    "electron": "^44.5.1",
+    "tailwindcss": "^4",
+    "typescript": "~5.8.3",
+    "vite": "^7.0.4"
+  },
+  "allowScripts": {
+    "esbuild@0.28.2": true,
+    "electron@44.5.1": true
+  },
+  "main": "dist-electron/main.js"
+}

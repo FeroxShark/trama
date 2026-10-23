@@ -1,0 +1,5423 @@
+@import "tailwindcss";
+
+/* Dirección "D · Minimal" (referencias/diseno-D-minimal.dc.html): negro puro,
+   Geist, bordes hairline y una sola escala de grises. Las medidas y colores
+   salen de la maqueta; lo que cambia es cómo se anima (ver "Estados"). */
+
+/* Las fuentes van adentro del repo (SIL OFL 1.1, ver THIRD_PARTY.md y
+   src/fuentes/OFL*.txt): no están instaladas en el sistema y la app no baja
+   nada al abrir. Geist y Geist Mono son las de la maqueta; las demás se eligen
+   en Ajustes (src/tipografia.ts) y recién se cargan cuando alguien las usa. */
+@font-face {
+  font-family: "Geist";
+  src: url("./fuentes/Geist-Variable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Geist Mono";
+  src: url("./fuentes/GeistMono-Variable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Inter";
+  src: url("./fuentes/Inter-Variable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-display: swap;
+}
+@font-face {
+  font-family: "IBM Plex Sans";
+  src: url("./fuentes/IBMPlexSans-Variable.woff2") format("woff2");
+  font-weight: 100 700;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Source Sans 3";
+  src: url("./fuentes/SourceSans3-Variable.woff2") format("woff2");
+  font-weight: 200 900;
+  font-display: swap;
+}
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("./fuentes/JetBrainsMono-Variable.woff2") format("woff2");
+  font-weight: 100 800;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Fira Code";
+  src: url("./fuentes/FiraCode-Variable.woff2") format("woff2");
+  font-weight: 300 700;
+  font-display: swap;
+}
+@font-face {
+  font-family: "IBM Plex Mono";
+  src: url("./fuentes/IBMPlexMono-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: "IBM Plex Mono";
+  src: url("./fuentes/IBMPlexMono-Medium.woff2") format("woff2");
+  font-weight: 500;
+  font-display: swap;
+}
+@font-face {
+  font-family: "IBM Plex Mono";
+  src: url("./fuentes/IBMPlexMono-SemiBold.woff2") format("woff2");
+  font-weight: 600 900;
+  font-display: swap;
+}
+
+@theme {
+  --font-sans: "Geist", "Adwaita Sans", Inter, ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Geist Mono", "Adwaita Mono", ui-monospace, monospace;
+  --text-2xs: 0.6875rem;
+
+  --color-background: #0a0a0a;
+  --color-foreground: #fafafa;
+  --color-secondary-label: #737373;
+}
+
+/* El tamaño de letra (Ajustes, Ctrl+= / Ctrl+- / Ctrl+0): `--letra` son los px
+   del texto base, 13 a 18 (src/tipografia.ts la pone en <html>). Todas las
+   medidas van en rem y 1rem = 16px × letra/13: con 13 queda todo como en la
+   maqueta y con más crece todo junto. En px sólo las líneas de 1px; el ancho
+   de la barra (`--ancho-barra`, lo arrastra el usuario) son px de la letra 13 y se
+   multiplica acá: si no, con letra grande la cabecera no entra. */
+html {
+  font-size: calc(var(--letra, 13) / 13 * 16px);
+}
+/* Los íconos de lucide traen su tamaño en px en el atributo: lo siguen también. */
+:where(svg.lucide) {
+  width: calc(attr(width type(<number>), 16) / 16 * 1rem);
+  height: calc(attr(height type(<number>), 16) / 16 * 1rem);
+}
+
+:root {
+  color-scheme: dark;
+  font-family: var(--font-sans);
+  --ancho-barra: 320px;
+
+  --azul: #60a5fa;
+  --verde: #4ade80;
+  --ambar: #fbbf24;
+  --rojo: #ff453a;
+
+  /* Texto de la barra, de más a menos importante (cada uno un escalón más
+     claro que la escala de la maqueta: el usuario la quiere más legible). */
+  --txt-1: #f0f0f0;
+  --txt-2: #c4c4c4;
+  --txt-3: #a3a3a3;
+  --txt-4: #737373;
+
+  /* Tokens (etapa 4, "mismo look, emparejado"): todo color, letra, radio y espaciado de los CSS
+     sale de acá. Qué literal va a qué token: docs/estado/tokens.md; lo que falta reemplazar lo
+     lista scripts/tokens-faltan.mjs. Un mismo gris puede tener nombre de fondo, de borde y de
+     texto: se usa el del papel que cumple. */
+  --negro: #000;
+  --blanco: #fff;
+
+  /* Superficies (fondos), de la más honda a la más alta. */
+  --sup-0: #0a0a0a;
+  --sup-1: #0f0f0f;
+  --sup-2: #171717;
+  --sup-3: #1f1f1f;
+  --sup-4: #262626;
+
+  /* Bordes, de la hairline más suave al foco. */
+  --borde-1: #171717;
+  --borde-2: #1f1f1f;
+  --borde-3: #262626;
+  --borde-4: #333333;
+  --borde-5: #404040;
+  --borde-6: #525252;
+
+  /* Texto, del más claro al más apagado (los de la barra siguen en --txt-N). */
+  --texto-1: #fafafa;
+  --texto-2: #e5e5e5;
+  --texto-3: #d4d4d4;
+  --texto-4: #a3a3a3;
+  --texto-5: #8a8a8a;
+  --texto-6: #737373;
+  --texto-7: #525252;
+  --texto-8: #404040;
+
+  /* Acentos (además de azul, verde, ámbar y rojo). */
+  --azul-palido: #dbeafe;
+  --verde-suave: #7ad69b;
+  --verde-palido: #bbf7d0;
+  --verde-tinte: rgb(74 222 128 / 0.12);
+  --rojo-texto: #f87171;
+  --rojo-claro: #fca5a5;
+  --rojo-palido: #fecaca;
+  --rojo-tinte: rgb(255 69 58 / 0.12);
+  --rojo-borde: rgb(255 69 58 / 0.35);
+  --oro: #f2c24b;
+  --rosa: #eaa0c8;
+  --modo-plan: rgb(72 150 140);
+  --enlace-subrayado: rgb(143 181 240 / 0.35);
+  --sombra: rgb(0 0 0 / 65%);
+  --fondo-modal: rgb(0 0 0 / 70%);
+  --sombra-popover: rgb(0 0 0 / 70%);
+  --velo: rgb(0 0 0 / 0.82);
+  --resalte-1: rgb(255 255 255 / 0.02);
+  --resalte-2: rgb(255 255 255 / 0.06);
+
+  /* Resaltado de código. */
+  --sint-str: #9ad48a;
+  --sint-num: #f0c27a;
+  --sint-kw: #b9a3f0;
+  --sint-fn: #8fb5f0;
+  --sint-var: #7fd1c7;
+  --sint-menos: #f0a08a;
+  --sint-com: #6b6b6b;
+
+  /* La vista de worker (src/hilo/worker.css): el diff (lo que entra y lo que sale) y un color por clase de paso. */
+  --mas: var(--verde);
+  --menos: var(--rojo-texto);
+  --mas-fondo: color-mix(in srgb, var(--mas) 11%, var(--sup-0));
+  --mas-gutter: color-mix(in srgb, var(--mas) 20%, var(--sup-0));
+  --menos-fondo: color-mix(in srgb, var(--menos) 11%, var(--sup-0));
+  --menos-gutter: color-mix(in srgb, var(--menos) 20%, var(--sup-0));
+  --paso-pensar: #b9a3f0;
+  --paso-leer: var(--azul);
+  --paso-editar: var(--verde);
+  --paso-correr: #d4d4d4;
+  --paso-delegar: var(--rosa);
+  --paso-texto: #dbeafe;
+
+  /* Letra: 9, 10, 11, 12, 13, 14, 16 y 18 px a letra 13 (crecen con Ajustes, son rem). El 18 es
+     para el título # de un mensaje y las cifras grandes: sin él, # y ## quedaban iguales. */
+  --letra-1: 0.5625rem;
+  --letra-2: 0.625rem;
+  --letra-3: 0.6875rem;
+  --letra-4: 0.75rem;
+  --letra-5: 0.8125rem;
+  --letra-6: 0.875rem;
+  --letra-7: 1rem;
+  --letra-8: 1.125rem;
+
+  /* Radios: 2, 6, 8 y 12 px; la pastilla, redonda del todo. */
+  --radio-1: 0.125rem;
+  --radio-2: 0.375rem;
+  --radio-3: 0.5rem;
+  --radio-4: 0.75rem;
+  --radio-pastilla: 999rem;
+
+  /* Espaciado (padding, margin, gap): el número son pasos de 4 px. */
+  --esp-0-5: 0.125rem;
+  --esp-1: 0.25rem;
+  --esp-1-5: 0.375rem;
+  --esp-2: 0.5rem;
+  --esp-2-5: 0.625rem;
+  --esp-3: 0.75rem;
+  --esp-3-5: 0.875rem;
+  --esp-4: 1rem;
+  --esp-5: 1.25rem;
+  --esp-6: 1.5rem;
+  --esp-8: 2rem;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  background: var(--color-background);
+  color: var(--color-foreground);
+  overflow: hidden;
+}
+
+.app {
+  display: flex;
+  height: 100%;
+  background: var(--sup-0);
+  font-size: var(--letra-5);
+  line-height: 1.4;
+}
+:where(.app) button {
+  cursor: pointer;
+}
+/* El anillo de foco: claro y a la vista, sólo con el teclado (con el mouse no sale). Vale para todo, también
+   lo que vive fuera de `.app` (menús, visor, atajos). Lo que se enfoca por código (la raíz de un panel o de
+   un diálogo, `tabindex="-1"`) no lo dibuja. Los campos de texto, que no tienen anillo propio, lo muestran en
+   su caja. */
+/* `data-anillo`: sólo para las capturas (foco-barra, foco-caja): una ventana sin foco no dibuja `:focus-visible`. */
+:focus-visible,
+[data-anillo] {
+  outline: 2px solid var(--azul);
+  outline-offset: 2px;
+}
+[tabindex="-1"]:focus-visible {
+  outline: none;
+}
+.buscar:has(input:focus-visible),
+.caja:has(:is(textarea, input):focus-visible) {
+  outline: 2px solid var(--azul);
+  outline-offset: 2px;
+}
+.oculto {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+
+/* --- Barra ----------------------------------------------------------------
+   El ancho cambia de golpe (arrastrando, o al mostrar/ocultar); lo que se
+   anima es el cuerpo, con `transform`. Mientras se arrastra no hay transición. */
+.barra {
+  position: relative;
+  z-index: 10;
+  flex: none;
+  width: calc(var(--ancho-barra) * var(--letra, 13) / 13);
+}
+.app[data-oculta] .barra {
+  width: 0;
+}
+.barra-cuerpo {
+  position: absolute;
+  inset-block: 0;
+  left: 0;
+  display: flex;
+  width: calc(var(--ancho-barra) * var(--letra, 13) / 13);
+  flex-direction: column;
+  overflow: hidden;
+  border-right: 1px solid var(--borde-1);
+  background: var(--negro);
+  transition:
+    transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1),
+    visibility 0.22s;
+}
+.app[data-oculta] .barra-cuerpo {
+  visibility: hidden;
+  transform: translateX(-100%);
+}
+.app[data-arr] .barra-cuerpo {
+  transition: none;
+}
+.app[data-arr] {
+  cursor: col-resize;
+  user-select: none;
+}
+.tirador {
+  position: absolute;
+  inset-block: 0;
+  right: 0;
+  z-index: 6;
+  width: 0.4375rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: col-resize;
+  touch-action: none;
+}
+.tirador::after {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  right: 0;
+  width: 1px;
+  background: transparent;
+  transition: background-color 0.15s;
+}
+.tirador:is(:hover, :focus-visible)::after,
+.app[data-arr] .tirador::after {
+  background: var(--borde-6);
+}
+
+/* Cabecera sólida: la lista corre por debajo y nada de ella la tapa. */
+.top {
+  position: relative;
+  z-index: 3;
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: var(--esp-2-5);
+  padding: var(--esp-3-5) var(--esp-3) var(--esp-3);
+  border-bottom: 1px solid var(--borde-1);
+  background: var(--negro);
+}
+.cab {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-0-5);
+  padding: 0 var(--esp-1);
+}
+/* La marca: los hilos tejidos (src/barra/Marca.tsx) y el nombre. */
+.cab .logo {
+  width: 1.125rem;
+  height: 1.125rem;
+  flex: none;
+  margin-right: var(--esp-1-5);
+  color: var(--txt-1);
+}
+.cab .lado {
+  margin-right: -0.25rem;
+}
+/* Con la barra abierta el botón de ocultarla vive en su encabezado. */
+.app:not([data-oculta]) .lado[data-desliza] {
+  display: none;
+}
+.espera {
+  padding: var(--esp-0-5) 0 var(--esp-1) var(--esp-3);
+}
+.marca {
+  margin-right: auto;
+  font-size: var(--letra-6);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  user-select: none;
+}
+/* El uso del plan, en su renglón: uno debajo del otro, la barra a todo el ancho; a la derecha, actualizarlo (B26). */
+.usos {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-1-5);
+  position: relative;
+  z-index: 1;
+  padding: 0 0 var(--esp-0-5) var(--esp-1);
+}
+.usos-l {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--esp-2);
+  /* Angosta, "se reinicia en 13 h 25 min" pasa a "en 13 h 25 min". */
+  container-type: inline-size;
+}
+.usos[data-espera] {
+  visibility: hidden;
+}
+.uso {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-1);
+  cursor: default;
+}
+.uso .r {
+  display: flex;
+  align-items: baseline;
+  gap: var(--esp-1-5);
+  font-size: var(--letra-4);
+  line-height: 1.3;
+  white-space: nowrap;
+}
+.uso .n {
+  flex: none;
+  font-weight: 500;
+  color: var(--txt-1);
+}
+.uso .cuando {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--txt-3);
+  text-overflow: ellipsis;
+}
+.uso .cuando::before {
+  content: "· ";
+  color: var(--txt-4);
+}
+/* Sin hora de reinicio y con el dato fresco no hay nada que decir (ni el "· "). */
+.uso .cuando:empty {
+  display: none;
+}
+.uso .corto {
+  display: none;
+}
+@container (max-width: 15.5rem) {
+  .uso .largo {
+    display: none;
+  }
+  .uso .corto {
+    display: inline;
+  }
+}
+.uso .r b {
+  flex: none;
+  margin-left: auto;
+  padding-left: var(--esp-1);
+  font-family: var(--font-mono);
+  font-size: var(--letra-3);
+  font-weight: 400;
+  color: var(--txt-1);
+}
+.releer {
+  display: grid;
+  width: 1.5rem;
+  height: 1.5rem;
+  flex: none;
+  place-items: center;
+  border: 0;
+  border-radius: var(--radio-2);
+  background: transparent;
+  color: var(--texto-6);
+}
+.releer:hover:not(:disabled) {
+  background: var(--sup-2);
+  color: var(--texto-1);
+}
+.releer:disabled {
+  opacity: 0.35;
+}
+/* Una vuelta al apretarlo (una sola: lo que no termina va por latido.ts). */
+.releer:disabled svg {
+  animation: releer 0.5s cubic-bezier(0.3, 0.7, 0.2, 1);
+}
+@keyframes releer {
+  from {
+    transform: rotate(0);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+.riel {
+  height: 0.1875rem;
+  overflow: hidden;
+  border-radius: var(--radio-1);
+  background: var(--sup-3);
+}
+.riel i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  transform-origin: left;
+  background: var(--texto-3);
+}
+/* Cerca del tope: ámbar desde 70 %, rojo desde 90 % (`nivel`, src/hilo/contexto.ts). */
+.uso[data-nivel="ambar"] .riel i {
+  background: var(--ambar);
+}
+.uso[data-nivel="rojo"] .riel i {
+  background: var(--rojo);
+}
+.uso[data-nivel="ambar"] .r b {
+  color: var(--ambar);
+}
+.uso[data-nivel="rojo"] .r b {
+  color: var(--rojo);
+}
+.tip {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  left: 0;
+  z-index: 5;
+  padding: var(--esp-1) var(--esp-2);
+  border: 1px solid var(--borde-3);
+  border-radius: var(--radio-2);
+  background: var(--sup-2);
+  color: var(--txt-1);
+  font-size: var(--letra-4);
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s;
+}
+.tip::first-letter {
+  text-transform: uppercase;
+}
+.uso:is(:hover, :focus-visible, [data-ver]) .tip {
+  opacity: 1;
+}
+/* El tip de 5 h sale hacia arriba (sobre la marca) y el de semana hacia abajo: ninguno tapa el otro renglón. */
+.usos-l > .uso:first-child > .tip {
+  top: auto;
+  bottom: calc(100% + 0.5rem);
+}
+.usos-sep {
+  height: 1px;
+  margin: var(--esp-0-5) 0;
+  background: var(--borde-2);
+}
+.uso-hasta {
+  flex: none;
+  font-size: var(--letra-2);
+  color: var(--txt-4);
+}
+.uso-5h {
+  margin-right: var(--esp-1-5);
+  color: var(--txt-3);
+}
+.uso-sub {
+  display: flex;
+  align-items: baseline;
+  font-size: var(--letra-3);
+  line-height: 1.2;
+  color: var(--txt-3);
+}
+.uso-sub .cuando::before {
+  content: none;
+}
+.uso-error {
+  overflow: hidden;
+  font-size: var(--letra-3);
+  color: var(--rojo);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.fila-top {
+  display: flex;
+  gap: var(--esp-1-5);
+}
+.buscar {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  height: 2rem;
+  align-items: center;
+  gap: var(--esp-2);
+  padding: 0 var(--esp-2-5);
+  border: 1px solid var(--borde-2);
+  border-radius: var(--radio-2);
+  background: var(--sup-0);
+  color: var(--txt-3);
+  cursor: text;
+}
+/* Pasar el mouse la aclara; con el foco (clic o Ctrl+K), borde claro y un anillo
+   alrededor, como la caja de un líder pero más marcado: se ve dónde se escribe.
+   El anillo aparece sin animar; el color funde (y con reduced motion, tampoco). */
+.buscar:hover {
+  border-color: var(--borde-4);
+  background: var(--sup-1);
+  color: var(--txt-2);
+}
+.buscar:focus-within {
+  border-color: var(--borde-6);
+  background: var(--sup-1);
+  box-shadow: 0 0 0 0.1875rem var(--resalte-2);
+  color: var(--txt-1);
+}
+.buscar:focus-within kbd {
+  color: var(--txt-3);
+}
+.buscar input {
+  min-width: 0;
+  flex: 1;
+  border: 0;
+  background: transparent;
+  color: var(--texto-1);
+  font: inherit;
+}
+/* Le gana a `.app :focus-visible`, que si no dibuja el recuadro adentro. */
+.app .buscar input {
+  outline: none;
+}
+.buscar input::placeholder {
+  color: inherit;
+}
+.buscar:not(:hover, :focus-within) input::placeholder {
+  color: var(--txt-3);
+}
+kbd {
+  font-family: var(--font-mono);
+  font-size: var(--letra-3);
+  color: var(--txt-4);
+}
+.nueva {
+  display: grid;
+  width: 2rem;
+  height: 2rem;
+  flex: none;
+  place-items: center;
+  border: 1px solid var(--borde-2);
+  border-radius: var(--radio-2);
+  background: var(--sup-0);
+  color: var(--txt-1);
+}
+.nueva:hover {
+  background: var(--sup-2);
+  color: var(--blanco);
+}
+/* Sólo líderes | todo (B15): dos íconos en una cápsula; el pulgar marca la vista y se desliza. */
+.vista {
+  position: relative;
+  display: flex;
+  height: 2rem;
+  flex: none;
+  padding: var(--esp-0-5);
+  border: 1px solid var(--borde-2);
+  border-radius: var(--radio-2);
+  background: var(--sup-0);
+}
+.vista::before {
+  content: "";
+  position: absolute;
+  top: 0.125rem;
+  bottom: 0.125rem;
+  left: 0.125rem;
+  width: 1.625rem;
+  border-radius: var(--radio-2);
+  background: var(--sup-3);
+  transition: transform 0.16s cubic-bezier(0.2, 0, 0, 1);
+}
+.vista[data-vista="todo"]::before {
+  transform: translateX(1.625rem);
+}
+.vista button {
+  position: relative;
+  display: grid;
+  width: 1.625rem;
+  place-items: center;
+  border: 0;
+  border-radius: var(--radio-2);
+  background: transparent;
+  color: var(--txt-3);
+}
+.vista button:hover {
+  color: var(--txt-1);
+}
+.vista button[aria-pressed="true"] {
+  color: var(--texto-1);
+}
+
+/* --- Lista ---------------------------------------------------------------- */
+.lista {
+  position: relative;
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--esp-2-5);
+  margin: 0;
+  padding: var(--esp-1-5) var(--esp-2-5) var(--esp-2-5);
+  overflow: hidden auto;
+  scrollbar-width: none;
+}
+/* Reordenar arrastrando (arrastre.ts): la línea dice dónde cae, con el blanco de la marca de lo
+   abierto; lo que se lleva queda apagado en su lugar hasta soltar. La ubica el arrastre, sin render. */
+.cae {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 0.125rem;
+  margin-top: -0.0625rem;
+  border-radius: var(--radio-1);
+  background: var(--texto-1);
+  opacity: 0;
+  pointer-events: none;
+}
+.cae[data-ve] {
+  opacity: 1;
+}
+/* Motion deja su opacidad en el estilo del elemento: sin esto no se apaga. */
+[data-movida] {
+  opacity: 0.35 !important;
+}
+.app[data-moviendo],
+.app[data-moviendo] .lista {
+  cursor: grabbing;
+  user-select: none;
+}
+/* Lo que queda bajo el puntero no reacciona (ni el hover de una fila, ni su botón). */
+.app[data-moviendo] .lista * {
+  pointer-events: none;
+}
+.lista-aviso {
+  padding: var(--esp-1) var(--esp-2);
+  font-size: var(--letra-4);
+  color: var(--txt-3);
+}
+.lista-aviso[data-error] {
+  color: var(--rojo);
+}
+/* La conversación todavía se está leyendo: una línea quieta, no un vacío. */
+.conv-leyendo {
+  padding: var(--esp-2) 0;
+  font-size: var(--letra-4);
+  color: var(--txt-3);
+}
+/* Carpeta de proyecto: mismo aire (0.375rem) arriba, abajo y a los costados. El
+   borde es un marco aparte para acompañar con FLIP cuando cambia el alto. */
+.proy {
+  position: relative;
+  flex: none;
+  padding: var(--esp-2);
+}
+.marco {
+  position: absolute;
+  pointer-events: none;
+}
+/* En tres piezas para que el FLIP no deforme nada: las tapas (con las
+   esquinas) sólo se trasladan; lo único que se estira son los lados, que son
+   una línea lisa de 1px. */
+.marco-arriba,
+.marco-abajo {
+  inset-inline: 0;
+  height: 0.625rem;
+  border: 1px solid var(--borde-1);
+}
+.marco-arriba {
+  top: 0;
+  border-bottom: 0;
+  border-radius: var(--radio-4) var(--radio-4) 0 0;
+}
+.marco-abajo {
+  bottom: 0;
+  border-top: 0;
+  border-radius: 0 0 var(--radio-4) var(--radio-4);
+}
+.marco-lado {
+  top: 0.625rem;
+  bottom: 0.625rem;
+  left: 0;
+  width: 1px;
+  background: var(--sup-2);
+}
+.marco-lado[data-der] {
+  right: 0;
+  left: auto;
+}
+/* La carpeta de lo que se está viendo: el marco y su nombre más claros, también plegada. */
+.proy[data-viendo] > .marco-arriba,
+.proy[data-viendo] > .marco-abajo {
+  border-color: var(--borde-5);
+}
+.proy[data-viendo] > .marco-lado {
+  background: var(--borde-5);
+}
+.proy[data-viendo] > .proy-nom {
+  color: var(--texto-1);
+}
+.proy-nom {
+  position: relative;
+  display: flex;
+  width: 100%;
+  height: 1.75rem;
+  align-items: center;
+  gap: var(--esp-2);
+  padding: 0 var(--esp-1-5);
+  border: 0;
+  border-radius: var(--radio-2);
+  background: transparent;
+  color: var(--txt-2);
+  font-size: var(--letra-4);
+  font-weight: 500;
+  text-align: left;
+  user-select: none;
+}
+.proy-nom:hover {
+  background: var(--sup-1);
+  color: var(--texto-1);
+}
+.proy-nom .n {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* El logo del proyecto (src/barra/Logo.tsx): su ícono o un monograma sobre su tono. */
+.logo {
+  display: grid;
+  width: 1.0625rem;
+  height: 1.0625rem;
+  flex: none;
+  place-items: center;
+  overflow: hidden;
+  border-radius: var(--radio-2);
+  color: var(--sup-0);
+  font-size: var(--letra-1);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  object-fit: contain;
+}
+.logo[data-neutro] {
+  background: var(--sup-3);
+  color: var(--txt-2);
+}
+.cuenta {
+  font-family: var(--font-mono);
+  font-size: var(--letra-3);
+  font-weight: 400;
+  color: var(--txt-4);
+}
+.chevron {
+  flex: none;
+  transition: transform 0.15s ease-out;
+}
+[aria-expanded="false"] > .chevron {
+  transform: rotate(-90deg);
+}
+/* Aire entre la cabecera de la carpeta y su primera fila: con el hover de la
+   cabecera encendido no se pegan. */
+.proy-cuerpo {
+  position: relative;
+  padding-top: var(--esp-1);
+}
+/* Nuevo líder: en la cabecera de General, a la derecha (el chevron le deja lugar). */
+.proy:has(> .lider-nuevo) > .proy-nom {
+  padding-right: 2.125rem;
+}
+.lider-nuevo {
+  position: absolute;
+  top: 0.625rem;
+  right: 0.6875rem;
+  display: grid;
+  width: 1.375rem;
+  height: 1.375rem;
+  place-items: center;
+  border: 0;
+  border-radius: var(--radio-2);
+  background: transparent;
+  color: var(--txt-3);
+}
+.lider-nuevo:hover,
+.lider-nuevo[aria-pressed="true"] {
+  background: var(--sup-2);
+  color: var(--texto-1);
+}
+.lider {
+  position: relative;
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: var(--esp-2-5);
+  padding: var(--esp-2) var(--esp-2) var(--esp-2) 1.875rem;
+  border: 0;
+  border-radius: var(--radio-2);
+  background: var(--sup-1);
+  color: inherit;
+  text-align: left;
+}
+.lider:hover,
+.lider[data-cursor] {
+  background: var(--sup-2);
+}
+/* El que se está viendo se encuentra de un vistazo y no se confunde con el hover: barra blanca
+   gruesa a la izquierda, fondo claramente más claro con su contorno, y el nombre en blanco y más
+   grueso (los demás, apagados). Su carpeta también se marca (`.proy[data-viendo]`). Sin color:
+   azul, verde, ámbar, rojo y dorado ya dicen el estado. */
+.lider[data-activa] {
+  background: var(--sup-4);
+  box-shadow: inset 0 0 0 1px var(--borde-6);
+}
+.lider[data-activa]::before,
+.w > .wbtn[data-activa]::before {
+  position: absolute;
+  top: 0.25rem;
+  bottom: 0.25rem;
+  left: 0;
+  width: 0.25rem;
+  border-radius: var(--radio-1);
+  background: var(--texto-1);
+  content: "";
+}
+/* La corona del líder: gris cuando está quieto, dorada y con fulgor mientras
+   responde. El fulgor respira por latido.ts (opacity y transform); el brillo
+   del trazo es un filtro fijo. */
+.corona {
+  position: absolute;
+  top: 50%;
+  left: 0.5rem;
+  display: grid;
+  width: 1rem;
+  height: 1rem;
+  margin-top: -0.5rem;
+  place-items: center;
+  color: var(--texto-5);
+}
+.corona svg {
+  position: relative;
+}
+.corona[data-ocupado] {
+  color: var(--oro);
+}
+.corona[data-ocupado] svg {
+  fill: color-mix(in srgb, var(--oro) 22%, transparent);
+  filter: drop-shadow(0 0 0.1875rem color-mix(in srgb, var(--oro) 55%, transparent));
+}
+.fulgor {
+  position: absolute;
+  inset: -0.375rem;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, color-mix(in srgb, var(--oro) 50%, transparent), color-mix(in srgb, var(--oro) 0%, transparent));
+  opacity: 0.55;
+  pointer-events: none;
+}
+/* Caché vencido: corona apagada y título atenuado. El atributo lo pone el reloj. */
+.lider:has(.cache[data-frio]) .corona:not([data-ocupado]) {
+  color: var(--texto-7);
+}
+.lider .txt {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 1px;
+}
+.lider .t {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--esp-1-5);
+  font-weight: 500;
+}
+/* El nombre: apagado salvo en el que se está viendo (blanco y más grueso). */
+.lider .nom {
+  min-width: 3.25rem;
+  overflow: hidden;
+  color: var(--txt-2);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lider:has(.cache[data-frio]) .nom {
+  color: var(--txt-3);
+}
+.lider[data-activa] .nom {
+  color: var(--blanco);
+  font-weight: 600;
+}
+.lider[data-activa] .s {
+  color: var(--txt-2);
+}
+.lider .s {
+  font-size: var(--letra-3);
+  color: var(--txt-3);
+}
+/* Sin proceso: lo mataron (rojo, como "líder muerto") o cerró (apagado). Se retoma desde su vista. */
+.lider[data-caido] .corona {
+  color: var(--texto-7);
+}
+.lider[data-caido="murio"] .corona,
+.lider[data-caido="murio"] .s {
+  color: var(--rojo);
+}
+/* Te espera (electron/espera.ts): terminó su turno o pide un permiso y el usuario es quien sigue. Ámbar, el acento de "Te necesita",
+   sin animación: es un estado, no algo que corre. La corona se pinta igual para que se vea con la barra angosta. */
+.te-espera {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--esp-1);
+  color: var(--ambar);
+  font-size: var(--letra-3);
+  font-weight: 500;
+  white-space: nowrap;
+}
+.te-espera i {
+  width: 0.375rem;
+  height: 0.375rem;
+  border-radius: 50%;
+  background: var(--ambar);
+}
+.corona[data-espera] {
+  color: var(--ambar);
+}
+.migas .te-espera {
+  font-size: var(--letra-4);
+}
+/* Sólo líderes: lo vivo del líder resumido al lado de su nombre ("2 trabajando"). El punto es el
+   de las filas (lo mueve latido.ts), acá en línea. */
+.res {
+  display: inline-flex;
+  /* Si no entra con el nombre, se corta el resumen (el tooltip lo dice entero), no el nombre. */
+  flex: 0 100 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  align-items: center;
+  gap: var(--esp-1-5);
+  margin-left: var(--esp-1);
+  font-size: var(--letra-3);
+  font-weight: 400;
+}
+.res > span {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--esp-2);
+}
+/* El robotito que dice de quién son los números: de los workers del líder, no del líder. */
+.res-w {
+  flex: none;
+  color: var(--txt-3);
+}
+.res-pt {
+  position: relative;
+  width: 0.4375rem;
+  height: 0.4375rem;
+  flex: none;
+}
+.res-pt :is(.pt, .onda, .halo) {
+  top: 0;
+  left: 0;
+}
+/* "+N": los workers escondidos de este líder; un clic los despliega acá. Hermano del botón del
+   líder (no anida), a la derecha; el Settle del hover se corre para no taparlo. */
+.mas {
+  position: absolute;
+  top: 50%;
+  right: 0.375rem;
+  width: 1.875rem;
+  height: 1.25rem;
+  margin-top: -0.625rem;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radio-2);
+  background: var(--sup-2);
+  font-family: var(--font-mono);
+  font-size: var(--letra-3);
+  color: var(--txt-2);
+}
+.mas:hover,
+.mas[aria-expanded="true"] {
+  background: var(--sup-3);
+  color: var(--texto-1);
+}
+.lw[data-mas] > .lider {
+  padding-right: 2.625rem;
+}
+.lw[data-mas] > .acc {
+  right: 2.5rem;
+}
+/* Una rama dentro de la carpeta: líder (o "sin líder") y sus workers. */
+.arbol {
+  position: relative;
+}
+.arbol + .arbol {
+  margin-top: var(--esp-1);
+}
+.sin-lider {
+  position: relative;
+  padding: var(--esp-1-5) var(--esp-2) var(--esp-1) 1.875rem;
+  font-size: var(--letra-3);
+  color: var(--txt-3);
+}
+.sin-lider .corona {
+  color: var(--texto-7);
+}
+/* Al líder lo mataron: no es un "sin líder" cualquiera. */
+.sin-lider[data-muerto],
+.sin-lider[data-muerto] .corona {
+  color: var(--rojo);
+}
+/* El árbol, estilo Reddit: cada worker pone su tramo del riel (├) y el último
+   lo corta en └. Los rellenos de la lista virtual no son `.w`. */
+.ramas {
+  position: relative;
+  margin: 0;
+  padding: 0 0 0 var(--esp-4);
+  list-style: none;
+}
+/* Entre fila y fila, el mismo respiro (abajo de cada una: el riel no se corta y
+   la lista virtual mide la fila con él). */
+.w {
+  position: relative;
+  list-style: none;
+}
+.ramas > .w {
+  padding-bottom: var(--esp-0-5);
+}
+.ramas > .w::before {
+  content: "";
+  position: absolute;
+  top: 1rem;
+  left: 0;
+  width: 0.625rem;
+  height: 1px;
+  background: var(--sup-4);
+}
+.ramas > .w::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -1px;
+  border-left: 1px solid var(--borde-3);
+}
+.ramas > .w:first-child::after {
+  top: -0.125rem;
+}
+.ramas > .w:not(:has(~ .w))::after {
+  bottom: auto;
+  height: 1.0625rem;
+}
+.ramas > .w:first-child:not(:has(~ .w))::after {
+  height: 1.1875rem;
+}
+.ramas > .pliegue:first-child:not(:has(~ .w))::after {
+  height: 1rem;
+}
+/* Lo que lanzó el usuario sin líder cuelga derecho de la carpeta, sin riel. */
+.arbol[data-tipo="sueltas"] .ramas {
+  padding-left: 0;
+}
+.arbol[data-tipo="sueltas"] .w::before,
+.arbol[data-tipo="sueltas"] .w::after {
+  display: none;
+}
+/* Terminada y de un líder: no compite con lo que trabaja. */
+.w[data-apagada] .l1 .t {
+  color: var(--txt-3);
+}
+.w[data-apagada] .l2 > span:first-child {
+  color: var(--txt-3);
+}
+.w[data-apagada] .pt {
+  background: var(--borde-5);
+  animation: none;
+}
+/* "N terminadas": el último tramo del árbol, plegado. */
+.pliegue {
+  height: 1.625rem;
+}
+/* Abierto, "ocultar terminados" se queda arriba mientras se recorre la lista (lo cubre el fondo de la barra). */
+.pliegue[data-abierto] {
+  position: sticky;
+  z-index: 2;
+  top: 0;
+  background: var(--negro);
+}
+.ramas > .pliegue::before {
+  top: 0.8125rem;
+}
+.ramas > .pliegue:not(:has(~ .w))::after {
+  height: 0.875rem;
+}
+.mini-pliegue {
+  display: inline-flex;
+  height: 1.625rem;
+  align-items: center;
+  gap: var(--esp-1);
+  margin-left: var(--esp-3);
+  padding: 0 var(--esp-2);
+  border: 0;
+  border-radius: var(--radio-2);
+  background: transparent;
+  font-size: var(--letra-3);
+  color: var(--txt-3);
+}
+.mini-pliegue:hover {
+  background: var(--sup-1);
+  color: var(--txt-2);
+}
+
+/* --- Fila -----------------------------------------------------------------
+   El hover va a mano porque el mismo estado lo dispara el mouse o el cursor del
+   teclado (`data-cursor`), que es también como se fuerza en las capturas y en
+   el guion de medición. */
+.wbtn {
+  position: relative;
+  display: flex;
+  width: calc(100% - 0.75rem);
+  margin-left: var(--esp-3);
+  flex-direction: column;
+  gap: 1px;
+  padding: var(--esp-1-5) var(--esp-2) var(--esp-1-5) var(--esp-5);
+  border: 0;
+  border-radius: var(--radio-2);
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  user-select: none;
+}
+.w:hover > .wbtn,
+.wbtn[data-cursor] {
+  background: var(--sup-1);
+}
+.w > .wbtn[data-activa] {
+  background: var(--sup-4);
+  box-shadow: inset 0 0 0 1px var(--borde-6);
+}
+.w > .wbtn[data-activa] .l1 .t {
+  font-weight: 600;
+  color: var(--blanco);
+}
+.cerradas .wbtn {
+  width: 100%;
+  margin-left: 0;
+  padding-left: var(--esp-3);
+}
+.l1 {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--esp-2);
+}
+.l1 .t {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  color: var(--txt-1);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.l1 .t[data-nuevo] {
+  font-weight: 500;
+  color: var(--texto-1);
+}
+.cerradas .l1 .t {
+  color: var(--txt-3);
+}
+/* A la derecha del título: el glifo del modelo y dónde corre (src/barra/ficha.ts). */
+.donde {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--esp-1);
+  color: var(--txt-3);
+}
+.w[data-apagada] .donde,
+.cerradas .donde {
+  color: var(--txt-4);
+}
+/* El modelo, con su nombre corto ("Opus", "Sonnet"…), de un solo color; la
+   forma ayuda a reconocerlo de un vistazo (Opus lleno, Sonnet en cuadro,
+   Fable en píldora, Haiku suelto). */
+.glifo {
+  display: grid;
+  height: 0.875rem;
+  box-sizing: border-box;
+  place-items: center;
+  padding: 0 var(--esp-1);
+  border: 1px solid currentColor;
+  border-radius: var(--radio-1);
+  font-size: var(--letra-1);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  line-height: 1;
+  white-space: nowrap;
+  user-select: none;
+}
+.glifo[data-fam="opus"] {
+  background: currentColor;
+  -webkit-text-fill-color: var(--negro);
+}
+.glifo[data-fam="fable"] {
+  border-radius: var(--radio-2);
+}
+.glifo[data-fam="haiku"] {
+  border-color: transparent;
+  padding: 0;
+}
+.glifo[data-fam="otro"] {
+  border-style: dotted;
+}
+.l2 {
+  display: flex;
+  min-width: 0;
+  overflow: hidden;
+  gap: var(--esp-1-5);
+  font-size: var(--letra-3);
+  color: var(--txt-3);
+  white-space: nowrap;
+}
+.l2 .m {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-family: var(--font-mono);
+  font-size: var(--letra-3);
+  color: var(--txt-4);
+}
+.l2 .error {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--rojo);
+  text-overflow: ellipsis;
+}
+.c-trab {
+  color: var(--azul);
+}
+.c-term {
+  color: var(--verde);
+}
+.c-nec {
+  color: var(--ambar);
+}
+.c-trabado {
+  color: var(--txt-2);
+}
+.c-fallo {
+  color: var(--rojo);
+}
+/* Lo frenó el usuario con Parar: apagado, nunca rojo. */
+.c-frenado,
+.c-cola {
+  color: var(--txt-3);
+}
+.c-cerrado {
+  color: var(--txt-3);
+}
+
+/* Un solo botón al hover: Cerrar. Vive al lado del botón de la fila, no adentro. */
+/* Del alto del botón, como en la maqueta, pero sobre la segunda línea: el
+   numerito queda entero arriba y se le llega con el mouse a su tooltip. */
+.acc {
+  position: absolute;
+  right: 0.375rem;
+  bottom: 0.1875rem;
+  display: flex;
+  gap: var(--esp-1);
+  padding-left: var(--esp-3);
+  background: linear-gradient(90deg, transparent, var(--sup-1) 0.375rem);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s;
+}
+.w:hover > .acc,
+.wbtn[data-cursor] + .acc,
+.acc:focus-within {
+  opacity: 1;
+  pointer-events: auto;
+}
+.wbtn[data-activa] + .acc {
+  background: linear-gradient(90deg, transparent, var(--sup-4) 0.375rem);
+}
+/* La fila del líder lleva su "Cerrar líder" igual que el Settle del worker. */
+/* El líder y su primer worker, separados como las filas entre sí. */
+.lw {
+  position: relative;
+  margin-bottom: var(--esp-0-5);
+}
+/* Acá el numerito va al medio de la fila, no arriba: el botón toma el alto de la fila, centrado,
+   y el numerito se esconde mientras se ve (sin transición), así no se pisan. */
+.lw > .acc {
+  top: 0;
+  bottom: 0;
+  align-items: center;
+  background: linear-gradient(90deg, transparent, var(--sup-2) 0.375rem);
+}
+.lw:has(> .acc):hover .cache,
+.lw:has(> .acc:focus-within) .cache,
+.lider[data-cursor]:has(~ .acc) .cache {
+  visibility: hidden;
+}
+.lw:has(> .lider[data-activa]) > .acc {
+  background: linear-gradient(90deg, transparent, var(--sup-4) 0.375rem);
+}
+.lw:hover > .acc,
+.lider[data-cursor] ~ .acc {
+  opacity: 1;
+  pointer-events: auto;
+}
+/* "Quedan N ramas sin integrar: ¿Settle igual?": a la izquierda del Settle, mientras está armado. */
+.settle-conf {
+  order: -1;
+  align-self: center;
+  margin-right: var(--esp-1-5);
+  overflow: hidden;
+  color: var(--ambar);
+  font-size: var(--letra-3);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.acc:has(.settle-conf) {
+  top: auto;
+  bottom: 0.1875rem;
+  left: 0.375rem;
+  justify-content: flex-end;
+  opacity: 1;
+  pointer-events: auto;
+}
+.mini {
+  display: inline-flex;
+  height: 1.375rem;
+  align-items: center;
+  padding: 0 var(--esp-2);
+  border: 1px solid var(--borde-3);
+  border-radius: var(--radio-2);
+  background: var(--negro);
+  color: var(--txt-1);
+  font-size: var(--letra-4);
+}
+.mini:hover {
+  border-color: var(--borde-5);
+  color: var(--blanco);
+}
+/* Los botones que salen con el hover de una fila (Archivar, Integrar, Cerrar líder…): sin fondo ni borde
+   propios, sobre la tarjeta oscura; al pasarles el mouse, un velo suave. */
+.acc .mini:not([data-primario]) {
+  border-color: transparent;
+  background: transparent;
+  color: var(--texto-4);
+}
+.acc .mini:not([data-primario]):is(:hover, :focus-visible, [aria-pressed="true"]) {
+  border-color: transparent;
+  background: var(--resalte-2);
+  color: var(--texto-1);
+}
+
+/* --- Numerito de caché ----------------------------------------------------
+   El span es el del reloj (src/reloj.ts): él escribe el texto y los atributos.
+   El rayito va en ::before para que sobreviva a `textContent`. */
+.cache {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--esp-1);
+  font-family: var(--font-mono);
+  font-size: var(--letra-3);
+  color: var(--txt-2);
+}
+.cache::before {
+  content: "";
+  width: 0.625rem;
+  height: 0.625rem;
+  background: currentColor;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+}
+.cache[data-frio] {
+  color: var(--texto-8);
+}
+.cache[data-frio]::before {
+  display: none;
+}
+/* La señal de los 10 min: pasa a blanco con un pulso, una sola vez. */
+.cache[data-senal] {
+  color: var(--texto-1);
+}
+.cache[data-senal="pulso"] {
+  animation: senal 1.4s ease-out 1;
+}
+/* Captura comparada (reloj quieto): sin el pulso, que según el cuadro de la foto sale a medias. */
+:root[data-quieto] .cache[data-senal="pulso"] {
+  animation: none;
+}
+@keyframes senal {
+  0%,
+  55%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  25% {
+    opacity: 0.35;
+    transform: scale(1.15);
+  }
+  78% {
+    opacity: 0.6;
+  }
+}
+
+/* --- Estados ---------------------------------------------------------------
+   Lo que en la maqueta es una animación CSS infinita (onda, latido, halo, giro,
+   brillo) acá lo mueve un timer en escalones (src/barra/latido.ts): con una
+   animación corriendo Chromium compone en cada vblank, quieta o no. En CSS
+   quedan sólo las que corren una vez (pop, sacudida). */
+.pt,
+.onda,
+.halo {
+  position: absolute;
+  top: 0.6875rem;
+  left: 0.375rem;
+  width: 0.4375rem;
+  height: 0.4375rem;
+  border-radius: 50%;
+}
+.onda {
+  border: 1px solid var(--azul);
+  opacity: 0;
+}
+.halo {
+  background: var(--ambar);
+  opacity: 0;
+}
+.pt-trab {
+  background: var(--azul);
+}
+.pt-nec {
+  background: var(--ambar);
+}
+.pt-term {
+  background: var(--verde);
+  animation: pop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) 0.4s both;
+}
+.pt-term[data-visto] {
+  animation: none;
+}
+@keyframes pop {
+  0% {
+    transform: scale(0);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+.pt-trabado {
+  border: 0.09375rem dashed var(--texto-4);
+}
+.pt-frenado {
+  background: var(--txt-3);
+}
+/* En cola: un anillo quieto (esperando puesto, todavía no trabaja). */
+.pt-cola {
+  border: 0.09375rem solid var(--texto-4);
+}
+.pt-fallo {
+  background: var(--rojo);
+  animation: sacude 0.5s cubic-bezier(0.36, 0.07, 0.19, 0.97) 0.5s both;
+}
+@keyframes sacude {
+  10%,
+  90% {
+    transform: translateX(-1px);
+  }
+  20%,
+  80% {
+    transform: translateX(0.125rem);
+  }
+  30%,
+  50%,
+  70% {
+    transform: translateX(-0.125rem);
+  }
+  40%,
+  60% {
+    transform: translateX(0.125rem);
+  }
+}
+/* El brillo que recorre "Trabajando": el timer corre `background-position`. */
+.brillo {
+  background: linear-gradient(90deg, var(--azul) 0 35%, var(--azul-palido) 50%, var(--azul) 65% 100%) 100% 0 / 250% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.cerrados {
+  display: flex;
+  width: 100%;
+  height: 1.875rem;
+  flex: none;
+  align-items: center;
+  gap: var(--esp-2);
+  padding: 0 var(--esp-3);
+  border: 0;
+  border-radius: var(--radio-2);
+  background: transparent;
+  color: var(--txt-4);
+  font-size: var(--letra-4);
+  text-align: left;
+}
+.cerrados span {
+  flex: 1;
+}
+.cerrados:hover {
+  color: var(--txt-2);
+}
+.cerradas {
+  position: relative;
+  margin: 0;
+  padding: 0;
+}
+.bloque-cerrados {
+  position: relative;
+  flex: none;
+}
+
+.pie {
+  position: relative;
+  z-index: 3;
+  display: flex;
+  flex: none;
+  gap: var(--esp-0-5);
+  padding: var(--esp-2);
+  border-top: 1px solid var(--borde-1);
+  background: var(--negro);
+}
+.pie button {
+  position: relative;
+  display: flex;
+  height: 1.875rem;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: var(--radio-2);
+  background: transparent;
+  color: var(--txt-3);
+}
+.pie button:hover {
+  background: var(--sup-1);
+  color: var(--texto-1);
+}
+/* El numerito del Tablero: cuántos items esperan al usuario. Sólo si hay (sin ellos, el pie queda como siempre). */
+.pie-n {
+  position: absolute;
+  top: 0.125rem;
+  left: calc(50% + 0.375rem);
+  min-width: 0.9375rem;
+  padding: 0 var(--esp-1);
+  border-radius: var(--radio-3);
+  background: var(--texto-2);
+  color: var(--negro);
+  font-size: var(--letra-2);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  line-height: 0.9375rem;
+  text-align: center;
+  pointer-events: none;
+}
+.etq {
+  position: absolute;
+  bottom: calc(100% + 0.375rem);
+  left: 50%;
+  z-index: 5;
+  padding: var(--esp-1) var(--esp-2);
+  border: 1px solid var(--borde-3);
+  border-radius: var(--radio-2);
+  background: var(--sup-2);
+  color: var(--txt-1);
+  font-size: var(--letra-4);
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, 0.1875rem);
+  transition:
+    opacity 0.15s,
+    transform 0.15s;
+}
+.pie button:is(:hover, :focus-visible, [data-ver]) .etq {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+/* El cartel de la actualización de trama (src/barra/Reinicio.tsx), arriba del pie: fijo y en el
+   flujo de la barra, así que no tapa nada. Un puntito quieto, el texto (que puede partirse en dos
+   renglones: la barra es angosta) y su botón. */
+.rei {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--esp-2);
+  padding: var(--esp-2) var(--esp-2) var(--esp-2) var(--esp-4);
+  border-top: 1px solid var(--borde-1);
+  background: var(--negro);
+  color: var(--txt-1);
+  font-size: var(--letra-4);
+  line-height: 1.35;
+}
+.rei-t {
+  min-width: 0;
+  flex: 1;
+  overflow-wrap: anywhere;
+}
+.rei[data-espera] .rei-t {
+  color: var(--txt-2);
+}
+.rei-c {
+  display: block;
+  color: var(--txt-3);
+}
+.rei-bs {
+  display: flex;
+  flex: none;
+  gap: var(--esp-1);
+}
+/* Con "Reiniciar igual" son dos botones: pasan a su propio renglón, a la derecha. */
+.rei[data-colgado] {
+  flex-wrap: wrap;
+}
+.rei[data-colgado] .rei-t {
+  flex-basis: calc(100% - 1.5rem);
+}
+.rei[data-colgado] .rei-bs {
+  margin-left: auto;
+}
+.rei-b[data-prim] {
+  border-color: var(--borde-5);
+  color: var(--txt-1);
+}
+/* La PC desde el Dell (src/barra/Pc.tsx), arriba del cartel de actualización: un puntito (apagada gris, prendiendo
+   ámbar, prendida verde; todos quietos), el estado y su botón. Abrir es un enlace con la cara de botón. */
+.pcx {
+  flex: none;
+  border-top: 1px solid var(--borde-1);
+  background: var(--negro);
+  color: var(--txt-1);
+  font-size: var(--letra-4);
+  line-height: 1.35;
+}
+.pcx-f {
+  display: flex;
+  min-height: 2.75rem;
+  align-items: center;
+  gap: var(--esp-2);
+  padding: var(--esp-2) var(--esp-2) var(--esp-2) var(--esp-4);
+}
+.pcx-t {
+  min-width: 0;
+  flex: 1;
+  overflow-wrap: anywhere;
+}
+.pcx[data-estado="apagada"] .pcx-t {
+  color: var(--txt-2);
+}
+.pcx-p {
+  width: 0.375rem;
+  height: 0.375rem;
+  flex: none;
+  border-radius: 50%;
+  background: var(--txt-3);
+}
+.pcx[data-estado="prendiendo"] .pcx-p {
+  background: var(--ambar);
+}
+.pcx[data-estado="prendida"] .pcx-p {
+  background: var(--verde);
+}
+.pcx-b {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+}
+.pcx-b[data-prim] {
+  border-color: var(--borde-5);
+  color: var(--txt-1);
+}
+.pcx-e {
+  padding: 0 var(--esp-4) var(--esp-2);
+  color: var(--rojo-texto);
+  overflow-wrap: anywhere;
+}
+
+/* Con la barra escondida (en el celular: con una conversación abierta) el cartel no se ve: el botón
+   que la trae lleva el mismo puntito. */
+.app[data-reinicio][data-oculta] .lado {
+  position: relative;
+}
+.app[data-reinicio][data-oculta] .lado::before {
+  position: absolute;
+  top: 0.1875rem;
+  right: 0.1875rem;
+  width: 0.375rem;
+  height: 0.375rem;
+  border-radius: 50%;
+  background: var(--azul);
+  content: "";
+}
+
+/* Trama en dos máquinas: de cuál es el líder (un ícono chico junto al nombre, sólo con más de una máquina
+   configurada) y su nombre en la cabecera de lo abierto. */
+.maq {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  color: var(--txt-4);
+}
+.maq-m {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--esp-1-5);
+  color: var(--texto-6);
+  font-size: var(--letra-4);
+  white-space: nowrap;
+}
+/* El aviso de la otra máquina arriba del pie, como el cartel de la actualización pero más callado: un punto
+   apagado si no contesta, ámbar si tiene otra versión y sólo se la puede mirar. */
+.maq-av {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--esp-2);
+  padding: var(--esp-2) var(--esp-4);
+  border-top: 1px solid var(--borde-1);
+  background: var(--negro);
+  color: var(--txt-3);
+  font-size: var(--letra-4);
+  line-height: 1.35;
+}
+.maq-av-p {
+  width: 0.375rem;
+  height: 0.375rem;
+  flex: none;
+  border-radius: 50%;
+  background: var(--txt-4);
+}
+.maq-av[data-estado="lectura"] .maq-av-p {
+  background: var(--ambar);
+}
+.maq-av-t {
+  min-width: 0;
+  flex: 1;
+  overflow-wrap: anywhere;
+}
+
+/* El aviso de Claude Code nuevo, arriba del pie: discreto, un puntito fijo (nada
+   que lata) y un globito que se abre una vez con la animación del menú. */
+.avc {
+  position: relative;
+  z-index: 4;
+  flex: none;
+  padding: 0 var(--esp-2) var(--esp-1-5);
+  background: var(--negro);
+}
+.avc-b {
+  display: flex;
+  width: 100%;
+  height: 1.5rem;
+  align-items: center;
+  gap: var(--esp-2);
+  padding: 0 var(--esp-2);
+  border: 0;
+  border-radius: var(--radio-2);
+  background: transparent;
+  color: var(--txt-3);
+  font-size: var(--letra-4);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition:
+    background-color 0.15s,
+    color 0.15s;
+}
+.avc-b:hover,
+.avc-b[aria-expanded="true"] {
+  background: var(--sup-1);
+  color: var(--texto-1);
+}
+.avc-p {
+  width: 0.375rem;
+  height: 0.375rem;
+  flex: none;
+  border-radius: 50%;
+  background: var(--azul);
+}
+.avc-g {
+  position: absolute;
+  bottom: calc(100% + 0.125rem);
+  left: 0.5rem;
+  display: flex;
+  width: min(16.25rem, calc(100% - 1rem));
+  flex-direction: column;
+  gap: var(--esp-1-5);
+  padding: var(--esp-2-5) var(--esp-3);
+  border: 1px solid var(--borde-3);
+  border-radius: var(--radio-4);
+  background: var(--sup-1);
+  box-shadow: 0 1rem 2.5rem var(--sombra);
+  transform-origin: bottom left;
+  animation: abre 0.18s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.avc-t {
+  color: var(--txt-1);
+  font-size: var(--letra-4);
+  font-weight: 500;
+}
+.avc-v {
+  display: flex;
+  align-items: baseline;
+  gap: var(--esp-2);
+  font-family: var(--font-mono);
+  font-size: var(--letra-4);
+  color: var(--txt-3);
+}
+.avc-v b {
+  font-weight: 500;
+  color: var(--texto-1);
+}
+.avc-n {
+  color: var(--txt-3);
+  font-size: var(--letra-3);
+  line-height: 1.4;
+}
+.avc-a {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--esp-2);
+  margin-top: var(--esp-0-5);
+}
+.avc-a button {
+  height: 1.625rem;
+  padding: 0 var(--esp-2-5);
+  border: 1px solid var(--borde-3);
+  border-radius: var(--radio-2);
+  background: transparent;
+  color: var(--txt-2);
+  font-size: var(--letra-4);
+  transition:
+    background-color 0.15s,
+    color 0.15s;
+}
+.avc-a button:hover {
+  background: var(--sup-2);
+  color: var(--texto-1);
+}
+.avc-a .avc-u {
+  border-color: var(--borde-5);
+  color: var(--txt-1);
+}
+.avc-a .avc-u:disabled {
+  color: var(--txt-3);
+}
+/* El resultado de Actualizar: lo que falta (o el error corto; el entero, en el tooltip). */
+.avc-ok {
+  color: var(--txt-2);
+}
+.avc-e {
+  color: var(--rojo);
+  overflow-wrap: anywhere;
+}
+.avc-l {
+  text-decoration: underline;
+  text-decoration-color: var(--texto-8);
+  text-underline-offset: 0.1875rem;
+}
+@media (prefers-reduced-motion: reduce) {
+  .avc-g {
+    animation: none;
+  }
+}
+
+/* Sólo los botones sueltos funden el color. Las filas de la lista responden en
+   el frame siguiente: barrerlas con el mouse no tiene que dejar nada animando. */
+.buscar,
+.nueva,
+.vista button,
+.pie button,
+.btn2,
+.lado {
+  transition:
+    background-color 0.15s,
+    color 0.15s,
+    border-color 0.15s;
+}
+
+/* --- Vista de hilo --------------------------------------------------------- */
+.hilo {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  background: var(--sup-0);
+}
+.migas {
+  display: flex;
+  height: 3rem;
+  flex: none;
+  align-items: center;
+  gap: var(--esp-2-5);
+  padding: 0 var(--esp-6) 0 var(--esp-3);
+  border-bottom: 1px solid var(--borde-1);
+}
+.lado {
+  display: grid;
+  width: 1.75rem;
+  height: 1.75rem;
+  flex: none;
+  place-items: center;
+  border: 0;
+  border-radius: var(--radio-2);
+  background: transparent;
+  color: var(--texto-6);
+}
+.lado:hover {
+  background: var(--sup-2);
+  color: var(--texto-1);
+}
+.ruta {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  gap: var(--esp-2);
+  color: var(--texto-6);
+  white-space: nowrap;
+}
+.ruta b {
+  overflow: hidden;
+  font-weight: 500;
+  color: var(--texto-1);
+  text-overflow: ellipsis;
+}
+.estado {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--esp-1-5);
+  font-size: var(--letra-4);
+  white-space: nowrap;
+}
+.estado i {
+  position: relative;
+  width: 0.375rem;
+  height: 0.375rem;
+  border-radius: 50%;
+  background: currentColor;
+}
+.estado .halo {
+  inset: 0;
+  width: auto;
+  height: auto;
+}
+.btn2 {
+  height: 1.75rem;
+  flex: none;
+  padding: 0 var(--esp-2-5);
+  border: 1px solid var(--borde-3);
+  border-radius: var(--radio-2);
+  background: transparent;
+  color: var(--texto-3);
+  font-size: var(--letra-4);
+}
+.btn2:hover {
+  background: var(--sup-2);
+  color: var(--blanco);
+}
+.conv-zona {
+  min-height: 0;
+  flex: 1;
+  overflow: hidden auto;
+  scrollbar-width: none;
+}
+.conv {
+  display: flex;
+  width: 100%;
+  max-width: 45rem;
+  flex-direction: column;
+  gap: var(--esp-5);
+  margin: 0 auto;
+  padding: var(--esp-8) var(--esp-6);
+}
+/* La marca de cada mensaje (src/hilo/Marca.tsx) no ocupa nada: ni lugar ni espacio entre mensajes. */
+.conv > i.k {
+  display: none;
+}
+/* Una conversación larga no pinta ni mide lo que no se ve: cada mensaje fuera de pantalla es una caja del alto que tuvo la última vez
+   (`auto`) o, si todavía no se vio, de un alto de mentira. Ni el scroll, ni el bajar al fondo, ni el scroll guardado (que cuenta
+   desde el final) cambian: el navegador mide lo que entra a la vista y ancla el scroll. Los mensajes en cola y lo que llega en vivo
+   (no son hijos de `.conv` con esta forma, o están al final y a la vista) quedan como siempre. */
+.conv > .yo:not(.encolado) {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 20rem auto 3.5rem;
+}
+.conv > :is(.el, .sis, .trabajo) {
+  content-visibility: auto;
+  contain-intrinsic-block-size: auto 5rem;
+}
+.conv > .trabajo {
+  contain-intrinsic-block-size: auto 1.25rem;
+}
+.yo {
+  max-width: 80%;
+  align-self: flex-end;
+  padding: var(--esp-2-5) var(--esp-3-5);
+  border-radius: var(--radio-4);
+  background: var(--sup-2);
+  color: var(--texto-2);
+  line-height: 1.55;
+}
+/* Lo que espera en la cola mientras el líder responde: como un mensaje propio, apagado. */
+.yo.encolado {
+  border: 1px dashed var(--borde-4);
+  background: transparent;
+  color: var(--texto-4);
+}
+.encolado-t {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-2);
+  margin-bottom: var(--esp-1);
+  color: var(--texto-6);
+  font-size: var(--letra-4);
+}
+.encolado-t > span {
+  min-width: 0;
+  flex: 1;
+}
+.encolado-x {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 1.125rem;
+  height: 1.125rem;
+  border-radius: var(--radio-2);
+  color: var(--texto-6);
+}
+/* No pudo salir: por qué, y Reintentar (no se reintenta solo). */
+.yo.encolado[data-error] .encolado-t > span {
+  color: var(--rojo);
+}
+.encolado-re {
+  flex: none;
+  height: 1.125rem;
+  padding: 0 var(--esp-1-5);
+  border-radius: var(--radio-2);
+  color: var(--texto-3);
+}
+:is(.encolado-x, .encolado-re):hover {
+  background: var(--sup-4);
+  color: var(--texto-2);
+}
+.trabajo summary {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--esp-1-5);
+  border-radius: var(--radio-2);
+  color: var(--texto-6);
+  font-size: var(--letra-4);
+  list-style: none;
+  cursor: pointer;
+  user-select: none;
+}
+.trabajo summary:hover {
+  color: var(--texto-3);
+}
+.trabajo summary::-webkit-details-marker {
+  display: none;
+}
+.trabajo summary svg {
+  transition: transform 0.15s ease-out;
+}
+.trabajo[open] summary svg {
+  transform: rotate(90deg);
+}
+.trabajo ul {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-1);
+  margin: var(--esp-2) 0 0 var(--esp-1);
+  padding: 0 0 0 var(--esp-3);
+  border-left: 1px solid var(--borde-3);
+  color: var(--texto-6);
+  font-size: var(--letra-4);
+  list-style: none;
+  animation: entra 0.16s ease-out;
+  /* Una ventana, no la conversación entera: adentro se scrollea y, si trabaja, sigue su último paso. */
+  max-height: 20rem;
+  overflow: hidden auto;
+}
+@keyframes entra {
+  from {
+    opacity: 0;
+    transform: translateY(-0.1875rem);
+  }
+}
+/* El razonamiento del modelo (src/hilo/Turno.tsx, Pensado): se pliega como el trabajo; abierto, su texto en una ventana que sigue lo que llega. */
+.pensado-t {
+  max-height: 14rem;
+  margin: var(--esp-2) 0 0 var(--esp-1);
+  padding: 0 0 0 var(--esp-3);
+  border-left: 1px solid var(--borde-3);
+  color: var(--texto-6);
+  font-size: var(--letra-4);
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow: hidden auto;
+  overflow-wrap: anywhere;
+}
+/* Cerrado y trabajando: el paso en curso, en una línea pegada al "Trabajando 52 s" de arriba. */
+.trabajo-paso {
+  display: flex;
+  min-width: 0;
+  margin: -1rem 0 0 var(--esp-4);
+  font-size: var(--letra-4);
+}
+.trabajo-paso-l {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--esp-1-5);
+  animation: entra 0.16s ease-out;
+}
+.trabajo-paso-s {
+  flex: none;
+  color: var(--texto-7);
+}
+.el {
+  color: var(--texto-3);
+  line-height: 1.65;
+}
+/* La hora de un mensaje (src/hilo/Turno.tsx, Hora): pegada al de arriba, chica y apagada. */
+.hora {
+  display: flex;
+  margin-top: -1rem;
+  font-family: var(--font-mono);
+  font-size: var(--letra-3);
+  color: var(--txt-4);
+  user-select: none;
+}
+.hora[data-der] {
+  justify-content: flex-end;
+}
+.el p {
+  margin: 0 0 var(--esp-2-5);
+}
+.el p:last-child {
+  margin: 0;
+}
+.pregunta {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-1-5);
+  padding: var(--esp-0-5) 0 var(--esp-0-5) var(--esp-3-5);
+  border-left: 0.125rem solid var(--ambar);
+}
+.pregunta .q {
+  font-weight: 500;
+  color: var(--texto-1);
+}
+.pregunta p,
+.pregunta ol {
+  margin: 0;
+  color: var(--texto-3);
+  line-height: 1.65;
+}
+.pregunta ol {
+  padding-left: var(--esp-4);
+  list-style: decimal;
+}
+.vacio {
+  display: grid;
+  flex: 1;
+  place-items: center;
+  color: var(--texto-7);
+}
+.vacio span {
+  display: block;
+}
+.caja-zona {
+  width: 100%;
+  max-width: 45rem;
+  flex: none;
+  margin: 0 auto;
+  padding: 0 var(--esp-6) 1.875rem;
+}
+/* Worker (B12): sin caja, sólo Parar o "Pasárselo a un líder" a la derecha. */
+/* El pie del worker (sólo lectura): Parar/Pasárselo o cómo terminó, al medio. */
+.pie-worker {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--esp-3);
+  min-height: 1.875rem;
+  padding-top: var(--esp-1);
+}
+.pie-worker .prim[data-texto] {
+  padding: 0 var(--esp-3-5) 0 var(--esp-3);
+}
+.caja {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-1-5);
+  padding: var(--esp-2-5) var(--esp-3);
+  border: 1px solid var(--borde-3);
+  border-radius: var(--radio-4);
+  background: var(--sup-1);
+  transition: border-color 0.15s;
+}
+.caja:focus-within {
+  border-color: var(--borde-5);
+}
+.caja textarea {
+  min-height: 2.75rem;
+  /* B13: crece con lo escrito hasta un tope; después scrollea con la rueda, sin flechas. */
+  field-sizing: content;
+  max-height: min(20rem, 40vh);
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--borde-3) transparent;
+  border: 0;
+  background: transparent;
+  color: var(--texto-1);
+  font: inherit;
+  font-size: var(--letra-6);
+  outline: none;
+  resize: none;
+}
+.caja textarea::placeholder {
+  color: var(--texto-7);
+}
+.caja textarea:disabled {
+  cursor: not-allowed;
+}
+.barra-c {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--esp-1);
+}
+.pick {
+  position: relative;
+}
+.pbtn {
+  display: inline-flex;
+  height: 1.75rem;
+  align-items: center;
+  gap: var(--esp-2);
+  padding: 0 var(--esp-2) 0 var(--esp-2);
+  border: 1px solid var(--borde-3);
+  border-radius: var(--radio-2);
+  background: transparent;
+  color: var(--texto-3);
+  font-size: var(--letra-4);
+  transition:
+    background-color 0.15s,
+    border-color 0.15s,
+    color 0.15s;
+}
+.pbtn:is(:hover, [aria-expanded="true"]) {
+  border-color: var(--borde-5);
+  background: var(--sup-2);
+  color: var(--texto-1);
+}
+.pbtn:disabled {
+  border-color: var(--borde-2);
+  background: transparent;
+  color: var(--texto-7);
+  cursor: not-allowed;
+}
+.pbtn .chev {
+  color: var(--texto-7);
+  transition: transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.pbtn[aria-expanded="true"] .chev {
+  color: var(--texto-4);
+  transform: rotate(180deg);
+}
+.chip {
+  width: 0.375rem;
+  height: 0.375rem;
+  border-radius: var(--radio-1);
+  background: var(--texto-1);
+  transform: rotate(45deg);
+}
+.nivel {
+  display: inline-flex;
+  height: 0.625rem;
+  align-items: flex-end;
+  gap: var(--esp-0-5);
+}
+.nivel i {
+  width: 0.125rem;
+  border-radius: var(--radio-1);
+  background: var(--borde-4);
+}
+.nivel i:nth-child(1) {
+  height: 0.25rem;
+}
+.nivel i:nth-child(2) {
+  height: 0.375rem;
+}
+.nivel i:nth-child(3) {
+  height: 0.5rem;
+}
+.nivel i:nth-child(4) {
+  height: 0.625rem;
+}
+.nivel i[data-on] {
+  background: var(--texto-3);
+}
+.fondo {
+  position: fixed;
+  inset: 0;
+  z-index: 19;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: default;
+}
+.menu {
+  position: absolute;
+  bottom: calc(100% + 0.375rem);
+  left: 0;
+  z-index: 20;
+  display: flex;
+  min-width: 14.75rem;
+  flex-direction: column;
+  gap: 1px;
+  padding: var(--esp-1);
+  border: 1px solid var(--borde-3);
+  border-radius: var(--radio-4);
+  background: var(--sup-1);
+  box-shadow: 0 1rem 2.5rem var(--sombra);
+  transform-origin: bottom left;
+  animation: abre 0.18s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+@keyframes abre {
+  from {
+    opacity: 0;
+    transform: translateY(0.25rem) scale(0.97);
+  }
+}
+.mh {
+  padding: var(--esp-1-5) var(--esp-2-5) var(--esp-1);
+  color: var(--texto-7);
+  font-size: var(--letra-3);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+/* El divisor de un grupo dentro del menú (la empresa del modelo): el rótulo de arriba, con una línea y aire antes del segundo grupo en adelante. */
+.mh-grupo {
+  margin-top: var(--esp-1-5);
+  padding-top: var(--esp-2);
+  border-top: 1px solid var(--borde-2);
+}
+.mh-grupo[data-primero] {
+  margin-top: 0;
+  padding-top: var(--esp-1);
+  border-top: 0;
+}
+.op {
+  display: grid;
+  width: 100%;
+  grid-template-columns: 1fr 0.875rem;
+  align-items: center;
+  column-gap: var(--esp-2-5);
+  padding: var(--esp-2) var(--esp-2-5);
+  border: 0;
+  border-radius: var(--radio-2);
+  background: transparent;
+  color: var(--texto-4);
+  text-align: left;
+  transition:
+    background-color 0.12s,
+    color 0.12s;
+}
+.op:is(:hover, :focus-visible) {
+  background: var(--sup-2);
+  color: var(--texto-1);
+}
+/* Dentro de una lista que recorta: el anillo va adentro. */
+.op:focus-visible,
+.cmenu-op:focus-visible {
+  outline-offset: -2px;
+}
+.op .on1 {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-2);
+  font-size: var(--letra-5);
+}
+/* El logo de la empresa (un solo color, el del texto) y el chip de "local" junto al nombre. */
+.op .logo {
+  flex: none;
+  color: var(--texto-6);
+}
+.op .loc {
+  display: inline-flex;
+  flex: none;
+  color: var(--texto-7);
+}
+.op:is(:hover, :focus-visible, [aria-selected="true"]) .logo {
+  color: var(--texto-2);
+}
+.op .md {
+  grid-column: 1;
+  color: var(--texto-7);
+  font-size: var(--letra-3);
+}
+/* Una máquina caída: se lee, no se elige. Sin hover. */
+.op:disabled {
+  color: var(--texto-7);
+  cursor: default;
+}
+.op:disabled:hover {
+  background: transparent;
+}
+.op .ok {
+  grid-row: 1 / span 2;
+  grid-column: 2;
+  color: var(--texto-1);
+  opacity: 0;
+}
+.op[aria-selected="true"] {
+  color: var(--texto-1);
+}
+.op[aria-selected="true"] .ok {
+  opacity: 1;
+}
+.rec {
+  padding: 0 var(--esp-1);
+  border: 1px solid var(--borde-3);
+  border-radius: var(--radio-2);
+  color: var(--texto-7);
+  font-family: var(--font-mono);
+  font-size: var(--letra-2);
+}
+.esp {
+  flex: 1;
+}
+.prim {
+  display: grid;
+  width: 1.875rem;
+  height: 1.875rem;
+  place-items: center;
+  border: 0;
+  border-radius: var(--radio-3);
+  background: var(--texto-1);
+  color: var(--negro);
+}
+.prim:hover {
+  background: var(--blanco);
+}
+.prim:disabled {
+  background: var(--sup-4);
+  color: var(--texto-6);
+  cursor: not-allowed;
+}
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--esp-3-5);
+  padding: var(--esp-2) var(--esp-1) 0;
+  color: var(--texto-7);
+  font-family: var(--font-mono);
+  font-size: var(--letra-3);
+}
+
+/* --- B3: conversación, caja y líder ---------------------------------------- */
+.app .caja :is(textarea, input) {
+  outline: none;
+}
+.menu {
+  max-height: min(23.75rem, 60vh);
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--borde-3) transparent;
+}
+/* Chat de un líder: la línea chica de arriba y lo que cambia de la caja. */
+.lider-linea {
+  display: flex;
+  width: 100%;
+  max-width: 45rem;
+  flex: none;
+  align-items: baseline;
+  gap: var(--esp-2-5);
+  margin: 0 auto;
+  padding: var(--esp-2-5) var(--esp-6) 0;
+  color: var(--texto-6);
+  font-size: var(--letra-4);
+}
+/* El nombre es una sola línea con elipsis (un primer mensaje sin saltos no tapa la conversación); lo de al lado no se parte. */
+.lider-linea b {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--texto-3);
+  font-family: var(--font-mono);
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lider-linea > :not(b) {
+  flex: none;
+  white-space: nowrap;
+}
+.lider-linea .tenue {
+  color: var(--texto-7);
+}
+/* Líder nuevo (B26): la caja al medio y el aviso justo encima; al mandar, se apaga y la caja baja. */
+.conv-zona[data-vacia] {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+.conv-zona[data-vacia] .conv {
+  padding-bottom: var(--esp-3);
+}
+.caja-bajo {
+  min-height: 0;
+  flex: 1;
+}
+.conv-vacia {
+  align-self: center;
+  color: var(--texto-7);
+  font-size: var(--letra-5);
+  transition: opacity 0.15s;
+}
+.conv-vacia[data-ido] {
+  opacity: 0;
+}
+.caja.lider-ajeno {
+  flex-direction: row;
+  align-items: center;
+  color: var(--texto-4);
+  font-size: var(--letra-5);
+}
+/* Abierto en una terminal, sobre la caja: qué pasa al escribirle e ir a su ventana; o, con algo
+   en la cola, que sale cuando termine su turno (y cortarlo ya, si no se puede esperar). */
+.caja-ajeno {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-2);
+  padding: 0 var(--esp-1) var(--esp-2);
+  color: var(--txt-3);
+  font-size: var(--letra-4);
+  line-height: 1.5;
+}
+.caja-ajeno > span {
+  min-width: 0;
+  flex: 1;
+}
+.caja-ajeno button {
+  flex: none;
+}
+.caja-ajeno[data-espera] {
+  color: var(--texto-3);
+}
+/* Sin proceso: el texto dice qué pasó y el botón (Retomar, o Archivar si no se puede) no se achica. */
+.caja.lider-ajeno[data-caido] {
+  gap: var(--esp-3);
+  line-height: 1.5;
+}
+.caja.lider-ajeno[data-caido] button {
+  flex: none;
+}
+.conv-mas {
+  align-self: center;
+  color: var(--texto-7);
+  font-size: var(--letra-3);
+}
+/* --- El texto de un mensaje (src/hilo/Texto.tsx) ------------------------------
+   Nada se sale de su mensaje: lo que no tiene espacios (una URL pegada) se parte
+   adentro; sólo los bloques de código y las tablas se deslizan de costado, en su caja. */
+:is(.yo, .el, .pregunta) {
+  --enlace: #8fb5f0;
+  --ruta: #7fd1c7;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.yo p,
+.el p,
+.pregunta p {
+  white-space: pre-line;
+}
+.yo p {
+  margin: 0 0 var(--esp-2);
+}
+.yo p:last-child {
+  margin: 0;
+}
+:is(.yo, .el, .pregunta) :is(ol, ul) {
+  margin: 0 0 var(--esp-2-5);
+  padding-left: var(--esp-6);
+  line-height: 1.65;
+}
+:is(.yo, .el, .pregunta) ul {
+  list-style: disc;
+}
+:is(.yo, .el, .pregunta) ul ul {
+  list-style: circle;
+}
+:is(.yo, .el) ol {
+  list-style: decimal;
+}
+:is(.yo, .el, .pregunta) :is(ol, ul):last-child {
+  margin-bottom: 0;
+}
+:is(.yo, .el, .pregunta) li {
+  white-space: pre-line;
+}
+:is(.yo, .el) li + li {
+  margin-top: var(--esp-1);
+}
+:is(.yo, .el, .pregunta) li::marker {
+  color: var(--txt-4);
+  font-variant-numeric: tabular-nums;
+}
+:is(.yo, .el) ol > li::marker {
+  color: var(--txt-3);
+  font-weight: 500;
+}
+/* Una lista adentro de un ítem: pegada a su renglón. */
+:is(.yo, .el, .pregunta) li > :is(ol, ul) {
+  margin: var(--esp-1) 0 0;
+}
+/* Un código o una tabla adentro de un ítem: separados de su renglón. */
+:is(.yo, .el, .pregunta) li > :is(.codigo, .tabla) {
+  margin-top: var(--esp-1-5);
+}
+:is(.yo, .el, .pregunta) li > :is(.codigo, .tabla):not(:last-child) {
+  margin-bottom: var(--esp-1-5);
+}
+/* "- [ ]" y "- [x]": la casilla en el lugar de la viñeta. */
+:is(.yo, .el) li[data-casilla] {
+  position: relative;
+  list-style: none;
+}
+:is(.yo, .el) li[data-casilla]::before {
+  position: absolute;
+  top: 0.3125rem;
+  left: -1.25rem;
+  display: grid;
+  width: 0.75rem;
+  height: 0.75rem;
+  place-items: center;
+  border: 1px solid var(--borde-6);
+  border-radius: var(--radio-1);
+  content: "";
+  font-size: var(--letra-1);
+  font-weight: 700;
+  line-height: 1;
+}
+:is(.yo, .el) li[data-casilla="x"]::before {
+  border-color: transparent;
+  background: color-mix(in srgb, var(--verde-suave) 18%, transparent);
+  color: var(--verde-suave);
+  content: "✓";
+}
+:is(.yo, .el) li[data-casilla="x"] {
+  color: var(--txt-3);
+}
+:is(.yo, .el, .pregunta) blockquote {
+  margin: 0 0 var(--esp-2-5);
+  padding: 0.0625rem 0 0.0625rem var(--esp-3-5);
+  border-left: 0.125rem solid var(--borde-4);
+  color: var(--txt-3);
+}
+:is(.yo, .el, .pregunta) blockquote:last-child {
+  margin-bottom: 0;
+}
+:is(.yo, .el, .pregunta) hr {
+  height: 0;
+  margin: var(--esp-4) 0;
+  border: 0;
+  border-top: 1px solid var(--borde-3);
+}
+/* Un bloque ```: una cabecera propia (el lenguaje a la izquierda, Copiar a la derecha) y debajo el código con su scroll de costado: el rótulo nunca tapa el texto. */
+:is(.yo, .el, .pregunta) .codigo {
+  margin: 0 0 var(--esp-2-5);
+  overflow: hidden;
+  border: 1px solid var(--borde-2);
+  border-radius: var(--radio-3);
+  background: var(--sup-0);
+}
+.yo .codigo {
+  border-color: var(--borde-3);
+}
+:is(.yo, .el, .pregunta) .codigo:last-child {
+  margin-bottom: 0;
+}
+:is(.yo, .el, .pregunta) pre {
+  margin: 0;
+  padding: var(--esp-2-5) var(--esp-3);
+  overflow-x: auto;
+  color: var(--texto-3);
+  font-family: var(--font-mono);
+  font-size: var(--letra-4);
+  line-height: 1.55;
+  white-space: pre;
+  overflow-wrap: normal;
+  scrollbar-width: thin;
+  scrollbar-color: var(--borde-3) transparent;
+}
+.codigo-h {
+  display: flex;
+  min-height: 2rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--esp-1);
+  padding: 0 var(--esp-1) 0 var(--esp-3);
+  border-bottom: 1px solid var(--borde-2);
+  color: var(--texto-7);
+  font-family: var(--font-mono);
+  font-size: var(--letra-2);
+  letter-spacing: 0.02em;
+  user-select: none;
+}
+.codigo-c {
+  position: relative;
+  display: grid;
+  width: 1.5rem;
+  height: 1.5rem;
+  place-items: center;
+  border-radius: var(--radio-2);
+  color: var(--txt-4);
+  opacity: 0;
+  transition: opacity 120ms;
+}
+.codigo:hover .codigo-c,
+.codigo-c:focus-visible,
+.codigo-c[data-hecho] {
+  opacity: 1;
+}
+.codigo-c:hover {
+  background: var(--sup-3);
+  color: var(--txt-1);
+}
+.codigo-c[data-hecho] {
+  color: var(--verde-suave);
+}
+/* La confirmación de copiar (src/copiar.ts): "Copiado" un momento, abajo al medio. Sólo `opacity`. */
+.copia-aviso {
+  position: fixed;
+  bottom: calc(1.5rem + env(safe-area-inset-bottom, 0px));
+  left: 50%;
+  z-index: 210;
+  padding: var(--esp-1-5) var(--esp-3);
+  border: 1px solid var(--borde-3);
+  border-radius: var(--radio-2);
+  background: var(--sup-0);
+  color: var(--txt-1);
+  font-size: var(--letra-4);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(-50%);
+  transition: opacity 120ms;
+}
+.copia-aviso[data-visto] {
+  opacity: 1;
+}
+.copia-aviso[data-ok="no"] {
+  color: var(--rojo);
+}
+/* El resaltado (src/hilo/resaltar.ts): cinco colores del estándar, apagados. */
+.codigo [data-c="com"] {
+  color: var(--sint-com);
+}
+.codigo [data-c="str"] {
+  color: var(--sint-str);
+}
+.codigo [data-c="num"] {
+  color: var(--sint-num);
+}
+.codigo [data-c="kw"] {
+  color: var(--sint-kw);
+}
+.codigo [data-c="fn"] {
+  color: var(--sint-fn);
+}
+.codigo [data-c="var"] {
+  color: var(--sint-var);
+}
+.codigo [data-c="mas"] {
+  color: var(--verde-suave);
+}
+.codigo [data-c="menos"] {
+  color: var(--sint-menos);
+}
+.codigo [data-c="meta"] {
+  color: var(--texto-6);
+}
+/* Lo pegado de una terminal en un mensaje propio: cada renglón en su renglón, el comando resaltado. */
+.term {
+  margin: 0 0 var(--esp-2);
+  padding: var(--esp-2) var(--esp-3);
+  border: 1px solid var(--borde-3);
+  border-radius: var(--radio-3);
+  background: var(--sup-0);
+  color: var(--txt-3);
+  font-family: var(--font-mono);
+  font-size: var(--letra-4);
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+.term:last-child {
+  margin-bottom: 0;
+}
+.term-c {
+  color: var(--txt-1);
+}
+.term-p {
+  color: var(--sint-str);
+}
+:is(.yo, .el, .pregunta) code {
+  padding: 0.0625rem var(--esp-1);
+  border-radius: var(--radio-2);
+  background: var(--resalte-2);
+  color: var(--texto-2);
+  font-family: var(--font-mono);
+  font-size: 0.88em;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+/* Una ruta de archivo (`src/a.ts:12`): se reconoce de un vistazo. */
+:is(.yo, .el, .pregunta) code[data-ruta] {
+  color: var(--ruta);
+}
+:is(.yo, .el, .pregunta) b {
+  font-weight: 600;
+  color: var(--texto-1);
+}
+:is(.yo, .el, .pregunta) em {
+  font-style: italic;
+}
+:is(.yo, .el, .pregunta) s {
+  color: var(--txt-4);
+}
+/* Tablas del markdown (src/hilo/markdown.ts): si no entra, se desliza de costado adentro de su caja. */
+:is(.yo, .el, .pregunta) .tabla {
+  max-width: 100%;
+  margin: 0 0 var(--esp-2-5);
+  overflow-x: auto;
+  border: 1px solid var(--borde-2);
+  border-radius: var(--radio-3);
+  scrollbar-width: thin;
+  scrollbar-color: var(--borde-3) transparent;
+}
+:is(.yo, .el, .pregunta) .tabla:last-child {
+  margin-bottom: 0;
+}
+.tabla table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--letra-5);
+  line-height: 1.5;
+}
+.tabla :is(th, td) {
+  padding: var(--esp-2) var(--esp-3);
+  border-bottom: 1px solid var(--borde-1);
+  text-align: left;
+  vertical-align: top;
+  white-space: pre-line;
+  /* Una palabra se parte recién cuando la celda llegó a su tope: antes la tabla se desliza. */
+  max-width: 24rem;
+  overflow-wrap: break-word;
+}
+.tabla th {
+  white-space: nowrap;
+  border-bottom-color: var(--borde-3);
+  background: var(--sup-1);
+  color: var(--texto-1);
+  font-weight: 600;
+}
+.tabla tbody tr:nth-child(even) {
+  background: var(--resalte-1);
+}
+.tabla tbody tr:last-child td {
+  border-bottom: 0;
+}
+.tabla [data-al="c"] {
+  text-align: center;
+}
+.tabla [data-al="r"] {
+  text-align: right;
+}
+:is(.yo, .el, .pregunta, .term) a {
+  color: var(--enlace);
+  text-decoration: underline;
+  text-decoration-color: var(--enlace-subrayado);
+  text-underline-offset: 0.1875rem;
+}
+:is(.yo, .el, .pregunta, .term) a[href] {
+  cursor: pointer;
+}
+:is(.yo, .el, .pregunta, .term) a[href]:hover {
+  text-decoration-color: currentcolor;
+}
+.trabajo li {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: 1px;
+}
+.trabajo .paso {
+  color: var(--texto-4);
+}
+.trabajo .herr {
+  font-family: var(--font-mono);
+  font-size: var(--letra-3);
+  color: var(--texto-7);
+}
+.caja-error {
+  padding: var(--esp-2) var(--esp-1) 0;
+  color: var(--rojo);
+  font-size: var(--letra-4);
+  line-height: 1.5;
+  white-space: pre-line;
+}
+.caja-aviso {
+  display: block;
+  padding: var(--esp-2) var(--esp-1) 0;
+  color: var(--texto-4);
+  font-size: var(--letra-4);
+}
+.caja-aviso:empty {
+  display: none;
+}
+/* Lo que dijo un comando de la app (/output-style: cuándo se aplica). */
+.caja-nota {
+  padding: var(--esp-2) var(--esp-1) 0;
+  color: var(--txt-3);
+  font-size: var(--letra-4);
+  line-height: 1.5;
+}
+/* Líder con un modelo local: sin workers. Callado como .caja-aviso, con el chip delante. */
+.caja-local {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-1-5);
+  padding: var(--esp-2) var(--esp-1) 0;
+  color: var(--texto-4);
+  font-size: var(--letra-4);
+  line-height: 1.5;
+}
+.caja-local svg {
+  flex: none;
+}
+/* "Te necesita": el enviar dice Responder. */
+.prim[data-texto] {
+  display: inline-flex;
+  width: auto;
+  gap: var(--esp-1-5);
+  padding: 0 var(--esp-2-5) 0 var(--esp-3);
+  font-size: var(--letra-5);
+  font-weight: 500;
+}
+.btn2:disabled {
+  color: var(--texto-7);
+  cursor: default;
+}
+.ficha {
+  display: grid;
+  grid-template-columns: auto auto;
+  gap: var(--esp-2-5) 1.75rem;
+  margin: 0;
+  font-size: var(--letra-5);
+}
+.ficha dt {
+  color: var(--texto-7);
+}
+.ficha dd {
+  margin: 0;
+  color: var(--texto-3);
+}
+.ficha .cache {
+  font-family: var(--font-mono);
+}
+
+/* --- El lápiz, con Nuevo líder abierto ------------------------------------- */
+.nueva[aria-pressed="true"] {
+  border-color: var(--borde-5);
+  background: var(--sup-2);
+  color: var(--blanco);
+}
+
+/* --- Tooltip (src/barra/tooltip.ts) --------------------------------------- */
+#tip {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 140;
+  padding: var(--esp-1) var(--esp-2);
+  border: 1px solid var(--borde-3);
+  border-radius: var(--radio-2);
+  background: var(--sup-2);
+  color: var(--texto-2);
+  font-size: var(--letra-4);
+  line-height: 1.4;
+  /* Un renglón, salvo que el texto traiga saltos (la ficha de un worker). */
+  white-space: pre;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate3d(var(--x, 0), var(--y, 0), 0) scale(0.98);
+  transition:
+    opacity 120ms,
+    transform 120ms;
+}
+#tip[data-visible] {
+  opacity: 1;
+  transform: translate3d(var(--x, 0), var(--y, 0), 0) scale(1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app *,
+  .app *::before,
+  .app *::after,
+  #tip {
+    animation: none !important;
+    transition: none !important;
+  }
+  .brillo {
+    background: none;
+    color: var(--azul);
+  }
+}
+
+/* --- B12: lo que hace un líder de la app y los avisos del turno ------------
+   El punto late y el verbo brilla con latido.ts (sin animaciones CSS infinitas). */
+.hace {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--esp-2);
+  font-size: var(--letra-4);
+  color: var(--txt-3);
+}
+.hace-pt {
+  width: 0.375rem;
+  height: 0.375rem;
+  flex: none;
+  border-radius: 50%;
+  background: var(--azul);
+}
+.hace-v {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.hace-x {
+  flex: none;
+  color: var(--texto-6);
+  font-variant-numeric: tabular-nums;
+}
+.lider .hace-s {
+  display: flex;
+  min-width: 0;
+  color: var(--azul);
+}
+.lider .hace-s > :last-child {
+  flex: none;
+  /* El " · " del reloj: al principio de un ítem flex el espacio se colapsa. */
+  white-space: pre;
+}
+.avisos {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-1);
+  font-size: var(--letra-4);
+  line-height: 1.45;
+  color: var(--txt-3);
+}
+.aviso[data-tono="ojo"] {
+  color: var(--ambar);
+}
+.aviso[data-tono="grave"] {
+  color: var(--rojo);
+}
+
+/* --- B13: modo de permisos, menú de "/" y pedidos de permiso --------------- */
+/* Los títulos de un mensaje: todos <h4>, el nivel va en data-n (# = 1 … #### = 4). */
+:is(.yo, .el, .pregunta) h4 {
+  margin: var(--esp-4) 0 var(--esp-2);
+  color: var(--texto-1);
+  font-size: var(--letra-6);
+  font-weight: 600;
+  line-height: 1.4;
+}
+:is(.yo, .el, .pregunta) h4[data-n="1"] {
+  margin-top: var(--esp-6);
+  padding-bottom: var(--esp-1-5);
+  border-bottom: 1px solid var(--borde-3);
+  font-size: var(--letra-8);
+  letter-spacing: -0.01em;
+}
+:is(.yo, .el, .pregunta) h4[data-n="2"] {
+  margin-top: var(--esp-5);
+  font-size: var(--letra-7);
+  letter-spacing: -0.005em;
+}
+:is(.yo, .el, .pregunta) h4[data-n="4"] {
+  color: var(--txt-2);
+  font-size: var(--letra-5);
+}
+:is(.yo, .el, .pregunta) h4:first-child {
+  margin-top: 0;
+}
+/* El chip del modo: el color y el símbolo de Claude Code; clic o Shift+Tab rota. */
+.modo {
+  display: inline-flex;
+  height: 1.75rem;
+  align-items: center;
+  gap: var(--esp-1-5);
+  margin-right: var(--esp-1);
+  padding: 0 var(--esp-2);
+  border: 0;
+  border-radius: var(--radio-2);
+  background: transparent;
+  font-family: var(--font-mono);
+  font-size: var(--letra-4);
+  white-space: nowrap;
+}
+.modo:hover {
+  background: var(--sup-2);
+}
+.caja-zona {
+  position: relative;
+}
+.menu-cmd {
+  position: absolute;
+  right: 1.5rem;
+  bottom: calc(100% - 0.75rem);
+  left: 1.5rem;
+  z-index: 20;
+  display: flex;
+  max-height: min(20rem, 50vh);
+  flex-direction: column;
+  gap: 1px;
+  padding: var(--esp-1);
+  overflow-y: auto;
+  border: 1px solid var(--borde-3);
+  border-radius: var(--radio-4);
+  background: var(--sup-1);
+  box-shadow: 0 1rem 2.5rem var(--sombra);
+  scrollbar-width: thin;
+  scrollbar-color: var(--borde-3) transparent;
+  transform-origin: bottom left;
+  animation: abre 0.16s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.cmd {
+  display: grid;
+  grid-template-columns: minmax(7.5rem, auto) 1fr;
+  align-items: baseline;
+  column-gap: var(--esp-3-5);
+  padding: var(--esp-1-5) var(--esp-2-5);
+  border: 0;
+  border-radius: var(--radio-2);
+  background: transparent;
+  text-align: left;
+}
+.cmd[aria-selected="true"] {
+  background: var(--sup-2);
+}
+.cmd-n {
+  color: var(--texto-2);
+  font-family: var(--font-mono);
+  font-size: var(--letra-4);
+  white-space: nowrap;
+}
+.cmd-n i {
+  color: var(--texto-7);
+  font-style: normal;
+}
+/* El valor puesto, en el segundo nivel (/model, /effort, /output-style). */
+.cmd-ya {
+  display: inline-block;
+  margin-left: var(--esp-1-5);
+  color: var(--azul);
+  vertical-align: -0.0625rem;
+}
+.cmd-d {
+  overflow: hidden;
+  color: var(--texto-6);
+  font-size: var(--letra-4);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* El plan de ExitPlanMode o una herramienta que pide permiso, arriba de la caja. */
+.pide {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-2-5);
+  margin-bottom: var(--esp-2-5);
+  padding: var(--esp-3) var(--esp-3-5);
+  border: 1px solid var(--borde-3);
+  border-left: 0.125rem solid var(--ambar);
+  border-radius: var(--radio-4);
+  background: var(--sup-0);
+  animation: abre 0.18s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.pide[data-plan] {
+  border-left-color: var(--modo-plan);
+}
+.pide-t {
+  color: var(--texto-4);
+  font-size: var(--letra-4);
+}
+.pide-plan {
+  max-height: min(22.5rem, 45vh);
+  overflow-y: auto;
+  font-size: var(--letra-6);
+  scrollbar-width: thin;
+  scrollbar-color: var(--borde-3) transparent;
+}
+.pide-detalle {
+  margin: 0;
+  overflow-x: auto;
+  color: var(--texto-3);
+  font-family: var(--font-mono);
+  font-size: var(--letra-4);
+  white-space: pre-wrap;
+}
+.pide-b {
+  display: flex;
+  gap: var(--esp-2);
+}
+.pide-nota {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--esp-2);
+}
+.pide-nota textarea {
+  flex: 1;
+  min-height: 1.875rem;
+  max-height: 10rem;
+  padding: var(--esp-1-5) var(--esp-2-5);
+  border: 1px solid var(--borde-3);
+  border-radius: var(--radio-3);
+  background: var(--sup-1);
+  color: var(--texto-1);
+  font: inherit;
+  font-size: var(--letra-6);
+  field-sizing: content;
+  resize: none;
+  scrollbar-width: thin;
+  scrollbar-color: var(--borde-3) transparent;
+}
+.pide-nota textarea:focus {
+  border-color: var(--borde-5);
+}
+@media (prefers-reduced-motion: reduce) {
+  .menu-cmd,
+  .pide {
+    animation: none;
+  }
+}
+/* --- B17: mensajes tiernos --------------------------------------------------
+   La frase la escribe el reloj (src/hilo/tierno.ts) y en cada cambio alterna
+   `data-par`: pasar de unos keyframes a los otros relanza la entrada, una sola
+   vez y sólo con opacity y transform. Con prefers-reduced-motion cambia sin
+   animar (la regla de arriba apaga toda animación). */
+.tierno {
+  display: inline-block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tierno[data-par="0"] {
+  animation: tierno-a 240ms cubic-bezier(0.2, 0, 0, 1);
+}
+.tierno[data-par="1"] {
+  animation: tierno-b 240ms cubic-bezier(0.2, 0, 0, 1);
+}
+@keyframes tierno-a {
+  from {
+    opacity: 0;
+    transform: translateY(0.25rem);
+  }
+}
+@keyframes tierno-b {
+  from {
+    opacity: 0;
+    transform: translateY(0.25rem);
+  }
+}
+/* El tiempo no se achica: la que se corta con "…" es la frase. */
+.l2 .tierno + span,
+.trabajo summary .tierno + span {
+  flex: none;
+}
+/* El indicador del chat con la frase: abajo, más chico, lo concreto (la herramienta que corre). */
+.hace-w {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--esp-1);
+}
+.hace-d {
+  overflow: hidden;
+  padding-left: var(--esp-3-5);
+  color: var(--texto-6);
+  font-family: var(--font-mono);
+  font-size: var(--letra-3);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* --- La tarjeta de actividad del chat (src/hilo/Actividad.tsx; dirección C de referencias/maquetas/actividad) ----
+   Una tarjeta hairline donde iba la línea de "qué hace": a la izquierda una escena de 2.75rem que actúa la actividad, a la
+   derecha el verbo, lo concreto en una pastilla mono, el tiempo y, apagados, los dos pasos de atrás. Sólo se mueve la escena:
+   la mueve src/barra/latido-escenas.ts (sin animaciones CSS infinitas); acá quedan las poses quietas, que son lo que se ve
+   con movimiento reducido y con la ventana oculta. */
+.tv {
+  --c: var(--azul);
+  --c-borde: color-mix(in srgb, var(--c) 32%, transparent);
+  min-width: 0;
+  animation: tv-entra 200ms ease-out;
+}
+.tv[data-t="pensando"] {
+  --c: var(--sint-kw);
+}
+.tv[data-t="web"] {
+  --c: var(--sint-var);
+}
+.tv[data-t="editando"] {
+  --c: var(--verde);
+}
+.tv[data-t="comando"] {
+  --c: var(--texto-3);
+}
+.tv[data-t="delegando"] {
+  --c: var(--rosa);
+}
+.tv[data-t="permiso"] {
+  --c: var(--ambar);
+}
+.tv[data-t="escribiendo"] {
+  --c: var(--azul-palido);
+}
+@keyframes tv-entra {
+  from {
+    opacity: 0;
+    transform: translateY(0.25rem);
+  }
+}
+.tv-tar {
+  display: grid;
+  grid-template-columns: 2.75rem minmax(0, 1fr);
+  align-items: start;
+  gap: var(--esp-3);
+  padding: var(--esp-3);
+  border: 1px solid var(--borde-3);
+  border-radius: var(--radio-4);
+  background: var(--sup-1);
+}
+.tv[data-t="permiso"] .tv-tar {
+  border-color: var(--c-borde);
+}
+.esc {
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: var(--radio-3);
+  background: var(--sup-2);
+  box-shadow: inset 0 0 0 1px var(--c-borde);
+  color: var(--c);
+}
+.esc svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.esc svg * {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.esc .izq {
+  transform-origin: 0 50%;
+}
+.esc .vb {
+  transform-box: view-box;
+  transform-origin: 50% 50%;
+}
+.tv-quita {
+  fill: var(--rojo-texto);
+}
+.tv-quita-fondo {
+  fill-opacity: 0.45;
+}
+/* Poses quietas: nada queda en escala 0 ni en opacidad 0, así se distingue cada una por su forma. */
+.esc .e-onda {
+  opacity: 0.35;
+  transform: scale(1.8);
+}
+.esc .e-pa,
+.esc .e-pb {
+  opacity: 1;
+}
+.esc .e-pa {
+  transform: translate(-11px, 16px);
+}
+.esc .e-pb {
+  transform: translate(11px, 16px);
+}
+.esc .e-viejo {
+  opacity: 0.3;
+}
+.esc .e-cur {
+  transform: translateX(14px);
+}
+.esc .e-sal {
+  opacity: 0.5;
+}
+.esc .e-banda {
+  transform: translateY(10px);
+}
+.tv-cu {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--esp-1-5);
+}
+.tv {
+  --e: var(--texto-4);
+}
+.tv[data-e="piensa"] {
+  --e: var(--sint-kw);
+}
+.tv[data-e="herramienta"] {
+  --e: var(--azul);
+}
+.tv[data-e="escribe"] {
+  --e: var(--azul-palido);
+}
+.tv[data-e="permiso"] {
+  --e: var(--ambar);
+}
+.tv[data-e="listo"] {
+  --e: var(--verde);
+}
+.tv[data-e="error"] {
+  --e: var(--rojo-texto);
+}
+.tv[data-t="fin"] {
+  --c: var(--e);
+}
+.tv-fin {
+  display: grid;
+  flex: none;
+  place-items: center;
+}
+.tv-t1 {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--esp-1) var(--esp-2);
+  font-size: var(--letra-5);
+}
+/* El estado como un punto con su anillo; el color dice en qué anda (esperando, razonando, herramienta, escribiendo, te necesita, terminó, falló). */
+.tv-punto {
+  width: 0.5rem;
+  height: 0.5rem;
+  flex: none;
+  border-radius: var(--radio-pastilla);
+  background: var(--e);
+  box-shadow: 0 0 0 0.1875rem color-mix(in srgb, var(--e) 22%, transparent);
+}
+.tv-v {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--texto-1);
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tv-modelo {
+  flex: none;
+  padding: 0 var(--esp-2);
+  border: 1px solid var(--borde-4);
+  border-radius: var(--radio-pastilla);
+  background: var(--sup-2);
+  color: var(--texto-3);
+  font-size: var(--letra-3);
+  line-height: 1.25rem;
+  white-space: nowrap;
+}
+.tv-ef {
+  color: var(--sint-kw);
+}
+.tv-ef::before {
+  color: var(--texto-5);
+  content: " · ";
+}
+.tv-meta {
+  display: flex;
+  flex: none;
+  gap: var(--esp-1-5);
+  margin-left: auto;
+}
+.tv-x {
+  color: var(--texto-4);
+  font-size: var(--letra-4);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.tv-meta > .tv-x + .tv-x::before {
+  color: var(--texto-6);
+  content: "· ";
+}
+.tv-det {
+  display: flex;
+  max-width: 100%;
+  min-width: 0;
+  align-items: center;
+  align-self: flex-start;
+  gap: var(--esp-1-5);
+  padding: var(--esp-0-5) var(--esp-2);
+  border-radius: var(--radio-2);
+  background: var(--sup-2);
+  color: var(--texto-2);
+  font-family: var(--font-mono);
+  font-size: var(--letra-4);
+}
+/* Una frase del estado ("Esperando al modelo", "Aprobar el plan"): texto de la letra de siempre, sin la pastilla de código. */
+.tv-det[data-fija] {
+  padding: 0;
+  background: none;
+  color: var(--texto-3);
+  font-family: inherit;
+  font-size: var(--letra-5);
+}
+.tv-dt {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tv-ic {
+  flex: none;
+  color: var(--c);
+}
+.tv-pasos {
+  display: flex;
+  max-height: 12rem;
+  flex-direction: column;
+  gap: var(--esp-1);
+  margin: var(--esp-0-5) 0 0;
+  padding: 0;
+  overflow-y: auto;
+  color: var(--texto-4);
+  font-size: var(--letra-4);
+  list-style: none;
+  scrollbar-width: thin;
+}
+.tv-pasos li {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--esp-1-5);
+}
+.tv-pasos li > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tv-pasos .tv-ic {
+  color: var(--texto-5);
+}
+.tv-pie {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--esp-2);
+  margin-top: var(--esp-0-5);
+}
+.tv-mas {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--esp-1);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--texto-4);
+  font-size: var(--letra-3);
+}
+.tv-mas:hover {
+  color: var(--texto-1);
+}
+.tv-fl {
+  transition: transform 0.15s;
+}
+.tv-mas[aria-expanded="true"] .tv-fl {
+  transform: rotate(180deg);
+}
+.tv-parar {
+  margin-left: auto;
+}
+
+/* --- B16: el anillo de contexto ---------------------------------------------
+   Un circulito hueco en la caja del líder (y en el pie de un worker) que se
+   llena con lo que pesa la conversación contra el umbral de autocompact. Sólo
+   se mueve el trazo (stroke-dashoffset, 200 ms); con prefers-reduced-motion
+   salta (la regla de arriba apaga toda transición). */
+.ctx {
+  display: grid;
+  width: 1.75rem;
+  height: 1.75rem;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radio-2);
+  background: transparent;
+  color: var(--texto-4);
+  transition: background-color 0.15s;
+}
+.ctx:is(:hover, [aria-expanded="true"]) {
+  background: var(--sup-2);
+}
+.ctx[data-nivel="ambar"] {
+  color: var(--ambar);
+}
+.ctx[data-nivel="rojo"] {
+  color: var(--rojo);
+}
+.ctx svg {
+  width: 1rem;
+  height: 1rem;
+  fill: none;
+  stroke-width: 2;
+}
+.ctx-riel {
+  stroke: var(--borde-4);
+}
+.ctx-arco {
+  stroke: currentColor;
+  stroke-dasharray: 100;
+  transform: rotate(-90deg);
+  transform-origin: center;
+  transition: stroke-dashoffset 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.ctx-det {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 0.375rem);
+  z-index: 20;
+  display: flex;
+  width: max-content;
+  min-width: 15rem;
+  flex-direction: column;
+  gap: var(--esp-1-5);
+  padding: var(--esp-2-5) var(--esp-3);
+  border: 1px solid var(--borde-3);
+  border-radius: var(--radio-4);
+  outline: none;
+  background: var(--sup-1);
+  box-shadow: 0 1rem 2.5rem var(--sombra);
+  color: var(--texto-4);
+  font-family: var(--font-sans);
+  font-size: var(--letra-4);
+  transform-origin: bottom right;
+  animation: abre 0.18s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.ctx-det[data-lado="izq"] {
+  right: auto;
+  left: 0;
+  transform-origin: bottom left;
+}
+.ctx-h {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--esp-4);
+  color: var(--texto-1);
+  font-size: var(--letra-5);
+  font-weight: 500;
+}
+.ctx-pct {
+  font-variant-numeric: tabular-nums;
+}
+.ctx-pct[data-nivel="ambar"] {
+  color: var(--ambar);
+}
+.ctx-pct[data-nivel="rojo"] {
+  color: var(--rojo);
+}
+/* En un líder: cuánto falta para el relevo, en una frase. */
+.ctx-relevo {
+  max-width: 16rem;
+  margin: 0;
+  color: var(--texto-3);
+  line-height: 1.4;
+  font-variant-numeric: tabular-nums;
+}
+.ctx-det dl {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: var(--esp-1) var(--esp-5);
+  margin: 0;
+}
+.ctx-det dd {
+  margin: 0;
+  color: var(--texto-2);
+  font-family: var(--font-mono);
+  font-size: var(--letra-3);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.ctx-s {
+  padding-top: var(--esp-1-5);
+  border-top: 1px solid var(--borde-2);
+  color: var(--texto-7);
+  font-size: var(--letra-3);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.ctx-pie {
+  padding-top: var(--esp-1-5);
+  border-top: 1px solid var(--borde-2);
+}
+/* Contexto de un modelo local (`-c` de llama-server): el botón junto al esfuerzo y su detalle, que extiende `.ctx-det`. */
+.cl-chip {
+  gap: var(--esp-1-5);
+}
+.cl-k {
+  font-family: var(--font-mono);
+  font-size: var(--letra-3);
+  font-variant-numeric: tabular-nums;
+}
+.cl-det {
+  width: 19rem;
+}
+.cl-det .ctx-relevo {
+  max-width: none;
+}
+/* El deslizador: verde hasta donde entra en la VRAM (`--entra`), gris lo que pasa. Sin animación propia. */
+.cl-rango {
+  width: 100%;
+  height: 1.25rem;
+  margin: 0;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+}
+.cl-rango::-webkit-slider-runnable-track {
+  height: 0.25rem;
+  border-radius: var(--radio-2);
+  background: linear-gradient(to right, var(--verde-suave) 0 var(--entra, 0%), var(--borde-4) var(--entra, 0%) 100%);
+}
+.cl-rango::-webkit-slider-thumb {
+  width: 0.875rem;
+  height: 0.875rem;
+  margin-top: -0.3125rem;
+  appearance: none;
+  border: 1px solid var(--borde-6);
+  border-radius: 50%;
+  background: var(--texto-2);
+}
+.cl-rango:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+.cl-campo {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-2);
+  color: var(--texto-4);
+}
+.cl-campo > span {
+  flex: none;
+}
+.cl-num {
+  min-width: 0;
+  flex: 1;
+  height: 1.75rem;
+  padding: 0 var(--esp-2);
+  border: 1px solid var(--borde-3);
+  border-radius: var(--radio-2);
+  background: var(--sup-0);
+  color: var(--texto-1);
+  font-family: var(--font-mono);
+  font-size: var(--letra-4);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.cl-num[aria-invalid="true"] {
+  border-color: var(--rojo-borde);
+  color: var(--rojo-texto);
+}
+.cl-num:focus-visible {
+  outline-offset: 0;
+}
+.cl-max {
+  white-space: nowrap;
+}
+.ctx-det dd[data-tono="rojo"] {
+  color: var(--rojo-texto);
+}
+.cl-det-chico {
+  margin: 0;
+  color: var(--texto-6);
+  font-size: var(--letra-3);
+  line-height: 1.4;
+}
+.cl-nota {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--esp-1-5);
+  margin: 0;
+  color: var(--texto-4);
+  line-height: 1.4;
+}
+.cl-nota[data-tipo="aviso"] {
+  color: var(--ambar);
+}
+.cl-nota[data-tipo="error"] {
+  color: var(--rojo-texto);
+}
+.cl-nota[data-tipo="ok"] {
+  color: var(--verde-suave);
+}
+.cl-nota svg {
+  flex: none;
+  margin-top: var(--esp-0-5);
+}
+/* Qué se puede liberar de la VRAM cuando el modelo local no entra (LiberarVram.tsx). */
+.vr {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-1-5);
+  padding-top: var(--esp-1-5);
+  border-top: 1px solid var(--borde-2);
+}
+.vr-h {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--esp-3);
+  color: var(--texto-2);
+  font-weight: 500;
+}
+.vr-falta {
+  color: var(--ambar);
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+.vr-lista {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-1-5);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.vr-fila {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--esp-2);
+}
+.vr-datos {
+  display: grid;
+  min-width: 0;
+  flex: 1;
+  grid-template-columns: 1fr auto;
+  gap: 0 var(--esp-2);
+  line-height: 1.4;
+}
+.vr-nombre {
+  overflow: hidden;
+  color: var(--texto-2);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.vr-gb {
+  color: var(--texto-4);
+  font-family: var(--font-mono);
+  font-size: var(--letra-3);
+  font-variant-numeric: tabular-nums;
+}
+.vr-veredicto,
+.vr-aviso {
+  grid-column: 1 / -1;
+  font-size: var(--letra-3);
+}
+.vr-veredicto[data-v="entra"] {
+  color: var(--verde-suave);
+}
+.vr-veredicto[data-v="menos"] {
+  color: var(--ambar);
+}
+.vr-veredicto[data-v="no"] {
+  color: var(--texto-6);
+}
+.vr-aviso {
+  color: var(--ambar);
+}
+.vr-botones {
+  display: flex;
+  flex: none;
+  gap: var(--esp-1-5);
+}
+.vr-ok:not(:disabled) {
+  border-color: var(--rojo-borde);
+  color: var(--rojo-texto);
+}
+.cl-acc {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--esp-2);
+  padding-top: var(--esp-1-5);
+  border-top: 1px solid var(--borde-2);
+}
+.cl-acc .btn2:disabled {
+  border-color: var(--borde-2);
+  color: var(--texto-7);
+  cursor: not-allowed;
+}
+.cl-acc .btn2:disabled:hover {
+  background: transparent;
+  color: var(--texto-7);
+}
+.cl-guardar:not(:disabled) {
+  border-color: var(--borde-5);
+  color: var(--texto-1);
+}
+/* En el pie de un worker: a la altura del renglón, sin agrandarlo. */
+.meta .ctx-w {
+  display: flex;
+  align-items: center;
+}
+.meta .ctx {
+  width: 1rem;
+  height: 1rem;
+  border-radius: 50%;
+}
+.meta .ctx svg {
+  width: 0.8125rem;
+  height: 0.8125rem;
+}
+
+/* --- B18: lo de sistema en la conversación (src/hilo/Sistema.tsx) ---------- */
+/* Lo que dice Claude Code: una línea chica, centrada; roja si es un límite o un error. */
+.sis {
+  display: flex;
+  align-items: center;
+  align-self: center;
+  gap: var(--esp-1-5);
+  max-width: 100%;
+  color: var(--txt-3);
+  font-size: var(--letra-4);
+  line-height: 1.45;
+}
+.sis svg {
+  flex: none;
+}
+.sis[data-tono="grave"] {
+  color: var(--rojo);
+}
+/* Lo que inyecta como si fuera del usuario: una tarjeta plegada; abierta, el texto crudo. */
+.sis-t {
+  align-self: center;
+  max-width: 100%;
+  border: 1px solid var(--borde-2);
+  border-radius: var(--radio-3);
+  color: var(--texto-6);
+  font-size: var(--letra-4);
+}
+.sis-t[open] {
+  align-self: stretch;
+}
+.sis-t summary {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-1-5);
+  padding: var(--esp-1) var(--esp-2-5);
+  list-style: none;
+  cursor: pointer;
+  user-select: none;
+}
+.sis-t summary:hover {
+  color: var(--texto-3);
+}
+.sis-t summary::-webkit-details-marker {
+  display: none;
+}
+.sis-t summary svg {
+  flex: none;
+}
+.sis-t summary span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sis-t .sis-f {
+  margin-left: auto;
+  transition: transform 0.15s ease-out;
+}
+.sis-t[open] .sis-f {
+  transform: rotate(90deg);
+}
+.sis-t pre {
+  max-height: 20rem;
+  margin: 0;
+  padding: var(--esp-2) var(--esp-2-5);
+  overflow: auto;
+  border-top: 1px solid var(--borde-2);
+  color: var(--texto-4);
+  font-family: var(--font-mono);
+  font-size: var(--letra-4);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  animation: entra 0.16s ease-out;
+}
+
+/* --- B19: cada herramienta en su línea (src/hilo/Llamada.tsx) --------------
+   "Bash  Corre los tests", "Edit  src/x.ts  +3 −1"; abierta, el comando entero o el diff. */
+.ll {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  font-size: var(--letra-4);
+}
+/* La línea: el botón (si se abre) o la fila misma. */
+.ll-b,
+.ll:not(:has(> .ll-b)) {
+  display: flex;
+  min-width: 0;
+  flex-direction: row;
+  align-items: center;
+  gap: var(--esp-1-5);
+}
+.ll-b {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.ll-b:hover .ll-r,
+.ll-b:hover .ll-n {
+  color: var(--texto-3);
+}
+.ll-f {
+  width: 0.625rem;
+  flex: none;
+  color: var(--texto-7);
+  transition: transform 0.15s ease-out;
+}
+.ll[data-abierta] .ll-f {
+  transform: rotate(90deg);
+}
+.ll-n {
+  flex: none;
+  color: var(--texto-4);
+  font-family: var(--font-mono);
+  font-weight: 500;
+}
+.ll-n[data-error] {
+  color: var(--rojo);
+}
+.ll-r {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--texto-6);
+  font-family: var(--font-mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ll-k {
+  flex: none;
+  color: var(--texto-7);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+.ll-mas-n {
+  color: var(--verde);
+}
+.ll-menos-n {
+  color: var(--rojo-texto);
+}
+.ll-c {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-1);
+  margin: var(--esp-1) 0 var(--esp-1-5) var(--esp-4);
+  animation: entra 0.16s ease-out;
+}
+.ll-cmd,
+.ll-res {
+  max-height: 15rem;
+  margin: 0;
+  padding: var(--esp-1-5) var(--esp-2);
+  overflow: auto;
+  border: 1px solid var(--borde-2);
+  border-radius: var(--radio-2);
+  background: var(--sup-1);
+  color: var(--texto-3);
+  font-family: var(--font-mono);
+  font-size: var(--letra-3);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.ll-res {
+  max-height: 10rem;
+  color: var(--texto-4);
+}
+.ll-res[data-error] {
+  border-color: var(--rojo-borde);
+  color: var(--rojo-claro);
+}
+.ll-diff {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-1);
+  max-height: 24rem;
+  overflow: auto;
+  font-family: var(--font-mono);
+  font-size: var(--letra-3);
+  line-height: 1.5;
+}
+.ll-tramo {
+  overflow: hidden;
+  border: 1px solid var(--borde-2);
+  border-radius: var(--radio-2);
+  background: var(--sup-1);
+}
+.ll-l {
+  display: flex;
+  color: var(--texto-4);
+}
+.ll-l[data-t="menos"] {
+  background: var(--rojo-tinte);
+  color: var(--rojo-palido);
+}
+.ll-l[data-t="mas"] {
+  background: var(--verde-tinte);
+  color: var(--verde-palido);
+}
+.ll-s {
+  width: 1.25rem;
+  flex: none;
+  color: var(--texto-7);
+  text-align: center;
+  user-select: none;
+}
+.ll-l[data-t="menos"] .ll-s {
+  color: var(--rojo-texto);
+}
+.ll-l[data-t="mas"] .ll-s {
+  color: var(--verde);
+}
+.ll-x {
+  min-width: 0;
+  padding-right: var(--esp-2);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.ll-mas {
+  padding: var(--esp-0-5) var(--esp-2);
+  color: var(--texto-6);
+  font-family: var(--font-sans);
+  font-size: var(--letra-3);
+  font-style: italic;
+}
+
+/* --- B19: divisores (compactó, viene/sigue de un relevo) y sus figuritas ---- */
+.sis-div {
+  align-self: stretch;
+  color: var(--texto-6);
+  font-size: var(--letra-4);
+}
+.sis-div-t {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-1-5);
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  list-style: none;
+  user-select: none;
+}
+.sis-div-t::before,
+.sis-div-t::after {
+  height: 1px;
+  flex: 1;
+  background: var(--sup-4);
+  content: "";
+}
+.sis-div-t svg {
+  flex: none;
+}
+summary.sis-div-t,
+.sis-div-b {
+  cursor: pointer;
+}
+summary.sis-div-t::-webkit-details-marker {
+  display: none;
+}
+summary.sis-div-t:hover,
+.sis-div-b:hover {
+  color: var(--texto-3);
+}
+.sis-div .sis-f {
+  transition: transform 0.15s ease-out;
+}
+.sis-div[open] .sis-f {
+  transform: rotate(90deg);
+}
+.sis-div pre {
+  max-height: 20rem;
+  margin: var(--esp-2) 0 0;
+  padding: var(--esp-2) var(--esp-2-5);
+  overflow: auto;
+  border: 1px solid var(--borde-2);
+  border-radius: var(--radio-3);
+  color: var(--texto-4);
+  font-family: var(--font-mono);
+  font-size: var(--letra-4);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  animation: entra 0.16s ease-out;
+}
+/* Compactando: tres hojas que se pliegan hacia la del medio (las mueve latido.ts). */
+.pliegue-f {
+  display: flex;
+  width: 0.875rem;
+  height: 0.875rem;
+  flex: none;
+  flex-direction: column;
+  justify-content: center;
+  gap: var(--esp-0-5);
+}
+.pliega {
+  height: 0.1875rem;
+  border-radius: var(--radio-1);
+  background: var(--azul);
+  opacity: 0.85;
+}
+/* La misma figurita en una fila de la barra: más chica (el `em` es el recorrido de las hojas). */
+.pliegue-f[data-chica] {
+  width: 0.625rem;
+  height: 0.625rem;
+  gap: 0.09375rem; /* geometría */
+  font-size: 0.525rem; /* geometría */
+}
+.pliegue-f[data-chica] .pliega {
+  height: 0.125rem;
+}
+/* En la fila de un worker, donde iba el punto (mismo centro). */
+.pt-hojas {
+  position: absolute;
+  top: 0.59375rem;
+  left: 0.28125rem;
+}
+/* En la de un líder, delante de "Compactando". */
+.hojas-s {
+  align-self: center;
+  margin-right: var(--esp-1);
+}
+/* La posta: dos puntos y el testimonio que cruza de uno al otro. */
+.relevo-f {
+  position: relative;
+  display: flex;
+  width: 2.25rem;
+  height: 0.875rem;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+}
+.relevo-p {
+  width: 0.375rem;
+  height: 0.375rem;
+  border-radius: 50%;
+  background: var(--borde-6);
+}
+.relevo-p:last-child {
+  background: var(--azul);
+}
+.posta {
+  position: absolute;
+  left: 0.125rem;
+  width: 0.5rem;
+  height: 0.1875rem;
+  border-radius: var(--radio-1);
+  background: var(--azul);
+  opacity: 0;
+}
+
+/* --- B20: menú del clic derecho y renombrar en línea ----------------------- */
+.cmenu {
+  position: fixed;
+  z-index: 60;
+  display: flex;
+  min-width: 12.5rem;
+  max-width: 20rem;
+  max-height: min(23.75rem, 70vh);
+  flex-direction: column;
+  gap: 1px;
+  overflow-y: auto;
+  padding: var(--esp-1);
+  border: 1px solid var(--borde-3);
+  border-radius: var(--radio-4);
+  background: var(--sup-1);
+  box-shadow: 0 1rem 2.5rem var(--sombra);
+  transform-origin: top left;
+  scrollbar-width: thin;
+  scrollbar-color: var(--borde-3) transparent;
+}
+.cmenu-op {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: var(--esp-2);
+  padding: var(--esp-1-5) var(--esp-2-5);
+  border: 0;
+  border-radius: var(--radio-2);
+  background: transparent;
+  color: var(--texto-4);
+  font-size: var(--letra-5);
+  text-align: left;
+}
+.cmenu-op:is(:hover, :focus-visible, :focus) {
+  background: var(--sup-2);
+  color: var(--texto-1);
+}
+.cmenu-t {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cmenu-op[data-peligro]:is(:hover, :focus-visible, :focus, [data-armado]) {
+  color: var(--rojo);
+}
+.cmenu-op[data-armado] {
+  background: var(--sup-2);
+}
+.cmenu-op[aria-checked="true"] {
+  color: var(--texto-1);
+}
+.cmenu-ok {
+  color: var(--texto-1);
+}
+.cmenu-volver {
+  color: var(--texto-6);
+}
+/* El filtro de "Mover a proyecto…": pegado arriba mientras la lista se desplaza. */
+.cmenu-buscar {
+  position: sticky;
+  z-index: 1;
+  top: calc(-1 * var(--esp-1));
+  flex: none;
+  margin: calc(-1 * var(--esp-1)) calc(-1 * var(--esp-1)) var(--esp-1);
+  padding: var(--esp-2) var(--esp-3);
+  border: 0;
+  border-bottom: 1px solid var(--borde-3);
+  border-radius: var(--radio-4) var(--radio-4) 0 0;
+  background: var(--sup-1);
+  color: var(--texto-1);
+  font-size: var(--letra-5);
+  outline: none;
+}
+.cmenu-buscar::placeholder {
+  color: var(--texto-6);
+}
+.cmenu-sep {
+  height: 1px;
+  flex: none;
+  margin: var(--esp-1) var(--esp-2);
+  background: var(--borde-3);
+}
+.cmenu-nota {
+  flex: none;
+  color: var(--texto-6);
+  font-size: var(--letra-3);
+}
+.cmenu-vacio {
+  padding: var(--esp-2) var(--esp-2-5);
+  color: var(--texto-6);
+  font-size: var(--letra-4);
+}
+.renombre {
+  position: fixed;
+  z-index: 60;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radio-1);
+  box-shadow: 0 0 0 0.1875rem var(--sup-1), 0 0 0 calc(0.1875rem + 1px) var(--borde-5);
+  background: var(--sup-1);
+  color: var(--txt-1);
+  outline: none;
+}
+
+/* --- B21: el idioma no mueve nada (src/i18n/Fijo.tsx) ------------------------ */
+/* El texto de ahora y, invisibles en la misma celda, los otros: ocupa lo del más largo. */
+.fijo {
+  display: inline-grid;
+}
+.fijo-b {
+  display: grid;
+}
+.fijo > * {
+  grid-area: 1 / 1;
+}
+.fijo > [aria-hidden] {
+  visibility: hidden;
+  user-select: none;
+}
+/* Los menús no hacen renglones: un renglón por opción, cortado con "…" si no entra. */
+.menu {
+  max-width: min(28rem, 90vw);
+}
+.op .on1,
+.op .md {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Lo que sobra va a la derecha en los botones. */
+.pbtn .fijo {
+  text-align: left;
+}
+/* Imágenes (B26): miniaturas en el globo del usuario y en la caja (con ×), y la grande encima de todo. */
+.caja[data-arrastra] {
+  border-color: var(--borde-6);
+  border-style: dashed;
+}
+.clip {
+  display: grid;
+  width: 1.75rem;
+  height: 1.75rem;
+  flex: none;
+  place-items: center;
+  border: 0;
+  border-radius: var(--radio-2);
+  background: transparent;
+  color: var(--texto-6);
+}
+.clip:hover {
+  background: var(--sup-2);
+  color: var(--texto-2);
+}
+.clip[data-on] {
+  color: var(--texto-1);
+}
+/* La carpeta donde arranca un líder nuevo: una fila bajo el texto, con la ruta escrita y (en la ventana de la PC) el selector nativo. */
+.caja-carpeta {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-2);
+  padding: var(--esp-1) var(--esp-1) var(--esp-2);
+  color: var(--texto-6);
+}
+.caja-carpeta svg {
+  flex: none;
+}
+.caja-carpeta input {
+  min-width: 0;
+  height: 1.75rem;
+  flex: 1;
+  padding: 0 var(--esp-2);
+  border: 1px solid var(--borde-3);
+  border-radius: var(--radio-2);
+  background: transparent;
+  color: var(--texto-1);
+  font-family: var(--font-mono);
+  font-size: var(--letra-4);
+  outline: none;
+}
+.caja-carpeta input:focus-visible {
+  border-color: var(--borde-5);
+}
+.caja-carpeta input::placeholder {
+  color: var(--texto-7);
+}
+/* Dictar (docs/estado/dictado.md): el micrófono al lado de Mandar. Grabando es una píldora roja con el punto que late, el contador y parar;
+   Transcribiendo… y Reintentar llevan su texto. Apagado (por http) se ve opaco y su tooltip dice por qué. */
+.dic {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--esp-0-5);
+}
+.dic-b {
+  display: inline-flex;
+  height: 1.75rem;
+  min-width: 1.75rem;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  gap: var(--esp-1-5);
+  padding: 0 var(--esp-1-5);
+  border: 1px solid transparent;
+  border-radius: var(--radio-2);
+  background: transparent;
+  color: var(--texto-6);
+  font-size: var(--letra-4);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.dic-b:hover {
+  background: var(--sup-2);
+  color: var(--texto-2);
+}
+.dic-b[data-fase="grabando"] {
+  border-color: var(--rojo-borde);
+  background: var(--rojo-tinte);
+  color: var(--rojo-claro);
+}
+.dic-b[data-fase="transcribiendo"],
+.dic-b[data-fase="pidiendo"] {
+  color: var(--texto-3);
+  cursor: progress;
+}
+.dic-b[data-fase="error"] {
+  color: var(--ambar);
+}
+.dic-b[aria-disabled]:not([data-fase="transcribiendo"], [data-fase="pidiendo"]) {
+  cursor: not-allowed;
+}
+.dic[data-sop] .dic-b {
+  opacity: 0.45;
+}
+.dic[data-sop] .dic-b:hover {
+  background: transparent;
+  color: var(--texto-6);
+}
+.dic-punto {
+  width: 0.5rem;
+  height: 0.5rem;
+  flex: none;
+  border-radius: var(--radio-pastilla);
+  background: var(--rojo);
+}
+.minis {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--esp-1-5);
+}
+.yo .minis {
+  justify-content: flex-end;
+}
+.yo .minis + * {
+  margin-top: var(--esp-2);
+}
+.miniatura {
+  position: relative;
+  display: block;
+  width: 4rem;
+  height: 4rem;
+  flex: none;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--borde-3);
+  border-radius: var(--radio-3);
+  background: var(--sup-0);
+  cursor: zoom-in;
+}
+.yo .miniatura {
+  width: 7.5rem;
+  height: 5.625rem;
+}
+.adjuntos .miniatura {
+  overflow: visible;
+  cursor: default;
+}
+.miniatura img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.mini-ver {
+  display: block;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  border-radius: var(--radio-2);
+  background: transparent;
+  cursor: zoom-in;
+}
+.mini-x {
+  position: absolute;
+  top: -0.375rem;
+  right: -0.375rem;
+  display: grid;
+  width: 1.125rem;
+  height: 1.125rem;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--borde-5);
+  border-radius: 50%;
+  background: var(--sup-2);
+  color: var(--texto-3);
+}
+.mini-x:hover {
+  background: var(--sup-4);
+  color: var(--texto-1);
+}
+.adjuntos .chip-archivo {
+  width: auto;
+  max-width: 14rem;
+  height: 2rem;
+  align-self: flex-end;
+}
+.yo .chip-archivo {
+  width: auto;
+  max-width: 14rem;
+  height: 2rem;
+  cursor: default;
+}
+.chip-nombre {
+  display: flex;
+  height: 100%;
+  align-items: center;
+  gap: var(--esp-1-5);
+  padding: 0 var(--esp-2-5);
+  color: var(--texto-3);
+  font-size: var(--letra-4);
+}
+.chip-nombre > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.chip-nombre svg {
+  flex: none;
+  color: var(--texto-4);
+}
+.visor {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  padding: var(--esp-8);
+  background: var(--velo);
+  cursor: zoom-out;
+}
+.visor img {
+  grid-area: 1 / 1;
+  max-width: 100%;
+  max-height: 100%;
+  border-radius: var(--radio-3);
+  object-fit: contain;
+}
+/* Hasta que llega no se ve (ni el hueco roto del navegador); en su lugar, una línea quieta. */
+.visor img:not([data-lista]) {
+  opacity: 0;
+}
+/* Si carga al toque ni se alcanza a ver: aparece (una vez, sin repetirse) pasado el primer instante. */
+.visor-estado {
+  grid-area: 1 / 1;
+  color: var(--txt-3);
+  font-size: var(--letra-5);
+  animation: visor-estado 0.16s 0.15s backwards;
+}
+.visor-estado[data-falla] {
+  color: var(--rojo);
+}
+@keyframes visor-estado {
+  from {
+    opacity: 0;
+  }
+}
+/* Siempre a la vista, también sin teclado ni mouse (en el celular no hay Esc). */
+.visor-x {
+  position: absolute;
+  top: calc(0.75rem + env(safe-area-inset-top, 0px));
+  right: calc(0.75rem + env(safe-area-inset-right, 0px));
+  display: grid;
+  width: 2rem;
+  height: 2rem;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--borde-5);
+  border-radius: 50%;
+  background: var(--sup-2);
+  color: var(--texto-3);
+  cursor: pointer;
+}
+.visor-x:hover {
+  background: var(--sup-4);
+  color: var(--texto-1);
+}
+/* --- AskUserQuestion (src/hilo/Preguntas.tsx) ---------------------------------
+   La tarjeta de preguntas reusa `.pide`; cada pregunta, chip con el header y
+   opciones como filas (radio o casilla). Sin transiciones en el hover. */
+.pide[data-preguntas] {
+  max-height: min(40rem, 75vh);
+  border-left-color: var(--azul);
+}
+/* La tarjeta nunca scrollea entera: crece hasta el tope y ahí scrollea sólo el cuerpo; el pie (Enviar) queda a la vista. */
+.pide-cuerpo {
+  display: flex;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: var(--esp-2-5);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--borde-3) transparent;
+}
+.pide[data-preguntas] .pide-t,
+.pide[data-preguntas] .pide-b {
+  flex: none;
+}
+.pide-t {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--esp-2);
+}
+.pide-n {
+  color: var(--texto-6);
+  font-variant-numeric: tabular-nums;
+}
+.pq {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-1-5);
+}
+.pq + .pq {
+  padding-top: var(--esp-2-5);
+  border-top: 1px solid var(--borde-1);
+}
+.pq-cab {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--esp-2);
+}
+.pq-chip {
+  flex: none;
+  padding: 0.0625rem var(--esp-2);
+  border: 1px solid var(--borde-3);
+  border-radius: var(--radio-2);
+  background: var(--sup-2);
+  color: var(--texto-3);
+  font-size: var(--letra-3);
+  font-weight: 500;
+}
+.pq-varias {
+  color: var(--texto-6);
+  font-size: var(--letra-3);
+}
+.pq-q {
+  color: var(--texto-1);
+  font-size: var(--letra-6);
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+.pq-ops {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-1);
+}
+.pq-op {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--esp-2);
+  padding: var(--esp-1-5) var(--esp-2);
+  border: 1px solid var(--borde-2);
+  border-radius: var(--radio-3);
+  background: var(--sup-1);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.pq-op:hover {
+  border-color: var(--borde-4);
+  background: var(--sup-2);
+}
+.pq-op[aria-checked="true"] {
+  border-color: var(--borde-6);
+  background: var(--sup-2);
+}
+.pq-marca {
+  width: 0.75rem;
+  height: 0.75rem;
+  flex: none;
+  margin-top: var(--esp-1);
+  border: 1px solid var(--borde-6);
+  border-radius: 50%;
+}
+.pq-op[data-multi] .pq-marca {
+  border-radius: var(--radio-1);
+}
+.pq-op[aria-checked="true"] .pq-marca {
+  border-color: var(--texto-1);
+  background: var(--texto-1);
+  box-shadow: inset 0 0 0 0.125rem var(--sup-2);
+}
+.pq-txt {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--esp-0-5);
+}
+.pq-l {
+  color: var(--texto-2);
+  font-size: var(--letra-5);
+}
+.pq-d {
+  color: var(--texto-5);
+  font-size: var(--letra-4);
+  line-height: 1.4;
+}
+.pq-otro {
+  min-height: 1.875rem;
+  max-height: 10rem;
+  padding: var(--esp-1-5) var(--esp-2-5);
+  border: 1px solid var(--borde-3);
+  border-radius: var(--radio-3);
+  background: var(--sup-1);
+  color: var(--texto-1);
+  font: inherit;
+  font-size: var(--letra-6);
+  field-sizing: content;
+  resize: none;
+}
+.pq-otro:focus {
+  border-color: var(--borde-5);
+}
+.pq-hecho {
+  gap: var(--esp-2);
+}
+.pq-r {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-0-5);
+}
+.pq-r .pq-q {
+  min-width: 0;
+  color: var(--texto-4);
+  font-size: var(--letra-4);
+}
+.pq-a {
+  color: var(--texto-2);
+  font-size: var(--letra-4);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* --- Conexión con la PC (src/Conexion.tsx) -----------------------------------
+   Sólo por la tailnet: el aviso de que se cayó la conexión y se está reintentando.
+   Arriba y al centro, encima de todo; no tapa ni frena nada (no recibe toques). */
+.cx {
+  position: fixed;
+  top: calc(0.5rem + env(safe-area-inset-top, 0rem));
+  left: 50%;
+  z-index: 200;
+  max-width: calc(100vw - 1.5rem);
+  padding: var(--esp-1-5) var(--esp-3);
+  border: 1px solid var(--borde-5);
+  border-radius: var(--radio-pastilla);
+  background: var(--sup-3);
+  color: var(--texto-2);
+  font-size: var(--letra-4);
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transform: translate(-50%, -0.5rem);
+  transition:
+    opacity 160ms ease-out,
+    transform 160ms ease-out;
+}
+.cx[data-caida] {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+@media (prefers-reduced-motion: reduce) {
+  .cx {
+    transition: none;
+  }
+}
+
+/* --- Actualizando Trama… (index.html + src/actualizando.ts) --------------------------------------
+   Una tarjeta al centro con la barra de pasos: Preparando, Reiniciando, Reconectando, Cargando. Cubre la
+   ventana que se va (con velo, se ve la app detrás) y la que llega (opaca: todavía no hay app). La barra
+   avanza por pasos de verdad (cada uno es algo que pasó), sólo con transform; el cartel se va con opacity. */
+.act {
+  position: fixed;
+  inset: 0;
+  z-index: 400;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--esp-6);
+  background: var(--sup-0);
+  color: var(--texto-2);
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    opacity 160ms ease-out,
+    visibility 0s linear 160ms;
+}
+.act[data-on] {
+  opacity: 1;
+  visibility: visible;
+  transition: opacity 160ms ease-out;
+}
+.act[data-velo] {
+  background: var(--velo);
+}
+.act-c {
+  display: flex;
+  width: min(100%, 18rem);
+  flex-direction: column;
+  gap: var(--esp-2-5);
+  padding: var(--esp-5);
+  border: 1px solid var(--borde-4);
+  border-radius: var(--radio-4);
+  background: var(--sup-2);
+}
+.act-f {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--esp-3);
+}
+.act-t {
+  color: var(--texto-1);
+  font-size: var(--letra-6);
+}
+.act-n {
+  color: var(--texto-6);
+  font-size: var(--letra-3);
+  font-variant-numeric: tabular-nums;
+}
+.act-p {
+  height: 0.25rem;
+  overflow: hidden;
+  border-radius: var(--radio-pastilla);
+  background: var(--sup-4);
+}
+.act-b {
+  display: block;
+  height: 100%;
+  border-radius: var(--radio-pastilla);
+  background: var(--azul);
+  transform: scaleX(var(--p, 0));
+  transform-origin: left;
+  transition: transform 200ms ease-out;
+}
+.act-s {
+  color: var(--texto-4);
+  font-size: var(--letra-4);
+}
+@media (prefers-reduced-motion: reduce) {
+  .act,
+  .act[data-on],
+  .act-b {
+    transition: none;
+  }
+}
+
+/* El cartel de un error al pintar (src/ErrorBoundary.ts): ocupa la ventana en vez de dejarla en blanco. Una
+   caja quieta con qué pasó en una línea y dos botones. */
+.er {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--esp-6);
+  background: var(--sup-0);
+  color: var(--texto-2);
+}
+.er-caja {
+  display: flex;
+  max-width: 28rem;
+  flex-direction: column;
+  gap: var(--esp-2);
+}
+.er-t {
+  font-size: var(--letra-6);
+  color: var(--blanco);
+}
+.er-l {
+  font-size: var(--letra-4);
+  line-height: 1.45;
+  color: var(--txt-2);
+  overflow-wrap: anywhere;
+}
+.er-bs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--esp-2);
+  margin-top: var(--esp-2);
+}
+.er-bs .btn2[data-prim] {
+  border-color: var(--borde-5);
+  color: var(--txt-1);
+}
+
+/* --- Celular (src/angosto.ts) ----------------------------------------------
+   Trama por el navegador del teléfono: unos 400 px de ancho y con el dedo. Son dos
+   cosas distintas y van en dos bloques: la ventana angosta (se ve una cosa a la
+   vez) y el dedo (blancos de 2.75rem, nada que dependa del hover). En el
+   escritorio no entra ninguno. La consulta en rem no sigue a la letra: 35rem son 560 px. */
+@media (max-width: 35rem) {
+  .app {
+    position: relative;
+  }
+  /* La lista ocupa todo y tapa lo abierto; al abrir algo se va deslizando, como la barra al ocultarse. */
+  .barra,
+  .app[data-oculta] .barra {
+    position: absolute;
+    inset: 0;
+    width: auto;
+  }
+  .app[data-oculta] .barra {
+    pointer-events: none;
+  }
+  .barra-cuerpo {
+    width: 100%;
+    border-right: 0;
+  }
+  /* Con la lista adelante, lo de atrás no se toca ni se enfoca (se esconde cuando terminó de taparlo). */
+  .app:not([data-oculta]) > .hilo {
+    visibility: hidden;
+    transition: visibility 0s 0.22s;
+  }
+  /* No hay borde que arrastrar ni barra que ocultar, y los atajos no se anuncian donde no hay teclado. */
+  .tirador,
+  .cab .lado,
+  .pn-volver,
+  kbd {
+    display: none;
+  }
+  .migas {
+    gap: var(--esp-1-5);
+    padding: 0 var(--esp-3) 0 var(--esp-1);
+  }
+  .conv {
+    gap: var(--esp-4);
+    padding: var(--esp-4) var(--esp-3-5);
+  }
+  .yo {
+    max-width: 90%;
+  }
+  .caja-zona {
+    padding: 0 0.625rem calc(0.625rem + env(safe-area-inset-bottom, 0rem));
+  }
+  .menu-cmd {
+    right: 0.625rem;
+    left: 0.625rem;
+  }
+  .cmd {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  /* La fila de abajo de la caja, siempre una sola y con el enviar a la derecha, también a 360 px:
+     el chip del modo queda en su símbolo, con su color (el nombre largo, "bypass permissions on",
+     tiraba el enviar a otra fila); los selectores conservan su texto y pierden el adorno. */
+  .barra-c {
+    flex-wrap: nowrap;
+    gap: var(--esp-0-5);
+  }
+  .barra-c > * {
+    flex: none;
+  }
+  .barra-c > .esp {
+    flex: 1;
+  }
+  .barra-c :is(.clip, .ctx) {
+    width: 2.25rem;
+  }
+  /* Dictar a 360 px: en reposo sólo el micrófono; grabando, el contador; transcribiendo, el aro (el texto sale en la nota de abajo). */
+  .barra-c .dic-b {
+    min-width: 2.25rem;
+    padding: 0 var(--esp-1-5);
+  }
+  .dic-b:not([data-fase="grabando"]) .dic-t {
+    display: none;
+  }
+  .barra-c .pbtn {
+    gap: var(--esp-1-5);
+    padding: 0 var(--esp-2);
+  }
+  .barra-c .pbtn :is(.chev, .chip) {
+    display: none;
+  }
+  .modo {
+    justify-content: center;
+    min-width: 2rem;
+    margin-right: 0;
+    padding: 0 var(--esp-1-5);
+  }
+  .modo-t {
+    display: none;
+  }
+  /* Respondiendo: Parar ocupa el lugar del esfuerzo, que durante un turno no se puede cambiar. */
+  .barra-c:has(> .btn2) > .pick:has(.nivel) {
+    display: none;
+  }
+  /* Si igual no entrara (un nombre de modelo más largo), lo que cede es el selector, nunca el enviar. */
+  .barra-c > .pick:has(> .pbtn) {
+    min-width: 0;
+    flex-shrink: 1;
+  }
+  .barra-c .pbtn {
+    max-width: 100%;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+  /* El contexto del modelo local (32K) no cede: son tres caracteres, y sin el ícono. */
+  .barra-c > .pick:has(> .cl-chip) {
+    flex-shrink: 0;
+  }
+  .barra-c .cl-chip svg {
+    display: none;
+  }
+  /* Los menús de la caja (modelo, esfuerzo, contexto): del ancho de la caja y arriba de ella, no del botón. */
+  .caja,
+  .meta {
+    position: relative;
+  }
+  :is(.caja, .meta) .pick {
+    position: static;
+  }
+  :is(.caja, .meta) :is(.menu, .ctx-det, .ctx-det[data-lado="izq"], .cl-det) {
+    right: 0;
+    left: 0;
+    width: auto;
+    min-width: 0;
+    max-width: none;
+  }
+  /* Nada más ancho que la pantalla. */
+  #tip {
+    max-width: calc(100vw - 0.5rem);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+  .cmenu {
+    max-width: calc(100vw - 1rem);
+  }
+}
+
+/* Los teléfonos más angostos (360 px): el esfuerzo queda en su palabra, sin las barritas. */
+@media (max-width: 35rem) {
+  /* En una tabla, lo que no tiene espacios se parte antes: la pantalla es la mitad. */
+  .tabla :is(th, td) {
+    max-width: 13rem;
+  }
+}
+@media (max-width: 23rem) {
+  .barra-c .nivel {
+    display: none;
+  }
+  /* Respondiendo en 360 px no entran Parar y el micrófono sin cortar el nombre del modelo: el micrófono espera (si ya graba, se queda). */
+  .barra-c:has(> .btn2) .dic:is([data-fase="libre"], [data-fase="error"]) {
+    display: none;
+  }
+}
+@media (pointer: coarse) {
+  /* Para el dedo: 2.75rem (44 px). */
+  .lado,
+  .nueva,
+  .clip,
+  .ctx,
+  .prim:not([data-texto]),
+  .releer {
+    width: 2.75rem;
+    height: 2.75rem;
+  }
+  .caja-carpeta input,
+  .btn2,
+  .pbtn,
+  .cl-num,
+  .cl-rango,
+  .dic-b,
+  .modo,
+  .buscar,
+  .vista,
+  .mini,
+  .proy-nom,
+  .mini-pliegue,
+  .prim[data-texto],
+  .pie button {
+    height: 2.75rem;
+  }
+  .wbtn,
+  .lider,
+  .cmenu-op,
+  .op,
+  .cmd,
+  .pq-op {
+    min-height: 2.75rem;
+  }
+  .wbtn {
+    justify-content: center;
+  }
+  .btn2,
+  .mini {
+    padding-inline: var(--esp-3-5);
+  }
+  .tv-mas {
+    min-height: 2.75rem;
+  }
+  .vista::before,
+  .vista button {
+    width: 2.5rem;
+  }
+  .vista[data-vista="todo"]::before {
+    transform: translateX(2.5rem);
+  }
+  .lider-nuevo {
+    top: 0.4375rem;
+    right: 0.4375rem;
+    width: 2.75rem;
+    height: 2.75rem;
+  }
+  .proy:has(> .lider-nuevo) > .proy-nom {
+    padding-right: 3.25rem;
+  }
+  .mas {
+    width: 2.75rem;
+    height: 2.75rem;
+    margin-top: -1.375rem;
+  }
+  .lw[data-mas] > .lider {
+    padding-right: 3.5rem;
+  }
+  /* Los chiquitos (quitar un adjunto, sacar de la cola) no crecen: crece dónde se los toca. */
+  .mini-x::after,
+  .encolado-x::after {
+    content: "";
+    position: absolute;
+    inset: -0.8125rem;
+  }
+  .encolado-re::after {
+    content: "";
+    position: absolute;
+    inset: -0.8125rem 0;
+  }
+  .encolado-re {
+    margin-right: var(--esp-3-5);
+  }
+  .encolado-x,
+  .encolado-re,
+  .trabajo summary,
+  .meta .ctx {
+    position: relative;
+  }
+  .trabajo summary::after,
+  .meta .ctx::after {
+    content: "";
+    position: absolute;
+    inset: -0.875rem 0;
+  }
+  .meta .ctx::after {
+    inset: -0.875rem;
+  }
+  .vista button::after {
+    content: "";
+    position: absolute;
+    inset: -0.1875rem 0;
+  }
+  .sis-t summary,
+  summary.sis-div-t {
+    min-height: 2.75rem;
+  }
+  .buscar input {
+    align-self: stretch;
+  }
+  /* Los botones de la fila salían con el hover: con el dedo están en lo abierto (arriba, o al pie
+     de un worker) y en el menú de mantener apretado. */
+  .acc:not(:has(.settle-conf)) {
+    display: none;
+  }
+  /* Sin hover, la etiqueta de los botones del pie va siempre, debajo del ícono. */
+  .pie button {
+    flex-direction: column;
+    gap: var(--esp-0-5);
+  }
+  .pie .etq,
+  .pie button:is(:hover, :focus-visible, [data-ver]) .etq {
+    position: static;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: inherit;
+    font-size: var(--letra-2);
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+  /* Copiar un bloque de código: sin hover va siempre a la vista, y se toca en 2.75rem. */
+  /* El ::after del botón sobresale 0.625rem: la cabecera le deja ese margen para que no lo recorte. */
+  .codigo-h {
+    min-height: 2.75rem;
+    padding-right: var(--esp-2-5);
+  }
+  .codigo-c {
+    opacity: 1;
+  }
+  .codigo-c::after {
+    position: absolute;
+    inset: -0.625rem;
+    content: "";
+  }
+  .visor-x::after {
+    position: absolute;
+    inset: -0.5rem;
+    content: "";
+  }
+}

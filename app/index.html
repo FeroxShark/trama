@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <!-- En el celular: con el teclado abierto se achica la página entera (la caja queda arriba del teclado) y el borde de abajo cuenta la barra del sistema. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content" />
+    <title>trama</title>
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+    <style>
+      html, body { background: #0a0a0a; margin: 0; }
+    </style>
+  </head>
+  <body>
+    <!-- "Actualizando Trama…" (src/actualizando.ts): lo pinta este script antes de que cargue React, así la ventana nueva
+         tras un reinicio nace con el cartel y con el color de la app. Los textos son los de src/i18n (act.*): lo comprueba tests/i18n.test.ts. -->
+    <div id="act" class="act" role="status" aria-live="polite">
+      <div class="act-c">
+        <div class="act-f">
+          <span class="act-t"></span>
+          <span class="act-n"></span>
+        </div>
+        <div class="act-p" role="progressbar" aria-valuemin="0" aria-valuemax="4"><i class="act-b"></i></div>
+        <span class="act-s"></span>
+      </div>
+    </div>
+    <script type="application/json" id="act-textos">
+      {"es":{"act.titulo":"Actualizando Trama…","act.preparando":"Preparando","act.reiniciando":"Reiniciando","act.reconectando":"Reconectando","act.cargando":"Cargando"},"en":{"act.titulo":"Updating Trama…","act.preparando":"Preparing","act.reiniciando":"Restarting","act.reconectando":"Reconnecting","act.cargando":"Loading"}}
+    </script>
+    <script>
+      (function () {
+        var el = document.getElementById("act");
+        var q = new URLSearchParams(location.search);
+        var tx = JSON.parse(document.getElementById("act-textos").textContent)[q.get("idioma") === "es" ? "es" : "en"];
+        var P = ["act.preparando", "act.reiniciando", "act.reconectando", "act.cargando"];
+        var barra = el.querySelector(".act-p");
+        el.querySelector(".act-t").textContent = tx["act.titulo"];
+        barra.setAttribute("aria-label", tx["act.titulo"]);
+        window.__act = {
+          // Un paso (1 a 4); `velo`: la ventana que se va deja ver la app detrás, la que llega no (todavía no hay app).
+          paso: function (n, velo) {
+            el.style.setProperty("--p", n / 5);
+            el.querySelector(".act-s").textContent = tx[P[n - 1]] + "…";
+            el.querySelector(".act-n").textContent = n + "/4";
+            barra.setAttribute("aria-valuenow", String(n));
+            if (velo) el.setAttribute("data-velo", ""); else el.removeAttribute("data-velo");
+            el.setAttribute("data-on", "");
+          },
+          fin: function () {
+            el.style.setProperty("--p", 1);
+            barra.setAttribute("aria-valuenow", "4");
+            el.removeAttribute("data-on");
+          },
+        };
+        if (q.get("actualizando") === "1") window.__act.paso(2, false);
+      })();
+    </script>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

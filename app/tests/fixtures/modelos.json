@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "lider": { "modelo": "claude-opus-5-5", "effort": "high" },
+  "workers": {},
+  "locales": [
+    { "id": "ollama:qwen3-coder:30b", "nombre": "Qwen3 Coder 30B", "url": "http://localhost:11434", "modelo": "qwen3-coder:30b" }
+  ],
+  "gemini": { "cupo_max": 5, "sin_claude": false }
+}

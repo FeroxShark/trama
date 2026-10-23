@@ -1,0 +1,17 @@
+{
+  "compilerOptions": {
+    "target": "ES2023",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "lib": ["ES2023"],
+    "types": ["node"],
+    "outDir": "dist-electron",
+    "rootDir": "electron",
+    "strict": true,
+    "skipLibCheck": true,
+    "rewriteRelativeImportExtensions": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true
+  },
+  "include": ["electron"]
+}

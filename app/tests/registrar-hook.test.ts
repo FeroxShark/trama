@@ -1,0 +1,107 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { execFileSync, spawnSync } from "node:child_process";
+import { chmodSync, lstatSync, mkdtempSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
+
+const REGISTRAR = path.join(import.meta.dirname, "..", "scripts", "registrar-hook.mjs");
+const HOOK = path.join(import.meta.dirname, "..", "scripts", "hook-compactando.sh");
+
+const temporal = () => mkdtempSync(path.join(tmpdir(), "trama-registrar-hook-"));
+const registrar = (ruta: string) => execFileSync(process.execPath, [REGISTRAR, ruta], { encoding: "utf8" });
+const leer = (ruta: string) => JSON.parse(readFileSync(ruta, "utf8"));
+/** Cuántas veces aparece el hook de compactando en un evento (cualquier grupo). */
+const cuantos = (ajustes: any, evento: string) =>
+  (ajustes.hooks?.[evento] ?? []).flatMap((g: any) => g.hooks ?? []).filter((h: any) => /hook-compactando\.sh/.test(h.command)).length;
+
+test("registrar-hook: dos corridas dejan el hook una sola vez y los otros hooks intactos", () => {
+  const dir = temporal();
+  const settings = path.join(dir, "settings.json");
+  const otrosHooks = {
+    PreToolUse: [{ matcher: "Bash", hooks: [{ type: "command", command: "/usr/bin/otro-hook.sh" }] }],
+    PreCompact: [{ matcher: "manual", hooks: [{ type: "command", command: "/usr/bin/mi-otro-precompact.sh" }] }],
+    PostCompact: [],
+  };
+  writeFileSync(settings, JSON.stringify({ model: "opus", permissions: { allow: ["Bash(ls:*)"] }, hooks: otrosHooks }, null, 2));
+
+  const primera = registrar(settings);
+  assert.match(primera, /registrado/);
+  const tras1 = leer(settings);
+  const bytes1 = readFileSync(settings, "utf8");
+  assert.equal(cuantos(tras1, "PreCompact"), 1);
+  assert.equal(cuantos(tras1, "PostCompact"), 1);
+  assert.deepEqual(tras1.hooks.PreToolUse, otrosHooks.PreToolUse, "PreToolUse intacto");
+  assert.deepEqual(tras1.hooks.PreCompact[0], otrosHooks.PreCompact[0], "el PreCompact ajeno sigue en su grupo");
+  assert.equal(tras1.model, "opus");
+  assert.deepEqual(tras1.permissions, { allow: ["Bash(ls:*)"] });
+  assert.equal(tras1.hooks.PreCompact[1].hooks[0].command, HOOK, "el comando es la ruta de este checkout");
+
+  const segunda = registrar(settings);
+  assert.match(segunda, /ya registrado/);
+  assert.equal(readFileSync(settings, "utf8"), bytes1, "la segunda corrida no reescribe el archivo");
+  assert.equal(cuantos(leer(settings), "PreCompact"), 1);
+  assert.equal(cuantos(leer(settings), "PostCompact"), 1);
+  rmSync(dir, { recursive: true });
+});
+
+test("registrar-hook: crea el settings si no existe, con los dos eventos", () => {
+  const dir = temporal();
+  const settings = path.join(dir, "sub", "settings.json");
+  registrar(settings);
+  const ajustes = leer(settings);
+  assert.equal(cuantos(ajustes, "PreCompact"), 1);
+  assert.equal(cuantos(ajustes, "PostCompact"), 1);
+  assert.equal(statSync(settings).mode & 0o777, 0o600, "un settings nuevo no sale legible por todos");
+  rmSync(dir, { recursive: true });
+});
+
+test("registrar-hook: un hook de este script con otra ruta (checkout viejo) o repetido queda uno, con la ruta nueva", () => {
+  const dir = temporal();
+  const settings = path.join(dir, "settings.json");
+  const viejo = { type: "command", command: "/home/ana/hilos-viejo/scripts/hook-compactando.sh" };
+  writeFileSync(
+    settings,
+    JSON.stringify({
+      hooks: {
+        PreCompact: [{ hooks: [viejo, { type: "command", command: "/usr/bin/otro.sh" }] }, { hooks: [viejo] }],
+        PostCompact: [{ hooks: [viejo] }],
+      },
+    }),
+  );
+  registrar(settings);
+  const ajustes = leer(settings);
+  assert.equal(cuantos(ajustes, "PreCompact"), 1);
+  assert.equal(cuantos(ajustes, "PostCompact"), 1);
+  // La primera aparición se actualiza en su lugar; las repetidas salen, y el grupo que quedó vacío se saca.
+  assert.deepEqual(ajustes.hooks.PreCompact, [
+    { hooks: [{ type: "command", command: HOOK }, { type: "command", command: "/usr/bin/otro.sh" }] },
+  ]);
+  assert.deepEqual(ajustes.hooks.PostCompact, [{ hooks: [{ type: "command", command: HOOK }] }]);
+  rmSync(dir, { recursive: true });
+});
+
+test("registrar-hook: JSON roto no se toca y sale con error", () => {
+  const dir = temporal();
+  const settings = path.join(dir, "settings.json");
+  writeFileSync(settings, '{"hooks": {');
+  const r = spawnSync(process.execPath, [REGISTRAR, settings], { encoding: "utf8" });
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /no es JSON válido/);
+  assert.equal(readFileSync(settings, "utf8"), '{"hooks": {');
+  rmSync(dir, { recursive: true });
+});
+
+test("registrar-hook: un settings con modo 0640 conserva el modo y un enlace se sigue, no se reemplaza", () => {
+  const dir = temporal();
+  const real = path.join(dir, "dotfiles-settings.json");
+  const enlace = path.join(dir, "settings.json");
+  writeFileSync(real, "{}");
+  chmodSync(real, 0o640);
+  symlinkSync(real, enlace);
+  registrar(enlace);
+  assert.equal(lstatSync(enlace).isSymbolicLink(), true, "el enlace sigue siendo enlace");
+  assert.equal(statSync(real).mode & 0o777, 0o640);
+  assert.equal(cuantos(leer(real), "PreCompact"), 1);
+  rmSync(dir, { recursive: true });
+});

@@ -1,0 +1,30 @@
+# PLANTILLA de trama (systemd/locales/): igual que la unit de ~/.config/systemd/user/ salvo el contexto.
+# `-c ${LLAMA_CTX}`: el valor sale de %h/.config/trama/locales/bonsai.env (lo escribe el botón de contexto de trama:
+# Guardar / Probar); si ese archivo no existe vale el default de abajo (el -c de siempre). Para usarla:
+#   cp systemd/locales/qwen-llama-server-bonsai.service ~/.config/systemd/user/ && systemctl --user daemon-reload
+# (no reinicia nada; rige en la próxima carga del modelo). Ver docs/estado/locales.md.
+[Unit]
+Description=llama-server Bonsai 2 27B (Ternary PQ2_0, fork PrismML) en 127.0.0.1:8080
+# Un modelo a la vez en el 8080: sin [Install] a propósito, lo arrancan qwen-model-switch,
+# local-ai.sh, NightLoop, shark-diario, modo llm o otra app. StartLimitBurst corta el
+# restart-loop (una vez fueron 123 reinicios con la VRAM cayendo).
+StartLimitIntervalSec=300
+StartLimitBurst=3
+
+[Service]
+Type=simple
+Environment=LLAMA_CTX=65536
+EnvironmentFile=-%h/.config/trama/locales/bonsai.env
+# Binario del fork (~/llama.cpp-bonsai), NO el de ~/llama.cpp: el stock carga el gguf
+# ternario sin error y devuelve basura. CUDA 13 de pacman vive en /opt/cuda.
+Environment=LD_LIBRARY_PATH=/opt/cuda/lib64
+ExecStart=%h/llama.cpp-bonsai/build/bin/llama-server \
+    -m %h/models/bonsai2-27b/Ternary-Bonsai-2-27B-PQ2_0.gguf \
+    --host 127.0.0.1 --port 8080 --alias bonsai2-27b \
+    -c ${LLAMA_CTX} -ngl 99 --flash-attn on \
+    --cache-type-k q8_0 --cache-type-v q8_0 \
+    --reasoning-effort medium \
+    --threads 10 --batch-size 4096 --ubatch-size 1024 --parallel 1 \
+    --jinja
+Restart=on-failure
+RestartSec=5

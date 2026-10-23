@@ -1,0 +1,516 @@
+/* El tablero nuevo (src/paneles/TableroNuevo.tsx): lo que le toca al usuario, por proyecto. Mismo
+   vocabulario que el kanban (negro, hairlines, la escala de grises) y las opciones del chat (`.pq-op`).
+   Todo en rem; px sólo en las hairlines. Sin transiciones: el hover de una fila es instantáneo. */
+
+.pd {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--esp-3);
+  font-size: var(--letra-5);
+}
+/* Una columna de lectura: a 1280 px las filas y las tarjetas no se estiran de una punta a la otra. */
+.pd > * {
+  width: 100%;
+  max-width: 52rem;
+  margin-inline: auto;
+}
+.pd-barra {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--esp-2);
+}
+.pd[data-todo] > * {
+  max-width: none;
+}
+.pd-todo {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+}
+
+/* --- La lista de proyectos ---------------------------------------------------- */
+.pd-lista-zona {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--esp-2);
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--borde-3) transparent;
+}
+.pd-lista {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--borde-1);
+}
+.pd-lista > li {
+  border-bottom: 1px solid var(--borde-1);
+}
+.pd-lista[data-parados] {
+  opacity: 0.6;
+}
+.pd-fila {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  align-items: center;
+  gap: var(--esp-3);
+  padding: var(--esp-3) var(--esp-2);
+  border: 0;
+  background: transparent;
+  color: var(--txt-1);
+  font: inherit;
+  text-align: left;
+}
+.pd-fila:hover {
+  background: var(--sup-1);
+}
+.pd-punto {
+  display: inline-block;
+  width: 0.5rem;
+  height: 0.5rem;
+  flex: none;
+  border-radius: 50%;
+  background: oklch(0.7 0.13 var(--tono));
+}
+.pd-nombre {
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--letra-6);
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pd-hace {
+  flex: none;
+  color: var(--txt-4);
+  font-size: var(--letra-4);
+  white-space: nowrap;
+}
+.pd-nums {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--esp-1) var(--esp-2);
+}
+.pd-num {
+  padding: 0.0625rem var(--esp-2);
+  border: 1px solid var(--borde-3);
+  border-radius: var(--radio-2);
+  background: var(--sup-2);
+  color: var(--texto-3);
+  font-size: var(--letra-4);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.pd-ir {
+  flex: none;
+  color: var(--txt-4);
+}
+.pd-parados {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  gap: var(--esp-1);
+  padding: var(--esp-1-5) var(--esp-2);
+  border: 0;
+  background: transparent;
+  color: var(--txt-4);
+  font: inherit;
+  font-size: var(--letra-4);
+}
+.pd-parados:hover {
+  color: var(--txt-1);
+}
+.pd-parados svg {
+  transform: rotate(0deg);
+}
+.pd-parados[aria-expanded="true"] svg {
+  transform: rotate(90deg);
+}
+.pd-nada {
+  margin: var(--esp-4) var(--esp-2);
+  color: var(--txt-4);
+}
+
+/* --- Un proyecto abierto ------------------------------------------------------ */
+.pd-proy {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--esp-3);
+}
+.pd-cab {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--esp-2-5);
+  min-width: 0;
+}
+.pd-volver {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--esp-1);
+}
+.pd-h {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  font-size: var(--letra-7);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pd-scroll {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--esp-2-5);
+  overflow-y: auto;
+  padding-right: var(--esp-1);
+  scrollbar-width: thin;
+  scrollbar-color: var(--borde-3) transparent;
+}
+.pd-sec {
+  margin: var(--esp-1-5) 0 0;
+  color: var(--txt-4);
+  font-size: var(--letra-3);
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.pd-sec:first-child {
+  margin-top: 0;
+}
+.pd-card {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: var(--esp-2);
+  padding: var(--esp-3) var(--esp-3-5);
+  border: 1px solid var(--borde-2);
+  border-left: 2px solid var(--borde-2);
+  border-radius: var(--radio-3);
+  background: var(--sup-1);
+}
+.pd-card[data-hecha] {
+  border-left-color: var(--azul);
+}
+.pd-card[data-res="anda"] {
+  border-left-color: var(--verde);
+}
+.pd-card[data-res="no-anda"] {
+  border-left-color: var(--rojo);
+}
+.pd-card-t {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--esp-3);
+}
+.pd-tit {
+  min-width: 0;
+  margin: 0;
+  color: var(--texto-1);
+  font-size: var(--letra-6);
+  font-weight: 500;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+.pd-sin,
+.pd-dejar {
+  flex: none;
+  color: var(--txt-4);
+  font-size: var(--letra-3);
+  white-space: nowrap;
+}
+.pd-dejar {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-size: var(--letra-3);
+}
+.pd-dejar:hover {
+  color: var(--txt-1);
+}
+.pd-ctx {
+  display: -webkit-box;
+  margin: 0;
+  overflow: hidden;
+  color: var(--txt-3);
+  font-size: var(--letra-5);
+  line-height: 1.45;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+.pd-ops {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--esp-1-5);
+}
+.pd-ops .pq-op {
+  align-items: center;
+  max-width: 100%;
+}
+.pd-ops .pq-marca {
+  margin-top: 0;
+}
+.pd-def {
+  flex: none;
+  color: var(--txt-4);
+  font-size: var(--letra-3);
+}
+.pd-otra {
+  width: 100%;
+  max-width: 28rem;
+}
+.pd-otra[data-activa] {
+  border-color: var(--borde-6);
+}
+
+/* "Responder y avisar": con la pregunta contestada, responderla y además avisarle a un líder vivo (uno solo, o a elegir). */
+.pd-avisa {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--esp-2);
+}
+.pd-avisa-d {
+  min-width: 0;
+  max-width: 100%;
+}
+.pd-avisar {
+  display: inline-flex;
+  min-width: 0;
+  max-width: 100%;
+  height: 2rem;
+  align-items: center;
+  gap: var(--esp-1-5);
+  padding: 0 var(--esp-3);
+  font-size: var(--letra-5);
+  white-space: nowrap;
+}
+
+/* La prueba: qué hacer, copiable, y cómo salió. */
+.pd-que {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--esp-1);
+}
+.pd-que-t {
+  color: var(--txt-4);
+  font-size: var(--letra-3);
+}
+.pd-cmd {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--esp-2);
+  padding: var(--esp-1-5) var(--esp-2);
+  border: 1px solid var(--borde-2);
+  border-radius: var(--radio-2);
+  background: var(--sup-0);
+}
+.pd-cmd code {
+  min-width: 0;
+  color: var(--texto-3);
+  font-family: var(--font-mono);
+  font-size: var(--letra-4);
+  overflow-wrap: anywhere;
+}
+.pd-res {
+  display: flex;
+  gap: var(--esp-2);
+}
+.pd-res button {
+  display: inline-flex;
+  height: 1.875rem;
+  align-items: center;
+  justify-content: center;
+  gap: var(--esp-1-5);
+  padding: 0 var(--esp-3-5);
+  border: 1px solid var(--borde-3);
+  border-radius: var(--radio-3);
+  background: var(--sup-1);
+  color: var(--texto-3);
+  font: inherit;
+  font-size: var(--letra-5);
+}
+.pd-res button:hover {
+  border-color: var(--borde-4);
+  background: var(--sup-2);
+}
+.pd-res button[aria-pressed="true"][data-res="anda"] {
+  border-color: var(--verde);
+  background: var(--verde-tinte);
+  color: var(--verde);
+}
+.pd-res button[aria-pressed="true"][data-res="no-anda"] {
+  border-color: var(--rojo);
+  background: var(--rojo-tinte);
+  color: var(--rojo);
+}
+
+/* Abajo, fijo: lo que se va a mandar. */
+.pd-pie {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--esp-4);
+  padding-top: var(--esp-3);
+  border-top: 1px solid var(--borde-2);
+}
+.pd-pie-t {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--esp-0-5);
+}
+.pd-pie-n {
+  color: var(--txt-2);
+  font-variant-numeric: tabular-nums;
+}
+.pd-pie-a {
+  color: var(--txt-4);
+  font-size: var(--letra-3);
+  line-height: 1.4;
+}
+.pd-pie-error {
+  color: var(--rojo-claro);
+}
+/* Lo ya mandado: en gris, sin pedir nada; se pliega bajo las preguntas y las pruebas. */
+.pd-mand-t {
+  margin-top: var(--esp-1-5);
+}
+.pd-num[data-mandadas] {
+  border-color: transparent;
+  background: transparent;
+  color: var(--txt-4);
+}
+.pd-card[data-mandada] {
+  opacity: 0.75;
+}
+.pd-mandar {
+  height: 2rem;
+  padding: 0 var(--esp-4);
+  font-size: var(--letra-5);
+  font-weight: 500;
+  white-space: nowrap;
+}
+.btn2.pd-mandar[data-primario]:not(:disabled) {
+  border-color: var(--texto-1);
+  background: var(--texto-1);
+  color: var(--negro);
+}
+.btn2.pd-mandar[data-primario]:not(:disabled):hover {
+  background: var(--blanco);
+  color: var(--negro);
+}
+
+/* --- Celular (src/angosto.ts): una columna, botones grandes, Mandar siempre a la vista ---- */
+@media (max-width: 35rem) {
+  .pd-fila {
+    flex-wrap: wrap;
+    row-gap: var(--esp-1-5);
+  }
+  .pd-hace {
+    margin-left: auto;
+  }
+  .pd-ir {
+    display: none;
+  }
+  .pd-nums {
+    flex: 1 1 100%;
+    justify-content: flex-start;
+    padding-left: var(--esp-5);
+  }
+  .pd-ops {
+    flex-direction: column;
+  }
+  .pd-ops .pq-op {
+    width: 100%;
+  }
+  .pd-otra {
+    max-width: none;
+  }
+  .pd-avisa {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .pd-avisar {
+    justify-content: center;
+    white-space: normal;
+  }
+  .pd-card-t {
+    flex-direction: column;
+    gap: var(--esp-1);
+  }
+  .pd-res button {
+    flex: 1;
+  }
+  .pd-pie {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--esp-2);
+    padding-bottom: env(safe-area-inset-bottom, 0rem);
+  }
+  .pd-pie-a:not(.pd-pie-error) {
+    display: none;
+  }
+  .pd-mandar {
+    width: 100%;
+  }
+}
+@media (max-width: 35rem), (pointer: coarse) {
+  /* Todo lo que se toca mide 2.75rem (también en una ventana angosta: es el celular). */
+  .pd-fila,
+  .pd-ops .pq-op,
+  .pd-res button,
+  .pd-mandar,
+  .pd-avisar,
+  .pd-volver,
+  .pd-parados,
+  .pd .pd-otra {
+    min-height: 2.75rem;
+  }
+  .pd-res button {
+    height: 2.75rem;
+  }
+  .pd-mandar,
+  .pd-avisar,
+  .pd-volver {
+    height: 2.75rem;
+  }
+  .pd-avisa-d .pbtn {
+    min-height: 2.75rem;
+  }
+  .pd-dejar {
+    position: relative;
+  }
+  .pd-dejar::after,
+  .pd-cmd .tb-copiar::after {
+    content: "";
+    position: absolute;
+    inset: -0.75rem;
+  }
+  .pd-cmd .tb-copiar {
+    position: relative;
+  }
+}

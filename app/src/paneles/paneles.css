@@ -1,0 +1,1364 @@
+/* Los paneles del pie (Ajustes, Ramas, Estadísticas). Mismo vocabulario que la
+   dirección D: negro, hairlines, la misma escala de grises y el rojo. */
+
+/* El panel tapa la vista del hilo sin desmontarla: lo que se estaba escribiendo sigue ahí. */
+.app[data-panel] > .hilo:not(.pn-main) {
+  display: none;
+}
+.pie button[aria-pressed="true"] {
+  background: var(--sup-2);
+  color: var(--texto-1);
+}
+
+.pn-volver {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--esp-2);
+}
+.pn {
+  display: flex;
+  width: 100%;
+  max-width: 45rem;
+  flex-direction: column;
+  gap: 1.75rem;
+  margin: 0 auto;
+  padding: 1.75rem var(--esp-6) 3rem;
+  animation: entra 0.16s ease-out;
+}
+.pn-aviso,
+.pn-nota {
+  font-size: var(--letra-4);
+  color: var(--texto-6);
+}
+.pn-aviso[data-error],
+.pn-error {
+  color: var(--rojo);
+}
+/* El panel que no pudo cargar: el motivo en una línea y Reintentar. */
+.pn-falla {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-3);
+}
+.pn-falla-t {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pn-falla .mini {
+  flex: none;
+}
+.pn-sec {
+  display: flex;
+  flex-direction: column;
+}
+/* "Medir exacto" del peso de arrancar: el botón y lo que cuesta, en una fila. */
+.pn-medir {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-3);
+  margin-top: var(--esp-2);
+}
+.pn-medir .mini {
+  flex: none;
+}
+.pn-medir .mini:disabled {
+  opacity: 0.5;
+}
+.pn-medir .pn-nota {
+  min-width: 0;
+}
+/* Historial al cambiar de período (o de rol): lo anterior se queda a la vista, apagado, hasta que llega lo nuevo. Sólo opacidad. */
+.pn-sec[data-viejo] > :not(.pn-h):not(.pn-seg) {
+  opacity: 0.45;
+  transition: opacity 0.15s;
+}
+.pn-h {
+  display: flex;
+  align-items: baseline;
+  gap: var(--esp-2);
+  margin: 0 0 var(--esp-1-5);
+  color: var(--texto-7);
+  font-size: var(--letra-3);
+  font-weight: 400;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.pn-mono {
+  font-family: var(--font-mono);
+}
+
+/* --- Ajustes --- */
+.pn-dato {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--esp-6);
+  padding: var(--esp-3) 0;
+  border-top: 1px solid var(--borde-1);
+}
+.pn-nom {
+  overflow: hidden;
+  color: var(--texto-1);
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pn-que {
+  max-width: 27.5rem;
+  margin-top: var(--esp-0-5);
+  color: var(--texto-6);
+  font-size: var(--letra-4);
+  line-height: 1.5;
+}
+.pn-val {
+  color: var(--texto-6);
+  font-family: var(--font-mono);
+  font-size: var(--letra-4);
+  text-align: right;
+  white-space: nowrap;
+}
+.pn-val b {
+  color: var(--texto-1);
+  font-size: var(--letra-5);
+  font-weight: 500;
+}
+.pn-alt {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--esp-2-5);
+  margin-top: var(--esp-1);
+  color: var(--texto-7);
+  font-size: var(--letra-3);
+}
+.pn-alt [data-on] {
+  color: var(--texto-4);
+}
+.pn-falta {
+  color: var(--texto-7);
+  white-space: normal;
+}
+/* Modelos de los workers: dos selectores por fila, el menú abre alineado a la derecha. */
+.pn-intro {
+  max-width: 32.5rem;
+  margin-bottom: var(--esp-2);
+  line-height: 1.5;
+}
+.pn-sel {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--esp-1-5);
+  font-family: var(--font-sans);
+  text-align: left;
+}
+.pn-sel .pbtn {
+  font-family: var(--font-sans);
+}
+.pn-sel .menu {
+  right: 0;
+  left: auto;
+}
+/* Arriba de todo en el panel no hay lugar: el menú de las fuentes abre hacia abajo. */
+.pn-abajo .menu {
+  top: calc(100% + 0.375rem);
+  bottom: auto;
+  transform-origin: top right;
+}
+/* Tamaño de letra: un botón por px, el elegido en blanco y un puntito bajo el default. */
+.pn-letra {
+  display: inline-flex;
+  gap: 1px;
+  padding: var(--esp-0-5);
+  border: 1px solid var(--borde-3);
+  border-radius: var(--radio-2);
+}
+.pn-letra button {
+  position: relative;
+  min-width: 1.75rem;
+  height: 1.375rem;
+  padding: 0 var(--esp-1);
+  border: 0;
+  border-radius: var(--radio-2);
+  background: none;
+  color: var(--texto-6);
+  font: inherit;
+  transition:
+    background-color 0.15s,
+    color 0.15s;
+}
+.pn-letra button:hover {
+  color: var(--texto-1);
+}
+.pn-letra button[aria-checked="true"] {
+  background: var(--sup-4);
+  color: var(--texto-1);
+}
+.pn-letra button[data-def]::after {
+  content: "";
+  position: absolute;
+  bottom: 0.125rem;
+  left: calc(50% - 1px);
+  width: 2px;
+  height: 2px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.6;
+}
+.pn-sel .pn-falta {
+  min-width: 4.5rem;
+  font-size: var(--letra-4);
+  text-align: right;
+}
+.pn-routing-error {
+  margin-top: var(--esp-2);
+}
+/* Lo que se edita con Guardar (plan, red de seguridad, acceso del celular): campos, lista de dispositivos y acciones. */
+.pn-campo {
+  width: 100%;
+  height: 1.75rem;
+  box-sizing: border-box;
+  padding: 0 var(--esp-2);
+  border: 1px solid var(--borde-3);
+  border-radius: var(--radio-2);
+  background: transparent;
+  color: var(--texto-1);
+  font: inherit;
+  font-size: var(--letra-4);
+}
+.pn-campo::placeholder {
+  color: var(--texto-7);
+}
+.pn-campo:hover {
+  border-color: var(--borde-4);
+}
+.pn-campo[aria-invalid="true"] {
+  border-color: var(--rojo);
+}
+.pn-campo-num {
+  width: 7.5rem;
+  font-family: var(--font-mono);
+  text-align: right;
+}
+.pn-campo-fila {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--esp-2);
+}
+.pn-unidad {
+  color: var(--texto-7);
+  font-size: var(--letra-3);
+}
+.pn-campo-error {
+  margin-top: var(--esp-1);
+  max-width: 17.5rem;
+  margin-left: auto;
+  font-family: var(--font-sans);
+  text-align: right;
+  white-space: normal;
+}
+.pn-estado {
+  margin-bottom: var(--esp-2);
+  color: var(--texto-7);
+  font-size: var(--letra-4);
+}
+.pn-estado[data-escucha] {
+  color: var(--verde);
+}
+.pn-disp {
+  display: flex;
+  min-width: 12.5rem;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--esp-1);
+  margin: 0 0 var(--esp-2);
+  padding: 0;
+  list-style: none;
+}
+.pn-disp li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--esp-2);
+  padding: 0 0 0 var(--esp-2);
+  border: 1px solid var(--borde-2);
+  border-radius: var(--radio-2);
+}
+.pn-disp li.pn-falta {
+  min-height: 1.75rem;
+  border-style: dashed;
+}
+.pn-disp-nom {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--texto-3);
+  text-overflow: ellipsis;
+}
+.pn-quitar {
+  position: relative;
+  display: grid;
+  width: 1.75rem;
+  height: 1.75rem;
+  flex: none;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--texto-7);
+}
+.pn-quitar:hover {
+  color: var(--rojo);
+}
+.pn-nuevo {
+  display: flex;
+  gap: var(--esp-1-5);
+}
+.pn-nuevo .btn2 {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--esp-1);
+}
+.pn-acciones {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-2);
+  padding-top: var(--esp-3);
+  border-top: 1px solid var(--borde-1);
+}
+.pn-acciones-btns {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-2);
+}
+.pn-ok {
+  color: var(--verde);
+  font-size: var(--letra-4);
+}
+
+/* --- Ramas --- */
+.pn-ramas {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.pn-rama {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-4);
+  padding: var(--esp-2-5) 0;
+  border-top: 1px solid var(--borde-1);
+}
+.pn-rama-txt {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--esp-0-5);
+}
+.pn-tarea {
+  max-width: 100%;
+  align-self: flex-start;
+  overflow: hidden;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radio-1);
+  background: none;
+  color: var(--texto-2);
+  font-weight: 500;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pn-tarea:hover {
+  color: var(--blanco);
+}
+/* B22: la llave de "Integrar solo lo seguro", el analista y sus veredictos. */
+.pn-ramas-cab {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--esp-4);
+}
+.pn-llave {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--esp-2);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--texto-6);
+  font-size: var(--letra-4);
+}
+.pn-llave:hover {
+  color: var(--texto-1);
+}
+.pn-llave-punto {
+  width: 0.5rem;
+  height: 0.5rem;
+  border: 1px solid var(--borde-6);
+  border-radius: 50%;
+}
+.pn-llave[aria-pressed="true"] {
+  color: var(--texto-3);
+}
+.pn-llave[aria-pressed="true"] .pn-llave-punto {
+  border-color: var(--verde);
+  background: var(--verde);
+}
+.pn-analista {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-2);
+  margin-top: var(--esp-3);
+}
+.pn-analista-cab {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-1);
+}
+.pn-analista-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--esp-1-5);
+  margin-right: auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--texto-4);
+  font-size: var(--letra-4);
+}
+.pn-analista-btn:hover:not(:disabled) {
+  color: var(--texto-1);
+}
+.pn-analista-btn:disabled {
+  color: var(--texto-7);
+  cursor: default;
+}
+.pn-ico {
+  display: inline-flex;
+  width: 1.5rem;
+  height: 1.5rem;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radio-2);
+  background: none;
+  color: var(--texto-6);
+}
+.pn-ico:hover {
+  background: var(--sup-2);
+  color: var(--texto-1);
+}
+.pn-analista-pliegue svg {
+  transform: rotate(-90deg);
+}
+.pn-analista[data-abierto] .pn-analista-pliegue svg {
+  transform: none;
+}
+.pn-analista-chat {
+  display: flex;
+  height: 26rem;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--borde-2);
+  border-radius: var(--radio-3);
+}
+.pn-analista-chat[hidden] {
+  display: none;
+}
+.pn-juicio {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-2);
+  margin-top: var(--esp-1-5);
+  font-size: var(--letra-4);
+}
+.pn-juicio-v {
+  flex: none;
+  color: var(--texto-3);
+  font-weight: 500;
+}
+.pn-juicio[data-veredicto="integrar"] .pn-juicio-v {
+  color: var(--verde);
+}
+.pn-juicio[data-veredicto="descartar"] .pn-juicio-v {
+  color: var(--rojo);
+}
+.pn-juicio[data-veredicto="retomar"] .pn-juicio-v {
+  color: var(--ambar);
+}
+.pn-juicio-m {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--texto-6);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pn-juicio .mini {
+  flex: none;
+}
+.pn-auto {
+  padding: 0 var(--esp-1);
+  border: 1px solid var(--borde-3);
+  border-radius: var(--radio-2);
+  color: var(--texto-4);
+  font-size: var(--letra-3);
+}
+.pn-sola {
+  margin-bottom: var(--esp-1);
+}
+/* B25: la salud de lo integrado. ✓ verde si no rompió nada; en rojo si se revirtió,
+   quedó bien=no o los tests de main dieron rojo después (la cola, en el tooltip). */
+.pn-salud {
+  display: inline-flex;
+  align-items: center;
+  color: var(--verde);
+}
+.pn-rama[data-salud="mal"] .pn-salud,
+.pn-rojo {
+  color: var(--rojo);
+}
+.pn-rama[data-salud="mal"] .pn-tarea {
+  color: var(--rojo-claro);
+}
+.pn-verificando {
+  font-size: var(--letra-4);
+}
+.mini.pn-primario,
+.mini[data-primario],
+.btn2[data-primario] {
+  border-color: var(--borde-5);
+  color: var(--blanco);
+}
+.pn-sub {
+  display: flex;
+  min-width: 0;
+  gap: var(--esp-2-5);
+  color: var(--texto-6);
+  font-size: var(--letra-4);
+  white-space: nowrap;
+}
+.pn-sub > * {
+  flex: none;
+}
+.pn-sub .pn-mono {
+  min-width: 0;
+  flex: 0 1 auto;
+  overflow: hidden;
+  color: var(--texto-7);
+  font-size: var(--letra-3);
+  text-overflow: ellipsis;
+}
+.pn-error {
+  font-size: var(--letra-4);
+}
+.pn-acc {
+  display: flex;
+  flex: none;
+  gap: var(--esp-1-5);
+}
+.pn-acc .mini {
+  transition:
+    color 0.15s,
+    border-color 0.15s;
+}
+.pn-descartar {
+  min-width: 5.375rem;
+  justify-content: center;
+}
+.pn-descartar[data-armado],
+.pn-descartar[data-armado]:hover {
+  border-color: var(--rojo);
+  color: var(--rojo);
+}
+.pn-espera {
+  flex: none;
+  color: var(--texto-7);
+  font-size: var(--letra-4);
+}
+
+/* --- Estadísticas --- */
+.pn-cab {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-2-5);
+}
+.pn-seg {
+  display: flex;
+  align-self: flex-start;
+  gap: var(--esp-0-5);
+  padding: var(--esp-0-5);
+  border: 1px solid var(--borde-2);
+  border-radius: var(--radio-2);
+}
+.pn-seg button {
+  height: 1.5rem;
+  padding: 0 var(--esp-2-5);
+  border: 0;
+  border-radius: var(--radio-2);
+  background: transparent;
+  color: var(--texto-6);
+  font-size: var(--letra-4);
+  transition:
+    background-color 0.15s,
+    color 0.15s;
+}
+.pn-seg button:hover {
+  color: var(--texto-3);
+}
+.pn-seg button[aria-pressed="true"] {
+  background: var(--sup-2);
+  color: var(--texto-1);
+}
+.pn-periodo {
+  color: var(--texto-3);
+  font-size: var(--letra-5);
+}
+.pn-periodo span {
+  color: var(--texto-7);
+}
+.pn-h-sub {
+  color: var(--texto-8);
+  letter-spacing: 0.02em;
+  text-transform: none;
+}
+.pn-cifras {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: var(--esp-4);
+  padding: var(--esp-3-5) 0;
+  border-block: 1px solid var(--borde-1);
+}
+.pn-cifra .pn-h {
+  margin-bottom: var(--esp-1);
+}
+.pn-cifra b {
+  color: var(--texto-1);
+  font-family: var(--font-mono);
+  font-size: var(--letra-8);
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+}
+.pn-cifra-sub {
+  margin-top: var(--esp-1);
+  color: var(--texto-7);
+  font-size: var(--letra-3);
+  line-height: 1.35;
+}
+
+/* Barras verticales a todo el ancho: número arriba, riel de 4 px, día abajo. */
+.pn-barras {
+  display: grid;
+  gap: var(--esp-0-5);
+  margin-top: var(--esp-1-5);
+}
+.pn-b {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--esp-1);
+}
+.pn-b-num,
+.pn-b-dia {
+  height: 0.8125rem;
+  color: var(--texto-4);
+  font-family: var(--font-mono);
+  font-size: var(--letra-2);
+  line-height: 0.8125rem;
+  white-space: nowrap;
+}
+.pn-b-num[data-cero] {
+  color: var(--borde-4);
+}
+.pn-b-dia {
+  color: var(--texto-7);
+}
+.pn-b-dia[data-lunes] {
+  color: var(--texto-5);
+}
+.pn-b[data-hoy] .pn-b-dia {
+  color: var(--texto-3);
+}
+.pn-b-riel {
+  display: flex;
+  width: 0.25rem;
+  height: 3.5rem;
+  align-items: stretch;
+  border-radius: var(--radio-1);
+  background: var(--sup-2);
+}
+.pn-b-riel i {
+  flex: 1;
+  border-radius: var(--radio-1);
+  background: var(--texto-3);
+  transform-origin: bottom;
+  transition: transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+/* 60 días: barras de 3 px y las fechas de los lunes se salen de su columna. */
+.pn-barras[data-denso] {
+  gap: 1px;
+}
+.pn-barras[data-denso] .pn-b-riel {
+  width: 0.1875rem;
+}
+.pn-barras[data-denso] .pn-b-dia,
+.pn-barras[data-denso] .pn-b-num {
+  overflow: visible;
+}
+/* El último de la fila se recuesta a la derecha: que "hoy" y su número no se salgan del panel. */
+.pn-barras[data-denso] .pn-b:last-child {
+  align-items: flex-end;
+}
+
+/* Tendencia: renglón de pregunta y filas nombre · ahora · antes · cambio. */
+.pn-tabla {
+  display: grid;
+  grid-template-columns: 8.25rem auto minmax(0, 1fr) 4rem;
+  align-items: baseline;
+  gap: var(--esp-1-5) var(--esp-3);
+}
+.pn-t-q {
+  grid-column: 1 / -1;
+  margin-top: var(--esp-1-5);
+  color: var(--texto-6);
+  font-size: var(--letra-4);
+}
+.pn-t-q:first-child {
+  margin-top: 0;
+}
+.pn-t-falta {
+  grid-column: 1 / -1;
+  color: var(--texto-7);
+  font-size: var(--letra-4);
+}
+.pn-t-n {
+  color: var(--texto-3);
+}
+.pn-tabla .pn-tok {
+  text-align: left;
+}
+.pn-cambio {
+  color: var(--texto-1);
+}
+
+.pn-medidor {
+  display: grid;
+  grid-template-columns: 8.25rem minmax(0, 1fr) 3rem 10.5rem;
+  align-items: center;
+  gap: var(--esp-3);
+  padding: var(--esp-1) 0;
+}
+.pn-medidor .pn-tok {
+  text-align: left;
+}
+.pn-semanas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--esp-1) var(--esp-4);
+  margin-top: var(--esp-2);
+  color: var(--texto-7);
+  font-size: var(--letra-4);
+}
+.pn-semanas b {
+  color: var(--texto-4);
+  font-family: var(--font-mono);
+  font-size: var(--letra-4);
+  font-weight: 400;
+}
+
+.pn-parte {
+  display: grid;
+  grid-template-columns: 8.25rem minmax(0, 1fr) 2.25rem 4rem;
+  align-items: center;
+  gap: var(--esp-3);
+  padding: var(--esp-1) 0;
+}
+.pn-parte-n {
+  overflow: hidden;
+  color: var(--texto-3);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pn-riel i {
+  transition: transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.pn-apilada {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--esp-1);
+}
+.pn-apilada .pn-pila {
+  margin-top: 0;
+}
+.pn-mix {
+  overflow: hidden;
+  color: var(--texto-7);
+  font-family: var(--font-mono);
+  font-size: var(--letra-2);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pn-num {
+  color: var(--texto-3);
+  font-family: var(--font-mono);
+  font-size: var(--letra-4);
+  text-align: right;
+  white-space: nowrap;
+}
+.pn-tok {
+  color: var(--texto-6);
+}
+.pn-pila {
+  display: flex;
+  height: 0.25rem;
+  overflow: hidden;
+  gap: 1px;
+  border-radius: var(--radio-1);
+  margin-top: var(--esp-1);
+}
+.pn-pila i {
+  flex: 0 0 0;
+  min-width: 0;
+}
+.pn-pila [data-b="si"] {
+  background: var(--verde);
+}
+.pn-pila [data-b="parcial"] {
+  background: var(--ambar);
+}
+.pn-pila [data-b="no"] {
+  background: var(--rojo);
+}
+/* Los modelos, en tres grises (y uno más para lo que no se reconoce). */
+[data-m="Opus"] {
+  --m: #e5e5e5;
+}
+[data-m="Sonnet"] {
+  --m: #8a8a8a;
+}
+[data-m="Fable"] {
+  --m: #4f4f4f;
+}
+[data-m="otro"] {
+  --m: #2e2e2e;
+}
+.pn-pila-m i {
+  background: var(--m);
+}
+.pn-leyenda {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--esp-1-5) var(--esp-4);
+  margin-top: var(--esp-2-5);
+  color: var(--texto-6);
+  font-size: var(--letra-4);
+}
+.pn-leyenda > [data-b],
+.pn-leyenda > [data-m] {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--esp-1-5);
+}
+.pn-leyenda > [data-b]::before,
+.pn-leyenda > [data-m]::before {
+  width: 0.375rem;
+  height: 0.375rem;
+  border-radius: 50%;
+  background: var(--m, var(--borde-5));
+  content: "";
+}
+.pn-leyenda > [data-b="si"]::before {
+  background: var(--verde);
+}
+.pn-leyenda > [data-b="parcial"]::before {
+  background: var(--ambar);
+}
+.pn-leyenda > [data-b="no"]::before {
+  background: var(--rojo);
+}
+.pn-leyenda b {
+  color: var(--texto-3);
+  font-family: var(--font-mono);
+  font-size: var(--letra-4);
+  font-weight: 400;
+}
+.pn-leyenda em {
+  color: var(--texto-7);
+  font-size: var(--letra-3);
+  font-style: normal;
+}
+.pn-tasa {
+  margin-left: auto;
+}
+.pn-sec > .pn-nota {
+  margin-top: var(--esp-2);
+}
+/* Cargado y sin usar: lo que nunca se usó va marcado en rojo; las listas de lo usado, con su subtítulo. */
+.pn-sec > .pn-seg {
+  margin-bottom: var(--esp-1);
+}
+.pn-sec > .pn-sub-h {
+  margin-top: var(--esp-3);
+}
+.pn-mix b {
+  color: var(--rojo);
+  font-weight: 400;
+}
+.pn-parte[data-sin-uso] .pn-num:not(.pn-tok) {
+  color: var(--rojo);
+}
+
+/* --- Celular (src/angosto.ts): en angosto, una columna -------------------------- */
+@media (max-width: 35rem) {
+  .pn {
+    gap: var(--esp-6);
+    padding: var(--esp-5) var(--esp-3-5) 2.5rem;
+  }
+  /* Ajustes: el control va debajo de su explicación, y su menú a todo el ancho. */
+  .pn-dato {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--esp-2);
+  }
+  .pn-val {
+    text-align: left;
+    white-space: normal;
+  }
+  .pn-falla-t {
+    white-space: normal;
+  }
+  .pn-medir {
+    flex-wrap: wrap;
+  }
+  /* El subtítulo largo de un encabezado baja de renglón en vez de salirse de la pantalla. */
+  .pn-h {
+    flex-wrap: wrap;
+    white-space: normal;
+  }
+  .pn-alt,
+  .pn-sel {
+    justify-content: flex-start;
+  }
+  /* Lo editable: el campo, la lista y sus errores a todo el ancho, alineados a la izquierda. */
+  .pn-campo-fila {
+    justify-content: flex-start;
+  }
+  .pn-campo-num {
+    text-align: left;
+  }
+  .pn-campo-error {
+    max-width: none;
+    margin-left: 0;
+    text-align: left;
+  }
+  .pn-disp {
+    min-width: 0;
+  }
+  .pn-nuevo {
+    flex-wrap: wrap;
+  }
+  .pn-nuevo .pn-campo {
+    min-width: 0;
+    flex: 1 1 9rem;
+  }
+  .pn-sel {
+    position: relative;
+    flex-wrap: wrap;
+  }
+  .pn-sel .pick {
+    position: static;
+  }
+  .pn-sel .menu {
+    right: 0;
+    left: 0;
+    width: auto;
+    min-width: 0;
+    max-width: none;
+  }
+  /* Ramas: la tarea entera arriba y sus botones abajo. */
+  .pn-ramas-cab {
+    flex-wrap: wrap;
+  }
+  .pn-rama {
+    flex-wrap: wrap;
+    gap: var(--esp-2);
+  }
+  .pn-rama-txt {
+    flex-basis: 100%;
+  }
+  .pn-tarea {
+    overflow-wrap: anywhere;
+    white-space: normal;
+  }
+  .pn-sub {
+    flex-wrap: wrap;
+    gap: var(--esp-0-5) var(--esp-2-5);
+  }
+  /* Estadísticas: las cifras de a dos, y cada barra debajo de su renglón. */
+  .pn-cifras {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .pn-tabla {
+    grid-template-columns: minmax(0, 5rem) auto minmax(0, 1fr) auto;
+    gap: var(--esp-1-5) var(--esp-2);
+  }
+  /* "antes … · entera …" es largo: baja de renglón en vez de pisar el cambio. */
+  .pn-tabla .pn-tok {
+    min-width: 0;
+    white-space: normal;
+  }
+  .pn-medidor,
+  .pn-parte {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    gap: var(--esp-1) var(--esp-3);
+  }
+  .pn-medidor .pn-riel,
+  .pn-parte .pn-apilada {
+    grid-row: 2;
+    grid-column: 1 / -1;
+  }
+}
+@media (pointer: coarse) {
+  /* Lo editable de Ajustes: cada campo y botón mide 2.75rem; el × crece a lo ancho sin ensanchar la fila. */
+  .pn-campo,
+  .pn-nuevo .btn2,
+  .pn-acciones .btn2 {
+    height: 2.75rem;
+  }
+  .pn-disp li {
+    min-height: 2.75rem;
+  }
+  .pn-quitar {
+    width: 2.75rem;
+    height: 2.75rem;
+  }
+  .pn-letra button,
+  .pn-seg button {
+    min-width: 2.25rem;
+    height: 2.75rem;
+  }
+  .pn-llave,
+  .pn-analista-btn,
+  .pn-tarea {
+    min-height: 2.75rem;
+  }  /* Los iconos del analista (plegar, cerrar) no crecen: crece dónde se los toca. */
+  .pn-ico {
+    position: relative;
+  }
+  .pn-ico::after {
+    content: "";
+    position: absolute;
+    inset: -0.625rem;
+  }
+}
+
+/* --- Atajos de teclado (src/paneles/Atajos.tsx) -------------------------------
+   Un modal sobre todo: fondo oscuro, caja con hairline. La lista sale de src/atajos.ts. */
+.at {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  padding: var(--esp-6);
+  background: var(--fondo-modal);
+}
+.at-caja {
+  display: flex;
+  width: min(32rem, 100%);
+  max-height: 100%;
+  flex-direction: column;
+  border: 1px solid var(--borde-3);
+  border-radius: var(--radio-4);
+  background: var(--sup-1);
+  color: var(--texto-3);
+  font-size: var(--letra-5);
+}
+.at-h {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--esp-3) var(--esp-3) var(--esp-2) var(--esp-4);
+}
+.at-h h2 {
+  margin: 0;
+  color: var(--texto-1);
+  font-size: var(--letra-7);
+  font-weight: 600;
+}
+.at-cuerpo {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  gap: var(--esp-4);
+  padding: var(--esp-1) var(--esp-4) var(--esp-4);
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--borde-3) transparent;
+}
+.at-cuerpo h3 {
+  margin: 0 0 var(--esp-1-5);
+  color: var(--texto-6);
+  font-size: var(--letra-3);
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.at-cuerpo dl {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: var(--esp-1) var(--esp-4);
+  margin: 0;
+}
+.at-cuerpo dt,
+.at-cuerpo dd {
+  margin: 0;
+}
+.at-cuerpo dd {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--esp-1);
+  color: var(--texto-6);
+}
+.at-tecla {
+  display: inline-block;
+  min-width: 1.375rem;
+  padding: 0.0625rem var(--esp-1-5);
+  border: 1px solid var(--borde-3);
+  border-radius: var(--radio-2);
+  background: var(--sup-2);
+  color: var(--texto-3);
+  font-size: var(--letra-3);
+  text-align: center;
+}
+.at-o {
+  margin: 0 var(--esp-1);
+  font-size: var(--letra-3);
+}
+
+/* Cerrar del todo (src/paneles/Salir.tsx): la caja del modal de atajos, más angosta y con dos salidas. */
+.sa-caja {
+  width: min(26rem, 100%);
+  gap: var(--esp-2);
+  padding: var(--esp-4);
+}
+.sa-caja h2 {
+  margin: 0 0 var(--esp-1);
+  color: var(--texto-1);
+  font-size: var(--letra-7);
+  font-weight: 600;
+}
+.sa-ayuda {
+  margin: 0;
+  color: var(--texto-6);
+  font-size: var(--letra-4);
+}
+.sa-op {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-0-5);
+  padding: var(--esp-2-5) var(--esp-3);
+  border: 1px solid var(--borde-3);
+  border-radius: var(--radio-3);
+  background: transparent;
+  color: var(--texto-3);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.sa-op b {
+  color: var(--texto-1);
+  font-size: var(--letra-5);
+  font-weight: 500;
+}
+.sa-op span {
+  color: var(--texto-6);
+  font-size: var(--letra-3);
+}
+.sa-op:hover {
+  border-color: var(--borde-5);
+}
+.sa-op[data-primario] {
+  border-color: var(--borde-5);
+}
+.sa-pie {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--esp-2);
+  margin-top: var(--esp-1);
+}
+
+/* El paso previo de las acciones de Ramas que lanzan algo (src/paneles/PasoLanzar.tsx): la caja de Salir con
+   los dos selectores en una fila, un texto opcional y Cancelar / Lanzar. */
+.lz-caja {
+  width: min(28rem, 100%);
+  gap: var(--esp-3);
+  padding: var(--esp-4);
+}
+.lz-caja h2 {
+  margin: 0;
+  color: var(--texto-1);
+  font-size: var(--letra-7);
+  font-weight: 600;
+}
+.lz-ayuda {
+  margin: 0;
+  color: var(--texto-6);
+  font-size: var(--letra-4);
+}
+.lz-fila {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--esp-2);
+}
+.lz-tipo {
+  margin-left: auto;
+  color: var(--texto-6);
+  font-size: var(--letra-3);
+}
+.lz-texto {
+  min-height: 4.5rem;
+  max-height: 10rem;
+  padding: var(--esp-1-5) var(--esp-2-5);
+  border: 1px solid var(--borde-3);
+  border-radius: var(--radio-3);
+  background: var(--sup-1);
+  color: var(--texto-1);
+  font: inherit;
+  font-size: var(--letra-6);
+  resize: none;
+  scrollbar-width: thin;
+  scrollbar-color: var(--borde-3) transparent;
+}
+.lz-texto:focus {
+  border-color: var(--borde-5);
+}
+.lz-texto::placeholder {
+  color: var(--texto-7);
+}
+.lz-error {
+  margin: 0;
+  color: var(--rojo);
+  font-size: var(--letra-4);
+  overflow-wrap: anywhere;
+}
+.lz-pie {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--esp-2);
+}
+.lz-pista {
+  margin-right: auto;
+  color: var(--texto-7);
+  font-size: var(--letra-3);
+}
+@media (max-width: 35rem) {
+  .lz-caja {
+    padding: var(--esp-3-5);
+  }
+  .lz-tipo {
+    margin-left: 0;
+    flex-basis: 100%;
+  }
+  .lz-pie {
+    flex-wrap: wrap;
+  }
+  .lz-pista {
+    flex-basis: 100%;
+  }
+}
+@media (pointer: coarse) {
+  .lz-caja .btn2,
+  .lz-caja .pbtn {
+    min-height: 2.75rem;
+  }
+  .lz-texto {
+    min-height: 5.5rem;
+  }
+  /* En el dedo no hay Enter físico que valga: la pista de teclado sobra. */
+  .lz-pista {
+    display: none;
+  }
+}
+
+/* Ajustes > Modelos y proveedores (AjustesModelos.tsx). */
+.pn-sub-h {
+  margin: var(--esp-4) 0 var(--esp-1);
+  color: var(--texto-7);
+  font-size: var(--letra-4);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.mdl-locales,
+.mdl-instalados {
+  font-family: var(--font-sans);
+  text-align: left;
+}
+.mdl-locales li,
+.mdl-instalados li {
+  gap: var(--esp-3);
+}
+.mdl-local-nom {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+}
+.mdl-url {
+  overflow: hidden;
+  color: var(--texto-7);
+  font-size: var(--letra-3);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mdl-estado {
+  flex: none;
+  color: var(--texto-7);
+  font-size: var(--letra-3);
+}
+.mdl-estado[data-estado="ok"] {
+  color: var(--verde);
+}
+.mdl-estado[data-estado="no"] {
+  color: var(--rojo);
+}
+.mdl-agregar-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--esp-1);
+}
+.mdl-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-2);
+  margin: 0 0 var(--esp-3);
+  padding: var(--esp-3);
+  border: 1px solid var(--borde-2);
+  border-radius: var(--radio-2);
+}
+.mdl-instalados li {
+  padding-right: var(--esp-1);
+}
+.mdl-instalados .btn2 {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--esp-1);
+}
+@media (pointer: coarse) {
+  .mdl-agregar-btn,
+  .mdl-instalados .btn2 {
+    min-height: 2.75rem;
+  }
+}

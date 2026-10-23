@@ -1,0 +1,1071 @@
+/* La pestaña Tablero (src/paneles/Tablero.tsx): un kanban denso, con el vocabulario de los otros
+   paneles (negro, hairlines, la misma escala de grises). Lo único de color es el chip de cada
+   proyecto, que sale de su nombre (`--tono`). Todo en rem; px sólo en las hairlines. */
+
+/* Este panel ocupa todo el lado derecho: no tiene el ancho de lectura de los otros. */
+.pn.pn-tablero {
+  max-width: none;
+  height: 100%;
+  gap: 0;
+  padding: var(--esp-3) var(--esp-4) var(--esp-3);
+}
+.tb {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--esp-2);
+  font-size: var(--letra-5);
+}
+.tb-barra {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--esp-2);
+}
+.tb-filtro {
+  position: relative;
+  flex: none;
+}
+.tb-filtro .pbtn {
+  max-width: 12rem;
+  height: 2rem;
+  font-family: var(--font-sans);
+}
+.tb-alta .btn2 {
+  height: 2rem;
+}
+.tb-buscar {
+  max-width: 18rem;
+}
+.tb-cuenta {
+  margin-left: auto;
+  font-size: var(--letra-4);
+  color: var(--txt-4);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* Tablero | Proyectos. */
+.tb-vistas {
+  display: inline-flex;
+  flex: none;
+  gap: 1px;
+  padding: var(--esp-0-5);
+  border: 1px solid var(--borde-2);
+  border-radius: var(--radio-2);
+}
+.tb-vistas button {
+  height: 1.625rem;
+  padding: 0 var(--esp-2-5);
+  border: 0;
+  border-radius: var(--radio-2);
+  background: transparent;
+  color: var(--txt-4);
+  font-size: var(--letra-4);
+}
+.tb-vistas button:hover {
+  color: var(--txt-1);
+}
+.tb-vistas button[aria-selected="true"] {
+  background: var(--sup-3);
+  color: var(--texto-1);
+}
+
+/* El CLI dijo que no (o no se pudo leer lo hecho o los proyectos). */
+.tb-falla {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--esp-2);
+  margin: 0;
+  font-size: var(--letra-4);
+  color: var(--rojo);
+}
+.tb-falla span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tb-falla button {
+  display: grid;
+  width: 1.25rem;
+  height: 1.25rem;
+  flex: none;
+  place-items: center;
+  border: 0;
+  border-radius: var(--radio-2);
+  background: transparent;
+  color: inherit;
+}
+.tb-falla button:hover {
+  background: var(--sup-3);
+}
+
+.tb-cuerpo {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  gap: var(--esp-2);
+}
+
+/* --- Columnas ---------------------------------------------------------------- */
+.tb-cols {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+  gap: var(--esp-1-5);
+  overflow: auto hidden;
+  scrollbar-width: thin;
+  scrollbar-color: var(--borde-3) transparent;
+}
+.tb-cols[data-llevando] {
+  cursor: grabbing;
+  user-select: none;
+}
+.tb-col {
+  display: flex;
+  min-width: 11.5rem;
+  min-height: 0;
+  flex: 1 1 0;
+  flex-direction: column;
+  border: 1px solid var(--borde-1);
+  border-radius: var(--radio-3);
+  background: var(--sup-0);
+}
+/* La columna donde caería la tarjeta que se lleva. */
+.tb-col[data-sobre],
+.tb-plegada[data-sobre] {
+  border-color: var(--borde-6);
+  background: var(--sup-1);
+}
+.tb-col-h {
+  display: flex;
+  height: 2rem;
+  flex: none;
+  align-items: center;
+  gap: var(--esp-1-5);
+  padding: 0 var(--esp-1-5) 0 var(--esp-2-5);
+  border-bottom: 1px solid var(--borde-1);
+  white-space: nowrap;
+}
+.tb-col-h b {
+  overflow: hidden;
+  font-size: var(--letra-4);
+  font-weight: 500;
+  color: var(--txt-1);
+  text-overflow: ellipsis;
+}
+.tb-col[data-columna="espera-dueno"] .tb-col-h b {
+  color: var(--ambar);
+}
+.tb-n {
+  font-family: var(--font-mono);
+  font-size: var(--letra-3);
+  color: var(--txt-4);
+  font-variant-numeric: tabular-nums;
+}
+.tb-plegar {
+  display: grid;
+  width: 1.375rem;
+  height: 1.375rem;
+  flex: none;
+  place-items: center;
+  margin-left: auto;
+  border: 0;
+  border-radius: var(--radio-2);
+  background: transparent;
+  color: var(--txt-4);
+}
+.tb-plegar:hover {
+  background: var(--sup-2);
+  color: var(--texto-1);
+}
+.tb-lista {
+  min-height: 0;
+  flex: 1;
+  padding: var(--esp-1-5) var(--esp-1-5) 0;
+  overflow: hidden auto;
+  overflow-anchor: none;
+  contain: content;
+  scrollbar-width: thin;
+  scrollbar-color: var(--borde-3) transparent;
+}
+.tb-vacia {
+  margin: 0;
+  padding: var(--esp-2) var(--esp-1);
+  font-size: var(--letra-4);
+  color: var(--texto-7);
+}
+/* Hecho, plegada: una tira angosta con cuántos hay; soltarle una tarjeta la cierra. */
+.tb-plegada {
+  /* Pegada a la derecha aunque las columnas no entren: siempre hay dónde soltar lo terminado. */
+  position: sticky;
+  right: 0;
+  z-index: 2;
+  display: flex;
+  width: 2.25rem;
+  flex: none;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--esp-2);
+  padding: var(--esp-2) 0;
+  border: 1px solid var(--borde-1);
+  border-radius: var(--radio-3);
+  background: var(--sup-0);
+  color: var(--txt-4);
+}
+.tb-plegada:hover {
+  background: var(--sup-1);
+  color: var(--texto-1);
+}
+.tb-vertical {
+  font-size: var(--letra-4);
+  writing-mode: vertical-rl;
+}
+
+/* --- Tarjetas ---------------------------------------------------------------- */
+/* Dos altos fijos (`ALTO` en src/datos/tablero.ts, `--alto`): con eso una columna larga sabe
+   cuáles pintar sin medir nada. El lugar incluye la separación de abajo. */
+.tb-card,
+.tb-fantasma {
+  display: flex;
+  box-sizing: border-box;
+  flex-direction: column;
+  gap: var(--esp-1);
+  padding: var(--esp-2) var(--esp-2);
+  overflow: hidden;
+  border: 1px solid var(--borde-2);
+  border-radius: var(--radio-2);
+  background: var(--sup-1);
+  text-align: left;
+}
+.tb-card {
+  height: calc(var(--alto) - 0.375rem);
+  margin-bottom: var(--esp-1-5);
+  cursor: pointer;
+  user-select: none;
+  touch-action: none;
+}
+/* Sin transición: como las filas de la barra. */
+.tb-card:hover {
+  border-color: var(--borde-4);
+  background: var(--sup-2);
+}
+.tb-card[data-activa] {
+  border-color: var(--borde-6);
+  background: var(--sup-2);
+}
+/* La que se está llevando deja su hueco. */
+.tb-card[data-llevada] {
+  opacity: 0.3;
+}
+.tb-t {
+  display: -webkit-box;
+  height: 2.25rem;
+  flex: none;
+  overflow: hidden;
+  font-size: var(--letra-5);
+  line-height: 1.125rem;
+  color: var(--txt-1);
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+.tb-m {
+  display: flex;
+  height: 1rem;
+  flex: none;
+  align-items: center;
+  gap: var(--esp-1-5);
+  min-width: 0;
+}
+.tb-chip {
+  max-width: 9rem;
+  flex: 0 1 auto;
+  padding: 0 var(--esp-1-5);
+  overflow: hidden;
+  border-radius: var(--radio-2);
+  background: oklch(0.3 0.06 var(--tono));
+  color: oklch(0.87 0.09 var(--tono));
+  font-size: var(--letra-3);
+  line-height: 1rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tb-chip[data-sin] {
+  display: none;
+}
+.tb-punto {
+  display: inline-block;
+  width: 0.5rem;
+  height: 0.5rem;
+  flex: none;
+  border-radius: 50%;
+  background: oklch(0.7 0.13 var(--tono));
+}
+.tb-id,
+.tb-edad {
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: var(--letra-3);
+  color: var(--texto-7);
+  font-variant-numeric: tabular-nums;
+}
+.tb-edad {
+  margin-left: auto;
+  color: var(--txt-4);
+}
+/* La prueba: el texto exacto de lo que hay que correr o abrir, con su botón de copiar. */
+.tb-p {
+  display: flex;
+  height: 1.5rem;
+  flex: none;
+  align-items: center;
+  gap: var(--esp-1);
+  min-width: 0;
+  padding: 0 var(--esp-0-5) 0 var(--esp-2);
+  border-radius: var(--radio-2);
+  background: var(--sup-2);
+}
+.tb-p code {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  font-family: var(--font-mono);
+  font-size: var(--letra-3);
+  color: var(--txt-2);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tb-copiar {
+  display: grid;
+  width: 1.25rem;
+  height: 1.25rem;
+  flex: none;
+  place-items: center;
+  border: 0;
+  border-radius: var(--radio-2);
+  background: transparent;
+  color: var(--txt-4);
+}
+.tb-copiar:hover {
+  background: var(--sup-4);
+  color: var(--texto-1);
+}
+.tb-copiar[data-copiado] {
+  color: var(--verde);
+}
+/* La copia que sigue al mouse: se mueve con `transform` y no recibe el mouse (abajo se ve la columna). */
+.tb-fantasma {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 60;
+  border-color: var(--borde-6);
+  background: var(--sup-2);
+  box-shadow: 0 0.75rem 2rem var(--sombra-popover);
+  font-family: var(--font-sans);
+  pointer-events: none;
+  will-change: transform;
+}
+.tb-fantasma .tb-copiar {
+  visibility: hidden;
+}
+
+/* --- Iniciar ----------------------------------------------------------------- */
+/* Los dos botones de una tarjeta: marcarla (para iniciar varias juntas) e iniciarla. Van al final
+   del renglón del chip, después de la edad. */
+.tb-btns {
+  display: flex;
+  flex: none;
+  order: 1;
+  align-items: center;
+  gap: var(--esp-0-5);
+  margin: -0.125rem -0.125rem -0.125rem auto;
+}
+.tb-marca,
+.tb-play {
+  display: grid;
+  width: 1.25rem;
+  height: 1.25rem;
+  flex: none;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radio-2);
+  background: transparent;
+  color: var(--txt-4);
+}
+.tb-marca::before {
+  content: "";
+  width: 0.8125rem;
+  height: 0.8125rem;
+  box-sizing: border-box;
+  grid-area: 1 / 1;
+  border: 1px solid var(--borde-6);
+  border-radius: var(--radio-1);
+}
+.tb-marca svg {
+  grid-area: 1 / 1;
+  color: var(--sup-0);
+}
+.tb-marca:hover::before {
+  border-color: var(--texto-4);
+}
+.tb-marca[aria-checked="true"]::before {
+  border-color: var(--texto-1);
+  background: var(--texto-1);
+}
+.tb-play:hover {
+  background: var(--sup-4);
+  color: var(--texto-1);
+}
+.tb-card[data-marcada] {
+  border-color: var(--borde-6);
+  background: var(--sup-2);
+}
+/* Con mouse aparecen al pasar por la tarjeta (o con algo marcado), en el lugar de la edad: el
+   renglón no se aprieta. Con el dedo están siempre (abajo). */
+@media not (pointer: coarse) {
+  .tb-btns {
+    display: none;
+  }
+  .tb-card:is(:hover, :focus-within, [data-marcada]) .tb-btns,
+  .tb-cols[data-marcando] .tb-btns {
+    display: flex;
+  }
+  .tb-card:is(:hover, :focus-within, [data-marcada]) .tb-btns + .tb-edad,
+  .tb-cols[data-marcando] .tb-btns + .tb-edad {
+    display: none;
+  }
+}
+/* La franja sobre las columnas: con algo marcado, cuántas y "Iniciar N"; al iniciar, la
+   confirmación (qué tareas van a qué líder). */
+.tb-ini {
+  display: flex;
+  min-width: 0;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--esp-2);
+  font-size: var(--letra-4);
+  color: var(--txt-3);
+}
+.tb-ini-m > span {
+  font-variant-numeric: tabular-nums;
+}
+.tb-iniciar {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--esp-1-5);
+}
+.tb-ini-c {
+  flex-direction: column;
+  flex-wrap: nowrap;
+  align-items: stretch;
+  gap: var(--esp-2-5);
+  padding: var(--esp-2-5) var(--esp-3);
+  border: 1px solid var(--borde-2);
+  border-radius: var(--radio-3);
+  background: var(--sup-1);
+}
+/* Un proyecto al lado del otro mientras entren. Sin scroll propio: cortaría el menú del selector. */
+.tb-ini-c > ul {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr));
+  gap: var(--esp-3) var(--esp-5);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.tb-ini-c > ul > li {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--esp-1-5);
+}
+.tb-ini-h {
+  display: flex;
+  min-width: 0;
+  min-height: 2rem;
+  align-items: center;
+  gap: var(--esp-2);
+  color: var(--txt-4);
+}
+.tb-ini-h > svg {
+  flex: none;
+}
+.tb-ini-h .tb-chip {
+  flex: 0 1 auto;
+  font-size: var(--letra-4);
+  line-height: 1.125rem;
+}
+.tb-ini .tb-ini-d {
+  min-width: 0;
+  flex: 1;
+  color: var(--txt-1);
+}
+span.tb-ini-d {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tb-ini-d .pbtn {
+  width: 100%;
+  max-width: none;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.tb-ini-d .pbtn .chev {
+  margin-left: auto;
+}
+.tb-ini-d .menu {
+  right: 0;
+  min-width: 0;
+}
+.tb-ini-c ol {
+  max-height: 6.25rem;
+  margin: 0;
+  padding: 0 0 0 var(--esp-6);
+  overflow: hidden auto;
+  color: var(--txt-1);
+  line-height: 1.25rem;
+  overflow-wrap: anywhere;
+  scrollbar-width: thin;
+  list-style: decimal;
+  scrollbar-color: var(--borde-3) transparent;
+}
+.tb-ini-c ol ::marker {
+  color: var(--txt-4);
+  font-variant-numeric: tabular-nums;
+}
+.tb-ini-c ol[data-una] {
+  padding-left: 0;
+  list-style: none;
+}
+.tb-ini-b {
+  display: flex;
+  gap: var(--esp-1-5);
+}
+
+/* --- Detalle ----------------------------------------------------------------- */
+.tb-det {
+  display: flex;
+  width: 22rem;
+  max-width: 45%;
+  min-height: 0;
+  flex: none;
+  flex-direction: column;
+  border: 1px solid var(--borde-2);
+  border-radius: var(--radio-3);
+  background: var(--sup-0);
+  animation: entra 0.16s ease-out;
+}
+.tb-det-h {
+  display: flex;
+  height: 2.25rem;
+  flex: none;
+  align-items: center;
+  gap: var(--esp-1-5);
+  padding: 0 var(--esp-1) 0 var(--esp-3);
+  border-bottom: 1px solid var(--borde-1);
+}
+.tb-det-h .tb-edad {
+  margin-left: 0;
+}
+.tb-det-h .lado {
+  margin-left: auto;
+}
+.tb-det-c {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--esp-3-5);
+  padding: var(--esp-3);
+  overflow: hidden auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--borde-3) transparent;
+}
+.tb-det-c h2 {
+  margin: 0;
+  font-size: var(--letra-7);
+  font-weight: 500;
+  line-height: 1.35;
+  color: var(--texto-1);
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+.tb-det-c h3,
+.tb-dl dt,
+.tb-posponer > span {
+  margin: 0;
+  font-size: var(--letra-3);
+  font-weight: 400;
+  color: var(--txt-4);
+}
+.tb-det-c h3 {
+  margin-bottom: var(--esp-1);
+}
+.tb-det-t {
+  margin: 0;
+  line-height: 1.5;
+  color: var(--txt-2);
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  user-select: text;
+}
+/* En el detalle la prueba se lee entera. */
+.tb-p-larga {
+  height: auto;
+  min-height: 1.75rem;
+  align-items: flex-start;
+  padding: var(--esp-1) var(--esp-1) var(--esp-1) var(--esp-2);
+}
+.tb-p-larga code {
+  padding-top: var(--esp-0-5);
+  overflow: visible;
+  font-size: var(--letra-4);
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  user-select: text;
+}
+.tb-dl {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-2);
+  margin: 0;
+}
+.tb-dl dd {
+  position: relative;
+  margin: var(--esp-0-5) 0 0;
+  font-size: var(--letra-4);
+  color: var(--txt-2);
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+.tb-dl .pbtn {
+  font-family: var(--font-sans);
+}
+.tb-det-p {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: var(--esp-2);
+  padding: var(--esp-2-5) var(--esp-3);
+  border-top: 1px solid var(--borde-1);
+}
+.tb-posponer,
+.tb-acc {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--esp-1-5);
+}
+.tb-posponer form {
+  min-width: 5rem;
+  flex: 1;
+}
+.tb-posponer input {
+  width: 100%;
+  height: 1.75rem;
+  box-sizing: border-box;
+  padding: 0 var(--esp-2);
+  border: 1px solid var(--borde-3);
+  border-radius: var(--radio-2);
+  background: transparent;
+  color: var(--texto-1);
+  font: inherit;
+  font-size: var(--letra-4);
+}
+.tb-posponer input::placeholder {
+  color: var(--texto-7);
+}
+.tb-acc .btn2 {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--esp-1-5);
+}
+.tb-hecho {
+  border-color: var(--borde-5);
+  color: var(--texto-1);
+}
+.tb-tirar {
+  margin-left: auto;
+  color: var(--txt-3);
+}
+/* Armado: el segundo clic lo tira. */
+.tb-tirar[data-armado] {
+  border-color: var(--rojo);
+  color: var(--rojo);
+}
+
+/* --- Proyectos --------------------------------------------------------------- */
+.tb-proy {
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+  overflow: hidden auto;
+  border: 1px solid var(--borde-1);
+  border-radius: var(--radio-3);
+  scrollbar-width: thin;
+  scrollbar-color: var(--borde-3) transparent;
+}
+.tb-pr {
+  display: grid;
+  width: 100%;
+  height: 1.875rem;
+  grid-template-columns: minmax(7rem, 13rem) 5rem 3.5rem 4rem minmax(0, 1fr);
+  align-items: center;
+  gap: var(--esp-3);
+  padding: 0 var(--esp-3);
+  border: 0;
+  border-bottom: 1px solid var(--sup-1);
+  background: transparent;
+  color: var(--txt-2);
+  font-size: var(--letra-4);
+  text-align: left;
+}
+button.tb-pr:hover {
+  background: var(--sup-1);
+}
+.tb-pr-h {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  border-bottom-color: var(--borde-2);
+  background: var(--sup-0);
+  color: var(--txt-4);
+  font-size: var(--letra-3);
+}
+.tb-pr-h button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--esp-1);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--txt-2);
+  font: inherit;
+}
+.tb-pr-h button:hover {
+  color: var(--texto-1);
+}
+.tb-pr-h > :nth-child(4) {
+  text-align: right;
+}
+.tb-pr-n {
+  display: flex;
+  min-width: 0;
+}
+.tb-pr-n .tb-chip {
+  max-width: 100%;
+  font-size: var(--letra-4);
+  line-height: 1.125rem;
+}
+.tb-etapa {
+  color: var(--txt-4);
+}
+.tb-pr[data-etapa="activo"] .tb-etapa {
+  color: var(--verde);
+}
+.tb-pr[data-etapa="pausado"] .tb-etapa {
+  color: var(--ambar);
+}
+.tb-pr[data-etapa="idea"] .tb-etapa {
+  color: var(--azul);
+}
+.tb-num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.tb-num[data-cero] {
+  color: var(--texto-8);
+}
+.tb-pr-e {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--txt-3);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tb-pr-e b,
+.tb-pr-e i {
+  margin-right: var(--esp-2);
+  font-style: normal;
+  font-weight: 400;
+  color: var(--txt-4);
+}
+.tb-pr-e b {
+  color: var(--ambar);
+}
+
+/* Retirados: aparte de los activos, plegados bajo su encabezado y apagados. */
+.tb-pr-grupo {
+  display: flex;
+  width: 100%;
+  height: 1.875rem;
+  align-items: center;
+  gap: var(--esp-1-5);
+  padding: 0 var(--esp-3);
+  border: 0;
+  border-bottom: 1px solid var(--sup-1);
+  background: var(--sup-0);
+  color: var(--txt-4);
+  font-size: var(--letra-3);
+  text-align: left;
+}
+.tb-pr-grupo:hover {
+  color: var(--texto-1);
+}
+.tb-pr-grupo svg[data-abierto] {
+  transform: rotate(90deg);
+}
+.tb-pr[data-etapa="retirado"] > * {
+  color: var(--txt-4);
+}
+.tb-pr[data-etapa="retirado"] .tb-chip {
+  opacity: 0.6;
+}
+
+/* --- Pospuestos ------------------------------------------------------------- */
+.tb-pos-b {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-decoration: underline dotted;
+  text-underline-offset: 0.2em;
+}
+.tb-pos-b:hover,
+.tb-pos-b[aria-expanded="true"] {
+  color: var(--texto-1);
+}
+.tb-pos {
+  flex: none;
+  max-height: 11rem;
+  overflow: hidden auto;
+  border: 1px solid var(--borde-2);
+  border-radius: var(--radio-3);
+  background: var(--sup-1);
+  scrollbar-width: thin;
+  scrollbar-color: var(--borde-3) transparent;
+}
+.tb-pos ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.tb-pos li {
+  display: flex;
+  min-width: 0;
+  min-height: 2rem;
+  align-items: center;
+  gap: var(--esp-2);
+  padding: 0 var(--esp-3);
+  border-bottom: 1px solid var(--sup-0);
+  color: var(--txt-2);
+  font-size: var(--letra-4);
+}
+.tb-pos li:last-child {
+  border-bottom: 0;
+}
+.tb-pos .tb-chip {
+  flex: 0 1 auto;
+  max-width: 9rem;
+}
+.tb-pos-t {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tb-pos li .tb-edad,
+.tb-pos li .btn2 {
+  flex: none;
+}
+.tb-pos li .btn2 {
+  display: inline-flex;
+  height: 1.625rem;
+  align-items: center;
+  gap: var(--esp-1-5);
+}
+.tb-pos-v {
+  margin: 0;
+  padding: var(--esp-3);
+  color: var(--txt-4);
+  font-size: var(--letra-4);
+}
+
+/* Iniciar: el modelo de cada proyecto, bajo su destino. */
+.tb-ini-m2 {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--esp-2);
+}
+.tb-ini-m2 .tb-ini-d {
+  flex: 0 1 12rem;
+}
+.tb-ini-av {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ambar);
+  font-size: var(--letra-3);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* --- Celular (src/angosto.ts) ---------------------------------------------------
+   En angosto: una columna por vez (se pasa de una a otra deslizando de costado) y el
+   detalle encima de todo. Con el dedo la tarjeta no se arrastra (arrastrar es recorrer la
+   lista): se mueve desde su detalle, con el selector de columna. */
+@media (max-width: 35rem) {
+  .pn.pn-tablero {
+    padding: 0.5rem 0.625rem calc(0.5rem + env(safe-area-inset-bottom, 0rem));
+  }
+  .tb-barra {
+    position: relative;
+    flex-wrap: wrap;
+  }
+  .tb-alta .buscar {
+    flex: 1 1 100%;
+  }
+  /* Dos renglones: las vistas y el filtro; debajo, el buscador y la cuenta. */
+  .tb-barra .tb-buscar {
+    max-width: none;
+    flex: 1 1 8rem;
+  }
+  .tb-filtro {
+    position: static;
+    min-width: 0;
+    flex: 1 1 40%;
+  }
+  .tb-filtro .pick {
+    position: static;
+  }
+  .tb-filtro .pbtn {
+    width: 100%;
+    max-width: none;
+  }
+  .tb-filtro .menu {
+    right: 0;
+    left: 0;
+    width: auto;
+    min-width: 0;
+    max-width: none;
+  }
+  .tb-cuenta {
+    margin-left: 0;
+  }
+  .tb-cols {
+    scroll-snap-type: x mandatory;
+  }
+  .tb-col {
+    min-width: 86%;
+  }
+  .tb-col,
+  .tb-plegada {
+    scroll-snap-align: start;
+  }
+  .tb-cuerpo {
+    position: relative;
+  }
+  .tb-det {
+    position: absolute;
+    z-index: 2;
+    inset: 0;
+    width: auto;
+    max-width: none;
+  }
+  .tb-pr {
+    grid-template-columns: minmax(0, 1fr) 4.5rem 2.5rem 3.5rem;
+    gap: var(--esp-2);
+  }
+  .tb-pr > :nth-child(5) {
+    display: none;
+  }
+  .tb-ini-c > ul {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .tb-ini-m2 {
+    flex-wrap: wrap;
+  }
+  .tb-pos li {
+    flex-wrap: wrap;
+    padding-block: var(--esp-1-5);
+  }
+  .tb-pos-t {
+    flex: 1 1 100%;
+    order: 3;
+    white-space: normal;
+  }
+  /* El menú del selector, del ancho de su botón (arriba el filtro lo estira a toda la barra). */
+  .tb-ini .tb-ini-d {
+    position: relative;
+  }
+}
+@media (pointer: coarse) {
+  .tb-card {
+    /* El área de toque de "copiar" sale 0.75rem del botón: con menos relleno se sale de la tarjeta. */
+    padding-inline: var(--esp-3);
+    touch-action: auto;
+  }
+  .tb-fantasma {
+    display: none;
+  }
+  /* Los chiquitos no crecen: crece dónde se los toca. */
+  .tb-copiar,
+  .tb-plegar,
+  .tb-falla button,
+  .tb-pr-h button,
+  .tb-pos-b {
+    position: relative;
+  }
+  :is(.tb-copiar, .tb-plegar, .tb-falla button, .tb-pr-h button, .tb-pos-b)::after {
+    content: "";
+    position: absolute;
+    inset: -0.75rem;
+  }
+  /* Una línea de texto al borde derecho: crece sólo de alto (2.75rem) y no se sale por el costado. */
+  button.tb-pos-b::after {
+    inset: -1rem 0;
+  }
+  /* Los dos de la tarjeta, separados para que cada uno tenga su lugar, crecen hacia el título:
+     abajo está el botón de copiar la prueba, y ganan donde se pisan. */
+  .tb-btns {
+    gap: var(--esp-6);
+    margin-left: var(--esp-5);
+    margin-right: var(--esp-2);
+  }
+  .tb-marca,
+  .tb-play {
+    position: relative;
+    z-index: 1;
+  }
+  :is(.tb-marca, .tb-play)::after {
+    content: "";
+    position: absolute;
+    inset: -1.5rem -0.75rem 0;
+  }
+  .tb-filtro .pbtn,
+  .tb-alta .btn2,
+  .tb-acc .btn2,
+  .tb-ini .btn2,
+  .tb-pos li .btn2,
+  .tb-vistas button,
+  .tb-posponer input,
+  .tb-pr,
+  .tb-pr-grupo,
+  .tb-det-h {
+    height: 2.75rem;
+  }
+}
