@@ -3,7 +3,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { detalleHace, parsearLinea } from "../electron/lider-arma.ts";
-import { acortar, acortarRuta, avanzar, clasificar, clasificarPedido, delegaPa, dominio, estadoDe, iconoDe, limpiarComando, sinPasos, textoPaso, MAX_PASOS, PASOS, type Actividad } from "../src/hilo/actividad.ts";
+import { avanzar, clasificar, clasificarPedido, delegaPa, dominio, estadoDe, iconoDe, limpiarComando, muyLargo, PLIEGUE, rutaLegible, sinPasos, textoPaso, unaLinea, MAX_PASOS, PASOS, type Actividad } from "../src/hilo/actividad.ts";
 import { en } from "../src/i18n/en.ts";
 import { es } from "../src/i18n/es.ts";
 import type { HaceLider } from "../src/datos/contrato.ts";
@@ -39,18 +39,34 @@ test("el detalle es lo concreto: dominio, patrón con carpeta, ruta, agente", ()
   assert.equal(clasificar(herr("Read", null)).detalle, "Read");
 });
 
-test("el comando se limpia del cd … && y un detalle largo se trunca", () => {
+test("el comando se limpia del cd … && y lo concreto se lee entero (nunca con …)", () => {
   assert.equal(limpiarComando("cd /home/ana/Proyectos/hilos && npm test"), "npm test");
   assert.equal(limpiarComando('cd "/a b/c" && cd sub; npm run build'), "npm run build");
   assert.equal(limpiarComando("cd /solo"), "cd /solo");
   assert.equal(clasificar(herr("Bash", "cd ~/x && git status --short")).detalle, "git status --short");
-  const largo = clasificar(herr("Bash", `echo ${"x".repeat(200)}`)).detalle;
-  assert.equal(largo.length, 64);
-  assert.ok(largo.endsWith("…"));
-  assert.equal(acortar("a   b\n c"), "a b c");
-  const ruta = acortarRuta("/home/ana/Proyectos/hilos/src/hilo/componentes/mucho/más/profundo/Archivo.tsx");
-  assert.ok(ruta.length <= 56 && ruta.startsWith("…/") && ruta.endsWith("Archivo.tsx"), ruta);
+  const largo = "echo " + "x".repeat(300);
+  assert.equal(clasificar(herr("Bash", largo)).detalle, largo);
+  assert.equal(unaLinea("a   b\n c"), "a b c");
+  const ruta = rutaLegible("/home/ana/Proyectos/hilos/src/hilo/componentes/mucho/más/profundo/Archivo.tsx");
+  assert.equal(ruta, "~/Proyectos/hilos/src/hilo/componentes/mucho/más/profundo/Archivo.tsx");
   assert.equal(dominio("no es una url"), "no");
+});
+
+test("lo largo se pliega (no se corta): sólo pasa de PLIEGUE", () => {
+  assert.equal(PLIEGUE, 200);
+  assert.equal(muyLargo("x".repeat(PLIEGUE)), false);
+  assert.equal(muyLargo("x".repeat(PLIEGUE + 1)), true);
+});
+
+test("el detalle del chat llega entero del main (sin cortar la primera línea ni a 80)", () => {
+  const cmd = "npm run build && node scripts/prueba-actividad.mjs\nFOTOS=/tmp/x " + "y".repeat(500);
+  const d = detalleHace("Bash", { command: cmd }).detalle ?? "";
+  assert.equal(d, unaLinea(cmd));
+  assert.ok(!d.includes("…"));
+  const prompt = "Revisar el módulo\n" + "z".repeat(3000);
+  const ag = detalleHace("Agent", { subagent_type: "Explore", description: "mapear", prompt }).detalle ?? "";
+  assert.equal(ag, "mapear");
+  assert.ok(detalleHace("Grep", { pattern: "p".repeat(150) }).detalle?.length === 150);
 });
 
 test("un pa que lanza un worker es delegar; los demás pa son un comando", () => {

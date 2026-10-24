@@ -3,6 +3,7 @@
 // consola donde se inicia sesión. `pasos.js` lo recibe por inyección; acá no hay lógica de pasos.
 
 const { spawn } = require("node:child_process");
+const fs = require("node:fs");
 
 // wsl.exe habla en UTF-16 con sus propios mensajes (`-l`, `--install`…) y en UTF-8 cuando corre un
 // programa de adentro. WSL_UTF8=1 lo pide en UTF-8 y, si una versión vieja lo ignora, se reconoce
@@ -106,6 +107,34 @@ function reabrirTrasReinicio(exe) {
   };
 }
 
+// Lo que la limpieza (limpieza.js) necesita del lado de Windows: rutas con %VARIABLES%, el disco y el registro (HKCU).
+function entornoWindows(env = process.env) {
+  const reg = (args) =>
+    new Promise((resolver) => {
+      const p = spawn("reg.exe", args, { windowsHide: true, stdio: "ignore" });
+      p.on("error", () => resolver(false));
+      p.on("close", (c) => resolver(c === 0));
+    });
+  return {
+    expandir: (ruta) => ruta.replace(/%([^%]+)%/g, (m, n) => env[Object.keys(env).find((k) => k.toLowerCase() === n.toLowerCase()) || ""] ?? m),
+    async tipo(ruta) {
+      try {
+        const st = fs.lstatSync(ruta);
+        return st.isSymbolicLink() ? "enlace" : st.isDirectory() ? "carpeta" : "archivo";
+      } catch {
+        return null;
+      }
+    },
+    borrar: (ruta) => fs.promises.rm(ruta, { recursive: true, force: true, maxRetries: 3 }),
+    registro: {
+      hay: (clave, valor) => reg(["query", clave, "/v", valor]),
+      async quitar(clave, valor) {
+        if (!(await reg(["delete", clave, "/v", valor, "/f"]))) throw new Error(`No pude quitar ${clave}\\${valor}`);
+      },
+    },
+  };
+}
+
 // Una consola con `comando` corriendo adentro de la distro: Windows Terminal si está, y si no la
 // consola de siempre. El comando viaja en base64 para no pelearse con las comillas ni con el `;`
 // que Windows Terminal toma como separador.
@@ -181,4 +210,4 @@ function mantenerVivo(distro, { lanzar, programar = setTimeout, cancelar = clear
   };
 }
 
-module.exports = { wsl, elevarWsl, abrirConsola, mantenerVivo, decodificar, reabrirTrasReinicio, cerrarBienvenidaWsl };
+module.exports = { entornoWindows, wsl, elevarWsl, abrirConsola, mantenerVivo, decodificar, reabrirTrasReinicio, cerrarBienvenidaWsl };

@@ -47,6 +47,14 @@ const fijo = () => validar(tableroFijo(AHORA));
 
 // --- Lógica pura ---------------------------------------------------------------------
 
+test("validar: sin vista (null) es un tablero vacío marcado `sinVista`, no un error", () => {
+  const v = validar({ version: 1, vista: null, hecho: [], proyectos: [], pospuestosLista: [], aviso: null });
+  assert.equal(v.sinVista, true);
+  assert.deepEqual(Object.keys(v.columnas), [...ABIERTAS]);
+  assert.ok(Object.values(v.columnas).every((c) => c.length === 0));
+  assert.equal(validar({ version: 1, vista: { columnas: {} } }).sinVista, false);
+});
+
 test("validar: version desconocida o vista sin columnas es un error; lo raro de adentro se saltea", () => {
   assert.throws(() => validar(null), ErrorTablero);
   assert.throws(() => validar({ version: 2, vista: { columnas: {} } }), ErrorTablero);
@@ -300,9 +308,27 @@ const tablero = (...args: string[]) => execFileSync(cli.TABLERO, args, { env: pr
 const enDisco = () => JSON.parse(tablero("listar", "--todo", "--json")) as { id: number; columna: string; titulo: string; proyecto: string; origen: string; hasta: string | null }[];
 const columnaDe = (id: number) => enDisco().find((i) => i.id === id)?.columna;
 
-test("sin vista no hay tablero: el error dice dónde la buscó", { skip: !hayCli }, async () => {
-  await assert.rejects(fuenteTablero.leer(), { message: t("main.tableroSinVista", { ruta: cli.VISTA }) });
-  assert.equal(fuenteTablero.guardado(), null);
+test("sin vista no hay tablero: leer lo dice con `sinVista`, sin llamar al CLI ni crear nada", { skip: !hayCli }, async () => {
+  const v = await fuenteTablero.leer();
+  assert.equal(v.sinVista, true);
+  assert.equal(Object.values(v.columnas).flat().length, 0);
+  assert.equal(fuenteTablero.guardado()?.sinVista, true);
+  assert.equal(existsSync(cli.VISTA), false);
+});
+
+test("mirarTablero: sin carpeta del tablero, avisa cuando el primer pendiente la crea", { skip: !hayCli }, async () => {
+  const carpeta = path.dirname(cli.VISTA);
+  assert.equal(existsSync(carpeta), false);
+  let avisos = 0;
+  const parar = cli.mirarTablero(() => avisos++);
+  try {
+    await cli.agregar("Primero, desde la carpeta vacía", null);
+    for (let i = 0; i < 60 && avisos === 0; i++) await new Promise((r) => setTimeout(r, 50));
+    assert.ok(avisos > 0, "avisó al aparecer la carpeta");
+  } finally {
+    parar();
+    rmSync(carpeta, { recursive: true, force: true });
+  }
 });
 
 test("agregar, mover, cerrar, reabrir, posponer y tirar: lo hace el CLI y la app lo vuelve a leer", { skip: !hayCli }, async () => {

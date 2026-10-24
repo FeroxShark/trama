@@ -21,6 +21,7 @@
 // (TRAMA_FALSO_COMPACTA_MS), el compact_boundary y sigue.
 // "muchos pasos" usa el Bash 6 veces (TRAMA_FALSO_PASOS), una cada 300 ms (TRAMA_FALSO_PASO_MS),
 // cada una con su descripción ("Paso 3 de 6"), y después contesta.
+// "comando largo" corre un Bash de más de 200 caracteres (TRAMA_FALSO_LARGO_MS de espera, default 4000): el pliegue de la tarjeta.
 // "preguntame" usa AskUserQuestion (dos preguntas, la segunda multiSelect), como el real en cualquier
 // modo: can_use_tool con requires_user_interaction; allow con `answers` → tool_result "The user answered: …"
 // y contesta "respuestas: <answers en JSON>"; deny → "sin respuesta: <message>".
@@ -297,6 +298,15 @@ async function turno(texto) {
       await espera(Number(process.env.TRAMA_FALSO_PASO_MS ?? 300));
       out({ type: "user", parent_tool_use_id: null, message: { role: "user", content: [{ type: "tool_result", tool_use_id: id, content: `paso ${k}` }] } });
     }
+  }
+  // "comando largo": un Bash con un comando de más de 200 caracteres (el pliegue de la tarjeta), corriendo un rato.
+  if (/comando largo/.test(texto)) {
+    const id = `tl${n}`;
+    const command = `cd ~/Proyectos/hilos && ${"npm run prueba -- actividad --verbose --sin-cache "}${"--tope 120 ".repeat(18)}&& echo listo-${n}`;
+    const input = { command, description: "Prueba larga de la tarjeta" };
+    out({ type: "assistant", parent_tool_use_id: null, message: { id: `${mid}l`, model: modelo, role: "assistant", content: [{ type: "tool_use", id, name: "Bash", input }] } });
+    await espera(Number(process.env.TRAMA_FALSO_LARGO_MS ?? 4000));
+    out({ type: "user", parent_tool_use_id: null, message: { role: "user", content: [{ type: "tool_result", tool_use_id: id, content: "listo" }] } });
   }
   if (/herramienta/.test(texto)) {
     if (modo === "default") {

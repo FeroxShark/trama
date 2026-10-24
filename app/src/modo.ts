@@ -58,10 +58,15 @@ const CAPTURAS = [
   "estadisticas-30",
   // Estadísticas con el peso de arrancar ya medido ("Medir exacto"), en lugar del estimado (docs/estado/estadisticas-peso.md).
   "estadisticas-medido",
+  // Estadísticas sin ninguna corrida todavía (no hay medicion.tsv): el estado vacío, sin error ni botón.
+  "estadisticas-vacia",
   // El aviso de Claude Code nuevo en el pie, cerrado y abierto (docs/estado/B11/).
   "claude",
   "claude-abierto",
   "claude-actualizado",
+  // "Falta configurar" en el pie (Handy y Ollama por instalar), cerrada y abierta (docs/estado/setup-faltante.md).
+  "setup",
+  "setup-abierto",
   // Lo terminado escondido: la barra en "sólo líderes" y un líder con su "N terminados" desplegado (docs/estado/B15/).
   "solo-lideres",
   "ocultos",
@@ -109,6 +114,8 @@ const CAPTURAS = [
   "tablero-pospuestos",
   // El tablero junto de las máquinas: items de la otra con su nombre al lado del número y el aviso de una máquina sin conexión (docs/estado/tablero-maquinas/).
   "tablero-maquinas",
+  // El tablero sin vista todavía (no hay tablero): el cuadro para anotar el primero y lo que es el tablero.
+  "tablero-vacio",
   // El cartel "Hay una actualización disponible" arriba del pie, esperando a un líder y a su worker, y con eso sin eventos hace 20 min: "Reiniciar igual" (docs/estado/actualizacion/).
   "actualizacion",
   "actualizacion-espera",
@@ -202,7 +209,8 @@ export const MODO = {
    * (plan, red de seguridad y un dispositivo nuevo, con Guardar y Cancelar a mano) y `editando-mal` lo que no vale
    * (red de 50 tokens, puerto 80, una dirección en vez de un dispositivo), con su motivo en línea.
    * Modelos y proveedores (`AjustesModelos.tsx`): `mdl` deja a la vista la sección con un archivo de muestra, `mdl-agregar` con el
-   * panel de agregar un modelo local abierto, `mdl-lider` con el selector del líder abierto y `sinmdl` sin archivo (lo de hoy).
+   * panel de Ollama en otra dirección abierto, `mdl-lider` con el selector del líder abierto, `mdl-bajando` con un modelo bajándose a mitad,
+   * `mdl-sinollama` con Ollama sin contestar (enlace para instalarlo), `mdl-tope` con el aviso de un tope de Claude cruzado y `sinmdl` sin archivo (lo de hoy).
    */
   variante: q.get("variante"),
   /** Fixtures de Estadísticas con pocos datos: lo que se ve los primeros días (`HILOS_POCOS=1`). */

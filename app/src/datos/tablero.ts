@@ -67,6 +67,8 @@ export type Tablero = {
   aviso: string | null;
   /** Los nombres de las otras máquinas que no se pudieron leer: sus items no están. Vacío sin otras máquinas. */
   caidas: string[];
+  /** No hay tablero todavía (no existe la vista): las columnas van vacías y el panel muestra el estado vacío. */
+  sinVista: boolean;
 };
 
 export class ErrorTablero extends Error {}
@@ -131,14 +133,14 @@ function proyecto(x: unknown): Proyecto | null {
   };
 }
 
-/** Lo que mandó el main, mirado: una `version` que no se conoce o una vista sin columnas es un error. */
+/** Lo que mandó el main, mirado: una `version` que no se conoce o una vista que no es un objeto con columnas es un error. `vista: null` es sin tablero todavía. */
 export function validar(crudo: unknown): Tablero {
   const c = crudo as { version?: unknown; vista?: unknown; hecho?: unknown; proyectos?: unknown; pospuestosLista?: unknown; aviso?: unknown; caidas?: unknown } | null;
   if (!c || c.version !== 1) throw new ErrorTablero("version");
   const v = c.vista as { columnas?: Record<string, unknown>; contadores?: Record<string, unknown> } | null;
-  if (!v || typeof v !== "object" || !v.columnas || typeof v.columnas !== "object") throw new ErrorTablero("vista");
-  const columnas = Object.fromEntries(ABIERTAS.map((k) => [k, items(v.columnas![k])])) as Record<Abierta, Item[]>;
-  const pospuestos = Number(v.contadores?.pospuestos);
+  if (v !== null && (typeof v !== "object" || !v.columnas || typeof v.columnas !== "object")) throw new ErrorTablero("vista");
+  const columnas = Object.fromEntries(ABIERTAS.map((k) => [k, items(v?.columnas?.[k])])) as Record<Abierta, Item[]>;
+  const pospuestos = Number(v?.contadores?.pospuestos);
   return {
     columnas,
     hecho: items(c.hecho),
@@ -147,6 +149,7 @@ export function validar(crudo: unknown): Tablero {
     pospuestosLista: items(c.pospuestosLista),
     aviso: typeof c.aviso === "string" && c.aviso ? c.aviso : null,
     caidas: Array.isArray(c.caidas) ? c.caidas.filter((n): n is string => typeof n === "string" && !!n) : [],
+    sinVista: v === null,
   };
 }
 

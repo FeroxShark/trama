@@ -58,6 +58,7 @@ import { useIdioma } from "../i18n/react";
 import { MODO } from "../modo";
 import { MaquinaMigas } from "../barra/Maquina";
 import { hayVarias, nombreMaquina, opcionesMaquina, puedeMaquina, useMaquinas } from "../maquinas";
+import { Vacio } from "./Vacio";
 import "./tablero.css";
 
 const NOMBRE: Record<Columna, ClaveSola> = {
@@ -445,10 +446,25 @@ export function Tablero({ carpetas, lideres, alIniciar, alAbrirLider }: Omit<Pro
   if (!visto || !columnas)
     return <p className={errorLeer ? "pn-aviso pn-error" : "pn-aviso"}>{errorLeer ?? t("tablero.cargando")}</p>;
 
+  const alAgregar = (texto: string, p: string | null, m?: string) => fuenteTablero.agregar(texto, p, m).then(leer);
+  // Sin tablero todavía: el alta de arriba crea el primero (`tablero agregar` arma el tablero) y abajo se explica qué es.
+  if (visto.sinVista)
+    return (
+      <div className="tb">
+        <Alta proyectos={lista} alAgregar={alAgregar} alFallar={setFalla} />
+        {falla || errorLeer ? (
+          <p className="tb-falla" role="alert">
+            <span>{falla ?? errorLeer}</span>
+          </p>
+        ) : null}
+        <Vacio titulo={t("tablero.vaciaT")} texto={t("tablero.vaciaP")} />
+      </div>
+    );
+
   const filtrando = !!(proyecto || buscado.trim());
   return (
     <div className="tb">
-      <Alta proyectos={lista} alAgregar={(texto, p, m) => fuenteTablero.agregar(texto, p, m).then(leer)} alFallar={setFalla} />
+      <Alta proyectos={lista} alAgregar={alAgregar} alFallar={setFalla} />
       <div className="tb-barra">
         <div className="tb-vistas" role="tablist">
           {(["tablero", "proyectos"] as const).map((v) => (

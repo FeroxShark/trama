@@ -9,10 +9,10 @@
 #           trabajando | oculta | vacio | buscar | lider | lider-terminal | lider-nuevo | lider-nuevo-carpeta | arbol |
 #           aviso | ajustes | ramas | ramas-confirmar | ramas-conflicto | ramas-lanzar | ramas-lanzar-error | estadisticas |
 #           lider-trabajando | lider-avisos | settle-confirmar | worker-vista | worker-vista-vivo |
-#           estadisticas-30 | estadisticas-medido | claude | claude-abierto | solo-lideres | ocultos |
+#           estadisticas-30 | estadisticas-medido | estadisticas-vacia | claude | claude-abierto | solo-lideres | ocultos |
 #           lider-sistema | sistema | herramientas | lider-compactando |
 #           lider-relevo | lider-imagenes | lider-tabla | lider-formato | lider-listas | lider-pensando | herramientas-resultados | lider-hover | te-espera |
-#           tablero | tablero-detalle | tablero-proyectos | tablero-iniciar | tablero-pospuestos | tablero-maquinas | maquinas-selector[-caida] | tablero-nuevo[-proyecto|-chat|-avisar] | lider-muerto | lider-app-muerto |
+#           tablero | tablero-detalle | tablero-proyectos | tablero-iniciar | tablero-pospuestos | tablero-maquinas | tablero-vacio | maquinas-selector[-caida] | tablero-nuevo[-proyecto|-chat|-avisar] | lider-muerto | lider-app-muerto |
 #           compactando | consumo | orden-arrastrando | orden-menu | orden-prioridad | mover-menu | pc-apagada | pc-prendiendo | pc-prendida   (ver `Captura` en src/modo.ts)
 #   DIR=B5           a qué carpeta de docs/estado/ va (default B1); con una "/"
 #                    es la ruta entera (DIR=docs/estado/B3)
@@ -23,7 +23,7 @@
 #                    HILOS_VARIANTE=fuente|mono deja abierto ese selector
 #                    con `ajustes`/`estadisticas`, HILOS_VARIANTE=error deja el panel
 #                    que no cargó, con su Reintentar
-#                    con `ajustes`, HILOS_VARIANTE=celular|editando|editando-mal: el acceso desde el celular, lo editado sin guardar, lo que no vale
+#                    con `ajustes`, HILOS_VARIANTE=cuentas|celular|editando|editando-mal: las cuentas (Windows), el acceso desde el celular, lo editado sin guardar, lo que no vale
 #                    con `lider-formato`, HILOS_VARIANTE=larga la conversación de 3000 mensajes; con `lider-imagenes`, =visor el visor con la imagen sin llegar
 #   ej: scripts/captura.sh hover
 #

@@ -83,6 +83,7 @@ function crearAsistente(deps) {
     env = {},
     distro = DISTRO,
     reabrir, // {registrar(), quitar()}: que Windows reabra Trama tras el reinicio (RunOnce)
+    version = null, // la versión de esta carcasa (se anota con qué versión se instaló el motor)
   } = deps;
 
   const guardado = () => ({ ...(store.cargar() || {}) });
@@ -121,7 +122,8 @@ function crearAsistente(deps) {
       const { distro: hay } = await distroInstalada();
       if (hay) {
         if (guardado().reinicio) {
-          guardar({ reinicio: null });
+          // La instalación la pidió Trama y la distro apareció tras el reinicio: es suya (la limpieza lo mira).
+          guardar({ reinicio: null, distroCreada: distro });
           await reabrir?.quitar();
         }
         return { ok: true };
@@ -145,7 +147,7 @@ function crearAsistente(deps) {
         await reabrir?.registrar();
         return { reinicio: true };
       }
-      guardar({ reinicio: null });
+      guardar({ reinicio: null, distroCreada: distro });
       return {};
     },
   };
@@ -229,6 +231,7 @@ echo "dest=$DEST"`,
       const usr = await sh(`bash ${q(script)} --fuente ${q(dest)} </dev/null 2>&1`, { onLinea: alLinea, timeoutMs: 1800000 });
       if (usr.code !== 0) throw new ErrorPaso("instalar", "Falló la instalación del motor de Trama.", ultimasLineas(usr.stdout + usr.stderr));
 
+      guardar({ instalado: { version, payload: payload.version || null, fecha: new Date().toISOString() } });
       if (payload.version) {
         await sh(`mkdir -p "$HOME/$(dirname ${MARCA_PAYLOAD})" && printf %s ${q(payload.version)} > "$HOME/${MARCA_PAYLOAD}"`);
       }
@@ -237,24 +240,42 @@ echo "dest=$DEST"`,
   };
 
   // ---------- login ----------
-  // Con uno logueado alcanza. Sin ninguno, se puede seguir si la persona dijo «lo hago después» de los
-  // dos (Claude y Gemini por separado) y entonces entra a Trama sin cuenta (sólo Ollama o ninguno);
-  // se conecta después desde Trama.
+  // Con uno logueado alcanza, pero el paso no se cierra solo apenas se conecta uno: la persona tiene que
+  // poder conectar el otro (Claude y Gemini van en tarjetas hermanas). Se sigue cuando cada proveedor
+  // está resuelto (conectado o «lo hago después») o cuando toca Continuar (`continuarLogin`) con alguno
+  // conectado. Sin ninguno conectado, se entra sólo si dijo «lo hago después» de los dos y se usa Trama
+  // sin cuenta (sólo Ollama o ninguno); las cuentas se conectan después desde Ajustes.
   const PROVEEDORES_LOGIN = { claude: "claude", gemini: "agy" };
   const pasoLogin = {
     async comprobar() {
       const e = await estadoTrama();
-      const saltado = guardado().loginSaltado || {};
+      const g = guardado();
+      const saltado = g.loginSaltado || {};
       const claude = { ...e.claude, saltado: !!saltado.claude };
       const agy = { ...e.agy, saltado: !!saltado.gemini };
-      const ok = claude.logueado || agy.logueado || (claude.saltado && agy.saltado);
-      return { ok, claude, agy };
+      const resuelto = (p) => p.logueado || p.saltado;
+      const algunaConectada = claude.logueado || agy.logueado;
+      const ok = resuelto(claude) && resuelto(agy) ? true : algunaConectada && !!g.loginHecho;
+      return { ok, claude, agy, puedeContinuar: algunaConectada };
     },
   };
 
   function saltarLogin(proveedor) {
     if (!PROVEEDORES_LOGIN[proveedor]) throw new Error(`Proveedor desconocido: ${proveedor}`);
     guardar({ loginSaltado: { ...(guardado().loginSaltado || {}), [proveedor]: true } });
+  }
+
+  // «Continuar» de la pantalla de cuentas, con al menos una conectada.
+  async function continuarLogin() {
+    const c = await pasoLogin.comprobar();
+    if (!c.puedeContinuar) throw new Error("Conectá al menos una cuenta (Claude o Gemini), o elegí «lo hago después» en las dos.");
+    guardar({ loginHecho: true });
+  }
+
+  // Las cuentas tal como están ahora (para Ajustes de Trama, que deja conectar la que falte).
+  async function cuentas() {
+    const e = await estadoTrama();
+    return { claude: e.claude, agy: e.agy };
   }
 
   // Abre una consola de verdad con el CLI del proveedor para que la persona inicie sesión ahí.
@@ -354,11 +375,13 @@ echo "dest=$DEST"`,
       if (!c.ok) throw new ErrorPaso(id, "El paso terminó pero el sistema sigue sin estar listo.");
       emit({ tipo: "ok", paso: id });
     }
+    // Pasó por Cuentas: si el motor se cae después (WSL reiniciado), no se la vuelve a pedir.
+    if (!guardado().loginHecho) guardar({ loginHecho: true });
     const e = await estadoTrama();
     return { listo: true, url: e.motor.url };
   }
 
-  return { PASOS, avanzar, conectar, comprobar: (id) => comprobaciones[id].comprobar(), saltarOllama, saltarLogin, habilitarEspejo, estadoTrama };
+  return { PASOS, avanzar, conectar, comprobar: (id) => comprobaciones[id].comprobar(), saltarOllama, saltarLogin, continuarLogin, cuentas, habilitarEspejo, estadoTrama };
 }
 
 module.exports = { crearAsistente, ErrorPaso, aRutaWsl, nombreLinux, parsearEstado, PASOS, DISTRO, MOTOR_URL, OLLAMA_URL };

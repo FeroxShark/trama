@@ -3,7 +3,8 @@
 // `<!-- /trama:routing -->`; Ajustes la muestra y edita SÓLO las tres filas de
 // worker (código, exploración, diseño). Todo lo demás del archivo queda byte a
 // byte igual; si los marcadores o las filas no tienen la forma esperada, no se
-// escribe nada. Node puro y sin imports locales: los tests lo usan directo con
+// escribe nada. Sin ningún marcador (la plantilla de una instalación nueva) no es
+// un error: se lee como "lo decide el líder" y el bloque se crea al guardar algo. Node puro y sin imports locales: los tests lo usan directo con
 // un CLAUDE.md de ejemplo (`HILOS_CLAUDE_MD` cambia la ruta).
 import { readFile, realpath, rename, writeFile } from "node:fs/promises";
 import os from "node:os";
@@ -52,9 +53,30 @@ const celdas = (linea: string) => {
 
 const sinTildes = (s: string) => s.replace(/`/g, "").trim();
 
+/**
+ * El texto con el bloque de la tabla agregado al final, todas las filas en "lo decide el líder". Es lo que pasa en una
+ * instalación nueva: la plantilla de `~/CLAUDE.md` del instalador no trae la tabla. Sólo si faltan los dos marcadores;
+ * con uno solo el archivo está roto y se avisa.
+ */
+function conBloque(texto: string): string {
+  const nl = texto.includes("\r\n") ? "\r\n" : "\n";
+  const bloque = [
+    "## Routing de workers",
+    "",
+    `${INICIO} (la app trama edita esta tabla; no cambiar el formato de las filas) -->`,
+    "| Rol | Modelo | Effort |",
+    "|---|---|---|",
+    ...ROLES.map((r) => `| ${CELDA_ROL[r]} | ${LO_DECIDE} | — |`),
+    FIN,
+  ].join(nl);
+  return texto.replace(/\s*$/, "") + (texto.trim() ? nl + nl : "") + bloque + nl;
+}
+
+const sinMarcas = (texto: string) => !texto.includes(INICIO) && !texto.includes(FIN);
+
 /** Las líneas del archivo y dónde están las tres filas; tira con el porqué si algo no cierra. */
 function ubicar(texto: string): { lineas: string[]; filas: Ubicada[] } {
-  const lineas = texto.split("\n");
+  const lineas = (sinMarcas(texto) ? conBloque(texto) : texto).split("\n");
   const ini = lineas.flatMap((l, i) => (l.trimStart().startsWith(INICIO) ? [i] : []));
   const fin = lineas.flatMap((l, i) => (l.trim() === FIN ? [i] : []));
   if (ini.length !== 1 || fin.length !== 1)
@@ -101,6 +123,7 @@ export type Cambio = { rol: Rol; modelo: string | null; effort: string | null };
  */
 export function escribirRouting(texto: string, cambios: Cambio[]): string {
   const { lineas, filas } = ubicar(texto);
+  const base = lineas.join("\n");
   for (const c of cambios) {
     const f = filas.find((x) => x.rol === c.rol);
     if (!f) throw errorT("main.rolRaro", { v: String(c.rol) });
@@ -116,7 +139,9 @@ export function escribirRouting(texto: string, cambios: Cambio[]): string {
     const sangria = original.slice(0, original.length - original.trimStart().length);
     lineas[f.linea] = `${sangria}| ${f.celdas[0]} | ${modelo} | ${effort} |${cr}`;
   }
-  return lineas.join("\n");
+  const nuevo = lineas.join("\n");
+  // Un archivo sin tabla al que no se le cambió nada queda como estaba (no le agrega el bloque de balde).
+  return nuevo === base ? texto : nuevo;
 }
 
 // --- El archivo --------------------------------------------------------------

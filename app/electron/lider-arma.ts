@@ -284,11 +284,27 @@ export const autoaprueba = (modo: string, herramienta: string) =>
 
 const DETALLE = ["command", "file_path", "path", "pattern", "url", "query", "description", "skill", "prompt"];
 
-/** Lo que hizo una herramienta en un renglón corto ("git status", "/x/y.ts"), o `null`. */
-export function detalle(input: unknown): string | null {
+/**
+ * Tope de seguridad de lo concreto que viaja en cada cambio de la tarjeta (un prompt de Agent puede pesar kilobytes y
+ * pasa por el IPC, el celular y los pasos de atrás). Más largo que esto se corta; la vista lo pliega, no lo corta.
+ */
+export const TOPE_DETALLE = 2000;
+
+/** Lo concreto en una sola línea, entero (espacios y saltos colapsados), con el tope de `TOPE_DETALLE`. */
+function entero(s: string): string {
+  const l = s.replace(/\s+/g, " ").trim();
+  return l.length > TOPE_DETALLE ? l.slice(0, TOPE_DETALLE) : l;
+}
+
+/**
+ * Lo que hizo una herramienta en un renglón corto ("git status", "/x/y.ts"), o `null`. Con `completo`, lo
+ * entero (sin cortar a 80): lo usa la tarjeta del chat (`detalleHace`), que lo lee con wrap.
+ */
+export function detalle(input: unknown, completo = false): string | null {
   const i = (input ?? {}) as Record<string, unknown>;
   const k = DETALLE.find((c) => typeof i[c] === "string" && i[c]);
   if (!k) return null;
+  if (completo) return entero(String(i[k]));
   const d = String(i[k]).split("\n")[0].trim();
   return d.length > 80 ? `${d.slice(0, 79)}…` : d;
 }
@@ -296,19 +312,20 @@ export function detalle(input: unknown): string | null {
 /**
  * Lo concreto de una herramienta para el indicador del chat (`Hace`): lo mismo que `detalle` salvo que
  * Grep y Glob dicen el patrón (no la carpeta) y, aparte (`extra`), dónde buscan o a quién delega Agent.
+ * Todo entero (sin "…"): la tarjeta lo pliega si es muy largo.
  */
 export function detalleHace(nombre: string, input: unknown): { detalle: string | null; extra?: string } {
   const i = (input ?? {}) as Record<string, unknown>;
-  const corto = (x: unknown) => (typeof x === "string" && x.trim() ? x.split("\n")[0].trim().slice(0, 120) : null);
+  const corto = (x: unknown) => (typeof x === "string" && x.trim() ? entero(x) : null);
   if (nombre === "Grep" || nombre === "Glob") {
     const extra = corto(i.path);
     return { detalle: corto(i.pattern), ...(extra ? { extra } : {}) };
   }
   if (nombre === "Agent" || nombre === "Task") {
     const extra = corto(i.subagent_type);
-    return { detalle: detalle(input), ...(extra ? { extra } : {}) };
+    return { detalle: detalle(input, true), ...(extra ? { extra } : {}) };
   }
-  return { detalle: detalle(input) };
+  return { detalle: detalle(input, true) };
 }
 
 /** "Bash: git status", "Read: /x/y.ts": la herramienta con lo que hizo, en un renglón corto. */

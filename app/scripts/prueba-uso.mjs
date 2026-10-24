@@ -122,27 +122,27 @@ async function mandar(texto) {
   await cdp("Input.insertText", { text: texto });
   await tecla("Enter", 13);
 }
-/** Lo que dice cada renglón de los límites: nombre, lo de al lado, el porcentaje y cuánto está lleno el riel. */
+/** Lo que dice cada celda de los límites de Claude: ventana, lo de su tooltip (o "sin dato"), el porcentaje y cuánto mide. */
 const limites = () =>
   en(() => {
-    const u = document.querySelector(".usos:not([data-espera])");
+    const u = document.querySelector(".usos:not([data-espera]) .grupo[data-grupo=claude]");
     if (!u) return null;
     return [...u.querySelectorAll(".uso")].map((e) => ({
       nombre: e.querySelector(".n")?.textContent ?? "",
-      cuando: [...e.querySelectorAll(".cuando")].find((c) => getComputedStyle(c).display !== "none")?.textContent ?? "",
-      pct: e.querySelector(".r b")?.textContent ?? null,
+      cuando: e.querySelector(".sd")?.textContent ?? [...e.querySelectorAll(".tip-l")].map((c) => c.textContent).join(" | "),
+      pct: e.querySelector(".pct")?.textContent ?? null,
       aria: e.getAttribute("aria-label"),
       alto: Math.round(e.getBoundingClientRect().height),
     }));
   });
-const con = (pcts) => hasta((pcts) => JSON.stringify([...document.querySelectorAll(".usos:not([data-espera]) .uso .r b")].map((b) => b.textContent)) === JSON.stringify(pcts), 10, pcts);
+const con = (pcts) => hasta((pcts) => JSON.stringify([...document.querySelectorAll(".usos:not([data-espera]) .uso .pct")].map((b) => b.textContent)) === JSON.stringify(pcts), 10, pcts);
 /** La cabecera de la barra (la marca y los límites), al doble para que se lea. */
 async function foto(nombre) {
   if (!fotos) return;
   await espera(300);
   const c = await en(() => {
     const r = document.querySelector(".usos").getBoundingClientRect();
-    return { x: 0, y: 0, width: Math.ceil(r.right + 16), height: Math.ceil(r.bottom + 56) };
+    return { x: 0, y: 0, width: Math.ceil(r.right + 16), height: Math.ceil(r.bottom + 16) };
   });
   const r = await cdp("Page.captureScreenshot", { format: "png", clip: { ...c, scale: 2 } });
   writeFileSync(path.join(fotos, `${nombre}.png`), Buffer.from(r.result.data, "base64"));
@@ -153,7 +153,7 @@ try {
 
   // --- Sin dato: lo dice, no queda vacío ---------------------------------------------------
   let l = await limites();
-  ok(l?.length === 2, `hay un renglón por límite: ${l?.map((x) => x.nombre).join(", ")}`);
+  ok(l?.length === 2, `hay una celda por límite: ${l?.map((x) => x.nombre).join(", ")}`);
   ok(l?.every((x) => x.cuando === "sin dato" && x.pct === null), `sin ninguna lectura que valga, cada uno dice "sin dato": ${JSON.stringify(l?.map((x) => x.cuando))}`);
   ok(l?.every((x) => x.alto > 10 && /sin dato/.test(x.aria ?? "")), "y ocupa su lugar (no es un renglón vacío), también para un lector de pantalla");
   ok(await en(() => !document.querySelector(".releer").disabled), "Actualizar límites se puede tocar");
@@ -165,7 +165,7 @@ try {
   await mandar("hola");
   ok(await con(["12%", "34%"]), "con la primera respuesta del líder aparecen los dos: 12 % y 34 %");
   l = await limites();
-  ok(l?.every((x) => /reinicia|en /.test(x.cuando)), `cada uno con cuándo se reinicia: ${JSON.stringify(l?.map((x) => x.cuando))}`);
+  ok(l?.every((x) => /reinicia/.test(x.cuando)), `cada uno dice en su tooltip cuándo se reinicia: ${JSON.stringify(l?.map((x) => x.cuando))}`);
   await foto("con-dato");
   const guardado = path.join(tmp, "hilos", "uso.json");
   ok(await hasta0(() => existsSync(guardado)), "quedó guardado en uso.json (sobrevive a un relanzo)");

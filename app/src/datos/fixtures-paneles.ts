@@ -47,8 +47,9 @@ export const MODELOS_FIJOS = (con: boolean): EstadoModelos => ({
           { id: "ollama:llama3.2:3b", nombre: "llama3.2:3b", url: "http://caido.local:11434", modelo: "llama3.2:3b" },
         ],
         gemini: { cupo_max: 70, sin_claude: "esperar" },
+        claude: { tope_7d: 60 },
       }
-    : { workers: {}, locales: [], gemini: {} },
+    : { workers: {}, locales: [], gemini: {}, claude: {} },
 });
 
 /** Los modelos que "tiene instalados" el Ollama de mentira de los fixtures (una dirección con `caido` no contesta). */

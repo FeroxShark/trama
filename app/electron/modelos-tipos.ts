@@ -38,6 +38,8 @@ export type ModoReparto = (typeof REPARTO)[number];
 
 export const SIN_CLAUDE = ["claude", "esperar", "fallar"] as const;
 export type SinClaude = (typeof SIN_CLAUDE)[number];
+/** Cuánto del cupo de Claude no tocan los workers cuando el archivo no dice nada (`RESERVA` de `reparto`: 15 % libre = tope de 85 %). */
+export const TOPE_CLAUDE_DEFECTO = 85;
 export const CUPO_MIN = 1;
 export const CUPO_MAX = 100;
 export const URL_OLLAMA = "http://localhost:11434";
@@ -54,9 +56,31 @@ export type ConfigModelos = {
   workers: Partial<Record<Tipo, Eleccion>>;
   locales: Local[];
   gemini: { cupo_max?: number; sin_claude?: SinClaude };
+  /**
+   * Hasta qué % de cada ventana del plan de Claude (5 h, semanal) usan los workers; el resto queda para las sesiones propias.
+   * En el archivo es `reserva` (lo que se guarda libre, 0–1; número o `{"5h", "7d"}`), la clave que ya lee `reparto`.
+   */
+  claude: { tope_5h?: number; tope_7d?: number };
 };
 
-export const vacia = (): ConfigModelos => ({ workers: {}, locales: [], gemini: {} });
+export const vacia = (): ConfigModelos => ({ workers: {}, locales: [], gemini: {}, claude: {} });
+
+/** `reserva` (fracción libre que se guarda) ↔ tope (% usable), enteros. */
+export const topeDeReserva = (r: number) => Math.round((1 - r) * 100);
+export const reservaDeTope = (t: number) => Math.round((100 - t) * 100) / 10000;
+const topeValido = (n: unknown): n is number => typeof n === "number" && Number.isInteger(n) && n >= CUPO_MIN && n <= CUPO_MAX;
+const reservaValida = (r: unknown): r is number => typeof r === "number" && Number.isFinite(r) && r >= 0 && r < 1;
+
+/** Los topes que dice un `reserva` ya parseado (un número vale para las dos ventanas; lo que no tiene forma se ignora). */
+export function topesDe(reserva: unknown): ConfigModelos["claude"] {
+  const c: ConfigModelos["claude"] = {};
+  if (reservaValida(reserva)) return { tope_5h: topeDeReserva(reserva), tope_7d: topeDeReserva(reserva) };
+  if (esObj(reserva)) {
+    if (reservaValida(reserva["5h"])) c.tope_5h = topeDeReserva(reserva["5h"]);
+    if (reservaValida(reserva["7d"])) c.tope_7d = topeDeReserva(reserva["7d"]);
+  }
+  return c;
+}
 
 export const esClaude = (m: string) => m.startsWith("claude-");
 export const esGemini = (m: string) => m.startsWith("gemini-");
@@ -105,6 +129,7 @@ export function leerConfig(j: Record<string, unknown>): ConfigModelos {
     if (typeof g.cupo_max === "number" && Number.isInteger(g.cupo_max) && g.cupo_max >= CUPO_MIN && g.cupo_max <= CUPO_MAX) c.gemini.cupo_max = g.cupo_max;
     if (typeof g.sin_claude === "string" && (SIN_CLAUDE as readonly string[]).includes(g.sin_claude)) c.gemini.sin_claude = g.sin_claude as SinClaude;
   }
+  c.claude = topesDe(j.reserva);
   return c;
 }
 
@@ -125,7 +150,7 @@ function validarEleccion(x: unknown, donde: string, locales: Local[]): Eleccion 
 /** Lo que llega a guardar, revisado: tira con el motivo si algo no vale (y entonces no se escribe nada). */
 export function validarConfig(x: unknown): ConfigModelos {
   if (!esObj(x)) throw errorT("main.modelosForma");
-  const raro = Object.keys(x).find((k) => !["lider", "reparto", "workers", "locales", "gemini"].includes(k));
+  const raro = Object.keys(x).find((k) => !["lider", "reparto", "workers", "locales", "gemini", "claude"].includes(k));
   if (raro !== undefined) throw errorT("main.modelosCampo", { campo: raro.slice(0, 40) });
   const c = vacia();
 
@@ -175,6 +200,18 @@ export function validarConfig(x: unknown): ConfigModelos {
       c.gemini.sin_claude = g.sin_claude as SinClaude;
     }
   }
+  if (x.claude !== undefined) {
+    if (!esObj(x.claude)) throw errorT("main.modelosForma");
+    const k = x.claude;
+    const rarok = Object.keys(k).find((n) => n !== "tope_5h" && n !== "tope_7d");
+    if (rarok !== undefined) throw errorT("main.modelosCampo", { campo: `claude.${rarok.slice(0, 30)}` });
+    for (const n of ["tope_5h", "tope_7d"] as const) {
+      const v = k[n];
+      if (v === undefined || v === null) continue;
+      if (!topeValido(v)) throw errorT("main.modelosTopeClaude", { min: CUPO_MIN, max: CUPO_MAX });
+      c.claude[n] = v;
+    }
+  }
   return c;
 }
 
@@ -214,23 +251,60 @@ export function unir(antes: Record<string, unknown> | null, c: ConfigModelos): R
   const g = sobre(base.gemini, { ...c.gemini }, ["cupo_max", "sin_claude"]);
   if (Object.keys(g).length) base.gemini = g;
   else delete base.gemini;
+
+  // `reserva` es de `reparto`: si lo que había ya dice estos topes se deja tal cual (un 0.155 o un número suelto no se reescriben).
+  const t = topesDe(base.reserva);
+  const igual = c.claude.tope_5h === t.tope_5h && c.claude.tope_7d === t.tope_7d;
+  if (!igual) {
+    const r: Record<string, number> = {};
+    if (c.claude.tope_5h !== undefined) r["5h"] = reservaDeTope(c.claude.tope_5h);
+    if (c.claude.tope_7d !== undefined) r["7d"] = reservaDeTope(c.claude.tope_7d);
+    if (Object.keys(r).length) base.reserva = r;
+    else delete base.reserva;
+  }
   return base;
 }
 
 // --- Qué corre hoy, sin archivo ------------------------------------------------------
 
-/** Lo que hace `pa` cuando el archivo no dice nada (bin/pa: Sonnet high; `--tipo mecanico` Haiku xhigh) y el líder de trama (Opus high). */
-export const HOY: { lider: Eleccion; workers: Partial<Record<Tipo, Eleccion>> } = {
-  lider: { modelo: "claude-opus-5-5", effort: "high" },
-  workers: {
-    default: { modelo: "claude-sonnet-5-5", effort: "high" },
-    mecanico: { modelo: "claude-haiku-5-5", effort: "xhigh" },
-  },
+const OPUS = "claude-opus-5-5";
+const SONNET = "claude-sonnet-5-5";
+const HAIKU = "claude-haiku-5-5";
+
+/**
+ * Los modelos por defecto de cada tipo de tarea: lo barato y mecánico en Haiku, el código en
+ * Sonnet y lo que piensa más (debug, diseño) en Opus. `bases` (Opus medium) no es un tipo de `pa` (`TIPOS_VALIDOS`): no
+ * tiene fila acá. Es lo que trama muestra y lo que pone "Usar los recomendados"; lo que corre sin archivo lo decide `pa`.
+ */
+export const DEFAULTS_CLAUDE: Record<Tipo, Eleccion> = {
+  default: { modelo: SONNET, effort: "high" },
+  lectura: { modelo: HAIKU, effort: "xhigh" },
+  mecanico: { modelo: HAIKU, effort: "xhigh" },
+  "codigo-acotado": { modelo: SONNET, effort: "high" },
+  "codigo-multi": { modelo: SONNET, effort: "high" },
+  frontend: { modelo: SONNET, effort: "high" },
+  debug: { modelo: OPUS, effort: "xhigh" },
+  diseno: { modelo: OPUS, effort: "xhigh" },
 };
 
-/** Con qué lanza `pa` un tipo: el suyo, el `default` del archivo o lo de hoy. */
-export function efectivoDe(c: ConfigModelos, tipo: Tipo): Eleccion {
-  return c.workers[tipo] ?? (tipo === "default" ? undefined : c.workers.default) ?? HOY.workers[tipo] ?? HOY.workers.default!;
+/** Lo mismo cuando sólo hay Gemini (sin `claude`): Argon para todo lo que pesa y Flash sólo para lo mecánico. */
+export const DEFAULTS_GEMINI: Record<Tipo, Eleccion> = Object.fromEntries(
+  TIPOS.map((t) => [t, { modelo: t === "mecanico" ? "gemini-3.8-flash-medium" : "gemini-4-argon-high" }]),
+) as Record<Tipo, Eleccion>;
+
+/** Los defaults de la máquina: los de Gemini si no hay Claude, los de Claude si no. */
+export const defaultsDe = (soloGemini: boolean): Record<Tipo, Eleccion> => (soloGemini ? DEFAULTS_GEMINI : DEFAULTS_CLAUDE);
+
+/** Lo que muestra trama cuando el archivo no dice nada (y `pa` no contesta) y el líder (Opus high). */
+export const HOY: { lider: Eleccion; workers: Record<Tipo, Eleccion> } = {
+  lider: { modelo: OPUS, effort: "high" },
+  workers: DEFAULTS_CLAUDE,
+};
+
+/** Con qué lanza `pa` un tipo: el suyo, el `default` del archivo o el que le toca por defecto. */
+export function efectivoDe(c: ConfigModelos, tipo: Tipo, soloGemini = false): Eleccion {
+  const d = defaultsDe(soloGemini);
+  return c.workers[tipo] ?? (tipo === "default" ? undefined : c.workers.default) ?? d[tipo];
 }
 
 /** Las tres filas de worker de `~/CLAUDE.md` y el tipo de la config del que salen. */

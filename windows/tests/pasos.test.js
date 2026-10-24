@@ -81,7 +81,7 @@ function maquina(sobre = {}) {
 }
 
 function armar(m, extra = {}) {
-  let guardado = {};
+  let guardado = { ...(extra.guardado || {}) };
   const eventos = [];
   const a = crearAsistente({
     wsl: m.wsl,
@@ -134,18 +134,19 @@ test("trama-estado: versión desconocida y basura", () => {
 
 test("camino rápido: todo listo → carga la UI sin tocar nada", async () => {
   const m = maquina({ usuario: true, systemd: true, estadoBin: true, versionMarca: "v1", claude: { instalado: true, logueado: true }, motorVivo: true, ollamaWindows: false });
-  const { a, eventos, emit, guardado } = armar(m);
+  const { a, eventos, emit, guardado } = armar(m, { guardado: { loginHecho: true } });
   guardado().ollamaResuelto = true;
   const r = await a.avanzar(emit);
   assert.deepEqual(r, { listo: true, url: "http://localhost:8791" });
   assert.ok(!eventos.some((e) => e.tipo === "inicia"), "sin pantallas de trabajo");
   assert.equal(m.elevadas.length, 0);
   assert.ok(!m.llamadas.some((c) => c.input.includes("cp -a")));
+  assert.equal(guardado().distroCreada, undefined, "una distro que ya estaba no se anota como creada por Trama");
 });
 
 test("primer arranque completo: usuario, systemd, instalación, login, ollama, motor", async () => {
   const m = maquina();
-  const { a, eventos, emit } = armar(m);
+  const { a, eventos, emit, guardado } = armar(m);
 
   let r = await a.avanzar(emit);
   assert.equal(r.espera, "login", "se frena en el login");
@@ -153,6 +154,7 @@ test("primer arranque completo: usuario, systemd, instalación, login, ollama, m
   assert.equal(m.terminadas, 1, "reinicia la distro para que lea wsl.conf");
   assert.equal(m.shutdowns, 0);
   assert.equal(m.versionMarca, "v1");
+  assert.equal(guardado().instalado.payload, "v1", "anota qué versión del árbol instaló");
   assert.deepEqual(eventos.filter((e) => e.tipo === "inicia").map((e) => e.paso), ["sistema", "instalar"]);
   const orden = m.llamadas.map((c) => c.input).filter((i) => i.includes("--solo-apt") || i.includes("--fuente"));
   assert.match(orden[0], /--solo-apt/);
@@ -163,10 +165,14 @@ test("primer arranque completo: usuario, systemd, instalación, login, ollama, m
   assert.match(wslconf, /systemd=true/);
   assert.match(wslconf, /default=%s/);
 
-  // Sin login no avanza; con uno de los dos alcanza.
+  // Sin login no avanza; con uno de los dos conectado queda esperando que la persona toque Continuar.
   r = await a.avanzar(emit);
   assert.equal(r.espera, "login");
   m.agy.logueado = true;
+  r = await a.avanzar(emit);
+  assert.equal(r.espera, "login");
+  assert.equal(r.info.puedeContinuar, true);
+  await a.continuarLogin();
   r = await a.avanzar(emit);
   assert.equal(r.espera, "ollama");
   assert.equal(r.info.detectado, false);
@@ -197,6 +203,7 @@ test("sin WSL: pide elevar, avisa del reinicio y retoma sola cuando Windows rein
   assert.equal(r.espera, "login");
   assert.equal(guardado().reinicio, null);
   assert.equal(m.elevadas.length, 1);
+  assert.equal(guardado().distroCreada, "Ubuntu-24.04", "la distro que apareció tras el reinicio pedido por Trama es suya");
 });
 
 test("reinicio hecho pero la distro aún no está: reintenta la instalación", async () => {
@@ -208,6 +215,7 @@ test("reinicio hecho pero la distro aún no está: reintenta la instalación", a
   const r = await a.avanzar(emit);
   assert.equal(m.elevadas.length, 1);
   assert.equal(r.espera, "login");
+  assert.equal(guardado().distroCreada, "Ubuntu-24.04");
 });
 
 test("cancelar el permiso de administrador es un error legible", async () => {
@@ -236,7 +244,7 @@ test("falla de apt: error del paso, el motor ni se intenta", async () => {
 
 test("un .exe nuevo con otra versión del árbol reinstala el motor", async () => {
   const m = maquina({ usuario: true, systemd: true, estadoBin: true, versionMarca: "v0", claude: { instalado: true, logueado: true }, motorVivo: true });
-  const { a, eventos, emit, guardado } = armar(m);
+  const { a, eventos, emit, guardado } = armar(m, { guardado: { loginHecho: true } });
   guardado().ollamaResuelto = true;
   const r = await a.avanzar(emit);
   assert.equal(r.listo, true);
@@ -248,12 +256,12 @@ test("un .exe nuevo con otra versión del árbol reinstala el motor", async () =
 test("ollama: detectado y visible desde Ubuntu pasa solo; si no lo ve, ofrece el modo espejo", async () => {
   const base = { usuario: true, systemd: true, estadoBin: true, versionMarca: "v1", claude: { instalado: true, logueado: true }, motorVivo: true, ollamaWindows: true };
   let m = maquina({ ...base, ollamaVisible: true });
-  let x = armar(m);
+  let x = armar(m, { guardado: { loginHecho: true } });
   let r = await x.a.avanzar(x.emit);
   assert.equal(r.listo, true);
 
   m = maquina({ ...base, ollamaVisible: false, wslconfig: "[wsl2]\nmemory=8GB\n" });
-  x = armar(m);
+  x = armar(m, { guardado: { loginHecho: true } });
   r = await x.a.avanzar(x.emit);
   assert.equal(r.espera, "ollama");
   assert.deepEqual([r.info.detectado, r.info.visibleDesdeWsl, r.info.modelos], [true, false, ["qwen3-coder:30b"]]);
@@ -281,7 +289,7 @@ test("el motor no arranca: error con el journal", async () => {
   const m = maquina({ usuario: true, systemd: true, estadoBin: true, versionMarca: "v1", claude: { instalado: true, logueado: true } });
   const orig = m.wsl;
   m.wsl = async (args, o) => (o?.input?.includes("systemctl --user start") ? { code: 0, stdout: "", stderr: "" } : orig(args, o));
-  const { a, emit, guardado } = armar(m);
+  const { a, emit, guardado } = armar(m, { guardado: { loginHecho: true } });
   guardado().ollamaResuelto = true;
   await assert.rejects(a.avanzar(emit), (e) => e.paso === "motor" && /error de ejemplo/.test(e.detalle));
 });
@@ -318,11 +326,41 @@ test("login: seguir sin iniciar sesión, de a un proveedor, y entrar sin ninguna
   assert.throws(() => a.saltarLogin("otro"));
 });
 
-test("login: con uno solo conectado se entra sin saltar nada", async () => {
+test("login: con uno solo conectado se queda a ofrecer el otro; Continuar o resolver el otro sigue", async () => {
   const m = maquina({ usuario: true, systemd: true, estadoBin: true, versionMarca: "v1", motorVivo: true, claude: { instalado: true, logueado: true } });
   const { a, emit, guardado } = armar(m);
   guardado().ollamaResuelto = true;
+  let r = await a.avanzar(emit);
+  assert.equal(r.espera, "login", "no salta a lo siguiente apenas se conecta Claude");
+  assert.equal(r.info.claude.logueado, true);
+  assert.equal(r.info.agy.logueado, false);
+  assert.equal(r.info.puedeContinuar, true);
+
+  // Conectar la otra desde la consola cierra el paso solo (las dos están resueltas)...
+  m.agy.logueado = true;
   assert.equal((await a.avanzar(emit)).listo, true);
+  m.agy.logueado = false;
+
+  // ...«lo hago después» de la otra también...
+  a.saltarLogin("gemini");
+  assert.equal((await a.avanzar(emit)).listo, true);
+});
+
+test("login: Continuar con una conectada deja pasar; sin ninguna conectada no", async () => {
+  const m = maquina({ usuario: true, systemd: true, estadoBin: true, versionMarca: "v1", motorVivo: true });
+  const { a, emit, guardado } = armar(m);
+  guardado().ollamaResuelto = true;
+  await assert.rejects(a.continuarLogin(), /al menos una cuenta/);
+  m.claude.logueado = true;
+  assert.equal((await a.avanzar(emit)).espera, "login");
+  await a.continuarLogin();
+  assert.equal((await a.avanzar(emit)).listo, true);
+});
+
+test("cuentas: Ajustes lee qué está conectado", async () => {
+  const m = maquina({ usuario: true, systemd: true, estadoBin: true, versionMarca: "v1", motorVivo: true, agy: { instalado: true, logueado: true } });
+  const { a } = armar(m);
+  assert.deepEqual(await a.cuentas(), { claude: { instalado: true, logueado: false }, agy: { instalado: true, logueado: true } });
 });
 
 test("reinicio de WSL: registra la reapertura de Trama y la quita cuando la distro ya está", async () => {

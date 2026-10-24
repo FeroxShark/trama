@@ -89,10 +89,26 @@ test("respeta CRLF", () => {
   assert.equal(nuevo, escribirRouting(EJEMPLO, [{ rol: "diseno", modelo: "claude-opus-5-5", effort: "high" }]).replace(/\n/g, "\r\n"));
 });
 
-test("sin marcadores: error y nada que escribir", () => {
-  const sinMarcas = EJEMPLO.replace(/<!--.*-->\n/g, "");
-  assert.match(enEs((parsearRouting(sinMarcas) as { error: string }).error), /No encuentro la tabla de routing/);
-  assert.throws(() => escribirRouting(sinMarcas, [{ rol: "codigo", modelo: "claude-opus-5-5", effort: "high" }]), lanza(/No encuentro/));
+test("sin marcadores (instalación nueva): lee 'lo decide el líder' y escribe el bloque sólo si hay algo que guardar", () => {
+  const plantilla = "# Líder de Trama\n\nTexto del líder.\n";
+  const filas = ok(parsearRouting(plantilla));
+  assert.deepEqual(filas.map((f) => [f.rol, f.modelo, f.effort]), [["codigo", null, null], ["explorar", null, null], ["diseno", null, null]]);
+  // Sin cambios reales, el archivo no se toca.
+  assert.equal(escribirRouting(plantilla, [{ rol: "codigo", modelo: null, effort: null }]), plantilla);
+  const nuevo = escribirRouting(plantilla, [{ rol: "codigo", modelo: "claude-opus-5-5", effort: "high" }]);
+  assert.ok(nuevo.startsWith(plantilla.trimEnd() + "\n\n"));
+  assert.equal((nuevo.match(/<!-- trama:routing/g) ?? []).length, 1);
+  const r = ok(parsearRouting(nuevo));
+  assert.deepEqual([r[0].modelo, r[0].effort, r[1].modelo], ["claude-opus-5-5", "high", null]);
+  // Un archivo vacío también sirve, y con CRLF el bloque sigue en CRLF.
+  assert.equal(ok(parsearRouting(""))[2].modelo, null);
+  assert.ok(!/[^\r]\n/.test(escribirRouting("a\r\nb\r\n", [{ rol: "diseno", modelo: "claude-opus-5-5", effort: "low" }])));
+});
+
+test("con un solo marcador el archivo está roto: error y nada que escribir", () => {
+  const roto = EJEMPLO.replace("<!-- /trama:routing -->\n", "");
+  assert.match(enEs((parsearRouting(roto) as { error: string }).error), /No encuentro la tabla de routing/);
+  assert.throws(() => escribirRouting(roto, [{ rol: "codigo", modelo: "claude-opus-5-5", effort: "high" }]), lanza(/No encuentro/));
 });
 
 test("formatos inesperados: error", () => {
@@ -124,10 +140,10 @@ test("guardarRouting escribe atómico y sigue el symlink; con error no toca el a
   assert.deepEqual(readdirSync(dir).sort(), ["CLAUDE.md", "real.md"]);
   assert.deepEqual(ok(await leerRouting(link))[0].effort, "high");
 
-  const sinMarcas = path.join(dir, "sin.md");
-  writeFileSync(sinMarcas, "# nada\n");
-  const mal = await guardarRouting([{ rol: "codigo", modelo: "claude-opus-5-5", effort: "high" }], sinMarcas);
+  const roto = path.join(dir, "roto.md");
+  writeFileSync(roto, "# nada\n<!-- trama:routing -->\n");
+  const mal = await guardarRouting([{ rol: "codigo", modelo: "claude-opus-5-5", effort: "high" }], roto);
   assert.ok("error" in mal);
-  assert.equal(readFileSync(sinMarcas, "utf8"), "# nada\n");
+  assert.equal(readFileSync(roto, "utf8"), "# nada\n<!-- trama:routing -->\n");
   assert.ok("error" in (await leerRouting(path.join(dir, "no-existe.md"))));
 });

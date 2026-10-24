@@ -1,6 +1,6 @@
 // La cuenta del anillo de contexto (B16, src/hilo/Contexto.tsx): cuánto pesa la
-// conversación (los tokens de entrada del último turno) contra su umbral: el del
-// relevo en un líder, el de autocompact en un worker. Puro: lo prueba
+// conversación (los tokens de entrada del último turno) contra su umbral: el de
+// autocompact (líder y worker). Puro: lo prueba
 // `tests/contexto.test.ts`.
 import type { Tokens } from "../datos/contrato";
 
@@ -31,7 +31,7 @@ export function ventanaDicha(ventanas: Record<string, number> | null | undefined
 }
 
 /**
- * El umbral efectivo: el dado (el del relevo, o `autoCompactWindow` de
+ * El umbral efectivo: el dado (`autoCompactWindow` de
  * `~/.claude/settings.json`) si está, nunca más que la ventana; si no, la
  * ventana del modelo.
  */
@@ -48,7 +48,7 @@ export type Cuenta = {
   umbral: number;
   /** 0–100, entero. */
   pct: number;
-  /** Lo que falta para el umbral (el relevo, o que compacte solo). */
+  /** Lo que falta para el umbral (que compacte solo). */
   falta: number;
   nivel: Nivel;
 };

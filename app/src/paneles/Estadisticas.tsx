@@ -10,6 +10,7 @@ import { coma, diaSemana, locale, t } from "../i18n";
 import { duracion } from "../tiempo";
 import { ErrorCarga } from "./ErrorCarga";
 import { Historial } from "./Historial";
+import { Vacio } from "./Vacio";
 import { mensaje } from "../puente";
 import {
   cambio,
@@ -61,6 +62,8 @@ type Datos = { corridas: Corrida[]; desde: number | null; cuota: Muestra[] | nul
 export function Estadisticas() {
   const [datos, setDatos] = useState<Datos | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Ningún worker corrió todavía (no hay `medicion.tsv`): estado vacío, no error.
+  const [vacia, setVacia] = useState(false);
   const [dias, setDias] = useState<(typeof RANGOS)[number]>(MODO.captura === "estadisticas-30" ? 30 : 7);
   // Reintentar: otro pedido (el efecto depende de esto).
   const [intento, setIntento] = useState(0);
@@ -72,6 +75,7 @@ export function Estadisticas() {
         if (!vivo) return;
         if (r.version !== VERSION) setError(t("error.version", { que: t("panel.estadisticas"), v: r.version, conozco: VERSION }));
         else if ("error" in r) setError(r.error);
+        else if ("vacia" in r) setVacia(true);
         else setDatos({ corridas: r.corridas, desde: r.desde, cuota: r.cuota, ahora: Date.now() / 1000 });
       },
       (e) => vivo && setError(mensaje(e)),
@@ -98,6 +102,7 @@ export function Estadisticas() {
     setIntento((n) => n + 1);
   };
   if (error) return <ErrorCarga error={error} alReintentar={reintentar} />;
+  if (vacia) return <Vacio titulo={t("est.vaciaT")} texto={t("est.vaciaP")} />;
   if (!datos || !r || !fijo) return <div className="pn-aviso">{t("est.leyendo")}</div>;
 
   const { ahora, desde } = datos;

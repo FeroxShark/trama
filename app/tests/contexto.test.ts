@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { leerRelevo, leerUmbral, RELEVO_MAX, RELEVO_PRO, relevoDe, umbralDeSettings } from "../electron/contexto.ts";
+import { leerUmbral, umbralDeSettings } from "../electron/contexto.ts";
 import { conversacionDe, parsearLinea } from "../electron/lider-arma.ts";
 import { cuenta, nivel, umbralDe, usados, ventanaDe, ventanaDicha } from "../src/hilo/contexto.ts";
 
@@ -61,29 +61,15 @@ test("umbral: autoCompactWindow de un settings.json de ejemplo", async () => {
   assert.equal(await leerUmbral(path.join(dir, "no-esta.json")), null);
 });
 
-test("relevo: AVISO_CONTEXTO si está; si no, por el plan de pa (max 200 mil, pro o sin plan 120 mil)", async () => {
-  assert.equal(RELEVO_MAX, 200_000);
-  assert.equal(RELEVO_PRO, 120_000);
-  assert.equal(relevoDe("max\n", undefined), 200_000);
-  assert.equal(relevoDe(" MAX \notra cosa", undefined), 200_000);
-  assert.equal(relevoDe("pro\n", undefined), 120_000);
-  assert.equal(relevoDe(null, undefined), 120_000);
-  assert.equal(relevoDe("raro", undefined), 120_000);
-  // AVISO_CONTEXTO manda sobre el plan; si no es un entero positivo, no cuenta.
-  assert.equal(relevoDe("max", "150000"), 150_000);
-  assert.equal(relevoDe("pro", "90000"), 90_000);
-  assert.equal(relevoDe("max", "150k"), 200_000);
-  assert.equal(relevoDe("max", "0"), 200_000);
-  assert.equal(relevoDe("pro", ""), 120_000);
-  // El archivo del plan: una carpeta temporal, nunca el ~/.local/state/pa/plan real.
-  const dir = mkdtempSync(path.join(os.tmpdir(), "relevo-"));
-  const plan = path.join(dir, "plan");
-  writeFileSync(plan, "max\n");
-  assert.equal(await leerRelevo(plan, undefined), 200_000);
-  writeFileSync(plan, "pro\n");
-  assert.equal(await leerRelevo(plan, undefined), 120_000);
-  assert.equal(await leerRelevo(plan, "175000"), 175_000);
-  assert.equal(await leerRelevo(path.join(dir, "no-esta"), undefined), 120_000);
+test("sin relevo: el anillo de un líder cuenta contra autoCompactWindow, o la ventana del modelo, igual que el de un worker", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "umbrales-"));
+  const ruta = path.join(dir, "settings.json");
+  writeFileSync(ruta, JSON.stringify({ autoCompactWindow: 150_000 }));
+  assert.equal(await leerUmbral(ruta), 150_000);
+  assert.equal(umbralDe(150_000, 1_000_000), 150_000);
+  // Sin autoCompactWindow: la ventana entera (y nunca más que ella).
+  assert.equal(umbralDe(null, 1_000_000), 1_000_000);
+  assert.equal(umbralDe(2_000_000, 1_000_000), 1_000_000);
 });
 
 test("stream: el usage de cada mensaje y la ventana del modelo salen como evento `contexto`", () => {

@@ -156,7 +156,7 @@ type Main = {
   /** Los paneles del pie (Ajustes, Estadísticas, acciones de Ramas): ver src/datos/paneles.ts. */
   paneles: {
     ajustes(): Promise<unknown>;
-    /** Los umbrales del anillo de contexto (`{ relevo, autoCompact }`, electron/contexto.ts), sin validar. */
+    /** Los umbrales del anillo de contexto (`{ autoCompact }`, electron/contexto.ts), sin validar. */
     umbralContexto(): Promise<unknown>;
     medicion(): Promise<unknown>;
     /** El registro histórico (electron/historial.ts) de los últimos 7 o 30 días, de todos o de un rol; sin validar. */
@@ -177,6 +177,12 @@ type Main = {
     guardarModelos(config: unknown): Promise<unknown>;
     /** Pregunta a un Ollama (`GET <url>/api/tags`) qué modelos tiene; nunca rechaza por no contestar. */
     sondearOllama(url: string): Promise<unknown>;
+    /** Empieza a bajar un modelo de Ollama (`/api/pull`); el progreso llega por `alBajar`. Rechaza con el motivo (sólo desde la PC). */
+    bajarModelo(url: string, modelo: string): Promise<unknown>;
+    cancelarBajada(url: string, modelo: string): Promise<void>;
+    /** Las bajadas en curso o terminadas desde que arrancó el motor. */
+    bajadas(): Promise<unknown>;
+    alBajar(fn: (b: unknown) => void): Soltar;
     /** Escribe el plan (`pa --plan`) y/o la red de seguridad (`autoCompactWindow`); rechaza con el motivo; devuelve Ajustes como quedó. */
     guardarAjustes(cambio: { plan?: string; red_seguridad?: number | null }): Promise<unknown>;
     /** El acceso desde el celular (`remoto.json`) y dónde está escuchando; por la tailnet, `{ editable: false }`. */
@@ -253,6 +259,11 @@ type Main = {
     /** Actualizar: abre una terminal con paru y espera a que la cierren: `{ ok, version | error }`, sin validar. */
     actualizar(): Promise<unknown>;
     alCambiar(fn: (a: unknown) => void): Soltar;
+  };
+  /** Lo que falta del setup (Handy, agy, Ollama, el login): `{ version, faltas: [{ id, url }] }`, sin validar. */
+  setup: {
+    estado(): Promise<unknown>;
+    descartar(id: string): Promise<void>;
   };
   /** Por la tailnet (el celular): `false` cuando se cae la conexión con la PC, `true` al volver. En la ventana no avisa nunca. */
   conexion: {

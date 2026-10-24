@@ -123,7 +123,7 @@ export interface Fuente {
   liderEstilos(): Promise<Estilos>;
   /** `/output-style`: "vivo" si ya se aplicó, "pendiente" si va al próximo líder que arranque. */
   liderEstilo(sid: string, estilo: string): Promise<"vivo" | "pendiente">;
-  /** Los umbrales del anillo de contexto (B16): el del relevo del líder y `autoCompactWindow` (`null` si no está). */
+  /** Los umbrales del anillo de contexto (B16): `autoCompactWindow` (`null` si no está). */
   umbralContexto(): Promise<Umbrales>;
   /** Cerrar un líder de la app (termina su proceso, sale de lideres.json). `motivo`: por qué, para el log (`MOTIVOS`, electron/lider.ts). */
   liderCerrar(sid: string, motivo?: string): Promise<void>;
@@ -206,6 +206,10 @@ export interface Fuente {
   descartarAvisoAgy(): void;
   /** Actualizar agy (una terminal con paru, hasta que se cierra); `abiertos` es siempre 0. */
   actualizarAgy(): Promise<Actualizado>;
+  /** Qué falta del setup (Handy, agy, Ollama, el login); vacío si todo está o no se avisa en esta máquina. */
+  faltasSetup(): Promise<FaltaSetup[]>;
+  /** No avisar más de esa falta. */
+  descartarSetup(id: FaltaSetup["id"]): void;
   /** Relanzar con la versión nueva los líderes que no están respondiendo. */
   reiniciarLideres(): Promise<{ reiniciados: number; ocupados: number }>;
 }
@@ -213,9 +217,22 @@ export interface Fuente {
 export type Actualizado = { ok: true; version: string; abiertos: number } | { ok: false; error: string; abiertos: number };
 
 /** Los umbrales del anillo de contexto (electron/contexto.ts); `null`, no se pudo leer. */
-export type Umbrales = { relevo: number | null; autoCompact: number | null };
+export type Umbrales = { autoCompact: number | null };
 
 export type AvisoClaude = { instalada: string; ultima: string };
+
+/** Lo que falta del setup de esta máquina (electron/setup.ts) y el enlace para conseguirlo. */
+export type FaltaSetup = { id: "handy" | "agy" | "ollama" | "login"; url: string };
+const IDS_SETUP = new Set<string>(["handy", "agy", "ollama", "login"]);
+/** Sólo ids conocidos y enlaces http(s): lo que llega de afuera no se pinta tal cual. */
+const faltasValidas = (x: unknown): FaltaSetup[] => {
+  const l = (x as { faltas?: unknown } | null)?.faltas;
+  if (!Array.isArray(l)) return [];
+  return l.flatMap((f) => {
+    const { id, url } = (f ?? {}) as { id?: unknown; url?: unknown };
+    return typeof id === "string" && IDS_SETUP.has(id) && typeof url === "string" && /^https?:\/\//.test(url) ? [{ id, url } as FaltaSetup] : [];
+  });
+};
 
 /**
  * Las máquinas de `maquinas.json` vistas desde esta trama. `estado` de cada otra: `conectando` (todavía no contestó),
@@ -323,6 +340,10 @@ let avisoFijo: AvisoClaude | null =
 const oyentesAviso = new Set<(a: AvisoClaude | null) => void>();
 // Con fixtures no hay aviso de agy (ninguna captura lo muestra).
 const sinAvisoAgy = async () => null;
+const SETUP_FIJO: FaltaSetup[] = [
+  { id: "handy", url: "https://handy.computer" },
+  { id: "ollama", url: "https://ollama.com/download" },
+];
 
 /** Lo que avisa el main de una cola (`AvisoCola`); `null` si no tiene esa forma. */
 function avisoCola(x: unknown): AvisoCola | null {
@@ -765,6 +786,11 @@ const fija: Fuente = {
     return { ok: true, version: avisoFijo?.ultima ?? "2.1.300", abiertos: 2 };
   },
   avisoAgy: sinAvisoAgy,
+  // Con fixtures sólo sale en la captura `setup` (las demás quedan como estaban).
+  async faltasSetup() {
+    return MODO.captura === "setup" || MODO.captura === "setup-abierto" ? SETUP_FIJO : [];
+  },
+  descartarSetup() {},
   alCambiarAvisoAgy: () => () => {},
   descartarAvisoAgy() {},
   async actualizarAgy() {
@@ -890,7 +916,7 @@ const fija: Fuente = {
   },
   async pasosMirar(id) {
     // Sólo las capturas de la vista de worker traen pasos; las demás ven la conversación de siempre.
-    if (MODO.captura === "worker-vista") return pasosFijos(id);
+    if (MODO.captura === "worker-vista") return pasosFijos(id, false, MODO.variante === "largo");
     if (MODO.captura === "worker-vista-vivo") return pasosFijos(id, true);
     return vistaDe({ id, hay: false });
   },
@@ -961,7 +987,7 @@ const fija: Fuente = {
     return "vivo" as const;
   },
   async umbralContexto() {
-    return { relevo: 200_000, autoCompact: 200_000 };
+    return { autoCompact: 200_000 };
   },
   async liderCerrar() {},
   async liderRetomar(sid, x) {
@@ -1167,6 +1193,12 @@ const conPa = (m: NonNullable<typeof main>): Fuente => ({
   },
   async avisoAgy() {
     return avisoValido(await m.agy.version().catch(() => null));
+  },
+  async faltasSetup() {
+    return faltasValidas(await m.setup.estado().catch(() => null));
+  },
+  descartarSetup(id) {
+    void m.setup.descartar(id).catch(() => {});
   },
   alCambiarAvisoAgy(fn) {
     return m.agy.alCambiar((a) => fn(avisoValido(a)));
@@ -1446,9 +1478,9 @@ const conPa = (m: NonNullable<typeof main>): Fuente => ({
     return r === "pendiente" ? "pendiente" : "vivo";
   },
   async umbralContexto() {
-    const u = (await m.paneles.umbralContexto().catch(() => null)) as { relevo?: unknown; autoCompact?: unknown } | null;
+    const u = (await m.paneles.umbralContexto().catch(() => null)) as { autoCompact?: unknown } | null;
     const n = (x: unknown) => (typeof x === "number" && x > 0 ? x : null);
-    return { relevo: n(u?.relevo), autoCompact: n(u?.autoCompact) };
+    return { autoCompact: n(u?.autoCompact) };
   },
   async liderCerrar(sid, motivo) {
     await m.lider.cerrar(sid, motivo).catch((e) => {

@@ -3,7 +3,7 @@
 // veces compactó y la ventana que dijo cada modelo. Vive fuera de la vista y
 // avisa por frame, sólo cuando cambia algo: la salida que va llegando con cada
 // delta se guarda aparte y entra al cerrar el turno, así el anillo no repinta
-// con el streaming. También los umbrales: el del relevo y `autoCompactWindow`.
+// con el streaming. También el umbral: `autoCompactWindow`.
 import type { EventoLider, RespuestaHilo, Tokens } from "../datos/contrato";
 import { fuente, type Umbrales } from "../datos/fuente";
 
@@ -118,9 +118,9 @@ export function transcriptLeido(sid: string, r: Pick<RespuestaHilo, "usage" | "c
   });
 }
 
-// --- Los umbrales: el del relevo del líder y el de autocompact ---------------------
+// --- El umbral de autocompact ---------------------
 
-const SIN_UMBRALES: Umbrales = { relevo: null, autoCompact: null };
+const SIN_UMBRALES: Umbrales = { autoCompact: null };
 let umbrales = SIN_UMBRALES;
 const oyentesUmbral = new Set<() => void>();
 
@@ -134,7 +134,7 @@ export function suscribirUmbral(fn: () => void) {
 /** Relee los umbrales (al montar el anillo y al abrir su detalle; nunca por timer). */
 export function leerUmbral() {
   void fuente.umbralContexto().then((u) => {
-    if (u.relevo === umbrales.relevo && u.autoCompact === umbrales.autoCompact) return;
+    if (u.autoCompact === umbrales.autoCompact) return;
     umbrales = u;
     oyentesUmbral.forEach((f) => f());
   });

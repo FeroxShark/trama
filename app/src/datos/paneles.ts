@@ -17,8 +17,9 @@ import type { Consulta, PiezaConsulta } from "../../electron/historial";
 import type { Arranque, Medido } from "../../electron/arranque";
 import type { EstadoModelos, Sondeo } from "../../electron/modelos-config";
 import type { ConfigModelos } from "../../electron/modelos-tipos";
+import type { Bajada } from "../../electron/ollama-bajar";
 
-export type { Arranque, ConfigModelos, Consulta, EstadoAuto, EstadoModelos, EstadoSalud, Medido, PiezaConsulta, Sondeo };
+export type { Arranque, Bajada, ConfigModelos, Consulta, EstadoAuto, EstadoModelos, EstadoSalud, Medido, PiezaConsulta, Sondeo };
 
 /** El registro histórico de los últimos 7 o 30 días (electron/historial.ts), o por qué no se pudo. */
 export type Historial = Consulta | { version: number; error: string };
@@ -83,7 +84,8 @@ export type Muestra = { ts: number; h5: number; h5_reset: number; sem: number; s
  */
 export type Medicion =
   | { version: number; corridas: Corrida[]; desde: number | null; cuota: Muestra[] | null }
-  | { version: number; error: string };
+  | { version: number; error: string }
+  | { version: number; vacia: true };
 
 export type AccionRama = "integrar" | "descartar" | "revertir";
 
@@ -117,6 +119,12 @@ export interface FuentePaneles {
   guardarModelos(config: ConfigModelos): Promise<EstadoModelos>;
   /** Qué modelos tiene instalados el Ollama de esa dirección, o por qué no contesta. */
   sondearOllama(url: string): Promise<Sondeo>;
+  /** Empieza a bajar un modelo de Ollama por su nombre (`ollama pull`); el progreso llega por `alBajar`. Rechaza con el motivo. */
+  bajarModelo(url: string, modelo: string): Promise<Bajada>;
+  cancelarBajada(url: string, modelo: string): Promise<void>;
+  /** Las bajadas en curso o terminadas (para una página recién cargada). */
+  bajadas(): Promise<Bajada[]>;
+  alBajar(fn: (b: Bajada) => void): () => void;
   /** Guarda el plan (`pa --plan`) y/o la red de seguridad (`autoCompactWindow`); devuelve Ajustes como quedó o rechaza con el motivo. */
   guardarAjustes(cambio: CambioAjustes): Promise<Ajustes>;
   /** El acceso desde el celular: cómo está y dónde escucha. */
@@ -183,6 +191,20 @@ let modelosFijos: EstadoModelos | undefined;
 
 const FALLA_CONFLICTO = "pa: conflicts merging into main. A worker can resolve it: pa atlas --actualizar 20261003-100000-11111";
 
+/** Las bajadas de las fixtures: un "ollama pull" falso que sube solo (`mdl-bajando` deja una a mitad). */
+const bajadasFalsas = new Map<string, Bajada>(
+  MODO.variante === "mdl-bajando"
+    ? [["qwen3:8b", { url: "http://localhost:11434", modelo: "qwen3:8b", estado: "bajando", texto: "pulling 7a4b3c2d1e0f", completado: 2_100_000_000, total: 5_000_000_000, motivo: null }]]
+    : [],
+);
+const bajadosFalsos: { nombre: string; bytes: number | null }[] = [];
+const cortesFalsos = new Map<string, () => void>();
+const oyentesBajada = new Set<(b: Bajada) => void>();
+function avisarBajada(b: Bajada) {
+  bajadasFalsas.set(b.modelo, b);
+  for (const fn of oyentesBajada) fn({ ...b });
+}
+
 const fija: FuentePaneles = {
   async ajustes() {
     if (cae("ajustes")) throw new Error(FALLAS_PANEL.ajustes);
@@ -217,8 +239,49 @@ const fija: FuentePaneles = {
   },
   async sondearOllama(url) {
     await espera(250);
-    if (/caido|apagado/.test(url)) return { ok: false, motivo: textoT("main.ollamaNoContesta") };
-    return { ok: true, modelos: OLLAMA_FALSO };
+    // `mdl-sinollama`: la dirección de siempre no contesta (hasta que se "instala").
+    if (/caido|apagado/.test(url) || (MODO.variante === "mdl-sinollama" && /localhost:11434/.test(url))) return { ok: false, motivo: textoT("main.ollamaNoContesta") };
+    return { ok: true, modelos: [...OLLAMA_FALSO, ...bajadosFalsos] };
+  },
+  async bajarModelo(url, modelo) {
+    const nombre = modelo.trim();
+    if (!/^[A-Za-z0-9][\w.:/-]{0,120}$/.test(nombre)) throw new Error(textoT("main.ollamaNombre"));
+    if (/^(no-existe|nada)/.test(nombre)) {
+      const b: Bajada = { url, modelo: nombre, estado: "error", texto: "", completado: null, total: null, motivo: "pull model manifest: file does not exist" };
+      setTimeout(() => avisarBajada(b), 300);
+      return { ...b, estado: "bajando", motivo: null };
+    }
+    const total = 4_700_000_000;
+    let hecho = 0;
+    const b: Bajada = { url, modelo: nombre, estado: "bajando", texto: "pulling manifest", completado: null, total: null, motivo: null };
+    bajadasFalsas.set(nombre, b);
+    // Cada 350 ms sube un 7 %: unos 5 s en total.
+    const paso = setInterval(() => {
+      hecho += total * 0.07;
+      const act = bajadasFalsas.get(nombre);
+      if (!act || act.estado !== "bajando") return clearInterval(paso);
+      if (hecho >= total) {
+        clearInterval(paso);
+        bajadosFalsos.push({ nombre, bytes: total });
+        return avisarBajada({ ...act, estado: "listo", texto: "success", completado: total, total, motivo: null });
+      }
+      avisarBajada({ ...act, texto: "pulling 7a4b3c2d1e0f", completado: Math.round(hecho), total });
+    }, 350);
+    cortesFalsos.set(nombre, () => {
+      clearInterval(paso);
+      avisarBajada({ ...b, estado: "error", motivo: textoT("main.ollamaCancelada") });
+    });
+    return { ...b };
+  },
+  async cancelarBajada(_url, modelo) {
+    cortesFalsos.get(modelo.trim())?.();
+  },
+  async bajadas() {
+    return [...bajadasFalsas.values()].map((b) => ({ ...b }));
+  },
+  alBajar(fn) {
+    oyentesBajada.add(fn);
+    return () => void oyentesBajada.delete(fn);
   },
   async remoto() {
     return { version: 1, editable: true, ...REMOTO, escuchando: REMOTO.activo ? [URL_REMOTO_FALSA(REMOTO.puerto)] : [] };
@@ -235,6 +298,7 @@ const fija: FuentePaneles = {
   },
   async medicion() {
     if (cae("medicion")) return { version: 1, error: FALLAS_PANEL.medicion };
+    if (MODO.captura === "estadisticas-vacia") return { version: 1, vacia: true };
     return MEDICION;
   },
   async historial(dias, rol) {
@@ -409,6 +473,20 @@ const conPa = (m: NonNullable<typeof main>): FuentePaneles => ({
   },
   async sondearOllama(url) {
     return (await m.paneles.sondearOllama(url).catch(fallar)) as Sondeo;
+  },
+  async bajarModelo(url, modelo) {
+    return (await m.paneles.bajarModelo(url, modelo).catch(fallar)) as Bajada;
+  },
+  async cancelarBajada(url, modelo) {
+    await m.paneles.cancelarBajada(url, modelo).catch(fallar);
+  },
+  async bajadas() {
+    return ((await m.paneles.bajadas().catch(() => [])) as Bajada[]) ?? [];
+  },
+  alBajar(fn) {
+    return m.paneles.alBajar((b) => {
+      if (b && typeof b === "object" && typeof (b as Bajada).modelo === "string") fn(b as Bajada);
+    });
   },
   async guardarAjustes(cambio) {
     return (await m.paneles.guardarAjustes(cambio).catch(fallar)) as Ajustes;

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Una pantalla del asistente a PNG, offscreen (sin WSL ni Windows): scripts/captura.sh <pantalla> [salida.png]
-# pantallas: wsl | instalar | login | ollama | reinicio | error
+# pantallas: wsl | instalar | login | login-uno | ollama | reinicio | error
 set -euo pipefail
 aqui="$(cd "$(dirname "$0")/.." && pwd)"
 demo="${1:-wsl}"

@@ -9,7 +9,7 @@ import { readFileSync } from "node:fs";
 import { mkdir, readFile, realpath, rename, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { hayAgy } from "./capacidades.ts";
+import { hayAgy, hayClaude } from "./capacidades.ts";
 import { errorT, textoT } from "./errores.ts";
 import { guardarRouting, type Cambio } from "./routing.ts";
 import { leerConfig, ROL_DE_TIPO, unir, urlOllama, validarConfig, TIPOS, type ConfigModelos, type Eleccion, type Tipo } from "./modelos-tipos.ts";
@@ -33,6 +33,8 @@ export type EstadoModelos = {
   efectivo: EfectivoPa | null;
   /** `agy` está instalado en esta máquina: los modelos de Google se ofrecen sin necesidad de `modelos.json`. */
   agy?: boolean;
+  /** Hay `agy` y no `claude`: los defaults de los workers son los de Gemini. */
+  solo_gemini?: boolean;
   /** Al guardar: por qué no se pudieron poner al día las filas de `~/CLAUDE.md` (el guardado de la config sí salió). */
   sync_error?: string | null;
 };
@@ -93,6 +95,7 @@ export async function leerModelos(correr?: CorrerPa, ruta = rutaModelos()): Prom
     error: c.error,
     efectivo,
     ...(hayAgy() ? { agy: true } : {}),
+    ...(hayAgy() && !hayClaude() ? { solo_gemini: true } : {}),
   };
 }
 

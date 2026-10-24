@@ -127,7 +127,10 @@ const tarjeta = () =>
     return {
       tipo: tv.dataset.t,
       verbo: tv.querySelector(".tv-v")?.textContent ?? "",
-      detalle: tv.querySelector(".tv-det")?.textContent ?? "",
+      detalle: tv.querySelector(".tv-dt")?.textContent ?? "",
+      vivo: tv.querySelector(".tv-vivo")?.textContent ?? "",
+      pliegue: !!tv.querySelector(".tv-pliega"),
+      boton: tv.querySelector(".tv-ent .tv-mas")?.textContent ?? "",
       pasos: [...tv.querySelectorAll(".tv-pasos li")].map((l) => l.textContent),
       reloj: tv.querySelector(".tv-t1 .tv-x")?.textContent ?? "",
       escena: esc ? { w: esc.getBoundingClientRect().width, h: esc.getBoundingClientRect().height } : null,
@@ -166,6 +169,7 @@ try {
   ok(/paso/i.test(c?.detalle ?? ""), `la pastilla dice lo concreto: «${c?.detalle}»`);
   ok(c?.pasos.length === 2 && c.pasos.every((p) => p.startsWith("Corrió")), `los dos pasos de atrás: ${JSON.stringify(c?.pasos)}`);
   ok(/^\d+ s$/.test(c?.reloj ?? ""), `el tiempo corre: «${c?.reloj}»`);
+  ok(c?.vivo === "En curso", `el paso que hace ahora dice «En curso» mientras vive: «${c?.vivo}»`);
   ok(c?.escena?.w === 44 && c.escena.h === 44, `la escena mide 44 px: ${JSON.stringify(c?.escena)}`);
   ok(!!c && c.ancho <= c.zona, `la tarjeta cabe en la conversación: ${c?.ancho} ≤ ${c?.zona}`);
   await foto("comando");
@@ -179,6 +183,19 @@ try {
   ok(await libre(), "terminó el turno y la tarjeta se fue");
   // Sin tarjeta no queda ninguna escena (el latido deja de pintarlas y limpia sus piezas).
   ok(await en(() => document.getElementsByClassName("esc").length === 0), "sin tarjeta no queda ninguna escena en pantalla");
+
+  // --- Comando largo: se lee entero (nunca con "…"), se pliega y "Ver todo" lo abre -------
+  await mandar("comando largo");
+  const l = await esperar((x) => x.tipo === "comando" && /--tope 120/.test(x.detalle), 15);
+  ok(!!l && l.detalle.length > 200 && !l.detalle.includes("…"), `el comando largo entero, sin «…»: ${l?.detalle.length ?? 0} caracteres`);
+  ok(l?.pliegue === true && /Ver todo/.test(l.boton), `lo muy largo se pliega con «${l?.boton}»`);
+  ok(l?.vivo === "En curso", `el comando largo también dice «${l?.vivo}»`);
+  await foto("comando-largo");
+  await en(() => document.querySelector(".conv-zona .tv .tv-ent .tv-mas")?.click());
+  const abierto = await esperar((x) => x.tipo === "comando" && !x.pliegue, 3);
+  ok(!!abierto, `«Ver todo» despliega el comando: «${abierto?.boton}»`);
+  await foto("comando-largo-abierto");
+  ok(await libre(), "terminó el comando largo y la tarjeta se fue");
 
   // --- Escribiendo: la respuesta larga ---------------------------------------------------
   await mandar("novela");

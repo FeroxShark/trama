@@ -5,8 +5,9 @@
 // carga ninguno. Sólo se edita desde la PC (por la tailnet el main rechaza guardar).
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { Plus, X } from "lucide-react";
-import { VERSION } from "../datos/contrato";
-import { fuentePaneles, type EstadoModelos, type Sondeo } from "../datos/paneles";
+import { VERSION, type Uso } from "../datos/contrato";
+import { fuente } from "../datos/fuente";
+import { fuentePaneles, type Bajada, type EstadoModelos, type Sondeo } from "../datos/paneles";
 import { defDe } from "../hilo/modelos";
 import { effortsOpciones } from "../hilo/opciones";
 import { Selector, type Opcion } from "../hilo/Selector";
@@ -19,7 +20,9 @@ import {
   agregarLocal,
   borradorDe,
   configDe,
+  cruces,
   cupoDe,
+  defaultsEn,
   efectivoBorrador,
   elegirEffortLider,
   elegirEffortWorker,
@@ -27,11 +30,14 @@ import {
   elegirWorker,
   liderEfectivo,
   modelosPara,
+  nombreModeloValido,
+  porcentaje,
   quitarLocal,
   SIN_CLAUDE,
   sucio,
   textoEleccion,
   TIPOS,
+  TOPE_CLAUDE_DEFECTO,
   todoEn,
   URL_OLLAMA,
   type Borrador,
@@ -43,7 +49,7 @@ import {
 } from "./modelos-borrador";
 import { esClaude, urlOllama } from "../../electron/modelos-tipos";
 
-/** Para las capturas: `mdl` (con archivo), `mdl-agregar` (con el panel de agregar abierto), `mdl-lider` (el selector del líder abierto) y `sinmdl` (sin archivo). */
+/** Para las capturas: `mdl` (con archivo), `mdl-agregar` (con el panel de otra dirección abierto), `mdl-lider` (el selector del líder abierto), `mdl-bajando` (un modelo a mitad de bajada), `mdl-sinollama` (Ollama no anda), `mdl-tope` (el aviso de un tope cruzado) y `sinmdl` (sin archivo). */
 const VARIANTE = MODO.variante ?? "";
 const ES_CAPTURA = VARIANTE.startsWith("mdl") || VARIANTE === "sinmdl";
 
@@ -76,6 +82,16 @@ const SIN_CLAUDE_CLAVES: Record<SinClaude, { nombre: ClaveSola; que: ClaveSola }
   esperar: { nombre: "ajustes.mdlSinClaudeEsperar", que: "ajustes.mdlSinClaudeEsperarQue" },
   fallar: { nombre: "ajustes.mdlSinClaudeFallar", que: "ajustes.mdlSinClaudeFallarQue" },
 };
+
+const TOPE_FORMATO = /^\s*$|^\d{1,3}$/;
+const topeMal = (v: string) => !TOPE_FORMATO.test(v) || (v.trim() !== "" && (Number(v) < 1 || Number(v) > 100));
+
+/** Lo que dice Ollama mientras baja, en palabras de todos los días (el texto crudo es de Ollama, en inglés). */
+function textoBajada(b: Bajada): string {
+  const pct = porcentaje(b);
+  if (pct !== null) return t("ajustes.mdlBajarPct", { pct });
+  return /verif|writing|removing|success/i.test(b.texto) ? t("ajustes.mdlBajarVerif") : t("ajustes.mdlBajarPrep");
+}
 
 const gb = (n: number | null) => (n === null ? "" : `${(n / 1e9).toFixed(1)} GB`);
 
@@ -129,6 +145,12 @@ export function AjustesModelos({ Dato, alGuardar }: { Dato: FilaDato; alGuardar?
   const [ok, setOk] = useState(false);
   const [estados, setEstados] = useState<Record<string, Estado>>({});
   const [ag, setAg] = useState<{ url: string; sondeo: Estado | null } | null>(null);
+  const [ollama, setOllama] = useState<Estado>("comprobando");
+  const [bajando, setBajando] = useState<Record<string, Bajada>>({});
+  const [bajar, setBajar] = useState("");
+  const [errBajar, setErrBajar] = useState<string | null>(null);
+  const [listo, setListo] = useState<string | null>(null);
+  const [uso, setUso] = useState<Uso | null>(null);
   const vivo = useRef(true);
   const sondeados = useRef(new Set<string>());
   const sec = useRef<HTMLElement>(null);
@@ -146,6 +168,34 @@ export function AjustesModelos({ Dato, alGuardar }: { Dato: FilaDato; alGuardar?
       (x) => vivo.current && setFalla(mensaje(x)),
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  /** Mira si el Ollama de esta computadora contesta y qué modelos tiene: no carga nada. */
+  async function mirarOllama() {
+    setOllama("comprobando");
+    const s = await fuentePaneles.sondearOllama(URL_OLLAMA).catch((x): Sondeo => ({ ok: false, motivo: mensaje(x) }));
+    if (vivo.current) setOllama(s);
+  }
+  useEffect(() => {
+    void mirarOllama();
+    void fuentePaneles.bajadas().then((l) => vivo.current && setBajando(Object.fromEntries(l.filter((x) => x.estado === "bajando").map((x) => [x.modelo, x]))));
+    const off = fuentePaneles.alBajar((x) => {
+      if (!vivo.current) return;
+      setBajando((a) => {
+        const { [x.modelo]: _, ...resto } = a;
+        return x.estado === "bajando" ? { ...resto, [x.modelo]: x } : resto;
+      });
+      if (x.estado === "listo") {
+        setListo(x.modelo);
+        void mirarOllama();
+      } else if (x.estado === "error") setErrBajar(t("ajustes.mdlBajarFallo", { nombre: x.modelo, motivo: textoMain(x.motivo ?? "") }));
+    });
+    return off;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => {
+    void fuente.uso().then((u) => vivo.current && setUso(u), () => {});
+    return fuente.alCambiarUso((u) => vivo.current && setUso(u));
   }, []);
 
   /** Pregunta a Ollama qué tiene: no carga nada. */
@@ -175,7 +225,7 @@ export function AjustesModelos({ Dato, alGuardar }: { Dato: FilaDato; alGuardar?
   useEffect(() => {
     if (!visible || !ES_CAPTURA) return;
     // Captura: `mdl-agregar` deja a la vista los locales y su panel; el resto, la cabecera de la sección.
-    const mira = VARIANTE === "mdl-agregar" ? sec.current?.querySelector(".mdl-panel") : null;
+    const mira = sec.current?.querySelector(VARIANTE === "mdl-agregar" ? ".mdl-panel" : VARIANTE === "mdl-bajando" || VARIANTE === "mdl-sinollama" ? ".mdl-ollama" : VARIANTE === "mdl-tope" ? ".mdl-cruce" : "x:not(x)");
     if (mira) mira.scrollIntoView({ block: "center" });
     else sec.current?.scrollIntoView({ block: "start" });
   }, [visible]);
@@ -192,6 +242,11 @@ export function AjustesModelos({ Dato, alGuardar }: { Dato: FilaDato; alGuardar?
   const config = configDe(b);
   const hayCambio = sucio(e, b);
   const errCupo = cupoDe(b.cupo) === "mal";
+  const errTope5 = topeMal(b.tope5);
+  const errTope7 = topeMal(b.tope7);
+  const pasados = cruces(b, uso && "five_hour" in uso ? uso : null);
+  const instaladosOl = typeof ollama === "object" && ollama.ok ? ollama.modelos : null;
+  const bajandoLista = Object.values(bajando);
   const valido = config !== null;
   const locales = b.locales;
   const modelos = modelosPara(locales, [b.lider?.modelo ?? "", ...TIPOS.map((x) => b.workers[x]?.modelo ?? "")], e.agy ?? true);
@@ -219,7 +274,8 @@ export function AjustesModelos({ Dato, alGuardar }: { Dato: FilaDato; alGuardar?
 
   // Con lo guardado a la vista, `pa` dice con qué corre cada cosa; si no, se calcula del borrador.
   const deLider = (): Eleccion => (!hayCambio && e.efectivo?.lider) || liderEfectivo(b);
-  const deTipo = (tipo: Tipo): Eleccion => (!hayCambio && e.efectivo?.workers[tipo]) || efectivoBorrador(b, tipo);
+  const soloGemini = e.solo_gemini === true;
+  const deTipo = (tipo: Tipo): Eleccion => (!hayCambio && e.efectivo?.workers[tipo]) || efectivoBorrador(b, tipo, soloGemini);
 
   const abrirAgregar = () => {
     if (ag) return setAg(null);
@@ -228,6 +284,21 @@ export function AjustesModelos({ Dato, alGuardar }: { Dato: FilaDato; alGuardar?
   const enviarUrl = (ev: FormEvent) => {
     ev.preventDefault();
     if (ag && urlOllama(ag.url)) void detectar(ag.url);
+  };
+  const empezarBajada = async (ev: FormEvent) => {
+    ev.preventDefault();
+    const nombre = bajar.trim();
+    if (!nombreModeloValido(nombre)) return;
+    setErrBajar(null);
+    setListo(null);
+    try {
+      const x = await fuentePaneles.bajarModelo(URL_OLLAMA, nombre);
+      if (!vivo.current) return;
+      setBajando((a) => ({ ...a, [x.modelo]: x }));
+      setBajar("");
+    } catch (x) {
+      if (vivo.current) setErrBajar(mensaje(x));
+    }
   };
   const urlValida = ag ? urlOllama(ag.url) !== null : true;
   const instalados = ag && typeof ag.sondeo === "object" && ag.sondeo && ag.sondeo.ok ? ag.sondeo.modelos : null;
@@ -279,6 +350,12 @@ export function AjustesModelos({ Dato, alGuardar }: { Dato: FilaDato; alGuardar?
       </Dato>
 
       <h3 className="pn-sub-h">{t("ajustes.mdlWorkers")}</h3>
+      <Fijo k={soloGemini ? "ajustes.mdlRecomendadosGeminiQue" : "ajustes.mdlRecomendadosQue"} bloque className="pn-nota pn-intro" />
+      <div className="mdl-recomendados">
+        <button type="button" className="btn2" onClick={() => cambiar(defaultsEn(b, soloGemini))}>
+          <Fijo k="ajustes.mdlRecomendados" />
+        </button>
+      </div>
       {TIPOS.map((tipo) => {
         const nombre = `mdl.t.${tipo}` as ClaveSola;
         const eleccion = b.workers[tipo];
@@ -294,7 +371,11 @@ export function AjustesModelos({ Dato, alGuardar }: { Dato: FilaDato; alGuardar?
               alModelo={(id) => cambiar(elegirWorker(b, tipo, id))}
               alEffort={(x) => cambiar(elegirEffortWorker(b, tipo, x))}
             />
-            {!eleccion ? (
+            {!eleccion && b.reparto === "auto" ? (
+              <div className="pn-alt" data-reparto>
+                <span>{e.efectivo?.workers[tipo] && !hayCambio ? t("ajustes.mdlRepartoHoy", { modelo: textoEleccion(e.efectivo.workers[tipo], locales) }) : t("ajustes.mdlRepartoDecide")}</span>
+              </div>
+            ) : !eleccion ? (
               <div className="pn-alt">
                 <span>{t("ajustes.mdlEfectivo", { modelo: textoEleccion(deTipo(tipo), locales) })}</span>
               </div>
@@ -304,6 +385,98 @@ export function AjustesModelos({ Dato, alGuardar }: { Dato: FilaDato; alGuardar?
       })}
 
       <h3 className="pn-sub-h">{t("ajustes.mdlLocales")}</h3>
+      <div className="mdl-ollama" data-estado={typeof ollama === "object" ? (ollama.ok ? "ok" : "no") : "..."}>
+        <div className="mdl-ollama-cab">
+          <span className="mdl-ollama-t">{ollama === "comprobando" ? t("ajustes.mdlComprobando") : instaladosOl ? t("ajustes.mdlOllamaAnda") : t("ajustes.mdlOllamaNoAnda")}</span>
+          <button type="button" className="btn2" onClick={() => void mirarOllama()} disabled={ollama === "comprobando"}>
+            <Fijo k="ajustes.mdlOllamaMirar" />
+          </button>
+        </div>
+        <Fijo k="ajustes.mdlOllamaQue" bloque className="pn-nota" />
+        {typeof ollama === "object" && !ollama.ok ? (
+          <div className="mdl-ollama-instalar">
+            <a className="btn2 mdl-enlace" href="https://ollama.com/download" target="_blank" rel="noopener noreferrer">
+              <Fijo k="ajustes.mdlOllamaInstalar" />
+            </a>
+            <Fijo k="ajustes.mdlOllamaInstalarQue" bloque className="pn-nota" />
+          </div>
+        ) : null}
+      </div>
+
+      {instaladosOl ? (
+        <>
+          <Dato nombre="ajustes.mdlInstalados" que="ajustes.mdlInstaladosQue">
+            {instaladosOl.length ? (
+              <ul className="pn-disp mdl-instalados" aria-label={t("ajustes.mdlInstalados")}>
+                {instaladosOl.map((m) => {
+                  const ya = locales.some((l) => l.id === `ollama:${m.nombre}`);
+                  return (
+                    <li key={m.nombre}>
+                      <span className="mdl-local-nom">
+                        <span className="pn-disp-nom">{m.nombre}</span>
+                        <span className="mdl-url">{gb(m.bytes)}</span>
+                      </span>
+                      {ya ? (
+                        <span className="mdl-estado" data-estado="ok">{t("ajustes.mdlEnUso")}</span>
+                      ) : (
+                        <button type="button" className="btn2" aria-label={t("ajustes.mdlUsarModelo", { nombre: m.nombre })} data-recien={listo === m.nombre ? "" : undefined} onClick={() => cambiar(agregarLocal(b, URL_OLLAMA, m.nombre))}>
+                          <Fijo k="ajustes.mdlUsar" />
+                        </button>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : (
+              <div className="pn-nota">{t("ajustes.mdlNingunoInstalado")}</div>
+            )}
+          </Dato>
+
+          <Dato nombre="ajustes.mdlBajar" que="ajustes.mdlBajarQue">
+            <form className="pn-nuevo" onSubmit={(ev) => void empezarBajada(ev)}>
+              <input
+                className="pn-campo"
+                type="text"
+                autoComplete="off"
+                autoCapitalize="none"
+                spellCheck={false}
+                value={bajar}
+                placeholder="llama3.2:3b"
+                aria-label={t("ajustes.mdlBajarCampo")}
+                aria-invalid={bajar.trim() !== "" && !nombreModeloValido(bajar)}
+                onChange={(ev) => {
+                  setBajar(ev.target.value);
+                  setErrBajar(null);
+                }}
+              />
+              <button type="submit" className="btn2" disabled={!nombreModeloValido(bajar)}>
+                <Fijo k="ajustes.mdlBajarBtn" />
+              </button>
+            </form>
+            {bajar.trim() !== "" && !nombreModeloValido(bajar) ? <div className="pn-error pn-campo-error">{t("ajustes.mdlBajarNombreMal")}</div> : null}
+            {bajandoLista.map((x) => {
+              const pct = porcentaje(x);
+              return (
+                <div key={x.modelo} className="mdl-baja" role="status">
+                  <div className="mdl-baja-fila">
+                    <span className="mdl-baja-nom">{t("ajustes.mdlBajando", { nombre: x.modelo })}</span>
+                    <span className="mdl-estado">{textoBajada(x)}</span>
+                    <button type="button" className="btn2" aria-label={t("ajustes.mdlBajarCancelarModelo", { nombre: x.modelo })} onClick={() => void fuentePaneles.cancelarBajada(x.url, x.modelo)}>
+                      <Fijo k="ajustes.mdlBajarCancelar" />
+                    </button>
+                  </div>
+                  <div className="mdl-barra" role="progressbar" aria-label={t("ajustes.mdlBajando", { nombre: x.modelo })} aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct ?? undefined}>
+                    <div className="mdl-barra-r" data-indef={pct === null ? "" : undefined} style={pct === null ? undefined : { transform: `scaleX(${pct / 100})` }} />
+                  </div>
+                </div>
+              );
+            })}
+            {listo && !bajando[listo] && !errBajar ? <div className="pn-nota" role="status">{t("ajustes.mdlBajarListo", { nombre: listo })}</div> : null}
+            {errBajar ? <div className="pn-error pn-campo-error" role="alert">{textoMain(errBajar)}</div> : null}
+          </Dato>
+        </>
+      ) : null}
+
       <Dato nombre="ajustes.mdlLocalesAgregados" que="ajustes.mdlLocalesQue">
         <ul className="pn-disp mdl-locales" aria-label={t("ajustes.mdlLocales")}>
           {locales.length ? (
@@ -385,6 +558,49 @@ export function AjustesModelos({ Dato, alGuardar }: { Dato: FilaDato; alGuardar?
         </div>
       ) : null}
 
+      <h3 className="pn-sub-h">{t("ajustes.mdlClaude")}</h3>
+      <Dato nombre="ajustes.mdlTope5" que="ajustes.mdlTope5Que">
+        <div className="pn-campo-fila">
+          <input
+            className="pn-campo pn-campo-num"
+            type="text"
+            inputMode="numeric"
+            autoComplete="off"
+            spellCheck={false}
+            value={b.tope5}
+            placeholder={String(TOPE_CLAUDE_DEFECTO)}
+            aria-label={t("ajustes.mdlTope5")}
+            aria-invalid={errTope5}
+            onChange={(ev) => cambiar({ ...b, tope5: ev.target.value })}
+          />
+          <span className="pn-unidad">%</span>
+        </div>
+        {errTope5 ? <div className="pn-error pn-campo-error">{t("ajustes.mdlTopeErr")}</div> : null}
+      </Dato>
+      <Dato nombre="ajustes.mdlTope7" que="ajustes.mdlTope7Que">
+        <div className="pn-campo-fila">
+          <input
+            className="pn-campo pn-campo-num"
+            type="text"
+            inputMode="numeric"
+            autoComplete="off"
+            spellCheck={false}
+            value={b.tope7}
+            placeholder={String(TOPE_CLAUDE_DEFECTO)}
+            aria-label={t("ajustes.mdlTope7")}
+            aria-invalid={errTope7}
+            onChange={(ev) => cambiar({ ...b, tope7: ev.target.value })}
+          />
+          <span className="pn-unidad">%</span>
+        </div>
+        {errTope7 ? <div className="pn-error pn-campo-error">{t("ajustes.mdlTopeErr")}</div> : null}
+      </Dato>
+      {pasados.map((c) => (
+        <div key={c.ventana} className="pn-aviso mdl-cruce" role="status">
+          {t(c.ventana === "5h" ? "ajustes.mdlTopeCruce5" : "ajustes.mdlTopeCruce7", { pct: c.pct, tope: c.tope })}
+        </div>
+      ))}
+
       <h3 className="pn-sub-h">Gemini</h3>
       <Dato nombre="ajustes.mdlCupo" que="ajustes.mdlCupoQue">
         <div className="pn-campo-fila">
@@ -416,7 +632,7 @@ export function AjustesModelos({ Dato, alGuardar }: { Dato: FilaDato; alGuardar?
         </div>
       </Dato>
 
-      <Acciones sucio={hayCambio} valido={valido} guardando={guardando} ok={ok} error={error} alGuardar={() => void guardar()} alCancelar={() => cambiar(borradorDe(e))} />
+      <Acciones id="modelos" sucio={hayCambio} valido={valido} guardando={guardando} ok={ok} error={error} alGuardar={guardar} alCancelar={() => cambiar(borradorDe(e))} />
       {sync ? (
         <div className="pn-error" role="status">
           {t("ajustes.mdlSyncError", { e: textoMain(sync) })}

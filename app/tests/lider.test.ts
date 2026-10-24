@@ -165,7 +165,7 @@ test("parser: deltas, mensaje con herramientas, fin con TTL, control; subagentes
         modelo: "claude-opus-5-5",
         det: [{ nombre: "Bash", entrada: { command: "git status\ngit log" }, id: null }],
       },
-      { tipo: "hace", hace: { que: "herramienta", nombre: "Bash", detalle: "git status" } },
+      { tipo: "hace", hace: { que: "herramienta", nombre: "Bash", detalle: "git status git log" } },
     ],
   );
   assert.deepEqual(ev({ usage: { cache_creation: { ephemeral_1h_input_tokens: 5 } }, type: "result", is_error: false }), [{ tipo: "fin", error: null, ttl: 3600 }]);

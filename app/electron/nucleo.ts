@@ -31,6 +31,7 @@ import { guardarApariencia, guardarAutoIntegrar, guardarAvisarEspera, guardarCon
 import { accionRama, arreglarDatos, briefRamas, ejecutar, lanzarRama, leerAjustes, leerMedicion, pasarALider, retomarDatos, type AccionRama } from "./paneles.js";
 import { guardarRouting, type Cambio } from "./routing.js";
 import { guardarAjustes } from "./ajustes-editar.js";
+import { crearBajadas } from "./ollama-bajar.ts";
 import { guardarModelos, leerModelos, sincronizarRouting, modelosConfig, sondearOllama, vistaModelos } from "./modelos-config.ts";
 import { guardarConfig, leerEditable } from "./remoto-config.js";
 import { sesionesVistas, vive } from "./sesiones.js";
@@ -47,6 +48,7 @@ import { crearEspera } from "./espera.js";
 import { errorT, textoT } from "./errores.ts";
 import { destinos, registro, slugsPorNombre } from "./registro.js";
 import { capacidades, hayAgy } from "./capacidades.js";
+import { descartarSetup, setupDeEstaMaquina } from "./setup.ts";
 import { alCambiarCupos, refrescarCupos } from "./cupos.js";
 import { modoLocal } from "./modo-local.js";
 import { DIR, leerStatusline, SESIONES, type Statusline } from "./statusline.js";
@@ -201,6 +203,8 @@ export function alCambiarLider(fn: () => void) {
 /** El panel de consumo: sólo trabaja mientras está a la vista (consumo.ts). */
 const consumo = crearConsumo({ proyectos: TRANSCRIPTS, paState: PA_STATE, alCambiar: (c) => enviar("consumo:cambio", c) });
 /** Los pasos del worker abierto (ventana y celular): sólo trabaja mientras alguien lo mira (pasos-worker.ts). */
+// Las bajadas de modelos de Ollama (Ajustes > Modelos): el progreso va a la ventana como `modelos:bajando`.
+const bajadas = crearBajadas((b) => enviar("modelos:bajando", b));
 const pasos = crearPasos({ proyectos: TRANSCRIPTS, paState: PA_STATE, alCambiar: (c) => enviar("pasos:cambio", c) });
 /**
  * El registro histórico de en qué se van los tokens (historial.ts): se indexa solo, de fondo,
@@ -690,6 +694,16 @@ export function armarNucleo() {
     if ("remoto" in e) throw errorT("main.modelosSoloPc");
     return sondearOllama(url);
   });
+  // Bajar un modelo de Ollama por su nombre (`/api/pull`): sólo desde la PC, con progreso por `modelos:bajando`.
+  manejar("modelos:bajar", (e, url: unknown, modelo: unknown) => {
+    if ("remoto" in e) throw errorT("main.modelosSoloPc");
+    return bajadas.bajar(url, modelo);
+  });
+  manejar("modelos:cancelarBajada", (e, url: unknown, modelo: unknown) => {
+    if ("remoto" in e) throw errorT("main.modelosSoloPc");
+    bajadas.cancelar(url, modelo);
+  });
+  manejar("modelos:bajadas", () => bajadas.lista());
   manejar("ramas:brief", (_e, hs: Parameters<typeof briefRamas>[0]) => briefRamas(hs));
   manejar("hilo:retomar", (_e, h: Parameters<typeof retomarDatos>[0]) =>
     retomarDatos({
@@ -858,6 +872,9 @@ export function armarNucleo() {
   manejar("agy:version", () => leerAvisoAgy());
   manejar("agy:descartar", () => descartarAgy());
   manejar("agy:actualizar", () => actualizarAgy());
+  // "Falta algo del setup" (Handy, agy, Ollama, el login): se mira al pedirlo, no hay reloj. Descartar anota una falta aparte.
+  manejar("setup:estado", () => setupDeEstaMaquina());
+  manejar("setup:descartar", (_e, id: unknown) => descartarSetup(id));
 
   // El tablero de pendientes (tablero.ts): se mira su vista desde la primera vez que se pide.
   // Si su carpeta todavía no existe no hay qué mirar: se prueba de nuevo la próxima vez que se pida.

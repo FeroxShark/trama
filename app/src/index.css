@@ -345,12 +345,12 @@ body,
   gap: var(--esp-0-5);
   padding: 0 var(--esp-1);
 }
-/* La marca: los hilos tejidos (src/barra/Marca.tsx) y el nombre. */
+/* La marca: sólo los hilos tejidos (src/barra/Marca.tsx); el nombre queda para el lector de pantalla. */
 .cab .logo {
   width: 1.125rem;
   height: 1.125rem;
   flex: none;
-  margin-right: var(--esp-1-5);
+  margin-right: auto;
   color: var(--txt-1);
 }
 .cab .lado {
@@ -363,37 +363,75 @@ body,
 .espera {
   padding: var(--esp-0-5) 0 var(--esp-1) var(--esp-3);
 }
-.marca {
-  margin-right: auto;
-  font-size: var(--letra-6);
-  font-weight: 600;
-  letter-spacing: -0.01em;
-  user-select: none;
-}
-/* El uso del plan, en su renglón: uno debajo del otro, la barra a todo el ancho; a la derecha, actualizarlo (B26). */
+/* El uso de cada proveedor: un renglón por grupo, logo y nombre corto a la izquierda y una celda por ventana (5 h, semana)
+   en dos columnas fijas. Lo largo (reinicio, hora exacta, de cuándo es el dato) va al tooltip de la celda, debajo del renglón. */
 .usos {
-  display: flex;
-  align-items: center;
-  gap: var(--esp-1-5);
   position: relative;
   z-index: 1;
-  padding: 0 0 var(--esp-0-5) var(--esp-1);
+  padding: 0 var(--esp-1) var(--esp-0-5);
 }
 .usos-l {
   display: flex;
   min-width: 0;
-  flex: 1;
   flex-direction: column;
   gap: var(--esp-2);
-  /* Angosta, "se reinicia en 13 h 25 min" pasa a "en 13 h 25 min". */
+  /* Angosta, el nombre del grupo se achica y su "hasta" desaparece (queda en el tooltip). */
   container-type: inline-size;
 }
 .usos[data-espera] {
   visibility: hidden;
 }
-.uso {
+.grupo {
+  --g-nombre: 6.25rem;
   position: relative;
+  display: grid;
+  grid-template-columns: var(--g-nombre) minmax(0, 1fr) minmax(0, 1fr);
+  align-items: center;
+  column-gap: var(--esp-3);
+}
+@container (max-width: 17rem) {
+  .grupo {
+    --g-nombre: 4.5rem;
+  }
+  .g-hasta {
+    display: none;
+  }
+}
+.g-id {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  column-gap: var(--esp-1-5);
+  color: var(--txt-2);
+  font-size: var(--letra-4);
+  font-weight: 500;
+  line-height: 1.3;
+  cursor: default;
+}
+.g-id .logo {
+  width: 0.875rem;
+  height: 0.875rem;
+  overflow: visible;
+  border-radius: 0;
+  color: var(--txt-3);
+}
+.g-n {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.g-hasta {
+  grid-column: 2;
+  font-size: var(--letra-1);
+  font-weight: 400;
+  line-height: 1.1;
+  color: var(--txt-4);
+  white-space: nowrap;
+}
+.uso {
   display: flex;
+  min-width: 0;
   flex-direction: column;
   gap: var(--esp-1);
   cursor: default;
@@ -402,48 +440,29 @@ body,
   display: flex;
   align-items: baseline;
   gap: var(--esp-1-5);
-  font-size: var(--letra-4);
+  font-size: var(--letra-3);
   line-height: 1.3;
   white-space: nowrap;
 }
 .uso .n {
   flex: none;
-  font-weight: 500;
+  color: var(--txt-3);
+}
+.uso .pct {
+  margin-left: auto;
+  font-family: var(--font-mono);
   color: var(--txt-1);
 }
-.uso .cuando {
+/* Un dato de hace más de 15 min (el tooltip dice de cuándo): el número se apaga. */
+.uso .pct[data-viejo] {
+  color: var(--txt-3);
+}
+.uso .sd {
   min-width: 0;
   overflow: hidden;
-  color: var(--txt-3);
-  text-overflow: ellipsis;
-}
-.uso .cuando::before {
-  content: "· ";
-  color: var(--txt-4);
-}
-/* Sin hora de reinicio y con el dato fresco no hay nada que decir (ni el "· "). */
-.uso .cuando:empty {
-  display: none;
-}
-.uso .corto {
-  display: none;
-}
-@container (max-width: 15.5rem) {
-  .uso .largo {
-    display: none;
-  }
-  .uso .corto {
-    display: inline;
-  }
-}
-.uso .r b {
-  flex: none;
   margin-left: auto;
-  padding-left: var(--esp-1);
-  font-family: var(--font-mono);
-  font-size: var(--letra-3);
-  font-weight: 400;
-  color: var(--txt-1);
+  color: var(--txt-4);
+  text-overflow: ellipsis;
 }
 .releer {
   display: grid;
@@ -495,62 +514,48 @@ body,
 .uso[data-nivel="rojo"] .riel i {
   background: var(--rojo);
 }
-.uso[data-nivel="ambar"] .r b {
+.uso[data-nivel="ambar"] .pct {
   color: var(--ambar);
 }
-.uso[data-nivel="rojo"] .r b {
+.uso[data-nivel="rojo"] .pct {
   color: var(--rojo);
 }
+/* El tooltip cuelga del renglón del grupo (no de su celda): sale siempre debajo, a todo lo ancho que necesita. */
 .tip {
   position: absolute;
-  top: calc(100% + 0.5rem);
+  top: calc(100% + 0.375rem);
   left: 0;
   z-index: 5;
+  display: flex;
+  width: max-content;
+  max-width: 100%;
+  flex-direction: column;
+  gap: var(--esp-0-5);
   padding: var(--esp-1) var(--esp-2);
   border: 1px solid var(--borde-3);
   border-radius: var(--radio-2);
   background: var(--sup-2);
   color: var(--txt-1);
   font-size: var(--letra-4);
-  white-space: nowrap;
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.15s;
 }
-.tip::first-letter {
+.tip-t {
+  font-weight: 500;
+}
+.tip-l {
+  color: var(--txt-3);
+}
+.tip-l::first-letter {
   text-transform: uppercase;
 }
 .uso:is(:hover, :focus-visible, [data-ver]) .tip {
   opacity: 1;
 }
-/* El tip de 5 h sale hacia arriba (sobre la marca) y el de semana hacia abajo: ninguno tapa el otro renglón. */
-.usos-l > .uso:first-child > .tip {
-  top: auto;
-  bottom: calc(100% + 0.5rem);
-}
 .usos-sep {
   height: 1px;
-  margin: var(--esp-0-5) 0;
   background: var(--borde-2);
-}
-.uso-hasta {
-  flex: none;
-  font-size: var(--letra-2);
-  color: var(--txt-4);
-}
-.uso-5h {
-  margin-right: var(--esp-1-5);
-  color: var(--txt-3);
-}
-.uso-sub {
-  display: flex;
-  align-items: baseline;
-  font-size: var(--letra-3);
-  line-height: 1.2;
-  color: var(--txt-3);
-}
-.uso-sub .cuando::before {
-  content: none;
 }
 .uso-error {
   overflow: hidden;
@@ -1967,6 +1972,64 @@ kbd {
   }
 }
 
+/* "Falta configurar": la misma pastilla que el aviso de Claude Code, con el punto ámbar (no es una novedad: falta algo). */
+.avs .avc-p {
+  background: var(--ambar);
+}
+.avs-l {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.avs-f {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--esp-2);
+}
+.avs-x {
+  min-width: 0;
+  flex: 1;
+}
+.avs-n {
+  color: var(--txt-1);
+  font-size: var(--letra-4);
+}
+.avs-a {
+  display: flex;
+  height: 1.625rem;
+  flex: none;
+  align-items: center;
+  padding: 0 var(--esp-2-5);
+  border: 1px solid var(--borde-5);
+  border-radius: var(--radio-2);
+  color: var(--txt-1);
+  font-size: var(--letra-4);
+  text-decoration: none;
+}
+.avs-a:hover {
+  background: var(--sup-2);
+  color: var(--texto-1);
+}
+.avs-d {
+  display: flex;
+  width: 1.625rem;
+  height: 1.625rem;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radio-2);
+  background: transparent;
+  color: var(--txt-3);
+}
+.avs-d:hover {
+  background: var(--sup-2);
+  color: var(--texto-1);
+}
 /* Sólo los botones sueltos funden el color. Las filas de la lista responden en
    el frame siguiente: barrerlas con el mouse no tiene que dejar nada animando. */
 .buscar,
@@ -3610,29 +3673,63 @@ kbd {
   display: flex;
   max-width: 100%;
   min-width: 0;
-  align-items: center;
+  align-items: flex-start;
   align-self: flex-start;
   gap: var(--esp-1-5);
   padding: var(--esp-0-5) var(--esp-2);
+  border: 1px solid var(--c-borde);
   border-radius: var(--radio-2);
-  background: var(--sup-2);
+  background: color-mix(in srgb, var(--c) 10%, var(--sup-2));
   color: var(--texto-2);
   font-family: var(--font-mono);
   font-size: var(--letra-4);
 }
-/* Una frase del estado ("Esperando al modelo", "Aprobar el plan"): texto de la letra de siempre, sin la pastilla de código. */
+/* Una frase del estado ("Esperando al modelo", "Aprobar el plan"): texto de la letra de siempre, sin la fuente de código. */
 .tv-det[data-fija] {
-  padding: 0;
-  background: none;
-  color: var(--texto-3);
   font-family: inherit;
   font-size: var(--letra-5);
+  color: var(--texto-1);
 }
+/* El texto va entero, con wrap: nunca "…". */
 .tv-dt {
+  display: block;
   min-width: 0;
+  overflow-wrap: anywhere;
+}
+.tv-ent {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.tv-ent .tv-mas {
+  margin-top: var(--esp-0-5);
+}
+/* Lo muy largo se pliega: el principio y un fundido abajo; "Ver todo" lo abre. */
+.tv-pliega {
+  display: block;
+  max-height: 4.5rem;
   overflow: hidden;
-  text-overflow: ellipsis;
+  mask-image: linear-gradient(to bottom, var(--texto-1) 55%, transparent);
+}
+/* Lo que hace ahora: "En curso" con el acento. Estático: lo continuo va por latido.ts, no una animación infinita. */
+.tv-vivo {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--esp-1);
+  margin-left: auto;
+  color: var(--c);
+  font-family: inherit;
+  font-size: var(--letra-3);
+  line-height: 1.5;
   white-space: nowrap;
+}
+.tv-vivo::before {
+  display: block;
+  width: 0.375rem;
+  height: 0.375rem;
+  border-radius: var(--radio-pastilla);
+  background: currentColor;
+  content: "";
 }
 .tv-ic {
   flex: none;
@@ -3654,14 +3751,17 @@ kbd {
 .tv-pasos li {
   display: flex;
   min-width: 0;
-  align-items: center;
+  align-items: flex-start;
   gap: var(--esp-1-5);
 }
-.tv-pasos li > span {
+.tv-pt {
+  display: block;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+}
+.tv-det > .tv-ic,
+.tv-pasos .tv-ic {
+  margin-top: var(--esp-0-5);
 }
 .tv-pasos .tv-ic {
   color: var(--texto-5);
@@ -5269,6 +5369,10 @@ summary.sis-div-t:hover,
   }
 }
 @media (pointer: coarse) {
+  /* Sin hover: el toque en una celda del uso abre su tip. */
+  .uso:focus .tip {
+    opacity: 1;
+  }
   /* Para el dedo: 2.75rem (44 px). */
   .lado,
   .nueva,
@@ -5312,6 +5416,13 @@ summary.sis-div-t:hover,
   }
   .tv-mas {
     min-height: 2.75rem;
+  }
+  .avs-a,
+  .avs-d {
+    min-height: 2.75rem;
+  }
+  .avs-d {
+    width: 2.75rem;
   }
   .vista::before,
   .vista button {

@@ -1,8 +1,7 @@
 // El anillo de contexto (B16): un circulito hueco que se llena con lo que pesa
 // la conversación abierta contra su umbral (la cuenta: src/hilo/contexto.ts):
-// en un líder, el del relevo (lo reemplaza uno nuevo con contexto limpio,
-// electron/contexto.ts); en un worker, el que Claude Code compacta solo. Va en la caja del líder y, de sólo
-// lectura, en el pie de un worker. Clic (o Enter con foco) abre el detalle;
+// el de autocompact (a ese tamaño Claude Code compacta solo; electron/contexto.ts),
+// en un líder y en un worker. Va en la caja del líder y, de sólo lectura, en el pie de un worker. Clic (o Enter con foco) abre el detalle;
 // Esc o clic afuera lo cierra. Sólo se mueve el trazo (stroke-dashoffset).
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type KeyboardEvent } from "react";
 import type { Tokens } from "../datos/contrato";
@@ -47,7 +46,7 @@ export function Contexto({ sid, usage: fijo = null, modelo, vence = null, frio =
     useCallback((fn: () => void) => suscribirContexto(sid ?? "", fn), [sid]),
     () => contextoDe(sid ?? ""),
   );
-  const { relevo, autoCompact } = useSyncExternalStore(suscribirUmbral, umbralLeido);
+  const { autoCompact } = useSyncExternalStore(suscribirUmbral, umbralLeido);
   const esLider = sid !== undefined;
   const [abierto, setAbierto] = useState(deEntrada);
   const boton = useRef<HTMLButtonElement>(null);
@@ -64,7 +63,7 @@ export function Contexto({ sid, usage: fijo = null, modelo, vence = null, frio =
 
   const usage = sid === undefined ? fijo : vivo.usage;
   const ventana = ventanaDicha(vivo.ventanas, modelo) ?? ventanaDe(modelo);
-  const c = cuenta(usage, umbralDe(esLider ? (relevo ?? autoCompact) : autoCompact, ventana));
+  const c = cuenta(usage, umbralDe(autoCompact, ventana));
   const cache = useMemo(() => (vence === null ? null : pintorVence(vence, frio)), [vence, frio]);
 
   const cerrar = (conFoco = true) => {
@@ -80,7 +79,6 @@ export function Contexto({ sid, usage: fijo = null, modelo, vence = null, frio =
   };
 
   const n = (x: number | undefined) => (usage ? (x ?? 0).toLocaleString(locale()) : "—");
-  const k = (x: number) => Math.round(x / 1000).toLocaleString(locale());
   const tip = t("contexto.tip", { pct: c.pct });
   const nombre = modeloDe(modelo);
 
@@ -114,27 +112,13 @@ export function Contexto({ sid, usage: fijo = null, modelo, vence = null, frio =
                 {c.pct}%
               </span>
             </div>
-            {esLider ? (
-              <p className="ctx-relevo">{t("contexto.relevo", { usados: usage ? k(c.usados) : "—", umbral: k(c.umbral), falta: usage ? k(c.falta) : "—" })}</p>
-            ) : null}
             <dl>
-              {esLider ? (
-                autoCompact ? (
-                  <>
-                    <dt>{t("contexto.autoCompact")}</dt>
-                    <dd>{autoCompact.toLocaleString(locale())}</dd>
-                  </>
-                ) : null
-              ) : (
-                <>
-                  <dt>{t("contexto.usado")}</dt>
-                  <dd>
-                    {n(c.usados)} / {c.umbral.toLocaleString(locale())}
-                  </dd>
-                  <dt>{t("contexto.falta")}</dt>
-                  <dd>{n(c.falta)}</dd>
-                </>
-              )}
+              <dt>{t("contexto.usado")}</dt>
+              <dd>
+                {n(c.usados)} / {c.umbral.toLocaleString(locale())}
+              </dd>
+              <dt>{t("contexto.falta")}</dt>
+              <dd>{n(c.falta)}</dd>
               <dt>{nombre ? t("contexto.ventanaDe", { modelo: nombreModelo(nombre) }) : t("contexto.ventana")}</dt>
               <dd>{ventana.toLocaleString(locale())}</dd>
             </dl>

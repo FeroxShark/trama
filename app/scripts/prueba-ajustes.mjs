@@ -105,23 +105,24 @@ const escribir = (sel, valor) =>
   );
 const texto = (sel) => en((sel) => document.querySelector(sel)?.textContent ?? null, sel);
 const valor = (sel) => en((sel) => document.querySelector(sel)?.value ?? null, sel);
-/** Los botones de un bloque: 0 Guardar, 1 Cancelar; bloque 0 = plan y red, 1 = celular. */
+/** La barra de Guardar es una sola (suma plan y compactación, modelos y celular): 0 Guardar, 1 Cancelar. */
 const GUARDAR = 0;
 const CANCELAR = 1;
-const boton = (bloque, cual) => en((b, c) => document.querySelectorAll(".pn-acciones")[b]?.querySelectorAll(".btn2")[c]?.click(), bloque, cual);
-const apagado = (bloque, cual) => en((b, c) => document.querySelectorAll(".pn-acciones")[b]?.querySelectorAll(".btn2")[c]?.disabled, bloque, cual);
-const aviso = (bloque) => en((b) => document.querySelectorAll(".pn-acciones")[b]?.textContent ?? "", bloque);
+const boton = (_b, cual) => en((c) => document.querySelectorAll(".pn-barra .btn2")[c === 0 ? 1 : 0]?.click(), cual);
+const apagado = (_b, cual) => en((c) => document.querySelectorAll(".pn-barra .btn2")[c === 0 ? 1 : 0]?.disabled, cual);
+/** Lo que dice la barra (también los avisos de los bloques, como "Apretá Agregar"). */
+const aviso = () => en(() => document.querySelector(".pn-barra")?.textContent ?? "");
 const RED = "#ajustes-red";
 const PUERTO = 'input[aria-label="Puerto"]';
 const NUEVO = ".pn-nuevo .pn-campo";
 const agregar = () => en(() => document.querySelector(".pn-nuevo button")?.click());
 const agregarApagado = () => en(() => document.querySelector(".pn-nuevo button")?.disabled);
-const lista = async () => (await en(() => [...document.querySelectorAll(".pn-disp .pn-disp-nom")].map((e) => e.textContent))).join(",");
+const lista = async () => (await en(() => [...document.querySelectorAll(".pn-disp:not(.mdl-instalados):not(.mdl-locales) .pn-disp-nom")].map((e) => e.textContent))).join(",");
 const errores = () => en(() => [...document.querySelectorAll(".pn-campo-error")].map((e) => e.textContent));
 
 async function abrir() {
   await alternar();
-  return hasta(() => document.querySelectorAll(".pn-acciones").length === 2, 8);
+  return hasta(() => !!document.querySelector(".pn-barra") && !!document.querySelector(".pn-nuevo"), 8);
 }
 async function reabrir() {
   await alternar();
@@ -139,6 +140,9 @@ try {
   await escribir(RED, "50");
   ok((await errores()).some((x) => /entre/.test(x)), "una red fuera de rango dice el motivo en línea");
   ok(await apagado(0, GUARDAR), "y no deja guardar");
+  await escribir(RED, "350000");
+  ok(/sin guardar/i.test(await aviso(0)), "con un cambio, la barra dice 'Cambios sin guardar'");
+  ok(await en(() => { const r = document.querySelector(".pn-barra")?.getBoundingClientRect(); return !!r && r.bottom <= innerHeight + 1 && r.top >= 0; }), "y la barra está a la vista");
   await escribir(RED, "doscientos");
   ok((await errores()).some((x) => /dígitos/.test(x)), "con letras también");
   await escribir(RED, "350000");
@@ -151,7 +155,7 @@ try {
   ok((await valor(RED)) === "300000", "lo escrito y no guardado no sobrevive: al reabrir sigue lo de antes");
   await escribir(RED, "350000");
   await boton(0, GUARDAR);
-  ok(await hasta(() => /Guardado/.test(document.querySelector(".pn-ok")?.textContent ?? ""), 5), "Guardar dice Guardado");
+  ok(await hasta(() => /Guardado/.test(document.querySelector(".pn-barra-estado")?.textContent ?? ""), 5), "Guardar dice Guardado");
   await reabrir();
   ok((await valor(RED)) === "350000", "y lo guardado vuelve al reabrir");
 
@@ -180,11 +184,11 @@ try {
   await escribir(NUEVO, "mi-tablet");
   await agregar();
   await boton(1, GUARDAR);
-  ok(await hasta(() => /EACCES/.test(document.querySelectorAll(".pn-acciones")[1]?.textContent ?? ""), 5), "un Guardar que falla muestra el error en línea");
+  ok(await hasta(() => /EACCES/.test(document.querySelector(".pn-barra")?.textContent ?? ""), 5), "un Guardar que falla muestra el error en línea");
   ok((await lista()) === "celu-de-prueba,tablet-sala,mi-tablet" && !(await apagado(1, GUARDAR)), "y lo escrito queda como estaba, para reintentar");
   await foto("ajustes-guardar-falla");
   await boton(1, GUARDAR);
-  ok(await hasta(() => /Guardado/.test(document.querySelectorAll(".pn-acciones")[1]?.textContent ?? ""), 5), "al reintentar, guarda");
+  ok(await hasta(() => /Guardado/.test(document.querySelector(".pn-barra")?.textContent ?? ""), 5), "al reintentar, guarda");
   await reabrir();
   ok((await lista()) === "celu-de-prueba,tablet-sala,mi-tablet", "y el dispositivo agregado vuelve al reabrir");
 

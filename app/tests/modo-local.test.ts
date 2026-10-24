@@ -7,7 +7,7 @@ import http from "node:http";
 import net from "node:net";
 import os from "node:os";
 import path from "node:path";
-import { capacidades } from "../electron/capacidades.ts";
+import { capacidades, hayClaude } from "../electron/capacidades.ts";
 import { crearRemotoLocal, esLoopback, modoLocal, puertoLocal } from "../electron/modo-local.ts";
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "hilos-local-"));
@@ -84,6 +84,16 @@ test("esLoopback y el puerto", () => {
   assert.equal(puertoLocal({}), 8791);
   assert.equal(puertoLocal({ TRAMA_PUERTO: "9000" }), 9000);
   for (const mal of ["80", "70000", "abc", "", "8791.5"]) assert.equal(puertoLocal({ TRAMA_PUERTO: mal }), 8791, mal);
+});
+
+test("hayClaude: HILOS_CLAUDE manda; sin eso el PATH o ~/.local/bin; una captura lo supone", () => {
+  const casa = "/no/existe";
+  assert.equal(hayClaude({ PATH: "" }, casa, () => false), false);
+  assert.equal(hayClaude({ PATH: "/usr/bin" }, casa, (f) => f === "/usr/bin/claude"), true);
+  assert.equal(hayClaude({ PATH: "" }, casa, (f) => f === "/no/existe/.local/bin/claude"), true);
+  assert.equal(hayClaude({ HILOS_CLAUDE: "/x/falso", PATH: "" }, casa, (f) => f === "/x/falso"), true);
+  assert.equal(hayClaude({ HILOS_CLAUDE: "/x/falso", PATH: "/usr/bin" }, casa, (f) => f === "/usr/bin/claude"), false);
+  assert.equal(hayClaude({ HILOS_CAPTURA: "1", PATH: "" }, casa, () => false), true);
 });
 
 test("capacidades con PATH vacío: no hay nada", () => {

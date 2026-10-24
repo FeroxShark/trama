@@ -71,8 +71,10 @@ const fija: FuenteTablero = (() => {
   const accion = async () => {
     if (MODO.falla === "tablero") throw new Error("tablero: no pude escribir items.jsonl");
   };
+  // Sin tablero todavía (`tablero-vacio`): la vista no existe, como en una instalación nueva.
+  const sinVista = MODO.captura === "tablero-vacio";
   return {
-    leer: async () => mirado(tableroFijo(ahora, conPendientes, conMaquinas)),
+    leer: async () => mirado(sinVista ? { version: 1, vista: null, hecho: [], proyectos: [], pospuestosLista: [], aviso: null } : tableroFijo(ahora, conPendientes, conMaquinas)),
     guardado: () => ultimo,
     alCambiar: () => () => {},
     mover: accion,

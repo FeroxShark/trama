@@ -342,9 +342,7 @@
 .wk-tx {
   min-width: 0;
   flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 .wk-tx span {
   color: var(--texto-4);
@@ -411,9 +409,8 @@
   color: var(--c);
 }
 .wk-ru > span:not(.wk-cnt) {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 .wk-ru-panel {
   min-height: 2.5rem;
@@ -519,6 +516,8 @@
 }
 .wk-term .wk-cmd {
   color: var(--texto-1);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 .wk-cursor {
   display: inline-block;

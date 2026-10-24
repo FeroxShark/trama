@@ -10,12 +10,13 @@ import { useAngosto } from "../angosto";
 import { latir } from "../barra/latido";
 import { AccionesWorker } from "../barra/Fila";
 import type { Como, Salida } from "../barra/arbol";
-import { cn, Reloj } from "../barra/piezas";
+import { Reloj } from "../barra/piezas";
 import { locale, t, type ClaveSola } from "../i18n";
 import { useIdioma } from "../i18n/react";
 import { mensaje } from "../puente";
 import { pintorDura } from "../tiempo";
 import "./worker.css";
+import { Entero } from "./Entero";
 import { Filas } from "./Diff";
 import { defDe } from "./modelos";
 import { Compactando } from "./Posta";
@@ -215,7 +216,7 @@ function armar(p: Paso): { ru: ReactNode; cuerpo: ReactNode } {
         ),
         cuerpo: (
           <div className="wk-ag">
-            <blockquote>{d.prompt.t}</blockquote>
+            <Entero texto={d.prompt.t} tag="blockquote" />
             {d.pasos.length ? (
               <ul className="wk-sub">
                 {d.pasos.map((s) => {
@@ -230,7 +231,7 @@ function armar(p: Paso): { ru: ReactNode; cuerpo: ReactNode } {
               </ul>
             ) : null}
             {d.tokens ? <p className="wk-nota">{t("wk.delegaTokens", { n: compacto(d.tokens) })}</p> : null}
-            {d.respuesta?.t ? <p className="wk-resp">{d.respuesta.t}</p> : null}
+            {d.respuesta?.t ? <Entero texto={d.respuesta.t} className="wk-resp" /> : null}
           </div>
         ),
       };
@@ -502,7 +503,7 @@ export function VistaWorker({ h, estado, vista, settle, alCerrar, alRetomar, alP
       <div className="wk-in">
         <section className="wk-fin" aria-label={t("wk.resultado")}>
           <div className="wk-fila">
-            <p className={cn("wk-txt", !resultado && "espera")}>{resultado ?? (vive ? t("wk.espera") : t("wk.sinResultado"))}</p>
+            {resultado ? <Entero texto={resultado} className="wk-txt" /> : <p className="wk-txt espera">{vive ? t("wk.espera") : t("wk.sinResultado")}</p>}
             <div className="wk-acc">
               {vive ? (
                 <button type="button" className="wk-parar" data-parar disabled={parando} onClick={parar}>

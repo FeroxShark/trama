@@ -10,9 +10,13 @@ const TEXTOS = {
     d: "Trama corre dentro de Ubuntu, que Windows trae con WSL2. Windows te va a pedir permiso de administrador una vez.",
   },
   sistema: { t: "Preparando Ubuntu", d: "Creamos tu usuario de Linux y activamos systemd. No tenés que elegir nada." },
-  instalar: { t: "Instalando Trama", d: "Copiamos el motor y sus herramientas a Ubuntu. La primera vez tarda unos minutos." },
+  instalar: {
+    t: "Instalando Trama",
+    d: "Copiamos el motor y sus herramientas a Ubuntu. La primera vez tarda unos minutos.",
+    n: "Trama corre adentro de Ubuntu (WSL), un Linux dentro de Windows; esta ventana es de Windows y sólo te la muestra.",
+  },
   instalarAct: { t: "Actualizando el motor", d: "Hay una versión nueva. Queda lista en un momento." },
-  login: { t: "Conectá tu cuenta", d: "Trama usa tu propio Claude Code o tu Gemini. Con uno alcanza, y también podés seguir sin ninguno y conectarlo después desde Trama." },
+  login: { t: "Conectá tus cuentas", d: "Trama usa tu propio Claude Code y tu Gemini (agy). Con una alcanza: conectá la que tengas o las dos. Lo que dejes para después lo conectás desde Ajustes." },
   ollama: { t: "Modelos locales", d: "Opcional: con Ollama podés correr modelos en tu propia PC." },
   motor: { t: "Arrancando Trama", d: "Casi listo." },
   reinicio: {
@@ -47,7 +51,7 @@ const registro = () => h("ul", { class: "registro", "aria-label": "Detalle" }, a
 
 function pantallaTrabajo(clave) {
   const x = TEXTOS[clave];
-  return [h("h1", {}, x.t), h("p", {}, x.d), barra(), ahora.lineas.length ? registro() : null];
+  return [h("h1", {}, x.t), h("p", {}, x.d), x.n ? h("p", { class: "nota ancho" }, x.n) : null, barra(), ahora.lineas.length ? registro() : null];
 }
 
 function pantallaError(e) {
@@ -76,7 +80,7 @@ function pantallaLogin(info) {
       { class: "tarjeta" },
       h("div", { class: "quien" }, h("b", {}, nombre), h("span", { class: "sub" }, prov.instalado || prov.logueado ? "Con tu cuenta personal" : "Hay que instalarlo en Ubuntu primero")),
       chip(estadoProveedor(prov), prov.logueado),
-      prov.logueado ? null : h("button", { class: ahora.conectado ? "" : "primario", onclick: () => conectar(clave) }, boton),
+      prov.logueado ? null : h("button", { class: ahora.conectado || info.puedeContinuar ? "" : "primario", onclick: () => conectar(clave) }, boton),
       prov.logueado || prov.saltado ? null : h("button", { class: "suave salto", onclick: () => saltarLogin(clave) }, "Seguir sin iniciar sesión (lo hago después)"),
     );
   return [
@@ -84,10 +88,18 @@ function pantallaLogin(info) {
     h("p", {}, TEXTOS.login.d),
     h("div", { class: "tarjetas" }, tarjeta("claude", "Claude", "Conectar Claude", info.claude), tarjeta("gemini", "Gemini", "Conectar Gemini", info.agy)),
     ahora.conectado
-      ? h("p", { class: "nota ancho" }, "Se abrió una consola. Iniciá sesión ahí y volvé: acá se detecta solo.")
+      ? h("p", { class: "nota ancho" }, "Se abrió una consola. Iniciá sesión ahí y volvé: acá se detecta solo. Trama no se pone encima mientras escribís.")
       : h("p", { class: "nota ancho" }, "Se abre una consola de Ubuntu para que inicies sesión; Trama nunca ve tu contraseña."),
-    h("p", { class: "nota ancho" }, "Podés entrar sin cuenta (usando sólo Ollama) y conectarte después desde Trama: elegí «Seguir sin iniciar sesión» en las dos tarjetas."),
-    h("div", { class: "acciones" }, h("button", { class: "suave", onclick: () => iniciar() }, "Revisar ahora")),
+    h("p", { class: "nota ancho" }, "Claude va a abrir tu navegador y pedir «autorizar acceso»: es normal, es el inicio de sesión de tu cuenta."),
+    info.puedeContinuar
+      ? null
+      : h("p", { class: "nota ancho" }, "Podés entrar sin cuenta (usando sólo Ollama) y conectarte después desde Ajustes: elegí «Seguir sin iniciar sesión» en las dos tarjetas."),
+    h(
+      "div",
+      { class: "acciones" },
+      info.puedeContinuar ? h("button", { class: "primario", onclick: () => continuarLogin() }, "Continuar") : null,
+      h("button", { class: "suave", onclick: () => iniciar() }, "Revisar ahora"),
+    ),
   ];
 }
 
@@ -191,6 +203,13 @@ async function conectar(proveedor) {
   iniciar();
 }
 
+async function continuarLogin() {
+  const r = await window.carcasa.continuarLogin();
+  if (r?.error) return pintar(pantallaError({ paso: "login", mensaje: "No pude seguir.", detalle: r.error }));
+  ahora.firma = null;
+  iniciar();
+}
+
 async function saltarLogin(proveedor) {
   await window.carcasa.saltarLogin(proveedor);
   ahora.firma = null;
@@ -225,15 +244,21 @@ function demo(nombre) {
   ];
   ahora.pasos = pasos;
   $("version").textContent = "Trama 0.1.0";
-  const previos = { wsl: [], sistema: ["wsl"], instalar: ["wsl", "sistema"], login: ["wsl", "sistema", "instalar"], ollama: ["wsl", "sistema", "instalar", "login"], error: ["wsl"], reinicio: [] };
+  const previos = { wsl: [], sistema: ["wsl"], instalar: ["wsl", "sistema"], login: ["wsl", "sistema", "instalar"], "login-uno": ["wsl", "sistema", "instalar"], ollama: ["wsl", "sistema", "instalar", "login"], error: ["wsl"], reinicio: [] };
   ahora.hechos = new Set(previos[nombre] || []);
   if (nombre === "instalar") {
     ahora.paso = "instalar";
     ahora.lineas = ["Copiando Trama a Ubuntu…", "Instalando paquetes del sistema…", "Leyendo lista de paquetes… Hecho", "Preparando para desempaquetar nodejs_22.14.0-1_amd64.deb"];
     pintar(pantallaTrabajo("instalar"));
-  } else if (nombre === "login") {
+  } else if (nombre === "login" || nombre === "login-uno") {
     ahora.paso = "login";
-    pintar(pantallaLogin({ claude: { instalado: true, logueado: false }, agy: { instalado: true, logueado: false } }));
+    pintar(
+      pantallaLogin(
+        nombre === "login-uno"
+          ? { claude: { instalado: true, logueado: true }, agy: { instalado: true, logueado: false }, puedeContinuar: true }
+          : { claude: { instalado: true, logueado: false }, agy: { instalado: true, logueado: false } },
+      ),
+    );
   } else if (nombre === "ollama") {
     ahora.paso = "ollama";
     pintar(pantallaOllama({ detectado: true, visibleDesdeWsl: true, modelos: ["qwen3-coder:30b"] }));

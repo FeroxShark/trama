@@ -1,10 +1,10 @@
-// Lo que Ajustes deja cambiar con Guardar (a diferencia del idioma o la letra, que se guardan al elegir): el plan, la red
-// de seguridad y el acceso desde el celular. Cada bloque trabaja sobre un borrador (ajustes-borrador.ts): nada se escribe
-// hasta Guardar, Cancelar vuelve a lo guardado y lo que no vale se dice en línea antes de mandar. El main vuelve a
+// Lo que Ajustes deja cambiar con Guardar (a diferencia del idioma o la letra, que se guardan al elegir): el plan, cuándo
+// compacta Claude y el acceso desde el celular. Cada bloque trabaja sobre un borrador (ajustes-borrador.ts): nada se escribe
+// hasta Guardar (una sola barra fija abajo, ajustes-barra.ts), Cancelar vuelve a lo guardado y lo que no vale se dice en línea antes de mandar. El main vuelve a
 // validar con las mismas reglas (electron/valida-ajustes.ts) y, si algo falla, el borrador queda como estaba.
-import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore, type FormEvent, type ReactNode } from "react";
 import { Plus, X } from "lucide-react";
-import { PUERTO_MAX, PUERTO_MIN, RED_MAX, RED_MIN, type Plan } from "../../electron/valida-ajustes";
+import { PUERTO_MAX, PUERTO_MIN, RED_MAX, RED_MIN } from "../../electron/valida-ajustes";
 import { VERSION } from "../datos/contrato";
 import { fuentePaneles, type Ajustes as Datos, type EstadoRemoto } from "../datos/paneles";
 import { Selector, type Opcion } from "../hilo/Selector";
@@ -12,6 +12,7 @@ import { locale, t, textoError, textoMain, type Clave, type ClaveSola } from "..
 import { enOtros, Fijo } from "../i18n/Fijo";
 import { MODO } from "../modo";
 import { mensaje } from "../puente";
+import { cancelarTodo, guardarTodo, publicar, resumen, suscribir } from "./ajustes-barra";
 import { agregarDispositivo, numDesde, numPara, quitarDispositivo, remotoDesde, remotoPara, type BorradorNum, type BorradorRemoto } from "./ajustes-borrador";
 
 /** Las partes de una fila de Ajustes (la misma de Ajustes.tsx, que la pasa para no repetirla). */
@@ -28,8 +29,12 @@ const motivo = (clave: string, min: number, max: number) =>
 const EDITANDO = MODO.variante === "editando";
 const EDITANDO_MAL = MODO.variante === "editando-mal";
 
-/** Guardar y Cancelar de un bloque; Guardar sólo cuando hay algo distinto y todo vale. */
+/**
+ * Un bloque editable le cuenta su estado a la barra de Guardar (ajustes-barra.ts); no pinta nada. Guardar y Cancelar son
+ * de la barra, que los aplica a todos los bloques con cambios.
+ */
 export function Acciones({
+  id,
   sucio,
   valido,
   guardando,
@@ -38,34 +43,44 @@ export function Acciones({
   alGuardar,
   alCancelar,
 }: {
+  id: string;
   sucio: boolean;
   valido: boolean;
   guardando: boolean;
   ok: boolean;
   error: string | null;
-  alGuardar: () => void;
+  alGuardar: () => void | Promise<void>;
   alCancelar: () => void;
 }) {
+  useEffect(() => {
+    publicar(id, { sucio, valido, guardando, ok, error, guardar: alGuardar, cancelar: alCancelar });
+  });
+  useEffect(() => () => publicar(id, null), [id]);
+  return null;
+}
+
+/** La barra fija de abajo: dice si hay cambios sin guardar y guarda o cancela todos los bloques de una vez. */
+export function BarraGuardar() {
+  const r = useSyncExternalStore(suscribir, resumen);
+  const estado = r.guardando ? t("ajustes.guardando") : r.sucio ? t("ajustes.sinGuardar") : r.ok ? t("ajustes.guardadoOk") : t("ajustes.sinCambios");
   return (
-    <div className="pn-acciones">
-      <div className="pn-acciones-btns">
-        <button type="button" className="btn2" data-primario disabled={!sucio || !valido || guardando} onClick={alGuardar}>
-          {guardando ? t("ajustes.guardando") : t("ajustes.guardar")}
-        </button>
-        <button type="button" className="btn2" disabled={!sucio || guardando} onClick={alCancelar}>
-          {t("ajustes.cancelar")}
-        </button>
-        {ok && !sucio ? (
-          <span className="pn-ok" role="status">
-            {t("ajustes.guardadoOk")}
-          </span>
-        ) : null}
-      </div>
-      {error ? (
-        <div className="pn-error" role="alert">
-          {textoMain(error)}
+    <div className="pn-barra" data-sucio={r.sucio ? "" : undefined} role="group" aria-label={t("ajustes.barra")}>
+      {r.error ? (
+        <div className="pn-error pn-barra-error" role="alert">
+          {textoMain(r.error)}
         </div>
       ) : null}
+      <div className="pn-barra-fila">
+        <span className="pn-barra-estado" role="status">
+          {estado}
+        </span>
+        <button type="button" className="btn2" disabled={!r.sucio || r.guardando} onClick={cancelarTodo}>
+          {t("ajustes.cancelar")}
+        </button>
+        <button type="button" className="btn2" data-primario disabled={!r.puedeGuardar} onClick={() => void guardarTodo()}>
+          {r.guardando ? t("ajustes.guardando") : t("ajustes.guardar")}
+        </button>
+      </div>
     </div>
   );
 }
@@ -82,12 +97,9 @@ const PLANES: Opcion[] = [
 export function PlanYRed({
   inicial,
   Dato,
-  largas,
 }: {
   inicial: Datos;
   Dato: FilaDato;
-  /** Las filas de "conversaciones largas" que van antes de la red; el relevo se muestra según el plan del borrador. */
-  largas: (plan: Plan | null) => ReactNode;
 }) {
   const [g, setG] = useState(inicial);
   const [b, setB] = useState<BorradorNum>(() => {
@@ -151,9 +163,8 @@ export function PlanYRed({
       </section>
 
       <section className="pn-sec pn-edita">
-        <h2 className="pn-h">{t("ajustes.largas")}</h2>
-        {largas(b.plan)}
-        <Dato nombre="ajustes.red" que="ajustes.redQue">
+        <h2 className="pn-h">{t("ajustes.compactacion")}</h2>
+        <Dato nombre="ajustes.compactar" que="ajustes.compactarQue">
           <div className="pn-campo-fila">
             <input
               id={redId}
@@ -164,7 +175,7 @@ export function PlanYRed({
               spellCheck={false}
               value={b.red}
               placeholder={t("ajustes.sinDefinir")}
-              aria-label={t("ajustes.red")}
+              aria-label={t("ajustes.compactar")}
               aria-invalid={!valido}
               aria-describedby={valido ? undefined : `${redId}-e`}
               onChange={(e) => cambiar({ ...b, red: e.target.value })}
@@ -180,7 +191,7 @@ export function PlanYRed({
             </div>
           ) : null}
         </Dato>
-        <Acciones sucio={r.sucio} valido={valido} guardando={guardando} ok={ok} error={error} alGuardar={() => void guardar()} alCancelar={() => cambiar(numDesde(g))} />
+        <Acciones id="plan" sucio={r.sucio} valido={valido} guardando={guardando} ok={ok} error={error} alGuardar={guardar} alCancelar={() => cambiar(numDesde(g))} />
       </section>
     </>
   );
@@ -346,12 +357,13 @@ export function Celular({ Dato }: { Dato: FilaDato }) {
       </Dato>
 
       <Acciones
+        id="celular"
         sucio={r.sucio}
         valido={valido}
         guardando={guardando}
         ok={ok}
         error={error ?? (r.errores.general ? motivo(r.errores.general, 0, 0) : r.errores.nuevo === "ajustes.errDispPendiente" ? motivo(r.errores.nuevo, 0, 0) : null)}
-        alGuardar={() => void guardar()}
+        alGuardar={guardar}
         alCancelar={() => cambiar(remotoDesde(e))}
       />
     </section>

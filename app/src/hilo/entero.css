@@ -1,0 +1,46 @@
+/* Un texto entero que se pliega desde 200 caracteres (Entero.tsx): sin «…», con un fundido abajo y "Ver todo". Todo en rem. */
+.ent {
+  min-width: 0;
+  max-width: 100%;
+}
+.ent-pliega {
+  max-height: 4.5rem;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(#000 55%, transparent);
+  mask-image: linear-gradient(#000 55%, transparent);
+}
+.ent-mas {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--esp-1);
+  margin-top: var(--esp-1);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--texto-3);
+  font-size: var(--letra-4);
+  cursor: pointer;
+}
+.ent-mas:hover {
+  color: var(--texto-1);
+}
+.ent-fl {
+  transition: transform 160ms ease;
+}
+.ent-mas[aria-expanded="true"] .ent-fl {
+  transform: rotate(180deg);
+}
+/* Con el dedo, el área de toque llega a 2.75rem sin cambiar cómo se ve. */
+@media (pointer: coarse) {
+  .ent-mas::after {
+    content: "";
+    position: absolute;
+    inset: -0.75rem -0.5rem;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ent-fl {
+    transition: none;
+  }
+}

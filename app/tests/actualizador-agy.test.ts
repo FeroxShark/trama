@@ -32,10 +32,16 @@ const agyModulo = path.join(tmp, "agy-modulo");
 writeFileSync(verAgy, "1.4.2");
 writeFileSync(agyModulo, `#!/bin/sh\ncase "$1" in --version) cat '${verAgy}';; update) echo x > '${marcaUpdate}'; exit 2;; *) exit 2;; esac\n`);
 chmodSync(agyModulo, 0o755);
-// La terminal falsa (kitty): anota sus argumentos y, con FALSA_MODO=instala, instala 1.4.3 como haría paru.
+// La terminal falsa (kitty): anota sus argumentos y corre el comando como una terminal de verdad (sh -c envoltorio ...),
+// salvo con FALSA_MODO=nada: la "cierran a mano" antes de que el comando corra. Y un paru falso en el PATH:
+// con FALSA_MODO=instala instala 1.4.3 y sale 0, con falla sale 3. La ventana termina sola, sin --hold.
 const terminalFalsa = path.join(tmp, "terminal-falsa");
-writeFileSync(terminalFalsa, `#!/bin/sh\nprintf '%s\\n' "$@" > '${argsTerminal}'\n[ "$FALSA_MODO" = instala ] && printf '%s' 1.4.3 > '${verAgy}'\nexit 0\n`);
+writeFileSync(terminalFalsa, `#!/bin/sh\nprintf '%s\\n' "$@" > '${argsTerminal}'\n[ "$FALSA_MODO" = nada ] && exit 0\nexec "$@" < /dev/null\n`);
 chmodSync(terminalFalsa, 0o755);
+mkdirSync(path.join(tmp, "bin"), { recursive: true });
+writeFileSync(path.join(tmp, "bin", "paru"), `#!/bin/sh\n[ "$FALSA_MODO" = falla ] && exit 3\nprintf '%s' 1.4.3 > '${verAgy}'\nexit 0\n`);
+chmodSync(path.join(tmp, "bin", "paru"), 0o755);
+process.env.PATH = `${path.join(tmp, "bin")}:${process.env.PATH}`;
 // El módulo de agy lee su entorno al cargarse. La última sale del estado (recién chequeada, así no se consulta): sin red.
 process.env.HILOS_AGY = agyModulo;
 process.env.HILOS_TERMINAL = terminalFalsa;
@@ -139,7 +145,7 @@ test("agy (módulo): Actualizar abre una terminal con paru, nunca corre `agy upd
   process.env.FALSA_MODO = "instala";
   assert.deepEqual(await leerAvisoAgy(), { instalada: "1.4.2", ultima: "1.4.3" });
   assert.deepEqual(await actualizarAgy(), { ok: true, version: "1.4.3" });
-  assert.equal(readFileSync(argsTerminal, "utf8"), "--hold\nparu\n-S\nantigravity-cli\n");
+  assert.match(readFileSync(argsTerminal, "utf8"), /\nparu\n-S\nantigravity-cli\n$/);
   assert.equal(existsSync(marcaUpdate), false, "no se corrió `agy update`");
   assert.equal(await leerAvisoAgy(), null);
 });
@@ -150,6 +156,23 @@ test("agy (módulo): la terminal se cierra sin instalar: error, y la versión vi
   const r = await actualizarAgy();
   assert.equal(r.ok, false);
   assert.match(r.error, /main\.terminalCerro/);
+  assert.equal(readFileSync(verAgy, "utf8"), "1.4.2");
+});
+
+test("agy (módulo): la ventana queda abierta tras instalar OK: igual termina por el rc del comando", async () => {
+  writeFileSync(verAgy, "1.4.2");
+  process.env.FALSA_MODO = "queda";
+  const t0 = Date.now();
+  assert.deepEqual(await actualizarAgy(), { ok: true, version: "1.4.3" });
+  assert.ok(Date.now() - t0 < 1500, "no esperó a que se cerrara la ventana");
+});
+
+test("agy (módulo): el comando falla (rc 3): error con el código, la versión vieja sigue", async () => {
+  writeFileSync(verAgy, "1.4.2");
+  process.env.FALSA_MODO = "falla";
+  const r = await actualizarAgy();
+  assert.equal(r.ok, false);
+  assert.match(r.error, /main\.terminalFallo/);
   assert.equal(readFileSync(verAgy, "utf8"), "1.4.2");
 });
 

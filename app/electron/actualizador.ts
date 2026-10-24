@@ -4,10 +4,11 @@
 // primera vez (al abrir) y después cada 6 h; a la fuente de la última no se le vuelve a preguntar
 // si contestó hace menos de 6 h (el archivo `cfg.archivo` en el estado de la app). Si algo falla
 // (sin red), silencio: queda lo último que se supo. Actualizar es un botón: `<bin> <args>` (execFile, sin
-// shell) o una terminal (`enTerminal`, kitty) que se espera hasta que la cierran, para lo que pide contraseña
+// shell) o una terminal (`enTerminal`, kitty) que se espera hasta que el comando termina, para lo que pide contraseña
 // (paru). Los usos: electron/actualizacion.ts (claude) y electron/actualizacion-agy.ts (agy, en terminal).
 //   HILOS_TERMINAL  la terminal de Actualizar en terminal (en la prueba, un falso). Por default, kitty.
 import { execFile, spawn } from "node:child_process";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -37,15 +38,47 @@ export type Actualizado = { ok: true; version: string } | { ok: false; error: st
 type Corrida = { err: string | null; dijo: string | null };
 
 /**
- * Abre `<terminal> --hold <argv>` y espera a que la cierren: la ventana queda hasta que se la cierra, así se ve si
- * falló. Sin terminal (ENOENT) no corre nada y lo dice. Texto como clave de `main.*` (electron/errores.ts).
+ * Abre `<terminal> sh -c <envoltorio> sh <marca> <argv>` y espera a que el comando termine (marca con su rc): con
+ * rc distinto de 0 la ventana queda esperando Enter, así se ve el error. Sin terminal (ENOENT) no corre nada y lo dice. Texto como clave de `main.*` (electron/errores.ts).
  */
 export function enTerminal(argv: string[], env: NodeJS.ProcessEnv): Promise<Corrida> {
   const term = process.env.HILOS_TERMINAL ?? "kitty";
+  // Se espera el FIN DEL COMANDO, no el de la ventana: el envoltorio anota su rc en una marca. Con rc 0 la
+  // ventana se cierra sola; con rc distinto de 0 espera Enter (y igual se resuelve ya). Sin marca al salir: la cerraron a mano.
+  const dir = mkdtempSync(path.join(os.tmpdir(), "trama-act-"));
+  const marca = path.join(dir, "rc");
+  const envoltorio = 'm=$1; shift; "$@"; rc=$?; echo $rc > "$m.tmp" && mv "$m.tmp" "$m"; [ $rc -eq 0 ] || { printf "\\n[rc=%s] Enter para cerrar " $rc; read _; }';
   return new Promise((listo) => {
-    const p = spawn(term, ["--hold", ...argv], { env, stdio: "ignore" });
-    p.on("error", () => listo({ err: textoT("main.terminalNo", { t: term }), dijo: null }));
-    p.on("exit", () => listo({ err: null, dijo: textoT("main.terminalCerro") }));
+    let fin = false;
+    let reloj: NodeJS.Timeout | undefined;
+    const rcDe = (): number | null => {
+      try {
+        const n = parseInt(readFileSync(marca, "utf8"), 10);
+        return Number.isNaN(n) ? null : n;
+      } catch {
+        return null;
+      }
+    };
+    const cerrar = (r: Corrida) => {
+      if (fin) return;
+      fin = true;
+      clearInterval(reloj);
+      rmSync(dir, { recursive: true, force: true });
+      listo(r);
+    };
+    const mirar = (): boolean => {
+      const rc = rcDe();
+      if (rc === null) return false;
+      const falla = rc === 0 ? null : textoT("main.terminalFallo", { rc: String(rc) });
+      cerrar({ err: falla, dijo: falla });
+      return true;
+    };
+    const p = spawn(term, ["sh", "-c", envoltorio, "sh", marca, ...argv], { env, stdio: "ignore" });
+    p.on("error", () => cerrar({ err: textoT("main.terminalNo", { t: term }), dijo: null }));
+    p.on("exit", () => {
+      if (!mirar()) cerrar({ err: null, dijo: textoT("main.terminalCerro") });
+    });
+    reloj = setInterval(mirar, 250);
   });
 }
 

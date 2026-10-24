@@ -1,15 +1,14 @@
 // Dictar: el audio que grabó la caja de un líder (WAV 16 kHz mono, convertido en el cliente: src/hilo/dictado.ts)
 // llega por el RPC de siempre, se deja un momento en `$XDG_RUNTIME_DIR/trama/` y `handy --transcribe-file`
-// devuelve el texto. Sin `--model`: Handy usa el modelo que el usuario tiene elegido. El texto vuelve a la caja, no se manda.
+// devuelve el texto (en WSL también el `handy.exe` de Windows o, sin Handy, el reconocedor de Windows: dictado-windows.ts). Sin `--model`: Handy usa el modelo que el usuario tiene elegido. El texto vuelve a la caja, no se manda.
 // Una transcripción a la vez (un Handy cargando un modelo ya es bastante) y el archivo se borra pase lo que pase.
 // Sin `electron`: lo prueba tests/dictado.test.ts con un `handy` falso (`ejecutar`), nunca el de verdad.
 import { execFile } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { readdirSync } from "node:fs";
 import { mkdir, rm, writeFile } from "node:fs/promises";
-import os from "node:os";
 import path from "node:path";
-import { resolverBinario } from "./binario.ts";
+import { motoresDictado, traductor, type Motor } from "./dictado-windows.ts";
 import { errorT } from "./errores.ts";
 
 /** Lo más que se graba (el tope de la caja): 5 min. */
@@ -61,8 +60,8 @@ const ejecutarDeVerdad: Ejecutar = (bin, args, o) =>
     });
   });
 
-/** `handy`: `HILOS_HANDY`, el del PATH o `~/.local/bin/handy`. */
-export const binarioHandy = (env: NodeJS.ProcessEnv = process.env) => resolverBinario("handy", "HILOS_HANDY", env, os.homedir());
+/** Un `handy` de Linux (`HILOS_HANDY`, el del PATH o `~/.local/bin/handy`; lo resuelve `motoresDictado`). */
+export const motorHandy = (bin: string): Motor => ({ nombre: "handy", bin, args: async (a) => ["--transcribe-file", a] });
 
 /** El WAV de un pedido, validado: bytes, PCM de 16 bits, 1 canal, 16 kHz y no más de 5 min. */
 export function wavDe(x: unknown): Uint8Array {
@@ -100,7 +99,9 @@ export function textoDe(stdout: string): string {
 export type OpcionesDictado = {
   /** Dónde se deja el WAV un momento (`$XDG_RUNTIME_DIR/trama/`). */
   dir: string;
+  /** Un `handy` en concreto (las pruebas); sin él se elige entre los motores de la máquina (`motoresDictado`). */
   bin?: string;
+  motores?: Motor[];
   ejecutar?: Ejecutar;
   timeoutMs?: number;
 };
@@ -116,22 +117,40 @@ export function transcribir(x: unknown, o: OpcionesDictado): Promise<string> {
   return una;
 }
 
+/** Un fallo al correr un motor, como clave de `main.dictado*`. */
+function comoError(e: unknown, timeout: number): Error {
+  const err = e as NodeJS.ErrnoException & { killed?: boolean; signal?: string; stderr?: string };
+  if (err.message?.startsWith("\u0001")) return err;
+  if (err.code === "ENOENT") return errorT("main.dictadoFalta");
+  if (err.killed || err.signal === "SIGKILL" || err.code === "ETIMEDOUT") return errorT("main.dictadoTiempo", { n: Math.round(timeout / 1000) });
+  return errorT("main.dictadoFalla", { motivo: err.stderr || err.message || String(e) });
+}
+
+/** Con qué se puede transcribir en esta máquina (vacío: nada; ver dictado-windows.ts). */
+export const motoresDeEstaMaquina = (ejecutar: Ejecutar = ejecutarDeVerdad) => motoresDictado({ correr: (b, a, o) => ejecutar(b, a, o) });
+
 async function correr(datos: Uint8Array, o: OpcionesDictado): Promise<string> {
+  const ejecutar = o.ejecutar ?? ejecutarDeVerdad;
+  const motores = o.motores ?? (o.bin ? [motorHandy(o.bin)] : await motoresDeEstaMaquina(ejecutar));
+  if (!motores.length) throw errorT("main.dictadoFalta");
   await mkdir(o.dir, { recursive: true, mode: 0o700 });
   const archivo = path.join(o.dir, `dictado-${randomUUID()}.wav`);
   await writeFile(archivo, datos, { mode: 0o600 });
   const timeout = o.timeoutMs ?? DICTADO_TIMEOUT_MS;
+  const aWindows = traductor(ejecutar, "-w");
   try {
-    const salida = await (o.ejecutar ?? ejecutarDeVerdad)(o.bin ?? binarioHandy(), ["--transcribe-file", archivo], { timeout });
-    const texto = textoDe(salida);
-    if (!texto) throw errorT("main.dictadoVacio");
-    return texto;
-  } catch (e) {
-    const err = e as NodeJS.ErrnoException & { killed?: boolean; signal?: string; stderr?: string };
-    if (err.message?.startsWith("\u0001")) throw err;
-    if (err.code === "ENOENT") throw errorT("main.dictadoFalta");
-    if (err.killed || err.signal === "SIGKILL" || err.code === "ETIMEDOUT") throw errorT("main.dictadoTiempo", { n: Math.round(timeout / 1000) });
-    throw errorT("main.dictadoFalla", { motivo: err.stderr || err.message || String(e) });
+    // En orden: si uno falla o no dice nada se prueba el siguiente; si ninguno anda, se cuenta el primer fallo.
+    let primero: Error | null = null;
+    for (const m of motores) {
+      try {
+        const texto = textoDe(await ejecutar(m.bin, await m.args(archivo, aWindows), { timeout }));
+        if (!texto) throw errorT("main.dictadoVacio");
+        return texto;
+      } catch (e) {
+        primero ??= comoError(e, timeout);
+      }
+    }
+    throw primero;
   } finally {
     await rm(archivo, { force: true });
   }

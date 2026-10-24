@@ -92,6 +92,7 @@ import { accionesCarpeta, accionesLider, accionesWorker, type LugarMenu, type Op
 import { Menu, Renombre, type ItemMenu } from "./Menu";
 import { armarTips } from "./tooltip";
 import { AvisoClaude } from "./AvisoClaude";
+import { AvisoSetup } from "./AvisoSetup";
 import { Pc } from "./Pc";
 import { useAlAbrirEspera, useEspera } from "./useEspera";
 import { Reinicio } from "./Reinicio";
@@ -1100,7 +1101,7 @@ export function Barra() {
     // Angosto se ve lo abierto; la lista, con HILOS_VARIANTE=lista (o si no hay nada que abrir).
     if (esAngosto()) setAbierta(MODO.variante === "lista" || c === "vacio" || c === "foco-barra" || c === "orden-arrastrando" || c === "orden-menu" || c === "orden-prioridad" || c === "mover-menu" || (c.startsWith("maquinas") && c !== "maquinas-lider" && !c.startsWith("maquinas-selector")));
     if (c === "ajustes") setPanel("ajustes");
-    if (c === "estadisticas" || c === "estadisticas-30" || c === "estadisticas-medido") setPanel("estadisticas");
+    if (c === "estadisticas" || c === "estadisticas-30" || c === "estadisticas-medido" || c === "estadisticas-vacia") setPanel("estadisticas");
     if (c.startsWith("tablero") && c !== "tablero-nuevo-chat") setPanel("tablero");
     if (c === "ramas" || c === "ramas-confirmar" || c === "ramas-analista" || c === "ramas-conflicto" || c === "ramas-lanzar" || c === "ramas-lanzar-error") setPanel("ramas");
     if (c === "ramas-conflicto" || c === "ramas-lanzar" || c === "ramas-lanzar-error") {
@@ -1665,6 +1666,7 @@ export function Barra() {
             <Reinicio />
             <AvisoClaude />
             <AvisoClaude cual="agy" />
+            <AvisoSetup />
             <footer className="pie">
               {BOTONES_PIE.map(([cual, icono]) => (
                 <BotonPie

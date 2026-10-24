@@ -137,6 +137,10 @@ contextBridge.exposeInMainWorld("hilos", {
     modelos: (): Promise<unknown> => ipcRenderer.invoke("modelos:leer"),
     guardarModelos: (config: unknown): Promise<unknown> => ipcRenderer.invoke("modelos:guardar", config),
     sondearOllama: (url: string): Promise<unknown> => ipcRenderer.invoke("modelos:sondear", url),
+    bajarModelo: (url: string, modelo: string): Promise<unknown> => ipcRenderer.invoke("modelos:bajar", url, modelo),
+    cancelarBajada: (url: string, modelo: string): Promise<void> => ipcRenderer.invoke("modelos:cancelarBajada", url, modelo),
+    bajadas: (): Promise<unknown> => ipcRenderer.invoke("modelos:bajadas"),
+    alBajar: oir("modelos:bajando"),
     guardarAjustes: (cambio: unknown): Promise<unknown> => ipcRenderer.invoke("ajustes:guardar", cambio),
     remoto: (): Promise<unknown> => ipcRenderer.invoke("remoto:leer"),
     guardarRemoto: (config: unknown): Promise<unknown> => ipcRenderer.invoke("remoto:guardar", config),
@@ -184,6 +188,11 @@ contextBridge.exposeInMainWorld("hilos", {
     descartar: (): Promise<void> => ipcRenderer.invoke("agy:descartar"),
     actualizar: (): Promise<unknown> => ipcRenderer.invoke("agy:actualizar"),
     alCambiar: oir("agy:version"),
+  },
+  /** Lo que falta del setup (electron/setup.ts). */
+  setup: {
+    estado: (): Promise<unknown> => ipcRenderer.invoke("setup:estado"),
+    descartar: (id: string): Promise<void> => ipcRenderer.invoke("setup:descartar", id),
   },
   /** Sólo por la tailnet (lo arma electron/remoto-cliente.ts; en la ventana no llega nunca): `false` = se cayó la conexión con la PC. */
   conexion: {

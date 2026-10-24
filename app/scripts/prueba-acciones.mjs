@@ -411,16 +411,15 @@ try {
   // B24: la cabecera (marca, uso en su renglón) entra con la letra más grande, y también con la barra en su mínimo.
   const cabecera = () => {
     const entra = (e) => e.scrollWidth <= e.clientWidth;
-    const cajas = [...document.querySelectorAll(".top, .cab, .usos, .uso .r")];
-    const visto = [...document.querySelectorAll(".uso .cuando")].filter((e) => getComputedStyle(e).display !== "none");
+    const cajas = [...document.querySelectorAll(".top, .cab, .usos, .grupo, .uso .r")];
+    const nombres = [...document.querySelectorAll(".g-n")];
     return {
       usos: document.querySelectorAll(".uso").length,
       logo: !!document.querySelector(".cab svg.logo"),
-      botones: document.querySelectorAll(".cab .lado, .usos .releer").length,
+      botones: document.querySelectorAll(".cab .lado, .cab .releer").length,
       desborda: cajas.filter((e) => !entra(e)).map((e) => e.className),
-      cortado: visto.filter((e) => !entra(e)).length,
-      corto: visto.length === 2 && visto.every((e) => e.classList.contains("corto")),
-      texto: visto.map((e) => e.textContent).join(" | "),
+      nombre: nombres.map((e) => e.textContent).join(","),
+      texto: [...document.querySelectorAll(".uso .tip-l")].map((e) => e.textContent).join(" | "),
       niveles: [...document.querySelectorAll(".uso")].map((e) => e.dataset.nivel).join(","),
     };
   };
@@ -431,11 +430,11 @@ try {
   let cab = await en(cabecera);
   ok(cab.logo && cab.usos === 2 && cab.botones === 2, `la cabecera trae la marca, los dos usos y sus dos botones: ${JSON.stringify(cab)}`);
   ok(cab.niveles === "ambar,rojo", `74 % va en ámbar y 93 % en rojo: ${cab.niveles}`);
-  ok(!cab.corto && !cab.desborda.length && !cab.cortado && /se reinicia en /.test(cab.texto), `a 18 px el uso entra entero: ${JSON.stringify(cab)}`);
+  ok(!cab.desborda.length && /reinicia/.test(cab.texto), `a 18 px el uso entra entero: ${JSON.stringify(cab)}`);
   await teclaTirador("Home");
   await espera(100);
   cab = await en(cabecera);
-  ok(cab.corto && !cab.desborda.length && !cab.cortado && /^en /.test(cab.texto), `con la barra en su mínimo queda el corto, sin desbordar: ${JSON.stringify(cab)}`);
+  ok(!cab.desborda.length && cab.usos === 2, `con la barra en su mínimo no desborda: ${JSON.stringify(cab)}`);
   await teclaTirador("ArrowRight", 5);
   await tecla("0", CTRL);
   const l0 = await en(letraDe);

@@ -8,7 +8,7 @@ import { latir } from "../barra/latido";
 import { Reloj } from "../barra/piezas";
 import { t, type Clave } from "../i18n";
 import { pintorDura } from "../tiempo";
-import { estadoDe, iconoDe, PASOS, textoPaso, type Actividad as Act, type Icono, type Paso } from "./actividad";
+import { estadoDe, iconoDe, muyLargo, PASOS, textoPaso, type Actividad as Act, type Icono, type Paso } from "./actividad";
 import { Escena } from "./Escenas";
 import { Tierno } from "./Tierno";
 
@@ -40,6 +40,23 @@ export const textoDetalle = (a: Act) => {
 export function lineaPaso(p: Paso): string | null {
   const x = textoPaso(p);
   return x ? tx(x.clave, { d: x.d, s: x.s ?? 0 }) : null;
+}
+
+/** Un texto entero: lo muy largo se pliega (con fundido abajo) y "Ver todo" lo despliega. Nunca se corta con "…". */
+function Entero({ texto, className }: { texto: string; className: string }) {
+  const [abierto, setAbierto] = useState(false);
+  const pliega = muyLargo(texto);
+  return (
+    <div className="tv-ent">
+      <span className={pliega && !abierto ? `${className} tv-pliega` : className}>{texto}</span>
+      {pliega ? (
+        <button type="button" className="tv-mas" aria-expanded={abierto} onClick={() => setAbierto((x) => !x)}>
+          {abierto ? t("hz.menos") : t("hz.todo")}
+          <ChevronDown className="tv-fl" size={12} strokeWidth={2} aria-hidden="true" />
+        </button>
+      ) : null}
+    </div>
+  );
 }
 
 type Props = {
@@ -105,7 +122,8 @@ export function Actividad({ act, pasos, pasosN, desde, tokens, tierno, modelo, e
           {detalle && !fin ? (
             <div className="tv-det" data-fija={act.detalleClave ? "" : undefined}>
               {act.detalleClave ? null : <Det className="tv-ic" size={13} strokeWidth={1.9} aria-hidden="true" />}
-              <span className="tv-dt">{detalle}</span>
+              <Entero texto={detalle} className="tv-dt" />
+              <span className="tv-vivo">{t("hz.enCurso")}</span>
             </div>
           ) : null}
           {vis.length ? (
@@ -115,7 +133,7 @@ export function Actividad({ act, pasos, pasosN, desde, tokens, tierno, modelo, e
                 return (
                   <li key={i}>
                     <I className="tv-ic" size={12} strokeWidth={1.9} aria-hidden="true" />
-                    <span>{p.l}</span>
+                    <Entero texto={p.l} className="tv-pt" />
                   </li>
                 );
               })}

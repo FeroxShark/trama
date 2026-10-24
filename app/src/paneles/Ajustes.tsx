@@ -1,8 +1,8 @@
 // Ajustes: muestra con qué números corre todo y qué hace cada uno, en criollo.
 // Se guardan al elegir el idioma, el tamaño de letra, las fuentes y los mensajes tiernos (preferencias.json) y los
-// modelos con que los líderes lanzan workers (la tabla de routing de ~/CLAUDE.md). Con Guardar (y Cancelar que vuelve
-// a lo guardado), el plan, la red de seguridad y el acceso desde el celular: AjustesEditar.tsx. El resumen de los
-// workers es un número de `pa` y no se cambia desde acá.
+// modelos con que los líderes lanzan workers (la tabla de routing de ~/CLAUDE.md). Con Guardar (una barra fija abajo,
+// y Cancelar que vuelve a lo guardado), el plan, cuándo compacta Claude, los modelos y proveedores y el acceso desde
+// el celular: AjustesEditar.tsx.
 import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { elegirApariencia } from "../apariencia";
 import { VERSION } from "../datos/contrato";
@@ -11,10 +11,12 @@ import { fuentePaneles, type Ajustes as Datos, type FilaRouting, type Rol, type 
 import { effortsOpciones, MODELOS_WORKER } from "../hilo/opciones";
 import { Selector, type Opcion } from "../hilo/Selector";
 import { MODO } from "../modo";
-import { cambiarIdioma, esIdioma, idioma, locale, t, textoMain, type ClaveSola } from "../i18n";
+import { cambiarIdioma, esIdioma, idioma, t, textoMain, type ClaveSola } from "../i18n";
 import { abrirAtajos } from "./Atajos";
-import { Celular, PlanYRed } from "./AjustesEditar";
+import { BarraGuardar, Celular, PlanYRed } from "./AjustesEditar";
+import { AjustesCuentas } from "./AjustesCuentas";
 import { AjustesModelos } from "./AjustesModelos";
+import { Carcasa } from "./AjustesCarcasa";
 import { ErrorCarga } from "./ErrorCarga";
 import { useIdioma } from "../i18n/react";
 import { enOtros, Fijo } from "../i18n/Fijo";
@@ -23,18 +25,6 @@ import { useTiernos } from "../hilo/Tierno";
 import { alCambiarAvisarEspera, avisarEspera, cambiarAvisarEspera } from "../espera";
 import { mensaje } from "../puente";
 import { alCambiarApariencia, apariencia, FUENTES, LETRA_DEF, LETRA_MAX, LETRA_MIN, MONOS, type Fuente } from "../tipografia";
-
-/**
- * A cuántos tokens el jefe le pasa la posta a una sesión nueva, según el plan.
- * Fuente: `~/orquestador/hooks/aviso-contexto.sh` (max: 200000; si no: 120000).
- */
-const RELEVO = { pro: 120_000, max: 200_000 } as const;
-
-/**
- * A cuántos tokens `pa` hace que el worker resuma su conversación.
- * Fuente: `~/orquestador/bin/pa` (`AUTOCOMPACT="${PA_AUTOCOMPACT:-180000}"`).
- */
-const RESUMEN_WORKERS = 180_000;
 
 /** Las tres filas de worker de la tabla de routing de `~/CLAUDE.md`. */
 const ROLES: Record<Rol, { para: ClaveSola; que: ClaveSola }> = {
@@ -61,8 +51,6 @@ function opcionesModelo(actual: string | null): Opcion[] {
   if (actual && !ops.some((o) => o.id === actual)) ops.push({ id: actual, nombre: actual, desc: t("ajustes.deClaudeMd") });
   return [...ops, { id: LIDER, nombre: t("ajustes.liderDecide"), desc: t("ajustes.liderDecideQue") }];
 }
-
-const miles = (n: number) => n.toLocaleString(locale());
 
 /** Cambia en el momento (sin reiniciar) y se guarda en preferencias.json. */
 function elegirIdioma(id: string) {
@@ -166,12 +154,6 @@ function Dato({ nombre, que, children }: { nombre: ClaveSola; que: ClaveSola; ch
   );
 }
 
-const Tokens = ({ n }: { n: number }) => (
-  <>
-    <b>{miles(n)}</b> {t("comun.tokens")}
-  </>
-);
-
 export function Ajustes() {
   useIdioma();
   const [a, setA] = useState<Datos | null>(null);
@@ -271,8 +253,11 @@ export function Ajustes() {
       ) : (
         <Numeros a={a} rev={rev} />
       )}
+      <AjustesCuentas Dato={Dato} />
       <AjustesModelos Dato={Dato} alGuardar={() => void refrescarRouting()} />
       <Celular Dato={Dato} />
+      <Carcasa Dato={Dato} />
+      <BarraGuardar />
     </>
   );
 }
@@ -280,24 +265,7 @@ export function Ajustes() {
 function Numeros({ a, rev }: { a: Datos; rev: number }) {
   return (
     <>
-      <PlanYRed
-        inicial={a}
-        Dato={Dato}
-        largas={(plan) => (
-          <>
-            <Dato nombre="ajustes.relevo" que="ajustes.relevoQue">
-              {plan ? <Tokens n={RELEVO[plan]} /> : null}
-              <div className="pn-alt">
-                <span data-on={plan === "pro" ? "" : undefined}>pro {miles(RELEVO.pro)}</span>
-                <span data-on={plan === "max" ? "" : undefined}>max {miles(RELEVO.max)}</span>
-              </div>
-            </Dato>
-            <Dato nombre="ajustes.resumen" que="ajustes.resumenQue">
-              <Tokens n={RESUMEN_WORKERS} />
-            </Dato>
-          </>
-        )}
-      />
+      <PlanYRed inicial={a} Dato={Dato} />
 
       <Modelos key={rev} inicial={a.routing} />
     </>

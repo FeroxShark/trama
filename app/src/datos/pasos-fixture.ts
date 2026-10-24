@@ -4,6 +4,9 @@ import type { Detalle, Paso, TipoPaso, VistaPasos } from "./pasos";
 
 const T0 = Date.parse("2026-03-10T12:00:00Z");
 const corto = (t: string) => ({ t, total: t.length, recortado: false });
+// Textos de la variante `largo` (más de 200 caracteres): inventados.
+const PROMPT_LARGO = "Buscá dónde se usa usarCuenta en todo el repo, también en los tests y en los scripts de prueba, y decime archivo por archivo la línea donde aparece y qué hace allí.";
+const RESULTADO_LARGO = "RESULTADO: arreglé usarCuenta para que cuente bien en todos los casos del módulo de cuentas: el conteo empieza en 1, la pantalla lo muestra junto con los demás totales y los tests del archivo viejo siguen pasando sin cambios. Supuestos: el conteo empieza en 1; no toqué los tests viejos.\nARCHIVOS: src/cuenta.ts, src/contar.ts";
 
 let n = 0;
 function paso(tipo: TipoPaso, titulo: string, seg: number, dur: number | null, detalle: Detalle, mas: Partial<Paso> = {}): Paso {
@@ -11,8 +14,8 @@ function paso(tipo: TipoPaso, titulo: string, seg: number, dur: number | null, d
   return { n: i, v: i + 1, id: `toolu_demo_${i}`, tipo, titulo, t: T0 + seg * 1000, dur: dur === null ? null : dur * 1000, estado: "ok", error: null, detalle, ...mas };
 }
 
-/** `vivo`: el mismo worker a mitad de camino, con `npm test` corriendo y sin mensaje final. */
-export function pasosFijos(id: string, vivo = false): VistaPasos {
+/** `vivo`: el mismo worker a mitad de camino, con `npm test` corriendo y sin mensaje final. `grandes` (`HILOS_VARIANTE=largo`): el resultado y el prompt de `delegar` pasan de 200 caracteres, para ver el pliegue con "Ver todo". */
+export function pasosFijos(id: string, vivo = false, grandes = false): VistaPasos {
   n = 0;
   const sub = [
     paso("buscar", "usarCuenta", 41, 1, { clase: "buscar", herramienta: "Grep", patron: "usarCuenta", ruta: "src", resultados: 3, texto: corto("src/cuenta.ts\nsrc/pantalla.ts\nsrc/pantalla.test.ts") }),
@@ -35,12 +38,12 @@ export function pasosFijos(id: string, vivo = false): VistaPasos {
       salida: { t: `${largo.slice(0, 600)}\n… ${largo.length - 900} caracteres omitidos …\n${largo.slice(-300)}`, total: largo.length, recortado: true },
     }, { estado: "fallo", error: "2 tests fallan" }),
     paso("delegar", "Buscar los usos de usarCuenta", 40, 6, {
-      clase: "delegar", descripcion: "Buscar los usos de usarCuenta", agente: "Explore", modelo: "claude-haiku-5-5", prompt: corto("Buscá dónde se usa usarCuenta y decime los archivos."),
+      clase: "delegar", descripcion: "Buscar los usos de usarCuenta", agente: "Explore", modelo: "claude-haiku-5-5", prompt: corto(grandes ? PROMPT_LARGO : "Buscá dónde se usa usarCuenta y decime los archivos."),
       respuesta: corto("Se usa en src/pantalla.ts y en su test."), agentId: "a1b2c3d4", fondo: false, tokens: 12_400, usos: 2, pasos: sub, omitidos: 0,
     }),
     paso("correr", "npm test", 50, 18, { clase: "correr", comando: corto("npm test"), descripcion: "Corre los tests", codigo: 0, interrumpido: false, fondo: false, salida: corto("22 pass\n0 fail") }),
     paso("texto", "RESULTADO: arreglé usarCuenta y los tests pasan.", 70, 1, {
-      clase: "texto", final: true, texto: corto("RESULTADO: arreglé usarCuenta y los tests pasan. Supuestos: el conteo empieza en 1; no toqué los tests viejos.\nARCHIVOS: src/cuenta.ts, src/contar.ts"),
+      clase: "texto", final: true, texto: corto(grandes ? RESULTADO_LARGO : "RESULTADO: arreglé usarCuenta y los tests pasan. Supuestos: el conteo empieza en 1; no toqué los tests viejos.\nARCHIVOS: src/cuenta.ts, src/contar.ts"),
     }),
   ];
   if (vivo) {

@@ -18,13 +18,13 @@ registerHooks({
   },
 });
 
-const { agregarLocal, borradorDe, configDe, cupoDe, efectivoBorrador, elegirEffortLider, elegirLider, elegirWorker, modelosPara, nombreGemini, quitarLocal, sucio, todoEn } = await import("../src/paneles/modelos-borrador.ts");
+const { agregarLocal, borradorDe, configDe, cupoDe, defaultsEn, efectivoBorrador, elegirEffortLider, elegirLider, elegirWorker, modelosPara, nombreGemini, quitarLocal, sucio, todoEn } = await import("../src/paneles/modelos-borrador.ts");
 
 const estado = (config: Partial<EstadoModelos["config"]> = {}, existe = true): EstadoModelos => ({
   version: 1,
   ruta: "/x/modelos.json",
   existe,
-  config: { workers: {}, locales: [], gemini: {}, ...config },
+  config: { workers: {}, locales: [], gemini: {}, claude: {}, ...config },
   error: null,
   efectivo: null,
 });
@@ -69,6 +69,23 @@ test("un solo modelo para todo: el líder y los ocho tipos, de una", () => {
   assert.equal(configDe(l)!.workers["default"]!.modelo, QWEN.id);
 });
 
+test("usar los recomendados: cada tipo con su modelo por defecto, sin tocar el líder ni los locales; sin Claude, los de Gemini", () => {
+  const base = borradorDe(estado({ lider: { modelo: "claude-opus-5-5", effort: "low" }, locales: [QWEN], workers: { debug: { modelo: QWEN.id } } }));
+  const c = defaultsEn({ ...base, reparto: "auto" });
+  assert.equal(c.reparto, undefined, "el reparto en automático se apaga: las filas ya dicen el modelo");
+  assert.deepEqual(c.lider, base.lider);
+  assert.deepEqual(c.locales, base.locales);
+  assert.deepEqual(c.workers["lectura"], { modelo: "claude-haiku-5-5", effort: "xhigh" });
+  assert.deepEqual(c.workers["codigo-multi"], { modelo: "claude-sonnet-5-5", effort: "high" });
+  assert.deepEqual(c.workers["debug"], { modelo: "claude-opus-5-5", effort: "xhigh" });
+  assert.ok(configDe(c), "lo que arma vale para guardar");
+  const g = defaultsEn(base, true);
+  assert.deepEqual(g.workers["mecanico"], { modelo: "gemini-3.8-flash-medium" });
+  assert.deepEqual(g.workers["diseno"], { modelo: "gemini-4-argon-high" });
+  assert.deepEqual(efectivoBorrador(borradorDe(estado()), "diseno", true), { modelo: "gemini-4-argon-high" });
+  assert.ok(configDe(g));
+});
+
 test("agregar un local: no repite, normaliza la dirección y aparece en las opciones", () => {
   let b = borradorDe(estado());
   b = agregarLocal(b, "http://localhost:11434/", "qwen3-coder:30b");
@@ -101,7 +118,8 @@ test("el cupo: vacío, número entero de 1 a 100 o inválido (no se puede guarda
 
 test("con qué corre cada tipo según el borrador", () => {
   const b = borradorDe(estado());
-  assert.deepEqual(efectivoBorrador(b, "debug"), { modelo: "claude-sonnet-5-5", effort: "high" });
+  assert.deepEqual(efectivoBorrador(b, "debug"), { modelo: "claude-opus-5-5", effort: "xhigh" });
+  assert.deepEqual(efectivoBorrador(b, "codigo-multi"), { modelo: "claude-sonnet-5-5", effort: "high" });
   assert.deepEqual(efectivoBorrador(b, "mecanico"), { modelo: "claude-haiku-5-5", effort: "xhigh" });
   const c = elegirWorker(b, "default", "gemini-3.8-flash-low");
   assert.deepEqual(efectivoBorrador(c, "debug"), { modelo: "gemini-3.8-flash-low" });
@@ -127,4 +145,42 @@ test("agy (Claude y GPT por Google) y Automático (reparto) en workers", () => {
   b = elegirWorker(b, "default", "");
   assert.equal(b.reparto, undefined);
   assert.equal("reparto" in configDe(b)!, false);
+});
+
+const { cruces, nombreModeloValido, porcentaje, TOPE_CLAUDE_DEFECTO, topeEfectivo } = await import("../src/paneles/modelos-borrador.ts");
+
+test("topes de Claude: el borrador los lee, los escribe y deja de estar sucio al volver", () => {
+  const e = estado({ claude: { tope_5h: 80, tope_7d: 60 } });
+  const b = borradorDe(e);
+  assert.equal(b.tope5, "80");
+  assert.equal(b.tope7, "60");
+  assert.deepEqual(configDe(b)!.claude, { tope_5h: 80, tope_7d: 60 });
+  assert.equal(sucio(e, b), false);
+  assert.equal(sucio(e, { ...b, tope7: "61" }), true);
+  assert.equal(sucio(e, { ...b, tope7: "60" }), false);
+  assert.deepEqual(configDe({ ...b, tope5: "" })!.claude, { tope_7d: 60 });
+  for (const mal of ["0", "101", "7,5", "mucho", "-3"]) assert.equal(configDe({ ...b, tope5: mal }), null, mal);
+});
+
+test("topes de Claude: vacío vale el recomendado, y cruzar es llegar al tope", () => {
+  const b = borradorDe(estado({}));
+  assert.equal(topeEfectivo(b, "5h"), TOPE_CLAUDE_DEFECTO);
+  assert.equal(TOPE_CLAUDE_DEFECTO, 85);
+  const uso = { five_hour: { pct: 34 }, seven_day: { pct: 61 } };
+  assert.deepEqual(cruces(b, uso), []);
+  assert.deepEqual(cruces({ ...b, tope7: "60" }, uso), [{ ventana: "7d", pct: 61, tope: 60 }]);
+  assert.deepEqual(cruces({ ...b, tope7: "61" }, uso), [{ ventana: "7d", pct: 61, tope: 61 }]);
+  assert.deepEqual(cruces({ ...b, tope5: "30", tope7: "90" }, uso), [{ ventana: "5h", pct: 34, tope: 30 }]);
+  // Sin dato no se afirma nada.
+  assert.deepEqual(cruces({ ...b, tope5: "1" }, { five_hour: null, seven_day: null }), []);
+  assert.deepEqual(cruces({ ...b, tope5: "1" }, null), []);
+});
+
+test("bajar un modelo: el nombre y el porcentaje", () => {
+  for (const ok of ["llama3.2:3b", "qwen3-coder:30b", "hf.co/usuario/repo:Q4_K_M", " gemma3 "]) assert.equal(nombreModeloValido(ok), true, ok);
+  for (const mal of ["", "  ", "-x", "a b", "a;rm", "mi modelo", ".x"]) assert.equal(nombreModeloValido(mal), false, mal);
+  assert.equal(porcentaje({ completado: 50, total: 200 }), 25);
+  assert.equal(porcentaje({ completado: 0, total: null }), null);
+  assert.equal(porcentaje({ completado: null, total: 10 }), null);
+  assert.equal(porcentaje({ completado: 999, total: 10 }), 100);
 });

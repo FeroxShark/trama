@@ -2,7 +2,7 @@
 // Puro; los módulos de src/ se importan sin extensión.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { registerHooks } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -69,8 +69,22 @@ test("el resumen: la sección RESULTADO en una o dos frases y los supuestos apar
   assert.deepEqual(D.resumenDe(null), { resultado: null, supuestos: [] });
   assert.equal(D.resumenDe("Hice todo.\n\nOtro párrafo.").resultado, "Hice todo.");
   assert.equal(D.resumenDe("RESULTADO: uno\ndos\nDECISION: nada").resultado, "Uno dos");
+  // Sin «…»: lo largo llega entero (la vista lo pliega desde 200 caracteres).
   const largo = D.resumenDe(`RESULTADO: ${"palabra ".repeat(100)}.`).resultado!;
-  assert.ok(largo.length <= 320);
+  assert.ok(largo.startsWith("Palabra palabra") && largo.length > 320, largo.length);
+  assert.ok(!largo.includes("…"));
+});
+
+test("lo que pasa de 200 caracteres se pliega; el nombre corto de un comando no corta palabras", () => {
+  assert.equal(D.muyLargo("a".repeat(200)), false);
+  assert.equal(D.muyLargo("a".repeat(201)), true);
+  const cmd = "node scripts/prueba-actividad.mjs --verbose-long-flag-name-here";
+  assert.equal(D.corto(correr(cmd, 0, "")), "node scripts/prueba-actividad.mjs --verbose-long-flag-name-here");
+});
+
+test("ninguna pieza de la vista de worker corta con «…» (el texto va entero o se pliega)", () => {
+  const dir = new URL("../src/hilo/", import.meta.url);
+  for (const f of ["worker.css", "entero.css"]) assert.ok(!/text-overflow:\s*ellipsis/.test(readFileSync(new URL(f, dir), "utf8")), f);
 });
 
 test("el chip de tests: el último corredor que terminó, verde o rojo, con la cuenta si se la lee", () => {

@@ -44,3 +44,13 @@ export function hayAgy(env: Env = process.env, home = os.homedir(), existe: (f: 
   if (env.HILOS_CAPTURA) return false;
   return resolverBinario("agy", "HILOS_AGY", env, home, existe) !== "agy";
 }
+
+/**
+ * ¿Está instalado `claude` (Claude Code)? Sin él, con `agy`, Trama es de Gemini solo. `HILOS_CLAUDE` (el falso de las
+ * pruebas) vale si apunta a un ejecutable; en una captura se supone que sí, para no alterar las referencias visuales.
+ */
+export function hayClaude(env: Env = process.env, home = os.homedir(), existe: (f: string) => boolean = ejecutable): boolean {
+  if (env.HILOS_CLAUDE !== undefined) return !!env.HILOS_CLAUDE && existe(env.HILOS_CLAUDE);
+  if (env.HILOS_CAPTURA) return true;
+  return resolverBinario("claude", "HILOS_CLAUDE", env, home, existe) !== "claude";
+}

@@ -66,22 +66,20 @@ export function iconoDe(h: HaceLider): Icono {
   }
 }
 
-const MAX_DETALLE = 64;
-const MAX_RUTA = 56;
+/** Lo largo se pliega en la tarjeta (con "Ver todo"), nunca se corta: a partir de estos caracteres. */
+export const PLIEGUE = 200;
 
-/** Una línea, sin espacios de más, con "…" si se pasa. */
-export function acortar(s: string, max = MAX_DETALLE): string {
-  const l = s.replace(/\s+/g, " ").trim();
-  return l.length > max ? `${l.slice(0, max - 1).trimEnd()}…` : l;
+/** ¿Pasa de `PLIEGUE`? La vista lo muestra plegado con un botón para desplegarlo. */
+export const muyLargo = (s: string): boolean => s.length > PLIEGUE;
+
+/** Una línea, sin espacios de más. Entera: lo largo lo pliega la vista, no lo corta acá. */
+export function unaLinea(s: string): string {
+  return s.replace(/\s+/g, " ").trim();
 }
 
-/** Una ruta: el home como `~` y, si es larga, se pierde el principio (lo útil está al final), cortando en una `/`. */
-export function acortarRuta(r: string, max = MAX_RUTA): string {
-  const ruta = r.trim().replace(/^\/(?:home|Users)\/[^/]+(?=\/|$)/, "~");
-  if (ruta.length <= max) return ruta;
-  const cola = ruta.slice(ruta.length - (max - 1));
-  const k = cola.indexOf("/");
-  return `…${k >= 0 && k < cola.length - 1 ? cola.slice(k) : cola}`;
+/** Una ruta con el home como `~`. Entera: se lee de punta a punta (con wrap). */
+export function rutaLegible(r: string): string {
+  return r.trim().replace(/^\/(?:home|Users)\/[^/]+(?=\/|$)/, "~");
 }
 
 /** `cd /algún/lado && npm test` → `npm test` (lo que importa es el comando, no dónde se paró). */
@@ -92,7 +90,7 @@ export function limpiarComando(cmd: string): string {
     if (!m) break;
     c = c.slice(m[0].length);
   }
-  return acortar(c || cmd);
+  return unaLinea(c || cmd);
 }
 
 /** El dominio de una URL (`developer.mozilla.org`), o la URL acortada si no se entiende. */
@@ -101,7 +99,7 @@ export function dominio(url: string): string {
     return new URL(url).hostname.replace(/^www\./, "");
   } catch {
     const h = url.match(/^(?:[a-z]+:\/\/)?(?:www\.)?([^/\s?#]+)/i)?.[1];
-    return h ?? acortar(url);
+    return h ?? unaLinea(url);
   }
 }
 
@@ -139,7 +137,7 @@ const EDITAR = new Set(["Edit", "MultiEdit", "NotebookEdit"]);
 const DELEGAR = new Set(["Task", "Agent"]);
 
 /** Un Grep: «patrón» en la carpeta. */
-const buscando = (d: string, extra: string | undefined) => acortar(extra ? `«${d}» en ${acortarRuta(extra, 32)}` : `«${d}»`);
+const buscando = (d: string, extra: string | undefined) => unaLinea(extra ? `«${d}» en ${rutaLegible(extra)}` : `«${d}»`);
 
 type Partes = { tipo: Tipo; verbo: string; paso: string; d: string | null; fija?: string };
 
@@ -151,20 +149,20 @@ function partes(h: HaceLider): Partes {
   const { nombre: n, detalle: d, extra } = h;
   if (n === "ExitPlanMode") return { tipo: "permiso", verbo: "hz.permiso", paso: "hz.p.uso", d: null, fija: "hz.d.plan" };
   if (n === "AskUserQuestion") return { tipo: "permiso", verbo: "hz.permiso", paso: "hz.p.uso", d: null, fija: "hz.d.pregunta" };
-  if (n === "WebSearch") return { tipo: "web", verbo: "hz.web.buscar", paso: "hz.p.webBusco", d: d ? acortar(`«${d}»`) : n };
+  if (n === "WebSearch") return { tipo: "web", verbo: "hz.web.buscar", paso: "hz.p.webBusco", d: d ? unaLinea(`«${d}»`) : n };
   if (n === "WebFetch") return { tipo: "web", verbo: "hz.web.leer", paso: "hz.p.leyo", d: d ? dominio(d) : n };
-  if (LEER.has(n)) return { tipo: "codigo", verbo: "hz.leer", paso: "hz.p.leyo", d: d ? acortarRuta(d) : n };
+  if (LEER.has(n)) return { tipo: "codigo", verbo: "hz.leer", paso: "hz.p.leyo", d: d ? rutaLegible(d) : n };
   if (n === "Grep") return { tipo: "codigo", verbo: "hz.buscar", paso: "hz.p.busco", d: d ? buscando(d, extra) : n };
   if (n === "Glob") return { tipo: "codigo", verbo: "hz.buscarArchivos", paso: "hz.p.busco", d: d ? buscando(d, extra) : n };
-  if (EDITAR.has(n)) return { tipo: "editando", verbo: "hz.editar", paso: "hz.p.edito", d: d ? acortarRuta(d) : n };
-  if (n === "Write") return { tipo: "editando", verbo: "hz.escribirArchivo", paso: "hz.p.escribioArchivo", d: d ? acortarRuta(d) : n };
-  if (DELEGAR.has(n)) return { tipo: "delegando", verbo: "hz.delegar", paso: "hz.p.delego", d: d ? acortar(extra ? `${extra} · ${d}` : d) : (extra ?? n) };
+  if (EDITAR.has(n)) return { tipo: "editando", verbo: "hz.editar", paso: "hz.p.edito", d: d ? rutaLegible(d) : n };
+  if (n === "Write") return { tipo: "editando", verbo: "hz.escribirArchivo", paso: "hz.p.escribioArchivo", d: d ? rutaLegible(d) : n };
+  if (DELEGAR.has(n)) return { tipo: "delegando", verbo: "hz.delegar", paso: "hz.p.delego", d: d ? unaLinea(extra ? `${extra} · ${d}` : d) : (extra ?? n) };
   if (n === "Bash") {
     const pa = d ? delegaPa(d) : null;
-    if (pa) return { tipo: "delegando", verbo: "hz.delegar", paso: "hz.p.delego", d: acortar(pa) };
+    if (pa) return { tipo: "delegando", verbo: "hz.delegar", paso: "hz.p.delego", d: unaLinea(pa) };
     return { tipo: "comando", verbo: "hz.correr", paso: "hz.p.corrio", d: d ? limpiarComando(d) : n };
   }
-  return { tipo: "comando", verbo: "hz.usar", paso: "hz.p.uso", d: acortar(d ? `${n}: ${d}` : n) };
+  return { tipo: "comando", verbo: "hz.usar", paso: "hz.p.uso", d: unaLinea(d ? `${n}: ${d}` : n) };
 }
 
 /** Lo que hace el líder ahora, a la vista de la tarjeta. */
@@ -178,9 +176,9 @@ export function clasificar(h: HaceLider): Actividad {
 /** Un pedido de permiso sin contestar (`Pedido` de vivo.ts): "Te necesita", con qué. */
 export function clasificarPedido(p: { herramienta: string; detalle: string | null; plan: string | null; preguntas: { question: string }[] | null }): Actividad {
   if (p.plan !== null || p.herramienta === "ExitPlanMode") return { tipo: "permiso", verbo: "hz.permiso", detalle: "", detalleClave: "hz.d.plan", icono: "permiso" };
-  if (p.preguntas?.length) return { tipo: "permiso", verbo: "hz.permiso", detalle: acortar(p.preguntas[0].question, 56), detalleClave: "hz.d.pregunta", icono: "permiso" };
-  const d = p.detalle ? (p.herramienta === "Bash" ? limpiarComando(p.detalle) : acortar(p.detalle)) : "";
-  return { tipo: "permiso", verbo: "hz.permiso", detalle: acortar(d ? `${p.herramienta}: ${d}` : p.herramienta), detalleClave: "hz.d.permiso", icono: "permiso" };
+  if (p.preguntas?.length) return { tipo: "permiso", verbo: "hz.permiso", detalle: unaLinea(p.preguntas[0].question), detalleClave: "hz.d.pregunta", icono: "permiso" };
+  const d = p.detalle ? (p.herramienta === "Bash" ? limpiarComando(p.detalle) : unaLinea(p.detalle)) : "";
+  return { tipo: "permiso", verbo: "hz.permiso", detalle: unaLinea(d ? `${p.herramienta}: ${d}` : p.herramienta), detalleClave: "hz.d.permiso", icono: "permiso" };
 }
 
 /** El paso ya pasado, en palabras ("Leyó src/x.ts", "Pensó 6 s"), o `null` si no vale la pena mostrarlo. */

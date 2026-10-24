@@ -11,13 +11,17 @@ export const nombreDeArchivo = base;
 const PALABRAS_COMANDO = 3;
 const MAX_CORTO = 32;
 
-/** Un comando en dos o tres palabras: sin el `cd … &&` de adelante, sin variables de entorno y hasta el primer `&&`, `|` o `;`. */
+/** Un texto entero que pasa de esto se pliega con "Ver todo" (nunca se corta con «…»): la vista de worker y la tarjeta de actividad. */
+export const PLIEGUE = 200;
+export const muyLargo = (s: string): boolean => s.length > PLIEGUE;
+
+/** Un comando en dos o tres palabras: sin el `cd … &&` de adelante, sin variables de entorno y hasta el primer `&&`, `|` o `;`. Sin recortar palabras: lo largo se parte en la línea. */
 export function comandoCorto(cmd: string): string {
   let c = cmd.trim();
   c = c.replace(/^(?:cd\s+\S+\s*(?:&&|;)\s*)+/, "");
   c = c.split(/&&|\|\||[|;\n]/)[0].trim();
   const ps = c.split(/\s+/).filter((p) => p && !/^[A-Za-z_][A-Za-z0-9_]*=/.test(p));
-  return ps.slice(0, PALABRAS_COMANDO).join(" ").slice(0, MAX_CORTO);
+  return ps.slice(0, PALABRAS_COMANDO).join(" ");
 }
 
 /** El nombre corto de un paso, a la derecha del verbo: el archivo, el patrón buscado o dos palabras del comando. Vacío si no hay. */
@@ -95,7 +99,6 @@ export function pesos(pasos: readonly Paso[], fin: number | null): number[] {
 // ---- El resultado -------------------------------------------------------------------------------------------------
 
 const CABEZAS = /^(RESULTADO|ARCHIVOS|DECISION|DECISIÓN|SIGUE|PROBAR|PREGUNTA|CONTEXTO|OPCION|OPCIÓN|DEFECTO)\s*:/;
-const TOPE_RESUMEN = 320;
 const SUPUESTO = /\bsupuest[oa]s?\b|\bsupuse\b|\bsupuso\b|\bsupongo\b|\bassum(?:ed|ption|ptions|ing)\b/i;
 
 export type Resumen = { resultado: string | null; supuestos: string[] };
@@ -118,7 +121,7 @@ const mayus = (s: string) => (s ? s[0].toLocaleUpperCase() + s.slice(1) : s);
 /** Las frases de un texto (cortan en . ! ? seguido de espacio). */
 const frases = (s: string) => s.split(/(?<=[.!?])\s+/).map((f) => f.trim()).filter(Boolean);
 
-/** Lo que dice el resultado en una o dos frases, y aparte los supuestos que declaró (frases con "supuestos", partidas por `;`). */
+/** Lo que dice el resultado en una o dos frases, entero (lo largo se pliega en la vista), y aparte los supuestos que declaró (frases con "supuestos", partidas por `;`). */
 export function resumenDe(texto: string | null): Resumen {
   if (!texto) return { resultado: null, supuestos: [] };
   const sec = seccionResultado(texto);
@@ -134,12 +137,7 @@ export function resumenDe(texto: string | null): Resumen {
     const sin = f.replace(/^.*?\b(?:supuestos?|supuse|supuso|supongo|assum\w*)\b\s*[:,-]?\s*/i, "").replace(/[.!?]+$/, "");
     for (const s of (sin || f).split(/\s*;\s*/)) if (s.trim()) supuestos.push(mayus(s.trim()));
   }
-  let r = "";
-  for (const f of resto.slice(0, 2)) {
-    if (r && (r + " " + f).length > TOPE_RESUMEN) break;
-    r = r ? r + " " + f : f;
-  }
-  if (r.length > TOPE_RESUMEN) r = r.slice(0, TOPE_RESUMEN - 1).trimEnd() + "…";
+  const r = resto.slice(0, 2).join(" ");
   return { resultado: r ? mayus(r) : null, supuestos };
 }
 

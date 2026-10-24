@@ -100,7 +100,9 @@ export type Medicion =
       /** `null` si todavía no existe `historial.jsonl`. */
       cuota: Muestra[] | null;
     }
-  | { version: 1; error: string };
+  | { version: 1; error: string }
+  // Sin `medicion.tsv` todavía: ningún worker corrió. No es un error: Estadísticas lo muestra como estado vacío.
+  | { version: 1; vacia: true };
 
 const numero = (s: string | undefined) => (s === undefined || s.trim() === "" || isNaN(Number(s)) ? null : Number(s));
 
@@ -148,8 +150,9 @@ export async function leerMedicion(ahora = Date.now() / 1000): Promise<Medicion>
   let texto: string;
   try {
     texto = await readFile(path.join(PA_STATE, "medicion.tsv"), "utf8");
-  } catch {
-    return { version: 1, error: textoT("main.sinMedicion") };
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException)?.code === "ENOENT") return { version: 1, vacia: true };
+    return { version: 1, error: textoT("main.medicionNoLee", { que: (e as NodeJS.ErrnoException)?.code ?? "error" }) };
   }
   const [cab, ...lineas] = texto.split("\n");
   const col = new Map(cab.split("\t").map((n, i) => [n.trim(), i]));

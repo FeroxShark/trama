@@ -4,7 +4,7 @@
 // app nunca toca `items.jsonl`. Node puro, como pa.ts, para probarlo con un tablero temporal:
 //   TABLERO_DIR=$(mktemp -d) node --test tests/tablero.test.ts
 import { execFile } from "node:child_process";
-import { mirarCarpeta } from "./mirar.ts";
+import { mirarCarpeta, type Mirada } from "./mirar.ts";
 import { readFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -144,10 +144,19 @@ export function recientes(items: unknown, ahora: number, dias = DIAS_HECHO): unk
 export type TableroCrudo = { version: 1; vista: unknown; hecho: unknown[]; proyectos: unknown; pospuestosLista: unknown[]; aviso: string | null };
 
 /**
- * `vista.json` más lo hecho de estos días, los proyectos (con los retirados al final) y los items pospuestos, a la vez. Sin vista no hay
- * tablero (rechaza); si falla una de las otras, el tablero sale igual y `aviso` dice qué pasó.
+ * `vista.json` más lo hecho de estos días, los proyectos (con los retirados al final) y los items pospuestos, a la vez. Sin vista
+ * (`vista: null`) no hay tablero todavía: el CLI la crea con el primer pendiente, así que no se corre nada más. Otra falla al leerla
+ * rechaza; si falla una de las otras, el tablero sale igual y `aviso` dice qué pasó.
  */
 export async function leerTablero(): Promise<TableroCrudo> {
+  const vista = await readFile(VISTA, "utf8").then(
+    (s) => JSON.parse(s) as unknown,
+    (e: NodeJS.ErrnoException) => {
+      if (e?.code === "ENOENT") return null;
+      throw errorT("main.tableroNoLee", { que: e?.code ?? "error" });
+    },
+  );
+  if (vista === null) return { version: 1, vista, hecho: [], proyectos: [], pospuestosLista: [], aviso: null };
   let aviso: string | null = null;
   const o = (args: string[]) =>
     correr(args)
@@ -156,13 +165,7 @@ export async function leerTablero(): Promise<TableroCrudo> {
         aviso ??= String(e?.message ?? e);
         return [];
       });
-  const [vista, hecho, proyectos, pospuestosLista] = await Promise.all([
-    readFile(VISTA, "utf8").then(
-      (s) => JSON.parse(s) as unknown,
-      () => {
-        throw errorT("main.tableroSinVista", { ruta: VISTA });
-      },
-    ),
+  const [hecho, proyectos, pospuestosLista] = await Promise.all([
     o(["listar", "--columna", "hecho", "--json"]),
     o(["proyectos", "--retirados", "--json"]),
     o(["listar", "--pospuestos", "--json"]),
@@ -176,18 +179,41 @@ export async function leerTablero(): Promise<TableroCrudo> {
  * Nada de polling.
  */
 export function mirarTablero(alCambiar: () => void): () => void {
+  const carpeta = path.dirname(VISTA);
   const nombre = path.basename(VISTA);
   let timer: NodeJS.Timeout | null = null;
   const programar = () => {
     if (timer) clearTimeout(timer);
     timer = setTimeout(alCambiar, DEBOUNCE_MS);
   };
-  // Sin directorio no hay nada que mirar (y no se reintenta: sería polling); si el watcher cae, se rearma.
-  const w = mirarCarpeta(path.dirname(VISTA), (_tipo, cual) => {
-    if (cual === nombre) programar();
-  }, { donde: "tablero", alRearmar: programar });
+  // Si el watcher cae, se rearma (mirar.ts).
+  const mirarVista = () =>
+    mirarCarpeta(carpeta, (_tipo, cual) => {
+      if (cual === nombre) programar();
+    }, { donde: "tablero", alRearmar: programar });
+  let w: Mirada | null = mirarVista();
+  // Sin carpeta todavía (el primer pendiente la crea): se mira la de arriba y, cuando aparece la del tablero, se arma ésa.
+  // Un evento por carpeta, no polling. Lo que se escribió mientras tanto no llega, así que al armarse se relee.
+  let arriba: Mirada | null = null;
+  const armarSiAparecio = () => {
+    if (w) return;
+    const nueva = mirarVista();
+    if (!nueva) return;
+    w = nueva;
+    arriba?.cerrar();
+    arriba = null;
+    programar();
+  };
+  if (!w) {
+    const nombreCarpeta = path.basename(carpeta);
+    arriba = mirarCarpeta(path.dirname(carpeta), (_tipo, cual) => {
+      if (cual === nombreCarpeta) armarSiAparecio();
+    }, { donde: "tablero" });
+    armarSiAparecio();
+  }
   return () => {
     if (timer) clearTimeout(timer);
+    arriba?.cerrar();
     w?.cerrar();
   };
 }
