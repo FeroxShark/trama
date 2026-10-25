@@ -1752,6 +1752,7 @@ hechos_de() {   # $1 = slug, $2 = dir, $3 = id, $4 = dir temporal
 
 # decision_de y decision_es_nada (awk/bash, más abajo) en jq, para las corridas sin `.hilo`.
 JQ_DECISION='
+def trim: sub("^[ \t\n\r]+"; "") | sub("[ \t\n\r]+$"; "");
 def decision_de:
   split("\n") as $l
   | ([range(0; $l | length) | select($l[.] | test("^[*#> \t-]*DECISI(O|Ó)N[*]*:"))] | last) as $a
@@ -1819,6 +1820,7 @@ cmd_hilos() {
     def campos: [.[] | select(test("^[a-z_]+=")) | capture("^(?<k>[a-z_]+)=(?<v>.*)$")] | map({(.k): .v}) | add // {};
     def nonempty: if . == null or . == "" then null else . end;
     def num: if . == null or . == "" then null else (tonumber? // null) end;
+    def trim: sub("^[ \t\n\r]+"; "") | sub("[ \t\n\r]+$"; "");
     ($off | capture("^(?<s>[+-])(?<h>[0-9]{2})(?<m>[0-9]{2})$")
      | ((.h | tonumber) * 3600 + (.m | tonumber) * 60) * (if .s == "-" then -1 else 1 end)) as $offs
     | ($now | tonumber) as $ahora

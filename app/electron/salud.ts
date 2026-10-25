@@ -172,13 +172,16 @@ export function colaDe(salida: string): string {
   return l.length > COLA_BYTES ? l.slice(-COLA_BYTES) : l;
 }
 
-/** `bash -c <tests>` en `ruta`, con tope; nunca rechaza. `null`: lo cortaron. */
+/** `bash -c <tests>` o `powershell -Command <tests>` en `ruta`, con tope; nunca rechaza. `null`: lo cortaron. */
 function correrTests(ruta: string, cmd: string, c: Corriendo): Promise<{ rc: number; salida: string } | null> {
   return new Promise((ok) => {
     let salida = "";
     let pasado = false;
+    const isWin = process.platform === "win32";
+    const shellBin = isWin ? "powershell.exe" : "bash";
+    const shellArgs = isWin ? ["-NoProfile", "-Command", cmd] : ["-c", cmd];
     // Su propio grupo de procesos: cortar (o el tope) mata también lo que lance.
-    const hijo = spawn("bash", ["-c", cmd], { cwd: ruta, env: ENV, stdio: ["ignore", "pipe", "pipe"], detached: true });
+    const hijo = spawn(shellBin, shellArgs, { cwd: ruta, env: ENV, stdio: ["ignore", "pipe", "pipe"], detached: !isWin });
     const juntar = (b: Buffer) => {
       salida += b.toString("utf8");
       if (salida.length > 64 * 1024) salida = salida.slice(-32 * 1024);
@@ -187,7 +190,13 @@ function correrTests(ruta: string, cmd: string, c: Corriendo): Promise<{ rc: num
     hijo.stderr?.on("data", juntar);
     const matar = () => {
       try {
-        if (hijo.pid) process.kill(-hijo.pid, "SIGKILL");
+        if (hijo.pid) {
+          if (isWin) {
+            execFile("taskkill", ["/pid", String(hijo.pid), "/T", "/F"], () => {});
+          } else {
+            process.kill(-hijo.pid, "SIGKILL");
+          }
+        }
       } catch {}
     };
     const reloj = setTimeout(() => {

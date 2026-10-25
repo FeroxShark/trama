@@ -35,7 +35,7 @@ const agy = crearActualizador({
   bin: AGY,
   nombre: "actualizacion-agy",
   ultima: () => ultimaAgy(),
-  actualizar: { terminal: ["paru", "-S", "antigravity-cli"] },
+  actualizar: process.platform === "win32" ? { args: ["update"] } : { terminal: ["paru", "-S", "antigravity-cli"] },
   entornoActualizar: entorno,
   olvidarSiFalta: true,
 });

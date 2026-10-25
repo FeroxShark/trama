@@ -19,9 +19,12 @@ const ejecutable = (f: string) => {
 
 /** El PATH con `~/.local/bin` adelante (sin repetirlo). */
 export function pathConLocal(env: Env, home: string): string {
-  const local = path.join(home, ".local", "bin");
-  const resto = (env.PATH ?? "").split(":").filter((d) => d && d !== local);
-  return [local, ...resto].join(":");
+  const esWin = process.platform === "win32" || (env.PATH && env.PATH.includes(";")) || home.includes("\\");
+  const p = esWin ? path.win32 : path;
+  const local = p.join(home, ".local", "bin");
+  const sep = esWin ? ";" : (env.PATH && !env.PATH.includes(path.delimiter) && env.PATH.includes(":") ? ":" : path.delimiter);
+  const resto = (env.PATH ?? "").split(sep).filter((d) => d && d !== local);
+  return [local, ...resto].join(sep);
 }
 
 /** El entorno para correr `pa`: el de la app con `~/.local/bin` adelante en el PATH. */
@@ -32,7 +35,7 @@ export function entornoPa(env: Env, home: string): Env {
 /**
  * La variable de entorno si está; si no, el binario del PATH (el de la app, tal cual vino); si no,
  * `~/.local/bin/<nombre>`. Si no aparece en ningún lado queda el nombre pelado: el error de spawn
- * dice qué falta.
+ * dice qué falta. En Windows busca también extensiones ejecutables (.cmd, .bat, .ps1, .exe).
  */
 export function resolverBinario(
   nombre: string,
@@ -42,11 +45,20 @@ export function resolverBinario(
   esEjecutable: (f: string) => boolean = ejecutable,
 ): string {
   if (env[variable]) return env[variable];
-  for (const d of (env.PATH ?? "").split(":")) {
-    if (d && esEjecutable(path.join(d, nombre))) return path.join(d, nombre);
+  const sep = env.PATH && !env.PATH.includes(path.delimiter) && env.PATH.includes(":") ? ":" : path.delimiter;
+  const exts = process.platform === "win32" ? ["", ".cmd", ".bat", ".ps1", ".exe"] : [""];
+  for (const d of (env.PATH ?? "").split(sep)) {
+    if (!d) continue;
+    for (const ext of exts) {
+      const p = path.join(d, nombre + ext);
+      if (esEjecutable(p)) return p;
+    }
   }
-  const local = path.join(home, ".local", "bin", nombre);
-  return esEjecutable(local) ? local : nombre;
+  for (const ext of exts) {
+    const local = path.join(home, ".local", "bin", nombre + ext);
+    if (esEjecutable(local)) return local;
+  }
+  return nombre;
 }
 
 /** `pa`: `HILOS_PA`, el del PATH o `~/.local/bin/pa`. */

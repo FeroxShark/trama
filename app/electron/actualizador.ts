@@ -42,7 +42,8 @@ type Corrida = { err: string | null; dijo: string | null };
  * rc distinto de 0 la ventana queda esperando Enter, así se ve el error. Sin terminal (ENOENT) no corre nada y lo dice. Texto como clave de `main.*` (electron/errores.ts).
  */
 export function enTerminal(argv: string[], env: NodeJS.ProcessEnv): Promise<Corrida> {
-  const term = process.env.HILOS_TERMINAL ?? "kitty";
+  const esWin = process.platform === "win32";
+  const term = process.env.HILOS_TERMINAL ?? (esWin ? "powershell.exe" : "kitty");
   // Se espera el FIN DEL COMANDO, no el de la ventana: el envoltorio anota su rc en una marca. Con rc 0 la
   // ventana se cierra sola; con rc distinto de 0 espera Enter (y igual se resuelve ya). Sin marca al salir: la cerraron a mano.
   const dir = mkdtempSync(path.join(os.tmpdir(), "trama-act-"));
@@ -73,7 +74,10 @@ export function enTerminal(argv: string[], env: NodeJS.ProcessEnv): Promise<Corr
       cerrar({ err: falla, dijo: falla });
       return true;
     };
-    const p = spawn(term, ["sh", "-c", envoltorio, "sh", marca, ...argv], { env, stdio: "ignore" });
+    const args = esWin
+      ? ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", `& { $m = '${marca.replace(/'/g, "''")}'; & ${argv.map((a) => `'${a.replace(/'/g, "''")}'`).join(" ")}; $rc = if ($LASTEXITCODE -ne $null) { $LASTEXITCODE } else { 0 }; Set-Content -Path ($m + '.tmp') -Value $rc; Move-Item -Force ($m + '.tmp') $m; if ($rc -ne 0) { Read-Host "[rc=$rc] Enter para cerrar" } }`]
+      : ["sh", "-c", envoltorio, "sh", marca, ...argv];
+    const p = spawn(term, args, { env, stdio: "ignore" });
     p.on("error", () => cerrar({ err: textoT("main.terminalNo", { t: term }), dijo: null }));
     p.on("exit", () => {
       if (!mirar()) cerrar({ err: null, dijo: textoT("main.terminalCerro") });

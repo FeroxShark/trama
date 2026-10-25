@@ -17,8 +17,9 @@ import { crearCanal, negar, type OpcionesCanal } from "./remoto.js";
  */
 export function carpetaLocal(env: NodeJS.ProcessEnv = process.env): string {
   if (env.HILOS_LOCAL) return env.HILOS_LOCAL;
-  const base = env.XDG_RUNTIME_DIR || path.join(os.tmpdir(), `trama-${os.userInfo().uid}`);
-  return path.join(base, "trama");
+  const usuario = typeof process.getuid === "function" ? process.getuid() : (os.userInfo().username || "usuario");
+  const base = env.XDG_RUNTIME_DIR || (process.platform === "win32" ? path.join(env.LOCALAPPDATA || os.tmpdir(), "trama") : path.join(os.tmpdir(), `trama-${usuario}`));
+  return process.platform === "win32" ? base : path.join(base, "trama");
 }
 export const socketDe = (carpeta: string) => path.join(carpeta, "motor.sock");
 
@@ -28,7 +29,7 @@ export function prepararCarpeta(carpeta: string) {
   const st = lstatSync(carpeta);
   if (!st.isDirectory() || st.isSymbolicLink()) throw new Error(`${carpeta} no es una carpeta`);
   if (typeof process.getuid === "function" && st.uid !== process.getuid()) throw new Error(`${carpeta} es de otro usuario`);
-  if ((st.mode & 0o777) !== 0o700) chmodSync(carpeta, 0o700);
+  if (process.platform !== "win32" && (st.mode & 0o777) !== 0o700) chmodSync(carpeta, 0o700);
 }
 
 /** ¿Hay alguien escuchando en ese socket? Un archivo que quedó de un motor que murió no contesta. */
@@ -49,6 +50,14 @@ export function hayMotor(sock: string, ms = 1000): Promise<boolean> {
 
 /** El arranque de un proceso (`/proc/<pid>/stat`, campo 22): con el pid, dice que es éste y no otro que reusó el número. */
 export function arranqueDe(pid: number): string | null {
+  if (process.platform === "win32") {
+    try {
+      process.kill(pid, 0);
+      return String(pid);
+    } catch {
+      return null;
+    }
+  }
   try {
     const t = readFileSync(`/proc/${pid}/stat`, "utf8");
     return t.slice(t.lastIndexOf(")") + 2).split(" ")[19] ?? null;

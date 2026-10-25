@@ -40,7 +40,7 @@ const LARGO_TITULO = 500;
 /** Corre `tablero` y devuelve su stdout; si falla, rechaza con lo último que dijo por stderr. */
 function correr(args: string[]): Promise<string> {
   return new Promise((ok, mal) => {
-    execFile(TABLERO, args, { env: ENV, maxBuffer: 32 * 1024 * 1024, timeout: TOPE_MS }, (err, stdout, stderr) => {
+    execFile(TABLERO, args, { env: ENV, maxBuffer: 32 * 1024 * 1024, timeout: TOPE_MS, shell: process.platform === "win32" }, (err, stdout, stderr) => {
       if (!err) return ok(stdout);
       const dijo = String(stderr).trim().split("\n").filter(Boolean).slice(-2).join(" · ");
       mal(new Error(dijo || `tablero ${args[0]}: ${err.message}`));

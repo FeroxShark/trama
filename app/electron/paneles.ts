@@ -21,7 +21,7 @@ import { silencio } from "./log.js";
  */
 export function ejecutar(args: string[], env: NodeJS.ProcessEnv = ENV): Promise<{ rc: number; out: string; dijo: string }> {
   return new Promise((ok) => {
-    execFile(PA, args, { env, maxBuffer: 8 * 1024 * 1024 }, (err, stdout, stderr) => {
+    execFile(PA, args, { env, maxBuffer: 8 * 1024 * 1024, shell: process.platform === "win32" }, (err, stdout, stderr) => {
       const dijo = String(stderr).trim().split("\n").filter(Boolean).slice(-2).join(" · ");
       if (!err) return ok({ rc: 0, out: stdout, dijo });
       ok({

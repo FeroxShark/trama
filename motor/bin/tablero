@@ -13,7 +13,14 @@ Detalle: docs/tablero-cli-de-pendientes-esperas-ideas-y-hecho.md
 """
 import argparse
 import contextlib
-import fcntl
+try:
+    import fcntl
+except ImportError:
+    fcntl = None
+try:
+    import msvcrt
+except ImportError:
+    msvcrt = None
 import functools
 import json
 import os
@@ -334,7 +341,13 @@ def escritura():
     """Lock exclusivo, items leídos adentro del lock y, si hubo cambio, items + vista reescritos."""
     os.makedirs(ARCHIVO, exist_ok=True)
     with open(os.path.join(DIR, ".lock"), "w") as lock:
-        fcntl.flock(lock, fcntl.LOCK_EX)
+        if fcntl is not None:
+            fcntl.flock(lock, fcntl.LOCK_EX)
+        elif msvcrt is not None:
+            try:
+                msvcrt.locking(lock.fileno(), msvcrt.LK_LOCK, 1)
+            except OSError:
+                pass
         preparar_repo()
         tx = Tx(leer_items(estricto=True))
         yield tx
