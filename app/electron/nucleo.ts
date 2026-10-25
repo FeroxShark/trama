@@ -51,7 +51,7 @@ import { capacidades, hayAgy } from "./capacidades.js";
 import { descartarSetup, setupDeEstaMaquina } from "./setup.ts";
 import { alCambiarCupos, refrescarCupos } from "./cupos.js";
 import { cambiarCuentaClaude, conectarNuevaCuenta, listarCuentasClaude } from "./cuentas-claude.js";
-import { listarCatalogo } from "./herramientas-catalogo.js";
+import { abrirUbicacionHerramienta, alternarHerramienta, desinstalarHerramienta, instalarHerramienta, listarCatalogo } from "./herramientas-catalogo.js";
 import { modoLocal } from "./modo-local.js";
 import { DIR, leerStatusline, SESIONES, type Statusline } from "./statusline.js";
 import * as tablero from "./tablero.js";
@@ -881,6 +881,10 @@ export function armarNucleo() {
   manejar("cuentas:claude:cambiar", (_e, id: unknown) => cambiarCuentaClaude(String(id)));
   manejar("cuentas:claude:agregar", () => conectarNuevaCuenta());
   manejar("herramientas:catalogo", () => listarCatalogo());
+  manejar("herramientas:instalar", (_e, item: unknown) => instalarHerramienta(item as any));
+  manejar("herramientas:desinstalar", (_e, id: unknown, tipo: unknown) => desinstalarHerramienta(String(id), String(tipo)));
+  manejar("herramientas:alternar", (_e, id: unknown, tipo: unknown, activo: unknown) => alternarHerramienta(String(id), String(tipo), Boolean(activo)));
+  manejar("herramientas:abrir", (_e, id: unknown, tipo: unknown, ruta: unknown) => abrirUbicacionHerramienta(String(id), String(tipo), typeof ruta === "string" ? ruta : undefined));
 
   // El tablero de pendientes (tablero.ts): se mira su vista desde la primera vez que se pide.
   // Si su carpeta todavía no existe no hay qué mirar: se prueba de nuevo la próxima vez que se pida.

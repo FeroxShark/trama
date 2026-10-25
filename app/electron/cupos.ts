@@ -366,14 +366,16 @@ function leerUsoGeminiDesdeTranscripts(ahoraMs: number): GrupoCupo | null {
     if (files.length === 0) return null;
 
     let tokensHoy = 0;
+    let tokens5h = 0;
     const medianoche = new Date(ahoraMs);
     medianoche.setHours(0, 0, 0, 0);
     const medianocheMs = medianoche.getTime();
+    const cincoHorasAtrasMs = ahoraMs - 5 * 3600 * 1000;
 
     for (const f of files) {
       const full = join(dir, f);
       const st = statSync(full);
-      if (st.mtimeMs < medianocheMs) continue;
+      if (st.mtimeMs < medianocheMs && st.mtimeMs < cincoHorasAtrasMs) continue;
 
       const lines = readFileSync(full, "utf8").split("\n");
       for (const line of lines) {
@@ -381,22 +383,26 @@ function leerUsoGeminiDesdeTranscripts(ahoraMs: number): GrupoCupo | null {
         try {
           const obj = JSON.parse(line);
           const u = obj?.message?.usage || obj?.usage;
+          const ts = obj?.timestamp ? new Date(obj.timestamp).getTime() : st.mtimeMs;
           if (u) {
-            tokensHoy += (Number(u.input_tokens) || 0) + (Number(u.output_tokens) || 0);
+            const tok = (Number(u.input_tokens) || 0) + (Number(u.output_tokens) || 0);
+            if (ts >= medianocheMs) tokensHoy += tok;
+            if (ts >= cincoHorasAtrasMs) tokens5h += tok;
           }
         } catch {}
       }
     }
 
-    // Porcentaje relativo al volumen diario estimado para Gemini Flash (1.000.000 tokens)
-    const pct = Math.max(1, Math.min(100, Math.round((tokensHoy / 1_000_000) * 100)));
+    // Cuota estimada para Gemini 3.8 Flash (50M tokens diarios / 15M en ventana de 5h)
+    const pctSem = Math.max(1, Math.min(100, Math.round((tokensHoy / 50_000_000) * 100)));
+    const pct5h = Math.max(1, Math.min(100, Math.round((tokens5h / 15_000_000) * 100)));
     const msHastaFin = Math.max(1000, 86400000 - (ahoraMs - medianocheMs));
     const vuelveEnS = Math.round(msHastaFin / 1000);
 
     return {
       id: "gemini",
-      semanal: { pct, resetea: ahoraMs + msHastaFin, vuelveEnS },
-      cincoH: { pct, vuelveEnS },
+      semanal: { pct: pctSem, resetea: ahoraMs + msHastaFin, vuelveEnS },
+      cincoH: { pct: pct5h, vuelveEnS: Math.min(vuelveEnS, 5 * 3600) },
     };
   } catch {
     return null;

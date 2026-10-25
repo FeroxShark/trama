@@ -1,7 +1,23 @@
 import { useEffect, useMemo, useState } from "react";
-import { Search, Wrench, Sparkles, Box, Terminal, Bot, CheckCircle2, ShieldCheck, ExternalLink } from "lucide-react";
+import {
+  Search,
+  Sparkles,
+  Box,
+  Terminal,
+  Bot,
+  CheckCircle2,
+  ShieldCheck,
+  ExternalLink,
+  FolderOpen,
+  Pause,
+  Play,
+  Trash2,
+  Download,
+  Plus,
+  Loader2,
+  X,
+} from "lucide-react";
 import { fuentePaneles } from "../datos/paneles";
-import { t } from "../i18n";
 import { useIdioma } from "../i18n/react";
 import { mensaje } from "../puente";
 import type { FilaDato } from "./AjustesEditar";
@@ -19,6 +35,9 @@ export interface ItemCatalogo {
   categoria?: string;
   autor?: string;
   comando?: string;
+  ruta?: string;
+  repoUrl?: string;
+  paquete?: string;
 }
 
 interface DatosCatalogo {
@@ -26,7 +45,7 @@ interface DatosCatalogo {
   descubrir: ItemCatalogo[];
 }
 
-export function AjustesHerramientas({ Dato }: { Dato?: FilaDato }) {
+export function AjustesHerramientas({ Dato: _Dato }: { Dato?: FilaDato }) {
   useIdioma();
   const [datos, setDatos] = useState<DatosCatalogo | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -35,26 +54,132 @@ export function AjustesHerramientas({ Dato }: { Dato?: FilaDato }) {
   const [vista, setVista] = useState<"instalados" | "descubrir">("instalados");
   const [filtroTipo, setFiltroTipo] = useState<"todos" | TipoItem>("todos");
 
-  useEffect(() => {
-    let vivo = true;
-    setCargando(true);
+  // Estado de acción en curso (id de item que se está instalando/desinstalando)
+  const [accionando, setAccionando] = useState<string | null>(null);
+  const [avisoExito, setAvisoExito] = useState<string | null>(null);
+
+  // Formulario manual
+  const [mostrarManual, setMostrarManual] = useState(false);
+  const [manualTipo, setManualTipo] = useState<"mcp" | "skill">("mcp");
+  const [manualNombre, setManualNombre] = useState("");
+  const [manualComando, setManualComando] = useState("");
+  const [manualDesc, setManualDesc] = useState("");
+
+  const cargar = (silencioso = false) => {
+    if (!silencioso) setCargando(true);
     fuentePaneles.herramientas
       .catalogo()
       .then((cat) => {
-        if (!vivo) return;
         setDatos(cat);
         setError(null);
       })
       .catch((e) => {
-        if (vivo) setError(mensaje(e));
+        setError(mensaje(e));
       })
       .finally(() => {
-        if (vivo) setCargando(false);
+        if (!silencioso) setCargando(false);
       });
-    return () => {
-      vivo = false;
-    };
+  };
+
+  useEffect(() => {
+    cargar();
   }, []);
+
+  const notificar = (msg: string) => {
+    setAvisoExito(msg);
+    setTimeout(() => setAvisoExito(null), 4000);
+  };
+
+  const handleAlternar = async (item: ItemCatalogo) => {
+    setAccionando(item.id);
+    try {
+      const res = await fuentePaneles.herramientas.alternar(item.id, item.tipo, !item.activo);
+      if (res && !res.ok) throw new Error(res.error || "No se pudo cambiar el estado.");
+      notificar(`${item.nombre} ahora está ${!item.activo ? "activo" : "pausado"}.`);
+      cargar(true);
+    } catch (err) {
+      setError(mensaje(err));
+    } finally {
+      setAccionando(null);
+    }
+  };
+
+  const handleAbrir = async (item: ItemCatalogo) => {
+    try {
+      await fuentePaneles.herramientas.abrir(item.id, item.tipo, item.ruta);
+    } catch (err) {
+      setError(mensaje(err));
+    }
+  };
+
+  const handleDesinstalar = async (item: ItemCatalogo) => {
+    if (!window.confirm(`¿Seguro que querés desinstalar ${item.nombre}?`)) return;
+    setAccionando(item.id);
+    try {
+      const res = await fuentePaneles.herramientas.desinstalar(item.id, item.tipo);
+      if (res && !res.ok) throw new Error(res.error || "No se pudo desinstalar.");
+      notificar(`${item.nombre} fue desinstalado.`);
+      cargar();
+    } catch (err) {
+      setError(mensaje(err));
+    } finally {
+      setAccionando(null);
+    }
+  };
+
+  const handleInstalar = async (item: ItemCatalogo) => {
+    setAccionando(item.id);
+    try {
+      const res = await fuentePaneles.herramientas.instalar(item);
+      if (res && !res.ok) throw new Error(res.error || "Error durante la instalación.");
+      notificar(`¡${item.nombre} se instaló correctamente!`);
+      cargar();
+      setVista("instalados");
+    } catch (err) {
+      setError(mensaje(err));
+    } finally {
+      setAccionando(null);
+    }
+  };
+
+  const handleCrearManual = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!manualNombre.trim() || !manualComando.trim()) return;
+
+    setAccionando("manual");
+    try {
+      const id = `${manualTipo}:${manualNombre.trim().toLowerCase().replace(/\s+/g, "-")}`;
+      const item: any = {
+        id,
+        nombre: manualNombre.trim(),
+        tipo: manualTipo,
+        descripcion: manualDesc.trim() || undefined,
+        ...(manualTipo === "mcp"
+          ? manualComando.trim().startsWith("http")
+            ? { url: manualComando.trim() }
+            : manualComando.trim().startsWith("@") || !manualComando.includes(" ")
+            ? { paquete: manualComando.trim() }
+            : { comando: manualComando.trim() }
+          : manualComando.trim().startsWith("http") || manualComando.trim().includes("github.com")
+          ? { repoUrl: manualComando.trim() }
+          : { descripcion: manualComando.trim() }),
+      };
+
+      const res = await fuentePaneles.herramientas.instalar(item);
+      if (res && !res.ok) throw new Error(res.error || "No se pudo instalar.");
+      notificar(`¡${manualNombre} se agregó e instaló correctamente!`);
+      setManualNombre("");
+      setManualComando("");
+      setManualDesc("");
+      setMostrarManual(false);
+      cargar();
+      setVista("instalados");
+    } catch (err) {
+      setError(mensaje(err));
+    } finally {
+      setAccionando(null);
+    }
+  };
 
   const listaActual = useMemo(() => {
     if (!datos) return [];
@@ -70,6 +195,7 @@ export function AjustesHerramientas({ Dato }: { Dato?: FilaDato }) {
         item.nombre.toLowerCase().includes(q) ||
         item.descripcion.toLowerCase().includes(q) ||
         item.id.toLowerCase().includes(q) ||
+        (item.comando && item.comando.toLowerCase().includes(q)) ||
         (item.categoria && item.categoria.toLowerCase().includes(q)) ||
         (item.origen && item.origen.toLowerCase().includes(q))
       );
@@ -108,10 +234,12 @@ export function AjustesHerramientas({ Dato }: { Dato?: FilaDato }) {
         <div>
           <h2 className="pn-h">Herramientas, Skills y MCPs</h2>
           <p className="pn-intro">
-            Gestión e inspección en vivo de servidores MCP, habilidades cognitivas instaladas y herramientas del sistema.
+            Gestión interactiva e inspección de servidores MCP, habilidades de Claude y Gemini, y herramientas del sistema.
           </p>
         </div>
       </div>
+
+      {avisoExito ? <div className="pn-aviso-exito">{avisoExito}</div> : null}
 
       {/* Buscador reactivo */}
       <div className="pn-catalogo-buscar">
@@ -119,7 +247,7 @@ export function AjustesHerramientas({ Dato }: { Dato?: FilaDato }) {
         <input
           type="search"
           value={busqueda}
-          placeholder="Buscar por nombre, descripción, tag o comando..."
+          placeholder="Buscar por nombre, descripción, tag, paquete o comando..."
           onChange={(e) => setBusqueda(e.target.value)}
           className="pn-catalogo-input"
           aria-label="Buscar herramientas"
@@ -131,27 +259,85 @@ export function AjustesHerramientas({ Dato }: { Dato?: FilaDato }) {
         ) : null}
       </div>
 
-      {/* Selector de Vistas: Instaladas vs Descubrir */}
-      <div className="pn-catalogo-tabs">
+      {/* Selector de Vistas y botón de instalación manual */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
+        <div className="pn-catalogo-tabs">
+          <button
+            type="button"
+            className="pn-catalogo-tab"
+            data-activo={vista === "instalados" ? "" : undefined}
+            onClick={() => setVista("instalados")}
+          >
+            <CheckCircle2 size={14} />
+            Instaladas ({datos?.instalados.length ?? 0})
+          </button>
+          <button
+            type="button"
+            className="pn-catalogo-tab"
+            data-activo={vista === "descubrir" ? "" : undefined}
+            onClick={() => setVista("descubrir")}
+          >
+            <Sparkles size={14} />
+            Descubrir ({datos?.descubrir.length ?? 0})
+          </button>
+        </div>
+
         <button
           type="button"
-          className="pn-catalogo-tab"
-          data-activo={vista === "instalados" ? "" : undefined}
-          onClick={() => setVista("instalados")}
+          className="pn-btn-manual"
+          onClick={() => setMostrarManual(!mostrarManual)}
         >
-          <CheckCircle2 size={14} />
-          Instaladas ({datos?.instalados.length ?? 0})
-        </button>
-        <button
-          type="button"
-          className="pn-catalogo-tab"
-          data-activo={vista === "descubrir" ? "" : undefined}
-          onClick={() => setVista("descubrir")}
-        >
-          <Sparkles size={14} />
-          Descubrir ({datos?.descubrir.length ?? 0})
+          {mostrarManual ? <X size={14} /> : <Plus size={14} />}
+          {mostrarManual ? "Cerrar" : "Instalar manual"}
         </button>
       </div>
+
+      {/* Formulario de instalación manual */}
+      {mostrarManual ? (
+        <form onSubmit={handleCrearManual} className="pn-panel-manual">
+          <div className="pn-panel-manual-cab">
+            <span className="pn-panel-manual-titulo">Agregar MCP o Skill personalizado</span>
+          </div>
+          <div className="pn-panel-manual-campos">
+            <select
+              value={manualTipo}
+              onChange={(e) => setManualTipo(e.target.value as any)}
+              className="pn-panel-manual-select"
+            >
+              <option value="mcp">Servidor MCP</option>
+              <option value="skill">Skill</option>
+            </select>
+            <input
+              type="text"
+              placeholder="Nombre / ID (ej: postgres, mi-skill)"
+              value={manualNombre}
+              onChange={(e) => setManualNombre(e.target.value)}
+              className="pn-panel-manual-input"
+              required
+            />
+            <input
+              type="text"
+              placeholder={
+                manualTipo === "mcp"
+                  ? "Comando, paquete npm o URL (ej: npx @modelcontextprotocol/...)"
+                  : "URL Git de la skill o descripción técnica"
+              }
+              value={manualComando}
+              onChange={(e) => setManualComando(e.target.value)}
+              className="pn-panel-manual-input"
+              required
+            />
+            <button
+              type="submit"
+              className="pn-btn-accion pn-btn-primario"
+              disabled={accionando === "manual"}
+            >
+              {accionando === "manual" ? <Loader2 size={12} className="pn-spin" /> : <Plus size={12} />}
+              Instalar
+            </button>
+          </div>
+        </form>
+      ) : null}
 
       {/* Filtros rápidos por tipo */}
       <div className="pn-catalogo-filtros">
@@ -201,7 +387,7 @@ export function AjustesHerramientas({ Dato }: { Dato?: FilaDato }) {
                     <ShieldCheck size={12} /> Activo
                   </span>
                 ) : item.instalado ? (
-                  <span className="pn-tag-instalado">Instalado</span>
+                  <span className="pn-tag-instalado">Pausado</span>
                 ) : (
                   <span className="pn-tag-disponible">Disponible</span>
                 )}
@@ -216,6 +402,76 @@ export function AjustesHerramientas({ Dato }: { Dato?: FilaDato }) {
               ) : null}
 
               {item.autor ? <div className="pn-catalogo-autor">Por {item.autor}</div> : null}
+
+              {/* Botones de acción interactiva */}
+              <div className="pn-catalogo-acciones">
+                {vista === "instalados" ? (
+                  <>
+                    <button
+                      type="button"
+                      className="pn-btn-accion"
+                      onClick={() => handleAbrir(item)}
+                      title="Abrir carpeta o archivo de configuración"
+                    >
+                      <FolderOpen size={12} />
+                      Ubicación
+                    </button>
+                    {item.tipo === "mcp" || item.tipo === "skill" ? (
+                      <button
+                        type="button"
+                        className="pn-btn-accion"
+                        data-activo={item.activo ? "" : undefined}
+                        onClick={() => handleAlternar(item)}
+                        disabled={accionando === item.id}
+                        title={item.activo ? "Pausar herramienta" : "Activar herramienta"}
+                      >
+                        {item.activo ? <Pause size={12} /> : <Play size={12} />}
+                        {item.activo ? "Pausar" : "Activar"}
+                      </button>
+                    ) : null}
+                    {item.tipo === "mcp" || item.tipo === "skill" ? (
+                      <button
+                        type="button"
+                        className="pn-btn-accion pn-btn-peligro"
+                        onClick={() => handleDesinstalar(item)}
+                        disabled={accionando === item.id}
+                        title="Desinstalar herramienta o skill"
+                      >
+                        <Trash2 size={12} />
+                        Desinstalar
+                      </button>
+                    ) : null}
+                  </>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      className="pn-btn-accion pn-btn-primario"
+                      onClick={() => handleInstalar(item)}
+                      disabled={accionando === item.id}
+                    >
+                      {accionando === item.id ? (
+                        <Loader2 size={12} className="pn-spin" />
+                      ) : (
+                        <Download size={12} />
+                      )}
+                      {accionando === item.id ? "Instalando..." : "Instalar"}
+                    </button>
+                    {item.repoUrl ? (
+                      <a
+                        href={item.repoUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="pn-btn-accion"
+                        title="Ver repositorio o documentación oficial"
+                      >
+                        <ExternalLink size={12} />
+                        Docs
+                      </a>
+                    ) : null}
+                  </>
+                )}
+              </div>
             </div>
           ))}
         </div>

@@ -159,9 +159,13 @@ export interface FuentePaneles {
   /** Catálogo de MCPs, Skills y Herramientas */
   herramientas: {
     catalogo(): Promise<{
-      instalados: { id: string; nombre: string; tipo: "mcp" | "skill" | "herramienta" | "lider"; descripcion: string; instalado: boolean; activo: boolean; origen: string; categoria?: string; autor?: string; comando?: string }[];
-      descubrir: { id: string; nombre: string; tipo: "mcp" | "skill" | "herramienta" | "lider"; descripcion: string; instalado: boolean; activo: boolean; origen: string; categoria?: string; autor?: string; comando?: string }[];
+      instalados: { id: string; nombre: string; tipo: "mcp" | "skill" | "herramienta" | "lider"; descripcion: string; instalado: boolean; activo: boolean; origen: string; categoria?: string; autor?: string; comando?: string; ruta?: string; repoUrl?: string; paquete?: string }[];
+      descubrir: { id: string; nombre: string; tipo: "mcp" | "skill" | "herramienta" | "lider"; descripcion: string; instalado: boolean; activo: boolean; origen: string; categoria?: string; autor?: string; comando?: string; ruta?: string; repoUrl?: string; paquete?: string }[];
     }>;
+    instalar(item: unknown): Promise<{ ok: boolean; error?: string }>;
+    desinstalar(id: string, tipo: string): Promise<{ ok: boolean; error?: string }>;
+    alternar(id: string, tipo: string, activo: boolean): Promise<{ ok: boolean; error?: string }>;
+    abrir(id: string, tipo: string, ruta?: string): Promise<{ ok: boolean; error?: string }>;
   };
 }
 
@@ -469,6 +473,18 @@ const fija: FuentePaneles = {
         ],
       };
     },
+    async instalar(_item: unknown) {
+      return { ok: true };
+    },
+    async desinstalar(_id: string, _tipo: string) {
+      return { ok: true };
+    },
+    async alternar(_id: string, _tipo: string, _activo: boolean) {
+      return { ok: true };
+    },
+    async abrir(_id: string, _tipo: string, _ruta?: string) {
+      return { ok: true };
+    },
   },
 };
 
@@ -663,6 +679,22 @@ const conPa = (m: NonNullable<typeof main>): FuentePaneles => ({
     async catalogo() {
       if (!m.herramientas) return fija.herramientas.catalogo();
       return (await m.herramientas.catalogo().catch(fallar)) as any;
+    },
+    async instalar(item: unknown) {
+      if (!m.herramientas?.instalar) return fija.herramientas.instalar(item);
+      return (await m.herramientas.instalar(item).catch(fallar)) as any;
+    },
+    async desinstalar(id: string, tipo: string) {
+      if (!m.herramientas?.desinstalar) return fija.herramientas.desinstalar(id, tipo);
+      return (await m.herramientas.desinstalar(id, tipo).catch(fallar)) as any;
+    },
+    async alternar(id: string, tipo: string, activo: boolean) {
+      if (!m.herramientas?.alternar) return fija.herramientas.alternar(id, tipo, activo);
+      return (await m.herramientas.alternar(id, tipo, activo).catch(fallar)) as any;
+    },
+    async abrir(id: string, tipo: string, ruta?: string) {
+      if (!m.herramientas?.abrir) return fija.herramientas.abrir(id, tipo, ruta);
+      return (await m.herramientas.abrir(id, tipo, ruta).catch(fallar)) as any;
     },
   },
 });

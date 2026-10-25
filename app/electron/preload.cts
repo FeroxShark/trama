@@ -203,6 +203,10 @@ contextBridge.exposeInMainWorld("hilos", {
   /** Catálogo de herramientas, MCPs y Skills (Instalados y Descubrir). */
   herramientas: {
     catalogo: (): Promise<unknown> => ipcRenderer.invoke("herramientas:catalogo"),
+    instalar: (item: unknown): Promise<unknown> => ipcRenderer.invoke("herramientas:instalar", item),
+    desinstalar: (id: string, tipo: string): Promise<unknown> => ipcRenderer.invoke("herramientas:desinstalar", id, tipo),
+    alternar: (id: string, tipo: string, activo: boolean): Promise<unknown> => ipcRenderer.invoke("herramientas:alternar", id, tipo, activo),
+    abrir: (id: string, tipo: string, ruta?: string): Promise<unknown> => ipcRenderer.invoke("herramientas:abrir", id, tipo, ruta),
   },
   /** Sólo por la tailnet (lo arma electron/remoto-cliente.ts; en la ventana no llega nunca): `false` = se cayó la conexión con la PC. */
   conexion: {

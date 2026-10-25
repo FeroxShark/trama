@@ -278,6 +278,10 @@ type Main = {
   /** Catálogo de herramientas, MCPs y Skills (Instalados y Descubrir) */
   herramientas?: {
     catalogo(): Promise<unknown>;
+    instalar(item: unknown): Promise<unknown>;
+    desinstalar(id: string, tipo: string): Promise<unknown>;
+    alternar(id: string, tipo: string, activo: boolean): Promise<unknown>;
+    abrir(id: string, tipo: string, ruta?: string): Promise<unknown>;
   };
   /** El tablero de pendientes del usuario (electron/tablero.ts): `leer`, sin validar; el resto corre el CLI `tablero`. */
   tablero: {
