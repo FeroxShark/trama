@@ -58,9 +58,19 @@ def agy():
     ruta = en_path(os.environ.get("TRAMA_AGY", "agy"))
     if not ruta:
         return {"instalado": False, "logueado": False}
-    # agy guarda el login de Google en ~/.gemini/oauth_creds.json (la cuenta, no una API key).
-    cred = os.path.join(HOME, ".gemini", "oauth_creds.json")
-    return {"instalado": True, "logueado": os.path.isfile(cred) and os.path.getsize(cred) > 2}
+    # agy guarda el token de Google en antigravity-oauth-token o oauth_creds.json
+    candidatos = [
+        os.path.join(HOME, ".gemini", "antigravity-cli", "antigravity-oauth-token"),
+        os.path.join(HOME, ".gemini", "oauth_creds.json"),
+        os.path.join(HOME, ".gemini", "google_accounts.json"),
+    ]
+    user_prof = os.environ.get("USERPROFILE")
+    if user_prof:
+        candidatos.append(os.path.join(user_prof, ".gemini", "antigravity-cli", "antigravity-oauth-token"))
+        candidatos.append(os.path.join(user_prof, ".gemini", "oauth_creds.json"))
+        candidatos.append(os.path.join(user_prof, ".gemini", "google_accounts.json"))
+    logueado = any(os.path.isfile(c) and os.path.getsize(c) > 2 for c in candidatos)
+    return {"instalado": True, "logueado": logueado}
 
 
 def modelos_json():
