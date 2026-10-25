@@ -249,6 +249,50 @@ async function turno(texto: string) {
   const lado = leerLado();
   // Lo hablado hasta ahora, antes de anotar este mensaje (por si hay que empezar una conversación nueva).
   const previo = hablado();
+
+  if (texto.trim() === "/compact") {
+    salir({ type: "system", subtype: "status", status: "compacting", session_id: sid });
+    const preTokens = Math.max(500, Math.round(previo.length / 4));
+    const boundary = {
+      type: "system",
+      subtype: "compact_boundary",
+      session_id: sid,
+      compactMetadata: { trigger: "manual", preTokens },
+    };
+    salir(boundary);
+    anotar(boundary);
+    guardarLado("");
+    const resumenMsg = {
+      type: "assistant",
+      message: {
+        id: `msg_agy_${Date.now()}`,
+        role: "assistant",
+        model: modelo,
+        content: [{ type: "text", text: "Conversación compactada. El contexto previo fue resumido para continuar con contexto limpio." }],
+        usage: { input_tokens: 0, output_tokens: 20 },
+      },
+      session_id: sid,
+      parent_tool_use_id: null,
+    };
+    salir(resumenMsg);
+    anotar(resumenMsg);
+    salir({
+      type: "result",
+      subtype: "success",
+      is_error: false,
+      result: "Conversación compactada.",
+      usage: { input_tokens: 0, output_tokens: 20 },
+      session_id: sid,
+      parent_tool_use_id: null,
+    });
+    ocupado = false;
+    anotarSesion("idle");
+    const siguiente = cola.shift();
+    if (siguiente !== undefined) void turno(siguiente);
+    else if (stdinCerrado) terminar(0);
+    return;
+  }
+
   anotar({ type: "user", message: { role: "user", content: texto } });
   const conPrefacio = (t: string, repetir: string) => {
     const partes = [prefacio];

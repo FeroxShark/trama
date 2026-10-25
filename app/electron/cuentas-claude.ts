@@ -159,12 +159,13 @@ export function cambiarCuentaClaude(id: string): { ok: boolean; email?: string; 
  * Abre una terminal para iniciar sesión con una nueva cuenta de Claude
  * sin perder las credenciales de la cuenta actual.
  */
-export async function conectarNuevaCuenta(): Promise<{ ok: boolean; error?: string }> {
+export async function conectarNuevaCuenta(): Promise<{ ok: boolean; email?: string; error?: string }> {
   // Asegurar que la actual esté guardada
   asegurarCuentaActual();
+  const emailAntes = leerEmailActual();
 
   const claudeBin = resolverBinario("claude", "HILOS_CLAUDE", process.env, HOME);
-  const res = await enTerminal([claudeBin, "login"], process.env as NodeJS.ProcessEnv);
+  const res = await enTerminal([claudeBin, "auth", "login"], process.env as NodeJS.ProcessEnv);
 
   if (res.err) {
     return { ok: false, error: res.err };
@@ -174,7 +175,8 @@ export async function conectarNuevaCuenta(): Promise<{ ok: boolean; error?: stri
   const nuevoEmail = leerEmailActual();
   if (nuevoEmail) {
     asegurarCuentaActual();
-    return { ok: true };
+    log.escribir("info", "cuentas", `Login completado. Anterior: ${emailAntes ?? "ninguno"}, Nuevo: ${nuevoEmail}`);
+    return { ok: true, email: nuevoEmail };
   }
 
   return { ok: false, error: "No se detectó una nueva sesión de Claude" };

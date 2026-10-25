@@ -59,11 +59,12 @@ export const PROPIOS: { nombre: string; args: string | null; clave: ClaveComando
   { nombre: "output-style", args: "<style>", clave: "comando.outputStyle" },
 ];
 
-/** Los de un líder de `agy` (`gemini-*` o `agy:*`): sólo lo que funciona con `agy` (`/clear`, `/model` entre los de `agy` y `/effort`). */
+/** Los de un líder de `agy` (`gemini-*` o `agy:*`): lo que funciona con `agy` (`/clear`, `/model`, `/effort` y `/compact`). */
 export const PROPIOS_AGY: { nombre: string; args: string | null; clave: ClaveComando }[] = [
   { nombre: "clear", args: null, clave: "comando.clear" },
   { nombre: "model", args: "<gemini-4-argon|gemini-3.8-flash>", clave: "comando.model" },
   { nombre: "effort", args: "<low|medium|high>", clave: "comando.effort" },
+  { nombre: "compact", args: null, clave: "comando.compact" },
 ];
 
 /** ¿El modelo corre por `agy` (`gemini-*` o `agy:*`)? Ollama (`ollama:*`) y los de Claude o GPU local corren por `claude`. */

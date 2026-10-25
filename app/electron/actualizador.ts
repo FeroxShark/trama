@@ -8,7 +8,7 @@
 // (paru). Los usos: electron/actualizacion.ts (claude) y electron/actualizacion-agy.ts (agy, en terminal).
 //   HILOS_TERMINAL  la terminal de Actualizar en terminal (en la prueba, un falso). Por default, kitty.
 import { execFile, spawn } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -38,17 +38,54 @@ export type Actualizado = { ok: true; version: string } | { ok: false; error: st
 type Corrida = { err: string | null; dijo: string | null };
 
 /**
+ * Resuelve qué terminal y argumentos usar para abrir una ventana interactiva.
+ * En WSL usa cmd.exe con `start /wait wsl.exe` para que aparezca una ventana nativa de Windows.
+ */
+function resolverComandoTerminal(argv: string[], marca: string, envoltorio: string, esWin: boolean): { exe: string; args: string[] } {
+  if (process.env.HILOS_TERMINAL) {
+    return { exe: process.env.HILOS_TERMINAL, args: ["sh", "-c", envoltorio, "sh", marca, ...argv] };
+  }
+  if (esWin) {
+    const psArgs = [
+      "-NoProfile",
+      "-ExecutionPolicy",
+      "Bypass",
+      "-Command",
+      `& { $m = '${marca.replace(/'/g, "''")}'; & ${argv.map((a) => `'${a.replace(/'/g, "''")}'`).join(" ")}; $rc = if ($LASTEXITCODE -ne $null) { $LASTEXITCODE } else { 0 }; Set-Content -Path ($m + '.tmp') -Value $rc; Move-Item -Force ($m + '.tmp') $m; if ($rc -ne 0) { Read-Host "[rc=$rc] Enter para cerrar" } }`,
+    ];
+    return { exe: "powershell.exe", args: psArgs };
+  }
+  const cmdWsl = "/mnt/c/Windows/System32/cmd.exe";
+  if (existsSync(cmdWsl)) {
+    return {
+      exe: cmdWsl,
+      args: ["/c", "start", "", "/wait", "wsl.exe", "-e", "sh", "-c", envoltorio, "sh", marca, ...argv],
+    };
+  }
+  const candidatos = ["kitty", "x-terminal-emulator", "gnome-terminal", "konsole", "alacritty", "wezterm", "xterm"];
+  for (const c of candidatos) {
+    try {
+      const paths = (process.env.PATH ?? "").split(path.delimiter);
+      if (paths.some((p) => existsSync(path.join(p, c)))) {
+        return { exe: c, args: ["sh", "-c", envoltorio, "sh", marca, ...argv] };
+      }
+    } catch {}
+  }
+  return { exe: "kitty", args: ["sh", "-c", envoltorio, "sh", marca, ...argv] };
+}
+
+/**
  * Abre `<terminal> sh -c <envoltorio> sh <marca> <argv>` y espera a que el comando termine (marca con su rc): con
  * rc distinto de 0 la ventana queda esperando Enter, así se ve el error. Sin terminal (ENOENT) no corre nada y lo dice. Texto como clave de `main.*` (electron/errores.ts).
  */
 export function enTerminal(argv: string[], env: NodeJS.ProcessEnv): Promise<Corrida> {
   const esWin = process.platform === "win32";
-  const term = process.env.HILOS_TERMINAL ?? (esWin ? "powershell.exe" : "kitty");
   // Se espera el FIN DEL COMANDO, no el de la ventana: el envoltorio anota su rc en una marca. Con rc 0 la
   // ventana se cierra sola; con rc distinto de 0 espera Enter (y igual se resuelve ya). Sin marca al salir: la cerraron a mano.
   const dir = mkdtempSync(path.join(os.tmpdir(), "trama-act-"));
   const marca = path.join(dir, "rc");
   const envoltorio = 'm=$1; shift; "$@"; rc=$?; echo $rc > "$m.tmp" && mv "$m.tmp" "$m"; [ $rc -eq 0 ] || { printf "\\n[rc=%s] Enter para cerrar " $rc; read _; }';
+  const { exe: term, args } = resolverComandoTerminal(argv, marca, envoltorio, esWin);
   return new Promise((listo) => {
     let fin = false;
     let reloj: NodeJS.Timeout | undefined;
@@ -74,9 +111,6 @@ export function enTerminal(argv: string[], env: NodeJS.ProcessEnv): Promise<Corr
       cerrar({ err: falla, dijo: falla });
       return true;
     };
-    const args = esWin
-      ? ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", `& { $m = '${marca.replace(/'/g, "''")}'; & ${argv.map((a) => `'${a.replace(/'/g, "''")}'`).join(" ")}; $rc = if ($LASTEXITCODE -ne $null) { $LASTEXITCODE } else { 0 }; Set-Content -Path ($m + '.tmp') -Value $rc; Move-Item -Force ($m + '.tmp') $m; if ($rc -ne 0) { Read-Host "[rc=$rc] Enter para cerrar" } }`]
-      : ["sh", "-c", envoltorio, "sh", marca, ...argv];
     const p = spawn(term, args, { env, stdio: "ignore" });
     p.on("error", () => cerrar({ err: textoT("main.terminalNo", { t: term }), dijo: null }));
     p.on("exit", () => {
