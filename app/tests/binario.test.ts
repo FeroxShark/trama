@@ -31,3 +31,7 @@ test("el PATH de pa lleva ~/.local/bin adelante, una sola vez", () => {
   assert.equal(env.OTRA, "1");
   assert.equal(env.PATH, "/home/ana/.local/bin:/usr/bin");
 });
+
+test("el PATH de pa con delimitador de Windows (;)", () => {
+  assert.equal(pathConLocal({ PATH: "C:\\Windows\\system32;C:\\Program Files\\nodejs" }, "C:\\Users\\ana"), "C:\\Users\\ana\\.local\\bin;C:\\Windows\\system32;C:\\Program Files\\nodejs");
+});

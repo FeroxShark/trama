@@ -36,7 +36,7 @@ const MAX_BUFFER = 64 * 1024 * 1024;
 /** Corre `pa` y devuelve su stdout; si falla, rechaza con lo último que dijo por stderr. */
 function correr(args: string[], env: NodeJS.ProcessEnv = ENV): Promise<string> {
   return new Promise((ok, mal) => {
-    execFile(PA, args, { maxBuffer: MAX_BUFFER, env }, (err, stdout, stderr) => {
+    execFile(PA, args, { maxBuffer: MAX_BUFFER, env, shell: process.platform === "win32" }, (err, stdout, stderr) => {
       if (!err) return ok(stdout);
       const dijo = String(stderr).trim().split("\n").filter(Boolean).slice(-2).join(" · ");
       mal(new Error(dijo || `${path.basename(PA)} ${args[0]}: ${err.message}`));

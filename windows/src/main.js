@@ -12,6 +12,7 @@ const wslReal = require("./wsl");
 const { crearGuardiaFoco } = require("./foco");
 const { iniciarActualizador } = require("./actualizar");
 const { crearLimpieza } = require("./limpieza");
+const { crearMotorNativo } = require("./nativo");
 
 // TRAMA_CAPTURA=<png> (sólo para la prueba de arranque sin Windows): offscreen, foto a los 4 s y sale.
 const CAPTURA = process.env.TRAMA_CAPTURA || "";
@@ -83,6 +84,12 @@ const wslconfig = {
 
 const vivo = wslReal.mantenerVivo(DISTRO);
 const guardiaFoco = crearGuardiaFoco();
+
+const motorNativo = crearMotorNativo({
+  payloadDir: dirPayload(),
+  env: process.env,
+  log,
+});
 
 const limpieza = crearLimpieza({ wsl: wslReal.wsl, win: wslReal.entornoWindows(), estado: store, version: app.getVersion(), distro: DISTRO });
 
@@ -334,7 +341,10 @@ app.on("second-instance", () => {
   if (ventana.isMinimized()) ventana.restore();
   ventana.focus();
 });
-app.on("before-quit", () => vivo.parar());
+app.on("before-quit", () => {
+  vivo.parar();
+  motorNativo.parar();
+});
 app.on("window-all-closed", () => app.quit());
 
 app.whenReady().then(async () => {
@@ -347,6 +357,18 @@ app.whenReady().then(async () => {
     return;
   }
   arrancar();
+
+  if (motorNativo.motorJs) {
+    motorNativo.arrancar();
+    for (let i = 0; i < 30; i++) {
+      if (await motorNativo.estaVivo()) {
+        log(`Motor nativo respondiendo en ${motorNativo.MOTOR_URL}`);
+        cargarMotor(motorNativo.MOTOR_URL);
+        break;
+      }
+      await new Promise((r) => setTimeout(r, 200));
+    }
+  }
   const u = iniciarActualizador({
     app,
     recursos: process.resourcesPath,
