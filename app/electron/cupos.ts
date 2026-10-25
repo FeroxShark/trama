@@ -1,9 +1,10 @@
 import { execFile } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { entornoPa, resolverBinario, resolverPa } from "./binario.js";
+import { ESTADO } from "./estado.js";
 
 const execFileP = promisify(execFile);
 
@@ -343,7 +344,63 @@ async function consultarCupos(): Promise<CuposLeidos | null> {
   } catch {
     // sin cupos disponibles
   }
+
+  // Fallback reactivo con el uso real de Gemini 3.8 Flash desde los transcripts de agy
+  const geminiReal = leerUsoGeminiDesdeTranscripts(Date.now());
+  if (geminiReal) {
+    return {
+      ts: Date.now(),
+      google: [geminiReal],
+    };
+  }
+
   return null;
+}
+
+function leerUsoGeminiDesdeTranscripts(ahoraMs: number): GrupoCupo | null {
+  const dir = join(ESTADO, "gemini");
+  if (!existsSync(dir)) return null;
+
+  try {
+    const files = readdirSync(dir).filter((f) => f.endsWith(".jsonl"));
+    if (files.length === 0) return null;
+
+    let tokensHoy = 0;
+    const medianoche = new Date(ahoraMs);
+    medianoche.setHours(0, 0, 0, 0);
+    const medianocheMs = medianoche.getTime();
+
+    for (const f of files) {
+      const full = join(dir, f);
+      const st = statSync(full);
+      if (st.mtimeMs < medianocheMs) continue;
+
+      const lines = readFileSync(full, "utf8").split("\n");
+      for (const line of lines) {
+        if (!line.includes('"usage"')) continue;
+        try {
+          const obj = JSON.parse(line);
+          const u = obj?.message?.usage || obj?.usage;
+          if (u) {
+            tokensHoy += (Number(u.input_tokens) || 0) + (Number(u.output_tokens) || 0);
+          }
+        } catch {}
+      }
+    }
+
+    // Porcentaje relativo al volumen diario estimado para Gemini Flash (1.000.000 tokens)
+    const pct = Math.max(1, Math.min(100, Math.round((tokensHoy / 1_000_000) * 100)));
+    const msHastaFin = Math.max(1000, 86400000 - (ahoraMs - medianocheMs));
+    const vuelveEnS = Math.round(msHastaFin / 1000);
+
+    return {
+      id: "gemini",
+      semanal: { pct, resetea: ahoraMs + msHastaFin, vuelveEnS },
+      cincoH: { pct, vuelveEnS },
+    };
+  } catch {
+    return null;
+  }
 }
 
 /** Dispara un refresco en segundo plano si venció el TTL o si `forzar` es true. */

@@ -4,6 +4,7 @@
 // y Cancelar que vuelve a lo guardado), el plan, cuándo compacta Claude, los modelos y proveedores y el acceso desde
 // el celular: AjustesEditar.tsx.
 import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
+import { Cpu, Sliders, User, Wrench } from "lucide-react";
 import { elegirApariencia } from "../apariencia";
 import { VERSION } from "../datos/contrato";
 import { fuente } from "../datos/fuente";
@@ -15,6 +16,7 @@ import { cambiarIdioma, esIdioma, idioma, t, textoMain, type ClaveSola } from ".
 import { abrirAtajos } from "./Atajos";
 import { BarraGuardar, Celular, PlanYRed } from "./AjustesEditar";
 import { AjustesCuentas } from "./AjustesCuentas";
+import { AjustesHerramientas } from "./AjustesHerramientas";
 import { AjustesModelos } from "./AjustesModelos";
 import { Carcasa } from "./AjustesCarcasa";
 import { ErrorCarga } from "./ErrorCarga";
@@ -154,8 +156,16 @@ function Dato({ nombre, que, children }: { nombre: ClaveSola; que: ClaveSola; ch
   );
 }
 
+type PestanaAjustes = "cuentas" | "herramientas" | "modelos" | "sistema";
+
 export function Ajustes() {
   useIdioma();
+  const [pestana, setPestana] = useState<PestanaAjustes>(() => {
+    if (MODO.variante === "cuentas") return "cuentas";
+    if (MODO.variante === "modelo" || MODO.variante?.startsWith("mdl")) return "modelos";
+    if (MODO.variante === "fuente" || MODO.variante === "mono") return "sistema";
+    return "cuentas";
+  });
   const [a, setA] = useState<Datos | null>(null);
   const [error, setError] = useState<string | null>(null);
   const tiernos = useTiernos();
@@ -233,30 +243,87 @@ export function Ajustes() {
     </section>
   );
 
-  // Mismo lugar en el árbol con o sin datos: el selector no se remonta cuando llegan.
   return (
     <>
-      {a ? <Fijo k="ajustes.nota" bloque className="pn-nota" /> : null}
+      <div className="pn-pestanas-nav" role="tablist">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={pestana === "cuentas"}
+          className="pn-pestana-btn"
+          data-activo={pestana === "cuentas" ? "" : undefined}
+          onClick={() => setPestana("cuentas")}
+        >
+          <User size={15} />
+          <span>Cuentas</span>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={pestana === "herramientas"}
+          className="pn-pestana-btn"
+          data-activo={pestana === "herramientas" ? "" : undefined}
+          onClick={() => setPestana("herramientas")}
+        >
+          <Wrench size={15} />
+          <span>Herramientas & Skills</span>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={pestana === "modelos"}
+          className="pn-pestana-btn"
+          data-activo={pestana === "modelos" ? "" : undefined}
+          onClick={() => setPestana("modelos")}
+        >
+          <Cpu size={15} />
+          <span>Modelos & Routing</span>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={pestana === "sistema"}
+          className="pn-pestana-btn"
+          data-activo={pestana === "sistema" ? "" : undefined}
+          onClick={() => setPestana("sistema")}
+        >
+          <Sliders size={15} />
+          <span>Apariencia & Sistema</span>
+        </button>
+      </div>
 
-      {app}
+      {pestana === "cuentas" && <AjustesCuentas Dato={Dato} />}
 
-      {error ? (
-        <ErrorCarga
-          error={error}
-          alReintentar={() => {
-            setError(null);
-            setIntento((n) => n + 1);
-          }}
-        />
-      ) : !a ? (
-        <div className="pn-aviso">{t("ajustes.leyendo")}</div>
-      ) : (
-        <Numeros a={a} rev={rev} />
+      {pestana === "herramientas" && <AjustesHerramientas Dato={Dato} />}
+
+      {pestana === "modelos" && (
+        <>
+          {a ? <Fijo k="ajustes.nota" bloque className="pn-nota" /> : null}
+          {error ? (
+            <ErrorCarga
+              error={error}
+              alReintentar={() => {
+                setError(null);
+                setIntento((n) => n + 1);
+              }}
+            />
+          ) : !a ? (
+            <div className="pn-aviso">{t("ajustes.leyendo")}</div>
+          ) : (
+            <Numeros a={a} rev={rev} />
+          )}
+          <AjustesModelos Dato={Dato} alGuardar={() => void refrescarRouting()} />
+        </>
       )}
-      <AjustesCuentas Dato={Dato} />
-      <AjustesModelos Dato={Dato} alGuardar={() => void refrescarRouting()} />
-      <Celular Dato={Dato} />
-      <Carcasa Dato={Dato} />
+
+      {pestana === "sistema" && (
+        <>
+          {app}
+          <Celular Dato={Dato} />
+          <Carcasa Dato={Dato} />
+        </>
+      )}
+
       <BarraGuardar />
     </>
   );

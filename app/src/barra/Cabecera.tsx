@@ -133,8 +133,8 @@ function celdaGoogle(clave: Celda["clave"], w: VentanaCupo, ts: number): Celda {
 }
 
 function GrupoGoogle({ g, ts }: { g: GrupoCupo; ts: number }) {
-  const largo = g.id === "gemini" ? t("uso.googleGemini") : g.id === "claude-gpt" ? t("uso.googleClaudeGpt") : t("uso.googleArgon");
-  const corto = g.id === "gemini" ? t("uso.googleGemini") : g.id === "claude-gpt" ? t("uso.cortoClaudeGpt") : t("uso.cortoArgon");
+  const largo = g.id === "gemini" ? "Gemini 3.8 Flash" : g.id === "claude-gpt" ? t("uso.googleClaudeGpt") : t("uso.googleArgon");
+  const corto = g.id === "gemini" ? "Gemini 3.8 Flash" : g.id === "claude-gpt" ? t("uso.cortoClaudeGpt") : t("uso.cortoArgon");
   const h = formatearHasta(g.hasta);
   return (
     <Grupo

@@ -50,6 +50,8 @@ import { destinos, registro, slugsPorNombre } from "./registro.js";
 import { capacidades, hayAgy } from "./capacidades.js";
 import { descartarSetup, setupDeEstaMaquina } from "./setup.ts";
 import { alCambiarCupos, refrescarCupos } from "./cupos.js";
+import { cambiarCuentaClaude, conectarNuevaCuenta, listarCuentasClaude } from "./cuentas-claude.js";
+import { listarCatalogo } from "./herramientas-catalogo.js";
 import { modoLocal } from "./modo-local.js";
 import { DIR, leerStatusline, SESIONES, type Statusline } from "./statusline.js";
 import * as tablero from "./tablero.js";
@@ -84,7 +86,7 @@ export function manejar(canal: string, fn: Manejador) {
 export const manejadoresAnotados = (): [string, Manejador][] => [...manejadores];
 
 /** Lo que por red no se puede: salir de trama, y lo que abre o enfoca cosas en la pantalla de la PC. */
-export const SOLO_VENTANA: ReadonlySet<string> = new Set(["app:salir", "carpeta:elegir", "app:pararTodo", "bandeja:textos", "lider:ir", "lider:ubicable", "claude:changelog", "volver:leer", "volver:guardar", "volver:anotar", "reinicio:marca", "borradores:leer", "borradores:guardar", "app:recargar", "consumo:mirar", "consumo:soltar", "espera:estado", "espera:notificar", "portapapeles:texto"]);
+export const SOLO_VENTANA: ReadonlySet<string> = new Set(["app:salir", "carpeta:elegir", "app:pararTodo", "bandeja:textos", "lider:ir", "lider:ubicable", "claude:changelog", "volver:leer", "volver:guardar", "volver:anotar", "reinicio:marca", "borradores:leer", "borradores:guardar", "app:recargar", "consumo:mirar", "consumo:soltar", "espera:estado", "espera:notificar", "portapapeles:texto", "cuentas:claude:agregar"]);
 
 /** Un pedido que llegó por red (ya con la identidad comprobada): el mismo manejador que usa la ventana. */
 export async function llamarRemoto(canal: string, args: unknown[], cliente: string): Promise<unknown> {
@@ -875,6 +877,10 @@ export function armarNucleo() {
   // "Falta algo del setup" (Handy, agy, Ollama, el login): se mira al pedirlo, no hay reloj. Descartar anota una falta aparte.
   manejar("setup:estado", () => setupDeEstaMaquina());
   manejar("setup:descartar", (_e, id: unknown) => descartarSetup(id));
+  manejar("cuentas:claude:listar", () => listarCuentasClaude());
+  manejar("cuentas:claude:cambiar", (_e, id: unknown) => cambiarCuentaClaude(String(id)));
+  manejar("cuentas:claude:agregar", () => conectarNuevaCuenta());
+  manejar("herramientas:catalogo", () => listarCatalogo());
 
   // El tablero de pendientes (tablero.ts): se mira su vista desde la primera vez que se pide.
   // Si su carpeta todavía no existe no hay qué mirar: se prueba de nuevo la próxima vez que se pida.

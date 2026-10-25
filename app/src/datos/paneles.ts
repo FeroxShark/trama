@@ -150,6 +150,19 @@ export interface FuentePaneles {
   arreglar(h: Hilo, estado: string): Promise<string>;
   /** El primer mensaje de "Pasárselo a un líder" (un worker sin líder que espera una decisión). */
   pasar(h: Hilo): Promise<string>;
+  /** Múltiples cuentas de Claude */
+  cuentasClaude: {
+    listar(): Promise<{ activa: string | null; cuentas: { id: string; email: string; nombre: string; activa: boolean; creada: number }[] }>;
+    cambiar(id: string): Promise<{ ok: boolean; activa?: string; error?: string }>;
+    agregar(): Promise<{ ok: boolean; error?: string }>;
+  };
+  /** Catálogo de MCPs, Skills y Herramientas */
+  herramientas: {
+    catalogo(): Promise<{
+      instalados: { id: string; nombre: string; tipo: "mcp" | "skill" | "herramienta" | "lider"; descripcion: string; instalado: boolean; activo: boolean; origen: string; categoria?: string; autor?: string; comando?: string }[];
+      descubrir: { id: string; nombre: string; tipo: "mcp" | "skill" | "herramienta" | "lider"; descripcion: string; instalado: boolean; activo: boolean; origen: string; categoria?: string; autor?: string; comando?: string }[];
+    }>;
+  };
 }
 
 const espera = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -425,6 +438,38 @@ const fija: FuentePaneles = {
       decision: h.decision,
     });
   },
+  cuentasClaude: {
+    async listar() {
+      return {
+        activa: "primaria",
+        cuentas: [
+          { id: "primaria", email: "gonzalofur63@gmail.com", nombre: "Gonzalo (Principal)", activa: true, creada: Date.now() - 86400000 },
+          { id: "secundaria", email: "cuenta2@gmail.com", nombre: "Gonzalo (Secundaria)", activa: false, creada: Date.now() - 3600000 },
+        ],
+      };
+    },
+    async cambiar(id: string) {
+      return { ok: true, activa: id };
+    },
+    async agregar() {
+      return { ok: true };
+    },
+  },
+  herramientas: {
+    async catalogo() {
+      return {
+        instalados: [
+          { id: "UnityMCP", nombre: "Unity MCP", tipo: "mcp" as const, descripcion: "Control e integración nativa de Unity Editor vía Model Context Protocol", instalado: true, activo: true, origen: "config" },
+          { id: "context7", nombre: "Context7 Docs", tipo: "mcp" as const, descripcion: "Resolución de librerías y documentación técnica al vuelo", instalado: true, activo: true, origen: "config" },
+          { id: "blender-vrchat-reglas", nombre: "Reglas VRChat en Blender", tipo: "skill" as const, descripcion: "Reglas para modelar y preparar avatares y ropa en Blender", instalado: true, activo: true, origen: "~/.claude/skills" },
+        ],
+        descubrir: [
+          { id: "blender-mcp", nombre: "Blender MCP", tipo: "mcp" as const, descripcion: "Conexión directa por socket a Blender 5.x", instalado: false, activo: false, origen: "comunidad", categoria: "3D & Modelado", autor: "comunidad" },
+          { id: "substance-painter-mcp", nombre: "Substance Painter MCP", tipo: "mcp" as const, descripcion: "Automatización de capas y texturas en Adobe Substance 3D Painter", instalado: false, activo: false, origen: "comunidad", categoria: "Texturizado", autor: "comunidad" },
+        ],
+      };
+    },
+  },
 };
 
 const conPa = (m: NonNullable<typeof main>): FuentePaneles => ({
@@ -599,6 +644,26 @@ const conPa = (m: NonNullable<typeof main>): FuentePaneles => ({
       .then(promptPasar, (e) => {
         throw new Error(mensaje(e));
       });
+  },
+  cuentasClaude: {
+    async listar() {
+      if (!m.cuentasClaude) return fija.cuentasClaude.listar();
+      return (await m.cuentasClaude.listar().catch(fallar)) as any;
+    },
+    async cambiar(id: string) {
+      if (!m.cuentasClaude) return fija.cuentasClaude.cambiar(id);
+      return (await m.cuentasClaude.cambiar(id).catch(fallar)) as any;
+    },
+    async agregar() {
+      if (!m.cuentasClaude) return fija.cuentasClaude.agregar();
+      return (await m.cuentasClaude.agregar().catch(fallar)) as any;
+    },
+  },
+  herramientas: {
+    async catalogo() {
+      if (!m.herramientas) return fija.herramientas.catalogo();
+      return (await m.herramientas.catalogo().catch(fallar)) as any;
+    },
   },
 });
 

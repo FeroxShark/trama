@@ -23,10 +23,12 @@ import { acomodar, crearGuardadoVolver, guardarVolver, leerVolver, lugarDeVentan
 import { silencio } from "./log.js";
 import { enMarcha, marcar, type Corrida } from "./reinicio-marcas.js";
 
-// Wayland nativo SIEMPRE. Un cliente XWayland colgado puede congelar Hyprland
+// Wayland nativo SIEMPRE en Linux. Un cliente XWayland colgado puede congelar Hyprland
 // entero (pasó con webkit + GDK_BACKEND=x11); uno Wayland nativo colgado sólo
-// se cuelga a sí mismo.
-app.commandLine.appendSwitch("ozone-platform", "wayland");
+// se cuelga a sí mismo. En Windows no aplica.
+if (process.platform !== "win32") {
+  app.commandLine.appendSwitch("ozone-platform", "wayland");
+}
 
 // Sin GPU por default: con esta UI da los mismos fps (200 en HDMI-A-2) con menos
 // CPU, menos RAM y arranque más rápido (medido en B0b y otra vez en B1, ver

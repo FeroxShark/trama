@@ -269,6 +269,16 @@ type Main = {
   conexion: {
     alCambiar(fn: (conectado: unknown) => void): Soltar;
   };
+  /** Gestión de perfiles y múltiples cuentas de Claude */
+  cuentasClaude?: {
+    listar(): Promise<unknown>;
+    cambiar(id: string): Promise<unknown>;
+    agregar(): Promise<unknown>;
+  };
+  /** Catálogo de herramientas, MCPs y Skills (Instalados y Descubrir) */
+  herramientas?: {
+    catalogo(): Promise<unknown>;
+  };
   /** El tablero de pendientes del usuario (electron/tablero.ts): `leer`, sin validar; el resto corre el CLI `tablero`. */
   tablero: {
     leer(): Promise<unknown>;

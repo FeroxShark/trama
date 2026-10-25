@@ -1608,3 +1608,278 @@
     min-height: 2.75rem;
   }
 }
+
+/* Pestañas de Ajustes */
+.pn-pestanas-nav {
+  display: flex;
+  gap: var(--esp-2);
+  margin-bottom: var(--esp-4);
+  padding: var(--esp-1);
+  background: var(--fondo-2);
+  border: 1px solid var(--borde-2);
+  border-radius: var(--radio-3);
+  overflow-x: auto;
+}
+.pn-pestana-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-2);
+  padding: var(--esp-2) var(--esp-3);
+  background: transparent;
+  border: none;
+  border-radius: var(--radio-2);
+  color: var(--texto-4);
+  font-size: var(--letra-3);
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+.pn-pestana-btn:hover {
+  color: var(--texto-1);
+  background: var(--borde-1);
+}
+.pn-pestana-btn[data-activo] {
+  color: var(--blanco);
+  background: var(--borde-3);
+}
+
+/* Multi-cuenta de Claude */
+.pn-claude-cuentas {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-2-5);
+  width: 100%;
+}
+.pn-perfiles-lista {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-2);
+}
+.pn-perfil-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--esp-2-5) var(--esp-3);
+  background: var(--fondo-2);
+  border: 1px solid var(--borde-2);
+  border-radius: var(--radio-2);
+  gap: var(--esp-3);
+}
+.pn-perfil-card[data-activo] {
+  border-color: var(--verde);
+  background: rgba(34, 197, 94, 0.05);
+}
+.pn-perfil-info {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-2-5);
+  min-width: 0;
+}
+.pn-perfil-icono {
+  color: var(--texto-4);
+  flex: none;
+}
+.pn-perfil-nombre {
+  font-size: var(--letra-3);
+  font-weight: 600;
+  color: var(--texto-1);
+}
+.pn-perfil-email {
+  font-size: var(--letra-4);
+  color: var(--texto-5);
+}
+.pn-perfil-badge-activa {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--letra-4);
+  font-weight: 600;
+  color: var(--verde);
+  background: rgba(34, 197, 94, 0.12);
+  padding: 3px 8px;
+  border-radius: var(--radio-1);
+}
+.pn-perfil-boton-agregar {
+  margin-top: var(--esp-1);
+}
+
+/* Catálogo de Herramientas, Skills y MCPs */
+.pn-catalogo-buscar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  margin-bottom: var(--esp-3);
+}
+.pn-catalogo-buscar-icono {
+  position: absolute;
+  left: var(--esp-3);
+  color: var(--texto-5);
+  pointer-events: none;
+}
+.pn-catalogo-input {
+  width: 100%;
+  padding: var(--esp-2-5) var(--esp-8) var(--esp-2-5) var(--esp-7);
+  background: var(--fondo-2);
+  border: 1px solid var(--borde-2);
+  border-radius: var(--radio-2);
+  color: var(--texto-1);
+  font-size: var(--letra-3);
+  outline: none;
+}
+.pn-catalogo-input:focus {
+  border-color: var(--borde-4);
+}
+.pn-catalogo-limpiar {
+  position: absolute;
+  right: var(--esp-3);
+  background: none;
+  border: none;
+  color: var(--texto-5);
+  font-size: var(--letra-1);
+  cursor: pointer;
+}
+.pn-catalogo-tabs {
+  display: flex;
+  gap: var(--esp-2);
+  margin-bottom: var(--esp-3);
+}
+.pn-catalogo-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--esp-2);
+  padding: var(--esp-2) var(--esp-3);
+  background: transparent;
+  border: 1px solid var(--borde-2);
+  border-radius: var(--radio-2);
+  color: var(--texto-4);
+  font-size: var(--letra-3);
+  cursor: pointer;
+}
+.pn-catalogo-tab[data-activo] {
+  background: var(--borde-2);
+  color: var(--blanco);
+  border-color: var(--borde-4);
+}
+.pn-catalogo-filtros {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--esp-1-5);
+  margin-bottom: var(--esp-4);
+}
+.pn-chip-filtro {
+  padding: 3px 10px;
+  background: transparent;
+  border: 1px solid var(--borde-2);
+  border-radius: 9999px;
+  color: var(--texto-4);
+  font-size: var(--letra-4);
+  cursor: pointer;
+}
+.pn-chip-filtro[data-activo] {
+  background: var(--borde-3);
+  color: var(--texto-1);
+  border-color: var(--borde-4);
+}
+.pn-catalogo-grilla {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: var(--esp-3);
+}
+.pn-catalogo-tarjeta {
+  display: flex;
+  flex-direction: column;
+  padding: var(--esp-3);
+  background: var(--fondo-2);
+  border: 1px solid var(--borde-2);
+  border-radius: var(--radio-3);
+  gap: var(--esp-2);
+}
+.pn-catalogo-tarjeta-cab {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-2);
+  font-size: var(--letra-4);
+}
+.pn-catalogo-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: var(--radio-1);
+}
+.pn-catalogo-badge[data-tipo="mcp"] {
+  background: rgba(59, 130, 246, 0.15);
+  color: #60a5fa;
+}
+.pn-catalogo-badge[data-tipo="skill"] {
+  background: rgba(168, 85, 247, 0.15);
+  color: #c084fc;
+}
+.pn-catalogo-badge[data-tipo="herramienta"] {
+  background: rgba(245, 158, 11, 0.15);
+  color: #fbbf24;
+}
+.pn-catalogo-badge[data-tipo="lider"] {
+  background: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+}
+.pn-catalogo-origen {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--texto-6);
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pn-catalogo-titulo-fila {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--esp-2);
+}
+.pn-catalogo-titulo {
+  margin: 0;
+  font-size: var(--letra-2);
+  font-weight: 600;
+  color: var(--texto-1);
+}
+.pn-tag-activo {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--verde);
+}
+.pn-tag-instalado {
+  font-size: 11px;
+  color: var(--texto-4);
+}
+.pn-tag-disponible {
+  font-size: 11px;
+  color: var(--texto-5);
+}
+.pn-catalogo-desc {
+  margin: 0;
+  font-size: var(--letra-3);
+  color: var(--texto-4);
+  line-height: 1.4;
+  flex: 1;
+}
+.pn-catalogo-comando {
+  background: var(--fondo-1);
+  padding: 4px 8px;
+  border-radius: var(--radio-1);
+  font-size: 11px;
+  color: var(--texto-3);
+  overflow-x: auto;
+}
+.pn-catalogo-autor {
+  font-size: 11px;
+  color: var(--texto-6);
+}

@@ -194,6 +194,16 @@ contextBridge.exposeInMainWorld("hilos", {
     estado: (): Promise<unknown> => ipcRenderer.invoke("setup:estado"),
     descartar: (id: string): Promise<void> => ipcRenderer.invoke("setup:descartar", id),
   },
+  /** Gestión de perfiles y múltiples cuentas de Claude. */
+  cuentasClaude: {
+    listar: (): Promise<unknown> => ipcRenderer.invoke("cuentas:claude:listar"),
+    cambiar: (id: string): Promise<unknown> => ipcRenderer.invoke("cuentas:claude:cambiar", id),
+    agregar: (): Promise<unknown> => ipcRenderer.invoke("cuentas:claude:agregar"),
+  },
+  /** Catálogo de herramientas, MCPs y Skills (Instalados y Descubrir). */
+  herramientas: {
+    catalogo: (): Promise<unknown> => ipcRenderer.invoke("herramientas:catalogo"),
+  },
   /** Sólo por la tailnet (lo arma electron/remoto-cliente.ts; en la ventana no llega nunca): `false` = se cayó la conexión con la PC. */
   conexion: {
     alCambiar: oir("remoto:conexion"),
