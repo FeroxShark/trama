@@ -25,8 +25,14 @@ import type { NombreClave } from "../../electron/claves";
 import type { EstadoOpencodeUi } from "../../electron/opencode-ajustes";
 import type { TablaReparto } from "../../electron/reparto-tabla";
 import type { EstadoAA, ResultadoAA } from "../../electron/artificial-analysis";
+import type { DatosAgentsMd, LeccionesPendiente } from "../../electron/orquestacion";
 
 export type { TablaReparto, EstadoAA, ResultadoAA };
+export type { DatosAgentsMd, LeccionesPendiente };
+/** AGENTS.md de un proyecto: lo que dijo `pa --agents-md` y dónde vive el proyecto. */
+export type AgentsMd = DatosAgentsMd & { proyecto: string; ruta: string | null };
+/** Un worker de rama para auditar: `pa <proy> --auditar <id> -m <modelo> --async` (sólo Claude). */
+export type PedidoAuditar = { id: string; proyecto: string; modelo: string };
 export type { Arranque, Bajada, ConfigModelos, Consulta, EntornoOllama, EstadoAuto, EstadoDsh, EstadoModelos, EstadoOpencodeUi, EstadoSalud, Medido, NombreClave, PiezaConsulta, Prueba, Sondeo };
 
 /** Los proveedores de DeepSeek Harness que se pueden probar desde Ajustes. */
@@ -125,6 +131,17 @@ export interface FuentePaneles {
   rama(accion: AccionRama, h: Hilo): Promise<void>;
   /** Lanza ese worker (`pa <proy> --actualizar <id> --async -m … --effort … --tipo …`). Rechaza con lo que dijo `pa`. */
   lanzar(x: LanzarRama): Promise<void>;
+  /** Los proyectos cuyas lecciones pasaron el tope (`lecciones.necesita-poda`). */
+  leccionesPendientes(): Promise<LeccionesPendiente[]>;
+  /** La instrucción de `pa <proy> --lecciones-podar` (para que un agente reescriba las lecciones). Rechaza con lo que dijo `pa`. */
+  textoPoda(proyecto: string): Promise<string>;
+  leerLecciones(proyecto: string): Promise<string>;
+  /** Guarda lecciones.md (y saca el aviso si ya entra en el tope). */
+  guardarLecciones(proyecto: string, texto: string): Promise<{ necesitaPoda: boolean }>;
+  /** Lanza el revisor de sólo lectura de esa rama (`--auditar … --async`). Rechaza con lo que dijo `pa`. */
+  auditar(x: PedidoAuditar): Promise<void>;
+  /** `pa <proy> --agents-md`: la plantilla si falta el archivo. */
+  agentsMd(proyecto: string): Promise<AgentsMd>;
   /** Reescribe esas filas de la tabla de routing; devuelve cómo quedó o el error. */
   guardarRouting(cambios: CambioRouting[]): Promise<Routing>;
   /** La config de modelos (`~/.config/trama/modelos.json`): lo que hay, o lo de hoy si no hay archivo. */
@@ -447,6 +464,30 @@ const fija: FuentePaneles = {
     // Para probar el camino del error: `?falla=lanzar`.
     if (MODO.falla === "lanzar") throw new Error("pa: effort 'max' with 'claude-opus-5-5' needs --ok-dueno");
   },
+  async leccionesPendientes() {
+    return MODO.captura === "tablero-lecciones" ? [{ proyecto: "atlas", motivo: "34 líneas, 3410 caracteres (tope 30 / 3000)" }] : [];
+  },
+  async textoPoda(proyecto) {
+    await espera(150);
+    return `Podá las lecciones de '${proyecto}' (no abre nada: lo hace un agente). Releé lecciones.md y reescribilo más corto: máximo 30 líneas y 3000 caracteres.`;
+  },
+  async leerLecciones() {
+    return LECCIONES_FALSAS.texto;
+  },
+  async guardarLecciones(_p, texto) {
+    await espera(200);
+    if (MODO.falla === "lecciones") throw new Error("EACCES: permission denied");
+    LECCIONES_FALSAS.texto = texto;
+    return { necesitaPoda: texto.split("\n").filter(Boolean).length > 30 };
+  },
+  async auditar() {
+    await espera(300);
+    if (MODO.falla === "auditar") throw new Error("pa: --auditar: no encuentro esa corrida ni esa rama");
+  },
+  async agentsMd(proyecto) {
+    await espera(200);
+    return { existe: false, plantilla: "# AGENTS.md\n\n## Qué es\n<una o dos líneas>", aviso: "", proyecto, ruta: `~/Proyectos/${proyecto}` };
+  },
   async guardarRouting(cambios) {
     await espera(150);
     if (MODO.falla === "routing")
@@ -546,6 +587,11 @@ const fija: FuentePaneles = {
   },
 };
 
+/** Las lecciones de muestra (fixtures): se editan y quedan hasta recargar. */
+const LECCIONES_FALSAS = {
+  texto: Array.from({ length: 34 }, (_, i) => `- 2026-10-${String((i % 26) + 1).padStart(2, "0")} Lección ${i + 1}: correr los tests con npm test antes de integrar.`).join("\n") + "\n",
+};
+
 const conPa = (m: NonNullable<typeof main>): FuentePaneles => ({
   async ajustes() {
     return (await m.paneles.ajustes()) as Ajustes;
@@ -580,6 +626,37 @@ const conPa = (m: NonNullable<typeof main>): FuentePaneles => ({
     });
     if (r.rc === 0) return;
     throw new ErrorPa(r.dijo || fraseError(t("error.paSalio", { accion: x.accion, rc: r.rc }), r.rc), r.rc);
+  },
+  async leccionesPendientes() {
+    const r = await m.paneles.leccionesPendientes().catch(() => []);
+    return Array.isArray(r) ? (r as LeccionesPendiente[]) : [];
+  },
+  async textoPoda(proyecto) {
+    return m.paneles.textoPoda(proyecto).catch((e) => {
+      throw new Error(mensaje(e));
+    });
+  },
+  async leerLecciones(proyecto) {
+    return m.paneles.leerLecciones(proyecto).catch((e) => {
+      throw new Error(mensaje(e));
+    });
+  },
+  async guardarLecciones(proyecto, texto) {
+    return (await m.paneles.guardarLecciones(proyecto, texto).catch((e) => {
+      throw new Error(mensaje(e));
+    })) as { necesitaPoda: boolean };
+  },
+  async auditar(x) {
+    const r = await m.paneles.auditar(x).catch((e) => {
+      throw new Error(mensaje(e));
+    });
+    if (r.rc === 0) return;
+    throw new ErrorPa(r.dijo || fraseError(t("error.paSalio", { accion: "auditar", rc: r.rc }), r.rc), r.rc);
+  },
+  async agentsMd(proyecto) {
+    return (await m.paneles.agentsMd(proyecto).catch((e) => {
+      throw new Error(mensaje(e));
+    })) as AgentsMd;
   },
   async guardarRouting(cambios) {
     return (await m.paneles.routing(cambios).catch((e) => ({ version: 1, error: mensaje(e) }))) as Routing;

@@ -2961,3 +2961,19 @@
 .wk-est[data-origen="aa"] {
   color: var(--texto-2);
 }
+
+/* El campo del tope de compactación (UmbralCompactar.tsx): número en miles de tokens, atajos y "Sin tope". */
+.pn-umbral {
+  display: flex;
+  max-width: 15rem;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--esp-2);
+}
+.pn-umbral .pn-chips {
+  justify-content: flex-end;
+  margin-top: 0;
+}
+.pn-umbral .pn-campo-error {
+  margin-top: 0;
+}

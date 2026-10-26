@@ -169,6 +169,17 @@ type Main = {
   /** Los paneles del pie (Ajustes, Estadísticas, acciones de Ramas): ver src/datos/paneles.ts. */
   paneles: {
     ajustes(): Promise<unknown>;
+    /** Los proyectos con `lecciones.necesita-poda` (electron/orquestacion.ts), sin validar. */
+    leccionesPendientes(): Promise<unknown>;
+    /** La instrucción de `pa <proy> --lecciones-podar` para que un agente reescriba las lecciones. */
+    textoPoda(slug: string): Promise<string>;
+    leerLecciones(slug: string): Promise<string>;
+    /** Guarda lecciones.md; devuelve `{ necesitaPoda }`. */
+    guardarLecciones(slug: string, texto: string): Promise<unknown>;
+    /** `pa <proy> --auditar <id> -m … --async`; no rechaza si `pa` falla: devuelve su código y lo último que dijo. */
+    auditar(x: { id: string; proyecto: string; modelo: string }): Promise<{ rc: number; dijo: string }>;
+    /** `pa <proy> --agents-md`: la plantilla si falta el archivo, y la ruta del proyecto. */
+    agentsMd(slug: string): Promise<unknown>;
     /** Los umbrales del anillo de contexto (`{ autoCompact }`, electron/contexto.ts), sin validar. */
     umbralContexto(): Promise<unknown>;
     medicion(): Promise<unknown>;

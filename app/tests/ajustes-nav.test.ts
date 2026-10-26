@@ -44,11 +44,14 @@ test("cada fila del índice y cada categoría tienen texto en inglés y en espa�
 });
 
 test("cada fila del índice está dibujada con su data-opc (el salto la encuentra)", () => {
-  const fuente = ["Ajustes.tsx", "AjustesModelos.tsx", "AjustesWorkers.tsx", "AjustesEditar.tsx", "AjustesCuentas.tsx", "AjustesCarcasa.tsx", "AjustesCupos.tsx", "AjustesCompactar.tsx", "AjustesDsh.tsx"]
+  const fuente = ["Ajustes.tsx", "AjustesModelos.tsx", "AjustesWorkers.tsx", "AjustesEditar.tsx", "AjustesCuentas.tsx", "AjustesCarcasa.tsx", "AjustesCupos.tsx", "AjustesCompactar.tsx", "AjustesDsh.tsx", "AjustesGuia.tsx"]
     .map((f) => readFileSync(path.join(import.meta.dirname, "..", "src", "paneles", f), "utf8"))
     .join("\n");
   // Los tipos de worker se dibujan con la clave armada (`mdl.t.${tipo}`); el resto, con su clave literal.
-  for (const i of ITEMS.filter((x) => !x.nombre.startsWith("mdl.t."))) assert.ok(fuente.includes(`"${i.nombre}"`), `ninguna fila usa ${i.nombre}`);
+  for (const i of ITEMS.filter((x) => !x.nombre.startsWith("mdl.t.") && !x.nombre.startsWith("guia."))) assert.ok(fuente.includes(`"${i.nombre}"`), `ninguna fila usa ${i.nombre}`);
+  // Los temas de la Guía se dibujan con la clave armada (`guia.${id}`): cada id de TEMAS tiene su fila en el índice.
+  const guia = readFileSync(path.join(import.meta.dirname, "..", "src", "paneles", "AjustesGuia.tsx"), "utf8");
+  for (const i of ITEMS.filter((x) => x.nombre.startsWith("guia."))) assert.ok(guia.includes(`id: "${i.nombre.slice(5)}"`), `la Guía no dibuja ${i.nombre}`);
 });
 
 test("normalizar saca tildes y mayúsculas", () => {

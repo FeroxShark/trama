@@ -1,4 +1,4 @@
-// Los temas de color (src/temas.css, src/temas.ts): que cada tema se lea (contraste WCAG AA de los textos sobre
+// Los temas de color (src/temas-colores.css, src/temas.ts): que cada tema se lea (contraste WCAG AA de los textos sobre
 // las superficies) y que los estados (ok, aviso, crítico) no se confundan con deuteranomalía (rojo-verde débil).
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -9,7 +9,7 @@ import { normalizar } from "../src/tipografia.ts";
 
 const raiz = path.join(import.meta.dirname, "..");
 const leer = (f: string) => readFileSync(path.join(raiz, f), "utf8");
-const temasCss = leer("src/temas.css");
+const temasCss = leer("src/temas-colores.css");
 const tokensCss = leer("src/tokens.css");
 
 /** Las declaraciones `--x: valor;` de un bloque. */
@@ -109,7 +109,7 @@ for (const id of PINTADOS) {
   });
 }
 
-test("el bloque oscuro de temas.css no se separa de :root", () => {
+test("el bloque oscuro de temas-colores.css no se separa de :root", () => {
   const o = declaraciones(bloque(temasCss, '[data-tema="oscuro"]'));
   for (const [k, v] of Object.entries(o)) assert.equal(v, raizTokens[k], `${k} difiere de :root`);
 });

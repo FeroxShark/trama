@@ -10,7 +10,7 @@ import { Selector, type Opcion } from "../hilo/Selector";
 import { effortPara } from "../hilo/elegir";
 import { effortsLeidos } from "../hilo/efforts";
 import { effortsOpciones, MODELO_DEFAULT, MODELOS, MODELOS_WORKER } from "../hilo/opciones";
-import { effortDeModelo, esOpencode } from "../hilo/modelos";
+import { effortDeModelo, esOpencode, familiaDe } from "../hilo/modelos";
 import { t, type ClaveSola } from "../i18n";
 import { useIdioma } from "../i18n/react";
 import { MODO } from "../modo";
@@ -18,7 +18,7 @@ import { mensaje } from "../puente";
 import { ACTUALIZAR, esfuerzoWorker, type Eleccion } from "./lanzar";
 
 /** Qué acción pide el paso: elige los textos (`lanzar.<clave>.*`). */
-export type ClaveLanzar = "actualizar" | "analizar" | "retomar" | "arreglar";
+export type ClaveLanzar = "actualizar" | "analizar" | "retomar" | "arreglar" | "auditar" | "podar" | "agentsmd";
 
 export type PedidoLanzar = {
   clave: ClaveLanzar;
@@ -30,6 +30,8 @@ export type PedidoLanzar = {
   esfuerzoDe: (modelo: string) => string;
   /** El tipo de `pa --tipo` (sólo las acciones que lanzan un worker): se muestra, no se elige. */
   tipo?: string;
+  /** Sólo se elige el modelo (Auditar: `pa --auditar -m` no lleva effort ni texto): el esfuerzo y el texto no se muestran. */
+  soloModelo?: boolean;
   /** Lanza de verdad. Si rechaza, el paso sigue abierto con el error. */
   lanzar: (e: Eleccion) => Promise<void>;
 };
@@ -65,11 +67,25 @@ export function pasoWorker(clave: ClaveLanzar, lanzar: PedidoLanzar["lanzar"]) {
   pedirPaso({ clave, modelos: MODELOS_WORKER, modelo: ACTUALIZAR.modelo, effort: ACTUALIZAR.effort, esfuerzoDe, tipo: ACTUALIZAR.tipo, lanzar });
 }
 
+/**
+ * Auditar una rama (`pa --auditar -m`): sólo anda con la familia Claude. Los modelos de otros motores (DeepSeek Harness, OpenCode,
+ * Gemini) se ven pero no se eligen, y dicen por qué. Arranca con Sonnet, que rinde para leer un diff.
+ */
+export function pasoAuditar(lanzar: PedidoLanzar["lanzar"]) {
+  const modelos: Opcion[] = MODELOS_WORKER.map((m) => (familiaDe(m.id) === "claude" ? m : { ...m, deshabilitada: true, desc: t("lanzar.auditar.soloClaude") }));
+  const elegible = modelos.filter((m) => !m.deshabilitada);
+  const modelo = (elegible.find((m) => /sonnet/.test(m.id)) ?? elegible[0])?.id ?? MODELO_DEFAULT;
+  pedirPaso({ clave: "auditar", modelos, modelo, effort: "high", esfuerzoDe: () => "high", soloModelo: true, lanzar });
+}
+
 const TEXTOS: Record<ClaveLanzar, { titulo: ClaveSola; ayuda: ClaveSola }> = {
   actualizar: { titulo: "lanzar.actualizar.titulo", ayuda: "lanzar.actualizar.ayuda" },
   analizar: { titulo: "lanzar.analizar.titulo", ayuda: "lanzar.analizar.ayuda" },
   retomar: { titulo: "lanzar.retomar.titulo", ayuda: "lanzar.retomar.ayuda" },
   arreglar: { titulo: "lanzar.arreglar.titulo", ayuda: "lanzar.arreglar.ayuda" },
+  auditar: { titulo: "lanzar.auditar.titulo", ayuda: "lanzar.auditar.ayuda" },
+  podar: { titulo: "lanzar.podar.titulo", ayuda: "lanzar.podar.ayuda" },
+  agentsmd: { titulo: "lanzar.agentsmd.titulo", ayuda: "lanzar.agentsmd.ayuda" },
 };
 
 function Dialogo({ p }: { p: PedidoLanzar }) {
@@ -119,7 +135,7 @@ function Dialogo({ p }: { p: PedidoLanzar }) {
           <div className="pn-abajo lz-sel">
             <Selector etiqueta={t("lanzar.modelo")} opciones={p.modelos} valor={modelo} alElegir={elegirModelo} disabled={yendo} columnas />
           </div>
-          <div className="pn-abajo lz-sel">
+          <div className="pn-abajo lz-sel" hidden={p.soloModelo}>
             {effortsOpciones(modelo).length ? (
               <Selector
                 etiqueta={t("lanzar.effort")}
@@ -139,6 +155,7 @@ function Dialogo({ p }: { p: PedidoLanzar }) {
           </div>
           {p.tipo ? <span className="lz-tipo">{t("lanzar.tipo", { tipo: p.tipo })}</span> : null}
         </div>
+        {p.soloModelo ? null : (
         <textarea
           className="lz-texto"
           value={texto}
@@ -155,6 +172,7 @@ function Dialogo({ p }: { p: PedidoLanzar }) {
             }
           }}
         />
+        )}
         {error ? (
           <p className="lz-error" role="alert">
             {error}

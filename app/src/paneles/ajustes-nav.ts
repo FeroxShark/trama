@@ -4,7 +4,7 @@
 import type { Clave, ClaveSola } from "../i18n";
 import { TIPOS } from "../../electron/modelos-tipos";
 
-export const CATS = ["cuentas", "modelos", "cupos", "locales", "dsh", "celular", "actualizaciones", "general"] as const;
+export const CATS = ["cuentas", "modelos", "cupos", "locales", "dsh", "celular", "actualizaciones", "general", "guia"] as const;
 export type CatId = (typeof CATS)[number];
 
 export const esCat = (x: unknown): x is CatId => typeof x === "string" && (CATS as readonly string[]).includes(x);
@@ -71,7 +71,18 @@ export const ITEMS: readonly Item[] = [
   { cat: "general", nombre: "ajustes.avisarEspera", que: "ajustes.avisarEsperaQue", sin: "notificacion notification aviso te necesita te espera lider escritorio desktop alerta" },
   { cat: "general", nombre: "ajustes.compactar", que: "ajustes.compactarQue", sin: "compactacion compaction contexto context autocompact ventana window tokens" },
   { cat: "general", nombre: "ajustes.atajos", que: "ajustes.atajosQue", sin: "teclado keyboard shortcuts hotkeys teclas atajos" },
+  { cat: "general", nombre: "ajustes.aplicarAuto", que: "ajustes.aplicarAutoQue", sin: "ramas branches veredictos verdicts analista analyst aplicar apply automatico automatic integrar descartar" },
   { cat: "general", nombre: "ajustes.bienvenida", que: "ajustes.bienvenidaQue", sin: "welcome bienvenida primer arranque first start setup asistente configurar inicio" },
+
+  { cat: "guia", nombre: "guia.lider", que: "guia.liderQue", sin: "lider leader worker workers rama branch tarea task brief delegar delegate" },
+  { cat: "guia", nombre: "guia.modelos", que: "guia.modelosQue", sin: "modelo model opus sonnet haiku esfuerzo effort inteligencia intelligence gratis free opencode low medium high xhigh elegir choose" },
+  { cat: "guia", nombre: "guia.tablero", que: "guia.tableroQue", sin: "tablero board pendientes todo tareas tasks kanban preguntas questions iniciar start" },
+  { cat: "guia", nombre: "guia.ramas", que: "guia.ramasQue", sin: "ramas branches integrar integrate descartar discard analizar analyze veredicto verdict aplicar apply verificar verified" },
+  { cat: "guia", nombre: "guia.cupos", que: "guia.cuposQue", sin: "cupo cupos quota quotas limite limit suscripcion subscription ventana window reservar reserve" },
+  { cat: "guia", nombre: "guia.temas", que: "guia.temasQue", sin: "tema theme color oscuro dark claro light paleta palette contraste contrast daltonismo colorblind" },
+  { cat: "guia", nombre: "guia.agents", que: "guia.agentsQue", sin: "agents.md agents md manual proyecto project contrato contract plantilla template crear create" },
+  { cat: "guia", nombre: "guia.auditoria", que: "guia.auditoriaQue", sin: "auditoria auditar audit review revisar revisor severidad severity diff" },
+  { cat: "guia", nombre: "guia.lecciones", que: "guia.leccionesQue", sin: "lecciones lessons podar prune notas notes aprendizaje learned" },
 ];
 
 /** Minúsculas y sin tildes: "Sesión" se encuentra con "sesion". */
@@ -192,6 +203,7 @@ export function deVariante(v: string | null | undefined): CatId | null {
   if (v === "celular") return "celular";
   if (v.startsWith("dsh")) return "dsh";
   if (v.startsWith("mdl") || v === "sinmdl" || v === "modelo" || v === "dictado") return "modelos";
+  if (v === "guia") return "guia";
   if (v === "fuente" || v === "mono" || v === "compactar" || v === "general") return "general";
   return null;
 }

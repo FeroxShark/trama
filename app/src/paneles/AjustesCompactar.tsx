@@ -4,16 +4,13 @@
 import { useEffect, useRef, useState } from "react";
 import { VERSION } from "../datos/contrato";
 import { fuentePaneles, type Ajustes as Datos } from "../datos/paneles";
-import { Selector, type Opcion } from "../hilo/Selector";
-import { idioma, t } from "../i18n";
-import { enOtros } from "../i18n/Fijo";
+import { t } from "../i18n";
 import { MODO } from "../modo";
 import { mensaje } from "../puente";
 import { IcCompactar, ICONO } from "../ui/iconos";
 import { Acciones, type FilaDato } from "./AjustesEditar";
-import { conMiles, redDesde, redPara, SIN_TOPE, TOPE_DEFECTO, topeDe, topesCon } from "./ajustes-compactar";
-
-const nombreDe = (n: number): string => (n === SIN_TOPE ? t("ajustes.compactarSinTope") : `${conMiles(n, idioma())} ${t("ajustes.redUnidad")}`);
+import { redDesde, redPara } from "./ajustes-compactar";
+import { UmbralCompactar } from "./UmbralCompactar";
 
 export function Compactar({ inicial, Dato }: { inicial: Datos; Dato: FilaDato }) {
   const [g, setG] = useState(inicial.red_seguridad);
@@ -21,6 +18,7 @@ export function Compactar({ inicial, Dato }: { inicial: Datos; Dato: FilaDato })
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [ok, setOk] = useState(false);
+  const [invalido, setInvalido] = useState(false);
   const vivo = useRef(true);
   useEffect(() => {
     vivo.current = true;
@@ -28,8 +26,6 @@ export function Compactar({ inicial, Dato }: { inicial: Datos; Dato: FilaDato })
   }, []);
 
   const r = redPara(g, b);
-  const actual = topeDe(b);
-  const opciones: Opcion[] = topesCon(actual).map((n) => ({ id: String(n), nombre: nombreDe(n), desc: "", rec: n === TOPE_DEFECTO }));
 
   const cambiar = (nuevo: string) => {
     setB(nuevo);
@@ -59,13 +55,14 @@ export function Compactar({ inicial, Dato }: { inicial: Datos; Dato: FilaDato })
       <h2 className="pn-h">{t("ajustes.compactacion")}</h2>
       <Dato nombre="ajustes.compactar" que="ajustes.compactarQue" icono={<IcCompactar {...ICONO} />}>
         <div className="pn-sel pn-abajo">
-          <Selector
-            etiqueta={t("ajustes.compactar")}
-            opciones={opciones}
-            valor={String(actual)}
-            alElegir={cambiar}
-            reserva={enOtros("ajustes.compactarSinTope")}
-            abierto={MODO.variante === "compactar"}
+          <UmbralCompactar
+            id="aj-umbral"
+            valor={b === "" ? null : Number(b)}
+            alCambiar={(c) => {
+              setInvalido(c.error !== null);
+              if (c.error === null) cambiar(c.valor === null ? redDesde(g) : String(c.valor));
+              else setOk(false);
+            }}
           />
         </div>
         {b === "" ? (
@@ -74,7 +71,10 @@ export function Compactar({ inicial, Dato }: { inicial: Datos; Dato: FilaDato })
           </div>
         ) : null}
       </Dato>
-      <Acciones id="compactar" sucio={r.sucio} valido guardando={guardando} ok={ok} error={error} alGuardar={guardar} alCancelar={() => cambiar(redDesde(g))} />
+      <Acciones id="compactar" sucio={r.sucio} valido={!invalido} guardando={guardando} ok={ok} error={error} alGuardar={guardar} alCancelar={() => {
+          setInvalido(false);
+          cambiar(redDesde(g));
+        }} />
     </section>
   );
 }

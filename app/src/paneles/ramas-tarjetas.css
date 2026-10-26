@@ -97,8 +97,7 @@
   gap: var(--esp-1-5);
   margin-top: var(--esp-1);
 }
-.pn-estado,
-.pn-veredicto {
+.pn-estado {
   display: inline-flex;
   align-items: center;
   gap: var(--esp-1);
@@ -109,9 +108,27 @@
   font-weight: 500;
   line-height: 1.5;
 }
+/* El veredicto es una etiqueta, no un botón: sin borde ni fondo, chica y apagada (la acción es el botón de la derecha). */
 .pn-veredicto {
-  color: var(--texto-2);
-  border-color: var(--texto-6);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--esp-1);
+  color: var(--texto-5);
+  font-size: var(--letra-3);
+  line-height: 1.5;
+  cursor: default;
+}
+.pn-sinverif {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--esp-1);
+  padding: 0 var(--esp-2);
+  border: 1px dashed var(--texto-5);
+  border-radius: 999px;
+  color: var(--texto-3);
+  font-size: var(--letra-3);
+  font-weight: 500;
+  line-height: 1.5;
 }
 .pn-motivo {
   display: -webkit-box;
@@ -138,10 +155,8 @@
   position: relative;
 }
 .pn-mas-lista {
-  position: absolute;
-  top: calc(100% + var(--esp-1));
-  right: 0;
-  z-index: 5;
+  position: fixed;
+  z-index: 60;
   display: flex;
   min-width: 8rem;
   flex-direction: column;
@@ -173,4 +188,87 @@
 }
 .pn-ramas-cab .pn-nota {
   flex: 1 1 12rem;
+}
+
+/* Aplicar todos los veredictos: la confirmación y el avance por rama. Cada estado lleva ícono y texto. */
+.pn-aplicar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-2);
+  margin: var(--esp-3) 0;
+  padding: var(--esp-3);
+  border: 1px solid var(--borde-3);
+  border-radius: var(--radio-2);
+  background: var(--sup-2);
+}
+.pn-aplicar-t {
+  color: var(--texto-1);
+  font-weight: 600;
+}
+.pn-aplicar-gt {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-1-5);
+  color: var(--texto-2);
+  font-weight: 500;
+}
+.pn-aplicar-g ul,
+.pn-aplicar-lista {
+  margin: var(--esp-1) 0 0;
+  padding: 0 0 0 var(--esp-5);
+  color: var(--texto-4);
+  font-size: var(--letra-4);
+}
+.pn-aplicar-lista {
+  padding: 0;
+  list-style: none;
+}
+.pn-aplicar-lista li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--esp-2);
+  padding: var(--esp-1) 0;
+}
+.pn-aplicar-acc {
+  color: var(--texto-2);
+  font-weight: 500;
+}
+.pn-aplicar-nom {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pn-aplicar-fase {
+  color: var(--texto-5);
+}
+.pn-aplicar-err {
+  flex-basis: 100%;
+}
+.pn-aplicar-aviso {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-1-5);
+  color: var(--texto-2);
+  font-size: var(--letra-4);
+}
+.pn-aplicar-pie {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--esp-2);
+}
+.pn-aplicar-lista svg[data-gira] {
+  animation: pn-gira 1s linear infinite;
+}
+@keyframes pn-gira {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pn-aplicar-lista svg[data-gira] {
+    animation: none;
+  }
 }

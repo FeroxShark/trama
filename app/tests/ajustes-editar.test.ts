@@ -157,3 +157,14 @@ test("si el settings está roto no se pisa ni se llama a pa", async () => {
   const lista = entorno("[1,2]");
   await assert.rejects(guardarAjustes({ red_seguridad: 111_000 }, lista.pa, lista.ruta), /no es un objeto/);
 });
+
+test("lo que elige la Bienvenida (250 k) es lo que Ajustes lee después: una sola clave, en tokens", async () => {
+  const { leerUmbral } = await import("../electron/contexto.ts");
+  const e = entorno(null);
+  await guardarAjustes({ red_seguridad: 250_000 }, e.pa, e.ruta);
+  assert.equal(JSON.parse(e.leer()).autoCompactWindow, 250_000);
+  assert.equal(await leerUmbral(e.ruta), 250_000);
+  // y reeditarlo desde Ajustes (otro valor del campo) pisa el mismo valor, no uno aparte
+  await guardarAjustes({ red_seguridad: 300_000 }, e.pa, e.ruta);
+  assert.equal(await leerUmbral(e.ruta), 300_000);
+});

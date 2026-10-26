@@ -30,3 +30,97 @@ export const conCuenta = (c: Record<Veredicto | "sin", number>): Veredicto[] => 
 
 /** Un filtro que se quedó sin ramas (se resolvieron todas) vuelve a "todas". */
 export const filtroVigente = (f: FiltroRama, c: Record<Veredicto | "sin", number>): FiltroRama => (f === "todas" || c[f] > 0 ? f : "todas");
+
+// --- "Aplicar todos los veredictos" ---------------------------------------------------------------------------------------
+
+/** Lo que "Aplicar todos" hace con una rama: las acciones que ya tiene cada fila (Integrar, Descartar, Retomar). */
+export type AccionLote = "integrar" | "descartar" | "retomar";
+
+/** Una rama tal como la ve el plan: lo mínimo de su fila. */
+export type RamaPlan = {
+  id: string;
+  /** No está trabajando, ni integrada, ni con una acción en curso. */
+  libre: boolean;
+  /** Chocó con main (80): necesita Actualizar antes de integrar. */
+  choco: boolean;
+  /** Ya falló algo con ella (el error que muestra su fila). */
+  conError: boolean;
+  /** Murió: su trabajo está a medias; integrarlo no es "seguro". */
+  murio: boolean;
+  /** `pa --hilos`: el RESULTADO no trajo la verificación. */
+  sinVerificar: boolean;
+};
+
+/** Qué se aplica y qué queda para el usuario (con el porqué de cada una). */
+export type PlanLote = {
+  integrar: string[];
+  descartar: string[];
+  retomar: string[];
+  /** El analista dijo "revisar", o dijo "integrar" pero no es seguro: lo decide el usuario. */
+  aparte: { id: string; motivo: "revisar" | "choco" | "error" | "murio" | "sinVerificar" }[];
+  total: number;
+};
+
+export function planAplicar(ramas: readonly RamaPlan[], juicios: ReadonlyMap<string, Juicio>): PlanLote {
+  const p: PlanLote = { integrar: [], descartar: [], retomar: [], aparte: [], total: 0 };
+  for (const r of ramas) {
+    const j = juicios.get(r.id);
+    if (!j || !r.libre) continue;
+    if (j.veredicto === "descartar") p.descartar.push(r.id);
+    else if (j.veredicto === "retomar") p.retomar.push(r.id);
+    else if (j.veredicto === "revisar") p.aparte.push({ id: r.id, motivo: "revisar" });
+    else if (r.choco) p.aparte.push({ id: r.id, motivo: "choco" });
+    else if (r.conError) p.aparte.push({ id: r.id, motivo: "error" });
+    else if (r.murio) p.aparte.push({ id: r.id, motivo: "murio" });
+    else if (r.sinVerificar) p.aparte.push({ id: r.id, motivo: "sinVerificar" });
+    else p.integrar.push(r.id);
+  }
+  p.total = p.integrar.length + p.descartar.length + p.retomar.length;
+  return p;
+}
+
+export type FasePaso = "espera" | "curso" | "ok" | "error";
+export type PasoLote = { id: string; accion: AccionLote; fase: FasePaso; error: string | null };
+
+/** Los pasos en el orden en que corren: integrar (de a una: tocan main), retomar y, al final, descartar. */
+export const pasosDe = (p: Pick<PlanLote, "integrar" | "retomar" | "descartar">): PasoLote[] => [
+  ...p.integrar.map((id) => ({ id, accion: "integrar" as const, fase: "espera" as const, error: null })),
+  ...p.retomar.map((id) => ({ id, accion: "retomar" as const, fase: "espera" as const, error: null })),
+  ...p.descartar.map((id) => ({ id, accion: "descartar" as const, fase: "espera" as const, error: null })),
+];
+
+/**
+ * Corre los pasos de a uno con `ejecutar` (devuelve el error, o `null` si salió bien) y avisa cada cambio con la lista nueva.
+ * Un paso que falla no frena a los demás. `parar()` corta antes del siguiente (los que no corrieron quedan en espera).
+ */
+export async function correrLote(
+  pasos: readonly PasoLote[],
+  ejecutar: (p: PasoLote) => Promise<string | null>,
+  alCambiar: (pasos: PasoLote[]) => void,
+  parar: () => boolean = () => false,
+): Promise<PasoLote[]> {
+  let actual = pasos.map((p) => ({ ...p }));
+  const poner = (i: number, parche: Partial<PasoLote>) => {
+    actual = actual.map((p, k) => (k === i ? { ...p, ...parche } : p));
+    alCambiar(actual);
+  };
+  for (let i = 0; i < actual.length; i++) {
+    if (parar()) break;
+    poner(i, { fase: "curso" });
+    let error: string | null;
+    try {
+      error = await ejecutar(actual[i]);
+    } catch (e) {
+      error = e instanceof Error ? e.message : String(e);
+    }
+    poner(i, error === null ? { fase: "ok", error: null } : { fase: "error", error });
+  }
+  return actual;
+}
+
+/** Cuántos pasos salieron bien y cuántos fallaron. */
+export const resumenLote = (pasos: readonly PasoLote[]) => ({
+  ok: pasos.filter((p) => p.fase === "ok").length,
+  mal: pasos.filter((p) => p.fase === "error").length,
+  faltan: pasos.filter((p) => p.fase === "espera" || p.fase === "curso").length,
+});

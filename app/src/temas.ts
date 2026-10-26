@@ -1,5 +1,5 @@
 // Los temas de color (Ajustes > General). Lo puro: qué ids hay y cuál se pinta de verdad; los colores
-// están en src/temas.css (un bloque `[data-tema]` por tema) y aplicarlos a <html> lo hace tipografia.ts.
+// están en src/temas-colores.css (un bloque `[data-tema]` por tema) y aplicarlos a <html> lo hace tipografia.ts.
 // "sistema" no es un tema con colores propios: sigue el claro/oscuro del sistema operativo.
 
 export const TEMAS = ["sistema", "oscuro", "claro", "bosque", "atardecer", "grafito", "contraste"] as const;

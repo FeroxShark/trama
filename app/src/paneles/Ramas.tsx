@@ -8,9 +8,10 @@
 // se ve sano (✓) o en rojo si causó problemas (src/datos/salud.ts: revertida,
 // `bien=no` o tests rojos en main después), y lo rojo se manda a verificar y
 // arreglar con un líder nuevo en ese proyecto (src/datos/arreglar.ts).
-import { useCallback, useEffect, useMemo, useState, type ReactNode, type Ref } from "react";
+import { createPortal } from "react-dom";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode, type Ref } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { Check, ChevronDown, CircleCheck, CircleHelp, Eye, GitMerge, Skull, Sparkles, Trash2, RotateCcw, MoreHorizontal, Archive, Hourglass, X, type LucideIcon } from "lucide-react";
+import { Check, ChevronDown, CircleCheck, CircleHelp, CircleX, Eye, GitMerge, ListChecks, Loader, Minus, ShieldAlert, Skull, Sparkles, Trash2, RotateCcw, MoreHorizontal, Archive, Hourglass, X, type LucideIcon } from "lucide-react";
 import { RESORTE } from "../barra/Fila";
 import { Reloj, tareaDe, tipoDe } from "../barra/piezas";
 import { errorCorto } from "../barra/arbol";
@@ -25,10 +26,13 @@ import { MODO } from "../modo";
 import { pintorHace } from "../tiempo";
 import { t as tr } from "../i18n";
 import { mensaje } from "../puente";
-import { pasoLider, pasoWorker } from "./PasoLanzar";
+import { pasoAuditar, pasoLider, pasoWorker } from "./PasoLanzar";
+import { effortPara } from "../hilo/elegir";
+import { effortsLeidos } from "../hilo/efforts";
 import { conTexto, type Eleccion } from "./lanzar";
-import { conCuenta, cuentas, filtroVigente, pasa, type FiltroRama } from "./ramas-vista";
-import "./ramas-vista.css";
+import { conCuenta, correrLote, cuentas, filtroVigente, pasa, pasosDe, planAplicar, resumenLote, type FiltroRama, type PasoLote, type PlanLote } from "./ramas-vista";
+import { alCambiarAplicarAuto, aplicarAuto, cambiarAplicarAuto } from "./aplicar-auto";
+import "./ramas-tarjetas.css";
 
 /** El ícono de cada veredicto: nunca sólo color. */
 const ICONO_V: Record<string, LucideIcon> = { integrar: GitMerge, descartar: Trash2, retomar: RotateCcw, revisar: Eye };
@@ -173,6 +177,89 @@ export function Ramas({ hilos, optimista, errores, enCurso, alActuar, alAbrir, a
   const cuenta = useMemo(() => cuentas(filas.map((h) => h.id), juicios), [filas, juicios]);
   const vigente = filtroVigente(filtro, cuenta);
 
+  // Auditar: el paso previo elige un modelo de Claude y lanza `pa --auditar … --async`.
+  const auditar = (h: Hilo) => pasoAuditar((e) => fuentePaneles.auditar({ id: h.id, proyecto: h.proyecto, modelo: e.modelo }));
+
+  // "Aplicar todos los veredictos": el plan sale de los veredictos y del estado de cada fila; correr = las acciones de cada fila, de a una.
+  const aplicarSolo = useSyncExternalStore(alCambiarAplicarAuto, aplicarAuto);
+  const ramasPlan = useMemo(
+    () =>
+      pendientes.flatMap((g) =>
+        g.filas.map(({ h, estado }) => ({
+          id: h.id,
+          libre: !VIVO.has(estado) && estado !== "integrado" && !enCurso.has(h.id) && !(h.rama && (auto?.enCurso ?? []).some((e) => e.rama === h.rama)),
+          choco: conflictos.has(h.id) || (auto?.fallas ?? []).some((f) => f.id === h.id && f.rc === 80),
+          conError: errores.has(h.id),
+          murio: estado === "murio",
+          sinVerificar: h.verificado === false,
+        })),
+      ),
+    [pendientes, enCurso, auto, conflictos, errores],
+  );
+  const plan = useMemo(() => planAplicar(ramasPlan, juicios), [ramasPlan, juicios]);
+  const [confirmando, setConfirmando] = useState<PlanLote | null>(null);
+  const [lote, setLote] = useState<PasoLote[] | null>(null);
+  // Los títulos al armar la tanda: una rama integrada sale de la lista y su fila ya no está para preguntarle.
+  const titulos = useRef(new Map<string, string>());
+  const [corriendo, setCorriendo] = useState(false);
+  const ref = useRef({ enCurso, errores, hilos, alActuar, alRetomar });
+  ref.current = { enCurso, errores, hilos, alActuar, alRetomar };
+  const montado = useRef(true);
+  useEffect(() => {
+    montado.current = true;
+    return () => void (montado.current = false);
+  }, []);
+  const esperar = async (cond: () => boolean, tope: number) => {
+    for (let t0 = Date.now(); Date.now() - t0 < tope && montado.current; ) {
+      if (cond()) return true;
+      await new Promise((r) => setTimeout(r, 120));
+    }
+    return cond();
+  };
+  const ejecutarPaso = async (p: PasoLote): Promise<string | null> => {
+    const h = ref.current.hilos?.find((x) => x.id === p.id);
+    if (!h) return tr("ramas.aplicarNoEsta");
+    if (p.accion === "retomar") {
+      try {
+        await ref.current.alRetomar(h, { modelo: MODELO_DEFAULT, effort: effortPara(MODELO_DEFAULT, effortsLeidos() ?? {}), texto: "" });
+        return null;
+      } catch (e) {
+        return mensaje(e);
+      }
+    }
+    ref.current.alActuar(p.id, p.accion);
+    if (!(await esperar(() => ref.current.enCurso.has(p.id), 2500))) return ref.current.errores.get(p.id) ?? tr("ramas.aplicarNoArranco");
+    await esperar(() => !ref.current.enCurso.has(p.id), 25 * 60_000);
+    return ref.current.errores.get(p.id) ?? null;
+  };
+  const aplicarPlan = async (pl: PlanLote) => {
+    const pasos = pasosDe(pl);
+    if (!pasos.length) return;
+    for (const h of filas) titulos.current.set(h.id, tareaDe(h));
+    setConfirmando(null);
+    setCorriendo(true);
+    setLote(pasos);
+    await correrLote(pasos, ejecutarPaso, (x) => montado.current && setLote(x), () => !montado.current);
+    if (montado.current) setCorriendo(false);
+  };
+  // Con la llave prendida: tras cada análisis nuevo se integra y se retoma solo; los descartes siguen pidiendo una confirmación por tanda.
+  const hecho = useRef("");
+  useEffect(() => {
+    if (!aplicarSolo || corriendo || !respuesta || hecho.current === respuesta || !plan.total) return;
+    hecho.current = respuesta;
+    const sinDescartes = { ...plan, descartar: [], total: plan.total - plan.descartar.length };
+    if (sinDescartes.total) void aplicarPlan(sinDescartes);
+    if (plan.descartar.length) setConfirmando({ ...plan, integrar: [], retomar: [], total: plan.descartar.length });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [aplicarSolo, respuesta, plan]);
+  // Capturas: `ramas-analista` con la variante `aplicar` abre el resumen; con `aplicar-corrida`, aplica y se ve el avance por rama.
+  useEffect(() => {
+    if (MODO.captura !== "ramas-analista" || !MODO.variante?.startsWith("aplicar") || !plan.total || confirmando || lote) return;
+    if (MODO.variante === "aplicar-corrida") void aplicarPlan(plan);
+    else setConfirmando(plan);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [plan]);
+
   /** Lanza al analista (o le manda el brief al que ya está) con lo elegido. Rechaza si no se pudo. */
   const lanzarAnalista = async ({ modelo, effort, texto: extra }: Eleccion) => {
     const quietas = filas.filter((h) => !VIVO.has(optimista.get(h.id) ?? h.estado));
@@ -237,6 +324,7 @@ export function Ramas({ hilos, optimista, errores, enCurso, alActuar, alAbrir, a
         alAbrir={alAbrir}
         alRetomar={alRetomar}
         alActualizar={alActualizar}
+        alAuditar={auditar}
         choco={conflictos.has(h.id) || f?.rc === 80}
       />
     );
@@ -274,6 +362,16 @@ export function Ramas({ hilos, optimista, errores, enCurso, alActuar, alAbrir, a
             <Sparkles size={13} strokeWidth={1.8} />
             {lanzando ? tr("ramas.analizando") : an ? tr("ramas.reanalizar") : tr("ramas.analizar")}
           </button>
+          {plan.total > 0 && !corriendo && !confirmando ? (
+            <button type="button" className="pn-analista-btn" data-aplicar onClick={() => setConfirmando(plan)} data-tip={tr("ramas.aplicarQue")}>
+              <ListChecks size={13} strokeWidth={1.8} aria-hidden="true" />
+              {tr("ramas.aplicarN", { n: plan.total })}
+            </button>
+          ) : null}
+          <button type="button" className="pn-llave" aria-pressed={aplicarSolo} data-tip={tr("ramas.aplicarAutoQue")} onClick={() => cambiarAplicarAuto(!aplicarSolo)}>
+            <span className="pn-llave-punto" />
+            {tr("ramas.aplicarAutoCorto")}
+          </button>
           {an ? (
             <>
               <button
@@ -299,6 +397,12 @@ export function Ramas({ hilos, optimista, errores, enCurso, alActuar, alAbrir, a
           ) : null}
         </div>
         {errorAn ? <div className="pn-error">{errorAn}</div> : null}
+        {confirmando ? (
+          <ResumenAplicar plan={confirmando} titulo={(id) => tareaDe(filas.find((h) => h.id === id) ?? ({ tarea: id } as Hilo))} alAplicar={() => void aplicarPlan(confirmando)} alCancelar={() => setConfirmando(null)} />
+        ) : null}
+        {lote ? (
+          <ResultadoLote pasos={lote} corriendo={corriendo} titulo={(id) => titulos.current.get(id) ?? id} alCerrar={() => setLote(null)} />
+        ) : null}
         {an ? (
           <div className="pn-analista-chat" hidden={!abierto}>
             <ChatLider key={an.id} l={an} alCreado={sinCrear} alNuevo={cerrarAnalista} mirar={false} mostrar={paraVer} alRespuesta={guardarRespuesta} />
@@ -396,6 +500,88 @@ export function Ramas({ hilos, optimista, errores, enCurso, alActuar, alAbrir, a
   );
 }
 
+const ICONO_ACCION: Record<string, LucideIcon> = { integrar: GitMerge, descartar: Trash2, retomar: RotateCcw };
+
+/** La confirmación de "Aplicar todos": cuántas ramas van a cada acción (con sus nombres) y cuáles quedan para el usuario. */
+function ResumenAplicar({ plan, titulo, alAplicar, alCancelar }: { plan: PlanLote; titulo: (id: string) => string; alAplicar: () => void; alCancelar: () => void }) {
+  const grupos = (["integrar", "retomar", "descartar"] as const).filter((a) => plan[a].length > 0);
+  return (
+    <div className="pn-aplicar" role="group" aria-label={tr("ramas.aplicarTitulo")}>
+      <div className="pn-aplicar-t">{tr("ramas.aplicarTitulo")}</div>
+      {grupos.map((a) => {
+        const I = ICONO_ACCION[a];
+        return (
+          <div key={a} className="pn-aplicar-g" data-accion={a}>
+            <div className="pn-aplicar-gt">
+              <I size={13} strokeWidth={2} aria-hidden="true" />
+              {tr(`ramas.aplicar.${a}`, { n: plan[a].length })}
+            </div>
+            <ul>
+              {plan[a].map((id) => (
+                <li key={id}>{titulo(id)}</li>
+              ))}
+            </ul>
+          </div>
+        );
+      })}
+      {plan.descartar.length ? (
+        <div className="pn-aplicar-aviso">
+          <ShieldAlert size={13} strokeWidth={2} aria-hidden="true" />
+          {tr("ramas.aplicarAviso")}
+        </div>
+      ) : null}
+      {plan.aparte.length ? (
+        <div className="pn-nota">
+          {tr("ramas.aplicarAparte", { n: plan.aparte.length })}
+          {": "}
+          {plan.aparte.map((x) => `${titulo(x.id)} (${tr(`ramas.aparte.${x.motivo}`)})`).join(" · ")}
+        </div>
+      ) : null}
+      <div className="pn-aplicar-pie">
+        <button type="button" className="mini" onClick={alCancelar}>
+          {tr("ramas.aplicarCancelar")}
+        </button>
+        <button type="button" className="mini pn-primario" data-aplicar-ok onClick={alAplicar}>
+          {tr("ramas.aplicarConfirmar", { n: plan.total })}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+const ICONO_FASE: Record<PasoLote["fase"], LucideIcon> = { espera: Minus, curso: Loader, ok: Check, error: CircleX };
+
+/** El avance de "Aplicar todos", rama por rama (ícono y texto en cada una), y el resumen cuando termina. */
+function ResultadoLote({ pasos, corriendo, titulo, alCerrar }: { pasos: PasoLote[]; corriendo: boolean; titulo: (id: string) => string; alCerrar: () => void }) {
+  const r = resumenLote(pasos);
+  return (
+    <div className="pn-aplicar" role="status" aria-live="polite">
+      <div className="pn-aplicar-t">{corriendo ? tr("ramas.aplicando", { hecho: r.ok + r.mal, total: pasos.length }) : tr("ramas.aplicado", { ok: r.ok, mal: r.mal })}</div>
+      <ul className="pn-aplicar-lista">
+        {pasos.map((p) => {
+          const I = ICONO_FASE[p.fase];
+          return (
+            <li key={p.id + p.accion} data-fase={p.fase}>
+              <I size={13} strokeWidth={2} aria-hidden="true" data-gira={p.fase === "curso" ? "" : undefined} />
+              <span className="pn-aplicar-acc">{tr(`ramas.paso.${p.accion}`)}</span>
+              <span className="pn-aplicar-nom">{titulo(p.id)}</span>
+              <span className="pn-aplicar-fase">{tr(`ramas.fase.${p.fase}`)}</span>
+              {p.error ? <span className="pn-error pn-aplicar-err">{errorCorto(p.error)}</span> : null}
+            </li>
+          );
+        })}
+      </ul>
+      {corriendo ? null : (
+        <div className="pn-aplicar-pie">
+          <button type="button" className="mini" onClick={alCerrar}>
+            {tr("ramas.aplicarCerrar")}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 type PropsFila = {
   /** Lo pone AnimatePresence (popLayout). */
   ref?: Ref<HTMLLIElement>;
@@ -418,11 +604,13 @@ type PropsFila = {
   alAbrir: PropsRamas["alAbrir"];
   alRetomar: PropsRamas["alRetomar"];
   alActualizar: PropsRamas["alActualizar"];
+  /** Auditar: abre el paso previo (el modelo de Claude) y lanza el revisor de sólo lectura. */
+  alAuditar: (h: Hilo) => void;
   /** Chocó con main (80): ofrece Actualizar. */
   choco: boolean;
 };
 
-function FilaRama({ ref, h, estado, error, enCurso, auto, sola, salud, alArreglar, juicio, armado, alArmar, alActuar, alAbrir, alRetomar, alActualizar, choco }: PropsFila) {
+function FilaRama({ ref, h, estado, error, enCurso, auto, sola, salud, alArreglar, juicio, armado, alArmar, alActuar, alAbrir, alRetomar, alActualizar, alAuditar, choco }: PropsFila) {
   const vivo = VIVO.has(estado);
   // Retomar, Arreglar y Actualizar no lanzan al tocarlos: abren el paso previo (modelo, esfuerzo y un texto) y lanza "Lanzar".
   const retomar = () => pasoLider("retomar", (e) => alRetomar(h, e));
@@ -472,6 +660,11 @@ function FilaRama({ ref, h, estado, error, enCurso, auto, sola, salud, alArregla
       {tr("ramas.revisar")}
     </button>
   );
+  const botonAuditar = (clase: string) => (
+    <button type="button" className={clase} data-auditar data-tip={tr("ramas.auditarQue")} onClick={() => alAuditar(h)}>
+      {tr("ramas.auditar")}
+    </button>
+  );
   // Un primario por rama (el del veredicto, o el que toca según cómo terminó); lo demás, en el menú "más".
   const M = "pn-mas-it";
   const P = "mini pn-primario";
@@ -491,6 +684,7 @@ function FilaRama({ ref, h, estado, error, enCurso, auto, sola, salud, alArregla
         : choco
           ? [botonActualizar(P), [botonIntegrar(M), descartar(M)]]
           : [botonIntegrar("mini"), [descartar(M)]];
+  if (libre && h.rama) secundarias.push(botonAuditar(M));
   const [largo, setLargo] = useState(false);
   const Ie = ICONO_E[estado];
   const Iv = juicio ? ICONO_V[juicio.veredicto] : null;
@@ -516,10 +710,16 @@ function FilaRama({ ref, h, estado, error, enCurso, auto, sola, salud, alArregla
               {t.texto}
             </span>
           ) : null}
+          {h.verificado === false && !vivo ? (
+            <span className="pn-sinverif" data-tip={tr("ramas.sinVerificarQue")}>
+              <ShieldAlert size={12} strokeWidth={2} aria-hidden="true" />
+              {tr("ramas.sinVerificar")}
+            </span>
+          ) : null}
           {juicio && Iv ? (
             <span className="pn-veredicto" data-veredicto={juicio.veredicto}>
-              <Iv size={12} strokeWidth={2} aria-hidden="true" />
-              {tr(`ramas.v.${juicio.veredicto}`)}
+              <Iv size={11} strokeWidth={2} aria-hidden="true" />
+              {tr("ramas.veredictoDe", { v: tr(`ramas.v.${juicio.veredicto}`).toLowerCase() })}
             </span>
           ) : null}
         </div>
@@ -584,13 +784,34 @@ function FilaRama({ ref, h, estado, error, enCurso, auto, sola, salud, alArregla
 function MenuMas({ children }: { children: ReactNode[] }) {
   const [abierto, setAbierto] = useState(false);
   const [caja, setCaja] = useState<HTMLDivElement | null>(null);
+  const lista = useRef<HTMLDivElement>(null);
+  // La lista va en un portal con `position: fixed`: ninguna tarjeta ni lista con overflow la recorta. Si abajo no entra, se abre hacia arriba.
+  const [pos, setPos] = useState<{ top: number; right: number } | null>(null);
+  const colocar = useCallback(() => {
+    const b = caja?.querySelector<HTMLElement>(".pn-mas-btn")?.getBoundingClientRect();
+    const l = lista.current;
+    if (!b) return;
+    const alto = l?.offsetHeight ?? 0;
+    const cabeAbajo = b.bottom + 4 + alto <= window.innerHeight - 8;
+    setPos({ top: cabeAbajo ? b.bottom + 4 : Math.max(8, b.top - 4 - alto), right: Math.max(8, window.innerWidth - b.right) });
+  }, [caja]);
+  useLayoutEffect(() => {
+    if (!abierto) return setPos(null);
+    colocar();
+    window.addEventListener("resize", colocar);
+    window.addEventListener("scroll", colocar, true);
+    return () => {
+      window.removeEventListener("resize", colocar);
+      window.removeEventListener("scroll", colocar, true);
+    };
+  }, [abierto, colocar]);
   useEffect(() => {
     if (!abierto || !caja) return;
-    const fuera = (e: PointerEvent) => !caja.contains(e.target as Node) && setAbierto(false);
+    const fuera = (e: PointerEvent) => !caja.contains(e.target as Node) && !lista.current?.contains(e.target as Node) && setAbierto(false);
     document.addEventListener("pointerdown", fuera);
     return () => document.removeEventListener("pointerdown", fuera);
   }, [abierto, caja]);
-  const items = () => [...(caja?.querySelectorAll<HTMLElement>(".pn-mas-lista button") ?? [])];
+  const items = () => [...(lista.current?.querySelectorAll<HTMLElement>("button") ?? [])];
   return (
     <div
       className="pn-mas"
@@ -611,21 +832,31 @@ function MenuMas({ children }: { children: ReactNode[] }) {
       <button
         type="button"
         className="mini pn-mas-btn"
-                aria-expanded={abierto}
+        aria-expanded={abierto}
         aria-label={tr("ramas.mas")}
         data-tip={tr("ramas.mas")}
         onClick={() => {
           setAbierto((a) => !a);
-          if (!abierto) queueMicrotask(() => items()[0]?.focus());
+          if (!abierto) setTimeout(() => items()[0]?.focus(), 0);
         }}
       >
         <MoreHorizontal size={14} strokeWidth={1.8} aria-hidden="true" />
       </button>
-      {abierto ? (
-        <div className="pn-mas-lista" role="group" aria-label={tr("ramas.mas")} onClick={(e) => (e.target as HTMLElement).closest("button") && !(e.target as HTMLElement).closest(".pn-descartar:not([data-armado])") && setAbierto(false)}>
-          {children}
-        </div>
-      ) : null}
+      {abierto
+        ? createPortal(
+            <div
+              ref={lista}
+              className="pn-mas-lista"
+              role="group"
+              aria-label={tr("ramas.mas")}
+              style={{ top: pos?.top ?? 0, right: pos?.right ?? 0, visibility: pos ? "visible" : "hidden" }}
+              onClick={(e) => (e.target as HTMLElement).closest("button") && !(e.target as HTMLElement).closest(".pn-descartar:not([data-armado])") && setAbierto(false)}
+            >
+              {children}
+            </div>,
+            document.body,
+          )
+        : null}
     </div>
   );
 }

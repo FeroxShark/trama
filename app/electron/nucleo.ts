@@ -32,8 +32,9 @@ import { guardarYa, leerLeidos, marcarLeido } from "./leidos.js";
 import { almacenNombres } from "./nombres.js";
 import { almacenPendientes } from "./pendientes.js";
 import { guardarApariencia, guardarAutoIntegrar, guardarAvisarEspera, bienvenidaPendiente, guardarBienvenida, guardarConsumo, guardarDictadoModelo, guardarEffort, guardarIdioma, guardarTiernos, guardarVista, leerPreferencias } from "./preferencias.js";
-import { accionRama, arreglarDatos, briefRamas, ejecutar, lanzarRama, leerAjustes, leerMedicion, pasarALider, retomarDatos, type AccionRama } from "./paneles.js";
+import { accionRama, arreglarDatos, briefRamas, enCola, ejecutar, lanzarRama, leerAjustes, leerMedicion, pasarALider, retomarDatos, type AccionRama } from "./paneles.js";
 import { guardarRouting, type Cambio } from "./routing.js";
+import { argvAuditar, datosAgentsMd, guardarLecciones, leccionesPendientes, leerLecciones, textoPoda } from "./orquestacion.ts";
 import { guardarAjustes } from "./ajustes-editar.js";
 import { crearBajadas } from "./ollama-bajar.ts";
 import { efectivoDePa, guardarModelos, leerModelos, modelosConfig, sondearOllama, vistaModelos } from "./modelos-config.ts";
@@ -43,7 +44,7 @@ import { sesionesVistas, vive } from "./sesiones.js";
 import { crearVigia, vivoEnPa } from "./vigia.js";
 import { crearEmisor } from "./hilos-dif.js";
 import { conLider } from "./cola-pa.js";
-import { alLeerHilos, anotarFrenados, cerrar, conversacion, ESTADO, escribirAtomico, hilosGuardados, leerHilos, leyendoHilos, mirarEventos, PA_STATE, parar, releerHilos, type Cerrable } from "./pa.js";
+import { alLeerHilos, anotarFrenados, nombrePa, cerrar, conversacion, ESTADO, escribirAtomico, hilosGuardados, leerHilos, leyendoHilos, mirarEventos, PA_STATE, parar, releerHilos, type Cerrable } from "./pa.js";
 import { esperandoWorkers, lideresConWorkers, workersEsperados, workersVivosDe } from "./relanzar.js";
 import * as lider from "./lider.js";
 import { nombreDueno } from "./dueno.ts";
@@ -96,7 +97,7 @@ const manejadores = new Map<string, Manejador>();
  * Lo que cambia la máquina (reescribe `~/CLAUDE.md`, los ajustes, borra una cuenta, libera la GPU, actualiza `claude`): desde la
  * tailnet (el celular) no. Los `modelos:*` y `remoto:guardar` tienen su propio chequeo, con su mensaje, en el manejador.
  */
-export const SOLO_PC_TAILNET: ReadonlySet<string> = new Set(["routing:guardar", "ajustes:guardar", "cuentas:quitar", "vram:liberar", "claude:actualizar", "dsh:clave", "dsh:instalar", "dsh:probar", "aa:refrescar"]);
+export const SOLO_PC_TAILNET: ReadonlySet<string> = new Set(["routing:guardar", "ajustes:guardar", "orq:leccionesGuardar", "cuentas:quitar", "vram:liberar", "claude:actualizar", "dsh:clave", "dsh:instalar", "dsh:probar", "aa:refrescar"]);
 
 /** Anota (o reemplaza) el manejador de un canal. */
 export function manejar(canal: string, fn: Manejador) {
@@ -752,6 +753,21 @@ export function armarNucleo() {
   manejar("pa:lanzar", (_e, x: Parameters<typeof lanzarRama>[0]) =>
     lanzarRama({ accion: x?.accion, id: x?.id, proyecto: x?.proyecto, modelo: x?.modelo, effort: x?.effort, texto: x?.texto }),
   );
+  // La orquestación de `pa` (orquestacion.ts): lecciones que piden poda, auditar una rama y la plantilla de AGENTS.md.
+  manejar("orq:lecciones", () => leccionesPendientes(PA_STATE));
+  manejar("orq:podaTexto", async (_e, slug: unknown) => textoPoda(await nombrePa(slug), ejecutar));
+  manejar("orq:leccionesLeer", (_e, slug: unknown) => leerLecciones(PA_STATE, slug));
+  manejar("orq:leccionesGuardar", (_e, slug: unknown, texto: unknown) => guardarLecciones(PA_STATE, slug, texto));
+  // Un revisor de sólo lectura sobre la rama de un worker, desacoplado (`pa --auditar … --async`): vuelve en cuanto `pa` lo deja corriendo.
+  manejar("orq:auditar", async (_e, x: { id: string; proyecto: string; modelo: string }) => {
+    const args = argvAuditar({ id: x?.id, proyecto: x?.proyecto, modelo: x?.modelo }, await nombrePa(x?.proyecto));
+    return enCola(String(x.proyecto), () => ejecutar(args)).then(({ rc, dijo }) => ({ rc, dijo }));
+  });
+  manejar("orq:agentsMd", async (_e, slug: unknown) => {
+    const nombre = await nombrePa(slug);
+    const p = (await registro()).find((r) => r.nombre === nombre);
+    return { ...(await datosAgentsMd(nombre, ejecutar)), proyecto: nombre, ruta: p?.ruta ?? null };
+  });
   manejar("routing:guardar", (_e, cambios: Cambio[]) =>
     guardarRouting((Array.isArray(cambios) ? cambios : []).map((c) => ({ rol: c?.rol, modelo: c?.modelo ?? null, effort: c?.effort ?? null }))),
   );

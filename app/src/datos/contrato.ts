@@ -53,6 +53,11 @@ export type Hilo = {
   cache_vence: number | null;
   cache_frio: CacheFrio;
   cache_modelo: string | null;
+  /**
+   * `pa --hilos --json`: el RESULTADO trajo VERIFICACION con comando y salida (`true`), no la trajo (`false`) o `pa` todavía no lo sabe
+   * (`null`, o el campo no viene: un `pa` viejo). Sólo `false` se marca: la UI no dice nada de los demás.
+   */
+  verificado?: boolean | null;
   /** Lo pone el main, no `pa`: cuándo vio morir la app a este worker (electron/vigia.ts). Sin verlo, no viene. */
   murio_en?: number | null;
   /**

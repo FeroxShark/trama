@@ -1,6 +1,6 @@
 @import "tailwindcss";
 @import "./tokens.css";
-@import "./temas.css";
+@import "./temas-colores.css";
 
 /* Dirección visual: el estándar pulido (vidrio quieto, acento celeste, cápsulas, grilla de 4 px,
    una sola fuente con cifras tabulares). Los tokens están en src/tokens.css; acá, el CSS de la app. */
@@ -291,6 +291,14 @@ body,
   .g-sub {
     display: none;
   }
+  /* Un grupo de adentro (Gemini, Claude/GPT, Argon): su nombre entero en su propia línea y las dos celdas debajo, en vez de partirse en dos renglones. */
+  .grupo[data-hijo] {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    row-gap: var(--esp-1);
+  }
+  .grupo[data-hijo] > .g-id {
+    grid-column: 1 / -1;
+  }
 }
 .g-id {
   display: grid;
@@ -393,6 +401,9 @@ body,
   flex: none;
 }
 .g-chip-v {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   font-family: var(--font-mono);
   color: var(--txt-1);
 }
@@ -451,7 +462,9 @@ body,
   -webkit-line-clamp: 2;
   white-space: normal;
 }
+/* En una celda angosta la ventana ("2 h 9 min") cede: queda el porcentaje y la barra (el tooltip dice el resto), nunca un "2 h 1…" cortado. */
 .uso {
+  container-type: inline-size;
   display: flex;
   min-width: 0;
   flex-direction: column;
@@ -472,6 +485,11 @@ body,
   overflow: hidden;
   color: var(--txt-3);
   text-overflow: ellipsis;
+}
+@container (max-width: 5.5rem) {
+  .uso .r > .n {
+    display: none;
+  }
 }
 .uso .pct {
   margin-left: auto;
@@ -1387,10 +1405,11 @@ kbd {
 .lw > .acc:has(.settle-conf) > * {
   pointer-events: auto;
 }
+/* La descripción (modelo · hora) NO se esconde: cede el ancho de los botones (--acc-w, medido en Fila.tsx) y se corta con puntos suspensivos. */
 .w:has(> .acc):hover .l2,
 .wbtn[data-cursor]:has(+ .acc) .l2,
 .w:has(> .acc:focus-within) .l2 {
-  opacity: 0;
+  padding-right: calc(var(--acc-w, 0px) + var(--esp-1-5));
 }
 /* El líder: igual, sobre su segunda línea (el padding de la fila es el de abajo y el de la izquierda, el de la corona). */
 .lw {
@@ -1405,7 +1424,7 @@ kbd {
 .lw:has(> .acc:focus-within) .txt > :last-child,
 .lw:has(> .acc .settle-conf) .txt > :last-child,
 .lider[data-cursor]:has(~ .acc) .txt > :last-child {
-  opacity: 0;
+  padding-right: calc(var(--acc-w, 0px) + var(--esp-1-5));
 }
 /* El numerito de caché va al medio de la fila: se esconde mientras se ven los botones (sin transición), así no se pisan. */
 .lw:has(> .acc):hover .cache,
@@ -2480,11 +2499,56 @@ kbd {
 .caja textarea:disabled {
   cursor: not-allowed;
 }
+/* Una sola fila a cualquier ancho: Lider.tsx la compacta por pasos (data-nivel) hasta que no sobre. Nunca baja a un segundo renglón. */
 .barra-c {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   gap: var(--esp-1);
+}
+.barra-c > * {
+  flex: none;
+}
+.barra-c > .esp {
+  flex: 1 1 0;
+  min-width: 0;
+}
+.barra-c .pbtn {
+  white-space: nowrap;
+}
+.pbtn-suf {
+  display: none;
+  white-space: nowrap;
+}
+/* Paso 1: el modo de permisos queda en su símbolo (el tooltip dice el nombre entero). */
+.barra-c:not([data-nivel="0"]) .modo-t {
+  display: none;
+}
+.barra-c:not([data-nivel="0"]) .modo {
+  justify-content: center;
+  min-width: 2rem;
+  margin-right: 0;
+  padding: 0 var(--esp-1-5);
+}
+/* Paso 2: modelo y esfuerzo en un solo chip ("Opus 5.5 · med") que abre el selector de modelo. */
+.barra-c:is([data-nivel="2"], [data-nivel="3"]) .pbtn-suf {
+  display: inline;
+}
+.barra-c:is([data-nivel="2"], [data-nivel="3"]) > .pick:has(.nivel),
+.barra-c:is([data-nivel="2"], [data-nivel="3"]) > .pick:has([data-sin-esfuerzo]) {
+  display: none;
+}
+/* Paso 3: sin adornos y, si aun así no entra, el nombre del modelo cede con puntos suspensivos. */
+.barra-c[data-nivel="3"] .pbtn :is(.chev, .chip) {
+  display: none;
+}
+.barra-c[data-nivel="3"] > .pick:has(> .pbtn) {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+.barra-c[data-nivel="3"] .pbtn {
+  max-width: 100%;
+  padding: 0 var(--esp-2);
 }
 /* El grupo de la derecha (contexto, Parar, micrófono, enviar) nunca se separa ni queda solo a la izquierda: pegado al borde derecho de la última línea. */
 .barra-der {
@@ -3190,36 +3254,59 @@ kbd {
   font-size: var(--letra-4);
   line-height: 1.5;
 }
-/* Seguir una conversación con un modelo de otro motor: la nota (y, antes de confirmar, sus dos botones) bajo la caja. */
-.caja-cruce {
+/* Seguir la conversación con un modelo de otro motor: diálogo modal sobre el selector abierto (DialogoCambio.tsx). */
+.cambio-fondo {
+  position: fixed;
+  inset: 0;
+  z-index: 600;
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  gap: var(--esp-2) var(--esp-3);
-  padding: var(--esp-2) var(--esp-1) 0;
-  color: var(--texto-4);
+  justify-content: center;
+  padding: var(--esp-4);
+  background: var(--fondo-modal);
+}
+.cambio {
+  display: flex;
+  width: min(26rem, 100%);
+  flex-direction: column;
+  gap: var(--esp-3);
+  padding: var(--esp-4);
+  border: 1px solid var(--borde-3);
+  border-radius: var(--radio-4);
+  background: var(--sup-1);
+  box-shadow: 0 1rem 2.5rem var(--sombra);
+  animation: abre 0.18s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.cambio-t {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-2);
+  margin: 0;
+  color: var(--texto);
+  font-size: var(--letra-6);
+  font-weight: 600;
+}
+.cambio-t svg {
+  flex: none;
+}
+.cambio-d {
+  margin: 0;
+  color: var(--texto-3);
   font-size: var(--letra-4);
   line-height: 1.5;
 }
-.cruce-t {
-  flex: 1 1 16rem;
-  min-width: 0;
-}
-.cruce-t svg {
-  display: inline;
-  margin-right: var(--esp-1-5);
-  vertical-align: -0.125rem;
-}
-.cruce-b {
+.cambio-b {
   display: flex;
-  gap: var(--esp-1-5);
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--esp-2);
 }
-.caja-cruce .btn2 {
+.cambio .btn2 {
   height: var(--alto-chip);
   padding: 0 var(--esp-3);
   font-size: var(--letra-4);
 }
-.caja-cruce .cruce-si {
+.cambio .cambio-si {
   background: var(--acento);
   color: var(--acento-texto);
 }
@@ -5936,11 +6023,11 @@ summary.sis-div-t:hover,
   }
 }
 
-/* --- Selector en columnas (los modelos): una columna por proveedor, todas a la vista ------------------------ */
+/* --- Selector compacto de modelos: un riel de proveedores a la izquierda y una sola lista a la derecha ----------- */
 .menu[data-columnas] {
-  width: min(calc(var(--n, 1) * 15.5rem + 1rem), 95vw);
-  max-width: 95vw;
-  max-height: min(34rem, calc(100dvh - 1rem));
+  width: min(46rem, 95vw);
+  max-width: min(46rem, 95vw);
+  max-height: min(60dvh, calc(100dvh - 1rem));
   overflow: hidden;
   gap: 0;
   padding: var(--esp-1) var(--esp-1) var(--esp-1-5);
@@ -5984,11 +6071,73 @@ summary.sis-div-t:hover,
 .mc-busca input::-webkit-search-cancel-button {
   display: none;
 }
-.mc-lista {
+.mc-cuerpo {
   display: flex;
   min-height: 0;
   flex: 1;
+}
+/* El riel: una pestaña por proveedor (logo, nombre y cuántos modelos). */
+.mc-riel {
+  display: flex;
+  width: 11rem;
+  flex: none;
   flex-direction: column;
+  gap: 1px;
+  padding: 0 var(--esp-1) 0 0;
+  border-right: 1px solid var(--borde-2);
+  overflow-y: auto;
+}
+.mc-tab {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-2);
+  padding: var(--esp-2) var(--esp-2-5);
+  border: 0;
+  border-radius: var(--radio-2);
+  background: transparent;
+  color: var(--texto-4);
+  font-size: var(--letra-4);
+  text-align: left;
+  white-space: nowrap;
+}
+.mc-tab .logo {
+  flex: none;
+  color: var(--texto-3);
+}
+.mc-tab:hover,
+.mc-tab:focus-visible {
+  background: var(--sup-2);
+  color: var(--texto-2);
+}
+/* La pestaña elegida no es sólo color: fondo, negrita y una barra al borde. */
+.mc-tab[aria-selected="true"] {
+  background: var(--sup-2);
+  box-shadow: inset 0.1875rem 0 0 var(--texto-3);
+  color: var(--texto);
+  font-weight: 600;
+}
+.mc-tab[data-vacia] {
+  opacity: 0.55;
+}
+.mc-tn {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mc-cnt {
+  flex: none;
+  color: var(--texto-7);
+  font-family: var(--font-mono);
+  font-size: var(--letra-3);
+}
+.mc-lista {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  padding-left: var(--esp-1);
   overflow-y: auto;
   scrollbar-width: thin;
   scrollbar-color: var(--borde-3) transparent;
@@ -5998,22 +6147,16 @@ summary.sis-div-t:hover,
   border-bottom: 1px solid var(--borde-2);
   margin-bottom: var(--esp-1);
 }
-.mc-cols {
-  display: grid;
-  grid-template-columns: repeat(var(--n, 1), minmax(0, 1fr));
-  align-items: start;
-}
 .mc-col {
   display: flex;
   min-width: 0;
   flex-direction: column;
   gap: 1px;
-  padding: 0 var(--esp-1);
 }
 .mc-col + .mc-col {
-  border-left: 1px solid var(--borde-2);
+  margin-top: var(--esp-2);
 }
-/* El título de la columna: el logo y el proveedor; queda pegado arriba si la lista scrollea. */
+/* Buscando se ven todos los proveedores, cada uno con su título pegado arriba. */
 .mc-tit {
   position: sticky;
   top: 0;
@@ -6021,9 +6164,8 @@ summary.sis-div-t:hover,
   display: flex;
   align-items: center;
   gap: var(--esp-2);
-  padding: var(--esp-1-5) var(--esp-2-5) var(--esp-2);
+  padding: var(--esp-1-5) var(--esp-2-5);
   border-bottom: 1px solid var(--borde-2);
-  margin-bottom: var(--esp-1);
   background: var(--sup-1);
   color: var(--texto-4);
   font-size: var(--letra-4);
@@ -6046,34 +6188,58 @@ summary.sis-div-t:hover,
   font-size: var(--letra-4);
   text-align: center;
 }
-/* Una opción en columna: el nombre puede partirse y la descripción tiene hasta dos renglones. */
+/* Un renglón por modelo: el nombre a la izquierda, lo chico (Gratis, De pago, por defecto) y el tilde a la derecha. La descripción entra sólo en el resaltado. */
 .menu[data-columnas] .op {
-  align-items: start;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
 }
 .menu[data-columnas] .op .on1 {
-  align-items: flex-start;
-  white-space: normal;
-  overflow: visible;
+  min-width: 0;
 }
-.menu[data-columnas] .op .on1 .logo {
-  margin-top: var(--esp-1);
+.menu[data-columnas] .op {
+  padding-block: var(--esp-1-5);
+}
+.menu[data-columnas] .op .ok {
+  grid-column: 3;
+  grid-row: 1;
+}
+.menu[data-columnas] .op .oc-meta {
+  grid-column: 2;
+  grid-row: 1;
 }
 .menu[data-columnas] .op .on-n {
   min-width: 0;
-  overflow-wrap: anywhere;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.oc-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--esp-1-5);
+}
+.oc-tag {
+  padding: 0 var(--esp-1-5);
+  border: 1px solid var(--borde-3);
+  border-radius: var(--radio-pastilla);
+  color: var(--texto-3);
+  font-size: var(--letra-3);
+  line-height: 1.5;
+}
+/* "De pago" va con borde punteado y "Gratis" liso: se distinguen sin depender del color. */
+.oc-tag[data-tag="pago"] {
+  border-style: dashed;
+  color: var(--texto-2);
 }
 .menu[data-columnas] .op .md {
-  display: -webkit-box;
+  display: none;
+  grid-column: 1 / -1;
   overflow: hidden;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  padding-left: calc(0.875rem + var(--esp-2));
-  white-space: normal;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-.menu[data-columnas] .op .ok {
-  grid-row: 1;
-  margin-top: var(--esp-1);
+.menu[data-columnas] .op:is(:hover, :focus-visible) .md {
+  display: block;
 }
 /* La elegida no se dice sólo con el tilde: también va en negrita y con el fondo marcado. */
 .menu[data-columnas] .op[aria-selected="true"] {
@@ -6082,23 +6248,11 @@ summary.sis-div-t:hover,
 .menu[data-columnas] .op[aria-selected="true"] .on-n {
   font-weight: 600;
 }
-/* Pantallas medianas: de a dos columnas. */
-@media (max-width: 62rem) {
-  .menu[data-columnas] {
-    width: min(calc(min(var(--n, 1), 2) * 15.5rem + 1rem), 95vw);
-  }
-  .mc-cols {
-    grid-template-columns: repeat(min(var(--n, 1), 2), minmax(0, 1fr));
-    row-gap: var(--esp-2);
-  }
-  .mc-col:nth-child(2n + 1) {
-    border-left: 0;
-  }
-}
-/* Celular: una sola columna, con el título de cada proveedor pegado arriba mientras se recorre. */
+/* Celular: el riel pasa arriba, en horizontal (el nombre se va, queda el logo y la cuenta). */
 @media (max-width: 37.5rem) {
   .menu[data-columnas] {
     width: 95vw;
+    max-width: 95vw;
   }
   .mc-cab {
     flex-direction: column;
@@ -6108,32 +6262,19 @@ summary.sis-div-t:hover,
   .mc-busca {
     flex: none;
   }
-  .mc-cols {
-    display: flex;
+  .mc-cuerpo {
     flex-direction: column;
   }
-  .mc-col,
-  .mc-col + .mc-col {
-    border-left: 0;
+  .mc-riel {
+    width: auto;
+    flex-direction: row;
+    padding: 0 0 var(--esp-1);
+    border-right: 0;
+    border-bottom: 1px solid var(--borde-2);
+    margin-bottom: var(--esp-1);
+    overflow: auto hidden;
   }
-  .mc-col + .mc-col {
-    margin-top: var(--esp-1);
-  }
-}
-/* Pantalla ancha: cada columna scrollea sola (si scrollea todo junto, las columnas cortas desaparecen al bajar en la larga). */
-@media (min-width: 62.0625rem) {
-  .menu[data-columnas] .mc-lista {
-    overflow: hidden;
-  }
-  .mc-cols {
-    min-height: 0;
-    flex: 1;
-    align-items: stretch;
-  }
-  .mc-col {
-    min-height: 0;
-    overflow-y: auto;
-    scrollbar-width: thin;
-    scrollbar-color: var(--borde-3) transparent;
+  .mc-lista {
+    padding-left: 0;
   }
 }

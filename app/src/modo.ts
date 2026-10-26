@@ -119,6 +119,8 @@ const CAPTURAS = [
   "tablero-iniciar",
   // Los items pospuestos con su lista abierta y "Traer de vuelta".
   "tablero-pospuestos",
+  // El aviso "Lecciones por podar" del tablero (variante `editor`: el editor de lecciones.md abierto).
+  "tablero-lecciones",
   // El tablero junto de las máquinas: items de la otra con su nombre al lado del número y el aviso de una máquina sin conexión.
   "tablero-maquinas",
   // El tablero sin vista todavía (no hay tablero): el cuadro para anotar el primero y lo que es el tablero.

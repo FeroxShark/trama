@@ -24,6 +24,8 @@
 # Como el `pa` real, rechaza (exit 2) `-m *haiku*` y `--effort max` al lanzar, salvo con `--tipo mecanico`
 # (Haiku es el modelo de lo mecánico: el paso previo de Ramas lo lanza con `-m claude-haiku-5-5 --effort xhigh`).
 # `--actualizar` anota en `lanzados.tsv` el modelo y el effort con que lo lanzaron (`-m`, `--effort`).
+# `PA_FALSO_NOVERIF="id,id"` marca esas corridas con `verificado: false` en `--hilos` (las demás no traen el campo, como un `pa` viejo).
+# `<proy> --lecciones-podar` y `<proy> --agents-md` contestan como `pa` (con `PA_FALSO_AGENTS_MD=1`, el AGENTS.md ya existe: sólo avisa por stderr).
 # Si `PA_STATE` apunta a un directorio que NO es el de `pa` de verdad, lo lanzado
 # se anota ahí (`lanzados.tsv`, sale en `--hilos` como trabajando) y se escribe un
 # evento en su `eventos.jsonl`: la app lo relee como con el `pa` real.
@@ -59,7 +61,7 @@ if [[ "${1:-}" == --hilos ]]; then
   # Un archivo `muertos` en el PA_STATE de mentira: al 44444 lo mataron (sin evento, como en la vida real).
   muertos=0
   [[ -n "$estado_falso" && -f "$estado_falso/muertos" ]] && muertos=1
-  jq -n --argjson t "$ahora" --argjson n "${PA_FALSO_N:-0}" --argjson seguras "$seguras" --argjson integradas "$integradas" --argjson lanzados "$lanzados" --argjson muertos "$muertos" --arg lider "${PA_FALSO_LIDER:-s-falso-lider}" '
+  jq -n --argjson t "$ahora" --argjson n "${PA_FALSO_N:-0}" --argjson seguras "$seguras" --argjson integradas "$integradas" --argjson lanzados "$lanzados" --argjson muertos "$muertos" --argjson noverif "$(jq -R -s 'split(",") | map(gsub("\\s"; "") | select(length > 0))' <<<"${PA_FALSO_NOVERIF:-}")" --arg lider "${PA_FALSO_LIDER:-s-falso-lider}" '
     def hilo($id; $p; $tarea; $estado; $hace; $rama; $leer):
       { id: $id, proyecto: $p, tarea: $tarea, modelo: "claude-opus-5-5", effort: "medium",
         origen: "jefe", jefe: null, jefe_id: null, sigue_de: null, estado: $estado, en_cola: false, inicio: ($t - $hace),
@@ -99,7 +101,8 @@ if [[ "${1:-}" == --hilos ]]; then
       hilo("20261002-\(1000000 + $i | tostring | .[1:])-\(10000 + $i)"; ["cosecha", "duna", "eco"][$i % 3];
            "Tarea sintética \($i)"; ["entregado", "listo", "decision", "murio"][$i % 4]; 2000 + $i * 60; null; false) + $app
     ]) }
-    | if $muertos == 1 then .hilos |= map(if .id == "20261003-100300-44444" then .estado = "murio" | .duracion_s = null else . end) else . end'
+    | if $muertos == 1 then .hilos |= map(if .id == "20261003-100300-44444" then .estado = "murio" | .duracion_s = null else . end) else . end
+    | .hilos |= map(if (.id | IN($noverif[])) then . + {verificado: false} else . end)'
   exit 0
 fi
 
@@ -152,6 +155,18 @@ if [[ "${1:-}" == --plan ]]; then
     esac
   fi
   if [[ -n "$plan_f" && -f "$plan_f" ]]; then echo "plan: $(<"$plan_f")"; else echo "plan: ${PA_FALSO_PLAN:-max}"; fi
+  exit 0
+fi
+
+# Orquestación: la instrucción de poda y la plantilla de AGENTS.md (no lanzan nada).
+if [[ " $* " == *" --lecciones-podar "* ]]; then
+  echo "Podá las lecciones de '${1}' (no abre nada: lo hace un agente). Releé lecciones.md y reescribilo más corto: máximo 30 líneas y 3000 caracteres."
+  exit 0
+fi
+if [[ " $* " == *" --agents-md "* ]]; then
+  if [[ -n "${PA_FALSO_AGENTS_MD:-}" ]]; then echo "pa: '${1}' ya tiene AGENTS.md (812 caracteres)." >&2; exit 0; fi
+  echo "pa: plantilla para ${1}/AGENTS.md. Llenala con lo que VERIFICASTE." >&2
+  printf '# AGENTS.md\n\n## Qué es\n<una o dos líneas>\n\n## Build y arranque\n- Instalar: `<comando>`\n'
   exit 0
 fi
 

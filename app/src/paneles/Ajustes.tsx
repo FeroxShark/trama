@@ -17,6 +17,8 @@ import { BarraGuardar, Celular, PlanYRed } from "./AjustesEditar";
 import { AjustesCuentas } from "./AjustesCuentas";
 import { AjustesModelos } from "./AjustesModelos";
 import { Compactar } from "./AjustesCompactar";
+import { Guia } from "./AjustesGuia";
+import { alCambiarAplicarAuto, aplicarAuto, cambiarAplicarAuto } from "./aplicar-auto";
 import { IcApariencia, IcAtajos, IcAviso, IcCodigo, ICONO, IcIdioma, IcLetra, IcTiernos, IcTipografia } from "../ui/iconos";
 import { Carcasa } from "./AjustesCarcasa";
 import { AjustesMarco, Cat } from "./AjustesNav";
@@ -71,7 +73,7 @@ function Apariencia() {
               data-tema-id={id}
               onClick={() => elegirApariencia({ tema: id })}
             >
-              {/* La muestra pinta con los tokens del tema de la propia muestra (temas.css); "sistema" es mitad oscuro, mitad claro. */}
+              {/* La muestra pinta con los tokens del tema de la propia muestra (temas-colores.css); "sistema" es mitad oscuro, mitad claro. */}
               <span className="pn-muestra" aria-hidden="true">
                 {id === "sistema" ? (
                   <>
@@ -174,6 +176,7 @@ export function Ajustes() {
   const [error, setError] = useState<string | null>(null);
   const tiernos = useTiernos();
   const avisar = useSyncExternalStore(alCambiarAvisarEspera, avisarEspera);
+  const aplicarSolo = useSyncExternalStore(alCambiarAplicarAuto, aplicarAuto);
   const [intento, setIntento] = useState(0);
 
   useEffect(() => {
@@ -228,6 +231,20 @@ export function Ajustes() {
           />
         </div>
       </Dato>
+      <Dato nombre="ajustes.aplicarAuto" que="ajustes.aplicarAutoQue" icono={<IcAviso {...ICONO} />}>
+        <div className="pn-sel">
+          <Selector
+            etiqueta={t("ajustes.aplicarAuto")}
+            opciones={[
+              { id: "si", nombre: t("ajustes.tiernosSi"), desc: "" },
+              { id: "no", nombre: t("ajustes.tiernosNo"), desc: "" },
+            ]}
+            valor={aplicarSolo ? "si" : "no"}
+            alElegir={(id) => cambiarAplicarAuto(id === "si")}
+            reserva={[...enOtros("ajustes.tiernosSi"), ...enOtros("ajustes.tiernosNo")]}
+          />
+        </div>
+      </Dato>
       <Dato nombre="ajustes.atajos" que="ajustes.atajosQue" icono={<IcAtajos {...ICONO} />}>
         <button type="button" className="btn2" onClick={abrirAtajos}>
           <Fijo k="ajustes.atajosVer" />
@@ -276,6 +293,7 @@ export function Ajustes() {
         <Cat id="actualizaciones">
           <Carcasa Dato={Dato} />
         </Cat>
+        <Guia />
       </AjustesMarco>
       <BarraGuardar />
     </>

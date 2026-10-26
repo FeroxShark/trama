@@ -2,7 +2,7 @@
 // categoría elegida. Cada categoría (`<Cat>`) queda montada aunque no se vea: los bloques que se guardan con la barra de abajo
 // conservan su borrador. Qué hay en cada una y cómo se busca: ajustes-nav.ts.
 import { createContext, useContext, useEffect, useId, useRef, useState, useSyncExternalStore, type KeyboardEvent, type ReactNode, type RefObject } from "react";
-import { Cpu, Download, Gauge, HardDrive, Search, Smartphone, SlidersHorizontal, SquareTerminal, UserRound, X, type LucideIcon } from "lucide-react";
+import { BookOpen, Cpu, Download, Gauge, HardDrive, Search, Smartphone, SlidersHorizontal, SquareTerminal, UserRound, X, type LucideIcon } from "lucide-react";
 import { carcasa, carcasaActualiza } from "../carcasa";
 import { Selector, type Opcion } from "../hilo/Selector";
 import { t, type Clave, type ClaveSola } from "../i18n";
@@ -34,6 +34,7 @@ const TEXTOS: Record<CatId, { nombre: ClaveSola; que: ClaveSola; icono: LucideIc
   celular: { nombre: "aj.cat.celular", que: "aj.cat.celularQue", icono: Smartphone },
   actualizaciones: { nombre: "aj.cat.actualizaciones", que: "aj.cat.actualizacionesQue", icono: Download },
   general: { nombre: "aj.cat.general", que: "aj.cat.generalQue", icono: SlidersHorizontal },
+  guia: { nombre: "aj.cat.guia", que: "aj.cat.guiaQue", icono: BookOpen },
 };
 
 const CatCtx = createContext<CatId>("general");

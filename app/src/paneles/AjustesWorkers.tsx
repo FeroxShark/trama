@@ -91,7 +91,7 @@ function Fila({ f, b, cambiar }: { f: FilaTabla; b: Borrador; cambiar: (n: Borra
   const cupo =
     f.libre !== null ? (f.gratis ? (f.libre < 100 ? t("ajustes.mdlWkQueda", { pct: String(f.libre) }) : null) : t("ajustes.mdlWkLibre", { pct: String(f.libre) })) : f.gratis ? t("ajustes.mdlWkSinCupo") : t("ajustes.mdlWkSinDato");
   return (
-    <li className="wk-fila" data-id={f.id} data-off={est.permitido ? undefined : ""}>
+    <li className="wk-fila" data-id={f.id} data-off={est.permitido ? undefined : ""} style={est.permitido ? undefined : { opacity: 0.55 }}>
       <Interruptor
         activo={est.permitido}
         disabled={est.regla !== null}
@@ -110,7 +110,8 @@ function Fila({ f, b, cambiar }: { f: FilaTabla; b: Borrador; cambiar: (n: Borra
           )}
           {f.libre !== null && f.vuelve !== null ? <Vuelve ms={f.vuelve} /> : null}
         </span>
-        {o.tipo === "aa" && Object.keys(f.calidadPorEffort).length > 0 ? (
+        {/* Los excluidos no entran al reparto: la fila va atenuada (arriba) y sin el desglose por effort, que no se usa. */}
+        {est.permitido && o.tipo === "aa" && Object.keys(f.calidadPorEffort).length > 0 ? (
           <span className="wk-efforts" data-tip={t("ajustes.mdlWkPorEffortQue")}>
             {EFFORTS_CALIDAD.filter((e) => f.calidadPorEffort[e] !== undefined)
               .map((e) => `${t(`ajustes.mdlWkEffort_${e}`)} ${f.calidadPorEffort[e]}`)

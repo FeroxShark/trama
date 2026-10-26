@@ -1,0 +1,73 @@
+/* Aviso "Lecciones por podar" del Tablero y su editor. Ícono y texto en cada estado, nunca sólo color. */
+.lc {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-2);
+  margin-bottom: var(--esp-3);
+}
+.lc-aviso {
+  padding: var(--esp-3);
+  border: 1px solid var(--borde-3);
+  border-left: 3px solid var(--texto-4);
+  border-radius: var(--radio-2);
+  background: var(--sup-2);
+}
+.lc-t {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-1-5);
+  color: var(--texto-1);
+  font-weight: 600;
+}
+.lc-d {
+  margin: var(--esp-1) 0 var(--esp-2);
+  color: var(--texto-4);
+  font-size: var(--letra-4);
+}
+.lc-acc,
+.lc-pie {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--esp-2);
+}
+.lc-acc button,
+.lc-pie button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--esp-1-5);
+}
+.lc-ed {
+  margin-top: var(--esp-3);
+}
+.lc-ed-t {
+  margin-bottom: var(--esp-1);
+  color: var(--texto-2);
+  font-weight: 500;
+}
+.lc-area {
+  width: 100%;
+  box-sizing: border-box;
+  font-family: var(--font-mono);
+  resize: vertical;
+}
+.lc-pie {
+  margin-top: var(--esp-2);
+}
+.lc-cuenta {
+  display: inline-flex;
+  flex: 1;
+  align-items: center;
+  gap: var(--esp-1);
+  color: var(--texto-4);
+  font-size: var(--letra-3);
+}
+.lc-cuenta[data-pasa] {
+  color: var(--texto-1);
+  font-weight: 600;
+}
+.lc-ok {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-1);
+}
