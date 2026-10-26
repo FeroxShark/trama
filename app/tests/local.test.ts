@@ -194,3 +194,22 @@ test("cerrar: lo último que se difundió le llega a quien oía, aunque se cierr
   antes.cortar();
   assert.match(todo, /"saliendo":true/);
 });
+
+test("prepararCarpeta: el /tmp/trama-<uid> intermedio tiene que ser una carpeta propia y no un enlace", async () => {
+  const { prepararCarpeta } = await import("../electron/local.ts");
+  const { symlinkSync } = await import("node:fs");
+  const uid = 900000000 + (process.pid % 90000);
+  const padre = path.join(os.tmpdir(), `trama-${uid}`);
+  const otro = mkdtempSync(path.join(os.tmpdir(), "otro-"));
+  try {
+    symlinkSync(otro, padre);
+    assert.throws(() => prepararCarpeta(path.join(padre, "trama")), /no es una carpeta/);
+    rmSync(padre, { force: true });
+    prepararCarpeta(path.join(padre, "trama"));
+    assert.equal(statSync(padre).mode & 0o777, 0o700);
+    assert.equal(statSync(path.join(padre, "trama")).mode & 0o777, 0o700);
+  } finally {
+    rmSync(padre, { recursive: true, force: true });
+    rmSync(otro, { recursive: true, force: true });
+  }
+});

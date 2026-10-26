@@ -94,7 +94,12 @@ const png = process.env.HILOS_CAPTURA_PNG ?? "";
 const escala = Number(process.env.HILOS_ESCALA ?? 1);
 const prueba = Number(process.env.HILOS_PRUEBA ?? 0);
 // Perfil aparte: que la prueba no comparta localStorage con la app que el usuario tiene abierta.
-if (prueba) app.setPath("userData", process.env.HILOS_PRUEBA_PERFIL ?? path.join(app.getPath("temp"), `hilos-prueba-${process.pid}`));
+if (prueba) {
+  const perfil = process.env.HILOS_PRUEBA_PERFIL ?? path.join(app.getPath("temp"), `hilos-prueba-${process.pid}`);
+  app.setPath("userData", perfil);
+  // El temporal no queda en /tmp; uno que pasó quien corre la prueba es suyo y no se borra.
+  if (!process.env.HILOS_PRUEBA_PERFIL) process.on("exit", () => rmSync(perfil, { recursive: true, force: true }));
+}
 else if (process.env.HILOS_PERFIL) app.setPath("userData", process.env.HILOS_PERFIL);
 // Bench y captura sin perfil propio: uno temporal, no el de la Trama del usuario (~/.config/hilos).
 else if (guion || captura || png) {

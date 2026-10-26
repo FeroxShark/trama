@@ -45,6 +45,7 @@ process.env.PATH = `${path.join(tmp, "bin")}:${process.env.PATH}`;
 // El módulo de agy lee su entorno al cargarse. La última sale del estado (recién chequeada, así no se consulta): sin red.
 process.env.HILOS_AGY = agyModulo;
 process.env.HILOS_TERMINAL = terminalFalsa;
+process.env.HILOS_PACMAN = terminalFalsa; // un ejecutable cualquiera: la prueba corre también donde no hay pacman
 process.env.HILOS_AGY_ACTUALIZADOR = "http://127.0.0.1:9/";
 mkdirSync(path.join(tmp, "estado"), { recursive: true });
 writeFileSync(path.join(tmp, "estado", "agy-version.json"), JSON.stringify({ version: 1, chequeado: Date.now(), instalada: "1.4.2", ultima: "1.4.3", descartada: null }));

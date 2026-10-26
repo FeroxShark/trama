@@ -79,7 +79,8 @@ test("un Gemini que se repite se corta, recibe el aviso en su conversación y te
   const usos = r.flatMap((x) => (x.message?.content ?? []).filter?.((b: any) => b.type === "tool_use").map((b: any) => b.id) ?? []);
   const res = r.flatMap((x) => (x.message?.content ?? []).filter?.((b: any) => b.type === "tool_result").map((b: any) => b.tool_use_id) ?? []);
   assert.deepEqual(usos.filter((u: string) => !res.includes(u)), []);
-  // La cuenta: una vez, y bien.
+  // La cuenta: una vez, y bien. El puente la anota justo después de dar el resultado del turno: se espera a que llegue.
+  await hasta(() => leerDestrabos().bien === 1).catch(() => {});
   const c = leerDestrabos();
   assert.equal(c.veces, 1);
   assert.equal(c.bien, 1);

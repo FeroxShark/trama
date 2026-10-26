@@ -15,6 +15,8 @@ export function armarIpc(irse: () => void) {
   nucleo.escuchar((canal, dato) => {
     for (const v of ventanas()) v.webContents.send(canal, dato);
   });
+  // Para los trabajos de fondo del núcleo: la ventana cuenta como cliente mientras se vea.
+  nucleo.contarClientes(() => ventanas().filter((v) => v.isVisible()).length);
   nucleo.armarNucleo();
   // Los logos achicados con `nativeImage`: también para el celular.
   nucleo.manejar("proyectos:iconos", () => iconosVentana());

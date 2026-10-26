@@ -22,6 +22,8 @@ registerHooks({
 const tmp = mkdtempSync(path.join(os.tmpdir(), "hilos-nucleo-"));
 after(() => rmSync(tmp, { recursive: true, force: true }));
 process.env.HILOS_STATE = path.join(tmp, "estado");
+// `remoto:leer` sólo es editable en una máquina con Tailscale: el test no depende de que esté instalado.
+process.env.HILOS_TAILSCALE ||= "/usr/bin/tailscale";
 process.env.HILOS_SESIONES = path.join(tmp, "sesiones");
 process.env.CLAUDE_CONFIG_DIR = path.join(tmp, "claude");
 process.env.PA_STATE = path.join(tmp, "pa");
@@ -111,7 +113,11 @@ test("ajustes y acceso del celular: se guardan desde la PC; por la tailnet el ce
   assert.equal(a.plan, "pro");
   assert.equal(a.red_seguridad, 250_000);
   assert.equal(JSON.parse(readFileSync(process.env.HILOS_CLAUDE_SETTINGS!, "utf8")).autoCompactWindow, 250_000);
-  await assert.rejects(nucleo.llamarRemoto("ajustes:guardar", [{ plan: "oro" }], "cel"), /main\.ajustesPlan/);
+  // Por la tailnet el celular no cambia ajustes ni lo demás que reescribe la máquina; con TRAMA_LOCAL (navegador local) sí, y valida.
+  for (const [canal, args] of [["ajustes:guardar", [{ plan: "pro" }]], ["routing:guardar", [[]]], ["cuentas:quitar", ["x", false]], ["vram:liberar", [{}]], ["claude:actualizar", []]] as [string, unknown[]][])
+    await assert.rejects(nucleo.llamarRemoto(canal, args, "cel", "192.0.2.2"), /main\.soloPc/, canal);
+  await assert.rejects(nucleo.llamarRemoto("ajustes:guardar", [{ plan: "oro" }], "cel", "127.0.0.1"), /main\.ajustesPlan/, "por loopback (el dueño) sí llega a validar");
+  assert.equal(JSON.parse(readFileSync(process.env.HILOS_CLAUDE_SETTINGS!, "utf8")).autoCompactWindow, 250_000, "lo de la tailnet no tocó nada");
   // El acceso: de la PC se lee y se guarda (y queda en remoto.json).
   const antes = (await fn("remoto:leer")(ventana)) as { editable: boolean; activo: boolean; puerto: number };
   assert.deepEqual([antes.editable, antes.activo, antes.puerto], [true, false, 8791]);

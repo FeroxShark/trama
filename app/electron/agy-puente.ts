@@ -474,6 +474,30 @@ async function turno(m: Mensaje) {
   cerrarTurno();
 }
 
+/**
+ * `turno` sin que un throw (un archivo que no se puede escribir, un evento raro de agy) mate el puente: se corta lo que
+ * haya corriendo, el turno termina con un error que lo dice y el puente sigue atendiendo los mensajes que vengan.
+ */
+async function turnoSeguro(m: Mensaje) {
+  try {
+    await turno(m);
+  } catch (e) {
+    const motivo = `el puente de Gemini falló: ${String((e as Error)?.message ?? e).slice(0, 300)}`;
+    process.stderr.write(`agy-puente: ${motivo}\n`);
+    try {
+      interrumpido = true;
+      cortarGrupo();
+      vigilante = null;
+      const tr = actual?.tr ?? new Traductor({ sid, modelo, contextoPrevio: null, pensamiento: razonamiento });
+      for (const o of tr.fin(motivo)) escribir(o);
+    } catch {
+      /* ni el aviso se pudo escribir: se sigue igual */
+    }
+    actual = null;
+    cerrarTurno();
+  }
+}
+
 /** Lo que pesa la conversación al terminar el turno; tras compactar, lo que pesa ahora (o nada hasta que conteste). */
 function recordarContexto(tr: Traductor) {
   if (tr.conversacion && (tr.contexto || tr.compactado)) guardarLado(tr.conversacion, tr.contexto || null);
@@ -487,7 +511,7 @@ function cerrarTurno() {
   // Un «Mandar ya» que no alcanzó a entrar (llegó entre vueltas o con el `result` ya dado) sale primero, como turno propio.
   cola.unshift(...directos.splice(0));
   const siguiente = cola.shift();
-  if (siguiente !== undefined) void turno(siguiente);
+  if (siguiente !== undefined) void turnoSeguro(siguiente);
   else if (stdinCerrado) terminar(0);
 }
 
@@ -559,8 +583,18 @@ process.on("SIGINT", () => {
   else terminar(130);
 });
 process.on("exit", () => {
+  // agy corre en su propio grupo (detached): si el puente se va (exit, SIGTERM, error sin atrapar), no queda huérfano hasta el tope de 6 h.
+  matarArbol(hijo?.pid, "SIGKILL");
   limpiar();
   limpiarImagenes();
+});
+process.on("SIGHUP", () => terminar(129));
+process.on("uncaughtException", (e) => {
+  process.stderr.write(`agy-puente: error sin atrapar: ${String((e as Error)?.stack ?? e)}\n`);
+  terminar(1);
+});
+process.on("unhandledRejection", (e) => {
+  process.stderr.write(`agy-puente: promesa rechazada sin atrapar: ${String((e as Error)?.stack ?? e)}\n`);
 });
 
 let comandosCache: ReturnType<typeof comandosPluginAgy> | null = null;
@@ -601,7 +635,7 @@ lector.on("line", (linea) => {
   if (o?.type === "user") {
     const m = mensajeDeUsuario(o);
     if (!m.texto.trim() && !m.imagenes.length) return;
-    if (!ocupado) void turno(m);
+    if (!ocupado) void turnoSeguro(m);
     else if (m.directo) pedirDirecto(m);
     else cola.push(m);
   }

@@ -63,7 +63,6 @@ import { guardada, igual, juntar, lecturaDe, oficialDe, type Lectura } from "./u
 import { errorT } from "./errores.ts";
 import { ESTADO, escribirAtomico } from "./pa.js";
 import { esElProceso, sesionesVivas, type Sesion } from "./sesiones.js";
-import { irA, ubicar } from "./terminal.js";
 import { log, silencio } from "./log.js";
 import { temaDe, tituloLider } from "./tema.js";
 
@@ -367,10 +366,9 @@ const idPedido = () => `trama-${++pedidosN}`;
 
 /**
  * Lo de un líder local antes de escribirle: que llama-server sirva a su modelo (si no, lo carga: `asegurarLocal`) y con
- * qué contexto. `undefined`: no es local. Las pruebas lo cambian (`ponerLocales`): nunca cargan un modelo.
+ * qué contexto. `undefined`: no es local.
  */
-let locales = { asegurar: (id: string) => asegurarLocal(id), destino: (id: string) => destinoLocal(id) };
-export const ponerLocales = (x: typeof locales) => void (locales = x);
+const locales = { asegurar: (id: string) => asegurarLocal(id), destino: (id: string) => destinoLocal(id) };
 /**
  * El local con el contexto del usuario (sus CLAUDE.md sin lo del jefe, la memoria y los hooks de arranque) para el proceso que se
  * va a lanzar. Un archivo ilegible no tira el arranque: el líder sale igual, sin contexto. Lo lee una vez por proceso.
@@ -572,12 +570,39 @@ function lanzar(g: Guardado, resume: boolean, local?: Local, extra: Extra = {}):
   return x;
 }
 
-/** Espera que un proceso ocioso salga (stdin cerrado). */
+/** Cuánto se espera a que un proceso salga solo al cerrarle el stdin, antes de SIGTERM. */
+const GRACIA_EOF_MS = 8_000;
+/** Y cuánto después de SIGTERM, antes de SIGKILL (y de darlo por perdido). */
+const GRACIA_TERM_MS = 5_000;
+
+/**
+ * Espera que un proceso ocioso salga (stdin cerrado). Con tope: si no sale en `GRACIA_EOF_MS` va SIGTERM, y si tampoco
+ * en `GRACIA_TERM_MS` más, SIGKILL; nunca queda colgado quien espera (cerrar, cambio de modelo, rebobinar, reiniciar ociosos).
+ */
 function terminar(x: Proc): Promise<void> {
   return new Promise((ok) => {
-    if (x.p.exitCode !== null || x.p.signalCode !== null) return ok();
-    x.p.once("exit", () => ok());
-    x.p.stdin!.end();
+    const salio = () => x.p.exitCode !== null || x.p.signalCode !== null;
+    if (salio()) return ok();
+    const relojes: NodeJS.Timeout[] = [];
+    const listo = () => {
+      for (const r of relojes) clearTimeout(r);
+      ok();
+    };
+    x.p.once("exit", listo);
+    relojes.push(
+      setTimeout(() => {
+        if (salio()) return listo();
+        try { x.p.kill("SIGTERM"); } catch { /* ya se fue */ }
+        relojes.push(
+          setTimeout(() => {
+            try { x.p.kill("SIGKILL"); } catch { /* ya se fue */ }
+            // Si ni SIGKILL lo saca (zombi en D), se lo da por perdido un momento después para no colgar a nadie.
+            relojes.push(setTimeout(listo, 2_000));
+          }, GRACIA_TERM_MS),
+        );
+      }, GRACIA_EOF_MS),
+    );
+    try { x.p.stdin!.end(); } catch { /* stdin ya cerrado */ }
   });
 }
 
@@ -1361,9 +1386,10 @@ export const TOPE_SALIDA_MS = 10_000;
  * los ocupados (SIGTERM). Sin `forzar`, espera a que los ocupados terminen, pero
  * nunca más de `topeMs`: lo que siga vivo entonces se corta (SIGTERM; su
  * conversación queda en disco y se retoma con `--resume`) y queda en el log.
- * Devuelve los nombres de los que no cerraron a tiempo.
+ * Devuelve los nombres de los que no cerraron a tiempo. Con `dormir: false` ("Cerrar y parar todo": el usuario pidió que
+ * no quede nada corriendo) no se los marca `dormido`: al arrancar no vuelven solos.
  */
-export async function cerrarTodos(forzar: boolean, topeMs: number = TOPE_SALIDA_MS): Promise<string[]> {
+export async function cerrarTodos(forzar: boolean, topeMs: number = TOPE_SALIDA_MS, dormir = true): Promise<string[]> {
   const vivos = [...procs.entries()];
   // Antes de cerrar nada: quién tenía proceso, para levantarlo al arrancar (`reanudarDormidos`). Si algo corta la salida a
   // medias (SIGKILL de systemd), la marca ya está en disco.
@@ -1372,11 +1398,12 @@ export async function cerrarTodos(forzar: boolean, topeMs: number = TOPE_SALIDA_
   let marcados = 0;
   for (const [sid, p] of vivos) {
     const g = ls.find((l) => l.sid === sid);
-    if (g && g.rol !== "analista") {
+    const duerme = dormir && !!g && g.rol !== "analista";
+    if (g && duerme) {
       g.dormido = ahora;
       marcados++;
     }
-    rastro(sid, "salida", `trama sale (cerrar, reiniciar o apagar): ${forzar && p.ocupado ? "respondiendo, se corta" : "se cierra"}${g && g.rol !== "analista" ? "; queda dormido y vuelve al arrancar" : ""}`);
+    rastro(sid, "salida", `trama sale (cerrar, reiniciar o apagar): ${forzar && p.ocupado ? "respondiendo, se corta" : "se cierra"}${duerme ? "; queda dormido y vuelve al arrancar" : ""}`);
   }
   if (marcados) await guardar();
   const hechos = new Set<string>();
@@ -1450,7 +1477,7 @@ export async function transcriptDe(sid: string, cwd?: string): Promise<string | 
 }
 
 /** El transcript de un líder de Gemini (lo escribe su puente): `$HILOS_STATE/gemini/<sid>.jsonl`. */
-const transcriptGemini = (sid: string) => path.join(ESTADO, "gemini", `${sid}.jsonl`);
+export const transcriptGemini = (sid: string) => path.join(ESTADO, "gemini", `${sid}.jsonl`);
 
 /** Dónde va a estar el transcript de un líder de la app (antes de su primer turno no existe). */
 export const transcriptPorDefecto = (sid: string) => path.join(PROYECTOS, dirProyecto(HOME), `${sid}.jsonl`);
@@ -1465,7 +1492,3 @@ export async function conversacionLider(x: { sid: string; n?: number; antes?: nu
   return paginaDe(await convDe(x.sid, t), x.sid, t, pag);
 }
 
-/** "Ir a la ventana" de un líder de la terminal (electron/terminal.ts). */
-export const irAVentana = (pid: number): Promise<boolean> => irA(pid);
-/** ¿Se puede ubicar su ventana? Si no, la vista no ofrece el botón. */
-export const ventanaUbicable = async (pid: number): Promise<boolean> => (await ubicar(pid)) !== null;

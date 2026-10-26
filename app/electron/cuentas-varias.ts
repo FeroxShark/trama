@@ -131,11 +131,4 @@ export async function loginCuenta(d: DepsVarias, id: unknown): Promise<void> {
   if (r.err) throw new Error(r.err);
 }
 
-/** Una cuenta con su login preguntado (`--verificar`); el login que se acaba de hacer se comprueba con esto. */
-export async function verCuenta(d: DepsVarias, id: unknown): Promise<PerfilCuenta | null> {
-  if (!idValido(id)) return null;
-  const l = await listarCuentas(d, true);
-  return l?.cuentas.find((c) => c.id === id) ?? null;
-}
-
 export const cuentasDeEstaMaquinaVarias = (terminal: DepsVarias["terminal"]): DepsVarias => ({ env: process.env, home: os.homedir(), correr: correrReal, terminal });

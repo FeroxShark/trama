@@ -6,7 +6,7 @@
 // (sin red), silencio: queda lo último que se supo. Actualizar es un botón: `<bin> <args>` (execFile, sin
 // shell) o una terminal (`enTerminal`, kitty) que se espera hasta que el comando termina, para lo que pide contraseña
 // (paru). Los usos: electron/actualizacion.ts (claude) y electron/actualizacion-agy.ts (agy, en terminal).
-//   HILOS_TERMINAL  la terminal de Actualizar en terminal (en la prueba, un falso). Por default, kitty.
+//   HILOS_TERMINAL  la terminal de Actualizar en terminal (en la prueba, un falso). Si no, $TERMINAL o la primera que haya.
 import { execFile, spawn } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { readFile } from "node:fs/promises";
@@ -16,6 +16,7 @@ import { escribirAtomico } from "./pa.js";
 import { textoT } from "./errores.js";
 import { avisoDe, CADA_MS, comparar, desdeArchivo, hayQueConsultar, normal, type Aviso, type Chequeo } from "./version.js";
 import { silencio } from "./log.js";
+import { resolverTerminal } from "./terminal-lanzar.js";
 
 /** Abierta desde el menú de apps la sesión gráfica puede no traer estas carpetas en el PATH (ver binario.ts). */
 export function entorno(): NodeJS.ProcessEnv {
@@ -42,7 +43,10 @@ type Corrida = { err: string | null; dijo: string | null };
  * rc distinto de 0 la ventana queda esperando Enter, así se ve el error. Sin terminal (ENOENT) no corre nada y lo dice. Texto como clave de `main.*` (electron/errores.ts).
  */
 export function enTerminal(argv: string[], env: NodeJS.ProcessEnv): Promise<Corrida> {
-  const term = process.env.HILOS_TERMINAL ?? "kitty";
+  // HILOS_TERMINAL, $TERMINAL o la primera que haya (terminal-lanzar.ts), cada una con su forma de recibir la orden.
+  const elegida = resolverTerminal(process.env);
+  if (!elegida) return Promise.resolve({ err: textoT("main.terminalNo", { t: "HILOS_TERMINAL" }), dijo: null });
+  const [term, ...bandera] = elegida;
   // Se espera el FIN DEL COMANDO, no el de la ventana: el envoltorio anota su rc en una marca. Con rc 0 la
   // ventana se cierra sola; con rc distinto de 0 espera Enter (y igual se resuelve ya). Sin marca al salir: la cerraron a mano.
   const dir = mkdtempSync(path.join(os.tmpdir(), "trama-act-"));
@@ -73,7 +77,7 @@ export function enTerminal(argv: string[], env: NodeJS.ProcessEnv): Promise<Corr
       cerrar({ err: falla, dijo: falla });
       return true;
     };
-    const p = spawn(term, ["sh", "-c", envoltorio, "sh", marca, ...argv], { env, stdio: "ignore" });
+    const p = spawn(term, [...bandera, "sh", "-c", envoltorio, "sh", marca, ...argv], { env, stdio: "ignore" });
     p.on("error", () => cerrar({ err: textoT("main.terminalNo", { t: term }), dijo: null }));
     p.on("exit", () => {
       if (!mirar()) cerrar({ err: null, dijo: textoT("main.terminalCerro") });
@@ -98,6 +102,8 @@ export type Config = {
   actualizar: { args: string[] } | { terminal: string[] };
   /** El entorno de Actualizar. */
   entornoActualizar: () => NodeJS.ProcessEnv;
+  /** Si Actualizar no se puede hacer en esta máquina, el texto que se le muestra a la persona (y no se lanza nada); `null`: se puede. */
+  noSePuedeActualizar?: () => string | null;
   /** Sin binario no hay aviso (ni se consulta la última): lo que se supo de antes se olvida. */
   olvidarSiFalta?: boolean;
 };
@@ -193,6 +199,8 @@ export function crearActualizador(cfg: Config) {
    * dijo el updater, o la terminal). Si subió, el aviso se va.
    */
   function actualizar(): Promise<Actualizado> {
+    const no = cfg.noSePuedeActualizar?.();
+    if (no) return Promise.resolve({ ok: false, error: no });
     actualizando ??= (async (): Promise<Actualizado> => {
       const { err, dijo } = await correr();
       const version = await versionDe(cfg.bin, ["--version"], 5_000);

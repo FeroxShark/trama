@@ -12,7 +12,7 @@ import { CHANGELOG } from "./actualizacion.js";
 import { accesos } from "./celular-accesos.js";
 import { identidadEsta } from "./consulta.js";
 import { log, silencio } from "./log.js";
-import { escuchar, llamarRemoto, ponerEnlaceRemoto, soltarRemoto } from "./nucleo.js";
+import { contarClientes, escuchar, llamarRemoto, ponerEnlaceRemoto, soltarRemoto } from "./nucleo.js";
 import { ESTADO } from "./pa.js";
 import { crearRemoto, leerConfig } from "./remoto.js";
 import { permitido, tailnet } from "./tailnet.js";
@@ -61,6 +61,7 @@ function armarLocal(o: OpcionesArmar) {
       return;
     }
     escuchar(remoto.difundir);
+    contarClientes(remoto.conectados);
     console.error(`[remoto] ${url} (modo local: sólo ${IP_LOCAL})`);
   };
   void abrir();
@@ -72,7 +73,8 @@ export function armarRemoto(o: OpcionesArmar) {
   const archivo = path.join(ESTADO, "remoto.json");
   let cfg = leerConfig(archivo);
   const red = tailnet();
-  let actual: { firma: string; urls: string[]; servidores: http.Server[]; quitar: () => void } | null = null;
+  /** `faltan`: las IPs de Tailscale en las que no se pudo escuchar (se reintentan en cada vuelta, aunque la firma no cambie). */
+  let actual: { firma: string; urls: string[]; servidores: http.Server[]; quitar: () => void; faltan: string[]; abrir: (ip: string) => Promise<http.Server> } | null = null;
   let intentos = 0;
 
   function desarmar() {
@@ -94,7 +96,17 @@ export function armarRemoto(o: OpcionesArmar) {
     }
     const yo = await red.yo();
     const firma = yo ? JSON.stringify([yo.nombre, [...yo.ips].sort(), c.puerto, c.dispositivos]) : "";
-    if (actual?.firma === firma) return true;
+    if (actual?.firma === firma) {
+      if (!actual.faltan.length) return true;
+      // Sólo se había podido escuchar en alguna de las IPs: se reintentan las que faltan.
+      const yaActual = actual;
+      const abiertos = await Promise.allSettled(yaActual.faltan.map((ip) => yaActual.abrir(ip)));
+      const faltan: string[] = [];
+      abiertos.forEach((r, i) => (r.status === "fulfilled" ? yaActual.servidores.push(r.value) : faltan.push(yaActual.faltan[i])));
+      if (actual === yaActual) yaActual.faltan = faltan;
+      else for (const r of abiertos) if (r.status === "fulfilled") { r.value.close(); r.value.closeAllConnections(); }
+      return !faltan.length;
+    }
     if (actual) {
       log.escribir("info", "remoto", `cambió la dirección de Tailscale: se vuelve a escuchar (${yo ? yo.ips.join(", ") : "sin Tailscale"})`);
       desarmar();
@@ -121,10 +133,15 @@ export function armarRemoto(o: OpcionesArmar) {
     const abiertos = await Promise.allSettled(yo.ips.map((ip) => remoto.escuchar(ip, c.puerto)));
     const servidores = abiertos.flatMap((a) => (a.status === "fulfilled" ? [a.value] : []));
     if (!servidores.length) return false;
+    const faltan = yo.ips.filter((_, i) => abiertos[i].status === "rejected");
+    if (faltan.length) console.error(`[remoto] no se pudo escuchar en ${faltan.join(", ")}: se reintenta`);
     const url = `http://${yo.nombre}:${c.puerto}/`;
-    actual = { firma, urls: [url], servidores, quitar: escuchar(remoto.difundir) };
+    const quitarDifusion = escuchar(remoto.difundir);
+    const quitarClientes = contarClientes(remoto.conectados);
+    actual = { firma, urls: [url], servidores, quitar: () => (quitarDifusion(), quitarClientes()), faltan, abrir: (ip) => remoto.escuchar(ip, c.puerto) };
     console.error(`[remoto] ${url} (sólo tailnet; dispositivos: ${c.dispositivos.join(", ")})`);
-    return true;
+    // Con alguna IP sin abrir devuelve false: el ciclo reintenta pronto en vez de esperar el respaldo de 5 min.
+    return !faltan.length;
   }
 
   // De a una revisión por vez; lo que llega mientras tanto pide otra al terminar, y quien la pidió espera a esa.
@@ -191,7 +208,7 @@ export function armarRemoto(o: OpcionesArmar) {
       return;
     }
     monitor();
-    const espera = actual ? RESPALDO_MS : (ESPERAS[intentos] ?? RESPALDO_MS / 1000) * 1000;
+    const espera = actual && !actual.faltan.length ? RESPALDO_MS : (ESPERAS[intentos] ?? RESPALDO_MS / 1000) * 1000;
     proximo = setTimeout(() => void ciclo(), espera);
     proximo.unref();
   };

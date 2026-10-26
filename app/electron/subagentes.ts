@@ -284,6 +284,8 @@ export function crearSubagentes(o: Opciones) {
     const sub = await hay(dirDe(x));
     const ses = sub || (await hay(x.dir));
     const nivel = sub ? 2 : ses ? 1 : 0;
+    // Pudo dejar de seguirse (o cerrarse todo) mientras se miraba el disco: no se arma un watcher que nadie va a cerrar.
+    if (cerrado || seguidas.get(x.sid) !== x) return;
     if (nivel === x.nivel && x.miradas.length > 0) return;
     for (const m of x.miradas) m.cerrar();
     x.miradas = [];
@@ -307,8 +309,9 @@ export function crearSubagentes(o: Opciones) {
   /** Lo de ahora de todas las sesiones seguidas: relee lo que cambió y mira dónde estar. */
   async function ahora(): Promise<Subagentes> {
     const todos: Subagentes = {};
-    for (const x of seguidas.values()) {
+    for (const x of [...seguidas.values()]) {
       await armar(x);
+      if (seguidas.get(x.sid) !== x) continue;
       x.lista = await conAvisos(x, await leerCarpeta(dirDe(x), x.sid, x.cache));
       if (x.lista.length) todos[x.sid] = x.lista;
     }
@@ -324,8 +327,18 @@ export function crearSubagentes(o: Opciones) {
     o.alCambiar(todos);
   }
 
+  /** Las llamadas a `sincronizar` van de a una (cada statusline dispara una): dos en paralelo creaban dos `Seguida` para el mismo sid. */
+  let cola: Promise<void> = Promise.resolve();
+
   /** Sigue a estas sesiones (las que tienen proceso) y deja de seguir a las demás. */
-  async function sincronizar(sids: readonly string[]) {
+  function sincronizar(sids: readonly string[]): Promise<void> {
+    const esta = cola.then(() => sincronizarYa(sids));
+    cola = esta.catch(() => {});
+    return esta;
+  }
+
+  async function sincronizarYa(sids: readonly string[]) {
+    if (cerrado) return;
     const quiero = new Set(sids.filter((s) => ID.test(s)));
     let cambio = false;
     for (const [sid, x] of seguidas)
@@ -337,7 +350,7 @@ export function crearSubagentes(o: Opciones) {
     for (const sid of quiero) {
       if (seguidas.has(sid)) continue;
       const t = await o.transcript(sid).catch(() => null);
-      if (!t) continue;
+      if (!t || cerrado) continue;
       seguidas.set(sid, { sid, dir: t.replace(/\.jsonl$/, ""), avisos: null, cache: new Map(), miradas: [], nivel: -1, lista: [] });
       cambio = true;
     }

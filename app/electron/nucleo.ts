@@ -3,7 +3,7 @@
 // acciones (Cerrar, Parar, Escribirle, Nueva tarea). Lo que cambia se avisa mirando archivos con
 // inotify (nada de polling) y sale a quienes escuchan (`escuchar`): la ventana, el celular.
 // La ventana lo usa por ipc.ts, que le suma lo que es sólo de la pantalla de la PC.
-import { guardarArchivo } from "./archivos.js";
+import { guardarArchivo, limpiarAdjuntos } from "./archivos.js";
 import { modelosDictado, transcribir } from "./dictado.ts";
 import { MODELO_TURBO } from "./dictado-modelos.ts";
 import { guardarLocal, leerLocales, probarLocal } from "./locales.ts";
@@ -87,9 +87,24 @@ const tailnet = (e: Origen) => "remoto" in e && !modoLocal() && !("ip" in e && t
 
 /** Los manejadores, por canal: los mismos para la ventana y para quien entra por red. */
 const manejadores = new Map<string, Manejador>();
+/**
+ * Lo que cambia la máquina (reescribe `~/CLAUDE.md`, los ajustes, borra una cuenta, libera la GPU, actualiza `claude`): desde la
+ * tailnet (el celular) no. Los `modelos:*` y `remoto:guardar` tienen su propio chequeo, con su mensaje, en el manejador.
+ */
+export const SOLO_PC_TAILNET: ReadonlySet<string> = new Set(["routing:guardar", "ajustes:guardar", "cuentas:quitar", "vram:liberar", "claude:actualizar"]);
+
 /** Anota (o reemplaza) el manejador de un canal. */
 export function manejar(canal: string, fn: Manejador) {
-  manejadores.set(canal, fn);
+  manejadores.set(
+    canal,
+    SOLO_PC_TAILNET.has(canal)
+      ? (e, ...args) => {
+          // TODO i18n: no hay clave genérica en src/i18n (app/src es de otro dueño por ahora); mientras, el texto va en español.
+          if (tailnet(e)) throw errorT("main.soloPc");
+          return fn(e, ...args);
+        }
+      : fn,
+  );
 }
 /** Los canales anotados con su manejador, en el orden en que se anotaron (ipc.ts registra cada uno). */
 export const manejadoresAnotados = (): [string, Manejador][] => [...manejadores];
@@ -198,6 +213,17 @@ export function difundir(canal: string, dato: unknown) {
   }
 }
 const enviar = difundir;
+
+/**
+ * Quién cuenta cuántos clientes están mirando (la ventana, el socket local, la tailnet): los trabajos de fondo que sólo sirven
+ * para mostrar algo (los cupos, cada minuto) se saltean si no hay nadie. Sin ninguna fuente anotada (bench, tests) se asume que sí.
+ */
+const fuentesClientes = new Set<() => number>();
+export function contarClientes(fn: () => number): () => void {
+  fuentesClientes.add(fn);
+  return () => void fuentesClientes.delete(fn);
+}
+const hayClientes = () => fuentesClientes.size === 0 || [...fuentesClientes].some((f) => f() > 0);
 
 /** Lo que se hace al salir de trama (guardar, cortar), en el orden en que se anotó: lo corre quien sale (ipc.ts, en `before-quit`). */
 const ganchosSalida: (() => void)[] = [];
@@ -439,7 +465,9 @@ function mirarSl() {
   for (const dir of [DIR, SESIONES]) mirarCarpeta(dir, avisar, { donde: "statusline", alRearmar: avisar });
   alCambiarCupos(avisar);
   // Los cupos de las demás suscripciones (reparto): se releen cada minuto desde acá, no desde la vista.
-  setInterval(() => void refrescarCupos(true), 60_000).unref();
+  setInterval(() => {
+    if (hayClientes()) void refrescarCupos(true);
+  }, 60_000).unref();
 }
 
 // --- Líderes -------------------------------------------------------------------
@@ -455,7 +483,8 @@ const pedidoT = new Map<string, string | null>();
 const avisoT = new Map<string, NodeJS.Timeout>();
 
 async function mirarTranscript(vista: string, sid: string | null) {
-  if (mirandoT.get(vista)?.sid === (sid ?? undefined)) return;
+  // Sin sid, nunca se sale antes de anotar el pedido: si no, uno en vuelo (buscando el transcript) de un cliente que ya se fue armaba el watcher igual.
+  if (sid && mirandoT.get(vista)?.sid === sid) return;
   pedidoT.set(vista, sid);
   mirandoT.get(vista)?.w.cerrar();
   mirandoT.delete(vista);
@@ -532,7 +561,8 @@ export async function pararTodo(
     ),
   );
   log.escribir("info", "salida", `parar todo: ${ids.length - fallaron} de ${ids.length} worker(s) parados, ${lider.vivos()} líder(es) a cerrar`);
-  await lider.cerrarTodos(forzar);
+  // Pidió parar todo: los líderes no quedan `dormido`, así que `reanudarDormidos` no los relanza al próximo arranque.
+  await lider.cerrarTodos(forzar, undefined, false);
   return 0;
 }
 const hilosAhora = () => ultimosHilos;
@@ -592,6 +622,8 @@ export function armarNucleo() {
   alSalir(() => subagentes.cerrar());
   // Los líderes que tenían proceso cuando trama se cerró (reinicio, salida) vuelven a tenerlo, sin que nadie escriba.
   void lider.reanudarDormidos().catch(silencio("lider"));
+  // Los adjuntos de hace más de una semana no sirven más.
+  void limpiarAdjuntos(path.join(ESTADO, "adjuntos")).catch(silencio("adjuntos"));
   // Trama que arranca con algo en la cola (aunque nadie abra la ventana): lo que ya puede salir, sale.
   void leerCola().then(cola.revisar);
   const leerSl = async () => {
@@ -862,7 +894,7 @@ export function armarNucleo() {
   manejar("locales:leer", () => leerLocales());
   manejar("locales:guardar", (_e, x: unknown) => guardarLocal(x));
   manejar("locales:probar", (_e, x: unknown) => probarLocal(x));
-  // Quién tiene la GPU y cómo liberarla (CLI `vram` de ~/Proyectos/modos): la lista no toca nada; `vram:liberar` SÍ para un servicio, sólo con el clic.
+  // Quién tiene la GPU y cómo liberarla (CLI `vram` (PATH o HILOS_VRAM)): la lista no toca nada; `vram:liberar` SÍ para un servicio, sólo con el clic.
   manejar("vram:leer", () => leerVram());
   manejar("vram:liberar", (_e, x: unknown) => liberarVram(x));
   manejar("lider:parar", (_e, sid: string) => lider.parar(String(sid)));

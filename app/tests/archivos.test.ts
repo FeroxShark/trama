@@ -112,3 +112,19 @@ test("separarAdjuntos: el globo muestra el texto sin las rutas, y los archivos a
   // Sin ruta absoluta no es una línea de archivo.
   assert.deepEqual(separarAdjuntos(`${en0}notas.md`).archivos, []);
 });
+
+test("limpiarAdjuntos: borra las carpetas viejas y deja las nuevas", async () => {
+  const { mkdtempSync, mkdirSync, existsSync, utimesSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const pathM = await import("node:path");
+  const { limpiarAdjuntos } = await import("../electron/archivos.ts");
+  const dir = mkdtempSync(pathM.join(tmpdir(), "adjuntos-"));
+  mkdirSync(pathM.join(dir, "viejo"));
+  mkdirSync(pathM.join(dir, "nuevo"));
+  const hace10d = new Date(Date.now() - 10 * 24 * 3600_000);
+  utimesSync(pathM.join(dir, "viejo"), hace10d, hace10d);
+  assert.equal(await limpiarAdjuntos(dir), 1);
+  assert.equal(existsSync(pathM.join(dir, "viejo")), false);
+  assert.equal(existsSync(pathM.join(dir, "nuevo")), true);
+  assert.equal(await limpiarAdjuntos(pathM.join(dir, "no-existe")), 0);
+});

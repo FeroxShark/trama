@@ -113,7 +113,7 @@ contextBridge.exposeInMainWorld("hilos", {
     estilo: (x: unknown): Promise<unknown> => ipcRenderer.invoke("lider:estilo", x),
     cerrar: (sid: string, motivo?: string): Promise<void> => ipcRenderer.invoke("lider:cerrar", sid, motivo),
     retomar: (x: unknown): Promise<unknown> => ipcRenderer.invoke("lider:retomar", x),
-    rebobinar: (x: unknown): Promise<void> => ipcRenderer.invoke("lider:rebobinar", x),
+    rebobinar: (x: unknown): Promise<string | null> => ipcRenderer.invoke("lider:rebobinar", x),
     ramificar: (x: unknown): Promise<string> => ipcRenderer.invoke("lider:ramificar", x),
     conversacion: (x: unknown): Promise<unknown> => ipcRenderer.invoke("lider:conversacion", x),
     mirar: (sid: string | null): Promise<void> => ipcRenderer.invoke("lider:mirar", sid),

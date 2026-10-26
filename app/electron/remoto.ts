@@ -272,7 +272,10 @@ export function crearCanal(o: OpcionesCanal) {
     res.end(cuerpo);
   }
 
-  return { difundir, eventos, rpc };
+  /** Cuántos flujos de eventos hay abiertos (los clientes que están mirando ahora). */
+  const conectados = () => flujos.size;
+
+  return { difundir, eventos, rpc, conectados };
 }
 
 export function negar(res: ServerResponse, codigo: number) {
@@ -297,7 +300,7 @@ function sinToken(res: ServerResponse, pagina: boolean) {
 
 export function crearRemoto(o: OpcionesRemoto) {
   const latidoMs = o.latidoMs ?? 20_000;
-  const { difundir, eventos, rpc } = crearCanal({ llamar: o.llamar, seFue: o.seFue, conOrigen: true, latidoMs, graciaMs: o.graciaMs });
+  const { difundir, eventos, rpc, conectados } = crearCanal({ llamar: o.llamar, seFue: o.seFue, conOrigen: true, latidoMs, graciaMs: o.graciaMs });
   let preload: string | null = null;
 
   async function archivo(res: ServerResponse, ruta: string) {
@@ -418,5 +421,5 @@ export function crearRemoto(o: OpcionesRemoto) {
     });
   }
 
-  return { atender, difundir, escuchar };
+  return { atender, difundir, escuchar, conectados };
 }

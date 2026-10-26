@@ -6,7 +6,7 @@
 // escribe nada. Sin ningún marcador (la plantilla de una instalación nueva) no es
 // un error: se lee como "lo decide el líder" y el bloque se crea al guardar algo. Node puro y sin imports locales: los tests lo usan directo con
 // un CLAUDE.md de ejemplo (`HILOS_CLAUDE_MD` cambia la ruta).
-import { readFile, realpath, rename, writeFile } from "node:fs/promises";
+import { chmod, readFile, realpath, rename, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { errorT, textoT } from "./errores.ts";
@@ -163,12 +163,23 @@ export async function leerRouting(ruta = RUTA_CLAUDE_MD): Promise<Routing> {
  */
 export async function guardarRouting(cambios: Cambio[], ruta = RUTA_CLAUDE_MD): Promise<Routing> {
   try {
-    const real = await realpath(ruta);
-    const antes = await readFile(real, "utf8");
+    // Sin `~/CLAUDE.md` (instalación nueva) no es un error: se parte de un archivo vacío y se crea con el bloque.
+    let real = ruta;
+    let antes = "";
+    let modo: number | null = null;
+    try {
+      real = await realpath(ruta);
+      antes = await readFile(real, "utf8");
+      modo = (await stat(real)).mode & 0o7777;
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw e;
+    }
     const despues = escribirRouting(antes, cambios);
     if (despues !== antes) {
       const tmp = `${real}.trama-${process.pid}.tmp`;
       await writeFile(tmp, despues);
+      // El tmp nace con el modo del umask: el archivo reemplazado conserva el que tenía (un CLAUDE.md 0600 no se abre).
+      if (modo !== null) await chmod(tmp, modo);
       await rename(tmp, real);
     }
     return parsearRouting(despues);
