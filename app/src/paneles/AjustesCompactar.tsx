@@ -22,7 +22,10 @@ export function Compactar({ inicial, Dato }: { inicial: Datos; Dato: FilaDato })
   const [error, setError] = useState<string | null>(null);
   const [ok, setOk] = useState(false);
   const vivo = useRef(true);
-  useEffect(() => () => void (vivo.current = false), []);
+  useEffect(() => {
+    vivo.current = true;
+    return () => void (vivo.current = false);
+  }, []);
 
   const r = redPara(g, b);
   const actual = topeDe(b);

@@ -36,7 +36,10 @@ export function Carcasa({ Dato }: { Dato: FilaDato }) {
   const [nombre, setNombre] = useState("");
   const vivo = useRef(true);
   const sec = useRef<HTMLElement>(null);
-  useEffect(() => () => void (vivo.current = false), []);
+  useEffect(() => {
+    vivo.current = true;
+    return () => void (vivo.current = false);
+  }, []);
 
   useEffect(() => {
     if (!carcasa) return;

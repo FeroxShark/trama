@@ -2215,6 +2215,15 @@ kbd {
 .tv-pl[data-vivo] .tv-pq {
   color: var(--c, var(--texto-4));
 }
+/* Varios pensamientos en una fila ("Pensó · 10"): abierta, cada uno es su línea, sangrada bajo la fila. */
+.tv-pgl {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-0-5);
+  margin: var(--esp-1) 0 0 var(--esp-1);
+  padding-left: var(--esp-3);
+  border-left: 1px solid var(--borde-3);
+}
 .tv-pr {
   min-width: 0;
   overflow: hidden;
@@ -2439,17 +2448,16 @@ kbd {
 .fondo {
   position: fixed;
   inset: 0;
-  z-index: 19;
+  z-index: 499;
   padding: 0;
   border: 0;
   background: transparent;
   cursor: default;
 }
+/* Va en un portal a <body>: `Selector` le pone top/bottom/left según dónde cae el botón y cuánto lugar hay. */
 .menu {
-  position: absolute;
-  bottom: calc(100% + 0.375rem);
-  left: 0;
-  z-index: 20;
+  position: fixed;
+  z-index: 500;
   display: flex;
   min-width: 14.75rem;
   flex-direction: column;
@@ -5409,7 +5417,7 @@ summary.sis-div-t:hover,
   :is(.caja, .meta) .pick {
     position: static;
   }
-  :is(.caja, .meta) :is(.menu, .ctx-det, .ctx-det[data-lado="izq"], .cl-det) {
+  :is(.caja, .meta) :is(.ctx-det, .ctx-det[data-lado="izq"], .cl-det) {
     right: 0;
     left: 0;
     width: auto;

@@ -1,7 +1,10 @@
 // Selector propio (nada de <select> nativo): un botón con contorno y un menú
-// que abre hacia arriba. Listbox con foco real en las opciones: flechas,
+// que abre hacia arriba (si no hay lugar arriba, hacia abajo), en un portal a
+// <body> con `position: fixed` para que ningún `overflow` de un ancestro lo
+// recorte. Listbox con foco real en las opciones: flechas,
 // Inicio/Fin, Enter o Espacio para elegir; Esc, Tab o clic afuera lo cierran.
 import { Fragment, useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { Check, ChevronUp } from "lucide-react";
 import { t } from "../i18n";
 import { Reserva } from "../i18n/Fijo";
@@ -47,6 +50,38 @@ type Props = {
 /** El nombre de una opción, en su fuente si trae una. */
 const nombreDe = (o: Opcion) => (o.fuente ? <span style={{ fontFamily: o.fuente }}>{o.nombre}</span> : o.nombre);
 
+/** Aire que el menú le deja al borde de la ventana y al botón. */
+const MARGEN = 8;
+const SEPARACION = 6;
+
+/** Pone el menú pegado al botón: arriba si entra, si no abajo (el lado con más lugar), con el alto topado al lugar que hay. */
+function colocar(boton: HTMLElement, menu: HTMLElement) {
+  const r = boton.getBoundingClientRect();
+  const vw = document.documentElement.clientWidth;
+  const vh = window.innerHeight;
+  const st = menu.style;
+  st.maxHeight = "";
+  const arriba = r.top - SEPARACION - MARGEN;
+  const abajo = vh - r.bottom - SEPARACION - MARGEN;
+  const alto = menu.offsetHeight;
+  const sube = alto <= arriba || (alto > abajo && arriba >= abajo);
+  const lugar = Math.max(0, sube ? arriba : abajo);
+  if (alto > lugar) st.maxHeight = `${lugar}px`;
+  if (sube) {
+    st.top = "auto";
+    st.bottom = `${vh - r.top + SEPARACION}px`;
+  } else {
+    st.bottom = "auto";
+    st.top = `${r.bottom + SEPARACION}px`;
+  }
+  // A lo ancho: alineado con el borde izquierdo del botón; si no entra, con el derecho; y nunca fuera de la ventana.
+  const ancho = menu.offsetWidth;
+  let izq = r.left;
+  if (izq + ancho > vw - MARGEN) izq = r.right - ancho;
+  st.left = `${Math.max(MARGEN, Math.min(izq, vw - MARGEN - ancho))}px`;
+  st.transformOrigin = `${sube ? "bottom" : "top"} left`;
+}
+
 export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, abierto: deEntrada = false, reserva }: Props) {
   const [abierto, setAbierto] = useState(deEntrada);
   const boton = useRef<HTMLButtonElement>(null);
@@ -57,6 +92,25 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
 
   // Con un solo grupo (los modelos de un worker: todos de Anthropic) el divisor no dice nada.
   const variosGrupos = new Set(opciones.map((o) => o.grupo).filter(Boolean)).size > 1;
+
+  // Fijo a la ventana: sigue al botón si se hace scroll o cambia el tamaño.
+  useLayoutEffect(() => {
+    if (!abierto) return;
+    const poner = () => {
+      if (boton.current && menu.current) colocar(boton.current, menu.current);
+    };
+    poner();
+    const alMover = (e: Event) => {
+      if (e.target instanceof Node && menu.current?.contains(e.target)) return;
+      poner();
+    };
+    window.addEventListener("resize", alMover);
+    window.addEventListener("scroll", alMover, true);
+    return () => {
+      window.removeEventListener("resize", alMover);
+      window.removeEventListener("scroll", alMover, true);
+    };
+  }, [abierto]);
 
   const items = () => [...(menu.current?.querySelectorAll<HTMLElement>('[role="option"]:not(:disabled)') ?? [])];
 
@@ -126,47 +180,50 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
         )}
         <ChevronUp className="chev" size={12} strokeWidth={2} />
       </button>
-      {abierto ? (
-        <>
-          <button type="button" className="fondo" tabIndex={-1} aria-label={t("comun.cerrarMenu")} onClick={() => cerrar(false)} />
-          <div ref={menu} id={id} className="menu" role="listbox" aria-label={etiqueta} onKeyDown={teclaMenu}>
-            <div className="mh" aria-hidden="true">
-              {etiqueta}
-            </div>
-            {opciones.map((o, i) => (
-              <Fragment key={o.id}>
-                {variosGrupos && o.grupo && o.grupo !== opciones[i - 1]?.grupo ? (
-                  // Como el rótulo de arriba, oculto al lector: la `desc` de cada opción ya dice qué es.
-                  <div className="mh mh-grupo" data-primero={i === 0 ? "" : undefined} aria-hidden="true">
-                    {o.grupo}
-                  </div>
-                ) : null}
-                <button
-                  type="button"
-                  role="option"
-                  className="op"
-                  tabIndex={-1}
-                  disabled={o.deshabilitada}
-                  aria-selected={o.id === actual.id}
-                  onClick={() => {
-                    alElegir(o.id);
-                    cerrar();
-                  }}
-                >
-                  <span className="on1">
-                    {o.marca}
-                    {o.fuente ? <span style={{ fontFamily: o.fuente }}>{o.nombre}</span> : o.nombre}
-                    {o.local ? <ChipLocal /> : null}
-                    {o.rec ? <span className="rec">{t("selector.default")}</span> : null}
-                  </span>
-                  <span className="md">{o.desc}</span>
-                  <Check className="ok" size={14} strokeWidth={2.2} />
-                </button>
-              </Fragment>
-            ))}
-          </div>
-        </>
-      ) : null}
+      {abierto
+        ? createPortal(
+            <>
+              <button type="button" className="fondo" tabIndex={-1} aria-label={t("comun.cerrarMenu")} onClick={() => cerrar(false)} />
+              <div ref={menu} id={id} className="menu" role="listbox" aria-label={etiqueta} onKeyDown={teclaMenu}>
+                <div className="mh" aria-hidden="true">
+                  {etiqueta}
+                </div>
+                {opciones.map((o, i) => (
+                  <Fragment key={o.id}>
+                    {variosGrupos && o.grupo && o.grupo !== opciones[i - 1]?.grupo ? (
+                      // Como el rótulo de arriba, oculto al lector: la `desc` de cada opción ya dice qué es.
+                      <div className="mh mh-grupo" data-primero={i === 0 ? "" : undefined} aria-hidden="true">
+                        {o.grupo}
+                      </div>
+                    ) : null}
+                    <button
+                      type="button"
+                      role="option"
+                      className="op"
+                      tabIndex={-1}
+                      disabled={o.deshabilitada}
+                      aria-selected={o.id === actual.id}
+                      onClick={() => {
+                        alElegir(o.id);
+                        cerrar();
+                      }}
+                    >
+                      <span className="on1">
+                        {o.marca}
+                        {o.fuente ? <span style={{ fontFamily: o.fuente }}>{o.nombre}</span> : o.nombre}
+                        {o.local ? <ChipLocal /> : null}
+                        {o.rec ? <span className="rec">{t("selector.default")}</span> : null}
+                      </span>
+                      <span className="md">{o.desc}</span>
+                      <Check className="ok" size={14} strokeWidth={2.2} />
+                    </button>
+                  </Fragment>
+                ))}
+              </div>
+            </>,
+            document.body,
+          )
+        : null}
     </div>
   );
 }

@@ -252,7 +252,7 @@ export const es: { [K in keyof typeof en]: string } = {
   "est.porProyectoSub": "tokens por modelo",
   "est.sinPeriodo": "Sin corridas en este período",
   "lider.sesionJefe": "Sesión jefe",
-  "selector.default": "default",
+  "selector.default": "por defecto",
   "b0.barajar": "Barajar",
   "b0.sacar": "Sacar {n}",
   "b0.reponer": "Reponer",

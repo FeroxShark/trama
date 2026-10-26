@@ -12,7 +12,7 @@ import { useFoco } from "../foco";
 import { cambiarIdioma, esIdioma, IDIOMAS, idioma, locale, t, textoMain, type Clave, type ClaveSola } from "../i18n";
 import { useIdioma } from "../i18n/react";
 import { MODO } from "../modo";
-import { mensaje } from "../puente";
+import { esVentana, mensaje } from "../puente";
 import { Boton, Chip, FilaAjuste, Interruptor, Tarjeta } from "../ui/componentes";
 import { IcCerrar, IcLocal, IcOk, ICONO } from "../ui/iconos";
 import { LogoCaja } from "../ui/logos";
@@ -34,7 +34,7 @@ import {
 import "./bienvenida-logica.css";
 
 /** Sólo la ventana de la PC abre la bienvenida sola: el celular y el navegador la ven si la piden desde Ajustes. */
-const enVentana = typeof navigator !== "undefined" && /Electron\//.test(navigator.userAgent);
+const enVentana = esVentana();
 
 let abierta = MODO.captura === "bienvenida";
 const oyentes = new Set<() => void>();
@@ -198,7 +198,10 @@ function useCorrer(nav: Nav) {
   const [ocupado, setOcupado] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const vivo = useRef(true);
-  useEffect(() => () => void (vivo.current = false), []);
+  useEffect(() => {
+    vivo.current = true;
+    return () => void (vivo.current = false);
+  }, []);
   const correr = async (f: () => Promise<void>) => {
     setOcupado(true);
     setError(null);

@@ -151,7 +151,10 @@ export function CuposTarjetas({ b, uso, plan }: { b: Borrador; uso: Uso | null; 
   useIdioma();
   const [cuentas, setCuentas] = useState<EstadoCuentas | null>(null);
   const vivo = useRef(true);
-  useEffect(() => () => void (vivo.current = false), []);
+  useEffect(() => {
+    vivo.current = true;
+    return () => void (vivo.current = false);
+  }, []);
 
   const mirar = useCallback(() => {
     void fuente.cuentas().then((c) => vivo.current && setCuentas(c), () => undefined);

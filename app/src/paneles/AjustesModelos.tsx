@@ -150,7 +150,10 @@ export function AjustesModelos({ Dato, plan = null }: { Dato: FilaDato; plan?: s
   const vivo = useRef(true);
   const sondeados = useRef(new Set<string>());
   const sec = useRef<HTMLElement>(null);
-  useEffect(() => () => void (vivo.current = false), []);
+  useEffect(() => {
+    vivo.current = true;
+    return () => void (vivo.current = false);
+  }, []);
 
   useEffect(() => {
     fuentePaneles.modelos().then(

@@ -114,7 +114,10 @@ export function PlanYRed({
   const [error, setError] = useState<string | null>(null);
   const [ok, setOk] = useState(false);
   const vivo = useRef(true);
-  useEffect(() => () => void (vivo.current = false), []);
+  useEffect(() => {
+    vivo.current = true;
+    return () => void (vivo.current = false);
+  }, []);
 
   const r = numPara(g, b);
   const valido = r.error === null;
@@ -187,7 +190,10 @@ export function Celular({ Dato }: { Dato: FilaDato }) {
   const vivo = useRef(true);
   const sec = useRef<HTMLElement>(null);
   const nuevoRef = useRef<HTMLInputElement>(null);
-  useEffect(() => () => void (vivo.current = false), []);
+  useEffect(() => {
+    vivo.current = true;
+    return () => void (vivo.current = false);
+  }, []);
   // Quién entró y si escucha cambia sin que Ajustes se entere: se vuelve a mirar al volver a la ventana (sin reloj).
   // Sólo se toma lo que informa el motor; el borrador no se toca.
   useEffect(() => {

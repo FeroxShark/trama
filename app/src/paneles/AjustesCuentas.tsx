@@ -35,7 +35,10 @@ export function AjustesCuentas({ Dato }: { Dato: FilaDato }) {
   const [esperando, setEsperando] = useState<Proveedor | null>(null);
   const vivo = useRef(true);
   const sec = useRef<HTMLElement>(null);
-  useEffect(() => () => void (vivo.current = false), []);
+  useEffect(() => {
+    vivo.current = true;
+    return () => void (vivo.current = false);
+  }, []);
 
   const leer = useCallback(async () => {
     if (!puente) return;
