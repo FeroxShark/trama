@@ -1,5 +1,5 @@
 // La vista de un worker (al tocarlo en la barra): el resultado en una frase con sus chips, el mapa de la corrida, los pasos y el detalle
-// del elegido (docs/estado/worker-vista.md). Los pasos los arma el main de su transcript (src/hilo/usePasos.ts); lo que se saca de ellos
+// del elegido. Los pasos los arma el main de su transcript (src/hilo/usePasos.ts); lo que se saca de ellos
 // (nombre corto, grupos, resumen, chip de tests, diff) es de worker-datos.ts. A un worker no se le escribe: acá sólo se mira, y se lo para.
 import { memo, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { Bot, Brain, Check, ChevronRight, FilePlus, FileText, Info, MessageSquare, Pencil, Search, Square, Terminal, Wrench, type LucideIcon } from "lucide-react";

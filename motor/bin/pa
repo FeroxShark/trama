@@ -21,6 +21,21 @@
 #                                        Si su último uso fue hace más de PA_CACHE_FRIO_MIN (default 55; 0 = apagado)
 #                                        el caché de prompt (1 h) ya se enfrió: NO la retoma, arranca una sesión
 #                                        nueva (en el mismo puesto y rama) y lo avisa por stderr
+#   pa <proyecto> --brief-archivo F      la tarea sale de un archivo con el brief (Objetivo / Archivos / Listo cuando /
+#                                        Cómo verificar / No tocar); `pa --brief` imprime la plantilla. Sin "Listo cuando" o
+#                                        "Cómo verificar" avisa por stderr (no bloquea)
+#   pa <proyecto> --auditar <id|rama> [-m M]  revisor de sólo lectura (--leer) de esa rama: lee el diff contra main y reporta
+#                                        problemas por severidad (CRITICO/ALTO/MEDIO/BAJO); tipo lectura si no hay --tipo
+#   pa <proyecto> --agents-md            imprime una plantilla de AGENTS.md (build, tests, convenciones, no tocar) si falta;
+#                                        a agy/codex/dsh/opencode el contrato les suma AGENTS.md (o CLAUDE.md; los `@archivo`
+#                                        sueltos en su línea se resuelven, un nivel y dentro del repo), tope 20000 caracteres
+#                                        (PA_AGENTS_MAX); si se corta, el bloque lo dice
+#   pa <proyecto> --unificar-md [--aplicar]  AGENTS.md como única fuente: pasa el contenido de CLAUDE.md / GEMINI.md a AGENTS.md y
+#                                        los deja como stub (`@AGENTS.md`). Sin --aplicar sólo muestra el plan; con --aplicar guarda
+#                                        antes lo que cambia en ~/.local/state/pa/<proy>/md-backup/<fecha>/ y no hace commit
+#   pa <proyecto> --leccion "<texto>"    anotar una lección corta en ~/.local/state/pa/<proy>/lecciones.md (tope 30 líneas /
+#                                        3000 caracteres: pasado eso `pa --estado` avisa NECESITA-PODA). Se inyectan al contrato
+#   pa <proyecto> --lecciones            imprimir las lecciones · --lecciones-podar: la instrucción para que un agente las reescriba
 #   pa <proyecto> --aca "<tarea>"        correr en el tree principal, no en un worktree (ve lo sin commitear)
 #   pa <proyecto> --integrar <id>        mergear la rama de esa corrida en el tree principal (ff, sin forzar)
 #   pa <proyecto> --actualizar <id>      rebasear la rama de esa corrida sobre main (sesión limpia, en su
@@ -34,7 +49,17 @@
 #                                        --tipo mecanico). -m acepta claude-…, gemini-{4-argon,3.8-flash}-{low,medium,high},
 #                                        agy:{claude-{opus,sonnet}-5-5-{low,medium,high},gpt-oss-120b-medium},
 #                                        codex:{gpt-6.1-sol,gpt-6-sol,gpt-6-luna,gpt-6-astra}-{low,medium,high} (ChatGPT) y
-#                                        ollama:<modelo> (sin effort; servidor caído o sin el modelo → sale 95)
+#                                        ollama:<modelo> (sin effort; servidor caído o sin el modelo → sale 95) y
+#                                        dsh:{ollama,opencode,deepseek}/<modelo> (DeepSeek Harness: modelos gratis de OpenCode u
+#                                        Ollama, o DeepSeek; sin effort; keys en el entorno o en ~/.config/trama/claves.env;
+#                                        dsh sin instalar, sin key o Ollama caído → sale 95) y
+#                                        opencode:<proveedor>/<modelo> (el programa opencode: sus modelos gratis, p. ej.
+#                                        opencode:opencode/deepseek-v4.1-flash-free, sólo andan por él con tu login de
+#                                        OpenCode Console; effort = su --variant; opencode sin instalar → sale 95)
+#   pa --proyectos [--json]              los proyectos del registry con su nombre para mostrar (`titulo`), slug y ruta
+#   pa --renombrar <proy> <nombre>       nombre para mostrar de un proyecto (la app lo muestra en todos lados y `pa <nombre> …`
+#                                        vale como alias del suyo). SÓLO cambia lo que se ve: slug, ruta, ramas y estado quedan.
+#                                        `--quitar` en vez del nombre lo deja como estaba. Único, ≤ 40 caracteres, sin `-` adelante
 #   pa --modelos [--json]                tabla efectiva tipo → modelo (de dónde salió y qué elige reparto hoy), Gemini y locales
 #   pa --cupo-gemini [--json]            cupo de cada suscripción (Claude oficial y Google AI Pro/agy; alias de reparto --cupos)
 #   pa <proyecto> --effort medium "<t>"  esfuerzo del worker (o env PA_EFFORT). haiku low..max (default xhigh);
@@ -51,6 +76,11 @@
 #                                        más cupo libre del proveedor del modelo, o la de siempre si hay una sola)
 #   pa --plan [pro|max]                  ver / cambiar el plan de la suscripción (pro = modo ahorro, el default)
 #                                        (se guarda en ~/.local/state/pa/plan; PA_PLAN del entorno le gana)
+#   pa --plan ausente <AAAA-MM-DD>[,..]  el dueño no trabaja esos días (hoy, manana, A..B también): el cupo semanal se reparte entre
+#                                        los otros días, así que antes de una ausencia + reinicio los workers usan más la suscripción
+#   pa --plan gastar-hoy | ahorrar-hoy   pisa el ritmo semanal sólo por hoy (más / menos Claude en los workers)
+#   pa --plan ver | borrar               lo que hay guardado y el ritmo de cada ventana semanal | lo borra (todo es `reparto --plan`;
+#                                        vence solo; el perfil y reserva_lider van en modelos.json)
 #   pa <proyecto> --mcp "<tarea>"        dejarle los MCP de claude.ai (default: apagados)
 #   pa <proyecto> --matar                matar el worker que escribe ahí (los --leer no)
 #   pa <proyecto> --matar --leer|--id ID bajar todos los --leer vivos / una corrida puntual
@@ -68,13 +98,40 @@
 #   pa --esperar-todos [--timeout N]     cobrar TODAS tus corridas async pendientes, de todos los proyectos,
 #                                        en una sola llamada (un turno del jefe para N resultados)
 #   pa --estado                          qué corre ahora y qué sesión hay guardada por proyecto
+#   pa --hilos [--json] [--todo]         las corridas (hilos) de todos los proyectos con su estado, para la app (--todo: no
+#                                        sólo la ventana reciente). Lectura pura; anda también contra un modelo local
+#   pa --hilo <id> [--json] [-n N] [--antes N]  una corrida: su conversación (últimos N mensajes; --antes N pagina hacia atrás)
+#   pa --revertir <id>                   deshacer una integración con `git revert` (commits nuevos, nunca reescribe historia);
+#                                        también: pa <proyecto> --revertir <id>
+#   pa --parar <id>                      bajar esa corrida (corriendo o en cola); también: pa <proyecto> --parar <id>
+#   pa --archivar <id>                   sacarla de la vista de la app (no toca su resultado); se niega (92) si sigue viva;
+#                                        también: pa <proyecto> --archivar <id>
+#   pa --gemini-proyectos                Gemini corre en todos los proyectos: no hay lista (--marcar/--desmarcar no hacen nada)
+#   pa <proyecto> --integrar <id> --tests  corre el `tests` del registry sobre la rama ya rebaseada antes de mergear; rojo: 93
+#   pa <proyecto> --id ID ...            apuntar a esa corrida: con --seguir retoma ésa (y su puesto/rama), con --matar baja
+#                                        sólo ésa, con --leer lee lo que dejó ésa (el id que imprime --async)
+#   pa <proyecto> --max-turns N "<t>"    tope de turnos del worker (entero; default 150, plan pro 100; 0 = sin tope).
+#                                        Al llegar: se auto-cierra con un resume corto o sale 78
+#   pa <proyecto> --max-budget-usd N ... tope de gasto en US$ de esa corrida (sólo Claude; con agy/codex/ollama/dsh sale 2)
+#   pa <proyecto> --sucio-mio "<t>"      como --aca, y lo sucio del tree principal es del worker (lo commitea él)
+#   pa <proyecto> --force ...            saltea el chequeo de --seguir (sesión que ya compactó)
+#   pa <proyecto> --sin-jefe ...         no buscar la sesión de Claude que lanza (PA_JEFE/PA_JEFE_ID vacíos): la corrida queda
+#                                        sin jefe (tests, scripts, un timer)
 #
 # Códigos de salida: 0 ok · 1 el worker falló · 2 error de uso · 75 ya hay uno corriendo (o el tope global PA_TOPE está lleno) ·
 #                    76 límite de sesión de la suscripción · 77 API sobrecargada ·
 #                    78 terminó sin RESULTADO · 79/80 --integrar se negó / chocó ·
 #                    81 la instalación de claude está rota · 84 claude no está en el PATH ·
 #                    83 --integrar se negó: la rama trae un symlink peligroso ·
-#                    87 no pude preparar el worktree del puesto (nunca cae al tree principal) · 130 matado.
+#                    82 la corrida murió sin dejar resultado (--esperar --id) · 85 --parar/--matar no pudo bajar a alguien ·
+#                    86 --integrar se negó: la corrida dejó trabajo sin commitear en su worktree ·
+#                    87 no pude preparar el worktree del puesto (nunca cae al tree principal) ·
+#                    88 la sesión corre contra un modelo local: pa no delega ·
+#                    89 --revertir se negó: lo sucio del tree principal se cruza con lo que revierte · 90 el revert choca ·
+#                    91 la integración no trajo commits que revertir · 92 --archivar/--descartar por id sobre una corrida viva ·
+#                    93 --integrar --tests dio rojo · 94 interno de --esperar-todos (no sale de pa) ·
+#                    95 el modelo local no responde (ollama caído o sin el modelo), o dsh no puede correr (sin dsh, sin key) ·
+#                    96 sin cupo / modelo no disponible y sin_cupo=fallar (o esperar sin --async, o se acabó la espera) · 130 matado.
 #
 # Puestos: hasta PA_PUESTOS (default 3) workers que escriben corren EN PARALELO en el mismo
 # proyecto, cada uno en su worktree fijo (`worktrees/<slug>`, `worktrees/<slug>@2`, …) y su rama.
@@ -85,7 +142,7 @@
 # 75 en primer plano, EN COLA con --async. Nunca mata a nadie.
 set -euo pipefail
 
-# Los scripts de ~/orquestador se llaman entre ellos por nombre (`proyecto-ruta`). Ponemos
+# Los scripts de motor/bin se llaman entre ellos por nombre (`proyecto-ruta`). Ponemos
 # nuestro propio directorio adelante del PATH en vez de confiar en que quien nos llama lo
 # tenga: un timer de systemd, un cron o un hook arrancan con un PATH pelado y todo salía 127.
 _BIN="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
@@ -115,6 +172,12 @@ LOCKDIR="$STATE/lock"
 # PA_PROJ, igual que PA_STATE: sólo para los tests (pa le crea al worktree su carpeta de proyecto).
 PROJ="${PA_PROJ:-$HOME/.claude/projects}"
 LIMITE="$STATE/limite.hasta"
+# El límite es por cuenta: que una se quede sin cupo no frena a las otras. La de siempre (claude,
+# o sin cuenta) conserva el nombre viejo; las demás van en limite.<cuenta>.hasta.
+limite_de() {   # $1 = id de cuenta (vacío = la de siempre) -> archivo del límite
+  local c="${1//[^A-Za-z0-9._-]/-}"
+  if [[ -z "$c" || "$c" == claude ]]; then printf '%s' "$LIMITE"; else printf '%s/limite.%s.hasta' "$STATE" "$c"; fi
+}
 # Los hooks salen de al lado nuestro, no de una ruta fija: si no, un checkout de prueba
 # (o tests/run.sh) lanza workers con los hooks INSTALADOS y no con los que está probando.
 _HOOKS="$(dirname "$_BIN")/hooks"
@@ -161,7 +224,7 @@ PUESTOS="${PA_PUESTOS:-3}"
 # --leer y --aca. PA_PUESTOS es por proyecto y los --leer no toman puesto, así que nada frenaba a un
 # jefe que lanzaba veinte juntos: el 2026-10-11 la RAM llegó a 30,4 de 32,7 GB más swap y
 # systemd-oomd cerró la pestaña entera del jefe, con sus 396 procesos. Ver tomar_lugar.
-# Sale de PA_TOPE, si no de `$STATE/tope` (lo deja `scripts/instalar.sh --servidor`: 2 en el Dell), si no 10.
+# Sale de PA_TOPE, si no de `$STATE/tope` (un número en ese archivo: en una máquina chica conviene 2), si no 10.
 # Desde 2026-10-21 ese número es un TECHO duro (el límite de la suscripción): el freno de verdad es la RAM
 # (ver ram_alcanza): un worker entra sólo si MemAvailable alcanza para su costo más la reserva del jefe.
 TOPE="${PA_TOPE:-}"
@@ -203,8 +266,8 @@ modelo_local() {
 }
 if modelo_local; then
   case "${1:-}" in
-    --estado|--hilos|--hilo|--modelos|-h|--help|--ayuda) local_pasa=1 ;;
-    --plan) [[ -z "${2:-}" ]] && local_pasa=1 ;;
+    --estado|--brief|--hilos|--hilo|--modelos|-h|--help|--ayuda) local_pasa=1 ;;
+    --plan) [[ -z "${2:-}" || "${2:-}" == ver ]] && local_pasa=1 ;;
     *) [[ $# -eq 2 && "${2:-}" == --ramas ]] && local_pasa=1 ;;
   esac
   if [[ -z "${local_pasa:-}" ]]; then
@@ -223,8 +286,15 @@ NO estás hablando con @DUENO@: tu respuesta final la lee otro modelo.
 Respondé corto, en este formato exacto:
 RESULTADO: 1-3 oraciones de qué hiciste o qué encontraste.
 ARCHIVOS: rutas que tocaste, o "ninguno".
+VERIFICACION: el comando (o comandos) que corriste para comprobar tu trabajo y 2-6 líneas REALES de su
+salida, pegadas tal cual (nada resumido ni inventado). Si no pudiste verificar: `VERIFICACION: ninguna` y
+por qué. Sin esta sección la corrida queda marcada "sin verificar" y el jefe no la da por buena.
 DECISION: qué tiene que decidir @DUENO@, o "nada".
 SIGUE: una línea con el próximo paso del proyecto si el trabajo sigue, o "nada" si quedó cerrado.
+
+Si la tarea viene como brief (secciones Objetivo / Archivos / Listo cuando / Cómo verificar / No tocar):
+"Listo cuando" es tu criterio de cierre (ni antes ni después), "Cómo verificar" es lo que corrés para
+llenar VERIFICACION y "No tocar" es ley. Si falta alguna, inferila, hacé igual y decí el supuesto en RESULTADO.
 
 Qué merece DECISION o PREGUNTA: SÓLO el rumbo: publicar, borrar algo que no se recupera, plata, qué
 se muestra al público o un cambio de alcance. Todo lo demás lo resolvés vos con un default razonable y
@@ -559,7 +629,12 @@ enlazar_caches() {   # $1 = tree principal, $2 = worktree
   # .venv/.env son cache y config; CLAUDE.local.md y .claude/settings.local.json son las
   # instrucciones locales del proyecto (gitignoreadas): sin ellas el worker perdería lo que
   # El dueño le dijo a ese proyecto sin que nada falle.
-  for f in .venv .env CLAUDE.local.md .claude/settings.local.json; do
+  # .env y las instrucciones locales son secretos del dueño: sólo van a workers que corren el
+  # binario `claude` (claude, u ollama contra ANTHROPIC_BASE_URL). Un worker de Gemini, Codex o dsh
+  # no los ve (mandarían el contenido a otro proveedor; dsh:ollama es local pero igual no los necesita). $motor vacío (--integrar, etc.) = claude.
+  local lista=".venv"
+  [[ "${motor:-claude}" == claude || "${motor:-claude}" == ollama ]] && lista=".venv .env CLAUDE.local.md .claude/settings.local.json"
+  for f in $lista; do
     [[ -e "$1/$f" && ! -e "$2/$f" ]] && { mkdir -p "$2/$(dirname "$f")"; ln -s "$1/$f" "$2/$f"; }
   done
   [[ -f "$1/Cargo.toml" ]] && export CARGO_TARGET_DIR="$1/target"
@@ -704,13 +779,34 @@ soltar_git() { exec 8>&-; }
 # sacan ANTES de mirar el status, así que ni aparecen como sucios. Con puestos esto es lo NORMAL:
 # el puesto k lo usó otra corrida después de X y quedó en otra rama, con restos; por eso se llama
 # antes de CUALQUIER checkout en un puesto reusado. Requiere el candado de git.
+# La rama `pa/<slug>/huerfano-<ts>` no era de ninguna corrida, así que --ramas/--integrar/--descartar no la veían y
+# se quedaba para siempre (y en `tablero resumen`). Su `.corrida` mínima (id `huerfano-<ts>`; el HILO_ID_RE no lo
+# deja entrar a --hilos) la hace una corrida más para esos comandos.
+corrida_de_huerfana() {   # $1 = rama, $2 = repo donde vive, $3 = base (opcional: sin ella, la del tree principal)
+  local id="${1##*/}" b="${3:-}"
+  [[ -f "$dir/$id.corrida" ]] && return 0
+  [[ -n "$b" ]] || b="$(git -C "$2" merge-base HEAD "$1" 2>/dev/null)" || b=""
+  printf 'ruta_trabajo=%s\nrama=%s\nbase=%s\nproyecto=%s\norigen=\nleer=0\npuesto=\njefe=\njefe_id=\n' \
+    "$2" "$1" "$b" "$proyecto" >"$dir/$id.corrida" 2>/dev/null || true
+}
+# Las huérfanas que ya existían (de antes de esto) o que quedaron sin su .corrida: se adoptan al mirar ramas.
+adoptar_huerfanas() {
+  local r
+  while IFS= read -r r; do
+    [[ -n "$r" ]] && corrida_de_huerfana "$r" "$ruta"
+  done < <(git -C "$ruta" branch --list "pa/$slug/huerfano-*" --format='%(refname:short)' 2>/dev/null)
+  return 0
+}
 commitear_huerfano() {   # $1 = worktree
-  local wt="$1" anterior
+  local wt="$1" anterior base_h=""
   desenlazar_caches "$wt"
   # mismo filtro que sucios_de: con sólo un symlink suelto externo abría una rama huérfana vacía
   [[ -n "$(sucios_de "$wt")" ]] || return 0
   anterior="$(git -C "$wt" rev-parse --abbrev-ref HEAD 2>/dev/null)"
-  [[ "$anterior" == HEAD ]] && { anterior="pa/$slug/huerfano-$ts"; git -C "$wt" checkout -qB "$anterior"; }
+  if [[ "$anterior" == HEAD ]]; then
+    base_h="$(git -C "$wt" rev-parse HEAD 2>/dev/null)"
+    anterior="pa/$slug/huerfano-${ts:-$(date +%Y%m%d-%H%M%S)-$$}"; git -C "$wt" checkout -qB "$anterior"
+  fi
   # Nunca artefactos de build (dirs_de_build), estén o no en el .gitignore del proyecto.
   local -a fuera=(); local rel
   while IFS= read -r rel; do [[ -n "$rel" ]] && fuera+=(":(exclude,literal)$rel"); done < <(dirs_de_build "$wt")
@@ -721,6 +817,7 @@ commitear_huerfano() {   # $1 = worktree
     git -C "$wt" commit -qm "pa: huérfano de $anterior" >/dev/null 2>&1
     echo "pa: el worktree $(basename "$wt") tenía trabajo huérfano; quedó commiteado en '$anterior'." >&2
   fi
+  [[ -n "$base_h" ]] && corrida_de_huerfana "$anterior" "$ruta" "$base_h"
   return 0
 }
 
@@ -1103,6 +1200,7 @@ podar_integradas() {
 
 cmd_ramas() {
   local hubo=0 t r n subj
+  adoptar_huerfanas
   podar_integradas
   while IFS=$'\t' read -r t r n subj; do
     hubo=1
@@ -1220,6 +1318,7 @@ ya_resuelta() {   # $1 = id
 # rebaseada) el viejo contaría los commits de main como si fueran de la rama (79 y 83 falsos).
 cmd_integrar() {   # $1 = ts de la corrida
   local t="$1" c="$dir/$1.corrida" r b wt wr p head_ppal rama_ppal n tocados sucios choque peligrosos prestado=0 k
+  [[ "$t" == huerfano-* ]] && adoptar_huerfanas
   if [[ ! -f "$c" ]]; then
     ya_resuelta "$t" && return 0
     echo "pa: no hay corrida '$t' de '$slug' (falta $c)." >&2; return 1
@@ -1416,6 +1515,7 @@ solapamiento() {   # $1 = ts propio (se saltea), $2 = archivos (uno por línea),
 
 cmd_descartar() {   # $1 = ts
   local t="$1" c="$dir/$1.corrida" r wr p
+  [[ "$t" == huerfano-* ]] && adoptar_huerfanas
   [[ -f "$c" ]] || { echo "pa: no hay corrida '$t' de '$slug'." >&2; return 1; }
   r="$(leer_campo "$c" rama)"
   [[ -n "$r" ]] || { echo "pa: la corrida '$t' no tiene rama." >&2; return 1; }
@@ -1761,6 +1861,8 @@ hechos_de() {   # $1 = slug, $2 = dir, $3 = id, $4 = dir temporal
 
 # decision_de y decision_es_nada (awk/bash, más abajo) en jq, para las corridas sin `.hilo`.
 JQ_DECISION='
+# `trim` es de jq 1.7.1; Debian 12 / Ubuntu 22.04 traen 1.6 y sin esto --hilos salía vacío en silencio
+def trim_: sub("^\\s+"; "") | sub("\\s+$"; "");
 def decision_de:
   split("\n") as $l
   | ([range(0; $l | length) | select($l[.] | test("^[*#> \t-]*DECISI(O|Ó)N[*]*:"))] | last) as $a
@@ -1778,7 +1880,7 @@ def decision_de:
        | if $m == null then "" else ([$m | splits("DECISI(O|Ó)N[*]*:[*]*")] | last) end
      end)
   | sub("[*#> \t-]*SIGUE[*]*:.*$"; "") | sub("^[ \t]+"; "") | sub("[ \t]+$"; "") | .[0:400];
-def decision_es_nada: gsub("[*]"; "") | trim | sub("[.]$"; "") | ascii_downcase == "nada";
+def decision_es_nada: gsub("[*]"; "") | trim_ | sub("[.]$"; "") | ascii_downcase == "nada";
 '
 
 cmd_hilos() {
@@ -1861,7 +1963,7 @@ cmd_hilos() {
       | (($all.c[$id] // []) | map(try fromjson catch empty | select(type == "object" and .type == "user")) | first
          | if . == null then null else (.message.content
              | if type == "string" then . elif type == "array" then (map(select(.type? == "text") | .text) | join(" ")) else "" end
-             | gsub("\\s+"; " ") | trim | .[0:500] | nonempty) end) as $tarea_t
+             | gsub("\\s+"; " ") | trim_ | .[0:500] | nonempty) end) as $tarea_t
       | (($as | last) // {}) as $u
       | (if $ttl == null then null else ($u.message.model | nonempty) end) as $cmod
       # un --seguir corre donde está su .corrida; sin ella (integrada/descartada), en el tree principal
@@ -1914,9 +2016,10 @@ cmd_hilos() {
          commits: ($commits | num),
          decision: ($dec | nonempty), decision_nada: (if $dnada == null then null else $dnada == "1" end),
          sigue: ($h.sigue | nonempty),
+         verificado: (if ($h.verificado | nonempty) == null then null else $h.verificado == "1" end),
          resultado: (($j.result // "") | tostring | if test("RESULTADO:") then
                        (capture("RESULTADO:[*]*\\s*(?<r>[\\s\\S]*)").r | split("ARCHIVOS:")[0] | split("DECISI")[0]
-                        | gsub("\\s+"; " ") | trim | .[0:200] | nonempty)
+                        | gsub("\\s+"; " ") | trim_ | .[0:200] | nonempty)
                      else null end),
          archivado: ($h.archivado | nonempty),
          leer: $esleer,
@@ -2049,11 +2152,18 @@ transcurrido() {
 # Hora de reset del límite de sesión: "resets 7:10pm (America/Argentina/Buenos_Aires)".
 # Si la hora parseada ya pasó, es de mañana. Se exporta para que lo prueben los tests.
 epoch_reset() {   # $1 = texto del result
-  local hhmm ep ahora
+  local hhmm zona ep ahora
   hhmm="$(printf '%s' "$1" | grep -oE 'resets[[:space:]]+[0-9]{1,2}(:[0-9]{2})?[[:space:]]*[ap]m' \
           | sed -n '1s/^resets[[:space:]]*//p')"
   [[ -n "$hhmm" ]] || return 1
-  ep="$(date -d "$hhmm" +%s 2>/dev/null)" || return 1
+  # La zona entre paréntesis manda: el texto la trae en la hora del dueño, que puede no ser la de esta máquina
+  # (TZ=UTC y "7:10pm" local daban un reset corrido horas). Una zona rara se ignora (date caería a UTC en silencio).
+  zona="$(printf '%s' "$1" | sed -nE 's/.*resets[[:space:]]+[0-9]{1,2}(:[0-9]{2})?[[:space:]]*[ap]m[[:space:]]*\(([A-Za-z0-9_+\/-]+)\).*/\2/p' | sed -n 1p)"
+  if [[ -n "$zona" ]] && { [[ ! -d /usr/share/zoneinfo ]] || [[ -e "/usr/share/zoneinfo/$zona" ]]; }; then
+    ep="$(TZ="$zona" date -d "$hhmm" +%s 2>/dev/null)" || return 1
+  else
+    ep="$(date -d "$hhmm" +%s 2>/dev/null)" || return 1
+  fi
   ahora="$(date +%s)"
   (( ep < ahora )) && ep=$(( ep + 86400 ))
   printf '%s' "$ep"
@@ -2151,10 +2261,31 @@ cmd_estado() {
   done
   (( found )) || echo "no hay sesiones guardadas."
 
-  if [[ -f "$LIMITE" ]] && (( $(cat "$LIMITE") > $(date +%s) )); then
-    printf '\nLÍMITE de sesión hasta las %s: los workers no van a arrancar hasta entonces.\n' \
-      "$(date -d "@$(cat "$LIMITE")" '+%H:%M')"
-  fi
+  # Corridas de los últimos 3 días que terminaron sin evidencia de verificación (`verificado=0` en su .hilo), y
+  # proyectos cuyas lecciones pasaron el tope (marca lecciones.necesita-poda): lo que el jefe y la app tienen que mirar.
+  local sv_f sv_id sv_s sv_n=0 pd_f pd_s
+  while IFS= read -r sv_f; do
+    [[ -n "$sv_f" ]] || continue
+    grep -q '^archivado=.' "$sv_f" 2>/dev/null && continue
+    sv_id="$(basename "$sv_f" .hilo)"; sv_s="$(basename "$(dirname "$sv_f")")"
+    (( sv_n++ < 15 )) || continue
+    printf 'SIN VERIFICAR %-17s (id: %s, el RESULTADO no trae VERIFICACION; pa %s --seguir --id %s "corré la verificación y pegá la salida")\n' "$sv_s" "$sv_id" "$sv_s" "$sv_id"
+  done < <(find "$STATE" -mindepth 2 -maxdepth 2 -name '*.hilo' -mtime -3 -print0 2>/dev/null | xargs -0 -r grep -l '^verificado=0$' 2>/dev/null || true)
+  for pd_f in "$STATE"/*/lecciones.necesita-poda; do
+    [[ -f "$pd_f" ]] || continue
+    pd_s="$(basename "$(dirname "$pd_f")")"
+    printf 'NECESITA-PODA %-17s (lecciones.md: %s; pa %s --lecciones-podar)\n' "$pd_s" "$(cat "$pd_f")" "$pd_s"
+  done
+
+  local lf lh
+  for lf in "$LIMITE" "$STATE"/limite.*.hasta; do
+    [[ -f "$lf" ]] || continue
+    lh="$(cat "$lf" 2>/dev/null)"; [[ "$lh" =~ ^[0-9]+$ ]] || continue   # vacío o basura = sin límite
+    (( lh > $(date +%s) )) || continue
+    lf="${lf##*/}"; lf="${lf#limite}"; lf="${lf%.hasta}"; lf="${lf#.}"
+    printf '\nLÍMITE de sesión%s hasta las %s: los workers no van a arrancar hasta entonces.\n' \
+      "${lf:+ (cuenta $lf)}" "$(date -d "@$lh" '+%H:%M')"
+  done
   if [[ "$PLAN" == pro ]]; then
     printf '\nplan pro (modo ahorro): opus con effort medium por default, tope 100 turnos, sin subagentes, resultado por --esperar.\n'
   else
@@ -2184,16 +2315,123 @@ anotar() {   # $1 = texto
   local f; f="$(notas_de_jefe)"; mkdir -p "$(dirname "$f")"
   printf '%s · %s\n' "$(date '+%Y-%m-%d %H:%M')" "$(tr '\n' ' ' <<<"$1" | sed 's/ *$//')" >>"$f"
 }
+# El slug de un proyecto del registry se calcula igual que el del worktree (slug_de sobre la ruta
+# REAL: symlinks resueltos, archivo -> su carpeta, caracteres raros limpiados), no con el basename
+# crudo de .path. $1 = slug, $2 = campo (name | tests), $3 = registry -> el campo, o nada.
+registry_por_slug() {
+  local p v
+  while IFS=$'\t' read -r p v; do
+    [[ -n "$p" ]] || continue
+    p="${p/#\~/$HOME}"
+    [[ -f "$p" ]] && p="$(dirname "$p")"
+    p="$(realpath -m "$p" 2>/dev/null || echo "$p")"
+    [[ "$(slug_de "$p")" == "$1" ]] && { printf '%s' "$v"; return 0; }
+  done < <(jq -r --arg c "$2" '.projects[]? | [.path, (.[$c] // "")] | @tsv' "$3" 2>/dev/null)
+  return 0
+}
 nombre_registry() {   # slug -> nombre del registry (lo que entiende `pa <proy>`), o el slug
   local reg="${PROYECTOS_REGISTRY:-$HOME/.config/proyectos/registry.json}" n=""
-  [[ -f "$reg" ]] && n="$(jq -r --arg s "$1" '[.projects[] | select((.path | sub("/+$"; "") | split("/") | last | ascii_downcase) == $s) | .name][0] // empty' "$reg" 2>/dev/null)"
+  [[ -f "$reg" ]] && n="$(registry_por_slug "$1" name "$reg")"
   printf '%s' "${n:-$1}"
 }
 # El `tests` del registry (un comando: corre con `bash -c` en la raíz del worktree), o nada.
 tests_registry() {   # slug
   local reg="${PROYECTOS_REGISTRY:-$HOME/.config/proyectos/registry.json}"
   [[ -f "$reg" ]] || return 0
-  jq -r --arg s "$1" '[.projects[] | select((.path | sub("/+$"; "") | split("/") | last | ascii_downcase) == $s) | .tests // empty][0] // empty' "$reg" 2>/dev/null || true
+  registry_por_slug "$1" tests "$reg"
+}
+# --- nombre para mostrar de un proyecto (2026-10-26) -----------------------------------------
+# El registry guarda por proyecto `name` (lo que entiende `pa <proy>`), `path` y, opcional, `titulo`: cómo se llama
+# el proyecto en la app y también un alias para `pa` (`pa Shark …` == `pa asistente-voz …`, ver proyecto-ruta).
+# Renombrar SÓLO cambia ese texto: el slug (basename de la ruta), la ruta, las ramas pa/<slug>/…, la carpeta de
+# estado y el historial quedan como están (cambiarlos rompería todo lo anterior). Las mismas reglas las valida la
+# app (electron/proyectos-alias.ts): si cambia una, cambia la otra.
+NOMBRE_MAX=40
+registro_json() { printf '%s' "${PROYECTOS_REGISTRY:-$HOME/.config/proyectos/registry.json}"; }
+ruta_real_de() {   # path crudo del registry -> ruta real (como proyecto-ruta y registry_por_slug)
+  local p="${1/#\~/$HOME}"
+  [[ -f "$p" ]] && p="$(dirname "$p")"
+  realpath -m "$p" 2>/dev/null || printf '%s' "$p"
+}
+cmd_proyectos() {   # [--json]: cada proyecto del registry con su nombre para mostrar, slug y ruta
+  local reg json=0 i n t slug r
+  [[ "${1:-}" == "--json" ]] && json=1
+  reg="$(registro_json)"
+  [[ -f "$reg" ]] || { echo "pa: no existe el registry: $reg" >&2; return 1; }
+  local filas=() a
+  while IFS=$'\t' read -r n p t; do
+    [[ -n "$n" ]] || continue
+    r="$(ruta_real_de "$p")"; slug="$(slug_de "$r")"
+    filas+=("$(jq -cn --arg n "$n" --arg t "$t" --arg s "$slug" --arg r "$r" '{nombre:$n, titulo:(if $t=="" then null else $t end), slug:$s, ruta:$r}')")
+  done < <(jq -r '.projects[]? | select(.name) | [.name, .path, (.titulo // "")] | @tsv' "$reg" 2>/dev/null)
+  if (( json )); then
+    if (( ${#filas[@]} )); then printf '%s\n' "${filas[@]}" | jq -s .; else echo '[]'; fi
+    return 0
+  fi
+  (( ${#filas[@]} )) || { echo "pa: el registry no tiene proyectos."; return 0; }
+  printf '%-24s %-24s %-24s %s\n' NOMBRE MUESTRA SLUG RUTA
+  for a in "${filas[@]}"; do
+    jq -r '[.nombre, (.titulo // "-"), .slug, .ruta] | @tsv' <<<"$a" | awk -F'\t' '{ printf "%-24s %-24s %-24s %s\n", $1, $2, $3, $4 }'
+  done
+  echo "(MUESTRA es el nombre para mostrar: la app lo usa en todos lados y \`pa <MUESTRA> …\` vale igual que \`pa <NOMBRE> …\`. Se cambia con: pa --renombrar <proyecto> <nombre>.)"
+}
+# Por qué un nombre para mostrar no va (vacío si va). $1 = nombre, $2 = ruta real del proyecto que se renombra.
+nombre_invalido() {
+  local n="$1" propia="$2" q p r c nom pa_ extras otro; local -a otros
+  [[ -n "$n" ]] || { echo "está vacío"; return 0; }
+  (( ${#n} <= NOMBRE_MAX )) || { echo "tiene más de $NOMBRE_MAX caracteres"; return 0; }
+  [[ "$n" != -* ]] || { echo "no puede empezar con '-' (parecería una opción)"; return 0; }
+  [[ "$n" != *[[:cntrl:]]* ]] || { echo "tiene saltos de línea o caracteres de control"; return 0; }
+  q="${n,,}"
+  while IFS=$'\t' read -r nom pa_ extras; do
+    [[ -n "$nom" ]] || continue
+    r="$(ruta_real_de "$pa_")"
+    [[ "$r" == "$propia" ]] && continue
+    c="${nom,,}"; [[ "$q" == "$c" ]] && { echo "ya es el nombre de otro proyecto ('$nom')"; return 0; }
+    [[ "$q" == "$(slug_de "$r")" ]] && { echo "ya es el slug de otro proyecto ('$nom')"; return 0; }
+    IFS=$'\x1f' read -ra otros <<<"$extras"
+    for otro in ${otros[@]+"${otros[@]}"}; do
+      [[ -n "$otro" && "$q" == "${otro,,}" ]] && { echo "ya lo usa otro proyecto ('$nom')"; return 0; }
+    done
+  done < <(jq -r '.projects[]? | select(.name) | [.name, .path, ([(.titulo // empty), ((.alias // empty) | if type=="array" then .[] else . end), ((.aliases // empty) | if type=="array" then .[] else . end)] | map(select(type=="string" and . != "")) | join("\u001f"))] | @tsv' "$(registro_json)" 2>/dev/null)
+  return 0
+}
+cmd_renombrar() {   # <proyecto> <nombre> | <proyecto> --quitar
+  local sel="${1:-}" nuevo="${2:-}" reg ruta_p slug_p quitar=0 idx=() i p n por
+  [[ -n "$sel" && -n "${2+x}" ]] || { echo "uso: pa --renombrar <proyecto> <nombre>  |  pa --renombrar <proyecto> --quitar  (pa --proyectos los lista)" >&2; return 2; }
+  [[ "$nuevo" == "--quitar" ]] && { quitar=1; nuevo=""; }
+  reg="$(registro_json)"
+  ruta_p="$(proyecto-ruta "$sel")" || return 1
+  slug_p="$(slug_de "$ruta_p")"
+  nuevo="${nuevo#"${nuevo%%[![:space:]]*}"}"; nuevo="${nuevo%"${nuevo##*[![:space:]]}"}"
+  while IFS=$'\t' read -r i p; do
+    [[ "$(ruta_real_de "$p")" == "$(readlink -f "$ruta_p")" ]] && idx+=("$i")
+  done < <(jq -r '.projects | to_entries[] | [.key, (.value.path // "")] | @tsv' "$reg")
+  (( ${#idx[@]} )) || { echo "pa: no encuentro '$sel' en el registry." >&2; return 1; }
+  n="$(jq -r --argjson i "${idx[0]}" '.projects[$i].name' "$reg")"
+  if (( quitar )); then
+    por=""
+  else
+    por="$(nombre_invalido "$nuevo" "$(readlink -f "$ruta_p")")"
+    [[ -z "$por" ]] || { echo "pa: '$nuevo' no sirve como nombre: $por." >&2; return 2; }
+    # igual al nombre del registry: no hace falta guardar nada
+    [[ "$nuevo" == "$n" ]] && quitar=1
+  fi
+  local tmp; tmp="$(mktemp "$reg.XXXXXX")" || return 1
+  if (( quitar )); then
+    jq --indent 2 --argjson idx "$(printf '%s\n' "${idx[@]}" | jq -sc .)" 'reduce $idx[] as $i (.; del(.projects[$i].titulo))' "$reg" >"$tmp"
+  else
+    jq --indent 2 --arg n "$nuevo" --argjson idx "$(printf '%s\n' "${idx[@]}" | jq -sc .)" 'reduce $idx[] as $i (.; .projects[$i].titulo = $n)' "$reg" >"$tmp"
+  fi || { rm -f "$tmp"; return 1; }
+  [[ -s "$tmp" ]] || { rm -f "$tmp"; echo "pa: no pude escribir el registry." >&2; return 1; }
+  cp -p "$reg" "$reg.bak" 2>/dev/null || true
+  chmod --reference="$reg" "$tmp" 2>/dev/null || true
+  mv -f "$tmp" "$reg"
+  if (( quitar )); then
+    echo "pa: '$n' vuelve a mostrarse con su nombre del registry."
+  else
+    echo "pa: '$n' ahora se muestra como '$nuevo' (pa '$nuevo' … vale igual que pa '$n' …). Sólo cambia el nombre que se ve: el slug '$slug_p', la ruta, las ramas pa/$slug_p/… y el historial quedan como están."
+  fi
 }
 cmd_traspaso() {
   shopt -s nullglob
@@ -2423,6 +2661,8 @@ cmd_bien_auto() {
   rm -f "$hilos" "$integ" "$retra" "$MEDICION.tmp.$$.n"
   (( rc )) && { echo "pa: --bien-auto no pudo reescribir $MEDICION." >&2; return 1; }
   echo "pa: --bien-auto: ${cuenta:-0 anotadas}."
+  # Lo descartado o retrabajado deja una lección corta en el proyecto (sin repetirse; ver lecciones_de_medicion).
+  lecciones_de_medicion "$MEDICION" || true
 }
 
 # ¿La integración $4..$5 cambió o borró alguna línea que escribieron los commits de $2..$3? (en el
@@ -2521,7 +2761,7 @@ cmd_rinde() {
   local t mo e cu n d o p tu us co
   while IFS='|' read -r t mo e cu n d o p tu us co; do
     [[ "$t" == "~" ]] && t="?"
-    [[ -n "$cu" ]] && mo="$mo@$cu"   # una cuenta que no es la de siempre (docs/cuentas-varias-por-proveedor.md)
+    [[ -n "$cu" ]] && mo="$mo@$cu"   # una cuenta que no es la de siempre
     printf '%-15s %-18s %-8s %4s %5s %5s %7s %8s %6s\n' "$t" "$mo" "$e" "$n" "$d" "${p:--}" "${tu:--}" "${us:--}" "${co:--}"
   done < <(tr '\t' '|' <<<"$celdas")
 }
@@ -2642,6 +2882,13 @@ anotar_decision() {   # $1 = json de salida
   fi
   hilo_poner "$ts" sigue "$s"
   [[ -z "$s" ]] || decision_es_nada "$s" || tab_sigue="$s"
+  # verificado: ¿el RESULTADO trae VERIFICACION con comando y salida? Va al .hilo y al .json de la corrida
+  # (no la falla; sólo la marca). Un --leer no tiene qué verificar.
+  if (( ! leer )) && grep -q 'RESULTADO:' <<<"$res"; then
+    local vv=true; verificado_de <<<"$res" || vv=false
+    hilo_poner "$ts" verificado "$([[ $vv == true ]] && echo 1 || echo 0)"
+    jq --argjson v "$vv" '. + {verificado: $v}' "$1" >"$1.tmp.$$" 2>/dev/null && mv -f "$1.tmp.$$" "$1" || rm -f "$1.tmp.$$"
+  fi
 }
 
 # Las preguntas del bloque (tab_bloque, ver bloque_de) entran cada una como un item `pregunta`
@@ -2748,7 +2995,8 @@ cmd_esperar_todos() {
   local timeout=0
   while [[ $# -gt 0 ]]; do
     case "$1" in
-      --timeout) timeout="$2"; shift 2 ;;
+      --timeout) [[ "${2:-}" =~ ^[0-9]+$ ]] || { echo "pa --esperar-todos: --timeout quiere un número de segundos." >&2; exit 2; }
+                 timeout="$2"; shift 2 ;;
       *) echo "pa --esperar-todos: opción desconocida: $1" >&2; exit 2 ;;
     esac
   done
@@ -2802,8 +3050,10 @@ cmd_esperar() {
   shift || true
   while [[ $# -gt 0 ]]; do
     case "$1" in
-      --timeout) timeout="$2"; shift 2 ;;
-      --id)      id="$2"; shift 2 ;;
+      --timeout) [[ "${2:-}" =~ ^[0-9]+$ ]] || { echo "pa --esperar: --timeout quiere un número de segundos." >&2; exit 2; }
+                 timeout="$2"; shift 2 ;;
+      --id)      [[ -n "${2:-}" ]] || { echo "pa --esperar: --id quiere el id de la corrida." >&2; exit 2; }
+                 id="$2"; shift 2 ;;
       *) echo "pa --esperar: opción desconocida: $1" >&2; exit 2 ;;
     esac
   done
@@ -3263,7 +3513,6 @@ TIPOS_VALIDOS="mecanico|lectura|codigo-acotado|codigo-multi|frontend|diseno|debu
 REPARTO="${PA_REPARTO:-$_BIN/reparto}"
 [[ "$REPARTO" == 0 ]] && REPARTO="$_BIN/reparto"   # PA_REPARTO=0 apaga la elección automática, no el comando
 GEMINI_MODELOS='gemini-4-argon-(low|medium|high)|gemini-3\.8-flash-(low|medium|high)|agy:(claude-(opus|sonnet)-5-5-(low|medium|high)|gpt-oss-120b-medium)'
-GEMINI_CUPO_MAX="${PA_GEMINI_CUPO_MAX:-70}"
 es_gemini() { [[ "${1,,}" == gemini* || "${1,,}" == agy:* ]]; }
 gemini_equivalente() {   # $1 = modelo de agy -> "modelo effort" del Claude oficial
   case "$1" in
@@ -3278,9 +3527,8 @@ gemini_equivalente() {   # $1 = modelo de agy -> "modelo effort" del Claude ofic
     agy:gpt-oss-120b-*)      echo "claude-sonnet-5-5 medium" ;;
   esac
 }
-agy_cupo_json() { timeout "${PA_AGY_CHEQUEO_S:-40}" "${cuenta_env[@]}" agy -p /quota --output-format json </dev/null 2>/dev/null; }
 agy_hooks_json() { timeout "${PA_AGY_CHEQUEO_S:-40}" "${cuenta_env[@]}" agy -p /hooks --output-format json </dev/null 2>/dev/null; }
-# --- varias cuentas por proveedor (docs/cuentas-varias-por-proveedor.md) -------------------------
+# --- varias cuentas por proveedor -------------------------
 # Cada cuenta (bin/cuentas, ~/.config/trama/cuentas.json) tiene su carpeta de credenciales. El worker
 # corre con el entorno de SU cuenta sólo en su proceso (`env -u … CLAUDE_CONFIG_DIR=…`, o HOME para agy)
 # y nunca con ANTHROPIC_API_KEY: el entorno lo arma `cuentas env`. La cuenta de siempre tiene el id del
@@ -3288,7 +3536,7 @@ agy_hooks_json() { timeout "${PA_AGY_CHEQUEO_S:-40}" "${cuenta_env[@]}" agy -p /
 CUENTAS="${PA_CUENTAS_BIN:-$_BIN/cuentas}"
 CUENTAS_JSON="${TRAMA_CUENTAS:-${TRAMA_CUENTAS_HOME:-$HOME}/.config/trama/cuentas.json}"
 cuenta="" cuenta_flag="" cuenta_seguir="" cuenta_env=()
-proveedor_de_modelo() { if es_local "$1" || es_codex "$1"; then echo ""; elif es_gemini "$1"; then echo google; else echo claude; fi; }
+proveedor_de_modelo() { if es_local "$1" || es_dsh "$1"; then echo ""; elif es_codex "$1"; then echo chatgpt; elif es_gemini "$1"; then echo google; else echo claude; fi; }
 cuenta_proveedor() {   # $1 = id de cuenta -> su proveedor (nada si no existe)
   case "$1" in claude|google|chatgpt) echo "$1"; return ;; esac
   [[ -f "$CUENTAS_JSON" ]] && jq -r --arg i "$1" 'first(.cuentas[]? | select(.id == $i) | .proveedor) // empty' "$CUENTAS_JSON" 2>/dev/null
@@ -3336,18 +3584,6 @@ cuenta_resolver() {   # $1 = proveedor del modelo. --cuenta que no va: sale 2
   c="$(cuenta_elegir "$prov")"
   cuenta_preparar "$c" "$prov" || cuenta_preparar "$prov" "$prov"
 }
-# Los grupos de /quota: "Gemini Models" (Flash: 5 h y semanal), "Claude and GPT models" (5 h y semanal)
-# y "Gemini 4 Argon" (semanal).
-cupo_grupo() {   # $1 = json de /quota, $2 = modelo -> el grupo de ese modelo (una línea de json), o nada
-  jq -c --arg m "$2" '.command.data.groups[]? |
-    if ($m | startswith("gemini-4-argon")) then select(.name | test("argon"; "i"))
-    elif ($m | startswith("agy:")) then select(.name | test("claude|gpt"; "i"))
-    else select((.name | test("argon|claude|gpt"; "i") | not) and ((.description // "") | test("flash"; "i"))) end' <<<"$1" 2>/dev/null
-}
-cupo_usado() {   # $1 = json de /quota, $2 = modelo -> % usado (entero), o nada si no se sabe
-  cupo_grupo "$1" "$2" | jq -rs '[.[].buckets[]? | .remaining_fraction | numbers] |
-    if length == 0 then empty else ((1 - min) * 100 | floor) end' 2>/dev/null
-}
 plugin_cargado() {   # $1 = json de /hooks -> 0 si el hook pa-worker está cargado y habilitado
   jq -e '[.command.data.hooks[]? | select(.name == "pa-worker" and .enabled != false)
           | .actions[]? | select(.event == "PreToolUse")] | length > 0' <<<"$1" >/dev/null 2>&1
@@ -3357,7 +3593,7 @@ cmd_cupo_gemini() {
   REPARTO_STATE="${REPARTO_STATE:-$STATE/reparto}" PA_STATE="$STATE" "$REPARTO" --cupos "$@"
 }
 
-# --- privacidad de los workers Gemini (docs/gemini-workers-agy.md) ----------------
+# --- privacidad de los workers Gemini ----------------
 # Gemini (y cualquier modelo por agy) corre en CUALQUIER proyecto (el dueño, 2026-10-23: tiene apagado en
 # agy compartir datos para mejorar el producto): no hay lista de proyectos prohibidos ni excluidos.
 # Quedan dos candados ANTES de lanzar agy, por contenido y no por proyecto; si alguno salta, pa cae al
@@ -3407,25 +3643,23 @@ cmd_gemini_proyectos() {   # [--marcar X | --desmarcar X]
     *) echo "uso: pa --gemini-proyectos" >&2; return 2 ;;
   esac
 }
-# Los candados de contenido y el cupo de un Gemini antes de lanzar -> motivo_cae (vacío = va) y clase_cae: `cupo`
-# (se arregla esperando: cupo alto o ilegible) o `fijo` (privacidad, agy o el plugin: esperar no sirve).
-# Usa proyecto y tarea.
+# Los candados de contenido de un Gemini antes de lanzar (privacidad, agy en el PATH, el plugin) -> motivo_cae
+# (vacío = va). El cupo no se mira acá: lo elige reparto. Usa proyecto y tarea.
 gemini_chequear() {   # $1 = modelo de agy (gemini-* o agy:*)
   local ruta_g
-  motivo_cae=""; clase_cae=fijo
+  motivo_cae=""
   # Privacidad primero (secretos en el pedido o en el repo): no gasta ni los 6 s del chequeo.
   ruta_g="$(proyecto-ruta "$proyecto" 2>/dev/null || true)"
   [[ -n "$ruta_g" ]] && motivo_cae="$(gemini_privacidad "$(realpath -m "$ruta_g")" "$tarea")"
   [[ -n "$motivo_cae" ]] && return 0
   if ! command -v agy >/dev/null 2>&1; then motivo_cae="agy no está en el PATH"; return 0; fi
   if ! plugin_cargado "$(agy_hooks_json)"; then
-    motivo_cae="el plugin pa-worker de agy no está cargado (sin él no hay guardias: correr scripts/instalar.sh del orquestador)"
+    motivo_cae="el plugin pa-worker de agy no está cargado (sin él no hay guardias: correr motor/scripts/instalar-producto.sh)"
   fi
   return 0
 }
-gemini_esperar=0
 
-# --- workers por codex (Codex CLI: ChatGPT) — docs/codex-workers.md --------------------------
+# --- workers por codex (Codex CLI: ChatGPT) --------------------------
 # `pa <proy> -m codex:<modelo>-<effort>` lanza `codex exec --json` en vez de claude. El effort va en el
 # nombre (model_reasoning_effort). Mismos candados de privacidad que agy (gemini_privacidad); codex no
 # tiene hooks: las guardias de git y cargo son los shims de codex/bin, primeros en el PATH, y el
@@ -3441,11 +3675,10 @@ codex_equivalente() {   # $1 = modelo de codex -> "modelo effort" del Claude ofi
     codex:*)             echo "claude-sonnet-5-5 $e" ;;
   esac
 }
-# Privacidad, codex en el PATH y sesión iniciada -> motivo_cae (vacío = va) y clase_cae (siempre fijo:
-# el cupo lo mira reparto, esperar no arregla nada de esto).
+# Privacidad, codex en el PATH y sesión iniciada -> motivo_cae (vacío = va). El cupo lo mira reparto.
 codex_chequear() {   # $1 = modelo de codex
   local ruta_c
-  motivo_cae=""; clase_cae=fijo
+  motivo_cae=""
   ruta_c="$(proyecto-ruta "$proyecto" 2>/dev/null || true)"
   [[ -n "$ruta_c" ]] && motivo_cae="$(gemini_privacidad "$(realpath -m "$ruta_c")" "$tarea")"
   [[ -n "$motivo_cae" ]] && { motivo_cae="${motivo_cae/no se manda a Google/no se manda a OpenAI}"; return 0; }
@@ -3495,7 +3728,179 @@ codex_a_json() {   # $1 = jsonl de codex, $2 = stderr, $3 = modelo de pa, $4 = r
                    outputTokens: ([$u[] | .output_tokens // 0] | add) }} end) }' "$1"
 }
 
-# --- modelos.json: el contrato compartido con Trama (docs/modelos-json-tipo-a-modelo-y-locales-ollama.md) ---
+# --- workers por dsh (DeepSeek Harness: modelos gratis de OpenCode u Ollama, o DeepSeek) ----------
+# `pa <proy> -m dsh:<proveedor>/<modelo>` corre `motor/dsh/correr.mjs`, que lanza `dsh --profile headless --json` en el
+# worktree y deja el stream y el .json con la forma de codex_a_json. Proveedores: ollama (local; el servidor sale de
+# locales de modelos.json o de OLLAMA_HOST, default http://localhost:11434), opencode (OPENCODE_API_KEY; sus modelos
+# gratis: big-pickle y los *-free) y deepseek (DEEPSEEK_API_KEY, se paga). Sin effort (no tiene), sin --seguir, --aca,
+# --mcp, --leer (dsh no tiene un modo de sólo lectura que alcance al bash) ni --max-budget-usd.
+# Las keys salen del entorno o de $XDG_CONFIG_HOME/trama/claves.env (el contrato con la app); sólo viajan al proceso
+# del worker, y sólo si es de dsh. Privacidad: opencode y deepseek son remotos (como Gemini: sin la ficha, sin el
+# CLAUDE.md del dueño, y mismo candado de secretos); ollama es local y recibe todo.
+DSH_MODELOS='dsh:(ollama|opencode|deepseek)/[^[:space:]]+'
+DSH_CORRER="${PA_DSH_CORRER:-$(dirname "$_BIN")/dsh/correr.mjs}"
+CLAVES_ENV="${TRAMA_CLAVES:-${XDG_CONFIG_HOME:-$HOME/.config}/trama/claves.env}"
+# `es_dsh` cubre a los dos programas que corren por un runner node con stream NDJSON y sin effort (motor=dsh): dsh y opencode.
+# Lo que cambia entre ellos se decide con `es_opencode` (chequeo, runner, catálogo).
+es_opencode() { [[ "${1,,}" == opencode:* ]]; }
+es_dsh() { [[ "${1,,}" == dsh:* || "${1,,}" == opencode:* ]]; }
+dsh_proveedor() { local r="${1#*:}"; echo "${r%%/*}"; }   # dsh:opencode/big-pickle -> opencode
+dsh_modelo_de() { local r="${1#*:}"; echo "${r#*/}"; }    # dsh:opencode/big-pickle -> big-pickle
+# opencode: gratis son big-pickle y los *-free; el resto se cobra de la key.
+dsh_gratis() {   # $1 = id de pa -> 0 si no cuesta
+  case "$(dsh_proveedor "$1")" in
+    ollama) return 0 ;;
+    opencode) local m; m="$(dsh_modelo_de "$1")"; [[ "$m" == big-pickle || "$m" == *-free ]] ;;
+    *) return 1 ;;
+  esac
+}
+# El valor de una key: el entorno primero y, si no, claves.env (líneas NOMBRE=valor; sin `source`: sólo se aceptan
+# esas dos claves y un valor sin espacios ni caracteres raros, con o sin comillas).
+dsh_clave() {   # $1 = OPENCODE_API_KEY | DEEPSEEK_API_KEY
+  local n="$1" l v
+  case "$n" in OPENCODE_API_KEY|DEEPSEEK_API_KEY) ;; *) return 1 ;; esac
+  v="${!n:-}"
+  if [[ -z "$v" && -f "$CLAVES_ENV" ]]; then
+    while IFS= read -r l || [[ -n "$l" ]]; do
+      l="${l%$'\r'}"
+      if [[ "$l" =~ ^[[:space:]]*(export[[:space:]]+)?"$n"[[:space:]]*=[[:space:]]*(.*)$ ]]; then
+        v="${BASH_REMATCH[2]}"
+        v="${v%"${v##*[![:space:]]}"}"
+        [[ "$v" =~ ^\"(.*)\"$ || "$v" =~ ^\'(.*)\'$ ]] && v="${BASH_REMATCH[1]}"
+      fi
+    done <"$CLAVES_ENV"
+    [[ "$v" =~ ^[A-Za-z0-9._~+/=:-]+$ ]] || v=""
+  fi
+  [[ -n "$v" ]] && printf '%s' "$v"
+}
+# El binario dsh: HILOS_DSH, el PATH, ~/.local/bin, el prefijo global de npm. Vacío si no está.
+dsh_bin() {
+  local d c
+  if [[ -n "${HILOS_DSH:-}" ]]; then [[ -x "$HILOS_DSH" ]] && echo "$HILOS_DSH"; return 0; fi
+  c="$(command -v dsh 2>/dev/null || true)"
+  [[ -z "$c" ]] && for d in "$HOME/.local/bin" "${npm_config_prefix:+$npm_config_prefix/bin}" "$HOME/.npm-global/bin" /usr/local/bin; do
+    [[ -n "$d" && -x "$d/dsh" ]] && { c="$d/dsh"; break; }
+  done
+  [[ -n "$c" ]] && echo "$c"
+  return 0
+}
+# Privacidad, node, dsh, la key y (ollama) el servidor y el modelo -> motivo_cae (vacío = va).
+dsh_chequear() {   # $1 = modelo dsh:… (u opencode:…, que va por opencode_chequear)
+  local prov mod ruta_d url
+  motivo_cae=""
+  if es_opencode "$1"; then opencode_chequear "$1"; return 0; fi
+  prov="$(dsh_proveedor "$1")"; mod="$(dsh_modelo_de "$1")"
+  if [[ "$prov" != ollama ]]; then
+    ruta_d="$(proyecto-ruta "$proyecto" 2>/dev/null || true)"
+    [[ -n "$ruta_d" ]] && motivo_cae="$(gemini_privacidad "$(realpath -m "$ruta_d")" "$tarea")"
+    [[ -n "$motivo_cae" ]] && { motivo_cae="${motivo_cae/no se manda a Google/no se manda a $prov}"; return 0; }
+  fi
+  command -v node >/dev/null 2>&1 || { motivo_cae="node no está en el PATH (dsh lo necesita)"; return 0; }
+  [[ -f "$DSH_CORRER" ]] || { motivo_cae="falta $DSH_CORRER"; return 0; }
+  [[ -n "$(dsh_bin)" ]] || { motivo_cae="dsh no está instalado (npm i -g --prefix ~/.local @deepseek-ai/dsh, o motor/scripts/instalar-producto.sh)"; return 0; }
+  case "$prov" in
+    ollama)
+      IFS=$'\t' read -r url _ <<<"$(local_de "ollama:$mod")"
+      url="$(local_estado "$url" "$mod")"
+      [[ "$url" == ok ]] || motivo_cae="$url" ;;
+    opencode)
+      if ! dsh_gratis "$1" && [[ -z "$(dsh_clave OPENCODE_API_KEY)" ]]; then
+        motivo_cae="falta OPENCODE_API_KEY (en el entorno o en $CLAVES_ENV) para '$mod', que no es gratis"
+      fi ;;
+    deepseek)
+      [[ -n "$(dsh_clave DEEPSEEK_API_KEY)" ]] || motivo_cae="falta DEEPSEEK_API_KEY (en el entorno o en $CLAVES_ENV)" ;;
+  esac
+  return 0
+}
+# Los modelos que pa conoce de dsh: los gratis de OpenCode, el de DeepSeek y lo que Ollama tiene bajado.
+DSH_DEEPSEEK_MODELOS="deepseek-v4-flash"
+dsh_catalogo() {   # -> una línea por modelo: id<TAB>gratis(1|0)<TAB>disponible(1|0)<TAB>detalle
+  local m ok ruta k t url inst
+  inst="$(dsh_bin)"
+  ruta="no está instalado dsh"; [[ -n "$inst" ]] && ruta=""
+  k=0; [[ -n "$(dsh_clave OPENCODE_API_KEY)" ]] && k=1
+  # Los gratis de OpenCode ya no se ofrecen por dsh: OpenCode los rechaza (429 FreeUsageLimitError) desde cualquier programa que no
+  # sea `opencode`, aun con la key propia. Van por opencode:opencode/<modelo>. `dsh:opencode/<modelo>` sigue andando para los de pago.
+  k=0; [[ -n "$(dsh_clave DEEPSEEK_API_KEY)" ]] && k=1
+  for m in $DSH_DEEPSEEK_MODELOS; do
+    ok=0; [[ -z "$ruta" ]] && (( k )) && ok=1
+    printf 'dsh:deepseek/%s\t0\t%s\t%s\n' "$m" "$ok" "${ruta:-$( ((k)) && echo 'se paga con tu key' || echo 'falta DEEPSEEK_API_KEY')}"
+  done
+  IFS=$'\t' read -r url _ <<<"$(local_de "ollama:x")"
+  if [[ -z "$ruta" ]] && t="$(local_tags "$url")"; then
+    jq -r '.models[]? | .name // empty' <<<"$t" 2>/dev/null | while IFS= read -r m; do
+      printf 'dsh:ollama/%s\t1\t1\tlocal, gratis (%s)\n' "$m" "$url"
+    done
+  fi
+}
+# --- workers por opencode (el programa `opencode`: sus modelos gratis sólo andan dentro de él) --------------
+# `pa <proy> -m opencode:<proveedor>/<modelo>` corre `motor/opencode/correr.mjs`, que lanza `opencode run --format json -m <proveedor>/<modelo>`
+# en el worktree y deja el stream y el .json con la forma de codex_a_json. Los modelos son los que imprime `opencode models`; los gratis
+# (`opencode/*-free` y `opencode/big-pickle`) usan el login de OpenCode Console de la persona (`opencode` → /connect), no una key de pa.
+# Mismas restricciones que dsh (sin effort, --seguir, --aca, --mcp, --leer ni --max-budget-usd) y misma privacidad que Gemini: es remoto, así
+# que no recibe la ficha ni el CLAUDE.md del dueño y vale el mismo candado de secretos.
+OC_MODELOS='opencode:[A-Za-z0-9][A-Za-z0-9._-]*/[^[:space:]]+'
+OC_CORRER="${PA_OPENCODE_CORRER:-$(dirname "$_BIN")/opencode/correr.mjs}"
+OC_GRATIS_CONOCIDOS="big-pickle beam-free deepseek-v4.1-flash-free flint-40b-free glm-5.3-flash-free mimo-v2.6-flash-free minimax-m3.1-flash-free nemotron-3-ultra-free nemotron-3.5-lightning-free nemotron-3.5-super-vl-free"
+# El binario opencode: HILOS_OPENCODE, el PATH, ~/.opencode/bin (su instalador), ~/.local/bin, el prefijo global de npm. Vacío si no está.
+opencode_bin() {
+  local d c
+  if [[ -n "${HILOS_OPENCODE:-}" ]]; then [[ -x "$HILOS_OPENCODE" ]] && echo "$HILOS_OPENCODE"; return 0; fi
+  c="$(command -v opencode 2>/dev/null || true)"
+  [[ -z "$c" ]] && for d in "$HOME/.opencode/bin" "$HOME/.local/bin" "${npm_config_prefix:+$npm_config_prefix/bin}" "$HOME/.npm-global/bin" /usr/local/bin; do
+    [[ -n "$d" && -x "$d/opencode" ]] && { c="$d/opencode"; break; }
+  done
+  [[ -n "$c" ]] && echo "$c"
+  return 0
+}
+opencode_gratis() {   # $1 = id de pa (opencode:<prov>/<modelo>) -> 0 si es gratis
+  local v="${1#opencode:}"
+  [[ "$v" == opencode/big-pickle || "$v" == *-free ]]
+}
+# Privacidad, node, opencode -> motivo_cae (vacío = va). El login no se mira (no hay forma barata): un 429 lo cuenta después.
+opencode_chequear() {   # $1 = modelo opencode:…
+  local ruta_d
+  motivo_cae=""
+  if [[ ! "$1" =~ ^($OC_MODELOS)$ ]]; then motivo_cae="'$1' no es un modelo de opencode (opencode:<proveedor>/<modelo>)"; return 0; fi
+  ruta_d="$(proyecto-ruta "$proyecto" 2>/dev/null || true)"
+  [[ -n "$ruta_d" ]] && motivo_cae="$(gemini_privacidad "$(realpath -m "$ruta_d")" "$tarea")"
+  [[ -n "$motivo_cae" ]] && { motivo_cae="${motivo_cae/no se manda a Google/no se manda a OpenCode}"; return 0; }
+  command -v node >/dev/null 2>&1 || { motivo_cae="node no está en el PATH (opencode lo necesita)"; return 0; }
+  [[ -f "$OC_CORRER" ]] || { motivo_cae="falta $OC_CORRER"; return 0; }
+  [[ -n "$(opencode_bin)" ]] || motivo_cae="opencode no está instalado (npm i -g opencode-ai; después \`opencode\` → /connect → OpenCode Console para los gratis)"
+  return 0
+}
+# Los modelos gratis que pa conoce de opencode: los que lista `opencode models` (a mano, sin caché) o, si no contesta, los conocidos.
+opencode_catalogo() {   # -> una línea por modelo: id<TAB>gratis(1|0)<TAB>disponible(1|0)<TAB>detalle
+  local inst m lista="" ok detalle
+  inst="$(opencode_bin)"
+  if [[ -n "$inst" ]]; then
+    lista="$(timeout 10 "$inst" models 2>/dev/null </dev/null | sed 's/\x1b\[[0-9;]*[A-Za-z]//g' | grep -E '^opencode/(big-pickle|[^[:space:]]*-free)$' | sed 's|^opencode/||' | tr '\n' ' ' || true)"
+  fi
+  [[ -n "${lista// /}" ]] || lista="$OC_GRATIS_CONOCIDOS"
+  ok=0; detalle="no está instalado opencode"
+  [[ -n "$inst" ]] && { ok=1; detalle="con tu login de OpenCode Console (opencode → /connect)"; }
+  for m in $lista; do printf 'opencode:opencode/%s\t1\t%s\t%s\n' "$m" "$ok" "$detalle"; done
+}
+# El latido de un worker de dsh (no tiene hooks): lo escribe pa cada PA_DSH_LATIDO_S mientras vive, con la última
+# herramienta o texto del stream.
+dsh_latido() {
+  local d
+  d="$(tail -n 8 "$transcript" 2>/dev/null | jq -rs '[.[] | objects
+        | if .type == "tool_call" then "\(.tool // "") \(.input.command? // .input.file_path? // .input.path? // .input.pattern? // "")"
+          elif .type == "tool_use" then "\(.part.tool? // "") \(.part.state.input.command? // .part.state.input.filePath? // .part.state.input.path? // .part.state.input.pattern? // "")"
+          elif .type == "text" then (.text // .part.text // "")
+          elif .type == "thinking" or .type == "reasoning" then "pensando"
+          else empty end | tostring] | last // ""' 2>/dev/null)"
+  {
+    printf 'epoch=%s\n' "$(date +%s)"
+    printf 'tool=%s\n' "$(es_opencode "$modelo" && echo opencode || echo dsh)"
+    printf 'envuelo=1\n'
+    printf 'desc=%s\n' "$(printf '%s' "$d" | tr '\n\r\t' '   ' | cut -c1-160)"
+  } >"$hb.tmp" 2>/dev/null && mv -f "$hb.tmp" "$hb" 2>/dev/null
+}
+
+# --- modelos.json: el contrato compartido con Trama ---
 # `~/.config/trama/modelos.json` (TRAMA_MODELOS lo redirige: los tests) dice qué modelo usa cada
 # `--tipo` cuando no hay `-m`, qué locales (Ollama) existen y qué hace pa cuando un Gemini caería a
 # Claude. Sin el archivo todo es como antes, byte por byte. Un archivo roto avisa en UNA línea por
@@ -3508,12 +3913,12 @@ modelos_cargar() {   # 0 si hay un modelos.json válido (lo deja en MODELOS_TXT)
     if [[ -f "$MODELOS_JSON" ]]; then
       local txt err
       txt="$(cat "$MODELOS_JSON" 2>/dev/null)"
-      err="$(jq -r --arg tipos "default|$TIPOS_VALIDOS" --arg gem "$GEMINI_MODELOS" --arg cod "$CODEX_MODELOS" '
+      err="$(jq -r --arg tipos "default|$TIPOS_VALIDOS" --arg gem "$GEMINI_MODELOS" --arg cod "$CODEX_MODELOS" --arg dsh "$DSH_MODELOS" --arg oc "$OC_MODELOS" '
         def efok: . == null or (type == "string" and test("^(low|medium|high|xhigh|max)$"));
         . as $c |
         (if ($c | type) == "object" and ($c.locales | type) == "array" then $c.locales else [] end) as $L |
         [$L[] | objects | .id | strings] as $ids |
-        def modok: type == "string" and (test("^claude-[a-z0-9][a-z0-9.-]*$") or test("^(\($gem))$") or test("^(\($cod))$")
+        def modok: type == "string" and (test("^claude-[a-z0-9][a-z0-9.-]*$") or test("^(\($gem))$") or test("^(\($cod))$") or test("^(\($dsh))$") or test("^(\($oc))$")
                    or (startswith("ollama:") and (. as $m | $ids | index([$m]) != null)));
         [ (if ($c | type) != "object" then "no es un objeto JSON" else empty end),
           (if ($c | type) == "object" then (
@@ -3527,7 +3932,7 @@ modelos_cargar() {   # 0 si hay un modelos.json válido (lo deja en MODELOS_TXT)
             (if ($c.workers | type) == "object" then ($c.workers | to_entries[] |
                 (if (.key | test("^(\($tipos))$") | not) then "tipo de worker desconocido: \(.key)" else empty end),
                 (if (.value | type) != "object" or (.value.modelo | modok | not)
-                   then "workers.\(.key): modelo desconocido \(.value.modelo? | tojson) (claude-…, gemini-…, agy:… o codex:… de pa u ollama:… que esté en locales)" else empty end),
+                   then "workers.\(.key): modelo desconocido \(.value.modelo? | tojson) (claude-…, gemini-…, agy:… o codex:… de pa, dsh:<ollama|opencode|deepseek>/<modelo>, opencode:<proveedor>/<modelo> u ollama:… que esté en locales)" else empty end),
                 (if (.value | type) == "object" and (.value.effort | efok | not) then "workers.\(.key): effort \(.value.effort | tojson) no existe" else empty end))
              else empty end),
             (if $c.reparto != null and ($c.reparto | tostring | test("^(auto|fijo)$") | not)
@@ -3535,12 +3940,6 @@ modelos_cargar() {   # 0 si hay un modelos.json válido (lo deja en MODELOS_TXT)
             (if $c.lider != null and (($c.lider | type) != "object" or ($c.lider.modelo | modok | not))
                then "lider: modelo desconocido \($c.lider.modelo? | tojson)" else empty end),
             (if $c.gemini != null and ($c.gemini | type) != "object" then "gemini no es un objeto" else empty end),
-            (if ($c.gemini | type) == "object" and $c.gemini.cupo_max != null
-                and (($c.gemini.cupo_max | type) != "number" or $c.gemini.cupo_max < 1 or $c.gemini.cupo_max > 100)
-               then "gemini.cupo_max \($c.gemini.cupo_max | tojson) (un número de 1 a 100)" else empty end),
-            (if ($c.gemini | type) == "object" and $c.gemini.sin_claude != null
-                and ($c.gemini.sin_claude | tostring | test("^(claude|esperar|fallar)$") | not)
-               then "gemini.sin_claude \($c.gemini.sin_claude | tojson) (claude, esperar o fallar)" else empty end),
             (def frac: type == "number" and . >= 0 and . < 1;
              if $c.reserva != null and (($c.reserva | frac) or (($c.reserva | type) == "object" and ($c.reserva | length) > 0
                  and ($c.reserva | keys - ["5h", "7d"] | length) == 0 and ([$c.reserva[] | frac] | all)) | not)
@@ -3549,6 +3948,10 @@ modelos_cargar() {   # 0 si hay un modelos.json válido (lo deja en MODELOS_TXT)
                then "excluir \($c.excluir | tojson) (una lista de ids o familias)" else empty end),
             (if $c | has("permitir_max") and ($c.permitir_max | type) != "boolean"
                then "permitir_max \($c.permitir_max | tojson) (true o false)" else empty end),
+            (if $c.perfil != null and ($c.perfil | tostring | test("^(equilibrado|ahorro|rendimiento)$") | not)
+               then "perfil \($c.perfil | tojson) (equilibrado, ahorro o rendimiento)" else empty end),
+            (if $c.reserva_lider != null and (($c.reserva_lider | type) != "number" or $c.reserva_lider < 0 or $c.reserva_lider >= 1)
+               then "reserva_lider \($c.reserva_lider | tojson) (un número de 0 a 1 o null)" else empty end),
             (if $c.sin_cupo != null and ($c.sin_cupo | tostring | test("^(otro|esperar|fallar)$") | not)
                then "sin_cupo \($c.sin_cupo | tojson) (otro, esperar o fallar)" else empty end)
           ) else empty end) ] | first // ""' <<<"$txt" 2>/dev/null)" || err="no es JSON válido"
@@ -3563,26 +3966,24 @@ modelos_worker() {   # $1 = tipo (vacío = default) -> "modelo|effort|clave", o 
   jq -r --arg t "${1:-default}" '.workers // {} | (if has($t) then $t elif has("default") then "default" else empty end) as $k
     | [.[$k].modelo, (.[$k].effort // ""), $k] | join("|")' <<<"$MODELOS_TXT"
 }
-modelos_gemini() {   # $1 = campo de .gemini (cupo_max | sin_claude) -> valor, o nada
-  modelos_cargar || return 0
-  jq -r --arg f "$1" '.gemini[$f]? // empty | tostring' <<<"$MODELOS_TXT"
-}
-# gemini.cupo_max del archivo reemplaza a PA_GEMINI_CUPO_MAX; sin_claude: claude (lo de siempre) | esperar | fallar.
+# sin_cupo: qué hacer cuando el modelo elegido no tiene cupo, sea de Google, de ChatGPT o el Claude oficial.
+# otro (default) | esperar | fallar. `gemini.cupo_max` y `gemini.sin_claude` (la forma de antes de sin_cupo) ya no
+# son opciones: el archivo que todavía los trae se acepta sin error y el cupo lo decide reparto. Se lee sólo el
+# `sin_claude` viejo, sin avisar, como alias de sin_cupo cuando éste falta (claude = otro), para no cambiarle el
+# comportamiento a una config de antes.
 gemini_politica() {
-  local v; v="$(modelos_gemini cupo_max)"
-  [[ -n "$v" ]] && { GEMINI_CUPO_MAX="${v%%.*}"; GEMINI_CUPO_DE="gemini.cupo_max de modelos.json"; }
-  GEMINI_SIN_CLAUDE="$(modelos_gemini sin_claude)"; GEMINI_SIN_CLAUDE="${GEMINI_SIN_CLAUDE:-claude}"
-  # sin_cupo (2026-10-24) generaliza gemini.sin_claude: qué hacer cuando el modelo elegido no tiene cupo,
-  # sea de Google o el Claude oficial. otro (default) | esperar | fallar. Sin sin_cupo vale gemini.sin_claude
-  # (claude = otro); con sin_cupo, gemini.sin_claude sale de él (otro = claude).
-  v="$(modelos_clave sin_cupo)"
+  local v; v="$(modelos_clave sin_cupo)"
   if [[ -n "$v" ]]; then SIN_CUPO="$v"; SIN_CUPO_DE="sin_cupo de modelos.json"
-    GEMINI_SIN_CLAUDE="$( [[ "$v" == otro ]] && echo claude || echo "$v")"
-  elif [[ "$GEMINI_SIN_CLAUDE" != claude ]]; then SIN_CUPO="$GEMINI_SIN_CLAUDE"; SIN_CUPO_DE="gemini.sin_claude de modelos.json"
-  else SIN_CUPO=otro; SIN_CUPO_DE=default; fi
+  else
+    v="$(modelos_clave gemini | jq -r '.sin_claude? // empty | tostring' 2>/dev/null || true)"
+    case "$v" in
+      esperar|fallar) SIN_CUPO="$v"; SIN_CUPO_DE="sin_cupo de modelos.json (gemini.sin_claude de antes)" ;;
+      *) SIN_CUPO=otro; SIN_CUPO_DE=default ;;
+    esac
+  fi
   [[ "$(modelos_clave permitir_max)" == true ]] && PERMITIR_MAX=1 || PERMITIR_MAX=0
 }
-GEMINI_CUPO_DE="PA_GEMINI_CUPO_MAX"; GEMINI_SIN_CLAUDE=claude SIN_CUPO=otro SIN_CUPO_DE=default PERMITIR_MAX=0
+SIN_CUPO=otro SIN_CUPO_DE=default PERMITIR_MAX=0
 modelos_clave() {   # $1 = clave de primer nivel -> su valor (texto o JSON compacto), o nada
   modelos_cargar || return 0
   jq -r --arg k "$1" '.[$k] // empty | if type == "string" then . else tojson end' <<<"$MODELOS_TXT"
@@ -3650,7 +4051,7 @@ modelo_de_pa() {   # $1 = tipo -> "modelo<TAB>effort" de pa sin archivo (lo de s
   printf '%s\t%s\n' "$m" "$e"
 }
 cmd_modelos() {
-  local json=0 t r m e k de filas="" locs="" lid="" url mod nom est rep_modo rep_t rep_j rep_m rep_e rep_mot
+  local json=0 t r m e k de filas="" locs="" lid="" dshs="" ocs="" tab url mod nom est rep_modo rep_t rep_j rep_m rep_e rep_mot
   [[ "${1:-}" == --json ]] && json=1
   [[ -n "${1:-}" && "$1" != --json ]] && { echo "uso: pa --modelos [--json]" >&2; return 2; }
   modelos_cargar || true; gemini_politica
@@ -3659,10 +4060,10 @@ cmd_modelos() {
     r="$(modelos_worker "$( [[ "$t" == default ]] || echo "$t")")"
     if [[ -n "$r" ]]; then
       IFS='|' read -r m e k <<<"$r"; de="modelos.json (workers.$k)"
-      if [[ -z "$e" ]] && ! es_gemini "$m" && ! es_codex "$m" && ! es_local "$m"; then
+      if [[ -z "$e" ]] && ! es_gemini "$m" && ! es_codex "$m" && ! es_local "$m" && ! es_dsh "$m"; then
         case "${m,,}" in *haiku*) e=xhigh ;; *sonnet*) e=high ;; *opus*) [[ "$PLAN" == pro ]] && e=medium || e=settings ;; esac
       fi
-      es_gemini "$m" || es_codex "$m" || es_local "$m" && e="-"
+      es_gemini "$m" || es_codex "$m" || es_local "$m" || es_dsh "$m" && e="-"
     else
       IFS=$'\t' read -r m e <<<"$(modelo_de_pa "$t")"; de="default de pa"
     fi
@@ -3679,7 +4080,16 @@ cmd_modelos() {
     fi
     filas+="$t"$'\t'"$m"$'\t'"${e:--}"$'\t'"$de"$'\t'"${rep_m:-}"$'\t'"${rep_e:--}"$'\t'"${rep_mot:-}"$'\n'
   done
+  tab=""
+  if [[ "$rep_modo" == auto && -x "$REPARTO" ]]; then   # inteligencia de cada modelo (reparto --tabla; ~ = estimada)
+    tab="$(REPARTO_STATE="${REPARTO_STATE:-$STATE/reparto}" PA_STATE="$STATE" \
+      timeout "${PA_REPARTO_TIMEOUT_S:-15}" "$REPARTO" --tabla --json 2>/dev/null </dev/null \
+      | jq -c '[.modelos[]? | {id, calidad, estimada, gratis, permitido}] | unique_by(.id)' 2>/dev/null || true)"
+  fi
+  [[ -n "$tab" ]] || tab='[]'
   modelos_cargar && lid="$(jq -r '.lider // empty | [.modelo, (.effort // "")] | join("|")' <<<"$MODELOS_TXT")"
+  dshs="$(dsh_catalogo 2>/dev/null || true)"
+  ocs="$(opencode_catalogo 2>/dev/null || true)"
   if modelos_cargar; then
     while IFS=$'\t' read -r k nom url mod; do
       [[ -n "$k" ]] || continue
@@ -3690,20 +4100,23 @@ cmd_modelos() {
   if (( json )); then
     jq -n --arg arch "$MODELOS_JSON" --arg err "$MODELOS_ERR" --arg ok "$( [[ -n "$MODELOS_TXT" ]] && echo 1)" \
           --arg existe "$( [[ -f "$MODELOS_JSON" ]] && echo 1)" --arg rep_modo "$rep_modo" \
-          --arg filas "$filas" --arg locs "$locs" --arg lid "$lid" --arg plan "$PLAN" \
-          --argjson cupo "$GEMINI_CUPO_MAX" --arg cupo_de "$GEMINI_CUPO_DE" --arg sin "$GEMINI_SIN_CLAUDE" \
+          --arg filas "$filas" --arg locs "$locs" --arg lid "$lid" --arg plan "$PLAN" --arg dshs "$dshs" --arg dsh_ruta "$(dsh_bin)" --arg ocs "$ocs" --arg oc_ruta "$(opencode_bin)" --argjson tab "$tab" \
           --argjson excluir "$(modelos_clave excluir | grep . || echo '[]')" --argjson pmax "$( (( PERMITIR_MAX )) && echo true || echo false)" \
           --arg sin_cupo "$SIN_CUPO" --arg sin_cupo_de "$SIN_CUPO_DE" --argjson reserva "$(modelos_clave reserva | grep . || echo null)" '
       def lineas($s): $s | split("\n") | map(select(. != "") | split("\t"));
-      def motor($m): if ($m | startswith("ollama:")) then "ollama" elif ($m | startswith("codex:")) then "codex" elif (($m | startswith("gemini")) or ($m | startswith("agy:"))) then "agy" else "claude" end;
+      def motor($m): if ($m | startswith("ollama:")) then "ollama" elif ($m | startswith("dsh:")) then "dsh" elif ($m | startswith("opencode:")) then "opencode" elif ($m | startswith("codex:")) then "codex" elif (($m | startswith("gemini")) or ($m | startswith("agy:"))) then "agy" else "claude" end;
       { archivo: $arch, existe: ($existe == "1"), valido: ($ok == "1"), error: (if $err == "" then null else $err end), plan: $plan,
         reparto: $rep_modo,
+        inteligencia: ($tab | map({key: .id, value: {calidad, estimada, gratis, permitido}}) | from_entries),
         excluir: $excluir, permitir_max: $pmax, sin_cupo: $sin_cupo, sin_cupo_de: $sin_cupo_de, reserva: $reserva,
         lider: (if $lid == "" then null else ($lid | split("|") | {modelo: .[0], effort: (if (.[1] // "") == "" then null else .[1] end), motor: motor(.[0])}) end),
         workers: ([lineas($filas)[] | {key: .[0], value: ({modelo: .[1], effort: (if .[2] == "-" then null else .[2] end), motor: motor(.[1]), origen: .[3]}
           + (if (.[4] // "") == "" then {reparto: null} else {reparto: {modelo: .[4], effort: (if (.[5] // "-") == "-" or (.[5] // "") == "" then null else .[5] end), motor: motor(.[4]), motivo: (.[6] // "")}} end))}] | from_entries),
-        gemini: {cupo_max: $cupo, cupo_max_de: $cupo_de, sin_claude: $sin},
-        locales: [lineas($locs)[] | {id: .[0], nombre: .[1], url: .[2], modelo: .[3], responde: (.[4] == "ok"), detalle: (if .[4] == "ok" then null else .[4] end)}] }'
+        locales: [lineas($locs)[] | {id: .[0], nombre: .[1], url: .[2], modelo: .[3], responde: (.[4] == "ok"), detalle: (if .[4] == "ok" then null else .[4] end)}],
+        dsh: {instalado: ($dsh_ruta != ""), ruta: (if $dsh_ruta == "" then null else $dsh_ruta end),
+              modelos: [lineas($dshs)[] | {id: .[0], gratis: (.[1] == "1"), disponible: (.[2] == "1"), detalle: .[3]}]},
+        opencode: {instalado: ($oc_ruta != ""), ruta: (if $oc_ruta == "" then null else $oc_ruta end),
+              modelos: [lineas($ocs)[] | {id: .[0], gratis: (.[1] == "1"), disponible: (.[2] == "1"), detalle: .[3]}]} }'
     return 0
   fi
   if [[ -n "$MODELOS_TXT" ]]; then echo "archivo: $MODELOS_JSON"
@@ -3711,12 +4124,29 @@ cmd_modelos() {
   else echo "archivo: $MODELOS_JSON (no existe: modelos de siempre)"; fi
   [[ -n "$lid" ]] && printf 'líder: %s\n' "${lid//|/ effort }" | sed 's/ effort $//'
   printf '%s' "$filas" | awk -F'\t' 'BEGIN{printf "%-15s %-26s %-8s %s\n", "tipo", "modelo", "effort", "de dónde"} {printf "%-15s %-26s %-8s %s%s\n", $1, $2, $3, $4, ($5 != "" ? "  (reparto hoy: " $5 ($6 != "-" && $6 != "" ? " " $6 : "") ")" : "")}'
-  echo "gemini: si cae: $GEMINI_SIN_CLAUDE (el cupo lo elige reparto: modo $rep_modo)"
+  echo "reparto: modo $rep_modo (el cupo lo elige reparto)"
   echo "sin cupo: $SIN_CUPO ($SIN_CUPO_DE); excluir: $(modelos_clave excluir | jq -r 'if length == 0 then "nada" else join(", ") end' 2>/dev/null || echo nada); reserva del Claude oficial: $(modelos_clave reserva | grep . || echo ninguna); max sin --ok-dueno: $( (( PERMITIR_MAX )) && echo sí || echo no)"
+  if [[ "$tab" != '[]' ]]; then
+    echo "inteligencia (0-100; ~ = estimada por el nombre; editable en Ajustes > Modelos o con \"calidad\" en modelos.json; reparto --tabla):"
+    jq -r '.[] | "\(.id)\t\(.calidad)\(if .estimada then "~" else "" end)\(if .gratis then " · gratis" else "" end)\(if .permitido then "" else " · NO permitido" end)"' <<<"$tab" \
+      | awk -F'\t' '{printf "  %-52s %s\n", $1, $2}'
+  fi
   if [[ -n "$locs" ]]; then
     echo "locales:"
     printf '%s' "$locs" | while IFS=$'\t' read -r k nom url mod est; do
       if [[ "$est" == ok ]]; then printf '  %-30s %s  responde\n' "$k" "$url"; else printf '  %-30s %s  NO: %s\n' "$k" "$url" "$est"; fi
+    done
+  fi
+  if [[ -n "$dshs" ]]; then
+    echo "dsh (-m dsh:<proveedor>/<modelo>; las keys van en el entorno o en $CLAVES_ENV):"
+    printf '%s\n' "$dshs" | while IFS=$'\t' read -r k nom est mod; do
+      printf '  %-44s %s%s\n' "$k" "$( [[ "$est" == 1 ]] && echo disponible || echo 'NO disponible')" "$( [[ "$nom" == 1 ]] && echo ' · gratis')${mod:+ · $mod}"
+    done
+  fi
+  if [[ -n "$ocs" ]]; then
+    echo "opencode (-m opencode:<proveedor>/<modelo>; los gratis usan tu login de OpenCode Console: \`opencode\` → /connect):"
+    printf '%s\n' "$ocs" | while IFS=$'\t' read -r k nom est mod; do
+      printf '  %-52s %s%s\n' "$k" "$( [[ "$est" == 1 ]] && echo disponible || echo 'NO disponible')" "$( [[ "$nom" == 1 ]] && echo ' · gratis')${mod:+ · $mod}"
     done
   fi
   echo "(-m en pa siempre le gana al archivo)"
@@ -3797,6 +4227,358 @@ medir() {   # $1 = json de salida de la corrida (puede no existir)
   ) 7>>"$MEDICION"
 }
 
+# --- orquestación: brief, verificación, AGENTS.md, lecciones, calidad del modelo (2026-10-26) ----
+# Todo es aditivo y nada bloquea una corrida: avisa, anota o inyecta texto.
+
+# La plantilla del brief (`pa --brief`): lo que el jefe le tiene que dar al worker.
+brief_plantilla() {
+  cat <<'PLANTILLA'
+Objetivo: <qué tiene que quedar distinto, en 1-2 oraciones>
+Archivos: <rutas o carpetas donde trabajar, y qué leer primero>
+Listo cuando: <criterio observable de terminado>
+Cómo verificar: <comando exacto a correr y qué salida esperás>
+No tocar: <archivos, áreas o comportamientos que no se cambian>
+PLANTILLA
+}
+
+# ¿El texto trae esa sección? Con o sin `#`/`**`/`-` adelante; sin distinguir mayúsculas ni tilde.
+brief_tiene() {   # $1 = texto, $2 = regex de la sección
+  local r; shopt -q nocasematch && r=0 || r=1
+  shopt -s nocasematch
+  [[ "$1" =~ $2 ]] && { (( r )) && shopt -u nocasematch; return 0; }
+  (( r )) && shopt -u nocasematch
+  return 1
+}
+
+# Avisa (stderr, al jefe) lo que le falta al brief. Nunca bloquea.
+brief_avisar() {   # $1 = tarea
+  local falta=()
+  brief_tiene "$1" 'listo[[:space:]]+cuando' || falta+=( '"Listo cuando" (cómo se sabe que terminó)' )
+  brief_tiene "$1" 'c[^[:space:]]{1,2}mo[[:space:]]+verificar' || falta+=( '"Cómo verificar" (el comando que prueba que anda)' )
+  (( ${#falta[@]} )) || return 0
+  local lista; lista="$(printf '%s y ' "${falta[@]}")"; lista="${lista% y }"
+  echo "pa: aviso: a la tarea le falta ${lista}. Sin eso el worker adivina y vos no podés comprobar su trabajo. Brief: Objetivo / Archivos / Listo cuando / Cómo verificar / No tocar (plantilla: pa --brief; desde un archivo: --brief-archivo F). No bloqueo." >&2
+}
+
+# La sección VERIFICACION de un RESULTADO (stdin -> stdout). Acepta VERIFICACIÓN, mayúsculas o no, con
+# ** o # adelante; termina en el próximo encabezado conocido.
+verificacion_de() {
+  local l en=0 t="" nc=0
+  shopt -q nocasematch && nc=1
+  shopt -s nocasematch
+  while IFS= read -r l; do
+    if (( ! en )); then
+      if [[ "$l" =~ ^[\*\#\>\ $'\t'-]*VERIFICACI[^:*]{1,2}N[\*]*:[\*]*(.*)$ ]]; then en=1; t="${BASH_REMATCH[1]}"; fi
+      continue
+    fi
+    [[ "$l" =~ ^[\*\#\>\ $'\t'-]*(RESULTADO|ARCHIVOS|DECISI[^:*]{1,2}N|SIGUE|PROBAR|PREGUNTA)[\*]*: ]] && break
+    t+=$'\n'"$l"
+  done
+  (( nc )) || shopt -u nocasematch
+  printf '%s' "$t"
+}
+# 0 = el RESULTADO (stdin) trae evidencia de verificación; 1 = falta, está vacía o dice "ninguna".
+verificado_de() {
+  local t; t="$(verificacion_de)"
+  t="${t//[\`*_]/}"; t="${t//[[:space:]]/ }"; t="${t#"${t%%[![:space:]]*}"}"; t="${t%"${t##*[![:space:]]}"}"
+  [[ -n "$t" ]] || return 1
+  shopt -q nocasematch && local nc=1 || local nc=0
+  shopt -s nocasematch
+  local r=0
+  [[ "$t" =~ ^(ninguna|ninguno|nada|n/?a|no|-+|sin[[:space:]]+verificar)([[:space:].:,;-]|$) ]] && r=1
+  (( nc )) || shopt -u nocasematch
+  return "$r"
+}
+
+# AGENTS.md del proyecto para los motores que NO leen CLAUDE.md (agy, codex, dsh/opencode). AGENTS.md es la
+# fuente única (`pa <proy> --unificar-md` deja CLAUDE.md y GEMINI.md como stubs que lo importan con `@AGENTS.md`).
+# Busca AGENTS.md y, si no hay, CLAUDE.md, primero en el worktree y después en el tree principal (un AGENTS.md
+# recién escrito y sin commitear sólo existe ahí). Un `@archivo` suelto en su línea se reemplaza por el contenido
+# de ese archivo (un nivel, sólo dentro de la carpeta del proyecto): un CLAUDE.md que es un stub nunca da una
+# inyección vacía. Tope PA_AGENTS_MAX (default 20000) caracteres, y si se corta lo dice en el propio bloque.
+AGENTS_MAX_DEFECTO=20000
+# $1 = archivo -> su texto con las líneas `@ruta` resueltas. Sólo líneas que son un `@ruta` solo (fuera de bloques de
+# código); ruta relativa a la carpeta del archivo, sin `..` ni absolutas ni `~`, que termine dentro de la carpeta
+# (un symlink que sale no vale) y no pase de 1 MB. Lo que no se puede resolver queda como estaba. No es recursivo.
+md_resolver() {
+  local f="$1" dir raiz linea en_codigo=0 rel dest primero=1
+  dir="$(dirname "$f")"; raiz="$(realpath -m "$dir")"
+  while IFS= read -r linea || [[ -n "$linea" ]]; do
+    linea="${linea%$'\r'}"
+    if [[ "$linea" =~ ^[[:space:]]*(\`\`\`|~~~) ]]; then en_codigo=$((1 - en_codigo)); fi
+    if (( ! en_codigo )) && [[ "$linea" =~ ^[[:space:]]*@([^[:space:]]+)[[:space:]]*$ ]]; then
+      rel="${BASH_REMATCH[1]}"
+      if [[ "$rel" != /* && "$rel" != "~"* && "/$rel/" != *"/../"* ]]; then
+        dest="$(realpath -e "$dir/$rel" 2>/dev/null || true)"
+        if [[ -n "$dest" && -f "$dest" && "$dest" == "$raiz"/* ]] && (( $(stat -c %s "$dest" 2>/dev/null || echo 9999999) <= 1048576 )); then
+          (( primero )) || printf '\n'; primero=0
+          printf '%s' "$(tr -d '\r' <"$dest")"
+          continue
+        fi
+      fi
+    fi
+    (( primero )) || printf '\n'; primero=0
+    printf '%s' "$linea"
+  done <"$f"
+  printf '\n'
+}
+md_vacio() { [[ -z "${1//[[:space:]]/}" ]]; }
+# 0 si el TEXTO no tiene contenido propio: sólo `@AGENTS.md`, comentarios HTML de una línea y blancos (un stub cuyo import no se pudo resolver)
+md_stub_texto() {
+  local resto; resto="$(printf '%s\n' "$1" | grep -v -E '^[[:space:]]*(<!--.*-->)?[[:space:]]*$' | sed 's/^[[:space:]]*//; s/[[:space:]]*$//' || true)"
+  [[ -n "$resto" && -z "$(grep -vx '@AGENTS.md' <<<"$resto" || true)" ]]
+}
+# Los candidatos en orden: AGENTS.md de cada carpeta y después CLAUDE.md de cada carpeta.
+agents_md_candidatos() {   # $@ = carpetas
+  local d c
+  for c in AGENTS.md CLAUDE.md; do
+    for d in "$@"; do [[ -n "$d" && -s "$d/$c" ]] && printf '%s\n' "$d/$c"; done
+  done
+  return 0
+}
+agents_md_archivo() {   # $@ = carpetas -> ruta del primero que exista y no quede vacío una vez resueltos sus @imports
+  local f r
+  while IFS= read -r f; do
+    r="$(md_resolver "$f")"
+    md_vacio "$r" || md_stub_texto "$r" || { printf '%s' "$f"; return 0; }
+  done < <(agents_md_candidatos "$@")
+  return 1
+}
+agents_md_bloque() {   # $@ = carpetas -> el bloque para el prompt (con salto de línea adelante), o nada
+  local f t n max="${PA_AGENTS_MAX:-$AGENTS_MAX_DEFECTO}" cab
+  [[ "$max" =~ ^[0-9]+$ ]] && (( max > 0 )) || max=$AGENTS_MAX_DEFECTO
+  f="$(agents_md_archivo "$@")" || return 0
+  t="$(md_resolver "$f")"; n=${#t}
+  cab="$f; valen igual que las de arriba"
+  if (( n > max )); then
+    t="${t:0:max}"$'\n'"[… truncado: $f tiene $n caracteres y acá van sólo los primeros $max (tope PA_AGENTS_MAX); leé el resto con Read si lo necesitás]"
+    cab="$f; OJO: truncado a los primeros $max de $n caracteres"
+    echo "pa: aviso: $f tiene $n caracteres y los modelos que no son Claude reciben sólo los primeros $max (PA_AGENTS_MAX). Acortalo o subí el tope." >&2
+  fi
+  printf '\n\nINSTRUCCIONES (%s):\n%s' "$cab" "$t"
+}
+
+# --- `pa <proy> --unificar-md [--aplicar]`: AGENTS.md como única fuente de las instrucciones del proyecto ----------
+# Claude lee CLAUDE.md, Gemini/agy GEMINI.md y el resto AGENTS.md: tres archivos que se desincronizan. Esto deja el
+# contenido en AGENTS.md y reemplaza CLAUDE.md / GEMINI.md por un stub que lo importa (`@AGENTS.md`; Claude Code y
+# Gemini CLI siguen imports de archivos). Sin --aplicar sólo muestra el plan. Con --aplicar guarda antes cada archivo
+# que cambia en $STATE/<slug>/md-backup/<fecha>/ (nada se pierde) y escribe; NO hace git commit. Las mismas reglas las
+# tiene la app (electron/unificar-md.ts): si cambia una, cambia la otra (tests/unificar-md.test.ts las cruza).
+MD_STUB='<!-- Editá AGENTS.md, no este archivo: acá sólo se importa para que cada modelo (Claude, Gemini, …) lea las mismas instrucciones. -->
+@AGENTS.md'
+# texto "limpio": sin \r, sin blancos al final de todo; el archivo lleva un solo salto de línea final
+md_limpio() { local t; t="$(tr -d '\r' <"$1")"; t="${t%"${t##*[![:space:]]}"}"; printf '%s' "$t"; }
+md_norm() { local t; t="$(md_limpio "$1")"; printf '%s' "${t#"${t%%[![:space:]]*}"}"; }
+# 0 si el archivo ya no tiene contenido propio: sólo `@AGENTS.md`, comentarios HTML de una línea y blancos; o es un
+# enlace simbólico a AGENTS.md
+md_es_stub() {   # $1 = archivo, $2 = AGENTS.md
+  local f="$1"
+  if [[ -L "$f" ]]; then [[ "$(readlink -f "$f")" == "$(readlink -f "$2")" ]]; return; fi
+  md_stub_texto "$(cat "$f")"
+}
+cmd_unificar_md() {   # usa $ruta $slug $dir $aplicar
+  local A="$ruta/AGENTS.md" nom f n lineas acciones=() fuentes=() nuevoA="" hay_a=0 ts bk tmp avisos=() idx
+  local -A tipo=() texto=()
+  [[ -f "$A" && ! -L "$A" ]] && hay_a=1
+  [[ -L "$A" ]] && { echo "pa: $A es un enlace simbólico: no lo toco. Unificá a mano." >&2; return 1; }
+  # un AGENTS.md en blanco es como si faltara (se guarda igual en el backup)
+  if (( hay_a )) && md_vacio "$(cat "$A")"; then hay_a=0; fi
+  for nom in CLAUDE.md GEMINI.md; do
+    f="$ruta/$nom"
+    if [[ ! -e "$f" && ! -L "$f" ]]; then tipo[$nom]=falta
+    elif [[ -L "$f" ]]; then
+      if (( hay_a )) && md_es_stub "$f" "$A"; then tipo[$nom]=stub
+      else tipo[$nom]=enlace; avisos+=("$nom es un enlace simbólico que no apunta a AGENTS.md: no lo toco.")
+      fi
+    elif [[ ! -f "$f" ]]; then tipo[$nom]=enlace; avisos+=("$nom no es un archivo común: no lo toco.")
+    elif (( $(stat -c %s "$f") > 1048576 )); then tipo[$nom]=enlace; avisos+=("$nom pesa más de 1 MB: no lo toco.")
+    elif md_vacio "$(cat "$f")"; then tipo[$nom]=vacio
+    elif md_es_stub "$f" "$A"; then tipo[$nom]=stub
+    else tipo[$nom]=real; fuentes+=("$nom"); texto[$nom]="$(md_limpio "$f")"
+    fi
+  done
+  if (( hay_a )) && [[ "$(stat -c %s "$A")" -gt 1048576 ]]; then echo "pa: AGENTS.md pesa más de 1 MB: no lo toco." >&2; return 1; fi
+  local base=""; (( hay_a )) && base="$(md_limpio "$A")"
+  if (( ! hay_a )); then
+    case ${#fuentes[@]} in
+      0) echo "pa: '$slug' no tiene CLAUDE.md ni GEMINI.md con contenido que pasar a AGENTS.md: nada que unificar. Para empezar de cero: pa '$proyecto' --agents-md" ; return 0 ;;
+      1) nuevoA="${texto[${fuentes[0]}]}"; acciones+=("AGENTS.md|crea|con el contenido de ${fuentes[0]}") ;;
+      *) if [[ "$(md_norm "$ruta/CLAUDE.md")" == "$(md_norm "$ruta/GEMINI.md")" ]]; then
+           nuevoA="${texto[CLAUDE.md]}"; acciones+=("AGENTS.md|crea|con el contenido de CLAUDE.md (GEMINI.md decía lo mismo)")
+         else
+           nuevoA="# AGENTS.md"$'\n\n'"<!-- Unificado desde CLAUDE.md y GEMINI.md, que decían cosas distintas: revisá y juntá lo repetido. -->"$'\n\n'"## Desde CLAUDE.md"$'\n\n'"${texto[CLAUDE.md]}"$'\n\n'"## Desde GEMINI.md"$'\n\n'"${texto[GEMINI.md]}"
+           acciones+=("AGENTS.md|crea|juntando CLAUDE.md y GEMINI.md en secciones (decían cosas distintas)")
+         fi ;;
+    esac
+  else
+    nuevoA="$base"
+    local cambia_a=0
+    for nom in "${fuentes[@]}"; do
+      if [[ "$(md_norm "$ruta/$nom")" == "$(md_norm "$A")" ]] || [[ "$base" == *"${texto[$nom]#"${texto[$nom]%%[![:space:]]*}"}"* ]]; then
+        acciones+=("$nom|sin-cambio-en-agents|ya está dentro de AGENTS.md")
+      else
+        nuevoA+=$'\n\n'"## Desde $nom (unificado acá; revisalo y juntá lo repetido)"$'\n\n'"${texto[$nom]}"; cambia_a=1
+        acciones+=("AGENTS.md|anexa|con lo de $nom que no estaba")
+      fi
+    done
+  fi
+  for nom in CLAUDE.md GEMINI.md; do
+    case "${tipo[$nom]}" in
+      real|vacio) acciones+=("$nom|stub|se reemplaza por un stub que importa @AGENTS.md") ;;
+      falta) [[ "$nom" == CLAUDE.md ]] && acciones+=("$nom|crea-stub|se crea un stub que importa @AGENTS.md (Claude Code no lee AGENTS.md solo)") ;;
+    esac
+  done
+  # ¿hay algo que escribir?
+  local cambios=0 a
+  for a in "${acciones[@]}"; do case "$a" in *"|crea|"*|*"|anexa|"*|*"|stub|"*|*"|crea-stub|"*) cambios=1 ;; esac; done
+  echo "pa: unificar las instrucciones de '$slug' ($ruta) en AGENTS.md$( (( aplicar )) || echo ' — vista previa, no se escribió nada (usá --aplicar)')"
+  for a in ${avisos[@]+"${avisos[@]}"}; do echo "  aviso: $a"; done
+  if (( ! cambios )); then
+    echo "  Ya está unificado: AGENTS.md es la fuente y CLAUDE.md / GEMINI.md no tienen contenido propio. Nada que hacer."
+    return 0
+  fi
+  local que det
+  for a in "${acciones[@]}"; do IFS='|' read -r nom que det <<<"$a"; printf '  %-10s %s\n' "$nom" "${que/sin-cambio-en-agents/sin cambios}: $det"; done
+  if (( ! aplicar )); then
+    local nl; nl=$(printf '%s\n' "$nuevoA" | wc -l)
+    if (( ! hay_a )) || [[ "$nuevoA" != "$base" ]]; then echo; echo "--- AGENTS.md (queda así; $nl líneas) ---"; printf '%s\n' "$nuevoA"; fi
+    echo; echo "--- CLAUDE.md / GEMINI.md (los que cambian) quedan así ---"; printf '%s\n' "$MD_STUB"
+    echo; echo "Para aplicarlo: pa '$proyecto' --unificar-md --aplicar  (guarda antes lo que cambia en $dir/md-backup/<fecha>/; no hace commit)."
+    return 0
+  fi
+  ts="$(date +%Y%m%d-%H%M%S)"; bk="$dir/md-backup/$ts"
+  mkdir -p "$bk"
+  for nom in AGENTS.md CLAUDE.md GEMINI.md; do [[ -f "$ruta/$nom" && ! -L "$ruta/$nom" ]] && cp -p "$ruta/$nom" "$bk/$nom"; done
+  for nom in CLAUDE.md GEMINI.md; do [[ -L "$ruta/$nom" ]] && echo "$nom -> $(readlink "$ruta/$nom")" >"$bk/$nom.enlace"; done
+  escribir_md() {   # $1 = nombre, $2 = contenido
+    local t; t="$(mktemp "$ruta/.$1.pa-XXXXXX")" || return 1
+    printf '%s\n' "$2" >"$t" && chmod 644 "$t" && mv -f "$t" "$ruta/$1" || { rm -f "$t"; return 1; }
+  }
+  if (( ! hay_a )) || [[ "$nuevoA" != "$base" ]]; then escribir_md AGENTS.md "$nuevoA" || { echo "pa: no pude escribir AGENTS.md." >&2; return 1; }; fi
+  for nom in CLAUDE.md GEMINI.md; do
+    case "${tipo[$nom]}" in
+      real|vacio) escribir_md "$nom" "$MD_STUB" || { echo "pa: no pude escribir $nom (el original está en $bk)." >&2; return 1; } ;;
+      falta) [[ "$nom" == CLAUDE.md ]] && { escribir_md "$nom" "$MD_STUB" || return 1; } ;;
+    esac
+  done
+  echo; echo "pa: listo. Lo anterior quedó en $bk. No hice git commit: commiteá AGENTS.md y CLAUDE.md juntos (sin AGENTS.md en el repo, el stub de CLAUDE.md no apunta a nada en los worktrees de los workers)."
+  local n_a; n_a=${#nuevoA}
+  local tope="${PA_AGENTS_MAX:-$AGENTS_MAX_DEFECTO}"
+  [[ "$tope" =~ ^[0-9]+$ ]] || tope=$AGENTS_MAX_DEFECTO
+  (( n_a > tope )) && echo "pa: ojo: AGENTS.md tiene $n_a caracteres y los modelos que no son Claude reciben sólo los primeros $tope (PA_AGENTS_MAX)." >&2
+  return 0
+}
+# `pa <proy> --agents-md`: la plantilla para que el jefe la llene cuando falta.
+agents_md_plantilla() {
+  cat <<'PLANTILLA'
+# AGENTS.md
+
+Lo que un agente que NO conoce este proyecto necesita para trabajar sin preguntar. Corto y concreto:
+sólo lo que se verificó, nada aspiracional.
+
+## Qué es
+<una o dos líneas: qué hace el proyecto y para quién>
+
+## Build y arranque
+- Instalar: `<comando>`
+- Build: `<comando>`
+- Correr: `<comando>`
+
+## Tests y verificación
+- Todos los tests: `<comando>`
+- Uno solo: `<comando con ejemplo>`
+- Lint / tipos: `<comando>`
+- Antes de dar algo por listo se corre: `<comando>`
+
+## Convenciones
+- Idioma de código, comentarios y commits: <...>
+- Estilo y formato: <...>
+- Estructura: <carpetas principales y qué va en cada una>
+
+## No tocar
+- <archivos generados, vendored, migraciones ya aplicadas, secretos, etc.>
+
+## Trampas conocidas
+- <cosas que ya mordieron: puertos, orden de comandos, variables de entorno>
+PLANTILLA
+}
+
+# Lecciones del proyecto: $STATE/<slug>/lecciones.md, una línea por lección, corto y podable.
+# Tope blando de 30 líneas / 3000 caracteres: pasado eso queda `lecciones.necesita-poda` (lo lee
+# `pa --estado` y la app). Tope duro de 45 líneas: nunca crece sin límite aunque nadie pode.
+LECCIONES_LINEAS=30; LECCIONES_CARS=3000; LECCIONES_DURO=45
+lecciones_revisar() {   # usa $dir: pone o saca la marca necesita-poda
+  local f="$dir/lecciones.md" m="$dir/lecciones.necesita-poda" l c
+  [[ -f "$f" ]] || { rm -f "$m"; return 0; }
+  l="$(wc -l <"$f")"; c="$(wc -m <"$f")"
+  if (( l > LECCIONES_LINEAS || c > LECCIONES_CARS )); then printf '%s líneas, %s caracteres (tope %s / %s)\n' "$l" "$c" "$LECCIONES_LINEAS" "$LECCIONES_CARS" >"$m"
+  else rm -f "$m"; fi
+}
+leccion_agregar() {   # $1 = texto, $2 = clave para no repetirla (opcional; default el propio texto)
+  local t="${1//$'\n'/ }" clave f="$dir/lecciones.md"
+  t="${t//$'\t'/ }"; t="${t#"${t%%[![:space:]]*}"}"; t="${t%"${t##*[![:space:]]}"}"; t="${t:0:240}"
+  [[ -n "$t" ]] || return 1
+  clave="${2:-$t}"
+  mkdir -p "$dir"
+  (
+    flock 5
+    if ! grep -qF -- "$clave" "$f" 2>/dev/null; then
+      printf -- '- %s %s\n' "$(date +%F)" "$t" >>"$f"
+      if (( $(wc -l <"$f") > LECCIONES_DURO )); then tail -n "$LECCIONES_DURO" "$f" >"$f.tmp.$$" && cat "$f.tmp.$$" >"$f"; rm -f "$f.tmp.$$"; fi
+    fi
+  ) 5>>"$dir/.lecciones.lock"
+  lecciones_revisar
+}
+# El bloque corto que va al contrato: las últimas 12 líneas, 1500 caracteres.
+lecciones_bloque() {   # usa $dir
+  local f="$dir/lecciones.md" t
+  [[ -s "$f" ]] || return 0
+  t="$(tail -n 12 "$f")"
+  if (( ${#t} > 1500 )); then t="${t: -1500}"; t="${t#*$'\n'}"; fi
+  [[ -n "$t" ]] || return 0
+  printf '\nLecciones de corridas anteriores en este proyecto (no repitas esos errores):\n%s' "$t"
+}
+# Desde `pa --bien-auto`: las corridas recientes que se descartaron o se retrabajaron dejan una línea.
+lecciones_de_medicion() {   # $1 = medicion.tsv
+  local dias="${PA_LECCION_DIAS:-7}" desde sl id md tp mot tarea n=0
+  [[ "$dias" =~ ^[0-9]+$ ]] || dias=7
+  desde="$(date -d "-$dias days" +%F 2>/dev/null)" || return 0
+  while IFS=$'\t' read -r sl id md tp mot; do
+    [[ -n "$id" && -d "$STATE/$sl" ]] || continue
+    (( n >= 5 )) && break
+    local dir="$STATE/$sl"
+    tarea="$(leer_campo "$dir/$id.hilo" tarea 2>/dev/null || true)"
+    leccion_agregar "[$id] ${tp:-sin tipo} con ${md:-?}: $mot. Tarea: ${tarea:0:100}" "[$id]" && n=$(( n + 1 ))
+  done < <(awk -F'\t' -v d="$desde" '
+    FNR == 1 { for (i = 1; i <= NF; i++) c[$i] = i; next }
+    c["integrada"] && $6 != 1 && substr($1, 1, 10) >= d {
+      ci = c["integrada"]; cr = c["retrabajo"]; ct = c["tipo"]
+      mot = ""
+      if (cr && $cr == "1") mot = "se retrabajó o se revirtió después de integrarla"
+      else if ($ci == "0") mot = "se descartó o quedó sin integrar"
+      if (mot != "") print $3 "\t" $2 "\t" $4 "\t" (ct ? $ct : "") "\t" mot
+    }' "$1")
+}
+
+# Inteligencia (0-100) del modelo según `reparto --tabla`; vacío si no se sabe. Una sola consulta por pa.
+TABLA_JSON=""; TABLA_LEIDA=0
+calidad_de_modelo() {   # $1 = id de modelo
+  [[ -n "$1" ]] || return 0
+  if (( ! TABLA_LEIDA )); then
+    TABLA_LEIDA=1
+    [[ -x "$REPARTO" ]] && TABLA_JSON="$(REPARTO_STATE="${REPARTO_STATE:-$STATE/reparto}" PA_STATE="$STATE" timeout "${PA_REPARTO_TIMEOUT_S:-15}" "$REPARTO" --tabla --json 2>/dev/null </dev/null)" || true
+  fi
+  [[ -n "$TABLA_JSON" ]] || return 0
+  jq -r --arg m "$1" '[.modelos[]? | select(.id == $m) | .calidad][0] // empty' <<<"$TABLA_JSON" 2>/dev/null || true
+}
+# Debajo de este umbral el worker recibe el bloque de "pasos chicos" y el jefe un aviso.
+CALIDAD_BAJA="${PA_CALIDAD_BAJA:-70}"
+modelo_flojo() {   # $1 = modelo: 0 si su inteligencia es < CALIDAD_BAJA (deja el número en $calidad_modelo)
+  calidad_modelo="$(calidad_de_modelo "$1")"
+  [[ "$calidad_modelo" =~ ^[0-9]+([.][0-9]+)?$ ]] || return 1
+  awk -v c="$calidad_modelo" -v u="$CALIDAD_BAJA" 'BEGIN { exit !(c + 0 < u + 0) }'
+}
+
 stats_resultado() {   # $1 = json de salida — la línea "— N turnos · …", sin el .result
   local comp; comp="$(contar_compactaciones "$(transcript_de "$1")")"
   local extra=""
@@ -3837,6 +4619,11 @@ linea_rama() {   # $1 = json de salida
 
 mostrar_resultado() {   # $1 = json de salida
   jq -r '.result // "(sin resultado)"' "$1"
+  # Sin VERIFICACION con comando y salida el resultado es una afirmación, no una prueba (no falla la corrida).
+  local res_v; res_v="$(jq -r '.result // ""' "$1" 2>/dev/null || true)"
+  if [[ ! -f "${1%.json}.leer" && "$res_v" == *RESULTADO:* ]] && ! verificado_de <<<"$res_v"; then
+    echo "— SIN VERIFICAR: el RESULTADO no trae VERIFICACION (comando + salida). No lo des por bueno: pedile la evidencia con pa '$(basename "$(dirname "$1")")' --seguir --id $(basename "${1%.json}") 'corré la verificación y pegá la salida'."
+  fi
   stats_resultado "$1"
   linea_rama "$1"
 }
@@ -3847,16 +4634,21 @@ mostrar_resultado() {   # $1 = json de salida
 
 case "${1:-}" in
   --estado)  cmd_estado; exit 0 ;;
+  --brief)   brief_plantilla; exit 0 ;;
   # `pa --plan max|pro`: lo corre el jefe cuando el dueño dice que cambió de suscripción (el dueño no se
   # acuerda de rutas). Sin argumento dice el vigente. PA_PLAN del entorno le gana al archivo: avisa.
   --plan)
     if [[ -z "${2:-}" ]]; then echo "plan: $PLAN"; exit 0; fi
     case "${2,,}" in
+      ausente|presente|gastar-hoy|ahorrar-hoy|ver|borrar)   # pistas de ritmo semanal: las guarda y las lee reparto
+        [[ -x "$REPARTO" ]] || { echo "pa: no encuentro $REPARTO." >&2; exit 1; }
+        sub="${2,,}"; shift 2
+        REPARTO_STATE="${REPARTO_STATE:-$STATE/reparto}" PA_STATE="$STATE" "$REPARTO" --plan "$sub" "$@"; exit $? ;;
       pro|max) echo "${2,,}" >"$STATE/plan"
                echo "pa: plan ${2,,} guardado en $STATE/plan$([[ "${2,,}" == pro ]] && echo ' (modo ahorro: opus effort medium, tope 100 turnos)' || echo ' (opus con el effort de settings, tope 150)')."
                [[ -n "${PA_PLAN:-}" && "${PA_PLAN,,}" != "${2,,}" ]] && echo "pa: ojo, PA_PLAN=$PA_PLAN en este entorno le gana al archivo." >&2
                exit 0 ;;
-      *) echo "uso: pa --plan [pro|max]" >&2; exit 2 ;;
+      *) echo "uso: pa --plan [pro|max] | ausente <fecha>[,..] | gastar-hoy | ahorrar-hoy | ver | borrar" >&2; exit 2 ;;
     esac ;;
   --esperar) shift; cmd_esperar "$@"; exit $? ;;
   --esperar-todos) shift; cmd_esperar_todos "$@"; exit $? ;;
@@ -3873,6 +4665,8 @@ case "${1:-}" in
   --hilo)     shift; cmd_hilo "$@"; exit $? ;;
   --descartar) shift; cmd_descartar_id "$@"; exit $? ;;
   --traspaso) cmd_traspaso; exit 0 ;;
+  --proyectos)  shift; cmd_proyectos "$@"; exit $? ;;
+  --renombrar)  shift; cmd_renombrar "$@"; exit $? ;;
   --limpiar) shift; cmd_limpiar "$@"; exit $? ;;
   --nota) [[ -n "${2:-}" ]] || { echo "uso: pa --nota \"<texto>\"  (pedido de $(nombre_dueno), decisión, qué sigue)" >&2; exit 2; }
           anotar "$2"; echo "pa: anotado."; exit 0 ;;
@@ -3883,6 +4677,14 @@ esac
 [[ $# -ge 1 ]] || { echo "uso: pa <proyecto> \"<tarea>\"  |  pa --estado  |  pa --esperar <proyecto>" >&2; exit 2; }
 
 proyecto="$1"; shift
+
+# Forma documentada `pa <proyecto> --revertir|--parar|--archivar <id>`: esos cmd_* resuelven el
+# proyecto por el id, así que alcanza con despachar (la forma con el flag primero sigue andando).
+case "${1:-}" in
+  --revertir) shift; cmd_revertir "$@"; exit $? ;;
+  --parar)    shift; cmd_parar "$@"; exit $? ;;
+  --archivar) shift; cmd_archivar "$@"; exit $? ;;
+esac
 
 modelo=""   # vacío = el default de la política (abajo, después de saber si es --leer)
 esfuerzo="${PA_EFFORT:-}"
@@ -3927,18 +4729,34 @@ tipo="${PA_TIPO:-}"
 # --ok-dueno: el dueño aprobó esta corrida (opus max, sonnet max, fable). Sólo por flag, a propósito:
 # una variable de entorno se hereda de una llamada a la otra y la aprobación es por corrida.
 ok_dueno=0 modelo_de_m=0
+# Orquestación (2026-10-26): brief desde archivo, AGENTS.md, lecciones, auditoría de una rama.
+brief_archivo=""; agents_md=0; unificar_md=0; aplicar=0; lecciones=0; lecciones_podar=0; leccion=""; auditar=""
 
+# Los flags que llevan valor: sin él, `$2` reventaba con "unbound variable" (set -u) sin decir qué faltaba.
+flags_con_valor=" --max-turns --id --integrar --descartar --actualizar --nota --max-budget-usd -m --model --effort --tipo --cuenta --brief-archivo --leccion --auditar "
 while [[ $# -gt 0 ]]; do
+  if [[ "$flags_con_valor" == *" $1 "* && $# -lt 2 ]]; then
+    echo "pa: $1 quiere un valor (ej: pa <proyecto> $1 <valor> \"<tarea>\"). Mirá pa --help." >&2; exit 2
+  fi
   case "$1" in
     --seguir)          seguir=1; shift ;;
     --nuevo)           shift ;;   # ya es el default; se acepta para no romper scripts viejos
     --leer)            leer=1; shift ;;
+    --brief-archivo)   brief_archivo="$2"; shift 2 ;;
+    --agents-md)       agents_md=1; shift ;;
+    --unificar-md)     unificar_md=1; shift ;;
+    --aplicar)         aplicar=1; shift ;;
+    --lecciones)       lecciones=1; shift ;;
+    --lecciones-podar) lecciones_podar=1; shift ;;
+    --leccion)         leccion="$2"; shift 2 ;;
+    --auditar)         auditar="$2"; leer=1; shift 2 ;;   # auditar es una corrida --leer (ver más abajo)
     --olvidar)         olvidar=1; shift ;;
     --matar)           matar=1; shift ;;
     --mcp)             con_mcp=1; shift ;;
     --async)           async=1; shift ;;
     --sin-jefe)        export PA_JEFE="" PA_JEFE_ID=""; shift ;;
-    --max-turns)       max_turns="$2"; [[ "$max_turns" == 0 ]] && max_turns=""; shift 2 ;;
+    --max-turns)       [[ "$2" =~ ^[0-9]+$ ]] || { echo "pa: --max-turns quiere un entero (0 = sin tope), no '$2'." >&2; exit 2; }
+                       max_turns="$((10#$2))"; [[ "$max_turns" == 0 ]] && max_turns=""; shift 2 ;;
     --id)              run_id="$2"; shift 2 ;;
     --sucio-mio)       sucio_mio=1; aca=1; shift ;;
     --aca)             aca=1; shift ;;
@@ -3949,9 +4767,11 @@ while [[ $# -gt 0 ]]; do
     --ramas)           ramas=1; shift ;;
     --force)           force=1; shift ;;
     --nota)            anotar "$2"; shift 2 ;;   # la nota del jefe va pegada a esta llamada (ver anotar)
-    --max-budget-usd)  max_budget="$2"; shift 2 ;;
+    --max-budget-usd)  [[ "$2" =~ ^[0-9]+([.][0-9]+)?$ ]] || { echo "pa: --max-budget-usd quiere un número en US\$ (ej: 2.5), no '$2'." >&2; exit 2; }
+                       max_budget="$2"; shift 2 ;;
     -m|--model)        modelo="$2"; modelo_de_m=1; shift 2 ;;
-    --effort)          esfuerzo="$2"; esfuerzo_flag=1; export PA_EFFORT="$2"; shift 2 ;;
+    --effort)          [[ "${2,,}" =~ ^(low|medium|high|xhigh|max)$ ]] || { echo "pa: --effort '$2' no va. Válidos: low, medium, high, xhigh, max." >&2; exit 2; }
+                       esfuerzo="${2,,}"; esfuerzo_flag=1; export PA_EFFORT="${2,,}"; shift 2 ;;
     --tipo)            tipo="$2"; shift 2 ;;
     --ok-dueno)        ok_dueno=1; shift ;;
     --cuenta)          cuenta_flag="$2"; shift 2 ;;
@@ -3964,6 +4784,19 @@ while [[ $# -gt 0 ]]; do
 done
 if (( integrar_tests )) && [[ -z "$integrar" ]]; then
   echo "pa: --tests va con --integrar: pa <proy> --integrar <id> --tests" >&2; exit 2
+fi
+# --brief-archivo F: la tarea sale de un archivo (cabe cualquier largo, sin líos de comillas). Si además
+# vino texto en la línea de comandos, va después como contexto.
+if [[ -n "$brief_archivo" ]]; then
+  [[ -r "$brief_archivo" && -f "$brief_archivo" ]] || { echo "pa: --brief-archivo '$brief_archivo' no se puede leer." >&2; exit 2; }
+  brief_txt="$(cat "$brief_archivo")"
+  [[ -n "${brief_txt//[[:space:]]/}" ]] || { echo "pa: --brief-archivo '$brief_archivo' está vacío." >&2; exit 2; }
+  if [[ -n "$tarea" ]]; then tarea="$brief_txt"$'\n\n'"Contexto del jefe: $tarea"; else tarea="$brief_txt"; fi
+fi
+# Auditar es una corrida de lectura: si el jefe no clasificó, es `lectura`.
+[[ -n "$auditar" && -z "$tipo" ]] && tipo=lectura
+if [[ -n "$auditar" ]] && { (( seguir || aca )) || [[ -n "$actualizar$integrar$descartar" ]]; }; then
+  echo "pa: --auditar no va con --seguir, --aca, --actualizar, --integrar ni --descartar: es una corrida --leer nueva." >&2; exit 2
 fi
 
 # --- política de modelos (el dueño, 2026-09-30; plan pro 2026-10-02; por situación 2026-10-10) ---
@@ -3983,7 +4816,7 @@ fi
 # El hijo de --async recibe -m explícito y el effort por PA_EFFORT, así que pasa por lo mismo.
 # Sólo en los caminos que lanzan un claude: un PA_EFFORT=low heredado no puede impedir un --matar,
 # --integrar, --descartar, --ramas u --olvidar (--esperar y --estado ya salieron arriba).
-lanza=1; (( matar || ramas || olvidar )) && lanza=0; [[ -n "$integrar$descartar" ]] && lanza=0
+lanza=1; (( matar || ramas || olvidar || agents_md || unificar_md || lecciones || lecciones_podar )) && lanza=0; [[ -n "$leccion" ]] && lanza=0; [[ -n "$integrar$descartar" ]] && lanza=0
 # El tipo se valida igual que el effort: sólo donde se lanza (un PA_TIPO heredado no traba la gestión).
 tipo="${tipo,,}"; [[ "$tipo" == diseño ]] && tipo=diseno
 if (( lanza )) && [[ -n "$tipo" && ! "$tipo" =~ ^($TIPOS_VALIDOS)$ ]]; then
@@ -4025,7 +4858,7 @@ if [[ -z "$modelo" ]] && (( lanza )) && [[ "$(modelos_reparto)" == auto ]]; then
     [[ -n "$tipo_rep" ]] || { (( leer )) && tipo_rep=lectura || tipo_rep=codigo-acotado; }
     rep_rc=0; rep_json=""
     if [[ -x "$REPARTO" ]]; then
-      rep_json="$(REPARTO_RESERVAR=1 REPARTO_STATE="${REPARTO_STATE:-$STATE/reparto}" PA_STATE="$STATE" \
+      rep_json="$(REPARTO_RESERVAR=1 REPARTO_SIN_DSH="$( (( leer )) && echo 1)" REPARTO_STATE="${REPARTO_STATE:-$STATE/reparto}" PA_STATE="$STATE" \
         timeout "${PA_REPARTO_TIMEOUT_S:-15}" "$REPARTO" --tipo "$tipo_rep" ${cuenta_flag:+--cuenta "$cuenta_flag"} --json 2>/dev/null </dev/null)" || rep_rc=$?
     else
       rep_rc=127
@@ -4038,7 +4871,7 @@ if [[ -z "$modelo" ]] && (( lanza )) && [[ "$(modelos_reparto)" == auto ]]; then
     fi
     if [[ -n "$m_rep" ]]; then
       modelo="$m_rep"; vino_de_reparto=1; reparto_tipo_relanzable="$tipo_rep"
-      if [[ -n "$e_rep" ]] && ! es_gemini "$modelo" && ! es_codex "$modelo" && ! es_local "$modelo"; then
+      if [[ -n "$e_rep" ]] && ! es_gemini "$modelo" && ! es_codex "$modelo" && ! es_local "$modelo" && ! es_dsh "$modelo"; then
         [[ -z "$esfuerzo" ]] && { esfuerzo="$e_rep"; export PA_EFFORT="$e_rep"; }
       fi
       if (( esfuerzo_flag )) && { es_gemini "$modelo" || es_codex "$modelo"; } && [[ "$modelo" =~ ^(.*)-(low|medium|high)$ ]]; then
@@ -4093,7 +4926,7 @@ if [[ -z "$modelo" ]]; then
 fi
 [[ -n "$reparto_fallo" ]] && echo "pa: reparto falló ($reparto_fallo); sigo con $modelo." >&2
 # --- Gemini y Claude/GPT por agy: validar, mirar el plugin y privacidad, o caer al equivalente Claude ---
-# docs/gemini-workers-agy.md. Lo que agy no tiene (retomar sesión, MCP de claude.ai, tope de gasto
+# Lo que agy no tiene (retomar sesión, MCP de claude.ai, tope de gasto
 # en US$, el tree principal sin worktree) se niega acá en vez de lanzar algo que no es lo pedido.
 motor=claude; gemini_pedido=""
 # La cuenta de la retomada (--seguir sin --cuenta): mismo puesto, misma suscripción.
@@ -4120,34 +4953,27 @@ if (( lanza )) && es_gemini "$modelo"; then
     if (( ${!v_no_va} )); then echo "pa: ${no_va#*:} no va con '$modelo'. Sacalo, o usá un modelo Claude." >&2; exit 2; fi
   done
   [[ -n "$max_budget" ]] && { echo "pa: --max-budget-usd no va con '$modelo' (agy se paga con el cupo, no en US$)." >&2; exit 2; }
-  # El chequeo lo hace el padre de --async (o el pa en primer plano): el hijo ya recibe el modelo
-  # final. Excepción: con gemini.sin_claude=esperar, el padre pasa PA_GEMINI_REVISAR=1.
+  # El chequeo lo hace el padre de --async (o el pa en primer plano): el hijo ya recibe el modelo final.
   gemini_politica
-  if [[ -z "${PA_ASYNC:-}" || -n "${PA_GEMINI_REVISAR:-}" ]]; then
+  if [[ -z "${PA_ASYNC:-}" ]]; then
     gemini_chequear "$modelo"
     if [[ -z "$motivo_cae" ]]; then
       motor=agy
-    elif (( vino_de_reparto )) || [[ "$GEMINI_SIN_CLAUDE" == claude ]]; then
+    elif (( vino_de_reparto )) || [[ "$SIN_CUPO" == otro ]]; then
       read -r m_eq e_eq <<<"$(gemini_equivalente "$modelo")"
       echo "pa: $modelo → $m_eq effort $e_eq: $motivo_cae." >&2
       gemini_pedido="$modelo"; modelo="$m_eq"; esfuerzo="$e_eq"; export PA_EFFORT="$e_eq"
-    elif [[ "$GEMINI_SIN_CLAUDE" == fallar || "$clase_cae" == fijo ]]; then
-      echo "pa: $modelo no está disponible ($motivo_cae) y modelos.json dice gemini.sin_claude=$GEMINI_SIN_CLAUDE: no caigo a Claude.$([[ "$GEMINI_SIN_CLAUDE" == esperar ]] && echo ' Esperar no lo arregla.')" >&2
-      exit 96
-    elif [[ -n "${PA_ASYNC:-}" ]]; then
-      motor=agy; gemini_esperar=1     # el hijo de --async: hace cola más abajo, ya con su id
-    elif (( async )); then
-      motor=agy; export PA_GEMINI_REVISAR=1   # el padre: lanza igual; el hijo vuelve a mirar y espera
     else
-      echo "pa: $modelo no está disponible ahora ($motivo_cae) y modelos.json dice gemini.sin_claude=esperar: lanzalo con --async (hace cola hasta que haya cupo)." >&2
-      exit 75
+      # privacidad, agy o el plugin: esperar no lo arregla
+      echo "pa: $modelo no está disponible ($motivo_cae) y modelos.json dice sin_cupo=$SIN_CUPO: no caigo a Claude. Esperar no lo arregla." >&2
+      exit 96
     fi
   else
     motor=agy
   fi
 fi
 # --- ChatGPT por codex: validar, privacidad, codex y su login, o caer al equivalente Claude ------
-# docs/codex-workers.md. Como agy: sin --seguir, --aca, --mcp ni --max-budget-usd.
+# Como agy: sin --seguir, --aca, --mcp ni --max-budget-usd.
 if (( lanza )) && es_codex "$modelo"; then
   if [[ ! "${modelo,,}" =~ ^($CODEX_MODELOS)$ ]]; then
     echo "pa: modelo '$modelo' no va. Modelos de codex en pa: codex:{gpt-6.1-sol,gpt-6-sol,gpt-6-luna,gpt-6-astra}-{low,medium,high}." >&2
@@ -4169,7 +4995,7 @@ if (( lanza )) && es_codex "$modelo"; then
     codex_chequear "$modelo"
     if [[ -z "$motivo_cae" ]]; then
       motor=codex
-    elif (( vino_de_reparto )) || [[ "$GEMINI_SIN_CLAUDE" == claude ]]; then
+    elif (( vino_de_reparto )) || [[ "$SIN_CUPO" == otro ]]; then
       read -r m_eq e_eq <<<"$(codex_equivalente "$modelo")"
       echo "pa: $modelo → $m_eq effort $e_eq: $motivo_cae." >&2
       gemini_pedido="$modelo"; modelo="$m_eq"; esfuerzo="$e_eq"; export PA_EFFORT="$e_eq"
@@ -4181,6 +5007,55 @@ if (( lanza )) && es_codex "$modelo"; then
     motor=codex
   fi
 fi
+# --- dsh (DeepSeek Harness: Ollama o DeepSeek) y opencode (el programa: sus modelos gratis) ----------------
+# dsh:<ollama|opencode|deepseek>/<modelo> u opencode:<proveedor>/<modelo> (los dos son motor=dsh: runner node, stream NDJSON, sin effort;
+# `es_opencode` decide lo que cambia). Sin equivalente Claude al que caer: si no va (dsh sin instalar, sin key,
+# Ollama caído, secretos que no deben salir) sale 95 con el motivo; si lo eligió reparto y hay claude, cae a Sonnet.
+dsh_url=""
+if (( lanza )) && es_dsh "$modelo"; then
+  eng_n=dsh
+  if es_opencode "$modelo"; then
+    eng_n=opencode
+    modelo="opencode:${modelo#*:}"
+    if [[ ! "$modelo" =~ ^($OC_MODELOS)$ ]]; then
+      echo "pa: modelo '$modelo' no va. Los de opencode son opencode:<proveedor>/<modelo> (ej. opencode:opencode/deepseek-v4.1-flash-free; la lista sale de \`opencode models\`)." >&2
+      exit 2
+    fi
+  else
+    modelo="dsh:$(dsh_proveedor "$modelo" | tr 'A-Z' 'a-z')/$(dsh_modelo_de "$modelo")"
+    if [[ ! "$modelo" =~ ^($DSH_MODELOS)$ ]]; then
+      echo "pa: modelo '$modelo' no va. Los de dsh son dsh:<ollama|opencode|deepseek>/<modelo> (ej. dsh:ollama/qwen3-coder:30b); los gratis de OpenCode van con opencode:opencode/<modelo>." >&2
+      exit 2
+    fi
+  fi
+  if es_opencode "$modelo"; then
+    # opencode sí razona por niveles (su `--variant`): el effort pedido (--effort, PA_EFFORT o modelos.json) viaja a correr.mjs; un modelo que no lo tiene lo ignora.
+    oc_effort="$esfuerzo"
+  else
+    if (( esfuerzo_flag )); then echo "pa: --effort no va con '$modelo': $eng_n no tiene effort." >&2; exit 2; fi
+    esfuerzo=""; unset PA_EFFORT
+  fi
+  for no_va in "seguir:--seguir ($eng_n no retoma una sesión de pa)" "aca:--aca/--sucio-mio (un worker de $eng_n trabaja siempre en su worktree)" "con_mcp:--mcp (los MCP de claude.ai no existen en $eng_n)" "leer:--leer ($eng_n no tiene un modo de sólo lectura que alcance al bash)"; do
+    v_no_va="${no_va%%:*}"
+    if (( ${!v_no_va} )); then echo "pa: ${no_va#*:} no va con '$modelo'. Sacalo, o usá un modelo Claude." >&2; exit 2; fi
+  done
+  [[ -n "$max_budget" ]] && { echo "pa: --max-budget-usd no va con '$modelo' ($eng_n no mide el gasto en US\$)." >&2; exit 2; }
+  [[ -n "$cuenta_flag" ]] && { echo "pa: --cuenta no va con '$modelo': $eng_n no usa ninguna suscripción de pa." >&2; exit 2; }
+  if [[ -z "${PA_ASYNC:-}" ]]; then
+    dsh_chequear "$modelo"
+    if [[ -z "$motivo_cae" ]]; then
+      motor=dsh
+    elif (( vino_de_reparto )) && command -v claude >/dev/null 2>&1; then
+      echo "pa: $modelo → claude-sonnet-5-5 effort high: $motivo_cae." >&2
+      gemini_pedido="$modelo"; modelo="claude-sonnet-5-5"; esfuerzo="high"; export PA_EFFORT="high"
+    else
+      echo "pa: no lanzo '$modelo': $motivo_cae." >&2
+      exit 95
+    fi
+  else
+    motor=dsh
+  fi
+fi
 # La cuenta de Claude (o ninguna, para un local). Si agy cayó al equivalente Claude, la --cuenta pedida
 # era de Google: no aplica, se elige la de Claude.
 if (( lanza )) && [[ "$motor" != agy ]]; then
@@ -4190,7 +5065,7 @@ if (( lanza )) && [[ "$motor" != agy ]]; then
   fi
   cuenta_resolver "$(proveedor_de_modelo "$modelo")"
 fi
-[[ -n "$cuenta" && "$cuenta" != claude && "$cuenta" != google ]] && echo "pa: cuenta $cuenta." >&2
+[[ -n "$cuenta" && "$cuenta" != claude && "$cuenta" != google && "$cuenta" != chatgpt ]] && echo "pa: cuenta $cuenta." >&2
 # --- modelo local (ollama:*): validar y probar el servidor antes de lanzar nada -----------------
 # Lo prueba el padre de --async (o el pa en primer plano); el hijo recibe el mismo -m y no repite.
 local_url="" local_modelo=""
@@ -4210,7 +5085,7 @@ if (( lanza )) && es_local "$modelo"; then
   fi
   motor=ollama
 fi
-[[ "$motor" == agy || "$motor" == codex || "$motor" == ollama ]] && ef_vacio="-"   # medicion.tsv y .hilo: sin effort (agy y codex: va en el nombre)
+[[ "$motor" == agy || "$motor" == codex || "$motor" == ollama || "$motor" == dsh ]] && ef_vacio="-"   # medicion.tsv y .hilo: sin effort (agy y codex: va en el nombre)
 ojo_env="${PA_EFFORT:+ (ojo: puede venir de PA_EFFORT)}"
 ef="${esfuerzo,,}"
 (( lanza )) && gemini_politica
@@ -4255,6 +5130,36 @@ if [[ -n "$integrar" ]];  then cmd_integrar "$integrar"; exit $?; fi
 if [[ -n "$descartar" ]]; then cmd_descartar "$descartar"; exit $?; fi
 if (( ramas )); then cmd_ramas; exit $?; fi
 
+# --- AGENTS.md y lecciones del proyecto (no lanzan nada) ---
+if (( agents_md )); then
+  if f_am="$(agents_md_archivo "$ruta")" && (( ! force )); then
+    echo "pa: '$slug' ya tiene $f_am ($(wc -m <"$f_am") caracteres). Actualizalo con lo que aprendas (build, tests, convenciones, qué no tocar) en vez de rehacerlo; --force imprime la plantilla igual." >&2
+  else
+    echo "pa: plantilla para $ruta/AGENTS.md. Llenala con lo que VERIFICASTE del proyecto (comandos que corrés de verdad) y guardala ahí; los workers que no son Claude la reciben en el contrato (tope ${PA_AGENTS_MAX:-$AGENTS_MAX_DEFECTO} caracteres). Si ya tenés un CLAUDE.md, mejor: pa '$proyecto' --unificar-md." >&2
+    agents_md_plantilla
+  fi
+  exit 0
+fi
+if (( unificar_md )); then cmd_unificar_md; exit $?; fi
+if (( aplicar )); then echo "pa: --aplicar va con --unificar-md: pa <proy> --unificar-md --aplicar" >&2; exit 2; fi
+if [[ -n "$leccion" ]]; then
+  leccion_agregar "$leccion" || { echo "pa: --leccion quiere un texto corto (una línea)." >&2; exit 2; }
+  echo "pa: lección anotada en $dir/lecciones.md ($(wc -l <"$dir/lecciones.md") líneas)."
+  [[ -f "$dir/lecciones.necesita-poda" ]] && echo "pa: las lecciones de '$slug' necesitan poda: pa '$proyecto' --lecciones-podar." >&2
+  exit 0
+fi
+if (( lecciones )); then
+  lecciones_revisar
+  if [[ -s "$dir/lecciones.md" ]]; then cat "$dir/lecciones.md"; else echo "pa: '$slug' no tiene lecciones todavía."; fi
+  [[ -f "$dir/lecciones.necesita-poda" ]] && echo "pa: necesita poda ($(cat "$dir/lecciones.necesita-poda")): pa '$proyecto' --lecciones-podar." >&2
+  exit 0
+fi
+if (( lecciones_podar )); then
+  lecciones_revisar
+  echo "Podá las lecciones de '$slug' (no abre nada: lo hace un agente). Releé $dir/lecciones.md y reescribilo más corto: máximo $LECCIONES_LINEAS líneas y $LECCIONES_CARS caracteres, una lección por línea con el formato \"- AAAA-MM-DD texto\". Juntá las repetidas en una, sacá las obsoletas y las que fueron de una corrida puntual, y conservá lo durable (trampas del proyecto, comandos que andan, cosas que no se tocan). Después corré: pa '$proyecto' --lecciones (debe dejar de pedir poda)."
+  exit 0
+fi
+
 if [[ $olvidar -eq 1 ]]; then
   rm -f "$sfile"
   echo "pa: sesión de '$slug' descartada."
@@ -4268,8 +5173,45 @@ if [[ -n "$actualizar" ]]; then
     || { echo "pa: no hay una corrida '$actualizar' de '$slug' con rama propia (falta $c_act o corrió en el tree principal)." >&2; exit 2; }
   git -C "$ruta" rev-parse -q --verify "refs/heads/$(leer_campo "$c_act" rama)" >/dev/null 2>&1 \
     || { echo "pa: la rama $(leer_campo "$c_act" rama) ya no existe (¿integrada o descartada?)." >&2; exit 2; }
+elif [[ -n "$auditar" ]]; then
+  # --auditar <id|rama> [-m MODELO]: un revisor de sólo lectura sobre la rama de un worker. Corre como
+  # --leer (en paralelo con el que escribe, sin tocar nada): lee el diff contra main y reporta por severidad.
+  # El modo lectura no deja correr tests (Bash es sólo git de lectura): la verificación que valga la corre
+  # el jefe con `pa --integrar <id> --tests`; acá se contrasta la evidencia que dejó el autor.
+  aud_rama=""; aud_wt=""; aud_prev=""
+  if [[ -f "$dir/$auditar.corrida" || -f "$dir/$auditar.hilo" ]]; then
+    for f_au in "$dir/$auditar.corrida" "$dir/$auditar.hilo"; do
+      [[ -z "$aud_rama" && -f "$f_au" ]] && aud_rama="$(leer_campo "$f_au" rama)"
+      [[ -z "$aud_wt" && -f "$f_au" ]] && aud_wt="$(leer_campo "$f_au" ruta_trabajo)"
+    done
+    [[ -s "$dir/$auditar.json" ]] && aud_prev="$(jq -r '.result // ""' "$dir/$auditar.json" 2>/dev/null | verificacion_de)"
+  else
+    aud_rama="$auditar"
+  fi
+  if [[ -z "$aud_rama" ]] || ! git -C "$ruta" rev-parse -q --verify "refs/heads/$aud_rama" >/dev/null 2>&1; then
+    echo "pa: --auditar '$auditar': no encuentro esa corrida ni esa rama en '$slug' (¿integrada o descartada? mirá pa '$proyecto' --ramas)." >&2; exit 2
+  fi
+  aud_base="$(git -C "$ruta" rev-parse --abbrev-ref HEAD 2>/dev/null || echo main)"
+  tarea="AUDITORÍA de la rama $aud_rama (sólo lectura: no modificás nada).
+Qué hacer:
+1) Mirá qué cambió: \`git -C $ruta diff --stat $aud_base...$aud_rama\`, \`git -C $ruta log --oneline $aud_base..$aud_rama\` y el diff completo con \`git -C $ruta diff $aud_base...$aud_rama\` (por archivo si es largo). ${aud_wt:+Los archivos completos de la rama están en $aud_wt (leelos con Read).}
+2) Leé el contexto que haga falta del código vecino para juzgar si el cambio es correcto, no sólo si compila.
+3) Verificación: el modo lectura NO te deja correr tests ni builds. Revisá la evidencia que dejó el autor y decí si alcanza y si calza con el diff${aud_prev:+. El autor declaró:
+$aud_prev}
+4) Buscá, por orden: bugs y casos borde sin cubrir, regresiones en lo que el diff toca, tests que faltan o que no prueban lo que dicen, seguridad, y recién al final estilo.
+Respondé con el bloque de siempre. En RESULTADO: el veredicto en una oración (\"sin problemas\", \"hay que arreglar X\" o \"no integrar\") y los problemas ordenados por severidad, una línea cada uno: CRITICO / ALTO / MEDIO / BAJO, \`archivo:línea\`, qué pasa y cómo arreglarlo. VERIFICACION: qué comprobaste vos (los comandos git que corriste y qué viste) y, si la verificación del autor no alcanza, el comando exacto que el jefe debería correr. DECISION: nada, salvo que haya que decidir algo de rumbo.${tarea:+
+Pedido del jefe: $tarea}"
 else
   [[ -n "$tarea" ]] || { echo "pa: falta la tarea." >&2; exit 2; }
+fi
+
+# Avisos al jefe (stderr, nunca bloquean): brief incompleto y modelo de poca inteligencia. Los da el pa
+# en primer plano o el padre de --async, no el hijo.
+if (( lanza && ! leer )) && [[ -z "$actualizar" && -z "${PA_ASYNC:-}" ]]; then
+  (( seguir )) || brief_avisar "$tarea"
+  if modelo_flojo "$modelo"; then
+    echo "pa: aviso: '$modelo' tiene inteligencia $calidad_modelo (< $CALIDAD_BAJA, reparto --tabla): dale pasos numerados, comandos explícitos, un solo archivo o área, y partí lo grande en varias tareas. El worker recibe además la consigna de trabajar en pasos chicos y verificar tras cada cambio." >&2
+  fi
 fi
 
 # --- --leer --seguir -------------------------------------------------------------------------
@@ -4359,14 +5301,15 @@ fi
 # intento (vuelve en <1s con num_turns:1). El wrapper viejo no lo sabía y reintentaba a ciegas:
 # tres intentos en 50 segundos, y cada uno destruía la sesión guardada. Es el límite del Claude oficial:
 # una corrida de agy o de un local no lo mira.
-if [[ "$motor" == claude && -f "$LIMITE" ]]; then
-  hasta="$(cat "$LIMITE")"
+LIMITE_CTA="$(limite_de "$cuenta")"
+if [[ "$motor" == claude && -f "$LIMITE_CTA" ]]; then
+  hasta="$(cat "$LIMITE_CTA")"
   if [[ "$hasta" =~ ^[0-9]+$ ]] && (( hasta > $(date +%s) )); then
     echo "pa: límite de sesión de la suscripción hasta las $(date -d "@$hasta" '+%H:%M'). No lanzo." >&2
-    echo "pa: si creés que ya se liberó: rm $LIMITE" >&2
+    echo "pa: si creés que ya se liberó: rm $LIMITE_CTA" >&2
     exit 76
   fi
-  rm -f "$LIMITE"
+  rm -f "$LIMITE_CTA"
 fi
 
 # --- sesión: limpia por default ---------------------------------------------------------
@@ -4415,8 +5358,9 @@ fi
 # --- claude instalado y sano ----------------------------------------------------------------
 # Un `claude --version` cuesta milisegundos y no gasta sesión. En el hijo de --async no se repite
 # (el padre acaba de hacerlo, y un hijo que sale antes de tomar el lock no deja .listo); si se
-# rompe a mitad de corrida lo agarra el camino 3c de abajo.
-if [[ -z "${PA_ASYNC:-}" ]] && ! claude_sano; then
+# rompe a mitad de corrida lo agarra el camino 3c de abajo. Sólo si el worker corre el binario
+# `claude` (claude, u ollama que lo usa contra ANTHROPIC_BASE_URL): una máquina con sólo agy sirve.
+if [[ -z "${PA_ASYNC:-}" && ( "$motor" == claude || "$motor" == ollama ) ]] && ! claude_sano; then
   rc_c="$(claude_rc)"; claude_falla "$rc_c" "$claude_err"
   exit "$rc_c"
 fi
@@ -4528,23 +5472,6 @@ fi
 # Con --async el padre ya eligió el ts (es el id que imprimió); el hijo lo hereda para que
 # `--esperar --id` encuentre el .listo. Va ANTES del lock porque la rama del worktree lo lleva.
 ts="${PA_TS:-$(date +%Y%m%d-%H%M%S)-$$}"
-# gemini.sin_claude=esperar (sólo el hijo de --async llega acá): cola SIN puesto ni lugar del tope,
-# mirando el cupo cada PA_GEMINI_ESPERA_S (300 s) hasta PA_GEMINI_ESPERA_MAX_MIN (720). `$ts.cola` dice
-# por qué (lo leen --estado y el padre). Si el motivo pasa a ser fijo o se vence el plazo, sale 96.
-if (( gemini_esperar )); then
-  g_ini="$SECONDS"
-  while [[ -n "$motivo_cae" ]]; do
-    if [[ "$clase_cae" != cupo ]] || (( SECONDS - g_ini >= ${PA_GEMINI_ESPERA_MAX_MIN:-720} * 60 )); then
-      rm -f "$dir/$ts.cola"
-      echo "pa: $modelo no está disponible ($motivo_cae) y modelos.json dice gemini.sin_claude=esperar: dejo de esperar, no caigo a Claude." >&2
-      exit 96
-    fi
-    cola_clase=""; escribir_cola "gemini: $motivo_cae; espera cupo (gemini.sin_claude=esperar)"
-    sleep "${PA_GEMINI_ESPERA_S:-300}"
-    gemini_chequear "$modelo"
-  done
-  rm -f "$dir/$ts.cola"
-fi
 # sin_cupo=esperar con todo lleno (sólo el hijo de --async llega acá): cola SIN puesto ni lugar del tope,
 # preguntándole a reparto cada PA_GEMINI_ESPERA_S (300 s) hasta que haya un candidato con cupo; a los
 # PA_GEMINI_ESPERA_MAX_MIN (720) sale 96. Si el candidato cambió, corre con ése.
@@ -4566,6 +5493,7 @@ if [[ -n "$reparto_esperar" && -n "$reparto_tipo_relanzable" && -x "$REPARTO" ]]
   rm -f "$dir/$ts.cola"
   if [[ "$m_rep" != "$modelo" ]] && ! es_local "$m_rep"; then
     echo "pa: volvió el cupo: corro con $m_rep${e_rep:+ effort $e_rep} (reparto)." >&2
+    m_ant_esp="$modelo"
     modelo="$m_rep"; esfuerzo=""; unset PA_EFFORT
     if es_gemini "$modelo"; then
       gemini_chequear "$modelo"
@@ -4584,6 +5512,14 @@ if [[ -n "$reparto_esperar" && -n "$reparto_tipo_relanzable" && -x "$REPARTO" ]]
         gemini_pedido="$modelo"; modelo="$m_eq"; esfuerzo="$e_eq"; export PA_EFFORT="$e_eq"; motor=claude; ef_vacio=""
       else
         motor=codex; ef_vacio="-"
+      fi
+    elif es_dsh "$modelo"; then
+      dsh_chequear "$modelo"
+      if [[ -n "$motivo_cae" ]]; then
+        echo "pa: $modelo no puede correr ($motivo_cae); sigo con el modelo de antes." >&2
+        modelo="$m_ant_esp"
+      else
+        motor=dsh; ef_vacio="-"
       fi
     else
       motor=claude; ef_vacio=""
@@ -4759,16 +5695,17 @@ fi
 # cargaba el ruleset y las descripciones de sus skills en cada corrida, y la prosa de un worker no
 # la lee nadie: sólo el bloque RESULTADO. Va por --settings, sin tocar ~/.claude/settings.json (ahí
 # sigue prendido para las sesiones del dueño). Es el mismo settings_json de writers, --leer,
-# --seguir, --aca y el auto-cierre. Medido con scripts/medir-plugin.sh (docs/modelos-effort-plan-y-ahorro.md).
+# --seguir, --aca y el auto-cierre.
 modo_latido=""; (( leer )) && modo_latido=" leer"
+# Rutas entre comillas (@sh): el command de un hook lo corre un shell, y una ruta con espacios se partía.
 settings_json="$(jq -cn --arg latido "$LATIDO" --arg guard "$GUARD" --arg hb "$hb" --arg modo "$modo_latido" --arg home "$HOME" '
   {crossSessionInbound: "accept",
    claudeMdExcludes: [($home + "/CLAUDE.md")],
    enabledPlugins: {"caveman@caveman": false},
    hooks: {
-     PreToolUse: [ {matcher: "Bash", hooks: [ {type:"command", command:("bash " + $guard)} ]},
-                   {hooks: [ {type:"command", command:("bash " + $latido + " " + $hb + " pre" + $modo)} ]} ],
-     PostToolUse: [ {hooks: [ {type:"command", command:("bash " + $latido + " " + $hb + " post")} ]} ]
+     PreToolUse: [ {matcher: "Bash", hooks: [ {type:"command", command:("bash " + ($guard|@sh))} ]},
+                   {hooks: [ {type:"command", command:("bash " + ($latido|@sh) + " " + ($hb|@sh) + " pre" + $modo)} ]} ],
+     PostToolUse: [ {hooks: [ {type:"command", command:("bash " + ($latido|@sh) + " " + ($hb|@sh) + " post")} ]} ]
    }}')"
 
 # --- --actualizar: la tarea es fija --------------------------------------------------------
@@ -4793,9 +5730,16 @@ armar_llamada() {
 jefe="$(jefe_nombre)"; jefe_ident="$(jefe_id)"
 # Un Gemini no tiene SendMessage: corre como sin jefe (pregunta en DECISION).
 if [[ "$motor" == agy ]]; then contrato="$CONTRATO_AGY"$'\n'"$SIN_JEFE"
-elif [[ "$motor" == codex ]]; then contrato="$CONTRATO_CODEX"$'\n'"$SIN_JEFE"
+elif [[ "$motor" == codex || "$motor" == dsh ]]; then contrato="$CONTRATO_CODEX"$'\n'"$SIN_JEFE"
 elif [[ -n "$jefe" ]]; then contrato="$CONTRATO"$'\n'"$(con_jefe "$jefe")"; else contrato="$CONTRATO"$'\n'"$SIN_JEFE"; fi
 contrato="$(D "$contrato")"
+# Un modelo de poca inteligencia (reparto --tabla, < PA_CALIDAD_BAJA=70) rinde con pasos chicos y verificación
+# constante: se lo pedimos en el contrato. Los que escriben nomás (un --leer no cambia nada que verificar).
+if (( ! leer )) && modelo_flojo "$modelo"; then
+  contrato+=$'\n'"Trabajá en pasos chicos: un cambio por vez, corré la verificación después de CADA cambio y commiteá cuando pase antes de seguir con el próximo. Si algo falla, arreglalo antes de tocar otra cosa. Quedate en los archivos de la tarea: nada de refactors ni de \"ya que estoy\". Si la tarea es más grande de lo que pinta, hacé la parte que cierra, commiteala y decí en DECISION cómo partir el resto."
+fi
+# Lo que el proyecto ya aprendió de corridas descartadas o retrabajadas (pa <proy> --leccion / --bien-auto).
+(( leer )) || contrato+="$(lecciones_bloque)"
 # Orientación, no aislamiento (el aislamiento ya es estructural): un worker que ve una rama rara
 # en `git log` puede intentar `git checkout main` (falla: está en el tree principal) y gastar turnos.
 if [[ -n "$actualizar" ]]; then
@@ -4803,12 +5747,12 @@ if [[ -n "$actualizar" ]]; then
 elif (( usa_worktree )); then
   contrato+=$'\n'"Estás en la rama $rama de un worktree propio ($ruta_trabajo), sacada del HEAD del tree principal del proyecto. Commiteá ahí, archivo por archivo. No cambies de rama, no mergees, no toques el tree principal: integra el jefe."
 fi
-# El mapa de interconexiones está partido en un archivo por proyecto (bin/mapa-partir): el worker
+# El mapa de interconexiones (opcional) está partido en un archivo por proyecto: el worker
 # toca SÓLO el suyo, con el slug real en la ruta. Sin archivo (proyecto sin bloque, o MAPA todavía
 # sin partir) no se dice nada. PA_MAPA_DIR: sólo para los tests.
-mapa_proy="${PA_MAPA_DIR:-$HOME/Proyectos/mapa}/$slug.md"
+mapa_proy="${PA_MAPA_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/trama/mapa}/$slug.md"
 if (( ! leer )) && [[ -z "$actualizar" && -f "$mapa_proy" ]]; then
-  contrato+=$'\n'"Si tu cambio modificó lo que este proyecto expone, consume o escribe para OTROS proyectos (CLIs, puertos, archivos compartidos, units), actualizá su bloque del mapa en $mapa_proy y poné la fecha de hoy en su \`verificado:\`. Sólo ese archivo: no abras ~/Proyectos/MAPA.md (es un índice generado) ni los bloques de otros proyectos. Si no cambió nada de eso, no lo toques."
+  contrato+=$'\n'"Si tu cambio modificó lo que este proyecto expone, consume o escribe para OTROS proyectos (CLIs, puertos, archivos compartidos, units), actualizá su bloque del mapa en $mapa_proy y poné la fecha de hoy en su \`verificado:\`. Sólo ese archivo: no abras el índice general del mapa (es generado) ni los bloques de otros proyectos. Si no cambió nada de eso, no lo toques."
 fi
 # En paralelo con otros writers del mismo proyecto (puestos): que sepa con quién comparte el repo.
 if (( ! leer )); then
@@ -4839,7 +5783,7 @@ nombre_worker="pa/$slug"; (( leer )) || nombre_worker+="$(suf_puesto "$puesto")"
 # tarda más de 2 s o si no dice nada: se omite, sin aviso. A un Gemini no se le manda: son los
 # pendientes y esperas personales del dueño, y lo que va a Google no se recupera.
 prompt="$tarea"
-if (( ! resume )) && [[ "$motor" != agy && "$motor" != codex ]]; then
+if (( ! resume )) && [[ "$motor" != agy && "$motor" != codex ]] && { [[ "$motor" != dsh ]] || { ! es_opencode "$modelo" && [[ "$(dsh_proveedor "$modelo")" == ollama ]]; }; }; then
   ficha="$(tablero_mudo 2 ficha "$slug" --corta)" || ficha=""
   if [[ -n "$ficha" ]]; then prompt+=$'\n\n'"Dónde quedó este proyecto:"$'\n'"$ficha"; fi
 fi
@@ -4887,10 +5831,11 @@ if [[ "$PLAN" == pro ]]; then export PA_RECORTE="${PA_RECORTE:-150}"; else expor
 # el adaptador necesita para atar al worker a su worktree.
 if [[ "$motor" == agy ]]; then
   prompt_agy="INSTRUCCIONES DEL ORQUESTADOR (valen como system prompt):"$'\n'"$contrato"
-  for md in "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/CLAUDE.md" "$ruta_trabajo/CLAUDE.md"; do
+  for md in "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/CLAUDE.md"; do
     [[ -s "$md" ]] || continue
     prompt_agy+=$'\n\n'"INSTRUCCIONES ($md; valen igual que las de arriba):"$'\n'"$(cat "$md")"
   done
+  prompt_agy+="$(agents_md_bloque "$ruta_trabajo" "$ruta")"   # AGENTS.md del proyecto (o su CLAUDE.md), con tope
   prompt_agy+=$'\n\n'"TAREA:"$'\n'"$prompt"
   args=( -p "$prompt_agy"
          --model "${modelo#agy:}"
@@ -4909,10 +5854,11 @@ fi
 # worktree; sin red) o read-only en --leer. Sin aprobaciones: no hay nadie para contestarlas.
 if [[ "$motor" == codex ]]; then
   prompt_cx="INSTRUCCIONES DEL ORQUESTADOR (valen como system prompt):"$'\n'"$contrato"
-  for md in "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/CLAUDE.md" "$ruta_trabajo/CLAUDE.md"; do
+  for md in "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/CLAUDE.md"; do
     [[ -s "$md" ]] || continue
     prompt_cx+=$'\n\n'"INSTRUCCIONES ($md; valen igual que las de arriba):"$'\n'"$(cat "$md")"
   done
+  prompt_cx+="$(agents_md_bloque "$ruta_trabajo" "$ruta")"   # AGENTS.md del proyecto (o su CLAUDE.md), con tope
   prompt_cx+=$'\n\n'"TAREA:"$'\n'"$prompt"
   cx_base="${modelo#codex:}"
   args=( exec --json
@@ -4929,6 +5875,32 @@ if [[ "$motor" == codex ]]; then
     [[ -f "$mapa_proy" ]] && args+=( --add-dir "$(dirname "$mapa_proy")" )
   fi
   args+=( "$prompt_cx" )
+  transcript="$dir/$ts.stream.jsonl"
+fi
+
+# --- armado de la llamada a dsh (OpenCode, Ollama, DeepSeek) --------------------------------------
+# Como codex: el contrato y los CLAUDE.md van adelante de la tarea (dsh no lee CLAUDE.md). El CLAUDE.md del dueño
+# (~/.claude) sólo va a Ollama: con opencode y deepseek la tarea sale a otra empresa (y los gratis de OpenCode pueden
+# entrenar con lo que reciben), igual que la ficha de arriba. Lo lanza motor/dsh/correr.mjs (ver su encabezado).
+if [[ "$motor" == dsh ]]; then
+  dsh_prov="$(dsh_proveedor "$modelo")"
+  prompt_ds="INSTRUCCIONES DEL ORQUESTADOR (valen como system prompt):"$'\n'"$contrato"
+  dsh_mds=()
+  [[ "$dsh_prov" == ollama ]] && dsh_mds=( "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/CLAUDE.md" )
+  for md in ${dsh_mds[@]+"${dsh_mds[@]}"}; do
+    [[ -s "$md" ]] || continue
+    prompt_ds+=$'\n\n'"INSTRUCCIONES ($md; valen igual que las de arriba):"$'\n'"$(cat "$md")"
+  done
+  prompt_ds+="$(agents_md_bloque "$ruta_trabajo" "$ruta")"   # AGENTS.md del proyecto (o su CLAUDE.md), con tope
+  prompt_ds+=$'\n\n'"TAREA:"$'\n'"$prompt"
+  dsh_prompt="$prompt_ds"
+  args=( --modelo "$modelo" --cwd "$ruta_trabajo" --stream "$dir/$ts.stream.jsonl" --salida "$dir/$ts.json" )
+  [[ "$motor" == dsh ]] && es_opencode "$modelo" && [[ -n "${oc_effort:-}" ]] && args+=( --effort "$oc_effort" )
+  if [[ "$dsh_prov" == ollama ]]; then
+    IFS=$'\t' read -r dsh_url _ <<<"$(local_de "ollama:$(dsh_modelo_de "$modelo")")"
+    args+=( --url "${dsh_url%/}/v1" )
+  fi
+  [[ -n "$max_turns" ]] && { args+=( --max-pasos "$max_turns" ); export PA_MAX_TURNS="$max_turns"; }
   transcript="$dir/$ts.stream.jsonl"
 fi
 }
@@ -5011,8 +5983,29 @@ correr() {
   elif [[ "$motor" == codex ]]; then
     # Los shims de codex/bin van primeros en el PATH: son las guardias de git y cargo (codex no tiene hooks).
     rm -f "$dir/$ts.codex-ultimo"
-    ( cd "$ruta_trabajo" && export PA_WORKER=1 GIT_EDITOR=true GIT_SEQUENCE_EDITOR=true PATH="$CODEX_SHIMS:$PATH" && exec codex "${args[@]}" ) \
+    ( cd "$ruta_trabajo" && export PA_WORKER=1 GIT_EDITOR=true GIT_SEQUENCE_EDITOR=true PATH="$CODEX_SHIMS:$PATH" && exec "${cuenta_env[@]}" codex "${args[@]}" ) \
         </dev/null >"$transcript" 2>"$err" 9>&- 8>&- 6>&- 5>&- &
+  elif [[ "$motor" == dsh ]]; then
+    # correr.mjs escribe el stream y el .json (con la forma de codex_a_json) y sale 0 / 1 / 127. La tarea va por archivo
+    # (cabe cualquier largo y no se ve en `ps`); las keys, sólo en este proceso y sólo las que el proveedor usa.
+    dsh_tarea="$dir/$ts.dsh-tarea"; ( umask 077; printf '%s' "$dsh_prompt" >"$dsh_tarea" )
+    if es_opencode "$modelo"; then
+      # opencode usa el login de la persona (su HOME/XDG, tal cual): ninguna key de pa viaja.
+      ( cd "$ruta_trabajo" || exit 1
+        export PA_WORKER=1 GIT_EDITOR=true GIT_SEQUENCE_EDITOR=true PATH="$CODEX_SHIMS:$PATH" HILOS_OPENCODE="$(opencode_bin)"
+        exec node "$OC_CORRER" "${args[@]}" --tarea-archivo "$dsh_tarea" ) \
+          </dev/null >/dev/null 2>"$err" 9>&- 8>&- 6>&- 5>&- &
+    else
+    ( cd "$ruta_trabajo" || exit 1
+      export PA_WORKER=1 GIT_EDITOR=true GIT_SEQUENCE_EDITOR=true PATH="$CODEX_SHIMS:$PATH" HILOS_DSH="$(dsh_bin)"
+      case "$(dsh_proveedor "$modelo")" in
+        opencode) k_ds="$(dsh_clave OPENCODE_API_KEY)"; [[ -n "$k_ds" ]] && export OPENCODE_API_KEY="$k_ds" ;;
+        deepseek) k_ds="$(dsh_clave DEEPSEEK_API_KEY)"; [[ -n "$k_ds" ]] && export DEEPSEEK_API_KEY="$k_ds" ;;
+      esac
+      unset k_ds
+      exec node "$DSH_CORRER" "${args[@]}" --tarea-archivo "$dsh_tarea" ) \
+        </dev/null >/dev/null 2>"$err" 9>&- 8>&- 6>&- 5>&- &
+    fi
   elif [[ "$motor" == ollama ]]; then
     # Las ANTHROPIC_* del servidor local, SÓLO en este proceso (regla de facturación: nunca en otro, nunca
     # en settings.json). Los DEFAULT_*_MODEL y el de subagentes también apuntan al local: nada de lo que
@@ -5033,10 +6026,14 @@ correr() {
   if [[ "$motor" == codex ]]; then
     ( while kill -0 "$hijo" 2>/dev/null; do codex_latido; sleep "${PA_CODEX_LATIDO_S:-15}"; done ) </dev/null >/dev/null 2>&1 9>&- 8>&- 6>&- 5>&- &
     lat=$!
+  elif [[ "$motor" == dsh ]]; then
+    ( while kill -0 "$hijo" 2>/dev/null; do dsh_latido; sleep "${PA_DSH_LATIDO_S:-10}"; done ) </dev/null >/dev/null 2>&1 9>&- 8>&- 6>&- 5>&- &
+    lat=$!
   fi
   wait "$hijo" || rc=$?
   hijo=""
   [[ -n "$lat" ]] && { kill "$lat" 2>/dev/null; wait "$lat" 2>/dev/null; }
+  [[ "$motor" == dsh ]] && rm -f "$dir/$ts.dsh-tarea"
   if [[ "$motor" == agy ]]; then agy_a_json "$transcript" "$err" "$modelo" "$rc" >"$out" 2>/dev/null || true; fi
   if [[ "$motor" == codex ]]; then codex_a_json "$transcript" "$err" "$modelo" "$rc" "$dir/$ts.codex-ultimo" "$((SECONDS - t0))" >"$out" 2>/dev/null || true; fi
   # Un local: el .json dice motor "ollama" y el modelo de pa (ollama:…), y no cuesta US$ (el CLI no
@@ -5083,17 +6080,29 @@ codex_sin_cupo() {
   local t; t="$(cat "$err" "$transcript" 2>/dev/null; res_texto)"
   grep -qiE 'usage limit|hit your limit|rate.?limit|Too Many Requests|quota|(^|[^0-9])429([^0-9]|$)' <<<"$t"
 }
-sin_cupo_al_arrancar() { agy_sin_cupo || codex_sin_cupo || claude_sin_cupo; }
+# dsh: el proveedor contestó 429 / rate limit (OpenCode Zen gratis los tiene seguido). Sólo stderr y el result: el stream trae lo que
+# el modelo dijo y pudo hablar de un 429 sin que sea el suyo.
+dsh_sin_cupo() {
+  [[ "$motor" == dsh ]] || return 1
+  local t; t="$(tail -c 4000 "$err" 2>/dev/null; res_texto)"
+  grep -qiE 'rate.?limit|Too Many Requests|quota|FreeUsageLimit|cortó por límite de uso|(^|[^0-9])429([^0-9]|$)' <<<"$t"
+}
+sin_cupo_al_arrancar() { agy_sin_cupo || codex_sin_cupo || claude_sin_cupo || dsh_sin_cupo; }
 sin_trabajo_hecho() {
   [[ -z "$(git -C "$ruta_trabajo" status --porcelain 2>/dev/null)" ]] \
     && [[ "$(git -C "$ruta_trabajo" rev-list --count "${base:-HEAD}..HEAD" 2>/dev/null || echo 1)" == 0 ]]
 }
 cambiar_de_modelo() {   # $1 = modelo nuevo, $2 = su effort (sólo Claude)
+  local f
   modelo="$1"; esfuerzo=""; unset PA_EFFORT
-  if es_gemini "$modelo"; then
-    motor=agy; ef_vacio="-"
-  elif es_codex "$modelo"; then
-    motor=codex; ef_vacio="-"
+  if es_dsh "$modelo"; then
+    motor=dsh; ef_vacio="-"; cuenta=""; cuenta_env=()
+    (( usa_worktree )) && for f in .env CLAUDE.local.md .claude/settings.local.json; do [[ -L "$ruta_trabajo/$f" ]] && rm -f "$ruta_trabajo/$f"; done
+  elif es_gemini "$modelo" || es_codex "$modelo"; then
+    es_gemini "$modelo" && motor=agy || motor=codex
+    ef_vacio="-"
+    # el intento anterior pudo ser de Claude: sus symlinks de secretos no le sirven a este motor
+    (( usa_worktree )) && for f in .env CLAUDE.local.md .claude/settings.local.json; do [[ -L "$ruta_trabajo/$f" ]] && rm -f "$ruta_trabajo/$f"; done
   else
     motor=claude; ef_vacio=""
     [[ -n "${2:-}" ]] && { esfuerzo="$2"; export PA_EFFORT="$2"; }
@@ -5102,7 +6111,10 @@ cambiar_de_modelo() {   # $1 = modelo nuevo, $2 = su effort (sólo Claude)
     transcript="$PROJ/$(escapar "$ruta_trabajo")/$sid.jsonl"
   fi
   armar_llamada
-  sed -i -e "s|^modelo=.*|modelo=$modelo|" -e "s|^effort=.*|effort=${esfuerzo:-${ef_vacio:-settings}}|" -e "s|^cuenta=.*|cuenta=$cuenta|" "$dir/$ts.hilo" 2>/dev/null || true
+  # Por hilo_poner (flock sobre el mismo inodo): un sed -i reemplaza el archivo y pisa lo que otro pa/--archivar escribe a la vez
+  if [[ -f "$dir/$ts.hilo" ]]; then
+    hilo_poner "$ts" modelo "$modelo"; hilo_poner "$ts" effort "${esfuerzo:-${ef_vacio:-settings}}"; hilo_poner "$ts" cuenta "$cuenta"
+  fi
   escribir_running
 }
 reintentos_cupo=0
@@ -5113,11 +6125,13 @@ while (( reintentos_cupo < 3 )) && [[ "$SIN_CUPO" == otro && -n "$reparto_tipo_r
   if [[ "$motor" == claude ]]; then
     quien="Claude dijo límite"
     if hasta="$(epoch_reset "$(res_texto)")"; then
-      printf '%s' "$hasta" >"$LIMITE"
+      printf '%s' "$hasta" >"$(limite_de "$cuenta")"
       hasta_args=( --hasta "$(date -u -d "@$hasta" +%Y-%m-%dT%H:%M:%SZ)" )
     fi
   elif [[ "$motor" == codex ]]; then
     quien="codex dijo sin cupo"
+  elif [[ "$motor" == dsh ]]; then
+    quien="$(es_opencode "$m_ant" && echo opencode || echo dsh) ($m_ant) dijo 429"
   else
     quien="agy dijo 429"
   fi
@@ -5132,22 +6146,26 @@ while (( reintentos_cupo < 3 )) && [[ "$SIN_CUPO" == otro && -n "$reparto_tipo_r
   ) || true
   # Todo lleno: reparto da el más barato, que también va a chocar; no vale relanzar.
   [[ "$(jq -r '.todo_lleno // false' <<<"$rep_json" 2>/dev/null)" == true ]] && m_rep=""
-  c_rep="$(jq -r '.cuenta // ""' <<<"$rep_json" 2>/dev/null)"; [[ -n "$c_rep" ]] || c_rep="$(proveedor_de_modelo "$m_rep")"
-  if [[ -z "$m_rep" || ( "$m_rep" == "$m_ant" && "$c_rep" == "${c_ant:-$p_ant}" ) ]] || es_local "$m_rep" || [[ "${m_rep,,}" != @(claude-*|gemini-*|agy:*|codex:*) ]] \
-     || { ! es_codex "$m_rep" && ! cuenta_preparar "$c_rep" "$(proveedor_de_modelo "$m_rep")" 2>/dev/null; }; then
+  # La cuenta del modelo nuevo se vuelve a resolver acá (cuenta_preparar deja `cuenta` y `cuenta_env` listos para
+  # armar_llamada y para el .hilo): la de reparto si es del proveedor del modelo, si no la de siempre del proveedor.
+  p_rep="$(proveedor_de_modelo "$m_rep")"
+  c_rep="$(jq -r '.cuenta // ""' <<<"$rep_json" 2>/dev/null)"
+  [[ -n "$c_rep" && "$(cuenta_proveedor "$c_rep")" == "$p_rep" ]] || c_rep="$p_rep"
+  if [[ -z "$m_rep" || ( "$m_rep" == "$m_ant" && "$c_rep" == "${c_ant:-$p_ant}" ) ]] || es_local "$m_rep" || [[ "${m_rep,,}" != @(claude-*|gemini-*|agy:*|codex:*|dsh:*|opencode:*) ]] \
+     || { ! es_dsh "$m_rep" && ! cuenta_preparar "$c_rep" "$p_rep" 2>/dev/null; }; then
     echo "pa: $quien (sin cupo) con $m_ant, lo marqué como agotado, pero reparto no ofrece otro candidato con cupo; sigo como falló." >&2
     cuenta_preparar "${c_ant:-$p_ant}" "$p_ant" 2>/dev/null || true
     break
   fi
-  if es_gemini "$m_rep" || es_codex "$m_rep"; then
-    if es_codex "$m_rep"; then codex_chequear "$m_rep"; else gemini_chequear "$m_rep"; fi
+  if es_gemini "$m_rep" || es_codex "$m_rep" || es_dsh "$m_rep"; then
+    if es_codex "$m_rep"; then codex_chequear "$m_rep"; elif es_dsh "$m_rep"; then dsh_chequear "$m_rep"; else gemini_chequear "$m_rep"; fi
     if [[ -n "$motivo_cae" ]]; then
       echo "pa: $quien (sin cupo) con $m_ant; reparto ofrece $m_rep pero no puede correr ($motivo_cae); sigo como falló." >&2
       cuenta_preparar "${c_ant:-$p_ant}" "$p_ant" 2>/dev/null || true
       break
     fi
   fi
-  c_txt=""; [[ "$cuenta" != "$c_ant" && "$cuenta" != claude && "$cuenta" != google ]] && c_txt=" (cuenta $cuenta)"
+  c_txt=""; [[ "$cuenta" != "$c_ant" && "$cuenta" != claude && "$cuenta" != google && "$cuenta" != chatgpt ]] && c_txt=" (cuenta $cuenta)"
   echo "pa: $quien (sin cupo) con $m_ant: lo marco agotado hasta que vuelva y relanzo con $m_rep${e_rep:+ effort $e_rep}$c_txt: $mot_rep" >&2
   cambiar_de_modelo "$m_rep" "$e_rep"
   rc=0; correr || rc=$?
@@ -5159,7 +6177,7 @@ if (( rc != 0 )) || es_error; then
   # 1. límite de sesión de la suscripción. No es rate limit: no se arregla reintentando.
   if [[ "$texto" == *"session limit"* ]]; then
     if hasta="$(epoch_reset "$texto")"; then
-      printf '%s' "$hasta" >"$LIMITE"
+      printf '%s' "$hasta" >"$(limite_de "$cuenta")"
       echo "pa: límite de sesión de la suscripción. Se libera $(date -d "@$hasta" '+%H:%M'). Sesión de '$slug' INTACTA." >&2
     else
       echo "pa: límite de sesión de la suscripción (no pude parsear la hora de reset). Sesión de '$slug' INTACTA." >&2
@@ -5227,7 +6245,7 @@ if [[ "$(jq -r '.subtype // ""' "$out" 2>/dev/null)" == "error_max_turns" ]]; th
     # trap suma este JSON con el del cierre (medir).
     json_previo="$dir/$ts.sin-turnos.json"
     args=( -p "$CIERRE_TAREA"
-           --model "$modelo"
+           --model "${local_modelo:-$modelo}"
            ${esfuerzo:+--effort "$esfuerzo"}
            --output-format json
            --append-system-prompt "$contrato"
@@ -5266,7 +6284,7 @@ fi
 if (( rc != 0 )) || es_error; then
   # Sólo stderr y 127, no el .result: un worker que falla por otra cosa citando este bug (la
   # frase está en BUGS-WORKERS-2026-09-14.md) saldría 81 en vez de 1.
-  if [[ "$motor" == claude ]] && { (( rc == 127 )) || es_claude_roto "$(cat "$err" 2>/dev/null)"; }; then
+  if [[ "$motor" == claude || "$motor" == ollama ]] && { (( rc == 127 )) || es_claude_roto "$(cat "$err" 2>/dev/null)"; }; then
     rc_c="$(claude_rc)"; claude_falla "$rc_c" "$(cat "$err" 2>/dev/null)"
     exit "$rc_c"
   fi

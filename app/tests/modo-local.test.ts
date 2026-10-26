@@ -2,7 +2,7 @@
 // en la máquina (electron/capacidades.ts). Servidor de verdad en un puerto libre; nada toca la red de verdad.
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
-import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import http from "node:http";
 import net from "node:net";
 import os from "node:os";
@@ -18,30 +18,34 @@ writeFileSync(path.join(dist, "index.html"), '<html><head><script type="module" 
 const preload = path.join(tmp, "preload.cjs");
 writeFileSync(preload, '"use strict";\n');
 
-const remoto = crearRemotoLocal({
+const opciones = {
   dist,
   preload,
-  llamar: async (canal) => ({ canal }),
+  llamar: async (canal: string) => ({ canal }),
   consulta: () => ({}),
   seFue: () => {},
   changelog: "https://example.com/cambios",
   latidoMs: 60_000,
-});
+};
+// Sin token (`TRAMA_TOKEN=0`): el comportamiento de siempre; los tests de más abajo con token usan otro servidor.
+const remoto = crearRemotoLocal(opciones, { TRAMA_TOKEN: "0" });
 const servidor = await remoto.escuchar(0);
 after(() => servidor.closeAllConnections?.() ?? servidor.close());
 const { address, port } = servidor.address() as net.AddressInfo;
 
-/** GET con el `Host` que se diga, al 127.0.0.1 del servidor. */
-const pedir = (host: string, ruta = "/", extra: http.OutgoingHttpHeaders = {}) =>
-  new Promise<{ codigo: number; cuerpo: string }>((resolve, reject) => {
-    const r = http.request({ host: "127.0.0.1", port, path: ruta, headers: { host, ...extra } }, (res) => {
-      let cuerpo = "";
-      res.on("data", (d) => (cuerpo += d));
-      res.on("end", () => resolve({ codigo: res.statusCode ?? 0, cuerpo }));
+type Respuesta = { codigo: number; cuerpo: string; cabeceras: http.IncomingHttpHeaders };
+/** Pedido con el `Host` que se diga, al 127.0.0.1 del servidor (por defecto el sin token). */
+const pedirEn = (puerto: number, host: string, ruta = "/", extra: http.OutgoingHttpHeaders = {}, metodo = "GET", cuerpo?: string) =>
+  new Promise<Respuesta>((resolve, reject) => {
+    const r = http.request({ host: "127.0.0.1", port: puerto, path: ruta, method: metodo, headers: { host, ...extra } }, (res) => {
+      let texto = "";
+      res.on("data", (d) => (texto += d));
+      res.on("end", () => resolve({ codigo: res.statusCode ?? 0, cuerpo: texto, cabeceras: res.headers }));
     });
     r.on("error", reject);
-    r.end();
+    r.end(cuerpo);
   });
+const pedir = (host: string, ruta = "/", extra: http.OutgoingHttpHeaders = {}) => pedirEn(port, host, ruta, extra);
 
 test("escucha sólo en 127.0.0.1 y contesta 200 con la página", async () => {
   assert.equal(address, "127.0.0.1");
@@ -128,4 +132,71 @@ test("sin registry.json la lista de proyectos queda vacía, sin tirar", async ()
     { env: { PATH: process.env.PATH, HOME: path.join(tmp, "sin-nada") }, encoding: "utf8" },
   );
   assert.equal(salida.trim(), "[[],[]]");
+});
+
+// --- el token de la instalación ---
+const config = path.join(tmp, "config");
+const envToken = { XDG_CONFIG_HOME: config };
+const conToken = crearRemotoLocal(opciones, envToken);
+const servidorT = await conToken.escuchar(0);
+after(() => servidorT.closeAllConnections?.() ?? servidorT.close());
+const pt = (servidorT.address() as net.AddressInfo).port;
+const hostT = `localhost:${pt}`;
+const archivoToken = path.join(config, "trama", "token");
+const token = readFileSync(archivoToken, "utf8").trim();
+const rpc = (extra: http.OutgoingHttpHeaders = {}) =>
+  pedirEn(pt, hostT, "/rpc", { "x-trama-cliente": "abcdef0123456789", origin: `http://${hostT}`, "content-type": "application/json", ...extra }, "POST", JSON.stringify({ canal: "x:y", args: [] }));
+
+test("token: se crea de 32 bytes hex, archivo 0600 y carpeta 0700", () => {
+  assert.match(token, /^[0-9a-f]{64}$/);
+  assert.equal(statSync(archivoToken).mode & 0o777, 0o600);
+  assert.equal(statSync(path.dirname(archivoToken)).mode & 0o777, 0o700);
+  // Arrancar de nuevo reusa el mismo.
+  crearRemotoLocal(opciones, envToken);
+  assert.equal(readFileSync(archivoToken, "utf8").trim(), token);
+});
+
+test("token: sin cookie /rpc, /eventos y los assets dan 401; / da 401 con la página que explica", async () => {
+  assert.equal((await rpc()).codigo, 401);
+  assert.equal((await pedirEn(pt, hostT, "/eventos")).codigo, 401);
+  assert.equal((await pedirEn(pt, hostT, "/remoto.js")).codigo, 401);
+  assert.equal((await pedirEn(pt, hostT, "/assets/a.js")).codigo, 401);
+  const p = await pedirEn(pt, hostT, "/");
+  assert.equal(p.codigo, 401);
+  assert.match(p.cabeceras["content-type"] ?? "", /text\/html/);
+  assert.match(p.cuerpo, /trama-motor abrir/);
+  assert.doesNotMatch(p.cuerpo, /remoto\.js/);
+  // Una cookie con otro valor tampoco.
+  assert.equal((await rpc({ cookie: `trama=${"0".repeat(64)}` })).codigo, 401);
+});
+
+test("token: /?t=malo da 401 y sin cookie; /?t=bueno da 303 + cookie HttpOnly SameSite=Strict", async () => {
+  const mala = await pedirEn(pt, hostT, "/?t=malo");
+  assert.equal(mala.codigo, 401);
+  assert.equal(mala.cabeceras["set-cookie"], undefined);
+  const buena = await pedirEn(pt, hostT, `/?t=${token}`);
+  assert.equal(buena.codigo, 303);
+  assert.equal(buena.cabeceras.location, "/");
+  const cookie = String(buena.cabeceras["set-cookie"]);
+  assert.match(cookie, new RegExp(`^trama=${token};`));
+  assert.match(cookie, /HttpOnly/);
+  assert.match(cookie, /SameSite=Strict/);
+  assert.match(cookie, /Path=\//);
+  assert.equal((await pedirEn(pt, hostT, `/index.html?t=${token}`)).codigo, 303);
+});
+
+test("token: con la cookie la página y /rpc andan; el Host sigue controlado", async () => {
+  const cookie = `trama=${token}`;
+  const p = await pedirEn(pt, hostT, "/", { cookie });
+  assert.equal(p.codigo, 200);
+  assert.match(p.cuerpo, /remoto\.js/);
+  const r = await rpc({ cookie });
+  assert.equal(r.codigo, 200);
+  assert.deepEqual(JSON.parse(r.cuerpo), { ok: true, valor: { canal: "x:y" } });
+  assert.equal((await pedirEn(pt, `evil.example:${pt}`, "/", { cookie })).codigo, 403);
+});
+
+test("TRAMA_TOKEN=0: como antes, sin cookie entra (el servidor del principio)", async () => {
+  assert.equal((await pedir(`localhost:${port}`)).codigo, 200);
+  assert.equal((await pedirEn(port, `localhost:${port}`, "/rpc", { "x-trama-cliente": "abcdef0123456789", origin: `http://localhost:${port}`, "content-type": "application/json" }, "POST", JSON.stringify({ canal: "x:y", args: [] }))).codigo, 200);
 });

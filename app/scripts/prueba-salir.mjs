@@ -3,7 +3,7 @@
 // (todo en uno, sin motor, y como la unidad: TRAMA_UNIDAD=1). Ctrl+Q abre la pregunta
 // de Trama (no un confirm) con sus dos salidas y Esc la cierra sin salir; "Cerrar y dejar que sigan" saca el proceso con el
 // código 3 (el que la unidad no vuelve a levantar); lo mismo "Cerrar y parar todo". Sin ícono en la bandeja (HILOS_PERFIL):
-// ésa y Super+Q (el cierre de la ventana, que `window.close()` por CDP no emula) se prueban a mano. Nunca toca la trama de Ana: sólo se matan, por pid exacto, los procesos de esta prueba.
+// ésa y Super+Q (el cierre de la ventana, que `window.close()` por CDP no emula) se prueban a mano. Nunca toca la trama del usuario: sólo se matan, por pid exacto, los procesos de esta prueba.
 //   npm run build && node scripts/prueba-salir.mjs   (FOTOS=<carpeta> deja capturas)
 import { spawn } from "node:child_process";
 import { mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";

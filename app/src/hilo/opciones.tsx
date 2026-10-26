@@ -5,7 +5,7 @@
 import { t, type ClaveSola } from "../i18n";
 import type { Opcion } from "./Selector";
 import { GENERAL, type Lider } from "../datos/contrato";
-import { defDe, effortDeModelo, effortsDe, EMPRESAS, partirGeminiId, ponerConfig, TABLA, type ConfigModelos, type ModeloDef } from "./modelos";
+import { defDe, effortDeModelo, effortsDe, EMPRESAS, type Empresa, partirGeminiId, ponerConfig, TABLA, type ConfigModelos, type ModeloDef } from "./modelos";
 import { Logo } from "./Logos";
 
 // La descripción se dice al leerla: cambia con el idioma sin rearmar las listas.
@@ -13,9 +13,34 @@ import { Logo } from "./Logos";
 const desc = <T extends object>(o: T, clave: ClaveSola) =>
   Object.defineProperty(o, "desc", { get: () => t(clave), enumerable: true }) as T & { desc: string };
 
+/** El orden de las columnas del menú en columnas: Anthropic, Google, DeepSeek Harness y, al final, lo que corre en esta máquina. */
+const ORDEN_COL: Record<Empresa, number> = { anthropic: 0, google: 1, dsh: 2, opencode: 2, local: 3, ollama: 3 };
+
+/** La columna de un modelo en el menú en columnas: una por empresa, salvo los locales (llama-server y Ollama), que van juntos en "Local". */
+const columnaDe = (m: ModeloDef) => {
+  const local = m.empresa === "local" || m.empresa === "ollama";
+  const e: Empresa = local ? "local" : m.empresa;
+  return { col: e, colNombre: EMPRESAS[e], colMarca: <Logo empresa={e} />, colOrden: ORDEN_COL[m.empresa] };
+};
+
 /** Cada modelo, bajo el divisor de su empresa y con su logo delante; los locales, además, con el chip de la GPU (`local`). */
 const opcionDe = (m: ModeloDef) =>
-  desc({ id: m.id, clave: m.clave, nombre: m.nombre, grupo: m.empresaNombre ?? EMPRESAS[m.empresa], marca: <Logo empresa={m.empresa} />, ...(m.rec ? { rec: true } : {}), ...(m.local ? { local: true } : {}) }, m.desc);
+  desc(
+    {
+      id: m.id,
+      clave: m.clave,
+      nombre: m.nombre,
+      grupo: m.empresaNombre ?? EMPRESAS[m.empresa],
+      marca: <Logo empresa={m.empresa} />,
+      ...columnaDe(m),
+      ...(m.rec ? { rec: true } : {}),
+      ...(m.local ? { local: true } : {}),
+      ...(m.gratis ? { gratis: true } : {}),
+      // DeepSeek Harness con la API de DeepSeek: tu clave, se paga por uso (los de Ollama de dsh corren acá y no cuestan).
+      ...(m.id.startsWith("dsh:deepseek/") ? { pago: true } : {}),
+    },
+    m.desc,
+  );
 export const MODELOS: (Opcion & { clave: string })[] = TABLA.map(opcionDe);
 
 /** Los modelos de un worker de `pa` (`-m`): los mismos, sin los que sólo corren en un líder (los locales, Gemini, Ollama). */
@@ -55,21 +80,20 @@ const DESC_EFFORT: Record<string, ClaveSola> = {
  */
 export function effortsOpciones(modelo: string | null | undefined): Opcion[] {
   const def = defDe(modelo);
-  return effortsDe(modelo).map((id, i) => desc({ id, nombre: id, marca: <Nivel n={i} />, ...((def?.effortDefecto ?? "high") === id ? { rec: true } : {}) }, DESC_EFFORT[id]!));
+  return effortsDe(modelo).map((id, i) => desc({ id, nombre: id, marca: <Nivel n={i} />, ...((def?.effortDefecto ?? "high") === id ? { rec: true } : {}) }, DESC_EFFORT[id] ?? "effort.otro"));
 }
 
 export let MODELO_DEFAULT = "claude-opus-5-5";
-export const EFFORT_DEFAULT = "high";
 
 /** El id del selector para el modelo de un hilo ("claude-sonnet-5-5[1m]" → Sonnet). */
 export const modeloDe = (m: string | null | undefined) => {
   if (!m) return null;
   const base = partirGeminiId(m)[0];
-  const prefijo = /^(?:ollama|agy):/.exec(m)?.[0];
+  const prefijo = /^(?:ollama|agy|dsh):/.exec(m)?.[0];
   return (
     (
       MODELOS.find((x) => x.id === m || x.id === base) ??
-      MODELOS.find((x) => (prefijo ? x.id.startsWith(prefijo) : !/^(?:ollama|agy):/.test(x.id)) && m.includes(x.clave))
+      MODELOS.find((x) => (prefijo ? x.id.startsWith(prefijo) : !/^(?:ollama|agy|dsh):/.test(x.id)) && m.includes(x.clave))
     )?.id ?? null
   );
 };

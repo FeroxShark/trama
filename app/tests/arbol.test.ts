@@ -17,10 +17,6 @@ import {
   filasVisibles,
   fin,
   HUERFANO_S,
-  igualPrioridad,
-  prioridadDe,
-  proximoVencimiento,
-  rangoLider,
   lideresSinProceso,
   ordenCarpetas,
   lugarLider,
@@ -932,58 +928,3 @@ test("Dormidos: el líder sin proceso con más de un día quieto no se esconde, 
   assert.equal(reciente.carpetas.flatMap((x) => x.dormidos).length, 0);
 });
 
-test("orden por prioridad: necesita a Ana, caché vivo y el resto por actividad; el home primero; sin prioridad, el orden fijo de siempre", () => {
-  const H = 3600;
-  const L = (id: string, proyecto: string, p: Partial<Lider>): Lider => ({ ...lider(id, AHORA - 20 * MIN, false, AHORA - 9 * H + Number(id.slice(1))), inferido: proyecto === "general" ? null : proyecto, ...p });
-  const fria = { cache_vence: AHORA - MIN };
-  const lideres = [
-    L("g1", "general", fria),
-    L("a1", "atlas", fria), // atlas: fría, y a2 escribió después que a1
-    L("a2", "atlas", { ...fria, actividad: AHORA - 10 * MIN }),
-    L("b1", "brote", {}), // brote: caché vivo
-    L("b2", "brote", fria),
-    L("c1", "cauce", { ...fria, espera: { motivo: "listo", desde: 1 } }), // cauce: te espera
-    L("c2", "cauce", fria),
-    L("d1", "delta", { ...fria, pide: true, actividad: AHORA - 25 * MIN }), // pide un permiso
-  ];
-  const ver = (prioridad?: ReturnType<typeof prioridadDe>) => lugares(armarArbol([], { lideres, ahora: AHORA, prioridad }));
-  assert.deepEqual(ver(), ["general g1", "atlas a1 a2", "brote b1 b2", "cauce c1 c2", "delta d1"], "sin prioridad no cambia nada");
-  const p = prioridadDe(lideres, AHORA);
-  // general primero siempre; después los que te necesitan (cauce y delta, entre sí por nombre: empatan), el caché vivo y el resto por reciente.
-  assert.deepEqual(ver(p), ["general g1", "cauce c1 c2", "delta d1", "brote b1 b2", "atlas a2 a1"]);
-  // Dentro de una carpeta: te necesita, caché vivo, y los fríos por actividad reciente (el más nuevo arriba).
-  const mezcla = [L("m1", "atlas", fria), L("m2", "atlas", { ...fria, actividad: AHORA - 5 * MIN }), L("m3", "atlas", {}), L("m4", "atlas", { ...fria, pide: true })];
-  assert.deepEqual(lugares(armarArbol([], { lideres: mezcla, ahora: AHORA, prioridad: prioridadDe(mezcla, AHORA) })), ["atlas m4 m3 m2 m1"]);
-  // Buscando manda la búsqueda, no la prioridad.
-  assert.deepEqual(lugares(armarArbol([], { lideres, ahora: AHORA, prioridad: p, busqueda: "atlas" })), ["atlas a1 a2"]);
-});
-
-test("orden por prioridad: los rangos se congelan (lo que llega después no mueve a nadie) y no hay saltos dentro de un rango", () => {
-  const a = { ...lider("a", AHORA - 5 * MIN), inferido: "atlas", cache_vence: AHORA + 600 };
-  const b = { ...lider("b", AHORA - 5 * MIN, false, AHORA - 5 * 3600), inferido: "atlas", cache_vence: AHORA + 600 };
-  // Dos con el caché vivo: se quedan en su orden fijo aunque uno escriba (la actividad no cuenta en los rangos 0 y 1).
-  const p0 = prioridadDe([a, b], AHORA);
-  const escribe = { ...a, actividad: AHORA };
-  assert.ok(igualPrioridad(p0, prioridadDe([escribe, b], AHORA)));
-  assert.deepEqual(lugares(armarArbol([], { lideres: [escribe, b], ahora: AHORA, prioridad: p0 })), ["atlas a b"]);
-  // Un rango congelado manda aunque el líder ya esté en otro estado: `a` te espera ahora, pero la barra todavía no se enteró.
-  const espera = { ...a, espera: { motivo: "listo" as const, desde: 5 } };
-  assert.equal(rangoLider(espera, AHORA).r, 0);
-  assert.deepEqual(lugares(armarArbol([], { lideres: [espera, b], ahora: AHORA, prioridad: p0 })), lugares(armarArbol([], { lideres: [a, b], ahora: AHORA, prioridad: p0 })));
-  // Un líder que no estaba en la foto cuenta como frío.
-  const nuevo = { ...lider("n", AHORA), inferido: "atlas", cache_vence: AHORA + 600 };
-  assert.deepEqual(lugares(armarArbol([], { lideres: [nuevo, a, b], ahora: AHORA, prioridad: p0 })), ["atlas a b n"]);
-});
-
-test("orden por prioridad: el caché vivo termina cuando vence (próximo vencimiento) y uno sin proceso no pide ni calienta", () => {
-  const caliente = (id: string, vence: number | null, p: Partial<Lider> = {}) => ({ ...lider(id), cache_vence: vence, ...p });
-  const ls = [caliente("x", AHORA + 900), caliente("y", AHORA + 300), caliente("z", AHORA - 5), caliente("w", null)];
-  assert.equal(proximoVencimiento(ls, AHORA), AHORA + 300);
-  assert.equal(proximoVencimiento([ls[2], ls[3]], AHORA), null);
-  assert.equal(rangoLider(ls[1], AHORA).r, 1);
-  assert.equal(rangoLider(ls[1], AHORA + 301).r, 2, "vencido: ya no es caliente");
-  assert.equal(rangoLider(ls[3], AHORA).r, 2, "sin dato de caché no se asume");
-  const muerto = caliente("m", AHORA + 900, { caido: "murio", pide: true });
-  assert.equal(rangoLider(muerto, AHORA).r, 2);
-  assert.equal(proximoVencimiento([muerto], AHORA), null);
-});

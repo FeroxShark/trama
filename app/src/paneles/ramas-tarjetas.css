@@ -1,0 +1,274 @@
+/* Ramas: filtros por veredicto, encabezados plegables y tarjetas compactas. Todo con ícono y texto, no sólo color. */
+.pn-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.pn-auto-nota {
+  margin: var(--esp-1) 0 var(--esp-3);
+}
+.pn-filtros {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--esp-2);
+  margin: var(--esp-3) 0;
+}
+.pn-chip-f {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--esp-1-5);
+  padding: var(--esp-1) var(--esp-2-5);
+  border: 1px solid var(--borde-3);
+  border-radius: 999px;
+  background: none;
+  color: var(--texto-4);
+  font-size: var(--letra-4);
+}
+.pn-chip-f b {
+  color: var(--texto-2);
+  font-weight: 600;
+}
+.pn-chip-f:hover {
+  color: var(--texto-1);
+}
+.pn-chip-f[aria-pressed="true"] {
+  border-color: var(--texto-4);
+  background: var(--borde-1);
+  color: var(--texto-1);
+}
+.pn-chip-f:focus-visible,
+.pn-plegar:focus-visible,
+.pn-motivo:focus-visible {
+  outline: 2px solid var(--texto-3);
+  outline-offset: 2px;
+}
+.pn-h-plegable {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-3);
+}
+.pn-plegar {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--esp-1-5);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+}
+.pn-plegar svg {
+  transition: transform 0.15s;
+}
+.pn-plegar svg[data-cerrado] {
+  transform: rotate(-90deg);
+}
+.pn-mini-v {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--esp-1);
+  color: var(--texto-5);
+  font-size: var(--letra-3);
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0;
+}
+/* La tarjeta: título de hasta 2 líneas, chips, motivo de 1 línea y las acciones al costado. */
+.pn-rama {
+  align-items: flex-start;
+}
+.pn-tarea {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.pn-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--esp-1-5);
+  margin-top: var(--esp-1);
+}
+.pn-estado {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--esp-1);
+  padding: 0 var(--esp-2);
+  border: 1px solid var(--borde-3);
+  border-radius: 999px;
+  font-size: var(--letra-3);
+  font-weight: 500;
+  line-height: 1.5;
+}
+/* El veredicto es una etiqueta, no un botón: sin borde ni fondo, chica y apagada (la acción es el botón de la derecha). */
+.pn-veredicto {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--esp-1);
+  color: var(--texto-5);
+  font-size: var(--letra-3);
+  line-height: 1.5;
+  cursor: default;
+}
+.pn-sinverif {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--esp-1);
+  padding: 0 var(--esp-2);
+  border: 1px dashed var(--texto-5);
+  border-radius: 999px;
+  color: var(--texto-3);
+  font-size: var(--letra-3);
+  font-weight: 500;
+  line-height: 1.5;
+}
+.pn-motivo {
+  display: -webkit-box;
+  max-width: 100%;
+  margin-top: var(--esp-1);
+  overflow: hidden;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--texto-5);
+  font-size: var(--letra-4);
+  text-align: left;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
+  line-clamp: 1;
+  cursor: pointer;
+}
+.pn-motivo[data-largo] {
+  -webkit-line-clamp: unset;
+  line-clamp: unset;
+  color: var(--texto-3);
+}
+.pn-mas {
+  position: relative;
+}
+.pn-mas-lista {
+  position: fixed;
+  z-index: 60;
+  display: flex;
+  min-width: 8rem;
+  flex-direction: column;
+  padding: var(--esp-1);
+  border: 1px solid var(--borde-3);
+  border-radius: var(--radio-2);
+  background: var(--sup-2);
+}
+.pn-mas-it {
+  padding: var(--esp-1-5) var(--esp-2-5);
+  border: 0;
+  border-radius: var(--radio-1);
+  background: none;
+  color: var(--texto-2);
+  text-align: left;
+}
+.pn-mas-it:hover,
+.pn-mas-it:focus-visible {
+  background: var(--borde-1);
+  color: var(--texto-1);
+}
+@media (max-width: 640px) {
+  .pn-acc {
+    flex-basis: 100%;
+  }
+}
+.pn-ramas-cab {
+  flex-wrap: wrap;
+}
+.pn-ramas-cab .pn-nota {
+  flex: 1 1 12rem;
+}
+
+/* Aplicar todos los veredictos: la confirmación y el avance por rama. Cada estado lleva ícono y texto. */
+.pn-aplicar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-2);
+  margin: var(--esp-3) 0;
+  padding: var(--esp-3);
+  border: 1px solid var(--borde-3);
+  border-radius: var(--radio-2);
+  background: var(--sup-2);
+}
+.pn-aplicar-t {
+  color: var(--texto-1);
+  font-weight: 600;
+}
+.pn-aplicar-gt {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-1-5);
+  color: var(--texto-2);
+  font-weight: 500;
+}
+.pn-aplicar-g ul,
+.pn-aplicar-lista {
+  margin: var(--esp-1) 0 0;
+  padding: 0 0 0 var(--esp-5);
+  color: var(--texto-4);
+  font-size: var(--letra-4);
+}
+.pn-aplicar-lista {
+  padding: 0;
+  list-style: none;
+}
+.pn-aplicar-lista li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--esp-2);
+  padding: var(--esp-1) 0;
+}
+.pn-aplicar-acc {
+  color: var(--texto-2);
+  font-weight: 500;
+}
+.pn-aplicar-nom {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pn-aplicar-fase {
+  color: var(--texto-5);
+}
+.pn-aplicar-err {
+  flex-basis: 100%;
+}
+.pn-aplicar-aviso {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-1-5);
+  color: var(--texto-2);
+  font-size: var(--letra-4);
+}
+.pn-aplicar-pie {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--esp-2);
+}
+.pn-aplicar-lista svg[data-gira] {
+  animation: pn-gira 1s linear infinite;
+}
+@keyframes pn-gira {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pn-aplicar-lista svg[data-gira] {
+    animation: none;
+  }
+}

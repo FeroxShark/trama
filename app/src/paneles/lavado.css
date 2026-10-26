@@ -1,4 +1,4 @@
-/* El lavado de cara (docs/estado/lavado-sistema.md) para Ramas y Estadísticas: cada sección es una tarjeta del estándar
+/* El lavado de cara para Ramas y Estadísticas: cada sección es una tarjeta del estándar
    (capa-card, título chico en sentence case, filas con separador capa-div). Ajustes y el Tablero tienen lo suyo
    (`.aj-cat`, `.pn-tablero`), por eso todo cuelga de `.pn` sin esas dos. */
 .pn:not(.pn-ajustes, .pn-tablero) {

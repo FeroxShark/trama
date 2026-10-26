@@ -10,7 +10,7 @@ export type Columna = Abierta | "hecho";
 
 /**
  * Qué item es. Los de este tablero llevan su número; los de otra máquina (`maquina`) llevan `maquina:número`, porque
- * los números de dos tableros chocan (etapa 7, M5): la acción sobre uno va al tablero de su máquina.
+ * los números de dos tableros chocan: la acción sobre uno va al tablero de su máquina.
  */
 export type ItemId = number | string;
 
@@ -19,7 +19,7 @@ export const numero = (id: ItemId): string => String(id).replace(/^.*:/, "");
 
 export type Item = {
   id: ItemId;
-  /** El id de la otra máquina de la que viene (`dell`) y su nombre; sin venir, el item es de este tablero. */
+  /** El id de la otra máquina de la que viene (`servidor`) y su nombre; sin venir, el item es de este tablero. */
   maquina?: string;
   maquinaNombre?: string;
   columna: string;

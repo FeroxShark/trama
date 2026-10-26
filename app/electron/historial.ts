@@ -364,7 +364,7 @@ export function crearHistorial(o: {
     } else s.rol = w ? "worker" : "lider";
     if (w) {
       s.worker = w.id;
-      // El nombre del registry, no el de la carpeta del worktree.
+      // El nombre de la carpeta del proyecto en PA_STATE (`<PA_STATE>/<proyecto>/<id>.sid`), no el de la carpeta del worktree.
       s.proyecto = w.proyecto;
     }
   }

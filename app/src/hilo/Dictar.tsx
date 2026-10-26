@@ -1,4 +1,4 @@
-// El botón de dictar de la caja del líder (docs/estado/dictado.md): al lado de Mandar. Apretás y graba (contador
+// El botón de dictar de la caja del líder: al lado de Mandar. Apretás y graba (contador
 // de tiempo, tope de 5 min); apretás de nuevo y el audio, ya en WAV 16 kHz mono (src/hilo/dictado.ts), va al motor
 // por el RPC de siempre (`fuente.dictar`, Handy en la máquina del motor). El texto se AGREGA al borrador de la caja
 // de donde se empezó, no se manda solo. Si falla, la grabación queda acá: Reintentar o Descartar, nunca se pierde
@@ -62,13 +62,15 @@ export function Dictar({ clave, alError, alNota, alListo }: Props) {
   }, [fase]);
 
   // Si la caja se va con el micrófono abierto, se suelta.
-  useEffect(
-    () => () => {
+  const vivo = useRef(true);
+  useEffect(() => {
+    vivo.current = true;
+    return () => {
+      vivo.current = false;
       grabando.current?.g.cancelar();
       grabando.current = null;
-    },
-    [],
-  );
+    };
+  }, []);
 
   const mala = (e: unknown) => {
     setFase("libre");
@@ -81,11 +83,13 @@ export function Dictar({ clave, alError, alNota, alListo }: Props) {
     setFase("pidiendo");
     try {
       const g = await empezar();
+      // La caja se fue mientras esperaba el permiso: el micrófono recién abierto se suelta ya.
+      if (!vivo.current) return g.cancelar();
       grabando.current = { g, desde: performance.now(), clave };
       setSeg(0);
       setFase("grabando");
     } catch (e) {
-      mala(e);
+      if (vivo.current) mala(e);
     }
   };
 

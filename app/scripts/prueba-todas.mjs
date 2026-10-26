@@ -32,7 +32,7 @@ const lista = pedidos.length ? pedidos : todos;
 function correr(nombre) {
   return new Promise((resolve) => {
     const t0 = Date.now();
-    // electron/aislar.ts anota ahí todo acceso al HOME de verdad (los datos de Ana): la prueba no puede dar verde con eso.
+    // electron/aislar.ts anota ahí todo acceso al HOME de verdad (los datos del usuario): la prueba no puede dar verde con eso.
     const aislar = path.join(mkdtempSync(path.join(tmpdir(), "prueba-aislar-")), "log");
     mkdirSync(path.join(path.dirname(aislar), "casa"));
     // Cada script con su HOME y XDG vacíos (en /tmp) y sin carpetas del home en el PATH: `os.homedir()` vale lo mismo para la prueba y para la app.
@@ -40,8 +40,8 @@ function correr(nombre) {
     const real = homedir();
     const camino = (process.env.PATH ?? "").split(":").filter((d) => d && d !== real && !d.startsWith(`${real}/`)).join(":");
     // El CLI `tablero` es una herramienta, no un dato: se busca antes de limpiar el PATH y se declara permitido (la prueba usa un tablero temporal).
-    const tablero =
-      process.env.HILOS_TABLERO ?? [...(process.env.PATH ?? "").split(":"), path.join(real, ".local/bin")].map((d) => path.join(d, "tablero")).find((f) => existsSync(f));
+    const candidatos = [...(process.env.PATH ?? "").split(":"), path.join(real, ".local/bin")].map((d) => path.join(d, "tablero"));
+    const tablero = process.env.HILOS_TABLERO ?? [...candidatos, path.join(raiz, "..", "motor", "bin", "tablero")].find((f) => existsSync(f));
     const p = spawn(process.execPath, [path.join(import.meta.dirname, `prueba-${nombre}.mjs`)], {
       cwd: raiz,
       detached: true,

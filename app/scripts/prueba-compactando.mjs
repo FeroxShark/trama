@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Prueba de punta a punta del chat vivo (docs/estado/chat-vivo.md) con los fakes: abre la
+// Prueba de punta a punta del chat vivo con los fakes: abre la
 // app offscreen (HILOS_PRUEBA, sin ventana) con el `pa` falso, un líder de terminal de
 // mentira (un `sleep` con su sesión en un HILOS_SESIONES temporal) y el `claude` falso.
 //  1. Compactar: corre `scripts/hook-compactando.sh` como lo corre Claude Code (PreCompact /
@@ -303,7 +303,7 @@ try {
   await espera(700);
   const a2 = await en(medida);
   ok(m1 && a2 && a2.n > a1.n && a2.falta <= 8 && a2.top > a1.top, `la lista sigue el último paso (${a1?.n} → ${a2?.n} pasos, de ${a1?.top} a ${a2?.top} px, faltan ${a2?.falta})`);
-  // Ana sube: deja de seguir aunque sigan llegando pasos.
+  // el usuario sube: deja de seguir aunque sigan llegando pasos.
   await en(() => void ([...document.querySelectorAll(".conv details.trabajo[open] ul")].at(-1).scrollTop = 0));
   await espera(100);
   const b1 = await en(medida);

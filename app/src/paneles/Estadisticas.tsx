@@ -11,7 +11,9 @@ import { duracion } from "../tiempo";
 import { ErrorCarga } from "./ErrorCarga";
 import { Historial } from "./Historial";
 import { Vacio } from "./Vacio";
+import "./estadisticas-vista.css";
 import { mensaje } from "../puente";
+import { useNombreProyecto } from "../datos/proyectos";
 import {
   cambio,
   cuota,
@@ -126,9 +128,9 @@ export function Estadisticas() {
       </div>
 
       <section className="pn-cifras">
-        <Cifra nombre={t("est.corridas")} valor={r.corridas.toLocaleString(locale())} />
-        <Cifra nombre={t("est.tiempo")} valor={r.corridas ? duracion(r.tiempo_s) : "0 m"} />
-        <Cifra nombre={t("est.tokens")} valor={tokens(r.tokens)} />
+        <Cifra nombre={t("est.corridas")} valor={r.corridas.toLocaleString(locale())} sub={t("est.corridasSub")} />
+        <Cifra nombre={t("est.tiempo")} valor={r.corridas ? duracion(r.tiempo_s) : "0 m"} sub={t("est.tiempoSub")} />
+        <Cifra nombre={t("est.tokens")} valor={tokens(r.tokens)} sub={t("est.tokensSub")} />
         <Cifra nombre={t("est.cache")} valor={r.cache === null ? "—" : pct(r.cache)} sub={t("est.cacheSub")} />
         <Cifra
           nombre={t("est.compact")}
@@ -347,6 +349,7 @@ function Cuota({ q, ahora, desde }: { q: ReturnType<typeof cuota>; ahora: number
               {desde !== null && desde > q.ultima.sem_reset - 7 * 86400 ? t("est.arranca", { f: fecha(desde) }) : ""}
             </div>
           )}
+          <div className="pn-nota">{t("est.cuotaVer")}</div>
           <div className="pn-semanas">
             {q.anteriores.length ? (
               q.anteriores.slice(0, 6).map((s) => (
@@ -406,6 +409,7 @@ function PorModelo({ partes }: { partes: { familia: Familia; n: number; tokens: 
 const TOPE = 8;
 
 function PorProyecto({ partes }: { partes: ReturnType<typeof resumir>["porProyecto"] }) {
+  const nombreProy = useNombreProyecto();
   const filas = partes.slice(0, TOPE);
   const resto = partes.slice(TOPE);
   if (resto.length) {
@@ -427,7 +431,7 @@ function PorProyecto({ partes }: { partes: ReturnType<typeof resumir>["porProyec
       {filas.length === 0 ? <div className="pn-aviso">{t("est.sinPeriodo")}</div> : null}
       {filas.map((p) => (
         <div key={p.nombre} className="pn-parte">
-          <span className="pn-parte-n">{p.nombre}</span>
+          <span className="pn-parte-n">{nombreProy(p.nombre)}</span>
           <div className="pn-apilada">
             <div className="pn-pila pn-pila-m" style={{ width: `${(p.tokens / tope) * 100}%` }}>
               {FAMILIAS.filter((f) => p.modelos[f] > 0).map((f) => (

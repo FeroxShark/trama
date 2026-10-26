@@ -11,7 +11,8 @@ import { promptRetomar } from "./retomar";
 import { promptArreglar } from "./arreglar";
 import { salud as saludDe, type EstadoSalud } from "./salud";
 import type { Hilo } from "./contrato";
-import { ACCESOS_FALSOS, AJUSTES, AUTO, ENTORNO_OLLAMA, MODELOS_FIJOS, OLLAMA_FALSO, arranqueMedidoFalso, historialFalso, MEDICION, REMOTO, SALUD, URL_REMOTO_FALSA } from "./fixtures-paneles";
+import { claveCalidad } from "../paneles/modelos-workers";
+import { ACCESOS_FALSOS, AJUSTES, AUTO, ENTORNO_OLLAMA, ESTADO_DSH, ESTADO_OPENCODE, MODELOS_FIJOS, TABLA_REPARTO, OLLAMA_FALSO, arranqueMedidoFalso, historialFalso, MEDICION, REMOTO, SALUD, URL_REMOTO_FALSA } from "./fixtures-paneles";
 import type { EstadoAuto } from "../../electron/autointegrar";
 import type { Consulta, PiezaConsulta } from "../../electron/historial";
 import type { Arranque, Medido } from "../../electron/arranque";
@@ -19,8 +20,23 @@ import type { EstadoModelos, Sondeo } from "../../electron/modelos-config";
 import type { ConfigModelos } from "../../electron/modelos-tipos";
 import type { Bajada } from "../../electron/ollama-bajar";
 import type { EntornoOllama } from "../../electron/ollama-entorno";
+import type { EstadoDsh, Prueba } from "../../electron/dsh-ajustes";
+import type { NombreClave } from "../../electron/claves";
+import type { EstadoOpencodeUi } from "../../electron/opencode-ajustes";
+import type { TablaReparto } from "../../electron/reparto-tabla";
+import type { EstadoAA, ResultadoAA } from "../../electron/artificial-analysis";
+import type { DatosAgentsMd, LeccionesPendiente } from "../../electron/orquestacion";
 
-export type { Arranque, Bajada, ConfigModelos, Consulta, EntornoOllama, EstadoAuto, EstadoModelos, EstadoSalud, Medido, PiezaConsulta, Sondeo };
+export type { TablaReparto, EstadoAA, ResultadoAA };
+export type { DatosAgentsMd, LeccionesPendiente };
+/** AGENTS.md de un proyecto: lo que dijo `pa --agents-md` y dónde vive el proyecto. */
+export type AgentsMd = DatosAgentsMd & { proyecto: string; ruta: string | null };
+/** Un worker de rama para auditar: `pa <proy> --auditar <id> -m <modelo> --async` (sólo Claude). */
+export type PedidoAuditar = { id: string; proyecto: string; modelo: string };
+export type { Arranque, Bajada, ConfigModelos, Consulta, EntornoOllama, EstadoAuto, EstadoDsh, EstadoModelos, EstadoOpencodeUi, EstadoSalud, Medido, NombreClave, PiezaConsulta, Prueba, Sondeo };
+
+/** Los proveedores de DeepSeek Harness que se pueden probar desde Ajustes. */
+export type ProveedorDshUi = "opencode" | "deepseek" | "ollama";
 
 /** El registro histórico de los últimos 7 o 30 días (electron/historial.ts), o por qué no se pudo. */
 export type Historial = Consulta | { version: number; error: string };
@@ -115,10 +131,23 @@ export interface FuentePaneles {
   rama(accion: AccionRama, h: Hilo): Promise<void>;
   /** Lanza ese worker (`pa <proy> --actualizar <id> --async -m … --effort … --tipo …`). Rechaza con lo que dijo `pa`. */
   lanzar(x: LanzarRama): Promise<void>;
+  /** Los proyectos cuyas lecciones pasaron el tope (`lecciones.necesita-poda`). */
+  leccionesPendientes(): Promise<LeccionesPendiente[]>;
+  /** La instrucción de `pa <proy> --lecciones-podar` (para que un agente reescriba las lecciones). Rechaza con lo que dijo `pa`. */
+  textoPoda(proyecto: string): Promise<string>;
+  leerLecciones(proyecto: string): Promise<string>;
+  /** Guarda lecciones.md (y saca el aviso si ya entra en el tope). */
+  guardarLecciones(proyecto: string, texto: string): Promise<{ necesitaPoda: boolean }>;
+  /** Lanza el revisor de sólo lectura de esa rama (`--auditar … --async`). Rechaza con lo que dijo `pa`. */
+  auditar(x: PedidoAuditar): Promise<void>;
+  /** `pa <proy> --agents-md`: la plantilla si falta el archivo. */
+  agentsMd(proyecto: string): Promise<AgentsMd>;
   /** Reescribe esas filas de la tabla de routing; devuelve cómo quedó o el error. */
   guardarRouting(cambios: CambioRouting[]): Promise<Routing>;
   /** La config de modelos (`~/.config/trama/modelos.json`): lo que hay, o lo de hoy si no hay archivo. */
   modelos(): Promise<EstadoModelos>;
+  /** Lo que `pa --modelos --json` dice que corre hoy y lo que elegiría `reparto`: tarda (corre `reparto` por tipo), así que `modelos()` viene sin esto y se pide aparte. */
+  efectivoModelos(): Promise<EstadoModelos["efectivo"]>;
   /** Guarda esa config (y las filas de `~/CLAUDE.md` que salen de ella); rechaza con el motivo sin haber escrito nada. */
   guardarModelos(config: ConfigModelos): Promise<EstadoModelos>;
   /** Qué modelos tiene instalados el Ollama de esa dirección, o por qué no contesta. */
@@ -131,6 +160,26 @@ export interface FuentePaneles {
   alBajar(fn: (b: Bajada) => void): () => void;
   /** Qué hay en esta máquina para Ollama (instalado, distro, GPU y VRAM, comandos de instalar y arrancar); sólo lee. */
   entornoOllama(): Promise<EntornoOllama>;
+  /** DeepSeek Harness: si `dsh` está instalado (y su versión), qué API keys hay (nunca su valor) y el comando para instalarlo. */
+  estadoDsh(): Promise<EstadoDsh>;
+  /** `npm i -g @deepseek-ai/dsh`; devuelve el estado de después o rechaza con el motivo. */
+  instalarDsh(): Promise<EstadoDsh>;
+  /** Guarda (o, con `null`, borra) una API key; devuelve el estado. La key no vuelve. */
+  claveDsh(nombre: NombreClave, valor: string | null): Promise<EstadoDsh>;
+  /** Prueba un proveedor con la key guardada (`GET /models`; Ollama, `/api/tags`); nunca rechaza por no contestar. */
+  probarDsh(proveedor: ProveedorDshUi, url?: string): Promise<Prueba>;
+  /** `reparto --tabla --json`: los modelos que reparto conoce con su inteligencia y cupo; `null` si no hay `reparto` (o es uno viejo). */
+  repartoTabla(): Promise<TablaReparto | null>;
+  /** La caché de Artificial Analysis se actualizó de fondo: conviene volver a pedir la tabla. */
+  alTablaNueva(fn: () => void): () => void;
+  /** Artificial Analysis: si hay key y de cuándo es la caché (la key se guarda con `claveDsh`). */
+  estadoAA(): Promise<EstadoAA>;
+  /** Baja la lista de Artificial Analysis ahora; nunca rechaza: dice qué pasó (key mala, límite diario, sin red…). */
+  refrescarAA(): Promise<{ resultado: ResultadoAA; estado: EstadoAA }>;
+  /** OpenCode (el programa `opencode`): instalado, versión, login y cuántos modelos ofrece. */
+  estadoOpencode(): Promise<EstadoOpencodeUi>;
+  /** Vuelve a listar los modelos de `opencode`; devuelve el estado de después o rechaza con el motivo. */
+  actualizarOpencode(): Promise<EstadoOpencodeUi>;
   /** Guarda el plan (`pa --plan`) y/o la red de seguridad (`autoCompactWindow`); devuelve Ajustes como quedó o rechaza con el motivo. */
   guardarAjustes(cambio: CambioAjustes): Promise<Ajustes>;
   /** El acceso desde el celular: cómo está y dónde escucha. */
@@ -194,6 +243,15 @@ function cae(que: keyof typeof FALLAS_PANEL): boolean {
 
 /** La config de modelos de los fixtures: se arma al primer pedido y vive mientras la página. */
 let modelosFijos: EstadoModelos | undefined;
+/** DeepSeek Harness de los fixtures (instalado o no, con qué keys): vive mientras la página. */
+let dshFijo: EstadoDsh | undefined;
+/** Artificial Analysis en las capturas: la caché es de ayer en las variantes `mdl-wk-aa*` y no hay en las demás hasta que se refresca. */
+let aaFecha: number | null | undefined;
+const estadoAAFijo = () => {
+  aaFecha ??= MODO.variante?.startsWith("mdl-wk-aa") ? Date.now() - 20 * 3_600_000 : null;
+  return { version: 1 as const, hayClave: (dshFijo ?? ESTADO_DSH(MODO.variante)).claves.ARTIFICIAL_ANALYSIS_API_KEY, fecha: aaFecha, modelos: aaFecha ? 187 : 0 };
+};
+let ocFijo: EstadoOpencodeUi | undefined;
 
 const FALLA_CONFLICTO = "pa: conflicts merging into main. A worker can resolve it: pa atlas --actualizar 20261003-100000-11111";
 
@@ -230,8 +288,16 @@ const fija: FuentePaneles = {
     return AJUSTES;
   },
   async modelos() {
+    if (MODO.variante === "cargando") return new Promise(() => {});
     modelosFijos ??= MODELOS_FIJOS(MODO.variante?.startsWith("mdl") === true, MODO.variante === "mdl-auto");
-    return structuredClone(modelosFijos);
+    // Como el real: la config enseguida, sin `efectivo` (eso va por `efectivoModelos`).
+    return { ...structuredClone(modelosFijos), efectivo: null };
+  },
+  async efectivoModelos() {
+    // `mdl-efectivo-tarda`: `pa --modelos` no contesta nunca (se ve «Hoy elegiría» en espera con el resto ya a la vista).
+    if (MODO.variante === "mdl-efectivo-tarda") return new Promise(() => {});
+    await espera(400);
+    return structuredClone((modelosFijos ?? MODELOS_FIJOS(MODO.variante?.startsWith("mdl") === true, MODO.variante === "mdl-auto")).efectivo);
   },
   async guardarModelos(config) {
     await espera(150);
@@ -241,7 +307,7 @@ const fija: FuentePaneles = {
       throw new Error(textoT("main.modelosRoto", { ruta: "~/.config/trama/modelos.json", e: "Unexpected token } in JSON at position 41" }));
     }
     modelosFijos = { ...(modelosFijos ?? MODELOS_FIJOS(false)), existe: true, config: structuredClone(config) };
-    return structuredClone(modelosFijos);
+    return { ...structuredClone(modelosFijos), efectivo: null };
   },
   async sondearOllama(url) {
     await espera(250);
@@ -252,6 +318,65 @@ const fija: FuentePaneles = {
   async entornoOllama() {
     await espera(120);
     return structuredClone(ENTORNO_OLLAMA(MODO.variante));
+  },
+  async estadoDsh() {
+    if (MODO.variante === "cargando-dsh") return new Promise(() => {});
+    await espera(80);
+    dshFijo ??= ESTADO_DSH(MODO.variante);
+    return structuredClone(dshFijo);
+  },
+  async instalarDsh() {
+    await espera(900);
+    if (MODO.variante === "dsh-falla") throw new Error(textoT("main.dshInstalarFallo", { cmd: "npm i -g @deepseek-ai/dsh", e: "npm error code EACCES\nnpm error path /usr/lib/node_modules" }));
+    dshFijo = { ...(dshFijo ?? ESTADO_DSH(MODO.variante)), instalado: true, versionDsh: "0.2.1" };
+    return structuredClone(dshFijo);
+  },
+  async claveDsh(nombre, valor) {
+    await espera(120);
+    dshFijo ??= ESTADO_DSH(MODO.variante);
+    dshFijo = { ...dshFijo, claves: { ...dshFijo.claves, [nombre]: valor !== null } };
+    return structuredClone(dshFijo);
+  },
+  async probarDsh(proveedor) {
+    await espera(500);
+    // `dsh-falla`: DeepSeek rechaza la key; el resto responde.
+    if (MODO.variante === "dsh-falla" && proveedor === "deepseek") return { ok: false, motivo: textoT("main.dshClaveMala", { k: "DEEPSEEK_API_KEY" }) };
+    if (proveedor === "ollama") return { ok: true, modelos: OLLAMA_FALSO.length };
+    return { ok: true, modelos: proveedor === "opencode" ? 14 : 3 };
+  },
+  alTablaNueva() {
+    return () => undefined;
+  },
+  async repartoTabla() {
+    // `mdl-wk-cargando`: la tabla no llega nunca (se ve su esqueleto con el resto del panel ya a la vista).
+    if (MODO.variante === "mdl-wk-cargando") return new Promise(() => {});
+    await espera(120);
+    if (MODO.variante === "mdl-wk-sin") return null;
+    // Los fixtures reflejan lo guardado: la inteligencia que se fijó deja de ser «estimada».
+    const cal = (modelosFijos ?? MODELOS_FIJOS(MODO.variante?.startsWith("mdl") === true)).config.calidad;
+    const t = TABLA_REPARTO(MODO.variante?.startsWith("mdl-wk-aa") === true);
+    return { ...t, modelos: t.modelos.map((f) => (claveCalidad(f) in cal && cal[claveCalidad(f)] !== f.calidad ? { ...f, calidad: cal[claveCalidad(f)]!, estimada: false, origen: "usuario", aaFecha: null } : f)) };
+  },
+  async estadoAA() {
+    await espera(60);
+    return estadoAAFijo();
+  },
+  async refrescarAA() {
+    await espera(700);
+    if (!dshFijo?.claves.ARTIFICIAL_ANALYSIS_API_KEY && !ESTADO_DSH(MODO.variante).claves.ARTIFICIAL_ANALYSIS_API_KEY) return { resultado: { ok: false, tipo: "sin-clave" }, estado: estadoAAFijo() };
+    if (MODO.variante === "mdl-wk-aa-mala") return { resultado: { ok: false, tipo: "clave" }, estado: estadoAAFijo() };
+    aaFecha = Date.now();
+    return { resultado: { ok: true, vigente: false, modelos: 187, fetched: new Date(aaFecha).toISOString() }, estado: estadoAAFijo() };
+  },
+  async estadoOpencode() {
+    await espera(80);
+    ocFijo ??= ESTADO_OPENCODE(MODO.variante);
+    return structuredClone(ocFijo);
+  },
+  async actualizarOpencode() {
+    await espera(600);
+    ocFijo = { ...(ocFijo ?? ESTADO_OPENCODE(MODO.variante)), actualizado: Date.now() };
+    return structuredClone(ocFijo);
   },
   async bajarModelo(url, modelo) {
     const nombre = modelo.trim();
@@ -294,6 +419,7 @@ const fija: FuentePaneles = {
     return () => void oyentesBajada.delete(fn);
   },
   async remoto() {
+    if (MODO.variante === "cargando") return new Promise(() => {});
     return { version: 1, editable: true, ...REMOTO, escuchando: REMOTO.activo ? [URL_REMOTO_FALSA(REMOTO.puerto)] : [], accesos: ACCESOS_FALSOS().filter((a) => REMOTO.dispositivos.includes(a.nombre)) };
   },
   async guardarRemoto(config) {
@@ -337,6 +463,30 @@ const fija: FuentePaneles = {
     await espera(350);
     // Para probar el camino del error: `?falla=lanzar`.
     if (MODO.falla === "lanzar") throw new Error("pa: effort 'max' with 'claude-opus-5-5' needs --ok-dueno");
+  },
+  async leccionesPendientes() {
+    return MODO.captura === "tablero-lecciones" ? [{ proyecto: "atlas", motivo: "34 líneas, 3410 caracteres (tope 30 / 3000)" }] : [];
+  },
+  async textoPoda(proyecto) {
+    await espera(150);
+    return `Podá las lecciones de '${proyecto}' (no abre nada: lo hace un agente). Releé lecciones.md y reescribilo más corto: máximo 30 líneas y 3000 caracteres.`;
+  },
+  async leerLecciones() {
+    return LECCIONES_FALSAS.texto;
+  },
+  async guardarLecciones(_p, texto) {
+    await espera(200);
+    if (MODO.falla === "lecciones") throw new Error("EACCES: permission denied");
+    LECCIONES_FALSAS.texto = texto;
+    return { necesitaPoda: texto.split("\n").filter(Boolean).length > 30 };
+  },
+  async auditar() {
+    await espera(300);
+    if (MODO.falla === "auditar") throw new Error("pa: --auditar: no encuentro esa corrida ni esa rama");
+  },
+  async agentsMd(proyecto) {
+    await espera(200);
+    return { existe: false, plantilla: "# AGENTS.md\n\n## Qué es\n<una o dos líneas>", aviso: "", proyecto, ruta: `~/Proyectos/${proyecto}` };
   },
   async guardarRouting(cambios) {
     await espera(150);
@@ -437,6 +587,11 @@ const fija: FuentePaneles = {
   },
 };
 
+/** Las lecciones de muestra (fixtures): se editan y quedan hasta recargar. */
+const LECCIONES_FALSAS = {
+  texto: Array.from({ length: 34 }, (_, i) => `- 2026-10-${String((i % 26) + 1).padStart(2, "0")} Lección ${i + 1}: correr los tests con npm test antes de integrar.`).join("\n") + "\n",
+};
+
 const conPa = (m: NonNullable<typeof main>): FuentePaneles => ({
   async ajustes() {
     return (await m.paneles.ajustes()) as Ajustes;
@@ -472,11 +627,45 @@ const conPa = (m: NonNullable<typeof main>): FuentePaneles => ({
     if (r.rc === 0) return;
     throw new ErrorPa(r.dijo || fraseError(t("error.paSalio", { accion: x.accion, rc: r.rc }), r.rc), r.rc);
   },
+  async leccionesPendientes() {
+    const r = await m.paneles.leccionesPendientes().catch(() => []);
+    return Array.isArray(r) ? (r as LeccionesPendiente[]) : [];
+  },
+  async textoPoda(proyecto) {
+    return m.paneles.textoPoda(proyecto).catch((e) => {
+      throw new Error(mensaje(e));
+    });
+  },
+  async leerLecciones(proyecto) {
+    return m.paneles.leerLecciones(proyecto).catch((e) => {
+      throw new Error(mensaje(e));
+    });
+  },
+  async guardarLecciones(proyecto, texto) {
+    return (await m.paneles.guardarLecciones(proyecto, texto).catch((e) => {
+      throw new Error(mensaje(e));
+    })) as { necesitaPoda: boolean };
+  },
+  async auditar(x) {
+    const r = await m.paneles.auditar(x).catch((e) => {
+      throw new Error(mensaje(e));
+    });
+    if (r.rc === 0) return;
+    throw new ErrorPa(r.dijo || fraseError(t("error.paSalio", { accion: "auditar", rc: r.rc }), r.rc), r.rc);
+  },
+  async agentsMd(proyecto) {
+    return (await m.paneles.agentsMd(proyecto).catch((e) => {
+      throw new Error(mensaje(e));
+    })) as AgentsMd;
+  },
   async guardarRouting(cambios) {
     return (await m.paneles.routing(cambios).catch((e) => ({ version: 1, error: mensaje(e) }))) as Routing;
   },
   async modelos() {
     return (await m.paneles.modelos().catch(fallar)) as EstadoModelos;
+  },
+  async efectivoModelos() {
+    return (await m.paneles.efectivoModelos().catch(() => null)) as EstadoModelos["efectivo"];
   },
   async guardarModelos(config) {
     return (await m.paneles.guardarModelos(config).catch(fallar)) as EstadoModelos;
@@ -495,6 +684,36 @@ const conPa = (m: NonNullable<typeof main>): FuentePaneles => ({
   },
   async entornoOllama() {
     return (await m.paneles.entornoOllama().catch(fallar)) as EntornoOllama;
+  },
+  async estadoDsh() {
+    return (await m.paneles.estadoDsh().catch(fallar)) as EstadoDsh;
+  },
+  async instalarDsh() {
+    return (await m.paneles.instalarDsh().catch(fallar)) as EstadoDsh;
+  },
+  async claveDsh(nombre, valor) {
+    return (await m.paneles.claveDsh(nombre, valor).catch(fallar)) as EstadoDsh;
+  },
+  async probarDsh(proveedor, url) {
+    return (await m.paneles.probarDsh(proveedor, url).catch(fallar)) as Prueba;
+  },
+  async repartoTabla() {
+    return (await m.paneles.repartoTabla().catch(fallar)) as TablaReparto | null;
+  },
+  alTablaNueva(fn) {
+    return m.paneles.alTablaNueva(fn);
+  },
+  async estadoAA() {
+    return (await m.paneles.estadoAA().catch(fallar)) as EstadoAA;
+  },
+  async refrescarAA() {
+    return (await m.paneles.refrescarAA().catch(fallar)) as { resultado: ResultadoAA; estado: EstadoAA };
+  },
+  async estadoOpencode() {
+    return (await m.paneles.estadoOpencode().catch(fallar)) as EstadoOpencodeUi;
+  },
+  async actualizarOpencode() {
+    return (await m.paneles.actualizarOpencode().catch(fallar)) as EstadoOpencodeUi;
   },
   alBajar(fn) {
     return m.paneles.alBajar((b) => {

@@ -4,6 +4,7 @@
 // `tests/arbol.test.ts`.
 import { cerrable, cerrado, esShark, GENERAL, SHARK, type Caido, type Estado, type Hilo, type Lider, type Orden } from "../datos/contrato.ts";
 import { fraseConocida, t } from "../i18n/index.ts";
+import { compararActivas, flotar, repartir, type Foto } from "./activas.ts";
 import { porManual } from "./orden.ts";
 
 /** Un líder sin workers a la vista, sin responder y sin actividad en esto, va plegado en "N líderes en espera". */
@@ -47,7 +48,18 @@ export type Rama = {
  * (pliegue de clave `espera:<proyecto>`). `dormidos`: los sin proceso de más de un día, plegados
  * después de ésos en "N dormidos" (`dormidos:<proyecto>`).
  */
-export type Carpeta = { proyecto: string; ramas: Rama[]; espera: Rama[]; dormidos: Rama[]; cuenta: number };
+export type Carpeta = {
+  proyecto: string;
+  ramas: Rama[];
+  espera: Rama[];
+  dormidos: Rama[];
+  cuenta: number;
+  /** Los líderes de esta carpeta que hoy están en "Activas" (calientes): no se ven acá, pero conservan su lugar en el orden. */
+  calientes?: Lider[];
+};
+
+/** La clave de "Activas" entre las carpetas plegables (`colapsados`): no es un proyecto, no puede chocar con un slug. */
+export const ACTIVAS = "\u0001activas";
 
 /** La clave del pliegue de los líderes en espera de una carpeta. */
 export const claveEspera = (proyecto: string) => `espera:${proyecto}`;
@@ -63,6 +75,8 @@ export const nombreCarpeta = (proyecto: string, usuario: string | null | undefin
   proyecto === GENERAL ? usuario?.trim() || home : titulo?.trim() || proyecto;
 
 export type Arbol = {
+  /** "Activas": las ramas de los líderes calientes de todas las carpetas, juntas arriba (`activas.ts`). Vacío buscando o sin foto. */
+  activas: Rama[];
   carpetas: Carpeta[];
   /** Lo cerrado que no quedó en ningún árbol: "Cerrados · N", al fondo. */
   cerrados: Item[];
@@ -239,52 +253,6 @@ export const ordenLideres = (a: Pick<Lider, "id" | "creado">, b: Pick<Lider, "id
   a.creado - b.creado || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
 
 /**
- * Orden por prioridad (`Orden.prioridad`, prendido de fábrica; apagado, queda el orden fijo de arriba).
- * Cada líder cae en un rango: 0 si necesita al usuario (pide un permiso o una pregunta, o terminó su turno y no lo
- * vio: `Lider.espera`/`pide`), 1 si tiene el caché vivo (`cache_vence` en el futuro: lo que el numerito no dice
- * "Uncached") y 2 el resto. Una carpeta toma el mejor rango de sus líderes. Los rangos 0 y 1 mantienen entre sí
- * el orden de siempre (así un chat que escribe no salta cada vez que contesta); el 2 va por actividad reciente.
- * `a` es la actividad de ese momento (sólo cuenta en el rango 2): se congela junto con el rango.
- */
-export type Rango = { r: 0 | 1 | 2; a: number };
-export type Prioridad = ReadonlyMap<string, Rango>;
-
-export function rangoLider(l: Pick<Lider, "espera" | "pide" | "cache_vence" | "caido" | "actividad" | "subagentes">, ahora: number): Rango {
-  if (!l.caido && (l.espera || l.pide)) return { r: 0, a: 0 };
-  // Con subagentes corriendo la sesión trabaja aunque su caché ya no cuente: no cae al rango de las dormidas.
-  if (!l.caido && l.subagentes) return { r: 1, a: 0 };
-  if (!l.caido && l.cache_vence != null && l.cache_vence > ahora) return { r: 1, a: 0 };
-  return { r: 2, a: l.actividad };
-}
-
-/** Los rangos de todos los líderes; `igualPrioridad` evita rearmar la barra si nada cambió. */
-export const prioridadDe = (lideres: readonly Lider[], ahora: number): Prioridad => new Map(lideres.map((l) => [l.id, rangoLider(l, ahora)]));
-
-export function igualPrioridad(a: Prioridad | undefined, b: Prioridad | undefined): boolean {
-  if (a === b) return true;
-  if (!a || !b || a.size !== b.size) return false;
-  for (const [id, x] of a) {
-    const y = b.get(id);
-    if (!y || y.r !== x.r || y.a !== x.a) return false;
-  }
-  return true;
-}
-
-/** Cuándo (epoch s) vence el primer caché que hoy está vivo: ahí hay que volver a mirar los rangos. `null`: ninguno. */
-export function proximoVencimiento(lideres: readonly Lider[], ahora: number): number | null {
-  let min: number | null = null;
-  for (const l of lideres) if (!l.caido && l.cache_vence != null && l.cache_vence > ahora && (min === null || l.cache_vence < min)) min = l.cache_vence;
-  return min;
-}
-
-/** Entre líderes con prioridad: por rango; el 2, el más reciente primero; empate, el orden de siempre (`resto`). */
-export const compararPrioridad = <T extends { id: string }>(p: Prioridad, resto: (a: T, b: T) => number) => (a: T, b: T) => {
-  const x = p.get(a.id) ?? { r: 2, a: 0 };
-  const y = p.get(b.id) ?? { r: 2, a: 0 };
-  return x.r - y.r || (x.r === 2 ? y.a - x.a : 0) || resto(a, b);
-};
-
-/**
  * Las carpetas, por el nombre que se ve (título del registry o nombre), sin mayúsculas
  * ni tildes; la del home va primera siempre (ahí vive Nuevo líder). Sin `localeCompare`:
  * el orden no depende del idioma de la máquina ni del navegador del celular.
@@ -317,6 +285,7 @@ export const compararLideres = (orden: Orden | undefined, proyecto: string) =>
 export const lideresEnOrden = (c: Carpeta, orden: Orden | undefined): string[] =>
   [...c.ramas, ...c.espera, ...c.dormidos]
     .flatMap((r) => (r.lider ? [r.lider] : []))
+    .concat(c.calientes ?? [])
     .sort(compararLideres(orden, c.proyecto))
     .map((l) => l.id);
 
@@ -388,8 +357,8 @@ type Opciones = {
   caidos?: readonly Caido[];
   /** El orden que el usuario puso arrastrando (`nombres.json`): gana sobre el de siempre. */
   orden?: Orden;
-  /** Con el orden por prioridad prendido (el de fábrica), los rangos (ya congelados por quien arma la barra); sin él, el orden fijo. */
-  prioridad?: Prioridad;
+  /** Con "Activas" prendido (de fábrica), la foto de lo caliente (ya congelada por quien arma la barra); sin ella, cada líder en su carpeta. */
+  prioridad?: Foto;
   /** Epoch en segundos. */
   ahora: number;
 };
@@ -502,12 +471,16 @@ export function armarArbol(hilos: Hilo[], { optimista, lideres: todos, settleado
   }
 
   const cerrados = sueltos.filter((it) => cerrado(it.estado));
-  const salida: { c: Carpeta; puntos: number }[] = [];
+  const salida: { c: Carpeta; puntos: number; caliente: boolean }[] = [];
+  const activas: Rama[] = [];
   for (const [proyecto, a] of carpetas) {
     // Cada líder en su lugar de siempre: ni responder ni tener workers trabajando lo mueve.
     const fijo = compararLideres(orden, proyecto);
-    const porLider = prioridad && !buscando ? compararPrioridad<Pick<Lider, "id" | "creado">>(prioridad, fijo) : fijo;
-    const ls = [...a.lideres.values()].sort((x, y) => porLider(x.lider!, y.lider!));
+    // Los calientes se van a "Activas" (sin repetirse acá); los fríos quedan en el orden del usuario, que no cambia nunca.
+    const todosLs = [...a.lideres.values()].sort((x, y) => fijo(x.lider!, y.lider!));
+    const { activas: arriba, frias: ls } = repartir(todosLs.map((r) => ({ id: r.lider!.id, r })), buscando ? undefined : prioridad);
+    for (const x of arriba) activas.push(x.r);
+    const frios = ls.map((x) => x.r);
     // Ocioso: nada colgando (ni escondido en su "+N"), sin responder y sin actividad en 30 min (buscando no se pliega nada).
     // Uno sin proceso no espera nada: queda a la vista hasta que el usuario lo retome o lo archive.
     const ocioso = (r: Rama) =>
@@ -515,12 +488,12 @@ export function armarArbol(hilos: Hilo[], { optimista, lideres: todos, settleado
     // Dormido: sin proceso, nada colgando y más de un día quieto (también el Murió): no se esconde, se pliega al final.
     const dormido = (r: Rama) =>
       !buscando && !r.lider!.vivo && !r.lider!.ocupado && r.vivas.length + r.viejas.length === 0 && r.lider!.actividad < ahora - DORMIDO_S;
-    const dormidos = ls.filter(dormido);
-    const espera = ls.filter((r) => !dormido(r) && ocioso(r));
-    const ramas = [...ls.filter((r) => !dormido(r) && !ocioso(r)), a.sueltas, a.huerfanos].filter(
+    const dormidos = frios.filter(dormido);
+    const espera = frios.filter((r) => !dormido(r) && ocioso(r));
+    const ramas = [...frios.filter((r) => !dormido(r) && !ocioso(r)), a.sueltas, a.huerfanos].filter(
       (r) => r.tipo === "lider" || r.vivas.length + r.viejas.length > 0,
     );
-    for (const r of ramas) {
+    for (const r of [...ramas, ...arriba.map((x) => x.r)]) {
       r.vivas.sort(porInicio);
       r.viejas.sort(porInicio);
     }
@@ -536,36 +509,33 @@ export function armarArbol(hilos: Hilo[], { optimista, lideres: todos, settleado
     a.huerfanos.idos = [...idos];
     const items = ramas.flatMap((r) => [...r.vivas, ...r.viejas]);
     // Lo del usuario, aunque esté plegado, y lo huérfano que trabaja o pide algo.
-    const visible = buscando || ls.length > 0 || a.sueltas.vivas.length + a.sueltas.viejas.length > 0 || a.huerfanos.vivas.length > 0;
+    const visible = buscando || frios.length > 0 || a.sueltas.vivas.length + a.sueltas.viejas.length > 0 || a.huerfanos.vivas.length > 0;
     if (!visible) {
       // Carpeta quieta: no se ve; lo cerrado de ella sigue en "Cerrados".
       for (const it of items) if (cerrado(it.estado)) cerrados.push(it);
       continue;
     }
-    salida.push({ c: { proyecto, ramas, espera, dormidos, cuenta: items.length }, puntos: deCarpeta(proyecto) });
+    // Un proyecto con algo caliente flota: un líder en "Activas" o workers vivos sin líder caliente.
+    const caliente = !buscando && !!prioridad && (arriba.length > 0 || prioridad.carpetas.has(proyecto));
+    salida.push({
+      c: { proyecto, ramas, espera, dormidos, cuenta: items.length, ...(arriba.length ? { calientes: arriba.map((x) => x.r.lider!) } : null) },
+      puntos: deCarpeta(proyecto),
+      caliente,
+    });
   }
   // Buscando, primero la carpeta que coincide por nombre o título; si no, el orden fijo (o el que puso el usuario).
   const porCarpeta = compararCarpetas(orden, titulos);
-  // Con prioridad, el home sigue primero (ahí vive Nuevo líder) y cada carpeta va por su mejor líder.
-  const mejor = (c: Carpeta): Rango => {
-    let m: Rango = { r: 2, a: 0 };
-    for (const r of [...c.ramas, ...c.espera, ...c.dormidos]) {
-      const x = r.lider && prioridad?.get(r.lider.id);
-      if (x && (x.r < m.r || (x.r === m.r && x.a > m.a))) m = x;
-    }
-    return m;
-  };
-  const porPrioridad = (a: Carpeta, b: Carpeta) => {
-    if (a.proyecto === GENERAL || b.proyecto === GENERAL) return 0;
-    const x = mejor(a);
-    const y = mejor(b);
-    return x.r - y.r || (x.r === 2 ? y.a - x.a : 0);
-  };
-  salida.sort((a, b) => b.puntos - a.puntos || (prioridad && !buscando ? porPrioridad(a.c, b.c) : 0) || porCarpeta(a.c.proyecto, b.c.proyecto));
+  salida.sort((a, b) => b.puntos - a.puntos || porCarpeta(a.c.proyecto, b.c.proyecto));
+  // Con "Activas": los proyectos calientes arriba (el home sigue primero: ahí vive Nuevo líder); entre sí y entre los fríos, el orden del usuario.
+  const orden1 = prioridad && !buscando ? flotar(salida, (x) => x.caliente, (x) => x.c.proyecto === GENERAL) : salida;
+  if (prioridad && !buscando) {
+    const cmp = compararActivas(prioridad);
+    activas.sort((x, y) => cmp(x.lider!, y.lider!));
+  }
   cerrados.sort((a, b) => fin(b.h) - fin(a.h));
   const aCargo = new Set<string>();
   for (const l of lid.values()) if (!l.caido) aCargo.add(l.id);
-  return { carpetas: salida.map((x) => x.c), cerrados, lideres: lid, aCargo };
+  return { activas, carpetas: orden1.map((x) => x.c), cerrados, lideres: lid, aCargo };
 }
 
 /**
@@ -575,20 +545,15 @@ export function armarArbol(hilos: Hilo[], { optimista, lideres: todos, settleado
  * sólo dónde cae cada worker.
  */
 export function aVistaTodo(a: Arbol): Arbol {
-  return {
-    ...a,
-    carpetas: a.carpetas.map((c) => ({
-      ...c,
-      ramas: c.ramas.map((r) => {
-        if (r.tipo === "sueltas" || (r.tipo === "lider" && !r.lider)) return r;
-        // Sin líder no hay quien se haga cargo: como un líder sin proceso, lo que dejó una rama con commits se queda.
-        const conLider = r.tipo === "lider" && !r.lider!.caido;
-        const escondidas = r.vivas.filter((it) => !aLaVista(it, conLider));
-        if (!escondidas.length) return r;
-        return { ...r, vivas: r.vivas.filter((it) => aLaVista(it, conLider)), viejas: [...escondidas, ...r.viejas].sort(porInicio) };
-      }),
-    })),
+  const enTodo = (r: Rama): Rama => {
+    if (r.tipo === "sueltas" || (r.tipo === "lider" && !r.lider)) return r;
+    // Sin líder no hay quien se haga cargo: como un líder sin proceso, lo que dejó una rama con commits se queda.
+    const conLider = r.tipo === "lider" && !r.lider!.caido;
+    const escondidas = r.vivas.filter((it) => !aLaVista(it, conLider));
+    if (!escondidas.length) return r;
+    return { ...r, vivas: r.vivas.filter((it) => aLaVista(it, conLider)), viejas: [...escondidas, ...r.viejas].sort(porInicio) };
   };
+  return { ...a, activas: a.activas.map(enTodo), carpetas: a.carpetas.map((c) => ({ ...c, ramas: c.ramas.map(enTodo) })) };
 }
 
 /**
@@ -600,6 +565,14 @@ export function aVistaTodo(a: Arbol): Arbol {
  */
 export function filasVisibles(a: Arbol, abierta: (clave: string) => boolean, verCerrados: boolean, soloLideres = false): Item[] {
   const out: Item[] = [];
+  // "Activas" va primero, como en la pantalla: el teclado recorre las filas en el orden en que se ven.
+  if (a.activas.length && abierta(ACTIVAS)) {
+    for (const r of a.activas) {
+      const abre = abierta(r.clave);
+      if (abre || !soloLideres) out.push(...r.vivas);
+      if (abre) out.push(...r.viejas);
+    }
+  }
   for (const c of a.carpetas) {
     if (!abierta(c.proyecto)) continue;
     for (const r of c.ramas) {
@@ -618,6 +591,7 @@ export type Lugar = { sid: string; proyecto: string; espera: boolean; dormido: b
 
 /** `null`: no está en la barra (todavía no llegó, se archivó, o la búsqueda no lo trae). */
 export function lugarLider(a: Arbol, sid: string): Lugar | null {
+  if (a.activas.some((r) => r.lider?.id === sid)) return { sid, proyecto: ACTIVAS, espera: false, dormido: false };
   const proyecto = a.lideres.get(sid)?.proyecto;
   const c = proyecto === undefined ? undefined : a.carpetas.find((x) => x.proyecto === proyecto);
   if (!c) return null;

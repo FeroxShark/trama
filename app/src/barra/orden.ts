@@ -100,5 +100,5 @@ export function ordenDe(x: unknown): Orden {
   return { carpetas: lista(o.carpetas), lideres, ...(typeof o.prioridad === "boolean" ? { prioridad: o.prioridad } : {}) };
 }
 
-/** El orden por prioridad está prendido de fábrica: sólo `false` (Orden fijo, desde el menú) lo apaga. */
+/** "Activas" y los proyectos que flotan (`activas.ts`) están prendidos de fábrica: sólo `false` (desde el menú) los apaga. El orden a mano rige igual. */
 export const prioridadPrendida = (orden: Orden | undefined): boolean => orden?.prioridad !== false;

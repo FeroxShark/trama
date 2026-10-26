@@ -1,9 +1,9 @@
-/* Los tokens de diseño de trama, en un solo lugar. Dirección visual: docs/maquetas/lavado/ (dirección 1, "estándar pulido")
+/* Los tokens de diseño de trama, en un solo lugar. Dirección visual: el estándar pulido
    (vidrio quieto, acento celeste, cápsulas, grilla de 4 px, una sola fuente con cifras
    tabulares). Los nombres de la primera parte (`--vidrio`, `--capa-*`, `--acento`, `--r-*`…) son los del estándar;
    la segunda parte son los nombres que ya usa todo el CSS (`--sup-N`, `--borde-N`, `--texto-N`, `--txt-N`,
    `--radio-N`, `--esp-N`, `--letra-N`) apuntando a esos valores: cambiar la cara de la app es cambiar este archivo.
-   Qué token va a qué: docs/estado/tokens.md. Lo que va a la vista en rem (1rem = 16px × letra/13). */
+   Lo que va a la vista en rem (1rem = 16px × letra/13). */
 :root {
   color-scheme: dark;
 
@@ -21,7 +21,7 @@
 
   --acento: #8fb5f0;
   --acento-texto: #0d1a2e; /* texto sobre el acento */
-  --ok: #7ad69b;
+  --ok: #55d0c8; /* turquesa y no verde: contra el rojo de lo crítico se confunde con deuteranomalía */
   --aviso: #f2c35a;
   --critico: #f26d6d;
 
@@ -35,7 +35,7 @@
   --acento-tinte: rgb(143 181 240 / 0.22); /* relleno activo */
   --aviso-tinte: rgb(242 195 90 / 0.12);
   --critico-tinte: rgb(242 109 109 / 0.12);
-  --ok-tinte: rgb(122 214 155 / 0.12);
+  --ok-tinte: rgb(85 208 200 / 0.12);
 
   /* --- Forma --- */
   --r-xs: 0.375rem;
@@ -109,7 +109,7 @@
 
   --azul-palido: #dbe8fb;
   --verde-suave: var(--ok);
-  --verde-palido: #c4f0d4;
+  --verde-palido: #c0efec;
   --verde-tinte: var(--ok-tinte);
   --rojo-texto: #f58a8a;
   --rojo-claro: #f8a8a8;

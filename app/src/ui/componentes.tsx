@@ -54,16 +54,6 @@ export function BarraCupo({ fraccion }: { fraccion: number }) {
   );
 }
 
-/** Insignia de un modelo: su logo y su nombre en una cápsula de 24 px. */
-export function Insignia({ logo, children }: { logo?: ReactNode; children: ReactNode }) {
-  return (
-    <span className="ui-chip" data-insignia="">
-      {logo}
-      {children}
-    </span>
-  );
-}
-
 /**
  * Indicador chico del esfuerzo: una barrita por nivel de `niveles`, llenas hasta `nivel`; el último nivel (max) lleva el acento.
  * Sin nivel conocido no pinta nada. Decorativo (`aria-hidden`): el dato lo dice el tooltip de quien lo envuelve.

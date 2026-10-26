@@ -55,6 +55,7 @@ import { Selector, type Opcion } from "../hilo/Selector";
 import { MODELOS, modeloDe } from "../hilo/opciones";
 import { locale, t, type ClaveSola } from "../i18n";
 import { useIdioma } from "../i18n/react";
+import { useNombreProyecto } from "../datos/proyectos";
 import { MODO } from "../modo";
 import { MaquinaMigas } from "../barra/Maquina";
 import { hayVarias, nombreMaquina, opcionesMaquina, puedeMaquina, useMaquinas } from "../maquinas";
@@ -437,10 +438,11 @@ export function Tablero({ carpetas, lideres, alIniciar, alAbrirLider }: Omit<Pro
     [actuar],
   );
 
+  const nombreProy = useNombreProyecto();
   const opcionesFiltro = useMemo<Opcion[]>(
-    () => [{ id: NINGUNO, nombre: t("tablero.todos"), desc: "" }, ...lista.map((p) => ({ id: p, nombre: p, desc: "", marca: <Punto proyecto={p} /> }))],
+    () => [{ id: NINGUNO, nombre: t("tablero.todos"), desc: "" }, ...lista.map((p) => ({ id: p, nombre: nombreProy(p), desc: "", marca: <Punto proyecto={p} /> }))],
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [lista, t("tablero.todos")],
+    [lista, nombreProy, t("tablero.todos")],
   );
 
   if (!visto || !columnas)
@@ -801,9 +803,10 @@ function Alta({ proyectos, alAgregar, alFallar }: PropsAlta) {
   // "Agregar en": a qué tablero. Siempre arranca en esta máquina y no se recuerda: nada sale a la otra sin que el usuario la elija.
   const maquinas = useMaquinas();
   const [maquina, setMaquina] = useState<string | null>(null);
+  const nombreProy = useNombreProyecto();
   const opciones: Opcion[] = [
     { id: NINGUNO, nombre: t("tablero.sinProyecto"), desc: "" },
-    ...proyectos.map((p) => ({ id: p, nombre: p, desc: "", marca: <Punto proyecto={p} /> })),
+    ...proyectos.map((p) => ({ id: p, nombre: nombreProy(p), desc: "", marca: <Punto proyecto={p} /> })),
   ];
   const mandar = (e: FormEvent) => {
     e.preventDefault();
@@ -1002,7 +1005,7 @@ function Cara({ i, ahora, children }: { i: Item; ahora: number; children?: React
   );
 }
 
-/** `#12`, y con la máquina de la que viene si es de otra: `#12 · Dell`. */
+/** `#12`, y con la máquina de la que viene si es de otra: `#12 · Servidor`. */
 const etiqueta = (i: Item) => `#${numero(i.id)}${i.maquina ? ` · ${i.maquinaNombre ?? i.maquina}` : ""}`;
 
 /** Las otras máquinas que no se pudieron leer, en una línea (sus items no aparecen). */
@@ -1012,10 +1015,11 @@ const color = (proyecto: string) => ({ "--tono": tono(proyecto) }) as CSSPropert
 
 /** El chip de un proyecto: el mismo nombre da siempre el mismo color. */
 function Chip({ proyecto }: { proyecto: string }) {
+  const nombre = useNombreProyecto();
   if (!proyecto) return <span className="tb-chip" data-sin="" />;
   return (
     <span className="tb-chip" style={color(proyecto)}>
-      {proyecto}
+      {nombre(proyecto)}
     </span>
   );
 }

@@ -1,5 +1,5 @@
 // Varias cuentas por proveedor (Ajustes > Plan y cupos, la bienvenida): la lista, alta, renombre, baja y login de cada cuenta
-// los hace el CLI `cuentas` del orquestador (contrato: docs/cuentas-varias-por-proveedor.md de ese proyecto), el único dueño de
+// los hace el CLI `cuentas` (`motor/bin/cuentas`), el único dueño de
 // `~/.config/trama/cuentas.json`. Trama no lo escribe ni lo lee: sólo le habla al CLI (execFile, sin shell) y valida lo que vuelve.
 // Sin `cuentas` instalado (`HILOS_CUENTAS`, PATH o `~/.local/bin`) la lista es `null` y la app es la de una cuenta por proveedor.
 // El login es interactivo y lo hace la persona: se lanza `cuentas login <id>` en una terminal (`terminal`, inyectada: la de
@@ -129,13 +129,6 @@ export async function loginCuenta(d: DepsVarias, id: unknown): Promise<void> {
   const bin = resolverBinario("cuentas", "HILOS_CUENTAS", d.env, d.home, d.esEjecutable);
   const r = await d.terminal([bin, "login", id], { ...d.env, PATH: pathConLocal(d.env, d.home) });
   if (r.err) throw new Error(r.err);
-}
-
-/** Una cuenta con su login preguntado (`--verificar`); el login que se acaba de hacer se comprueba con esto. */
-export async function verCuenta(d: DepsVarias, id: unknown): Promise<PerfilCuenta | null> {
-  if (!idValido(id)) return null;
-  const l = await listarCuentas(d, true);
-  return l?.cuentas.find((c) => c.id === id) ?? null;
 }
 
 export const cuentasDeEstaMaquinaVarias = (terminal: DepsVarias["terminal"]): DepsVarias => ({ env: process.env, home: os.homedir(), correr: correrReal, terminal });

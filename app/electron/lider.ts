@@ -12,7 +12,8 @@ import { imagenesDe, type Imagen } from "./imagenes.ts";
 import { inputRespondido, respuestasValidas, type Pregunta } from "./preguntas.ts";
 import { spawn, type ChildProcess } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { access, open, readdir, readFile, stat, writeFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import { access, mkdir, open, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import {
@@ -47,23 +48,27 @@ import {
   parsearLinea,
   SID,
   type Comando,
+  type EstadoConv,
   type Evento,
   type Guardado,
   type Local,
   type Modo,
 } from "./lider-arma.js";
+import { armarRelevo, MODELO_DE_FAMILIA, msDe, unirConvs, type Familia } from "./relevo-motor.ts";
 import { asegurarLocal, destinoLocal, localDe } from "./locales.js";
-import { armarContexto, prefacioGemini } from "./contexto-local.ts";
+import { armarContexto, prefacioDsh, prefacioGemini } from "./contexto-local.ts";
+import { conClaves } from "./claves.ts";
 import { resolverPa } from "./binario.ts";
 import { matarArbol } from "./procesos.ts";
-import { claseDeModelo, idAgy, localOllama, partirGemini, type Clase } from "./modelos-config.js";
+import { claseDeModelo, familiaDeModelo, idAgy, localDeModelo, localOllama, partirGemini, type Clase } from "./modelos-config.js";
+import { parsearModelo } from "./dsh.ts";
+import { parsearModelo as parsearOpencode } from "./opencode.ts";
 import { pedidoDe } from "./cache.ts";
 import { convDe } from "./conv-cache.ts";
 import { guardada, igual, juntar, lecturaDe, oficialDe, type Lectura } from "./uso.ts";
 import { errorT } from "./errores.ts";
 import { ESTADO, escribirAtomico } from "./pa.js";
 import { esElProceso, sesionesVivas, type Sesion } from "./sesiones.js";
-import { irA, ubicar } from "./terminal.js";
 import { log, silencio } from "./log.js";
 import { temaDe, tituloLider } from "./tema.js";
 
@@ -73,6 +78,8 @@ const ARCHIVO = path.join(ESTADO, "lideres.json");
 const CLAUDE = process.env.HILOS_CLAUDE ?? "claude";
 /** El puente de un líder de Gemini (electron/agy-puente.ts): habla como `claude -p` y por dentro corre `agy`. Mismo tipo de archivo que éste (`.js` compilado, `.ts` en las pruebas). */
 const PUENTE_AGY = path.join(import.meta.dirname, `agy-puente${path.extname(import.meta.filename)}`);
+/** El puente de un líder de DeepSeek Harness (electron/dsh-puente.ts): habla como `claude -p` y por dentro corre `dsh --profile acp`. */
+const PUENTE_DSH = path.join(import.meta.dirname, `dsh-puente${path.extname(import.meta.filename)}`);
 const PROYECTOS = path.join(process.env.CLAUDE_CONFIG_DIR ?? path.join(HOME, ".claude"), "projects");
 /** Si el interrupt no contesta en esto, SIGINT. */
 const PARAR_MS = 3000;
@@ -147,7 +154,7 @@ type Proc = {
   p: ChildProcess;
   modelo: string;
   effort: string;
-  /** Qué proceso es: el `claude` de siempre (también el de Ollama, que es el mismo contra otro endpoint) o el puente de agy. */
+  /** Qué proceso es: el `claude` de siempre (también el de Ollama, que es el mismo contra otro endpoint), el puente de agy o el de dsh. */
   clase: Clase;
   /** Un líder local: adónde le habla y con qué contexto arrancó (va en su entorno: cambiarlo es relanzarlo). */
   local?: Local;
@@ -367,10 +374,9 @@ const idPedido = () => `trama-${++pedidosN}`;
 
 /**
  * Lo de un líder local antes de escribirle: que llama-server sirva a su modelo (si no, lo carga: `asegurarLocal`) y con
- * qué contexto. `undefined`: no es local. Las pruebas lo cambian (`ponerLocales`): nunca cargan un modelo.
+ * qué contexto. `undefined`: no es local.
  */
-let locales = { asegurar: (id: string) => asegurarLocal(id), destino: (id: string) => destinoLocal(id) };
-export const ponerLocales = (x: typeof locales) => void (locales = x);
+const locales = { asegurar: (id: string) => asegurarLocal(id), destino: (id: string) => destinoLocal(id) };
 /**
  * El local con el contexto del usuario (sus CLAUDE.md sin lo del jefe, la memoria y los hooks de arranque) para el proceso que se
  * va a lanzar. Un archivo ilegible no tira el arranque: el líder sale igual, sin contexto. Lo lee una vez por proceso.
@@ -399,8 +405,11 @@ export function barrerGrupo(pid: number | undefined, kill: (pid: number, senal: 
   setTimeout(() => matarArbol(pid, "SIGKILL", { kill }), esperaMs).unref();
 }
 
-/** Lo que un líder de otra clase necesita para arrancar: adónde habla uno de Ollama, o el prefacio de uno de Gemini. */
-type Extra = { ollama?: Ollama; prefacio?: string; desde?: string };
+/** Lo que un líder de otra clase necesita para arrancar: adónde habla uno de Ollama, o el prefacio de uno de Gemini o de dsh (con su URL propia si es de Ollama). */
+type Extra = { ollama?: Ollama; prefacio?: string; desde?: string; dshUrl?: string };
+
+/** Dónde queda lo hablado con otro motor cuando la conversación cambió de motor (`relevo-motor.ts`): el motor de ahora lo lee al abrir una sesión suya. */
+export const archivoRelevo = (sid: string) => path.join(ESTADO, "relevos", `${sid}.md`);
 
 /**
  * Lo de otra clase para el proceso que se va a lanzar. Un `ollama:*` que ya no figura en `modelos.json` no se lanza: el error
@@ -414,6 +423,20 @@ async function extraDe(modelo: string, cwd: string | undefined): Promise<Extra> 
     return { ollama: { url: o.url, modelo: o.modelo } };
   }
   if (clase === "gemini") return { prefacio: await prefacioGemini({ home: HOME, cwd, pa: resolverPa(process.env, HOME) }).catch((e) => (silencio("contexto-gemini")(e), "")) };
+  if (clase === "dsh") {
+    // Un `dsh:` mal armado no se lanza (dsh-puente lo rechazaría igual, pero acá el error llega a la UI). dsh tampoco lee CLAUDE.md: mismo prefacio que Gemini.
+    const d = parsearModelo(modelo);
+    if (!d) throw errorT("main.dshModelo", { v: modelo.slice(0, 80) });
+    const prefacio = await prefacioDsh({ home: HOME, cwd, pa: resolverPa(process.env, HOME), motor: "dsh", modelo: `${d.proveedor}/${d.modelo}` }).catch((e) => (silencio("contexto-dsh")(e), ""));
+    // Un Ollama en otra máquina: la URL del local de `modelos.json` que sirve ese modelo (sin él, dsh usa el de siempre, 127.0.0.1).
+    const url = d.proveedor === "ollama" ? localDeModelo(d.modelo)?.url : undefined;
+    return { prefacio, ...(url ? { dshUrl: `${url.replace(/\/+$/, "")}/v1` } : {}) };
+  }
+  if (clase === "opencode") {
+    // Mismo puente que dsh (dsh-puente.ts, con `opencode acp` por detrás); opencode tampoco lee CLAUDE.md de Trama: el prefacio va por el entorno.
+    if (!parsearOpencode(modelo)) throw errorT("main.opencodeModelo", { v: modelo.slice(0, 80) });
+    return { prefacio: await prefacioDsh({ home: HOME, cwd, pa: resolverPa(process.env, HOME), motor: "opencode", modelo: modelo.replace(/^opencode:/, "") }).catch((e) => (silencio("contexto-opencode")(e), "")) };
+  }
   return {};
 }
 
@@ -433,16 +456,33 @@ function lanzar(g: Guardado, resume: boolean, local?: Local, extra: Extra = {}):
   const base = opcionesLider(process.env, HOME, g.cwd, local && { modelo: g.modelo, effort: g.effort, local }, extra.ollama) as { cwd: string; env: NodeJS.ProcessEnv };
   // Su propio grupo (setsid): lo que el líder deja corriendo desde sus herramientas (un `qs`, un watcher) se barre al salir.
   const opciones = { ...base, stdio: ["pipe", "pipe", "pipe"] as ["pipe", "pipe", "pipe"], detached: true, windowsHide: true };
-  const bin = clase === "gemini" ? "agy" : path.basename(CLAUDE);
+  // Si la conversación venía de otro motor, lo hablado va aparte de los mensajes (prompt de sistema o prefacio): no ensucia el transcript.
+  const relevo = g.cambios?.length && existsSync(archivoRelevo(g.sid)) ? archivoRelevo(g.sid) : undefined;
+  const bin = clase === "gemini" ? "agy" : clase === "dsh" ? "dsh" : clase === "opencode" ? "opencode" : path.basename(CLAUDE);
   const p =
-    clase === "gemini"
+    clase === "opencode"
+      ? spawn(
+          process.execPath,
+          [PUENTE_DSH, "--sid", g.sid, "--nombre", g.nombre, "--modelo", g.modelo, "--cwd", base.cwd, ...(g.effort ? ["--effort", g.effort] : [])],
+          // Sin las keys de dsh: opencode usa su propio login (el de la persona). El prefacio va por el entorno.
+          { ...opciones, env: { ...base.env, ELECTRON_RUN_AS_NODE: "1", TRAMA_DSH_PREFACIO: extra.prefacio ?? "", ...(relevo ? { TRAMA_DSH_RELEVO: relevo } : {}) } },
+        )
+      : clase === "dsh"
+      ? spawn(
+          process.execPath,
+          [PUENTE_DSH, "--sid", g.sid, "--nombre", g.nombre, "--modelo", g.modelo, "--cwd", base.cwd],
+          // Como el de Gemini: el Electron del motor como Node pelado. dsh no lee CLAUDE.md: el prefacio va por el entorno, y las keys guardadas
+          // (claves.env) debajo de las que ya estén en el entorno.
+          { ...opciones, env: { ...conClaves(base.env), ELECTRON_RUN_AS_NODE: "1", TRAMA_DSH_PREFACIO: extra.prefacio ?? "", ...(relevo ? { TRAMA_DSH_RELEVO: relevo } : {}), ...(extra.dshUrl ? { TRAMA_DSH_URL: extra.dshUrl } : {}) } },
+        )
+      : clase === "gemini"
       ? spawn(
           process.execPath,
           [PUENTE_AGY, "--sid", g.sid, "--nombre", g.nombre, "--modelo", idAgy(g.modelo, g.effort), "--cwd", base.cwd],
           // El mismo Electron/Node que el motor, como Node pelado; el prefacio (agy no lee CLAUDE.md) va por el entorno.
-          { ...opciones, env: { ...base.env, ELECTRON_RUN_AS_NODE: "1", TRAMA_AGY_PREFACIO: extra.prefacio ?? "" } },
+          { ...opciones, env: { ...base.env, ELECTRON_RUN_AS_NODE: "1", TRAMA_AGY_PREFACIO: extra.prefacio ?? "", ...(relevo ? { TRAMA_AGY_RELEVO: relevo } : {}) } },
         )
-      : spawn(CLAUDE, argvLider({ modelo: g.modelo, effort: g.effort, sid: g.sid, nombre: g.nombre, resume, modo: g.modo, local, ollama: extra.ollama, desde: extra.desde, rama: g.rama }), opciones);
+      : spawn(CLAUDE, argvLider({ modelo: g.modelo, effort: g.effort, sid: g.sid, nombre: g.nombre, resume, modo: g.modo, local, ollama: extra.ollama, desde: extra.desde, rama: g.rama, relevo }), opciones);
   const x: Proc = { p, modelo: g.modelo, effort: g.effort, clase, local, ocupado: false, directos: [], pedido: 0, avisado: 0, resto: "", stderr: "", adrede: false, libre: [], pedidos: new Map(), controles: new Map(), estilo: null };
   procs.set(g.sid, x);
   p.stdout!.setEncoding("utf8");
@@ -572,12 +612,39 @@ function lanzar(g: Guardado, resume: boolean, local?: Local, extra: Extra = {}):
   return x;
 }
 
-/** Espera que un proceso ocioso salga (stdin cerrado). */
+/** Cuánto se espera a que un proceso salga solo al cerrarle el stdin, antes de SIGTERM. */
+const GRACIA_EOF_MS = 8_000;
+/** Y cuánto después de SIGTERM, antes de SIGKILL (y de darlo por perdido). */
+const GRACIA_TERM_MS = 5_000;
+
+/**
+ * Espera que un proceso ocioso salga (stdin cerrado). Con tope: si no sale en `GRACIA_EOF_MS` va SIGTERM, y si tampoco
+ * en `GRACIA_TERM_MS` más, SIGKILL; nunca queda colgado quien espera (cerrar, cambio de modelo, rebobinar, reiniciar ociosos).
+ */
 function terminar(x: Proc): Promise<void> {
   return new Promise((ok) => {
-    if (x.p.exitCode !== null || x.p.signalCode !== null) return ok();
-    x.p.once("exit", () => ok());
-    x.p.stdin!.end();
+    const salio = () => x.p.exitCode !== null || x.p.signalCode !== null;
+    if (salio()) return ok();
+    const relojes: NodeJS.Timeout[] = [];
+    const listo = () => {
+      for (const r of relojes) clearTimeout(r);
+      ok();
+    };
+    x.p.once("exit", listo);
+    relojes.push(
+      setTimeout(() => {
+        if (salio()) return listo();
+        try { x.p.kill("SIGTERM"); } catch { /* ya se fue */ }
+        relojes.push(
+          setTimeout(() => {
+            try { x.p.kill("SIGKILL"); } catch { /* ya se fue */ }
+            // Si ni SIGKILL lo saca (zombi en D), se lo da por perdido un momento después para no colgar a nadie.
+            relojes.push(setTimeout(listo, 2_000));
+          }, GRACIA_TERM_MS),
+        );
+      }, GRACIA_EOF_MS),
+    );
+    try { x.p.stdin!.end(); } catch { /* stdin ya cerrado */ }
   });
 }
 
@@ -823,14 +890,14 @@ export async function mandar(x: { sid: string; texto: string; imagenes?: unknown
 
 /**
  * "Mandar ya": el mensaje sale al stdin del `claude` aunque esté a mitad de un turno. El CLI lo guarda y lo entrega en el próximo límite de
- * `tool_result`, sin cortar la herramienta en curso (puede tardar lo que ella); si no hay herramienta, corre como turno propio al terminar el actual
- * (`docs/estado/mensaje-en-turno.md`). Sólo con un proceso de `claude` ocupado de la app, con el mismo modelo y esfuerzo; sin turno en curso es un
- * `mandar` normal. La cola no se toca: sigue saliendo de a uno al terminar el turno. Gemini no tiene canal (stdin ignorado): error claro.
+ * `tool_result`, sin cortar la herramienta en curso (puede tardar lo que ella); si no hay herramienta, corre como turno propio al terminar el actual.
+ * Sólo con un proceso de `claude` ocupado de la app, con el mismo modelo y esfuerzo; sin turno en curso es un
+ * `mandar` normal. La cola no se toca: sigue saliendo de a uno al terminar el turno. Gemini y dsh: el puente (agy-puente.ts, dsh-puente.ts) corta a agy / dsh en el próximo límite de paso y retoma su conversación con el mensaje; los modelos locales no tienen canal: error claro.
  */
 export async function mandarDirecto(x: { sid: string; texto: string; imagenes?: unknown; modelo: string; effort: string }): Promise<void> {
   const sid = String(x.sid);
   const p = procs.get(sid);
-  if (p && (p.clase === "gemini" || p.local)) throw errorT("main.sinDirecto");
+  if (p?.local) throw errorT("main.sinDirecto");
   if (!p?.ocupado || mandando.has(sid)) return mandar(x);
   const g = (await lideresApp()).find((l) => l.sid === sid);
   if (!g) throw errorT("main.noEsDeLaApp");
@@ -841,7 +908,8 @@ export async function mandarDirecto(x: { sid: string; texto: string; imagenes?: 
   const imagenes = imagenesDe(x.imagenes);
   const texto = textoDe(x.texto, imagenes);
   p.directos.push(texto.trim());
-  p.p.stdin!.write(lineaUsuario(texto, imagenes));
+  // El puente de Gemini lo entrega en el próximo límite de paso de agy (corta a agy y sigue en la misma conversación) y devuelve el eco.
+  p.p.stdin!.write(lineaUsuario(texto, imagenes, p.clase === "gemini" || p.clase === "dsh" || p.clase === "opencode"));
 }
 
 /**
@@ -862,11 +930,13 @@ async function mandarYa(x: { sid: string; texto: string; imagenes?: unknown; mod
   const g = (await lideresApp()).find((l) => l.sid === x.sid);
   if (!g) throw errorT("main.noEsDeLaApp");
   const { modelo, effort } = normalizar(sueltoDe("modelo", x.modelo), sueltoDe("effort", x.effort));
-  if ((claseDeModelo(g.modelo) === "gemini") !== (claseDeModelo(modelo) === "gemini"))
-    throw errorT("main.cambioProveedor");
+  // Un modelo de otro motor: la conversación sigue acá mismo (mismo líder), con una sesión nueva del motor que toca y lo hablado como relevo.
+  const cruza = familiaDeModelo(g.modelo) !== familiaDeModelo(modelo);
   let p = procs.get(g.sid);
   if (p?.ocupado) throw errorT("main.respondiendo");
   if (await ajeno(g.sid)) throw errorT("main.otroProceso");
+  // Antes de tocar nada: un modelo que no se puede lanzar (un `dsh:` mal armado, un Ollama que ya no está) falla acá y deja todo como estaba.
+  const extraCruce = cruza ? await extraDe(modelo, g.cwd) : undefined;
   let local: Local | undefined;
   if (localDe(modelo)) {
     // Cargar el modelo puede tardar un minuto: mientras, el líder se ve trabajando.
@@ -898,12 +968,17 @@ async function mandarYa(x: { sid: string; texto: string; imagenes?: unknown; mod
   }
   if (p && procs.get(g.sid) !== p) p = undefined;
   if (p?.ocupado) throw errorT("main.respondiendo");
+  if (cruza && p) await terminar(p);
+  if (cruza) {
+    p = undefined;
+    await cambiarDeMotor(g, modelo);
+  }
   if (g.modelo !== modelo || g.effort !== effort) {
     g.modelo = modelo;
     g.effort = effort;
     await guardar();
   }
-  p ??= lanzar(g, true, local, await extraDe(modelo, g.cwd));
+  p ??= lanzar(g, await haySesionClaude(g), local, extraCruce ?? (await extraDe(modelo, g.cwd)));
   p.ocupado = true;
   p.directos.length = 0;
   // Recién traído de una terminal: se cortaron sus esperas, y sus workers siguen sin quien los recoja.
@@ -914,6 +989,48 @@ async function mandarYa(x: { sid: string; texto: string; imagenes?: unknown; mod
   alEv(g.sid, { tipo: "estado", ocupado: true, vivo: true });
   alCambio();
 }
+
+/** ¿Hay una sesión de Claude que retomar con `--resume`? Siempre, salvo que la conversación venga de otro motor y Claude todavía no haya hablado en ella. */
+async function haySesionClaude(g: Guardado): Promise<boolean> {
+  if (!g.cambios?.length) return true;
+  return (await transcriptFamilia(g.sid, "claude", g.cwd)) !== null;
+}
+
+/**
+ * La conversación sigue con un modelo de otro motor (`modelo`): se anota el cambio (la vista pone una raya, y statusline / la barra
+ * saben qué transcript leer) y se arma el relevo, que el motor nuevo lee al abrir su sesión. Sin nada hablado todavía no hay qué
+ * relevar ni qué marcar. Si el motor nuevo ya tuvo una sesión en este líder (Claude → Gemini → Claude), su transcript sigue siendo
+ * suyo: Claude retoma la suya y el relevo trae sólo lo que pasó después; un puente abre una sesión de agy / dsh nueva (la anterior
+ * se aparta) y repite lo suyo de antes, como cuando agy pierde una conversación.
+ */
+async function cambiarDeMotor(g: Guardado, modelo: string): Promise<void> {
+  const antes = familiaDeModelo(g.modelo);
+  const ahora = familiaDeModelo(modelo);
+  const hubo = await transcriptFamilia(g.sid, antes, g.cwd);
+  const archivo = archivoRelevo(g.sid);
+  await rm(archivo, { force: true });
+  if (!hubo) return;
+  const todo = g.cambios?.length ? await convUnida(g) : await convDe(`${g.sid}#${antes}`, hubo);
+  // Lo que el motor nuevo ya tiene en su propia sesión: sólo se le cuenta lo posterior.
+  const propio = await transcriptFamilia(g.sid, ahora, g.cwd);
+  let desde: number | undefined;
+  if (propio) {
+    const horas = (await convDe(`${g.sid}#${ahora}`, propio)).todos.map(msDe).filter((h): h is number => h !== null);
+    if (horas.length) desde = Math.max(...horas);
+  }
+  const relevo = armarRelevo(todo.todos, { de: g.modelo, a: modelo, ...(desde !== undefined ? { desde } : {}) });
+  if (relevo.texto) {
+    await mkdir(path.dirname(archivo), { recursive: true });
+    await writeFile(archivo, relevo.texto + "\n", { mode: 0o600 });
+  }
+  // Un puente sólo abre su sesión de agy / dsh con el prefacio si no hay una anotada: la anterior se aparta (su transcript queda).
+  if (ahora !== "claude" && propio) await rename(lado(g.sid, ahora), `${lado(g.sid, ahora)}.previa`).catch(() => {});
+  (g.cambios ??= []).push({ ts: Date.now(), de: g.modelo, a: modelo });
+  log.escribir("info", "lider", `cambio de motor: "${g.nombre}" (${g.sid}) ${g.modelo} → ${modelo}; relevo de ${relevo.incluidos} mensajes${relevo.omitidos ? ` (${relevo.omitidos} omitidos)` : ""}`);
+}
+
+/** El archivo con la sesión de agy / dsh / opencode de un líder (`<sid>.json` junto a su transcript). */
+const lado = (sid: string, fam: Familia) => path.join(ESTADO, fam === "gemini" ? "gemini" : fam, `${sid}.json`);
 
 /**
  * Volver atrás y seguir desde ahí con un mensaje (Editar y Volver acá): el `claude` se relanza con
@@ -1138,8 +1255,6 @@ async function anotar(
   const ls = await lideresApp();
   const ya = ls.find((l) => l.sid === sid);
   if (ya) {
-    if ((claseDeModelo(ya.modelo) === "gemini") !== (claseDeModelo(x.modelo) === "gemini"))
-      throw errorT("main.cambioProveedor");
     // Ya era de la app y se había ido de la barra (un día sin turnos) o lo mataron: vuelve, ya no es Murió.
     if (!procs.has(sid)) ya.retomado = ahora;
     delete ya.murio;
@@ -1148,8 +1263,7 @@ async function anotar(
   }
   const t = await transcriptDe(sid);
   if (!t) return { ok: false, motivo: "sinSesion" };
-  if ((t === path.join(ESTADO, "gemini", `${sid}.jsonl`)) !== (claseDeModelo(x.modelo) === "gemini"))
-    throw errorT("main.cambioProveedor");
+  const deLaFamilia = t === transcriptGemini(sid) ? "gemini" : t === transcriptDsh(sid) ? "dsh" : t === transcriptOpencode(sid) ? "opencode" : "claude";
   const f = await open(t, "r").catch(() => null);
   if (!f) return { ok: false, motivo: "sinSesion" };
   let cwd: string | null;
@@ -1162,10 +1276,13 @@ async function anotar(
   }
   cwd ??= HOME;
   if (!(await stat(cwd).then((s) => s.isDirectory(), () => false))) return { ok: false, motivo: "sinCarpeta" };
+  // El transcript es de otro motor que el modelo que se eligió: se anota con el modelo de ese motor y el primer mensaje sigue con el elegido
+  // (`mandar` → relevo), así la conversación no se pierde ni se pisa el transcript de uno con el otro.
+  const modeloAnotado = deLaFamilia === familiaDeModelo(x.modelo) ? x.modelo : await modeloDeTranscript(sid, t, deLaFamilia);
   ls.push({
     sid,
     nombre: nombreRetomado(x.nombre),
-    modelo: x.modelo,
+    modelo: modeloAnotado,
     effort: x.effort,
     creado: ahora,
     ultimo: 0,
@@ -1175,6 +1292,13 @@ async function anotar(
     retomado: ahora,
   });
   return { ok: true, nuevo: true };
+}
+
+/** El modelo con que hablaba una sesión de `familia`, del último mensaje del modelo en su transcript; si no se sabe, uno genérico de esa familia. */
+async function modeloDeTranscript(sid: string, t: string, familia: Familia): Promise<string> {
+  const est = await convDe(`${sid}#${familia}`, t);
+  const m = est.todos.findLast((x) => x.rol === "assistant" && x.modelo && x.modelo !== "<synthetic>" && familiaDeModelo(x.modelo) === familia)?.modelo;
+  return m ?? MODELO_DE_FAMILIA[familia];
 }
 
 /**
@@ -1360,9 +1484,10 @@ export const TOPE_SALIDA_MS = 10_000;
  * los ocupados (SIGTERM). Sin `forzar`, espera a que los ocupados terminen, pero
  * nunca más de `topeMs`: lo que siga vivo entonces se corta (SIGTERM; su
  * conversación queda en disco y se retoma con `--resume`) y queda en el log.
- * Devuelve los nombres de los que no cerraron a tiempo.
+ * Devuelve los nombres de los que no cerraron a tiempo. Con `dormir: false` ("Cerrar y parar todo": el usuario pidió que
+ * no quede nada corriendo) no se los marca `dormido`: al arrancar no vuelven solos.
  */
-export async function cerrarTodos(forzar: boolean, topeMs: number = TOPE_SALIDA_MS): Promise<string[]> {
+export async function cerrarTodos(forzar: boolean, topeMs: number = TOPE_SALIDA_MS, dormir = true): Promise<string[]> {
   const vivos = [...procs.entries()];
   // Antes de cerrar nada: quién tenía proceso, para levantarlo al arrancar (`reanudarDormidos`). Si algo corta la salida a
   // medias (SIGKILL de systemd), la marca ya está en disco.
@@ -1371,11 +1496,12 @@ export async function cerrarTodos(forzar: boolean, topeMs: number = TOPE_SALIDA_
   let marcados = 0;
   for (const [sid, p] of vivos) {
     const g = ls.find((l) => l.sid === sid);
-    if (g && g.rol !== "analista") {
+    const duerme = dormir && !!g && g.rol !== "analista";
+    if (g && duerme) {
       g.dormido = ahora;
       marcados++;
     }
-    rastro(sid, "salida", `trama sale (cerrar, reiniciar o apagar): ${forzar && p.ocupado ? "respondiendo, se corta" : "se cierra"}${g && g.rol !== "analista" ? "; queda dormido y vuelve al arrancar" : ""}`);
+    rastro(sid, "salida", `trama sale (cerrar, reiniciar o apagar): ${forzar && p.ocupado ? "respondiendo, se corta" : "se cierra"}${duerme ? "; queda dormido y vuelve al arrancar" : ""}`);
   }
   if (marcados) await guardar();
   const hechos = new Set<string>();
@@ -1413,7 +1539,7 @@ export async function reanudarDormidos(escalonMs = 150): Promise<string[]> {
   for (const g of ls) {
     delete g.dormido;
     if (g.rol === "analista" || procs.has(g.sid) || mandando.has(g.sid) || (await ajeno(g.sid))) continue;
-    const hay = (await transcriptDe(g.sid, g.cwd)) !== null;
+    const hay = (g.cambios?.length ? await transcriptFamilia(g.sid, familiaDeModelo(g.modelo), g.cwd) : await transcriptDe(g.sid, g.cwd)) !== null;
     // Uno local vuelve ocioso sin cargar el modelo (nada de GPU al arrancar trama): lo carga su próximo mensaje.
     const local = localDe(g.modelo) ? await locales.destino(g.modelo).catch(() => undefined) : undefined;
     if (localDe(g.modelo) && !local) continue;
@@ -1437,10 +1563,21 @@ export async function transcriptDe(sid: string, cwd?: string): Promise<string | 
   if (!SID.test(sid)) throw errorT("main.sesionRara", { v: sid });
   const directa = path.join(PROYECTOS, dirProyecto(cwd ?? HOME), `${sid}.jsonl`);
   const hay = (f: string) => access(f).then(() => true, () => false);
+  // Una conversación que cambió de motor tiene un transcript por motor: el de ahora primero.
+  const g = guardados?.find((l) => l.sid === sid);
+  if (g?.cambios?.length) {
+    const actual = await transcriptFamilia(sid, familiaDeModelo(g.modelo), cwd ?? g.cwd);
+    if (actual) return actual;
+  }
   if (await hay(directa)) return directa;
   // Un líder de Gemini guarda el suyo aparte (agy-puente.ts): no entra al consumo ni al historial de Claude.
   const gemini = transcriptGemini(sid);
   if (await hay(gemini)) return gemini;
+  // Y uno de dsh, el suyo (dsh-puente.ts), igual de aparte.
+  const dsh = transcriptDsh(sid);
+  if (await hay(dsh)) return dsh;
+  const opencode = transcriptOpencode(sid);
+  if (await hay(opencode)) return opencode;
   for (const d of await readdir(PROYECTOS).catch(() => [] as string[])) {
     const f = path.join(PROYECTOS, d, `${sid}.jsonl`);
     if (await hay(f)) return f;
@@ -1448,23 +1585,52 @@ export async function transcriptDe(sid: string, cwd?: string): Promise<string | 
   return null;
 }
 
+/** El transcript de un motor en un líder (`null`: ese motor todavía no habló en él). El de Claude vive en `projects/` de su carpeta, o en la que aparezca. */
+export async function transcriptFamilia(sid: string, familia: Familia, cwd?: string): Promise<string | null> {
+  if (!SID.test(sid)) throw errorT("main.sesionRara", { v: sid });
+  const hay = (f: string) => access(f).then(() => true, () => false);
+  const propio = familia === "gemini" ? transcriptGemini(sid) : familia === "dsh" ? transcriptDsh(sid) : familia === "opencode" ? transcriptOpencode(sid) : null;
+  if (propio) return (await hay(propio)) ? propio : null;
+  const directa = path.join(PROYECTOS, dirProyecto(cwd ?? HOME), `${sid}.jsonl`);
+  if (await hay(directa)) return directa;
+  for (const d of await readdir(PROYECTOS).catch(() => [] as string[])) {
+    const f = path.join(PROYECTOS, d, `${sid}.jsonl`);
+    if (await hay(f)) return f;
+  }
+  return null;
+}
+
+/** La conversación de un líder que cambió de motor: los transcripts de todos los motores por los que pasó, juntos y con una raya en cada cambio. */
+async function convUnida(g: Guardado): Promise<EstadoConv> {
+  const cambios = g.cambios ?? [];
+  const inicial = familiaDeModelo(cambios[0].de);
+  const pasos = cambios.map((cambio) => ({ cambio, a: familiaDeModelo(cambio.a) }));
+  const porFamilia = new Map<Familia, EstadoConv>();
+  for (const f of new Set<Familia>([inicial, ...pasos.map((x) => x.a)])) porFamilia.set(f, await convDe(`${g.sid}#${f}`, await transcriptFamilia(g.sid, f, g.cwd)));
+  return unirConvs(porFamilia, inicial, pasos);
+}
+
 /** El transcript de un líder de Gemini (lo escribe su puente): `$HILOS_STATE/gemini/<sid>.jsonl`. */
-const transcriptGemini = (sid: string) => path.join(ESTADO, "gemini", `${sid}.jsonl`);
+export const transcriptGemini = (sid: string) => path.join(ESTADO, "gemini", `${sid}.jsonl`);
+
+/** El transcript de un líder de DeepSeek Harness (lo escribe su puente): `$HILOS_STATE/dsh/<sid>.jsonl`. */
+export const transcriptDsh = (sid: string) => path.join(ESTADO, "dsh", `${sid}.jsonl`);
+
+/** El transcript de un líder de opencode (lo escribe el mismo puente que el de dsh): `$HILOS_STATE/opencode/<sid>.jsonl`. */
+export const transcriptOpencode = (sid: string) => path.join(ESTADO, "opencode", `${sid}.jsonl`);
 
 /** Dónde va a estar el transcript de un líder de la app (antes de su primer turno no existe). */
 export const transcriptPorDefecto = (sid: string) => path.join(PROYECTOS, dirProyecto(HOME), `${sid}.jsonl`);
 
 /** Una página de la conversación de un líder, con la forma de `pa --hilo --json`. */
 export async function conversacionLider(x: { sid: string; n?: number; antes?: number | null }) {
-  const t = await transcriptDe(String(x.sid));
+  const g = (await lideresApp()).find((l) => l.sid === x.sid);
+  const t = await transcriptDe(String(x.sid), g?.cwd);
   const pag = { n: Number(x.n) || 50, antes: x.antes ?? null };
+  if (g?.cambios?.length) return paginaDe(await convUnida(g), x.sid, t, pag);
   // Una rama sin su primer turno no tiene transcript: se ve lo que tiene el líder de origen hasta el mensaje de donde sale.
   const rama = t ? undefined : (await lideresApp()).find((l) => l.sid === x.sid)?.rama;
   if (rama) return paginaDe(hastaUuid(await convDe(rama.de, await transcriptDe(rama.de)), rama.hasta), x.sid, null, pag);
   return paginaDe(await convDe(x.sid, t), x.sid, t, pag);
 }
 
-/** "Ir a la ventana" de un líder de la terminal (electron/terminal.ts). */
-export const irAVentana = (pid: number): Promise<boolean> => irA(pid);
-/** ¿Se puede ubicar su ventana? Si no, la vista no ofrece el botón. */
-export const ventanaUbicable = async (pid: number): Promise<boolean> => (await ubicar(pid)) !== null;

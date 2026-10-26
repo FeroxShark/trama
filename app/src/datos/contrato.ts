@@ -53,6 +53,11 @@ export type Hilo = {
   cache_vence: number | null;
   cache_frio: CacheFrio;
   cache_modelo: string | null;
+  /**
+   * `pa --hilos --json`: el RESULTADO trajo VERIFICACION con comando y salida (`true`), no la trajo (`false`) o `pa` todavía no lo sabe
+   * (`null`, o el campo no viene: un `pa` viejo). Sólo `false` se marca: la UI no dice nada de los demás.
+   */
+  verificado?: boolean | null;
   /** Lo pone el main, no `pa`: cuándo vio morir la app a este worker (electron/vigia.ts). Sin verlo, no viene. */
   murio_en?: number | null;
   /**
@@ -67,14 +72,14 @@ export type Hilo = {
   /** Lo arma la app con el evento `inicio`, antes de que la lista lo traiga: sin tarea, líder ni rama todavía. */
   arrancando?: boolean;
   /**
-   * Lo pone el main, no `pa`: la máquina donde corre (`maquinas.json`, docs/estado/maquinas.md). Sin
+   * Lo pone el main, no `pa`: la máquina donde corre (`maquinas.json`). Sin
    * venir es la de esta trama: sin otra máquina configurada no viene nunca. Con él, `id` lleva el prefijo
    * `maquina:` (`conMaquina`) para no chocar con un id igual de la otra.
    */
   maquina?: string;
 };
 
-/** El id de una fila de otra máquina: `dell:20261014-…` (los de esta máquina van sin prefijo). */
+/** El id de una fila de otra máquina: `servidor:20261014-…` (los de esta máquina van sin prefijo). */
 export const conMaquina = (maquina: string | undefined, id: string) => (maquina ? `${maquina}:${id}` : id);
 /** Al revés: la máquina (`undefined`, esta) y el id como lo conoce su motor. */
 export function sinMaquina(id: string): { maquina: string | undefined; id: string } {
@@ -94,10 +99,23 @@ export type RespuestaHilos = { version: number; hilos: Hilo[] };
 export type Ventana = { pct: number; resets_at: number | null };
 
 /** Una ventana de cupo de una suscripción (`5h`, `7d`…): `pct` 0..100 (`null`: sin dato) y cuándo vuelve (epoch s, `null`: no se sabe). */
-export type VentanaCupo = { id: string; pct: number | null; vuelve: number | null };
+export type VentanaCupo = {
+  id: string;
+  pct: number | null;
+  vuelve: number | null;
+  /** La ventana no rige ahora (Google: con la semana agotada el límite de 5 h "no aplica"): no es un 0 %, es «no aplica». */
+  deshabilitada?: boolean;
+};
 
 /** Un grupo de modelos de una suscripción con sus propias ventanas; `hasta` (YYYY-MM-DD) si el cupo vence en una fecha. */
-export type GrupoCupo = { id: string; nombre: string; ventanas: VentanaCupo[]; hasta?: string };
+export type GrupoCupo = {
+  id: string;
+  nombre: string;
+  ventanas: VentanaCupo[];
+  hasta?: string;
+  /** `reparto` lo marcó sin cupo (un 429) hasta ese momento (epoch s): una marca, no un 100 % medido. */
+  agotado?: number;
+};
 
 /**
  * Una suscripción conectada que no es Claude (esa sale de `five_hour`/`seven_day`), tal como la dice
@@ -112,6 +130,8 @@ export type SuscripcionCupo = {
   ts: number;
   ventanas?: VentanaCupo[];
   grupos?: GrupoCupo[];
+  /** Lo mismo que en el grupo, para una suscripción con ventanas propias. */
+  agotado?: number;
 };
 
 /**
@@ -196,7 +216,7 @@ export type Lider = {
   modo?: string;
   /** El proyecto (slug) que nombra su primer mensaje: su carpeta mientras no tenga workers (B20). */
   inferido?: string | null;
-  /** Es la sesión de Shark (su cwd es `$SHARK_HOME`, default `/srv/shark`): va a la carpeta `SHARK`. Sin venir, no. */
+  /** Es la sesión de Shark (su cwd es `$SHARK_HOME`): va a la carpeta `SHARK`. Sin venir, no. */
   shark?: boolean;
   /**
    * Quedó sin proceso y no es de la app: no se le escribe hasta retomarlo (`fuente.liderRetomar`).
@@ -252,7 +272,7 @@ export type HaceLider =
   /** `extra`: dónde busca Grep/Glob (su carpeta) o a quién delega Agent (su tipo de subagente). */
   | { que: "herramienta"; nombre: string; detalle: string | null; extra?: string };
 
-/** Un aviso en línea del chat de un líder (espejo de `Aviso` en electron/lider-arma.ts; tabla en docs/estado/B12.md). */
+/** Un aviso en línea del chat de un líder (espejo de `Aviso` en electron/lider-arma.ts). */
 export type AvisoLider =
   | { clase: "reintento"; intento: number; max: number; espera_ms: number; estado: number | null; error: string | null }
   | { clase: "limite"; rechazado: boolean; ventana: string | null; hasta: number | null; uso: number | null }
@@ -321,7 +341,7 @@ export const GENERAL = "general";
  */
 export const SHARK = "Shark";
 
-/** Un líder de Shark: lo marcó el main por su cwd (`$SHARK_HOME`, `/srv/shark`) o su nombre empieza con "shark-". */
+/** Un líder de Shark: lo marcó el main por su cwd (`$SHARK_HOME`) o su nombre empieza con "shark-". */
 export const esShark = (l: { shark?: boolean; nombre: string }) => l.shark === true || /^shark-/i.test(l.nombre);
 
 /** Lo que el main arma con los statusline: las barras de uso y los líderes. `uso` es `null` si no hay de dónde sacarlo. */
@@ -371,6 +391,8 @@ export type Mensaje = {
   compacto?: { auto: boolean | null; antes: number | null };
   /** `system/trama_destrabo`: trama cortó un bucle de un líder Gemini y le mandó el aviso (`agotado`: a la segunda vez para). */
   destrabo?: { que: string; agotado: boolean };
+  /** La conversación siguió desde acá con un modelo de otro motor (otro transcript): una raya "Siguió con <modelo> · <hora>". `modelo`: el nuevo. */
+  cambio?: { modelo: string };
   /** Cada herramienta con su entrada (B19, src/hilo/herramientas.ts), en el orden de `herramientas`. */
   det?: Herramienta[];
   /** Las imágenes que mandó el usuario a un líder (B26), en base64. */

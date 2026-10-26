@@ -9,12 +9,12 @@ va con flock sobre .lock + archivo temporal + rename atómico, y los que leen no
 Las vistas (ficha, proyectos, hoy, resumen) se generan en el momento desde git + el estado de
 `pa` + el tablero: no son archivos, así que no se desactualizan ni chocan en un rebase.
 
-Detalle: docs/tablero-cli-de-pendientes-esperas-ideas-y-hecho.md
 """
 import argparse
 import contextlib
 import fcntl
 import functools
+import glob
 import json
 import os
 import re
@@ -214,7 +214,7 @@ class Registro:
 
     def slug(self, p):
         """El slug de pa: basename de la ruta real en minúscula (carpeta de $PA_STATE y de pa/<slug>/*)."""
-        return os.path.basename(self.ruta(p)).lower()
+        return re.sub(r"[^A-Za-z0-9._-]", "-", os.path.basename(self.ruta(p))).lower()   # igual que slug_de de pa
 
     def _canon(self, p):
         # Varios nombres con la MISMA carpeta son alias ("mpvpaper-guard" y "mpvpaper-guard /
@@ -224,6 +224,15 @@ class Registro:
             if self.ruta(q) == r:
                 return q
         return p
+
+    @staticmethod
+    def _otros_nombres(p):
+        """El nombre para mostrar (`titulo`, `pa --renombrar`) y los alias del registry, en minúscula."""
+        v = [p.get("titulo")]
+        for k in ("alias", "aliases"):
+            x = p.get(k)
+            v += x if isinstance(x, list) else [x]
+        return [str(a).strip().lower() for a in v if isinstance(a, str) and a.strip()]
 
     def resolver(self, nombre):
         """-> (nombre canónico, entrada del registry o None, aviso o None).
@@ -237,7 +246,7 @@ class Registro:
             return "", None, None
         ps = self.proyectos
         ql = q.lower()
-        for cond in (lambda p: p["name"] == q, lambda p: p["name"].lower() == ql, lambda p: self.slug(p) == ql):
+        for cond in (lambda p: p["name"] == q, lambda p: p["name"].lower() == ql, lambda p: self.slug(p) == ql, lambda p: ql in self._otros_nombres(p)):
             for p in ps:
                 if cond(p):
                     c = self._canon(p)
@@ -604,6 +613,31 @@ def pid_vivo(ruta_pid):
         return False
 
 
+def corrida_viva(slug, cid):
+    """La corrida `cid` de `slug` sigue viva: su `<id>.pid` (sólo --async lo escribe) o, para las de primer plano, un
+    `<slug>[@puesto|.leer-<id>].running` con ese id y un pid vivo (el del worker; mientras arranca, el de pa)."""
+    if pid_vivo(os.path.join(PA_STATE, slug, cid + ".pid")):
+        return True
+    pat = os.path.join(PA_STATE, glob.escape(slug))
+    for f in glob.glob(pat + ".running") + glob.glob(pat + "@*.running") + glob.glob(pat + ".leer-*.running"):
+        campos = {}
+        try:
+            with open(f, errors="replace") as fh:
+                for l in fh:
+                    k, _, v = l.rstrip("\n").partition("=")
+                    campos.setdefault(k, v)
+        except OSError:
+            continue
+        if campos.get("id") != cid:
+            continue
+        try:
+            if os.path.isdir(f"/proc/{int(campos.get('pid') or campos.get('pa_pid') or '')}"):
+                return True
+        except ValueError:
+            pass
+    return False
+
+
 _ENCABEZADO = re.compile(r"^[*#> \t-]*(RESULTADO|ARCHIVOS|DECISI[OÓ]N|SIGUE)[*]*:[*]*[ \t]*", re.M)
 _OTRO_CAMPO = re.compile(r"\b(ARCHIVOS|DECISI[OÓ]N|SIGUE)[*]*:")
 # fin de oración: punto, ! o ? seguido de un espacio y de algo que arranca otra oración
@@ -682,7 +716,7 @@ def corridas(slug, n=3):
         if fila:
             res = fila[9]
         elif "decision_nada" not in h:
-            res = "en curso" if pid_vivo(os.path.join(d, cid + ".pid")) else "sin resultado"
+            res = "en curso" if corrida_viva(slug, cid) else "sin resultado"
         elif h.get("decision_nada") == "0":
             res = "espera decisión" + (f": {recorte(h['decision'], 80)}" if h.get("decision") else "")
         elif h.get("leer") == "1":
@@ -729,7 +763,7 @@ def ramas_pa_en_disco(ruta):
 def rama_en_curso(rama):
     """pa/<slug>/<id> con su worker vivo: todavía no es una rama que espere integración."""
     p = rama.split("/")
-    return len(p) == 3 and pid_vivo(os.path.join(PA_STATE, p[1], p[2] + ".pid"))
+    return len(p) == 3 and corrida_viva(p[1], p[2])
 
 
 def ramas_sin_integrar(reg):
@@ -949,6 +983,10 @@ def cmd_editar(a):
 
 def cmd_responder(a):
     """La respuesta del dueño queda en el item; no lo cierra ni lo mueve (eso lo hace el que la lee)."""
+    if a.texto is not None:   # `responder 42 "la opción 2"`: el texto suelto es --respuesta
+        if a.respuesta is not None:
+            morir("responder: el texto va suelto o con --respuesta, no los dos", 2)
+        a.respuesta = a.texto
     prueba = a.anda is not None
     if a.borrar:
         if prueba or a.respuesta is not None or a.opcion is not None or a.nota is not None:
@@ -1440,6 +1478,7 @@ def main():
 
     p = cmd("responder", cmd_responder, D("guarda la respuesta de {D} en el item, sin cerrarlo ni moverlo"))
     p.add_argument("id", type=_id)
+    p.add_argument("texto", nargs="?", metavar="texto", help="la respuesta en texto libre (igual que --respuesta)")
     p.add_argument("--respuesta", metavar="T", help="texto libre")
     p.add_argument("--opcion", metavar="ID|N", help="la opción elegida: su id o su número de orden")
     g = p.add_mutually_exclusive_group()

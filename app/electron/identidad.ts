@@ -1,7 +1,7 @@
-// Quién es esta máquina para el celular: trama se sirve por la tailnet desde la PC y desde el Dell, y cada una
+// Quién es esta máquina para el celular: trama se sirve por la tailnet desde más de una máquina (la PC y otra, por ejemplo), y cada una
 // tiene que poder vivir como su propio ícono en la pantalla de inicio. De acá salen el título, el color, el
 // manifest y el ícono (SVG y PNG) de cada entrada. Sin `electron` ni estado propio: lo prueba
-// tests/identidad.test.ts. Contrato: docs/estado/celular-maquinas.md.
+// tests/identidad.test.ts.
 //
 // Sin otra máquina configurada (sin `maquinas.json`, o con uno que no dice nada de esta) la identidad es
 // "como hoy": `propia: false` y remoto.ts sirve los archivos de `dist/` tal cual, sin tocar nada.
@@ -9,13 +9,13 @@ import { crc32, deflateSync } from "node:zlib";
 import type { ConfigMaquinas } from "./maquinas-config.js";
 
 export type Identidad = {
-  /** El id de esta máquina (`pc`, `dell`). */
+  /** El id de esta máquina (`pc`, `servidor`). */
   id: string;
-  /** Cómo se la llama: `PC`, `Dell`. */
+  /** Cómo se la llama: `PC`, `Servidor`. */
   nombre: string;
-  /** El título de la pestaña: `trama · Dell`. */
+  /** El título de la pestaña: `trama · Servidor`. */
   titulo: string;
-  /** El nombre del acceso directo: `Trama Dell`. */
+  /** El nombre del acceso directo: `Trama Servidor`. */
   corto: string;
   /** El color oscuro de la barra del navegador y del fondo del ícono (`#rrggbb`). */
   fondo: string;
@@ -28,8 +28,8 @@ export type Identidad = {
 /** La de hoy: el logo de siempre y el fondo de siempre. */
 const FONDO_BASE = "#0a0a0a";
 const TRAZO_BASE = "#fafafa";
-/** Los colores que llevan por defecto las máquinas conocidas; el resto elige uno por su id. */
-const DEFECTO: Record<string, string> = { pc: TRAZO_BASE, dell: "#5eead4" };
+/** El color que lleva por defecto la PC; el resto elige uno por su id. */
+const DEFECTO: Record<string, string> = { pc: TRAZO_BASE };
 const PALETA = ["#fbbf24", "#a78bfa", "#fb7185", "#60a5fa", "#a3e635", "#f472b6"];
 
 const hex = (c: string): [number, number, number] => [1, 3, 5].map((i) => parseInt(c.slice(i, i + 2), 16)) as [number, number, number];

@@ -1,11 +1,16 @@
 // Selector propio (nada de <select> nativo): un botón con contorno y un menú
-// que abre hacia arriba. Listbox con foco real en las opciones: flechas,
+// que abre hacia arriba (si no hay lugar arriba, hacia abajo), en un portal a
+// <body> con `position: fixed` para que ningún `overflow` de un ancestro lo
+// recorte. Listbox con foco real en las opciones: flechas,
 // Inicio/Fin, Enter o Espacio para elegir; Esc, Tab o clic afuera lo cierran.
-import { Fragment, useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
-import { Check, ChevronUp } from "lucide-react";
+import { Fragment, useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { createPortal } from "react-dom";
+import { Check, ChevronUp, Search } from "lucide-react";
 import { t } from "../i18n";
 import { Reserva } from "../i18n/Fijo";
 import { ChipLocal } from "./Logos";
+import { DialogoCambio, type DatosCambio } from "./DialogoCambio";
+import { filtrar, repartir } from "./selector-columnas";
 
 export type Opcion = {
   id: string;
@@ -22,8 +27,20 @@ export type Opcion = {
   deshabilitada?: boolean;
   /** El rótulo de un grupo (la empresa de un modelo): se pinta antes de la primera opción de ese grupo, si la lista tiene más de uno. */
   grupo?: string;
+  /** Gratis: la lista compacta lo marca con "Gratis" a la derecha (no sólo con el color). */
+  gratis?: boolean;
+  /** De pago (tu clave de API, se paga por uso): la lista compacta lo marca con "De pago" a la derecha. */
+  pago?: boolean;
   /** Corre en la GPU de esta máquina: lleva el chip de "local" junto al nombre. */
   local?: boolean;
+  /** En columnas: la columna si no es la de su `grupo` (los locales de GPU y los de Ollama van juntos). */
+  col?: string;
+  /** En columnas: el título de la columna, si no es el `grupo`. */
+  colNombre?: string;
+  /** En columnas: el logo del título de la columna. */
+  colMarca?: ReactNode;
+  /** En columnas: el lugar de la columna (menor, antes); sin esto, el orden en que aparecen. */
+  colOrden?: number;
 };
 
 type Props = {
@@ -42,13 +59,67 @@ type Props = {
    * agranda ni lo achica (B21). Sin esto, mide lo de la elegida.
    */
   reserva?: readonly string[];
+  /**
+   * Un menú compacto (ancho tope ~46rem, alto tope 60vh): a la izquierda un riel con una pestaña por grupo (`Opcion.grupo`: el proveedor del
+   * modelo, con su logo y cuántos tiene) y a la derecha una sola lista, la del proveedor elegido, de un renglón por modelo. La búsqueda de arriba
+   * mira todos los proveedores. En un celular el riel pasa arriba, en horizontal. Con un solo grupo es el menú de siempre.
+   */
+  columnas?: boolean;
+  /** Si elegir esta opción pide confirmación (otro motor): los datos del diálogo, que se abre sobre el menú abierto; el valor no cambia hasta confirmar. */
+  confirmar?: (id: string) => DatosCambio | null;
+  /** Lo que se suma al nombre cuando la barra se compacta ("· med": el esfuerzo fusionado en el chip); lo muestra el CSS. */
+  sufijo?: string;
+  /** Para las capturas: nace con el diálogo de esta opción. */
+  confirmando?: string;
 };
 
 /** El nombre de una opción, en su fuente si trae una. */
 const nombreDe = (o: Opcion) => (o.fuente ? <span style={{ fontFamily: o.fuente }}>{o.nombre}</span> : o.nombre);
 
-export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, abierto: deEntrada = false, reserva }: Props) {
-  const [abierto, setAbierto] = useState(deEntrada);
+/** Aire que el menú le deja al borde de la ventana y al botón. */
+const MARGEN = 8;
+const SEPARACION = 6;
+
+/** Pone el menú pegado al botón: arriba si entra, si no abajo (el lado con más lugar), con el alto topado al lugar que hay. */
+function colocar(boton: HTMLElement, menu: HTMLElement) {
+  const r = boton.getBoundingClientRect();
+  const vw = document.documentElement.clientWidth;
+  const vh = window.innerHeight;
+  const st = menu.style;
+  st.maxHeight = "";
+  const arriba = r.top - SEPARACION - MARGEN;
+  const abajo = vh - r.bottom - SEPARACION - MARGEN;
+  const alto = menu.offsetHeight;
+  const sube = alto <= arriba || (alto > abajo && arriba >= abajo);
+  const lugar = Math.max(0, sube ? arriba : abajo);
+  if (alto > lugar) st.maxHeight = `${lugar}px`;
+  if (sube) {
+    st.top = "auto";
+    st.bottom = `${vh - r.top + SEPARACION}px`;
+  } else {
+    st.bottom = "auto";
+    st.top = `${r.bottom + SEPARACION}px`;
+  }
+  // A lo ancho: alineado con el borde izquierdo del botón; si no entra, con el derecho; y nunca fuera de la ventana.
+  const ancho = menu.offsetWidth;
+  let izq = r.left;
+  if (izq + ancho > vw - MARGEN) izq = r.right - ancho;
+  st.left = `${Math.max(MARGEN, Math.min(izq, vw - MARGEN - ancho))}px`;
+  st.transformOrigin = `${sube ? "bottom" : "top"} left`;
+}
+
+/** Desde cuántas opciones el menú en columnas trae la búsqueda. */
+const CON_BUSQUEDA = 8;
+
+export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, abierto: deEntrada = false, reserva, columnas = false, confirmar, sufijo, confirmando }: Props) {
+  const [abierto, setAbierto] = useState(deEntrada || !!confirmando);
+  const [pend, setPend] = useState<{ id: string; datos: DatosCambio } | null>(() => {
+    const d = confirmando && confirmar ? confirmar(confirmando) : null;
+    return d ? { id: confirmando!, datos: d } : null;
+  });
+  const [busqueda, setBusqueda] = useState("");
+  const [tab, setTab] = useState<string | null>(null);
+  const buscador = useRef<HTMLInputElement>(null);
   const boton = useRef<HTMLButtonElement>(null);
   const menu = useRef<HTMLDivElement>(null);
   const id = useId();
@@ -56,7 +127,42 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
   const actual = opciones.find((o) => o.id === valor) ?? opciones[0] ?? { id: "", nombre: "…", desc: "" };
 
   // Con un solo grupo (los modelos de un worker: todos de Anthropic) el divisor no dice nada.
-  const variosGrupos = new Set(opciones.map((o) => o.grupo).filter(Boolean)).size > 1;
+  const variosGrupos = new Set(opciones.map((o) => o.grupo ?? o.col).filter(Boolean)).size > 1;
+  // En columnas sólo si hay más de un grupo: con uno solo (los modelos de un worker, todos de Anthropic) una columna angosta no aporta.
+  const enColumnas = columnas && variosGrupos;
+  const conBusqueda = enColumnas && opciones.length >= CON_BUSQUEDA;
+  const visibles = useMemo(() => (enColumnas ? filtrar(opciones, busqueda) : opciones), [enColumnas, opciones, busqueda]);
+  const reparto = useMemo(() => repartir(visibles), [visibles]);
+  // El riel: una pestaña por proveedor (todos, aunque la búsqueda deje a alguno sin coincidencias; entonces va con un 0).
+  const riel = useMemo(() => (enColumnas ? repartir(opciones).columnas : []), [enColumnas, opciones]);
+  const buscando = busqueda.trim() !== "";
+  const claveDe = (o: Opcion) => o.col ?? o.grupo;
+  const tabActiva = (tab && riel.some((c) => c.clave === tab) ? tab : null) ?? (claveDe(actual) && riel.some((c) => c.clave === claveDe(actual)) ? claveDe(actual) : null) ?? riel[0]?.clave ?? null;
+  const cuenta = (clave: string) => reparto.columnas.find((c) => c.clave === clave)?.ops.length ?? 0;
+
+  // Fijo a la ventana: sigue al botón si se hace scroll o cambia el tamaño.
+  useLayoutEffect(() => {
+    if (!abierto) return;
+    const poner = () => {
+      if (boton.current && menu.current) colocar(boton.current, menu.current);
+    };
+    poner();
+    const alMover = (e: Event) => {
+      if (e.target instanceof Node && menu.current?.contains(e.target)) return;
+      poner();
+    };
+    window.addEventListener("resize", alMover);
+    window.addEventListener("scroll", alMover, true);
+    return () => {
+      window.removeEventListener("resize", alMover);
+      window.removeEventListener("scroll", alMover, true);
+    };
+  }, [abierto]);
+
+  // Al filtrar, el menú cambia de alto: se vuelve a poner junto al botón.
+  useLayoutEffect(() => {
+    if (abierto && boton.current && menu.current) colocar(boton.current, menu.current);
+  }, [abierto, busqueda]);
 
   const items = () => [...(menu.current?.querySelectorAll<HTMLElement>('[role="option"]:not(:disabled)') ?? [])];
 
@@ -69,6 +175,8 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
 
   const cerrar = (conFoco = true) => {
     setAbierto(false);
+    setBusqueda("");
+    setTab(null);
     if (conFoco) boton.current?.focus();
   };
 
@@ -78,7 +186,77 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
     setAbierto(true);
   };
 
+  /** Las opciones de la lista (de la pestaña, o de todas las que coinciden con la búsqueda). */
+  const filas = () => [...(menu.current?.querySelectorAll<HTMLElement>('.mc-lista [role="option"]:not(:disabled)') ?? [])];
+  const pestanas = () => [...(menu.current?.querySelectorAll<HTMLElement>('.mc-riel [role="tab"]') ?? [])];
+  const hojear = (clave: string) => {
+    if (!buscando) return setTab(clave);
+    // Buscando se ven todos los proveedores: la pestaña lleva al suyo.
+    menu.current?.querySelector<HTMLElement>(`[data-grupo-clave="${CSS.escape(clave)}"]`)?.scrollIntoView({ block: "start" });
+  };
+
+  const teclaColumnas = (e: KeyboardEvent) => {
+    const enBuscador = e.target === buscador.current;
+    if (e.key === "Escape") {
+      e.stopPropagation();
+      if (enBuscador && busqueda) {
+        e.preventDefault();
+        setBusqueda("");
+        return;
+      }
+      return cerrar();
+    }
+    if (e.key === "Tab") return cerrar();
+    const activo = document.activeElement as HTMLElement | null;
+    const op = filas();
+    const tabs = pestanas();
+    const enRiel = !!activo && tabs.includes(activo);
+    if (enBuscador) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        op[0]?.focus();
+      } else if (e.key === "Enter") {
+        e.preventDefault();
+        op[0]?.click();
+      }
+      return;
+    }
+    if (enRiel) {
+      const i = tabs.indexOf(activo!);
+      if (e.key === "ArrowDown" || e.key === "ArrowUp" || e.key === "Home" || e.key === "End") {
+        e.preventDefault();
+        const k = e.key === "Home" ? 0 : e.key === "End" ? tabs.length - 1 : Math.max(0, Math.min(tabs.length - 1, i + (e.key === "ArrowDown" ? 1 : -1)));
+        if (k === 0 && e.key === "ArrowUp" && i === 0) return buscador.current?.focus();
+        tabs[k]?.focus();
+        const c = tabs[k]?.dataset.clave;
+        if (c) hojear(c);
+      } else if (e.key === "ArrowRight" || e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        (op.find((o) => o.getAttribute("aria-selected") === "true") ?? op[0])?.focus();
+      }
+      return;
+    }
+    const i = activo ? op.indexOf(activo) : -1;
+    if (e.key === "ArrowDown" || e.key === "ArrowUp" || e.key === "Home" || e.key === "End") {
+      e.preventDefault();
+      if (i < 0) return op[0]?.focus();
+      if (e.key === "ArrowUp" && i === 0) return buscador.current?.focus() ?? tabs[0]?.focus();
+      op[e.key === "Home" ? 0 : e.key === "End" ? op.length - 1 : Math.max(0, Math.min(op.length - 1, i + (e.key === "ArrowDown" ? 1 : -1)))]?.focus();
+      return;
+    }
+    if (e.key === "ArrowLeft") {
+      e.preventDefault();
+      // De vuelta al riel: a la pestaña del proveedor de la opción en la que está.
+      const g = activo?.closest<HTMLElement>("[data-grupo-clave]")?.dataset.grupoClave ?? tabActiva;
+      (tabs.find((x) => x.dataset.clave === g) ?? tabs[0])?.focus();
+      return;
+    }
+    // Escribir estando en una opción lleva a la búsqueda (la letra queda escrita ahí).
+    if (conBusqueda && e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey && e.key !== " ") buscador.current?.focus();
+  };
+
   const teclaMenu = (e: KeyboardEvent) => {
+    if (enColumnas) return teclaColumnas(e);
     const ops = items();
     const i = ops.indexOf(document.activeElement as HTMLElement);
     const ir = (k: number) => {
@@ -104,6 +282,71 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
     }
   };
 
+  const opcion = (o: Opcion) => (
+    <button
+      key={o.id}
+      type="button"
+      role="option"
+      className="op"
+      tabIndex={-1}
+      disabled={o.deshabilitada}
+      aria-selected={o.id === actual.id}
+      title={enColumnas ? `${o.nombre}${o.desc ? ` · ${o.desc}` : ""}` : undefined}
+      onClick={() => {
+        const datos = confirmar?.(o.id);
+        // Otro motor: el menú sigue abierto y el chip como estaba hasta que se confirme.
+        if (datos) return setPend({ id: o.id, datos });
+        alElegir(o.id);
+        cerrar();
+      }}
+    >
+      <span className="on1">
+        {o.marca}
+        {o.fuente ? <span style={{ fontFamily: o.fuente }}>{o.nombre}</span> : <span className="on-n">{o.nombre}</span>}
+        {o.local ? <ChipLocal /> : null}
+        {o.rec ? <span className="rec">{t("selector.default")}</span> : null}
+      </span>
+      <span className="md">{o.desc}</span>
+      <Check className="ok" size={14} strokeWidth={2.2} />
+    </button>
+  );
+
+  /** Un modelo en la lista compacta: un renglón (nombre y, a la derecha, "Gratis" / "De pago" / "por defecto"); la descripción, sólo en el resaltado. */
+  const opcionCompacta = (o: Opcion, colNombre: string) => {
+    const nom = o.nombre.replace(/\s·\s(?:por\s)?([^·]+)$/, (m, g: string) => (g === colNombre || g === o.colNombre || g === o.grupo || (o.gratis && g === "Gratis") ? "" : m));
+    return (
+      <button
+        key={o.id}
+        type="button"
+        role="option"
+        className="op op-c"
+        tabIndex={-1}
+        disabled={o.deshabilitada}
+        aria-selected={o.id === actual.id}
+        title={`${o.nombre}${o.desc ? ` · ${o.desc}` : ""}`}
+        onClick={() => {
+          const datos = confirmar?.(o.id);
+          // Otro motor: el menú sigue abierto y el chip como estaba hasta que se confirme.
+          if (datos) return setPend({ id: o.id, datos });
+          alElegir(o.id);
+          cerrar();
+        }}
+      >
+        <span className="on1">
+          {o.fuente ? <span style={{ fontFamily: o.fuente }}>{nom}</span> : <span className="on-n">{nom}</span>}
+          {o.local ? <ChipLocal /> : null}
+        </span>
+        <span className="oc-meta">
+          {o.gratis ? <span className="oc-tag" data-tag="gratis">{t("selector.gratis")}</span> : null}
+          {o.pago ? <span className="oc-tag" data-tag="pago">{t("selector.pago")}</span> : null}
+          {o.rec ? <span className="rec">{t("selector.default")}</span> : null}
+        </span>
+        <Check className="ok" size={14} strokeWidth={2.2} />
+        <span className="md">{o.desc}</span>
+      </button>
+    );
+  };
+
   return (
     <div className="pick">
       <button
@@ -124,49 +367,130 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
         ) : (
           nombreDe(actual)
         )}
+        {sufijo ? (
+          <span className="pbtn-suf" aria-hidden="true">
+            · {sufijo}
+          </span>
+        ) : null}
         <ChevronUp className="chev" size={12} strokeWidth={2} />
       </button>
-      {abierto ? (
-        <>
-          <button type="button" className="fondo" tabIndex={-1} aria-label={t("comun.cerrarMenu")} onClick={() => cerrar(false)} />
-          <div ref={menu} id={id} className="menu" role="listbox" aria-label={etiqueta} onKeyDown={teclaMenu}>
-            <div className="mh" aria-hidden="true">
-              {etiqueta}
-            </div>
-            {opciones.map((o, i) => (
-              <Fragment key={o.id}>
-                {variosGrupos && o.grupo && o.grupo !== opciones[i - 1]?.grupo ? (
-                  // Como el rótulo de arriba, oculto al lector: la `desc` de cada opción ya dice qué es.
-                  <div className="mh mh-grupo" data-primero={i === 0 ? "" : undefined} aria-hidden="true">
-                    {o.grupo}
-                  </div>
-                ) : null}
-                <button
-                  type="button"
-                  role="option"
-                  className="op"
-                  tabIndex={-1}
-                  disabled={o.deshabilitada}
-                  aria-selected={o.id === actual.id}
-                  onClick={() => {
-                    alElegir(o.id);
-                    cerrar();
-                  }}
-                >
-                  <span className="on1">
-                    {o.marca}
-                    {o.fuente ? <span style={{ fontFamily: o.fuente }}>{o.nombre}</span> : o.nombre}
-                    {o.local ? <ChipLocal /> : null}
-                    {o.rec ? <span className="rec">{t("selector.default")}</span> : null}
-                  </span>
-                  <span className="md">{o.desc}</span>
-                  <Check className="ok" size={14} strokeWidth={2.2} />
-                </button>
-              </Fragment>
-            ))}
-          </div>
-        </>
+      {pend ? (
+        <DialogoCambio
+          datos={pend.datos}
+          alSi={() => {
+            const id = pend.id;
+            setPend(null);
+            alElegir(id);
+            cerrar();
+          }}
+          alNo={() => {
+            setPend(null);
+            cerrar();
+          }}
+        />
       ) : null}
+      {abierto
+        ? createPortal(
+            <>
+              <button type="button" className="fondo" tabIndex={-1} aria-label={t("comun.cerrarMenu")} onClick={() => cerrar(false)} />
+              <div
+                ref={menu}
+                id={enColumnas ? undefined : id}
+                className="menu"
+                data-columnas={enColumnas ? reparto.columnas.length : undefined}
+                role={enColumnas ? undefined : "listbox"}
+                aria-label={enColumnas ? undefined : etiqueta}
+                onKeyDown={teclaMenu}
+              >
+                {enColumnas ? (
+                  <>
+                    <div className="mc-cab">
+                      <span className="mh" aria-hidden="true">
+                        {etiqueta}
+                      </span>
+                      {conBusqueda ? (
+                        <label className="mc-busca">
+                          <Search size={13} strokeWidth={2} aria-hidden="true" />
+                          <input
+                            ref={buscador}
+                            type="search"
+                            value={busqueda}
+                            placeholder={t("selector.buscar")}
+                            aria-label={t("selector.buscar")}
+                            autoComplete="off"
+                            spellCheck={false}
+                            onChange={(e) => setBusqueda(e.target.value)}
+                          />
+                        </label>
+                      ) : null}
+                    </div>
+                    <div className="mc-cuerpo">
+                      <div className="mc-riel" role="tablist" aria-orientation="vertical" aria-label={etiqueta}>
+                        {riel.map((c) => (
+                          <button
+                            key={c.clave}
+                            type="button"
+                            role="tab"
+                            className="mc-tab"
+                            tabIndex={-1}
+                            data-clave={c.clave}
+                            aria-selected={!buscando && c.clave === tabActiva}
+                            data-vacia={buscando && cuenta(c.clave) === 0 ? "" : undefined}
+                            onClick={() => hojear(c.clave)}
+                          >
+                            {c.ops[0]?.colMarca ?? c.ops[0]?.marca}
+                            <span className="mc-tn">{c.nombre}</span>
+                            <span className="mc-cnt">{buscando ? cuenta(c.clave) : c.ops.length}</span>
+                          </button>
+                        ))}
+                      </div>
+                      <div id={id} className="mc-lista" role="listbox" aria-label={etiqueta}>
+                        {!buscando && reparto.arriba.length ? <div className="mc-arriba">{reparto.arriba.map((o) => opcionCompacta(o, ""))}</div> : null}
+                        {reparto.columnas
+                          .filter((c) => buscando || c.clave === tabActiva)
+                          .map((c) => (
+                            <div key={c.clave} className="mc-col" role="group" aria-label={c.nombre} data-grupo-clave={c.clave}>
+                              {buscando ? (
+                                <div className="mc-tit">
+                                  {c.ops[0]?.colMarca ?? c.ops[0]?.marca}
+                                  <span>{c.nombre}</span>
+                                </div>
+                              ) : null}
+                              {c.ops.map((o, i) => (
+                                <Fragment key={o.id}>
+                                  {o.grupo && o.grupo !== c.nombre && o.grupo !== c.ops[i - 1]?.grupo ? <div className="mc-sub">{o.grupo}</div> : null}
+                                  {opcionCompacta(o, c.nombre)}
+                                </Fragment>
+                              ))}
+                            </div>
+                          ))}
+                        {!visibles.length ? <div className="mc-nada">{t("selector.nada")}</div> : null}
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="mh" aria-hidden="true">
+                      {etiqueta}
+                    </div>
+                    {opciones.map((o, i) => (
+                      <Fragment key={o.id}>
+                        {variosGrupos && o.grupo && o.grupo !== opciones[i - 1]?.grupo ? (
+                          // Como el rótulo de arriba, oculto al lector: la `desc` de cada opción ya dice qué es.
+                          <div className="mh mh-grupo" data-primero={i === 0 ? "" : undefined} aria-hidden="true">
+                            {o.grupo}
+                          </div>
+                        ) : null}
+                        {opcion(o)}
+                      </Fragment>
+                    ))}
+                  </>
+                )}
+              </div>
+            </>,
+            document.body,
+          )
+        : null}
     </div>
   );
 }

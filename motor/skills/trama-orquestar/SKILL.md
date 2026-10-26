@@ -41,6 +41,8 @@ pa <proyecto> --ramas                      ramas de workers todavía sin integra
 pa <proyecto> --descartar <id>             tirar esa rama (borra commits: confirmalo con el usuario)
 pa <proyecto> --revertir <id>              deshacer una integrada con `git revert`
 pa --modelos                               qué modelo usa cada tipo de tarea, de dónde sale y si hay cupo
+pa --plan ver | ausente <fecha>[,..]       el ritmo semanal de cada suscripción y las pistas del usuario (ver "Ritmo del cupo")
+pa --plan gastar-hoy | ahorrar-hoy | borrar
 pa --estado                                qué corre ahora, sesiones guardadas, límite vigente
 ```
 
@@ -66,10 +68,20 @@ pa --estado                                qué corre ahora, sesiones guardadas,
   y subí con `-m`. Más effort no es más inteligencia, es más exploración y más gasto.
 - Un modelo `ollama:<modelo>` es local: más lento y menos capaz; reservalo para `mecanico` y `lectura`
   salvo que el usuario diga otra cosa.
-- Un worker Gemini (`gemini-…`) cae al plan B que diga `gemini.sin_claude` cuando no hay cupo: `claude`
-  (usa Claude), `esperar` (queda en cola) o `fallar`.
+- `opencode:<proveedor>/<modelo>` (gratis: `opencode:opencode/deepseek-v4.1-flash-free`, `glm-5.3-flash-free`,
+  `nemotron-3-ultra-free`, `big-pickle`…; la lista sale de `opencode models`), `dsh:ollama/<modelo>` (local) y
+  `dsh:deepseek/<modelo>` (se paga) corren el worker con el programa `opencode` o con DeepSeek Harness. Son los
+  modelos para quien no tiene Claude, Gemini ni ChatGPT: menos capaces, así que `mecanico`, `lectura` o
+  `codigo-acotado` con chequeo, no diseño ni `debug`. Sin effort ni `--seguir`, `--leer`, `--mcp`, `--aca`,
+  `--max-budget-usd`. Salen 95 si falta `opencode` / `dsh`, la key de DeepSeek (`DEEPSEEK_API_KEY` en el entorno o en
+  `~/.config/trama/claves.env`; nunca la pidas ni la imprimas) o Ollama no responde. Los gratis de OpenCode usan el
+  login de la persona en `opencode` (`opencode` → /connect → OpenCode Console): no hay key que pasarles, y por dsh no
+  andan (429). `opencode` y `deepseek` son remotos: `pa` no les manda la ficha del proyecto ni el CLAUDE.md del
+  dueño. `pa --modelos` los lista.
+- Cuando el modelo elegido no tiene cupo, `sin_cupo` de `modelos.json` dice qué hace `pa`: `otro` (el
+  default: relanza con el siguiente candidato de `reparto`), `esperar` (queda en cola con `--async`) o `fallar`.
 
-## Elegir modelo en corto (guía completa: `docs/guia-de-modelos-fuertes-effort-y-costo.md`)
+## Elegir modelo en corto
 
 **Pasá `--tipo` y dejá que `reparto` elija.** Forzá `-m` sólo con uno de estos motivos:
 
@@ -85,22 +97,50 @@ Qué esperar (datos propios de una instalación, 60 días): Sonnet high iguala o
 Haiku xhigh alcanza para `lectura`/`mecanico` y, con test automático, para `codigo-acotado`. Argon, Flash,
 GPT-OSS y Claude por `agy` tienen pocas corridas: no los fuerces para código.
 
+- **Antes de forzar `-m`, mirá `reparto --tabla`** (`--json` para leerla): todos los modelos con su inteligencia (`~` = estimada
+  por el nombre), si son gratis, el cupo libre, cuándo se reinicia y si `modelos.json` los permite. `reparto` ya prefiere los
+  planes que se reinician pronto y todavía tienen cupo (ese cupo se pierde si no se usa) y los modelos gratis cuando el cupo
+  escasea: no hace falta que lo corrijas a mano. `pa --modelos` muestra la misma inteligencia.
 - **Nunca effort `max`** salvo que el usuario prenda `permitir_max` en los ajustes de Trama.
 - **Fable no vale su precio** frente a Opus 5.5 (2,5× por token y peor resultado medido): no lo uses.
 - Effort no es inteligencia: más effort = más turnos y más gasto. Si falla, mejorá la tarea antes de subirlo.
-- Flash sólo `lectura`/`mecanico`; GPT-OSS no sigue bien el contrato; los locales `ollama:*` sólo
-  `mecanico`/`lectura` y no en la GPU del usuario sin que lo sepa.
+- Flash sólo `lectura`/`mecanico`; GPT-OSS no sigue bien el contrato; los locales `ollama:*` y
+  `dsh:ollama/*` sólo `mecanico`/`lectura` y no en la GPU del usuario sin que lo sepa.
 - Cada familia gasta un cupo distinto: Claude oficial (Opus/Sonnet/Haiku), Google AI Pro (Argon, Flash,
-  `agy:*`), ChatGPT (Codex: `pa` no lo lanza todavía), o la máquina (Ollama). `pa --modelos` y
+  `agy:*`), ChatGPT (Codex: `pa` no lo lanza todavía), OpenCode (por `opencode`, gratis los `*-free`), DeepSeek (por `dsh`) o la máquina (Ollama). `pa --modelos` y
   `reparto --cupos` muestran cuál sobra.
+
+## Ritmo del cupo (que alcance la semana)
+
+Vos sos un modelo de Anthropic y los workers de Claude gastan el mismo cupo semanal que tu conversación. `reparto` lleva un **ritmo**
+por ventana semanal: lo usado dividido por lo que ya pasó de la semana (1,0× = termina la semana en ~100 %). Si el usuario va por encima,
+los workers pasan a modelos gratis o de Google; si va por debajo y falta poco para el reinicio, usan más la suscripción (ese cupo se
+pierde si no se gasta). El perfil (`perfil` en `modelos.json`, o Ajustes > Plan y cupos) lo gradúa: `ahorro` casi siempre gratis/Google y
+guarda el 35 % de la semana de Claude para vos (`reserva_lider`), `equilibrado` es el de siempre, `rendimiento` prioriza la calidad.
+
+El usuario te avisa lo que `reparto` no puede saber; **vos lo anotás**, no esperes a que te lo pida como comando:
+
+| El usuario dice | Corré |
+|---|---|
+| "mañana no estoy", "el viernes y el sábado no trabajo" | `pa --plan ausente 2026-10-27` / `pa --plan ausente 2026-10-30,2026-10-31` (también `hoy`, `manana`, `A..B`) |
+| "ya voy a trabajar mañana", "cancelo la ausencia" | `pa --plan presente <fecha>` (o `pa --plan borrar`) |
+| "hoy gastá más", "se reinicia pasado mañana, aprovechá la suscripción" | `pa --plan gastar-hoy` |
+| "hoy ahorrá", "me quedé corto de cupo" | `pa --plan ahorrar-hoy` |
+| "¿cómo vamos de cupo?" | `pa --plan ver` (y `pa --cupo-gemini`) |
+
+Con una ausencia el presupuesto semanal se reparte entre los días que quedan: antes de una ausencia + reinicio hoy se gasta más. Todo
+vence solo (las fechas pasadas y el gastar/ahorrar de ayer no cuentan). **Después de anotarlo, decile al usuario en una o dos frases qué
+cambió**: el ritmo antes y después que imprime el comando ("pasa de 1,4× a 0,9×") y qué van a hacer los workers ("hoy uso más Claude"
+/ "los workers van a modelos gratis"). Las fechas son del día local; si el usuario dice "mañana", pasá la fecha real, no adivines el día.
 
 ## Volver y integrar
 
-Cada corrida termina con un resumen de cuatro campos:
+Cada corrida termina con un resumen de estos campos:
 
 ```
 RESULTADO: qué hizo o encontró.
 ARCHIVOS: rutas tocadas, o "ninguno".
+VERIFICACION: comando(s) que corrió y un extracto real de la salida.
 DECISION: qué tiene que decidir el usuario, o "nada".
 SIGUE: el próximo paso, o "nada".
 — rama pa/<proyecto>/<id>: N commit(s). NO está en main hasta que la integres.
@@ -111,6 +151,10 @@ SIGUE: el próximo paso, o "nada".
   (`80` choque → `--actualizar <id>`; `79` archivo sin commitear del usuario que la rama toca). Una rama sin commits: `--descartar`.
 - El resumen tiene DECISION cuando algo es del usuario (publicar, borrar, plata, alcance): traela tal cual,
   sin decidir por él. Lo técnico lo resolvió el worker y lo contó como supuesto en RESULTADO.
+- **Mirá la línea `VERIFICACION` del RESULTADO** (comando + salida real). Si dice `— SIN VERIFICAR`, no la des
+  por buena: pedí la evidencia con `--seguir --id` o corré el chequeo vos. `pa --estado` lista las sin verificar.
+- Antes de integrar algo importante: `pa <proyecto> --auditar <id> [-m MODELO]` (revisor de sólo lectura que
+  reporta por severidad; no corre tests, esos con `--integrar <id> --tests`).
 - No pegues diffs ni logs al usuario: la conclusión, qué archivos tocó y el comando para verlos.
 - Códigos de salida: `0` ok · `1` el worker falló (leé el motivo, **no relances a ciegas**) · `2` uso ·
   `75` puesto o tope de workers ocupado · `76` límite de sesión (vuelve a reintentar luego) · `78` sin
@@ -126,15 +170,36 @@ SIGUE: el próximo paso, o "nada".
 
 ## Cómo se escribe la tarea
 
+Siempre con este brief (`pa --brief` imprime la plantilla; desde un archivo: `--brief-archivo F`):
+
+```
+Objetivo:       qué tiene que quedar distinto (1-2 oraciones)
+Archivos:       rutas donde trabajar y qué leer primero
+Listo cuando:   criterio observable de terminado
+Cómo verificar: comando exacto y qué salida esperás
+No tocar:       lo que no se cambia
+```
+
+- Sin "Listo cuando" o "Cómo verificar", `pa` te avisa por stderr (no bloquea): completalo y relanzá.
 - **Como si el worker no pudiera preguntar.** Desambiguá vos o mandale asumir y reportar el supuesto.
-- **El problema y el criterio de "listo", no la solución a medias:** rutas concretas, qué NO mirar
-  (`node_modules/`, `target/`), qué archivos puede tocar y un chequeo acotado (un test, un comando).
-- Entre comillas **simples**, o desde un archivo (`"$(cat tarea.txt)"` si lleva apóstrofes): con
-  comillas dobles tu shell ejecuta cada `` `comando` `` antes de que `pa` lo vea.
+- **Ajustá el detalle a la inteligencia del modelo** (`reparto --tabla`; `pa` te avisa si es < 70). Debajo de ~70:
+  pasos numerados, comandos explícitos, un solo archivo o área por tarea, y partí lo grande en varias.
+  Arriba, alcanzan el problema y el criterio de listo.
+- Entre comillas **simples**, o desde un archivo (`--brief-archivo`): con comillas dobles tu shell ejecuta
+  cada `` `comando` `` antes de que `pa` lo vea.
 - Una tarea, un `pa`. Cada `pa` arranca una sesión limpia; un seguimiento corto va con `--seguir --id`.
 - Los bugs que un revisor encuentra vuelven al autor (`--seguir --id <id-del-autor>`), con la lista corta
   de `archivo:línea`.
-- Lo que el worker aprendió del proyecto va al `CLAUDE.md`/`GEMINI.md` de ese proyecto: pedíselo en la tarea.
+
+## Memoria del proyecto
+
+- **`AGENTS.md`** en la raíz del proyecto: los modelos que no son Claude (Gemini, Codex, opencode, dsh) no leen
+  `CLAUDE.md`; `pa` les inyecta `AGENTS.md` (o `CLAUDE.md` si no hay), hasta 8000 caracteres. Si falta:
+  `pa <proy> --agents-md` imprime la plantilla; llenala con lo que verificaste (build, tests, convenciones,
+  qué no tocar). Cuando aprendas algo **durable** del proyecto, actualizalo.
+- **Lecciones** (errores concretos de este proyecto): `pa <proy> --leccion "<una línea>"`. Se inyectan solas a los
+  workers; `--lecciones` las lista. Si `pa --estado` marca `NECESITA-PODA`: `pa <proy> --lecciones-podar` te dice
+  cómo reescribirlas más cortas.
 
 ## Pendientes: `tablero`
 

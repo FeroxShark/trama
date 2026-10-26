@@ -1,5 +1,5 @@
-// "PC apagada · Prender" en la trama del Dell (etapa 7, paso 8; docs/estado/maquinas.md): si la PC contesta, y el
-// botón que la prende con `prender-pc` (Wake-on-LAN). Sin Electron. La confianza va en un solo sentido: el Dell
+// "PC apagada · Prender" en la trama de la otra máquina: si la PC contesta, y el
+// botón que la prende con `prender-pc` (Wake-on-LAN). Sin Electron. La confianza va en un solo sentido: la otra máquina
 // nunca se conecta al motor de la PC, sólo mira si su puerto acepta una conexión TCP (lo mismo que hace
 // `prender-pc --esperar`) y la ventana ofrece abrirla. Sin polling en reposo: se mira cuando alguien lo pide y,
 // mientras "Prendiendo…", cada pocos segundos hasta que contesta o se acaba el plazo.

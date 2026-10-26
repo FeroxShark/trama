@@ -8,6 +8,7 @@ import path from "node:path";
 import { entornoLider } from "./lider-arma.ts";
 import { deDueno, dueno } from "./dueno.ts";
 import { shellDe } from "./procesos.ts";
+import { resolverImports } from "./instrucciones-md.ts";
 
 /** Los encabezados que no le tocan a un local: él no delega (no hay `pa`) ni elige workers. */
 export const ENCABEZADOS_FUERA = /^(jefe|modelos)\b/i;
@@ -148,15 +149,19 @@ export async function armarContexto(x: {
     bloques.push(`## ${titulo}\n${t}`);
   };
 
+  // Un `@archivo` suelto en su línea (el import de Claude Code: CLAUDE.md que sólo dice `@AGENTS.md`) se reemplaza por el contenido del archivo,
+  // un nivel y dentro de su carpeta: un modelo que no sigue imports no puede quedar sin las instrucciones del proyecto.
+  const conImports = async (ruta: string, texto: string | null) => (texto ? await resolverImports(texto, path.dirname(ruta)).catch(() => texto) : (texto ?? ""));
+
   const global = path.join(home, ".claude", "CLAUDE.md");
-  poner(`Reglas globales ${deDueno()}`, sinSecciones((await leer(global)) ?? "", fuera), TOPE_PARTE.usuario, global);
+  poner(`Reglas globales ${deDueno()}`, sinSecciones(await conImports(global, await leer(global)), fuera), TOPE_PARTE.usuario, global);
 
   // `~/CLAUDE.md` y los de las carpetas hasta el cwd: los de arriba primero, como Claude Code.
   const archivos = carpetasDe(home, cwd).map((d) => path.join(d, "CLAUDE.md"));
   const textos = await Promise.all(archivos.map(async (f) => [f, await leer(f)] as const));
   // Primero lo de `~` (trato, seguridad, tablero), después tablero y memoria, y al final los de proyecto, con lo que quede.
   const [primero, ...proyecto] = textos;
-  if (primero) poner(`CLAUDE.md de ${path.dirname(primero[0]) === home ? "~" : path.dirname(primero[0])}`, sinSecciones(primero[1] ?? "", fuera), 4000, primero[0]);
+  if (primero) poner(`CLAUDE.md de ${path.dirname(primero[0]) === home ? "~" : path.dirname(primero[0])}`, sinSecciones(await conImports(primero[0], primero[1]), fuera), 4000, primero[0]);
 
   const salidas = gemini ? [] : await Promise.all((await hooksDeArranque(home, leer)).map((c) => hook(c, cwd).then(textoDeHook, () => "")));
   poner("Tablero y estado al arrancar (salida de los hooks de arranque)", salidas.filter(Boolean).join("\n"), TOPE_PARTE.hook, "`tablero resumen`");
@@ -165,7 +170,20 @@ export async function armarContexto(x: {
   const memoria = gemini ? "" : ((await leer(mem)) ?? "");
   poner(`Memoria sobre ${dueno()} (índice; cada archivo está en ${path.dirname(mem)}/, léelo con Read si hace falta)`, memoria.split("\n").slice(0, 200).join("\n"), TOPE_PARTE.memoria, mem);
 
-  for (const [f, t] of proyecto) poner(`CLAUDE.md de ${path.dirname(f)}`, sinSecciones(t ?? "", fuera), libre, f);
+  // AGENTS.md es la fuente única de las instrucciones del proyecto (`pa <proy> --unificar-md`): si el CLAUDE.md no lo trae (por un import),
+  // va aparte, así un líder que no es Claude sabe lo mismo que uno que sí.
+  const agentsAparte = async (dir: string, claude: string) => {
+    const agentsRuta = path.join(dir, "AGENTS.md");
+    const agents = sinSecciones(await conImports(agentsRuta, await leer(agentsRuta)), fuera);
+    if (agents.trim() && !claude.includes(agents.trim())) poner(`AGENTS.md de ${dir} (instrucciones del proyecto para todos los modelos)`, agents, libre, agentsRuta);
+  };
+  // Un cwd fuera de `~` no tiene carpetas intermedias: su CLAUDE.md es el "primero" y también es el del proyecto.
+  if (primero && path.dirname(primero[0]) !== home) await agentsAparte(path.dirname(primero[0]), sinSecciones(await conImports(primero[0], primero[1]), fuera));
+  for (const [f, t] of proyecto) {
+    const claude = sinSecciones(await conImports(f, t), fuera);
+    poner(`CLAUDE.md de ${path.dirname(f)}`, claude, libre, f);
+    await agentsAparte(path.dirname(f), claude);
+  }
 
   return { texto: bloques.length ? `# Contexto ${deDueno()} (cargado al arrancar este líder)\n\n${bloques.join("\n\n")}` : "", partes, tokens: topeParaCtx(x.ctx) - libre };
 }
@@ -183,6 +201,8 @@ export const PROMPT_GEMINI = [
   "- Varias tareas a la vez, o una larga: `pa <proyecto> --async --tipo <tipo> \"<tarea>\"` imprime el id; después `pa --esperar <proyecto> --id <id>` (o `pa --esperar-todos`) trae el resultado.",
   "- `<proyecto>` es un nombre de `~/.config/proyectos/registry.json` (`proyecto-ruta --listar` los muestra). Si el proyecto no está, decíselo a la persona; no lo inventes.",
   "- Lo que hace un worker queda en una rama: no está en main hasta `pa <proyecto> --integrar <id>`. No toques vos el código de un proyecto: delegá.",
+  "Antes de forzar un modelo con `-m`, mirá `reparto --tabla` (los modelos que hay, su inteligencia, si son gratis, cuánto cupo les queda y cuándo se reinicia): `reparto` ya prefiere los planes que se reinician pronto con cupo de sobra, y los gratis cuando el cupo escasea. Lo normal es no pasar `-m`.",
+  "Cuidá el cupo semanal de Claude de la persona (el líder es un modelo de Anthropic y los workers gastan lo mismo): `pa --plan ver` muestra el ritmo de la semana y los avisos. Si dice que no va a trabajar uno o más días (\"mañana no estoy\", \"me voy hasta el viernes\"), corré `pa --plan ausente <AAAA-MM-DD>[,..]` (también `hoy`, `manana`, `A..B`); si quiere gastar más hoy o ahorrar, `pa --plan gastar-hoy` o `pa --plan ahorrar-hoy`; `pa --plan borrar` lo deshace y todo vence solo. Después contale en una frase qué cambió (el ritmo antes y después que imprime el comando) y qué harán los workers (más suscripción hoy, o más modelos gratis).",
   "Si tenés el skill `trama-orquestar` (`~/.claude/skills/trama-orquestar/SKILL.md`), leelo con view_file antes de delegar algo más que lo básico: dice qué modelo y `--tipo` conviene, cómo integrar y cómo seguir a un worker.",
   "Tus herramientas son las de agy (comandos, archivos, búsqueda). Contestá en el idioma en que te escriben, claro y al grano, y contá qué hiciste.",
   "Antes de algo que no se deshace (borrar, sobrescribir, publicar), preguntá. Las reglas de abajo son los CLAUDE.md de esta persona: valen tal cual.",
@@ -203,14 +223,45 @@ export async function skillOrquestar(home: string): Promise<string> {
 }
 
 /**
+ * Lo mismo para un líder de DeepSeek Harness (`dsh`, que tampoco lee CLAUDE.md): el prompt de Gemini con lo que cambia (quién corre y
+ * con qué herramientas). Las mismas reglas de privacidad: ni hooks ni memoria, porque el modelo puede ser de un servicio en la nube.
+ */
+export const PROMPT_DSH = PROMPT_GEMINI.split("\n")
+  .map((l) =>
+    l.startsWith("Sos un líder de Trama")
+      ? "Sos un líder de Trama (una app para manejar workers de `pa` y chatear con sus líderes) y corrés dentro de DeepSeek Harness (`dsh`), no como Claude."
+      : l.startsWith("Tus herramientas son")
+        ? "Tus herramientas son las de dsh (bash, read, write, edit, glob, grep y la web). Contestá en el idioma en que te escriben, claro y al grano, y contá qué hiciste."
+        : l.replaceAll("view_file", "read"),
+  )
+  .join("\n");
+
+async function prefacioCon(prompt: string, x: { home: string; cwd?: string; pa?: string; deps?: Partial<DepsContexto> }): Promise<string> {
+  const c = await armarContexto({ home: x.home, cwd: x.cwd, ctx: 40000, perfil: "gemini", deps: x.deps }).catch(() => null);
+  const skill = await skillOrquestar(x.home);
+  const base = skill === SKILL_GENERICA ? prompt : prompt.replaceAll(SKILL_GENERICA, skill);
+  const conPa = x.pa && path.isAbsolute(x.pa) ? `${base}\nSi un comando dice "pa: command not found", \`pa\` está en \`${x.pa}\`: llamalo con esa ruta.` : base;
+  return c?.texto ? `${conPa}\n\n${c.texto}` : conPa;
+}
+
+/**
  * El prefacio completo de un líder de Gemini en `cwd`: lo de arriba más sus CLAUDE.md. Un archivo ilegible no lo tira.
  * `pa`: dónde está el binario si se encontró con ruta absoluta; se lo dice por si el PATH de la herramienta de comandos de
  * agy no lo trae (la unidad de systemd y el menú de apps arrancan sin `~/.local/bin`), así nunca queda en "pa: command not found".
  */
-export async function prefacioGemini(x: { home: string; cwd?: string; pa?: string; deps?: Partial<DepsContexto> }): Promise<string> {
-  const c = await armarContexto({ home: x.home, cwd: x.cwd, ctx: 40000, perfil: "gemini", deps: x.deps }).catch(() => null);
-  const skill = await skillOrquestar(x.home);
-  const base = skill === SKILL_GENERICA ? PROMPT_GEMINI : PROMPT_GEMINI.replaceAll(SKILL_GENERICA, skill);
-  const prompt = x.pa && path.isAbsolute(x.pa) ? `${base}\nSi un comando dice "pa: command not found", \`pa\` está en \`${x.pa}\`: llamalo con esa ruta.` : base;
-  return c?.texto ? `${prompt}\n\n${c.texto}` : prompt;
-}
+export const prefacioGemini = (x: { home: string; cwd?: string; pa?: string; deps?: Partial<DepsContexto> }): Promise<string> => prefacioCon(PROMPT_GEMINI, x);
+
+/** Lo mismo para un líder de `opencode acp` (los modelos de OpenCode): que no se crea DeepSeek ni Claude. */
+export const PROMPT_OPENCODE = PROMPT_DSH.replace(
+  "corrés dentro de DeepSeek Harness (`dsh`), no como Claude.",
+  "corrés dentro de opencode (`opencode acp`), no como Claude ni dentro de DeepSeek Harness.",
+).replace("las de dsh", "las de opencode");
+
+/**
+ * El prefacio completo de un líder de dsh u opencode en `cwd` (ver `PROMPT_DSH`/`PROMPT_OPENCODE`). `modelo`: el id con el que lo lanzó
+ * Trama; se le dice tal cual, así cuando le preguntan qué modelo es no adivina por el nombre del harness.
+ */
+export const prefacioDsh = (x: { home: string; cwd?: string; pa?: string; motor?: "dsh" | "opencode"; modelo?: string; deps?: Partial<DepsContexto> }): Promise<string> => {
+  const base = x.motor === "opencode" ? PROMPT_OPENCODE : PROMPT_DSH;
+  return prefacioCon(x.modelo ? `${base}\nEl modelo con el que corrés es \`${x.modelo}\`; si te preguntan qué modelo sos, decí ese.` : base, x);
+};

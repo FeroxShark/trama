@@ -10,15 +10,15 @@ import os from "node:os";
 import path from "node:path";
 
 const raiz = path.resolve(import.meta.dirname, "..");
-const tmp = mkdtempSync(path.join(os.tmpdir(), "hilos-tablero-"));
-const puerto = 9300 + Math.floor(Math.random() * 600);
-const bin =
-  process.env.HILOS_TABLERO ??
-  [...(process.env.PATH ?? "").split(":"), path.join(os.homedir(), ".local/bin")].map((d) => path.join(d, "tablero")).find((f) => existsSync(f));
+// Antes de crear nada en /tmp. Sin CLI no es una falla: se salta.
+const candidatos = [...(process.env.PATH ?? "").split(":"), path.join(os.homedir(), ".local/bin")].map((d) => path.join(d, "tablero"));
+const bin = process.env.HILOS_TABLERO ?? [...candidatos, path.join(import.meta.dirname, "..", "..", "motor", "bin", "tablero")].find((f) => existsSync(f));
 if (!bin) {
   console.log("no está el CLI `tablero`: nada que probar");
-  process.exit(1);
+  process.exit(0);
 }
+const tmp = mkdtempSync(path.join(os.tmpdir(), "hilos-tablero-"));
+const puerto = 9300 + Math.floor(Math.random() * 600);
 for (const d of ["pa", "sesiones", "proy/atlas"]) mkdirSync(path.join(tmp, d), { recursive: true });
 writeFileSync(path.join(tmp, "registry.json"), JSON.stringify({ projects: [{ name: "atlas", path: path.join(tmp, "proy", "atlas"), desc: "La web" }] }));
 
@@ -173,7 +173,7 @@ try {
   await hasta(() => !!document.querySelector(".pd .tb-vistas"), "las pestañas");
   await en(() => [...document.querySelectorAll(".pd > .pd-barra .tb-vistas button")].find((b) => b.textContent === "Todo")?.click());
   ok(await hasta((s) => !!document.querySelector(s), "la tarjeta en bandeja", tarjeta(A, "bandeja")), "el Tablero abre y la bandeja tiene su tarjeta");
-  ok(await hay(tarjeta(B, "espera-dueno")), "lo que espera a Ana está en su columna");
+  ok(await hay(tarjeta(B, "espera-dueno")), "lo que espera al usuario está en su columna");
   ok(await en((s) => document.querySelector(s)?.querySelector(".tb-p code")?.textContent === "atlas --exportar ejemplo.csv", tarjeta(B, "espera-dueno")), "la tarjeta trae la prueba exacta");
   ok(await en((s) => document.querySelector(s)?.querySelector(".tb-chip")?.textContent === "atlas", tarjeta(B, "espera-dueno")), "y el chip del proyecto");
   ok(

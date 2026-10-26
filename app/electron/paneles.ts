@@ -16,15 +16,19 @@ import { mientrasIntegra, estadoSalud, type Chequeo, type FilaIntegrada } from "
 import { sesionesVivas } from "./sesiones.js";
 import { silencio } from "./log.js";
 
+/** Integrar corre los tests del proyecto: tope largo, pero tope (un `pa` colgado no puede dejar la cola de integración trabada). */
+const TOPE_EJECUTAR_MS = 20 * 60_000;
+
 /**
  * Corre `pa` (execFile, sin shell) y cuenta cómo terminó en vez de rechazar: el
  * código de salida importa (93 son tests rojos) y un `Error` no lo cruzaría por IPC.
  */
-export function ejecutar(args: string[], env: NodeJS.ProcessEnv = ENV): Promise<{ rc: number; out: string; dijo: string }> {
+export function ejecutar(args: string[], env: NodeJS.ProcessEnv = ENV, tope = TOPE_EJECUTAR_MS): Promise<{ rc: number; out: string; dijo: string }> {
   return new Promise((ok) => {
-    lanzarCmd(PA_CMD, args, { env, maxBuffer: 8 * 1024 * 1024 }, (err, stdout, stderr) => {
+    lanzarCmd(PA_CMD, args, { env, maxBuffer: 8 * 1024 * 1024, timeout: tope, killSignal: "SIGKILL" }, (err, stdout, stderr) => {
       const dijo = String(stderr).trim().split("\n").filter(Boolean).slice(-2).join(" · ");
       if (!err) return ok({ rc: 0, out: stdout, dijo });
+      if (err.killed) return ok({ rc: -1, out: stdout, dijo: `${path.basename(PA)} ${args[0]}: sin respuesta en ${Math.round(tope / 1000)} s` });
       ok({
         rc: typeof err.code === "number" ? err.code : -1,
         out: stdout,
@@ -48,7 +52,7 @@ export type Ajustes = {
 };
 
 export async function leerAjustes(): Promise<Ajustes> {
-  const [p, red, routing] = await Promise.all([ejecutar(["--plan"]), leerUmbral(), leerRouting()]);
+  const [p, red, routing] = await Promise.all([ejecutar(["--plan"], ENV, 60_000), leerUmbral(), leerRouting()]);
   const plan = p.rc === 0 ? (/^plan:\s*(\w+)/m.exec(p.out)?.[1] ?? null) : null;
   return {
     version: 1,
@@ -296,7 +300,7 @@ function commitsDe(ruta: string, rama: string): Promise<string[] | null> {
 
 /** La conversación del final (`pa --hilo <id> --json -n 6`), sin validar; `null` si `pa` no pudo. */
 async function finalDe(id: string): Promise<unknown> {
-  const r = await ejecutar(["--hilo", id, "--json", "-n", "6"]);
+  const r = await ejecutar(["--hilo", id, "--json", "-n", "6"], ENV, 60_000);
   if (r.rc !== 0) return null;
   try {
     return JSON.parse(r.out);

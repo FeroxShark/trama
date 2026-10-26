@@ -33,10 +33,11 @@ import { cursorDe, escucharBorrador, guardarCursor, leerBorrador, ponerBorrador 
 import { effortPara } from "./elegir";
 import { effortsLeidos, leerEfforts, recordarEffort } from "./efforts";
 import { effortDe, effortsOpciones, MODELO_DEFAULT, MODELOS, modeloDe, nombreModelo } from "./opciones";
-import { effortsDe, esAgy, esLocal, reajustarEffort, sinWorkers } from "./modelos";
+import { effortsDe, esAgy, esDsh, esOpencode, esLocal, familiaDe, motorNombre, reajustarEffort, sinWorkers } from "./modelos";
 import { ContextoLocal } from "./ContextoLocal";
 import { t as tr, textoMain } from "../i18n";
 import { Selector } from "./Selector";
+import { DialogoCambio, type DatosCambio } from "./DialogoCambio";
 import { hayVarias, opcionesMaquina, useMaquinas } from "../maquinas";
 import { Contexto } from "./Contexto";
 import { transcriptLeido } from "./contextoVivo";
@@ -55,7 +56,7 @@ import { useSeguir } from "./useSeguir";
 import { cola, comandosAgy, comandosClaude, confirmar, contestado, enCurso, enviado, enviadoDirecto, escuchar, estilosClaude, fallo, falloDirecto, mensajesVistos, parando, ponerEstilos, ponerModo, suscribir, suscribirComandos, suscribirEstilos, type Pedido } from "./vivo";
 import { ASPECTO, esModo, MODO_DEFAULT, siguienteModo, type Modo } from "./modos";
 import { directo, ESTILOS_FABRICA, menuEn, moverSel, parsearComando, reemplazar, type Sugerencia, type Valores } from "./comandos";
-import { main, mensaje } from "../puente";
+import { esVentana, main, mensaje } from "../puente";
 import { agregarAdjuntos, archivosDe, archivosDeDatos, ErrorAdjunto, escucharAdjuntos, imagenesDe, leerAdjuntos, pegadoSinTexto, prepararAdjunto, quitarAdjunto, textoConArchivos, vaciarAdjuntos } from "./adjuntos";
 import { Adjuntos, Miniaturas } from "./Imagenes";
 import { Dictar } from "./Dictar";
@@ -64,6 +65,9 @@ import { PedidoPreguntas } from "./Preguntas";
 import { tandasPendientes } from "./preguntas-logica";
 import { ARCHIVO_MAX, IMAGENES_MAX, type Imagen } from "../../electron/imagenes";
 import { separarAdjuntos } from "../../electron/adjunto";
+
+/** El esfuerzo en pocas letras para el chip fusionado ("medium" → "med"). */
+const abreviar = (e: string) => (e === "medium" ? "med" : e);
 
 export const BORRADOR_LIDER = "lider-nuevo";
 
@@ -222,7 +226,7 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
   const agy = esAgy(modelo);
   // El motor del líder deja ver su razonamiento y sus comandos (Gemini; o cualquiera que ya mandó razonamiento): la tarjeta y el turno
   // los muestran en vez de la frase tierna. Claude y los que no lo traen siguen como siempre.
-  const piensa = esAgy(modeloDe(l?.modelo) ?? modelo) || vivo.razona;
+  const piensa = esAgy(modeloDe(l?.modelo) ?? modelo) || esDsh(modeloDe(l?.modelo) ?? modelo) || esOpencode(modeloDe(l?.modelo) ?? modelo) || vivo.razona;
   const comandos = useSyncExternalStore(suscribirComandos, agy ? comandosAgy : comandosClaude);
   // Los del otro proveedor: con ellos se sabe cuáles comandos sólo existen de este lado (la marca de cada fila).
   const deOtro = useSyncExternalStore(suscribirComandos, agy ? comandosClaude : comandosAgy);
@@ -235,11 +239,11 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
   const valores = useMemo<Valores>(
     () => ({
       model: {
-        lista: MODELOS.filter((m) => esAgy(m.id) === agy).map((m) => ({ valor: m.clave, desc: m.nombre })),
+        lista: MODELOS.map((m) => ({ valor: m.clave, desc: m.nombre })),
         actual: MODELOS.find((m) => m.id === modelo)?.clave ?? null,
       },
       effort: { lista: effortsOpciones(modelo).map((e) => ({ valor: e.id, desc: e.desc })), actual: effort },
-      ...(agy ? {} : { "output-style": { lista: listaEstilos.map((x) => ({ valor: x, desc: null })), actual: estilos.actual } }),
+      ...(agy || esDsh(modelo) || esOpencode(modelo) ? {} : { "output-style": { lista: listaEstilos.map((x) => ({ valor: x, desc: null })), actual: estilos.actual } }),
     }),
     [agy, modelo, effort, listaEstilos, estilos.actual],
   );
@@ -249,7 +253,38 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
   );
   const menu = mn?.filas ?? [];
   const [nota, setNota] = useState<string | null>(null);
+  // Un modelo de otro motor para una conversación que ya empezó: el diálogo de confirmación (el chip no cambia hasta confirmar).
+  /** Los datos del diálogo si elegir `m` sigue la conversación en otro motor; si no, `null`. */
+  const datosCambio = (m: string): DatosCambio | null =>
+    l && familiaDe(m) !== familiaDe(l.modelo) && familiaDe(m) !== familiaDe(modelo)
+      ? { modelo: nombreModelo(m).split(" · ")[0]!, motor: motorNombre(m), actual: nombreModelo(modelo).split(" · ")[0]!, motorActual: motorNombre(modelo) }
+      : null;
+  const [cruce, setCruce] = useState<string | null>(null);
+  const cruceDatos = cruce ? datosCambio(cruce) : null;
   const caja = useRef<HTMLTextAreaElement>(null);
+  // La fila de abajo de la caja nunca baja a un segundo renglón: si no entra, se compacta de a un paso (0 todo; 1 el modo en ícono;
+  // 2 modelo y esfuerzo en un solo chip; 3 los chips sin adorno y con puntos suspensivos). Se prueba cada paso hasta que no sobre ancho.
+  const barra = useRef<HTMLDivElement>(null);
+  const [nivel, setNivel] = useState(0);
+  const ajustarBarra = useCallback(() => {
+    const b = barra.current;
+    if (!b) return;
+    let n = 0;
+    for (; n < 3; n++) {
+      b.dataset.nivel = String(n);
+      if (b.scrollWidth <= b.clientWidth + 1) break;
+    }
+    b.dataset.nivel = String(n);
+    setNivel(n);
+  }, []);
+  useLayoutEffect(ajustarBarra);
+  useEffect(() => {
+    const b = barra.current;
+    if (!b || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(ajustarBarra);
+    ro.observe(b);
+    return () => ro.disconnect();
+  }, [ajustarBarra, puede]);
   const menuCmd = useRef<HTMLDivElement>(null);
   // Tras elegir una fila, el cursor va al final de lo puesto: se aplica al pintar la caja con el texto nuevo.
   const pendiente = useRef<number | null>(null);
@@ -304,11 +339,15 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
 
   // --- La conversación (transcript) ---
 
+  // Cuál fue la última lectura pedida: si dos se pisan, la vieja que llega tarde no pisa a la nueva (ni baja `total`).
+  const lectura = useRef(0);
   const recargar = useCallback(
     (forzar = false) => {
       if (!sid) return;
+      const mia = ++lectura.current;
       fuente.liderConversacion(sid, null).then(
         (r) => {
+          if (mia !== lectura.current) return;
           if (r.version !== VERSION) throw new Error(tr("error.version", { que: "transcript", v: r.version, conozco: VERSION }));
           setError(null);
           scroll.current = seg.pegado ? { tipo: "fondo" } : null;
@@ -325,7 +364,7 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
           confirmar(sid, r.total, forzar);
           transcriptLeido(sid, r);
         },
-        (e) => setError(mensaje(e)),
+        (e) => mia === lectura.current && setError(mensaje(e)),
       );
     },
     [sid, seg],
@@ -474,7 +513,7 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
     const a = parsearComando(crudo, MODELOS, effortsDe(modelo), listaEstilos, modelo);
     if (a.tipo === "texto") return enviar(crudo, undefined, ya);
     setErrorCaja(null);
-    if (a.tipo === "error") return setErrorCaja(tr(a.clave, { v: a.v }));
+    if (a.tipo === "error") return setErrorCaja(tr(a.clave, { v: a.v, niveles: effortsDe(modelo).join(", ") }));
     if (a.tipo === "modo") {
       cambiarModo(a.modo);
       // "/plan armá X": el modo primero, después el pedido (o a la cola, si está respondiendo).
@@ -483,7 +522,7 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
     }
     escribir("");
     if (a.tipo === "limpiar") return l ? alNuevo() : undefined;
-    if (a.tipo === "modelo") return elegirModelo(a.modelo);
+    if (a.tipo === "modelo") return pedirModelo(a.modelo);
     if (a.tipo === "estilo") return elegirEstilo(a.estilo);
     elegirEffort(a.effort);
   };
@@ -549,7 +588,9 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
     );
   };
 
-  const esClaude = !!l && !esAgy(l.modelo) && !sinWorkers(l.modelo);
+  const esClaude = !!l && !esAgy(l.modelo) && !esDsh(l.modelo) && !esOpencode(l.modelo) && !sinWorkers(l.modelo);
+  // "Mandar ya": Claude lo recibe en su stdin y el puente de agy o el de dsh corta en la próxima pausa y retoma; los locales no tienen canal.
+  const puedeDirecto = !!l && !sinWorkers(l.modelo);
   const sinRebobinar = ocupado || enviando ? tr("acciones.ocupado") : ajeno ? tr("acciones.abierto") : null;
   const acciones = useMemo<Acciones | null>(
     () =>
@@ -605,7 +646,7 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
     }
     // "Mandar ya" (Ctrl+Enter o su botón): sólo un líder de Claude de la app con un turno en curso. Gemini no tiene canal y lo dice.
     const directo = ya && !!l && app && ocupado;
-    if (directo && !esClaude) return setErrorCaja(tr("directo.noPuede"));
+    if (directo && !puedeDirecto) return setErrorCaja(tr("directo.noPuede"));
     /** A mitad de un turno: a la cola; sale solo cuando termine. Al de la terminal, con lo que hace falta para traerlo. */
     const aLaCola = (id: string, nombre: string) => {
       const antes = adjuntos;
@@ -749,7 +790,7 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
     const fs = archivosDeDatos(e.clipboardData);
     if (!fs.length) {
       // Sin nada que el navegador sepa pegar (otro tipo de texto, un offer viejo): el main lee el portapapeles.
-      const leer = main?.portapapeles;
+      const leer = esVentana() ? main?.portapapeles : undefined;
       if (!puede || !leer || !pegadoSinTexto(e.clipboardData)) return;
       e.preventDefault();
       const c = e.currentTarget;
@@ -839,11 +880,23 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
     } else if (es("salirCaja", e)) e.currentTarget.blur();
   };
 
+  /** Del selector (que ya confirmó lo que había que confirmar) o de un cambio dentro del mismo motor. */
   const elegirModelo = (m: string) => {
-    if (l && esAgy(m) !== esAgy(l.modelo)) {
-      setErrorCaja(tr("comando.cambioProveedor", { v: nombreModelo(m) }));
+    const d = datosCambio(m);
+    aplicarModelo(m);
+    // Un salto de motor ya confirmado: un aviso chico de que ya pasó.
+    if (d) setNota(tr("lider.cruceHecho", { modelo: d.modelo, motor: d.motor }));
+  };
+  /** De /model: si cruza de motor, pide confirmar antes de aplicar. */
+  const pedirModelo = (m: string) => {
+    if (datosCambio(m)) {
+      setErrorCaja(null);
+      setCruce(m);
       return;
     }
+    aplicarModelo(m);
+  };
+  const aplicarModelo = (m: string) => {
     tocado.current = true;
     setModelo(m);
     // Cada modelo tiene sus niveles: si el esfuerzo de ahora no existe en el nuevo, pasa al que le toca a ese modelo.
@@ -893,7 +946,7 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
           <>
             <b>{l.nombre && !repiteElPrimero(l.nombre, items) ? l.nombre : tr("lider.sesionJefe")}</b>
             <span>{l.titulo || nombreModelo(modelo)}</span>
-            {l.effort ? <span>{l.effort}</span> : null}
+            {l.effort && effortsDe(l.modelo).length ? <span>{l.effort}</span> : null}
             {!ocupado && cache ? <Reloj pintor={cache} className="cache" /> : null}
             {l.subagentes ? <ChipSubagentes n={l.subagentes} clave={l.id} /> : null}
             {app && !l.vivo && !l.caido ? <span className="tenue">{tr("lider.dormido")}</span> : null}
@@ -951,7 +1004,7 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
             </div>
           ) : null}
           <Avisos avisos={avisos} />
-          {pasando ? <Pasando /> : app && sid ? <HaceChat sid={sid} piensa={piensa} modelo={nombreModelo(modeloDe(l?.modelo) ?? modelo)} effort={l?.effort ?? effort} alParar={l ? parar : undefined} parando={vivo.parando} /> : compacta !== null ? <Compactando desde={compacta} /> : null}
+          {pasando ? <Pasando /> : app && sid ? <HaceChat sid={sid} piensa={piensa} modelo={nombreModelo(modeloDe(l?.modelo) ?? modelo)} effort={effortsDe(l?.modelo ?? modelo).length ? (l?.effort ?? effort) : null} alParar={l ? parar : undefined} parando={vivo.parando} /> : compacta !== null ? <Compactando desde={compacta} /> : null}
           {vivo.directos > 0 ? (
             <div className="directo-espera" role="status" data-directo-espera>
               <Clock size={12} strokeWidth={2} aria-hidden="true" />
@@ -1097,7 +1150,7 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
                     }
                   }}
                 />
-                {main?.carpeta ? (
+                {main?.carpeta && esVentana() ? (
                   <button type="button" className="btn2" disabled={enviando} onClick={elegirCarpeta}>
                     {tr("lider.carpetaElegir")}
                   </button>
@@ -1114,7 +1167,7 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
                 e.currentTarget.value = "";
               }}
             />
-            <div className="barra-c">
+            <div ref={barra} className="barra-c" data-nivel={nivel}>
               <button
                 type="button"
                 className="clip"
@@ -1145,7 +1198,7 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
                 className="modo"
                 style={{ color: ASPECTO[modo].color }}
                 // Con el dedo no hay Shift+Tab, y en angosto el chip es sólo el símbolo: el tooltip dice el modo.
-                data-tip={esTactil() ? tr(ASPECTO[modo].clave) : "Shift+Tab"}
+                data-tip={esTactil() ? tr(ASPECTO[modo].clave) : nivel >= 1 ? `${tr(ASPECTO[modo].clave)} · Shift+Tab` : "Shift+Tab"}
                 aria-label={tr("modo.tip", { modo: tr(ASPECTO[modo].clave) })}
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => cambiarModo(siguienteModo(modo))}
@@ -1155,12 +1208,16 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
               </button>
               <Selector
                 etiqueta={tr("comun.modelo")}
-                opciones={l ? MODELOS.filter((m) => esAgy(m.id) === esAgy(l.modelo)) : MODELOS}
+                opciones={MODELOS}
                 valor={modelo}
                 alElegir={elegirModelo}
+                confirmar={datosCambio}
+                confirmando={MODO.captura === "lider-cambio-motor" && MODO.variante === "confirmar" && l ? MODELOS.find((m) => familiaDe(m.id) !== familiaDe(l.modelo))?.id : undefined}
+                sufijo={effortsDe(modelo).length ? abreviar(effort) : undefined}
                 chip={<span className="chip" />}
+                columnas
                 disabled={app && ocupado}
-                abierto={MODO.captura === "modelo"}
+                abierto={MODO.captura === "modelo" || (MODO.captura === "lider-cambio-motor" && MODO.variante === "menu")}
               />
               {/* Un modelo sin niveles (Ollama) no tiene qué elegir acá. */}
               {effortsDe(modelo).length ? (
@@ -1172,6 +1229,13 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
                   disabled={app && ocupado}
                   abierto={MODO.captura === "esfuerzo" || MODO.captura === "local-esfuerzo"}
                 />
+              ) : esOpencode(modelo) || esDsh(modelo) ? (
+                // Sin niveles que elegir: la píldora sigue, apagada y diciendo por qué (así no parece que falta algo).
+                <div className="pick" data-tip={tr(esOpencode(modelo) ? "effort.sinNivelesOpencodeTip" : "effort.sinNivelesTip")}>
+                  <button type="button" className="pbtn" data-sin-esfuerzo disabled aria-label={`${tr("comun.esfuerzo")}: ${tr("effort.sinNiveles")}`}>
+                    {tr("effort.sinNiveles")}
+                  </button>
+                </div>
               ) : null}
               {!l && hayVarias(maquinas) ? (
                 <Selector
@@ -1185,8 +1249,10 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
               ) : null}
               {esLocal(modelo) ? <ContextoLocal modelo={modelo} abierto={MODO.captura === "local-ctx"} /> : null}
               <span className="esp" />
+              {/* Lo de la derecha va junto: si la fila no entra, se parte lo de la izquierda y esto queda a la derecha de la última línea. */}
+              <div className="barra-der">
               <Contexto sid={sid} modelo={modelo} vence={l?.cache_vence ?? null} abierto={MODO.captura === "contexto-abierto"} />
-              {app && ocupado && esClaude && (texto.trim() || adjuntos.length) && !enviando ? (
+              {app && ocupado && puedeDirecto && (texto.trim() || adjuntos.length) && !enviando ? (
                 <button type="button" className="btn2 directo" data-directo aria-label={tr("directo.boton")} data-tip={tr("directo.tip")} onClick={() => ejecutar(texto, true)}>
                   <Zap size={12} strokeWidth={2.2} aria-hidden="true" />
                   <span className="directo-t">{tr("directo.boton")}</span>
@@ -1213,6 +1279,7 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
               >
                 <ArrowUp size={14} strokeWidth={2.4} />
               </button>
+              </div>
             </div>
           </div>
         ) : l?.caido ? (
@@ -1235,6 +1302,19 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
           </div>
         )}
         {errorCaja ? <div className="caja-error" role="alert">{errorCaja}</div> : null}
+        {cruceDatos ? (
+          <DialogoCambio
+            datos={cruceDatos}
+            alSi={() => {
+              elegirModelo(cruce!);
+              setCruce(null);
+            }}
+            alNo={() => {
+              setCruce(null);
+              caja.current?.focus();
+            }}
+          />
+        ) : null}
         {nota && !errorCaja ? <div className="caja-nota" role="status">{nota}</div> : null}
         {aviso ? <Reloj pintor={aviso} className="caja-aviso" /> : null}
         {/* Un líder local corre en la GPU de esta máquina, sin pa ni subagentes: que se sepa antes de pedirle una tarea grande. */}

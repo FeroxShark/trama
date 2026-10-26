@@ -15,7 +15,10 @@ export function useCuentas(): { lista: ListaCuentas | null; mirar: () => void } 
   const [lista, setLista] = useState<ListaCuentas | null>(null);
   const vivo = useRef(true);
   const vuelta = useRef(0);
-  useEffect(() => () => void (vivo.current = false), []);
+  useEffect(() => {
+    vivo.current = true;
+    return () => void (vivo.current = false);
+  }, []);
   const mirar = useCallback(() => {
     const mia = ++vuelta.current;
     const poner = (l: ListaCuentas | null) => vivo.current && mia === vuelta.current && setLista(l);
@@ -96,7 +99,10 @@ export function CuentaFila({ perfil, alCambiar, children }: { perfil: PerfilCuen
   const [borrar, setBorrar] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const vivo = useRef(true);
-  useEffect(() => () => void (vivo.current = false), []);
+  useEffect(() => {
+    vivo.current = true;
+    return () => void (vivo.current = false);
+  }, []);
 
   const correr = async (como: "login" | "guardar", hacer: () => Promise<ResultadoCuenta>) => {
     setOcupada(como);
@@ -169,7 +175,10 @@ export function AgregarCuenta({ proveedor, alCambiar }: { proveedor: ProveedorCu
   const [fase, setFase] = useState<"quieto" | "creando" | "login">("quieto");
   const [error, setError] = useState<string | null>(null);
   const vivo = useRef(true);
-  useEffect(() => () => void (vivo.current = false), []);
+  useEffect(() => {
+    vivo.current = true;
+    return () => void (vivo.current = false);
+  }, []);
 
   const ocupado = fase !== "quieto";
   const crear = async () => {

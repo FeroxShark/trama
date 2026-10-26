@@ -1,7 +1,7 @@
 // Volver acá, Editar y Ramificar en un mensaje ANTERIOR a la última compactación. El `claude` sólo carga lo que viene después de su
 // `compact_boundary` y rechaza esos `uuid` ("No message found with message.uuid"), así que trama deja el `uuid` en el mensaje
 // (`previa`) y, al usarlo, bifurca de una copia de la cadena bajo un sid nuevo. Transcripts inventados, `claude` falso.
-// Detalle: docs/estado/rebobinar.md. Armado como tests/lider-reinicio.test.ts.
+// Armado como tests/lider-reinicio.test.ts.
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";

@@ -1,7 +1,7 @@
 // Ajustes > Trama para Windows: la versión, "Buscar actualizaciones" (buscando / al día / descargando % / Reiniciar para actualizar)
 // y "Quitar restos de versiones anteriores": muestra qué se va a quitar y pide confirmar. Sólo existe dentro de la carcasa de
 // Windows (`window.carcasa`, src/carcasa.ts). Nunca se tocan tus proyectos, el tablero, las sesiones ni tus cuentas; la distro de
-// Ubuntu sólo se ofrece si la creó Trama y no tiene nada tuyo, y pide escribir su nombre. Detalle: docs/estado/windows-actualizar.md
+// Ubuntu sólo se ofrece si la creó Trama y no tiene nada tuyo, y pide escribir su nombre.
 import { useEffect, useRef, useState } from "react";
 import { alCambiarActualizacion, carcasaActualiza as carcasa, comoError, esError, FIXTURE_CARCASA, type DistroResto, type EstadoActualizacion, type ItemResto, type PlanRestos } from "../carcasa";
 import { MODO } from "../modo";
@@ -36,7 +36,10 @@ export function Carcasa({ Dato }: { Dato: FilaDato }) {
   const [nombre, setNombre] = useState("");
   const vivo = useRef(true);
   const sec = useRef<HTMLElement>(null);
-  useEffect(() => () => void (vivo.current = false), []);
+  useEffect(() => {
+    vivo.current = true;
+    return () => void (vivo.current = false);
+  }, []);
 
   useEffect(() => {
     if (!carcasa) return;

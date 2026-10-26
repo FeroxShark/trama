@@ -4,6 +4,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { detalleHace, parsearLinea } from "../electron/lider-arma.ts";
 import { avanzar, clasificar, clasificarPedido, delegaPa, dominio, estadoDe, iconoDe, limpiarComando, muyLargo, PLIEGUE, rutaLegible, sinPasos, textoPaso, unaLinea, MAX_PASOS, PASOS, type Actividad } from "../src/hilo/actividad-logica.ts";
+import { cambiarIdioma } from "../src/i18n/index.ts";
 import { en } from "../src/i18n/en.ts";
 import { es } from "../src/i18n/es.ts";
 import type { HaceLider } from "../src/datos/contrato.ts";
@@ -31,7 +32,11 @@ test("cada evento cae en su tipo", () => {
 test("el detalle es lo concreto: dominio, patrón con carpeta, ruta, agente", () => {
   assert.equal(clasificar(herr("WebFetch", "https://www.developer.mozilla.org/es/docs/Web?x=1")).detalle, "developer.mozilla.org");
   assert.equal(clasificar(herr("WebSearch", "css grid")).detalle, "«css grid»");
+  // La preposición sigue el idioma de la interfaz (antes quedaba «en» fijo aun en inglés).
+  cambiarIdioma("es");
   assert.equal(clasificar(herr("Grep", "useEffect", "src/hilo")).detalle, "«useEffect» en src/hilo");
+  cambiarIdioma("en");
+  assert.equal(clasificar(herr("Grep", "useEffect", "src/hilo")).detalle, "«useEffect» in src/hilo");
   assert.equal(clasificar(herr("Glob", "**/*.tsx")).detalle, "«**/*.tsx»");
   assert.equal(clasificar(herr("Read", "/home/ana/Proyectos/hilos/src/a.ts")).detalle, "~/Proyectos/hilos/src/a.ts");
   assert.equal(clasificar(herr("Agent", "mapear el código", "Explore")).detalle, "Explore · mapear el código");

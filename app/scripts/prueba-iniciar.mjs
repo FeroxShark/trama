@@ -12,17 +12,17 @@ import path from "node:path";
 import { promptIniciar } from "../src/datos/iniciar.ts";
 
 const raiz = path.resolve(import.meta.dirname, "..");
+// Antes de crear nada en /tmp. Sin CLI no es una falla: se salta.
+const candidatos = [...(process.env.PATH ?? "").split(":"), path.join(os.homedir(), ".local/bin")].map((d) => path.join(d, "tablero"));
+const bin = process.env.HILOS_TABLERO ?? [...candidatos, path.join(import.meta.dirname, "..", "..", "motor", "bin", "tablero")].find((f) => existsSync(f));
+if (!bin) {
+  console.log("no está el CLI `tablero`: nada que probar");
+  process.exit(0);
+}
 const tmp = mkdtempSync(path.join(os.tmpdir(), "hilos-iniciar-"));
 const puerto = 9300 + Math.floor(Math.random() * 600);
 const fotos = process.env.FOTOS ? path.resolve(process.env.FOTOS) : null;
 if (fotos) mkdirSync(fotos, { recursive: true });
-const bin =
-  process.env.HILOS_TABLERO ??
-  [...(process.env.PATH ?? "").split(":"), path.join(os.homedir(), ".local/bin")].map((d) => path.join(d, "tablero")).find((f) => existsSync(f));
-if (!bin) {
-  console.log("no está el CLI `tablero`: nada que probar");
-  process.exit(1);
-}
 // Tres proyectos (uno con un nombre que no es el de su carpeta) y un área, que vive en ~: trama no le tiene carpeta.
 for (const d of ["pa", "sesiones", "proy/atlas", "proy/faro", "proy/nube"]) mkdirSync(path.join(tmp, d), { recursive: true });
 const proy = (name, carpeta) => ({ name, path: path.join(tmp, "proy", carpeta), desc: "" });

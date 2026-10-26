@@ -1,0 +1,23 @@
+/* Estadísticas: la nota de cada medidor de cuota baja a su propia línea, entera (antes se cortaba). */
+.pn section.pn-cifras {
+  grid-template-columns: repeat(auto-fit, minmax(8.5rem, 1fr));
+}
+/* Medidor: nombre y % arriba, riel entero abajo y la nota debajo, sin cortarse. */
+.pn-medidor {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+.pn-medidor .pn-riel {
+  grid-row: 2;
+  grid-column: 1 / -1;
+}
+.pn-medidor .pn-tok {
+  grid-row: 3;
+  grid-column: 1 / -1;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+}
+.pn-b[data-hoy] .pn-b-riel i {
+  outline: 1px solid var(--texto-3);
+  outline-offset: 1px;
+}

@@ -36,7 +36,7 @@ export function agrupar(items: readonly Item[], carpetas: Readonly<Record<string
     const clave = `${i.maquina ?? ""}\0${i.proyecto}`;
     let g = grupos.get(clave);
     if (!g) {
-      // `carpetas` es de esta máquina: las del Dell se ubican por su propio nombre (trama no conoce su registry), y su líder nuevo no lleva carpeta.
+      // `carpetas` es de esta máquina: las de la otra máquina se ubican por su propio nombre (trama no conoce su registry), y su líder nuevo no lleva carpeta.
       const carpeta = i.maquina ? null : (i.proyecto && Object.hasOwn(carpetas, i.proyecto) && carpetas[i.proyecto]) || null;
       const donde = carpeta ?? (i.maquina && i.proyecto ? i.proyecto : null);
       const suyos = donde ? lideres.filter((l) => l.carpeta === donde && l.maquina === i.maquina).sort((a, b) => b.actividad - a.actividad) : [];
@@ -67,7 +67,7 @@ const cuerpo = (i: Item, pre: string) => [
 
 /** El primer mensaje (o el que sigue, si el líder ya estaba) con las tareas de un proyecto. */
 export function promptIniciar(g: Pick<Grupo, "proyecto" | "carpeta" | "items">): string {
-  // El número de cada item en SU tablero: el `dell:12` es de quien junta, el líder de allá conoce el 12.
+  // El número de cada item en SU tablero: el `servidor:12` es de quien junta, el líder de allá conoce el 12.
   const num = (i: Item) => String(i.id).replace(/^.*:/, "");
   const varias = g.items.length > 1;
   const donde = !g.proyecto

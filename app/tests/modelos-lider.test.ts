@@ -74,11 +74,23 @@ test("clases de modelo y el id que se le pasa a agy", () => {
 
 test("al renderer sólo llegan ids y nombres: ninguna url; Gemini se habilita con la sección o con el líder", () => {
   const v = vistaModelos(leerConfig(JSON.stringify(ejemplo)));
-  assert.deepEqual(v!.locales, [{ id: "ollama:qwen3-coder:30b", nombre: "Qwen3 Coder 30B" }]);
+  assert.deepEqual(v!.locales, [{ id: "ollama:qwen3-coder:30b", nombre: "Qwen3 Coder 30B", modelo: "qwen3-coder:30b" }]);
   assert.ok(!JSON.stringify(v).includes("11434") && !JSON.stringify(v).includes("http"));
   assert.equal(v!.gemini, true);
   assert.equal(vistaModelos(leerConfig('{"version":1}'))!.gemini, false);
   assert.equal(vistaModelos(leerConfig('{"version":1,"lider":{"modelo":"gemini-3.8-flash-low"}}'))!.gemini, true, "el líder por defecto es de Gemini");
   assert.equal(vistaModelos(null), null, "sin archivo y sin agy, nada cambia");
-  assert.deepEqual(vistaModelos(null, true), { version: 1, gemini: true, locales: [], llama: [], lider: null }, "con agy instalado se habilita sin modelos.json");
+  assert.deepEqual(vistaModelos(null, true), { version: 1, gemini: true, dsh: false, locales: [], llama: [], lider: null }, "con agy instalado se habilita sin modelos.json");
+  assert.equal(vistaModelos(null, false, [], true)!.dsh, true, "con dsh instalado se ofrece sin modelos.json");
+  assert.equal(vistaModelos(leerConfig('{"version":1}'))!.dsh, false);
+  assert.equal(vistaModelos(leerConfig('{"version":1}'), false, [], true)!.dsh, true);
+  assert.equal(vistaModelos(leerConfig('{"version":1,"lider":{"modelo":"dsh:opencode/big-pickle"}}'))!.dsh, true, "el líder por defecto es de dsh");
+});
+
+test("vistaModelos suma los modelos de opencode (sólo si hay lista) y no cambia lo demás", () => {
+  const lista = ["opencode/beam-free", "opencode/big-pickle"];
+  assert.deepEqual(vistaModelos(null, false, [], false, lista), { version: 1, gemini: false, dsh: false, opencode: lista, locales: [], llama: [], lider: null }, "con opencode instalado se ofrece sin modelos.json");
+  assert.deepEqual(vistaModelos(leerConfig('{"version":1}'), false, [], false, lista)!.opencode, lista);
+  assert.equal("opencode" in vistaModelos(leerConfig('{"version":1}'))!, false, "sin lista, la clave no viaja");
+  assert.equal(vistaModelos(null), null);
 });

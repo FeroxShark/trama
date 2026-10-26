@@ -17,7 +17,7 @@ const COLCHON = 40;
 
 type Parcial = Pick<Hilo, "id" | "proyecto" | "tarea" | "estado" | "inicio"> & Partial<Hilo>;
 
-// Los líderes (sesiones de Claude Code de Ana) y uno que ya cerró: sus workers quedan "sin líder".
+// Los líderes (sesiones de Claude Code del usuario) y uno que ya cerró: sus workers quedan "sin líder".
 const A3 = { id: "s-fix-a3", nombre: "ana-a3" };
 const C7 = { id: "s-fix-c7", nombre: "ana-c7" };
 const E9 = { id: "s-fix-e9", nombre: "cauce-e9" };
@@ -419,6 +419,50 @@ export const LIDERES: RespuestaLideres = {
   ],
 };
 
+/**
+ * La captura `activas`: nueve líderes en tres proyectos con calor mezclado (te necesita, responde, workers vivos, caché
+ * caliente y "Uncached"). atlas es todo frío: aunque es el primero por nombre, queda debajo de brote y cauce.
+ */
+const deActivas = (id: string, nombre: string, proyecto: string, p: Partial<Lider>): Lider => ({
+  id: `s-act-${id}`,
+  nombre,
+  proyecto,
+  titulo: "Opus 5.5",
+  actividad: AHORA - 20 * MIN,
+  creado: AHORA - 5 * HORA + id.charCodeAt(0),
+  cache_ttl_s: HORA,
+  cache_vence: AHORA - 5 * MIN,
+  origen: "terminal",
+  pid: 4300,
+  vivo: true,
+  ocupado: false,
+  modelo: "claude-opus-5-5",
+  effort: null,
+  inferido: proyecto,
+  ...p,
+});
+export const LIDERES_ACTIVAS: Lider[] = [
+  deActivas("a1", "migrar-envios", "atlas", { actividad: AHORA - 3 * HORA }),
+  deActivas("a2", "docs-api", "atlas", { actividad: AHORA - 5 * HORA }),
+  deActivas("a3", "indices-stock", "atlas", { actividad: AHORA - 90 * MIN }),
+  deActivas("b1", "permiso-deploy", "brote", { actividad: AHORA - 4 * MIN, cache_vence: AHORA + 52 * MIN + COLCHON, pide: true, espera: { motivo: "pide", desde: 3 } }),
+  deActivas("b2", "limpiar-colas", "brote", { actividad: AHORA - 11 * MIN, cache_vence: AHORA + 59 * MIN + COLCHON }),
+  deActivas("b3", "refactor-config", "brote", { actividad: AHORA - 2 * HORA }),
+  deActivas("c1", "reintentos-pagos", "cauce", { actividad: AHORA - 20, cache_vence: AHORA + 59 * MIN + COLCHON, ocupado: true, origen: "app" }),
+  deActivas("c2", "tests-webhook", "cauce", { actividad: AHORA - 35 * MIN }),
+  deActivas("c3", "revisar-cola", "cauce", { actividad: AHORA - 14 * MIN, cache_vence: AHORA + 12 * MIN + COLCHON }),
+  deActivas("c4", "notas-release", "cauce", { actividad: AHORA - 6 * HORA }),
+];
+/** Los workers de `LIDERES_ACTIVAS`: c2 está frío pero tiene dos en marcha (por eso es de Activas), y uno ya terminó. */
+export const HILOS_ACTIVAS: RespuestaHilos = {
+  version: 1,
+  hilos: [
+    hilo({ id: "20261015-100101-71001", jefe: "tests-webhook", jefe_id: "s-act-c2", proyecto: "cauce", tarea: "Tests del webhook de pagos", estado: "trabajando", inicio: AHORA - 7 * MIN, puesto: "1", ...cache(HORA, 50 * MIN) }),
+    hilo({ id: "20261015-100202-71002", jefe: "tests-webhook", jefe_id: "s-act-c2", proyecto: "cauce", tarea: "Mock del proveedor de cobros", estado: "trabajando", inicio: AHORA - 4 * MIN, puesto: "2", ...cache(HORA, 54 * MIN) }),
+    hilo({ id: "20261015-090303-71003", jefe: "migrar-envios", jefe_id: "s-act-a1", proyecto: "atlas", tarea: "Migración de envíos a la tabla nueva", estado: "listo", inicio: AHORA - 3 * HORA, duracion_s: 12 * MIN, rama: "migrar-envios", commits: 2 }),
+  ],
+};
+
 /** El líder de `MUERTO` como lo manda el main cuando lo mataron (captura `lider-muerto`): sin proceso, con Retomar. */
 export const LIDER_MUERTO: Lider = {
   ...MUERTO,
@@ -476,7 +520,7 @@ export const TERMINADOS: Hilo[] = [...TERMINADOS_VIVOS, ...TERMINADOS_MUERTOS];
 export const HILOS_TERMINADOS: RespuestaHilos = { ...HILOS, hilos: [...HILOS.hilos, ...TERMINADOS] };
 
 /**
- * Las capturas de dos máquinas (`maquinas*`): un líder del Dell (sus ids llevan el prefijo `dell:`, como los arma
+ * Las capturas de dos máquinas (`maquinas*`): un líder de la otra máquina (sus ids llevan el prefijo `dell:`, como los arma
  * electron/maquinas.ts) con dos workers, sumados a `HILOS` y `LIDERES` sólo en ellas.
  */
 const D1 = { id: "dell:s-fix-d1", nombre: "ana-d1" };
@@ -790,8 +834,8 @@ export function charlaListas(sid: string): Mensaje[] {
 }
 
 /**
- * Una conversación larga (captura `lider-formato`, `HILOS_VARIANTE=larga`): `n` mensajes en ciclos de tres (un pedido de
- * Ana, un paso con herramientas y la respuesta, con listas y código de vez en cuando). Para ver y medir que 3000 no tironeen
+ * Una conversación larga (captura `lider-formato`, `HILOS_VARIANTE=larga`): `n` mensajes en ciclos de tres (un pedido
+ * del usuario, un paso con herramientas y la respuesta, con listas y código de vez en cuando). Para ver y medir que 3000 no tironeen
  * (`scripts/medir-larga.mjs`); el texto es inventado y cada mensaje distinto, para que ninguno salga de un caché.
  */
 export function charlaLarga(sid: string, n = 3000): Mensaje[] {
@@ -856,6 +900,21 @@ export function charlaSistema(sid: string): Mensaje[] {
     { rol: "assistant", texto: "", herramientas: [], modelo: null, destrabo: { que: "Bash: curl -s localhost:9/progreso", agotado: true } },
     { rol: "assistant", texto: "API Error: Repeated 529 Overloaded errors", herramientas: [], modelo: "<synthetic>", error: "unknown" },
     { rol: "assistant", texto: LIMITE, herramientas: [], modelo: "<synthetic>", error: "rate_limit" },
+  ];
+  return crudos.map((x, i) => ({ ...x, i, ts: ts((crudos.length - i) * MIN) }));
+}
+
+/** La charla de un líder que siguió con un modelo de otro motor (captura `lider-cambio-motor`): lo de Claude, la raya y lo de Gemini. */
+export function charlaCambio(sid: string): Mensaje[] {
+  const l = LIDERES.lideres.find((x) => x.id === sid);
+  if (!l) return [];
+  const ts = (s: number) => new Date((l.actividad - s) * 1000).toISOString();
+  const crudos: Omit<Mensaje, "i" | "ts">[] = [
+    { rol: "user", texto: "¿Qué quedó pendiente de ayer?", herramientas: [], modelo: null },
+    { rol: "assistant", texto: "Quedan dos cosas: integrar **atlas** y destrabar **cauce**.", herramientas: ["Bash: nightloop revisar --json"], modelo: l.modelo },
+    { rol: "assistant", texto: "", herramientas: [], modelo: null, cambio: { modelo: "gemini-4-argon" } },
+    { rol: "user", texto: "Seguí vos: integrá atlas.", herramientas: [], modelo: null },
+    { rol: "assistant", texto: "Listo, atlas quedó integrado en main.", herramientas: ["Bash: pa atlas --integrar a1"], modelo: "gemini-4-argon" },
   ];
   return crudos.map((x, i) => ({ ...x, i, ts: ts((crudos.length - i) * MIN) }));
 }
@@ -1028,9 +1087,15 @@ export const USO_CUENTAS: Uso = {
   ],
 };
 
-/** La variante `cupos-google`: las barras de Claude más Google AI Pro con sus 3 grupos (`reparto --cupos`), plegados en un renglón. */
+/**
+ * La variante `cupos-google`: los datos reales de una máquina (Claude + Google AI Pro con sus 3 grupos, `reparto --cupos`).
+ * «Claude y GPT» con la semana agotada y su 5 h que no aplica (agy: `disabled`), con la promo vigente hasta el 2 de noviembre;
+ * «Gemini 4 Argon» con su propia semana casi llena. Los grupos llegan con el `nombre` en español de `reparto`: la vista no lo muestra.
+ */
 export const USO_GOOGLE: Uso = {
   ...USO,
+  five_hour: { pct: 4, resets_at: AHORA + 2 * HORA + 10 * MIN },
+  seven_day: { pct: 23, resets_at: AHORA + 5 * DIA + 14 * HORA },
   suscripciones: [
     {
       id: "google",
@@ -1041,21 +1106,36 @@ export const USO_GOOGLE: Uso = {
           id: "gemini",
           nombre: "Gemini",
           ventanas: [
-            { id: "5h", pct: 3, vuelve: AHORA + 2 * HORA },
-            { id: "7d", pct: 8, vuelve: AHORA + 2 * DIA + 4 * HORA },
+            { id: "5h", pct: 6, vuelve: AHORA + 1 * HORA + 20 * MIN },
+            { id: "7d", pct: 5, vuelve: AHORA + 5 * DIA + 6 * HORA },
           ],
         },
         {
           id: "claude-gpt",
           nombre: "Claude y GPT por Google",
           ventanas: [
-            { id: "5h", pct: 15, vuelve: AHORA + 3 * HORA },
-            { id: "7d", pct: 24, vuelve: AHORA + 2 * DIA + 7 * HORA },
+            { id: "5h", pct: 0, vuelve: null, deshabilitada: true },
+            { id: "7d", pct: 100, vuelve: AHORA + 3 * DIA + 10 * HORA },
           ],
           hasta: "2026-11-02",
         },
-        { id: "gemini-4-argon", nombre: "Gemini 4 Argon", ventanas: [{ id: "7d", pct: 41, vuelve: AHORA + 2 * DIA + 19 * HORA }] },
+        { id: "gemini-4-argon", nombre: "Gemini 4 Argon", ventanas: [{ id: "7d", pct: 91, vuelve: AHORA + 5 * DIA + 6 * HORA }] },
       ],
+    },
+  ],
+};
+
+/** La variante `cupos-marcado`: lo de `cupos-google`, pero «Claude y GPT» marcado sin cupo por un 429 (`agotado`), no medido. */
+export const USO_GOOGLE_MARCADO: Uso = {
+  ...USO_GOOGLE,
+  suscripciones: [
+    {
+      ...USO_GOOGLE.suscripciones![0],
+      grupos: USO_GOOGLE.suscripciones![0].grupos!.map((g) =>
+        g.id === "claude-gpt"
+          ? { ...g, ventanas: [{ id: "5h", pct: 100, vuelve: AHORA + 2 * HORA }, { id: "7d", pct: 100, vuelve: AHORA + 2 * HORA }], agotado: AHORA + 2 * HORA }
+          : g,
+      ),
     },
   ],
 };
@@ -1123,7 +1203,7 @@ export function localesFalsos(id?: string, ctx?: number): EstadoLocales {
   return { gpuMiB: gpu.totalMiB, modelos: [fila("modelo-local-ejemplo", 17955, 17), fila("modelo-local-chico", 6873, 16)] };
 }
 
-/** Lo que se puede liberar de la GPU de muestra (`vram --json` de ~/Proyectos/modos): inventado; liberar sólo lo quita de esta lista. */
+/** Lo que se puede liberar de la GPU de muestra (`vram --json`): inventado; liberar sólo lo quita de esta lista. */
 const VRAM_LISTA: EstadoVram["consumidores"] = [
   { id: "comfyui.service", nombre: "ComfyUI", miB: 6144, tipo: "servicio", accion: "stop" },
   { id: "handy.service", nombre: "Handy", miB: 3379, tipo: "servicio", accion: "stop" },

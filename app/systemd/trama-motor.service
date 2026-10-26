@@ -1,18 +1,17 @@
 [Unit]
 Description=trama (hilos): el motor sin ventana (líderes de Claude, cola, vigía y acceso por la tailnet)
-Documentation=file://%h/Proyectos/hilos/docs/estado/motor.md
 # A diferencia de trama.service (la ventana), no depende de la sesión gráfica: ni PartOf=graphical-session
-# ni ConditionEnvironment=WAYLAND_DISPLAY. Con `loginctl enable-linger ana` arranca con la máquina y
+# ni ConditionEnvironment=WAYLAND_DISPLAY. Con `loginctl enable-linger $USER` arranca con la máquina y
 # sigue sin sesión abierta (el celular entra igual). Sin linger, arranca con la primera sesión.
 # Bucle de arranques fallidos: igual que trama.service, 15 en 20 s la rinden (queda caída hasta que se la arranque
-# con `systemctl --user start`). Medido en docs/estado/reinicio-rapido.md.
+# con `systemctl --user start`).
 StartLimitIntervalSec=20
 StartLimitBurst=15
 
 [Service]
 # Node puro: el binario de Electron del checkout con ELECTRON_RUN_AS_NODE (sin Chromium, sin pantalla,
-# sin depender del `node` del sistema). El checkout es siempre ~/Proyectos/hilos: instalar.sh se niega
-# a correr desde un worktree.
+# sin depender del `node` del sistema). @RAIZ@ es el checkout: instalar.sh lo reemplaza al instalar la unidad
+# (copia esta plantilla a ~/.config/systemd/user) y se niega a correr desde un worktree.
 Environment=ELECTRON_RUN_AS_NODE=1
 Environment=HILOS_MOTOR=1
 # Como trama.service: el motor no se relanza solo fuera de la unidad (electron/motor.ts).
@@ -25,7 +24,7 @@ Environment=PATH=%h/.local/bin:/usr/bin
 # del ssh-agent.socket de systemd, que ssh ignora si no existe. Hoy no hace falta: ~/.ssh/id_ed25519 no
 # tiene passphrase y ssh la lee del disco. Si algún día se le pone una, habilitar `ssh-agent.socket`.
 Environment=SSH_AUTH_SOCK=%t/ssh-agent.socket
-ExecStart=%h/Proyectos/hilos/node_modules/electron/dist/electron %h/Proyectos/hilos/dist-electron/motor.js
+ExecStart=@RAIZ@/node_modules/electron/dist/electron @RAIZ@/dist-electron/motor.js
 # Siempre vivo: si muere o lo reinicia un build nuevo, vuelve en 0,5 s.
 Restart=always
 RestartSec=500ms

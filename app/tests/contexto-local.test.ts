@@ -210,3 +210,21 @@ test("skillOrquestar: la propia de la persona manda; sin ninguna, la genérica d
     await rm(home, { recursive: true, force: true });
   }
 });
+
+test("prefacioDsh: lo de Gemini con quién corre y sus herramientas cambiadas; sin archivos queda el prompt solo", async () => {
+  const { prefacioDsh, PROMPT_DSH } = await import("../electron/contexto-local.ts");
+  assert.match(PROMPT_DSH, /corrés dentro de DeepSeek Harness \(`dsh`\), no como Claude/);
+  assert.doesNotMatch(PROMPT_DSH, /Gemini|agy|view_file/);
+  assert.match(PROMPT_DSH, /pa <proyecto> --tipo/, "sigue explicando cómo delegar con pa");
+  assert.equal(await prefacioDsh({ home: "/no/existe", deps: { leer: async () => null, hook: async () => "" } }), PROMPT_DSH);
+  const con = await prefacioDsh({ home: "/no/existe", pa: "/opt/bin/pa", deps: { leer: async () => null, hook: async () => "" } });
+  assert.ok(con.includes("`/opt/bin/pa`"));
+});
+
+test("prefacioDsh con opencode: dice opencode (no DeepSeek) y el modelo real", async () => {
+  const { prefacioDsh, PROMPT_OPENCODE } = await import("../electron/contexto-local.ts");
+  assert.match(PROMPT_OPENCODE, /corrés dentro de opencode/);
+  assert.doesNotMatch(PROMPT_OPENCODE, /corrés dentro de DeepSeek/);
+  const p = await prefacioDsh({ home: "/no/existe", motor: "opencode", modelo: "opencode/glm-5.3-flash-free", deps: { leer: async () => null, hook: async () => "" } });
+  assert.match(p, /`opencode\/glm-5\.3-flash-free`/);
+});

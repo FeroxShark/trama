@@ -10,12 +10,12 @@
 #           aviso | ajustes | ramas | ramas-confirmar | ramas-conflicto | ramas-lanzar | ramas-lanzar-error | estadisticas |
 #           lider-trabajando | lider-avisos | settle-confirmar | worker-vista | worker-vista-vivo |
 #           estadisticas-30 | estadisticas-medido | estadisticas-vacia | claude | claude-abierto | solo-lideres | ocultos |
-#           lider-sistema | sistema | herramientas | lider-compactando |
+#           lider-sistema | lider-cambio-motor[menu|confirmar] | sistema | herramientas | lider-compactando |
 #           lider-relevo | lider-imagenes | lider-tabla | lider-formato | lider-listas | lider-pensando | lider-gemini | herramientas-resultados | lider-hover | te-espera |
 #           tablero | tablero-detalle | tablero-proyectos | tablero-iniciar | tablero-pospuestos | tablero-maquinas | tablero-vacio | maquinas-selector[-caida] | tablero-nuevo[-proyecto|-chat|-avisar] | lider-muerto | lider-app-muerto |
-#           compactando | consumo | orden-arrastrando | orden-menu | orden-prioridad | mover-menu | pc-apagada | pc-prendiendo | pc-prendida   (ver `Captura` en src/modo.ts)
-#   DIR=B5           a qué carpeta de docs/estado/ va (default B1); con una "/"
-#                    es la ruta entera (DIR=docs/estado/B3)
+#           compactando | consumo | orden-arrastrando | orden-menu | orden-prioridad | activas[plegada|fijo] | mover-menu | pc-apagada | pc-prendiendo | pc-prendida   (ver `Captura` en src/modo.ts)
+#   DIR=prueba       subcarpeta de bench-resultados/captura/ donde va el PNG (default: la carpeta misma);
+#                    con una "/" es la ruta entera (DIR=/tmp/capturas)
 #   TAM="1920 1200"  tamaño del PNG en px
 #   ESCALA=1.5       zoom: 1920×1200 a 1.5× son 1280×800 de CSS
 #   HILOS_LETRA=16   tamaño de letra (13 a 18); HILOS_FUENTE=inter y HILOS_MONO=fira,
@@ -27,23 +27,24 @@
 #                    con `lider-formato`, HILOS_VARIANTE=larga la conversación de 3000 mensajes; con `lider-imagenes`, =visor el visor con la imagen sin llegar
 #   ej: scripts/captura.sh hover
 #
-# Deja docs/estado/<DIR>/<estado>.png. El criterio visual es la maqueta
-# referencias/diseno-D-minimal.dc.html. Requiere el build: `npm run build`.
+# Deja bench-resultados/captura/[<DIR>/]<estado>.png (esa carpeta no va al repo). Requiere el build: `npm run build`
+# y ImageMagick (`magick`).
 set -euo pipefail
 
 raiz="$(cd "$(dirname "$0")/.." && pwd)"
 estado="${1:?estado}"; shift
 bin="$raiz/node_modules/electron/dist/electron"
-case "${DIR:-B1}" in
+case "${DIR:-}" in
   */*) out="$DIR/$estado.png" ;;
-  *) out="$raiz/docs/estado/${DIR:-B1}/$estado.png" ;;
+  "") out="$raiz/bench-resultados/captura/$estado.png" ;;
+  *) out="$raiz/bench-resultados/captura/$DIR/$estado.png" ;;
 esac
 mkdir -p "$(dirname "$out")"
 
 [[ -x "$bin" ]] || { echo "falta $bin (npm install)"; exit 1; }
 [[ -f "$raiz/dist-electron/main.js" && -f "$raiz/dist/index.html" ]] || { echo "falta el build (npm run build)"; exit 1; }
 
-# Nunca con lo de Ana: un HOME vacío con sus XDG, un estado y un perfil temporales, y sin directorios del home en el PATH.
+# Nunca con lo de la persona: un HOME vacío con sus XDG, un estado y un perfil temporales, y sin directorios del home en el PATH.
 # `electron/aislar.ts` además hace fallar la corrida (salida 97) si algo toca el HOME de verdad.
 casa="$(mktemp -d "${TMPDIR:-/tmp}/trama-captura-XXXXXX")"
 trap 'rm -rf "$casa"' EXIT
@@ -57,6 +58,6 @@ env -u CLAUDE_CONFIG_DIR -u PA_STATE -u PROYECTOS_REGISTRY -u TABLERO_DIR -u TAB
 rc=$?
 set -e
 grep '^\[aislar\]' "$casa/err" || true
-[[ $rc -eq 0 ]] || { echo "$estado: falló (salida $rc; 97 = tocó lo de Ana)"; exit 1; }
+[[ $rc -eq 0 ]] || { echo "$estado: falló (salida $rc; 97 = tocó lo de la persona)"; exit 1; }
 echo "$estado: $out ($(magick identify -format '%wx%h' "$out"))"
 

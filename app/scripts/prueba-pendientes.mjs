@@ -12,16 +12,16 @@ import os from "node:os";
 import path from "node:path";
 
 const raiz = path.resolve(import.meta.dirname, "..");
+// Antes de crear nada en /tmp. Sin CLI no es una falla: se salta.
+const candidatos = [...(process.env.PATH ?? "").split(":"), path.join(os.homedir(), ".local/bin")].map((d) => path.join(d, "tablero"));
+const bin = process.env.HILOS_TABLERO ?? [...candidatos, path.join(import.meta.dirname, "..", "..", "motor", "bin", "tablero")].find((f) => existsSync(f));
+if (!bin) {
+  console.log("no está el CLI `tablero`: nada que probar");
+  process.exit(0);
+}
 const tmp = mkdtempSync(path.join(os.tmpdir(), "hilos-pendientes-"));
 const fotos = process.env.FOTOS ? path.resolve(process.env.FOTOS) : null;
 if (fotos) mkdirSync(fotos, { recursive: true });
-const bin =
-  process.env.HILOS_TABLERO ??
-  [...(process.env.PATH ?? "").split(":"), path.join(os.homedir(), ".local/bin")].map((d) => path.join(d, "tablero")).find((f) => existsSync(f));
-if (!bin) {
-  console.log("no está el CLI `tablero`: nada que probar");
-  process.exit(1);
-}
 for (const d of ["pa", "sesiones", "proy/atlas", "proy/faro"]) mkdirSync(path.join(tmp, d), { recursive: true });
 const proy = (name, carpeta) => ({ name, path: path.join(tmp, "proy", carpeta), desc: "" });
 writeFileSync(path.join(tmp, "registry.json"), JSON.stringify({ projects: [proy("atlas", "atlas"), proy("faro-web", "faro")] }));
@@ -326,7 +326,7 @@ try {
   ok(!!c && [Q1, Q3, P1, P2].every((id) => c.includes(`#${id} `)), "la caja tiene el mensaje con el id de cada item tocado");
   ok(!!c && !c.includes(`#${Q2} `) && !c.includes(`#${Q4} `), "y ninguno de los que no se tocaron");
   ok(!!c && /tablero cerrar <id>/.test(c.split("\n").at(-1)) && c.trimEnd().split("\n").at(-1).includes(`#${Q1}, #${Q3}, #${P1}, #${P2}`), "termina pidiendo cerrar cada uno con `tablero cerrar <id>`");
-  ok(!!c && c.includes("Por nombre") && c.includes("Migrar de a poco") && c.includes("NO anda") && c.includes("Se ve borroso"), "y dice qué contestó Ana en cada uno");
+  ok(!!c && c.includes("Por nombre") && c.includes("Migrar de a poco") && c.includes("NO anda") && c.includes("Se ve borroso"), "y dice qué contestó el usuario en cada uno");
   await espera(400);
   ok(lanzados() === antes && !existsSync(env.TRAMA_FALSO_DICHO), "no se envió: no se lanzó ningún líder ni le llegó nada");
   await foto("4-caja");
@@ -480,7 +480,7 @@ try {
   ok(await hastaDisco(() => item(Q5).respuesta?.opcion === "b", "Q5"), "la respuesta queda en el tablero (`tablero responder`)");
   ok(await hastaDisco(() => recibidosDe(L).length === antesL + 1, "aviso"), "y el líder recibe un mensaje más");
   const aviso = recibidosDe(L)[antesL] ?? "";
-  ok(aviso.includes(`#${Q5} `) && aviso.includes("Capa fina") && aviso.includes(`tablero cerrar ${Q5}`) && aviso.split("\n").length <= 3, "corto: el item, lo que contestó Ana y cómo cerrarlo");
+  ok(aviso.includes(`#${Q5} `) && aviso.includes("Capa fina") && aviso.includes(`tablero cerrar ${Q5}`) && aviso.split("\n").length <= 3, "corto: el item, lo que contestó el usuario y cómo cerrarlo");
   ok(item(Q5).columna === "espera-dueno", "avisar no cierra el item: lo cierra el líder");
   ok(await hasta(() => !!document.querySelector(".pd") && /ya sabe/.test(document.querySelector(".pd-pie-a")?.textContent ?? ""), "avisado"), "el Tablero sigue abierto y el pie dice que ya sabe");
   ok(await hasta((t) => ![...document.querySelectorAll(".pd-card:not([data-mandada])")].some((c) => c.querySelector(".pd-tit")?.textContent.includes(t)), "pasó a Mandadas", "Cómo llamamos a la capa"), "la pregunta salió de 'Te esperan' (pasó a Mandadas)");
@@ -501,7 +501,7 @@ try {
   ok(await enAtlas(), "otra vez en atlas");
   ok((await esperarCard("Qué formato de fecha")) && (await enCard("Qué formato de fecha", ".pq-op", "Año primero")), "se toca una opción de la otra pregunta");
   ok(await hasta(() => !!document.querySelector(".pd-avisa-d .pbtn") && !!document.querySelector(".pd-avisar"), "selector"), "con dos líderes aparece el selector y el botón sin nombre");
-  ok(/^Responder y avisar$/.test((await textoAvisar()) ?? ""), `el botón no elige por Ana (${await textoAvisar()})`);
+  ok(/^Responder y avisar$/.test((await textoAvisar()) ?? ""), `el botón no elige por el usuario (${await textoAvisar()})`);
   await foto("12-avisar-varios");
   ok(await tocar(".pd-avisa-d .pbtn"), "se abre el selector");
   const opciones = await hasta(() => {

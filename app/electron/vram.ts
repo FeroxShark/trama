@@ -1,9 +1,8 @@
 // Quién tiene la GPU y cómo liberarla, para el aviso de "no entra" de un modelo local (src/hilo/LiberarVram.tsx). Todo lo hace la
-// CLI `vram` de `~/Proyectos/modos` (`vram --json`: la lista; `vram liberar <id> --json`: baja UNO): acá sólo se lee su JSON, se
+// CLI `vram` (en el PATH o `HILOS_VRAM`) (`vram --json`: la lista; `vram liberar <id> --json`: baja UNO): acá sólo se lee su JSON, se
 // descarta lo que no se debe ofrecer y se la llama con el id que el usuario tocó. Liberar para un servicio de verdad (Handy, el TTS),
 // así que sólo corre con su clic y sobre un id que la lista de AHORA ofrece; nunca se prueba con la CLI real (tests/vram.test.ts
 // le pasa `Deps` falsos). Sin `electron`.
-import path from "node:path";
 import { resolverBinario } from "./binario.ts";
 import { errorT } from "./errores.ts";
 import { depsDeVerdad, type Deps } from "./locales.ts";
@@ -33,10 +32,9 @@ export type ResultadoLiberar = {
   error: string | null;
 };
 
+/** La CLI `vram`: `HILOS_VRAM`, el PATH o `~/.local/bin`. Si no está queda `vram` pelado y la función no está disponible (`main.vramSinCli`). */
 async function binario(d: Deps): Promise<string> {
-  if (d.env.HILOS_VRAM) return d.env.HILOS_VRAM;
-  const propio = path.join(d.home, "Proyectos", "modos", "vram");
-  return (await d.tamano(propio)) != null ? propio : resolverBinario("vram", "HILOS_VRAM", d.env, d.home);
+  return resolverBinario("vram", "HILOS_VRAM", d.env, d.home);
 }
 
 const num = (x: unknown) => (typeof x === "number" && Number.isFinite(x) ? x : 0);

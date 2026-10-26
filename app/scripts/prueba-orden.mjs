@@ -38,7 +38,7 @@ writeFileSync(
 );
 
 // Cuatro líderes de terminal de mentira: un `sleep` cada uno, con su sesión (pid y arranque reales).
-// Tres viven en atlas (los movió Ana: nombres.json) y el cuarto en brote, con los workers del `pa` falso.
+// Tres viven en atlas (los movió el usuario: nombres.json) y el cuarto en brote, con los workers del `pa` falso.
 const LIDERES = [
   { sid: "0a000000-0000-4000-8000-000000000001", nombre: "ana-uno", carpeta: "atlas" },
   { sid: "0a000000-0000-4000-8000-000000000002", nombre: "ana-dos", carpeta: "atlas" },
@@ -69,7 +69,7 @@ const procesos = LIDERES.map((l, i) => {
   return p;
 });
 const nombresJson = path.join(tmp, "hilos", "nombres.json");
-// Orden fijo desde el arranque: de fábrica el orden es por prioridad y ahí no se arrastra (docs/estado/orden-prioridad.md).
+// Orden fijo desde el arranque: de fábrica el orden es por prioridad y ahí no se arrastra.
 writeFileSync(nombresJson, JSON.stringify({ version: 1, titulos: {}, proyectos: Object.fromEntries(LIDERES.map((l) => [l.sid, l.carpeta])), ocultos: [], orden: { carpetas: [], lideres: {}, prioridad: false } }));
 const guardado = () => {
   try {

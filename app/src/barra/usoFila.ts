@@ -1,6 +1,6 @@
 // Qué tiene para decir una fila del uso del plan (5 h / Semana), sin React: el porcentaje, la hora en
 // que se reinicia o que no se sabe, y "sin dato" sólo cuando no hay ni porcentaje. Un porcentaje nunca
-// se muestra como "sin dato". Puro: lo prueba `tests/uso-fila.test.ts`; la regla está en docs/piezas.md (Cabecera).
+// se muestra como "sin dato". Puro: lo prueba `tests/uso-fila.test.ts`.
 import type { Ventana } from "../datos/contrato";
 
 export type Fila =

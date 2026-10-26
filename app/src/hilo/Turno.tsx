@@ -17,7 +17,8 @@ import { Llamada } from "./Llamada";
 import { MODO } from "../modo";
 import { pasoActual, type Item } from "./turnos";
 import { alScroll, bajar, seguidor, seguir } from "./seguir";
-import { Pensamiento } from "./Actividad";
+import { Pensados, PensamientosGrupo } from "./Actividad";
+import { resumenPasos } from "./resumen-pasos";
 
 /** Lo que pesa releer la conversación entera: entrada + caché leído + caché escrito del último turno. */
 export const tokens = (u: Tokens | null) =>
@@ -98,17 +99,15 @@ const pensamientosDe = (x: PropsTurno["t"]) => x.pensamientos ?? (x.pensado ? [x
 const resultados = (x: PropsTurno["t"]) => x.pasos.reduce((n, p) => n + p.usos.filter((u) => u.det?.resultado).length, 0);
 
 /**
- * El razonamiento del modelo (un líder de la app): una línea plegada por pensamiento ("Pensó: …", un clic lo abre), en orden y sin que
- * uno borre al otro. Mientras llega, el último dice "Pensando" y se ve entero, siguiendo lo que escribe.
+ * El razonamiento del modelo (un líder de la app): uno solo es una línea plegada ("Pensó: …", un clic lo abre); varios, una sola fila
+ * plegada ("Pensó · 10") que al abrirse los lista en orden. Mientras llega, el último dice "Pensando" y se ve entero, siguiendo lo que escribe.
  */
 function Pensado({ items, vivo }: { items: string[]; vivo: boolean }) {
   useIdioma();
   const abierto = MODO.captura === "lider-pensando" && (MODO.variante === "abierto" || MODO.variante === "vivo");
   return (
     <div className="tv-pensados">
-      {items.map((x, i) => (
-        <Pensamiento key={i} texto={x} vivo={vivo && i === items.length - 1} abierto={abierto} />
-      ))}
+      <Pensados items={items} vivo={vivo} abierto={abierto} />
     </div>
   );
 }
@@ -117,6 +116,7 @@ function Pensado({ items, vivo }: { items: string[]; vivo: boolean }) {
 export const Turno = memo(function Turno({ t: turno, vivo, enCurso = false, semilla, pensando = false, razon = false }: PropsTurno) {
   // Captura `herramientas`: el trabajo, abierto. Un motor que deja ver su razonamiento muestra sus comandos en el progreso de la tarjeta, no acá.
   const [abierto, setAbierto] = useState(MODO.captura === "herramientas" || MODO.captura === "herramientas-resultados");
+  useIdioma();
   const tierno = useTiernos() && !razon;
   const corre = useMemo(
     () => (vivo && turno.desde !== null ? pintorDura(turno.desde, tierno ? "" : () => `${t("estado.trabajando")} `) : null),
@@ -124,6 +124,12 @@ export const Turno = memo(function Turno({ t: turno, vivo, enCurso = false, semi
   );
   const dura = turno.desde !== null && turno.hasta !== null ? turno.hasta - turno.desde : null;
   const hayTrabajo = turno.pasos.length > 0 || corre;
+  // "Corrió 5 comandos, leyó 3 archivos…": lo que dice la línea del trabajo ya cerrado; sin herramientas, el "Trabajó 12 m" de siempre.
+  const resumen = useMemo(() => (corre ? "" : resumenPasos(turno.pasos.flatMap((p) => p.usos))), [corre, turno.pasos]);
+  const pens = pensamientosDe(turno);
+  const hayPens = pens.length > 0 && !(razon && enCurso);
+  // Varios pensamientos de un turno que ya terminó y tuvo trabajo: su fila va adentro del trabajo, para que el turno sea una sola línea.
+  const pensDentro = hayPens && pens.length > 1 && turno.pasos.length > 0 && !pensando && !vivo;
   // Cerrado y trabajando: una sola línea con el paso en curso, que se reemplaza al cambiar.
   const actual = corre && !abierto && !razon ? pasoActual(turno.pasos) : null;
   // Abierto y trabajando: la lista sigue su último paso; si el usuario sube, se suelta (src/hilo/seguir.ts).
@@ -143,17 +149,30 @@ export const Turno = memo(function Turno({ t: turno, vivo, enCurso = false, semi
   });
   return (
     <>
-      {pensamientosDe(turno).length > 0 && !(razon && enCurso) ? <Pensado items={pensamientosDe(turno)} vivo={pensando} /> : null}
+      {hayPens && !pensDentro ? <Pensado items={pens} vivo={pensando} /> : null}
       {hayTrabajo ? (
         <details className="trabajo" open={abierto} onToggle={(e) => setAbierto(e.currentTarget.open)}>
           <summary>
             <ChevronRight size={11} strokeWidth={2} />
             {corre && tierno ? <Tierno semilla={semilla ?? turno.key} /> : null}
-            {corre ? <Reloj pintor={corre} /> : dura !== null ? t("turno.trabajo", { d: duracion(dura) }) : t("turno.trabajoSolo")}
+            {corre ? (
+              <Reloj pintor={corre} />
+            ) : resumen ? (
+              dura !== null ? t("turno.resumenDura", { r: resumen, d: duracion(dura) }) : resumen
+            ) : dura !== null ? (
+              t("turno.trabajo", { d: duracion(dura) })
+            ) : (
+              t("turno.trabajoSolo")
+            )}
           </summary>
           {/* La lista se arma recién al abrir: una página puede traer cientos de pasos. */}
           {abierto ? (
             <ul ref={lista} onScroll={(e) => alScroll(e.currentTarget, seg)}>
+              {pensDentro ? (
+                <li>
+                  <PensamientosGrupo items={pens} />
+                </li>
+              ) : null}
               {turno.pasos.map((p, i) => (
                 <li key={i}>
                   {p.texto ? <span className="paso">{p.texto.split("\n")[0].slice(0, 240)}</span> : null}

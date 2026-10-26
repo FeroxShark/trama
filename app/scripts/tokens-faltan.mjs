@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-// Tokens de diseño (etapa 4 del plan "Trama terminada": mismo look, emparejado). Lista, por archivo,
+// Tokens de diseño. Lista, por archivo,
 // los literales de color, tamaño de letra, radio y espaciado que quedan en los .css de src/ y el token
-// que les toca según la tabla de abajo (la misma de docs/estado/tokens.md). Sin dependencias.
+// que les toca según la tabla de abajo. Sin dependencias.
 //
 //   node scripts/tokens-faltan.mjs                 todos los .css de src/: cuántos quedan y cada línea
 //   node scripts/tokens-faltan.mjs --resumen       sólo el conteo por archivo

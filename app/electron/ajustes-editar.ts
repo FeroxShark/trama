@@ -2,7 +2,7 @@
 // su estado; trama no toca ese archivo) y la red de seguridad como `autoCompactWindow` de `~/.claude/settings.json`
 // (`HILOS_CLAUDE_SETTINGS`), dejando todo lo demás del archivo como estaba. Se valida todo antes de escribir algo:
 // si un valor no vale, no se cambia nada. Lo prueba tests/ajustes-editar.test.ts.
-import { readFile, realpath, rename, writeFile } from "node:fs/promises";
+import { chmod, readFile, realpath, rename, stat, writeFile } from "node:fs/promises";
 import { RUTA_SETTINGS } from "./contexto.js";
 import { errorT } from "./errores.ts";
 import { esPlan, RED_MAX, RED_MIN } from "./valida-ajustes.ts";
@@ -57,9 +57,11 @@ export function conRed(texto: string | null, red: number | null): string | null 
 async function prepararSettings(red: number | null, ruta: string) {
   let real = ruta;
   let antes: string | null = null;
+  let modo: number | null = null;
   try {
     real = await realpath(ruta);
     antes = await readFile(real, "utf8");
+    modo = (await stat(real)).mode & 0o7777;
   } catch (e) {
     if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw e;
   }
@@ -69,6 +71,8 @@ async function prepararSettings(red: number | null, ruta: string) {
       if (despues === antes || despues === null) return;
       const tmp = `${real}.trama-${process.pid}.tmp`;
       await writeFile(tmp, despues);
+      // El settings puede ser 0600: el reemplazo conserva el modo del original.
+      if (modo !== null) await chmod(tmp, modo);
       await rename(tmp, real);
     },
   };

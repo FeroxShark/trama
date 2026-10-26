@@ -3,6 +3,7 @@
 // (lo pone la unidad `trama-motor.service` del producto); sin esa variable todo sigue como siempre, por la tailnet.
 // Sin `electron`: lo prueba tests/modo-local.test.ts.
 import { crearRemoto, type OpcionesRemoto } from "./remoto.ts";
+import { leerOCrearToken, tokenExigido } from "./token.ts";
 
 /** La única dirección en la que escucha el modo local: nunca 0.0.0.0, nunca la LAN. */
 export const IP_LOCAL = "127.0.0.1";
@@ -26,8 +27,10 @@ export const esLoopback = (ip: string) => /^(::ffff:)?127\.\d{1,3}\.\d{1,3}\.\d{
  * El servidor del modo local: lo mismo que `crearRemoto`, pero entra quien se conecta desde esta máquina (no hay
  * Tailscale que lo identifique), el `Host` tiene que ser `localhost` o `127.0.0.1` (corta el DNS rebinding) y
  * `escuchar` sólo abre 127.0.0.1. Una cabecera `X-Forwarded-For` no cambia a quién se mira (`propias` vacío).
+ * Además pide el token de la instalación (token.ts) salvo con `TRAMA_TOKEN=0`; si no se puede leer ni crear, tira (no abre sin él).
  */
-export function crearRemotoLocal(o: Omit<OpcionesRemoto, "nombres" | "propias" | "entra">) {
-  const remoto = crearRemoto({ ...o, nombres: ["localhost", IP_LOCAL], propias: [], entra: async (ip) => esLoopback(ip) });
+export function crearRemotoLocal(o: Omit<OpcionesRemoto, "nombres" | "propias" | "entra" | "token">, env: Env = process.env) {
+  const token = tokenExigido(env) ? leerOCrearToken(env) : null;
+  const remoto = crearRemoto({ ...o, nombres: ["localhost", IP_LOCAL], propias: [], entra: async (ip) => esLoopback(ip), token: () => token });
   return { ...remoto, escuchar: (puerto: number) => remoto.escuchar(IP_LOCAL, puerto) };
 }

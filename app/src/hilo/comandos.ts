@@ -17,7 +17,17 @@ export type Accion =
   | { tipo: "effort"; effort: string }
   /** /output-style: el nombre tal cual lo lista el CLI. */
   | { tipo: "estilo"; estilo: string }
-  | { tipo: "error"; clave: "comando.usoModelo" | "comando.usoEffort" | "comando.usoEstilo" | "comando.cambioProveedor"; v: string };
+  | {
+      tipo: "error";
+      clave:
+        | "comando.usoModelo"
+        | "comando.usoEffort"
+        | "comando.usoEffortVacio"
+        | "comando.sinEffort"
+        | "comando.sinEffortOpencode"
+        | "comando.usoEstilo";
+      v: string;
+    };
 
 export type ClaveComando =
   | "comando.plan"
@@ -90,6 +100,9 @@ export const PROPIOS_AGY: { nombre: string; args: string | null; clave: ClaveCom
 /** ¿El modelo corre por `agy` (`gemini-*` o `agy:*`)? Ollama (`ollama:*`) y los de Claude o GPU local corren por `claude`. */
 export const esModeloAgy = (modelo: string | null | undefined): boolean => /^(?:gemini-|agy:)/.test(modelo ?? "");
 
+/** El motor de un modelo: `dsh:*` corre por DeepSeek Harness, `opencode:*` por opencode, `gemini-*` y `agy:*` por agy. Del esfuerzo y los comandos propios de cada uno. */
+const motorDe = (modelo: string | null | undefined): "claude" | "agy" | "dsh" | "opencode" => (/^opencode:/.test(modelo ?? "") ? "opencode" : /^dsh:/.test(modelo ?? "") ? "dsh" : esModeloAgy(modelo) ? "agy" : "claude");
+
 /** Si el CLI todavía no dijo cuáles hay (ningún líder arrancó nunca): los de fábrica. */
 export const ESTILOS_FABRICA = ["default", "Explanatory", "Learning"];
 
@@ -121,7 +134,7 @@ export function parsearComando(
   const m = texto.trim().match(/^\/(\S+)(?:\s+([\s\S]*))?$/);
   if (!m) return { tipo: "texto" };
   const agy = typeof modeloActual === "boolean" ? modeloActual : esModeloAgy(modeloActual);
-  const tieneProveedor = modeloActual !== undefined && modeloActual !== null;
+  const motor = typeof modeloActual === "boolean" ? (modeloActual ? "agy" : "claude") : motorDe(modeloActual);
   const nombre = m[1].toLowerCase();
   const arg = (m[2] ?? "").trim();
   const modo = MODO_DE[nombre];
@@ -130,17 +143,15 @@ export function parsearComando(
   if (nombre === "model") {
     const a = arg.toLowerCase();
     const x = a ? modelos.find((o) => o.clave === a || o.id === a) ?? modelos.find((o) => o.id.includes(a)) : undefined;
-    if (x) {
-      if (tieneProveedor && esModeloAgy(x.id) !== agy)
-        return { tipo: "error", clave: "comando.cambioProveedor", v: x.id };
-      return { tipo: "modelo", modelo: x.id };
-    }
-    if (tieneProveedor && a && (agy ? /^(?:claude-|opus$|sonnet$|haiku$|fable$|ollama:)/.test(a) : esModeloAgy(a)))
-      return { tipo: "error", clave: "comando.cambioProveedor", v: arg };
+    // De otro motor también: la caja pide la confirmación (la conversación sigue en una sesión nueva de ese motor, con lo hablado).
+    if (x) return { tipo: "modelo", modelo: x.id };
     return { tipo: "error", clave: "comando.usoModelo", v: arg };
   }
   if (nombre === "effort") {
     const a = arg.toLowerCase();
+    // Sin niveles (un modelo de OpenCode o de dsh que no los declara) no hay qué elegir: se dice, en vez de "esfuerzo desconocido".
+    if (!efforts.length) return { tipo: "error", clave: motor === "opencode" ? "comando.sinEffortOpencode" : "comando.sinEffort", v: arg };
+    if (!a) return { tipo: "error", clave: "comando.usoEffortVacio", v: arg };
     return efforts.includes(a) ? { tipo: "effort", effort: a } : { tipo: "error", clave: "comando.usoEffort", v: arg };
   }
   if (nombre === "output-style" && !agy) {
@@ -164,14 +175,14 @@ export function sugerencias(
   deOtro: ComandoClaude[] = [],
 ): Sugerencia[] {
   const agy = typeof modeloActual === "boolean" ? modeloActual : esModeloAgy(modeloActual);
-  const tieneProveedor = modeloActual !== undefined && modeloActual !== null;
+  const motor = typeof modeloActual === "boolean" ? (modeloActual ? "agy" : "claude") : motorDe(modeloActual);
   const v = texto.match(/^\/(\S+)\s+(\S*)$/);
   const cmd = v?.[1].toLowerCase();
   if (agy && cmd === "output-style") return [];
   const de = cmd ? valores[cmd] : undefined;
   if (v && de) {
     const q = v[2].toLowerCase();
-    const lista = cmd === "model" && tieneProveedor ? de.lista.filter((x) => esModeloAgy(x.valor) === agy) : de.lista;
+    const lista = de.lista;
     const filas: Sugerencia[] = lista.map((x) => ({
       nombre: cmd!,
       args: null,
@@ -187,8 +198,14 @@ export function sugerencias(
   if (!m) return [];
   const q = m[1].toLowerCase();
   const base = agy ? PROPIOS_AGY : PROPIOS;
+  // OpenCode y dsh no tienen los niveles de Claude: el /effort del menú sale con los del modelo puesto (`valores.effort`, que
+  // arma Lider con la tabla) y, si no declara ninguno, no se ofrece.
+  const nivelesPropios = (motor === "opencode" || motor === "dsh") && valores.effort ? valores.effort.lista.map((x) => x.valor) : null;
+  const propios = nivelesPropios
+    ? base.flatMap((p) => (p.nombre !== "effort" ? [p] : nivelesPropios.length ? [{ ...p, args: `<${nivelesPropios.join("|")}>` }] : []))
+    : base;
   const todos: Sugerencia[] = [
-    ...base.map((p) => ({ nombre: p.nombre, args: p.args, clave: p.clave, descripcion: null, solo: marcaDe(p.nombre, agy, deOtro) })),
+    ...propios.map((p) => ({ nombre: p.nombre, args: p.args, clave: p.clave, descripcion: null, solo: marcaDe(p.nombre, agy, deOtro) })),
     ...deClaude
       .filter((c) => !DE_APP.has(c.nombre.toLowerCase()) && (c.agy === undefined || Boolean(c.agy) === agy))
       .map((c) => ({ nombre: c.nombre, args: c.args || null, clave: null, descripcion: c.descripcion, solo: marcaDe(c.nombre, agy, deOtro) })),

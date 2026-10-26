@@ -3,7 +3,7 @@
 // acciones (Cerrar, Parar, Escribirle, Nueva tarea). Lo que cambia se avisa mirando archivos con
 // inotify (nada de polling) y sale a quienes escuchan (`escuchar`): la ventana, el celular.
 // La ventana lo usa por ipc.ts, que le suma lo que es sólo de la pantalla de la PC.
-import { guardarArchivo } from "./archivos.js";
+import { guardarArchivo, limpiarAdjuntos } from "./archivos.js";
 import { modelosDictado, transcribir } from "./dictado.ts";
 import { MODELO_TURBO } from "./dictado-modelos.ts";
 import { guardarLocal, leerLocales, probarLocal } from "./locales.ts";
@@ -32,18 +32,21 @@ import { guardarYa, leerLeidos, marcarLeido } from "./leidos.js";
 import { almacenNombres } from "./nombres.js";
 import { almacenPendientes } from "./pendientes.js";
 import { guardarApariencia, guardarAutoIntegrar, guardarAvisarEspera, bienvenidaPendiente, guardarBienvenida, guardarConsumo, guardarDictadoModelo, guardarEffort, guardarIdioma, guardarTiernos, guardarVista, leerPreferencias } from "./preferencias.js";
-import { accionRama, arreglarDatos, briefRamas, ejecutar, lanzarRama, leerAjustes, leerMedicion, pasarALider, retomarDatos, type AccionRama } from "./paneles.js";
+import { accionRama, arreglarDatos, briefRamas, enCola, ejecutar, lanzarRama, leerAjustes, leerMedicion, pasarALider, retomarDatos, type AccionRama } from "./paneles.js";
 import { guardarRouting, type Cambio } from "./routing.js";
+import { argvAuditar, datosAgentsMd, guardarLecciones, leccionesPendientes, leerLecciones, textoPoda } from "./orquestacion.ts";
+import { aplicarUnificar, estadoMd, guardarAgents, leerAgents, planUnificar } from "./unificar-md.ts";
+import { listarProyectos, renombrarProyecto } from "./proyectos-alias.ts";
 import { guardarAjustes } from "./ajustes-editar.js";
 import { crearBajadas } from "./ollama-bajar.ts";
-import { guardarModelos, leerModelos, modelosConfig, sondearOllama, vistaModelos } from "./modelos-config.ts";
+import { efectivoDePa, guardarModelos, leerModelos, modelosConfig, sondearOllama, vistaModelos } from "./modelos-config.ts";
 import { accesos } from "./celular-accesos.js";
 import { guardarConfig, leerEditable } from "./remoto-config.js";
 import { sesionesVistas, vive } from "./sesiones.js";
 import { crearVigia, vivoEnPa } from "./vigia.js";
 import { crearEmisor } from "./hilos-dif.js";
 import { conLider } from "./cola-pa.js";
-import { alLeerHilos, anotarFrenados, cerrar, conversacion, ESTADO, escribirAtomico, hilosGuardados, leerHilos, leyendoHilos, mirarEventos, PA_STATE, parar, releerHilos, type Cerrable } from "./pa.js";
+import { alLeerHilos, anotarFrenados, nombrePa, cerrar, conversacion, ESTADO, escribirAtomico, hilosGuardados, leerHilos, leyendoHilos, mirarEventos, PA_STATE, parar, releerHilos, type Cerrable } from "./pa.js";
 import { esperandoWorkers, lideresConWorkers, workersEsperados, workersVivosDe } from "./relanzar.js";
 import * as lider from "./lider.js";
 import { nombreDueno } from "./dueno.ts";
@@ -52,7 +55,13 @@ import { crearCola } from "./cola.js";
 import { crearEspera } from "./espera.js";
 import { errorT, textoT } from "./errores.ts";
 import { destinos, registro, slugsPorNombre } from "./registro.js";
-import { capacidades, hayAgy } from "./capacidades.js";
+import { registroProyectos } from "./rutas.ts";
+import { capacidades, hayAgy, hayDsh } from "./capacidades.js";
+import { estadoDsh, instalarDsh, probarProveedor } from "./dsh-ajustes.ts";
+import { crearLectorTabla, leerTabla } from "./reparto-tabla.ts";
+import { actualizarOpencode, effortsOpencode, modelosOpencode, vistaOpencode } from "./opencode-ajustes.ts";
+import { guardarClave, leerClaves } from "./claves.ts";
+import { estadoAA, refrescarAA } from "./artificial-analysis.ts";
 import { descartarSetup, setupDeEstaMaquina } from "./setup.ts";
 import { cuentasDeEstaMaquina } from "./cuentas.ts";
 import { enTerminal } from "./actualizador.ts";
@@ -87,9 +96,24 @@ const tailnet = (e: Origen) => "remoto" in e && !modoLocal() && !("ip" in e && t
 
 /** Los manejadores, por canal: los mismos para la ventana y para quien entra por red. */
 const manejadores = new Map<string, Manejador>();
+/**
+ * Lo que cambia la máquina (reescribe `~/CLAUDE.md`, los ajustes, borra una cuenta, libera la GPU, actualiza `claude`): desde la
+ * tailnet (el celular) no. Los `modelos:*` y `remoto:guardar` tienen su propio chequeo, con su mensaje, en el manejador.
+ */
+export const SOLO_PC_TAILNET: ReadonlySet<string> = new Set(["routing:guardar", "ajustes:guardar", "orq:leccionesGuardar", "orq:mdAplicar", "orq:agentsGuardar", "proyectos:renombrar", "cuentas:quitar", "vram:liberar", "claude:actualizar", "dsh:clave", "dsh:instalar", "dsh:probar", "aa:refrescar"]);
+
 /** Anota (o reemplaza) el manejador de un canal. */
 export function manejar(canal: string, fn: Manejador) {
-  manejadores.set(canal, fn);
+  manejadores.set(
+    canal,
+    SOLO_PC_TAILNET.has(canal)
+      ? (e, ...args) => {
+          // TODO i18n: no hay clave genérica en src/i18n (app/src es de otro dueño por ahora); mientras, el texto va en español.
+          if (tailnet(e)) throw errorT("main.soloPc");
+          return fn(e, ...args);
+        }
+      : fn,
+  );
 }
 /** Los canales anotados con su manejador, en el orden en que se anotaron (ipc.ts registra cada uno). */
 export const manejadoresAnotados = (): [string, Manejador][] => [...manejadores];
@@ -97,9 +121,18 @@ export const manejadoresAnotados = (): [string, Manejador][] => [...manejadores]
 /** Lo que por red no se puede: salir de trama, y lo que abre o enfoca cosas en la pantalla de la PC. */
 export const SOLO_VENTANA: ReadonlySet<string> = new Set(["app:salir", "carpeta:elegir", "app:pararTodo", "bandeja:textos", "lider:ir", "lider:ubicable", "claude:changelog", "volver:leer", "volver:guardar", "volver:anotar", "reinicio:marca", "borradores:leer", "borradores:guardar", "app:recargar", "consumo:mirar", "consumo:soltar", "cuentas:login", "espera:estado", "espera:notificar", "portapapeles:texto"]);
 
-/** Un pedido que llegó por red (ya con la identidad comprobada): el mismo manejador que usa la ventana. `ip` es la dirección real del socket. */
-export async function llamarRemoto(canal: string, args: unknown[], cliente: string, ip?: string): Promise<unknown> {
-  const fn = SOLO_VENTANA.has(canal) ? undefined : manejadores.get(canal);
+/**
+ * Lo que sigue vedado al navegador del modo local (`TRAMA_LOCAL=1`, ya con su token): ahí el navegador es la interfaz
+ * principal de esta misma máquina, así que consumo y borradores (que son suyos) sí; salir, elegir carpeta y demás no.
+ */
+export const SOLO_VENTANA_LOCAL: ReadonlySet<string> = new Set([...SOLO_VENTANA].filter((c) => !["consumo:mirar", "consumo:soltar", "borradores:leer", "borradores:guardar"].includes(c)));
+
+/**
+ * Un pedido que llegó por red (ya con la identidad comprobada): el mismo manejador que usa la ventana. `ip` es la dirección real del socket.
+ * `local` = el servidor del modo local (modo-local.ts), no la tailnet: usa `SOLO_VENTANA_LOCAL`.
+ */
+export async function llamarRemoto(canal: string, args: unknown[], cliente: string, ip?: string, opts?: { local?: boolean }): Promise<unknown> {
+  const fn = (opts?.local ? SOLO_VENTANA_LOCAL : SOLO_VENTANA).has(canal) ? undefined : manejadores.get(canal);
   if (!fn) throw new Error(`canal desconocido: ${canal}`);
   return fn(ip !== undefined ? { remoto: cliente, ip } : { remoto: cliente }, ...args);
 }
@@ -167,7 +200,7 @@ function avisarMaquinas() {
 }
 /** Las otras máquinas cuyas filas se juntan a las de acá (maquinas.ts); sin `maquinas.json` (lo de siempre), null. */
 let maquinas: Maquinas | null = null;
-/** La PC que se prende desde acá (sólo en el Dell: `prender` en su entrada de `maquinas.json`; pc-estado.ts); en la PC, null. */
+/** La PC que se prende desde acá (sólo en la otra máquina: `prender` en su entrada de `maquinas.json`; pc-estado.ts); en la PC, null. */
 let pc: Pc | null = null;
 
 /** Quien recibe lo que cambia (canal y dato): la ventana, los clientes por red. */
@@ -189,6 +222,17 @@ export function difundir(canal: string, dato: unknown) {
   }
 }
 const enviar = difundir;
+
+/**
+ * Quién cuenta cuántos clientes están mirando (la ventana, el socket local, la tailnet): los trabajos de fondo que sólo sirven
+ * para mostrar algo (los cupos, cada minuto) se saltean si no hay nadie. Sin ninguna fuente anotada (bench, tests) se asume que sí.
+ */
+const fuentesClientes = new Set<() => number>();
+export function contarClientes(fn: () => number): () => void {
+  fuentesClientes.add(fn);
+  return () => void fuentesClientes.delete(fn);
+}
+const hayClientes = () => fuentesClientes.size === 0 || [...fuentesClientes].some((f) => f() > 0);
 
 /** Lo que se hace al salir de trama (guardar, cortar), en el orden en que se anotó: lo corre quien sale (ipc.ts, en `before-quit`). */
 const ganchosSalida: (() => void)[] = [];
@@ -430,7 +474,9 @@ function mirarSl() {
   for (const dir of [DIR, SESIONES]) mirarCarpeta(dir, avisar, { donde: "statusline", alRearmar: avisar });
   alCambiarCupos(avisar);
   // Los cupos de las demás suscripciones (reparto): se releen cada minuto desde acá, no desde la vista.
-  setInterval(() => void refrescarCupos(true), 60_000).unref();
+  setInterval(() => {
+    if (hayClientes()) void refrescarCupos(true);
+  }, 60_000).unref();
 }
 
 // --- Líderes -------------------------------------------------------------------
@@ -446,7 +492,8 @@ const pedidoT = new Map<string, string | null>();
 const avisoT = new Map<string, NodeJS.Timeout>();
 
 async function mirarTranscript(vista: string, sid: string | null) {
-  if (mirandoT.get(vista)?.sid === (sid ?? undefined)) return;
+  // Sin sid, nunca se sale antes de anotar el pedido: si no, uno en vuelo (buscando el transcript) de un cliente que ya se fue armaba el watcher igual.
+  if (sid && mirandoT.get(vista)?.sid === sid) return;
   pedidoT.set(vista, sid);
   mirandoT.get(vista)?.w.cerrar();
   mirandoT.delete(vista);
@@ -523,7 +570,8 @@ export async function pararTodo(
     ),
   );
   log.escribir("info", "salida", `parar todo: ${ids.length - fallaron} de ${ids.length} worker(s) parados, ${lider.vivos()} líder(es) a cerrar`);
-  await lider.cerrarTodos(forzar);
+  // Pidió parar todo: los líderes no quedan `dormido`, así que `reanudarDormidos` no los relanza al próximo arranque.
+  await lider.cerrarTodos(forzar, undefined, false);
   return 0;
 }
 const hilosAhora = () => ultimosHilos;
@@ -548,13 +596,13 @@ export const TOPE_SALIDA_MS = lider.TOPE_SALIDA_MS;
 
 /** Anota los manejadores de todos los canales del núcleo y arranca lo que corre solo (la cola). Una vez. */
 export function armarNucleo() {
-  // Las otras máquinas (etapa 7): se lee una vez. Sin el archivo, nada se arma y todo es como siempre.
+  // Las otras máquinas: se lee una vez. Sin el archivo, nada se arma y todo es como siempre.
   const cfg = leerMaquinas(ARCHIVO_MAQUINAS);
   if ("error" in cfg) log.escribir("error", "maquinas", cfg.error);
   else {
     for (const m of cfg.malas) log.escribir("error", "maquinas", m);
     esta = { id: cfg.esta, nombre: identidadDe(cfg).nombre };
-    // Una máquina con `prender` es sólo para prenderla: nunca se conecta a su motor (el Dell no manda en la PC).
+    // Una máquina con `prender` es sólo para prenderla: nunca se conecta a su motor (la otra máquina no manda en la PC).
     const prendible = cfg.maquinas.find((m) => m.prender);
     if (prendible) {
       pc = crearPc({ maquina: prendible, alCambio: (e) => enviar("pc:cambio", e) });
@@ -583,6 +631,8 @@ export function armarNucleo() {
   alSalir(() => subagentes.cerrar());
   // Los líderes que tenían proceso cuando trama se cerró (reinicio, salida) vuelven a tenerlo, sin que nadie escriba.
   void lider.reanudarDormidos().catch(silencio("lider"));
+  // Los adjuntos de hace más de una semana no sirven más.
+  void limpiarAdjuntos(path.join(ESTADO, "adjuntos")).catch(silencio("adjuntos"));
   // Trama que arranca con algo en la cola (aunque nadie abra la ventana): lo que ya puede salir, sale.
   void leerCola().then(cola.revisar);
   const leerSl = async () => {
@@ -672,7 +722,7 @@ export function armarNucleo() {
   manejar("hilos:guardados", () => hilosGuardados());
 
   // Los paneles del pie: Ajustes, Estadísticas y las acciones de Ramas.
-  manejar("modelos:config", () => vistaModelos(modelosConfig(), hayAgy(), vistaLocales()));
+  manejar("modelos:config", () => vistaModelos(modelosConfig(), hayAgy(), vistaLocales(), hayDsh(), modelosOpencode(), effortsOpencode()));
   manejar("dueno:nombre", () => nombreDueno());
   manejar("ajustes:leer", () => leerAjustes());
   // Ajustes editable: el plan y la red de seguridad (ajustes-editar.ts) y el acceso desde el celular (remoto-config.ts).
@@ -706,15 +756,55 @@ export function armarNucleo() {
   manejar("pa:lanzar", (_e, x: Parameters<typeof lanzarRama>[0]) =>
     lanzarRama({ accion: x?.accion, id: x?.id, proyecto: x?.proyecto, modelo: x?.modelo, effort: x?.effort, texto: x?.texto }),
   );
+  // La orquestación de `pa` (orquestacion.ts): lecciones que piden poda, auditar una rama y la plantilla de AGENTS.md.
+  manejar("orq:lecciones", () => leccionesPendientes(PA_STATE));
+  manejar("orq:podaTexto", async (_e, slug: unknown) => textoPoda(await nombrePa(slug), ejecutar));
+  manejar("orq:leccionesLeer", (_e, slug: unknown) => leerLecciones(PA_STATE, slug));
+  manejar("orq:leccionesGuardar", (_e, slug: unknown, texto: unknown) => guardarLecciones(PA_STATE, slug, texto));
+  // Un revisor de sólo lectura sobre la rama de un worker, desacoplado (`pa --auditar … --async`): vuelve en cuanto `pa` lo deja corriendo.
+  manejar("orq:auditar", async (_e, x: { id: string; proyecto: string; modelo: string }) => {
+    const args = argvAuditar({ id: x?.id, proyecto: x?.proyecto, modelo: x?.modelo }, await nombrePa(x?.proyecto));
+    return enCola(String(x.proyecto), () => ejecutar(args)).then(({ rc, dijo }) => ({ rc, dijo }));
+  });
+  manejar("orq:agentsMd", async (_e, slug: unknown) => {
+    const nombre = await nombrePa(slug);
+    const p = (await registro()).find((r) => r.nombre === nombre);
+    return { ...(await datosAgentsMd(nombre, ejecutar)), proyecto: nombre, ruta: p?.ruta ?? null };
+  });
+  // Unificar instrucciones (unificar-md.ts): AGENTS.md como fuente única de CLAUDE.md / GEMINI.md. El renderer pasa un slug, nunca una ruta:
+  // la carpeta sale del registry (y el nombre de los archivos es fijo), así no hay forma de apuntar a otro lado.
+  const carpetaDe = async (slug: unknown) => {
+    const s = String(slug ?? "");
+    const p = (await registro()).find((r) => r.slug === s);
+    if (!p) throw errorT("main.proyectoRaro", { v: s });
+    return p;
+  };
+  manejar("orq:mdEstado", async (_e, slug: unknown) => estadoMd((await carpetaDe(slug)).ruta));
+  manejar("orq:mdPlan", async (_e, slug: unknown) => planUnificar((await carpetaDe(slug)).ruta));
+  manejar("orq:mdAplicar", async (_e, slug: unknown, huella: unknown) => {
+    const p = await carpetaDe(slug);
+    return aplicarUnificar(p.ruta, path.join(PA_STATE, p.slug), huella);
+  });
+  manejar("orq:agentsLeer", async (_e, slug: unknown) => leerAgents((await carpetaDe(slug)).ruta));
+  manejar("orq:agentsGuardar", async (_e, slug: unknown, texto: unknown) => {
+    const p = await carpetaDe(slug);
+    return guardarAgents(p.ruta, path.join(PA_STATE, p.slug), texto);
+  });
+  // El nombre para mostrar de cada proyecto (proyectos-alias.ts; `pa --renombrar` hace lo mismo): cambia sólo ese texto del registry.
+  manejar("proyectos:lista", () => listarProyectos(registroProyectos()));
+  manejar("proyectos:renombrar", (_e, slug: unknown, nombre: unknown) => renombrarProyecto(registroProyectos(), slug, nombre));
   manejar("routing:guardar", (_e, cambios: Cambio[]) =>
     guardarRouting((Array.isArray(cambios) ? cambios : []).map((c) => ({ rol: c?.rol, modelo: c?.modelo ?? null, effort: c?.effort ?? null }))),
   );
   // La config de modelos que comparten pa y trama (`~/.config/trama/modelos.json`, modelos-config.ts): leerla, guardarla y preguntarle a un Ollama qué modelos tiene.
-  manejar("modelos:leer", () => leerModelos(ejecutar));
+  // `leer` y `guardar` devuelven enseguida (sin `efectivo`): lo que elegiría `reparto` hoy sale de `pa --modelos --json`, que corre `reparto`
+  // por cada tipo y tarda; el panel lo pide aparte (`modelos:efectivo`) para no hacer esperar a todo lo demás.
+  manejar("modelos:leer", () => leerModelos());
+  manejar("modelos:efectivo", () => efectivoDePa(ejecutar));
   // Quién entra por la tailnet no cambia a dónde mandan los prompts ni sondea direcciones desde la PC: guardar y sondear, sólo en la PC.
   manejar("modelos:guardar", async (e, config: unknown) => {
     if (tailnet(e)) throw errorT("main.modelosSoloPc");
-    return guardarModelos(config, ejecutar);
+    return guardarModelos(config);
   });
   manejar("modelos:sondear", (e, url: unknown) => {
     if (tailnet(e)) throw errorT("main.modelosSoloPc");
@@ -732,6 +822,37 @@ export function armarNucleo() {
   manejar("modelos:bajadas", () => bajadas.lista());
   // Qué hay en esta máquina para Ollama (instalado, distro, GPU y VRAM, y los comandos de instalar y arrancar): sólo lee, no instala ni arranca nada.
   manejar("modelos:entorno", () => leerEntornoOllama());
+  // DeepSeek Harness (Ajustes > Modelos): si está instalado, instalarlo, qué keys hay (nunca su valor), guardar o borrar una key y probar un proveedor.
+  // Instalar, guardar una key y probar (que usa la key guardada) son sólo de la PC: `SOLO_PC_TAILNET`.
+  manejar("dsh:estado", () => estadoDsh());
+  manejar("dsh:instalar", () => instalarDsh());
+  manejar("dsh:clave", async (_e, nombre: unknown, valor: unknown) => {
+    await guardarClave(nombre, valor === null || valor === undefined ? null : String(valor));
+    return estadoDsh();
+  });
+  manejar("dsh:probar", (_e, proveedor: unknown, url: unknown) => probarProveedor(proveedor, url));
+  // OpenCode (el programa `opencode`: los modelos gratis sólo andan por él): instalado, versión, login y modelos; «Actualizar modelos» vuelve a listarlos.
+  // La tabla de `reparto --tabla --json` (Ajustes > Modelos > Modelos para workers): sólo lee. Guardar el permitido y la inteligencia
+  // va por `modelos:guardar` (excluir / calidad de modelos.json), que ya rechaza a quien entra por la tailnet.
+  // Inteligencia de Artificial Analysis (la key se guarda por `dsh:clave`): el estado de la caché, y bajar la lista a pedido. Al leer la
+  // tabla se refresca sola (de fondo) si la caché tiene más de un día (sin key, en pruebas y capturas no se llama a nadie salvo con AA_URL).
+  const claveAA = async () => process.env.ARTIFICIAL_ANALYSIS_API_KEY || (await leerClaves()).ARTIFICIAL_ANALYSIS_API_KEY;
+  const aislado = () => (process.env.HILOS_PRUEBA === "1" || process.env.HILOS_CAPTURA === "1" || process.env.HILOS_BENCH === "1") && !process.env.AA_URL;
+  manejar("aa:estado", async () => estadoAA(!!(await claveAA())));
+  manejar("aa:refrescar", async () => {
+    const clave = await claveAA();
+    const resultado = await refrescarAA(clave, { forzar: true, baseUrl: process.env.AA_URL });
+    return { resultado, estado: await estadoAA(!!clave) };
+  });
+  // La tabla sale de la caché que ya hay; si hace falta bajar Artificial Analysis se hace de fondo y, cuando termina, avisa (`reparto:tablaNueva`).
+  const tablaReparto = crearLectorTabla({
+    leer: leerTabla,
+    refrescar: async () => (aislado() ? null : refrescarAA(await claveAA(), { baseUrl: process.env.AA_URL })),
+    alRefrescar: () => enviar("reparto:tablaNueva", null),
+  });
+  manejar("reparto:tabla", () => tablaReparto());
+  manejar("opencode:estado", () => vistaOpencode());
+  manejar("opencode:actualizar", () => actualizarOpencode());
   manejar("ramas:brief", (_e, hs: Parameters<typeof briefRamas>[0]) => briefRamas(hs));
   manejar("hilo:retomar", (_e, h: Parameters<typeof retomarDatos>[0]) =>
     retomarDatos({
@@ -853,7 +974,7 @@ export function armarNucleo() {
   manejar("locales:leer", () => leerLocales());
   manejar("locales:guardar", (_e, x: unknown) => guardarLocal(x));
   manejar("locales:probar", (_e, x: unknown) => probarLocal(x));
-  // Quién tiene la GPU y cómo liberarla (CLI `vram` de ~/Proyectos/modos): la lista no toca nada; `vram:liberar` SÍ para un servicio, sólo con el clic.
+  // Quién tiene la GPU y cómo liberarla (CLI `vram` (PATH o HILOS_VRAM)): la lista no toca nada; `vram:liberar` SÍ para un servicio, sólo con el clic.
   manejar("vram:leer", () => leerVram());
   manejar("vram:liberar", (_e, x: unknown) => liberarVram(x));
   manejar("lider:parar", (_e, sid: string) => lider.parar(String(sid)));
@@ -877,7 +998,7 @@ export function armarNucleo() {
     log.escribir("error", `renderer/${quien(e)} ${donde}`, String(x?.detalle ?? "").slice(0, 8192));
   });
   // El cartel "Hay una actualización disponible": también desde el celular (reinicia la trama de la PC, no corta nada).
-  // "PC apagada · Prender" (Dell): sin PC configurada contesta null y la interfaz no muestra nada.
+  // "PC apagada · Prender" (en la otra máquina): sin PC configurada contesta null y la interfaz no muestra nada.
   manejar("pc:leer", () => (pc ? pc.leer() : null));
   manejar("pc:prender", () => (pc ? pc.prender() : null));
   manejar("reinicio:leer", () => reinicio?.estado() ?? SIN_REINICIO);
@@ -930,7 +1051,7 @@ export function armarNucleo() {
   manejar("setup:descartar", (_e, id: unknown) => descartarSetup(id));
   // Ajustes > Cuentas: ¿están conectados Claude y Gemini? Se les pregunta a los CLI al pedirlo (sin reloj ni caché).
   manejar("cuentas:estado", () => cuentasDeEstaMaquina());
-  // Varias cuentas por proveedor (el CLI `cuentas` del orquestador): lista, alta, renombre, baja y login. Después de un cambio el cupo se vuelve a pedir.
+  // Varias cuentas por proveedor (el CLI `cuentas`): lista, alta, renombre, baja y login. Después de un cambio el cupo se vuelve a pedir.
   cuentasVarias(manejar, cuentasDeEstaMaquinaVarias(enTerminal), () => void refrescarCupos(true));
 
   // El tablero de pendientes (tablero.ts): se mira su vista desde la primera vez que se pide.

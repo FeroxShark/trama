@@ -1,4 +1,4 @@
-// Dictar con el micrófono (docs/estado/dictado.md): graba con MediaRecorder, lo pasa a WAV 16 kHz mono acá mismo
+// Dictar con el micrófono: graba con MediaRecorder, lo pasa a WAV 16 kHz mono acá mismo
 // (AudioContext + OfflineAudioContext: el motor no depende de ffmpeg) y el texto que vuelve se agrega al borrador.
 // Lo puro (el WAV, el texto, el tope) lo prueba tests/dictado.test.ts; lo del navegador queda abajo, sin tocar nada al importar.
 

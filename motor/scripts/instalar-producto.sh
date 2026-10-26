@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # instalar-producto.sh — deja Trama + pa/tablero andando en una máquina limpia (Ubuntu/WSL2, Debian, otra
-# distro con systemd de usuario). Es el instalador del PRODUCTO; el de desarrollo (scripts/instalar.sh) no entra en el árbol público.
+# distro con systemd de usuario). Es el instalador del PRODUCTO; el de desarrollo (app/scripts/instalar.sh) sólo instala el lanzador y las unidades de un checkout.
 #
 #   instalar-producto.sh [--fuente DIR] [--app DIR]     instalación de usuario (sin sudo)
 #   instalar-producto.sh --solo-apt [--usuario U]       sólo los paquetes del sistema (root); lo llama la carcasa con `wsl -u root`
@@ -8,30 +8,37 @@
 # Idempotente (correrlo dos veces no rompe ni duplica) y sale 0 aunque algo de red falle: lo que no pudo hacer
 # sale como AVISO y `trama-estado --json` dice qué quedó. Sale 2 sólo por uso o por una fuente rota.
 #
-#   --fuente DIR   árbol de `trama-exportar` (motor/ + app/), o el repo del orquestador (bin/, hooks/, skills/…)
+#   --fuente DIR   árbol de `trama-exportar` (motor/ + app/), o el repo del motor suelto (bin/, hooks/, skills/…)
 #                  (default: el árbol del propio script)
 #   --app DIR      la app hilos con dist-electron/ (default: DIR/app de la fuente, o $TRAMA_APP)
+#   --escritorio      también deja al día la app de escritorio (Electron + lanzador `trama`); es lo normal si hay sesión
+#                     gráfica ($WAYLAND_DISPLAY o $DISPLAY): baja el binario de Electron a la copia estable
+#                     (~/.local/share/trama/app), corre app/scripts/instalar.sh --raiz … --sin-motor y reinicia trama.service
+#   --sin-escritorio  no toca la app de escritorio, aunque haya sesión gráfica
+# Actualizar es un solo comando: `cd ~/Proyectos/trama; git pull; bash motor/scripts/instalar-producto.sh`
 #
 # Qué hace (usuario normal): node LTS en ~/.local si falta · `claude` y `agy` por sus instaladores oficiales si
-# faltan · symlinks en ~/.local/bin (pa, tablero, trama-estado, trama-motor, proyecto-ruta, reparto, workers,
+# faltan · `dsh` (npm i -g --prefix ~/.local @deepseek-ai/dsh, para workers con modelos gratis) si falta y hay npm · symlinks en ~/.local/bin (pa, tablero, trama-estado, trama-motor, proyecto-ruta, reparto, workers,
 # cuentas) · hooks en
 # ~/.claude/hooks y la skill trama-orquestar · destructive-guard (PreToolUse) y statusline-espejo registrados en
 # ~/.claude/settings.json SIN pisar lo que hay · ~/CLAUDE.md y ~/GEMINI.md si no existen · ~/.config/trama/app ·
 # registry.json vacío si falta · unit de usuario trama-motor.service (node <app>/dist-electron/motor.js, TRAMA_LOCAL=1).
 # Si corre como root también hace el paso apt (y entonces instala TODO para root: sirve para contenedores).
 # Nada de timers ni de repos remotos.
-# Entorno (pruebas): TRAMA_INSTALAR_CLI=0 no baja claude/agy · TRAMA_NODE_MAJOR (mínimo, default 22).
+# Entorno (pruebas): TRAMA_INSTALAR_CLI=0 no baja claude/agy/dsh · TRAMA_INSTALAR_DSH=0 no instala dsh · TRAMA_NODE_MAJOR (mínimo, default 22).
 set -uo pipefail
 
-FUENTE="" APP="" SOLO_APT=0 USUARIO=""
+FUENTE="" APP="" SOLO_APT=0 USUARIO="" ESCRITORIO=auto
 while (( $# )); do
   case "$1" in
     --fuente)   FUENTE="${2:-}"; shift 2 || { echo "uso: --fuente DIR" >&2; exit 2; } ;;
     --app)      APP="${2:-}"; shift 2 || { echo "uso: --app DIR" >&2; exit 2; } ;;
     --solo-apt) SOLO_APT=1; shift ;;
     --usuario)  USUARIO="${2:-}"; shift 2 || { echo "uso: --usuario U" >&2; exit 2; } ;;
-    -h|--help)  sed -n '2,22p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
-    *) echo "uso: instalar-producto.sh [--fuente DIR] [--app DIR] | --solo-apt [--usuario U]" >&2; exit 2 ;;
+    --escritorio)     ESCRITORIO=1; shift ;;
+    --sin-escritorio) ESCRITORIO=0; shift ;;
+    -h|--help)  sed -n '2,28p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    *) echo "uso: instalar-producto.sh [--fuente DIR] [--app DIR] [--escritorio|--sin-escritorio] | --solo-apt [--usuario U]" >&2; exit 2 ;;
   esac
 done
 
@@ -79,7 +86,7 @@ fi
 AQUI="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd -P)"
 [[ -n "$FUENTE" ]] || FUENTE="$AQUI"
 FUENTE="$(cd "$FUENTE" 2>/dev/null && pwd -P)" || { echo "instalar-producto.sh: no existe la fuente '$FUENTE'" >&2; exit 2; }
-# El árbol exportado es <fuente>/{motor,app}; el repo del orquestador es la fuente misma. Desde motor/scripts/ el
+# El árbol exportado es <fuente>/{motor,app}; el repo del motor suelto es la fuente misma. Desde motor/scripts/ el
 # script se encuentra a sí mismo en <fuente>/motor.
 if   [[ -x "$FUENTE/motor/bin/pa" ]]; then MOTOR="$FUENTE/motor"; [[ -n "$APP" ]] || APP="$FUENTE/app"
 elif [[ -x "$FUENTE/bin/pa" ]];       then MOTOR="$FUENTE"
@@ -107,6 +114,28 @@ enlazar() {
   if [[ -L "$ruta" && "$(readlink -f "$ruta")" == "$(readlink -f "$origen")" ]]; then ok "$ruta"; return; fi
   ln -sfn "$origen" "$ruta" && hecho "enlace $ruta -> $origen"
 }
+
+# --- dependencias de runtime de pa ------------------------------------------------------------------------
+# Sin alguna, pa falla a mitad de camino con un "command not found" poco claro: se avisa acá, con cómo instalarla.
+# No corta la instalación (sale 0 igual): quien instala sin sudo puede pedirle los paquetes a quien administra la máquina.
+revisar_deps() {
+  local falta=() v
+  command -v uuidgen >/dev/null 2>&1 || falta+=("uuidgen (uuid-runtime)")
+  command -v flock   >/dev/null 2>&1 || falta+=("flock (util-linux)")
+  command -v git     >/dev/null 2>&1 || falta+=("git")
+  command -v curl    >/dev/null 2>&1 || falta+=("curl")
+  command -v gawk    >/dev/null 2>&1 || { awk --version 2>&1 | grep -qi 'GNU Awk' || falta+=("gawk"); }
+  if command -v jq >/dev/null 2>&1; then
+    v="$(jq --version 2>/dev/null | sed -E 's/^jq-?//')"
+    [[ "$v" =~ ^([0-9]+)\.([0-9]+) ]] && (( BASH_REMATCH[1] > 1 || ( BASH_REMATCH[1] == 1 && BASH_REMATCH[2] >= 6 ) )) \
+      || falta+=("jq >= 1.6 (tengo '${v:-?}')")
+  else falta+=("jq >= 1.6"); fi
+  if (( ${#falta[@]} )); then
+    aviso "faltan programas que pa necesita: ${falta[*]}. En Debian/Ubuntu: sudo apt-get install git jq curl gawk util-linux uuid-runtime (o instalar-producto.sh --solo-apt como root)."
+    mal=1
+  else ok "dependencias de pa (uuidgen, flock, git, gawk, jq, curl)"; fi
+}
+revisar_deps
 
 # --- node LTS --------------------------------------------------------------------------------------------
 MIN_NODE="${TRAMA_NODE_MAJOR:-22}"
@@ -145,6 +174,35 @@ bajar_cli() {   # <binario> <url> <nombre>
 bajar_cli claude https://claude.ai/install.sh "claude (Claude Code)"
 bajar_cli agy https://antigravity.google/cli/install.sh "agy (Antigravity CLI)"
 
+# --- dsh (DeepSeek Harness): el motor para modelos gratis (OpenCode, Ollama) o DeepSeek --------------------------
+# npm nuevo bloquea los scripts de instalación que no están en allowScripts: sin los de dsh-subprocess-local y node-pty
+# dsh no puede correr comandos (el bash de sus herramientas).
+DSH_SCRIPTS="--allow-scripts=@deepseek-ai/dsh-subprocess-local,koffi,node-pty,@google/genai,protobufjs"
+# `npm i -g --prefix ~/.local @deepseek-ai/dsh`: con el prefijo propio no hace falta sudo (el npm global de un node del
+# sistema escribe en /usr/lib) y deja `dsh` en ~/.local/bin. No es fatal: sin npm o sin red queda el AVISO y `pa -m dsh:…`
+# explica qué falta. TRAMA_INSTALAR_DSH=0 (o TRAMA_INSTALAR_CLI=0) no lo instala. Las keys no se piden acá:
+# Ajustes > Modelos de la app, o ~/.config/trama/claves.env (ver «Usar Trama gratis» en el README).
+DSH_RESUMEN=""
+instalar_dsh() {
+  local d
+  d="$(command -v dsh 2>/dev/null || true)"; [[ -n "$d" ]] || { [[ -x "$BIN/dsh" ]] && d="$BIN/dsh"; }
+  if [[ -n "$d" ]]; then ok "dsh ya está instalado ($d)"; DSH_RESUMEN="dsh: instalado ($d)"; return; fi
+  if [[ "${TRAMA_INSTALAR_CLI:-1}" == 0 || "${TRAMA_INSTALAR_DSH:-1}" == 0 ]]; then
+    aviso "dsh: no instalado (TRAMA_INSTALAR_CLI=0 o TRAMA_INSTALAR_DSH=0)"; DSH_RESUMEN="dsh: sin instalar (para correr workers con modelos gratis: npm i -g --prefix ~/.local @deepseek-ai/dsh)"; return
+  fi
+  if ! command -v npm >/dev/null 2>&1; then
+    aviso "dsh: falta npm (viene con node): después, npm i -g --prefix ~/.local @deepseek-ai/dsh"; DSH_RESUMEN="dsh: sin instalar (falta npm)"; return
+  fi
+  echo "dsh: instalando @deepseek-ai/dsh en ~/.local (puede tardar un par de minutos)…"
+  if timeout 900 npm i -g --prefix "$HOME/.local" --no-fund --no-audit "$DSH_SCRIPTS" @deepseek-ai/dsh >/dev/null 2>&1 && [[ -x "$BIN/dsh" ]]; then
+    hecho "dsh instalado ($BIN/dsh)"; DSH_RESUMEN="dsh: instalado ahora ($BIN/dsh)"
+  else
+    aviso "dsh: npm i -g --prefix ~/.local @deepseek-ai/dsh falló (¿sin red?); instalalo a mano para usar workers con modelos gratis"
+    DSH_RESUMEN="dsh: no se pudo instalar (npm i -g --prefix ~/.local @deepseek-ai/dsh)"
+  fi
+}
+instalar_dsh
+
 # --- piezas del motor ------------------------------------------------------------------------------------
 for b in pa tablero trama-estado trama-motor; do enlazar "$MOTOR/bin/$b" "$BIN"; done
 # Los que un payload viejo puede no traer (se enlazan sólo si están). reparto es el que más duele:
@@ -173,17 +231,20 @@ registrar_hooks() {
   [[ -s "$CFG" ]] || echo '{}' >"$CFG"
   jq -e 'type == "object"' "$CFG" >/dev/null 2>&1 || { aviso "$CFG no es un JSON válido: no lo toqué (registrá a mano destructive-guard.sh y statusline-espejo.sh)"; return; }
   local guard="$HOOKS/destructive-guard.sh" espejo="$HOOKS/statusline-espejo.sh" nuevo
-  nuevo="$(jq --arg guard "bash $guard" --arg espejo "$espejo" '
+  nuevo="$(jq --arg guard "$guard" --arg espejo "$espejo" '
       (if ([.hooks.PreToolUse[]?.hooks[]?.command // empty] | any(test("destructive-guard\\.sh")))
-       then . else .hooks.PreToolUse = ((.hooks.PreToolUse // []) + [{matcher: "Bash", hooks: [{type: "command", command: $guard}]}]) end)
+       then . else .hooks.PreToolUse = ((.hooks.PreToolUse // []) + [{matcher: "Bash", hooks: [{type: "command", command: ("bash " + ($guard | @sh))}]}]) end)
       | (if ((.statusLine.command // "") | test("statusline-espejo\\.sh")) then .
          elif (.statusLine.type // "command") == "command" and ((.statusLine.command // "") != "")
-           then .statusLine.command = ("bash \"" + $espejo + "\" bash -c " + (.statusLine.command | @sh))
-         elif (.statusLine // null) == null then .statusLine = {type: "command", command: ("bash \"" + $espejo + "\"")}
+           then .statusLine.command = ("bash " + ($espejo | @sh) + " bash -c " + (.statusLine.command | @sh))
+         elif (.statusLine // null) == null then .statusLine = {type: "command", command: ("bash " + ($espejo | @sh))}
          else . end)' "$CFG")" || { aviso "jq falló sobre $CFG: no lo toqué"; return; }
   if [[ "$(jq -S . <<<"$nuevo")" == "$(jq -S . "$CFG")" ]]; then ok "$CFG ya engancha los hooks"; return; fi
   [[ "$(jq -S . "$CFG")" == "{}" ]] || cp -n "$CFG" "$CFG.trama-bak-$(date +%Y%m%d)" 2>/dev/null || true
-  printf '%s\n' "$nuevo" >"$CFG.tmp.$$" && mv -f "$CFG.tmp.$$" "$CFG" && hecho "$CFG: destructive-guard y statusline-espejo registrados (copia: $CFG.trama-bak-$(date +%Y%m%d))"
+  # Si settings.json es un symlink (dotfiles, stow), se escribe el ARCHIVO al que apunta: un mv sobre el enlace lo
+  # reemplazaba por un archivo común y lo dejaba afuera del repo de dotfiles.
+  local destino; destino="$(readlink -f "$CFG" 2>/dev/null || echo "$CFG")"
+  printf '%s\n' "$nuevo" >"$destino.tmp.$$" && mv -f "$destino.tmp.$$" "$destino" && hecho "$CFG: destructive-guard y statusline-espejo registrados (copia: $CFG.trama-bak-$(date +%Y%m%d))"
 }
 registrar_hooks
 
@@ -310,16 +371,31 @@ construir_app() {
   ok "app compilada en $dst"
   APP="$dst"
 }
+APP_FUENTE="$APP"
 if [[ -n "$APP" && -f "$APP/package.json" ]]; then construir_app "$APP" || true; fi
 
 # --- el motor --------------------------------------------------------------------------------------------
-motor_arriba() { trama-estado --json 2>/dev/null | jq -e '.motor.vivo' >/dev/null 2>&1; }
+# Barato: un GET (o un connect) al puerto del motor, no el trama-estado entero (que además pregunta a claude, agy y ollama) 20 veces.
+# Cualquier respuesta HTTP, aun un 4xx, cuenta como vivo (igual que trama-estado).
+motor_arriba() {
+  local puerto="${TRAMA_PUERTO:-8791}"
+  if command -v curl >/dev/null 2>&1; then
+    [[ "$(curl -s -o /dev/null --max-time 2 -w '%{http_code}' "http://127.0.0.1:$puerto/" 2>/dev/null)" != 000 ]]
+  else
+    ( exec 3<>"/dev/tcp/127.0.0.1/$puerto" ) 2>/dev/null
+  fi
+}
 if [[ -z "$APP" || ! -f "$APP/dist-electron/motor.js" ]]; then
   aviso "no encontré la app (dist-electron/motor.js) en '${APP:-?}': pasala con --app DIR; sin ella no se instala la unit del motor"
 else
   echo "$APP" >"$CONF/app"
   if [[ -n "$NODE" ]]; then
     unit="$UNITS/trama-motor.service"
+    # La interfaz exige un token por instalación (~/.config/trama/token; 'trama-motor abrir' lo pone en la URL). Excepción en WSL:
+    # la carcasa de Windows (windows/src/main.js) todavía abre http://localhost:8791 sin token. Quien porte Windows tiene que
+    # abrir /?t=<token> (lo lee con `wsl cat ~/.config/trama/token`) y entonces se borra este TRAMA_TOKEN=0.
+    SIN_TOKEN=""
+    if grep -qi microsoft /proc/version 2>/dev/null; then SIN_TOKEN=$'# WSL: la carcasa de Windows aún no manda el token (ver instalar-producto.sh).\nEnvironment=TRAMA_TOKEN=0\n'; fi
     cat >"$unit.tmp.$$" <<EOF
 [Unit]
 Description=Trama: el motor (líderes, workers y la interfaz en http://localhost:8791)
@@ -333,7 +409,7 @@ Environment=HILOS_MOTOR=1
 Environment=TRAMA_UNIDAD=1
 # La interfaz en 127.0.0.1:8791 (la abre la carcasa de Windows, o el navegador).
 Environment=TRAMA_LOCAL=1
-Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin
+${SIN_TOKEN}Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin
 ExecStart=$NODE $APP/dist-electron/motor.js
 Restart=always
 RestartSec=2
@@ -364,8 +440,41 @@ EOF
   fi
 fi
 
+# --- la app de escritorio (Electron) -----------------------------------------------------------------------
+# La ventana corre la copia estable de ~/.local/share/trama/app (la que acaba de compilar construir_app), así que
+# actualizar es esto y nada más. Todo lo que falle es aviso: el motor ya quedó instalado.
+escritorio_app() {
+  local dst="$HOME/.local/share/trama/app" ele lock huella inst
+  [[ "$APP" == "$dst" && -f "$dst/dist/index.html" ]] || { aviso "app de escritorio: la app no está compilada en $dst"; return 1; }
+  [[ -n "$NODE" ]] || { aviso "app de escritorio: sin node"; return 1; }
+  ele="$dst/node_modules/electron"
+  lock="$(sha256sum "$dst/package-lock.json" 2>/dev/null | cut -c1-16 || true)"
+  huella="$(cat "$ele/.trama-huella" 2>/dev/null || true)"
+  # El binario se baja sólo si falta o si cambió el lock (otra versión de Electron); npm ci lo saltea a propósito.
+  if [[ ! -x "$ele/dist/electron" || "${lock:-sin-lock}" != "$huella" ]]; then
+    [[ -f "$ele/install.js" ]] || { aviso "app de escritorio: no hay $ele/install.js (¿falló npm ci?)"; return 1; }
+    hecho "app de escritorio: bajando el binario de Electron (unos minutos)"
+    ( cd "$dst" && "$NODE" node_modules/electron/install.js >>"$dst/.build.log" 2>&1 ) \
+      || { aviso "app de escritorio: no pude bajar Electron (ver $dst/.build.log)"; return 1; }
+    [[ -x "$ele/dist/electron" ]] || { aviso "app de escritorio: install.js no dejó $ele/dist/electron"; return 1; }
+    printf '%s\n' "${lock:-sin-lock}" >"$ele/.trama-huella"
+  fi
+  inst="$APP_FUENTE/scripts/instalar.sh"
+  [[ -f "$inst" ]] || inst="$dst/scripts/instalar.sh"
+  [[ -f "$inst" ]] || { aviso "app de escritorio: no encuentro app/scripts/instalar.sh"; return 1; }
+  bash "$inst" --raiz "$dst" --sin-motor >>"$dst/.build.log" 2>&1 \
+    || { aviso "app de escritorio: instalar.sh falló (ver $dst/.build.log)"; return 1; }
+  # Si la ventana estaba andando, que pase a la versión nueva.
+  systemctl --user try-restart trama.service >/dev/null 2>&1 || true
+  ok "app de escritorio: $dst (lanzador ~/.local/bin/trama)"
+}
+if [[ "$ESCRITORIO" == 1 || ( "$ESCRITORIO" == auto && ( -n "${WAYLAND_DISPLAY:-}" || -n "${DISPLAY:-}" ) ) ]]; then
+  escritorio_app || true
+fi
+
 echo "--- trama-estado"
 trama-estado 2>/dev/null || true
+[[ -n "$DSH_RESUMEN" ]] && echo "$DSH_RESUMEN · keys y modelos gratis: «Usar Trama gratis» en el README, o Ajustes > Modelos en la app"
 (( mal )) && aviso "quedó algo sin hacer (ver arriba)"
-echo "listo."
+echo "listo. Para abrir la interfaz: trama-motor abrir"
 exit 0

@@ -6,8 +6,20 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content" />
     <title>trama</title>
     <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+    <!-- El tema de color (src/temas.ts) antes del primer pintado: la query (`?tema=`) o, sin ella, el espejo que deja
+         src/tipografia.ts en localStorage. Los ids y esta cuenta tienen que coincidir con src/temas.ts. -->
+    <script>
+      (function () {
+        var t = new URLSearchParams(location.search).get("tema");
+        try { if (!t) t = localStorage.getItem("trama.tema"); } catch (e) {}
+        if (["sistema", "oscuro", "claro", "bosque", "atardecer", "grafito", "contraste"].indexOf(t) < 0) t = "oscuro";
+        if (t === "sistema") t = matchMedia("(prefers-color-scheme: light)").matches ? "claro" : "oscuro";
+        document.documentElement.setAttribute("data-tema", t);
+      })();
+    </script>
     <style>
       html, body { background: #0a0a0a; margin: 0; }
+      html[data-tema="claro"], html[data-tema="claro"] body { background: #e9ecf1; }
     </style>
   </head>
   <body>

@@ -189,7 +189,7 @@ const estado = () =>
 const lineas = (f) => (existsSync(f) ? readFileSync(f, "utf8").split("\n").filter(Boolean).map((x) => JSON.parse(x)) : []);
 let transcript = null;
 let turnosN = 0;
-/** Lo que Claude Code deja en el transcript por un turno: lo de Ana y el mensaje entero. */
+/** Lo que Claude Code deja en el transcript por un turno: lo del usuario y el mensaje entero. */
 function anotar(texto) {
   const k = ++turnosN;
   const ts = new Date().toISOString();
@@ -236,7 +236,7 @@ try {
   ok(await libre(), "terminó el turno");
   await espera(2600);
   const despues = await estado();
-  ok(despues.els === 1 && despues.yo === 1, `con el transcript leído sigue habiendo un solo mensaje: ${despues.els} del líder, ${despues.yo} de Ana`);
+  ok(despues.els === 1 && despues.yo === 1, `con el transcript leído sigue habiendo un solo mensaje: ${despues.els} del líder, ${despues.yo} del usuario`);
   ok(despues.html[0] === alLlegar.html[0], "y se ve igual que mientras llegaba (el mismo render)");
   const partes = await en(() => {
     const e = window.__zona().querySelector(".conv .el");
@@ -256,7 +256,7 @@ try {
   });
   ok(await termino(1), "la segunda llegó entera");
   let fin = await estado();
-  ok(Math.abs(fin.tope - subido) <= 1, `Ana scrolleó para arriba y la vista no se movió: ${subido} → ${fin.tope}`);
+  ok(Math.abs(fin.tope - subido) <= 1, `el usuario scrolleó para arriba y la vista no se movió: ${subido} → ${fin.tope}`);
   ok(fin.falta > 260, `lo nuevo quedó abajo, sin arrastrarlo: faltan ${fin.falta} px`);
   ok(await libre(), "terminó el segundo turno");
   await espera(2600);

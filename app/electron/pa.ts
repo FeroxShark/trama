@@ -36,11 +36,17 @@ const DEBOUNCE_MS = 150;
 /** El JSON de hoy pesa ~800 kB con ~780 hilos. */
 const MAX_BUFFER = 64 * 1024 * 1024;
 
-/** Corre `pa` y devuelve su stdout; si falla, rechaza con lo último que dijo por stderr. */
-function correr(args: string[], env: NodeJS.ProcessEnv = ENV): Promise<string> {
+/** Lo que se le da a `pa` para leer (`--hilos`, `--hilo`, `--parar`): un `pa` colgado no tiene que dejar la lista sin refrescar para siempre. */
+const TOPE_LECTURA_MS = 120_000;
+/** Cerrar / integrar corre los tests del proyecto: más margen, pero con tope. */
+const TOPE_CERRAR_MS = 20 * 60_000;
+
+/** Corre `pa` y devuelve su stdout; si falla (o se pasa de `tope`, y entonces lo mata), rechaza con lo último que dijo por stderr. */
+function correr(args: string[], env: NodeJS.ProcessEnv = ENV, tope = TOPE_LECTURA_MS): Promise<string> {
   return new Promise((ok, mal) => {
-    lanzarCmd(PA_CMD, args, { maxBuffer: MAX_BUFFER, env }, (err, stdout, stderr) => {
+    lanzarCmd(PA_CMD, args, { maxBuffer: MAX_BUFFER, env, timeout: tope, killSignal: "SIGKILL" }, (err, stdout, stderr) => {
       if (!err) return ok(stdout);
+      if (err.killed) return mal(new Error(`${path.basename(PA)} ${args[0]}: sin respuesta en ${Math.round(tope / 1000)} s`));
       const dijo = String(stderr).trim().split("\n").filter(Boolean).slice(-2).join(" · ");
       mal(new Error(dijo || `${path.basename(PA)} ${args[0]}: ${err.message}`));
     });
@@ -297,7 +303,7 @@ export async function argvIntegrarPa(proyecto: unknown, id: string): Promise<str
  */
 export async function cerrar(h: Cerrable): Promise<void> {
   const x = { id: id(h.id), origen: h.origen, rama: h.rama };
-  await correr(comoSettle(x) === "integrar" ? await argvIntegrarPa(h.proyecto, x.id) : argvSettle(x, ""));
+  await correr(comoSettle(x) === "integrar" ? await argvIntegrarPa(h.proyecto, x.id) : argvSettle(x, ""), ENV, TOPE_CERRAR_MS);
 }
 
 /** `pa --hilo <id> --json -n <n> [--antes <antes>]`: una página de la conversación (sólo lectura). */

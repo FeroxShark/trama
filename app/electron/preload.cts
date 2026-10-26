@@ -81,6 +81,11 @@ contextBridge.exposeInMainWorld("hilos", {
   },
   /** slug → `titulo` del registry de cada proyecto que tiene uno. */
   titulos: (): Promise<unknown> => ipcRenderer.invoke("proyectos:titulos"),
+  /** Los proyectos del registry con su nombre para mostrar (electron/proyectos-alias.ts); `renombrar` lo cambia (`null`: lo saca). */
+  proyectosNombres: {
+    lista: (): Promise<unknown> => ipcRenderer.invoke("proyectos:lista"),
+    renombrar: (slug: string, nombre: string | null): Promise<unknown> => ipcRenderer.invoke("proyectos:renombrar", slug, nombre),
+  },
   /** slug → data URL del logo de cada proyecto que tiene uno (electron/iconos.ts). */
   iconos: (): Promise<unknown> => ipcRenderer.invoke("proyectos:iconos"),
   dictado: {
@@ -113,7 +118,7 @@ contextBridge.exposeInMainWorld("hilos", {
     estilo: (x: unknown): Promise<unknown> => ipcRenderer.invoke("lider:estilo", x),
     cerrar: (sid: string, motivo?: string): Promise<void> => ipcRenderer.invoke("lider:cerrar", sid, motivo),
     retomar: (x: unknown): Promise<unknown> => ipcRenderer.invoke("lider:retomar", x),
-    rebobinar: (x: unknown): Promise<void> => ipcRenderer.invoke("lider:rebobinar", x),
+    rebobinar: (x: unknown): Promise<string | null> => ipcRenderer.invoke("lider:rebobinar", x),
     ramificar: (x: unknown): Promise<string> => ipcRenderer.invoke("lider:ramificar", x),
     conversacion: (x: unknown): Promise<unknown> => ipcRenderer.invoke("lider:conversacion", x),
     mirar: (sid: string | null): Promise<void> => ipcRenderer.invoke("lider:mirar", sid),
@@ -142,17 +147,39 @@ contextBridge.exposeInMainWorld("hilos", {
     lanzar: (x: unknown): Promise<unknown> => ipcRenderer.invoke("pa:lanzar", x),
     routing: (cambios: unknown): Promise<unknown> => ipcRenderer.invoke("routing:guardar", cambios),
     modelos: (): Promise<unknown> => ipcRenderer.invoke("modelos:leer"),
+    efectivoModelos: (): Promise<unknown> => ipcRenderer.invoke("modelos:efectivo"),
     guardarModelos: (config: unknown): Promise<unknown> => ipcRenderer.invoke("modelos:guardar", config),
     sondearOllama: (url: string): Promise<unknown> => ipcRenderer.invoke("modelos:sondear", url),
     bajarModelo: (url: string, modelo: string): Promise<unknown> => ipcRenderer.invoke("modelos:bajar", url, modelo),
     cancelarBajada: (url: string, modelo: string): Promise<void> => ipcRenderer.invoke("modelos:cancelarBajada", url, modelo),
     bajadas: (): Promise<unknown> => ipcRenderer.invoke("modelos:bajadas"),
     entornoOllama: (): Promise<unknown> => ipcRenderer.invoke("modelos:entorno"),
+    estadoDsh: (): Promise<unknown> => ipcRenderer.invoke("dsh:estado"),
+    instalarDsh: (): Promise<unknown> => ipcRenderer.invoke("dsh:instalar"),
+    claveDsh: (nombre: string, valor: string | null): Promise<unknown> => ipcRenderer.invoke("dsh:clave", nombre, valor),
+    probarDsh: (proveedor: string, url?: string): Promise<unknown> => ipcRenderer.invoke("dsh:probar", proveedor, url),
+    repartoTabla: (): Promise<unknown> => ipcRenderer.invoke("reparto:tabla"),
+    estadoAA: (): Promise<unknown> => ipcRenderer.invoke("aa:estado"),
+    refrescarAA: (): Promise<unknown> => ipcRenderer.invoke("aa:refrescar"),
+    estadoOpencode: (): Promise<unknown> => ipcRenderer.invoke("opencode:estado"),
+    actualizarOpencode: (): Promise<unknown> => ipcRenderer.invoke("opencode:actualizar"),
     alBajar: oir("modelos:bajando"),
+    alTablaNueva: oir("reparto:tablaNueva"),
     guardarAjustes: (cambio: unknown): Promise<unknown> => ipcRenderer.invoke("ajustes:guardar", cambio),
     remoto: (): Promise<unknown> => ipcRenderer.invoke("remoto:leer"),
     guardarRemoto: (config: unknown): Promise<unknown> => ipcRenderer.invoke("remoto:guardar", config),
     brief: (hs: unknown): Promise<unknown> => ipcRenderer.invoke("ramas:brief", hs),
+    leccionesPendientes: (): Promise<unknown> => ipcRenderer.invoke("orq:lecciones"),
+    textoPoda: (slug: string): Promise<string> => ipcRenderer.invoke("orq:podaTexto", slug),
+    leerLecciones: (slug: string): Promise<string> => ipcRenderer.invoke("orq:leccionesLeer", slug),
+    guardarLecciones: (slug: string, texto: string): Promise<unknown> => ipcRenderer.invoke("orq:leccionesGuardar", slug, texto),
+    auditar: (x: unknown): Promise<unknown> => ipcRenderer.invoke("orq:auditar", x),
+    agentsMd: (slug: string): Promise<unknown> => ipcRenderer.invoke("orq:agentsMd", slug),
+    mdEstado: (slug: string): Promise<unknown> => ipcRenderer.invoke("orq:mdEstado", slug),
+    mdPlan: (slug: string): Promise<unknown> => ipcRenderer.invoke("orq:mdPlan", slug),
+    mdAplicar: (slug: string, huella: string): Promise<unknown> => ipcRenderer.invoke("orq:mdAplicar", slug, huella),
+    leerAgents: (slug: string): Promise<string> => ipcRenderer.invoke("orq:agentsLeer", slug),
+    guardarAgents: (slug: string, texto: string): Promise<unknown> => ipcRenderer.invoke("orq:agentsGuardar", slug, texto),
     retomar: (h: unknown): Promise<unknown> => ipcRenderer.invoke("hilo:retomar", h),
     pasar: (h: unknown): Promise<string> => ipcRenderer.invoke("hilo:pasar", h),
   },
@@ -267,7 +294,7 @@ contextBridge.exposeInMainWorld("hilos", {
   /** Un error del renderer, al log del main (electron/log.ts). */
   bitacora: (x: { donde: string; detalle: string }): Promise<void> => ipcRenderer.invoke("bitacora:escribir", x),
   /** El cartel "Hay una actualización disponible" (un build de trama más nuevo que el que corre). */
-  /** "PC apagada · Prender" (sólo con una PC configurada en maquinas.json: el Dell). */
+  /** "PC apagada · Prender" (sólo con una PC configurada en maquinas.json de la otra máquina). */
   pc: {
     leer: (): Promise<unknown> => ipcRenderer.invoke("pc:leer"),
     prender: (): Promise<unknown> => ipcRenderer.invoke("pc:prender"),

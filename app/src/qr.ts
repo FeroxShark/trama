@@ -1,6 +1,6 @@
 // Un generador de códigos QR sin dependencias, para que Ajustes > Celular dibuje la dirección de trama sin mandarla a ningún
 // servicio. Modo de bytes (UTF-8), corrección de errores M y versiones 1 a 10 (hasta 213 bytes: sobra para una URL). Devuelve la
-// matriz de módulos (`true` = oscuro); `qrSvg` la dibuja como un solo camino. Lo prueba tests/qr.test.ts (decodificado con zbar).
+// matriz de módulos (`true` = oscuro); `qrCamino` la dibuja como un solo camino. Lo prueba tests/qr.test.ts (decodificado con zbar).
 
 /** Parámetros del nivel M, por versión (índice 1 a 10): palabras de corrección por bloque y cantidad de bloques. */
 const ECC_POR_BLOQUE = [0, 10, 16, 26, 18, 24, 16, 18, 22, 22, 26];

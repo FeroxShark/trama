@@ -1,0 +1,60 @@
+/* Tablero (Te esperan): explicación arriba, chips con ícono y texto, y el estado vacío con guía. */
+.pd-intro {
+  margin: 0 var(--esp-2) var(--esp-2);
+  color: var(--txt-4);
+  font-size: var(--letra-4);
+}
+.pd-num {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--esp-1);
+}
+.pd-num[data-tipo="pregunta"] {
+  color: var(--texto-1);
+  border-color: var(--texto-6);
+}
+.pd-abrir {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--esp-0-5);
+  color: var(--txt-4);
+  font-size: var(--letra-4);
+}
+.pd-fila:hover .pd-abrir,
+.pd-fila:focus-visible .pd-abrir {
+  color: var(--txt-1);
+}
+.pd-fila:focus-visible {
+  outline: 2px solid var(--texto-3);
+  outline-offset: -2px;
+}
+.pd-nada {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--esp-2);
+  padding: var(--esp-6) var(--esp-4);
+  color: var(--txt-4);
+  text-align: center;
+}
+.pd-nada b {
+  color: var(--txt-1);
+  font-weight: 500;
+}
+.pd-nada span {
+  max-width: 28rem;
+  font-size: var(--letra-4);
+}
+@media (max-width: 640px) {
+  .pd-fila {
+    flex-wrap: wrap;
+  }
+  .pd-nums {
+    flex-basis: 100%;
+    justify-content: flex-start;
+  }
+  .pd-abrir {
+    margin-left: auto;
+  }
+}

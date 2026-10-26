@@ -17,7 +17,7 @@ import { baseConsulta, crearConsulta } from "./consulta.js";
 import { vigilarProceso } from "./contencion.js";
 import { abrirLocal, arranqueDe } from "./local.js";
 import { log, silencio } from "./log.js";
-import { armarNucleo, correrSalida, escuchar, esperarSalida, llamarLocal, soltarLocal, TOPE_SALIDA_MS } from "./nucleo.js";
+import { armarNucleo, contarClientes, correrSalida, escuchar, esperarSalida, llamarLocal, soltarLocal, TOPE_SALIDA_MS } from "./nucleo.js";
 import { ESTADO, escribirAtomico } from "./pa.js";
 import { armarRelanzo } from "./reinicio.js";
 import { marcar } from "./reinicio-marcas.js";
@@ -78,6 +78,7 @@ async function arrancar() {
   marcar("motor", "motor-escucha");
 
   escuchar(local.difundir);
+  contarClientes(local.conectados);
   armarNucleo();
   armarRemoto({
     dist: path.join(aqui, "..", "dist"),

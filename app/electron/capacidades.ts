@@ -4,6 +4,7 @@
 import { accessSync, constants } from "node:fs";
 import os from "node:os";
 import { resolverAgy, resolverBinario } from "./binario.ts";
+import { resolverDsh } from "./dsh.ts";
 
 type Env = Record<string, string | undefined>;
 
@@ -53,4 +54,14 @@ export function hayClaude(env: Env = process.env, home = os.homedir(), existe: (
   if (env.HILOS_CLAUDE !== undefined) return !!env.HILOS_CLAUDE && existe(env.HILOS_CLAUDE);
   if (env.HILOS_CAPTURA) return true;
   return resolverBinario("claude", "HILOS_CLAUDE", env, home, existe) !== "claude";
+}
+
+/**
+ * ¿Está instalado `dsh` (DeepSeek Harness)? `HILOS_DSH` definido vale si apunta a un ejecutable (las pruebas); en una captura sin él no
+ * se prende solo, para no alterar las referencias visuales. Si no, lo que encuentra `resolverDsh` (PATH, `~/.local/bin`, el prefijo de npm).
+ */
+export function hayDsh(env: Env = process.env, home = os.homedir(), existe: (f: string) => boolean = ejecutable): boolean {
+  if (env.HILOS_DSH !== undefined) return !!env.HILOS_DSH && existe(env.HILOS_DSH);
+  if (env.HILOS_CAPTURA) return false;
+  return resolverDsh(env, home, existe) !== "dsh";
 }

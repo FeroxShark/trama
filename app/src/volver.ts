@@ -11,6 +11,7 @@ import { fotoBorradores, ponerBorrador, restaurarBorrador } from "./hilo/borrado
 import { alHaberCambios } from "./hilo/cambios";
 import { fotoScrolls, ponerScrolls } from "./hilo/scrollGuardado";
 import { MODO } from "./modo";
+import { esVentana } from "./puente";
 
 export type Vuelta = {
   activa: string | null;
@@ -23,7 +24,7 @@ type Vista = Pick<Vuelta, "activa" | "panel" | "abierta">;
 
 const CLAVE = "trama:volver";
 /** La ventana de Electron (el `preload` de verdad); si no, un navegador por la tailnet. */
-const ventana = /\bElectron\//.test(navigator.userAgent);
+const ventana = esVentana();
 /** Cuánto espera el primer render a que el main diga cómo estaba. */
 const ESPERA_MS = 400;
 /** Desde el último cambio hasta escribir en disco (varios seguidos, como un scroll o teclear, hacen una sola escritura). */

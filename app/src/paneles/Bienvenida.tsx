@@ -12,29 +12,26 @@ import { useFoco } from "../foco";
 import { cambiarIdioma, esIdioma, IDIOMAS, idioma, locale, t, textoMain, type Clave, type ClaveSola } from "../i18n";
 import { useIdioma } from "../i18n/react";
 import { MODO } from "../modo";
-import { mensaje } from "../puente";
+import { esVentana, mensaje } from "../puente";
 import { Boton, Chip, FilaAjuste, Interruptor, Tarjeta } from "../ui/componentes";
 import { IcCerrar, IcLocal, IcOk, ICONO } from "../ui/iconos";
 import { LogoCaja } from "../ui/logos";
 import { cuentasDe, AgregarCuenta, CuentaFila, useCuentas } from "./CuentasVarias";
-import { RED_MAX, RED_MIN } from "../../electron/valida-ajustes";
-import { motivo } from "./AjustesEditar";
+import { UmbralCompactar } from "./UmbralCompactar";
 import {
   automaticoPrendido,
-  compactacionDe,
   COMPACTACION_SUGERIDA,
   excluirCon,
   FAMILIAS,
   familiasMarcadas,
   pasosVisibles,
-  textoCompactacion,
   type Familia,
   type Paso,
 } from "./bienvenida-pasos";
 import "./bienvenida-logica.css";
 
 /** Sólo la ventana de la PC abre la bienvenida sola: el celular y el navegador la ven si la piden desde Ajustes. */
-const enVentana = typeof navigator !== "undefined" && /Electron\//.test(navigator.userAgent);
+const enVentana = esVentana();
 
 let abierta = MODO.captura === "bienvenida";
 const oyentes = new Set<() => void>();
@@ -127,6 +124,8 @@ function Dialogo() {
     },
     async guardarRed(red) {
       const a = await fuentePaneles.guardarAjustes({ red_seguridad: red });
+      // Lo que Ajustes va a mostrar es lo que quedó en el archivo: si no es lo elegido, que se vea acá y no después.
+      if (a.red_seguridad !== red) throw new Error(t("bv.compNoQuedo", { n: red.toLocaleString(locale()) }));
       mod((x) => ({ ...x, ajustes: a }));
     },
     async guardarRemoto(activo) {
@@ -198,7 +197,10 @@ function useCorrer(nav: Nav) {
   const [ocupado, setOcupado] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const vivo = useRef(true);
-  useEffect(() => () => void (vivo.current = false), []);
+  useEffect(() => {
+    vivo.current = true;
+    return () => void (vivo.current = false);
+  }, []);
   const correr = async (f: () => Promise<void>) => {
     setOcupado(true);
     setError(null);
@@ -462,44 +464,30 @@ function PasoMax({ ctx }: { ctx: Ctx }) {
 function PasoCompactacion({ ctx }: { ctx: Ctx }) {
   useIdioma();
   const a = ctx.d.ajustes;
-  const [texto, setTexto] = useState(textoCompactacion(a?.red_seguridad ?? null));
+  // El mismo campo (y la misma clave guardada, `red_seguridad`) que Ajustes > General.
+  const [valor, setValor] = useState<number | null>(a?.red_seguridad ?? COMPACTACION_SUGERIDA);
+  const [malo, setMalo] = useState(false);
   const { ocupado, error, correr } = useCorrer(ctx.nav);
-  const r = compactacionDe(texto);
-  const msg = r.error ? motivo(r.error, RED_MIN, RED_MAX) : null;
   const fallo = a ? null : t("bv.noCarga");
   const guardar = () => {
-    if (r.valor !== null) void correr(() => ctx.guardarRed(r.valor as number));
+    if (valor !== null && !malo) void correr(() => ctx.guardarRed(valor));
   };
   return (
     <Hoja paso="compactacion">
       <Tarjeta>
         <FilaAjuste titulo={<label htmlFor="bv-red">{t("bv.compCampo")}</label>} detalle={t("bv.compSugerida")}>
-          <div className="pn-campo-fila">
-            <input
-              id="bv-red"
-              className="pn-campo pn-campo-num"
-              type="text"
-              inputMode="numeric"
-              autoComplete="off"
-              spellCheck={false}
-              value={texto}
-              placeholder={COMPACTACION_SUGERIDA.toLocaleString(locale())}
-              disabled={!a}
-              aria-invalid={!!r.error}
-              aria-describedby={r.error ? "bv-red-e" : undefined}
-              onChange={(e) => setTexto(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && guardar()}
-            />
-            <span className="pn-unidad">{t("ajustes.redUnidad")}</span>
-          </div>
+          <UmbralCompactar
+            id="bv-red"
+            valor={valor}
+            disabled={!a}
+            alCambiar={(c) => {
+              setMalo(c.error !== null);
+              if (c.error === null) setValor(c.valor);
+            }}
+          />
         </FilaAjuste>
       </Tarjeta>
-      {msg ? (
-        <div className="bv-error" id="bv-red-e">
-          {msg}
-        </div>
-      ) : null}
-      <Pie nav={ctx.nav} guarda alPrimario={guardar} ocupado={ocupado} error={error ?? fallo} deshabilitado={!a || r.valor === null} />
+      <Pie nav={ctx.nav} guarda alPrimario={guardar} ocupado={ocupado} error={error ?? fallo} deshabilitado={!a || valor === null || malo} />
     </Hoja>
   );
 }

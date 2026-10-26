@@ -23,14 +23,13 @@ import { acomodar, crearGuardadoVolver, guardarVolver, leerVolver, lugarDeVentan
 import { silencio } from "./log.js";
 import { enMarcha, marcar, type Corrida } from "./reinicio-marcas.js";
 
-// Wayland nativo SIEMPRE. Un cliente XWayland colgado puede congelar Hyprland
-// entero (pasó con webkit + GDK_BACKEND=x11); uno Wayland nativo colgado sólo
-// se cuelga a sí mismo.
-app.commandLine.appendSwitch("ozone-platform", "wayland");
+// Wayland nativo siempre que haya sesión Wayland: un cliente XWayland colgado puede congelar Hyprland
+// entero (pasó con webkit + GDK_BACKEND=x11); uno Wayland nativo colgado sólo se cuelga a sí mismo.
+// Sin Wayland (X11, Xvfb de las pruebas) `auto` cae en X11 en vez de no abrir.
+app.commandLine.appendSwitch("ozone-platform-hint", "auto");
 
-// Sin GPU por default: con esta UI da los mismos fps (200 en HDMI-A-2) con menos
-// CPU, menos RAM y arranque más rápido (medido en B0b y otra vez en B1, ver
-// docs/estado/B1.md). HILOS_GPU=1 la vuelve a prender.
+// Sin GPU por default: con esta UI da los mismos fps con menos
+// CPU, menos RAM y arranque más rápido. HILOS_GPU=1 la vuelve a prender.
 if (process.env.HILOS_GPU !== "1") app.commandLine.appendSwitch("disable-gpu");
 
 // Switches extra para probar en el bench sin recompilar:
@@ -43,7 +42,7 @@ for (const f of (process.env.HILOS_FLAGS ?? "").split(/\s+/).filter(Boolean)) {
 const aqui = import.meta.dirname;
 
 // Modos de prueba. El frontend los lee de la query (síncrono, sin parpadeo):
-//   HILOS_BENCH=<out.json>   corre un guion de medición y cierra (scripts/bench.sh).
+//   HILOS_BENCH=<out.json>   corre un guion de medición y cierra (scripts/dev/bench.sh).
 //   HILOS_GUION=barra|paneles|b0  qué guion: la barra (default con HILOS_BENCH), los paneles
 //                            del pie (siempre con el `pa` falso) o la pantalla de B0.
 //   HILOS_CAPTURA=<estado>   la app con fixtures y un estado forzado (los de `Captura` en
@@ -94,7 +93,12 @@ const png = process.env.HILOS_CAPTURA_PNG ?? "";
 const escala = Number(process.env.HILOS_ESCALA ?? 1);
 const prueba = Number(process.env.HILOS_PRUEBA ?? 0);
 // Perfil aparte: que la prueba no comparta localStorage con la app que el usuario tiene abierta.
-if (prueba) app.setPath("userData", process.env.HILOS_PRUEBA_PERFIL ?? path.join(app.getPath("temp"), `hilos-prueba-${process.pid}`));
+if (prueba) {
+  const perfil = process.env.HILOS_PRUEBA_PERFIL ?? path.join(app.getPath("temp"), `hilos-prueba-${process.pid}`);
+  app.setPath("userData", perfil);
+  // El temporal no queda en /tmp; uno que pasó quien corre la prueba es suyo y no se borra.
+  if (!process.env.HILOS_PRUEBA_PERFIL) process.on("exit", () => rmSync(perfil, { recursive: true, force: true }));
+}
 else if (process.env.HILOS_PERFIL) app.setPath("userData", process.env.HILOS_PERFIL);
 // Bench y captura sin perfil propio: uno temporal, no el de la Trama del usuario (~/.config/hilos).
 else if (guion || captura || png) {
@@ -102,6 +106,9 @@ else if (guion || captura || png) {
   app.setPath("userData", perfil);
   process.on("exit", () => rmSync(perfil, { recursive: true, force: true }));
 }
+// El perfil de siempre (`~/.config/hilos`), aunque el paquete se llame `trama`: Electron lo deriva del `name` de
+// package.json y cambiarlo dejaría al usuario sin su localStorage (tema, borradores de la vista, la ventana).
+else app.setPath("userData", path.join(app.getPath("appData"), "hilos"));
 // La unidad de systemd (systemd/trama.service). Los líderes no la heredan: un `trama` corrido desde uno es el lanzador de siempre.
 const unidad = process.env.TRAMA_UNIDAD === "1";
 delete process.env.TRAMA_UNIDAD;

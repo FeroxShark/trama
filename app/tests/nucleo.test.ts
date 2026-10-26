@@ -22,6 +22,8 @@ registerHooks({
 const tmp = mkdtempSync(path.join(os.tmpdir(), "hilos-nucleo-"));
 after(() => rmSync(tmp, { recursive: true, force: true }));
 process.env.HILOS_STATE = path.join(tmp, "estado");
+// `remoto:leer` sólo es editable en una máquina con Tailscale: el test no depende de que esté instalado.
+process.env.HILOS_TAILSCALE ||= "/usr/bin/tailscale";
 process.env.HILOS_SESIONES = path.join(tmp, "sesiones");
 process.env.CLAUDE_CONFIG_DIR = path.join(tmp, "claude");
 process.env.PA_STATE = path.join(tmp, "pa");
@@ -53,6 +55,11 @@ test("manejadores: por red llega con quién pide; lo de la ventana y lo desconoc
   assert.deepEqual(fn({ sender: {} }, 3), { quien: "ventana", a: 3, b: undefined });
   await assert.rejects(nucleo.llamarRemoto("borradores:leer", [], "cel"), /canal desconocido/);
   await assert.rejects(nucleo.llamarRemoto("no:existe", [], "cel"), /canal desconocido/);
+  // El navegador del modo local sí usa borradores y consumo, pero no lo que es de la pantalla de la PC.
+  await assert.doesNotReject(nucleo.llamarRemoto("borradores:leer", [], "web", "127.0.0.1", { local: true }));
+  await assert.rejects(nucleo.llamarRemoto("app:salir", [], "web", "127.0.0.1", { local: true }), /canal desconocido/);
+  for (const c of ["app:salir", "carpeta:elegir", "app:pararTodo", "lider:ir", "portapapeles:texto"]) assert.ok(nucleo.SOLO_VENTANA_LOCAL.has(c), c);
+  for (const c of ["consumo:mirar", "consumo:soltar", "borradores:leer", "borradores:guardar"]) assert.ok(nucleo.SOLO_VENTANA.has(c) && !nucleo.SOLO_VENTANA_LOCAL.has(c), c);
   // Reemplazar un canal (ipc.ts pone el de los íconos achicados) deja uno solo.
   nucleo.manejar("prueba:eco", () => "otro");
   assert.equal(nucleo.manejadoresAnotados().filter(([c]) => c === "prueba:eco").length, 1);
@@ -106,7 +113,11 @@ test("ajustes y acceso del celular: se guardan desde la PC; por la tailnet el ce
   assert.equal(a.plan, "pro");
   assert.equal(a.red_seguridad, 250_000);
   assert.equal(JSON.parse(readFileSync(process.env.HILOS_CLAUDE_SETTINGS!, "utf8")).autoCompactWindow, 250_000);
-  await assert.rejects(nucleo.llamarRemoto("ajustes:guardar", [{ plan: "oro" }], "cel"), /main\.ajustesPlan/);
+  // Por la tailnet el celular no cambia ajustes ni lo demás que reescribe la máquina; con TRAMA_LOCAL (navegador local) sí, y valida.
+  for (const [canal, args] of [["ajustes:guardar", [{ plan: "pro" }]], ["routing:guardar", [[]]], ["cuentas:quitar", ["x", false]], ["vram:liberar", [{}]], ["claude:actualizar", []]] as [string, unknown[]][])
+    await assert.rejects(nucleo.llamarRemoto(canal, args, "cel", "192.0.2.2"), /main\.soloPc/, canal);
+  await assert.rejects(nucleo.llamarRemoto("ajustes:guardar", [{ plan: "oro" }], "cel", "127.0.0.1"), /main\.ajustesPlan/, "por loopback (el dueño) sí llega a validar");
+  assert.equal(JSON.parse(readFileSync(process.env.HILOS_CLAUDE_SETTINGS!, "utf8")).autoCompactWindow, 250_000, "lo de la tailnet no tocó nada");
   // El acceso: de la PC se lee y se guarda (y queda en remoto.json).
   const antes = (await fn("remoto:leer")(ventana)) as { editable: boolean; activo: boolean; puerto: number };
   assert.deepEqual([antes.editable, antes.activo, antes.puerto], [true, false, 8791]);
@@ -153,6 +164,38 @@ test("modelos: en modo local (TRAMA_LOCAL=1, sólo loopback) se guardan; sin él
     else process.env.TRAMA_LOCAL = antesLocal;
     if (antesRuta === undefined) delete process.env.TRAMA_MODELOS;
     else process.env.TRAMA_MODELOS = antesRuta;
+  }
+});
+
+// DeepSeek Harness: instalar, guardar una API key y probar (que usa la key guardada) son sólo de la PC; ver el estado (sin valores) no tiene riesgo.
+test("dsh: instalar, guardar una key y probar no se pueden por la tailnet; la key no se guarda ni se lee", async () => {
+  nucleo.armarNucleo();
+  const fn = (c: string) => new Map(nucleo.manejadoresAnotados()).get(c)!;
+  const claves = path.join(tmp, "dsh-claves", "claves.env");
+  const antes = process.env.TRAMA_CLAVES;
+  const antesLocal = process.env.TRAMA_LOCAL;
+  process.env.TRAMA_CLAVES = claves;
+  delete process.env.TRAMA_LOCAL;
+  try {
+    assert.ok(nucleo.SOLO_PC_TAILNET.has("dsh:clave") && nucleo.SOLO_PC_TAILNET.has("dsh:instalar") && nucleo.SOLO_PC_TAILNET.has("dsh:probar"));
+    await assert.rejects(nucleo.llamarRemoto("dsh:clave", ["OPENCODE_API_KEY", "oc-1"], "cel"), /main\.soloPc/);
+    await assert.rejects(nucleo.llamarRemoto("dsh:instalar", [], "cel"), /main\.soloPc/);
+    await assert.rejects(nucleo.llamarRemoto("dsh:probar", ["opencode"], "cel"), /main\.soloPc/);
+    assert.equal(existsSync(claves), false);
+    // De la ventana sí; el estado dice que hay una key, nunca cuál; un nombre ajeno se rechaza.
+    const ventana = { sender: {} };
+    const e = (await fn("dsh:clave")(ventana, "OPENCODE_API_KEY", "oc-secreta")) as { claves: Record<string, boolean> };
+    assert.equal(e.claves.OPENCODE_API_KEY, true);
+    assert.ok(!JSON.stringify(e).includes("oc-secreta"));
+    assert.equal(readFileSync(claves, "utf8"), "OPENCODE_API_KEY=oc-secreta\n");
+    assert.ok(!JSON.stringify(await nucleo.llamarRemoto("dsh:estado", [], "cel")).includes("oc-secreta"));
+    await assert.rejects(fn("dsh:clave")(ventana, "PATH", "x"), /main\.claveNombre/);
+    const sin = (await fn("dsh:clave")(ventana, "OPENCODE_API_KEY", null)) as { claves: Record<string, boolean> };
+    assert.equal(sin.claves.OPENCODE_API_KEY, false);
+  } finally {
+    if (antes === undefined) delete process.env.TRAMA_CLAVES;
+    else process.env.TRAMA_CLAVES = antes;
+    if (antesLocal !== undefined) process.env.TRAMA_LOCAL = antesLocal;
   }
 });
 
@@ -262,7 +305,7 @@ test("modelos: por loopback se guardan sin TRAMA_LOCAL; 100.x y x-forwarded-for 
   }
 });
 
-// Trama en dos máquinas (docs/estado/maquinas.md): cada canal sabe si se junta, va a la máquina de la fila o es local.
+// Trama en dos máquinas: cada canal sabe si se junta, va a la máquina de la fila o es local.
 test("rutas: la tabla cubre todos los canales (núcleo, ventana, preload) y nada más", async () => {
   // armarNucleo ya corrió en "armado".
   const raiz = path.join(import.meta.dirname, "..");

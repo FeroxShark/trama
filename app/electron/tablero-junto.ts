@@ -1,6 +1,6 @@
-// El tablero junto de las dos máquinas (etapa 7, M5; contrato: docs/estado/maquinas.md): el de acá más el de cada otra
+// El tablero junto de las dos máquinas: el de acá más el de cada otra
 // máquina, que se lee de su motor (`tablero:leer`). Cada item de allá lleva `maquina` y `maquinaNombre` y su id con
-// prefijo (`dell:12`), como las filas de la barra: los números de dos tableros chocan. Las acciones sobre un item de
+// prefijo (`servidor:12`), como las filas de la barra: los números de dos tableros chocan. Las acciones sobre un item de
 // allá van al tablero de su máquina (maquinas.ts, `enrutar`). Puro y sin Electron: lo prueba tests/tablero-junto.test.ts.
 import { esperanEnVista, type TableroCrudo } from "./tablero.ts";
 

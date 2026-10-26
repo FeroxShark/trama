@@ -27,10 +27,10 @@
 #   workers ver [proyecto]     seguir el chat en vivo (sin proyecto: si hay uno solo, ese)
 #   workers ver --todo <proy>  igual pero desde el principio de la conversación
 #   workers ultimo <proyecto>  releer el chat del último worker que terminó
-#   workers abrir [proyecto]   lo mismo que `ver` pero en una ventana kitty aparte
+#   workers abrir [proyecto]   lo mismo que `ver` pero en una ventana de terminal aparte ($TERMINAL, o la que haya)
 set -uo pipefail
 
-# Los scripts de ~/orquestador se llaman entre ellos por nombre (`proyecto-ruta`). Ponemos
+# Los scripts de motor/bin se llaman entre ellos por nombre (`proyecto-ruta`). Ponemos
 # nuestro propio directorio adelante del PATH en vez de confiar en que quien nos llama lo
 # tenga: un timer de systemd, un cron o un hook arrancan con un PATH pelado y todo salía 127.
 _BIN="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
@@ -125,12 +125,149 @@ select(.type == "user" or .type == "assistant")
   else empty end
 '
 
-formatear() {
+# Los workers de agy y codex no tienen transcript de Claude: pa guarda su stream en `<id>.stream.jsonl` (el --output-format
+# stream-json de agy, el --json de codex). Sin timestamps por línea, así que no hay filtro por fecha.
+#
+# agy: step_update { step_index, state ACTIVE|DONE, step_type user_input|agent_response|tool, text_delta?, tool_name?,
+# tool_info { name, parameters, output } }. El texto llega en deltas de un mismo paso: se juntan y salen cuando el paso
+# cambia (o al final), así que el texto de ahora se ve un paso tarde; una herramienta sale al empezar y su salida al cerrar.
+FMT_AGY='
+def limpio: (. // "") | gsub("[\r\t]";" ") | gsub("\n";" ⏎ ") | gsub(" +";" ");
+def corto($n): limpio | if (length > $n) then (.[0:$n] + "…") else . end;
+def h: "--:--:--";
+def flush: if .txt != null and .txt != "" then .emit += ["\(h) \($txt)· \(.txt | corto(400))\($r)"] else . end | .txt = null | .paso = null;
+def arg: (.tool_info.parameters // {}) | if type == "object" then
+    (.CommandLine // .Command // .AbsolutePath // .TargetFile // .File // .FilePath // .Path // .Query // .Pattern // .SearchPath // .Url // .URL // tostring)
+  else tostring end;
+foreach ((inputs | try fromjson catch empty), null) as $l ({txt: null, paso: null, emit: []};
+  .emit = []
+  | if $l == null then flush
+    elif ($l | type) != "object" then .
+    elif $l.event == "init" then .emit += ["\(h) \($dim)· agy \($l.init.model // "?")\($r)"]
+    elif $l.event == "step_update" then
+      ($l.step_update // {}) as $s
+      | if $s.step_type == "agent_response" and ($s.text_delta // "") != "" then
+          (if .paso != null and .paso != $s.step_index then flush else . end)
+          | .paso = $s.step_index | .txt = ((.txt // "") + $s.text_delta)
+        elif $s.step_type == "agent_response" then flush
+        elif $s.step_type == "tool" then
+          flush
+          | if $s.state == "ACTIVE" then .emit += ["\(h) \($tool)▶ \($s.tool_name // $s.tool_info.name // "?")\($r) \($dim)\($s | arg | corto(180))\($r)"]
+            else .emit += ["\(h)   \($res)⤷ \(($s.tool_info.output // "") | if type == "string" then . else tojson end | corto(160))\($r)"] end
+        else flush end
+    elif $l.event == "result" then
+      flush | if ($l.result.status // "") != "SUCCESS" then .emit += ["\(h) \($head)✗ agy: \($l.result.status // "?")\($r)"] else . end
+    else . end;
+  .emit[])
+'
+# codex: {type: item.started|item.completed, item: {type: agent_message|reasoning|command_execution|file_change|mcp_tool_call|
+# web_search|todo_list|error, …}}, turn.failed, error.
+FMT_CODEX='
+def limpio: (. // "") | gsub("[\r\t]";" ") | gsub("\n";" ⏎ ") | gsub(" +";" ");
+def corto($n): limpio | if (length > $n) then (.[0:$n] + "…") else . end;
+def h: "--:--:--";
+(try fromjson catch empty) | objects
+| if .type == "item.started" and .item.type == "command_execution" then
+    "\(h) \($tool)▶ Bash\($r) \($dim)\(.item.command | corto(180))\($r)"
+  elif .type == "item.completed" then
+    .item as $i
+    | if $i.type == "agent_message" then "\(h) \($txt)· \($i.text | corto(400))\($r)"
+      elif $i.type == "reasoning" then (if $pensar == "1" then "\(h) \($dim)~ \($i.text | corto(300))\($r)" else empty end)
+      elif $i.type == "command_execution" then
+        "\(h)   \($res)⤷ \(if ($i.exit_code // 0) != 0 then "[rc \($i.exit_code)] " else "" end)\($i.aggregated_output | corto(160))\($r)"
+      elif $i.type == "file_change" then
+        "\(h) \($tool)▶ Edit\($r) \($dim)\([$i.changes[]? | .path] | join(", ") | corto(180))\($r)"
+      elif $i.type == "mcp_tool_call" then "\(h) \($tool)▶ \($i.server // "mcp")/\($i.tool // "?")\($r)"
+      elif $i.type == "web_search" then "\(h) \($tool)▶ WebSearch\($r) \($dim)\($i.query | corto(180))\($r)"
+      elif $i.type == "error" then "\(h) \($head)✗ \($i.message | corto(300))\($r)"
+      else empty end
+  elif .type == "turn.failed" then "\(h) \($head)✗ \(.error.message // "turn.failed" | corto(300))\($r)"
+  elif .type == "error" then "\(h) \($head)✗ \(.message | corto(300))\($r)"
+  else empty end
+'
+
+# dsh (DeepSeek Harness, `dsh --json`): una línea por evento {type: session|status|thinking|text|tool_call|tool_result|final}.
+# status trae phase (turn_start|step_start|step_end|turn_end); tool_call {callId, tool, input}; tool_result {callId, status, result};
+# final {text} repite el último text, así que no se muestra. Sin timestamps por línea, como agy y codex.
+FMT_DSH='
+def limpio: (. // "") | if type == "string" then . else tojson end | gsub("[\r\t]";" ") | gsub("\n";" ⏎ ") | gsub(" +";" ");
+def corto($n): limpio | if (length > $n) then (.[0:$n] + "…") else . end;
+def h: "--:--:--";
+(try fromjson catch empty) | objects
+| if .type == "session" then "\(h) \($dim)· dsh \(.sessionId // "")\($r)"
+  elif .type == "text" then "\(h) \($txt)· \(.text | corto(400))\($r)"
+  elif .type == "thinking" then (if $pensar == "1" then "\(h) \($dim)~ \(.text | corto(300))\($r)" else empty end)
+  elif .type == "tool_call" then
+    ( .input // {} | if type == "object" then (.command // .file_path // .path // .pattern // .url // .query // .description // tojson) else tostring end ) as $arg
+    | "\(h) \($tool)▶ \(.tool // "?")\($r) \($dim)\($arg | corto(180))\($r)"
+  elif .type == "tool_result" then
+    "\(h)   \($res)⤷ \(if (.status // "completed") != "completed" then "[\(.status)] " else "" end)\(.result | corto(160))\($r)"
+  elif .type == "status" and .phase == "turn_end" and ((.reason.kind // "completed") != "completed") then
+    "\(h) \($head)✗ \(.reason.error.message // .reason.kind | corto(300))\($r)"
+  elif .type == "result" and (.is_error // false) then "\(h) \($head)✗ \(.result | corto(300))\($r)"
+  else empty end
+'
+
+# opencode (`opencode run --format json`): una línea por evento {type: step_start|text|reasoning|tool_use|step_finish|error, part:{…}}.
+# text.part.text; tool_use.part.{tool, state:{status, input, output|error}} (llega ya completo, con su resultado); error.error.{name, data.message}.
+# Sin timestamps por línea, como agy y codex.
+FMT_OC='
+def limpio: (. // "") | if type == "string" then . else tojson end | gsub("[\r\t]";" ") | gsub("\n";" ⏎ ") | gsub(" +";" ");
+def corto($n): limpio | if (length > $n) then (.[0:$n] + "…") else . end;
+def h: "--:--:--";
+(try fromjson catch empty) | objects
+| if .type == "text" then "\(h) \($txt)· \(.part.text | corto(400))\($r)"
+  elif .type == "reasoning" then (if $pensar == "1" then "\(h) \($dim)~ \(.part.text | corto(300))\($r)" else empty end)
+  elif .type == "tool_use" then
+    ( .part.state.input // {} | if type == "object" then (.command // .filePath // .path // .pattern // .url // .query // .description // tojson) else tostring end ) as $arg
+    | (.part.state // {}) as $e
+    | "\(h) \($tool)▶ \(.part.tool // "?")\($r) \($dim)\($arg | corto(180))\($r)",
+      "\(h)   \($res)⤷ \(if ($e.status // "completed") != "completed" then "[\($e.status)] " else "" end)\(($e.output // $e.error // "") | corto(160))\($r)"
+  elif .type == "error" then "\(h) \($head)✗ \(.error.data.message // .error.name // "error" | corto(300))\($r)"
+  elif .type == "result" and (.is_error // false) then "\(h) \($head)✗ \(.result | corto(300))\($r)"
+  else empty end
+'
+
+formatear_claude() {
   jq -r --unbuffered \
      --arg dim "$D" --arg r "$R" --arg tool "$C_TOOL" --arg txt "$C_TXT" \
      --arg res "$C_RES" --arg head "$C_HEAD" --arg pensar "${WORKERS_PENSAR:-0}" \
      --arg desde "${1:-}" \
      "$FMT" 2>/dev/null
+}
+formatear_stream() {   # $1 = agy | codex | dsh | opencode
+  local f="$FMT_CODEX" opc=(-R)
+  [[ "$1" == agy ]] && { f="$FMT_AGY"; opc=(-R -n); }
+  [[ "$1" == dsh ]] && f="$FMT_DSH"
+  [[ "$1" == opencode ]] && f="$FMT_OC"
+  jq "${opc[@]}" -r --unbuffered \
+     --arg dim "$D" --arg r "$R" --arg tool "$C_TOOL" --arg txt "$C_TXT" \
+     --arg res "$C_RES" --arg head "$C_HEAD" --arg pensar "${WORKERS_PENSAR:-0}" \
+     "$f" 2>/dev/null
+}
+# Qué formato tiene un transcript: por el modelo de la corrida si se sabe, y si no, mirando su primera línea.
+formato_de() {   # $1 = modelo (puede ir vacío), $2 = archivo
+  case "${1,,}" in
+    codex:*) echo codex; return ;;
+    dsh:*) echo dsh; return ;;
+    opencode:*) echo opencode; return ;;
+    gemini*|agy:*) echo agy; return ;;
+    claude-*|ollama:*) echo claude; return ;;
+  esac
+  case "$(head -n 1 "$2" 2>/dev/null | head -c 300)" in
+    *'"event":'*) echo agy ;;
+    *'"type":"thread.started"'*|*'"type":"turn.started"'*) echo codex ;;
+    *'"type":"session"'*) echo dsh ;;
+    *'"type":"step_start"'*) echo opencode ;;
+    *) echo claude ;;
+  esac
+}
+FORMATO=claude
+formatear() {   # stdin = el transcript; $1 = fecha desde (sólo el de Claude)
+  case "$FORMATO" in
+    agy|codex|dsh|opencode) formatear_stream "$FORMATO" ;;
+    *) formatear_claude "$@" ;;
+  esac
 }
 
 # Último paso de un transcript, para los subagentes (que no dejan latido).
@@ -335,8 +472,9 @@ ver() {
 
   # El filtro por fecha importa sólo en sesiones retomadas (--seguir), donde el mismo jsonl
   # tiene los turnos de las corridas anteriores. --todo lo saca.
+  FORMATO="$(formato_de "$(leer_campo "$run" modelo)" "$tr")"
   local desde=""
-  (( todo )) || desde=$(date -u -d "@$inicio" +%Y-%m-%dT%H:%M:%S 2>/dev/null)
+  (( todo )) || [[ "$FORMATO" != claude ]] || desde=$(date -u -d "@$inicio" +%Y-%m-%dT%H:%M:%S 2>/dev/null)
   # -F sigue el archivo aunque lo roten; --pid mata el tail cuando muere el CLAUDE que
   # estamos mirando, así la ventana se cierra sola.
   tail -F --pid="$(pid_vivo "$run")" -n +1 "$tr" 2>/dev/null | formatear "$desde"
@@ -358,15 +496,49 @@ ultimo() {
   local sfile="$STATE/$slug.session"
   [[ -f "$sfile" && -f "$dir/$(cat "$sfile").jsonl" ]] && tr="$dir/$(cat "$sfile").jsonl"
   [[ -n "$tr" ]] || tr=$(ls -t "$dir"/*.jsonl 2>/dev/null | head -1)
+  # Si el último worker fue de agy, codex o dsh, su transcript es el stream de pa (no hay jsonl de Claude para él).
+  local st; st=$(ls -t "$STATE/$slug"/*.stream.jsonl 2>/dev/null | head -1)
+  [[ -n "$st" && ( -z "$tr" || "$st" -nt "$tr" ) ]] && tr="$st"
   [[ -n "$tr" ]] || { echo "no hay transcripts en $dir" >&2; exit 1; }
-  printf '%s── %s ──%s %s%s%s\n\n' "$C_HEAD" "$(basename "$ruta")" "$R" "$D" "$tr" "$R"
+  printf '%s── %s ──%s %s%s%s\n' "$C_HEAD" "$(basename "$ruta")" "$R" "$D" "$tr" "$R"
+  # Si la última corrida que escribió terminó sin VERIFICACION (comando + salida), se dice acá (lo anota pa en el .hilo).
+  local uh="" h_; while IFS= read -r h_; do
+    [[ -f "$h_" ]] && ! grep -q '^leer=1$' "$h_" && { uh="$h_"; break; }
+  done < <(ls -t "$STATE/$slug"/*.hilo 2>/dev/null | head -20 || true)
+  if [[ -n "$uh" ]] && grep -q '^verificado=0$' "$uh" 2>/dev/null; then
+    printf '%ssin verificar%s: el RESULTADO de %s no trae VERIFICACION; no lo des por bueno sin comprobarlo.\n' "$C_HEAD" "$R" "$(basename "$uh" .hilo)"
+  fi
+  printf '\n'
+  FORMATO="$(formato_de "" "$tr")"
   formatear < "$tr"
 }
 
+# La terminal para `abrir`: $TERMINAL, o la primera que haya. Cada una con su forma de decir "corré esto".
+terminal_para() {   # una palabra por línea: la terminal y los flags previos al comando a correr; rc 1 si no hay ninguna
+  local t="${TERMINAL:-}" x p
+  local -a partes
+  for x in "$t" x-terminal-emulator gnome-terminal konsole kitty alacritty foot xterm; do
+    [[ -n "$x" ]] || continue
+    read -ra partes <<<"$x"            # $TERMINAL puede traer argumentos ("alacritty -o x=y")
+    command -v "${partes[0]}" >/dev/null 2>&1 || continue
+    printf '%s\n' "${partes[@]}"
+    case "$(basename "${partes[0]}")" in
+      kitty)          printf '%s\n' --class workers --hold --title workers ;;
+      gnome-terminal) printf '%s\n' --title workers -- ;;
+      foot)           ;;   # el comando va pelado
+      *)              printf '%s\n' -e ;;
+    esac
+    return 0
+  done
+  return 1
+}
 abrir() {
-  local args=("$@")
-  kitty --class workers --hold --title "workers ${args[*]}" \
-        "$HOME/.local/bin/workers" ver ${args[@]+"${args[@]}"} >/dev/null 2>&1 &
+  local args=("$@") term yo
+  yo="$(readlink -f "${BASH_SOURCE[0]}")"   # este mismo script, esté donde esté instalado
+  mapfile -t term < <(terminal_para) || true
+  (( ${#term[@]} )) || { echo "no encontré una terminal (probé \$TERMINAL, x-terminal-emulator, gnome-terminal, konsole, kitty, alacritty, foot, xterm). Corré: workers ver ${args[*]}" >&2; exit 1; }
+  # $TERMINAL puede traer argumentos ("alacritty -o x=y"): se parte por espacios
+  "${term[@]}" "$yo" ver ${args[@]+"${args[@]}"} >/dev/null 2>&1 &
   disown
   echo "abrí la ventana."
 }

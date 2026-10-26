@@ -60,7 +60,7 @@ type Main = {
     leer(): Promise<{ effort: Record<string, string> }>;
     effort(modelo: string, effort: string): Promise<void>;
     idioma(idioma: string): Promise<void>;
-    apariencia(a: { letra?: number; fuente?: string; mono?: string }): Promise<void>;
+    apariencia(a: { letra?: number; fuente?: string; mono?: string; tema?: string }): Promise<void>;
     /** Los mensajes tiernos (B17), prendidos o apagados. */
     tiernos(si: boolean): Promise<void>;
     /** La notificación de "te espera", prendida o apagada. */
@@ -94,6 +94,8 @@ type Main = {
   };
   /** slug → `titulo` del registry, sin validar. */
   titulos(): Promise<unknown>;
+  /** Los proyectos con su nombre para mostrar (electron/proyectos-alias.ts); `renombrar(slug, null)` lo saca. */
+  proyectosNombres: { lista(): Promise<unknown>; renombrar(slug: string, nombre: string | null): Promise<unknown> };
   /** slug → data URL del logo de cada proyecto que tiene uno. */
   iconos(): Promise<Record<string, string>>;
   /** Dictar (electron/dictado.ts): un WAV 16 kHz mono de hasta 5 min → el texto que dijo (Handy, en la máquina del motor). */
@@ -169,6 +171,23 @@ type Main = {
   /** Los paneles del pie (Ajustes, Estadísticas, acciones de Ramas): ver src/datos/paneles.ts. */
   paneles: {
     ajustes(): Promise<unknown>;
+    /** Los proyectos con `lecciones.necesita-poda` (electron/orquestacion.ts), sin validar. */
+    leccionesPendientes(): Promise<unknown>;
+    /** La instrucción de `pa <proy> --lecciones-podar` para que un agente reescriba las lecciones. */
+    textoPoda(slug: string): Promise<string>;
+    leerLecciones(slug: string): Promise<string>;
+    /** Guarda lecciones.md; devuelve `{ necesitaPoda }`. */
+    guardarLecciones(slug: string, texto: string): Promise<unknown>;
+    /** `pa <proy> --auditar <id> -m … --async`; no rechaza si `pa` falla: devuelve su código y lo último que dijo. */
+    auditar(x: { id: string; proyecto: string; modelo: string }): Promise<{ rc: number; dijo: string }>;
+    /** `pa <proy> --agents-md`: la plantilla si falta el archivo, y la ruta del proyecto. */
+    agentsMd(slug: string): Promise<unknown>;
+    /** Unificar instrucciones (electron/unificar-md.ts): el estado de CLAUDE/GEMINI/AGENTS.md, el plan, aplicarlo (con la huella del plan visto) y editar AGENTS.md. */
+    mdEstado(slug: string): Promise<unknown>;
+    mdPlan(slug: string): Promise<unknown>;
+    mdAplicar(slug: string, huella: string): Promise<unknown>;
+    leerAgents(slug: string): Promise<string>;
+    guardarAgents(slug: string, texto: string): Promise<unknown>;
     /** Los umbrales del anillo de contexto (`{ autoCompact }`, electron/contexto.ts), sin validar. */
     umbralContexto(): Promise<unknown>;
     medicion(): Promise<unknown>;
@@ -186,7 +205,9 @@ type Main = {
     routing(cambios: { rol: string; modelo: string | null; effort: string | null }[]): Promise<unknown>;
     /** La config de modelos (`~/.config/trama/modelos.json`) con la tabla efectiva de `pa --modelos --json` si existe; sin validar. */
     modelos(): Promise<unknown>;
-    /** Guarda esa config (atómico; rechaza con el motivo sin escribir) y pone al día las filas de `~/CLAUDE.md`; devuelve cómo quedó. */
+    /** Lo que `pa --modelos --json` dice que corre hoy (y lo que elegiría `reparto`): tarda, por eso va aparte de `modelos`. `null` sin `pa` o con uno viejo. */
+    efectivoModelos(): Promise<unknown>;
+    /** Guarda esa config (atómico; rechaza con el motivo sin escribir) (sólo `modelos.json`; las filas de `~/CLAUDE.md` no se tocan: eso es `routing`); devuelve cómo quedó. */
     guardarModelos(config: unknown): Promise<unknown>;
     /** Pregunta a un Ollama (`GET <url>/api/tags`) qué modelos tiene; nunca rechaza por no contestar. */
     sondearOllama(url: string): Promise<unknown>;
@@ -197,7 +218,27 @@ type Main = {
     bajadas(): Promise<unknown>;
     /** Qué hay en esta máquina para Ollama: si está instalado, la distro, la GPU con su VRAM y los comandos de instalar y arrancar; sólo lee. */
     entornoOllama(): Promise<unknown>;
+    /** DeepSeek Harness: si está instalado (y su versión), qué API keys hay (nunca el valor) y cómo instalarlo. */
+    estadoDsh(): Promise<unknown>;
+    /** `npm i -g @deepseek-ai/dsh`; rechaza con el motivo. Devuelve el estado de después. Sólo desde la PC. */
+    instalarDsh(): Promise<unknown>;
+    /** Guarda (o borra, con `null`) una API key en `claves.env`; devuelve el estado. Sólo desde la PC. */
+    claveDsh(nombre: string, valor: string | null): Promise<unknown>;
+    /** Prueba un proveedor (`opencode`, `deepseek`, `ollama`) con la key guardada; nunca rechaza por no contestar. */
+    probarDsh(proveedor: string, url?: string): Promise<unknown>;
+    /** `reparto --tabla --json`: cada modelo que reparto conoce con su inteligencia, cupo y si está permitido; `null` sin `reparto` o con uno viejo. */
+    repartoTabla(): Promise<unknown>;
+    /** Artificial Analysis: si hay key (nunca el valor) y de cuándo es la caché de inteligencias. */
+    estadoAA(): Promise<unknown>;
+    /** Baja la lista de Artificial Analysis ahora (ignora el día de vigencia); devuelve qué pasó y cómo quedó la caché. Sólo desde la PC. */
+    refrescarAA(): Promise<unknown>;
+    /** OpenCode (el programa `opencode`): instalado, versión, login y cuántos modelos ofrece. */
+    estadoOpencode(): Promise<unknown>;
+    /** Vuelve a listar los modelos (`opencode models --refresh`); rechaza con el motivo. Devuelve el estado de después. */
+    actualizarOpencode(): Promise<unknown>;
     alBajar(fn: (b: unknown) => void): Soltar;
+    /** Artificial Analysis terminó de bajar de fondo y la tabla de «Modelos para workers» tiene datos nuevos. */
+    alTablaNueva(fn: () => void): Soltar;
     /** Escribe el plan (`pa --plan`) y/o la red de seguridad (`autoCompactWindow`); rechaza con el motivo; devuelve Ajustes como quedó. */
     guardarAjustes(cambio: { plan?: string; red_seguridad?: number | null }): Promise<unknown>;
     /** El acceso desde el celular (`remoto.json`) y dónde está escuchando; por la tailnet, `{ editable: false }`. */
@@ -297,7 +338,7 @@ type Main = {
   /** El tablero de pendientes del usuario (electron/tablero.ts): `leer`, sin validar; el resto corre el CLI `tablero`. */
   tablero: {
     leer(): Promise<unknown>;
-    // Un id con prefijo (`dell:12`) es de un item de otra máquina: el main manda la acción a su tablero.
+    // Un id con prefijo (`servidor:12`) es de un item de otra máquina: el main manda la acción a su tablero.
     mover(id: number | string, columna: string): Promise<void>;
     cerrar(id: number | string): Promise<void>;
     tirar(id: number | string): Promise<void>;
@@ -326,9 +367,9 @@ type Main = {
     notificar(x: { sid: string; titulo: string; cuerpo: string }): Promise<void>;
     alAbrir(fn: (sid: string) => void): Soltar;
   };
-  /** El texto del portapapeles leído por el main (respaldo del Ctrl+V de la caja); por la tailnet no existe. */
+  /** El texto del portapapeles leído por el main (respaldo del Ctrl+V de la caja). El objeto existe también en el navegador, pero ahí el canal se rechaza: usalo sólo si `esVentana()`. */
   portapapeles?: { texto(): Promise<string> };
-  /** El selector nativo de carpetas (campo "Carpeta" de un líder nuevo): la ruta o `null` si se canceló; por la web no existe. */
+  /** El selector nativo de carpetas (campo "Carpeta" de un líder nuevo): la ruta o `null` si se canceló. El objeto existe también en el navegador, pero ahí el canal se rechaza: mostralo sólo si `esVentana()`. */
   carpeta?: { elegir(): Promise<string | null> };
   /** Vuelve a cargar la ventana (el cartel de error); por la tailnet no existe. */
   recargar?(): Promise<void>;
@@ -342,7 +383,7 @@ type Main = {
   dueno?: { nombre(): Promise<unknown> };
   /** El cartel "Hay una actualización disponible": un build de trama más nuevo que el que corre (electron/relanzar.ts), sin validar. */
   reinicio: { leer(): Promise<unknown>; pedir(igual?: boolean): Promise<void>; cancelar(): Promise<void>; marca(paso: string): Promise<void>; alCambiar(fn: (r: unknown) => void): Soltar };
-  /** La PC que el Dell sabe prender (electron/pc-estado.ts): su estado y Prender; sin PC configurada, `leer` da null. */
+  /** La PC que la otra máquina sabe prender (electron/pc-estado.ts): su estado y Prender; sin PC configurada, `leer` da null. */
   pc: { leer(): Promise<unknown>; prender(): Promise<unknown>; alCambiar(fn: (e: unknown) => void): Soltar };
   /** Volver como estaba tras ese reinicio (sólo la ventana): lo que tenía abierto y escrito (src/volver.ts). */
   volver: { leer(): Promise<unknown>; guardar(vista: unknown): Promise<void>; alPedir(fn: () => void): Soltar; anotar(vista: unknown): Promise<void> };
@@ -367,6 +408,12 @@ const sinBench: Bench = {
 // datos son los fixtures (ver MODO.fixtures).
 export const bench: Bench = window.hilos?.bench ?? sinBench;
 export const main: Main | null = window.hilos ?? null;
+
+/**
+ * ¿Es la ventana de Electron (la pantalla de la PC)? El navegador (tailnet o modo local) recibe el mismo objeto `main`,
+ * así que lo que es de la ventana (selector de carpetas, portapapeles del sistema, salir…) existe ahí aunque no funcione: se mira esto.
+ */
+export const esVentana = (): boolean => typeof navigator !== "undefined" && /\bElectron\//.test(navigator.userAgent);
 
 /**
  * Electron envuelve los rechazos del main ("Error invoking remote method 'x': Error: …"): queda sólo

@@ -2,7 +2,7 @@
 # agy-pa.sh <pre|post|inv> — hooks de agy (Antigravity CLI) para los workers Gemini de `pa`.
 #
 # agy no entiende los hooks de Claude: los suyos viven en un plugin (agy/pa-worker, que
-# instalar.sh enlaza en ~/.gemini/config/plugins/pa-worker) y hablan otro JSON (camelCase,
+# instalar-producto.sh enlaza en ~/.gemini/config/plugins/pa-worker) y hablan otro JSON (camelCase,
 # `toolCall.name`/`toolCall.args`, salida `{"decision":"deny","reason":…}`). Este adaptador
 # traduce y llama a LAS MISMAS guardias que un worker Claude:
 #
@@ -264,8 +264,10 @@ fi
 # latido.sh: el latido, y todas las guardias de un worker Claude (stash, add -A, commit -a,
 # release, cargo clean, dependencias con otro writer, allowlist de --leer, recorte de tests).
 modo=""; (( leer )) && modo=leer
-salida="$(printf '%s' "$claude_json" | bash "$LATIDO" "$PA_AGY_HB" pre $modo 2>"${TMPDIR:-/tmp}/agy-pa.$$.err")"; rc=$?
-motivo="$(cat "${TMPDIR:-/tmp}/agy-pa.$$.err" 2>/dev/null)"; rm -f "${TMPDIR:-/tmp}/agy-pa.$$.err"
+# stderr de latido.sh en un temporal propio (mktemp): un /tmp/agy-pa.$$.err predecible se podía pre-crear como symlink
+err_lat="$(mktemp "${TMPDIR:-/tmp}/agy-pa.XXXXXX" 2>/dev/null || true)"
+salida="$(printf '%s' "$claude_json" | bash "$LATIDO" "$PA_AGY_HB" pre $modo 2>"${err_lat:-/dev/null}")"; rc=$?
+motivo=""; [[ -n "$err_lat" ]] && { motivo="$(cat "$err_lat" 2>/dev/null)"; rm -f "$err_lat"; }
 (( rc == 2 )) && negar "${motivo:-BLOQUEADO por latido.sh.}"
 nuevo="$(printf '%s' "$salida" | jq -r '.hookSpecificOutput.updatedInput.command // empty' 2>/dev/null)"
 if [[ -n "$nuevo" && "$herramienta" == run_command ]]; then

@@ -5,11 +5,12 @@
 // carga ninguno. Sólo se edita desde la PC (por la tailnet el main rechaza guardar).
 import { useEffect, useMemo, useRef, useState, type FormEvent, type RefObject } from "react";
 import { Plus, X } from "lucide-react";
-import { Chip, Interruptor } from "../ui/componentes";
+import { Interruptor } from "../ui/componentes";
 import { VERSION, type Uso } from "../datos/contrato";
 import { fuente } from "../datos/fuente";
 import { fuentePaneles, type Bajada, type EntornoOllama, type EstadoModelos, type Sondeo } from "../datos/paneles";
-import { defDe } from "../hilo/modelos";
+import { defDe, EMPRESAS, type Empresa } from "../hilo/modelos";
+import { Logo } from "../hilo/Logos";
 import { effortsOpciones } from "../hilo/opciones";
 import { Selector, type Opcion } from "../hilo/Selector";
 import { t, textoMain, type ClaveSola } from "../i18n";
@@ -20,11 +21,13 @@ import { Acciones, type FilaDato } from "./AjustesEditar";
 import { AjustesCupos, CuposTarjetas } from "./AjustesCupos";
 import { Boton } from "../ui/componentes";
 import { Cat } from "./AjustesNav";
+import { PanelCargando } from "./PanelCargando";
+import { AjustesDsh } from "./AjustesDsh";
+import { ModelosParaWorkers } from "./AjustesWorkers";
 import { GuiaOllama, SugeridosOllama, textoBajada } from "./AjustesLocales";
 import { marcar } from "./ajustes-nav";
 import { avisosTope } from "./cupos-aviso";
 import {
-  agregarExcluido,
   agregarLocal,
   borradorDe,
   configDe,
@@ -44,9 +47,7 @@ import {
   ponerDestrabar,
   ponerPermitirMax,
   porcentaje,
-  quitarExcluido,
   quitarLocal,
-  FAMILIAS,
   sucio,
   textoEleccion,
   TIPOS,
@@ -59,12 +60,20 @@ import {
   type Tipo,
 } from "./modelos-borrador";
 import { esClaude, urlOllama } from "../../electron/modelos-tipos";
+import type { EfectivoPa } from "../../electron/modelos-config";
 
 /** Para las capturas: `mdl` (con archivo), `mdl-agregar` (con el panel de otra dirección abierto), `mdl-lider` (el selector del líder abierto), `mdl-bajando` (un modelo a mitad de bajada), `mdl-sinollama` (Ollama sin instalar), `mdl-apagado` (instalado y apagado), `mdl-sugeridos` (los modelos sugeridos), `mdl-tope` (el aviso de un tope cruzado) y `sinmdl` (sin archivo). */
 const VARIANTE = MODO.variante ?? "";
 const ES_CAPTURA = VARIANTE.startsWith("mdl") || VARIANTE === "sinmdl";
 
-const GRUPO: Record<Proveedor, string | undefined> = { anthropic: "Anthropic", google: "Google", ollama: "Ollama", otro: undefined };
+const GRUPO: Record<Proveedor, string> = { anthropic: "Anthropic", google: "Google", ollama: "Ollama", otro: "" };
+/** El logo y el lugar de cada proveedor en el menú en columnas (los de Ollama van en "Local", como en el selector de modelos del hilo). */
+const COLUMNA: Record<Proveedor, { empresa: Empresa; col: string; colNombre: string; colOrden: number } | null> = {
+  anthropic: { empresa: "anthropic", col: "anthropic", colNombre: EMPRESAS.anthropic, colOrden: 0 },
+  google: { empresa: "google", col: "google", colNombre: EMPRESAS.google, colOrden: 1 },
+  ollama: { empresa: "ollama", col: "local", colNombre: EMPRESAS.local, colOrden: 3 },
+  otro: null,
+};
 
 const sinMarca = (o: Opcion): Opcion => ({ ...o, rec: false });
 
@@ -81,15 +90,25 @@ function descDe(m: Modelo): string {
 
 /** Las opciones de un selector de modelo, con "Como hoy" delante cuando se puede dejar sin elegir. */
 function opcionesDe(modelos: Modelo[], comoHoy: boolean): Opcion[] {
-  const ops = modelos.map((m): Opcion => ({ id: m.id, nombre: m.nombre, desc: descDe(m), grupo: GRUPO[m.proveedor] }));
+  const ops = modelos.map((m): Opcion => {
+    const c = COLUMNA[m.proveedor];
+    if (!c) return { id: m.id, nombre: m.nombre, desc: descDe(m), grupo: t("mdl.grupoOtro"), col: "otro", colOrden: 4 };
+    return {
+      id: m.id,
+      nombre: m.nombre,
+      desc: descDe(m),
+      grupo: GRUPO[m.proveedor],
+      marca: <Logo empresa={c.empresa} />,
+      col: c.col,
+      colNombre: c.colNombre,
+      colMarca: <Logo empresa={c.col === "local" ? "local" : c.empresa} />,
+      colOrden: c.colOrden,
+    };
+  });
   const cab: Opcion[] = [];
   if (comoHoy) cab.push({ id: "", nombre: t("ajustes.mdlComoHoy"), desc: t("ajustes.mdlComoHoyQue") });
   return [...cab, ...ops];
 }
-
-/** Cómo se llama en la lista de "no se usan" lo que `excluir` guarda (una familia, un id o un prefijo con `*`). */
-const NOMBRE_FAMILIA: Record<string, string> = { fable: "Fable", opus: "Opus", sonnet: "Sonnet", haiku: "Haiku", argon: "Gemini Argon", flash: "Gemini Flash", "gpt-oss": "GPT-OSS" };
-const nombreExcluido = (id: string) => NOMBRE_FAMILIA[id] ?? id;
 
 const gb = (n: number | null) => (n === null ? "" : `${(n / 1e9).toFixed(1)} GB`);
 
@@ -117,7 +136,7 @@ function EleccionSel({
   const claude = valor && esClaude(valor.modelo);
   return (
     <div className="pn-sel">
-      <Selector etiqueta={t("ajustes.mdlSelModelo", { que: etiqueta })} opciones={ops} valor={valor?.modelo ?? ""} alElegir={alModelo} reserva={[]} abierto={abierto} />
+      <Selector etiqueta={t("ajustes.mdlSelModelo", { que: etiqueta })} opciones={ops} valor={valor?.modelo ?? ""} alElegir={alModelo} reserva={[]} abierto={abierto} columnas />
       {claude ? (
         <Selector
           etiqueta={t("ajustes.mdlSelEsfuerzo", { que: etiqueta })}
@@ -147,11 +166,26 @@ export function AjustesModelos({ Dato, plan = null }: { Dato: FilaDato; plan?: s
   const [listo, setListo] = useState<string | null>(null);
   const [uso, setUso] = useState<Uso | null>(null);
   const [entorno, setEntorno] = useState<EntornoOllama | null>(null);
+  // Lo que `pa --modelos` dice que corre hoy tarda (corre `reparto` por tipo): la config se muestra sin esperarlo y esto llega después.
+  const [efectivo, setEfectivo] = useState<EfectivoPa | null | "pendiente">("pendiente");
   const vivo = useRef(true);
+  const pedidoEfectivo = useRef(0);
   const sondeados = useRef(new Set<string>());
   const sec = useRef<HTMLElement>(null);
-  useEffect(() => () => void (vivo.current = false), []);
+  useEffect(() => {
+    vivo.current = true;
+    return () => void (vivo.current = false);
+  }, []);
 
+  /** Pide lo que corre hoy; un fallo (o un `pa` viejo) deja `null` y el panel lo arma del borrador. */
+  const pedirEfectivo = () => {
+    const mio = ++pedidoEfectivo.current;   // si hay otro pedido en el aire (se guardó mientras tanto), contesta el último
+    setEfectivo("pendiente");
+    void fuentePaneles.efectivoModelos().then(
+      (x) => vivo.current && mio === pedidoEfectivo.current && setEfectivo(x),
+      () => vivo.current && mio === pedidoEfectivo.current && setEfectivo(null),
+    );
+  };
   useEffect(() => {
     fuentePaneles.modelos().then(
       (r) => {
@@ -159,6 +193,7 @@ export function AjustesModelos({ Dato, plan = null }: { Dato: FilaDato; plan?: s
         if (r.version !== VERSION) return setFalla(t("error.version", { que: t("ajustes.mdlTitulo"), v: r.version, conozco: VERSION }));
         setE(r);
         setB(borradorDe(r));
+        pedirEfectivo();
         if (VARIANTE === "mdl-agregar") void detectar(URL_OLLAMA);
       },
       (x) => vivo.current && setFalla(mensaje(x)),
@@ -224,7 +259,7 @@ export function AjustesModelos({ Dato, plan = null }: { Dato: FilaDato; plan?: s
   useEffect(() => {
     if (!visible || !ES_CAPTURA) return;
     // Captura: `mdl-agregar` deja a la vista los locales y su panel; el resto, la cabecera de la sección.
-    const mira = sec.current?.querySelector(VARIANTE === "mdl-agregar" ? ".mdl-panel" : VARIANTE === "mdl-bajando" || VARIANTE === "mdl-sinollama" || VARIANTE === "mdl-apagado" ? ".mdl-ollama" : VARIANTE === "mdl-sugeridos" ? ".ol-sug" : VARIANTE === "mdl-tope" ? ".mdl-cruce" : "x:not(x)");
+    const mira = sec.current?.querySelector(VARIANTE === "mdl-agregar" ? ".mdl-panel" : VARIANTE === "mdl-bajando" || VARIANTE === "mdl-sinollama" || VARIANTE === "mdl-apagado" ? ".mdl-ollama" : VARIANTE.startsWith("mdl-wk") ? ".mdl-wk" : VARIANTE === "mdl-sugeridos" ? ".ol-sug" : VARIANTE === "mdl-tope" ? ".mdl-cruce" : "x:not(x)");
     if (mira) mira.scrollIntoView({ block: "center" });
     else sec.current?.scrollIntoView({ block: "start" });
   }, [visible]);
@@ -256,7 +291,12 @@ export function AjustesModelos({ Dato, plan = null }: { Dato: FilaDato; plan?: s
         <div className="pn-aviso" data-error>{textoMain(falla)}</div>
       </Cat>
     );
-  if (!e || !b) return null;
+  if (!e || !b)
+    return (
+      <Cat id="modelos">
+        <PanelCargando />
+      </Cat>
+    );
 
   const cambiar = (nuevo: Borrador) => {
     setB(nuevo);
@@ -283,6 +323,7 @@ export function AjustesModelos({ Dato, plan = null }: { Dato: FilaDato; plan?: s
       setE(nuevo);
       setB(borradorDe(nuevo));
       setOk(true);
+      pedirEfectivo();
     } catch (x) {
       if (vivo.current) setError(mensaje(x));
     } finally {
@@ -291,9 +332,10 @@ export function AjustesModelos({ Dato, plan = null }: { Dato: FilaDato; plan?: s
   };
 
   // Con lo guardado a la vista, `pa` dice con qué corre cada cosa; si no, se calcula del borrador.
-  const deLider = (): Eleccion => (!hayCambio && e.efectivo?.lider) || liderEfectivo(b);
+  const ef = efectivo === "pendiente" ? null : efectivo;
+  const deLider = (): Eleccion => (!hayCambio && ef?.lider) || liderEfectivo(b);
   const soloGemini = e.solo_gemini === true;
-  const deTipo = (tipo: Tipo): Eleccion => (!hayCambio && e.efectivo?.workers[tipo]) || efectivoBorrador(b, tipo, soloGemini);
+  const deTipo = (tipo: Tipo): Eleccion => (!hayCambio && ef?.workers[tipo]) || efectivoBorrador(b, tipo, soloGemini);
 
   const abrirAgregar = () => {
     if (ag) return setAg(null);
@@ -369,12 +411,13 @@ export function AjustesModelos({ Dato, plan = null }: { Dato: FilaDato; plan?: s
               <h3 className="pn-sub-h">{t("ajustes.mdlHoyElegiria")}</h3>
               <ul className="pn-disp mdl-hoy" aria-label={t("ajustes.mdlHoyElegiria")}>
                 {TIPOS.map((tipo) => {
-                  const h = e.efectivo?.reparto?.[tipo];
+                  const h = ef?.reparto?.[tipo];
+                  const esperando = efectivo === "pendiente";
                   return (
                     <li key={tipo} data-tipo={tipo}>
                       <span className="mdl-hoy-tipo" data-tip={t(`mdl.t.${tipo}Que` as ClaveSola)}>{t(`mdl.t.${tipo}` as ClaveSola)}</span>
-                      <span className="mdl-hoy-modelo" data-vacio={h ? undefined : ""} data-tip={h ? textoMain(h.motivo) : undefined}>
-                        {h ? textoEleccion({ modelo: h.modelo, ...(h.effort ? { effort: h.effort } : {}) }, locales) : t("ajustes.mdlHoySin")}
+                      <span className="mdl-hoy-modelo" data-vacio={h || esperando ? undefined : ""} data-cargando={esperando ? "" : undefined} data-tip={h ? textoMain(h.motivo) : undefined} aria-busy={esperando || undefined}>
+                        {esperando ? <span className="pn-cargando-barra" aria-hidden /> : h ? textoEleccion({ modelo: h.modelo, ...(h.effort ? { effort: h.effort } : {}) }, locales) : t("ajustes.mdlHoySin")}
                       </span>
                     </li>
                   );
@@ -392,6 +435,7 @@ export function AjustesModelos({ Dato, plan = null }: { Dato: FilaDato; plan?: s
                     valor=""
                     alElegir={(id) => cambiar(todoEn(b, id))}
                     reserva={enOtros("ajustes.mdlTodoElegir")}
+                    columnas
                   />
                 </div>
               </Dato>
@@ -421,45 +465,7 @@ export function AjustesModelos({ Dato, plan = null }: { Dato: FilaDato; plan?: s
             </>
           )}
 
-          <Dato nombre="ajustes.mdlExcluir" que="ajustes.mdlExcluirQue">
-            <div className="mdl-excluir">
-              <ul className="mdl-chips" aria-label={t("ajustes.mdlExcluir")}>
-                {b.excluir.length ? (
-                  b.excluir.map((id) => (
-                    <li key={id}>
-                      <Chip>
-                        {nombreExcluido(id)}
-                        <button type="button" className="pn-quitar" aria-label={t("ajustes.mdlExcluirQuitar", { que: nombreExcluido(id) })} data-tip={t("ajustes.mdlExcluirQuitar", { que: nombreExcluido(id) })} onClick={() => cambiar(quitarExcluido(b, id))}>
-                          <X size={12} aria-hidden />
-                        </button>
-                      </Chip>
-                    </li>
-                  ))
-                ) : (
-                  <li className="pn-falta">
-                    <Fijo k="ajustes.mdlExcluirNinguno" />
-                  </li>
-                )}
-              </ul>
-              <div className="pn-sel">
-                <Selector
-                  etiqueta={t("ajustes.mdlExcluirSel")}
-                  opciones={[{ id: "", nombre: t("ajustes.mdlExcluirAgregar"), desc: "" }, ...FAMILIAS.filter((f) => !b.excluir.includes(f)).map((f): Opcion => ({ id: f, nombre: nombreExcluido(f), desc: "" }))]}
-                  valor=""
-                  alElegir={(id) => cambiar(agregarExcluido(b, id))}
-                  reserva={enOtros("ajustes.mdlExcluirAgregar")}
-                />
-              </div>
-              {!b.excluir.includes("fable") ? (
-                <div className="mdl-sug">
-                  <Fijo k="ajustes.mdlFableSug" bloque className="pn-nota" />
-                  <button type="button" className="btn2" onClick={() => cambiar(agregarExcluido(b, "fable"))}>
-                    <Fijo k="ajustes.mdlFableBtn" />
-                  </button>
-                </div>
-              ) : null}
-            </div>
-          </Dato>
+          <ModelosParaWorkers b={b} cambiar={cambiar} />
 
           <Dato nombre="ajustes.mdlPermitirMax" que="ajustes.mdlPermitirMaxQue">
             <Interruptor activo={b.permitir_max} alCambiar={(v) => cambiar(ponerPermitirMax(b, v))} aria-label={t("ajustes.mdlPermitirMax")} />
@@ -653,6 +659,8 @@ export function AjustesModelos({ Dato, plan = null }: { Dato: FilaDato; plan?: s
 
         </section>
       </Cat>
+
+      <AjustesDsh Dato={Dato} />
 
       <Cat id="cupos" orden={1}>
         <CuposTarjetas b={b} uso={uso} plan={plan} />

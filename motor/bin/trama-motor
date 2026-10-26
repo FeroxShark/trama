@@ -5,10 +5,10 @@
 #   trama-motor start|stop|restart    la unit de usuario; sin systemd de usuario lo lanza suelto (start) / lo baja (stop)
 #   trama-motor status                trama-estado en palabras
 #   trama-motor logs                  journalctl --user -u trama-motor -f
+#   trama-motor abrir|url             abre (abrir, con xdg-open) o sólo imprime (url) http://localhost:<puerto>/?t=<token>
 #
 # Dónde está la app: $TRAMA_APP, si no la ruta que dejó instalar-producto.sh en ~/.config/trama/app.
-# Node puro (como el Dell): sin Electron ni pantalla. TRAMA_LOCAL=1 = el motor escucha en 127.0.0.1:8791.
-# Doc: docs/instalacion-de-producto-trama.md
+# Node puro (como el motor del servidor): sin Electron ni pantalla. TRAMA_LOCAL=1 = el motor escucha en 127.0.0.1:8791.
 set -euo pipefail
 
 CONF="${XDG_CONFIG_HOME:-$HOME/.config}/trama"
@@ -21,10 +21,22 @@ correr() {
     || { echo "trama-motor: no encuentro la app (TRAMA_APP o $CONF/app); corré instalar-producto.sh" >&2; exit 2; }
   export HILOS_MOTOR=1 TRAMA_UNIDAD=1 TRAMA_LOCAL=1
   export PATH="$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
+  # Lanzado suelto en WSL (sin la unit) vale la misma excepción que en instalar-producto.sh: la carcasa de Windows aún no manda el token.
+  if [[ -z "${TRAMA_TOKEN:-}" ]] && grep -qi microsoft /proc/version 2>/dev/null; then export TRAMA_TOKEN=0; fi
   exec node "$app/dist-electron/motor.js"
 }
 
 con_systemd() { systemctl --user show-environment >/dev/null 2>&1 && [[ -f "$HOME/.config/systemd/user/trama-motor.service" ]]; }
+
+# La URL con el token de la instalación (lo crea el motor al arrancar): el navegador lo cambia por una cookie y lo saca de la barra.
+url_con_token() {
+  local f="$CONF/token" t=""
+  [[ -r "$f" ]] && t="$(<"$f")"
+  [[ -n "$t" ]] || { echo "trama-motor: no hay token en $f; arrancá el motor ('trama-motor start') y probá de nuevo" >&2; return 1; }
+  local p="${TRAMA_PUERTO:-8791}"
+  [[ "$p" =~ ^[0-9]+$ ]] && (( p >= 1024 && p <= 65535 )) || p=8791
+  echo "http://localhost:$p/?t=$t"
+}
 
 pid_suelto="$estado_dir/trama-motor.pid"
 
@@ -41,7 +53,13 @@ case "${1:-run}" in
     if con_systemd; then exec systemctl --user stop trama-motor.service; fi
     if [[ -f "$pid_suelto" ]] && kill -0 "$(<"$pid_suelto")" 2>/dev/null; then kill "$(<"$pid_suelto")"; rm -f "$pid_suelto"; echo "trama-motor: detenido"; fi ;;
   restart) "$0" stop || true; sleep 1; exec "$0" start ;;
+  url) url_con_token ;;
+  abrir)
+    u="$(url_con_token)" || exit 1
+    echo "$u"
+    if command -v xdg-open >/dev/null 2>&1; then xdg-open "$u" >/dev/null 2>&1 || echo "trama-motor: xdg-open falló; abrí la URL de arriba a mano" >&2
+    else echo "trama-motor: no hay xdg-open; abrí la URL de arriba en el navegador" >&2; fi ;;
   status) exec trama-estado ;;
   logs) exec journalctl --user -u trama-motor.service -f ;;
-  *) echo "uso: trama-motor [run|start|stop|restart|status|logs]" >&2; exit 2 ;;
+  *) echo "uso: trama-motor [run|start|stop|restart|status|logs|abrir|url]" >&2; exit 2 ;;
 esac

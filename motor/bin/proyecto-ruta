@@ -9,6 +9,10 @@
 #   proyecto-ruta omc        -> $HOME/omc
 #   proyecto-ruta cartera    -> $HOME/cartera-usd   (match por substring)
 #   proyecto-ruta --listar   -> nombres, uno por línea
+#
+# Un proyecto también responde a su nombre para mostrar (`titulo`, el que se pone con `pa --renombrar`) y a sus
+# `alias`/`aliases` del registry: `proyecto-ruta Shark` == `proyecto-ruta asistente-voz`. El slug, la ruta, las
+# ramas y la carpeta de estado no cambian nunca.
 set -euo pipefail
 
 REGISTRY="${PROYECTOS_REGISTRY:-$HOME/.config/proyectos/registry.json}"
@@ -30,12 +34,30 @@ ruta=$(jq -r --arg q "$sel" '.projects[] | select(.name==$q) | .path' "$REGISTRY
 # `pa miapp` salía ambiguo aunque uno de los dos se llama exactamente así.
 [[ -n "$ruta" ]] || ruta=$(jq -r --arg q "${sel,,}" \
   '.projects[] | select((.name|ascii_downcase)==$q) | .path' "$REGISTRY" | head -n1)
+# nombre para mostrar (`titulo`) y alias: exactos sin distinguir mayúsculas, antes del substring. Dos carpetas
+# distintas con el mismo alias es ambiguo, no se elige la primera.
+JQ_ALIAS='def nombres: [(.titulo // empty), ((.alias // empty) | if type=="array" then .[] else . end), ((.aliases // empty) | if type=="array" then .[] else . end)] | map(select(type=="string" and . != "") | ascii_downcase);'
+if [[ -z "$ruta" ]]; then
+  mapfile -t por_alias < <(jq -r --arg q "${sel,,}" "$JQ_ALIAS"'
+    .projects[] | select(nombres | index($q)) | "\(.name)\t\(.path)"' "$REGISTRY")
+  if (( ${#por_alias[@]} > 0 )); then
+    # varios nombres para la MISMA carpeta no son ambiguos (el path puede venir con ~ o con symlink: se compara resuelto)
+    mapfile -t rutas_alias < <(printf '%s\n' "${por_alias[@]}" | cut -f2 | while IFS= read -r r; do r="${r/#\~/$HOME}"; [[ -f "$r" ]] && r="$(dirname "$r")"; readlink -f "$r" 2>/dev/null || echo "$r"; done | sort -u)
+    if (( ${#rutas_alias[@]} > 1 )); then
+      echo "proyecto-ruta: '$sel' es el nombre de más de un proyecto:" >&2
+      printf '  %s\n' "${por_alias[@]}" >&2
+      echo "usá el nombre exacto del registry." >&2
+      exit 1
+    fi
+    ruta="${por_alias[0]#*$'\t'}"
+  fi
+fi
 if [[ -z "$ruta" ]]; then
   # Ambigüedad: antes se resolvía al primero EN SILENCIO, así que `proyecto-ruta modo` devolvía
   # `modos` sin avisar y el worker trabajaba en el proyecto equivocado. Ahora falla y muestra
   # los candidatos: elegir por el usuario es más barato que deshacer un worker mal apuntado.
   mapfile -t cands < <(jq -r --arg q "${sel,,}" \
-    '.projects[] | select((.name|ascii_downcase)|contains($q)) | "\(.name)\t\(.path)"' "$REGISTRY")
+    '.projects[] | select(((.name|ascii_downcase)|contains($q)) or (((.titulo // "")|ascii_downcase)|contains($q) and ($q != ""))) | "\(.name)\t\(.path)"' "$REGISTRY")
   # Varios nombres que apuntan a la MISMA carpeta no son ambiguos: son alias. El registry
   # tiene "mpvpaper-guard" y "mpvpaper-guard / vram-guard" para el mismo script.
   # `grep -c .` sale 1 cuando cuenta cero, y con `set -e` eso mataba al script ACÁ:

@@ -1,4 +1,4 @@
-// Dictar (docs/estado/dictado.md): el WAV del cliente (src/hilo/dictado.ts) y la transcripción del motor
+// Dictar: el WAV del cliente (src/hilo/dictado.ts) y la transcripción del motor
 // (electron/dictado.ts) con un `handy` falso (`ejecutar`): nunca el de verdad.
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
@@ -91,7 +91,7 @@ test("transcribir: pasa el WAV por --transcribe-file, devuelve el texto y borra 
 
 test("transcribir: handy que falta, que falla, que tarda o que no dice nada → mensaje con clave, y el archivo se borra", async () => {
   const caso = async (ejecutar: Ejecutar, re: RegExp, timeoutMs?: number) => {
-    await assert.rejects(transcribir({ datos: wav() }, { dir, ejecutar, timeoutMs }), re);
+    await assert.rejects(transcribir({ datos: wav() }, { dir, bin: "handy", ejecutar, timeoutMs }), re);
     sinSobras();
   };
   await caso(async () => Promise.reject(Object.assign(new Error("spawn handy ENOENT"), { code: "ENOENT" })), /dictadoFalta/);
@@ -105,8 +105,8 @@ test("transcribir: de a una, en el orden en que llegan", async () => {
   let libre!: () => void;
   const primera: Ejecutar = () => new Promise((ok) => (libre = () => (orden.push("a-fin"), ok("a"))));
   const segunda: Ejecutar = async () => (orden.push("b"), "b");
-  const a = transcribir({ datos: wav() }, { dir, ejecutar: primera });
-  const b = transcribir({ datos: wav() }, { dir, ejecutar: segunda });
+  const a = transcribir({ datos: wav() }, { dir, bin: "handy", ejecutar: primera });
+  const b = transcribir({ datos: wav() }, { dir, bin: "handy", ejecutar: segunda });
   await new Promise((r) => setTimeout(r, 50));
   assert.deepEqual(orden, []);
   libre();

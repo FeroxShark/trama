@@ -1,24 +1,25 @@
 #!/usr/bin/env bash
+# Herramienta de desarrollo del autor; supone Hyprland (hyprctl), inotifywait y jq.
 # Bench: abre la app en una ventana flotante chica, en la esquina del
 # workspace ACTIVO del monitor pedido, sin robar foco; la app corre su guion
 # (~13 s), escribe el JSON y se cierra sola. Imprime un resumen de una línea
 # (y, con el guion de la barra, una por fase: hover, cerrar, colapso).
 #
-# uso: scripts/bench.sh <monitor> <etiqueta> [VAR=valor ...]
+# uso: scripts/dev/bench.sh <monitor> <etiqueta> [VAR=valor ...]
 #   HILOS_FLAGS="disable-gpu use-angle=gl"  switches de Chromium extra
 #   HILOS_GUION=b0  la pantalla de prueba de B0 en vez de la barra
 #   HILOS_GPU=1     con GPU (el default es sin)
 #   TAM="1200 800" tamaño de la ventana (default 640 480)
 #   MOV="100%-1220 100%-820" posición (acompañar a TAM)
-#   ej: scripts/bench.sh HDMI-A-2 base
-#       scripts/bench.sh HDMI-A-2 con-gpu HILOS_GPU=1
+#   ej: scripts/dev/bench.sh DP-1 base
+#       scripts/dev/bench.sh DP-1 con-gpu HILOS_GPU=1
 #
 # Por qué visible y no en un workspace libre "silent": sin estar en pantalla
 # Hyprland no manda frame callbacks y el rAF se frena; los fps saldrían basura.
 # Requiere el build: `npm run build`.
 set -euo pipefail
 
-raiz="$(cd "$(dirname "$0")/.." && pwd)"
+raiz="$(cd "$(dirname "$0")/../.." && pwd)"
 mon="${1:?monitor}"; etiqueta="${2:?etiqueta}"; shift 2
 # El binario real, no node_modules/.bin/electron (cli.js lo lanzaría como hijo
 # y las reglas de Hyprland y el pid de la ventana quedarían en otro proceso).

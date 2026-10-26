@@ -168,7 +168,10 @@ test("líder de agy (gemini-* o agy:*): el menú ofrece sólo /clear, /model, /e
       "pa-worker:ana-orquestar",
       "pa-worker:gemini",
     ]);
+    // El segundo nivel de /model ofrece todos: uno de otro motor sigue la conversación en una sesión nueva (la caja pide confirmación).
     assert.deepEqual(sugerencias("/model ", mixtos, valores, mod).map((s) => s.valor), [
+      "opus",
+      "ollama:qwen3.5:9b",
       "gemini-4-argon",
       "gemini-3.8-flash",
       "agy:claude-opus-5-5",
@@ -182,10 +185,10 @@ test("líder de agy (gemini-* o agy:*): el menú ofrece sólo /clear, /model, /e
   assert.deepEqual(parsearComando("/compact", [], [], [], "gemini-4-argon"), { tipo: "texto" });
   assert.deepEqual(parsearComando("/compact ahora seguí con X", [], [], [], "gemini-4-argon"), { tipo: "texto" });
   assert.deepEqual(sugerencias("/comp", mixtos, valores, "gemini-3.8-flash").map((s) => s.nombre), ["compact"]);
-  assert.deepEqual(sugerencias("/model ", mixtos, valores, "ollama:qwen3.5:9b").map((s) => s.valor), ["opus", "ollama:qwen3.5:9b"]);
+  assert.deepEqual(sugerencias("/model ", mixtos, valores, "ollama:qwen3.5:9b").map((s) => s.valor), ["opus", "ollama:qwen3.5:9b", "gemini-4-argon", "gemini-3.8-flash", "agy:claude-opus-5-5"]);
 });
 
-test("parsearComando: /model que cruza entre agy y claude devuelve comando.cambioProveedor; en agy los modos y output-style van como texto", () => {
+test("parsearComando: /model cruza entre agy y claude sin error (la caja pide la confirmación); en agy los modos y output-style van como texto", () => {
   const todos = [
     ...MODELOS,
     { id: "ollama:qwen3.5:9b", clave: "ollama:qwen3.5:9b" },
@@ -196,9 +199,9 @@ test("parsearComando: /model que cruza entre agy y claude devuelve comando.cambi
   const effAgy = ["low", "medium", "high"];
   assert.deepEqual(parsearComando("/model gemini-3.8-flash", todos, effAgy, [], "gemini-4-argon"), { tipo: "modelo", modelo: "gemini-3.8-flash" });
   assert.deepEqual(parsearComando("/model agy:claude-opus-5-5", todos, effAgy, [], "gemini-4-argon"), { tipo: "modelo", modelo: "agy:claude-opus-5-5" });
-  assert.deepEqual(parsearComando("/model opus", todos, effAgy, [], "gemini-4-argon"), { tipo: "error", clave: "comando.cambioProveedor", v: "claude-opus-5-5" });
-  assert.deepEqual(parsearComando("/model gemini-4-argon", todos, EFFORTS, [], "claude-opus-5-5"), { tipo: "error", clave: "comando.cambioProveedor", v: "gemini-4-argon" });
-  assert.deepEqual(parsearComando("/model agy:claude-opus-5-5", todos, EFFORTS, [], "ollama:qwen3.5:9b"), { tipo: "error", clave: "comando.cambioProveedor", v: "agy:claude-opus-5-5" });
+  assert.deepEqual(parsearComando("/model opus", todos, effAgy, [], "gemini-4-argon"), { tipo: "modelo", modelo: "claude-opus-5-5" });
+  assert.deepEqual(parsearComando("/model gemini-4-argon", todos, EFFORTS, [], "claude-opus-5-5"), { tipo: "modelo", modelo: "gemini-4-argon" });
+  assert.deepEqual(parsearComando("/model agy:claude-opus-5-5", todos, EFFORTS, [], "ollama:qwen3.5:9b"), { tipo: "modelo", modelo: "agy:claude-opus-5-5" });
   assert.deepEqual(parsearComando("/plan", todos, effAgy, [], "gemini-4-argon"), { tipo: "texto" });
   assert.deepEqual(parsearComando("/output-style Concise", todos, effAgy, ["Concise"], "gemini-4-argon"), { tipo: "texto" });
 });
@@ -232,4 +235,41 @@ test("marca de proveedor: sólo si el otro lado se conoce; lo compartido y lo de
   assert.equal(marcaDe("Security-Review", false, agy), undefined);
   // Llega por menuEn (con el token en medio de la caja).
   assert.equal(menuEn("hola /desi", 10, claude, {}, false, agy)!.filas[0].solo, "anthropic");
+});
+
+test("parsearComando: un líder de dsh puede seguir con Claude, Gemini u otro dsh con /model; un nombre que la tabla no conoce sigue siendo un error de uso", () => {
+  const todos = [...MODELOS, { id: "gemini-4-argon", clave: "gemini-4-argon" }, { id: "dsh:opencode/big-pickle", clave: "dsh:opencode/big-pickle" }, { id: "dsh:deepseek/deepseek-v4-flash", clave: "dsh:deepseek/deepseek-v4-flash" }];
+  const actual = "dsh:opencode/big-pickle";
+  assert.deepEqual(parsearComando("/model dsh:deepseek/deepseek-v4-flash", todos, [], [], actual), { tipo: "modelo", modelo: "dsh:deepseek/deepseek-v4-flash" });
+  assert.deepEqual(parsearComando("/model opus", todos, [], [], actual), { tipo: "modelo", modelo: "claude-opus-5-5" });
+  assert.deepEqual(parsearComando("/model gemini-4-argon", todos, [], [], actual), { tipo: "modelo", modelo: "gemini-4-argon" });
+  // Y al revés: Claude y Gemini pasan a dsh.
+  assert.deepEqual(parsearComando("/model dsh:opencode/big-pickle", todos, EFFORTS, [], "claude-opus-5-5"), { tipo: "modelo", modelo: "dsh:opencode/big-pickle" });
+  assert.deepEqual(parsearComando("/model dsh:opencode/big-pickle", todos, EFFORTS, [], "gemini-4-argon"), { tipo: "modelo", modelo: "dsh:opencode/big-pickle" });
+  // Lo que la tabla no conoce no es un cambio de motor: es un uso incorrecto del comando.
+  assert.deepEqual(parsearComando("/model dsh:nube/x", MODELOS, EFFORTS, [], "claude-opus-5-5"), { tipo: "error", clave: "comando.usoModelo", v: "dsh:nube/x" });
+  assert.deepEqual(parsearComando("/model opus", [], [], [], actual), { tipo: "error", clave: "comando.usoModelo", v: "opus" });
+});
+
+test("/effort en OpenCode: el menú ofrece los niveles del modelo puesto; sin niveles no se ofrece", () => {
+  const con = { effort: { lista: [{ valor: "low", desc: null }, { valor: "high", desc: null }], actual: "low" } };
+  const sin = { effort: { lista: [], actual: null } };
+  const args = (v: Parameters<typeof sugerencias>[2], m: string) => sugerencias("/eff", [], v, m).find((s) => s.nombre === "effort")?.args;
+  assert.equal(args(con, "opencode:opencode/beam-free"), "<low|high>");
+  assert.equal(args(con, "dsh:nube/x"), "<low|high>");
+  assert.equal(args(sin, "opencode:opencode/big-pickle"), undefined);
+  assert.equal(args(sin, "dsh:nube/x"), undefined);
+  // Claude no cambia.
+  assert.equal(args(con, "claude-opus-5-5"), "<low|medium|high|xhigh|max>");
+  assert.equal(menuEn("/eff", 4, [], sin, "opencode:opencode/big-pickle")?.filas.some((s) => s.nombre === "effort"), false);
+});
+
+test("/effort sin niveles dice que no hay; sin argumento muestra el uso; con niveles, igual que antes", () => {
+  const oc = "opencode:opencode/big-pickle";
+  assert.deepEqual(parsearComando("/effort high", MODELOS, [], [], oc), { tipo: "error", clave: "comando.sinEffortOpencode", v: "high" });
+  assert.deepEqual(parsearComando("/effort", MODELOS, [], [], oc), { tipo: "error", clave: "comando.sinEffortOpencode", v: "" });
+  assert.deepEqual(parsearComando("/effort", MODELOS, [], [], "dsh:nube/x"), { tipo: "error", clave: "comando.sinEffort", v: "" });
+  assert.deepEqual(parsearComando("/effort", MODELOS, ["low", "high"], [], "opencode:opencode/beam-free"), { tipo: "error", clave: "comando.usoEffortVacio", v: "" });
+  assert.deepEqual(parsearComando("/effort max", MODELOS, ["low", "high"], [], "opencode:opencode/beam-free"), { tipo: "error", clave: "comando.usoEffort", v: "max" });
+  assert.deepEqual(parsearComando("/effort HIGH", MODELOS, ["low", "high"], [], "opencode:opencode/beam-free"), { tipo: "effort", effort: "high" });
 });

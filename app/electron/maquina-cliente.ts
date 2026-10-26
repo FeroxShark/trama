@@ -1,10 +1,10 @@
-// La trama de la PC como cliente del motor de OTRA máquina (el Dell), por TCP en la tailnet: el mismo
+// La trama de la PC como cliente del motor de OTRA máquina, por TCP en la tailnet: el mismo
 // `/rpc` y los mismos eventos (`/eventos`, numerados) de remoto.ts, que es lo que ya sirve cualquier motor
 // con `remoto.json`. Es lo que hace ventana-cliente.ts con el socket local, pero sin Electron y para
 // una máquina que se puede apagar: en vez de decir "Reconectando" sin parar, tiene tres fases
 // (`conectando`, `conectada`, `caida`) y reintenta cada vez más espaciado.
-// Quién es: la IP de la PC la autentica Tailscale en el Dell (`tailscale whois`, remoto.ts): acá no se manda
-// ninguna credencial. El Dell nunca manda en la PC: este cliente sólo sale, nunca escucha.
+// Quién es: la IP de la PC la autentica Tailscale en la otra máquina (`tailscale whois`, remoto.ts): acá no se manda
+// ninguna credencial. La otra máquina nunca manda en la PC: este cliente sólo sale, nunca escucha.
 // Un cliente de Node no es un navegador y no manda `Origin`, que el `/rpc` de remoto.ts exige (CSRF): lo
 // manda él mismo, igual al `Host`, sin aflojar nada del servidor.
 // Sin `electron`: lo prueba tests/maquina-cliente.test.ts contra un motor en 127.0.0.x.
@@ -55,7 +55,7 @@ export type ClienteMaquina = {
   cerrar(): void;
 };
 
-/** Reintentos: uno enseguida y callado; después más espaciado, hasta 30 s (un Dell apagado no se golpea cada segundo). */
+/** Reintentos: uno enseguida y callado; después más espaciado, hasta 30 s (una máquina apagada no se golpea cada segundo). */
 const PAUSAS_MS = [300, 1000, 2000, 5000, 10_000, 30_000];
 
 /** Errores de conexión que garantizan que el pedido no llegó: se puede reintentar sin hacerlo dos veces. */
@@ -76,7 +76,7 @@ export function armarClienteMaquina(o: OpcionesMaquina): ClienteMaquina {
   const intentoMs = o.intentoMs ?? 8000;
   const pausas = o.pausasMs?.length ? o.pausasMs : PAUSAS_MS;
   const nombre = `${o.host ?? o.ip}:${o.puerto}`;
-  // Sin keep-alive: un socket viejo que el Dell ya cerró no puede hacer fallar un pedido que sí hubiera llegado.
+  // Sin keep-alive: un socket viejo que la otra máquina ya cerró no puede hacer fallar un pedido que sí hubiera llegado.
   const agente = new http.Agent({ keepAlive: false });
 
   let fase: Fase = "conectando";

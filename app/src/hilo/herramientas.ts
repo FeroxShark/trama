@@ -182,7 +182,7 @@ export function cambios(d: Herramienta | null): { mas: number; menos: number } |
 }
 
 // --- Relevo -------------------------------------------------------------------
-// El relevo del líder (`bin/relevo` del orquestador): el líder viejo corre `relevo` por Bash
+// El relevo del líder (`relevo`): el líder viejo corre `relevo` por Bash
 // (suele ir detrás de `pa --nota '…' &&`); si arrancó la sesión nueva dice "sesión nueva
 // corriendo (pid N)", y la nueva empieza con un prompt fijo que nombra el traspaso.
 

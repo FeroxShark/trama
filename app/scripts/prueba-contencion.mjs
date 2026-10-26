@@ -2,7 +2,7 @@
 // Prueba de punta a punta de la red de contención (electron/contencion.ts, electron/log.ts, src/ErrorBoundary.ts):
 // abre la app offscreen (HILOS_PRUEBA, sin ventana, fixtures, estado y perfil temporales) y le mata el renderer (SIGKILL a su proceso: nada de cargar la CPU). Las dos primeras muertes la recargan sola; la tercera en un minuto deja el
 // cartel y no reintenta; Recargar vuelve a la app. Un error y una promesa rechazada del renderer llegan al log
-// (`$HILOS_STATE/trama.log`). Nada toca la trama de Ana ni `pa`.
+// (`$HILOS_STATE/trama.log`). Nada toca la trama del usuario ni `pa`.
 //   npm run build && node scripts/prueba-contencion.mjs
 import { spawn } from "node:child_process";
 import { existsSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync } from "node:fs";

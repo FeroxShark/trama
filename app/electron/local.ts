@@ -7,6 +7,8 @@
 import { chmodSync, lstatSync, mkdirSync, readFileSync, rmSync } from "node:fs";
 import http from "node:http";
 import net from "node:net";
+import os from "node:os";
+import path from "node:path";
 import { crearCanal, negar, type OpcionesCanal } from "./remoto.js";
 import { carpetaMotor, esPipe, esWindows, socketMotor } from "./rutas.ts";
 
@@ -19,8 +21,28 @@ export const carpetaLocal = (env: NodeJS.ProcessEnv = process.env): string => ca
 /** Dónde escucha el motor: `<carpeta>/motor.sock`, o en Windows `\\.\pipe\trama-motor-<usuario>` (rutas.ts). */
 export const socketDe = (carpeta: string, env: NodeJS.ProcessEnv = process.env) => socketMotor(carpeta, env);
 
+/**
+ * Sin `XDG_RUNTIME_DIR` la carpeta cuelga de `/tmp/trama-<uid>`, y /tmp es de todos: si esa carpeta intermedia la creó otro
+ * usuario (o es un enlace), podría cambiarnos la de abajo por otra. Se crea 0700 si falta; si existe tiene que ser una
+ * carpeta de verdad (no un enlace), nuestra y sin permisos para otros: si no, se rechaza.
+ */
+function prepararPadreTmp(carpeta: string) {
+  const padre = path.dirname(carpeta);
+  if (path.dirname(padre) !== os.tmpdir() || !/^trama-\d+$/.test(path.basename(padre))) return;
+  try {
+    mkdirSync(padre, { mode: 0o700 });
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code !== "EEXIST") throw e;
+  }
+  const st = lstatSync(padre);
+  if (!st.isDirectory() || st.isSymbolicLink()) throw new Error(`${padre} no es una carpeta`);
+  if (typeof process.getuid === "function" && st.uid !== process.getuid()) throw new Error(`${padre} es de otro usuario`);
+  if ((st.mode & 0o077) !== 0) chmodSync(padre, 0o700);
+}
+
 /** La carpeta, 0700 y de este usuario; si es de otro o es un enlace, no se usa. */
 export function prepararCarpeta(carpeta: string) {
+  if (!esWindows()) prepararPadreTmp(carpeta);
   mkdirSync(carpeta, { recursive: true, mode: 0o700 });
   if (esWindows()) return; // sin uid ni modos: la carpeta es del perfil del usuario y la pipe se nombra, no se archiva
   const st = lstatSync(carpeta);
@@ -85,6 +107,8 @@ export async function motorVivo(dueno: string, sock: string): Promise<boolean> {
 export type Local = {
   ruta: string;
   difundir(canal: string, dato: unknown): void;
+  /** Cuántas ventanas cliente tienen el flujo de eventos abierto. */
+  conectados(): number;
   cerrar(): Promise<void>;
 };
 
@@ -129,6 +153,7 @@ export async function abrirLocal(o: Omit<OpcionesCanal, "conOrigen"> & { carpeta
   return {
     ruta,
     difundir: canal.difundir,
+    conectados: canal.conectados,
     // Los `write` de http quedan "corked" hasta el próximo tick: sin esta pausa, lo último que se difundió (el "saliendo"
     // del cartel del build nuevo) se perdía al cerrar las conexiones, y la ventana no se enteraba de que el motor se iba.
     cerrar: async () => {

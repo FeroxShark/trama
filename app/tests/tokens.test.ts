@@ -4,7 +4,7 @@ import { execFileSync } from "node:child_process";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 
-// Los tokens de diseño (docs/estado/tokens.md): ningún var() apunta a un token que no existe (el CSS
+// Los tokens de diseño: ningún var() apunta a un token que no existe (el CSS
 // lo tomaría como inválido sin avisar) y los archivos ya pasados a tokens no vuelven a tener literales.
 const raiz = path.resolve(import.meta.dirname, "..");
 

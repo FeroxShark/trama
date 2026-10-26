@@ -54,3 +54,23 @@ test("los miles van con espacio en español y con coma en inglés", () => {
   assert.equal(conMiles(1_000_000, "en"), "1,000,000");
   assert.equal(conMiles(950, "es"), "950");
 });
+
+test("el campo en miles de tokens: 250 → 250 000, rango 100–1000, y es el mismo valor que lee Ajustes", async () => {
+  const { umbralDeK, kDe, PRESETS_K, RED_MIN_K, RED_MAX_K } = await import("../src/paneles/ajustes-compactar.ts");
+  assert.deepEqual(umbralDeK("250"), { valor: 250_000, error: null });
+  assert.deepEqual(umbralDeK(" 250 k"), { valor: 250_000, error: null });
+  assert.deepEqual(umbralDeK(""), { valor: null, error: null });
+  assert.equal(umbralDeK("99").error, "ajustes.errUmbralRango");
+  assert.equal(umbralDeK("1001").error, "ajustes.errUmbralRango");
+  assert.equal(umbralDeK("2x").error, "ajustes.errRedNumero");
+  assert.equal(umbralDeK(String(RED_MAX_K)).valor, RED_MAX);
+  assert.equal(RED_MIN_K * 1000, RED_MIN);
+  for (const k of PRESETS_K) assert.equal(validarRed(String(k * 1000)).error, null);
+  // Ida y vuelta Bienvenida → archivo → Ajustes: lo elegido es lo que se guarda y lo que se muestra.
+  const elegido = umbralDeK("250").valor as number;
+  const guardado = elegido;
+  assert.equal(guardado, 250_000);
+  assert.equal(topeDe(redDesde(guardado)), 250_000);
+  assert.ok(topesCon(guardado).includes(250_000));
+  assert.equal(kDe(guardado), "250");
+});

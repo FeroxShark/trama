@@ -3,7 +3,7 @@
 // ejemplo en una carpeta temporal: nunca el ~/CLAUDE.md real.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, readdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdtempSync, readdirSync, readFileSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { escribirRouting, guardarRouting, leerRouting, parsearRouting, type Cambio } from "../electron/routing.ts";
@@ -146,4 +146,22 @@ test("guardarRouting escribe atómico y sigue el symlink; con error no toca el a
   assert.ok("error" in mal);
   assert.equal(readFileSync(roto, "utf8"), "# nada\n<!-- trama:routing -->\n");
   assert.ok("error" in (await leerRouting(path.join(dir, "no-existe.md"))));
+});
+
+test("guardarRouting: sin CLAUDE.md lo crea con el bloque; y reemplazar conserva el modo del original", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "routing-"));
+  const nuevo = path.join(dir, "CLAUDE.md");
+  const r = await guardarRouting([{ rol: "codigo", modelo: "claude-opus-5-5", effort: "high" }], nuevo);
+  assert.equal(ok(r)[0].effort, "high");
+  assert.ok(readFileSync(nuevo, "utf8").includes("trama:routing"));
+  // Sin cambios que hacer no inventa un archivo vacío.
+  const otro = path.join(dir, "otro.md");
+  await guardarRouting([], otro);
+  assert.equal(existsSync(otro), false);
+  // El modo del original se conserva.
+  const privado = path.join(dir, "privado.md");
+  writeFileSync(privado, EJEMPLO, { mode: 0o600 });
+  chmodSync(privado, 0o600);
+  await guardarRouting([{ rol: "codigo", modelo: "claude-opus-5-5", effort: "high" }], privado);
+  assert.equal(statSync(privado).mode & 0o777, 0o600);
 });

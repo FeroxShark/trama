@@ -4,7 +4,7 @@
 // lo lee al cargar): estado, sesiones y config de Claude en un tmp.
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync } from "node:fs";
 import { registerHooks } from "node:module";
 import os from "node:os";
 import path from "node:path";
@@ -32,7 +32,8 @@ const { barrerGrupo } = await import("../electron/lider.ts");
 const viva = (pid: number) => {
   try {
     process.kill(pid, 0);
-    return true;
+    // Un zombi responde al kill 0 pero ya está muerto: pasa cuando el PID 1 no cosecha huérfanos (contenedores).
+    return !/^\d+ \(.*\) Z/.test(readFileSync(`/proc/${pid}/stat`, "utf8"));
   } catch {
     return false;
   }

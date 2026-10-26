@@ -1,7 +1,6 @@
 [Unit]
 Description=trama (hilos): workers de pa y líderes de Claude, siempre viva y escondida
-Documentation=file://%h/Proyectos/hilos/CLAUDE.md
-# Como shell.service y widgets-reactivos.service: con la sesión gráfica, y se va con ella.
+# Con la sesión gráfica, y se va con ella.
 PartOf=graphical-session.target
 After=graphical-session.target
 # El motor (trama-motor.service) corre aparte: la ventana lo quiere cerca y espera su arranque, pero no
@@ -12,7 +11,7 @@ After=trama-motor.service
 ConditionEnvironment=WAYLAND_DISPLAY
 # Bucle de arranques fallidos: con RestartSec de 500 ms, 15 arranques en 20 s la rinden (queda caída hasta que
 # se la arranque: `trama` o `systemctl --user start`). Un bucle de ~0,7 s la rinde a los ~10 s; uno más lento
-# no llega al tope. Medido en docs/estado/reinicio-rapido.md.
+# no llega al tope.
 StartLimitIntervalSec=20
 StartLimitBurst=15
 
@@ -21,7 +20,7 @@ StartLimitBurst=15
 # Con TRAMA_UNIDAD va directo a Electron; --escondida: sin ventana hasta que se la pida.
 Environment=TRAMA_UNIDAD=1
 ExecStart=%h/.local/bin/trama --escondida
-# Siempre viva: si muere, si sale con Ctrl+Q o si Ana la reinicia por un build nuevo, vuelve
+# Siempre viva: si muere, si sale con Ctrl+Q o si se la reinicia por un build nuevo, vuelve
 # escondida en 0,5 s (el acceso desde el celular vive en este proceso).
 Restart=always
 RestartSec=500ms

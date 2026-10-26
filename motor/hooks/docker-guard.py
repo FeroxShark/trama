@@ -6,11 +6,11 @@ proyecto y los workers de `pa`, que lo llevan explícito en su --settings) y lla
 con el JSON del hook; 2 = bloquear, con el motivo por stderr (le vuelve al modelo). Suelto, lee el
 JSON por stdin y sale con ese código.
 
-Por qué existe (incidente 2026-09-28 21:15): un worker corrió en el desktop un contenedor con
+Por qué existe (un incidente real): un worker corrió en el desktop un contenedor con
 systemd como PID 1 (debian + systemd-sysv, CMD /lib/systemd/systemd, --network none) y con el
 cgroup/dispositivos del host al alcance. Ese systemd arrancó sus units contra el host (el journal
 mostró modprobe@drm, systemd-sysctl y el journald del contenedor escribiendo al del host), en el
-mismo segundo sddm cerró la sesión de Hyprland y el dueño tuvo que reiniciar la PC. Un contenedor
+mismo segundo el login manager cerró la sesión gráfica y el dueño tuvo que reiniciar la PC. Un contenedor
 no es un sandbox si le das --privileged, /dev, /sys, cgroup, D-Bus o el namespace del host.
 
 Qué mira (todo sobre docker/podman/docker-compose/podman-compose `run` y `create`, y `compose
@@ -67,9 +67,9 @@ def nombre_dueno():
 
 
 EXPLICACION = (
-    "Incidente 2026-09-28: un worker corrió en el desktop de {D} un contenedor con systemd como "
-    "PID 1 (debian + systemd-sysv); ese systemd operó contra el host, sddm cerró la sesión de "
-    "Hyprland y hubo que reiniciar la PC. Un contenedor con --privileged, --device, /dev, /sys, "
+    "Un worker corrió en el desktop de {D} un contenedor con systemd como "
+    "PID 1 (debian + systemd-sysv); ese systemd operó contra el host, el login manager cerró la "
+    "sesión gráfica y hubo que reiniciar la PC. Un contenedor con --privileged, --device, /dev, /sys, "
     "/sys/fs/cgroup, /run/systemd, /run/udev o el D-Bus del host, con pid/ipc/cgroupns=host, "
     "--cap-add SYS_ADMIN|ALL o seccomp/apparmor unconfined comparte kernel y servicios con la "
     "sesión gráfica: toca el HOST, no es un sandbox. Alternativas: (1) probá sin systemd de PID 1 "
@@ -86,7 +86,7 @@ class Bloqueo(Exception):
 # --- qué es peligroso ---------------------------------------------------------------------
 # /proc: escribir en /proc/sysrq-trigger (o /proc/sys) del host lo reinicia o lo reconfigura.
 # /run/user: el runtime dir de la sesión (D-Bus de usuario, wayland, pipewire): con él, systemd
-# --user para Hyprland. Los dos entraron con el review del 2026-09-30.
+# --user para el compositor. Los dos entraron con el review del 2026-09-30.
 RAICES_HOST = ("/dev", "/sys", "/proc", "/run/systemd", "/run/udev", "/run/dbus", "/run/user",
                "/var/run/systemd", "/var/run/udev", "/var/run/dbus", "/var/run/user")
 # Contienen a las de arriba: montarlos entrega también el socket de systemd / D-Bus, y un mount

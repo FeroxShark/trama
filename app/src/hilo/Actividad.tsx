@@ -98,6 +98,43 @@ export function Pensamiento({ texto, vivo = false, abierto: inicial = false }: {
   );
 }
 
+/**
+ * Varios pensamientos de un mismo tramo en UNA fila plegada ("Pensó · 10"); abierta, cada uno es su `Pensamiento` de siempre. Con uno solo
+ * no hace falta: se pinta él (`Pensados`).
+ */
+export function PensamientosGrupo({ items, abierto: inicial = false }: { items: string[]; abierto?: boolean }) {
+  const [abierto, setAbierto] = useState(inicial);
+  return (
+    <div className="tv-pl tv-pg" data-abierto={abierto ? "" : undefined}>
+      <button type="button" className="tv-pb" aria-expanded={abierto} onClick={() => setAbierto((x) => !x)}>
+        <ChevronRight className="tv-pf" size={11} strokeWidth={2} aria-hidden="true" />
+        <span className="tv-pq">{t("turno.penso.n", { n: items.length })}</span>
+      </button>
+      {abierto ? (
+        <div className="tv-pgl">
+          {items.map((x, i) => (
+            <Pensamiento key={i} texto={x} abierto={inicial} />
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * Los pensamientos de un tramo: los terminados, plegados en un solo grupo si son más de uno (si es uno, como siempre) y, si el último
+ * todavía llega (`vivo`), ése aparte, debajo, a la vista.
+ */
+export function Pensados({ items, vivo = false, abierto = false }: { items: string[]; vivo?: boolean; abierto?: boolean }) {
+  const hechos = vivo ? items.slice(0, -1) : items;
+  return (
+    <>
+      {hechos.length > 1 ? <PensamientosGrupo items={hechos} abierto={abierto} /> : hechos.map((x, i) => <Pensamiento key={i} texto={x} abierto={abierto} />)}
+      {vivo && items.length ? <Pensamiento texto={items[items.length - 1]} vivo abierto={abierto} /> : null}
+    </>
+  );
+}
+
 /** El estado de una herramienta del progreso (corriendo / ok / error), con el mismo punto que en el trabajo del turno. */
 const EstadoLinea = ({ estado }: { estado: Extract<LineaTiempo, { tipo: "herramienta" }>["estado"] }) =>
   estado ? (
@@ -125,12 +162,20 @@ function Progreso({ lineas, pensando }: { lineas: LineaTiempo[]; pensando: strin
   });
   const vivo = pensando.trim();
   if (!lineas.length && !vivo) return null;
+  // Los pensamientos terminados, si son varios, en un solo grupo arriba: nunca N filas sueltas entre las herramientas.
+  const pensados = lineas.flatMap((x) => (x.tipo === "pensamiento" ? [x.texto] : []));
+  const agrupa = pensados.length > 1;
   return (
     // Dentro de un `role=status`: ni el texto que llega ni cada línea se anuncian de a pedazos.
     <ul className="tv-lt" ref={caja} aria-label={t("hz.progreso")} aria-live="off" onScroll={(e) => alScroll(e.currentTarget, seg)}>
+      {agrupa ? (
+        <li key="grupo" className="tv-li" data-k="pensamiento">
+          <PensamientosGrupo items={pensados} />
+        </li>
+      ) : null}
       {lineas.map((x) => {
         if (x.tipo === "pensamiento")
-          return (
+          return agrupa ? null : (
             <li key={x.key} className="tv-li" data-k="pensamiento">
               <Pensamiento texto={x.texto} />
             </li>

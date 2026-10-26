@@ -2,28 +2,43 @@
 # Instala el lanzador de trama para este usuario: `~/.local/bin/trama`, la entrada
 # del menú de apps y el ícono. No copia la app: el lanzador abre el build de ESTE
 # checkout, y si faltan `node_modules/` o el build los arma. Idempotente.
-# También enlaza y habilita la unidad de usuario (`systemd/trama.service`): trama arranca
+# También instala y habilita la unidad de usuario (`systemd/trama.service`): trama arranca
 # sola y escondida al iniciar la sesión gráfica y se vuelve a levantar si muere. NO la
 # arranca ahora (no pisa la trama que esté abierta): entra al próximo inicio de sesión, o
 # la primera vez que se abra `trama` sin ninguna corriendo.
-# Lo mismo con el motor sin ventana (`systemd/trama-motor.service`, WantedBy=default.target): enlazado y
+# Lo mismo con el motor sin ventana (`systemd/trama-motor.service`, WantedBy=default.target): instalado y
 # habilitado, sin arrancarlo; para que siga sin sesión gráfica hace falta `loginctl enable-linger $USER`
-# (lo hace Ana a mano: pide sudo).
-# Y enlaza las skills de diseño del repo (`skills/`, `scripts/instalar-skills.sh`): en ~/.claude/skills y, si hay agy, en la de agy.
+# (se hace a mano: pide sudo). Esa unidad es una plantilla: lleva `@RAIZ@` donde va la ruta de este checkout
+# y se instala como archivo con la ruta ya puesta (si movés el checkout, volvé a correr este script).
 # Y registra el hook que dice quién compacta en `~/.claude/settings.json` (`scripts/registrar-hook.mjs`).
 #
-# uso: scripts/instalar.sh
+# uso: scripts/instalar.sh [--raiz DIR] [--sin-motor]
+#   --raiz DIR    instala el lanzador y la unidad para la app de DIR (la copia estable del producto,
+#                 ~/.local/share/trama/app) en vez de este checkout. Con --raiz no se chequea el worktree.
+#   --sin-motor   no instala ni habilita trama-motor.service (el instalador del producto, instalar-producto.sh,
+#                 ya escribe la suya: si no, las dos se pisarían).
 set -euo pipefail
 
 raiz="$(cd "$(dirname "$0")/.." && pwd)"
+raiz_dada=0 sin_motor=0
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --raiz)      [ -n "${2:-}" ] || { echo "uso: --raiz DIR" >&2; exit 2; }
+                 raiz="$(cd "$2" && pwd)" || { echo "instalar.sh: no existe $2" >&2; exit 2; }
+                 raiz_dada=1; shift 2 ;;
+    --sin-motor) sin_motor=1; shift ;;
+    *) echo "uso: instalar.sh [--raiz DIR] [--sin-motor]" >&2; exit 2 ;;
+  esac
+done
 datos="${XDG_DATA_HOME:-$HOME/.local/share}"
 bin="$HOME/.local/bin/trama"
 desktop="$datos/applications/trama.desktop"
 iconos="$datos/icons/hicolor"
 unidades="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
 
-# Desde un worktree el lanzador quedaría apuntando a una carpeta que se borra.
-if [ "$(git -C "$raiz" rev-parse --git-dir 2>/dev/null)" != "$(git -C "$raiz" rev-parse --git-common-dir 2>/dev/null)" ]; then
+# Desde un worktree el lanzador quedaría apuntando a una carpeta que se borra (sólo el raiz por defecto:
+# con --raiz es la copia del producto y no importa de dónde se la mandó a instalar).
+if [ "$raiz_dada" = 0 ] && [ "$(git -C "$raiz" rev-parse --git-dir 2>/dev/null)" != "$(git -C "$raiz" rev-parse --git-common-dir 2>/dev/null)" ]; then
   echo "instalar.sh: $raiz es un worktree; corrélo desde el checkout principal" >&2
   exit 1
 fi
@@ -38,7 +53,7 @@ mkdir -p "$(dirname "$bin")" "$(dirname "$desktop")" "$iconos/scalable/apps" "$i
 # como hijo y la ventana quedaría en otro proceso).
 cat >"$bin" <<EOF
 #!/bin/sh
-# Lanzador de trama (lo escribe scripts/instalar.sh de hilos): abre el build de main.
+# Lanzador de trama (lo escribe scripts/instalar.sh): abre el build de este checkout.
 raiz='$raiz'
 electron="\$raiz/node_modules/electron/dist/electron"
 [ -x "\$electron" ] || (cd "\$raiz" && npm ci) || exit 1
@@ -70,23 +85,32 @@ Icon=trama
 Terminal=false
 Categories=Development;
 Keywords=trama;hilos;pa;claude;workers;
-StartupWMClass=hilos
+StartupWMClass=trama
 StartupNotify=false
 EOF
 
 command -v update-desktop-database >/dev/null && update-desktop-database -q "$(dirname "$desktop")" || true
 
-# Las unidades de usuario: enlaces a los archivos del repo (como las demás unidades de Ana). La ventana
-# (trama.service) para la sesión gráfica; el motor (trama-motor.service) para default.target. Sin `--now`:
-# no se le cruzan a una trama abierta a mano (ver arriba).
+# Las unidades de usuario. La ventana (trama.service) para la sesión gráfica, enlazada al archivo del repo; el
+# motor (trama-motor.service) para default.target, escrito con la ruta de este checkout en lugar de `@RAIZ@`
+# (un `%` en la ruta se duplica: es el especificador de systemd). Sin `--now`: no se le cruzan a una trama
+# abierta a mano (ver arriba).
 if command -v systemctl >/dev/null && systemctl --user show-environment >/dev/null 2>&1; then
   mkdir -p "$unidades"
   ln -sfn "$raiz/systemd/trama.service" "$unidades/trama.service"
-  ln -sfn "$raiz/systemd/trama-motor.service" "$unidades/trama-motor.service"
-  systemctl --user daemon-reload
-  systemctl --user enable trama.service trama-motor.service
-  echo "unidades: $unidades/trama.service (habilitada; arranca con la sesión gráfica o al abrir trama)"
-  echo "          $unidades/trama-motor.service (habilitada, sin arrancar; sin sesión gráfica pide: loginctl enable-linger $USER)"
+  if [ "$sin_motor" = 1 ]; then
+    systemctl --user daemon-reload
+    systemctl --user enable trama.service
+    echo "unidades: $unidades/trama.service (habilitada; arranca con la sesión gráfica o al abrir trama)"
+  else
+    # rm antes: si quedó el enlace de una versión anterior, escribir encima pisaría la plantilla del repo.
+    rm -f "$unidades/trama-motor.service"
+    sed "s|@RAIZ@|${raiz//%/%%}|g" "$raiz/systemd/trama-motor.service" >"$unidades/trama-motor.service"
+    systemctl --user daemon-reload
+    systemctl --user enable trama.service trama-motor.service
+    echo "unidades: $unidades/trama.service (habilitada; arranca con la sesión gráfica o al abrir trama)"
+    echo "          $unidades/trama-motor.service (habilitada, sin arrancar; sin sesión gráfica pide: loginctl enable-linger $USER)"
+  fi
 else
   echo "instalar.sh: sin systemd de usuario; la unidad no se instaló (trama se abre a mano)" >&2
 fi
@@ -95,6 +119,4 @@ fi
 # settings de usuario no es del repo, así que lo registra acá (PreCompact / PostCompact en ~/.claude/settings.json,
 # sin pisar los otros hooks; idempotente). Si el settings no se puede tocar, avisa y la instalación sigue.
 node "$raiz/scripts/registrar-hook.mjs" || echo "instalar.sh: el hook de compactando no quedó registrado (ver arriba)" >&2
-# Las skills de diseño (ui-ux-pro-max, taste-skill, diseno): enlaces, sin pisar una que ya exista y sea distinta.
-"$raiz/scripts/instalar-skills.sh" || echo "instalar.sh: las skills de diseño no quedaron instaladas (ver arriba)" >&2
 echo "instalado: $bin, $desktop"

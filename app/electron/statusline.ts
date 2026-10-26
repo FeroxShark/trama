@@ -12,7 +12,8 @@ import path from "node:path";
 import { cacheDe } from "./cache.ts";
 import { textoT } from "./errores.ts";
 import { ESTADO, escribirAtomico, PA_STATE } from "./pa.js";
-import { lideresApp, procDe, transcriptDe, transcriptPorDefecto, usoVisto } from "./lider.js";
+import { lideresApp, procDe, transcriptDe, transcriptDsh, transcriptFamilia, transcriptGemini, transcriptOpencode, transcriptPorDefecto, usoVisto } from "./lider.js";
+import { claseDeModelo, familiaDeModelo } from "./modelos-config.js";
 import { real, registro, type Proyecto } from "./registro.js";
 import { sesiones, type Sesion } from "./sesiones.js";
 import { creadoEn, proyectoEnTexto, temaDe, tituloDeRama, tituloLider } from "./tema.js";
@@ -89,11 +90,11 @@ export function modeloLindo(m: string): string {
   return x ? `${x[1][0].toUpperCase()}${x[1].slice(1)} ${x[2]}.${x[3]}` : m;
 }
 
-/** La carpeta de Shark (el asistente de voz): `$SHARK_HOME` o `/srv/shark`. Su sesión jefe corre ahí. */
-const SHARK_HOME = process.env.SHARK_HOME || "/srv/shark";
+/** La carpeta de Shark (el asistente de voz): `$SHARK_HOME`. Su sesión jefe corre ahí. Sin la variable no hay nada marcado como Shark. */
+const SHARK_HOME = process.env.SHARK_HOME || null;
 /** `{ shark: true }` si el cwd es el de Shark (o algo adentro); si no, nada. */
 async function sharkDe(cwd: string | null | undefined): Promise<{ shark?: true }> {
-  if (!cwd) return {};
+  if (!cwd || !SHARK_HOME) return {};
   const dentro = (c: string, r: string) => c === r || c.startsWith(r + "/");
   return dentro(cwd, SHARK_HOME) || dentro(await real(cwd), await real(SHARK_HOME)) ? { shark: true } : {};
 }
@@ -140,8 +141,11 @@ async function caidosDe(muertas: Sesion[], vivas: Set<string>, ahora: number): P
  * el de uno de la app está en el home (`null`); el de uno de la terminal, o de uno
  * que se retomó desde la app, en su `cwd`.
  */
-async function deQueTrata(sid: string, cwd: string | null, sesion: string, regs: Proyecto[], home: string, origen?: { titulo: string }) {
-  const archivo = cwd === null ? transcriptPorDefecto(sid) : await transcriptDe(sid, cwd).catch(() => null);
+async function deQueTrata(sid: string, cwd: string | null, sesion: string, regs: Proyecto[], home: string, origen?: { titulo: string }, modelo?: string | null) {
+  // Un líder de Gemini (o de dsh) no escribe en `~/.claude/projects`: su puente guarda el transcript en `$HILOS_STATE/gemini/` (agy-puente.ts) o `$HILOS_STATE/dsh/` (dsh-puente.ts).
+  // `modelo`: el de con que empezó la conversación (si cambió de motor, el título sale del primer transcript, no del último).
+  const clase = modelo ? claseDeModelo(modelo) : "claude";
+  const archivo = cwd === null ? (clase === "gemini" ? transcriptGemini(sid) : clase === "dsh" ? transcriptDsh(sid) : clase === "opencode" ? transcriptOpencode(sid) : transcriptPorDefecto(sid)) : (await transcriptFamilia(sid, familiaDeModelo(modelo ?? "claude"), cwd).catch(() => null)) ?? (await transcriptDe(sid, cwd).catch(() => null));
   const t = await temaDe(sid, archivo);
   return { nombre: tituloDeRama(tituloLider(t, sesion), origen), inferido: t.primero ? proyectoEnTexto(t.primero, regs, home) : null, creado: t.creado };
 }
@@ -240,7 +244,7 @@ export async function leerStatusline(): Promise<Statusline> {
     // De la app sólo si el proceso es suyo: si no, está abierto en otro lado y se lee nomás.
     const mia = g && p?.pid != null;
     const modelo = mia ? g.modelo : a?.modelo ? String(a.modelo).replace(/\[.*\]$/, "") : null;
-    const t = await deQueTrata(s.id, g ? (g.cwd ?? null) : s.cwd, s.nombre || g?.nombre || "", regs, home, g?.origen);
+    const t = await deQueTrata(s.id, g ? (g.cwd ?? null) : s.cwd, s.nombre || g?.nombre || "", regs, home, g?.origen, g?.cambios?.[0]?.de ?? g?.modelo);
     lideres.push({
       id: s.id,
       nombre: t.nombre || modeloLindo(String(a?.modelo ?? "")),
@@ -269,7 +273,7 @@ export async function leerStatusline(): Promise<Statusline> {
     const p = procDe(g.sid);
     const ultimo = Math.max(g.ultimo, g.creado);
     // Ninguno se esconde por viejo: la barra pliega los de más de un día sin proceso en "Dormidos" (`DORMIDO_S`, arbol.ts).
-    const t = await deQueTrata(g.sid, g.cwd ?? null, g.nombre, regs, home, g.origen);
+    const t = await deQueTrata(g.sid, g.cwd ?? null, g.nombre, regs, home, g.origen, g.modelo);
     lideres.push({
       id: g.sid,
       nombre: t.nombre,

@@ -1,10 +1,10 @@
-// El contrato entre motores de trama en dos máquinas (docs/estado/maquinas.md): qué se hace con cada canal y
+// El contrato entre motores de trama en dos máquinas: qué se hace con cada canal y
 // cada evento, y el saludo con el que se reconocen. Sin estado ni efectos: lo usan nucleo.ts, quien junta
 // (maquinas.ts) y el transporte (maquina-cliente.ts), y lo prueba tests/nucleo.test.ts.
 import { createHash } from "node:crypto";
 
 /**
- * Trama en dos máquinas (docs/estado/maquinas.md): qué hace con cada canal la trama que junta a las otras.
+ * Trama en dos máquinas: qué hace con cada canal la trama que junta a las otras.
  * "juntar": se le pide a cada máquina y se unen las respuestas (cada fila con su `maquina`).
  * "maquina": va sólo al motor de la máquina de la fila (el `maquina` del hilo o del líder, o el prefijo del id).
  * "local": lo contesta esta máquina sola (sus preferencias, su pantalla, su estado propio).
@@ -51,6 +51,21 @@ export const RUTAS: Readonly<Record<string, Ruta>> = {
   "pa:rama": "maquina",
   "pa:lanzar": "maquina",
   "ramas:brief": "maquina",
+  // La orquestación de `pa`: las lecciones y AGENTS.md son de esta máquina; auditar va a la del worker.
+  "orq:auditar": "maquina",
+  "orq:lecciones": "local",
+  "orq:podaTexto": "local",
+  "orq:leccionesLeer": "local",
+  "orq:leccionesGuardar": "local",
+  "orq:agentsMd": "local",
+  // Unificar instrucciones y el nombre para mostrar de los proyectos: archivos y registry de esta máquina.
+  "orq:mdEstado": "local",
+  "orq:mdPlan": "local",
+  "orq:mdAplicar": "local",
+  "orq:agentsLeer": "local",
+  "orq:agentsGuardar": "local",
+  "proyectos:lista": "local",
+  "proyectos:renombrar": "local",
   "hilo:retomar": "maquina",
   "hilo:pasar": "maquina",
   "salud:arreglar": "maquina",
@@ -85,12 +100,23 @@ export const RUTAS: Readonly<Record<string, Ruta>> = {
   "routing:guardar": "local",
   // La config de modelos (`~/.config/trama/modelos.json`) es de esta máquina, como el resto de Ajustes.
   "modelos:leer": "local",
+  "modelos:efectivo": "local",
   "modelos:guardar": "local",
   "modelos:sondear": "local",
   "modelos:bajar": "local",
   "modelos:cancelarBajada": "local",
   "modelos:bajadas": "local",
   "modelos:entorno": "local",
+  // DeepSeek Harness: instalado o no, sus API keys y la prueba de cada proveedor son de esta máquina.
+  "dsh:estado": "local",
+  "dsh:instalar": "local",
+  "dsh:clave": "local",
+  "dsh:probar": "local",
+  "reparto:tabla": "local",
+  "aa:estado": "local",
+  "aa:refrescar": "local",
+  "opencode:estado": "local",
+  "opencode:actualizar": "local",
   "leidos:leer": "local",
   "leidos:marcar": "local",
   "nombres:leer": "local",
@@ -130,7 +156,7 @@ export const RUTAS: Readonly<Record<string, Ruta>> = {
   "lider:comandos": "local",
   "lider:estilos": "local",
   "bitacora:escribir": "local",
-  // La PC que el Dell prende (electron/pc-estado.ts): del Dell solo, nunca se junta ni se enruta.
+  // La PC que la otra máquina prende (electron/pc-estado.ts): de la otra máquina sola, nunca se junta ni se enruta.
   "pc:leer": "local",
   "pc:prender": "local",
   "reinicio:leer": "local",
@@ -200,6 +226,7 @@ export const EVENTOS: Readonly<Record<string, "reenviar" | "local">> = {
   "consumo:cambio": "local",
   "pasos:cambio": "local",
   "modelos:bajando": "local",
+  "reparto:tablaNueva": "local",
   "nombres:orden": "local",
   "reinicio:cambio": "local",
   "pc:cambio": "local",

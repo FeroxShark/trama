@@ -16,15 +16,26 @@ export const familiaDe = (modelo: string | null | undefined): Familia =>
 export const CORTO: Record<Exclude<Familia, "otro">, string> = { opus: "Opus", sonnet: "Sonnet", fable: "Fable", haiku: "Haiku" };
 
 /**
- * Lo que dice el chip del modelo en la fila: el nombre de la familia o, si no
- * es de la casa, la primera palabra del id ("modelo-local-ejemplo" → "Modelo"). `null`
+ * Lo que dice el chip del modelo en la fila: la familia con su versión ("Opus 5.5", "Flash 3.8") o, si no
+ * es de la casa, las dos primeras palabras del id ("deepseek-v4.1-flash-free" → "Deepseek V4.1"). `null`
  * sin modelo: no hay chip.
  */
 export function modeloCorto(modelo: string | null | undefined): string | null {
-  const f = familiaDe(modelo);
-  if (f !== "otro") return CORTO[f];
-  const p = modelo?.trim().split(/[-_:/\s.[]/).find(Boolean);
-  return p ? p[0].toUpperCase() + p.slice(1, 10) : null;
+  const id = modelo?.trim().toLowerCase().replace(/\[.*\]$/, "");
+  if (!id) return null;
+  const f = familiaDe(id);
+  // Claude: la familia y su versión ("claude-opus-5-5" → "Opus 5.5"), así se distingue de otra generación.
+  if (f !== "otro") {
+    const v = id.match(new RegExp(`${f}-(\\d+)(?:[-.](\\d+))?`));
+    return v ? `${CORTO[f]} ${v[1]}${v[2] ? `.${v[2]}` : ""}` : CORTO[f];
+  }
+  // Lo demás: sin el motor (agy:, opencode:, dsh:), el proveedor (opencode/), "-free" ni el esfuerzo pegado al final.
+  const base = id.replace(/^[\w-]+:/, "").replace(/^.*\//, "").replace(/-free$/, "").replace(/-(?:minimal|low|medium|high|max)$/, "");
+  const p = base.split(/[-_:\s]+/).filter(Boolean);
+  const cap = (w: string) => (/^v?\d/.test(w) ? w.toUpperCase().replace(/^V/, "V") : w[0].toUpperCase() + w.slice(1));
+  // Gemini: la variante y la versión ("gemini-3.8-flash" → "Flash 3.8"), que es lo que cambia entre uno y otro.
+  if (p[0] === "gemini" && p.length > 2) return `${cap(p.slice(2).find((w) => !/^\d/.test(w)) ?? p[2])} ${p[1]}`;
+  return p.slice(0, 2).map(cap).join(" ").slice(0, 18) || null;
 }
 
 /**
@@ -43,6 +54,6 @@ export function ficha(h: Hilo, maquina: string | null): string {
     t("ficha.proyecto", { v: h.proyecto }),
     t("ficha.maquina", { v: donde }),
     t("ficha.rama", { v: h.rama ?? t("comun.sinRama") }),
-    t("ficha.modelo", { v: `${h.modelo || t("comun.sinDato")}${h.effort ? ` · ${h.effort}` : ""}` }),
+    t("ficha.modelo", { v: `${h.modelo || t("comun.sinDato")}${h.effort && h.effort !== "-" ? ` · ${h.effort}` : ""}` }),
   ].join("\n");
 }

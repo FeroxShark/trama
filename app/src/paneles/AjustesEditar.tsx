@@ -4,6 +4,7 @@
 // validar con las mismas reglas (electron/valida-ajustes.ts) y, si algo falla, el borrador queda como estaba.
 import { useEffect, useRef, useState, useSyncExternalStore, type FormEvent, type ReactNode } from "react";
 import { Cat } from "./AjustesNav";
+import { PanelCargando } from "./PanelCargando";
 import { declarar } from "./ajustes-nav";
 import { Plus, X } from "lucide-react";
 import { detalleAcceso, EstadoEscucha, PasosCelular } from "./CelularGuia";
@@ -114,7 +115,10 @@ export function PlanYRed({
   const [error, setError] = useState<string | null>(null);
   const [ok, setOk] = useState(false);
   const vivo = useRef(true);
-  useEffect(() => () => void (vivo.current = false), []);
+  useEffect(() => {
+    vivo.current = true;
+    return () => void (vivo.current = false);
+  }, []);
 
   const r = numPara(g, b);
   const valido = r.error === null;
@@ -187,7 +191,10 @@ export function Celular({ Dato }: { Dato: FilaDato }) {
   const vivo = useRef(true);
   const sec = useRef<HTMLElement>(null);
   const nuevoRef = useRef<HTMLInputElement>(null);
-  useEffect(() => () => void (vivo.current = false), []);
+  useEffect(() => {
+    vivo.current = true;
+    return () => void (vivo.current = false);
+  }, []);
   // Quién entró y si escucha cambia sin que Ajustes se entere: se vuelve a mirar al volver a la ventana (sin reloj).
   // Sólo se toma lo que informa el motor; el borrador no se toca.
   useEffect(() => {
@@ -230,6 +237,7 @@ export function Celular({ Dato }: { Dato: FilaDato }) {
   }, [visible]);
 
   if (falla) return <Cat id="celular"><div className="pn-aviso" data-error>{textoMain(falla)}</div></Cat>;
+  if (!e && !falla) return <Cat id="celular"><PanelCargando /></Cat>;
   if (!e || !e.editable || !b) return null;
 
   const r = remotoPara(e, b);

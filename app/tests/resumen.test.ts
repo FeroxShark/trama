@@ -141,3 +141,9 @@ test("familia de modelo", () => {
   assert.equal(familia("claude-fable-5-1"), "Fable");
   assert.equal(familia("?"), "otro");
 });
+
+test("la caché nunca pasa de 100 %: una corrida con más caché que tokens se topa", () => {
+  const rara = [c(t(10, 1, 9), { tokens: 100, cache_read: 190 }), c(t(10, 1, 10), { tokens: 100, cache_read: 50 })];
+  const r = resumir(rara, 30, t(10, 2, 12), null);
+  assert.equal(r.cache, 150 / 200);
+});

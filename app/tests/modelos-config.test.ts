@@ -48,7 +48,7 @@ test("sin archivo: lo de hoy, y leer no crea nada", async () => {
   const e = await leerModelos(undefined, ruta);
   assert.equal(e.existe, false);
   assert.equal(e.error, null);
-  assert.deepEqual(e.config, { workers: {}, locales: [], excluir: [], permitir_max: false, gemini: {}, claude: {}, destrabar: {} });
+  assert.deepEqual(e.config, { workers: {}, locales: [], excluir: [], calidad: {}, permitir_max: false, gemini: {}, claude: {}, destrabar: {} });
   assert.equal(e.efectivo, null);
   assert.equal(existsSync(path.dirname(ruta)), false);
 });
@@ -68,7 +68,7 @@ test("lee el contrato completo", async () => {
 
 test("guardar crea la carpeta, escribe con version 1 y no deja temporales", async () => {
   const ruta = nuevaRuta();
-  const e = await guardarModelos({ lider: { modelo: "claude-opus-5-5", effort: "xhigh" }, workers: {}, locales: [], excluir: [], permitir_max: false, gemini: {}, claude: {}, destrabar: {} }, undefined, ruta);
+  const e = await guardarModelos({ lider: { modelo: "claude-opus-5-5", effort: "xhigh" }, workers: {}, locales: [], excluir: [], calidad: {}, permitir_max: false, gemini: {}, claude: {}, destrabar: {} }, undefined, ruta);
   assert.equal(e.existe, true);
   const j = JSON.parse(readFileSync(ruta, "utf8"));
   assert.equal(j.version, 1);
@@ -90,14 +90,14 @@ test("guardar conserva las claves que no conoce y saca lo que el borrador ya no 
   const c: ConfigModelos = structuredClone(e.config);
   c.lider = { modelo: "claude-sonnet-5-5", effort: "medium" };
   delete c.workers.mecanico; // vuelve a "como hoy"
-  c.gemini = { cupo_max: 50 };
+  c.gemini = { cupo_max: 50 }; // un borrador viejo que todavía lo trae: no se escribe más
   await guardarModelos(c, undefined, ruta);
   const j = JSON.parse(readFileSync(ruta, "utf8"));
   assert.deepEqual(j.futuro, { x: 1 });
   assert.deepEqual(j.lider, { modelo: "claude-sonnet-5-5", effort: "medium", nota: "mia" });
   assert.equal("mecanico" in j.workers, false);
   assert.deepEqual(j.workers["codigo-acotado"], { modelo: "gemini-4-argon-high" });
-  assert.deepEqual(j.gemini, { cupo_max: 50, otro: true });
+  assert.deepEqual(j.gemini, { otro: true }, "gemini.cupo_max ya no se escribe (el motor no lo usa); lo ajeno se conserva");
   assert.equal(j.locales[0].etiqueta, "rapido");
 });
 
@@ -179,20 +179,20 @@ test("urlOllama normaliza y rechaza lo que no es http(s)", () => {
 
 test("leerConfig es tolerante: ignora lo que no entiende", () => {
   const c = leerConfig({ lider: 3, workers: { default: { modelo: "claude-sonnet-5-5" }, mecanico: { modelo: 5 } }, locales: [{ id: 1 }], gemini: { cupo_max: "mucho", sin_claude: "x" } });
-  assert.deepEqual(c, { workers: { default: { modelo: "claude-sonnet-5-5" } }, locales: [], excluir: [], permitir_max: false, gemini: {}, claude: {}, destrabar: {} });
+  assert.deepEqual(c, { workers: { default: { modelo: "claude-sonnet-5-5" } }, locales: [], excluir: [], calidad: {}, permitir_max: false, gemini: {}, claude: {}, destrabar: {} });
 });
 
 test("qué corre hoy: el tipo, el default del archivo o lo de siempre", () => {
-  const vacia: ConfigModelos = { workers: {}, locales: [], excluir: [], permitir_max: false, gemini: {}, claude: {}, destrabar: {} };
+  const vacia: ConfigModelos = { workers: {}, locales: [], excluir: [], calidad: {}, permitir_max: false, gemini: {}, claude: {}, destrabar: {} };
   assert.deepEqual(efectivoDe(vacia, "default"), HOY.workers.default);
   assert.deepEqual(efectivoDe(vacia, "mecanico"), { modelo: "claude-haiku-5-5", effort: "xhigh" });
-  const c: ConfigModelos = { workers: { default: { modelo: "gemini-4-argon-low" }, lectura: { modelo: "claude-opus-5-5", effort: "max" } }, locales: [], excluir: [], permitir_max: false, gemini: {}, claude: {}, destrabar: {} };
+  const c: ConfigModelos = { workers: { default: { modelo: "gemini-4-argon-low" }, lectura: { modelo: "claude-opus-5-5", effort: "max" } }, locales: [], excluir: [], calidad: {}, permitir_max: false, gemini: {}, claude: {}, destrabar: {} };
   assert.deepEqual(efectivoDe(c, "debug"), { modelo: "gemini-4-argon-low" });
   assert.deepEqual(efectivoDe(c, "lectura"), { modelo: "claude-opus-5-5", effort: "max" });
 });
 
 test("defaults por tipo de tarea: Haiku para leer y lo mecánico, Sonnet para el código, Opus para debug y diseño", () => {
-  const vacia: ConfigModelos = { workers: {}, locales: [], excluir: [], permitir_max: false, gemini: {}, claude: {}, destrabar: {} };
+  const vacia: ConfigModelos = { workers: {}, locales: [], excluir: [], calidad: {}, permitir_max: false, gemini: {}, claude: {}, destrabar: {} };
   const H = { modelo: "claude-haiku-5-5", effort: "xhigh" };
   const S = { modelo: "claude-sonnet-5-5", effort: "high" };
   const O = { modelo: "claude-opus-5-5", effort: "xhigh" };
@@ -202,12 +202,12 @@ test("defaults por tipo de tarea: Haiku para leer y lo mecánico, Sonnet para el
   );
   assert.equal(defaultsDe(false), DEFAULTS_CLAUDE);
   // El `default` del archivo sigue valiendo para los tipos que no tienen fila.
-  const c: ConfigModelos = { workers: { default: { modelo: "claude-opus-5-5", effort: "low" } }, locales: [], excluir: [], permitir_max: false, gemini: {}, claude: {}, destrabar: {} };
+  const c: ConfigModelos = { workers: { default: { modelo: "claude-opus-5-5", effort: "low" } }, locales: [], excluir: [], calidad: {}, permitir_max: false, gemini: {}, claude: {}, destrabar: {} };
   assert.deepEqual(efectivoDe(c, "lectura"), { modelo: "claude-opus-5-5", effort: "low" });
 });
 
 test("sin Claude (sólo Gemini): Argon para todo lo que pesa y Flash sólo para lo mecánico", () => {
-  const vacia: ConfigModelos = { workers: {}, locales: [], excluir: [], permitir_max: false, gemini: {}, claude: {}, destrabar: {} };
+  const vacia: ConfigModelos = { workers: {}, locales: [], excluir: [], calidad: {}, permitir_max: false, gemini: {}, claude: {}, destrabar: {} };
   for (const t of TIPOS) {
     const m = efectivoDe(vacia, t, true).modelo;
     assert.equal(m, t === "mecanico" ? "gemini-3.8-flash-medium" : "gemini-4-argon-high", t);
@@ -334,7 +334,7 @@ test("excluir y permitir_max: se leen, se validan y se escriben sólo si no son 
   const e = await leerModelos(undefined, ruta);
   assert.deepEqual(e.config.excluir, ["fable"]);
   assert.equal(e.config.permitir_max, true);
-  await guardarModelos({ workers: {}, locales: [], excluir: [], permitir_max: false, gemini: {}, claude: {}, destrabar: {} }, undefined, ruta);
+  await guardarModelos({ workers: {}, locales: [], excluir: [], calidad: {}, permitir_max: false, gemini: {}, claude: {}, destrabar: {} }, undefined, ruta);
   j = JSON.parse(readFileSync(ruta, "utf8"));
   assert.ok(!("excluir" in j) && !("permitir_max" in j), "lo que vuelve al default sale del archivo");
   assert.deepEqual(j.algo_ajeno, { x: 1 });
@@ -342,7 +342,7 @@ test("excluir y permitir_max: se leen, se validan y se escriben sólo si no son 
 
 test("guarda y lee reparto: auto y modelos agy:*", async () => {
   const ruta = nuevaRuta();
-  await guardarModelos({ lider: { modelo: "agy:claude-opus-5-5-high" }, reparto: "auto", workers: { mecanico: { modelo: "agy:gpt-oss-120b-medium" } }, locales: [], excluir: [], permitir_max: false, gemini: {}, claude: {}, destrabar: {} }, undefined, ruta);
+  await guardarModelos({ lider: { modelo: "agy:claude-opus-5-5-high" }, reparto: "auto", workers: { mecanico: { modelo: "agy:gpt-oss-120b-medium" } }, locales: [], excluir: [], calidad: {}, permitir_max: false, gemini: {}, claude: {}, destrabar: {} }, undefined, ruta);
   const j = JSON.parse(readFileSync(ruta, "utf8"));
   assert.equal(j.reparto, "auto");
   assert.deepEqual(j.lider, { modelo: "agy:claude-opus-5-5-high" });
@@ -425,4 +425,37 @@ test("topes de Claude: enteros de 1 a 100, y nada desconocido adentro", async ()
   }
   assert.equal(readFileSync(ruta, "utf8"), antes);
   assert.doesNotThrow(() => validarConfig({ workers: {}, locales: [], excluir: [], permitir_max: false, gemini: {}, claude: { tope_5h: 1, tope_7d: 100 } }));
+});
+
+test("modelos dsh: la clase, el lector del líder y la validación (lider y workers aceptan dsh:<proveedor>/<modelo>, sin esfuerzo)", async () => {
+  const { claseDeModelo, familiaDeModelo, localDeModelo, leerLider } = await import("../electron/modelos-config.ts");
+  assert.equal(claseDeModelo("dsh:opencode/big-pickle"), "dsh");
+  assert.equal(claseDeModelo("ollama:x"), "ollama");
+  assert.equal(familiaDeModelo("ollama:x"), "claude");
+  const cfg = leerLider(JSON.stringify(CONTRATO))!;
+  assert.equal(localDeModelo("qwen3-coder:30b", cfg)?.id, "ollama:qwen3-coder:30b");
+  assert.equal(localDeModelo("otro", cfg), null);
+
+  const ok = validarConfig({ lider: { modelo: "dsh:opencode/deepseek-v4.1-flash-free" }, workers: { default: { modelo: "dsh:ollama/qwen3-coder:30b" } } });
+  assert.deepEqual(ok.lider, { modelo: "dsh:opencode/deepseek-v4.1-flash-free" });
+  assert.deepEqual(ok.workers.default, { modelo: "dsh:ollama/qwen3-coder:30b" });
+  for (const mal of ["dsh:nube/x", "dsh:opencode/", "dsh:opencode", "dsh:"]) assert.throws(() => validarConfig({ lider: { modelo: mal } }), mal);
+  assert.throws(() => validarConfig({ lider: { modelo: "dsh:opencode/big-pickle", effort: "high" } }), "dsh no lleva esfuerzo");
+
+  // Y se escribe y se vuelve a leer tal cual.
+  const ruta = nuevaRuta();
+  await guardarModelos(ok, undefined, ruta);
+  assert.equal(JSON.parse(readFileSync(ruta, "utf8")).lider.modelo, "dsh:opencode/deepseek-v4.1-flash-free");
+  assert.equal((await leerModelos(undefined, ruta)).config.lider?.modelo, "dsh:opencode/deepseek-v4.1-flash-free");
+});
+
+test("modelos opencode: la clase, la familia y la validación (lider y workers aceptan opencode:<proveedor>/<modelo>, sin esfuerzo)", async () => {
+  const { claseDeModelo, familiaDeModelo } = await import("../electron/modelos-config.ts");
+  assert.equal(claseDeModelo("opencode:opencode/big-pickle"), "opencode");
+  assert.equal(familiaDeModelo("opencode:opencode/big-pickle"), "opencode");
+  const ok = validarConfig({ lider: { modelo: "opencode:opencode/deepseek-v4.1-flash-free" }, workers: { default: { modelo: "opencode:openrouter/qwen/qwen3-coder:free" } } });
+  assert.deepEqual(ok.lider, { modelo: "opencode:opencode/deepseek-v4.1-flash-free" });
+  assert.deepEqual(ok.workers.default, { modelo: "opencode:openrouter/qwen/qwen3-coder:free" });
+  for (const mal of ["opencode:", "opencode:suelto", "opencode:/x", "opencode:a b/c"]) assert.throws(() => validarConfig({ lider: { modelo: mal } }), mal);
+  assert.throws(() => validarConfig({ lider: { modelo: "opencode:opencode/beam-free", effort: "high" } }), "opencode no lleva esfuerzo");
 });

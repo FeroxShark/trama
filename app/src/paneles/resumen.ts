@@ -113,7 +113,8 @@ export function resumir(todas: Corrida[], dias: number, ahora: number, desde: nu
     inicio,
     desde: desde !== null && desde > inicio ? desde : null,
     ...sumarTiempo(corridas),
-    cache: leido > 0 ? conCache.reduce((s, c) => s + (c.cache_read ?? 0), 0) / leido : null,
+    // Una corrida con más caché leída que tokens (el motor resta mal en alguno: tokens = input + cache + output no cierra) no puede pasar de 100 %: se topa por corrida.
+    cache: leido > 0 ? conCache.reduce((s, c) => s + Math.min(c.cache_read ?? 0, c.tokens), 0) / leido : null,
     compactaciones: conComp.reduce((s, c) => s + (c.compactaciones ?? 0), 0),
     conCompactaciones: conComp.length,
     porModelo: FAMILIAS.flatMap((f) => modelos.get(f) ?? []),

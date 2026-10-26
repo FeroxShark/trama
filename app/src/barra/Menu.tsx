@@ -203,7 +203,7 @@ export function Menu({ x, y, items, nivel, alCerrar, alVolver, ancla, buscable }
         <Fragment key={it.clave}>
           <button
             type="button"
-            role="menuitem"
+            role={it.marcado === undefined ? "menuitem" : "menuitemcheckbox"}
             className="cmenu-op"
             data-accion={it.clave}
             data-fijo={it.fijo ? "" : undefined}

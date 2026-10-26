@@ -4,7 +4,7 @@
 import type { Clave, ClaveSola } from "../i18n";
 import { TIPOS } from "../../electron/modelos-tipos";
 
-export const CATS = ["cuentas", "modelos", "cupos", "locales", "celular", "actualizaciones", "general"] as const;
+export const CATS = ["cuentas", "modelos", "cupos", "locales", "dsh", "celular", "actualizaciones", "proyectos", "general", "guia"] as const;
 export type CatId = (typeof CATS)[number];
 
 export const esCat = (x: unknown): x is CatId => typeof x === "string" && (CATS as readonly string[]).includes(x);
@@ -28,7 +28,7 @@ export const ITEMS: readonly Item[] = [
   { cat: "modelos", nombre: "ajustes.mdlTodo", que: "ajustes.mdlTodoQue", sin: "uno solo single un modelo todo one model suscripcion" },
   ...TIPOS.map(tipoDe),
   { cat: "modelos", nombre: "ajustes.mdlAutomatico", que: "ajustes.mdlAutomaticoQue", sin: "auto automatico reparto calidad cupo suscripcion elegir modelo hoy elegiria fijo" },
-  { cat: "modelos", nombre: "ajustes.mdlExcluir", que: "ajustes.mdlExcluirQue", sin: "excluir fable opus sonnet haiku no usar prohibir dejar afuera" },
+  { cat: "modelos", nombre: "ajustes.mdlWk", que: "ajustes.mdlWkQue", sin: "modelos workers excluir inteligencia calidad apagar permitir fable opus sonnet haiku no usar prohibir dejar afuera gratis opencode" },
   { cat: "modelos", nombre: "ajustes.mdlDestrabar", que: "ajustes.mdlDestrabarQue", sin: "gemini repite bucle trabado destrabar loop interrumpir flash argon" },
   { cat: "modelos", nombre: "ajustes.mdlPermitirMax", que: "ajustes.mdlPermitirMaxQue", sin: "max esfuerzo effort permitir gasta cupo" },
   { cat: "modelos", nombre: "ajustes.dictado", que: "ajustes.dictadoQue", sin: "dictar dictation voz voice microfono microphone transcribir transcribe stt whisper turbo handy" },
@@ -48,6 +48,12 @@ export const ITEMS: readonly Item[] = [
   { cat: "locales", nombre: "ajustes.mdlBajar", que: "ajustes.mdlBajarQue", sin: "ollama descargar download pull bajar modelo model" },
   { cat: "locales", nombre: "ajustes.mdlLocalesAgregados", que: "ajustes.mdlLocalesQue", sin: "ollama locales agregados added direccion address url servidor server quitar remove" },
 
+  { cat: "dsh", nombre: "ajustes.ocPrograma", que: "ajustes.ocProgramaQue", sin: "opencode open code gratis free connect login console zen modelos models actualizar refresh instalar install" },
+  { cat: "dsh", nombre: "ajustes.dshPrograma", que: "ajustes.dshProgramaQue", sin: "dsh deepseek harness instalar install npm version programa" },
+  { cat: "dsh", nombre: "ajustes.dshOpencode", que: "ajustes.dshOpencodeQue", sin: "opencode zen clave key api token pago paid modelos dsh" },
+  { cat: "dsh", nombre: "ajustes.dshDeepseek", que: "ajustes.dshDeepseekQue", sin: "deepseek clave key api token probar test v4 flash" },
+  { cat: "dsh", nombre: "ajustes.dshOllama", que: "ajustes.dshOllamaQue", sin: "ollama local dsh probar test" },
+
   { cat: "celular", nombre: "ajustes.celGuia", que: "ajustes.celPaso1Que", sin: "telefono movil phone mobile tailscale tailnet instalar install qr codigo code escanear scan direccion address url conectar connect guia guide" },
   { cat: "celular", nombre: "ajustes.celAcceso", que: "ajustes.celAccesoQue", sin: "telefono movil phone mobile tailscale tailnet remoto remote encender apagar on off" },
   { cat: "celular", nombre: "ajustes.celPuerto", que: "ajustes.celPuertoQue", sin: "telefono movil phone mobile tailscale tailnet remoto remote port" },
@@ -56,7 +62,11 @@ export const ITEMS: readonly Item[] = [
   { cat: "actualizaciones", nombre: "carcasa.act", que: "carcasa.actQue", sin: "windows update version buscar check descargar download reiniciar restart exe" },
   { cat: "actualizaciones", nombre: "carcasa.restos", que: "carcasa.restosQue", sin: "windows limpiar clean restos leftovers versiones anteriores previous desinstalar uninstall" },
 
+  { cat: "proyectos", nombre: "pry.nombres", que: "pry.nombresQue", sin: "renombrar rename nombre name alias proyecto project mostrar display titulo title slug registro registry shark" },
+  { cat: "proyectos", nombre: "pry.instrucciones", que: "pry.instruccionesQue", sin: "agents.md agents claude.md gemini.md unificar unify instrucciones instructions import stub modelos models fuente unica single source editar edit manual" },
+
   { cat: "general", nombre: "ajustes.idioma", que: "ajustes.idiomaQue", sin: "language english espanol ingles spanish traduccion idioma" },
+  { cat: "general", nombre: "ajustes.tema", que: "ajustes.temaQue", sin: "theme tema color colores oscuro dark claro light sistema system modo apariencia appearance bosque forest atardecer sunset grafito graphite contraste contrast daltonismo" },
   { cat: "general", nombre: "ajustes.letra", que: "ajustes.letraQue", sin: "tamano size texto text zoom font fuente grande chico letra" },
   { cat: "general", nombre: "ajustes.fuente", que: "ajustes.fuenteQue", sin: "tipografia typeface font letra inter sistema system" },
   { cat: "general", nombre: "ajustes.mono", que: "ajustes.monoQue", sin: "monoespaciada monospace codigo code fira tipografia font fuente" },
@@ -64,7 +74,18 @@ export const ITEMS: readonly Item[] = [
   { cat: "general", nombre: "ajustes.avisarEspera", que: "ajustes.avisarEsperaQue", sin: "notificacion notification aviso te necesita te espera lider escritorio desktop alerta" },
   { cat: "general", nombre: "ajustes.compactar", que: "ajustes.compactarQue", sin: "compactacion compaction contexto context autocompact ventana window tokens" },
   { cat: "general", nombre: "ajustes.atajos", que: "ajustes.atajosQue", sin: "teclado keyboard shortcuts hotkeys teclas atajos" },
+  { cat: "general", nombre: "ajustes.aplicarAuto", que: "ajustes.aplicarAutoQue", sin: "ramas branches veredictos verdicts analista analyst aplicar apply automatico automatic integrar descartar" },
   { cat: "general", nombre: "ajustes.bienvenida", que: "ajustes.bienvenidaQue", sin: "welcome bienvenida primer arranque first start setup asistente configurar inicio" },
+
+  { cat: "guia", nombre: "guia.lider", que: "guia.liderQue", sin: "lider leader worker workers rama branch tarea task brief delegar delegate" },
+  { cat: "guia", nombre: "guia.modelos", que: "guia.modelosQue", sin: "modelo model opus sonnet haiku esfuerzo effort inteligencia intelligence gratis free opencode low medium high xhigh elegir choose" },
+  { cat: "guia", nombre: "guia.tablero", que: "guia.tableroQue", sin: "tablero board pendientes todo tareas tasks kanban preguntas questions iniciar start" },
+  { cat: "guia", nombre: "guia.ramas", que: "guia.ramasQue", sin: "ramas branches integrar integrate descartar discard analizar analyze veredicto verdict aplicar apply verificar verified" },
+  { cat: "guia", nombre: "guia.cupos", que: "guia.cuposQue", sin: "cupo cupos quota quotas limite limit suscripcion subscription ventana window reservar reserve" },
+  { cat: "guia", nombre: "guia.temas", que: "guia.temasQue", sin: "tema theme color oscuro dark claro light paleta palette contraste contrast daltonismo colorblind" },
+  { cat: "guia", nombre: "guia.agents", que: "guia.agentsQue", sin: "agents.md agents md manual proyecto project contrato contract plantilla template crear create" },
+  { cat: "guia", nombre: "guia.auditoria", que: "guia.auditoriaQue", sin: "auditoria auditar audit review revisar revisor severidad severity diff" },
+  { cat: "guia", nombre: "guia.lecciones", que: "guia.leccionesQue", sin: "lecciones lessons podar prune notas notes aprendizaje learned" },
 ];
 
 /** Minúsculas y sin tildes: "Sesión" se encuentra con "sesion". */
@@ -183,7 +204,10 @@ export function deVariante(v: string | null | undefined): CatId | null {
   if (v === "mdl-agregar" || v === "mdl-bajando" || v === "mdl-sinollama" || v === "mdl-apagado" || v === "mdl-sugeridos") return "locales";
   if (v === "mdl-tope" || v.startsWith("cupos") || v === "editando" || v === "editando-mal") return "cupos";
   if (v === "celular") return "celular";
+  if (v.startsWith("dsh")) return "dsh";
   if (v.startsWith("mdl") || v === "sinmdl" || v === "modelo" || v === "dictado") return "modelos";
+  if (v.startsWith("proyectos")) return "proyectos";
+  if (v.startsWith("guia")) return "guia";
   if (v === "fuente" || v === "mono" || v === "compactar" || v === "general") return "general";
   return null;
 }

@@ -80,8 +80,13 @@ export const tareaDe = (h: Pick<Hilo, "tarea" | "estado" | "rama" | "inicio" | "
 export const cierre = (e: Estado): string | undefined => (e in CIERRES ? t(CIERRES[e as keyof typeof CIERRES]) : undefined);
 
 // Los puntos que ya hicieron su entrada (pop, sacudida): al volver a montarse
-// (colapsar, buscar) aparecen quietos.
+// (colapsar, buscar) aparecen quietos. Acotado: pasado el tope se olvidan los más viejos (a lo sumo repiten la entrada).
 const entraron = new Set<string>();
+const MAX_ENTRARON = 500;
+const entro = (id: string) => {
+  entraron.add(id);
+  if (entraron.size > MAX_ENTRARON) entraron.delete(entraron.values().next().value!);
+};
 
 /**
  * El punto de estado de una fila. Trabajando: doble onda y latido. Te
@@ -98,7 +103,7 @@ export function Punto({ tipo, clave }: { tipo: Tipo; clave: string }) {
   const visto = entraron.has(id);
   useEffect(() => {
     // Recién cuando la entrada terminó: si se desmonta antes, la próxima la repite.
-    const t = window.setTimeout(() => entraron.add(id), 1100);
+    const t = window.setTimeout(() => entro(id), 1100);
     return () => clearTimeout(t);
   }, [id]);
 

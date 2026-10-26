@@ -520,10 +520,6 @@ span.tb-ini-d {
 .tb-ini-d .pbtn .chev {
   margin-left: auto;
 }
-.tb-ini-d .menu {
-  right: 0;
-  min-width: 0;
-}
 .tb-ini-c ol {
   max-height: 6.25rem;
   margin: 0;
@@ -952,13 +948,6 @@ button.tb-pr:hover {
   }
   .tb-filtro .pbtn {
     width: 100%;
-    max-width: none;
-  }
-  .tb-filtro .menu {
-    right: 0;
-    left: 0;
-    width: auto;
-    min-width: 0;
     max-width: none;
   }
   .tb-cuenta {

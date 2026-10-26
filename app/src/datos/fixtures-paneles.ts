@@ -4,6 +4,9 @@ import { MODO } from "../modo";
 import { resumir } from "../paneles/resumen";
 import type { EstadoModelos } from "../../electron/modelos-config";
 import type { EntornoOllama } from "../../electron/ollama-entorno";
+import type { EstadoDsh } from "../../electron/dsh-ajustes";
+import type { EstadoOpencodeUi } from "../../electron/opencode-ajustes";
+import type { FilaTabla, TablaReparto } from "../../electron/reparto-tabla";
 import type { Ajustes, Consulta, Medido, Corrida, EstadoAuto, EstadoSalud, Medicion, Muestra, PiezaConsulta } from "./paneles";
 
 const AHORA = Math.floor(Date.now() / 1000);
@@ -55,6 +58,7 @@ export const MODELOS_FIJOS = (con: boolean, auto = false): EstadoModelos => ({
     ? {
         ...(auto ? { reparto: "auto" as const } : { reparto: "fijo" as const }),
         excluir: ["fable"],
+        calidad: {},
         permitir_max: false,
         lider: { modelo: "gemini-4-argon-high" },
         workers: {
@@ -67,12 +71,12 @@ export const MODELOS_FIJOS = (con: boolean, auto = false): EstadoModelos => ({
           { id: "ollama:qwen3-coder:30b", nombre: "Qwen3 Coder 30B", url: "http://localhost:11434", modelo: "qwen3-coder:30b" },
           { id: "ollama:llama3.2:3b", nombre: "llama3.2:3b", url: "http://caido.local:11434", modelo: "llama3.2:3b" },
         ],
-        gemini: { cupo_max: 70 },
+        gemini: {},
         sin_cupo: "esperar",
         claude: { tope_7d: 60 },
         destrabar: { "gemini-4-argon": true },
       }
-    : { workers: {}, locales: [], excluir: [], permitir_max: false, gemini: {}, claude: {}, destrabar: {} },
+    : { workers: {}, locales: [], excluir: [], calidad: {}, permitir_max: false, gemini: {}, claude: {}, destrabar: {} },
   // Con archivo (alguien que usa Gemini) ya hubo destrabos; sin él, ninguno.
   destrabo: con ? { veces: 3, bien: 2, mal: 1, cortado: 0, pendiente: 0 } : { veces: 0, bien: 0, mal: 0, cortado: 0, pendiente: 0 },
 });
@@ -104,6 +108,17 @@ export const ENTORNO_OLLAMA = (variante: string | null): EntornoOllama => {
     instalar: { via: "pacman", comando: "sudo pacman -S ollama-cuda" },
     arrancar: { via: "systemd", comando: "sudo systemctl enable --now ollama" },
   };
+};
+
+/**
+ * DeepSeek Harness en la máquina de las capturas: `dsh-sin` (no instalado ni con keys), `dsh-falla` (no instalado y sin npm que ande: Instalar falla; DeepSeek
+ * rechaza su key); el resto, instalado, con la key de OpenCode guardada y la de DeepSeek sin poner.
+ */
+export const ESTADO_DSH = (variante: string | null): EstadoDsh => {
+  const comando = "npm i -g @deepseek-ai/dsh";
+  if (variante === "dsh-sin") return { version: 1, instalado: false, versionDsh: null, hayNpm: true, comando, claves: { OPENCODE_API_KEY: false, DEEPSEEK_API_KEY: false, ARTIFICIAL_ANALYSIS_API_KEY: false } };
+  if (variante === "dsh-falla") return { version: 1, instalado: false, versionDsh: null, hayNpm: true, comando, claves: { OPENCODE_API_KEY: true, DEEPSEEK_API_KEY: true, ARTIFICIAL_ANALYSIS_API_KEY: false } };
+  return { version: 1, instalado: true, versionDsh: "0.2.1", hayNpm: true, comando, claves: { OPENCODE_API_KEY: true, DEEPSEEK_API_KEY: false, ARTIFICIAL_ANALYSIS_API_KEY: variante?.startsWith("mdl-wk-aa") === true } };
 };
 
 /** El acceso desde el celular de los fixtures (se edita en Ajustes; vive mientras la página). */
@@ -370,3 +385,59 @@ export function historialFalso(dias: 7 | 30, rol?: "lider" | "worker" | "subagen
     sinDato: { sinArranque: 0, sinCalibrar: dias === 7 ? 0 : 2, lineas: 0, parserViejo: 0, meses: 0 },
   };
 }
+
+/** OpenCode en la máquina de las capturas: `oc-sin` (no instalado), `oc-sin-login` (instalado, sin conectar); si no, instalado y conectado a OpenCode Console. */
+export const ESTADO_OPENCODE = (variante: string | null): EstadoOpencodeUi => {
+  const comun = { version: 1 as const, comando: "npm i -g opencode-ai" };
+  if (variante === "oc-sin") return { ...comun, instalado: false, versionOpencode: null, logueado: null, proveedores: [], consola: false, modelos: 0, gratis: 0, actualizado: null };
+  if (variante === "oc-sin-login") return { ...comun, instalado: true, versionOpencode: "2.1.4", logueado: false, proveedores: [], consola: false, modelos: 9, gratis: 9, actualizado: null };
+  return { ...comun, instalado: true, versionOpencode: "2.1.4", logueado: true, proveedores: ["opencode"], consola: true, modelos: 12, gratis: 9, actualizado: 1_760_000_000_000 };
+};
+
+/**
+ * `reparto --tabla --json` de las capturas: Claude con la semana por reiniciarse, Gemini, ChatGPT, los gratis de OpenCode (uno sin
+ * `calidad` propia: estimada por el nombre) y un local. `excluir: ["fable"]` y las demás reglas las aplica el panel sobre el borrador.
+ */
+export const TABLA_REPARTO = (aa = false): TablaReparto => {
+  const h = (horas: number) => Date.now() + horas * 3_600_000;
+  const base = { cuenta: null, calidadPorEffort: {} as FilaTabla["calidadPorEffort"], estimada: false, origen: "defecto" as const, aaFecha: null as string | null, gratis: false, ventanas: [], urgencia: 0, permitido: true, excluidoPor: null, agotado: false };
+  const claude = (id: string, nombre: string, familia: string, calidad: number): FilaTabla => ({
+    ...base, id, nombre, proveedor: "claude", familia, familiaExcluir: familia, calidad, libre: 62, vuelve: h(20), urgencia: 0.62,
+    ventanas: [{ id: "5h", libre: 80, vuelve: h(2) }, { id: "7d", libre: 62, vuelve: h(20) }],
+  });
+  const goog = (id: string, nombre: string, familia: string, calidad: number, libre: number, dias: number): FilaTabla => ({
+    ...base, id, nombre, proveedor: "google", familia, familiaExcluir: familia, calidad, libre, vuelve: h(dias * 24), urgencia: 0.2,
+    ventanas: [{ id: "5h", libre: Math.min(100, libre + 20), vuelve: h(3) }, { id: "7d", libre, vuelve: h(dias * 24) }],
+  });
+  const oc = (m: string, calidad: number, estimada: boolean): FilaTabla => ({
+    ...base, id: `opencode:opencode/${m}`, nombre: `${m} (OpenCode, gratis)`, proveedor: "opencode", familia: "dsh", familiaExcluir: "opencode",
+    calidad, estimada, origen: estimada ? "estimada" : "defecto", gratis: true, libre: 100, vuelve: null,
+  });
+  const modelos: FilaTabla[] = [
+    claude("claude-opus-5-5", "Claude Opus 5.5", "opus", 100),
+    claude("claude-sonnet-5-5", "Claude Sonnet 5.5", "sonnet", 88),
+    claude("claude-haiku-5-5", "Claude Haiku 5.5", "haiku", 60),
+    goog("gemini-4-argon", "Gemini 4 Argon", "argon", 85, 71, 5),
+    goog("gemini-3.8-flash", "Gemini 3.8 Flash", "flash", 60, 40, 5),
+    goog("agy:claude-sonnet-5-5", "Claude Sonnet 5.5 (por Google)", "sonnet", 88, 33, 5),
+    goog("agy:gpt-oss-120b", "GPT-OSS 120B", "gpt-oss", 45, 33, 5),
+    { ...base, id: "codex:gpt-6.1-sol", nombre: "GPT-6.1 Sol (Codex)", proveedor: "openai", familia: "sol", familiaExcluir: "sol", calidad: 88, libre: 54, vuelve: h(60), urgencia: 0.3,
+      ventanas: [{ id: "5h", libre: 90, vuelve: h(4) }, { id: "7d", libre: 54, vuelve: h(60) }] },
+    oc("big-pickle", 60, false),
+    oc("glm-5.3-flash-free", 55, false),
+    oc("nemotron-3-ultra-free", 55, false),
+    oc("zeta-ultra-free", 60, true),
+    oc("kilo-mini-free", 40, true),
+    { ...base, id: "ollama:qwen3-coder:30b", nombre: "Qwen3 Coder 30B", proveedor: "local", familia: "local", familiaExcluir: "local", calidad: 35, estimada: true, origen: "estimada", gratis: true, libre: 100 , vuelve: null },
+  ];
+  // Con Artificial Analysis: lo medido pisa a los defaults (menos lo que fijó el dueño, Sonnet, y lo que AA no conoce).
+  const ayer = new Date(Date.now() - 20 * 3_600_000).toISOString().slice(0, 10);
+  const conAA = (f: FilaTabla): FilaTabla => {
+    if (!aa || f.estimada || f.origen !== "defecto" || f.familia === "sonnet" || f.id.includes("big-pickle")) return f;
+    const q = { "claude-opus-5-5": 100, "claude-haiku-5-5": 60, "gemini-4-argon": 83, "gemini-3.8-flash": 58, "agy:gpt-oss-120b": 47, "codex:gpt-6.1-sol": 90, "opencode:opencode/glm-5.3-flash-free": 64, "opencode:opencode/nemotron-3-ultra-free": 52 }[f.id];
+    const porEffort = f.id === "claude-opus-5-5" ? { low: 82, medium: 90, high: 96, max: 100 } : {};
+    return q === undefined ? f : { ...f, calidad: q, calidadPorEffort: porEffort, origen: "artificial-analysis", aaFecha: ayer };
+  };
+  const usuario = (f: FilaTabla): FilaTabla => (aa && f.familia === "sonnet" ? { ...f, calidad: 90, origen: "usuario" } : f);
+  return { version: 1, leido: Date.now(), modelos: modelos.map(conAA).map(usuario) };
+};

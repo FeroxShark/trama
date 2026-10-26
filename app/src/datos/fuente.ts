@@ -18,7 +18,7 @@ import { consumoDe, consumoFijo, type Consumo, type Pedido } from "./consumo";
 import { cambioDe, vistaDe, type CambioPasos, type VistaPasos } from "./pasos";
 import { pasosFijos } from "./pasos-fixture";
 import { crearCola, type AvisoCola, type Encolado } from "../../electron/cola";
-import { ARRANCANDO, EN_COLA, HILOS_DELL, LIDER_DELL, PENSANDO_FIJO, charlaFormato, charlaLarga, charlaListas, charlaLider, charlaPensando, charlaSistema, charlaTabla, conversacion, conversacionSistema, HILOS, HILOS_EN_COLA, HILOS_TERMINADOS, ICONOS, LIDERES, LIDER_MUERTO, LIDER_TERMINADOS, FRENADO, TITULOS, USO, USO_CUENTAS, USO_GOOGLE, USO_SIN_HORA, imagenFija, localesFalsos, vramFalsa, vramLiberarFalso } from "./fixtures";
+import { ARRANCANDO, EN_COLA, HILOS_DELL, LIDER_DELL, PENSANDO_FIJO, charlaFormato, charlaLarga, charlaCambio, charlaListas, charlaLider, charlaPensando, charlaSistema, charlaTabla, conversacion, conversacionSistema, HILOS, HILOS_ACTIVAS, HILOS_EN_COLA, HILOS_TERMINADOS, ICONOS, LIDERES, LIDERES_ACTIVAS, LIDER_MUERTO, LIDER_TERMINADOS, FRENADO, TITULOS, USO, USO_CUENTAS, USO_GOOGLE, USO_GOOGLE_MARCADO, USO_SIN_HORA, imagenFija, localesFalsos, vramFalsa, vramLiberarFalso } from "./fixtures";
 
 export interface Fuente {
   /** La última lista buena de una corrida anterior, para pintar algo mientras `pa` contesta. */
@@ -73,7 +73,7 @@ export interface Fuente {
   /** El idioma de la interfaz (Ajustes), en el mismo archivo. */
   guardarIdioma(idioma: string): void;
   /** Tamaño de letra y fuentes (src/tipografia.ts): sólo lo que cambió. */
-  guardarApariencia(a: { letra?: number; fuente?: string; mono?: string }): void;
+  guardarApariencia(a: { letra?: number; fuente?: string; mono?: string; tema?: string }): void;
   /** Los mensajes tiernos (Ajustes), en el mismo archivo. */
   guardarTiernos(si: boolean): void;
   /** La notificación de "te espera" (Ajustes), en el mismo archivo. */
@@ -90,6 +90,8 @@ export interface Fuente {
   consumoMirar(pedido: Pedido): Promise<Consumo>;
   /** El panel se ocultó: el main deja de mirar los transcripts. */
   consumoSoltar(): void;
+  /** ¿Este cliente puede usar el panel de consumo? Por la tailnet el main rechaza `consumo:*` ("canal desconocido"); en la ventana y en el modo local, no. */
+  consumoDisponible(): Promise<boolean>;
   /** Un transcript creció: el consumo de nuevo, entero. */
   alCambiarConsumo(fn: (c: Consumo) => void): () => void;
   /** La vista de un worker: empieza a mirar sus pasos (suelta el que miraba) y contesta la vista entera. `null`: el main no la entendió. */
@@ -208,7 +210,7 @@ export interface Fuente {
   /** Hay un build de trama más nuevo que el que corre: el cartel de la barra (src/barra/Reinicio.tsx). */
   reinicio(): Promise<Reinicio>;
   alCambiarReinicio(fn: (r: Reinicio) => void): () => void;
-  /** La PC que este Dell sabe prender; null donde no hay (la PC misma). Se vuelve a mirar cada vez que se llama. */
+  /** La PC que esta máquina sabe prender; null donde no hay (la PC misma). Se vuelve a mirar cada vez que se llama. */
   pc(): Promise<EstadoPc | null>;
   alCambiarPc(fn: (e: EstadoPc | null) => void): () => void;
   prenderPc(): void;
@@ -306,7 +308,7 @@ const maquinasValidas = (x: unknown): Maquinas => {
     }),
   };
 };
-/** Las capturas de dos máquinas: `maquinas`, `maquinas-lider` (conectada), `maquinas-caida` (el Dell sin conexión), `maquinas-version` (otra versión, sólo lectura) y `maquinas-selector[-caida]` (la caja de un líder nuevo con el selector abierto). */
+/** Las capturas de dos máquinas: `maquinas`, `maquinas-lider` (conectada), `maquinas-caida` (la otra máquina sin conexión), `maquinas-version` (otra versión, sólo lectura) y `maquinas-selector[-caida]` (la caja de un líder nuevo con el selector abierto). */
 const EN_DOS = ["maquinas", "maquinas-caida", "maquinas-version", "maquinas-lider", "maquinas-selector", "maquinas-selector-caida"];
 const maquinasDeCaptura = (): Maquinas =>
   MODO.captura && EN_DOS.includes(MODO.captura)
@@ -315,11 +317,11 @@ const maquinasDeCaptura = (): Maquinas =>
         otras: [{ id: "dell", nombre: "Dell", estado: MODO.captura === "maquinas-caida" || MODO.captura === "maquinas-selector-caida" ? "sinConexion" : MODO.captura === "maquinas-version" ? "soloLectura" : "conectada" }],
       }
     : SOLA;
-/** Las filas del Dell: están con el Dell conectado (también en sólo lectura); caído, no. */
+/** Las filas de la otra máquina: están con la otra máquina conectada (también en sólo lectura); caída, no. */
 const filasDelDell = () => MODO.captura === "maquinas" || MODO.captura === "maquinas-version" || MODO.captura === "maquinas-lider";
 
 /**
- * La PC vista desde el Dell (electron/pc-estado.ts): `apagada` (no contesta), `prendiendo` (salió el paquete) o `prendida`.
+ * La PC vista desde la otra máquina (electron/pc-estado.ts): `apagada` (no contesta), `prendiendo` (salió el paquete) o `prendida`.
  * `url`: la trama de la PC, para Abrir. `error`: por qué no prendió (lo que dijo el comando, o una clave del main).
  */
 export type EstadoPc = { nombre: string; url: string; estado: "apagada" | "prendiendo" | "prendida"; error: string | null };
@@ -514,7 +516,9 @@ const conGemini = (r: RespuestaLideres): RespuestaLideres => {
   return { ...r, lideres: r.lideres.map((l) => (l.id === id ? { ...l, modelo: "gemini-3.8-flash", effort: "low" } : l)) };
 };
 const lideresBase = (): RespuestaLideres =>
-  filasDelDell()
+  MODO.captura === "activas"
+    ? { ...LIDERES, lideres: LIDERES_ACTIVAS }
+    : filasDelDell()
     ? { ...LIDERES, lideres: [...LIDERES.lideres, LIDER_DELL] }
     : MODO.captura === "terminados"
     ? { ...LIDERES, lideres: [...LIDERES.lideres, LIDER_TERMINADOS] }
@@ -577,7 +581,7 @@ const charlas = new Map<string, Mensaje[]>();
 const uuidFijo = (sid: string, i: number) => `00000000-0000-4000-9000-${sid.slice(-8)}${String(i).padStart(4, "0")}`;
 const charla = (sid: string) => {
   let c = charlas.get(sid);
-  if (!c) charlas.set(sid, (c = MODO.captura === "lider-sistema" ? charlaSistema(sid) : MODO.captura === "lider-imagenes" ? charlaImagenes(sid) : MODO.captura === "lider-tabla" ? charlaTabla(sid) : MODO.captura === "lider-listas" ? charlaListas(sid) : MODO.captura === "lider-pensando" && MODO.variante !== "vivo" ? charlaPensando(sid) : MODO.captura === "lider-formato" ? (MODO.variante === "larga" ? charlaLarga(sid) : charlaFormato(sid, MODO.variante === "pegado")) : charlaLider(sid)));
+  if (!c) charlas.set(sid, (c = MODO.captura === "lider-sistema" ? charlaSistema(sid) : MODO.captura === "lider-cambio-motor" ? charlaCambio(sid) : MODO.captura === "lider-imagenes" ? charlaImagenes(sid) : MODO.captura === "lider-tabla" ? charlaTabla(sid) : MODO.captura === "lider-listas" ? charlaListas(sid) : MODO.captura === "lider-pensando" && MODO.variante !== "vivo" ? charlaPensando(sid) : MODO.captura === "lider-formato" ? (MODO.variante === "larga" ? charlaLarga(sid) : charlaFormato(sid, MODO.variante === "pegado")) : charlaLider(sid)));
   return c;
 };
 // La conversación larga de las pruebas (`scripts/prueba-scroll-lideres.mjs`) recibe mensajes nuevos mientras otra está abierta.
@@ -712,7 +716,7 @@ function cuentasFijas() {
 
 /**
  * El `usage` del líder con fixtures: lo que pesa su conversación contra el
- * umbral de 200 mil. Las capturas del anillo (docs/estado/B16/) lo fuerzan a
+ * umbral de 200 mil. Las capturas del anillo lo fuerzan a
  * 30, 75 y 95 %.
  */
 const crecido = new Map<string, number>();
@@ -724,6 +728,7 @@ const usoFixture = (): Uso => {
   if (MODO.captura === "uso-sin-hora") return USO_SIN_HORA;
   if (MODO.captura === "uso-sin-dato" || MODO.variante === "sin-uso") return { version: 1, ts: 0, five_hour: null, seven_day: null };
   if (MODO.variante === "cupos-google") return USO_GOOGLE;
+  if (MODO.variante === "cupos-marcado") return USO_GOOGLE_MARCADO;
   if (MODO.variante === "cupos-cuentas") return USO_CUENTAS;
   return USO;
 };
@@ -734,7 +739,7 @@ function usoFijo(sid: string): Tokens {
 }
 
 /**
- * Las capturas del indicador y de los avisos (docs/estado/B12/): el líder
+ * Las capturas del indicador y de los avisos: el líder
  * `sid` a mitad de un turno (corre un Bash, la API reintentó) o con un turno
  * que terminó mal (compactó, cerca del límite semanal, tope de 5 h y el
  * proceso que sale con código 1). Sólo con fixtures.
@@ -1005,7 +1010,9 @@ const fija: Fuente = {
     return null;
   },
   async hilos() {
-    return MODO.captura === "terminados"
+    return MODO.captura === "activas"
+      ? HILOS_ACTIVAS
+      : MODO.captura === "terminados"
       ? HILOS_TERMINADOS
       : MODO.captura === "worker-en-cola"
         ? HILOS_EN_COLA
@@ -1117,6 +1124,9 @@ const fija: Fuente = {
     return consumoFijo(pedido);
   },
   consumoSoltar() {},
+  async consumoDisponible() {
+    return true;
+  },
   alCambiarConsumo() {
     return () => {};
   },
@@ -1360,7 +1370,17 @@ function aceptarDif(l: { n: number; dif: Parameters<typeof aplicarDif>[1] }): bo
 }
 
 let statusline: Promise<Statusline> | null = null;
-const leerStatusline = () => (statusline ??= main!.statusline.leer());
+// Una lectura rechazada no se guarda: la próxima llamada reintenta en vez de fallar para siempre.
+const leerStatusline = () => {
+  if (!statusline) {
+    const p = main!.statusline.leer();
+    statusline = p;
+    p.catch(() => {
+      if (statusline === p) statusline = null;
+    });
+  }
+  return statusline;
+};
 
 const conPa = (m: NonNullable<typeof main>): Fuente => ({
   async subagentes() {
@@ -1647,6 +1667,15 @@ const conPa = (m: NonNullable<typeof main>): Fuente => ({
   },
   consumoSoltar() {
     void m.consumo.soltar().catch(() => {});
+  },
+  // `soltar` no hace nada si nadie mira: sirve de sonda sin efectos. Sólo el rechazo "canal desconocido" dice que no; otro error, se supone que sí.
+  async consumoDisponible() {
+    try {
+      await m.consumo.soltar();
+      return true;
+    } catch (e) {
+      return !/canal desconocido/i.test(mensaje(e));
+    }
   },
   alCambiarConsumo(fn) {
     return m.consumo.alCambiar((c) => fn(consumoDe(c)));

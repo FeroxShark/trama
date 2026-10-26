@@ -1,7 +1,8 @@
 @import "tailwindcss";
 @import "./tokens.css";
+@import "./temas-colores.css";
 
-/* Dirección visual: docs/maquetas/lavado/ (dirección 1, "estándar pulido") (vidrio quieto, acento celeste, cápsulas, grilla de 4 px,
+/* Dirección visual: el estándar pulido (vidrio quieto, acento celeste, cápsulas, grilla de 4 px,
    una sola fuente con cifras tabulares). Los tokens están en src/tokens.css; acá, el CSS de la app. */
 
 /* Las fuentes van adentro del repo (SIL OFL 1.1, ver THIRD_PARTY.md y
@@ -103,7 +104,7 @@ body,
 #root {
   height: 100%;
   background: var(--fondo);
-  color: var(--color-foreground);
+  color: var(--texto-1);
   overflow: hidden;
 }
 
@@ -282,9 +283,21 @@ body,
   .grupo {
     --g-nombre: 4.5rem;
   }
+  /* Sin lugar para el logo: el nombre ("Google", "ChatGPT") se lee entero y la marca ya lo dice. */
+  .g-id .logo {
+    display: none;
+  }
   .g-hasta,
   .g-sub {
     display: none;
+  }
+  /* Un grupo de adentro (Gemini, Claude/GPT, Argon): su nombre entero en su propia línea y las dos celdas debajo, en vez de partirse en dos renglones. */
+  .grupo[data-hijo] {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    row-gap: var(--esp-1);
+  }
+  .grupo[data-hijo] > .g-id {
+    grid-column: 1 / -1;
   }
 }
 .g-id {
@@ -305,6 +318,12 @@ body,
   overflow: visible;
   border-radius: 0;
   color: var(--txt-3);
+}
+/* Más angosta todavía, el "falta" de la celda (queda en el tooltip) cede ante el porcentaje y la barra. */
+@container (max-width: 16rem) {
+  .uso .n {
+    display: none;
+  }
 }
 .g-n {
   overflow: hidden;
@@ -347,6 +366,88 @@ body,
 .g-flecha {
   color: var(--txt-4);
 }
+/* Los grupos de una suscripción (Google) en el renglón plegado: un chip por grupo, con icono y texto además del color. */
+/* Con chips el nombre queda arriba, a la altura del primero (no centrado en un bloque alto). */
+.grupo:has(> .g-chips) {
+  align-items: start;
+}
+.g-chips {
+  display: flex;
+  min-width: 0;
+  grid-column: 2 / -1;
+  flex-wrap: wrap;
+  gap: var(--esp-1) var(--esp-1-5);
+}
+.g-chip {
+  display: inline-flex;
+  min-width: 0;
+  max-width: 100%;
+  align-items: center;
+  gap: var(--esp-1);
+  padding: 0 var(--esp-1-5);
+  border: 1px solid transparent;
+  border-radius: var(--radio-pastilla);
+  background: var(--capa-tile);
+  color: var(--txt-2);
+  font-size: var(--letra-3);
+  line-height: 1.5;
+  white-space: nowrap;
+}
+.g-chip svg {
+  flex: none;
+}
+/* El nombre del grupo nunca se recorta (un chip sin nombre no dice de qué es): si no entra, el chip baja de renglón. */
+.g-chip-n {
+  flex: none;
+}
+.g-chip-v {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-family: var(--font-mono);
+  color: var(--txt-1);
+}
+.g-chip[data-estado="bajo"] {
+  background: var(--aviso-tinte);
+  color: var(--aviso);
+}
+.g-chip[data-estado="lleno"] {
+  background: var(--critico-tinte);
+  color: var(--critico);
+}
+.g-chip[data-estado="lleno"] .g-chip-v {
+  color: inherit;
+}
+/* Marcado sin cupo (429): borde punteado, para no confundirlo con un 100 % medido. */
+.g-chip[data-estado="marcado"] {
+  border-style: dashed;
+  border-color: var(--critico);
+  background: transparent;
+  color: var(--critico);
+}
+.g-chip[data-estado="marcado"] .g-chip-v {
+  color: inherit;
+}
+.g-chip[data-estado="sin"] {
+  color: var(--txt-4);
+}
+/* Una ventana que no rige, o un grupo marcado: sin porcentaje; la barra va rayada y vacía. */
+.uso[data-aparte] .sd {
+  margin-left: 0;
+  color: var(--txt-4);
+}
+.uso[data-aparte="marcado"] .sd {
+  color: var(--critico);
+  font-style: normal;
+}
+.riel[data-hueco] {
+  background: repeating-linear-gradient(135deg, var(--capa-track) 0 0.25rem, var(--capa-div) 0.25rem 0.5rem);
+}
+.uso-lleno {
+  align-self: center;
+  flex: none;
+  color: var(--critico);
+}
 .grupo[data-hijo] .g-id {
   grid-template-columns: minmax(0, 1fr);
   padding-left: var(--esp-3);
@@ -361,7 +462,9 @@ body,
   -webkit-line-clamp: 2;
   white-space: normal;
 }
+/* En una celda angosta la ventana ("2 h 9 min") cede: queda el porcentaje y la barra (el tooltip dice el resto), nunca un "2 h 1…" cortado. */
 .uso {
+  container-type: inline-size;
   display: flex;
   min-width: 0;
   flex-direction: column;
@@ -377,8 +480,16 @@ body,
   white-space: nowrap;
 }
 .uso .n {
-  flex: none;
+  min-width: 0;
+  flex: 0 1 auto;
+  overflow: hidden;
   color: var(--txt-3);
+  text-overflow: ellipsis;
+}
+@container (max-width: 5.5rem) {
+  .uso .r > .n {
+    display: none;
+  }
 }
 .uso .pct {
   margin-left: auto;
@@ -765,6 +876,11 @@ kbd {
   background: var(--sup-3);
   color: var(--txt-2);
 }
+/* La sección "Activas": su cabecera lleva el rayo del caché caliente, con el texto al lado (el color no es la única señal). */
+.activas-icono {
+  flex: none;
+  color: var(--texto-1);
+}
 .cuenta {
   font-family: var(--font-mono);
   font-size: var(--letra-3);
@@ -881,6 +997,27 @@ kbd {
   gap: var(--esp-1-5);
   font-weight: 500;
 }
+/* En "Activas" cada fila lleva su proyecto delante de la segunda línea, en una pastilla que se acorta antes que el resto. */
+.lider .con-proy {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--esp-1-5);
+}
+.lider .etq-proy {
+  flex: 0 0 auto;
+  min-width: 0;
+  max-width: 60%;
+  overflow: hidden;
+  padding: 0 var(--esp-1-5);
+  border-radius: var(--r-cap);
+  background: var(--capa-tile);
+  color: var(--txt-3);
+  font-size: var(--letra-3);
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 /* El nombre: apagado salvo en el que se está viendo (blanco y más grueso). */
 .lider .nom {
   min-width: 3.25rem;
@@ -900,8 +1037,12 @@ kbd {
   color: var(--txt-2);
 }
 .lider .s {
+  min-width: 0;
+  overflow: hidden;
   font-size: var(--letra-3);
   color: var(--apagado);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 /* Sin proceso: lo mataron (rojo, como "líder muerto") o cerró (apagado). Se retoma desde su vista. */
 .lider[data-caido] .corona {
@@ -923,7 +1064,17 @@ kbd {
   font-weight: 500;
   white-space: nowrap;
 }
+/* En una fila de la barra angosta, "Te espera" se acorta en vez de pisar el número del caché. */
+.lider .t {
+  overflow: hidden;
+}
+.lider .te-espera {
+  flex: 0 1 auto;
+  min-width: 0.75rem;
+  overflow: hidden;
+}
 .te-espera i {
+  flex: none;
   width: 0.375rem;
   height: 0.375rem;
   border-radius: 50%;
@@ -1257,17 +1408,21 @@ kbd {
   color: var(--txt-3);
 }
 
-/* Un solo botón al hover: Cerrar. Vive al lado del botón de la fila, no adentro. */
-/* Del alto del botón, como en la maqueta, pero sobre la segunda línea: el
-   numerito queda entero arriba y se le llega con el mouse a su tooltip. */
+/* Los botones que salen con el hover de una fila viven en la segunda línea de la fila (`.l2` del worker, el `.s`
+   del líder): ésa se desvanece (opacity, sin perder el alto) y los botones ocupan su lugar, alineados a la derecha y
+   centrados en esa línea (`1lh`). El título de arriba queda entero, sin nada encima.
+   Sin fondo propio: el fondo de la barra es un degradé y el hover de la fila es translúcido, así que nada sólido les iguala. */
 .acc {
   position: absolute;
   right: 0.375rem;
-  bottom: 0.1875rem;
+  bottom: var(--esp-1-5);
+  left: calc(var(--esp-3) + var(--esp-5));
   display: flex;
+  height: 1lh;
+  align-items: center;
+  justify-content: flex-end;
   gap: var(--esp-1);
-  padding-left: var(--esp-3);
-  background: linear-gradient(90deg, transparent, var(--sup-1) 0.375rem);
+  font-size: var(--letra-3);
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.12s;
@@ -1276,42 +1431,52 @@ kbd {
 .wbtn[data-cursor] + .acc,
 .acc:focus-within {
   opacity: 1;
+}
+/* La franja cubre toda la segunda línea pero no recibe clics (si no, tocar la fila ahí no la abre): sólo sus botones. */
+.w:hover > .acc > *,
+.wbtn[data-cursor] + .acc > *,
+.acc:focus-within > *,
+.lw:hover > .acc > *,
+.lider[data-cursor] ~ .acc > *,
+.lw > .acc:has(.settle-conf) > * {
   pointer-events: auto;
 }
-.wbtn[data-activa] + .acc {
-  background: linear-gradient(90deg, transparent, var(--sup-4) 0.375rem);
+/* La descripción (modelo · hora) NO se esconde: cede el ancho de los botones (--acc-w, medido en Fila.tsx) y se corta con puntos suspensivos. */
+.w:has(> .acc):hover .l2,
+.wbtn[data-cursor]:has(+ .acc) .l2,
+.w:has(> .acc:focus-within) .l2 {
+  padding-right: calc(var(--acc-w, 0px) + var(--esp-1-5));
 }
-/* La fila del líder lleva su "Cerrar líder" igual que el Settle del worker. */
-/* El líder y su primer worker, separados como las filas entre sí. */
+/* El líder: igual, sobre su segunda línea (el padding de la fila es el de abajo y el de la izquierda, el de la corona). */
 .lw {
   position: relative;
   margin-bottom: var(--esp-0-5);
 }
-/* Acá el numerito va al medio de la fila, no arriba: el botón toma el alto de la fila, centrado,
-   y el numerito se esconde mientras se ve (sin transición), así no se pisan. */
 .lw > .acc {
-  top: 0;
-  bottom: 0;
-  align-items: center;
-  background: linear-gradient(90deg, transparent, var(--sup-2) 0.375rem);
+  bottom: var(--esp-2);
+  left: 1.875rem;
 }
+.lw:has(> .acc):hover .txt > :last-child,
+.lw:has(> .acc:focus-within) .txt > :last-child,
+.lw:has(> .acc .settle-conf) .txt > :last-child,
+.lider[data-cursor]:has(~ .acc) .txt > :last-child {
+  padding-right: calc(var(--acc-w, 0px) + var(--esp-1-5));
+}
+/* El numerito de caché va al medio de la fila: se esconde mientras se ven los botones (sin transición), así no se pisan. */
 .lw:has(> .acc):hover .cache,
 .lw:has(> .acc:focus-within) .cache,
+.lw:has(> .acc .settle-conf) .cache,
 .lider[data-cursor]:has(~ .acc) .cache {
   visibility: hidden;
-}
-.lw:has(> .lider[data-activa]) > .acc {
-  background: linear-gradient(90deg, transparent, var(--sup-4) 0.375rem);
 }
 .lw:hover > .acc,
 .lider[data-cursor] ~ .acc {
   opacity: 1;
-  pointer-events: auto;
 }
 /* "Quedan N ramas sin integrar: ¿Settle igual?": a la izquierda del Settle, mientras está armado. */
 .settle-conf {
   order: -1;
-  align-self: center;
+  min-width: 0;
   margin-right: var(--esp-1-5);
   overflow: hidden;
   color: var(--ambar);
@@ -1319,13 +1484,12 @@ kbd {
   white-space: nowrap;
   text-overflow: ellipsis;
 }
-.acc:has(.settle-conf) {
-  top: auto;
-  bottom: 0.1875rem;
-  left: 0.375rem;
-  justify-content: flex-end;
+.acc .mini {
+  flex: none;
+}
+/* Armado, queda a la vista aunque se vaya el mouse (se desarma al salir del botón o con Esc). */
+.lw > .acc:has(.settle-conf) {
   opacity: 1;
-  pointer-events: auto;
 }
 .mini {
   display: inline-flex;
@@ -1530,7 +1694,8 @@ kbd {
 
 .pie {
   position: relative;
-  z-index: 3;
+  /* Sobre los avisos de arriba (`.avc`, z 4): los tooltips de sus botones salen hacia arriba y no pueden quedar debajo. */
+  z-index: 5;
   display: flex;
   flex: none;
   gap: var(--esp-0-5);
@@ -1641,7 +1806,7 @@ kbd {
   border-color: var(--borde-5);
   color: var(--txt-1);
 }
-/* La PC desde el Dell (src/barra/Pc.tsx), arriba del cartel de actualización: un puntito (apagada gris, prendiendo
+/* La PC desde la otra máquina (src/barra/Pc.tsx), arriba del cartel de actualización: un puntito (apagada gris, prendiendo
    ámbar, prendida verde; todos quietos), el estado y su botón. Abrir es un enlace con la cara de botón. */
 .pcx {
   flex: none;
@@ -1763,8 +1928,9 @@ kbd {
   position: relative;
   z-index: 4;
   flex: none;
-  padding: 0 var(--esp-2) var(--esp-1-5);
-  background: var(--negro);
+  /* Una fila adentro, alineada con las demás de la barra (el mismo margen del pie), no una franja de borde a borde. */
+  padding: 0 var(--esp-3) var(--esp-1-5);
+  background: transparent;
 }
 .avc-b {
   display: flex;
@@ -1772,10 +1938,10 @@ kbd {
   height: 1.5rem;
   align-items: center;
   gap: var(--esp-2);
-  padding: 0 var(--esp-2);
+  padding: 0 var(--esp-3);
   border: 0;
-  border-radius: var(--radio-2);
-  background: transparent;
+  border-radius: var(--r-sm);
+  background: var(--capa-card);
   color: var(--txt-3);
   font-size: var(--letra-4);
   white-space: nowrap;
@@ -1787,7 +1953,7 @@ kbd {
 }
 .avc-b:hover,
 .avc-b[aria-expanded="true"] {
-  background: var(--sup-1);
+  background: var(--capa-hover);
   color: var(--texto-1);
 }
 .avc-p {
@@ -1800,9 +1966,9 @@ kbd {
 .avc-g {
   position: absolute;
   bottom: calc(100% + 0.125rem);
-  left: 0.5rem;
+  left: var(--esp-3);
   display: flex;
-  width: min(16.25rem, calc(100% - 1rem));
+  width: min(16.25rem, calc(100% - 1.5rem));
   flex-direction: column;
   gap: var(--esp-1-5);
   padding: var(--esp-2-5) var(--esp-3);
@@ -2215,6 +2381,15 @@ kbd {
 .tv-pl[data-vivo] .tv-pq {
   color: var(--c, var(--texto-4));
 }
+/* Varios pensamientos en una fila ("Pensó · 10"): abierta, cada uno es su línea, sangrada bajo la fila. */
+.tv-pgl {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-0-5);
+  margin: var(--esp-1) 0 0 var(--esp-1);
+  padding-left: var(--esp-3);
+  border-left: 1px solid var(--borde-3);
+}
 .tv-pr {
   min-width: 0;
   overflow: hidden;
@@ -2360,11 +2535,67 @@ kbd {
 .caja textarea:disabled {
   cursor: not-allowed;
 }
+/* Una sola fila a cualquier ancho: Lider.tsx la compacta por pasos (data-nivel) hasta que no sobre. Nunca baja a un segundo renglón. */
 .barra-c {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   gap: var(--esp-1);
+}
+.barra-c > * {
+  flex: none;
+}
+.barra-c > .esp {
+  flex: 1 1 0;
+  min-width: 0;
+}
+.barra-c .pbtn {
+  white-space: nowrap;
+}
+.pbtn-suf {
+  display: none;
+  white-space: nowrap;
+}
+/* Paso 1: el modo de permisos queda en su símbolo (el tooltip dice el nombre entero). */
+.barra-c:not([data-nivel="0"]) .modo-t {
+  display: none;
+}
+.barra-c:not([data-nivel="0"]) .modo {
+  justify-content: center;
+  min-width: 2rem;
+  margin-right: 0;
+  padding: 0 var(--esp-1-5);
+}
+/* Paso 2: modelo y esfuerzo en un solo chip ("Opus 5.5 · med") que abre el selector de modelo. */
+.barra-c:is([data-nivel="2"], [data-nivel="3"]) .pbtn-suf {
+  display: inline;
+}
+.barra-c:is([data-nivel="2"], [data-nivel="3"]) > .pick:has(.nivel),
+.barra-c:is([data-nivel="2"], [data-nivel="3"]) > .pick:has([data-sin-esfuerzo]) {
+  display: none;
+}
+/* Paso 3: sin adornos y, si aun así no entra, el nombre del modelo cede con puntos suspensivos. */
+.barra-c[data-nivel="3"] .pbtn :is(.chev, .chip) {
+  display: none;
+}
+.barra-c[data-nivel="3"] > .pick:has(> .pbtn) {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+.barra-c[data-nivel="3"] .pbtn {
+  max-width: 100%;
+  padding: 0 var(--esp-2);
+}
+/* El grupo de la derecha (contexto, Parar, micrófono, enviar) nunca se separa ni queda solo a la izquierda: pegado al borde derecho de la última línea. */
+.barra-der {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--esp-1);
+  margin-left: auto;
+}
+.barra-c > .pick:has(> .pbtn) {
+  min-width: 0;
 }
 .pick {
   position: relative;
@@ -2439,17 +2670,16 @@ kbd {
 .fondo {
   position: fixed;
   inset: 0;
-  z-index: 19;
+  z-index: 499;
   padding: 0;
   border: 0;
   background: transparent;
   cursor: default;
 }
+/* Va en un portal a <body>: `Selector` le pone top/bottom/left según dónde cae el botón y cuánto lugar hay. */
 .menu {
-  position: absolute;
-  bottom: calc(100% + 0.375rem);
-  left: 0;
-  z-index: 20;
+  position: fixed;
+  z-index: 500;
   display: flex;
   min-width: 14.75rem;
   flex-direction: column;
@@ -3059,6 +3289,62 @@ kbd {
   color: var(--txt-3);
   font-size: var(--letra-4);
   line-height: 1.5;
+}
+/* Seguir la conversación con un modelo de otro motor: diálogo modal sobre el selector abierto (DialogoCambio.tsx). */
+.cambio-fondo {
+  position: fixed;
+  inset: 0;
+  z-index: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--esp-4);
+  background: var(--fondo-modal);
+}
+.cambio {
+  display: flex;
+  width: min(26rem, 100%);
+  flex-direction: column;
+  gap: var(--esp-3);
+  padding: var(--esp-4);
+  border: 1px solid var(--borde-3);
+  border-radius: var(--radio-4);
+  background: var(--sup-1);
+  box-shadow: 0 1rem 2.5rem var(--sombra);
+  animation: abre 0.18s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.cambio-t {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-2);
+  margin: 0;
+  color: var(--texto);
+  font-size: var(--letra-6);
+  font-weight: 600;
+}
+.cambio-t svg {
+  flex: none;
+}
+.cambio-d {
+  margin: 0;
+  color: var(--texto-3);
+  font-size: var(--letra-4);
+  line-height: 1.5;
+}
+.cambio-b {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--esp-2);
+}
+.cambio .btn2 {
+  height: var(--alto-chip);
+  padding: 0 var(--esp-3);
+  font-size: var(--letra-4);
+}
+.cambio .cambio-si {
+  background: var(--acento);
+  color: var(--acento-texto);
 }
 /* Líder con un modelo local: sin workers. Callado como .caja-aviso, con el chip delante. */
 .caja-local {
@@ -4749,7 +5035,7 @@ summary.sis-div-t:hover,
 .caja-carpeta input::placeholder {
   color: var(--texto-7);
 }
-/* Dictar (docs/estado/dictado.md): el micrófono al lado de Mandar. Grabando es una píldora roja con el punto que late, el contador y parar;
+/* Dictar: el micrófono al lado de Mandar. Grabando es una píldora roja con el punto que late, el contador y parar;
    Transcribiendo… y Reintentar llevan su texto. Apagado (por http) se ve opaco y su tooltip dice por qué. */
 .dic {
   display: inline-flex;
@@ -5381,7 +5667,7 @@ summary.sis-div-t:hover,
     display: none;
   }
   /* Respondiendo: Parar ocupa el lugar del esfuerzo, que durante un turno no se puede cambiar. */
-  .barra-c:has(> .btn2) > .pick:has(.nivel) {
+  .barra-c:has(.barra-der > .btn2) > .pick:has(.nivel) {
     display: none;
   }
   /* Si igual no entrara (un nombre de modelo más largo), lo que cede es el selector, nunca el enviar. */
@@ -5409,7 +5695,7 @@ summary.sis-div-t:hover,
   :is(.caja, .meta) .pick {
     position: static;
   }
-  :is(.caja, .meta) :is(.menu, .ctx-det, .ctx-det[data-lado="izq"], .cl-det) {
+  :is(.caja, .meta) :is(.ctx-det, .ctx-det[data-lado="izq"], .cl-det) {
     right: 0;
     left: 0;
     width: auto;
@@ -5590,7 +5876,7 @@ summary.sis-div-t:hover,
     display: none;
   }
   /* Respondiendo en 360 px no entran Parar y el micrófono sin cortar el nombre del modelo: el micrófono espera (si ya graba, se queda). */
-  .barra-c:has(> .btn2) .dic:is([data-fase="libre"], [data-fase="error"]) {
+  .barra-c:has(.barra-der > .btn2) .dic:is([data-fase="libre"], [data-fase="error"]) {
     display: none;
   }
 }
@@ -5770,5 +6056,261 @@ summary.sis-div-t:hover,
     position: absolute;
     inset: -0.5rem;
     content: "";
+  }
+}
+
+/* --- Selector compacto de modelos: un riel de proveedores a la izquierda y una sola lista a la derecha ----------- */
+.menu[data-columnas] {
+  width: min(46rem, 95vw);
+  max-width: min(46rem, 95vw);
+  max-height: min(60dvh, calc(100dvh - 1rem));
+  overflow: hidden;
+  gap: 0;
+  padding: var(--esp-1) var(--esp-1) var(--esp-1-5);
+}
+.mc-cab {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--esp-3);
+  padding: var(--esp-1) var(--esp-1-5) var(--esp-1-5);
+}
+.mc-cab .mh {
+  padding: 0;
+}
+.mc-busca {
+  display: flex;
+  min-width: 0;
+  flex: 0 1 15rem;
+  align-items: center;
+  gap: var(--esp-1-5);
+  padding: 0 var(--esp-2);
+  border: 1px solid var(--borde-3);
+  border-radius: var(--radio-2);
+  color: var(--texto-7);
+}
+.mc-busca:focus-within {
+  border-color: var(--texto-6);
+  color: var(--texto-3);
+}
+.mc-busca input {
+  min-width: 0;
+  flex: 1;
+  height: 1.75rem;
+  border: 0;
+  background: transparent;
+  color: var(--texto-2);
+  font: inherit;
+  font-size: var(--letra-4);
+  outline: none;
+}
+.mc-busca input::-webkit-search-cancel-button {
+  display: none;
+}
+.mc-cuerpo {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+}
+/* El riel: una pestaña por proveedor (logo, nombre y cuántos modelos). */
+.mc-riel {
+  display: flex;
+  width: 11rem;
+  flex: none;
+  flex-direction: column;
+  gap: 1px;
+  padding: 0 var(--esp-1) 0 0;
+  border-right: 1px solid var(--borde-2);
+  overflow-y: auto;
+}
+.mc-tab {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-2);
+  padding: var(--esp-2) var(--esp-2-5);
+  border: 0;
+  border-radius: var(--radio-2);
+  background: transparent;
+  color: var(--texto-4);
+  font-size: var(--letra-4);
+  text-align: left;
+  white-space: nowrap;
+}
+.mc-tab .logo {
+  flex: none;
+  color: var(--texto-3);
+}
+.mc-tab:hover,
+.mc-tab:focus-visible {
+  background: var(--sup-2);
+  color: var(--texto-2);
+}
+/* La pestaña elegida no es sólo color: fondo, negrita y una barra al borde. */
+.mc-tab[aria-selected="true"] {
+  background: var(--sup-2);
+  box-shadow: inset 0.1875rem 0 0 var(--texto-3);
+  color: var(--texto);
+  font-weight: 600;
+}
+.mc-tab[data-vacia] {
+  opacity: 0.55;
+}
+.mc-tn {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mc-cnt {
+  flex: none;
+  color: var(--texto-7);
+  font-family: var(--font-mono);
+  font-size: var(--letra-3);
+}
+.mc-lista {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  padding-left: var(--esp-1);
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--borde-3) transparent;
+}
+.mc-arriba {
+  padding-bottom: var(--esp-1);
+  border-bottom: 1px solid var(--borde-2);
+  margin-bottom: var(--esp-1);
+}
+.mc-col {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 1px;
+}
+.mc-col + .mc-col {
+  margin-top: var(--esp-2);
+}
+/* Buscando se ven todos los proveedores, cada uno con su título pegado arriba. */
+.mc-tit {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: var(--esp-2);
+  padding: var(--esp-1-5) var(--esp-2-5);
+  border-bottom: 1px solid var(--borde-2);
+  background: var(--sup-1);
+  color: var(--texto-4);
+  font-size: var(--letra-4);
+  font-weight: 600;
+}
+.mc-tit .logo {
+  flex: none;
+  color: var(--texto-3);
+}
+.mc-sub {
+  padding: var(--esp-2) var(--esp-2-5) var(--esp-1);
+  color: var(--texto-7);
+  font-size: var(--letra-2);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.mc-nada {
+  padding: var(--esp-4) var(--esp-3);
+  color: var(--texto-7);
+  font-size: var(--letra-4);
+  text-align: center;
+}
+/* Un renglón por modelo: el nombre a la izquierda, lo chico (Gratis, De pago, por defecto) y el tilde a la derecha. La descripción entra sólo en el resaltado. */
+.menu[data-columnas] .op {
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+}
+.menu[data-columnas] .op .on1 {
+  min-width: 0;
+}
+.menu[data-columnas] .op {
+  padding-block: var(--esp-1-5);
+}
+.menu[data-columnas] .op .ok {
+  grid-column: 3;
+  grid-row: 1;
+}
+.menu[data-columnas] .op .oc-meta {
+  grid-column: 2;
+  grid-row: 1;
+}
+.menu[data-columnas] .op .on-n {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.oc-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--esp-1-5);
+}
+.oc-tag {
+  padding: 0 var(--esp-1-5);
+  border: 1px solid var(--borde-3);
+  border-radius: var(--radio-pastilla);
+  color: var(--texto-3);
+  font-size: var(--letra-3);
+  line-height: 1.5;
+}
+/* "De pago" va con borde punteado y "Gratis" liso: se distinguen sin depender del color. */
+.oc-tag[data-tag="pago"] {
+  border-style: dashed;
+  color: var(--texto-2);
+}
+.menu[data-columnas] .op .md {
+  display: none;
+  grid-column: 1 / -1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.menu[data-columnas] .op:is(:hover, :focus-visible) .md {
+  display: block;
+}
+/* La elegida no se dice sólo con el tilde: también va en negrita y con el fondo marcado. */
+.menu[data-columnas] .op[aria-selected="true"] {
+  background: var(--sup-2);
+}
+.menu[data-columnas] .op[aria-selected="true"] .on-n {
+  font-weight: 600;
+}
+/* Celular: el riel pasa arriba, en horizontal (el nombre se va, queda el logo y la cuenta). */
+@media (max-width: 37.5rem) {
+  .menu[data-columnas] {
+    width: 95vw;
+    max-width: 95vw;
+  }
+  .mc-cab {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--esp-1-5);
+  }
+  .mc-busca {
+    flex: none;
+  }
+  .mc-cuerpo {
+    flex-direction: column;
+  }
+  .mc-riel {
+    width: auto;
+    flex-direction: row;
+    padding: 0 0 var(--esp-1);
+    border-right: 0;
+    border-bottom: 1px solid var(--borde-2);
+    margin-bottom: var(--esp-1);
+    overflow: auto hidden;
+  }
+  .mc-lista {
+    padding-left: 0;
   }
 }

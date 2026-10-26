@@ -20,6 +20,7 @@ import {
   FAMILIAS,
   GEMINI,
   HOY,
+  PERFILES,
   SIN_CUPO,
   TIPOS,
   TOPE_CLAUDE_DEFECTO,
@@ -29,16 +30,17 @@ import {
   type Eleccion,
   type Local,
   type ModoReparto,
+  type Perfil,
   type SinCupo,
   type Tipo,
 } from "../../electron/modelos-tipos";
 import { defDe, effortDeModelo, TABLA } from "../hilo/modelos";
 
 export { DESTRABAR_MODELOS };
-export { AGY, CUPO_MAX, CUPO_MIN, EXCLUIR_MAX, FAMILIAS, GEMINI, SIN_CUPO, TIPOS, TOPE_CLAUDE_DEFECTO, URL_OLLAMA };
-export type { Eleccion, Local, SinCupo, Tipo };
+export { AGY, CUPO_MAX, CUPO_MIN, EXCLUIR_MAX, FAMILIAS, GEMINI, PERFILES, SIN_CUPO, TIPOS, TOPE_CLAUDE_DEFECTO, URL_OLLAMA };
+export type { Eleccion, Local, Perfil, SinCupo, Tipo };
 
-/** El cupo va como texto mientras se escribe; el resto es la config tal cual. */
+/** Los topes van como texto mientras se escriben; el resto es la config tal cual. */
 export type Borrador = {
   lider?: Eleccion;
   reparto?: ModoReparto;
@@ -46,11 +48,14 @@ export type Borrador = {
   locales: Local[];
   /** Lo que `reparto` nunca elige (familias, ids o prefijos con `*`). */
   excluir: string[];
+  /** Inteligencia 0–100 que alguien fijó, por clave de `calidad` (lo demás lo estima `reparto`). */
+  calidad: Record<string, number>;
   /** Deja correr opus/sonnet con esfuerzo `max` sin pedir permiso. */
   permitir_max: boolean;
-  cupo: string;
   /** Qué hace `pa` si un modelo no tiene cupo; sin elegir se escribe nada y vale `otro`. */
   sin_cupo?: SinCupo;
+  /** Perfil de reparto; sin elegir vale `equilibrado` y no se escribe nada. */
+  perfil?: Perfil;
   /** «Guardar un % para mis sesiones»: apagado de fábrica (sin `reserva`); prendido, los topes de abajo valen. */
   guardar: boolean;
   /** Los topes de Claude (5 h y semanal) como texto mientras se escriben. */
@@ -66,16 +71,17 @@ export const borradorDe = (e: EstadoModelos): Borrador => ({
   workers: Object.fromEntries(Object.entries(e.config.workers).map(([k, v]) => [k, { ...v }])),
   locales: e.config.locales.map((l) => ({ ...l })),
   excluir: [...e.config.excluir],
+  calidad: { ...e.config.calidad },
   permitir_max: e.config.permitir_max,
-  cupo: e.config.gemini.cupo_max === undefined ? "" : String(e.config.gemini.cupo_max),
   ...(e.config.sin_cupo ? { sin_cupo: e.config.sin_cupo } : {}),
+  ...(e.config.perfil ? { perfil: e.config.perfil } : {}),
   guardar: e.config.claude.tope_5h !== undefined || e.config.claude.tope_7d !== undefined,
   tope5: e.config.claude.tope_5h === undefined ? "" : String(e.config.claude.tope_5h),
   tope7: e.config.claude.tope_7d === undefined ? "" : String(e.config.claude.tope_7d),
   destrabar: { ...e.config.destrabar },
 });
 
-/** El cupo escrito: `null` vacío (sin definir), el número si vale, `"mal"` si no. */
+/** Un porcentaje escrito (los topes): `null` vacío (sin definir), el número si vale, `"mal"` si no. */
 export function cupoDe(texto: string): number | null | "mal" {
   const s = texto.trim();
   if (!s) return null;
@@ -84,13 +90,12 @@ export function cupoDe(texto: string): number | null | "mal" {
   return n >= CUPO_MIN && n <= CUPO_MAX ? n : "mal";
 }
 
-/** La config que se guardaría, o `null` si el cupo escrito no vale. */
+/** La config que se guardaría, o `null` si un tope escrito no vale. */
 export function configDe(b: Borrador): ConfigModelos | null {
-  const cupo = cupoDe(b.cupo);
   // Con el interruptor apagado lo escrito en los topes no cuenta (ni se valida); prendido y vacío vale el recomendado.
   const t5 = b.guardar ? (cupoDe(b.tope5) ?? TOPE_CLAUDE_DEFECTO) : null;
   const t7 = b.guardar ? (cupoDe(b.tope7) ?? TOPE_CLAUDE_DEFECTO) : null;
-  if (cupo === "mal" || t5 === "mal" || t7 === "mal") return null;
+  if (t5 === "mal" || t7 === "mal") return null;
   const workers: ConfigModelos["workers"] = {};
   for (const t of TIPOS) if (b.workers[t]) workers[t] = { ...b.workers[t]! };
   return {
@@ -99,9 +104,11 @@ export function configDe(b: Borrador): ConfigModelos | null {
     workers,
     locales: b.locales.map((l) => ({ ...l })),
     excluir: [...b.excluir],
+    calidad: { ...b.calidad },
     permitir_max: b.permitir_max,
-    gemini: { ...(cupo !== null ? { cupo_max: cupo } : {}) },
+    gemini: {},
     ...(b.sin_cupo ? { sin_cupo: b.sin_cupo } : {}),
+    ...(b.perfil ? { perfil: b.perfil } : {}),
     claude: { ...(t5 !== null ? { tope_5h: t5 } : {}), ...(t7 !== null ? { tope_7d: t7 } : {}) },
     destrabar: { ...b.destrabar },
   };
@@ -115,15 +122,16 @@ const huella = (c: ConfigModelos) =>
     TIPOS.map((t) => c.workers[t] ?? null),
     c.locales.map((l) => [l.id, l.nombre, l.url, l.modelo]),
     c.excluir,
+    Object.entries(c.calidad ?? {}).sort(([a], [z]) => (a < z ? -1 : 1)),
     c.permitir_max,
-    c.gemini.cupo_max ?? null,
     c.sin_cupo ?? null,
+    c.perfil ?? "equilibrado",
     c.claude.tope_5h ?? null,
     c.claude.tope_7d ?? null,
     Object.entries(c.destrabar).sort(([a], [z]) => (a < z ? -1 : 1)),
   ]);
 
-/** Hay algo distinto de lo guardado (o un cupo a medio escribir que no vale). */
+/** Hay algo distinto de lo guardado (o un tope a medio escribir que no vale). */
 export function sucio(e: EstadoModelos, b: Borrador): boolean {
   const c = configDe(b);
   return c === null || huella(c) !== huella(e.config);
@@ -227,8 +235,6 @@ export const excluidoDe = (texto: string): string | null => {
   return /^[a-z0-9][\w.:*/[\]-]{0,79}$/.test(s) ? s : null;
 };
 
-export const estaExcluido = (b: Borrador, id: string) => b.excluir.includes(id);
-
 export function agregarExcluido(b: Borrador, texto: string): Borrador {
   const id = excluidoDe(texto);
   return !id || b.excluir.includes(id) || b.excluir.length >= EXCLUIR_MAX ? b : { ...b, excluir: [...b.excluir, id] };
@@ -269,7 +275,7 @@ export function quitarLocal(b: Borrador, id: string): Borrador {
 
 /** Con qué corre un tipo según el borrador (sus filas, el `default` o lo de hoy). */
 export function efectivoBorrador(b: Borrador, tipo: Tipo, soloGemini = false): Eleccion {
-  return efectivoDe({ lider: b.lider, workers: b.workers, locales: b.locales, excluir: [], permitir_max: false, gemini: {}, claude: {}, destrabar: {} }, tipo, soloGemini);
+  return efectivoDe({ lider: b.lider, workers: b.workers, locales: b.locales, excluir: [], calidad: {}, permitir_max: false, gemini: {}, claude: {}, destrabar: {} }, tipo, soloGemini);
 }
 
 export const liderEfectivo = (b: Borrador): Eleccion => b.lider ?? HOY.lider;
@@ -285,10 +291,6 @@ export function topeEfectivo(b: Borrador, v: Ventana5o7): number {
   const n = cupoDe(v === "5h" ? b.tope5 : b.tope7);
   return typeof n === "number" ? n : TOPE_CLAUDE_DEFECTO;
 }
-
-/** Los topes que se van a guardar, o `null`: sin el interruptor no hay reserva y nada se cruza. */
-export const topesGuardados = (b: Borrador): { "5h": number; "7d": number } | null =>
-  b.guardar ? { "5h": topeEfectivo(b, "5h"), "7d": topeEfectivo(b, "7d") } : null;
 
 /**
  * Qué ventanas del plan ya cruzaron su tope con lo que se ve del uso (`pct` de 0 a 100; `null`: sin dato, no se afirma nada).

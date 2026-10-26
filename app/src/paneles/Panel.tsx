@@ -7,6 +7,7 @@ import { Estadisticas } from "./Estadisticas";
 import { Ramas, type PropsRamas } from "./Ramas";
 import { Tablero, type PropsTablero } from "./Tablero";
 import { TableroNuevo } from "./TableroNuevo";
+import { AvisoLecciones } from "./Lecciones";
 import { t, type ClaveSola } from "../i18n";
 import { useIdioma } from "../i18n/react";
 import { Fijo } from "../i18n/Fijo";
@@ -60,7 +61,10 @@ export function Panel({ cual, barraAbierta, alAlternarBarra, alVolver, ramas, ta
             <Estadisticas />
           ) : (
             // El tablero nuevo (lo que le toca al usuario); el kanban de siempre es su pestaña "Todo".
-            <TableroNuevo todo={<Tablero {...tablero} />} carpetas={tablero.carpetas} lideres={tablero.lideres} alRedactar={tablero.alRedactar} avisar={tablero.avisar} />
+            <>
+              <AvisoLecciones />
+              <TableroNuevo todo={<Tablero {...tablero} />} carpetas={tablero.carpetas} lideres={tablero.lideres} alRedactar={tablero.alRedactar} avisar={tablero.avisar} />
+            </>
           )}
         </div>
       </div>

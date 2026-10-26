@@ -131,12 +131,16 @@ bg="$(campo '.tool_input.run_in_background')"
 if [[ -n "$hb" ]]; then
   envuelo=0; [[ "$fase" == "pre" ]] && envuelo=1
   # Una línea por campo, como el .running: lo lee `sed -n 's/^campo=//p'` sin jq.
-  {
-    printf 'epoch=%s\n'   "$(date +%s)"
-    printf 'tool=%s\n'    "${herramienta:-?}"
-    printf 'envuelo=%s\n' "$envuelo"
-    printf 'desc=%s\n'    "$(printf '%s' "${desc:-}" | tr '\n\r\t' '   ' | cut -c1-160)"
-  } >"$hb.tmp" 2>/dev/null && mv -f "$hb.tmp" "$hb" 2>/dev/null
+  # El temporal es propio de esta llamada (mktemp en el mismo dir, para que el mv sea un rename atómico): con un
+  # `$hb.tmp` compartido, dos hooks a la vez (subagentes) se pisaban el archivo y uno movía el del otro a medio escribir.
+  hb_tmp="$(mktemp "$hb.XXXXXX" 2>/dev/null)" && {
+    {
+      printf 'epoch=%s\n'   "$(date +%s)"
+      printf 'tool=%s\n'    "${herramienta:-?}"
+      printf 'envuelo=%s\n' "$envuelo"
+      printf 'desc=%s\n'    "$(printf '%s' "${desc:-}" | tr '\n\r\t' '   ' | cut -c1-160)"
+    } >"$hb_tmp" 2>/dev/null && mv -f "$hb_tmp" "$hb" 2>/dev/null || rm -f "$hb_tmp"
+  }
 fi
 
 # --- guardia de --leer (va antes que las otras: acá todo lo que no es git de lectura muere) ---
@@ -268,8 +272,12 @@ if [[ "$respuesta_head" =~ did\ not\ complete\ within\ its\ .*timeout\ and\ was\
 fi
 
 if [[ "$fase" == "post" && -n "$hb" && "${PA_MAX_TURNS:-}" =~ ^[0-9]+$ ]]; then
-  n=$(( $(cat "$hb.turnos" 2>/dev/null || echo 0) + 1 ))
-  printf '%s' "$n" >"$hb.turnos" 2>/dev/null
+  # leer-sumar-escribir bajo flock sobre el propio archivo (los post de subagentes en paralelo perdían cuentas); sin flock, como antes
+  n="$( ( command -v flock >/dev/null 2>&1 && flock 9
+          m=$(( $(cat "$hb.turnos" 2>/dev/null || echo 0) + 1 ))
+          printf '%s' "$m" >"$hb.turnos" 2>/dev/null
+          printf '%s' "$m" ) 9>>"$hb.turnos" 2>/dev/null )"
+  [[ "$n" =~ ^[0-9]+$ ]] || n=1
   quedan=$(( PA_MAX_TURNS - n ))
   if (( quedan <= 5 && quedan >= 0 )); then
     aviso="${aviso:+$aviso }AVISO DEL ORQUESTADOR: te quedan como mucho $quedan turnos. Commiteá lo que hiciste (archivo por archivo) y respondé YA con RESULTADO/ARCHIVOS/DECISION, aunque falte algo: decilo en DECISION."

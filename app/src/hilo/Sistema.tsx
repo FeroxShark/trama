@@ -13,6 +13,7 @@ import {
   FoldVertical,
   Hourglass,
   Image,
+  ArrowRightLeft,
   Info,
   LifeBuoy,
   MessagesSquare,
@@ -27,10 +28,11 @@ import {
   Webhook,
   type LucideIcon,
 } from "lucide-react";
-import { t, type ClaveSola } from "../i18n";
+import { locale, t, type ClaveSola } from "../i18n";
 import { useIdioma } from "../i18n/react";
 import { MODO } from "../modo";
 import { hora } from "./Hace";
+import { nombreModelo } from "./opciones";
 import type { ClaseTarjeta, Linea, Sistema as S, Tarjeta } from "./sistema-logica";
 
 const ICONO: Record<ClaseTarjeta, LucideIcon> = {
@@ -57,7 +59,7 @@ const ESTADO: Record<string, ClaveSola> = {
   cancelled: "sistema.tareaParada",
 };
 
-type LineaChica = Exclude<Linea, { clase: "compacto" | "viene" | "destrabo" }>;
+type LineaChica = Exclude<Linea, { clase: "compacto" | "viene" | "destrabo" | "cambio" }>;
 
 function textoLinea(s: LineaChica): { texto: string; grave: boolean; Icono: LucideIcon } {
   switch (s.clase) {
@@ -77,6 +79,15 @@ function textoLinea(s: LineaChica): { texto: string; grave: boolean; Icono: Luci
 }
 
 /** Un divisor gris a lo ancho; con `crudo`, se abre a él (lo de adentro se arma al abrir). */
+/** Cuándo siguió con otro modelo: la hora si fue hoy, si no el día y la hora. */
+function horaDelCambio(ts: string | null): string {
+  const ms = ts ? Date.parse(ts) : NaN;
+  if (!Number.isFinite(ms)) return "";
+  const h = hora(ms / 1000);
+  const f = new Date(ms);
+  return f.toDateString() === new Date().toDateString() ? h : `${f.toLocaleDateString(locale(), { day: "numeric", month: "short" })} ${h}`;
+}
+
 function Divisor({ Icono, texto, crudo }: { Icono: LucideIcon; texto: string; crudo: string | null }) {
   const [abierta, setAbierta] = useState(false);
   if (!crudo?.trim())
@@ -166,6 +177,10 @@ export const Sistema = memo(function Sistema({ s, nombre }: Props) {
   if (s.clase === "compacto") {
     const k = s.antes ? t("aviso.antes", { k: Math.max(1, Math.round(s.antes / 1000)) }) : "";
     return <Divisor Icono={FoldVertical} texto={t(s.auto ? "sistema.compactadaAuto" : "sistema.compactada") + k} crudo={s.resumen ?? null} />;
+  }
+  if (s.clase === "cambio") {
+    const h = horaDelCambio(s.ts);
+    return <Divisor Icono={ArrowRightLeft} texto={s.modelo ? t("sistema.cambio", { m: nombreModelo(s.modelo), h }) : t("sistema.cambioSin", { h })} crudo={null} />;
   }
   if (s.clase === "destrabo")
     return <Divisor Icono={LifeBuoy} texto={t(s.agotado ? "hz.destraboTope" : "hz.destrabo", { que: s.que })} crudo={null} />;

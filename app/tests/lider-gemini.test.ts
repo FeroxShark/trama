@@ -35,7 +35,7 @@ process.env.TRAMA_FALSO_LOG = path.join(tmp, "agy.log");
 // Un `pa` fuera del PATH de la app (como bajo la unidad de systemd): el líder de Gemini tiene que poder llamarlo igual.
 const dirPa = path.join(tmp, "fuera-del-path");
 process.env.HILOS_PA = path.join(dirPa, "pa");
-process.env.PATH = "/usr/bin:/bin";
+process.env.PATH = [path.dirname(process.execPath), "/usr/bin", "/bin"].join(":");
 process.env.TRAMA_FALSO_MS = "20";
 process.env.TRAMA_FALSO_MS_LENTO = "400";
 
@@ -195,24 +195,7 @@ test("agy expone sus skills de plugins sin pisar comandos.json de Claude, y cruz
   assert.ok(conocidos.some((c) => !c.agy && c.nombre === "compact"), "los de Claude siguen en comandos.json");
   assert.ok(conocidos.some((c) => c.agy && c.nombre === "pa-worker:ana-orquestar"), "los de agy vienen marcados con agy: true");
 
-  // Cruzar de Gemini a Claude o de Claude a Gemini rechaza sin matar ni relanzar con --resume ajeno.
-  const nAntes = llamadas().length;
-  await assert.rejects(
-    () => lider.mandar({ sid: sidGem, texto: "cruzado", modelo: "claude-opus-5-5", effort: "high" }),
-    /cambioProveedor/,
-  );
-  await assert.rejects(
-    () => lider.mandar({ sid: sidClaude, texto: "cruzado", modelo: "gemini-4-argon", effort: "high" }),
-    /cambioProveedor/,
-  );
-  await assert.rejects(
-    () => lider.mandar({ sid: sidClaude, texto: "cruzado", modelo: "agy:claude-opus-5-5", effort: "high" }),
-    /cambioProveedor/,
-  );
-  assert.equal(llamadas().length, nAntes, "no se lanzó agy con el sid de Claude");
-  const guardados = await lider.lideresApp();
-  assert.equal(guardados.find((g) => g.sid === sidGem)?.modelo, "gemini-4-argon");
-  assert.equal(guardados.find((g) => g.sid === sidClaude)?.modelo, "claude-opus-5-5");
+  // (Cruzar de Gemini a Claude o al revés ya no se rechaza: la conversación sigue en una sesión nueva; lo prueba tests/lider-cambio-motor.test.ts.)
 });
 
 test("/compact en un líder de Gemini compacta de verdad la conversación de agy y se ve como en Claude: compactando, el cierre con el peso de antes y el transcript", { timeout: 60_000 }, async () => {

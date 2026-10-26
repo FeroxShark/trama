@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Prueba de punta a punta de las acciones con el `pa` y el `claude` falsos: abre
 // la app offscreen (HILOS_PRUEBA, sin ventana), la maneja por CDP como lo haría
-// Ana (Ctrl+N, escribir, elegir en los selectores, clics, Esc) y verifica el
+// el usuario (Ctrl+N, escribir, elegir en los selectores, clics, Esc) y verifica el
 // argv que anotaron scripts/pa-falso.sh y scripts/claude-falso.mjs. Desde B12:
 // Ctrl+N abre un líder, el worker se lee nomás (Parar, Pasárselo a un líder) y
 // los gatillos del claude falso dan los avisos en línea. El Archivar de un líder de
@@ -317,7 +317,7 @@ try {
   ok(await derecho('[data-carpeta="cauce"]'), "clic derecho en la carpeta");
   await hasta(() => !!document.querySelector('[role="menu"] [data-accion]'), "menú de carpeta");
   const opsC = (await opciones()).join(" ");
-  // De fábrica el orden de la barra es por prioridad: la carpeta ofrece "Orden fijo" y no Subir / Bajar (docs/estado/orden-prioridad.md).
+  // De fábrica el orden de la barra es por prioridad: la carpeta ofrece "Orden fijo" y no Subir / Bajar.
   ok(opsC === "nueva ocultar prioridad", `la carpeta ofrece Nueva tarea aquí, Ocultar terminados y Orden fijo (de fábrica, por prioridad): ${opsC}`);
   await tecla("Escape");
   ok(await hasta(() => !document.querySelector('[role="menu"]'), "cerrado"), "Esc cierra el menú");
@@ -712,7 +712,7 @@ try {
   ok(await moverA("a:cauce"), "el líder se mueve a la carpeta plegada");
   ok(await hasta((s) => !!document.querySelector(`[data-lider="${s}"]`)?.closest(".proy")?.querySelector('[data-carpeta="cauce"]'), "en cauce", sid), "la carpeta se despliega sola y el líder se ve");
   await clic('[data-carpeta="cauce"]');
-  ok(await hasta(plegada, "cauce plegada otra vez", "cauce"), "Ana la pliega con el líder adentro");
+  ok(await hasta(plegada, "cauce plegada otra vez", "cauce"), "el usuario la pliega con el líder adentro");
   await espera(400);
   ok(await en(plegada, "cauce"), "y se queda plegada: no se vuelve a abrir sola");
   await clic('[data-carpeta="cauce"]');
@@ -1002,12 +1002,12 @@ try {
     "el brief lleva las ramas sin integrar (también la que falló sola)",
   );
 
-  // Se le puede seguir hablando: lo de Ana se ve, el brief y el json no.
+  // Se le puede seguir hablando: lo del usuario se ve, el brief y el json no.
   await escribir(".pn-analista-chat textarea", "y la de cauce?");
   await tecla("Enter");
   ok(
     await hasta(() => [...document.querySelectorAll(".pn-analista-chat .conv .yo")].some((e) => e.textContent.includes("y la de cauce?")) && [...document.querySelectorAll(".pn-analista-chat .conv .el")].some((e) => e.textContent.includes("eco: y la de cauce?")), "seguir charlando"),
-    "al analista se le sigue hablando (lo de Ana se ve)",
+    "al analista se le sigue hablando (lo del usuario se ve)",
   );
   ok(await en(() => ![...document.querySelectorAll(".pn-analista-chat .conv")].some((c) => c.textContent.includes("Sos el analista") || c.textContent.includes('"veredicto"'))), "en el chat no se ven el brief ni el json");
   // Retomar desde el veredicto: abre un líder con el prompt de retomar (el falso lo devuelve con "eco: ").
