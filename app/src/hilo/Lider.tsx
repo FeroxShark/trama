@@ -19,7 +19,7 @@
 // clip; miniaturas con × en la caja (src/hilo/adjuntos.ts) y en el globo.
 import { es } from "../atajos";
 import { Fragment, memo, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ClipboardEvent, type DragEvent, type KeyboardEvent, type ReactNode } from "react";
-import { ArrowRightLeft, ArrowUp, Check, Clock, Cpu, Folder, Paperclip, X, Zap } from "lucide-react";
+import { ArrowUp, Check, Clock, Cpu, Folder, Paperclip, X, Zap } from "lucide-react";
 import { motion, useReducedMotion } from "motion/react";
 import { VERSION, type Lider, type Mensaje, type MotivoRetomar, type MotivoTraer, type Tokens } from "../datos/contrato";
 import { fuente, type EnvioLider } from "../datos/fuente";
@@ -37,6 +37,7 @@ import { effortsDe, esAgy, esDsh, esOpencode, esLocal, familiaDe, motorNombre, r
 import { ContextoLocal } from "./ContextoLocal";
 import { t as tr, textoMain } from "../i18n";
 import { Selector } from "./Selector";
+import { DialogoCambio, type DatosCambio } from "./DialogoCambio";
 import { hayVarias, opcionesMaquina, useMaquinas } from "../maquinas";
 import { Contexto } from "./Contexto";
 import { transcriptLeido } from "./contextoVivo";
@@ -64,6 +65,9 @@ import { PedidoPreguntas } from "./Preguntas";
 import { tandasPendientes } from "./preguntas-logica";
 import { ARCHIVO_MAX, IMAGENES_MAX, type Imagen } from "../../electron/imagenes";
 import { separarAdjuntos } from "../../electron/adjunto";
+
+/** El esfuerzo en pocas letras para el chip fusionado ("medium" → "med"). */
+const abreviar = (e: string) => (e === "medium" ? "med" : e);
 
 export const BORRADOR_LIDER = "lider-nuevo";
 
@@ -249,14 +253,38 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
   );
   const menu = mn?.filas ?? [];
   const [nota, setNota] = useState<string | null>(null);
-  // Un modelo de otro motor elegido para una conversación que ya empezó, esperando la confirmación (`cruzando`: ya confirmado, falta mandar).
-  const [cruce, setCruce] = useState<string | null>(() =>
-    MODO.captura === "lider-cambio-motor" && MODO.variante === "confirmar" && l ? (MODELOS.find((m) => familiaDe(m.id) !== familiaDe(l.modelo))?.id ?? null) : null,
-  );
-  const cruzando = !!l && familiaDe(modelo) !== familiaDe(l.modelo);
-  /** La nota de seguir con otro motor: el modelo sin su "· por Google" y el motor que arranca. */
-  const textoCruce = (m: string) => tr("lider.cruce", { modelo: nombreModelo(m).split(" · ")[0], motor: motorNombre(m) });
+  // Un modelo de otro motor para una conversación que ya empezó: el diálogo de confirmación (el chip no cambia hasta confirmar).
+  /** Los datos del diálogo si elegir `m` sigue la conversación en otro motor; si no, `null`. */
+  const datosCambio = (m: string): DatosCambio | null =>
+    l && familiaDe(m) !== familiaDe(l.modelo) && familiaDe(m) !== familiaDe(modelo)
+      ? { modelo: nombreModelo(m).split(" · ")[0]!, motor: motorNombre(m), actual: nombreModelo(modelo).split(" · ")[0]!, motorActual: motorNombre(modelo) }
+      : null;
+  const [cruce, setCruce] = useState<string | null>(null);
+  const cruceDatos = cruce ? datosCambio(cruce) : null;
   const caja = useRef<HTMLTextAreaElement>(null);
+  // La fila de abajo de la caja nunca baja a un segundo renglón: si no entra, se compacta de a un paso (0 todo; 1 el modo en ícono;
+  // 2 modelo y esfuerzo en un solo chip; 3 los chips sin adorno y con puntos suspensivos). Se prueba cada paso hasta que no sobre ancho.
+  const barra = useRef<HTMLDivElement>(null);
+  const [nivel, setNivel] = useState(0);
+  const ajustarBarra = useCallback(() => {
+    const b = barra.current;
+    if (!b) return;
+    let n = 0;
+    for (; n < 3; n++) {
+      b.dataset.nivel = String(n);
+      if (b.scrollWidth <= b.clientWidth + 1) break;
+    }
+    b.dataset.nivel = String(n);
+    setNivel(n);
+  }, []);
+  useLayoutEffect(ajustarBarra);
+  useEffect(() => {
+    const b = barra.current;
+    if (!b || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(ajustarBarra);
+    ro.observe(b);
+    return () => ro.disconnect();
+  }, [ajustarBarra, puede]);
   const menuCmd = useRef<HTMLDivElement>(null);
   // Tras elegir una fila, el cursor va al final de lo puesto: se aplica al pintar la caja con el texto nuevo.
   const pendiente = useRef<number | null>(null);
@@ -494,7 +522,7 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
     }
     escribir("");
     if (a.tipo === "limpiar") return l ? alNuevo() : undefined;
-    if (a.tipo === "modelo") return elegirModelo(a.modelo);
+    if (a.tipo === "modelo") return pedirModelo(a.modelo);
     if (a.tipo === "estilo") return elegirEstilo(a.estilo);
     elegirEffort(a.effort);
   };
@@ -852,15 +880,20 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
     } else if (es("salirCaja", e)) e.currentTarget.blur();
   };
 
+  /** Del selector (que ya confirmó lo que había que confirmar) o de un cambio dentro del mismo motor. */
   const elegirModelo = (m: string) => {
-    // Un modelo de OTRO motor en una conversación que ya empezó: sigue acá mismo, pero en una sesión nueva de ese motor con lo hablado.
-    // No se cambia de golpe: se pide confirmación en la caja. Uno del motor que ya se confirmó (o del de siempre) se elige directo.
-    if (l && familiaDe(m) !== familiaDe(l.modelo) && familiaDe(m) !== familiaDe(modelo)) {
+    const d = datosCambio(m);
+    aplicarModelo(m);
+    // Un salto de motor ya confirmado: un aviso chico de que ya pasó.
+    if (d) setNota(tr("lider.cruceHecho", { modelo: d.modelo, motor: d.motor }));
+  };
+  /** De /model: si cruza de motor, pide confirmar antes de aplicar. */
+  const pedirModelo = (m: string) => {
+    if (datosCambio(m)) {
       setErrorCaja(null);
       setCruce(m);
       return;
     }
-    setCruce(null);
     aplicarModelo(m);
   };
   const aplicarModelo = (m: string) => {
@@ -1134,7 +1167,7 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
                 e.currentTarget.value = "";
               }}
             />
-            <div className="barra-c">
+            <div ref={barra} className="barra-c" data-nivel={nivel}>
               <button
                 type="button"
                 className="clip"
@@ -1165,7 +1198,7 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
                 className="modo"
                 style={{ color: ASPECTO[modo].color }}
                 // Con el dedo no hay Shift+Tab, y en angosto el chip es sólo el símbolo: el tooltip dice el modo.
-                data-tip={esTactil() ? tr(ASPECTO[modo].clave) : "Shift+Tab"}
+                data-tip={esTactil() ? tr(ASPECTO[modo].clave) : nivel >= 1 ? `${tr(ASPECTO[modo].clave)} · Shift+Tab` : "Shift+Tab"}
                 aria-label={tr("modo.tip", { modo: tr(ASPECTO[modo].clave) })}
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => cambiarModo(siguienteModo(modo))}
@@ -1178,6 +1211,9 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
                 opciones={MODELOS}
                 valor={modelo}
                 alElegir={elegirModelo}
+                confirmar={datosCambio}
+                confirmando={MODO.captura === "lider-cambio-motor" && MODO.variante === "confirmar" && l ? MODELOS.find((m) => familiaDe(m.id) !== familiaDe(l.modelo))?.id : undefined}
+                sufijo={effortsDe(modelo).length ? abreviar(effort) : undefined}
                 chip={<span className="chip" />}
                 columnas
                 disabled={app && ocupado}
@@ -1266,23 +1302,18 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
           </div>
         )}
         {errorCaja ? <div className="caja-error" role="alert">{errorCaja}</div> : null}
-        {puede && (cruce ?? (cruzando ? modelo : null)) ? (
-          <div className="caja-cruce" role={cruce ? "alertdialog" : "status"} aria-label={textoCruce((cruce ?? modelo)!)} data-cruce>
-            <span className="cruce-t">
-              <ArrowRightLeft size={12} strokeWidth={2} aria-hidden="true" />
-              {textoCruce((cruce ?? modelo)!)}
-            </span>
-            {cruce ? (
-              <span className="cruce-b">
-                <button type="button" className="btn2 cruce-si" data-cruce-si onClick={() => { aplicarModelo(cruce); setCruce(null); }}>
-                  {tr("lider.cruceSi")}
-                </button>
-                <button type="button" className="btn2 cruce-no" data-cruce-no onClick={() => setCruce(null)}>
-                  {tr("lider.cruceNo")}
-                </button>
-              </span>
-            ) : null}
-          </div>
+        {cruceDatos ? (
+          <DialogoCambio
+            datos={cruceDatos}
+            alSi={() => {
+              elegirModelo(cruce!);
+              setCruce(null);
+            }}
+            alNo={() => {
+              setCruce(null);
+              caja.current?.focus();
+            }}
+          />
         ) : null}
         {nota && !errorCaja ? <div className="caja-nota" role="status">{nota}</div> : null}
         {aviso ? <Reloj pintor={aviso} className="caja-aviso" /> : null}

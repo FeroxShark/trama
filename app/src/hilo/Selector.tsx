@@ -9,7 +9,8 @@ import { Check, ChevronUp, Search } from "lucide-react";
 import { t } from "../i18n";
 import { Reserva } from "../i18n/Fijo";
 import { ChipLocal } from "./Logos";
-import { filtrar, mover, repartir, type Flecha } from "./selector-columnas";
+import { DialogoCambio, type DatosCambio } from "./DialogoCambio";
+import { filtrar, repartir } from "./selector-columnas";
 
 export type Opcion = {
   id: string;
@@ -26,6 +27,10 @@ export type Opcion = {
   deshabilitada?: boolean;
   /** El rótulo de un grupo (la empresa de un modelo): se pinta antes de la primera opción de ese grupo, si la lista tiene más de uno. */
   grupo?: string;
+  /** Gratis: la lista compacta lo marca con "Gratis" a la derecha (no sólo con el color). */
+  gratis?: boolean;
+  /** De pago (tu clave de API, se paga por uso): la lista compacta lo marca con "De pago" a la derecha. */
+  pago?: boolean;
   /** Corre en la GPU de esta máquina: lleva el chip de "local" junto al nombre. */
   local?: boolean;
   /** En columnas: la columna si no es la de su `grupo` (los locales de GPU y los de Ollama van juntos). */
@@ -55,11 +60,17 @@ type Props = {
    */
   reserva?: readonly string[];
   /**
-   * Un menú ancho con una columna por grupo (`Opcion.grupo`: el proveedor del modelo), todas a la vista, cada una con su título y su logo.
-   * Las opciones sin grupo ("Elegí uno…") quedan arriba, a todo lo ancho. En un celular es una sola columna con los títulos pegados
-   * arriba. Con muchas opciones trae una búsqueda. Con un solo grupo es el menú de siempre.
+   * Un menú compacto (ancho tope ~46rem, alto tope 60vh): a la izquierda un riel con una pestaña por grupo (`Opcion.grupo`: el proveedor del
+   * modelo, con su logo y cuántos tiene) y a la derecha una sola lista, la del proveedor elegido, de un renglón por modelo. La búsqueda de arriba
+   * mira todos los proveedores. En un celular el riel pasa arriba, en horizontal. Con un solo grupo es el menú de siempre.
    */
   columnas?: boolean;
+  /** Si elegir esta opción pide confirmación (otro motor): los datos del diálogo, que se abre sobre el menú abierto; el valor no cambia hasta confirmar. */
+  confirmar?: (id: string) => DatosCambio | null;
+  /** Lo que se suma al nombre cuando la barra se compacta ("· med": el esfuerzo fusionado en el chip); lo muestra el CSS. */
+  sufijo?: string;
+  /** Para las capturas: nace con el diálogo de esta opción. */
+  confirmando?: string;
 };
 
 /** El nombre de una opción, en su fuente si trae una. */
@@ -100,9 +111,14 @@ function colocar(boton: HTMLElement, menu: HTMLElement) {
 /** Desde cuántas opciones el menú en columnas trae la búsqueda. */
 const CON_BUSQUEDA = 8;
 
-export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, abierto: deEntrada = false, reserva, columnas = false }: Props) {
-  const [abierto, setAbierto] = useState(deEntrada);
+export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, abierto: deEntrada = false, reserva, columnas = false, confirmar, sufijo, confirmando }: Props) {
+  const [abierto, setAbierto] = useState(deEntrada || !!confirmando);
+  const [pend, setPend] = useState<{ id: string; datos: DatosCambio } | null>(() => {
+    const d = confirmando && confirmar ? confirmar(confirmando) : null;
+    return d ? { id: confirmando!, datos: d } : null;
+  });
   const [busqueda, setBusqueda] = useState("");
+  const [tab, setTab] = useState<string | null>(null);
   const buscador = useRef<HTMLInputElement>(null);
   const boton = useRef<HTMLButtonElement>(null);
   const menu = useRef<HTMLDivElement>(null);
@@ -117,6 +133,12 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
   const conBusqueda = enColumnas && opciones.length >= CON_BUSQUEDA;
   const visibles = useMemo(() => (enColumnas ? filtrar(opciones, busqueda) : opciones), [enColumnas, opciones, busqueda]);
   const reparto = useMemo(() => repartir(visibles), [visibles]);
+  // El riel: una pestaña por proveedor (todos, aunque la búsqueda deje a alguno sin coincidencias; entonces va con un 0).
+  const riel = useMemo(() => (enColumnas ? repartir(opciones).columnas : []), [enColumnas, opciones]);
+  const buscando = busqueda.trim() !== "";
+  const claveDe = (o: Opcion) => o.col ?? o.grupo;
+  const tabActiva = (tab && riel.some((c) => c.clave === tab) ? tab : null) ?? (claveDe(actual) && riel.some((c) => c.clave === claveDe(actual)) ? claveDe(actual) : null) ?? riel[0]?.clave ?? null;
+  const cuenta = (clave: string) => reparto.columnas.find((c) => c.clave === clave)?.ops.length ?? 0;
 
   // Fijo a la ventana: sigue al botón si se hace scroll o cambia el tamaño.
   useLayoutEffect(() => {
@@ -154,6 +176,7 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
   const cerrar = (conFoco = true) => {
     setAbierto(false);
     setBusqueda("");
+    setTab(null);
     if (conFoco) boton.current?.focus();
   };
 
@@ -163,10 +186,13 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
     setAbierto(true);
   };
 
-  /** Las opciones elegibles por sección (0 = la fila de arriba, 1… = cada columna), para moverse con las flechas. */
-  const secciones = () => {
-    const ss = [...(menu.current?.querySelectorAll<HTMLElement>("[data-sec]") ?? [])];
-    return ss.map((sec) => [...sec.querySelectorAll<HTMLElement>('[role="option"]:not(:disabled)')]);
+  /** Las opciones de la lista (de la pestaña, o de todas las que coinciden con la búsqueda). */
+  const filas = () => [...(menu.current?.querySelectorAll<HTMLElement>('.mc-lista [role="option"]:not(:disabled)') ?? [])];
+  const pestanas = () => [...(menu.current?.querySelectorAll<HTMLElement>('.mc-riel [role="tab"]') ?? [])];
+  const hojear = (clave: string) => {
+    if (!buscando) return setTab(clave);
+    // Buscando se ven todos los proveedores: la pestaña lleva al suyo.
+    menu.current?.querySelector<HTMLElement>(`[data-grupo-clave="${CSS.escape(clave)}"]`)?.scrollIntoView({ block: "start" });
   };
 
   const teclaColumnas = (e: KeyboardEvent) => {
@@ -181,28 +207,48 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
       return cerrar();
     }
     if (e.key === "Tab") return cerrar();
-    const ss = secciones();
-    const primera = ss.find((s) => s.length)?.[0];
+    const activo = document.activeElement as HTMLElement | null;
+    const op = filas();
+    const tabs = pestanas();
+    const enRiel = !!activo && tabs.includes(activo);
     if (enBuscador) {
       if (e.key === "ArrowDown") {
         e.preventDefault();
-        primera?.focus();
+        op[0]?.focus();
       } else if (e.key === "Enter") {
         e.preventDefault();
-        primera?.click();
+        op[0]?.click();
       }
       return;
     }
-    if (e.key === "ArrowDown" || e.key === "ArrowUp" || e.key === "ArrowLeft" || e.key === "ArrowRight" || e.key === "Home" || e.key === "End") {
+    if (enRiel) {
+      const i = tabs.indexOf(activo!);
+      if (e.key === "ArrowDown" || e.key === "ArrowUp" || e.key === "Home" || e.key === "End") {
+        e.preventDefault();
+        const k = e.key === "Home" ? 0 : e.key === "End" ? tabs.length - 1 : Math.max(0, Math.min(tabs.length - 1, i + (e.key === "ArrowDown" ? 1 : -1)));
+        if (k === 0 && e.key === "ArrowUp" && i === 0) return buscador.current?.focus();
+        tabs[k]?.focus();
+        const c = tabs[k]?.dataset.clave;
+        if (c) hojear(c);
+      } else if (e.key === "ArrowRight" || e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        (op.find((o) => o.getAttribute("aria-selected") === "true") ?? op[0])?.focus();
+      }
+      return;
+    }
+    const i = activo ? op.indexOf(activo) : -1;
+    if (e.key === "ArrowDown" || e.key === "ArrowUp" || e.key === "Home" || e.key === "End") {
       e.preventDefault();
-      const activo = document.activeElement as HTMLElement | null;
-      const s = ss.findIndex((sec) => activo && sec.includes(activo));
-      if (s < 0) return primera?.focus();
-      const desde = { s, i: ss[s]!.indexOf(activo!) };
-      const a = mover(ss.map((x) => x.length), desde, e.key as Flecha);
-      // Arriba de la primera opción está la búsqueda.
-      if (a.s === desde.s && a.i === desde.i && e.key === "ArrowUp") return buscador.current?.focus();
-      ss[a.s]?.[a.i]?.focus();
+      if (i < 0) return op[0]?.focus();
+      if (e.key === "ArrowUp" && i === 0) return buscador.current?.focus() ?? tabs[0]?.focus();
+      op[e.key === "Home" ? 0 : e.key === "End" ? op.length - 1 : Math.max(0, Math.min(op.length - 1, i + (e.key === "ArrowDown" ? 1 : -1)))]?.focus();
+      return;
+    }
+    if (e.key === "ArrowLeft") {
+      e.preventDefault();
+      // De vuelta al riel: a la pestaña del proveedor de la opción en la que está.
+      const g = activo?.closest<HTMLElement>("[data-grupo-clave]")?.dataset.grupoClave ?? tabActiva;
+      (tabs.find((x) => x.dataset.clave === g) ?? tabs[0])?.focus();
       return;
     }
     // Escribir estando en una opción lleva a la búsqueda (la letra queda escrita ahí).
@@ -247,6 +293,9 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
       aria-selected={o.id === actual.id}
       title={enColumnas ? `${o.nombre}${o.desc ? ` · ${o.desc}` : ""}` : undefined}
       onClick={() => {
+        const datos = confirmar?.(o.id);
+        // Otro motor: el menú sigue abierto y el chip como estaba hasta que se confirme.
+        if (datos) return setPend({ id: o.id, datos });
         alElegir(o.id);
         cerrar();
       }}
@@ -261,6 +310,42 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
       <Check className="ok" size={14} strokeWidth={2.2} />
     </button>
   );
+
+  /** Un modelo en la lista compacta: un renglón (nombre y, a la derecha, "Gratis" / "De pago" / "por defecto"); la descripción, sólo en el resaltado. */
+  const opcionCompacta = (o: Opcion, colNombre: string) => {
+    const nom = o.nombre.replace(/\s·\s(?:por\s)?([^·]+)$/, (m, g: string) => (g === colNombre || g === o.colNombre || g === o.grupo || (o.gratis && g === "Gratis") ? "" : m));
+    return (
+      <button
+        key={o.id}
+        type="button"
+        role="option"
+        className="op op-c"
+        tabIndex={-1}
+        disabled={o.deshabilitada}
+        aria-selected={o.id === actual.id}
+        title={`${o.nombre}${o.desc ? ` · ${o.desc}` : ""}`}
+        onClick={() => {
+          const datos = confirmar?.(o.id);
+          // Otro motor: el menú sigue abierto y el chip como estaba hasta que se confirme.
+          if (datos) return setPend({ id: o.id, datos });
+          alElegir(o.id);
+          cerrar();
+        }}
+      >
+        <span className="on1">
+          {o.fuente ? <span style={{ fontFamily: o.fuente }}>{nom}</span> : <span className="on-n">{nom}</span>}
+          {o.local ? <ChipLocal /> : null}
+        </span>
+        <span className="oc-meta">
+          {o.gratis ? <span className="oc-tag" data-tag="gratis">{t("selector.gratis")}</span> : null}
+          {o.pago ? <span className="oc-tag" data-tag="pago">{t("selector.pago")}</span> : null}
+          {o.rec ? <span className="rec">{t("selector.default")}</span> : null}
+        </span>
+        <Check className="ok" size={14} strokeWidth={2.2} />
+        <span className="md">{o.desc}</span>
+      </button>
+    );
+  };
 
   return (
     <div className="pick">
@@ -282,8 +367,28 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
         ) : (
           nombreDe(actual)
         )}
+        {sufijo ? (
+          <span className="pbtn-suf" aria-hidden="true">
+            · {sufijo}
+          </span>
+        ) : null}
         <ChevronUp className="chev" size={12} strokeWidth={2} />
       </button>
+      {pend ? (
+        <DialogoCambio
+          datos={pend.datos}
+          alSi={() => {
+            const id = pend.id;
+            setPend(null);
+            alElegir(id);
+            cerrar();
+          }}
+          alNo={() => {
+            setPend(null);
+            cerrar();
+          }}
+        />
+      ) : null}
       {abierto
         ? createPortal(
             <>
@@ -293,7 +398,6 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
                 id={enColumnas ? undefined : id}
                 className="menu"
                 data-columnas={enColumnas ? reparto.columnas.length : undefined}
-                style={enColumnas ? ({ "--n": Math.max(1, reparto.columnas.length) } as React.CSSProperties) : undefined}
                 role={enColumnas ? undefined : "listbox"}
                 aria-label={enColumnas ? undefined : etiqueta}
                 onKeyDown={teclaMenu}
@@ -320,31 +424,48 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
                         </label>
                       ) : null}
                     </div>
-                    <div id={id} className="mc-lista" role="listbox" aria-label={etiqueta}>
-                      {reparto.arriba.length ? (
-                        <div className="mc-arriba" data-sec="0">
-                          {reparto.arriba.map((o) => opcion(o))}
-                        </div>
-                      ) : (
-                        <div data-sec="0" hidden />
-                      )}
-                      <div className="mc-cols">
-                        {reparto.columnas.map((c, k) => (
-                          <div key={c.clave} className="mc-col" role="group" aria-labelledby={`${id}-c${k}`} data-sec={k + 1}>
-                            <div id={`${id}-c${k}`} className="mc-tit">
-                              {c.ops[0]?.colMarca ?? c.ops[0]?.marca}
-                              <span>{c.nombre}</span>
-                            </div>
-                            {c.ops.map((o, i) => (
-                              <Fragment key={o.id}>
-                                {o.grupo && o.grupo !== c.nombre && o.grupo !== c.ops[i - 1]?.grupo ? <div className="mc-sub">{o.grupo}</div> : null}
-                                {opcion(o)}
-                              </Fragment>
-                            ))}
-                          </div>
+                    <div className="mc-cuerpo">
+                      <div className="mc-riel" role="tablist" aria-orientation="vertical" aria-label={etiqueta}>
+                        {riel.map((c) => (
+                          <button
+                            key={c.clave}
+                            type="button"
+                            role="tab"
+                            className="mc-tab"
+                            tabIndex={-1}
+                            data-clave={c.clave}
+                            aria-selected={!buscando && c.clave === tabActiva}
+                            data-vacia={buscando && cuenta(c.clave) === 0 ? "" : undefined}
+                            onClick={() => hojear(c.clave)}
+                          >
+                            {c.ops[0]?.colMarca ?? c.ops[0]?.marca}
+                            <span className="mc-tn">{c.nombre}</span>
+                            <span className="mc-cnt">{buscando ? cuenta(c.clave) : c.ops.length}</span>
+                          </button>
                         ))}
                       </div>
-                      {!visibles.length ? <div className="mc-nada">{t("selector.nada")}</div> : null}
+                      <div id={id} className="mc-lista" role="listbox" aria-label={etiqueta}>
+                        {!buscando && reparto.arriba.length ? <div className="mc-arriba">{reparto.arriba.map((o) => opcionCompacta(o, ""))}</div> : null}
+                        {reparto.columnas
+                          .filter((c) => buscando || c.clave === tabActiva)
+                          .map((c) => (
+                            <div key={c.clave} className="mc-col" role="group" aria-label={c.nombre} data-grupo-clave={c.clave}>
+                              {buscando ? (
+                                <div className="mc-tit">
+                                  {c.ops[0]?.colMarca ?? c.ops[0]?.marca}
+                                  <span>{c.nombre}</span>
+                                </div>
+                              ) : null}
+                              {c.ops.map((o, i) => (
+                                <Fragment key={o.id}>
+                                  {o.grupo && o.grupo !== c.nombre && o.grupo !== c.ops[i - 1]?.grupo ? <div className="mc-sub">{o.grupo}</div> : null}
+                                  {opcionCompacta(o, c.nombre)}
+                                </Fragment>
+                              ))}
+                            </div>
+                          ))}
+                        {!visibles.length ? <div className="mc-nada">{t("selector.nada")}</div> : null}
+                      </div>
                     </div>
                   </>
                 ) : (

@@ -35,6 +35,9 @@ const opcionDe = (m: ModeloDef) =>
       ...columnaDe(m),
       ...(m.rec ? { rec: true } : {}),
       ...(m.local ? { local: true } : {}),
+      ...(m.gratis ? { gratis: true } : {}),
+      // DeepSeek Harness con la API de DeepSeek: tu clave, se paga por uso (los de Ollama de dsh corren acá y no cuestan).
+      ...(m.id.startsWith("dsh:deepseek/") ? { pago: true } : {}),
     },
     m.desc,
   );
