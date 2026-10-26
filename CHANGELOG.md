@@ -8,6 +8,8 @@
 - Selector de modelos compacto: proveedores a la izquierda, búsqueda en todos, marca "Gratis" / "De pago".
 - Inteligencia de los modelos desde Artificial Analysis, actualizada a diario y por esfuerzo (low, medium, high, xhigh, max). `reparto --aa-diag` muestra con qué entrada de AA se emparejó cada modelo.
 - El modo de permisos queda fijo y explicado en líderes de Gemini, OpenCode y DeepSeek Harness.
+- Volver, Editar y Ramificar en todos los motores (no sólo Claude) y en conversaciones con varios motores.
+- El rayito de caché sólo en Claude, con la duración real del pedido (1 h con suscripción, 5 min con API o créditos).
 
 ### Reparto de workers y cupos
 - Ritmo semanal: si la semana va más rápido que el cupo, los workers pasan a modelos gratis o de Google; si sobra cupo cerca del reinicio, se aprovecha.
@@ -25,6 +27,7 @@
 - Usos rediseñados por proveedor y grupo, también con la barra angosta.
 - Temas de color (Sistema, Oscuro, Claro, Bosque, Atardecer, Grafito, Contraste), probados para contraste y deuteranomalía.
 - Ramas: tarjetas con filtros, "Aplicar todos los veredictos", Auditar; "Analizar de nuevo" con cualquier modelo.
+- Guías por pantalla para usuarios nuevos y para lo nuevo de cada versión ("no volver a mostrar", "más tarde" o apagarlas en Ajustes > Guía).
 - Estadísticas y Tablero rediseñados; Guía en Ajustes; umbral de compactar libre.
 - La caja de texto queda en una sola fila a cualquier ancho y sigue al modelo real del líder.
 
