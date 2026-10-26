@@ -2180,16 +2180,12 @@
 }
 .cu-tarjetas > [data-opc="cu.google"] .cu-cuerpo {
   display: grid;
-  align-items: start;
-  gap: var(--esp-3) var(--esp-6);
-  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  align-items: stretch;
+  gap: var(--esp-3) var(--esp-3);
+  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
 }
 .cu-tarjetas > [data-opc="cu.google"] .cu-cuerpo > :not(.cu-grupo) {
   grid-column: 1 / -1;
-}
-.cu-tarjetas > [data-opc="cu.google"] .cu-cuerpo > .cu-grupo + .cu-grupo {
-  padding-top: 0;
-  border-top: 0;
 }
 .cu-cab {
   display: flex;
@@ -2211,26 +2207,51 @@
   gap: var(--esp-2-5);
   padding: 0 var(--esp-4) var(--esp-4);
 }
+/* Cada ventana: nombre, barra y % usado en una línea; debajo, cuándo vuelve. Angosta (la tarjeta, no la pantalla), la barra baja a su renglón. */
+.cu-cuerpo {
+  container-type: inline-size;
+}
 .cu-vent {
   display: grid;
   align-items: center;
-  gap: var(--esp-1) var(--esp-2);
-  grid-template-columns: 1fr auto;
-  grid-template-areas: "n pct" "bar bar" "vuelve vuelve";
+  gap: var(--esp-0-5) var(--esp-3);
+  grid-template-columns: minmax(6rem, 8rem) minmax(0, 1fr) minmax(4.5rem, auto);
+  grid-template-areas: "n bar pct" ". vuelve vuelve";
 }
 .cu-vent-n {
   grid-area: n;
-  color: var(--apagado);
+  color: var(--texto);
   font-size: var(--letra-4);
 }
 .cu-vent > .ui-bar {
   grid-area: bar;
+  height: 0.375rem;
 }
-.cu-pct {
+.cu-pct,
+.cu-insignia {
   grid-area: pct;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--esp-1);
   color: var(--texto);
   font-size: var(--letra-4);
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.cu-pct[data-estado="bajo"] {
+  color: var(--aviso);
+}
+/* Agotada: insignia con icono y palabra (no sólo el rojo). */
+.cu-insignia {
+  padding: 0 var(--esp-2);
+  border-radius: var(--radio-pastilla);
+  background: var(--critico-tinte);
+  color: var(--critico);
+  font-weight: 500;
+}
+.cu-vent[data-estado="lleno"] .ui-bar i {
+  background-image: repeating-linear-gradient(135deg, transparent 0 0.25rem, var(--capa-div) 0.25rem 0.375rem);
 }
 .cu-vuelve {
   grid-area: vuelve;
@@ -2238,40 +2259,185 @@
   font-size: var(--letra-3);
   font-variant-numeric: tabular-nums;
 }
+.cu-vent[data-estado="lleno"] .cu-vuelve {
+  color: var(--texto);
+}
 .cu-aviso .cu-vuelve {
   color: inherit;
+}
+/* No rige ahora: texto apagado en cursiva y una barra hueca rayada, nada de un 0 %. */
+.cu-off {
+  grid-area: off;
+  color: var(--apagado);
+  font-size: var(--letra-4);
+  font-style: italic;
+}
+.cu-vent[data-estado="off"] {
+  grid-template-areas: "n off off" ". nota nota";
+}
+.cu-nota {
+  grid-area: nota;
+  color: var(--apagado);
+  font-size: var(--letra-3);
+}
+.cu-grupo > .cu-nota {
+  grid-area: auto;
 }
 .cu-sin {
   color: var(--apagado);
   font-size: var(--letra-4);
 }
-.cu-grupo {
-  display: flex;
-  flex-direction: column;
-  gap: var(--esp-2);
+.cu-vent > .cu-sin {
+  grid-column: 2 / -1;
 }
-.cu-grupo + .cu-grupo {
-  padding-top: var(--esp-2);
-  border-top: 1px solid var(--capa-div);
+@container (max-width: 22rem) {
+  .cu-vent,
+  .cu-vent[data-estado="off"] {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "n pct" "bar bar" "vuelve vuelve";
+  }
+  .cu-vent[data-estado="off"] {
+    grid-template-areas: "n n" "off off" "nota nota";
+  }
+  .cu-vent > .cu-sin {
+    grid-column: 1 / -1;
+  }
 }
-.cu-grupo-n {
+/* La línea de estado de arriba de cada tarjeta y de cada grupo: icono + texto, con el tono sólo como refuerzo. */
+.cu-pildora {
+  display: inline-flex;
+  max-width: 100%;
+  align-items: flex-start;
+  gap: var(--esp-1-5);
+  padding: var(--esp-0-5) var(--esp-2);
+  border-radius: var(--radio-pastilla);
+  background: var(--capa-tile);
   color: var(--texto);
   font-size: var(--letra-4);
   font-weight: 500;
+  line-height: 1.35;
+}
+.cu-pildora svg {
+  flex: none;
+  margin-top: var(--esp-0-5);
+}
+.cu-pildora[data-nivel="bajo"],
+.cu-pildora[data-nivel="parcial"] {
+  background: var(--aviso-tinte);
+  color: var(--aviso);
+}
+.cu-pildora[data-nivel="lleno"] {
+  background: var(--critico-tinte);
+  color: var(--critico);
+}
+/* Marcado sin cupo (429): borde punteado, distinto del agotado medido. */
+.cu-pildora[data-nivel="marcado"] {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--critico);
+  color: var(--critico);
+}
+.cu-pildora[data-nivel="ok"] {
+  color: var(--ok);
+}
+.cu-pildora[data-nivel="sin"] {
+  color: var(--apagado);
+}
+.cu-res {
+  display: flex;
+}
+/* Un grupo de modelos (Google): su propia caja con nombre, qué modelos trae, su estado y sus ventanas. */
+.cu-grupo {
+  container-type: inline-size;
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--esp-2-5);
+  padding: var(--esp-3);
+  border-radius: var(--radio-3);
+  background: var(--capa-div);
+}
+.cu-grupo[data-estado="marcado"] {
+  box-shadow: inset 0 0 0 1px var(--capa-track);
+}
+.cu-grupo-cab {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--esp-1-5) var(--esp-2);
+}
+.cu-grupo-id {
+  min-width: 0;
+  flex: 1 1 8rem;
+}
+.cu-grupo-n {
+  color: var(--texto);
+  font-size: var(--letra-5);
+  font-weight: 500;
+}
+.cu-grupo-q {
+  color: var(--apagado);
+  font-size: var(--letra-3);
+}
+.cu-hasta {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-1-5);
+  color: var(--apagado);
+  font-size: var(--letra-3);
+}
+/* «Cómo funcionan estos límites»: un botón que despliega las particularidades de cada proveedor. */
+.cu-ayuda-b {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--esp-1-5);
+  padding: var(--esp-0-5) 0;
+  border: 0;
+  background: none;
+  color: var(--apagado);
+  font: inherit;
+  font-size: var(--letra-4);
+  cursor: pointer;
+}
+.cu-ayuda-b:hover,
+.cu-ayuda-b:focus-visible {
+  color: var(--texto);
+}
+.cu-ayuda-f {
+  transition: transform 0.15s;
+}
+.cu-ayuda[data-abierta] .cu-ayuda-f {
+  transform: rotate(180deg);
+}
+.cu-ayuda-l {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-1-5);
+  margin: var(--esp-1-5) 0 0;
+  padding-left: var(--esp-4);
+  color: var(--apagado);
+  font-size: var(--letra-4);
+  line-height: 1.45;
+}
+/* Avanzado (los topes): su título y su explicación; los valores fijos de Google en renglones. */
+.cu-av-q {
+  padding-bottom: var(--esp-2);
+  color: var(--apagado);
+  font-size: var(--letra-4);
 }
 .cu-topes {
   display: flex;
   flex-direction: column;
   gap: var(--esp-1-5);
-  padding-top: var(--esp-2);
-  border-top: 1px solid var(--capa-div);
 }
 .cu-tope {
+  font-family: inherit;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: var(--esp-2);
-  color: var(--apagado);
+  color: var(--texto);
   font-size: var(--letra-4);
 }
 .cu-conectar {
@@ -2537,4 +2703,176 @@
   .pn-cargando-barra {
     animation: none;
   }
+}
+
+/* Ajustes > Modelos > Modelos para workers (AjustesWorkers.tsx): grupos por empresa que se pliegan, una fila por modelo
+   (interruptor, nombre con su cupo, inteligencia). Compacta: en angosto el cupo baja de renglón y el campo no se achica. */
+.mdl-wk {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--esp-2);
+}
+.wk-buscar {
+  max-width: 100%;
+}
+.wk-grupo {
+  border-top: 1px solid var(--borde-1);
+}
+.wk-cab {
+  display: flex;
+  width: 100%;
+  min-height: 2.25rem;
+  align-items: center;
+  gap: var(--esp-2);
+  padding: var(--esp-1-5) 0;
+  border: 0;
+  background: none;
+  color: var(--texto-2);
+  font: inherit;
+  font-size: var(--letra-5);
+  text-align: left;
+  cursor: pointer;
+}
+.wk-cab:hover {
+  color: var(--texto);
+}
+.wk-cab-n {
+  min-width: 0;
+  overflow: hidden;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.wk-cab-c {
+  margin-left: auto;
+  color: var(--texto-7);
+  font-size: var(--letra-3);
+  white-space: nowrap;
+}
+.wk-lista {
+  display: flex;
+  flex-direction: column;
+  margin: 0 0 var(--esp-2);
+  padding: 0;
+  list-style: none;
+}
+.wk-fila {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--esp-3);
+  padding: var(--esp-1-5) 0 var(--esp-1-5) var(--esp-5);
+}
+.wk-fila[data-off] .wk-nombre {
+  color: var(--texto-7);
+  text-decoration: line-through;
+}
+.wk-datos {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--esp-0-5);
+}
+.wk-nombre {
+  overflow: hidden;
+  color: var(--texto);
+  font-size: var(--letra-4);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.wk-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--esp-2);
+  color: var(--texto-7);
+  font-size: var(--letra-3);
+}
+.wk-gratis {
+  color: var(--ok);
+}
+.wk-agotado {
+  color: var(--aviso);
+}
+.wk-vuelve {
+  white-space: nowrap;
+}
+.wk-q {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-2);
+}
+.wk-num {
+  width: 3.5rem;
+  height: 1.75rem;
+  font-family: var(--font-mono);
+  text-align: right;
+}
+.wk-est {
+  min-width: 4.5rem;
+  text-align: left;
+  color: var(--texto-7);
+  font-size: var(--letra-3);
+  font-style: italic;
+}
+.wk-reglas {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--esp-2);
+}
+.wk-chips {
+  justify-content: flex-start;
+}
+@media (max-width: 40rem) {
+  .wk-fila {
+    padding-left: 0;
+    gap: var(--esp-2);
+  }
+  .wk-q {
+    flex-direction: column-reverse;
+    align-items: flex-end;
+    gap: var(--esp-0-5);
+  }
+  .wk-est {
+    min-width: 0;
+    min-height: 1em;
+    text-align: right;
+  }
+}
+
+/* Artificial Analysis en «Modelos para workers» (AjustesWorkersAA.tsx): la key arriba y la etiqueta de dónde sale cada cifra. */
+.wk-aa {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--esp-2);
+  padding: var(--esp-2) 0 var(--esp-3);
+}
+.wk-aa-t {
+  margin: 0;
+  color: var(--texto);
+  font-size: var(--letra-4);
+  font-weight: 500;
+}
+.wk-aa-enlace {
+  color: var(--texto-2);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.wk-aa-enlace:hover {
+  color: var(--texto);
+}
+.wk-aa-estado {
+  min-width: 0;
+}
+.wk-aa-pie {
+  margin: 0;
+}
+.wk-est[data-origen="aa"],
+.wk-est[data-origen="usuario"] {
+  font-style: normal;
+}
+.wk-est[data-origen="aa"] {
+  color: var(--texto-2);
 }

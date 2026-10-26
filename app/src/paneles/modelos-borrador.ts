@@ -46,6 +46,8 @@ export type Borrador = {
   locales: Local[];
   /** Lo que `reparto` nunca elige (familias, ids o prefijos con `*`). */
   excluir: string[];
+  /** Inteligencia 0–100 que alguien fijó, por clave de `calidad` (lo demás lo estima `reparto`). */
+  calidad: Record<string, number>;
   /** Deja correr opus/sonnet con esfuerzo `max` sin pedir permiso. */
   permitir_max: boolean;
   /** Qué hace `pa` si un modelo no tiene cupo; sin elegir se escribe nada y vale `otro`. */
@@ -65,6 +67,7 @@ export const borradorDe = (e: EstadoModelos): Borrador => ({
   workers: Object.fromEntries(Object.entries(e.config.workers).map(([k, v]) => [k, { ...v }])),
   locales: e.config.locales.map((l) => ({ ...l })),
   excluir: [...e.config.excluir],
+  calidad: { ...e.config.calidad },
   permitir_max: e.config.permitir_max,
   ...(e.config.sin_cupo ? { sin_cupo: e.config.sin_cupo } : {}),
   guardar: e.config.claude.tope_5h !== undefined || e.config.claude.tope_7d !== undefined,
@@ -96,6 +99,7 @@ export function configDe(b: Borrador): ConfigModelos | null {
     workers,
     locales: b.locales.map((l) => ({ ...l })),
     excluir: [...b.excluir],
+    calidad: { ...b.calidad },
     permitir_max: b.permitir_max,
     gemini: {},
     ...(b.sin_cupo ? { sin_cupo: b.sin_cupo } : {}),
@@ -112,6 +116,7 @@ const huella = (c: ConfigModelos) =>
     TIPOS.map((t) => c.workers[t] ?? null),
     c.locales.map((l) => [l.id, l.nombre, l.url, l.modelo]),
     c.excluir,
+    Object.entries(c.calidad ?? {}).sort(([a], [z]) => (a < z ? -1 : 1)),
     c.permitir_max,
     c.sin_cupo ?? null,
     c.claude.tope_5h ?? null,
@@ -263,7 +268,7 @@ export function quitarLocal(b: Borrador, id: string): Borrador {
 
 /** Con qué corre un tipo según el borrador (sus filas, el `default` o lo de hoy). */
 export function efectivoBorrador(b: Borrador, tipo: Tipo, soloGemini = false): Eleccion {
-  return efectivoDe({ lider: b.lider, workers: b.workers, locales: b.locales, excluir: [], permitir_max: false, gemini: {}, claude: {}, destrabar: {} }, tipo, soloGemini);
+  return efectivoDe({ lider: b.lider, workers: b.workers, locales: b.locales, excluir: [], calidad: {}, permitir_max: false, gemini: {}, claude: {}, destrabar: {} }, tipo, soloGemini);
 }
 
 export const liderEfectivo = (b: Borrador): Eleccion => b.lider ?? HOY.lider;

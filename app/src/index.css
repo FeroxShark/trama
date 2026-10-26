@@ -357,6 +357,87 @@ body,
 .g-flecha {
   color: var(--txt-4);
 }
+/* Los grupos de una suscripción (Google) en el renglón plegado: un chip por grupo, con icono y texto además del color. */
+/* Con chips el nombre queda arriba, a la altura del primero (no centrado en un bloque alto). */
+.grupo:has(> .g-chips) {
+  align-items: start;
+}
+.g-chips {
+  display: flex;
+  min-width: 0;
+  grid-column: 2 / -1;
+  flex-wrap: wrap;
+  gap: var(--esp-1) var(--esp-1-5);
+}
+.g-chip {
+  display: inline-flex;
+  min-width: 0;
+  max-width: 100%;
+  align-items: center;
+  gap: var(--esp-1);
+  padding: 0 var(--esp-1-5);
+  border: 1px solid transparent;
+  border-radius: var(--radio-pastilla);
+  background: var(--capa-tile);
+  color: var(--txt-2);
+  font-size: var(--letra-3);
+  line-height: 1.5;
+  white-space: nowrap;
+}
+.g-chip svg {
+  flex: none;
+}
+.g-chip-n {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.g-chip-v {
+  font-family: var(--font-mono);
+  color: var(--txt-1);
+}
+.g-chip[data-estado="bajo"] {
+  background: var(--aviso-tinte);
+  color: var(--aviso);
+}
+.g-chip[data-estado="lleno"] {
+  background: var(--critico-tinte);
+  color: var(--critico);
+}
+.g-chip[data-estado="lleno"] .g-chip-v {
+  color: inherit;
+}
+/* Marcado sin cupo (429): borde punteado, para no confundirlo con un 100 % medido. */
+.g-chip[data-estado="marcado"] {
+  border-style: dashed;
+  border-color: var(--critico);
+  background: transparent;
+  color: var(--critico);
+}
+.g-chip[data-estado="marcado"] .g-chip-v {
+  color: inherit;
+}
+.g-chip[data-estado="sin"] {
+  color: var(--txt-4);
+}
+/* Una ventana que no rige, o un grupo marcado: sin porcentaje; la barra va rayada y vacía. */
+.uso[data-aparte] .sd {
+  margin-left: 0;
+  color: var(--txt-4);
+  font-style: italic;
+}
+.uso[data-aparte="marcado"] .sd {
+  color: var(--critico);
+  font-style: normal;
+}
+.riel[data-hueco] {
+  background: repeating-linear-gradient(135deg, var(--capa-track) 0 0.25rem, var(--capa-div) 0.25rem 0.5rem);
+}
+.uso-lleno {
+  align-self: center;
+  flex: none;
+  color: var(--critico);
+}
 .grupo[data-hijo] .g-id {
   grid-template-columns: minmax(0, 1fr);
   padding-left: var(--esp-3);
@@ -1274,17 +1355,21 @@ kbd {
   color: var(--txt-3);
 }
 
-/* Un solo botón al hover: Cerrar. Vive al lado del botón de la fila, no adentro. */
-/* Del alto del botón, como en la maqueta, pero sobre la segunda línea: el
-   numerito queda entero arriba y se le llega con el mouse a su tooltip.
-   Sin fondo propio: el fondo de la barra es un degradé y el hover de la fila es translúcido, así que nada sólido les
-   iguala. En cambio la fila mide el grupo (`--acc-w`, src/barra/Fila.tsx) y su texto termina antes, con lugar de sobra. */
+/* Los botones que salen con el hover de una fila viven en la segunda línea de la fila (`.l2` del worker, el `.s`
+   del líder): ésa se desvanece (opacity, sin perder el alto) y los botones ocupan su lugar, alineados a la derecha y
+   centrados en esa línea (`1lh`). El título de arriba queda entero, sin nada encima.
+   Sin fondo propio: el fondo de la barra es un degradé y el hover de la fila es translúcido, así que nada sólido les iguala. */
 .acc {
   position: absolute;
   right: 0.375rem;
-  bottom: 0.1875rem;
+  bottom: var(--esp-1-5);
+  left: calc(var(--esp-3) + var(--esp-5));
   display: flex;
+  height: 1lh;
+  align-items: center;
+  justify-content: flex-end;
   gap: var(--esp-1);
+  font-size: var(--letra-3);
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.12s;
@@ -1298,28 +1383,27 @@ kbd {
 .w:has(> .acc):hover .l2,
 .wbtn[data-cursor]:has(+ .acc) .l2,
 .w:has(> .acc:focus-within) .l2 {
-  padding-right: calc(var(--acc-w, 0px) + 0.5rem);
+  opacity: 0;
 }
-/* La fila del líder lleva su "Cerrar líder" igual que el Settle del worker. */
-/* El líder y su primer worker, separados como las filas entre sí. */
+/* El líder: igual, sobre su segunda línea (el padding de la fila es el de abajo y el de la izquierda, el de la corona). */
 .lw {
   position: relative;
   margin-bottom: var(--esp-0-5);
 }
-/* Acá el numerito va al medio de la fila, no arriba: el botón toma el alto de la fila, centrado,
-   y el numerito se esconde mientras se ve (sin transición), así no se pisan. */
 .lw > .acc {
-  top: 0;
-  bottom: 0;
-  align-items: center;
+  bottom: var(--esp-2);
+  left: 1.875rem;
 }
-.lw:has(> .acc):hover .txt,
-.lw:has(> .acc:focus-within) .txt,
-.lider[data-cursor]:has(~ .acc) .txt {
-  padding-right: calc(var(--acc-w, 0px) + 0.5rem);
+.lw:has(> .acc):hover .txt > :last-child,
+.lw:has(> .acc:focus-within) .txt > :last-child,
+.lw:has(> .acc .settle-conf) .txt > :last-child,
+.lider[data-cursor]:has(~ .acc) .txt > :last-child {
+  opacity: 0;
 }
+/* El numerito de caché va al medio de la fila: se esconde mientras se ven los botones (sin transición), así no se pisan. */
 .lw:has(> .acc):hover .cache,
 .lw:has(> .acc:focus-within) .cache,
+.lw:has(> .acc .settle-conf) .cache,
 .lider[data-cursor]:has(~ .acc) .cache {
   visibility: hidden;
 }
@@ -1331,7 +1415,7 @@ kbd {
 /* "Quedan N ramas sin integrar: ¿Settle igual?": a la izquierda del Settle, mientras está armado. */
 .settle-conf {
   order: -1;
-  align-self: center;
+  min-width: 0;
   margin-right: var(--esp-1-5);
   overflow: hidden;
   color: var(--ambar);
@@ -1339,14 +1423,11 @@ kbd {
   white-space: nowrap;
   text-overflow: ellipsis;
 }
-.acc:has(.settle-conf) {
-  padding-left: var(--esp-2);
-  border-radius: var(--radio-2);
-  background: var(--sup-2);
-  top: auto;
-  bottom: 0.1875rem;
-  left: 0.375rem;
-  justify-content: flex-end;
+.acc .mini {
+  flex: none;
+}
+/* Armado, queda a la vista aunque se vaya el mouse (se desarma al salir del botón o con Esc). */
+.lw > .acc:has(.settle-conf) {
   opacity: 1;
   pointer-events: auto;
 }

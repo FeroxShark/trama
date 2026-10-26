@@ -247,3 +247,26 @@ test("parsearComando: un líder de dsh no cruza a Claude ni a Gemini con /model 
   assert.deepEqual(parsearComando("/model dsh:nube/x", MODELOS, EFFORTS, [], "claude-opus-5-5"), { tipo: "error", clave: "comando.cambioProveedor", v: "dsh:nube/x" });
   assert.deepEqual(parsearComando("/model opus", [], [], [], actual), { tipo: "error", clave: "comando.cambioProveedor", v: "opus" });
 });
+
+test("/effort en OpenCode: el menú ofrece los niveles del modelo puesto; sin niveles no se ofrece", () => {
+  const con = { effort: { lista: [{ valor: "low", desc: null }, { valor: "high", desc: null }], actual: "low" } };
+  const sin = { effort: { lista: [], actual: null } };
+  const args = (v: Parameters<typeof sugerencias>[2], m: string) => sugerencias("/eff", [], v, m).find((s) => s.nombre === "effort")?.args;
+  assert.equal(args(con, "opencode:opencode/beam-free"), "<low|high>");
+  assert.equal(args(con, "dsh:nube/x"), "<low|high>");
+  assert.equal(args(sin, "opencode:opencode/big-pickle"), undefined);
+  assert.equal(args(sin, "dsh:nube/x"), undefined);
+  // Claude no cambia.
+  assert.equal(args(con, "claude-opus-5-5"), "<low|medium|high|xhigh|max>");
+  assert.equal(menuEn("/eff", 4, [], sin, "opencode:opencode/big-pickle")?.filas.some((s) => s.nombre === "effort"), false);
+});
+
+test("/effort sin niveles dice que no hay; sin argumento muestra el uso; con niveles, igual que antes", () => {
+  const oc = "opencode:opencode/big-pickle";
+  assert.deepEqual(parsearComando("/effort high", MODELOS, [], [], oc), { tipo: "error", clave: "comando.sinEffortOpencode", v: "high" });
+  assert.deepEqual(parsearComando("/effort", MODELOS, [], [], oc), { tipo: "error", clave: "comando.sinEffortOpencode", v: "" });
+  assert.deepEqual(parsearComando("/effort", MODELOS, [], [], "dsh:nube/x"), { tipo: "error", clave: "comando.sinEffort", v: "" });
+  assert.deepEqual(parsearComando("/effort", MODELOS, ["low", "high"], [], "opencode:opencode/beam-free"), { tipo: "error", clave: "comando.usoEffortVacio", v: "" });
+  assert.deepEqual(parsearComando("/effort max", MODELOS, ["low", "high"], [], "opencode:opencode/beam-free"), { tipo: "error", clave: "comando.usoEffort", v: "max" });
+  assert.deepEqual(parsearComando("/effort HIGH", MODELOS, ["low", "high"], [], "opencode:opencode/beam-free"), { tipo: "effort", effort: "high" });
+});

@@ -18,7 +18,7 @@ import { Comando } from "./AjustesLocales";
 import { URL_OLLAMA } from "./modelos-borrador";
 
 /** Un estado con su ícono y su palabra (un tilde o una cruz): no depende del color. */
-function Estado({ ok, texto, tip }: { ok: boolean; texto: string; tip?: string }) {
+export function Estado({ ok, texto, tip }: { ok: boolean; texto: string; tip?: string }) {
   const Icono = ok ? Check : X;
   return (
     <span className="mdl-estado dsh-estado" data-estado={ok ? "ok" : "no"} data-tip={tip}>
@@ -48,7 +48,7 @@ function Resultado({ p }: { p: Probando }) {
 }
 
 /** El campo de una API key: sin key, el campo y «Guardar clave»; con key, «Clave guardada» con Reemplazar y Borrar. El valor nunca vuelve del main. */
-function CampoClave({
+export function CampoClave({
   nombre,
   que,
   hay,

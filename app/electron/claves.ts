@@ -9,7 +9,9 @@ import path from "node:path";
 import { errorT } from "./errores.ts";
 import { configTrama } from "./rutas.ts";
 
-export const NOMBRES_CLAVE = ["OPENCODE_API_KEY", "DEEPSEEK_API_KEY"] as const;
+export const NOMBRES_CLAVE = ["OPENCODE_API_KEY", "DEEPSEEK_API_KEY", "ARTIFICIAL_ANALYSIS_API_KEY"] as const;
+/** La de Artificial Analysis es de la app (baja los índices de inteligencia): no va al entorno de ningún líder ni worker. */
+export const CLAVES_DE_PROVEEDOR = ["OPENCODE_API_KEY", "DEEPSEEK_API_KEY"] as const;
 export type NombreClave = (typeof NOMBRES_CLAVE)[number];
 export const esNombreClave = (n: unknown): n is NombreClave => (NOMBRES_CLAVE as readonly string[]).includes(n as string);
 
@@ -75,12 +77,16 @@ export async function guardarClave(nombre: unknown, valor: string | null, ruta =
 
 /** Qué keys hay (sólo si hay, nunca el valor). Las del entorno del proceso cuentan: son las que ganan. */
 export function hayClaves(guardadas: Partial<Record<NombreClave, string>>, env: Env = process.env): Record<NombreClave, boolean> {
-  return { OPENCODE_API_KEY: !!(env.OPENCODE_API_KEY || guardadas.OPENCODE_API_KEY), DEEPSEEK_API_KEY: !!(env.DEEPSEEK_API_KEY || guardadas.DEEPSEEK_API_KEY) };
+  return {
+    OPENCODE_API_KEY: !!(env.OPENCODE_API_KEY || guardadas.OPENCODE_API_KEY),
+    DEEPSEEK_API_KEY: !!(env.DEEPSEEK_API_KEY || guardadas.DEEPSEEK_API_KEY),
+    ARTIFICIAL_ANALYSIS_API_KEY: !!(env.ARTIFICIAL_ANALYSIS_API_KEY || guardadas.ARTIFICIAL_ANALYSIS_API_KEY),
+  };
 }
 
 /** El entorno con las keys guardadas debajo: una variable ya puesta en `env` no se pisa. */
 export function conClaves(env: Env, guardadas: Partial<Record<NombreClave, string>> = leerClavesSync()): Env {
   const e: Env = { ...env };
-  for (const n of NOMBRES_CLAVE) if (!e[n] && guardadas[n]) e[n] = guardadas[n];
+  for (const n of CLAVES_DE_PROVEEDOR) if (!e[n] && guardadas[n]) e[n] = guardadas[n];
   return e;
 }

@@ -48,7 +48,7 @@ test("sin archivo: lo de hoy, y leer no crea nada", async () => {
   const e = await leerModelos(undefined, ruta);
   assert.equal(e.existe, false);
   assert.equal(e.error, null);
-  assert.deepEqual(e.config, { workers: {}, locales: [], excluir: [], permitir_max: false, gemini: {}, claude: {}, destrabar: {} });
+  assert.deepEqual(e.config, { workers: {}, locales: [], excluir: [], calidad: {}, permitir_max: false, gemini: {}, claude: {}, destrabar: {} });
   assert.equal(e.efectivo, null);
   assert.equal(existsSync(path.dirname(ruta)), false);
 });
@@ -68,7 +68,7 @@ test("lee el contrato completo", async () => {
 
 test("guardar crea la carpeta, escribe con version 1 y no deja temporales", async () => {
   const ruta = nuevaRuta();
-  const e = await guardarModelos({ lider: { modelo: "claude-opus-5-5", effort: "xhigh" }, workers: {}, locales: [], excluir: [], permitir_max: false, gemini: {}, claude: {}, destrabar: {} }, undefined, ruta);
+  const e = await guardarModelos({ lider: { modelo: "claude-opus-5-5", effort: "xhigh" }, workers: {}, locales: [], excluir: [], calidad: {}, permitir_max: false, gemini: {}, claude: {}, destrabar: {} }, undefined, ruta);
   assert.equal(e.existe, true);
   const j = JSON.parse(readFileSync(ruta, "utf8"));
   assert.equal(j.version, 1);
@@ -179,20 +179,20 @@ test("urlOllama normaliza y rechaza lo que no es http(s)", () => {
 
 test("leerConfig es tolerante: ignora lo que no entiende", () => {
   const c = leerConfig({ lider: 3, workers: { default: { modelo: "claude-sonnet-5-5" }, mecanico: { modelo: 5 } }, locales: [{ id: 1 }], gemini: { cupo_max: "mucho", sin_claude: "x" } });
-  assert.deepEqual(c, { workers: { default: { modelo: "claude-sonnet-5-5" } }, locales: [], excluir: [], permitir_max: false, gemini: {}, claude: {}, destrabar: {} });
+  assert.deepEqual(c, { workers: { default: { modelo: "claude-sonnet-5-5" } }, locales: [], excluir: [], calidad: {}, permitir_max: false, gemini: {}, claude: {}, destrabar: {} });
 });
 
 test("qué corre hoy: el tipo, el default del archivo o lo de siempre", () => {
-  const vacia: ConfigModelos = { workers: {}, locales: [], excluir: [], permitir_max: false, gemini: {}, claude: {}, destrabar: {} };
+  const vacia: ConfigModelos = { workers: {}, locales: [], excluir: [], calidad: {}, permitir_max: false, gemini: {}, claude: {}, destrabar: {} };
   assert.deepEqual(efectivoDe(vacia, "default"), HOY.workers.default);
   assert.deepEqual(efectivoDe(vacia, "mecanico"), { modelo: "claude-haiku-5-5", effort: "xhigh" });
-  const c: ConfigModelos = { workers: { default: { modelo: "gemini-4-argon-low" }, lectura: { modelo: "claude-opus-5-5", effort: "max" } }, locales: [], excluir: [], permitir_max: false, gemini: {}, claude: {}, destrabar: {} };
+  const c: ConfigModelos = { workers: { default: { modelo: "gemini-4-argon-low" }, lectura: { modelo: "claude-opus-5-5", effort: "max" } }, locales: [], excluir: [], calidad: {}, permitir_max: false, gemini: {}, claude: {}, destrabar: {} };
   assert.deepEqual(efectivoDe(c, "debug"), { modelo: "gemini-4-argon-low" });
   assert.deepEqual(efectivoDe(c, "lectura"), { modelo: "claude-opus-5-5", effort: "max" });
 });
 
 test("defaults por tipo de tarea: Haiku para leer y lo mecánico, Sonnet para el código, Opus para debug y diseño", () => {
-  const vacia: ConfigModelos = { workers: {}, locales: [], excluir: [], permitir_max: false, gemini: {}, claude: {}, destrabar: {} };
+  const vacia: ConfigModelos = { workers: {}, locales: [], excluir: [], calidad: {}, permitir_max: false, gemini: {}, claude: {}, destrabar: {} };
   const H = { modelo: "claude-haiku-5-5", effort: "xhigh" };
   const S = { modelo: "claude-sonnet-5-5", effort: "high" };
   const O = { modelo: "claude-opus-5-5", effort: "xhigh" };
@@ -202,12 +202,12 @@ test("defaults por tipo de tarea: Haiku para leer y lo mecánico, Sonnet para el
   );
   assert.equal(defaultsDe(false), DEFAULTS_CLAUDE);
   // El `default` del archivo sigue valiendo para los tipos que no tienen fila.
-  const c: ConfigModelos = { workers: { default: { modelo: "claude-opus-5-5", effort: "low" } }, locales: [], excluir: [], permitir_max: false, gemini: {}, claude: {}, destrabar: {} };
+  const c: ConfigModelos = { workers: { default: { modelo: "claude-opus-5-5", effort: "low" } }, locales: [], excluir: [], calidad: {}, permitir_max: false, gemini: {}, claude: {}, destrabar: {} };
   assert.deepEqual(efectivoDe(c, "lectura"), { modelo: "claude-opus-5-5", effort: "low" });
 });
 
 test("sin Claude (sólo Gemini): Argon para todo lo que pesa y Flash sólo para lo mecánico", () => {
-  const vacia: ConfigModelos = { workers: {}, locales: [], excluir: [], permitir_max: false, gemini: {}, claude: {}, destrabar: {} };
+  const vacia: ConfigModelos = { workers: {}, locales: [], excluir: [], calidad: {}, permitir_max: false, gemini: {}, claude: {}, destrabar: {} };
   for (const t of TIPOS) {
     const m = efectivoDe(vacia, t, true).modelo;
     assert.equal(m, t === "mecanico" ? "gemini-3.8-flash-medium" : "gemini-4-argon-high", t);
@@ -334,7 +334,7 @@ test("excluir y permitir_max: se leen, se validan y se escriben sólo si no son 
   const e = await leerModelos(undefined, ruta);
   assert.deepEqual(e.config.excluir, ["fable"]);
   assert.equal(e.config.permitir_max, true);
-  await guardarModelos({ workers: {}, locales: [], excluir: [], permitir_max: false, gemini: {}, claude: {}, destrabar: {} }, undefined, ruta);
+  await guardarModelos({ workers: {}, locales: [], excluir: [], calidad: {}, permitir_max: false, gemini: {}, claude: {}, destrabar: {} }, undefined, ruta);
   j = JSON.parse(readFileSync(ruta, "utf8"));
   assert.ok(!("excluir" in j) && !("permitir_max" in j), "lo que vuelve al default sale del archivo");
   assert.deepEqual(j.algo_ajeno, { x: 1 });
@@ -342,7 +342,7 @@ test("excluir y permitir_max: se leen, se validan y se escriben sólo si no son 
 
 test("guarda y lee reparto: auto y modelos agy:*", async () => {
   const ruta = nuevaRuta();
-  await guardarModelos({ lider: { modelo: "agy:claude-opus-5-5-high" }, reparto: "auto", workers: { mecanico: { modelo: "agy:gpt-oss-120b-medium" } }, locales: [], excluir: [], permitir_max: false, gemini: {}, claude: {}, destrabar: {} }, undefined, ruta);
+  await guardarModelos({ lider: { modelo: "agy:claude-opus-5-5-high" }, reparto: "auto", workers: { mecanico: { modelo: "agy:gpt-oss-120b-medium" } }, locales: [], excluir: [], calidad: {}, permitir_max: false, gemini: {}, claude: {}, destrabar: {} }, undefined, ruta);
   const j = JSON.parse(readFileSync(ruta, "utf8"));
   assert.equal(j.reparto, "auto");
   assert.deepEqual(j.lider, { modelo: "agy:claude-opus-5-5-high" });

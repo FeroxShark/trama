@@ -11,7 +11,8 @@ import { promptRetomar } from "./retomar";
 import { promptArreglar } from "./arreglar";
 import { salud as saludDe, type EstadoSalud } from "./salud";
 import type { Hilo } from "./contrato";
-import { ACCESOS_FALSOS, AJUSTES, AUTO, ENTORNO_OLLAMA, ESTADO_DSH, ESTADO_OPENCODE, MODELOS_FIJOS, OLLAMA_FALSO, arranqueMedidoFalso, historialFalso, MEDICION, REMOTO, SALUD, URL_REMOTO_FALSA } from "./fixtures-paneles";
+import { claveCalidad } from "../paneles/modelos-workers";
+import { ACCESOS_FALSOS, AJUSTES, AUTO, ENTORNO_OLLAMA, ESTADO_DSH, ESTADO_OPENCODE, MODELOS_FIJOS, TABLA_REPARTO, OLLAMA_FALSO, arranqueMedidoFalso, historialFalso, MEDICION, REMOTO, SALUD, URL_REMOTO_FALSA } from "./fixtures-paneles";
 import type { EstadoAuto } from "../../electron/autointegrar";
 import type { Consulta, PiezaConsulta } from "../../electron/historial";
 import type { Arranque, Medido } from "../../electron/arranque";
@@ -22,7 +23,10 @@ import type { EntornoOllama } from "../../electron/ollama-entorno";
 import type { EstadoDsh, Prueba } from "../../electron/dsh-ajustes";
 import type { NombreClave } from "../../electron/claves";
 import type { EstadoOpencodeUi } from "../../electron/opencode-ajustes";
+import type { TablaReparto } from "../../electron/reparto-tabla";
+import type { EstadoAA, ResultadoAA } from "../../electron/artificial-analysis";
 
+export type { TablaReparto, EstadoAA, ResultadoAA };
 export type { Arranque, Bajada, ConfigModelos, Consulta, EntornoOllama, EstadoAuto, EstadoDsh, EstadoModelos, EstadoOpencodeUi, EstadoSalud, Medido, NombreClave, PiezaConsulta, Prueba, Sondeo };
 
 /** Los proveedores de DeepSeek Harness que se pueden probar desde Ajustes. */
@@ -145,6 +149,12 @@ export interface FuentePaneles {
   claveDsh(nombre: NombreClave, valor: string | null): Promise<EstadoDsh>;
   /** Prueba un proveedor con la key guardada (`GET /models`; Ollama, `/api/tags`); nunca rechaza por no contestar. */
   probarDsh(proveedor: ProveedorDshUi, url?: string): Promise<Prueba>;
+  /** `reparto --tabla --json`: los modelos que reparto conoce con su inteligencia y cupo; `null` si no hay `reparto` (o es uno viejo). */
+  repartoTabla(): Promise<TablaReparto | null>;
+  /** Artificial Analysis: si hay key y de cuándo es la caché (la key se guarda con `claveDsh`). */
+  estadoAA(): Promise<EstadoAA>;
+  /** Baja la lista de Artificial Analysis ahora; nunca rechaza: dice qué pasó (key mala, límite diario, sin red…). */
+  refrescarAA(): Promise<{ resultado: ResultadoAA; estado: EstadoAA }>;
   /** OpenCode (el programa `opencode`): instalado, versión, login y cuántos modelos ofrece. */
   estadoOpencode(): Promise<EstadoOpencodeUi>;
   /** Vuelve a listar los modelos de `opencode`; devuelve el estado de después o rechaza con el motivo. */
@@ -214,6 +224,12 @@ function cae(que: keyof typeof FALLAS_PANEL): boolean {
 let modelosFijos: EstadoModelos | undefined;
 /** DeepSeek Harness de los fixtures (instalado o no, con qué keys): vive mientras la página. */
 let dshFijo: EstadoDsh | undefined;
+/** Artificial Analysis en las capturas: la caché es de ayer en las variantes `mdl-wk-aa*` y no hay en las demás hasta que se refresca. */
+let aaFecha: number | null | undefined;
+const estadoAAFijo = () => {
+  aaFecha ??= MODO.variante?.startsWith("mdl-wk-aa") ? Date.now() - 20 * 3_600_000 : null;
+  return { version: 1 as const, hayClave: (dshFijo ?? ESTADO_DSH(MODO.variante)).claves.ARTIFICIAL_ANALYSIS_API_KEY, fecha: aaFecha, modelos: aaFecha ? 187 : 0 };
+};
 let ocFijo: EstadoOpencodeUi | undefined;
 
 const FALLA_CONFLICTO = "pa: conflicts merging into main. A worker can resolve it: pa atlas --actualizar 20261003-100000-11111";
@@ -299,6 +315,25 @@ const fija: FuentePaneles = {
     if (MODO.variante === "dsh-falla" && proveedor === "deepseek") return { ok: false, motivo: textoT("main.dshClaveMala", { k: "DEEPSEEK_API_KEY" }) };
     if (proveedor === "ollama") return { ok: true, modelos: OLLAMA_FALSO.length };
     return { ok: true, modelos: proveedor === "opencode" ? 14 : 3 };
+  },
+  async repartoTabla() {
+    await espera(120);
+    if (MODO.variante === "mdl-wk-sin") return null;
+    // Los fixtures reflejan lo guardado: la inteligencia que se fijó deja de ser «estimada».
+    const cal = (modelosFijos ?? MODELOS_FIJOS(MODO.variante?.startsWith("mdl") === true)).config.calidad;
+    const t = TABLA_REPARTO(MODO.variante?.startsWith("mdl-wk-aa") === true);
+    return { ...t, modelos: t.modelos.map((f) => (claveCalidad(f) in cal && cal[claveCalidad(f)] !== f.calidad ? { ...f, calidad: cal[claveCalidad(f)]!, estimada: false, origen: "usuario", aaFecha: null } : f)) };
+  },
+  async estadoAA() {
+    await espera(60);
+    return estadoAAFijo();
+  },
+  async refrescarAA() {
+    await espera(700);
+    if (!dshFijo?.claves.ARTIFICIAL_ANALYSIS_API_KEY && !ESTADO_DSH(MODO.variante).claves.ARTIFICIAL_ANALYSIS_API_KEY) return { resultado: { ok: false, tipo: "sin-clave" }, estado: estadoAAFijo() };
+    if (MODO.variante === "mdl-wk-aa-mala") return { resultado: { ok: false, tipo: "clave" }, estado: estadoAAFijo() };
+    aaFecha = Date.now();
+    return { resultado: { ok: true, vigente: false, modelos: 187, fetched: new Date(aaFecha).toISOString() }, estado: estadoAAFijo() };
   },
   async estadoOpencode() {
     await espera(80);
@@ -565,6 +600,15 @@ const conPa = (m: NonNullable<typeof main>): FuentePaneles => ({
   },
   async probarDsh(proveedor, url) {
     return (await m.paneles.probarDsh(proveedor, url).catch(fallar)) as Prueba;
+  },
+  async repartoTabla() {
+    return (await m.paneles.repartoTabla().catch(fallar)) as TablaReparto | null;
+  },
+  async estadoAA() {
+    return (await m.paneles.estadoAA().catch(fallar)) as EstadoAA;
+  },
+  async refrescarAA() {
+    return (await m.paneles.refrescarAA().catch(fallar)) as { resultado: ResultadoAA; estado: EstadoAA };
   },
   async estadoOpencode() {
     return (await m.paneles.estadoOpencode().catch(fallar)) as EstadoOpencodeUi;

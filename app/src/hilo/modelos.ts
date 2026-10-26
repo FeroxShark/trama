@@ -221,8 +221,9 @@ export const sinWorkers = (modelo: string | null | undefined) => {
   return d?.local === true || d?.sinWorkers === true;
 };
 
-/** Los niveles de un modelo; uno que la tabla no conoce tiene los de Claude. */
-export const effortsDe = (modelo: string | null | undefined): readonly string[] => defDe(modelo)?.efforts ?? EFFORTS_CLAUDE;
+/** Los niveles de un modelo; uno que la tabla no conoce tiene los de Claude (salvo uno de OpenCode o dsh: no los inventa, no tiene). */
+export const effortsDe = (modelo: string | null | undefined): readonly string[] =>
+  defDe(modelo)?.efforts ?? (esOpencode(modelo) || esDsh(modelo) ? [] : EFFORTS_CLAUDE);
 
 /** El esfuerzo de ese modelo si existe en su lista, si no `null`. */
 export const effortDeModelo = (modelo: string | null | undefined, e: string | null | undefined): string | null =>

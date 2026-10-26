@@ -3897,7 +3897,7 @@ modelo_de_pa() {   # $1 = tipo -> "modelo<TAB>effort" de pa sin archivo (lo de s
   printf '%s\t%s\n' "$m" "$e"
 }
 cmd_modelos() {
-  local json=0 t r m e k de filas="" locs="" lid="" dshs="" ocs="" url mod nom est rep_modo rep_t rep_j rep_m rep_e rep_mot
+  local json=0 t r m e k de filas="" locs="" lid="" dshs="" ocs="" tab url mod nom est rep_modo rep_t rep_j rep_m rep_e rep_mot
   [[ "${1:-}" == --json ]] && json=1
   [[ -n "${1:-}" && "$1" != --json ]] && { echo "uso: pa --modelos [--json]" >&2; return 2; }
   modelos_cargar || true; gemini_politica
@@ -3926,6 +3926,13 @@ cmd_modelos() {
     fi
     filas+="$t"$'\t'"$m"$'\t'"${e:--}"$'\t'"$de"$'\t'"${rep_m:-}"$'\t'"${rep_e:--}"$'\t'"${rep_mot:-}"$'\n'
   done
+  tab=""
+  if [[ "$rep_modo" == auto && -x "$REPARTO" ]]; then   # inteligencia de cada modelo (reparto --tabla; ~ = estimada)
+    tab="$(REPARTO_STATE="${REPARTO_STATE:-$STATE/reparto}" PA_STATE="$STATE" \
+      timeout "${PA_REPARTO_TIMEOUT_S:-15}" "$REPARTO" --tabla --json 2>/dev/null </dev/null \
+      | jq -c '[.modelos[]? | {id, calidad, estimada, gratis, permitido}] | unique_by(.id)' 2>/dev/null || true)"
+  fi
+  [[ -n "$tab" ]] || tab='[]'
   modelos_cargar && lid="$(jq -r '.lider // empty | [.modelo, (.effort // "")] | join("|")' <<<"$MODELOS_TXT")"
   dshs="$(dsh_catalogo 2>/dev/null || true)"
   ocs="$(opencode_catalogo 2>/dev/null || true)"
@@ -3939,13 +3946,14 @@ cmd_modelos() {
   if (( json )); then
     jq -n --arg arch "$MODELOS_JSON" --arg err "$MODELOS_ERR" --arg ok "$( [[ -n "$MODELOS_TXT" ]] && echo 1)" \
           --arg existe "$( [[ -f "$MODELOS_JSON" ]] && echo 1)" --arg rep_modo "$rep_modo" \
-          --arg filas "$filas" --arg locs "$locs" --arg lid "$lid" --arg plan "$PLAN" --arg dshs "$dshs" --arg dsh_ruta "$(dsh_bin)" --arg ocs "$ocs" --arg oc_ruta "$(opencode_bin)" \
+          --arg filas "$filas" --arg locs "$locs" --arg lid "$lid" --arg plan "$PLAN" --arg dshs "$dshs" --arg dsh_ruta "$(dsh_bin)" --arg ocs "$ocs" --arg oc_ruta "$(opencode_bin)" --argjson tab "$tab" \
           --argjson excluir "$(modelos_clave excluir | grep . || echo '[]')" --argjson pmax "$( (( PERMITIR_MAX )) && echo true || echo false)" \
           --arg sin_cupo "$SIN_CUPO" --arg sin_cupo_de "$SIN_CUPO_DE" --argjson reserva "$(modelos_clave reserva | grep . || echo null)" '
       def lineas($s): $s | split("\n") | map(select(. != "") | split("\t"));
       def motor($m): if ($m | startswith("ollama:")) then "ollama" elif ($m | startswith("dsh:")) then "dsh" elif ($m | startswith("opencode:")) then "opencode" elif ($m | startswith("codex:")) then "codex" elif (($m | startswith("gemini")) or ($m | startswith("agy:"))) then "agy" else "claude" end;
       { archivo: $arch, existe: ($existe == "1"), valido: ($ok == "1"), error: (if $err == "" then null else $err end), plan: $plan,
         reparto: $rep_modo,
+        inteligencia: ($tab | map({key: .id, value: {calidad, estimada, gratis, permitido}}) | from_entries),
         excluir: $excluir, permitir_max: $pmax, sin_cupo: $sin_cupo, sin_cupo_de: $sin_cupo_de, reserva: $reserva,
         lider: (if $lid == "" then null else ($lid | split("|") | {modelo: .[0], effort: (if (.[1] // "") == "" then null else .[1] end), motor: motor(.[0])}) end),
         workers: ([lineas($filas)[] | {key: .[0], value: ({modelo: .[1], effort: (if .[2] == "-" then null else .[2] end), motor: motor(.[1]), origen: .[3]}
@@ -3964,6 +3972,11 @@ cmd_modelos() {
   printf '%s' "$filas" | awk -F'\t' 'BEGIN{printf "%-15s %-26s %-8s %s\n", "tipo", "modelo", "effort", "de dónde"} {printf "%-15s %-26s %-8s %s%s\n", $1, $2, $3, $4, ($5 != "" ? "  (reparto hoy: " $5 ($6 != "-" && $6 != "" ? " " $6 : "") ")" : "")}'
   echo "reparto: modo $rep_modo (el cupo lo elige reparto)"
   echo "sin cupo: $SIN_CUPO ($SIN_CUPO_DE); excluir: $(modelos_clave excluir | jq -r 'if length == 0 then "nada" else join(", ") end' 2>/dev/null || echo nada); reserva del Claude oficial: $(modelos_clave reserva | grep . || echo ninguna); max sin --ok-dueno: $( (( PERMITIR_MAX )) && echo sí || echo no)"
+  if [[ "$tab" != '[]' ]]; then
+    echo "inteligencia (0-100; ~ = estimada por el nombre; editable en Ajustes > Modelos o con \"calidad\" en modelos.json; reparto --tabla):"
+    jq -r '.[] | "\(.id)\t\(.calidad)\(if .estimada then "~" else "" end)\(if .gratis then " · gratis" else "" end)\(if .permitido then "" else " · NO permitido" end)"' <<<"$tab" \
+      | awk -F'\t' '{printf "  %-52s %s\n", $1, $2}'
+  fi
   if [[ -n "$locs" ]]; then
     echo "locales:"
     printf '%s' "$locs" | while IFS=$'\t' read -r k nom url mod est; do

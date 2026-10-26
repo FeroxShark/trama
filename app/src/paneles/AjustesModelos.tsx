@@ -5,7 +5,7 @@
 // carga ninguno. Sólo se edita desde la PC (por la tailnet el main rechaza guardar).
 import { useEffect, useMemo, useRef, useState, type FormEvent, type RefObject } from "react";
 import { Plus, X } from "lucide-react";
-import { Chip, Interruptor } from "../ui/componentes";
+import { Interruptor } from "../ui/componentes";
 import { VERSION, type Uso } from "../datos/contrato";
 import { fuente } from "../datos/fuente";
 import { fuentePaneles, type Bajada, type EntornoOllama, type EstadoModelos, type Sondeo } from "../datos/paneles";
@@ -23,11 +23,11 @@ import { Boton } from "../ui/componentes";
 import { Cat } from "./AjustesNav";
 import { PanelCargando } from "./PanelCargando";
 import { AjustesDsh } from "./AjustesDsh";
+import { ModelosParaWorkers } from "./AjustesWorkers";
 import { GuiaOllama, SugeridosOllama, textoBajada } from "./AjustesLocales";
 import { marcar } from "./ajustes-nav";
 import { avisosTope } from "./cupos-aviso";
 import {
-  agregarExcluido,
   agregarLocal,
   borradorDe,
   configDe,
@@ -47,9 +47,7 @@ import {
   ponerDestrabar,
   ponerPermitirMax,
   porcentaje,
-  quitarExcluido,
   quitarLocal,
-  FAMILIAS,
   sucio,
   textoEleccion,
   TIPOS,
@@ -110,10 +108,6 @@ function opcionesDe(modelos: Modelo[], comoHoy: boolean): Opcion[] {
   if (comoHoy) cab.push({ id: "", nombre: t("ajustes.mdlComoHoy"), desc: t("ajustes.mdlComoHoyQue") });
   return [...cab, ...ops];
 }
-
-/** Cómo se llama en la lista de "no se usan" lo que `excluir` guarda (una familia, un id o un prefijo con `*`). */
-const NOMBRE_FAMILIA: Record<string, string> = { fable: "Fable", opus: "Opus", sonnet: "Sonnet", haiku: "Haiku", argon: "Gemini Argon", flash: "Gemini Flash", "gpt-oss": "GPT-OSS" };
-const nombreExcluido = (id: string) => NOMBRE_FAMILIA[id] ?? id;
 
 const gb = (n: number | null) => (n === null ? "" : `${(n / 1e9).toFixed(1)} GB`);
 
@@ -251,7 +245,7 @@ export function AjustesModelos({ Dato, plan = null }: { Dato: FilaDato; plan?: s
   useEffect(() => {
     if (!visible || !ES_CAPTURA) return;
     // Captura: `mdl-agregar` deja a la vista los locales y su panel; el resto, la cabecera de la sección.
-    const mira = sec.current?.querySelector(VARIANTE === "mdl-agregar" ? ".mdl-panel" : VARIANTE === "mdl-bajando" || VARIANTE === "mdl-sinollama" || VARIANTE === "mdl-apagado" ? ".mdl-ollama" : VARIANTE === "mdl-sugeridos" ? ".ol-sug" : VARIANTE === "mdl-tope" ? ".mdl-cruce" : "x:not(x)");
+    const mira = sec.current?.querySelector(VARIANTE === "mdl-agregar" ? ".mdl-panel" : VARIANTE === "mdl-bajando" || VARIANTE === "mdl-sinollama" || VARIANTE === "mdl-apagado" ? ".mdl-ollama" : VARIANTE.startsWith("mdl-wk") ? ".mdl-wk" : VARIANTE === "mdl-sugeridos" ? ".ol-sug" : VARIANTE === "mdl-tope" ? ".mdl-cruce" : "x:not(x)");
     if (mira) mira.scrollIntoView({ block: "center" });
     else sec.current?.scrollIntoView({ block: "start" });
   }, [visible]);
@@ -454,45 +448,7 @@ export function AjustesModelos({ Dato, plan = null }: { Dato: FilaDato; plan?: s
             </>
           )}
 
-          <Dato nombre="ajustes.mdlExcluir" que="ajustes.mdlExcluirQue">
-            <div className="mdl-excluir">
-              <ul className="mdl-chips" aria-label={t("ajustes.mdlExcluir")}>
-                {b.excluir.length ? (
-                  b.excluir.map((id) => (
-                    <li key={id}>
-                      <Chip>
-                        {nombreExcluido(id)}
-                        <button type="button" className="pn-quitar" aria-label={t("ajustes.mdlExcluirQuitar", { que: nombreExcluido(id) })} data-tip={t("ajustes.mdlExcluirQuitar", { que: nombreExcluido(id) })} onClick={() => cambiar(quitarExcluido(b, id))}>
-                          <X size={12} aria-hidden />
-                        </button>
-                      </Chip>
-                    </li>
-                  ))
-                ) : (
-                  <li className="pn-falta">
-                    <Fijo k="ajustes.mdlExcluirNinguno" />
-                  </li>
-                )}
-              </ul>
-              <div className="pn-sel">
-                <Selector
-                  etiqueta={t("ajustes.mdlExcluirSel")}
-                  opciones={[{ id: "", nombre: t("ajustes.mdlExcluirAgregar"), desc: "" }, ...FAMILIAS.filter((f) => !b.excluir.includes(f)).map((f): Opcion => ({ id: f, nombre: nombreExcluido(f), desc: "" }))]}
-                  valor=""
-                  alElegir={(id) => cambiar(agregarExcluido(b, id))}
-                  reserva={enOtros("ajustes.mdlExcluirAgregar")}
-                />
-              </div>
-              {!b.excluir.includes("fable") ? (
-                <div className="mdl-sug">
-                  <Fijo k="ajustes.mdlFableSug" bloque className="pn-nota" />
-                  <button type="button" className="btn2" onClick={() => cambiar(agregarExcluido(b, "fable"))}>
-                    <Fijo k="ajustes.mdlFableBtn" />
-                  </button>
-                </div>
-              ) : null}
-            </div>
-          </Dato>
+          <ModelosParaWorkers b={b} cambiar={cambiar} />
 
           <Dato nombre="ajustes.mdlPermitirMax" que="ajustes.mdlPermitirMaxQue">
             <Interruptor activo={b.permitir_max} alCambiar={(v) => cambiar(ponerPermitirMax(b, v))} aria-label={t("ajustes.mdlPermitirMax")} />

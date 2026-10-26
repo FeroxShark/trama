@@ -40,7 +40,7 @@ test("guardar crea la carpeta en 0700 y el archivo en 0600, con una línea por k
   assert.equal(statSync(ruta).mode & 0o777, 0o600);
   assert.equal(statSync(path.dirname(ruta)).mode & 0o777, 0o700);
   const r = await guardarClave("DEEPSEEK_API_KEY", " sk-1 ", ruta);
-  assert.deepEqual(r, { OPENCODE_API_KEY: true, DEEPSEEK_API_KEY: true } satisfies Record<string, boolean>);
+  assert.deepEqual(r, { OPENCODE_API_KEY: true, DEEPSEEK_API_KEY: true, ARTIFICIAL_ANALYSIS_API_KEY: false } satisfies Record<string, boolean>);
   assert.equal(readFileSync(ruta, "utf8"), "OPENCODE_API_KEY=oc-secreta\nDEEPSEEK_API_KEY=sk-1\n");
   assert.deepEqual(await leerClaves(ruta), { OPENCODE_API_KEY: "oc-secreta", DEEPSEEK_API_KEY: "sk-1" });
 });
@@ -58,7 +58,7 @@ test("borrar con null saca la línea y deja el archivo vacío cuando era la últ
   const ruta = nueva();
   await guardarClave("OPENCODE_API_KEY", "a", ruta);
   await guardarClave("DEEPSEEK_API_KEY", "b", ruta);
-  assert.deepEqual(await guardarClave("OPENCODE_API_KEY", null, ruta), { OPENCODE_API_KEY: false, DEEPSEEK_API_KEY: true });
+  assert.deepEqual(await guardarClave("OPENCODE_API_KEY", null, ruta), { OPENCODE_API_KEY: false, DEEPSEEK_API_KEY: true, ARTIFICIAL_ANALYSIS_API_KEY: false });
   assert.equal(readFileSync(ruta, "utf8"), "DEEPSEEK_API_KEY=b\n");
   await guardarClave("DEEPSEEK_API_KEY", null, ruta);
   assert.equal(readFileSync(ruta, "utf8"), "");
@@ -74,8 +74,8 @@ test("rechaza un nombre desconocido o un valor con espacios/comillas sin escribi
 });
 
 test("sin archivo no hay claves; hayClaves cuenta también las del entorno y no devuelve valores", () => {
-  assert.deepEqual(hayClaves({}, {}), { OPENCODE_API_KEY: false, DEEPSEEK_API_KEY: false });
-  assert.deepEqual(hayClaves({ OPENCODE_API_KEY: "x" }, { DEEPSEEK_API_KEY: "y" }), { OPENCODE_API_KEY: true, DEEPSEEK_API_KEY: true });
+  assert.deepEqual(hayClaves({}, {}), { OPENCODE_API_KEY: false, DEEPSEEK_API_KEY: false, ARTIFICIAL_ANALYSIS_API_KEY: false });
+  assert.deepEqual(hayClaves({ OPENCODE_API_KEY: "x" }, { DEEPSEEK_API_KEY: "y" }), { OPENCODE_API_KEY: true, DEEPSEEK_API_KEY: true, ARTIFICIAL_ANALYSIS_API_KEY: false });
 });
 
 test("conClaves: lo ya puesto en el entorno gana", () => {
@@ -83,4 +83,15 @@ test("conClaves: lo ya puesto en el entorno gana", () => {
   assert.equal(e.OPENCODE_API_KEY, "del-entorno");
   assert.equal(e.DEEPSEEK_API_KEY, "ds");
   assert.equal(e.PATH, "/bin");
+});
+
+test("la key de Artificial Analysis se guarda como las otras, se cuenta como presente y no pasa al entorno de los líderes", async () => {
+  const ruta = nueva();
+  const hay = await guardarClave("ARTIFICIAL_ANALYSIS_API_KEY", "aa-secreta", ruta);
+  assert.equal(hay.ARTIFICIAL_ANALYSIS_API_KEY, true);
+  assert.equal(statSync(ruta).mode & 0o777, 0o600);
+  assert.deepEqual(await leerClaves(ruta), { ARTIFICIAL_ANALYSIS_API_KEY: "aa-secreta" });
+  assert.equal(conClaves({}, await leerClaves(ruta)).ARTIFICIAL_ANALYSIS_API_KEY, undefined);
+  await guardarClave("ARTIFICIAL_ANALYSIS_API_KEY", null, ruta);
+  assert.deepEqual(await leerClaves(ruta), {});
 });

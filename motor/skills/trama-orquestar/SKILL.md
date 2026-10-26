@@ -95,6 +95,10 @@ Qué esperar (datos propios de una instalación, 60 días): Sonnet high iguala o
 Haiku xhigh alcanza para `lectura`/`mecanico` y, con test automático, para `codigo-acotado`. Argon, Flash,
 GPT-OSS y Claude por `agy` tienen pocas corridas: no los fuerces para código.
 
+- **Antes de forzar `-m`, mirá `reparto --tabla`** (`--json` para leerla): todos los modelos con su inteligencia (`~` = estimada
+  por el nombre), si son gratis, el cupo libre, cuándo se reinicia y si `modelos.json` los permite. `reparto` ya prefiere los
+  planes que se reinician pronto y todavía tienen cupo (ese cupo se pierde si no se usa) y los modelos gratis cuando el cupo
+  escasea: no hace falta que lo corrijas a mano. `pa --modelos` muestra la misma inteligencia.
 - **Nunca effort `max`** salvo que el usuario prenda `permitir_max` en los ajustes de Trama.
 - **Fable no vale su precio** frente a Opus 5.5 (2,5× por token y peor resultado medido): no lo uses.
 - Effort no es inteligencia: más effort = más turnos y más gasto. Si falla, mejorá la tarea antes de subirlo.

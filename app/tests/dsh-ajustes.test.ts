@@ -24,12 +24,12 @@ const enEs = async (p: Promise<unknown>) => p.then(() => null, (e: Error) => e.m
 
 test("estado: sin dsh no está instalado; con dsh sale su versión; las keys sólo dicen si hay", async () => {
   const sin = await estadoDsh(deps([]), {});
-  assert.deepEqual(sin, { version: 1, instalado: false, versionDsh: null, hayNpm: false, comando: COMANDO_INSTALAR_DSH, claves: { OPENCODE_API_KEY: false, DEEPSEEK_API_KEY: false } });
+  assert.deepEqual(sin, { version: 1, instalado: false, versionDsh: null, hayNpm: false, comando: COMANDO_INSTALAR_DSH, claves: { OPENCODE_API_KEY: false, DEEPSEEK_API_KEY: false, ARTIFICIAL_ANALYSIS_API_KEY: false } });
   const con = await estadoDsh(deps(["/b/dsh", "/a/npm"]), { OPENCODE_API_KEY: "oc-secreta" });
   assert.equal(con.instalado, true);
   assert.equal(con.versionDsh, "0.2.1");
   assert.equal(con.hayNpm, true);
-  assert.deepEqual(con.claves, { OPENCODE_API_KEY: true, DEEPSEEK_API_KEY: false });
+  assert.deepEqual(con.claves, { OPENCODE_API_KEY: true, DEEPSEEK_API_KEY: false, ARTIFICIAL_ANALYSIS_API_KEY: false });
   assert.ok(!JSON.stringify(con).includes("oc-secreta"), "la key nunca sale en el estado");
   // Instalado pero sin decir la versión: instalado igual.
   const raro = await estadoDsh(deps(["/b/dsh"], async () => { throw new Error("x"); }), {});

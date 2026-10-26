@@ -205,6 +205,12 @@ type Main = {
     claveDsh(nombre: string, valor: string | null): Promise<unknown>;
     /** Prueba un proveedor (`opencode`, `deepseek`, `ollama`) con la key guardada; nunca rechaza por no contestar. */
     probarDsh(proveedor: string, url?: string): Promise<unknown>;
+    /** `reparto --tabla --json`: cada modelo que reparto conoce con su inteligencia, cupo y si está permitido; `null` sin `reparto` o con uno viejo. */
+    repartoTabla(): Promise<unknown>;
+    /** Artificial Analysis: si hay key (nunca el valor) y de cuándo es la caché de inteligencias. */
+    estadoAA(): Promise<unknown>;
+    /** Baja la lista de Artificial Analysis ahora (ignora el día de vigencia); devuelve qué pasó y cómo quedó la caché. Sólo desde la PC. */
+    refrescarAA(): Promise<unknown>;
     /** OpenCode (el programa `opencode`): instalado, versión, login y cuántos modelos ofrece. */
     estadoOpencode(): Promise<unknown>;
     /** Vuelve a listar los modelos (`opencode models --refresh`); rechaza con el motivo. Devuelve el estado de después. */

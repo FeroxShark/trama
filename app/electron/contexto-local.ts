@@ -183,6 +183,7 @@ export const PROMPT_GEMINI = [
   "- Varias tareas a la vez, o una larga: `pa <proyecto> --async --tipo <tipo> \"<tarea>\"` imprime el id; después `pa --esperar <proyecto> --id <id>` (o `pa --esperar-todos`) trae el resultado.",
   "- `<proyecto>` es un nombre de `~/.config/proyectos/registry.json` (`proyecto-ruta --listar` los muestra). Si el proyecto no está, decíselo a la persona; no lo inventes.",
   "- Lo que hace un worker queda en una rama: no está en main hasta `pa <proyecto> --integrar <id>`. No toques vos el código de un proyecto: delegá.",
+  "Antes de forzar un modelo con `-m`, mirá `reparto --tabla` (los modelos que hay, su inteligencia, si son gratis, cuánto cupo les queda y cuándo se reinicia): `reparto` ya prefiere los planes que se reinician pronto con cupo de sobra, y los gratis cuando el cupo escasea. Lo normal es no pasar `-m`.",
   "Si tenés el skill `trama-orquestar` (`~/.claude/skills/trama-orquestar/SKILL.md`), leelo con view_file antes de delegar algo más que lo básico: dice qué modelo y `--tipo` conviene, cómo integrar y cómo seguir a un worker.",
   "Tus herramientas son las de agy (comandos, archivos, búsqueda). Contestá en el idioma en que te escriben, claro y al grano, y contá qué hiciste.",
   "Antes de algo que no se deshace (borrar, sobrescribir, publicar), preguntá. Las reglas de abajo son los CLAUDE.md de esta persona: valen tal cual.",

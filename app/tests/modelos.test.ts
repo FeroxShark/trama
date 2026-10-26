@@ -257,3 +257,9 @@ test("opencode: los niveles de `opencodeEfforts` llegan a la fila (default mediu
     ponerConfig(null);
   }
 });
+
+test("un modelo de opencode o dsh que la tabla no conoce no hereda los niveles de Claude (no tiene)", () => {
+  assert.deepEqual(effortsDe("opencode:opencode/nuevo-que-no-esta"), []);
+  assert.deepEqual(effortsDe("dsh:nube/raro"), []);
+  assert.deepEqual(effortsDe("claude-raro-9"), EFFORTS_CLAUDE);
+});

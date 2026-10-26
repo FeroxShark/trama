@@ -17,7 +17,18 @@ export type Accion =
   | { tipo: "effort"; effort: string }
   /** /output-style: el nombre tal cual lo lista el CLI. */
   | { tipo: "estilo"; estilo: string }
-  | { tipo: "error"; clave: "comando.usoModelo" | "comando.usoEffort" | "comando.usoEstilo" | "comando.cambioProveedor"; v: string };
+  | {
+      tipo: "error";
+      clave:
+        | "comando.usoModelo"
+        | "comando.usoEffort"
+        | "comando.usoEffortVacio"
+        | "comando.sinEffort"
+        | "comando.sinEffortOpencode"
+        | "comando.usoEstilo"
+        | "comando.cambioProveedor";
+      v: string;
+    };
 
 export type ClaveComando =
   | "comando.plan"
@@ -145,6 +156,9 @@ export function parsearComando(
   }
   if (nombre === "effort") {
     const a = arg.toLowerCase();
+    // Sin niveles (un modelo de OpenCode o de dsh que no los declara) no hay qué elegir: se dice, en vez de "esfuerzo desconocido".
+    if (!efforts.length) return { tipo: "error", clave: motor === "opencode" ? "comando.sinEffortOpencode" : "comando.sinEffort", v: arg };
+    if (!a) return { tipo: "error", clave: "comando.usoEffortVacio", v: arg };
     return efforts.includes(a) ? { tipo: "effort", effort: a } : { tipo: "error", clave: "comando.usoEffort", v: arg };
   }
   if (nombre === "output-style" && !agy) {
@@ -192,8 +206,14 @@ export function sugerencias(
   if (!m) return [];
   const q = m[1].toLowerCase();
   const base = agy ? PROPIOS_AGY : PROPIOS;
+  // OpenCode y dsh no tienen los niveles de Claude: el /effort del menú sale con los del modelo puesto (`valores.effort`, que
+  // arma Lider con la tabla) y, si no declara ninguno, no se ofrece.
+  const nivelesPropios = (motor === "opencode" || motor === "dsh") && valores.effort ? valores.effort.lista.map((x) => x.valor) : null;
+  const propios = nivelesPropios
+    ? base.flatMap((p) => (p.nombre !== "effort" ? [p] : nivelesPropios.length ? [{ ...p, args: `<${nivelesPropios.join("|")}>` }] : []))
+    : base;
   const todos: Sugerencia[] = [
-    ...base.map((p) => ({ nombre: p.nombre, args: p.args, clave: p.clave, descripcion: null, solo: marcaDe(p.nombre, agy, deOtro) })),
+    ...propios.map((p) => ({ nombre: p.nombre, args: p.args, clave: p.clave, descripcion: null, solo: marcaDe(p.nombre, agy, deOtro) })),
     ...deClaude
       .filter((c) => !DE_APP.has(c.nombre.toLowerCase()) && (c.agy === undefined || Boolean(c.agy) === agy))
       .map((c) => ({ nombre: c.nombre, args: c.args || null, clave: null, descripcion: c.descripcion, solo: marcaDe(c.nombre, agy, deOtro) })),

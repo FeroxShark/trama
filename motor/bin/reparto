@@ -2,6 +2,8 @@
 """reparto — qué modelo conviene para un tipo de tarea según la calidad que pide y el cupo que sobra.
 
   reparto --cupos [--json]                     cupo de cada suscripción (Claude oficial, Google AI Pro/agy y ChatGPT/codex)
+  reparto --tabla [--json]                     todos los modelos que conoce: id, inteligencia (~ = estimada), gratis/pago,
+                                               cupo libre y cuándo vuelve, urgencia y si modelos.json los permite
   reparto --tipo T [--json] [--explicar]       modelo y effort que conviene para el tipo T
   reparto --resolver ID [--json]               cómo se lanza un id de modelo (claude / agy / codex / ollama / dsh)
   reparto --agotar ID [--hasta ISO]            marca agotado el grupo de agy o de codex de ese modelo (o grupo), o el
@@ -15,6 +17,12 @@ en --cupos (campos proveedor y cuenta), los candidatos salen una vez por cuenta 
 cuenta elegida. --agotar ID --cuenta C marca agotado el grupo de esa cuenta; --tipo T --cuenta C elige sólo entre los
 modelos de esa cuenta (pa --cuenta sin -m); --tipo T --mismo-proveedor P prefiere
 las cuentas de P (el relanzamiento por falta de cupo de pa: otra cuenta del mismo proveedor antes de cambiar).
+
+Inteligencia (`calidad`): sale de modelos.json; un modelo de opencode/dsh sin entrada se estima por el nombre (base 50, +10 con
+ultra/super/pro/max, -10 con flash/lightning/mini/nano) y --tabla lo marca estimada. Cuenta igual en el puntaje.
+Si la app bajó los índices de Artificial Analysis (<estado>/aa-modelos.json; REPARTO_AA=<archivo> lo cambia, 0 lo apaga) valen antes que los
+defaults y la estimación, pero después de lo que fija modelos.json. --tabla dice de dónde sale cada cifra en `origen`
+(usuario | artificial-analysis | defecto | estimada) y la fecha del dato en `aa_fecha`.
 
 Sin dependencias (python3 estándar).
 Entorno (para tests): REPARTO_CUPOS_FIJOS=archivo.json (mismo formato que `--cupos --json`, no lee
@@ -63,12 +71,12 @@ CALIDAD = {"opus": 100, "sonnet": 88, "argon": 85, "haiku": 60, "gpt-oss": 45, "
            # tenga bajado (chico, como los locales: 35) y DeepSeek (se paga con la key del dueño).
            "dsh:opencode/big-pickle": 60, "dsh:opencode/deepseek-v4.1-flash-free": 60, "dsh:opencode/glm-5.3-flash-free": 55,
            "dsh:opencode/longcat-2.5-preview-free": 45, "dsh:opencode/flint-40b-free": 40,
-           "dsh:opencode/*": 40, "dsh:ollama/*": 35, "dsh:deepseek/*pro*": 85, "dsh:deepseek/*": 70,
+           "dsh:ollama/*": 35, "dsh:deepseek/*pro*": 85, "dsh:deepseek/*": 70,
            # opencode (el programa; 2026-10-26, sin medición propia): los mismos gratis de OpenCode, más los que aparecieron después.
            "opencode:opencode/big-pickle": 60, "opencode:opencode/deepseek-v4.1-flash-free": 60, "opencode:opencode/glm-5.3-flash-free": 55,
            "opencode:opencode/nemotron-3-ultra-free": 55, "opencode:opencode/minimax-m3.1-flash-free": 50, "opencode:opencode/mimo-v2.6-flash-free": 50,
            "opencode:opencode/nemotron-3.5-super-vl-free": 50, "opencode:opencode/flint-40b-free": 40, "opencode:opencode/beam-free": 40,
-           "opencode:opencode/nemotron-3.5-lightning-free": 40, "opencode:opencode/*": 40}
+           "opencode:opencode/nemotron-3.5-lightning-free": 40}
 # Qué se pide como mínimo según el tipo de tarea (nombre de familia). Un tipo desconocido pide Sonnet.
 MINIMO_POR_TIPO = {
     "debug": "argon", "diseno": "argon",   # Sonnet (88) también los resuelve
@@ -243,9 +251,10 @@ def ruta_modelos():
     return os.environ.get("TRAMA_MODELOS") or os.path.join(xdg, "trama", "modelos.json")
 
 
-def cargar_config():
+def _cargar_config():
     """Defaults mezclados con las claves nuevas de modelos.json. Inválido: una línea y defaults."""
     cfg = {
+        "calidad_usuario": set(),
         "calidad": dict(CALIDAD), "minimo_por_tipo": dict(MINIMO_POR_TIPO), "solo_en": dict(SOLO_EN),
         "effort_por_tipo": dict(EFFORT_POR_TIPO), "costo": dict(COSTO), "reserva": RESERVA,
         "reparto": "auto", "grupos_hasta": dict(GRUPOS_HASTA), "hasta_pisado": {}, "workers": {}, "locales": [],
@@ -274,6 +283,8 @@ def cargar_config():
     for k in ("calidad", "minimo_por_tipo", "solo_en", "effort_por_tipo", "costo", "preferido_por_tipo"):
         if isinstance(j.get(k), dict):
             cfg[k].update(j[k])
+    if isinstance(j.get("calidad"), dict):
+        cfg["calidad_usuario"] = set(j["calidad"])   # lo que fijó el dueño: gana a Artificial Analysis
     if isinstance(j.get("reserva"), (int, float, dict)) and not isinstance(j.get("reserva"), bool):
         cfg["reserva"] = j["reserva"]   # null o ausente: sin reserva
     if isinstance(j.get("excluir"), list):
@@ -310,6 +321,144 @@ def cargar_config():
     if isinstance(j.get("agy_min_libre_tipos"), list):
         cfg["agy_min_libre_tipos"] = [str(x) for x in j["agy_min_libre_tipos"]]
     return cfg
+
+
+# --- Artificial Analysis (inteligencia medida) ------------------------------------------------------
+# La app (electron/artificial-analysis.ts) baja los índices de coding y agentic de Artificial Analysis (con la key del dueño, una
+# vez por día) y deja el resultado en <state>/aa-modelos.json; reparto sólo LEE ese archivo (REPARTO_AA=<archivo> lo cambia, "0" lo
+# apaga). Acá viven el emparejamiento de nombres y la calibración porque acá se conocen los ids de los modelos (los de opencode
+# aparecen solos). Precedencia de `calidad`: modelos.json (usuario) > Artificial Analysis > defaults > estimación por el nombre.
+AA_ANCLAS = (("claude-opus-5-5", 100), ("claude-sonnet-5-5", 88), ("claude-haiku-5-5", 60))   # el default de cada uno
+AA_PREFIJOS = re.compile(r"^(?:opencode|dsh|agy|codex|ollama):")
+AA_ESFUERZOS = ("xhigh", "high", "medium", "low")
+
+
+def aa_tokens(nombre):
+    """Nombre o id (de Trama o de Artificial Analysis) -> lista de tokens normalizados, o [] si no queda nada.
+    Minúsculas; sin prefijos de proveedor (`opencode:opencode/`, `dsh:<p>/`, `agy:`, `codex:`, `ollama:`); sin paréntesis
+    ("(OpenCode, gratis)", "(Reasoning)"); sin `free` ni el sufijo de esfuerzo (`-high`...); puntuación = separador, salvo el punto
+    de una versión (3.8); dos números sueltos seguidos son una versión ("5-5" = "5.5": claude-opus-5-5 ~ Claude Opus 5.5)."""
+    s = (nombre or "").strip().lower()
+    s = re.sub(r"\([^)]*\)", " ", s)
+    while AA_PREFIJOS.match(s):
+        s = AA_PREFIJOS.sub("", s, count=1)
+    s = s.split("/")[-1]
+    toks = [t.strip(".") for t in re.split(r"[^a-z0-9.]+", s)]
+    toks = [t for t in toks if t and t != "free"]
+    while len(toks) > 1 and toks[-1] in AA_ESFUERZOS:
+        toks.pop()
+    out = []
+    for t in toks:
+        if out and re.fullmatch(r"\d{1,2}", t) and re.fullmatch(r"\d{1,2}", out[-1]):
+            out[-1] = "%s.%s" % (out[-1], t)
+        else:
+            out.append(t)
+    return out
+
+
+def aa_puntaje(m):
+    """Puntaje crudo de un modelo de AA: promedio de coding y agentic (los que haya); sin ninguno, el índice de inteligencia."""
+    v = [m[k] for k in ("coding", "agentic") if isinstance(m.get(k), (int, float)) and not isinstance(m.get(k), bool)]
+    if v:
+        return sum(v) / len(v)
+    i = m.get("intelligence")
+    return float(i) if isinstance(i, (int, float)) and not isinstance(i, bool) else None
+
+
+def aa_indice(modelos):
+    """({tokens unidos: (puntaje, nombre)}, {frozenset(tokens): (puntaje, nombre)}) con el nombre y el slug de cada modelo.
+    Si varios caen en la misma clave (Reasoning y Non-reasoning, esfuerzos) gana el de más puntaje."""
+    exacto, conjunto = {}, {}
+    for m in modelos:
+        p = aa_puntaje(m)
+        if p is None:
+            continue
+        for campo in ("name", "slug"):
+            tk = aa_tokens(m.get(campo))
+            if not tk:
+                continue
+            for d, k in ((exacto, " ".join(tk)), (conjunto, frozenset(tk))):
+                if k not in d or p > d[k][0]:
+                    d[k] = (p, m.get("name") or m.get("slug"))
+    return exacto, conjunto
+
+
+def aa_buscar(aa, mid):
+    """(puntaje crudo, nombre en AA) de ese id, o None. Primero el nombre normalizado igual; después los mismos tokens en otro
+    orden. Nada más: sin parecidos."""
+    tk = aa_tokens(mid)
+    if not aa or not tk:
+        return None
+    return aa["exacto"].get(" ".join(tk)) or aa["conjunto"].get(frozenset(tk))
+
+
+def aa_calibracion(puntos):
+    """[(puntaje AA, calidad de Trama)] de las anclas presentes -> (a, b) con calidad = a * puntaje + b, o None.
+    Con Opus (100) y Haiku (60) es la recta por los dos; con otro par (o con Sonnet, 88, entre las que quedan) se ajusta por
+    cuadrados mínimos; con una sola ancla, proporcional (ancla * x / puntaje del ancla); sin anclas no se calibra (la escala de AA no es la de reparto)."""
+    p = [(x, y) for x, y in puntos if x > 0]
+    if not p:
+        return None
+    xs = sorted(set(x for x, _ in p))
+    if len(xs) < 2:
+        return (p[0][1] / p[0][0], 0.0)
+    n = float(len(p))
+    mx, my = sum(x for x, _ in p) / n, sum(y for _, y in p) / n
+    sxx = sum((x - mx) ** 2 for x, _ in p)
+    a = sum((x - mx) * (y - my) for x, y in p) / sxx
+    if a <= 0:   # las anclas salen en orden raro en AA: la recta no sirve
+        return None
+    return (a, my - a * mx)
+
+
+def aa_cargar():
+    """El índice de <state>/aa-modelos.json: {"fecha", "exacto", "conjunto", "cal": (a, b)} o None (sin archivo, roto o sin anclas)."""
+    ruta = os.environ.get("REPARTO_AA") or os.path.join(state_dir(), "aa-modelos.json")
+    if ruta == "0":
+        return None
+    try:
+        with open(ruta) as f:
+            j = json.load(f)
+        modelos = [m for m in j["modelos"] if isinstance(m, dict)]
+    except Exception:
+        return None
+    exacto, conjunto = aa_indice(modelos)
+    aa = {"fecha": str(j.get("fetched") or "")[:10] or None, "exacto": exacto, "conjunto": conjunto, "cal": None}
+    puntos = {}
+    for mid, objetivo in AA_ANCLAS:
+        r = aa_buscar(aa, mid)
+        if r:
+            puntos[mid] = (r[0], objetivo)
+    if "claude-opus-5-5" in puntos and "claude-haiku-5-5" in puntos:   # lo normal: la recta por Opus (100) y Haiku (60); Sonnet queda como lo mida AA
+        puntos = {k: puntos[k] for k in ("claude-opus-5-5", "claude-haiku-5-5")}
+    aa["cal"] = aa_calibracion(list(puntos.values()))
+    return aa if aa["cal"] else None
+
+
+def aa_calidad(aa, mid):
+    """(calidad 0-100 calibrada, nombre en AA) de ese id, o None si AA no lo conoce."""
+    r = aa_buscar(aa, mid)
+    if not r:
+        return None
+    a, b = aa["cal"]
+    return (max(0, min(100, int(round(a * r[0] + b)))), r[1])
+
+
+def cargar_config():
+    """La config de siempre más la inteligencia de Artificial Analysis (si hay caché) para las familias de FAMILIAS que el dueño
+    no fijó. `origen[clave]` = "usuario" | "artificial-analysis" | "defecto"; lo que no está ahí es "estimada"."""
+    cfg = _cargar_config()
+    cfg["aa"] = aa = aa_cargar()
+    cfg["origen"] = {k: ("usuario" if k in cfg["calidad_usuario"] else "defecto") for k in cfg["calidad"]}
+    if aa:
+        for base, fam, *_ in FAMILIAS:
+            if fam in cfg["calidad_usuario"] or cfg["origen"].get(fam) == "artificial-analysis":
+                continue
+            r = aa_calidad(aa, base)
+            if r:
+                cfg["calidad"][fam], cfg["origen"][fam] = r[0], "artificial-analysis"
+    return cfg
+
 
 
 def invalido(j):
@@ -700,17 +849,52 @@ def dsh_estado(now):
             "deepseek": bool(dsh_clave("DEEPSEEK_API_KEY"))}
 
 
-def dsh_calidad(cfg, mid):
-    """Calidad de un modelo de dsh: su id exacto en `calidad`, o el primer patrón con * que lo cubre (los de modelos.json van primero)."""
-    q = cfg["calidad"]
+PALABRAS_ALTAS = ("ultra", "super", "pro", "max")
+PALABRAS_BAJAS = ("flash", "lightning", "mini", "nano")
+
+
+def calidad_estimada(mid):
+    """Inteligencia por defecto de un modelo sin entrada en `calidad` (los que aparecen solos en `opencode models`): base 50,
+    +10 con ultra/super/pro/max en el nombre, -10 con flash/lightning/mini/nano (si trae de las dos, se compensan)."""
+    nombre = (mid or "").lower().split("/")[-1]
+    palabras = re.split(r"[^a-z0-9]+", nombre)
+    q = 50
+    if any(p in PALABRAS_ALTAS for p in palabras):
+        q += 10
+    if any(p in PALABRAS_BAJAS for p in palabras):
+        q -= 10
+    return q
+
+
+def calidad_origen(cfg, mid, patrones=True):
+    """(calidad, origen) de un modelo por su id: "usuario" (modelos.json: id exacto o, con `patrones`, un patrón con *) > "artificial-analysis"
+    (su nombre está en la caché de AA) > "defecto" (exacto o patrón de los defaults) > ("estimada": la estimación por el nombre)."""
+    q, usr = cfg["calidad"], cfg.get("calidad_usuario", set())
+    if mid in usr and isinstance(q.get(mid), (int, float)):
+        return q[mid], "usuario"
+    pats = [k for k in q if patrones and k.startswith(("dsh:", "opencode:")) and "*" in k and isinstance(q[k], (int, float))]
+    for k in sorted(pats, key=len, reverse=True):   # el más específico (más largo) primero
+        if k in usr and fnmatch.fnmatchcase(mid, k):
+            return q[k], "usuario"
+    r = aa_calidad(cfg.get("aa"), mid)
+    if r:
+        return r[0], "artificial-analysis"
     if isinstance(q.get(mid), (int, float)):
-        return q[mid]
-    pats = [k for k in q if k.startswith(("dsh:", "opencode:")) and "*" in k and isinstance(q[k], (int, float))]
-    # el más específico (más largo) primero
+        return q[mid], "defecto"
     for k in sorted(pats, key=len, reverse=True):
         if fnmatch.fnmatchcase(mid, k):
-            return q[k]
-    return 35
+            return q[k], "defecto"
+    return calidad_estimada(mid), "estimada"
+
+
+def dsh_calidad_info(cfg, mid):
+    """(calidad, estimada) de un modelo de dsh/opencode; el origen de la cifra está en calidad_origen."""
+    q, o = calidad_origen(cfg, mid)
+    return q, o == "estimada"
+
+
+def dsh_calidad(cfg, mid):
+    return dsh_calidad_info(cfg, mid)[0]
 
 
 def opencode_bin():
@@ -1233,7 +1417,8 @@ def armar_candidatos(tipo, cfg, cupos, now):
             modelo, effort = "%s-%s" % (base, e), None
         cand = {"modelo": modelo, "effort": effort, "nombre": nombre, "familia": fam, "calidad": calidad,
                 "cupo_libre": None, "vuelve": None, "puntaje": None, "descartado_por": None,
-                "aviso": None, "grupo": gid or "claude-oficial", "cuenta": cuenta, "proveedor": sus}
+                "aviso": None, "grupo": gid or "claude-oficial", "cuenta": cuenta, "proveedor": sus,
+                "estimada": fam not in cfg["calidad"], "origen": cfg["origen"].get(fam, "estimada")}
         cand["clave"] = cand["grupo"] + suf(cuenta)
         if sus == "claude":
             vents = [cl_vent[w] for w in ("5h", "7d") if w in cl_vent] or \
@@ -1287,6 +1472,7 @@ def armar_candidatos(tipo, cfg, cupos, now):
                 cand["duro"] = True
         # Cupo
         conocidas = [w for w in vents if w.get("usado") is not None]
+        cand["ventanas"] = [{"id": w["id"], "libre": round(1 - w["usado"], 4), "vuelve": w.get("vuelve")} for w in conocidas]
         if conocidas:
             lib = min(conocidas, key=lambda w: (1 - w["usado"], w.get("vuelve") or ""))
             cand["cupo_libre"] = round(1 - lib["usado"], 4)
@@ -1339,8 +1525,10 @@ def armar_candidatos(tipo, cfg, cupos, now):
             hacer(c, cs)
     # Locales de modelos.json: cupo infinito, costo cero, calidad según modelos.json (default 35)
     for loc in cfg["locales"]:
-        calidad = cfg["calidad"].get(loc["id"], 35)
-        cand = {"modelo": loc["id"], "effort": None, "nombre": loc.get("nombre", loc["id"]), "familia": "local",
+        calidad, origen = calidad_origen(cfg, loc["id"], patrones=False)
+        if origen == "estimada":
+            calidad = 35   # un local sin dato vale 35, no la cuenta por el nombre
+        cand = {"estimada": origen == "estimada", "origen": origen, "modelo": loc["id"], "effort": None, "nombre": loc.get("nombre", loc["id"]), "familia": "local",
                 "calidad": calidad, "cupo_libre": 1.0, "vuelve": None, "puntaje": None, "descartado_por": None,
                 "aviso": None, "grupo": "local", "urgencia": 0.0, "cuenta": None, "proveedor": "local", "clave": "local"}
         if calidad < minimo:
@@ -1357,9 +1545,10 @@ def armar_candidatos(tipo, cfg, cupos, now):
     # Un grupo marcado agotado (`reparto --agotar dsh:opencode/x`: pa vio un 429) no es candidato hasta que vuelve.
     agot = leer_agotados(state_dir(), now) if ofertas_dsh else {}
     for mid, nombre, prov, gratis in ofertas_dsh:
-        calidad = dsh_calidad(cfg, mid)
+        calidad, origen = calidad_origen(cfg, mid)
+        estimada = origen == "estimada"
         gid = DSH_GRUPOS[prov]
-        cand = {"modelo": mid, "effort": None, "nombre": nombre, "familia": "dsh", "calidad": calidad,
+        cand = {"estimada": estimada, "origen": origen, "modelo": mid, "effort": None, "nombre": nombre, "familia": "dsh", "calidad": calidad,
                 "cupo_libre": 1.0 if gratis else None, "vuelve": None, "puntaje": None, "descartado_por": None,
                 "aviso": None if gratis else "se paga con tu key de DeepSeek (no se sabe el precio)", "grupo": gid, "urgencia": 0.0,
                 "cuenta": None, "proveedor": "dsh", "clave": gid, "gratis": gratis}
@@ -1487,7 +1676,7 @@ def avisos_de_uso(cupos, now):
 
 def limpio(c):
     return {k: c[k] for k in ("modelo", "effort", "nombre", "calidad", "cupo_libre", "vuelve", "puntaje",
-                              "descartado_por", "aviso", "grupo", "carga", "cuenta") if k in c}
+                              "descartado_por", "aviso", "grupo", "carga", "cuenta", "estimada") if k in c}
 
 
 def pct(f):
@@ -1658,6 +1847,49 @@ def texto_cupos(d, now):
     return "\n".join(L)
 
 
+def proveedor_de(c):
+    """Proveedor para mostrar: los de dsh salen por su motor (opencode, ollama, deepseek)."""
+    if c["proveedor"] != "dsh":
+        return c["proveedor"]
+    return "opencode" if c["modelo"].startswith("opencode:") else c["modelo"].split(":", 1)[1].split("/")[0]
+
+
+def tabla(cfg, cupos, now):
+    """Todos los modelos que reparto conoce, con lo que decide su puntaje (mismos candidatos que --tipo: armar_candidatos).
+    `permitido` = ninguna regla de `excluir` lo saca. Se arma con el tipo más flojo (lectura) sólo para listar: la
+    calidad mínima del tipo no entra en la tabla."""
+    cands, _, _ = armar_candidatos("lectura", cfg, cupos, now)
+    out = []
+    for c in cands:
+        fam = c["familia"]
+        if fam == "dsh":
+            fam = "opencode" if c["modelo"].startswith("opencode:") else "dsh"
+        x = excluido_por(c["modelo"], cfg["excluir"], fam)
+        gratis = c["proveedor"] == "local" or bool(c.get("gratis"))
+        out.append({
+            "id": c["modelo"], "nombre": c["nombre"], "proveedor": proveedor_de(c), "cuenta": c.get("cuenta"),
+            "grupo": c["grupo"], "familia": c["familia"], "familia_excluir": fam, "calidad": c["calidad"], "estimada": bool(c.get("estimada")),
+            "origen": c.get("origen") or ("estimada" if c.get("estimada") else "defecto"),
+            "aa_fecha": cfg["aa"]["fecha"] if c.get("origen") == "artificial-analysis" and cfg.get("aa") else None,
+            "gratis": gratis, "cupo_libre": c["cupo_libre"], "vuelve": c["vuelve"], "ventanas": c.get("ventanas", []),
+            "urgencia": c.get("urgencia", 0.0), "permitido": not x, "excluido_por": x,
+            "agotado": bool(c["descartado_por"]) and c["descartado_por"].startswith(("dijo sin cupo", "Claude dijo", "ventana")),
+        })
+    return out
+
+
+def texto_tabla(filas, now):
+    L = ["%-46s %-9s %4s  %-6s %-10s %s" % ("modelo", "proveedor", "int.", "costo", "cupo libre", "permitido")]
+    for f in filas:
+        cupo = "-" if f["cupo_libre"] is None else pct(f["cupo_libre"])
+        if f["vuelve"]:
+            cupo += " (vuelve en %s)" % humano(horas_hasta(f["vuelve"], now))
+        L.append("%-46s %-9s %3d%s  %-6s %-10s %s" % (f["id"] + (" · " + f["cuenta"] if suf(f.get("cuenta")) else ""),
+                 f["proveedor"], f["calidad"], "~" if f["estimada"] else " ", "gratis" if f["gratis"] else "pago", cupo,
+                 "sí" if f["permitido"] else "no (%s)" % f["excluido_por"]))
+    return "\n".join(L)
+
+
 def uso():
     sys.stdout.write(__doc__)
     return 2
@@ -1687,6 +1919,16 @@ def main(argv):
         d = leer_cupos(cfg, now)
         print(json.dumps(d, ensure_ascii=False, indent=None if not sys.stdout.isatty() else 2) if json_out
               else texto_cupos(d, now))
+        return 0
+    if a[0] == "--tabla" and len(a) == 1:
+        try:
+            d = leer_cupos(cfg, now)
+        except Exception as e:
+            err("no pude leer los cupos: %s" % e)
+            return 1
+        filas = tabla(cfg, d, now)
+        print(json.dumps({"version": VERSION, "leido": d.get("leido"), "modelos": filas}, ensure_ascii=False) if json_out
+              else texto_tabla(filas, now))
         return 0
     if a[0] == "--tipo" and len(a) == 2:
         try:

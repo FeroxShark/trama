@@ -54,8 +54,10 @@ import { errorT, textoT } from "./errores.ts";
 import { destinos, registro, slugsPorNombre } from "./registro.js";
 import { capacidades, hayAgy, hayDsh } from "./capacidades.js";
 import { estadoDsh, instalarDsh, probarProveedor } from "./dsh-ajustes.ts";
+import { leerTabla } from "./reparto-tabla.ts";
 import { actualizarOpencode, effortsOpencode, modelosOpencode, vistaOpencode } from "./opencode-ajustes.ts";
-import { guardarClave } from "./claves.ts";
+import { guardarClave, leerClaves } from "./claves.ts";
+import { estadoAA, refrescarAA } from "./artificial-analysis.ts";
 import { descartarSetup, setupDeEstaMaquina } from "./setup.ts";
 import { cuentasDeEstaMaquina } from "./cuentas.ts";
 import { enTerminal } from "./actualizador.ts";
@@ -94,7 +96,7 @@ const manejadores = new Map<string, Manejador>();
  * Lo que cambia la máquina (reescribe `~/CLAUDE.md`, los ajustes, borra una cuenta, libera la GPU, actualiza `claude`): desde la
  * tailnet (el celular) no. Los `modelos:*` y `remoto:guardar` tienen su propio chequeo, con su mensaje, en el manejador.
  */
-export const SOLO_PC_TAILNET: ReadonlySet<string> = new Set(["routing:guardar", "ajustes:guardar", "cuentas:quitar", "vram:liberar", "claude:actualizar", "dsh:clave", "dsh:instalar", "dsh:probar"]);
+export const SOLO_PC_TAILNET: ReadonlySet<string> = new Set(["routing:guardar", "ajustes:guardar", "cuentas:quitar", "vram:liberar", "claude:actualizar", "dsh:clave", "dsh:instalar", "dsh:probar", "aa:refrescar"]);
 
 /** Anota (o reemplaza) el manejador de un canal. */
 export function manejar(canal: string, fn: Manejador) {
@@ -786,6 +788,22 @@ export function armarNucleo() {
   });
   manejar("dsh:probar", (_e, proveedor: unknown, url: unknown) => probarProveedor(proveedor, url));
   // OpenCode (el programa `opencode`: los modelos gratis sólo andan por él): instalado, versión, login y modelos; «Actualizar modelos» vuelve a listarlos.
+  // La tabla de `reparto --tabla --json` (Ajustes > Modelos > Modelos para workers): sólo lee. Guardar el permitido y la inteligencia
+  // va por `modelos:guardar` (excluir / calidad de modelos.json), que ya rechaza a quien entra por la tailnet.
+  // Inteligencia de Artificial Analysis (la key se guarda por `dsh:clave`): el estado de la caché, y bajar la lista a pedido. Al leer la
+  // tabla se refresca sola si la caché tiene más de un día (sin key, en pruebas y capturas no se llama a nadie salvo con AA_URL).
+  const claveAA = async () => process.env.ARTIFICIAL_ANALYSIS_API_KEY || (await leerClaves()).ARTIFICIAL_ANALYSIS_API_KEY;
+  const aislado = () => (process.env.HILOS_PRUEBA === "1" || process.env.HILOS_CAPTURA === "1" || process.env.HILOS_BENCH === "1") && !process.env.AA_URL;
+  manejar("aa:estado", async () => estadoAA(!!(await claveAA())));
+  manejar("aa:refrescar", async () => {
+    const clave = await claveAA();
+    const resultado = await refrescarAA(clave, { forzar: true, baseUrl: process.env.AA_URL });
+    return { resultado, estado: await estadoAA(!!clave) };
+  });
+  manejar("reparto:tabla", async () => {
+    if (!aislado()) await refrescarAA(await claveAA(), { baseUrl: process.env.AA_URL }).catch(() => null);
+    return leerTabla();
+  });
   manejar("opencode:estado", () => vistaOpencode());
   manejar("opencode:actualizar", () => actualizarOpencode());
   manejar("ramas:brief", (_e, hs: Parameters<typeof briefRamas>[0]) => briefRamas(hs));

@@ -94,10 +94,23 @@ export type RespuestaHilos = { version: number; hilos: Hilo[] };
 export type Ventana = { pct: number; resets_at: number | null };
 
 /** Una ventana de cupo de una suscripción (`5h`, `7d`…): `pct` 0..100 (`null`: sin dato) y cuándo vuelve (epoch s, `null`: no se sabe). */
-export type VentanaCupo = { id: string; pct: number | null; vuelve: number | null };
+export type VentanaCupo = {
+  id: string;
+  pct: number | null;
+  vuelve: number | null;
+  /** La ventana no rige ahora (Google: con la semana agotada el límite de 5 h "no aplica"): no es un 0 %, es «no aplica». */
+  deshabilitada?: boolean;
+};
 
 /** Un grupo de modelos de una suscripción con sus propias ventanas; `hasta` (YYYY-MM-DD) si el cupo vence en una fecha. */
-export type GrupoCupo = { id: string; nombre: string; ventanas: VentanaCupo[]; hasta?: string };
+export type GrupoCupo = {
+  id: string;
+  nombre: string;
+  ventanas: VentanaCupo[];
+  hasta?: string;
+  /** `reparto` lo marcó sin cupo (un 429) hasta ese momento (epoch s): una marca, no un 100 % medido. */
+  agotado?: number;
+};
 
 /**
  * Una suscripción conectada que no es Claude (esa sale de `five_hour`/`seven_day`), tal como la dice
@@ -112,6 +125,8 @@ export type SuscripcionCupo = {
   ts: number;
   ventanas?: VentanaCupo[];
   grupos?: GrupoCupo[];
+  /** Lo mismo que en el grupo, para una suscripción con ventanas propias. */
+  agotado?: number;
 };
 
 /**

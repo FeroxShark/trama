@@ -1028,9 +1028,15 @@ export const USO_CUENTAS: Uso = {
   ],
 };
 
-/** La variante `cupos-google`: las barras de Claude más Google AI Pro con sus 3 grupos (`reparto --cupos`), plegados en un renglón. */
+/**
+ * La variante `cupos-google`: los datos reales de una máquina (Claude + Google AI Pro con sus 3 grupos, `reparto --cupos`).
+ * «Claude y GPT» con la semana agotada y su 5 h que no aplica (agy: `disabled`), con la promo vigente hasta el 2 de noviembre;
+ * «Gemini 4 Argon» con su propia semana casi llena. Los grupos llegan con el `nombre` en español de `reparto`: la vista no lo muestra.
+ */
 export const USO_GOOGLE: Uso = {
   ...USO,
+  five_hour: { pct: 4, resets_at: AHORA + 2 * HORA + 10 * MIN },
+  seven_day: { pct: 23, resets_at: AHORA + 5 * DIA + 14 * HORA },
   suscripciones: [
     {
       id: "google",
@@ -1041,21 +1047,36 @@ export const USO_GOOGLE: Uso = {
           id: "gemini",
           nombre: "Gemini",
           ventanas: [
-            { id: "5h", pct: 3, vuelve: AHORA + 2 * HORA },
-            { id: "7d", pct: 8, vuelve: AHORA + 2 * DIA + 4 * HORA },
+            { id: "5h", pct: 6, vuelve: AHORA + 1 * HORA + 20 * MIN },
+            { id: "7d", pct: 5, vuelve: AHORA + 5 * DIA + 6 * HORA },
           ],
         },
         {
           id: "claude-gpt",
           nombre: "Claude y GPT por Google",
           ventanas: [
-            { id: "5h", pct: 15, vuelve: AHORA + 3 * HORA },
-            { id: "7d", pct: 24, vuelve: AHORA + 2 * DIA + 7 * HORA },
+            { id: "5h", pct: 0, vuelve: null, deshabilitada: true },
+            { id: "7d", pct: 100, vuelve: AHORA + 3 * DIA + 10 * HORA },
           ],
           hasta: "2026-11-02",
         },
-        { id: "gemini-4-argon", nombre: "Gemini 4 Argon", ventanas: [{ id: "7d", pct: 41, vuelve: AHORA + 2 * DIA + 19 * HORA }] },
+        { id: "gemini-4-argon", nombre: "Gemini 4 Argon", ventanas: [{ id: "7d", pct: 91, vuelve: AHORA + 5 * DIA + 6 * HORA }] },
       ],
+    },
+  ],
+};
+
+/** La variante `cupos-marcado`: lo de `cupos-google`, pero «Claude y GPT» marcado sin cupo por un 429 (`agotado`), no medido. */
+export const USO_GOOGLE_MARCADO: Uso = {
+  ...USO_GOOGLE,
+  suscripciones: [
+    {
+      ...USO_GOOGLE.suscripciones![0],
+      grupos: USO_GOOGLE.suscripciones![0].grupos!.map((g) =>
+        g.id === "claude-gpt"
+          ? { ...g, ventanas: [{ id: "5h", pct: 100, vuelve: AHORA + 2 * HORA }, { id: "7d", pct: 100, vuelve: AHORA + 2 * HORA }], agotado: AHORA + 2 * HORA }
+          : g,
+      ),
     },
   ],
 };

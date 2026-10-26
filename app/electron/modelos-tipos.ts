@@ -51,6 +51,11 @@ export const FAMILIAS = ["fable", "opus", "sonnet", "haiku", "argon", "flash", "
 export const EXCLUIR_MAX = 50;
 /** Una entrada de `excluir`: una familia, un id o un prefijo con `*` al final; sin espacios ni comillas. */
 const FORMA_EXCLUIR = /^[A-Za-z0-9][\w.:*/[\]-]{0,79}$/;
+/** Más entradas en `calidad` que esto no es una lista que alguien arme a mano. */
+export const CALIDAD_MAX = 200;
+/** La clave de `calidad`: una familia (`opus`), un id (`opencode:opencode/beam-free`) o un patrón con `*` (`dsh:deepseek/*pro*`). */
+const FORMA_CALIDAD = /^[A-Za-z0-9][\w.:*/[\]-]{0,119}$/;
+const calidadValida = (n: unknown): n is number => typeof n === "number" && Number.isInteger(n) && n >= 0 && n <= 100;
 export const CUPO_MIN = 1;
 export const CUPO_MAX = 100;
 export const URL_OLLAMA = "http://localhost:11434";
@@ -68,6 +73,11 @@ export type ConfigModelos = {
   locales: Local[];
   /** Modelos (familias, ids o prefijos con `*`) que `reparto` nunca elige y que un `-m` no puede usar sin permiso del dueño. */
   excluir: string[];
+  /**
+   * Inteligencia (0–100) de cada modelo que alguien fijó: la clave es la de `calidad` de modelos.json (familia, id exacto o patrón).
+   * Lo que no está acá lo estima `reparto` por el nombre (y `reparto --tabla` lo marca estimada). Sin la clave en el archivo, vacío.
+   */
+  calidad: Record<string, number>;
   /** Deja correr opus/sonnet con esfuerzo `max` sin pedir permiso (Fable lo sigue pidiendo). Sin la clave vale `false`. */
   permitir_max: boolean;
   /** `cupo_max` de un archivo viejo: el motor ya no lo usa; se lee (no rompe) pero Guardar no lo vuelve a escribir. */
@@ -86,7 +96,7 @@ export type ConfigModelos = {
   destrabar: Record<string, boolean>;
 };
 
-export const vacia = (): ConfigModelos => ({ workers: {}, locales: [], excluir: [], permitir_max: false, gemini: {}, claude: {}, destrabar: {} });
+export const vacia = (): ConfigModelos => ({ workers: {}, locales: [], excluir: [], calidad: {}, permitir_max: false, gemini: {}, claude: {}, destrabar: {} });
 
 /** `reserva` (fracción libre que se guarda) ↔ tope (% usable), enteros. */
 export const topeDeReserva = (r: number) => Math.round((1 - r) * 100);
@@ -167,6 +177,7 @@ export function leerConfig(j: Record<string, unknown>): ConfigModelos {
   if (esObj(j.workers)) for (const t of TIPOS) { const e = eleccionDe(j.workers[t]); if (e?.modelo === "auto") c.reparto = "auto"; else if (e) c.workers[t] = e; }
   if (Array.isArray(j.locales)) for (const l of j.locales) { const x = localDe(l); if (x) c.locales.push(x); }
   if (Array.isArray(j.excluir)) for (const x of j.excluir) if (typeof x === "string" && FORMA_EXCLUIR.test(x.trim()) && !c.excluir.includes(x.trim()) && c.excluir.length < EXCLUIR_MAX) c.excluir.push(x.trim());
+  if (esObj(j.calidad)) for (const [k, v] of Object.entries(j.calidad)) if (FORMA_CALIDAD.test(k) && calidadValida(v) && Object.keys(c.calidad).length < CALIDAD_MAX) c.calidad[k] = v;
   c.permitir_max = j.permitir_max === true;
   if (esObj(j.gemini)) {
     const g = j.gemini;
@@ -196,7 +207,7 @@ function validarEleccion(x: unknown, donde: string, locales: Local[]): Eleccion 
 /** Lo que llega a guardar, revisado: tira con el motivo si algo no vale (y entonces no se escribe nada). */
 export function validarConfig(x: unknown): ConfigModelos {
   if (!esObj(x)) throw errorT("main.modelosForma");
-  const raro = Object.keys(x).find((k) => !["lider", "reparto", "workers", "locales", "excluir", "permitir_max", "gemini", "claude", "sin_cupo", "destrabar"].includes(k));
+  const raro = Object.keys(x).find((k) => !["lider", "reparto", "workers", "locales", "excluir", "calidad", "permitir_max", "gemini", "claude", "sin_cupo", "destrabar"].includes(k));
   if (raro !== undefined) throw errorT("main.modelosCampo", { campo: raro.slice(0, 40) });
   const c = vacia();
 
@@ -221,6 +232,16 @@ export function validarConfig(x: unknown): ConfigModelos {
       const e = typeof v === "string" ? v.trim() : "";
       if (!FORMA_EXCLUIR.test(e)) throw errorT("main.modelosExcluir", { v: String(v).slice(0, 60) });
       if (!c.excluir.includes(e)) c.excluir.push(e);
+    }
+  }
+  if (x.calidad !== undefined && x.calidad !== null) {
+    if (!esObj(x.calidad)) throw errorT("main.modelosForma");
+    const ks = Object.keys(x.calidad);
+    if (ks.length > CALIDAD_MAX) throw errorT("main.modelosDemasiados", { max: CALIDAD_MAX });
+    for (const k of ks) {
+      const v = x.calidad[k];
+      if (!FORMA_CALIDAD.test(k) || !calidadValida(v)) throw errorT("main.modelosCalidad", { v: k.slice(0, 60) });
+      c.calidad[k] = v;
     }
   }
   if (x.permitir_max !== undefined && x.permitir_max !== null) {
@@ -322,6 +343,9 @@ export function unir(antes: Record<string, unknown> | null, c: ConfigModelos): R
   // `excluir` y `permitir_max` son de `reparto` y `pa`: sin entradas / en falso la clave sale (el default es el mismo).
   if (c.excluir.length) base.excluir = [...c.excluir];
   else delete base.excluir;
+  // `calidad` es de `reparto`: lo que alguien fijó se escribe; sin entradas la clave sale (reparto estima por el nombre).
+  if (Object.keys(c.calidad).length) base.calidad = { ...c.calidad };
+  else delete base.calidad;
   if (c.permitir_max) base.permitir_max = true;
   else delete base.permitir_max;
 

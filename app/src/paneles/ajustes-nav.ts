@@ -28,7 +28,7 @@ export const ITEMS: readonly Item[] = [
   { cat: "modelos", nombre: "ajustes.mdlTodo", que: "ajustes.mdlTodoQue", sin: "uno solo single un modelo todo one model suscripcion" },
   ...TIPOS.map(tipoDe),
   { cat: "modelos", nombre: "ajustes.mdlAutomatico", que: "ajustes.mdlAutomaticoQue", sin: "auto automatico reparto calidad cupo suscripcion elegir modelo hoy elegiria fijo" },
-  { cat: "modelos", nombre: "ajustes.mdlExcluir", que: "ajustes.mdlExcluirQue", sin: "excluir fable opus sonnet haiku no usar prohibir dejar afuera" },
+  { cat: "modelos", nombre: "ajustes.mdlWk", que: "ajustes.mdlWkQue", sin: "modelos workers excluir inteligencia calidad apagar permitir fable opus sonnet haiku no usar prohibir dejar afuera gratis opencode" },
   { cat: "modelos", nombre: "ajustes.mdlDestrabar", que: "ajustes.mdlDestrabarQue", sin: "gemini repite bucle trabado destrabar loop interrumpir flash argon" },
   { cat: "modelos", nombre: "ajustes.mdlPermitirMax", que: "ajustes.mdlPermitirMaxQue", sin: "max esfuerzo effort permitir gasta cupo" },
   { cat: "modelos", nombre: "ajustes.dictado", que: "ajustes.dictadoQue", sin: "dictar dictation voz voice microfono microphone transcribir transcribe stt whisper turbo handy" },

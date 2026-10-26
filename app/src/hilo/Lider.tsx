@@ -478,7 +478,7 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
     const a = parsearComando(crudo, MODELOS, effortsDe(modelo), listaEstilos, modelo);
     if (a.tipo === "texto") return enviar(crudo, undefined, ya);
     setErrorCaja(null);
-    if (a.tipo === "error") return setErrorCaja(tr(a.clave, { v: a.v }));
+    if (a.tipo === "error") return setErrorCaja(tr(a.clave, { v: a.v, niveles: effortsDe(modelo).join(", ") }));
     if (a.tipo === "modo") {
       cambiarModo(a.modo);
       // "/plan armá X": el modo primero, después el pedido (o a la cola, si está respondiendo).
@@ -1179,6 +1179,13 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
                   disabled={app && ocupado}
                   abierto={MODO.captura === "esfuerzo" || MODO.captura === "local-esfuerzo"}
                 />
+              ) : esOpencode(modelo) || esDsh(modelo) ? (
+                // Sin niveles que elegir: la píldora sigue, apagada y diciendo por qué (así no parece que falta algo).
+                <div className="pick" data-tip={tr(esOpencode(modelo) ? "effort.sinNivelesOpencodeTip" : "effort.sinNivelesTip")}>
+                  <button type="button" className="pbtn" data-sin-esfuerzo disabled aria-label={`${tr("comun.esfuerzo")}: ${tr("effort.sinNiveles")}`}>
+                    {tr("effort.sinNiveles")}
+                  </button>
+                </div>
               ) : null}
               {!l && hayVarias(maquinas) ? (
                 <Selector
