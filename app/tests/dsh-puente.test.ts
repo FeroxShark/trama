@@ -28,8 +28,8 @@ class Puente {
   readonly sid: string;
   constructor(sid: string, baseURL: string, extra: Record<string, string> = {}) {
     this.sid = sid;
-    this.hijo = spawn(process.execPath, [path.join(import.meta.dirname, "..", "electron", "dsh-puente.ts"), "--sid", sid, "--nombre", "trama-test", "--modelo", "dsh:ollama/fake-model", "--cwd", trabajo], {
-      env: { ...process.env, HOME: home, DSH_HOME: dshHome, HILOS_DSH: DSH!, HILOS_STATE: estado, HILOS_SESIONES: sesiones, TRAMA_DUENO: "Ana", TRAMA_DSH_URL: baseURL, TRAMA_DSH_PREFACIO: "PREFACIO-DE-PRUEBA", ...extra },
+    this.hijo = spawn(process.execPath, [path.join(import.meta.dirname, "..", "electron", "dsh-puente.ts"), "--sid", sid, "--nombre", "trama-test", "--modelo", extra.MODELO_PRUEBA ?? "dsh:ollama/fake-model", "--cwd", trabajo], {
+      env: { ...process.env, HOME: home, DSH_HOME: dshHome, HILOS_DSH: DSH!, HILOS_STATE: estado, HILOS_SESIONES: sesiones, TRAMA_DUENO: "Ana", TRAMA_DSH_URL: baseURL, TRAMA_DSH_PREFACIO: "PREFACIO-DE-PRUEBA", OPENCODE_API_KEY: "", ...extra },
       stdio: ["pipe", "pipe", "pipe"],
     });
     createInterface({ input: this.hijo.stdout! }).on("line", (l) => {
@@ -278,6 +278,23 @@ test("si el modelo falla (500) el turno termina con un error que lo dice, y el p
   await p.turnos(2);
   assert.match(texto(p.lineas.filter((l) => l.type === "assistant").at(-1)), /eco: .*sigo vivo/s);
   await p.cerrar();
+});
+
+test("OpenCode con 429 (FreeUsageLimitError): un mensaje que dice qué hacer, distinto con clave propia que con la pública", { skip: SIN_DSH, timeout: 180_000 }, async () => {
+  const falso = await base();
+  const modelo = "dsh:opencode/deepseek-v4.1-flash-free";
+  const pub = new Puente("11111111-aaaa-4aaa-8aaa-00000000000a", falso.baseURL, { MODELO_PRUEBA: modelo });
+  pub.mandar("CUOTA");
+  await pub.turnos(1, 150_000);
+  assert.equal(pub.resultados[0].is_error, true);
+  assert.match(pub.resultados[0].result, /se terminó el uso gratis de la clave pública.*Ajustes → DeepSeek Harness/);
+  await pub.cerrar();
+  const propia = new Puente("11111111-aaaa-4aaa-8aaa-00000000000b", falso.baseURL, { MODELO_PRUEBA: modelo, OPENCODE_API_KEY: "oc-clave-propia-1234" });
+  propia.mandar("CUOTA");
+  await propia.turnos(1, 150_000);
+  assert.match(propia.resultados[0].result, /tu clave llegó al límite/);
+  assert.ok(!JSON.stringify(propia.lineas).includes("oc-clave-propia-1234"));
+  await propia.cerrar();
 });
 
 test("sin DEEPSEEK_API_KEY un modelo de deepseek falla de entrada con el motivo (sin lanzar dsh)", { timeout: 30_000 }, async () => {

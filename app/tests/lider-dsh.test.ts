@@ -37,6 +37,7 @@ process.env.HILOS_PA = path.join(tmp, "fuera-del-path", "pa");
 process.env.PATH = [path.dirname(process.execPath), "/usr/bin", "/bin"].join(":");
 
 const lider = await import("../electron/lider.ts");
+const { guardarClave } = await import("../electron/claves.ts");
 const { claseDeModelo, familiaDeModelo } = await import("../electron/modelos-config.ts");
 type Ev = { sid: string; e: any };
 const eventos: Ev[] = [];
@@ -97,4 +98,33 @@ test("un líder de Claude no se pasa a dsh en la misma sesión", { timeout: 60_0
   const sid = await lider.nuevo({ modelo: "claude-opus-5-5", effort: "high", texto: "uno" });
   await hasta(() => de(sid, "fin").length === 1, 45_000);
   await assert.rejects(lider.mandar({ sid, texto: "x", modelo: "dsh:opencode/big-pickle", effort: "high" }), /main\.cambioProveedor/);
+});
+
+test("una key guardada DESPUÉS de lanzar el líder vale en el próximo turno (y la conversación sigue); si se borra, vuelve a la pública", { skip: SIN_DSH, timeout: 180_000 }, async () => {
+  const falso = await arrancarFalso(tmp, { OPENAI_FALSO_CLAVE: "oc-clave-nueva-9999" });
+  after(() => falso.cerrar());
+  const antes = process.env.TRAMA_DSH_URL;
+  process.env.TRAMA_DSH_URL = falso.baseURL; // lo hereda el puente: opencode habla con el falso
+  after(() => (antes === undefined ? delete process.env.TRAMA_DSH_URL : (process.env.TRAMA_DSH_URL = antes)));
+  const modelo = "dsh:opencode/deepseek-v4.1-flash-free";
+  // Sin key propia: el falso la rechaza (cupo de la clave pública agotado) y el error es el accionable de OpenCode, no el del límite de Claude.
+  const sid = await lider.nuevo({ modelo, effort: "high", texto: "uno" });
+  await hasta(() => de(sid, "fin").length === 1, 90_000, `no terminó: ${JSON.stringify(de(sid, "fin"))}`);
+  assert.match(String(de(sid, "fin")[0].error), /se terminó el uso gratis de la clave pública/);
+  // La persona guarda su key en Ajustes y le escribe al MISMO líder.
+  await guardarClave("OPENCODE_API_KEY", "oc-clave-nueva-9999");
+  await lider.mandar({ sid, texto: "dos", modelo, effort: "high" });
+  await hasta(() => de(sid, "fin").length === 2, 90_000, `no terminó el 2.º: ${JSON.stringify(de(sid, "fin"))}`);
+  assert.equal(de(sid, "fin")[1].error, null, "usó la key recién guardada");
+  assert.ok(falso.pedidos().some((r) => r.headers.authorization === "Bearer oc-clave-nueva-9999"));
+  // Un tercer turno con la sesión retomada: sigue la conversación (el primer mensaje sigue en el contexto del modelo).
+  await lider.mandar({ sid, texto: "tres", modelo, effort: "high" });
+  await hasta(() => de(sid, "fin").length === 3, 90_000);
+  assert.equal(de(sid, "fin")[2].error, null);
+  assert.match(usuarios(falso.pedidos().at(-1)!).join("\n"), /uno/);
+  // Y borrarla también vale: vuelve a la pública y el falso la rechaza.
+  await guardarClave("OPENCODE_API_KEY", null);
+  await lider.mandar({ sid, texto: "cuatro", modelo, effort: "high" });
+  await hasta(() => de(sid, "fin").length === 4, 90_000);
+  assert.match(String(de(sid, "fin")[3].error), /clave pública/);
 });

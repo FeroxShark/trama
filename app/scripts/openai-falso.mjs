@@ -5,12 +5,15 @@
 //   (nada especial)  "eco: <texto del mensaje>" (más "[imagen]" si el mensaje trae una imagen)
 //   "RAZONA"         primero un bloque de razonamiento (`reasoning_content`), después lo que corresponda (eco o herramienta)
 //   "HERRAMIENTA"    pide la herramienta `bash` (`echo hola-desde-bash`, con su `description`); con el resultado contesta "listo: <salida>"
+//   "OC_ESCRIBE <ruta>"  pide `write` con `filePath` (el nombre de opencode); fuera del cwd, opencode pide permiso
 //   "ESCALA"         pide `write` con `sandbox_permissions` (escalar el sandbox: dsh pregunta por session/request_permission en modo read-only)
 //   "HERRAMIENTA_LENTA"  igual, pero el comando es `sleep 30` (para cortarlo con session/cancel)
 //   "DESPACIO"       tarda OPENAI_FALSO_MS_LENTO (default 400) ms entre cada uno de 12 deltas de texto (para cortar el turno a mitad)
 //   "TARDA"          tarda OPENAI_FALSO_TARDA (default 2500) ms en decir algo (se combina con los demás)
 //   "ERROR500"       contesta 500
-// Entorno:  OPENAI_FALSO_PORT (0 = cualquiera), OPENAI_FALSO_MODELO (default fake-model), OPENAI_FALSO_LOG (archivo: una línea JSON por
+//   "CUOTA"          contesta 429 con el cuerpo FreeUsageLimitError de OpenCode (se acabó el uso gratis de la clave pública)
+// Entorno:  OPENAI_FALSO_CLAVE (si está: todo pedido de chat con herramientas que no traiga `Authorization: Bearer <esa clave>` recibe el 429 de CUOTA, como OpenCode con la clave pública agotada),
+//           OPENAI_FALSO_PORT (0 = cualquiera), OPENAI_FALSO_MODELO (default fake-model), OPENAI_FALSO_LOG (archivo: una línea JSON por
 // pedido de chat con sus headers y su body), OPENAI_FALSO_MS (ms entre deltas, default 5).
 import http from "node:http";
 import { appendFileSync } from "node:fs";
@@ -38,6 +41,12 @@ async function chat(req, res, body) {
   if (texto.includes("ERROR500") && !sinTools && ultimo.role !== "tool") {
     res.writeHead(500, { "content-type": "application/json" });
     return res.end(JSON.stringify({ error: { message: "boom falso", type: "server_error" } }));
+  }
+  const clave = process.env.OPENAI_FALSO_CLAVE;
+  const sinLaClave = !!clave && req.headers.authorization !== `Bearer ${clave}`;
+  if ((texto.includes("CUOTA") || sinLaClave) && !sinTools && ultimo.role !== "tool") {
+    res.writeHead(429, { "content-type": "application/json" });
+    return res.end(JSON.stringify({ type: "FreeUsageLimitError", message: "Free usage limit reached. Free models work in OpenCode (https://opencode.ai); subscribe to OpenCode Go to keep going: https://opencode.ai/go" }));
   }
   res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-cache", connection: "keep-alive" });
   let abierto = true;
@@ -75,6 +84,9 @@ async function chat(req, res, body) {
     await mandar(mk({ tool_calls: [{ index: 0, function: { arguments: JSON.stringify(args) } }] }));
     return cerrar("tool_calls", { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 });
   };
+  // "OC_ESCRIBE <ruta>": `write` como lo declara opencode (`filePath`, camelCase), para probar sus permisos (una ruta fuera del cwd pide permiso).
+  const oc = /OC_ESCRIBE\s+(\S+)/.exec(texto);
+  if (oc) return llamar("write", { filePath: oc[1], content: "x\n" });
   if (texto.includes("ESCALA")) return llamar("write", { file_path: "escalado.txt", content: "x\n", sandbox_permissions: "workspace-write", justification: "prueba de permisos" });
   if (texto.includes("HERRAMIENTA")) return llamar("bash", { command: texto.includes("HERRAMIENTA_LENTA") ? "sleep 30" : "echo hola-desde-bash", description: "una herramienta de prueba" });
   if (texto.includes("DESPACIO")) {

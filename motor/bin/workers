@@ -208,6 +208,26 @@ def h: "--:--:--";
   else empty end
 '
 
+# opencode (`opencode run --format json`): una línea por evento {type: step_start|text|reasoning|tool_use|step_finish|error, part:{…}}.
+# text.part.text; tool_use.part.{tool, state:{status, input, output|error}} (llega ya completo, con su resultado); error.error.{name, data.message}.
+# Sin timestamps por línea, como agy y codex.
+FMT_OC='
+def limpio: (. // "") | if type == "string" then . else tojson end | gsub("[\r\t]";" ") | gsub("\n";" ⏎ ") | gsub(" +";" ");
+def corto($n): limpio | if (length > $n) then (.[0:$n] + "…") else . end;
+def h: "--:--:--";
+(try fromjson catch empty) | objects
+| if .type == "text" then "\(h) \($txt)· \(.part.text | corto(400))\($r)"
+  elif .type == "reasoning" then (if $pensar == "1" then "\(h) \($dim)~ \(.part.text | corto(300))\($r)" else empty end)
+  elif .type == "tool_use" then
+    ( .part.state.input // {} | if type == "object" then (.command // .filePath // .path // .pattern // .url // .query // .description // tojson) else tostring end ) as $arg
+    | (.part.state // {}) as $e
+    | "\(h) \($tool)▶ \(.part.tool // "?")\($r) \($dim)\($arg | corto(180))\($r)",
+      "\(h)   \($res)⤷ \(if ($e.status // "completed") != "completed" then "[\($e.status)] " else "" end)\(($e.output // $e.error // "") | corto(160))\($r)"
+  elif .type == "error" then "\(h) \($head)✗ \(.error.data.message // .error.name // "error" | corto(300))\($r)"
+  elif .type == "result" and (.is_error // false) then "\(h) \($head)✗ \(.result | corto(300))\($r)"
+  else empty end
+'
+
 formatear_claude() {
   jq -r --unbuffered \
      --arg dim "$D" --arg r "$R" --arg tool "$C_TOOL" --arg txt "$C_TXT" \
@@ -215,10 +235,11 @@ formatear_claude() {
      --arg desde "${1:-}" \
      "$FMT" 2>/dev/null
 }
-formatear_stream() {   # $1 = agy | codex | dsh
+formatear_stream() {   # $1 = agy | codex | dsh | opencode
   local f="$FMT_CODEX" opc=(-R)
   [[ "$1" == agy ]] && { f="$FMT_AGY"; opc=(-R -n); }
   [[ "$1" == dsh ]] && f="$FMT_DSH"
+  [[ "$1" == opencode ]] && f="$FMT_OC"
   jq "${opc[@]}" -r --unbuffered \
      --arg dim "$D" --arg r "$R" --arg tool "$C_TOOL" --arg txt "$C_TXT" \
      --arg res "$C_RES" --arg head "$C_HEAD" --arg pensar "${WORKERS_PENSAR:-0}" \
@@ -229,6 +250,7 @@ formato_de() {   # $1 = modelo (puede ir vacío), $2 = archivo
   case "${1,,}" in
     codex:*) echo codex; return ;;
     dsh:*) echo dsh; return ;;
+    opencode:*) echo opencode; return ;;
     gemini*|agy:*) echo agy; return ;;
     claude-*|ollama:*) echo claude; return ;;
   esac
@@ -236,13 +258,14 @@ formato_de() {   # $1 = modelo (puede ir vacío), $2 = archivo
     *'"event":'*) echo agy ;;
     *'"type":"thread.started"'*|*'"type":"turn.started"'*) echo codex ;;
     *'"type":"session"'*) echo dsh ;;
+    *'"type":"step_start"'*) echo opencode ;;
     *) echo claude ;;
   esac
 }
 FORMATO=claude
 formatear() {   # stdin = el transcript; $1 = fecha desde (sólo el de Claude)
   case "$FORMATO" in
-    agy|codex|dsh) formatear_stream "$FORMATO" ;;
+    agy|codex|dsh|opencode) formatear_stream "$FORMATO" ;;
     *) formatear_claude "$@" ;;
   esac
 }

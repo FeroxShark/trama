@@ -30,6 +30,11 @@ según el proveedor, hay key (OPENCODE_API_KEY / DEEPSEEK_API_KEY en el entorno 
 lo pone pa en --leer, donde dsh no va), REPARTO_CLAUDE=0 (como si claude no estuviera), REPARTO_DSH_FIJO='{"ollama":["m"],"opencode":true,
 "deepseek":false}' (tests: no mira nada real). La calidad de cada modelo de dsh sale de `calidad` de modelos.json ("dsh:opencode/glm-5.3-flash-free": 55;
 admite patrones con *); sin Claude, Gemini ni Codex y con la calidad por debajo de lo que pide el tipo, igual se elige el mejor gratis de dsh.
+opencode (el programa `opencode`: sus modelos gratis, `opencode:opencode/<modelo>`; grupo `opencode-free`): candidatos sólo si `opencode` está instalado;
+la lista sale de `opencode models` (los `*-free` y `big-pickle` de `opencode/`; se guarda 1 h), REPARTO_OPENCODE=0 los apaga (REPARTO_SIN_DSH=1 también),
+REPARTO_OPENCODE_FIJO='["opencode/beam-free"]' (tests: no mira nada real). Los gratis de OpenCode por dsh (`dsh:opencode/*-free`) ya no se ofrecen solos:
+OpenCode los rechaza desde cualquier programa que no sea opencode (REPARTO_DSH_OPENCODE=1 los vuelve a ofrecer, con OPENCODE_API_KEY). La calidad sale de
+`calidad` ("opencode:opencode/glm-5.3-flash-free": 55; admite *), como la de dsh.
 """
 import contextlib
 import fcntl
@@ -58,7 +63,12 @@ CALIDAD = {"opus": 100, "sonnet": 88, "argon": 85, "haiku": 60, "gpt-oss": 45, "
            # tenga bajado (chico, como los locales: 35) y DeepSeek (se paga con la key del dueño).
            "dsh:opencode/big-pickle": 60, "dsh:opencode/deepseek-v4.1-flash-free": 60, "dsh:opencode/glm-5.3-flash-free": 55,
            "dsh:opencode/longcat-2.5-preview-free": 45, "dsh:opencode/flint-40b-free": 40,
-           "dsh:opencode/*": 40, "dsh:ollama/*": 35, "dsh:deepseek/*pro*": 85, "dsh:deepseek/*": 70}
+           "dsh:opencode/*": 40, "dsh:ollama/*": 35, "dsh:deepseek/*pro*": 85, "dsh:deepseek/*": 70,
+           # opencode (el programa; 2026-10-26, sin medición propia): los mismos gratis de OpenCode, más los que aparecieron después.
+           "opencode:opencode/big-pickle": 60, "opencode:opencode/deepseek-v4.1-flash-free": 60, "opencode:opencode/glm-5.3-flash-free": 55,
+           "opencode:opencode/nemotron-3-ultra-free": 55, "opencode:opencode/minimax-m3.1-flash-free": 50, "opencode:opencode/mimo-v2.6-flash-free": 50,
+           "opencode:opencode/nemotron-3.5-super-vl-free": 50, "opencode:opencode/flint-40b-free": 40, "opencode:opencode/beam-free": 40,
+           "opencode:opencode/nemotron-3.5-lightning-free": 40, "opencode:opencode/*": 40}
 # Qué se pide como mínimo según el tipo de tarea (nombre de familia). Un tipo desconocido pide Sonnet.
 MINIMO_POR_TIPO = {
     "debug": "argon", "diseno": "argon",   # Sonnet (88) también los resuelve
@@ -126,7 +136,9 @@ EFFORTS_CODEX = ("low", "medium", "high")
 # aunque esté en `calidad`); DeepSeek se paga con su key; Ollama = lo que tenga bajado.
 DSH_OPENCODE_GRATIS = ["big-pickle", "deepseek-v4.1-flash-free", "glm-5.3-flash-free", "flint-40b-free", "longcat-2.5-preview-free"]
 DSH_DEEPSEEK = ["deepseek-v4-flash"]
-DSH_GRUPOS = {"ollama": "dsh-ollama", "opencode": "dsh-opencode", "deepseek": "dsh-deepseek"}
+DSH_GRUPOS = {"ollama": "dsh-ollama", "opencode": "dsh-opencode", "deepseek": "dsh-deepseek", "opencode-prog": "opencode-free"}
+OC_GRATIS_CONOCIDOS = ["big-pickle", "beam-free", "deepseek-v4.1-flash-free", "flint-40b-free", "glm-5.3-flash-free", "mimo-v2.6-flash-free",
+                       "minimax-m3.1-flash-free", "nemotron-3-ultra-free", "nemotron-3.5-lightning-free", "nemotron-3.5-super-vl-free"]
 COSTO_DSH_PAGO = 1.5      # DeepSeek se paga con la key del dueño: pierde contra un gratis salvo que la calidad lo pida (peso_costo × 1,5 puntos menos)
 
 # Familias y de qué cupo cuelgan. `agy` = nombre base que acepta `agy --model` (se le suma -<effort>).
@@ -693,7 +705,7 @@ def dsh_calidad(cfg, mid):
     q = cfg["calidad"]
     if isinstance(q.get(mid), (int, float)):
         return q[mid]
-    pats = [k for k in q if k.startswith("dsh:") and "*" in k and isinstance(q[k], (int, float))]
+    pats = [k for k in q if k.startswith(("dsh:", "opencode:")) and "*" in k and isinstance(q[k], (int, float))]
     # el más específico (más largo) primero
     for k in sorted(pats, key=len, reverse=True):
         if fnmatch.fnmatchcase(mid, k):
@@ -701,13 +713,77 @@ def dsh_calidad(cfg, mid):
     return 35
 
 
+def opencode_bin():
+    """El binario opencode: HILOS_OPENCODE, el PATH, ~/.opencode/bin, ~/.local/bin, el prefijo global de npm. None si no está (igual que pa y correr.mjs)."""
+    h = os.environ.get("HILOS_OPENCODE")
+    if h:
+        return h if os.access(h, os.X_OK) else None
+    import shutil
+    c = shutil.which("opencode")
+    if c:
+        return c
+    home = os.path.expanduser("~")
+    dirs = [os.path.join(home, ".opencode", "bin"), os.path.join(home, ".local", "bin")]
+    if os.environ.get("npm_config_prefix"):
+        dirs.append(os.path.join(os.environ["npm_config_prefix"], "bin"))
+    dirs += [os.path.join(home, ".npm-global", "bin"), "/usr/local/bin"]
+    return next((os.path.join(d, "opencode") for d in dirs if os.access(os.path.join(d, "opencode"), os.X_OK)), None)
+
+
+def opencode_gratis(now):
+    """Los modelos gratis de opencode (`big-pickle` y los `*-free` de `opencode/`, sin el proveedor). [] sin opencode. Se guardan 1 h (REPARTO_OPENCODE_CACHE_S)."""
+    if os.environ.get("REPARTO_OPENCODE") == "0" or os.environ.get("REPARTO_SIN_DSH") == "1":
+        return []
+    fijo = os.environ.get("REPARTO_OPENCODE_FIJO")
+    if fijo:
+        try:
+            return [m.split("/", 1)[1] if m.startswith("opencode/") else m for m in json.loads(fijo) if isinstance(m, str)]
+        except Exception:
+            return []
+    exe = opencode_bin()
+    if not exe:
+        return []
+    cache = os.path.join(state_dir(), "opencode-modelos.json")
+    ttl = float(os.environ.get("REPARTO_OPENCODE_CACHE_S", 3600))
+    try:
+        with open(cache) as f:
+            c = json.load(f)
+        if c.get("exe") == exe and now.timestamp() - c.get("t", 0) < ttl:
+            return list(c.get("modelos") or [])
+    except Exception:
+        pass
+    modelos = []
+    try:
+        import subprocess
+        r = subprocess.run([exe, "models"], capture_output=True, text=True, timeout=float(os.environ.get("REPARTO_OPENCODE_CHEQUEO_S", 8)), stdin=subprocess.DEVNULL)
+        for ln in re.sub(r"\x1b\[[0-9;]*[A-Za-z]", "", r.stdout).splitlines():
+            m = re.match(r"^opencode/(big-pickle|\S*-free)$", ln.strip())
+            if m and m.group(1) not in modelos:
+                modelos.append(m.group(1))
+    except Exception:
+        pass
+    modelos = modelos or list(OC_GRATIS_CONOCIDOS)   # opencode no contestó a tiempo: los que se conocen (si fallan, un 429 los agota)
+    try:
+        os.makedirs(os.path.dirname(cache), exist_ok=True)
+        tmp = "%s.%d" % (cache, os.getpid())
+        with open(tmp, "w") as f:
+            json.dump({"exe": exe, "t": now.timestamp(), "modelos": modelos}, f)
+        os.replace(tmp, cache)
+    except OSError:
+        pass
+    return modelos
+
+
 def dsh_ofertas(cfg, now):
-    """[(id, nombre, proveedor, gratis)] de lo que dsh puede correr ahora."""
+    """[(id, nombre, proveedor, gratis)] de lo que dsh y opencode pueden correr ahora."""
     st = dsh_estado(now)
     out = []
+    for m in opencode_gratis(now):
+        out.append(("opencode:opencode/%s" % m, "%s (OpenCode, gratis)" % m, "opencode-prog", True))
     for m in st["ollama"]:
         out.append(("dsh:ollama/%s" % m, "%s (Ollama, dsh)" % m, "ollama", True))
-    if st["opencode"]:
+    # Los gratis de OpenCode por dsh: OpenCode los rechaza (429) fuera de su programa; sólo con REPARTO_DSH_OPENCODE=1.
+    if st["opencode"] and os.environ.get("REPARTO_DSH_OPENCODE") == "1":
         ids = list(DSH_OPENCODE_GRATIS)
         for k in cfg["calidad"]:   # un modelo gratis que el dueño agregó a `calidad`
             m = re.match(r"^dsh:opencode/([^*]+-free)$", k)
@@ -951,10 +1027,12 @@ CLAUDE_OFICIAL = "claude-oficial"
 
 def grupo_de_modelo(mid):
     """Id de grupo de agy, de codex o de dsh de un modelo ('agy:claude-sonnet-5-5-medium', 'gemini-3.8-flash-low',
-    'codex:gpt-6-luna-low', 'dsh:opencode/big-pickle') o de un grupo ('claude-gpt', 'codex', 'dsh-opencode'). None si no es de ésos."""
+    'codex:gpt-6-luna-low', 'dsh:opencode/big-pickle', 'opencode:opencode/beam-free') o de un grupo ('claude-gpt', 'codex', 'dsh-opencode', 'opencode-free'). None si no es de ésos."""
     m = (mid or "").lower()
+    if m == "opencode-free" or m.startswith("opencode:"):
+        return "opencode-free"
     for prov, gid in DSH_GRUPOS.items():
-        if m == gid or m.startswith("dsh:%s/" % prov):
+        if prov != "opencode-prog" and (m == gid or m.startswith("dsh:%s/" % prov)):
             return gid
     if m.startswith("codex:gpt-6-sol"):   # alias que pa acepta (CODEX_MODELOS): mismo cupo de ChatGPT que los demás codex
         return "codex"
@@ -1285,7 +1363,7 @@ def armar_candidatos(tipo, cfg, cupos, now):
                 "cupo_libre": 1.0 if gratis else None, "vuelve": None, "puntaje": None, "descartado_por": None,
                 "aviso": None if gratis else "se paga con tu key de DeepSeek (no se sabe el precio)", "grupo": gid, "urgencia": 0.0,
                 "cuenta": None, "proveedor": "dsh", "clave": gid, "gratis": gratis}
-        x = excluido_por(mid, cfg["excluir"], "dsh")
+        x = excluido_por(mid, cfg["excluir"], "opencode" if mid.startswith("opencode:") else "dsh")
         if calidad < minimo:
             cand["descartado_por"] = "calidad %s menor que la %s que pide %s" % (calidad, minimo, tipo)
             cand["duro"] = cand["duro_calidad"] = True
@@ -1527,6 +1605,9 @@ def resolver(mid):
     m = re.match(r"^dsh:(ollama|opencode|deepseek)/(.+)$", mid)
     if m:
         return {"motor": "dsh", "modelo": m.group(2), "proveedor": m.group(1), "id": mid, "nota": "pa -m %s (motor/dsh/correr.mjs)" % mid}
+    m = re.match(r"^opencode:([A-Za-z0-9][A-Za-z0-9._-]*)/(.+)$", mid)
+    if m:
+        return {"motor": "opencode", "modelo": m.group(2), "proveedor": m.group(1), "id": mid, "nota": "pa -m %s (motor/opencode/correr.mjs)" % mid}
     if mid.startswith("claude-"):
         return {"motor": "claude", "modelo": mid, "id": mid}
     return None

@@ -102,8 +102,11 @@ test("probar: GET /models con la key guardada; cuenta los modelos; 401 es «clav
   assert.equal(f.vistas.length, n);
   // OpenCode anda sin key (sus modelos gratis): se prueba sin Authorization.
   const g = await proveedorFalso(() => ({ status: 200, cuerpo: { data: [] } }));
-  assert.deepEqual(await probarProveedor("opencode", undefined, { urls: g.urls, env, claves: {} }), { ok: true, modelos: 0 });
+  // …pero sin clave propia avisa que el cupo gratis es compartido (GET /models anda aunque el uso gratis esté agotado).
+  assert.deepEqual(await probarProveedor("opencode", undefined, { urls: g.urls, env, claves: {} }), { ok: true, modelos: 0, aviso: "\u0001i18n:main.dshAvisoSinClave\u0001\u0001" });
   assert.deepEqual(g.vistas, [undefined]);
+  // Con clave propia no hay aviso.
+  assert.deepEqual(await probarProveedor("opencode", undefined, { urls: g.urls, env, claves: { OPENCODE_API_KEY: "oc-mia" } }), { ok: true, modelos: 0 });
 });
 
 test("probar: errores del servidor, respuesta rara, nadie escucha y proveedor desconocido", async () => {

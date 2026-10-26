@@ -86,3 +86,11 @@ test("al renderer sólo llegan ids y nombres: ninguna url; Gemini se habilita co
   assert.equal(vistaModelos(leerConfig('{"version":1}'), false, [], true)!.dsh, true);
   assert.equal(vistaModelos(leerConfig('{"version":1,"lider":{"modelo":"dsh:opencode/big-pickle"}}'))!.dsh, true, "el líder por defecto es de dsh");
 });
+
+test("vistaModelos suma los modelos de opencode (sólo si hay lista) y no cambia lo demás", () => {
+  const lista = ["opencode/beam-free", "opencode/big-pickle"];
+  assert.deepEqual(vistaModelos(null, false, [], false, lista), { version: 1, gemini: false, dsh: false, opencode: lista, locales: [], llama: [], lider: null }, "con opencode instalado se ofrece sin modelos.json");
+  assert.deepEqual(vistaModelos(leerConfig('{"version":1}'), false, [], false, lista)!.opencode, lista);
+  assert.equal("opencode" in vistaModelos(leerConfig('{"version":1}'))!, false, "sin lista, la clave no viaja");
+  assert.equal(vistaModelos(null), null);
+});

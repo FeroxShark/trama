@@ -152,6 +152,8 @@ contextBridge.exposeInMainWorld("hilos", {
     instalarDsh: (): Promise<unknown> => ipcRenderer.invoke("dsh:instalar"),
     claveDsh: (nombre: string, valor: string | null): Promise<unknown> => ipcRenderer.invoke("dsh:clave", nombre, valor),
     probarDsh: (proveedor: string, url?: string): Promise<unknown> => ipcRenderer.invoke("dsh:probar", proveedor, url),
+    estadoOpencode: (): Promise<unknown> => ipcRenderer.invoke("opencode:estado"),
+    actualizarOpencode: (): Promise<unknown> => ipcRenderer.invoke("opencode:actualizar"),
     alBajar: oir("modelos:bajando"),
     guardarAjustes: (cambio: unknown): Promise<unknown> => ipcRenderer.invoke("ajustes:guardar", cambio),
     remoto: (): Promise<unknown> => ipcRenderer.invoke("remoto:leer"),

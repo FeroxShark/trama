@@ -1,3 +1,4 @@
+// (También sirve a los líderes de `opencode:<proveedor>/<modelo>`: el mismo puente con `opencode acp` por detrás; el motor sale del prefijo del modelo.)
 // El puente de un líder de DeepSeek Harness (`dsh`): un proceso Node que habla el stream-json de `claude -p` por
 // stdin/stdout (lo que lider.ts ya maneja: cola, interrupción, estado, fin de turno) y por dentro corre UN `dsh --profile acp`
 // vivo por líder, hablándole ACP (acp.ts). Lo lanza lider.ts en lugar de `claude` (como agy-puente.ts con Gemini). Sin Electron.
@@ -23,9 +24,11 @@ import { appendFileSync, mkdirSync, readFileSync, renameSync, unlinkSync, writeF
 import { createInterface } from "node:readline";
 import path from "node:path";
 import os from "node:os";
-import { ClienteAcp, ErrorAcp, type BloqueAcp } from "./acp.ts";
+import { ClienteAcp, ErrorAcp, describirError, type BloqueAcp } from "./acp.ts";
 import { entornoAgy } from "./binario.ts";
-import { entornoDsh, escribirParche, falta, parsearModelo, resolverDsh, valorModeloAcp } from "./dsh.ts";
+import { entornoDsh, escribirParche, esErrorCuota, falta, mensajeCuotaOpencode, parsearModelo, resolverDsh, valorModeloAcp } from "./dsh.ts";
+import { politicaOpencode, entornoOpencode, esErrorCuota as esCuotaOc, mensajeCuotaOpencode as mensajeCuotaOc, parsearModelo as parsearOpencode, resolverOpencode } from "./opencode.ts";
+import { leerClavesSync, type NombreClave } from "./claves.ts";
 import { deDueno, dueno } from "./dueno.ts";
 import { ESTADO } from "./estado.ts";
 import { SESIONES } from "./sesiones.ts";
@@ -48,7 +51,11 @@ const TOPE_REPETIR = 12000;
 const MS_CANCELAR = Number(process.env.TRAMA_DSH_CANCELAR_MS ?? 10000);
 const EXTENSIONES = new Set(["image/png", "image/jpeg", "image/webp", "image/gif"]);
 
-const DIR = path.join(ESTADO, "dsh");
+/** El motor de este puente: `dsh:<proveedor>/<modelo>` (dsh --profile acp) u `opencode:<proveedor>/<modelo>` (opencode acp; mismo puente, otro agente ACP). */
+const oc = parsearOpencode(modelo);
+const MOTOR = oc ? "opencode" : "dsh";
+
+const DIR = path.join(ESTADO, MOTOR);
 const TRANSCRIPT = path.join(DIR, `${sid}.jsonl`);
 const LADO = path.join(DIR, `${sid}.json`);
 const PARCHE = path.join(DIR, `${sid}.patch.yml`);
@@ -156,7 +163,7 @@ const texto = (v: unknown): string | null => (typeof v === "string" && v ? v : n
 /** Una herramienta de dsh como la de Claude Code que hace lo mismo: el nombre y los campos que la vista sabe leer. */
 function herramientaClaude(nombre: string, entrada: unknown): { name: string; input: Obj } {
   const p = (entrada && typeof entrada === "object" ? entrada : {}) as Obj;
-  const ruta = texto(p.file_path) ?? texto(p.path);
+  const ruta = texto(p.file_path) ?? texto(p.filePath) ?? texto(p.filepath) ?? texto(p.path);
   const con = (name: string, campos: Obj) => ({ name, input: Object.fromEntries(Object.entries(campos).filter(([, v]) => v !== null && v !== undefined)) });
   switch (nombre) {
     case "bash":
@@ -166,15 +173,21 @@ function herramientaClaude(nombre: string, entrada: unknown): { name: string; in
     case "write":
       return con("Write", { file_path: ruta, content: texto(p.content) });
     case "edit":
-      return con("Edit", { file_path: ruta, old_string: texto(p.old_string), new_string: texto(p.new_string) });
+      return con("Edit", { file_path: ruta, old_string: texto(p.old_string) ?? texto(p.oldString), new_string: texto(p.new_string) ?? texto(p.newString) });
     case "glob":
       return con("Glob", { pattern: texto(p.pattern), path: texto(p.path) });
     case "grep":
       return con("Grep", { pattern: texto(p.pattern), path: texto(p.path) });
     case "web_fetch":
+    case "webfetch":
       return con("WebFetch", { url: texto(p.url) });
     case "web_search":
+    case "websearch":
       return con("WebSearch", { query: texto(p.query) });
+    case "list":
+      return con("LS", { path: ruta });
+    case "task":
+      return con("Task", { description: texto(p.description), prompt: texto(p.prompt) });
     default:
       return { name: nombre || "?", input: { ...p } };
   }
@@ -184,7 +197,7 @@ function herramientaClaude(nombre: string, entrada: unknown): { name: string; in
 function textoDeContenido(c: unknown): string {
   if (!Array.isArray(c)) return "";
   return c
-    .map((x: any) => (typeof x?.content?.text === "string" ? x.content.text : typeof x?.text === "string" ? x.text : ""))
+    .map((x: any) => (typeof x?.content?.text === "string" ? x.content.text : typeof x?.text === "string" ? x.text : x?.type === "diff" && typeof x.path === "string" ? `editado ${x.path}` : ""))
     .filter(Boolean)
     .join("\n");
 }
@@ -197,7 +210,7 @@ class Traductor {
   usado = 0;
   ventana = 0;
   private buf: { id: string; pensado: string; texto: string; bloque: "" | "thinking" | "text"; indice: number } | null = null;
-  private herramientas = new Map<string, { name: string; input: Obj; resultado: boolean }>();
+  private herramientas = new Map<string, { name: string; input: Obj; emitida: boolean; resultado: boolean }>();
   private n = 0;
   private cerrado = false;
   private readonly base = () => ({ parent_tool_use_id: null, session_id: sid });
@@ -274,25 +287,50 @@ class Traductor {
     return out;
   }
 
+  /**
+   * dsh manda el `tool_call` con la entrada completa. opencode lo manda con el nombre de la herramienta (`title: "bash"`) y sólo el
+   * `cwd` en `rawInput`: la entrada llega en los `tool_call_update` siguientes (donde el `title` pasa a ser el comando). Por eso la
+   * herramienta de opencode se anuncia recién cuando trae su entrada (o al terminar), con el nombre del primer aviso.
+   */
   private llamada(u: Obj): Obj[] {
     const id = texto(u.toolCallId);
     if (!id || this.herramientas.has(id)) return [];
     const out = this.vaciar();
     const t = herramientaClaude(texto(u.title) ?? "?", u.rawInput);
-    this.herramientas.set(id, { name: t.name, input: t.input, resultado: false });
-    out.push(this.ev({ type: "content_block_start", index: 0, content_block: { type: "tool_use", id, name: t.name, input: {} } }));
-    out.push({ type: "assistant", message: { id: `msg_dsh_t_${id}`, role: "assistant", model: modelo, content: [{ type: "tool_use", id, name: t.name, input: t.input }] }, ...this.base() });
+    this.herramientas.set(id, { name: texto(u.title) ?? "?", input: u.rawInput && typeof u.rawInput === "object" ? u.rawInput : {}, emitida: false, resultado: false });
+    if (!oc || this.conEntrada(u.rawInput)) out.push(...this.anunciar(id, t));
     return out;
+  }
+
+  private conEntrada = (raw: unknown) => !!raw && typeof raw === "object" && Object.keys(raw as Obj).some((k) => k !== "cwd");
+
+  /** El `tool_use` de la herramienta `id` (una sola vez), con el nombre y la entrada que se le conocen hasta ahora. */
+  private anunciar(id: string, t?: { name: string; input: Obj }): Obj[] {
+    const h = this.herramientas.get(id);
+    if (!h || h.emitida) return [];
+    h.emitida = true;
+    const c = t ?? herramientaClaude(h.name, h.input);
+    return [
+      this.ev({ type: "content_block_start", index: 0, content_block: { type: "tool_use", id, name: c.name, input: {} } }),
+      { type: "assistant", message: { id: `msg_dsh_t_${id}`, role: "assistant", model: modelo, content: [{ type: "tool_use", id, name: c.name, input: c.input }] }, ...this.base() },
+    ];
   }
 
   private resultado(u: Obj): Obj[] {
     const id = texto(u.toolCallId);
     const h = id ? this.herramientas.get(id) : undefined;
-    if (!id || !h || h.resultado || (u.status !== "completed" && u.status !== "failed")) return [];
+    if (!id || !h || h.resultado) return [];
+    const terminada = u.status === "completed" || u.status === "failed";
+    if (u.rawInput && typeof u.rawInput === "object") h.input = { ...h.input, ...u.rawInput };
+    if (!terminada) return oc && this.conEntrada(h.input) ? this.anunciar(id) : [];
+    const out = this.anunciar(id);
     h.resultado = true;
     const malo = u.status === "failed";
-    const contenido = textoDeContenido(u.content).replace(/^Error: /, malo ? "Error: " : "");
-    return [{ type: "user", message: { role: "user", content: [{ type: "tool_result", tool_use_id: id, content: contenido, ...(malo ? { is_error: true } : {}) }] }, ...this.base() }];
+    let contenido = textoDeContenido(u.content);
+    if (!contenido && typeof u.rawOutput?.output === "string") contenido = u.rawOutput.output;
+    contenido = contenido.replace(/^Error: /, malo ? "Error: " : "");
+    out.push({ type: "user", message: { role: "user", content: [{ type: "tool_result", tool_use_id: id, content: contenido, ...(malo ? { is_error: true } : {}) }] }, ...this.base() });
+    return out;
   }
 
   /** Se cortó el turno con herramientas a medias: cada una queda cerrada con un error, para que el chat no la muestre corriendo. */
@@ -300,6 +338,7 @@ class Traductor {
     const out = this.vaciar();
     for (const [id, h] of this.herramientas) {
       if (h.resultado) continue;
+      out.push(...this.anunciar(id));
       h.resultado = true;
       out.push({ type: "user", message: { role: "user", content: [{ type: "tool_result", tool_use_id: id, content: motivo, is_error: true }] }, ...this.base() });
     }
@@ -356,12 +395,44 @@ const NOTA_DIRECTO = () => `[Mensaje ${deDueno()} a mitad del turno, mientras tr
 
 const prov = parsearModelo(modelo);
 let cliente: ClienteAcp | null = null;
+/** El stderr del `dsh` que no arrancó bien (se descarta el cliente, pero el error que sube todavía lo necesita). */
+let stderrPerdido = "";
 let acpSid: string | null = null;
 /** El turno en curso (para traducir lo que dsh va diciendo). */
 let actual: Traductor | null = null;
 let iniciando: Promise<void> | null = null;
 /** Se abrió una sesión de dsh nueva y todavía no se le dio el prefacio (ni lo hablado, si se perdió la anterior). */
 let faltaPrefacio = false;
+
+/** La key (de claves.env) que usa el proveedor, si usa una. */
+const claveDelProveedor = (): NombreClave | null => (prov?.proveedor === "opencode" ? "OPENCODE_API_KEY" : prov?.proveedor === "deepseek" ? "DEEPSEEK_API_KEY" : null);
+/** Lo que decía claves.env cuando arrancó este puente (lider.ts la puso en el entorno si no había otra): para saber si el valor del entorno era esa. */
+let guardadaAlArrancar: string | undefined = claveDelProveedor() ? leerClavesSync()[claveDelProveedor()!] : undefined;
+/** La key con que se lanzó el `dsh` vivo (`""`: ninguna). */
+let claveLevantada = "";
+
+/**
+ * Una key guardada, cambiada o borrada en Ajustes mientras el líder vive tiene que valer en el próximo turno: se vuelve a leer claves.env
+ * y, si cambió la del proveedor, se descarta el `dsh` (el siguiente `asegurar` lo relanza y retoma la MISMA sesión: la conversación sigue).
+ * Una key puesta en el entorno de verdad (distinta de la que había guardada al arrancar) gana, como siempre.
+ */
+function refrescarClave() {
+  const n = claveDelProveedor();
+  if (!n) return;
+  const hoy = leerClavesSync()[n];
+  if (hoy !== guardadaAlArrancar) {
+    if (process.env[n] === guardadaAlArrancar) {
+      if (hoy) process.env[n] = hoy;
+      else delete process.env[n];
+    }
+    guardadaAlArrancar = hoy;
+  }
+  if (cliente && claveLevantada !== (process.env[n] ?? "")) {
+    cliente.matar();
+    cliente = null;
+    acpSid = null;
+  }
+}
 
 /** El `dsh` vivo con su sesión lista (lanzándolo y retomando o abriendo la sesión si hace falta). */
 function asegurar(): Promise<void> {
@@ -370,24 +441,39 @@ function asegurar(): Promise<void> {
 }
 
 async function levantar(): Promise<void> {
-  if (!prov) throw new Error(`modelo «${modelo}» no es de dsh (dsh:<proveedor>/<modelo>)`);
+  stderrPerdido = "";
+  if (!prov && !oc) throw new Error(`modelo «${modelo}» no es de dsh ni de opencode (dsh:<proveedor>/<modelo>, opencode:<proveedor>/<modelo>)`);
   const env0 = Object.fromEntries(Object.entries(process.env).filter(([k]) => k !== "CLAUDE_CONFIG_DIR"));
-  const falto = falta(prov.proveedor, env0);
-  if (falto) throw new Error(`falta ${falto} para usar ${modelo}`);
-  const env = entornoDsh(prov.proveedor, entornoAgy(env0, os.homedir()));
-  writeFileSync(PARCHE, escribirParche({ ...prov, baseURL: process.env.TRAMA_DSH_URL || undefined, imagenes: process.env.TRAMA_DSH_IMAGENES === "1", contexto: Number(process.env.TRAMA_DSH_CONTEXTO) || undefined }));
-  mkdirSync(env.DSH_HOME!, { recursive: true });
+  let env: Record<string, string | undefined>;
+  let comando: string;
+  let args: string[];
+  if (oc) {
+    // opencode usa el login y la config de la persona (su HOME/XDG, sin tocarlos): el modelo se elige por ACP después de abrir la sesión.
+    env = { ...entornoOpencode(entornoAgy(env0, os.homedir())), PWD: path.resolve(cwd) }; // opencode toma su directorio de PWD
+    comando = resolverOpencode(process.env, os.homedir());
+    args = ["acp"];
+  } else {
+    const falto = falta(prov!.proveedor, env0);
+    if (falto) throw new Error(`falta ${falto} para usar ${modelo}`);
+    claveLevantada = (claveDelProveedor() && process.env[claveDelProveedor()!]) || "";
+    env = entornoDsh(prov!.proveedor, entornoAgy(env0, os.homedir()));
+    writeFileSync(PARCHE, escribirParche({ ...prov!, baseURL: process.env.TRAMA_DSH_URL || undefined, imagenes: process.env.TRAMA_DSH_IMAGENES === "1", contexto: Number(process.env.TRAMA_DSH_CONTEXTO) || undefined }));
+    mkdirSync(env.DSH_HOME!, { recursive: true });
+    comando = resolverDsh(process.env, os.homedir());
+    args = ["--profile", "acp", "--patch", PARCHE];
+  }
   const c = new ClienteAcp({
-    comando: resolverDsh(process.env, os.homedir()),
-    args: ["--profile", "acp", "--patch", PARCHE],
+    comando,
+    args,
     cwd,
     env,
     raiz: cwd,
+    ...(oc ? { permiso: politicaOpencode(cwd) } : {}),
     alActualizar: (s, u) => {
       if (s !== acpSid || !actual) return;
       for (const o of actual.actualizacion(u)) salida(o);
     },
-    alStderr: (t) => process.stderr.write(`dsh: ${t}`),
+    alStderr: (t) => process.stderr.write(`${MOTOR}: ${t}`),
   });
   cliente = c;
   acpSid = null;
@@ -413,16 +499,29 @@ async function levantar(): Promise<void> {
       guardarLado(acpSid);
     }
     // Una sesión retomada trae el modelo con el que se guardó: si el líder cambió de modelo, se le dice.
-    const quiero = valorModeloAcp(prov.proveedor, prov.modelo);
+    const quiero = oc ? oc.valor : valorModeloAcp(prov!.proveedor, prov!.modelo);
     const actualOpt = opciones.find((o) => o?.id === "model")?.currentValue;
     if (actualOpt !== undefined && actualOpt !== quiero) await c.configurar(acpSid, "model", quiero);
     faltaPrefacio = faltaPrefacio || nueva;
   } catch (e) {
+    stderrPerdido = c.stderr;
     c.matar();
     cliente = null;
     acpSid = null;
     throw e;
   }
+}
+
+/**
+ * Lo que se le muestra a la persona cuando falla un turno: el error con su causa real (`error.data`, el stderr de dsh) sin claves;
+ * y si es de cuota de OpenCode, el mensaje que dice qué hacer (distinto con clave propia que con la pública).
+ */
+function textoDeError(e: unknown): string {
+  const secretos = [process.env.OPENCODE_API_KEY, process.env.DEEPSEEK_API_KEY];
+  const err = cliente?.stderr || stderrPerdido;
+  if (oc && esCuotaOc(`${String((e as Error)?.message ?? e)}\n${err}`)) return mensajeCuotaOc(oc.valor);
+  if (prov?.proveedor === "opencode" && esErrorCuota(`${String((e as Error)?.message ?? e)}\n${err}`)) return mensajeCuotaOpencode(!!process.env.OPENCODE_API_KEY);
+  return describirError(e, err, secretos, 400);
 }
 
 /** Los bloques del prompt: el texto y las imágenes (si el modelo no las acepta, un aviso en su lugar). */
@@ -515,6 +614,7 @@ async function turno(m: Mensaje) {
   tr.usado = leerLado().contexto ?? 0;
   let error: string | null = null;
   try {
+    refrescarClave();
     await asegurar();
     let enviado = { texto: faltaPrefacio ? conPrefacio(m.texto, previo) : m.texto, imagenes: m.imagenes };
     faltaPrefacio = false;
@@ -539,7 +639,7 @@ async function turno(m: Mensaje) {
       break;
     }
   } catch (e) {
-    error = interrumpido ? null : String((e as Error)?.message ?? e).slice(0, 600);
+    error = interrumpido ? null : textoDeError(e);
   }
   actual = null;
   const ultimo = tr;

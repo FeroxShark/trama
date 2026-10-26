@@ -96,6 +96,8 @@ export const RUTAS: Readonly<Record<string, Ruta>> = {
   "dsh:instalar": "local",
   "dsh:clave": "local",
   "dsh:probar": "local",
+  "opencode:estado": "local",
+  "opencode:actualizar": "local",
   "leidos:leer": "local",
   "leidos:marcar": "local",
   "nombres:leer": "local",

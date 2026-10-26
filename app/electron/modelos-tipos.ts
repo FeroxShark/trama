@@ -126,6 +126,8 @@ export const DESTRABAR_MODELOS: readonly string[] = [...new Set([...GEMINI, ...A
 export const esOllama = (m: string) => m.startsWith("ollama:");
 /** `dsh:<proveedor>/<modelo>` (DeepSeek Harness; electron/dsh.ts lo parsea de verdad): acá sólo la forma, este archivo no importa Node. */
 export const esDsh = (m: string) => /^dsh:(?:ollama|opencode|deepseek)\/\S+$/.test(m);
+/** `opencode:<proveedor>/<modelo>` (el programa `opencode`; electron/opencode.ts lo parsea de verdad). */
+export const esOpencode = (m: string) => /^opencode:[A-Za-z0-9][\w.-]*\/\S+$/.test(m);
 /** Un id con forma de id (va a un archivo y a una línea de comandos): sin espacios ni comillas. */
 const FORMA_ID = /^[A-Za-z0-9][\w.:/[\]-]{0,120}$/;
 
@@ -180,7 +182,7 @@ export function leerConfig(j: Record<string, unknown>): ConfigModelos {
 function validarEleccion(x: unknown, donde: string, locales: Local[]): Eleccion {
   if (!esObj(x)) throw errorT("main.modelosForma");
   const m = x.modelo;
-  if (typeof m !== "string" || !FORMA_ID.test(m) || !(esClaude(m) || esGemini(m) || esAgy(m) || esOllama(m) || esDsh(m))) throw errorT("main.modelosModelo", { donde, v: String(m).slice(0, 60) });
+  if (typeof m !== "string" || !FORMA_ID.test(m) || !(esClaude(m) || esGemini(m) || esAgy(m) || esOllama(m) || esDsh(m) || esOpencode(m))) throw errorT("main.modelosModelo", { donde, v: String(m).slice(0, 60) });
   if (esOllama(m) && !locales.some((l) => l.id === m)) throw errorT("main.modelosLocalFalta", { donde, v: m.slice(0, 60) });
   const e: Eleccion = { modelo: m };
   if (x.effort !== undefined && x.effort !== null && x.effort !== "") {

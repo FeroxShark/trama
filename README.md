@@ -15,9 +15,9 @@ Tiene dos partes:
 - Claude Code (`claude`) con tu cuenta, o `agy` (Gemini) con la tuya.
 - Git. El instalador de Linux baja Node.js 22 o más nuevo, `claude` y `agy` si faltan.
 - Opcional: [Ollama](https://ollama.com), para modelos locales.
+- Opcional: `opencode` (`npm i -g opencode-ai`), para líderes y workers con los modelos gratis de OpenCode.
 - Opcional: `dsh` (DeepSeek Harness, `npm i -g --prefix ~/.local @deepseek-ai/dsh`; el instalador de Linux lo baja si hay
-  `npm`), para workers con modelos gratis de OpenCode u Ollama, o con DeepSeek. Ver
-  [Usar Trama gratis](#usar-trama-gratis-opencode--ollama).
+  `npm`), para modelos de Ollama o DeepSeek. Ver [Usar Trama gratis](#usar-trama-gratis-opencode--ollama).
 
 ## Instalar en Windows 11
 
@@ -157,46 +157,56 @@ Para fijar el modelo por tipo de tarea, o para usar modelos locales de Ollama, e
   en `default`. Si querés que `workers` se respete, poné `"reparto": "fijo"`.
 - `ollama:<modelo>` usa el servidor de `url` (por default `http://localhost:11434`). Las variables de
   Ollama se pasan sólo al proceso de ese worker.
-- `dsh:<proveedor>/<modelo>` (`dsh:opencode/big-pickle`, `dsh:ollama/qwen3-coder:30b`,
-  `dsh:deepseek/deepseek-v4-flash`) también vale en `workers.<tipo>.modelo` y en `lider`. Sin `effort`.
+- `dsh:<proveedor>/<modelo>` (`dsh:ollama/qwen3-coder:30b`, `dsh:deepseek/deepseek-v4-flash`) y
+  `opencode:<proveedor>/<modelo>` (`opencode:opencode/deepseek-v4.1-flash-free`; la lista sale de
+  `opencode models`) también valen en `workers.<tipo>.modelo` y en `lider`. Sin `effort`.
 - `calidad` pisa la calidad (0 a 100) con la que `reparto` pesa cada modelo, por ejemplo
-  `"calidad": {"dsh:opencode/glm-5.3-flash-free": 55, "dsh:ollama/*": 40}`.
+  `"calidad": {"opencode:opencode/glm-5.3-flash-free": 55, "dsh:ollama/*": 40}`.
 - Si el archivo no valida, `pa` lo avisa en una línea y sigue con los modelos de fábrica.
 - `pa --modelos` muestra qué modelo y effort va a usar cada tipo (y qué elegiría `reparto` hoy).
 
 ## Usar Trama gratis (OpenCode / Ollama)
 
-Con `dsh` los workers pueden correr con modelos que no cuestan nada, sin Claude, Gemini ni ChatGPT:
+Hay dos caminos, los dos sin Claude, Gemini ni ChatGPT. Sirven para líderes (el chat de la app) y para workers (`pa`).
+
+**Modelos gratis de OpenCode: por el programa `opencode`.** OpenCode (opencode.ai) regala modelos como
+`deepseek-v4.1-flash-free`, `glm-5.3-flash-free`, `nemotron-3-ultra-free` o `big-pickle`, pero sólo los deja usar
+desde su propio programa, con tu cuenta de OpenCode Console: desde cualquier otro cliente (aun con tu key) contestan
+`429 Free usage limit reached`. Por eso Trama no los llama: lanza `opencode` y le deja el login y el modelo.
+
+1. **Instalá opencode:** `npm i -g opencode-ai` (o el instalador de opencode.ai).
+2. **Conectate:** corré `opencode`, escribí `/connect` y elegí **OpenCode Console**. Se hace una vez; Trama usa ese login.
+3. **Usalo.** En la app, el selector de modelos tiene la empresa **OpenCode** con los modelos de `opencode models` (los
+   gratis primero y marcados «Gratis»; **Ajustes > DeepSeek Harness > El programa opencode** muestra si está instalado y
+   conectado, y **Actualizar modelos** vuelve a listarlos). En `pa`:
+   ```bash
+   pa miproyecto -m opencode:opencode/deepseek-v4.1-flash-free "arreglá el parseo de fechas"
+   pa --modelos        # los modelos de opencode y de dsh, cuáles andan y cuáles son gratis
+   ```
+   El id es `opencode:` más lo que imprime `opencode models` (`<proveedor>/<modelo>`). Sin `-m`, si no tenés Claude,
+   Gemini ni ChatGPT, `reparto` asigna solo el mejor modelo gratis de opencode (grupo `opencode-free`); con Claude
+   instalado, sólo los usa para lo que no pide más calidad de la que tienen: se ajusta con `calidad` en `modelos.json`.
+
+**Ollama (tu máquina) y DeepSeek: por `dsh`.**
 
 1. **Instalá dsh.** El instalador de Linux lo hace solo si tenés `npm`; a mano:
    `npm i -g --prefix ~/.local @deepseek-ai/dsh` (con `--prefix ~/.local` no hace falta `sudo`).
    `trama-estado --json` dice si quedó (`dsh.instalado`).
 2. **Elegí de dónde salen los modelos:**
-   - **OpenCode** (nube, gratis): creá una key en la consola de OpenCode (OpenCode Console). Los modelos
-     gratis (`big-pickle`, `deepseek-v4.1-flash-free`, `glm-5.3-flash-free`, `flint-40b-free`,
-     `longcat-2.5-preview-free`) cuestan US$ 0. Guardala en **Ajustes > Modelos** de la app, o en
-     `~/.config/trama/claves.env` (modo `0600`), una línea por key:
-     ```
-     OPENCODE_API_KEY=tu-key
-     DEEPSEEK_API_KEY=tu-key-de-deepseek   # sólo si querés DeepSeek, que sí se paga
-     ```
-   - **Ollama** (tu máquina): corré `ollama serve` y bajá un modelo (`ollama pull qwen3-coder:30b`). Sin
-     key. Si Ollama está en otra máquina, `OLLAMA_HOST=http://otra:11434` o un `locales` en `modelos.json`.
+   - **Ollama:** corré `ollama serve` y bajá un modelo (`ollama pull qwen3-coder:30b`). Sin key. Si Ollama está en
+     otra máquina, `OLLAMA_HOST=http://otra:11434` o un `locales` en `modelos.json`.
+   - **DeepSeek** (se paga): guardá tu key en **Ajustes > DeepSeek Harness**, o en `~/.config/trama/claves.env`
+     (modo `0600`): `DEEPSEEK_API_KEY=tu-key`. La key de OpenCode de esa misma pantalla es sólo para sus modelos de
+     pago a través de dsh; los gratis no la usan.
 3. **Usalo:**
    ```bash
-   pa miproyecto -m dsh:opencode/glm-5.3-flash-free "arreglá el parseo de fechas"
    pa miproyecto -m dsh:ollama/qwen3-coder:30b --tipo mecanico "renombrá la función vieja"
-   pa --modelos        # los modelos de dsh, cuáles andan y cuáles son gratis
    ```
-   Sin `-m`, si no tenés Claude, Gemini ni ChatGPT, `reparto` asigna solo el mejor modelo gratis de dsh que
-   ande (las keys en `claves.env` o en el entorno; Ollama respondiendo). Con Claude instalado, `reparto`
-   sólo los usa para lo que no pide más calidad de la que tienen: la calidad de cada uno se ajusta con
-   `calidad` en `modelos.json`.
 
-Para saber: los modelos gratis de la nube son más chicos y menos pulidos que Claude o Gemini. Lo que
-mandás a OpenCode o a DeepSeek sale de tu máquina (pa no manda el `CLAUDE.md` personal ni la ficha del
-proyecto, ni nada si el pedido o el repo parecen traer secretos); con Ollama todo queda local. Un worker
-de dsh no retoma sesiones (`--seguir`), ni `--leer`, `--mcp`, `--aca` ni `--max-budget-usd`.
+Para saber: los modelos gratis de la nube son más chicos y menos pulidos que Claude o Gemini. Lo que mandás a
+OpenCode o a DeepSeek sale de tu máquina (pa no manda el `CLAUDE.md` personal ni la ficha del proyecto, ni nada si
+el pedido o el repo parecen traer secretos); con Ollama todo queda local. Un worker de dsh o de opencode no retoma
+sesiones (`--seguir`), ni `--leer`, `--mcp`, `--aca` ni `--max-budget-usd`.
 
 ## Correr el motor sin WSL
 

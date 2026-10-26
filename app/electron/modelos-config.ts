@@ -188,17 +188,17 @@ export type ModelosConfig = {
 };
 
 /** Qué clase de líder es un modelo: el `claude` de siempre, `agy` (Gemini), Ollama (el mismo `claude` contra otro endpoint) o `dsh` (DeepSeek Harness, `dsh:<proveedor>/<modelo>`). */
-export type Clase = "claude" | "gemini" | "ollama" | "dsh";
+export type Clase = "claude" | "gemini" | "ollama" | "dsh" | "opencode";
 
 export const claseDeModelo = (modelo: string): Clase =>
-  modelo.startsWith("dsh:") ? "dsh" : modelo.startsWith("ollama:") ? "ollama" : /^(?:gemini-|agy:)/.test(modelo) ? "gemini" : "claude";
+  modelo.startsWith("dsh:") ? "dsh" : modelo.startsWith("opencode:") ? "opencode" : modelo.startsWith("ollama:") ? "ollama" : /^(?:gemini-|agy:)/.test(modelo) ? "gemini" : "claude";
 
 /**
  * El proceso que corre un líder: Gemini y dsh tienen puente propio y no cruzan con `claude` (ni entre sí) en la misma sesión;
  * `claude` y Ollama son el mismo `claude`. Cambiar de familia en una sesión no se puede (otro transcript, otro motor); dentro de
  * la misma, cambiar de modelo sí (dsh y Gemini relanzan su puente).
  */
-export const familiaDeModelo = (modelo: string): "claude" | "gemini" | "dsh" => {
+export const familiaDeModelo = (modelo: string): "claude" | "gemini" | "dsh" | "opencode" => {
   const c = claseDeModelo(modelo);
   return c === "ollama" ? "claude" : c;
 };
@@ -278,12 +278,14 @@ export const localOllama = (id: string, cfg: ModelosConfig | null = modelosConfi
  * Lo que sabe el renderer: sin url ni nada que no sea para mostrar (`src/datos/modelos-config.ts`). Gemini está si el archivo
  * lo habilita o es el líder por defecto. `null`: no hay archivo y todo es como siempre (ni `agy`, ni `dsh`, ni modelos locales).
  */
-export function vistaModelos(cfg: ModelosConfig | null = modelosConfig(), agy = false, llama: { id: string; nombre: string; empresa: string }[] = [], dsh = false) {
-  if (!cfg) return agy || llama.length || dsh ? { version: 1, gemini: agy, dsh, locales: [], llama, lider: null } : null;
+export function vistaModelos(cfg: ModelosConfig | null = modelosConfig(), agy = false, llama: { id: string; nombre: string; empresa: string }[] = [], dsh = false, opencode: string[] = []) {
+  if (!cfg) return agy || llama.length || dsh || opencode.length ? { version: 1, gemini: agy, dsh, ...(opencode.length ? { opencode } : {}), locales: [], llama, lider: null } : null;
   return {
     version: 1,
     // DeepSeek Harness se ofrece si `dsh` está instalado o ya es el líder por defecto.
     dsh: dsh || (cfg.lider !== null && claseDeModelo(cfg.lider.modelo) === "dsh"),
+    // Los modelos de `opencode models` (con el programa instalado), `opencode/…` sin el prefijo de Trama.
+    ...(opencode.length ? { opencode } : {}),
     gemini: agy || cfg.gemini || (cfg.lider !== null && claseDeModelo(cfg.lider.modelo) === "gemini"),
     locales: cfg.locales.map((l) => ({ id: l.id, nombre: l.nombre, modelo: l.modelo })),
     llama,

@@ -8,6 +8,7 @@
 #  "claude":{"instalado":bool,"logueado":bool},
 #  "agy":{"instalado":bool,"logueado":bool},
 #  "dsh":{"instalado":bool,"version":str|null,"ruta":str|null,"claves":{"opencode":bool,"deepseek":bool}},
+#  "opencode":{"instalado":bool,"version":str|null,"ruta":str|null,"logueado":bool},
 #  "ollama":{"url":str,"responde":bool,"modelos":[str]},
 #  "motor":{"vivo":bool,"url":str}}   (+ "proceso":bool, extra: el proceso existe aunque no atienda HTTP)
 #
@@ -116,6 +117,27 @@ def dsh():
     return {"instalado": True, "version": version, "ruta": ruta, "claves": claves}
 
 
+def opencode():
+    """El programa opencode (sus modelos gratis sólo andan por él). `logueado`: hay credenciales en $XDG_DATA_HOME/opencode/auth.json (sólo se mira si existen, nunca su valor)."""
+    ruta = os.environ.get("HILOS_OPENCODE")
+    if ruta:
+        ruta = ruta if os.path.isfile(ruta) and os.access(ruta, os.X_OK) else None
+    else:
+        ruta = en_path("opencode", [os.path.join(HOME, ".opencode", "bin"), os.path.join(HOME, ".local", "bin")] + dirs_dsh())
+    if not ruta:
+        return {"instalado": False, "version": None, "ruta": None, "logueado": False}
+    rc, out = salida([ruta, "--version"], 15)
+    version = out.strip().splitlines()[0][:40] if rc == 0 and out.strip() else None
+    auth = os.path.join(os.environ.get("XDG_DATA_HOME") or os.path.join(HOME, ".local", "share"), "opencode", "auth.json")
+    try:
+        with open(auth, encoding="utf-8") as f:
+            j = json.load(f)
+        logueado = isinstance(j, dict) and len(j) > 0
+    except Exception:
+        logueado = False
+    return {"instalado": True, "version": version, "ruta": ruta, "logueado": logueado}
+
+
 def modelos_json():
     ruta = os.environ.get("TRAMA_MODELOS") or os.path.join(os.environ.get("XDG_CONFIG_HOME") or os.path.join(HOME, ".config"), "trama", "modelos.json")
     try:
@@ -172,7 +194,7 @@ def motor():
 
 
 def main():
-    est = {"version": 1, "claude": claude(), "agy": agy(), "dsh": dsh(), "ollama": ollama(), "motor": motor()}
+    est = {"version": 1, "claude": claude(), "agy": agy(), "dsh": dsh(), "opencode": opencode(), "ollama": ollama(), "motor": motor()}
     if "--json" in sys.argv[1:]:
         print(json.dumps(est, ensure_ascii=False))
         return 0
@@ -182,6 +204,8 @@ def main():
     d = est["dsh"]
     print("dsh      instalado: %s%s · keys: OpenCode %s, DeepSeek %s" % (
         si(d["instalado"]), " (%s)" % d["version"] if d["version"] else "", si(d["claves"]["opencode"]), si(d["claves"]["deepseek"])))
+    oc = est["opencode"]
+    print("opencode instalado: %s%s · sesión: %s" % (si(oc["instalado"]), " (%s)" % oc["version"] if oc["version"] else "", si(oc["logueado"])))
     o = est["ollama"]
     print("ollama   %s · responde: %s · modelos: %s" % (o["url"], si(o["responde"]), ", ".join(o["modelos"]) or "ninguno"))
     print("motor    %s · vivo: %s" % (est["motor"]["url"], si(est["motor"]["vivo"])))
@@ -194,5 +218,6 @@ if __name__ == "__main__":
     except Exception as e:  # el contrato: sale 0 siempre que pueda imprimir
         print(json.dumps({"version": 1, "claude": {"instalado": False, "logueado": False}, "agy": {"instalado": False, "logueado": False},
                           "dsh": {"instalado": False, "version": None, "ruta": None, "claves": {"opencode": False, "deepseek": False}},
+                          "opencode": {"instalado": False, "version": None, "ruta": None, "logueado": False},
                           "ollama": {"url": "", "responde": False, "modelos": []}, "motor": {"vivo": False, "url": "", "proceso": False}, "error": str(e)}))
         sys.exit(0)

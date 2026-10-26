@@ -59,6 +59,7 @@ import { resolverPa } from "./binario.ts";
 import { matarArbol } from "./procesos.ts";
 import { claseDeModelo, familiaDeModelo, idAgy, localDeModelo, localOllama, partirGemini, type Clase } from "./modelos-config.js";
 import { parsearModelo } from "./dsh.ts";
+import { parsearModelo as parsearOpencode } from "./opencode.ts";
 import { pedidoDe } from "./cache.ts";
 import { convDe } from "./conv-cache.ts";
 import { guardada, igual, juntar, lecturaDe, oficialDe, type Lectura } from "./uso.ts";
@@ -425,6 +426,11 @@ async function extraDe(modelo: string, cwd: string | undefined): Promise<Extra> 
     const url = d.proveedor === "ollama" ? localDeModelo(d.modelo)?.url : undefined;
     return { prefacio, ...(url ? { dshUrl: `${url.replace(/\/+$/, "")}/v1` } : {}) };
   }
+  if (clase === "opencode") {
+    // Mismo puente que dsh (dsh-puente.ts, con `opencode acp` por detrás); opencode tampoco lee CLAUDE.md de Trama: el prefacio va por el entorno.
+    if (!parsearOpencode(modelo)) throw errorT("main.opencodeModelo", { v: modelo.slice(0, 80) });
+    return { prefacio: await prefacioDsh({ home: HOME, cwd, pa: resolverPa(process.env, HOME) }).catch((e) => (silencio("contexto-opencode")(e), "")) };
+  }
   return {};
 }
 
@@ -444,9 +450,16 @@ function lanzar(g: Guardado, resume: boolean, local?: Local, extra: Extra = {}):
   const base = opcionesLider(process.env, HOME, g.cwd, local && { modelo: g.modelo, effort: g.effort, local }, extra.ollama) as { cwd: string; env: NodeJS.ProcessEnv };
   // Su propio grupo (setsid): lo que el líder deja corriendo desde sus herramientas (un `qs`, un watcher) se barre al salir.
   const opciones = { ...base, stdio: ["pipe", "pipe", "pipe"] as ["pipe", "pipe", "pipe"], detached: true, windowsHide: true };
-  const bin = clase === "gemini" ? "agy" : clase === "dsh" ? "dsh" : path.basename(CLAUDE);
+  const bin = clase === "gemini" ? "agy" : clase === "dsh" ? "dsh" : clase === "opencode" ? "opencode" : path.basename(CLAUDE);
   const p =
-    clase === "dsh"
+    clase === "opencode"
+      ? spawn(
+          process.execPath,
+          [PUENTE_DSH, "--sid", g.sid, "--nombre", g.nombre, "--modelo", g.modelo, "--cwd", base.cwd],
+          // Sin las keys de dsh: opencode usa su propio login (el de la persona). El prefacio va por el entorno.
+          { ...opciones, env: { ...base.env, ELECTRON_RUN_AS_NODE: "1", TRAMA_DSH_PREFACIO: extra.prefacio ?? "" } },
+        )
+      : clase === "dsh"
       ? spawn(
           process.execPath,
           [PUENTE_DSH, "--sid", g.sid, "--nombre", g.nombre, "--modelo", g.modelo, "--cwd", base.cwd],
@@ -888,7 +901,7 @@ export async function mandarDirecto(x: { sid: string; texto: string; imagenes?: 
   const texto = textoDe(x.texto, imagenes);
   p.directos.push(texto.trim());
   // El puente de Gemini lo entrega en el próximo límite de paso de agy (corta a agy y sigue en la misma conversación) y devuelve el eco.
-  p.p.stdin!.write(lineaUsuario(texto, imagenes, p.clase === "gemini" || p.clase === "dsh"));
+  p.p.stdin!.write(lineaUsuario(texto, imagenes, p.clase === "gemini" || p.clase === "dsh" || p.clase === "opencode"));
 }
 
 /**
@@ -1193,7 +1206,7 @@ async function anotar(
   }
   const t = await transcriptDe(sid);
   if (!t) return { ok: false, motivo: "sinSesion" };
-  const deLaFamilia = t === transcriptGemini(sid) ? "gemini" : t === transcriptDsh(sid) ? "dsh" : "claude";
+  const deLaFamilia = t === transcriptGemini(sid) ? "gemini" : t === transcriptDsh(sid) ? "dsh" : t === transcriptOpencode(sid) ? "opencode" : "claude";
   if (deLaFamilia !== familiaDeModelo(x.modelo)) throw errorT("main.cambioProveedor");
   const f = await open(t, "r").catch(() => null);
   if (!f) return { ok: false, motivo: "sinSesion" };
@@ -1491,6 +1504,8 @@ export async function transcriptDe(sid: string, cwd?: string): Promise<string | 
   // Y uno de dsh, el suyo (dsh-puente.ts), igual de aparte.
   const dsh = transcriptDsh(sid);
   if (await hay(dsh)) return dsh;
+  const opencode = transcriptOpencode(sid);
+  if (await hay(opencode)) return opencode;
   for (const d of await readdir(PROYECTOS).catch(() => [] as string[])) {
     const f = path.join(PROYECTOS, d, `${sid}.jsonl`);
     if (await hay(f)) return f;
@@ -1503,6 +1518,9 @@ export const transcriptGemini = (sid: string) => path.join(ESTADO, "gemini", `${
 
 /** El transcript de un líder de DeepSeek Harness (lo escribe su puente): `$HILOS_STATE/dsh/<sid>.jsonl`. */
 export const transcriptDsh = (sid: string) => path.join(ESTADO, "dsh", `${sid}.jsonl`);
+
+/** El transcript de un líder de opencode (lo escribe el mismo puente que el de dsh): `$HILOS_STATE/opencode/<sid>.jsonl`. */
+export const transcriptOpencode = (sid: string) => path.join(ESTADO, "opencode", `${sid}.jsonl`);
 
 /** Dónde va a estar el transcript de un líder de la app (antes de su primer turno no existe). */
 export const transcriptPorDefecto = (sid: string) => path.join(PROYECTOS, dirProyecto(HOME), `${sid}.jsonl`);

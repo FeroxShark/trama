@@ -37,7 +37,10 @@
 #                                        ollama:<modelo> (sin effort; servidor caído o sin el modelo → sale 95) y
 #                                        dsh:{ollama,opencode,deepseek}/<modelo> (DeepSeek Harness: modelos gratis de OpenCode u
 #                                        Ollama, o DeepSeek; sin effort; keys en el entorno o en ~/.config/trama/claves.env;
-#                                        dsh sin instalar, sin key o Ollama caído → sale 95)
+#                                        dsh sin instalar, sin key o Ollama caído → sale 95) y
+#                                        opencode:<proveedor>/<modelo> (el programa opencode: sus modelos gratis, p. ej.
+#                                        opencode:opencode/deepseek-v4.1-flash-free, sólo andan por él con tu login de
+#                                        OpenCode Console; sin effort; opencode sin instalar → sale 95)
 #   pa --modelos [--json]                tabla efectiva tipo → modelo (de dónde salió y qué elige reparto hoy), Gemini y locales
 #   pa --cupo-gemini [--json]            cupo de cada suscripción (Claude oficial y Google AI Pro/agy; alias de reparto --cupos)
 #   pa <proyecto> --effort medium "<t>"  esfuerzo del worker (o env PA_EFFORT). haiku low..max (default xhigh);
@@ -3587,7 +3590,10 @@ codex_a_json() {   # $1 = jsonl de codex, $2 = stderr, $3 = modelo de pa, $4 = r
 DSH_MODELOS='dsh:(ollama|opencode|deepseek)/[^[:space:]]+'
 DSH_CORRER="${PA_DSH_CORRER:-$(dirname "$_BIN")/dsh/correr.mjs}"
 CLAVES_ENV="${TRAMA_CLAVES:-${XDG_CONFIG_HOME:-$HOME/.config}/trama/claves.env}"
-es_dsh() { [[ "${1,,}" == dsh:* ]]; }
+# `es_dsh` cubre a los dos programas que corren por un runner node con stream NDJSON y sin effort (motor=dsh): dsh y opencode.
+# Lo que cambia entre ellos se decide con `es_opencode` (chequeo, runner, catálogo).
+es_opencode() { [[ "${1,,}" == opencode:* ]]; }
+es_dsh() { [[ "${1,,}" == dsh:* || "${1,,}" == opencode:* ]]; }
 dsh_proveedor() { local r="${1#*:}"; echo "${r%%/*}"; }   # dsh:opencode/big-pickle -> opencode
 dsh_modelo_de() { local r="${1#*:}"; echo "${r#*/}"; }    # dsh:opencode/big-pickle -> big-pickle
 # opencode: gratis son big-pickle y los *-free; el resto se cobra de la key.
@@ -3629,9 +3635,10 @@ dsh_bin() {
   return 0
 }
 # Privacidad, node, dsh, la key y (ollama) el servidor y el modelo -> motivo_cae (vacío = va).
-dsh_chequear() {   # $1 = modelo dsh:…
+dsh_chequear() {   # $1 = modelo dsh:… (u opencode:…, que va por opencode_chequear)
   local prov mod ruta_d url
   motivo_cae=""
+  if es_opencode "$1"; then opencode_chequear "$1"; return 0; fi
   prov="$(dsh_proveedor "$1")"; mod="$(dsh_modelo_de "$1")"
   if [[ "$prov" != ollama ]]; then
     ruta_d="$(proyecto-ruta "$proyecto" 2>/dev/null || true)"
@@ -3656,17 +3663,14 @@ dsh_chequear() {   # $1 = modelo dsh:…
   return 0
 }
 # Los modelos que pa conoce de dsh: los gratis de OpenCode, el de DeepSeek y lo que Ollama tiene bajado.
-DSH_OPENCODE_GRATIS="big-pickle deepseek-v4.1-flash-free glm-5.3-flash-free flint-40b-free longcat-2.5-preview-free"
 DSH_DEEPSEEK_MODELOS="deepseek-v4-flash"
 dsh_catalogo() {   # -> una línea por modelo: id<TAB>gratis(1|0)<TAB>disponible(1|0)<TAB>detalle
   local m ok ruta k t url inst
   inst="$(dsh_bin)"
   ruta="no está instalado dsh"; [[ -n "$inst" ]] && ruta=""
   k=0; [[ -n "$(dsh_clave OPENCODE_API_KEY)" ]] && k=1
-  for m in $DSH_OPENCODE_GRATIS; do
-    ok=0; [[ -z "$ruta" ]] && ok=1
-    printf 'dsh:opencode/%s\t1\t%s\t%s\n' "$m" "$ok" "${ruta:-$( ((k)) && echo 'con tu key de OpenCode' || echo 'sin key propia (OPENCODE_API_KEY da más cupo)')}"
-  done
+  # Los gratis de OpenCode ya no se ofrecen por dsh: OpenCode los rechaza (429 FreeUsageLimitError) desde cualquier programa que no
+  # sea `opencode`, aun con la key propia. Van por opencode:opencode/<modelo>. `dsh:opencode/<modelo>` sigue andando para los de pago.
   k=0; [[ -n "$(dsh_clave DEEPSEEK_API_KEY)" ]] && k=1
   for m in $DSH_DEEPSEEK_MODELOS; do
     ok=0; [[ -z "$ruta" ]] && (( k )) && ok=1
@@ -3679,18 +3683,68 @@ dsh_catalogo() {   # -> una línea por modelo: id<TAB>gratis(1|0)<TAB>disponible
     done
   fi
 }
+# --- workers por opencode (el programa `opencode`: sus modelos gratis sólo andan dentro de él) --------------
+# `pa <proy> -m opencode:<proveedor>/<modelo>` corre `motor/opencode/correr.mjs`, que lanza `opencode run --format json -m <proveedor>/<modelo>`
+# en el worktree y deja el stream y el .json con la forma de codex_a_json. Los modelos son los que imprime `opencode models`; los gratis
+# (`opencode/*-free` y `opencode/big-pickle`) usan el login de OpenCode Console de la persona (`opencode` → /connect), no una key de pa.
+# Mismas restricciones que dsh (sin effort, --seguir, --aca, --mcp, --leer ni --max-budget-usd) y misma privacidad que Gemini: es remoto, así
+# que no recibe la ficha ni el CLAUDE.md del dueño y vale el mismo candado de secretos.
+OC_MODELOS='opencode:[A-Za-z0-9][A-Za-z0-9._-]*/[^[:space:]]+'
+OC_CORRER="${PA_OPENCODE_CORRER:-$(dirname "$_BIN")/opencode/correr.mjs}"
+OC_GRATIS_CONOCIDOS="big-pickle beam-free deepseek-v4.1-flash-free flint-40b-free glm-5.3-flash-free mimo-v2.6-flash-free minimax-m3.1-flash-free nemotron-3-ultra-free nemotron-3.5-lightning-free nemotron-3.5-super-vl-free"
+# El binario opencode: HILOS_OPENCODE, el PATH, ~/.opencode/bin (su instalador), ~/.local/bin, el prefijo global de npm. Vacío si no está.
+opencode_bin() {
+  local d c
+  if [[ -n "${HILOS_OPENCODE:-}" ]]; then [[ -x "$HILOS_OPENCODE" ]] && echo "$HILOS_OPENCODE"; return 0; fi
+  c="$(command -v opencode 2>/dev/null || true)"
+  [[ -z "$c" ]] && for d in "$HOME/.opencode/bin" "$HOME/.local/bin" "${npm_config_prefix:+$npm_config_prefix/bin}" "$HOME/.npm-global/bin" /usr/local/bin; do
+    [[ -n "$d" && -x "$d/opencode" ]] && { c="$d/opencode"; break; }
+  done
+  [[ -n "$c" ]] && echo "$c"
+  return 0
+}
+opencode_gratis() {   # $1 = id de pa (opencode:<prov>/<modelo>) -> 0 si es gratis
+  local v="${1#opencode:}"
+  [[ "$v" == opencode/big-pickle || "$v" == *-free ]]
+}
+# Privacidad, node, opencode -> motivo_cae (vacío = va). El login no se mira (no hay forma barata): un 429 lo cuenta después.
+opencode_chequear() {   # $1 = modelo opencode:…
+  local ruta_d
+  motivo_cae=""
+  if [[ ! "$1" =~ ^($OC_MODELOS)$ ]]; then motivo_cae="'$1' no es un modelo de opencode (opencode:<proveedor>/<modelo>)"; return 0; fi
+  ruta_d="$(proyecto-ruta "$proyecto" 2>/dev/null || true)"
+  [[ -n "$ruta_d" ]] && motivo_cae="$(gemini_privacidad "$(realpath -m "$ruta_d")" "$tarea")"
+  [[ -n "$motivo_cae" ]] && { motivo_cae="${motivo_cae/no se manda a Google/no se manda a OpenCode}"; return 0; }
+  command -v node >/dev/null 2>&1 || { motivo_cae="node no está en el PATH (opencode lo necesita)"; return 0; }
+  [[ -f "$OC_CORRER" ]] || { motivo_cae="falta $OC_CORRER"; return 0; }
+  [[ -n "$(opencode_bin)" ]] || motivo_cae="opencode no está instalado (npm i -g opencode-ai; después \`opencode\` → /connect → OpenCode Console para los gratis)"
+  return 0
+}
+# Los modelos gratis que pa conoce de opencode: los que lista `opencode models` (a mano, sin caché) o, si no contesta, los conocidos.
+opencode_catalogo() {   # -> una línea por modelo: id<TAB>gratis(1|0)<TAB>disponible(1|0)<TAB>detalle
+  local inst m lista="" ok detalle
+  inst="$(opencode_bin)"
+  if [[ -n "$inst" ]]; then
+    lista="$(timeout 10 "$inst" models 2>/dev/null </dev/null | sed 's/\x1b\[[0-9;]*[A-Za-z]//g' | grep -E '^opencode/(big-pickle|[^[:space:]]*-free)$' | sed 's|^opencode/||' | tr '\n' ' ' || true)"
+  fi
+  [[ -n "${lista// /}" ]] || lista="$OC_GRATIS_CONOCIDOS"
+  ok=0; detalle="no está instalado opencode"
+  [[ -n "$inst" ]] && { ok=1; detalle="con tu login de OpenCode Console (opencode → /connect)"; }
+  for m in $lista; do printf 'opencode:opencode/%s\t1\t%s\t%s\n' "$m" "$ok" "$detalle"; done
+}
 # El latido de un worker de dsh (no tiene hooks): lo escribe pa cada PA_DSH_LATIDO_S mientras vive, con la última
 # herramienta o texto del stream.
 dsh_latido() {
   local d
   d="$(tail -n 8 "$transcript" 2>/dev/null | jq -rs '[.[] | objects
         | if .type == "tool_call" then "\(.tool // "") \(.input.command? // .input.file_path? // .input.path? // .input.pattern? // "")"
-          elif .type == "text" then (.text // "")
-          elif .type == "thinking" then "pensando"
+          elif .type == "tool_use" then "\(.part.tool? // "") \(.part.state.input.command? // .part.state.input.filePath? // .part.state.input.path? // .part.state.input.pattern? // "")"
+          elif .type == "text" then (.text // .part.text // "")
+          elif .type == "thinking" or .type == "reasoning" then "pensando"
           else empty end | tostring] | last // ""' 2>/dev/null)"
   {
     printf 'epoch=%s\n' "$(date +%s)"
-    printf 'tool=%s\n' dsh
+    printf 'tool=%s\n' "$(es_opencode "$modelo" && echo opencode || echo dsh)"
     printf 'envuelo=1\n'
     printf 'desc=%s\n' "$(printf '%s' "$d" | tr '\n\r\t' '   ' | cut -c1-160)"
   } >"$hb.tmp" 2>/dev/null && mv -f "$hb.tmp" "$hb" 2>/dev/null
@@ -3709,12 +3763,12 @@ modelos_cargar() {   # 0 si hay un modelos.json válido (lo deja en MODELOS_TXT)
     if [[ -f "$MODELOS_JSON" ]]; then
       local txt err
       txt="$(cat "$MODELOS_JSON" 2>/dev/null)"
-      err="$(jq -r --arg tipos "default|$TIPOS_VALIDOS" --arg gem "$GEMINI_MODELOS" --arg cod "$CODEX_MODELOS" --arg dsh "$DSH_MODELOS" '
+      err="$(jq -r --arg tipos "default|$TIPOS_VALIDOS" --arg gem "$GEMINI_MODELOS" --arg cod "$CODEX_MODELOS" --arg dsh "$DSH_MODELOS" --arg oc "$OC_MODELOS" '
         def efok: . == null or (type == "string" and test("^(low|medium|high|xhigh|max)$"));
         . as $c |
         (if ($c | type) == "object" and ($c.locales | type) == "array" then $c.locales else [] end) as $L |
         [$L[] | objects | .id | strings] as $ids |
-        def modok: type == "string" and (test("^claude-[a-z0-9][a-z0-9.-]*$") or test("^(\($gem))$") or test("^(\($cod))$") or test("^(\($dsh))$")
+        def modok: type == "string" and (test("^claude-[a-z0-9][a-z0-9.-]*$") or test("^(\($gem))$") or test("^(\($cod))$") or test("^(\($dsh))$") or test("^(\($oc))$")
                    or (startswith("ollama:") and (. as $m | $ids | index([$m]) != null)));
         [ (if ($c | type) != "object" then "no es un objeto JSON" else empty end),
           (if ($c | type) == "object" then (
@@ -3728,7 +3782,7 @@ modelos_cargar() {   # 0 si hay un modelos.json válido (lo deja en MODELOS_TXT)
             (if ($c.workers | type) == "object" then ($c.workers | to_entries[] |
                 (if (.key | test("^(\($tipos))$") | not) then "tipo de worker desconocido: \(.key)" else empty end),
                 (if (.value | type) != "object" or (.value.modelo | modok | not)
-                   then "workers.\(.key): modelo desconocido \(.value.modelo? | tojson) (claude-…, gemini-…, agy:… o codex:… de pa, dsh:<ollama|opencode|deepseek>/<modelo> u ollama:… que esté en locales)" else empty end),
+                   then "workers.\(.key): modelo desconocido \(.value.modelo? | tojson) (claude-…, gemini-…, agy:… o codex:… de pa, dsh:<ollama|opencode|deepseek>/<modelo>, opencode:<proveedor>/<modelo> u ollama:… que esté en locales)" else empty end),
                 (if (.value | type) == "object" and (.value.effort | efok | not) then "workers.\(.key): effort \(.value.effort | tojson) no existe" else empty end))
              else empty end),
             (if $c.reparto != null and ($c.reparto | tostring | test("^(auto|fijo)$") | not)
@@ -3843,7 +3897,7 @@ modelo_de_pa() {   # $1 = tipo -> "modelo<TAB>effort" de pa sin archivo (lo de s
   printf '%s\t%s\n' "$m" "$e"
 }
 cmd_modelos() {
-  local json=0 t r m e k de filas="" locs="" lid="" dshs="" url mod nom est rep_modo rep_t rep_j rep_m rep_e rep_mot
+  local json=0 t r m e k de filas="" locs="" lid="" dshs="" ocs="" url mod nom est rep_modo rep_t rep_j rep_m rep_e rep_mot
   [[ "${1:-}" == --json ]] && json=1
   [[ -n "${1:-}" && "$1" != --json ]] && { echo "uso: pa --modelos [--json]" >&2; return 2; }
   modelos_cargar || true; gemini_politica
@@ -3874,6 +3928,7 @@ cmd_modelos() {
   done
   modelos_cargar && lid="$(jq -r '.lider // empty | [.modelo, (.effort // "")] | join("|")' <<<"$MODELOS_TXT")"
   dshs="$(dsh_catalogo 2>/dev/null || true)"
+  ocs="$(opencode_catalogo 2>/dev/null || true)"
   if modelos_cargar; then
     while IFS=$'\t' read -r k nom url mod; do
       [[ -n "$k" ]] || continue
@@ -3884,11 +3939,11 @@ cmd_modelos() {
   if (( json )); then
     jq -n --arg arch "$MODELOS_JSON" --arg err "$MODELOS_ERR" --arg ok "$( [[ -n "$MODELOS_TXT" ]] && echo 1)" \
           --arg existe "$( [[ -f "$MODELOS_JSON" ]] && echo 1)" --arg rep_modo "$rep_modo" \
-          --arg filas "$filas" --arg locs "$locs" --arg lid "$lid" --arg plan "$PLAN" --arg dshs "$dshs" --arg dsh_ruta "$(dsh_bin)" \
+          --arg filas "$filas" --arg locs "$locs" --arg lid "$lid" --arg plan "$PLAN" --arg dshs "$dshs" --arg dsh_ruta "$(dsh_bin)" --arg ocs "$ocs" --arg oc_ruta "$(opencode_bin)" \
           --argjson excluir "$(modelos_clave excluir | grep . || echo '[]')" --argjson pmax "$( (( PERMITIR_MAX )) && echo true || echo false)" \
           --arg sin_cupo "$SIN_CUPO" --arg sin_cupo_de "$SIN_CUPO_DE" --argjson reserva "$(modelos_clave reserva | grep . || echo null)" '
       def lineas($s): $s | split("\n") | map(select(. != "") | split("\t"));
-      def motor($m): if ($m | startswith("ollama:")) then "ollama" elif ($m | startswith("dsh:")) then "dsh" elif ($m | startswith("codex:")) then "codex" elif (($m | startswith("gemini")) or ($m | startswith("agy:"))) then "agy" else "claude" end;
+      def motor($m): if ($m | startswith("ollama:")) then "ollama" elif ($m | startswith("dsh:")) then "dsh" elif ($m | startswith("opencode:")) then "opencode" elif ($m | startswith("codex:")) then "codex" elif (($m | startswith("gemini")) or ($m | startswith("agy:"))) then "agy" else "claude" end;
       { archivo: $arch, existe: ($existe == "1"), valido: ($ok == "1"), error: (if $err == "" then null else $err end), plan: $plan,
         reparto: $rep_modo,
         excluir: $excluir, permitir_max: $pmax, sin_cupo: $sin_cupo, sin_cupo_de: $sin_cupo_de, reserva: $reserva,
@@ -3897,7 +3952,9 @@ cmd_modelos() {
           + (if (.[4] // "") == "" then {reparto: null} else {reparto: {modelo: .[4], effort: (if (.[5] // "-") == "-" or (.[5] // "") == "" then null else .[5] end), motor: motor(.[4]), motivo: (.[6] // "")}} end))}] | from_entries),
         locales: [lineas($locs)[] | {id: .[0], nombre: .[1], url: .[2], modelo: .[3], responde: (.[4] == "ok"), detalle: (if .[4] == "ok" then null else .[4] end)}],
         dsh: {instalado: ($dsh_ruta != ""), ruta: (if $dsh_ruta == "" then null else $dsh_ruta end),
-              modelos: [lineas($dshs)[] | {id: .[0], gratis: (.[1] == "1"), disponible: (.[2] == "1"), detalle: .[3]}]} }'
+              modelos: [lineas($dshs)[] | {id: .[0], gratis: (.[1] == "1"), disponible: (.[2] == "1"), detalle: .[3]}]},
+        opencode: {instalado: ($oc_ruta != ""), ruta: (if $oc_ruta == "" then null else $oc_ruta end),
+              modelos: [lineas($ocs)[] | {id: .[0], gratis: (.[1] == "1"), disponible: (.[2] == "1"), detalle: .[3]}]} }'
     return 0
   fi
   if [[ -n "$MODELOS_TXT" ]]; then echo "archivo: $MODELOS_JSON"
@@ -3917,6 +3974,12 @@ cmd_modelos() {
     echo "dsh (-m dsh:<proveedor>/<modelo>; las keys van en el entorno o en $CLAVES_ENV):"
     printf '%s\n' "$dshs" | while IFS=$'\t' read -r k nom est mod; do
       printf '  %-44s %s%s\n' "$k" "$( [[ "$est" == 1 ]] && echo disponible || echo 'NO disponible')" "$( [[ "$nom" == 1 ]] && echo ' · gratis')${mod:+ · $mod}"
+    done
+  fi
+  if [[ -n "$ocs" ]]; then
+    echo "opencode (-m opencode:<proveedor>/<modelo>; los gratis usan tu login de OpenCode Console: \`opencode\` → /connect):"
+    printf '%s\n' "$ocs" | while IFS=$'\t' read -r k nom est mod; do
+      printf '  %-52s %s%s\n' "$k" "$( [[ "$est" == 1 ]] && echo disponible || echo 'NO disponible')" "$( [[ "$nom" == 1 ]] && echo ' · gratis')${mod:+ · $mod}"
     done
   fi
   echo "(-m en pa siempre le gana al archivo)"
@@ -4390,24 +4453,35 @@ if (( lanza )) && es_codex "$modelo"; then
     motor=codex
   fi
 fi
-# --- dsh (DeepSeek Harness): modelos gratis de OpenCode u Ollama, o DeepSeek ------------------------
-# dsh:<ollama|opencode|deepseek>/<modelo>. Sin equivalente Claude al que caer: si no va (dsh sin instalar, sin key,
+# --- dsh (DeepSeek Harness: Ollama o DeepSeek) y opencode (el programa: sus modelos gratis) ----------------
+# dsh:<ollama|opencode|deepseek>/<modelo> u opencode:<proveedor>/<modelo> (los dos son motor=dsh: runner node, stream NDJSON, sin effort;
+# `es_opencode` decide lo que cambia). Sin equivalente Claude al que caer: si no va (dsh sin instalar, sin key,
 # Ollama caído, secretos que no deben salir) sale 95 con el motivo; si lo eligió reparto y hay claude, cae a Sonnet.
 dsh_url=""
 if (( lanza )) && es_dsh "$modelo"; then
-  modelo="dsh:$(dsh_proveedor "$modelo" | tr 'A-Z' 'a-z')/$(dsh_modelo_de "$modelo")"
-  if [[ ! "$modelo" =~ ^($DSH_MODELOS)$ ]]; then
-    echo "pa: modelo '$modelo' no va. Los de dsh son dsh:<ollama|opencode|deepseek>/<modelo> (ej. dsh:opencode/big-pickle, dsh:ollama/qwen3-coder:30b)." >&2
-    exit 2
+  eng_n=dsh
+  if es_opencode "$modelo"; then
+    eng_n=opencode
+    modelo="opencode:${modelo#*:}"
+    if [[ ! "$modelo" =~ ^($OC_MODELOS)$ ]]; then
+      echo "pa: modelo '$modelo' no va. Los de opencode son opencode:<proveedor>/<modelo> (ej. opencode:opencode/deepseek-v4.1-flash-free; la lista sale de \`opencode models\`)." >&2
+      exit 2
+    fi
+  else
+    modelo="dsh:$(dsh_proveedor "$modelo" | tr 'A-Z' 'a-z')/$(dsh_modelo_de "$modelo")"
+    if [[ ! "$modelo" =~ ^($DSH_MODELOS)$ ]]; then
+      echo "pa: modelo '$modelo' no va. Los de dsh son dsh:<ollama|opencode|deepseek>/<modelo> (ej. dsh:ollama/qwen3-coder:30b); los gratis de OpenCode van con opencode:opencode/<modelo>." >&2
+      exit 2
+    fi
   fi
-  if (( esfuerzo_flag )); then echo "pa: --effort no va con '$modelo': dsh no tiene effort." >&2; exit 2; fi
+  if (( esfuerzo_flag )); then echo "pa: --effort no va con '$modelo': $eng_n no tiene effort." >&2; exit 2; fi
   esfuerzo=""; unset PA_EFFORT
-  for no_va in "seguir:--seguir (dsh no retoma una sesión de pa)" "aca:--aca/--sucio-mio (un worker de dsh trabaja siempre en su worktree)" "con_mcp:--mcp (los MCP de claude.ai no existen en dsh)" "leer:--leer (dsh no tiene un modo de sólo lectura que alcance al bash)"; do
+  for no_va in "seguir:--seguir ($eng_n no retoma una sesión de pa)" "aca:--aca/--sucio-mio (un worker de $eng_n trabaja siempre en su worktree)" "con_mcp:--mcp (los MCP de claude.ai no existen en $eng_n)" "leer:--leer ($eng_n no tiene un modo de sólo lectura que alcance al bash)"; do
     v_no_va="${no_va%%:*}"
     if (( ${!v_no_va} )); then echo "pa: ${no_va#*:} no va con '$modelo'. Sacalo, o usá un modelo Claude." >&2; exit 2; fi
   done
-  [[ -n "$max_budget" ]] && { echo "pa: --max-budget-usd no va con '$modelo' (dsh no mide el gasto en US\$)." >&2; exit 2; }
-  [[ -n "$cuenta_flag" ]] && { echo "pa: --cuenta no va con '$modelo': dsh no usa ninguna suscripción de pa (las keys van en $CLAVES_ENV)." >&2; exit 2; }
+  [[ -n "$max_budget" ]] && { echo "pa: --max-budget-usd no va con '$modelo' ($eng_n no mide el gasto en US\$)." >&2; exit 2; }
+  [[ -n "$cuenta_flag" ]] && { echo "pa: --cuenta no va con '$modelo': $eng_n no usa ninguna suscripción de pa." >&2; exit 2; }
   if [[ -z "${PA_ASYNC:-}" ]]; then
     dsh_chequear "$modelo"
     if [[ -z "$motivo_cae" ]]; then
@@ -5076,7 +5150,7 @@ nombre_worker="pa/$slug"; (( leer )) || nombre_worker+="$(suf_puesto "$puesto")"
 # tarda más de 2 s o si no dice nada: se omite, sin aviso. A un Gemini no se le manda: son los
 # pendientes y esperas personales del dueño, y lo que va a Google no se recupera.
 prompt="$tarea"
-if (( ! resume )) && [[ "$motor" != agy && "$motor" != codex ]] && { [[ "$motor" != dsh ]] || [[ "$(dsh_proveedor "$modelo")" == ollama ]]; }; then
+if (( ! resume )) && [[ "$motor" != agy && "$motor" != codex ]] && { [[ "$motor" != dsh ]] || { ! es_opencode "$modelo" && [[ "$(dsh_proveedor "$modelo")" == ollama ]]; }; }; then
   ficha="$(tablero_mudo 2 ficha "$slug" --corta)" || ficha=""
   if [[ -n "$ficha" ]]; then prompt+=$'\n\n'"Dónde quedó este proyecto:"$'\n'"$ficha"; fi
 fi
@@ -5278,6 +5352,13 @@ correr() {
     # correr.mjs escribe el stream y el .json (con la forma de codex_a_json) y sale 0 / 1 / 127. La tarea va por archivo
     # (cabe cualquier largo y no se ve en `ps`); las keys, sólo en este proceso y sólo las que el proveedor usa.
     dsh_tarea="$dir/$ts.dsh-tarea"; ( umask 077; printf '%s' "$dsh_prompt" >"$dsh_tarea" )
+    if es_opencode "$modelo"; then
+      # opencode usa el login de la persona (su HOME/XDG, tal cual): ninguna key de pa viaja.
+      ( cd "$ruta_trabajo" || exit 1
+        export PA_WORKER=1 GIT_EDITOR=true GIT_SEQUENCE_EDITOR=true PATH="$CODEX_SHIMS:$PATH" HILOS_OPENCODE="$(opencode_bin)"
+        exec node "$OC_CORRER" "${args[@]}" --tarea-archivo "$dsh_tarea" ) \
+          </dev/null >/dev/null 2>"$err" 9>&- 8>&- 6>&- 5>&- &
+    else
     ( cd "$ruta_trabajo" || exit 1
       export PA_WORKER=1 GIT_EDITOR=true GIT_SEQUENCE_EDITOR=true PATH="$CODEX_SHIMS:$PATH" HILOS_DSH="$(dsh_bin)"
       case "$(dsh_proveedor "$modelo")" in
@@ -5287,6 +5368,7 @@ correr() {
       unset k_ds
       exec node "$DSH_CORRER" "${args[@]}" --tarea-archivo "$dsh_tarea" ) \
         </dev/null >/dev/null 2>"$err" 9>&- 8>&- 6>&- 5>&- &
+    fi
   elif [[ "$motor" == ollama ]]; then
     # Las ANTHROPIC_* del servidor local, SÓLO en este proceso (regla de facturación: nunca en otro, nunca
     # en settings.json). Los DEFAULT_*_MODEL y el de subagentes también apuntan al local: nada de lo que
@@ -5366,7 +5448,7 @@ codex_sin_cupo() {
 dsh_sin_cupo() {
   [[ "$motor" == dsh ]] || return 1
   local t; t="$(tail -c 4000 "$err" 2>/dev/null; res_texto)"
-  grep -qiE 'rate.?limit|Too Many Requests|quota|(^|[^0-9])429([^0-9]|$)' <<<"$t"
+  grep -qiE 'rate.?limit|Too Many Requests|quota|FreeUsageLimit|cortó por límite de uso|(^|[^0-9])429([^0-9]|$)' <<<"$t"
 }
 sin_cupo_al_arrancar() { agy_sin_cupo || codex_sin_cupo || claude_sin_cupo || dsh_sin_cupo; }
 sin_trabajo_hecho() {
@@ -5412,7 +5494,7 @@ while (( reintentos_cupo < 3 )) && [[ "$SIN_CUPO" == otro && -n "$reparto_tipo_r
   elif [[ "$motor" == codex ]]; then
     quien="codex dijo sin cupo"
   elif [[ "$motor" == dsh ]]; then
-    quien="dsh ($m_ant) dijo 429"
+    quien="$(es_opencode "$m_ant" && echo opencode || echo dsh) ($m_ant) dijo 429"
   else
     quien="agy dijo 429"
   fi
@@ -5432,7 +5514,7 @@ while (( reintentos_cupo < 3 )) && [[ "$SIN_CUPO" == otro && -n "$reparto_tipo_r
   p_rep="$(proveedor_de_modelo "$m_rep")"
   c_rep="$(jq -r '.cuenta // ""' <<<"$rep_json" 2>/dev/null)"
   [[ -n "$c_rep" && "$(cuenta_proveedor "$c_rep")" == "$p_rep" ]] || c_rep="$p_rep"
-  if [[ -z "$m_rep" || ( "$m_rep" == "$m_ant" && "$c_rep" == "${c_ant:-$p_ant}" ) ]] || es_local "$m_rep" || [[ "${m_rep,,}" != @(claude-*|gemini-*|agy:*|codex:*|dsh:*) ]] \
+  if [[ -z "$m_rep" || ( "$m_rep" == "$m_ant" && "$c_rep" == "${c_ant:-$p_ant}" ) ]] || es_local "$m_rep" || [[ "${m_rep,,}" != @(claude-*|gemini-*|agy:*|codex:*|dsh:*|opencode:*) ]] \
      || { ! es_dsh "$m_rep" && ! cuenta_preparar "$c_rep" "$p_rep" 2>/dev/null; }; then
     echo "pa: $quien (sin cupo) con $m_ant, lo marqué como agotado, pero reparto no ofrece otro candidato con cupo; sigo como falló." >&2
     cuenta_preparar "${c_ant:-$p_ant}" "$p_ant" 2>/dev/null || true

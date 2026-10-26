@@ -5,7 +5,7 @@ import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import { rmSync, writeFileSync, readFileSync, existsSync } from "node:fs";
 import path from "node:path";
-import { ClienteAcp, ErrorAcp, politicaEnWorkspace, type PedidoPermiso } from "../electron/acp.ts";
+import { ClienteAcp, ErrorAcp, describirError, redactar, politicaEnWorkspace, type PedidoPermiso } from "../electron/acp.ts";
 import { escribirParche, entornoDsh, valorModeloAcp } from "../electron/dsh.ts";
 import { DSH, SIN_DSH, arrancarFalso, entornoTmp, hasta, pngValido, usuarios } from "./dsh-ayuda.ts";
 
@@ -61,6 +61,34 @@ test("un error JSON-RPC del agente es un ErrorAcp con su código; el ruido en st
   assert.equal(e.code, -32602);
   assert.match(e.message, /session\/resume: session is not resumable/);
   await c.cerrar();
+});
+
+test("describirError: suma error.data y la cola del stderr a un Internal error, sin claves y recortado", () => {
+  const e = new ErrorAcp("session/new", -32603, "Internal error", { detalle: "no adapter, key sk-abcdef123456789 y MI-CLAVE-SECRETA" });
+  const stderr = "linea vieja\nl2\n\x1b[31mdsh: NO_ADAPTER: no adapter registered\x1b[0m\n\nl4\n";
+  const t = describirError(e, stderr, ["MI-CLAVE-SECRETA"]);
+  assert.match(t, /^session\/new: Internal error/);
+  assert.match(t, /no adapter, key «clave» y «clave»/);
+  assert.match(t, /NO_ADAPTER: no adapter registered · l4/);
+  assert.ok(!t.includes("linea vieja") && !t.includes("\x1b") && !t.includes("sk-abc") && !t.includes("SECRETA"));
+  // data como texto; sin data ni stderr queda el mensaje solo
+  assert.match(describirError(new ErrorAcp("m", -32603, "Internal error", "porque sí")), /Internal error — porque sí/);
+  assert.equal(describirError(new ErrorAcp("m", -32603, "Internal error")), "m: Internal error");
+  // un error que no es genérico no se llena con el stderr; uno cualquiera tampoco
+  assert.equal(describirError(new ErrorAcp("m", -32602, "no resumible"), "ruido\n"), "m: no resumible");
+  assert.equal(describirError(new Error("acp: se cayó"), "ruido"), "acp: se cayó");
+  // recorte
+  const largo = describirError(new ErrorAcp("m", -32603, "Internal error", "x ".repeat(500)), "", [], 400);
+  assert.equal(largo.length, 400);
+  assert.ok(largo.endsWith("…"));
+});
+
+test("redactar: valores del entorno, sk-… y tokens largos; deja pasar rutas y texto normal", () => {
+  assert.equal(redactar("usa abc12345 acá", ["abc12345", undefined, ""]), "usa «clave» acá");
+  assert.equal(redactar("Bearer sk-proj_AbC123xyz9"), "Bearer «clave»");
+  assert.equal(redactar("tok QWxhZGRpbjpvcGVuIHNlc2FtZTEyMzQ1Njc4OTBhYmM= fin"), "tok «clave» fin");
+  const normal = "/home/user/.local/share/trama/dsh/sesiones/abc: no existe";
+  assert.equal(redactar(normal), normal);
 });
 
 test("la política por default: permite lo del workspace y rechaza escapar de él o pedir acceso total", () => {

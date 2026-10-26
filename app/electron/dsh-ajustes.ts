@@ -96,7 +96,7 @@ export async function instalarDsh(d: Deps = depsDeVerdad()): Promise<EstadoDsh> 
   return estadoDsh(d);
 }
 
-export type Prueba = { ok: true; modelos: number } | { ok: false; motivo: string };
+export type Prueba = { ok: true; modelos: number; aviso?: string } | { ok: false; motivo: string };
 
 /**
  * `GET <proveedor>/models` con la key guardada (la del entorno gana), o `GET <url>/api/tags` si es Ollama. Nunca tira por no contestar
@@ -127,7 +127,8 @@ export async function probarProveedor(
     if (!r.ok) return { ok: false, motivo: textoT("main.dshHttp", { n: r.status }) };
     const j = (await r.json()) as { data?: unknown };
     if (!Array.isArray(j?.data)) return { ok: false, motivo: textoT("main.dshNoEs") };
-    return { ok: true, modelos: j.data.length };
+    // `GET /models` anda con la clave pública aunque el cupo gratis compartido esté agotado: sin clave propia se avisa.
+    return { ok: true, modelos: j.data.length, ...(p === "opencode" && !key ? { aviso: textoT("main.dshAvisoSinClave") } : {}) };
   } catch (e) {
     const timeout = (e as Error).name === "TimeoutError" || (e as Error).name === "AbortError";
     return { ok: false, motivo: timeout ? textoT("main.dshTarda") : textoT("main.dshNoContesta") };

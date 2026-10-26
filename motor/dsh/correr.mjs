@@ -25,7 +25,7 @@ import { appendFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFile
 import os from "node:os";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
-import { entornoDsh, escribirParche, falta, parsearModelo, resolverDsh } from "./config.mjs";
+import { entornoDsh, escribirParche, esErrorCuota, falta, mensajeCuotaOpencode, parsearModelo, resolverDsh } from "./config.mjs";
 
 function argumentos(argv) {
   const o = { _: [] };
@@ -58,7 +58,7 @@ function escribirSalida(archivo, o) {
 }
 
 /** Los eventos de `--json` de dsh → el JSON de estado de pa. */
-export function aResultado({ eventos, modelo, rc, stderr, segundos, gratis, truncado = 0 }) {
+export function aResultado({ eventos, modelo, rc, stderr, segundos, gratis, truncado = 0, proveedor = null, conClave = false }) {
   const pasos = eventos.filter((e) => e.type === "status" && e.phase === "step_end");
   const fin = eventos.findLast?.((e) => e.type === "final") ?? [...eventos].reverse().find((e) => e.type === "final");
   const turnoFin = [...eventos].reverse().find((e) => e.type === "status" && e.phase === "turn_end");
@@ -67,7 +67,9 @@ export function aResultado({ eventos, modelo, rc, stderr, segundos, gratis, trun
   const fallo = razon && razon.kind !== "completed" ? (razon.error?.message ?? razon.kind) : null;
   const dicho = (typeof fin?.text === "string" && fin.text) || textos.at(-1) || "";
   const error = truncado > 0 || rc !== 0 || !fin || fallo !== null;
-  const motivo = truncado > 0 ? `se llegó al tope de ${truncado} pasos del modelo (--max-pasos)` : fallo ?? (stderr.trim() ? stderr.trim().split("\n").slice(-3).join(" · ") : null) ?? (rc !== 0 ? `dsh salió con el código ${rc}` : "dsh no devolvió respuesta");
+  let motivo = truncado > 0 ? `se llegó al tope de ${truncado} pasos del modelo (--max-pasos)` : fallo ?? (stderr.trim() ? stderr.trim().split("\n").slice(-3).join(" · ") : null) ?? (rc !== 0 ? `dsh salió con el código ${rc}` : "dsh no devolvió respuesta");
+  // OpenCode sin cupo (429 / QUOTA / FreeUsageLimitError): un mensaje que dice qué hacer, según haya o no clave propia.
+  if (error && proveedor === "opencode" && !truncado && esErrorCuota(`${fallo ?? ""}\n${stderr}`)) motivo = mensajeCuotaOpencode(conClave);
   const suma = (k) => pasos.reduce((n, e) => n + (Number(e.usage?.[k]) || 0), 0);
   const sesion = eventos.find((e) => e.type === "session")?.sessionId ?? null;
   return {
@@ -168,7 +170,7 @@ async function main() {
   if (resto.trim()) linea(resto);
   rmSync(tmp, { recursive: true, force: true });
 
-  const r = aResultado({ eventos, modelo: modeloPa, rc, stderr, segundos: (Date.now() - t0) / 1000, gratis: prov.proveedor !== "deepseek", truncado });
+  const r = aResultado({ eventos, modelo: modeloPa, rc, stderr, segundos: (Date.now() - t0) / 1000, gratis: prov.proveedor !== "deepseek", truncado, proveedor: prov.proveedor, conClave: !!process.env.OPENCODE_API_KEY });
   escribirSalida(salida, r);
   if (rc === 127) process.stderr.write("dsh/correr: no está dsh (npm i -g @deepseek-ai/dsh, o HILOS_DSH=<ruta>)\n");
   else if (r.is_error) process.stderr.write(`dsh/correr: la corrida falló: ${r.result.split("\n").at(-1)}\n`);

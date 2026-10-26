@@ -448,3 +448,14 @@ test("modelos dsh: la clase, el lector del líder y la validación (lider y work
   assert.equal(JSON.parse(readFileSync(ruta, "utf8")).lider.modelo, "dsh:opencode/deepseek-v4.1-flash-free");
   assert.equal((await leerModelos(undefined, ruta)).config.lider?.modelo, "dsh:opencode/deepseek-v4.1-flash-free");
 });
+
+test("modelos opencode: la clase, la familia y la validación (lider y workers aceptan opencode:<proveedor>/<modelo>, sin esfuerzo)", async () => {
+  const { claseDeModelo, familiaDeModelo } = await import("../electron/modelos-config.ts");
+  assert.equal(claseDeModelo("opencode:opencode/big-pickle"), "opencode");
+  assert.equal(familiaDeModelo("opencode:opencode/big-pickle"), "opencode");
+  const ok = validarConfig({ lider: { modelo: "opencode:opencode/deepseek-v4.1-flash-free" }, workers: { default: { modelo: "opencode:openrouter/qwen/qwen3-coder:free" } } });
+  assert.deepEqual(ok.lider, { modelo: "opencode:opencode/deepseek-v4.1-flash-free" });
+  assert.deepEqual(ok.workers.default, { modelo: "opencode:openrouter/qwen/qwen3-coder:free" });
+  for (const mal of ["opencode:", "opencode:suelto", "opencode:/x", "opencode:a b/c"]) assert.throws(() => validarConfig({ lider: { modelo: mal } }), mal);
+  assert.throws(() => validarConfig({ lider: { modelo: "opencode:opencode/beam-free", effort: "high" } }), "opencode no lleva esfuerzo");
+});

@@ -34,12 +34,45 @@ export type Politica = (p: PedidoPermiso) => DecisionPermiso | Promise<DecisionP
 export class ErrorAcp extends Error {
   code: number;
   metodo: string;
-  constructor(metodo: string, code: number, message: string) {
+  /** El `error.data` del agente, si trajo (suele tener el motivo real de un «Internal error»). */
+  data: unknown;
+  constructor(metodo: string, code: number, message: string, data?: unknown) {
     super(`${metodo}: ${message}`);
     this.name = "ErrorAcp";
     this.code = code;
     this.metodo = metodo;
+    this.data = data;
   }
+}
+
+/** Saca de un texto lo que parece una clave: los valores de `secretos`, `sk-…` y los tokens largos tipo base64 (32+ caracteres). */
+export function redactar(texto: string, secretos: Array<string | undefined> = []): string {
+  let t = texto;
+  for (const s of secretos) if (s && s.length >= 4) t = t.split(s).join("«clave»");
+  return t.replace(/\bsk-[A-Za-z0-9_-]{8,}/g, "«clave»").replace(/[A-Za-z0-9+_-]{32,}={0,2}/g, "«clave»");
+}
+
+/**
+ * El texto de un error para mostrárselo a la persona. Un error JSON-RPC genérico (-32603 «Internal error») no dice nada: se le
+ * suma `error.data` (si hay) y las últimas líneas del stderr de dsh, donde aparece el motivo real. Todo sin claves, en ~`max` caracteres.
+ */
+export function describirError(e: unknown, stderr = "", secretos: Array<string | undefined> = [], max = 400): string {
+  const base = String((e as Error)?.message ?? e);
+  const partes = [base];
+  if (e instanceof ErrorAcp && (e.code === -32603 || /internal error/i.test(base))) {
+    const d = e.data === undefined || e.data === null ? "" : typeof e.data === "string" ? e.data : JSON.stringify(e.data);
+    if (d && d !== "{}" && !base.includes(d)) partes.push(d);
+    const cola = stderr
+      .replace(/\u001b\[[0-9;]*[A-Za-z]/g, "")
+      .split("\n")
+      .map((l) => l.trim())
+      .filter(Boolean)
+      .slice(-3)
+      .join(" · ");
+    if (cola && !partes.some((p) => p.includes(cola))) partes.push(cola);
+  }
+  const t = redactar(partes.join(" — "), secretos);
+  return t.length > max ? t.slice(0, max - 1) + "…" : t;
 }
 
 export type OpcionesAcp = {
@@ -257,7 +290,7 @@ export class ClienteAcp {
       if (!p) return;
       this.pendientes.delete(m.id);
       if (p.timer) clearTimeout(p.timer);
-      if (m.error) p.reject(new ErrorAcp(p.metodo, Number(m.error.code ?? 0), String(m.error.message ?? "error")));
+      if (m.error) p.reject(new ErrorAcp(p.metodo, Number(m.error.code ?? 0), String(m.error.message ?? "error"), m.error.data));
       else p.resolve(m.result);
       return;
     }

@@ -54,6 +54,7 @@ import { errorT, textoT } from "./errores.ts";
 import { destinos, registro, slugsPorNombre } from "./registro.js";
 import { capacidades, hayAgy, hayDsh } from "./capacidades.js";
 import { estadoDsh, instalarDsh, probarProveedor } from "./dsh-ajustes.ts";
+import { actualizarOpencode, modelosOpencode, vistaOpencode } from "./opencode-ajustes.ts";
 import { guardarClave } from "./claves.ts";
 import { descartarSetup, setupDeEstaMaquina } from "./setup.ts";
 import { cuentasDeEstaMaquina } from "./cuentas.ts";
@@ -715,7 +716,7 @@ export function armarNucleo() {
   manejar("hilos:guardados", () => hilosGuardados());
 
   // Los paneles del pie: Ajustes, Estadísticas y las acciones de Ramas.
-  manejar("modelos:config", () => vistaModelos(modelosConfig(), hayAgy(), vistaLocales(), hayDsh()));
+  manejar("modelos:config", () => vistaModelos(modelosConfig(), hayAgy(), vistaLocales(), hayDsh(), modelosOpencode()));
   manejar("dueno:nombre", () => nombreDueno());
   manejar("ajustes:leer", () => leerAjustes());
   // Ajustes editable: el plan y la red de seguridad (ajustes-editar.ts) y el acceso desde el celular (remoto-config.ts).
@@ -784,6 +785,9 @@ export function armarNucleo() {
     return estadoDsh();
   });
   manejar("dsh:probar", (_e, proveedor: unknown, url: unknown) => probarProveedor(proveedor, url));
+  // OpenCode (el programa `opencode`: los modelos gratis sólo andan por él): instalado, versión, login y modelos; «Actualizar modelos» vuelve a listarlos.
+  manejar("opencode:estado", () => vistaOpencode());
+  manejar("opencode:actualizar", () => actualizarOpencode());
   manejar("ramas:brief", (_e, hs: Parameters<typeof briefRamas>[0]) => briefRamas(hs));
   manejar("hilo:retomar", (_e, h: Parameters<typeof retomarDatos>[0]) =>
     retomarDatos({

@@ -128,3 +128,17 @@ test("motor/dsh/config.mjs y electron/dsh.ts (duplicados a propósito) dicen lo 
   assert.equal(ts.resolverDsh({ PATH: "" }, "/h", (f) => f === "/h/.local/bin/dsh"), "/h/.local/bin/dsh");
   assert.equal(mjs.resolverDsh({ PATH: "/a" }, "/h", () => false), "dsh");
 });
+
+test("aResultado: 429 / QUOTA de OpenCode da el mensaje accionable, distinto con clave propia; otros proveedores y errores no", async () => {
+  const { aResultado } = await import(CORRER);
+  const stderr = 'dsh: QUOTA: 429: {"type":"FreeUsageLimitError","message":"Free usage limit reached."}\n';
+  const base = { eventos: [], modelo: "dsh:opencode/x", rc: 1, stderr, segundos: 1, gratis: true };
+  const pub = aResultado({ ...base, proveedor: "opencode", conClave: false });
+  assert.equal(pub.is_error, true);
+  assert.match(pub.result, /se terminó el uso gratis de la clave pública.*opencode\.ai.*Ajustes → DeepSeek Harness/);
+  const propia = aResultado({ ...base, proveedor: "opencode", conClave: true });
+  assert.match(propia.result, /tu clave llegó al límite/);
+  assert.ok(!/pública/.test(propia.result));
+  assert.match(aResultado({ ...base, proveedor: "deepseek" }).result, /QUOTA/);
+  assert.match(aResultado({ ...base, proveedor: "opencode", stderr: "dsh: boom\n" }).result, /boom/);
+});
