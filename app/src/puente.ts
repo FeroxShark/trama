@@ -134,6 +134,13 @@ type Main = {
     cerrar(sid: string, motivo?: string): Promise<void>;
     /** Retomar uno sin proceso: pasa a ser de la app, sin lanzar nada. `{ ok }` o `{ ok: false, motivo }`, sin validar. */
     retomar(x: { sid: string; modelo: string; effort: string; nombre?: string }): Promise<unknown>;
+    /**
+     * Editar / Volver acá: sigue desde el mensaje `uuid` con `texto` (electron/lider.ts, `rebobinar`). Devuelve `null`, o el sid
+     * del líder nuevo si el punto era anterior a una compactación (`previa`): ahí se sigue en una copia, no en el mismo líder.
+     */
+    rebobinar(x: { sid: string; uuid: string; texto: string; imagenes?: unknown; modelo: string; effort: string; previa?: boolean }): Promise<string | null>;
+    /** Ramificar: un líder nuevo con la conversación hasta el mensaje `uuid`; devuelve su sid. */
+    ramificar(x: { sid: string; uuid: string; modelo: string; effort: string }): Promise<string>;
     /** Su transcript con la forma de `pa --hilo --json`, sin validar. */
     conversacion(x: { sid: string; antes?: number | null }): Promise<unknown>;
     /** Mirar el transcript de uno (el abierto) o de ninguno. */

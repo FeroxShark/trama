@@ -355,7 +355,7 @@ export type Mensaje = {
   modelo: string | null;
   /**
    * De dónde salió, si no lo escribió el usuario ni lo contestó el modelo (B18,
-   * src/hilo/sistema.ts). Los trae el transcript de un líder y `pa --hilo` (B19).
+   * src/hilo/sistema-logica.ts). Los trae el transcript de un líder y `pa --hilo` (B19).
    */
   /** `isMeta`: lo inyectó Claude Code (el cuerpo de una skill, una imagen, un caveat). */
   meta?: boolean;
@@ -375,6 +375,15 @@ export type Mensaje = {
   imagenes?: { tipo: string; datos: string }[];
   /** El razonamiento del modelo en ese mensaje (sólo un líder, si su transcript lo trae). */
   pensado?: string;
+  /**
+   * Sólo un líder de Claude: el `uuid` de la última línea de este mensaje en el transcript, y `previo`, el del mensaje
+   * anterior. Con ellos se vuelve atrás, se edita o se ramifica (`--resume-session-at`); sin `uuid` (marcas, un mensaje
+   * recién escrito) no hay acciones sobre el mensaje. `previa`: es anterior a la última compactación; ahí volver o
+   * ramificar abre un líder nuevo con una copia de la cadena (el `claude` no alcanza esos `uuid` en su propio archivo).
+   */
+  uuid?: string;
+  previo?: string;
+  previa?: boolean;
 };
 
 /**

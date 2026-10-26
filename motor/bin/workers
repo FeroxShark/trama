@@ -1,0 +1,382 @@
+#!/usr/bin/env bash
+# workers — ver los Claude que están trabajando ahora y espiarles el chat en vivo.
+#
+# Existe porque `pa` corre headless: el JSON del worker recién aparece cuando termina, así
+# que mientras trabaja no se ve nada. `pa` deja dos rastros que este script junta:
+#
+#   ~/.local/state/pa/<slug>.running    QUIÉN labura, desde cuándo, y en qué archivo escribe
+#   ~/.local/state/pa/<slug>.heartbeat  QUÉ herramienta corre AHORA y desde hace cuánto
+#
+# Las corridas --leer no toman el lock del proyecto, así que puede haber varias a la vez (y
+# con un worker que escribe): cada una deja su par propio `<slug>.leer-<id>.running` /
+# `<slug>.leer-<id>.heartbeat`. Por eso el heartbeat se deriva de la ruta del .running, no del slug.
+#
+# El `.running` trae `transcript=` con la ruta exacta del jsonl, porque `pa` le pasa a Claude
+# un `--session-id` propio: la ruta se conoce antes de arrancar. Antes había que adivinarla
+# (el jsonl más nuevo del cwd, o el del sid guardado) y cualquier otra sesión abierta en esa
+# carpeta le ganaba al worker.
+#
+# El `.heartbeat` lo escribe un hook en cada PreToolUse/PostToolUse. Es lo que arregla el
+# problema real: sin la EDAD del último paso, "compilando hace 4 minutos" y "colgado hace 22"
+# se veían idénticos en la lista.
+#
+# Uso:
+#   workers                    qué hay corriendo ahora (pa + subagentes)
+#   workers --json             lo mismo que el default, en JSON (sólo workers vivos; sin huérfanos
+#                              ni sesiones guardadas), para que otro script lo consuma sin parsear texto
+#   workers ver [proyecto]     seguir el chat en vivo (sin proyecto: si hay uno solo, ese)
+#   workers ver --todo <proy>  igual pero desde el principio de la conversación
+#   workers ultimo <proyecto>  releer el chat del último worker que terminó
+#   workers abrir [proyecto]   lo mismo que `ver` pero en una ventana kitty aparte
+set -uo pipefail
+
+# Los scripts de ~/orquestador se llaman entre ellos por nombre (`proyecto-ruta`). Ponemos
+# nuestro propio directorio adelante del PATH en vez de confiar en que quien nos llama lo
+# tenga: un timer de systemd, un cron o un hook arrancan con un PATH pelado y todo salía 127.
+_BIN="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
+case ":$PATH:" in *":$_BIN:"*) ;; *) export PATH="$_BIN:$PATH" ;; esac
+
+STATE="${PA_STATE:-$HOME/.local/state/pa}"
+PROJ="$HOME/.claude/projects"
+COLGADO=600     # segundos sin ningún evento de herramienta => sospechoso
+
+if [[ -t 1 ]]; then
+  D=$'\e[2m'; B=$'\e[1m'; R=$'\e[0m'
+  C_TOOL=$'\e[36m'; C_TXT=$'\e[38;5;250m'; C_RES=$'\e[38;5;244m'; C_HEAD=$'\e[35m'
+  C_OK=$'\e[32m'; C_WARN=$'\e[33m'
+else
+  D=""; B=""; R=""; C_TOOL=""; C_TXT=""; C_RES=""; C_HEAD=""; C_OK=""; C_WARN=""
+fi
+
+escapar() { printf '%s' "$1" | sed 's/[^A-Za-z0-9]/-/g'; }
+leer_campo() { sed -n "s/^$2=//p" "$1" 2>/dev/null | head -1; }
+
+transcurrido() {
+  local s=$(( $(date +%s) - ${1:-0} ))
+  (( s < 0 )) && s=0
+  (( s < 60 )) && { printf '%ds' "$s"; return; }
+  (( s < 3600 )) && { printf '%dm%02ds' $((s/60)) $((s%60)); return; }
+  printf '%dh%02dm' $((s/3600)) $(( (s%3600)/60 ))
+}
+
+# El pid del `.running` es el del CLAUDE, no el de `pa`: si ese proceso no está, no hay worker
+# (antes guardaba el de pa, así que matar a pa dejaba un claude vivo que la lista no veía).
+# pid vacío = el .running de antes del fork, no un huérfano: vale el pid de pa (ver bin/pa).
+pid_vivo() { local p; p="$(leer_campo "$1" pid)"; [[ -n "$p" ]] || p="$(leer_campo "$1" pa_pid)"; printf %s "$p"; }
+vivo() { local pid; pid="$(pid_vivo "$1")"; [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; }
+
+# Una línea con qué está haciendo el worker AHORA, sacada del latido. Nada de abrir el
+# transcript: son dos `sed` sobre un archivo de cuatro líneas.
+estado_latido() {          # $1 = archivo .heartbeat
+  [[ -f "$1" ]] || { printf '%s(arrancando, sin herramientas todavía)%s' "$D" "$R"; return; }
+  local ep tool envuelo desc edad
+  ep="$(leer_campo "$1" epoch)"; tool="$(leer_campo "$1" tool)"
+  envuelo="$(leer_campo "$1" envuelo)"; desc="$(leer_campo "$1" desc)"
+  edad=$(( $(date +%s) - ${ep:-0} ))
+  if [[ "$envuelo" == "1" ]]; then
+    printf '%s%s%s %s%s%s %sen curso hace %s%s' \
+      "$C_TOOL" "$tool" "$R" "$D" "$(printf '%.60s' "$desc")" "$R" \
+      "$( (( edad > COLGADO )) && printf '%s' "$C_WARN" )" "$(transcurrido "$ep")" "$R"
+  elif (( edad > COLGADO )); then
+    printf '%ssin eventos hace %s, nada en vuelo (¿colgado? ¿esperando la API?)%s' \
+      "$C_WARN" "$(transcurrido "$ep")" "$R"
+  else
+    printf '%spensando%s %s(último: %s %s, hace %s)%s' "$C_TXT" "$R" "$D" \
+      "$tool" "$(printf '%.40s' "$desc")" "$(transcurrido "$ep")" "$R"
+  fi
+}
+
+# ---------------------------------------------------------------------------------------
+# Formateo del transcript. Una línea por bloque de contenido.
+# ---------------------------------------------------------------------------------------
+FMT='
+def limpio: (. // "") | gsub("[\r\t]";" ") | gsub("\n";" ⏎ ") | gsub(" +";" ");
+def corto($n): limpio | if (length > $n) then (.[0:$n] + "…") else . end;
+def hora: (.timestamp // "") | if length > 0 then (.[11:19]) else "--:--:--" end;
+def bloques:
+  if .type == "user" then
+    ( .message.content
+      | if type == "string" then [{type:"text", text:.}] else (. // []) end )
+  elif .type == "assistant" then
+    ( .message.content | if type == "string" then [{type:"text", text:.}] else (. // []) end )
+  else [] end;
+
+select(.type == "user" or .type == "assistant")
+| select($desde == "" or ((.timestamp // "") >= $desde))
+| . as $e
+| (hora) as $h
+| bloques[]
+| if .type == "text" and ($e.type == "assistant") then
+    "\($h) \($txt)· \(.text | corto(400))\($r)"
+  elif .type == "text" then
+    "\($h) \($head)▸ \(.text | corto(300))\($r)"
+  elif .type == "thinking" then
+    if $pensar == "1" then "\($h) \($dim)~ \(.thinking | corto(300))\($r)" else empty end
+  elif .type == "tool_use" then
+    ( (.input.command // .input.file_path // .input.pattern // .input.description
+       // .input.prompt // (.input | tostring)) ) as $arg
+    | "\($h) \($tool)▶ \(.name)\($r) \($dim)\($arg | corto(180))\($r)"
+  elif .type == "tool_result" then
+    ( .content
+      | if type == "string" then .
+        elif type == "array" then ([.[] | .text // ("[" + (.type // "?") + "]")] | join(" "))
+        else tostring end ) as $out
+    | "\($h)   \($res)⤷ \($out | corto(160))\($r)"
+  else empty end
+'
+
+formatear() {
+  jq -r --unbuffered \
+     --arg dim "$D" --arg r "$R" --arg tool "$C_TOOL" --arg txt "$C_TXT" \
+     --arg res "$C_RES" --arg head "$C_HEAD" --arg pensar "${WORKERS_PENSAR:-0}" \
+     --arg desde "${1:-}" \
+     "$FMT" 2>/dev/null
+}
+
+# Último paso de un transcript, para los subagentes (que no dejan latido).
+ultimo_paso() {
+  tail -n 80 "$1" 2>/dev/null | tac | jq -r '
+    select(.type=="assistant")
+    | (.message.content | if type=="array" then . else [] end)[]
+    | if .type=="tool_use" then "\(.name) \(.input.description // .input.command // .input.file_path // "" )"
+      elif .type=="text" then (.text | gsub("\n";" "))
+      else empty end' 2>/dev/null \
+  | head -1 | cut -c1-70
+}
+
+# " ·puesto 2" / " ·tree principal" para un writer (pa escribe `puesto=` en el .running desde los
+# puestos; uno viejo sin el campo es el puesto 1). Nada para un --leer.
+etiqueta_puesto() {
+  [[ "$(leer_campo "$1" leer)" == 1 ]] && return 0
+  local p; p="$(leer_campo "$1" puesto)"
+  if [[ "$p" == aca ]]; then printf ' ·tree principal'; else printf ' ·puesto %s' "${p:-1}"; fi
+}
+
+# ---------------------------------------------------------------------------------------
+listar() {
+  local hubo=0 f slug inicio tarea modelo leer rama
+  shopt -s nullglob
+  for f in "$STATE"/*.running; do
+    slug="$(leer_campo "$f" proyecto)"; inicio="$(leer_campo "$f" inicio)"
+    tarea="$(leer_campo "$f" tarea)"; modelo="$(leer_campo "$f" modelo)"
+    leer="$(leer_campo "$f" leer)"; rama="$(leer_campo "$f" rama)"
+    hubo=1
+    if ! vivo "$f"; then
+      printf '%s%-18s%s %sHUÉRFANO%s  (el claude murió; el próximo `pa %s` lo limpia solo)\n' \
+             "$B" "$slug" "$R" "$C_WARN" "$R" "$slug"
+      continue
+    fi
+    printf '%s%-18s%s %s%7s%s  %s%s%s  %s\n' \
+      "$B" "$slug" "$R" "$C_OK" "$(transcurrido "$inicio")" "$R" \
+      "$D" "$modelo$([[ $leer == 1 ]] && echo " ·lectura $(leer_campo "$f" id)")$(etiqueta_puesto "$f")$([[ -n $rama ]] && echo " ·$rama")" "$R" \
+      "$(printf '%.70s' "$tarea")"
+    printf '   ↳ %s\n' "$(estado_latido "${f%.running}.heartbeat")"
+  done
+
+  # Subagentes de las sesiones interactivas: los que escribieron en los últimos 2 minutos.
+  local s primero=1
+  while IFS= read -r s; do
+    (( primero )) && { printf '\n%ssubagentes activos%s\n' "$D" "$R"; primero=0; hubo=1; }
+    printf '%s%-18s%s %s%s%s\n' "$B" "$(basename "$s" .jsonl | cut -c1-18)" "$R" \
+           "$C_TOOL" "$(ultimo_paso "$s")" "$R"
+    printf '   %s%s%s\n' "$D" "$s" "$R"
+  done < <(find "$PROJ" -path '*/subagents/agent-*.jsonl' -mmin -2 2>/dev/null | head -8)
+
+  (( hubo )) || echo "no hay workers corriendo."
+
+  # Ramas de workers que nadie integró todavía: el trabajo NO está en main hasta que el jefe
+  # corra `pa <proyecto> --integrar <id>`. Una corrida (.corrida) por rama, sin los --seguir.
+  # Cuenta las que tienen commits que le FALTAN al HEAD del tree principal, no las refs vivas: el
+  # 2026-09-14 esta línea gritaba por cuatro ramas ya mergeadas y el jefe mandó a auditar diffs
+  # vacíos. Misma medida que `ramas_sin_integrar` de pa.
+  local c r repo p ppal n resumen="" cnt
+  for p in "$STATE"/*/; do
+    p="${p%/}"; cnt=0
+    for c in "$p"/*.corrida; do
+      [[ -n "$(leer_campo "$c" origen)" ]] && continue
+      r="$(leer_campo "$c" rama)"; repo="$(leer_campo "$c" ruta_trabajo)"
+      [[ -n "$r" && -d "$repo" ]] || continue
+      git -C "$repo" rev-parse -q --verify "refs/heads/$r" >/dev/null 2>&1 || continue
+      ppal="$(git -C "$repo" worktree list --porcelain 2>/dev/null | sed -n '1s/^worktree //p')"
+      n="$(git -C "${ppal:-$repo}" rev-list --count "HEAD..$r" 2>/dev/null || echo 0)"
+      [[ "$n" =~ ^[0-9]+$ ]] && (( n > 0 )) && cnt=$((cnt+1))
+    done
+    (( cnt )) && resumen+=" $(basename "$p")($cnt)"
+  done
+  [[ -n "$resumen" ]] && printf '\n%sramas sin integrar:%s%s  (ver: pa <proyecto> --ramas)\n' "$D" "$R" "$resumen"
+  return 0
+}
+
+# Mismos campos que `listar`, en JSON. Sólo workers vivos (nada de huérfanos ni de lo que
+# quedó guardado de una corrida anterior): es para que otro script sepa qué está pasando AHORA.
+listar_json() {
+  local f slug inicio tarea rama hb epoch tool edad herramienta herramienta_hace colgado ahora leer id jefe puesto cuenta
+  shopt -s nullglob
+  local objetos=()
+  ahora=$(date +%s)
+  for f in "$STATE"/*.running; do
+    vivo "$f" || continue
+    slug="$(leer_campo "$f" proyecto)"; inicio="$(leer_campo "$f" inicio)"
+    tarea="$(leer_campo "$f" tarea)"; rama="$(leer_campo "$f" rama)"
+    leer=false; [[ "$(leer_campo "$f" leer)" == 1 ]] && leer=true
+    id="$(leer_campo "$f" id)"; jefe="$(leer_campo "$f" jefe)"
+    # cuenta: la de la suscripción con la que corre (claude, google o el id de bin/cuentas); null si es un local o un .running viejo
+    cuenta="$(leer_campo "$f" cuenta)"
+    # puesto: "1".."N" o "aca" (tree principal) para un writer; null para un --leer
+    puesto=""; [[ "$leer" == false ]] && { puesto="$(leer_campo "$f" puesto)"; puesto="${puesto:-1}"; }
+    hb="${f%.running}.heartbeat"
+    herramienta=""; herramienta_hace="null"; colgado="false"
+    if [[ -f "$hb" ]]; then
+      epoch="$(leer_campo "$hb" epoch)"; tool="$(leer_campo "$hb" tool)"
+      edad=$(( ahora - ${epoch:-0} ))
+      herramienta="$tool"; herramienta_hace="$edad"
+      (( edad > COLGADO )) && colgado="true"
+    fi
+    objetos+=("$(jq -n \
+      --arg slug "$slug" \
+      --argjson arranco_hace_s "$(( ahora - ${inicio:-0} ))" \
+      --arg tarea "$tarea" \
+      --arg rama "$rama" \
+      --arg id "$id" \
+      --arg jefe "$jefe" \
+      --arg puesto "$puesto" \
+      --arg cuenta "$cuenta" \
+      --argjson leer "$leer" \
+      --arg herramienta "$herramienta" \
+      --argjson herramienta_hace_s "$herramienta_hace" \
+      --argjson colgado "$colgado" \
+      '{slug: $slug,
+        arranco_hace_s: $arranco_hace_s,
+        tarea: (if $tarea == "" then null else $tarea end),
+        herramienta: (if $herramienta == "" then null else $herramienta end),
+        herramienta_hace_s: $herramienta_hace_s,
+        colgado: $colgado,
+        rama: (if $rama == "" then null else $rama end),
+        leer: $leer,
+        id: (if $id == "" then null else $id end),
+        jefe: $jefe,
+        puesto: (if $puesto == "" then null else $puesto end),
+        cuenta: (if $cuenta == "" then null else $cuenta end)}')")
+  done
+  if (( ${#objetos[@]} )); then
+    printf '%s\n' "${objetos[@]}" | jq -s '.'
+  else
+    echo '[]'
+  fi
+}
+
+elegir_running() {          # imprime el .running del proyecto (o id de corrida) pedido, o el único que haya
+  local pedido="${1:-}" f encontrados=()
+  shopt -s nullglob
+  for f in "$STATE"/*.running; do
+    vivo "$f" || continue
+    if [[ -n "$pedido" ]]; then
+      [[ "$(leer_campo "$f" proyecto)" == *"${pedido,,}"* || "$(leer_campo "$f" id)" == "$pedido" ]] && encontrados+=("$f")
+    else
+      encontrados+=("$f")
+    fi
+  done
+  case ${#encontrados[@]} in
+    0) return 1 ;;
+    1) printf '%s' "${encontrados[0]}" ;;
+    *) if [[ -z "$pedido" ]]; then
+         echo "hay varios workers; decí cuál:" >&2
+         for f in "${encontrados[@]}"; do
+           echo "  $(leer_campo "$f" proyecto)$([[ "$(leer_campo "$f" leer)" == 1 ]] && echo "   (lectura, id: $(leer_campo "$f" id))")" >&2
+         done
+         return 2
+       fi
+       # Un proyecto puede tener al que escribe y varios --leer: `workers ver <proyecto>` mira al
+       # que escribe; a un --leer se lo pide por id (`workers ver <id>`). Con puestos puede haber
+       # VARIOS que escriben: ahí no se elige uno al azar, se pide el id.
+       local writers=()
+       for f in "${encontrados[@]}"; do
+         [[ "$(leer_campo "$f" leer)" == 1 ]] || writers+=("$f")
+       done
+       if (( ${#writers[@]} > 1 )); then
+         echo "hay ${#writers[@]} workers escribiendo en '$pedido'; decí cuál por id:" >&2
+         for f in "${writers[@]}"; do
+           echo "  workers ver $(leer_campo "$f" id)   #$(etiqueta_puesto "$f") · $(printf '%.60s' "$(leer_campo "$f" tarea)")" >&2
+         done
+         return 2
+       fi
+       (( ${#writers[@]} )) && { printf '%s' "${writers[0]}"; return 0; }
+       printf '%s' "${encontrados[0]}" ;;
+  esac
+}
+
+ver() {
+  local todo=0 args=()
+  for a in "$@"; do
+    if [[ "$a" == "--todo" ]]; then todo=1; else args+=("$a"); fi
+  done
+  set -- ${args[@]+"${args[@]}"}
+  local run tr slug inicio tarea
+  run=$(elegir_running "${1:-}"); local rc=$?
+  if (( rc != 0 )); then
+    (( rc == 2 )) && exit 1
+    echo "no hay ningún worker corriendo${1:+ para '$1'}. Probá: workers ultimo ${1:-<proyecto>}" >&2
+    exit 1
+  fi
+  slug="$(leer_campo "$run" proyecto)"; inicio="$(leer_campo "$run" inicio)"
+  tarea="$(leer_campo "$run" tarea)"; tr="$(leer_campo "$run" transcript)"
+
+  printf '%s── %s ──%s %s\n%s%s%s\n\n' "$C_HEAD" "$slug" "$R" "$(transcurrido "$inicio")" \
+         "$D" "$tarea" "$R"
+
+  # La ruta ya la sabemos (pa la fijó con --session-id); sólo hay que esperar que Claude
+  # cree el archivo, que tarda un par de segundos.
+  [[ -n "$tr" ]] || { echo "este .running es de un pa viejo, sin transcript=. Matalo y relanzá." >&2; exit 1; }
+  local i=0
+  until [[ -f "$tr" ]]; do
+    (( ++i > 30 )) && { echo "el transcript de '$slug' no apareció: $tr" >&2; exit 1; }
+    sleep 1
+  done
+
+  # El filtro por fecha importa sólo en sesiones retomadas (--seguir), donde el mismo jsonl
+  # tiene los turnos de las corridas anteriores. --todo lo saca.
+  local desde=""
+  (( todo )) || desde=$(date -u -d "@$inicio" +%Y-%m-%dT%H:%M:%S 2>/dev/null)
+  # -F sigue el archivo aunque lo roten; --pid mata el tail cuando muere el CLAUDE que
+  # estamos mirando, así la ventana se cierra sola.
+  tail -F --pid="$(pid_vivo "$run")" -n +1 "$tr" 2>/dev/null | formatear "$desde"
+
+  printf '\n%s── terminó (%s) ──%s\n' "$C_HEAD" "$(transcurrido "$inicio")" "$R"
+}
+
+ultimo() {
+  local proy="${1:-}"
+  [[ -n "$proy" ]] || { echo "uso: workers ultimo <proyecto>" >&2; exit 2; }
+  local ruta; ruta=$(proyecto-ruta "$proy") || exit 1
+  # Mismo slug que `pa` (slug_de): sin sanear, un proyecto con espacio en la carpeta no
+  # encontraba su .session y caía al `ls -t`, que es justo el bug que arreglamos.
+  local slug; slug="$(basename "$ruta")"; slug="${slug//[^A-Za-z0-9._-]/-}"; slug="${slug,,}"
+  local dir="$PROJ/$(escapar "$ruta")" tr=""
+
+  # Primero el sid que dejó `pa`: identifica el transcript DEL WORKER, no el de cualquier
+  # sesión abierta en esa carpeta (una `p` interactiva, un `claude -p` a mano).
+  local sfile="$STATE/$slug.session"
+  [[ -f "$sfile" && -f "$dir/$(cat "$sfile").jsonl" ]] && tr="$dir/$(cat "$sfile").jsonl"
+  [[ -n "$tr" ]] || tr=$(ls -t "$dir"/*.jsonl 2>/dev/null | head -1)
+  [[ -n "$tr" ]] || { echo "no hay transcripts en $dir" >&2; exit 1; }
+  printf '%s── %s ──%s %s%s%s\n\n' "$C_HEAD" "$(basename "$ruta")" "$R" "$D" "$tr" "$R"
+  formatear < "$tr"
+}
+
+abrir() {
+  local args=("$@")
+  kitty --class workers --hold --title "workers ${args[*]}" \
+        "$HOME/.local/bin/workers" ver ${args[@]+"${args[@]}"} >/dev/null 2>&1 &
+  disown
+  echo "abrí la ventana."
+}
+
+case "${1:-}" in
+  ""|lista|ls)  listar ;;
+  --json)       listar_json ;;
+  ver|seguir)   shift; ver "$@" ;;
+  ultimo|último) shift; ultimo "$@" ;;
+  abrir)        shift; abrir "$@" ;;
+  -h|--help|ayuda) awk 'NR>1 && /^#/{sub(/^# ?/,""); print; next} NR>1{exit}' "$0" ;;
+  *)            echo "no conozco '$1'. Probá: workers | workers ver | workers ultimo <p>" >&2; exit 2 ;;
+esac

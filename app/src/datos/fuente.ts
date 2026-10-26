@@ -143,6 +143,14 @@ export interface Fuente {
    * escribirle. No lanza nada ni le manda nada: sale con el primer mensaje del usuario.
    */
   liderRetomar(sid: string, x: { modelo: string; effort: string; nombre?: string }): Promise<Retomado>;
+  /**
+   * Seguir la conversación desde el mensaje `uuid` (Editar: el anterior al editado; Volver acá: el mismo) con `texto`.
+   * Lo posterior queda en el transcript pero ya no cuenta; no compacta. Anda también con un líder sin proceso.
+   */
+  /** `previa`: el punto es anterior a una compactación; devuelve el sid del líder nuevo en que sigue, o `null` si siguió en el mismo. */
+  liderRebobinar(sid: string, uuid: string, x: EnvioLider, previa?: boolean): Promise<string | null>;
+  /** Un líder nuevo con la conversación de `sid` hasta el mensaje `uuid`; el original no se toca. Devuelve el sid del nuevo. */
+  liderRamificar(sid: string, uuid: string, x: { modelo: string; effort: string }): Promise<string>;
   /** Su transcript, con la forma de `pa --hilo --json`. */
   liderConversacion(sid: string, antes: number | null): Promise<RespuestaHilo>;
   /** Mirar el transcript del líder abierto (`null`: ninguno). */
@@ -563,6 +571,8 @@ function colaFija() {
   return laColaFija;
 }
 const charlas = new Map<string, Mensaje[]>();
+/** El `uuid` inventado del mensaje `i` de una charla de muestra (el de un transcript de verdad lo trae `claude`). */
+const uuidFijo = (sid: string, i: number) => `00000000-0000-4000-9000-${sid.slice(-8)}${String(i).padStart(4, "0")}`;
 const charla = (sid: string) => {
   let c = charlas.get(sid);
   if (!c) charlas.set(sid, (c = MODO.captura === "lider-sistema" ? charlaSistema(sid) : MODO.captura === "lider-imagenes" ? charlaImagenes(sid) : MODO.captura === "lider-tabla" ? charlaTabla(sid) : MODO.captura === "lider-listas" ? charlaListas(sid) : MODO.captura === "lider-pensando" && MODO.variante !== "vivo" ? charlaPensando(sid) : MODO.captura === "lider-formato" ? (MODO.variante === "larga" ? charlaLarga(sid) : charlaFormato(sid, MODO.variante === "pegado")) : charlaLider(sid)));
@@ -1129,6 +1139,21 @@ const fija: Fuente = {
     if (fallaLanzar) throw new Error("claude: could not resume the session");
     responderFijo(sid, x.texto, x.modelo, x.imagenes);
   },
+  async liderRebobinar(sid, uuid, x) {
+    // Fixtures: la conversación se recorta en el mensaje y sigue con lo nuevo.
+    const lista = charlas.get(sid);
+    const k = lista?.findIndex((_, i) => uuidFijo(sid, i) === uuid) ?? -1;
+    if (lista && k >= 0) lista.length = k + 1;
+    responderFijo(sid, x.texto, x.modelo, x.imagenes);
+    return null;
+  },
+  async liderRamificar(sid, uuid) {
+    const nuevo = `00000000-0000-4000-8000-${String(++creados).padStart(12, "0")}`;
+    const lista = charlas.get(sid) ?? [];
+    const k = lista.findIndex((_, i) => uuidFijo(sid, i) === uuid);
+    charlas.set(nuevo, lista.slice(0, k + 1));
+    return nuevo;
+  },
   async liderArchivo(nombre) {
     return `/tmp/trama-adjuntos/${nombre}`;
   },
@@ -1213,7 +1238,7 @@ const fija: Fuente = {
       total: c.length,
       desde,
       hasta,
-      mensajes: c.slice(desde, hasta),
+      mensajes: c.slice(desde, hasta).map((x) => (x.compacto ? x : { ...x, uuid: uuidFijo(sid, x.i), ...(x.i > 0 ? { previo: uuidFijo(sid, x.i - 1) } : {}) })),
       usage: usoFijo(sid),
       modelo: null,
       compactaciones: MODO.captura === "contexto-abierto" ? 2 : 0,
@@ -1639,6 +1664,16 @@ const conPa = (m: NonNullable<typeof main>): Fuente => ({
   },
   async liderMandar(sid, x) {
     await m.lider.mandar({ sid, ...x }).catch((e) => {
+      throw new Error(mensaje(e));
+    });
+  },
+  async liderRebobinar(sid, uuid, x, previa) {
+    return m.lider.rebobinar({ sid, uuid, texto: x.texto, imagenes: x.imagenes, modelo: x.modelo, effort: x.effort, ...(previa ? { previa } : {}) }).catch((e) => {
+      throw new Error(mensaje(e));
+    });
+  },
+  async liderRamificar(sid, uuid, x) {
+    return m.lider.ramificar({ sid, uuid, ...x }).catch((e) => {
       throw new Error(mensaje(e));
     });
   },

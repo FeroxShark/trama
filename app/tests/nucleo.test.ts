@@ -126,6 +126,142 @@ test("ajustes y acceso del celular: se guardan desde la PC; por la tailnet el ce
   assert.equal(readFileSync(archivo, "utf8"), contenido);
 });
 
+// Modelos por la tailnet: en modo local (TRAMA_LOCAL=1) todo pedido llega como `remoto` pero viene de 127.0.0.1,
+// así que guardar y sondear andan; sin la variable la tailnet sigue bloqueada, y remoto:guardar rechaza siempre.
+test("modelos: en modo local (TRAMA_LOCAL=1, sólo loopback) se guardan; sin él, la tailnet sigue bloqueada", async () => {
+  const cfg = { lider: { modelo: "claude-opus-5-5", effort: "high" }, workers: {}, locales: [], excluir: [], permitir_max: false, gemini: {}, claude: {}, destrabar: {} };
+  const ruta = path.join(tmp, "modelos-local.json");
+  const antesLocal = process.env.TRAMA_LOCAL;
+  const antesRuta = process.env.TRAMA_MODELOS;
+  process.env.TRAMA_MODELOS = ruta;
+  try {
+    delete process.env.TRAMA_LOCAL;
+    await assert.rejects(nucleo.llamarRemoto("modelos:guardar", [cfg], "cel"), /main\.modelosSoloPc/);
+    await assert.rejects(nucleo.llamarRemoto("modelos:sondear", ["http://127.0.0.1:1"], "cel"), /main\.modelosSoloPc/);
+    await assert.rejects(nucleo.llamarRemoto("modelos:bajar", ["http://127.0.0.1:1", "x"], "cel"), /main\.modelosSoloPc/);
+    await assert.rejects(nucleo.llamarRemoto("modelos:cancelarBajada", ["http://127.0.0.1:1", "x"], "cel"), /main\.modelosSoloPc/);
+    assert.equal(existsSync(ruta), false);
+
+    process.env.TRAMA_LOCAL = "1";
+    await nucleo.llamarRemoto("modelos:guardar", [cfg], "x");
+    assert.equal(JSON.parse(readFileSync(ruta, "utf8")).lider.modelo, "claude-opus-5-5");
+    await assert.doesNotReject(nucleo.llamarRemoto("modelos:sondear", ["http://127.0.0.1:1"], "x"));
+    await assert.doesNotReject(nucleo.llamarRemoto("modelos:cancelarBajada", ["http://127.0.0.1:1", "x"], "x"));
+    await assert.rejects(nucleo.llamarRemoto("remoto:guardar", [{ activo: true, puerto: 8791, dispositivos: ["celu"] }], "x"), /main\.remotoSoloPc/);
+  } finally {
+    if (antesLocal === undefined) delete process.env.TRAMA_LOCAL;
+    else process.env.TRAMA_LOCAL = antesLocal;
+    if (antesRuta === undefined) delete process.env.TRAMA_MODELOS;
+    else process.env.TRAMA_MODELOS = antesRuta;
+  }
+});
+
+// Sin TRAMA_LOCAL (motor lanzado suelto o unidad vieja), el dueño que entra por loopback guarda igual;
+// una IP de la tailnet (100.x) o un x-forwarded-for con 127.0.0.1 desde la tailnet siguen rechazados.
+test("modelos: por loopback se guardan sin TRAMA_LOCAL; 100.x y x-forwarded-for 127.0.0.1 desde tailnet se rechazan", async () => {
+  const { crearRemoto } = await import("../electron/remoto.ts");
+  const http = await import("node:http");
+  const cfg = {
+    lider: { modelo: "claude-opus-5-5", effort: "high" },
+    workers: {},
+    locales: [],
+    excluir: ["claude-haiku-5-5"],
+    permitir_max: false,
+    gemini: {},
+    claude: {},
+    destrabar: {},
+  };
+  const ruta = path.join(tmp, "modelos-loopback.json");
+  const antesLocal = process.env.TRAMA_LOCAL;
+  const antesRuta = process.env.TRAMA_MODELOS;
+  process.env.TRAMA_MODELOS = ruta;
+  delete process.env.TRAMA_LOCAL;
+
+  // Servidor remoto real conectado a `nucleo.llamarRemoto`, con `192.0.2.1` como IP propia (el proxy de tailscale serve).
+  let ipSocket = "127.0.0.1";
+  const remoto = crearRemoto({
+    dist: tmp,
+    preload: path.join(tmp, "preload.cjs"),
+    nombres: ["localhost", "127.0.0.1", "trama.test"],
+    propias: ["192.0.2.1"],
+    entra: async () => true,
+    llamar: nucleo.llamarRemoto,
+    consulta: () => ({}),
+    seFue: nucleo.soltarRemoto,
+    changelog: "",
+    latidoMs: 60_000,
+  });
+  const srv = await remoto.escuchar("127.0.0.1", 0);
+  srv.on("connection", (sock) => Object.defineProperty(sock, "remoteAddress", { get: () => ipSocket, configurable: true }));
+  const puerto = (srv.address() as { port: number }).port;
+
+  const rpc = (canal: string, args: unknown[], extra: Record<string, string> = {}) =>
+    new Promise<{ ok: boolean; valor?: unknown; error?: string }>((resolve, reject) => {
+      const req = http.request(
+        {
+          host: "127.0.0.1",
+          port: puerto,
+          path: "/rpc",
+          method: "POST",
+          headers: {
+            host: `localhost:${puerto}`,
+            origin: `http://localhost:${puerto}`,
+            "content-type": "application/json",
+            "x-trama-cliente": "abcdef0123456789",
+            ...extra,
+          },
+        },
+        (res) => {
+          let cuerpo = "";
+          res.setEncoding("utf8");
+          res.on("data", (d) => (cuerpo += d));
+          res.on("end", () => resolve(JSON.parse(cuerpo)));
+        },
+      );
+      req.on("error", reject);
+      req.end(JSON.stringify({ canal, args }));
+    });
+
+  try {
+    // 1) Desde una IP de la tailnet (100.x) se rechaza con main.modelosSoloPc.
+    ipSocket = "192.0.2.2";
+    const rTailnet = await rpc("modelos:guardar", [cfg]);
+    assert.equal(rTailnet.ok, false);
+    assert.match(String(rTailnet.error), /main\.modelosSoloPc/);
+    await assert.rejects(nucleo.llamarRemoto("modelos:sondear", ["http://127.0.0.1:1"], "cel", "192.0.2.2"), /main\.modelosSoloPc/);
+    await assert.rejects(nucleo.llamarRemoto("modelos:bajar", ["http://127.0.0.1:1", "x"], "cel", "192.0.2.2"), /main\.modelosSoloPc/);
+    await assert.rejects(nucleo.llamarRemoto("modelos:cancelarBajada", ["http://127.0.0.1:1", "x"], "cel", "192.0.2.2"), /main\.modelosSoloPc/);
+    await assert.rejects(nucleo.llamarRemoto("modelos:guardar", [cfg], "otro", "172.24.0.1"), /main\.modelosSoloPc/);
+
+    // 2) Un x-forwarded-for con 127.0.0.1 desde una IP de la tailnet (directa o en `propias`) NO destraba el guardado.
+    ipSocket = "192.0.2.2";
+    const rXffDirecto = await rpc("modelos:guardar", [cfg], { "x-forwarded-for": "127.0.0.1" });
+    assert.equal(rXffDirecto.ok, false);
+    assert.match(String(rXffDirecto.error), /main\.modelosSoloPc/);
+
+    ipSocket = "192.0.2.1";
+    const rXffProxy = await rpc("modelos:guardar", [cfg], { "x-forwarded-for": "127.0.0.1" });
+    assert.equal(rXffProxy.ok, false);
+    assert.match(String(rXffProxy.error), /main\.modelosSoloPc/);
+    assert.equal(existsSync(ruta), false);
+
+    // 3) Por loopback (127.0.0.1, ::1), aunque no esté TRAMA_LOCAL, el dueño guarda modelos.
+    ipSocket = "127.0.0.1";
+    const rLoop = await rpc("modelos:guardar", [cfg]);
+    assert.equal(rLoop.ok, true);
+    assert.deepEqual(JSON.parse(readFileSync(ruta, "utf8")).excluir, ["claude-haiku-5-5"]);
+    await assert.doesNotReject(nucleo.llamarRemoto("modelos:sondear", ["http://127.0.0.1:1"], "pc", "::1"));
+    await assert.doesNotReject(nucleo.llamarRemoto("modelos:cancelarBajada", ["http://127.0.0.1:1", "x"], "pc", "127.0.0.1"));
+  } finally {
+    srv.closeAllConnections();
+    srv.close();
+    if (antesLocal === undefined) delete process.env.TRAMA_LOCAL;
+    else process.env.TRAMA_LOCAL = antesLocal;
+    if (antesRuta === undefined) delete process.env.TRAMA_MODELOS;
+    else process.env.TRAMA_MODELOS = antesRuta;
+  }
+});
+
 // Trama en dos máquinas (docs/estado/maquinas.md): cada canal sabe si se junta, va a la máquina de la fila o es local.
 test("rutas: la tabla cubre todos los canales (núcleo, ventana, preload) y nada más", async () => {
   // armarNucleo ya corrió en "armado".

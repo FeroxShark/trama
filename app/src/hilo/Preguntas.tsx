@@ -2,7 +2,7 @@
 // tarjeta sobre la caja con las preguntas (1 a 4: chip con el header, opciones
 // con etiqueta y descripción, una o varias, "Otro" con texto libre) y Enviar;
 // ya contestada, la llamada en el trabajo del turno es un renglón con lo elegido.
-// Lo puro (armar la respuesta, leer el resultado) está en ./preguntas.ts.
+// Lo puro (armar la respuesta, leer el resultado) está en ./preguntas-logica.ts.
 import { memo, useState, type KeyboardEvent } from "react";
 import { ChevronRight } from "lucide-react";
 import type { Pregunta } from "../datos/contrato";
@@ -10,7 +10,7 @@ import { fuente } from "../datos/fuente";
 import { t as tr } from "../i18n";
 import { useIdioma } from "../i18n/react";
 import { mensaje } from "../puente";
-import { alternar, alternarOtro, armar, completo, escribirOtro, NADA, resumenRespondidas, type Eleccion, type Respondida } from "./preguntas";
+import { alternar, alternarOtro, armar, completo, escribirOtro, NADA, resumenRespondidas, type Eleccion, type Respondida } from "./preguntas-logica";
 import { contestado, type Pedido } from "./vivo";
 
 /** Lo elegido en cada pedido sin mandar: cambiar de líder y volver no lo pierde. */

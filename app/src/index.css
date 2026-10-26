@@ -439,7 +439,7 @@ body,
   transform-origin: left;
   background: var(--acento);
 }
-/* Cerca del tope: ámbar desde 70 %, rojo desde 90 % (`nivel`, src/hilo/contexto.ts). */
+/* Cerca del tope: ámbar desde 70 %, rojo desde 90 % (`nivel`, src/hilo/contexto-logica.ts). */
 .uso[data-nivel="ambar"] .riel i {
   background: var(--aviso);
 }
@@ -2052,7 +2052,8 @@ kbd {
   width: 100%;
   max-width: 45rem;
   flex-direction: column;
-  gap: var(--esp-5);
+  --gap-conv: var(--esp-5);
+  gap: var(--gap-conv);
   margin: 0 auto;
   padding: var(--esp-8) var(--esp-6);
 }
@@ -2170,18 +2171,68 @@ kbd {
     transform: translateY(-0.1875rem);
   }
 }
-/* El razonamiento del modelo (src/hilo/Turno.tsx, Pensado): se pliega como el trabajo; abierto, su texto en una ventana que sigue lo que llega. */
-.pensado-t {
+/* Los pensamientos del modelo (src/hilo/Actividad.tsx, Pensamiento; Turno.tsx, Pensado): una línea gris plegada por cada uno, en orden;
+   un clic abre el texto entero en una ventana que, si todavía llega, sigue lo último que escribe. */
+.tv-pensados {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-0-5);
+  margin: var(--esp-1) 0;
+}
+.tv-pl {
+  min-width: 0;
+  flex: 1 1 auto;
+  color: var(--texto-4);
+  font-size: var(--letra-4);
+}
+.tv-pb {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  align-items: center;
+  gap: var(--esp-1-5);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+.tv-pb:hover {
+  color: var(--texto-1);
+}
+.tv-pf {
+  flex: none;
+  transition: transform 0.15s;
+}
+.tv-pb[aria-expanded="true"] .tv-pf {
+  transform: rotate(90deg);
+}
+.tv-pq {
+  flex: none;
+  color: var(--texto-5);
+}
+.tv-pl[data-vivo] .tv-pq {
+  color: var(--c, var(--texto-4));
+}
+.tv-pr {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tv-pe {
   max-height: 14rem;
-  margin: var(--esp-2) 0 0 var(--esp-1);
+  margin: var(--esp-1) 0 0 var(--esp-1);
   padding: 0 0 0 var(--esp-3);
   border-left: 1px solid var(--borde-3);
   color: var(--texto-6);
-  font-size: var(--letra-4);
   line-height: 1.55;
   white-space: pre-wrap;
   overflow: hidden auto;
   overflow-wrap: anywhere;
+  scrollbar-width: thin;
+  animation: entra 0.16s ease-out;
 }
 /* Cerrado y trabajando: el paso en curso, en una línea pegada al "Trabajando 52 s" de arriba. */
 .trabajo-paso {
@@ -3353,7 +3404,7 @@ kbd {
   }
 }
 /* --- B17: mensajes tiernos --------------------------------------------------
-   La frase la escribe el reloj (src/hilo/tierno.ts) y en cada cambio alterna
+   La frase la escribe el reloj (src/hilo/tierno-logica.ts) y en cada cambio alterna
    `data-par`: pasar de unos keyframes a los otros relanza la entrada, una sola
    vez y sólo con opacity y transform. Con prefers-reduced-motion cambia sin
    animar (la regla de arriba apaga toda animación). */
@@ -3554,15 +3605,6 @@ kbd {
   gap: var(--esp-1) var(--esp-2);
   font-size: var(--letra-5);
 }
-/* El estado como un punto con su anillo; el color dice en qué anda (esperando, razonando, herramienta, escribiendo, te necesita, terminó, falló). */
-.tv-punto {
-  width: 0.5rem;
-  height: 0.5rem;
-  flex: none;
-  border-radius: var(--radio-pastilla);
-  background: var(--e);
-  box-shadow: 0 0 0 0.1875rem color-mix(in srgb, var(--e) 22%, transparent);
-}
 .tv-v {
   min-width: 0;
   overflow: hidden;
@@ -3730,44 +3772,42 @@ kbd {
 .tv-parar {
   margin-left: auto;
 }
-/* El razonamiento de un motor que lo deja ver (Gemini; src/hilo/Actividad.tsx, Razon): su último paso en una línea, discreto, y plegado el del turno entero. */
-.tv-raz {
+/* El progreso del turno de un motor que deja ver su razonamiento (src/hilo/Actividad.tsx, Progreso): pensamientos plegados y herramientas, en el
+   orden en que pasaron, en una ventana que sigue lo último. Cada línea nueva entra con un fundido corto (una vez, no infinito). */
+.tv-lt {
   display: flex;
-  min-width: 0;
+  max-height: 14rem;
   flex-direction: column;
-  align-items: flex-start;
-  gap: var(--esp-0-5);
+  gap: var(--esp-1);
+  margin: var(--esp-0-5) 0 0;
+  padding: 0;
+  overflow-y: auto;
   color: var(--texto-4);
   font-size: var(--letra-4);
+  list-style: none;
+  scrollbar-width: thin;
 }
-.tv-rz-l {
+.tv-li {
   display: flex;
-  max-width: 100%;
   min-width: 0;
   align-items: flex-start;
   gap: var(--esp-1-5);
+  animation: entra 0.16s ease-out;
 }
-.tv-raz .tv-ic {
+.tv-li > .tv-ic {
   margin-top: var(--esp-0-5);
-  color: var(--sint-kw);
+  color: var(--texto-5);
 }
-.tv-rz-p {
-  display: block;
-  min-width: 0;
-  overflow-wrap: anywhere;
+.tv-ln {
+  flex: none;
+  color: var(--texto-2);
+  font-weight: 500;
 }
-.tv-rz-t {
-  width: 100%;
-  max-height: 12rem;
-  margin: var(--esp-1) 0 0 var(--esp-1);
-  padding: 0 0 0 var(--esp-3);
-  border-left: 1px solid var(--borde-3);
-  color: var(--texto-6);
-  line-height: 1.55;
-  white-space: pre-wrap;
-  overflow: hidden auto;
-  overflow-wrap: anywhere;
-  scrollbar-width: thin;
+.tv-li > .tv-ent {
+  flex: 1 1 auto;
+}
+.tv-li > .ll-e {
+  flex: none;
 }
 
 /* --- B16: el anillo de contexto ---------------------------------------------
@@ -5258,7 +5298,7 @@ summary.sis-div-t:hover,
     padding: 0 var(--esp-3) 0 var(--esp-1);
   }
   .conv {
-    gap: var(--esp-4);
+    --gap-conv: var(--esp-4);
     padding: var(--esp-4) var(--esp-3-5);
   }
   .yo {
@@ -5581,7 +5621,8 @@ summary.sis-div-t:hover,
   .mini {
     padding-inline: var(--esp-3-5);
   }
-  .tv-mas {
+  .tv-mas,
+  .tv-pb {
     min-height: 2.75rem;
   }
   .avs-a,

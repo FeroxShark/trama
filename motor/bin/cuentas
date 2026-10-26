@@ -1,0 +1,375 @@
+#!/usr/bin/env python3
+"""cuentas — varias cuentas por proveedor (Claude, Google/agy, ChatGPT/codex), cada una con su carpeta de credenciales.
+
+  cuentas [--json] [--verificar]               las cuentas (la de siempre de cada proveedor + las agregadas)
+  cuentas agregar PROVEEDOR "Nombre" [--id ID] crea la cuenta y su carpeta (no hace el login)
+  cuentas quitar ID [--borrar-credenciales]    la saca de la lista; la carpeta queda salvo con el flag
+  cuentas renombrar ID "Nombre"                cambia el nombre (también el de la cuenta de siempre)
+  cuentas login ID [--imprimir]                lanza el login de esa cuenta (interactivo); --imprimir sólo lo muestra
+  cuentas env ID [--json]                      el entorno con que se corre un worker de esa cuenta
+  cuentas ver ID [--json]                      una cuenta
+
+PROVEEDOR: claude | google | chatgpt. La cuenta de siempre de cada proveedor tiene el id del proveedor y usa las
+credenciales de siempre (sin tocar nada): sin cuentas.json todo sigue como antes. Las agregadas viven en
+~/.config/trama/cuentas.json (TRAMA_CUENTAS) y cada una tiene su carpeta (default <carpeta de cuentas.json>/cuentas/<id>):
+  claude   CLAUDE_CONFIG_DIR=<carpeta> (y sin ANTHROPIC_API_KEY); settings, hooks, skills, plugins y projects son
+           symlinks a ~/.claude: sólo las credenciales (.credentials.json, .claude.json) son de la cuenta
+  google   HOME=<carpeta> y DBUS_SESSION_BUS_ADDRESS roto: agy no encuentra el llavero y guarda el token en un archivo
+           de ese HOME; ~/.gemini/config, git, ~/.config/trama, ~/.local/{bin,state} y ~/.claude son symlinks
+  chatgpt  CODEX_HOME=<carpeta>; config.toml, AGENTS.md y prompts son symlinks a ~/.codex
+Doc: docs/cuentas-varias-por-proveedor.md. Sin dependencias (python3 estándar). TRAMA_CUENTAS_HOME = el home de
+verdad de donde salen los symlinks (default $HOME).
+"""
+import fcntl
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+import unicodedata
+
+VERSION = 1
+PROVEEDORES = {   # id: (nombre de la cuenta de siempre, motor que la usa)
+    "claude": ("Claude", "claude"),
+    "google": ("Google AI Pro", "agy"),
+    "chatgpt": ("ChatGPT", "codex"),
+}
+ID_OK = re.compile(r"^[a-z0-9][a-z0-9-]{0,39}$")
+DBUS_ROTO = "unix:path=/nonexistent/trama-sin-llavero"
+LINKS = {   # proveedor: rutas relativas al home de verdad -> misma ruta relativa en la carpeta de la cuenta
+    "claude": [(".claude/" + n, n) for n in ("settings.json", "CLAUDE.md", "hooks", "skills", "agents", "commands",
+                                             "plugins", "projects", "sessions", "output-styles", "keybindings.json")],
+    "google": [(n, n) for n in (".gemini/config", ".gemini/GEMINI.md", ".gitconfig", ".config/git", ".config/trama",
+                                ".local/bin", ".local/state", ".claude")],
+    "chatgpt": [(".codex/" + n, n) for n in ("config.toml", "AGENTS.md", "prompts")],
+}
+MODELO_AGY = re.compile(r"^\s*(gemini|claude|gpt)[-\w.]*\s*$", re.I)
+
+
+def err(m):
+    sys.stderr.write("cuentas: %s\n" % m)
+
+
+def home_real():
+    return os.environ.get("TRAMA_CUENTAS_HOME") or os.path.expanduser("~")
+
+
+def ruta():
+    return os.environ.get("TRAMA_CUENTAS") or os.path.join(home_real(), ".config", "trama", "cuentas.json")
+
+
+def dir_default(cid):
+    return os.path.join(os.path.dirname(os.path.abspath(ruta())), "cuentas", cid)
+
+
+def leer_archivo():
+    """Las entradas de cuentas.json. Sin archivo: []. Inválido: una línea por stderr y [] (todo sigue como antes)."""
+    try:
+        with open(ruta()) as f:
+            d = json.load(f)
+    except FileNotFoundError:
+        return []
+    except Exception as e:
+        err("%s inválido (%s): uso sólo las cuentas de siempre" % (ruta(), e))
+        return []
+    out = []
+    for c in (d.get("cuentas") if isinstance(d, dict) else None) or []:
+        if not isinstance(c, dict) or c.get("proveedor") not in PROVEEDORES or not ID_OK.match(str(c.get("id", ""))):
+            err("entrada inválida en %s: %s (la salteo)" % (ruta(), json.dumps(c, ensure_ascii=False)))
+            continue
+        out.append(c)
+    return out
+
+
+def cargar():
+    """Todas las cuentas: la de siempre de claude y google (y la de chatgpt si hay alguna de chatgpt), más las agregadas.
+    Cada una: id, proveedor, motor, nombre, dir (None = la de siempre), defecto."""
+    ent = leer_archivo()
+    por_id = {}
+    for c in ent:
+        por_id.setdefault(c["id"], c)
+    out = []
+    provs = ["claude", "google"] + (["chatgpt"] if any(c["proveedor"] == "chatgpt" for c in ent) else [])
+    for p in provs:
+        r = por_id.get(p)
+        out.append({"id": p, "proveedor": p, "motor": PROVEEDORES[p][1],
+                    "nombre": (r or {}).get("nombre") or PROVEEDORES[p][0], "dir": None, "defecto": True})
+    for c in ent:
+        if c["id"] in PROVEEDORES or c is not por_id[c["id"]]:
+            continue
+        d = os.path.expanduser(c.get("dir") or dir_default(c["id"]))
+        out.append({"id": c["id"], "proveedor": c["proveedor"], "motor": PROVEEDORES[c["proveedor"]][1],
+                    "nombre": c.get("nombre") or c["id"], "dir": os.path.abspath(d), "defecto": False})
+    return out
+
+
+def buscar(cid):
+    return next((c for c in cargar() if c["id"] == cid), None)
+
+
+def guardar(ent):
+    p = ruta()
+    os.makedirs(os.path.dirname(os.path.abspath(p)), exist_ok=True)
+    tmp = "%s.%d" % (p, os.getpid())
+    with open(tmp, "w") as f:
+        json.dump({"version": VERSION, "cuentas": ent}, f, ensure_ascii=False, indent=2)
+        f.write("\n")
+    os.replace(tmp, p)
+
+
+class Candado:
+    def __enter__(self):
+        os.makedirs(os.path.dirname(os.path.abspath(ruta())), exist_ok=True)
+        self.f = open(ruta() + ".lock", "w")
+        fcntl.flock(self.f, fcntl.LOCK_EX)
+        return self
+
+    def __exit__(self, *a):
+        self.f.close()
+
+
+def asegurar_links(c):
+    """Crea la carpeta de la cuenta y los symlinks a lo compartido. No pisa nada que ya exista."""
+    if c["defecto"]:
+        return
+    os.makedirs(c["dir"], mode=0o700, exist_ok=True)
+    for src, dst in LINKS[c["proveedor"]]:
+        s = os.path.join(home_real(), src)
+        t = os.path.join(c["dir"], dst)
+        if not os.path.lexists(s) or os.path.lexists(t):
+            continue
+        os.makedirs(os.path.dirname(t), exist_ok=True)
+        try:
+            os.symlink(s, t)
+        except OSError as e:
+            err("no pude enlazar %s: %s" % (t, e))
+
+
+def entorno(c):
+    """(poner, sacar): variables a poner y a sacar para correr un worker de esa cuenta. La de siempre: nada."""
+    if c["defecto"]:
+        return {}, []
+    if c["proveedor"] == "claude":
+        return {"CLAUDE_CONFIG_DIR": c["dir"]}, ["ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_BASE_URL"]
+    if c["proveedor"] == "google":
+        return {"HOME": c["dir"], "DBUS_SESSION_BUS_ADDRESS": DBUS_ROTO}, []
+    return {"CODEX_HOME": c["dir"]}, ["OPENAI_API_KEY"]
+
+
+def comando_login(c):
+    poner, sacar = entorno(c)
+    base = {"claude": ["claude", "auth", "login"], "google": ["agy"], "chatgpt": ["codex", "login"]}[c["proveedor"]]
+    pre = ["env"] + ["-u%s" % v for v in sacar] + ["%s=%s" % kv for kv in sorted(poner.items())] if (poner or sacar) else []
+    return pre + base
+
+
+def env_de(c):
+    e = dict(os.environ)
+    poner, sacar = entorno(c)
+    for v in sacar:
+        e.pop(v, None)
+    e.update(poner)
+    return e
+
+
+def logueado(c, verificar=False):
+    """True/False si se sabe, None si no hay forma barata de saberlo (agy guarda el token en el llavero)."""
+    p = c["proveedor"]
+    if p == "claude":
+        if verificar and shutil.which("claude"):
+            try:
+                r = subprocess.run(["claude", "auth", "status", "--json"], env=env_de(c), capture_output=True,
+                                   text=True, timeout=20, stdin=subprocess.DEVNULL)
+                return bool(json.loads(r.stdout).get("loggedIn"))
+            except Exception:
+                pass
+        d = c["dir"] or os.environ.get("CLAUDE_CONFIG_DIR") or os.path.join(home_real(), ".claude")
+        return os.path.exists(os.path.join(d, ".credentials.json"))
+    if p == "chatgpt":
+        d = c["dir"] or os.environ.get("CODEX_HOME") or os.path.join(home_real(), ".codex")
+        return os.path.exists(os.path.join(d, "auth.json"))
+    if verificar and shutil.which("agy"):
+        try:
+            r = subprocess.run(["agy", "models"], env=env_de(c), capture_output=True, text=True, timeout=20,
+                               stdin=subprocess.DEVNULL, cwd=os.environ.get("TMPDIR", "/tmp"))
+            return any(MODELO_AGY.match(l) for l in r.stdout.splitlines())
+        except Exception:
+            return False
+    return None
+
+
+def slug(nombre):
+    s = unicodedata.normalize("NFKD", nombre).encode("ascii", "ignore").decode().lower()
+    s = re.sub(r"[^a-z0-9]+", "-", s).strip("-")[:36]
+    return s or "cuenta"
+
+
+def publico(c, verificar=False):
+    d = dict(c)
+    d["logueado"] = logueado(c, verificar)
+    return d
+
+
+def cmd_listar(a):
+    js = "--json" in a
+    ver = "--verificar" in a
+    cs = [publico(c, ver) for c in cargar()]
+    if js:
+        print(json.dumps({"version": VERSION, "archivo": ruta(), "cuentas": cs}, ensure_ascii=False))
+        return 0
+    for c in cs:
+        lg = {True: "con sesión", False: "sin sesión", None: "sesión sin verificar"}[c["logueado"]]
+        print("%-22s %-8s %-24s %s%s" % (c["id"], c["proveedor"], c["nombre"], lg,
+                                         "" if c["defecto"] else "  (%s)" % c["dir"]))
+    return 0
+
+
+def cmd_agregar(a):
+    if len(a) < 2 or a[0] not in PROVEEDORES:
+        err("uso: cuentas agregar claude|google|chatgpt \"Nombre\" [--id ID]")
+        return 2
+    prov, nombre, resto = a[0], a[1], a[2:]
+    cid = None
+    if resto[:1] == ["--id"] and len(resto) == 2:
+        cid = resto[1]
+    elif resto:
+        err("uso: cuentas agregar claude|google|chatgpt \"Nombre\" [--id ID]")
+        return 2
+    with Candado():
+        ent = leer_archivo()
+        usados = set(PROVEEDORES) | {c["id"] for c in ent}
+        if cid is not None:
+            if not ID_OK.match(cid):
+                err("id inválido: %s (minúsculas, números y guiones; hasta 40)" % cid)
+                return 2
+            if cid in usados:
+                err("ya existe una cuenta con id %s" % cid)
+                return 2
+        else:
+            base = slug(nombre)
+            cid, n = base, 2
+            while cid in usados:
+                cid, n = "%s-%d" % (base, n), n + 1
+        ent.append({"id": cid, "proveedor": prov, "nombre": nombre})
+        guardar(ent)
+    c = buscar(cid)
+    asegurar_links(c)
+    print(cid)
+    sys.stderr.write("cuentas: falta el login: cuentas login %s\n" % cid)
+    return 0
+
+
+def cmd_quitar(a):
+    if not a or a[1:] not in ([], ["--borrar-credenciales"]):
+        err("uso: cuentas quitar ID [--borrar-credenciales]")
+        return 2
+    cid = a[0]
+    if cid in PROVEEDORES:
+        err("%s es la cuenta de siempre de su proveedor: no se quita (se puede renombrar)" % cid)
+        return 2
+    with Candado():
+        c = buscar(cid)
+        if not c:
+            err("no hay ninguna cuenta %s" % cid)
+            return 1
+        guardar([e for e in leer_archivo() if e["id"] != cid])
+    if "--borrar-credenciales" in a and c["dir"] and os.path.isdir(c["dir"]) and not os.path.islink(c["dir"]):
+        # los symlinks a lo compartido se borran como links, nunca se sigue adentro
+        shutil.rmtree(c["dir"])
+        print("cuenta %s quitada y su carpeta borrada" % cid)
+    else:
+        print("cuenta %s quitada%s" % (cid, " (su carpeta queda en %s)" % c["dir"] if c["dir"] else ""))
+    return 0
+
+
+def cmd_renombrar(a):
+    if len(a) != 2 or not a[1].strip():
+        err("uso: cuentas renombrar ID \"Nombre\"")
+        return 2
+    cid, nombre = a
+    with Candado():
+        if not buscar(cid):
+            err("no hay ninguna cuenta %s" % cid)
+            return 1
+        ent = leer_archivo()
+        for e in ent:
+            if e["id"] == cid:
+                e["nombre"] = nombre
+                break
+        else:   # la de siempre, todavía sin entrada
+            ent.append({"id": cid, "proveedor": cid, "nombre": nombre})
+        guardar(ent)
+    print("%s: %s" % (cid, nombre))
+    return 0
+
+
+def cmd_login(a):
+    if not a or a[1:] not in ([], ["--imprimir"]):
+        err("uso: cuentas login ID [--imprimir]")
+        return 2
+    c = buscar(a[0])
+    if not c:
+        err("no hay ninguna cuenta %s" % a[0])
+        return 1
+    asegurar_links(c)
+    cmd = comando_login(c)
+    if "--imprimir" in a:
+        print(" ".join(x if re.match(r"^[\w@%+=:,./-]+$", x) else "'%s'" % x.replace("'", "'\\''") for x in cmd))
+        return 0
+    if not shutil.which(cmd[0] if cmd[0] != "env" else next(x for x in cmd[1:] if "=" not in x and not x.startswith("-u"))):
+        err("no está instalado el CLI de %s" % c["proveedor"])
+        return 1
+    os.execvp(cmd[0], cmd)
+
+
+def cmd_env(a):
+    if not a or a[1:] not in ([], ["--json"]):
+        err("uso: cuentas env ID [--json]")
+        return 2
+    c = buscar(a[0])
+    if not c:
+        err("no hay ninguna cuenta %s" % a[0])
+        return 1
+    asegurar_links(c)
+    poner, sacar = entorno(c)
+    if "--json" in a:
+        print(json.dumps({"id": c["id"], "proveedor": c["proveedor"], "motor": c["motor"], "nombre": c["nombre"],
+                          "defecto": c["defecto"], "poner": poner, "sacar": sacar}, ensure_ascii=False))
+    else:
+        for v in sacar:
+            print("-%s" % v)
+        for k, v in sorted(poner.items()):
+            print("%s=%s" % (k, v))
+    return 0
+
+
+def cmd_ver(a):
+    if not a or a[1:] not in ([], ["--json"], ["--verificar"], ["--json", "--verificar"], ["--verificar", "--json"]):
+        err("uso: cuentas ver ID [--json] [--verificar]")
+        return 2
+    c = buscar(a[0])
+    if not c:
+        err("no hay ninguna cuenta %s" % a[0])
+        return 1
+    d = publico(c, "--verificar" in a)
+    print(json.dumps(d, ensure_ascii=False) if "--json" in a else "%s %s %s" % (d["id"], d["proveedor"], d["nombre"]))
+    return 0
+
+
+def main(argv):
+    if not argv or argv[0] in ("--json", "--verificar"):
+        return cmd_listar(argv)
+    if argv[0] in ("-h", "--help"):
+        sys.stdout.write(__doc__)
+        return 0
+    f = {"agregar": cmd_agregar, "quitar": cmd_quitar, "renombrar": cmd_renombrar, "login": cmd_login,
+         "env": cmd_env, "ver": cmd_ver, "listar": cmd_listar}.get(argv[0])
+    if not f:
+        sys.stdout.write(__doc__)
+        return 2
+    return f(argv[1:])
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

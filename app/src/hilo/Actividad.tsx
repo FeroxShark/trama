@@ -1,19 +1,21 @@
 // La tarjeta de actividad del chat (dirección C, referencias/maquetas/actividad): mientras un líder de la app responde, una
 // escena de 2.75rem que actúa lo que hace, el estado (punto de color + verbo), qué modelo y esfuerzo corre, lo concreto, el tiempo,
 // los tokens y los pasos de atrás con su icono (los últimos tres; el resto, tras "+N pasos"), y Parar.
-// Qué evento da cada tipo y cómo se limpia el detalle: src/hilo/actividad.ts. El movimiento: src/barra/latido-escenas.ts.
+// Qué evento da cada tipo y cómo se limpia el detalle: src/hilo/actividad-logica.ts. El movimiento: src/barra/latido-escenas.ts.
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Bot, Brain, Check, ChevronDown, FilePlus, FileText, Globe, Hand, MessageSquare, Pencil, Search, Terminal, Wrench, X, type LucideIcon } from "lucide-react";
+import { Bot, Brain, Check, ChevronDown, ChevronRight, FilePlus, FileText, Globe, Hand, MessageSquare, Pencil, Search, Terminal, Wrench, X, type LucideIcon } from "lucide-react";
 import { latir } from "../barra/latido";
 import { Reloj } from "../barra/piezas";
+import { Chip } from "../ui/componentes";
 import { t, type Clave } from "../i18n";
 import { pintorDura } from "../tiempo";
 import { alScroll, bajar, seguidor, seguir } from "./seguir";
-import { estadoDe, iconoDe, muyLargo, PASOS, textoPaso, type Actividad as Act, type Icono, type Paso } from "./actividad";
+import { estadoDe, iconoDe, muyLargo, PASOS, primeraLineaPensada, textoPaso, type Actividad as Act, type Icono, type Paso } from "./actividad-logica";
+import type { LineaTiempo } from "./linea-tiempo";
 import { Escena } from "./Escenas";
 import { Tierno } from "./Tierno";
 
-/** Una clave de `actividad.ts` (viaja como texto) ya traducida. */
+/** Una clave de `actividad-logica.ts` (viaja como texto) ya traducida. */
 const tx = (clave: string, vars?: Record<string, string | number>) => (t as (k: Clave, v?: Record<string, string | number>) => string)(clave as Clave, vars);
 
 const ICONO: Record<Icono, LucideIcon> = {
@@ -60,19 +62,57 @@ function Entero({ texto, className }: { texto: string; className: string }) {
   );
 }
 
-/** El último paso de un razonamiento: su última línea con texto, sin las marcas de markdown de los títulos (`**Leyendo el repo**`). */
-export const ultimoPensado = (texto: string): string => {
-  const ls = texto.split("\n").map((l) => l.trim().replace(/^#+\s*/, "").replace(/^\*\*(.+?)\*\*:?$/, "$1")).filter(Boolean);
-  return ls.at(-1) ?? "";
-};
+/**
+ * Un pensamiento: una línea compacta y gris ("Pensó: " y su primera línea, con "…" si no entra) que es un botón; un clic lo despliega
+ * entero y otro lo pliega. Nada se pierde al llegar el siguiente: cada uno es su propia línea. El que todavía llega (`vivo`) dice
+ * "Pensando" y está desplegado, siguiendo lo último que escribe, hasta que se lo pliega o se sube.
+ */
+export function Pensamiento({ texto, vivo = false, abierto: inicial = false }: { texto: string; vivo?: boolean; abierto?: boolean }) {
+  const [manual, setManual] = useState<boolean | null>(inicial ? true : null);
+  const abierto = manual ?? vivo;
+  const caja = useRef<HTMLDivElement>(null);
+  const seg = useRef(seguidor()).current;
+  const abrio = useRef(false);
+  useLayoutEffect(() => {
+    const u = caja.current;
+    if (!u) return void (abrio.current = false);
+    if (!abrio.current) {
+      abrio.current = true;
+      if (vivo) bajar(u, seg);
+      else seg.pegado = false;
+    } else if (vivo) seguir(u, seg);
+  });
+  return (
+    <div className="tv-pl" data-abierto={abierto ? "" : undefined} data-vivo={vivo ? "" : undefined}>
+      <button type="button" className="tv-pb" aria-expanded={abierto} onClick={() => setManual(!abierto)}>
+        <ChevronRight className="tv-pf" size={11} strokeWidth={2} aria-hidden="true" />
+        <span className="tv-pq">{vivo ? t("turno.pensando") : `${t("turno.penso")}:`}</span>
+        {abierto ? null : <span className="tv-pr">{primeraLineaPensada(texto)}</span>}
+      </button>
+      {abierto ? (
+        <div className="tv-pe" ref={caja} onScroll={(e) => alScroll(e.currentTarget, seg)}>
+          {texto}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+/** El estado de una herramienta del progreso (corriendo / ok / error), con el mismo punto que en el trabajo del turno. */
+const EstadoLinea = ({ estado }: { estado: Extract<LineaTiempo, { tipo: "herramienta" }>["estado"] }) =>
+  estado ? (
+    <span className="ll-e" data-e={estado}>
+      {t(`llamada.${estado}`)}
+    </span>
+  ) : null;
 
 /**
- * El razonamiento de un motor que lo deja ver (Gemini), discreto: su último paso en una línea y, plegado, el del turno entero
- * (una ventana que sigue lo que llega hasta que se sube). No tapa la respuesta: vive dentro de la tarjeta.
+ * El progreso del turno de un motor que deja ver su razonamiento: lo que fue pasando, en orden (los pensamientos terminados, plegados,
+ * y las herramientas con su ícono, su nombre y su archivo o comando) y, abajo, el pensamiento que todavía llega escribiéndose. Una
+ * ventana que sigue lo último que llegó hasta que se sube. No tapa la respuesta: vive dentro de la tarjeta.
  */
-function Razon({ texto }: { texto: string }) {
-  const [abierto, setAbierto] = useState(false);
-  const caja = useRef<HTMLDivElement>(null);
+function Progreso({ lineas, pensando }: { lineas: LineaTiempo[]; pensando: string }) {
+  const caja = useRef<HTMLUListElement>(null);
   const seg = useRef(seguidor()).current;
   const abrio = useRef(false);
   useLayoutEffect(() => {
@@ -83,23 +123,34 @@ function Razon({ texto }: { texto: string }) {
       bajar(u, seg);
     } else seguir(u, seg);
   });
-  const ultimo = ultimoPensado(texto);
+  const vivo = pensando.trim();
+  if (!lineas.length && !vivo) return null;
   return (
-    <div className="tv-raz">
-      <div className="tv-rz-l">
-        <Brain className="tv-ic" size={13} strokeWidth={1.9} aria-hidden="true" />
-        <Entero texto={ultimo} className="tv-rz-p" />
-      </div>
-      <button type="button" className="tv-mas" aria-expanded={abierto} onClick={() => setAbierto((x) => !x)}>
-        {abierto ? t("hz.razonMenos") : t("hz.razonTodo")}
-        <ChevronDown className="tv-fl" size={12} strokeWidth={2} aria-hidden="true" />
-      </button>
-      {abierto ? (
-        <div className="tv-rz-t" ref={caja} onScroll={(e) => alScroll(e.currentTarget, seg)}>
-          {texto}
-        </div>
+    // Dentro de un `role=status`: ni el texto que llega ni cada línea se anuncian de a pedazos.
+    <ul className="tv-lt" ref={caja} aria-label={t("hz.progreso")} aria-live="off" onScroll={(e) => alScroll(e.currentTarget, seg)}>
+      {lineas.map((x) => {
+        if (x.tipo === "pensamiento")
+          return (
+            <li key={x.key} className="tv-li" data-k="pensamiento">
+              <Pensamiento texto={x.texto} />
+            </li>
+          );
+        const I = ICONO[x.icono];
+        return (
+          <li key={x.key} className="tv-li" data-k="herramienta">
+            <I className="tv-ic" size={12} strokeWidth={1.9} aria-hidden="true" />
+            <span className="tv-ln">{x.nombre}</span>
+            <Entero texto={x.detalle} className="tv-pt" />
+            <EstadoLinea estado={x.estado} />
+          </li>
+        );
+      })}
+      {vivo ? (
+        <li key="vivo" className="tv-li" data-k="vivo">
+          <Pensamiento texto={vivo} vivo />
+        </li>
       ) : null}
-    </div>
+    </ul>
   );
 }
 
@@ -114,8 +165,11 @@ type Props = {
   tokens: string | null;
   /** Con los mensajes tiernos prendidos, la frase de siempre en vez del verbo genérico (pensando / escribiendo). */
   tierno?: string;
-  /** Un motor que deja ver su razonamiento: lo que lleva el turno (puede estar vacío). `undefined`: no lo deja ver, y no se muestra nada. */
-  razon?: string;
+  /**
+   * Un motor que deja ver su razonamiento: lo que lleva el turno (puede estar vacío), en orden: los pensamientos terminados y las
+   * herramientas (`lineaDeTiempo`) y el pensamiento que todavía llega. `undefined`: no lo deja ver, y se muestran los pasos de siempre.
+   */
+  razon?: { lineas: LineaTiempo[]; pensando: string };
   /** Qué modelo y esfuerzo corre ("Sonnet 5.5", "high"), cuando se saben. */
   modelo?: string | null;
   effort?: string | null;
@@ -132,11 +186,15 @@ export function Actividad({ act, pasos, pasosN, desde, tokens, tierno, razon, mo
   const [todos, setTodos] = useState(false);
   const dura = useMemo(() => (desde !== null ? pintorDura(desde) : null), [desde]);
   const detalle = textoDetalle(act);
+  const conRazon = !!razon && !fin;
   const lineas = pasos.map((p) => ({ l: lineaPaso(p), i: iconoDe(p.hace) })).filter((x): x is { l: string; i: Icono } => x.l !== null);
-  const vis = todos ? lineas : lineas.slice(0, PASOS);
-  const ocultos = lineas.length - PASOS;
+  // Con el progreso a la vista (pensamientos y herramientas en orden) los pasos de atrás sobran: serían lo mismo dos veces.
+  const vis = conRazon ? [] : todos ? lineas : lineas.slice(0, PASOS);
+  const ocultos = conRazon ? 0 : lineas.length - PASOS;
   const estado = fin ?? estadoDe(act);
   const verbo = fin ? t(fin === "listo" ? "hz.t.listo" : "hz.t.error") : tx(act.verbo);
+  // El chip de arriba: trabajando, esperando (al modelo o a una respuesta de la persona) o terminado.
+  const chip = fin ? (fin === "listo" ? { tono: "ok" as const, texto: t("hz.t.listo") } : { tono: "critico" as const, texto: t("hz.t.error") }) : estado === "permiso" || estado === "espera" ? { tono: "aviso" as const, texto: t("hz.c.esperando") } : { tono: undefined, texto: t("estado.trabajando") };
   const Det = ICONO[act.icono];
   return (
     // El `key` hace que el cambio de tipo entre con su fundido (`tv-entra`); dentro de un tipo sólo cambia el texto.
@@ -151,7 +209,7 @@ export function Actividad({ act, pasos, pasosN, desde, tokens, tierno, razon, mo
         )}
         <div className="tv-cu">
           <div className="tv-t1">
-            <span className="tv-punto" aria-hidden="true" />
+            <Chip tono={chip.tono}>{chip.texto}</Chip>
             {tierno && !fin ? <Tierno semilla={tierno} className="tv-v" limpia /> : <span className="tv-v">{verbo}</span>}
             {modelo ? (
               <span className="tv-modelo" aria-label={t("hz.modelo")}>
@@ -165,14 +223,14 @@ export function Actividad({ act, pasos, pasosN, desde, tokens, tierno, razon, mo
               {pasosN ? <span className="tv-x">{t("hz.pasos", { n: pasosN })}</span> : null}
             </span>
           </div>
-          {detalle && !fin ? (
+          {detalle && !fin && !(conRazon && estado !== "permiso") ? (
             <div className="tv-det" data-fija={act.detalleClave ? "" : undefined}>
               {act.detalleClave ? null : <Det className="tv-ic" size={13} strokeWidth={1.9} aria-hidden="true" />}
               <Entero texto={detalle} className="tv-dt" />
               <span className="tv-vivo">{t("hz.enCurso")}</span>
             </div>
           ) : null}
-          {razon && !fin ? <Razon texto={razon} /> : null}
+          {conRazon ? <Progreso lineas={razon.lineas} pensando={razon.pensando} /> : null}
           {vis.length ? (
             <ul className="tv-pasos">
               {vis.map((p, i) => {

@@ -1,11 +1,11 @@
 // El logo de una carpeta, para ubicarla sin leer: el ícono del proyecto si el
-// main encontró uno (electron/iconos.ts) o su monograma (logo.ts). Los íconos
+// main encontró uno (electron/iconos.ts) o su monograma (logo-logica.ts). Los íconos
 // se piden una vez y los comparten todas las carpetas.
 import { useSyncExternalStore } from "react";
 import { Home } from "lucide-react";
 import { GENERAL } from "../datos/contrato";
 import { fuente } from "../datos/fuente";
-import { monograma, tono } from "./logo";
+import { monograma, tono } from "./logo-logica";
 
 /** slug → data URL. `null`: todavía no llegaron (no se pinta el monograma para después cambiarlo). */
 let iconos: Record<string, string> | null = null;

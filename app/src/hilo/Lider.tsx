@@ -46,7 +46,8 @@ import { Hora, pintorAviso, tokens, Turno } from "./Turno";
 import { Marca } from "./Marca";
 import { Sistema } from "./Sistema";
 import { Compactando, Pasando, relevoEn, Sigue } from "./Posta";
-import { juntar, repiteElPrimero, turnos, type Item } from "./turnos";
+import { juntar, repiteElPrimero, turnos, type Item, type Punto } from "./turnos";
+import { AccionesMensaje, EditorMensaje, sobreMensaje, type Acciones } from "./AccionesMensaje";
 import { anotar, bajar, seguir } from "./seguir";
 import { anotarScroll, faltaLlegar, guardarAncla, restaurarScroll, retomarScroll, soltarScroll } from "./scrollGuardado";
 import { useCompactando } from "./compactando";
@@ -60,7 +61,7 @@ import { Adjuntos, Miniaturas } from "./Imagenes";
 import { Dictar } from "./Dictar";
 import { Logo } from "./Logos";
 import { PedidoPreguntas } from "./Preguntas";
-import { tandasPendientes } from "./preguntas";
+import { tandasPendientes } from "./preguntas-logica";
 import { ARCHIVO_MAX, IMAGENES_MAX, type Imagen } from "../../electron/imagenes";
 import { separarAdjuntos } from "../../electron/adjunto";
 
@@ -132,7 +133,9 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
   // Abierto en una terminal: se le escribe igual (el primer mensaje lo trae a la app).
   const ajeno = !!l && !app && l.vivo && !l.caido;
   // Murió o cerró (también uno de la app al que mataron): no hay caja hasta retomarlo.
-  const puede = (app || ajeno) && !l?.caido;
+  // Volver acá en uno sin proceso (Murió, Cerrado): la caja aparece, y su primer mensaje lo retoma desde ese punto.
+  const [volver, setVolver] = useState<Punto | null>(null);
+  const puede = ((app || ajeno) && !l?.caido) || (!!l && !!volver);
   const ocupado = app ? (vivo.ocupado ?? l?.ocupado ?? false) : !!l?.ocupado;
   const encolados = useSyncExternalStore(
     useCallback((fn: () => void) => cola.suscribir(sid, fn), [sid]),
@@ -368,10 +371,16 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
   // Lo del transcript y, detrás, lo que llegó por el stream y todavía no está en él.
   const mensajes = useMemo(() => mensajesVistos(pag, vivo), [pag, vivo.ocupado, vivo.base, vivo.tanda, vivo.parcial, vivo.pensando]);
   const transcript = pag?.transcript ?? null;
-  const items = useMemo(
+  const todos = useMemo(
     () => turnos(mostrar ? mensajes.flatMap((m) => mostrar(m) ?? []) : mensajes, transcript),
     [mensajes, mostrar, transcript],
   );
+  // Volver acá: lo de después de ese mensaje sale de la vista hasta que se escriba (o se deshaga).
+  const items = useMemo(() => {
+    if (!volver) return todos;
+    const k = todos.findIndex((x) => (x.tipo === "yo" || x.tipo === "turno") && x.punto?.uuid === volver.uuid);
+    return k < 0 ? todos : todos.slice(0, k + 1);
+  }, [todos, volver]);
   const respuesta = useMemo(() => {
     for (let i = mensajes.length - 1; i >= 0; i--) if (mensajes[i].rol === "assistant" && mensajes[i].texto) return mensajes[i].texto;
     return "";
@@ -492,6 +501,88 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
     );
   };
 
+  // Volver acá no sobrevive a otro líder ni a un turno en curso.
+  useEffect(() => setVolver(null), [sid]);
+  useEffect(() => {
+    if (ocupado) setVolver(null);
+  }, [ocupado]);
+
+  /**
+   * Seguir la conversación desde el mensaje `uuid` (que deja `n` mensajes atrás) con `t`: lo de después queda fuera de esa línea.
+   * `previa`: el mensaje es anterior a la última compactación; ahí el main sigue en un líder nuevo (una copia de la cadena),
+   * así que este queda como estaba y se abre el nuevo.
+   */
+  const rebobinarA = (uuid: string, n: number, t: string, imagenes: Imagen[] | undefined, alFallar?: (msg: string) => void, previa = false) => {
+    if (!l || enviando) return;
+    const e: EnvioLider = { texto: t, modelo, effort, ...(imagenes ? { imagenes } : {}) };
+    const antesPag = pag;
+    const antesVolver = volver;
+    setEnviando(true);
+    setErrorCaja(null);
+    setError(null);
+    if (!previa) {
+      enviado(l.id, t, n, imagenes);
+      scroll.current = { tipo: "fondo" };
+      setPag((p) => p && { ...p, mensajes: p.mensajes.filter((m) => m.i < n), total: n });
+    }
+    setVolver(null);
+    fuente.liderRebobinar(l.id, uuid, e, previa).then(
+      (nuevo) => {
+        setEnviando(false);
+        if (nuevo) {
+          enviado(nuevo, t, n, imagenes);
+          alCreado(nuevo, e);
+          alAbrirLider?.(nuevo);
+        }
+      },
+      (err) => {
+        const msg = mensaje(err);
+        if (!previa) {
+          fallo(l.id);
+          setPag(antesPag);
+        }
+        setVolver(antesVolver);
+        setEnviando(false);
+        setError(msg);
+        alFallar?.(msg);
+      },
+    );
+  };
+
+  const esClaude = !!l && !esAgy(l.modelo) && !sinWorkers(l.modelo);
+  const sinRebobinar = ocupado || enviando ? tr("acciones.ocupado") : ajeno ? tr("acciones.abierto") : null;
+  const acciones = useMemo<Acciones | null>(
+    () =>
+      l && esClaude
+        ? {
+            rebobina: sinRebobinar === null,
+            ramifica: true,
+            motivo: sinRebobinar,
+            volver: (p) => setVolver(p),
+            ramificar: (p) => {
+              setError(null);
+              fuente.liderRamificar(l.id, p.uuid, { modelo, effort }).then(
+                (nuevo) => {
+                  alCreado(nuevo, { texto: "", modelo, effort });
+                  alAbrirLider?.(nuevo);
+                },
+                (err) => setError(mensaje(err)),
+              );
+            },
+          }
+        : null,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [l?.id, esClaude, sinRebobinar, modelo, effort, alCreado, alAbrirLider],
+  );
+  /** Editar un pedido: sigue desde el mensaje de antes con el texto nuevo (las rutas de archivos que traía se conservan). */
+  const rebobinarUlt = useRef(rebobinarA);
+  rebobinarUlt.current = rebobinarA;
+  const editar = useCallback((x: Extract<Item, { tipo: "yo" }>, nuevo: string) => {
+    if (!x.punto?.previo) return;
+    const cola = x.texto.slice(separarAdjuntos(x.texto).texto.length);
+    rebobinarUlt.current(x.punto.previo, x.punto.antes, (nuevo.trim() + cola).trim(), x.imagenes as Imagen[] | undefined, undefined, x.punto.previa);
+  }, []);
+
   const enviar = (crudo = texto, modoNuevoYa?: Modo) => {
     const archivos = archivosDe(adjuntos);
     // Los archivos que no son imágenes van como rutas al final del texto: Claude los lee con Read.
@@ -499,6 +590,19 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
     const imgs = imagenesDe(adjuntos);
     const imagenes = imgs.length ? imgs : undefined;
     if ((!t && !imagenes) || enviando || !puede) return;
+    // Volver acá: lo que se escribe sigue desde ese mensaje.
+    if (l && volver) {
+      const antes = adjuntos;
+      vaciarAdjuntos(clave);
+      setTexto(""); setCaret(0);
+      ponerBorrador(clave, { texto: "", error: null });
+      return rebobinarA(volver.uuid, volver.n, t, imagenes, (msg) => {
+        ponerBorrador(clave, { texto: crudo, error: msg });
+        setTexto(crudo); setCaret(crudo.length);
+        setErrorCaja(msg);
+        agregarAdjuntos(clave, antes);
+      }, volver.previa);
+    }
     /** A mitad de un turno: a la cola; sale solo cuando termine. Al de la terminal, con lo que hace falta para traerlo. */
     const aLaCola = (id: string, nombre: string) => {
       const antes = adjuntos;
@@ -793,7 +897,7 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
         }}
         {...soltable}
       >
-        <div className="conv" data-desliza>
+        <div className="conv" data-desliza onPointerOver={sobreMensaje} onPointerLeave={sobreMensaje}>
           {pag && pag.desde > 0 ? <div className="conv-mas">{tr("vista.anteriores")}</div> : null}
           {sid && !pag && !error && !items.length ? <Leyendo /> : null}
           <Mensajes
@@ -808,7 +912,17 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
             sigue={sigue}
             nombre={l?.nombre}
             alAbrirLider={alAbrirLider}
+            acciones={acciones}
+            editar={editar}
           />
+          {volver ? (
+            <div className="am-volvio">
+              <span>{tr("acciones.volvio")}</span>
+              <button type="button" onClick={() => setVolver(null)}>
+                {tr("acciones.deshacer")}
+              </button>
+            </div>
+          ) : null}
           {!l && !items.length ? (
             <div className="conv-vacia" data-ido={partio ? "" : undefined}>
               {tr("lider.vacio")}
@@ -1126,24 +1240,21 @@ type PropsMensajes = {
   sigue: Lider | null;
   nombre: string | undefined;
   alAbrirLider: ((id: string) => void) | undefined;
+  /** Las acciones por mensaje (Copiar, Editar, Volver acá, Ramificar); `null`: sólo Copiar. */
+  acciones: Acciones | null;
+  editar: (x: Extract<Item, { tipo: "yo" }>, texto: string) => void;
 };
 
 /**
  * La conversación. Aparte de la caja para que cada tecla no la recorra entera: lo que se escribe es estado de `ChatLider`, y con
  * 3000 mensajes volver a armarlos en cada letra tardaba más de 50 ms. Sólo se repinta cuando cambian los mensajes o el turno.
  */
-const Mensajes = memo(function Mensajes({ items, ultimoTurno, app, ocupado, pasando, pensando, razon, relevo, sigue, nombre, alAbrirLider }: PropsMensajes) {
+const Mensajes = memo(function Mensajes({ items, ultimoTurno, app, ocupado, pasando, pensando, razon, relevo, sigue, nombre, alAbrirLider, acciones, editar }: PropsMensajes) {
   return (
     <>
       {items.map((x, i) =>
         x.tipo === "yo" ? (
-          <Fragment key={x.key}>
-            <Marca k={x.key} />
-            <div className="yo">
-              <Yo texto={x.texto} imagenes={x.imagenes} />
-            </div>
-            {x.ts !== null ? <Hora ts={x.ts} der /> : null}
-          </Fragment>
+          <YoEditable key={x.key} x={x} acciones={acciones} editar={editar} />
         ) : x.tipo === "sistema" ? (
           <Fragment key={x.key}>
             <Marca k={x.key} />
@@ -1154,6 +1265,7 @@ const Mensajes = memo(function Mensajes({ items, ultimoTurno, app, ocupado, pasa
             <Marca k={x.key} />
             {/* Uno de la app dice qué hace abajo (HaceChat); uno de terminal, "Trabajando X s" en su turno. */}
             <Turno t={x} vivo={!app && ocupado && i === ultimoTurno && !pasando} enCurso={ocupado && i === ultimoTurno} pensando={pensando && i === ultimoTurno} razon={razon} />
+            {x.texto && !(ocupado && i === ultimoTurno) ? <AccionesMensaje texto={x.texto} punto={x.punto} propio={false} acciones={acciones} /> : null}
             {relevo?.hecho && relevo.k === i ? (
               <Sigue nombre={sigue?.nombre ?? nombre ?? null} alAbrir={sigue && alAbrirLider ? () => alAbrirLider(sigue.id) : null} />
             ) : null}
@@ -1161,6 +1273,32 @@ const Mensajes = memo(function Mensajes({ items, ultimoTurno, app, ocupado, pasa
         ),
       )}
     </>
+  );
+});
+
+/** Un pedido del usuario; Editar lo cambia por un campo en su mismo lugar. */
+const YoEditable = memo(function YoEditable({ x, acciones, editar }: { x: Extract<Item, { tipo: "yo" }>; acciones: Acciones | null; editar: PropsMensajes["editar"] }) {
+  const [editando, setEditando] = useState(false);
+  return (
+    <Fragment>
+      <Marca k={x.key} />
+      <div className="yo" data-editando={editando ? "" : undefined}>
+        {editando ? (
+          <EditorMensaje
+            inicial={separarAdjuntos(x.texto).texto}
+            alCancelar={() => setEditando(false)}
+            alEnviar={(v) => {
+              setEditando(false);
+              editar(x, v);
+            }}
+          />
+        ) : (
+          <Yo texto={x.texto} imagenes={x.imagenes} />
+        )}
+      </div>
+      {x.ts !== null && !editando ? <Hora ts={x.ts} der /> : null}
+      {!editando ? <AccionesMensaje texto={separarAdjuntos(x.texto).texto} punto={x.punto} propio acciones={acciones} alEditar={() => setEditando(true)} /> : null}
+    </Fragment>
   );
 });
 

@@ -99,3 +99,14 @@ test("repiteElPrimero: el título que salió del primer mensaje no se muestra ot
   // Un título que sólo está adentro del mensaje no es un eco.
   assert.ok(!repiteElPrimero("modelo nuevo", its));
 });
+
+test("el razonamiento de un turno: un texto por mensaje, en orden, y el junto de siempre", () => {
+  n = 0;
+  const con = (m: Mensaje, pensado: string): Mensaje => ({ ...m, pensado });
+  const its = turnos([yo("hacé X", 1000), con(el("", ["Read"], 1010), "uno"), con(el("", ["Bash"], 1020), "dos"), con(el("Listo.", [], 1030), "tres")]);
+  const t = its.at(-1)!;
+  assert.equal(t.tipo, "turno");
+  if (t.tipo !== "turno") return;
+  assert.deepEqual(t.pensamientos, ["uno", "dos", "tres"]);
+  assert.equal(t.pensado, "uno\n\ndos\n\ntres");
+});

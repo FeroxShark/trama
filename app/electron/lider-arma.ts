@@ -28,7 +28,33 @@ export type Local = { url: string; ctx: number; contexto?: string };
 /** Un líder con un modelo de Ollama (`modelos.json`): el mismo `claude` de siempre contra otro endpoint; `modelo` es el nombre que Ollama conoce. */
 export type Ollama = { url: string; modelo: string };
 
-export type ArmarLider = { modelo: string; effort: string; sid: string; nombre: string; resume: boolean; modo?: Modo; local?: Local; ollama?: Ollama };
+/**
+ * De dónde sale una rama (Ramificar): la sesión de origen y el `uuid` de su último mensaje. Vive en el líder nuevo hasta que
+ * termina su primer turno: el transcript de un `--fork-session` recién se escribe con el primer mensaje.
+ */
+export type Rama = { de: string; hasta: string };
+
+/**
+ * De qué líder salió uno que nació de otro (Ramificar, o Editar / Volver acá antes de una compactación): su sid y el título que
+ * tenía entonces. Vive para siempre en `lideres.json` (`rama` se borra con el primer turno): con él la barra distingue a la rama de
+ * su origen, que si no tendrían el mismo título (el del primer mensaje) y se confundirían tras un reinicio.
+ */
+export type Origen = { sid: string; titulo: string };
+
+export type ArmarLider = {
+  modelo: string;
+  effort: string;
+  sid: string;
+  nombre: string;
+  resume: boolean;
+  modo?: Modo;
+  local?: Local;
+  ollama?: Ollama;
+  /** Con `resume`: seguir desde este mensaje (`uuid`), no desde el final; lo posterior queda en el archivo pero ya no cuenta. */
+  desde?: string;
+  /** Una sesión nueva (`sid`) que arranca con la conversación de otra hasta un mensaje; la de origen no se toca. */
+  rama?: Rama;
+};
 
 /**
  * El prompt de sistema de un líder local, en lugar del de Claude Code (que con las herramientas pasa de 15K tokens y el
@@ -79,8 +105,9 @@ const argvLocal = (contexto?: string) => [
  * y los contesta la app. Sesión nueva: `--session-id` + `--name`; retomada:
  * `--resume` (el nombre ya está en el transcript). Protocolo en docs/estado/B13.md.
  */
-export function argvLider({ modelo, effort, sid, nombre, resume, modo = MODO_DEFAULT, local, ollama }: ArmarLider): string[] {
+export function argvLider({ modelo, effort, sid, nombre, resume, modo = MODO_DEFAULT, local, ollama, desde, rama }: ArmarLider): string[] {
   if (!SID.test(sid)) throw errorT("main.sesionRara", { v: sid });
+  for (const u of [desde, rama?.de, rama?.hasta]) if (u !== undefined && !SID.test(u)) throw errorT("main.sesionRara", { v: u });
   if (!esModo(modo)) throw errorT("main.modoRaro", { v: String(modo) });
   for (const [clave, v] of [
     ["main.modeloRaro", ollama ? ollama.modelo : modelo],
@@ -104,7 +131,10 @@ export function argvLider({ modelo, effort, sid, nombre, resume, modo = MODO_DEF
     ollama ? ollama.modelo : modelo,
     ...(local ? argvLocal(local.contexto) : ollama ? [] : ["--effort", effort]),
   ];
-  if (resume) args.push("--resume", sid);
+  // Volver atrás y ramificar son del `claude` mismo (`--resume-session-at`, `--fork-session`): nunca se reescribe un transcript
+  // ni se pasa por una compactación; el modelo recibe sólo la cadena hasta ese mensaje.
+  if (rama) args.push("--resume", rama.de, "--fork-session", "--session-id", sid, "--resume-session-at", rama.hasta, "--name", nombre);
+  else if (resume) args.push("--resume", sid, ...(desde ? ["--resume-session-at", desde] : []));
   else args.push("--session-id", sid, "--name", nombre);
   return args;
 }
@@ -759,6 +789,10 @@ export type Guardado = {
   motivo?: string;
   /** Epoch: trama se cerró (reinicio, salida) con su proceso vivo. Al arrancar se lo levanta de nuevo con `--resume`. */
   dormido?: number;
+  /** Una rama de otro líder que todavía no tuvo su primer turno: se lanza (y se vuelve a lanzar) con `--fork-session`. */
+  rama?: Rama;
+  /** De qué líder salió (Ramificar / Editar antes de una compactación); no se borra. */
+  origen?: Origen;
 };
 
 /** El contenido de `lideres.json` → la lista; lo que no tiene forma se descarta (versión rara: vacío). */
@@ -795,6 +829,8 @@ export function leerGuardados(texto: string): Guardado[] {
         ...(Number(l.murio) > 0 ? { murio: Number(l.murio) } : {}),
         ...(typeof l.motivo === "string" && l.motivo ? { motivo: l.motivo.slice(0, 300) } : {}),
         ...(Number(l.dormido) > 0 ? { dormido: Number(l.dormido) } : {}),
+        ...(SID.test(String(l.rama?.de)) && SID.test(String(l.rama?.hasta)) ? { rama: { de: String(l.rama.de), hasta: String(l.rama.hasta) } } : {}),
+        ...(SID.test(String(l.origen?.sid)) ? { origen: { sid: String(l.origen.sid), titulo: String(l.origen.titulo ?? "").slice(0, 300) } } : {}),
       }),
     );
 }
@@ -858,7 +894,14 @@ type Crudo = {
   modelo: string | null;
   mid: string | null;
   usage: unknown;
-  /** Lo que dice de dónde salió (espejo de `Mensaje` en src/datos/contrato.ts; src/hilo/sistema.ts). */
+  /**
+   * El `uuid` de su última línea del transcript (incluidos los `tool_result` que le contestan): hasta ahí se puede volver con
+   * `--resume-session-at`. `null` si no se puede (las marcas, como la de compactar).
+   */
+  uuid: string | null;
+  /** Es anterior a la última compactación: el `claude` no lo alcanza con `--resume-session-at` y hace falta una copia. */
+  previa?: boolean;
+  /** Lo que dice de dónde salió (espejo de `Mensaje` en src/datos/contrato.ts; src/hilo/sistema-logica.ts). */
   marcas: Marcas;
   /** Las imágenes que mandó el usuario (B26). */
   imagenes?: Imagen[];
@@ -903,9 +946,31 @@ export type EstadoConv = {
   compactaciones: number;
   /** Compactó después del último mensaje del asistente: su `usage` es de antes. */
   compactada: boolean;
+  /** El `uuid` de la última línea leída: si la que sigue no cuelga de ella, la conversación volvió atrás (ver `recortarConv`). */
+  cola: string | null;
+  /** Cada `uuid` de línea → el lugar en `todos` del mensaje que la contiene. */
+  posDe: Map<string, number>;
 };
 
-export const convNueva = (): EstadoConv => ({ todos: [], porId: new Map(), compactaciones: 0, compactada: false });
+export const convNueva = (): EstadoConv => ({ todos: [], porId: new Map(), compactaciones: 0, compactada: false, cola: null, posDe: new Map() });
+
+/**
+ * Deja sólo los primeros `n` mensajes. Volver atrás en el mismo transcript (`--resume-session-at`) no borra nada: lo de
+ * después queda en el archivo, en una rama que ya no sigue nadie, y la línea nueva cuelga de un `uuid` anterior.
+ */
+function recortarConv(est: EstadoConv, n: number): void {
+  est.todos.length = n;
+  for (const [u, k] of est.posDe) if (k >= n) est.posDe.delete(u);
+  est.compactaciones = est.todos.filter((m) => m.marcas.compacto).length;
+  const marca = est.todos.findLastIndex((m) => m.marcas.compacto);
+  est.compactada = marca >= 0 && !est.todos.some((m, i) => i > marca && m.rol === "assistant" && m.usage && !sintetico(m));
+}
+
+/** La conversación hasta el mensaje que contiene la línea `uuid` (el de una rama que todavía no tiene transcript), sin tocar el estado de origen. */
+export function hastaUuid(est: EstadoConv, uuid: string): EstadoConv {
+  const k = est.posDe.get(uuid);
+  return { ...est, todos: est.todos.slice(0, k === undefined ? 0 : k + 1) };
+}
 
 /** Suma al estado las líneas de `texto` (un transcript entero o sólo lo que creció). */
 export function avanzarConv(est: EstadoConv, texto: string): void {
@@ -924,15 +989,27 @@ export function avanzarConv(est: EstadoConv, texto: string): void {
       est.compactada = true;
       const cm = o.compactMetadata ?? o.compact_metadata ?? {};
       const compacto = { auto: cm.trigger === "auto", antes: num(cm.preTokens ?? cm.pre_tokens) };
-      todos.push({ rol: "assistant", texto: "", herramientas: [], det: [], ts: o.timestamp ?? null, modelo: null, mid: null, usage: null, marcas: { compacto } });
+      // Lo anterior a una compactación el `claude` ya no lo carga ("No message found with message.uuid"): conserva su `uuid`
+      // pero queda `previa`, y volver o ramificar ahí pasa por una copia de la cadena (`copiarHasta`, electron/lider.ts).
+      for (const m of todos) if (m.uuid) m.previa = true;
+      todos.push({ rol: "assistant", texto: "", herramientas: [], det: [], ts: o.timestamp ?? null, modelo: null, mid: null, usage: null, uuid: null, marcas: { compacto } });
+      est.cola = typeof o.uuid === "string" ? o.uuid : null;
       continue;
     }
     if (o.type === "system" && o.subtype === "trama_destrabo") {
       const destrabo = { que: str(o.que) ?? "", agotado: o.agotado === true };
-      todos.push({ rol: "assistant", texto: "", herramientas: [], det: [], ts: o.timestamp ?? null, modelo: null, mid: null, usage: null, marcas: { destrabo } });
+      todos.push({ rol: "assistant", texto: "", herramientas: [], det: [], ts: o.timestamp ?? null, modelo: null, mid: null, usage: null, uuid: null, marcas: { destrabo } });
       continue;
     }
     if (o.type !== "user" && o.type !== "assistant") continue;
+    const uuid = typeof o.uuid === "string" ? o.uuid : null;
+    const padre = typeof o.parentUuid === "string" ? o.parentUuid : null;
+    // Una línea que cuelga de un mensaje anterior al último: se volvió atrás desde ahí, lo de después es de otra rama.
+    if (padre && padre !== est.cola) {
+      const k = est.posDe.get(padre);
+      if (k !== undefined && k < todos.length - 1) recortarConv(est, k + 1);
+    }
+    if (uuid) est.cola = uuid;
     const c = o.message?.content;
     let m: Crudo;
     if (o.type === "user") {
@@ -950,8 +1027,16 @@ export function avanzarConv(est: EstadoConv, texto: string): void {
                 .join("\n")
             : "";
       const imagenes = imagenesDeContenido(c);
-      if (!t && !imagenes.length) continue;
-      m = { rol: "user", texto: sinAviso(t), herramientas: [], det: [], ts: o.timestamp ?? null, modelo: null, mid: null, usage: null, marcas: marcasDe(o) };
+      if (!t && !imagenes.length) {
+        // Sólo resultados de herramientas: son parte del mensaje del asistente que las pidió (volver a él las incluye).
+        const ult = todos[todos.length - 1];
+        if (uuid && ult?.rol === "assistant" && ult.uuid !== null) {
+          ult.uuid = uuid;
+          est.posDe.set(uuid, todos.length - 1);
+        }
+        continue;
+      }
+      m = { rol: "user", texto: sinAviso(t), herramientas: [], det: [], ts: o.timestamp ?? null, modelo: null, mid: null, usage: null, uuid, marcas: marcasDe(o) };
       if (imagenes.length) m.imagenes = imagenes;
     } else {
       // El mensaje sintético (límite, error de la API) no pasó por el modelo: su `usage` va en cero.
@@ -972,6 +1057,7 @@ export function avanzarConv(est: EstadoConv, texto: string): void {
         modelo: o.message?.model ?? null,
         mid: o.message?.id ?? null,
         usage: o.message?.usage ?? null,
+        uuid,
         marcas: marcasDe(o),
       };
       const pensado = pensadoDe(bs);
@@ -985,7 +1071,14 @@ export function avanzarConv(est: EstadoConv, texto: string): void {
       if (m.pensado) prev.pensado = [prev.pensado, m.pensado].filter(Boolean).join("\n\n");
       prev.usage = m.usage ?? prev.usage;
       prev.modelo = m.modelo ?? prev.modelo;
-    } else todos.push(m);
+      if (uuid) {
+        prev.uuid = uuid;
+        est.posDe.set(uuid, todos.length - 1);
+      }
+    } else {
+      todos.push(m);
+      if (uuid) est.posDe.set(uuid, todos.length - 1);
+    }
   }
 }
 
@@ -1017,6 +1110,10 @@ export function paginaDe(est: EstadoConv, id: string, transcript: string | null,
     mensajes: lista.slice(desde, hasta).map((m, j) => ({
       i: desde + j,
       rol: m.rol,
+      // Para volver atrás, editar y ramificar (`--resume-session-at`): hasta este mensaje, y hasta el que le precede.
+      ...(m.uuid ? { uuid: m.uuid } : {}),
+      ...(m.uuid && m.previa ? { previa: true } : {}),
+      ...(m.uuid && lista[desde + j - 1]?.uuid ? { previo: lista[desde + j - 1].uuid } : {}),
       texto: m.texto,
       herramientas: m.herramientas,
       ...(m.det.length ? { det: m.det } : {}),

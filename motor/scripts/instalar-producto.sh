@@ -13,7 +13,8 @@
 #   --app DIR      la app hilos con dist-electron/ (default: DIR/app de la fuente, o $TRAMA_APP)
 #
 # Qué hace (usuario normal): node LTS en ~/.local si falta · `claude` y `agy` por sus instaladores oficiales si
-# faltan · symlinks en ~/.local/bin (pa, tablero, trama-estado, trama-motor, proyecto-ruta, workers) · hooks en
+# faltan · symlinks en ~/.local/bin (pa, tablero, trama-estado, trama-motor, proyecto-ruta, reparto, workers,
+# cuentas) · hooks en
 # ~/.claude/hooks y la skill trama-orquestar · destructive-guard (PreToolUse) y statusline-espejo registrados en
 # ~/.claude/settings.json SIN pisar lo que hay · ~/CLAUDE.md y ~/GEMINI.md si no existen · ~/.config/trama/app ·
 # registry.json vacío si falta · unit de usuario trama-motor.service (node <app>/dist-electron/motor.js, TRAMA_LOCAL=1).
@@ -146,7 +147,10 @@ bajar_cli agy https://antigravity.google/cli/install.sh "agy (Antigravity CLI)"
 
 # --- piezas del motor ------------------------------------------------------------------------------------
 for b in pa tablero trama-estado trama-motor; do enlazar "$MOTOR/bin/$b" "$BIN"; done
-for b in proyecto-ruta workers; do [[ -e "$MOTOR/bin/$b" ]] && enlazar "$MOTOR/bin/$b" "$BIN"; done
+# Los que un payload viejo puede no traer (se enlazan sólo si están). reparto es el que más duele:
+# sin él `pa` no puede elegir modelo por cupo, cae a los defaults y manda todo a Claude, así que un
+# líder Gemini no logra lanzar workers (lo encontró un tercero con la 0.1.2).
+for b in proyecto-ruta workers reparto cuentas; do [[ -e "$MOTOR/bin/$b" ]] && enlazar "$MOTOR/bin/$b" "$BIN"; done
 for h in latido.sh destructive-guard.sh statusline-espejo.sh; do enlazar "$MOTOR/hooks/$h" "$HOOKS"; done
 enlazar "$MOTOR/skills/trama-orquestar" "$SKILLS"
 
@@ -213,6 +217,24 @@ huella_app() {
       -type f 2>/dev/null | LC_ALL=C sort | xargs -r sha256sum
   ) | sha256sum | cut -c1-16
 }
+# Borra de $2 los archivos que $1 ya no trae (tar copia encima pero no borra). Sin esto, un archivo
+# de la versión anterior sobrevive para siempre y rompe la compilación: `tsc` compila todo src/.
+# Incidente 2026-10-26: una instalación 0.1.1 -> 0.1.2 quedó sin motor por tres .ts huérfanos.
+borrar_huerfanos_app() {
+  local src="$1" dst="$2" rel
+  [[ -d "$src" && -d "$dst" ]] || return 0
+  local -a podar=( -name node_modules -o -name .git -o -name dist -o -name dist-electron
+                   -o -name '.build-nuevo' -o -name '.build-viejo' )
+  while IFS= read -r rel; do
+    [[ -n "$rel" ]] || continue
+    [[ -e "$src/$rel" ]] && continue
+    rm -f -- "$dst/$rel" 2>/dev/null && aviso "app: saqué $rel (ya no está en esta versión)"
+  done < <(find "$dst" \( "${podar[@]}" \) -prune -o -type f \
+             ! -name '.build-huella' ! -name '.build.log' -printf '%P\n' 2>/dev/null)
+  # dirs que quedaron vacíos al sacar los huérfanos (nunca el propio $dst)
+  find "$dst" \( "${podar[@]}" \) -prune -o -mindepth 1 -type d -empty -exec rmdir {} + 2>/dev/null || true
+}
+
 construir_app() {
   local src="$1" dst="$HOME/.local/share/trama/app" nueva actual lock_nueva lock_actual
   [[ -f "$dst/dist-electron/motor.js" ]] && APP="$dst"
@@ -231,6 +253,9 @@ construir_app() {
     tar -C "$src" --exclude=./node_modules --exclude=./.git --exclude=./dist --exclude=./dist-electron \
       --exclude=./.build-huella --exclude=./.build-nuevo --exclude=./.build-viejo --exclude=./.build.log -cf - . \
       | tar -C "$dst" -xf - || { aviso "app: no pude copiar $src a $dst"; return 1; }
+    # Un archivo que la versión anterior traía y la nueva ya no tiene queda huérfano en $dst y rompe
+    # la compilación (tsc compila todo src/). tar no borra: hay que sacarlos a mano.
+    borrar_huerfanos_app "$src" "$dst"
   fi
   hecho "app: instalando dependencias y compilando en $dst (unos minutos)"
   : >"$dst/.build.log"

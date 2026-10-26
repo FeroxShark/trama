@@ -2,8 +2,9 @@
 // Prueba de punta a punta del razonamiento y los comandos de un líder de Gemini (src/hilo/Actividad.tsx, Turno.tsx, Llamada.tsx):
 // la app offscreen con el `agy` falso (scripts/agy-falso.mjs, gatillos "pienso", "herramienta", "falla", "despacio"), que escribe el
 // razonamiento donde lo deja agy de verdad (su transcript, HILOS_AGY_BRAIN) y sólo `thinking_tokens` por el stream. Mira, con el turno
-// corriendo: la tarjeta con su última línea de razonamiento (sin frase tierna) y "Ver todo el razonamiento", cada comando con su estado
-// (corriendo / ok / error) y su salida plegable, y la tarjeta siempre a la vista al fondo; y al terminar, el razonamiento queda en "Pensó".
+// corriendo: el progreso de la tarjeta con cada pensamiento terminado en su línea plegada ("Pensó: …", ninguno borra al anterior, un clic
+// lo abre) y el que llega escribiéndose, cada comando con su estado (corriendo / ok / error), el chip "Trabajando" y la tarjeta siempre
+// a la vista al fondo; el trabajo del turno guarda la salida plegable de cada comando; y al terminar, los pensamientos quedan en "Pensó".
 // Nada toca `pa`, Claude ni Gemini de verdad.
 //   npm run build && node scripts/prueba-gemini-razon.mjs        (FOTOS=<carpeta> deja capturas)
 import { spawn } from "node:child_process";
@@ -120,15 +121,18 @@ const vista = () =>
     const zr = z?.getBoundingClientRect();
     return {
       hay: !!tv,
-      razon: tv?.querySelector(".tv-rz-p")?.textContent ?? null,
-      boton: tv?.querySelector(".tv-raz .tv-mas")?.textContent ?? null,
-      entero: tv?.querySelector(".tv-rz-t")?.textContent ?? null,
+      chip: tv?.querySelector(".ui-chip")?.textContent ?? null,
+      // El progreso de la tarjeta: cada línea con su clase (pensamiento / herramienta / vivo) y su texto.
+      lineas: [...(tv?.querySelectorAll(".tv-lt .tv-li") ?? [])].map((li) => ({ k: li.getAttribute("data-k"), t: li.textContent })),
+      plegados: [...(tv?.querySelectorAll(".tv-lt .tv-pb[aria-expanded=false]") ?? [])].map((b) => b.textContent),
+      entero: tv?.querySelector(".tv-lt .tv-li[data-k=pensamiento] .tv-pe")?.textContent ?? null,
       tierno: !!tv?.querySelector(".tierno, [data-tierno]"),
+      herr: [...(tv?.querySelectorAll(".tv-lt .tv-li[data-k=herramienta]") ?? [])].map((li) => [li.querySelector(".tv-ln")?.textContent, li.querySelector(".ll-e")?.getAttribute("data-e")]),
       estados: [...z.querySelectorAll(".ll .ll-e")].map((e) => e.getAttribute("data-e")),
       llamadas: [...z.querySelectorAll(".ll .ll-n")].map((e) => e.textContent),
       cuerpos: z.querySelectorAll(".ll .ll-res").length,
       abierto: !!z.querySelector("details.trabajo[open]"),
-      pensado: [...z.querySelectorAll("details.pensado summary")].map((e) => e.textContent),
+      pensado: [...z.querySelectorAll(".tv-pensados .tv-pb")].map((e) => e.textContent),
       visible: r && zr ? r.bottom <= zr.bottom + 1 && r.top >= zr.top : null,
     };
   });
@@ -154,33 +158,41 @@ try {
   ok(await hasta(() => /Flash/.test(document.querySelector(".caja-zona .pbtn")?.textContent ?? ""), 3), "el líder quedó en Gemini 3.8 Flash");
 
   await mandar("pienso herramienta falla despacio");
-  const a = await esperar((v) => v.hay && v.razon, 20);
-  ok(!!a?.razon && /Después leo el archivo/.test(a.razon), `la tarjeta muestra la última línea del paso de razonamiento: «${a?.razon?.slice(0, 60)}»`);
+  const a = await esperar((v) => v.hay && v.lineas.some((l) => l.k === "pensamiento"), 20);
+  ok(!!a && /Primero miro/.test(a.lineas.find((l) => l.k === "pensamiento")?.t ?? ""), `el primer pensamiento queda como línea terminada: «${a?.lineas.find((l) => l.k === "pensamiento")?.t.slice(0, 60)}»`);
   ok(a?.tierno === false, "con razonamiento visible no hay frase tierna");
-  ok(/razonamiento/i.test(a?.boton ?? ""), `y un botón para desplegarlo: «${a?.boton}»`);
-  ok(a?.abierto === true, "los comandos van abiertos mientras el turno corre");
+  ok(/Trabajando|Working/.test(a?.chip ?? ""), `el chip de arriba dice cómo va: «${a?.chip}»`);
+  ok((a?.plegados.length ?? 0) >= 1 && a?.entero === null, "los pensamientos terminados están plegados");
+  ok(a?.abierto === false, "el trabajo del turno sigue cerrado: las herramientas están en el progreso");
   await foto("razonando");
 
-  // Un comando corriendo y después ok; el que falla, error; cada uno con su salida plegable.
-  const c = await esperar((v) => v.llamadas.includes("Bash") && v.estados.includes("corriendo"), 20);
-  ok(!!c, `un comando se ve «corriendo»: ${JSON.stringify(c?.estados)}`);
-  const f = await esperar((v) => v.estados.includes("error"), 30);
-  ok(!!f && f.estados.includes("ok"), `el que falló dice error y el anterior ok: ${JSON.stringify(f?.estados)}`);
+  // Un comando corriendo y después ok; el que falla, error; todos en el progreso, en orden y sin que un pensamiento borre al anterior.
+  const c = await esperar((v) => v.herr.some(([n, e]) => n === "Bash" && e === "corriendo"), 20);
+  ok(!!c, `un comando se ve «corriendo»: ${JSON.stringify(c?.herr)}`);
+  const f = await esperar((v) => v.herr.some(([, e]) => e === "error"), 30);
+  ok(!!f && f.herr.some(([, e]) => e === "ok"), `el que falló dice error y el anterior ok: ${JSON.stringify(f?.herr)}`);
   ok(!!f && f.visible !== false, "la tarjeta queda a la vista, al fondo de la conversación");
-  await en(() => document.querySelector(".conv-zona .tv .tv-raz .tv-mas")?.click());
+  const ps = f?.lineas.filter((l) => l.k === "pensamiento") ?? [];
+  ok(ps.length >= 2 && /Primero miro/.test(ps[0].t), `con más pensamientos, el primero sigue ahí: ${ps.length} líneas`);
+  const orden = (f?.lineas ?? []).map((l) => l.k).join(",");
+  ok(/pensamiento,herramienta,.*pensamiento/.test(orden), `pensamientos y herramientas intercalados en orden: ${orden}`);
+  await en(() => document.querySelector(".conv-zona .tv .tv-lt .tv-pb[aria-expanded=false]")?.click());
   const e = await esperar((v) => !!v.entero, 3);
-  ok(!!e?.entero && /Primero miro/.test(e.entero) && /algo que no existe/.test(e.entero), `«Ver todo» abre el razonamiento del turno entero: ${e?.entero?.length ?? 0} caracteres`);
-  await foto("razonamiento-entero");
+  ok(!!e?.entero && /Primero miro/.test(e.entero), `un clic en una línea abre el pensamiento entero: ${e?.entero?.length ?? 0} caracteres`);
+  await foto("pensamiento-abierto");
+  await en(() => document.querySelector(".conv-zona .tv .tv-lt .tv-pb[aria-expanded=true]")?.click());
+  ok((await vista()).entero === null, "otro clic lo pliega");
+  await en(() => document.querySelector(".conv-zona details.trabajo:not([open]) summary")?.click());
   await en(() => document.querySelector(".conv-zona .ll-b")?.click());
   const d = await esperar((v) => v.cuerpos > 0, 3);
-  ok(!!d, "tocar un comando abre su salida");
+  ok(!!d, "en el trabajo del turno, tocar un comando abre su salida");
   await foto("comando-abierto");
 
   // Terminó: la tarjeta se va y el razonamiento queda en «Pensó», con los comandos y sus estados.
   const fin = await esperar((v) => !v.hay && v.pensado.length > 0, 40);
-  ok(!!fin, `al terminar la tarjeta se va y queda «${fin?.pensado[0]}»`);
+  ok(!!fin, `al terminar la tarjeta se va y quedan sus pensamientos plegados: ${JSON.stringify(fin?.pensado)}`);
   ok((await en(() => document.querySelectorAll(".conv-zona .el").length)) === 1, "la respuesta aparece una sola vez");
-  await en(() => document.querySelector(".conv-zona details.trabajo:not(.pensado):not([open]) summary")?.click());
+  await en(() => document.querySelector(".conv-zona details.trabajo:not([open]) summary")?.click());
   const fin2 = await esperar((v) => v.estados.length > 0, 3);
   ok(!!fin2 && fin2.estados.includes("error") && fin2.estados.includes("ok"), `abierto el trabajo, los comandos conservan su estado: ${JSON.stringify(fin2?.estados)}`);
   await espera(1500);

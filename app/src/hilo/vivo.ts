@@ -12,7 +12,8 @@
 import type { ComandoClaude, Estilos, EventoLider, HaceLider, Mensaje } from "../datos/contrato";
 import { fuente } from "../datos/fuente";
 import { sinReintento, sumarAviso, type AvisoVisto } from "./avisos";
-import { avanzar, type Paso } from "./actividad";
+import { avanzar, type Paso } from "./actividad-logica";
+import { lineaDeTiempo, type LineaTiempo } from "./linea-tiempo";
 import { crearEspejo, type AvisoCola, type Encolado } from "./cola";
 
 /** El indicador: el mismo objeto mientras no cambie (la fila se suscribe sólo a esto). */
@@ -115,7 +116,7 @@ function cambiar(sid: string, f: (e: EnCurso) => EnCurso) {
 /** El indicador con lo que cambió (el mismo objeto si no cambió nada). */
 function conInd(e: EnCurso, c: Partial<Pick<Indicador, "hace" | "desde" | "salida">>): EnCurso {
   const i = { ...e.ind, ...c };
-  // Lo que hace y sus pasos van juntos (src/hilo/actividad.ts): un turno nuevo o uno que terminó los borra.
+  // Lo que hace y sus pasos van juntos (src/hilo/actividad-logica.ts): un turno nuevo o uno que terminó los borra.
   if (c.hace !== undefined && c.hace !== e.ind.hace) {
     const s = avanzar({ hace: e.ind.hace, inicio: e.ind.inicio, pasos: e.ind.pasos, n: e.ind.pasosN }, c.hace, Date.now());
     i.inicio = s.inicio;
@@ -254,11 +255,23 @@ export const enCurso = (sid: string): EnCurso => estados.get(sid) ?? VACIO;
 /** ¿Este líder deja ver su razonamiento? (ya llegó alguno). */
 export const razona = (sid: string): boolean => enCurso(sid).razona;
 
-/** El razonamiento del turno en curso, entero: lo de sus mensajes cerrados y, detrás, lo que sigue llegando. */
-export function razonDelTurno(sid: string): string {
+const lineas = new Map<string, { tanda: Mensaje[]; turno: number; res: LineaTiempo[] }>();
+
+/**
+ * Los pensamientos ya terminados y las herramientas del turno en curso, en orden (src/hilo/actividad-logica.ts, `lineaDeTiempo`). El mismo
+ * arreglo mientras no cambie la tanda: el texto que llega no lo recalcula.
+ */
+export function lineasDelTurno(sid: string): LineaTiempo[] {
   const e = enCurso(sid);
-  return [...e.tanda.slice(e.turno).map((m) => m.pensado), e.pensando].filter(Boolean).join("\n\n");
+  const c = lineas.get(sid);
+  if (c && c.tanda === e.tanda && c.turno === e.turno) return c.res;
+  const res = lineaDeTiempo(e.tanda.slice(e.turno));
+  lineas.set(sid, { tanda: e.tanda, turno: e.turno, res });
+  return res;
 }
+
+/** El pensamiento que todavía llega (sin mensaje entero): la tarjeta lo escribe abajo de los terminados. */
+export const pensandoAhora = (sid: string): string => enCurso(sid).pensando;
 
 /** Sólo el indicador (para la fila: no repinta con cada delta del texto). */
 export const indicador = (sid: string): Indicador => enCurso(sid).ind;

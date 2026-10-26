@@ -98,6 +98,13 @@ export function tituloLider(t: Pick<Tema, "custom" | "ai" | "primero">, sesion: 
   return util(t.custom) ?? util(sesion) ?? t.ai ?? (t.primero ? tituloDeTexto(t.primero) : "");
 }
 
+/**
+ * El título de un líder que salió de otro (Ramificar, Editar antes de una compactación): su transcript trae el mismo primer mensaje
+ * que el del origen, así que sin esto las dos filas se llaman igual y tras un reinicio se confunden. Mientras tenga el mismo título
+ * que el origen lleva "↳ "; uno propio (un /rename, otro título) se deja como está.
+ */
+export const tituloDeRama = (nombre: string, origen?: { titulo: string }) => (origen && nombre && nombre === origen.titulo ? `↳ ${nombre}` : nombre);
+
 /** Un mensaje como título: sin las líneas de archivo adjunto; si sólo traía archivos, sus nombres. */
 export function tituloDeTexto(s: string): string {
   const { texto, archivos } = separarAdjuntos(s);

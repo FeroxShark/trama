@@ -17,6 +17,7 @@ import { Llamada } from "./Llamada";
 import { MODO } from "../modo";
 import { pasoActual, type Item } from "./turnos";
 import { alScroll, bajar, seguidor, seguir } from "./seguir";
+import { Pensamiento } from "./Actividad";
 
 /** Lo que pesa releer la conversación entera: entrada + caché leído + caché escrito del último turno. */
 export const tokens = (u: Tokens | null) =>
@@ -63,8 +64,8 @@ type PropsTurno = {
   /** Está razonando ahora (un líder de la app): el bloque dice "Pensando…". */
   pensando?: boolean;
   /**
-   * Un motor que deja ver su razonamiento (Gemini): sus comandos van abiertos mientras el turno corre y cada uno dice cómo va
-   * (corriendo / ok / error); el razonamiento del turno en curso lo muestra la tarjeta de abajo, no un bloque acá.
+   * Un motor que deja ver su razonamiento (Gemini): cada comando dice cómo va (corriendo / ok / error); mientras el turno corre,
+   * sus pensamientos y herramientas, en orden, los muestra la tarjeta de abajo y no un bloque acá (el trabajo sigue ahí, cerrado).
    */
   razon?: boolean;
 };
@@ -81,6 +82,7 @@ const igual = ({ t: a, vivo: va, enCurso: ca, pensando: pa, razon: ra }: PropsTu
   a.key === b.key &&
   a.texto === b.texto &&
   a.pensado === b.pensado &&
+  a.pensamientos?.length === b.pensamientos?.length &&
   a.desde === b.desde &&
   a.hasta === b.hasta &&
   a.pasos.length === b.pasos.length &&
@@ -89,47 +91,32 @@ const igual = ({ t: a, vivo: va, enCurso: ca, pensando: pa, razon: ra }: PropsTu
   a.pasos.at(-1)?.usos.at(-1)?.resumen === b.pasos.at(-1)?.usos.at(-1)?.resumen &&
   resultados(a) === resultados(b);
 
+/** Los pensamientos del turno, uno por mensaje (un turno armado a mano trae sólo el texto junto). */
+const pensamientosDe = (x: PropsTurno["t"]) => x.pensamientos ?? (x.pensado ? [x.pensado] : []);
+
 /** Cuántas llamadas ya tienen resultado (llegan después que la llamada). */
 const resultados = (x: PropsTurno["t"]) => x.pasos.reduce((n, p) => n + p.usos.filter((u) => u.det?.resultado).length, 0);
 
 /**
- * El razonamiento del modelo (un líder de la app): plegado, "Pensando…" mientras llega y "Pensó" al terminar. Abierto, su texto
- * en una ventana que sigue lo último que llegó (como la lista del trabajo) hasta que el usuario sube.
+ * El razonamiento del modelo (un líder de la app): una línea plegada por pensamiento ("Pensó: …", un clic lo abre), en orden y sin que
+ * uno borre al otro. Mientras llega, el último dice "Pensando" y se ve entero, siguiendo lo que escribe.
  */
-function Pensado({ texto, vivo }: { texto: string; vivo: boolean }) {
+function Pensado({ items, vivo }: { items: string[]; vivo: boolean }) {
   useIdioma();
-  const [abierto, setAbierto] = useState(MODO.captura === "lider-pensando" && (MODO.variante === "abierto" || MODO.variante === "vivo"));
-  const caja = useRef<HTMLDivElement>(null);
-  const seg = useRef(seguidor()).current;
-  const abrio = useRef(false);
-  useLayoutEffect(() => {
-    const u = caja.current;
-    if (!u) return void (abrio.current = false);
-    if (!abrio.current) {
-      abrio.current = true;
-      if (vivo) bajar(u, seg);
-      else seg.pegado = false;
-    } else if (vivo) seguir(u, seg);
-  });
+  const abierto = MODO.captura === "lider-pensando" && (MODO.variante === "abierto" || MODO.variante === "vivo");
   return (
-    <details className="trabajo pensado" open={abierto} onToggle={(e) => setAbierto(e.currentTarget.open)}>
-      <summary>
-        <ChevronRight size={11} strokeWidth={2} />
-        {vivo ? t("turno.pensando") : t("turno.penso")}
-      </summary>
-      {abierto ? (
-        <div className="pensado-t" ref={caja} onScroll={(e) => alScroll(e.currentTarget, seg)}>
-          {texto}
-        </div>
-      ) : null}
-    </details>
+    <div className="tv-pensados">
+      {items.map((x, i) => (
+        <Pensamiento key={i} texto={x} vivo={vivo && i === items.length - 1} abierto={abierto} />
+      ))}
+    </div>
   );
 }
 
 /** Un turno del worker: el trabajo colapsado ("Trabajó 12 m") y lo que contestó. */
 export const Turno = memo(function Turno({ t: turno, vivo, enCurso = false, semilla, pensando = false, razon = false }: PropsTurno) {
-  // Captura `herramientas`: el trabajo, abierto. Un motor que deja ver su razonamiento, también mientras corre: se ven todos sus comandos.
-  const [abierto, setAbierto] = useState(MODO.captura === "herramientas" || MODO.captura === "herramientas-resultados" || (razon && enCurso));
+  // Captura `herramientas`: el trabajo, abierto. Un motor que deja ver su razonamiento muestra sus comandos en el progreso de la tarjeta, no acá.
+  const [abierto, setAbierto] = useState(MODO.captura === "herramientas" || MODO.captura === "herramientas-resultados");
   const tierno = useTiernos() && !razon;
   const corre = useMemo(
     () => (vivo && turno.desde !== null ? pintorDura(turno.desde, tierno ? "" : () => `${t("estado.trabajando")} `) : null),
@@ -138,7 +125,7 @@ export const Turno = memo(function Turno({ t: turno, vivo, enCurso = false, semi
   const dura = turno.desde !== null && turno.hasta !== null ? turno.hasta - turno.desde : null;
   const hayTrabajo = turno.pasos.length > 0 || corre;
   // Cerrado y trabajando: una sola línea con el paso en curso, que se reemplaza al cambiar.
-  const actual = corre && !abierto ? pasoActual(turno.pasos) : null;
+  const actual = corre && !abierto && !razon ? pasoActual(turno.pasos) : null;
   // Abierto y trabajando: la lista sigue su último paso; si el usuario sube, se suelta (src/hilo/seguir.ts).
   const lista = useRef<HTMLUListElement>(null);
   const seg = useRef(seguidor()).current;
@@ -156,7 +143,7 @@ export const Turno = memo(function Turno({ t: turno, vivo, enCurso = false, semi
   });
   return (
     <>
-      {turno.pensado && !(razon && enCurso) ? <Pensado texto={turno.pensado} vivo={pensando} /> : null}
+      {pensamientosDe(turno).length > 0 && !(razon && enCurso) ? <Pensado items={pensamientosDe(turno)} vivo={pensando} /> : null}
       {hayTrabajo ? (
         <details className="trabajo" open={abierto} onToggle={(e) => setAbierto(e.currentTarget.open)}>
           <summary>

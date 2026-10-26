@@ -47,9 +47,9 @@ Object.assign(globalThis, {
   },
 });
 
-const { confirmar, contestado, enCurso, enviado, mensajesVistos, suscribir } = await import("../src/hilo/vivo.ts");
+const { confirmar, contestado, enCurso, enviado, lineasDelTurno, mensajesVistos, pensandoAhora, suscribir } = await import("../src/hilo/vivo.ts");
 const { turnos } = await import("../src/hilo/turnos.ts");
-const { tandasPendientes } = await import("../src/hilo/preguntas.ts");
+const { tandasPendientes } = await import("../src/hilo/preguntas-logica.ts");
 
 const viejo = (i: number, rol: Mensaje["rol"], texto: string): Mensaje => ({ i, rol, texto, herramientas: [], ts: null, modelo: rol === "assistant" ? "claude-opus-5-5" : null });
 /** Lo que ya estaba en el transcript antes del turno. */
@@ -270,4 +270,38 @@ test("razonamiento: un bloque vacío o redactado no dice nada", () => {
   assert.equal("pensado" in ev[0], false);
   const solo = { ...o, message: { ...o.message, content: [o.message.content[0]] } };
   assert.deepEqual(parsearLinea(JSON.stringify(solo)), []);
+});
+
+// El progreso del turno (tarjeta de actividad): cada pensamiento terminado queda como su propia línea, en orden, con las herramientas
+// entre medio; el siguiente no borra al anterior y el que todavía llega se ve aparte.
+test("progreso: tres pensamientos quedan en orden, sin que uno reemplace al otro, con sus herramientas", () => {
+  empezar("prog");
+  const sid = "prog";
+  const paso = (mid: string, pensado: string, herramientas: string[] = []): EventoLider => ({ ...entero(mid, "", herramientas), pensado });
+  emitir({ sid, e: { tipo: "pensamiento", texto: "Primero miro " } });
+  emitir({ sid, e: { tipo: "pensamiento", texto: "el log." } });
+  assert.deepEqual(lineasDelTurno(sid), [], "mientras llega no es una línea terminada");
+  assert.equal(pensandoAhora(sid), "Primero miro el log.");
+  emitir({ sid, e: paso("m1", "Primero miro el log.", ["Bash"]) });
+  assert.equal(pensandoAhora(sid), "");
+  emitir({ sid, e: { tipo: "pensamiento", texto: "Ahora el índice" } });
+  assert.equal(pensandoAhora(sid), "Ahora el índice", "el segundo llega vivo");
+  assert.equal(lineasDelTurno(sid).filter((l) => l.tipo === "pensamiento").length, 1, "y el primero sigue ahí");
+  emitir({ sid, e: paso("m2", "Ahora el índice", ["Read"]) });
+  emitir({ sid, e: paso("m3", "Por último, concluyo.") });
+  const ls = lineasDelTurno(sid);
+  assert.deepEqual(
+    ls.map((l) => (l.tipo === "pensamiento" ? `p:${l.texto}` : `h:${l.nombre}`)),
+    ["p:Primero miro el log.", "h:Bash", "p:Ahora el índice", "h:Read", "p:Por último, concluyo."],
+  );
+  // Sin cambios, el mismo arreglo (useSyncExternalStore no se repinta de más).
+  assert.equal(lineasDelTurno(sid), ls);
+  // Un delta nuevo no recalcula las líneas: sólo cambia lo que llega.
+  emitir({ sid, e: { tipo: "pensamiento", texto: "cuarto" } });
+  assert.equal(lineasDelTurno(sid), ls);
+  assert.equal(pensandoAhora(sid), "cuarto");
+  // Y la vista del turno trae los tres como pensamientos aparte, en orden.
+  const t = items(sid).at(-1)!;
+  assert.equal(t.tipo, "turno");
+  if (t.tipo === "turno") assert.deepEqual(t.pensamientos?.slice(0, 3), ["Primero miro el log.", "Ahora el índice", "Por último, concluyo."]);
 });

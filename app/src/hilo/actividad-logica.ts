@@ -222,3 +222,10 @@ export function avanzar(s: Seguimiento, nuevo: HaceLider | null, ahora: number):
   }
   return { hace: nuevo, inicio: ahora, pasos, n };
 }
+
+/** La primera línea con texto de un pensamiento, sin `#` de título ni `**` de negrita: lo que dice la línea plegada. */
+export const primeraLineaPensada = (texto: string): string =>
+  texto
+    .split("\n")
+    .map((l) => l.trim().replace(/^#+\s*/, "").replace(/^\*\*(.+?)\*\*:?$/, "$1"))
+    .find(Boolean) ?? "";

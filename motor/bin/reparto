@@ -1,0 +1,1375 @@
+#!/usr/bin/env python3
+"""reparto — qué modelo conviene para un tipo de tarea según la calidad que pide y el cupo que sobra.
+
+  reparto --cupos [--json]                     cupo de cada suscripción (Claude oficial, Google AI Pro/agy y ChatGPT/codex)
+  reparto --tipo T [--json] [--explicar]       modelo y effort que conviene para el tipo T
+  reparto --resolver ID [--json]               cómo se lanza un id de modelo (claude / agy / codex / ollama)
+  reparto --agotar ID [--hasta ISO]            marca agotado el grupo de agy o de codex de ese modelo (o grupo), o el
+                                               Claude oficial (claude-*), hasta que vuelve
+  reparto --excluido ID                        si modelos.json excluye ese id: imprime la regla y sale 0; si no, sale 1
+  reparto --olvidar-agotados                   borra las marcas de agotado
+  reparto --cuenta-para ID [--json]            la cuenta de su proveedor con más cupo libre para ese modelo
+
+Varias cuentas por proveedor (bin/cuentas, ~/.config/trama/cuentas.json): cada cuenta es una suscripción aparte
+en --cupos (campos proveedor y cuenta), los candidatos salen una vez por cuenta (campo cuenta) y --tipo dice la
+cuenta elegida. --agotar ID --cuenta C marca agotado el grupo de esa cuenta; --tipo T --cuenta C elige sólo entre los
+modelos de esa cuenta (pa --cuenta sin -m); --tipo T --mismo-proveedor P prefiere
+las cuentas de P (el relanzamiento por falta de cupo de pa: otra cuenta del mismo proveedor antes de cambiar).
+
+Doc: docs/reparto-de-modelos-por-calidad-y-cupo.md. Sin dependencias (python3 estándar).
+Entorno (para tests): REPARTO_CUPOS_FIJOS=archivo.json (mismo formato que `--cupos --json`, no lee
+nada real), REPARTO_AHORA=ISO (la hora de "ahora"), REPARTO_STATE (caché de agy y grupos agotados; default
+<PA_STATE o ~/.local/state/pa>/reparto: el MISMO lugar para `pa` y para quien lo llame a mano), PA_STATE
+(statusline de Claude; también dónde mira los workers vivos para repartir la carga), TRAMA_MODELOS (modelos.json), REPARTO_CACHE_S (vida de la caché de agy: 120 s, y 30 s
+si algún grupo tiene menos de la mitad de su ventana de 5 h), REPARTO_CARGA_FIJA='{"grupo": n}' (workers vivos por grupo,
+sin mirar el estado de pa), REPARTO_ASIGNACION_S (vida de esa anotación, 20; 0 la apaga), REPARTO_RESERVAR=1 (anota el grupo elegido: lo pone pa en su elección real),
+CODEX_HOME (credenciales y sesiones de codex; default ~/.codex), REPARTO_CODEX=0 (como si codex no estuviera).
+"""
+import fnmatch
+import glob
+import importlib.machinery
+import importlib.util
+import json
+import os
+import re
+import subprocess
+import sys
+import time
+from datetime import datetime, timedelta, timezone
+
+VERSION = 1
+
+# --- defaults (todo se pisa desde ~/.config/trama/modelos.json) --------------------------------------
+# Flash 60 (la guía dice 40): con Haiku en 60 como mínimo de lectura/mecanico, Flash 40 quedaría afuera; SOLO_EN lo limita a esos dos.
+# Valores de docs/guia-de-modelos-fuertes-effort-y-costo.md (2026-10-25): Sonnet iguala o supera a Opus en lo medido.
+CALIDAD = {"opus": 100, "sonnet": 88, "argon": 85, "haiku": 60, "gpt-oss": 45, "flash": 60,
+           # ChatGPT/Codex (2026-10-25): sin medición propia. Astra empata a Argon en AA (52,7 contra 52,6); Sol es
+           # "el de código" según OpenAI: lo mismo que Sonnet hasta tener corridas; Luna, volumen (Haiku).
+           "astra": 85, "sol": 88, "luna": 60}
+# Qué se pide como mínimo según el tipo de tarea (nombre de familia). Un tipo desconocido pide Sonnet.
+MINIMO_POR_TIPO = {
+    "debug": "argon", "diseno": "argon",   # Sonnet (88) también los resuelve
+    "codigo-multi": "argon", "frontend": "argon",
+    "final": "argon",                      # revisión/integración final, lo crítico, o lo que falló con el modelo anterior
+    "codigo-acotado": "sonnet",            # 2026-10-25: pide calidad de Sonnet, no Haiku
+    "lectura": "haiku", "mecanico": "haiku",
+}
+# Para estos tipos (patrones fnmatch) el modelo que pasa de la calidad de la familia dada, o no llega a ella,
+# sólo entra si ninguno de la banda [familia, familia + MARGEN] tiene cupo: la urgencia no manda Argon/Opus a
+# lo que Sonnet resuelve (incidente 2026-10-25: 8 frontend juntos fueron todos a Argon, 14 % del semanal).
+PREFERIDO_POR_TIPO = {"frontend": "sonnet", "codigo-*": "sonnet"}
+# Familias que sólo valen para ciertos tipos (Flash: un worker, y sólo con un chequeo que lo desmienta).
+SOLO_EN = {}
+# Uso por modelo (2026-10-26, regla para quien tiene Google AI Pro): "poco_importante" = sólo en los tipos de
+# TIPOS_POCO_IMPORTANTES (Flash: tareas que no importan, con chequeo determinista); "solo_final" = sólo en los
+# TIPOS_FINALES (Argon: su cupo se consume muy rápido); "libre" = sin regla. Clave = familia, id o prefijo*
+# (como `excluir`); gana la primera que coincide y las de modelos.json van antes que éstas.
+USO_POR_MODELO = {"gemini-3.8-flash": "poco_importante", "gemini-4-argon": "solo_final"}
+USOS = ("libre", "poco_importante", "solo_final")
+TIPOS_POCO_IMPORTANTES = ["lectura", "mecanico"]
+TIPOS_FINALES = ["final"]
+EFFORT_POR_TIPO = {
+    "debug": "high", "diseno": "high", "codigo-multi": "high", "frontend": "high", "final": "high",
+    "codigo-acotado": "medium", "lectura": "medium", "mecanico": "high",
+}
+# Costo relativo de gastar un token (dentro de un grupo de agy el cupo se gasta por costo de tokens).
+COSTO = {"opus": 1.0, "argon": 0.6, "sonnet": 0.35, "gpt-oss": 0.15, "haiku": 0.12, "flash": 0.2,
+         # precios de API de OpenAI: Astra $10/$50 (como Opus), Sol $2/$10 (como Argon), Luna $0,10/$0,50
+         "astra": 1.0, "sol": 0.6, "luna": 0.08}
+RESERVA = None            # fracción del Claude oficial que no se toca: sin reserva de fábrica (2026-10-24)
+AVISO_USO = 0.85          # una ventana más usada que esto se avisa (avisos[] y --explicar)
+SIN_CUPO = ("otro", "esperar", "fallar")
+FAMILIAS_EXCLUIBLES = ("fable", "opus", "sonnet", "haiku", "argon", "flash", "gpt-oss", "astra", "sol", "luna")
+LLENA = 0.03              # una ventana con menos libre que esto está llena
+MARGEN = 10               # calidad de más sobre el mínimo que todavía cuenta entera
+PESO_SOBRA = 0.5          # puntos que resta cada punto de calidad que pasa del margen (gastar de más)
+PESO_URGENCIA = 20.0      # puntos máximos por "este cupo se pierde pronto"
+PESO_COSTO = 15.0         # puntos que resta gastar un token caro
+PESO_CARGA = 12.0         # puntos que resta cada worker vivo (o recién repartido) que ya gasta ese grupo
+ASIGNACION_S = 20.0       # un reparto reciente cuenta como carga hasta que su worker aparece en el estado de pa
+HORIZONTE_H = 72.0        # un cupo que vuelve en menos de esto empieza a ser urgente
+# Los cupos de agy son chicos (el grupo Claude/GPT pasó del 26 % a 0 en 2 minutos): con menos libre que
+# esto en su ventana de 5 h, un grupo de agy no es candidato para estos tipos (patrones fnmatch).
+AGY_MIN_LIBRE_5H = 0.30
+AGY_MIN_LIBRE_TIPOS = ["codigo-*", "frontend", "debug", "diseno"]
+CACHE_S = 120.0           # vida de la caché de /quota de agy
+CACHE_CORTA_S = 30.0      # ... si algún grupo tiene menos de la mitad de su ventana de 5 h
+GRUPOS_HASTA = {"claude-gpt": "2026-11-02"}   # Claude por agy es por tiempo limitado
+
+GRUPOS_GOOGLE = [   # id, nombre, ventanas, modelos
+    ("gemini", "Gemini", ["5h", "7d"], ["gemini-3.8-flash"]),
+    ("claude-gpt", "Claude y GPT por Google", ["5h", "7d"],
+     ["agy:claude-opus-5-5", "agy:claude-sonnet-5-5", "agy:gpt-oss-120b"]),
+    ("gemini-4-argon", "Gemini 4 Argon", ["7d"], ["gemini-4-argon"]),
+]
+EFFORTS_AGY = ("low", "medium", "high")
+# ChatGPT (Plus/Pro) por Codex CLI: un solo cupo para todos los modelos, con ventana de 5 h y semanal
+# (docs/codex-workers.md). Sólo existe si `codex` está en el PATH y hay credenciales (CODEX_HOME/auth.json).
+GRUPOS_OPENAI = [
+    ("codex", "Codex (ChatGPT)", ["5h", "7d"], ["codex:gpt-6.1-sol", "codex:gpt-6-luna", "codex:gpt-6-astra"]),
+]
+EFFORTS_CODEX = ("low", "medium", "high")
+
+# Familias y de qué cupo cuelgan. `agy` = nombre base que acepta `agy --model` (se le suma -<effort>).
+FAMILIAS = [
+    # id base de reparto,         familia,   nombre,                suscripción, grupo,          agy base,            efforts
+    ("claude-opus-5-5",           "opus",    "Claude Opus 5.5",     "claude",    None,           None,                None),
+    ("claude-sonnet-5-5",         "sonnet",  "Claude Sonnet 5.5",   "claude",    None,           None,                None),
+    ("claude-haiku-5-5",          "haiku",   "Claude Haiku 5.5",    "claude",    None,           None,                None),
+    ("agy:claude-opus-5-5",       "opus",    "Claude Opus 5.5 (por Google)",   "google", "claude-gpt", "claude-opus-5-5",   EFFORTS_AGY),
+    ("agy:claude-sonnet-5-5",     "sonnet",  "Claude Sonnet 5.5 (por Google)", "google", "claude-gpt", "claude-sonnet-5-5", EFFORTS_AGY),
+    ("agy:gpt-oss-120b",          "gpt-oss", "GPT-OSS 120B",        "google",    "claude-gpt",   "gpt-oss-120b",      ("medium",)),
+    ("gemini-4-argon",            "argon",   "Gemini 4 Argon",      "google",    "gemini-4-argon", "gemini-4-argon",  EFFORTS_AGY),
+    ("gemini-3.8-flash",          "flash",   "Gemini 3.8 Flash",    "google",    "gemini",       "gemini-3.8-flash",  EFFORTS_AGY),
+    ("codex:gpt-6.1-sol",         "sol",     "GPT-6.1 Sol (Codex)", "openai",    "codex",        "gpt-6.1-sol",       EFFORTS_CODEX),
+    ("codex:gpt-6-astra",         "astra",   "GPT-6 Astra (Codex)", "openai",    "codex",        "gpt-6-astra",       EFFORTS_CODEX),
+    ("codex:gpt-6-luna",          "luna",    "GPT-6 Luna (Codex)",  "openai",    "codex",        "gpt-6-luna",        EFFORTS_CODEX),
+]
+
+
+def err(m):
+    sys.stderr.write("reparto: %s\n" % m)
+
+
+# --- cuentas (bin/cuentas) ---------------------------------------------------------------------------
+_CUENTAS = []
+
+
+def mod_cuentas():
+    """El módulo bin/cuentas (mismo directorio; REPARTO_CUENTAS_BIN para tests). None si no está o falla."""
+    if not _CUENTAS:
+        p = os.environ.get("REPARTO_CUENTAS_BIN") or os.path.join(os.path.dirname(os.path.realpath(__file__)), "cuentas")
+        try:
+            ld = importlib.machinery.SourceFileLoader("cuentas_trama", p)
+            spec = importlib.util.spec_from_loader("cuentas_trama", ld)
+            m = importlib.util.module_from_spec(spec)
+            ld.exec_module(m)
+            _CUENTAS.append(m)
+        except Exception:
+            _CUENTAS.append(None)
+    return _CUENTAS[0]
+
+
+def lista_cuentas():
+    """Las cuentas de bin/cuentas; sin módulo, sólo las de siempre (claude y google, sin carpeta)."""
+    m = mod_cuentas()
+    if m:
+        try:
+            return m.cargar()
+        except Exception as e:
+            err("no pude leer las cuentas: %s" % e)
+    return [{"id": "claude", "proveedor": "claude", "motor": "claude", "nombre": "Claude", "dir": None, "defecto": True},
+            {"id": "google", "proveedor": "google", "motor": "agy", "nombre": "Google AI Pro", "dir": None, "defecto": True}]
+
+
+def env_cuenta(c):
+    m = mod_cuentas()
+    if not c or c.get("defecto") or not m:
+        return None
+    try:
+        return m.env_de(c)
+    except Exception:
+        return None
+
+
+PROVEEDORES = ("claude", "google", "chatgpt")
+
+
+def prov_de(s):
+    """Proveedor de una suscripción de --cupos (la forma vieja sólo tiene id claude / google)."""
+    return s.get("proveedor") or s.get("id")
+
+
+def cuenta_de(s):
+    return s.get("cuenta") or s.get("id") or prov_de(s)
+
+
+def suf(cuenta):
+    """Sufijo de las claves de grupo (carga, agotados, asignaciones): nada para la cuenta de siempre."""
+    return "" if not cuenta or cuenta in PROVEEDORES or cuenta == "openai" else "@" + cuenta
+
+
+# --- configuración -----------------------------------------------------------------------------------
+def ruta_modelos():
+    return os.environ.get("TRAMA_MODELOS") or os.path.expanduser("~/.config/trama/modelos.json")
+
+
+def cargar_config():
+    """Defaults mezclados con las claves nuevas de modelos.json. Inválido: una línea y defaults."""
+    cfg = {
+        "calidad": dict(CALIDAD), "minimo_por_tipo": dict(MINIMO_POR_TIPO), "solo_en": dict(SOLO_EN),
+        "effort_por_tipo": dict(EFFORT_POR_TIPO), "costo": dict(COSTO), "reserva": RESERVA,
+        "reparto": "auto", "grupos_hasta": dict(GRUPOS_HASTA), "hasta_pisado": {}, "workers": {}, "locales": [],
+        "llena": LLENA, "peso_urgencia": PESO_URGENCIA, "peso_costo": PESO_COSTO, "peso_carga": PESO_CARGA,
+        "preferido_por_tipo": dict(PREFERIDO_POR_TIPO),
+        "agy_min_libre_5h": AGY_MIN_LIBRE_5H, "agy_min_libre_tipos": list(AGY_MIN_LIBRE_TIPOS),
+        "excluir": [], "permitir_max": False,
+        "uso_por_modelo": list(USO_POR_MODELO.items()), "tipos_poco_importantes": list(TIPOS_POCO_IMPORTANTES),
+        "tipos_finales": list(TIPOS_FINALES), "sin_cupo": "otro", "sin_cupo_de": "default",
+    }
+    p = ruta_modelos()
+    if not os.path.isfile(p):
+        return cfg
+    try:
+        with open(p) as f:
+            j = json.load(f)
+        if not isinstance(j, dict):
+            raise ValueError("no es un objeto")
+    except Exception as e:
+        err("%s no se pudo leer (%s): uso los defaults" % (p, e))
+        return cfg
+    malo = invalido(j)
+    if malo:
+        err("%s no va (%s): uso los defaults" % (p, malo))
+        return cfg
+    for k in ("calidad", "minimo_por_tipo", "solo_en", "effort_por_tipo", "costo", "preferido_por_tipo"):
+        if isinstance(j.get(k), dict):
+            cfg[k].update(j[k])
+    if isinstance(j.get("reserva"), (int, float, dict)) and not isinstance(j.get("reserva"), bool):
+        cfg["reserva"] = j["reserva"]   # null o ausente: sin reserva
+    if isinstance(j.get("excluir"), list):
+        cfg["excluir"] = [x.strip().lower() for x in j["excluir"] if x.strip()]
+    if isinstance(j.get("permitir_max"), bool):
+        cfg["permitir_max"] = j["permitir_max"]
+    if isinstance(j.get("uso_por_modelo"), dict):   # las reglas del usuario van antes que las de fábrica
+        cfg["uso_por_modelo"] = [(k.strip().lower(), v) for k, v in j["uso_por_modelo"].items()] + cfg["uso_por_modelo"]
+    for k in ("tipos_poco_importantes", "tipos_finales"):
+        if isinstance(j.get(k), list):
+            cfg[k] = [x.strip().lower() for x in j[k]]
+    if j.get("sin_cupo") in SIN_CUPO:
+        cfg["sin_cupo"], cfg["sin_cupo_de"] = j["sin_cupo"], "sin_cupo"
+    elif isinstance(j.get("gemini"), dict) and j["gemini"].get("sin_claude") in ("claude", "esperar", "fallar"):
+        v = j["gemini"]["sin_claude"]
+        cfg["sin_cupo"], cfg["sin_cupo_de"] = ("otro" if v == "claude" else v), "gemini.sin_claude"
+    if j.get("reparto") in ("auto", "fijo"):
+        cfg["reparto"] = j["reparto"]
+    if isinstance(j.get("grupos"), dict):   # {"claude-gpt": {"hasta": "2026-11-02"|null}}
+        for gid, g in j["grupos"].items():
+            if isinstance(g, dict) and "hasta" in g:
+                cfg["grupos_hasta"][gid] = cfg["hasta_pisado"][gid] = g["hasta"]
+    if isinstance(j.get("workers"), dict):
+        cfg["workers"] = j["workers"]
+    if isinstance(j.get("locales"), list):
+        cfg["locales"] = [x for x in j["locales"] if isinstance(x, dict) and x.get("id")]
+    for k in ("llena", "peso_urgencia", "peso_costo", "peso_carga", "agy_min_libre_5h"):
+        if isinstance(j.get(k), (int, float)) and not isinstance(j.get(k), bool):
+            cfg[k] = j[k]
+    if isinstance(j.get("agy_min_libre_tipos"), list):
+        cfg["agy_min_libre_tipos"] = [str(x) for x in j["agy_min_libre_tipos"]]
+    return cfg
+
+
+def invalido(j):
+    """Las claves nuevas (2026-10-24) con un valor que no va -> qué está mal (como la validación de pa)."""
+    num = lambda v: isinstance(v, (int, float)) and not isinstance(v, bool) and 0 <= v < 1
+    r = j.get("reserva")
+    if r is not None and not num(r) and not (isinstance(r, dict) and r and set(r) <= {"5h", "7d"}
+                                             and all(num(v) for v in r.values())):
+        return "reserva %s (un número de 0 a 1, {\"5h\":…,\"7d\":…} o null)" % json.dumps(r)
+    e = j.get("excluir")
+    if e is not None and not (isinstance(e, list) and all(isinstance(x, str) and x.strip() for x in e)):
+        return "excluir %s (una lista de ids o familias)" % json.dumps(e)
+    if "permitir_max" in j and not isinstance(j["permitir_max"], bool):
+        return "permitir_max %s (true o false)" % json.dumps(j["permitir_max"])
+    u = j.get("uso_por_modelo")
+    if u is not None and not (isinstance(u, dict) and all(isinstance(k, str) and k.strip() and v in USOS for k, v in u.items())):
+        return "uso_por_modelo %s (un objeto modelo → libre, poco_importante o solo_final)" % json.dumps(u)
+    for k in ("tipos_poco_importantes", "tipos_finales"):
+        t = j.get(k)
+        if t is not None and not (isinstance(t, list) and all(isinstance(x, str) and x.strip() for x in t)):
+            return "%s %s (una lista de tipos)" % (k, json.dumps(t))
+    if j.get("sin_cupo") is not None and j["sin_cupo"] not in SIN_CUPO:
+        return "sin_cupo %s (otro, esperar o fallar)" % json.dumps(j["sin_cupo"])
+    return None
+
+
+def familia_de(mid):
+    m = (mid or "").lower()
+    for f in FAMILIAS_EXCLUIBLES:
+        if f in m:
+            return f
+    return None
+
+
+def excluido_por(mid, excl, fam=None):
+    """La regla de `excluir` que saca a ese id, o None. Regla = familia (opus, flash, gpt-oss…), id exacto
+    (también sin el sufijo de effort de agy: agy:claude-opus-5-5 saca a agy:claude-opus-5-5-high) o prefijo
+    con * al final (agy:*, ollama:*, gemini-*)."""
+    m = (mid or "").lower()
+    fam = fam or familia_de(m)
+    for p in excl or []:
+        if p == fam or p == m or m.startswith(p + "-") or (p.endswith("*") and m.startswith(p[:-1])):
+            return p
+    return None
+
+
+def uso_de(mid, uso, fam=None):
+    """(uso, regla) de `uso_por_modelo` para ese id: la primera regla que coincide. Sin regla: ("libre", None)."""
+    for p, v in uso or []:
+        if excluido_por(mid, [p], fam):
+            return v, p
+    return "libre", None
+
+
+# --- tiempo ------------------------------------------------------------------------------------------
+def ahora():
+    v = os.environ.get("REPARTO_AHORA")
+    if v:
+        return parse_iso(v) or datetime.now(timezone.utc)
+    return datetime.now(timezone.utc)
+
+
+def parse_iso(s):
+    if not isinstance(s, str) or not s:
+        return None
+    try:
+        return datetime.fromisoformat(s.replace("Z", "+00:00")).astimezone(timezone.utc)
+    except ValueError:
+        return None
+
+
+def iso(dt):
+    return dt.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ") if dt else None
+
+
+def humano(horas):
+    if horas is None:
+        return "?"
+    if horas < 1:
+        return "%d min" % max(1, round(horas * 60))
+    mins = round(horas * 60)
+    if horas < 10:
+        return "%d h %d min" % (mins // 60, mins % 60) if mins % 60 else "%d h" % (mins // 60)
+    if horas < 48:
+        return "%d h" % round(horas)
+    h = round(horas)
+    return "%d d %d h" % (h // 24, h % 24)
+
+
+# --- cupos -------------------------------------------------------------------------------------------
+def ventana(id_, usado, vuelve):
+    if usado is not None:
+        usado = max(0.0, min(1.0, round(float(usado), 4)))
+    return {"id": id_, "usado": usado, "vuelve": vuelve}
+
+
+def misma_carpeta(a, b):
+    try:
+        return os.path.realpath(os.path.expanduser(a)) == os.path.realpath(os.path.expanduser(b))
+    except Exception:
+        return False
+
+
+def de_la_cuenta(cfgdir, cuenta):
+    """Si una sesión de la statusline (su config_dir, vacío = el de siempre) es de esa cuenta."""
+    if not cuenta or cuenta.get("defecto"):
+        return not cfgdir or misma_carpeta(cfgdir, "~/.claude")
+    return bool(cfgdir) and misma_carpeta(cfgdir, cuenta["dir"])
+
+
+def cupos_claude(estado, now, cuenta=None):
+    """Cada ventana sale de la sesión más reciente que traiga ese dato y cuyo reset aún no pasó.
+    Dato vencido o ausente: usado null (nunca se inventa). Con varias cuentas, sólo las sesiones de esa cuenta
+    (config_dir de la statusline) y su <PA_STATE>/cuentas/<id>/uso.json."""
+    pa_state = estado or os.path.expanduser("~/.local/state/pa")
+    mejor = {"5h": None, "7d": None}
+    claves = {"5h": "five_hour", "7d": "seven_day"}
+    ts_now = now.timestamp()
+
+    def ofrecer(wid, ts, pct, reset):
+        if not isinstance(pct, (int, float)) or not isinstance(reset, (int, float)) or reset <= ts_now:
+            return
+        if mejor[wid] is None or ts > mejor[wid][0]:
+            mejor[wid] = (ts, pct / 100.0, reset)
+
+    for f in glob.glob(os.path.join(pa_state, "statusline", "*.json")):
+        try:
+            with open(f) as fh:
+                d = json.load(fh)
+        except Exception:
+            continue
+        rl = d.get("rate_limits") if isinstance(d, dict) else None
+        if not isinstance(rl, dict) or not de_la_cuenta(d.get("config_dir"), cuenta):
+            continue
+        ts = d.get("ts") or os.path.getmtime(f)
+        for wid, k in claves.items():
+            w = rl.get(k)
+            if isinstance(w, dict):
+                ofrecer(wid, ts, w.get("used_percentage"), w.get("resets_at"))
+    hist = os.path.join(pa_state, "statusline", "historial.jsonl")
+    try:
+        with open(hist) as fh:
+            filas = [json.loads(x) for x in fh.read().splitlines()[-200:] if x.strip()]
+    except Exception:
+        filas = []
+    for r in filas:
+        if isinstance(r, dict) and de_la_cuenta(r.get("config_dir"), cuenta):
+            ofrecer("5h", r.get("ts", 0), r.get("h5"), r.get("h5_reset"))
+            ofrecer("7d", r.get("ts", 0), r.get("sem"), r.get("sem_reset"))
+    usos = [os.path.join(pa_state, "uso.json")]
+    if cuenta and not cuenta.get("defecto"):
+        usos = [os.path.join(pa_state, "cuentas", cuenta["id"], "uso.json")]
+    elif os.environ.get("HILOS_STATE"):
+        usos.append(os.path.join(os.environ["HILOS_STATE"], "uso.json"))
+    elif os.path.abspath(pa_state) == os.path.abspath(os.path.expanduser("~/.local/state/pa")):
+        usos.append(os.path.expanduser("~/.local/state/hilos/uso.json"))
+    else:
+        usos.append(os.path.join(pa_state, "hilos", "uso.json"))
+    for f in usos:
+        try:
+            with open(f) as fh:
+                d = json.load(fh)
+        except Exception:
+            continue
+        if not isinstance(d, dict):
+            continue
+        for wid, k in claves.items():
+            w = d.get(k)
+            if isinstance(w, dict):
+                ts = w.get("ts") or d.get("ts") or os.path.getmtime(f)
+                ofrecer(wid, ts, w.get("pct"), w.get("resets_at"))
+    vent = []
+    for wid in ("5h", "7d"):
+        m = mejor[wid]
+        vent.append(ventana(wid, m[1], iso(datetime.fromtimestamp(m[2], timezone.utc))) if m
+                    else ventana(wid, None, None))
+    if not cuenta:
+        return {"id": "claude", "nombre": "Claude", "ventanas": vent}
+    return {"id": cuenta["id"], "nombre": cuenta["nombre"], "proveedor": "claude", "cuenta": cuenta["id"], "ventanas": vent}
+
+
+def ttl_cache(j):
+    """Vida de la caché de /quota: REPARTO_CACHE_S si está seteada; si no 120 s, y 30 s cuando algún grupo
+    tiene menos de la mitad de su ventana de 5 h (ahí el cupo se gasta en minutos)."""
+    v = os.environ.get("REPARTO_CACHE_S")
+    if v:
+        return float(v)
+    try:
+        for g in j["command"]["data"]["groups"]:
+            for b in g.get("buckets", []):
+                rf = b.get("remaining_fraction")
+                if b.get("window") == "5h" and isinstance(rf, (int, float)) and rf < 0.5:
+                    return CACHE_CORTA_S
+    except Exception:
+        pass
+    return CACHE_S
+
+
+def quota_agy(state_dir, now, cuenta=None):
+    """JSON de `agy -p /quota` (caché en <state>/quota.json, o quota@<cuenta>.json con el entorno de esa cuenta;
+    ver ttl_cache). None si no se pudo."""
+    cid = (cuenta or {}).get("id")
+    cache = os.path.join(state_dir, "quota%s.json" % suf(cid))
+    try:
+        with open(cache) as f:
+            c = json.load(f)
+        if time.time() - c["leido"] <= ttl_cache(c["json"]) and c.get("json"):
+            return c["json"]
+    except Exception:
+        pass
+    try:
+        r = subprocess.run(["agy", "-p", "/quota", "--output-format", "json"], capture_output=True,
+                           text=True, timeout=float(os.environ.get("REPARTO_AGY_S", "40")),
+                           stdin=subprocess.DEVNULL, cwd=os.environ.get("TMPDIR", "/tmp"), env=env_cuenta(cuenta))
+        j = json.loads(r.stdout)
+        if not j.get("command", {}).get("data", {}).get("groups"):
+            return None
+    except Exception:
+        return None
+    try:
+        os.makedirs(state_dir, exist_ok=True)
+        tmp = cache + ".%d" % os.getpid()
+        with open(tmp, "w") as f:
+            json.dump({"leido": time.time(), "json": j}, f)
+        os.replace(tmp, cache)
+    except OSError:
+        pass
+    return j
+
+
+def id_grupo(nombre):
+    n = (nombre or "").lower()
+    if "argon" in n:
+        return "gemini-4-argon"
+    if "claude" in n or "gpt" in n:
+        return "claude-gpt"
+    return "gemini"
+
+
+def cupos_google(cfg, state_dir, now, cuenta=None):
+    j = quota_agy(state_dir, now, cuenta)
+    por_id = {}
+    if j:
+        for g in j.get("command", {}).get("data", {}).get("groups", []):
+            gid = id_grupo(g.get("name"))
+            vs = {}
+            for b in g.get("buckets", []):
+                w = {"weekly": "7d", "5h": "5h"}.get(b.get("window"))
+                rf = b.get("remaining_fraction")
+                if w and isinstance(rf, (int, float)):
+                    vs[w] = ventana(w, 1 - rf, b.get("reset_time"))
+            por_id[gid] = vs
+    grupos = []
+    for gid, nombre, wids, base_modelos in GRUPOS_GOOGLE:
+        modelos = []
+        for b in base_modelos:
+            efs = ("medium",) if "gpt-oss" in b else EFFORTS_AGY
+            modelos += ["%s-%s" % (b, e) for e in efs]
+        vs = por_id.get(gid, {})
+        g = {"id": gid, "nombre": nombre, "modelos": modelos,
+             "ventanas": [vs.get(w) or ventana(w, None, None) for w in wids]}
+        h = cfg["grupos_hasta"].get(gid)
+        if h:
+            g["hasta"] = h
+        grupos.append(g)
+    if not cuenta:
+        return {"id": "google", "nombre": "Google AI Pro", "grupos": grupos}
+    return {"id": cuenta["id"], "nombre": cuenta["nombre"], "proveedor": "google", "cuenta": cuenta["id"], "grupos": grupos}
+
+
+def codex_home():
+    return os.environ.get("CODEX_HOME") or os.path.expanduser("~/.codex")
+
+
+def codex_disponible():
+    """codex en el PATH y con credenciales (`codex login` deja CODEX_HOME/auth.json). Sin esto no hay suscripción
+    de ChatGPT que mirar: reparto no la lista ni la ofrece."""
+    if os.environ.get("REPARTO_CODEX") == "0":
+        return False
+    import shutil
+    return bool(shutil.which("codex")) and os.path.isfile(os.path.join(codex_home(), "auth.json"))
+
+
+def rate_limits_codex(now):
+    """Las ventanas de ChatGPT del último evento token_count de las sesiones de codex (CODEX_HOME/sessions/
+    AAAA/MM/DD/rollout-*.jsonl, las escribe codex en cada corrida, también `codex exec`). No gasta nada.
+    -> {"5h": ventana, "7d": ventana}; una ventana cuyo reset ya pasó no cuenta (sin dato, como el Claude)."""
+    archivos = glob.glob(os.path.join(codex_home(), "sessions", "*", "*", "*", "rollout-*.jsonl"))
+    try:
+        archivos.sort(key=os.path.getmtime, reverse=True)
+    except OSError:
+        pass
+    for f in archivos[:8]:
+        try:
+            with open(f, errors="replace") as fh:
+                filas = fh.read().splitlines()[-400:]
+        except OSError:
+            continue
+        for linea in reversed(filas):
+            if "rate_limits" not in linea:
+                continue
+            try:
+                ev = json.loads(linea)
+            except ValueError:
+                continue
+            pl = ev.get("payload") if isinstance(ev.get("payload"), dict) else ev
+            rl = pl.get("rate_limits") if isinstance(pl, dict) else None
+            if not isinstance(rl, dict):
+                continue
+            t_ev = parse_iso(ev.get("timestamp")) or datetime.fromtimestamp(os.path.getmtime(f), timezone.utc)
+            out = {}
+            for k in ("primary", "secondary"):
+                w = rl.get(k)
+                if not isinstance(w, dict) or not isinstance(w.get("used_percent"), (int, float)):
+                    continue
+                mins = w.get("window_minutes")
+                wid = "5h" if isinstance(mins, (int, float)) and mins <= 720 else ("7d" if mins else
+                                                                                    ("5h" if k == "primary" else "7d"))
+                ra = w.get("resets_at")
+                if isinstance(ra, (int, float)):
+                    vuelve = datetime.fromtimestamp(ra, timezone.utc)
+                elif isinstance(ra, str):
+                    vuelve = parse_iso(ra)
+                elif isinstance(w.get("resets_in_seconds"), (int, float)):
+                    vuelve = t_ev + timedelta(seconds=w["resets_in_seconds"])
+                else:
+                    vuelve = None
+                if vuelve is not None and vuelve <= now:
+                    continue
+                out[wid] = ventana(wid, w["used_percent"] / 100.0, iso(vuelve))
+            if out:
+                return out
+    return {}
+
+
+def cupos_openai(cfg, now):
+    vs = rate_limits_codex(now)
+    grupos = []
+    for gid, nombre, wids, bases in GRUPOS_OPENAI:
+        modelos = ["%s-%s" % (b, e) for b in bases for e in EFFORTS_CODEX]
+        g = {"id": gid, "nombre": nombre, "modelos": modelos,
+             "ventanas": [vs.get(w) or ventana(w, None, None) for w in wids]}
+        h = cfg["grupos_hasta"].get(gid)
+        if h:
+            g["hasta"] = h
+        grupos.append(g)
+    return {"id": "openai", "nombre": "ChatGPT", "grupos": grupos}
+
+
+def state_dir():
+    """Dónde viven la caché de /quota y los grupos agotados. Un solo lugar para `pa` y para quien llame a
+    reparto a mano (antes cada uno tenía su caché y podían ver cupos de hace 5 minutos distintos)."""
+    if os.environ.get("REPARTO_STATE"):
+        return os.environ["REPARTO_STATE"]
+    base = os.environ.get("PA_STATE") or os.path.expanduser("~/.local/state/pa")
+    return os.path.join(base, "reparto")
+
+
+def ventana_asignacion():
+    try:
+        return float(os.environ.get("REPARTO_ASIGNACION_S", ASIGNACION_S))
+    except ValueError:
+        return ASIGNACION_S
+
+
+def carga_por_grupo(now):
+    """{grupo: workers} de los workers de pa vivos (pid vivo en <PA_STATE>/*/<id>.pid, modelo del .hilo) más los
+    repartos de los últimos ASIGNACION_S s (aún sin .hilo). REPARTO_CARGA_FIJA='{"gemini-4-argon": 3}' lo fija (tests)."""
+    fija = os.environ.get("REPARTO_CARGA_FIJA")
+    if fija:
+        try:
+            return {k: int(v) for k, v in json.loads(fija).items()}
+        except Exception:
+            return {}
+    out = {}
+    base = os.environ.get("PA_STATE") or os.path.expanduser("~/.local/state/pa")
+    for pidf in glob.glob(os.path.join(base, "*", "*.pid")):
+        try:
+            pid = int(open(pidf).read().strip())
+            os.kill(pid, 0)
+            m = cu = None
+            for ln in open(pidf[:-4] + ".hilo", errors="replace"):
+                if ln.startswith("modelo="):
+                    m = ln[7:].strip()
+                elif ln.startswith("cuenta="):
+                    cu = ln[7:].strip()
+        except Exception:
+            continue
+        g = grupo_de_modelo(m) if m else None
+        if g:
+            g += suf(cu)
+            out[g] = out.get(g, 0) + 1
+    try:
+        with open(os.path.join(state_dir(), "asignaciones.json")) as f:
+            for a in json.load(f):
+                if now.timestamp() - a.get("t", 0) < ventana_asignacion() and a.get("grupo"):
+                    out[a["grupo"]] = out.get(a["grupo"], 0) + 1
+    except Exception:
+        pass
+    return out
+
+
+def registrar_asignacion(grupo, now):
+    """Anota (REPARTO_RESERVAR=1, lo pone pa al elegir de verdad) a qué grupo fue este reparto, para que los que
+    se lanzan en el mismo segundo no se amontonen antes de que el worker exista."""
+    d = state_dir()
+    f = os.path.join(d, "asignaciones.json")
+    try:
+        os.makedirs(d, exist_ok=True)
+        try:
+            with open(f) as fh:
+                lst = [a for a in json.load(fh) if now.timestamp() - a.get("t", 0) < ventana_asignacion()]
+        except Exception:
+            lst = []
+        lst.append({"grupo": grupo, "t": now.timestamp()})
+        tmp = "%s.%d" % (f, os.getpid())
+        with open(tmp, "w") as fh:
+            json.dump(lst, fh)
+        os.replace(tmp, f)
+    except Exception:
+        pass
+
+
+def leer_agotados(state, now):
+    """{grupo: ISO de cuándo vuelve} de los que siguen agotados (los vencidos no cuentan)."""
+    try:
+        with open(os.path.join(state, "agotado.json")) as f:
+            d = json.load(f)
+    except Exception:
+        return {}
+    out = {}
+    for gid, v in (d.items() if isinstance(d, dict) else []):
+        dt = parse_iso(v.get("hasta") if isinstance(v, dict) else None)
+        if dt and dt > now:
+            out[gid] = iso(dt)
+    return out
+
+
+def grabar_agotados(state, d):
+    os.makedirs(state, exist_ok=True)
+    f = os.path.join(state, "agotado.json")
+    tmp = f + ".%d" % os.getpid()
+    with open(tmp, "w") as fh:
+        json.dump({k: {"hasta": v} for k, v in d.items()}, fh)
+    os.replace(tmp, f)
+
+
+def aplicar_agotados(d, state, now):
+    """Un grupo marcado agotado (agy devolvió 429, o el Claude oficial dijo límite) cuenta como lleno hasta su
+    `vuelve`, diga lo que diga /quota o la statusline."""
+    ag = leer_agotados(state, now)
+    if not ag:
+        return d
+    for s in d.get("suscripciones", []):
+        sf = suf(cuenta_de(s))
+        if prov_de(s) == "claude" and CLAUDE_OFICIAL + sf in ag:
+            hasta = ag[CLAUDE_OFICIAL + sf]
+            s["agotado"] = hasta
+            s["ventanas"] = [ventana(w["id"], 1.0, hasta) for w in (s.get("ventanas") or
+                                                                   [ventana("5h", None, None), ventana("7d", None, None)])]
+        for g in s.get("grupos", []) or []:
+            if g.get("id", "") + sf in ag:
+                hasta = ag[g["id"] + sf]
+                g["agotado"] = hasta
+                vs = g.get("ventanas") or [ventana("5h", None, None)]
+                g["ventanas"] = [ventana(w["id"], 1.0, hasta) for w in vs]
+    return d
+
+
+CLAUDE_OFICIAL = "claude-oficial"
+
+
+def grupo_de_modelo(mid):
+    """Id de grupo de agy o de codex de un modelo ('agy:claude-sonnet-5-5-medium', 'gemini-3.8-flash-low',
+    'codex:gpt-6-luna-low') o de un grupo ('claude-gpt', 'codex'). None si no es de agy ni de codex."""
+    m = (mid or "").lower()
+    for gid, _n, _w, bases in GRUPOS_GOOGLE + GRUPOS_OPENAI:
+        if m == gid or any(m == b or m.startswith(b + "-") for b in bases):
+            return gid
+    if m == CLAUDE_OFICIAL or m.startswith("claude-"):
+        return CLAUDE_OFICIAL
+    return None
+
+
+def agotar(mid, hasta_arg, cfg, now, cuenta=None):
+    gid = grupo_de_modelo(mid)
+    if not gid:
+        err("%s no es un modelo de agy, de codex ni del Claude oficial, ni un grupo: no hay cupo que marcar" % mid)
+        return 1
+    state = state_dir()
+    hasta = parse_iso(hasta_arg) if hasta_arg else None
+    if hasta_arg and not hasta:
+        err("--hasta quiere una fecha ISO (2026-10-23T15:00:00Z)")
+        return 2
+    if not hasta:
+        # cuándo vuelve el grupo según los mismos cupos que usa el reparto: su ventana de 5 h (o la semanal si no tiene)
+        try:
+            cand = {}
+            for sus in leer_cupos(cfg, now).get("suscripciones", []):
+                if suf(cuenta_de(sus)) != suf(cuenta):
+                    continue
+                if gid == CLAUDE_OFICIAL and prov_de(sus) == "claude":
+                    # la ventana más usada es la que se acabó; sin dato de uso, la 5 h
+                    vs = sorted((v for v in sus.get("ventanas", []) if (parse_iso(v.get("vuelve")) or now) > now),
+                                key=lambda v: -(v.get("usado") or 0))
+                    if vs:
+                        cand["5h"] = parse_iso(vs[0]["vuelve"])
+                for g in sus.get("grupos", []) or []:
+                    if g.get("id") == gid:
+                        for v in g.get("ventanas", []):
+                            dt = parse_iso(v.get("vuelve"))
+                            if dt and dt > now:
+                                cand[v.get("id")] = dt
+            hasta = cand.get("5h") or cand.get("7d")
+        except Exception:
+            hasta = None
+    if not hasta:
+        hasta = now + timedelta(hours=1)
+    ag = leer_agotados(state, now)
+    gid += suf(cuenta)
+    ag[gid] = iso(hasta)
+    try:
+        grabar_agotados(state, ag)
+    except OSError as e:
+        err("no pude guardar la marca: %s" % e)
+        return 1
+    print("%s agotado hasta %s" % (gid, iso(hasta)))
+    return 0
+
+
+def leer_cupos(cfg, now):
+    state = state_dir()
+    fijos = os.environ.get("REPARTO_CUPOS_FIJOS")
+    if fijos:
+        with open(fijos) as f:
+            d = json.load(f)
+        d.setdefault("version", VERSION)
+        return aplicar_agotados(d, state, now)
+    cs = lista_cuentas()
+    if all(c["defecto"] for c in cs) and len(cs) == 2:   # una cuenta por proveedor: la forma de siempre
+        subs = [cupos_claude(os.environ.get("PA_STATE"), now), cupos_google(cfg, state, now)]
+        if codex_disponible():
+            subs.append(cupos_openai(cfg, now))
+        nom = {c["id"]: c["nombre"] for c in cs}
+        for x in subs:
+            x["nombre"] = nom.get(x["id"], x["nombre"])
+    else:
+        subs = []
+        for c in cs:
+            if c["proveedor"] == "claude":
+                subs.append(cupos_claude(os.environ.get("PA_STATE"), now, c))
+            elif c["proveedor"] == "google":
+                subs.append(cupos_google(cfg, state, now, c))
+            elif c["proveedor"] == "chatgpt" and c["defecto"] and codex_disponible():
+                subs.append(cupos_openai(cfg, now))
+            else:   # pa todavía no corre workers de codex: la cuenta se lista sin dato de cupo
+                subs.append({"id": c["id"], "nombre": c["nombre"], "proveedor": c["proveedor"], "cuenta": c["id"],
+                             "ventanas": [ventana("5h", None, None), ventana("7d", None, None)],
+                             "nota": "sin workers todavía: no se reparte"})
+    return aplicar_agotados({"version": VERSION, "leido": iso(now), "suscripciones": subs}, state, now)
+
+
+# --- reparto -----------------------------------------------------------------------------------------
+def hasta_fin(hasta):
+    """'2026-11-02' -> el fin de ese día (hora local de la máquina), en UTC. None si no hay/inválida."""
+    if not hasta:
+        return None
+    try:
+        d = datetime.strptime(hasta, "%Y-%m-%d") + timedelta(days=1)
+    except ValueError:
+        return None
+    return d.astimezone().astimezone(timezone.utc)   # medianoche local siguiente
+
+
+def hasta_de(cfg, gid, g):
+    """La fecha `hasta` de un grupo: lo que pisa modelos.json, si no la que trae el cupo, si no el default."""
+    if gid in cfg["hasta_pisado"]:
+        return cfg["hasta_pisado"][gid]
+    return (g or {}).get("hasta") or cfg["grupos_hasta"].get(gid)
+
+
+def horas_hasta(vuelve, now):
+    dt = parse_iso(vuelve)
+    return max(0.0, (dt - now).total_seconds() / 3600.0) if dt else None
+
+
+def urgencia_ventana(v, now, tope_h=None):
+    """Cuánto cupo libre se pierde pronto: libre × (horizonte / horas hasta el reset), tope 1.
+    Sin dato de uso: None. Con `tope_h` (una fecha `hasta`) el reset efectivo no pasa de ahí."""
+    if v.get("usado") is None:
+        return None
+    libre = 1 - v["usado"]
+    h = horas_hasta(v.get("vuelve"), now)
+    if h is None:
+        h = 2.5 if v["id"] == "5h" else 84.0
+    if tope_h is not None:
+        h = min(h, tope_h)
+    return libre * min(1.0, HORIZONTE_H / max(h, 1.0))
+
+
+def efectivo(base, cfg_effort, e_tipo):
+    return e_tipo if e_tipo in cfg_effort else cfg_effort[-1]
+
+
+def armar_candidatos(tipo, cfg, cupos, now):
+    # Una vuelta por cuenta: cada cuenta es una suscripción aparte (sin cuentas agregadas, una de cada proveedor)
+    subs = cupos.get("suscripciones", [])
+    claudes = [s for s in subs if prov_de(s) == "claude"] or [{"id": "claude"}]
+    googles = [s for s in subs if prov_de(s) == "google"] or [{"id": "google"}]
+    # ChatGPT/Codex sólo es candidato si la suscripción está en los cupos (codex instalado y logueado)
+    openais = [s for s in subs if s.get("id") == "openai"]
+
+    carga = carga_por_grupo(now)
+    e_tipo = cfg["effort_por_tipo"].get(tipo, "high")
+    if e_tipo == "max":   # reparto nunca elige max por su cuenta (eso es de -m/--effort, con permitir_max o --ok-dueno)
+        e_tipo = "xhigh"
+    minimo_fam = cfg["minimo_por_tipo"].get(tipo, "sonnet")
+    minimo = cfg["calidad"].get(minimo_fam, minimo_fam if isinstance(minimo_fam, (int, float)) else 70)
+    out = []
+    reserva = cfg["reserva"]
+
+    def reserva_de(w):   # None = no se guarda nada en esa ventana
+        return reserva.get(w) if isinstance(reserva, dict) else reserva
+
+    def claude_de_google_ok(google):
+        agy_claude = {g.get("id"): g for g in google.get("grupos", []) or []}.get("claude-gpt")
+        if not agy_claude or agy_claude.get("agotado"):
+            return False
+        hf = hasta_fin(hasta_de(cfg, "claude-gpt", agy_claude))
+        vigente = hf is None or now < hf
+        libres = [1 - w["usado"] for w in agy_claude.get("ventanas", []) if w.get("usado") is not None]
+        ok = vigente and (not libres or min(libres) >= cfg["llena"])
+        w5 = next((w for w in agy_claude.get("ventanas", []) if w.get("id") == "5h" and w.get("usado") is not None), None)
+        if w5 is not None and 1 - w5["usado"] < cfg["agy_min_libre_5h"] and \
+                any(fnmatch.fnmatchcase(tipo, p) for p in cfg["agy_min_libre_tipos"]):
+            ok = False   # para este tipo ese grupo no es candidato: la 5h de Claude sí cuenta
+        return ok
+
+    agy_claude_ok = any(claude_de_google_ok(g) for g in googles)
+
+    def hacer(c, cuenta_s):
+        base, fam, nombre, sus, gid, agy_base, efs = c
+        claude = cuenta_s
+        grupos = {g.get("id"): g for g in cuenta_s.get("grupos", []) or []}
+        # transición: la forma vieja `modelos` (sin grupos) no se usa para decidir; sin grupo = sin dato
+        cl_vent = {w["id"]: w for w in cuenta_s.get("ventanas", []) or []}
+        cuenta = cuenta_de(cuenta_s)
+        if suf(cuenta):
+            nombre = "%s · %s" % (nombre, cuenta_s.get("nombre") or cuenta)
+        calidad = cfg["calidad"].get(fam, 0)
+        if efs is None:   # Claude oficial: el effort va aparte
+            modelo, effort = base, e_tipo
+        else:
+            e = efectivo(base, efs, e_tipo)
+            modelo, effort = "%s-%s" % (base, e), None
+        cand = {"modelo": modelo, "effort": effort, "nombre": nombre, "familia": fam, "calidad": calidad,
+                "cupo_libre": None, "vuelve": None, "puntaje": None, "descartado_por": None,
+                "aviso": None, "grupo": gid or "claude-oficial", "cuenta": cuenta, "proveedor": sus}
+        cand["clave"] = cand["grupo"] + suf(cuenta)
+        if sus == "claude":
+            vents = [cl_vent[w] for w in ("5h", "7d") if w in cl_vent] or \
+                    [ventana("5h", None, None), ventana("7d", None, None)]
+            tope_h = None
+        else:
+            g = grupos.get(gid)
+            vents = list((g or {}).get("ventanas", []))
+            hasta = hasta_de(cfg, gid, g)
+            hf = hasta_fin(hasta)
+            tope_h = None
+            if hf is not None:
+                if now >= hf:
+                    cand["descartado_por"] = "vencido: el grupo \"%s\" era hasta el %s" % (
+                        (g or {}).get("nombre", gid), hasta)
+                    cand["duro"] = True
+                else:
+                    tope_h = (hf - now).total_seconds() / 3600.0
+            if not vents:
+                vents = [ventana("7d", None, None)]
+        # Reglas de calidad / tipo
+        if calidad < minimo:
+            cand["descartado_por"] = "calidad %s menor que la %s que pide %s" % (calidad, minimo, tipo)
+            cand["duro"] = True
+        elif fam in cfg["solo_en"] and tipo not in cfg["solo_en"][fam]:
+            cand["descartado_por"] = "%s sólo sirve para %s" % (nombre, " y ".join(cfg["solo_en"][fam]))
+            cand["duro"] = True
+        u, regla = uso_de(modelo, cfg["uso_por_modelo"], fam)
+        if not cand.get("duro") and u == "poco_importante" and tipo not in cfg["tipos_poco_importantes"]:
+            cand["descartado_por"] = "%s sólo sirve para tareas poco importantes (%s); %s no lo es (modelos.json uso_por_modelo: %s)" % (
+                nombre, " y ".join(cfg["tipos_poco_importantes"]), tipo, regla)
+            cand["duro"] = True
+        elif not cand.get("duro") and u == "solo_final" and tipo not in cfg["tipos_finales"]:
+            cand["descartado_por"] = "%s sólo sirve para tareas finales (%s) porque su cupo se gasta muy rápido; %s no lo es (modelos.json uso_por_modelo: %s)" % (
+                nombre, " y ".join(cfg["tipos_finales"]), tipo, regla)
+            cand["duro"] = True
+        x = excluido_por(modelo, cfg["excluir"], fam)
+        if x and not cand.get("duro"):
+            cand["descartado_por"] = "excluido en modelos.json (excluir: %s)" % x
+            cand["duro"] = True
+        # Los cupos de agy son chicos: con poco libre en la ventana de 5 h no se arranca una tarea de código
+        if sus == "google" and not cand["descartado_por"] and not (grupos.get(gid) or {}).get("agotado") and \
+                any(fnmatch.fnmatchcase(tipo, p) for p in cfg["agy_min_libre_tipos"]):
+            w5 = next((w for w in vents if w["id"] == "5h" and w.get("usado") is not None), None)
+            if w5 is not None and 1 - w5["usado"] < cfg["agy_min_libre_5h"]:
+                cand["descartado_por"] = (
+                    "poco cupo en agy: al grupo \"%s\" le queda %d %% de la ventana de 5 h (para %s hace falta %d %% o más)%s" % (
+                        (grupos.get(gid) or {}).get("nombre", gid), round((1 - w5["usado"]) * 100), tipo,
+                        round(cfg["agy_min_libre_5h"] * 100),
+                        ", vuelve en %s" % humano(horas_hasta(w5.get("vuelve"), now)) if w5.get("vuelve") else ""))
+                cand["duro"] = True
+        # Cupo
+        conocidas = [w for w in vents if w.get("usado") is not None]
+        if conocidas:
+            lib = min(conocidas, key=lambda w: (1 - w["usado"], w.get("vuelve") or ""))
+            cand["cupo_libre"] = round(1 - lib["usado"], 4)
+            cand["vuelve"] = lib.get("vuelve")
+        else:
+            cand["aviso"] = "sin dato del cupo (no se descarta, pero no se sabe si queda)"
+        if len(conocidas) < len(vents) and conocidas:
+            cand["aviso"] = "falta el dato de una ventana (%s)" % ", ".join(
+                w["id"] for w in vents if w.get("usado") is None)
+        if not cand["descartado_por"]:
+            for w in conocidas:
+                libre = 1 - w["usado"]
+                if sus == "claude" and claude.get("agotado"):
+                    cand["descartado_por"] = "Claude dijo que se acabó el cupo (límite), vuelve en %s" % (
+                        humano(horas_hasta(w.get("vuelve"), now)))
+                    break
+                if sus == "claude" and reserva_de(w["id"]) is not None and libre <= reserva_de(w["id"]):
+                    cand["descartado_por"] = "reserva comprometida: Claude %s al %d %% (modelos.json guarda el %d %%)" % (
+                        nombre_ventana(w["id"]), round(w["usado"] * 100), round(reserva_de(w["id"]) * 100))
+                    break
+                if libre < cfg["llena"] and sus != "claude" and (grupos.get(gid) or {}).get("agotado"):
+                    cand["descartado_por"] = "ventana %s llena: %s dijo que se acabó el cupo, vuelve en %s" % (
+                        w["id"], "codex" if sus == "openai" else "agy (429)", humano(horas_hasta(w.get("vuelve"), now)))
+                    break
+                if libre < cfg["llena"]:
+                    cand["descartado_por"] = "ventana %s llena (%d %% usado)%s" % (
+                        w["id"], round(w["usado"] * 100),
+                        ", vuelve en %s" % humano(horas_hasta(w.get("vuelve"), now)) if w.get("vuelve") else "")
+                    break
+        # Puntaje
+        q = float(calidad)
+        util = q if q <= minimo + MARGEN else minimo + MARGEN - (q - minimo - MARGEN) * PESO_SOBRA
+        us = []
+        for w in vents:
+            # el claude oficial no gasta su 5h por urgencia si Claude por Google está disponible: esa
+            # ventana es la de las sesiones de la persona
+            if sus == "claude" and w["id"] == "5h" and agy_claude_ok:
+                continue
+            u = urgencia_ventana(w, now, tope_h)
+            if u is not None:
+                us.append(u)
+        urg = min(us) if us else 0.0
+        cand["urgencia"] = round(urg, 3)
+        cand["carga"] = carga.get(cand["clave"], 0)
+        cand["puntaje"] = round(util + cfg["peso_urgencia"] * urg - cfg["peso_costo"] * cfg["costo"].get(fam, 0.3)
+                                - cfg["peso_carga"] * cand["carga"], 2)
+        out.append(cand)
+    for c in FAMILIAS:
+        for cs in (claudes if c[3] == "claude" else openais if c[3] == "openai" else googles):
+            hacer(c, cs)
+    # Locales de modelos.json: cupo infinito, costo cero, calidad según modelos.json (default 35)
+    for loc in cfg["locales"]:
+        calidad = cfg["calidad"].get(loc["id"], 35)
+        cand = {"modelo": loc["id"], "effort": None, "nombre": loc.get("nombre", loc["id"]), "familia": "local",
+                "calidad": calidad, "cupo_libre": 1.0, "vuelve": None, "puntaje": None, "descartado_por": None,
+                "aviso": None, "grupo": "local", "urgencia": 0.0, "cuenta": None, "proveedor": "local", "clave": "local"}
+        if calidad < minimo:
+            cand["descartado_por"] = "calidad %s menor que la %s que pide %s" % (calidad, minimo, tipo)
+            cand["duro"] = True
+        elif excluido_por(loc["id"], cfg["excluir"], "local"):
+            cand["descartado_por"] = "excluido en modelos.json (excluir: %s)" % excluido_por(loc["id"], cfg["excluir"], "local")
+            cand["duro"] = True
+        q = float(calidad)
+        util = q if q <= minimo + MARGEN else minimo + MARGEN - (q - minimo - MARGEN) * PESO_SOBRA
+        cand["puntaje"] = round(util + 0.5 * cfg["peso_urgencia"], 2)   # ocioso y gratis: medio punto de urgencia
+        out.append(cand)
+    return out, minimo, minimo_fam
+
+
+def elegir(tipo, cfg, cupos, now, mismo_proveedor=None, solo_cuenta=None):
+    tipo = (tipo or "").lower().replace("ñ", "n")
+    avisos = []
+    if tipo not in cfg["minimo_por_tipo"]:
+        avisos.append("tipo \"%s\" desconocido: pido calidad de Sonnet" % tipo)
+    if cfg["reparto"] == "fijo":
+        w = cfg["workers"].get(tipo) or cfg["workers"].get("default") or {"modelo": "claude-sonnet-5-5", "effort": "high"}
+        ef = w.get("effort")
+        if ef == "max" and "haiku" not in str(w.get("modelo", "")).lower():
+            ef = "xhigh"   # reparto nunca elige max (opus/sonnet max piden --ok-dueno o permitir_max, y van con -m)
+        return {"version": VERSION, "modelo": w.get("modelo", "claude-sonnet-5-5"), "effort": ef, "cuenta": None,
+                "motivo": "El reparto está en \"fijo\" en modelos.json: uso el modelo que ese archivo asigna al tipo %s." % tipo,
+                "candidatos": [], "avisos": avisos + avisos_de_uso(cupos, now), "tipo": tipo,
+                "todo_lleno": False, "sin_cupo": cfg["sin_cupo"], "vuelve_antes": None}
+    cands, minimo, minimo_fam = armar_candidatos(tipo, cfg, cupos, now)
+    if solo_cuenta:
+        # pa --cuenta C sin -m: sólo los modelos de esa cuenta (con todo lleno, el más barato de ella)
+        cands = [c for c in cands if c.get("cuenta") == solo_cuenta]
+    vivos = [c for c in cands if not c["descartado_por"]]
+    todo_lleno = False
+    banda = None
+    if vivos and mismo_proveedor:
+        # relanzamiento por falta de cupo: otra cuenta del mismo proveedor antes que cambiar de proveedor
+        mp = [c for c in vivos if c.get("proveedor") == mismo_proveedor]
+        if mp:
+            vivos = mp
+    if vivos:
+        pool = vivos
+        pref = next((v for p, v in cfg["preferido_por_tipo"].items() if fnmatch.fnmatchcase(tipo, p)), None)
+        if pref in cfg["calidad"]:
+            q0 = cfg["calidad"][pref]
+            en = [c for c in vivos if q0 <= c["calidad"] <= q0 + MARGEN]
+            if en and len(en) < len(vivos):
+                pool, banda = en, pref
+    else:
+        # Ninguno tiene cupo: el MÁS BARATO entre los que sirven para el tipo (los de calidad, vigencia o
+        # excluidos no cuentan), con el que vuelve antes de desempate. Lo que haga pa con eso es `sin_cupo`.
+        pool = [c for c in cands if not c.get("duro")]
+        todo_lleno = True
+    avisos += avisos_de_uso(cupos, now)
+    extra = {"todo_lleno": todo_lleno, "sin_cupo": cfg["sin_cupo"], "vuelve_antes": None}
+    if not pool:
+        return dict({"version": VERSION, "modelo": None, "effort": None,
+                     "motivo": "Ningún modelo sirve para el tipo %s con la configuración actual." % tipo,
+                     "candidatos": [limpio(c) for c in cands], "avisos": avisos, "tipo": tipo}, **extra)
+    if todo_lleno:
+        gana = min(pool, key=lambda c: (cfg["costo"].get(c["familia"], 0.3) if c["familia"] != "local" else 0.0,
+                                        horas_hasta(c["vuelve"], now) if c["vuelve"] else 1e9, -c["calidad"]))
+        vs = [parse_iso(c["vuelve"]) for c in pool if parse_iso(c.get("vuelve"))]
+        extra["vuelve_antes"] = iso(min(vs)) if vs else None
+    else:
+        gana = max(pool, key=lambda c: (c["puntaje"], c["calidad"]))
+        # el mismo modelo en varias cuentas: la que tiene más cupo libre (sin dato cuenta como el menos libre;
+        # empate: la de siempre)
+        gana = max([c for c in pool if c["modelo"] == gana["modelo"]],
+                   key=lambda c: (c["cupo_libre"] if c["cupo_libre"] is not None else -1.0, not suf(c.get("cuenta")),
+                                  c["puntaje"]))
+    motivo = motivo_de(gana, pool, tipo, minimo, minimo_fam, todo_lleno, now, cands)
+    if banda:
+        motivo += " Para %s se prefiere la calidad de %s: los modelos más caros o menos parejos sólo entran si no queda cupo de esa banda." % (tipo, banda)
+    if os.environ.get("REPARTO_RESERVAR") == "1":
+        registrar_asignacion(gana.get("clave", gana["grupo"]), now)
+    for c in cands:
+        if c.get("aviso") and not c["descartado_por"]:
+            avisos.append("%s: %s" % (c["modelo"], c["aviso"]))
+    r = {"version": VERSION, "modelo": gana["modelo"], "effort": gana["effort"], "cuenta": gana.get("cuenta"), "motivo": motivo,
+         "candidatos": [limpio(c) for c in sorted(cands, key=lambda c: (c["descartado_por"] is not None, -(c["puntaje"] or 0)))],
+         "avisos": avisos, "tipo": tipo}
+    r.update(extra)
+    return r
+
+
+def nombre_ventana(wid):
+    return {"5h": "de 5 h", "7d": "semanal"}.get(wid, wid)
+
+
+def avisos_de_uso(cupos, now):
+    """Cada ventana por encima de AVISO_USO, con su suscripción: "Claude semanal al 91 %, vuelve en 22 h"."""
+    out = []
+    for s in cupos.get("suscripciones", []):
+        filas = [(s.get("nombre", s.get("id")), s.get("ventanas", []))] if prov_de(s) != "google" else \
+                [(g.get("nombre", g.get("id")), g.get("ventanas", [])) for g in s.get("grupos", []) or []]
+        for nombre, vs in filas:
+            for w in vs:
+                if w.get("usado") is not None and w["usado"] >= AVISO_USO:
+                    h = horas_hasta(w.get("vuelve"), now)
+                    out.append("%s %s al %s%s" % (nombre, nombre_ventana(w["id"]), pct(w["usado"]),
+                                                  ", vuelve en %s" % humano(h) if h is not None else ""))
+    return out
+
+
+def limpio(c):
+    return {k: c[k] for k in ("modelo", "effort", "nombre", "calidad", "cupo_libre", "vuelve", "puntaje",
+                              "descartado_por", "aviso", "grupo", "carga", "cuenta") if k in c}
+
+
+def pct(f):
+    return "%d %%" % round(f * 100)
+
+
+def motivo_de(gana, pool, tipo, minimo, minimo_fam, todo_lleno, now, cands):
+    pide = "%s pide calidad %s o más" % (tipo, minimo)
+    if todo_lleno:
+        return ("Todos los cupos que sirven para %s están llenos o en reserva; el más barato que alcanza la calidad "
+                "(%s pide %s) es %s, que %s. Va a toparse con el límite." % (
+                    tipo, tipo, minimo, gana["nombre"],
+                    "vuelve en %s" % humano(horas_hasta(gana["vuelve"], now)) if gana["vuelve"] else "no dice cuándo vuelve"))
+    partes = ["%s alcanza para %s (calidad %s; %s)" % (gana["nombre"], tipo, gana["calidad"], pide)]
+    if gana["cupo_libre"] is not None:
+        h = horas_hasta(gana["vuelve"], now)
+        partes.append("Le queda %s libre y vuelve en %s" % (pct(gana["cupo_libre"]), humano(h)))
+    else:
+        partes.append("No hay dato de su cupo, así que no se lo puede descartar")
+    otros = [c for c in pool if c is not gana]
+    if otros:
+        sig = max(otros, key=lambda c: (c["puntaje"], c["calidad"]))
+        partes.append("Le gana a %s (%.1f contra %.1f puntos)" % (sig["nombre"], gana["puntaje"], sig["puntaje"]))
+    if gana["grupo"] == "claude-gpt" and gana["familia"] in ("opus", "sonnet"):
+        partes.append("El Claude de Google se gasta antes que la ventana de 5 h del Claude oficial")
+    return ". ".join(partes) + "."
+
+
+# --- explicación en castellano llano -----------------------------------------------------------------
+def explicar(r, now, cupos, cfg):
+    L = ["Tipo de tarea: %s" % r.get("tipo")]
+    for a in r.get("avisos", []):
+        L.append("Ojo: %s." % a)
+    res = cfg["reserva"]
+    if res is None:
+        res_t = "ninguna"
+    elif isinstance(res, dict):
+        res_t = ", ".join("%s %s" % (nombre_ventana(k), pct(v)) for k, v in sorted(res.items()))
+    else:
+        res_t = pct(res)
+    L.append("Reserva del Claude oficial: %s. Excluidos: %s. Si no hay cupo: %s%s." % (
+        res_t, ", ".join(cfg["excluir"]) or "ninguno", cfg["sin_cupo"],
+        "" if cfg["sin_cupo_de"] != "gemini.sin_claude" else " (de gemini.sin_claude)"))
+    reglas = [(k, v) for k, v in cfg["uso_por_modelo"] if v != "libre"]
+    if reglas:
+        L.append("Uso por modelo: %s. Tareas poco importantes: %s. Tareas finales: %s." % (
+            "; ".join("%s → %s" % (k, v.replace("_", " ")) for k, v in reglas),
+            ", ".join(cfg["tipos_poco_importantes"]) or "ninguna", ", ".join(cfg["tipos_finales"]) or "ninguna"))
+    if r.get("tipo") in cfg["tipos_finales"]:
+        L.append("Esta tarea cuenta como final: los modelos de uso solo final (Argon) pueden entrar.")
+    L.append("")
+    L.append("Cupos que mira:")
+    for s in cupos.get("suscripciones", []):
+        if prov_de(s) != "google":
+            L.append("  %s: %s" % (s["nombre"], ventanas_txt(s.get("ventanas", []), now)))
+        else:
+            for g in s.get("grupos", []) or []:
+                extra = "  (hasta el %s)" % g["hasta"] if g.get("hasta") else ""
+                L.append("  %s – %s: %s%s" % (s["nombre"], g["nombre"], ventanas_txt(g.get("ventanas", []), now), extra))
+            for m in s.get("modelos", []) or []:   # forma vieja
+                L.append("  %s – %s: %s" % (s["nombre"], m.get("nombre", m.get("id")), ventanas_txt(m.get("ventanas", []), now)))
+    L.append("")
+    L.append("Candidatos (de mejor a peor puntaje):")
+    for c in r.get("candidatos", []):
+        nom = c["modelo"] + (" " + c["effort"] if c.get("effort") else "")
+        if c["descartado_por"]:
+            L.append("  ✗ %s — descartado: %s" % (nom, c["descartado_por"]))
+        else:
+            cupo = "cupo libre %s" % pct(c["cupo_libre"]) if c["cupo_libre"] is not None else "sin dato de cupo"
+            L.append("  ✓ %s — calidad %s, %s, %.1f puntos%s" % (nom, c["calidad"], cupo, c["puntaje"],
+                                                              "  [%s]" % c["aviso"] if c.get("aviso") else ""))
+    L.append("")
+    if r.get("modelo"):
+        L.append("Elijo: %s%s" % (r["modelo"], " (effort %s)" % r["effort"] if r.get("effort") else ""))
+    else:
+        L.append("No elijo ninguno.")
+    L.append(r["motivo"])
+    if r.get("todo_lleno") and r.get("modelo"):
+        L.append({"otro": "Con sin_cupo \"otro\", pa lo lanza igual y, si choca el límite sin haber hecho nada, "
+                           "lo marca agotado y relanza con el siguiente.",
+                  "esperar": "Con sin_cupo \"esperar\", pa no lo lanza: con --async hace cola hasta que vuelva un cupo%s." % (
+                      " (el primero vuelve en %s)" % humano(horas_hasta(r["vuelve_antes"], now)) if r.get("vuelve_antes") else ""),
+                  "fallar": "Con sin_cupo \"fallar\", pa no lo lanza (sale 96)."}[r.get("sin_cupo", "otro")])
+    return "\n".join(L)
+
+
+def ventanas_txt(vs, now):
+    if not vs:
+        return "sin ventanas"
+    out = []
+    for w in vs:
+        if w.get("usado") is None:
+            out.append("%s sin dato" % w["id"])
+        else:
+            h = horas_hasta(w.get("vuelve"), now)
+            out.append("%s %s libre%s" % (w["id"], pct(1 - w["usado"]), " (vuelve en %s)" % humano(h) if h is not None else ""))
+    return ", ".join(out)
+
+
+# --- resolver un id de modelo ------------------------------------------------------------------------
+def resolver(mid):
+    """Cómo lanzar un id de reparto. {motor: claude|agy|ollama, modelo, effort?}. None si no se reconoce."""
+    if mid.startswith("agy:"):
+        return {"motor": "agy", "modelo": mid[4:], "id": mid, "nota": "agy --model %s" % mid[4:]}
+    if mid.startswith("gemini-"):
+        return {"motor": "agy", "modelo": mid, "id": mid, "nota": "agy --model %s" % mid}
+    m = re.match(r"^codex:(.+)-(low|medium|high)$", mid)
+    if m:
+        return {"motor": "codex", "modelo": m.group(1), "effort": m.group(2), "id": mid,
+                "nota": "codex exec -m %s -c model_reasoning_effort=%s" % (m.group(1), m.group(2))}
+    if mid.startswith("ollama:"):
+        return {"motor": "ollama", "modelo": mid[7:], "id": mid}
+    if mid.startswith("claude-"):
+        return {"motor": "claude", "modelo": mid, "id": mid}
+    return None
+
+
+def cuenta_para(mid, cupos, now):
+    """La cuenta del proveedor de ese modelo con más cupo libre (la ventana más llena de su grupo; sin dato = la
+    menos libre; agotada = afuera mientras haya otra). Empate: la de siempre. None si el modelo no es de una cuenta."""
+    r = resolver(mid)
+    if not r or r["motor"] not in ("claude", "agy"):
+        return None
+    prov = "claude" if r["motor"] == "claude" else "google"
+    gid = None if prov == "claude" else grupo_de_modelo(mid)
+    mejor = None
+    for s in cupos.get("suscripciones", []):
+        if prov_de(s) != prov:
+            continue
+        if prov == "claude":
+            vs, agot = s.get("ventanas", []) or [], bool(s.get("agotado"))
+        else:
+            g = next((g for g in s.get("grupos", []) or [] if g.get("id") == gid), {})
+            vs, agot = g.get("ventanas", []) or [], bool(g.get("agotado"))
+        us = [w["usado"] for w in vs if w.get("usado") is not None]
+        libre = -1.0 if not us else 1 - max(us)
+        k = (not agot, libre, not suf(cuenta_de(s)))
+        if mejor is None or k > mejor[0]:
+            mejor = (k, cuenta_de(s), libre, agot)
+    if not mejor:
+        return {"cuenta": prov, "proveedor": prov, "cupo_libre": None, "agotada": False}
+    return {"cuenta": mejor[1], "proveedor": prov, "cupo_libre": None if mejor[2] < 0 else round(mejor[2], 4),
+            "agotada": mejor[3]}
+
+
+# --- main --------------------------------------------------------------------------------------------
+def texto_cupos(d, now):
+    L = ["Cupos leídos %s" % d.get("leido", "?")]
+    for s in d.get("suscripciones", []):
+        if prov_de(s) not in ("google", "openai") and not s.get("grupos"):
+            L.append("%s: %s%s" % (s["nombre"], ventanas_txt(s.get("ventanas", []), now),
+                                   "  (%s)" % s["nota"] if s.get("nota") else ""))
+        else:
+            L.append("%s:" % s["nombre"])
+            for g in s.get("grupos", []) or []:
+                L.append("  %s: %s%s" % (g["nombre"], ventanas_txt(g.get("ventanas", []), now),
+                                         "  (hasta el %s)" % g["hasta"] if g.get("hasta") else ""))
+    return "\n".join(L)
+
+
+def uso():
+    sys.stdout.write(__doc__)
+    return 2
+
+
+def main(argv):
+    a = list(argv)
+    json_out = "--json" in a
+    expl = "--explicar" in a
+    a = [x for x in a if x not in ("--json", "--explicar")]
+    opt = {}
+    for k in ("--cuenta", "--mismo-proveedor"):
+        if k in a[1:]:
+            i = a.index(k, 1)
+            if i + 1 >= len(a):
+                return uso()
+            opt[k] = a[i + 1]
+            del a[i:i + 2]
+    if "--mismo-proveedor" in opt and opt["--mismo-proveedor"] not in PROVEEDORES:
+        err("--mismo-proveedor quiere claude, google o chatgpt")
+        return 2
+    if not a or a[0] in ("-h", "--help"):
+        return uso()
+    cfg = cargar_config()
+    now = ahora()
+    if a[0] == "--cupos":
+        d = leer_cupos(cfg, now)
+        print(json.dumps(d, ensure_ascii=False, indent=None if not sys.stdout.isatty() else 2) if json_out
+              else texto_cupos(d, now))
+        return 0
+    if a[0] == "--tipo" and len(a) == 2:
+        try:
+            d = leer_cupos(cfg, now)
+        except Exception as e:
+            err("no pude leer los cupos: %s" % e)
+            return 1
+        r = elegir(a[1], cfg, d, now, opt.get("--mismo-proveedor"), opt.get("--cuenta"))
+        if expl:
+            r["explicacion"] = explicar(r, now, d, cfg)
+        if json_out:
+            print(json.dumps(r, ensure_ascii=False))
+        elif expl:
+            print(r["explicacion"])
+        else:
+            print("%s%s — %s" % (r["modelo"], " " + r["effort"] if r.get("effort") else "", r["motivo"]))
+        return 0 if r.get("modelo") else 1
+    if a[0] == "--agotar" and len(a) in (2, 4) and (len(a) == 2 or a[2] == "--hasta"):
+        return agotar(a[1], a[3] if len(a) == 4 else None, cfg, now, opt.get("--cuenta"))
+    if a[0] == "--excluido" and len(a) == 2:
+        x = excluido_por(a[1], cfg["excluir"], "local" if a[1].lower().startswith("ollama:") else None)
+        if x:
+            print(x)
+        return 0 if x else 1
+    if a[0] == "--olvidar-agotados" and len(a) == 1:
+        try:
+            os.remove(os.path.join(state_dir(), "agotado.json"))
+        except FileNotFoundError:
+            pass
+        return 0
+    if a[0] == "--cuenta-para" and len(a) == 2:
+        try:
+            r = cuenta_para(a[1], leer_cupos(cfg, now), now)
+        except Exception as e:
+            err("no pude leer los cupos: %s" % e)
+            return 1
+        if not r:
+            err("%s no se corre con una cuenta (no es claude-* ni de agy)" % a[1])
+            return 1
+        print(json.dumps(r, ensure_ascii=False) if json_out else r["cuenta"])
+        return 0
+    if a[0] == "--resolver" and len(a) == 2:
+        r = resolver(a[1])
+        if not r:
+            err("id de modelo desconocido: %s" % a[1])
+            return 1
+        print(json.dumps(r, ensure_ascii=False) if json_out else "%s %s" % (r["motor"], r["modelo"]))
+        return 0
+    return uso()
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

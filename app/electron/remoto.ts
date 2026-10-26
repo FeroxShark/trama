@@ -48,8 +48,8 @@ export type OpcionesRemoto = {
   propias: string[];
   /** Si esa IP es de un dispositivo del usuario. */
   entra(ip: string): Promise<boolean>;
-  /** Corre el manejador de un canal del IPC. */
-  llamar(canal: string, args: unknown[], cliente: string): Promise<unknown>;
+  /** Corre el manejador de un canal del IPC. `ip` es la dirección real del socket (nunca `X-Forwarded-For`). */
+  llamar(canal: string, args: unknown[], cliente: string, ip?: string): Promise<unknown>;
   /** La query de la ventana (se pide en cada carga: el idioma o la letra pudieron cambiar). */
   consulta(): Record<string, string>;
   /** Quién es esta máquina (PC o Dell): título, color y ícono de lo que se sirve. Sin ella, o con `propia: false`, todo sale como siempre. */
@@ -112,8 +112,8 @@ const PROPIOS = new Set(["/manifest.webmanifest", "/favicon.svg", "/icon.png", "
 const esCliente = (c: unknown): c is string => typeof c === "string" && /^[0-9a-f]{8,64}$/.test(c);
 
 export type OpcionesCanal = {
-  /** Corre el manejador de un canal del núcleo. */
-  llamar(canal: string, args: unknown[], cliente: string): Promise<unknown>;
+  /** Corre el manejador de un canal del núcleo. `ip` es la dirección real del socket (nunca `X-Forwarded-For`). */
+  llamar(canal: string, args: unknown[], cliente: string, ip?: string): Promise<unknown>;
   /** Un cliente se fue hace rato: se suelta lo que tenía tomado. */
   seFue(cliente: string): void;
   /** Si el `/rpc` exige `Origin` (un navegador siempre lo manda: CSRF). El socket local no lo trae. */
@@ -243,7 +243,7 @@ export function crearCanal(o: OpcionesCanal) {
     });
   }
 
-  async function rpc(req: IncomingMessage, res: ServerResponse) {
+  async function rpc(req: IncomingMessage, res: ServerResponse, ip?: string) {
     const c = req.headers["x-trama-cliente"];
     // Con `Origin` (un POST de navegador siempre lo trae) y una cabecera propia: nada de formularios de otro sitio.
     if (req.method !== "POST" || !esCliente(c) || (o.conOrigen && req.headers.origin === undefined)) return negar(res, 403);
@@ -261,7 +261,7 @@ export function crearCanal(o: OpcionesCanal) {
     tocar(c);
     let cuerpo: string;
     try {
-      cuerpo = JSON.stringify({ ok: true, valor: await o.llamar(canal, args, c) });
+      cuerpo = JSON.stringify({ ok: true, valor: await o.llamar(canal, args, c, ip) });
     } catch (e) {
       cuerpo = JSON.stringify({ ok: false, error: String((e as Error)?.message ?? e) });
     }
@@ -348,7 +348,8 @@ export function crearRemoto(o: OpcionesRemoto) {
     const ip = o.propias.includes(de) && reenviado !== undefined ? ipLimpia(String(reenviado).trim()) : de;
     if (!(await o.entra(ip).catch(() => false))) return negar(res, 403);
 
-    if (url.pathname === "/rpc") return rpc(req, res);
+    // Al núcleo va la IP real del socket (`de`), nunca `X-Forwarded-For`: un pedido por la tailnet no puede hacerse pasar por loopback.
+    if (url.pathname === "/rpc") return rpc(req, res, de);
     if (req.method !== "GET" && req.method !== "HEAD") return negar(res, 405);
     if (url.pathname === "/eventos") return eventos(req, res, url);
     if (pagina) {

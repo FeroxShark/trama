@@ -1,18 +1,18 @@
 // La conversación de `pa --hilo` como la muestra la vista: cada pedido de
 // El usuario y, por cada tanda seguida de mensajes del worker, un turno con lo que
 // contestó (su último texto) y el trabajo de antes colapsado en "Trabajó X m".
-// Lo que no es del usuario ni del modelo (src/hilo/sistema.ts) va aparte y corta
+// Lo que no es del usuario ni del modelo (src/hilo/sistema-logica.ts) va aparte y corta
 // la tanda. Puro: lo prueba `tests/turnos.test.ts`.
 import type { Mensaje } from "../datos/contrato";
 import { agrupar, usosDe, type Uso } from "./herramientas.ts";
-import { sistemaDe, type Sistema } from "./sistema.ts";
+import { sistemaDe, type Sistema } from "./sistema-logica.ts";
 
 /** Un renglón del trabajo: un texto suelto del worker y las herramientas que usó después (B19). */
 export type Paso = { texto: string; usos: Uso[] };
 
 export type Item =
   /** `ts`: epoch (s) de cuando lo mandó el usuario (`null` si no se sabe). */
-  | { tipo: "yo"; key: string; texto: string; ts: number | null; imagenes?: { tipo: string; datos: string }[] }
+  | { tipo: "yo"; key: string; texto: string; ts: number | null; imagenes?: { tipo: string; datos: string }[]; punto?: Punto }
   /** Una línea o una tarjeta de sistema (B18). */
   | { tipo: "sistema"; key: string; s: Sistema }
   | {
@@ -27,7 +27,17 @@ export type Item =
       hasta: number | null;
       /** Su razonamiento (sólo un líder): el de cada mensaje, juntos; `null` si no hay. */
       pensado?: string | null;
+      /** Lo mismo, un texto por mensaje del modelo y en orden: cada pensamiento termina siendo su propia línea plegada. */
+      pensamientos?: string[];
+      /** Dónde se puede volver, editar o ramificar (acciones por mensaje); falta si no se sabe. */
+      punto?: Punto;
     };
+
+/**
+ * Un lugar de la conversación al que se puede volver: `uuid` de su último mensaje, `n` = cuántos mensajes hay hasta él
+ * (inclusive) y, en un pedido del usuario, `previo` (el `uuid` del mensaje de antes) y `antes` = cuántos hay antes de él.
+ */
+export type Punto = { uuid: string; n: number; previo?: string; antes: number; previa?: true };
 
 const epoch = (ts: string | null) => {
   const t = ts ? Date.parse(ts) / 1000 : NaN;
@@ -59,7 +69,14 @@ export function turnos(mensajes: Mensaje[], transcript: string | null = null): I
     }
     if (m.rol === "user") {
       if (m.texto.trim() || m.imagenes?.length)
-        items.push({ tipo: "yo", key: `m${m.i}`, texto: m.texto, ts: epoch(m.ts), ...(m.imagenes?.length ? { imagenes: m.imagenes } : {}) });
+        items.push({
+          tipo: "yo",
+          key: `m${m.i}`,
+          texto: m.texto,
+          ts: epoch(m.ts),
+          ...(m.imagenes?.length ? { imagenes: m.imagenes } : {}),
+          ...(m.uuid ? { punto: { uuid: m.uuid, n: m.i + 1, antes: m.i, ...(m.previo ? { previo: m.previo } : {}), ...(m.previa ? { previa: true as const } : {}) } } : {}),
+        });
       i++;
       continue;
     }
@@ -92,6 +109,8 @@ export function turnos(mensajes: Mensaje[], transcript: string | null = null): I
       desde: antes ?? epoch(tanda[0].ts),
       hasta: epoch(tanda[tanda.length - 1].ts),
       pensado: tanda.map((x) => x.pensado).filter(Boolean).join("\n\n") || null,
+      pensamientos: tanda.map((x) => x.pensado?.trim() ?? "").filter(Boolean),
+      ...(tanda[tanda.length - 1].uuid ? { punto: { uuid: tanda[tanda.length - 1].uuid!, n: tanda[tanda.length - 1].i + 1, antes: tanda[tanda.length - 1].i, ...(tanda[tanda.length - 1].previa ? { previa: true as const } : {}) } } : {}),
     });
     i = j;
   }

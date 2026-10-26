@@ -12,7 +12,7 @@ import { imagenesDe, type Imagen } from "./imagenes.ts";
 import { inputRespondido, respuestasValidas, type Pregunta } from "./preguntas.ts";
 import { spawn, type ChildProcess } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { access, open, readdir, readFile, stat } from "node:fs/promises";
+import { access, open, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import {
@@ -26,6 +26,7 @@ import {
   type Ollama,
   escribirGuardados,
   esModo,
+  hastaUuid,
   leerGuardados,
   lineaInicio,
   lineaEffort,
@@ -63,6 +64,7 @@ import { ESTADO, escribirAtomico } from "./pa.js";
 import { esElProceso, sesionesVivas, type Sesion } from "./sesiones.js";
 import { irA, ubicar } from "./terminal.js";
 import { log, silencio } from "./log.js";
+import { temaDe, tituloLider } from "./tema.js";
 
 const HOME = os.homedir();
 const ARCHIVO = path.join(ESTADO, "lideres.json");
@@ -400,7 +402,7 @@ export function barrerGrupo(pid: number | undefined, kill: (pid: number, senal: 
 }
 
 /** Lo que un líder de otra clase necesita para arrancar: adónde habla uno de Ollama, o el prefacio de uno de Gemini. */
-type Extra = { ollama?: Ollama; prefacio?: string };
+type Extra = { ollama?: Ollama; prefacio?: string; desde?: string };
 
 /**
  * Lo de otra clase para el proceso que se va a lanzar. Un `ollama:*` que ya no figura en `modelos.json` no se lanza: el error
@@ -442,7 +444,7 @@ function lanzar(g: Guardado, resume: boolean, local?: Local, extra: Extra = {}):
           // El mismo Electron/Node que el motor, como Node pelado; el prefacio (agy no lee CLAUDE.md) va por el entorno.
           { ...opciones, env: { ...base.env, ELECTRON_RUN_AS_NODE: "1", TRAMA_AGY_PREFACIO: extra.prefacio ?? "" } },
         )
-      : spawn(CLAUDE, argvLider({ modelo: g.modelo, effort: g.effort, sid: g.sid, nombre: g.nombre, resume, modo: g.modo, local, ollama: extra.ollama }), opciones);
+      : spawn(CLAUDE, argvLider({ modelo: g.modelo, effort: g.effort, sid: g.sid, nombre: g.nombre, resume, modo: g.modo, local, ollama: extra.ollama, desde: extra.desde, rama: g.rama }), opciones);
   const x: Proc = { p, modelo: g.modelo, effort: g.effort, clase, local, ocupado: false, pedido: 0, avisado: 0, resto: "", stderr: "", adrede: false, libre: [], pedidos: new Map(), controles: new Map(), estilo: null };
   procs.set(g.sid, x);
   p.stdout!.setEncoding("utf8");
@@ -470,6 +472,8 @@ function lanzar(g: Guardado, resume: boolean, local?: Local, extra: Extra = {}):
           x.pedidos.clear();
           g.ultimo = Math.floor(Date.now() / 1000);
           if (e.ttl) g.cache_ttl_s = e.ttl;
+          // Una rama ya tiene su transcript: de acá en más se retoma como cualquier otro.
+          delete g.rama;
           void guardar();
           alEv(g.sid, e);
           alEv(g.sid, { tipo: "estado", ocupado: false, vivo: true });
@@ -875,6 +879,179 @@ async function mandarYa(x: { sid: string; texto: string; imagenes?: unknown; mod
   alCambio();
 }
 
+/**
+ * Volver atrás y seguir desde ahí con un mensaje (Editar y Volver acá): el `claude` se relanza con
+ * `--resume <sid> --resume-session-at <uuid>` y recibe el mensaje; para el modelo la conversación es la cadena hasta
+ * ese mensaje, sin compactar ni resumir nada. Lo posterior queda en el transcript (no se borra ni se reescribe), fuera
+ * de la rama que sigue. Sirve igual para un líder sin proceso (Murió, Cerrado, o abierto antes en una terminal y ya
+ * cerrado). Sólo `claude` (no Gemini ni Ollama ni locales) y nunca a mitad de un turno ni con otro proceso en la sesión.
+ */
+export async function rebobinar(x: { sid: string; uuid: string; texto: string; imagenes?: unknown; modelo: string; effort: string; previa?: boolean }): Promise<string | null> {
+  const sid = String(x?.sid);
+  if (mandando.has(sid)) throw errorT("main.respondiendo");
+  mandando.add(sid);
+  try {
+    // Antes de la última compactación el `claude` no alcanza ese mensaje en su archivo: se sigue en un líder nuevo, con una copia de la cadena.
+    if (x?.previa === true && SID.test(sid) && SID.test(String(x.uuid))) {
+      const origen = (await lideresApp()).find((l) => l.sid === sid);
+      const t = await transcriptDe(sid, origen?.cwd);
+      if (t && (await cadenaHasta(t, String(x.uuid)))?.previa) {
+        const nuevo = await ramificar({ sid, uuid: x.uuid, modelo: x.modelo, effort: x.effort });
+        await mandar({ sid: nuevo, texto: x.texto, imagenes: x.imagenes, modelo: x.modelo, effort: x.effort });
+        return nuevo;
+      }
+    }
+    await rebobinarYa(x);
+    return null;
+  } finally {
+    mandando.delete(sid);
+  }
+}
+
+/**
+ * La cadena de líneas del transcript `t` desde la raíz hasta la línea `uuid` (siguiendo `parentUuid`), y si ese punto es
+ * anterior a la última compactación (`previa`: el `claude` sólo carga lo que viene después del último `compact_boundary`
+ * y rechaza esos `uuid`). `null` si el `uuid` no está en el archivo.
+ */
+export async function cadenaHasta(t: string, uuid: string): Promise<{ previa: boolean; lineas: Record<string, unknown>[] } | null> {
+  const todas: Record<string, unknown>[] = [];
+  for (const l of (await readFile(t, "utf8")).split("\n")) {
+    if (!l.trim()) continue;
+    try {
+      const o = JSON.parse(l);
+      if (o && typeof o === "object") todas.push(o);
+    } catch {
+      /* una línea a medio escribir */
+    }
+  }
+  const porId = new Map<string, number>();
+  let marca = -1;
+  todas.forEach((o, k) => {
+    if (typeof o.uuid === "string") porId.set(o.uuid, k);
+    if (o.type === "system" && o.subtype === "compact_boundary") marca = k;
+  });
+  const fin = porId.get(uuid);
+  if (fin === undefined) return null;
+  const cadena: Record<string, unknown>[] = [];
+  for (let k: number | undefined = fin, vistas = 0; k !== undefined && vistas <= todas.length; vistas++) {
+    cadena.push(todas[k]);
+    const padre: unknown = todas[k].parentUuid;
+    k = typeof padre === "string" ? porId.get(padre) : undefined;
+  }
+  return { previa: fin < marca, lineas: cadena.reverse() };
+}
+
+/**
+ * Una copia del transcript `t` hasta `uuid` bajo un sid nuevo, al lado del original (que no se toca): es lo que deja
+ * volver o ramificar en un punto anterior a una compactación, que el `claude` no carga en su propio archivo. Devuelve el
+ * sid de la copia, o `null` si el punto se alcanza directo (no hace falta copiar).
+ */
+async function copiarHasta(t: string, uuid: string): Promise<string | null> {
+  const c = await cadenaHasta(t, uuid);
+  if (!c) throw errorT("main.rebobinarSinSesion");
+  if (!c.previa) return null;
+  const nuevo = randomUUID();
+  const texto = c.lineas.map((o) => JSON.stringify("sessionId" in o ? { ...o, sessionId: nuevo } : o)).join("\n") + "\n";
+  await writeFile(path.join(path.dirname(t), `${nuevo}.jsonl`), texto, { flag: "wx", mode: 0o600 });
+  log.escribir("info", "lider", `copia de ${path.basename(t, ".jsonl")} hasta un punto anterior a una compactación → ${nuevo}`);
+  return nuevo;
+}
+
+/** Una clase de líder que se puede reanudar en un punto: el `claude` de Anthropic, no Gemini, Ollama ni un local. */
+const reanudable = (modelo: string) => claseDeModelo(modelo) === "claude" && !localDe(modelo);
+
+async function rebobinarYa(x: { sid: string; uuid: string; texto: string; imagenes?: unknown; modelo: string; effort: string }): Promise<void> {
+  const sid = String(x?.sid);
+  const uuid = String(x?.uuid);
+  if (!SID.test(sid)) throw errorT("main.sesionRara", { v: sid });
+  if (!SID.test(uuid)) throw errorT("main.sesionRara", { v: uuid });
+  const imagenes = imagenesDe(x.imagenes);
+  const texto = textoDe(x.texto, imagenes);
+  const { modelo, effort } = normalizar(sueltoDe("modelo", x.modelo), sueltoDe("effort", x.effort));
+  if (!reanudable(modelo)) throw errorT("main.rebobinarClase");
+  if (await ajeno(sid)) throw errorT("main.otroProceso");
+  let g = (await lideresApp()).find((l) => l.sid === sid);
+  if (g && !reanudable(g.modelo)) throw errorT("main.rebobinarClase");
+  if (!g) {
+    // Sin proceso y sin anotar (nació en una terminal): se lo anota como en Retomar.
+    const r = await anotar(sid, { modelo, effort, modo: MODO_DEFAULT });
+    if (!r.ok) throw errorT("main.rebobinarSinSesion");
+    g = (await lideresApp()).find((l) => l.sid === sid)!;
+  }
+  const p = procs.get(sid);
+  if (p?.ocupado) throw errorT("main.respondiendo");
+  // Un proceso ocioso sigue con toda la conversación en memoria: se cierra y vuelve con la cadena recortada.
+  if (p) await terminar(p);
+  if (procs.get(sid)?.ocupado) throw errorT("main.respondiendo");
+  if (g.modelo !== modelo || g.effort !== effort) {
+    g.modelo = modelo;
+    g.effort = effort;
+  }
+  // Una rama que todavía no tuvo turno no tiene transcript propio: se vuelve a bifurcar, más atrás.
+  if (g.rama) g.rama = { de: g.rama.de, hasta: uuid };
+  await guardar();
+  const q = lanzar(g, true, undefined, { desde: uuid });
+  q.ocupado = true;
+  q.p.stdin!.write(lineaUsuario(texto, imagenes));
+  alEv(g.sid, { tipo: "estado", ocupado: true, vivo: true });
+  alCambio();
+}
+
+/**
+ * Ramificar: un líder nuevo que arranca con la conversación de otro hasta un mensaje (`uuid`); el de origen no se toca.
+ * Es el `--fork-session` de `claude` (con `--resume-session-at`): el transcript propio se escribe con el primer mensaje,
+ * así que mientras tanto el líder lleva `rama` y se lo muestra con lo que tiene el de origen hasta ahí. Devuelve su sid.
+ * Anda también con un origen sin proceso: sólo lee su transcript.
+ */
+export async function ramificar(x: { sid: string; uuid: string; modelo: string; effort: string }): Promise<string> {
+  const sid = String(x?.sid);
+  const uuid = String(x?.uuid);
+  if (!SID.test(sid)) throw errorT("main.sesionRara", { v: sid });
+  if (!SID.test(uuid)) throw errorT("main.sesionRara", { v: uuid });
+  const { modelo, effort } = normalizar(sueltoDe("modelo", x.modelo), sueltoDe("effort", x.effort));
+  if (!reanudable(modelo)) throw errorT("main.rebobinarClase");
+  const origen = (await lideresApp()).find((l) => l.sid === sid);
+  if (origen && !reanudable(origen.modelo)) throw errorT("main.rebobinarClase");
+  const t = await transcriptDe(sid, origen?.cwd);
+  if (!t) throw errorT("main.rebobinarSinSesion");
+  let cwd = origen?.cwd;
+  if (!origen) {
+    const f = await open(t, "r").catch(() => null);
+    if (!f) throw errorT("main.rebobinarSinSesion");
+    try {
+      const b = Buffer.alloc(CABEZA);
+      const { bytesRead } = await f.read(b, 0, CABEZA, 0);
+      cwd = cwdDeTranscript(b.subarray(0, bytesRead).toString("utf8")) ?? undefined;
+    } finally {
+      await f.close();
+    }
+  }
+  if (cwd && !(await stat(cwd).then((s) => s.isDirectory(), () => false))) throw errorT("main.rebobinarSinSesion");
+  // Un punto anterior a la última compactación se bifurca de una copia de la cadena, no del archivo de origen.
+  const de = (await copiarHasta(t, uuid)) ?? sid;
+  const tituloOrigen = tituloLider(await temaDe(sid, t), origen?.nombre ?? "");
+  const ls = await lideresApp();
+  const g: Guardado = {
+    sid: randomUUID(),
+    nombre: nombreNuevo(),
+    modelo,
+    effort,
+    creado: Math.floor(Date.now() / 1000),
+    ultimo: 0,
+    cache_ttl_s: null,
+    modo: origen?.modo ?? MODO_DEFAULT,
+    ...(cwd && cwd !== HOME ? { cwd } : {}),
+    rama: { de, hasta: uuid },
+    origen: { sid, titulo: tituloOrigen },
+  };
+  ls.push(g);
+  await guardar();
+  lanzar(g, false);
+  alEv(g.sid, { tipo: "estado", ocupado: false, vivo: true });
+  alCambio();
+  return g.sid;
+}
+
 /** Por qué no se pudo retomar: abierto en otro proceso, sin transcript, o su carpeta ya no existe. */
 export type Retomado = { ok: true } | { ok: false; motivo: "abierto" | "sinSesion" | "sinCarpeta" };
 
@@ -1244,7 +1421,11 @@ export const transcriptPorDefecto = (sid: string) => path.join(PROYECTOS, dirPro
 /** Una página de la conversación de un líder, con la forma de `pa --hilo --json`. */
 export async function conversacionLider(x: { sid: string; n?: number; antes?: number | null }) {
   const t = await transcriptDe(String(x.sid));
-  return paginaDe(await convDe(x.sid, t), x.sid, t, { n: Number(x.n) || 50, antes: x.antes ?? null });
+  const pag = { n: Number(x.n) || 50, antes: x.antes ?? null };
+  // Una rama sin su primer turno no tiene transcript: se ve lo que tiene el líder de origen hasta el mensaje de donde sale.
+  const rama = t ? undefined : (await lideresApp()).find((l) => l.sid === x.sid)?.rama;
+  if (rama) return paginaDe(hastaUuid(await convDe(rama.de, await transcriptDe(rama.de)), rama.hasta), x.sid, null, pag);
+  return paginaDe(await convDe(x.sid, t), x.sid, t, pag);
 }
 
 /** "Ir a la ventana" de un líder de la terminal (electron/terminal.ts). */

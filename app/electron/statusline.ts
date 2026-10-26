@@ -15,7 +15,7 @@ import { ESTADO, escribirAtomico, PA_STATE } from "./pa.js";
 import { lideresApp, procDe, transcriptDe, transcriptPorDefecto, usoVisto } from "./lider.js";
 import { real, registro, type Proyecto } from "./registro.js";
 import { sesiones, type Sesion } from "./sesiones.js";
-import { creadoEn, proyectoEnTexto, temaDe, tituloLider } from "./tema.js";
+import { creadoEn, proyectoEnTexto, temaDe, tituloDeRama, tituloLider } from "./tema.js";
 import { cuposActuales, type SuscripcionCupo } from "./cupos.js";
 import { deStatusline, esCuentaDeSiempre, usoDe, type Ventana } from "./uso.ts";
 import { verCaidos, type Caido } from "./vigia.js";
@@ -140,10 +140,10 @@ async function caidosDe(muertas: Sesion[], vivas: Set<string>, ahora: number): P
  * el de uno de la app está en el home (`null`); el de uno de la terminal, o de uno
  * que se retomó desde la app, en su `cwd`.
  */
-async function deQueTrata(sid: string, cwd: string | null, sesion: string, regs: Proyecto[], home: string) {
+async function deQueTrata(sid: string, cwd: string | null, sesion: string, regs: Proyecto[], home: string, origen?: { titulo: string }) {
   const archivo = cwd === null ? transcriptPorDefecto(sid) : await transcriptDe(sid, cwd).catch(() => null);
   const t = await temaDe(sid, archivo);
-  return { nombre: tituloLider(t, sesion), inferido: t.primero ? proyectoEnTexto(t.primero, regs, home) : null, creado: t.creado };
+  return { nombre: tituloDeRama(tituloLider(t, sesion), origen), inferido: t.primero ? proyectoEnTexto(t.primero, regs, home) : null, creado: t.creado };
 }
 
 
@@ -240,7 +240,7 @@ export async function leerStatusline(): Promise<Statusline> {
     // De la app sólo si el proceso es suyo: si no, está abierto en otro lado y se lee nomás.
     const mia = g && p?.pid != null;
     const modelo = mia ? g.modelo : a?.modelo ? String(a.modelo).replace(/\[.*\]$/, "") : null;
-    const t = await deQueTrata(s.id, g ? (g.cwd ?? null) : s.cwd, s.nombre || g?.nombre || "", regs, home);
+    const t = await deQueTrata(s.id, g ? (g.cwd ?? null) : s.cwd, s.nombre || g?.nombre || "", regs, home, g?.origen);
     lideres.push({
       id: s.id,
       nombre: t.nombre || modeloLindo(String(a?.modelo ?? "")),
@@ -269,7 +269,7 @@ export async function leerStatusline(): Promise<Statusline> {
     const p = procDe(g.sid);
     const ultimo = Math.max(g.ultimo, g.creado);
     // Ninguno se esconde por viejo: la barra pliega los de más de un día sin proceso en "Dormidos" (`DORMIDO_S`, arbol.ts).
-    const t = await deQueTrata(g.sid, g.cwd ?? null, g.nombre, regs, home);
+    const t = await deQueTrata(g.sid, g.cwd ?? null, g.nombre, regs, home, g.origen);
     lideres.push({
       id: g.sid,
       nombre: t.nombre,

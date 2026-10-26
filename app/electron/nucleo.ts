@@ -59,7 +59,7 @@ import { enTerminal } from "./actualizador.ts";
 import { cuentasVarias } from "./cuentas-varias-canales.ts";
 import { cuentasDeEstaMaquinaVarias } from "./cuentas-varias.ts";
 import { alCambiarCupos, refrescarCupos } from "./cupos.js";
-import { modoLocal } from "./modo-local.js";
+import { esLoopback, modoLocal } from "./modo-local.js";
 import { DIR, leerStatusline, SESIONES, type Statusline } from "./statusline.js";
 import * as tablero from "./tablero.js";
 import { proximoReinicio } from "./uso.ts";
@@ -82,6 +82,8 @@ const RESPALDO_MS = 5 * 60_000;
 export type Origen = object;
 export type Manejador = (e: Origen, ...args: any[]) => unknown;
 export const quien = (e: Origen) => ("remoto" in e ? String(e.remoto) : "local" in e ? `local:${String(e.local)}` : "ventana");
+/** ¿Llegó por la tailnet? En modo local (TRAMA_LOCAL=1) o por loopback (127.0.0.0/8, ::1) el `/rpc` también viene como `remoto`, pero es esta misma máquina. */
+const tailnet = (e: Origen) => "remoto" in e && !modoLocal() && !("ip" in e && typeof e.ip === "string" && esLoopback(e.ip));
 
 /** Los manejadores, por canal: los mismos para la ventana y para quien entra por red. */
 const manejadores = new Map<string, Manejador>();
@@ -95,11 +97,11 @@ export const manejadoresAnotados = (): [string, Manejador][] => [...manejadores]
 /** Lo que por red no se puede: salir de trama, y lo que abre o enfoca cosas en la pantalla de la PC. */
 export const SOLO_VENTANA: ReadonlySet<string> = new Set(["app:salir", "carpeta:elegir", "app:pararTodo", "bandeja:textos", "lider:ir", "lider:ubicable", "claude:changelog", "volver:leer", "volver:guardar", "volver:anotar", "reinicio:marca", "borradores:leer", "borradores:guardar", "app:recargar", "consumo:mirar", "consumo:soltar", "cuentas:login", "espera:estado", "espera:notificar", "portapapeles:texto"]);
 
-/** Un pedido que llegó por red (ya con la identidad comprobada): el mismo manejador que usa la ventana. */
-export async function llamarRemoto(canal: string, args: unknown[], cliente: string): Promise<unknown> {
+/** Un pedido que llegó por red (ya con la identidad comprobada): el mismo manejador que usa la ventana. `ip` es la dirección real del socket. */
+export async function llamarRemoto(canal: string, args: unknown[], cliente: string, ip?: string): Promise<unknown> {
   const fn = SOLO_VENTANA.has(canal) ? undefined : manejadores.get(canal);
   if (!fn) throw new Error(`canal desconocido: ${canal}`);
-  return fn({ remoto: cliente }, ...args);
+  return fn(ip !== undefined ? { remoto: cliente, ip } : { remoto: cliente }, ...args);
 }
 
 /**
@@ -711,20 +713,20 @@ export function armarNucleo() {
   manejar("modelos:leer", () => leerModelos(ejecutar));
   // Quién entra por la tailnet no cambia a dónde mandan los prompts ni sondea direcciones desde la PC: guardar y sondear, sólo en la PC.
   manejar("modelos:guardar", async (e, config: unknown) => {
-    if ("remoto" in e) throw errorT("main.modelosSoloPc");
+    if (tailnet(e)) throw errorT("main.modelosSoloPc");
     return guardarModelos(config, ejecutar);
   });
   manejar("modelos:sondear", (e, url: unknown) => {
-    if ("remoto" in e) throw errorT("main.modelosSoloPc");
+    if (tailnet(e)) throw errorT("main.modelosSoloPc");
     return sondearOllama(url);
   });
   // Bajar un modelo de Ollama por su nombre (`/api/pull`): sólo desde la PC, con progreso por `modelos:bajando`.
   manejar("modelos:bajar", (e, url: unknown, modelo: unknown) => {
-    if ("remoto" in e) throw errorT("main.modelosSoloPc");
+    if (tailnet(e)) throw errorT("main.modelosSoloPc");
     return bajadas.bajar(url, modelo);
   });
   manejar("modelos:cancelarBajada", (e, url: unknown, modelo: unknown) => {
-    if ("remoto" in e) throw errorT("main.modelosSoloPc");
+    if (tailnet(e)) throw errorT("main.modelosSoloPc");
     bajadas.cancelar(url, modelo);
   });
   manejar("modelos:bajadas", () => bajadas.lista());
@@ -818,6 +820,14 @@ export function armarNucleo() {
     verEspera(String(x?.sid));
     return lider.mandar({ sid: x?.sid, texto: x?.texto, imagenes: x?.imagenes, modelo: x?.modelo, effort: x?.effort });
   });
+  // Editar y Volver acá: seguir desde un mensaje anterior de la conversación (`lider.rebobinar`); Ramificar: un líder nuevo hasta ese mensaje.
+  manejar("lider:rebobinar", (_e, x: { sid: string; uuid: string; texto: string; imagenes?: unknown; modelo: string; effort: string; previa?: boolean }) => {
+    verEspera(String(x?.sid));
+    return lider.rebobinar({ sid: x?.sid, uuid: x?.uuid, texto: x?.texto, imagenes: x?.imagenes, modelo: x?.modelo, effort: x?.effort, previa: x?.previa });
+  });
+  manejar("lider:ramificar", (_e, x: { sid: string; uuid: string; modelo: string; effort: string }) =>
+    lider.ramificar({ sid: x?.sid, uuid: x?.uuid, modelo: x?.modelo, effort: x?.effort }),
+  );
   // El usuario abrió la conversación de un líder que lo esperaba (o la tiene a la vista y volvió a la ventana).
   manejar("lider:visto", (_e, sid: string) => verEspera(String(sid)));
   // Un archivo que no es imagen: a `adjuntos/` del estado propio; el mensaje lleva su ruta.
