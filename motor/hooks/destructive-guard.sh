@@ -4,7 +4,7 @@
 # Voice can be mis-transcribed, so a few irreversible patterns must never run
 # unconfirmed. Exit 2 = block + feed reason back to Claude (it will ask the user).
 input=$(cat)
-# Las guardas que parsean el comando (docker-guard.py, nvibrant-guard.py) viven al lado de este
+# Las guardas que parsean el comando (docker-guard.py) viven al lado de este
 # archivo, que llega por symlink desde ~/.claude/hooks: de ahi el readlink -f. Las carga el python
 # de abajo con guardia_externa(), solo si el COMANDO (no el JSON entero: cwd y transcript_path
 # tambien pueden decir docker) nombra su palabra.
@@ -191,9 +191,7 @@ if USB_CONGELADO and not ES_CHEQUEO_SINTAXIS:
 # ---------------------------------------------------------------------------
 # Guardas que necesitan PARSEAR el comando (no alcanza un regex) viven en modulos al lado de
 # este archivo: se cargan solo si el comando nombra su palabra, y exponen revisar(d) -> 0|2.
-# nvibrant-guard.py: nvibrant sin sus 7 valores pone Digital Vibrance 0 en TODOS los monitores
-# (2026-09-28). La version regex de aca adentro se salteaba con timeout/env/uvx/bash -c y
-# bloqueaba invocaciones validas con redirecciones (review 2026-09-30 #3 y #12).
+# docker-guard.py parsea el comando de docker/podman (un regex solo se saltea con env/bash -c/sudo).
 # ---------------------------------------------------------------------------
 GUARD_DIR = os.environ.get("TRAMA_GUARD_DIR") or ""
 # Si falta un modulo (o uno del que depende), se bloquean SOLO los comandos de su disparo, con el
@@ -208,7 +206,7 @@ def guardia_externa(archivo, disparo, requiere=()):
             sys.stderr.write(
                 "GUARD: falta " + ruta + " (lo carga destructive-guard.sh; se copio el hook sin sus "
                 "modulos o se movio?). Hasta que vuelva, bloqueo SOLO los comandos que nombran "
-                + disparo + "; el resto pasa. Restauralo desde ~/orquestador/hooks. | cmd: " + cmd[:300]
+                + disparo + "; el resto pasa. Restauralo desde motor/hooks de Trama. | cmd: " + cmd[:300]
             )
             sys.exit(2)
     ruta = os.path.join(GUARD_DIR, archivo)
@@ -227,46 +225,41 @@ def guardia_externa(archivo, disparo, requiere=()):
         sys.exit(2)
 
 guardia_externa("docker-guard.py", r"docker|podman")
-guardia_externa("nvibrant-guard.py", "nvibrant", requiere=("docker-guard.py",))
 
 # ---------------------------------------------------------------------------
-# SESION GRAFICA (2026-10-24). Por que existe este bloque:
-#   El 2026-10-24 un worker corrio `pkill -f "^Hyprland"` en la PC del dueno: sddm
-#   reinicio la sesion grafica y se perdieron todas las ventanas abiertas. Ningun
-#   patron miraba los kills: el comando no borraba nada, solo mataba procesos.
+# SESION GRAFICA. Por que existe este bloque:
+#   Un `pkill -f "^<compositor>"` de un worker hizo que el login manager reiniciara la
+#   sesion grafica y se perdieran todas las ventanas abiertas. Ningun patron miraba los
+#   kills: el comando no borraba nada, solo mataba procesos.
 #
-#   Regla: matar o cortar la sesion grafica (compositor, login manager, audio, shell)
-#   se bloquea. Un worker mata solo los PIDs que lanzo el mismo, con kill $PID.
+#   Regla: matar o cortar la sesion grafica (compositor, login manager, audio) se
+#   bloquea. Un worker mata solo los PIDs que lanzo el mismo, con kill $PID.
 #   Pasan: kill 12345, pkill -f "^mpv ..." (procesos de una app) y todo lo de LEER
-#   (pgrep -a Hyprland, systemctl status sddm, hyprctl monitors).
-#
-#   `pkill -f "^qs -c <nombre>"` pasa: qs con -c es una shell puntual. `qs` pelado
-#   mata TODAS las shells de quickshell, por eso va bloqueado.
+#   (pgrep -a sway, systemctl status gdm, hyprctl monitors).
 #
 #   LIMITE HONESTO: mira el string del comando. Un script que haga el kill adentro
 #   pasa igual, y `killall -r "hypr.*"` (regex sin el nombre) tampoco se cubre.
 #   `kill -9 -1` (todos los procesos del usuario) no esta en esta lista todavia.
 # ---------------------------------------------------------------------------
-SESION_NOMBRES = r"(?:hyprland|xwayland|sddm|pipewire|wireplumber|caelestia|quickshell)"
-cmd_min = cmd.lower()  # Hyprland y hyprland dan lo mismo
+SESION_NOMBRES = r"(?:hyprland|sway|wayfire|river|gnome-shell|plasmashell|kwin(?:_wayland|_x11)?|xorg|xwayland|sddm|gdm3?|lightdm|pipewire|wireplumber)"
+cmd_min = cmd.lower()  # Sway y sway dan lo mismo
 sesion_patterns = [
     # pkill / killall con un patron que nombra la sesion
     r"(?<![\w-])(?:pkill|killall)\b[^|;&]*" + SESION_NOMBRES,
-    # `qs` pelado: sin `-c <nombre>`. El lookahead deja pasar `qs -c <nombre>`.
-    r"(?<![\w-])(?:pkill|killall)\b[^|;&]*(?<![\w-])qs(?![\w-])(?!\s+-c\s+\S)",
     # pgrep / pidof / ps / grep canalizado a xargs kill
     r"(?<![\w-])(?:pgrep|pidof|ps|grep)\b[^;&]*" + SESION_NOMBRES + r"[^;&]*\|[^;&]*\bxargs\b[^;&]*\bkill\b",
     # kill con $(...) o `...` que busca la sesion
     r"\bkill\b[^;&|]*(?:\$\(|`)[^)`;&]*" + SESION_NOMBRES,
     # cortar la sesion desde adentro
     r"\bhyprctl\s+dispatch\s+exit\b",
+    r"\bswaymsg\s+exit\b",
     r"\bloginctl\s+(?:terminate|kill)-(?:session|user)\b",
-    r"\bsystemctl\b[^|;&]*\b(?:stop|restart|kill)\b[^|;&]*\b(?:sddm|display-manager)(?:\.service)?\b",
+    r"\bsystemctl\b[^|;&]*\b(?:stop|restart|kill)\b[^|;&]*\b(?:sddm|gdm3?|lightdm|display-manager)(?:\.service)?\b",
 ]
 for p in sesion_patterns:
     if re.search(p, cmd_min):
         sys.stderr.write(
-            "GUARD: esto mata o corta la sesion grafica (Hyprland, sddm, pipewire, shell). "
+            "GUARD: esto mata o corta la sesion grafica (compositor, login manager, audio). "
             "Matá sólo PIDs que lanzaste vos (kill $PID). Patron: " + p + " | cmd: " + cmd[:300]
         )
         sys.exit(2)

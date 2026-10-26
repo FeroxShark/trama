@@ -44,7 +44,8 @@ LINKS = {   # proveedor: rutas relativas al home de verdad -> misma ruta relativ
                                 ".local/bin", ".local/state", ".claude")],
     "chatgpt": [(".codex/" + n, n) for n in ("config.toml", "AGENTS.md", "prompts")],
 }
-MODELO_AGY = re.compile(r"^\s*(gemini|claude|gpt)[-\w.]*\s*$", re.I)
+# `agy models`: el id solo, o "id<TAB>nombre" (mismo patrón que bin/trama-estado)
+MODELO_AGY = re.compile(r"^\s*(?:(?:gemini|claude|gpt)[-\w.]*\s*$|[a-z0-9][a-z0-9.-]*\t)", re.I)
 
 
 def err(m):

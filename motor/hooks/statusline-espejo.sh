@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # statusline-espejo.sh — envuelve el statusline que ya haya y deja una copia de los datos
 # que Claude Code sólo le pasa al statusline (uso del plan, caché de la sesión) para la app
-# `hilos`. Uso en settings.json:  "command": "bash ~/orquestador/hooks/statusline-espejo.sh <statusline original…>"
+# `hilos`. Uso en settings.json:  "command": "bash ~/.claude/hooks/statusline-espejo.sh <statusline original…>"
 #
 # Escribe $PA_STATE/statusline/<session_id>.json (atómico, formato versionado de este repo):
 #   {version, ts, session_id, cwd, modelo, prompt_cache, config_dir, rate_limits:{five_hour,seven_day}}

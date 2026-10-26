@@ -25,6 +25,8 @@ si algún grupo tiene menos de la mitad de su ventana de 5 h), REPARTO_CARGA_FIJ
 sin mirar el estado de pa), REPARTO_ASIGNACION_S (vida de esa anotación, 20; 0 la apaga), REPARTO_RESERVAR=1 (anota el grupo elegido: lo pone pa en su elección real),
 CODEX_HOME (credenciales y sesiones de codex; default ~/.codex), REPARTO_CODEX=0 (como si codex no estuviera).
 """
+import contextlib
+import fcntl
 import fnmatch
 import glob
 import importlib.machinery
@@ -131,6 +133,23 @@ def err(m):
     sys.stderr.write("reparto: %s\n" % m)
 
 
+@contextlib.contextmanager
+def bloqueo(f):
+    """flock exclusivo sobre `<f>.lock` mientras se lee-modifica-reemplaza `f` (el rename atómico sigue: el lock
+    es de un archivo aparte porque el rename cambia el inodo de `f`). Sin poder bloquear, sigue sin lock."""
+    fd = None
+    try:
+        fd = os.open(f + ".lock", os.O_CREAT | os.O_RDWR, 0o600)
+        fcntl.flock(fd, fcntl.LOCK_EX)
+    except OSError:
+        pass
+    try:
+        yield
+    finally:
+        if fd is not None:
+            os.close(fd)   # cerrar suelta el flock
+
+
 # --- cuentas (bin/cuentas) ---------------------------------------------------------------------------
 _CUENTAS = []
 
@@ -191,7 +210,8 @@ def suf(cuenta):
 
 # --- configuración -----------------------------------------------------------------------------------
 def ruta_modelos():
-    return os.environ.get("TRAMA_MODELOS") or os.path.expanduser("~/.config/trama/modelos.json")
+    xdg = os.environ.get("XDG_CONFIG_HOME") or os.path.expanduser("~/.config")   # igual que pa y trama-estado
+    return os.environ.get("TRAMA_MODELOS") or os.path.join(xdg, "trama", "modelos.json")
 
 
 def cargar_config():
@@ -243,6 +263,10 @@ def cargar_config():
         cfg["sin_cupo"], cfg["sin_cupo_de"] = ("otro" if v == "claude" else v), "gemini.sin_claude"
     if j.get("reparto") in ("auto", "fijo"):
         cfg["reparto"] = j["reparto"]
+    if isinstance(j.get("grupos_hasta"), dict):   # {"claude-gpt": "2026-11-02"|null}: cuándo vence cada grupo
+        for gid, h in j["grupos_hasta"].items():
+            if h is None or isinstance(h, str):
+                cfg["grupos_hasta"][gid] = cfg["hasta_pisado"][gid] = h
     if isinstance(j.get("grupos"), dict):   # {"claude-gpt": {"hasta": "2026-11-02"|null}}
         for gid, g in j["grupos"].items():
             if isinstance(g, dict) and "hasta" in g:
@@ -531,6 +555,17 @@ def codex_home():
     return os.environ.get("CODEX_HOME") or os.path.expanduser("~/.codex")
 
 
+def agy_disponible():
+    """agy en el PATH. Sin él no hay suscripción de Google que ofrecer (ni /quota que leer). Con cupos fijos
+    (REPARTO_CUPOS_FIJOS, tests) manda el archivo; REPARTO_AGY=0 lo apaga."""
+    if os.environ.get("REPARTO_AGY") == "0":
+        return False
+    if os.environ.get("REPARTO_CUPOS_FIJOS"):
+        return True
+    import shutil
+    return bool(shutil.which("agy"))
+
+
 def codex_disponible():
     """codex en el PATH y con credenciales (`codex login` deja CODEX_HOME/auth.json). Sin esto no hay suscripción
     de ChatGPT que mirar: reparto no la lista ni la ofrece."""
@@ -633,6 +668,14 @@ def carga_por_grupo(now):
             return {}
     out = {}
     base = os.environ.get("PA_STATE") or os.path.expanduser("~/.local/state/pa")
+    vistos = set()   # (slug, id): una corrida --async tiene .pid y .running, que no cuente doble
+
+    def sumar(m, cu):
+        g = grupo_de_modelo(m) if m else None
+        if g:
+            g += suf(cu)
+            out[g] = out.get(g, 0) + 1
+
     for pidf in glob.glob(os.path.join(base, "*", "*.pid")):
         try:
             pid = int(open(pidf).read().strip())
@@ -645,10 +688,24 @@ def carga_por_grupo(now):
                     cu = ln[7:].strip()
         except Exception:
             continue
-        g = grupo_de_modelo(m) if m else None
-        if g:
-            g += suf(cu)
-            out[g] = out.get(g, 0) + 1
+        vistos.add((os.path.basename(os.path.dirname(pidf)), os.path.basename(pidf)[:-4]))
+        sumar(m, cu)
+    # Las de primer plano no dejan .pid (sólo --async lo escribe): su señal de vida es el `<slug>.running`
+    # (pid del worker, o el de pa mientras arranca) que pa borra al terminar y que un pa matado con -9 deja colgado,
+    # de ahí el kill -0.
+    for runf in glob.glob(os.path.join(base, "*.running")):
+        try:
+            c = {}
+            for ln in open(runf, errors="replace"):
+                k, _, v = ln.rstrip("\n").partition("=")
+                c.setdefault(k, v)
+            pid = int(c.get("pid") or c.get("pa_pid") or "")
+            os.kill(pid, 0)
+        except Exception:
+            continue
+        if (c.get("proyecto"), c.get("id")) in vistos:
+            continue
+        sumar(c.get("modelo"), c.get("cuenta"))
     try:
         with open(os.path.join(state_dir(), "asignaciones.json")) as f:
             for a in json.load(f):
@@ -666,16 +723,17 @@ def registrar_asignacion(grupo, now):
     f = os.path.join(d, "asignaciones.json")
     try:
         os.makedirs(d, exist_ok=True)
-        try:
-            with open(f) as fh:
-                lst = [a for a in json.load(fh) if now.timestamp() - a.get("t", 0) < ventana_asignacion()]
-        except Exception:
-            lst = []
-        lst.append({"grupo": grupo, "t": now.timestamp()})
-        tmp = "%s.%d" % (f, os.getpid())
-        with open(tmp, "w") as fh:
-            json.dump(lst, fh)
-        os.replace(tmp, f)
+        with bloqueo(f):
+            try:
+                with open(f) as fh:
+                    lst = [a for a in json.load(fh) if now.timestamp() - a.get("t", 0) < ventana_asignacion()]
+            except Exception:
+                lst = []
+            lst.append({"grupo": grupo, "t": now.timestamp()})
+            tmp = "%s.%d" % (f, os.getpid())
+            with open(tmp, "w") as fh:
+                json.dump(lst, fh)
+            os.replace(tmp, f)
     except Exception:
         pass
 
@@ -733,6 +791,8 @@ def grupo_de_modelo(mid):
     """Id de grupo de agy o de codex de un modelo ('agy:claude-sonnet-5-5-medium', 'gemini-3.8-flash-low',
     'codex:gpt-6-luna-low') o de un grupo ('claude-gpt', 'codex'). None si no es de agy ni de codex."""
     m = (mid or "").lower()
+    if m.startswith("codex:gpt-6-sol"):   # alias que pa acepta (CODEX_MODELOS): mismo cupo de ChatGPT que los demás codex
+        return "codex"
     for gid, _n, _w, bases in GRUPOS_GOOGLE + GRUPOS_OPENAI:
         if m == gid or any(m == b or m.startswith(b + "-") for b in bases):
             return gid
@@ -775,11 +835,13 @@ def agotar(mid, hasta_arg, cfg, now, cuenta=None):
             hasta = None
     if not hasta:
         hasta = now + timedelta(hours=1)
-    ag = leer_agotados(state, now)
     gid += suf(cuenta)
-    ag[gid] = iso(hasta)
     try:
-        grabar_agotados(state, ag)
+        os.makedirs(state, exist_ok=True)
+        with bloqueo(os.path.join(state, "agotado.json")):   # leer-modificar-grabar sin que otro agotar se pise
+            ag = leer_agotados(state, now)
+            ag[gid] = iso(hasta)
+            grabar_agotados(state, ag)
     except OSError as e:
         err("no pude guardar la marca: %s" % e)
         return 1
@@ -797,7 +859,9 @@ def leer_cupos(cfg, now):
         return aplicar_agotados(d, state, now)
     cs = lista_cuentas()
     if all(c["defecto"] for c in cs) and len(cs) == 2:   # una cuenta por proveedor: la forma de siempre
-        subs = [cupos_claude(os.environ.get("PA_STATE"), now), cupos_google(cfg, state, now)]
+        subs = [cupos_claude(os.environ.get("PA_STATE"), now)]
+        if agy_disponible():
+            subs.append(cupos_google(cfg, state, now))
         if codex_disponible():
             subs.append(cupos_openai(cfg, now))
         nom = {c["id"]: c["nombre"] for c in cs}
@@ -808,14 +872,18 @@ def leer_cupos(cfg, now):
         for c in cs:
             if c["proveedor"] == "claude":
                 subs.append(cupos_claude(os.environ.get("PA_STATE"), now, c))
-            elif c["proveedor"] == "google":
+            elif c["proveedor"] == "google" and agy_disponible():
                 subs.append(cupos_google(cfg, state, now, c))
             elif c["proveedor"] == "chatgpt" and c["defecto"] and codex_disponible():
                 subs.append(cupos_openai(cfg, now))
-            else:   # pa todavía no corre workers de codex: la cuenta se lista sin dato de cupo
+            else:   # ChatGPT sin cupo que leer: se lista sin dato y no se reparte
+                nota = ("codex no está instalado o no tiene login (codex login): no se reparte" if c["proveedor"] == "chatgpt" and c["defecto"]
+                        else "el cupo de codex sólo se lee de la cuenta de siempre: esta no se reparte (sí sirve con pa --cuenta %s)" % c["id"]
+                        if c["proveedor"] == "chatgpt" else "agy no está instalado: no se reparte" if c["proveedor"] == "google"
+                        else "proveedor sin lectura de cupo: no se reparte")
                 subs.append({"id": c["id"], "nombre": c["nombre"], "proveedor": c["proveedor"], "cuenta": c["id"],
                              "ventanas": [ventana("5h", None, None), ventana("7d", None, None)],
-                             "nota": "sin workers todavía: no se reparte"})
+                             "nota": nota})
     return aplicar_agotados({"version": VERSION, "leido": iso(now), "suscripciones": subs}, state, now)
 
 
@@ -866,6 +934,8 @@ def armar_candidatos(tipo, cfg, cupos, now):
     subs = cupos.get("suscripciones", [])
     claudes = [s for s in subs if prov_de(s) == "claude"] or [{"id": "claude"}]
     googles = [s for s in subs if prov_de(s) == "google"] or [{"id": "google"}]
+    if not agy_disponible():
+        googles = []   # sin agy instalado ningún modelo de Google es candidato
     # ChatGPT/Codex sólo es candidato si la suscripción está en los cupos (codex instalado y logueado)
     openais = [s for s in subs if s.get("id") == "openai"]
 
@@ -882,6 +952,8 @@ def armar_candidatos(tipo, cfg, cupos, now):
         return reserva.get(w) if isinstance(reserva, dict) else reserva
 
     def claude_de_google_ok(google):
+        # Sin dato de uso (libres vacío: /quota no contestó) devuelve True a propósito: igual que los candidatos, un
+        # grupo sin dato "no se descarta" y se prueba; el 429 de agy lo marca agotado y reparto reasigna.
         agy_claude = {g.get("id"): g for g in google.get("grupos", []) or []}.get("claude-gpt")
         if not agy_claude or agy_claude.get("agotado"):
             return False
@@ -1060,7 +1132,7 @@ def elegir(tipo, cfg, cupos, now, mismo_proveedor=None, solo_cuenta=None):
     banda = None
     if vivos and mismo_proveedor:
         # relanzamiento por falta de cupo: otra cuenta del mismo proveedor antes que cambiar de proveedor
-        mp = [c for c in vivos if c.get("proveedor") == mismo_proveedor]
+        mp = [c for c in vivos if c.get("proveedor") == ("openai" if mismo_proveedor == "chatgpt" else mismo_proveedor)]
         if mp:
             vivos = mp
     if vivos:
@@ -1252,6 +1324,8 @@ def cuenta_para(mid, cupos, now):
     """La cuenta del proveedor de ese modelo con más cupo libre (la ventana más llena de su grupo; sin dato = la
     menos libre; agotada = afuera mientras haya otra). Empate: la de siempre. None si el modelo no es de una cuenta."""
     r = resolver(mid)
+    if r and r["motor"] == "codex":   # el cupo de codex es de la cuenta de ChatGPT de siempre (cupos_openai)
+        return {"cuenta": "chatgpt", "proveedor": "chatgpt", "cupo_libre": None, "agotada": False}
     if not r or r["motor"] not in ("claude", "agy"):
         return None
     prov = "claude" if r["motor"] == "claude" else "google"

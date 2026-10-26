@@ -24,8 +24,9 @@ import sys
 import urllib.request
 
 HOME = os.path.expanduser("~")
-# `agy models`: una línea por modelo, "id<TAB>nombre". Sin sesión no hay ninguna.
-MODELO_AGY = re.compile(r"^[a-z0-9][a-z0-9.-]*\t")
+# `agy models`: una línea por modelo, "id<TAB>nombre" o sólo el id (gemini-…, claude-…, gpt-…; mismo patrón que bin/cuentas).
+# Sin sesión no hay ninguna.
+MODELO_AGY = re.compile(r"^\s*(?:[a-z0-9][a-z0-9.-]*\t|(?:gemini|claude|gpt)[-\w.]*\s*$)", re.I)
 
 
 def salida(cmd, espera=10):
@@ -58,7 +59,7 @@ def claude():
     if not ruta:
         return {"instalado": False, "logueado": False}
     logueado = False
-    rc, out = salida([ruta, "auth", "status"])
+    rc, out = salida([ruta, "auth", "status", "--json"])
     try:
         logueado = rc == 0 and bool(json.loads(out).get("loggedIn"))
     except Exception:
@@ -151,5 +152,5 @@ if __name__ == "__main__":
         sys.exit(main())
     except Exception as e:  # el contrato: sale 0 siempre que pueda imprimir
         print(json.dumps({"version": 1, "claude": {"instalado": False, "logueado": False}, "agy": {"instalado": False, "logueado": False},
-                          "ollama": {"url": "", "responde": False, "modelos": []}, "motor": {"vivo": False, "url": ""}, "error": str(e)}))
+                          "ollama": {"url": "", "responde": False, "modelos": []}, "motor": {"vivo": False, "url": "", "proceso": False}, "error": str(e)}))
         sys.exit(0)

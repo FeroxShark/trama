@@ -108,6 +108,28 @@ enlazar() {
   ln -sfn "$origen" "$ruta" && hecho "enlace $ruta -> $origen"
 }
 
+# --- dependencias de runtime de pa ------------------------------------------------------------------------
+# Sin alguna, pa falla a mitad de camino con un "command not found" poco claro: se avisa acá, con cómo instalarla.
+# No corta la instalación (sale 0 igual): quien instala sin sudo puede pedirle los paquetes a quien administra la máquina.
+revisar_deps() {
+  local falta=() v
+  command -v uuidgen >/dev/null 2>&1 || falta+=("uuidgen (uuid-runtime)")
+  command -v flock   >/dev/null 2>&1 || falta+=("flock (util-linux)")
+  command -v git     >/dev/null 2>&1 || falta+=("git")
+  command -v curl    >/dev/null 2>&1 || falta+=("curl")
+  command -v gawk    >/dev/null 2>&1 || { awk --version 2>&1 | grep -qi 'GNU Awk' || falta+=("gawk"); }
+  if command -v jq >/dev/null 2>&1; then
+    v="$(jq --version 2>/dev/null | sed -E 's/^jq-?//')"
+    [[ "$v" =~ ^([0-9]+)\.([0-9]+) ]] && (( BASH_REMATCH[1] > 1 || ( BASH_REMATCH[1] == 1 && BASH_REMATCH[2] >= 6 ) )) \
+      || falta+=("jq >= 1.6 (tengo '${v:-?}')")
+  else falta+=("jq >= 1.6"); fi
+  if (( ${#falta[@]} )); then
+    aviso "faltan programas que pa necesita: ${falta[*]}. En Debian/Ubuntu: sudo apt-get install git jq curl gawk util-linux uuid-runtime (o instalar-producto.sh --solo-apt como root)."
+    mal=1
+  else ok "dependencias de pa (uuidgen, flock, git, gawk, jq, curl)"; fi
+}
+revisar_deps
+
 # --- node LTS --------------------------------------------------------------------------------------------
 MIN_NODE="${TRAMA_NODE_MAJOR:-22}"
 major_node() { command -v node >/dev/null 2>&1 && node -p 'process.versions.node.split(".")[0]' 2>/dev/null || echo 0; }
@@ -173,17 +195,20 @@ registrar_hooks() {
   [[ -s "$CFG" ]] || echo '{}' >"$CFG"
   jq -e 'type == "object"' "$CFG" >/dev/null 2>&1 || { aviso "$CFG no es un JSON válido: no lo toqué (registrá a mano destructive-guard.sh y statusline-espejo.sh)"; return; }
   local guard="$HOOKS/destructive-guard.sh" espejo="$HOOKS/statusline-espejo.sh" nuevo
-  nuevo="$(jq --arg guard "bash $guard" --arg espejo "$espejo" '
+  nuevo="$(jq --arg guard "$guard" --arg espejo "$espejo" '
       (if ([.hooks.PreToolUse[]?.hooks[]?.command // empty] | any(test("destructive-guard\\.sh")))
-       then . else .hooks.PreToolUse = ((.hooks.PreToolUse // []) + [{matcher: "Bash", hooks: [{type: "command", command: $guard}]}]) end)
+       then . else .hooks.PreToolUse = ((.hooks.PreToolUse // []) + [{matcher: "Bash", hooks: [{type: "command", command: ("bash " + ($guard | @sh))}]}]) end)
       | (if ((.statusLine.command // "") | test("statusline-espejo\\.sh")) then .
          elif (.statusLine.type // "command") == "command" and ((.statusLine.command // "") != "")
-           then .statusLine.command = ("bash \"" + $espejo + "\" bash -c " + (.statusLine.command | @sh))
-         elif (.statusLine // null) == null then .statusLine = {type: "command", command: ("bash \"" + $espejo + "\"")}
+           then .statusLine.command = ("bash " + ($espejo | @sh) + " bash -c " + (.statusLine.command | @sh))
+         elif (.statusLine // null) == null then .statusLine = {type: "command", command: ("bash " + ($espejo | @sh))}
          else . end)' "$CFG")" || { aviso "jq falló sobre $CFG: no lo toqué"; return; }
   if [[ "$(jq -S . <<<"$nuevo")" == "$(jq -S . "$CFG")" ]]; then ok "$CFG ya engancha los hooks"; return; fi
   [[ "$(jq -S . "$CFG")" == "{}" ]] || cp -n "$CFG" "$CFG.trama-bak-$(date +%Y%m%d)" 2>/dev/null || true
-  printf '%s\n' "$nuevo" >"$CFG.tmp.$$" && mv -f "$CFG.tmp.$$" "$CFG" && hecho "$CFG: destructive-guard y statusline-espejo registrados (copia: $CFG.trama-bak-$(date +%Y%m%d))"
+  # Si settings.json es un symlink (dotfiles, stow), se escribe el ARCHIVO al que apunta: un mv sobre el enlace lo
+  # reemplazaba por un archivo común y lo dejaba afuera del repo de dotfiles.
+  local destino; destino="$(readlink -f "$CFG" 2>/dev/null || echo "$CFG")"
+  printf '%s\n' "$nuevo" >"$destino.tmp.$$" && mv -f "$destino.tmp.$$" "$destino" && hecho "$CFG: destructive-guard y statusline-espejo registrados (copia: $CFG.trama-bak-$(date +%Y%m%d))"
 }
 registrar_hooks
 
@@ -313,7 +338,16 @@ construir_app() {
 if [[ -n "$APP" && -f "$APP/package.json" ]]; then construir_app "$APP" || true; fi
 
 # --- el motor --------------------------------------------------------------------------------------------
-motor_arriba() { trama-estado --json 2>/dev/null | jq -e '.motor.vivo' >/dev/null 2>&1; }
+# Barato: un GET (o un connect) al puerto del motor, no el trama-estado entero (que además pregunta a claude, agy y ollama) 20 veces.
+# Cualquier respuesta HTTP, aun un 4xx, cuenta como vivo (igual que trama-estado).
+motor_arriba() {
+  local puerto="${TRAMA_PUERTO:-8791}"
+  if command -v curl >/dev/null 2>&1; then
+    [[ "$(curl -s -o /dev/null --max-time 2 -w '%{http_code}' "http://127.0.0.1:$puerto/" 2>/dev/null)" != 000 ]]
+  else
+    ( exec 3<>"/dev/tcp/127.0.0.1/$puerto" ) 2>/dev/null
+  fi
+}
 if [[ -z "$APP" || ! -f "$APP/dist-electron/motor.js" ]]; then
   aviso "no encontré la app (dist-electron/motor.js) en '${APP:-?}': pasala con --app DIR; sin ella no se instala la unit del motor"
 else

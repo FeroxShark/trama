@@ -66,8 +66,8 @@ pa --estado                                qué corre ahora, sesiones guardadas,
   y subí con `-m`. Más effort no es más inteligencia, es más exploración y más gasto.
 - Un modelo `ollama:<modelo>` es local: más lento y menos capaz; reservalo para `mecanico` y `lectura`
   salvo que el usuario diga otra cosa.
-- Un worker Gemini (`gemini-…`) cae al plan B que diga `gemini.sin_claude` cuando no hay cupo: `claude`
-  (usa Claude), `esperar` (queda en cola) o `fallar`.
+- Cuando el modelo elegido no tiene cupo, `sin_cupo` de `modelos.json` dice qué hace `pa`: `otro` (el
+  default: relanza con el siguiente candidato de `reparto`), `esperar` (queda en cola con `--async`) o `fallar`.
 
 ## Elegir modelo en corto (guía completa: `docs/guia-de-modelos-fuertes-effort-y-costo.md`)
 
