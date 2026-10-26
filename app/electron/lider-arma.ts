@@ -823,7 +823,24 @@ export type Guardado = {
    * nueva. El líder es el mismo (mismo `sid`, misma fila y título); cada motor guarda su transcript aparte y la vista los junta.
    */
   cambios?: Cambio[];
+  /**
+   * Los puntos a los que se volvió atrás (Volver acá / Editar) donde el motor no puede retroceder su propia sesión (Gemini, dsh,
+   * opencode, o un mensaje de otro motor): la vista oculta lo que había entre ese mensaje y el momento del corte. Los transcripts no se tocan.
+   */
+  cortes?: Corte[];
+  /**
+   * Una rama (Ramificar) hecha con un relevo y no con `--fork-session`: la conversación de otro líder hasta el mensaje `hasta`
+   * (su `uuid`). La vista la muestra delante de lo propio; el motor nuevo la recibió como relevo, no como sesión.
+   */
+  heredado?: Rama;
 };
+
+/** Un corte: cuándo se volvió atrás (epoch ms) y el `uuid` del último mensaje que se conserva. */
+export type Corte = { ts: number; uuid: string };
+
+/** Los cortes que se pueden leer de un `lideres.json`: lo que no tiene forma se descarta. */
+const cortesDe = (v: unknown): Corte[] =>
+  Array.isArray(v) ? v.filter((c: any) => Number(c?.ts) > 0 && SID.test(String(c?.uuid))).map((c: any) => ({ ts: Number(c.ts), uuid: String(c.uuid) })) : [];
 
 /** Un cambio de motor: cuándo (epoch ms), el modelo con el que venía y el que siguió. */
 export type Cambio = { ts: number; de: string; a: string };
@@ -873,6 +890,8 @@ export function leerGuardados(texto: string): Guardado[] {
         ...(SID.test(String(l.rama?.de)) && SID.test(String(l.rama?.hasta)) ? { rama: { de: String(l.rama.de), hasta: String(l.rama.hasta) } } : {}),
         ...(SID.test(String(l.origen?.sid)) ? { origen: { sid: String(l.origen.sid), titulo: String(l.origen.titulo ?? "").slice(0, 300) } } : {}),
         ...(cambiosDe(l.cambios).length ? { cambios: cambiosDe(l.cambios) } : {}),
+        ...(cortesDe(l.cortes).length ? { cortes: cortesDe(l.cortes) } : {}),
+        ...(SID.test(String(l.heredado?.de)) && SID.test(String(l.heredado?.hasta)) ? { heredado: { de: String(l.heredado.de), hasta: String(l.heredado.hasta) } } : {}),
       }),
     );
 }
@@ -943,6 +962,8 @@ export type Crudo = {
   uuid: string | null;
   /** Es anterior a la última compactación: el `claude` no lo alcanza con `--resume-session-at` y hace falta una copia. */
   previa?: boolean;
+  /** En una conversación con cortes o cambios de motor (`unirConvs`): el motor de cuyo transcript sale. Sin él (una parte heredada de otro líder) el mensaje no está en ningún transcript de este. */
+  motor?: "claude" | "gemini" | "dsh" | "opencode";
   /** Lo que dice de dónde salió (espejo de `Mensaje` en src/datos/contrato.ts; src/hilo/sistema-logica.ts). */
   marcas: Marcas;
   /** Las imágenes que mandó el usuario (B26). */
@@ -1141,6 +1162,13 @@ export function conversacionDe(id: string, transcript: string | null, texto: str
   return paginaDe(est, id, transcript, pag);
 }
 
+/** El `uuid` del mensaje que precede al `i` de `lista`, sin contar las rayas de cambio de motor (el mensaje de después de una raya sigue al último del otro motor). */
+function previoDe(lista: Crudo[], i: number): string | undefined {
+  let q = i - 1;
+  while (q >= 0 && lista[q].marcas.cambio) q--;
+  return (q >= 0 ? lista[q].uuid : null) ?? undefined;
+}
+
 /** Una página de la conversación, con la forma de `pa --hilo --json`. */
 export function paginaDe(est: EstadoConv, id: string, transcript: string | null, { n = 50, antes = null }: Pagina = {}) {
   const { todos, compactaciones, compactada } = est;
@@ -1169,7 +1197,7 @@ export function paginaDe(est: EstadoConv, id: string, transcript: string | null,
       // Para volver atrás, editar y ramificar (`--resume-session-at`): hasta este mensaje, y hasta el que le precede.
       ...(m.uuid ? { uuid: m.uuid } : {}),
       ...(m.uuid && m.previa ? { previa: true } : {}),
-      ...(m.uuid && lista[desde + j - 1]?.uuid ? { previo: lista[desde + j - 1].uuid } : {}),
+      ...(m.uuid && previoDe(lista, desde + j) ? { previo: previoDe(lista, desde + j) } : {}),
       texto: m.texto,
       herramientas: m.herramientas,
       ...(m.det.length ? { det: m.det } : {}),

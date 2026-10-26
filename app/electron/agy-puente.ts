@@ -24,6 +24,7 @@ import path from "node:path";
 import os from "node:os";
 import { resolverAgy, entornoAgy } from "./binario.ts";
 import { comandosPluginAgy, Traductor } from "./agy-stream.ts";
+import { cortesDeEntorno, sinCortadas } from "./cortes.ts";
 import { deDueno, dueno } from "./dueno.ts";
 import { avisoDestrabo, REINTENTOS_MAX, Vigilante, type Bucle, type Senal } from "./destrabar.ts";
 import { cerrarDestrabo, registrarDestrabo } from "./destrabar-registro.ts";
@@ -82,6 +83,10 @@ const relevo = (() => {
   }
 })();
 const prefacio = [process.env.TRAMA_AGY_PREFACIO ?? "", relevo].filter(Boolean).join("\n\n---\n\n");
+
+/** Lo que se descartó al volver atrás (lider.ts, `Guardado.cortes`): no se repite en una sesión nueva. Y si el relevo es de una vuelta atrás, ya trae todo. */
+const CORTES = cortesDeEntorno(process.env.TRAMA_CORTES);
+const SIN_REPETIR = process.env.TRAMA_SIN_REPETIR === "1";
 
 const DIR = path.join(ESTADO, "gemini");
 const TRANSCRIPT = path.join(DIR, `${sid}.jsonl`);
@@ -161,6 +166,8 @@ function guardarLado(id: string, contexto: number | null = leerLado().contexto) 
 
 /** Lo hablado, del transcript propio, en texto: para empezar en una conversación nueva de agy sin perder el hilo. */
 function hablado(): string {
+  // El relevo ya trae toda la conversación hasta el punto al que se volvió: no se repite en la sesión nueva.
+  if (SIN_REPETIR && !leerLado().conversation_id) return "";
   let texto = "";
   try {
     texto = readFileSync(TRANSCRIPT, "utf8");
@@ -168,7 +175,7 @@ function hablado(): string {
     return "";
   }
   const partes: string[] = [];
-  for (const l of texto.split("\n")) {
+  for (const l of sinCortadas(texto.split("\n"), CORTES)) {
     if (!l) continue;
     try {
       const o = JSON.parse(l);

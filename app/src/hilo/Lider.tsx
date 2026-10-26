@@ -29,6 +29,7 @@ import { Leyendo } from "./Leyendo";
 import { MODO } from "../modo";
 import { esTactil } from "../angosto";
 import { pintorCache } from "../tiempo";
+import { cacheAplica } from "../../electron/cache";
 import { cursorDe, escucharBorrador, guardarCursor, leerBorrador, ponerBorrador } from "./borradores";
 import { effortPara } from "./elegir";
 import { effortsLeidos, leerEfforts, recordarEffort } from "./efforts";
@@ -607,13 +608,14 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
     );
   };
 
-  const esClaude = !!l && !esAgy(l.modelo) && !esDsh(l.modelo) && !esOpencode(l.modelo) && !sinWorkers(l.modelo);
+  // Volver acá, Editar y Ramificar: Claude, Gemini, OpenCode y DeepSeek Harness (los tres últimos con un relevo, electron/lider.ts); no los locales.
+  const rebobinable = !!l && !sinWorkers(l.modelo);
   // "Mandar ya": Claude lo recibe en su stdin y el puente de agy o el de dsh corta en la próxima pausa y retoma; los locales no tienen canal.
   const puedeDirecto = !!l && !sinWorkers(l.modelo);
   const sinRebobinar = ocupado || enviando ? tr("acciones.ocupado") : ajeno ? tr("acciones.abierto") : null;
   const acciones = useMemo<Acciones | null>(
     () =>
-      l && esClaude
+      l && rebobinable
         ? {
             rebobina: sinRebobinar === null,
             ramifica: true,
@@ -632,7 +634,7 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
           }
         : null,
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [l?.id, esClaude, sinRebobinar, modelo, effort, alCreado, alAbrirLider],
+    [l?.id, rebobinable, sinRebobinar, modelo, effort, alCreado, alAbrirLider],
   );
   /** Editar un pedido: sigue desde el mensaje de antes con el texto nuevo (las rutas de archivos que traía se conservan). */
   const rebobinarUlt = useRef(rebobinarA);
@@ -928,7 +930,7 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
   };
 
   const cache = useMemo(
-    () => (l && l.cache_vence !== null && !l.subagentes ? pintorCache(`lider:${l.id}:${l.cache_vence}`, l.cache_vence, l.cache_ttl_s, false) : null),
+    () => (l && l.cache_vence !== null && !l.subagentes && cacheAplica(l.modelo) ? pintorCache(`lider:${l.id}:${l.cache_vence}`, l.cache_vence, l.cache_ttl_s, false) : null),
     [l],
   );
 

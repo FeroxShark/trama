@@ -400,8 +400,8 @@ export type Mensaje = {
   /** El razonamiento del modelo en ese mensaje (sólo un líder, si su transcript lo trae). */
   pensado?: string;
   /**
-   * Sólo un líder de Claude: el `uuid` de la última línea de este mensaje en el transcript, y `previo`, el del mensaje
-   * anterior. Con ellos se vuelve atrás, se edita o se ramifica (`--resume-session-at`); sin `uuid` (marcas, un mensaje
+   * Sólo un líder: el `uuid` de la última línea de este mensaje en el transcript (también los puentes de agy / dsh / opencode lo escriben), y `previo`, el del mensaje
+   * anterior. Con ellos se vuelve atrás, se edita o se ramifica (`--resume-session-at` en Claude, un relevo en los demás); sin `uuid` (marcas, un mensaje
    * recién escrito) no hay acciones sobre el mensaje. `previa`: es anterior a la última compactación; ahí volver o
    * ramificar abre un líder nuevo con una copia de la cadena (el `claude` no alcanza esos `uuid` en su propio archivo).
    */

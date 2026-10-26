@@ -30,6 +30,7 @@ import { entornoAgy } from "./binario.ts";
 import { entornoDsh, escribirParche, esErrorCuota, falta, mensajeCuotaOpencode, parsearModelo, resolverDsh, valorModeloAcp } from "./dsh.ts";
 import { effortParaAcp, politicaOpencode, entornoOpencode, esErrorCuota as esCuotaOc, mensajeCuotaOpencode as mensajeCuotaOc, parsearModelo as parsearOpencode, resolverOpencode } from "./opencode.ts";
 import { leerClavesSync, type NombreClave } from "./claves.ts";
+import { cortesDeEntorno, sinCortadas } from "./cortes.ts";
 import { deDueno, dueno } from "./dueno.ts";
 import { ESTADO } from "./estado.ts";
 import { SESIONES } from "./sesiones.ts";
@@ -56,6 +57,9 @@ const relevo = (() => {
   }
 })();
 const prefacio = [process.env.TRAMA_DSH_PREFACIO ?? "", relevo].filter(Boolean).join("\n\n---\n\n");
+/** Lo que se descartó al volver atrás (lider.ts, `Guardado.cortes`): no se repite en una sesión nueva. Y si el relevo es de una vuelta atrás, ya trae todo. */
+const CORTES = cortesDeEntorno(process.env.TRAMA_CORTES);
+const SIN_REPETIR = process.env.TRAMA_SIN_REPETIR === "1";
 /** Cuánto de lo hablado se repite si hay que empezar una sesión nueva (caracteres). */
 const TOPE_REPETIR = 12000;
 /** Lo que se espera a que dsh cierre el turno tras un `session/cancel` antes de matarlo (se retoma la sesión después). */
@@ -139,6 +143,8 @@ function guardarLado(acp: string | null, contexto: number | null = leerLado().co
 
 /** Lo hablado, del transcript propio, en texto: para empezar en una sesión nueva de dsh sin perder el hilo. */
 function hablado(): string {
+  // El relevo ya trae toda la conversación hasta el punto al que se volvió: no se repite en la sesión nueva.
+  if (SIN_REPETIR && !leerLado().acp_session) return "";
   let texto = "";
   try {
     texto = readFileSync(TRANSCRIPT, "utf8");
@@ -146,7 +152,7 @@ function hablado(): string {
     return "";
   }
   const partes: string[] = [];
-  for (const l of texto.split("\n")) {
+  for (const l of sinCortadas(texto.split("\n"), CORTES)) {
     if (!l) continue;
     try {
       const o = JSON.parse(l);

@@ -135,7 +135,7 @@ test("Claude → Gemini: el mismo líder sigue con una sesión nueva de agy que 
   assert.ok(filas.slice(0, k).some((f: string) => f.includes("Hay 120 archivos")));
   assert.ok(filas.slice(k + 1).some((f: string) => f === "user: seguí vos"));
   assert.ok(filas.slice(k + 1).some((f: string) => f.includes("eco: ")));
-  assert.ok(pag.mensajes.slice(0, k).every((m: any) => !m.uuid), "volver atrás es de la sesión de ahora: las de otro motor no llevan uuid");
+  assert.ok(pag.mensajes.filter((m: any) => !m.cambio).every((m: any) => m.uuid), "todos los mensajes se pueden señalar (volver atrás con un relevo), también los de otro motor");
   assert.ok(pag.mensajes[k].ts, "la raya lleva la hora del cambio");
 });
 
