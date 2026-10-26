@@ -218,6 +218,17 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
   );
   const [effort, setEffort] = useState(() => effortDe(l?.effort, modelo) ?? effortPara(modelo, effortsLeidos() ?? {}));
   const tocado = useRef(!!l);
+  // El modelo del líder cambió del otro lado (otro motor confirmado en otra ventana o el celular, /model): la caja lo sigue.
+  // Sin esto quedaba el de cuando se abrió la conversación, y Volver/Editar mandaba ese (un DeepSeek después de pasar a Opus).
+  const modeloServidor = l ? modeloDe(l.modelo) : undefined;
+  const effortServidor = l?.effort;
+  const vistoServidor = useRef(modeloServidor);
+  useEffect(() => {
+    if (!modeloServidor || modeloServidor === vistoServidor.current) return;
+    vistoServidor.current = modeloServidor;
+    setModelo(modeloServidor);
+    setEffort(effortDe(effortServidor, modeloServidor) ?? effortPara(modeloServidor, effortsLeidos() ?? {}));
+  }, [modeloServidor, effortServidor]);
   // El modo de un líder nuevo se elige antes de que exista (y el de uno de la terminal, antes de
   // traerlo); el de uno de la app, lo dice el stream (o la lista).
   const [modoNuevo, setModoNuevo] = useState<Modo>(MODO_DEFAULT);
@@ -553,7 +564,11 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
    */
   const rebobinarA = (uuid: string, n: number, t: string, imagenes: Imagen[] | undefined, alFallar?: (msg: string) => void, previa = false) => {
     if (!l || enviando) return;
-    const e: EnvioLider = { texto: t, modelo, effort, ...(imagenes ? { imagenes } : {}) };
+    // Volver/Editar no cambia de motor: con otro motor elegido en la caja sigue con el modelo del líder.
+    const mismoMotor = !datosCambio(modelo);
+    const mod = mismoMotor ? modelo : (modeloDe(l.modelo) ?? modelo);
+    const ef = mismoMotor ? effort : (effortDe(l.effort, mod) ?? effort);
+    const e: EnvioLider = { texto: t, modelo: mod, effort: ef, ...(imagenes ? { imagenes } : {}) };
     const antesPag = pag;
     const antesVolver = volver;
     setEnviando(true);
