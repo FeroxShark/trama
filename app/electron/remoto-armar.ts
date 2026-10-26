@@ -41,16 +41,18 @@ function armarLocal(o: OpcionesArmar) {
   let intentos = 0;
   const ESPERAS = [5, 15, 60];
   const abrir = async () => {
-    const remoto = crearRemotoLocal({
-      dist: o.dist,
-      preload: o.preload,
-      llamar: llamarRemoto,
-      consulta: o.consulta,
-      identidad: identidadEsta,
-      seFue: soltarRemoto,
-      changelog: CHANGELOG,
-    });
+    let remoto: ReturnType<typeof crearRemotoLocal>;
     try {
+      remoto = crearRemotoLocal({
+        dist: o.dist,
+        preload: o.preload,
+        // El navegador del modo local es la interfaz principal (ya con el token): puede usar consumo y borradores.
+        llamar: (canal, args, cliente, ip) => llamarRemoto(canal, args, cliente, ip, { local: true }),
+        consulta: o.consulta,
+        identidad: identidadEsta,
+        seFue: soltarRemoto,
+        changelog: CHANGELOG,
+      });
       servidor = await remoto.escuchar(puerto);
     } catch (e) {
       const espera = ESPERAS[intentos++] ?? RESPALDO_MS / 1000;

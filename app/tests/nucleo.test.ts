@@ -53,6 +53,11 @@ test("manejadores: por red llega con quién pide; lo de la ventana y lo desconoc
   assert.deepEqual(fn({ sender: {} }, 3), { quien: "ventana", a: 3, b: undefined });
   await assert.rejects(nucleo.llamarRemoto("borradores:leer", [], "cel"), /canal desconocido/);
   await assert.rejects(nucleo.llamarRemoto("no:existe", [], "cel"), /canal desconocido/);
+  // El navegador del modo local sí usa borradores y consumo, pero no lo que es de la pantalla de la PC.
+  await assert.doesNotReject(nucleo.llamarRemoto("borradores:leer", [], "web", "127.0.0.1", { local: true }));
+  await assert.rejects(nucleo.llamarRemoto("app:salir", [], "web", "127.0.0.1", { local: true }), /canal desconocido/);
+  for (const c of ["app:salir", "carpeta:elegir", "app:pararTodo", "lider:ir", "portapapeles:texto"]) assert.ok(nucleo.SOLO_VENTANA_LOCAL.has(c), c);
+  for (const c of ["consumo:mirar", "consumo:soltar", "borradores:leer", "borradores:guardar"]) assert.ok(nucleo.SOLO_VENTANA.has(c) && !nucleo.SOLO_VENTANA_LOCAL.has(c), c);
   // Reemplazar un canal (ipc.ts pone el de los íconos achicados) deja uno solo.
   nucleo.manejar("prueba:eco", () => "otro");
   assert.equal(nucleo.manejadoresAnotados().filter(([c]) => c === "prueba:eco").length, 1);

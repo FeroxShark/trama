@@ -37,8 +37,8 @@ Deja `pa`, `tablero`, `trama-estado` y `trama-motor` en `~/.local/bin`, el motor
 (`trama-motor.service`), los hooks de Claude Code y el plugin de Gemini si hay `agy`. Es idempotente: si
 algo no se puede hacer, lo dice como aviso, y `trama-estado --json` muestra qué quedó.
 
-Los comandos son enlaces a esta carpeta: no la muevas ni la borres. Al terminar, abrí
-`http://localhost:8791`.
+Los comandos son enlaces a esta carpeta: no la muevas ni la borres. Al terminar, corré
+`trama-motor abrir` (abre `http://localhost:8791` con la clave de esta instalación).
 
 ## Cómo se trabaja
 
@@ -50,7 +50,7 @@ trabajan. Cuando termina, te deja la rama lista y vos decidís si entra o no.
 
 ### La app
 
-Abrí `http://localhost:8791` (o Trama desde el menú, en Windows).
+Corré `trama-motor abrir` (o abrí Trama desde el menú, en Windows).
 
 - **La barra de la izquierda** es el árbol: una fila por líder, y colgando de cada uno sus workers.
   Un punto de color dice en qué anda cada uno: trabajando, terminó, te necesita, trabado.

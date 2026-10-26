@@ -17,6 +17,7 @@ import path from "node:path";
 import { escapar, icono, iconoPng, manifest, type Identidad } from "./identidad.ts";
 import { cliente, type ConfigCliente } from "./remoto-cliente.ts";
 import { ipLimpia } from "./tailnet.ts";
+import { cookieValida, mismoToken } from "./token.ts";
 
 export type ConfigRemoto = { puerto: number; dispositivos: string[] };
 
@@ -57,6 +58,8 @@ export type OpcionesRemoto = {
   /** Un cliente se fue hace rato: se suelta lo que tenía tomado. */
   seFue(cliente: string): void;
   changelog: string;
+  /** El secreto del modo local: si devuelve uno, todo pedido necesita la cookie `trama=<token>` (se la da `/?t=<token>`). Sin esto (la tailnet) no se pide nada más. */
+  token?(): string | null;
   /** Para probar. */
   latidoMs?: number;
   graciaMs?: number;
@@ -278,6 +281,20 @@ export function negar(res: ServerResponse, codigo: number) {
   res.end(String(codigo));
 }
 
+/** Lo que ve quien llega sin la cookie: sin recursos de afuera (nada más se le entrega). */
+const PAGINA_SIN_TOKEN = `<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Trama</title>
+<style>body{font:16px/1.5 system-ui,sans-serif;max-width:34rem;margin:15vh auto;padding:0 16px;color:#222;background:#fafafa}code{background:#0001;padding:.1em .4em;border-radius:4px}@media(prefers-color-scheme:dark){body{color:#ddd;background:#181818}}</style></head><body>
+<h1>Trama</h1>
+<p>Abrí Trama desde su lanzador, o corré <code>trama-motor abrir</code> en una terminal.</p>
+<p lang="en">Open Trama from its launcher, or run <code>trama-motor abrir</code> in a terminal.</p>
+</body></html>`;
+
+function sinToken(res: ServerResponse, pagina: boolean) {
+  if (!pagina) return negar(res, 401);
+  res.writeHead(401, { "content-type": TIPOS[".html"], "cache-control": "no-store" });
+  res.end(PAGINA_SIN_TOKEN);
+}
+
 export function crearRemoto(o: OpcionesRemoto) {
   const latidoMs = o.latidoMs ?? 20_000;
   const { difundir, eventos, rpc } = crearCanal({ llamar: o.llamar, seFue: o.seFue, conOrigen: true, latidoMs, graciaMs: o.graciaMs });
@@ -347,6 +364,16 @@ export function crearRemoto(o: OpcionesRemoto) {
     const reenviado = req.headers["x-forwarded-for"];
     const ip = o.propias.includes(de) && reenviado !== undefined ? ipLimpia(String(reenviado).trim()) : de;
     if (!(await o.entra(ip).catch(() => false))) return negar(res, 403);
+
+    // Modo local: sin la cookie del token no se entrega nada, salvo la página que explica cómo abrir Trama.
+    const token = o.token?.() ?? null;
+    if (token && !cookieValida(req.headers.cookie, token)) {
+      const dado = pagina ? url.searchParams.get("t") : null;
+      if (dado === null || !mismoToken(dado, token)) return sinToken(res, pagina);
+      // Token bueno por la URL: pasa a una cookie y se redirige a `/` para que no quede en la barra ni en el historial.
+      res.writeHead(303, { location: "/", "set-cookie": `trama=${token}; HttpOnly; SameSite=Strict; Path=/`, "cache-control": "no-store" });
+      return void res.end();
+    }
 
     // Al núcleo va la IP real del socket (`de`), nunca `X-Forwarded-For`: un pedido por la tailnet no puede hacerse pasar por loopback.
     if (url.pathname === "/rpc") return rpc(req, res, de);

@@ -326,9 +326,9 @@ type Main = {
     notificar(x: { sid: string; titulo: string; cuerpo: string }): Promise<void>;
     alAbrir(fn: (sid: string) => void): Soltar;
   };
-  /** El texto del portapapeles leído por el main (respaldo del Ctrl+V de la caja); por la tailnet no existe. */
+  /** El texto del portapapeles leído por el main (respaldo del Ctrl+V de la caja). El objeto existe también en el navegador, pero ahí el canal se rechaza: usalo sólo si `esVentana()`. */
   portapapeles?: { texto(): Promise<string> };
-  /** El selector nativo de carpetas (campo "Carpeta" de un líder nuevo): la ruta o `null` si se canceló; por la web no existe. */
+  /** El selector nativo de carpetas (campo "Carpeta" de un líder nuevo): la ruta o `null` si se canceló. El objeto existe también en el navegador, pero ahí el canal se rechaza: mostralo sólo si `esVentana()`. */
   carpeta?: { elegir(): Promise<string | null> };
   /** Vuelve a cargar la ventana (el cartel de error); por la tailnet no existe. */
   recargar?(): Promise<void>;
@@ -367,6 +367,12 @@ const sinBench: Bench = {
 // datos son los fixtures (ver MODO.fixtures).
 export const bench: Bench = window.hilos?.bench ?? sinBench;
 export const main: Main | null = window.hilos ?? null;
+
+/**
+ * ¿Es la ventana de Electron (la pantalla de la PC)? El navegador (tailnet o modo local) recibe el mismo objeto `main`,
+ * así que lo que es de la ventana (selector de carpetas, portapapeles del sistema, salir…) existe ahí aunque no funcione: se mira esto.
+ */
+export const esVentana = (): boolean => typeof navigator !== "undefined" && /\bElectron\//.test(navigator.userAgent);
 
 /**
  * Electron envuelve los rechazos del main ("Error invoking remote method 'x': Error: …"): queda sólo

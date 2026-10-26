@@ -9,6 +9,7 @@ import { useFoco } from "../foco";
 import { t } from "../i18n";
 import { useIdioma } from "../i18n/react";
 import { MODO } from "../modo";
+import { esVentana } from "../puente";
 
 type Modo = "seguir" | "parar";
 /** `null`: cerrado. `pregunta`: las dos salidas. `ocupados`: ya se eligió una y hay `n` líderes respondiendo. */
@@ -23,7 +24,7 @@ const poner = (f: Fase) => {
 const suscribir = (f: () => void) => (oyentes.add(f), () => void oyentes.delete(f));
 
 /** Sólo la ventana de la PC sale: por la tailnet `salir` no existe (el navegador no cierra a Trama). */
-const enVentana = typeof navigator !== "undefined" && /Electron\//.test(navigator.userAgent);
+const enVentana = esVentana();
 
 export function abrirSalir() {
   if (enVentana || MODO.captura) poner({ fase: "pregunta" });

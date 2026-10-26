@@ -55,7 +55,7 @@ import { useSeguir } from "./useSeguir";
 import { cola, comandosAgy, comandosClaude, confirmar, contestado, enCurso, enviado, enviadoDirecto, escuchar, estilosClaude, fallo, falloDirecto, mensajesVistos, parando, ponerEstilos, ponerModo, suscribir, suscribirComandos, suscribirEstilos, type Pedido } from "./vivo";
 import { ASPECTO, esModo, MODO_DEFAULT, siguienteModo, type Modo } from "./modos";
 import { directo, ESTILOS_FABRICA, menuEn, moverSel, parsearComando, reemplazar, type Sugerencia, type Valores } from "./comandos";
-import { main, mensaje } from "../puente";
+import { esVentana, main, mensaje } from "../puente";
 import { agregarAdjuntos, archivosDe, archivosDeDatos, ErrorAdjunto, escucharAdjuntos, imagenesDe, leerAdjuntos, pegadoSinTexto, prepararAdjunto, quitarAdjunto, textoConArchivos, vaciarAdjuntos } from "./adjuntos";
 import { Adjuntos, Miniaturas } from "./Imagenes";
 import { Dictar } from "./Dictar";
@@ -749,7 +749,7 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
     const fs = archivosDeDatos(e.clipboardData);
     if (!fs.length) {
       // Sin nada que el navegador sepa pegar (otro tipo de texto, un offer viejo): el main lee el portapapeles.
-      const leer = main?.portapapeles;
+      const leer = esVentana() ? main?.portapapeles : undefined;
       if (!puede || !leer || !pegadoSinTexto(e.clipboardData)) return;
       e.preventDefault();
       const c = e.currentTarget;
@@ -1097,7 +1097,7 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
                     }
                   }}
                 />
-                {main?.carpeta ? (
+                {main?.carpeta && esVentana() ? (
                   <button type="button" className="btn2" disabled={enviando} onClick={elegirCarpeta}>
                     {tr("lider.carpetaElegir")}
                   </button>

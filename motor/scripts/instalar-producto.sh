@@ -320,6 +320,11 @@ else
   echo "$APP" >"$CONF/app"
   if [[ -n "$NODE" ]]; then
     unit="$UNITS/trama-motor.service"
+    # La interfaz exige un token por instalación (~/.config/trama/token; 'trama-motor abrir' lo pone en la URL). Excepción en WSL:
+    # la carcasa de Windows (windows/src/main.js) todavía abre http://localhost:8791 sin token. Quien porte Windows tiene que
+    # abrir /?t=<token> (lo lee con `wsl cat ~/.config/trama/token`) y entonces se borra este TRAMA_TOKEN=0.
+    SIN_TOKEN=""
+    if grep -qi microsoft /proc/version 2>/dev/null; then SIN_TOKEN=$'# WSL: la carcasa de Windows aún no manda el token (ver instalar-producto.sh).\nEnvironment=TRAMA_TOKEN=0\n'; fi
     cat >"$unit.tmp.$$" <<EOF
 [Unit]
 Description=Trama: el motor (líderes, workers y la interfaz en http://localhost:8791)
@@ -333,7 +338,7 @@ Environment=HILOS_MOTOR=1
 Environment=TRAMA_UNIDAD=1
 # La interfaz en 127.0.0.1:8791 (la abre la carcasa de Windows, o el navegador).
 Environment=TRAMA_LOCAL=1
-Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin
+${SIN_TOKEN}Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin
 ExecStart=$NODE $APP/dist-electron/motor.js
 Restart=always
 RestartSec=2
@@ -367,5 +372,5 @@ fi
 echo "--- trama-estado"
 trama-estado 2>/dev/null || true
 (( mal )) && aviso "quedó algo sin hacer (ver arriba)"
-echo "listo."
+echo "listo. Para abrir la interfaz: trama-motor abrir"
 exit 0

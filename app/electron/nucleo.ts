@@ -97,9 +97,18 @@ export const manejadoresAnotados = (): [string, Manejador][] => [...manejadores]
 /** Lo que por red no se puede: salir de trama, y lo que abre o enfoca cosas en la pantalla de la PC. */
 export const SOLO_VENTANA: ReadonlySet<string> = new Set(["app:salir", "carpeta:elegir", "app:pararTodo", "bandeja:textos", "lider:ir", "lider:ubicable", "claude:changelog", "volver:leer", "volver:guardar", "volver:anotar", "reinicio:marca", "borradores:leer", "borradores:guardar", "app:recargar", "consumo:mirar", "consumo:soltar", "cuentas:login", "espera:estado", "espera:notificar", "portapapeles:texto"]);
 
-/** Un pedido que llegó por red (ya con la identidad comprobada): el mismo manejador que usa la ventana. `ip` es la dirección real del socket. */
-export async function llamarRemoto(canal: string, args: unknown[], cliente: string, ip?: string): Promise<unknown> {
-  const fn = SOLO_VENTANA.has(canal) ? undefined : manejadores.get(canal);
+/**
+ * Lo que sigue vedado al navegador del modo local (`TRAMA_LOCAL=1`, ya con su token): ahí el navegador es la interfaz
+ * principal de esta misma máquina, así que consumo y borradores (que son suyos) sí; salir, elegir carpeta y demás no.
+ */
+export const SOLO_VENTANA_LOCAL: ReadonlySet<string> = new Set([...SOLO_VENTANA].filter((c) => !["consumo:mirar", "consumo:soltar", "borradores:leer", "borradores:guardar"].includes(c)));
+
+/**
+ * Un pedido que llegó por red (ya con la identidad comprobada): el mismo manejador que usa la ventana. `ip` es la dirección real del socket.
+ * `local` = el servidor del modo local (modo-local.ts), no la tailnet: usa `SOLO_VENTANA_LOCAL`.
+ */
+export async function llamarRemoto(canal: string, args: unknown[], cliente: string, ip?: string, opts?: { local?: boolean }): Promise<unknown> {
+  const fn = (opts?.local ? SOLO_VENTANA_LOCAL : SOLO_VENTANA).has(canal) ? undefined : manejadores.get(canal);
   if (!fn) throw new Error(`canal desconocido: ${canal}`);
   return fn(ip !== undefined ? { remoto: cliente, ip } : { remoto: cliente }, ...args);
 }
