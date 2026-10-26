@@ -507,8 +507,12 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
     ponerBorrador(clave, { texto: v });
   };
 
+  // Gemini, OpenCode y DeepSeek Harness no tienen modos de permisos: su puente contesta siempre el mismo (bypass o accept edits).
+  const motorLider = l?.modelo ?? modelo;
+  const modoFijo = esAgy(motorLider) ? "modo.fijoAgy" : esDsh(motorLider) || esOpencode(motorLider) ? "modo.fijoDsh" : null;
   const cambiarModo = (m: Modo) => {
     if (!puede) return;
+    if (modoFijo) return setNota(tr(modoFijo));
     if (!l || !app) return setModoNuevo(m);
     const antes = modo;
     ponerModo(l.id, m);
@@ -1213,7 +1217,9 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
                 className="modo"
                 style={{ color: ASPECTO[modo].color }}
                 // Con el dedo no hay Shift+Tab, y en angosto el chip es sólo el símbolo: el tooltip dice el modo.
-                data-tip={esTactil() ? tr(ASPECTO[modo].clave) : nivel >= 1 ? `${tr(ASPECTO[modo].clave)} · Shift+Tab` : "Shift+Tab"}
+                data-tip={modoFijo ? tr(modoFijo) : esTactil() ? tr(ASPECTO[modo].clave) : nivel >= 1 ? `${tr(ASPECTO[modo].clave)} · Shift+Tab` : "Shift+Tab"}
+                aria-disabled={modoFijo ? true : undefined}
+                data-fijo={modoFijo ? "" : undefined}
                 aria-label={tr("modo.tip", { modo: tr(ASPECTO[modo].clave) })}
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => cambiarModo(siguienteModo(modo))}

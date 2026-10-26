@@ -3561,6 +3561,13 @@ kbd {
 .modo:hover {
   background: var(--sup-2);
 }
+/* Motor sin modos (Gemini, OpenCode, DeepSeek Harness): se lee, no se cambia. */
+.modo[data-fijo] {
+  cursor: default;
+}
+.modo[data-fijo]:hover {
+  background: transparent;
+}
 .caja-zona {
   position: relative;
 }
