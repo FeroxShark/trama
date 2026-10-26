@@ -66,6 +66,14 @@ pa --estado                                qué corre ahora, sesiones guardadas,
   y subí con `-m`. Más effort no es más inteligencia, es más exploración y más gasto.
 - Un modelo `ollama:<modelo>` es local: más lento y menos capaz; reservalo para `mecanico` y `lectura`
   salvo que el usuario diga otra cosa.
+- `dsh:opencode/<modelo>` (gratis: `big-pickle`, `deepseek-v4.1-flash-free`, `glm-5.3-flash-free`,
+  `flint-40b-free`, `longcat-2.5-preview-free`), `dsh:ollama/<modelo>` (local) y `dsh:deepseek/<modelo>`
+  (se paga) corren el worker con DeepSeek Harness. Son los modelos para quien no tiene Claude, Gemini ni
+  ChatGPT: menos capaces, así que `mecanico`, `lectura` o `codigo-acotado` con chequeo, no diseño ni
+  `debug`. Sin effort ni `--seguir`, `--leer`, `--mcp`, `--aca`, `--max-budget-usd`. Salen 95 si falta `dsh`,
+  la key (`OPENCODE_API_KEY` / `DEEPSEEK_API_KEY` en el entorno o en `~/.config/trama/claves.env`; nunca las
+  pidas ni las imprimas) o Ollama no responde. `opencode` y `deepseek` son remotos: `pa` no les manda la
+  ficha del proyecto ni el CLAUDE.md del dueño. `pa --modelos` los lista.
 - Cuando el modelo elegido no tiene cupo, `sin_cupo` de `modelos.json` dice qué hace `pa`: `otro` (el
   default: relanza con el siguiente candidato de `reparto`), `esperar` (queda en cola con `--async`) o `fallar`.
 
@@ -88,10 +96,10 @@ GPT-OSS y Claude por `agy` tienen pocas corridas: no los fuerces para código.
 - **Nunca effort `max`** salvo que el usuario prenda `permitir_max` en los ajustes de Trama.
 - **Fable no vale su precio** frente a Opus 5.5 (2,5× por token y peor resultado medido): no lo uses.
 - Effort no es inteligencia: más effort = más turnos y más gasto. Si falla, mejorá la tarea antes de subirlo.
-- Flash sólo `lectura`/`mecanico`; GPT-OSS no sigue bien el contrato; los locales `ollama:*` sólo
-  `mecanico`/`lectura` y no en la GPU del usuario sin que lo sepa.
+- Flash sólo `lectura`/`mecanico`; GPT-OSS no sigue bien el contrato; los locales `ollama:*` y
+  `dsh:ollama/*` sólo `mecanico`/`lectura` y no en la GPU del usuario sin que lo sepa.
 - Cada familia gasta un cupo distinto: Claude oficial (Opus/Sonnet/Haiku), Google AI Pro (Argon, Flash,
-  `agy:*`), ChatGPT (Codex: `pa` no lo lanza todavía), o la máquina (Ollama). `pa --modelos` y
+  `agy:*`), ChatGPT (Codex: `pa` no lo lanza todavía), OpenCode/DeepSeek (por `dsh`, gratis los `*-free`) o la máquina (Ollama). `pa --modelos` y
   `reparto --cupos` muestran cuál sobra.
 
 ## Volver y integrar

@@ -3,7 +3,7 @@
 
   reparto --cupos [--json]                     cupo de cada suscripción (Claude oficial, Google AI Pro/agy y ChatGPT/codex)
   reparto --tipo T [--json] [--explicar]       modelo y effort que conviene para el tipo T
-  reparto --resolver ID [--json]               cómo se lanza un id de modelo (claude / agy / codex / ollama)
+  reparto --resolver ID [--json]               cómo se lanza un id de modelo (claude / agy / codex / ollama / dsh)
   reparto --agotar ID [--hasta ISO]            marca agotado el grupo de agy o de codex de ese modelo (o grupo), o el
                                                Claude oficial (claude-*), hasta que vuelve
   reparto --excluido ID                        si modelos.json excluye ese id: imprime la regla y sale 0; si no, sale 1
@@ -24,6 +24,12 @@ nada real), REPARTO_AHORA=ISO (la hora de "ahora"), REPARTO_STATE (caché de agy
 si algún grupo tiene menos de la mitad de su ventana de 5 h), REPARTO_CARGA_FIJA='{"grupo": n}' (workers vivos por grupo,
 sin mirar el estado de pa), REPARTO_ASIGNACION_S (vida de esa anotación, 20; 0 la apaga), REPARTO_RESERVAR=1 (anota el grupo elegido: lo pone pa en su elección real),
 CODEX_HOME (credenciales y sesiones de codex; default ~/.codex), REPARTO_CODEX=0 (como si codex no estuviera).
+dsh (DeepSeek Harness: modelos gratis de OpenCode u Ollama, o DeepSeek): sus modelos son candidatos sólo si `dsh` está instalado y,
+según el proveedor, hay key (OPENCODE_API_KEY / DEEPSEEK_API_KEY en el entorno o en ~/.config/trama/claves.env) o Ollama responde
+(OLLAMA_HOST, default http://localhost:11434; la lista de modelos se guarda 60 s). REPARTO_DSH=0 los apaga (REPARTO_SIN_DSH=1 también:
+lo pone pa en --leer, donde dsh no va), REPARTO_CLAUDE=0 (como si claude no estuviera), REPARTO_DSH_FIJO='{"ollama":["m"],"opencode":true,
+"deepseek":false}' (tests: no mira nada real). La calidad de cada modelo de dsh sale de `calidad` de modelos.json ("dsh:opencode/glm-5.3-flash-free": 55;
+admite patrones con *); sin Claude, Gemini ni Codex y con la calidad por debajo de lo que pide el tipo, igual se elige el mejor gratis de dsh.
 """
 import contextlib
 import fcntl
@@ -47,7 +53,12 @@ VERSION = 1
 CALIDAD = {"opus": 100, "sonnet": 88, "argon": 85, "haiku": 60, "gpt-oss": 45, "flash": 60,
            # ChatGPT/Codex (2026-10-25): sin medición propia. Astra empata a Argon en AA (52,7 contra 52,6); Sol es
            # "el de código" según OpenAI: lo mismo que Sonnet hasta tener corridas; Luna, volumen (Haiku).
-           "astra": 85, "sol": 88, "luna": 60}
+           "astra": 85, "sol": 88, "luna": 60,
+           # dsh (2026-10-26, sin medición propia; se pisan desde modelos.json "calidad"): los gratis de OpenCode Zen, lo que Ollama
+           # tenga bajado (chico, como los locales: 35) y DeepSeek (se paga con la key del dueño).
+           "dsh:opencode/big-pickle": 60, "dsh:opencode/deepseek-v4.1-flash-free": 60, "dsh:opencode/glm-5.3-flash-free": 55,
+           "dsh:opencode/longcat-2.5-preview-free": 45, "dsh:opencode/flint-40b-free": 40,
+           "dsh:opencode/*": 40, "dsh:ollama/*": 35, "dsh:deepseek/*pro*": 85, "dsh:deepseek/*": 70}
 # Qué se pide como mínimo según el tipo de tarea (nombre de familia). Un tipo desconocido pide Sonnet.
 MINIMO_POR_TIPO = {
     "debug": "argon", "diseno": "argon",   # Sonnet (88) también los resuelve
@@ -111,6 +122,12 @@ GRUPOS_OPENAI = [
     ("codex", "Codex (ChatGPT)", ["5h", "7d"], ["codex:gpt-6.1-sol", "codex:gpt-6-luna", "codex:gpt-6-astra"]),
 ]
 EFFORTS_CODEX = ("low", "medium", "high")
+# dsh: los modelos que reparto conoce. OpenCode: sólo los gratis (big-pickle y los *-free; uno que se cobra no se elige solo, ni
+# aunque esté en `calidad`); DeepSeek se paga con su key; Ollama = lo que tenga bajado.
+DSH_OPENCODE_GRATIS = ["big-pickle", "deepseek-v4.1-flash-free", "glm-5.3-flash-free", "flint-40b-free", "longcat-2.5-preview-free"]
+DSH_DEEPSEEK = ["deepseek-v4-flash"]
+DSH_GRUPOS = {"ollama": "dsh-ollama", "opencode": "dsh-opencode", "deepseek": "dsh-deepseek"}
+COSTO_DSH_PAGO = 1.5      # DeepSeek se paga con la key del dueño: pierde contra un gratis salvo que la calidad lo pida (peso_costo × 1,5 puntos menos)
 
 # Familias y de qué cupo cuelgan. `agy` = nombre base que acepta `agy --model` (se le suma -<effort>).
 FAMILIAS = [
@@ -575,6 +592,151 @@ def codex_disponible():
     return bool(shutil.which("codex")) and os.path.isfile(os.path.join(codex_home(), "auth.json"))
 
 
+# --- dsh (DeepSeek Harness) --------------------------------------------------------------------------
+def dsh_bin():
+    """El binario dsh: HILOS_DSH, el PATH, ~/.local/bin, el prefijo global de npm. None si no está (igual que pa y correr.mjs)."""
+    h = os.environ.get("HILOS_DSH")
+    if h:
+        return h if os.access(h, os.X_OK) else None
+    import shutil
+    c = shutil.which("dsh")
+    if c:
+        return c
+    home = os.path.expanduser("~")
+    dirs = [os.path.join(home, ".local", "bin")]
+    if os.environ.get("npm_config_prefix"):
+        dirs.append(os.path.join(os.environ["npm_config_prefix"], "bin"))
+    dirs += [os.path.join(home, ".npm-global", "bin"), "/usr/local/bin"]
+    return next((os.path.join(d, "dsh") for d in dirs if os.access(os.path.join(d, "dsh"), os.X_OK)), None)
+
+
+def dsh_clave(nombre):
+    """La key (OPENCODE_API_KEY / DEEPSEEK_API_KEY): el entorno, o el claves.env de Trama (NOMBRE=valor, sin source). Nunca se imprime."""
+    if nombre not in ("OPENCODE_API_KEY", "DEEPSEEK_API_KEY"):
+        return None
+    if os.environ.get(nombre):
+        return os.environ[nombre]
+    xdg = os.environ.get("XDG_CONFIG_HOME") or os.path.expanduser("~/.config")
+    f = os.environ.get("TRAMA_CLAVES") or os.path.join(xdg, "trama", "claves.env")
+    v = None
+    try:
+        with open(f, errors="replace") as fh:
+            for ln in fh:
+                m = re.match(r"^\s*(?:export\s+)?%s\s*=\s*(.*?)\s*$" % nombre, ln.rstrip("\r\n"))
+                if m:
+                    v = m.group(1)
+                    q = re.match(r"^(['\"])(.*)\1$", v)
+                    if q:
+                        v = q.group(2)
+    except OSError:
+        return None
+    return v if v and re.match(r"^[A-Za-z0-9._~+/=:-]+$", v) else None
+
+
+def dsh_ollama_url():
+    u = os.environ.get("OLLAMA_HOST") or "http://localhost:11434"
+    if not u.startswith("http"):
+        u = "http://" + u
+    return u.rstrip("/")
+
+
+def dsh_ollama_modelos(now):
+    """Los modelos que Ollama tiene bajados ([] si no responde). Se guardan DSH_CACHE_S (60) s: pa llama a reparto en cada corrida."""
+    url = dsh_ollama_url()
+    cache = os.path.join(state_dir(), "dsh-ollama.json")
+    ttl = float(os.environ.get("REPARTO_DSH_CACHE_S", 60))
+    try:
+        with open(cache) as f:
+            c = json.load(f)
+        if c.get("url") == url and now.timestamp() - c.get("t", 0) < ttl:
+            return list(c.get("modelos") or [])
+    except Exception:
+        pass
+    try:
+        import urllib.request
+        with urllib.request.urlopen(url + "/api/tags", timeout=float(os.environ.get("REPARTO_DSH_CHEQUEO_S", 2))) as r:
+            modelos = [m.get("name") or m.get("model") for m in json.load(r).get("models", []) if isinstance(m, dict)]
+        modelos = [m for m in modelos if m]
+    except Exception:
+        modelos = []
+    try:
+        os.makedirs(os.path.dirname(cache), exist_ok=True)
+        tmp = "%s.%d" % (cache, os.getpid())
+        with open(tmp, "w") as f:
+            json.dump({"url": url, "t": now.timestamp(), "modelos": modelos}, f)
+        os.replace(tmp, cache)
+    except OSError:
+        pass
+    return modelos
+
+
+def dsh_estado(now):
+    """{ollama: [modelos], opencode: bool, deepseek: bool}: qué de dsh se puede ofrecer. Todo vacío sin dsh instalado."""
+    vacio = {"ollama": [], "opencode": False, "deepseek": False}
+    if os.environ.get("REPARTO_DSH") == "0" or os.environ.get("REPARTO_SIN_DSH") == "1":
+        return vacio
+    fijo = os.environ.get("REPARTO_DSH_FIJO")
+    if fijo:
+        try:
+            j = json.loads(fijo)
+            return {"ollama": list(j.get("ollama") or []), "opencode": bool(j.get("opencode")), "deepseek": bool(j.get("deepseek"))}
+        except Exception:
+            return vacio
+    if not dsh_bin():
+        return vacio
+    return {"ollama": dsh_ollama_modelos(now), "opencode": bool(dsh_clave("OPENCODE_API_KEY")),
+            "deepseek": bool(dsh_clave("DEEPSEEK_API_KEY"))}
+
+
+def dsh_calidad(cfg, mid):
+    """Calidad de un modelo de dsh: su id exacto en `calidad`, o el primer patrón con * que lo cubre (los de modelos.json van primero)."""
+    q = cfg["calidad"]
+    if isinstance(q.get(mid), (int, float)):
+        return q[mid]
+    pats = [k for k in q if k.startswith("dsh:") and "*" in k and isinstance(q[k], (int, float))]
+    # el más específico (más largo) primero
+    for k in sorted(pats, key=len, reverse=True):
+        if fnmatch.fnmatchcase(mid, k):
+            return q[k]
+    return 35
+
+
+def dsh_ofertas(cfg, now):
+    """[(id, nombre, proveedor, gratis)] de lo que dsh puede correr ahora."""
+    st = dsh_estado(now)
+    out = []
+    for m in st["ollama"]:
+        out.append(("dsh:ollama/%s" % m, "%s (Ollama, dsh)" % m, "ollama", True))
+    if st["opencode"]:
+        ids = list(DSH_OPENCODE_GRATIS)
+        for k in cfg["calidad"]:   # un modelo gratis que el dueño agregó a `calidad`
+            m = re.match(r"^dsh:opencode/([^*]+-free)$", k)
+            if m and m.group(1) not in ids:
+                ids.append(m.group(1))
+        for m in ids:
+            out.append(("dsh:opencode/%s" % m, "%s (OpenCode, gratis)" % m, "opencode", True))
+    if st["deepseek"]:
+        ids = list(DSH_DEEPSEEK)
+        for k in cfg["calidad"]:
+            m = re.match(r"^dsh:deepseek/([^*]+)$", k)
+            if m and m.group(1) not in ids:
+                ids.append(m.group(1))
+        for m in ids:
+            out.append(("dsh:deepseek/%s" % m, "%s (DeepSeek, de pago)" % m, "deepseek", False))
+    return out
+
+
+def claude_instalado():
+    """El binario claude. REPARTO_CLAUDE=0 lo apaga. Con cupos fijos (tests) manda el archivo."""
+    if os.environ.get("REPARTO_CLAUDE") == "0":
+        return False
+    if os.environ.get("REPARTO_CUPOS_FIJOS"):
+        return True
+    import shutil
+    return bool(shutil.which("claude")) or any(os.access(os.path.expanduser(f), os.X_OK)
+                                              for f in ("~/.local/bin/claude", "~/.claude/local/claude"))
+
+
 def rate_limits_codex(now):
     """Las ventanas de ChatGPT del último evento token_count de las sesiones de codex (CODEX_HOME/sessions/
     AAAA/MM/DD/rollout-*.jsonl, las escribe codex en cada corrida, también `codex exec`). No gasta nada.
@@ -788,9 +950,12 @@ CLAUDE_OFICIAL = "claude-oficial"
 
 
 def grupo_de_modelo(mid):
-    """Id de grupo de agy o de codex de un modelo ('agy:claude-sonnet-5-5-medium', 'gemini-3.8-flash-low',
-    'codex:gpt-6-luna-low') o de un grupo ('claude-gpt', 'codex'). None si no es de agy ni de codex."""
+    """Id de grupo de agy, de codex o de dsh de un modelo ('agy:claude-sonnet-5-5-medium', 'gemini-3.8-flash-low',
+    'codex:gpt-6-luna-low', 'dsh:opencode/big-pickle') o de un grupo ('claude-gpt', 'codex', 'dsh-opencode'). None si no es de ésos."""
     m = (mid or "").lower()
+    for prov, gid in DSH_GRUPOS.items():
+        if m == gid or m.startswith("dsh:%s/" % prov):
+            return gid
     if m.startswith("codex:gpt-6-sol"):   # alias que pa acepta (CODEX_MODELOS): mismo cupo de ChatGPT que los demás codex
         return "codex"
     for gid, _n, _w, bases in GRUPOS_GOOGLE + GRUPOS_OPENAI:
@@ -804,7 +969,7 @@ def grupo_de_modelo(mid):
 def agotar(mid, hasta_arg, cfg, now, cuenta=None):
     gid = grupo_de_modelo(mid)
     if not gid:
-        err("%s no es un modelo de agy, de codex ni del Claude oficial, ni un grupo: no hay cupo que marcar" % mid)
+        err("%s no es un modelo de agy, de codex, de dsh ni del Claude oficial, ni un grupo: no hay cupo que marcar" % mid)
         return 1
     state = state_dir()
     hasta = parse_iso(hasta_arg) if hasta_arg else None
@@ -938,6 +1103,10 @@ def armar_candidatos(tipo, cfg, cupos, now):
         googles = []   # sin agy instalado ningún modelo de Google es candidato
     # ChatGPT/Codex sólo es candidato si la suscripción está en los cupos (codex instalado y logueado)
     openais = [s for s in subs if s.get("id") == "openai"]
+
+    ofertas_dsh = dsh_ofertas(cfg, now)
+    if ofertas_dsh and not claude_instalado():
+        claudes = []   # sin claude en la máquina el Claude oficial no es un candidato (la persona usa sólo dsh)
 
     carga = carga_por_grupo(now)
     e_tipo = cfg["effort_por_tipo"].get(tipo, "high")
@@ -1106,6 +1275,32 @@ def armar_candidatos(tipo, cfg, cupos, now):
         util = q if q <= minimo + MARGEN else minimo + MARGEN - (q - minimo - MARGEN) * PESO_SOBRA
         cand["puntaje"] = round(util + 0.5 * cfg["peso_urgencia"], 2)   # ocioso y gratis: medio punto de urgencia
         out.append(cand)
+    # dsh: Ollama y los gratis de OpenCode no gastan cupo (costo cero, como los locales); DeepSeek se paga y sólo entra con su key.
+    # Un grupo marcado agotado (`reparto --agotar dsh:opencode/x`: pa vio un 429) no es candidato hasta que vuelve.
+    agot = leer_agotados(state_dir(), now) if ofertas_dsh else {}
+    for mid, nombre, prov, gratis in ofertas_dsh:
+        calidad = dsh_calidad(cfg, mid)
+        gid = DSH_GRUPOS[prov]
+        cand = {"modelo": mid, "effort": None, "nombre": nombre, "familia": "dsh", "calidad": calidad,
+                "cupo_libre": 1.0 if gratis else None, "vuelve": None, "puntaje": None, "descartado_por": None,
+                "aviso": None if gratis else "se paga con tu key de DeepSeek (no se sabe el precio)", "grupo": gid, "urgencia": 0.0,
+                "cuenta": None, "proveedor": "dsh", "clave": gid, "gratis": gratis}
+        x = excluido_por(mid, cfg["excluir"], "dsh")
+        if calidad < minimo:
+            cand["descartado_por"] = "calidad %s menor que la %s que pide %s" % (calidad, minimo, tipo)
+            cand["duro"] = cand["duro_calidad"] = True
+        elif x:
+            cand["descartado_por"] = "excluido en modelos.json (excluir: %s)" % x
+            cand["duro"] = True
+        elif gid in agot:
+            cand["descartado_por"] = "dijo sin cupo (429): vuelve %s" % agot[gid]
+            cand["vuelve"] = agot[gid]
+        q = float(calidad)
+        util = q if q <= minimo + MARGEN else minimo + MARGEN - (q - minimo - MARGEN) * PESO_SOBRA
+        cand["carga"] = carga.get(gid, 0)
+        cand["puntaje"] = round(util + (0.5 * cfg["peso_urgencia"] if gratis else -cfg["peso_costo"] * cfg["costo"].get("dsh-pago", COSTO_DSH_PAGO))
+                                - cfg["peso_carga"] * cand["carga"], 2)
+        out.append(cand)
     return out, minimo, minimo_fam
 
 
@@ -1124,6 +1319,16 @@ def elegir(tipo, cfg, cupos, now, mismo_proveedor=None, solo_cuenta=None):
                 "candidatos": [], "avisos": avisos + avisos_de_uso(cupos, now), "tipo": tipo,
                 "todo_lleno": False, "sin_cupo": cfg["sin_cupo"], "vuelve_antes": None}
     cands, minimo, minimo_fam = armar_candidatos(tipo, cfg, cupos, now)
+    relajado = False
+    if not any(not c.get("duro") for c in cands):
+        # Nada llega a la calidad que pide el tipo (típico: una máquina sin Claude, Gemini ni Codex, sólo con dsh). Mejor un modelo
+        # gratis que nada: los de dsh que sólo quedaron afuera por calidad vuelven a entrar, y gana el de mejor puntaje.
+        for c in cands:
+            if c.get("duro_calidad"):
+                c["descartado_por"] = None
+                c.pop("duro", None)
+                c["relajado"] = True
+                relajado = True
     if solo_cuenta:
         # pa --cuenta C sin -m: sólo los modelos de esa cuenta (con todo lleno, el más barato de ella)
         cands = [c for c in cands if c.get("cuenta") == solo_cuenta]
@@ -1167,6 +1372,8 @@ def elegir(tipo, cfg, cupos, now, mismo_proveedor=None, solo_cuenta=None):
                    key=lambda c: (c["cupo_libre"] if c["cupo_libre"] is not None else -1.0, not suf(c.get("cuenta")),
                                   c["puntaje"]))
     motivo = motivo_de(gana, pool, tipo, minimo, minimo_fam, todo_lleno, now, cands)
+    if relajado and gana.get("relajado"):
+        motivo += " Ningún modelo llega a la calidad %s que pide %s: uso el mejor que hay (calidad %s, ajustable con \"calidad\" en modelos.json)." % (minimo, tipo, gana["calidad"])
     if banda:
         motivo += " Para %s se prefiere la calidad de %s: los modelos más caros o menos parejos sólo entran si no queda cupo de esa banda." % (tipo, banda)
     if os.environ.get("REPARTO_RESERVAR") == "1":
@@ -1217,7 +1424,9 @@ def motivo_de(gana, pool, tipo, minimo, minimo_fam, todo_lleno, now, cands):
                     tipo, tipo, minimo, gana["nombre"],
                     "vuelve en %s" % humano(horas_hasta(gana["vuelve"], now)) if gana["vuelve"] else "no dice cuándo vuelve"))
     partes = ["%s alcanza para %s (calidad %s; %s)" % (gana["nombre"], tipo, gana["calidad"], pide)]
-    if gana["cupo_libre"] is not None:
+    if gana.get("proveedor") == "dsh":
+        partes.append("Es gratis y no gasta ningún cupo" if gana.get("gratis") else "Se paga con tu key de DeepSeek")
+    elif gana["cupo_libre"] is not None:
         h = horas_hasta(gana["vuelve"], now)
         partes.append("Le queda %s libre y vuelve en %s" % (pct(gana["cupo_libre"]), humano(h)))
     else:
@@ -1304,7 +1513,7 @@ def ventanas_txt(vs, now):
 
 # --- resolver un id de modelo ------------------------------------------------------------------------
 def resolver(mid):
-    """Cómo lanzar un id de reparto. {motor: claude|agy|ollama, modelo, effort?}. None si no se reconoce."""
+    """Cómo lanzar un id de reparto. {motor: claude|agy|codex|ollama|dsh, modelo, effort?}. None si no se reconoce."""
     if mid.startswith("agy:"):
         return {"motor": "agy", "modelo": mid[4:], "id": mid, "nota": "agy --model %s" % mid[4:]}
     if mid.startswith("gemini-"):
@@ -1315,6 +1524,9 @@ def resolver(mid):
                 "nota": "codex exec -m %s -c model_reasoning_effort=%s" % (m.group(1), m.group(2))}
     if mid.startswith("ollama:"):
         return {"motor": "ollama", "modelo": mid[7:], "id": mid}
+    m = re.match(r"^dsh:(ollama|opencode|deepseek)/(.+)$", mid)
+    if m:
+        return {"motor": "dsh", "modelo": m.group(2), "proveedor": m.group(1), "id": mid, "nota": "pa -m %s (motor/dsh/correr.mjs)" % mid}
     if mid.startswith("claude-"):
         return {"motor": "claude", "modelo": mid, "id": mid}
     return None

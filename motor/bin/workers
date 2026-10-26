@@ -186,6 +186,28 @@ def h: "--:--:--";
   else empty end
 '
 
+# dsh (DeepSeek Harness, `dsh --json`): una línea por evento {type: session|status|thinking|text|tool_call|tool_result|final}.
+# status trae phase (turn_start|step_start|step_end|turn_end); tool_call {callId, tool, input}; tool_result {callId, status, result};
+# final {text} repite el último text, así que no se muestra. Sin timestamps por línea, como agy y codex.
+FMT_DSH='
+def limpio: (. // "") | if type == "string" then . else tojson end | gsub("[\r\t]";" ") | gsub("\n";" ⏎ ") | gsub(" +";" ");
+def corto($n): limpio | if (length > $n) then (.[0:$n] + "…") else . end;
+def h: "--:--:--";
+(try fromjson catch empty) | objects
+| if .type == "session" then "\(h) \($dim)· dsh \(.sessionId // "")\($r)"
+  elif .type == "text" then "\(h) \($txt)· \(.text | corto(400))\($r)"
+  elif .type == "thinking" then (if $pensar == "1" then "\(h) \($dim)~ \(.text | corto(300))\($r)" else empty end)
+  elif .type == "tool_call" then
+    ( .input // {} | if type == "object" then (.command // .file_path // .path // .pattern // .url // .query // .description // tojson) else tostring end ) as $arg
+    | "\(h) \($tool)▶ \(.tool // "?")\($r) \($dim)\($arg | corto(180))\($r)"
+  elif .type == "tool_result" then
+    "\(h)   \($res)⤷ \(if (.status // "completed") != "completed" then "[\(.status)] " else "" end)\(.result | corto(160))\($r)"
+  elif .type == "status" and .phase == "turn_end" and ((.reason.kind // "completed") != "completed") then
+    "\(h) \($head)✗ \(.reason.error.message // .reason.kind | corto(300))\($r)"
+  elif .type == "result" and (.is_error // false) then "\(h) \($head)✗ \(.result | corto(300))\($r)"
+  else empty end
+'
+
 formatear_claude() {
   jq -r --unbuffered \
      --arg dim "$D" --arg r "$R" --arg tool "$C_TOOL" --arg txt "$C_TXT" \
@@ -193,9 +215,10 @@ formatear_claude() {
      --arg desde "${1:-}" \
      "$FMT" 2>/dev/null
 }
-formatear_stream() {   # $1 = agy | codex
+formatear_stream() {   # $1 = agy | codex | dsh
   local f="$FMT_CODEX" opc=(-R)
   [[ "$1" == agy ]] && { f="$FMT_AGY"; opc=(-R -n); }
+  [[ "$1" == dsh ]] && f="$FMT_DSH"
   jq "${opc[@]}" -r --unbuffered \
      --arg dim "$D" --arg r "$R" --arg tool "$C_TOOL" --arg txt "$C_TXT" \
      --arg res "$C_RES" --arg head "$C_HEAD" --arg pensar "${WORKERS_PENSAR:-0}" \
@@ -205,19 +228,21 @@ formatear_stream() {   # $1 = agy | codex
 formato_de() {   # $1 = modelo (puede ir vacío), $2 = archivo
   case "${1,,}" in
     codex:*) echo codex; return ;;
+    dsh:*) echo dsh; return ;;
     gemini*|agy:*) echo agy; return ;;
     claude-*|ollama:*) echo claude; return ;;
   esac
   case "$(head -n 1 "$2" 2>/dev/null | head -c 300)" in
     *'"event":'*) echo agy ;;
     *'"type":"thread.started"'*|*'"type":"turn.started"'*) echo codex ;;
+    *'"type":"session"'*) echo dsh ;;
     *) echo claude ;;
   esac
 }
 FORMATO=claude
 formatear() {   # stdin = el transcript; $1 = fecha desde (sólo el de Claude)
   case "$FORMATO" in
-    agy|codex) formatear_stream "$FORMATO" ;;
+    agy|codex|dsh) formatear_stream "$FORMATO" ;;
     *) formatear_claude "$@" ;;
   esac
 }
@@ -448,7 +473,7 @@ ultimo() {
   local sfile="$STATE/$slug.session"
   [[ -f "$sfile" && -f "$dir/$(cat "$sfile").jsonl" ]] && tr="$dir/$(cat "$sfile").jsonl"
   [[ -n "$tr" ]] || tr=$(ls -t "$dir"/*.jsonl 2>/dev/null | head -1)
-  # Si el último worker fue de agy o codex, su transcript es el stream de pa (no hay jsonl de Claude para él).
+  # Si el último worker fue de agy, codex o dsh, su transcript es el stream de pa (no hay jsonl de Claude para él).
   local st; st=$(ls -t "$STATE/$slug"/*.stream.jsonl 2>/dev/null | head -1)
   [[ -n "$st" && ( -z "$tr" || "$st" -nt "$tr" ) ]] && tr="$st"
   [[ -n "$tr" ]] || { echo "no hay transcripts en $dir" >&2; exit 1; }

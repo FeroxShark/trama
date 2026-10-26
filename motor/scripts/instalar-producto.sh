@@ -13,14 +13,14 @@
 #   --app DIR      la app hilos con dist-electron/ (default: DIR/app de la fuente, o $TRAMA_APP)
 #
 # Qué hace (usuario normal): node LTS en ~/.local si falta · `claude` y `agy` por sus instaladores oficiales si
-# faltan · symlinks en ~/.local/bin (pa, tablero, trama-estado, trama-motor, proyecto-ruta, reparto, workers,
+# faltan · `dsh` (npm i -g --prefix ~/.local @deepseek-ai/dsh, para workers con modelos gratis) si falta y hay npm · symlinks en ~/.local/bin (pa, tablero, trama-estado, trama-motor, proyecto-ruta, reparto, workers,
 # cuentas) · hooks en
 # ~/.claude/hooks y la skill trama-orquestar · destructive-guard (PreToolUse) y statusline-espejo registrados en
 # ~/.claude/settings.json SIN pisar lo que hay · ~/CLAUDE.md y ~/GEMINI.md si no existen · ~/.config/trama/app ·
 # registry.json vacío si falta · unit de usuario trama-motor.service (node <app>/dist-electron/motor.js, TRAMA_LOCAL=1).
 # Si corre como root también hace el paso apt (y entonces instala TODO para root: sirve para contenedores).
 # Nada de timers ni de repos remotos.
-# Entorno (pruebas): TRAMA_INSTALAR_CLI=0 no baja claude/agy · TRAMA_NODE_MAJOR (mínimo, default 22).
+# Entorno (pruebas): TRAMA_INSTALAR_CLI=0 no baja claude/agy/dsh · TRAMA_INSTALAR_DSH=0 no instala dsh · TRAMA_NODE_MAJOR (mínimo, default 22).
 set -uo pipefail
 
 FUENTE="" APP="" SOLO_APT=0 USUARIO=""
@@ -30,7 +30,7 @@ while (( $# )); do
     --app)      APP="${2:-}"; shift 2 || { echo "uso: --app DIR" >&2; exit 2; } ;;
     --solo-apt) SOLO_APT=1; shift ;;
     --usuario)  USUARIO="${2:-}"; shift 2 || { echo "uso: --usuario U" >&2; exit 2; } ;;
-    -h|--help)  sed -n '2,22p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help)  sed -n '2,23p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "uso: instalar-producto.sh [--fuente DIR] [--app DIR] | --solo-apt [--usuario U]" >&2; exit 2 ;;
   esac
 done
@@ -166,6 +166,32 @@ bajar_cli() {   # <binario> <url> <nombre>
 }
 bajar_cli claude https://claude.ai/install.sh "claude (Claude Code)"
 bajar_cli agy https://antigravity.google/cli/install.sh "agy (Antigravity CLI)"
+
+# --- dsh (DeepSeek Harness): el motor para modelos gratis (OpenCode, Ollama) o DeepSeek --------------------------
+# `npm i -g --prefix ~/.local @deepseek-ai/dsh`: con el prefijo propio no hace falta sudo (el npm global de un node del
+# sistema escribe en /usr/lib) y deja `dsh` en ~/.local/bin. No es fatal: sin npm o sin red queda el AVISO y `pa -m dsh:…`
+# explica qué falta. TRAMA_INSTALAR_DSH=0 (o TRAMA_INSTALAR_CLI=0) no lo instala. Las keys no se piden acá:
+# Ajustes > Modelos de la app, o ~/.config/trama/claves.env (ver «Usar Trama gratis» en el README).
+DSH_RESUMEN=""
+instalar_dsh() {
+  local d
+  d="$(command -v dsh 2>/dev/null || true)"; [[ -n "$d" ]] || { [[ -x "$BIN/dsh" ]] && d="$BIN/dsh"; }
+  if [[ -n "$d" ]]; then ok "dsh ya está instalado ($d)"; DSH_RESUMEN="dsh: instalado ($d)"; return; fi
+  if [[ "${TRAMA_INSTALAR_CLI:-1}" == 0 || "${TRAMA_INSTALAR_DSH:-1}" == 0 ]]; then
+    aviso "dsh: no instalado (TRAMA_INSTALAR_CLI=0 o TRAMA_INSTALAR_DSH=0)"; DSH_RESUMEN="dsh: sin instalar (para correr workers con modelos gratis: npm i -g --prefix ~/.local @deepseek-ai/dsh)"; return
+  fi
+  if ! command -v npm >/dev/null 2>&1; then
+    aviso "dsh: falta npm (viene con node): después, npm i -g --prefix ~/.local @deepseek-ai/dsh"; DSH_RESUMEN="dsh: sin instalar (falta npm)"; return
+  fi
+  echo "dsh: instalando @deepseek-ai/dsh en ~/.local (puede tardar un par de minutos)…"
+  if timeout 900 npm i -g --prefix "$HOME/.local" --no-fund --no-audit @deepseek-ai/dsh >/dev/null 2>&1 && [[ -x "$BIN/dsh" ]]; then
+    hecho "dsh instalado ($BIN/dsh)"; DSH_RESUMEN="dsh: instalado ahora ($BIN/dsh)"
+  else
+    aviso "dsh: npm i -g --prefix ~/.local @deepseek-ai/dsh falló (¿sin red?); instalalo a mano para usar workers con modelos gratis"
+    DSH_RESUMEN="dsh: no se pudo instalar (npm i -g --prefix ~/.local @deepseek-ai/dsh)"
+  fi
+}
+instalar_dsh
 
 # --- piezas del motor ------------------------------------------------------------------------------------
 for b in pa tablero trama-estado trama-motor; do enlazar "$MOTOR/bin/$b" "$BIN"; done
@@ -405,6 +431,7 @@ fi
 
 echo "--- trama-estado"
 trama-estado 2>/dev/null || true
+[[ -n "$DSH_RESUMEN" ]] && echo "$DSH_RESUMEN · keys y modelos gratis: «Usar Trama gratis» en el README, o Ajustes > Modelos en la app"
 (( mal )) && aviso "quedó algo sin hacer (ver arriba)"
 echo "listo. Para abrir la interfaz: trama-motor abrir"
 exit 0

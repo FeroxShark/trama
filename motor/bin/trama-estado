@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# trama-estado — qué hay instalado y andando para Trama: claude, agy, Ollama y el motor.
+# trama-estado — qué hay instalado y andando para Trama: claude, agy, dsh, Ollama y el motor.
 #
 #   trama-estado --json    una línea de JSON (contrato abajo); sale 0 siempre que pueda imprimir
 #   trama-estado           lo mismo en palabras
@@ -7,11 +7,14 @@
 # {"version":1,
 #  "claude":{"instalado":bool,"logueado":bool},
 #  "agy":{"instalado":bool,"logueado":bool},
+#  "dsh":{"instalado":bool,"version":str|null,"ruta":str|null,"claves":{"opencode":bool,"deepseek":bool}},
 #  "ollama":{"url":str,"responde":bool,"modelos":[str]},
 #  "motor":{"vivo":bool,"url":str}}   (+ "proceso":bool, extra: el proceso existe aunque no atienda HTTP)
 #
 # Sólo biblioteca estándar. Nunca falla por algo que no encuentra: lo que falta sale en false.
-# Entorno (para probar): TRAMA_CLAUDE / TRAMA_AGY (otro nombre del binario), TRAMA_MODELOS (otro
+# Las keys de dsh (OPENCODE_API_KEY, DEEPSEEK_API_KEY) se miran en el entorno y en ~/.config/trama/claves.env (TRAMA_CLAVES lo redirige):
+# sólo se dice si están, NUNCA su valor.
+# Entorno (para probar): TRAMA_CLAUDE / TRAMA_AGY (otro nombre del binario), HILOS_DSH (el binario de dsh), TRAMA_MODELOS (otro
 # modelos.json), TRAMA_PUERTO (puerto del motor, default 8791), OLLAMA_HOST (si modelos.json no dice).
 import glob
 import json
@@ -77,6 +80,42 @@ def agy():
     return {"instalado": True, "logueado": any(MODELO_AGY.match(l) for l in out.splitlines())}
 
 
+def clave_dsh(nombre):
+    """¿Hay key? El entorno o claves.env (líneas NOMBRE=valor). Sólo un booleano: el valor no sale de acá."""
+    if os.environ.get(nombre):
+        return True
+    f = os.environ.get("TRAMA_CLAVES") or os.path.join(os.environ.get("XDG_CONFIG_HOME") or os.path.join(HOME, ".config"), "trama", "claves.env")
+    try:
+        with open(f, errors="replace") as fh:
+            for ln in fh:
+                m = re.match(r"^\s*(?:export\s+)?%s\s*=\s*(.*?)\s*$" % nombre, ln.rstrip("\r\n"))
+                if m and m.group(1).strip("'\""):
+                    return True
+    except OSError:
+        pass
+    return False
+
+
+def dirs_dsh():
+    # donde cae dsh si no está en el PATH: el prefijo global de npm (npm_config_prefix, ~/.npm-global) y /usr/local/bin
+    d = [os.path.join(os.environ["npm_config_prefix"], "bin")] if os.environ.get("npm_config_prefix") else []
+    return d + [os.path.join(HOME, ".npm-global", "bin"), "/usr/local/bin"]
+
+
+def dsh():
+    claves = {"opencode": clave_dsh("OPENCODE_API_KEY"), "deepseek": clave_dsh("DEEPSEEK_API_KEY")}
+    ruta = os.environ.get("HILOS_DSH")
+    if ruta:
+        ruta = ruta if os.path.isfile(ruta) and os.access(ruta, os.X_OK) else None
+    else:
+        ruta = en_path("dsh", dirs_dsh())
+    if not ruta:
+        return {"instalado": False, "version": None, "ruta": None, "claves": claves}
+    rc, out = salida([ruta, "--version"], 15)
+    version = out.strip().splitlines()[0][:40] if rc == 0 and out.strip() else None
+    return {"instalado": True, "version": version, "ruta": ruta, "claves": claves}
+
+
 def modelos_json():
     ruta = os.environ.get("TRAMA_MODELOS") or os.path.join(os.environ.get("XDG_CONFIG_HOME") or os.path.join(HOME, ".config"), "trama", "modelos.json")
     try:
@@ -133,13 +172,16 @@ def motor():
 
 
 def main():
-    est = {"version": 1, "claude": claude(), "agy": agy(), "ollama": ollama(), "motor": motor()}
+    est = {"version": 1, "claude": claude(), "agy": agy(), "dsh": dsh(), "ollama": ollama(), "motor": motor()}
     if "--json" in sys.argv[1:]:
         print(json.dumps(est, ensure_ascii=False))
         return 0
     si = lambda b: "sí" if b else "no"
     print("claude   instalado: %s · sesión: %s" % (si(est["claude"]["instalado"]), si(est["claude"]["logueado"])))
     print("agy      instalado: %s · sesión: %s" % (si(est["agy"]["instalado"]), si(est["agy"]["logueado"])))
+    d = est["dsh"]
+    print("dsh      instalado: %s%s · keys: OpenCode %s, DeepSeek %s" % (
+        si(d["instalado"]), " (%s)" % d["version"] if d["version"] else "", si(d["claves"]["opencode"]), si(d["claves"]["deepseek"])))
     o = est["ollama"]
     print("ollama   %s · responde: %s · modelos: %s" % (o["url"], si(o["responde"]), ", ".join(o["modelos"]) or "ninguno"))
     print("motor    %s · vivo: %s" % (est["motor"]["url"], si(est["motor"]["vivo"])))
@@ -151,5 +193,6 @@ if __name__ == "__main__":
         sys.exit(main())
     except Exception as e:  # el contrato: sale 0 siempre que pueda imprimir
         print(json.dumps({"version": 1, "claude": {"instalado": False, "logueado": False}, "agy": {"instalado": False, "logueado": False},
+                          "dsh": {"instalado": False, "version": None, "ruta": None, "claves": {"opencode": False, "deepseek": False}},
                           "ollama": {"url": "", "responde": False, "modelos": []}, "motor": {"vivo": False, "url": "", "proceso": False}, "error": str(e)}))
         sys.exit(0)
