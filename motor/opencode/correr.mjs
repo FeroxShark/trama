@@ -23,7 +23,7 @@
 // Exit: 0 bien; 1 falló opencode o el modelo (el motivo, por stderr y en `result`); 2 argumentos; 127 no hay `opencode`.
 // Entorno: HILOS_OPENCODE (el binario). El login y la config de OpenCode son los de la persona (HOME/XDG tal cual).
 // Sin imports de app/: pa corre sin la app. app/electron/opencode.ts duplica a propósito motor/opencode/config.mjs.
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import os from "node:os";
@@ -130,8 +130,14 @@ async function main() {
   let truncado = 0;
   // La tarea siempre por stdin (cabe cualquier largo, no se confunde con un flag y no se ve en `ps`): `run` la lee si no hay mensaje.
   // El esfuerzo (--effort) es el `--variant` de opencode; vacío o con pinta rara: no se pasa (el modelo usa el suyo).
-  const variante = /^[A-Za-z][A-Za-z0-9_-]{0,23}$/.test(a.effort ?? "") ? ["--variant", a.effort] : [];
-  const hijo = spawn(bin, ["run", "--format", "json", "--thinking", "--dir", path.resolve(a.cwd), "-m", prov.valor, ...variante], { cwd: a.cwd, env, stdio: ["pipe", "pipe", "pipe"] });
+  // Cada versión de opencode trae otros flags en `run` (2.x no tiene --dir): sólo se pasan los que su --help nombra.
+  // El directorio ya va por cwd y PWD; --dir es redundante donde existe.
+  const ayuda = spawnSync(bin, ["run", "--help"], { encoding: "utf8", timeout: 10_000 });
+  const textoAyuda = `${ayuda.stdout ?? ""}${ayuda.stderr ?? ""}`;
+  const tiene = (f) => !textoAyuda.trim() || new RegExp(`(^|\\s)${f}(\\s|=|,|$)`, "m").test(textoAyuda);
+  const variante = /^[A-Za-z][A-Za-z0-9_-]{0,23}$/.test(a.effort ?? "") && tiene("--variant") ? ["--variant", a.effort] : [];
+  const pensar = tiene("--thinking") ? ["--thinking"] : [];
+  const hijo = spawn(bin, ["run", "--format", "json", ...pensar, "-m", prov.valor, ...variante], { cwd: a.cwd, env, stdio: ["pipe", "pipe", "pipe"] });
   const eventos = [];
   let resto = "";
   let stderr = "";

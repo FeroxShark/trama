@@ -130,7 +130,7 @@ test("--effort llega a opencode como `--variant` (y vacío o raro no se pasa)", 
   // Un «opencode» de mentira que vuelca sus argumentos: sólo interesa qué recibe.
   const falso = path.join(tmp, "oc-args.sh");
   const log = path.join(tmp, "oc-args.log");
-  writeFileSync(falso, `#!/bin/sh\necho "$@" >> ${log}\ncat >/dev/null\n`, { mode: 0o755 });
+  writeFileSync(falso, `#!/bin/sh\nif [ "$2" = "--help" ]; then echo "  --variant  x"; echo "  --thinking  y"; exit 0; fi\necho "$@" >> ${log}\ncat >/dev/null\n`, { mode: 0o755 });
   for (const ef of ["high", "", "--x y"]) {
     await correr("http://127.0.0.1:1", ["--modelo", MODELO_FALSO, ...(ef ? ["--effort", ef] : [])], "hola", { HILOS_OPENCODE: falso });
   }
@@ -139,4 +139,14 @@ test("--effort llega a opencode como `--variant` (y vacío o raro no se pasa)", 
   assert.match(l[0]!, /-m falso\/fake-model --variant high$/);
   assert.doesNotMatch(l[1]!, /--variant/);
   assert.doesNotMatch(l[2]!, /--variant/);
+});
+
+test("opencode 2.x: sólo se pasan los flags que su `run --help` nombra (sin --dir, --thinking ni --variant si no están)", { timeout: 60_000 }, async () => {
+  // Como opencode 2.1: rechaza un flag que no conoce («Unrecognized flag: --dir») y su ayuda no trae --dir/--thinking/--variant.
+  const falso = path.join(tmp, "oc-2x.sh");
+  const log = path.join(tmp, "oc-2x.log");
+  writeFileSync(falso, `#!/bin/sh\nif [ "$2" = "--help" ]; then echo "  --format  f"; echo "  -m, --model  m"; exit 0; fi\nfor a in "$@"; do case "$a" in --dir|--thinking|--variant) echo "Unrecognized flag: $a" >&2; exit 1;; esac; done\necho "$@" >> ${log}\ncat >/dev/null\n`, { mode: 0o755 });
+  await correr("http://127.0.0.1:1", ["--modelo", MODELO_FALSO, "--effort", "high"], "hola", { HILOS_OPENCODE: falso });
+  const l = readFileSync(log, "utf8").trim();
+  assert.equal(l, "run --format json -m falso/fake-model");
 });

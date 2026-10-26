@@ -64,7 +64,7 @@ function pa(args: string[], env: Record<string, string> = {}) {
 test("pa -m opencode:…: corre el runner con `opencode run --format json -m <proveedor>/<modelo>` y deja el .json de motor opencode", () => {
   const r = pa(["demo", "-m", "opencode:opencode/beam-free", "haceme algo"]);
   assert.equal(r.rc, 0, r.err + r.out);
-  assert.match(r.out, /llamado: run --format json --thinking --dir .* -m opencode\/beam-free/);
+  assert.match(r.out, /llamado: run --format json (--thinking )?-m opencode\/beam-free/);
   const jsons = readdirSync(path.join(estado, "proy")).filter((f) => f.endsWith(".json"));
   const j = JSON.parse(readFileSync(path.join(estado, "proy", jsons[0]!), "utf8"));
   assert.equal(j.motor, "opencode");
