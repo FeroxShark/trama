@@ -7,6 +7,35 @@
 
 export type Cache = { cache_ttl_s: number | null; cache_vence: number | null };
 
+/**
+ * Quién sirve el modelo, a efectos del caché: sólo el de Claude tiene un caché de prompt con TTL que Trama sabe leer
+ * (5 min o 1 h, y el pedido dice con cuál escribió). Los demás no:
+ *  - gemini (agy): caché implícito de Google, sin TTL documentado ni señal por pedido;
+ *  - dsh / opencode: DeepSeek cachea en disco, sin ventana fija (horas a días, "best effort"); los modelos gratis de OpenCode
+ *    Zen cobran $0 por lectura de caché pero no dicen cuánto vive;
+ *  - ollama / local: no hay caché de prompt que venza, hay un modelo cargado en memoria hasta su `keep_alive`.
+ */
+export type MotorCache = "claude" | "gemini" | "dsh" | "opencode" | "ollama";
+
+export function motorDeCache(modelo: string | null | undefined): MotorCache {
+  const m = modelo ?? "";
+  return m.startsWith("dsh:") ? "dsh" : m.startsWith("opencode:") ? "opencode" : m.startsWith("ollama:") ? "ollama" : /^(?:gemini-|agy:)/.test(m) ? "gemini" : "claude";
+}
+
+/** ¿Tiene sentido mostrar "le quedan N min de caché" (y "Uncached") para este modelo? Sin modelo (se desconoce) se asume Claude. */
+export const cacheAplica = (modelo: string | null | undefined): boolean => motorDeCache(modelo) === "claude";
+
+/** `keep_alive` de Ollama ("5m", "1h", "300", "30s") en segundos; negativo ("-1": para siempre), 0 o ilegible: `null`. */
+export function keepAliveS(v: string | number | null | undefined): number | null {
+  if (typeof v === "number") return v > 0 && Number.isFinite(v) ? v : null;
+  const m = String(v ?? "").trim().match(/^(\d+(?:\.\d+)?)([smh]?)$/);
+  if (!m) return null;
+  const n = Number(m[1]) * ({ "": 1, s: 1, m: 60, h: 3600 } as Record<string, number>)[m[2]];
+  return n > 0 ? n : null;
+}
+
+const SIN_CACHE: Cache = { cache_ttl_s: null, cache_vence: null };
+
 /** Lo que dejó su statusline: el TTL y cuándo vence (epoch s), si los trae. */
 export type DeStatusline = { ttl: number | null; vence: number | null };
 
@@ -16,7 +45,20 @@ export type DeStatusline = { ttl: number | null; vence: number | null };
  */
 export type DeApp = { ultimo: number; pedido: number; ttl: number | null };
 
-export function cacheDe(sl: DeStatusline | null, app: DeApp | null): Cache {
+/**
+ * `modelo`: el del líder. Fuera de Claude no hay vencimiento que afirmar (`cache_vence: null`: la barra no pone numerito ni
+ * "Uncached" y "Activas" no lo cuenta como caliente). Un Ollama con `keepAlive` conocido sí: el modelo sigue cargado hasta
+ * `ultimo pedido + keep_alive`. Sin modelo vale lo de Claude. El TTL sale de lo medido (`usage.cache_creation`) y, si no,
+ * del statusline de Claude Code; nunca se supone por plan (no se puede leer, y pasar del plan a créditos lo baja a 5 min).
+ */
+export function cacheDe(sl: DeStatusline | null, app: DeApp | null, modelo?: string | null, keepAlive?: string | number | null): Cache {
+  const motor = motorDeCache(modelo);
+  if (motor === "ollama") {
+    const ka = keepAliveS(keepAlive);
+    const visto = app ? Math.max(app.ultimo, app.pedido) : 0;
+    return ka && visto > 0 ? { cache_ttl_s: ka, cache_vence: visto + ka } : SIN_CACHE;
+  }
+  if (motor !== "claude") return SIN_CACHE;
   const ttl = app?.ttl ?? sl?.ttl ?? null;
   const visto = app ? Math.max(app.ultimo, app.pedido) : 0;
   const deApp = visto > 0 && ttl ? visto + ttl : null;

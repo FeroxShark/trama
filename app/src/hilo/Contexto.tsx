@@ -12,6 +12,7 @@ import type { Pintor } from "../reloj";
 import { cuenta, umbralDe, ventanaDe, ventanaDicha } from "./contexto-logica";
 import { contextoDe, escucharContexto, leerUmbral, suscribirContexto, suscribirUmbral, umbralLeido } from "./contextoVivo";
 import { modeloDe, nombreModelo } from "./opciones";
+import { cacheAplica } from "../../electron/cache";
 
 // Los eventos de un líder nuevo llegan antes que su vista: se escucha desde el arranque.
 escucharContexto();
@@ -64,7 +65,7 @@ export function Contexto({ sid, usage: fijo = null, modelo, vence = null, frio =
   const usage = sid === undefined ? fijo : vivo.usage;
   const ventana = ventanaDicha(vivo.ventanas, modelo) ?? ventanaDe(modelo);
   const c = cuenta(usage, umbralDe(autoCompact, ventana));
-  const cache = useMemo(() => (vence === null ? null : pintorVence(vence, frio)), [vence, frio]);
+  const cache = useMemo(() => (vence === null || !cacheAplica(modelo) ? null : pintorVence(vence, frio)), [vence, frio, modelo]);
 
   const cerrar = (conFoco = true) => {
     setAbierto(false);
