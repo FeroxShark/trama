@@ -35,7 +35,7 @@ process.env.TRAMA_FALSO_LOG = path.join(tmp, "agy.log");
 // Un `pa` fuera del PATH de la app (como bajo la unidad de systemd): el líder de Gemini tiene que poder llamarlo igual.
 const dirPa = path.join(tmp, "fuera-del-path");
 process.env.HILOS_PA = path.join(dirPa, "pa");
-process.env.PATH = "/usr/bin:/bin";
+process.env.PATH = [path.dirname(process.execPath), "/usr/bin", "/bin"].join(":");
 process.env.TRAMA_FALSO_MS = "20";
 process.env.TRAMA_FALSO_MS_LENTO = "400";
 

@@ -12,16 +12,16 @@ import os from "node:os";
 import path from "node:path";
 
 const raiz = path.resolve(import.meta.dirname, "..");
+// Antes de crear nada en /tmp. Sin CLI no es una falla: se salta.
+const candidatos = [...(process.env.PATH ?? "").split(":"), path.join(os.homedir(), ".local/bin")].map((d) => path.join(d, "tablero"));
+const bin = process.env.HILOS_TABLERO ?? [...candidatos, path.join(import.meta.dirname, "..", "..", "motor", "bin", "tablero")].find((f) => existsSync(f));
+if (!bin) {
+  console.log("no está el CLI `tablero`: nada que probar");
+  process.exit(0);
+}
 const tmp = mkdtempSync(path.join(os.tmpdir(), "hilos-pendientes-"));
 const fotos = process.env.FOTOS ? path.resolve(process.env.FOTOS) : null;
 if (fotos) mkdirSync(fotos, { recursive: true });
-const bin =
-  process.env.HILOS_TABLERO ??
-  [...(process.env.PATH ?? "").split(":"), path.join(os.homedir(), ".local/bin")].map((d) => path.join(d, "tablero")).find((f) => existsSync(f));
-if (!bin) {
-  console.log("no está el CLI `tablero`: nada que probar");
-  process.exit(1);
-}
 for (const d of ["pa", "sesiones", "proy/atlas", "proy/faro"]) mkdirSync(path.join(tmp, d), { recursive: true });
 const proy = (name, carpeta) => ({ name, path: path.join(tmp, "proy", carpeta), desc: "" });
 writeFileSync(path.join(tmp, "registry.json"), JSON.stringify({ projects: [proy("atlas", "atlas"), proy("faro-web", "faro")] }));

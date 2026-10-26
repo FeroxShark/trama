@@ -21,6 +21,8 @@ after(() => {
 
 // --- un checkout falso -----------------------------------------------------------------------------
 const raiz = path.join(tmp, "Proyectos", "hilos");
+// El script se niega a correr como root (es del usuario de los agentes): en un contenedor root no hay qué probar.
+const comoRoot = process.getuid?.() === 0 && "corre como root";
 const casa = path.join(tmp, "home");
 const config = path.join(tmp, "config");
 for (const d of ["scripts", "systemd", "node_modules/.bin", "node_modules/vite/bin", "node_modules/typescript/bin"]) mkdirSync(path.join(raiz, d), { recursive: true });
@@ -79,7 +81,7 @@ function instalar(...args: string[]) {
 const leer = (...p: string[]) => readFileSync(path.join(raiz, ...p), "utf8");
 const testigo = () => leer("testigo.txt").trim().split("\n");
 
-test("--mirar no cambia nada", () => {
+test("--mirar no cambia nada", { skip: comoRoot }, () => {
   version("v0");
   const r = instalar("--mirar");
   assert.equal(r.status, 0, r.stderr);
@@ -88,7 +90,7 @@ test("--mirar no cambia nada", () => {
   assert.ok(!existsSync(path.join(config, "systemd")));
 });
 
-test("primera instalación: compila aparte, deja el build y enlaza la unidad", () => {
+test("primera instalación: compila aparte, deja el build y enlaza la unidad", { skip: comoRoot }, () => {
   version("v1");
   const r = instalar();
   assert.equal(r.status, 0, r.stderr + r.stdout);
@@ -102,7 +104,7 @@ test("primera instalación: compila aparte, deja el build y enlaza la unidad", (
   assert.match(r.stderr, /remoto\.json/, "avisa que sin remoto.json nadie lo ve por la tailnet");
 });
 
-test("una actualización compila sin tocar el dist/ vivo y lo cambia entero al final", () => {
+test("una actualización compila sin tocar el dist/ vivo y lo cambia entero al final", { skip: comoRoot }, () => {
   version("v2");
   const r = instalar();
   assert.equal(r.status, 0, r.stderr + r.stdout);
@@ -112,7 +114,7 @@ test("una actualización compila sin tocar el dist/ vivo y lo cambia entero al f
   assert.ok(!existsSync(path.join(raiz, ".build-viejo")) && !existsSync(path.join(raiz, ".build-nuevo")));
 });
 
-test("si el build falla, el vivo queda como estaba y no sobra nada", () => {
+test("si el build falla, el vivo queda como estaba y no sobra nada", { skip: comoRoot }, () => {
   version("v3");
   writeFileSync(path.join(raiz, "falla"), "");
   const r = instalar();
@@ -123,7 +125,7 @@ test("si el build falla, el vivo queda como estaba y no sobra nada", () => {
   for (const d of [".build-nuevo", ".build-viejo"]) assert.ok(!existsSync(path.join(raiz, d)), `quedó ${d}`);
 });
 
-test("un build incompleto (sin motor.js) no se cambia", () => {
+test("un build incompleto (sin motor.js) no se cambia", { skip: comoRoot }, () => {
   version("v4");
   writeFileSync(path.join(raiz, "node_modules", "typescript", "bin", "tsc"), `import { mkdirSync } from "node:fs"; mkdirSync(process.argv[process.argv.indexOf("--outDir") + 1], { recursive: true });`);
   const r = instalar();
@@ -132,7 +134,7 @@ test("un build incompleto (sin motor.js) no se cambia", () => {
   assert.equal(leer("dist", "index.html"), "<html>v2</html>");
 });
 
-test("node_modules enlazado: se niega (npm ci borraría lo del otro lado)", () => {
+test("node_modules enlazado: se niega (npm ci borraría lo del otro lado)", { skip: comoRoot }, () => {
   const nm = path.join(raiz, "node_modules");
   const aparte = path.join(tmp, "nm-aparte");
   renameSync(nm, aparte);
@@ -144,7 +146,7 @@ test("node_modules enlazado: se niega (npm ci borraría lo del otro lado)", () =
   assert.match(r.stderr, /es un enlace/);
 });
 
-test("la unidad pasa systemd-analyze --user verify", { skip: spawnSync("systemd-analyze", ["--version"]).status !== 0 && "sin systemd-analyze" }, () => {
+test("la unidad pasa systemd-analyze --user verify", { skip: comoRoot || (spawnSync("systemd-analyze", ["--version"]).status !== 0 && "sin systemd-analyze") }, () => {
   // El verify comprueba que el ejecutable exista: un HOME de mentira con el node y el motor en su lugar.
   const h = path.join(tmp, "verify-home");
   mkdirSync(path.join(h, ".local", "bin"), { recursive: true });

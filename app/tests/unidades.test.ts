@@ -58,7 +58,7 @@ for (const nombre of UNIDADES) {
   });
 }
 
-test("las dos unidades pasan systemd-analyze --user verify", { skip: spawnSync("systemd-analyze", ["--version"]).status !== 0 && "sin systemd-analyze" }, () => {
+test("las dos unidades pasan systemd-analyze --user verify", { skip: (process.getuid?.() === 0 && "corre como root") || (spawnSync("systemd-analyze", ["--version"]).status !== 0 && "sin systemd-analyze") }, () => {
   // El verify mira que los ejecutables existan: un HOME de mentira con cada uno en su lugar (nada de la máquina real).
   const tmp = mkdtempSync(path.join(os.tmpdir(), "hilos-unidades-"));
   try {

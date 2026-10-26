@@ -40,8 +40,8 @@ function correr(nombre) {
     const real = homedir();
     const camino = (process.env.PATH ?? "").split(":").filter((d) => d && d !== real && !d.startsWith(`${real}/`)).join(":");
     // El CLI `tablero` es una herramienta, no un dato: se busca antes de limpiar el PATH y se declara permitido (la prueba usa un tablero temporal).
-    const tablero =
-      process.env.HILOS_TABLERO ?? [...(process.env.PATH ?? "").split(":"), path.join(real, ".local/bin")].map((d) => path.join(d, "tablero")).find((f) => existsSync(f));
+    const candidatos = [...(process.env.PATH ?? "").split(":"), path.join(real, ".local/bin")].map((d) => path.join(d, "tablero"));
+    const tablero = process.env.HILOS_TABLERO ?? [...candidatos, path.join(raiz, "..", "motor", "bin", "tablero")].find((f) => existsSync(f));
     const p = spawn(process.execPath, [path.join(import.meta.dirname, `prueba-${nombre}.mjs`)], {
       cwd: raiz,
       detached: true,

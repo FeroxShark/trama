@@ -33,6 +33,8 @@ raiz="$(cd "$(dirname "$0")/.." && pwd)"
 log="${PA_FALSO_LOG:-$raiz/bench-resultados/pa-falso.log}"
 mkdir -p "$(dirname "$log")"
 {
+  # %q escapa los acentos según el locale ($'mir\303\241' en C): con UTF-8 quedan legibles y el log es el mismo en toda máquina.
+  LC_ALL=C.UTF-8
   printf '%s PA_ORIGEN=%s PA_AUTO=%s' "$(date +%T)" "${PA_ORIGEN:-}" "${PA_AUTO:-}"
   printf ' %q' "$@"
   printf '\n'

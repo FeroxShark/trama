@@ -10,6 +10,8 @@ import { correrReal, cuentaValida, estadoCuentas, sondearAgy, sondearClaude, son
 import { hayAgy } from "../electron/capacidades.ts";
 import { resolverAgy } from "../electron/binario.ts";
 
+// Un PATH mínimo donde esté el `node` que corre la prueba (agy-falso.mjs es `#!/usr/bin/env node`).
+const BASICO = [path.dirname(process.execPath), "/usr/bin", "/bin"].join(":");
 const FALSO = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "scripts", "agy-falso.mjs");
 const tmp = mkdtempSync(path.join(os.tmpdir(), "hilos-cuentas-"));
 after(() => rmSync(tmp, { recursive: true, force: true }));
@@ -26,12 +28,12 @@ function agyEn(dir: string): string {
 const reales = (env: Record<string, string | undefined>, home: string): Deps => ({ env, home, correr: correrReal });
 
 test("agy conectado: `agy models` trae modelos", async () => {
-  const c = await sondearAgy(reales({ HILOS_AGY: FALSO, PATH: "/usr/bin:/bin" }, tmp));
+  const c = await sondearAgy(reales({ HILOS_AGY: FALSO, PATH: BASICO }, tmp));
   assert.deepEqual(c, { instalado: true, logueado: true, cuenta: null, error: null });
 });
 
 test("agy sin conectar: no trae nada y no es un error", async () => {
-  const c = await sondearAgy(reales({ HILOS_AGY: FALSO, PATH: "/usr/bin:/bin", TRAMA_FALSO_AGY_LOGIN: "0" }, tmp));
+  const c = await sondearAgy(reales({ HILOS_AGY: FALSO, PATH: BASICO, TRAMA_FALSO_AGY_LOGIN: "0" }, tmp));
   assert.deepEqual(c, { instalado: true, logueado: false, cuenta: null, error: null });
 });
 
@@ -61,7 +63,7 @@ test("agy en /usr/local/bin o ~/.antigravity/bin también se encuentra; sin él:
 });
 
 test("agy que falla (sin red) o no contesta: error con el motivo, nunca 'sin conectar' a ciegas", async () => {
-  const c = await sondearAgy(reales({ HILOS_AGY: FALSO, PATH: "/usr/bin:/bin", TRAMA_FALSO_AGY_ERROR: "dial tcp: lookup falló" }, tmp));
+  const c = await sondearAgy(reales({ HILOS_AGY: FALSO, PATH: BASICO, TRAMA_FALSO_AGY_ERROR: "dial tcp: lookup falló" }, tmp));
   assert.equal(c.instalado, true);
   assert.equal(c.logueado, false);
   assert.equal(c.error, "dial tcp: lookup falló");
@@ -85,7 +87,7 @@ test("claude: conectado con su correo, sin sesión (sale con 1 y dice el JSON) y
 });
 
 test("estadoCuentas junta los dos y cuentaValida no deja pasar basura", async () => {
-  const r = await estadoCuentas({ ...claudeDice({ stdout: '{"loggedIn":true}' }), env: { HILOS_CLAUDE: "/x/claude", HILOS_AGY: FALSO, PATH: "/usr/bin:/bin" }, correr: async (bin, a, env, t) => (bin === FALSO ? correrReal(bin, a, env, t) : { code: 0, stdout: '{"loggedIn":true}', stderr: "", tiempo: false, noExiste: false }) });
+  const r = await estadoCuentas({ ...claudeDice({ stdout: '{"loggedIn":true}' }), env: { HILOS_CLAUDE: "/x/claude", HILOS_AGY: FALSO, PATH: BASICO }, correr: async (bin, a, env, t) => (bin === FALSO ? correrReal(bin, a, env, t) : { code: 0, stdout: '{"loggedIn":true}', stderr: "", tiempo: false, noExiste: false }) });
   assert.equal(r.version, 1);
   assert.equal(r.claude.logueado, true);
   assert.equal(r.agy.logueado, true);
