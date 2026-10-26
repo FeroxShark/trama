@@ -4,6 +4,7 @@
   reparto --cupos [--json]                     cupo de cada suscripción (Claude oficial, Google AI Pro/agy y ChatGPT/codex)
   reparto --tabla [--json]                     todos los modelos que conoce: id, inteligencia (~ = estimada), gratis/pago,
                                                cupo libre y cuándo vuelve, urgencia y si modelos.json los permite
+  reparto --aa-diag [--json]                   por modelo local: con qué entrada de Artificial Analysis se emparejó, puntaje crudo y calibrado por effort
   reparto --tipo T [--json] [--explicar]       modelo y effort que conviene para el tipo T
   reparto --resolver ID [--json]               cómo se lanza un id de modelo (claude / agy / codex / ollama / dsh)
   reparto --agotar ID [--hasta ISO]            marca agotado el grupo de agy o de codex de ese modelo (o grupo), o el
@@ -338,101 +339,202 @@ def _cargar_config():
 # con menos anclas, los respaldos de aa_calibracion. Precedencia de `calidad`: modelos.json (usuario) > Artificial Analysis > defaults > estimación por el nombre.
 AA_ANCLAS = (("claude-opus-5-5", 100), ("claude-sonnet-5-5", 88), ("claude-haiku-5-5", 60))   # el default de cada uno
 AA_PREFIJOS = re.compile(r"^(?:opencode|dsh|agy|codex|ollama):")
-AA_ESFUERZOS = ("xhigh", "high", "medium", "low")
+# Niveles de esfuerzo con los que AA etiqueta sus variantes ("minimal" cuenta como low). "max" sólo vale entre paréntesis, con la
+# palabra "effort" o como sufijo del slug cuando existe el modelo sin él (Kimi K3 Max es un modelo, no un esfuerzo).
+AA_NIVELES = {"minimal": "low", "low": "low", "medium": "medium", "high": "high", "xhigh": "xhigh", "max": "max"}
+AA_NIVELES_SUFIJO = frozenset(k for k in AA_NIVELES if k != "max")
+# Palabras que describen el MODO de una variante, no el modelo: no cuentan en el emparejamiento ("adaptive", "thinking"...).
+# Los tamaños y variantes (flash, mini, lite, nano, small, air, 120b...) NO están acá: dos modelos con distinto tamaño nunca se juntan.
+AA_CALIFICADORES = frozenset(("reasoning", "thinking", "adaptive", "effort", "non", "nonreasoning"))
 EFFORTS_AA = ("low", "medium", "high", "xhigh", "max")   # de menos a más; "none" (Non-reasoning) no entra al mapa por effort
+# "Reasoning" / "Thinking" / "Adaptive" sin nivel = el modelo en su effort por defecto: se toma como `high`. Una entrada pelada (sin
+# ninguna etiqueta) de un modelo claude/gpt/codex/gemini también se toma como `high`, pero sólo si no hay otra variante medida en high.
+AA_NIVEL_DEFECTO = "high"
+AA_TOPE_INT = 90   # techo de un modelo que AA sólo mide con el índice de inteligencia (otra escala, sin coding/agentic): nunca llega al nivel de Opus
+AA_CON_NIVEL_DEFECTO = re.compile(r"claude|gpt|codex|gemini|(?<![a-z])o\d")
+AA_PRIORIDAD = {"explicito": 3, "defecto": 2, "sin_razonar": 1, "pelado": 0}
+
+
+def aa_pelar(toks):
+    """Saca del final los calificadores de modo y de esfuerzo (`adaptive`, `thinking`, `-high`, `max effort`...). Nunca vacía la lista."""
+    toks = list(toks)
+    while len(toks) > 1:
+        t = toks[-1]
+        if t == "effort":
+            toks.pop()
+            if len(toks) > 1 and toks[-1] in AA_NIVELES:
+                toks.pop()
+        elif t in AA_CALIFICADORES or t in AA_NIVELES_SUFIJO:
+            toks.pop()
+        else:
+            break
+    return toks
 
 
 def aa_tokens(nombre):
     """Nombre o id (de Trama o de Artificial Analysis) -> lista de tokens normalizados, o [] si no queda nada.
     Minúsculas; sin prefijos de proveedor (`opencode:opencode/`, `dsh:<p>/`, `agy:`, `codex:`, `ollama:`); sin paréntesis
-    ("(OpenCode, gratis)", "(Reasoning)"); sin `free` ni el sufijo de esfuerzo (`-high`...); puntuación = separador, salvo el punto
-    de una versión (3.8); dos números sueltos seguidos son una versión ("5-5" = "5.5": claude-opus-5-5 ~ Claude Opus 5.5)."""
+    ("(OpenCode, gratis)", "(Reasoning)"); sin `free`, sin fechas de 8 dígitos ni calificadores de modo/esfuerzo al final (`-high`,
+    `-thinking`, `adaptive`, `max effort`); puntuación = separador, salvo el punto de una versión (3.8); dos números sueltos
+    seguidos son una versión ("5-5" = "5.5", y "v2-6" = "v2.6", "k2-5" = "k2.5"). Tamaños y variantes (flash, mini, 120b) se conservan."""
     s = (nombre or "").strip().lower()
     s = re.sub(r"\([^)]*\)", " ", s)
     while AA_PREFIJOS.match(s):
         s = AA_PREFIJOS.sub("", s, count=1)
     s = s.split("/")[-1]
+    s = re.sub(r"\bx[- ]high\b", "xhigh", s)
+    s = re.sub(r"\bextra[- ]high\b", "xhigh", s)
+    s = re.sub(r"\bno[- ]?(?:thinking|reasoning)\b", "nonreasoning", s)
     toks = [t.strip(".") for t in re.split(r"[^a-z0-9.]+", s)]
-    toks = [t for t in toks if t and t != "free"]
-    while len(toks) > 1 and toks[-1] in AA_ESFUERZOS:
-        toks.pop()
+    toks = [t for t in toks if t and t != "free" and not re.fullmatch(r"20\d{6}", t)]
     out = []
     for t in toks:
-        if out and re.fullmatch(r"\d{1,2}", t) and re.fullmatch(r"\d{1,2}", out[-1]):
+        if out and re.fullmatch(r"\d{1,2}", t) and re.fullmatch(r"(?:[a-z]{1,8})?\d{1,2}", out[-1]):
             out[-1] = "%s.%s" % (out[-1], t)
         else:
             out.append(t)
-    return out
+    return aa_pelar(out)
+
+
+def aa_puntaje_m(m):
+    """(puntaje crudo, métrica) de un modelo de AA: promedio de coding y agentic (los que haya) con métrica "ca"; sin ninguno, el índice
+    de inteligencia con métrica "int" (otra escala: se calibra aparte, con la inteligencia de las anclas). Sin nada, None."""
+    v = [m[k] for k in ("coding", "agentic") if isinstance(m.get(k), (int, float)) and not isinstance(m.get(k), bool)]
+    if v:
+        return sum(v) / len(v), "ca"
+    i = m.get("intelligence")
+    return (float(i), "int") if isinstance(i, (int, float)) and not isinstance(i, bool) else None
 
 
 def aa_puntaje(m):
-    """Puntaje crudo de un modelo de AA: promedio de coding y agentic (los que haya); sin ninguno, el índice de inteligencia."""
-    v = [m[k] for k in ("coding", "agentic") if isinstance(m.get(k), (int, float)) and not isinstance(m.get(k), bool)]
-    if v:
-        return sum(v) / len(v)
-    i = m.get("intelligence")
-    return float(i) if isinstance(i, (int, float)) and not isinstance(i, bool) else None
+    """Puntaje crudo de un modelo de AA (ver aa_puntaje_m)."""
+    r = aa_puntaje_m(m)
+    return r[0] if r else None
+
+
+def _aa_texto(s):
+    s = (s or "").lower()
+    s = re.sub(r"\bx[- ]high\b", "xhigh", s)
+    return re.sub(r"\bextra[- ]high\b", "xhigh", s)
+
+
+def aa_esfuerzo_info(m):
+    """(nivel, tipo) de una entrada de AA. nivel: "low"|"medium"|"high"|"xhigh"|"max" o None. tipo: "explicito" (dice el nivel:
+    "(high)", "(Adaptive Reasoning, Max Effort)", "Low effort", slug -low/-medium/-high/-xhigh/-minimal), "defecto" ("Reasoning" /
+    "Thinking" / "Adaptive" sin nivel: es el effort por defecto del modelo y se toma como `high`), "sin_razonar" ("Non-reasoning", con
+    o sin nivel) o "pelado" (sin ninguna etiqueta)."""
+    campos = [_aa_texto(m.get("name")), _aa_texto(m.get("slug"))]
+    sin = any(re.search(r"non[- ]?(?:reasoning|thinking)|no[- ]?(?:reasoning|thinking)", c) for c in campos)
+    nivel = None
+    for c in campos:   # 1. dentro de un paréntesis
+        for par in re.findall(r"\(([^)]*)\)", c):
+            nivel = next((AA_NIVELES[t] for t in re.split(r"[^a-z0-9]+", par) if t in AA_NIVELES), None)
+            if nivel:
+                break
+        if nivel:
+            break
+    if nivel is None:   # 2. "<nivel> effort" / "effort: <nivel>"
+        for c in campos:
+            mo = re.search(r"\b(minimal|low|medium|high|xhigh|max)[ -]+(?:reasoning[ -]+)?effort\b", c) or re.search(r"\beffort[ :=-]+(minimal|low|medium|high|xhigh|max)\b", c)
+            if mo:
+                nivel = AA_NIVELES[mo.group(1)]
+                break
+    if nivel is None:   # 3. sufijo del nombre o del slug (sin max, que puede ser parte del nombre)
+        for c in campos:
+            toks = [t for t in re.split(r"[^a-z0-9]+", re.sub(r"\([^)]*\)", " ", c)) if t]
+            i = len(toks)
+            while i > 1 and (toks[i - 1] in AA_CALIFICADORES or toks[i - 1] in AA_NIVELES_SUFIJO):
+                if nivel is None and toks[i - 1] in AA_NIVELES_SUFIJO:
+                    nivel = AA_NIVELES[toks[i - 1]]
+                i -= 1
+            if nivel:
+                break
+    if nivel:
+        return nivel, ("sin_razonar" if sin else "explicito")
+    if sin:
+        return None, "sin_razonar"
+    if re.search(r"reasoning|thinking|adaptive", " ".join(campos)):
+        return AA_NIVEL_DEFECTO, "defecto"
+    return None, "pelado"
 
 
 def aa_esfuerzo(m):
-    """Esfuerzo de una entrada de AA por su nombre o slug: "low"|"medium"|"high"|"xhigh"|"max" ("(Reasoning, high)", "-low", "(xhigh)",
-    "-xhigh"), "none" si es Non-reasoning, o None si no dice (la entrada pelada, sin esfuerzo, sólo cuenta para el mejor puntaje)."""
-    for campo in ("name", "slug"):
-        s = (m.get(campo) or "").lower()
-        if re.search(r"non[- ]?reasoning", s):
-            return "none"
-        for par in re.findall(r"\(([^)]*)\)", s):
-            for t in re.split(r"[^a-z0-9]+", par):
-                if t in EFFORTS_AA:
-                    return t
-        t = re.split(r"[^a-z0-9]+", s)
-        if len(t) > 1 and t[-1] in EFFORTS_AA:
-            return t[-1]
-    return None
+    """Esfuerzo de una entrada de AA por su nombre o slug: "low"|"medium"|"high"|"xhigh"|"max" (ver aa_esfuerzo_info; "Reasoning" sin
+    nivel vale "high"), "none" si es Non-reasoning sin nivel, o None si no dice (la entrada pelada sólo cuenta para el mejor puntaje)."""
+    nivel, tipo = aa_esfuerzo_info(m)
+    if nivel:
+        return nivel
+    return "none" if tipo == "sin_razonar" else None
 
 
 def aa_indice(modelos):
-    """({tokens unidos: (puntaje, nombre)}, {frozenset(tokens): (puntaje, nombre)}, {tokens unidos: {esfuerzo: puntaje}}, {frozenset: {...}})
-    con el nombre y el slug de cada modelo. Si varios caen en la misma clave (Reasoning y Non-reasoning, esfuerzos) gana el de más
-    puntaje; los dos últimos guardan además el puntaje de cada esfuerzo conocido (el mayor si se repite)."""
-    exacto, conjunto, ex_ef, co_ef = {}, {}, {}, {}
+    """({tokens unidos: {métrica: (puntaje, nombre, slug)}}, {frozenset(tokens): ...}, {tokens unidos: {esfuerzo: (prioridad, puntaje)}}, {frozenset: ...}).
+    Las métricas son "ca" (coding/agentic) e "int" (inteligencia). Si varios caen en la misma clave (Reasoning y Non-reasoning, esfuerzos)
+    gana el de más puntaje; los dos últimos guardan el puntaje de cada esfuerzo conocido: gana la variante mejor etiquetada
+    (explícita > "Reasoning" sin nivel > Non-reasoning con nivel > pelada) y, a igual etiqueta, el mayor puntaje."""
+    ents = []
     for m in modelos:
-        p = aa_puntaje(m)
-        if p is None:
+        pm = aa_puntaje_m(m)
+        if pm is None:
             continue
-        ef = aa_esfuerzo(m)
-        for campo in ("name", "slug"):
-            tk = aa_tokens(m.get(campo))
+        ents.append((m, pm, [aa_tokens(m.get("name")), aa_tokens(m.get("slug"))]))
+    bases = {" ".join(tk) for _, _, tks in ents for tk in tks if tk}
+    exacto, conjunto, ex_ef, co_ef = {}, {}, {}, {}
+    for m, (p, met), tks in ents:
+        nivel, tipo = aa_esfuerzo_info(m)
+        if nivel is None and tipo != "sin_razonar" and tks[0][-1:] != ["max"] and len(tks[1]) > 2 and tks[1][-1] == "max" and " ".join(aa_pelar(tks[1][:-1])) in bases:
+            nivel, tipo = "max", "explicito"   # slug "...-max" y existe el modelo sin max: es el esfuerzo, no parte del nombre
+            tks[1] = aa_pelar(tks[1][:-1])
+        if nivel is None and tipo == "pelado" and AA_CON_NIVEL_DEFECTO.search(((m.get("name") or "") + " " + (m.get("slug") or "")).lower()):
+            nivel = AA_NIVEL_DEFECTO
+        prio = AA_PRIORIDAD[tipo]
+        ints = m.get("intelligence")
+        ints = float(ints) if isinstance(ints, (int, float)) and not isinstance(ints, bool) else None
+        for tk in tks:
             if not tk:
                 continue
             for d, de, k in ((exacto, ex_ef, " ".join(tk)), (conjunto, co_ef, frozenset(tk))):
-                if k not in d or p > d[k][0]:
-                    d[k] = (p, m.get("name") or m.get("slug"))
-                if ef in EFFORTS_AA:
-                    e = de.setdefault(k, {})
-                    if p > e.get(ef, -1e9):
-                        e[ef] = p
+                e = d.setdefault(k, {})
+                for metrica, v in ((met, p), ("int", ints)):
+                    if v is not None and (metrica not in e or v > e[metrica][0]):
+                        e[metrica] = (v, m.get("name") or m.get("slug"), m.get("slug") or "")
+                if met == "ca" and nivel in EFFORTS_AA:
+                    ef = de.setdefault(k, {})
+                    if nivel not in ef or (prio, p) > ef[nivel]:
+                        ef[nivel] = (prio, p)
     return exacto, conjunto, ex_ef, co_ef
 
 
-def aa_buscar(aa, mid):
-    """(puntaje crudo, nombre en AA) de ese id, o None. Primero el nombre normalizado igual; después los mismos tokens en otro
-    orden. Nada más: sin parecidos."""
+def aa_entrada(aa, mid):
+    """({métrica: (puntaje, nombre, slug)}, clave de efforts) de ese id en AA, o (None, None). Primero el nombre normalizado igual;
+    después los mismos tokens en otro orden. Nada más: sin parecidos (un tamaño o una variante distinta es otro modelo)."""
     tk = aa_tokens(mid)
     if not aa or not tk:
+        return None, None
+    k1 = " ".join(tk)
+    if k1 in aa["exacto"]:
+        return aa["exacto"][k1], ("ex", k1)
+    k2 = frozenset(tk)
+    if k2 in aa["conjunto"]:
+        return aa["conjunto"][k2], ("co", k2)
+    return None, None
+
+
+def aa_buscar(aa, mid):
+    """(puntaje crudo, nombre en AA, métrica) de ese id, o None. Coding/agentic si los hay; si no, el índice de inteligencia."""
+    e, _ = aa_entrada(aa, mid)
+    if not e:
         return None
-    return aa["exacto"].get(" ".join(tk)) or aa["conjunto"].get(frozenset(tk))
+    met = "ca" if "ca" in e else "int"
+    return (e[met][0], e[met][1], met)
 
 
 def aa_buscar_efforts(aa, mid):
     """{esfuerzo: puntaje crudo} conocidos de ese id en AA (puede ser {}), con el mismo emparejamiento que aa_buscar."""
-    tk = aa_tokens(mid)
-    if not aa or not tk:
+    e, clave = aa_entrada(aa, mid)
+    if not e:
         return {}
-    k1, k2 = " ".join(tk), frozenset(tk)
-    if k1 in aa["exacto"]:
-        return aa["ex_ef"].get(k1, {})
-    return aa["co_ef"].get(k2, {}) if k2 in aa["conjunto"] else {}
+    return {nivel: v[1] for nivel, v in aa["ex_ef" if clave[0] == "ex" else "co_ef"].get(clave[1], {}).items()}
 
 
 def aa_calibracion(puntos):
@@ -465,7 +567,7 @@ def aa_tramos(puntos):
 
 def aa_interpolar(tramos, x):
     """Calidad (sin redondear ni acotar) de un puntaje AA x en la línea quebrada por los puntos de `tramos`; fuera de los extremos
-    sigue con la pendiente del tramo más cercano."""
+    sigue con la pendiente del tramo más cercano (el resultado de aa_calibrar se acota a 0-100)."""
     i = 0
     while i < len(tramos) - 2 and x > tramos[i + 1][0]:
         i += 1
@@ -473,8 +575,20 @@ def aa_interpolar(tramos, x):
     return y0 + (y1 - y0) * (x - x0) / (x1 - x0)
 
 
+def aa_calibrar_cfg(puntos, minimo_rectas):
+    """(tramos, (a, b)) de una lista de anclas [(crudo, objetivo)]: línea quebrada si hay tres en orden; si no, la recta por Opus y
+    Haiku (sólo si están las dos), y si no la recta/proporcional de aa_calibracion (`minimo_rectas` anclas distintas como mínimo)."""
+    tramos = aa_tramos(puntos)
+    if not tramos and len({x for x, _ in puntos}) < minimo_rectas:
+        return None, None
+    return tramos, aa_calibracion(puntos)
+
+
 def aa_cargar():
-    """El índice de <state>/aa-modelos.json: {"fecha", "exacto", "conjunto", "cal": (a, b), "tramos": [...] o None}, o None (sin archivo, roto o sin anclas)."""
+    """El índice de <state>/aa-modelos.json: {"fecha", "exacto", "conjunto", "cal": (a, b), "tramos": [...] o None, "cal_int", "tramos_int"}, o None (sin archivo, roto o sin anclas).
+    Las anclas son el MEJOR puntaje de cada una (su effort más alto medido); los efforts de un modelo se calibran con las mismas
+    anclas, así que ningún effort sale por encima del mejor. Los modelos que AA sólo mide con el índice de inteligencia (otra escala) se
+    calibran con la inteligencia de las mismas anclas; si ésas no alcanzan para una recta, esos modelos quedan sin valor de AA."""
     ruta = os.environ.get("REPARTO_AA") or os.path.join(state_dir(), "aa-modelos.json")
     if ruta == "0":
         return None
@@ -485,40 +599,57 @@ def aa_cargar():
     except Exception:
         return None
     exacto, conjunto, ex_ef, co_ef = aa_indice(modelos)
-    aa = {"fecha": str(j.get("fetched") or "")[:10] or None, "exacto": exacto, "conjunto": conjunto, "ex_ef": ex_ef, "co_ef": co_ef, "cal": None}
-    puntos = {}
+    aa = {"fecha": str(j.get("fetched") or "")[:10] or None, "exacto": exacto, "conjunto": conjunto, "ex_ef": ex_ef, "co_ef": co_ef, "cal": None,
+          "tramos": None, "cal_int": None, "tramos_int": None}
+    puntos, puntos_int = {}, {}
     for mid, objetivo in AA_ANCLAS:
-        r = aa_buscar(aa, mid)
-        if r:
-            puntos[mid] = (r[0], objetivo)
+        e, _ = aa_entrada(aa, mid)
+        if e and "ca" in e:
+            puntos[mid] = (e["ca"][0], objetivo)
+        if e and "int" in e:
+            puntos_int[mid] = (e["int"][0], objetivo)
     aa["tramos"] = aa_tramos(list(puntos.values()))   # lo normal: Haiku (60), Sonnet (88) y Opus (100) clavados, y rectas entre cada par
     if not aa["tramos"] and "claude-opus-5-5" in puntos and "claude-haiku-5-5" in puntos:   # anclas en orden raro: la recta por Opus y Haiku
         puntos = {k: puntos[k] for k in ("claude-opus-5-5", "claude-haiku-5-5")}
     aa["cal"] = aa_calibracion(list(puntos.values()))
+    aa["tramos_int"], aa["cal_int"] = aa_calibrar_cfg(list(puntos_int.values()), 2)
     return aa if aa["cal"] else None
 
 
-def aa_calibrar(aa, x):
-    """Puntaje crudo de AA -> calidad 0-100 de Trama (mismas anclas para el mejor puntaje y para cada esfuerzo)."""
-    if aa.get("tramos"):
-        v = aa_interpolar(aa["tramos"], x)
+def aa_calibrar(aa, x, metrica="ca"):
+    """Puntaje crudo de AA -> calidad entera 0-100 de Trama (mismas anclas para el mejor puntaje y para cada esfuerzo), o None si esa
+    métrica no se puede calibrar. Siempre acotada a [0, 100]: por encima del ancla de Opus la línea sigue subiendo, pero nadie pasa de 100."""
+    tramos, cal = (aa.get("tramos"), aa.get("cal")) if metrica == "ca" else (aa.get("tramos_int"), aa.get("cal_int"))
+    if tramos:
+        v = aa_interpolar(tramos, x)
+    elif cal:
+        v = cal[0] * x + cal[1]
     else:
-        a, b = aa["cal"]
-        v = a * x + b
-    return max(0, min(100, int(round(v))))
+        return None
+    return max(0, min(100 if metrica == "ca" else AA_TOPE_INT, int(round(max(0.0, min(100.0, v))))))
 
 
 def aa_calidad(aa, mid):
-    """(calidad 0-100 calibrada, nombre en AA) de ese id, o None si AA no lo conoce. Es el mejor puntaje (el de más esfuerzo)."""
+    """(calidad 0-100 calibrada, nombre en AA) de ese id, o None si AA no lo conoce (o no se puede calibrar). Es el mejor puntaje (el de más esfuerzo)."""
     r = aa_buscar(aa, mid)
     if not r:
         return None
-    return (aa_calibrar(aa, r[0]), r[1])
+    v = aa_calibrar(aa, r[0], r[2])
+    return None if v is None else (v, r[1])
 
 
 def aa_calidad_efforts(aa, mid):
-    """{esfuerzo: calidad calibrada} de los esfuerzos que AA midió para ese id ({} si ninguno)."""
-    return {e: aa_calibrar(aa, p) for e, p in aa_buscar_efforts(aa, mid).items() if e in EFFORTS_AA} if aa else {}
+    """{esfuerzo: calidad calibrada} de los esfuerzos que AA midió para ese id ({} si ninguno). Nunca baja al subir el esfuerzo (un
+    effort más alto no puede valer menos que uno más bajo: si AA los midió en modos distintos, el más bajo se acota)."""
+    if not aa:
+        return {}
+    out = {e: aa_calibrar(aa, p) for e, p in aa_buscar_efforts(aa, mid).items() if e in EFFORTS_AA}
+    out = {e: v for e, v in out.items() if v is not None}
+    tope = 100
+    for e in reversed(EFFORTS_AA):
+        if e in out:
+            out[e] = tope = min(out[e], tope)
+    return out
 
 
 def calidad_en_effort(mapa, effort, base):
@@ -1490,6 +1621,10 @@ def armar_candidatos(tipo, cfg, cupos, now):
         e_tipo = "xhigh"
     minimo_fam = cfg["minimo_por_tipo"].get(tipo, "sonnet")
     minimo = cfg["calidad"].get(minimo_fam, minimo_fam if isinstance(minimo_fam, (int, float)) else 70)
+    if isinstance(minimo_fam, str) and minimo_fam in cfg["calidad"]:
+        # El mínimo se mide al mismo effort que el tipo: si no, Sonnet en medium (bajo su mejor puntaje) no llega a
+        # "la calidad de Sonnet" y codigo-acotado terminaba en Opus.
+        minimo = calidad_en_effort(mapa_efforts(cfg, minimo_fam), e_tipo, minimo)
     out = []
     reserva = cfg["reserva"]
 
@@ -1731,7 +1866,8 @@ def elegir(tipo, cfg, cupos, now, mismo_proveedor=None, solo_cuenta=None):
         pool = vivos
         pref = next((v for p, v in cfg["preferido_por_tipo"].items() if fnmatch.fnmatchcase(tipo, p)), None)
         if pref in cfg["calidad"]:
-            q0 = cfg["calidad"][pref]
+            e_pref = cfg["effort_por_tipo"].get(tipo, "high")
+            q0 = calidad_en_effort(mapa_efforts(cfg, pref), "xhigh" if e_pref == "max" else e_pref, cfg["calidad"][pref])
             en = [c for c in vivos if q0 <= c["calidad"] <= q0 + MARGEN]
             if en and len(en) < len(vivos):
                 pool, banda = en, pref
@@ -2010,6 +2146,55 @@ def texto_tabla(filas, now):
     return "\n".join(L)
 
 
+def aa_diag(cfg, filas):
+    """Por cada modelo local (ids únicos de la tabla): con qué entrada de AA se emparejó (nombre y slug), el puntaje crudo (con su métrica),
+    el calibrado, y lo mismo por esfuerzo; o "sin coincidencia" y de dónde sale entonces su cifra. Para revisar los emparejamientos."""
+    aa = cfg.get("aa")
+    out = {"aa_fecha": aa["fecha"] if aa else None, "calibracion": None, "modelos": []}
+    if aa:
+        out["calibracion"] = {"anclas": [{"id": mid, "objetivo": obj, "crudo": (aa_buscar(aa, mid) or [None])[0]} for mid, obj in AA_ANCLAS],
+                              "tipo": "tramos" if aa.get("tramos") else "recta", "tramos": aa.get("tramos"), "recta": aa.get("cal")}
+    vistos = set()
+    for f in filas:
+        mid = f["id"]
+        if mid in vistos:
+            continue
+        vistos.add(mid)
+        e, _ = aa_entrada(aa, mid) if aa else (None, None)
+        r = aa_buscar(aa, mid) if aa else None
+        d = {"id": mid, "tokens": " ".join(aa_tokens(mid)), "calidad": f["calidad"], "origen": f["origen"], "permitido": f["permitido"],
+             "aa": None, "efforts": {}}
+        if r and e:
+            met = r[2]
+            d["aa"] = {"nombre": r[1], "slug": e[met][2], "metrica": met, "crudo": round(r[0], 2), "calibrado": aa_calibrar(aa, r[0], met)}
+            crudos = aa_buscar_efforts(aa, mid)
+            cal = aa_calidad_efforts(aa, mid)
+            d["efforts"] = {ef: {"crudo": round(crudos[ef], 2), "calibrado": cal[ef]} for ef in EFFORTS_AA if ef in crudos and ef in cal}
+        out["modelos"].append(d)
+    return out
+
+
+def texto_aa_diag(d):
+    L = []
+    if d["aa_fecha"] is None:
+        L.append("sin caché de Artificial Analysis (aa-modelos.json): ningún modelo se mide; valen los defaults y la estimación por el nombre")
+    else:
+        c = d["calibracion"]
+        L.append("Artificial Analysis, dato del %s. Anclas (id: crudo -> Trama): %s" % (d["aa_fecha"], ", ".join(
+            "%s: %s -> %s" % (a["id"], "?" if a["crudo"] is None else "%.1f" % a["crudo"], a["objetivo"]) for a in c["anclas"])))
+        L.append("calibración: %s" % ("línea quebrada por los puntos %s" % [(round(x, 1), y) for x, y in c["tramos"]] if c["tramos"] else "recta a=%.3f b=%.2f" % tuple(c["recta"])))
+    for m in d["modelos"]:
+        L.append("")
+        L.append("%s%s" % (m["id"], "" if m["permitido"] else "   [excluido en modelos.json]"))
+        if m["aa"]:
+            a = m["aa"]
+            L.append("  AA: %s [%s]  crudo(%s) %s -> calibrado %s" % (a["nombre"], a["slug"] or "-", a["metrica"], a["crudo"], a["calibrado"]))
+            L.append("  por effort: %s" % (" · ".join("%s %s -> %s" % (ef, v["crudo"], v["calibrado"]) for ef, v in m["efforts"].items()) or "ninguno medido"))
+        else:
+            L.append("  AA: sin coincidencia (buscado como \"%s\"); cifra %s de origen %s" % (m["tokens"], m["calidad"], m["origen"]))
+    return "\n".join(L)
+
+
 def uso():
     sys.stdout.write(__doc__)
     return 2
@@ -2049,6 +2234,15 @@ def main(argv):
         filas = tabla(cfg, d, now)
         print(json.dumps({"version": VERSION, "leido": d.get("leido"), "modelos": filas}, ensure_ascii=False) if json_out
               else texto_tabla(filas, now))
+        return 0
+    if a[0] == "--aa-diag" and len(a) == 1:
+        try:
+            d = leer_cupos(cfg, now)
+        except Exception as e:
+            err("no pude leer los cupos: %s" % e)
+            return 1
+        r = aa_diag(cfg, tabla(cfg, d, now))
+        print(json.dumps(r, ensure_ascii=False) if json_out else texto_aa_diag(r))
         return 0
     if a[0] == "--tipo" and len(a) == 2:
         try:

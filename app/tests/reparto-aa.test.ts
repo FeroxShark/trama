@@ -36,10 +36,10 @@ const AA = {
   version: 1,
   fetched: "2026-10-25T08:00:00Z",
   modelos: [
-    M("Claude Opus 5.5 (Reasoning)", 66, 64),
-    M("Claude Opus 5.5 (Non-reasoning)", 50, 40),
-    M("Claude Sonnet 5.5", 56, 54),
-    M("Claude Haiku 5.5", 40, 38),
+    M("Claude Opus 5.5 (Reasoning)", 66, 64, 70),
+    M("Claude Opus 5.5 (Non-reasoning)", 50, 40, 60),
+    M("Claude Sonnet 5.5", 56, 54, 62),
+    M("Claude Haiku 5.5", 40, 38, 52),
     M("Gemini 3.8 Flash", 44, 46),
     M("GLM-5.3 Flash", 42, null, 45),
     M("DeepSeek V4.1 Flash", 48, 50),
@@ -248,7 +248,7 @@ test("aa_esfuerzo: sale de paréntesis y de sufijos del slug; Non-reasoning es n
   assert.equal(e("Claude Opus 5.5", "claude-opus-5-5-low"), "low");
   assert.equal(e("Claude Opus 5.5 (Non-reasoning)"), "none");
   assert.equal(e("Claude Opus 5.5"), null);
-  assert.equal(e("Claude Opus 5.5 (Reasoning)"), null);
+  assert.equal(e("Claude Opus 5.5 (Reasoning)"), "high", "Reasoning sin nivel = el effort por defecto (high)");
 });
 
 test("--tabla expone calidad_por_effort calibrada con las mismas anclas; calidad sigue siendo la mejor; low < high", () => {
@@ -259,7 +259,7 @@ test("--tabla expone calidad_por_effort calibrada con las mismas anclas; calidad
   assert.ok(o.calidad_por_effort.low < o.calidad_por_effort.high && o.calidad_por_effort.high < 100);
   assert.deepEqual(Object.keys(o.calidad_por_effort).sort(), ["high", "low", "max"], "medium desconocido no se inventa en el mapa; none no entra");
   assert.equal(t["claude-sonnet-5-5"].calidad, 88);
-  assert.deepEqual(t["claude-sonnet-5-5"].calidad_por_effort, {});
+  assert.deepEqual(t["claude-sonnet-5-5"].calidad_por_effort, { high: 88 }, "entrada pelada de claude = el effort por defecto (high), con el mismo 88");
 });
 
 test("calidad_en_effort: el medido, interpolado entre vecinos, el extremo más cercano, o la mejor sin mapa", () => {
@@ -294,4 +294,184 @@ test("--tipo con effort low usa la calidad de low; la del dueño por familia val
   assert.equal(cfgq({ calidad: { opus: 77 }, calidad_effort: { opus: { low: 55 } } }, "high"), 77);
   const r = pick({ effort_por_tipo: { lectura: "low" } });
   assert.ok(r.modelo, "elige algo");
+});
+
+
+// --- emparejamiento y esfuerzos con datos de AA realistas (reporte de Ajustes > Modelos) ------------------------------
+const REAL = {
+  version: 1,
+  fetched: "2026-10-26T08:00:00Z",
+  modelos: [
+    { name: "Claude Opus 5.5 (Adaptive Reasoning, Max Effort)", slug: "claude-opus-5-5-adaptive", coding: 66, agentic: 64, intelligence: 78 },
+    { name: "Claude Opus 5.5 (Reasoning, High Effort)", slug: "claude-opus-5-5-high", coding: 62, agentic: 60, intelligence: 74 },
+    { name: "Claude Opus 5.5 (Medium Effort)", slug: "claude-opus-5-5-medium", coding: 56, agentic: 54, intelligence: 70 },
+    { name: "Claude Opus 5.5 Low effort", slug: "claude-opus-5-5-low", coding: 47, agentic: 45, intelligence: 64 },
+    { name: "Claude Opus 5.5 (Non-reasoning, High Effort)", slug: "claude-opus-5-5-non-reasoning-high", coding: 50, agentic: 44, intelligence: 60 },
+    { name: "Claude Sonnet 5.5 (Adaptive Reasoning, High Effort)", slug: "claude-sonnet-5-5-high", coding: 56, agentic: 54, intelligence: 70 },
+    { name: "Claude Sonnet 5.5 (Reasoning, Medium Effort)", slug: "claude-sonnet-5-5-medium", coding: 51, agentic: 49, intelligence: 66 },
+    { name: "Claude Sonnet 5.5 (Non-reasoning)", slug: "claude-sonnet-5-5-non-reasoning", coding: 40, agentic: 38, intelligence: 55 },
+    { name: "Claude Haiku 5.5 (xhigh)", slug: "claude-haiku-5-5-xhigh", coding: 41, agentic: 39, intelligence: 58 },
+    { name: "Claude Haiku 5.5 (Reasoning, high)", slug: "claude-haiku-5-5-high", coding: 39, agentic: 37, intelligence: 56 },
+    { name: "Claude Haiku 5.5", slug: "claude-haiku-5-5-low", coding: 31, agentic: 29, intelligence: 50 },
+    { name: "Gemini 4 Argon", slug: "gemini-4-argon", coding: 52, agentic: 50, intelligence: 68 },
+    { name: "Gemini 3.8 Flash (Reasoning)", slug: "gemini-3-8-flash", coding: 44, agentic: 46, intelligence: 60 },
+    { name: "Gemini 3.8 Flash (Non-reasoning)", slug: "gemini-3-8-flash-non-reasoning", coding: 30, agentic: 28, intelligence: 50 },
+    { name: "GLM-5.3", slug: "glm-5-3", coding: 55, agentic: 53, intelligence: 66 },
+    { name: "GLM-5.3 Flash", slug: "glm-5-3-flash", coding: 38, agentic: 36, intelligence: 52 },
+    { name: "GLM-5.3 Air", slug: "glm-5-3-air", coding: null, agentic: null, intelligence: 80 },
+    { name: "MiMo-V2.6-Flash", slug: "mimo-v2-6-flash", coding: 41, agentic: 39, intelligence: 54 },
+    { name: "gpt-oss-120B (high)", slug: "gpt-oss-120b", coding: 33, agentic: 31, intelligence: 48 },
+    { name: "gpt-oss-20B (high)", slug: "gpt-oss-20b", coding: 22, agentic: 20, intelligence: 38 },
+  ],
+};
+const ID = (s: string) => `opencode:opencode/${s}`;
+const calid = (ids: string[], aa: object = REAL) =>
+  py(`aa = R.aa_cargar()\nprint(json.dumps({m: (R.aa_calidad(aa, m) or [None])[0] for m in ${JSON.stringify(ids)}}))`, { REPARTO_AA: arch(aa) }) as Record<string, number | null>;
+const efs = (id: string, aa: object = REAL) => py(`aa = R.aa_cargar()\nprint(json.dumps(R.aa_calidad_efforts(aa, ${JSON.stringify(id)})))`, { REPARTO_AA: arch(aa) }) as Record<string, number>;
+
+test("aa_esfuerzo: todas las formas de AA", () => {
+  const e = (name: string, slug = "") => py(`print(json.dumps(R.aa_esfuerzo({"name": ${JSON.stringify(name)}, "slug": ${JSON.stringify(slug)}})))`) as string | null;
+  assert.equal(e("Claude Opus 5.5 (Adaptive Reasoning, Max Effort)"), "max");
+  assert.equal(e("Claude Opus 5.5 (Reasoning, High Effort)"), "high");
+  assert.equal(e("Claude Opus 5.5 (high)"), "high");
+  assert.equal(e("Claude Opus 5.5 (xhigh)"), "xhigh");
+  assert.equal(e("Claude Opus 5.5 (x-high)"), "xhigh");
+  assert.equal(e("Claude Opus 5.5 Low effort"), "low");
+  assert.equal(e("GPT-6 Astra (minimal)"), "low", "minimal cuenta como low");
+  for (const [suf, nivel] of [["low", "low"], ["medium", "medium"], ["high", "high"], ["xhigh", "xhigh"], ["minimal", "low"]]) assert.equal(e("X", `gpt-6-astra-${suf}`), nivel, suf);
+  assert.equal(e("X", "claude-opus-5-5-thinking-high"), "high");
+  assert.equal(e("Claude Opus 5.5 (Non-reasoning)"), "none");
+  assert.equal(e("Claude Opus 5.5 (Reasoning)"), "high", "Reasoning sin nivel = effort por defecto (high)");
+  assert.equal(e("Claude Opus 5.5 (Thinking)"), "high");
+  assert.equal(e("Kimi K3 Max"), null, "max pegado al nombre no es un esfuerzo");
+  assert.equal(e("Claude Opus 5.5"), null);
+});
+
+test("aa_tokens: variantes de AA se juntan con el modelo, pero tamaños y variantes nunca", () => {
+  const tk = (s: string) => py(`print(json.dumps(R.aa_tokens(${JSON.stringify(s)})))`) as string[];
+  assert.deepEqual(tk("mimo-v2-6-flash"), ["mimo", "v2.6", "flash"]);
+  assert.deepEqual(tk("MiMo-V2.6-Flash"), ["mimo", "v2.6", "flash"]);
+  assert.deepEqual(tk("opencode:opencode/mimo-v2.6-flash-free"), ["mimo", "v2.6", "flash"]);
+  assert.deepEqual(tk("claude-opus-5-5-adaptive"), ["claude", "opus", "5.5"]);
+  assert.deepEqual(tk("claude-opus-5-5-thinking-high"), ["claude", "opus", "5.5"]);
+  assert.deepEqual(tk("Claude Opus 5.5 (Adaptive Reasoning, Max Effort)"), ["claude", "opus", "5.5"]);
+  assert.deepEqual(tk("claude-opus-5-5-max-effort"), ["claude", "opus", "5.5"]);
+  assert.deepEqual(tk("claude-opus-5-5-non-reasoning-high"), ["claude", "opus", "5.5"]);
+  assert.deepEqual(tk("claude-haiku-4-5-20251001"), ["claude", "haiku", "4.5"]);
+  for (const v of ["flash", "mini", "lite", "nano", "small", "air"]) assert.ok(tk(`glm-5-3-${v}-free`).includes(v), v);
+});
+
+test("emparejamiento: flash/mini/lite/air nunca caen en el modelo base ni en otro tamaño; sin entrada exacta no hay valor de AA", () => {
+  const t = calid([ID("glm-5.3-flash-free"), ID("glm-5.3-free"), ID("glm-5.3-lite-free"), ID("glm-5.3-mini-free"), ID("glm-5.3-nano-free"), ID("glm-5.3-small-free"),
+    "agy:gpt-oss-120b", "agy:gpt-oss-20b", "gpt-oss-60b", "gpt-oss-120b-mini"]);
+  assert.equal(t[ID("glm-5.3-flash-free")], 54, "GLM-5.3 Flash (crudo 37), no el 86 del base");
+  assert.equal(t[ID("glm-5.3-free")], 86);
+  for (const x of ["lite", "mini", "nano", "small"]) assert.equal(t[ID(`glm-5.3-${x}-free`)], null, `${x}: AA no lo tiene → estimación`);
+  assert.ok(t["agy:gpt-oss-120b"]! > t["agy:gpt-oss-20b"]!, "120b y 20b son distintos");
+  assert.equal(t["gpt-oss-60b"], null);
+  assert.equal(t["gpt-oss-120b-mini"], null);
+  // sin la entrada Flash en AA el id flash NO cae en GLM-5.3 (ni en Air)
+  const sinFlash = { ...REAL, modelos: REAL.modelos.filter((m) => m.slug !== "glm-5-3-flash") };
+  assert.equal(calid([ID("glm-5.3-flash-free")], sinFlash)[ID("glm-5.3-flash-free")], null);
+});
+
+test("MiMo V2.6 flash y GPT-OSS: siguen a AA con la calibración (slug con v2-6 también empareja)", () => {
+  const t = calid([ID("mimo-v2.6-flash-free"), "agy:gpt-oss-120b"]);
+  assert.equal(t[ID("mimo-v2.6-flash-free")], 60, "crudo 40 = ancla de Haiku → 60");
+  assert.equal(t["agy:gpt-oss-120b"], 45, "crudo 32 → bajo Haiku: 60 - 8 × 28/15 = 45");
+  const soloSlug = { ...REAL, modelos: [...REAL.modelos.filter((m) => m.slug !== "mimo-v2-6-flash"), { name: "MiMo Flash", slug: "mimo-v2-6-flash", coding: 41, agentic: 39, intelligence: 54 }] };
+  assert.equal(calid([ID("mimo-v2.6-flash-free")], soloSlug)[ID("mimo-v2.6-flash-free")], 60);
+});
+
+test("efforts de Opus: low/medium/high/max, no sólo max; un solo juego de anclas (el mejor puntaje de cada modelo)", () => {
+  assert.deepEqual(efs("claude-opus-5-5"), { max: 100, high: 95, medium: 88, low: 71 });
+  assert.deepEqual(efs("claude-sonnet-5-5"), { high: 88, medium: 79 }, "medium no baja a 58: se calibra con las mismas anclas, 50 crudo → 79");
+  assert.deepEqual(efs("claude-haiku-5-5"), { xhigh: 60, high: 56, low: 41 });
+  const o = efs("claude-opus-5-5");
+  assert.ok(o.low < o.medium && o.medium < o.high && o.high < o.max);
+});
+
+test("efforts: Non-reasoning no entra al mapa aunque traiga nivel; la variante razonada gana el mismo nivel", () => {
+  const solo = { ...REAL, modelos: REAL.modelos.filter((m) => !/Opus 5\.5 \((?:Reasoning, High|Medium)|Low effort/.test(m.name)) };
+  assert.deepEqual(Object.keys(efs("claude-opus-5-5", solo)).sort(), ["high", "max"], "high sólo existe sin razonar: pasa como relleno");
+  const sinRelleno = { ...solo, modelos: solo.modelos.filter((m) => !/Non-reasoning, High/.test(m.name)) };
+  assert.deepEqual(Object.keys(efs("claude-opus-5-5", sinRelleno)), ["max"]);
+});
+
+test("efforts: crecen con el esfuerzo (un nivel más alto nunca vale menos)", () => {
+  const raro = { ...REAL, modelos: [...REAL.modelos, { name: "Claude Sonnet 5.5 (Non-reasoning, Low Effort)", slug: "x-low", coding: 54, agentic: 54, intelligence: 60 }] };
+  const e = efs("claude-sonnet-5-5", raro);
+  const orden = ["low", "medium", "high"].filter((k) => k in e).map((k) => e[k]);
+  assert.deepEqual([...orden].sort((a, b) => a - b), orden);
+});
+
+test("Gemini Argon y Flash: entrada pelada o Reasoning = effort por defecto (high), por eso hay línea de efforts", () => {
+  assert.deepEqual(efs("gemini-4-argon"), { high: 81 });
+  assert.deepEqual(efs("gemini-3.8-flash"), { high: 69 });
+  const cfg = py(`cfg = R.cargar_config()\nprint(json.dumps({"ef": cfg["calidad_ef"].get("argon"), "q": cfg["calidad"]["argon"], "o": cfg["origen"]["argon"]}))`, { REPARTO_AA: arch(REAL), REPARTO_STATE: path.join(tmp, "estado") }) as { ef: object; q: number; o: string };
+  assert.deepEqual(cfg, { ef: { high: 81 }, q: 81, o: "artificial-analysis" });
+});
+
+test("calibración acotada: nada pasa de 100; los que sólo traen inteligencia nunca llegan al nivel de Opus (tope 90)", () => {
+  const t = calid([ID("glm-5.3-air-free"), ID("super-9"), ID("piso-9")], {
+    ...REAL,
+    modelos: [...REAL.modelos, { name: "Super 9", slug: "super-9", coding: 300, agentic: 300, intelligence: 300 }, { name: "Piso 9", slug: "piso-9", coding: -50, agentic: -50, intelligence: 0 }],
+  });
+  assert.equal(t[ID("glm-5.3-air-free")], 90, "inteligencia 80 > la de Opus (78): antes habría salido 100");
+  assert.equal(t[ID("super-9")], 100);
+  assert.equal(t[ID("piso-9")], 0);
+  const todo = py(`aa = R.aa_cargar()\nprint(json.dumps([R.aa_calibrar(aa, x) for x in range(-100, 400, 7)] + [R.aa_calibrar(aa, x, "int") for x in range(-100, 400, 7)]))`, { REPARTO_AA: arch(REAL) }) as number[];
+  assert.ok(todo.every((v) => v >= 0 && v <= 100));
+  // sin anclas de inteligencia utilizables, los que sólo traen inteligencia quedan sin valor de AA
+  const sinInt = { ...REAL, modelos: REAL.modelos.map((m) => (/Claude/.test(m.name) ? { ...m, intelligence: 50 } : m)) };
+  assert.equal(calid([ID("glm-5.3-air-free")], sinInt)[ID("glm-5.3-air-free")], null);
+});
+
+test("--aa-diag: por modelo, la entrada de AA, crudo y calibrado por effort; los sin coincidencia lo dicen", () => {
+  const r = spawnSync(REPARTO, ["--aa-diag", "--json"], {
+    encoding: "utf8",
+    env: { ...process.env, REPARTO_CUPOS_FIJOS: cuposF, REPARTO_AHORA: AHORA, REPARTO_DSH_FIJO: '{"ollama":[],"opencode":false,"deepseek":false}',
+      REPARTO_OPENCODE_FIJO: '["opencode/glm-5.3-flash-free","opencode/mimo-v2.6-flash-free","opencode/glm-5.3-lite-free"]',
+      REPARTO_AGY: "0", REPARTO_STATE: path.join(tmp, "estado"), REPARTO_AA: arch(REAL), TRAMA_MODELOS: arch({ version: 1, excluir: [ID("glm-5.3-flash-free")] }) },
+  });
+  assert.equal(r.status, 0, r.stderr);
+  const d = JSON.parse(r.stdout) as { aa_fecha: string; modelos: { id: string; aa: null | { nombre: string; slug: string; crudo: number; calibrado: number }; efforts: Record<string, { crudo: number; calibrado: number }>; permitido: boolean }[] };
+  const por = Object.fromEntries(d.modelos.map((m) => [m.id, m]));
+  assert.equal(d.aa_fecha, "2026-10-26");
+  assert.deepEqual(por["claude-opus-5-5"].efforts.max, { crudo: 65, calibrado: 100 });
+  assert.equal(por["claude-opus-5-5"].aa!.nombre, "Claude Opus 5.5 (Adaptive Reasoning, Max Effort)");
+  assert.equal(por[ID("mimo-v2.6-flash-free")].aa!.slug, "mimo-v2-6-flash");
+  assert.equal(por[ID("mimo-v2.6-flash-free")].aa!.calibrado, 60);
+  assert.equal(por[ID("glm-5.3-lite-free")].aa, null);
+  assert.equal(por[ID("glm-5.3-flash-free")].permitido, false);
+  const txt = spawnSync(REPARTO, ["--aa-diag"], { encoding: "utf8", env: { ...process.env, REPARTO_CUPOS_FIJOS: cuposF, REPARTO_AHORA: AHORA, REPARTO_DSH_FIJO: '{"ollama":[],"opencode":false,"deepseek":false}', REPARTO_AGY: "0", REPARTO_STATE: path.join(tmp, "estado"), REPARTO_AA: arch(REAL) } });
+  assert.equal(txt.status, 0, txt.stderr);
+  assert.match(txt.stdout, /claude-opus-5-5\n\s+AA: Claude Opus 5\.5 \(Adaptive Reasoning, Max Effort\) \[claude-opus-5-5-adaptive\]/);
+  assert.match(txt.stdout, /por effort: .*max 65\.0 -> 100/);
+});
+
+test("modelos excluidos: reparto nunca los elige, aunque tengan la mejor cifra", () => {
+  const pick = (excluir: string[]) => {
+    const r = spawnSync(REPARTO, ["--tipo", "lectura", "--json"], {
+      encoding: "utf8",
+      env: { ...process.env, REPARTO_CUPOS_FIJOS: arch({ version: 1, leido: AHORA, suscripciones: [] }), REPARTO_AHORA: AHORA, REPARTO_DSH_FIJO: '{"ollama":[],"opencode":true,"deepseek":false}',
+        REPARTO_OPENCODE_FIJO: '["opencode/glm-5.3-flash-free","opencode/mimo-v2.6-flash-free"]', REPARTO_AGY: "0", REPARTO_CLAUDE: "0",
+        REPARTO_STATE: path.join(tmp, "estado"), REPARTO_AA: arch(REAL), TRAMA_MODELOS: arch({ version: 1, excluir }) },
+    });
+    return JSON.parse(r.stdout) as { modelo: string };
+  };
+  const primero = pick([]).modelo;
+  assert.ok([ID("glm-5.3-flash-free"), ID("mimo-v2.6-flash-free")].includes(primero));
+  assert.notEqual(pick([primero]).modelo, primero, "excluido por id exacto: se elige el otro");
+});
+
+test("codigo-acotado (medium) va a Sonnet, no a Opus: el mínimo de Sonnet se mide al mismo effort que el candidato", () => {
+  const r = spawnSync(REPARTO, ["--tipo", "codigo-acotado", "--json"], {
+    encoding: "utf8",
+    env: { ...process.env, REPARTO_CUPOS_FIJOS: cuposF, REPARTO_AHORA: AHORA, REPARTO_DSH_FIJO: '{"opencode":false,"deepseek":false}', REPARTO_AGY: "0",
+      REPARTO_STATE: path.join(tmp, "estado"), REPARTO_AA: arch(REAL), TRAMA_MODELOS: arch({ version: 1 }) },
+  });
+  assert.equal(r.status, 0, r.stderr);
+  const j = JSON.parse(r.stdout) as { familia?: string; modelo: string; effort?: string };
+  assert.match(j.modelo, /sonnet/, JSON.stringify(j));
 });
