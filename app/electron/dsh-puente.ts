@@ -6,6 +6,7 @@
 //   node dsh-puente.js --sid <uuid> --nombre <n> --modelo dsh:<proveedor>/<modelo> --cwd <carpeta>
 //   HILOS_DSH=<binario>             el `dsh` (default: HILOS_DSH → PATH → ~/.local/bin → prefijo de npm; ver dsh.ts)
 //   TRAMA_DSH_PREFACIO=<texto>      lo que se le dice antes del primer mensaje de una sesión nueva (dsh no lee CLAUDE.md)
+//   TRAMA_DSH_RELEVO=<archivo>      lo hablado con otro motor, si la conversación venía de uno (cambio de motor): va después del prefacio
 //   TRAMA_DSH_URL=<url>             otra baseURL para el proveedor (Ollama en otra máquina)
 //   TRAMA_DSH_IMAGENES=1            el modelo (de Ollama) acepta imágenes: se declara en el parche
 //   TRAMA_DSH_CONTEXTO=<n>          ventana de contexto del modelo de Ollama
@@ -46,7 +47,15 @@ const modelo = arg("modelo") ?? "";
 const cwd = arg("cwd") || process.cwd();
 /** El esfuerzo del líder (sólo opencode lo usa: `variant` del modelo por ACP). Cambiarlo relanza el puente (lider.ts), así que vale para toda su vida. */
 const effort = arg("effort") ?? "";
-const prefacio = process.env.TRAMA_DSH_PREFACIO ?? "";
+// Si la conversación venía de otro motor, lider.ts deja lo hablado en un archivo (es largo: no entra en el entorno): va después del prefacio.
+const relevo = (() => {
+  try {
+    return process.env.TRAMA_DSH_RELEVO ? readFileSync(process.env.TRAMA_DSH_RELEVO, "utf8").trim() : "";
+  } catch {
+    return "";
+  }
+})();
+const prefacio = [process.env.TRAMA_DSH_PREFACIO ?? "", relevo].filter(Boolean).join("\n\n---\n\n");
 /** Cuánto de lo hablado se repite si hay que empezar una sesión nueva (caracteres). */
 const TOPE_REPETIR = 12000;
 /** Lo que se espera a que dsh cierre el turno tras un `session/cancel` antes de matarlo (se retoma la sesión después). */

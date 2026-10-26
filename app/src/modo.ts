@@ -80,6 +80,8 @@ const CAPTURAS = [
   "contexto-abierto",
   // Lo de sistema en la conversación, en un líder y en un worker.
   "lider-sistema",
+  // Seguir la conversación con un modelo de otro motor: la raya en el historial; variante `menu` el selector con todas las columnas, `confirmar` la nota para confirmar.
+  "lider-cambio-motor",
   "sistema",
   // Lo que hizo el modelo, herramienta por herramienta (Bash y Edit abiertos), compactar y el relevo del líder.
   "herramientas",
@@ -217,7 +219,7 @@ export const MODO = {
    * (red de 50 tokens, puerto 80, una dirección en vez de un dispositivo), con su motivo en línea.
    * Modelos y proveedores (`AjustesModelos.tsx`): `mdl` deja a la vista la sección con un archivo de muestra, `mdl-agregar` con el
    * panel de Ollama en otra dirección abierto, `mdl-lider` con el selector del líder abierto, `mdl-bajando` con un modelo bajándose a mitad,
-   * `mdl-sinollama` con Ollama sin instalar (distro, GPU y el comando para copiar), `mdl-apagado` instalado pero apagado, `mdl-sugeridos` andando con los modelos sugeridos a la vista, `mdl-tope` con el aviso de un tope de Claude cruzado, `mdl-wk` la tabla «Modelos para workers» (`mdl-wk-todo` con todos los grupos abiertos, `mdl-wk-sin` sin la lista del reparto) y `sinmdl` sin archivo (lo de hoy).
+   * `mdl-sinollama` con Ollama sin instalar (distro, GPU y el comando para copiar), `mdl-apagado` instalado pero apagado, `mdl-sugeridos` andando con los modelos sugeridos a la vista, `mdl-tope` con el aviso de un tope de Claude cruzado, `mdl-wk` la tabla «Modelos para workers» (`mdl-wk-todo` con todos los grupos abiertos, `mdl-wk-sin` sin la lista del reparto, `mdl-wk-cargando` con la tabla todavía cargando: se ve su esqueleto y el resto del panel ya listo; `mdl-efectivo-tarda` con «Hoy elegiría» todavía en espera) y `sinmdl` sin archivo (lo de hoy).
    * `cargando`: Modelos y Celular no reciben respuesta nunca: se ve su esqueleto (`PanelCargando.tsx`); `cargando-dsh` lo mismo con DeepSeek Harness (Modelos sí carga: el de dsh nace adentro de su sección).
    * DeepSeek Harness (`AjustesDsh.tsx`): `dsh` instalado y con la key de OpenCode guardada, `dsh-sin` sin instalar y sin keys, `dsh-falla` donde Instalar falla y DeepSeek rechaza su key; `dsh-menu` (con `modelo`) el selector con los modelos de dsh.
    */

@@ -19,7 +19,7 @@ export type Idioma = "en" | "es";
  * Acá sólo se guardan: qué ids existen y entre qué px lo sabe el renderer
  * (src/tipografia.ts), que lleva a default lo que no conoce.
  */
-export type Apariencia = { letra?: number; fuente?: string; mono?: string };
+export type Apariencia = { letra?: number; fuente?: string; mono?: string; tema?: string };
 /** Qué muestra la barra: los líderes con sus workers colgando (`todo`) o sólo los líderes. */
 export type VistaBarra = "todo" | "lideres";
 /** `tiernos`: los mensajes tiernos (B17); sin el campo, prendidos. */
@@ -56,6 +56,7 @@ function desde(j: {
   letra?: unknown;
   fuente?: unknown;
   mono?: unknown;
+  tema?: unknown;
   tiernos?: unknown;
   avisarEspera?: unknown;
   vista?: unknown;
@@ -70,6 +71,7 @@ function desde(j: {
   if (esLetra(j.letra)) p.letra = j.letra;
   if (esFuente(j.fuente)) p.fuente = j.fuente;
   if (esFuente(j.mono)) p.mono = j.mono;
+  if (esFuente(j.tema)) p.tema = j.tema;
   if (typeof j.tiernos === "boolean") p.tiernos = j.tiernos;
   if (typeof j.avisarEspera === "boolean") p.avisarEspera = j.avisarEspera;
   if (esVista(j.vista)) p.vista = j.vista;
@@ -110,7 +112,7 @@ export function aparienciaGuardada(): Apariencia {
       return {};
     }
   }
-  return { letra: p.letra, fuente: p.fuente, mono: p.mono };
+  return { letra: p.letra, fuente: p.fuente, mono: p.mono, tema: p.tema };
 }
 
 /** La vista de la barra guardada, síncrona: va en la query como el idioma. */
@@ -152,12 +154,13 @@ export async function guardarVista(vista: unknown) {
 /** Sólo lo que viene y es válido; lo demás queda como estaba. */
 export async function guardarApariencia(a: unknown) {
   if (!a || typeof a !== "object") return;
-  const { letra, fuente, mono } = a as Record<string, unknown>;
+  const { letra, fuente, mono, tema } = a as Record<string, unknown>;
   const p = await leerPreferencias();
   let cambio = false;
   if (esLetra(letra) && p.letra !== letra) (p.letra = letra), (cambio = true);
   if (esFuente(fuente) && p.fuente !== fuente) (p.fuente = fuente), (cambio = true);
   if (esFuente(mono) && p.mono !== mono) (p.mono = mono), (cambio = true);
+  if (esFuente(tema) && p.tema !== tema) (p.tema = tema), (cambio = true);
   if (cambio) await guardar(p);
 }
 

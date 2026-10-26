@@ -36,7 +36,7 @@ import { accionRama, arreglarDatos, briefRamas, ejecutar, lanzarRama, leerAjuste
 import { guardarRouting, type Cambio } from "./routing.js";
 import { guardarAjustes } from "./ajustes-editar.js";
 import { crearBajadas } from "./ollama-bajar.ts";
-import { guardarModelos, leerModelos, modelosConfig, sondearOllama, vistaModelos } from "./modelos-config.ts";
+import { efectivoDePa, guardarModelos, leerModelos, modelosConfig, sondearOllama, vistaModelos } from "./modelos-config.ts";
 import { accesos } from "./celular-accesos.js";
 import { guardarConfig, leerEditable } from "./remoto-config.js";
 import { sesionesVistas, vive } from "./sesiones.js";
@@ -54,7 +54,7 @@ import { errorT, textoT } from "./errores.ts";
 import { destinos, registro, slugsPorNombre } from "./registro.js";
 import { capacidades, hayAgy, hayDsh } from "./capacidades.js";
 import { estadoDsh, instalarDsh, probarProveedor } from "./dsh-ajustes.ts";
-import { leerTabla } from "./reparto-tabla.ts";
+import { crearLectorTabla, leerTabla } from "./reparto-tabla.ts";
 import { actualizarOpencode, effortsOpencode, modelosOpencode, vistaOpencode } from "./opencode-ajustes.ts";
 import { guardarClave, leerClaves } from "./claves.ts";
 import { estadoAA, refrescarAA } from "./artificial-analysis.ts";
@@ -756,11 +756,14 @@ export function armarNucleo() {
     guardarRouting((Array.isArray(cambios) ? cambios : []).map((c) => ({ rol: c?.rol, modelo: c?.modelo ?? null, effort: c?.effort ?? null }))),
   );
   // La config de modelos que comparten pa y trama (`~/.config/trama/modelos.json`, modelos-config.ts): leerla, guardarla y preguntarle a un Ollama qué modelos tiene.
-  manejar("modelos:leer", () => leerModelos(ejecutar));
+  // `leer` y `guardar` devuelven enseguida (sin `efectivo`): lo que elegiría `reparto` hoy sale de `pa --modelos --json`, que corre `reparto`
+  // por cada tipo y tarda; el panel lo pide aparte (`modelos:efectivo`) para no hacer esperar a todo lo demás.
+  manejar("modelos:leer", () => leerModelos());
+  manejar("modelos:efectivo", () => efectivoDePa(ejecutar));
   // Quién entra por la tailnet no cambia a dónde mandan los prompts ni sondea direcciones desde la PC: guardar y sondear, sólo en la PC.
   manejar("modelos:guardar", async (e, config: unknown) => {
     if (tailnet(e)) throw errorT("main.modelosSoloPc");
-    return guardarModelos(config, ejecutar);
+    return guardarModelos(config);
   });
   manejar("modelos:sondear", (e, url: unknown) => {
     if (tailnet(e)) throw errorT("main.modelosSoloPc");
@@ -791,7 +794,7 @@ export function armarNucleo() {
   // La tabla de `reparto --tabla --json` (Ajustes > Modelos > Modelos para workers): sólo lee. Guardar el permitido y la inteligencia
   // va por `modelos:guardar` (excluir / calidad de modelos.json), que ya rechaza a quien entra por la tailnet.
   // Inteligencia de Artificial Analysis (la key se guarda por `dsh:clave`): el estado de la caché, y bajar la lista a pedido. Al leer la
-  // tabla se refresca sola si la caché tiene más de un día (sin key, en pruebas y capturas no se llama a nadie salvo con AA_URL).
+  // tabla se refresca sola (de fondo) si la caché tiene más de un día (sin key, en pruebas y capturas no se llama a nadie salvo con AA_URL).
   const claveAA = async () => process.env.ARTIFICIAL_ANALYSIS_API_KEY || (await leerClaves()).ARTIFICIAL_ANALYSIS_API_KEY;
   const aislado = () => (process.env.HILOS_PRUEBA === "1" || process.env.HILOS_CAPTURA === "1" || process.env.HILOS_BENCH === "1") && !process.env.AA_URL;
   manejar("aa:estado", async () => estadoAA(!!(await claveAA())));
@@ -800,10 +803,13 @@ export function armarNucleo() {
     const resultado = await refrescarAA(clave, { forzar: true, baseUrl: process.env.AA_URL });
     return { resultado, estado: await estadoAA(!!clave) };
   });
-  manejar("reparto:tabla", async () => {
-    if (!aislado()) await refrescarAA(await claveAA(), { baseUrl: process.env.AA_URL }).catch(() => null);
-    return leerTabla();
+  // La tabla sale de la caché que ya hay; si hace falta bajar Artificial Analysis se hace de fondo y, cuando termina, avisa (`reparto:tablaNueva`).
+  const tablaReparto = crearLectorTabla({
+    leer: leerTabla,
+    refrescar: async () => (aislado() ? null : refrescarAA(await claveAA(), { baseUrl: process.env.AA_URL })),
+    alRefrescar: () => enviar("reparto:tablaNueva", null),
   });
+  manejar("reparto:tabla", () => tablaReparto());
   manejar("opencode:estado", () => vistaOpencode());
   manejar("opencode:actualizar", () => actualizarOpencode());
   manejar("ramas:brief", (_e, hs: Parameters<typeof briefRamas>[0]) => briefRamas(hs));

@@ -386,6 +386,8 @@ export type Mensaje = {
   compacto?: { auto: boolean | null; antes: number | null };
   /** `system/trama_destrabo`: trama cortó un bucle de un líder Gemini y le mandó el aviso (`agotado`: a la segunda vez para). */
   destrabo?: { que: string; agotado: boolean };
+  /** La conversación siguió desde acá con un modelo de otro motor (otro transcript): una raya "Siguió con <modelo> · <hora>". `modelo`: el nuevo. */
+  cambio?: { modelo: string };
   /** Cada herramienta con su entrada (B19, src/hilo/herramientas.ts), en el orden de `herramientas`. */
   det?: Herramienta[];
   /** Las imágenes que mandó el usuario a un líder (B26), en base64. */

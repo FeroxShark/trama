@@ -25,8 +25,7 @@ export type Accion =
         | "comando.usoEffortVacio"
         | "comando.sinEffort"
         | "comando.sinEffortOpencode"
-        | "comando.usoEstilo"
-        | "comando.cambioProveedor";
+        | "comando.usoEstilo";
       v: string;
     };
 
@@ -101,7 +100,7 @@ export const PROPIOS_AGY: { nombre: string; args: string | null; clave: ClaveCom
 /** ¿El modelo corre por `agy` (`gemini-*` o `agy:*`)? Ollama (`ollama:*`) y los de Claude o GPU local corren por `claude`. */
 export const esModeloAgy = (modelo: string | null | undefined): boolean => /^(?:gemini-|agy:)/.test(modelo ?? "");
 
-/** El motor de un modelo: `dsh:*` corre por DeepSeek Harness; no se cruza con los otros en la misma sesión (sí entre los suyos). */
+/** El motor de un modelo: `dsh:*` corre por DeepSeek Harness, `opencode:*` por opencode, `gemini-*` y `agy:*` por agy. Del esfuerzo y los comandos propios de cada uno. */
 const motorDe = (modelo: string | null | undefined): "claude" | "agy" | "dsh" | "opencode" => (/^opencode:/.test(modelo ?? "") ? "opencode" : /^dsh:/.test(modelo ?? "") ? "dsh" : esModeloAgy(modelo) ? "agy" : "claude");
 
 /** Si el CLI todavía no dijo cuáles hay (ningún líder arrancó nunca): los de fábrica. */
@@ -136,7 +135,6 @@ export function parsearComando(
   if (!m) return { tipo: "texto" };
   const agy = typeof modeloActual === "boolean" ? modeloActual : esModeloAgy(modeloActual);
   const motor = typeof modeloActual === "boolean" ? (modeloActual ? "agy" : "claude") : motorDe(modeloActual);
-  const tieneProveedor = modeloActual !== undefined && modeloActual !== null;
   const nombre = m[1].toLowerCase();
   const arg = (m[2] ?? "").trim();
   const modo = MODO_DE[nombre];
@@ -145,13 +143,8 @@ export function parsearComando(
   if (nombre === "model") {
     const a = arg.toLowerCase();
     const x = a ? modelos.find((o) => o.clave === a || o.id === a) ?? modelos.find((o) => o.id.includes(a)) : undefined;
-    if (x) {
-      if (tieneProveedor && motorDe(x.id) !== motor)
-        return { tipo: "error", clave: "comando.cambioProveedor", v: x.id };
-      return { tipo: "modelo", modelo: x.id };
-    }
-    if (tieneProveedor && a && (motor === "agy" ? /^(?:claude-|opus$|sonnet$|haiku$|fable$|ollama:|dsh:|opencode:)/.test(a) : motor === "dsh" || motor === "opencode" ? /^(?:claude-|opus$|sonnet$|haiku$|fable$|ollama:|gemini-|agy:|dsh:|opencode:)/.test(a) : /^(?:dsh|opencode):/.test(a) || esModeloAgy(a)))
-      return { tipo: "error", clave: "comando.cambioProveedor", v: arg };
+    // De otro motor también: la caja pide la confirmación (la conversación sigue en una sesión nueva de ese motor, con lo hablado).
+    if (x) return { tipo: "modelo", modelo: x.id };
     return { tipo: "error", clave: "comando.usoModelo", v: arg };
   }
   if (nombre === "effort") {
@@ -183,14 +176,13 @@ export function sugerencias(
 ): Sugerencia[] {
   const agy = typeof modeloActual === "boolean" ? modeloActual : esModeloAgy(modeloActual);
   const motor = typeof modeloActual === "boolean" ? (modeloActual ? "agy" : "claude") : motorDe(modeloActual);
-  const tieneProveedor = modeloActual !== undefined && modeloActual !== null;
   const v = texto.match(/^\/(\S+)\s+(\S*)$/);
   const cmd = v?.[1].toLowerCase();
   if (agy && cmd === "output-style") return [];
   const de = cmd ? valores[cmd] : undefined;
   if (v && de) {
     const q = v[2].toLowerCase();
-    const lista = cmd === "model" && tieneProveedor ? de.lista.filter((x) => motorDe(x.valor) === motor) : de.lista;
+    const lista = de.lista;
     const filas: Sugerencia[] = lista.map((x) => ({
       nombre: cmd!,
       args: null,

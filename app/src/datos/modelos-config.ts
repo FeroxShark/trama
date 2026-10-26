@@ -33,9 +33,11 @@ export function configValida(x: unknown): ConfigModelos | null {
 export async function pedirModelos(tope = 1500): Promise<ConfigModelos | null> {
   // Con fixtures (capturas, bench, navegador sin main) los locales son los de muestra: el archivo del usuario no entra.
   if (MODO.fixtures) return {
-      gemini: MODO.captura === "lider-comandos" && MODO.variante === "agy",
-      ...(MODO.variante === "dsh-menu" ? { dsh: true } : {}),
-      locales: MODO.variante === "dsh-menu" ? [{ id: "ollama:qwen3-coder:30b", nombre: "Qwen3 Coder 30B", modelo: "qwen3-coder:30b" }] : [],
+      gemini: (MODO.captura === "lider-comandos" && MODO.variante === "agy") || MODO.captura === "lider-cambio-motor",
+      // `lider-cambio-motor`: todos los motores a la vista (el selector de una conversación que ya empezó muestra todas las columnas).
+      ...(MODO.variante === "dsh-menu" || MODO.captura === "lider-cambio-motor" ? { dsh: true } : {}),
+      ...(MODO.captura === "lider-cambio-motor" ? { opencode: ["opencode/big-pickle"] } : {}),
+      locales: MODO.variante === "dsh-menu" || MODO.captura === "lider-cambio-motor" ? [{ id: "ollama:qwen3-coder:30b", nombre: "Qwen3 Coder 30B", modelo: "qwen3-coder:30b" }] : [],
       llama: LLAMA_FIJOS,
       lider: null,
     };

@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @import "./tokens.css";
+@import "./temas.css";
 
 /* Dirección visual: el estándar pulido (vidrio quieto, acento celeste, cápsulas, grilla de 4 px,
    una sola fuente con cifras tabulares). Los tokens están en src/tokens.css; acá, el CSS de la app. */
@@ -103,7 +104,7 @@ body,
 #root {
   height: 100%;
   background: var(--fondo);
-  color: var(--color-foreground);
+  color: var(--texto-1);
   overflow: hidden;
 }
 
@@ -2485,6 +2486,17 @@ kbd {
   align-items: center;
   gap: var(--esp-1);
 }
+/* El grupo de la derecha (contexto, Parar, micrófono, enviar) nunca se separa ni queda solo a la izquierda: pegado al borde derecho de la última línea. */
+.barra-der {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--esp-1);
+  margin-left: auto;
+}
+.barra-c > .pick:has(> .pbtn) {
+  min-width: 0;
+}
 .pick {
   position: relative;
 }
@@ -3177,6 +3189,39 @@ kbd {
   color: var(--txt-3);
   font-size: var(--letra-4);
   line-height: 1.5;
+}
+/* Seguir una conversación con un modelo de otro motor: la nota (y, antes de confirmar, sus dos botones) bajo la caja. */
+.caja-cruce {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--esp-2) var(--esp-3);
+  padding: var(--esp-2) var(--esp-1) 0;
+  color: var(--texto-4);
+  font-size: var(--letra-4);
+  line-height: 1.5;
+}
+.cruce-t {
+  flex: 1 1 16rem;
+  min-width: 0;
+}
+.cruce-t svg {
+  display: inline;
+  margin-right: var(--esp-1-5);
+  vertical-align: -0.125rem;
+}
+.cruce-b {
+  display: flex;
+  gap: var(--esp-1-5);
+}
+.caja-cruce .btn2 {
+  height: var(--alto-chip);
+  padding: 0 var(--esp-3);
+  font-size: var(--letra-4);
+}
+.caja-cruce .cruce-si {
+  background: var(--acento);
+  color: var(--acento-texto);
 }
 /* Líder con un modelo local: sin workers. Callado como .caja-aviso, con el chip delante. */
 .caja-local {
@@ -5499,7 +5544,7 @@ summary.sis-div-t:hover,
     display: none;
   }
   /* Respondiendo: Parar ocupa el lugar del esfuerzo, que durante un turno no se puede cambiar. */
-  .barra-c:has(> .btn2) > .pick:has(.nivel) {
+  .barra-c:has(.barra-der > .btn2) > .pick:has(.nivel) {
     display: none;
   }
   /* Si igual no entrara (un nombre de modelo más largo), lo que cede es el selector, nunca el enviar. */
@@ -5708,7 +5753,7 @@ summary.sis-div-t:hover,
     display: none;
   }
   /* Respondiendo en 360 px no entran Parar y el micrófono sin cortar el nombre del modelo: el micrófono espera (si ya graba, se queda). */
-  .barra-c:has(> .btn2) .dic:is([data-fase="libre"], [data-fase="error"]) {
+  .barra-c:has(.barra-der > .btn2) .dic:is([data-fase="libre"], [data-fase="error"]) {
     display: none;
   }
 }

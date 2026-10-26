@@ -11,7 +11,8 @@ const FILAS = [
   ["44%", "68%", "4rem"],
 ] as const;
 
-export function PanelCargando() {
+/** `enLinea`: el esqueleto de un pedazo lento dentro de un panel que ya está a la vista (sin tarjeta propia: el panel ya la tiene). */
+export function PanelCargando({ enLinea = false }: { enLinea?: boolean }) {
   useIdioma();
   const [ver, setVer] = useState(false);
   useEffect(() => {
@@ -19,7 +20,7 @@ export function PanelCargando() {
     return () => window.clearTimeout(id);
   }, []);
   return (
-    <section className="pn-sec pn-cargando" role="status" aria-busy="true" data-visible={ver || undefined}>
+    <section className={enLinea ? "pn-cargando pn-cargando-linea" : "pn-sec pn-cargando"} role="status" aria-busy="true" data-visible={ver || undefined}>
       <span className="oculto">{t("ajustes.cargando")}</span>
       {ver && (
         <div className="pn-cargando-filas" aria-hidden>

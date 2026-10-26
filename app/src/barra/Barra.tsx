@@ -1028,7 +1028,7 @@ export function Barra() {
     const proyectos = grupos.map((g) => g.proyecto);
     // La caja (modelo, esfuerzo, aviso de cambiar de modelo), el indicador y los avisos: en el líder de la app.
     const app = lideres.find((l) => l.origen === "app" && l.vivo)?.id ?? lideres[0]?.id ?? "";
-    const enApp = ["lider", "modelo", "esfuerzo", "local-esfuerzo", "local-ctx", "aviso", "lider-trabajando", "lider-avisos", "lider-plan", "lider-permiso", "lider-preguntas", "lider-preguntas-dos", "lider-comandos", "lider-dictado", "lider-valores", "lider-sistema", "lider-compactando", "lider-relevo", "lider-imagenes", "lider-tabla", "lider-formato", "lider-listas", "lider-hover", "lider-pensando", "lider-gemini", "te-espera", "tablero-nuevo-chat", "foco-caja", "consumo"].includes(c) || c.startsWith("contexto");
+    const enApp = ["lider", "modelo", "esfuerzo", "local-esfuerzo", "local-ctx", "aviso", "lider-trabajando", "lider-avisos", "lider-plan", "lider-permiso", "lider-preguntas", "lider-preguntas-dos", "lider-comandos", "lider-dictado", "lider-valores", "lider-sistema", "lider-cambio-motor", "lider-compactando", "lider-relevo", "lider-imagenes", "lider-tabla", "lider-formato", "lider-listas", "lider-hover", "lider-pensando", "lider-gemini", "te-espera", "tablero-nuevo-chat", "foco-caja", "consumo"].includes(c) || c.startsWith("contexto");
     if (enApp) setActiva(LIDER + app);
     if (c === "tablero-nuevo-chat") {
       // El tablero nuevo: el mensaje con las respuestas de muestra, armado en la caja del líder y sin enviar.

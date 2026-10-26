@@ -860,6 +860,21 @@ export function charlaSistema(sid: string): Mensaje[] {
   return crudos.map((x, i) => ({ ...x, i, ts: ts((crudos.length - i) * MIN) }));
 }
 
+/** La charla de un líder que siguió con un modelo de otro motor (captura `lider-cambio-motor`): lo de Claude, la raya y lo de Gemini. */
+export function charlaCambio(sid: string): Mensaje[] {
+  const l = LIDERES.lideres.find((x) => x.id === sid);
+  if (!l) return [];
+  const ts = (s: number) => new Date((l.actividad - s) * 1000).toISOString();
+  const crudos: Omit<Mensaje, "i" | "ts">[] = [
+    { rol: "user", texto: "¿Qué quedó pendiente de ayer?", herramientas: [], modelo: null },
+    { rol: "assistant", texto: "Quedan dos cosas: integrar **atlas** y destrabar **cauce**.", herramientas: ["Bash: nightloop revisar --json"], modelo: l.modelo },
+    { rol: "assistant", texto: "", herramientas: [], modelo: null, cambio: { modelo: "gemini-4-argon" } },
+    { rol: "user", texto: "Seguí vos: integrá atlas.", herramientas: [], modelo: null },
+    { rol: "assistant", texto: "Listo, atlas quedó integrado en main.", herramientas: ["Bash: pa atlas --integrar a1"], modelo: "gemini-4-argon" },
+  ];
+  return crudos.map((x, i) => ({ ...x, i, ts: ts((crudos.length - i) * MIN) }));
+}
+
 /** Lo mismo en un worker (captura `sistema`): `pa --hilo` no trae los campos, sólo el texto y el modelo. */
 export function conversacionSistema(h: Hilo): RespuestaHilo {
   const crudos: Omit<Mensaje, "i" | "ts">[] = [

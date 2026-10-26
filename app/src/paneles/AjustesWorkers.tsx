@@ -3,20 +3,21 @@
 // `calidad`; "estimada" mientras nadie la fijó) y, sólo para leer, cuánto cupo queda y cuándo se reinicia. Trabaja sobre el borrador
 // de AjustesModelos: nada se escribe hasta Guardar. Las reglas de `excluir` por familia o patrón siguen valiendo y se ven abajo.
 import { useEffect, useMemo, useState } from "react";
-import { ChevronDown, ChevronRight, X } from "lucide-react";
-import { Chip, Interruptor } from "../ui/componentes";
+import { ChevronDown, ChevronRight } from "lucide-react";
+import { Interruptor } from "../ui/componentes";
+import { EFFORTS_CALIDAD } from "../../electron/efforts-calidad";
 import type { FilaTabla } from "../../electron/reparto-tabla";
 import { fuentePaneles, type TablaReparto } from "../datos/paneles";
 import { EMPRESAS } from "../hilo/modelos";
 import { Logo } from "../hilo/Logos";
-import { Selector, type Opcion } from "../hilo/Selector";
 import { Reloj } from "../barra/piezas";
+import { PanelCargando } from "./PanelCargando";
 import { idioma, t } from "../i18n";
-import { enOtros, Fijo } from "../i18n/Fijo";
+import { Fijo } from "../i18n/Fijo";
 import { MODO } from "../modo";
 import { pintorVuelve } from "../tiempo";
 import { AtribucionAA, ClaveArtificialAnalysis } from "./AjustesWorkersAA";
-import { agregarExcluido, FAMILIAS, quitarExcluido, type Borrador } from "./modelos-borrador";
+import { quitarExcluido, type Borrador } from "./modelos-borrador";
 import {
   agrupar,
   calidadEscrita,
@@ -109,6 +110,13 @@ function Fila({ f, b, cambiar }: { f: FilaTabla; b: Borrador; cambiar: (n: Borra
           )}
           {f.libre !== null && f.vuelve !== null ? <Vuelve ms={f.vuelve} /> : null}
         </span>
+        {o.tipo === "aa" && Object.keys(f.calidadPorEffort).length > 0 ? (
+          <span className="wk-efforts" data-tip={t("ajustes.mdlWkPorEffortQue")}>
+            {EFFORTS_CALIDAD.filter((e) => f.calidadPorEffort[e] !== undefined)
+              .map((e) => `${t(`ajustes.mdlWkEffort_${e}`)} ${f.calidadPorEffort[e]}`)
+              .join(" · ")}
+          </span>
+        ) : null}
       </div>
       <div className="wk-q">
         <CampoInteligencia f={f} valor={q.valor} fijada={q.fijada} alCambiar={(n) => cambiar(ponerInteligencia(b, f, n))} />
@@ -134,6 +142,8 @@ export function ModelosParaWorkers({ b, cambiar }: { b: Borrador; cambiar: (n: B
     );
     return () => void (vivo = false);
   }, [version]);
+  // Artificial Analysis se bajó de fondo mientras estaba abierto el panel: se vuelve a pedir la tabla (sin esqueleto: la de antes se queda hasta que llegue).
+  useEffect(() => fuentePaneles.alTablaNueva(recargar), []);
 
   const filas = useMemo(() => (tabla && tabla !== "cargando" ? filasUnicas(tabla.modelos) : []), [tabla]);
   const buscando = q.trim() !== "";
@@ -146,7 +156,7 @@ export function ModelosParaWorkers({ b, cambiar }: { b: Borrador; cambiar: (n: B
       <h3 className="pn-sub-h">{t("ajustes.mdlWk")}</h3>
       <Fijo k="ajustes.mdlWkQue" bloque className="pn-nota" />
       <ClaveArtificialAnalysis alActualizar={recargar} />
-      {tabla === "cargando" ? <div className="pn-nota">{t("ajustes.mdlWkCargando")}</div> : null}
+      {tabla === "cargando" ? <PanelCargando enLinea /> : null}
       {tabla === null ? <Fijo k="ajustes.mdlWkSin" bloque className="pn-nota" /> : null}
       {filas.length > 0 ? (
         <>
@@ -197,45 +207,14 @@ export function ModelosParaWorkers({ b, cambiar }: { b: Borrador; cambiar: (n: B
         </p>
       ) : null}
 
-      <h3 className="pn-sub-h">{t("ajustes.mdlWkReglas")}</h3>
-      <Fijo k="ajustes.mdlWkReglasQue" bloque className="pn-nota" />
-      <div className="wk-reglas">
-        <ul className="mdl-chips wk-chips" aria-label={t("ajustes.mdlWkReglas")}>
-          {sueltas.length ? (
-            sueltas.map((id) => (
-              <li key={id}>
-                <Chip>
-                  {nombreRegla(id)}
-                  <button type="button" className="pn-quitar" aria-label={t("ajustes.mdlExcluirQuitar", { que: nombreRegla(id) })} data-tip={t("ajustes.mdlExcluirQuitar", { que: nombreRegla(id) })} onClick={() => cambiar(quitarExcluido(b, id))}>
-                    <X size={12} aria-hidden />
-                  </button>
-                </Chip>
-              </li>
-            ))
-          ) : (
-            <li className="pn-falta">
-              <Fijo k="ajustes.mdlExcluirNinguno" />
-            </li>
-          )}
-        </ul>
-        <div className="pn-sel">
-          <Selector
-            etiqueta={t("ajustes.mdlExcluirSel")}
-            opciones={[{ id: "", nombre: t("ajustes.mdlExcluirAgregar"), desc: "" }, ...FAMILIAS.filter((x) => !b.excluir.includes(x)).map((x): Opcion => ({ id: x, nombre: nombreRegla(x), desc: "" }))]}
-            valor=""
-            alElegir={(id) => cambiar(agregarExcluido(b, id))}
-            reserva={enOtros("ajustes.mdlExcluirAgregar")}
-          />
-        </div>
-        {!b.excluir.includes("fable") ? (
-          <div className="mdl-sug">
-            <Fijo k="ajustes.mdlFableSug" bloque className="pn-nota" />
-            <button type="button" className="btn2" onClick={() => cambiar(agregarExcluido(b, "fable"))}>
-              <Fijo k="ajustes.mdlFableBtn" />
-            </button>
-          </div>
-        ) : null}
-      </div>
+      {sueltas.length ? (
+        <p className="pn-nota wk-reglas-linea">
+          {t("ajustes.mdlWkReglasLinea", { reglas: sueltas.map(nombreRegla).join(", ") })}{" "}
+          <button type="button" className="btn2" onClick={() => cambiar(sueltas.reduce((x, id) => quitarExcluido(x, id), b))}>
+            {t("accion.quitar")}
+          </button>
+        </p>
+      ) : null}
     </div>
   );
 }

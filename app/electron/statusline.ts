@@ -12,8 +12,8 @@ import path from "node:path";
 import { cacheDe } from "./cache.ts";
 import { textoT } from "./errores.ts";
 import { ESTADO, escribirAtomico, PA_STATE } from "./pa.js";
-import { lideresApp, procDe, transcriptDe, transcriptDsh, transcriptGemini, transcriptOpencode, transcriptPorDefecto, usoVisto } from "./lider.js";
-import { claseDeModelo } from "./modelos-config.js";
+import { lideresApp, procDe, transcriptDe, transcriptDsh, transcriptFamilia, transcriptGemini, transcriptOpencode, transcriptPorDefecto, usoVisto } from "./lider.js";
+import { claseDeModelo, familiaDeModelo } from "./modelos-config.js";
 import { real, registro, type Proyecto } from "./registro.js";
 import { sesiones, type Sesion } from "./sesiones.js";
 import { creadoEn, proyectoEnTexto, temaDe, tituloDeRama, tituloLider } from "./tema.js";
@@ -143,8 +143,9 @@ async function caidosDe(muertas: Sesion[], vivas: Set<string>, ahora: number): P
  */
 async function deQueTrata(sid: string, cwd: string | null, sesion: string, regs: Proyecto[], home: string, origen?: { titulo: string }, modelo?: string | null) {
   // Un líder de Gemini (o de dsh) no escribe en `~/.claude/projects`: su puente guarda el transcript en `$HILOS_STATE/gemini/` (agy-puente.ts) o `$HILOS_STATE/dsh/` (dsh-puente.ts).
+  // `modelo`: el de con que empezó la conversación (si cambió de motor, el título sale del primer transcript, no del último).
   const clase = modelo ? claseDeModelo(modelo) : "claude";
-  const archivo = cwd === null ? (clase === "gemini" ? transcriptGemini(sid) : clase === "dsh" ? transcriptDsh(sid) : clase === "opencode" ? transcriptOpencode(sid) : transcriptPorDefecto(sid)) : await transcriptDe(sid, cwd).catch(() => null);
+  const archivo = cwd === null ? (clase === "gemini" ? transcriptGemini(sid) : clase === "dsh" ? transcriptDsh(sid) : clase === "opencode" ? transcriptOpencode(sid) : transcriptPorDefecto(sid)) : (await transcriptFamilia(sid, familiaDeModelo(modelo ?? "claude"), cwd).catch(() => null)) ?? (await transcriptDe(sid, cwd).catch(() => null));
   const t = await temaDe(sid, archivo);
   return { nombre: tituloDeRama(tituloLider(t, sesion), origen), inferido: t.primero ? proyectoEnTexto(t.primero, regs, home) : null, creado: t.creado };
 }
@@ -243,7 +244,7 @@ export async function leerStatusline(): Promise<Statusline> {
     // De la app sólo si el proceso es suyo: si no, está abierto en otro lado y se lee nomás.
     const mia = g && p?.pid != null;
     const modelo = mia ? g.modelo : a?.modelo ? String(a.modelo).replace(/\[.*\]$/, "") : null;
-    const t = await deQueTrata(s.id, g ? (g.cwd ?? null) : s.cwd, s.nombre || g?.nombre || "", regs, home, g?.origen, g?.modelo);
+    const t = await deQueTrata(s.id, g ? (g.cwd ?? null) : s.cwd, s.nombre || g?.nombre || "", regs, home, g?.origen, g?.cambios?.[0]?.de ?? g?.modelo);
     lideres.push({
       id: s.id,
       nombre: t.nombre || modeloLindo(String(a?.modelo ?? "")),

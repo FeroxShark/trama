@@ -4,7 +4,10 @@
 // index.css) y se guardan en preferencias.json. Como el idioma, el main los
 // pone en la query: el primer render ya sale con lo elegido.
 //
+// El tema de color (src/temas.ts) viaja con lo mismo: `data-tema` en <html>.
+//
 // Sin imports de React ni del DOM a la fuerza: lo prueba `node --test`.
+import { CLAVE_TEMA, esTema, resolverTema, TEMA_DEF, type Tema } from "./temas.ts";
 
 /** Px del texto base: 13 es la maqueta. */
 export const LETRA_DEF = 13;
@@ -43,9 +46,9 @@ export const MONOS: readonly Fuente[] = [
   { id: "sistema", nombre: null, pila: "ui-monospace, monospace" },
 ];
 
-export type Apariencia = { letra: number; fuente: string; mono: string };
+export type Apariencia = { letra: number; fuente: string; mono: string; tema: Tema };
 
-export const APARIENCIA_DEF: Apariencia = { letra: LETRA_DEF, fuente: FUENTES[0].id, mono: MONOS[0].id };
+export const APARIENCIA_DEF: Apariencia = { letra: LETRA_DEF, fuente: FUENTES[0].id, mono: MONOS[0].id, tema: TEMA_DEF };
 
 const entero = (x: unknown): number | null => {
   const n = typeof x === "string" && x.trim() ? Number(x) : x;
@@ -53,12 +56,13 @@ const entero = (x: unknown): number | null => {
 };
 
 /** Lo que venga (query, preferencias.json) llevado a algo válido: lo que no se entiende, default. */
-export function normalizar(x: { letra?: unknown; fuente?: unknown; mono?: unknown } | null | undefined): Apariencia {
+export function normalizar(x: { letra?: unknown; fuente?: unknown; mono?: unknown; tema?: unknown } | null | undefined): Apariencia {
   const n = entero(x?.letra);
   return {
     letra: n === null ? LETRA_DEF : Math.max(LETRA_MIN, Math.min(LETRA_MAX, n)),
     fuente: FUENTES.some((f) => f.id === x?.fuente) ? (x!.fuente as string) : APARIENCIA_DEF.fuente,
     mono: MONOS.some((f) => f.id === x?.mono) ? (x!.mono as string) : APARIENCIA_DEF.mono,
+    tema: esTema(x?.tema) ? x.tema : TEMA_DEF,
   };
 }
 
@@ -83,15 +87,50 @@ export function aplicar(estilo: Estilo, a: Apariencia) {
   estilo.setProperty("--font-mono", (MONOS.find((f) => f.id === a.mono) ?? MONOS[0]).pila);
 }
 
-/** La de la query (la pone el main desde preferencias.json o `HILOS_LETRA`/`HILOS_FUENTE`/`HILOS_MONO`). */
+/** El tema en <html> (y el espejo en localStorage para el primer pintado). Si es "sistema", sigue al SO mientras esté así. */
+export function aplicarTema(tema: Tema) {
+  if (typeof document === "undefined") return;
+  const pintar = () => {
+    const claro = typeof matchMedia === "function" && matchMedia("(prefers-color-scheme: light)").matches;
+    document.documentElement.setAttribute("data-tema", resolverTema(tema, claro));
+  };
+  pintar();
+  try {
+    localStorage.setItem(CLAVE_TEMA, tema);
+  } catch {
+    // sin almacenamiento (ventana privada, bloqueado): el tema igual rige en esta sesión
+  }
+  quitarSistema?.();
+  quitarSistema = null;
+  if (tema === "sistema" && typeof matchMedia === "function") {
+    const mq = matchMedia("(prefers-color-scheme: light)");
+    mq.addEventListener("change", pintar);
+    quitarSistema = () => mq.removeEventListener("change", pintar);
+  }
+}
+let quitarSistema: (() => void) | null = null;
+
+/** La de la query (la pone el main desde preferencias.json o `HILOS_LETRA`/`HILOS_FUENTE`/`HILOS_MONO`/`HILOS_TEMA`). */
 function inicial(): Apariencia {
   if (typeof location === "undefined") return { ...APARIENCIA_DEF };
   const q = new URLSearchParams(location.search);
-  return normalizar({ letra: q.get("letra"), fuente: q.get("fuente"), mono: q.get("mono") });
+  // Sin `tema` en la query (la página abierta a mano en el navegador) vale el espejo del último que se eligió ahí.
+  let tema = q.get("tema");
+  if (!esTema(tema)) {
+    try {
+      tema = localStorage.getItem(CLAVE_TEMA);
+    } catch {
+      tema = null;
+    }
+  }
+  return normalizar({ letra: q.get("letra"), fuente: q.get("fuente"), mono: q.get("mono"), tema });
 }
 
 let actual: Apariencia = inicial();
-if (typeof document !== "undefined") aplicar(document.documentElement.style, actual);
+if (typeof document !== "undefined") {
+  aplicar(document.documentElement.style, actual);
+  aplicarTema(actual.tema);
+}
 const oyentes = new Set<() => void>();
 
 export const apariencia = () => actual;
@@ -107,9 +146,13 @@ export function cambiarApariencia(cambio: Partial<Apariencia>): Partial<Aparienc
   if (nueva.letra !== actual.letra) dif.letra = nueva.letra;
   if (nueva.fuente !== actual.fuente) dif.fuente = nueva.fuente;
   if (nueva.mono !== actual.mono) dif.mono = nueva.mono;
+  if (nueva.tema !== actual.tema) dif.tema = nueva.tema;
   if (!Object.keys(dif).length) return null;
   actual = nueva;
-  if (typeof document !== "undefined") aplicar(document.documentElement.style, actual);
+  if (typeof document !== "undefined") {
+    aplicar(document.documentElement.style, actual);
+    if (dif.tema) aplicarTema(actual.tema);
+  }
   for (const f of oyentes) f();
   return dif;
 }

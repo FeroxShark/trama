@@ -215,6 +215,13 @@ export const esOpencode = (modelo: string | null | undefined): boolean => /^open
  */
 export const familiaDe = (modelo: string | null | undefined): "claude" | "agy" | "dsh" | "opencode" => (esOpencode(modelo) ? "opencode" : esDsh(modelo) ? "dsh" : esAgy(modelo) ? "agy" : "claude");
 
+/**
+ * El motor que corre un modelo, para decirlo en la caja ("arranca una sesión nueva de Gemini (agy)"). Nombres propios: no se traducen.
+ * Un modelo de Ollama corre por su endpoint (el mismo `claude` contra otro destino), pero es lo que la persona reconoce.
+ */
+export const motorNombre = (modelo: string | null | undefined): string =>
+  esOpencode(modelo) ? "OpenCode" : esDsh(modelo) ? "DeepSeek Harness" : esAgy(modelo) ? "Gemini (agy)" : /^ollama:/.test(modelo ?? "") ? "Ollama" : "Claude Code";
+
 /** ¿Un líder con este modelo no puede delegar con `pa`? Los locales de GPU y Ollama. */
 export const sinWorkers = (modelo: string | null | undefined) => {
   const d = defDe(modelo);

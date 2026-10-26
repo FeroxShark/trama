@@ -8,9 +8,9 @@
 // se ve sano (✓) o en rojo si causó problemas (src/datos/salud.ts: revertida,
 // `bien=no` o tests rojos en main después), y lo rojo se manda a verificar y
 // arreglar con un líder nuevo en ese proyecto (src/datos/arreglar.ts).
-import { useCallback, useEffect, useMemo, useState, type Ref } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode, type Ref } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { Check, ChevronDown, Sparkles, X } from "lucide-react";
+import { Check, ChevronDown, CircleCheck, CircleHelp, Eye, GitMerge, Skull, Sparkles, Trash2, RotateCcw, MoreHorizontal, Archive, Hourglass, X, type LucideIcon } from "lucide-react";
 import { RESORTE } from "../barra/Fila";
 import { Reloj, tareaDe, tipoDe } from "../barra/piezas";
 import { errorCorto } from "../barra/arbol";
@@ -27,6 +27,13 @@ import { t as tr } from "../i18n";
 import { mensaje } from "../puente";
 import { pasoLider, pasoWorker } from "./PasoLanzar";
 import { conTexto, type Eleccion } from "./lanzar";
+import { conCuenta, cuentas, filtroVigente, pasa, type FiltroRama } from "./ramas-vista";
+import "./ramas-vista.css";
+
+/** El ícono de cada veredicto: nunca sólo color. */
+const ICONO_V: Record<string, LucideIcon> = { integrar: GitMerge, descartar: Trash2, retomar: RotateCcw, revisar: Eye };
+/** El ícono del estado de la rama. */
+const ICONO_E: Partial<Record<Estado, LucideIcon>> = { murio: Skull, listo: CircleCheck, entregado: CircleCheck, decision: CircleHelp, trabajando: Hourglass, colgado: Hourglass, archivado: Archive };
 
 export type PropsRamas = {
   hilos: Hilo[] | null;
@@ -139,10 +146,20 @@ export function Ramas({ hilos, optimista, errores, enCurso, alActuar, alAbrir, a
   }, [armado]);
   const [auto, prenderAuto] = useAuto();
   const sanas = useSalud();
+  const [filtro, setFiltro] = useState<FiltroRama>("todas");
+  // Los proyectos plegados (clic en su encabezado).
+  const [plegados, setPlegados] = useState<ReadonlySet<string>>(new Set());
+  const plegar = (p: string) =>
+    setPlegados((a) => {
+      const n = new Set(a);
+      if (!n.delete(p)) n.add(p);
+      return n;
+    });
 
   // El analista: el del statusline o, hasta que aparezca ahí, el recién lanzado.
   const [nacido, setNacido] = useState<Lider | null>(null);
-  const an = analista ?? nacido;
+  // El recién lanzado manda sobre el del statusline: ése puede ser el viejo, recién cerrado.
+  const an = nacido && analista?.id !== nacido.id ? nacido : (analista ?? nacido);
   const [abierto, setAbierto] = useState(MODO.captura === "ramas-analista");
   const [lanzando, setLanzando] = useState(false);
   const [errorAn, setErrorAn] = useState<string | null>(null);
@@ -153,6 +170,9 @@ export function Ramas({ hilos, optimista, errores, enCurso, alActuar, alAbrir, a
     return (an && veredictos(respuesta, ids)) || new Map<string, Juicio>();
   }, [an, respuesta, filas]);
 
+  const cuenta = useMemo(() => cuentas(filas.map((h) => h.id), juicios), [filas, juicios]);
+  const vigente = filtroVigente(filtro, cuenta);
+
   /** Lanza al analista (o le manda el brief al que ya está) con lo elegido. Rechaza si no se pudo. */
   const lanzarAnalista = async ({ modelo, effort, texto: extra }: Eleccion) => {
     const quietas = filas.filter((h) => !VIVO.has(optimista.get(h.id) ?? h.estado));
@@ -160,13 +180,13 @@ export function Ramas({ hilos, optimista, errores, enCurso, alActuar, alAbrir, a
     setLanzando(true);
     setErrorAn(null);
     try {
-      const texto = conTexto(await fuentePaneles.brief(quietas, !!an), extra);
-      if (an) await fuente.liderMandar(an.id, { texto, modelo, effort });
-      else {
-        const e = { texto, modelo, effort, rol: "analista" as const };
-        const sid = await fuente.liderNuevo(e);
-        setNacido(fantasma(sid, e));
-      }
+      const texto = conTexto(await fuentePaneles.brief(quietas, false), extra);
+      // Siempre una conversación nueva: reusar la anterior falla al cambiar de motor (Claude, Gemini, DeepSeek...).
+      if (an) await fuente.liderCerrar(an.id, "analista").catch(() => {});
+      const e = { texto, modelo, effort, rol: "analista" as const };
+      const sid = await fuente.liderNuevo(e);
+      setNacido(fantasma(sid, e));
+      setRespuesta("");
       setAbierto(true);
     } finally {
       setLanzando(false);
@@ -241,6 +261,7 @@ export function Ramas({ hilos, optimista, errores, enCurso, alActuar, alAbrir, a
           </button>
         ) : null}
       </div>
+      {auto ? <div className="pn-nota pn-auto-nota">{tr("ramas.autoExplica", { estado: tr(auto.prendido ? "ramas.autoOn" : "ramas.autoOff") })}</div> : null}
 
       <section className="pn-analista" data-abierto={abierto && an ? "" : undefined}>
         <div className="pn-analista-cab">
@@ -285,8 +306,35 @@ export function Ramas({ hilos, optimista, errores, enCurso, alActuar, alAbrir, a
         ) : null}
       </section>
 
+      {juicios.size > 0 && total > 0 ? (
+        <div className="pn-filtros" role="group" aria-label={tr("ramas.filtrar")}>
+          <button type="button" className="pn-chip-f" aria-pressed={vigente === "todas"} onClick={() => setFiltro("todas")}>
+            {tr("ramas.f.todas")} <b>{total}</b>
+          </button>
+          {conCuenta(cuenta).map((v) => {
+            const I = ICONO_V[v];
+            return (
+              <button key={v} type="button" className="pn-chip-f" data-veredicto={v} aria-pressed={vigente === v} onClick={() => setFiltro(v)}>
+                <I size={12} strokeWidth={2} aria-hidden="true" />
+                {tr(`ramas.f.${v}`)} <b>{cuenta[v]}</b>
+              </button>
+            );
+          })}
+          {cuenta.sin > 0 ? (
+            <button type="button" className="pn-chip-f" aria-pressed={vigente === "sin"} onClick={() => setFiltro("sin")}>
+              {tr("ramas.f.sin")} <b>{cuenta.sin}</b>
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+
       <AnimatePresence mode="popLayout" initial={false}>
-        {pendientes.map((g) => (
+        {pendientes.map((g) => {
+          const visibles = g.filas.filter((f) => pasa(f.h.id, juicios, vigente));
+          if (!visibles.length) return null;
+          const cerrado = plegados.has(g.proyecto);
+          const cs = cuentas(visibles.map((f) => f.h.id), juicios);
+          return (
           <motion.section
             key={g.proyecto}
             layout="position"
@@ -297,16 +345,32 @@ export function Ramas({ hilos, optimista, errores, enCurso, alActuar, alAbrir, a
             className="pn-sec"
             aria-label={g.proyecto}
           >
-            <h2 className="pn-h">
-              {g.proyecto} <span className="cuenta">{g.filas.length}</span>
+            <h2 className="pn-h pn-h-plegable">
+              <button type="button" className="pn-plegar" aria-expanded={!cerrado} onClick={() => plegar(g.proyecto)}>
+                <ChevronDown size={14} strokeWidth={1.8} aria-hidden="true" data-cerrado={cerrado ? "" : undefined} />
+                {g.proyecto} <span className="cuenta">{visibles.length}</span>
+              </button>
+              {conCuenta(cs).map((v) => {
+                const I = ICONO_V[v];
+                return (
+                  <span key={v} className="pn-mini-v" data-veredicto={v} data-tip={tr(`ramas.f.${v}`)}>
+                    <I size={11} strokeWidth={2} aria-hidden="true" />
+                    {cs[v]}
+                    <span className="pn-sr">{tr(`ramas.f.${v}`)}</span>
+                  </span>
+                );
+              })}
             </h2>
-            <ul className="pn-ramas">
-              <AnimatePresence mode="popLayout" initial={false}>
-                {g.filas.map(fila)}
-              </AnimatePresence>
-            </ul>
+            {cerrado ? null : (
+              <ul className="pn-ramas">
+                <AnimatePresence mode="popLayout" initial={false}>
+                  {visibles.map(fila)}
+                </AnimatePresence>
+              </ul>
+            )}
           </motion.section>
-        ))}
+          );
+        })}
 
         {integradas.length > 0 ? (
           <motion.section
@@ -372,10 +436,10 @@ function FilaRama({ ref, h, estado, error, enCurso, auto, sola, salud, alArregla
   const t = tipoDe(h, estado);
   const err = error;
   const corto = err ? errorCorto(err) : null;
-  const descartar = (
+  const descartar = (clase = "mini pn-descartar") => (
     <button
       type="button"
-      className="mini pn-descartar"
+      className={clase}
       data-armado={armado ? "" : undefined}
       onClick={() => {
         if (!armado) return alArmar(h.id);
@@ -388,22 +452,48 @@ function FilaRama({ ref, h, estado, error, enCurso, auto, sola, salud, alArregla
       {armado ? tr("ramas.descartarSeguro") : tr("ramas.descartar")}
     </button>
   );
-  const botonRetomar = (primario: boolean) => (
-    <button type="button" className={primario ? "mini pn-primario" : "mini"} onClick={retomar}>
+  const botonRetomar = (clase: string) => (
+    <button type="button" className={clase} onClick={retomar}>
       {tr("ramas.retomar")}
     </button>
   );
-  // El botón del veredicto: el único que hace lo que dijo el analista.
-  const accionJuicio =
-    juicio && !vivo && !integrada && !enCurso && !auto
+  const botonIntegrar = (clase: string) => (
+    <button type="button" className={clase} onClick={() => alActuar(h.id, "integrar")}>
+      {tr("ramas.integrar")}
+    </button>
+  );
+  const botonActualizar = (clase: string) => (
+    <button type="button" className={clase} data-actualizar data-tip={tr("ramas.actualizarQue")} onClick={actualizar}>
+      {tr("ramas.actualizar")}
+    </button>
+  );
+  const botonAbrir = (clase: string) => (
+    <button type="button" className={clase} onClick={() => alAbrir(h.id)}>
+      {tr("ramas.revisar")}
+    </button>
+  );
+  // Un primario por rama (el del veredicto, o el que toca según cómo terminó); lo demás, en el menú "más".
+  const M = "pn-mas-it";
+  const P = "mini pn-primario";
+  const libre = !vivo && !integrada && !enCurso && !auto;
+  const [primario, secundarias]: [ReactNode, ReactNode[]] = !libre
+    ? [null, []]
+    : juicio
       ? juicio.veredicto === "integrar"
-        ? <button type="button" className="mini pn-primario" onClick={() => alActuar(h.id, "integrar")}>{tr("ramas.integrar")}</button>
+        ? [botonIntegrar(P), [descartar(M)]]
         : juicio.veredicto === "descartar"
-          ? descartar
+          ? [descartar("mini pn-descartar pn-primario"), [botonIntegrar(M)]]
           : juicio.veredicto === "retomar"
-            ? botonRetomar(true)
-            : <button type="button" className="mini" onClick={() => alAbrir(h.id)}>{tr("ramas.revisar")}</button>
-      : null;
+            ? [botonRetomar(P), [botonIntegrar(M), descartar(M)]]
+            : [botonAbrir("mini"), [botonIntegrar(M), descartar(M)]]
+      : murio
+        ? [botonRetomar(P), [botonIntegrar(M), descartar(M)]]
+        : choco
+          ? [botonActualizar(P), [botonIntegrar(M), descartar(M)]]
+          : [botonIntegrar("mini"), [descartar(M)]];
+  const [largo, setLargo] = useState(false);
+  const Ie = ICONO_E[estado];
+  const Iv = juicio ? ICONO_V[juicio.veredicto] : null;
   return (
     <motion.li
       ref={ref}
@@ -419,6 +509,20 @@ function FilaRama({ ref, h, estado, error, enCurso, auto, sola, salud, alArregla
         <button type="button" className="pn-tarea" data-id={h.id} data-tip={tr("ramas.abrir")} onClick={() => alAbrir(h.id)}>
           {tareaDe(h)}
         </button>
+        <div className="pn-chips">
+          {t ? (
+            <span className={`pn-estado c-${t.tipo}`}>
+              {Ie ? <Ie size={12} strokeWidth={2} aria-hidden="true" /> : null}
+              {t.texto}
+            </span>
+          ) : null}
+          {juicio && Iv ? (
+            <span className="pn-veredicto" data-veredicto={juicio.veredicto}>
+              <Iv size={12} strokeWidth={2} aria-hidden="true" />
+              {tr(`ramas.v.${juicio.veredicto}`)}
+            </span>
+          ) : null}
+        </div>
         <div className="pn-sub">
           {salud ? (
             <span className="pn-salud" data-tip={tr(rojo ? `ramas.salud.${rojo.motivo}` : salud.rojo === false && salud.verificando ? "ramas.salud.verificando" : "ramas.salud.bien")}>
@@ -428,15 +532,13 @@ function FilaRama({ ref, h, estado, error, enCurso, auto, sola, salud, alArregla
           {salud ? <span>{h.proyecto}</span> : null}
           {h.commits ? <span>{commits(h.commits)}</span> : null}
           <Reloj pintor={hace} />
-          {t && (vivo || estado === "decision" || murio) ? <span className={`c-${t.tipo}`}>{t.texto}</span> : null}
           {sola ? <span className="pn-auto" data-tip={tr("ramas.autoQue")}>{tr("ramas.autoBadge")}</span> : null}
           {h.rama ? <span className="pn-mono">{h.rama}</span> : null}
         </div>
-        {juicio ? (
-          <div className="pn-juicio" data-veredicto={juicio.veredicto}>
-            <span className="pn-juicio-v">{tr(`ramas.v.${juicio.veredicto}`)}</span>
-            {juicio.motivo ? <span className="pn-juicio-m">{juicio.motivo}</span> : null}
-          </div>
+        {juicio?.motivo ? (
+          <button type="button" className="pn-motivo" aria-expanded={largo} data-largo={largo ? "" : undefined} onClick={() => setLargo((x) => !x)} data-tip={largo ? undefined : tr("ramas.verMotivo")}>
+            {juicio.motivo}
+          </button>
         ) : null}
         {rojo ? (
           <div className="pn-error pn-rojo" data-tip={rojo.cola ?? (rojo.rc != null ? tr("ramas.salud.rc", { rc: rojo.rc }) : undefined)}>
@@ -468,23 +570,62 @@ function FilaRama({ ref, h, estado, error, enCurso, auto, sola, salud, alArregla
             </button>
           ) : null}
         </div>
-      ) : accionJuicio ? (
-        // Con veredicto, un solo botón: el que dijo el analista.
-        <div className="pn-acc">{accionJuicio}</div>
       ) : (
         <div className="pn-acc">
-          {murio ? botonRetomar(true) : null}
-          {choco && !murio ? (
-            <button type="button" className="mini pn-primario" data-actualizar data-tip={tr("ramas.actualizarQue")} onClick={actualizar}>
-              {tr("ramas.actualizar")}
-            </button>
-          ) : null}
-          <button type="button" className="mini" onClick={() => alActuar(h.id, "integrar")}>
-            {tr("ramas.integrar")}
-          </button>
-          {descartar}
+          {primario}
+          {secundarias.length ? <MenuMas>{secundarias}</MenuMas> : null}
         </div>
       )}
     </motion.li>
+  );
+}
+
+/** El menú de lo secundario de una rama ("más"): teclado completo (flechas, Esc) y se cierra al tocar afuera. */
+function MenuMas({ children }: { children: ReactNode[] }) {
+  const [abierto, setAbierto] = useState(false);
+  const [caja, setCaja] = useState<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!abierto || !caja) return;
+    const fuera = (e: PointerEvent) => !caja.contains(e.target as Node) && setAbierto(false);
+    document.addEventListener("pointerdown", fuera);
+    return () => document.removeEventListener("pointerdown", fuera);
+  }, [abierto, caja]);
+  const items = () => [...(caja?.querySelectorAll<HTMLElement>(".pn-mas-lista button") ?? [])];
+  return (
+    <div
+      className="pn-mas"
+      ref={setCaja}
+      onKeyDown={(e) => {
+        if (e.key === "Escape" && abierto) {
+          e.stopPropagation();
+          setAbierto(false);
+          caja?.querySelector<HTMLElement>(".pn-mas-btn")?.focus();
+        } else if ((e.key === "ArrowDown" || e.key === "ArrowUp") && abierto) {
+          e.preventDefault();
+          const xs = items();
+          const i = xs.indexOf(document.activeElement as HTMLElement);
+          xs[(i + (e.key === "ArrowDown" ? 1 : xs.length - 1)) % xs.length]?.focus();
+        }
+      }}
+    >
+      <button
+        type="button"
+        className="mini pn-mas-btn"
+                aria-expanded={abierto}
+        aria-label={tr("ramas.mas")}
+        data-tip={tr("ramas.mas")}
+        onClick={() => {
+          setAbierto((a) => !a);
+          if (!abierto) queueMicrotask(() => items()[0]?.focus());
+        }}
+      >
+        <MoreHorizontal size={14} strokeWidth={1.8} aria-hidden="true" />
+      </button>
+      {abierto ? (
+        <div className="pn-mas-lista" role="group" aria-label={tr("ramas.mas")} onClick={(e) => (e.target as HTMLElement).closest("button") && !(e.target as HTMLElement).closest(".pn-descartar:not([data-armado])") && setAbierto(false)}>
+          {children}
+        </div>
+      ) : null}
+    </div>
   );
 }

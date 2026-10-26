@@ -85,6 +85,7 @@ export const RUTAS: Readonly<Record<string, Ruta>> = {
   "routing:guardar": "local",
   // La config de modelos (`~/.config/trama/modelos.json`) es de esta máquina, como el resto de Ajustes.
   "modelos:leer": "local",
+  "modelos:efectivo": "local",
   "modelos:guardar": "local",
   "modelos:sondear": "local",
   "modelos:bajar": "local",
@@ -210,6 +211,7 @@ export const EVENTOS: Readonly<Record<string, "reenviar" | "local">> = {
   "consumo:cambio": "local",
   "pasos:cambio": "local",
   "modelos:bajando": "local",
+  "reparto:tablaNueva": "local",
   "nombres:orden": "local",
   "reinicio:cambio": "local",
   "pc:cambio": "local",

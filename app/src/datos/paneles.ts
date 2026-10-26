@@ -129,6 +129,8 @@ export interface FuentePaneles {
   guardarRouting(cambios: CambioRouting[]): Promise<Routing>;
   /** La config de modelos (`~/.config/trama/modelos.json`): lo que hay, o lo de hoy si no hay archivo. */
   modelos(): Promise<EstadoModelos>;
+  /** Lo que `pa --modelos --json` dice que corre hoy y lo que elegiría `reparto`: tarda (corre `reparto` por tipo), así que `modelos()` viene sin esto y se pide aparte. */
+  efectivoModelos(): Promise<EstadoModelos["efectivo"]>;
   /** Guarda esa config (y las filas de `~/CLAUDE.md` que salen de ella); rechaza con el motivo sin haber escrito nada. */
   guardarModelos(config: ConfigModelos): Promise<EstadoModelos>;
   /** Qué modelos tiene instalados el Ollama de esa dirección, o por qué no contesta. */
@@ -151,6 +153,8 @@ export interface FuentePaneles {
   probarDsh(proveedor: ProveedorDshUi, url?: string): Promise<Prueba>;
   /** `reparto --tabla --json`: los modelos que reparto conoce con su inteligencia y cupo; `null` si no hay `reparto` (o es uno viejo). */
   repartoTabla(): Promise<TablaReparto | null>;
+  /** La caché de Artificial Analysis se actualizó de fondo: conviene volver a pedir la tabla. */
+  alTablaNueva(fn: () => void): () => void;
   /** Artificial Analysis: si hay key y de cuándo es la caché (la key se guarda con `claveDsh`). */
   estadoAA(): Promise<EstadoAA>;
   /** Baja la lista de Artificial Analysis ahora; nunca rechaza: dice qué pasó (key mala, límite diario, sin red…). */
@@ -269,7 +273,14 @@ const fija: FuentePaneles = {
   async modelos() {
     if (MODO.variante === "cargando") return new Promise(() => {});
     modelosFijos ??= MODELOS_FIJOS(MODO.variante?.startsWith("mdl") === true, MODO.variante === "mdl-auto");
-    return structuredClone(modelosFijos);
+    // Como el real: la config enseguida, sin `efectivo` (eso va por `efectivoModelos`).
+    return { ...structuredClone(modelosFijos), efectivo: null };
+  },
+  async efectivoModelos() {
+    // `mdl-efectivo-tarda`: `pa --modelos` no contesta nunca (se ve «Hoy elegiría» en espera con el resto ya a la vista).
+    if (MODO.variante === "mdl-efectivo-tarda") return new Promise(() => {});
+    await espera(400);
+    return structuredClone((modelosFijos ?? MODELOS_FIJOS(MODO.variante?.startsWith("mdl") === true, MODO.variante === "mdl-auto")).efectivo);
   },
   async guardarModelos(config) {
     await espera(150);
@@ -279,7 +290,7 @@ const fija: FuentePaneles = {
       throw new Error(textoT("main.modelosRoto", { ruta: "~/.config/trama/modelos.json", e: "Unexpected token } in JSON at position 41" }));
     }
     modelosFijos = { ...(modelosFijos ?? MODELOS_FIJOS(false)), existe: true, config: structuredClone(config) };
-    return structuredClone(modelosFijos);
+    return { ...structuredClone(modelosFijos), efectivo: null };
   },
   async sondearOllama(url) {
     await espera(250);
@@ -316,7 +327,12 @@ const fija: FuentePaneles = {
     if (proveedor === "ollama") return { ok: true, modelos: OLLAMA_FALSO.length };
     return { ok: true, modelos: proveedor === "opencode" ? 14 : 3 };
   },
+  alTablaNueva() {
+    return () => undefined;
+  },
   async repartoTabla() {
+    // `mdl-wk-cargando`: la tabla no llega nunca (se ve su esqueleto con el resto del panel ya a la vista).
+    if (MODO.variante === "mdl-wk-cargando") return new Promise(() => {});
     await espera(120);
     if (MODO.variante === "mdl-wk-sin") return null;
     // Los fixtures reflejan lo guardado: la inteligencia que se fijó deja de ser «estimada».
@@ -571,6 +587,9 @@ const conPa = (m: NonNullable<typeof main>): FuentePaneles => ({
   async modelos() {
     return (await m.paneles.modelos().catch(fallar)) as EstadoModelos;
   },
+  async efectivoModelos() {
+    return (await m.paneles.efectivoModelos().catch(() => null)) as EstadoModelos["efectivo"];
+  },
   async guardarModelos(config) {
     return (await m.paneles.guardarModelos(config).catch(fallar)) as EstadoModelos;
   },
@@ -603,6 +622,9 @@ const conPa = (m: NonNullable<typeof main>): FuentePaneles => ({
   },
   async repartoTabla() {
     return (await m.paneles.repartoTabla().catch(fallar)) as TablaReparto | null;
+  },
+  alTablaNueva(fn) {
+    return m.paneles.alTablaNueva(fn);
   },
   async estadoAA() {
     return (await m.paneles.estadoAA().catch(fallar)) as EstadoAA;

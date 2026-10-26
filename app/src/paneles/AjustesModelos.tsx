@@ -60,6 +60,7 @@ import {
   type Tipo,
 } from "./modelos-borrador";
 import { esClaude, urlOllama } from "../../electron/modelos-tipos";
+import type { EfectivoPa } from "../../electron/modelos-config";
 
 /** Para las capturas: `mdl` (con archivo), `mdl-agregar` (con el panel de otra dirección abierto), `mdl-lider` (el selector del líder abierto), `mdl-bajando` (un modelo a mitad de bajada), `mdl-sinollama` (Ollama sin instalar), `mdl-apagado` (instalado y apagado), `mdl-sugeridos` (los modelos sugeridos), `mdl-tope` (el aviso de un tope cruzado) y `sinmdl` (sin archivo). */
 const VARIANTE = MODO.variante ?? "";
@@ -165,7 +166,10 @@ export function AjustesModelos({ Dato, plan = null }: { Dato: FilaDato; plan?: s
   const [listo, setListo] = useState<string | null>(null);
   const [uso, setUso] = useState<Uso | null>(null);
   const [entorno, setEntorno] = useState<EntornoOllama | null>(null);
+  // Lo que `pa --modelos` dice que corre hoy tarda (corre `reparto` por tipo): la config se muestra sin esperarlo y esto llega después.
+  const [efectivo, setEfectivo] = useState<EfectivoPa | null | "pendiente">("pendiente");
   const vivo = useRef(true);
+  const pedidoEfectivo = useRef(0);
   const sondeados = useRef(new Set<string>());
   const sec = useRef<HTMLElement>(null);
   useEffect(() => {
@@ -173,6 +177,15 @@ export function AjustesModelos({ Dato, plan = null }: { Dato: FilaDato; plan?: s
     return () => void (vivo.current = false);
   }, []);
 
+  /** Pide lo que corre hoy; un fallo (o un `pa` viejo) deja `null` y el panel lo arma del borrador. */
+  const pedirEfectivo = () => {
+    const mio = ++pedidoEfectivo.current;   // si hay otro pedido en el aire (se guardó mientras tanto), contesta el último
+    setEfectivo("pendiente");
+    void fuentePaneles.efectivoModelos().then(
+      (x) => vivo.current && mio === pedidoEfectivo.current && setEfectivo(x),
+      () => vivo.current && mio === pedidoEfectivo.current && setEfectivo(null),
+    );
+  };
   useEffect(() => {
     fuentePaneles.modelos().then(
       (r) => {
@@ -180,6 +193,7 @@ export function AjustesModelos({ Dato, plan = null }: { Dato: FilaDato; plan?: s
         if (r.version !== VERSION) return setFalla(t("error.version", { que: t("ajustes.mdlTitulo"), v: r.version, conozco: VERSION }));
         setE(r);
         setB(borradorDe(r));
+        pedirEfectivo();
         if (VARIANTE === "mdl-agregar") void detectar(URL_OLLAMA);
       },
       (x) => vivo.current && setFalla(mensaje(x)),
@@ -309,6 +323,7 @@ export function AjustesModelos({ Dato, plan = null }: { Dato: FilaDato; plan?: s
       setE(nuevo);
       setB(borradorDe(nuevo));
       setOk(true);
+      pedirEfectivo();
     } catch (x) {
       if (vivo.current) setError(mensaje(x));
     } finally {
@@ -317,9 +332,10 @@ export function AjustesModelos({ Dato, plan = null }: { Dato: FilaDato; plan?: s
   };
 
   // Con lo guardado a la vista, `pa` dice con qué corre cada cosa; si no, se calcula del borrador.
-  const deLider = (): Eleccion => (!hayCambio && e.efectivo?.lider) || liderEfectivo(b);
+  const ef = efectivo === "pendiente" ? null : efectivo;
+  const deLider = (): Eleccion => (!hayCambio && ef?.lider) || liderEfectivo(b);
   const soloGemini = e.solo_gemini === true;
-  const deTipo = (tipo: Tipo): Eleccion => (!hayCambio && e.efectivo?.workers[tipo]) || efectivoBorrador(b, tipo, soloGemini);
+  const deTipo = (tipo: Tipo): Eleccion => (!hayCambio && ef?.workers[tipo]) || efectivoBorrador(b, tipo, soloGemini);
 
   const abrirAgregar = () => {
     if (ag) return setAg(null);
@@ -395,12 +411,13 @@ export function AjustesModelos({ Dato, plan = null }: { Dato: FilaDato; plan?: s
               <h3 className="pn-sub-h">{t("ajustes.mdlHoyElegiria")}</h3>
               <ul className="pn-disp mdl-hoy" aria-label={t("ajustes.mdlHoyElegiria")}>
                 {TIPOS.map((tipo) => {
-                  const h = e.efectivo?.reparto?.[tipo];
+                  const h = ef?.reparto?.[tipo];
+                  const esperando = efectivo === "pendiente";
                   return (
                     <li key={tipo} data-tipo={tipo}>
                       <span className="mdl-hoy-tipo" data-tip={t(`mdl.t.${tipo}Que` as ClaveSola)}>{t(`mdl.t.${tipo}` as ClaveSola)}</span>
-                      <span className="mdl-hoy-modelo" data-vacio={h ? undefined : ""} data-tip={h ? textoMain(h.motivo) : undefined}>
-                        {h ? textoEleccion({ modelo: h.modelo, ...(h.effort ? { effort: h.effort } : {}) }, locales) : t("ajustes.mdlHoySin")}
+                      <span className="mdl-hoy-modelo" data-vacio={h || esperando ? undefined : ""} data-cargando={esperando ? "" : undefined} data-tip={h ? textoMain(h.motivo) : undefined} aria-busy={esperando || undefined}>
+                        {esperando ? <span className="pn-cargando-barra" aria-hidden /> : h ? textoEleccion({ modelo: h.modelo, ...(h.effort ? { effort: h.effort } : {}) }, locales) : t("ajustes.mdlHoySin")}
                       </span>
                     </li>
                   );

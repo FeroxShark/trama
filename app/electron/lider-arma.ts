@@ -55,6 +55,8 @@ export type ArmarLider = {
   desde?: string;
   /** Una sesión nueva (`sid`) que arranca con la conversación de otra hasta un mensaje; la de origen no se toca. */
   rama?: Rama;
+  /** Un archivo con lo hablado con otro motor antes del cambio (`relevo-motor.ts`): se le agrega al prompt de sistema (`--append-system-prompt-file`), no a la conversación. */
+  relevo?: string;
 };
 
 /**
@@ -106,7 +108,7 @@ const argvLocal = (contexto?: string) => [
  * y los contesta la app. Sesión nueva: `--session-id` + `--name`; retomada:
  * `--resume` (el nombre ya está en el transcript).
  */
-export function argvLider({ modelo, effort, sid, nombre, resume, modo = MODO_DEFAULT, local, ollama, desde, rama }: ArmarLider): string[] {
+export function argvLider({ modelo, effort, sid, nombre, resume, modo = MODO_DEFAULT, local, ollama, desde, rama, relevo }: ArmarLider): string[] {
   if (!SID.test(sid)) throw errorT("main.sesionRara", { v: sid });
   for (const u of [desde, rama?.de, rama?.hasta]) if (u !== undefined && !SID.test(u)) throw errorT("main.sesionRara", { v: u });
   if (!esModo(modo)) throw errorT("main.modoRaro", { v: String(modo) });
@@ -134,6 +136,8 @@ export function argvLider({ modelo, effort, sid, nombre, resume, modo = MODO_DEF
     // Ollama no entiende `claude-*` ni los esfuerzos de Claude: su modelo, y sin `--effort`.
     ollama ? ollama.modelo : modelo,
     ...(local ? argvLocal(local.contexto) : ollama ? [] : ["--effort", effort]),
+    // Un archivo y no el texto: el relevo puede pesar decenas de miles de caracteres (el argv de Windows tiene tope).
+    ...(relevo ? ["--append-system-prompt-file", relevo] : []),
   ];
   // Volver atrás y ramificar son del `claude` mismo (`--resume-session-at`, `--fork-session`): nunca se reescribe un transcript
   // ni se pasa por una compactación; el modelo recibe sólo la cadena hasta ese mensaje.
@@ -814,7 +818,23 @@ export type Guardado = {
   rama?: Rama;
   /** De qué líder salió (Ramificar / Editar antes de una compactación); no se borra. */
   origen?: Origen;
+  /**
+   * Las veces que la conversación siguió con un modelo de OTRO motor (Claude, Gemini, dsh, opencode), de la más vieja a la más
+   * nueva. El líder es el mismo (mismo `sid`, misma fila y título); cada motor guarda su transcript aparte y la vista los junta.
+   */
+  cambios?: Cambio[];
 };
+
+/** Un cambio de motor: cuándo (epoch ms), el modelo con el que venía y el que siguió. */
+export type Cambio = { ts: number; de: string; a: string };
+
+/** Los cambios de motor que se pueden leer de un `lideres.json`: lo que no tiene forma se descarta. */
+const cambiosDe = (v: unknown): Cambio[] =>
+  Array.isArray(v)
+    ? v
+        .filter((c: any) => Number(c?.ts) > 0 && typeof c?.de === "string" && c.de && typeof c?.a === "string" && c.a)
+        .map((c: any) => ({ ts: Number(c.ts), de: String(c.de).slice(0, 200), a: String(c.a).slice(0, 200) }))
+    : [];
 
 /** El contenido de `lideres.json` → la lista; lo que no tiene forma se descarta (versión rara: vacío). */
 export function leerGuardados(texto: string): Guardado[] {
@@ -852,6 +872,7 @@ export function leerGuardados(texto: string): Guardado[] {
         ...(Number(l.dormido) > 0 ? { dormido: Number(l.dormido) } : {}),
         ...(SID.test(String(l.rama?.de)) && SID.test(String(l.rama?.hasta)) ? { rama: { de: String(l.rama.de), hasta: String(l.rama.hasta) } } : {}),
         ...(SID.test(String(l.origen?.sid)) ? { origen: { sid: String(l.origen.sid), titulo: String(l.origen.titulo ?? "").slice(0, 300) } } : {}),
+        ...(cambiosDe(l.cambios).length ? { cambios: cambiosDe(l.cambios) } : {}),
       }),
     );
 }
@@ -906,7 +927,7 @@ export const escribirGuardados = (ls: Guardado[]) => JSON.stringify({ version: V
 // y herramientas, los pedazos del mismo mensaje juntos, sin subagentes, y la
 // misma paginación. Diferencia: cada herramienta lleva lo que hizo ("Bash: git status").
 
-type Crudo = {
+export type Crudo = {
   rol: "user" | "assistant";
   texto: string;
   herramientas: string[];
@@ -938,6 +959,8 @@ type Marcas = {
   compacto?: { auto: boolean; antes: number | null };
   /** `system/trama_destrabo` (agy-puente): trama cortó un bucle del modelo y le mandó el aviso; `agotado`: ya no lo intenta más. */
   destrabo?: { que: string; agotado: boolean };
+  /** El líder siguió desde acá con un modelo de otro motor (`Guardado.cambios`): `modelo` es el nuevo. No sale de ningún transcript. */
+  cambio?: { modelo: string };
 };
 
 /** Los campos del transcript que dicen que una línea no la escribió el usuario ni la contestó el modelo. */
@@ -1122,13 +1145,16 @@ export function conversacionDe(id: string, transcript: string | null, texto: str
 export function paginaDe(est: EstadoConv, id: string, transcript: string | null, { n = 50, antes = null }: Pagina = {}) {
   const { todos, compactaciones, compactada } = est;
   // Un paso que sólo razonó (Gemini: el razonamiento y su herramienta son mensajes aparte) cuenta: la tanda del stream lo tiene igual.
-  const lista = todos.filter((m) => m.texto !== "" || m.herramientas.length > 0 || m.pensado || m.marcas.compacto || m.marcas.destrabo || m.imagenes);
+  const lista = todos.filter((m) => m.texto !== "" || m.herramientas.length > 0 || m.pensado || m.marcas.compacto || m.marcas.destrabo || m.marcas.cambio || m.imagenes);
   const total = lista.length;
   const k = Math.max(1, Math.min(500, Math.floor(n) || 50));
   const hasta = antes == null ? total : Math.min(total, Math.max(0, Math.floor(antes)));
   const desde = Math.max(0, hasta - k);
   // El último que contestó el modelo: el sintético y la marca de compactar no traen `usage`.
-  const ult = lista.findLast((m) => m.rol === "assistant" && !sintetico(m) && !m.marcas.compacto && !m.marcas.destrabo);
+  // Tras un cambio de motor, lo que pesaba la conversación del otro motor no es de este: hasta que conteste el nuevo, nada.
+  const corte = lista.findLastIndex((m) => m.marcas.cambio);
+  const k0 = lista.findLastIndex((m) => m.rol === "assistant" && !sintetico(m) && !m.marcas.compacto && !m.marcas.destrabo && !m.marcas.cambio);
+  const ult = k0 > corte ? lista[k0] : undefined;
   return {
     version: 1,
     id,

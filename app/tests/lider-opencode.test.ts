@@ -68,18 +68,11 @@ test("un líder de opencode contesta: el prefacio con sus CLAUDE.md, su transcri
   const t = await lider.transcriptDe(sid);
   assert.equal(t, path.join(process.env.HILOS_STATE!, "opencode", `${sid}.jsonl`));
   assert.ok(readFileSync(t!, "utf8").includes("hola opencode"));
-  await assert.rejects(lider.mandar({ sid, texto: "x", modelo: "claude-opus-5-5", effort: "high" }), /main\.cambioProveedor/);
-  await assert.rejects(lider.mandar({ sid, texto: "x", modelo: "dsh:deepseek/deepseek-v4-flash", effort: "high" }), /main\.cambioProveedor/);
+  // (Seguir con un modelo de otro motor ya no se rechaza: lo prueba tests/lider-cambio-motor.test.ts.)
   await assert.rejects(lider.mandar({ sid, texto: "x", modelo: "opencode:suelto", effort: "high" }), /main\.opencodeModelo|suelto/);
   // Un segundo mensaje sigue la conversación (la sesión de opencode se conserva).
   await lider.mandar({ sid, texto: "segundo", modelo: MODELO_FALSO, effort: "high" });
   await hasta(() => de(sid, "fin").length === 2, 120_000);
   assert.equal(de(sid, "fin")[1].error, null);
   assert.match(usuarios(falso0.pedidos().at(-1)!).join("\n"), /hola opencode/);
-});
-
-test("un líder de Claude no se pasa a opencode en la misma sesión", { timeout: 60_000 }, async () => {
-  const sid = await lider.nuevo({ modelo: "claude-opus-5-5", effort: "high", texto: "uno" });
-  await hasta(() => de(sid, "fin").length === 1, 45_000);
-  await assert.rejects(lider.mandar({ sid, texto: "x", modelo: MODELO_FALSO, effort: "high" }), /main\.cambioProveedor/);
 });

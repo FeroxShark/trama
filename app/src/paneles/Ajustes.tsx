@@ -17,7 +17,7 @@ import { BarraGuardar, Celular, PlanYRed } from "./AjustesEditar";
 import { AjustesCuentas } from "./AjustesCuentas";
 import { AjustesModelos } from "./AjustesModelos";
 import { Compactar } from "./AjustesCompactar";
-import { IcAtajos, IcAviso, IcCodigo, ICONO, IcIdioma, IcLetra, IcTiernos, IcTipografia } from "../ui/iconos";
+import { IcApariencia, IcAtajos, IcAviso, IcCodigo, ICONO, IcIdioma, IcLetra, IcTiernos, IcTipografia } from "../ui/iconos";
 import { Carcasa } from "./AjustesCarcasa";
 import { AjustesMarco, Cat } from "./AjustesNav";
 import { ErrorCarga } from "./ErrorCarga";
@@ -27,6 +27,7 @@ import { cambiarTiernos } from "../hilo/tierno-logica";
 import { useTiernos } from "../hilo/Tierno";
 import { alCambiarAvisarEspera, avisarEspera, cambiarAvisarEspera } from "../espera";
 import { mensaje } from "../puente";
+import { TEMAS } from "../temas";
 import { alCambiarApariencia, apariencia, FUENTES, LETRA_DEF, LETRA_MAX, LETRA_MIN, MONOS, type Fuente } from "../tipografia";
 
 /** Cada idioma con su nombre en ese idioma (así lo encuentra quien no lee el otro). */
@@ -59,6 +60,33 @@ function Apariencia() {
   const a = useSyncExternalStore(alCambiarApariencia, apariencia);
   return (
     <>
+      <Dato nombre="ajustes.tema" que="ajustes.temaQue" icono={<IcApariencia {...ICONO} />}>
+        <div className="pn-temas" role="radiogroup" aria-label={t("ajustes.tema")}>
+          {TEMAS.map((id) => (
+            <button
+              key={id}
+              type="button"
+              role="radio"
+              aria-checked={id === a.tema}
+              data-tema-id={id}
+              onClick={() => elegirApariencia({ tema: id })}
+            >
+              {/* La muestra pinta con los tokens del tema de la propia muestra (temas.css); "sistema" es mitad oscuro, mitad claro. */}
+              <span className="pn-muestra" aria-hidden="true">
+                {id === "sistema" ? (
+                  <>
+                    <i data-tema="oscuro" />
+                    <i data-tema="claro" />
+                  </>
+                ) : (
+                  <i data-tema={id} />
+                )}
+              </span>
+              {t(`ajustes.tema.${id}`)}
+            </button>
+          ))}
+        </div>
+      </Dato>
       <Dato nombre="ajustes.letra" que="ajustes.letraQue" icono={<IcLetra {...ICONO} />}>
         <div className="pn-letra" role="radiogroup" aria-label={t("ajustes.letra")}>
           {LETRAS.map((n) => (

@@ -81,10 +81,7 @@ test("un líder de dsh con Ollama contesta: la URL del local de modelos.json, el
   const t = await lider.transcriptDe(sid);
   assert.equal(t, path.join(process.env.HILOS_STATE!, "dsh", `${sid}.jsonl`));
   assert.ok(readFileSync(t!, "utf8").includes("hola dsh"));
-  // Una sesión de dsh no se cruza con Claude ni con Gemini...
-  await assert.rejects(lider.mandar({ sid, texto: "x", modelo: "claude-opus-5-5", effort: "high" }), /main\.cambioProveedor/);
-  await assert.rejects(lider.mandar({ sid, texto: "x", modelo: "gemini-4-argon", effort: "high" }), /main\.cambioProveedor/);
-  // ...ni se le puede dar un `dsh:` mal armado.
+  // (Seguir con un modelo de otro motor ya no se rechaza: lo prueba tests/lider-cambio-motor.test.ts.) Lo que sí: un `dsh:` mal armado no se lanza.
   await assert.rejects(lider.mandar({ sid, texto: "x", modelo: "dsh:nube/algo", effort: "high" }), /main\.dshModelo|nube/);
 });
 
@@ -92,12 +89,6 @@ test("DeepSeek sin su key: el turno termina con el motivo (falta DEEPSEEK_API_KE
   const sid = await lider.nuevo({ modelo: "dsh:deepseek/deepseek-v4-flash", effort: "high", texto: "hola" });
   await hasta(() => de(sid, "fin").length === 1, 90_000, `no terminó: ${JSON.stringify(de(sid, "fin"))}`);
   assert.match(String(de(sid, "fin")[0].error ?? ""), /DEEPSEEK_API_KEY/);
-});
-
-test("un líder de Claude no se pasa a dsh en la misma sesión", { timeout: 60_000 }, async () => {
-  const sid = await lider.nuevo({ modelo: "claude-opus-5-5", effort: "high", texto: "uno" });
-  await hasta(() => de(sid, "fin").length === 1, 45_000);
-  await assert.rejects(lider.mandar({ sid, texto: "x", modelo: "dsh:opencode/big-pickle", effort: "high" }), /main\.cambioProveedor/);
 });
 
 test("una key guardada DESPUÉS de lanzar el líder vale en el próximo turno (y la conversación sigue); si se borra, vuelve a la pública", { skip: SIN_DSH, timeout: 180_000 }, async () => {

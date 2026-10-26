@@ -19,7 +19,7 @@
 // clip; miniaturas con × en la caja (src/hilo/adjuntos.ts) y en el globo.
 import { es } from "../atajos";
 import { Fragment, memo, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ClipboardEvent, type DragEvent, type KeyboardEvent, type ReactNode } from "react";
-import { ArrowUp, Check, Clock, Cpu, Folder, Paperclip, X, Zap } from "lucide-react";
+import { ArrowRightLeft, ArrowUp, Check, Clock, Cpu, Folder, Paperclip, X, Zap } from "lucide-react";
 import { motion, useReducedMotion } from "motion/react";
 import { VERSION, type Lider, type Mensaje, type MotivoRetomar, type MotivoTraer, type Tokens } from "../datos/contrato";
 import { fuente, type EnvioLider } from "../datos/fuente";
@@ -33,7 +33,7 @@ import { cursorDe, escucharBorrador, guardarCursor, leerBorrador, ponerBorrador 
 import { effortPara } from "./elegir";
 import { effortsLeidos, leerEfforts, recordarEffort } from "./efforts";
 import { effortDe, effortsOpciones, MODELO_DEFAULT, MODELOS, modeloDe, nombreModelo } from "./opciones";
-import { effortsDe, esAgy, esDsh, esOpencode, esLocal, familiaDe, reajustarEffort, sinWorkers } from "./modelos";
+import { effortsDe, esAgy, esDsh, esOpencode, esLocal, familiaDe, motorNombre, reajustarEffort, sinWorkers } from "./modelos";
 import { ContextoLocal } from "./ContextoLocal";
 import { t as tr, textoMain } from "../i18n";
 import { Selector } from "./Selector";
@@ -235,7 +235,7 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
   const valores = useMemo<Valores>(
     () => ({
       model: {
-        lista: MODELOS.filter((m) => familiaDe(m.id) === familiaDe(modelo)).map((m) => ({ valor: m.clave, desc: m.nombre })),
+        lista: MODELOS.map((m) => ({ valor: m.clave, desc: m.nombre })),
         actual: MODELOS.find((m) => m.id === modelo)?.clave ?? null,
       },
       effort: { lista: effortsOpciones(modelo).map((e) => ({ valor: e.id, desc: e.desc })), actual: effort },
@@ -249,6 +249,13 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
   );
   const menu = mn?.filas ?? [];
   const [nota, setNota] = useState<string | null>(null);
+  // Un modelo de otro motor elegido para una conversación que ya empezó, esperando la confirmación (`cruzando`: ya confirmado, falta mandar).
+  const [cruce, setCruce] = useState<string | null>(() =>
+    MODO.captura === "lider-cambio-motor" && MODO.variante === "confirmar" && l ? (MODELOS.find((m) => familiaDe(m.id) !== familiaDe(l.modelo))?.id ?? null) : null,
+  );
+  const cruzando = !!l && familiaDe(modelo) !== familiaDe(l.modelo);
+  /** La nota de seguir con otro motor: el modelo sin su "· por Google" y el motor que arranca. */
+  const textoCruce = (m: string) => tr("lider.cruce", { modelo: nombreModelo(m).split(" · ")[0], motor: motorNombre(m) });
   const caja = useRef<HTMLTextAreaElement>(null);
   const menuCmd = useRef<HTMLDivElement>(null);
   // Tras elegir una fila, el cursor va al final de lo puesto: se aplica al pintar la caja con el texto nuevo.
@@ -846,10 +853,17 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
   };
 
   const elegirModelo = (m: string) => {
-    if (l && familiaDe(m) !== familiaDe(l.modelo)) {
-      setErrorCaja(tr("comando.cambioProveedor", { v: nombreModelo(m) }));
+    // Un modelo de OTRO motor en una conversación que ya empezó: sigue acá mismo, pero en una sesión nueva de ese motor con lo hablado.
+    // No se cambia de golpe: se pide confirmación en la caja. Uno del motor que ya se confirmó (o del de siempre) se elige directo.
+    if (l && familiaDe(m) !== familiaDe(l.modelo) && familiaDe(m) !== familiaDe(modelo)) {
+      setErrorCaja(null);
+      setCruce(m);
       return;
     }
+    setCruce(null);
+    aplicarModelo(m);
+  };
+  const aplicarModelo = (m: string) => {
     tocado.current = true;
     setModelo(m);
     // Cada modelo tiene sus niveles: si el esfuerzo de ahora no existe en el nuevo, pasa al que le toca a ese modelo.
@@ -899,7 +913,7 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
           <>
             <b>{l.nombre && !repiteElPrimero(l.nombre, items) ? l.nombre : tr("lider.sesionJefe")}</b>
             <span>{l.titulo || nombreModelo(modelo)}</span>
-            {l.effort ? <span>{l.effort}</span> : null}
+            {l.effort && effortsDe(l.modelo).length ? <span>{l.effort}</span> : null}
             {!ocupado && cache ? <Reloj pintor={cache} className="cache" /> : null}
             {l.subagentes ? <ChipSubagentes n={l.subagentes} clave={l.id} /> : null}
             {app && !l.vivo && !l.caido ? <span className="tenue">{tr("lider.dormido")}</span> : null}
@@ -957,7 +971,7 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
             </div>
           ) : null}
           <Avisos avisos={avisos} />
-          {pasando ? <Pasando /> : app && sid ? <HaceChat sid={sid} piensa={piensa} modelo={nombreModelo(modeloDe(l?.modelo) ?? modelo)} effort={l?.effort ?? effort} alParar={l ? parar : undefined} parando={vivo.parando} /> : compacta !== null ? <Compactando desde={compacta} /> : null}
+          {pasando ? <Pasando /> : app && sid ? <HaceChat sid={sid} piensa={piensa} modelo={nombreModelo(modeloDe(l?.modelo) ?? modelo)} effort={effortsDe(l?.modelo ?? modelo).length ? (l?.effort ?? effort) : null} alParar={l ? parar : undefined} parando={vivo.parando} /> : compacta !== null ? <Compactando desde={compacta} /> : null}
           {vivo.directos > 0 ? (
             <div className="directo-espera" role="status" data-directo-espera>
               <Clock size={12} strokeWidth={2} aria-hidden="true" />
@@ -1161,13 +1175,13 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
               </button>
               <Selector
                 etiqueta={tr("comun.modelo")}
-                opciones={l ? MODELOS.filter((m) => familiaDe(m.id) === familiaDe(l.modelo)) : MODELOS}
+                opciones={MODELOS}
                 valor={modelo}
                 alElegir={elegirModelo}
                 chip={<span className="chip" />}
                 columnas
                 disabled={app && ocupado}
-                abierto={MODO.captura === "modelo"}
+                abierto={MODO.captura === "modelo" || (MODO.captura === "lider-cambio-motor" && MODO.variante === "menu")}
               />
               {/* Un modelo sin niveles (Ollama) no tiene qué elegir acá. */}
               {effortsDe(modelo).length ? (
@@ -1199,6 +1213,8 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
               ) : null}
               {esLocal(modelo) ? <ContextoLocal modelo={modelo} abierto={MODO.captura === "local-ctx"} /> : null}
               <span className="esp" />
+              {/* Lo de la derecha va junto: si la fila no entra, se parte lo de la izquierda y esto queda a la derecha de la última línea. */}
+              <div className="barra-der">
               <Contexto sid={sid} modelo={modelo} vence={l?.cache_vence ?? null} abierto={MODO.captura === "contexto-abierto"} />
               {app && ocupado && puedeDirecto && (texto.trim() || adjuntos.length) && !enviando ? (
                 <button type="button" className="btn2 directo" data-directo aria-label={tr("directo.boton")} data-tip={tr("directo.tip")} onClick={() => ejecutar(texto, true)}>
@@ -1227,6 +1243,7 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
               >
                 <ArrowUp size={14} strokeWidth={2.4} />
               </button>
+              </div>
             </div>
           </div>
         ) : l?.caido ? (
@@ -1249,6 +1266,24 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
           </div>
         )}
         {errorCaja ? <div className="caja-error" role="alert">{errorCaja}</div> : null}
+        {puede && (cruce ?? (cruzando ? modelo : null)) ? (
+          <div className="caja-cruce" role={cruce ? "alertdialog" : "status"} aria-label={textoCruce((cruce ?? modelo)!)} data-cruce>
+            <span className="cruce-t">
+              <ArrowRightLeft size={12} strokeWidth={2} aria-hidden="true" />
+              {textoCruce((cruce ?? modelo)!)}
+            </span>
+            {cruce ? (
+              <span className="cruce-b">
+                <button type="button" className="btn2 cruce-si" data-cruce-si onClick={() => { aplicarModelo(cruce); setCruce(null); }}>
+                  {tr("lider.cruceSi")}
+                </button>
+                <button type="button" className="btn2 cruce-no" data-cruce-no onClick={() => setCruce(null)}>
+                  {tr("lider.cruceNo")}
+                </button>
+              </span>
+            ) : null}
+          </div>
+        ) : null}
         {nota && !errorCaja ? <div className="caja-nota" role="status">{nota}</div> : null}
         {aviso ? <Reloj pintor={aviso} className="caja-aviso" /> : null}
         {/* Un líder local corre en la GPU de esta máquina, sin pa ni subagentes: que se sepa antes de pedirle una tarea grande. */}

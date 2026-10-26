@@ -5,6 +5,7 @@
 //   node agy-puente.js --sid <uuid> --nombre <n> --modelo <gemini-…-low|medium|high> --cwd <carpeta>
 //   HILOS_AGY=<binario>                       el `agy` (default: `agy`; las pruebas ponen scripts/agy-falso.mjs)
 //   TRAMA_AGY_PREFACIO=<texto>                lo que se le dice antes del primer mensaje (agy no lee CLAUDE.md)
+//   TRAMA_AGY_RELEVO=<archivo>                lo hablado con otro motor, si la conversación venía de uno (cambio de motor): va después del prefacio
 //
 // Continuidad: `agy --conversation <id>` retoma su conversación; el id queda en `$HILOS_STATE/gemini/<sid>.json`.
 // Si agy no la encuentra, el turno se repite una vez en una conversación nueva con lo hablado como prefacio
@@ -72,7 +73,15 @@ const sid = arg("sid") ?? "";
 const nombre = arg("nombre") ?? "";
 const modelo = arg("modelo") ?? "gemini-3.8-flash-low";
 const cwd = arg("cwd") || process.cwd();
-const prefacio = process.env.TRAMA_AGY_PREFACIO ?? "";
+// Si la conversación venía de otro motor, lider.ts deja lo hablado en un archivo (es largo: no entra en el entorno): va después del prefacio.
+const relevo = (() => {
+  try {
+    return process.env.TRAMA_AGY_RELEVO ? readFileSync(process.env.TRAMA_AGY_RELEVO, "utf8").trim() : "";
+  } catch {
+    return "";
+  }
+})();
+const prefacio = [process.env.TRAMA_AGY_PREFACIO ?? "", relevo].filter(Boolean).join("\n\n---\n\n");
 
 const DIR = path.join(ESTADO, "gemini");
 const TRANSCRIPT = path.join(DIR, `${sid}.jsonl`);

@@ -400,7 +400,7 @@ export const ESTADO_OPENCODE = (variante: string | null): EstadoOpencodeUi => {
  */
 export const TABLA_REPARTO = (aa = false): TablaReparto => {
   const h = (horas: number) => Date.now() + horas * 3_600_000;
-  const base = { cuenta: null, estimada: false, origen: "defecto" as const, aaFecha: null as string | null, gratis: false, ventanas: [], urgencia: 0, permitido: true, excluidoPor: null, agotado: false };
+  const base = { cuenta: null, calidadPorEffort: {} as FilaTabla["calidadPorEffort"], estimada: false, origen: "defecto" as const, aaFecha: null as string | null, gratis: false, ventanas: [], urgencia: 0, permitido: true, excluidoPor: null, agotado: false };
   const claude = (id: string, nombre: string, familia: string, calidad: number): FilaTabla => ({
     ...base, id, nombre, proveedor: "claude", familia, familiaExcluir: familia, calidad, libre: 62, vuelve: h(20), urgencia: 0.62,
     ventanas: [{ id: "5h", libre: 80, vuelve: h(2) }, { id: "7d", libre: 62, vuelve: h(20) }],
@@ -435,7 +435,8 @@ export const TABLA_REPARTO = (aa = false): TablaReparto => {
   const conAA = (f: FilaTabla): FilaTabla => {
     if (!aa || f.estimada || f.origen !== "defecto" || f.familia === "sonnet" || f.id.includes("big-pickle")) return f;
     const q = { "claude-opus-5-5": 100, "claude-haiku-5-5": 60, "gemini-4-argon": 83, "gemini-3.8-flash": 58, "agy:gpt-oss-120b": 47, "codex:gpt-6.1-sol": 90, "opencode:opencode/glm-5.3-flash-free": 64, "opencode:opencode/nemotron-3-ultra-free": 52 }[f.id];
-    return q === undefined ? f : { ...f, calidad: q, origen: "artificial-analysis", aaFecha: ayer };
+    const porEffort = f.id === "claude-opus-5-5" ? { low: 82, medium: 90, high: 96, max: 100 } : {};
+    return q === undefined ? f : { ...f, calidad: q, calidadPorEffort: porEffort, origen: "artificial-analysis", aaFecha: ayer };
   };
   const usuario = (f: FilaTabla): FilaTabla => (aa && f.familia === "sonnet" ? { ...f, calidad: 90, origen: "usuario" } : f);
   return { version: 1, leido: Date.now(), modelos: modelos.map(conAA).map(usuario) };

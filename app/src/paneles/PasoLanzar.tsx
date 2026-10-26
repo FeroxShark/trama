@@ -10,7 +10,7 @@ import { Selector, type Opcion } from "../hilo/Selector";
 import { effortPara } from "../hilo/elegir";
 import { effortsLeidos } from "../hilo/efforts";
 import { effortsOpciones, MODELO_DEFAULT, MODELOS, MODELOS_WORKER } from "../hilo/opciones";
-import { effortDeModelo } from "../hilo/modelos";
+import { effortDeModelo, esOpencode } from "../hilo/modelos";
 import { t, type ClaveSola } from "../i18n";
 import { useIdioma } from "../i18n/react";
 import { MODO } from "../modo";
@@ -120,13 +120,22 @@ function Dialogo({ p }: { p: PedidoLanzar }) {
             <Selector etiqueta={t("lanzar.modelo")} opciones={p.modelos} valor={modelo} alElegir={elegirModelo} disabled={yendo} columnas />
           </div>
           <div className="pn-abajo lz-sel">
-            <Selector
-              etiqueta={t("lanzar.effort")}
-              opciones={effortsOpciones(modelo)}
-              valor={effort}
-              alElegir={(e) => (setEffort(e), setTocado(true))}
-              disabled={yendo}
-            />
+            {effortsOpciones(modelo).length ? (
+              <Selector
+                etiqueta={t("lanzar.effort")}
+                opciones={effortsOpciones(modelo)}
+                valor={effort}
+                alElegir={(e) => (setEffort(e), setTocado(true))}
+                disabled={yendo}
+              />
+            ) : (
+              // Sin niveles (OpenCode, DSH): la píldora sigue, apagada y diciendo por qué.
+              <div className="pick" data-tip={t(esOpencode(modelo) ? "effort.sinNivelesOpencodeTip" : "effort.sinNivelesTip")}>
+                <button type="button" className="pbtn" data-sin-esfuerzo disabled aria-label={`${t("lanzar.effort")}: ${t("effort.sinNiveles")}`}>
+                  {t("effort.sinNiveles")}
+                </button>
+              </div>
+            )}
           </div>
           {p.tipo ? <span className="lz-tipo">{t("lanzar.tipo", { tipo: p.tipo })}</span> : null}
         </div>

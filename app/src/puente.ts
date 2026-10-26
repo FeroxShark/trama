@@ -60,7 +60,7 @@ type Main = {
     leer(): Promise<{ effort: Record<string, string> }>;
     effort(modelo: string, effort: string): Promise<void>;
     idioma(idioma: string): Promise<void>;
-    apariencia(a: { letra?: number; fuente?: string; mono?: string }): Promise<void>;
+    apariencia(a: { letra?: number; fuente?: string; mono?: string; tema?: string }): Promise<void>;
     /** Los mensajes tiernos (B17), prendidos o apagados. */
     tiernos(si: boolean): Promise<void>;
     /** La notificación de "te espera", prendida o apagada. */
@@ -186,6 +186,8 @@ type Main = {
     routing(cambios: { rol: string; modelo: string | null; effort: string | null }[]): Promise<unknown>;
     /** La config de modelos (`~/.config/trama/modelos.json`) con la tabla efectiva de `pa --modelos --json` si existe; sin validar. */
     modelos(): Promise<unknown>;
+    /** Lo que `pa --modelos --json` dice que corre hoy (y lo que elegiría `reparto`): tarda, por eso va aparte de `modelos`. `null` sin `pa` o con uno viejo. */
+    efectivoModelos(): Promise<unknown>;
     /** Guarda esa config (atómico; rechaza con el motivo sin escribir) (sólo `modelos.json`; las filas de `~/CLAUDE.md` no se tocan: eso es `routing`); devuelve cómo quedó. */
     guardarModelos(config: unknown): Promise<unknown>;
     /** Pregunta a un Ollama (`GET <url>/api/tags`) qué modelos tiene; nunca rechaza por no contestar. */
@@ -216,6 +218,8 @@ type Main = {
     /** Vuelve a listar los modelos (`opencode models --refresh`); rechaza con el motivo. Devuelve el estado de después. */
     actualizarOpencode(): Promise<unknown>;
     alBajar(fn: (b: unknown) => void): Soltar;
+    /** Artificial Analysis terminó de bajar de fondo y la tabla de «Modelos para workers» tiene datos nuevos. */
+    alTablaNueva(fn: () => void): Soltar;
     /** Escribe el plan (`pa --plan`) y/o la red de seguridad (`autoCompactWindow`); rechaza con el motivo; devuelve Ajustes como quedó. */
     guardarAjustes(cambio: { plan?: string; red_seguridad?: number | null }): Promise<unknown>;
     /** El acceso desde el celular (`remoto.json`) y dónde está escuchando; por la tailnet, `{ editable: false }`. */

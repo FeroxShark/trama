@@ -6,7 +6,7 @@
 // "Mandadas" del proyecto hasta que el líder cierra el item. El kanban de hoy es la pestaña "Todo" (`todo`).
 // Reusa las opciones del chat (`.pq-op`, `.pq-otro`, src/hilo/Preguntas.tsx) y las pestañas del kanban (`.tb-vistas`).
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { ArrowLeft, Check, ChevronRight, Copy, Send, X } from "lucide-react";
+import { ArrowLeft, Check, ChevronRight, CircleHelp, Copy, FlaskConical, Inbox, Send, X } from "lucide-react";
 import { armarAviso, candidatos, elegirAviso, type LiderAviso } from "../datos/avisar";
 import { fuenteTablero } from "../datos/fuenteTablero";
 import { agrupar, destinoDe } from "../datos/iniciar";
@@ -32,6 +32,7 @@ import { Selector, type Opcion } from "../hilo/Selector";
 import { MODO } from "../modo";
 import type { PropsTablero } from "./Tablero";
 import "./pendientes.css";
+import "./tablero-vista.css";
 
 type Props = Pick<PropsTablero, "carpetas" | "lideres" | "alRedactar" | "avisar"> & {
   /** El kanban de hoy, entero: la pestaña "Todo". */
@@ -202,6 +203,7 @@ export function TableroNuevo({ todo, carpetas, lideres, alRedactar, avisar }: Pr
         <div className="pd-lista-zona">
           {errorLeer ? <p className="pn-aviso pn-error" role="alert">{errorLeer}</p> : null}
           {datos.caidas.length ? <p className="pn-aviso">{t("tablero.maquinaCaida", { maquina: datos.caidas.join(", ") })}</p> : null}
+          <p className="pd-intro">{t("pd.intro")}</p>
           {activos.length ? (
             <ul className="pd-lista">
               {activos.map((p) => (
@@ -209,7 +211,11 @@ export function TableroNuevo({ todo, carpetas, lideres, alRedactar, avisar }: Pr
               ))}
             </ul>
           ) : (
-            <p className="pd-nada">{t("pd.nada")}</p>
+            <div className="pd-nada">
+              <Inbox size={20} strokeWidth={1.6} aria-hidden="true" />
+              <b>{t("pd.nada")}</b>
+              <span>{t("pd.nadaGuia")}</span>
+            </div>
           )}
           {parados.length ? (
             <>
@@ -239,17 +245,31 @@ function Fila({ p, alAbrir }: { p: ProyectoPend; alAbrir: () => void }) {
       <button type="button" className="pd-fila" onClick={alAbrir}>
         <span className="pd-punto" style={tonoDe(p.nombre)} />
         <span className="pd-nombre">{nombreDe(p.nombre)}</span>
-        <span className="pd-hace">{hace(p.hace)}</span>
+        <span className="pd-hace" data-tip={t("pd.ultima")}>{hace(p.hace)}</span>
         <span className="pd-nums">
-          {p.preguntas.length ? <span className="pd-num">{preguntas(p.preguntas.length)}</span> : null}
-          {p.pruebas.length ? <span className="pd-num">{pruebas(p.pruebas.length)}</span> : null}
+          {p.preguntas.length ? (
+            <span className="pd-num" data-tipo="pregunta">
+              <CircleHelp size={12} strokeWidth={2} aria-hidden="true" />
+              {preguntas(p.preguntas.length)}
+            </span>
+          ) : null}
+          {p.pruebas.length ? (
+            <span className="pd-num" data-tipo="prueba">
+              <FlaskConical size={12} strokeWidth={2} aria-hidden="true" />
+              {pruebas(p.pruebas.length)}
+            </span>
+          ) : null}
           {p.mandadas.length ? (
             <span className="pd-num" data-mandadas="">
+              <Send size={12} strokeWidth={2} aria-hidden="true" />
               {mandadas(p.mandadas.length)}
             </span>
           ) : null}
         </span>
-        <ChevronRight className="pd-ir" size={14} strokeWidth={2} />
+        <span className="pd-abrir">
+          {t("pd.abrir")}
+          <ChevronRight className="pd-ir" size={14} strokeWidth={2} aria-hidden="true" />
+        </span>
       </button>
     </li>
   );
@@ -299,7 +319,7 @@ function Proyecto({
         </button>
         <span className="pd-punto" style={tonoDe(p.nombre)} />
         <h2 className="pd-h">{nombreDe(p.nombre)}</h2>
-        <span className="pd-hace">{hace(p.hace)}</span>
+        <span className="pd-hace" data-tip={t("pd.ultima")}>{hace(p.hace)}</span>
       </header>
       <div className="pd-scroll" ref={scroll}>
         {p.preguntas.length ? (
