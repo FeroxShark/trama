@@ -23,6 +23,8 @@ export type FilaTabla = {
   cuenta: string | null;
   /** Inteligencia 0–100 y si es una estimación por el nombre (nadie la fijó en `calidad`). */
   calidad: number;
+  /** Inteligencia por effort (`low`…`max`) donde se conoce (Artificial Analysis o el dueño); `{}` si no hay desglose. `calidad` es la mejor. */
+  calidadPorEffort: Partial<Record<EffortCalidad, number>>;
   estimada: boolean;
   /** De dónde sale la cifra (`reparto` ya aplicó la precedencia): lo que fijó el dueño, Artificial Analysis, los defaults o la estimación por el nombre. */
   origen: OrigenCalidad;
@@ -42,6 +44,9 @@ export type FilaTabla = {
   agotado: boolean;
 };
 
+import { EFFORTS_CALIDAD, type EffortCalidad } from "./efforts-calidad.ts";
+export { EFFORTS_CALIDAD, type EffortCalidad };
+
 export type TablaReparto = { version: 1; leido: number; modelos: FilaTabla[] };
 
 const texto = (v: unknown): string => (typeof v === "string" ? v : "");
@@ -53,6 +58,16 @@ const pct = (v: unknown): number | null => {
 const iso = (v: unknown): number | null => {
   const t = typeof v === "string" ? Date.parse(v) : NaN;
   return Number.isFinite(t) ? t : null;
+};
+
+const porEffort = (v: unknown): Partial<Record<EffortCalidad, number>> => {
+  const out: Partial<Record<EffortCalidad, number>> = {};
+  const o = v && typeof v === "object" ? (v as Record<string, unknown>) : {};
+  for (const e of EFFORTS_CALIDAD) {
+    const n = num(o[e]);
+    if (n !== null) out[e] = Math.max(0, Math.min(100, Math.round(n)));
+  }
+  return out;
 };
 
 /** Parsea la salida de `reparto --tabla --json`; `null` si no es el contrato (JSON roto, otra versión, un `reparto` viejo). */
@@ -88,6 +103,7 @@ export function parsearTabla(salida: string, ahoraMs = Date.now()): TablaReparto
       familiaExcluir: texto(o.familia_excluir) || texto(o.familia),
       cuenta: texto(o.cuenta) || null,
       calidad: Math.max(0, Math.min(100, Math.round(calidad))),
+      calidadPorEffort: porEffort(o.calidad_por_effort),
       estimada: o.estimada === true,
       origen: (ORIGENES_CALIDAD as readonly string[]).includes(texto(o.origen)) ? (texto(o.origen) as OrigenCalidad) : o.estimada === true ? "estimada" : "defecto",
       aaFecha: /^\d{4}-\d{2}-\d{2}/.test(texto(o.aa_fecha)) ? texto(o.aa_fecha).slice(0, 10) : null,
@@ -117,4 +133,30 @@ export async function leerTabla(): Promise<TablaReparto | null> {
   } catch {
     return null;
   }
+}
+
+/**
+ * El lector de la tabla que usa el panel: devuelve la tabla de la caché de Artificial Analysis que ya hay, sin esperar a que se
+ * refresque. Si la caché venció, `refrescar` corre de fondo (una sola a la vez aunque abran el panel varias veces) y, si bajó datos
+ * nuevos, `alRefrescar` avisa para que el panel vuelva a pedir la tabla. Un fallo del refresco no rompe nada: queda la caché de antes.
+ */
+export function crearLectorTabla(d: {
+  leer: () => Promise<TablaReparto | null>;
+  refrescar: () => Promise<{ ok: boolean; vigente?: boolean } | null | undefined>;
+  alRefrescar: () => void;
+}): () => Promise<TablaReparto | null> {
+  let enCurso: Promise<void> | null = null;
+  return () => {
+    enCurso ??= (async () => {
+      try {
+        const r = await d.refrescar();
+        if (r && r.ok && r.vigente === false) d.alRefrescar();
+      } catch {
+        /* sin red, sin key, límite diario: se sigue con lo que hay */
+      } finally {
+        enCurso = null;
+      }
+    })();
+    return d.leer();
+  };
 }

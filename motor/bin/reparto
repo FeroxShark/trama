@@ -285,6 +285,9 @@ def _cargar_config():
             cfg[k].update(j[k])
     if isinstance(j.get("calidad"), dict):
         cfg["calidad_usuario"] = set(j["calidad"])   # lo que fijó el dueño: gana a Artificial Analysis
+    if isinstance(j.get("calidad_effort"), dict):   # {"opus": {"low": 80, "high": 95}}: gana a Artificial Analysis para ese esfuerzo
+        cfg["calidad_effort_usuario"] = {k: {e: v for e, v in d.items() if e in EFFORTS_AA and isinstance(v, (int, float)) and not isinstance(v, bool)}
+                                         for k, d in j["calidad_effort"].items() if isinstance(d, dict)}
     if isinstance(j.get("reserva"), (int, float, dict)) and not isinstance(j.get("reserva"), bool):
         cfg["reserva"] = j["reserva"]   # null o ausente: sin reserva
     if isinstance(j.get("excluir"), list):
@@ -327,10 +330,16 @@ def _cargar_config():
 # La app (electron/artificial-analysis.ts) baja los índices de coding y agentic de Artificial Analysis (con la key del dueño, una
 # vez por día) y deja el resultado en <state>/aa-modelos.json; reparto sólo LEE ese archivo (REPARTO_AA=<archivo> lo cambia, "0" lo
 # apaga). Acá viven el emparejamiento de nombres y la calibración porque acá se conocen los ids de los modelos (los de opencode
-# aparecen solos). Precedencia de `calidad`: modelos.json (usuario) > Artificial Analysis > defaults > estimación por el nombre.
+# aparecen solos). Calibración (puntaje crudo de AA -> calidad 0-100 de Trama): con las tres anclas presentes y ordenadas igual en AA
+# que en Trama, línea quebrada por Haiku 5.5 -> 60, Sonnet 5.5 -> 88 y Opus 5.5 -> 100 (se ordenan por puntaje de AA; fuera de los
+# extremos sigue con la pendiente del tramo más cercano; se acota a 0-100). Va por tramos y no por una sola recta porque los mínimos
+# de MINIMO_POR_TIPO (codigo-acotado ~ 88, "calidad de Sonnet") se fijaron con Sonnet en 88: la recta Haiku-Opus lo dejaba en ~74 y
+# el trabajo de código habría ido sólo a Opus, quemando cupo. Si las anclas no son monótonas, vuelve a la recta por Opus y Haiku;
+# con menos anclas, los respaldos de aa_calibracion. Precedencia de `calidad`: modelos.json (usuario) > Artificial Analysis > defaults > estimación por el nombre.
 AA_ANCLAS = (("claude-opus-5-5", 100), ("claude-sonnet-5-5", 88), ("claude-haiku-5-5", 60))   # el default de cada uno
 AA_PREFIJOS = re.compile(r"^(?:opencode|dsh|agy|codex|ollama):")
 AA_ESFUERZOS = ("xhigh", "high", "medium", "low")
+EFFORTS_AA = ("low", "medium", "high", "xhigh", "max")   # de menos a más; "none" (Non-reasoning) no entra al mapa por effort
 
 
 def aa_tokens(nombre):
@@ -365,22 +374,45 @@ def aa_puntaje(m):
     return float(i) if isinstance(i, (int, float)) and not isinstance(i, bool) else None
 
 
+def aa_esfuerzo(m):
+    """Esfuerzo de una entrada de AA por su nombre o slug: "low"|"medium"|"high"|"xhigh"|"max" ("(Reasoning, high)", "-low", "(xhigh)",
+    "-xhigh"), "none" si es Non-reasoning, o None si no dice (la entrada pelada, sin esfuerzo, sólo cuenta para el mejor puntaje)."""
+    for campo in ("name", "slug"):
+        s = (m.get(campo) or "").lower()
+        if re.search(r"non[- ]?reasoning", s):
+            return "none"
+        for par in re.findall(r"\(([^)]*)\)", s):
+            for t in re.split(r"[^a-z0-9]+", par):
+                if t in EFFORTS_AA:
+                    return t
+        t = re.split(r"[^a-z0-9]+", s)
+        if len(t) > 1 and t[-1] in EFFORTS_AA:
+            return t[-1]
+    return None
+
+
 def aa_indice(modelos):
-    """({tokens unidos: (puntaje, nombre)}, {frozenset(tokens): (puntaje, nombre)}) con el nombre y el slug de cada modelo.
-    Si varios caen en la misma clave (Reasoning y Non-reasoning, esfuerzos) gana el de más puntaje."""
-    exacto, conjunto = {}, {}
+    """({tokens unidos: (puntaje, nombre)}, {frozenset(tokens): (puntaje, nombre)}, {tokens unidos: {esfuerzo: puntaje}}, {frozenset: {...}})
+    con el nombre y el slug de cada modelo. Si varios caen en la misma clave (Reasoning y Non-reasoning, esfuerzos) gana el de más
+    puntaje; los dos últimos guardan además el puntaje de cada esfuerzo conocido (el mayor si se repite)."""
+    exacto, conjunto, ex_ef, co_ef = {}, {}, {}, {}
     for m in modelos:
         p = aa_puntaje(m)
         if p is None:
             continue
+        ef = aa_esfuerzo(m)
         for campo in ("name", "slug"):
             tk = aa_tokens(m.get(campo))
             if not tk:
                 continue
-            for d, k in ((exacto, " ".join(tk)), (conjunto, frozenset(tk))):
+            for d, de, k in ((exacto, ex_ef, " ".join(tk)), (conjunto, co_ef, frozenset(tk))):
                 if k not in d or p > d[k][0]:
                     d[k] = (p, m.get("name") or m.get("slug"))
-    return exacto, conjunto
+                if ef in EFFORTS_AA:
+                    e = de.setdefault(k, {})
+                    if p > e.get(ef, -1e9):
+                        e[ef] = p
+    return exacto, conjunto, ex_ef, co_ef
 
 
 def aa_buscar(aa, mid):
@@ -390,6 +422,17 @@ def aa_buscar(aa, mid):
     if not aa or not tk:
         return None
     return aa["exacto"].get(" ".join(tk)) or aa["conjunto"].get(frozenset(tk))
+
+
+def aa_buscar_efforts(aa, mid):
+    """{esfuerzo: puntaje crudo} conocidos de ese id en AA (puede ser {}), con el mismo emparejamiento que aa_buscar."""
+    tk = aa_tokens(mid)
+    if not aa or not tk:
+        return {}
+    k1, k2 = " ".join(tk), frozenset(tk)
+    if k1 in aa["exacto"]:
+        return aa["ex_ef"].get(k1, {})
+    return aa["co_ef"].get(k2, {}) if k2 in aa["conjunto"] else {}
 
 
 def aa_calibracion(puntos):
@@ -411,8 +454,27 @@ def aa_calibracion(puntos):
     return (a, my - a * mx)
 
 
+def aa_tramos(puntos):
+    """[(puntaje AA, calidad de Trama)] -> los puntos ordenados por puntaje AA para la calibración por tramos, o None si no sirven:
+    hacen falta al menos tres y que la calidad suba estrictamente con el puntaje (anclas en orden raro en AA: se vuelve a la recta)."""
+    p = sorted((x, y) for x, y in puntos if x > 0)
+    if len(p) < 3 or any(p[i][0] >= p[i + 1][0] or p[i][1] >= p[i + 1][1] for i in range(len(p) - 1)):
+        return None
+    return p
+
+
+def aa_interpolar(tramos, x):
+    """Calidad (sin redondear ni acotar) de un puntaje AA x en la línea quebrada por los puntos de `tramos`; fuera de los extremos
+    sigue con la pendiente del tramo más cercano."""
+    i = 0
+    while i < len(tramos) - 2 and x > tramos[i + 1][0]:
+        i += 1
+    (x0, y0), (x1, y1) = tramos[i], tramos[i + 1]
+    return y0 + (y1 - y0) * (x - x0) / (x1 - x0)
+
+
 def aa_cargar():
-    """El índice de <state>/aa-modelos.json: {"fecha", "exacto", "conjunto", "cal": (a, b)} o None (sin archivo, roto o sin anclas)."""
+    """El índice de <state>/aa-modelos.json: {"fecha", "exacto", "conjunto", "cal": (a, b), "tramos": [...] o None}, o None (sin archivo, roto o sin anclas)."""
     ruta = os.environ.get("REPARTO_AA") or os.path.join(state_dir(), "aa-modelos.json")
     if ruta == "0":
         return None
@@ -422,26 +484,61 @@ def aa_cargar():
         modelos = [m for m in j["modelos"] if isinstance(m, dict)]
     except Exception:
         return None
-    exacto, conjunto = aa_indice(modelos)
-    aa = {"fecha": str(j.get("fetched") or "")[:10] or None, "exacto": exacto, "conjunto": conjunto, "cal": None}
+    exacto, conjunto, ex_ef, co_ef = aa_indice(modelos)
+    aa = {"fecha": str(j.get("fetched") or "")[:10] or None, "exacto": exacto, "conjunto": conjunto, "ex_ef": ex_ef, "co_ef": co_ef, "cal": None}
     puntos = {}
     for mid, objetivo in AA_ANCLAS:
         r = aa_buscar(aa, mid)
         if r:
             puntos[mid] = (r[0], objetivo)
-    if "claude-opus-5-5" in puntos and "claude-haiku-5-5" in puntos:   # lo normal: la recta por Opus (100) y Haiku (60); Sonnet queda como lo mida AA
+    aa["tramos"] = aa_tramos(list(puntos.values()))   # lo normal: Haiku (60), Sonnet (88) y Opus (100) clavados, y rectas entre cada par
+    if not aa["tramos"] and "claude-opus-5-5" in puntos and "claude-haiku-5-5" in puntos:   # anclas en orden raro: la recta por Opus y Haiku
         puntos = {k: puntos[k] for k in ("claude-opus-5-5", "claude-haiku-5-5")}
     aa["cal"] = aa_calibracion(list(puntos.values()))
     return aa if aa["cal"] else None
 
 
+def aa_calibrar(aa, x):
+    """Puntaje crudo de AA -> calidad 0-100 de Trama (mismas anclas para el mejor puntaje y para cada esfuerzo)."""
+    if aa.get("tramos"):
+        v = aa_interpolar(aa["tramos"], x)
+    else:
+        a, b = aa["cal"]
+        v = a * x + b
+    return max(0, min(100, int(round(v))))
+
+
 def aa_calidad(aa, mid):
-    """(calidad 0-100 calibrada, nombre en AA) de ese id, o None si AA no lo conoce."""
+    """(calidad 0-100 calibrada, nombre en AA) de ese id, o None si AA no lo conoce. Es el mejor puntaje (el de más esfuerzo)."""
     r = aa_buscar(aa, mid)
     if not r:
         return None
-    a, b = aa["cal"]
-    return (max(0, min(100, int(round(a * r[0] + b)))), r[1])
+    return (aa_calibrar(aa, r[0]), r[1])
+
+
+def aa_calidad_efforts(aa, mid):
+    """{esfuerzo: calidad calibrada} de los esfuerzos que AA midió para ese id ({} si ninguno)."""
+    return {e: aa_calibrar(aa, p) for e, p in aa_buscar_efforts(aa, mid).items() if e in EFFORTS_AA} if aa else {}
+
+
+def calidad_en_effort(mapa, effort, base):
+    """Calidad para un effort: la medida si está; si falta, interpolada entre los vecinos conocidos (por posición en low<medium<high<xhigh<max;
+    fuera de los extremos, el vecino más cercano); sin mapa o effort desconocido, `base` (la mejor)."""
+    if not mapa or effort not in EFFORTS_AA:
+        return base
+    if effort in mapa:
+        return mapa[effort]
+    i = EFFORTS_AA.index(effort)
+    ant = [(EFFORTS_AA.index(e), v) for e, v in mapa.items() if e in EFFORTS_AA and EFFORTS_AA.index(e) < i]
+    sig = [(EFFORTS_AA.index(e), v) for e, v in mapa.items() if e in EFFORTS_AA and EFFORTS_AA.index(e) > i]
+    if ant and sig:
+        (i0, v0), (i1, v1) = max(ant), min(sig)
+        return int(round(v0 + (v1 - v0) * (i - i0) / (i1 - i0)))
+    if ant:
+        return max(ant)[1]
+    if sig:
+        return min(sig)[1]
+    return base
 
 
 def cargar_config():
@@ -450,6 +547,8 @@ def cargar_config():
     cfg = _cargar_config()
     cfg["aa"] = aa = aa_cargar()
     cfg["origen"] = {k: ("usuario" if k in cfg["calidad_usuario"] else "defecto") for k in cfg["calidad"]}
+    cfg.setdefault("calidad_effort_usuario", {})
+    cfg["calidad_ef"] = {}   # {familia: {esfuerzo: calidad}} de AA (sólo las que no fijó el dueño)
     if aa:
         for base, fam, *_ in FAMILIAS:
             if fam in cfg["calidad_usuario"] or cfg["origen"].get(fam) == "artificial-analysis":
@@ -457,7 +556,22 @@ def cargar_config():
             r = aa_calidad(aa, base)
             if r:
                 cfg["calidad"][fam], cfg["origen"][fam] = r[0], "artificial-analysis"
+                cfg["calidad_ef"][fam] = aa_calidad_efforts(aa, base)
     return cfg
+
+
+def mapa_efforts(cfg, clave, mid=None):
+    """{esfuerzo: calidad} de una familia (o de un id, `mid`, para dsh/opencode). Precedencia: el dueño por esfuerzo (modelos.json
+    "calidad_effort": {"opus": {"low": 80}}) > Artificial Analysis. Una `calidad` fija del dueño sin mapa por esfuerzo vale para todos
+    (mapa vacío); con mapa por esfuerzo del dueño, los esfuerzos que no puso vuelven a esa calidad fija."""
+    usr = cfg.get("calidad_effort_usuario", {}).get(clave) or {}
+    if clave in cfg.get("calidad_usuario", set()) or (mid and clave == mid and calidad_origen(cfg, mid)[1] == "usuario"):
+        base = {e: cfg["calidad"][clave] for e in EFFORTS_AA if usr and isinstance(cfg["calidad"].get(clave), (int, float))}
+    elif mid:
+        base = aa_calidad_efforts(cfg.get("aa"), mid)
+    else:
+        base = cfg.get("calidad_ef", {}).get(clave, {})
+    return dict(base, **usr)
 
 
 
@@ -1409,13 +1523,18 @@ def armar_candidatos(tipo, cfg, cupos, now):
         cuenta = cuenta_de(cuenta_s)
         if suf(cuenta):
             nombre = "%s · %s" % (nombre, cuenta_s.get("nombre") or cuenta)
-        calidad = cfg["calidad"].get(fam, 0)
+        calidad_mejor = cfg["calidad"].get(fam, 0)
+        mapa_ef = mapa_efforts(cfg, fam)
         if efs is None:   # Claude oficial: el effort va aparte
             modelo, effort = base, e_tipo
+            e_cal = e_tipo
         else:
             e = efectivo(base, efs, e_tipo)
             modelo, effort = "%s-%s" % (base, e), None
+            e_cal = e
+        calidad = calidad_en_effort(mapa_ef, e_cal, calidad_mejor)
         cand = {"modelo": modelo, "effort": effort, "nombre": nombre, "familia": fam, "calidad": calidad,
+                "calidad_mejor": calidad_mejor, "calidad_por_effort": mapa_ef, "effort_calidad": e_cal if mapa_ef else None,
                 "cupo_libre": None, "vuelve": None, "puntaje": None, "descartado_por": None,
                 "aviso": None, "grupo": gid or "claude-oficial", "cuenta": cuenta, "proveedor": sus,
                 "estimada": fam not in cfg["calidad"], "origen": cfg["origen"].get(fam, "estimada")}
@@ -1548,7 +1667,8 @@ def armar_candidatos(tipo, cfg, cupos, now):
         calidad, origen = calidad_origen(cfg, mid)
         estimada = origen == "estimada"
         gid = DSH_GRUPOS[prov]
-        cand = {"estimada": estimada, "origen": origen, "modelo": mid, "effort": None, "nombre": nombre, "familia": "dsh", "calidad": calidad,
+        mapa_ef = mapa_efforts(cfg, mid, mid) if origen == "artificial-analysis" else {}
+        cand = {"calidad_mejor": calidad, "calidad_por_effort": mapa_ef, "effort_calidad": None, "estimada": estimada, "origen": origen, "modelo": mid, "effort": None, "nombre": nombre, "familia": "dsh", "calidad": calidad,
                 "cupo_libre": 1.0 if gratis else None, "vuelve": None, "puntaje": None, "descartado_por": None,
                 "aviso": None if gratis else "se paga con tu key de DeepSeek (no se sabe el precio)", "grupo": gid, "urgencia": 0.0,
                 "cuenta": None, "proveedor": "dsh", "clave": gid, "gratis": gratis}
@@ -1676,7 +1796,7 @@ def avisos_de_uso(cupos, now):
 
 def limpio(c):
     return {k: c[k] for k in ("modelo", "effort", "nombre", "calidad", "cupo_libre", "vuelve", "puntaje",
-                              "descartado_por", "aviso", "grupo", "carga", "cuenta", "estimada") if k in c}
+                              "descartado_por", "aviso", "grupo", "carga", "cuenta", "estimada", "calidad_mejor", "calidad_por_effort", "effort_calidad") if k in c}
 
 
 def pct(f):
@@ -1868,7 +1988,7 @@ def tabla(cfg, cupos, now):
         gratis = c["proveedor"] == "local" or bool(c.get("gratis"))
         out.append({
             "id": c["modelo"], "nombre": c["nombre"], "proveedor": proveedor_de(c), "cuenta": c.get("cuenta"),
-            "grupo": c["grupo"], "familia": c["familia"], "familia_excluir": fam, "calidad": c["calidad"], "estimada": bool(c.get("estimada")),
+            "grupo": c["grupo"], "familia": c["familia"], "familia_excluir": fam, "calidad": c.get("calidad_mejor", c["calidad"]), "calidad_por_effort": c.get("calidad_por_effort") or {}, "estimada": bool(c.get("estimada")),
             "origen": c.get("origen") or ("estimada" if c.get("estimada") else "defecto"),
             "aa_fecha": cfg["aa"]["fecha"] if c.get("origen") == "artificial-analysis" and cfg.get("aa") else None,
             "gratis": gratis, "cupo_libre": c["cupo_libre"], "vuelve": c["vuelve"], "ventanas": c.get("ventanas", []),

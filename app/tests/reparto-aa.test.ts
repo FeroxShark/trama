@@ -132,6 +132,28 @@ test("calibración: Opus 5.5 → 100 y Haiku 5.5 → 60 (anclas), recta por los 
   assert.equal(py(`aa = R.aa_cargar()\nprint(json.dumps(R.aa_calidad(aa, "piso-1")[0]))`, { REPARTO_AA: bajo }), 0, "clamp a 0");
 });
 
+test("calibración por tramos: Haiku<Sonnet<Opus en AA → Sonnet exacto 88; entre Sonnet y Opus entre 88 y 100; bajo Haiku extrapola y acota", () => {
+  const AA3 = { ...AA, modelos: [M("Claude Opus 5.5", 66, 64), M("Claude Sonnet 5.5", 56, 54), M("Claude Haiku 5.5", 40, 38), M("Medio 1", 60, 60), M("Bajo 1", 30, 30), M("Piso 2", 0, 0), M("Alto 2", 200, 200)] };
+  const q = (f: string, ids: string[]) => py(`aa = R.aa_cargar()\nprint(json.dumps({m: R.aa_calidad(aa, m)[0] for m in ${JSON.stringify(ids)}}))`, { REPARTO_AA: f }) as Record<string, number>;
+  const t = q(arch(AA3), ["claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5", "medio-1", "bajo-1", "piso-2", "alto-2"]);
+  assert.equal(t["claude-sonnet-5-5"], 88, "la recta Haiku-Opus lo dejaba en ~74");
+  assert.equal(t["claude-opus-5-5"], 100);
+  assert.equal(t["claude-haiku-5-5"], 60);
+  assert.ok(t["medio-1"] > 88 && t["medio-1"] < 100, `entre Sonnet y Opus: ${t["medio-1"]}`);
+  assert.ok(t["bajo-1"] < 60 && t["bajo-1"] > 0, `bajo Haiku extrapola: ${t["bajo-1"]}`);
+  assert.equal(t["piso-2"], 0, "acota a 0");
+  assert.equal(t["alto-2"], 100, "acota a 100");
+  // anclas no monótonas (Sonnet por debajo de Haiku en AA): vuelve a la recta Opus-Haiku
+  const raro = { ...AA, modelos: [M("Claude Opus 5.5", 66, 64), M("Claude Sonnet 5.5", 30, 30), M("Claude Haiku 5.5", 40, 38)] };
+  const r = q(arch(raro), ["claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5"]);
+  assert.deepEqual([r["claude-opus-5-5"], r["claude-haiku-5-5"]], [100, 60]);
+  assert.ok(r["claude-sonnet-5-5"] < 60);
+  // sin Haiku: la recta por Sonnet y Opus (dos anclas) sigue clavando a los dos
+  const sinH = { ...AA, modelos: [M("Claude Opus 5.5", 66, 64), M("Claude Sonnet 5.5", 56, 54)] };
+  const s2 = q(arch(sinH), ["claude-opus-5-5", "claude-sonnet-5-5"]);
+  assert.deepEqual([s2["claude-opus-5-5"], s2["claude-sonnet-5-5"]], [100, 88]);
+});
+
 test("sin anclas en los datos, caché rota, vacía o apagada: reparto sigue con los defaults", () => {
   const sin = arch({ version: 1, fetched: "2026-10-25T08:00:00Z", modelos: [M("GLM-5.3 Flash", 42, 40)] });
   for (const f of [sin, arch("{roto"), arch({ version: 1 }), path.join(tmp, "no-hay.json"), "0"]) {
@@ -200,4 +222,76 @@ test("--tabla: lo que fija el dueño en modelos.json gana a AA (por familia, por
 test("--tabla: un valor de usuario que coincide con el default sigue siendo del usuario", () => {
   const t = tabla(undefined, { calidad: { haiku: 60 } });
   assert.equal(t["claude-haiku-5-5"].origen, "usuario");
+});
+
+// --- calidad por effort ---------------------------------------------------------------------------------------
+const ME = (name: string, v: number) => M(name, v, v);
+const AA_EF = {
+  version: 1,
+  fetched: "2026-10-25T08:00:00Z",
+  modelos: [
+    ME("Claude Opus 5.5 (Reasoning, low)", 50),
+    ME("Claude Opus 5.5 (Reasoning, high)", 60),
+    ME("Claude Opus 5.5 (Reasoning, max)", 66),
+    ME("Claude Opus 5.5 (Non-reasoning)", 30),
+    ME("Claude Sonnet 5.5", 56),
+    ME("Claude Haiku 5.5", 40),
+  ],
+};
+type FilaEf = Fila & { calidad_por_effort: Record<string, number> };
+const tablaEf = (aa: string, modelos?: object) => tabla(aa, modelos) as unknown as Record<string, FilaEf>;
+
+test("aa_esfuerzo: sale de paréntesis y de sufijos del slug; Non-reasoning es none; la entrada pelada no dice", () => {
+  const e = (name: string, slug = "") => py(`print(json.dumps(R.aa_esfuerzo({"name": ${JSON.stringify(name)}, "slug": ${JSON.stringify(slug)}})))`) as string | null;
+  assert.equal(e("Claude Opus 5.5 (Reasoning, high)"), "high");
+  assert.equal(e("Claude Opus 5.5 (xhigh)"), "xhigh");
+  assert.equal(e("Claude Opus 5.5", "claude-opus-5-5-low"), "low");
+  assert.equal(e("Claude Opus 5.5 (Non-reasoning)"), "none");
+  assert.equal(e("Claude Opus 5.5"), null);
+  assert.equal(e("Claude Opus 5.5 (Reasoning)"), null);
+});
+
+test("--tabla expone calidad_por_effort calibrada con las mismas anclas; calidad sigue siendo la mejor; low < high", () => {
+  const t = tablaEf(arch(AA_EF));
+  const o = t["claude-opus-5-5"];
+  assert.equal(o.calidad, 100);
+  assert.equal(o.calidad_por_effort.max, 100);
+  assert.ok(o.calidad_por_effort.low < o.calidad_por_effort.high && o.calidad_por_effort.high < 100);
+  assert.deepEqual(Object.keys(o.calidad_por_effort).sort(), ["high", "low", "max"], "medium desconocido no se inventa en el mapa; none no entra");
+  assert.equal(t["claude-sonnet-5-5"].calidad, 88);
+  assert.deepEqual(t["claude-sonnet-5-5"].calidad_por_effort, {});
+});
+
+test("calidad_en_effort: el medido, interpolado entre vecinos, el extremo más cercano, o la mejor sin mapa", () => {
+  const q = (mapa: object, ef: string, base: number) => py(`print(json.dumps(R.calidad_en_effort(${JSON.stringify(mapa)}, ${JSON.stringify(ef)}, ${base})))`);
+  const m = { low: 80, high: 96, max: 100 };
+  assert.equal(q(m, "low", 100), 80);
+  assert.equal(q(m, "medium", 100), 88, "entre low (80) y high (96)");
+  assert.equal(q(m, "xhigh", 100), 98, "entre high (96) y max (100)");
+  assert.equal(q({ high: 96 }, "low", 100), 96, "sin vecino por debajo: el más cercano");
+  assert.equal(q({}, "low", 100), 100);
+  assert.equal(q(m, "raro", 100), 100);
+});
+
+test("--tipo con effort low usa la calidad de low; la del dueño por familia vale para todos los efforts salvo el que fija por effort", () => {
+  const f = arch(AA_EF);
+  const pick = (modelos: object) => {
+    const mod = arch({ version: 1, ...modelos });
+    const r = spawnSync(REPARTO, ["--tipo", "lectura", "--json"], {
+      encoding: "utf8",
+      env: { ...process.env, REPARTO_CUPOS_FIJOS: cuposF, REPARTO_AHORA: AHORA, REPARTO_DSH_FIJO: '{"opencode":false,"deepseek":false}', REPARTO_AGY: "0",
+        REPARTO_STATE: path.join(tmp, "estado"), REPARTO_AA: f, TRAMA_MODELOS: mod },
+    });
+    assert.equal(r.status, 0, r.stderr);
+    return JSON.parse(r.stdout);
+  };
+  const cfgq = (modelos: object, ef: string) => py(`cfg = R.cargar_config()\nm = R.mapa_efforts(cfg, "opus")\nprint(json.dumps(R.calidad_en_effort(m, ${JSON.stringify(ef)}, cfg["calidad"]["opus"])))`,
+    { REPARTO_AA: f, TRAMA_MODELOS: arch({ version: 1, ...modelos }), REPARTO_STATE: path.join(tmp, "estado") });
+  const bajo = cfgq({}, "low") as number, alto = cfgq({}, "high") as number;
+  assert.ok(bajo < alto);
+  assert.equal(cfgq({ calidad: { opus: 77 } }, "low"), 77, "calidad fija del dueño: para todos los efforts");
+  assert.equal(cfgq({ calidad: { opus: 77 }, calidad_effort: { opus: { low: 55 } } }, "low"), 55, "por effort del dueño gana");
+  assert.equal(cfgq({ calidad: { opus: 77 }, calidad_effort: { opus: { low: 55 } } }, "high"), 77);
+  const r = pick({ effort_por_tipo: { lectura: "low" } });
+  assert.ok(r.modelo, "elige algo");
 });
