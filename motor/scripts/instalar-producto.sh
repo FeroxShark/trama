@@ -11,6 +11,11 @@
 #   --fuente DIR   árbol de `trama-exportar` (motor/ + app/), o el repo del motor suelto (bin/, hooks/, skills/…)
 #                  (default: el árbol del propio script)
 #   --app DIR      la app hilos con dist-electron/ (default: DIR/app de la fuente, o $TRAMA_APP)
+#   --escritorio      también deja al día la app de escritorio (Electron + lanzador `trama`); es lo normal si hay sesión
+#                     gráfica ($WAYLAND_DISPLAY o $DISPLAY): baja el binario de Electron a la copia estable
+#                     (~/.local/share/trama/app), corre app/scripts/instalar.sh --raiz … --sin-motor y reinicia trama.service
+#   --sin-escritorio  no toca la app de escritorio, aunque haya sesión gráfica
+# Actualizar es un solo comando: `cd ~/Proyectos/trama; git pull; bash motor/scripts/instalar-producto.sh`
 #
 # Qué hace (usuario normal): node LTS en ~/.local si falta · `claude` y `agy` por sus instaladores oficiales si
 # faltan · `dsh` (npm i -g --prefix ~/.local @deepseek-ai/dsh, para workers con modelos gratis) si falta y hay npm · symlinks en ~/.local/bin (pa, tablero, trama-estado, trama-motor, proyecto-ruta, reparto, workers,
@@ -23,15 +28,17 @@
 # Entorno (pruebas): TRAMA_INSTALAR_CLI=0 no baja claude/agy/dsh · TRAMA_INSTALAR_DSH=0 no instala dsh · TRAMA_NODE_MAJOR (mínimo, default 22).
 set -uo pipefail
 
-FUENTE="" APP="" SOLO_APT=0 USUARIO=""
+FUENTE="" APP="" SOLO_APT=0 USUARIO="" ESCRITORIO=auto
 while (( $# )); do
   case "$1" in
     --fuente)   FUENTE="${2:-}"; shift 2 || { echo "uso: --fuente DIR" >&2; exit 2; } ;;
     --app)      APP="${2:-}"; shift 2 || { echo "uso: --app DIR" >&2; exit 2; } ;;
     --solo-apt) SOLO_APT=1; shift ;;
     --usuario)  USUARIO="${2:-}"; shift 2 || { echo "uso: --usuario U" >&2; exit 2; } ;;
-    -h|--help)  sed -n '2,23p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
-    *) echo "uso: instalar-producto.sh [--fuente DIR] [--app DIR] | --solo-apt [--usuario U]" >&2; exit 2 ;;
+    --escritorio)     ESCRITORIO=1; shift ;;
+    --sin-escritorio) ESCRITORIO=0; shift ;;
+    -h|--help)  sed -n '2,28p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    *) echo "uso: instalar-producto.sh [--fuente DIR] [--app DIR] [--escritorio|--sin-escritorio] | --solo-apt [--usuario U]" >&2; exit 2 ;;
   esac
 done
 
@@ -364,6 +371,7 @@ construir_app() {
   ok "app compilada en $dst"
   APP="$dst"
 }
+APP_FUENTE="$APP"
 if [[ -n "$APP" && -f "$APP/package.json" ]]; then construir_app "$APP" || true; fi
 
 # --- el motor --------------------------------------------------------------------------------------------
@@ -430,6 +438,38 @@ EOF
     for _ in $(seq 1 20); do motor_arriba && break; sleep 1; done
     motor_arriba && ok "motor vivo en http://127.0.0.1:${TRAMA_PUERTO:-8791}" || aviso "el motor no responde todavía en http://127.0.0.1:${TRAMA_PUERTO:-8791}"
   fi
+fi
+
+# --- la app de escritorio (Electron) -----------------------------------------------------------------------
+# La ventana corre la copia estable de ~/.local/share/trama/app (la que acaba de compilar construir_app), así que
+# actualizar es esto y nada más. Todo lo que falle es aviso: el motor ya quedó instalado.
+escritorio_app() {
+  local dst="$HOME/.local/share/trama/app" ele lock huella inst
+  [[ "$APP" == "$dst" && -f "$dst/dist/index.html" ]] || { aviso "app de escritorio: la app no está compilada en $dst"; return 1; }
+  [[ -n "$NODE" ]] || { aviso "app de escritorio: sin node"; return 1; }
+  ele="$dst/node_modules/electron"
+  lock="$(sha256sum "$dst/package-lock.json" 2>/dev/null | cut -c1-16 || true)"
+  huella="$(cat "$ele/.trama-huella" 2>/dev/null || true)"
+  # El binario se baja sólo si falta o si cambió el lock (otra versión de Electron); npm ci lo saltea a propósito.
+  if [[ ! -x "$ele/dist/electron" || "${lock:-sin-lock}" != "$huella" ]]; then
+    [[ -f "$ele/install.js" ]] || { aviso "app de escritorio: no hay $ele/install.js (¿falló npm ci?)"; return 1; }
+    hecho "app de escritorio: bajando el binario de Electron (unos minutos)"
+    ( cd "$dst" && "$NODE" node_modules/electron/install.js >>"$dst/.build.log" 2>&1 ) \
+      || { aviso "app de escritorio: no pude bajar Electron (ver $dst/.build.log)"; return 1; }
+    [[ -x "$ele/dist/electron" ]] || { aviso "app de escritorio: install.js no dejó $ele/dist/electron"; return 1; }
+    printf '%s\n' "${lock:-sin-lock}" >"$ele/.trama-huella"
+  fi
+  inst="$APP_FUENTE/scripts/instalar.sh"
+  [[ -f "$inst" ]] || inst="$dst/scripts/instalar.sh"
+  [[ -f "$inst" ]] || { aviso "app de escritorio: no encuentro app/scripts/instalar.sh"; return 1; }
+  bash "$inst" --raiz "$dst" --sin-motor >>"$dst/.build.log" 2>&1 \
+    || { aviso "app de escritorio: instalar.sh falló (ver $dst/.build.log)"; return 1; }
+  # Si la ventana estaba andando, que pase a la versión nueva.
+  systemctl --user try-restart trama.service >/dev/null 2>&1 || true
+  ok "app de escritorio: $dst (lanzador ~/.local/bin/trama)"
+}
+if [[ "$ESCRITORIO" == 1 || ( "$ESCRITORIO" == auto && ( -n "${WAYLAND_DISPLAY:-}" || -n "${DISPLAY:-}" ) ) ]]; then
+  escritorio_app || true
 fi
 
 echo "--- trama-estado"

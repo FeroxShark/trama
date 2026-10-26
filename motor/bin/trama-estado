@@ -135,6 +135,12 @@ def opencode():
         logueado = isinstance(j, dict) and len(j) > 0
     except Exception:
         logueado = False
+    if not logueado:
+        # opencode 2.x ya no deja auth.json: lo dice `opencode auth list` (misma regla que app/electron/opencode.ts:
+        # una línea «OpenCode Console … stored»). Sólo se lee esa tabla, nunca credenciales.
+        rc, out = salida([ruta, "auth", "list"], 5)
+        limpio = re.sub(r"\x1b\[[0-9;]*[A-Za-z]", "", out)
+        logueado = any("opencode console" in l.lower() and "stored" in l.lower() for l in limpio.splitlines())
     return {"instalado": True, "version": version, "ruta": ruta, "logueado": logueado}
 
 

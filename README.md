@@ -40,6 +40,15 @@ Deja `pa`, `tablero`, `trama-estado` y `trama-motor` en `~/.local/bin`, el motor
 (`trama-motor.service`), los hooks de Claude Code y el plugin de Gemini si hay `agy`. Es idempotente: si
 algo no se puede hacer, lo dice como aviso, y `trama-estado --json` muestra qué quedó.
 
+Si hay sesión gráfica (o pasás `--escritorio`; `--sin-escritorio` lo evita) también deja al día la app de escritorio:
+baja Electron a `~/.local/share/trama/app`, instala el lanzador `trama` y reinicia la ventana si estaba abierta.
+
+**Actualizar** es un solo comando:
+
+```bash
+cd ~/Proyectos/trama; git pull; bash motor/scripts/instalar-producto.sh
+```
+
 Los comandos son enlaces a esta carpeta: no la muevas ni la borres. Al terminar, corré
 `trama-motor abrir` (abre `http://localhost:8791` con la clave de esta instalación).
 

@@ -12,18 +12,33 @@
 # y se instala como archivo con la ruta ya puesta (si movés el checkout, volvé a correr este script).
 # Y registra el hook que dice quién compacta en `~/.claude/settings.json` (`scripts/registrar-hook.mjs`).
 #
-# uso: scripts/instalar.sh
+# uso: scripts/instalar.sh [--raiz DIR] [--sin-motor]
+#   --raiz DIR    instala el lanzador y la unidad para la app de DIR (la copia estable del producto,
+#                 ~/.local/share/trama/app) en vez de este checkout. Con --raiz no se chequea el worktree.
+#   --sin-motor   no instala ni habilita trama-motor.service (el instalador del producto, instalar-producto.sh,
+#                 ya escribe la suya: si no, las dos se pisarían).
 set -euo pipefail
 
 raiz="$(cd "$(dirname "$0")/.." && pwd)"
+raiz_dada=0 sin_motor=0
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --raiz)      [ -n "${2:-}" ] || { echo "uso: --raiz DIR" >&2; exit 2; }
+                 raiz="$(cd "$2" && pwd)" || { echo "instalar.sh: no existe $2" >&2; exit 2; }
+                 raiz_dada=1; shift 2 ;;
+    --sin-motor) sin_motor=1; shift ;;
+    *) echo "uso: instalar.sh [--raiz DIR] [--sin-motor]" >&2; exit 2 ;;
+  esac
+done
 datos="${XDG_DATA_HOME:-$HOME/.local/share}"
 bin="$HOME/.local/bin/trama"
 desktop="$datos/applications/trama.desktop"
 iconos="$datos/icons/hicolor"
 unidades="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
 
-# Desde un worktree el lanzador quedaría apuntando a una carpeta que se borra.
-if [ "$(git -C "$raiz" rev-parse --git-dir 2>/dev/null)" != "$(git -C "$raiz" rev-parse --git-common-dir 2>/dev/null)" ]; then
+# Desde un worktree el lanzador quedaría apuntando a una carpeta que se borra (sólo el raiz por defecto:
+# con --raiz es la copia del producto y no importa de dónde se la mandó a instalar).
+if [ "$raiz_dada" = 0 ] && [ "$(git -C "$raiz" rev-parse --git-dir 2>/dev/null)" != "$(git -C "$raiz" rev-parse --git-common-dir 2>/dev/null)" ]; then
   echo "instalar.sh: $raiz es un worktree; corrélo desde el checkout principal" >&2
   exit 1
 fi
@@ -70,7 +85,7 @@ Icon=trama
 Terminal=false
 Categories=Development;
 Keywords=trama;hilos;pa;claude;workers;
-StartupWMClass=hilos
+StartupWMClass=trama
 StartupNotify=false
 EOF
 
@@ -83,13 +98,19 @@ command -v update-desktop-database >/dev/null && update-desktop-database -q "$(d
 if command -v systemctl >/dev/null && systemctl --user show-environment >/dev/null 2>&1; then
   mkdir -p "$unidades"
   ln -sfn "$raiz/systemd/trama.service" "$unidades/trama.service"
-  # rm antes: si quedó el enlace de una versión anterior, escribir encima pisaría la plantilla del repo.
-  rm -f "$unidades/trama-motor.service"
-  sed "s|@RAIZ@|${raiz//%/%%}|g" "$raiz/systemd/trama-motor.service" >"$unidades/trama-motor.service"
-  systemctl --user daemon-reload
-  systemctl --user enable trama.service trama-motor.service
-  echo "unidades: $unidades/trama.service (habilitada; arranca con la sesión gráfica o al abrir trama)"
-  echo "          $unidades/trama-motor.service (habilitada, sin arrancar; sin sesión gráfica pide: loginctl enable-linger $USER)"
+  if [ "$sin_motor" = 1 ]; then
+    systemctl --user daemon-reload
+    systemctl --user enable trama.service
+    echo "unidades: $unidades/trama.service (habilitada; arranca con la sesión gráfica o al abrir trama)"
+  else
+    # rm antes: si quedó el enlace de una versión anterior, escribir encima pisaría la plantilla del repo.
+    rm -f "$unidades/trama-motor.service"
+    sed "s|@RAIZ@|${raiz//%/%%}|g" "$raiz/systemd/trama-motor.service" >"$unidades/trama-motor.service"
+    systemctl --user daemon-reload
+    systemctl --user enable trama.service trama-motor.service
+    echo "unidades: $unidades/trama.service (habilitada; arranca con la sesión gráfica o al abrir trama)"
+    echo "          $unidades/trama-motor.service (habilitada, sin arrancar; sin sesión gráfica pide: loginctl enable-linger $USER)"
+  fi
 else
   echo "instalar.sh: sin systemd de usuario; la unidad no se instaló (trama se abre a mano)" >&2
 fi
