@@ -87,7 +87,8 @@ export const Llamada = memo(function Llamada({ g, estado }: { g: Grupo; estado?:
   // AskUserQuestion contestada: lo elegido en el renglón (./Preguntas.tsx).
   const rs = u.nombre === HERRAMIENTA_PREGUNTAS && todos.length === 1 && !error ? respondidas(u.det?.entrada, u.det?.resultado?.texto) : null;
   if (rs) return <LlamadaPreguntas nombre={u.nombre} rs={rs} />;
-  const est = estado ? estadoLlamada(todos, estado === "vivo") : null;
+  // Un fallo se dice con texto aunque el motor no muestre estados: el rojo solo no alcanza (daltonismo).
+  const est = estado ? estadoLlamada(todos, estado === "vivo") : error ? "error" : null;
   const linea = (
     <>
       {se ? <ChevronRight className="ll-f" size={10} strokeWidth={2} /> : <span className="ll-f" />}
