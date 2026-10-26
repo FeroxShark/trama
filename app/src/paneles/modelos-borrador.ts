@@ -20,6 +20,7 @@ import {
   FAMILIAS,
   GEMINI,
   HOY,
+  PERFILES,
   SIN_CUPO,
   TIPOS,
   TOPE_CLAUDE_DEFECTO,
@@ -29,14 +30,15 @@ import {
   type Eleccion,
   type Local,
   type ModoReparto,
+  type Perfil,
   type SinCupo,
   type Tipo,
 } from "../../electron/modelos-tipos";
 import { defDe, effortDeModelo, TABLA } from "../hilo/modelos";
 
 export { DESTRABAR_MODELOS };
-export { AGY, CUPO_MAX, CUPO_MIN, EXCLUIR_MAX, FAMILIAS, GEMINI, SIN_CUPO, TIPOS, TOPE_CLAUDE_DEFECTO, URL_OLLAMA };
-export type { Eleccion, Local, SinCupo, Tipo };
+export { AGY, CUPO_MAX, CUPO_MIN, EXCLUIR_MAX, FAMILIAS, GEMINI, PERFILES, SIN_CUPO, TIPOS, TOPE_CLAUDE_DEFECTO, URL_OLLAMA };
+export type { Eleccion, Local, Perfil, SinCupo, Tipo };
 
 /** Los topes van como texto mientras se escriben; el resto es la config tal cual. */
 export type Borrador = {
@@ -52,6 +54,8 @@ export type Borrador = {
   permitir_max: boolean;
   /** Qué hace `pa` si un modelo no tiene cupo; sin elegir se escribe nada y vale `otro`. */
   sin_cupo?: SinCupo;
+  /** Perfil de reparto; sin elegir vale `equilibrado` y no se escribe nada. */
+  perfil?: Perfil;
   /** «Guardar un % para mis sesiones»: apagado de fábrica (sin `reserva`); prendido, los topes de abajo valen. */
   guardar: boolean;
   /** Los topes de Claude (5 h y semanal) como texto mientras se escriben. */
@@ -70,6 +74,7 @@ export const borradorDe = (e: EstadoModelos): Borrador => ({
   calidad: { ...e.config.calidad },
   permitir_max: e.config.permitir_max,
   ...(e.config.sin_cupo ? { sin_cupo: e.config.sin_cupo } : {}),
+  ...(e.config.perfil ? { perfil: e.config.perfil } : {}),
   guardar: e.config.claude.tope_5h !== undefined || e.config.claude.tope_7d !== undefined,
   tope5: e.config.claude.tope_5h === undefined ? "" : String(e.config.claude.tope_5h),
   tope7: e.config.claude.tope_7d === undefined ? "" : String(e.config.claude.tope_7d),
@@ -103,6 +108,7 @@ export function configDe(b: Borrador): ConfigModelos | null {
     permitir_max: b.permitir_max,
     gemini: {},
     ...(b.sin_cupo ? { sin_cupo: b.sin_cupo } : {}),
+    ...(b.perfil ? { perfil: b.perfil } : {}),
     claude: { ...(t5 !== null ? { tope_5h: t5 } : {}), ...(t7 !== null ? { tope_7d: t7 } : {}) },
     destrabar: { ...b.destrabar },
   };
@@ -119,6 +125,7 @@ const huella = (c: ConfigModelos) =>
     Object.entries(c.calidad ?? {}).sort(([a], [z]) => (a < z ? -1 : 1)),
     c.permitir_max,
     c.sin_cupo ?? null,
+    c.perfil ?? "equilibrado",
     c.claude.tope_5h ?? null,
     c.claude.tope_7d ?? null,
     Object.entries(c.destrabar).sort(([a], [z]) => (a < z ? -1 : 1)),

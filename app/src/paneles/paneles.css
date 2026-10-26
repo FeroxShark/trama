@@ -2362,6 +2362,22 @@
   color: var(--apagado);
   font-size: var(--letra-4);
 }
+/* Ritmo de la semana: icono + palabras; «encima» va en el color de aviso pero nunca solo con el color. */
+.cu-vent-con {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-1);
+}
+.cu-ritmo {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-1-5);
+  color: var(--apagado);
+  font-size: var(--letra-3);
+}
+.cu-ritmo[data-nivel="encima"] {
+  color: var(--aviso);
+}
 .cu-vent > .cu-sin {
   grid-column: 2 / -1;
 }

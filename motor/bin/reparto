@@ -11,6 +11,10 @@
                                                Claude oficial (claude-*), hasta que vuelve
   reparto --excluido ID                        si modelos.json excluye ese id: imprime la regla y sale 0; si no, sale 1
   reparto --olvidar-agotados                   borra las marcas de agotado
+  reparto --plan ausente F[,F..] | presente F  días que no se trabaja (AAAA-MM-DD, hoy, manana, o A..B): el presupuesto semanal se reparte
+                                               entre los demás días (antes de una ausencia + reinicio, hoy se gasta más)
+  reparto --plan gastar-hoy | ahorrar-hoy      pisa el ritmo sólo por hoy (vence solo a medianoche)
+  reparto --plan ver [--json] | borrar         lo que hay guardado (<estado>/plan.json) y el ritmo de cada ventana semanal | lo borra
   reparto --cuenta-para ID [--json]            la cuenta de su proveedor con más cupo libre para ese modelo
 
 Varias cuentas por proveedor (bin/cuentas, ~/.config/trama/cuentas.json): cada cuenta es una suscripción aparte
@@ -24,6 +28,11 @@ ultra/super/pro/max, -10 con flash/lightning/mini/nano) y --tabla lo marca estim
 Si la app bajó los índices de Artificial Analysis (<estado>/aa-modelos.json; REPARTO_AA=<archivo> lo cambia, 0 lo apaga) valen antes que los
 defaults y la estimación, pero después de lo que fija modelos.json. --tabla dice de dónde sale cada cifra en `origen`
 (usuario | artificial-analysis | defecto | estimada) y la fecha del dato en `aa_fecha`.
+
+Ritmo y perfil (2026-10-26): cada ventana SEMANAL de una suscripción tiene un ritmo = usado / esperado; "esperado" = qué fracción de la
+semana (ponderada por los días de trabajo del plan) ya pasó. Pasarse del ritmo resta puntos; ir por debajo y cerca del reinicio suma.
+modelos.json `perfil` = equilibrado (default) | ahorro (workers a gratis/Google casi siempre, Claude sólo si nada más llega o si va
+atrasado) | rendimiento (calidad primero); `reserva_lider` = fracción de la semana de Claude que queda para el líder (ver RITMO abajo).
 
 Sin dependencias (python3 estándar).
 Entorno (para tests): REPARTO_CUPOS_FIJOS=archivo.json (mismo formato que `--cupos --json`, no lee
@@ -118,6 +127,40 @@ PESO_SOBRA = 0.5          # puntos que resta cada punto de calidad que pasa del 
 PESO_URGENCIA = 20.0      # puntos máximos por "este cupo se pierde pronto"
 PESO_COSTO = 15.0         # puntos que resta gastar un token caro
 PESO_CARGA = 12.0         # puntos que resta cada worker vivo (o recién repartido) que ya gasta ese grupo
+# --- ritmo semanal y perfiles -------------------------------------------------------------------------
+# Para cada ventana "7d" con dato (de Claude, de un grupo de agy o de codex):
+#   disponible   = 1 - reserva_lider                      (sólo el Claude oficial: lo que los workers pueden gastar; el resto es del líder)
+#   usado_w      = min(1, usado / disponible)             (lo gastado visto desde los workers: con la reserva entera gastada vale 1)
+#   esperado     = fracción de la ventana ya transcurrida, ponderada por días: un día "ausente" del plan pesa 0 (el presupuesto
+#                  semanal se reparte entre los demás); piso RITMO_MIN_ESPERADO para no dividir por casi cero al empezar la semana
+#   ratio        = usado_w / esperado                      (1 = justo al ritmo que termina la semana en ~100 %)
+#   gastar-hoy / ahorrar-hoy del plan pisan el ratio de hoy (RATIO_GASTAR_HOY / RATIO_AHORRAR_HOY)
+# Puntaje (se suma al de siempre: calidad útil + urgencia − costo − carga):
+#   encima  = -PESO_RITMO × mult_perfil × min(max(ratio - 1, 0), TOPE_EXCESO)
+#   debajo  : presión = (1 - ratio×esperado) / (1 - esperado)  (cuántas veces el ritmo medio hay que gastar lo que queda; 1 = al ritmo)
+#             atras   = clamp(presión - 1, 0, 1)               (presión ≥ 2 = del todo atrasado)
+#             cerca   = clamp((96 - h_activas) / 72, 0,25 a 1)  (h_activas = horas de días con trabajo que quedan hasta el reinicio)
+#             s_ritmo = atras × cerca
+#             bono    = +PESO_BONO_RITMO × max(0, s_ritmo - urgencia7d)    <- sólo lo que la urgencia (que ya premia el cupo que se
+#                       pierde pronto) no cubre: así no se cuenta dos veces. La urgencia de la ventana semanal usa h_activas (un reinicio
+#                       justo después de una ausencia es más urgente hoy).
+#   sesgo del perfil (sólo Claude oficial, perfil ahorro): -SESGO_AHORRO × (1 - max(s_ritmo, urgencia7d)): el atraso o la urgencia lo levantan.
+# Perfiles: equilibrado = lo de siempre más el ritmo; ahorro = ritmo ×2,5 + sesgo contra Claude + reserva_lider 0,35 + mínimos de
+# codigo-acotado/lectura/mecanico una banda más abajo; rendimiento = ritmo ×0,25 y costo ×0,5 (la calidad manda).
+PERFILES = {
+    "equilibrado": {"ritmo": 1.0, "sesgo": 0.0, "costo": 1.0, "reserva_lider": 0.0, "relaja": False},
+    "ahorro":      {"ritmo": 2.5, "sesgo": 25.0, "costo": 1.0, "reserva_lider": 0.35, "relaja": True},
+    "rendimiento": {"ritmo": 0.25, "sesgo": 0.0, "costo": 0.5, "reserva_lider": 0.0, "relaja": False},
+}
+PERFIL_DEFECTO = "equilibrado"
+RELAJA_AHORRO = {"codigo-acotado": "haiku", "lectura": 50, "mecanico": 50}   # una banda menos (familia o calidad) en el perfil ahorro
+PESO_RITMO = 18.0          # puntos que resta ir 2× por encima del ritmo (ratio 2 -> exceso 1)
+PESO_BONO_RITMO = 10.0     # puntos máximos por ir atrasado respecto del ritmo (más allá de la urgencia)
+TOPE_EXCESO = 1.5
+RITMO_MIN_ESPERADO = 0.10
+RATIO_GASTAR_HOY = 0.2
+RATIO_AHORRAR_HOY = 2.5
+PLAN_MAX_DIAS = 21         # una ausencia más lejos que esto no se guarda
 ASIGNACION_S = 20.0       # un reparto reciente cuenta como carga hasta que su worker aparece en el estado de pa
 HORIZONTE_H = 72.0        # un cupo que vuelve en menos de esto empieza a ser urgente
 # Los cupos de agy son chicos (el grupo Claude/GPT pasó del 26 % a 0 en 2 minutos): con menos libre que
@@ -265,6 +308,7 @@ def _cargar_config():
         "excluir": [], "permitir_max": False,
         "uso_por_modelo": list(USO_POR_MODELO.items()), "tipos_poco_importantes": list(TIPOS_POCO_IMPORTANTES),
         "tipos_finales": list(TIPOS_FINALES), "sin_cupo": "otro", "sin_cupo_de": "default",
+        "perfil": PERFIL_DEFECTO, "reserva_lider": None, "peso_ritmo": PESO_RITMO, "peso_bono_ritmo": PESO_BONO_RITMO,
     }
     p = ruta_modelos()
     if not os.path.isfile(p):
@@ -291,6 +335,10 @@ def _cargar_config():
                                          for k, d in j["calidad_effort"].items() if isinstance(d, dict)}
     if isinstance(j.get("reserva"), (int, float, dict)) and not isinstance(j.get("reserva"), bool):
         cfg["reserva"] = j["reserva"]   # null o ausente: sin reserva
+    if j.get("perfil") in PERFILES:
+        cfg["perfil"] = j["perfil"]
+    if isinstance(j.get("reserva_lider"), (int, float)) and not isinstance(j.get("reserva_lider"), bool):
+        cfg["reserva_lider"] = j["reserva_lider"]   # ausente/null: el del perfil
     if isinstance(j.get("excluir"), list):
         cfg["excluir"] = [x.strip().lower() for x in j["excluir"] if x.strip()]
     if isinstance(j.get("permitir_max"), bool):
@@ -319,7 +367,7 @@ def _cargar_config():
         cfg["workers"] = j["workers"]
     if isinstance(j.get("locales"), list):
         cfg["locales"] = [x for x in j["locales"] if isinstance(x, dict) and x.get("id")]
-    for k in ("llena", "peso_urgencia", "peso_costo", "peso_carga", "agy_min_libre_5h"):
+    for k in ("llena", "peso_urgencia", "peso_costo", "peso_carga", "agy_min_libre_5h", "peso_ritmo", "peso_bono_ritmo"):
         if isinstance(j.get(k), (int, float)) and not isinstance(j.get(k), bool):
             cfg[k] = j[k]
     if isinstance(j.get("agy_min_libre_tipos"), list):
@@ -713,6 +761,11 @@ def invalido(j):
     if r is not None and not num(r) and not (isinstance(r, dict) and r and set(r) <= {"5h", "7d"}
                                              and all(num(v) for v in r.values())):
         return "reserva %s (un número de 0 a 1, {\"5h\":…,\"7d\":…} o null)" % json.dumps(r)
+    if j.get("perfil") is not None and j["perfil"] not in PERFILES:
+        return "perfil %s (equilibrado, ahorro o rendimiento)" % json.dumps(j["perfil"])
+    rl = j.get("reserva_lider")
+    if rl is not None and not num(rl):
+        return "reserva_lider %s (un número de 0 a 1 o null)" % json.dumps(rl)
     e = j.get("excluir")
     if e is not None and not (isinstance(e, list) and all(isinstance(x, str) and x.strip() for x in e)):
         return "excluir %s (una lista de ids o familias)" % json.dumps(e)
@@ -1597,6 +1650,163 @@ def urgencia_ventana(v, now, tope_h=None):
     return libre * min(1.0, HORIZONTE_H / max(h, 1.0))
 
 
+# --- plan (pistas de corta vida del dueño) y ritmo ----------------------------------------------------
+def dia_local(now):
+    return now.astimezone().date()
+
+
+def ruta_plan():
+    return os.path.join(state_dir(), "plan.json")
+
+
+def plan_leer(now):
+    """El plan vigente: {"ausente": [AAAA-MM-DD..], "hoy": None|"gastar"|"ahorrar", "actualizado": ISO|None}. Lo vencido no cuenta:
+    un día ausente anterior a hoy, o un gastar/ahorrar-hoy de otro día. Sin archivo o roto: plan vacío."""
+    hoy = dia_local(now).isoformat()
+    out = {"ausente": [], "hoy": None, "actualizado": None}
+    try:
+        with open(ruta_plan()) as f:
+            d = json.load(f)
+    except Exception:
+        return out
+    if not isinstance(d, dict):
+        return out
+    fechas = d.get("ausente")
+    for x in fechas if isinstance(fechas, list) else []:
+        if isinstance(x, str) and re.fullmatch(r"\d{4}-\d{2}-\d{2}", x) and x >= hoy and x not in out["ausente"]:
+            out["ausente"].append(x)
+    out["ausente"].sort()
+    h = d.get("hoy")
+    if isinstance(h, dict) and h.get("fecha") == hoy and h.get("modo") in ("gastar", "ahorrar"):
+        out["hoy"] = h["modo"]
+    out["actualizado"] = d.get("actualizado") if isinstance(d.get("actualizado"), str) else None
+    return out
+
+
+def plan_grabar(plan, now):
+    f = ruta_plan()
+    if not plan["ausente"] and not plan["hoy"]:
+        try:
+            os.remove(f)
+        except FileNotFoundError:
+            pass
+        return
+    os.makedirs(os.path.dirname(f), exist_ok=True)
+    d = {"version": 1, "actualizado": iso(now), "ausente": sorted(plan["ausente"])}
+    if plan["hoy"]:
+        d["hoy"] = {"fecha": dia_local(now).isoformat(), "modo": plan["hoy"]}
+    tmp = f + ".%d" % os.getpid()
+    with open(tmp, "w") as fh:
+        json.dump(d, fh, ensure_ascii=False)
+    os.replace(tmp, f)
+
+
+def plan_de(cfg, now):
+    if "plan" not in cfg:
+        cfg["plan"] = plan_leer(now)
+    return cfg["plan"]
+
+
+def fechas_de(texto, now):
+    """'2026-10-27,hoy,manana,2026-10-29..2026-10-31' -> lista de fechas ISO. Lanza ValueError con qué está mal."""
+    hoy = dia_local(now)
+    out = []
+    for tok in [x.strip().lower() for x in texto.split(",") if x.strip()]:
+        tok = tok.replace("mañana", "manana").replace("pasado manana", "pasado")
+        if tok == "hoy":
+            out.append(hoy)
+        elif tok == "manana":
+            out.append(hoy + timedelta(days=1))
+        elif tok == "pasado":
+            out.append(hoy + timedelta(days=2))
+        else:
+            a, _, z = tok.partition("..")
+            try:
+                d0 = datetime.strptime(a, "%Y-%m-%d").date()
+                d1 = datetime.strptime(z, "%Y-%m-%d").date() if z else d0
+            except ValueError:
+                raise ValueError("fecha %r (quiero AAAA-MM-DD, hoy, manana, pasado o A..B)" % tok)
+            if d1 < d0 or (d1 - d0).days > PLAN_MAX_DIAS:
+                raise ValueError("rango %r" % tok)
+            out.extend(d0 + timedelta(days=i) for i in range((d1 - d0).days + 1))
+    if not out:
+        raise ValueError("falta la fecha")
+    for d in out:
+        if d < hoy:
+            raise ValueError("%s ya pasó" % d.isoformat())
+        if (d - hoy).days > PLAN_MAX_DIAS:
+            raise ValueError("%s está a más de %d días" % (d.isoformat(), PLAN_MAX_DIAS))
+    return sorted({d.isoformat() for d in out})
+
+
+def horas_activas(desde, hasta, ausentes):
+    """Horas entre dos instantes que caen en días de trabajo (los de `ausentes`, fechas ISO locales, no cuentan)."""
+    cur = desde.astimezone().replace(tzinfo=None)
+    fin = hasta.astimezone().replace(tzinfo=None)
+    total = 0.0
+    while cur < fin:
+        sig = min(datetime.combine(cur.date() + timedelta(days=1), datetime.min.time()), fin)
+        if cur.date().isoformat() not in ausentes:
+            total += (sig - cur).total_seconds() / 3600.0
+        cur = sig
+    return total
+
+
+def ritmo_ventana(v, now, plan, reserva=0.0):
+    """El ritmo de una ventana semanal (ver la fórmula arriba) o None sin dato. {usado, usado_w, esperado, ratio, h, h_activas, nivel}."""
+    if v.get("id") != "7d" or v.get("usado") is None:
+        return None
+    fin = parse_iso(v.get("vuelve"))
+    if fin is None:
+        return None
+    ini = fin - timedelta(hours=168)
+    ausentes = set(plan["ausente"])
+    h = max(0.0, (fin - now).total_seconds() / 3600.0)
+    tot = horas_activas(ini, fin, ausentes)
+    if tot <= 0:   # todos los días ausentes: el plan no puede repartir nada, vale el tiempo corrido
+        ausentes, tot = set(), 168.0
+    pasado = horas_activas(ini, min(max(now, ini), fin), ausentes)
+    esperado = max(RITMO_MIN_ESPERADO, min(1.0, pasado / tot))
+    usado_w = min(1.0, v["usado"] / (1 - reserva)) if reserva else v["usado"]
+    ratio = usado_w / esperado
+    if plan.get("hoy") == "gastar":
+        ratio = min(ratio, RATIO_GASTAR_HOY)
+    elif plan.get("hoy") == "ahorrar":
+        ratio = max(ratio, RATIO_AHORRAR_HOY)
+    ha = horas_activas(now, fin, ausentes)
+    nivel = "encima" if ratio > 1.1 else "debajo" if ratio < 0.9 else "al-ritmo"
+    return {"usado": round(v["usado"], 4), "usado_w": round(usado_w, 4), "esperado": round(esperado, 4), "ratio": round(ratio, 3),
+            "h": round(h, 2), "h_activas": round(ha, 2), "nivel": nivel, "forzado": plan.get("hoy")}
+
+
+def puntos_ritmo(rt, urg7, peso_ritmo, peso_bono, mult):
+    """(puntos, s_ritmo): lo que el ritmo suma o resta al puntaje (fórmula arriba)."""
+    r = rt["ratio"]
+    if r > 1:
+        return -peso_ritmo * mult * min(r - 1, TOPE_EXCESO), 0.0
+    e = rt["esperado"]
+    presion = (1 - r * e) / max(1 - e, 0.02)   # cuántas veces el ritmo medio hay que gastar lo que queda para terminar la semana en ~100 %
+    atras = max(0.0, min(1.0, presion - 1.0))
+    cerca = max(0.25, min(1.0, (96 - rt["h_activas"]) / 72.0))
+    s = atras * cerca
+    return peso_bono * max(0.0, s - urg7), s
+
+
+def reserva_lider_de(cfg):
+    """Fracción de la semana de Claude que queda para el líder: modelos.json `reserva_lider` o la del perfil."""
+    r = cfg.get("reserva_lider")
+    return r if r is not None else PERFILES[cfg["perfil"]]["reserva_lider"]
+
+
+def minimo_relajado(cfg, tipo, minimo, minimo_fam, e_tipo):
+    """Perfil ahorro: el mínimo de codigo-acotado/lectura/mecanico una banda más abajo. (mínimo, ¿bajó?)"""
+    if not PERFILES[cfg["perfil"]]["relaja"] or tipo not in RELAJA_AHORRO:
+        return minimo, False
+    n = RELAJA_AHORRO[tipo]
+    q = calidad_en_effort(mapa_efforts(cfg, n), e_tipo, cfg["calidad"][n]) if isinstance(n, str) and n in cfg["calidad"] else n
+    return (q, True) if q < minimo else (minimo, False)
+
+
 def efectivo(base, cfg_effort, e_tipo):
     return e_tipo if e_tipo in cfg_effort else cfg_effort[-1]
 
@@ -1625,11 +1835,19 @@ def armar_candidatos(tipo, cfg, cupos, now):
         # El mínimo se mide al mismo effort que el tipo: si no, Sonnet en medium (bajo su mejor puntaje) no llega a
         # "la calidad de Sonnet" y codigo-acotado terminaba en Opus.
         minimo = calidad_en_effort(mapa_efforts(cfg, minimo_fam), e_tipo, minimo)
+    minimo, cfg["_relajado"] = minimo_relajado(cfg, tipo, minimo, minimo_fam, e_tipo)
     out = []
     reserva = cfg["reserva"]
+    perfil = PERFILES[cfg["perfil"]]
+    plan = plan_de(cfg, now)
+    res_lider = reserva_lider_de(cfg)
+    sin_ritmo = cfg.get("_sin_ritmo")   # la contrafactual de elegir(): ni ritmo ni perfil
 
     def reserva_de(w):   # None = no se guarda nada en esa ventana
-        return reserva.get(w) if isinstance(reserva, dict) else reserva
+        r = reserva.get(w) if isinstance(reserva, dict) else reserva
+        if w == "7d" and res_lider:   # reserva_lider es la misma reserva, para la ventana semanal: gana la mayor
+            return max(r or 0.0, res_lider)
+        return r
 
     def claude_de_google_ok(google):
         # Sin dato de uso (libres vacío: /quota no contestó) devuelve True a propósito: igual que los candidatos, un
@@ -1744,8 +1962,11 @@ def armar_candidatos(tipo, cfg, cupos, now):
                         humano(horas_hasta(w.get("vuelve"), now)))
                     break
                 if sus == "claude" and reserva_de(w["id"]) is not None and libre <= reserva_de(w["id"]):
-                    cand["descartado_por"] = "reserva comprometida: Claude %s al %d %% (modelos.json guarda el %d %%)" % (
-                        nombre_ventana(w["id"]), round(w["usado"] * 100), round(reserva_de(w["id"]) * 100))
+                    lider = w["id"] == "7d" and res_lider and res_lider >= (reserva_de("7d") or 0)
+                    cand["descartado_por"] = ("reserva del líder: a Claude %s le queda %d %% y se guarda el %d %% para la conversación (reserva_lider)" if lider
+                                              else "reserva comprometida: Claude %s al %d %% (modelos.json guarda el %d %%)") % (
+                        (nombre_ventana(w["id"]), round(libre * 100), round(reserva_de(w["id"]) * 100)) if lider else
+                        (nombre_ventana(w["id"]), round(w["usado"] * 100), round(reserva_de(w["id"]) * 100)))
                     break
                 if libre < cfg["llena"] and sus != "claude" and (grupos.get(gid) or {}).get("agotado"):
                     cand["descartado_por"] = "ventana %s llena: %s dijo que se acabó el cupo, vuelve en %s" % (
@@ -1760,19 +1981,39 @@ def armar_candidatos(tipo, cfg, cupos, now):
         q = float(calidad)
         util = q if q <= minimo + MARGEN else minimo + MARGEN - (q - minimo - MARGEN) * PESO_SOBRA
         us = []
+        rt = urg7 = None
         for w in vents:
             # el claude oficial no gasta su 5h por urgencia si Claude por Google está disponible: esa
             # ventana es la de las sesiones de la persona
             if sus == "claude" and w["id"] == "5h" and agy_claude_ok:
                 continue
-            u = urgencia_ventana(w, now, tope_h)
+            tope_w = tope_h
+            if w["id"] == "7d" and not sin_ritmo:
+                rt = ritmo_ventana(w, now, plan, (res_lider or 0.0) if sus == "claude" else 0.0)
+                if rt and rt["h_activas"] < rt["h"]:   # días ausentes hasta el reinicio: el cupo se pierde antes
+                    tope_w = rt["h_activas"] if tope_h is None else min(tope_h, rt["h_activas"])
+            u = urgencia_ventana(w, now, tope_w)
             if u is not None:
                 us.append(u)
+                if w["id"] == "7d":
+                    urg7 = u
         urg = min(us) if us else 0.0
         cand["urgencia"] = round(urg, 3)
         cand["carga"] = carga.get(cand["clave"], 0)
-        cand["puntaje"] = round(util + cfg["peso_urgencia"] * urg - cfg["peso_costo"] * cfg["costo"].get(fam, 0.3)
-                                - cfg["peso_carga"] * cand["carga"], 2)
+        mult_costo = 1.0 if sin_ritmo else perfil["costo"]
+        pts = round(util + cfg["peso_urgencia"] * urg - mult_costo * cfg["peso_costo"] * cfg["costo"].get(fam, 0.3)
+                    - cfg["peso_carga"] * cand["carga"], 2)
+        if rt:
+            p_r, s_r = puntos_ritmo(rt, urg7 or 0.0, cfg["peso_ritmo"], cfg["peso_bono_ritmo"], perfil["ritmo"])
+            pts += p_r
+            if sus == "claude" and perfil["sesgo"]:
+                p_r -= perfil["sesgo"] * (1 - max(s_r, urg7 or 0.0))
+                pts -= perfil["sesgo"] * (1 - max(s_r, urg7 or 0.0))
+            cand["ritmo"], cand["ritmo_pts"] = rt, round(p_r, 2)
+        elif sus == "claude" and perfil["sesgo"] and not sin_ritmo:
+            pts -= perfil["sesgo"]   # sin dato semanal no hay atraso que lo levante
+            cand["ritmo_pts"] = -perfil["sesgo"]
+        cand["puntaje"] = round(pts, 2)
         out.append(cand)
     for c in FAMILIAS:
         for cs in (claudes if c[3] == "claude" else openais if c[3] == "openai" else googles):
@@ -1826,7 +2067,7 @@ def armar_candidatos(tipo, cfg, cupos, now):
     return out, minimo, minimo_fam
 
 
-def elegir(tipo, cfg, cupos, now, mismo_proveedor=None, solo_cuenta=None):
+def elegir(tipo, cfg, cupos, now, mismo_proveedor=None, solo_cuenta=None, _contra=False):
     tipo = (tipo or "").lower().replace("ñ", "n")
     avisos = []
     if tipo not in cfg["minimo_por_tipo"]:
@@ -1865,6 +2106,8 @@ def elegir(tipo, cfg, cupos, now, mismo_proveedor=None, solo_cuenta=None):
     if vivos:
         pool = vivos
         pref = next((v for p, v in cfg["preferido_por_tipo"].items() if fnmatch.fnmatchcase(tipo, p)), None)
+        if cfg.get("_relajado"):
+            pref = None   # perfil ahorro con el mínimo bajado: no se encierra al tipo en la banda de arriba; decide el puntaje
         if pref in cfg["calidad"]:
             e_pref = cfg["effort_por_tipo"].get(tipo, "high")
             q0 = calidad_en_effort(mapa_efforts(cfg, pref), "xhigh" if e_pref == "max" else e_pref, cfg["calidad"][pref])
@@ -1899,16 +2142,72 @@ def elegir(tipo, cfg, cupos, now, mismo_proveedor=None, solo_cuenta=None):
         motivo += " Ningún modelo llega a la calidad %s que pide %s: uso el mejor que hay (calidad %s, ajustable con \"calidad\" en modelos.json)." % (minimo, tipo, gana["calidad"])
     if banda:
         motivo += " Para %s se prefiere la calidad de %s: los modelos más caros o menos parejos sólo entran si no queda cupo de esa banda." % (tipo, banda)
-    if os.environ.get("REPARTO_RESERVAR") == "1":
+    ritmo_info = resumen_ritmo(cfg, cupos, now) if not _contra else []
+    if not _contra and not todo_lleno:
+        motivo += cambio_por_ritmo(tipo, cfg, cupos, now, gana, cands, mismo_proveedor, solo_cuenta)
+    if os.environ.get("REPARTO_RESERVAR") == "1" and not _contra:
         registrar_asignacion(gana.get("clave", gana["grupo"]), now)
     for c in cands:
         if c.get("aviso") and not c["descartado_por"]:
             avisos.append("%s: %s" % (c["modelo"], c["aviso"]))
     r = {"version": VERSION, "modelo": gana["modelo"], "effort": gana["effort"], "cuenta": gana.get("cuenta"), "motivo": motivo,
          "candidatos": [limpio(c) for c in sorted(cands, key=lambda c: (c["descartado_por"] is not None, -(c["puntaje"] or 0)))],
-         "avisos": avisos, "tipo": tipo}
+         "avisos": avisos, "tipo": tipo, "perfil": cfg["perfil"], "ritmo": ritmo_info}
     r.update(extra)
     return r
+
+
+def resumen_ritmo(cfg, cupos, now):
+    """El ritmo de cada ventana semanal con dato, por suscripción o grupo (para --tipo --json, --plan ver y la app)."""
+    plan = plan_de(cfg, now)
+    res = reserva_lider_de(cfg)
+    out = []
+    for s in cupos.get("suscripciones", []):
+        filas = [(s.get("nombre", s.get("id")), None, s.get("ventanas", []))] if prov_de(s) != "google" else \
+                [(s.get("nombre", s.get("id")), g.get("id"), g.get("ventanas", [])) for g in s.get("grupos", []) or []]
+        for nombre, gid, vs in filas:
+            for w in vs:
+                r = res if prov_de(s) == "claude" else 0.0
+                rt = ritmo_ventana(w, now, plan, r)
+                if rt:
+                    out.append(dict(rt, suscripcion=s.get("id"), cuenta=s.get("cuenta"), proveedor=prov_de(s), nombre=nombre, grupo=gid,
+                                    ventana="7d", reserva_lider=r or None))
+    return out
+
+
+def veces(x):
+    return ("%.1f" % x).replace(".", ",") + "×"
+
+
+def cambio_por_ritmo(tipo, cfg, cupos, now, gana, cands, mismo_proveedor, solo_cuenta):
+    """Si sin ritmo, plan ni perfil el reparto habría elegido otro modelo: una frase que lo dice ("Claude va 1,4× por encima del ritmo
+    semanal: uso GLM gratis en lugar de Claude Sonnet 5.5."). Vacío si no cambió nada."""
+    plan = plan_de(cfg, now)
+    if cfg["perfil"] == "equilibrado" and not plan["ausente"] and not plan["hoy"] and not any(c.get("ritmo_pts") for c in cands):
+        return ""
+    base = dict(cfg, perfil="equilibrado", _sin_ritmo=True, plan={"ausente": [], "hoy": None, "actualizado": None})
+    r0 = elegir(tipo, base, cupos, now, mismo_proveedor, solo_cuenta, _contra=True)
+    if not r0.get("modelo") or (r0["modelo"], r0.get("cuenta")) == (gana["modelo"], gana.get("cuenta")):
+        return ""
+    antes = next((c for c in r0["candidatos"] if c["modelo"] == r0["modelo"] and c.get("cuenta") == r0.get("cuenta")), {})
+    causas = []
+    rtc = next((c["ritmo"] for c in cands if c.get("proveedor") == "claude" and c.get("ritmo") and not c.get("descartado_por")), None) or \
+        next((c["ritmo"] for c in cands if c.get("proveedor") == "claude" and c.get("ritmo")), None)
+    if plan["hoy"]:
+        causas.append("el plan dice %s hoy" % ("gastar" if plan["hoy"] == "gastar" else "ahorrar"))
+    elif rtc and rtc["ratio"] > 1.1:
+        causas.append("Claude va %s por encima del ritmo semanal" % veces(rtc["ratio"]))
+    elif rtc and rtc["ratio"] < 0.9:
+        causas.append("Claude va %s del ritmo semanal (sobra cupo antes del reinicio)" % veces(rtc["ratio"]))
+    if plan["ausente"] and rtc and rtc["h_activas"] < rtc["h"]:
+        causas.append("hay días ausentes antes del reinicio (quedan %s de trabajo)" % humano(rtc["h_activas"]))
+    if cfg["perfil"] != "equilibrado":
+        causas.append("perfil %s" % cfg["perfil"])
+    if not causas:
+        causas.append("el ritmo semanal")
+    gratis = " gratis" if (gana.get("gratis") or gana.get("proveedor") == "local") and "gratis" not in gana["nombre"] else ""
+    txt = ", ".join(causas)
+    return " %s: uso %s%s en lugar de %s." % (txt[0].upper() + txt[1:], gana["nombre"], gratis, antes.get("nombre", r0["modelo"]))
 
 
 def nombre_ventana(wid):
@@ -1932,7 +2231,7 @@ def avisos_de_uso(cupos, now):
 
 def limpio(c):
     return {k: c[k] for k in ("modelo", "effort", "nombre", "calidad", "cupo_libre", "vuelve", "puntaje",
-                              "descartado_por", "aviso", "grupo", "carga", "cuenta", "estimada", "calidad_mejor", "calidad_por_effort", "effort_calidad") if k in c}
+                              "descartado_por", "aviso", "grupo", "carga", "cuenta", "estimada", "ritmo", "ritmo_pts", "calidad_mejor", "calidad_por_effort", "effort_calidad") if k in c}
 
 
 def pct(f):
@@ -1978,6 +2277,13 @@ def explicar(r, now, cupos, cfg):
     L.append("Reserva del Claude oficial: %s. Excluidos: %s. Si no hay cupo: %s%s." % (
         res_t, ", ".join(cfg["excluir"]) or "ninguno", cfg["sin_cupo"],
         "" if cfg["sin_cupo_de"] != "gemini.sin_claude" else " (de gemini.sin_claude)"))
+    plan = plan_de(cfg, now)
+    L.append("Perfil: %s. Reserva para el líder (semanal de Claude): %s. Plan: ausente %s; hoy %s." % (
+        cfg["perfil"], pct(reserva_lider_de(cfg)) if reserva_lider_de(cfg) else "ninguna", ", ".join(plan["ausente"]) or "ningún día",
+        {"gastar": "gastar", "ahorrar": "ahorrar"}.get(plan["hoy"], "sin pista")))
+    for rt in r.get("ritmo", []):
+        L.append("  Ritmo %s semanal: usado %s, esperado %s -> %s" % (rt["nombre"] + (" – %s" % rt["grupo"] if rt.get("grupo") else ""),
+                                                                    pct(rt["usado"]), pct(rt["esperado"]), veces(rt["ratio"])))
     reglas = [(k, v) for k, v in cfg["uso_por_modelo"] if v != "libre"]
     if reglas:
         L.append("Uso por modelo: %s. Tareas poco importantes: %s. Tareas finales: %s." % (
@@ -2195,6 +2501,74 @@ def texto_aa_diag(d):
     return "\n".join(L)
 
 
+def texto_plan(plan, ritmo):
+    L = []
+    L.append("Días ausentes: %s" % (", ".join(plan["ausente"]) or "ninguno"))
+    L.append("Hoy: %s" % {"gastar": "gastar (usar más las suscripciones)", "ahorrar": "ahorrar (cuidar las suscripciones)"}.get(plan["hoy"], "sin pista"))
+    for r in ritmo:
+        quien = r["nombre"] + (" – %s" % r["grupo"] if r.get("grupo") else "")
+        L.append("Ritmo %s semanal: usado %d %%, esperado %d %% -> %s%s" % (
+            quien, round(r["usado"] * 100), round(r["esperado"] * 100), veces(r["ratio"]),
+            {"encima": " (por encima: los workers usan más modelos gratis)", "debajo": " (por debajo: se aprovecha antes del reinicio)"}.get(r["nivel"], " (al ritmo)")))
+    return "\n".join(L)
+
+
+def cmd_plan(args, json_out, cfg, now):
+    """reparto --plan ausente F[,F] | gastar-hoy | ahorrar-hoy | ver | borrar. Guarda en <estado>/plan.json lo que dice el dueño; vence solo."""
+    sub = (args[0] if args else "ver").lower()
+    plan = plan_leer(now)
+    antes = None
+    try:
+        cupos = leer_cupos(cfg, now)
+    except Exception:
+        cupos = {"suscripciones": []}
+    cfg["plan"] = plan
+    antes = resumen_ritmo(cfg, cupos, now)
+    if sub == "ausente" and len(args) >= 2:
+        try:
+            nuevas = fechas_de(",".join(args[1:]), now)
+        except ValueError as e:
+            err("--plan ausente: %s" % e)
+            return 2
+        plan["ausente"] = sorted(set(plan["ausente"]) | set(nuevas))
+        msg = "Ausente: %s" % ", ".join(nuevas)
+    elif sub == "presente" and len(args) >= 2:   # saca días de la lista de ausentes
+        try:
+            quitar = fechas_de(",".join(args[1:]), now)
+        except ValueError as e:
+            err("--plan presente: %s" % e)
+            return 2
+        plan["ausente"] = [d for d in plan["ausente"] if d not in quitar]
+        msg = "Ya no ausente: %s" % ", ".join(quitar)
+    elif sub in ("gastar-hoy", "ahorrar-hoy") and len(args) == 1:
+        plan["hoy"] = sub.split("-")[0]
+        msg = "Hoy: %s" % ("gastar más de las suscripciones" if plan["hoy"] == "gastar" else "ahorrar las suscripciones")
+    elif sub == "borrar" and len(args) == 1:
+        plan = {"ausente": [], "hoy": None, "actualizado": None}
+        msg = "Plan borrado"
+    elif sub == "ver" and len(args) <= 1:
+        msg = None
+    else:
+        err("uso: reparto --plan ausente <AAAA-MM-DD>[,..] | presente <fecha> | gastar-hoy | ahorrar-hoy | ver | borrar")
+        return 2
+    if msg:
+        plan_grabar(plan, now)
+    cfg["plan"] = plan
+    despues = resumen_ritmo(cfg, cupos, now)
+    if json_out:
+        print(json.dumps({"version": VERSION, "plan": plan, "perfil": cfg["perfil"], "reserva_lider": reserva_lider_de(cfg),
+                          "ritmo_antes": antes if msg else None, "ritmo": despues}, ensure_ascii=False))
+        return 0
+    if msg:
+        print(msg + ".")
+        for x, y in zip(antes, despues):
+            if x["ratio"] != y["ratio"]:
+                print("Ritmo %s semanal: %s -> %s (esperado %d %% -> %d %%)." % (y["nombre"], veces(x["ratio"]), veces(y["ratio"]),
+                                                                                round(x["esperado"] * 100), round(y["esperado"] * 100)))
+    print(texto_plan(plan, despues))
+    return 0
+
+
 def uso():
     sys.stdout.write(__doc__)
     return 2
@@ -2220,6 +2594,8 @@ def main(argv):
         return uso()
     cfg = cargar_config()
     now = ahora()
+    if a[0] == "--plan":
+        return cmd_plan(a[1:], json_out, cfg, now)
     if a[0] == "--cupos":
         d = leer_cupos(cfg, now)
         print(json.dumps(d, ensure_ascii=False, indent=None if not sys.stdout.isatty() else 2) if json_out

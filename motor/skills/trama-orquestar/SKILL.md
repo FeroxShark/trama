@@ -41,6 +41,8 @@ pa <proyecto> --ramas                      ramas de workers todavía sin integra
 pa <proyecto> --descartar <id>             tirar esa rama (borra commits: confirmalo con el usuario)
 pa <proyecto> --revertir <id>              deshacer una integrada con `git revert`
 pa --modelos                               qué modelo usa cada tipo de tarea, de dónde sale y si hay cupo
+pa --plan ver | ausente <fecha>[,..]       el ritmo semanal de cada suscripción y las pistas del usuario (ver "Ritmo del cupo")
+pa --plan gastar-hoy | ahorrar-hoy | borrar
 pa --estado                                qué corre ahora, sesiones guardadas, límite vigente
 ```
 
@@ -107,6 +109,29 @@ GPT-OSS y Claude por `agy` tienen pocas corridas: no los fuerces para código.
 - Cada familia gasta un cupo distinto: Claude oficial (Opus/Sonnet/Haiku), Google AI Pro (Argon, Flash,
   `agy:*`), ChatGPT (Codex: `pa` no lo lanza todavía), OpenCode (por `opencode`, gratis los `*-free`), DeepSeek (por `dsh`) o la máquina (Ollama). `pa --modelos` y
   `reparto --cupos` muestran cuál sobra.
+
+## Ritmo del cupo (que alcance la semana)
+
+Vos sos un modelo de Anthropic y los workers de Claude gastan el mismo cupo semanal que tu conversación. `reparto` lleva un **ritmo**
+por ventana semanal: lo usado dividido por lo que ya pasó de la semana (1,0× = termina la semana en ~100 %). Si el usuario va por encima,
+los workers pasan a modelos gratis o de Google; si va por debajo y falta poco para el reinicio, usan más la suscripción (ese cupo se
+pierde si no se gasta). El perfil (`perfil` en `modelos.json`, o Ajustes > Plan y cupos) lo gradúa: `ahorro` casi siempre gratis/Google y
+guarda el 35 % de la semana de Claude para vos (`reserva_lider`), `equilibrado` es el de siempre, `rendimiento` prioriza la calidad.
+
+El usuario te avisa lo que `reparto` no puede saber; **vos lo anotás**, no esperes a que te lo pida como comando:
+
+| El usuario dice | Corré |
+|---|---|
+| "mañana no estoy", "el viernes y el sábado no trabajo" | `pa --plan ausente 2026-10-27` / `pa --plan ausente 2026-10-30,2026-10-31` (también `hoy`, `manana`, `A..B`) |
+| "ya voy a trabajar mañana", "cancelo la ausencia" | `pa --plan presente <fecha>` (o `pa --plan borrar`) |
+| "hoy gastá más", "se reinicia pasado mañana, aprovechá la suscripción" | `pa --plan gastar-hoy` |
+| "hoy ahorrá", "me quedé corto de cupo" | `pa --plan ahorrar-hoy` |
+| "¿cómo vamos de cupo?" | `pa --plan ver` (y `pa --cupo-gemini`) |
+
+Con una ausencia el presupuesto semanal se reparte entre los días que quedan: antes de una ausencia + reinicio hoy se gasta más. Todo
+vence solo (las fechas pasadas y el gastar/ahorrar de ayer no cuentan). **Después de anotarlo, decile al usuario en una o dos frases qué
+cambió**: el ritmo antes y después que imprime el comando ("pasa de 1,4× a 0,9×") y qué van a hacer los workers ("hoy uso más Claude"
+/ "los workers van a modelos gratis"). Las fechas son del día local; si el usuario dice "mañana", pasá la fecha real, no adivines el día.
 
 ## Volver y integrar
 

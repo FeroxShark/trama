@@ -67,6 +67,11 @@
 #                                        más cupo libre del proveedor del modelo, o la de siempre si hay una sola)
 #   pa --plan [pro|max]                  ver / cambiar el plan de la suscripción (pro = modo ahorro, el default)
 #                                        (se guarda en ~/.local/state/pa/plan; PA_PLAN del entorno le gana)
+#   pa --plan ausente <AAAA-MM-DD>[,..]  el dueño no trabaja esos días (hoy, manana, A..B también): el cupo semanal se reparte entre
+#                                        los otros días, así que antes de una ausencia + reinicio los workers usan más la suscripción
+#   pa --plan gastar-hoy | ahorrar-hoy   pisa el ritmo semanal sólo por hoy (más / menos Claude en los workers)
+#   pa --plan ver | borrar               lo que hay guardado y el ritmo de cada ventana semanal | lo borra (todo es `reparto --plan`;
+#                                        vence solo; el perfil y reserva_lider van en modelos.json)
 #   pa <proyecto> --mcp "<tarea>"        dejarle los MCP de claude.ai (default: apagados)
 #   pa <proyecto> --matar                matar el worker que escribe ahí (los --leer no)
 #   pa <proyecto> --matar --leer|--id ID bajar todos los --leer vivos / una corrida puntual
@@ -253,7 +258,7 @@ modelo_local() {
 if modelo_local; then
   case "${1:-}" in
     --estado|--brief|--hilos|--hilo|--modelos|-h|--help|--ayuda) local_pasa=1 ;;
-    --plan) [[ -z "${2:-}" ]] && local_pasa=1 ;;
+    --plan) [[ -z "${2:-}" || "${2:-}" == ver ]] && local_pasa=1 ;;
     *) [[ $# -eq 2 && "${2:-}" == --ramas ]] && local_pasa=1 ;;
   esac
   if [[ -z "${local_pasa:-}" ]]; then
@@ -3841,6 +3846,10 @@ modelos_cargar() {   # 0 si hay un modelos.json válido (lo deja en MODELOS_TXT)
                then "excluir \($c.excluir | tojson) (una lista de ids o familias)" else empty end),
             (if $c | has("permitir_max") and ($c.permitir_max | type) != "boolean"
                then "permitir_max \($c.permitir_max | tojson) (true o false)" else empty end),
+            (if $c.perfil != null and ($c.perfil | tostring | test("^(equilibrado|ahorro|rendimiento)$") | not)
+               then "perfil \($c.perfil | tojson) (equilibrado, ahorro o rendimiento)" else empty end),
+            (if $c.reserva_lider != null and (($c.reserva_lider | type) != "number" or $c.reserva_lider < 0 or $c.reserva_lider >= 1)
+               then "reserva_lider \($c.reserva_lider | tojson) (un número de 0 a 1 o null)" else empty end),
             (if $c.sin_cupo != null and ($c.sin_cupo | tostring | test("^(otro|esperar|fallar)$") | not)
                then "sin_cupo \($c.sin_cupo | tojson) (otro, esperar o fallar)" else empty end)
           ) else empty end) ] | first // ""' <<<"$txt" 2>/dev/null)" || err="no es JSON válido"
@@ -4372,11 +4381,15 @@ case "${1:-}" in
   --plan)
     if [[ -z "${2:-}" ]]; then echo "plan: $PLAN"; exit 0; fi
     case "${2,,}" in
+      ausente|presente|gastar-hoy|ahorrar-hoy|ver|borrar)   # pistas de ritmo semanal: las guarda y las lee reparto
+        [[ -x "$REPARTO" ]] || { echo "pa: no encuentro $REPARTO." >&2; exit 1; }
+        sub="${2,,}"; shift 2
+        REPARTO_STATE="${REPARTO_STATE:-$STATE/reparto}" PA_STATE="$STATE" "$REPARTO" --plan "$sub" "$@"; exit $? ;;
       pro|max) echo "${2,,}" >"$STATE/plan"
                echo "pa: plan ${2,,} guardado en $STATE/plan$([[ "${2,,}" == pro ]] && echo ' (modo ahorro: opus effort medium, tope 100 turnos)' || echo ' (opus con el effort de settings, tope 150)')."
                [[ -n "${PA_PLAN:-}" && "${PA_PLAN,,}" != "${2,,}" ]] && echo "pa: ojo, PA_PLAN=$PA_PLAN en este entorno le gana al archivo." >&2
                exit 0 ;;
-      *) echo "uso: pa --plan [pro|max]" >&2; exit 2 ;;
+      *) echo "uso: pa --plan [pro|max] | ausente <fecha>[,..] | gastar-hoy | ahorrar-hoy | ver | borrar" >&2; exit 2 ;;
     esac ;;
   --esperar) shift; cmd_esperar "$@"; exit $? ;;
   --esperar-todos) shift; cmd_esperar_todos "$@"; exit $? ;;

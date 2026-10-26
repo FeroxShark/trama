@@ -41,6 +41,11 @@ export type SinClaude = (typeof SIN_CLAUDE)[number];
 /** Qué hace `pa` si el modelo que eligió el reparto no tiene cupo (`sin_cupo`, de cualquier proveedor): lanzar otro, esperar o fallar. */
 export const SIN_CUPO = ["otro", "esperar", "fallar"] as const;
 export type SinCupo = (typeof SIN_CUPO)[number];
+/** Perfil de reparto (`perfil` de modelos.json, lo lee `reparto`): equilibrado (el de siempre), ahorro (workers a gratis/Google) o rendimiento. */
+export const PERFILES = ["equilibrado", "ahorro", "rendimiento"] as const;
+export type Perfil = (typeof PERFILES)[number];
+/** Lo que el perfil guarda de la semana de Claude para el líder cuando modelos.json no dice `reserva_lider` (igual que `reparto`). */
+export const RESERVA_LIDER_PERFIL: Record<Perfil, number> = { equilibrado: 0, ahorro: 0.35, rendimiento: 0 };
 /** El `gemini.sin_claude` de antes dice lo mismo con otro nombre para el primero (`claude` = `otro`). */
 export const sinCupoDe = (v: SinClaude): SinCupo => (v === "claude" ? "otro" : v);
 /** Cuánto del cupo de Claude no tocan los workers cuando el archivo no dice nada (`RESERVA` de `reparto`: 15 % libre = tope de 85 %). */
@@ -84,6 +89,8 @@ export type ConfigModelos = {
   gemini: { cupo_max?: number };
   /** `sin_cupo` del archivo; un `gemini.sin_claude` viejo se lee como éste y se reescribe así al guardar. */
   sin_cupo?: SinCupo;
+  /** `perfil` del archivo; sin la clave vale `equilibrado` (y al guardar `equilibrado` la clave sale). */
+  perfil?: Perfil;
   /**
    * Hasta qué % de cada ventana del plan de Claude (5 h, semanal) usan los workers; el resto queda para las sesiones propias.
    * En el archivo es `reserva` (lo que se guarda libre, 0–1; número o `{"5h", "7d"}`), la clave que ya lee `reparto`.
@@ -185,6 +192,7 @@ export function leerConfig(j: Record<string, unknown>): ConfigModelos {
     if (typeof g.sin_claude === "string" && (SIN_CLAUDE as readonly string[]).includes(g.sin_claude)) c.sin_cupo = sinCupoDe(g.sin_claude as SinClaude);
   }
   if (typeof j.sin_cupo === "string" && (SIN_CUPO as readonly string[]).includes(j.sin_cupo)) c.sin_cupo = j.sin_cupo as SinCupo;
+  if (typeof j.perfil === "string" && (PERFILES as readonly string[]).includes(j.perfil)) c.perfil = j.perfil as Perfil;
   c.claude = topesDe(j.reserva);
   if (esObj(j.destrabar)) for (const [k, v] of Object.entries(j.destrabar)) if (typeof v === "boolean" && FORMA_ID.test(k) && (esGemini(k) || esAgy(k))) c.destrabar[k] = v;
   return c;
@@ -207,7 +215,7 @@ function validarEleccion(x: unknown, donde: string, locales: Local[]): Eleccion 
 /** Lo que llega a guardar, revisado: tira con el motivo si algo no vale (y entonces no se escribe nada). */
 export function validarConfig(x: unknown): ConfigModelos {
   if (!esObj(x)) throw errorT("main.modelosForma");
-  const raro = Object.keys(x).find((k) => !["lider", "reparto", "workers", "locales", "excluir", "calidad", "permitir_max", "gemini", "claude", "sin_cupo", "destrabar"].includes(k));
+  const raro = Object.keys(x).find((k) => !["lider", "reparto", "workers", "locales", "excluir", "calidad", "permitir_max", "gemini", "claude", "sin_cupo", "perfil", "destrabar"].includes(k));
   if (raro !== undefined) throw errorT("main.modelosCampo", { campo: raro.slice(0, 40) });
   const c = vacia();
 
@@ -284,6 +292,10 @@ export function validarConfig(x: unknown): ConfigModelos {
     if (typeof x.sin_cupo !== "string" || !(SIN_CUPO as readonly string[]).includes(x.sin_cupo)) throw errorT("main.modelosSinCupo");
     c.sin_cupo = x.sin_cupo as SinCupo;
   }
+  if (x.perfil !== undefined && x.perfil !== null) {
+    if (typeof x.perfil !== "string" || !(PERFILES as readonly string[]).includes(x.perfil)) throw errorT("main.modelosPerfil");
+    c.perfil = x.perfil as Perfil;
+  }
   if (x.claude !== undefined) {
     if (!esObj(x.claude)) throw errorT("main.modelosForma");
     const k = x.claude;
@@ -356,6 +368,9 @@ export function unir(antes: Record<string, unknown> | null, c: ConfigModelos): R
   else delete base.gemini;
   if (c.sin_cupo) base.sin_cupo = c.sin_cupo;
   else delete base.sin_cupo;
+  // `perfil` es de `reparto`: el equilibrado es el de siempre y no se escribe. `reserva_lider`, si alguien la puso a mano, queda como estaba.
+  if (c.perfil && c.perfil !== "equilibrado") base.perfil = c.perfil;
+  else delete base.perfil;
 
   // `reserva` es de `reparto`: si lo que había ya dice estos topes se deja tal cual (un 0.155 o un número suelto no se reescriben).
   const t = topesDe(base.reserva);

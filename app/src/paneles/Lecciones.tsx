@@ -16,7 +16,7 @@ import { mensaje } from "../puente";
 import { pasoLider } from "./PasoLanzar";
 import { conTexto } from "./lanzar";
 import { medidaLecciones, promptPodar } from "./orquestacion-logica";
-import "./lecciones.css";
+import "./lecciones-panel.css";
 
 /** Lo que escribe `pa` en la marca ("34 líneas, 3410 caracteres (tope 30 / 3000)") en el idioma de ahora; si no calza, tal cual. */
 const motivoDe = (m: string): string => {

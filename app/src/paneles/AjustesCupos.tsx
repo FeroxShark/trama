@@ -3,7 +3,7 @@
 // `pa` si un proveedor se queda sin cupo). Trabaja sobre el borrador de AjustesModelos (nada se escribe hasta Guardar). Los textos que
 // cambian con el tiempo ("vuelve en 20 h") los escribe el reloj, no React.
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Ban, CalendarClock, Check, ChevronDown, Clock, Info, Minus, TriangleAlert } from "lucide-react";
+import { Ban, CalendarClock, Check, ChevronDown, Clock, Info, Minus, TrendingDown, TrendingUp, TriangleAlert } from "lucide-react";
 import { Boton, Chip, Interruptor, Tarjeta } from "../ui/componentes";
 import { LogoCaja, type Proveedor } from "../ui/logos";
 import type { GrupoCupo, SuscripcionCupo, Uso, VentanaCupo } from "../datos/contrato";
@@ -22,12 +22,19 @@ import { cuentasDe, AgregarCuenta, CuentaFila, useCuentas } from "./CuentasVaria
 import type { PerfilCuenta, ProveedorCuenta } from "../datos/cuentas";
 import type { FilaDato } from "./AjustesEditar";
 import { avisosTope, GOOGLE_CODIGO, GOOGLE_LLENA } from "./cupos-aviso";
-import { SIN_CUPO, TOPE_CLAUDE_DEFECTO, type Borrador, type SinCupo } from "./modelos-borrador";
+import { PERFILES, SIN_CUPO, TOPE_CLAUDE_DEFECTO, type Borrador, type Perfil, type SinCupo } from "./modelos-borrador";
+import { reservaDePerfil, ritmoSemanal, type Ritmo } from "./cupos-ritmo";
 
 const SIN_CUPO_CLAVES: Record<SinCupo, { nombre: ClaveSola; que: ClaveSola }> = {
   otro: { nombre: "cu.sinCupoOtro", que: "cu.sinCupoOtroQue" },
   esperar: { nombre: "cu.sinCupoEsperar", que: "cu.sinCupoEsperarQue" },
   fallar: { nombre: "cu.sinCupoFallar", que: "cu.sinCupoFallarQue" },
+};
+
+const PERFIL_CLAVES: Record<Perfil, { nombre: ClaveSola; que: ClaveSola }> = {
+  equilibrado: { nombre: "cu.perfilEquilibrado", que: "cu.perfilEquilibradoQue" },
+  ahorro: { nombre: "cu.perfilAhorro", que: "cu.perfilAhorroQue" },
+  rendimiento: { nombre: "cu.perfilRendimiento", que: "cu.perfilRendimientoQue" },
 };
 
 const TOPE_FORMATO = /^\s*$|^\d{1,3}$/;
@@ -88,11 +95,32 @@ function Ventana({ v }: { v: VentanaCupo }) {
   );
 }
 
-const Ventanas = ({ vs }: { vs: VentanaCupo[] }) => (
+/**
+ * Cómo va la semana contra el ritmo que la termina en ~100 %: icono y palabras (el color solo no alcanza con daltonismo rojo-verde).
+ * Encima: los workers usan más modelos gratis; debajo: se aprovecha antes del reinicio. Sin dato no se pinta nada.
+ */
+function RitmoSemanal({ r }: { r: Ritmo }) {
+  const Icono = r.nivel === "encima" ? TrendingUp : r.nivel === "debajo" ? TrendingDown : Minus;
+  return (
+    <div className="cu-ritmo" data-nivel={r.nivel} role="status">
+      <Icono size={13} strokeWidth={2.2} aria-hidden="true" />
+      <span>{r.nivel === "al-ritmo" ? t("cu.ritmo.igual") : t(r.nivel === "encima" ? "cu.ritmo.encima" : "cu.ritmo.debajo", { pct: r.pct })}</span>
+    </div>
+  );
+}
+
+/** `reserva`: lo que se guarda de la semana para el líder (sólo la de Claude); con ventana semanal con dato, su ritmo va debajo. */
+const Ventanas = ({ vs, reserva = 0 }: { vs: VentanaCupo[]; reserva?: number }) => (
   <>
-    {vs.map((v) => (
-      <Ventana key={v.id} v={v} />
-    ))}
+    {vs.map((v) => {
+      const r = v.id === "7d" && !v.deshabilitada ? ritmoSemanal(v.pct, v.vuelve, Date.now() / 1000, reserva) : null;
+      return (
+        <div key={v.id} className="cu-vent-con">
+          <Ventana v={v} />
+          {r ? <RitmoSemanal r={r} /> : null}
+        </div>
+      );
+    })}
   </>
 );
 
@@ -270,7 +298,7 @@ export function CuposTarjetas({ b, uso, plan }: { b: Borrador; uso: Uso | null; 
   const google: SuscripcionCupo | undefined = conDatos(uso) ? uso.suscripciones?.find((s) => s.id === "google") : undefined;
   const avisos = avisosTope(b, uso);
   const vClaude = conDatos(uso) ? ventanasClaude(uso) : null;
-  const cupoClaude = vClaude ? <Ventanas vs={vClaude} /> : (
+  const cupoClaude = vClaude ? <Ventanas vs={vClaude} reserva={reservaDePerfil(b.perfil)} /> : (
     <div className="cu-sin">{t("uso.sinDatoCupo")}</div>
   );
   const cupoGoogle = google?.grupos ? google.grupos.map((g) => <Grupo key={g.id} g={g} />) : google?.ventanas ? <Ventanas vs={google.ventanas} /> : <div className="cu-sin">{t("uso.sinDatoCupo")}</div>;
@@ -371,6 +399,17 @@ export function AjustesCupos({ Dato, b, cambiar }: { Dato: FilaDato; b: Borrador
     <section className="pn-sec pn-edita cu-avanzado">
       <h3 className="pn-h">{t("cu.avanzado")}</h3>
       <div className="cu-av-q">{t("cu.avanzadoQue")}</div>
+      <Dato nombre="ajustes.cuposPerfil" que="ajustes.cuposPerfilQue">
+        <div className="pn-sel">
+          <Selector
+            etiqueta={t("ajustes.cuposPerfil")}
+            opciones={PERFILES.map((id) => ({ id, nombre: t(PERFIL_CLAVES[id].nombre), desc: t(PERFIL_CLAVES[id].que), ...(id === "equilibrado" ? { rec: true } : {}) }))}
+            valor={b.perfil ?? "equilibrado"}
+            alElegir={(id) => cambiar({ ...b, perfil: id as Perfil })}
+            reserva={PERFILES.flatMap((id) => enOtros(PERFIL_CLAVES[id].nombre))}
+          />
+        </div>
+      </Dato>
       <Dato nombre="ajustes.cuposGuardar" que="ajustes.cuposGuardarQue">
         <Interruptor activo={b.guardar} alCambiar={(v) => cambiar({ ...b, guardar: v })} aria-label={t("ajustes.cuposGuardar")} />
       </Dato>
