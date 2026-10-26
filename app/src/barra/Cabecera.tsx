@@ -386,8 +386,9 @@ function UsoCelda({ c, quien, ts, ver }: { c: Celda; quien: string; ts: number; 
     >
       <div className="r">
         {/* Agotada: cuándo vuelve ("vie 01:01") y el ícono, sin el "100%" que no entra junto a la cuenta regresiva. */}
+        {/* En el lugar del número (la cuenta regresiva se esconde en la barra angosta; esto no). */}
         {pct !== null && pct >= 100 && hasta > 0 ? (
-          <span className="n">{cuandoFuturo(hasta)}</span>
+          <span className="pct">{cuandoFuturo(hasta)}</span>
         ) : hasta > 0 ? (
           <Reloj pintor={falta} className="n" />
         ) : (

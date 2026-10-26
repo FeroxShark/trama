@@ -1918,6 +1918,6 @@ export const en = {
   "cu.saltoLlena": "Any window nearly full",
   "cu.saltoCodigo": "Code work, 5-hour window",
   "cu.saltoDesde": "skips at {pct} % used or more",
-  "cu.w.noAplicaCorto": "doesn't apply",
+  "cu.w.noAplicaCorto": "off",
   "cu.w.marcadoCorto": "marked",
 } as const;

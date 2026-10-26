@@ -387,10 +387,9 @@ body,
 .g-chip svg {
   flex: none;
 }
+/* El nombre del grupo nunca se recorta (un chip sin nombre no dice de qué es): si no entra, el chip baja de renglón. */
 .g-chip-n {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  flex: none;
 }
 .g-chip-v {
   font-family: var(--font-mono);
@@ -424,7 +423,6 @@ body,
 .uso[data-aparte] .sd {
   margin-left: 0;
   color: var(--txt-4);
-  font-style: italic;
 }
 .uso[data-aparte="marcado"] .sd {
   color: var(--critico);
