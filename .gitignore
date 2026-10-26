@@ -1,0 +1,8 @@
+node_modules/
+app/dist/
+app/dist-electron/
+app/release/
+app/bench-resultados/
+app/referencias/
+*.log
+__pycache__/

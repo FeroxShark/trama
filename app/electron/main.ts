@@ -23,10 +23,10 @@ import { acomodar, crearGuardadoVolver, guardarVolver, leerVolver, lugarDeVentan
 import { silencio } from "./log.js";
 import { enMarcha, marcar, type Corrida } from "./reinicio-marcas.js";
 
-// Wayland nativo SIEMPRE. Un cliente XWayland colgado puede congelar Hyprland
-// entero (pasó con webkit + GDK_BACKEND=x11); uno Wayland nativo colgado sólo
-// se cuelga a sí mismo.
-app.commandLine.appendSwitch("ozone-platform", "wayland");
+// Wayland nativo siempre que haya sesión Wayland: un cliente XWayland colgado puede congelar Hyprland
+// entero (pasó con webkit + GDK_BACKEND=x11); uno Wayland nativo colgado sólo se cuelga a sí mismo.
+// Sin Wayland (X11, Xvfb de las pruebas) `auto` cae en X11 en vez de no abrir.
+app.commandLine.appendSwitch("ozone-platform-hint", "auto");
 
 // Sin GPU por default: con esta UI da los mismos fps (200 en HDMI-A-2) con menos
 // CPU, menos RAM y arranque más rápido (medido en B0b y otra vez en B1, ver
@@ -102,6 +102,9 @@ else if (guion || captura || png) {
   app.setPath("userData", perfil);
   process.on("exit", () => rmSync(perfil, { recursive: true, force: true }));
 }
+// El perfil de siempre (`~/.config/hilos`), aunque el paquete se llame `trama`: Electron lo deriva del `name` de
+// package.json y cambiarlo dejaría al usuario sin su localStorage (tema, borradores de la vista, la ventana).
+else app.setPath("userData", path.join(app.getPath("appData"), "hilos"));
 // La unidad de systemd (systemd/trama.service). Los líderes no la heredan: un `trama` corrido desde uno es el lanzador de siempre.
 const unidad = process.env.TRAMA_UNIDAD === "1";
 delete process.env.TRAMA_UNIDAD;
