@@ -21,6 +21,16 @@
 #                                        Si su último uso fue hace más de PA_CACHE_FRIO_MIN (default 55; 0 = apagado)
 #                                        el caché de prompt (1 h) ya se enfrió: NO la retoma, arranca una sesión
 #                                        nueva (en el mismo puesto y rama) y lo avisa por stderr
+#   pa <proyecto> --brief-archivo F      la tarea sale de un archivo con el brief (Objetivo / Archivos / Listo cuando /
+#                                        Cómo verificar / No tocar); `pa --brief` imprime la plantilla. Sin "Listo cuando" o
+#                                        "Cómo verificar" avisa por stderr (no bloquea)
+#   pa <proyecto> --auditar <id|rama> [-m M]  revisor de sólo lectura (--leer) de esa rama: lee el diff contra main y reporta
+#                                        problemas por severidad (CRITICO/ALTO/MEDIO/BAJO); tipo lectura si no hay --tipo
+#   pa <proyecto> --agents-md            imprime una plantilla de AGENTS.md (build, tests, convenciones, no tocar) si falta;
+#                                        a agy/codex/dsh/opencode el contrato les suma AGENTS.md (o CLAUDE.md), tope 8000 caracteres
+#   pa <proyecto> --leccion "<texto>"    anotar una lección corta en ~/.local/state/pa/<proy>/lecciones.md (tope 30 líneas /
+#                                        3000 caracteres: pasado eso `pa --estado` avisa NECESITA-PODA). Se inyectan al contrato
+#   pa <proyecto> --lecciones            imprimir las lecciones · --lecciones-podar: la instrucción para que un agente las reescriba
 #   pa <proyecto> --aca "<tarea>"        correr en el tree principal, no en un worktree (ve lo sin commitear)
 #   pa <proyecto> --integrar <id>        mergear la rama de esa corrida en el tree principal (ff, sin forzar)
 #   pa <proyecto> --actualizar <id>      rebasear la rama de esa corrida sobre main (sesión limpia, en su
@@ -242,7 +252,7 @@ modelo_local() {
 }
 if modelo_local; then
   case "${1:-}" in
-    --estado|--hilos|--hilo|--modelos|-h|--help|--ayuda) local_pasa=1 ;;
+    --estado|--brief|--hilos|--hilo|--modelos|-h|--help|--ayuda) local_pasa=1 ;;
     --plan) [[ -z "${2:-}" ]] && local_pasa=1 ;;
     *) [[ $# -eq 2 && "${2:-}" == --ramas ]] && local_pasa=1 ;;
   esac
@@ -262,8 +272,15 @@ NO estás hablando con @DUENO@: tu respuesta final la lee otro modelo.
 Respondé corto, en este formato exacto:
 RESULTADO: 1-3 oraciones de qué hiciste o qué encontraste.
 ARCHIVOS: rutas que tocaste, o "ninguno".
+VERIFICACION: el comando (o comandos) que corriste para comprobar tu trabajo y 2-6 líneas REALES de su
+salida, pegadas tal cual (nada resumido ni inventado). Si no pudiste verificar: `VERIFICACION: ninguna` y
+por qué. Sin esta sección la corrida queda marcada "sin verificar" y el jefe no la da por buena.
 DECISION: qué tiene que decidir @DUENO@, o "nada".
 SIGUE: una línea con el próximo paso del proyecto si el trabajo sigue, o "nada" si quedó cerrado.
+
+Si la tarea viene como brief (secciones Objetivo / Archivos / Listo cuando / Cómo verificar / No tocar):
+"Listo cuando" es tu criterio de cierre (ni antes ni después), "Cómo verificar" es lo que corrés para
+llenar VERIFICACION y "No tocar" es ley. Si falta alguna, inferila, hacé igual y decí el supuesto en RESULTADO.
 
 Qué merece DECISION o PREGUNTA: SÓLO el rumbo: publicar, borrar algo que no se recupera, plata, qué
 se muestra al público o un cambio de alcance. Todo lo demás lo resolvés vos con un default razonable y
@@ -1985,6 +2002,7 @@ cmd_hilos() {
          commits: ($commits | num),
          decision: ($dec | nonempty), decision_nada: (if $dnada == null then null else $dnada == "1" end),
          sigue: ($h.sigue | nonempty),
+         verificado: (if ($h.verificado | nonempty) == null then null else $h.verificado == "1" end),
          resultado: (($j.result // "") | tostring | if test("RESULTADO:") then
                        (capture("RESULTADO:[*]*\\s*(?<r>[\\s\\S]*)").r | split("ARCHIVOS:")[0] | split("DECISI")[0]
                         | gsub("\\s+"; " ") | trim_ | .[0:200] | nonempty)
@@ -2228,6 +2246,22 @@ cmd_estado() {
       "$(date -d "@$(stat -c %Y "$f")" '+%Y-%m-%d %H:%M')"
   done
   (( found )) || echo "no hay sesiones guardadas."
+
+  # Corridas de los últimos 3 días que terminaron sin evidencia de verificación (`verificado=0` en su .hilo), y
+  # proyectos cuyas lecciones pasaron el tope (marca lecciones.necesita-poda): lo que el jefe y la app tienen que mirar.
+  local sv_f sv_id sv_s sv_n=0 pd_f pd_s
+  while IFS= read -r sv_f; do
+    [[ -n "$sv_f" ]] || continue
+    grep -q '^archivado=.' "$sv_f" 2>/dev/null && continue
+    sv_id="$(basename "$sv_f" .hilo)"; sv_s="$(basename "$(dirname "$sv_f")")"
+    (( sv_n++ < 15 )) || continue
+    printf 'SIN VERIFICAR %-17s (id: %s, el RESULTADO no trae VERIFICACION; pa %s --seguir --id %s "corré la verificación y pegá la salida")\n' "$sv_s" "$sv_id" "$sv_s" "$sv_id"
+  done < <(find "$STATE" -mindepth 2 -maxdepth 2 -name '*.hilo' -mtime -3 -print0 2>/dev/null | xargs -0 -r grep -l '^verificado=0$' 2>/dev/null || true)
+  for pd_f in "$STATE"/*/lecciones.necesita-poda; do
+    [[ -f "$pd_f" ]] || continue
+    pd_s="$(basename "$(dirname "$pd_f")")"
+    printf 'NECESITA-PODA %-17s (lecciones.md: %s; pa %s --lecciones-podar)\n' "$pd_s" "$(cat "$pd_f")" "$pd_s"
+  done
 
   local lf lh
   for lf in "$LIMITE" "$STATE"/limite.*.hasta; do
@@ -2520,6 +2554,8 @@ cmd_bien_auto() {
   rm -f "$hilos" "$integ" "$retra" "$MEDICION.tmp.$$.n"
   (( rc )) && { echo "pa: --bien-auto no pudo reescribir $MEDICION." >&2; return 1; }
   echo "pa: --bien-auto: ${cuenta:-0 anotadas}."
+  # Lo descartado o retrabajado deja una lección corta en el proyecto (sin repetirse; ver lecciones_de_medicion).
+  lecciones_de_medicion "$MEDICION" || true
 }
 
 # ¿La integración $4..$5 cambió o borró alguna línea que escribieron los commits de $2..$3? (en el
@@ -2739,6 +2775,13 @@ anotar_decision() {   # $1 = json de salida
   fi
   hilo_poner "$ts" sigue "$s"
   [[ -z "$s" ]] || decision_es_nada "$s" || tab_sigue="$s"
+  # verificado: ¿el RESULTADO trae VERIFICACION con comando y salida? Va al .hilo y al .json de la corrida
+  # (no la falla; sólo la marca). Un --leer no tiene qué verificar.
+  if (( ! leer )) && grep -q 'RESULTADO:' <<<"$res"; then
+    local vv=true; verificado_de <<<"$res" || vv=false
+    hilo_poner "$ts" verificado "$([[ $vv == true ]] && echo 1 || echo 0)"
+    jq --argjson v "$vv" '. + {verificado: $v}' "$1" >"$1.tmp.$$" 2>/dev/null && mv -f "$1.tmp.$$" "$1" || rm -f "$1.tmp.$$"
+  fi
 }
 
 # Las preguntas del bloque (tab_bloque, ver bloque_de) entran cada una como un item `pregunta`
@@ -4073,6 +4116,201 @@ medir() {   # $1 = json de salida de la corrida (puede no existir)
   ) 7>>"$MEDICION"
 }
 
+# --- orquestación: brief, verificación, AGENTS.md, lecciones, calidad del modelo (2026-10-26) ----
+# Todo es aditivo y nada bloquea una corrida: avisa, anota o inyecta texto.
+
+# La plantilla del brief (`pa --brief`): lo que el jefe le tiene que dar al worker.
+brief_plantilla() {
+  cat <<'PLANTILLA'
+Objetivo: <qué tiene que quedar distinto, en 1-2 oraciones>
+Archivos: <rutas o carpetas donde trabajar, y qué leer primero>
+Listo cuando: <criterio observable de terminado>
+Cómo verificar: <comando exacto a correr y qué salida esperás>
+No tocar: <archivos, áreas o comportamientos que no se cambian>
+PLANTILLA
+}
+
+# ¿El texto trae esa sección? Con o sin `#`/`**`/`-` adelante; sin distinguir mayúsculas ni tilde.
+brief_tiene() {   # $1 = texto, $2 = regex de la sección
+  local r; shopt -q nocasematch && r=0 || r=1
+  shopt -s nocasematch
+  [[ "$1" =~ $2 ]] && { (( r )) && shopt -u nocasematch; return 0; }
+  (( r )) && shopt -u nocasematch
+  return 1
+}
+
+# Avisa (stderr, al jefe) lo que le falta al brief. Nunca bloquea.
+brief_avisar() {   # $1 = tarea
+  local falta=()
+  brief_tiene "$1" 'listo[[:space:]]+cuando' || falta+=( '"Listo cuando" (cómo se sabe que terminó)' )
+  brief_tiene "$1" 'c[^[:space:]]{1,2}mo[[:space:]]+verificar' || falta+=( '"Cómo verificar" (el comando que prueba que anda)' )
+  (( ${#falta[@]} )) || return 0
+  local lista; lista="$(printf '%s y ' "${falta[@]}")"; lista="${lista% y }"
+  echo "pa: aviso: a la tarea le falta ${lista}. Sin eso el worker adivina y vos no podés comprobar su trabajo. Brief: Objetivo / Archivos / Listo cuando / Cómo verificar / No tocar (plantilla: pa --brief; desde un archivo: --brief-archivo F). No bloqueo." >&2
+}
+
+# La sección VERIFICACION de un RESULTADO (stdin -> stdout). Acepta VERIFICACIÓN, mayúsculas o no, con
+# ** o # adelante; termina en el próximo encabezado conocido.
+verificacion_de() {
+  local l en=0 t="" nc=0
+  shopt -q nocasematch && nc=1
+  shopt -s nocasematch
+  while IFS= read -r l; do
+    if (( ! en )); then
+      if [[ "$l" =~ ^[\*\#\>\ $'\t'-]*VERIFICACI[^:*]{1,2}N[\*]*:[\*]*(.*)$ ]]; then en=1; t="${BASH_REMATCH[1]}"; fi
+      continue
+    fi
+    [[ "$l" =~ ^[\*\#\>\ $'\t'-]*(RESULTADO|ARCHIVOS|DECISI[^:*]{1,2}N|SIGUE|PROBAR|PREGUNTA)[\*]*: ]] && break
+    t+=$'\n'"$l"
+  done
+  (( nc )) || shopt -u nocasematch
+  printf '%s' "$t"
+}
+# 0 = el RESULTADO (stdin) trae evidencia de verificación; 1 = falta, está vacía o dice "ninguna".
+verificado_de() {
+  local t; t="$(verificacion_de)"
+  t="${t//[\`*_]/}"; t="${t//[[:space:]]/ }"; t="${t#"${t%%[![:space:]]*}"}"; t="${t%"${t##*[![:space:]]}"}"
+  [[ -n "$t" ]] || return 1
+  shopt -q nocasematch && local nc=1 || local nc=0
+  shopt -s nocasematch
+  local r=0
+  [[ "$t" =~ ^(ninguna|ninguno|nada|n/?a|no|-+|sin[[:space:]]+verificar)([[:space:].:,;-]|$) ]] && r=1
+  (( nc )) || shopt -u nocasematch
+  return "$r"
+}
+
+# AGENTS.md del proyecto para los motores que NO leen CLAUDE.md (agy, codex, dsh/opencode). Busca
+# AGENTS.md y, si no hay, CLAUDE.md, primero en el worktree y después en el tree principal (un
+# AGENTS.md recién escrito y sin commitear sólo existe ahí). Tope PA_AGENTS_MAX (8000) caracteres.
+agents_md_archivo() {   # $@ = carpetas -> ruta del primero que exista
+  local d c
+  for d in "$@"; do
+    [[ -n "$d" ]] || continue
+    for c in AGENTS.md CLAUDE.md; do [[ -s "$d/$c" ]] && { printf '%s' "$d/$c"; return 0; }; done
+  done
+  return 1
+}
+agents_md_bloque() {   # $@ = carpetas -> el bloque para el prompt (con salto de línea adelante), o nada
+  local f t n max="${PA_AGENTS_MAX:-8000}"
+  [[ "$max" =~ ^[0-9]+$ ]] || max=8000
+  f="$(agents_md_archivo "$@")" || return 0
+  t="$(cat "$f")"; n=${#t}
+  if (( n > max )); then
+    t="${t:0:max}"$'\n'"[… truncado: $f tiene $n caracteres y acá van los primeros $max; leé el resto con Read si lo necesitás]"
+  fi
+  printf '\n\nINSTRUCCIONES (%s; valen igual que las de arriba):\n%s' "$f" "$t"
+}
+# `pa <proy> --agents-md`: la plantilla para que el jefe la llene cuando falta.
+agents_md_plantilla() {
+  cat <<'PLANTILLA'
+# AGENTS.md
+
+Lo que un agente que NO conoce este proyecto necesita para trabajar sin preguntar. Corto y concreto:
+sólo lo que se verificó, nada aspiracional.
+
+## Qué es
+<una o dos líneas: qué hace el proyecto y para quién>
+
+## Build y arranque
+- Instalar: `<comando>`
+- Build: `<comando>`
+- Correr: `<comando>`
+
+## Tests y verificación
+- Todos los tests: `<comando>`
+- Uno solo: `<comando con ejemplo>`
+- Lint / tipos: `<comando>`
+- Antes de dar algo por listo se corre: `<comando>`
+
+## Convenciones
+- Idioma de código, comentarios y commits: <...>
+- Estilo y formato: <...>
+- Estructura: <carpetas principales y qué va en cada una>
+
+## No tocar
+- <archivos generados, vendored, migraciones ya aplicadas, secretos, etc.>
+
+## Trampas conocidas
+- <cosas que ya mordieron: puertos, orden de comandos, variables de entorno>
+PLANTILLA
+}
+
+# Lecciones del proyecto: $STATE/<slug>/lecciones.md, una línea por lección, corto y podable.
+# Tope blando de 30 líneas / 3000 caracteres: pasado eso queda `lecciones.necesita-poda` (lo lee
+# `pa --estado` y la app). Tope duro de 45 líneas: nunca crece sin límite aunque nadie pode.
+LECCIONES_LINEAS=30; LECCIONES_CARS=3000; LECCIONES_DURO=45
+lecciones_revisar() {   # usa $dir: pone o saca la marca necesita-poda
+  local f="$dir/lecciones.md" m="$dir/lecciones.necesita-poda" l c
+  [[ -f "$f" ]] || { rm -f "$m"; return 0; }
+  l="$(wc -l <"$f")"; c="$(wc -m <"$f")"
+  if (( l > LECCIONES_LINEAS || c > LECCIONES_CARS )); then printf '%s líneas, %s caracteres (tope %s / %s)\n' "$l" "$c" "$LECCIONES_LINEAS" "$LECCIONES_CARS" >"$m"
+  else rm -f "$m"; fi
+}
+leccion_agregar() {   # $1 = texto, $2 = clave para no repetirla (opcional; default el propio texto)
+  local t="${1//$'\n'/ }" clave f="$dir/lecciones.md"
+  t="${t//$'\t'/ }"; t="${t#"${t%%[![:space:]]*}"}"; t="${t%"${t##*[![:space:]]}"}"; t="${t:0:240}"
+  [[ -n "$t" ]] || return 1
+  clave="${2:-$t}"
+  mkdir -p "$dir"
+  (
+    flock 5
+    if ! grep -qF -- "$clave" "$f" 2>/dev/null; then
+      printf -- '- %s %s\n' "$(date +%F)" "$t" >>"$f"
+      if (( $(wc -l <"$f") > LECCIONES_DURO )); then tail -n "$LECCIONES_DURO" "$f" >"$f.tmp.$$" && cat "$f.tmp.$$" >"$f"; rm -f "$f.tmp.$$"; fi
+    fi
+  ) 5>>"$dir/.lecciones.lock"
+  lecciones_revisar
+}
+# El bloque corto que va al contrato: las últimas 12 líneas, 1500 caracteres.
+lecciones_bloque() {   # usa $dir
+  local f="$dir/lecciones.md" t
+  [[ -s "$f" ]] || return 0
+  t="$(tail -n 12 "$f")"
+  if (( ${#t} > 1500 )); then t="${t: -1500}"; t="${t#*$'\n'}"; fi
+  [[ -n "$t" ]] || return 0
+  printf '\nLecciones de corridas anteriores en este proyecto (no repitas esos errores):\n%s' "$t"
+}
+# Desde `pa --bien-auto`: las corridas recientes que se descartaron o se retrabajaron dejan una línea.
+lecciones_de_medicion() {   # $1 = medicion.tsv
+  local dias="${PA_LECCION_DIAS:-7}" desde sl id md tp mot tarea n=0
+  [[ "$dias" =~ ^[0-9]+$ ]] || dias=7
+  desde="$(date -d "-$dias days" +%F 2>/dev/null)" || return 0
+  while IFS=$'\t' read -r sl id md tp mot; do
+    [[ -n "$id" && -d "$STATE/$sl" ]] || continue
+    (( n >= 5 )) && break
+    local dir="$STATE/$sl"
+    tarea="$(leer_campo "$dir/$id.hilo" tarea 2>/dev/null || true)"
+    leccion_agregar "[$id] ${tp:-sin tipo} con ${md:-?}: $mot. Tarea: ${tarea:0:100}" "[$id]" && n=$(( n + 1 ))
+  done < <(awk -F'\t' -v d="$desde" '
+    FNR == 1 { for (i = 1; i <= NF; i++) c[$i] = i; next }
+    c["integrada"] && $6 != 1 && substr($1, 1, 10) >= d {
+      ci = c["integrada"]; cr = c["retrabajo"]; ct = c["tipo"]
+      mot = ""
+      if (cr && $cr == "1") mot = "se retrabajó o se revirtió después de integrarla"
+      else if ($ci == "0") mot = "se descartó o quedó sin integrar"
+      if (mot != "") print $3 "\t" $2 "\t" $4 "\t" (ct ? $ct : "") "\t" mot
+    }' "$1")
+}
+
+# Inteligencia (0-100) del modelo según `reparto --tabla`; vacío si no se sabe. Una sola consulta por pa.
+TABLA_JSON=""; TABLA_LEIDA=0
+calidad_de_modelo() {   # $1 = id de modelo
+  [[ -n "$1" ]] || return 0
+  if (( ! TABLA_LEIDA )); then
+    TABLA_LEIDA=1
+    [[ -x "$REPARTO" ]] && TABLA_JSON="$(REPARTO_STATE="${REPARTO_STATE:-$STATE/reparto}" PA_STATE="$STATE" timeout "${PA_REPARTO_TIMEOUT_S:-15}" "$REPARTO" --tabla --json 2>/dev/null </dev/null)" || true
+  fi
+  [[ -n "$TABLA_JSON" ]] || return 0
+  jq -r --arg m "$1" '[.modelos[]? | select(.id == $m) | .calidad][0] // empty' <<<"$TABLA_JSON" 2>/dev/null || true
+}
+# Debajo de este umbral el worker recibe el bloque de "pasos chicos" y el jefe un aviso.
+CALIDAD_BAJA="${PA_CALIDAD_BAJA:-70}"
+modelo_flojo() {   # $1 = modelo: 0 si su inteligencia es < CALIDAD_BAJA (deja el número en $calidad_modelo)
+  calidad_modelo="$(calidad_de_modelo "$1")"
+  [[ "$calidad_modelo" =~ ^[0-9]+([.][0-9]+)?$ ]] || return 1
+  awk -v c="$calidad_modelo" -v u="$CALIDAD_BAJA" 'BEGIN { exit !(c + 0 < u + 0) }'
+}
+
 stats_resultado() {   # $1 = json de salida — la línea "— N turnos · …", sin el .result
   local comp; comp="$(contar_compactaciones "$(transcript_de "$1")")"
   local extra=""
@@ -4113,6 +4351,11 @@ linea_rama() {   # $1 = json de salida
 
 mostrar_resultado() {   # $1 = json de salida
   jq -r '.result // "(sin resultado)"' "$1"
+  # Sin VERIFICACION con comando y salida el resultado es una afirmación, no una prueba (no falla la corrida).
+  local res_v; res_v="$(jq -r '.result // ""' "$1" 2>/dev/null || true)"
+  if [[ ! -f "${1%.json}.leer" && "$res_v" == *RESULTADO:* ]] && ! verificado_de <<<"$res_v"; then
+    echo "— SIN VERIFICAR: el RESULTADO no trae VERIFICACION (comando + salida). No lo des por bueno: pedile la evidencia con pa '$(basename "$(dirname "$1")")' --seguir --id $(basename "${1%.json}") 'corré la verificación y pegá la salida'."
+  fi
   stats_resultado "$1"
   linea_rama "$1"
 }
@@ -4123,6 +4366,7 @@ mostrar_resultado() {   # $1 = json de salida
 
 case "${1:-}" in
   --estado)  cmd_estado; exit 0 ;;
+  --brief)   brief_plantilla; exit 0 ;;
   # `pa --plan max|pro`: lo corre el jefe cuando el dueño dice que cambió de suscripción (el dueño no se
   # acuerda de rutas). Sin argumento dice el vigente. PA_PLAN del entorno le gana al archivo: avisa.
   --plan)
@@ -4211,9 +4455,11 @@ tipo="${PA_TIPO:-}"
 # --ok-dueno: el dueño aprobó esta corrida (opus max, sonnet max, fable). Sólo por flag, a propósito:
 # una variable de entorno se hereda de una llamada a la otra y la aprobación es por corrida.
 ok_dueno=0 modelo_de_m=0
+# Orquestación (2026-10-26): brief desde archivo, AGENTS.md, lecciones, auditoría de una rama.
+brief_archivo=""; agents_md=0; lecciones=0; lecciones_podar=0; leccion=""; auditar=""
 
 # Los flags que llevan valor: sin él, `$2` reventaba con "unbound variable" (set -u) sin decir qué faltaba.
-flags_con_valor=" --max-turns --id --integrar --descartar --actualizar --nota --max-budget-usd -m --model --effort --tipo --cuenta "
+flags_con_valor=" --max-turns --id --integrar --descartar --actualizar --nota --max-budget-usd -m --model --effort --tipo --cuenta --brief-archivo --leccion --auditar "
 while [[ $# -gt 0 ]]; do
   if [[ "$flags_con_valor" == *" $1 "* && $# -lt 2 ]]; then
     echo "pa: $1 quiere un valor (ej: pa <proyecto> $1 <valor> \"<tarea>\"). Mirá pa --help." >&2; exit 2
@@ -4222,6 +4468,12 @@ while [[ $# -gt 0 ]]; do
     --seguir)          seguir=1; shift ;;
     --nuevo)           shift ;;   # ya es el default; se acepta para no romper scripts viejos
     --leer)            leer=1; shift ;;
+    --brief-archivo)   brief_archivo="$2"; shift 2 ;;
+    --agents-md)       agents_md=1; shift ;;
+    --lecciones)       lecciones=1; shift ;;
+    --lecciones-podar) lecciones_podar=1; shift ;;
+    --leccion)         leccion="$2"; shift 2 ;;
+    --auditar)         auditar="$2"; leer=1; shift 2 ;;   # auditar es una corrida --leer (ver más abajo)
     --olvidar)         olvidar=1; shift ;;
     --matar)           matar=1; shift ;;
     --mcp)             con_mcp=1; shift ;;
@@ -4257,6 +4509,19 @@ done
 if (( integrar_tests )) && [[ -z "$integrar" ]]; then
   echo "pa: --tests va con --integrar: pa <proy> --integrar <id> --tests" >&2; exit 2
 fi
+# --brief-archivo F: la tarea sale de un archivo (cabe cualquier largo, sin líos de comillas). Si además
+# vino texto en la línea de comandos, va después como contexto.
+if [[ -n "$brief_archivo" ]]; then
+  [[ -r "$brief_archivo" && -f "$brief_archivo" ]] || { echo "pa: --brief-archivo '$brief_archivo' no se puede leer." >&2; exit 2; }
+  brief_txt="$(cat "$brief_archivo")"
+  [[ -n "${brief_txt//[[:space:]]/}" ]] || { echo "pa: --brief-archivo '$brief_archivo' está vacío." >&2; exit 2; }
+  if [[ -n "$tarea" ]]; then tarea="$brief_txt"$'\n\n'"Contexto del jefe: $tarea"; else tarea="$brief_txt"; fi
+fi
+# Auditar es una corrida de lectura: si el jefe no clasificó, es `lectura`.
+[[ -n "$auditar" && -z "$tipo" ]] && tipo=lectura
+if [[ -n "$auditar" ]] && { (( seguir || aca )) || [[ -n "$actualizar$integrar$descartar" ]]; }; then
+  echo "pa: --auditar no va con --seguir, --aca, --actualizar, --integrar ni --descartar: es una corrida --leer nueva." >&2; exit 2
+fi
 
 # --- política de modelos (el dueño, 2026-09-30; plan pro 2026-10-02; por situación 2026-10-10) ---
 # El modelo se elige por situación, no por un índice promedio, y para elegir hay que poder medir:
@@ -4275,7 +4540,7 @@ fi
 # El hijo de --async recibe -m explícito y el effort por PA_EFFORT, así que pasa por lo mismo.
 # Sólo en los caminos que lanzan un claude: un PA_EFFORT=low heredado no puede impedir un --matar,
 # --integrar, --descartar, --ramas u --olvidar (--esperar y --estado ya salieron arriba).
-lanza=1; (( matar || ramas || olvidar )) && lanza=0; [[ -n "$integrar$descartar" ]] && lanza=0
+lanza=1; (( matar || ramas || olvidar || agents_md || lecciones || lecciones_podar )) && lanza=0; [[ -n "$leccion" ]] && lanza=0; [[ -n "$integrar$descartar" ]] && lanza=0
 # El tipo se valida igual que el effort: sólo donde se lanza (un PA_TIPO heredado no traba la gestión).
 tipo="${tipo,,}"; [[ "$tipo" == diseño ]] && tipo=diseno
 if (( lanza )) && [[ -n "$tipo" && ! "$tipo" =~ ^($TIPOS_VALIDOS)$ ]]; then
@@ -4589,6 +4854,34 @@ if [[ -n "$integrar" ]];  then cmd_integrar "$integrar"; exit $?; fi
 if [[ -n "$descartar" ]]; then cmd_descartar "$descartar"; exit $?; fi
 if (( ramas )); then cmd_ramas; exit $?; fi
 
+# --- AGENTS.md y lecciones del proyecto (no lanzan nada) ---
+if (( agents_md )); then
+  if f_am="$(agents_md_archivo "$ruta")" && (( ! force )); then
+    echo "pa: '$slug' ya tiene $f_am ($(wc -m <"$f_am") caracteres). Actualizalo con lo que aprendas (build, tests, convenciones, qué no tocar) en vez de rehacerlo; --force imprime la plantilla igual." >&2
+  else
+    echo "pa: plantilla para $ruta/AGENTS.md. Llenala con lo que VERIFICASTE del proyecto (comandos que corrés de verdad) y guardala ahí; los workers que no son Claude la reciben en el contrato (tope ${PA_AGENTS_MAX:-8000} caracteres)." >&2
+    agents_md_plantilla
+  fi
+  exit 0
+fi
+if [[ -n "$leccion" ]]; then
+  leccion_agregar "$leccion" || { echo "pa: --leccion quiere un texto corto (una línea)." >&2; exit 2; }
+  echo "pa: lección anotada en $dir/lecciones.md ($(wc -l <"$dir/lecciones.md") líneas)."
+  [[ -f "$dir/lecciones.necesita-poda" ]] && echo "pa: las lecciones de '$slug' necesitan poda: pa '$proyecto' --lecciones-podar." >&2
+  exit 0
+fi
+if (( lecciones )); then
+  lecciones_revisar
+  if [[ -s "$dir/lecciones.md" ]]; then cat "$dir/lecciones.md"; else echo "pa: '$slug' no tiene lecciones todavía."; fi
+  [[ -f "$dir/lecciones.necesita-poda" ]] && echo "pa: necesita poda ($(cat "$dir/lecciones.necesita-poda")): pa '$proyecto' --lecciones-podar." >&2
+  exit 0
+fi
+if (( lecciones_podar )); then
+  lecciones_revisar
+  echo "Podá las lecciones de '$slug' (no abre nada: lo hace un agente). Releé $dir/lecciones.md y reescribilo más corto: máximo $LECCIONES_LINEAS líneas y $LECCIONES_CARS caracteres, una lección por línea con el formato \"- AAAA-MM-DD texto\". Juntá las repetidas en una, sacá las obsoletas y las que fueron de una corrida puntual, y conservá lo durable (trampas del proyecto, comandos que andan, cosas que no se tocan). Después corré: pa '$proyecto' --lecciones (debe dejar de pedir poda)."
+  exit 0
+fi
+
 if [[ $olvidar -eq 1 ]]; then
   rm -f "$sfile"
   echo "pa: sesión de '$slug' descartada."
@@ -4602,8 +4895,45 @@ if [[ -n "$actualizar" ]]; then
     || { echo "pa: no hay una corrida '$actualizar' de '$slug' con rama propia (falta $c_act o corrió en el tree principal)." >&2; exit 2; }
   git -C "$ruta" rev-parse -q --verify "refs/heads/$(leer_campo "$c_act" rama)" >/dev/null 2>&1 \
     || { echo "pa: la rama $(leer_campo "$c_act" rama) ya no existe (¿integrada o descartada?)." >&2; exit 2; }
+elif [[ -n "$auditar" ]]; then
+  # --auditar <id|rama> [-m MODELO]: un revisor de sólo lectura sobre la rama de un worker. Corre como
+  # --leer (en paralelo con el que escribe, sin tocar nada): lee el diff contra main y reporta por severidad.
+  # El modo lectura no deja correr tests (Bash es sólo git de lectura): la verificación que valga la corre
+  # el jefe con `pa --integrar <id> --tests`; acá se contrasta la evidencia que dejó el autor.
+  aud_rama=""; aud_wt=""; aud_prev=""
+  if [[ -f "$dir/$auditar.corrida" || -f "$dir/$auditar.hilo" ]]; then
+    for f_au in "$dir/$auditar.corrida" "$dir/$auditar.hilo"; do
+      [[ -z "$aud_rama" && -f "$f_au" ]] && aud_rama="$(leer_campo "$f_au" rama)"
+      [[ -z "$aud_wt" && -f "$f_au" ]] && aud_wt="$(leer_campo "$f_au" ruta_trabajo)"
+    done
+    [[ -s "$dir/$auditar.json" ]] && aud_prev="$(jq -r '.result // ""' "$dir/$auditar.json" 2>/dev/null | verificacion_de)"
+  else
+    aud_rama="$auditar"
+  fi
+  if [[ -z "$aud_rama" ]] || ! git -C "$ruta" rev-parse -q --verify "refs/heads/$aud_rama" >/dev/null 2>&1; then
+    echo "pa: --auditar '$auditar': no encuentro esa corrida ni esa rama en '$slug' (¿integrada o descartada? mirá pa '$proyecto' --ramas)." >&2; exit 2
+  fi
+  aud_base="$(git -C "$ruta" rev-parse --abbrev-ref HEAD 2>/dev/null || echo main)"
+  tarea="AUDITORÍA de la rama $aud_rama (sólo lectura: no modificás nada).
+Qué hacer:
+1) Mirá qué cambió: \`git -C $ruta diff --stat $aud_base...$aud_rama\`, \`git -C $ruta log --oneline $aud_base..$aud_rama\` y el diff completo con \`git -C $ruta diff $aud_base...$aud_rama\` (por archivo si es largo). ${aud_wt:+Los archivos completos de la rama están en $aud_wt (leelos con Read).}
+2) Leé el contexto que haga falta del código vecino para juzgar si el cambio es correcto, no sólo si compila.
+3) Verificación: el modo lectura NO te deja correr tests ni builds. Revisá la evidencia que dejó el autor y decí si alcanza y si calza con el diff${aud_prev:+. El autor declaró:
+$aud_prev}
+4) Buscá, por orden: bugs y casos borde sin cubrir, regresiones en lo que el diff toca, tests que faltan o que no prueban lo que dicen, seguridad, y recién al final estilo.
+Respondé con el bloque de siempre. En RESULTADO: el veredicto en una oración (\"sin problemas\", \"hay que arreglar X\" o \"no integrar\") y los problemas ordenados por severidad, una línea cada uno: CRITICO / ALTO / MEDIO / BAJO, \`archivo:línea\`, qué pasa y cómo arreglarlo. VERIFICACION: qué comprobaste vos (los comandos git que corriste y qué viste) y, si la verificación del autor no alcanza, el comando exacto que el jefe debería correr. DECISION: nada, salvo que haya que decidir algo de rumbo.${tarea:+
+Pedido del jefe: $tarea}"
 else
   [[ -n "$tarea" ]] || { echo "pa: falta la tarea." >&2; exit 2; }
+fi
+
+# Avisos al jefe (stderr, nunca bloquean): brief incompleto y modelo de poca inteligencia. Los da el pa
+# en primer plano o el padre de --async, no el hijo.
+if (( lanza && ! leer )) && [[ -z "$actualizar" && -z "${PA_ASYNC:-}" ]]; then
+  (( seguir )) || brief_avisar "$tarea"
+  if modelo_flojo "$modelo"; then
+    echo "pa: aviso: '$modelo' tiene inteligencia $calidad_modelo (< $CALIDAD_BAJA, reparto --tabla): dale pasos numerados, comandos explícitos, un solo archivo o área, y partí lo grande en varias tareas. El worker recibe además la consigna de trabajar en pasos chicos y verificar tras cada cambio." >&2
+  fi
 fi
 
 # --- --leer --seguir -------------------------------------------------------------------------
@@ -5125,6 +5455,13 @@ if [[ "$motor" == agy ]]; then contrato="$CONTRATO_AGY"$'\n'"$SIN_JEFE"
 elif [[ "$motor" == codex || "$motor" == dsh ]]; then contrato="$CONTRATO_CODEX"$'\n'"$SIN_JEFE"
 elif [[ -n "$jefe" ]]; then contrato="$CONTRATO"$'\n'"$(con_jefe "$jefe")"; else contrato="$CONTRATO"$'\n'"$SIN_JEFE"; fi
 contrato="$(D "$contrato")"
+# Un modelo de poca inteligencia (reparto --tabla, < PA_CALIDAD_BAJA=70) rinde con pasos chicos y verificación
+# constante: se lo pedimos en el contrato. Los que escriben nomás (un --leer no cambia nada que verificar).
+if (( ! leer )) && modelo_flojo "$modelo"; then
+  contrato+=$'\n'"Trabajá en pasos chicos: un cambio por vez, corré la verificación después de CADA cambio y commiteá cuando pase antes de seguir con el próximo. Si algo falla, arreglalo antes de tocar otra cosa. Quedate en los archivos de la tarea: nada de refactors ni de \"ya que estoy\". Si la tarea es más grande de lo que pinta, hacé la parte que cierra, commiteala y decí en DECISION cómo partir el resto."
+fi
+# Lo que el proyecto ya aprendió de corridas descartadas o retrabajadas (pa <proy> --leccion / --bien-auto).
+(( leer )) || contrato+="$(lecciones_bloque)"
 # Orientación, no aislamiento (el aislamiento ya es estructural): un worker que ve una rama rara
 # en `git log` puede intentar `git checkout main` (falla: está en el tree principal) y gastar turnos.
 if [[ -n "$actualizar" ]]; then
@@ -5216,10 +5553,11 @@ if [[ "$PLAN" == pro ]]; then export PA_RECORTE="${PA_RECORTE:-150}"; else expor
 # el adaptador necesita para atar al worker a su worktree.
 if [[ "$motor" == agy ]]; then
   prompt_agy="INSTRUCCIONES DEL ORQUESTADOR (valen como system prompt):"$'\n'"$contrato"
-  for md in "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/CLAUDE.md" "$ruta_trabajo/CLAUDE.md"; do
+  for md in "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/CLAUDE.md"; do
     [[ -s "$md" ]] || continue
     prompt_agy+=$'\n\n'"INSTRUCCIONES ($md; valen igual que las de arriba):"$'\n'"$(cat "$md")"
   done
+  prompt_agy+="$(agents_md_bloque "$ruta_trabajo" "$ruta")"   # AGENTS.md del proyecto (o su CLAUDE.md), con tope
   prompt_agy+=$'\n\n'"TAREA:"$'\n'"$prompt"
   args=( -p "$prompt_agy"
          --model "${modelo#agy:}"
@@ -5238,10 +5576,11 @@ fi
 # worktree; sin red) o read-only en --leer. Sin aprobaciones: no hay nadie para contestarlas.
 if [[ "$motor" == codex ]]; then
   prompt_cx="INSTRUCCIONES DEL ORQUESTADOR (valen como system prompt):"$'\n'"$contrato"
-  for md in "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/CLAUDE.md" "$ruta_trabajo/CLAUDE.md"; do
+  for md in "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/CLAUDE.md"; do
     [[ -s "$md" ]] || continue
     prompt_cx+=$'\n\n'"INSTRUCCIONES ($md; valen igual que las de arriba):"$'\n'"$(cat "$md")"
   done
+  prompt_cx+="$(agents_md_bloque "$ruta_trabajo" "$ruta")"   # AGENTS.md del proyecto (o su CLAUDE.md), con tope
   prompt_cx+=$'\n\n'"TAREA:"$'\n'"$prompt"
   cx_base="${modelo#codex:}"
   args=( exec --json
@@ -5268,12 +5607,13 @@ fi
 if [[ "$motor" == dsh ]]; then
   dsh_prov="$(dsh_proveedor "$modelo")"
   prompt_ds="INSTRUCCIONES DEL ORQUESTADOR (valen como system prompt):"$'\n'"$contrato"
-  dsh_mds=( "$ruta_trabajo/CLAUDE.md" )
-  [[ "$dsh_prov" == ollama ]] && dsh_mds=( "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/CLAUDE.md" "${dsh_mds[@]}" )
-  for md in "${dsh_mds[@]}"; do
+  dsh_mds=()
+  [[ "$dsh_prov" == ollama ]] && dsh_mds=( "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/CLAUDE.md" )
+  for md in ${dsh_mds[@]+"${dsh_mds[@]}"}; do
     [[ -s "$md" ]] || continue
     prompt_ds+=$'\n\n'"INSTRUCCIONES ($md; valen igual que las de arriba):"$'\n'"$(cat "$md")"
   done
+  prompt_ds+="$(agents_md_bloque "$ruta_trabajo" "$ruta")"   # AGENTS.md del proyecto (o su CLAUDE.md), con tope
   prompt_ds+=$'\n\n'"TAREA:"$'\n'"$prompt"
   dsh_prompt="$prompt_ds"
   args=( --modelo "$modelo" --cwd "$ruta_trabajo" --stream "$dir/$ts.stream.jsonl" --salida "$dir/$ts.json" )

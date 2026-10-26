@@ -110,6 +110,26 @@ pa miproyecto --descartar <id>         # tirar la rama
 
 Si el worker se topa con algo que sólo vos podés decidir, no adivina: lo deja anotado en el tablero.
 
+#### Tareas bien dadas, trabajo verificado
+
+- **Brief.** Un líder escribe cada tarea con cinco secciones: *Objetivo, Archivos, Listo cuando, Cómo verificar, No tocar*
+  (`pa --brief` imprime la plantilla; `pa miproyecto --brief-archivo tarea.md` la lee de un archivo). Si faltan "Listo cuando"
+  o "Cómo verificar", `pa` avisa por stderr, pero no bloquea. Con un modelo de inteligencia baja (< 70 en `reparto --tabla`)
+  avisa además que conviene dar pasos chicos, y el worker recibe esa consigna en su contrato.
+- **`AGENTS.md`.** Gemini, Codex y los modelos de OpenCode no leen `CLAUDE.md`. `pa` les inyecta el `AGENTS.md` del proyecto
+  (o su `CLAUDE.md` si no hay), hasta 8000 caracteres. `pa miproyecto --agents-md` imprime una plantilla (build, tests,
+  convenciones, qué no tocar) para llenar cuando falta.
+- **Verificación obligatoria.** El RESULTADO del worker lleva una sección `VERIFICACION` con el comando que corrió y un
+  extracto real de la salida. Si falta o dice "ninguna", la corrida igual termina, pero queda marcada `verificado: false`:
+  `pa` imprime `SIN VERIFICAR`, y también lo muestran `pa --estado`, `pa --hilos --json` y `workers ultimo`.
+- **Lecciones.** `pa miproyecto --leccion "no uses X: falla sin red"` guarda una línea en
+  `~/.local/state/pa/<proyecto>/lecciones.md` (tope 30 líneas / 3000 caracteres; pasado el tope `pa --estado` marca
+  `NECESITA-PODA` y `--lecciones-podar` explica cómo reescribirlas). `pa --bien-auto` suma solo las corridas descartadas o
+  retrabajadas. Las últimas lecciones viajan en el contrato de cada worker del proyecto. `--lecciones` las imprime.
+- **Auditar.** `pa miproyecto --auditar <id|rama> [-m modelo]` lanza un revisor de sólo lectura que lee el diff contra
+  main y reporta problemas por severidad (CRITICO / ALTO / MEDIO / BAJO). No corre tests (el modo lectura no lo permite):
+  para eso, `pa miproyecto --integrar <id> --tests`.
+
 ### `tablero`: lo que te espera
 
 Un solo lugar para pendientes, preguntas, ideas y lo hecho. Los workers escriben acá solos cuando

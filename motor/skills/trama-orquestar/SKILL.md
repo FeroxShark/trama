@@ -110,11 +110,12 @@ GPT-OSS y Claude por `agy` tienen pocas corridas: no los fuerces para código.
 
 ## Volver y integrar
 
-Cada corrida termina con un resumen de cuatro campos:
+Cada corrida termina con un resumen de estos campos:
 
 ```
 RESULTADO: qué hizo o encontró.
 ARCHIVOS: rutas tocadas, o "ninguno".
+VERIFICACION: comando(s) que corrió y un extracto real de la salida.
 DECISION: qué tiene que decidir el usuario, o "nada".
 SIGUE: el próximo paso, o "nada".
 — rama pa/<proyecto>/<id>: N commit(s). NO está en main hasta que la integres.
@@ -125,6 +126,10 @@ SIGUE: el próximo paso, o "nada".
   (`80` choque → `--actualizar <id>`; `79` archivo sin commitear del usuario que la rama toca). Una rama sin commits: `--descartar`.
 - El resumen tiene DECISION cuando algo es del usuario (publicar, borrar, plata, alcance): traela tal cual,
   sin decidir por él. Lo técnico lo resolvió el worker y lo contó como supuesto en RESULTADO.
+- **Mirá la línea `VERIFICACION` del RESULTADO** (comando + salida real). Si dice `— SIN VERIFICAR`, no la des
+  por buena: pedí la evidencia con `--seguir --id` o corré el chequeo vos. `pa --estado` lista las sin verificar.
+- Antes de integrar algo importante: `pa <proyecto> --auditar <id> [-m MODELO]` (revisor de sólo lectura que
+  reporta por severidad; no corre tests, esos con `--integrar <id> --tests`).
 - No pegues diffs ni logs al usuario: la conclusión, qué archivos tocó y el comando para verlos.
 - Códigos de salida: `0` ok · `1` el worker falló (leé el motivo, **no relances a ciegas**) · `2` uso ·
   `75` puesto o tope de workers ocupado · `76` límite de sesión (vuelve a reintentar luego) · `78` sin
@@ -140,15 +145,36 @@ SIGUE: el próximo paso, o "nada".
 
 ## Cómo se escribe la tarea
 
+Siempre con este brief (`pa --brief` imprime la plantilla; desde un archivo: `--brief-archivo F`):
+
+```
+Objetivo:       qué tiene que quedar distinto (1-2 oraciones)
+Archivos:       rutas donde trabajar y qué leer primero
+Listo cuando:   criterio observable de terminado
+Cómo verificar: comando exacto y qué salida esperás
+No tocar:       lo que no se cambia
+```
+
+- Sin "Listo cuando" o "Cómo verificar", `pa` te avisa por stderr (no bloquea): completalo y relanzá.
 - **Como si el worker no pudiera preguntar.** Desambiguá vos o mandale asumir y reportar el supuesto.
-- **El problema y el criterio de "listo", no la solución a medias:** rutas concretas, qué NO mirar
-  (`node_modules/`, `target/`), qué archivos puede tocar y un chequeo acotado (un test, un comando).
-- Entre comillas **simples**, o desde un archivo (`"$(cat tarea.txt)"` si lleva apóstrofes): con
-  comillas dobles tu shell ejecuta cada `` `comando` `` antes de que `pa` lo vea.
+- **Ajustá el detalle a la inteligencia del modelo** (`reparto --tabla`; `pa` te avisa si es < 70). Debajo de ~70:
+  pasos numerados, comandos explícitos, un solo archivo o área por tarea, y partí lo grande en varias.
+  Arriba, alcanzan el problema y el criterio de listo.
+- Entre comillas **simples**, o desde un archivo (`--brief-archivo`): con comillas dobles tu shell ejecuta
+  cada `` `comando` `` antes de que `pa` lo vea.
 - Una tarea, un `pa`. Cada `pa` arranca una sesión limpia; un seguimiento corto va con `--seguir --id`.
 - Los bugs que un revisor encuentra vuelven al autor (`--seguir --id <id-del-autor>`), con la lista corta
   de `archivo:línea`.
-- Lo que el worker aprendió del proyecto va al `CLAUDE.md`/`GEMINI.md` de ese proyecto: pedíselo en la tarea.
+
+## Memoria del proyecto
+
+- **`AGENTS.md`** en la raíz del proyecto: los modelos que no son Claude (Gemini, Codex, opencode, dsh) no leen
+  `CLAUDE.md`; `pa` les inyecta `AGENTS.md` (o `CLAUDE.md` si no hay), hasta 8000 caracteres. Si falta:
+  `pa <proy> --agents-md` imprime la plantilla; llenala con lo que verificaste (build, tests, convenciones,
+  qué no tocar). Cuando aprendas algo **durable** del proyecto, actualizalo.
+- **Lecciones** (errores concretos de este proyecto): `pa <proy> --leccion "<una línea>"`. Se inyectan solas a los
+  workers; `--lecciones` las lista. Si `pa --estado` marca `NECESITA-PODA`: `pa <proy> --lecciones-podar` te dice
+  cómo reescribirlas más cortas.
 
 ## Pendientes: `tablero`
 

@@ -500,7 +500,15 @@ ultimo() {
   local st; st=$(ls -t "$STATE/$slug"/*.stream.jsonl 2>/dev/null | head -1)
   [[ -n "$st" && ( -z "$tr" || "$st" -nt "$tr" ) ]] && tr="$st"
   [[ -n "$tr" ]] || { echo "no hay transcripts en $dir" >&2; exit 1; }
-  printf '%s── %s ──%s %s%s%s\n\n' "$C_HEAD" "$(basename "$ruta")" "$R" "$D" "$tr" "$R"
+  printf '%s── %s ──%s %s%s%s\n' "$C_HEAD" "$(basename "$ruta")" "$R" "$D" "$tr" "$R"
+  # Si la última corrida que escribió terminó sin VERIFICACION (comando + salida), se dice acá (lo anota pa en el .hilo).
+  local uh="" h_; while IFS= read -r h_; do
+    [[ -f "$h_" ]] && ! grep -q '^leer=1$' "$h_" && { uh="$h_"; break; }
+  done < <(ls -t "$STATE/$slug"/*.hilo 2>/dev/null | head -20 || true)
+  if [[ -n "$uh" ]] && grep -q '^verificado=0$' "$uh" 2>/dev/null; then
+    printf '%ssin verificar%s: el RESULTADO de %s no trae VERIFICACION; no lo des por bueno sin comprobarlo.\n' "$C_HEAD" "$R" "$(basename "$uh" .hilo)"
+  fi
+  printf '\n'
   FORMATO="$(formato_de "" "$tr")"
   formatear < "$tr"
 }
