@@ -54,6 +54,6 @@ export function ficha(h: Hilo, maquina: string | null): string {
     t("ficha.proyecto", { v: h.proyecto }),
     t("ficha.maquina", { v: donde }),
     t("ficha.rama", { v: h.rama ?? t("comun.sinRama") }),
-    t("ficha.modelo", { v: `${h.modelo || t("comun.sinDato")}${h.effort ? ` · ${h.effort}` : ""}` }),
+    t("ficha.modelo", { v: `${h.modelo || t("comun.sinDato")}${h.effort && h.effort !== "-" ? ` · ${h.effort}` : ""}` }),
   ].join("\n");
 }
