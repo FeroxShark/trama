@@ -115,6 +115,12 @@ LOCKDIR="$STATE/lock"
 # PA_PROJ, igual que PA_STATE: sólo para los tests (pa le crea al worktree su carpeta de proyecto).
 PROJ="${PA_PROJ:-$HOME/.claude/projects}"
 LIMITE="$STATE/limite.hasta"
+# El límite es por cuenta: que una se quede sin cupo no frena a las otras. La de siempre (claude,
+# o sin cuenta) conserva el nombre viejo; las demás van en limite.<cuenta>.hasta.
+limite_de() {   # $1 = id de cuenta (vacío = la de siempre) -> archivo del límite
+  local c="${1//[^A-Za-z0-9._-]/-}"
+  if [[ -z "$c" || "$c" == claude ]]; then printf '%s' "$LIMITE"; else printf '%s/limite.%s.hasta' "$STATE" "$c"; fi
+}
 # Los hooks salen de al lado nuestro, no de una ruta fija: si no, un checkout de prueba
 # (o tests/run.sh) lanza workers con los hooks INSTALADOS y no con los que está probando.
 _HOOKS="$(dirname "$_BIN")/hooks"
@@ -559,7 +565,12 @@ enlazar_caches() {   # $1 = tree principal, $2 = worktree
   # .venv/.env son cache y config; CLAUDE.local.md y .claude/settings.local.json son las
   # instrucciones locales del proyecto (gitignoreadas): sin ellas el worker perdería lo que
   # El dueño le dijo a ese proyecto sin que nada falle.
-  for f in .venv .env CLAUDE.local.md .claude/settings.local.json; do
+  # .env y las instrucciones locales son secretos del dueño: sólo van a workers que corren el
+  # binario `claude` (claude, u ollama contra ANTHROPIC_BASE_URL). Un worker de Gemini o Codex
+  # no los ve (mandarían el contenido a otro proveedor). $motor vacío (--integrar, etc.) = claude.
+  local lista=".venv"
+  [[ "${motor:-claude}" == claude || "${motor:-claude}" == ollama ]] && lista=".venv .env CLAUDE.local.md .claude/settings.local.json"
+  for f in $lista; do
     [[ -e "$1/$f" && ! -e "$2/$f" ]] && { mkdir -p "$2/$(dirname "$f")"; ln -s "$1/$f" "$2/$f"; }
   done
   [[ -f "$1/Cargo.toml" ]] && export CARGO_TARGET_DIR="$1/target"
@@ -1761,6 +1772,8 @@ hechos_de() {   # $1 = slug, $2 = dir, $3 = id, $4 = dir temporal
 
 # decision_de y decision_es_nada (awk/bash, más abajo) en jq, para las corridas sin `.hilo`.
 JQ_DECISION='
+# `trim` es de jq 1.7.1; Debian 12 / Ubuntu 22.04 traen 1.6 y sin esto --hilos salía vacío en silencio
+def trim_: sub("^\\s+"; "") | sub("\\s+$"; "");
 def decision_de:
   split("\n") as $l
   | ([range(0; $l | length) | select($l[.] | test("^[*#> \t-]*DECISI(O|Ó)N[*]*:"))] | last) as $a
@@ -1778,7 +1791,7 @@ def decision_de:
        | if $m == null then "" else ([$m | splits("DECISI(O|Ó)N[*]*:[*]*")] | last) end
      end)
   | sub("[*#> \t-]*SIGUE[*]*:.*$"; "") | sub("^[ \t]+"; "") | sub("[ \t]+$"; "") | .[0:400];
-def decision_es_nada: gsub("[*]"; "") | trim | sub("[.]$"; "") | ascii_downcase == "nada";
+def decision_es_nada: gsub("[*]"; "") | trim_ | sub("[.]$"; "") | ascii_downcase == "nada";
 '
 
 cmd_hilos() {
@@ -1861,7 +1874,7 @@ cmd_hilos() {
       | (($all.c[$id] // []) | map(try fromjson catch empty | select(type == "object" and .type == "user")) | first
          | if . == null then null else (.message.content
              | if type == "string" then . elif type == "array" then (map(select(.type? == "text") | .text) | join(" ")) else "" end
-             | gsub("\\s+"; " ") | trim | .[0:500] | nonempty) end) as $tarea_t
+             | gsub("\\s+"; " ") | trim_ | .[0:500] | nonempty) end) as $tarea_t
       | (($as | last) // {}) as $u
       | (if $ttl == null then null else ($u.message.model | nonempty) end) as $cmod
       # un --seguir corre donde está su .corrida; sin ella (integrada/descartada), en el tree principal
@@ -1916,7 +1929,7 @@ cmd_hilos() {
          sigue: ($h.sigue | nonempty),
          resultado: (($j.result // "") | tostring | if test("RESULTADO:") then
                        (capture("RESULTADO:[*]*\\s*(?<r>[\\s\\S]*)").r | split("ARCHIVOS:")[0] | split("DECISI")[0]
-                        | gsub("\\s+"; " ") | trim | .[0:200] | nonempty)
+                        | gsub("\\s+"; " ") | trim_ | .[0:200] | nonempty)
                      else null end),
          archivado: ($h.archivado | nonempty),
          leer: $esleer,
@@ -2151,10 +2164,15 @@ cmd_estado() {
   done
   (( found )) || echo "no hay sesiones guardadas."
 
-  if [[ -f "$LIMITE" ]] && (( $(cat "$LIMITE") > $(date +%s) )); then
-    printf '\nLÍMITE de sesión hasta las %s: los workers no van a arrancar hasta entonces.\n' \
-      "$(date -d "@$(cat "$LIMITE")" '+%H:%M')"
-  fi
+  local lf lh
+  for lf in "$LIMITE" "$STATE"/limite.*.hasta; do
+    [[ -f "$lf" ]] || continue
+    lh="$(cat "$lf" 2>/dev/null)"; [[ "$lh" =~ ^[0-9]+$ ]] || continue   # vacío o basura = sin límite
+    (( lh > $(date +%s) )) || continue
+    lf="${lf##*/}"; lf="${lf#limite}"; lf="${lf%.hasta}"; lf="${lf#.}"
+    printf '\nLÍMITE de sesión%s hasta las %s: los workers no van a arrancar hasta entonces.\n' \
+      "${lf:+ (cuenta $lf)}" "$(date -d "@$lh" '+%H:%M')"
+  done
   if [[ "$PLAN" == pro ]]; then
     printf '\nplan pro (modo ahorro): opus con effort medium por default, tope 100 turnos, sin subagentes, resultado por --esperar.\n'
   else
@@ -2184,16 +2202,30 @@ anotar() {   # $1 = texto
   local f; f="$(notas_de_jefe)"; mkdir -p "$(dirname "$f")"
   printf '%s · %s\n' "$(date '+%Y-%m-%d %H:%M')" "$(tr '\n' ' ' <<<"$1" | sed 's/ *$//')" >>"$f"
 }
+# El slug de un proyecto del registry se calcula igual que el del worktree (slug_de sobre la ruta
+# REAL: symlinks resueltos, archivo -> su carpeta, caracteres raros limpiados), no con el basename
+# crudo de .path. $1 = slug, $2 = campo (name | tests), $3 = registry -> el campo, o nada.
+registry_por_slug() {
+  local p v
+  while IFS=$'\t' read -r p v; do
+    [[ -n "$p" ]] || continue
+    p="${p/#\~/$HOME}"
+    [[ -f "$p" ]] && p="$(dirname "$p")"
+    p="$(realpath -m "$p" 2>/dev/null || echo "$p")"
+    [[ "$(slug_de "$p")" == "$1" ]] && { printf '%s' "$v"; return 0; }
+  done < <(jq -r --arg c "$2" '.projects[]? | [.path, (.[$c] // "")] | @tsv' "$3" 2>/dev/null)
+  return 0
+}
 nombre_registry() {   # slug -> nombre del registry (lo que entiende `pa <proy>`), o el slug
   local reg="${PROYECTOS_REGISTRY:-$HOME/.config/proyectos/registry.json}" n=""
-  [[ -f "$reg" ]] && n="$(jq -r --arg s "$1" '[.projects[] | select((.path | sub("/+$"; "") | split("/") | last | ascii_downcase) == $s) | .name][0] // empty' "$reg" 2>/dev/null)"
+  [[ -f "$reg" ]] && n="$(registry_por_slug "$1" name "$reg")"
   printf '%s' "${n:-$1}"
 }
 # El `tests` del registry (un comando: corre con `bash -c` en la raíz del worktree), o nada.
 tests_registry() {   # slug
   local reg="${PROYECTOS_REGISTRY:-$HOME/.config/proyectos/registry.json}"
   [[ -f "$reg" ]] || return 0
-  jq -r --arg s "$1" '[.projects[] | select((.path | sub("/+$"; "") | split("/") | last | ascii_downcase) == $s) | .tests // empty][0] // empty' "$reg" 2>/dev/null || true
+  registry_por_slug "$1" tests "$reg"
 }
 cmd_traspaso() {
   shopt -s nullglob
@@ -3884,6 +3916,14 @@ esac
 
 proyecto="$1"; shift
 
+# Forma documentada `pa <proyecto> --revertir|--parar|--archivar <id>`: esos cmd_* resuelven el
+# proyecto por el id, así que alcanza con despachar (la forma con el flag primero sigue andando).
+case "${1:-}" in
+  --revertir) shift; cmd_revertir "$@"; exit $? ;;
+  --parar)    shift; cmd_parar "$@"; exit $? ;;
+  --archivar) shift; cmd_archivar "$@"; exit $? ;;
+esac
+
 modelo=""   # vacío = el default de la política (abajo, después de saber si es --leer)
 esfuerzo="${PA_EFFORT:-}"
 esfuerzo_flag=0
@@ -4359,14 +4399,15 @@ fi
 # intento (vuelve en <1s con num_turns:1). El wrapper viejo no lo sabía y reintentaba a ciegas:
 # tres intentos en 50 segundos, y cada uno destruía la sesión guardada. Es el límite del Claude oficial:
 # una corrida de agy o de un local no lo mira.
-if [[ "$motor" == claude && -f "$LIMITE" ]]; then
-  hasta="$(cat "$LIMITE")"
+LIMITE_CTA="$(limite_de "$cuenta")"
+if [[ "$motor" == claude && -f "$LIMITE_CTA" ]]; then
+  hasta="$(cat "$LIMITE_CTA")"
   if [[ "$hasta" =~ ^[0-9]+$ ]] && (( hasta > $(date +%s) )); then
     echo "pa: límite de sesión de la suscripción hasta las $(date -d "@$hasta" '+%H:%M'). No lanzo." >&2
-    echo "pa: si creés que ya se liberó: rm $LIMITE" >&2
+    echo "pa: si creés que ya se liberó: rm $LIMITE_CTA" >&2
     exit 76
   fi
-  rm -f "$LIMITE"
+  rm -f "$LIMITE_CTA"
 fi
 
 # --- sesión: limpia por default ---------------------------------------------------------
@@ -4415,8 +4456,9 @@ fi
 # --- claude instalado y sano ----------------------------------------------------------------
 # Un `claude --version` cuesta milisegundos y no gasta sesión. En el hijo de --async no se repite
 # (el padre acaba de hacerlo, y un hijo que sale antes de tomar el lock no deja .listo); si se
-# rompe a mitad de corrida lo agarra el camino 3c de abajo.
-if [[ -z "${PA_ASYNC:-}" ]] && ! claude_sano; then
+# rompe a mitad de corrida lo agarra el camino 3c de abajo. Sólo si el worker corre el binario
+# `claude` (claude, u ollama que lo usa contra ANTHROPIC_BASE_URL): una máquina con sólo agy sirve.
+if [[ -z "${PA_ASYNC:-}" && ( "$motor" == claude || "$motor" == ollama ) ]] && ! claude_sano; then
   rc_c="$(claude_rc)"; claude_falla "$rc_c" "$claude_err"
   exit "$rc_c"
 fi
@@ -5089,11 +5131,13 @@ sin_trabajo_hecho() {
     && [[ "$(git -C "$ruta_trabajo" rev-list --count "${base:-HEAD}..HEAD" 2>/dev/null || echo 1)" == 0 ]]
 }
 cambiar_de_modelo() {   # $1 = modelo nuevo, $2 = su effort (sólo Claude)
+  local f
   modelo="$1"; esfuerzo=""; unset PA_EFFORT
-  if es_gemini "$modelo"; then
-    motor=agy; ef_vacio="-"
-  elif es_codex "$modelo"; then
-    motor=codex; ef_vacio="-"
+  if es_gemini "$modelo" || es_codex "$modelo"; then
+    es_gemini "$modelo" && motor=agy || motor=codex
+    ef_vacio="-"
+    # el intento anterior pudo ser de Claude: sus symlinks de secretos no le sirven a este motor
+    (( usa_worktree )) && for f in .env CLAUDE.local.md .claude/settings.local.json; do [[ -L "$ruta_trabajo/$f" ]] && rm -f "$ruta_trabajo/$f"; done
   else
     motor=claude; ef_vacio=""
     [[ -n "${2:-}" ]] && { esfuerzo="$2"; export PA_EFFORT="$2"; }
@@ -5113,7 +5157,7 @@ while (( reintentos_cupo < 3 )) && [[ "$SIN_CUPO" == otro && -n "$reparto_tipo_r
   if [[ "$motor" == claude ]]; then
     quien="Claude dijo límite"
     if hasta="$(epoch_reset "$(res_texto)")"; then
-      printf '%s' "$hasta" >"$LIMITE"
+      printf '%s' "$hasta" >"$(limite_de "$cuenta")"
       hasta_args=( --hasta "$(date -u -d "@$hasta" +%Y-%m-%dT%H:%M:%SZ)" )
     fi
   elif [[ "$motor" == codex ]]; then
@@ -5159,7 +5203,7 @@ if (( rc != 0 )) || es_error; then
   # 1. límite de sesión de la suscripción. No es rate limit: no se arregla reintentando.
   if [[ "$texto" == *"session limit"* ]]; then
     if hasta="$(epoch_reset "$texto")"; then
-      printf '%s' "$hasta" >"$LIMITE"
+      printf '%s' "$hasta" >"$(limite_de "$cuenta")"
       echo "pa: límite de sesión de la suscripción. Se libera $(date -d "@$hasta" '+%H:%M'). Sesión de '$slug' INTACTA." >&2
     else
       echo "pa: límite de sesión de la suscripción (no pude parsear la hora de reset). Sesión de '$slug' INTACTA." >&2
@@ -5266,7 +5310,7 @@ fi
 if (( rc != 0 )) || es_error; then
   # Sólo stderr y 127, no el .result: un worker que falla por otra cosa citando este bug (la
   # frase está en BUGS-WORKERS-2026-09-14.md) saldría 81 en vez de 1.
-  if [[ "$motor" == claude ]] && { (( rc == 127 )) || es_claude_roto "$(cat "$err" 2>/dev/null)"; }; then
+  if [[ "$motor" == claude || "$motor" == ollama ]] && { (( rc == 127 )) || es_claude_roto "$(cat "$err" 2>/dev/null)"; }; then
     rc_c="$(claude_rc)"; claude_falla "$rc_c" "$(cat "$err" 2>/dev/null)"
     exit "$rc_c"
   fi

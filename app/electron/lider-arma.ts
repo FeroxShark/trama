@@ -153,7 +153,8 @@ export function argvLider({ modelo, effort, sid, nombre, resume, modo = MODO_DEF
 export function entornoLider(env: Env, home: string): Env {
   const out: Env = {};
   for (const [k, v] of Object.entries(env)) {
-    if (/^CLAUDE/.test(k) || /^ANTHROPIC_/.test(k)) continue;
+    // CLAUDE_CONFIG_DIR queda: la app lee transcripts, sesiones y consumo de ahí, y el líder tiene que escribir en el mismo lugar.
+    if ((/^CLAUDE/.test(k) && k !== "CLAUDE_CONFIG_DIR") || /^ANTHROPIC_/.test(k)) continue;
     if (/^PA_/.test(k) && k !== "PA_STATE") continue;
     out[k] = v;
   }
@@ -236,9 +237,12 @@ export const nombreNuevo = (azar: () => number = Math.random) =>
     .toString(16)
     .padStart(4, "0")}`;
 
-/** Una línea de usuario para el stdin; con imágenes (B26), `content` va en bloques. */
-export const lineaUsuario = (texto: string, imagenes: readonly Imagen[] = []) =>
-  JSON.stringify({ type: "user", message: { role: "user", content: contenidoUsuario(texto, imagenes) } }) + "\n";
+/**
+ * Una línea de usuario para el stdin; con imágenes (B26), `content` va en bloques. `directo` (sólo el puente de Gemini): marca un
+ * «Mandar ya», que el puente entrega en el próximo límite de paso de agy en vez de dejarlo en su cola (`trama_directo`).
+ */
+export const lineaUsuario = (texto: string, imagenes: readonly Imagen[] = [], directo = false) =>
+  JSON.stringify({ type: "user", ...(directo ? { trama_directo: true } : {}), message: { role: "user", content: contenidoUsuario(texto, imagenes) } }) + "\n";
 
 const pedido = (id: string, request: object) => JSON.stringify({ type: "control_request", request_id: id, request }) + "\n";
 
