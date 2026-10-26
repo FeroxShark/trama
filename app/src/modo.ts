@@ -166,6 +166,9 @@ const CAPTURAS = [
   "orden-menu",
   // El orden por prioridad, el de fábrica (`Orden.prioridad`): te necesita, caché vivo y el resto por actividad.
   "orden-prioridad",
+  // "Activas": la sección de arriba con líderes calientes de tres proyectos (te necesita, responde, workers vivos, caché caliente) y los fríos en su proyecto, con los proyectos calientes arriba.
+  // `HILOS_VARIANTE=plegada` la deja plegada; `fijo` apaga la sección (cada líder en su proyecto).
+  "activas",
   // "Mover a proyecto…" de un líder, con la lista larga: el buscador, Automático aparte, el marcado y el dónde está ahora.
   "mover-menu",
   // Trama en dos máquinas: con la otra máquina conectada, la barra con su líder y sus workers y el ícono de máquina en cada líder;

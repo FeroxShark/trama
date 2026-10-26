@@ -94,6 +94,8 @@ type Main = {
   };
   /** slug → `titulo` del registry, sin validar. */
   titulos(): Promise<unknown>;
+  /** Los proyectos con su nombre para mostrar (electron/proyectos-alias.ts); `renombrar(slug, null)` lo saca. */
+  proyectosNombres: { lista(): Promise<unknown>; renombrar(slug: string, nombre: string | null): Promise<unknown> };
   /** slug → data URL del logo de cada proyecto que tiene uno. */
   iconos(): Promise<Record<string, string>>;
   /** Dictar (electron/dictado.ts): un WAV 16 kHz mono de hasta 5 min → el texto que dijo (Handy, en la máquina del motor). */
@@ -180,6 +182,12 @@ type Main = {
     auditar(x: { id: string; proyecto: string; modelo: string }): Promise<{ rc: number; dijo: string }>;
     /** `pa <proy> --agents-md`: la plantilla si falta el archivo, y la ruta del proyecto. */
     agentsMd(slug: string): Promise<unknown>;
+    /** Unificar instrucciones (electron/unificar-md.ts): el estado de CLAUDE/GEMINI/AGENTS.md, el plan, aplicarlo (con la huella del plan visto) y editar AGENTS.md. */
+    mdEstado(slug: string): Promise<unknown>;
+    mdPlan(slug: string): Promise<unknown>;
+    mdAplicar(slug: string, huella: string): Promise<unknown>;
+    leerAgents(slug: string): Promise<string>;
+    guardarAgents(slug: string, texto: string): Promise<unknown>;
     /** Los umbrales del anillo de contexto (`{ autoCompact }`, electron/contexto.ts), sin validar. */
     umbralContexto(): Promise<unknown>;
     medicion(): Promise<unknown>;

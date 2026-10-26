@@ -876,6 +876,11 @@ kbd {
   background: var(--sup-3);
   color: var(--txt-2);
 }
+/* La sección "Activas": su cabecera lleva el rayo del caché caliente, con el texto al lado (el color no es la única señal). */
+.activas-icono {
+  flex: none;
+  color: var(--texto-1);
+}
 .cuenta {
   font-family: var(--font-mono);
   font-size: var(--letra-3);
@@ -992,6 +997,27 @@ kbd {
   gap: var(--esp-1-5);
   font-weight: 500;
 }
+/* En "Activas" cada fila lleva su proyecto delante de la segunda línea, en una pastilla que se acorta antes que el resto. */
+.lider .con-proy {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--esp-1-5);
+}
+.lider .etq-proy {
+  flex: 0 0 auto;
+  min-width: 0;
+  max-width: 60%;
+  overflow: hidden;
+  padding: 0 var(--esp-1-5);
+  border-radius: var(--r-cap);
+  background: var(--capa-tile);
+  color: var(--txt-3);
+  font-size: var(--letra-3);
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 /* El nombre: apagado salvo en el que se está viendo (blanco y más grueso). */
 .lider .nom {
   min-width: 3.25rem;
@@ -1038,7 +1064,17 @@ kbd {
   font-weight: 500;
   white-space: nowrap;
 }
+/* En una fila de la barra angosta, "Te espera" se acorta en vez de pisar el número del caché. */
+.lider .t {
+  overflow: hidden;
+}
+.lider .te-espera {
+  flex: 0 1 auto;
+  min-width: 0.75rem;
+  overflow: hidden;
+}
 .te-espera i {
+  flex: none;
   width: 0.375rem;
   height: 0.375rem;
   border-radius: 50%;

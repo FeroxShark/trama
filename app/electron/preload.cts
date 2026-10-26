@@ -81,6 +81,11 @@ contextBridge.exposeInMainWorld("hilos", {
   },
   /** slug → `titulo` del registry de cada proyecto que tiene uno. */
   titulos: (): Promise<unknown> => ipcRenderer.invoke("proyectos:titulos"),
+  /** Los proyectos del registry con su nombre para mostrar (electron/proyectos-alias.ts); `renombrar` lo cambia (`null`: lo saca). */
+  proyectosNombres: {
+    lista: (): Promise<unknown> => ipcRenderer.invoke("proyectos:lista"),
+    renombrar: (slug: string, nombre: string | null): Promise<unknown> => ipcRenderer.invoke("proyectos:renombrar", slug, nombre),
+  },
   /** slug → data URL del logo de cada proyecto que tiene uno (electron/iconos.ts). */
   iconos: (): Promise<unknown> => ipcRenderer.invoke("proyectos:iconos"),
   dictado: {
@@ -170,6 +175,11 @@ contextBridge.exposeInMainWorld("hilos", {
     guardarLecciones: (slug: string, texto: string): Promise<unknown> => ipcRenderer.invoke("orq:leccionesGuardar", slug, texto),
     auditar: (x: unknown): Promise<unknown> => ipcRenderer.invoke("orq:auditar", x),
     agentsMd: (slug: string): Promise<unknown> => ipcRenderer.invoke("orq:agentsMd", slug),
+    mdEstado: (slug: string): Promise<unknown> => ipcRenderer.invoke("orq:mdEstado", slug),
+    mdPlan: (slug: string): Promise<unknown> => ipcRenderer.invoke("orq:mdPlan", slug),
+    mdAplicar: (slug: string, huella: string): Promise<unknown> => ipcRenderer.invoke("orq:mdAplicar", slug, huella),
+    leerAgents: (slug: string): Promise<string> => ipcRenderer.invoke("orq:agentsLeer", slug),
+    guardarAgents: (slug: string, texto: string): Promise<unknown> => ipcRenderer.invoke("orq:agentsGuardar", slug, texto),
     retomar: (h: unknown): Promise<unknown> => ipcRenderer.invoke("hilo:retomar", h),
     pasar: (h: unknown): Promise<string> => ipcRenderer.invoke("hilo:pasar", h),
   },

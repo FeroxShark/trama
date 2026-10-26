@@ -261,6 +261,8 @@ export function AccionesWorker({ id, salida, como, alCerrar, alRetomar, classNam
  */
 type PropsLider = {
   l: Lider;
+  /** En "Activas" (filas de varios proyectos juntas): el nombre del suyo, como prefijo. */
+  proyecto?: string;
   activa: boolean;
   /** Quieto (`settleLider`): cuántas ramas con commits quedan sin integrar; `null`, sin Settle. */
   settle: number | null;
@@ -371,6 +373,7 @@ export function ChipSubagentes({ n, clave }: { n: number; clave: string }) {
 
 export const FilaLider = memo(function FilaLider({
   l,
+  proyecto,
   activa,
   settle,
   alAbrir,
@@ -408,6 +411,15 @@ export const FilaLider = memo(function FilaLider({
   ]
     .filter(Boolean)
     .join(" · ");
+
+  const hace2 =
+    l.origen === "app" ? (
+      <HaceFila sid={l.id} quieto={<Reloj pintor={hace} className="s" />} />
+    ) : compacta !== null ? (
+      <CompactaFila desde={compacta} />
+    ) : (
+      <Reloj pintor={hace} className="s" />
+    );
 
   return (
     <div className="lw" data-mas={ocultos > 0 ? "" : undefined}>
@@ -471,12 +483,16 @@ export const FilaLider = memo(function FilaLider({
               ) : null}
             </AnimatePresence>
           </span>
-          {l.origen === "app" ? (
-            <HaceFila sid={l.id} quieto={<Reloj pintor={hace} className="s" />} />
-          ) : compacta !== null ? (
-            <CompactaFila desde={compacta} />
+          {/* En "Activas" el proyecto va delante de la segunda línea: la primera (nombre y estado) queda como en cualquier fila. */}
+          {proyecto ? (
+            <span className="con-proy">
+              <span className="etq-proy" data-tip={proyecto}>
+                {proyecto}
+              </span>
+              {hace2}
+            </span>
           ) : (
-            <Reloj pintor={hace} className="s" />
+            hace2
           )}
         </span>
         {cache ? <Reloj pintor={cache} className="cache" /> : null}

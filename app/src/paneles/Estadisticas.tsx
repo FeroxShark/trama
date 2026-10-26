@@ -13,6 +13,7 @@ import { Historial } from "./Historial";
 import { Vacio } from "./Vacio";
 import "./estadisticas-vista.css";
 import { mensaje } from "../puente";
+import { useNombreProyecto } from "../datos/proyectos";
 import {
   cambio,
   cuota,
@@ -408,6 +409,7 @@ function PorModelo({ partes }: { partes: { familia: Familia; n: number; tokens: 
 const TOPE = 8;
 
 function PorProyecto({ partes }: { partes: ReturnType<typeof resumir>["porProyecto"] }) {
+  const nombreProy = useNombreProyecto();
   const filas = partes.slice(0, TOPE);
   const resto = partes.slice(TOPE);
   if (resto.length) {
@@ -429,7 +431,7 @@ function PorProyecto({ partes }: { partes: ReturnType<typeof resumir>["porProyec
       {filas.length === 0 ? <div className="pn-aviso">{t("est.sinPeriodo")}</div> : null}
       {filas.map((p) => (
         <div key={p.nombre} className="pn-parte">
-          <span className="pn-parte-n">{p.nombre}</span>
+          <span className="pn-parte-n">{nombreProy(p.nombre)}</span>
           <div className="pn-apilada">
             <div className="pn-pila pn-pila-m" style={{ width: `${(p.tokens / tope) * 100}%` }}>
               {FAMILIAS.filter((f) => p.modelos[f] > 0).map((f) => (

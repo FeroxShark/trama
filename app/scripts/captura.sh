@@ -13,7 +13,7 @@
 #           lider-sistema | lider-cambio-motor[menu|confirmar] | sistema | herramientas | lider-compactando |
 #           lider-relevo | lider-imagenes | lider-tabla | lider-formato | lider-listas | lider-pensando | lider-gemini | herramientas-resultados | lider-hover | te-espera |
 #           tablero | tablero-detalle | tablero-proyectos | tablero-iniciar | tablero-pospuestos | tablero-maquinas | tablero-vacio | maquinas-selector[-caida] | tablero-nuevo[-proyecto|-chat|-avisar] | lider-muerto | lider-app-muerto |
-#           compactando | consumo | orden-arrastrando | orden-menu | orden-prioridad | mover-menu | pc-apagada | pc-prendiendo | pc-prendida   (ver `Captura` en src/modo.ts)
+#           compactando | consumo | orden-arrastrando | orden-menu | orden-prioridad | activas[plegada|fijo] | mover-menu | pc-apagada | pc-prendiendo | pc-prendida   (ver `Captura` en src/modo.ts)
 #   DIR=prueba       subcarpeta de bench-resultados/captura/ donde va el PNG (default: la carpeta misma);
 #                    con una "/" es la ruta entera (DIR=/tmp/capturas)
 #   TAM="1920 1200"  tamaño del PNG en px

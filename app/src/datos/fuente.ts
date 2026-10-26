@@ -18,7 +18,7 @@ import { consumoDe, consumoFijo, type Consumo, type Pedido } from "./consumo";
 import { cambioDe, vistaDe, type CambioPasos, type VistaPasos } from "./pasos";
 import { pasosFijos } from "./pasos-fixture";
 import { crearCola, type AvisoCola, type Encolado } from "../../electron/cola";
-import { ARRANCANDO, EN_COLA, HILOS_DELL, LIDER_DELL, PENSANDO_FIJO, charlaFormato, charlaLarga, charlaCambio, charlaListas, charlaLider, charlaPensando, charlaSistema, charlaTabla, conversacion, conversacionSistema, HILOS, HILOS_EN_COLA, HILOS_TERMINADOS, ICONOS, LIDERES, LIDER_MUERTO, LIDER_TERMINADOS, FRENADO, TITULOS, USO, USO_CUENTAS, USO_GOOGLE, USO_GOOGLE_MARCADO, USO_SIN_HORA, imagenFija, localesFalsos, vramFalsa, vramLiberarFalso } from "./fixtures";
+import { ARRANCANDO, EN_COLA, HILOS_DELL, LIDER_DELL, PENSANDO_FIJO, charlaFormato, charlaLarga, charlaCambio, charlaListas, charlaLider, charlaPensando, charlaSistema, charlaTabla, conversacion, conversacionSistema, HILOS, HILOS_ACTIVAS, HILOS_EN_COLA, HILOS_TERMINADOS, ICONOS, LIDERES, LIDERES_ACTIVAS, LIDER_MUERTO, LIDER_TERMINADOS, FRENADO, TITULOS, USO, USO_CUENTAS, USO_GOOGLE, USO_GOOGLE_MARCADO, USO_SIN_HORA, imagenFija, localesFalsos, vramFalsa, vramLiberarFalso } from "./fixtures";
 
 export interface Fuente {
   /** La última lista buena de una corrida anterior, para pintar algo mientras `pa` contesta. */
@@ -516,7 +516,9 @@ const conGemini = (r: RespuestaLideres): RespuestaLideres => {
   return { ...r, lideres: r.lideres.map((l) => (l.id === id ? { ...l, modelo: "gemini-3.8-flash", effort: "low" } : l)) };
 };
 const lideresBase = (): RespuestaLideres =>
-  filasDelDell()
+  MODO.captura === "activas"
+    ? { ...LIDERES, lideres: LIDERES_ACTIVAS }
+    : filasDelDell()
     ? { ...LIDERES, lideres: [...LIDERES.lideres, LIDER_DELL] }
     : MODO.captura === "terminados"
     ? { ...LIDERES, lideres: [...LIDERES.lideres, LIDER_TERMINADOS] }
@@ -1008,7 +1010,9 @@ const fija: Fuente = {
     return null;
   },
   async hilos() {
-    return MODO.captura === "terminados"
+    return MODO.captura === "activas"
+      ? HILOS_ACTIVAS
+      : MODO.captura === "terminados"
       ? HILOS_TERMINADOS
       : MODO.captura === "worker-en-cola"
         ? HILOS_EN_COLA

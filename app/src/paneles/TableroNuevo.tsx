@@ -30,6 +30,7 @@ import { t } from "../i18n";
 import { useIdioma } from "../i18n/react";
 import { Selector, type Opcion } from "../hilo/Selector";
 import { MODO } from "../modo";
+import { useNombreProyecto } from "../datos/proyectos";
 import type { PropsTablero } from "./Tablero";
 import "./pendientes.css";
 import "./tablero-vista.css";
@@ -240,11 +241,12 @@ export function TableroNuevo({ todo, carpetas, lideres, alRedactar, avisar }: Pr
 
 /** Un proyecto de la lista: cuántas preguntas y pruebas lo esperan y hace cuánto se movió. */
 function Fila({ p, alAbrir }: { p: ProyectoPend; alAbrir: () => void }) {
+  const nom = useNombreProyecto();
   return (
     <li>
       <button type="button" className="pd-fila" onClick={alAbrir}>
         <span className="pd-punto" style={tonoDe(p.nombre)} />
-        <span className="pd-nombre">{nombreDe(p.nombre)}</span>
+        <span className="pd-nombre">{nombreDe(nom(p.nombre))}</span>
         <span className="pd-hace" data-tip={t("pd.ultima")}>{hace(p.hace)}</span>
         <span className="pd-nums">
           {p.preguntas.length ? (
@@ -304,6 +306,7 @@ function Proyecto({
   alVolverAContestar: (id: ItemId) => void;
 }) {
   const c = cuenta(p, r);
+  const nom = useNombreProyecto();
   const [verMandadas, setVerMandadas] = useState(MODO.variante === "mandadas");
   // Para las capturas (`HILOS_VARIANTE=abajo`): la lista abierta hasta el final, donde están las pruebas.
   const scroll = useRef<HTMLDivElement>(null);
@@ -318,7 +321,7 @@ function Proyecto({
           {t("pd.volver")}
         </button>
         <span className="pd-punto" style={tonoDe(p.nombre)} />
-        <h2 className="pd-h">{nombreDe(p.nombre)}</h2>
+        <h2 className="pd-h">{nombreDe(nom(p.nombre))}</h2>
         <span className="pd-hace" data-tip={t("pd.ultima")}>{hace(p.hace)}</span>
       </header>
       <div className="pd-scroll" ref={scroll}>

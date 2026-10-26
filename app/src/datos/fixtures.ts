@@ -419,6 +419,50 @@ export const LIDERES: RespuestaLideres = {
   ],
 };
 
+/**
+ * La captura `activas`: nueve líderes en tres proyectos con calor mezclado (te necesita, responde, workers vivos, caché
+ * caliente y "Uncached"). atlas es todo frío: aunque es el primero por nombre, queda debajo de brote y cauce.
+ */
+const deActivas = (id: string, nombre: string, proyecto: string, p: Partial<Lider>): Lider => ({
+  id: `s-act-${id}`,
+  nombre,
+  proyecto,
+  titulo: "Opus 5.5",
+  actividad: AHORA - 20 * MIN,
+  creado: AHORA - 5 * HORA + id.charCodeAt(0),
+  cache_ttl_s: HORA,
+  cache_vence: AHORA - 5 * MIN,
+  origen: "terminal",
+  pid: 4300,
+  vivo: true,
+  ocupado: false,
+  modelo: "claude-opus-5-5",
+  effort: null,
+  inferido: proyecto,
+  ...p,
+});
+export const LIDERES_ACTIVAS: Lider[] = [
+  deActivas("a1", "migrar-envios", "atlas", { actividad: AHORA - 3 * HORA }),
+  deActivas("a2", "docs-api", "atlas", { actividad: AHORA - 5 * HORA }),
+  deActivas("a3", "indices-stock", "atlas", { actividad: AHORA - 90 * MIN }),
+  deActivas("b1", "permiso-deploy", "brote", { actividad: AHORA - 4 * MIN, cache_vence: AHORA + 52 * MIN + COLCHON, pide: true, espera: { motivo: "pide", desde: 3 } }),
+  deActivas("b2", "limpiar-colas", "brote", { actividad: AHORA - 11 * MIN, cache_vence: AHORA + 59 * MIN + COLCHON }),
+  deActivas("b3", "refactor-config", "brote", { actividad: AHORA - 2 * HORA }),
+  deActivas("c1", "reintentos-pagos", "cauce", { actividad: AHORA - 20, cache_vence: AHORA + 59 * MIN + COLCHON, ocupado: true, origen: "app" }),
+  deActivas("c2", "tests-webhook", "cauce", { actividad: AHORA - 35 * MIN }),
+  deActivas("c3", "revisar-cola", "cauce", { actividad: AHORA - 14 * MIN, cache_vence: AHORA + 12 * MIN + COLCHON }),
+  deActivas("c4", "notas-release", "cauce", { actividad: AHORA - 6 * HORA }),
+];
+/** Los workers de `LIDERES_ACTIVAS`: c2 está frío pero tiene dos en marcha (por eso es de Activas), y uno ya terminó. */
+export const HILOS_ACTIVAS: RespuestaHilos = {
+  version: 1,
+  hilos: [
+    hilo({ id: "20261015-100101-71001", jefe: "tests-webhook", jefe_id: "s-act-c2", proyecto: "cauce", tarea: "Tests del webhook de pagos", estado: "trabajando", inicio: AHORA - 7 * MIN, puesto: "1", ...cache(HORA, 50 * MIN) }),
+    hilo({ id: "20261015-100202-71002", jefe: "tests-webhook", jefe_id: "s-act-c2", proyecto: "cauce", tarea: "Mock del proveedor de cobros", estado: "trabajando", inicio: AHORA - 4 * MIN, puesto: "2", ...cache(HORA, 54 * MIN) }),
+    hilo({ id: "20261015-090303-71003", jefe: "migrar-envios", jefe_id: "s-act-a1", proyecto: "atlas", tarea: "Migración de envíos a la tabla nueva", estado: "listo", inicio: AHORA - 3 * HORA, duracion_s: 12 * MIN, rama: "migrar-envios", commits: 2 }),
+  ],
+};
+
 /** El líder de `MUERTO` como lo manda el main cuando lo mataron (captura `lider-muerto`): sin proceso, con Retomar. */
 export const LIDER_MUERTO: Lider = {
   ...MUERTO,

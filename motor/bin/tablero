@@ -225,6 +225,15 @@ class Registro:
                 return q
         return p
 
+    @staticmethod
+    def _otros_nombres(p):
+        """El nombre para mostrar (`titulo`, `pa --renombrar`) y los alias del registry, en minúscula."""
+        v = [p.get("titulo")]
+        for k in ("alias", "aliases"):
+            x = p.get(k)
+            v += x if isinstance(x, list) else [x]
+        return [str(a).strip().lower() for a in v if isinstance(a, str) and a.strip()]
+
     def resolver(self, nombre):
         """-> (nombre canónico, entrada del registry o None, aviso o None).
 
@@ -237,7 +246,7 @@ class Registro:
             return "", None, None
         ps = self.proyectos
         ql = q.lower()
-        for cond in (lambda p: p["name"] == q, lambda p: p["name"].lower() == ql, lambda p: self.slug(p) == ql):
+        for cond in (lambda p: p["name"] == q, lambda p: p["name"].lower() == ql, lambda p: self.slug(p) == ql, lambda p: ql in self._otros_nombres(p)):
             for p in ps:
                 if cond(p):
                     c = self._canon(p)

@@ -27,16 +27,13 @@ export type Opcion = { a: Accion; confirmar?: boolean; peligro?: boolean };
  */
 export type LugarMenu = { sube: boolean; baja: boolean; defecto: boolean; prioridad?: boolean };
 
-/** Con el orden por prioridad prendido no hay lugar que mover a mano: sólo la salida (`prioridad` lo apaga). */
-const delOrden = (l?: LugarMenu): Opcion[] =>
-  l?.prioridad
-    ? [{ a: "prioridad" }]
-    : [
-        ...(l?.sube ? [{ a: "subir" } as const] : []),
-        ...(l?.baja ? [{ a: "bajar" } as const] : []),
-        ...(l?.defecto ? [{ a: "defecto" } as const] : []),
-        ...(l ? [{ a: "prioridad" } as const] : []),
-      ];
+/** Subir / Bajar / Orden por defecto siguen con "Activas" prendido (lo caliente sale de su carpeta, el resto se acomoda igual); `prioridad` lo apaga o prende. */
+const delOrden = (l?: LugarMenu): Opcion[] => [
+  ...(l?.sube ? [{ a: "subir" } as const] : []),
+  ...(l?.baja ? [{ a: "bajar" } as const] : []),
+  ...(l?.defecto ? [{ a: "defecto" } as const] : []),
+  ...(l ? [{ a: "prioridad" } as const] : []),
+];
 
 /**
  * Un worker: renombrar y copiar el id siempre; Settle si tiene uno propio

@@ -18,6 +18,7 @@ import { AjustesCuentas } from "./AjustesCuentas";
 import { AjustesModelos } from "./AjustesModelos";
 import { Compactar } from "./AjustesCompactar";
 import { Guia } from "./AjustesGuia";
+import { Proyectos } from "./AjustesProyectos";
 import { alCambiarAplicarAuto, aplicarAuto, cambiarAplicarAuto } from "./aplicar-auto";
 import { IcApariencia, IcAtajos, IcAviso, IcCodigo, ICONO, IcIdioma, IcLetra, IcTiernos, IcTipografia } from "../ui/iconos";
 import { Carcasa } from "./AjustesCarcasa";
@@ -293,6 +294,7 @@ export function Ajustes() {
         <Cat id="actualizaciones">
           <Carcasa Dato={Dato} />
         </Cat>
+        <Proyectos />
         <Guia />
       </AjustesMarco>
       <BarraGuardar />

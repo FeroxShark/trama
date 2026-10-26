@@ -18,7 +18,7 @@ import {
   type Ref,
 } from "react";
 import { AnimatePresence, motion, MotionConfig } from "motion/react";
-import { BarChart3, ChevronDown, Crown, GitBranch, ListTree, PanelRight, PencilLine, Plus, Search, Settings, SquareKanban, type LucideIcon } from "lucide-react";
+import { BarChart3, ChevronDown, Crown, GitBranch, ListTree, PanelRight, PencilLine, Plus, Search, Settings, SquareKanban, Zap, type LucideIcon } from "lucide-react";
 import { cerrable, cerrado, comoSettle, GENERAL, VERSION, type Caido, type Estado, type EventoPa, type Hilo, type Leidos, type Lider, type Nombres, type Orden, type RespuestaLideres } from "../datos/contrato";
 import { compactarFijo, escenaFija, fuente } from "../datos/fuente";
 import { ARRANCANDO, EN_COLA, FRENADO, imagenFija } from "../datos/fixtures";
@@ -53,6 +53,7 @@ import { conTexto, type Eleccion } from "../paneles/lanzar";
 import { rcDe, RC_CONFLICTO } from "../datos/errorpa";
 import { esVentana, main, mensaje } from "../puente";
 import {
+  ACTIVAS,
   activo,
   aDesplegar,
   armarArbol,
@@ -82,6 +83,7 @@ import {
   type Rama,
 } from "./arbol";
 import { armarArrastre, CARPETAS } from "./arrastre";
+import { diferir, workerVivo, type Trabajador } from "./activas";
 import { control } from "./control";
 import { Fila, FilaLider, RESORTE } from "./Fila";
 import { Subagentes } from "./Subagentes";
@@ -171,6 +173,7 @@ const SETTLE = "settle:";
 
 /** La rama (el líder con sus workers) de un líder, o `null` si no está a la vista. */
 function ramaDe(a: DatosArbol, sid: string): Rama | null {
+  for (const r of a.activas) if (r.lider?.id === sid) return r;
   for (const g of a.carpetas) for (const r of [...g.ramas, ...g.espera, ...g.dormidos]) if (r.lider?.id === sid) return r;
   return null;
 }
@@ -464,10 +467,15 @@ export function Barra() {
     () => new Map(Object.entries(leidos).flatMap(([k, ts]) => (k.startsWith(SETTLE) ? [[k.slice(SETTLE.length), ts] as const] : []))),
     [leidos],
   );
-  // Orden por prioridad (prendido de fábrica): no se reordena mientras el usuario mira la lista (mouse encima, foco adentro o un menú abierto).
-  const [mirando, setMirando] = useState({ mouse: false, foco: false });
+  // "Activas" y proyectos que flotan (prendido de fábrica): no se reacomoda nada mientras el usuario mira la lista (mouse encima, foco adentro, un arrastre o un menú abierto).
+  const [mirando, setMirando] = useState({ mouse: false, foco: false, arrastre: false });
   const porPrioridad = prioridadPrendida(nombres.orden);
-  const prioridad = usePrioridad(porPrioridad, lideresVistos, mirando.mouse || mirando.foco || menu !== null);
+  // Los workers que siguen en marcha: un líder con alguno es de "Activas", y su proyecto flota aunque no tenga líder caliente.
+  const trabajadores = useMemo<Trabajador[]>(
+    () => todos.map((h) => ({ jefe_id: h.jefe_id ?? null, proyecto: h.proyecto, vivo: workerVivo({ estado: estadoVisto(h, optimista.get(h.id)), en_cola: h.en_cola }) })).filter((w) => w.vivo),
+    [todos, optimista],
+  );
+  const prioridad = usePrioridad(porPrioridad, lideresVistos, trabajadores, diferir({ ...mirando, menu: menu !== null }));
   // Sin polling: "en espera hace 30 min" se recalcula cuando cambia algo (datos, líderes, búsqueda).
   const arbolBruto = useMemo(
     () => armarArbol(todos, { optimista, lideres: lideresVistos, settleados, busqueda, mover, ocultos, titulos, caidos, orden: nombres.orden, prioridad, ahora: Math.floor(Date.now() / 1000) }),
@@ -1088,7 +1096,7 @@ export function Barra() {
     if (c === "foco-caja") setTimeout(() => document.querySelector<HTMLElement>(".caja button")?.setAttribute("data-anillo", ""), 600);
     // El orden a mano: lo que se ve a mitad de un arrastre (lo que se lleva apagado en su lugar y la línea
     // donde cae, como la deja `arrastre.ts`) y el menú de una carpeta del medio con Subir / Bajar / Orden por defecto.
-    // Arrastrar y Subir / Bajar son del orden fijo: estas dos capturas lo apagan (el de fábrica es por prioridad).
+    // Estas dos capturas apagan "Activas" para que cada líder se vea en su carpeta, en el orden que se arrastra.
     if (c === "orden-arrastrando") {
       setNombres((n) => ({ ...n, orden: { ...n.orden, prioridad: false } }));
       setTimeout(() => {
@@ -1118,6 +1126,8 @@ export function Barra() {
         setMenu({ x: r.left + 24, y: r.bottom - 4, de: { tipo: "carpeta", proyecto: medio }, origen: el });
       }, 500);
     }
+    if (c === "activas" && MODO.variante === "plegada") setColapsados(new Set([ACTIVAS]));
+    if (c === "activas" && MODO.variante === "fijo") setNombres((n) => ({ ...n, orden: { ...n.orden, prioridad: false } }));
     if (c === "orden-prioridad") setNombres((n) => ({ ...n, orden: { ...n.orden, prioridad: true } }));
     if (c === "mover-menu") {
       setTimeout(() => {
@@ -1131,7 +1141,7 @@ export function Barra() {
     if (c === "colapsado") setColapsados(new Set(proyectos.slice(1, 2)));
     if (c === "oculta") setAbierta(false);
     // Angosto se ve lo abierto; la lista, con HILOS_VARIANTE=lista (o si no hay nada que abrir).
-    if (esAngosto()) setAbierta(MODO.variante === "lista" || c === "vacio" || c === "foco-barra" || c === "orden-arrastrando" || c === "orden-menu" || c === "orden-prioridad" || c === "mover-menu" || (c.startsWith("maquinas") && c !== "maquinas-lider" && !c.startsWith("maquinas-selector")));
+    if (esAngosto()) setAbierta(MODO.variante === "lista" || c === "vacio" || c === "foco-barra" || c === "orden-arrastrando" || c === "orden-menu" || c === "orden-prioridad" || c === "activas" || c === "mover-menu" || (c.startsWith("maquinas") && c !== "maquinas-lider" && !c.startsWith("maquinas-selector")));
     if (c === "ajustes") setPanel("ajustes");
     if (c === "estadisticas" || c === "estadisticas-30" || c === "estadisticas-medido" || c === "estadisticas-vacia") setPanel("estadisticas");
     if (c.startsWith("tablero") && c !== "tablero-nuevo-chat") setPanel("tablero");
@@ -1320,6 +1330,8 @@ export function Barra() {
       raiz: () => raiz.current,
       linea: () => linea.current,
       puede: () => !ultimo.current.busqueda.trim(),
+      // Mientras se arrastra, "Activas" y los proyectos no se reacomodan (`diferir`): lo que se agarra no se mueve de lugar.
+      alArrastrar: (si) => setMirando((m) => (m.arrastre === si ? m : { ...m, arrastre: si })),
       alSoltar: (m) => {
         const { orden, grupos, titulos } = ultimo.current;
         const carpeta = m.grupo === CARPETAS ? null : m.grupo.slice(m.grupo.indexOf(":") + 1);
@@ -1349,7 +1361,7 @@ export function Barra() {
     fuente.guardarOrden(sin);
   };
 
-  /** Prende o apaga el orden por prioridad (de fábrica, prendido; lo puesto a mano queda guardado, sin uso mientras esté prendido). */
+  /** Prende o apaga "Activas" y los proyectos que flotan (de fábrica, prendido); el orden puesto a mano rige en los dos casos. */
   const alternarPrioridad = () => {
     const nuevo: Orden = { ...ultimo.current.orden, prioridad: !prioridadPrendida(ultimo.current.orden) };
     setNombres((n) => ({ ...n, orden: nuevo }));
@@ -1619,6 +1631,23 @@ export function Barra() {
               {hilos ? (
                 // Recién con los datos: si no, la primera carga entraría animada.
                 <AnimatePresence mode="popLayout" initial={false}>
+                  {arbol.activas.length > 0 ? (
+                    <Activas
+                      key="activas"
+                      ramas={arbol.activas}
+                      abierta={desplegada(ACTIVAS)}
+                      alAlternar={() => alternar(ACTIVAS)}
+                      liderActivo={activa}
+                      alAbrirLider={abrirLider}
+                      alCerrarLider={cerrarLider}
+                      alSettleLider={settleLiderYa}
+                      desplegada={desplegada}
+                      alPlegar={plegar}
+                      fila={fila}
+                      virtual={virtual}
+                      soloLideres={soloLideres}
+                    />
+                  ) : null}
                   {grupos.map((g) => (
                     <Carpeta
                       key={g.proyecto}
@@ -1636,7 +1665,7 @@ export function Barra() {
                       fila={fila}
                       virtual={virtual}
                       soloLideres={soloLideres}
-                      mueve={!buscando && !MODO.captura && !porPrioridad}
+                      mueve={!buscando && !MODO.captura}
                     />
                   ))}
                   {hayGrupos.length === 0 ? (
@@ -1796,6 +1825,80 @@ export function Barra() {
         {consumo && consumoPosible ? <Consumo lideres={lideresVistos} hilos={todos} carpeta={carpetaVista} alCerrar={alternarConsumo} /> : null}
       </div>
     </MotionConfig>
+  );
+}
+
+type PropsActivas = {
+  ramas: Rama[];
+  abierta: boolean;
+  alAlternar: () => void;
+  liderActivo: string | null;
+  alAbrirLider: (id: string) => void;
+  alCerrarLider: (id: string, motivo?: string) => void;
+  alSettleLider: (id: string) => void;
+  desplegada: (clave: string) => boolean;
+  alPlegar: (clave: string) => void;
+  fila: PropsCarpeta["fila"];
+  virtual: boolean;
+  soloLideres: boolean;
+};
+
+/**
+ * "Activas": arriba de todo, los líderes que piden algo, responden, tienen workers vivos o el caché caliente
+ * (`activas.ts`), de cualquier proyecto; cada fila lleva el suyo como prefijo. No se arrastran: cuando se enfrían
+ * vuelven a su lugar en su proyecto. Plegable (se recuerda como una carpeta) y con la cuenta.
+ */
+function Activas({ ref, ramas, abierta, alAlternar, liderActivo, alAbrirLider, alCerrarLider, alSettleLider, desplegada, alPlegar, fila, virtual, soloLideres }: PropsActivas & { ref?: Ref<HTMLElement> }) {
+  useIdioma();
+  const titulos = useTitulos();
+  return (
+    <motion.section
+      ref={ref}
+      layout="position"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={RESORTE}
+      className="proy activas"
+      data-activas=""
+      aria-label={tr("barra.activas")}
+    >
+      <div className="marco marco-arriba" />
+      <motion.div layout transition={RESORTE} className="marco marco-lado" />
+      <motion.div layout transition={RESORTE} className="marco marco-lado" data-der="" />
+      <motion.div layout="position" transition={RESORTE} className="marco marco-abajo" />
+      <button type="button" className="proy-nom" data-tip={tr("barra.activasTip")} aria-expanded={abierta} onClick={alAlternar}>
+        <Zap className="activas-icono" size={13} strokeWidth={2} />
+        <span className="n">{tr("barra.activas")}</span>
+        <span className="cuenta">{ramas.length}</span>
+        <ChevronDown className="chevron" size={12} strokeWidth={2} />
+      </button>
+      <AnimatePresence mode="popLayout" initial={false}>
+        {abierta ? (
+          <motion.div key="cuerpo" className="proy-cuerpo" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.12 }}>
+            <AnimatePresence mode="popLayout" initial={false}>
+              {ramas.map((r) => (
+                <Arbol
+                  key={r.clave}
+                  r={r}
+                  grupo={null}
+                  proyecto={nombreCarpeta(r.lider!.proyecto, MODO.usuario, tr("barra.home"), titulos[r.lider!.proyecto])}
+                  activo={liderActivo === r.clave}
+                  alAbrirLider={alAbrirLider}
+                  alCerrarLider={alCerrarLider}
+                  alSettleLider={alSettleLider}
+                  plegada={!desplegada(r.clave)}
+                  alPlegar={alPlegar}
+                  fila={fila}
+                  virtual={virtual}
+                  soloLideres={soloLideres}
+                />
+              ))}
+            </AnimatePresence>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
+    </motion.section>
   );
 }
 
@@ -1981,6 +2084,8 @@ function SinLider({ muertos, idos }: { muertos: string[]; idos: string[] }) {
 type PropsArbol = {
   ref?: Ref<HTMLDivElement>;
   r: Rama;
+  /** En "Activas": el nombre del proyecto del líder, como prefijo de su fila. */
+  proyecto?: string;
   /** Entre quiénes se mueve al arrastrarlo (`arrastre.ts`); `null`, no se arrastra. */
   grupo: string | null;
   activo: boolean;
@@ -2003,7 +2108,7 @@ type PropsArbol = {
  * líderes", lo vivo de un líder tampoco tiene fila: va resumido en la suya, y el
  * "+N" lo despliega.
  */
-function Arbol({ ref, r, grupo, activo, alAbrirLider, alCerrarLider, alSettleLider, plegada, alPlegar, fila, virtual, soloLideres }: PropsArbol) {
+function Arbol({ ref, r, grupo, proyecto, activo, alAbrirLider, alCerrarLider, alSettleLider, plegada, alPlegar, fila, virtual, soloLideres }: PropsArbol) {
   const n = r.viejas.length;
   const resumida = soloLideres && r.tipo === "lider" && plegada;
   const res = useMemo(() => (resumida ? resumen(r.vivas) : null), [resumida, r.vivas]);
@@ -2028,6 +2133,7 @@ function Arbol({ ref, r, grupo, activo, alAbrirLider, alCerrarLider, alSettleLid
       {r.lider ? (
         <FilaLider
           l={r.lider}
+          proyecto={proyecto}
           activa={activo}
           settle={settleDe(r)}
           alAbrir={alAbrirLider}

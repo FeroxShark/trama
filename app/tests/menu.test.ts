@@ -46,9 +46,9 @@ test("orden a mano: Subir y Bajar sólo si hay adónde, Orden por defecto sólo 
   assert.deepEqual(as(accionesLider(l, 0, { sube: false, baja: true, defecto: false })), ["renombrar", "mover", "bajar", "prioridad", "settle?", "copiar", "borrar?"]);
   assert.deepEqual(as(accionesLider(l, 0, { sube: false, baja: false, defecto: false })), [...as(accionesLider(l, 0)).slice(0, 2), "prioridad", ...as(accionesLider(l, 0)).slice(2)]);
   assert.deepEqual(as(accionesCarpeta(false, { sube: true, baja: false, defecto: true })), ["nueva", "ocultar", "subir", "defecto", "prioridad"]);
-  // Con el orden por prioridad prendido no hay nada que mover a mano: sólo la salida.
+  // Con "Activas" prendido el orden a mano sigue (arrastrar, Subir y Bajar): la opción de prioridad no lo esconde.
   const prendido = { sube: true, baja: true, defecto: true, prioridad: true };
-  assert.deepEqual(as(accionesLider(l, 0, prendido)), ["renombrar", "mover", "prioridad", "settle?", "copiar", "borrar?"]);
-  assert.deepEqual(as(accionesCarpeta(false, prendido)), ["nueva", "ocultar", "prioridad"]);
+  assert.deepEqual(as(accionesLider(l, 0, prendido)), as(accionesLider(l, 0, todo)));
+  assert.deepEqual(as(accionesCarpeta(false, prendido)), ["nueva", "ocultar", "subir", "bajar", "defecto", "prioridad"]);
   assert.deepEqual(as(accionesCarpeta(true)), ["nueva", "mostrar"]);
 });

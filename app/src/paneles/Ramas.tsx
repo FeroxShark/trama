@@ -32,6 +32,7 @@ import { effortsLeidos } from "../hilo/efforts";
 import { conTexto, type Eleccion } from "./lanzar";
 import { conCuenta, correrLote, cuentas, filtroVigente, pasa, pasosDe, planAplicar, resumenLote, type FiltroRama, type PasoLote, type PlanLote } from "./ramas-vista";
 import { alCambiarAplicarAuto, aplicarAuto, cambiarAplicarAuto } from "./aplicar-auto";
+import { useNombreProyecto } from "../datos/proyectos";
 import "./ramas-tarjetas.css";
 
 /** El ícono de cada veredicto: nunca sólo color. */
@@ -138,6 +139,7 @@ function useSalud(): EstadoSalud | null {
 }
 
 export function Ramas({ hilos, optimista, errores, enCurso, alActuar, alAbrir, alRetomar, alArreglar, alActualizar, conflictos, analista }: PropsRamas) {
+  const nombreProy = useNombreProyecto();
   const { pendientes, integradas } = useMemo(() => ramas(hilos ?? [], optimista), [hilos, optimista]);
   // Descartar: el primer clic lo arma, el segundo sobre el mismo botón descarta.
   const [armado, setArmado] = useState<string | null>(() =>
@@ -447,12 +449,12 @@ export function Ramas({ hilos, optimista, errores, enCurso, alActuar, alAbrir, a
             exit={{ opacity: 0 }}
             transition={RESORTE}
             className="pn-sec"
-            aria-label={g.proyecto}
+            aria-label={nombreProy(g.proyecto)}
           >
             <h2 className="pn-h pn-h-plegable">
               <button type="button" className="pn-plegar" aria-expanded={!cerrado} onClick={() => plegar(g.proyecto)}>
                 <ChevronDown size={14} strokeWidth={1.8} aria-hidden="true" data-cerrado={cerrado ? "" : undefined} />
-                {g.proyecto} <span className="cuenta">{visibles.length}</span>
+                {nombreProy(g.proyecto)} <span className="cuenta">{visibles.length}</span>
               </button>
               {conCuenta(cs).map((v) => {
                 const I = ICONO_V[v];
@@ -612,6 +614,7 @@ type PropsFila = {
 
 function FilaRama({ ref, h, estado, error, enCurso, auto, sola, salud, alArreglar, juicio, armado, alArmar, alActuar, alAbrir, alRetomar, alActualizar, alAuditar, choco }: PropsFila) {
   const vivo = VIVO.has(estado);
+  const nombreProy = useNombreProyecto();
   // Retomar, Arreglar y Actualizar no lanzan al tocarlos: abren el paso previo (modelo, esfuerzo y un texto) y lanza "Lanzar".
   const retomar = () => pasoLider("retomar", (e) => alRetomar(h, e));
   const integrada = estado === "integrado";
@@ -729,7 +732,7 @@ function FilaRama({ ref, h, estado, error, enCurso, auto, sola, salud, alArregla
               {rojo ? <X size={12} strokeWidth={2.2} /> : <Check size={12} strokeWidth={2.2} />}
             </span>
           ) : null}
-          {salud ? <span>{h.proyecto}</span> : null}
+          {salud ? <span>{nombreProy(h.proyecto)}</span> : null}
           {h.commits ? <span>{commits(h.commits)}</span> : null}
           <Reloj pintor={hace} />
           {sola ? <span className="pn-auto" data-tip={tr("ramas.autoQue")}>{tr("ramas.autoBadge")}</span> : null}

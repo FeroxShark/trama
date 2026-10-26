@@ -8,6 +8,7 @@ import path from "node:path";
 import { entornoLider } from "./lider-arma.ts";
 import { deDueno, dueno } from "./dueno.ts";
 import { shellDe } from "./procesos.ts";
+import { resolverImports } from "./instrucciones-md.ts";
 
 /** Los encabezados que no le tocan a un local: él no delega (no hay `pa`) ni elige workers. */
 export const ENCABEZADOS_FUERA = /^(jefe|modelos)\b/i;
@@ -148,15 +149,19 @@ export async function armarContexto(x: {
     bloques.push(`## ${titulo}\n${t}`);
   };
 
+  // Un `@archivo` suelto en su línea (el import de Claude Code: CLAUDE.md que sólo dice `@AGENTS.md`) se reemplaza por el contenido del archivo,
+  // un nivel y dentro de su carpeta: un modelo que no sigue imports no puede quedar sin las instrucciones del proyecto.
+  const conImports = async (ruta: string, texto: string | null) => (texto ? await resolverImports(texto, path.dirname(ruta)).catch(() => texto) : (texto ?? ""));
+
   const global = path.join(home, ".claude", "CLAUDE.md");
-  poner(`Reglas globales ${deDueno()}`, sinSecciones((await leer(global)) ?? "", fuera), TOPE_PARTE.usuario, global);
+  poner(`Reglas globales ${deDueno()}`, sinSecciones(await conImports(global, await leer(global)), fuera), TOPE_PARTE.usuario, global);
 
   // `~/CLAUDE.md` y los de las carpetas hasta el cwd: los de arriba primero, como Claude Code.
   const archivos = carpetasDe(home, cwd).map((d) => path.join(d, "CLAUDE.md"));
   const textos = await Promise.all(archivos.map(async (f) => [f, await leer(f)] as const));
   // Primero lo de `~` (trato, seguridad, tablero), después tablero y memoria, y al final los de proyecto, con lo que quede.
   const [primero, ...proyecto] = textos;
-  if (primero) poner(`CLAUDE.md de ${path.dirname(primero[0]) === home ? "~" : path.dirname(primero[0])}`, sinSecciones(primero[1] ?? "", fuera), 4000, primero[0]);
+  if (primero) poner(`CLAUDE.md de ${path.dirname(primero[0]) === home ? "~" : path.dirname(primero[0])}`, sinSecciones(await conImports(primero[0], primero[1]), fuera), 4000, primero[0]);
 
   const salidas = gemini ? [] : await Promise.all((await hooksDeArranque(home, leer)).map((c) => hook(c, cwd).then(textoDeHook, () => "")));
   poner("Tablero y estado al arrancar (salida de los hooks de arranque)", salidas.filter(Boolean).join("\n"), TOPE_PARTE.hook, "`tablero resumen`");
@@ -165,7 +170,20 @@ export async function armarContexto(x: {
   const memoria = gemini ? "" : ((await leer(mem)) ?? "");
   poner(`Memoria sobre ${dueno()} (índice; cada archivo está en ${path.dirname(mem)}/, léelo con Read si hace falta)`, memoria.split("\n").slice(0, 200).join("\n"), TOPE_PARTE.memoria, mem);
 
-  for (const [f, t] of proyecto) poner(`CLAUDE.md de ${path.dirname(f)}`, sinSecciones(t ?? "", fuera), libre, f);
+  // AGENTS.md es la fuente única de las instrucciones del proyecto (`pa <proy> --unificar-md`): si el CLAUDE.md no lo trae (por un import),
+  // va aparte, así un líder que no es Claude sabe lo mismo que uno que sí.
+  const agentsAparte = async (dir: string, claude: string) => {
+    const agentsRuta = path.join(dir, "AGENTS.md");
+    const agents = sinSecciones(await conImports(agentsRuta, await leer(agentsRuta)), fuera);
+    if (agents.trim() && !claude.includes(agents.trim())) poner(`AGENTS.md de ${dir} (instrucciones del proyecto para todos los modelos)`, agents, libre, agentsRuta);
+  };
+  // Un cwd fuera de `~` no tiene carpetas intermedias: su CLAUDE.md es el "primero" y también es el del proyecto.
+  if (primero && path.dirname(primero[0]) !== home) await agentsAparte(path.dirname(primero[0]), sinSecciones(await conImports(primero[0], primero[1]), fuera));
+  for (const [f, t] of proyecto) {
+    const claude = sinSecciones(await conImports(f, t), fuera);
+    poner(`CLAUDE.md de ${path.dirname(f)}`, claude, libre, f);
+    await agentsAparte(path.dirname(f), claude);
+  }
 
   return { texto: bloques.length ? `# Contexto ${deDueno()} (cargado al arrancar este líder)\n\n${bloques.join("\n\n")}` : "", partes, tokens: topeParaCtx(x.ctx) - libre };
 }

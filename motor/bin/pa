@@ -27,7 +27,12 @@
 #   pa <proyecto> --auditar <id|rama> [-m M]  revisor de sólo lectura (--leer) de esa rama: lee el diff contra main y reporta
 #                                        problemas por severidad (CRITICO/ALTO/MEDIO/BAJO); tipo lectura si no hay --tipo
 #   pa <proyecto> --agents-md            imprime una plantilla de AGENTS.md (build, tests, convenciones, no tocar) si falta;
-#                                        a agy/codex/dsh/opencode el contrato les suma AGENTS.md (o CLAUDE.md), tope 8000 caracteres
+#                                        a agy/codex/dsh/opencode el contrato les suma AGENTS.md (o CLAUDE.md; los `@archivo`
+#                                        sueltos en su línea se resuelven, un nivel y dentro del repo), tope 20000 caracteres
+#                                        (PA_AGENTS_MAX); si se corta, el bloque lo dice
+#   pa <proyecto> --unificar-md [--aplicar]  AGENTS.md como única fuente: pasa el contenido de CLAUDE.md / GEMINI.md a AGENTS.md y
+#                                        los deja como stub (`@AGENTS.md`). Sin --aplicar sólo muestra el plan; con --aplicar guarda
+#                                        antes lo que cambia en ~/.local/state/pa/<proy>/md-backup/<fecha>/ y no hace commit
 #   pa <proyecto> --leccion "<texto>"    anotar una lección corta en ~/.local/state/pa/<proy>/lecciones.md (tope 30 líneas /
 #                                        3000 caracteres: pasado eso `pa --estado` avisa NECESITA-PODA). Se inyectan al contrato
 #   pa <proyecto> --lecciones            imprimir las lecciones · --lecciones-podar: la instrucción para que un agente las reescriba
@@ -51,6 +56,10 @@
 #                                        opencode:<proveedor>/<modelo> (el programa opencode: sus modelos gratis, p. ej.
 #                                        opencode:opencode/deepseek-v4.1-flash-free, sólo andan por él con tu login de
 #                                        OpenCode Console; effort = su --variant; opencode sin instalar → sale 95)
+#   pa --proyectos [--json]              los proyectos del registry con su nombre para mostrar (`titulo`), slug y ruta
+#   pa --renombrar <proy> <nombre>       nombre para mostrar de un proyecto (la app lo muestra en todos lados y `pa <nombre> …`
+#                                        vale como alias del suyo). SÓLO cambia lo que se ve: slug, ruta, ramas y estado quedan.
+#                                        `--quitar` en vez del nombre lo deja como estaba. Único, ≤ 40 caracteres, sin `-` adelante
 #   pa --modelos [--json]                tabla efectiva tipo → modelo (de dónde salió y qué elige reparto hoy), Gemini y locales
 #   pa --cupo-gemini [--json]            cupo de cada suscripción (Claude oficial y Google AI Pro/agy; alias de reparto --cupos)
 #   pa <proyecto> --effort medium "<t>"  esfuerzo del worker (o env PA_EFFORT). haiku low..max (default xhigh);
@@ -2331,6 +2340,99 @@ tests_registry() {   # slug
   [[ -f "$reg" ]] || return 0
   registry_por_slug "$1" tests "$reg"
 }
+# --- nombre para mostrar de un proyecto (2026-10-26) -----------------------------------------
+# El registry guarda por proyecto `name` (lo que entiende `pa <proy>`), `path` y, opcional, `titulo`: cómo se llama
+# el proyecto en la app y también un alias para `pa` (`pa Shark …` == `pa asistente-voz …`, ver proyecto-ruta).
+# Renombrar SÓLO cambia ese texto: el slug (basename de la ruta), la ruta, las ramas pa/<slug>/…, la carpeta de
+# estado y el historial quedan como están (cambiarlos rompería todo lo anterior). Las mismas reglas las valida la
+# app (electron/proyectos-alias.ts): si cambia una, cambia la otra.
+NOMBRE_MAX=40
+registro_json() { printf '%s' "${PROYECTOS_REGISTRY:-$HOME/.config/proyectos/registry.json}"; }
+ruta_real_de() {   # path crudo del registry -> ruta real (como proyecto-ruta y registry_por_slug)
+  local p="${1/#\~/$HOME}"
+  [[ -f "$p" ]] && p="$(dirname "$p")"
+  realpath -m "$p" 2>/dev/null || printf '%s' "$p"
+}
+cmd_proyectos() {   # [--json]: cada proyecto del registry con su nombre para mostrar, slug y ruta
+  local reg json=0 i n t slug r
+  [[ "${1:-}" == "--json" ]] && json=1
+  reg="$(registro_json)"
+  [[ -f "$reg" ]] || { echo "pa: no existe el registry: $reg" >&2; return 1; }
+  local filas=() a
+  while IFS=$'\t' read -r n p t; do
+    [[ -n "$n" ]] || continue
+    r="$(ruta_real_de "$p")"; slug="$(slug_de "$r")"
+    filas+=("$(jq -cn --arg n "$n" --arg t "$t" --arg s "$slug" --arg r "$r" '{nombre:$n, titulo:(if $t=="" then null else $t end), slug:$s, ruta:$r}')")
+  done < <(jq -r '.projects[]? | select(.name) | [.name, .path, (.titulo // "")] | @tsv' "$reg" 2>/dev/null)
+  if (( json )); then
+    if (( ${#filas[@]} )); then printf '%s\n' "${filas[@]}" | jq -s .; else echo '[]'; fi
+    return 0
+  fi
+  (( ${#filas[@]} )) || { echo "pa: el registry no tiene proyectos."; return 0; }
+  printf '%-24s %-24s %-24s %s\n' NOMBRE MUESTRA SLUG RUTA
+  for a in "${filas[@]}"; do
+    jq -r '[.nombre, (.titulo // "-"), .slug, .ruta] | @tsv' <<<"$a" | awk -F'\t' '{ printf "%-24s %-24s %-24s %s\n", $1, $2, $3, $4 }'
+  done
+  echo "(MUESTRA es el nombre para mostrar: la app lo usa en todos lados y \`pa <MUESTRA> …\` vale igual que \`pa <NOMBRE> …\`. Se cambia con: pa --renombrar <proyecto> <nombre>.)"
+}
+# Por qué un nombre para mostrar no va (vacío si va). $1 = nombre, $2 = ruta real del proyecto que se renombra.
+nombre_invalido() {
+  local n="$1" propia="$2" q p r c nom pa_ extras otro; local -a otros
+  [[ -n "$n" ]] || { echo "está vacío"; return 0; }
+  (( ${#n} <= NOMBRE_MAX )) || { echo "tiene más de $NOMBRE_MAX caracteres"; return 0; }
+  [[ "$n" != -* ]] || { echo "no puede empezar con '-' (parecería una opción)"; return 0; }
+  [[ "$n" != *[[:cntrl:]]* ]] || { echo "tiene saltos de línea o caracteres de control"; return 0; }
+  q="${n,,}"
+  while IFS=$'\t' read -r nom pa_ extras; do
+    [[ -n "$nom" ]] || continue
+    r="$(ruta_real_de "$pa_")"
+    [[ "$r" == "$propia" ]] && continue
+    c="${nom,,}"; [[ "$q" == "$c" ]] && { echo "ya es el nombre de otro proyecto ('$nom')"; return 0; }
+    [[ "$q" == "$(slug_de "$r")" ]] && { echo "ya es el slug de otro proyecto ('$nom')"; return 0; }
+    IFS=$'\x1f' read -ra otros <<<"$extras"
+    for otro in ${otros[@]+"${otros[@]}"}; do
+      [[ -n "$otro" && "$q" == "${otro,,}" ]] && { echo "ya lo usa otro proyecto ('$nom')"; return 0; }
+    done
+  done < <(jq -r '.projects[]? | select(.name) | [.name, .path, ([(.titulo // empty), ((.alias // empty) | if type=="array" then .[] else . end), ((.aliases // empty) | if type=="array" then .[] else . end)] | map(select(type=="string" and . != "")) | join("\u001f"))] | @tsv' "$(registro_json)" 2>/dev/null)
+  return 0
+}
+cmd_renombrar() {   # <proyecto> <nombre> | <proyecto> --quitar
+  local sel="${1:-}" nuevo="${2:-}" reg ruta_p slug_p quitar=0 idx=() i p n por
+  [[ -n "$sel" && -n "${2+x}" ]] || { echo "uso: pa --renombrar <proyecto> <nombre>  |  pa --renombrar <proyecto> --quitar  (pa --proyectos los lista)" >&2; return 2; }
+  [[ "$nuevo" == "--quitar" ]] && { quitar=1; nuevo=""; }
+  reg="$(registro_json)"
+  ruta_p="$(proyecto-ruta "$sel")" || return 1
+  slug_p="$(slug_de "$ruta_p")"
+  nuevo="${nuevo#"${nuevo%%[![:space:]]*}"}"; nuevo="${nuevo%"${nuevo##*[![:space:]]}"}"
+  while IFS=$'\t' read -r i p; do
+    [[ "$(ruta_real_de "$p")" == "$(readlink -f "$ruta_p")" ]] && idx+=("$i")
+  done < <(jq -r '.projects | to_entries[] | [.key, (.value.path // "")] | @tsv' "$reg")
+  (( ${#idx[@]} )) || { echo "pa: no encuentro '$sel' en el registry." >&2; return 1; }
+  n="$(jq -r --argjson i "${idx[0]}" '.projects[$i].name' "$reg")"
+  if (( quitar )); then
+    por=""
+  else
+    por="$(nombre_invalido "$nuevo" "$(readlink -f "$ruta_p")")"
+    [[ -z "$por" ]] || { echo "pa: '$nuevo' no sirve como nombre: $por." >&2; return 2; }
+    # igual al nombre del registry: no hace falta guardar nada
+    [[ "$nuevo" == "$n" ]] && quitar=1
+  fi
+  local tmp; tmp="$(mktemp "$reg.XXXXXX")" || return 1
+  if (( quitar )); then
+    jq --indent 2 --argjson idx "$(printf '%s\n' "${idx[@]}" | jq -sc .)" 'reduce $idx[] as $i (.; del(.projects[$i].titulo))' "$reg" >"$tmp"
+  else
+    jq --indent 2 --arg n "$nuevo" --argjson idx "$(printf '%s\n' "${idx[@]}" | jq -sc .)" 'reduce $idx[] as $i (.; .projects[$i].titulo = $n)' "$reg" >"$tmp"
+  fi || { rm -f "$tmp"; return 1; }
+  [[ -s "$tmp" ]] || { rm -f "$tmp"; echo "pa: no pude escribir el registry." >&2; return 1; }
+  cp -p "$reg" "$reg.bak" 2>/dev/null || true
+  chmod --reference="$reg" "$tmp" 2>/dev/null || true
+  mv -f "$tmp" "$reg"
+  if (( quitar )); then
+    echo "pa: '$n' vuelve a mostrarse con su nombre del registry."
+  else
+    echo "pa: '$n' ahora se muestra como '$nuevo' (pa '$nuevo' … vale igual que pa '$n' …). Sólo cambia el nombre que se ve: el slug '$slug_p', la ruta, las ramas pa/$slug_p/… y el historial quedan como están."
+  fi
+}
 cmd_traspaso() {
   shopt -s nullglob
   local yo nombre f d t slug j r p rc linea hubo
@@ -4188,26 +4290,183 @@ verificado_de() {
   return "$r"
 }
 
-# AGENTS.md del proyecto para los motores que NO leen CLAUDE.md (agy, codex, dsh/opencode). Busca
-# AGENTS.md y, si no hay, CLAUDE.md, primero en el worktree y después en el tree principal (un
-# AGENTS.md recién escrito y sin commitear sólo existe ahí). Tope PA_AGENTS_MAX (8000) caracteres.
-agents_md_archivo() {   # $@ = carpetas -> ruta del primero que exista
+# AGENTS.md del proyecto para los motores que NO leen CLAUDE.md (agy, codex, dsh/opencode). AGENTS.md es la
+# fuente única (`pa <proy> --unificar-md` deja CLAUDE.md y GEMINI.md como stubs que lo importan con `@AGENTS.md`).
+# Busca AGENTS.md y, si no hay, CLAUDE.md, primero en el worktree y después en el tree principal (un AGENTS.md
+# recién escrito y sin commitear sólo existe ahí). Un `@archivo` suelto en su línea se reemplaza por el contenido
+# de ese archivo (un nivel, sólo dentro de la carpeta del proyecto): un CLAUDE.md que es un stub nunca da una
+# inyección vacía. Tope PA_AGENTS_MAX (default 20000) caracteres, y si se corta lo dice en el propio bloque.
+AGENTS_MAX_DEFECTO=20000
+# $1 = archivo -> su texto con las líneas `@ruta` resueltas. Sólo líneas que son un `@ruta` solo (fuera de bloques de
+# código); ruta relativa a la carpeta del archivo, sin `..` ni absolutas ni `~`, que termine dentro de la carpeta
+# (un symlink que sale no vale) y no pase de 1 MB. Lo que no se puede resolver queda como estaba. No es recursivo.
+md_resolver() {
+  local f="$1" dir raiz linea en_codigo=0 rel dest primero=1
+  dir="$(dirname "$f")"; raiz="$(realpath -m "$dir")"
+  while IFS= read -r linea || [[ -n "$linea" ]]; do
+    linea="${linea%$'\r'}"
+    if [[ "$linea" =~ ^[[:space:]]*(\`\`\`|~~~) ]]; then en_codigo=$((1 - en_codigo)); fi
+    if (( ! en_codigo )) && [[ "$linea" =~ ^[[:space:]]*@([^[:space:]]+)[[:space:]]*$ ]]; then
+      rel="${BASH_REMATCH[1]}"
+      if [[ "$rel" != /* && "$rel" != "~"* && "/$rel/" != *"/../"* ]]; then
+        dest="$(realpath -e "$dir/$rel" 2>/dev/null || true)"
+        if [[ -n "$dest" && -f "$dest" && "$dest" == "$raiz"/* ]] && (( $(stat -c %s "$dest" 2>/dev/null || echo 9999999) <= 1048576 )); then
+          (( primero )) || printf '\n'; primero=0
+          printf '%s' "$(tr -d '\r' <"$dest")"
+          continue
+        fi
+      fi
+    fi
+    (( primero )) || printf '\n'; primero=0
+    printf '%s' "$linea"
+  done <"$f"
+  printf '\n'
+}
+md_vacio() { [[ -z "${1//[[:space:]]/}" ]]; }
+# 0 si el TEXTO no tiene contenido propio: sólo `@AGENTS.md`, comentarios HTML de una línea y blancos (un stub cuyo import no se pudo resolver)
+md_stub_texto() {
+  local resto; resto="$(printf '%s\n' "$1" | grep -v -E '^[[:space:]]*(<!--.*-->)?[[:space:]]*$' | sed 's/^[[:space:]]*//; s/[[:space:]]*$//' || true)"
+  [[ -n "$resto" && -z "$(grep -vx '@AGENTS.md' <<<"$resto" || true)" ]]
+}
+# Los candidatos en orden: AGENTS.md de cada carpeta y después CLAUDE.md de cada carpeta.
+agents_md_candidatos() {   # $@ = carpetas
   local d c
-  for d in "$@"; do
-    [[ -n "$d" ]] || continue
-    for c in AGENTS.md CLAUDE.md; do [[ -s "$d/$c" ]] && { printf '%s' "$d/$c"; return 0; }; done
+  for c in AGENTS.md CLAUDE.md; do
+    for d in "$@"; do [[ -n "$d" && -s "$d/$c" ]] && printf '%s\n' "$d/$c"; done
   done
+  return 0
+}
+agents_md_archivo() {   # $@ = carpetas -> ruta del primero que exista y no quede vacío una vez resueltos sus @imports
+  local f r
+  while IFS= read -r f; do
+    r="$(md_resolver "$f")"
+    md_vacio "$r" || md_stub_texto "$r" || { printf '%s' "$f"; return 0; }
+  done < <(agents_md_candidatos "$@")
   return 1
 }
 agents_md_bloque() {   # $@ = carpetas -> el bloque para el prompt (con salto de línea adelante), o nada
-  local f t n max="${PA_AGENTS_MAX:-8000}"
-  [[ "$max" =~ ^[0-9]+$ ]] || max=8000
+  local f t n max="${PA_AGENTS_MAX:-$AGENTS_MAX_DEFECTO}" cab
+  [[ "$max" =~ ^[0-9]+$ ]] && (( max > 0 )) || max=$AGENTS_MAX_DEFECTO
   f="$(agents_md_archivo "$@")" || return 0
-  t="$(cat "$f")"; n=${#t}
+  t="$(md_resolver "$f")"; n=${#t}
+  cab="$f; valen igual que las de arriba"
   if (( n > max )); then
-    t="${t:0:max}"$'\n'"[… truncado: $f tiene $n caracteres y acá van los primeros $max; leé el resto con Read si lo necesitás]"
+    t="${t:0:max}"$'\n'"[… truncado: $f tiene $n caracteres y acá van sólo los primeros $max (tope PA_AGENTS_MAX); leé el resto con Read si lo necesitás]"
+    cab="$f; OJO: truncado a los primeros $max de $n caracteres"
+    echo "pa: aviso: $f tiene $n caracteres y los modelos que no son Claude reciben sólo los primeros $max (PA_AGENTS_MAX). Acortalo o subí el tope." >&2
   fi
-  printf '\n\nINSTRUCCIONES (%s; valen igual que las de arriba):\n%s' "$f" "$t"
+  printf '\n\nINSTRUCCIONES (%s):\n%s' "$cab" "$t"
+}
+
+# --- `pa <proy> --unificar-md [--aplicar]`: AGENTS.md como única fuente de las instrucciones del proyecto ----------
+# Claude lee CLAUDE.md, Gemini/agy GEMINI.md y el resto AGENTS.md: tres archivos que se desincronizan. Esto deja el
+# contenido en AGENTS.md y reemplaza CLAUDE.md / GEMINI.md por un stub que lo importa (`@AGENTS.md`; Claude Code y
+# Gemini CLI siguen imports de archivos). Sin --aplicar sólo muestra el plan. Con --aplicar guarda antes cada archivo
+# que cambia en $STATE/<slug>/md-backup/<fecha>/ (nada se pierde) y escribe; NO hace git commit. Las mismas reglas las
+# tiene la app (electron/unificar-md.ts): si cambia una, cambia la otra (tests/unificar-md.test.ts las cruza).
+MD_STUB='<!-- Editá AGENTS.md, no este archivo: acá sólo se importa para que cada modelo (Claude, Gemini, …) lea las mismas instrucciones. -->
+@AGENTS.md'
+# texto "limpio": sin \r, sin blancos al final de todo; el archivo lleva un solo salto de línea final
+md_limpio() { local t; t="$(tr -d '\r' <"$1")"; t="${t%"${t##*[![:space:]]}"}"; printf '%s' "$t"; }
+md_norm() { local t; t="$(md_limpio "$1")"; printf '%s' "${t#"${t%%[![:space:]]*}"}"; }
+# 0 si el archivo ya no tiene contenido propio: sólo `@AGENTS.md`, comentarios HTML de una línea y blancos; o es un
+# enlace simbólico a AGENTS.md
+md_es_stub() {   # $1 = archivo, $2 = AGENTS.md
+  local f="$1"
+  if [[ -L "$f" ]]; then [[ "$(readlink -f "$f")" == "$(readlink -f "$2")" ]]; return; fi
+  md_stub_texto "$(cat "$f")"
+}
+cmd_unificar_md() {   # usa $ruta $slug $dir $aplicar
+  local A="$ruta/AGENTS.md" nom f n lineas acciones=() fuentes=() nuevoA="" hay_a=0 ts bk tmp avisos=() idx
+  local -A tipo=() texto=()
+  [[ -f "$A" && ! -L "$A" ]] && hay_a=1
+  [[ -L "$A" ]] && { echo "pa: $A es un enlace simbólico: no lo toco. Unificá a mano." >&2; return 1; }
+  # un AGENTS.md en blanco es como si faltara (se guarda igual en el backup)
+  if (( hay_a )) && md_vacio "$(cat "$A")"; then hay_a=0; fi
+  for nom in CLAUDE.md GEMINI.md; do
+    f="$ruta/$nom"
+    if [[ ! -e "$f" && ! -L "$f" ]]; then tipo[$nom]=falta
+    elif [[ -L "$f" ]]; then
+      if (( hay_a )) && md_es_stub "$f" "$A"; then tipo[$nom]=stub
+      else tipo[$nom]=enlace; avisos+=("$nom es un enlace simbólico que no apunta a AGENTS.md: no lo toco.")
+      fi
+    elif [[ ! -f "$f" ]]; then tipo[$nom]=enlace; avisos+=("$nom no es un archivo común: no lo toco.")
+    elif (( $(stat -c %s "$f") > 1048576 )); then tipo[$nom]=enlace; avisos+=("$nom pesa más de 1 MB: no lo toco.")
+    elif md_vacio "$(cat "$f")"; then tipo[$nom]=vacio
+    elif md_es_stub "$f" "$A"; then tipo[$nom]=stub
+    else tipo[$nom]=real; fuentes+=("$nom"); texto[$nom]="$(md_limpio "$f")"
+    fi
+  done
+  if (( hay_a )) && [[ "$(stat -c %s "$A")" -gt 1048576 ]]; then echo "pa: AGENTS.md pesa más de 1 MB: no lo toco." >&2; return 1; fi
+  local base=""; (( hay_a )) && base="$(md_limpio "$A")"
+  if (( ! hay_a )); then
+    case ${#fuentes[@]} in
+      0) echo "pa: '$slug' no tiene CLAUDE.md ni GEMINI.md con contenido que pasar a AGENTS.md: nada que unificar. Para empezar de cero: pa '$proyecto' --agents-md" ; return 0 ;;
+      1) nuevoA="${texto[${fuentes[0]}]}"; acciones+=("AGENTS.md|crea|con el contenido de ${fuentes[0]}") ;;
+      *) if [[ "$(md_norm "$ruta/CLAUDE.md")" == "$(md_norm "$ruta/GEMINI.md")" ]]; then
+           nuevoA="${texto[CLAUDE.md]}"; acciones+=("AGENTS.md|crea|con el contenido de CLAUDE.md (GEMINI.md decía lo mismo)")
+         else
+           nuevoA="# AGENTS.md"$'\n\n'"<!-- Unificado desde CLAUDE.md y GEMINI.md, que decían cosas distintas: revisá y juntá lo repetido. -->"$'\n\n'"## Desde CLAUDE.md"$'\n\n'"${texto[CLAUDE.md]}"$'\n\n'"## Desde GEMINI.md"$'\n\n'"${texto[GEMINI.md]}"
+           acciones+=("AGENTS.md|crea|juntando CLAUDE.md y GEMINI.md en secciones (decían cosas distintas)")
+         fi ;;
+    esac
+  else
+    nuevoA="$base"
+    local cambia_a=0
+    for nom in "${fuentes[@]}"; do
+      if [[ "$(md_norm "$ruta/$nom")" == "$(md_norm "$A")" ]] || [[ "$base" == *"${texto[$nom]#"${texto[$nom]%%[![:space:]]*}"}"* ]]; then
+        acciones+=("$nom|sin-cambio-en-agents|ya está dentro de AGENTS.md")
+      else
+        nuevoA+=$'\n\n'"## Desde $nom (unificado acá; revisalo y juntá lo repetido)"$'\n\n'"${texto[$nom]}"; cambia_a=1
+        acciones+=("AGENTS.md|anexa|con lo de $nom que no estaba")
+      fi
+    done
+  fi
+  for nom in CLAUDE.md GEMINI.md; do
+    case "${tipo[$nom]}" in
+      real|vacio) acciones+=("$nom|stub|se reemplaza por un stub que importa @AGENTS.md") ;;
+      falta) [[ "$nom" == CLAUDE.md ]] && acciones+=("$nom|crea-stub|se crea un stub que importa @AGENTS.md (Claude Code no lee AGENTS.md solo)") ;;
+    esac
+  done
+  # ¿hay algo que escribir?
+  local cambios=0 a
+  for a in "${acciones[@]}"; do case "$a" in *"|crea|"*|*"|anexa|"*|*"|stub|"*|*"|crea-stub|"*) cambios=1 ;; esac; done
+  echo "pa: unificar las instrucciones de '$slug' ($ruta) en AGENTS.md$( (( aplicar )) || echo ' — vista previa, no se escribió nada (usá --aplicar)')"
+  for a in ${avisos[@]+"${avisos[@]}"}; do echo "  aviso: $a"; done
+  if (( ! cambios )); then
+    echo "  Ya está unificado: AGENTS.md es la fuente y CLAUDE.md / GEMINI.md no tienen contenido propio. Nada que hacer."
+    return 0
+  fi
+  local que det
+  for a in "${acciones[@]}"; do IFS='|' read -r nom que det <<<"$a"; printf '  %-10s %s\n' "$nom" "${que/sin-cambio-en-agents/sin cambios}: $det"; done
+  if (( ! aplicar )); then
+    local nl; nl=$(printf '%s\n' "$nuevoA" | wc -l)
+    if (( ! hay_a )) || [[ "$nuevoA" != "$base" ]]; then echo; echo "--- AGENTS.md (queda así; $nl líneas) ---"; printf '%s\n' "$nuevoA"; fi
+    echo; echo "--- CLAUDE.md / GEMINI.md (los que cambian) quedan así ---"; printf '%s\n' "$MD_STUB"
+    echo; echo "Para aplicarlo: pa '$proyecto' --unificar-md --aplicar  (guarda antes lo que cambia en $dir/md-backup/<fecha>/; no hace commit)."
+    return 0
+  fi
+  ts="$(date +%Y%m%d-%H%M%S)"; bk="$dir/md-backup/$ts"
+  mkdir -p "$bk"
+  for nom in AGENTS.md CLAUDE.md GEMINI.md; do [[ -f "$ruta/$nom" && ! -L "$ruta/$nom" ]] && cp -p "$ruta/$nom" "$bk/$nom"; done
+  for nom in CLAUDE.md GEMINI.md; do [[ -L "$ruta/$nom" ]] && echo "$nom -> $(readlink "$ruta/$nom")" >"$bk/$nom.enlace"; done
+  escribir_md() {   # $1 = nombre, $2 = contenido
+    local t; t="$(mktemp "$ruta/.$1.pa-XXXXXX")" || return 1
+    printf '%s\n' "$2" >"$t" && chmod 644 "$t" && mv -f "$t" "$ruta/$1" || { rm -f "$t"; return 1; }
+  }
+  if (( ! hay_a )) || [[ "$nuevoA" != "$base" ]]; then escribir_md AGENTS.md "$nuevoA" || { echo "pa: no pude escribir AGENTS.md." >&2; return 1; }; fi
+  for nom in CLAUDE.md GEMINI.md; do
+    case "${tipo[$nom]}" in
+      real|vacio) escribir_md "$nom" "$MD_STUB" || { echo "pa: no pude escribir $nom (el original está en $bk)." >&2; return 1; } ;;
+      falta) [[ "$nom" == CLAUDE.md ]] && { escribir_md "$nom" "$MD_STUB" || return 1; } ;;
+    esac
+  done
+  echo; echo "pa: listo. Lo anterior quedó en $bk. No hice git commit: commiteá AGENTS.md y CLAUDE.md juntos (sin AGENTS.md en el repo, el stub de CLAUDE.md no apunta a nada en los worktrees de los workers)."
+  local n_a; n_a=${#nuevoA}
+  local tope="${PA_AGENTS_MAX:-$AGENTS_MAX_DEFECTO}"
+  [[ "$tope" =~ ^[0-9]+$ ]] || tope=$AGENTS_MAX_DEFECTO
+  (( n_a > tope )) && echo "pa: ojo: AGENTS.md tiene $n_a caracteres y los modelos que no son Claude reciben sólo los primeros $tope (PA_AGENTS_MAX)." >&2
+  return 0
 }
 # `pa <proy> --agents-md`: la plantilla para que el jefe la llene cuando falta.
 agents_md_plantilla() {
@@ -4406,6 +4665,8 @@ case "${1:-}" in
   --hilo)     shift; cmd_hilo "$@"; exit $? ;;
   --descartar) shift; cmd_descartar_id "$@"; exit $? ;;
   --traspaso) cmd_traspaso; exit 0 ;;
+  --proyectos)  shift; cmd_proyectos "$@"; exit $? ;;
+  --renombrar)  shift; cmd_renombrar "$@"; exit $? ;;
   --limpiar) shift; cmd_limpiar "$@"; exit $? ;;
   --nota) [[ -n "${2:-}" ]] || { echo "uso: pa --nota \"<texto>\"  (pedido de $(nombre_dueno), decisión, qué sigue)" >&2; exit 2; }
           anotar "$2"; echo "pa: anotado."; exit 0 ;;
@@ -4469,7 +4730,7 @@ tipo="${PA_TIPO:-}"
 # una variable de entorno se hereda de una llamada a la otra y la aprobación es por corrida.
 ok_dueno=0 modelo_de_m=0
 # Orquestación (2026-10-26): brief desde archivo, AGENTS.md, lecciones, auditoría de una rama.
-brief_archivo=""; agents_md=0; lecciones=0; lecciones_podar=0; leccion=""; auditar=""
+brief_archivo=""; agents_md=0; unificar_md=0; aplicar=0; lecciones=0; lecciones_podar=0; leccion=""; auditar=""
 
 # Los flags que llevan valor: sin él, `$2` reventaba con "unbound variable" (set -u) sin decir qué faltaba.
 flags_con_valor=" --max-turns --id --integrar --descartar --actualizar --nota --max-budget-usd -m --model --effort --tipo --cuenta --brief-archivo --leccion --auditar "
@@ -4483,6 +4744,8 @@ while [[ $# -gt 0 ]]; do
     --leer)            leer=1; shift ;;
     --brief-archivo)   brief_archivo="$2"; shift 2 ;;
     --agents-md)       agents_md=1; shift ;;
+    --unificar-md)     unificar_md=1; shift ;;
+    --aplicar)         aplicar=1; shift ;;
     --lecciones)       lecciones=1; shift ;;
     --lecciones-podar) lecciones_podar=1; shift ;;
     --leccion)         leccion="$2"; shift 2 ;;
@@ -4553,7 +4816,7 @@ fi
 # El hijo de --async recibe -m explícito y el effort por PA_EFFORT, así que pasa por lo mismo.
 # Sólo en los caminos que lanzan un claude: un PA_EFFORT=low heredado no puede impedir un --matar,
 # --integrar, --descartar, --ramas u --olvidar (--esperar y --estado ya salieron arriba).
-lanza=1; (( matar || ramas || olvidar || agents_md || lecciones || lecciones_podar )) && lanza=0; [[ -n "$leccion" ]] && lanza=0; [[ -n "$integrar$descartar" ]] && lanza=0
+lanza=1; (( matar || ramas || olvidar || agents_md || unificar_md || lecciones || lecciones_podar )) && lanza=0; [[ -n "$leccion" ]] && lanza=0; [[ -n "$integrar$descartar" ]] && lanza=0
 # El tipo se valida igual que el effort: sólo donde se lanza (un PA_TIPO heredado no traba la gestión).
 tipo="${tipo,,}"; [[ "$tipo" == diseño ]] && tipo=diseno
 if (( lanza )) && [[ -n "$tipo" && ! "$tipo" =~ ^($TIPOS_VALIDOS)$ ]]; then
@@ -4872,11 +5135,13 @@ if (( agents_md )); then
   if f_am="$(agents_md_archivo "$ruta")" && (( ! force )); then
     echo "pa: '$slug' ya tiene $f_am ($(wc -m <"$f_am") caracteres). Actualizalo con lo que aprendas (build, tests, convenciones, qué no tocar) en vez de rehacerlo; --force imprime la plantilla igual." >&2
   else
-    echo "pa: plantilla para $ruta/AGENTS.md. Llenala con lo que VERIFICASTE del proyecto (comandos que corrés de verdad) y guardala ahí; los workers que no son Claude la reciben en el contrato (tope ${PA_AGENTS_MAX:-8000} caracteres)." >&2
+    echo "pa: plantilla para $ruta/AGENTS.md. Llenala con lo que VERIFICASTE del proyecto (comandos que corrés de verdad) y guardala ahí; los workers que no son Claude la reciben en el contrato (tope ${PA_AGENTS_MAX:-$AGENTS_MAX_DEFECTO} caracteres). Si ya tenés un CLAUDE.md, mejor: pa '$proyecto' --unificar-md." >&2
     agents_md_plantilla
   fi
   exit 0
 fi
+if (( unificar_md )); then cmd_unificar_md; exit $?; fi
+if (( aplicar )); then echo "pa: --aplicar va con --unificar-md: pa <proy> --unificar-md --aplicar" >&2; exit 2; fi
 if [[ -n "$leccion" ]]; then
   leccion_agregar "$leccion" || { echo "pa: --leccion quiere un texto corto (una línea)." >&2; exit 2; }
   echo "pa: lección anotada en $dir/lecciones.md ($(wc -l <"$dir/lecciones.md") líneas)."

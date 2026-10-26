@@ -35,6 +35,8 @@ import { guardarApariencia, guardarAutoIntegrar, guardarAvisarEspera, bienvenida
 import { accionRama, arreglarDatos, briefRamas, enCola, ejecutar, lanzarRama, leerAjustes, leerMedicion, pasarALider, retomarDatos, type AccionRama } from "./paneles.js";
 import { guardarRouting, type Cambio } from "./routing.js";
 import { argvAuditar, datosAgentsMd, guardarLecciones, leccionesPendientes, leerLecciones, textoPoda } from "./orquestacion.ts";
+import { aplicarUnificar, estadoMd, guardarAgents, leerAgents, planUnificar } from "./unificar-md.ts";
+import { listarProyectos, renombrarProyecto } from "./proyectos-alias.ts";
 import { guardarAjustes } from "./ajustes-editar.js";
 import { crearBajadas } from "./ollama-bajar.ts";
 import { efectivoDePa, guardarModelos, leerModelos, modelosConfig, sondearOllama, vistaModelos } from "./modelos-config.ts";
@@ -53,6 +55,7 @@ import { crearCola } from "./cola.js";
 import { crearEspera } from "./espera.js";
 import { errorT, textoT } from "./errores.ts";
 import { destinos, registro, slugsPorNombre } from "./registro.js";
+import { registroProyectos } from "./rutas.ts";
 import { capacidades, hayAgy, hayDsh } from "./capacidades.js";
 import { estadoDsh, instalarDsh, probarProveedor } from "./dsh-ajustes.ts";
 import { crearLectorTabla, leerTabla } from "./reparto-tabla.ts";
@@ -97,7 +100,7 @@ const manejadores = new Map<string, Manejador>();
  * Lo que cambia la máquina (reescribe `~/CLAUDE.md`, los ajustes, borra una cuenta, libera la GPU, actualiza `claude`): desde la
  * tailnet (el celular) no. Los `modelos:*` y `remoto:guardar` tienen su propio chequeo, con su mensaje, en el manejador.
  */
-export const SOLO_PC_TAILNET: ReadonlySet<string> = new Set(["routing:guardar", "ajustes:guardar", "orq:leccionesGuardar", "cuentas:quitar", "vram:liberar", "claude:actualizar", "dsh:clave", "dsh:instalar", "dsh:probar", "aa:refrescar"]);
+export const SOLO_PC_TAILNET: ReadonlySet<string> = new Set(["routing:guardar", "ajustes:guardar", "orq:leccionesGuardar", "orq:mdAplicar", "orq:agentsGuardar", "proyectos:renombrar", "cuentas:quitar", "vram:liberar", "claude:actualizar", "dsh:clave", "dsh:instalar", "dsh:probar", "aa:refrescar"]);
 
 /** Anota (o reemplaza) el manejador de un canal. */
 export function manejar(canal: string, fn: Manejador) {
@@ -768,6 +771,28 @@ export function armarNucleo() {
     const p = (await registro()).find((r) => r.nombre === nombre);
     return { ...(await datosAgentsMd(nombre, ejecutar)), proyecto: nombre, ruta: p?.ruta ?? null };
   });
+  // Unificar instrucciones (unificar-md.ts): AGENTS.md como fuente única de CLAUDE.md / GEMINI.md. El renderer pasa un slug, nunca una ruta:
+  // la carpeta sale del registry (y el nombre de los archivos es fijo), así no hay forma de apuntar a otro lado.
+  const carpetaDe = async (slug: unknown) => {
+    const s = String(slug ?? "");
+    const p = (await registro()).find((r) => r.slug === s);
+    if (!p) throw errorT("main.proyectoRaro", { v: s });
+    return p;
+  };
+  manejar("orq:mdEstado", async (_e, slug: unknown) => estadoMd((await carpetaDe(slug)).ruta));
+  manejar("orq:mdPlan", async (_e, slug: unknown) => planUnificar((await carpetaDe(slug)).ruta));
+  manejar("orq:mdAplicar", async (_e, slug: unknown, huella: unknown) => {
+    const p = await carpetaDe(slug);
+    return aplicarUnificar(p.ruta, path.join(PA_STATE, p.slug), huella);
+  });
+  manejar("orq:agentsLeer", async (_e, slug: unknown) => leerAgents((await carpetaDe(slug)).ruta));
+  manejar("orq:agentsGuardar", async (_e, slug: unknown, texto: unknown) => {
+    const p = await carpetaDe(slug);
+    return guardarAgents(p.ruta, path.join(PA_STATE, p.slug), texto);
+  });
+  // El nombre para mostrar de cada proyecto (proyectos-alias.ts; `pa --renombrar` hace lo mismo): cambia sólo ese texto del registry.
+  manejar("proyectos:lista", () => listarProyectos(registroProyectos()));
+  manejar("proyectos:renombrar", (_e, slug: unknown, nombre: unknown) => renombrarProyecto(registroProyectos(), slug, nombre));
   manejar("routing:guardar", (_e, cambios: Cambio[]) =>
     guardarRouting((Array.isArray(cambios) ? cambios : []).map((c) => ({ rol: c?.rol, modelo: c?.modelo ?? null, effort: c?.effort ?? null }))),
   );

@@ -4,7 +4,7 @@
 import type { Clave, ClaveSola } from "../i18n";
 import { TIPOS } from "../../electron/modelos-tipos";
 
-export const CATS = ["cuentas", "modelos", "cupos", "locales", "dsh", "celular", "actualizaciones", "general", "guia"] as const;
+export const CATS = ["cuentas", "modelos", "cupos", "locales", "dsh", "celular", "actualizaciones", "proyectos", "general", "guia"] as const;
 export type CatId = (typeof CATS)[number];
 
 export const esCat = (x: unknown): x is CatId => typeof x === "string" && (CATS as readonly string[]).includes(x);
@@ -61,6 +61,9 @@ export const ITEMS: readonly Item[] = [
 
   { cat: "actualizaciones", nombre: "carcasa.act", que: "carcasa.actQue", sin: "windows update version buscar check descargar download reiniciar restart exe" },
   { cat: "actualizaciones", nombre: "carcasa.restos", que: "carcasa.restosQue", sin: "windows limpiar clean restos leftovers versiones anteriores previous desinstalar uninstall" },
+
+  { cat: "proyectos", nombre: "pry.nombres", que: "pry.nombresQue", sin: "renombrar rename nombre name alias proyecto project mostrar display titulo title slug registro registry shark" },
+  { cat: "proyectos", nombre: "pry.instrucciones", que: "pry.instruccionesQue", sin: "agents.md agents claude.md gemini.md unificar unify instrucciones instructions import stub modelos models fuente unica single source editar edit manual" },
 
   { cat: "general", nombre: "ajustes.idioma", que: "ajustes.idiomaQue", sin: "language english espanol ingles spanish traduccion idioma" },
   { cat: "general", nombre: "ajustes.tema", que: "ajustes.temaQue", sin: "theme tema color colores oscuro dark claro light sistema system modo apariencia appearance bosque forest atardecer sunset grafito graphite contraste contrast daltonismo" },
@@ -203,7 +206,8 @@ export function deVariante(v: string | null | undefined): CatId | null {
   if (v === "celular") return "celular";
   if (v.startsWith("dsh")) return "dsh";
   if (v.startsWith("mdl") || v === "sinmdl" || v === "modelo" || v === "dictado") return "modelos";
-  if (v === "guia") return "guia";
+  if (v.startsWith("proyectos")) return "proyectos";
+  if (v.startsWith("guia")) return "guia";
   if (v === "fuente" || v === "mono" || v === "compactar" || v === "general") return "general";
   return null;
 }

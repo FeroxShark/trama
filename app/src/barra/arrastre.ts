@@ -20,6 +20,8 @@ type Opciones = {
   /** Falso mientras no se puede reordenar (buscando: ahí el orden es el de la búsqueda). */
   puede: () => boolean;
   alSoltar: (m: Movida) => void;
+  /** Avisa cuándo empieza y cuándo termina un arrastre: mientras dura, la barra no reacomoda nada (`activas.ts`, `diferir`). */
+  alArrastrar?: (si: boolean) => void;
 };
 
 /** Cuánto hay que mover para que deje de ser un clic. */
@@ -81,6 +83,7 @@ export function armarArrastre(lista: HTMLElement, o: Opciones): () => void {
 
     const empezar = () => {
       moviendo = true;
+      o.alArrastrar?.(true);
       try {
         lista.setPointerCapture(e.pointerId);
       } catch {
@@ -118,6 +121,7 @@ export function armarArrastre(lista: HTMLElement, o: Opciones): () => void {
       lista.removeEventListener("scroll", ubicar);
       cortar = null;
       if (moviendo) {
+        o.alArrastrar?.(false);
         esconder();
         o.raiz()?.removeAttribute("data-moviendo");
         unidad.removeAttribute("data-movida");

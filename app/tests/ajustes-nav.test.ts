@@ -44,7 +44,7 @@ test("cada fila del índice y cada categoría tienen texto en inglés y en espa�
 });
 
 test("cada fila del índice está dibujada con su data-opc (el salto la encuentra)", () => {
-  const fuente = ["Ajustes.tsx", "AjustesModelos.tsx", "AjustesWorkers.tsx", "AjustesEditar.tsx", "AjustesCuentas.tsx", "AjustesCarcasa.tsx", "AjustesCupos.tsx", "AjustesCompactar.tsx", "AjustesDsh.tsx", "AjustesGuia.tsx"]
+  const fuente = ["Ajustes.tsx", "AjustesModelos.tsx", "AjustesWorkers.tsx", "AjustesEditar.tsx", "AjustesCuentas.tsx", "AjustesCarcasa.tsx", "AjustesCupos.tsx", "AjustesCompactar.tsx", "AjustesDsh.tsx", "AjustesGuia.tsx", "AjustesProyectos.tsx"]
     .map((f) => readFileSync(path.join(import.meta.dirname, "..", "src", "paneles", f), "utf8"))
     .join("\n");
   // Los tipos de worker se dibujan con la clave armada (`mdl.t.${tipo}`); el resto, con su clave literal.
