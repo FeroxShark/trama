@@ -421,7 +421,7 @@ async function extraDe(modelo: string, cwd: string | undefined): Promise<Extra> 
     // Un `dsh:` mal armado no se lanza (dsh-puente lo rechazaría igual, pero acá el error llega a la UI). dsh tampoco lee CLAUDE.md: mismo prefacio que Gemini.
     const d = parsearModelo(modelo);
     if (!d) throw errorT("main.dshModelo", { v: modelo.slice(0, 80) });
-    const prefacio = await prefacioDsh({ home: HOME, cwd, pa: resolverPa(process.env, HOME) }).catch((e) => (silencio("contexto-dsh")(e), ""));
+    const prefacio = await prefacioDsh({ home: HOME, cwd, pa: resolverPa(process.env, HOME), motor: "dsh", modelo: `${d.proveedor}/${d.modelo}` }).catch((e) => (silencio("contexto-dsh")(e), ""));
     // Un Ollama en otra máquina: la URL del local de `modelos.json` que sirve ese modelo (sin él, dsh usa el de siempre, 127.0.0.1).
     const url = d.proveedor === "ollama" ? localDeModelo(d.modelo)?.url : undefined;
     return { prefacio, ...(url ? { dshUrl: `${url.replace(/\/+$/, "")}/v1` } : {}) };
@@ -429,7 +429,7 @@ async function extraDe(modelo: string, cwd: string | undefined): Promise<Extra> 
   if (clase === "opencode") {
     // Mismo puente que dsh (dsh-puente.ts, con `opencode acp` por detrás); opencode tampoco lee CLAUDE.md de Trama: el prefacio va por el entorno.
     if (!parsearOpencode(modelo)) throw errorT("main.opencodeModelo", { v: modelo.slice(0, 80) });
-    return { prefacio: await prefacioDsh({ home: HOME, cwd, pa: resolverPa(process.env, HOME) }).catch((e) => (silencio("contexto-opencode")(e), "")) };
+    return { prefacio: await prefacioDsh({ home: HOME, cwd, pa: resolverPa(process.env, HOME), motor: "opencode", modelo: modelo.replace(/^opencode:/, "") }).catch((e) => (silencio("contexto-opencode")(e), "")) };
   }
   return {};
 }

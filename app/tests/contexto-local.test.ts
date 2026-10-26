@@ -220,3 +220,11 @@ test("prefacioDsh: lo de Gemini con quién corre y sus herramientas cambiadas; s
   const con = await prefacioDsh({ home: "/no/existe", pa: "/opt/bin/pa", deps: { leer: async () => null, hook: async () => "" } });
   assert.ok(con.includes("`/opt/bin/pa`"));
 });
+
+test("prefacioDsh con opencode: dice opencode (no DeepSeek) y el modelo real", async () => {
+  const { prefacioDsh, PROMPT_OPENCODE } = await import("../electron/contexto-local.ts");
+  assert.match(PROMPT_OPENCODE, /corrés dentro de opencode/);
+  assert.doesNotMatch(PROMPT_OPENCODE, /corrés dentro de DeepSeek/);
+  const p = await prefacioDsh({ home: "/no/existe", motor: "opencode", modelo: "opencode/glm-5.3-flash-free", deps: { leer: async () => null, hook: async () => "" } });
+  assert.match(p, /`opencode\/glm-5\.3-flash-free`/);
+});

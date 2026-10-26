@@ -231,5 +231,17 @@ async function prefacioCon(prompt: string, x: { home: string; cwd?: string; pa?:
  */
 export const prefacioGemini = (x: { home: string; cwd?: string; pa?: string; deps?: Partial<DepsContexto> }): Promise<string> => prefacioCon(PROMPT_GEMINI, x);
 
-/** El prefacio completo de un líder de dsh en `cwd` (ver `PROMPT_DSH`). */
-export const prefacioDsh = (x: { home: string; cwd?: string; pa?: string; deps?: Partial<DepsContexto> }): Promise<string> => prefacioCon(PROMPT_DSH, x);
+/** Lo mismo para un líder de `opencode acp` (los modelos de OpenCode): que no se crea DeepSeek ni Claude. */
+export const PROMPT_OPENCODE = PROMPT_DSH.replace(
+  "corrés dentro de DeepSeek Harness (`dsh`), no como Claude.",
+  "corrés dentro de opencode (`opencode acp`), no como Claude ni dentro de DeepSeek Harness.",
+).replace("las de dsh", "las de opencode");
+
+/**
+ * El prefacio completo de un líder de dsh u opencode en `cwd` (ver `PROMPT_DSH`/`PROMPT_OPENCODE`). `modelo`: el id con el que lo lanzó
+ * Trama; se le dice tal cual, así cuando le preguntan qué modelo es no adivina por el nombre del harness.
+ */
+export const prefacioDsh = (x: { home: string; cwd?: string; pa?: string; motor?: "dsh" | "opencode"; modelo?: string; deps?: Partial<DepsContexto> }): Promise<string> => {
+  const base = x.motor === "opencode" ? PROMPT_OPENCODE : PROMPT_DSH;
+  return prefacioCon(x.modelo ? `${base}\nEl modelo con el que corrés es \`${x.modelo}\`; si te preguntan qué modelo sos, decí ese.` : base, x);
+};
