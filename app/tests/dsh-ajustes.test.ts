@@ -7,7 +7,7 @@ import http from "node:http";
 import type { AddressInfo } from "node:net";
 import os from "node:os";
 import path from "node:path";
-import { COMANDO_INSTALAR_DSH, estadoDsh, instalarDsh, probarProveedor } from "../electron/dsh-ajustes.ts";
+import { COMANDO_INSTALAR_DSH, SCRIPTS_DSH, estadoDsh, instalarDsh, probarProveedor } from "../electron/dsh-ajustes.ts";
 import { hayDsh } from "../electron/capacidades.ts";
 import { guardarClave } from "../electron/claves.ts";
 
@@ -57,7 +57,7 @@ test("instalar: corre `npm install -g --prefix ~/.local @deepseek-ai/dsh` y devu
   });
   d.existe = (f) => f === "/a/npm" || (instalado && f === "/b/dsh");
   const e = await instalarDsh(d);
-  assert.deepEqual(llamadas[0], ["npm", "install", "-g", "--prefix", path.join(os.homedir(), ".local"), "@deepseek-ai/dsh"]);
+  assert.deepEqual(llamadas[0], ["npm", "install", "-g", "--prefix", path.join(os.homedir(), ".local"), SCRIPTS_DSH, "@deepseek-ai/dsh"]);
   assert.equal(e.instalado, true);
   assert.equal(e.versionDsh, "0.3.0");
 

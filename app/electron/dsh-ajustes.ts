@@ -15,7 +15,9 @@ import { normal } from "./version.ts";
 /** El paquete de npm de DeepSeek Harness y el comando que lo instala (también se le muestra al usuario para copiar). */
 export const PAQUETE_DSH = "@deepseek-ai/dsh";
 // En ~/.local (como el instalador del producto): sin sudo y con el binario en ~/.local/bin, que ya se busca.
-export const COMANDO_INSTALAR_DSH = `npm i -g --prefix ~/.local ${PAQUETE_DSH}`;
+// npm nuevo bloquea los scripts de instalación fuera de allowScripts: sin los de dsh-subprocess-local y node-pty dsh no corre comandos.
+export const SCRIPTS_DSH = "--allow-scripts=@deepseek-ai/dsh-subprocess-local,koffi,node-pty,@google/genai,protobufjs";
+export const COMANDO_INSTALAR_DSH = `npm i -g --prefix ~/.local ${SCRIPTS_DSH} ${PAQUETE_DSH}`;
 
 export const URL_MODELOS: Record<Exclude<ProveedorDsh, "ollama">, string> = {
   opencode: "https://opencode.ai/inference/v1/models",
@@ -86,7 +88,7 @@ const cola = (s: string) => s.trim().split("\n").slice(-4).join("\n").slice(-400
 export async function instalarDsh(d: Deps = depsDeVerdad()): Promise<EstadoDsh> {
   if (!hayBin("npm", d)) throw errorT("main.dshSinNpm", { cmd: COMANDO_INSTALAR_DSH });
   try {
-    await d.correr("npm", ["install", "-g", "--prefix", path.join(os.homedir(), ".local"), PAQUETE_DSH], 5 * 60 * 1000);
+    await d.correr("npm", ["install", "-g", "--prefix", path.join(os.homedir(), ".local"), SCRIPTS_DSH, PAQUETE_DSH], 5 * 60 * 1000);
   } catch (e) {
     const dijo = cola(String((e as { stderr?: string }).stderr || (e as Error).message));
     throw errorT("main.dshInstalarFallo", { cmd: COMANDO_INSTALAR_DSH, e: dijo });

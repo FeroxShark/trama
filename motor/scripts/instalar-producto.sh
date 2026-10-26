@@ -168,6 +168,9 @@ bajar_cli claude https://claude.ai/install.sh "claude (Claude Code)"
 bajar_cli agy https://antigravity.google/cli/install.sh "agy (Antigravity CLI)"
 
 # --- dsh (DeepSeek Harness): el motor para modelos gratis (OpenCode, Ollama) o DeepSeek --------------------------
+# npm nuevo bloquea los scripts de instalación que no están en allowScripts: sin los de dsh-subprocess-local y node-pty
+# dsh no puede correr comandos (el bash de sus herramientas).
+DSH_SCRIPTS="--allow-scripts=@deepseek-ai/dsh-subprocess-local,koffi,node-pty,@google/genai,protobufjs"
 # `npm i -g --prefix ~/.local @deepseek-ai/dsh`: con el prefijo propio no hace falta sudo (el npm global de un node del
 # sistema escribe en /usr/lib) y deja `dsh` en ~/.local/bin. No es fatal: sin npm o sin red queda el AVISO y `pa -m dsh:…`
 # explica qué falta. TRAMA_INSTALAR_DSH=0 (o TRAMA_INSTALAR_CLI=0) no lo instala. Las keys no se piden acá:
@@ -184,7 +187,7 @@ instalar_dsh() {
     aviso "dsh: falta npm (viene con node): después, npm i -g --prefix ~/.local @deepseek-ai/dsh"; DSH_RESUMEN="dsh: sin instalar (falta npm)"; return
   fi
   echo "dsh: instalando @deepseek-ai/dsh en ~/.local (puede tardar un par de minutos)…"
-  if timeout 900 npm i -g --prefix "$HOME/.local" --no-fund --no-audit @deepseek-ai/dsh >/dev/null 2>&1 && [[ -x "$BIN/dsh" ]]; then
+  if timeout 900 npm i -g --prefix "$HOME/.local" --no-fund --no-audit "$DSH_SCRIPTS" @deepseek-ai/dsh >/dev/null 2>&1 && [[ -x "$BIN/dsh" ]]; then
     hecho "dsh instalado ($BIN/dsh)"; DSH_RESUMEN="dsh: instalado ahora ($BIN/dsh)"
   else
     aviso "dsh: npm i -g --prefix ~/.local @deepseek-ai/dsh falló (¿sin red?); instalalo a mano para usar workers con modelos gratis"
