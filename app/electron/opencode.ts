@@ -49,6 +49,60 @@ export function parsearModelos(salida: string): string[] {
   return [...vistos];
 }
 
+const ID_MODELO = /^[A-Za-z0-9][A-Za-z0-9._-]*\/\S+$/;
+/** Un nivel de esfuerzo válido para `--variant` / ACP `effort` (una palabra: `low`, `medium`, `xhigh`, `minimal`…). */
+const NIVEL = /^[A-Za-z][A-Za-z0-9_-]{0,23}$/;
+
+/**
+ * La salida de `opencode models --verbose`: cada modelo (`<proveedor>/<modelo>`) seguido de su JSON, que trae `variants` (`{ low: {…}, high: {…} }`)
+ * cuando razona. Devuelve, por modelo, los niveles (en el orden en que vienen); `[]` si no tiene. Un JSON roto deja al modelo sin niveles.
+ */
+export function parsearModelosVerbose(salida: string): Record<string, string[]> {
+  const out: Record<string, string[]> = {};
+  let id: string | null = null;
+  let cuerpo: string[] = [];
+  const cerrar = () => {
+    if (!id) return;
+    let niveles: string[] = [];
+    try {
+      const v = JSON.parse(cuerpo.join("\n")).variants;
+      if (v && typeof v === "object" && !Array.isArray(v)) niveles = Object.keys(v).filter((k) => NIVEL.test(k));
+    } catch {
+      /* sin JSON legible: sin niveles */
+    }
+    out[id] = niveles;
+  };
+  for (const l of salida.replace(/\u001b\[[0-9;]*[A-Za-z]/g, "").split("\n")) {
+    const t = l.trim();
+    // La línea de un id va a columna 0; el JSON de después empieza con `{` o va indentado (nunca calza con un id).
+    if (ID_MODELO.test(t) && !/^\s/.test(l)) {
+      cerrar();
+      id = t;
+      cuerpo = [];
+    } else if (id) cuerpo.push(l);
+  }
+  cerrar();
+  return out;
+}
+
+/** El nivel por defecto de un modelo con niveles: `medium` si lo tiene, si no el primero. */
+export const effortDefectoOpencode = (niveles: readonly string[]): string => (niveles.includes("medium") ? "medium" : (niveles[0] ?? "medium"));
+
+/**
+ * ¿Hay que mandar este esfuerzo por ACP (`session/set_config_option` con `configId: "effort"`)? Devuelve el valor si la sesión ofrece la opción
+ * `effort` y (cuando lista valores) incluye el pedido; `null` si no hay esfuerzo, no se ofrece la opción o el valor no es uno de los suyos.
+ * Si el modelo no razona, opencode igual lo rechaza al aplicarlo: quien llama atrapa ese error.
+ */
+export function effortParaAcp(opciones: Array<Record<string, any>>, effort: string | null | undefined): string | null {
+  const e = (effort ?? "").trim();
+  if (!e || !NIVEL.test(e)) return null;
+  const o = opciones.find((x) => x?.id === "effort");
+  if (!o) return null;
+  const valores = Array.isArray(o.options) ? o.options.map((x: any) => (x && typeof x === "object" ? x.value : x)).filter((v: unknown): v is string => typeof v === "string") : [];
+  if (valores.length && !valores.includes(e)) return null;
+  return e;
+}
+
 const ejecutable = (f: string) => {
   try {
     accessSync(f, constants.X_OK);
@@ -83,15 +137,19 @@ export function entornoOpencode(env: Env = process.env): Env {
   return e;
 }
 
-/** Las credenciales de OpenCode (`auth.json` en `$XDG_DATA_HOME/opencode`, default `~/.local/share/opencode`): los ids de proveedor con login. Nunca los valores. */
+/** Las credenciales de OpenCode (`auth.json` en `$XDG_DATA_HOME/opencode` y en `~/.local/share/opencode`): los ids de proveedor con login. Nunca los valores. */
 export function proveedoresConLogin(env: Env = process.env, home: string = os.homedir()): string[] {
-  const dir = path.join(env.XDG_DATA_HOME || path.join(home, ".local", "share"), "opencode", "auth.json");
-  try {
-    const j = JSON.parse(readFileSync(dir, "utf8"));
-    return j && typeof j === "object" && !Array.isArray(j) ? Object.keys(j) : [];
-  } catch {
-    return [];
+  const bases = [...new Set([env.XDG_DATA_HOME, path.join(home, ".local", "share")].filter((b): b is string => !!b))];
+  const ids = new Set<string>();
+  for (const b of bases) {
+    try {
+      const j = JSON.parse(readFileSync(path.join(b, "opencode", "auth.json"), "utf8"));
+      if (j && typeof j === "object" && !Array.isArray(j)) for (const k of Object.keys(j)) ids.add(k);
+    } catch {
+      /* sin archivo o roto: el otro lugar */
+    }
   }
+  return [...ids];
 }
 
 /** `N credentials` de `opencode providers list` (o `auth list` en versiones viejas); `null` si no se entiende la salida. */
@@ -128,15 +186,44 @@ const depsDeVerdad = (): Deps => ({
   existe: ejecutable,
   correr: (bin, args, timeout) =>
     new Promise((ok, mal) => {
-      execFile(bin, args, { timeout, env: entornoOpencode(process.env) as NodeJS.ProcessEnv, maxBuffer: 4 * 1024 * 1024 }, (err, out) => (err ? mal(err) : ok(String(out))));
+      execFile(bin, args, { timeout, env: entornoOpencode(process.env) as NodeJS.ProcessEnv, maxBuffer: 64 * 1024 * 1024 }, (err, out) => (err ? mal(err) : ok(String(out))));
     }),
 });
 
-/** Los modelos que `opencode models` lista hoy (con su catálogo local; `refrescar` pide uno nuevo a models.dev). Rechaza si `opencode` falla. */
+/** ¿Rechazó `opencode` una bandera (`--refresh` no existe en 2.x)? Entonces se reintenta sin ella en vez de mostrarle el error crudo a la persona. */
+const banderaRara = (e: unknown) => /unrecogni[sz]ed|unknown (flag|option|argument)|no such option/i.test(String((e as { stderr?: unknown; message?: unknown })?.stderr ?? "") + String((e as Error)?.message ?? e));
+
+/** Los modelos que `opencode models` lista hoy (con su catálogo local; `refrescar` pide uno nuevo a models.dev). Rechaza si `opencode` falla. Si no conoce `--refresh`, cae a la lista sin él. */
 export async function listarModelos(d: Deps = depsDeVerdad(), refrescar = false): Promise<string[]> {
   const bin = resolverOpencode(d.env, d.home, d.existe);
-  const salida = await d.correr(bin, refrescar ? ["models", "--refresh"] : ["models"], refrescar ? 45_000 : 20_000);
-  return parsearModelos(salida);
+  if (refrescar) {
+    try {
+      return parsearModelos(await d.correr(bin, ["models", "--refresh"], 45_000));
+    } catch (e) {
+      if (!banderaRara(e)) throw e;
+    }
+  }
+  return parsearModelos(await d.correr(bin, ["models"], 20_000));
+}
+
+/**
+ * Los modelos con sus niveles de esfuerzo (`opencode models --verbose`). Si el verbose falla o no trae nada, cae a la lista pelada (sin niveles).
+ * `refrescar` pide un catálogo nuevo a models.dev. Rechaza si ni la lista pelada anda.
+ */
+export async function listarModelosConEfforts(d: Deps = depsDeVerdad(), refrescar = false): Promise<{ modelos: string[]; efforts: Record<string, string[]> }> {
+  const bin = resolverOpencode(d.env, d.home, d.existe);
+  // Con `--refresh` primero; una versión que no lo conoce (o no conoce `--verbose`) se reintenta con menos banderas.
+  const intentos = [...(refrescar ? [["models", "--verbose", "--refresh"]] : []), ["models", "--verbose"]];
+  for (const args of intentos) {
+    try {
+      const efforts = parsearModelosVerbose(await d.correr(bin, args, args.includes("--refresh") ? 60_000 : 30_000));
+      const modelos = Object.keys(efforts);
+      if (modelos.length) return { modelos, efforts };
+    } catch {
+      /* esta forma no anda (versión vieja, bandera desconocida, salida enorme): la siguiente */
+    }
+  }
+  return { modelos: await listarModelos(d, refrescar), efforts: {} };
 }
 
 /** El estado de OpenCode en esta máquina: se mira cada vez que se pide (instalarlo o conectarse después lo activa sin reiniciar). */
@@ -151,10 +238,25 @@ export async function estadoOpencode(d: Deps = depsDeVerdad()): Promise<EstadoOp
     proveedores = proveedoresConLogin(d.env, d.home);
     if (proveedores.length) logueado = true;
     else {
-      // Sin auth.json legible: lo que dice el propio programa (`providers list`; antes `auth list`).
-      const n = await d.correr(bin, ["providers", "list"], 10_000).then(contarCredenciales, () => null);
-      const m = n ?? (await d.correr(bin, ["auth", "list"], 10_000).then(contarCredenciales, () => null));
-      logueado = m === null ? null : m > 0;
+      // Sin auth.json legible: lo que dice el propio programa (`providers list`; antes `auth list`), con parseo flojo.
+      let visto: boolean | null = null;
+      // 2.x: `auth list` (una tabla con `OpenCode Console  Personal  stored`; `providers` no existe); 1.x: `providers list` con «N credentials».
+      for (const cmd of [["auth", "list"], ["providers", "list"]]) {
+        const sal = await d.correr(bin, cmd, 10_000).catch(() => null);
+        if (sal === null) continue;
+        const n = contarCredenciales(sal);
+        const limpio = sal.replace(/\u001b\[[0-9;]*[A-Za-z]/g, "");
+        if (/opencode console[^\n]*\bstored\b/i.test(limpio)) {
+          visto = true;
+          if (!proveedores.includes("opencode")) proveedores = [...proveedores, "opencode"];
+        } else if (n !== null && n > 0) visto = true;
+        else if (/\bopencode\b/i.test(limpio) && !/\b0\s+credentials?/i.test(limpio)) {
+          visto = true;
+          if (!proveedores.includes("opencode")) proveedores = [...proveedores, "opencode"];
+        } else if (n === 0) visto ??= false;
+        if (visto) break;
+      }
+      logueado = visto;
     }
   }
   return { version: 1, instalado, versionOpencode, comando: COMANDO_INSTALAR_OPENCODE, logueado, proveedores, consola: proveedores.includes("opencode") };

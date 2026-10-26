@@ -1168,6 +1168,7 @@ export const en = {
   "ramas.actualizar": "Update",
   "ramas.actualizarQue": "It conflicted with main: a worker rebases the branch on main and resolves the conflicts",
   "effort.off": "No reasoning: answers straight away",
+  "effort.otro": "The model's reasoning level",
   "ctxl.chip": "{k}K",
   "ctxl.chipTip": "Context of the local model: {k}K tokens. Click to change it",
   "ctxl.titulo": "Local model context",

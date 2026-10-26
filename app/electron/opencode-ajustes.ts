@@ -5,7 +5,7 @@ import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { ESTADO } from "./estado.ts";
 import { errorT, MARCA } from "./errores.ts";
-import { estadoOpencode, esGratis, hayOpencode, listarModelos, proveedoresConLogin, type EstadoOpencode } from "./opencode.ts";
+import { estadoOpencode, esGratis, hayOpencode, listarModelosConEfforts, proveedoresConLogin, type EstadoOpencode } from "./opencode.ts";
 
 const CACHE = () => path.join(process.env.HILOS_STATE ?? ESTADO, "opencode-modelos.json");
 
@@ -30,23 +30,29 @@ export type EstadoOpencodeUi = EstadoOpencode & {
   actualizado: number | null;
 };
 
-type Cache = { version: 1; en: number; modelos: string[] };
+type Cache = { version: 1; en: number; modelos: string[]; /** Niveles de esfuerzo por modelo (`opencode/xxx` → `["low","medium"]`); ausente en cachés viejas. */ efforts?: Record<string, string[]> };
 
 function leerCache(): Cache | null {
   try {
     const j = JSON.parse(readFileSync(CACHE(), "utf8"));
-    if (j?.version === 1 && typeof j.en === "number" && Array.isArray(j.modelos)) return { version: 1, en: j.en, modelos: j.modelos.filter((m: unknown): m is string => typeof m === "string") };
+    if (j?.version === 1 && typeof j.en === "number" && Array.isArray(j.modelos)) {
+      const modelos = j.modelos.filter((m: unknown): m is string => typeof m === "string");
+      if (!j.efforts || typeof j.efforts !== "object" || Array.isArray(j.efforts)) return { version: 1, en: j.en, modelos };
+      const efforts: Record<string, string[]> = {};
+      for (const [m, v] of Object.entries(j.efforts)) if (Array.isArray(v)) efforts[m] = v.filter((x: unknown): x is string => typeof x === "string");
+      return { version: 1, en: j.en, modelos, efforts };
+    }
   } catch {
     /* sin caché o rota: se vuelve a pedir */
   }
   return null;
 }
 
-function guardarCache(modelos: string[]) {
+function guardarCache(modelos: string[], efforts: Record<string, string[]> = {}) {
   try {
     mkdirSync(path.dirname(CACHE()), { recursive: true });
     const tmp = `${CACHE()}.${process.pid}.tmp`;
-    writeFileSync(tmp, JSON.stringify({ version: 1, en: Date.now(), modelos }));
+    writeFileSync(tmp, JSON.stringify({ version: 1, en: Date.now(), modelos, efforts }));
     renameSync(tmp, CACHE());
   } catch {
     /* sin caché se pide cada vez */
@@ -66,17 +72,25 @@ export function elegibles(todos: string[], conLogin: string[]): string[] {
 export function modelosOpencode(env = process.env): string[] {
   if (!hayOpencode(env)) return [];
   const c = leerCache();
-  if (!c || Date.now() - c.en > 24 * 3600_000) void refrescarModelos().catch(() => {});
+  // Una caché de antes de los niveles (sin `efforts`) se pide de nuevo ya.
+  if (!c || !c.efforts || Date.now() - c.en > 24 * 3600_000) void refrescarModelos().catch(() => {});
   return elegibles(c?.modelos ?? GRATIS_CONOCIDOS, proveedoresConLogin(env));
+}
+
+/** Los niveles de esfuerzo de los modelos que se ofrecen (de la caché): `opencode/xxx` → niveles. Sin caché (o sin niveles): `{}`. */
+export function effortsOpencode(env = process.env): Record<string, string[]> {
+  if (!hayOpencode(env)) return {};
+  const e = leerCache()?.efforts ?? {};
+  return Object.fromEntries(Object.entries(e).filter(([, v]) => v.length));
 }
 
 let enCurso: Promise<string[]> | null = null;
 /** Vuelve a pedirle la lista a `opencode` (`refrescar`: también al catálogo de models.dev) y la guarda. Rechaza si falla. */
 export function refrescarModelos(refrescar = false): Promise<string[]> {
-  return (enCurso ??= listarModelos(undefined, refrescar)
-    .then((m) => {
+  return (enCurso ??= listarModelosConEfforts(undefined, refrescar)
+    .then(({ modelos: m, efforts }) => {
       if (!m.length) throw errorT("main.opencodeSinModelos");
-      guardarCache(m);
+      guardarCache(m, efforts);
       return m;
     })
     .finally(() => (enCurso = null)));

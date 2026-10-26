@@ -3,8 +3,9 @@
 // o motor/dsh/correr.mjs para dsh). Corre `opencode run --format json -m <proveedor>/<modelo>` en el worktree, copia su NDJSON al transcript
 // de la corrida y deja el .json final con la forma de `codex_a_json` / `dsh/correr.mjs` (lo que `pa` mide, muestra y le pasa al jefe).
 //
-//   node correr.mjs --modelo opencode:<proveedor>/<modelo> --cwd <worktree> --stream <ndjson> --salida <json> [--max-pasos N] -- "<tarea>"
+//   node correr.mjs --modelo opencode:<proveedor>/<modelo> --cwd <worktree> --stream <ndjson> --salida <json> [--effort <nivel>] [--max-pasos N] -- "<tarea>"
 //
+//   --effort   nivel de razonamiento del modelo (se pasa como `--variant` a opencode); sin él, el del modelo
 //   --modelo   opencode:<proveedor>/<modelo> (lo que imprime `opencode models`, con el prefijo)
 //   --cwd      el worktree (opencode rechaza solo lo que sale de ahí: `run` rechaza los permisos que no están permitidos)
 //   --stream   acá se copia el NDJSON de opencode a medida que sale (el «transcript» de la corrida)
@@ -128,7 +129,9 @@ async function main() {
   const maxPasos = Number.parseInt(a["max-pasos"] ?? "", 10) > 0 ? Number.parseInt(a["max-pasos"], 10) : 0;
   let truncado = 0;
   // La tarea siempre por stdin (cabe cualquier largo, no se confunde con un flag y no se ve en `ps`): `run` la lee si no hay mensaje.
-  const hijo = spawn(bin, ["run", "--format", "json", "--thinking", "--dir", path.resolve(a.cwd), "-m", prov.valor], { cwd: a.cwd, env, stdio: ["pipe", "pipe", "pipe"] });
+  // El esfuerzo (--effort) es el `--variant` de opencode; vacío o con pinta rara: no se pasa (el modelo usa el suyo).
+  const variante = /^[A-Za-z][A-Za-z0-9_-]{0,23}$/.test(a.effort ?? "") ? ["--variant", a.effort] : [];
+  const hijo = spawn(bin, ["run", "--format", "json", "--thinking", "--dir", path.resolve(a.cwd), "-m", prov.valor, ...variante], { cwd: a.cwd, env, stdio: ["pipe", "pipe", "pipe"] });
   const eventos = [];
   let resto = "";
   let stderr = "";

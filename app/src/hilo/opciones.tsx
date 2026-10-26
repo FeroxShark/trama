@@ -77,7 +77,7 @@ const DESC_EFFORT: Record<string, ClaveSola> = {
  */
 export function effortsOpciones(modelo: string | null | undefined): Opcion[] {
   const def = defDe(modelo);
-  return effortsDe(modelo).map((id, i) => desc({ id, nombre: id, marca: <Nivel n={i} />, ...((def?.effortDefecto ?? "high") === id ? { rec: true } : {}) }, DESC_EFFORT[id]!));
+  return effortsDe(modelo).map((id, i) => desc({ id, nombre: id, marca: <Nivel n={i} />, ...((def?.effortDefecto ?? "high") === id ? { rec: true } : {}) }, DESC_EFFORT[id] ?? "effort.otro"));
 }
 
 export let MODELO_DEFAULT = "claude-opus-5-5";

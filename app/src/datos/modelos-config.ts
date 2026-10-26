@@ -8,7 +8,7 @@ import type { ConfigModelos } from "../hilo/modelos";
 
 /** Lo que mandó el main, validado: lo que no se entiende no entra. */
 export function configValida(x: unknown): ConfigModelos | null {
-  const o = x as { version?: unknown; gemini?: unknown; dsh?: unknown; opencode?: unknown; locales?: unknown; llama?: unknown; lider?: unknown } | null;
+  const o = x as { version?: unknown; gemini?: unknown; dsh?: unknown; opencode?: unknown; opencodeEfforts?: unknown; locales?: unknown; llama?: unknown; lider?: unknown } | null;
   if (!o || typeof o !== "object" || o.version !== 1) return null;
   const locales = (Array.isArray(o.locales) ? o.locales : [])
     .filter((l): l is { id: string; nombre: string; modelo?: unknown } => !!l && typeof l.id === "string" && l.id.startsWith("ollama:") && typeof l.nombre === "string")
@@ -17,9 +17,16 @@ export function configValida(x: unknown): ConfigModelos | null {
     .filter((l): l is { id: string; nombre: string; empresa: string } => !!l && typeof l.id === "string" && typeof l.nombre === "string" && typeof l.empresa === "string")
     .map((l) => ({ id: l.id, nombre: l.nombre, empresa: l.empresa }));
   const opencode = (Array.isArray(o.opencode) ? o.opencode : []).filter((m): m is string => typeof m === "string" && /^[A-Za-z0-9][\w.-]*\/\S+$/.test(m));
+  // Niveles de esfuerzo por modelo de opencode (`opencode/xxx` → ["low", …]); sólo los de modelos listados y con nombres sanos.
+  const opencodeEfforts: Record<string, string[]> = {};
+  if (o.opencodeEfforts && typeof o.opencodeEfforts === "object" && !Array.isArray(o.opencodeEfforts))
+    for (const [m, v] of Object.entries(o.opencodeEfforts as Record<string, unknown>)) {
+      const niveles = Array.isArray(v) ? v.filter((x): x is string => typeof x === "string" && /^[A-Za-z][\w-]{0,23}$/.test(x)) : [];
+      if (opencode.includes(m) && niveles.length) opencodeEfforts[m] = niveles;
+    }
   const l = o.lider as { modelo?: unknown; effort?: unknown } | null;
   const lider = l && typeof l.modelo === "string" ? { modelo: l.modelo, effort: typeof l.effort === "string" ? l.effort : null } : null;
-  return { gemini: o.gemini === true, ...(o.dsh === true ? { dsh: true } : {}), ...(opencode.length ? { opencode } : {}), locales, llama, lider };
+  return { gemini: o.gemini === true, ...(o.dsh === true ? { dsh: true } : {}), ...(opencode.length ? { opencode } : {}), ...(Object.keys(opencodeEfforts).length ? { opencodeEfforts } : {}), locales, llama, lider };
 }
 
 /** Pide la configuración al main; si tarda más de `tope` ms (el motor reconectando) se sigue sin ella. */

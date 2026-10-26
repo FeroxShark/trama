@@ -1156,6 +1156,7 @@ export const es: { [K in keyof typeof en]: string } = {
   "ramas.actualizar": "Actualizar",
   "ramas.actualizarQue": "Chocó con main: un worker rebasea la rama sobre main y resuelve los conflictos",
   "effort.off": "Sin razonar: contesta directo",
+  "effort.otro": "Nivel de razonamiento del modelo",
   "ctxl.chip": "{k}K",
   "ctxl.chipTip": "Contexto del modelo local: {k}K tokens. Tocá para cambiarlo",
   "ctxl.titulo": "Contexto del modelo local",

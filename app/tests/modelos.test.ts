@@ -244,3 +244,16 @@ test("nombreOpencode: el nombre que se lee de un id de opencode models", () => {
   assert.equal(nombreOpencode("opencode/big-pickle"), "Big Pickle");
   assert.equal(esGratisOpencode("opencode/big-pickle") && esGratisOpencode("opencode/beam-free") && !esGratisOpencode("opencode/gpt-5"), true);
 });
+
+test("opencode: los niveles de `opencodeEfforts` llegan a la fila (default medium); sin ellos no hay selector", async () => {
+  const { ponerConfig, effortsDe, defDe } = await import("../src/hilo/modelos.ts");
+  const c = { gemini: false, opencode: ["opencode/beam-free", "opencode/big-pickle"], opencodeEfforts: { "opencode/beam-free": ["low", "medium", "high"] }, locales: [], lider: null };
+  try {
+    ponerConfig(c);
+    assert.deepEqual(effortsDe("opencode:opencode/beam-free"), ["low", "medium", "high"]);
+    assert.equal(defDe("opencode:opencode/beam-free")?.effortDefecto, "medium");
+    assert.deepEqual(effortsDe("opencode:opencode/big-pickle"), []);
+  } finally {
+    ponerConfig(null);
+  }
+});

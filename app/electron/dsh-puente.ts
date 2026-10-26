@@ -27,7 +27,7 @@ import os from "node:os";
 import { ClienteAcp, ErrorAcp, describirError, type BloqueAcp } from "./acp.ts";
 import { entornoAgy } from "./binario.ts";
 import { entornoDsh, escribirParche, esErrorCuota, falta, mensajeCuotaOpencode, parsearModelo, resolverDsh, valorModeloAcp } from "./dsh.ts";
-import { politicaOpencode, entornoOpencode, esErrorCuota as esCuotaOc, mensajeCuotaOpencode as mensajeCuotaOc, parsearModelo as parsearOpencode, resolverOpencode } from "./opencode.ts";
+import { effortParaAcp, politicaOpencode, entornoOpencode, esErrorCuota as esCuotaOc, mensajeCuotaOpencode as mensajeCuotaOc, parsearModelo as parsearOpencode, resolverOpencode } from "./opencode.ts";
 import { leerClavesSync, type NombreClave } from "./claves.ts";
 import { deDueno, dueno } from "./dueno.ts";
 import { ESTADO } from "./estado.ts";
@@ -44,6 +44,8 @@ const sid = arg("sid") ?? "";
 const nombre = arg("nombre") ?? "";
 const modelo = arg("modelo") ?? "";
 const cwd = arg("cwd") || process.cwd();
+/** El esfuerzo del líder (sólo opencode lo usa: `variant` del modelo por ACP). Cambiarlo relanza el puente (lider.ts), así que vale para toda su vida. */
+const effort = arg("effort") ?? "";
 const prefacio = process.env.TRAMA_DSH_PREFACIO ?? "";
 /** Cuánto de lo hablado se repite si hay que empezar una sesión nueva (caracteres). */
 const TOPE_REPETIR = 12000;
@@ -501,7 +503,13 @@ async function levantar(): Promise<void> {
     // Una sesión retomada trae el modelo con el que se guardó: si el líder cambió de modelo, se le dice.
     const quiero = oc ? oc.valor : valorModeloAcp(prov!.proveedor, prov!.modelo);
     const actualOpt = opciones.find((o) => o?.id === "model")?.currentValue;
-    if (actualOpt !== undefined && actualOpt !== quiero) await c.configurar(acpSid, "model", quiero);
+    if (actualOpt !== undefined && actualOpt !== quiero) opciones = (await c.configurar(acpSid, "model", quiero)).configOptions;
+    // opencode: el esfuerzo es el `variant` del modelo; va DESPUÉS de elegir el modelo (si no, se aplica al de antes). Un modelo que no razona lo
+    // rechaza: se avisa por stderr y el turno sigue sin esfuerzo (nunca falla por esto).
+    if (oc) {
+      const nivel = effortParaAcp(opciones, effort);
+      if (nivel) await c.configurar(acpSid, "effort", nivel).catch((e) => process.stderr.write(`opencode: esfuerzo «${nivel}» no aplicado (${String((e as Error)?.message ?? e).slice(0, 200)})\n`));
+    }
     faltaPrefacio = faltaPrefacio || nueva;
   } catch (e) {
     stderrPerdido = c.stderr;

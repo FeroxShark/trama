@@ -91,7 +91,7 @@ export function nombreOpencode(valor: string): string {
 /** ¿Es gratis? (`*-free` y `big-pickle` de OpenCode.) Igual que `esGratis` de electron/opencode.ts. */
 export const esGratisOpencode = (valor: string) => /-free$/.test(valor) || valor === "opencode/big-pickle";
 /** Un modelo del programa `opencode`: el id es `opencode:<proveedor>/<modelo>` (lo que imprime `opencode models`, con el prefijo). */
-const opencode = (valor: string): ModeloDef => {
+const opencode = (valor: string, niveles: readonly string[] = []): ModeloDef => {
   const gratis = esGratisOpencode(valor);
   const prov = valor.slice(0, valor.indexOf("/"));
   return {
@@ -101,8 +101,9 @@ const opencode = (valor: string): ModeloDef => {
     nombre: `${nombreOpencode(valor)} · ${gratis ? "Gratis" : prov === "opencode" ? "Zen" : prov}`,
     desc: gratis ? "modelo.opencodeGratis" : "modelo.opencode",
     ...(gratis ? { gratis: true } : {}),
-    efforts: [],
-    effortDefecto: "high",
+    // Los niveles que `opencode models --verbose` dice (`variants`); sin ellos el modelo no razona y no hay selector. Por defecto `medium` si está.
+    efforts: niveles,
+    effortDefecto: niveles.includes("medium") ? "medium" : (niveles[0] ?? "high"),
   };
 };
 const BASE = tabla.slice();
@@ -115,6 +116,8 @@ export type ConfigModelos = {
   dsh?: boolean;
   /** Los modelos que lista `opencode models` (`<proveedor>/<modelo>`), si el programa `opencode` está instalado: los gratis primero. Sin él (o sin la clave), ninguno. */
   opencode?: string[];
+  /** Los niveles de esfuerzo de esos modelos (`opencode/xxx` → `["low","medium","high"]`); el que no figura no razona. */
+  opencodeEfforts?: Record<string, string[]>;
   /** Los modelos de Ollama del archivo: su id (`ollama:…`), el nombre que se ve y el que Ollama conoce (para `dsh:ollama/<modelo>`). Ni la url ni nada más llega acá. */
   locales: { id: string; nombre: string; modelo?: string }[];
   /** Los modelos de llama-server que declara `locales.json`: su id, el nombre y quién lo hace. Ni la unit ni las rutas llegan acá. */
@@ -167,7 +170,7 @@ export function ponerConfig(c: ConfigModelos | null): { modelo: string; effort: 
   // Un líder por defecto de opencode aparece aunque el programa ya no lo liste; los gratis, primero.
   const delOpencode = c?.lider && esOpencode(c.lider.modelo) ? c.lider.modelo.slice("opencode:".length) : null;
   const valores = [...new Set([...(c?.opencode ?? []), ...(delOpencode ? [delOpencode] : [])])];
-  const opencodeTodos = [...valores.filter(esGratisOpencode), ...valores.filter((v) => !esGratisOpencode(v))].map(opencode);
+  const opencodeTodos = [...valores.filter(esGratisOpencode), ...valores.filter((v) => !esGratisOpencode(v))].map((v) => opencode(v, c?.opencodeEfforts?.[v] ?? []));
   const base = BASE.map((m) => ({ ...m }));
   tabla.length = 0;
   tabla.push(...base, ...llama, ...(c?.gemini ? GEMINI.map((m) => ({ ...m })) : []), ...ollama, ...dshTodos, ...opencodeTodos);

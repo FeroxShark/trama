@@ -455,7 +455,7 @@ function lanzar(g: Guardado, resume: boolean, local?: Local, extra: Extra = {}):
     clase === "opencode"
       ? spawn(
           process.execPath,
-          [PUENTE_DSH, "--sid", g.sid, "--nombre", g.nombre, "--modelo", g.modelo, "--cwd", base.cwd],
+          [PUENTE_DSH, "--sid", g.sid, "--nombre", g.nombre, "--modelo", g.modelo, "--cwd", base.cwd, ...(g.effort ? ["--effort", g.effort] : [])],
           // Sin las keys de dsh: opencode usa su propio login (el de la persona). El prefacio va por el entorno.
           { ...opciones, env: { ...base.env, ELECTRON_RUN_AS_NODE: "1", TRAMA_DSH_PREFACIO: extra.prefacio ?? "" } },
         )

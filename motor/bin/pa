@@ -40,7 +40,7 @@
 #                                        dsh sin instalar, sin key o Ollama caído → sale 95) y
 #                                        opencode:<proveedor>/<modelo> (el programa opencode: sus modelos gratis, p. ej.
 #                                        opencode:opencode/deepseek-v4.1-flash-free, sólo andan por él con tu login de
-#                                        OpenCode Console; sin effort; opencode sin instalar → sale 95)
+#                                        OpenCode Console; effort = su --variant; opencode sin instalar → sale 95)
 #   pa --modelos [--json]                tabla efectiva tipo → modelo (de dónde salió y qué elige reparto hoy), Gemini y locales
 #   pa --cupo-gemini [--json]            cupo de cada suscripción (Claude oficial y Google AI Pro/agy; alias de reparto --cupos)
 #   pa <proyecto> --effort medium "<t>"  esfuerzo del worker (o env PA_EFFORT). haiku low..max (default xhigh);
@@ -4474,8 +4474,13 @@ if (( lanza )) && es_dsh "$modelo"; then
       exit 2
     fi
   fi
-  if (( esfuerzo_flag )); then echo "pa: --effort no va con '$modelo': $eng_n no tiene effort." >&2; exit 2; fi
-  esfuerzo=""; unset PA_EFFORT
+  if es_opencode "$modelo"; then
+    # opencode sí razona por niveles (su `--variant`): el effort pedido (--effort, PA_EFFORT o modelos.json) viaja a correr.mjs; un modelo que no lo tiene lo ignora.
+    oc_effort="$esfuerzo"
+  else
+    if (( esfuerzo_flag )); then echo "pa: --effort no va con '$modelo': $eng_n no tiene effort." >&2; exit 2; fi
+    esfuerzo=""; unset PA_EFFORT
+  fi
   for no_va in "seguir:--seguir ($eng_n no retoma una sesión de pa)" "aca:--aca/--sucio-mio (un worker de $eng_n trabaja siempre en su worktree)" "con_mcp:--mcp (los MCP de claude.ai no existen en $eng_n)" "leer:--leer ($eng_n no tiene un modo de sólo lectura que alcance al bash)"; do
     v_no_va="${no_va%%:*}"
     if (( ${!v_no_va} )); then echo "pa: ${no_va#*:} no va con '$modelo'. Sacalo, o usá un modelo Claude." >&2; exit 2; fi
@@ -5259,6 +5264,7 @@ if [[ "$motor" == dsh ]]; then
   prompt_ds+=$'\n\n'"TAREA:"$'\n'"$prompt"
   dsh_prompt="$prompt_ds"
   args=( --modelo "$modelo" --cwd "$ruta_trabajo" --stream "$dir/$ts.stream.jsonl" --salida "$dir/$ts.json" )
+  [[ "$motor" == dsh ]] && es_opencode "$modelo" && [[ -n "${oc_effort:-}" ]] && args+=( --effort "$oc_effort" )
   if [[ "$dsh_prov" == ollama ]]; then
     IFS=$'\t' read -r dsh_url _ <<<"$(local_de "ollama:$(dsh_modelo_de "$modelo")")"
     args+=( --url "${dsh_url%/}/v1" )

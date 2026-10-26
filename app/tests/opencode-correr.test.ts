@@ -125,3 +125,18 @@ test("config.mjs (pa) y opencode.ts (app) dicen lo mismo", () => {
   assert.equal(cfg.mensajeCuotaOpencode("m"), app.mensajeCuotaOpencode("m"));
   assert.equal(cfg.resolverOpencode({ HILOS_OPENCODE: "/a" }), app.resolverOpencode({ HILOS_OPENCODE: "/a" }));
 });
+
+test("--effort llega a opencode como `--variant` (y vacío o raro no se pasa)", { timeout: 60_000 }, async () => {
+  // Un «opencode» de mentira que vuelca sus argumentos: sólo interesa qué recibe.
+  const falso = path.join(tmp, "oc-args.sh");
+  const log = path.join(tmp, "oc-args.log");
+  writeFileSync(falso, `#!/bin/sh\necho "$@" >> ${log}\ncat >/dev/null\n`, { mode: 0o755 });
+  for (const ef of ["high", "", "--x y"]) {
+    await correr("http://127.0.0.1:1", ["--modelo", MODELO_FALSO, ...(ef ? ["--effort", ef] : [])], "hola", { HILOS_OPENCODE: falso });
+  }
+  const l = readFileSync(log, "utf8").trim().split("\n");
+  assert.equal(l.length, 3);
+  assert.match(l[0]!, /-m falso\/fake-model --variant high$/);
+  assert.doesNotMatch(l[1]!, /--variant/);
+  assert.doesNotMatch(l[2]!, /--variant/);
+});

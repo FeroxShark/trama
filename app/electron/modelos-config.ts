@@ -278,14 +278,16 @@ export const localOllama = (id: string, cfg: ModelosConfig | null = modelosConfi
  * Lo que sabe el renderer: sin url ni nada que no sea para mostrar (`src/datos/modelos-config.ts`). Gemini está si el archivo
  * lo habilita o es el líder por defecto. `null`: no hay archivo y todo es como siempre (ni `agy`, ni `dsh`, ni modelos locales).
  */
-export function vistaModelos(cfg: ModelosConfig | null = modelosConfig(), agy = false, llama: { id: string; nombre: string; empresa: string }[] = [], dsh = false, opencode: string[] = []) {
-  if (!cfg) return agy || llama.length || dsh || opencode.length ? { version: 1, gemini: agy, dsh, ...(opencode.length ? { opencode } : {}), locales: [], llama, lider: null } : null;
+export function vistaModelos(cfg: ModelosConfig | null = modelosConfig(), agy = false, llama: { id: string; nombre: string; empresa: string }[] = [], dsh = false, opencode: string[] = [], opencodeEfforts: Record<string, string[]> = {}) {
+  const ef = opencode.length && Object.keys(opencodeEfforts).length ? { opencodeEfforts } : {};
+  if (!cfg) return agy || llama.length || dsh || opencode.length ? { version: 1, gemini: agy, dsh, ...(opencode.length ? { opencode } : {}), ...ef, locales: [], llama, lider: null } : null;
   return {
     version: 1,
     // DeepSeek Harness se ofrece si `dsh` está instalado o ya es el líder por defecto.
     dsh: dsh || (cfg.lider !== null && claseDeModelo(cfg.lider.modelo) === "dsh"),
     // Los modelos de `opencode models` (con el programa instalado), `opencode/…` sin el prefijo de Trama.
     ...(opencode.length ? { opencode } : {}),
+    ...ef,
     gemini: agy || cfg.gemini || (cfg.lider !== null && claseDeModelo(cfg.lider.modelo) === "gemini"),
     locales: cfg.locales.map((l) => ({ id: l.id, nombre: l.nombre, modelo: l.modelo })),
     llama,

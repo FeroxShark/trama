@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { contarCredenciales, esErrorCuota, esGratis, esModeloOpencode, estadoOpencode, formatearModelo, hayOpencode, listarModelos, mensajeCuotaOpencode, parsearModelo, parsearModelos, politicaOpencode, proveedoresConLogin, resolverOpencode } from "../electron/opencode.ts";
+import { contarCredenciales, esErrorCuota, esGratis, esModeloOpencode, estadoOpencode, formatearModelo, hayOpencode, effortDefectoOpencode, effortParaAcp, listarModelos, listarModelosConEfforts, mensajeCuotaOpencode, parsearModelosVerbose, parsearModelo, parsearModelos, politicaOpencode, proveedoresConLogin, resolverOpencode } from "../electron/opencode.ts";
 
 test("parsearModelo: opencode:<proveedor>/<modelo>", () => {
   assert.deepEqual(parsearModelo("opencode:opencode/deepseek-v4.1-flash-free"), { proveedor: "opencode", modelo: "deepseek-v4.1-flash-free", valor: "opencode/deepseek-v4.1-flash-free" });
@@ -78,4 +78,84 @@ test("cuota y permisos", async () => {
   assert.equal(await pide({ filepath: "/tmp/fuera.txt", parentDir: "/tmp" }), "rechazar");
   assert.equal(await pide({ filepath: "../otro/a" }), "rechazar");
   assert.equal(await pide({ pattern: "x" }), "permitir");
+});
+
+const VERBOSE = [
+  "opencode/beam-free",
+  JSON.stringify({ id: "beam-free", variants: { low: { reasoningEffort: "low" }, medium: {}, high: {} } }, null, 2),
+  "opencode/big-pickle",
+  JSON.stringify({ id: "big-pickle", variants: {} }, null, 2),
+  "\u001b[0mopenai/gpt-x",
+  JSON.stringify({ id: "gpt-x", variants: { minimal: {}, xhigh: {} } }, null, 2),
+  "openrouter/sin-json",
+  "{ roto",
+  "amazon/nova",
+  JSON.stringify({ id: "nova" }, null, 2),
+].join("\n");
+
+test("parsearModelosVerbose: los niveles salen de `variants` (vacío si no razona o el JSON está roto)", () => {
+  assert.deepEqual(parsearModelosVerbose(VERBOSE), {
+    "opencode/beam-free": ["low", "medium", "high"],
+    "opencode/big-pickle": [],
+    "openai/gpt-x": ["minimal", "xhigh"],
+    "openrouter/sin-json": [],
+    "amazon/nova": [],
+  });
+  assert.equal(effortDefectoOpencode(["low", "medium", "high"]), "medium");
+  assert.equal(effortDefectoOpencode(["minimal", "xhigh"]), "minimal");
+});
+
+test("listarModelosConEfforts: verbose; si falla, la lista pelada; --refresh desconocido se reintenta sin él", async () => {
+  const vistos: string[][] = [];
+  const base = { env: { HILOS_OPENCODE: "/x/oc" }, home: "/h", existe: () => true };
+  const ok = await listarModelosConEfforts({ ...base, correr: async (_b, a) => (vistos.push(a), VERBOSE) }, true);
+  assert.deepEqual(ok.efforts["opencode/beam-free"], ["low", "medium", "high"]);
+  assert.deepEqual(vistos, [["models", "--verbose", "--refresh"]]);
+  const rechaza = new Error("Unrecognized flag: --refresh in command opencode models");
+  const v2: string[][] = [];
+  const sinRefresh = await listarModelosConEfforts({ ...base, correr: async (_b, a) => (v2.push(a), a.includes("--refresh") ? Promise.reject(rechaza) : VERBOSE) }, true);
+  assert.ok(sinRefresh.modelos.includes("opencode/beam-free"));
+  assert.deepEqual(v2, [["models", "--verbose", "--refresh"], ["models", "--verbose"]]);
+  const pelada = await listarModelosConEfforts({ ...base, correr: async (_b, a) => (a.includes("--verbose") ? Promise.reject(new Error("x")) : "opencode/beam-free\n") });
+  assert.deepEqual(pelada, { modelos: ["opencode/beam-free"], efforts: {} });
+  // listarModelos con --refresh rechazado cae a `models`
+  const v3: string[][] = [];
+  assert.deepEqual(await listarModelos({ ...base, correr: async (_b, a) => (v3.push(a), a.includes("--refresh") ? Promise.reject(rechaza) : "opencode/big-pickle\n") }, true), ["opencode/big-pickle"]);
+  assert.deepEqual(v3, [["models", "--refresh"], ["models"]]);
+});
+
+test("effortParaAcp: sólo si la sesión ofrece `effort` y el valor es uno de los suyos", () => {
+  const ops = [{ id: "model" }, { id: "effort", options: [{ value: "low" }, { value: "medium" }, { value: "default" }] }];
+  assert.equal(effortParaAcp(ops, "medium"), "medium");
+  assert.equal(effortParaAcp(ops, "xhigh"), null);
+  assert.equal(effortParaAcp(ops, ""), null);
+  assert.equal(effortParaAcp([{ id: "model" }], "low"), null);
+  assert.equal(effortParaAcp([{ id: "effort" }], "low"), "low");
+  assert.equal(effortParaAcp(ops, "--x y"), null);
+});
+
+test("login 2.x: `auth list` con «OpenCode Console … stored» y sin auth.json", async () => {
+  const tmp = mkdtempSync(path.join(os.tmpdir(), "oc-auth2-"));
+  try {
+    const visto: string[] = [];
+    const e = await estadoOpencode({
+      env: { XDG_DATA_HOME: path.join(tmp, "nada"), HILOS_OPENCODE: "/x/oc" },
+      home: tmp,
+      existe: () => true,
+      correr: async (_b, a) => {
+        visto.push(a.join(" "));
+        if (a[0] === "--version") return "2.1.4";
+        if (a[0] === "auth") return "\u001b[90m│\u001b[0m  OpenCode Console  Personal                    stored\n";
+        throw new Error('Unexpected positional argument: "list"');
+      },
+    });
+    assert.deepEqual([e.logueado, e.consola], [true, true]);
+    assert.equal(visto[1], "auth list");
+    // el otro lugar de auth.json (~/.local/share) también cuenta
+    mkdirSync(path.join(tmp, ".local", "share", "opencode"), { recursive: true });
+    writeFileSync(path.join(tmp, ".local", "share", "opencode", "auth.json"), JSON.stringify({ openai: {} }));
+    assert.deepEqual(proveedoresConLogin({ XDG_DATA_HOME: path.join(tmp, "otro") }, tmp), ["openai"]);
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
 });

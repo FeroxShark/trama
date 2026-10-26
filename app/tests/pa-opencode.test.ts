@@ -77,9 +77,13 @@ test("validación: modelo mal armado → 2; --effort → 2; sin opencode → 95 
   const mal = pa(["demo", "-m", "opencode:suelto", "x"]);
   assert.equal(mal.rc, 2);
   assert.match(mal.err, /opencode:<proveedor>\/<modelo>/);
-  const ef = pa(["demo", "-m", "opencode:opencode/beam-free", "--effort", "high", "x"]);
-  assert.equal(ef.rc, 2);
-  assert.match(ef.err, /opencode no tiene effort/);
+  // opencode sí tiene effort (su --variant): ya no se rechaza (acá llega al 95 por no estar instalado); dsh sigue sin tenerlo.
+  const ef = pa(["demo", "-m", "opencode:opencode/beam-free", "--effort", "high", "x"], { HILOS_OPENCODE: path.join(tmp, "no-existe") });
+  assert.equal(ef.rc, 95);
+  assert.doesNotMatch(ef.err, /no tiene effort/);
+  const efDsh = pa(["demo", "-m", "dsh:opencode/big-pickle", "--effort", "high", "x"], { HILOS_DSH: path.join(tmp, "no-existe") });
+  assert.equal(efDsh.rc, 2);
+  assert.match(efDsh.err, /dsh no tiene effort/);
   const sin = pa(["demo", "-m", "opencode:opencode/beam-free", "x"], { HILOS_OPENCODE: path.join(tmp, "no-existe") });
   assert.equal(sin.rc, 95);
   assert.match(sin.err, /opencode no está instalado.*npm i -g opencode-ai/);
