@@ -6,7 +6,7 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Check, X } from "lucide-react";
 import { VERSION } from "../datos/contrato";
-import { fuentePaneles, type EstadoDsh, type NombreClave, type ProveedorDshUi, type Prueba } from "../datos/paneles";
+import { fuentePaneles, type EstadoDsh, type EstadoOpencodeUi, type NombreClave, type ProveedorDshUi, type Prueba } from "../datos/paneles";
 import { t, textoMain } from "../i18n";
 import { Fijo } from "../i18n/Fijo";
 import { mensaje } from "../puente";
@@ -35,7 +35,10 @@ function Resultado({ p }: { p: Probando }) {
   if (p === null) return null;
   if (p === "probando") return <span className="mdl-estado" role="status">{t("ajustes.dshProbando")}</span>;
   return p.ok ? (
-    <span role="status"><Estado ok texto={t("ajustes.dshProbadoOk", { n: p.modelos })} /></span>
+    <span role="status">
+      <Estado ok texto={t("ajustes.dshProbadoOk", { n: p.modelos })} />
+      {p.aviso ? <span className="dsh-motivo">{textoMain(p.aviso)}</span> : null}
+    </span>
   ) : (
     <span role="status" className="dsh-fallo">
       <Estado ok={false} texto={t("ajustes.dshProbadoNo")} />
@@ -107,6 +110,70 @@ function CampoClave({
         </>
       )}
     </div>
+  );
+}
+
+/**
+ * El programa `opencode`: los modelos gratis de OpenCode sólo andan dentro de él (con el login de OpenCode Console). Se ve si está instalado
+ * (y su versión), si hay sesión, cuántos modelos ofrece y «Actualizar modelos»; sin instalar o sin sesión, el paso que falta, para copiar.
+ */
+function SeccionOpencode({ Dato }: { Dato: FilaDato }) {
+  const [e, setE] = useState<EstadoOpencodeUi | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [actualizando, setActualizando] = useState(false);
+  const vivo = useRef(true);
+  useEffect(() => {
+    vivo.current = true;
+    void fuentePaneles.estadoOpencode().then((r) => vivo.current && setE(r), (x) => vivo.current && setErr(mensaje(x)));
+    return () => void (vivo.current = false);
+  }, []);
+  const actualizar = async () => {
+    setActualizando(true);
+    setErr(null);
+    try {
+      const r = await fuentePaneles.actualizarOpencode();
+      if (vivo.current) setE(r);
+    } catch (x) {
+      if (vivo.current) setErr(mensaje(x));
+    } finally {
+      if (vivo.current) setActualizando(false);
+    }
+  };
+  return (
+    <Dato nombre="ajustes.ocPrograma" que="ajustes.ocProgramaQue">
+      {e ? (
+        <>
+          <div className="dsh-fila" data-opencode>
+            {e.instalado ? <Estado ok texto={e.versionOpencode ? t("ajustes.ocInstaladoV", { v: e.versionOpencode }) : t("ajustes.ocInstalado")} /> : <Estado ok={false} texto={t("ajustes.ocNoInstalado")} />}
+            {e.instalado ? (
+              e.logueado === null ? (
+                <Estado ok={false} texto={t("ajustes.ocLoginDesconocido")} />
+              ) : (
+                <Estado ok={e.logueado} texto={e.consola ? t("ajustes.ocConectado") : e.logueado ? t("ajustes.ocConectadoOtro") : t("ajustes.ocSinConectar")} />
+              )
+            ) : null}
+          </div>
+          {e.instalado ? (
+            <div className="dsh-fila">
+              <span className="mdl-estado" role="status">{t("ajustes.ocModelos", { n: e.modelos, g: e.gratis })}</span>
+              <Boton onClick={() => void actualizar()} disabled={actualizando}>
+                {actualizando ? t("ajustes.ocActualizando") : <Fijo k="ajustes.ocActualizar" />}
+              </Boton>
+            </div>
+          ) : (
+            <>
+              <p className="ol-nota">{t("ajustes.ocInstalarPie")}</p>
+              <Comando texto={e.comando} etiqueta={t("ajustes.ocPrograma")} />
+            </>
+          )}
+          {e.instalado && !e.consola ? <p className="ol-nota">{t("ajustes.ocLoginPie")}</p> : null}
+          {e.instalado ? <p className="ol-nota">{t("ajustes.ocUsar")}</p> : null}
+        </>
+      ) : err ? null : (
+        <PanelCargando />
+      )}
+      {err ? <div className="pn-error dsh-err" role="alert">{textoMain(err)}</div> : null}
+    </Dato>
   );
 }
 
@@ -190,6 +257,8 @@ export function AjustesDsh({ Dato }: { Dato: FilaDato }) {
     <Cat id="dsh">
       <section className="pn-sec pn-edita" data-dsh>
         <Fijo k="ajustes.dshIntro" bloque className="pn-nota pn-intro" />
+
+        <SeccionOpencode Dato={Dato} />
 
         <Dato nombre="ajustes.dshPrograma" que="ajustes.dshProgramaQue">
           <div className="dsh-fila">

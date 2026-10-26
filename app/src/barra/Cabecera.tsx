@@ -16,7 +16,7 @@ import type { Uso, Ventana, VentanaCupo } from "../datos/contrato";
 import { fuente } from "../datos/fuente";
 import { nivel } from "../hilo/contexto-logica";
 import { LogoSuscripcion } from "../hilo/Logos";
-import { filasDeCupos, type FilaSusc } from "../datos/cuentas";
+import { MARCA, filasDeCupos, type FilaSusc } from "../datos/cuentas";
 import { MODO } from "../modo";
 import { VIEJO_S, pintorCuando, pintorVisto } from "../tiempo";
 import type { Pintor } from "../reloj";
@@ -153,6 +153,9 @@ function Suscripcion({ f }: { f: FilaSusc }) {
   const grupos = s.grupos ?? [];
   const arriba = grupos.length > 0 ? masUsado(grupos) : null;
   const plegable = grupos.length > 1;
+  // "Google AI Pro" no entra en la columna del nombre: el renglón dice la marca ("Google") y el nombre entero va al tooltip (`quien`).
+  const marca = (MARCA as Record<string, string>)[f.proveedor];
+  const visible = marca && f.corto === f.nombre && f.corto.startsWith(marca) ? marca : f.corto;
   return (
     <>
       {f.primera && <div className="usos-sep" aria-hidden="true" />}
@@ -160,7 +163,7 @@ function Suscripcion({ f }: { f: FilaSusc }) {
         <Grupo
           logo={logo}
           id={s.id}
-          nombre={f.corto}
+          nombre={visible}
           sub={arriba?.nombre}
           quien={arriba ? `${f.nombre} · ${arriba.nombre}` : f.nombre}
           celdas={celdasCupo(s.ventanas?.length ? s.ventanas : (arriba?.ventanas ?? []))}

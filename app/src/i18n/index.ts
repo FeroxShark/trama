@@ -87,13 +87,19 @@ export function textoMain(s: string | null): string | null {
 }
 
 /**
+ * El límite de la SUSCRIPCIÓN de Claude (lo que dice `claude`/`pa`): sesión, 5 horas o semana. Un 429 genérico («rate limit», «usage limit») es de
+ * cualquier proveedor (OpenCode, DeepSeek, Ollama…) y no se reconoce acá: se muestra el texto real. Si el texto nombra a otro proveedor, nunca es de Claude.
+ */
+export const LIMITE_CLAUDE = /^(?![\s\S]*\b(?:opencode|deepseek|dsh|ollama|agy|gemini|openai)\b)[\s\S]*(?:l[ií]mite de sesi[oó]n|session limit|usage limit|\b\d+-hour limit|weekly limit|l[ií]mite semanal)/i;
+
+/**
  * Las salidas de `pa` y los fallos de `claude` que se repiten, en una frase simple. Se reconocen por el
  * código de salida (si se lo sabe) o por lo que dijo `pa` por stderr (sólo sus dos últimas líneas
  * llegan hasta acá). Lo que no está acá no se toca: ver `fraseError`.
  */
 const FRASES: { rc?: number; clave: ClaveSola; re: RegExp }[] = [
   { rc: 75, clave: "error.ocupado", re: /tope global|puestos de .* est[aá]n ocupados|candado de git .* sigue ocupado/i },
-  { rc: 76, clave: "error.limite", re: /l[ií]mite de sesi[oó]n|usage limit|session limit|rate.?limit/i },
+  { rc: 76, clave: "error.limite", re: LIMITE_CLAUDE },
   { rc: 78, clave: "error.sinResultado", re: /para cerrarlo a mano|se qued[oó] sin turnos|sin (?:el bloque )?RESULTADO|error_max_turns/i },
   { rc: 79, clave: "error.sucio", re: /Commitealos, movelos o tiralos|sin commitear archivos que la rama/i },
   { rc: 80, clave: "error.conflicto", re: /rebase de .* tiene conflictos|pa .* --actualizar/i },

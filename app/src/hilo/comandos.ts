@@ -91,7 +91,7 @@ export const PROPIOS_AGY: { nombre: string; args: string | null; clave: ClaveCom
 export const esModeloAgy = (modelo: string | null | undefined): boolean => /^(?:gemini-|agy:)/.test(modelo ?? "");
 
 /** El motor de un modelo: `dsh:*` corre por DeepSeek Harness; no se cruza con los otros en la misma sesión (sí entre los suyos). */
-const motorDe = (modelo: string | null | undefined): "claude" | "agy" | "dsh" => (/^dsh:/.test(modelo ?? "") ? "dsh" : esModeloAgy(modelo) ? "agy" : "claude");
+const motorDe = (modelo: string | null | undefined): "claude" | "agy" | "dsh" | "opencode" => (/^opencode:/.test(modelo ?? "") ? "opencode" : /^dsh:/.test(modelo ?? "") ? "dsh" : esModeloAgy(modelo) ? "agy" : "claude");
 
 /** Si el CLI todavía no dijo cuáles hay (ningún líder arrancó nunca): los de fábrica. */
 export const ESTILOS_FABRICA = ["default", "Explanatory", "Learning"];
@@ -139,7 +139,7 @@ export function parsearComando(
         return { tipo: "error", clave: "comando.cambioProveedor", v: x.id };
       return { tipo: "modelo", modelo: x.id };
     }
-    if (tieneProveedor && a && (motor === "agy" ? /^(?:claude-|opus$|sonnet$|haiku$|fable$|ollama:|dsh:)/.test(a) : motor === "dsh" ? /^(?:claude-|opus$|sonnet$|haiku$|fable$|ollama:|gemini-|agy:)/.test(a) : /^dsh:/.test(a) || esModeloAgy(a)))
+    if (tieneProveedor && a && (motor === "agy" ? /^(?:claude-|opus$|sonnet$|haiku$|fable$|ollama:|dsh:|opencode:)/.test(a) : motor === "dsh" || motor === "opencode" ? /^(?:claude-|opus$|sonnet$|haiku$|fable$|ollama:|gemini-|agy:|dsh:|opencode:)/.test(a) : /^(?:dsh|opencode):/.test(a) || esModeloAgy(a)))
       return { tipo: "error", clave: "comando.cambioProveedor", v: arg };
     return { tipo: "error", clave: "comando.usoModelo", v: arg };
   }

@@ -2033,6 +2033,13 @@
 .aj-cat .pn-sec > :last-child {
   margin-bottom: var(--esp-3);
 }
+/* La guía de Ollama y el estado del celular abren su sección sin título: sin esto su tarjeta quedaba pegada al borde de arriba (a los costados tiene esp-4). */
+.aj-cat .pn-sec > :is(.ol-guia, .cel-estado):first-child {
+  margin-top: var(--esp-4);
+}
+.aj-cat .pn-sec > .ol-guia:not(:last-child) {
+  margin-bottom: var(--esp-3);
+}
 .aj-cat .pn-dato {
   min-height: var(--alto-fila);
   align-items: center;
@@ -2149,20 +2156,40 @@
   display: grid;
   gap: var(--esp-3);
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  grid-template-rows: auto 1fr;
-  align-items: start;
+  /* Las dos chicas (Claude y ChatGPT) de la misma altura, una al lado de la otra; la de Google, que es alta (un renglón por grupo),
+     va debajo a todo el ancho y reparte sus grupos en columnas: nunca queda un hueco al costado de una tarjeta alta. */
+  align-items: stretch;
+}
+.cu-tarjetas > [data-opc] {
+  display: flex;
+  min-width: 0;
+}
+.cu-tarjetas > [data-opc] > * {
+  flex: 1;
+  min-width: 0;
 }
 .cu-tarjetas > [data-opc="cu.claude"] {
-  grid-column: 1;
-  grid-row: 1;
+  order: 1;
 }
 .cu-tarjetas > [data-opc="cu.chatgpt"] {
-  grid-column: 1;
-  grid-row: 2;
+  order: 2;
 }
 .cu-tarjetas > [data-opc="cu.google"] {
-  grid-column: 2;
-  grid-row: 1 / span 2;
+  order: 3;
+  grid-column: 1 / -1;
+}
+.cu-tarjetas > [data-opc="cu.google"] .cu-cuerpo {
+  display: grid;
+  align-items: start;
+  gap: var(--esp-3) var(--esp-6);
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+}
+.cu-tarjetas > [data-opc="cu.google"] .cu-cuerpo > :not(.cu-grupo) {
+  grid-column: 1 / -1;
+}
+.cu-tarjetas > [data-opc="cu.google"] .cu-cuerpo > .cu-grupo + .cu-grupo {
+  padding-top: 0;
+  border-top: 0;
 }
 .cu-cab {
   display: flex;
@@ -2268,11 +2295,9 @@
 @media (max-width: 48rem) {
   .cu-tarjetas {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: none;
   }
   .cu-tarjetas > [data-opc] {
     grid-column: 1;
-    grid-row: auto;
   }
 }
 
@@ -2490,7 +2515,7 @@
 }
 .pn-cargando-barra {
   height: 0.75rem;
-  border-radius: 0.25rem;
+  border-radius: var(--radio-2);
   background: linear-gradient(90deg, var(--capa-tile) 25%, var(--capa-track) 50%, var(--capa-tile) 75%) 0 0 / 200% 100%;
   animation: pn-brillo 1.4s linear infinite;
 }

@@ -282,6 +282,10 @@ body,
   .grupo {
     --g-nombre: 4.5rem;
   }
+  /* Sin lugar para el logo: el nombre ("Google", "ChatGPT") se lee entero y la marca ya lo dice. */
+  .g-id .logo {
+    display: none;
+  }
   .g-hasta,
   .g-sub {
     display: none;
@@ -305,6 +309,12 @@ body,
   overflow: visible;
   border-radius: 0;
   color: var(--txt-3);
+}
+/* Más angosta todavía, el "falta" de la celda (queda en el tooltip) cede ante el porcentaje y la barra. */
+@container (max-width: 16rem) {
+  .uso .n {
+    display: none;
+  }
 }
 .g-n {
   overflow: hidden;
@@ -377,8 +387,11 @@ body,
   white-space: nowrap;
 }
 .uso .n {
-  flex: none;
+  min-width: 0;
+  flex: 0 1 auto;
+  overflow: hidden;
   color: var(--txt-3);
+  text-overflow: ellipsis;
 }
 .uso .pct {
   margin-left: auto;
@@ -900,8 +913,12 @@ kbd {
   color: var(--txt-2);
 }
 .lider .s {
+  min-width: 0;
+  overflow: hidden;
   font-size: var(--letra-3);
   color: var(--apagado);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 /* Sin proceso: lo mataron (rojo, como "líder muerto") o cerró (apagado). Se retoma desde su vista. */
 .lider[data-caido] .corona {
@@ -1259,15 +1276,15 @@ kbd {
 
 /* Un solo botón al hover: Cerrar. Vive al lado del botón de la fila, no adentro. */
 /* Del alto del botón, como en la maqueta, pero sobre la segunda línea: el
-   numerito queda entero arriba y se le llega con el mouse a su tooltip. */
+   numerito queda entero arriba y se le llega con el mouse a su tooltip.
+   Sin fondo propio: el fondo de la barra es un degradé y el hover de la fila es translúcido, así que nada sólido les
+   iguala. En cambio la fila mide el grupo (`--acc-w`, src/barra/Fila.tsx) y su texto termina antes, con lugar de sobra. */
 .acc {
   position: absolute;
   right: 0.375rem;
   bottom: 0.1875rem;
   display: flex;
   gap: var(--esp-1);
-  padding-left: var(--esp-3);
-  background: linear-gradient(90deg, transparent, var(--sup-1) 0.375rem);
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.12s;
@@ -1278,8 +1295,10 @@ kbd {
   opacity: 1;
   pointer-events: auto;
 }
-.wbtn[data-activa] + .acc {
-  background: linear-gradient(90deg, transparent, var(--sup-4) 0.375rem);
+.w:has(> .acc):hover .l2,
+.wbtn[data-cursor]:has(+ .acc) .l2,
+.w:has(> .acc:focus-within) .l2 {
+  padding-right: calc(var(--acc-w, 0px) + 0.5rem);
 }
 /* La fila del líder lleva su "Cerrar líder" igual que el Settle del worker. */
 /* El líder y su primer worker, separados como las filas entre sí. */
@@ -1293,15 +1312,16 @@ kbd {
   top: 0;
   bottom: 0;
   align-items: center;
-  background: linear-gradient(90deg, transparent, var(--sup-2) 0.375rem);
+}
+.lw:has(> .acc):hover .txt,
+.lw:has(> .acc:focus-within) .txt,
+.lider[data-cursor]:has(~ .acc) .txt {
+  padding-right: calc(var(--acc-w, 0px) + 0.5rem);
 }
 .lw:has(> .acc):hover .cache,
 .lw:has(> .acc:focus-within) .cache,
 .lider[data-cursor]:has(~ .acc) .cache {
   visibility: hidden;
-}
-.lw:has(> .lider[data-activa]) > .acc {
-  background: linear-gradient(90deg, transparent, var(--sup-4) 0.375rem);
 }
 .lw:hover > .acc,
 .lider[data-cursor] ~ .acc {
@@ -1320,6 +1340,9 @@ kbd {
   text-overflow: ellipsis;
 }
 .acc:has(.settle-conf) {
+  padding-left: var(--esp-2);
+  border-radius: var(--radio-2);
+  background: var(--sup-2);
   top: auto;
   bottom: 0.1875rem;
   left: 0.375rem;
@@ -1530,7 +1553,8 @@ kbd {
 
 .pie {
   position: relative;
-  z-index: 3;
+  /* Sobre los avisos de arriba (`.avc`, z 4): los tooltips de sus botones salen hacia arriba y no pueden quedar debajo. */
+  z-index: 5;
   display: flex;
   flex: none;
   gap: var(--esp-0-5);
@@ -1763,8 +1787,9 @@ kbd {
   position: relative;
   z-index: 4;
   flex: none;
-  padding: 0 var(--esp-2) var(--esp-1-5);
-  background: var(--negro);
+  /* Una fila adentro, alineada con las demás de la barra (el mismo margen del pie), no una franja de borde a borde. */
+  padding: 0 var(--esp-3) var(--esp-1-5);
+  background: transparent;
 }
 .avc-b {
   display: flex;
@@ -1772,10 +1797,10 @@ kbd {
   height: 1.5rem;
   align-items: center;
   gap: var(--esp-2);
-  padding: 0 var(--esp-2);
+  padding: 0 var(--esp-3);
   border: 0;
-  border-radius: var(--radio-2);
-  background: transparent;
+  border-radius: var(--r-sm);
+  background: var(--capa-card);
   color: var(--txt-3);
   font-size: var(--letra-4);
   white-space: nowrap;
@@ -1787,7 +1812,7 @@ kbd {
 }
 .avc-b:hover,
 .avc-b[aria-expanded="true"] {
-  background: var(--sup-1);
+  background: var(--capa-hover);
   color: var(--texto-1);
 }
 .avc-p {
@@ -1800,9 +1825,9 @@ kbd {
 .avc-g {
   position: absolute;
   bottom: calc(100% + 0.125rem);
-  left: 0.5rem;
+  left: var(--esp-3);
   display: flex;
-  width: min(16.25rem, calc(100% - 1rem));
+  width: min(16.25rem, calc(100% - 1.5rem));
   flex-direction: column;
   gap: var(--esp-1-5);
   padding: var(--esp-2-5) var(--esp-3);
@@ -5778,5 +5803,190 @@ summary.sis-div-t:hover,
     position: absolute;
     inset: -0.5rem;
     content: "";
+  }
+}
+
+/* --- Selector en columnas (los modelos): una columna por proveedor, todas a la vista ------------------------ */
+.menu[data-columnas] {
+  width: min(calc(var(--n, 1) * 15.5rem + 1rem), 95vw);
+  max-width: 95vw;
+  max-height: min(34rem, calc(100dvh - 1rem));
+  overflow: hidden;
+  gap: 0;
+  padding: var(--esp-1) var(--esp-1) var(--esp-1-5);
+}
+.mc-cab {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--esp-3);
+  padding: var(--esp-1) var(--esp-1-5) var(--esp-1-5);
+}
+.mc-cab .mh {
+  padding: 0;
+}
+.mc-busca {
+  display: flex;
+  min-width: 0;
+  flex: 0 1 15rem;
+  align-items: center;
+  gap: var(--esp-1-5);
+  padding: 0 var(--esp-2);
+  border: 1px solid var(--borde-3);
+  border-radius: var(--radio-2);
+  color: var(--texto-7);
+}
+.mc-busca:focus-within {
+  border-color: var(--texto-6);
+  color: var(--texto-3);
+}
+.mc-busca input {
+  min-width: 0;
+  flex: 1;
+  height: 1.75rem;
+  border: 0;
+  background: transparent;
+  color: var(--texto-2);
+  font: inherit;
+  font-size: var(--letra-4);
+  outline: none;
+}
+.mc-busca input::-webkit-search-cancel-button {
+  display: none;
+}
+.mc-lista {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--borde-3) transparent;
+}
+.mc-arriba {
+  padding-bottom: var(--esp-1);
+  border-bottom: 1px solid var(--borde-2);
+  margin-bottom: var(--esp-1);
+}
+.mc-cols {
+  display: grid;
+  grid-template-columns: repeat(var(--n, 1), minmax(0, 1fr));
+  align-items: start;
+}
+.mc-col {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 1px;
+  padding: 0 var(--esp-1);
+}
+.mc-col + .mc-col {
+  border-left: 1px solid var(--borde-2);
+}
+/* El título de la columna: el logo y el proveedor; queda pegado arriba si la lista scrollea. */
+.mc-tit {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: var(--esp-2);
+  padding: var(--esp-1-5) var(--esp-2-5) var(--esp-2);
+  border-bottom: 1px solid var(--borde-2);
+  margin-bottom: var(--esp-1);
+  background: var(--sup-1);
+  color: var(--texto-4);
+  font-size: var(--letra-4);
+  font-weight: 600;
+}
+.mc-tit .logo {
+  flex: none;
+  color: var(--texto-3);
+}
+.mc-sub {
+  padding: var(--esp-2) var(--esp-2-5) var(--esp-1);
+  color: var(--texto-7);
+  font-size: var(--letra-2);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.mc-nada {
+  padding: var(--esp-4) var(--esp-3);
+  color: var(--texto-7);
+  font-size: var(--letra-4);
+  text-align: center;
+}
+/* Una opción en columna: el nombre puede partirse y la descripción tiene hasta dos renglones. */
+.menu[data-columnas] .op {
+  align-items: start;
+}
+.menu[data-columnas] .op .on1 {
+  align-items: flex-start;
+  white-space: normal;
+  overflow: visible;
+}
+.menu[data-columnas] .op .on1 .logo {
+  margin-top: var(--esp-1);
+}
+.menu[data-columnas] .op .on-n {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.menu[data-columnas] .op .md {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  padding-left: calc(0.875rem + var(--esp-2));
+  white-space: normal;
+}
+.menu[data-columnas] .op .ok {
+  grid-row: 1;
+  margin-top: var(--esp-1);
+}
+/* La elegida no se dice sólo con el tilde: también va en negrita y con el fondo marcado. */
+.menu[data-columnas] .op[aria-selected="true"] {
+  background: var(--sup-2);
+}
+.menu[data-columnas] .op[aria-selected="true"] .on-n {
+  font-weight: 600;
+}
+/* Pantallas medianas: de a dos columnas. */
+@media (max-width: 62rem) {
+  .menu[data-columnas] {
+    width: min(calc(min(var(--n, 1), 2) * 15.5rem + 1rem), 95vw);
+  }
+  .mc-cols {
+    grid-template-columns: repeat(min(var(--n, 1), 2), minmax(0, 1fr));
+    row-gap: var(--esp-2);
+  }
+  .mc-col:nth-child(2n + 1) {
+    border-left: 0;
+  }
+}
+/* Celular: una sola columna, con el título de cada proveedor pegado arriba mientras se recorre. */
+@media (max-width: 37.5rem) {
+  .menu[data-columnas] {
+    width: 95vw;
+  }
+  .mc-cab {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--esp-1-5);
+  }
+  .mc-busca {
+    flex: none;
+  }
+  .mc-cols {
+    display: flex;
+    flex-direction: column;
+  }
+  .mc-col,
+  .mc-col + .mc-col {
+    border-left: 0;
+  }
+  .mc-col + .mc-col {
+    margin-top: var(--esp-1);
   }
 }

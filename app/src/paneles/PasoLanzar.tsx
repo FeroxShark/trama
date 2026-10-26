@@ -117,7 +117,7 @@ function Dialogo({ p }: { p: PedidoLanzar }) {
         <p className="lz-ayuda">{t(textos.ayuda)}</p>
         <div className="lz-fila">
           <div className="pn-abajo lz-sel">
-            <Selector etiqueta={t("lanzar.modelo")} opciones={p.modelos} valor={modelo} alElegir={elegirModelo} disabled={yendo} />
+            <Selector etiqueta={t("lanzar.modelo")} opciones={p.modelos} valor={modelo} alElegir={elegirModelo} disabled={yendo} columnas />
           </div>
           <div className="pn-abajo lz-sel">
             <Selector

@@ -9,7 +9,8 @@ import { Chip, Interruptor } from "../ui/componentes";
 import { VERSION, type Uso } from "../datos/contrato";
 import { fuente } from "../datos/fuente";
 import { fuentePaneles, type Bajada, type EntornoOllama, type EstadoModelos, type Sondeo } from "../datos/paneles";
-import { defDe } from "../hilo/modelos";
+import { defDe, EMPRESAS, type Empresa } from "../hilo/modelos";
+import { Logo } from "../hilo/Logos";
 import { effortsOpciones } from "../hilo/opciones";
 import { Selector, type Opcion } from "../hilo/Selector";
 import { t, textoMain, type ClaveSola } from "../i18n";
@@ -66,7 +67,14 @@ import { esClaude, urlOllama } from "../../electron/modelos-tipos";
 const VARIANTE = MODO.variante ?? "";
 const ES_CAPTURA = VARIANTE.startsWith("mdl") || VARIANTE === "sinmdl";
 
-const GRUPO: Record<Proveedor, string | undefined> = { anthropic: "Anthropic", google: "Google", ollama: "Ollama", otro: undefined };
+const GRUPO: Record<Proveedor, string> = { anthropic: "Anthropic", google: "Google", ollama: "Ollama", otro: "" };
+/** El logo y el lugar de cada proveedor en el menú en columnas (los de Ollama van en "Local", como en el selector de modelos del hilo). */
+const COLUMNA: Record<Proveedor, { empresa: Empresa; col: string; colNombre: string; colOrden: number } | null> = {
+  anthropic: { empresa: "anthropic", col: "anthropic", colNombre: EMPRESAS.anthropic, colOrden: 0 },
+  google: { empresa: "google", col: "google", colNombre: EMPRESAS.google, colOrden: 1 },
+  ollama: { empresa: "ollama", col: "local", colNombre: EMPRESAS.local, colOrden: 3 },
+  otro: null,
+};
 
 const sinMarca = (o: Opcion): Opcion => ({ ...o, rec: false });
 
@@ -83,7 +91,21 @@ function descDe(m: Modelo): string {
 
 /** Las opciones de un selector de modelo, con "Como hoy" delante cuando se puede dejar sin elegir. */
 function opcionesDe(modelos: Modelo[], comoHoy: boolean): Opcion[] {
-  const ops = modelos.map((m): Opcion => ({ id: m.id, nombre: m.nombre, desc: descDe(m), grupo: GRUPO[m.proveedor] }));
+  const ops = modelos.map((m): Opcion => {
+    const c = COLUMNA[m.proveedor];
+    if (!c) return { id: m.id, nombre: m.nombre, desc: descDe(m), grupo: t("mdl.grupoOtro"), col: "otro", colOrden: 4 };
+    return {
+      id: m.id,
+      nombre: m.nombre,
+      desc: descDe(m),
+      grupo: GRUPO[m.proveedor],
+      marca: <Logo empresa={c.empresa} />,
+      col: c.col,
+      colNombre: c.colNombre,
+      colMarca: <Logo empresa={c.col === "local" ? "local" : c.empresa} />,
+      colOrden: c.colOrden,
+    };
+  });
   const cab: Opcion[] = [];
   if (comoHoy) cab.push({ id: "", nombre: t("ajustes.mdlComoHoy"), desc: t("ajustes.mdlComoHoyQue") });
   return [...cab, ...ops];
@@ -119,7 +141,7 @@ function EleccionSel({
   const claude = valor && esClaude(valor.modelo);
   return (
     <div className="pn-sel">
-      <Selector etiqueta={t("ajustes.mdlSelModelo", { que: etiqueta })} opciones={ops} valor={valor?.modelo ?? ""} alElegir={alModelo} reserva={[]} abierto={abierto} />
+      <Selector etiqueta={t("ajustes.mdlSelModelo", { que: etiqueta })} opciones={ops} valor={valor?.modelo ?? ""} alElegir={alModelo} reserva={[]} abierto={abierto} columnas />
       {claude ? (
         <Selector
           etiqueta={t("ajustes.mdlSelEsfuerzo", { que: etiqueta })}
@@ -402,6 +424,7 @@ export function AjustesModelos({ Dato, plan = null }: { Dato: FilaDato; plan?: s
                     valor=""
                     alElegir={(id) => cambiar(todoEn(b, id))}
                     reserva={enOtros("ajustes.mdlTodoElegir")}
+                    columnas
                   />
                 </div>
               </Dato>

@@ -5,6 +5,7 @@ import { resumir } from "../paneles/resumen";
 import type { EstadoModelos } from "../../electron/modelos-config";
 import type { EntornoOllama } from "../../electron/ollama-entorno";
 import type { EstadoDsh } from "../../electron/dsh-ajustes";
+import type { EstadoOpencodeUi } from "../../electron/opencode-ajustes";
 import type { Ajustes, Consulta, Medido, Corrida, EstadoAuto, EstadoSalud, Medicion, Muestra, PiezaConsulta } from "./paneles";
 
 const AHORA = Math.floor(Date.now() / 1000);
@@ -382,3 +383,11 @@ export function historialFalso(dias: 7 | 30, rol?: "lider" | "worker" | "subagen
     sinDato: { sinArranque: 0, sinCalibrar: dias === 7 ? 0 : 2, lineas: 0, parserViejo: 0, meses: 0 },
   };
 }
+
+/** OpenCode en la máquina de las capturas: `oc-sin` (no instalado), `oc-sin-login` (instalado, sin conectar); si no, instalado y conectado a OpenCode Console. */
+export const ESTADO_OPENCODE = (variante: string | null): EstadoOpencodeUi => {
+  const comun = { version: 1 as const, comando: "npm i -g opencode-ai" };
+  if (variante === "oc-sin") return { ...comun, instalado: false, versionOpencode: null, logueado: null, proveedores: [], consola: false, modelos: 0, gratis: 0, actualizado: null };
+  if (variante === "oc-sin-login") return { ...comun, instalado: true, versionOpencode: "2.1.4", logueado: false, proveedores: [], consola: false, modelos: 9, gratis: 9, actualizado: null };
+  return { ...comun, instalado: true, versionOpencode: "2.1.4", logueado: true, proveedores: ["opencode"], consola: true, modelos: 12, gratis: 9, actualizado: 1_760_000_000_000 };
+};

@@ -11,7 +11,7 @@ import { promptRetomar } from "./retomar";
 import { promptArreglar } from "./arreglar";
 import { salud as saludDe, type EstadoSalud } from "./salud";
 import type { Hilo } from "./contrato";
-import { ACCESOS_FALSOS, AJUSTES, AUTO, ENTORNO_OLLAMA, ESTADO_DSH, MODELOS_FIJOS, OLLAMA_FALSO, arranqueMedidoFalso, historialFalso, MEDICION, REMOTO, SALUD, URL_REMOTO_FALSA } from "./fixtures-paneles";
+import { ACCESOS_FALSOS, AJUSTES, AUTO, ENTORNO_OLLAMA, ESTADO_DSH, ESTADO_OPENCODE, MODELOS_FIJOS, OLLAMA_FALSO, arranqueMedidoFalso, historialFalso, MEDICION, REMOTO, SALUD, URL_REMOTO_FALSA } from "./fixtures-paneles";
 import type { EstadoAuto } from "../../electron/autointegrar";
 import type { Consulta, PiezaConsulta } from "../../electron/historial";
 import type { Arranque, Medido } from "../../electron/arranque";
@@ -21,8 +21,9 @@ import type { Bajada } from "../../electron/ollama-bajar";
 import type { EntornoOllama } from "../../electron/ollama-entorno";
 import type { EstadoDsh, Prueba } from "../../electron/dsh-ajustes";
 import type { NombreClave } from "../../electron/claves";
+import type { EstadoOpencodeUi } from "../../electron/opencode-ajustes";
 
-export type { Arranque, Bajada, ConfigModelos, Consulta, EntornoOllama, EstadoAuto, EstadoDsh, EstadoModelos, EstadoSalud, Medido, NombreClave, PiezaConsulta, Prueba, Sondeo };
+export type { Arranque, Bajada, ConfigModelos, Consulta, EntornoOllama, EstadoAuto, EstadoDsh, EstadoModelos, EstadoOpencodeUi, EstadoSalud, Medido, NombreClave, PiezaConsulta, Prueba, Sondeo };
 
 /** Los proveedores de DeepSeek Harness que se pueden probar desde Ajustes. */
 export type ProveedorDshUi = "opencode" | "deepseek" | "ollama";
@@ -144,6 +145,10 @@ export interface FuentePaneles {
   claveDsh(nombre: NombreClave, valor: string | null): Promise<EstadoDsh>;
   /** Prueba un proveedor con la key guardada (`GET /models`; Ollama, `/api/tags`); nunca rechaza por no contestar. */
   probarDsh(proveedor: ProveedorDshUi, url?: string): Promise<Prueba>;
+  /** OpenCode (el programa `opencode`): instalado, versión, login y cuántos modelos ofrece. */
+  estadoOpencode(): Promise<EstadoOpencodeUi>;
+  /** Vuelve a listar los modelos de `opencode`; devuelve el estado de después o rechaza con el motivo. */
+  actualizarOpencode(): Promise<EstadoOpencodeUi>;
   /** Guarda el plan (`pa --plan`) y/o la red de seguridad (`autoCompactWindow`); devuelve Ajustes como quedó o rechaza con el motivo. */
   guardarAjustes(cambio: CambioAjustes): Promise<Ajustes>;
   /** El acceso desde el celular: cómo está y dónde escucha. */
@@ -209,6 +214,7 @@ function cae(que: keyof typeof FALLAS_PANEL): boolean {
 let modelosFijos: EstadoModelos | undefined;
 /** DeepSeek Harness de los fixtures (instalado o no, con qué keys): vive mientras la página. */
 let dshFijo: EstadoDsh | undefined;
+let ocFijo: EstadoOpencodeUi | undefined;
 
 const FALLA_CONFLICTO = "pa: conflicts merging into main. A worker can resolve it: pa atlas --actualizar 20261003-100000-11111";
 
@@ -293,6 +299,16 @@ const fija: FuentePaneles = {
     if (MODO.variante === "dsh-falla" && proveedor === "deepseek") return { ok: false, motivo: textoT("main.dshClaveMala", { k: "DEEPSEEK_API_KEY" }) };
     if (proveedor === "ollama") return { ok: true, modelos: OLLAMA_FALSO.length };
     return { ok: true, modelos: proveedor === "opencode" ? 14 : 3 };
+  },
+  async estadoOpencode() {
+    await espera(80);
+    ocFijo ??= ESTADO_OPENCODE(MODO.variante);
+    return structuredClone(ocFijo);
+  },
+  async actualizarOpencode() {
+    await espera(600);
+    ocFijo = { ...(ocFijo ?? ESTADO_OPENCODE(MODO.variante)), actualizado: Date.now() };
+    return structuredClone(ocFijo);
   },
   async bajarModelo(url, modelo) {
     const nombre = modelo.trim();
@@ -549,6 +565,12 @@ const conPa = (m: NonNullable<typeof main>): FuentePaneles => ({
   },
   async probarDsh(proveedor, url) {
     return (await m.paneles.probarDsh(proveedor, url).catch(fallar)) as Prueba;
+  },
+  async estadoOpencode() {
+    return (await m.paneles.estadoOpencode().catch(fallar)) as EstadoOpencodeUi;
+  },
+  async actualizarOpencode() {
+    return (await m.paneles.actualizarOpencode().catch(fallar)) as EstadoOpencodeUi;
   },
   alBajar(fn) {
     return m.paneles.alBajar((b) => {

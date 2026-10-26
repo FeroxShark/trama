@@ -48,8 +48,9 @@ export const ITEMS: readonly Item[] = [
   { cat: "locales", nombre: "ajustes.mdlBajar", que: "ajustes.mdlBajarQue", sin: "ollama descargar download pull bajar modelo model" },
   { cat: "locales", nombre: "ajustes.mdlLocalesAgregados", que: "ajustes.mdlLocalesQue", sin: "ollama locales agregados added direccion address url servidor server quitar remove" },
 
+  { cat: "dsh", nombre: "ajustes.ocPrograma", que: "ajustes.ocProgramaQue", sin: "opencode open code gratis free connect login console zen modelos models actualizar refresh instalar install" },
   { cat: "dsh", nombre: "ajustes.dshPrograma", que: "ajustes.dshProgramaQue", sin: "dsh deepseek harness instalar install npm version programa" },
-  { cat: "dsh", nombre: "ajustes.dshOpencode", que: "ajustes.dshOpencodeQue", sin: "opencode zen gratis free clave key api token modelos big pickle glm flint longcat" },
+  { cat: "dsh", nombre: "ajustes.dshOpencode", que: "ajustes.dshOpencodeQue", sin: "opencode zen clave key api token pago paid modelos dsh" },
   { cat: "dsh", nombre: "ajustes.dshDeepseek", que: "ajustes.dshDeepseekQue", sin: "deepseek clave key api token probar test v4 flash" },
   { cat: "dsh", nombre: "ajustes.dshOllama", que: "ajustes.dshOllamaQue", sin: "ollama local dsh probar test" },
 

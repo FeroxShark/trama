@@ -45,6 +45,12 @@ const LOGOS: Record<Empresa, () => React.ReactElement> = {
       <path {...TRAZO} d="m7.8 9.5 3 2.5-3 2.5M13 14.8h3.4" />
     </svg>
   ),
+  // OpenCode: un cuadrado con un corchete de terminal (`>_` abierto), una marca genérica y no la de la empresa.
+  opencode: () => (
+    <svg {...A}>
+      <path {...TRAZO} d="M4 4h16v16H4Z M9 9h6v6H9Z" />
+    </svg>
+  ),
 };
 
 /** El logo de la empresa del modelo. */

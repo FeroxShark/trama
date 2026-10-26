@@ -1,7 +1,7 @@
 // Las filas de la barra: el worker (dos líneas, colgado en árbol de su
 // líder), el líder y lo ya cerrado.
 import { ChipEspera } from "./Espera";
-import { memo, useEffect, useMemo, useState, type Ref } from "react";
+import { memo, useEffect, useMemo, useRef, useState, type ReactNode, type Ref } from "react";
 import { Bot, Cloud, Crown, Laptop } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { comoSettle, type Estado, type Hilo, type Lider } from "../datos/contrato";
@@ -157,9 +157,9 @@ export const Fila = memo(function Fila({ ref, h, estado, apagada, cursor, activa
         </span>
       </button>
       {settle ? (
-        <span className="acc">
+        <Acciones>
           <AccionesWorker id={h.id} salida={settle} como={comoSettle(h)} alCerrar={alCerrar} alRetomar={alRetomar} className="mini" />
-        </span>
+        </Acciones>
       ) : null}
     </motion.li>
   );
@@ -167,6 +167,29 @@ export const Fila = memo(function Fila({ ref, h, estado, apagada, cursor, activa
 
 /** El error en la fila: corto y entero (sin cortar a mitad de palabra); lo que dijo `pa`, en el tooltip. */
 const textoError = errorCorto;
+
+/**
+ * Los botones que salen con el hover de una fila. Le avisan a la fila cuánto miden (`--acc-w`, en el padre) para que su texto
+ * se corte antes de llegar a ellos en vez de quedar tapado a medias (index.css, `.acc`).
+ */
+function Acciones({ children }: { children: ReactNode }) {
+  const ref = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    const fila = el?.parentElement;
+    if (!el || !fila || typeof ResizeObserver === "undefined") return;
+    const medir = () => fila.style.setProperty("--acc-w", `${el.offsetWidth}px`);
+    medir();
+    const ro = new ResizeObserver(medir);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  return (
+    <span ref={ref} className="acc">
+      {children}
+    </span>
+  );
+}
 
 type PropsAcciones = {
   id: string;
@@ -475,13 +498,13 @@ export const FilaLider = memo(function FilaLider({
       ) : null}
       {/* Quieto, Settle (a uno de la app también lo cierra); respondiendo, Cerrar líder (sólo los de la app). */}
       {settle !== null ? (
-        <span className="acc">
+        <Acciones>
           <SettleLider l={l} ramas={settle} alSettle={alSettle} className="mini" />
-        </span>
+        </Acciones>
       ) : l.origen === "app" ? (
-        <span className="acc">
+        <Acciones>
           <CerrarLider l={l} alCerrar={alCerrar} className="mini" />
-        </span>
+        </Acciones>
       ) : null}
     </div>
   );

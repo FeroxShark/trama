@@ -5,7 +5,7 @@
 import { t, type ClaveSola } from "../i18n";
 import type { Opcion } from "./Selector";
 import { GENERAL, type Lider } from "../datos/contrato";
-import { defDe, effortDeModelo, effortsDe, EMPRESAS, partirGeminiId, ponerConfig, TABLA, type ConfigModelos, type ModeloDef } from "./modelos";
+import { defDe, effortDeModelo, effortsDe, EMPRESAS, type Empresa, partirGeminiId, ponerConfig, TABLA, type ConfigModelos, type ModeloDef } from "./modelos";
 import { Logo } from "./Logos";
 
 // La descripción se dice al leerla: cambia con el idioma sin rearmar las listas.
@@ -13,9 +13,31 @@ import { Logo } from "./Logos";
 const desc = <T extends object>(o: T, clave: ClaveSola) =>
   Object.defineProperty(o, "desc", { get: () => t(clave), enumerable: true }) as T & { desc: string };
 
+/** El orden de las columnas del menú en columnas: Anthropic, Google, DeepSeek Harness y, al final, lo que corre en esta máquina. */
+const ORDEN_COL: Record<Empresa, number> = { anthropic: 0, google: 1, dsh: 2, opencode: 2, local: 3, ollama: 3 };
+
+/** La columna de un modelo en el menú en columnas: una por empresa, salvo los locales (llama-server y Ollama), que van juntos en "Local". */
+const columnaDe = (m: ModeloDef) => {
+  const local = m.empresa === "local" || m.empresa === "ollama";
+  const e: Empresa = local ? "local" : m.empresa;
+  return { col: e, colNombre: EMPRESAS[e], colMarca: <Logo empresa={e} />, colOrden: ORDEN_COL[m.empresa] };
+};
+
 /** Cada modelo, bajo el divisor de su empresa y con su logo delante; los locales, además, con el chip de la GPU (`local`). */
 const opcionDe = (m: ModeloDef) =>
-  desc({ id: m.id, clave: m.clave, nombre: m.nombre, grupo: m.empresaNombre ?? EMPRESAS[m.empresa], marca: <Logo empresa={m.empresa} />, ...(m.rec ? { rec: true } : {}), ...(m.local ? { local: true } : {}) }, m.desc);
+  desc(
+    {
+      id: m.id,
+      clave: m.clave,
+      nombre: m.nombre,
+      grupo: m.empresaNombre ?? EMPRESAS[m.empresa],
+      marca: <Logo empresa={m.empresa} />,
+      ...columnaDe(m),
+      ...(m.rec ? { rec: true } : {}),
+      ...(m.local ? { local: true } : {}),
+    },
+    m.desc,
+  );
 export const MODELOS: (Opcion & { clave: string })[] = TABLA.map(opcionDe);
 
 /** Los modelos de un worker de `pa` (`-m`): los mismos, sin los que sólo corren en un líder (los locales, Gemini, Ollama). */
