@@ -33,7 +33,7 @@ import { cursorDe, escucharBorrador, guardarCursor, leerBorrador, ponerBorrador 
 import { effortPara } from "./elegir";
 import { effortsLeidos, leerEfforts, recordarEffort } from "./efforts";
 import { effortDe, effortsOpciones, MODELO_DEFAULT, MODELOS, modeloDe, nombreModelo } from "./opciones";
-import { effortsDe, esAgy, esLocal, reajustarEffort, sinWorkers } from "./modelos";
+import { effortsDe, esAgy, esDsh, esLocal, familiaDe, reajustarEffort, sinWorkers } from "./modelos";
 import { ContextoLocal } from "./ContextoLocal";
 import { t as tr, textoMain } from "../i18n";
 import { Selector } from "./Selector";
@@ -222,7 +222,7 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
   const agy = esAgy(modelo);
   // El motor del líder deja ver su razonamiento y sus comandos (Gemini; o cualquiera que ya mandó razonamiento): la tarjeta y el turno
   // los muestran en vez de la frase tierna. Claude y los que no lo traen siguen como siempre.
-  const piensa = esAgy(modeloDe(l?.modelo) ?? modelo) || vivo.razona;
+  const piensa = esAgy(modeloDe(l?.modelo) ?? modelo) || esDsh(modeloDe(l?.modelo) ?? modelo) || vivo.razona;
   const comandos = useSyncExternalStore(suscribirComandos, agy ? comandosAgy : comandosClaude);
   // Los del otro proveedor: con ellos se sabe cuáles comandos sólo existen de este lado (la marca de cada fila).
   const deOtro = useSyncExternalStore(suscribirComandos, agy ? comandosClaude : comandosAgy);
@@ -235,11 +235,11 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
   const valores = useMemo<Valores>(
     () => ({
       model: {
-        lista: MODELOS.filter((m) => esAgy(m.id) === agy).map((m) => ({ valor: m.clave, desc: m.nombre })),
+        lista: MODELOS.filter((m) => familiaDe(m.id) === familiaDe(modelo)).map((m) => ({ valor: m.clave, desc: m.nombre })),
         actual: MODELOS.find((m) => m.id === modelo)?.clave ?? null,
       },
       effort: { lista: effortsOpciones(modelo).map((e) => ({ valor: e.id, desc: e.desc })), actual: effort },
-      ...(agy ? {} : { "output-style": { lista: listaEstilos.map((x) => ({ valor: x, desc: null })), actual: estilos.actual } }),
+      ...(agy || esDsh(modelo) ? {} : { "output-style": { lista: listaEstilos.map((x) => ({ valor: x, desc: null })), actual: estilos.actual } }),
     }),
     [agy, modelo, effort, listaEstilos, estilos.actual],
   );
@@ -553,8 +553,8 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
     );
   };
 
-  const esClaude = !!l && !esAgy(l.modelo) && !sinWorkers(l.modelo);
-  // "Mandar ya": Claude lo recibe en su stdin y el puente de agy corta en la próxima pausa y retoma; los locales no tienen canal.
+  const esClaude = !!l && !esAgy(l.modelo) && !esDsh(l.modelo) && !sinWorkers(l.modelo);
+  // "Mandar ya": Claude lo recibe en su stdin y el puente de agy o el de dsh corta en la próxima pausa y retoma; los locales no tienen canal.
   const puedeDirecto = !!l && !sinWorkers(l.modelo);
   const sinRebobinar = ocupado || enviando ? tr("acciones.ocupado") : ajeno ? tr("acciones.abierto") : null;
   const acciones = useMemo<Acciones | null>(
@@ -846,7 +846,7 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
   };
 
   const elegirModelo = (m: string) => {
-    if (l && esAgy(m) !== esAgy(l.modelo)) {
+    if (l && familiaDe(m) !== familiaDe(l.modelo)) {
       setErrorCaja(tr("comando.cambioProveedor", { v: nombreModelo(m) }));
       return;
     }
@@ -1161,7 +1161,7 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
               </button>
               <Selector
                 etiqueta={tr("comun.modelo")}
-                opciones={l ? MODELOS.filter((m) => esAgy(m.id) === esAgy(l.modelo)) : MODELOS}
+                opciones={l ? MODELOS.filter((m) => familiaDe(m.id) === familiaDe(l.modelo)) : MODELOS}
                 valor={modelo}
                 alElegir={elegirModelo}
                 chip={<span className="chip" />}

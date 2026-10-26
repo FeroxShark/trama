@@ -149,17 +149,25 @@ test("quitar un local deja en 'como hoy' lo que lo usaba", () => {
   assert.ok(configDe(b));
 });
 
-test("el cupo: vacío, número entero de 1 a 100 o inválido (no se puede guardar)", () => {
+test("un porcentaje: vacío, número entero de 1 a 100 o inválido (un tope mal escrito no se puede guardar)", () => {
   assert.equal(cupoDe(""), null);
   assert.equal(cupoDe(" 70 "), 70);
   for (const mal of ["0", "101", "7.5", "abc", "-3", "1000"]) assert.equal(cupoDe(mal), "mal");
   const e = estado();
-  const b = { ...borradorDe(e), cupo: "500" };
+  const b = { ...borradorDe(e), guardar: true, tope5: "500" };
   assert.equal(configDe(b), null);
   assert.equal(sucio(e, b), true);
-  const ok = configDe({ ...b, cupo: "70", sin_cupo: "fallar" })!;
-  assert.deepEqual(ok.gemini, { cupo_max: 70 });
+  const ok = configDe({ ...b, tope5: "70", sin_cupo: "fallar" })!;
+  assert.deepEqual(ok.claude, { tope_5h: 70, tope_7d: 85 });
   assert.equal(ok.sin_cupo, "fallar");
+});
+
+test("gemini.cupo_max de un archivo viejo se lee pero el borrador ya no lo lleva ni lo escribe", () => {
+  const e = estado({ gemini: { cupo_max: 70 } });
+  const b = borradorDe(e);
+  assert.equal("cupo" in b, false);
+  assert.deepEqual(configDe(b)!.gemini, {});
+  assert.equal(sucio(e, b), false);
 });
 
 test("con qué corre cada tipo según el borrador", () => {

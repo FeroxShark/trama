@@ -4,7 +4,7 @@
 import type { Clave, ClaveSola } from "../i18n";
 import { TIPOS } from "../../electron/modelos-tipos";
 
-export const CATS = ["cuentas", "modelos", "cupos", "locales", "celular", "actualizaciones", "general"] as const;
+export const CATS = ["cuentas", "modelos", "cupos", "locales", "dsh", "celular", "actualizaciones", "general"] as const;
 export type CatId = (typeof CATS)[number];
 
 export const esCat = (x: unknown): x is CatId => typeof x === "string" && (CATS as readonly string[]).includes(x);
@@ -47,6 +47,11 @@ export const ITEMS: readonly Item[] = [
   { cat: "locales", nombre: "ajustes.mdlInstalados", que: "ajustes.mdlInstaladosQue", sin: "ollama instalados installed modelos locales agregar add usar" },
   { cat: "locales", nombre: "ajustes.mdlBajar", que: "ajustes.mdlBajarQue", sin: "ollama descargar download pull bajar modelo model" },
   { cat: "locales", nombre: "ajustes.mdlLocalesAgregados", que: "ajustes.mdlLocalesQue", sin: "ollama locales agregados added direccion address url servidor server quitar remove" },
+
+  { cat: "dsh", nombre: "ajustes.dshPrograma", que: "ajustes.dshProgramaQue", sin: "dsh deepseek harness instalar install npm version programa" },
+  { cat: "dsh", nombre: "ajustes.dshOpencode", que: "ajustes.dshOpencodeQue", sin: "opencode zen gratis free clave key api token modelos big pickle glm flint longcat" },
+  { cat: "dsh", nombre: "ajustes.dshDeepseek", que: "ajustes.dshDeepseekQue", sin: "deepseek clave key api token probar test v4 flash" },
+  { cat: "dsh", nombre: "ajustes.dshOllama", que: "ajustes.dshOllamaQue", sin: "ollama local dsh probar test" },
 
   { cat: "celular", nombre: "ajustes.celGuia", que: "ajustes.celPaso1Que", sin: "telefono movil phone mobile tailscale tailnet instalar install qr codigo code escanear scan direccion address url conectar connect guia guide" },
   { cat: "celular", nombre: "ajustes.celAcceso", que: "ajustes.celAccesoQue", sin: "telefono movil phone mobile tailscale tailnet remoto remote encender apagar on off" },
@@ -183,6 +188,7 @@ export function deVariante(v: string | null | undefined): CatId | null {
   if (v === "mdl-agregar" || v === "mdl-bajando" || v === "mdl-sinollama" || v === "mdl-apagado" || v === "mdl-sugeridos") return "locales";
   if (v === "mdl-tope" || v.startsWith("cupos") || v === "editando" || v === "editando-mal") return "cupos";
   if (v === "celular") return "celular";
+  if (v.startsWith("dsh")) return "dsh";
   if (v.startsWith("mdl") || v === "sinmdl" || v === "modelo" || v === "dictado") return "modelos";
   if (v === "fuente" || v === "mono" || v === "compactar" || v === "general") return "general";
   return null;

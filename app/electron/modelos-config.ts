@@ -177,6 +177,9 @@ export async function sondearOllama(url: unknown, espera_ms = 3000): Promise<Son
 /** Un modelo local de Ollama del archivo. `id` lleva el prefijo (`ollama:…`); `modelo` es el nombre que Ollama conoce. */
 export type LocalOllama = { id: string; nombre: string; url: string; modelo: string };
 
+/** El local de Ollama de `modelos.json` que sirve ese modelo (el nombre que Ollama conoce), para un `dsh:ollama/<modelo>`; `null` si no está. */
+export const localDeModelo = (modelo: string, cfg: ModelosConfig | null = modelosConfig()): LocalOllama | null => cfg?.locales.find((l) => l.modelo === modelo) ?? null;
+
 export type ModelosConfig = {
   lider: { modelo: string; effort: string | null } | null;
   locales: LocalOllama[];
@@ -184,10 +187,21 @@ export type ModelosConfig = {
   gemini: boolean;
 };
 
-/** Qué clase de líder es un modelo: el `claude` de siempre, `agy` (Gemini) u Ollama (el mismo `claude` contra otro endpoint). */
-export type Clase = "claude" | "gemini" | "ollama";
+/** Qué clase de líder es un modelo: el `claude` de siempre, `agy` (Gemini), Ollama (el mismo `claude` contra otro endpoint) o `dsh` (DeepSeek Harness, `dsh:<proveedor>/<modelo>`). */
+export type Clase = "claude" | "gemini" | "ollama" | "dsh";
 
-export const claseDeModelo = (modelo: string): Clase => (modelo.startsWith("ollama:") ? "ollama" : /^(?:gemini-|agy:)/.test(modelo) ? "gemini" : "claude");
+export const claseDeModelo = (modelo: string): Clase =>
+  modelo.startsWith("dsh:") ? "dsh" : modelo.startsWith("ollama:") ? "ollama" : /^(?:gemini-|agy:)/.test(modelo) ? "gemini" : "claude";
+
+/**
+ * El proceso que corre un líder: Gemini y dsh tienen puente propio y no cruzan con `claude` (ni entre sí) en la misma sesión;
+ * `claude` y Ollama son el mismo `claude`. Cambiar de familia en una sesión no se puede (otro transcript, otro motor); dentro de
+ * la misma, cambiar de modelo sí (dsh y Gemini relanzan su puente).
+ */
+export const familiaDeModelo = (modelo: string): "claude" | "gemini" | "dsh" => {
+  const c = claseDeModelo(modelo);
+  return c === "ollama" ? "claude" : c;
+};
 
 export const EFFORTS_GEMINI = ["low", "medium", "high"] as const;
 export const EFFORT_GEMINI_DEFECTO = "high";
@@ -262,14 +276,16 @@ export const localOllama = (id: string, cfg: ModelosConfig | null = modelosConfi
 
 /**
  * Lo que sabe el renderer: sin url ni nada que no sea para mostrar (`src/datos/modelos-config.ts`). Gemini está si el archivo
- * lo habilita o es el líder por defecto. `null`: no hay archivo y todo es como siempre.
+ * lo habilita o es el líder por defecto. `null`: no hay archivo y todo es como siempre (ni `agy`, ni `dsh`, ni modelos locales).
  */
-export function vistaModelos(cfg: ModelosConfig | null = modelosConfig(), agy = false, llama: { id: string; nombre: string; empresa: string }[] = []) {
-  if (!cfg) return agy || llama.length ? { version: 1, gemini: agy, locales: [], llama, lider: null } : null;
+export function vistaModelos(cfg: ModelosConfig | null = modelosConfig(), agy = false, llama: { id: string; nombre: string; empresa: string }[] = [], dsh = false) {
+  if (!cfg) return agy || llama.length || dsh ? { version: 1, gemini: agy, dsh, locales: [], llama, lider: null } : null;
   return {
     version: 1,
+    // DeepSeek Harness se ofrece si `dsh` está instalado o ya es el líder por defecto.
+    dsh: dsh || (cfg.lider !== null && claseDeModelo(cfg.lider.modelo) === "dsh"),
     gemini: agy || cfg.gemini || (cfg.lider !== null && claseDeModelo(cfg.lider.modelo) === "gemini"),
-    locales: cfg.locales.map((l) => ({ id: l.id, nombre: l.nombre })),
+    locales: cfg.locales.map((l) => ({ id: l.id, nombre: l.nombre, modelo: l.modelo })),
     llama,
     lider: cfg.lider,
   };

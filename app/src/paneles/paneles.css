@@ -2407,3 +2407,54 @@
     align-items: center;
   }
 }
+
+/* Ajustes > DeepSeek Harness: estados con ícono y palabra, la key (de escritura) y las pruebas. */
+.dsh-fila,
+.dsh-clave {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--esp-2);
+}
+.dsh-clave {
+  margin-bottom: var(--esp-2);
+}
+.dsh-estado {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--esp-1);
+}
+.dsh-form {
+  flex: 1 1 14rem;
+  min-width: 0;
+}
+.dsh-fallo {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--esp-2);
+}
+.dsh-motivo {
+  color: var(--texto-7);
+  font-size: var(--letra-3);
+}
+.dsh-err {
+  margin-top: var(--esp-2);
+  white-space: pre-wrap;
+}
+/* Cada fila de DeepSeek Harness apila su explicación y sus controles (traen un campo, botones y un resultado: no caben en la columna angosta de un valor). */
+[data-dsh] .pn-dato {
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--esp-2);
+}
+[data-dsh] .pn-val {
+  font-family: var(--font-sans);
+  text-align: left;
+  white-space: normal;
+}
+[data-dsh] .pn-que {
+  max-width: 40rem;
+}
+[data-dsh] .ui-btn {
+  white-space: nowrap;
+}

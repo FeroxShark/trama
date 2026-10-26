@@ -53,10 +53,12 @@ import {
   type Modo,
 } from "./lider-arma.js";
 import { asegurarLocal, destinoLocal, localDe } from "./locales.js";
-import { armarContexto, prefacioGemini } from "./contexto-local.ts";
+import { armarContexto, prefacioDsh, prefacioGemini } from "./contexto-local.ts";
+import { conClaves } from "./claves.ts";
 import { resolverPa } from "./binario.ts";
 import { matarArbol } from "./procesos.ts";
-import { claseDeModelo, idAgy, localOllama, partirGemini, type Clase } from "./modelos-config.js";
+import { claseDeModelo, familiaDeModelo, idAgy, localDeModelo, localOllama, partirGemini, type Clase } from "./modelos-config.js";
+import { parsearModelo } from "./dsh.ts";
 import { pedidoDe } from "./cache.ts";
 import { convDe } from "./conv-cache.ts";
 import { guardada, igual, juntar, lecturaDe, oficialDe, type Lectura } from "./uso.ts";
@@ -72,6 +74,8 @@ const ARCHIVO = path.join(ESTADO, "lideres.json");
 const CLAUDE = process.env.HILOS_CLAUDE ?? "claude";
 /** El puente de un líder de Gemini (electron/agy-puente.ts): habla como `claude -p` y por dentro corre `agy`. Mismo tipo de archivo que éste (`.js` compilado, `.ts` en las pruebas). */
 const PUENTE_AGY = path.join(import.meta.dirname, `agy-puente${path.extname(import.meta.filename)}`);
+/** El puente de un líder de DeepSeek Harness (electron/dsh-puente.ts): habla como `claude -p` y por dentro corre `dsh --profile acp`. */
+const PUENTE_DSH = path.join(import.meta.dirname, `dsh-puente${path.extname(import.meta.filename)}`);
 const PROYECTOS = path.join(process.env.CLAUDE_CONFIG_DIR ?? path.join(HOME, ".claude"), "projects");
 /** Si el interrupt no contesta en esto, SIGINT. */
 const PARAR_MS = 3000;
@@ -146,7 +150,7 @@ type Proc = {
   p: ChildProcess;
   modelo: string;
   effort: string;
-  /** Qué proceso es: el `claude` de siempre (también el de Ollama, que es el mismo contra otro endpoint) o el puente de agy. */
+  /** Qué proceso es: el `claude` de siempre (también el de Ollama, que es el mismo contra otro endpoint), el puente de agy o el de dsh. */
   clase: Clase;
   /** Un líder local: adónde le habla y con qué contexto arrancó (va en su entorno: cambiarlo es relanzarlo). */
   local?: Local;
@@ -397,8 +401,8 @@ export function barrerGrupo(pid: number | undefined, kill: (pid: number, senal: 
   setTimeout(() => matarArbol(pid, "SIGKILL", { kill }), esperaMs).unref();
 }
 
-/** Lo que un líder de otra clase necesita para arrancar: adónde habla uno de Ollama, o el prefacio de uno de Gemini. */
-type Extra = { ollama?: Ollama; prefacio?: string; desde?: string };
+/** Lo que un líder de otra clase necesita para arrancar: adónde habla uno de Ollama, o el prefacio de uno de Gemini o de dsh (con su URL propia si es de Ollama). */
+type Extra = { ollama?: Ollama; prefacio?: string; desde?: string; dshUrl?: string };
 
 /**
  * Lo de otra clase para el proceso que se va a lanzar. Un `ollama:*` que ya no figura en `modelos.json` no se lanza: el error
@@ -412,6 +416,15 @@ async function extraDe(modelo: string, cwd: string | undefined): Promise<Extra> 
     return { ollama: { url: o.url, modelo: o.modelo } };
   }
   if (clase === "gemini") return { prefacio: await prefacioGemini({ home: HOME, cwd, pa: resolverPa(process.env, HOME) }).catch((e) => (silencio("contexto-gemini")(e), "")) };
+  if (clase === "dsh") {
+    // Un `dsh:` mal armado no se lanza (dsh-puente lo rechazaría igual, pero acá el error llega a la UI). dsh tampoco lee CLAUDE.md: mismo prefacio que Gemini.
+    const d = parsearModelo(modelo);
+    if (!d) throw errorT("main.dshModelo", { v: modelo.slice(0, 80) });
+    const prefacio = await prefacioDsh({ home: HOME, cwd, pa: resolverPa(process.env, HOME) }).catch((e) => (silencio("contexto-dsh")(e), ""));
+    // Un Ollama en otra máquina: la URL del local de `modelos.json` que sirve ese modelo (sin él, dsh usa el de siempre, 127.0.0.1).
+    const url = d.proveedor === "ollama" ? localDeModelo(d.modelo)?.url : undefined;
+    return { prefacio, ...(url ? { dshUrl: `${url.replace(/\/+$/, "")}/v1` } : {}) };
+  }
   return {};
 }
 
@@ -431,9 +444,17 @@ function lanzar(g: Guardado, resume: boolean, local?: Local, extra: Extra = {}):
   const base = opcionesLider(process.env, HOME, g.cwd, local && { modelo: g.modelo, effort: g.effort, local }, extra.ollama) as { cwd: string; env: NodeJS.ProcessEnv };
   // Su propio grupo (setsid): lo que el líder deja corriendo desde sus herramientas (un `qs`, un watcher) se barre al salir.
   const opciones = { ...base, stdio: ["pipe", "pipe", "pipe"] as ["pipe", "pipe", "pipe"], detached: true, windowsHide: true };
-  const bin = clase === "gemini" ? "agy" : path.basename(CLAUDE);
+  const bin = clase === "gemini" ? "agy" : clase === "dsh" ? "dsh" : path.basename(CLAUDE);
   const p =
-    clase === "gemini"
+    clase === "dsh"
+      ? spawn(
+          process.execPath,
+          [PUENTE_DSH, "--sid", g.sid, "--nombre", g.nombre, "--modelo", g.modelo, "--cwd", base.cwd],
+          // Como el de Gemini: el Electron del motor como Node pelado. dsh no lee CLAUDE.md: el prefacio va por el entorno, y las keys guardadas
+          // (claves.env) debajo de las que ya estén en el entorno.
+          { ...opciones, env: { ...conClaves(base.env), ELECTRON_RUN_AS_NODE: "1", TRAMA_DSH_PREFACIO: extra.prefacio ?? "", ...(extra.dshUrl ? { TRAMA_DSH_URL: extra.dshUrl } : {}) } },
+        )
+      : clase === "gemini"
       ? spawn(
           process.execPath,
           [PUENTE_AGY, "--sid", g.sid, "--nombre", g.nombre, "--modelo", idAgy(g.modelo, g.effort), "--cwd", base.cwd],
@@ -850,7 +871,7 @@ export async function mandar(x: { sid: string; texto: string; imagenes?: unknown
  * "Mandar ya": el mensaje sale al stdin del `claude` aunque esté a mitad de un turno. El CLI lo guarda y lo entrega en el próximo límite de
  * `tool_result`, sin cortar la herramienta en curso (puede tardar lo que ella); si no hay herramienta, corre como turno propio al terminar el actual.
  * Sólo con un proceso de `claude` ocupado de la app, con el mismo modelo y esfuerzo; sin turno en curso es un
- * `mandar` normal. La cola no se toca: sigue saliendo de a uno al terminar el turno. Gemini: el puente (agy-puente.ts) corta a agy en el próximo límite de paso y retoma su conversación con el mensaje; los modelos locales no tienen canal: error claro.
+ * `mandar` normal. La cola no se toca: sigue saliendo de a uno al terminar el turno. Gemini y dsh: el puente (agy-puente.ts, dsh-puente.ts) corta a agy / dsh en el próximo límite de paso y retoma su conversación con el mensaje; los modelos locales no tienen canal: error claro.
  */
 export async function mandarDirecto(x: { sid: string; texto: string; imagenes?: unknown; modelo: string; effort: string }): Promise<void> {
   const sid = String(x.sid);
@@ -867,7 +888,7 @@ export async function mandarDirecto(x: { sid: string; texto: string; imagenes?: 
   const texto = textoDe(x.texto, imagenes);
   p.directos.push(texto.trim());
   // El puente de Gemini lo entrega en el próximo límite de paso de agy (corta a agy y sigue en la misma conversación) y devuelve el eco.
-  p.p.stdin!.write(lineaUsuario(texto, imagenes, p.clase === "gemini"));
+  p.p.stdin!.write(lineaUsuario(texto, imagenes, p.clase === "gemini" || p.clase === "dsh"));
 }
 
 /**
@@ -888,8 +909,7 @@ async function mandarYa(x: { sid: string; texto: string; imagenes?: unknown; mod
   const g = (await lideresApp()).find((l) => l.sid === x.sid);
   if (!g) throw errorT("main.noEsDeLaApp");
   const { modelo, effort } = normalizar(sueltoDe("modelo", x.modelo), sueltoDe("effort", x.effort));
-  if ((claseDeModelo(g.modelo) === "gemini") !== (claseDeModelo(modelo) === "gemini"))
-    throw errorT("main.cambioProveedor");
+  if (familiaDeModelo(g.modelo) !== familiaDeModelo(modelo)) throw errorT("main.cambioProveedor");
   let p = procs.get(g.sid);
   if (p?.ocupado) throw errorT("main.respondiendo");
   if (await ajeno(g.sid)) throw errorT("main.otroProceso");
@@ -1164,8 +1184,7 @@ async function anotar(
   const ls = await lideresApp();
   const ya = ls.find((l) => l.sid === sid);
   if (ya) {
-    if ((claseDeModelo(ya.modelo) === "gemini") !== (claseDeModelo(x.modelo) === "gemini"))
-      throw errorT("main.cambioProveedor");
+    if (familiaDeModelo(ya.modelo) !== familiaDeModelo(x.modelo)) throw errorT("main.cambioProveedor");
     // Ya era de la app y se había ido de la barra (un día sin turnos) o lo mataron: vuelve, ya no es Murió.
     if (!procs.has(sid)) ya.retomado = ahora;
     delete ya.murio;
@@ -1174,8 +1193,8 @@ async function anotar(
   }
   const t = await transcriptDe(sid);
   if (!t) return { ok: false, motivo: "sinSesion" };
-  if ((t === path.join(ESTADO, "gemini", `${sid}.jsonl`)) !== (claseDeModelo(x.modelo) === "gemini"))
-    throw errorT("main.cambioProveedor");
+  const deLaFamilia = t === transcriptGemini(sid) ? "gemini" : t === transcriptDsh(sid) ? "dsh" : "claude";
+  if (deLaFamilia !== familiaDeModelo(x.modelo)) throw errorT("main.cambioProveedor");
   const f = await open(t, "r").catch(() => null);
   if (!f) return { ok: false, motivo: "sinSesion" };
   let cwd: string | null;
@@ -1469,6 +1488,9 @@ export async function transcriptDe(sid: string, cwd?: string): Promise<string | 
   // Un líder de Gemini guarda el suyo aparte (agy-puente.ts): no entra al consumo ni al historial de Claude.
   const gemini = transcriptGemini(sid);
   if (await hay(gemini)) return gemini;
+  // Y uno de dsh, el suyo (dsh-puente.ts), igual de aparte.
+  const dsh = transcriptDsh(sid);
+  if (await hay(dsh)) return dsh;
   for (const d of await readdir(PROYECTOS).catch(() => [] as string[])) {
     const f = path.join(PROYECTOS, d, `${sid}.jsonl`);
     if (await hay(f)) return f;
@@ -1478,6 +1500,9 @@ export async function transcriptDe(sid: string, cwd?: string): Promise<string | 
 
 /** El transcript de un líder de Gemini (lo escribe su puente): `$HILOS_STATE/gemini/<sid>.jsonl`. */
 export const transcriptGemini = (sid: string) => path.join(ESTADO, "gemini", `${sid}.jsonl`);
+
+/** El transcript de un líder de DeepSeek Harness (lo escribe su puente): `$HILOS_STATE/dsh/<sid>.jsonl`. */
+export const transcriptDsh = (sid: string) => path.join(ESTADO, "dsh", `${sid}.jsonl`);
 
 /** Dónde va a estar el transcript de un líder de la app (antes de su primer turno no existe). */
 export const transcriptPorDefecto = (sid: string) => path.join(PROYECTOS, dirProyecto(HOME), `${sid}.jsonl`);

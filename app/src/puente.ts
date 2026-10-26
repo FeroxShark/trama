@@ -197,6 +197,14 @@ type Main = {
     bajadas(): Promise<unknown>;
     /** Qué hay en esta máquina para Ollama: si está instalado, la distro, la GPU con su VRAM y los comandos de instalar y arrancar; sólo lee. */
     entornoOllama(): Promise<unknown>;
+    /** DeepSeek Harness: si está instalado (y su versión), qué API keys hay (nunca el valor) y cómo instalarlo. */
+    estadoDsh(): Promise<unknown>;
+    /** `npm i -g @deepseek-ai/dsh`; rechaza con el motivo. Devuelve el estado de después. Sólo desde la PC. */
+    instalarDsh(): Promise<unknown>;
+    /** Guarda (o borra, con `null`) una API key en `claves.env`; devuelve el estado. Sólo desde la PC. */
+    claveDsh(nombre: string, valor: string | null): Promise<unknown>;
+    /** Prueba un proveedor (`opencode`, `deepseek`, `ollama`) con la key guardada; nunca rechaza por no contestar. */
+    probarDsh(proveedor: string, url?: string): Promise<unknown>;
     alBajar(fn: (b: unknown) => void): Soltar;
     /** Escribe el plan (`pa --plan`) y/o la red de seguridad (`autoCompactWindow`); rechaza con el motivo; devuelve Ajustes como quedó. */
     guardarAjustes(cambio: { plan?: string; red_seguridad?: number | null }): Promise<unknown>;

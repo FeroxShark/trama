@@ -12,9 +12,9 @@ export const EFFORTS_CLAUDE = ["low", "medium", "high", "xhigh", "max"] as const
 export const EFFORTS_LOCAL = ["off", "low", "medium", "xhigh"] as const;
 
 /** Quién hace el modelo: el menú los agrupa por empresa, con su nombre como divisor y su logo (`src/hilo/Logos.tsx`) junto a cada uno. */
-export type Empresa = "anthropic" | "google" | "local" | "ollama";
+export type Empresa = "anthropic" | "google" | "local" | "ollama" | "dsh";
 /** El nombre de cada empresa, tal cual se escribe (un nombre propio: no se traduce). `local`: lo pone cada modelo (`empresaNombre`). */
-export const EMPRESAS: Record<Empresa, string> = { anthropic: "Anthropic", google: "Google", local: "Local", ollama: "Ollama" };
+export const EMPRESAS: Record<Empresa, string> = { anthropic: "Anthropic", google: "Google", local: "Local", ollama: "Ollama", dsh: "DeepSeek Harness" };
 
 /** Los de Gemini (`agy`): tres niveles de razonamiento, el máximo por defecto. */
 export const EFFORTS_GEMINI = ["low", "medium", "high"] as const;
@@ -66,14 +66,30 @@ const GEMINI: ModeloDef[] = [
   { id: "agy:claude-sonnet-5-5", clave: "agy:claude-sonnet-5-5", empresa: "google", nombre: "Claude Sonnet 5.5 · por Google", desc: "modelo.agySonnet", soloLider: true, efforts: EFFORTS_GEMINI, effortDefecto: "high" },
   { id: "agy:gpt-oss-120b", clave: "agy:gpt-oss-120b", empresa: "google", nombre: "GPT-OSS 120B · por Google", desc: "modelo.agyGpt", soloLider: true, efforts: EFFORTS_GEMINI, effortDefecto: "medium" },
 ];
+/**
+ * DeepSeek Harness (`dsh`): los modelos gratis de OpenCode y el de la API de DeepSeek, siempre; los de Ollama salen de `locales`
+ * (`dsh:ollama/<modelo>`, el mismo modelo que ya agregó el usuario). Un líder de dsh sí delega con `pa` (no hay `sinWorkers`); sin
+ * esfuerzo (el modelo no lo expone) y sólo de líder, igual que Gemini y Ollama.
+ */
+const dsh = (id: string, nombre: string, desc: ModeloDef["desc"]): ModeloDef => ({ id, clave: id, empresa: "dsh", nombre, desc, efforts: [], effortDefecto: "high" });
+const DSH: ModeloDef[] = [
+  dsh("dsh:opencode/big-pickle", "Big Pickle · OpenCode", "modelo.dshOpencode"),
+  dsh("dsh:opencode/deepseek-v4.1-flash-free", "DeepSeek V4.1 Flash · OpenCode", "modelo.dshOpencode"),
+  dsh("dsh:opencode/glm-5.3-flash-free", "GLM 5.3 Flash · OpenCode", "modelo.dshOpencode"),
+  dsh("dsh:opencode/flint-40b-free", "Flint 40B · OpenCode", "modelo.dshOpencode"),
+  dsh("dsh:opencode/longcat-2.5-preview-free", "LongCat 2.5 Preview · OpenCode", "modelo.dshOpencode"),
+  dsh("dsh:deepseek/deepseek-v4-flash", "DeepSeek V4 Flash · DeepSeek", "modelo.dshDeepseek"),
+];
 const BASE = tabla.slice();
 export const TABLA: readonly ModeloDef[] = tabla;
 
 export type ConfigModelos = {
   /** Gemini disponible (el archivo lo habilita, o es el líder por defecto). */
   gemini: boolean;
-  /** Los modelos de Ollama del archivo: su id (`ollama:…`) y el nombre que se ve. Ni la url ni nada más llega acá. */
-  locales: { id: string; nombre: string }[];
+  /** DeepSeek Harness disponible: `dsh` está instalado (o es el líder por defecto). */
+  dsh?: boolean;
+  /** Los modelos de Ollama del archivo: su id (`ollama:…`), el nombre que se ve y el que Ollama conoce (para `dsh:ollama/<modelo>`). Ni la url ni nada más llega acá. */
+  locales: { id: string; nombre: string; modelo?: string }[];
   /** Los modelos de llama-server que declara `locales.json`: su id, el nombre y quién lo hace. Ni la unit ni las rutas llegan acá. */
   llama?: { id: string; nombre: string; empresa: string }[];
   /** El líder por defecto (`lider` del archivo), o `null`: el de siempre. */
@@ -116,9 +132,14 @@ export function ponerConfig(c: ConfigModelos | null): { modelo: string; effort: 
     efforts: EFFORTS_LOCAL,
     effortDefecto: "medium",
   }));
+  // Un líder por defecto de dsh aparece aunque `dsh` ya no esté instalado; los de Ollama de dsh, los del mismo archivo que los de Ollama.
+  const delLider = c?.lider && esDsh(c.lider.modelo) ? c.lider.modelo : null;
+  const dshOllama = (c?.locales ?? []).flatMap((l) => (l.modelo ? [dsh(`dsh:ollama/${l.modelo}`, `${l.nombre} · Ollama`, "modelo.dshOllama")] : []));
+  const dshTodos = c?.dsh || delLider ? [...DSH.map((m) => ({ ...m })), ...dshOllama] : [];
+  if (delLider && !dshTodos.some((m) => m.id === delLider)) dshTodos.push(dsh(delLider, delLider.slice("dsh:".length), delLider.startsWith("dsh:opencode/") ? "modelo.dshOpencode" : delLider.startsWith("dsh:deepseek/") ? "modelo.dshDeepseek" : "modelo.dshOllama"));
   const base = BASE.map((m) => ({ ...m }));
   tabla.length = 0;
-  tabla.push(...base, ...llama, ...(c?.gemini ? GEMINI.map((m) => ({ ...m })) : []), ...ollama);
+  tabla.push(...base, ...llama, ...(c?.gemini ? GEMINI.map((m) => ({ ...m })) : []), ...ollama, ...dshTodos);
   const lider = c?.lider ?? null;
   if (!lider) return null;
   const [id, nivel] = partirGeminiId(lider.modelo);
@@ -135,10 +156,10 @@ export function ponerConfig(c: ConfigModelos | null): { modelo: string; effort: 
 export const defDe = (modelo: string | null | undefined): ModeloDef | undefined => {
   if (!modelo) return undefined;
   const base = partirGeminiId(modelo)[0];
-  const prefijo = /^(?:ollama|agy):/.exec(modelo)?.[0];
+  const prefijo = /^(?:ollama|agy|dsh):/.exec(modelo)?.[0];
   return (
     TABLA.find((m) => m.id === modelo || m.id === base) ??
-    TABLA.find((m) => (prefijo ? m.id.startsWith(prefijo) : !/^(?:ollama|agy):/.test(m.id)) && modelo.includes(m.clave))
+    TABLA.find((m) => (prefijo ? m.id.startsWith(prefijo) : !/^(?:ollama|agy|dsh):/.test(m.id)) && modelo.includes(m.clave))
   );
 };
 
@@ -147,6 +168,15 @@ export const esLocal = (modelo: string | null | undefined) => defDe(modelo)?.loc
 /** ¿Un líder con este modelo corre por `agy` (`gemini-*` o `agy:*`)? */
 export const esAgy = (modelo: string | null | undefined): boolean =>
   defDe(modelo)?.empresa === "google" || /^(?:gemini-|agy:)/.test(modelo ?? "");
+
+/** ¿Un líder con este modelo corre por DeepSeek Harness (`dsh:<proveedor>/<modelo>`)? */
+export const esDsh = (modelo: string | null | undefined): boolean => /^dsh:/.test(modelo ?? "");
+
+/**
+ * El motor de un líder: un líder no cambia de uno a otro en la misma sesión (otro proceso, otro transcript); dentro del mismo sí.
+ * Claude y Ollama son el mismo `claude`.
+ */
+export const familiaDe = (modelo: string | null | undefined): "claude" | "agy" | "dsh" => (esDsh(modelo) ? "dsh" : esAgy(modelo) ? "agy" : "claude");
 
 /** ¿Un líder con este modelo no puede delegar con `pa`? Los locales de GPU y Ollama. */
 export const sinWorkers = (modelo: string | null | undefined) => {

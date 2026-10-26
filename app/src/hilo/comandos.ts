@@ -90,6 +90,9 @@ export const PROPIOS_AGY: { nombre: string; args: string | null; clave: ClaveCom
 /** ¿El modelo corre por `agy` (`gemini-*` o `agy:*`)? Ollama (`ollama:*`) y los de Claude o GPU local corren por `claude`. */
 export const esModeloAgy = (modelo: string | null | undefined): boolean => /^(?:gemini-|agy:)/.test(modelo ?? "");
 
+/** El motor de un modelo: `dsh:*` corre por DeepSeek Harness; no se cruza con los otros en la misma sesión (sí entre los suyos). */
+const motorDe = (modelo: string | null | undefined): "claude" | "agy" | "dsh" => (/^dsh:/.test(modelo ?? "") ? "dsh" : esModeloAgy(modelo) ? "agy" : "claude");
+
 /** Si el CLI todavía no dijo cuáles hay (ningún líder arrancó nunca): los de fábrica. */
 export const ESTILOS_FABRICA = ["default", "Explanatory", "Learning"];
 
@@ -121,6 +124,7 @@ export function parsearComando(
   const m = texto.trim().match(/^\/(\S+)(?:\s+([\s\S]*))?$/);
   if (!m) return { tipo: "texto" };
   const agy = typeof modeloActual === "boolean" ? modeloActual : esModeloAgy(modeloActual);
+  const motor = typeof modeloActual === "boolean" ? (modeloActual ? "agy" : "claude") : motorDe(modeloActual);
   const tieneProveedor = modeloActual !== undefined && modeloActual !== null;
   const nombre = m[1].toLowerCase();
   const arg = (m[2] ?? "").trim();
@@ -131,11 +135,11 @@ export function parsearComando(
     const a = arg.toLowerCase();
     const x = a ? modelos.find((o) => o.clave === a || o.id === a) ?? modelos.find((o) => o.id.includes(a)) : undefined;
     if (x) {
-      if (tieneProveedor && esModeloAgy(x.id) !== agy)
+      if (tieneProveedor && motorDe(x.id) !== motor)
         return { tipo: "error", clave: "comando.cambioProveedor", v: x.id };
       return { tipo: "modelo", modelo: x.id };
     }
-    if (tieneProveedor && a && (agy ? /^(?:claude-|opus$|sonnet$|haiku$|fable$|ollama:)/.test(a) : esModeloAgy(a)))
+    if (tieneProveedor && a && (motor === "agy" ? /^(?:claude-|opus$|sonnet$|haiku$|fable$|ollama:|dsh:)/.test(a) : motor === "dsh" ? /^(?:claude-|opus$|sonnet$|haiku$|fable$|ollama:|gemini-|agy:)/.test(a) : /^dsh:/.test(a) || esModeloAgy(a)))
       return { tipo: "error", clave: "comando.cambioProveedor", v: arg };
     return { tipo: "error", clave: "comando.usoModelo", v: arg };
   }
@@ -164,6 +168,7 @@ export function sugerencias(
   deOtro: ComandoClaude[] = [],
 ): Sugerencia[] {
   const agy = typeof modeloActual === "boolean" ? modeloActual : esModeloAgy(modeloActual);
+  const motor = typeof modeloActual === "boolean" ? (modeloActual ? "agy" : "claude") : motorDe(modeloActual);
   const tieneProveedor = modeloActual !== undefined && modeloActual !== null;
   const v = texto.match(/^\/(\S+)\s+(\S*)$/);
   const cmd = v?.[1].toLowerCase();
@@ -171,7 +176,7 @@ export function sugerencias(
   const de = cmd ? valores[cmd] : undefined;
   if (v && de) {
     const q = v[2].toLowerCase();
-    const lista = cmd === "model" && tieneProveedor ? de.lista.filter((x) => esModeloAgy(x.valor) === agy) : de.lista;
+    const lista = cmd === "model" && tieneProveedor ? de.lista.filter((x) => motorDe(x.valor) === motor) : de.lista;
     const filas: Sugerencia[] = lista.map((x) => ({
       nombre: cmd!,
       args: null,

@@ -70,6 +70,7 @@ export type ConfigModelos = {
   excluir: string[];
   /** Deja correr opus/sonnet con esfuerzo `max` sin pedir permiso (Fable lo sigue pidiendo). Sin la clave vale `false`. */
   permitir_max: boolean;
+  /** `cupo_max` de un archivo viejo: el motor ya no lo usa; se lee (no rompe) pero Guardar no lo vuelve a escribir. */
   gemini: { cupo_max?: number };
   /** `sin_cupo` del archivo; un `gemini.sin_claude` viejo se lee como éste y se reescribe así al guardar. */
   sin_cupo?: SinCupo;
@@ -123,6 +124,8 @@ export const destrabarActivo = (modelo: string, ajuste: Record<string, boolean> 
 /** Los modelos de agy que se ofrecen en Ajustes (uno por modelo, sin esfuerzo). */
 export const DESTRABAR_MODELOS: readonly string[] = [...new Set([...GEMINI, ...AGY].map(claveDestrabo))];
 export const esOllama = (m: string) => m.startsWith("ollama:");
+/** `dsh:<proveedor>/<modelo>` (DeepSeek Harness; electron/dsh.ts lo parsea de verdad): acá sólo la forma, este archivo no importa Node. */
+export const esDsh = (m: string) => /^dsh:(?:ollama|opencode|deepseek)\/\S+$/.test(m);
 /** Un id con forma de id (va a un archivo y a una línea de comandos): sin espacios ni comillas. */
 const FORMA_ID = /^[A-Za-z0-9][\w.:/[\]-]{0,120}$/;
 
@@ -177,7 +180,7 @@ export function leerConfig(j: Record<string, unknown>): ConfigModelos {
 function validarEleccion(x: unknown, donde: string, locales: Local[]): Eleccion {
   if (!esObj(x)) throw errorT("main.modelosForma");
   const m = x.modelo;
-  if (typeof m !== "string" || !FORMA_ID.test(m) || !(esClaude(m) || esGemini(m) || esAgy(m) || esOllama(m))) throw errorT("main.modelosModelo", { donde, v: String(m).slice(0, 60) });
+  if (typeof m !== "string" || !FORMA_ID.test(m) || !(esClaude(m) || esGemini(m) || esAgy(m) || esOllama(m) || esDsh(m))) throw errorT("main.modelosModelo", { donde, v: String(m).slice(0, 60) });
   if (esOllama(m) && !locales.some((l) => l.id === m)) throw errorT("main.modelosLocalFalta", { donde, v: m.slice(0, 60) });
   const e: Eleccion = { modelo: m };
   if (x.effort !== undefined && x.effort !== null && x.effort !== "") {
@@ -321,7 +324,8 @@ export function unir(antes: Record<string, unknown> | null, c: ConfigModelos): R
   else delete base.permitir_max;
 
   // `gemini.sin_claude` se retira: lo dice `sin_cupo`, que vale para cualquier proveedor.
-  const g = sobre(base.gemini, { ...c.gemini }, ["cupo_max", "sin_claude"]);
+  // `gemini.cupo_max` tampoco se escribe más: el motor ya no lo usa, y al guardar sale del archivo.
+  const g = sobre(base.gemini, {}, ["cupo_max", "sin_claude"]);
   if (Object.keys(g).length) base.gemini = g;
   else delete base.gemini;
   if (c.sin_cupo) base.sin_cupo = c.sin_cupo;

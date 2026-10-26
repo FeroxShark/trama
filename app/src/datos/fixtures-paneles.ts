@@ -4,6 +4,7 @@ import { MODO } from "../modo";
 import { resumir } from "../paneles/resumen";
 import type { EstadoModelos } from "../../electron/modelos-config";
 import type { EntornoOllama } from "../../electron/ollama-entorno";
+import type { EstadoDsh } from "../../electron/dsh-ajustes";
 import type { Ajustes, Consulta, Medido, Corrida, EstadoAuto, EstadoSalud, Medicion, Muestra, PiezaConsulta } from "./paneles";
 
 const AHORA = Math.floor(Date.now() / 1000);
@@ -67,7 +68,7 @@ export const MODELOS_FIJOS = (con: boolean, auto = false): EstadoModelos => ({
           { id: "ollama:qwen3-coder:30b", nombre: "Qwen3 Coder 30B", url: "http://localhost:11434", modelo: "qwen3-coder:30b" },
           { id: "ollama:llama3.2:3b", nombre: "llama3.2:3b", url: "http://caido.local:11434", modelo: "llama3.2:3b" },
         ],
-        gemini: { cupo_max: 70 },
+        gemini: {},
         sin_cupo: "esperar",
         claude: { tope_7d: 60 },
         destrabar: { "gemini-4-argon": true },
@@ -104,6 +105,17 @@ export const ENTORNO_OLLAMA = (variante: string | null): EntornoOllama => {
     instalar: { via: "pacman", comando: "sudo pacman -S ollama-cuda" },
     arrancar: { via: "systemd", comando: "sudo systemctl enable --now ollama" },
   };
+};
+
+/**
+ * DeepSeek Harness en la máquina de las capturas: `dsh-sin` (no instalado ni con keys), `dsh-falla` (no instalado y sin npm que ande: Instalar falla; DeepSeek
+ * rechaza su key); el resto, instalado, con la key de OpenCode guardada y la de DeepSeek sin poner.
+ */
+export const ESTADO_DSH = (variante: string | null): EstadoDsh => {
+  const comando = "npm i -g @deepseek-ai/dsh";
+  if (variante === "dsh-sin") return { version: 1, instalado: false, versionDsh: null, hayNpm: true, comando, claves: { OPENCODE_API_KEY: false, DEEPSEEK_API_KEY: false } };
+  if (variante === "dsh-falla") return { version: 1, instalado: false, versionDsh: null, hayNpm: true, comando, claves: { OPENCODE_API_KEY: true, DEEPSEEK_API_KEY: true } };
+  return { version: 1, instalado: true, versionDsh: "0.2.1", hayNpm: true, comando, claves: { OPENCODE_API_KEY: true, DEEPSEEK_API_KEY: false } };
 };
 
 /** El acceso desde el celular de los fixtures (se edita en Ajustes; vive mientras la página). */

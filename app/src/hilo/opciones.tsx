@@ -64,11 +64,11 @@ export let MODELO_DEFAULT = "claude-opus-5-5";
 export const modeloDe = (m: string | null | undefined) => {
   if (!m) return null;
   const base = partirGeminiId(m)[0];
-  const prefijo = /^(?:ollama|agy):/.exec(m)?.[0];
+  const prefijo = /^(?:ollama|agy|dsh):/.exec(m)?.[0];
   return (
     (
       MODELOS.find((x) => x.id === m || x.id === base) ??
-      MODELOS.find((x) => (prefijo ? x.id.startsWith(prefijo) : !/^(?:ollama|agy):/.test(x.id)) && m.includes(x.clave))
+      MODELOS.find((x) => (prefijo ? x.id.startsWith(prefijo) : !/^(?:ollama|agy|dsh):/.test(x.id)) && m.includes(x.clave))
     )?.id ?? null
   );
 };

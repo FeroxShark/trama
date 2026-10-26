@@ -210,3 +210,13 @@ test("skillOrquestar: la propia de la persona manda; sin ninguna, la genérica d
     await rm(home, { recursive: true, force: true });
   }
 });
+
+test("prefacioDsh: lo de Gemini con quién corre y sus herramientas cambiadas; sin archivos queda el prompt solo", async () => {
+  const { prefacioDsh, PROMPT_DSH } = await import("../electron/contexto-local.ts");
+  assert.match(PROMPT_DSH, /corrés dentro de DeepSeek Harness \(`dsh`\), no como Claude/);
+  assert.doesNotMatch(PROMPT_DSH, /Gemini|agy|view_file/);
+  assert.match(PROMPT_DSH, /pa <proyecto> --tipo/, "sigue explicando cómo delegar con pa");
+  assert.equal(await prefacioDsh({ home: "/no/existe", deps: { leer: async () => null, hook: async () => "" } }), PROMPT_DSH);
+  const con = await prefacioDsh({ home: "/no/existe", pa: "/opt/bin/pa", deps: { leer: async () => null, hook: async () => "" } });
+  assert.ok(con.includes("`/opt/bin/pa`"));
+});

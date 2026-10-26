@@ -20,6 +20,7 @@ import { Acciones, type FilaDato } from "./AjustesEditar";
 import { AjustesCupos, CuposTarjetas } from "./AjustesCupos";
 import { Boton } from "../ui/componentes";
 import { Cat } from "./AjustesNav";
+import { AjustesDsh } from "./AjustesDsh";
 import { GuiaOllama, SugeridosOllama, textoBajada } from "./AjustesLocales";
 import { marcar } from "./ajustes-nav";
 import { avisosTope } from "./cupos-aviso";
@@ -656,6 +657,8 @@ export function AjustesModelos({ Dato, plan = null }: { Dato: FilaDato; plan?: s
 
         </section>
       </Cat>
+
+      <AjustesDsh Dato={Dato} />
 
       <Cat id="cupos" orden={1}>
         <CuposTarjetas b={b} uso={uso} plan={plan} />

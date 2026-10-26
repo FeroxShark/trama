@@ -38,7 +38,7 @@ export { DESTRABAR_MODELOS };
 export { AGY, CUPO_MAX, CUPO_MIN, EXCLUIR_MAX, FAMILIAS, GEMINI, SIN_CUPO, TIPOS, TOPE_CLAUDE_DEFECTO, URL_OLLAMA };
 export type { Eleccion, Local, SinCupo, Tipo };
 
-/** El cupo va como texto mientras se escribe; el resto es la config tal cual. */
+/** Los topes van como texto mientras se escriben; el resto es la config tal cual. */
 export type Borrador = {
   lider?: Eleccion;
   reparto?: ModoReparto;
@@ -48,7 +48,6 @@ export type Borrador = {
   excluir: string[];
   /** Deja correr opus/sonnet con esfuerzo `max` sin pedir permiso. */
   permitir_max: boolean;
-  cupo: string;
   /** Qué hace `pa` si un modelo no tiene cupo; sin elegir se escribe nada y vale `otro`. */
   sin_cupo?: SinCupo;
   /** «Guardar un % para mis sesiones»: apagado de fábrica (sin `reserva`); prendido, los topes de abajo valen. */
@@ -67,7 +66,6 @@ export const borradorDe = (e: EstadoModelos): Borrador => ({
   locales: e.config.locales.map((l) => ({ ...l })),
   excluir: [...e.config.excluir],
   permitir_max: e.config.permitir_max,
-  cupo: e.config.gemini.cupo_max === undefined ? "" : String(e.config.gemini.cupo_max),
   ...(e.config.sin_cupo ? { sin_cupo: e.config.sin_cupo } : {}),
   guardar: e.config.claude.tope_5h !== undefined || e.config.claude.tope_7d !== undefined,
   tope5: e.config.claude.tope_5h === undefined ? "" : String(e.config.claude.tope_5h),
@@ -75,7 +73,7 @@ export const borradorDe = (e: EstadoModelos): Borrador => ({
   destrabar: { ...e.config.destrabar },
 });
 
-/** El cupo escrito: `null` vacío (sin definir), el número si vale, `"mal"` si no. */
+/** Un porcentaje escrito (los topes): `null` vacío (sin definir), el número si vale, `"mal"` si no. */
 export function cupoDe(texto: string): number | null | "mal" {
   const s = texto.trim();
   if (!s) return null;
@@ -84,13 +82,12 @@ export function cupoDe(texto: string): number | null | "mal" {
   return n >= CUPO_MIN && n <= CUPO_MAX ? n : "mal";
 }
 
-/** La config que se guardaría, o `null` si el cupo escrito no vale. */
+/** La config que se guardaría, o `null` si un tope escrito no vale. */
 export function configDe(b: Borrador): ConfigModelos | null {
-  const cupo = cupoDe(b.cupo);
   // Con el interruptor apagado lo escrito en los topes no cuenta (ni se valida); prendido y vacío vale el recomendado.
   const t5 = b.guardar ? (cupoDe(b.tope5) ?? TOPE_CLAUDE_DEFECTO) : null;
   const t7 = b.guardar ? (cupoDe(b.tope7) ?? TOPE_CLAUDE_DEFECTO) : null;
-  if (cupo === "mal" || t5 === "mal" || t7 === "mal") return null;
+  if (t5 === "mal" || t7 === "mal") return null;
   const workers: ConfigModelos["workers"] = {};
   for (const t of TIPOS) if (b.workers[t]) workers[t] = { ...b.workers[t]! };
   return {
@@ -100,7 +97,7 @@ export function configDe(b: Borrador): ConfigModelos | null {
     locales: b.locales.map((l) => ({ ...l })),
     excluir: [...b.excluir],
     permitir_max: b.permitir_max,
-    gemini: { ...(cupo !== null ? { cupo_max: cupo } : {}) },
+    gemini: {},
     ...(b.sin_cupo ? { sin_cupo: b.sin_cupo } : {}),
     claude: { ...(t5 !== null ? { tope_5h: t5 } : {}), ...(t7 !== null ? { tope_7d: t7 } : {}) },
     destrabar: { ...b.destrabar },
@@ -116,14 +113,13 @@ const huella = (c: ConfigModelos) =>
     c.locales.map((l) => [l.id, l.nombre, l.url, l.modelo]),
     c.excluir,
     c.permitir_max,
-    c.gemini.cupo_max ?? null,
     c.sin_cupo ?? null,
     c.claude.tope_5h ?? null,
     c.claude.tope_7d ?? null,
     Object.entries(c.destrabar).sort(([a], [z]) => (a < z ? -1 : 1)),
   ]);
 
-/** Hay algo distinto de lo guardado (o un cupo a medio escribir que no vale). */
+/** Hay algo distinto de lo guardado (o un tope a medio escribir que no vale). */
 export function sucio(e: EstadoModelos, b: Borrador): boolean {
   const c = configDe(b);
   return c === null || huella(c) !== huella(e.config);

@@ -21,7 +21,7 @@ export function textoBajada(b: Bajada): string {
 }
 
 /** Un comando para copiar: el texto en letra de código y un botón que lo lleva al portapapeles (el ícono pasa a un tilde 1,5 s). */
-function Comando({ texto, etiqueta }: { texto: string; etiqueta: string }) {
+export function Comando({ texto, etiqueta }: { texto: string; etiqueta: string }) {
   useIdioma();
   const [hecho, setHecho] = useState(false);
   const reloj = useRef(0);

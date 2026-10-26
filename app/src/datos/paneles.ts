@@ -11,7 +11,7 @@ import { promptRetomar } from "./retomar";
 import { promptArreglar } from "./arreglar";
 import { salud as saludDe, type EstadoSalud } from "./salud";
 import type { Hilo } from "./contrato";
-import { ACCESOS_FALSOS, AJUSTES, AUTO, ENTORNO_OLLAMA, MODELOS_FIJOS, OLLAMA_FALSO, arranqueMedidoFalso, historialFalso, MEDICION, REMOTO, SALUD, URL_REMOTO_FALSA } from "./fixtures-paneles";
+import { ACCESOS_FALSOS, AJUSTES, AUTO, ENTORNO_OLLAMA, ESTADO_DSH, MODELOS_FIJOS, OLLAMA_FALSO, arranqueMedidoFalso, historialFalso, MEDICION, REMOTO, SALUD, URL_REMOTO_FALSA } from "./fixtures-paneles";
 import type { EstadoAuto } from "../../electron/autointegrar";
 import type { Consulta, PiezaConsulta } from "../../electron/historial";
 import type { Arranque, Medido } from "../../electron/arranque";
@@ -19,8 +19,13 @@ import type { EstadoModelos, Sondeo } from "../../electron/modelos-config";
 import type { ConfigModelos } from "../../electron/modelos-tipos";
 import type { Bajada } from "../../electron/ollama-bajar";
 import type { EntornoOllama } from "../../electron/ollama-entorno";
+import type { EstadoDsh, Prueba } from "../../electron/dsh-ajustes";
+import type { NombreClave } from "../../electron/claves";
 
-export type { Arranque, Bajada, ConfigModelos, Consulta, EntornoOllama, EstadoAuto, EstadoModelos, EstadoSalud, Medido, PiezaConsulta, Sondeo };
+export type { Arranque, Bajada, ConfigModelos, Consulta, EntornoOllama, EstadoAuto, EstadoDsh, EstadoModelos, EstadoSalud, Medido, NombreClave, PiezaConsulta, Prueba, Sondeo };
+
+/** Los proveedores de DeepSeek Harness que se pueden probar desde Ajustes. */
+export type ProveedorDshUi = "opencode" | "deepseek" | "ollama";
 
 /** El registro histórico de los últimos 7 o 30 días (electron/historial.ts), o por qué no se pudo. */
 export type Historial = Consulta | { version: number; error: string };
@@ -131,6 +136,14 @@ export interface FuentePaneles {
   alBajar(fn: (b: Bajada) => void): () => void;
   /** Qué hay en esta máquina para Ollama (instalado, distro, GPU y VRAM, comandos de instalar y arrancar); sólo lee. */
   entornoOllama(): Promise<EntornoOllama>;
+  /** DeepSeek Harness: si `dsh` está instalado (y su versión), qué API keys hay (nunca su valor) y el comando para instalarlo. */
+  estadoDsh(): Promise<EstadoDsh>;
+  /** `npm i -g @deepseek-ai/dsh`; devuelve el estado de después o rechaza con el motivo. */
+  instalarDsh(): Promise<EstadoDsh>;
+  /** Guarda (o, con `null`, borra) una API key; devuelve el estado. La key no vuelve. */
+  claveDsh(nombre: NombreClave, valor: string | null): Promise<EstadoDsh>;
+  /** Prueba un proveedor con la key guardada (`GET /models`; Ollama, `/api/tags`); nunca rechaza por no contestar. */
+  probarDsh(proveedor: ProveedorDshUi, url?: string): Promise<Prueba>;
   /** Guarda el plan (`pa --plan`) y/o la red de seguridad (`autoCompactWindow`); devuelve Ajustes como quedó o rechaza con el motivo. */
   guardarAjustes(cambio: CambioAjustes): Promise<Ajustes>;
   /** El acceso desde el celular: cómo está y dónde escucha. */
@@ -194,6 +207,8 @@ function cae(que: keyof typeof FALLAS_PANEL): boolean {
 
 /** La config de modelos de los fixtures: se arma al primer pedido y vive mientras la página. */
 let modelosFijos: EstadoModelos | undefined;
+/** DeepSeek Harness de los fixtures (instalado o no, con qué keys): vive mientras la página. */
+let dshFijo: EstadoDsh | undefined;
 
 const FALLA_CONFLICTO = "pa: conflicts merging into main. A worker can resolve it: pa atlas --actualizar 20261003-100000-11111";
 
@@ -252,6 +267,30 @@ const fija: FuentePaneles = {
   async entornoOllama() {
     await espera(120);
     return structuredClone(ENTORNO_OLLAMA(MODO.variante));
+  },
+  async estadoDsh() {
+    await espera(80);
+    dshFijo ??= ESTADO_DSH(MODO.variante);
+    return structuredClone(dshFijo);
+  },
+  async instalarDsh() {
+    await espera(900);
+    if (MODO.variante === "dsh-falla") throw new Error(textoT("main.dshInstalarFallo", { cmd: "npm i -g @deepseek-ai/dsh", e: "npm error code EACCES\nnpm error path /usr/lib/node_modules" }));
+    dshFijo = { ...(dshFijo ?? ESTADO_DSH(MODO.variante)), instalado: true, versionDsh: "0.2.1" };
+    return structuredClone(dshFijo);
+  },
+  async claveDsh(nombre, valor) {
+    await espera(120);
+    dshFijo ??= ESTADO_DSH(MODO.variante);
+    dshFijo = { ...dshFijo, claves: { ...dshFijo.claves, [nombre]: valor !== null } };
+    return structuredClone(dshFijo);
+  },
+  async probarDsh(proveedor) {
+    await espera(500);
+    // `dsh-falla`: DeepSeek rechaza la key; el resto responde.
+    if (MODO.variante === "dsh-falla" && proveedor === "deepseek") return { ok: false, motivo: textoT("main.dshClaveMala", { k: "DEEPSEEK_API_KEY" }) };
+    if (proveedor === "ollama") return { ok: true, modelos: OLLAMA_FALSO.length };
+    return { ok: true, modelos: proveedor === "opencode" ? 14 : 3 };
   },
   async bajarModelo(url, modelo) {
     const nombre = modelo.trim();
@@ -495,6 +534,18 @@ const conPa = (m: NonNullable<typeof main>): FuentePaneles => ({
   },
   async entornoOllama() {
     return (await m.paneles.entornoOllama().catch(fallar)) as EntornoOllama;
+  },
+  async estadoDsh() {
+    return (await m.paneles.estadoDsh().catch(fallar)) as EstadoDsh;
+  },
+  async instalarDsh() {
+    return (await m.paneles.instalarDsh().catch(fallar)) as EstadoDsh;
+  },
+  async claveDsh(nombre, valor) {
+    return (await m.paneles.claveDsh(nombre, valor).catch(fallar)) as EstadoDsh;
+  },
+  async probarDsh(proveedor, url) {
+    return (await m.paneles.probarDsh(proveedor, url).catch(fallar)) as Prueba;
   },
   alBajar(fn) {
     return m.paneles.alBajar((b) => {

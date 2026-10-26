@@ -1,7 +1,7 @@
 // La tabla única de modelos (src/hilo/modelos.ts): niveles de esfuerzo por modelo, reajuste al cambiar y los locales.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { defDe, effortDeModelo, EMPRESAS, effortPara, effortsDe, EFFORTS_CLAUDE, EFFORTS_LOCAL, esLocal, partirGeminiId, ponerConfig, reajustarEffort, sinWorkers, TABLA } from "../src/hilo/modelos.ts";
+import { defDe, effortDeModelo, EMPRESAS, effortPara, effortsDe, EFFORTS_CLAUDE, EFFORTS_LOCAL, esDsh, esLocal, familiaDe, partirGeminiId, ponerConfig, reajustarEffort, sinWorkers, TABLA } from "../src/hilo/modelos.ts";
 
 // Los locales de llama-server no vienen en el código: los declara `locales.json` y el main manda sólo ids y nombres. Acá, dos de ejemplo.
 const LLAMA = [
@@ -53,7 +53,7 @@ test("el menú agrupa por empresa: cada una en filas contiguas, Anthropic primer
     empresas.filter((e, i) => e !== empresas[i - 1]),
     ["anthropic", "local"],
   );
-  assert.deepEqual(EMPRESAS, { anthropic: "Anthropic", google: "Google", local: "Local", ollama: "Ollama" });
+  assert.deepEqual(EMPRESAS, { anthropic: "Anthropic", google: "Google", local: "Local", ollama: "Ollama", dsh: "DeepSeek Harness" });
   assert.deepEqual(TABLA.filter((m) => m.local).map((m) => m.empresaNombre), ["Empresa de ejemplo", "Otra empresa"]);
   assert.deepEqual(
     TABLA.filter((m) => m.empresa === "anthropic").map((m) => m.clave),
@@ -156,6 +156,50 @@ test("un líder por defecto que la tabla no tiene no cambia nada", () => {
   try {
     assert.equal(ponerConfig({ gemini: false, locales: [], llama: LLAMA, lider: { modelo: "gemini-4-argon-high", effort: null } }), null);
     assert.equal(TABLA.find((m) => m.rec)?.id, "claude-opus-5-5");
+  } finally {
+    ponerConfig(CON);
+  }
+});
+
+test("DeepSeek Harness: con dsh instalado la tabla suma los gratis de OpenCode, el de DeepSeek y los Ollama de los locales; sin esfuerzo, con workers, también para los tipos de worker", () => {
+  try {
+    ponerConfig({ gemini: false, dsh: true, locales: [{ id: "ollama:qwen3-coder:30b", nombre: "Qwen3 Coder 30B", modelo: "qwen3-coder:30b" }, { id: "ollama:viejo", nombre: "Viejo" }], llama: [], lider: null });
+    const dsh = TABLA.filter((m) => m.empresa === "dsh");
+    assert.deepEqual(
+      dsh.map((m) => m.id),
+      [
+        "dsh:opencode/big-pickle",
+        "dsh:opencode/deepseek-v4.1-flash-free",
+        "dsh:opencode/glm-5.3-flash-free",
+        "dsh:opencode/flint-40b-free",
+        "dsh:opencode/longcat-2.5-preview-free",
+        "dsh:deepseek/deepseek-v4-flash",
+        "dsh:ollama/qwen3-coder:30b",
+      ],
+      "un local sin `modelo` (de un main viejo) no genera su fila de dsh",
+    );
+    for (const m of dsh) {
+      assert.deepEqual(m.efforts, [], m.id);
+      assert.ok(!m.soloLider, m.id);
+      assert.equal(sinWorkers(m.id), false, `${m.id}: un líder de dsh delega con pa`);
+      assert.equal(esDsh(m.id), true);
+    }
+    assert.equal(EMPRESAS.dsh, "DeepSeek Harness");
+    assert.equal(defDe("dsh:opencode/big-pickle")?.id, "dsh:opencode/big-pickle");
+    assert.equal(effortsDe("dsh:opencode/big-pickle").length, 0);
+    assert.equal(familiaDe("dsh:opencode/big-pickle"), "dsh");
+    assert.equal(familiaDe("gemini-4-argon"), "agy");
+    assert.equal(familiaDe("ollama:qwen3-coder:30b"), "claude");
+    assert.equal(familiaDe("claude-opus-5-5"), "claude");
+    // El de DeepSeek no es de ninguna clave de Claude aunque el id lleve «deepseek».
+    assert.equal(defDe("dsh:deepseek/deepseek-v4-flash")?.desc, "modelo.dshDeepseek");
+    // Sin dsh instalado, nada de esto aparece.
+    ponerConfig({ gemini: false, locales: [], llama: [], lider: null });
+    assert.equal(TABLA.some((m) => m.empresa === "dsh"), false);
+    // Un líder por defecto de dsh se ofrece aunque el flag falte, y es el default.
+    const lider = ponerConfig({ gemini: false, locales: [], llama: [], lider: { modelo: "dsh:opencode/big-pickle", effort: null } });
+    assert.deepEqual(lider, { modelo: "dsh:opencode/big-pickle", effort: null });
+    assert.equal(TABLA.find((m) => m.rec)?.id, "dsh:opencode/big-pickle");
   } finally {
     ponerConfig(CON);
   }

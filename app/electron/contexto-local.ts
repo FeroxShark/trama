@@ -203,14 +203,33 @@ export async function skillOrquestar(home: string): Promise<string> {
 }
 
 /**
+ * Lo mismo para un líder de DeepSeek Harness (`dsh`, que tampoco lee CLAUDE.md): el prompt de Gemini con lo que cambia (quién corre y
+ * con qué herramientas). Las mismas reglas de privacidad: ni hooks ni memoria, porque el modelo puede ser de un servicio en la nube.
+ */
+export const PROMPT_DSH = PROMPT_GEMINI.split("\n")
+  .map((l) =>
+    l.startsWith("Sos un líder de Trama")
+      ? "Sos un líder de Trama (una app para manejar workers de `pa` y chatear con sus líderes) y corrés dentro de DeepSeek Harness (`dsh`), no como Claude."
+      : l.startsWith("Tus herramientas son")
+        ? "Tus herramientas son las de dsh (bash, read, write, edit, glob, grep y la web). Contestá en el idioma en que te escriben, claro y al grano, y contá qué hiciste."
+        : l.replaceAll("view_file", "read"),
+  )
+  .join("\n");
+
+async function prefacioCon(prompt: string, x: { home: string; cwd?: string; pa?: string; deps?: Partial<DepsContexto> }): Promise<string> {
+  const c = await armarContexto({ home: x.home, cwd: x.cwd, ctx: 40000, perfil: "gemini", deps: x.deps }).catch(() => null);
+  const skill = await skillOrquestar(x.home);
+  const base = skill === SKILL_GENERICA ? prompt : prompt.replaceAll(SKILL_GENERICA, skill);
+  const conPa = x.pa && path.isAbsolute(x.pa) ? `${base}\nSi un comando dice "pa: command not found", \`pa\` está en \`${x.pa}\`: llamalo con esa ruta.` : base;
+  return c?.texto ? `${conPa}\n\n${c.texto}` : conPa;
+}
+
+/**
  * El prefacio completo de un líder de Gemini en `cwd`: lo de arriba más sus CLAUDE.md. Un archivo ilegible no lo tira.
  * `pa`: dónde está el binario si se encontró con ruta absoluta; se lo dice por si el PATH de la herramienta de comandos de
  * agy no lo trae (la unidad de systemd y el menú de apps arrancan sin `~/.local/bin`), así nunca queda en "pa: command not found".
  */
-export async function prefacioGemini(x: { home: string; cwd?: string; pa?: string; deps?: Partial<DepsContexto> }): Promise<string> {
-  const c = await armarContexto({ home: x.home, cwd: x.cwd, ctx: 40000, perfil: "gemini", deps: x.deps }).catch(() => null);
-  const skill = await skillOrquestar(x.home);
-  const base = skill === SKILL_GENERICA ? PROMPT_GEMINI : PROMPT_GEMINI.replaceAll(SKILL_GENERICA, skill);
-  const prompt = x.pa && path.isAbsolute(x.pa) ? `${base}\nSi un comando dice "pa: command not found", \`pa\` está en \`${x.pa}\`: llamalo con esa ruta.` : base;
-  return c?.texto ? `${prompt}\n\n${c.texto}` : prompt;
-}
+export const prefacioGemini = (x: { home: string; cwd?: string; pa?: string; deps?: Partial<DepsContexto> }): Promise<string> => prefacioCon(PROMPT_GEMINI, x);
+
+/** El prefacio completo de un líder de dsh en `cwd` (ver `PROMPT_DSH`). */
+export const prefacioDsh = (x: { home: string; cwd?: string; pa?: string; deps?: Partial<DepsContexto> }): Promise<string> => prefacioCon(PROMPT_DSH, x);

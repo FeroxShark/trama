@@ -91,6 +91,11 @@ export const RUTAS: Readonly<Record<string, Ruta>> = {
   "modelos:cancelarBajada": "local",
   "modelos:bajadas": "local",
   "modelos:entorno": "local",
+  // DeepSeek Harness: instalado o no, sus API keys y la prueba de cada proveedor son de esta máquina.
+  "dsh:estado": "local",
+  "dsh:instalar": "local",
+  "dsh:clave": "local",
+  "dsh:probar": "local",
   "leidos:leer": "local",
   "leidos:marcar": "local",
   "nombres:leer": "local",

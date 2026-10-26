@@ -52,7 +52,9 @@ import { crearCola } from "./cola.js";
 import { crearEspera } from "./espera.js";
 import { errorT, textoT } from "./errores.ts";
 import { destinos, registro, slugsPorNombre } from "./registro.js";
-import { capacidades, hayAgy } from "./capacidades.js";
+import { capacidades, hayAgy, hayDsh } from "./capacidades.js";
+import { estadoDsh, instalarDsh, probarProveedor } from "./dsh-ajustes.ts";
+import { guardarClave } from "./claves.ts";
 import { descartarSetup, setupDeEstaMaquina } from "./setup.ts";
 import { cuentasDeEstaMaquina } from "./cuentas.ts";
 import { enTerminal } from "./actualizador.ts";
@@ -91,7 +93,7 @@ const manejadores = new Map<string, Manejador>();
  * Lo que cambia la máquina (reescribe `~/CLAUDE.md`, los ajustes, borra una cuenta, libera la GPU, actualiza `claude`): desde la
  * tailnet (el celular) no. Los `modelos:*` y `remoto:guardar` tienen su propio chequeo, con su mensaje, en el manejador.
  */
-export const SOLO_PC_TAILNET: ReadonlySet<string> = new Set(["routing:guardar", "ajustes:guardar", "cuentas:quitar", "vram:liberar", "claude:actualizar"]);
+export const SOLO_PC_TAILNET: ReadonlySet<string> = new Set(["routing:guardar", "ajustes:guardar", "cuentas:quitar", "vram:liberar", "claude:actualizar", "dsh:clave", "dsh:instalar", "dsh:probar"]);
 
 /** Anota (o reemplaza) el manejador de un canal. */
 export function manejar(canal: string, fn: Manejador) {
@@ -713,7 +715,7 @@ export function armarNucleo() {
   manejar("hilos:guardados", () => hilosGuardados());
 
   // Los paneles del pie: Ajustes, Estadísticas y las acciones de Ramas.
-  manejar("modelos:config", () => vistaModelos(modelosConfig(), hayAgy(), vistaLocales()));
+  manejar("modelos:config", () => vistaModelos(modelosConfig(), hayAgy(), vistaLocales(), hayDsh()));
   manejar("dueno:nombre", () => nombreDueno());
   manejar("ajustes:leer", () => leerAjustes());
   // Ajustes editable: el plan y la red de seguridad (ajustes-editar.ts) y el acceso desde el celular (remoto-config.ts).
@@ -773,6 +775,15 @@ export function armarNucleo() {
   manejar("modelos:bajadas", () => bajadas.lista());
   // Qué hay en esta máquina para Ollama (instalado, distro, GPU y VRAM, y los comandos de instalar y arrancar): sólo lee, no instala ni arranca nada.
   manejar("modelos:entorno", () => leerEntornoOllama());
+  // DeepSeek Harness (Ajustes > Modelos): si está instalado, instalarlo, qué keys hay (nunca su valor), guardar o borrar una key y probar un proveedor.
+  // Instalar, guardar una key y probar (que usa la key guardada) son sólo de la PC: `SOLO_PC_TAILNET`.
+  manejar("dsh:estado", () => estadoDsh());
+  manejar("dsh:instalar", () => instalarDsh());
+  manejar("dsh:clave", async (_e, nombre: unknown, valor: unknown) => {
+    await guardarClave(nombre, valor === null || valor === undefined ? null : String(valor));
+    return estadoDsh();
+  });
+  manejar("dsh:probar", (_e, proveedor: unknown, url: unknown) => probarProveedor(proveedor, url));
   manejar("ramas:brief", (_e, hs: Parameters<typeof briefRamas>[0]) => briefRamas(hs));
   manejar("hilo:retomar", (_e, h: Parameters<typeof retomarDatos>[0]) =>
     retomarDatos({

@@ -12,7 +12,7 @@ import path from "node:path";
 import { cacheDe } from "./cache.ts";
 import { textoT } from "./errores.ts";
 import { ESTADO, escribirAtomico, PA_STATE } from "./pa.js";
-import { lideresApp, procDe, transcriptDe, transcriptGemini, transcriptPorDefecto, usoVisto } from "./lider.js";
+import { lideresApp, procDe, transcriptDe, transcriptDsh, transcriptGemini, transcriptPorDefecto, usoVisto } from "./lider.js";
 import { claseDeModelo } from "./modelos-config.js";
 import { real, registro, type Proyecto } from "./registro.js";
 import { sesiones, type Sesion } from "./sesiones.js";
@@ -142,9 +142,9 @@ async function caidosDe(muertas: Sesion[], vivas: Set<string>, ahora: number): P
  * que se retomó desde la app, en su `cwd`.
  */
 async function deQueTrata(sid: string, cwd: string | null, sesion: string, regs: Proyecto[], home: string, origen?: { titulo: string }, modelo?: string | null) {
-  // Un líder de Gemini no escribe en `~/.claude/projects`: su puente guarda el transcript en `$HILOS_STATE/gemini/` (agy-puente.ts).
-  const gemini = !!modelo && claseDeModelo(modelo) === "gemini";
-  const archivo = cwd === null ? (gemini ? transcriptGemini(sid) : transcriptPorDefecto(sid)) : await transcriptDe(sid, cwd).catch(() => null);
+  // Un líder de Gemini (o de dsh) no escribe en `~/.claude/projects`: su puente guarda el transcript en `$HILOS_STATE/gemini/` (agy-puente.ts) o `$HILOS_STATE/dsh/` (dsh-puente.ts).
+  const clase = modelo ? claseDeModelo(modelo) : "claude";
+  const archivo = cwd === null ? (clase === "gemini" ? transcriptGemini(sid) : clase === "dsh" ? transcriptDsh(sid) : transcriptPorDefecto(sid)) : await transcriptDe(sid, cwd).catch(() => null);
   const t = await temaDe(sid, archivo);
   return { nombre: tituloDeRama(tituloLider(t, sesion), origen), inferido: t.primero ? proyectoEnTexto(t.primero, regs, home) : null, creado: t.creado };
 }

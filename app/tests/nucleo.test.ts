@@ -167,6 +167,38 @@ test("modelos: en modo local (TRAMA_LOCAL=1, sólo loopback) se guardan; sin él
   }
 });
 
+// DeepSeek Harness: instalar, guardar una API key y probar (que usa la key guardada) son sólo de la PC; ver el estado (sin valores) no tiene riesgo.
+test("dsh: instalar, guardar una key y probar no se pueden por la tailnet; la key no se guarda ni se lee", async () => {
+  nucleo.armarNucleo();
+  const fn = (c: string) => new Map(nucleo.manejadoresAnotados()).get(c)!;
+  const claves = path.join(tmp, "dsh-claves", "claves.env");
+  const antes = process.env.TRAMA_CLAVES;
+  const antesLocal = process.env.TRAMA_LOCAL;
+  process.env.TRAMA_CLAVES = claves;
+  delete process.env.TRAMA_LOCAL;
+  try {
+    assert.ok(nucleo.SOLO_PC_TAILNET.has("dsh:clave") && nucleo.SOLO_PC_TAILNET.has("dsh:instalar") && nucleo.SOLO_PC_TAILNET.has("dsh:probar"));
+    await assert.rejects(nucleo.llamarRemoto("dsh:clave", ["OPENCODE_API_KEY", "oc-1"], "cel"), /main\.soloPc/);
+    await assert.rejects(nucleo.llamarRemoto("dsh:instalar", [], "cel"), /main\.soloPc/);
+    await assert.rejects(nucleo.llamarRemoto("dsh:probar", ["opencode"], "cel"), /main\.soloPc/);
+    assert.equal(existsSync(claves), false);
+    // De la ventana sí; el estado dice que hay una key, nunca cuál; un nombre ajeno se rechaza.
+    const ventana = { sender: {} };
+    const e = (await fn("dsh:clave")(ventana, "OPENCODE_API_KEY", "oc-secreta")) as { claves: Record<string, boolean> };
+    assert.equal(e.claves.OPENCODE_API_KEY, true);
+    assert.ok(!JSON.stringify(e).includes("oc-secreta"));
+    assert.equal(readFileSync(claves, "utf8"), "OPENCODE_API_KEY=oc-secreta\n");
+    assert.ok(!JSON.stringify(await nucleo.llamarRemoto("dsh:estado", [], "cel")).includes("oc-secreta"));
+    await assert.rejects(fn("dsh:clave")(ventana, "PATH", "x"), /main\.claveNombre/);
+    const sin = (await fn("dsh:clave")(ventana, "OPENCODE_API_KEY", null)) as { claves: Record<string, boolean> };
+    assert.equal(sin.claves.OPENCODE_API_KEY, false);
+  } finally {
+    if (antes === undefined) delete process.env.TRAMA_CLAVES;
+    else process.env.TRAMA_CLAVES = antes;
+    if (antesLocal !== undefined) process.env.TRAMA_LOCAL = antesLocal;
+  }
+});
+
 // Sin TRAMA_LOCAL (motor lanzado suelto o unidad vieja), el dueño que entra por loopback guarda igual;
 // una IP de la tailnet (100.x) o un x-forwarded-for con 127.0.0.1 desde la tailnet siguen rechazados.
 test("modelos: por loopback se guardan sin TRAMA_LOCAL; 100.x y x-forwarded-for 127.0.0.1 desde tailnet se rechazan", async () => {

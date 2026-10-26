@@ -233,3 +233,17 @@ test("marca de proveedor: sólo si el otro lado se conoce; lo compartido y lo de
   // Llega por menuEn (con el token en medio de la caja).
   assert.equal(menuEn("hola /desi", 10, claude, {}, false, agy)!.filas[0].solo, "anthropic");
 });
+
+test("parsearComando: un líder de dsh no cruza a Claude ni a Gemini con /model (sí entre sus propios modelos)", () => {
+  const todos = [...MODELOS, { id: "gemini-4-argon", clave: "gemini-4-argon" }, { id: "dsh:opencode/big-pickle", clave: "dsh:opencode/big-pickle" }, { id: "dsh:deepseek/deepseek-v4-flash", clave: "dsh:deepseek/deepseek-v4-flash" }];
+  const actual = "dsh:opencode/big-pickle";
+  assert.deepEqual(parsearComando("/model dsh:deepseek/deepseek-v4-flash", todos, [], [], actual), { tipo: "modelo", modelo: "dsh:deepseek/deepseek-v4-flash" });
+  assert.deepEqual(parsearComando("/model opus", todos, [], [], actual), { tipo: "error", clave: "comando.cambioProveedor", v: "claude-opus-5-5" });
+  assert.deepEqual(parsearComando("/model gemini-4-argon", todos, [], [], actual), { tipo: "error", clave: "comando.cambioProveedor", v: "gemini-4-argon" });
+  // Y al revés: ni Claude ni Gemini pasan a dsh.
+  assert.deepEqual(parsearComando("/model dsh:opencode/big-pickle", todos, EFFORTS, [], "claude-opus-5-5"), { tipo: "error", clave: "comando.cambioProveedor", v: "dsh:opencode/big-pickle" });
+  assert.deepEqual(parsearComando("/model dsh:opencode/big-pickle", todos, EFFORTS, [], "gemini-4-argon"), { tipo: "error", clave: "comando.cambioProveedor", v: "dsh:opencode/big-pickle" });
+  // Un nombre que no está en la tabla pero es de otro motor también dice «cambio de proveedor», no «uso».
+  assert.deepEqual(parsearComando("/model dsh:nube/x", MODELOS, EFFORTS, [], "claude-opus-5-5"), { tipo: "error", clave: "comando.cambioProveedor", v: "dsh:nube/x" });
+  assert.deepEqual(parsearComando("/model opus", [], [], [], actual), { tipo: "error", clave: "comando.cambioProveedor", v: "opus" });
+});

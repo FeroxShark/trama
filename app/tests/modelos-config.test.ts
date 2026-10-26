@@ -90,14 +90,14 @@ test("guardar conserva las claves que no conoce y saca lo que el borrador ya no 
   const c: ConfigModelos = structuredClone(e.config);
   c.lider = { modelo: "claude-sonnet-5-5", effort: "medium" };
   delete c.workers.mecanico; // vuelve a "como hoy"
-  c.gemini = { cupo_max: 50 };
+  c.gemini = { cupo_max: 50 }; // un borrador viejo que todavía lo trae: no se escribe más
   await guardarModelos(c, undefined, ruta);
   const j = JSON.parse(readFileSync(ruta, "utf8"));
   assert.deepEqual(j.futuro, { x: 1 });
   assert.deepEqual(j.lider, { modelo: "claude-sonnet-5-5", effort: "medium", nota: "mia" });
   assert.equal("mecanico" in j.workers, false);
   assert.deepEqual(j.workers["codigo-acotado"], { modelo: "gemini-4-argon-high" });
-  assert.deepEqual(j.gemini, { cupo_max: 50, otro: true });
+  assert.deepEqual(j.gemini, { otro: true }, "gemini.cupo_max ya no se escribe (el motor no lo usa); lo ajeno se conserva");
   assert.equal(j.locales[0].etiqueta, "rapido");
 });
 
@@ -425,4 +425,26 @@ test("topes de Claude: enteros de 1 a 100, y nada desconocido adentro", async ()
   }
   assert.equal(readFileSync(ruta, "utf8"), antes);
   assert.doesNotThrow(() => validarConfig({ workers: {}, locales: [], excluir: [], permitir_max: false, gemini: {}, claude: { tope_5h: 1, tope_7d: 100 } }));
+});
+
+test("modelos dsh: la clase, el lector del líder y la validación (lider y workers aceptan dsh:<proveedor>/<modelo>, sin esfuerzo)", async () => {
+  const { claseDeModelo, familiaDeModelo, localDeModelo, leerLider } = await import("../electron/modelos-config.ts");
+  assert.equal(claseDeModelo("dsh:opencode/big-pickle"), "dsh");
+  assert.equal(claseDeModelo("ollama:x"), "ollama");
+  assert.equal(familiaDeModelo("ollama:x"), "claude");
+  const cfg = leerLider(JSON.stringify(CONTRATO))!;
+  assert.equal(localDeModelo("qwen3-coder:30b", cfg)?.id, "ollama:qwen3-coder:30b");
+  assert.equal(localDeModelo("otro", cfg), null);
+
+  const ok = validarConfig({ lider: { modelo: "dsh:opencode/deepseek-v4.1-flash-free" }, workers: { default: { modelo: "dsh:ollama/qwen3-coder:30b" } } });
+  assert.deepEqual(ok.lider, { modelo: "dsh:opencode/deepseek-v4.1-flash-free" });
+  assert.deepEqual(ok.workers.default, { modelo: "dsh:ollama/qwen3-coder:30b" });
+  for (const mal of ["dsh:nube/x", "dsh:opencode/", "dsh:opencode", "dsh:"]) assert.throws(() => validarConfig({ lider: { modelo: mal } }), mal);
+  assert.throws(() => validarConfig({ lider: { modelo: "dsh:opencode/big-pickle", effort: "high" } }), "dsh no lleva esfuerzo");
+
+  // Y se escribe y se vuelve a leer tal cual.
+  const ruta = nuevaRuta();
+  await guardarModelos(ok, undefined, ruta);
+  assert.equal(JSON.parse(readFileSync(ruta, "utf8")).lider.modelo, "dsh:opencode/deepseek-v4.1-flash-free");
+  assert.equal((await leerModelos(undefined, ruta)).config.lider?.modelo, "dsh:opencode/deepseek-v4.1-flash-free");
 });

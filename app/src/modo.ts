@@ -218,6 +218,7 @@ export const MODO = {
    * Modelos y proveedores (`AjustesModelos.tsx`): `mdl` deja a la vista la sección con un archivo de muestra, `mdl-agregar` con el
    * panel de Ollama en otra dirección abierto, `mdl-lider` con el selector del líder abierto, `mdl-bajando` con un modelo bajándose a mitad,
    * `mdl-sinollama` con Ollama sin instalar (distro, GPU y el comando para copiar), `mdl-apagado` instalado pero apagado, `mdl-sugeridos` andando con los modelos sugeridos a la vista, `mdl-tope` con el aviso de un tope de Claude cruzado y `sinmdl` sin archivo (lo de hoy).
+   * DeepSeek Harness (`AjustesDsh.tsx`): `dsh` instalado y con la key de OpenCode guardada, `dsh-sin` sin instalar y sin keys, `dsh-falla` donde Instalar falla y DeepSeek rechaza su key; `dsh-menu` (con `modelo`) el selector con los modelos de dsh.
    */
   variante: q.get("variante"),
   /** Fixtures de Estadísticas con pocos datos: lo que se ve los primeros días (`HILOS_POCOS=1`). */
