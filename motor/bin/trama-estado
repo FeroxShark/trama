@@ -13,7 +13,6 @@
 # Sólo biblioteca estándar. Nunca falla por algo que no encuentra: lo que falta sale en false.
 # Entorno (para probar): TRAMA_CLAUDE / TRAMA_AGY (otro nombre del binario), TRAMA_MODELOS (otro
 # modelos.json), TRAMA_PUERTO (puerto del motor, default 8791), OLLAMA_HOST (si modelos.json no dice).
-# Doc: docs/instalacion-de-producto-trama.md
 import glob
 import json
 import os

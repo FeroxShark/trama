@@ -3,7 +3,7 @@
 // trama de verdad) con tres líderes de 3000 mensajes inventados (captura `lider-formato`, `HILOS_VARIANTE=larga`).
 // Por CDP, con clic en la barra y scroll por `scrollBy`:
 //   - un líder que quedó abajo del todo vuelve abajo del todo (y sigue pegado: lo que le llegue después lo deja al fondo);
-//   - uno que Ana subió a mano vuelve al mismo mensaje, en el mismo punto de la pantalla;
+//   - uno que el usuario subió a mano vuelve al mismo mensaje, en el mismo punto de la pantalla;
 //   - ambos tras cambiar muchas veces entre los tres, dejando a cada uno en un lugar distinto;
 //   - también si mientras estaba en otro le llegaron mensajes (el punto es el mensaje, no la distancia al final) y si se cambia en ráfaga, sin esperar a que se pinte.
 // Sale con 1 si alguna falla. Una instancia a la vez.
@@ -252,10 +252,10 @@ try {
   }
 
   // Uno TRABAJANDO (turno en curso: el bloque de abajo con el paso y el texto que crece en vivo): lo que crece abajo no lo
-  // saca del fondo al volver, y el que Ana subió vuelve a su punto aunque abajo siga llegando texto.
+  // saca del fondo al volver, y el que el usuario subió vuelve a su punto aunque abajo siga llegando texto.
   const [pegado, subido] = [LIDERES[0], LIDERES[1]];
   const otro = LIDERES[2];
-  /** Le manda "novela" por la caja, como Ana: el turno queda en curso con el texto creciendo. */
+  /** Le manda "novela" por la caja, como el usuario: el turno queda en curso con el texto creciendo. */
   const enVivo = async (sid) => {
     await a.en(() => {
       const c = document.querySelector("textarea");

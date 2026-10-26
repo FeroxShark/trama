@@ -1,6 +1,6 @@
-// Trama en dos máquinas, la unión en sólo lectura (etapa 7, M2; contrato: docs/estado/maquinas.md): la trama
+// Trama en dos máquinas, la unión en sólo lectura: la trama
 // de la PC junta a lo suyo las filas del motor de cada otra máquina (`maquinas.json`). Cada fila de allá lleva
-// su `maquina` y el id con prefijo (`dell:…`, también el `jefe_id`), así nunca choca con uno de acá. Lo que
+// su `maquina` y el id con prefijo (`servidor:…`, también el `jefe_id`), así nunca choca con uno de acá. Lo que
 // difunde el motor de allá y es `reenviar` en `EVENTOS` sale de acá con los ids ya con prefijo; lo que es de
 // una fila de allá y sólo se lee (su conversación) va a su motor. **Nada más se le manda**, salvo lo que se le hace
 // a un item de su tablero (M5): una acción sobre una fila de allá falla con un texto claro (las acciones son M4).
@@ -221,7 +221,7 @@ export function crearMaquinas(o: OpcionesMaquinas) {
     } catch {
       continue;
     }
-    // El transporte es http pelado por la tailnet (Tailscale ya cifra); https (un `tailscale serve` del Dell) todavía no.
+    // El transporte es http pelado por la tailnet (Tailscale ya cifra); https (un `tailscale serve` de la otra máquina) todavía no.
     if (u.protocol !== "http:") {
       log.escribir("error", "maquinas", `${m.id}: sólo http (${u.protocol})`);
       continue;

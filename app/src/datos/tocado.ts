@@ -109,7 +109,7 @@ export const tocarPrueba = (id: ItemId, x: RespPrueba) => poner({ ...estado, p: 
 
 /** Saca de lo tocado esos items (ya se mandaron). */
 export function soltarTocado(ids: ReadonlySet<ItemId>): void {
-  // Las claves del objeto son texto: un id de acá (número) y uno de otra máquina (`dell:12`) se comparan igual.
+  // Las claves del objeto son texto: un id de acá (número) y uno de otra máquina (`servidor:12`) se comparan igual.
   const mandados = new Set([...ids].map(String));
   const sin = <T>(m: Record<string, T>) => Object.fromEntries(Object.entries(m).filter(([k]) => !mandados.has(k))) as Record<string, T>;
   poner({ q: sin(estado.q), p: sin(estado.p) });

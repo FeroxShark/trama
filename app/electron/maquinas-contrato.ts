@@ -1,10 +1,10 @@
-// El contrato entre motores de trama en dos máquinas (docs/estado/maquinas.md): qué se hace con cada canal y
+// El contrato entre motores de trama en dos máquinas: qué se hace con cada canal y
 // cada evento, y el saludo con el que se reconocen. Sin estado ni efectos: lo usan nucleo.ts, quien junta
 // (maquinas.ts) y el transporte (maquina-cliente.ts), y lo prueba tests/nucleo.test.ts.
 import { createHash } from "node:crypto";
 
 /**
- * Trama en dos máquinas (docs/estado/maquinas.md): qué hace con cada canal la trama que junta a las otras.
+ * Trama en dos máquinas: qué hace con cada canal la trama que junta a las otras.
  * "juntar": se le pide a cada máquina y se unen las respuestas (cada fila con su `maquina`).
  * "maquina": va sólo al motor de la máquina de la fila (el `maquina` del hilo o del líder, o el prefijo del id).
  * "local": lo contesta esta máquina sola (sus preferencias, su pantalla, su estado propio).
@@ -130,7 +130,7 @@ export const RUTAS: Readonly<Record<string, Ruta>> = {
   "lider:comandos": "local",
   "lider:estilos": "local",
   "bitacora:escribir": "local",
-  // La PC que el Dell prende (electron/pc-estado.ts): del Dell solo, nunca se junta ni se enruta.
+  // La PC que la otra máquina prende (electron/pc-estado.ts): de la otra máquina sola, nunca se junta ni se enruta.
   "pc:leer": "local",
   "pc:prender": "local",
   "reinicio:leer": "local",

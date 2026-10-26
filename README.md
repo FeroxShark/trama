@@ -58,7 +58,8 @@ Corré `trama-motor abrir` (o abrí Trama desde el menú, en Windows).
   corre. Le escribís como a cualquier chat.
 - **Si le escribís mientras trabaja**, el mensaje espera en la cola y sale solo cuando termina el
   turno. Si no querés esperar, `Ctrl+Enter` (o el botón con el rayo) lo manda ya: el agente lo recibe
-  en la primera pausa segura, sin cortarle lo que esté haciendo.
+  en la primera pausa segura, sin cortarle lo que esté haciendo. Anda con líderes de Claude y de
+  Gemini; con un modelo local (Ollama) no hay ese canal, y el mensaje espera en la cola.
 - **Para ver qué hizo un worker**, tocá su fila: están los pasos que dio, con los diffs.
 - **El botón ✓** de una fila integra la rama (o archiva, si no hay rama). Si los tests fallan, no
   integra y te lo dice.
@@ -123,12 +124,18 @@ pestaña **Te esperan** del Tablero muestra lo mismo y te deja contestar con bot
 
 ## Modelos
 
-Sin configurar nada, los workers usan Claude Sonnet con effort `high` (y `--tipo mecanico` va a Haiku). Para elegir modelo por tipo de
-tarea, o para usar modelos locales de Ollama, escribí `~/.config/trama/modelos.json`:
+Sin configurar nada, `pa` le pide a `reparto` que elija el modelo de cada worker: según el tipo de tarea
+(la calidad mínima que pide) y el cupo que te queda en cada suscripción (Claude, y Gemini o ChatGPT si
+las tenés). Si `reparto` no contesta, o la tarea no pasa por él (por ejemplo con `--effort xhigh`), cae
+a Claude Sonnet con effort `high` (`--tipo mecanico` va a Haiku). `-m` siempre gana.
+
+Para fijar el modelo por tipo de tarea, o para usar modelos locales de Ollama, escribí
+`~/.config/trama/modelos.json`:
 
 ```json
 {
   "version": 1,
+  "reparto": "fijo",
   "lider":   {"modelo": "claude-opus-5-5", "effort": "high"},
   "workers": {
     "default":  {"modelo": "claude-sonnet-5-5", "effort": "high"},
@@ -137,16 +144,18 @@ tarea, o para usar modelos locales de Ollama, escribí `~/.config/trama/modelos.
   "locales": [
     {"id": "ollama:qwen3-coder:30b", "nombre": "Qwen3 Coder 30B",
      "url": "http://localhost:11434", "modelo": "qwen3-coder:30b"}
-  ],
-  "gemini": {"cupo_max": 70, "sin_claude": "claude"}
+  ]
 }
 ```
 
-- `workers.<tipo>` elige modelo y effort de `pa --tipo <tipo>` (sin `-m`); lo que no está cae en `default`.
+- `reparto` es `"auto"` (el default) o `"fijo"`. Con `"auto"` el modelo de cada worker lo elige
+  `reparto` y `workers.<tipo>` sólo se usa de respaldo, si `reparto` no puede contestar. Con `"fijo"`
+  manda `workers.<tipo>`: elige modelo y effort de `pa --tipo <tipo>` (sin `-m`), y lo que no está cae
+  en `default`. Si querés que `workers` se respete, poné `"reparto": "fijo"`.
 - `ollama:<modelo>` usa el servidor de `url` (por default `http://localhost:11434`). Las variables de
   Ollama se pasan sólo al proceso de ese worker.
 - Si el archivo no valida, `pa` lo avisa en una línea y sigue con los modelos de fábrica.
-- `pa --modelos` muestra qué modelo y effort va a usar cada tipo.
+- `pa --modelos` muestra qué modelo y effort va a usar cada tipo (y qué elegiría `reparto` hoy).
 
 ## Correr el motor sin WSL
 

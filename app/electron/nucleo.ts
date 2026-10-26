@@ -191,7 +191,7 @@ function avisarMaquinas() {
 }
 /** Las otras máquinas cuyas filas se juntan a las de acá (maquinas.ts); sin `maquinas.json` (lo de siempre), null. */
 let maquinas: Maquinas | null = null;
-/** La PC que se prende desde acá (sólo en el Dell: `prender` en su entrada de `maquinas.json`; pc-estado.ts); en la PC, null. */
+/** La PC que se prende desde acá (sólo en la otra máquina: `prender` en su entrada de `maquinas.json`; pc-estado.ts); en la PC, null. */
 let pc: Pc | null = null;
 
 /** Quien recibe lo que cambia (canal y dato): la ventana, los clientes por red. */
@@ -587,13 +587,13 @@ export const TOPE_SALIDA_MS = lider.TOPE_SALIDA_MS;
 
 /** Anota los manejadores de todos los canales del núcleo y arranca lo que corre solo (la cola). Una vez. */
 export function armarNucleo() {
-  // Las otras máquinas (etapa 7): se lee una vez. Sin el archivo, nada se arma y todo es como siempre.
+  // Las otras máquinas: se lee una vez. Sin el archivo, nada se arma y todo es como siempre.
   const cfg = leerMaquinas(ARCHIVO_MAQUINAS);
   if ("error" in cfg) log.escribir("error", "maquinas", cfg.error);
   else {
     for (const m of cfg.malas) log.escribir("error", "maquinas", m);
     esta = { id: cfg.esta, nombre: identidadDe(cfg).nombre };
-    // Una máquina con `prender` es sólo para prenderla: nunca se conecta a su motor (el Dell no manda en la PC).
+    // Una máquina con `prender` es sólo para prenderla: nunca se conecta a su motor (la otra máquina no manda en la PC).
     const prendible = cfg.maquinas.find((m) => m.prender);
     if (prendible) {
       pc = crearPc({ maquina: prendible, alCambio: (e) => enviar("pc:cambio", e) });
@@ -918,7 +918,7 @@ export function armarNucleo() {
     log.escribir("error", `renderer/${quien(e)} ${donde}`, String(x?.detalle ?? "").slice(0, 8192));
   });
   // El cartel "Hay una actualización disponible": también desde el celular (reinicia la trama de la PC, no corta nada).
-  // "PC apagada · Prender" (Dell): sin PC configurada contesta null y la interfaz no muestra nada.
+  // "PC apagada · Prender" (en la otra máquina): sin PC configurada contesta null y la interfaz no muestra nada.
   manejar("pc:leer", () => (pc ? pc.leer() : null));
   manejar("pc:prender", () => (pc ? pc.prender() : null));
   manejar("reinicio:leer", () => reinicio?.estado() ?? SIN_REINICIO);
@@ -971,7 +971,7 @@ export function armarNucleo() {
   manejar("setup:descartar", (_e, id: unknown) => descartarSetup(id));
   // Ajustes > Cuentas: ¿están conectados Claude y Gemini? Se les pregunta a los CLI al pedirlo (sin reloj ni caché).
   manejar("cuentas:estado", () => cuentasDeEstaMaquina());
-  // Varias cuentas por proveedor (el CLI `cuentas` del orquestador): lista, alta, renombre, baja y login. Después de un cambio el cupo se vuelve a pedir.
+  // Varias cuentas por proveedor (el CLI `cuentas`): lista, alta, renombre, baja y login. Después de un cambio el cupo se vuelve a pedir.
   cuentasVarias(manejar, cuentasDeEstaMaquinaVarias(enTerminal), () => void refrescarCupos(true));
 
   // El tablero de pendientes (tablero.ts): se mira su vista desde la primera vez que se pide.

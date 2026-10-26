@@ -1,7 +1,7 @@
 # PLANTILLA de trama (systemd/locales/) para un modelo local de llama-server declarado en ~/.config/trama/locales.json.
 # Copiala con el nombre de TU unit (el campo `unit` de locales.json), cambiá <modelo>, <clave>, <alias> y las rutas:
 #   cp systemd/locales/llama-server-ejemplo.service ~/.config/systemd/user/llama-server-<modelo>.service && systemctl --user daemon-reload
-# No reinicia nada; rige en la próxima carga del modelo. Ver docs/estado/locales.md.
+# No reinicia nada; rige en la próxima carga del modelo.
 #
 # `-c ${LLAMA_CTX}`: el valor sale de %h/.config/trama/locales/<clave>.env (lo escribe el botón de contexto de trama: Guardar / Probar);
 # si ese archivo no existe vale el default de abajo. `<clave>` es el campo `clave` de locales.json (sin él, el `id`).

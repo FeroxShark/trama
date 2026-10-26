@@ -28,9 +28,8 @@ import { enMarcha, marcar, type Corrida } from "./reinicio-marcas.js";
 // Sin Wayland (X11, Xvfb de las pruebas) `auto` cae en X11 en vez de no abrir.
 app.commandLine.appendSwitch("ozone-platform-hint", "auto");
 
-// Sin GPU por default: con esta UI da los mismos fps (200 en HDMI-A-2) con menos
-// CPU, menos RAM y arranque más rápido (medido en B0b y otra vez en B1, ver
-// docs/estado/B1.md). HILOS_GPU=1 la vuelve a prender.
+// Sin GPU por default: con esta UI da los mismos fps con menos
+// CPU, menos RAM y arranque más rápido. HILOS_GPU=1 la vuelve a prender.
 if (process.env.HILOS_GPU !== "1") app.commandLine.appendSwitch("disable-gpu");
 
 // Switches extra para probar en el bench sin recompilar:
@@ -43,7 +42,7 @@ for (const f of (process.env.HILOS_FLAGS ?? "").split(/\s+/).filter(Boolean)) {
 const aqui = import.meta.dirname;
 
 // Modos de prueba. El frontend los lee de la query (síncrono, sin parpadeo):
-//   HILOS_BENCH=<out.json>   corre un guion de medición y cierra (scripts/bench.sh).
+//   HILOS_BENCH=<out.json>   corre un guion de medición y cierra (scripts/dev/bench.sh).
 //   HILOS_GUION=barra|paneles|b0  qué guion: la barra (default con HILOS_BENCH), los paneles
 //                            del pie (siempre con el `pa` falso) o la pantalla de B0.
 //   HILOS_CAPTURA=<estado>   la app con fixtures y un estado forzado (los de `Captura` en

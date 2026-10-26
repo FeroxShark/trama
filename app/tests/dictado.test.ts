@@ -1,4 +1,4 @@
-// Dictar (docs/estado/dictado.md): el WAV del cliente (src/hilo/dictado.ts) y la transcripción del motor
+// Dictar: el WAV del cliente (src/hilo/dictado.ts) y la transcripción del motor
 // (electron/dictado.ts) con un `handy` falso (`ejecutar`): nunca el de verdad.
 import { test, after } from "node:test";
 import assert from "node:assert/strict";

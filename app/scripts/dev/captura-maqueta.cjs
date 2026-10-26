@@ -1,11 +1,12 @@
+// Herramienta de desarrollo del autor; supone las maquetas HTML de referencias/ (no van al repo) y ffmpeg para el GIF.
 // Captura una maqueta HTML (referencias/maquetas/...) con Electron escondido: un PNG de la página entera y, con --gif,
 // un GIF de la escena con cada actividad en su turno. Los cuadros del GIF son deterministas: se frena cada animación
 // (Web Animations) y se le pone el tiempo a mano, así no dependen del reloj de la máquina.
 //
-// uso: node_modules/electron/dist/electron scripts/captura-maqueta.cjs <pagina.html> <salida.png> [--gif <salida.gif>]
+// uso: node_modules/electron/dist/electron scripts/dev/captura-maqueta.cjs <pagina.html> <salida.png> [--gif <salida.gif>]
 //        [--ancho 1280] [--alto 800] [--query "?vivo=1"] [--fps 12] [--seg 1.5] [--selector .escena] [--pad 0] [--escala 1.6]
 // --alto fija el alto de la ventana (una maqueta que cabe en una pantalla, sin scroll de página); sin él, el de toda la página.
-// Requiere ffmpeg para el GIF. No toca nada de Ana: perfil temporal.
+// Requiere ffmpeg para el GIF. No toca la Trama de verdad: perfil temporal.
 const { app, BrowserWindow } = require("electron");
 const fs = require("node:fs");
 const os = require("node:os");

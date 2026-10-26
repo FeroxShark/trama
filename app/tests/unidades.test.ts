@@ -1,11 +1,10 @@
 // systemd/trama.service y systemd/trama-motor.service, sin correr systemd: que el reinicio rápido (500 ms) no
 // rompa lo que depende de ellas (KillMode=process, el código 3 que no se levanta de nuevo), que un bucle al
 // ritmo de RestartSec pase el tope de arranques antes de que su ventana se reinicie, y que pasan el verify.
-// Lo medido con unidades transitorias de verdad: docs/estado/reinicio-rapido.md.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { chmodSync, copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
@@ -63,7 +62,7 @@ test("las dos unidades pasan systemd-analyze --user verify", { skip: (process.ge
   const tmp = mkdtempSync(path.join(os.tmpdir(), "hilos-unidades-"));
   try {
     const h = path.join(tmp, "home");
-    const checkout = path.join(h, "Proyectos", "hilos");
+    const checkout = path.join(h, "checkout", "trama");
     mkdirSync(path.join(h, ".local", "bin"), { recursive: true });
     mkdirSync(path.join(checkout, "node_modules", "electron", "dist"), { recursive: true });
     mkdirSync(path.join(checkout, "dist-electron"), { recursive: true });
@@ -74,7 +73,8 @@ test("las dos unidades pasan systemd-analyze --user verify", { skip: (process.ge
     writeFileSync(path.join(checkout, "dist-electron", "motor.js"), "");
     const u = path.join(tmp, "unidad");
     mkdirSync(u);
-    for (const n of UNIDADES) copyFileSync(path.join(repo, "systemd", n), path.join(u, n));
+    // La ruta del checkout va en lugar de `@RAIZ@`, como la pone scripts/instalar.sh.
+    for (const n of UNIDADES) writeFileSync(path.join(u, n), readFileSync(path.join(repo, "systemd", n), "utf8").replaceAll("@RAIZ@", checkout));
     const env = { ...process.env, HOME: h, XDG_CONFIG_HOME: path.join(h, ".config") };
     const r = spawnSync("systemd-analyze", ["--user", "verify", ...UNIDADES.map((n) => path.join(u, n))], { encoding: "utf8", env });
     assert.equal(r.status, 0, r.stderr + r.stdout);

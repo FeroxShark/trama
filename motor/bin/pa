@@ -2612,7 +2612,7 @@ cmd_rinde() {
   local t mo e cu n d o p tu us co
   while IFS='|' read -r t mo e cu n d o p tu us co; do
     [[ "$t" == "~" ]] && t="?"
-    [[ -n "$cu" ]] && mo="$mo@$cu"   # una cuenta que no es la de siempre (docs/cuentas-varias-por-proveedor.md)
+    [[ -n "$cu" ]] && mo="$mo@$cu"   # una cuenta que no es la de siempre
     printf '%-15s %-18s %-8s %4s %5s %5s %7s %8s %6s\n' "$t" "$mo" "$e" "$n" "$d" "${p:--}" "${tu:--}" "${us:--}" "${co:--}"
   done < <(tr '\t' '|' <<<"$celdas")
 }
@@ -3372,7 +3372,7 @@ gemini_equivalente() {   # $1 = modelo de agy -> "modelo effort" del Claude ofic
   esac
 }
 agy_hooks_json() { timeout "${PA_AGY_CHEQUEO_S:-40}" "${cuenta_env[@]}" agy -p /hooks --output-format json </dev/null 2>/dev/null; }
-# --- varias cuentas por proveedor (docs/cuentas-varias-por-proveedor.md) -------------------------
+# --- varias cuentas por proveedor -------------------------
 # Cada cuenta (bin/cuentas, ~/.config/trama/cuentas.json) tiene su carpeta de credenciales. El worker
 # corre con el entorno de SU cuenta sólo en su proceso (`env -u … CLAUDE_CONFIG_DIR=…`, o HOME para agy)
 # y nunca con ANTHROPIC_API_KEY: el entorno lo arma `cuentas env`. La cuenta de siempre tiene el id del
@@ -3437,7 +3437,7 @@ cmd_cupo_gemini() {
   REPARTO_STATE="${REPARTO_STATE:-$STATE/reparto}" PA_STATE="$STATE" "$REPARTO" --cupos "$@"
 }
 
-# --- privacidad de los workers Gemini (docs/gemini-workers-agy.md) ----------------
+# --- privacidad de los workers Gemini ----------------
 # Gemini (y cualquier modelo por agy) corre en CUALQUIER proyecto (el dueño, 2026-10-23: tiene apagado en
 # agy compartir datos para mejorar el producto): no hay lista de proyectos prohibidos ni excluidos.
 # Quedan dos candados ANTES de lanzar agy, por contenido y no por proyecto; si alguno salta, pa cae al
@@ -3503,7 +3503,7 @@ gemini_chequear() {   # $1 = modelo de agy (gemini-* o agy:*)
   return 0
 }
 
-# --- workers por codex (Codex CLI: ChatGPT) — docs/codex-workers.md --------------------------
+# --- workers por codex (Codex CLI: ChatGPT) --------------------------
 # `pa <proy> -m codex:<modelo>-<effort>` lanza `codex exec --json` en vez de claude. El effort va en el
 # nombre (model_reasoning_effort). Mismos candados de privacidad que agy (gemini_privacidad); codex no
 # tiene hooks: las guardias de git y cargo son los shims de codex/bin, primeros en el PATH, y el
@@ -3572,7 +3572,7 @@ codex_a_json() {   # $1 = jsonl de codex, $2 = stderr, $3 = modelo de pa, $4 = r
                    outputTokens: ([$u[] | .output_tokens // 0] | add) }} end) }' "$1"
 }
 
-# --- modelos.json: el contrato compartido con Trama (docs/modelos-json-tipo-a-modelo-y-locales-ollama.md) ---
+# --- modelos.json: el contrato compartido con Trama ---
 # `~/.config/trama/modelos.json` (TRAMA_MODELOS lo redirige: los tests) dice qué modelo usa cada
 # `--tipo` cuando no hay `-m`, qué locales (Ollama) existen y qué hace pa cuando un Gemini caería a
 # Claude. Sin el archivo todo es como antes, byte por byte. Un archivo roto avisa en UNA línea por
@@ -4176,7 +4176,7 @@ if [[ -z "$modelo" ]]; then
 fi
 [[ -n "$reparto_fallo" ]] && echo "pa: reparto falló ($reparto_fallo); sigo con $modelo." >&2
 # --- Gemini y Claude/GPT por agy: validar, mirar el plugin y privacidad, o caer al equivalente Claude ---
-# docs/gemini-workers-agy.md. Lo que agy no tiene (retomar sesión, MCP de claude.ai, tope de gasto
+# Lo que agy no tiene (retomar sesión, MCP de claude.ai, tope de gasto
 # en US$, el tree principal sin worktree) se niega acá en vez de lanzar algo que no es lo pedido.
 motor=claude; gemini_pedido=""
 # La cuenta de la retomada (--seguir sin --cuenta): mismo puesto, misma suscripción.
@@ -4223,7 +4223,7 @@ if (( lanza )) && es_gemini "$modelo"; then
   fi
 fi
 # --- ChatGPT por codex: validar, privacidad, codex y su login, o caer al equivalente Claude ------
-# docs/codex-workers.md. Como agy: sin --seguir, --aca, --mcp ni --max-budget-usd.
+# Como agy: sin --seguir, --aca, --mcp ni --max-budget-usd.
 if (( lanza )) && es_codex "$modelo"; then
   if [[ ! "${modelo,,}" =~ ^($CODEX_MODELOS)$ ]]; then
     echo "pa: modelo '$modelo' no va. Modelos de codex en pa: codex:{gpt-6.1-sol,gpt-6-sol,gpt-6-luna,gpt-6-astra}-{low,medium,high}." >&2
@@ -4820,7 +4820,7 @@ fi
 # cargaba el ruleset y las descripciones de sus skills en cada corrida, y la prosa de un worker no
 # la lee nadie: sólo el bloque RESULTADO. Va por --settings, sin tocar ~/.claude/settings.json (ahí
 # sigue prendido para las sesiones del dueño). Es el mismo settings_json de writers, --leer,
-# --seguir, --aca y el auto-cierre. Medido con scripts/medir-plugin.sh (docs/modelos-effort-plan-y-ahorro.md).
+# --seguir, --aca y el auto-cierre.
 modo_latido=""; (( leer )) && modo_latido=" leer"
 # Rutas entre comillas (@sh): el command de un hook lo corre un shell, y una ruta con espacios se partía.
 settings_json="$(jq -cn --arg latido "$LATIDO" --arg guard "$GUARD" --arg hb "$hb" --arg modo "$modo_latido" --arg home "$HOME" '

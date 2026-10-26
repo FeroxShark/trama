@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Mide, con un `claude` REAL descartable (Haiku, esfuerzo low, unos centavos), qué pasa si a un líder de la app
-// se le escribe una línea `user` por stdin EN MEDIO de un turno. La respuesta por escrito: docs/estado/mensaje-en-turno.md;
-// el test que la fija: tests/mensaje-en-turno.test.ts (HILOS_CLAUDE_REAL=1 corre esto).
+// se le escribe una línea `user` por stdin EN MEDIO de un turno.
+// El test que la fija: tests/mensaje-en-turno.test.ts (HILOS_CLAUDE_REAL=1 corre esto).
 //   node scripts/medir-mensaje-en-turno.mjs <escenario> [--replay]
 //   herramienta  el mensaje sale 3 s después de que arranca una herramienta larga (TRAMA_MEDIR_SEG, default 25 s)
 //   texto        el mensaje sale con el primer delta de la respuesta final (sin herramientas): la carrera con el `result`

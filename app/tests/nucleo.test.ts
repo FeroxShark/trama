@@ -273,7 +273,7 @@ test("modelos: por loopback se guardan sin TRAMA_LOCAL; 100.x y x-forwarded-for 
   }
 });
 
-// Trama en dos máquinas (docs/estado/maquinas.md): cada canal sabe si se junta, va a la máquina de la fila o es local.
+// Trama en dos máquinas: cada canal sabe si se junta, va a la máquina de la fila o es local.
 test("rutas: la tabla cubre todos los canales (núcleo, ventana, preload) y nada más", async () => {
   // armarNucleo ya corrió en "armado".
   const raiz = path.join(import.meta.dirname, "..");

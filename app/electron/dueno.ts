@@ -37,14 +37,14 @@ export function nombreDueno(): string | null {
   return limpio(process.env.TRAMA_DUENO) || delPerfil() || delUsuario() || null;
 }
 
-/** "Ana" / "el usuario": para dentro de una frase. */
+/** "<nombre>" / "el usuario": para dentro de una frase. */
 export const dueno = (): string => nombreDueno() ?? "el usuario";
-/** Igual, para empezar una frase: "Ana" / "El usuario". */
+/** Igual, para empezar una frase: "<nombre>" / "El usuario". */
 export const Dueno = (): string => {
   const d = dueno();
   return d.charAt(0).toUpperCase() + d.slice(1);
 };
-/** "a Ana" / "al usuario". */
+/** "a <nombre>" / "al usuario". */
 export const aDueno = (): string => (nombreDueno() ? `a ${dueno()}` : "al usuario");
-/** "de Ana" / "del usuario". */
+/** "de <nombre>" / "del usuario". */
 export const deDueno = (): string => (nombreDueno() ? `de ${dueno()}` : "del usuario");

@@ -7,7 +7,7 @@
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync, spawn, spawnSync, type ChildProcess } from "node:child_process";
-import { chmodSync, copyFileSync, renameSync, symlinkSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, rmSync, utimesSync, writeFileSync } from "node:fs";
+import { chmodSync, copyFileSync, renameSync, symlinkSync, existsSync, mkdirSync, mkdtempSync, readFileSync, lstatSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
@@ -20,7 +20,7 @@ after(() => {
 });
 
 // --- un checkout falso -----------------------------------------------------------------------------
-const raiz = path.join(tmp, "Proyectos", "hilos");
+const raiz = path.join(tmp, "checkout", "trama");
 // El script se niega a correr como root (es del usuario de los agentes): en un contenedor root no hay qué probar.
 const comoRoot = process.getuid?.() === 0 && "corre como root";
 const casa = path.join(tmp, "home");
@@ -98,8 +98,13 @@ test("primera instalación: compila aparte, deja el build y enlaza la unidad", {
   assert.match(leer("dist-electron", "motor.js"), /v1/);
   assert.ok(existsSync(path.join(raiz, "dist-electron", "preload.cjs")));
   assert.deepEqual(testigo(), ["(nada)"]);
-  const enlace = path.join(config, "systemd", "user", "trama-motor-servidor.service");
-  assert.equal(readlinkSync(enlace), path.join(raiz, "systemd", "trama-motor-servidor.service"));
+  // La unidad es un archivo con la ruta del checkout puesta (no un enlace a la plantilla, que lleva `@RAIZ@`).
+  const instalada = path.join(config, "systemd", "user", "trama-motor-servidor.service");
+  assert.ok(!lstatSync(instalada).isSymbolicLink());
+  const texto = readFileSync(instalada, "utf8");
+  assert.ok(!texto.includes("@RAIZ@"));
+  assert.ok(texto.split("\n").includes(`ExecStart=%h/.local/bin/node ${raiz}/dist-electron/motor.js`));
+  assert.match(leer("systemd", "trama-motor-servidor.service"), /@RAIZ@/, "la plantilla del repo no se toca");
   for (const d of [".build-nuevo", ".build-viejo"]) assert.ok(!existsSync(path.join(raiz, d)), `quedó ${d}`);
   assert.match(r.stderr, /remoto\.json/, "avisa que sin remoto.json nadie lo ve por la tailnet");
 });
@@ -150,13 +155,14 @@ test("la unidad pasa systemd-analyze --user verify", { skip: comoRoot || (spawnS
   // El verify comprueba que el ejecutable exista: un HOME de mentira con el node y el motor en su lugar.
   const h = path.join(tmp, "verify-home");
   mkdirSync(path.join(h, ".local", "bin"), { recursive: true });
-  mkdirSync(path.join(h, "Proyectos", "hilos", "dist-electron"), { recursive: true });
+  const checkout = path.join(h, "checkout", "trama");
+  mkdirSync(path.join(checkout, "dist-electron"), { recursive: true });
   writeFileSync(path.join(h, ".local", "bin", "node"), "#!/bin/sh\n");
   chmodSync(path.join(h, ".local", "bin", "node"), 0o755);
-  writeFileSync(path.join(h, "Proyectos", "hilos", "dist-electron", "motor.js"), "");
+  writeFileSync(path.join(checkout, "dist-electron", "motor.js"), "");
   const u = path.join(tmp, "verify-unidad");
   mkdirSync(u);
-  copyFileSync(path.join(repo, "systemd", "trama-motor-servidor.service"), path.join(u, "trama-motor-servidor.service"));
+  writeFileSync(path.join(u, "trama-motor-servidor.service"), readFileSync(path.join(repo, "systemd", "trama-motor-servidor.service"), "utf8").replaceAll("@RAIZ@", checkout));
   const r = spawnSync("systemd-analyze", ["--user", "verify", path.join(u, "trama-motor-servidor.service")], { encoding: "utf8", env: { ...process.env, HOME: h } });
   assert.equal(r.status, 0, r.stderr + r.stdout);
   assert.equal(r.stderr.trim() + r.stdout.trim(), "");
@@ -168,7 +174,7 @@ test("la unidad: sin Electron, con el tope de workers y sin que un worker muerto
   assert.ok(activas.includes("Environment=PA_TOPE=2"));
   assert.ok(activas.includes("OOMPolicy=continue"));
   assert.ok(activas.includes("KillMode=process"));
-  assert.ok(activas.includes("ExecStart=%h/.local/bin/node %h/Proyectos/hilos/dist-electron/motor.js"));
+  assert.ok(activas.includes("ExecStart=%h/.local/bin/node @RAIZ@/dist-electron/motor.js"));
   assert.ok(!activas.some((l) => /ELECTRON_RUN_AS_NODE|node_modules/.test(l)));
   // OOMScoreAdjust negativo no lo puede aplicar una unidad de usuario: no va (sólo se nombra en el comentario).
   assert.ok(!activas.some((l) => l.startsWith("OOMScoreAdjust")));

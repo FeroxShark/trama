@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Prueba del teclado (docs/estado/teclado.md): por CDP y sólo con teclas, recorre con Tab la barra, un chat, el tablero y Ajustes: cada parada
+// Prueba del teclado: por CDP y sólo con teclas, recorre con Tab la barra, un chat, el tablero y Ajustes: cada parada
 // tiene el anillo de foco a la vista y nada que se toque queda sin nombre; `?` abre la lista de atajos, Tab no se sale de ella, Esc la cierra
 // y el foco vuelve a donde estaba; Esc cierra el panel y el detalle del tablero. Todo son fixtures y fakes: nada toca `pa` ni datos de verdad.
 //   npm run build && node scripts/prueba-teclado.mjs        (FOTOS=<carpeta> deja capturas)

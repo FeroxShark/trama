@@ -1,6 +1,6 @@
 // "Te espera" en la pantalla de la PC: lo que el renderer le pide al main de la ventana (el número en la bandeja y la
 // notificación de escritorio). Sin Electron, para probarlo con `node --test` (tests/espera-aviso.test.ts); ventana-canales.ts
-// lo ejecuta y main.ts arma la bandeja. Qué decide cuándo avisar: src/espera.ts. Detalle: docs/estado/te-espera.md.
+// lo ejecuta y main.ts arma la bandeja. Qué decide cuándo avisar: src/espera.ts.
 
 import { appendFileSync } from "node:fs";
 

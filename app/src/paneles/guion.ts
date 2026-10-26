@@ -1,4 +1,4 @@
-// Guion de medición de los paneles del pie (scripts/bench.sh con
+// Guion de medición de los paneles del pie (scripts/dev/bench.sh con
 // HILOS_GUION=paneles): abre Ajustes, Estadísticas (7 ↔ 30 días) y Ramas, y en
 // Ramas aprieta los botones de verdad: Integrar, Descartar (dos clics) y
 // Deshacer. Va siempre con el `pa` falso (HILOS_PA=scripts/pa-falso.sh), que

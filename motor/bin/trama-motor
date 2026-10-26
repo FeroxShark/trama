@@ -8,8 +8,7 @@
 #   trama-motor abrir|url             abre (abrir, con xdg-open) o sólo imprime (url) http://localhost:<puerto>/?t=<token>
 #
 # Dónde está la app: $TRAMA_APP, si no la ruta que dejó instalar-producto.sh en ~/.config/trama/app.
-# Node puro (como el Dell): sin Electron ni pantalla. TRAMA_LOCAL=1 = el motor escucha en 127.0.0.1:8791.
-# Doc: docs/instalacion-de-producto-trama.md
+# Node puro (como el motor del servidor): sin Electron ni pantalla. TRAMA_LOCAL=1 = el motor escucha en 127.0.0.1:8791.
 set -euo pipefail
 
 CONF="${XDG_CONFIG_HOME:-$HOME/.config}/trama"

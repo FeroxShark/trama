@@ -24,7 +24,7 @@ export type Fuente = {
 const SANS = '"Inter", "Geist", "Adwaita Sans", ui-sans-serif, system-ui, sans-serif';
 const MONO = '"JetBrains Mono", "Geist Mono", "Adwaita Mono", ui-monospace, monospace';
 
-/** La fuente de la interfaz. La primera es el default (la del estándar visual: docs/maquetas/lavado/ (dirección 1, "estándar pulido")). */
+/** La fuente de la interfaz. La primera es el default (la del estándar visual). */
 export const FUENTES: readonly Fuente[] = [
   { id: "inter", nombre: "Inter", pila: `"Inter", ${SANS}` },
   { id: "geist", nombre: "Geist", pila: `"Geist", "Adwaita Sans", Inter, ui-sans-serif, system-ui, sans-serif` },

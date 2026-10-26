@@ -1,4 +1,4 @@
-// Guion de medición de la barra (scripts/bench.sh): hover, Cerrar y colapsar
+// Guion de medición de la barra (scripts/dev/bench.sh): hover, Cerrar y colapsar
 // grupo, cada fase con sus frames; después verifica que un tic del reloj no
 // re-renderiza filas y mide el reposo. Dura ~13 s y la app se cierra sola.
 import { pedidos } from "../cuenta";

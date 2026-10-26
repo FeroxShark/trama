@@ -1,5 +1,5 @@
-// "PC apagada · Prender", "Prendiendo…", "PC prendida · Abrir": sólo en la trama del Dell, arriba del pie de la
-// barra. Prender manda el paquete (Wake-on-LAN, `prender-pc` en el Dell); la PC contesta cuando ya inició sesión y
+// "PC apagada · Prender", "Prendiendo…", "PC prendida · Abrir": sólo en la trama de la otra máquina, arriba del pie de la
+// barra. Prender manda el paquete (Wake-on-LAN, `prender-pc` en la otra máquina); la PC contesta cuando ya inició sesión y
 // trama está arriba, así que puede tardar. Abrir lleva a la trama de la PC en el navegador. En la PC no existe.
 import { memo } from "react";
 import { fuente } from "../datos/fuente";

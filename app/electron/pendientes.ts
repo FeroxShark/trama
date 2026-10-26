@@ -17,7 +17,7 @@ export type Tocado = {
 
 const vacio = (): Tocado => ({ q: {}, p: {} });
 const objeto = (x: unknown): x is Record<string, unknown> => !!x && typeof x === "object" && !Array.isArray(x);
-// Un item de este tablero (`12`) o de otro (`dell:12`, etapa 7 M5).
+// Un item de este tablero (`12`) o de otro (`servidor:12`).
 const id = (k: string) => /^(?:[a-z][a-z0-9-]{0,15}:)?\d{1,9}$/.test(k);
 const texto = (x: unknown) => (typeof x === "string" ? x.slice(0, TEXTO_MAX) : "");
 

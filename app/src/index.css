@@ -1,7 +1,7 @@
 @import "tailwindcss";
 @import "./tokens.css";
 
-/* Dirección visual: docs/maquetas/lavado/ (dirección 1, "estándar pulido") (vidrio quieto, acento celeste, cápsulas, grilla de 4 px,
+/* Dirección visual: el estándar pulido (vidrio quieto, acento celeste, cápsulas, grilla de 4 px,
    una sola fuente con cifras tabulares). Los tokens están en src/tokens.css; acá, el CSS de la app. */
 
 /* Las fuentes van adentro del repo (SIL OFL 1.1, ver THIRD_PARTY.md y
@@ -1641,7 +1641,7 @@ kbd {
   border-color: var(--borde-5);
   color: var(--txt-1);
 }
-/* La PC desde el Dell (src/barra/Pc.tsx), arriba del cartel de actualización: un puntito (apagada gris, prendiendo
+/* La PC desde la otra máquina (src/barra/Pc.tsx), arriba del cartel de actualización: un puntito (apagada gris, prendiendo
    ámbar, prendida verde; todos quietos), el estado y su botón. Abrir es un enlace con la cara de botón. */
 .pcx {
   flex: none;
@@ -4757,7 +4757,7 @@ summary.sis-div-t:hover,
 .caja-carpeta input::placeholder {
   color: var(--texto-7);
 }
-/* Dictar (docs/estado/dictado.md): el micrófono al lado de Mandar. Grabando es una píldora roja con el punto que late, el contador y parar;
+/* Dictar: el micrófono al lado de Mandar. Grabando es una píldora roja con el punto que late, el contador y parar;
    Transcribiendo… y Reintentar llevan su texto. Apagado (por http) se ve opaco y su tooltip dice por qué. */
 .dic {
   display: inline-flex;

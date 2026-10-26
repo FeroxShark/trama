@@ -192,7 +192,7 @@ function comparar(a, b) {
 function entornoLimpio(tmp) {
   const env = { ...process.env };
   for (const k of Object.keys(env)) if (k.startsWith("HILOS_") || k.startsWith("TRAMA_") || k.startsWith("PA_")) delete env[k];
-  // Perfil y estado propios: ni el candado ni los archivos de la Trama de Ana. Y un HOME vacío con sus XDG: nada de
+  // Perfil y estado propios: ni el candado ni los archivos de la Trama de la persona. Y un HOME vacío con sus XDG: nada de
   // ~/.claude, ~/.config, ~/tablero ni las fuentes de usuario de la máquina (que también cambian el render).
   const casa = path.join(tmp, "casa");
   mkdirSync(casa, { recursive: true });
@@ -232,8 +232,8 @@ function sacar(caso, salida, base) {
   for (let intento = 0; intento < 3; intento++) {
     rmSync(base.HILOS_AISLAR_LOG, { force: true });
     r = spawnSync(ELECTRON, [RAIZ], { env, timeout: 30_000, stdio: "ignore" });
-    // Un acceso fuera del aislamiento (electron/aislar.ts) no se reintenta: es un dato de Ana a la vista.
-    if (existsSync(base.HILOS_AISLAR_LOG)) throw new Error(`tocó lo de Ana (electron/aislar.ts): ${readFileSync(base.HILOS_AISLAR_LOG, "utf8").trim().split("\n").join("; ")}`);
+    // Un acceso fuera del aislamiento (electron/aislar.ts) no se reintenta: es un dato de la persona a la vista.
+    if (existsSync(base.HILOS_AISLAR_LOG)) throw new Error(`tocó lo de la persona (electron/aislar.ts): ${readFileSync(base.HILOS_AISLAR_LOG, "utf8").trim().split("\n").join("; ")}`);
     if (r.status === 0 && existsSync(salida)) return;
   }
   throw new Error(`Electron salió con ${r.status ?? r.signal} sin dejar el PNG (3 intentos)`);

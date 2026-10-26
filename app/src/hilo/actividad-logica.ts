@@ -1,7 +1,7 @@
 // Qué está haciendo un líder de la app, clasificado para la tarjeta del chat (src/hilo/Actividad.tsx, dirección C de
 // referencias/maquetas/actividad): el tipo de escena (pensando, web, código, editando, comando, delegando, permiso,
 // escribiendo), el verbo, lo concreto en una pastilla y los pasos que ya pasaron. Sin React: devuelve claves
-// (`hz.*`) y textos ya limpios; los traduce la vista. De qué evento del stream sale cada tipo: docs/estado/actividad.md.
+// (`hz.*`) y textos ya limpios; los traduce la vista.
 import type { HaceLider } from "../datos/contrato";
 import { t } from "../i18n/index.ts";
 

@@ -6,7 +6,7 @@
 // (escribirle a un líder y mandarlo con el teclado abierto). Nada toca `pa` de verdad.
 //   npm run build && node scripts/prueba-celular.mjs
 //   FOTOS=<carpeta>   además deja capturas de cada paso (default: no saca)
-// Y un caso por máquina (la PC y el Dell, `maquinas.json` de cada una): la app anda igual de angosta y la página que
+// Y un caso por máquina (la PC y la otra máquina, `maquinas.json` de cada una): la app anda igual de angosta y la página que
 // sirve la red lleva su título, su color, su manifest y su ícono, así el celular tiene un acceso directo por máquina.
 import { spawn } from "node:child_process";
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
@@ -536,7 +536,7 @@ try {
     }
   }
 
-  // --- 3. Una entrada por máquina: la PC y el Dell -----------------------------------------
+  // --- 3. Una entrada por máquina: la PC y la otra máquina -----------------------------------------
   {
     const { crearRemoto } = await import(path.join(raiz, "dist-electron/remoto.js"));
     const { identidadDe } = await import(path.join(raiz, "dist-electron/identidad.js"));

@@ -1,5 +1,5 @@
 // Un mensaje que se le escribe a un `claude` por stdin EN MEDIO de un turno: qué hace el CLI, cómo se ve en el stream y en el
-// transcript, y qué se rompería en la app si `mandarYa` dejara de rechazarlo. La respuesta por escrito: docs/estado/mensaje-en-turno.md.
+// transcript, y qué se rompería en la app si `mandarYa` dejara de rechazarlo.
 // Los fixtures (tests/fixtures/mensaje-en-turno/) son líneas REALES del `claude` 2.1.310 (Haiku 5.5), recortadas:
 //   herramienta.*  el mensaje sale 3 s después de que arranca una herramienta larga (python sleep)
 //   texto.*        el mensaje sale con el primer delta de la respuesta final, sin herramientas (la carrera con el `result`)

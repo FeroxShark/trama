@@ -1,4 +1,4 @@
-// El botón de dictar de la caja del líder (docs/estado/dictado.md): al lado de Mandar. Apretás y graba (contador
+// El botón de dictar de la caja del líder: al lado de Mandar. Apretás y graba (contador
 // de tiempo, tope de 5 min); apretás de nuevo y el audio, ya en WAV 16 kHz mono (src/hilo/dictado.ts), va al motor
 // por el RPC de siempre (`fuente.dictar`, Handy en la máquina del motor). El texto se AGREGA al borrador de la caja
 // de donde se empezó, no se manda solo. Si falla, la grabación queda acá: Reintentar o Descartar, nunca se pierde

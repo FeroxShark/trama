@@ -1,9 +1,9 @@
-/* Los tokens de diseño de trama, en un solo lugar. Dirección visual: docs/maquetas/lavado/ (dirección 1, "estándar pulido")
+/* Los tokens de diseño de trama, en un solo lugar. Dirección visual: el estándar pulido
    (vidrio quieto, acento celeste, cápsulas, grilla de 4 px, una sola fuente con cifras
    tabulares). Los nombres de la primera parte (`--vidrio`, `--capa-*`, `--acento`, `--r-*`…) son los del estándar;
    la segunda parte son los nombres que ya usa todo el CSS (`--sup-N`, `--borde-N`, `--texto-N`, `--txt-N`,
    `--radio-N`, `--esp-N`, `--letra-N`) apuntando a esos valores: cambiar la cara de la app es cambiar este archivo.
-   Qué token va a qué: docs/estado/tokens.md. Lo que va a la vista en rem (1rem = 16px × letra/13). */
+   Lo que va a la vista en rem (1rem = 16px × letra/13). */
 :root {
   color-scheme: dark;
 

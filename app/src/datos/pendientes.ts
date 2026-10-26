@@ -1,4 +1,4 @@
-// El tablero nuevo (docs/estado/tablero-nuevo.md): lo que le toca al usuario, por proyecto. Sale de la columna
+// El tablero nuevo: lo que le toca al usuario, por proyecto. Sale de la columna
 // `espera-dueno` del tablero (src/datos/tablero.ts), agrupada por proyecto y nunca mezclada entre proyectos:
 // cada item es una pregunta (con botones, si el worker dejó opciones, y siempre un campo libre) o una prueba
 // (Anda / No anda). Puro y con extensión en los imports: lo prueba `node --test` (tests/pendientes.test.ts).

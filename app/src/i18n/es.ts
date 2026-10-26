@@ -1106,7 +1106,7 @@ export const es: { [K in keyof typeof en]: string } = {
   "espera.varios": "{n} líderes te esperan",
   "ajustes.avisarEspera": "Avisar cuando un líder te espera",
   "ajustes.avisarEsperaQue": "Una notificación de escritorio cuando un líder termina o te pregunta algo y trama no es la ventana en la que estás. Una por líder y por turno; al tocarla se abre esa conversación.",
-  // Dictar en la caja (src/hilo/Dictar.tsx, docs/estado/dictado.md).
+  // Dictar en la caja (src/hilo/Dictar.tsx).
   "dictado.dictar": "Dictar",
   "dictado.parar": "Parar y transcribir",
   "dictado.transcribiendo": "Transcribiendo…",

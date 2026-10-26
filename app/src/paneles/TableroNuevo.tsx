@@ -1,4 +1,4 @@
-// El tablero nuevo (docs/estado/tablero-nuevo.md): al abrir, una lista de proyectos con lo que cada uno espera
+// El tablero nuevo: al abrir, una lista de proyectos con lo que cada uno espera
 // del usuario (preguntas y pruebas de la columna `espera-dueno`); adentro de uno, sus preguntas con las opciones
 // como botones y sus pruebas con "anda" / "no anda"; abajo, fijo, "Mandar N respuestas": guarda cada una en
 // su item (`tablero responder`) y deja el mensaje armado en la caja de un líder del proyecto, sin enviarlo.

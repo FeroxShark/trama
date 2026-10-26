@@ -1,16 +1,16 @@
-// Las otras máquinas con trama (el Dell): `$HILOS_STATE/maquinas.json`. Sin el archivo no hay ninguna
+// Las otras máquinas con trama: `$HILOS_STATE/maquinas.json`. Sin el archivo no hay ninguna
 // y trama es la de siempre: nadie lo lee hasta que lo pide quien junta (costo cero). Sin `electron`
-// ni estado propio: lo prueba tests/maquinas-config.test.ts. Contrato: docs/estado/maquinas.md.
+// ni estado propio: lo prueba tests/maquinas-config.test.ts.
 import { readFileSync } from "node:fs";
 
 /**
- * Otra máquina: su id (el prefijo de sus filas, `dell:…`), cómo se la nombra y dónde escucha su motor.
- * `prender`: el comando que la prende (`prender-pc`, Wake-on-LAN). Con él es una máquina sólo para prender: el Dell la tiene para
+ * Otra máquina: su id (el prefijo de sus filas, `servidor:…`), cómo se la nombra y dónde escucha su motor.
+ * `prender`: el comando que la prende (`prender-pc`, Wake-on-LAN). Con él es una máquina sólo para prender: la tiene la otra máquina para
  * mostrar "PC apagada · Prender" (electron/pc-estado.ts) y nunca se conecta a su motor (la confianza va en un solo sentido).
  */
 export type Maquina = { id: string; nombre: string; url: string; prender?: string };
 
-/** Dónde vive `prender-pc` en el Dell (`"prender": true`). */
+/** Dónde vive `prender-pc` en la otra máquina (`"prender": true`). */
 export const PRENDER_DEFECTO = "~/.local/bin/prender-pc";
 
 /**

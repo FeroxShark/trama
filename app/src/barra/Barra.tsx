@@ -1086,7 +1086,7 @@ export function Barra() {
     // El anillo de foco, como lo deja el teclado (`data-anillo`: una ventana de captura sin foco no dibuja `:focus-visible`).
     if (c === "foco-barra") setTimeout(() => lista.current?.querySelector<HTMLElement>("[data-fila] button")?.setAttribute("data-anillo", ""), 400);
     if (c === "foco-caja") setTimeout(() => document.querySelector<HTMLElement>(".caja button")?.setAttribute("data-anillo", ""), 600);
-    // El orden a mano (docs/estado/orden-barra.md): lo que se ve a mitad de un arrastre (lo que se lleva apagado en su lugar y la línea
+    // El orden a mano: lo que se ve a mitad de un arrastre (lo que se lleva apagado en su lugar y la línea
     // donde cae, como la deja `arrastre.ts`) y el menú de una carpeta del medio con Subir / Bajar / Orden por defecto.
     // Arrastrar y Subir / Bajar son del orden fijo: estas dos capturas lo apagan (el de fábrica es por prioridad).
     if (c === "orden-arrastrando") {

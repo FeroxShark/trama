@@ -1002,7 +1002,7 @@ function Cara({ i, ahora, children }: { i: Item; ahora: number; children?: React
   );
 }
 
-/** `#12`, y con la máquina de la que viene si es de otra: `#12 · Dell`. */
+/** `#12`, y con la máquina de la que viene si es de otra: `#12 · Servidor`. */
 const etiqueta = (i: Item) => `#${numero(i.id)}${i.maquina ? ` · ${i.maquinaNombre ?? i.maquina}` : ""}`;
 
 /** Las otras máquinas que no se pudieron leer, en una línea (sus items no aparecen). */

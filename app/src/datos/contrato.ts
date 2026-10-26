@@ -67,14 +67,14 @@ export type Hilo = {
   /** Lo arma la app con el evento `inicio`, antes de que la lista lo traiga: sin tarea, líder ni rama todavía. */
   arrancando?: boolean;
   /**
-   * Lo pone el main, no `pa`: la máquina donde corre (`maquinas.json`, docs/estado/maquinas.md). Sin
+   * Lo pone el main, no `pa`: la máquina donde corre (`maquinas.json`). Sin
    * venir es la de esta trama: sin otra máquina configurada no viene nunca. Con él, `id` lleva el prefijo
    * `maquina:` (`conMaquina`) para no chocar con un id igual de la otra.
    */
   maquina?: string;
 };
 
-/** El id de una fila de otra máquina: `dell:20261014-…` (los de esta máquina van sin prefijo). */
+/** El id de una fila de otra máquina: `servidor:20261014-…` (los de esta máquina van sin prefijo). */
 export const conMaquina = (maquina: string | undefined, id: string) => (maquina ? `${maquina}:${id}` : id);
 /** Al revés: la máquina (`undefined`, esta) y el id como lo conoce su motor. */
 export function sinMaquina(id: string): { maquina: string | undefined; id: string } {
@@ -196,7 +196,7 @@ export type Lider = {
   modo?: string;
   /** El proyecto (slug) que nombra su primer mensaje: su carpeta mientras no tenga workers (B20). */
   inferido?: string | null;
-  /** Es la sesión de Shark (su cwd es `$SHARK_HOME`, default `/srv/shark`): va a la carpeta `SHARK`. Sin venir, no. */
+  /** Es la sesión de Shark (su cwd es `$SHARK_HOME`): va a la carpeta `SHARK`. Sin venir, no. */
   shark?: boolean;
   /**
    * Quedó sin proceso y no es de la app: no se le escribe hasta retomarlo (`fuente.liderRetomar`).
@@ -252,7 +252,7 @@ export type HaceLider =
   /** `extra`: dónde busca Grep/Glob (su carpeta) o a quién delega Agent (su tipo de subagente). */
   | { que: "herramienta"; nombre: string; detalle: string | null; extra?: string };
 
-/** Un aviso en línea del chat de un líder (espejo de `Aviso` en electron/lider-arma.ts; tabla en docs/estado/B12.md). */
+/** Un aviso en línea del chat de un líder (espejo de `Aviso` en electron/lider-arma.ts). */
 export type AvisoLider =
   | { clase: "reintento"; intento: number; max: number; espera_ms: number; estado: number | null; error: string | null }
   | { clase: "limite"; rechazado: boolean; ventana: string | null; hasta: number | null; uso: number | null }
@@ -321,7 +321,7 @@ export const GENERAL = "general";
  */
 export const SHARK = "Shark";
 
-/** Un líder de Shark: lo marcó el main por su cwd (`$SHARK_HOME`, `/srv/shark`) o su nombre empieza con "shark-". */
+/** Un líder de Shark: lo marcó el main por su cwd (`$SHARK_HOME`) o su nombre empieza con "shark-". */
 export const esShark = (l: { shark?: boolean; nombre: string }) => l.shark === true || /^shark-/i.test(l.nombre);
 
 /** Lo que el main arma con los statusline: las barras de uso y los líderes. `uso` es `null` si no hay de dónde sacarlo. */

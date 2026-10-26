@@ -6,7 +6,7 @@
 // nada. Así son PASOS_S frames por segundo, sólo mientras haya algo que
 // animar y la ventana esté a la vista. Cada paso cuesta: con las fixtures, 10
 // por segundo eran ~3 % de CPU en reposo, 30 son ~7 % y 60 ~11 %. El usuario prefiere
-// fluidez a CPU: a 10 se veía a saltos (docs/estado/B1.md).
+// fluidez a CPU: a 10 se veía a saltos.
 //
 // Cada pieza se anota con una clase; la fase sale del reloj, no de un contador,
 // así todas las filas laten juntas aunque hayan aparecido en momentos distintos.

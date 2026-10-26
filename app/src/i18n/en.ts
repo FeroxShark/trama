@@ -1117,7 +1117,7 @@ export const en = {
   "espera.varios": "{n} leaders are waiting for you",
   "ajustes.avisarEspera": "Notify when a leader waits for you",
   "ajustes.avisarEsperaQue": "A desktop notification when a leader finishes or asks something and trama is not the window you're on. One per leader and per turn; clicking it opens that conversation.",
-  // Dictating into the box (src/hilo/Dictar.tsx, docs/estado/dictado.md).
+  // Dictating into the box (src/hilo/Dictar.tsx).
   "dictado.dictar": "Dictate",
   "dictado.parar": "Stop and transcribe",
   "dictado.transcribiendo": "Transcribing…",

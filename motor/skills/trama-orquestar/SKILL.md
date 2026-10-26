@@ -69,7 +69,7 @@ pa --estado                                qué corre ahora, sesiones guardadas,
 - Cuando el modelo elegido no tiene cupo, `sin_cupo` de `modelos.json` dice qué hace `pa`: `otro` (el
   default: relanza con el siguiente candidato de `reparto`), `esperar` (queda en cola con `--async`) o `fallar`.
 
-## Elegir modelo en corto (guía completa: `docs/guia-de-modelos-fuertes-effort-y-costo.md`)
+## Elegir modelo en corto
 
 **Pasá `--tipo` y dejá que `reparto` elija.** Forzá `-m` sólo con uno de estos motivos:
 

@@ -9,7 +9,6 @@ va con flock sobre .lock + archivo temporal + rename atómico, y los que leen no
 Las vistas (ficha, proyectos, hoy, resumen) se generan en el momento desde git + el estado de
 `pa` + el tablero: no son archivos, así que no se desactualizan ni chocan en un rebase.
 
-Detalle: docs/tablero-cli-de-pendientes-esperas-ideas-y-hecho.md
 """
 import argparse
 import contextlib

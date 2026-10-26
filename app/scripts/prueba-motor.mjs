@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // El motor sin ventana y la ventana como cliente, de punta a punta, con los fakes y todo en un tmp (estado,
-// socket, perfil, registry, tailscale e `ip`): nunca el motor, la trama ni las unidades de Ana.
+// socket, perfil, registry, tailscale e `ip`): nunca el motor, la trama ni las unidades del usuario.
 //   1. Cambio de IP de Tailscale (`HILOS_TAILSCALE` e `HILOS_IP` falsos, en 127.0.0.x): el motor escucha por la
 //      tailnet en la IP primera y, al avisar el monitor de direcciones, deja la vieja y escucha en la nueva.
 //   2. Matar la ventana (SIGKILL a la trama residente): el `/rpc` del motor sigue contestando; una ventana nueva

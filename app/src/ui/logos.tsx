@@ -1,4 +1,4 @@
-// Los logos de los proveedores de modelos para el estándar visual (docs/maquetas/lavado/ (dirección 1, "estándar pulido")): SVG locales de un
+// Los logos de los proveedores de modelos para el estándar visual: SVG locales de un
 // solo color (`currentColor`), sin red. Claude y Google (Gemini) son los mismos de `src/hilo/Logos.tsx`; ChatGPT es el nudo de OpenAI
 // simplificado. `Logo` de ahí sigue siendo el del selector de modelos (por empresa); éste es por proveedor.
 import { Logo } from "../hilo/Logos";

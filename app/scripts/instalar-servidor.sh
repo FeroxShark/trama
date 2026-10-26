@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Instala o actualiza el motor de trama en el servidor (el Dell), como el usuario de los agentes, sin sudo
+# Instala o actualiza el motor de trama en un servidor (una máquina sin pantalla), como el usuario de los agentes, sin sudo
 # y sin Electron: el motor es Node puro (dist-electron/motor.js) y corre con el `node` oficial de ~/.local.
 # Qué hace (se puede repetir):
 #   1. Comprueba lo que hace falta (node >= 22, git, linger) y avisa de lo que falta; sólo frena si falta node/npm.
@@ -9,7 +9,8 @@
 #      Si algo falla, `dist/` y `dist-electron/` que usa el motor ni se tocan.
 #   5. Cambia las dos carpetas de una vez (cuatro `mv` seguidos, milisegundos): trama mira esas carpetas y da por
 #      terminado un build tras 10 s quieto (electron/relanzar.ts), así que nunca ve `dist/` a medio escribir.
-#   6. Enlaza y habilita `trama-motor-servidor.service`; si no estaba corriendo la arranca. Si ya corría NO la
+#   6. Instala y habilita `trama-motor-servidor.service` (la plantilla de systemd/ con la ruta de este checkout en lugar
+#      de `@RAIZ@`, así que el checkout puede estar en cualquier carpeta); si no estaba corriendo la arranca. Si ya corría NO la
 #      reinicia: el motor avisa (cartel "Hay una actualización disponible") y se reinicia cuando se lo pide, sin
 #      cortar un turno.
 # No compila en la PC ni toca nada fuera de este checkout y de ~/.config/systemd/user.
@@ -43,14 +44,14 @@ corre() { if [ "$mirar" = 1 ]; then echo "  (haría) $*"; else "$@"; fi; }
 
 [ "$(id -u)" != 0 ] || { echo "instalar-servidor: no se corre como root; es del usuario de los agentes" >&2; exit 1; }
 
-# La unidad apunta a ~/Proyectos/hilos: desde un worktree quedaría apuntando a una carpeta que se borra.
+# La unidad apunta a este checkout: desde un worktree quedaría apuntando a una carpeta que se borra.
 if [ "$prueba" != 1 ] && [ "$(git -C "$raiz" rev-parse --git-dir 2>/dev/null)" != "$(git -C "$raiz" rev-parse --git-common-dir 2>/dev/null)" ]; then
-  echo "instalar-servidor: $raiz es un worktree; corrélo desde el checkout principal (~/Proyectos/hilos)" >&2
+  echo "instalar-servidor: $raiz es un worktree; corrélo desde el checkout principal" >&2
   exit 1
 fi
 
 # --- 1. Lo que hace falta -------------------------------------------------------------------------------
-command -v node >/dev/null || { echo "instalar-servidor: falta node (>= 22); ver docs/estado/dell.md, paso 'Node'" >&2; exit 1; }
+command -v node >/dev/null || { echo "instalar-servidor: falta node (>= 22)" >&2; exit 1; }
 command -v npm >/dev/null || { echo "instalar-servidor: falta npm (viene con el tarball de node)" >&2; exit 1; }
 mayor="$(node -p 'process.versions.node.split(".")[0]')"
 [ "$mayor" -ge 22 ] || { echo "instalar-servidor: node $mayor es viejo; hace falta >= 22 (el de Debian no sirve)" >&2; exit 1; }
@@ -59,13 +60,13 @@ mayor="$(node -p 'process.versions.node.split(".")[0]')"
 [ -x "$HOME/.local/bin/node" ] || [ "$prueba" = 1 ] || aviso "falta ~/.local/bin/node (la unidad lo pide ahí)"
 command -v git >/dev/null || aviso "falta git"
 command -v claude >/dev/null || aviso "falta claude (los líderes son procesos 'claude -p')"
-command -v pa >/dev/null || aviso "falta pa (instalador de orquestador, perfil servidor)"
-command -v gawk >/dev/null || aviso "falta gawk (lo usa pa; lo instala Ana con sudo)"
+command -v pa >/dev/null || aviso "falta pa (el instalador del motor, perfil servidor)"
+command -v gawk >/dev/null || aviso "falta gawk (lo usa pa; se instala con el gestor de paquetes del sistema)"
 if [ "$prueba" != 1 ] && command -v loginctl >/dev/null; then
   [ "$(loginctl show-user "$USER" -p Linger --value 2>/dev/null)" = yes ] ||
     aviso "sin linger: el motor sólo vive con una sesión abierta (sudo loginctl enable-linger $USER)"
 fi
-[ -f "$raiz/package-lock.json" ] && [ -f "$raiz/tsconfig.electron.json" ] || { echo "instalar-servidor: $raiz no parece el checkout de hilos" >&2; exit 1; }
+[ -f "$raiz/package-lock.json" ] && [ -f "$raiz/tsconfig.electron.json" ] || { echo "instalar-servidor: $raiz no parece el checkout de trama" >&2; exit 1; }
 
 # --- 2. Traer lo nuevo ----------------------------------------------------------------------------------
 if [ "$pull" = 1 ]; then
@@ -129,11 +130,13 @@ fi
 
 # --- 6. La unidad ---------------------------------------------------------------------------------------
 if [ "$mirar" = 1 ]; then
-  echo "  (haría) enlazar $unidad en $unidades, habilitarla y arrancarla si no corre"
+  echo "  (haría) instalar $unidad en $unidades, habilitarla y arrancarla si no corre"
 else
   mkdir -p "$unidades"
-  ln -sfn "$raiz/systemd/$unidad" "$unidades/$unidad"
-  say "unidad enlazada: $unidades/$unidad"
+  # rm antes: si quedó el enlace de una versión anterior, escribir encima pisaría la plantilla del repo.
+  rm -f "$unidades/$unidad"
+  sed "s|@RAIZ@|${raiz//%/%%}|g" "$raiz/systemd/$unidad" >"$unidades/$unidad"
+  say "unidad instalada: $unidades/$unidad"
   if [ "$prueba" != 1 ] && command -v systemctl >/dev/null && systemctl --user show-environment >/dev/null 2>&1; then
     systemctl --user daemon-reload
     if systemctl --user is-active -q "$unidad"; then
@@ -144,10 +147,10 @@ else
       say "motor arrancado: journalctl --user -u ${unidad%.service} -n 20"
     fi
   elif [ "$prueba" != 1 ]; then
-    aviso "sin systemd de usuario en esta sesión (por ssh: loginctl enable-linger $USER y volver a entrar); la unidad quedó enlazada, falta habilitarla"
+    aviso "sin systemd de usuario en esta sesión (por ssh: loginctl enable-linger $USER y volver a entrar); la unidad quedó instalada, falta habilitarla"
   fi
 fi
 
 remoto="${HILOS_STATE:-$HOME/.local/state/hilos}/remoto.json"
-[ -f "$remoto" ] || aviso "falta $remoto: sin él el motor sólo atiende por el socket local y nadie lo ve por la tailnet (docs/estado/dell.md, paso 'remoto.json')"
+[ -f "$remoto" ] || aviso "falta $remoto: sin él el motor sólo atiende por el socket local y nadie lo ve por la tailnet"
 exit 0

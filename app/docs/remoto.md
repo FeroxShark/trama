@@ -36,8 +36,8 @@ La directa es http pelado: el tráfico igual va cifrado por WireGuard, pero para
 un contexto seguro, así que "Agregar a la pantalla principal" deja un acceso directo que abre con la
 barra del navegador. Por `tailscale serve` es https con certificado válido: Chrome ofrece
 "Instalar app" y abre a pantalla completa (`public/manifest.webmanifest`, `display: standalone`).
-Con trama en dos máquinas (la PC y el Dell) cada una sirve su propia entrada: título, color, manifest e ícono
-según `maquinas.json`, así el celular tiene un acceso directo por máquina (`docs/estado/celular-maquinas.md`).
+Con trama en dos máquinas (la PC y otra) cada una sirve su propia entrada: título, color, manifest e ícono
+según `maquinas.json`, así el celular tiene un acceso directo por máquina.
 El destino de `serve` tiene que ser la IP de Tailscale (en `127.0.0.1` no hay nadie escuchando).
 **Nunca `tailscale funnel`**: eso lo saca a internet.
 
@@ -47,7 +47,7 @@ Con `TRAMA_LOCAL=1` en el entorno del motor (la unidad `trama-motor.service` del
 mismo servidor escucha **sólo en `127.0.0.1`** y no mira `remoto.json` ni Tailscale: lo abre un navegador de la misma máquina (en
 Windows con WSL2, `localhost` se reenvía solo). Entra cualquier conexión desde loopback; el `Host` tiene que ser `localhost` o
 `127.0.0.1` (DNS rebinding), el `Origin` y la cabecera de `/rpc` valen igual y `X-Forwarded-For` se ignora. Ajustes no ofrece el
-acceso desde el celular. Sin la variable, nada de esto cambia. Detalle: `docs/estado/modo-local.md`.
+acceso desde el celular. Sin la variable, nada de esto cambia.
 
 ## Quién entra
 
@@ -129,9 +129,8 @@ navegador de la PC no puede (pasos 2 y 3).
 
 ## Límites conocidos
 
-- **Sin el proceso que sirve no hay nada**: el servidor vive en el motor (`electron/motor.ts`, `systemd/trama-motor.service`,
-  `docs/estado/motor.md`) o, si no hay motor, en la ventana (todo en uno). Cerrar la ventana no lo toca. Por eso corre siempre,
-  como unidad de systemd (`docs/estado/siempre-viva.md`): arranca con la sesión gráfica y vuelve
+- **Sin el proceso que sirve no hay nada**: el servidor vive en el motor (`electron/motor.ts`, `systemd/trama-motor.service`) o, si no hay motor, en la ventana (todo en uno). Cerrar la ventana no lo toca. Por eso corre siempre,
+  como unidad de systemd: arranca con la sesión gráfica y vuelve
   sola si muere (el motor a los 0,5 s) o al reiniciarlo por un build nuevo (el celular dice "Reconectando" y se pone al día). Sin sesión gráfica abierta (la PC en la
   pantalla de inicio de sesión) no hay trama. Lo escrito en la caja del celular sin mandar sobrevive a una recarga, pero
   no a cerrar la pestaña, y las imágenes adjuntas no se guardan.

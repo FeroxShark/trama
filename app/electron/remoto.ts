@@ -53,7 +53,7 @@ export type OpcionesRemoto = {
   llamar(canal: string, args: unknown[], cliente: string, ip?: string): Promise<unknown>;
   /** La query de la ventana (se pide en cada carga: el idioma o la letra pudieron cambiar). */
   consulta(): Record<string, string>;
-  /** Quién es esta máquina (PC o Dell): título, color y ícono de lo que se sirve. Sin ella, o con `propia: false`, todo sale como siempre. */
+  /** Quién es esta máquina (la PC u otra): título, color y ícono de lo que se sirve. Sin ella, o con `propia: false`, todo sale como siempre. */
   identidad?(): Identidad;
   /** Un cliente se fue hace rato: se suelta lo que tenía tomado. */
   seFue(cliente: string): void;

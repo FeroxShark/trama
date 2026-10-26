@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Prueba de punta a punta de "trama siempre viva" y del cartel de la actualización: una trama residente
 // de verdad (no HILOS_PRUEBA), escondida como la arranca la unidad (`--escondida`), con su propio perfil
-// (HILOS_PERFIL: otro candado de instancia única, no le abre la ventana a la de Ana), su propio estado
+// (HILOS_PERFIL: otro candado de instancia única, no le abre la ventana a la del usuario), su propio estado
 // y los fakes. Mira un build de mentira (HILOS_BUILD) y se le cambia:
 //   1. NO se reinicia sola: aparece el cartel "Update available" con Restart, uno solo aunque llegue otro build;
 //   2. Restart con un líder respondiendo (el `claude` falso, lento): dice a quién espera (por su nombre), no corta el

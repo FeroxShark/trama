@@ -1,5 +1,5 @@
 // Volver acá, Editar y Ramificar un mensaje de un líder: los argumentos de `claude`, el uuid de cada mensaje y la rama.
-// Todo con transcripts inventados: nunca se abre uno real. Detalle: docs/estado/rebobinar.md.
+// Todo con transcripts inventados: nunca se abre uno real.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { argvLider, avanzarConv, convNueva, hastaUuid, leerGuardados, paginaDe } from "../electron/lider-arma.ts";

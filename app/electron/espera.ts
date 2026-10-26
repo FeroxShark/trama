@@ -1,7 +1,7 @@
 // "Te espera": qué líderes esperan al usuario. Un líder espera si tiene un permiso o una pregunta sin contestar
 // (`pide`) o si terminó su turno y quedó ocioso (`listo`). Sin Electron ni reloj: se deriva de lo que ya llega
 // (`ocupado` y `pide` de cada lista de líderes) y se apaga cuando el usuario abre esa conversación o le escribe.
-// Lo usa nucleo.ts sobre cada lectura del statusline; lo prueba tests/espera.test.ts. Detalle: docs/estado/te-espera.md.
+// Lo usa nucleo.ts sobre cada lectura del statusline; lo prueba tests/espera.test.ts.
 /** Por qué espera y desde cuándo (epoch ms): la misma forma que `EsperaLider` de src/datos/contrato.ts. */
 export type EsperaLider = { motivo: "pide" | "listo"; desde: number };
 

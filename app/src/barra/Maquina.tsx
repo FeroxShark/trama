@@ -1,4 +1,4 @@
-// Trama en dos máquinas (docs/estado/maquinas.md): de cuál es cada líder y qué pasa con la otra. El ícono sale sólo
+// Trama en dos máquinas: de cuál es cada líder y qué pasa con la otra. El ícono sale sólo
 // si hay más de una máquina configurada (con una sola, nada cambia) y el aviso sólo si la otra no está del todo bien:
 // "sin conexión" (sus filas no están) u "otra versión · sólo lectura" (se ven, pero nada se le manda).
 import { memo } from "react";

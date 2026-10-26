@@ -1,6 +1,6 @@
 // Dónde vive cada cosa, por plataforma. Un solo lugar para lo que antes eran `path.join(home, ".config", …)` sueltos.
 // Node puro (sin `electron`); en Linux da exactamente lo de siempre (XDG), en Windows lo de `%LOCALAPPDATA%\trama\…`
-// (el mismo árbol que `nativo/src/base/rutas.ts` del orquestador: el estado de `pa` y el `pa.js` están ahí).
+// (el mismo árbol donde `pa` guarda su estado y está su `pa.js`).
 // Lo prueba tests/rutas.test.ts con la plataforma inyectada.
 import { createHash } from "node:crypto";
 import os from "node:os";

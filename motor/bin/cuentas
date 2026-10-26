@@ -17,7 +17,7 @@ credenciales de siempre (sin tocar nada): sin cuentas.json todo sigue como antes
   google   HOME=<carpeta> y DBUS_SESSION_BUS_ADDRESS roto: agy no encuentra el llavero y guarda el token en un archivo
            de ese HOME; ~/.gemini/config, git, ~/.config/trama, ~/.local/{bin,state} y ~/.claude son symlinks
   chatgpt  CODEX_HOME=<carpeta>; config.toml, AGENTS.md y prompts son symlinks a ~/.codex
-Doc: docs/cuentas-varias-por-proveedor.md. Sin dependencias (python3 estándar). TRAMA_CUENTAS_HOME = el home de
+Sin dependencias (python3 estándar). TRAMA_CUENTAS_HOME = el home de
 verdad de donde salen los symlinks (default $HOME).
 """
 import fcntl

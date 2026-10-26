@@ -7,7 +7,7 @@ const CAPTURAS = [
   "normal",
   "hover",
   // La cabecera con el uso del plan en sus tres casos: todo, el 5 h sin hora de reinicio y ningún límite sabido,
-  // con los dos tips abiertos (docs/estado/limites.md; el panel de consumo no tiene captura fija, lo mira scripts/prueba-consumo.mjs).
+  // con los dos tips abiertos (el panel de consumo no tiene captura fija, lo mira scripts/prueba-consumo.mjs).
   "uso",
   "uso-sin-hora",
   "uso-sin-dato",
@@ -18,19 +18,19 @@ const CAPTURAS = [
   "trabajando",
   "oculta",
   "vacio",
-  // La vista de hilo y los líderes (docs/estado/B3/, B7/).
+  // La vista de hilo y los líderes.
   "buscar",
   "lider",
   "lider-terminal",
-  // Un líder que mataron, con Retomar (`HILOS_VARIANTE=no`: no se pudo) (docs/estado/retomar-lider/).
+  // Un líder que mataron, con Retomar (`HILOS_VARIANTE=no`: no se pudo).
   "lider-muerto",
   // Lo mismo con un líder de Trama al que mataron su `claude` (era de la app, no de una terminal): Murió + Retomar, sin caja.
   "lider-app-muerto",
   "lider-nuevo",
-  // Un modelo local elegido: sus niveles de esfuerzo (`local-esfuerzo`) y el detalle del contexto con la cuenta de la VRAM (`local-ctx`; `HILOS_VARIANTE=error` deja a Probar con el motivo; `HILOS_VARIANTE=vram` lo deja sin lugar, con ComfyUI y Handy por liberar) (docs/estado/locales.md).
+  // Un modelo local elegido: sus niveles de esfuerzo (`local-esfuerzo`) y el detalle del contexto con la cuenta de la VRAM (`local-ctx`; `HILOS_VARIANTE=error` deja a Probar con el motivo; `HILOS_VARIANTE=vram` lo deja sin lugar, con ComfyUI y Handy por liberar).
   "local-esfuerzo",
   "local-ctx",
-  // El indicador y los avisos del chat de un líder, y la confirmación de su Settle (docs/estado/B12/).
+  // El indicador y los avisos del chat de un líder, y la confirmación de su Settle.
   "lider-trabajando",
   "lider-avisos",
   "lider-plan",
@@ -40,13 +40,13 @@ const CAPTURAS = [
   "lider-preguntas-dos",
   // El menú de "/" abierto; `HILOS_VARIANTE=agy`: el de un líder de agy (marcas "Anthropic only" / "Google only").
   "lider-comandos",
-  // Dictar: el botón del micrófono en la caja; `HILOS_VARIANTE=grabando` (contador), `transcribiendo`, `error` (Reintentar y Descartar) e `inseguro` (apagado, por http) (docs/estado/dictado.md).
+  // Dictar: el botón del micrófono en la caja; `HILOS_VARIANTE=grabando` (contador), `transcribiendo`, `error` (Reintentar y Descartar) e `inseguro` (apagado, por http).
   "lider-dictado",
   "settle-confirmar",
-  // El árbol líder → workers con los pliegues abiertos (docs/estado/B6/).
+  // El árbol líder → workers con los pliegues abiertos.
   "arbol",
   "aviso",
-  // Los paneles del pie (docs/estado/B5/).
+  // Los paneles del pie.
   "ajustes",
   "ramas",
   "ramas-confirmar",
@@ -57,121 +57,121 @@ const CAPTURAS = [
   "ramas-lanzar-error",
   "estadisticas",
   "estadisticas-30",
-  // Estadísticas con el peso de arrancar ya medido ("Medir exacto"), en lugar del estimado (docs/estado/estadisticas-peso.md).
+  // Estadísticas con el peso de arrancar ya medido ("Medir exacto"), en lugar del estimado.
   "estadisticas-medido",
   // Estadísticas sin ninguna corrida todavía (no hay medicion.tsv): el estado vacío, sin error ni botón.
   "estadisticas-vacia",
-  // El aviso de Claude Code nuevo en el pie, cerrado y abierto (docs/estado/B11/).
+  // El aviso de Claude Code nuevo en el pie, cerrado y abierto.
   "claude",
   "claude-abierto",
   "claude-actualizado",
-  // "Falta configurar" en el pie (Handy y Ollama por instalar), cerrada y abierta (docs/estado/setup-faltante.md).
+  // "Falta configurar" en el pie (Handy y Ollama por instalar), cerrada y abierta.
   "setup",
   "setup-abierto",
-  // Lo terminado escondido: la barra en "sólo líderes" y un líder con su "N terminados" desplegado (docs/estado/B15/).
+  // Lo terminado escondido: la barra en "sólo líderes" y un líder con su "N terminados" desplegado.
   "solo-lideres",
   "ocultos",
-  // La vista de todo con un líder de terminal de tres vivos y ocho terminados: la línea "N terminados" plegada (docs/estado/vista-todo.md).
+  // La vista de todo con un líder de terminal de tres vivos y ocho terminados: la línea "N terminados" plegada.
   "terminados",
-  // El anillo de contexto de la caja del líder: 30, 75 y 95 %, y su detalle abierto (docs/estado/B16/).
+  // El anillo de contexto de la caja del líder: 30, 75 y 95 %, y su detalle abierto.
   "contexto-30",
   "contexto-75",
   "contexto-95",
   "contexto-abierto",
-  // Lo de sistema en la conversación, en un líder y en un worker (docs/estado/B18/).
+  // Lo de sistema en la conversación, en un líder y en un worker.
   "lider-sistema",
   "sistema",
-  // Lo que hizo el modelo, herramienta por herramienta (Bash y Edit abiertos), compactar y el relevo del líder (docs/estado/B19/).
+  // Lo que hizo el modelo, herramienta por herramienta (Bash y Edit abiertos), compactar y el relevo del líder.
   "herramientas",
-  // La conversación de un worker con el final de lo que devolvió cada herramienta, plegado bajo su línea (docs/estado/chat-listas.md).
+  // La conversación de un worker con el final de lo que devolvió cada herramienta, plegado bajo su línea.
   "herramientas-resultados",
   "lider-compactando",
-  // Un líder con subagentes: dos corriendo, uno terminado con su informe y uno que falló (docs/estado/subagentes.md).
+  // Un líder con subagentes: dos corriendo, uno terminado con su informe y uno que falló.
   "subagentes",
-  // Un worker y un líder de terminal compactando: la fila y el chat (`HILOS_VARIANTE=lider`: la vista del líder) (docs/estado/chat-vivo/).
+  // Un worker y un líder de terminal compactando: la fila y el chat (`HILOS_VARIANTE=lider`: la vista del líder).
   "compactando",
   "lider-relevo",
-  // El segundo nivel del menú de "/" (/output-style con sus valores) (docs/estado/B23/).
+  // El segundo nivel del menú de "/" (/output-style con sus valores).
   "lider-valores",
-  // Imágenes en el globo y en la caja (docs/estado/B26/).
+  // Imágenes en el globo y en la caja.
   "lider-imagenes",
-  // Tablas del markdown en la respuesta de un líder (docs/estado/tablas/).
+  // Tablas del markdown en la respuesta de un líder.
   "lider-tabla",
-  // Cada forma del texto de un mensaje, y lo que no tiene espacios (`HILOS_VARIANTE=pegado`) (docs/estado/formato/).
+  // Cada forma del texto de un mensaje, y lo que no tiene espacios (`HILOS_VARIANTE=pegado`).
   "lider-formato",
-  // Tablas y bloques de código adentro de listas numeradas y con viñetas, anidadas (docs/estado/chat-listas.md).
+  // Tablas y bloques de código adentro de listas numeradas y con viñetas, anidadas.
   "lider-listas",
   // El botón del hover en las filas de los líderes: Archivar (quieto) y Cerrar líder (respondiendo).
   "lider-hover",
-  // El razonamiento del líder en el chat: plegado en cada turno ("Pensó"); `HILOS_VARIANTE=abierto` abre uno y `=vivo` lo deja llegando, con "Pensando…" abierto (docs/estado/pensando.md).
+  // El razonamiento del líder en el chat: plegado en cada turno ("Pensó"); `HILOS_VARIANTE=abierto` abre uno y `=vivo` lo deja llegando, con "Pensando…" abierto.
   "lider-pensando",
-  // Un líder de Gemini a mitad de un turno: su último paso de razonamiento en la tarjeta y cada comando con su estado (docs/estado/pensando-gemini.md).
+  // Un líder de Gemini a mitad de un turno: su último paso de razonamiento en la tarjeta y cada comando con su estado.
   "lider-gemini",
-  // Te espera: un líder de terminal que terminó y el de la app (abierto) que pide un permiso; fila y cabecera con la marca en ámbar (docs/estado/te-espera.md).
+  // Te espera: un líder de terminal que terminó y el de la app (abierto) que pide un permiso; fila y cabecera con la marca en ámbar.
   "te-espera",
-  // El tablero de pendientes: el kanban, el detalle de una tarjeta y la vista Proyectos (docs/estado/tablero/).
+  // El tablero de pendientes: el kanban, el detalle de una tarjeta y la vista Proyectos.
   "tablero",
   "tablero-detalle",
   "tablero-proyectos",
-  // Iniciar tareas del tablero: la confirmación con tres marcadas de dos proyectos (docs/estado/tablero-iniciar/).
+  // Iniciar tareas del tablero: la confirmación con tres marcadas de dos proyectos.
   "tablero-iniciar",
-  // Los items pospuestos con su lista abierta y "Traer de vuelta" (docs/estado/tablero-etapa5/).
+  // Los items pospuestos con su lista abierta y "Traer de vuelta".
   "tablero-pospuestos",
-  // El tablero junto de las máquinas: items de la otra con su nombre al lado del número y el aviso de una máquina sin conexión (docs/estado/tablero-maquinas/).
+  // El tablero junto de las máquinas: items de la otra con su nombre al lado del número y el aviso de una máquina sin conexión.
   "tablero-maquinas",
   // El tablero sin vista todavía (no hay tablero): el cuadro para anotar el primero y lo que es el tablero.
   "tablero-vacio",
-  // El cartel "Hay una actualización disponible" arriba del pie, esperando a un líder y a su worker, y con eso sin eventos hace 20 min: "Reiniciar igual" (docs/estado/actualizacion/).
+  // El cartel "Hay una actualización disponible" arriba del pie, esperando a un líder y a su worker, y con eso sin eventos hace 20 min: "Reiniciar igual".
   "actualizacion",
   "actualizacion-espera",
   "actualizacion-colgado",
-  // "PC apagada · Prender" en la trama del Dell: apagada, "Prendiendo…" y prendida con Abrir (docs/estado/maquinas.md).
+  // "PC apagada · Prender" en la trama de la otra máquina: apagada, "Prendiendo…" y prendida con Abrir.
   "pc-apagada",
   "pc-prendiendo",
   "pc-prendida",
-  // El cartel "Reconectando con la PC…" (sólo se ve por la tailnet; docs/estado/visual/).
+  // El cartel "Reconectando con la PC…" (sólo se ve por la tailnet).
   "conexion",
-  // El cartel de un error al pintar, en vez de la ventana en blanco (src/ErrorBoundary.ts; docs/estado/contencion.md).
+  // El cartel de un error al pintar, en vez de la ventana en blanco (src/ErrorBoundary.ts).
   "error",
   // Nada miente mientras carga: un worker recién lanzado ("Arrancando…"), la conversación mientras se lee
-  // (`HILOS_VARIANTE=lider`: la de un líder) y uno frenado a propósito, sin rojo (`HILOS_VARIANTE=lideres`: el resumen de su líder) (docs/estado/carga-honesta/).
+  // (`HILOS_VARIANTE=lider`: la de un líder) y uno frenado a propósito, sin rojo (`HILOS_VARIANTE=lideres`: el resumen de su líder).
   "arrancando",
   "leyendo",
-  // Un worker en cola (con su tarea, bajo su líder, "En cola · motivo", sin spinner) y otro que murió sin arrancar (docs/estado/worker-en-cola.md).
+  // Un worker en cola (con su tarea, bajo su líder, "En cola · motivo", sin spinner) y otro que murió sin arrancar.
   "worker-en-cola",
   "frenado",
   // El tablero nuevo (Te esperan), con pendientes de fixture: la lista de proyectos, uno abierto con respuestas y el chat del líder con el mensaje armado
-  // (`HILOS_VARIANTE=parados` despliega los parados, `abajo` baja hasta las pruebas, `mandadas` baja y despliega Mandadas, `todo` abre la pestaña Todo) (docs/estado/tablero-nuevo/).
+  // (`HILOS_VARIANTE=parados` despliega los parados, `abajo` baja hasta las pruebas, `mandadas` baja y despliega Mandadas, `todo` abre la pestaña Todo).
   "tablero-nuevo",
   "tablero-nuevo-proyecto",
   "tablero-nuevo-chat",
   // "Responder y avisar" en las preguntas de atlas ya contestadas: a un líder (su terminal), a elegir entre dos (el que originó la pregunta y el de la carpeta)
-  // (`HILOS_VARIANTE=elegir` abre el selector, `sin` abre baliza, sin ningún líder: ni botón) (docs/estado/tablero-avisar/).
+  // (`HILOS_VARIANTE=elegir` abre el selector, `sin` abre baliza, sin ningún líder: ni botón).
   "tablero-nuevo-avisar",
-  // El teclado: el anillo de foco en una fila de la barra y en un control de la caja del líder, y la lista de atajos (`?`) (docs/estado/teclado.md).
+  // El teclado: el anillo de foco en una fila de la barra y en un control de la caja del líder, y la lista de atajos (`?`).
   "foco-barra",
   "foco-caja",
   "atajos",
-  // Cerrar del todo (Ctrl+Q, la bandeja): la pregunta con sus dos salidas y, con líderes respondiendo, la confirmación (docs/estado/bandeja.md).
+  // Cerrar del todo (Ctrl+Q, la bandeja): la pregunta con sus dos salidas y, con líderes respondiendo, la confirmación.
   "salir",
   "salir-ocupados",
-  // El panel de consumo a la derecha de un líder abierto; a 800 px (ancho intermedio) ocupa el lugar de la conversación (docs/estado/consumo.md).
+  // El panel de consumo a la derecha de un líder abierto; a 800 px (ancho intermedio) ocupa el lugar de la conversación.
   "consumo",
-  // El orden de la barra: a mitad de un arrastre (lo que se lleva apagado, la línea donde cae) y el menú de una carpeta con Subir / Bajar / Orden por defecto (docs/estado/orden-barra.md).
+  // El orden de la barra: a mitad de un arrastre (lo que se lleva apagado, la línea donde cae) y el menú de una carpeta con Subir / Bajar / Orden por defecto.
   "orden-arrastrando",
   "orden-menu",
-  // El orden por prioridad, el de fábrica (`Orden.prioridad`): te necesita, caché vivo y el resto por actividad (docs/estado/orden-prioridad.md).
+  // El orden por prioridad, el de fábrica (`Orden.prioridad`): te necesita, caché vivo y el resto por actividad.
   "orden-prioridad",
   // "Mover a proyecto…" de un líder, con la lista larga: el buscador, Automático aparte, el marcado y el dónde está ahora.
   "mover-menu",
-  // Trama en dos máquinas (docs/estado/maquinas.md): con el Dell conectado, la barra con su líder y sus workers y el ícono de máquina en cada líder;
-  // abierto el líder del Dell (el ícono y el nombre en la cabecera); con el Dell sin conexión (sus filas no están y la barra lo dice); y con
-  // el Dell en otra versión ("sólo lectura"). Con una sola máquina nada de esto aparece: las demás capturas no cambian.
+  // Trama en dos máquinas: con la otra máquina conectada, la barra con su líder y sus workers y el ícono de máquina en cada líder;
+  // abierto el líder de la otra máquina (el ícono y el nombre en la cabecera); con la otra máquina sin conexión (sus filas no están y la barra lo dice); y con
+  // la otra máquina en otra versión ("sólo lectura"). Con una sola máquina nada de esto aparece: las demás capturas no cambian.
   "maquinas",
   "maquinas-lider",
   "maquinas-caida",
   "maquinas-version",
-  // La caja de un líder nuevo con el selector de máquina abierto: con el Dell conectado, y con el Dell sin conexión (se ve, dice por qué y no se elige).
+  // La caja de un líder nuevo con el selector de máquina abierto: con la otra máquina conectada, y sin conexión (se ve, dice por qué y no se elige).
   "maquinas-selector",
   "maquinas-selector-caida",
   // La caja de un líder nuevo con el campo "Carpeta" abierto y una ruta puesta.
@@ -181,10 +181,10 @@ const CAPTURAS = [
   "actualizando-2",
   "actualizando-3",
   "actualizando-4",
-  // La vista de un worker con pasos (src/hilo/Worker.tsx): uno que terminó y uno que sigue corriendo `npm test` (docs/estado/worker-vista.md).
+  // La vista de un worker con pasos (src/hilo/Worker.tsx): uno que terminó y uno que sigue corriendo `npm test`.
   "worker-vista",
   "worker-vista-vivo",
-  // La bienvenida del primer arranque (src/paneles/Bienvenida.tsx); `HILOS_VARIANTE=<paso>` abre en ese paso (docs/estado/bienvenida.md).
+  // La bienvenida del primer arranque (src/paneles/Bienvenida.tsx); `HILOS_VARIANTE=<paso>` abre en ese paso.
   "bienvenida",
 ] as const;
 
@@ -199,7 +199,7 @@ export const MODO = {
    * medición. `paneles`: lo mismo con los paneles del pie (src/paneles/guion.ts).
    */
   guion: guion === "b0" || guion === "barra" || guion === "paneles" ? guion : null,
-  /** Estado forzado para las capturas de `docs/estado/` (sin mouse ni teclado). */
+  /** Estado forzado para las capturas (sin mouse ni teclado). */
   captura: (CAPTURAS as readonly string[]).includes(captura ?? "") ? (captura as Captura) : null,
   /** El reloj quieto de las capturas comparadas (`?ahora=`, src/reloj-fijo.ts): sin fase en lo que late. */
   quieto: q.has("ahora"),

@@ -2,14 +2,14 @@
 # Instala el lanzador de trama para este usuario: `~/.local/bin/trama`, la entrada
 # del menú de apps y el ícono. No copia la app: el lanzador abre el build de ESTE
 # checkout, y si faltan `node_modules/` o el build los arma. Idempotente.
-# También enlaza y habilita la unidad de usuario (`systemd/trama.service`): trama arranca
+# También instala y habilita la unidad de usuario (`systemd/trama.service`): trama arranca
 # sola y escondida al iniciar la sesión gráfica y se vuelve a levantar si muere. NO la
 # arranca ahora (no pisa la trama que esté abierta): entra al próximo inicio de sesión, o
 # la primera vez que se abra `trama` sin ninguna corriendo.
-# Lo mismo con el motor sin ventana (`systemd/trama-motor.service`, WantedBy=default.target): enlazado y
+# Lo mismo con el motor sin ventana (`systemd/trama-motor.service`, WantedBy=default.target): instalado y
 # habilitado, sin arrancarlo; para que siga sin sesión gráfica hace falta `loginctl enable-linger $USER`
-# (lo hace Ana a mano: pide sudo).
-# Y enlaza las skills de diseño del repo (`skills/`, `scripts/instalar-skills.sh`): en ~/.claude/skills y, si hay agy, en la de agy.
+# (se hace a mano: pide sudo). Esa unidad es una plantilla: lleva `@RAIZ@` donde va la ruta de este checkout
+# y se instala como archivo con la ruta ya puesta (si movés el checkout, volvé a correr este script).
 # Y registra el hook que dice quién compacta en `~/.claude/settings.json` (`scripts/registrar-hook.mjs`).
 #
 # uso: scripts/instalar.sh
@@ -38,7 +38,7 @@ mkdir -p "$(dirname "$bin")" "$(dirname "$desktop")" "$iconos/scalable/apps" "$i
 # como hijo y la ventana quedaría en otro proceso).
 cat >"$bin" <<EOF
 #!/bin/sh
-# Lanzador de trama (lo escribe scripts/instalar.sh de hilos): abre el build de main.
+# Lanzador de trama (lo escribe scripts/instalar.sh): abre el build de este checkout.
 raiz='$raiz'
 electron="\$raiz/node_modules/electron/dist/electron"
 [ -x "\$electron" ] || (cd "\$raiz" && npm ci) || exit 1
@@ -76,13 +76,16 @@ EOF
 
 command -v update-desktop-database >/dev/null && update-desktop-database -q "$(dirname "$desktop")" || true
 
-# Las unidades de usuario: enlaces a los archivos del repo (como las demás unidades de Ana). La ventana
-# (trama.service) para la sesión gráfica; el motor (trama-motor.service) para default.target. Sin `--now`:
-# no se le cruzan a una trama abierta a mano (ver arriba).
+# Las unidades de usuario. La ventana (trama.service) para la sesión gráfica, enlazada al archivo del repo; el
+# motor (trama-motor.service) para default.target, escrito con la ruta de este checkout en lugar de `@RAIZ@`
+# (un `%` en la ruta se duplica: es el especificador de systemd). Sin `--now`: no se le cruzan a una trama
+# abierta a mano (ver arriba).
 if command -v systemctl >/dev/null && systemctl --user show-environment >/dev/null 2>&1; then
   mkdir -p "$unidades"
   ln -sfn "$raiz/systemd/trama.service" "$unidades/trama.service"
-  ln -sfn "$raiz/systemd/trama-motor.service" "$unidades/trama-motor.service"
+  # rm antes: si quedó el enlace de una versión anterior, escribir encima pisaría la plantilla del repo.
+  rm -f "$unidades/trama-motor.service"
+  sed "s|@RAIZ@|${raiz//%/%%}|g" "$raiz/systemd/trama-motor.service" >"$unidades/trama-motor.service"
   systemctl --user daemon-reload
   systemctl --user enable trama.service trama-motor.service
   echo "unidades: $unidades/trama.service (habilitada; arranca con la sesión gráfica o al abrir trama)"
@@ -95,6 +98,4 @@ fi
 # settings de usuario no es del repo, así que lo registra acá (PreCompact / PostCompact en ~/.claude/settings.json,
 # sin pisar los otros hooks; idempotente). Si el settings no se puede tocar, avisa y la instalación sigue.
 node "$raiz/scripts/registrar-hook.mjs" || echo "instalar.sh: el hook de compactando no quedó registrado (ver arriba)" >&2
-# Las skills de diseño (ui-ux-pro-max, taste-skill, diseno): enlaces, sin pisar una que ya exista y sea distinta.
-"$raiz/scripts/instalar-skills.sh" || echo "instalar.sh: las skills de diseño no quedaron instaladas (ver arriba)" >&2
 echo "instalado: $bin, $desktop"

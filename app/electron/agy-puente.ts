@@ -1,6 +1,6 @@
 // El puente de un líder de Gemini: un proceso Node que habla el stream-json de `claude -p` por stdin/stdout (lo
 // que lider.ts ya maneja: cola, interrupción, estado, fin de turno) y por dentro corre `agy` (Antigravity CLI), un
-// proceso por turno. Lo lanza lider.ts en lugar de `claude` (docs/estado/lider-gemini.md). Sin Electron.
+// proceso por turno. Lo lanza lider.ts en lugar de `claude`. Sin Electron.
 //
 //   node agy-puente.js --sid <uuid> --nombre <n> --modelo <gemini-…-low|medium|high> --cwd <carpeta>
 //   HILOS_AGY=<binario>                       el `agy` (default: `agy`; las pruebas ponen scripts/agy-falso.mjs)

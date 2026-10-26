@@ -267,7 +267,7 @@ contextBridge.exposeInMainWorld("hilos", {
   /** Un error del renderer, al log del main (electron/log.ts). */
   bitacora: (x: { donde: string; detalle: string }): Promise<void> => ipcRenderer.invoke("bitacora:escribir", x),
   /** El cartel "Hay una actualización disponible" (un build de trama más nuevo que el que corre). */
-  /** "PC apagada · Prender" (sólo con una PC configurada en maquinas.json: el Dell). */
+  /** "PC apagada · Prender" (sólo con una PC configurada en maquinas.json de la otra máquina). */
   pc: {
     leer: (): Promise<unknown> => ipcRenderer.invoke("pc:leer"),
     prender: (): Promise<unknown> => ipcRenderer.invoke("pc:prender"),

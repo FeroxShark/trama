@@ -104,7 +104,7 @@ const argvLocal = (contexto?: string) => [
  * `--permission-prompt-tool stdio`: los pedidos de permiso (ExitPlanMode en plan,
  * cualquier herramienta en default) llegan como `control_request can_use_tool`
  * y los contesta la app. Sesión nueva: `--session-id` + `--name`; retomada:
- * `--resume` (el nombre ya está en el transcript). Protocolo en docs/estado/B13.md.
+ * `--resume` (el nombre ya está en el transcript).
  */
 export function argvLider({ modelo, effort, sid, nombre, resume, modo = MODO_DEFAULT, local, ollama, desde, rama }: ArmarLider): string[] {
   if (!SID.test(sid)) throw errorT("main.sesionRara", { v: sid });
@@ -125,7 +125,7 @@ export function argvLider({ modelo, effort, sid, nombre, resume, modo = MODO_DEF
     "--verbose",
     "--include-partial-messages",
     // Un mensaje mandado a mitad de un turno ("Mandar ya") se entrega en el próximo límite de tool_result y el stream no dice nada;
-    // con esto trae un `user` con `isReplay` al entregarlo (`replay`, `docs/estado/mensaje-en-turno.md`).
+    // con esto trae un `user` con `isReplay` al entregarlo (`replay`).
     "--replay-user-messages",
     ...(modo === "bypassPermissions" ? ["--dangerously-skip-permissions"] : ["--allow-dangerously-skip-permissions", "--permission-mode", modo]),
     "--permission-prompt-tool",
@@ -385,7 +385,7 @@ export type Hace =
   | { que: "herramienta"; nombre: string; detalle: string | null; extra?: string };
 
 /**
- * Un aviso en línea del chat (docs/estado/B12.md). Viene con datos, no con
+ * Un aviso en línea del chat. Viene con datos, no con
  * texto: lo traduce la vista. Lo que ya viene escrito por `claude` (`texto`) no se traduce.
  */
 export type Aviso =
@@ -675,8 +675,8 @@ function resultadosDe(c: unknown): { id: string; texto: string; error: boolean }
 /**
  * Una línea de stream-json → los eventos que le importan a la vista (vacío si
  * nada). Sólo lo del líder (`parent_tool_use_id` nulo): lo de sus subagentes no
- * se muestra, como en `pa --hilo` (`isSidechain`). Tipos y ejemplos en
- * docs/estado/B12.md y `tests/fixtures/stream-*.jsonl`.
+ * se muestra, como en `pa --hilo` (`isSidechain`). Ejemplos en
+ * `tests/fixtures/stream-*.jsonl`.
  */
 export function parsearLinea(linea: string): Evento[] {
   let o: any;

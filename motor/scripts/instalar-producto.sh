@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # instalar-producto.sh — deja Trama + pa/tablero andando en una máquina limpia (Ubuntu/WSL2, Debian, otra
-# distro con systemd de usuario). Es el instalador del PRODUCTO; el de desarrollo (scripts/instalar.sh) no entra en el árbol público.
+# distro con systemd de usuario). Es el instalador del PRODUCTO; el de desarrollo (app/scripts/instalar.sh) sólo instala el lanzador y las unidades de un checkout.
 #
 #   instalar-producto.sh [--fuente DIR] [--app DIR]     instalación de usuario (sin sudo)
 #   instalar-producto.sh --solo-apt [--usuario U]       sólo los paquetes del sistema (root); lo llama la carcasa con `wsl -u root`
@@ -8,7 +8,7 @@
 # Idempotente (correrlo dos veces no rompe ni duplica) y sale 0 aunque algo de red falle: lo que no pudo hacer
 # sale como AVISO y `trama-estado --json` dice qué quedó. Sale 2 sólo por uso o por una fuente rota.
 #
-#   --fuente DIR   árbol de `trama-exportar` (motor/ + app/), o el repo del orquestador (bin/, hooks/, skills/…)
+#   --fuente DIR   árbol de `trama-exportar` (motor/ + app/), o el repo del motor suelto (bin/, hooks/, skills/…)
 #                  (default: el árbol del propio script)
 #   --app DIR      la app hilos con dist-electron/ (default: DIR/app de la fuente, o $TRAMA_APP)
 #
@@ -79,7 +79,7 @@ fi
 AQUI="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd -P)"
 [[ -n "$FUENTE" ]] || FUENTE="$AQUI"
 FUENTE="$(cd "$FUENTE" 2>/dev/null && pwd -P)" || { echo "instalar-producto.sh: no existe la fuente '$FUENTE'" >&2; exit 2; }
-# El árbol exportado es <fuente>/{motor,app}; el repo del orquestador es la fuente misma. Desde motor/scripts/ el
+# El árbol exportado es <fuente>/{motor,app}; el repo del motor suelto es la fuente misma. Desde motor/scripts/ el
 # script se encuentra a sí mismo en <fuente>/motor.
 if   [[ -x "$FUENTE/motor/bin/pa" ]]; then MOTOR="$FUENTE/motor"; [[ -n "$APP" ]] || APP="$FUENTE/app"
 elif [[ -x "$FUENTE/bin/pa" ]];       then MOTOR="$FUENTE"

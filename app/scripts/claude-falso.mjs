@@ -307,7 +307,7 @@ async function turno(texto) {
   // "comando largo": un Bash con un comando de más de 200 caracteres (el pliegue de la tarjeta), corriendo un rato.
   if (/comando largo/.test(texto)) {
     const id = `tl${n}`;
-    const command = `cd ~/Proyectos/hilos && ${"npm run prueba -- actividad --verbose --sin-cache "}${"--tope 120 ".repeat(18)}&& echo listo-${n}`;
+    const command = `cd ~/trama/app && ${"npm run prueba -- actividad --verbose --sin-cache "}${"--tope 120 ".repeat(18)}&& echo listo-${n}`;
     const input = { command, description: "Prueba larga de la tarjeta" };
     out({ type: "assistant", parent_tool_use_id: null, message: { id: `${mid}l`, model: modelo, role: "assistant", content: [{ type: "tool_use", id, name: "Bash", input }] } });
     herramientaEnVuelo = true;

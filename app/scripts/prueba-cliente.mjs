@@ -5,7 +5,7 @@
 // cliente. Mira que un pedido pase (y llegue al motor: lo que escribe queda en su estado), que un adjunto
 // binario llegue entero, que un evento que difunde el motor (pedido por otro cliente del socket) le llegue
 // a la página, y que matar el motor (SIGKILL) muestre "Reconectando" y que con un motor nuevo vuelva sola.
-// Nunca contra la trama ni el motor de Ana: estado, socket, perfil y registry son temporales.
+// Nunca contra la trama ni el motor del usuario: estado, socket, perfil y registry son temporales.
 //   npm run build && node scripts/prueba-cliente.mjs
 import { spawn } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from "node:fs";

@@ -1,4 +1,4 @@
-// "Responder y avisar" del tablero nuevo (docs/estado/tablero-avisar.md): a qué líderes vivos se les puede avisar de una
+// "Responder y avisar" del tablero nuevo: a qué líderes vivos se les puede avisar de una
 // respuesta, y el mensaje corto que se les escribe. Puro y con extensión en los imports: lo prueba `node --test`
 // (tests/avisar.test.ts). Nunca decide enviar: eso lo hace el botón que toca el usuario.
 import { Dueno } from "./dueno.ts";
@@ -52,7 +52,7 @@ export const elegirAviso = (cands: readonly LiderAviso[], elegido?: string): Lid
  * `armarMensaje`). Corto: el item, lo que el usuario eligió y cómo cerrarlo; la respuesta ya quedó guardada en el item.
  */
 export function armarAviso(proyecto: string, x: Tocada): string {
-  // El número del item en SU tablero: el `dell:12` es de quien junta, el líder de allá conoce el 12.
+  // El número del item en SU tablero: el `servidor:12` es de quien junta, el líder de allá conoce el 12.
   const num = String(x.pend.id).replace(/^.*:/, "");
   const donde = proyecto ? ` sobre ${proyecto}` : "";
   return [

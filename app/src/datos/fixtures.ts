@@ -17,7 +17,7 @@ const COLCHON = 40;
 
 type Parcial = Pick<Hilo, "id" | "proyecto" | "tarea" | "estado" | "inicio"> & Partial<Hilo>;
 
-// Los líderes (sesiones de Claude Code de Ana) y uno que ya cerró: sus workers quedan "sin líder".
+// Los líderes (sesiones de Claude Code del usuario) y uno que ya cerró: sus workers quedan "sin líder".
 const A3 = { id: "s-fix-a3", nombre: "ana-a3" };
 const C7 = { id: "s-fix-c7", nombre: "ana-c7" };
 const E9 = { id: "s-fix-e9", nombre: "cauce-e9" };
@@ -476,7 +476,7 @@ export const TERMINADOS: Hilo[] = [...TERMINADOS_VIVOS, ...TERMINADOS_MUERTOS];
 export const HILOS_TERMINADOS: RespuestaHilos = { ...HILOS, hilos: [...HILOS.hilos, ...TERMINADOS] };
 
 /**
- * Las capturas de dos máquinas (`maquinas*`): un líder del Dell (sus ids llevan el prefijo `dell:`, como los arma
+ * Las capturas de dos máquinas (`maquinas*`): un líder de la otra máquina (sus ids llevan el prefijo `dell:`, como los arma
  * electron/maquinas.ts) con dos workers, sumados a `HILOS` y `LIDERES` sólo en ellas.
  */
 const D1 = { id: "dell:s-fix-d1", nombre: "ana-d1" };
@@ -790,8 +790,8 @@ export function charlaListas(sid: string): Mensaje[] {
 }
 
 /**
- * Una conversación larga (captura `lider-formato`, `HILOS_VARIANTE=larga`): `n` mensajes en ciclos de tres (un pedido de
- * Ana, un paso con herramientas y la respuesta, con listas y código de vez en cuando). Para ver y medir que 3000 no tironeen
+ * Una conversación larga (captura `lider-formato`, `HILOS_VARIANTE=larga`): `n` mensajes en ciclos de tres (un pedido
+ * del usuario, un paso con herramientas y la respuesta, con listas y código de vez en cuando). Para ver y medir que 3000 no tironeen
  * (`scripts/medir-larga.mjs`); el texto es inventado y cada mensaje distinto, para que ninguno salga de un caché.
  */
 export function charlaLarga(sid: string, n = 3000): Mensaje[] {
@@ -1123,7 +1123,7 @@ export function localesFalsos(id?: string, ctx?: number): EstadoLocales {
   return { gpuMiB: gpu.totalMiB, modelos: [fila("modelo-local-ejemplo", 17955, 17), fila("modelo-local-chico", 6873, 16)] };
 }
 
-/** Lo que se puede liberar de la GPU de muestra (`vram --json` de ~/Proyectos/modos): inventado; liberar sólo lo quita de esta lista. */
+/** Lo que se puede liberar de la GPU de muestra (`vram --json`): inventado; liberar sólo lo quita de esta lista. */
 const VRAM_LISTA: EstadoVram["consumidores"] = [
   { id: "comfyui.service", nombre: "ComfyUI", miB: 6144, tipo: "servicio", accion: "stop" },
   { id: "handy.service", nombre: "Handy", miB: 3379, tipo: "servicio", accion: "stop" },

@@ -210,7 +210,7 @@ export interface Fuente {
   /** Hay un build de trama más nuevo que el que corre: el cartel de la barra (src/barra/Reinicio.tsx). */
   reinicio(): Promise<Reinicio>;
   alCambiarReinicio(fn: (r: Reinicio) => void): () => void;
-  /** La PC que este Dell sabe prender; null donde no hay (la PC misma). Se vuelve a mirar cada vez que se llama. */
+  /** La PC que esta máquina sabe prender; null donde no hay (la PC misma). Se vuelve a mirar cada vez que se llama. */
   pc(): Promise<EstadoPc | null>;
   alCambiarPc(fn: (e: EstadoPc | null) => void): () => void;
   prenderPc(): void;
@@ -308,7 +308,7 @@ const maquinasValidas = (x: unknown): Maquinas => {
     }),
   };
 };
-/** Las capturas de dos máquinas: `maquinas`, `maquinas-lider` (conectada), `maquinas-caida` (el Dell sin conexión), `maquinas-version` (otra versión, sólo lectura) y `maquinas-selector[-caida]` (la caja de un líder nuevo con el selector abierto). */
+/** Las capturas de dos máquinas: `maquinas`, `maquinas-lider` (conectada), `maquinas-caida` (la otra máquina sin conexión), `maquinas-version` (otra versión, sólo lectura) y `maquinas-selector[-caida]` (la caja de un líder nuevo con el selector abierto). */
 const EN_DOS = ["maquinas", "maquinas-caida", "maquinas-version", "maquinas-lider", "maquinas-selector", "maquinas-selector-caida"];
 const maquinasDeCaptura = (): Maquinas =>
   MODO.captura && EN_DOS.includes(MODO.captura)
@@ -317,11 +317,11 @@ const maquinasDeCaptura = (): Maquinas =>
         otras: [{ id: "dell", nombre: "Dell", estado: MODO.captura === "maquinas-caida" || MODO.captura === "maquinas-selector-caida" ? "sinConexion" : MODO.captura === "maquinas-version" ? "soloLectura" : "conectada" }],
       }
     : SOLA;
-/** Las filas del Dell: están con el Dell conectado (también en sólo lectura); caído, no. */
+/** Las filas de la otra máquina: están con la otra máquina conectada (también en sólo lectura); caída, no. */
 const filasDelDell = () => MODO.captura === "maquinas" || MODO.captura === "maquinas-version" || MODO.captura === "maquinas-lider";
 
 /**
- * La PC vista desde el Dell (electron/pc-estado.ts): `apagada` (no contesta), `prendiendo` (salió el paquete) o `prendida`.
+ * La PC vista desde la otra máquina (electron/pc-estado.ts): `apagada` (no contesta), `prendiendo` (salió el paquete) o `prendida`.
  * `url`: la trama de la PC, para Abrir. `error`: por qué no prendió (lo que dijo el comando, o una clave del main).
  */
 export type EstadoPc = { nombre: string; url: string; estado: "apagada" | "prendiendo" | "prendida"; error: string | null };
@@ -714,7 +714,7 @@ function cuentasFijas() {
 
 /**
  * El `usage` del líder con fixtures: lo que pesa su conversación contra el
- * umbral de 200 mil. Las capturas del anillo (docs/estado/B16/) lo fuerzan a
+ * umbral de 200 mil. Las capturas del anillo lo fuerzan a
  * 30, 75 y 95 %.
  */
 const crecido = new Map<string, number>();
@@ -736,7 +736,7 @@ function usoFijo(sid: string): Tokens {
 }
 
 /**
- * Las capturas del indicador y de los avisos (docs/estado/B12/): el líder
+ * Las capturas del indicador y de los avisos: el líder
  * `sid` a mitad de un turno (corre un Bash, la API reintentó) o con un turno
  * que terminó mal (compactó, cerca del límite semanal, tope de 5 h y el
  * proceso que sale con código 1). Sólo con fixtures.

@@ -1,4 +1,4 @@
-// La PC vista desde el Dell (electron/pc-estado.ts): su estado, uno solo para quien lo muestre (src/barra/Pc.tsx).
+// La PC vista desde la otra máquina (electron/pc-estado.ts): su estado, uno solo para quien lo muestre (src/barra/Pc.tsx).
 // Sin PC configurada (la PC misma) es null y no cuesta nada. No hay reloj: se vuelve a mirar al volver a la
 // ventana, y mientras "Prendiendo…" el main avisa solo.
 import { useSyncExternalStore } from "react";

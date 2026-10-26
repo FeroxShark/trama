@@ -173,7 +173,7 @@ try {
   await hasta(() => !!document.querySelector(".pd .tb-vistas"), "las pestañas");
   await en(() => [...document.querySelectorAll(".pd > .pd-barra .tb-vistas button")].find((b) => b.textContent === "Todo")?.click());
   ok(await hasta((s) => !!document.querySelector(s), "la tarjeta en bandeja", tarjeta(A, "bandeja")), "el Tablero abre y la bandeja tiene su tarjeta");
-  ok(await hay(tarjeta(B, "espera-dueno")), "lo que espera a Ana está en su columna");
+  ok(await hay(tarjeta(B, "espera-dueno")), "lo que espera al usuario está en su columna");
   ok(await en((s) => document.querySelector(s)?.querySelector(".tb-p code")?.textContent === "atlas --exportar ejemplo.csv", tarjeta(B, "espera-dueno")), "la tarjeta trae la prueba exacta");
   ok(await en((s) => document.querySelector(s)?.querySelector(".tb-chip")?.textContent === "atlas", tarjeta(B, "espera-dueno")), "y el chip del proyecto");
   ok(

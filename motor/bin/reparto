@@ -16,7 +16,7 @@ cuenta elegida. --agotar ID --cuenta C marca agotado el grupo de esa cuenta; --t
 modelos de esa cuenta (pa --cuenta sin -m); --tipo T --mismo-proveedor P prefiere
 las cuentas de P (el relanzamiento por falta de cupo de pa: otra cuenta del mismo proveedor antes de cambiar).
 
-Doc: docs/reparto-de-modelos-por-calidad-y-cupo.md. Sin dependencias (python3 estándar).
+Sin dependencias (python3 estándar).
 Entorno (para tests): REPARTO_CUPOS_FIJOS=archivo.json (mismo formato que `--cupos --json`, no lee
 nada real), REPARTO_AHORA=ISO (la hora de "ahora"), REPARTO_STATE (caché de agy y grupos agotados; default
 <PA_STATE o ~/.local/state/pa>/reparto: el MISMO lugar para `pa` y para quien lo llame a mano), PA_STATE
@@ -43,7 +43,7 @@ VERSION = 1
 
 # --- defaults (todo se pisa desde ~/.config/trama/modelos.json) --------------------------------------
 # Flash 60 (la guía dice 40): con Haiku en 60 como mínimo de lectura/mecanico, Flash 40 quedaría afuera; SOLO_EN lo limita a esos dos.
-# Valores de docs/guia-de-modelos-fuertes-effort-y-costo.md (2026-10-25): Sonnet iguala o supera a Opus en lo medido.
+# Valores medidos (2026-10-25): Sonnet iguala o supera a Opus en lo medido.
 CALIDAD = {"opus": 100, "sonnet": 88, "argon": 85, "haiku": 60, "gpt-oss": 45, "flash": 60,
            # ChatGPT/Codex (2026-10-25): sin medición propia. Astra empata a Argon en AA (52,7 contra 52,6); Sol es
            # "el de código" según OpenAI: lo mismo que Sonnet hasta tener corridas; Luna, volumen (Haiku).
@@ -106,7 +106,7 @@ GRUPOS_GOOGLE = [   # id, nombre, ventanas, modelos
 ]
 EFFORTS_AGY = ("low", "medium", "high")
 # ChatGPT (Plus/Pro) por Codex CLI: un solo cupo para todos los modelos, con ventana de 5 h y semanal
-# (docs/codex-workers.md). Sólo existe si `codex` está en el PATH y hay credenciales (CODEX_HOME/auth.json).
+# Sólo existe si `codex` está en el PATH y hay credenciales (CODEX_HOME/auth.json).
 GRUPOS_OPENAI = [
     ("codex", "Codex (ChatGPT)", ["5h", "7d"], ["codex:gpt-6.1-sol", "codex:gpt-6-luna", "codex:gpt-6-astra"]),
 ]
