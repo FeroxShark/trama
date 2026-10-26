@@ -59,7 +59,6 @@ export function effortsOpciones(modelo: string | null | undefined): Opcion[] {
 }
 
 export let MODELO_DEFAULT = "claude-opus-5-5";
-export const EFFORT_DEFAULT = "high";
 
 /** El id del selector para el modelo de un hilo ("claude-sonnet-5-5[1m]" → Sonnet). */
 export const modeloDe = (m: string | null | undefined) => {

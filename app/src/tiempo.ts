@@ -101,16 +101,6 @@ export const pintorVuelve =
     return { texto: t("tiempo.vuelveEn", { t: f.texto }), en: f.en };
   };
 
-/** Versión corta de `pintorVuelve` para cuando la barra es angosta. */
-export const pintorVuelveCorto =
-  (hasta: number): Pintor =>
-  (a) => {
-    const r = hasta - a;
-    if (r <= 0) return { texto: t("tiempo.ya"), en: Infinity };
-    const f = falta(r);
-    return { texto: t("tiempo.vuelveCorto", { t: f.texto }), en: f.en };
-  };
-
 export const pintorResta =
   (hasta: number): Pintor =>
   (a) => {

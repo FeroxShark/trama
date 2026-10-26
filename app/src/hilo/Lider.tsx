@@ -304,11 +304,15 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
 
   // --- La conversación (transcript) ---
 
+  // Cuál fue la última lectura pedida: si dos se pisan, la vieja que llega tarde no pisa a la nueva (ni baja `total`).
+  const lectura = useRef(0);
   const recargar = useCallback(
     (forzar = false) => {
       if (!sid) return;
+      const mia = ++lectura.current;
       fuente.liderConversacion(sid, null).then(
         (r) => {
+          if (mia !== lectura.current) return;
           if (r.version !== VERSION) throw new Error(tr("error.version", { que: "transcript", v: r.version, conozco: VERSION }));
           setError(null);
           scroll.current = seg.pegado ? { tipo: "fondo" } : null;
@@ -325,7 +329,7 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
           confirmar(sid, r.total, forzar);
           transcriptLeido(sid, r);
         },
-        (e) => setError(mensaje(e)),
+        (e) => mia === lectura.current && setError(mensaje(e)),
       );
     },
     [sid, seg],

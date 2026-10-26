@@ -62,13 +62,15 @@ export function Dictar({ clave, alError, alNota, alListo }: Props) {
   }, [fase]);
 
   // Si la caja se va con el micrófono abierto, se suelta.
-  useEffect(
-    () => () => {
+  const vivo = useRef(true);
+  useEffect(() => {
+    vivo.current = true;
+    return () => {
+      vivo.current = false;
       grabando.current?.g.cancelar();
       grabando.current = null;
-    },
-    [],
-  );
+    };
+  }, []);
 
   const mala = (e: unknown) => {
     setFase("libre");
@@ -81,11 +83,13 @@ export function Dictar({ clave, alError, alNota, alListo }: Props) {
     setFase("pidiendo");
     try {
       const g = await empezar();
+      // La caja se fue mientras esperaba el permiso: el micrófono recién abierto se suelta ya.
+      if (!vivo.current) return g.cancelar();
       grabando.current = { g, desde: performance.now(), clave };
       setSeg(0);
       setFase("grabando");
     } catch (e) {
-      mala(e);
+      if (vivo.current) mala(e);
     }
   };
 

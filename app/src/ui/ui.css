@@ -82,9 +82,6 @@
   background: var(--critico-tinte);
   color: var(--critico);
 }
-.ui-chip[data-insignia] {
-  color: var(--texto);
-}
 .ui-card {
   overflow: hidden;
   border-radius: var(--r-md);

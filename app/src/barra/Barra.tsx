@@ -26,7 +26,7 @@ import { agregarAdjuntos } from "../hilo/adjuntos";
 import { fuentePaneles, type AccionRama } from "../datos/paneles";
 import { t as tr } from "../i18n";
 import { useIdioma } from "../i18n/react";
-import { leerBorrador, llenarBorrador } from "../hilo/borradores";
+import { leerBorrador, llenarBorrador, soltarBorrador } from "../hilo/borradores";
 import { BORRADOR_LIDER } from "../hilo/Lider";
 import { fantasma, MODELO_DEFAULT, modeloDe, primeraLinea } from "../hilo/opciones";
 import { effortPara } from "../hilo/elegir";
@@ -51,7 +51,7 @@ import { ramas } from "../paneles/Ramas";
 import { pasoLider, pasoWorker } from "../paneles/PasoLanzar";
 import { conTexto, type Eleccion } from "../paneles/lanzar";
 import { rcDe, RC_CONFLICTO } from "../datos/errorpa";
-import { main, mensaje } from "../puente";
+import { esVentana, main, mensaje } from "../puente";
 import {
   activo,
   aDesplegar,
@@ -285,6 +285,16 @@ export function Barra() {
   const [vista, setVista] = useState<VistaBarra>(MODO.vista);
   // El panel de consumo (a la derecha): arranca oculto y se recuerda en preferencias.json.
   const [consumo, setConsumo] = useState(MODO.consumo);
+  // ¿Este cliente puede usar el panel? La ventana, sí; por la tailnet el main rechaza `consumo:*` (se sondea una vez).
+  const [consumoOk, setConsumoOk] = useState(() => !main || esVentana());
+  useEffect(() => {
+    if (consumoOk) return;
+    let vivo = true;
+    void fuente.consumoDisponible().then((si) => vivo && setConsumoOk(si));
+    return () => {
+      vivo = false;
+    };
+  }, [consumoOk]);
   const [cerradosAbiertos, setCerradosAbiertos] = useState(false);
   const [busqueda, setBusqueda] = useState("");
   const [cursor, setCursor] = useState<string | null>(null);
@@ -332,7 +342,7 @@ export function Barra() {
   // Con ancho intermedio el panel de consumo no cabe al lado de la conversación: la reemplaza (CSS, `data-consumo`) y
   // abrir otra cosa lo suelta (sin tocar lo guardado: con la ventana ancha vuelve al costado).
   const medio = useMedio();
-  const tapa = consumo && medio && !angosto;
+  const tapa = consumo && consumoOk && medio && !angosto;
   const abierto = useRef({ activa, panel });
   useEffect(() => {
     const a = abierto.current;
@@ -608,6 +618,8 @@ export function Barra() {
     const ts = Math.floor(Date.now() / 1000);
     fuente.marcarLeido(SETTLE + sid, ts);
     setLeidos((l) => ({ ...l, [SETTLE + sid]: ts }));
+    // Lo que quedó escrito en su caja sin mandar no tiene a dónde volver: se suelta (si no, queda para siempre en borradores.json).
+    soltarBorrador(`lider:${sid}`);
     void fuente.liderCerrar(sid, motivo).catch(() => {});
   }, []);
 
@@ -804,12 +816,13 @@ export function Barra() {
   // sale deslizando (CSS). Lo del panel derecho que cambió de lugar lo acompaña
   // con un FLIP a mano: sólo `transform`.
   const antes = useRef<Map<HTMLElement, number> | null>(null);
+  // Sin panel posible (celular, o la tailnet) no se alterna ni se guarda: sería cambiarle la preferencia a la PC.
+  const consumoPosible = consumoOk && !angosto;
   const alternarConsumo = useCallback(() => {
-    setConsumo((c) => {
-      fuente.guardarConsumo(!c);
-      return !c;
-    });
-  }, []);
+    if (!consumoPosible) return;
+    setConsumo(!consumo);
+    fuente.guardarConsumo(!consumo);
+  }, [consumoPosible, consumo]);
   const carpetaVista = useCallback((p: string) => titulos.get(p) ?? p, [titulos]);
   const alternarBarra = useCallback(() => {
     const el = raiz.current;
@@ -1701,8 +1714,8 @@ export function Barra() {
                   }}
                 />
               ))}
-              {/* En el celular no hay panel de consumo: tampoco su botón. */}
-              {angosto ? null : <BotonPie icono={PanelRight} etq={tr(consumo ? "consumo.ocultar" : "consumo.mostrar")} activo={consumo} alClic={alternarConsumo} />}
+              {/* En el celular y por la tailnet no hay panel de consumo: tampoco su botón. */}
+              {!consumoPosible ? null : <BotonPie icono={PanelRight} etq={tr(consumo ? "consumo.ocultar" : "consumo.mostrar")} activo={consumo} alClic={alternarConsumo} />}
             </footer>
           </div>
           <div
@@ -1779,8 +1792,8 @@ export function Barra() {
             tablero={{ carpetas: slugsReg, lideres: lideresTablero, alIniciar: iniciarTarea, alAbrirLider: abrirLider, alRedactar: redactarTablero, avisar: { lideres: lideresAviso, jefeDe, alAvisar: avisarLider } }}
           />
         ) : null}
-        {/* El panel de consumo, a la derecha de todo. En el celular no existe. */}
-        {consumo && !angosto ? <Consumo lideres={lideresVistos} hilos={todos} carpeta={carpetaVista} alCerrar={alternarConsumo} /> : null}
+        {/* El panel de consumo, a la derecha de todo. En el celular y por la tailnet no existe. */}
+        {consumo && consumoPosible ? <Consumo lideres={lideresVistos} hilos={todos} carpeta={carpetaVista} alCerrar={alternarConsumo} /> : null}
       </div>
     </MotionConfig>
   );

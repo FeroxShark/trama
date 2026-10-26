@@ -2,6 +2,8 @@
 // Comparación visual: saca la captura offscreen (fixtures) de cada estado de `Captura` (src/modo.ts)
 // a ancho de escritorio y a 360 px, y la compara con la referencia guardada en referencias/visual/.
 // Sale 1 y lista qué estados difieren (y cuánto, en % de píxeles). Requiere el build (`npm run build`).
+// Las referencias no van al repo: si referencias/visual/ no existe (checkout nuevo, CI) no hay con qué comparar, avisa cómo
+// crearlas (`npm run visual -- --aceptar`) y sale 0 sin sacar nada.
 //
 //   npm run visual                          todos
 //   npm run visual -- normal lider@360      sólo esos (nombre = estado[-variante]@ancho)
@@ -257,6 +259,11 @@ if (sinCaso.length) {
 if (!existsSync(ELECTRON) || !existsSync(path.join(RAIZ, "dist-electron", "main.js")) || !existsSync(path.join(RAIZ, "dist", "index.html"))) {
   console.error("falta el build (npm run build)");
   process.exit(2);
+}
+
+if (!aceptar && !existsSync(REFS)) {
+  console.log("no hay referencias en referencias/visual/: nada que comparar.\nPara crearlas con el estado actual: npm run visual -- --aceptar");
+  process.exit(0);
 }
 
 const tmp = mkdtempSync(path.join(tmpdir(), "trama-visual-"));

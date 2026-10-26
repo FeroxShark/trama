@@ -227,8 +227,6 @@ export const excluidoDe = (texto: string): string | null => {
   return /^[a-z0-9][\w.:*/[\]-]{0,79}$/.test(s) ? s : null;
 };
 
-export const estaExcluido = (b: Borrador, id: string) => b.excluir.includes(id);
-
 export function agregarExcluido(b: Borrador, texto: string): Borrador {
   const id = excluidoDe(texto);
   return !id || b.excluir.includes(id) || b.excluir.length >= EXCLUIR_MAX ? b : { ...b, excluir: [...b.excluir, id] };
@@ -285,10 +283,6 @@ export function topeEfectivo(b: Borrador, v: Ventana5o7): number {
   const n = cupoDe(v === "5h" ? b.tope5 : b.tope7);
   return typeof n === "number" ? n : TOPE_CLAUDE_DEFECTO;
 }
-
-/** Los topes que se van a guardar, o `null`: sin el interruptor no hay reserva y nada se cruza. */
-export const topesGuardados = (b: Borrador): { "5h": number; "7d": number } | null =>
-  b.guardar ? { "5h": topeEfectivo(b, "5h"), "7d": topeEfectivo(b, "7d") } : null;
 
 /**
  * Qué ventanas del plan ya cruzaron su tope con lo que se ve del uso (`pct` de 0 a 100; `null`: sin dato, no se afirma nada).

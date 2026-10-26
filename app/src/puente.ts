@@ -186,7 +186,7 @@ type Main = {
     routing(cambios: { rol: string; modelo: string | null; effort: string | null }[]): Promise<unknown>;
     /** La config de modelos (`~/.config/trama/modelos.json`) con la tabla efectiva de `pa --modelos --json` si existe; sin validar. */
     modelos(): Promise<unknown>;
-    /** Guarda esa config (atómico; rechaza con el motivo sin escribir) y pone al día las filas de `~/CLAUDE.md`; devuelve cómo quedó. */
+    /** Guarda esa config (atómico; rechaza con el motivo sin escribir) (sólo `modelos.json`; las filas de `~/CLAUDE.md` no se tocan: eso es `routing`); devuelve cómo quedó. */
     guardarModelos(config: unknown): Promise<unknown>;
     /** Pregunta a un Ollama (`GET <url>/api/tags`) qué modelos tiene; nunca rechaza por no contestar. */
     sondearOllama(url: string): Promise<unknown>;

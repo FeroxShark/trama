@@ -58,7 +58,10 @@ export function Cabecera({ alOcultar }: { alOcultar: () => void }) {
 
   useEffect(() => {
     let vivo = true;
-    void fuente.uso().then((u) => vivo && setUso(u));
+    void fuente.uso().then(
+      (u) => vivo && setUso(u),
+      () => vivo && setUso(null),
+    );
     const soltar = fuente.alCambiarUso(setUso);
     return () => {
       vivo = false;

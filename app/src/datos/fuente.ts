@@ -90,6 +90,8 @@ export interface Fuente {
   consumoMirar(pedido: Pedido): Promise<Consumo>;
   /** El panel se ocultó: el main deja de mirar los transcripts. */
   consumoSoltar(): void;
+  /** ¿Este cliente puede usar el panel de consumo? Por la tailnet el main rechaza `consumo:*` ("canal desconocido"); en la ventana y en el modo local, no. */
+  consumoDisponible(): Promise<boolean>;
   /** Un transcript creció: el consumo de nuevo, entero. */
   alCambiarConsumo(fn: (c: Consumo) => void): () => void;
   /** La vista de un worker: empieza a mirar sus pasos (suelta el que miraba) y contesta la vista entera. `null`: el main no la entendió. */
@@ -1117,6 +1119,9 @@ const fija: Fuente = {
     return consumoFijo(pedido);
   },
   consumoSoltar() {},
+  async consumoDisponible() {
+    return true;
+  },
   alCambiarConsumo() {
     return () => {};
   },
@@ -1360,7 +1365,17 @@ function aceptarDif(l: { n: number; dif: Parameters<typeof aplicarDif>[1] }): bo
 }
 
 let statusline: Promise<Statusline> | null = null;
-const leerStatusline = () => (statusline ??= main!.statusline.leer());
+// Una lectura rechazada no se guarda: la próxima llamada reintenta en vez de fallar para siempre.
+const leerStatusline = () => {
+  if (!statusline) {
+    const p = main!.statusline.leer();
+    statusline = p;
+    p.catch(() => {
+      if (statusline === p) statusline = null;
+    });
+  }
+  return statusline;
+};
 
 const conPa = (m: NonNullable<typeof main>): Fuente => ({
   async subagentes() {
@@ -1647,6 +1662,15 @@ const conPa = (m: NonNullable<typeof main>): Fuente => ({
   },
   consumoSoltar() {
     void m.consumo.soltar().catch(() => {});
+  },
+  // `soltar` no hace nada si nadie mira: sirve de sonda sin efectos. Sólo el rechazo "canal desconocido" dice que no; otro error, se supone que sí.
+  async consumoDisponible() {
+    try {
+      await m.consumo.soltar();
+      return true;
+    } catch (e) {
+      return !/canal desconocido/i.test(mensaje(e));
+    }
   },
   alCambiarConsumo(fn) {
     return m.consumo.alCambiar((c) => fn(consumoDe(c)));
