@@ -18,11 +18,15 @@ test("la familia sale del id del modelo", () => {
 
 test("el chip del modelo dice su nombre corto, nunca una letra suelta", () => {
   assert.equal(new Set(Object.values(CORTO)).size, Object.keys(CORTO).length);
-  assert.equal(modeloCorto("claude-opus-5-5"), "Opus");
-  assert.equal(modeloCorto("claude-sonnet-5-5[1m]"), "Sonnet");
-  assert.equal(modeloCorto("claude-fable-5-1"), "Fable");
-  assert.equal(modeloCorto("claude-haiku-5-5"), "Haiku");
-  assert.equal(modeloCorto("modelo-local-ejemplo"), "Modelo");
+  assert.equal(modeloCorto("claude-opus-5-5"), "Opus 5.5");
+  assert.equal(modeloCorto("claude-sonnet-5-5[1m]"), "Sonnet 5.5");
+  assert.equal(modeloCorto("claude-fable-5-1"), "Fable 5.1");
+  assert.equal(modeloCorto("claude-haiku-5-5"), "Haiku 5.5");
+  assert.equal(modeloCorto("modelo-local-ejemplo"), "Modelo Local");
+  assert.equal(modeloCorto("gemini-3.8-flash-low"), "Flash 3.8");
+  assert.equal(modeloCorto("gemini-4-argon"), "Argon 4");
+  assert.equal(modeloCorto("opencode:opencode/deepseek-v4.1-flash-free"), "Deepseek V4.1");
+  assert.equal(modeloCorto("agy:claude-opus-5-5"), "Opus 5.5");
   assert.equal(modeloCorto(""), null);
   assert.equal(modeloCorto(null), null);
 });
