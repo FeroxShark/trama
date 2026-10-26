@@ -148,6 +148,14 @@ tarea, o para usar modelos locales de Ollama, escribí `~/.config/trama/modelos.
 - Si el archivo no valida, `pa` lo avisa en una línea y sigue con los modelos de fábrica.
 - `pa --modelos` muestra qué modelo y effort va a usar cada tipo.
 
+## Correr el motor sin WSL
+
+En Windows el motor corre hoy adentro de WSL2. El port a Node para que corra nativo está en marcha, y su
+diseño está en `motor/docs/port-windows.md`: qué partes son contrato con la app (códigos de salida, stdout,
+archivos de estado, JSON) y las trampas de la plataforma que hacen fallar un port que parece andar (no hay
+SIGTERM, los locks de bash y los de Node no se ven entre sí, `MAX_PATH`, junctions, pid reusados). Leelo
+antes de portar una pieza.
+
 ## Licencia
 
 Trama se distribuye bajo licencia MIT (ver `LICENSE`). Los componentes de terceros y sus licencias están en
