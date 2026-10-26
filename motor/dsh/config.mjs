@@ -9,9 +9,9 @@
 // Qué se le dice a dsh (un parche `--patch <archivo>` de cordis, verificado contra dsh 0.2.1-rc.2):
 //   ollama    ruta propia `ollama` (api openai-completions, baseURL …:11434/v1, apiKeyEnv OLLAMA_API_KEY con un valor
 //             cualquiera: Ollama no valida la key pero dsh exige que exista). Los modelos hay que listarlos.
-//   opencode  el proveedor `opencode` YA viene en el catálogo de pi-ai (OpenCode Zen, https://opencode.ai/inference/v1):
-//             se usa tal cual, sin `apiKeyEnv`, y pi-ai lee `OPENCODE_API_KEY` del entorno. Modelos gratis: big-pickle,
-//             beam-free y los `*-free`.
+//   opencode  ruta propia `opencode-trama` (api openai-completions, baseURL https://opencode.ai/inference/v1, apiKeyEnv
+//             OPENCODE_API_KEY; sin key, "public" para los gratis). No se usa el `opencode` del catálogo de pi-ai: hay
+//             instalaciones de dsh sin ese adaptador («no adapter registered for provider "opencode"»).
 //   deepseek  `deepseek-official` (el default de dsh), key en `DEEPSEEK_API_KEY`.
 import { accessSync, constants } from "node:fs";
 import os from "node:os";
@@ -19,8 +19,9 @@ import path from "node:path";
 
 export const PROVEEDORES = ["ollama", "opencode", "deepseek"];
 export const OLLAMA_URL = "http://127.0.0.1:11434/v1";
+export const OPENCODE_URL = "https://opencode.ai/inference/v1";
 /** La ruta con la que dsh conoce a cada proveedor. */
-const RUTA = { ollama: "ollama", opencode: "opencode", deepseek: "deepseek-official" };
+const RUTA = { ollama: "ollama", opencode: "opencode-trama", deepseek: "deepseek-official" };
 
 /** `dsh:<proveedor>/<modelo>` → `{ proveedor, modelo }`; `null` si no es de dsh o está mal armado. */
 export function parsearModelo(id) {
@@ -49,9 +50,10 @@ export function escribirParche(c) {
   if (!c.modelo || !String(c.modelo).trim()) throw new Error("dsh: falta el modelo");
   const ruta = RUTA[c.proveedor];
   const l = [];
-  if (c.proveedor === "ollama") {
+  if (c.proveedor === "ollama" || c.proveedor === "opencode") {
+    const [url, clave] = c.proveedor === "ollama" ? [OLLAMA_URL, "OLLAMA_API_KEY"] : [OPENCODE_URL, "OPENCODE_API_KEY"];
     l.push("- id: llm-pi-ai", "  config:", "    providers:", `      ${ruta}:`, "        api: openai-completions");
-    l.push(`        baseURL: ${q(c.baseURL || OLLAMA_URL)}`, "        apiKeyEnv: OLLAMA_API_KEY", "        models:");
+    l.push(`        baseURL: ${q(c.baseURL || url)}`, `        apiKeyEnv: ${clave}`, "        models:");
     l.push(`          - id: ${q(c.modelo)}`, `            name: ${q(c.modelo)}`, `            input: [${c.imagenes ? "text, image" : "text"}]`);
     if (c.contexto) l.push(`            contextWindow: ${Math.trunc(c.contexto)}`);
   } else if (c.baseURL) {
