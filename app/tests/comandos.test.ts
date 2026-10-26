@@ -1,7 +1,7 @@
 // Los comandos con "/" de la caja del líder (src/hilo/comandos.ts).
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { completar, directo, menuEn, moverSel, parsearComando, reemplazar, sugerencias } from "../src/hilo/comandos.ts";
+import { completar, directo, marcaDe, menuEn, moverSel, parsearComando, reemplazar, sugerencias } from "../src/hilo/comandos.ts";
 
 const MODELOS = [
   { id: "claude-opus-5-5", clave: "opus" },
@@ -140,7 +140,7 @@ test("menuEn al inicio: '/model op' ofrece sus valores y el valor elegido reempl
   assert.deepEqual(reemplazar("/model op", m, m.filas[0]), { texto: "/model opus", caret: 11 });
 });
 
-test("líder de agy (gemini-* o agy:*): el menú ofrece sólo /clear, /model, /effort y las skills de agy; Ollama sigue con el de Claude", () => {
+test("líder de agy (gemini-* o agy:*): el menú ofrece sólo /clear, /model, /effort, /compact y las skills de agy; Ollama sigue con el de Claude", () => {
   const mixtos = [
     { nombre: "review", descripcion: "Review a PR", args: null, agy: false },
     { nombre: "pa-worker:ana-orquestar", descripcion: "Skill (pa-worker)", args: null, agy: true },
@@ -164,6 +164,7 @@ test("líder de agy (gemini-* o agy:*): el menú ofrece sólo /clear, /model, /e
       "clear",
       "model",
       "effort",
+      "compact",
       "pa-worker:ana-orquestar",
       "pa-worker:gemini",
     ]);
@@ -177,6 +178,10 @@ test("líder de agy (gemini-* o agy:*): el menú ofrece sólo /clear, /model, /e
   }
   const ollama = sugerencias("/", mixtos, valores, "ollama:qwen3.5:9b").map((s) => s.nombre);
   assert.deepEqual(ollama, ["plan", "default", "accept-edits", "bypass", "clear", "model", "effort", "compact", "output-style", "review"]);
+  // /compact va como texto a agy (no lo resuelve la app) y, con un mensaje, compacta y contesta.
+  assert.deepEqual(parsearComando("/compact", [], [], [], "gemini-4-argon"), { tipo: "texto" });
+  assert.deepEqual(parsearComando("/compact ahora seguí con X", [], [], [], "gemini-4-argon"), { tipo: "texto" });
+  assert.deepEqual(sugerencias("/comp", mixtos, valores, "gemini-3.8-flash").map((s) => s.nombre), ["compact"]);
   assert.deepEqual(sugerencias("/model ", mixtos, valores, "ollama:qwen3.5:9b").map((s) => s.valor), ["opus", "ollama:qwen3.5:9b"]);
 });
 
@@ -196,4 +201,35 @@ test("parsearComando: /model que cruza entre agy y claude devuelve comando.cambi
   assert.deepEqual(parsearComando("/model agy:claude-opus-5-5", todos, EFFORTS, [], "ollama:qwen3.5:9b"), { tipo: "error", clave: "comando.cambioProveedor", v: "agy:claude-opus-5-5" });
   assert.deepEqual(parsearComando("/plan", todos, effAgy, [], "gemini-4-argon"), { tipo: "texto" });
   assert.deepEqual(parsearComando("/output-style Concise", todos, effAgy, ["Concise"], "gemini-4-argon"), { tipo: "texto" });
+});
+
+test("marca de proveedor: sólo si el otro lado se conoce; lo compartido y lo de los dos, sin marca", () => {
+  const claude = [
+    { nombre: "design", descripcion: null, args: null },
+    { nombre: "design-consent", descripcion: null, args: null },
+    { nombre: "security-review", descripcion: null, args: null },
+  ];
+  const agy = [
+    { nombre: "security-review", descripcion: null, args: null, agy: true },
+    { nombre: "brainstorm", descripcion: null, args: null, agy: true },
+  ];
+  const solo = (filas: { nombre: string; solo?: string }[]) => Object.fromEntries(filas.map((s) => [s.nombre, s.solo ?? null]));
+  // Un líder de Claude: lo suyo (builtin y skills) sólo de Anthropic; /clear, /model y /effort y las skills compartidas, sin marca.
+  const c = solo(sugerencias("/", claude, {}, false, agy));
+  assert.deepEqual(
+    [c.design, c["design-consent"], c["output-style"], c.plan, c.bypass],
+    ["anthropic", "anthropic", "anthropic", "anthropic", "anthropic"],
+  );
+  assert.deepEqual([c.clear, c.model, c.effort, c.compact, c["security-review"]], [null, null, null, null, null]);
+  // Un líder de agy: lo único suyo, de Google; lo compartido y sus propios de la app, sin marca.
+  const g = solo(sugerencias("/", agy, {}, true, claude));
+  assert.deepEqual([g.brainstorm], ["google"]);
+  assert.deepEqual([g.clear, g.model, g.effort, g.compact, g["security-review"]], [null, null, null, null, null]);
+  // Sin lista del otro lado (sin agy, o claude nunca arrancó) no se afirma nada.
+  assert.ok(sugerencias("/", claude, {}, false, []).every((s) => !s.solo));
+  assert.ok(sugerencias("/", agy, {}, true, []).every((s) => !s.solo));
+  assert.equal(marcaDe("DESIGN", false, agy), "anthropic");
+  assert.equal(marcaDe("Security-Review", false, agy), undefined);
+  // Llega por menuEn (con el token en medio de la caja).
+  assert.equal(menuEn("hola /desi", 10, claude, {}, false, agy)!.filas[0].solo, "anthropic");
 });

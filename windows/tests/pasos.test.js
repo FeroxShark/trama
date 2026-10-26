@@ -69,6 +69,7 @@ function maquina(sobre = {}) {
       if (!m.estadoBin) return { code: 127, stdout: "", stderr: "no such file" };
       return ok(JSON.stringify({ version: 1, claude: m.claude, agy: m.agy, ollama: { url: "http://localhost:11434", responde: false, modelos: [] }, motor: { vivo: m.motorVivo, url: "http://localhost:8791" } }));
     }
+    if (input.includes("agy models")) return ok(m.agyModelos ? "gemini-4-argon-high\tGemini 4 Argon (High)\n" : "");
     if (input.includes("visible=")) return ok(`visible=${m.ollamaVisible ? "si" : "no"}\n`);
     if (input.includes("systemctl --user start")) {
       m.motorVivo = true;
@@ -363,6 +364,16 @@ test("cuentas: Ajustes lee qué está conectado", async () => {
   assert.deepEqual(await a.cuentas(), { claude: { instalado: true, logueado: false }, agy: { instalado: true, logueado: true } });
 });
 
+test("cuentas: agy conectado por su llavero (trama-estado dice que no) se lo pregunta a agy mismo", async () => {
+  const sobre = { usuario: true, systemd: true, estadoBin: true, versionMarca: "v1", motorVivo: true, agy: { instalado: true, logueado: false } };
+  const con = armar(maquina({ ...sobre, agyModelos: true }));
+  assert.equal((await con.a.cuentas()).agy.logueado, true);
+  const sin = armar(maquina({ ...sobre, agyModelos: false }));
+  assert.equal((await sin.a.cuentas()).agy.logueado, false);
+  const noInst = armar(maquina({ ...sobre, agy: { instalado: false, logueado: false }, agyModelos: true }));
+  assert.equal((await noInst.a.cuentas()).agy.logueado, false);
+});
+
 test("reinicio de WSL: registra la reapertura de Trama y la quita cuando la distro ya está", async () => {
   const m = maquina({ wslInstalado: false, distro: false, instalaWsl: "sin-distro", codigoInstall: 3010 });
   const llamadas = [];
@@ -373,4 +384,21 @@ test("reinicio de WSL: registra la reapertura de Trama y la quita cuando la dist
   m.distro = true;
   await a.avanzar(emit);
   assert.deepEqual(llamadas, ["registrar", "quitar"]);
+});
+
+test("sin .version en payload igual actualiza cuando cambia la versión de la carcasa (0.1.1 -> 0.1.2)", async () => {
+  const m = maquina({ usuario: true, systemd: true, estadoBin: true, versionMarca: "", claude: { instalado: true, logueado: true }, motorVivo: true });
+  const { a, eventos, emit, guardado } = armar(m, {
+    payload: { dir: "C:\\Users\\Ana\\AppData\\Local\\Programs\\Trama\\resources\\payload", version: null },
+    version: "0.1.2",
+    guardado: { loginHecho: true, ollamaResuelto: true, instalado: { version: "0.1.1", payload: null } },
+  });
+  const r = await a.avanzar(emit);
+  assert.equal(r.listo, true);
+  const ini = eventos.find((e) => e.tipo === "inicia");
+  assert.deepEqual([ini.paso, ini.actualizacion], ["instalar", true]);
+  assert.equal(guardado().instalado.version, "0.1.2");
+  const llamadaFuente = m.llamadas.find((c) => c.input.includes("--fuente"));
+  assert.ok(llamadaFuente.input.includes("app-prev/dist-electron"));
+  assert.ok(llamadaFuente.input.includes("systemctl --user restart trama-motor"));
 });

@@ -112,7 +112,6 @@ const boton = (_b, cual) => en((c) => document.querySelectorAll(".pn-barra .btn2
 const apagado = (_b, cual) => en((c) => document.querySelectorAll(".pn-barra .btn2")[c === 0 ? 1 : 0]?.disabled, cual);
 /** Lo que dice la barra (también los avisos de los bloques, como "Apretá Agregar"). */
 const aviso = () => en(() => document.querySelector(".pn-barra")?.textContent ?? "");
-const RED = "#ajustes-red";
 const PUERTO = 'input[aria-label="Puerto"]';
 const NUEVO = ".pn-nuevo .pn-campo";
 const agregar = () => en(() => document.querySelector(".pn-nuevo button")?.click());
@@ -132,32 +131,45 @@ async function reabrir() {
 
 try {
   ok(await hasta(() => !!document.querySelector(".pie button"), 15), "la app abrió");
-  ok(await abrir(), "Ajustes abre con la red de seguridad y el acceso del celular");
-  ok((await valor(RED)) === "300000", "la red muestra lo guardado");
-  ok((await apagado(0, GUARDAR)) && (await apagado(0, CANCELAR)), "sin cambios, Guardar y Cancelar no se pueden apretar");
+  ok(await abrir(), "Ajustes abre con la compactación y el acceso del celular");
 
-  // --- La red de seguridad: validar, cancelar, guardar --------------------------------------------
-  await escribir(RED, "50");
-  ok((await errores()).some((x) => /entre/.test(x)), "una red fuera de rango dice el motivo en línea");
-  ok(await apagado(0, GUARDAR), "y no deja guardar");
-  await escribir(RED, "350000");
-  ok(/sin guardar/i.test(await aviso(0)), "con un cambio, la barra dice 'Cambios sin guardar'");
+  // --- La compactación (General): un selector de topes, borrador, cancelar y guardar -----------------------------------
+  const COMP = "[data-opc='ajustes.compactar']";
+  const tope = () => en((c) => document.querySelector(`${c} button`)?.textContent ?? "", COMP);
+  const elegirTope = async (txt) => {
+    await en((c) => document.querySelector(`${c} button`)?.click(), COMP);
+    ok(await hasta(() => document.querySelectorAll("[role=option]").length > 0, 3), "el selector de topes abre");
+    const lista = await en(() => [...document.querySelectorAll("[role=option]")].map((o) => o.textContent.replace(/\s+/g, " ")));
+    await en((txt) => [...document.querySelectorAll("[role=option]")].find((o) => o.textContent.includes(txt))?.click(), txt);
+    await espera(150);
+    return lista;
+  };
+  await en(() => document.querySelector(".aj-it[data-cat='general']")?.click());
+  ok(await hasta(() => !!document.querySelector(".aj-cat:not([hidden]) [data-opc='ajustes.compactar']"), 3), "la compactación está en General");
+  ok(/300.000 tokens/.test(await tope()), "el selector muestra lo guardado (300 000, que no está en la lista fija)");
+  ok((await apagado(0, GUARDAR)) && (await apagado(0, CANCELAR)), "sin cambios, Guardar y Cancelar no se pueden apretar");
+  const opciones = await elegirTope("150");
+  ok(["100", "150", "200", "300", "Sin tope"].every((x) => opciones.some((o) => o.includes(x))), "ofrece 100k, 150k, 200k, 300k y sin tope");
+  ok(opciones.filter((o) => /default|por defecto/i.test(o)).length === 1 && /200.000/.test(opciones.find((o) => /default|por defecto/i.test(o)) ?? ""), "y marca el de 200 000 como default");
+  ok(/150.000 tokens/.test(await tope()), "elegir uno lo pone en el botón");
+  ok(/sin guardar/i.test(await aviso(0)) && !(await apagado(0, GUARDAR)), "con un cambio, la barra dice 'Cambios sin guardar' y Guardar se puede apretar");
   ok(await en(() => { const r = document.querySelector(".pn-barra")?.getBoundingClientRect(); return !!r && r.bottom <= innerHeight + 1 && r.top >= 0; }), "y la barra está a la vista");
-  await escribir(RED, "doscientos");
-  ok((await errores()).some((x) => /dígitos/.test(x)), "con letras también");
-  await escribir(RED, "350000");
-  ok((await errores()).length === 0 && !(await apagado(0, GUARDAR)), "con un número que vale, el error se va y Guardar se puede apretar");
+  await foto("ajustes-compactar-editando");
   await boton(0, CANCELAR);
   await espera(150);
-  ok((await valor(RED)) === "300000" && (await apagado(0, GUARDAR)), "Cancelar vuelve a lo guardado");
-  await escribir(RED, "350000");
+  ok(/300.000 tokens/.test(await tope()) && (await apagado(0, GUARDAR)), "Cancelar vuelve a lo guardado");
+  await elegirTope("150");
   await reabrir();
-  ok((await valor(RED)) === "300000", "lo escrito y no guardado no sobrevive: al reabrir sigue lo de antes");
-  await escribir(RED, "350000");
+  await en(() => document.querySelector(".aj-it[data-cat='general']")?.click());
+  ok(/300.000 tokens/.test(await tope()), "lo elegido y no guardado no sobrevive: al reabrir sigue lo de antes");
+  await elegirTope("Sin tope");
   await boton(0, GUARDAR);
   ok(await hasta(() => /Guardado/.test(document.querySelector(".pn-barra-estado")?.textContent ?? ""), 5), "Guardar dice Guardado");
   await reabrir();
-  ok((await valor(RED)) === "350000", "y lo guardado vuelve al reabrir");
+  await en(() => document.querySelector(".aj-it[data-cat='general']")?.click());
+  ok(/Sin tope/.test(await tope()), "y lo guardado vuelve al reabrir");
+  await foto("ajustes-compactar-guardado");
+  await en(() => document.querySelector(".aj-it[data-cat='modelos']")?.click());
 
   // --- El acceso desde el celular ------------------------------------------------------------------
   ok((await lista()) === "celu-de-prueba,tablet-sala", "la lista de dispositivos es la guardada");
@@ -198,6 +210,62 @@ try {
   await en(() => document.querySelectorAll(".pn-quitar").forEach((b) => b.click()));
   ok((await lista()) === "" && (await apagado(1, GUARDAR)), "prendido y sin dispositivos no se puede guardar");
   await foto("ajustes-celular");
+
+  // --- La estructura: categorías a la izquierda, buscador arriba, una categoría a la vez --------------------------------
+  const cats = () => en(() => [...document.querySelectorAll(".aj-it")].map((b) => b.dataset.cat).join(","));
+  const activa = () => en(() => document.querySelector(".aj-it[aria-current='page']")?.dataset.cat ?? null);
+  const visibles = () => en(() => [...new Set([...document.querySelectorAll(".aj-cat:not([hidden])")].map((c) => c.dataset.cat))].join(","));
+  const ir = (c) => en((c) => document.querySelector(`.aj-it[data-cat="${c}"]`)?.click(), c);
+  ok((await cats()) === "modelos,cupos,locales,celular,general", "la barra lateral lista las categorías de esta máquina (sin Cuentas ni Actualizaciones: son del .exe de Windows)");
+  ok((await activa()) === "modelos" && (await visibles()) === "modelos", "arranca en Modelos y sólo se ve esa categoría");
+  ok(await en(() => [...document.querySelectorAll(".aj-it")].every((b) => b.querySelector("svg"))), "cada categoría lleva su ícono");
+  await ir("cupos");
+  ok((await activa()) === "cupos" && (await visibles()) === "cupos" && (await en(() => location.hash)) === "#ajustes/cupos", "elegir una categoría muestra sólo esa y la recuerda en la URL");
+  ok(await en(() => !!document.querySelector(".aj-cat:not([hidden]) [data-opc='ajustes.planSus']") && !document.querySelector(".aj-cat:not([hidden]) [data-opc='ajustes.idioma']")), "lo de otras categorías no se ve");
+  await foto("ajustes-cupos");
+
+  // Escribir y cambiar de categoría no pierde el borrador: todo sigue montado.
+  await boton(0, CANCELAR);
+  await ir("general");
+  await elegirTope("100");
+  await ir("cupos");
+  await ir("general");
+  ok(!(await apagado(0, GUARDAR)) && /100.000 tokens/.test(await tope()), "un borrador sin guardar sobrevive a cambiar de categoría y la barra de abajo sigue a la vista");
+  await boton(0, CANCELAR);
+
+  // El buscador: por título, por sinónimo en otro idioma, sin resultados, Esc, y saltar a la fila resaltándola.
+  const BUSCA = ".aj-busca-c";
+  const filas = () => en(() => [...document.querySelectorAll(".aj-res-f .aj-res-n")].map((e) => e.textContent));
+  await cdp("Emulation.setFocusEmulationEnabled", { enabled: true });
+  await en(() => document.querySelector(".aj-busca-c")?.focus());
+  await escribir(BUSCA, "language");
+  ok(await hasta(() => document.querySelectorAll(".aj-res-f").length > 0, 3), "el buscador encuentra una opción por un sinónimo en otro idioma");
+  ok((await filas()).includes("Idioma"), "y la muestra con su título");
+  await foto("ajustes-busca");
+  await escribir(BUSCA, "zzzxqy");
+  ok(await hasta(() => !!document.querySelector(".aj-res-vacio"), 3), "sin resultados lo dice en una línea");
+  await en(() => document.querySelector(".aj-busca-c")?.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
+  ok((await valor(BUSCA)) === "" && (await en(() => !!document.querySelector(".aj-busca-c") && !!document.querySelector(".pn-ajustes"))), "Esc borra lo escrito y no cierra el panel");
+  await en(() => document.querySelector(".aj-busca-c")?.focus());
+  await escribir(BUSCA, "idioma");
+  await hasta(() => document.querySelectorAll(".aj-res-f").length > 0, 3);
+  await en(() => document.querySelector(".aj-busca-c")?.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
+  ok(await hasta(() => document.querySelector(".aj-it[aria-current='page']")?.dataset.cat === "general", 3), "Enter en un resultado salta a su categoría");
+  ok(await hasta(() => document.querySelector("[data-opc='ajustes.idioma']")?.hasAttribute("data-resalta"), 3), "y resalta la fila");
+  ok((await valor(BUSCA)) === "", "y deja el buscador vacío");
+  await foto("ajustes-resalta");
+  ok(await hasta(() => !document.querySelector("[data-resalta]"), 4), "el resalte se apaga solo");
+
+  // Angosto: con el panel chico la barra lateral pasa a un selector arriba (una ventana de 800 px).
+  await cdp("Emulation.setDeviceMetricsOverride", { width: 800, height: 800, deviceScaleFactor: 1, mobile: false });
+  await espera(400);
+  ok(await en(() => getComputedStyle(document.querySelector(".aj-nav")).display === "none" && getComputedStyle(document.querySelector(".aj-sel")).display !== "none"), "a 800 px la barra lateral se vuelve un selector");
+  ok(await en(() => document.querySelector(".aj-sel .pbtn, .aj-sel button")?.textContent?.includes("General")), "que dice la categoría de ahora");
+  ok(await en(() => document.documentElement.scrollWidth <= innerWidth + 1 && document.querySelector(".aj")?.getBoundingClientRect().right <= innerWidth + 1), "y nada se sale de la pantalla");
+  await foto("ajustes-800");
+  await cdp("Emulation.setDeviceMetricsOverride", { width: 1280, height: 800, deviceScaleFactor: 1, mobile: false });
+  await espera(300);
+  ok(await en(() => getComputedStyle(document.querySelector(".aj-nav")).display !== "none" && getComputedStyle(document.querySelector(".aj-sel")).display === "none"), "a 1280 px vuelve la barra lateral y el selector se esconde");
 } finally {
   ws.close();
   app.kill();

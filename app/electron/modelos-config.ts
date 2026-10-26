@@ -10,17 +10,25 @@ import { mkdir, readFile, realpath, rename, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { hayAgy, hayClaude } from "./capacidades.ts";
+import { leerDestrabos, type CuentaDestrabos } from "./destrabar-registro.ts";
 import { errorT, textoT } from "./errores.ts";
-import { guardarRouting, type Cambio } from "./routing.ts";
-import { leerConfig, ROL_DE_TIPO, unir, urlOllama, validarConfig, TIPOS, type ConfigModelos, type Eleccion, type Tipo } from "./modelos-tipos.ts";
+import { destrabarActivo, leerConfig, unir, urlOllama, validarConfig, TIPOS, type ConfigModelos, type Eleccion, type Tipo } from "./modelos-tipos.ts";
 
 /** Dónde está el archivo (se mira cada vez: los tests lo cambian por el entorno). */
 export const rutaModelos = () =>
   process.env.TRAMA_MODELOS ?? process.env.HILOS_MODELOS ?? path.join(process.env.XDG_CONFIG_HOME ?? path.join(os.homedir(), ".config"), "trama", "modelos.json");
 export const RUTA_MODELOS = rutaModelos();
 
+/** Lo que `reparto` elegiría hoy para un tipo de worker (`workers.<tipo>.reparto` de `pa --modelos --json`); sólo para mostrar. */
+export type RepartoHoy = { modelo: string; effort: string | null; motor: string; motivo: string };
+
 /** Lo que la tabla efectiva de `pa --modelos --json` dice de cada tipo; `null` si `pa` todavía no tiene el comando. */
-export type EfectivoPa = { lider: Eleccion | null; workers: Partial<Record<Tipo, Eleccion>> };
+export type EfectivoPa = {
+  lider: Eleccion | null;
+  workers: Partial<Record<Tipo, Eleccion>>;
+  /** Con `reparto` automático, lo que elegiría hoy por tipo (`null`: no pudo elegir). Sin la clave: este `pa` no lo dice. */
+  reparto?: Partial<Record<Tipo, RepartoHoy | null>>;
+};
 
 export type EstadoModelos = {
   version: 1;
@@ -35,8 +43,8 @@ export type EstadoModelos = {
   agy?: boolean;
   /** Hay `agy` y no `claude`: los defaults de los workers son los de Gemini. */
   solo_gemini?: boolean;
-  /** Al guardar: por qué no se pudieron poner al día las filas de `~/CLAUDE.md` (el guardado de la config sí salió). */
-  sync_error?: string | null;
+  /** Cuántas veces trama destrabó a un modelo que se repetía y cómo terminó (`destrabos.jsonl`); sin ninguna, todo en cero. */
+  destrabo?: CuentaDestrabos;
 };
 
 export type CorrerPa = (args: string[]) => Promise<{ rc: number; out: string; dijo: string }>;
@@ -79,10 +87,30 @@ export async function efectivoDePa(correr?: CorrerPa): Promise<EfectivoPa | null
     // Mismo molde que el archivo: `{ lider: {modelo, effort?}, workers: { tipo: {modelo, effort?} } }`.
     const c = leerConfig(j as Record<string, unknown>);
     const hay = c.lider || TIPOS.some((t) => c.workers[t]);
-    return hay ? { lider: c.lider ?? null, workers: c.workers } : null;
+    if (!hay) return null;
+    const reparto = repartoDe((j as { workers?: unknown }).workers);
+    return { lider: c.lider ?? null, workers: c.workers, ...(reparto ? { reparto } : {}) };
   } catch {
     return null;
   }
+}
+
+/** `workers.<tipo>.reparto` de `pa --modelos --json`: sólo los campos de texto que se muestran; sin la clave (un `pa` viejo), `null`. */
+function repartoDe(w: unknown): Partial<Record<Tipo, RepartoHoy | null>> | null {
+  if (!w || typeof w !== "object") return null;
+  const o: Partial<Record<Tipo, RepartoHoy | null>> = {};
+  let vio = false;
+  for (const t of TIPOS) {
+    const r = (w as Record<string, unknown>)[t];
+    if (!r || typeof r !== "object" || !("reparto" in r)) continue;
+    vio = true;
+    const x = (r as { reparto: unknown }).reparto;
+    if (!x || typeof x !== "object") { o[t] = null; continue; }
+    const { modelo, effort, motor, motivo } = x as Record<string, unknown>;
+    if (typeof modelo !== "string" || !modelo) { o[t] = null; continue; }
+    o[t] = { modelo, effort: typeof effort === "string" ? effort : null, motor: typeof motor === "string" ? motor : "", motivo: typeof motivo === "string" ? motivo.slice(0, 400) : "" };
+  }
+  return vio ? o : null;
 }
 
 export async function leerModelos(correr?: CorrerPa, ruta = rutaModelos()): Promise<EstadoModelos> {
@@ -96,6 +124,7 @@ export async function leerModelos(correr?: CorrerPa, ruta = rutaModelos()): Prom
     efectivo,
     ...(hayAgy() ? { agy: true } : {}),
     ...(hayAgy() && !hayClaude() ? { solo_gemini: true } : {}),
+    destrabo: leerDestrabos(),
   };
 }
 
@@ -141,24 +170,6 @@ export async function sondearOllama(url: unknown, espera_ms = 3000): Promise<Son
     const timeout = (e as Error).name === "TimeoutError" || (e as Error).name === "AbortError";
     return { ok: false, motivo: timeout ? textoT("main.ollamaTarda") : textoT("main.ollamaNoContesta") };
   }
-}
-
-// --- Las filas de ~/CLAUDE.md ----------------------------------------------------
-
-/**
- * Lo que los líderes leen de `~/CLAUDE.md` para elegir `-m`: las tres filas de worker salen de esta config (código ←
- * codigo-acotado, exploración ← lectura, diseño ← frontend). Sólo las que la config define; las demás no se tocan, ni
- * el resto del archivo. Devuelve por qué no se pudo (la config ya quedó guardada), o `null`.
- */
-export async function sincronizarRouting(c: ConfigModelos, ruta?: string): Promise<string | null> {
-  const cambios: Cambio[] = [];
-  for (const [rol, tipo] of Object.entries(ROL_DE_TIPO) as [Cambio["rol"], Tipo][]) {
-    const e = c.workers[tipo];
-    if (e) cambios.push({ rol, modelo: e.modelo, effort: e.effort ?? null });
-  }
-  if (!cambios.length) return null;
-  const r = await guardarRouting(cambios, ruta);
-  return "error" in r ? r.error : null;
 }
 
 // --- Lo que lee el líder ----------------------------------------------------------
@@ -236,6 +247,16 @@ export function modelosConfig(): ModelosConfig | null {
   }
 }
 
+/** ¿«Destrabar solo cuando se repite» está prendido para este modelo? Lo mira el puente de agy en cada turno (sin archivo o roto: la fábrica). */
+export function destrabarModelo(modelo: string): boolean {
+  try {
+    const { obj } = analizar(readFileSync(rutaModelos(), "utf8"), "");
+    return destrabarActivo(modelo, obj ? leerConfig(obj).destrabar : undefined);
+  } catch {
+    return destrabarActivo(modelo, undefined);
+  }
+}
+
 /** El local de Ollama que ese id nombra, del archivo; `null` si no está (un modelo `ollama:*` que no figura en `locales` no se lanza). */
 export const localOllama = (id: string, cfg: ModelosConfig | null = modelosConfig()): LocalOllama | null => cfg?.locales.find((l) => l.id === id) ?? null;
 
@@ -243,12 +264,13 @@ export const localOllama = (id: string, cfg: ModelosConfig | null = modelosConfi
  * Lo que sabe el renderer: sin url ni nada que no sea para mostrar (`src/datos/modelos-config.ts`). Gemini está si el archivo
  * lo habilita o es el líder por defecto. `null`: no hay archivo y todo es como siempre.
  */
-export function vistaModelos(cfg: ModelosConfig | null = modelosConfig(), agy = false) {
-  if (!cfg) return agy ? { version: 1, gemini: true, locales: [], lider: null } : null;
+export function vistaModelos(cfg: ModelosConfig | null = modelosConfig(), agy = false, llama: { id: string; nombre: string; empresa: string }[] = []) {
+  if (!cfg) return agy || llama.length ? { version: 1, gemini: agy, locales: [], llama, lider: null } : null;
   return {
     version: 1,
     gemini: agy || cfg.gemini || (cfg.lider !== null && claseDeModelo(cfg.lider.modelo) === "gemini"),
     locales: cfg.locales.map((l) => ({ id: l.id, nombre: l.nombre })),
+    llama,
     lider: cfg.lider,
   };
 }

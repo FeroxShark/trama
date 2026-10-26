@@ -18,13 +18,13 @@ registerHooks({
   },
 });
 
-const { agregarLocal, borradorDe, configDe, cupoDe, defaultsEn, efectivoBorrador, elegirEffortLider, elegirLider, elegirWorker, modelosPara, nombreGemini, quitarLocal, sucio, todoEn } = await import("../src/paneles/modelos-borrador.ts");
+const { agregarExcluido, agregarLocal, borradorDe, configDe, cupoDe, efectivoBorrador, elegirEffortLider, elegirLider, elegirWorker, esAutomatico, excluidoDe, EXCLUIR_MAX, modelosPara, nombreGemini, destrabarOn, ponerAutomatico, ponerDestrabar, ponerPermitirMax, quitarExcluido, quitarLocal, sucio, todoEn } = await import("../src/paneles/modelos-borrador.ts");
 
 const estado = (config: Partial<EstadoModelos["config"]> = {}, existe = true): EstadoModelos => ({
   version: 1,
   ruta: "/x/modelos.json",
   existe,
-  config: { workers: {}, locales: [], gemini: {}, claude: {}, ...config },
+  config: { workers: {}, locales: [], excluir: [], permitir_max: false, gemini: {}, claude: {}, destrabar: {}, ...config },
   error: null,
   efectivo: null,
 });
@@ -69,21 +69,65 @@ test("un solo modelo para todo: el líder y los ocho tipos, de una", () => {
   assert.equal(configDe(l)!.workers["default"]!.modelo, QWEN.id);
 });
 
-test("usar los recomendados: cada tipo con su modelo por defecto, sin tocar el líder ni los locales; sin Claude, los de Gemini", () => {
-  const base = borradorDe(estado({ lider: { modelo: "claude-opus-5-5", effort: "low" }, locales: [QWEN], workers: { debug: { modelo: QWEN.id } } }));
-  const c = defaultsEn({ ...base, reparto: "auto" });
-  assert.equal(c.reparto, undefined, "el reparto en automático se apaga: las filas ya dicen el modelo");
-  assert.deepEqual(c.lider, base.lider);
-  assert.deepEqual(c.locales, base.locales);
-  assert.deepEqual(c.workers["lectura"], { modelo: "claude-haiku-5-5", effort: "xhigh" });
-  assert.deepEqual(c.workers["codigo-multi"], { modelo: "claude-sonnet-5-5", effort: "high" });
-  assert.deepEqual(c.workers["debug"], { modelo: "claude-opus-5-5", effort: "xhigh" });
-  assert.ok(configDe(c), "lo que arma vale para guardar");
-  const g = defaultsEn(base, true);
-  assert.deepEqual(g.workers["mecanico"], { modelo: "gemini-3.8-flash-medium" });
-  assert.deepEqual(g.workers["diseno"], { modelo: "gemini-4-argon-high" });
-  assert.deepEqual(efectivoBorrador(borradorDe(estado()), "diseno", true), { modelo: "gemini-4-argon-high" });
-  assert.ok(configDe(g));
+test("Automático: sin la clave vale automático, apagar escribe fijo y los modelos de la tabla se conservan", () => {
+  const base = borradorDe(estado({ workers: { debug: { modelo: "claude-opus-5-5", effort: "high" } } }));
+  assert.equal(esAutomatico(base), true);
+  const fijo = ponerAutomatico(base, false);
+  assert.equal(fijo.reparto, "fijo");
+  assert.equal(esAutomatico(fijo), false);
+  assert.deepEqual(configDe(fijo)!.reparto, "fijo");
+  const otra = ponerAutomatico(fijo, true);
+  assert.equal(otra.reparto, "auto");
+  assert.deepEqual(otra.workers["debug"], { modelo: "claude-opus-5-5", effort: "high" });
+  // Sin la clave y con "auto" dicen lo mismo: no es un cambio.
+  assert.equal(sucio(estado({ workers: { debug: { modelo: "claude-opus-5-5", effort: "high" } } }), otra), false);
+  assert.equal(sucio(estado({}), fijo), true);
+  // Un solo modelo para todo es manual: apaga el automático.
+  assert.equal(todoEn(base, "claude-opus-5-5").reparto, "fijo");
+});
+
+test("modelos que no se usan: normaliza, no repite, tiene tope y quitar los saca", () => {
+  let b = borradorDe(estado());
+  assert.deepEqual(b.excluir, []);
+  b = agregarExcluido(b, " Fable ");
+  b = agregarExcluido(b, "fable");
+  b = agregarExcluido(b, "claude-opus-5-*");
+  assert.deepEqual(b.excluir, ["fable", "claude-opus-5-*"]);
+  assert.equal(agregarExcluido(b, "con espacio").excluir.length, 2);
+  assert.equal(agregarExcluido(b, "").excluir.length, 2);
+  assert.equal(excluidoDe("GPT-OSS"), "gpt-oss");
+  assert.deepEqual(configDe(b)!.excluir, ["fable", "claude-opus-5-*"]);
+  assert.equal(sucio(estado({}), b), true);
+  assert.equal(sucio(estado({ excluir: ["fable", "claude-opus-5-*"] }), b), false);
+  assert.deepEqual(quitarExcluido(b, "fable").excluir, ["claude-opus-5-*"]);
+  let lleno = borradorDe(estado());
+  for (let i = 0; i < EXCLUIR_MAX + 5; i++) lleno = agregarExcluido(lleno, `m${i}`);
+  assert.equal(lleno.excluir.length, EXCLUIR_MAX);
+});
+
+test("permitir esfuerzo max: apagado de fábrica, se escribe y vuelve a no estar sucio", () => {
+  const b = borradorDe(estado());
+  assert.equal(b.permitir_max, false);
+  const on = ponerPermitirMax(b, true);
+  assert.equal(configDe(on)!.permitir_max, true);
+  assert.equal(sucio(estado(), on), true);
+  assert.equal(sucio(estado({ permitir_max: true }), on), false);
+});
+
+test("destrabar: prendido de fábrica sólo en Gemini 3.8 Flash; lo que coincide con la fábrica no se anota", () => {
+  const b = borradorDe(estado());
+  assert.equal(destrabarOn(b, "gemini-3.8-flash"), true);
+  assert.equal(destrabarOn(b, "gemini-3.8-flash-low"), true, "el esfuerzo no cuenta");
+  assert.equal(destrabarOn(b, "gemini-4-argon"), false);
+  const off = ponerDestrabar(b, "gemini-3.8-flash", false);
+  assert.deepEqual(configDe(off)!.destrabar, { "gemini-3.8-flash": false });
+  assert.equal(destrabarOn(off, "gemini-3.8-flash-high"), false);
+  assert.equal(sucio(estado(), off), true);
+  assert.equal(sucio(estado({ destrabar: { "gemini-3.8-flash": false } }), off), false);
+  assert.deepEqual(ponerDestrabar(off, "gemini-3.8-flash", true).destrabar, {}, "volver a la fábrica borra la clave");
+  const on = ponerDestrabar(b, "gemini-4-argon", true);
+  assert.deepEqual(configDe(on)!.destrabar, { "gemini-4-argon": true });
+  assert.equal(destrabarOn(on, "gemini-4-argon-high"), true);
 });
 
 test("agregar un local: no repite, normaliza la dirección y aparece en las opciones", () => {
@@ -113,7 +157,9 @@ test("el cupo: vacío, número entero de 1 a 100 o inválido (no se puede guarda
   const b = { ...borradorDe(e), cupo: "500" };
   assert.equal(configDe(b), null);
   assert.equal(sucio(e, b), true);
-  assert.deepEqual(configDe({ ...b, cupo: "70", sin_claude: "fallar" })!.gemini, { cupo_max: 70, sin_claude: "fallar" });
+  const ok = configDe({ ...b, cupo: "70", sin_cupo: "fallar" })!;
+  assert.deepEqual(ok.gemini, { cupo_max: 70 });
+  assert.equal(ok.sin_cupo, "fallar");
 });
 
 test("con qué corre cada tipo según el borrador", () => {
@@ -131,20 +177,17 @@ test("las opciones traen un modelo del archivo que esta versión no lista, y los
   assert.equal(nombreGemini("gemini-3.8-flash-low"), "Gemini 3.8 Flash · low");
 });
 
-test("agy (Claude y GPT por Google) y Automático (reparto) en workers", () => {
+test("agy (Claude y GPT por Google) y el \"auto\" viejo de un tipo", async () => {
   const ops = modelosPara([]);
   assert.ok(ops.some((m) => m.id === "agy:claude-opus-5-5-high" && m.proveedor === "google" && m.nombre.includes("por Google")));
   assert.ok(ops.some((m) => m.id === "agy:claude-sonnet-5-5-medium" && m.proveedor === "google" && m.nombre.includes("por Google")));
   assert.ok(ops.some((m) => m.id === "agy:gpt-oss-120b-medium" && m.proveedor === "google" && m.nombre.includes("por Google")));
   assert.equal(nombreGemini("agy:claude-opus-5-5-high"), "Claude Opus 5.5 (por Google) · high");
   assert.equal(nombreGemini("agy:gpt-oss-120b-medium"), "GPT-OSS 120B (por Google) · medium");
-  let b = borradorDe(estado());
-  b = elegirWorker(b, "default", "auto");
-  assert.equal(b.reparto, "auto");
-  assert.equal(configDe(b)!.reparto, "auto");
-  b = elegirWorker(b, "default", "");
-  assert.equal(b.reparto, undefined);
-  assert.equal("reparto" in configDe(b)!, false);
+  // Un archivo viejo con un tipo en "auto" (lo escribía el selector de antes) se lee como el reparto automático.
+  const viejo = borradorDe({ ...estado(), config: (await import("../electron/modelos-tipos.ts")).leerConfig({ workers: { default: { modelo: "auto" } } }) });
+  assert.equal(viejo.reparto, "auto");
+  assert.equal(viejo.workers["default"], undefined);
 });
 
 const { cruces, nombreModeloValido, porcentaje, TOPE_CLAUDE_DEFECTO, topeEfectivo } = await import("../src/paneles/modelos-borrador.ts");
@@ -158,12 +201,18 @@ test("topes de Claude: el borrador los lee, los escribe y deja de estar sucio al
   assert.equal(sucio(e, b), false);
   assert.equal(sucio(e, { ...b, tope7: "61" }), true);
   assert.equal(sucio(e, { ...b, tope7: "60" }), false);
-  assert.deepEqual(configDe({ ...b, tope5: "" })!.claude, { tope_7d: 60 });
+  assert.equal(b.guardar, true);
+  // Con el interruptor prendido, un tope vacío vale el recomendado.
+  assert.deepEqual(configDe({ ...b, tope5: "" })!.claude, { tope_5h: 85, tope_7d: 60 });
   for (const mal of ["0", "101", "7,5", "mucho", "-3"]) assert.equal(configDe({ ...b, tope5: mal }), null, mal);
+  // Apagado: no hay reserva, y lo escrito en los campos no se valida.
+  assert.deepEqual(configDe({ ...b, guardar: false, tope5: "mucho" })!.claude, {});
+  assert.equal(sucio(e, { ...b, guardar: false }), true);
+  assert.equal(borradorDe(estado({})).guardar, false);
 });
 
 test("topes de Claude: vacío vale el recomendado, y cruzar es llegar al tope", () => {
-  const b = borradorDe(estado({}));
+  const b = { ...borradorDe(estado({})), guardar: true };
   assert.equal(topeEfectivo(b, "5h"), TOPE_CLAUDE_DEFECTO);
   assert.equal(TOPE_CLAUDE_DEFECTO, 85);
   const uso = { five_hour: { pct: 34 }, seven_day: { pct: 61 } };
@@ -174,6 +223,8 @@ test("topes de Claude: vacío vale el recomendado, y cruzar es llegar al tope", 
   // Sin dato no se afirma nada.
   assert.deepEqual(cruces({ ...b, tope5: "1" }, { five_hour: null, seven_day: null }), []);
   assert.deepEqual(cruces({ ...b, tope5: "1" }, null), []);
+  // Sin el interruptor no hay tope que cruzar.
+  assert.deepEqual(cruces({ ...b, guardar: false, tope7: "60" }, uso), []);
 });
 
 test("bajar un modelo: el nombre y el porcentaje", () => {
@@ -183,4 +234,16 @@ test("bajar un modelo: el nombre y el porcentaje", () => {
   assert.equal(porcentaje({ completado: 0, total: null }), null);
   assert.equal(porcentaje({ completado: null, total: 10 }), null);
   assert.equal(porcentaje({ completado: 999, total: 10 }), 100);
+});
+
+const { avisosTope, GOOGLE_CODIGO, GOOGLE_LLENA } = await import("../src/paneles/cupos-aviso.ts");
+
+test("el aviso de tope dice la ventana y cuándo vuelve; apagado o sin dato no dice nada", () => {
+  const b = { ...borradorDe(estado({ claude: { tope_5h: 85, tope_7d: 60 } })) };
+  const uso = { five_hour: { pct: 34, resets_at: 1000 }, seven_day: { pct: 92, resets_at: 2000 } };
+  assert.deepEqual(avisosTope(b, uso as never), [{ quien: "claude", ventana: "7d", pct: 92, tope: 60, vuelve: 2000 }]);
+  assert.deepEqual(avisosTope({ ...b, guardar: false }, uso as never), []);
+  assert.deepEqual(avisosTope(b, null), []);
+  assert.equal(GOOGLE_LLENA, 97);
+  assert.equal(GOOGLE_CODIGO, 70);
 });

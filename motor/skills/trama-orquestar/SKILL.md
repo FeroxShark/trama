@@ -69,6 +69,31 @@ pa --estado                                qué corre ahora, sesiones guardadas,
 - Un worker Gemini (`gemini-…`) cae al plan B que diga `gemini.sin_claude` cuando no hay cupo: `claude`
   (usa Claude), `esperar` (queda en cola) o `fallar`.
 
+## Elegir modelo en corto (guía completa: `docs/guia-de-modelos-fuertes-effort-y-costo.md`)
+
+**Pasá `--tipo` y dejá que `reparto` elija.** Forzá `-m` sólo con uno de estos motivos:
+
+- **Falló el chequeo** con lo que eligió `reparto`: una vez con el siguiente, no más.
+  `mecanico`/`lectura`: Haiku xhigh → `claude-sonnet-5-5`. `codigo-*`/`frontend`/`debug`/`diseno`:
+  Sonnet high → `claude-opus-5-5` (`medium`; `high` sólo en `debug` y `codigo-multi`).
+- **Base crítica** de la que cuelga todo lo demás: `-m claude-opus-5-5 --effort medium`.
+- **Segunda opinión** independiente: `--leer -m gemini-4-argon-high` (si el usuario tiene Google AI Pro).
+- **Medir un modelo nuevo** para `pa --rinde`: sólo con `--tipo lectura`.
+
+Qué esperar (datos propios de una instalación, 60 días): Sonnet high iguala o supera a Opus en
+`codigo-multi`, `frontend` y `debug` por un cuarto del costo; Opus rinde mejor en `medium` que en `high`;
+Haiku xhigh alcanza para `lectura`/`mecanico` y, con test automático, para `codigo-acotado`. Argon, Flash,
+GPT-OSS y Claude por `agy` tienen pocas corridas: no los fuerces para código.
+
+- **Nunca effort `max`** salvo que el usuario prenda `permitir_max` en los ajustes de Trama.
+- **Fable no vale su precio** frente a Opus 5.5 (2,5× por token y peor resultado medido): no lo uses.
+- Effort no es inteligencia: más effort = más turnos y más gasto. Si falla, mejorá la tarea antes de subirlo.
+- Flash sólo `lectura`/`mecanico`; GPT-OSS no sigue bien el contrato; los locales `ollama:*` sólo
+  `mecanico`/`lectura` y no en la GPU del usuario sin que lo sepa.
+- Cada familia gasta un cupo distinto: Claude oficial (Opus/Sonnet/Haiku), Google AI Pro (Argon, Flash,
+  `agy:*`), ChatGPT (Codex: `pa` no lo lanza todavía), o la máquina (Ollama). `pa --modelos` y
+  `reparto --cupos` muestran cuál sobra.
+
 ## Volver y integrar
 
 Cada corrida termina con un resumen de cuatro campos:

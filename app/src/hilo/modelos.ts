@@ -6,15 +6,15 @@ import type { ClaveSola } from "../i18n";
 /** Los niveles de esfuerzo de Claude Code: `pa` y `claude --effort` los conocen. */
 export const EFFORTS_CLAUDE = ["low", "medium", "high", "xhigh", "max"] as const;
 /**
- * Los de un modelo local (llama-server con plantilla Qwen3.8): `off` apaga el razonamiento y `high` no existe
+ * Los de un modelo local (llama-server con plantilla Qwen3.x): `off` apaga el razonamiento y `high` no existe
  * (la plantilla lo rechaza: el máximo es `xhigh`). Igual que `reasoningEfforts` de `~/.dsh/settings.yaml`.
  */
 export const EFFORTS_LOCAL = ["off", "low", "medium", "xhigh"] as const;
 
 /** Quién hace el modelo: el menú los agrupa por empresa, con su nombre como divisor y su logo (`src/hilo/Logos.tsx`) junto a cada uno. */
-export type Empresa = "anthropic" | "google" | "qwen" | "prismml" | "ollama";
-/** El nombre de cada empresa, tal cual se escribe (un nombre propio: no se traduce). */
-export const EMPRESAS: Record<Empresa, string> = { anthropic: "Anthropic", google: "Google", qwen: "Qwen", prismml: "PrismML", ollama: "Ollama" };
+export type Empresa = "anthropic" | "google" | "local" | "ollama";
+/** El nombre de cada empresa, tal cual se escribe (un nombre propio: no se traduce). `local`: lo pone cada modelo (`empresaNombre`). */
+export const EMPRESAS: Record<Empresa, string> = { anthropic: "Anthropic", google: "Google", local: "Local", ollama: "Ollama" };
 
 /** Los de Gemini (`agy`): tres niveles de razonamiento, el máximo por defecto. */
 export const EFFORTS_GEMINI = ["low", "medium", "high"] as const;
@@ -26,6 +26,8 @@ export type ModeloDef = {
   clave: string;
   nombre: string;
   empresa: Empresa;
+  /** El divisor del menú si no es el de `EMPRESAS` (un local de llama-server dice quién lo hace en `locales.json`). */
+  empresaNombre?: string;
   /** Para qué sirve, en una línea (clave de i18n). */
   desc: ClaveSola;
   /** El default de la tabla de routing. */
@@ -44,21 +46,18 @@ export type ModeloDef = {
 
 /**
  * En el orden de los selectores (pedido del usuario, 2026-10-18): Fable, Opus, Sonnet, Haiku y después los locales. El menú
- * agrupa por empresa (Anthropic, Qwen, PrismML: las filas de una empresa van juntas) y marca con un chip a los locales. El default (`rec`) sigue siendo Opus, el de routing: el orden no lo cambia.
+ * agrupa por empresa (Anthropic y las que traen los locales: las filas de una empresa van juntas) y marca con un chip a los locales. El default (`rec`) sigue siendo Opus, el de routing: el orden no lo cambia.
  */
 const tabla: ModeloDef[] = [
   { id: "claude-fable-5-1", clave: "fable", empresa: "anthropic", nombre: "Fable 5.1", desc: "modelo.fable", efforts: EFFORTS_CLAUDE, effortDefecto: "high" },
   { id: "claude-opus-5-5", clave: "opus", empresa: "anthropic", nombre: "Opus 5.5", desc: "modelo.opus", rec: true, efforts: EFFORTS_CLAUDE, effortDefecto: "high" },
   { id: "claude-sonnet-5-5", clave: "sonnet", empresa: "anthropic", nombre: "Sonnet 5.5", desc: "modelo.sonnet", efforts: EFFORTS_CLAUDE, effortDefecto: "high" },
   { id: "claude-haiku-5-5", clave: "haiku", empresa: "anthropic", nombre: "Haiku 5.5", desc: "modelo.haiku", efforts: EFFORTS_CLAUDE, effortDefecto: "high" },
-  // El id "qwen-local" ya estaba guardado en lideres.json: se queda. Es la HauhauCS Aggressive (sin censura), no la oficial.
-  { id: "qwen-local", clave: "qwen", empresa: "qwen", nombre: "Qwen 3.8 sin censura", desc: "modelo.qwen", local: true, efforts: EFFORTS_LOCAL, effortDefecto: "medium" },
-  { id: "bonsai-local", clave: "bonsai", empresa: "prismml", nombre: "Bonsai 2", desc: "modelo.bonsai", local: true, efforts: EFFORTS_LOCAL, effortDefecto: "medium" },
 ];
 
 /**
- * Lo que `~/.config/trama/modelos.json` agrega: sin ese archivo la tabla es la de arriba, igual que siempre. Gemini (`agy`) está
- * si el archivo lo habilita, y cada modelo de Ollama que anota en `locales` es una fila más. Se arma una vez, antes de pintar.
+ * Lo que `~/.config/trama/modelos.json` y `locales.json` agregan: sin esos archivos la tabla es la de arriba, igual que siempre. Gemini (`agy`) está
+ * si el archivo lo habilita, cada modelo de Ollama que anota en `locales` es una fila más y cada uno de `locales.json` (llama-server, en la GPU) también. Se arma una vez, antes de pintar.
  */
 const GEMINI: ModeloDef[] = [
   { id: "gemini-4-argon", clave: "gemini-4-argon", empresa: "google", nombre: "Gemini 4 Argon · por Google", desc: "modelo.gemini4", soloLider: true, efforts: EFFORTS_GEMINI, effortDefecto: "high" },
@@ -75,6 +74,8 @@ export type ConfigModelos = {
   gemini: boolean;
   /** Los modelos de Ollama del archivo: su id (`ollama:…`) y el nombre que se ve. Ni la url ni nada más llega acá. */
   locales: { id: string; nombre: string }[];
+  /** Los modelos de llama-server que declara `locales.json`: su id, el nombre y quién lo hace. Ni la unit ni las rutas llegan acá. */
+  llama?: { id: string; nombre: string; empresa: string }[];
   /** El líder por defecto (`lider` del archivo), o `null`: el de siempre. */
   lider: { modelo: string; effort: string | null } | null;
 };
@@ -86,7 +87,7 @@ export const partirGeminiId = (id: string): [string, string | null] => {
 };
 
 /**
- * Deja la tabla como la pide `modelos.json`: Gemini y Ollama agregados (cada empresa contigua, los locales de GPU antes de Ollama) y,
+ * Deja la tabla como la piden `modelos.json` y `locales.json`: llama-server, Gemini y Ollama agregados (cada empresa contigua, los locales de GPU antes de Ollama) y,
  * si el archivo dice un líder por defecto que existe en la tabla, ése lleva la marca de default y su esfuerzo. Devuelve el id de ese líder
  * (`null`: Opus, el de siempre). Idempotente. Los ids de Ollama traen el prefijo; la clave es el id entero (un nombre como "haiku" dentro no confunde).
  */
@@ -102,9 +103,22 @@ export function ponerConfig(c: ConfigModelos | null): { modelo: string; effort: 
     efforts: [],
     effortDefecto: "high",
   }));
+  // Cada empresa en filas contiguas (el divisor del menú es uno por empresa), en el orden en que aparece en `locales.json`.
+  const empresasLlama = [...new Set((c?.llama ?? []).map((l) => l.empresa))];
+  const llama: ModeloDef[] = [...(c?.llama ?? [])].sort((x, y) => empresasLlama.indexOf(x.empresa) - empresasLlama.indexOf(y.empresa)).map((l) => ({
+    id: l.id,
+    clave: l.id,
+    empresa: "local" as const,
+    empresaNombre: l.empresa,
+    nombre: l.nombre,
+    desc: "modelo.llama" as const,
+    local: true,
+    efforts: EFFORTS_LOCAL,
+    effortDefecto: "medium",
+  }));
   const base = BASE.map((m) => ({ ...m }));
   tabla.length = 0;
-  tabla.push(...base, ...(c?.gemini ? GEMINI.map((m) => ({ ...m })) : []), ...ollama);
+  tabla.push(...base, ...llama, ...(c?.gemini ? GEMINI.map((m) => ({ ...m })) : []), ...ollama);
   const lider = c?.lider ?? null;
   if (!lider) return null;
   const [id, nivel] = partirGeminiId(lider.modelo);

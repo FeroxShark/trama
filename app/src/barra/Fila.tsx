@@ -8,6 +8,8 @@ import { comoSettle, type Estado, type Hilo, type Lider } from "../datos/contrat
 import { MODO } from "../modo";
 import { pintorCache, pintorDura, pintorHace } from "../tiempo";
 import { errorCorto, fin, type Como, type Salida } from "./arbol";
+import { Esfuerzo } from "../ui/componentes";
+import { effortsDe, esLocal } from "../hilo/modelos";
 import { familiaDe, ficha, lugarDe, modeloCorto } from "./ficha";
 import { latir } from "./latido";
 import { cierre as cierreDe, Punto, Reloj, tareaDe, textoEstado, tipoDe } from "./piezas";
@@ -77,6 +79,8 @@ export const Fila = memo(function Fila({ ref, h, estado, apagada, cursor, activa
   );
   const fam = familiaDe(h.modelo);
   const corto = modeloCorto(h.modelo);
+  // Un modelo local tiene otra escala (no es el esfuerzo de Claude): sin barritas.
+  const efforts = h.effort && !esLocal(h.modelo) ? effortsDe(h.modelo) : null;
   const Lugar = lugarDe(h) === "nube" ? Cloud : Laptop;
 
   return (
@@ -110,6 +114,7 @@ export const Fila = memo(function Fila({ ref, h, estado, apagada, cursor, activa
             {corto ? (
               <span className="glifo" data-fam={fam}>
                 {corto}
+                {efforts ? <Esfuerzo nivel={h.effort} niveles={efforts} /> : null}
               </span>
             ) : null}
             <Lugar size={12} strokeWidth={1.8} />
@@ -328,6 +333,19 @@ export function SettleLider({ l, ramas, alSettle, className, armado = false }: P
 /** Más de esto no entra en el botón; el número justo lo dice el tooltip. */
 const TOPE_OCULTOS = 99;
 
+/** "N subagentes": corren y la sesión está activa. */
+export function ChipSubagentes({ n, clave }: { n: number; clave: string }) {
+  useIdioma();
+  return (
+    <span className="subs-chip" data-subs-chip data-tip={tr("sub.chipTip")}>
+      <span className="res-pt">
+        <Punto tipo="trab" clave={`sub:${clave}`} />
+      </span>
+      {tr(n === 1 ? "sub.chip1" : "sub.chip", { n })}
+    </span>
+  );
+}
+
 export const FilaLider = memo(function FilaLider({
   l,
   activa,
@@ -347,8 +365,9 @@ export const FilaLider = memo(function FilaLider({
   // Sin proceso (`caido`): en vez del modelo, que murió o que está cerrado.
   const marca = l.caido ? tr(l.caido === "murio" ? "estado.fallo" : "lider.cerrado") : l.titulo;
   const hace = useMemo(() => pintorHace(l.actividad, marca ? `${marca} · ` : ""), [l.actividad, marca]);
+  // Con subagentes corriendo la sesión trabaja: el numerito de caché no cuenta (se muestra el chip de abajo).
   const cache = useMemo(
-    () => (l.cache_vence === null ? null : pintorCache(`lider:${l.id}:${l.cache_vence}`, l.cache_vence, l.cache_ttl_s, false)),
+    () => (l.cache_vence === null || l.subagentes ? null : pintorCache(`lider:${l.id}:${l.cache_vence}`, l.cache_vence, l.cache_ttl_s, false)),
     [l],
   );
   useEffect(() => {
@@ -388,6 +407,7 @@ export const FilaLider = memo(function FilaLider({
             <span className="nom">{l.nombre || tr("lider.sesionJefe")}</span>
             <IconoMaquina maquina={l.maquina} />
             {l.espera && !l.ocupado && !l.caido ? <ChipEspera espera={l.espera} /> : null}
+            {l.subagentes ? <ChipSubagentes n={l.subagentes} clave={l.id} /> : null}
             {/* Sólo líderes: lo que trabaja (o se trabó, o falló) sin fila propia. */}
             <AnimatePresence initial={false}>
               {trabajando + trabados + fallaron + frenados > 0 ? (

@@ -3,11 +3,12 @@
 // sobre un borrador (modelos-borrador.ts): nada se escribe hasta Guardar, y sin archivo se muestra lo que corre hoy y no se
 // crea nada hasta que se guarda un cambio. Los modelos locales se detectan preguntándole a Ollama (`/api/tags`); acá no se
 // carga ninguno. Sólo se edita desde la PC (por la tailnet el main rechaza guardar).
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent, type RefObject } from "react";
 import { Plus, X } from "lucide-react";
+import { Chip, Interruptor } from "../ui/componentes";
 import { VERSION, type Uso } from "../datos/contrato";
 import { fuente } from "../datos/fuente";
-import { fuentePaneles, type Bajada, type EstadoModelos, type Sondeo } from "../datos/paneles";
+import { fuentePaneles, type Bajada, type EntornoOllama, type EstadoModelos, type Sondeo } from "../datos/paneles";
 import { defDe } from "../hilo/modelos";
 import { effortsOpciones } from "../hilo/opciones";
 import { Selector, type Opcion } from "../hilo/Selector";
@@ -16,40 +17,50 @@ import { enOtros, Fijo } from "../i18n/Fijo";
 import { MODO } from "../modo";
 import { mensaje } from "../puente";
 import { Acciones, type FilaDato } from "./AjustesEditar";
+import { AjustesCupos, CuposTarjetas } from "./AjustesCupos";
+import { Boton } from "../ui/componentes";
+import { Cat } from "./AjustesNav";
+import { GuiaOllama, SugeridosOllama, textoBajada } from "./AjustesLocales";
+import { marcar } from "./ajustes-nav";
+import { avisosTope } from "./cupos-aviso";
 import {
+  agregarExcluido,
   agregarLocal,
   borradorDe,
   configDe,
-  cruces,
-  cupoDe,
-  defaultsEn,
   efectivoBorrador,
   elegirEffortLider,
   elegirEffortWorker,
   elegirLider,
   elegirWorker,
+  esAutomatico,
   liderEfectivo,
   modelosPara,
   nombreModeloValido,
+  destrabarOn,
+  DESTRABAR_MODELOS,
+  nombreGemini,
+  ponerAutomatico,
+  ponerDestrabar,
+  ponerPermitirMax,
   porcentaje,
+  quitarExcluido,
   quitarLocal,
-  SIN_CLAUDE,
+  FAMILIAS,
   sucio,
   textoEleccion,
   TIPOS,
-  TOPE_CLAUDE_DEFECTO,
   todoEn,
   URL_OLLAMA,
   type Borrador,
   type Eleccion,
   type Modelo,
   type Proveedor,
-  type SinClaude,
   type Tipo,
 } from "./modelos-borrador";
 import { esClaude, urlOllama } from "../../electron/modelos-tipos";
 
-/** Para las capturas: `mdl` (con archivo), `mdl-agregar` (con el panel de otra dirección abierto), `mdl-lider` (el selector del líder abierto), `mdl-bajando` (un modelo a mitad de bajada), `mdl-sinollama` (Ollama no anda), `mdl-tope` (el aviso de un tope cruzado) y `sinmdl` (sin archivo). */
+/** Para las capturas: `mdl` (con archivo), `mdl-agregar` (con el panel de otra dirección abierto), `mdl-lider` (el selector del líder abierto), `mdl-bajando` (un modelo a mitad de bajada), `mdl-sinollama` (Ollama sin instalar), `mdl-apagado` (instalado y apagado), `mdl-sugeridos` (los modelos sugeridos), `mdl-tope` (el aviso de un tope cruzado) y `sinmdl` (sin archivo). */
 const VARIANTE = MODO.variante ?? "";
 const ES_CAPTURA = VARIANTE.startsWith("mdl") || VARIANTE === "sinmdl";
 
@@ -69,29 +80,16 @@ function descDe(m: Modelo): string {
 }
 
 /** Las opciones de un selector de modelo, con "Como hoy" delante cuando se puede dejar sin elegir. */
-function opcionesDe(modelos: Modelo[], comoHoy: boolean, conAuto = false): Opcion[] {
+function opcionesDe(modelos: Modelo[], comoHoy: boolean): Opcion[] {
   const ops = modelos.map((m): Opcion => ({ id: m.id, nombre: m.nombre, desc: descDe(m), grupo: GRUPO[m.proveedor] }));
   const cab: Opcion[] = [];
   if (comoHoy) cab.push({ id: "", nombre: t("ajustes.mdlComoHoy"), desc: t("ajustes.mdlComoHoyQue") });
-  if (conAuto) cab.push({ id: "auto", nombre: t("ajustes.mdlAuto"), desc: t("ajustes.mdlAutoQue") });
   return [...cab, ...ops];
 }
 
-const SIN_CLAUDE_CLAVES: Record<SinClaude, { nombre: ClaveSola; que: ClaveSola }> = {
-  claude: { nombre: "ajustes.mdlSinClaudeClaude", que: "ajustes.mdlSinClaudeClaudeQue" },
-  esperar: { nombre: "ajustes.mdlSinClaudeEsperar", que: "ajustes.mdlSinClaudeEsperarQue" },
-  fallar: { nombre: "ajustes.mdlSinClaudeFallar", que: "ajustes.mdlSinClaudeFallarQue" },
-};
-
-const TOPE_FORMATO = /^\s*$|^\d{1,3}$/;
-const topeMal = (v: string) => !TOPE_FORMATO.test(v) || (v.trim() !== "" && (Number(v) < 1 || Number(v) > 100));
-
-/** Lo que dice Ollama mientras baja, en palabras de todos los días (el texto crudo es de Ollama, en inglés). */
-function textoBajada(b: Bajada): string {
-  const pct = porcentaje(b);
-  if (pct !== null) return t("ajustes.mdlBajarPct", { pct });
-  return /verif|writing|removing|success/i.test(b.texto) ? t("ajustes.mdlBajarVerif") : t("ajustes.mdlBajarPrep");
-}
+/** Cómo se llama en la lista de "no se usan" lo que `excluir` guarda (una familia, un id o un prefijo con `*`). */
+const NOMBRE_FAMILIA: Record<string, string> = { fable: "Fable", opus: "Opus", sonnet: "Sonnet", haiku: "Haiku", argon: "Gemini Argon", flash: "Gemini Flash", "gpt-oss": "GPT-OSS" };
+const nombreExcluido = (id: string) => NOMBRE_FAMILIA[id] ?? id;
 
 const gb = (n: number | null) => (n === null ? "" : `${(n / 1e9).toFixed(1)} GB`);
 
@@ -103,7 +101,6 @@ function EleccionSel({
   modelos,
   valor,
   comoHoy,
-  conAuto,
   alModelo,
   alEffort,
   abierto,
@@ -112,12 +109,11 @@ function EleccionSel({
   modelos: Modelo[];
   valor: Eleccion | undefined;
   comoHoy: boolean;
-  conAuto?: boolean;
   alModelo: (id: string) => void;
   alEffort: (e: string) => void;
   abierto?: boolean;
 }) {
-  const ops = opcionesDe(modelos, comoHoy, conAuto);
+  const ops = opcionesDe(modelos, comoHoy);
   const claude = valor && esClaude(valor.modelo);
   return (
     <div className="pn-sel">
@@ -135,13 +131,12 @@ function EleccionSel({
   );
 }
 
-export function AjustesModelos({ Dato, alGuardar }: { Dato: FilaDato; alGuardar?: () => void }) {
+export function AjustesModelos({ Dato, plan = null }: { Dato: FilaDato; plan?: string | null }) {
   const [e, setE] = useState<EstadoModelos | null>(null);
   const [falla, setFalla] = useState<string | null>(null);
   const [b, setB] = useState<Borrador | null>(null);
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [sync, setSync] = useState<string | null>(null);
   const [ok, setOk] = useState(false);
   const [estados, setEstados] = useState<Record<string, Estado>>({});
   const [ag, setAg] = useState<{ url: string; sondeo: Estado | null } | null>(null);
@@ -151,6 +146,7 @@ export function AjustesModelos({ Dato, alGuardar }: { Dato: FilaDato; alGuardar?
   const [errBajar, setErrBajar] = useState<string | null>(null);
   const [listo, setListo] = useState<string | null>(null);
   const [uso, setUso] = useState<Uso | null>(null);
+  const [entorno, setEntorno] = useState<EntornoOllama | null>(null);
   const vivo = useRef(true);
   const sondeados = useRef(new Set<string>());
   const sec = useRef<HTMLElement>(null);
@@ -194,6 +190,9 @@ export function AjustesModelos({ Dato, alGuardar }: { Dato: FilaDato; alGuardar?
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   useEffect(() => {
+    void fuentePaneles.entornoOllama().then((x) => vivo.current && setEntorno(x), () => {});
+  }, []);
+  useEffect(() => {
     void fuente.uso().then((u) => vivo.current && setUso(u), () => {});
     return fuente.alCambiarUso((u) => vivo.current && setUso(u));
   }, []);
@@ -225,29 +224,51 @@ export function AjustesModelos({ Dato, alGuardar }: { Dato: FilaDato; alGuardar?
   useEffect(() => {
     if (!visible || !ES_CAPTURA) return;
     // Captura: `mdl-agregar` deja a la vista los locales y su panel; el resto, la cabecera de la sección.
-    const mira = sec.current?.querySelector(VARIANTE === "mdl-agregar" ? ".mdl-panel" : VARIANTE === "mdl-bajando" || VARIANTE === "mdl-sinollama" ? ".mdl-ollama" : VARIANTE === "mdl-tope" ? ".mdl-cruce" : "x:not(x)");
+    const mira = sec.current?.querySelector(VARIANTE === "mdl-agregar" ? ".mdl-panel" : VARIANTE === "mdl-bajando" || VARIANTE === "mdl-sinollama" || VARIANTE === "mdl-apagado" ? ".mdl-ollama" : VARIANTE === "mdl-sugeridos" ? ".ol-sug" : VARIANTE === "mdl-tope" ? ".mdl-cruce" : "x:not(x)");
     if (mira) mira.scrollIntoView({ block: "center" });
     else sec.current?.scrollIntoView({ block: "start" });
   }, [visible]);
 
-  if (falla) return <div className="pn-aviso" data-error>{textoMain(falla)}</div>;
+  // Lo que le falta a Locales y a Cupos se dice en la barra lateral (ajustes-nav.ts).
+  const sinResponder = b !== null && b.locales.some((l) => {
+    const s = estados[l.url];
+    return typeof s === "object" && !s.ok;
+  });
+  const primero = b !== null ? avisosTope(b, uso)[0] : undefined;
+  const marcaTope = primero ? `${primero.quien}|${primero.ventana}|${primero.pct}` : null;
+  useEffect(() => {
+    marcar("locales", sinResponder ? "aj.marca.ollama" : null);
+    if (!primero) marcar("cupos", null);
+    else marcar("cupos", "aj.marca.topeDe", { quien: "Claude", ventana: t(primero.ventana === "5h" ? "cu.ventana5h" : "cu.ventanaSem"), pct: String(primero.pct) });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sinResponder, marcaTope]);
+  useEffect(
+    () => () => {
+      marcar("locales", null);
+      marcar("cupos", null);
+    },
+    [],
+  );
+
+  if (falla)
+    return (
+      <Cat id="modelos">
+        <div className="pn-aviso" data-error>{textoMain(falla)}</div>
+      </Cat>
+    );
   if (!e || !b) return null;
 
   const cambiar = (nuevo: Borrador) => {
     setB(nuevo);
     setError(null);
     setOk(false);
-    setSync(null);
   };
   const config = configDe(b);
   const hayCambio = sucio(e, b);
-  const errCupo = cupoDe(b.cupo) === "mal";
-  const errTope5 = topeMal(b.tope5);
-  const errTope7 = topeMal(b.tope7);
-  const pasados = cruces(b, uso && "five_hour" in uso ? uso : null);
   const instaladosOl = typeof ollama === "object" && ollama.ok ? ollama.modelos : null;
   const bajandoLista = Object.values(bajando);
   const valido = config !== null;
+  const auto = esAutomatico(b);
   const locales = b.locales;
   const modelos = modelosPara(locales, [b.lider?.modelo ?? "", ...TIPOS.map((x) => b.workers[x]?.modelo ?? "")], e.agy ?? true);
 
@@ -255,16 +276,13 @@ export function AjustesModelos({ Dato, alGuardar }: { Dato: FilaDato; alGuardar?
     if (!config || !hayCambio) return;
     setGuardando(true);
     setError(null);
-    setSync(null);
     try {
       const nuevo = await fuentePaneles.guardarModelos(config);
       if (!vivo.current) return;
       if (nuevo.version !== VERSION) throw new Error(t("error.version", { que: t("ajustes.mdlTitulo"), v: nuevo.version, conozco: VERSION }));
       setE(nuevo);
       setB(borradorDe(nuevo));
-      setSync(nuevo.sync_error ?? null);
       setOk(true);
-      alGuardar?.();
     } catch (x) {
       if (vivo.current) setError(mensaje(x));
     } finally {
@@ -285,20 +303,23 @@ export function AjustesModelos({ Dato, alGuardar }: { Dato: FilaDato; alGuardar?
     ev.preventDefault();
     if (ag && urlOllama(ag.url)) void detectar(ag.url);
   };
-  const empezarBajada = async (ev: FormEvent) => {
-    ev.preventDefault();
-    const nombre = bajar.trim();
-    if (!nombreModeloValido(nombre)) return;
+  const bajarModelo = async (nombre: string) => {
     setErrBajar(null);
     setListo(null);
     try {
       const x = await fuentePaneles.bajarModelo(URL_OLLAMA, nombre);
       if (!vivo.current) return;
       setBajando((a) => ({ ...a, [x.modelo]: x }));
-      setBajar("");
+      return true;
     } catch (x) {
       if (vivo.current) setErrBajar(mensaje(x));
     }
+  };
+  const empezarBajada = async (ev: FormEvent) => {
+    ev.preventDefault();
+    const nombre = bajar.trim();
+    if (!nombreModeloValido(nombre)) return;
+    if (await bajarModelo(nombre)) setBajar("");
   };
   const urlValida = ag ? urlOllama(ag.url) !== null : true;
   const instalados = ag && typeof ag.sondeo === "object" && ag.sondeo && ag.sondeo.ok ? ag.sondeo.modelos : null;
@@ -306,338 +327,341 @@ export function AjustesModelos({ Dato, alGuardar }: { Dato: FilaDato; alGuardar?
 
   if (e.error)
     return (
-      <section className="pn-sec" ref={sec} data-modelos>
-        <h2 className="pn-h">{t("ajustes.mdlTitulo")}</h2>
-        <div className="pn-error" role="alert">
-          {textoMain(e.error)}
-        </div>
-      </section>
+      <Cat id="modelos">
+        <section className="pn-sec" ref={sec} data-modelos>
+          <div className="pn-error" role="alert">
+            {textoMain(e.error)}
+          </div>
+        </section>
+      </Cat>
     );
 
   return (
-    <section className="pn-sec pn-edita" ref={sec} data-modelos>
-      <h2 className="pn-h">{t("ajustes.mdlTitulo")}</h2>
-      <Fijo k="ajustes.mdlIntro" bloque className="pn-nota pn-intro" />
-      {!e.existe ? <Fijo k="ajustes.mdlSinArchivo" bloque className="pn-nota pn-intro" /> : null}
+    <div className="aj-sin-caja" ref={sec as RefObject<HTMLDivElement>} data-modelos>
+      <Cat id="modelos">
+        <section className="pn-sec pn-edita">
+          <Fijo k="ajustes.mdlIntro" bloque className="pn-nota pn-intro" />
+          {!e.existe ? <Fijo k="ajustes.mdlSinArchivo" bloque className="pn-nota pn-intro" /> : null}
 
-      <Dato nombre="ajustes.mdlLider" que="ajustes.mdlLiderQue">
-        <EleccionSel
-          etiqueta={t("ajustes.mdlLider")}
-          modelos={modelos}
-          valor={b.lider}
-          comoHoy
-          alModelo={(id) => cambiar(elegirLider(b, id))}
-          alEffort={(x) => cambiar(elegirEffortLider(b, x))}
-          abierto={VARIANTE === "mdl-lider"}
-        />
-        {!b.lider ? (
-          <div className="pn-alt">
-            <span>{t("ajustes.mdlEfectivo", { modelo: textoEleccion(deLider(), locales) })}</span>
-          </div>
-        ) : null}
-      </Dato>
-
-      <Dato nombre="ajustes.mdlTodo" que="ajustes.mdlTodoQue">
-        <div className="pn-sel">
-          <Selector
-            etiqueta={t("ajustes.mdlSelTodo")}
-            opciones={[{ id: "", nombre: t("ajustes.mdlTodoElegir"), desc: "" }, ...opcionesDe(modelos, false)]}
-            valor=""
-            alElegir={(id) => cambiar(todoEn(b, id))}
-            reserva={enOtros("ajustes.mdlTodoElegir")}
-          />
-        </div>
-      </Dato>
-
-      <h3 className="pn-sub-h">{t("ajustes.mdlWorkers")}</h3>
-      <Fijo k={soloGemini ? "ajustes.mdlRecomendadosGeminiQue" : "ajustes.mdlRecomendadosQue"} bloque className="pn-nota pn-intro" />
-      <div className="mdl-recomendados">
-        <button type="button" className="btn2" onClick={() => cambiar(defaultsEn(b, soloGemini))}>
-          <Fijo k="ajustes.mdlRecomendados" />
-        </button>
-      </div>
-      {TIPOS.map((tipo) => {
-        const nombre = `mdl.t.${tipo}` as ClaveSola;
-        const eleccion = b.workers[tipo];
-        const valorFila = eleccion ?? (b.reparto === "auto" ? { modelo: "auto" } : undefined);
-        return (
-          <Dato key={tipo} nombre={nombre} que={`mdl.t.${tipo}Que` as ClaveSola}>
+          <Dato nombre="ajustes.mdlLider" que="ajustes.mdlLiderQue">
             <EleccionSel
-              etiqueta={t(nombre)}
+              etiqueta={t("ajustes.mdlLider")}
               modelos={modelos}
-              valor={valorFila}
+              valor={b.lider}
               comoHoy
-              conAuto
-              alModelo={(id) => cambiar(elegirWorker(b, tipo, id))}
-              alEffort={(x) => cambiar(elegirEffortWorker(b, tipo, x))}
+              alModelo={(id) => cambiar(elegirLider(b, id))}
+              alEffort={(x) => cambiar(elegirEffortLider(b, x))}
+              abierto={VARIANTE === "mdl-lider"}
             />
-            {!eleccion && b.reparto === "auto" ? (
-              <div className="pn-alt" data-reparto>
-                <span>{e.efectivo?.workers[tipo] && !hayCambio ? t("ajustes.mdlRepartoHoy", { modelo: textoEleccion(e.efectivo.workers[tipo], locales) }) : t("ajustes.mdlRepartoDecide")}</span>
-              </div>
-            ) : !eleccion ? (
+            {!b.lider ? (
               <div className="pn-alt">
-                <span>{t("ajustes.mdlEfectivo", { modelo: textoEleccion(deTipo(tipo), locales) })}</span>
+                <span>{t("ajustes.mdlEfectivo", { modelo: textoEleccion(deLider(), locales) })}</span>
               </div>
             ) : null}
           </Dato>
-        );
-      })}
 
-      <h3 className="pn-sub-h">{t("ajustes.mdlLocales")}</h3>
-      <div className="mdl-ollama" data-estado={typeof ollama === "object" ? (ollama.ok ? "ok" : "no") : "..."}>
-        <div className="mdl-ollama-cab">
-          <span className="mdl-ollama-t">{ollama === "comprobando" ? t("ajustes.mdlComprobando") : instaladosOl ? t("ajustes.mdlOllamaAnda") : t("ajustes.mdlOllamaNoAnda")}</span>
-          <button type="button" className="btn2" onClick={() => void mirarOllama()} disabled={ollama === "comprobando"}>
-            <Fijo k="ajustes.mdlOllamaMirar" />
-          </button>
-        </div>
-        <Fijo k="ajustes.mdlOllamaQue" bloque className="pn-nota" />
-        {typeof ollama === "object" && !ollama.ok ? (
-          <div className="mdl-ollama-instalar">
-            <a className="btn2 mdl-enlace" href="https://ollama.com/download" target="_blank" rel="noopener noreferrer">
-              <Fijo k="ajustes.mdlOllamaInstalar" />
-            </a>
-            <Fijo k="ajustes.mdlOllamaInstalarQue" bloque className="pn-nota" />
-          </div>
-        ) : null}
-      </div>
+          <Dato nombre="ajustes.mdlAutomatico" que="ajustes.mdlAutomaticoQue">
+            <Interruptor activo={auto} alCambiar={(v) => cambiar(ponerAutomatico(b, v))} aria-label={t("ajustes.mdlAutomatico")} />
+          </Dato>
 
-      {instaladosOl ? (
-        <>
-          <Dato nombre="ajustes.mdlInstalados" que="ajustes.mdlInstaladosQue">
-            {instaladosOl.length ? (
-              <ul className="pn-disp mdl-instalados" aria-label={t("ajustes.mdlInstalados")}>
-                {instaladosOl.map((m) => {
-                  const ya = locales.some((l) => l.id === `ollama:${m.nombre}`);
+          {auto ? (
+            <>
+              <h3 className="pn-sub-h">{t("ajustes.mdlHoyElegiria")}</h3>
+              <ul className="pn-disp mdl-hoy" aria-label={t("ajustes.mdlHoyElegiria")}>
+                {TIPOS.map((tipo) => {
+                  const h = e.efectivo?.reparto?.[tipo];
                   return (
-                    <li key={m.nombre}>
-                      <span className="mdl-local-nom">
-                        <span className="pn-disp-nom">{m.nombre}</span>
-                        <span className="mdl-url">{gb(m.bytes)}</span>
+                    <li key={tipo} data-tipo={tipo}>
+                      <span className="mdl-hoy-tipo" data-tip={t(`mdl.t.${tipo}Que` as ClaveSola)}>{t(`mdl.t.${tipo}` as ClaveSola)}</span>
+                      <span className="mdl-hoy-modelo" data-vacio={h ? undefined : ""} data-tip={h ? textoMain(h.motivo) : undefined}>
+                        {h ? textoEleccion({ modelo: h.modelo, ...(h.effort ? { effort: h.effort } : {}) }, locales) : t("ajustes.mdlHoySin")}
                       </span>
-                      {ya ? (
-                        <span className="mdl-estado" data-estado="ok">{t("ajustes.mdlEnUso")}</span>
-                      ) : (
-                        <button type="button" className="btn2" aria-label={t("ajustes.mdlUsarModelo", { nombre: m.nombre })} data-recien={listo === m.nombre ? "" : undefined} onClick={() => cambiar(agregarLocal(b, URL_OLLAMA, m.nombre))}>
-                          <Fijo k="ajustes.mdlUsar" />
-                        </button>
-                      )}
                     </li>
                   );
                 })}
               </ul>
-            ) : (
-              <div className="pn-nota">{t("ajustes.mdlNingunoInstalado")}</div>
-            )}
-          </Dato>
-
-          <Dato nombre="ajustes.mdlBajar" que="ajustes.mdlBajarQue">
-            <form className="pn-nuevo" onSubmit={(ev) => void empezarBajada(ev)}>
-              <input
-                className="pn-campo"
-                type="text"
-                autoComplete="off"
-                autoCapitalize="none"
-                spellCheck={false}
-                value={bajar}
-                placeholder="llama3.2:3b"
-                aria-label={t("ajustes.mdlBajarCampo")}
-                aria-invalid={bajar.trim() !== "" && !nombreModeloValido(bajar)}
-                onChange={(ev) => {
-                  setBajar(ev.target.value);
-                  setErrBajar(null);
-                }}
-              />
-              <button type="submit" className="btn2" disabled={!nombreModeloValido(bajar)}>
-                <Fijo k="ajustes.mdlBajarBtn" />
-              </button>
-            </form>
-            {bajar.trim() !== "" && !nombreModeloValido(bajar) ? <div className="pn-error pn-campo-error">{t("ajustes.mdlBajarNombreMal")}</div> : null}
-            {bajandoLista.map((x) => {
-              const pct = porcentaje(x);
-              return (
-                <div key={x.modelo} className="mdl-baja" role="status">
-                  <div className="mdl-baja-fila">
-                    <span className="mdl-baja-nom">{t("ajustes.mdlBajando", { nombre: x.modelo })}</span>
-                    <span className="mdl-estado">{textoBajada(x)}</span>
-                    <button type="button" className="btn2" aria-label={t("ajustes.mdlBajarCancelarModelo", { nombre: x.modelo })} onClick={() => void fuentePaneles.cancelarBajada(x.url, x.modelo)}>
-                      <Fijo k="ajustes.mdlBajarCancelar" />
-                    </button>
-                  </div>
-                  <div className="mdl-barra" role="progressbar" aria-label={t("ajustes.mdlBajando", { nombre: x.modelo })} aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct ?? undefined}>
-                    <div className="mdl-barra-r" data-indef={pct === null ? "" : undefined} style={pct === null ? undefined : { transform: `scaleX(${pct / 100})` }} />
-                  </div>
-                </div>
-              );
-            })}
-            {listo && !bajando[listo] && !errBajar ? <div className="pn-nota" role="status">{t("ajustes.mdlBajarListo", { nombre: listo })}</div> : null}
-            {errBajar ? <div className="pn-error pn-campo-error" role="alert">{textoMain(errBajar)}</div> : null}
-          </Dato>
-        </>
-      ) : null}
-
-      <Dato nombre="ajustes.mdlLocalesAgregados" que="ajustes.mdlLocalesQue">
-        <ul className="pn-disp mdl-locales" aria-label={t("ajustes.mdlLocales")}>
-          {locales.length ? (
-            locales.map((l) => {
-              const s = estados[l.url];
-              const responde = typeof s === "object" && s.ok;
-              const texto = s === undefined || s === "comprobando" ? t("ajustes.mdlComprobando") : responde ? t("ajustes.mdlResponde") : t("ajustes.mdlNoResponde");
-              return (
-                <li key={l.id}>
-                  <span className="mdl-local-nom">
-                    <span className="pn-disp-nom">{l.nombre}</span>
-                    <span className="mdl-url">{l.url}</span>
-                  </span>
-                  <span className="mdl-estado" data-estado={responde ? "ok" : typeof s === "object" ? "no" : "..."} data-tip={typeof s === "object" && !s.ok ? textoMain(s.motivo) : undefined}>
-                    {texto}
-                  </span>
-                  <button type="button" className="pn-quitar" aria-label={t("ajustes.mdlQuitarLocal", { nombre: l.nombre })} data-tip={t("ajustes.mdlQuitarLocal", { nombre: l.nombre })} onClick={() => cambiar(quitarLocal(b, l.id))}>
-                    <X size={14} aria-hidden />
-                  </button>
-                </li>
-              );
-            })
+              {hayCambio ? <Fijo k="ajustes.mdlHoyAlGuardar" bloque className="pn-nota" /> : null}
+            </>
           ) : (
-            <li className="pn-falta">
-              <Fijo k="ajustes.mdlNingunLocal" />
-            </li>
-          )}
-        </ul>
-        <button type="button" className="btn2 mdl-agregar-btn" aria-expanded={ag !== null} onClick={abrirAgregar}>
-          {ag ? null : <Plus size={14} aria-hidden />}
-          {ag ? t("ajustes.mdlCerrarAgregar") : t("ajustes.mdlAgregarLocal")}
-        </button>
-      </Dato>
+            <>
+              <Dato nombre="ajustes.mdlTodo" que="ajustes.mdlTodoQue">
+                <div className="pn-sel">
+                  <Selector
+                    etiqueta={t("ajustes.mdlSelTodo")}
+                    opciones={[{ id: "", nombre: t("ajustes.mdlTodoElegir"), desc: "" }, ...opcionesDe(modelos, false)]}
+                    valor=""
+                    alElegir={(id) => cambiar(todoEn(b, id))}
+                    reserva={enOtros("ajustes.mdlTodoElegir")}
+                  />
+                </div>
+              </Dato>
 
-      {ag ? (
-        <div className="mdl-panel" role="group" aria-label={t("ajustes.mdlAgregarLocal")}>
-          <form className="pn-nuevo" onSubmit={enviarUrl}>
-            <input
-              className="pn-campo"
-              type="text"
-              inputMode="url"
-              autoComplete="off"
-              autoCapitalize="none"
-              spellCheck={false}
-              value={ag.url}
-              aria-label={t("ajustes.mdlUrl")}
-              aria-invalid={!urlValida}
-              onChange={(ev) => setAg({ url: ev.target.value, sondeo: null })}
-            />
-            <button type="submit" className="btn2" disabled={!urlValida || ag.sondeo === "comprobando"}>
-              {ag.sondeo === "comprobando" ? t("ajustes.mdlDetectando") : t("ajustes.mdlDetectar")}
-            </button>
-          </form>
-          {!urlValida ? <div className="pn-error pn-campo-error">{t("ajustes.mdlUrlMal")}</div> : null}
-          {motivoNo ? <div className="pn-error pn-campo-error" role="alert">{textoMain(motivoNo)}</div> : null}
-          {instalados ? (
-            instalados.length ? (
-              <ul className="pn-disp mdl-instalados" aria-label={t("ajustes.mdlInstalados")}>
-                {instalados.map((m) => {
-                  const ya = locales.some((l) => l.id === `ollama:${m.nombre}`);
+              <h3 className="pn-sub-h">{t("ajustes.mdlWorkers")}</h3>
+              {TIPOS.map((tipo) => {
+                const nombre = `mdl.t.${tipo}` as ClaveSola;
+                const eleccion = b.workers[tipo];
+                return (
+                  <Dato key={tipo} nombre={nombre} que={`mdl.t.${tipo}Que` as ClaveSola}>
+                    <EleccionSel
+                      etiqueta={t(nombre)}
+                      modelos={modelos}
+                      valor={eleccion}
+                      comoHoy
+                      alModelo={(id) => cambiar(elegirWorker(b, tipo, id))}
+                      alEffort={(x) => cambiar(elegirEffortWorker(b, tipo, x))}
+                    />
+                    {!eleccion ? (
+                      <div className="pn-alt">
+                        <span>{t("ajustes.mdlEfectivo", { modelo: textoEleccion(deTipo(tipo), locales) })}</span>
+                      </div>
+                    ) : null}
+                  </Dato>
+                );
+              })}
+            </>
+          )}
+
+          <Dato nombre="ajustes.mdlExcluir" que="ajustes.mdlExcluirQue">
+            <div className="mdl-excluir">
+              <ul className="mdl-chips" aria-label={t("ajustes.mdlExcluir")}>
+                {b.excluir.length ? (
+                  b.excluir.map((id) => (
+                    <li key={id}>
+                      <Chip>
+                        {nombreExcluido(id)}
+                        <button type="button" className="pn-quitar" aria-label={t("ajustes.mdlExcluirQuitar", { que: nombreExcluido(id) })} data-tip={t("ajustes.mdlExcluirQuitar", { que: nombreExcluido(id) })} onClick={() => cambiar(quitarExcluido(b, id))}>
+                          <X size={12} aria-hidden />
+                        </button>
+                      </Chip>
+                    </li>
+                  ))
+                ) : (
+                  <li className="pn-falta">
+                    <Fijo k="ajustes.mdlExcluirNinguno" />
+                  </li>
+                )}
+              </ul>
+              <div className="pn-sel">
+                <Selector
+                  etiqueta={t("ajustes.mdlExcluirSel")}
+                  opciones={[{ id: "", nombre: t("ajustes.mdlExcluirAgregar"), desc: "" }, ...FAMILIAS.filter((f) => !b.excluir.includes(f)).map((f): Opcion => ({ id: f, nombre: nombreExcluido(f), desc: "" }))]}
+                  valor=""
+                  alElegir={(id) => cambiar(agregarExcluido(b, id))}
+                  reserva={enOtros("ajustes.mdlExcluirAgregar")}
+                />
+              </div>
+              {!b.excluir.includes("fable") ? (
+                <div className="mdl-sug">
+                  <Fijo k="ajustes.mdlFableSug" bloque className="pn-nota" />
+                  <button type="button" className="btn2" onClick={() => cambiar(agregarExcluido(b, "fable"))}>
+                    <Fijo k="ajustes.mdlFableBtn" />
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          </Dato>
+
+          <Dato nombre="ajustes.mdlPermitirMax" que="ajustes.mdlPermitirMaxQue">
+            <Interruptor activo={b.permitir_max} alCambiar={(v) => cambiar(ponerPermitirMax(b, v))} aria-label={t("ajustes.mdlPermitirMax")} />
+          </Dato>
+
+          {e.agy ?? true ? (
+            <Dato nombre="ajustes.mdlDestrabar" que="ajustes.mdlDestrabarQue">
+              <ul className="pn-disp mdl-destrabar" aria-label={t("ajustes.mdlDestrabar")}>
+                {DESTRABAR_MODELOS.map((m) => {
+                  const nombre = nombreGemini(`${m}-low`).replace(/ · low$/, "");
                   return (
-                    <li key={m.nombre}>
+                    <li key={m}>
+                      <span className="mdl-destrabar-nom">{nombre}</span>
+                      <Interruptor activo={destrabarOn(b, m)} alCambiar={(v) => cambiar(ponerDestrabar(b, m, v))} aria-label={t("ajustes.mdlDestrabarDe", { modelo: nombre })} />
+                    </li>
+                  );
+                })}
+              </ul>
+              <div className="pn-nota">{t("ajustes.mdlDestrabarCuenta", { veces: e.destrabo?.veces ?? 0, bien: e.destrabo?.bien ?? 0 })}</div>
+            </Dato>
+          ) : null}
+
+        </section>
+      </Cat>
+
+      <Cat id="locales">
+        <section className="pn-sec pn-edita">
+          <GuiaOllama estado={ollama} entorno={entorno} alMirar={() => void mirarOllama()} />
+
+          {instaladosOl ? (
+            <>
+              <SugeridosOllama
+                vramMiB={entorno?.gpu?.vramMiB ?? null}
+                instalados={instaladosOl.map((m) => m.nombre)}
+                bajando={bajando}
+                alBajar={(m) => void bajarModelo(m)}
+                alCancelar={(x) => void fuentePaneles.cancelarBajada(x.url, x.modelo)}
+              />
+              <Dato nombre="ajustes.mdlInstalados" que="ajustes.mdlInstaladosQue">
+                {instaladosOl.length ? (
+                  <ul className="pn-disp mdl-instalados" aria-label={t("ajustes.mdlInstalados")}>
+                    {instaladosOl.map((m) => {
+                      const ya = locales.some((l) => l.id === `ollama:${m.nombre}`);
+                      return (
+                        <li key={m.nombre}>
+                          <span className="mdl-local-nom">
+                            <span className="pn-disp-nom">{m.nombre}</span>
+                            <span className="mdl-url">{gb(m.bytes)}</span>
+                          </span>
+                          {ya ? (
+                            <span className="mdl-estado" data-estado="ok">{t("ajustes.mdlEnUso")}</span>
+                          ) : (
+                            <Boton aria-label={t("ajustes.mdlUsarModelo", { nombre: m.nombre })} data-recien={listo === m.nombre ? "" : undefined} onClick={() => cambiar(agregarLocal(b, URL_OLLAMA, m.nombre))}>
+                              <Fijo k="ajustes.mdlUsar" />
+                            </Boton>
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                ) : (
+                  <div className="pn-nota">{t("ajustes.mdlNingunoInstalado")}</div>
+                )}
+              </Dato>
+
+              <Dato nombre="ajustes.mdlBajar" que="ajustes.mdlBajarQue">
+                <form className="pn-nuevo" onSubmit={(ev) => void empezarBajada(ev)}>
+                  <input
+                    className="pn-campo"
+                    type="text"
+                    autoComplete="off"
+                    autoCapitalize="none"
+                    spellCheck={false}
+                    value={bajar}
+                    placeholder="llama3.2:3b"
+                    aria-label={t("ajustes.mdlBajarCampo")}
+                    aria-invalid={bajar.trim() !== "" && !nombreModeloValido(bajar)}
+                    onChange={(ev) => {
+                      setBajar(ev.target.value);
+                      setErrBajar(null);
+                    }}
+                  />
+                  <Boton type="submit" disabled={!nombreModeloValido(bajar)}>
+                    <Fijo k="ajustes.mdlBajarBtn" />
+                  </Boton>
+                </form>
+                {bajar.trim() !== "" && !nombreModeloValido(bajar) ? <div className="pn-error pn-campo-error">{t("ajustes.mdlBajarNombreMal")}</div> : null}
+                {bajandoLista.map((x) => {
+                  const pct = porcentaje(x);
+                  return (
+                    <div key={x.modelo} className="mdl-baja" role="status">
+                      <div className="mdl-baja-fila">
+                        <span className="mdl-baja-nom">{t("ajustes.mdlBajando", { nombre: x.modelo })}</span>
+                        <span className="mdl-estado">{textoBajada(x)}</span>
+                        <Boton aria-label={t("ajustes.mdlBajarCancelarModelo", { nombre: x.modelo })} onClick={() => void fuentePaneles.cancelarBajada(x.url, x.modelo)}>
+                          <Fijo k="ajustes.mdlBajarCancelar" />
+                        </Boton>
+                      </div>
+                      <div className="mdl-barra" role="progressbar" aria-label={t("ajustes.mdlBajando", { nombre: x.modelo })} aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct ?? undefined}>
+                        <div className="mdl-barra-r" data-indef={pct === null ? "" : undefined} style={pct === null ? undefined : { transform: `scaleX(${pct / 100})` }} />
+                      </div>
+                    </div>
+                  );
+                })}
+                {listo && !bajando[listo] && !errBajar ? <div className="pn-nota" role="status">{t("ajustes.mdlBajarListo", { nombre: listo })}</div> : null}
+                {errBajar ? <div className="pn-error pn-campo-error" role="alert">{textoMain(errBajar)}</div> : null}
+              </Dato>
+            </>
+          ) : null}
+
+          <Dato nombre="ajustes.mdlLocalesAgregados" que="ajustes.mdlLocalesQue">
+            <ul className="pn-disp mdl-locales" aria-label={t("ajustes.mdlLocales")}>
+              {locales.length ? (
+                locales.map((l) => {
+                  const s = estados[l.url];
+                  const responde = typeof s === "object" && s.ok;
+                  const texto = s === undefined || s === "comprobando" ? t("ajustes.mdlComprobando") : responde ? t("ajustes.mdlResponde") : t("ajustes.mdlNoResponde");
+                  return (
+                    <li key={l.id}>
                       <span className="mdl-local-nom">
-                        <span className="pn-disp-nom">{m.nombre}</span>
-                        <span className="mdl-url">{gb(m.bytes)}</span>
+                        <span className="pn-disp-nom">{l.nombre}</span>
+                        <span className="mdl-url">{l.url}</span>
                       </span>
-                      <button type="button" className="btn2" disabled={ya} aria-label={t("ajustes.mdlAgregar", { nombre: m.nombre })} onClick={() => cambiar(agregarLocal(b, ag.url, m.nombre))}>
-                        {ya ? t("ajustes.mdlYaAgregado") : <Plus size={14} aria-hidden />}
-                        {ya ? null : <Fijo k="ajustes.celAgregar" />}
+                      <span className="mdl-estado" data-estado={responde ? "ok" : typeof s === "object" ? "no" : "..."} data-tip={typeof s === "object" && !s.ok ? textoMain(s.motivo) : undefined}>
+                        {texto}
+                      </span>
+                      <button type="button" className="pn-quitar" aria-label={t("ajustes.mdlQuitarLocal", { nombre: l.nombre })} data-tip={t("ajustes.mdlQuitarLocal", { nombre: l.nombre })} onClick={() => cambiar(quitarLocal(b, l.id))}>
+                        <X size={14} aria-hidden />
                       </button>
                     </li>
                   );
-                })}
-              </ul>
-            ) : (
-              <div className="pn-nota">{t("ajustes.mdlNingunoInstalado")}</div>
-            )
+                })
+              ) : (
+                <li className="pn-falta">
+                  <Fijo k="ajustes.mdlNingunLocal" />
+                </li>
+              )}
+            </ul>
+            <Boton className="mdl-agregar-btn" aria-expanded={ag !== null} onClick={abrirAgregar}>
+              {ag ? null : <Plus size={14} aria-hidden />}
+              {ag ? t("ajustes.mdlCerrarAgregar") : t("ajustes.olOtroServidor")}
+            </Boton>
+          </Dato>
+
+          {ag ? (
+            <div className="mdl-panel" role="group" aria-label={t("ajustes.mdlAgregarLocal")}>
+              <form className="pn-nuevo" onSubmit={enviarUrl}>
+                <input
+                  className="pn-campo"
+                  type="text"
+                  inputMode="url"
+                  autoComplete="off"
+                  autoCapitalize="none"
+                  spellCheck={false}
+                  value={ag.url}
+                  aria-label={t("ajustes.mdlUrl")}
+                  aria-invalid={!urlValida}
+                  onChange={(ev) => setAg({ url: ev.target.value, sondeo: null })}
+                />
+                <Boton type="submit" disabled={!urlValida || ag.sondeo === "comprobando"}>
+                  {ag.sondeo === "comprobando" ? t("ajustes.mdlDetectando") : t("ajustes.mdlDetectar")}
+                </Boton>
+              </form>
+              {!urlValida ? <div className="pn-error pn-campo-error">{t("ajustes.mdlUrlMal")}</div> : null}
+              {motivoNo ? <div className="pn-error pn-campo-error" role="alert">{textoMain(motivoNo)}</div> : null}
+              {instalados ? (
+                instalados.length ? (
+                  <ul className="pn-disp mdl-instalados" aria-label={t("ajustes.mdlInstalados")}>
+                    {instalados.map((m) => {
+                      const ya = locales.some((l) => l.id === `ollama:${m.nombre}`);
+                      return (
+                        <li key={m.nombre}>
+                          <span className="mdl-local-nom">
+                            <span className="pn-disp-nom">{m.nombre}</span>
+                            <span className="mdl-url">{gb(m.bytes)}</span>
+                          </span>
+                          <Boton disabled={ya} aria-label={t("ajustes.mdlAgregar", { nombre: m.nombre })} onClick={() => cambiar(agregarLocal(b, ag.url, m.nombre))}>
+                            {ya ? t("ajustes.mdlYaAgregado") : <Plus size={14} aria-hidden />}
+                            {ya ? null : <Fijo k="ajustes.celAgregar" />}
+                          </Boton>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                ) : (
+                  <div className="pn-nota">{t("ajustes.mdlNingunoInstalado")}</div>
+                )
+              ) : null}
+            </div>
           ) : null}
-        </div>
-      ) : null}
 
-      <h3 className="pn-sub-h">{t("ajustes.mdlClaude")}</h3>
-      <Dato nombre="ajustes.mdlTope5" que="ajustes.mdlTope5Que">
-        <div className="pn-campo-fila">
-          <input
-            className="pn-campo pn-campo-num"
-            type="text"
-            inputMode="numeric"
-            autoComplete="off"
-            spellCheck={false}
-            value={b.tope5}
-            placeholder={String(TOPE_CLAUDE_DEFECTO)}
-            aria-label={t("ajustes.mdlTope5")}
-            aria-invalid={errTope5}
-            onChange={(ev) => cambiar({ ...b, tope5: ev.target.value })}
-          />
-          <span className="pn-unidad">%</span>
-        </div>
-        {errTope5 ? <div className="pn-error pn-campo-error">{t("ajustes.mdlTopeErr")}</div> : null}
-      </Dato>
-      <Dato nombre="ajustes.mdlTope7" que="ajustes.mdlTope7Que">
-        <div className="pn-campo-fila">
-          <input
-            className="pn-campo pn-campo-num"
-            type="text"
-            inputMode="numeric"
-            autoComplete="off"
-            spellCheck={false}
-            value={b.tope7}
-            placeholder={String(TOPE_CLAUDE_DEFECTO)}
-            aria-label={t("ajustes.mdlTope7")}
-            aria-invalid={errTope7}
-            onChange={(ev) => cambiar({ ...b, tope7: ev.target.value })}
-          />
-          <span className="pn-unidad">%</span>
-        </div>
-        {errTope7 ? <div className="pn-error pn-campo-error">{t("ajustes.mdlTopeErr")}</div> : null}
-      </Dato>
-      {pasados.map((c) => (
-        <div key={c.ventana} className="pn-aviso mdl-cruce" role="status">
-          {t(c.ventana === "5h" ? "ajustes.mdlTopeCruce5" : "ajustes.mdlTopeCruce7", { pct: c.pct, tope: c.tope })}
-        </div>
-      ))}
+        </section>
+      </Cat>
 
-      <h3 className="pn-sub-h">Gemini</h3>
-      <Dato nombre="ajustes.mdlCupo" que="ajustes.mdlCupoQue">
-        <div className="pn-campo-fila">
-          <input
-            className="pn-campo pn-campo-num"
-            type="text"
-            inputMode="numeric"
-            autoComplete="off"
-            spellCheck={false}
-            value={b.cupo}
-            placeholder={t("ajustes.mdlCupoSin")}
-            aria-label={t("ajustes.mdlCupo")}
-            aria-invalid={errCupo}
-            onChange={(ev) => cambiar({ ...b, cupo: ev.target.value })}
-          />
-          <span className="pn-unidad">%</span>
-        </div>
-        {errCupo ? <div className="pn-error pn-campo-error">{t("ajustes.mdlCupoErr")}</div> : null}
-      </Dato>
-      <Dato nombre="ajustes.mdlSinClaude" que="ajustes.mdlSinClaudeQue">
-        <div className="pn-sel">
-          <Selector
-            etiqueta={t("ajustes.mdlSinClaude")}
-            opciones={SIN_CLAUDE.map((id) => ({ id, nombre: t(SIN_CLAUDE_CLAVES[id].nombre), desc: t(SIN_CLAUDE_CLAVES[id].que), ...(id === "claude" ? { rec: true } : {}) }))}
-            valor={b.sin_claude ?? "claude"}
-            alElegir={(id) => cambiar({ ...b, sin_claude: id as SinClaude })}
-            reserva={SIN_CLAUDE.flatMap((id) => enOtros(SIN_CLAUDE_CLAVES[id].nombre))}
-          />
-        </div>
-      </Dato>
+      <Cat id="cupos" orden={1}>
+        <CuposTarjetas b={b} uso={uso} plan={plan} />
+      </Cat>
+      <Cat id="cupos" orden={2}>
+        <AjustesCupos Dato={Dato} b={b} cambiar={cambiar} />
+      </Cat>
 
       <Acciones id="modelos" sucio={hayCambio} valido={valido} guardando={guardando} ok={ok} error={error} alGuardar={guardar} alCancelar={() => cambiar(borradorDe(e))} />
-      {sync ? (
-        <div className="pn-error" role="status">
-          {t("ajustes.mdlSyncError", { e: textoMain(sync) })}
-        </div>
-      ) : null}
-    </section>
+    </div>
   );
 }

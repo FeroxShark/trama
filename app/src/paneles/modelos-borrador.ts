@@ -5,17 +5,22 @@
 import type { EstadoModelos } from "../../electron/modelos-config";
 import {
   AGY,
+  claveDestrabo,
   CUPO_MAX,
   CUPO_MIN,
-  defaultsDe,
+  DESTRABAR_MODELOS,
+  destrabarActivo,
+  destrabarPorDefecto,
   efectivoDe,
   esAgy,
   esClaude,
   esGemini,
   esOllama,
+  EXCLUIR_MAX,
+  FAMILIAS,
   GEMINI,
   HOY,
-  SIN_CLAUDE,
+  SIN_CUPO,
   TIPOS,
   TOPE_CLAUDE_DEFECTO,
   URL_OLLAMA,
@@ -24,13 +29,14 @@ import {
   type Eleccion,
   type Local,
   type ModoReparto,
-  type SinClaude,
+  type SinCupo,
   type Tipo,
 } from "../../electron/modelos-tipos";
 import { defDe, effortDeModelo, TABLA } from "../hilo/modelos";
 
-export { AGY, CUPO_MAX, CUPO_MIN, GEMINI, SIN_CLAUDE, TIPOS, TOPE_CLAUDE_DEFECTO, URL_OLLAMA };
-export type { Eleccion, Local, SinClaude, Tipo };
+export { DESTRABAR_MODELOS };
+export { AGY, CUPO_MAX, CUPO_MIN, EXCLUIR_MAX, FAMILIAS, GEMINI, SIN_CUPO, TIPOS, TOPE_CLAUDE_DEFECTO, URL_OLLAMA };
+export type { Eleccion, Local, SinCupo, Tipo };
 
 /** El cupo va como texto mientras se escribe; el resto es la config tal cual. */
 export type Borrador = {
@@ -38,11 +44,20 @@ export type Borrador = {
   reparto?: ModoReparto;
   workers: Partial<Record<Tipo, Eleccion>>;
   locales: Local[];
+  /** Lo que `reparto` nunca elige (familias, ids o prefijos con `*`). */
+  excluir: string[];
+  /** Deja correr opus/sonnet con esfuerzo `max` sin pedir permiso. */
+  permitir_max: boolean;
   cupo: string;
-  sin_claude?: SinClaude;
+  /** Qué hace `pa` si un modelo no tiene cupo; sin elegir se escribe nada y vale `otro`. */
+  sin_cupo?: SinCupo;
+  /** «Guardar un % para mis sesiones»: apagado de fábrica (sin `reserva`); prendido, los topes de abajo valen. */
+  guardar: boolean;
   /** Los topes de Claude (5 h y semanal) como texto mientras se escriben. */
   tope5: string;
   tope7: string;
+  /** «Destrabar solo cuando se repite», por modelo: sólo lo que se tocó (lo demás vale la fábrica). */
+  destrabar: Record<string, boolean>;
 };
 
 export const borradorDe = (e: EstadoModelos): Borrador => ({
@@ -50,10 +65,14 @@ export const borradorDe = (e: EstadoModelos): Borrador => ({
   ...(e.config.reparto ? { reparto: e.config.reparto } : {}),
   workers: Object.fromEntries(Object.entries(e.config.workers).map(([k, v]) => [k, { ...v }])),
   locales: e.config.locales.map((l) => ({ ...l })),
+  excluir: [...e.config.excluir],
+  permitir_max: e.config.permitir_max,
   cupo: e.config.gemini.cupo_max === undefined ? "" : String(e.config.gemini.cupo_max),
-  ...(e.config.gemini.sin_claude ? { sin_claude: e.config.gemini.sin_claude } : {}),
+  ...(e.config.sin_cupo ? { sin_cupo: e.config.sin_cupo } : {}),
+  guardar: e.config.claude.tope_5h !== undefined || e.config.claude.tope_7d !== undefined,
   tope5: e.config.claude.tope_5h === undefined ? "" : String(e.config.claude.tope_5h),
   tope7: e.config.claude.tope_7d === undefined ? "" : String(e.config.claude.tope_7d),
+  destrabar: { ...e.config.destrabar },
 });
 
 /** El cupo escrito: `null` vacío (sin definir), el número si vale, `"mal"` si no. */
@@ -68,8 +87,9 @@ export function cupoDe(texto: string): number | null | "mal" {
 /** La config que se guardaría, o `null` si el cupo escrito no vale. */
 export function configDe(b: Borrador): ConfigModelos | null {
   const cupo = cupoDe(b.cupo);
-  const t5 = cupoDe(b.tope5);
-  const t7 = cupoDe(b.tope7);
+  // Con el interruptor apagado lo escrito en los topes no cuenta (ni se valida); prendido y vacío vale el recomendado.
+  const t5 = b.guardar ? (cupoDe(b.tope5) ?? TOPE_CLAUDE_DEFECTO) : null;
+  const t7 = b.guardar ? (cupoDe(b.tope7) ?? TOPE_CLAUDE_DEFECTO) : null;
   if (cupo === "mal" || t5 === "mal" || t7 === "mal") return null;
   const workers: ConfigModelos["workers"] = {};
   for (const t of TIPOS) if (b.workers[t]) workers[t] = { ...b.workers[t]! };
@@ -78,8 +98,12 @@ export function configDe(b: Borrador): ConfigModelos | null {
     ...(b.reparto ? { reparto: b.reparto } : {}),
     workers,
     locales: b.locales.map((l) => ({ ...l })),
-    gemini: { ...(cupo !== null ? { cupo_max: cupo } : {}), ...(b.sin_claude ? { sin_claude: b.sin_claude } : {}) },
+    excluir: [...b.excluir],
+    permitir_max: b.permitir_max,
+    gemini: { ...(cupo !== null ? { cupo_max: cupo } : {}) },
+    ...(b.sin_cupo ? { sin_cupo: b.sin_cupo } : {}),
     claude: { ...(t5 !== null ? { tope_5h: t5 } : {}), ...(t7 !== null ? { tope_7d: t7 } : {}) },
+    destrabar: { ...b.destrabar },
   };
 }
 
@@ -87,13 +111,16 @@ export function configDe(b: Borrador): ConfigModelos | null {
 const huella = (c: ConfigModelos) =>
   JSON.stringify([
     c.lider ?? null,
-    c.reparto ?? null,
+    c.reparto ?? "auto",
     TIPOS.map((t) => c.workers[t] ?? null),
     c.locales.map((l) => [l.id, l.nombre, l.url, l.modelo]),
+    c.excluir,
+    c.permitir_max,
     c.gemini.cupo_max ?? null,
-    c.gemini.sin_claude ?? null,
+    c.sin_cupo ?? null,
     c.claude.tope_5h ?? null,
     c.claude.tope_7d ?? null,
+    Object.entries(c.destrabar).sort(([a], [z]) => (a < z ? -1 : 1)),
   ]);
 
 /** Hay algo distinto de lo guardado (o un cupo a medio escribir que no vale). */
@@ -168,17 +195,9 @@ export function elegirEffortLider(b: Borrador, effort: string): Borrador {
 
 export function elegirWorker(b: Borrador, tipo: Tipo, id: string): Borrador {
   const workers = { ...b.workers };
-  if (id === "auto") {
-    delete workers[tipo];
-    return { ...b, reparto: "auto", workers };
-  }
-  const { reparto: _, ...resto } = b;
-  if (id) {
-    workers[tipo] = eleccionDe(id, workers[tipo]);
-    return { ...(b.reparto ? { reparto: b.reparto } : {}), ...resto, workers };
-  }
-  delete workers[tipo];
-  return { ...resto, workers };
+  if (id) workers[tipo] = eleccionDe(id, workers[tipo]);
+  else delete workers[tipo];
+  return { ...b, workers };
 }
 
 export function elegirEffortWorker(b: Borrador, tipo: Tipo, effort: string): Borrador {
@@ -189,12 +208,47 @@ export function elegirEffortWorker(b: Borrador, tipo: Tipo, effort: string): Bor
 /** "Un solo modelo para todo": el líder y cada tipo de worker (con `default`) con ese modelo, en un toque. */
 export function todoEn(b: Borrador, id: string): Borrador {
   if (!id) return b;
-  if (id === "auto") return { ...b, reparto: "auto", workers: {} };
-  const { reparto: _, ...resto } = b;
   const workers: Borrador["workers"] = {};
   for (const t of TIPOS) workers[t] = eleccionDe(id, b.workers[t]);
-  return { ...resto, lider: eleccionDe(id, b.lider), workers };
+  return { ...b, reparto: "fijo", lider: eleccionDe(id, b.lider), workers };
 }
+
+// --- Automático, lo que no se usa y el esfuerzo max --------------------------------------------------
+
+/** Sin la clave `reparto` vale automático (el default de `pa`): sólo `fijo` lo apaga. */
+export const esAutomatico = (b: Borrador): boolean => b.reparto !== "fijo";
+
+/** Prender escribe `auto`, apagar `fijo`; los modelos de la tabla manual se conservan para cuando se vuelva a ella. */
+export const ponerAutomatico = (b: Borrador, on: boolean): Borrador => ({ ...b, reparto: on ? "auto" : "fijo" });
+
+/** Cómo se escribe una entrada de `excluir` (minúsculas, sin espacios); `null` si no sirve. */
+export const excluidoDe = (texto: string): string | null => {
+  const s = texto.trim().toLowerCase();
+  return /^[a-z0-9][\w.:*/[\]-]{0,79}$/.test(s) ? s : null;
+};
+
+export const estaExcluido = (b: Borrador, id: string) => b.excluir.includes(id);
+
+export function agregarExcluido(b: Borrador, texto: string): Borrador {
+  const id = excluidoDe(texto);
+  return !id || b.excluir.includes(id) || b.excluir.length >= EXCLUIR_MAX ? b : { ...b, excluir: [...b.excluir, id] };
+}
+
+export const quitarExcluido = (b: Borrador, id: string): Borrador => ({ ...b, excluir: b.excluir.filter((x) => x !== id) });
+
+export const ponerPermitirMax = (b: Borrador, on: boolean): Borrador => ({ ...b, permitir_max: on });
+
+/** Prende o apaga «Destrabar solo cuando se repite» para un modelo; lo que coincide con la fábrica no se anota (el archivo queda corto). */
+export function ponerDestrabar(b: Borrador, modelo: string, on: boolean): Borrador {
+  const clave = claveDestrabo(modelo);
+  const destrabar = { ...b.destrabar };
+  if (on === destrabarPorDefecto(clave)) delete destrabar[clave];
+  else destrabar[clave] = on;
+  return { ...b, destrabar };
+}
+
+/** ¿Está prendido para ese modelo según el borrador? */
+export const destrabarOn = (b: Borrador, modelo: string): boolean => destrabarActivo(modelo, b.destrabar);
 
 /** Un local nuevo (`ollama:<modelo>`); si ya está, no se repite. */
 export function agregarLocal(b: Borrador, url: string, modelo: string): Borrador {
@@ -215,16 +269,7 @@ export function quitarLocal(b: Borrador, id: string): Borrador {
 
 /** Con qué corre un tipo según el borrador (sus filas, el `default` o lo de hoy). */
 export function efectivoBorrador(b: Borrador, tipo: Tipo, soloGemini = false): Eleccion {
-  return efectivoDe({ lider: b.lider, workers: b.workers, locales: b.locales, gemini: {}, claude: {} }, tipo, soloGemini);
-}
-
-/** "Usar los recomendados": cada tipo de worker con su modelo por defecto (los de Gemini si no hay Claude). El líder y el reparto quedan como están. */
-export function defaultsEn(b: Borrador, soloGemini = false): Borrador {
-  const { reparto: _, ...resto } = b;
-  const d = defaultsDe(soloGemini);
-  const workers: Borrador["workers"] = {};
-  for (const t of TIPOS) workers[t] = { ...d[t] };
-  return { ...resto, workers };
+  return efectivoDe({ lider: b.lider, workers: b.workers, locales: b.locales, excluir: [], permitir_max: false, gemini: {}, claude: {}, destrabar: {} }, tipo, soloGemini);
 }
 
 export const liderEfectivo = (b: Borrador): Eleccion => b.lider ?? HOY.lider;
@@ -241,12 +286,16 @@ export function topeEfectivo(b: Borrador, v: Ventana5o7): number {
   return typeof n === "number" ? n : TOPE_CLAUDE_DEFECTO;
 }
 
+/** Los topes que se van a guardar, o `null`: sin el interruptor no hay reserva y nada se cruza. */
+export const topesGuardados = (b: Borrador): { "5h": number; "7d": number } | null =>
+  b.guardar ? { "5h": topeEfectivo(b, "5h"), "7d": topeEfectivo(b, "7d") } : null;
+
 /**
  * Qué ventanas del plan ya cruzaron su tope con lo que se ve del uso (`pct` de 0 a 100; `null`: sin dato, no se afirma nada).
  * Cruzar es llegar al tope: `reparto` descarta a Claude cuando lo libre es igual o menor que la reserva.
  */
 export function cruces(b: Borrador, uso: { five_hour: { pct: number } | null; seven_day: { pct: number } | null } | null): Cruce[] {
-  if (!uso) return [];
+  if (!uso || !b.guardar) return [];
   const r: Cruce[] = [];
   const mira = (v: Ventana5o7, w: { pct: number } | null) => {
     const tope = topeEfectivo(b, v);

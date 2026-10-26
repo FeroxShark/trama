@@ -11,7 +11,7 @@
 #           lider-trabajando | lider-avisos | settle-confirmar | worker-vista | worker-vista-vivo |
 #           estadisticas-30 | estadisticas-medido | estadisticas-vacia | claude | claude-abierto | solo-lideres | ocultos |
 #           lider-sistema | sistema | herramientas | lider-compactando |
-#           lider-relevo | lider-imagenes | lider-tabla | lider-formato | lider-listas | lider-pensando | herramientas-resultados | lider-hover | te-espera |
+#           lider-relevo | lider-imagenes | lider-tabla | lider-formato | lider-listas | lider-pensando | lider-gemini | herramientas-resultados | lider-hover | te-espera |
 #           tablero | tablero-detalle | tablero-proyectos | tablero-iniciar | tablero-pospuestos | tablero-maquinas | tablero-vacio | maquinas-selector[-caida] | tablero-nuevo[-proyecto|-chat|-avisar] | lider-muerto | lider-app-muerto |
 #           compactando | consumo | orden-arrastrando | orden-menu | orden-prioridad | mover-menu | pc-apagada | pc-prendiendo | pc-prendida   (ver `Captura` en src/modo.ts)
 #   DIR=B5           a qué carpeta de docs/estado/ va (default B1); con una "/"

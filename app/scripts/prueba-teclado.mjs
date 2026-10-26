@@ -228,7 +228,8 @@ function revisar(que, vistas, minimo) {
     const sn2 = await a.en(sinNombre);
     ok(!sn2.length, `Ajustes: todo control a la vista tiene nombre${sn2.length ? ` — sin él: ${sn2.slice(0, 6).join("; ")}` : ""}`);
     revisar("Ajustes", await recorrer(a, 80), 5);
-    // Su botón de atajos abre la lista.
+    // Su botón de atajos abre la lista (vive en General).
+    await a.en(() => document.querySelector('.aj-it[data-cat="general"]')?.click());
     const filaAtajos = await a.en(() => {
       const b = [...document.querySelectorAll("main button")].find((x) => /atajos|shortcuts/i.test(x.textContent ?? ""));
       b?.focus();

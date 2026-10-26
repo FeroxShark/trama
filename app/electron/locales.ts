@@ -1,5 +1,6 @@
 // Los modelos locales (llama-server en la GPU de esta máquina): cuánto contexto (`-c`) se les da, cuánto entra en la
 // VRAM (estimado: electron/locales-calc.ts) y "Probar", que los carga de verdad con ese valor para confirmarlo.
+// Cuáles son: los declara el usuario en `~/.config/trama/locales.json` (electron/locales-config.ts); sin ese archivo no hay ninguno.
 // Qué se escribe y adónde:
 //   - `$HILOS_LOCALES_DIR/<clave>.env` (default `~/.config/trama/locales/`) con `LLAMA_CTX=<n>`: lo lee la unit
 //     (`EnvironmentFile=-…` y `-c ${LLAMA_CTX}`, plantillas en `systemd/locales/`), así el valor llega al `-c` real;
@@ -36,65 +37,13 @@ import {
   type Estimacion,
 } from "./locales-calc.ts";
 import { escribirAtomico } from "./pa.ts";
+import { leerConfigLocales, localDe, localesDeclarados, type LocalDef } from "./locales-config.ts";
 
-/** Una fila por modelo local: lo que hace falta saber de su unit y de su peso. Un modelo local nuevo = una fila (y su fila en `src/hilo/modelos.ts`). */
-export type LocalDef = {
-  /** El id de `src/hilo/modelos.ts`. */
-  id: string;
-  /** La clave de `qwen-model-switch` (qué unit carga). */
-  clave: string;
-  unit: string;
-  /** El `id` de su entrada en `~/.dsh/settings.yaml`. */
-  dshId: string;
-  /** Los archivos que van a la GPU (relativos a `~`); su tamaño real se mide al estimar. */
-  archivos: readonly string[];
-  /** Lo que pesan si el archivo no se puede medir. */
-  pesosMiB: number;
-  /** Lo que no crece con `-c`: buffers de cómputo (ubatch 1024), estado recurrente y contexto CUDA. */
-  fijoMiB: number;
-  /** Capas con atención completa (hay una cada 4; el borrador MTP suma una). */
-  capasKv: number;
-  /** El `-c` de la unit original: con lo que arranca si nada se guardó. */
-  ctxDefecto: number;
-  ctxMin: number;
-  /** Hasta donde entrena el modelo. */
-  ctxMax: number;
-  paso: number;
-};
+export { localDe, type LocalDef } from "./locales-config.ts";
+const defsDe = (d: Deps): readonly LocalDef[] => localesDeclarados(d.env, d.home);
+const defDe = (id: string, d: Deps) => localDe(id, d.env, d.home);
 
-const COMUN = { fijoMiB: 2048, ctxMin: 4096, ctxMax: 262144, paso: 1024 } as const;
-
-export const LOCALES: readonly LocalDef[] = [
-  {
-    id: "qwen-local",
-    clave: "hauhaucs",
-    unit: "qwen-llama-server.service",
-    dshId: "qwen38-uncensored",
-    archivos: [
-      "models/qwen38-27b/Qwen3.8-27B-Uncensored-HauhauCS-Aggressive-Q4_K_P.gguf",
-      "models/qwen38-27b/Qwen3.8-27B-Uncensored-HauhauCS-Aggressive-FastMTP-32K.gguf",
-    ],
-    pesosMiB: 17955,
-    capasKv: 17,
-    ctxDefecto: 32768,
-    ...COMUN,
-  },
-  {
-    id: "bonsai-local",
-    clave: "bonsai",
-    unit: "qwen-llama-server-bonsai.service",
-    dshId: "bonsai2-27b",
-    archivos: ["models/bonsai2-27b/Ternary-Bonsai-2-27B-PQ2_0.gguf"],
-    pesosMiB: 6873,
-    capasKv: 16,
-    ctxDefecto: 65536,
-    ...COMUN,
-  },
-];
-
-export const localDe = (id: string) => LOCALES.find((l) => l.id === id);
-
-/** El KV en q8_0 de los dos modelos (las unit pasan `--cache-type-k/v q8_0`): 4 cabezas KV de 256 de K y de V. */
+/** El KV en q8_0 (las units pasan `--cache-type-k/v q8_0`): 4 cabezas KV de 256 de K y de V. */
 const KV = { kvHeads: 4, dimK: 256, dimV: 256, bytesPorElemento: BYTES_Q8_0 } as const;
 
 // ---------- lo que se ve desde la ventana ----------
@@ -181,11 +130,11 @@ export function depsDeVerdad(env: NodeJS.ProcessEnv = process.env): Deps {
 const carpetaEnv = (d: Deps) => d.env.HILOS_LOCALES_DIR || path.join(d.home, ".config", "trama", "locales");
 export const archivoEnv = (d: Deps, l: LocalDef) => path.join(carpetaEnv(d), `${l.clave}.env`);
 export const archivoDsh = (d: Deps) => d.env.HILOS_DSH_SETTINGS || path.join(d.home, ".dsh", "settings.yaml");
-const urlLlama = (d: Deps) => d.env.HILOS_LLAMA_URL || "http://127.0.0.1:8080";
+const urlLlama = (d: Deps, l?: LocalDef) => l?.url || d.env.HILOS_LLAMA_URL || "http://127.0.0.1:8080";
 /** Donde están las units de usuario (las de verdad: `~/.config/systemd/user/`). */
 const carpetaUnits = (d: Deps) => d.env.HILOS_UNITS_DIR || path.join(d.env.XDG_CONFIG_HOME || path.join(d.home, ".config"), "systemd", "user");
 const nvidiaSmi = (d: Deps) => resolverBinario("nvidia-smi", "HILOS_NVIDIA_SMI", d.env, d.home);
-/** Espera de Probar: igual que `QWEN_SWITCH_ESPERA` de `qwen-model-switch` (300 s) más lo que tarda en bajar el otro. */
+/** Espera de Probar: 300 s de carga más lo que tarda en bajar el otro modelo. */
 export const PROBAR_ESPERA_MS = 330_000;
 /** Cada cuánto se mira la unit mientras carga (si se cayó, si llama-server ya avisó que no entra). */
 export const VIGILAR_MS = 2000;
@@ -249,15 +198,15 @@ async function ctxFijo(l: LocalDef, d: Deps): Promise<number | null> {
 export async function leerLocales(d: Deps = depsDeVerdad()): Promise<EstadoLocales> {
   const gpu = await leerGpu(d);
   const modelos: LocalInfo[] = [];
-  for (const l of LOCALES) modelos.push(await infoDe(l, d, gpu));
+  for (const l of defsDe(d)) modelos.push(await infoDe(l, d, gpu));
   return { modelos, gpuMiB: gpu?.totalMiB ?? null };
 }
 
 // ---------- guardar ----------
 
-function pedido(x: unknown): { l: LocalDef; ctx: number } {
+function pedido(x: unknown, d: Deps): { l: LocalDef; ctx: number } {
   const { id, ctx } = (x ?? {}) as { id?: unknown; ctx?: unknown };
-  const l = typeof id === "string" ? localDe(id) : undefined;
+  const l = typeof id === "string" ? defDe(id, d) : undefined;
   if (!l) throw errorT("main.localDesconocido");
   const c = ctxValido(ctx, l.ctxMin, l.ctxMax);
   if (c == null) throw errorT("main.localCtxInvalido", { min: l.ctxMin, max: l.ctxMax });
@@ -275,7 +224,7 @@ async function escribirCtx(l: LocalDef, ctx: number, d: Deps): Promise<void> {
 
 /** Guarda el `-c` elegido (rige en la próxima carga; no carga nada). Devuelve el estado ya al día. */
 export async function guardarLocal(x: unknown, d: Deps = depsDeVerdad()): Promise<EstadoLocales> {
-  const { l, ctx } = pedido(x);
+  const { l, ctx } = pedido(x, d);
   await escribirCtx(l, ctx, d);
   return leerLocales(d);
 }
@@ -300,18 +249,34 @@ const journal = (l: LocalDef, d: Deps, desde: number) =>
 
 const parar = (l: LocalDef, d: Deps) => d.ejecutar("systemctl", ["--user", "stop", l.unit], { timeout: 60_000 }).catch(() => "");
 
+/** Sin conmutador: arranca la unit y espera a que llama-server conteste `/health` sirviendo a este modelo. Rechaza si no llega a tiempo. */
+async function arrancarUnit(l: LocalDef, d: Deps): Promise<string> {
+  await d.ejecutar("systemctl", ["--user", "start", l.unit], { timeout: 60_000 });
+  const url = urlLlama(d, l);
+  const fin = d.ahora() + PROBAR_ESPERA_MS;
+  while (d.ahora() < fin) {
+    if ((await d.pedirJson(`${url}/health`, 3000)) != null && aliasDe(await d.pedirJson(`${url}/v1/models`, 3000)).includes(l.dshId)) return "";
+    await d.dormir(VIGILAR_MS);
+    const s = await estadoUnit(l, d);
+    if (s && (s.activo === "failed" || s.activo === "inactive")) throw new Error(`${l.unit}: ${s.activo}`);
+  }
+  throw new Error(`${l.unit}: no contestó en ${PROBAR_ESPERA_MS / 1000} s`);
+}
+
 /**
- * Arranca la unit con `qwen-model-switch` (para la que esté en el 8080) y la vigila mientras carga: si se cae (con
- * `Restart=on-failure` systemd la relanzaría hasta 3 veces, ~45 s cada una, y `qwen-model-switch` lo toma como "sigue
+ * Arranca la unit con el conmutador del usuario (`conmutador` de locales.json: para la que esté en el puerto), o sin él con
+ * `systemctl --user start`, y la vigila mientras carga: si se cae (con
+ * `Restart=on-failure` systemd la relanzaría hasta 3 veces, ~45 s cada una, y el conmutador lo toma como "sigue
  * cargando"), la para y contesta enseguida. `null`: cargó; si no, por qué (texto `main.*`). Usa la GPU.
  */
 async function cargar(l: LocalDef, d: Deps): Promise<string | null> {
-  const conmutar = resolverBinario("qwen-model-switch", "HILOS_QWEN_SWITCH", d.env, d.home);
+  const conmutador = leerConfigLocales(d.env, d.home).conmutador;
+  const conmutar = conmutador ? resolverBinario(conmutador, "HILOS_CONMUTADOR", d.env, d.home) : null;
   const antes = (await estadoUnit(l, d))?.reinicios ?? 0;
   const desde = d.ahora();
   let termino = false;
-  const carga = d
-    .ejecutar(conmutar, [l.clave], { timeout: PROBAR_ESPERA_MS })
+  const carga = Promise.resolve()
+    .then(() => (conmutar ? d.ejecutar(conmutar, [l.clave], { timeout: PROBAR_ESPERA_MS }) : arrancarUnit(l, d)))
     .then(
       () => null,
       (e: unknown) => e,
@@ -326,7 +291,7 @@ async function cargar(l: LocalDef, d: Deps): Promise<string | null> {
     // (`--fit-target`), y en el borde el modelo igual carga. Se corta cuando la unit se cae de verdad (~45 s).
     if (s && seCayo(s, antes)) {
       cayo = true;
-      // Parada, `qwen-model-switch` la ve inactive y sale solo (en ≤ 2 s).
+      // Parada, el conmutador la ve inactive y sale solo (en ≤ 2 s).
       await parar(l, d);
       break;
     }
@@ -349,15 +314,15 @@ async function noEntra(l: LocalDef, d: Deps): Promise<string | null> {
 }
 
 /**
- * Carga el modelo con ese `-c` (para el que esté cargado y arranca el suyo con `qwen-model-switch`), espera `/health`,
+ * Carga el modelo con ese `-c` (para el que esté cargado y arranca el suyo con el conmutador), espera `/health`,
  * lee el `n_ctx` de `/props` y la memoria de la GPU. Si carga, queda guardado; si no, vuelve lo que había y se dice por qué.
  * SÓLO se llama con el clic del usuario: usa la GPU.
  * Falla rápido, sin cargar nada, si la unit instalada no lee el `-c` de trama o si sólo los pesos ya no entran en la VRAM
  * libre. Mientras carga mira la unit: si se cae (con `Restart=on-failure` systemd la relanzaría hasta 3 veces, ~45 s cada
- * una, y `qwen-model-switch` lo toma como "sigue cargando") o llama-server avisa que no entra, la para y contesta enseguida.
+ * una, y el conmutador lo toma como "sigue cargando") o llama-server avisa que no entra, la para y contesta enseguida.
  */
 export async function probarLocal(x: unknown, d: Deps = depsDeVerdad()): Promise<ResultadoProbar> {
-  const { l, ctx } = pedido(x);
+  const { l, ctx } = pedido(x, d);
   if (probando) throw errorT("main.localOcupado");
   probando = true;
   const fallo = (error: string, nCtx: number | null = null): ResultadoProbar => ({ ok: false, nCtx, usadoMiB: null, total: null, error });
@@ -373,7 +338,7 @@ export async function probarLocal(x: unknown, d: Deps = depsDeVerdad()): Promise
     const yamlAntes = await d.leer(archivoDsh(d));
     const dshAntes = yamlAntes == null ? null : contextWindowDe(yamlAntes, l.dshId);
     await escribirCtx(l, ctx, d);
-    // Si ya está activa, `qwen-model-switch` no la reinicia: se la para para que la próxima carga lea el `-c` nuevo.
+    // Si ya está activa, el conmutador no la reinicia: se la para para que la próxima carga lea el `-c` nuevo.
     await parar(l, d);
     const caida = await cargar(l, d);
 
@@ -381,7 +346,7 @@ export async function probarLocal(x: unknown, d: Deps = depsDeVerdad()): Promise
     let nCtx: number | null = null;
     if (caida != null) error = caida;
     else {
-      nCtx = nCtxDe(await d.pedirJson(`${urlLlama(d)}/props`, 5000));
+      nCtx = nCtxDe(await d.pedirJson(`${urlLlama(d, l)}/props`, 5000));
       if (nCtx === ctx) {
         const gpu = await leerGpu(d);
         return { ok: true, nCtx, usadoMiB: gpu?.usadoMiB ?? null, total: gpu?.totalMiB ?? null, error: null };
@@ -417,12 +382,12 @@ const cargando = new Map<string, Promise<Servido>>();
 
 /**
  * Que llama-server (127.0.0.1:8080) esté sirviendo a este modelo antes de que un líder le escriba. Si ya está, no toca nada
- * (un `GET /v1/models`); si no, lo carga con `qwen-model-switch` (baja al modelo que estuviera: hay uno a la vez), con el
+ * (un `GET /v1/models`); si no, lo carga con el conmutador (baja al modelo que estuviera: hay uno a la vez), con el
  * mismo aviso que Probar si no entra en la VRAM y la misma vigilancia si se cae. Lo llama un líder local con cada mensaje
  * (nunca una prueba: los tests le pasan `Deps` falsos). Dos líderes del mismo modelo a la vez esperan la misma carga.
  */
 export function asegurarLocal(id: string, d: Deps = depsDeVerdad()): Promise<Servido> {
-  const l = localDe(id);
+  const l = defDe(id, d);
   if (!l) return Promise.reject(errorT("main.localDesconocido"));
   const ya = cargando.get(l.id);
   if (ya) return ya;
@@ -432,7 +397,7 @@ export function asegurarLocal(id: string, d: Deps = depsDeVerdad()): Promise<Ser
 }
 
 async function asegurarYa(l: LocalDef, d: Deps): Promise<Servido> {
-  const url = urlLlama(d);
+  const url = urlLlama(d, l);
   const servido = async () => {
     if (!aliasDe(await d.pedirJson(`${url}/v1/models`, 3000)).includes(l.dshId)) return null;
     const props = await d.pedirJson(`${url}/props`, 3000);
@@ -457,7 +422,7 @@ async function asegurarYa(l: LocalDef, d: Deps): Promise<Servido> {
 
 /** Adónde y con qué contexto hablaría un líder local, sin cargar nada (el `-c` guardado): para levantar su `claude` ocioso. */
 export async function destinoLocal(id: string, d: Deps = depsDeVerdad()): Promise<Servido> {
-  const l = localDe(id);
+  const l = defDe(id, d);
   if (!l) throw errorT("main.localDesconocido");
-  return { url: urlLlama(d), ctx: (await infoDe(l, d, null)).ctx };
+  return { url: urlLlama(d, l), ctx: (await infoDe(l, d, null)).ctx };
 }

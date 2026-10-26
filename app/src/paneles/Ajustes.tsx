@@ -1,22 +1,25 @@
 // Ajustes: muestra con qué números corre todo y qué hace cada uno, en criollo.
-// Se guardan al elegir el idioma, el tamaño de letra, las fuentes y los mensajes tiernos (preferencias.json) y los
-// modelos con que los líderes lanzan workers (la tabla de routing de ~/CLAUDE.md). Con Guardar (una barra fija abajo,
+// Se guardan al elegir el idioma, el tamaño de letra, las fuentes y los mensajes tiernos (preferencias.json). Con Guardar (una barra fija abajo,
 // y Cancelar que vuelve a lo guardado), el plan, cuándo compacta Claude, los modelos y proveedores y el acceso desde
-// el celular: AjustesEditar.tsx.
-import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
+// el celular: AjustesEditar.tsx. El modelo con que se dicta (Handy) también se guarda al elegir (preferencias.json).
+import { useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
 import { elegirApariencia } from "../apariencia";
 import { VERSION } from "../datos/contrato";
+import { MODELO_LARGE_V3, MODELO_TURBO, type ModelosDictado } from "../../electron/dictado-modelos";
 import { fuente } from "../datos/fuente";
-import { fuentePaneles, type Ajustes as Datos, type FilaRouting, type Rol, type Routing } from "../datos/paneles";
-import { effortsOpciones, MODELOS_WORKER } from "../hilo/opciones";
+import { fuentePaneles, type Ajustes as Datos } from "../datos/paneles";
 import { Selector, type Opcion } from "../hilo/Selector";
 import { MODO } from "../modo";
 import { cambiarIdioma, esIdioma, idioma, t, textoMain, type ClaveSola } from "../i18n";
 import { abrirAtajos } from "./Atajos";
+import { abrirBienvenida } from "./Bienvenida";
 import { BarraGuardar, Celular, PlanYRed } from "./AjustesEditar";
 import { AjustesCuentas } from "./AjustesCuentas";
 import { AjustesModelos } from "./AjustesModelos";
+import { Compactar } from "./AjustesCompactar";
+import { IcAtajos, IcAviso, IcCodigo, ICONO, IcIdioma, IcLetra, IcTiernos, IcTipografia } from "../ui/iconos";
 import { Carcasa } from "./AjustesCarcasa";
+import { AjustesMarco, Cat } from "./AjustesNav";
 import { ErrorCarga } from "./ErrorCarga";
 import { useIdioma } from "../i18n/react";
 import { enOtros, Fijo } from "../i18n/Fijo";
@@ -26,31 +29,11 @@ import { alCambiarAvisarEspera, avisarEspera, cambiarAvisarEspera } from "../esp
 import { mensaje } from "../puente";
 import { alCambiarApariencia, apariencia, FUENTES, LETRA_DEF, LETRA_MAX, LETRA_MIN, MONOS, type Fuente } from "../tipografia";
 
-/** Las tres filas de worker de la tabla de routing de `~/CLAUDE.md`. */
-const ROLES: Record<Rol, { para: ClaveSola; que: ClaveSola }> = {
-  codigo: { para: "rol.codigo", que: "rol.codigoQue" },
-  explorar: { para: "rol.explorar", que: "rol.explorarQue" },
-  diseno: { para: "rol.diseno", que: "rol.disenoQue" },
-};
-
 /** Cada idioma con su nombre en ese idioma (así lo encuentra quien no lee el otro). */
 const IDIOMAS: Opcion[] = [
   { id: "en", nombre: "English", desc: "" },
   { id: "es", nombre: "Español", desc: "" },
 ];
-
-/** El id de "Lo decide el líder" en el selector (en el archivo, la columna Modelo dice `lo decide el líder`). */
-const LIDER = "lider";
-// Acá "default" confunde (cada fila tiene el suyo): sin la marca. El spread copia
-// la descripción del idioma de ahora: se arma al pintar.
-const SIN_MARCA = (o: Opcion): Opcion => ({ ...o, rec: false });
-
-/** Los modelos de siempre, el de la tabla si es otro, y "Lo decide el líder". */
-function opcionesModelo(actual: string | null): Opcion[] {
-  const ops = MODELOS_WORKER.map(SIN_MARCA);
-  if (actual && !ops.some((o) => o.id === actual)) ops.push({ id: actual, nombre: actual, desc: t("ajustes.deClaudeMd") });
-  return [...ops, { id: LIDER, nombre: t("ajustes.liderDecide"), desc: t("ajustes.liderDecideQue") }];
-}
 
 /** Cambia en el momento (sin reiniciar) y se guarda en preferencias.json. */
 function elegirIdioma(id: string) {
@@ -76,7 +59,7 @@ function Apariencia() {
   const a = useSyncExternalStore(alCambiarApariencia, apariencia);
   return (
     <>
-      <Dato nombre="ajustes.letra" que="ajustes.letraQue">
+      <Dato nombre="ajustes.letra" que="ajustes.letraQue" icono={<IcLetra {...ICONO} />}>
         <div className="pn-letra" role="radiogroup" aria-label={t("ajustes.letra")}>
           {LETRAS.map((n) => (
             <button
@@ -93,7 +76,7 @@ function Apariencia() {
           ))}
         </div>
       </Dato>
-      <Dato nombre="ajustes.fuente" que="ajustes.fuenteQue">
+      <Dato nombre="ajustes.fuente" que="ajustes.fuenteQue" icono={<IcTipografia {...ICONO} />}>
         <div className="pn-sel pn-abajo">
           <Selector
             etiqueta={t("ajustes.fuente")}
@@ -105,7 +88,7 @@ function Apariencia() {
           />
         </div>
       </Dato>
-      <Dato nombre="ajustes.mono" que="ajustes.monoQue">
+      <Dato nombre="ajustes.mono" que="ajustes.monoQue" icono={<IcCodigo {...ICONO} />}>
         <div className="pn-sel pn-abajo">
           <Selector
             etiqueta={t("ajustes.mono")}
@@ -140,14 +123,17 @@ function elegirTiernos(id: string) {
  * tooltip) y la explicación reserva el alto del idioma más largo: cambiar de
  * idioma no mueve ninguna fila (B21).
  */
-function Dato({ nombre, que, children }: { nombre: ClaveSola; que: ClaveSola; children: ReactNode }) {
+function Dato({ nombre, que, icono, children }: { nombre: ClaveSola; que: ClaveSola; icono?: ReactNode; children: ReactNode }) {
   return (
-    <div className="pn-dato">
-      <div>
-        <div className="pn-nom" data-tip={t(nombre)}>
-          {t(nombre)}
+    <div className="pn-dato" data-opc={nombre}>
+      <div className="pn-dato-id">
+        {icono ? <span className="ui-fila-ico" aria-hidden="true">{icono}</span> : null}
+        <div className="pn-dato-txt">
+          <div className="pn-nom" data-tip={t(nombre)}>
+            {t(nombre)}
+          </div>
+          <Fijo k={que} bloque className="pn-que" />
         </div>
-        <Fijo k={que} bloque className="pn-que" />
       </div>
       <div className="pn-val">{children}</div>
     </div>
@@ -161,8 +147,6 @@ export function Ajustes() {
   const tiernos = useTiernos();
   const avisar = useSyncExternalStore(alCambiarAvisarEspera, avisarEspera);
   const [intento, setIntento] = useState(0);
-  // Guardar Modelos y proveedores puede cambiar las filas de ~/CLAUDE.md: la sección de abajo se lee de nuevo.
-  const [rev, setRev] = useState(0);
 
   useEffect(() => {
     let vivo = true;
@@ -179,25 +163,16 @@ export function Ajustes() {
     };
   }, [intento]);
 
-  const refrescarRouting = async () => {
-    const r = await fuentePaneles.ajustes().catch(() => null);
-    if (r && r.version === VERSION) {
-      setA(r);
-      setRev((n) => n + 1);
-    }
-  };
-
   // El idioma, la letra y las fuentes van siempre, aunque los datos no hayan llegado o hayan fallado.
   const app = (
     <section className="pn-sec">
-      <h2 className="pn-h">{t("ajustes.app")}</h2>
-      <Dato nombre="ajustes.idioma" que="ajustes.idiomaQue">
+      <Dato nombre="ajustes.idioma" que="ajustes.idiomaQue" icono={<IcIdioma {...ICONO} />}>
         <div className="pn-sel">
           <Selector etiqueta={t("ajustes.idioma")} opciones={IDIOMAS} valor={idioma()} alElegir={elegirIdioma} reserva={[]} />
         </div>
       </Dato>
       <Apariencia />
-      <Dato nombre="ajustes.tiernos" que="ajustes.tiernosQue">
+      <Dato nombre="ajustes.tiernos" que="ajustes.tiernosQue" icono={<IcTiernos {...ICONO} />}>
         <div className="pn-sel">
           <Selector
             etiqueta={t("ajustes.tiernos")}
@@ -211,7 +186,7 @@ export function Ajustes() {
           />
         </div>
       </Dato>
-      <Dato nombre="ajustes.avisarEspera" que="ajustes.avisarEsperaQue">
+      <Dato nombre="ajustes.avisarEspera" que="ajustes.avisarEsperaQue" icono={<IcAviso {...ICONO} />}>
         <div className="pn-sel">
           <Selector
             etiqueta={t("ajustes.avisarEspera")}
@@ -225,124 +200,128 @@ export function Ajustes() {
           />
         </div>
       </Dato>
-      <Dato nombre="ajustes.atajos" que="ajustes.atajosQue">
+      <Dato nombre="ajustes.atajos" que="ajustes.atajosQue" icono={<IcAtajos {...ICONO} />}>
         <button type="button" className="btn2" onClick={abrirAtajos}>
           <Fijo k="ajustes.atajosVer" />
+        </button>
+      </Dato>
+      <Dato nombre="ajustes.bienvenida" que="ajustes.bienvenidaQue">
+        <button type="button" className="btn2" onClick={abrirBienvenida}>
+          <Fijo k="bv.ajustesVer" />
         </button>
       </Dato>
     </section>
   );
 
-  // Mismo lugar en el árbol con o sin datos: el selector no se remonta cuando llegan.
+  // Mismo lugar en el árbol con o sin datos: el selector no se remonta cuando llegan. Cada bloque queda montado aunque su
+  // categoría no se vea (AjustesNav.tsx): los borradores que se guardan con la barra de abajo no se pierden al cambiar de lugar.
   return (
     <>
-      {a ? <Fijo k="ajustes.nota" bloque className="pn-nota" /> : null}
+      <AjustesMarco>
+        <Cat id="general">
+          {a ? <Fijo k="ajustes.nota" bloque className="pn-nota" /> : null}
+          {app}
+        </Cat>
 
-      {app}
-
-      {error ? (
-        <ErrorCarga
-          error={error}
-          alReintentar={() => {
-            setError(null);
-            setIntento((n) => n + 1);
-          }}
-        />
-      ) : !a ? (
-        <div className="pn-aviso">{t("ajustes.leyendo")}</div>
-      ) : (
-        <Numeros a={a} rev={rev} />
-      )}
-      <AjustesCuentas Dato={Dato} />
-      <AjustesModelos Dato={Dato} alGuardar={() => void refrescarRouting()} />
-      <Celular Dato={Dato} />
-      <Carcasa Dato={Dato} />
+        {/* El aviso de carga va fuera de toda categoría: se ve estés donde estés, no sólo en Cupos. */}
+        {error ? (
+          <ErrorCarga
+            error={error}
+            alReintentar={() => {
+              setError(null);
+              setIntento((n) => n + 1);
+            }}
+          />
+        ) : !a ? (
+          <div className="pn-aviso">{t("ajustes.leyendo")}</div>
+        ) : (
+          <Numeros a={a} />
+        )}
+        <Cat id="modelos" orden={3}>
+          <Dictado />
+        </Cat>
+        <Cat id="cuentas">
+          <AjustesCuentas Dato={Dato} />
+        </Cat>
+        <AjustesModelos Dato={Dato} plan={a?.plan ?? null} />
+        <Celular Dato={Dato} />
+        <Cat id="actualizaciones">
+          <Carcasa Dato={Dato} />
+        </Cat>
+      </AjustesMarco>
       <BarraGuardar />
     </>
   );
 }
 
-function Numeros({ a, rev }: { a: Datos; rev: number }) {
-  return (
-    <>
-      <PlanYRed inicial={a} Dato={Dato} />
-
-      <Modelos key={rev} inicial={a.routing} />
-    </>
-  );
-}
+/** Para qué sirve cada uno de los que Trama recomienda (los demás, los que Handy ya tiene bajados, sin explicación). */
+const QUE_DICTADO: Record<string, ClaveSola> = { [MODELO_TURBO]: "ajustes.dictadoTurbo", [MODELO_LARGE_V3]: "ajustes.dictadoLarge" };
 
 /**
- * Los modelos de los workers: con qué lanzan los líderes a sus workers (no el
- * modelo del líder). Cada elección se guarda en el momento en `~/CLAUDE.md`
- * (sólo esa fila, dentro de los marcadores `trama:routing`); si el main no
- * pudo, vuelve lo que había y el error queda en línea.
+ * El modelo de Handy con que se transcribe lo que se dicta en la caja de un líder. Se guarda al elegir; rige desde la
+ * próxima grabación. Uno sin bajar se ve pero no se elige (Handy no descarga nada al transcribir).
  */
-function Modelos({ inicial }: { inicial: Routing }) {
-  const [r, setR] = useState(inicial);
-  const [error, setError] = useState<string | null>("error" in inicial ? inicial.error : null);
-  const [guardando, setGuardando] = useState(false);
-  // Los cambios se mandan de a uno y en orden: el último que llega manda.
-  const cola = useRef(Promise.resolve());
+function Dictado() {
+  const [d, setD] = useState<ModelosDictado | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  const elegir = (f: FilaRouting, modelo: string | null, effort: string | null) => {
-    if ("error" in r) return;
-    const antes = r;
-    const nota = modelo === null ? "—" : effort === f.effort ? f.nota : (effort ?? "");
-    setR({ ...r, filas: r.filas.map((x) => (x.rol === f.rol ? { ...x, modelo, effort, nota } : x)) });
+  useEffect(() => {
+    let vivo = true;
+    fuente.dictadoModelos().then(
+      (r) => vivo && setD(r),
+      (e) => vivo && setError(mensaje(e)),
+    );
+    return () => {
+      vivo = false;
+    };
+  }, []);
+
+  const elegir = (id: string) => {
+    if (!d || id === d.elegido) return;
+    const antes = d;
+    setD({ ...d, elegido: id });
     setError(null);
-    setGuardando(true);
-    cola.current = cola.current.then(async () => {
-      const nuevo = await fuentePaneles.guardarRouting([{ rol: f.rol, modelo, effort }]);
-      setGuardando(false);
-      if (nuevo.version !== VERSION) setError(t("error.version", { que: "CLAUDE.md", v: nuevo.version, conozco: VERSION }));
-      else if ("error" in nuevo) {
-        setR(antes);
-        setError(nuevo.error);
-      } else setR(nuevo);
+    fuente.elegirDictadoModelo(id).then(setD, (e) => {
+      setD(antes);
+      setError(mensaje(e));
     });
   };
 
+  const opciones: Opcion[] = (d?.modelos ?? []).map((m) => ({
+    id: m.id,
+    nombre: m.nombre,
+    desc: !m.bajado ? t("ajustes.dictadoSinBajar") : QUE_DICTADO[m.id] ? t(QUE_DICTADO[m.id]) : "",
+    rec: m.id === MODELO_TURBO,
+    deshabilitada: !m.bajado && m.id !== d?.elegido,
+  }));
+
   return (
     <section className="pn-sec">
-      <h2 className="pn-h">{t("ajustes.modelos")}</h2>
-      <Fijo k="ajustes.modelosIntro" bloque className="pn-nota pn-intro" />
-      {"error" in r ? null : (
-        <div className="pn-modelos" aria-busy={guardando}>
-          {r.filas.map((f, i) => (
-            <Dato key={f.rol} nombre={ROLES[f.rol].para} que={ROLES[f.rol].que}>
-              <div className="pn-sel">
-                <Selector
-                  etiqueta={t("ajustes.selModelo", { rol: t(ROLES[f.rol].para) })}
-                  opciones={opcionesModelo(f.modelo)}
-                  valor={f.modelo ?? LIDER}
-                  alElegir={(m) => (m === LIDER ? elegir(f, null, null) : elegir(f, m, f.effort ?? "high"))}
-                  chip={<span className="chip" />}
-                  reserva={enOtros("ajustes.liderDecide")}
-                  abierto={MODO.variante === "modelo" && i === 0}
-                />
-                {f.modelo === null ? (
-                  <span className="pn-falta">{t("ajustes.sinDefault")}</span>
-                ) : (
-                  <Selector
-                    etiqueta={t("ajustes.selEsfuerzo", { rol: t(ROLES[f.rol].para) })}
-                    opciones={effortsOpciones(f.modelo).map(SIN_MARCA)}
-                    valor={f.effort ?? ""}
-                    alElegir={(e) => elegir(f, f.modelo, e)}
-                    reserva={[]}
-                  />
-                )}
-              </div>
-              {f.modelo !== null && f.nota && f.nota !== f.effort ? (
-                <div className="pn-alt">
-                  <span>{f.nota}</span>
-                </div>
-              ) : null}
-            </Dato>
-          ))}
+      <h2 className="pn-h">{t("ajustes.dictadoH")}</h2>
+      <Dato nombre="ajustes.dictado" que="ajustes.dictadoQue">
+        <div className="pn-sel">
+          <Selector etiqueta={t("ajustes.dictado")} opciones={opciones} valor={d?.elegido ?? ""} alElegir={elegir} disabled={!d} reserva={[]} abierto={MODO.variante === "dictado"} />
         </div>
-      )}
-      {error ? <div className="pn-error pn-routing-error" role="alert">{textoMain(error)}</div> : null}
+        {d && (d.motor === null || d.motor === "windows") ? (
+          <div className="pn-alt">
+            <span>{t(d.motor === null ? "ajustes.dictadoSinHandy" : "ajustes.dictadoWindows")}</span>
+          </div>
+        ) : null}
+      </Dato>
+      {error ? <div className="pn-error" role="alert">{textoMain(error)}</div> : null}
     </section>
+  );
+}
+
+function Numeros({ a }: { a: Datos }) {
+  return (
+    <>
+      <Cat id="cupos">
+        <PlanYRed inicial={a} Dato={Dato} />
+      </Cat>
+      <Cat id="general" orden={2}>
+        <Compactar inicial={a} Dato={Dato} />
+      </Cat>
+    </>
   );
 }

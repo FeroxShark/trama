@@ -45,6 +45,11 @@ export type EnCurso = {
   parcial: string;
   /** El razonamiento que va llegando, todavía sin mensaje entero (se ve plegado: src/hilo/Turno.tsx). */
   pensando: string;
+  /**
+   * Este líder deja ver su razonamiento (llegó un `pensamiento` o un mensaje con `pensado`): Gemini lo trae, Claude no. Una vez
+   * visto no se olvida: la tarjeta y el turno muestran el razonamiento y los comandos en vez de la frase tierna.
+   */
+  razona: boolean;
   /** Desde cuándo responde (epoch s), o `null`. */
   desde: number | null;
   ocupado: boolean | null;
@@ -72,6 +77,7 @@ const VACIO: EnCurso = {
   turno: 0,
   parcial: "",
   pensando: "",
+  razona: false,
   desde: null,
   ocupado: null,
   ind: QUIETO,
@@ -143,10 +149,11 @@ function cambiarPor(sid: string, ev: EventoLider) {
       case "parcial":
         return { ...e, parcial: e.parcial + ev.texto };
       case "pensamiento":
-        return { ...e, pensando: e.pensando + ev.texto };
+        return { ...e, pensando: e.pensando + ev.texto, razona: true };
       case "mensaje": {
         // El razonamiento entero reemplaza al que venía llegando (si el mensaje no lo trae, se queda el que llegó).
         const pensado = ev.pensado || e.pensando;
+        const razona = e.razona || !!pensado;
         const ult = e.tanda[e.tanda.length - 1];
         // Los bloques del mismo mensaje van juntos, como en el transcript.
         if (ult?.rol === "assistant" && ev.mid && (ult as Mensaje & { mid?: string }).mid === ev.mid) {
@@ -157,10 +164,10 @@ function cambiarPor(sid: string, ev: EventoLider) {
             herramientas: [...ult.herramientas, ...ev.herramientas],
             ...(ult.det || ev.det?.length ? { det: [...(ult.det ?? []), ...(ev.det ?? [])] } : {}),
           };
-          return { ...e, parcial: "", pensando: "", tanda: [...e.tanda.slice(0, -1), junto], avisos: sinReintento(e.avisos) };
+          return { ...e, parcial: "", pensando: "", razona, tanda: [...e.tanda.slice(0, -1), junto], avisos: sinReintento(e.avisos) };
         }
         const m = { ...msj(e, { rol: "assistant", texto: ev.texto, herramientas: ev.herramientas, ts: new Date().toISOString(), modelo: ev.modelo, ...(ev.det?.length ? { det: ev.det } : {}), ...(pensado ? { pensado } : {}) }), mid: ev.mid };
-        return { ...e, parcial: "", pensando: "", tanda: [...e.tanda, m], avisos: sinReintento(e.avisos) };
+        return { ...e, parcial: "", pensando: "", razona, tanda: [...e.tanda, m], avisos: sinReintento(e.avisos) };
       }
       case "resultado": {
         // El final de lo que devolvió una herramienta: a su llamada, por id (B19).
@@ -243,6 +250,15 @@ const rehidratados = new Set<string>();
 
 /** Lo que hay de un líder (siempre el mismo objeto mientras no cambie). */
 export const enCurso = (sid: string): EnCurso => estados.get(sid) ?? VACIO;
+
+/** ¿Este líder deja ver su razonamiento? (ya llegó alguno). */
+export const razona = (sid: string): boolean => enCurso(sid).razona;
+
+/** El razonamiento del turno en curso, entero: lo de sus mensajes cerrados y, detrás, lo que sigue llegando. */
+export function razonDelTurno(sid: string): string {
+  const e = enCurso(sid);
+  return [...e.tanda.slice(e.turno).map((m) => m.pensado), e.pensando].filter(Boolean).join("\n\n");
+}
 
 /** Sólo el indicador (para la fila: no repinta con cada delta del texto). */
 export const indicador = (sid: string): Indicador => enCurso(sid).ind;

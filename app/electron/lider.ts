@@ -53,6 +53,7 @@ import {
 } from "./lider-arma.js";
 import { asegurarLocal, destinoLocal, localDe } from "./locales.js";
 import { armarContexto, prefacioGemini } from "./contexto-local.ts";
+import { resolverPa } from "./binario.ts";
 import { claseDeModelo, idAgy, localOllama, partirGemini, type Clase } from "./modelos-config.js";
 import { pedidoDe } from "./cache.ts";
 import { convDe } from "./conv-cache.ts";
@@ -412,7 +413,7 @@ async function extraDe(modelo: string, cwd: string | undefined): Promise<Extra> 
     if (!o) throw errorT("main.ollamaNoEsta", { v: modelo });
     return { ollama: { url: o.url, modelo: o.modelo } };
   }
-  if (clase === "gemini") return { prefacio: await prefacioGemini({ home: HOME, cwd }).catch((e) => (silencio("contexto-gemini")(e), "")) };
+  if (clase === "gemini") return { prefacio: await prefacioGemini({ home: HOME, cwd, pa: resolverPa(process.env, HOME) }).catch((e) => (silencio("contexto-gemini")(e), "")) };
   return {};
 }
 

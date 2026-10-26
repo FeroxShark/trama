@@ -23,6 +23,7 @@ import { ArrowUp, Check, Cpu, Folder, Paperclip, X } from "lucide-react";
 import { motion, useReducedMotion } from "motion/react";
 import { VERSION, type Lider, type Mensaje, type MotivoRetomar, type MotivoTraer, type Tokens } from "../datos/contrato";
 import { fuente, type EnvioLider } from "../datos/fuente";
+import { ChipSubagentes } from "../barra/Fila";
 import { Reloj } from "../barra/piezas";
 import { Leyendo } from "./Leyendo";
 import { MODO } from "../modo";
@@ -57,6 +58,7 @@ import { main, mensaje } from "../puente";
 import { agregarAdjuntos, archivosDe, archivosDeDatos, ErrorAdjunto, escucharAdjuntos, imagenesDe, leerAdjuntos, pegadoSinTexto, prepararAdjunto, quitarAdjunto, textoConArchivos, vaciarAdjuntos } from "./adjuntos";
 import { Adjuntos, Miniaturas } from "./Imagenes";
 import { Dictar } from "./Dictar";
+import { Logo } from "./Logos";
 import { PedidoPreguntas } from "./Preguntas";
 import { tandasPendientes } from "./preguntas";
 import { ARCHIVO_MAX, IMAGENES_MAX, type Imagen } from "../../electron/imagenes";
@@ -201,9 +203,11 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
   const [modelo, setModelo] = useState(() =>
     MODO.captura === "aviso" && l
       ? (MODELOS.find((m) => m.id !== modeloDe(l.modelo))?.id ?? MODELO_DEFAULT)
-      : MODO.captura === "local-esfuerzo" || MODO.captura === "local-ctx"
-        ? "qwen-local"
-        : (modeloDe(l?.modelo) ?? MODELO_DEFAULT),
+      : MODO.captura === "lider-comandos" && MODO.variante === "agy"
+        ? (MODELOS.find((m) => esAgy(m.id))?.id ?? MODELO_DEFAULT)
+        : MODO.captura === "local-esfuerzo" || MODO.captura === "local-ctx"
+          ? (MODELOS.find((m) => esLocal(m.id))?.id ?? MODELO_DEFAULT)
+          : (modeloDe(l?.modelo) ?? MODELO_DEFAULT),
   );
   const [effort, setEffort] = useState(() => effortDe(l?.effort, modelo) ?? effortPara(modelo, effortsLeidos() ?? {}));
   const tocado = useRef(!!l);
@@ -213,7 +217,12 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
   const modoVisto = l && app ? (vivo.modo ?? l.modo ?? MODO_DEFAULT) : modoNuevo;
   const modo: Modo = esModo(modoVisto) ? modoVisto : MODO_DEFAULT;
   const agy = esAgy(modelo);
+  // El motor del líder deja ver su razonamiento y sus comandos (Gemini; o cualquiera que ya mandó razonamiento): la tarjeta y el turno
+  // los muestran en vez de la frase tierna. Claude y los que no lo traen siguen como siempre.
+  const piensa = esAgy(modeloDe(l?.modelo) ?? modelo) || vivo.razona;
   const comandos = useSyncExternalStore(suscribirComandos, agy ? comandosAgy : comandosClaude);
+  // Los del otro proveedor: con ellos se sabe cuáles comandos sólo existen de este lado (la marca de cada fila).
+  const deOtro = useSyncExternalStore(suscribirComandos, agy ? comandosClaude : comandosAgy);
   // El menú de "/": la fila elegida y si el usuario lo cerró con Esc (vuelve al cambiar el texto).
   const [sel, setSel] = useState(0);
   const [sinMenu, setSinMenu] = useState(false);
@@ -232,8 +241,8 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
     [agy, modelo, effort, listaEstilos, estilos.actual],
   );
   const mn = useMemo(
-    () => (puede && !sinMenu ? menuEn(texto, caret, comandos, valores, modelo) : null),
-    [puede, sinMenu, texto, caret, comandos, valores, modelo],
+    () => (puede && !sinMenu ? menuEn(texto, caret, comandos, valores, modelo, deOtro) : null),
+    [puede, sinMenu, texto, caret, comandos, valores, modelo, deOtro],
   );
   const menu = mn?.filas ?? [];
   const [nota, setNota] = useState<string | null>(null);
@@ -721,7 +730,7 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
   };
 
   const cache = useMemo(
-    () => (l && l.cache_vence !== null ? pintorCache(`lider:${l.id}:${l.cache_vence}`, l.cache_vence, l.cache_ttl_s, false) : null),
+    () => (l && l.cache_vence !== null && !l.subagentes ? pintorCache(`lider:${l.id}:${l.cache_vence}`, l.cache_vence, l.cache_ttl_s, false) : null),
     [l],
   );
 
@@ -760,6 +769,7 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
             <span>{l.titulo || nombreModelo(modelo)}</span>
             {l.effort ? <span>{l.effort}</span> : null}
             {!ocupado && cache ? <Reloj pintor={cache} className="cache" /> : null}
+            {l.subagentes ? <ChipSubagentes n={l.subagentes} clave={l.id} /> : null}
             {app && !l.vivo && !l.caido ? <span className="tenue">{tr("lider.dormido")}</span> : null}
             {l.caido ? <span className={l.caido === "murio" ? "c-fallo" : "tenue"} title={l.motivo}>{tr(l.caido === "murio" ? "estado.fallo" : "lider.cerrado")}</span> : null}
           </>
@@ -793,6 +803,7 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
             ocupado={ocupado}
             pasando={pasando}
             pensando={app && ocupado && vivo.ind.hace?.que === "pensando"}
+            razon={app && piensa}
             relevo={relevo}
             sigue={sigue}
             nombre={l?.nombre}
@@ -804,7 +815,7 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
             </div>
           ) : null}
           <Avisos avisos={avisos} />
-          {pasando ? <Pasando /> : app && sid ? <HaceChat sid={sid} modelo={nombreModelo(modeloDe(l?.modelo) ?? modelo)} effort={l?.effort ?? effort} alParar={l ? parar : undefined} parando={vivo.parando} /> : compacta !== null ? <Compactando desde={compacta} /> : null}
+          {pasando ? <Pasando /> : app && sid ? <HaceChat sid={sid} piensa={piensa} modelo={nombreModelo(modeloDe(l?.modelo) ?? modelo)} effort={l?.effort ?? effort} alParar={l ? parar : undefined} parando={vivo.parando} /> : compacta !== null ? <Compactando desde={compacta} /> : null}
           {l
             ? encolados.map((x, k) => (
                 <div key={x.id} className="yo encolado" data-error={k === 0 && errorCola ? "" : undefined}>
@@ -855,6 +866,9 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
                 onMouseEnter={() => setSel(k)}
                 onClick={() => elegirComando(s, true)}
               >
+                <span className="cmd-m" aria-hidden="true">
+                  {s.solo ? <Logo empresa={s.solo} /> : null}
+                </span>
                 {s.valor !== undefined ? (
                   <span className="cmd-n">
                     <i>/{s.nombre} </i>
@@ -868,6 +882,7 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
                   </span>
                 )}
                 <span className="cmd-d">{s.clave ? tr(s.clave) : (s.descripcion ?? "")}</span>
+                {s.solo ? <span className="cmd-s">{tr(s.solo === "google" ? "comando.soloGoogle" : "comando.soloAnthropic")}</span> : null}
               </button>
             ))}
           </div>
@@ -1105,6 +1120,8 @@ type PropsMensajes = {
   pasando: boolean;
   /** Está razonando ahora: el bloque del último turno dice "Pensando…". */
   pensando: boolean;
+  /** Un motor que deja ver su razonamiento y sus comandos (Gemini). */
+  razon: boolean;
   relevo: ReturnType<typeof relevoEn>;
   sigue: Lider | null;
   nombre: string | undefined;
@@ -1115,7 +1132,7 @@ type PropsMensajes = {
  * La conversación. Aparte de la caja para que cada tecla no la recorra entera: lo que se escribe es estado de `ChatLider`, y con
  * 3000 mensajes volver a armarlos en cada letra tardaba más de 50 ms. Sólo se repinta cuando cambian los mensajes o el turno.
  */
-const Mensajes = memo(function Mensajes({ items, ultimoTurno, app, ocupado, pasando, pensando, relevo, sigue, nombre, alAbrirLider }: PropsMensajes) {
+const Mensajes = memo(function Mensajes({ items, ultimoTurno, app, ocupado, pasando, pensando, razon, relevo, sigue, nombre, alAbrirLider }: PropsMensajes) {
   return (
     <>
       {items.map((x, i) =>
@@ -1136,7 +1153,7 @@ const Mensajes = memo(function Mensajes({ items, ultimoTurno, app, ocupado, pasa
           <Fragment key={x.key}>
             <Marca k={x.key} />
             {/* Uno de la app dice qué hace abajo (HaceChat); uno de terminal, "Trabajando X s" en su turno. */}
-            <Turno t={x} vivo={!app && ocupado && i === ultimoTurno && !pasando} enCurso={ocupado && i === ultimoTurno} pensando={pensando && i === ultimoTurno} />
+            <Turno t={x} vivo={!app && ocupado && i === ultimoTurno && !pasando} enCurso={ocupado && i === ultimoTurno} pensando={pensando && i === ultimoTurno} razon={razon} />
             {relevo?.hecho && relevo.k === i ? (
               <Sigue nombre={sigue?.nombre ?? nombre ?? null} alAbrir={sigue && alAbrirLider ? () => alAbrirLider(sigue.id) : null} />
             ) : null}

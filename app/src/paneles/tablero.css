@@ -131,15 +131,15 @@
   min-height: 0;
   flex: 1 1 0;
   flex-direction: column;
-  border: 1px solid var(--borde-1);
-  border-radius: var(--radio-3);
-  background: var(--sup-0);
+  border: 0;
+  border-radius: var(--r-md);
+  background: var(--capa-card);
 }
 /* La columna donde caería la tarjeta que se lleva. */
 .tb-col[data-sobre],
 .tb-plegada[data-sobre] {
   border-color: var(--borde-6);
-  background: var(--sup-1);
+  background: var(--capa-hover);
 }
 .tb-col-h {
   display: flex;
@@ -148,7 +148,7 @@
   align-items: center;
   gap: var(--esp-1-5);
   padding: 0 var(--esp-1-5) 0 var(--esp-2-5);
-  border-bottom: 1px solid var(--borde-1);
+  border-bottom: 1px solid var(--capa-div);
   white-space: nowrap;
 }
 .tb-col-h b {
@@ -237,9 +237,9 @@
   gap: var(--esp-1);
   padding: var(--esp-2) var(--esp-2);
   overflow: hidden;
-  border: 1px solid var(--borde-2);
-  border-radius: var(--radio-2);
-  background: var(--sup-1);
+  border: 0;
+  border-radius: var(--r-sm);
+  background: var(--capa-tile);
   text-align: left;
 }
 .tb-card {
@@ -251,12 +251,10 @@
 }
 /* Sin transición: como las filas de la barra. */
 .tb-card:hover {
-  border-color: var(--borde-4);
-  background: var(--sup-2);
+  background: var(--capa-track);
 }
 .tb-card[data-activa] {
-  border-color: var(--borde-6);
-  background: var(--sup-2);
+  box-shadow: inset 0 0 0 1px var(--acento);
 }
 /* La que se está llevando deja su hueco. */
 .tb-card[data-llevada] {

@@ -8,6 +8,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { ESTADO, escribirAtomico } from "./pa.js";
 import { silencio } from "./log.js";
+import { esModeloDictado } from "./dictado-modelos.js";
 
 const ARCHIVO = path.join(ESTADO, "preferencias.json");
 const VERSION = 1;
@@ -25,7 +26,19 @@ export type VistaBarra = "todo" | "lideres";
 /** `autoIntegrar`: "Integrar solo lo seguro" de Ramas (B22); sin el campo, prendido. */
 /** `consumo`: el panel de consumo (a la derecha) está a la vista; sin el campo, oculto. */
 /** `avisarEspera`: la notificación de escritorio cuando un líder te espera y la ventana no tiene el foco; sin el campo, prendida. */
-export type Preferencias = { effort: Record<string, string>; idioma?: Idioma; tiernos?: boolean; avisarEspera?: boolean; vista?: VistaBarra; autoIntegrar?: boolean; consumo?: boolean } & Apariencia;
+/** `bienvenida`: la pantalla de primer arranque ya se vio (o se cerró); sin el campo, se muestra. */
+/** `dictadoModelo`: el modelo de Handy con que se transcribe el dictado (dictado-modelos.ts); sin el campo, Whisper Large v3 Turbo. */
+export type Preferencias = {
+  effort: Record<string, string>;
+  idioma?: Idioma;
+  tiernos?: boolean;
+  avisarEspera?: boolean;
+  vista?: VistaBarra;
+  autoIntegrar?: boolean;
+  consumo?: boolean;
+  dictadoModelo?: string;
+  bienvenida?: boolean;
+} & Apariencia;
 
 let prefs: Preferencias | null = null;
 
@@ -48,6 +61,8 @@ function desde(j: {
   vista?: unknown;
   autoIntegrar?: unknown;
   consumo?: unknown;
+  dictadoModelo?: unknown;
+  bienvenida?: unknown;
 }): Preferencias {
   if (j.version !== VERSION) return { effort: {} };
   const p: Preferencias = { effort: texto(j.effort) ? j.effort : {} };
@@ -60,6 +75,8 @@ function desde(j: {
   if (esVista(j.vista)) p.vista = j.vista;
   if (typeof j.autoIntegrar === "boolean") p.autoIntegrar = j.autoIntegrar;
   if (typeof j.consumo === "boolean") p.consumo = j.consumo;
+  if (esModeloDictado(j.dictadoModelo)) p.dictadoModelo = j.dictadoModelo;
+  if (typeof j.bienvenida === "boolean") p.bienvenida = j.bienvenida;
   return p;
 }
 
@@ -205,5 +222,33 @@ export async function guardarConsumo(si: unknown) {
   const p = await leerPreferencias();
   if ((p.consumo === true) === si) return;
   p.consumo = si;
+  await guardar(p);
+}
+
+/** El modelo del dictado que se eligió en Ajustes (rige desde la próxima transcripción). Devuelve si cambió. */
+export async function guardarDictadoModelo(id: unknown): Promise<boolean> {
+  if (!esModeloDictado(id)) return false;
+  const p = await leerPreferencias();
+  if (p.dictadoModelo === id) return false;
+  p.dictadoModelo = id;
+  await guardar(p);
+  return true;
+}
+
+/**
+ * ¿Hay que abrir la bienvenida sola? Sí si nunca se vio. Una corrida de prueba (bench, captura, pruebas, fixtures: las mismas
+ * señales de `enPrueba`, `aislar.ts`) dice que no, para que ningún script la encuentre encima de lo que mira.
+ */
+export async function bienvenidaPendiente(): Promise<boolean> {
+  const e = process.env;
+  if (e.HILOS_BENCH || e.HILOS_CAPTURA || e.HILOS_CAPTURA_PNG || e.HILOS_PRUEBA || e.HILOS_GUION || e.HILOS_FIXTURES === "1") return false;
+  return (await leerPreferencias()).bienvenida !== true;
+}
+
+export async function guardarBienvenida(si: unknown) {
+  if (typeof si !== "boolean") return;
+  const p = await leerPreferencias();
+  if ((p.bienvenida === true) === si) return;
+  p.bienvenida = si;
   await guardar(p);
 }

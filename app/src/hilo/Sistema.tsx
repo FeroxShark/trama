@@ -14,6 +14,7 @@ import {
   Hourglass,
   Image,
   Info,
+  LifeBuoy,
   MessagesSquare,
   Puzzle,
   Repeat,
@@ -56,7 +57,7 @@ const ESTADO: Record<string, ClaveSola> = {
   cancelled: "sistema.tareaParada",
 };
 
-type LineaChica = Exclude<Linea, { clase: "compacto" | "viene" }>;
+type LineaChica = Exclude<Linea, { clase: "compacto" | "viene" | "destrabo" }>;
 
 function textoLinea(s: LineaChica): { texto: string; grave: boolean; Icono: LucideIcon } {
   switch (s.clase) {
@@ -166,6 +167,8 @@ export const Sistema = memo(function Sistema({ s, nombre }: Props) {
     const k = s.antes ? t("aviso.antes", { k: Math.max(1, Math.round(s.antes / 1000)) }) : "";
     return <Divisor Icono={FoldVertical} texto={t(s.auto ? "sistema.compactadaAuto" : "sistema.compactada") + k} crudo={s.resumen ?? null} />;
   }
+  if (s.clase === "destrabo")
+    return <Divisor Icono={LifeBuoy} texto={t(s.agotado ? "hz.destraboTope" : "hz.destrabo", { que: s.que })} crudo={null} />;
   if (s.clase === "viene")
     return <Divisor Icono={Repeat} texto={nombre ? t("relevo.viene", { n: nombre }) : t("relevo.vieneSin")} crudo={s.texto} />;
   const { texto, grave, Icono } = textoLinea(s);

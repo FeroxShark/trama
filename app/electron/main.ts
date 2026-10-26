@@ -71,7 +71,7 @@ const aqui = import.meta.dirname;
 //                            (Ajustes), o inglés; en bench y captura, inglés siempre.
 //   HILOS_LETRA=13..18       tamaño de letra en px; HILOS_FUENTE=<id> y HILOS_MONO=<id>, las fuentes
 //                            (ids en src/tipografia.ts). Sin las variables: lo de preferencias.json
-//                            (Ajustes); en bench y captura, el default (13, Geist, Geist Mono).
+//                            (Ajustes); en bench y captura, el default (13, Inter, JetBrains Mono).
 //   HILOS_TIERNOS=1|0        los mensajes tiernos (B17). Sin la variable: lo de preferencias.json
 //   HILOS_CONSUMO=1|0        el panel de consumo a la vista. Sin la variable: lo de preferencias.json
 //                            (Ajustes); en bench y captura, prendidos (y sin rotar).

@@ -1,0 +1,182 @@
+/* Los tokens de diseño de trama, en un solo lugar. Dirección visual: docs/maquetas/lavado/ (dirección 1, "estándar pulido")
+   (vidrio quieto, acento celeste, cápsulas, grilla de 4 px, una sola fuente con cifras
+   tabulares). Los nombres de la primera parte (`--vidrio`, `--capa-*`, `--acento`, `--r-*`…) son los del estándar;
+   la segunda parte son los nombres que ya usa todo el CSS (`--sup-N`, `--borde-N`, `--texto-N`, `--txt-N`,
+   `--radio-N`, `--esp-N`, `--letra-N`) apuntando a esos valores: cambiar la cara de la app es cambiar este archivo.
+   Qué token va a qué: docs/estado/tokens.md. Lo que va a la vista en rem (1rem = 16px × letra/13). */
+:root {
+  color-scheme: dark;
+
+  /* --- Color: el vidrio y lo que va sobre él --- */
+  --fondo: #07080b; /* detrás de todo */
+  --vidrio: #101217; /* el tinte del vidrio */
+  --vidrio-a: rgb(16 18 23 / 0.4); /* panel (material "thick") */
+  --vidrio-opaco: rgb(16 18 23 / 0.94);
+  --luz: rgb(255 255 255 / 0.12); /* borde de luz de un panel */
+  --luz-arriba: rgb(255 255 255 / 0.14);
+
+  --texto: rgb(255 255 255 / 0.95);
+  --apagado: rgb(255 255 255 / 0.64);
+  --inactivo: rgb(255 255 255 / 0.36);
+
+  --acento: #8fb5f0;
+  --acento-texto: #0d1a2e; /* texto sobre el acento */
+  --ok: #7ad69b;
+  --aviso: #f2c35a;
+  --critico: #f26d6d;
+
+  /* Capas blancas translúcidas: los fondos de control no son colores sólidos, así el vidrio y el acento se leen. */
+  --capa-card: rgb(255 255 255 / 0.048);
+  --capa-div: rgb(255 255 255 / 0.064);
+  --capa-tile: rgb(255 255 255 / 0.096);
+  --capa-hover: rgb(255 255 255 / 0.08);
+  --capa-track: rgb(255 255 255 / 0.16);
+  --capa-input: rgb(255 255 255 / 0.07);
+  --acento-tinte: rgb(143 181 240 / 0.22); /* relleno activo */
+  --aviso-tinte: rgb(242 195 90 / 0.12);
+  --critico-tinte: rgb(242 109 109 / 0.12);
+  --ok-tinte: rgb(122 214 155 / 0.12);
+
+  /* --- Forma --- */
+  --r-xs: 0.375rem;
+  --r-sm: 0.625rem;
+  --r-md: 0.875rem;
+  --r-lg: 1.25rem;
+  --r-xl: 1.75rem;
+  --r-cap: 999rem; /* cápsula: botones, chips, interruptores */
+
+  /* Vidrio sobre la ventana: el blur no existe (sin GPU): tinte + borde de luz + sombra suave, nunca dura. */
+  --sombra-vidrio: 0 0.5rem 2rem rgb(0 0 0 / 0.16);
+  --vidrio-borde: inset 0 0 0 1px var(--luz);
+  --fondo-ventana:
+    radial-gradient(56rem 37.5rem at 15% 10%, #243553 0, transparent 60%),
+    radial-gradient(50rem 43.75rem at 90% 100%, #3a2a4a 0, transparent 60%), #0c1018;
+
+  /* --- Medidas del estándar --- */
+  --gap-paneles: 0.75rem; /* entre los paneles de vidrio y al borde de la ventana */
+  --alto-boton: 2.25rem;
+  --alto-chip: 1.5rem;
+  --alto-fila: 3rem;
+  --alto-nav: 2.5rem;
+
+  /* --- Movimiento: duraciones (los resortes viven en motion/JS; esto es para lo que se funde en CSS) --- */
+  --t-snappy: 0.14s;
+  --t-smooth: 0.2s;
+
+  /* ====================================================================== */
+  /* Los nombres de siempre, apuntando a la paleta de arriba. Los sólidos son lo que da cada capa
+     sobre el vidrio ya compuesto (#0e1118): sirven también para menús y cartas que no dejan ver lo de atrás. */
+  --ancho-barra: 320px;
+
+  --azul: var(--acento);
+  --verde: var(--ok);
+  --ambar: var(--aviso);
+  --rojo: var(--critico);
+
+  /* Texto de la barra, de más a menos importante. */
+  --txt-1: #f4f5f7;
+  --txt-2: #d2d5db;
+  --txt-3: #a9abb1;
+  --txt-4: #7d8087;
+
+  --negro: #07080b;
+  --blanco: #fff;
+
+  /* Superficies, de la más honda a la más alta: el panel, la tarjeta (+4,8 %), la baldosa (+9,6 %) y dos más. */
+  --sup-0: #0e1118;
+  --sup-1: #161920;
+  --sup-2: #1e2128;
+  --sup-3: #272a31;
+  --sup-4: #30333a;
+
+  /* Bordes: del divisor suave al foco. */
+  --borde-1: #1a1d23;
+  --borde-2: #20232a;
+  --borde-3: #292c33;
+  --borde-4: #353841;
+  --borde-5: #454953;
+  --borde-6: #5c606b;
+
+  /* Texto, del más claro al más apagado. */
+  --texto-1: #f4f5f7;
+  --texto-2: #e3e5e9;
+  --texto-3: #cfd2d8;
+  --texto-4: #a9abb1;
+  --texto-5: #8f9298;
+  --texto-6: #7d8087;
+  --texto-7: #5f626a;
+  --texto-8: #464951;
+
+  --azul-palido: #dbe8fb;
+  --verde-suave: var(--ok);
+  --verde-palido: #c4f0d4;
+  --verde-tinte: var(--ok-tinte);
+  --rojo-texto: #f58a8a;
+  --rojo-claro: #f8a8a8;
+  --rojo-palido: #fbc9c9;
+  --rojo-tinte: var(--critico-tinte);
+  --rojo-borde: rgb(242 109 109 / 0.35);
+  --oro: var(--aviso);
+  --rosa: #eaa0c8;
+  --modo-plan: rgb(127 209 199 / 0.85);
+  --enlace-subrayado: rgb(143 181 240 / 0.35);
+  --sombra: rgb(0 0 0 / 65%);
+  --fondo-modal: rgb(0 0 0 / 70%);
+  --sombra-popover: rgb(0 0 0 / 70%);
+  --velo: rgb(0 0 0 / 0.82);
+  --resalte-1: rgb(255 255 255 / 0.02);
+  --resalte-2: rgb(255 255 255 / 0.06);
+
+  /* Resaltado de código. */
+  --sint-str: #9ad48a;
+  --sint-num: #f0c27a;
+  --sint-kw: #b9a3f0;
+  --sint-fn: #8fb5f0;
+  --sint-var: #7fd1c7;
+  --sint-menos: #f0a08a;
+  --sint-com: #6b6e76;
+
+  /* La vista de worker: el diff y un color por clase de paso. */
+  --mas: var(--verde);
+  --menos: var(--rojo-texto);
+  --mas-fondo: color-mix(in srgb, var(--mas) 11%, var(--sup-0));
+  --mas-gutter: color-mix(in srgb, var(--mas) 20%, var(--sup-0));
+  --menos-fondo: color-mix(in srgb, var(--menos) 11%, var(--sup-0));
+  --menos-gutter: color-mix(in srgb, var(--menos) 20%, var(--sup-0));
+  --paso-pensar: #b9a3f0;
+  --paso-leer: var(--azul);
+  --paso-editar: var(--verde);
+  --paso-correr: #d2d5db;
+  --paso-delegar: var(--rosa);
+  --paso-texto: #dbe8fb;
+
+  /* Letra: 9, 10, 11, 12, 13, 14, 16 y 18 px a letra 13 (crecen con Ajustes, son rem). */
+  --letra-1: 0.5625rem;
+  --letra-2: 0.625rem;
+  --letra-3: 0.6875rem;
+  --letra-4: 0.75rem;
+  --letra-5: 0.8125rem;
+  --letra-6: 0.875rem;
+  --letra-7: 1rem;
+  --letra-8: 1.125rem;
+
+  /* Radios: los del estándar (6, 10, 14, 20, 28); `radio-1` queda en 2 px para las barritas de 3-4 px. */
+  --radio-1: 0.125rem;
+  --radio-2: var(--r-sm);
+  --radio-3: var(--r-md);
+  --radio-4: var(--r-lg);
+  --radio-pastilla: var(--r-cap);
+
+  /* Espaciado: pasos de 4 px (esp-1 = 4, 2 = 8, 3 = 12, 4 = 16, 6 = 24, 8 = 32 son los del estándar). */
+  --esp-0-5: 0.125rem;
+  --esp-1: 0.25rem;
+  --esp-1-5: 0.375rem;
+  --esp-2: 0.5rem;
+  --esp-2-5: 0.625rem;
+  --esp-3: 0.75rem;
+  --esp-3-5: 0.875rem;
+  --esp-4: 1rem;
+  --esp-5: 1.25rem;
+  --esp-6: 1.5rem;
+  --esp-8: 2rem;
+}

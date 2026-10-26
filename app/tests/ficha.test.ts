@@ -11,7 +11,7 @@ test("la familia sale del id del modelo", () => {
   assert.equal(familiaDe("claude-sonnet-5-5[1m]"), "sonnet");
   assert.equal(familiaDe("claude-fable-5-1"), "fable");
   assert.equal(familiaDe("claude-haiku-5-5"), "haiku");
-  assert.equal(familiaDe("qwen-local"), "otro");
+  assert.equal(familiaDe("modelo-local-ejemplo"), "otro");
   assert.equal(familiaDe(""), "otro");
   assert.equal(familiaDe(null), "otro");
 });
@@ -22,7 +22,7 @@ test("el chip del modelo dice su nombre corto, nunca una letra suelta", () => {
   assert.equal(modeloCorto("claude-sonnet-5-5[1m]"), "Sonnet");
   assert.equal(modeloCorto("claude-fable-5-1"), "Fable");
   assert.equal(modeloCorto("claude-haiku-5-5"), "Haiku");
-  assert.equal(modeloCorto("qwen-local"), "Qwen");
+  assert.equal(modeloCorto("modelo-local-ejemplo"), "Modelo");
   assert.equal(modeloCorto(""), null);
   assert.equal(modeloCorto(null), null);
 });

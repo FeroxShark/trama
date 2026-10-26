@@ -9,6 +9,7 @@ import { spawn, type ChildProcess } from "node:child_process";
 import type http from "node:http";
 import path from "node:path";
 import { CHANGELOG } from "./actualizacion.js";
+import { accesos } from "./celular-accesos.js";
 import { identidadEsta } from "./consulta.js";
 import { log, silencio } from "./log.js";
 import { escuchar, llamarRemoto, ponerEnlaceRemoto, soltarRemoto } from "./nucleo.js";
@@ -102,7 +103,13 @@ export function armarRemoto(o: OpcionesArmar) {
       preload: o.preload,
       nombres: [yo.nombre, yo.nombre.split(".")[0], ...yo.ips.map((ip) => (ip.includes(":") ? `[${ip}]` : ip))],
       propias: yo.ips,
-      entra: async (ip) => permitido(yo, await red.quien(ip), c.dispositivos),
+      entra: async (ip) => {
+        const nodo = await red.quien(ip);
+        const ok = permitido(yo, nodo, c.dispositivos);
+        // Quien entró queda anotado para la lista de Ajustes > Celular (sólo nombre, sistema, IP y hora).
+        if (ok && nodo) void accesos.anotar(nodo.nombre.slice(0, -(yo.sufijo.length + 1)), nodo.sistema ?? null, nodo.ip ?? null).catch(silencio("remoto"));
+        return ok;
+      },
       llamar: llamarRemoto,
       consulta: o.consulta,
       identidad: identidadEsta,

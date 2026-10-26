@@ -7,9 +7,13 @@
 //   step_update  { step_type: user_input | agent_response | tool, state: ACTIVE | DONE, step_index,
 //                  text_delta?, tool_name?, tool_info?: { name, parameters, output }, usage? }
 //   result       { status: SUCCESS | …, response, usage, duration_seconds }
+// `/compact` (y la compactación sola) no tiene stream propio: agy pasa por un paso `system_message` y uno `checkpoint`
+// (el resumen), sin texto. Se traduce al `system/status compacting` y al `system/compact_boundary` de Claude.
 // El texto llega en `text_delta` incrementales de un paso `agent_response`; una herramienta pasa por ACTIVE
 // (con sus parámetros) y DONE (con `tool_info.output`). Su razonamiento no sale en el stream (sólo
-// `thinking_tokens`): no hay bloque `thinking`.
+// `thinking_tokens`) pero sí en el transcript de la conversación de agy (`brain/<id>/…/transcript_full.jsonl`, campo
+// `thinking` del paso): al cerrar un paso `agent_response`, `Opciones.pensamiento` lo lee y sale como un bloque
+// `thinking` (stream y mensaje), el mismo que ya pinta la app para un modelo local.
 
 /** La ventana de contexto de Gemini 4 Argon / 3.8 Flash (1M tokens): lo que dice el medidor del chat. */
 export const VENTANA_GEMINI = 1_000_000;
@@ -84,6 +88,15 @@ export type Opciones = {
   modelo: string;
   /** Para los ids de mensaje y herramienta. */
   azar?: () => string;
+  /** El turno es un `/compact` que pidió la persona: dice "compactando" desde el principio y el cierre sale `manual`. */
+  compactar?: boolean;
+  /** Lo que pesaba el contexto antes de este turno (el `pre_tokens` del cierre); sin dato, `null`. */
+  contextoPrevio?: number | null;
+  /**
+   * El razonamiento del paso `paso` de la conversación `conversacion`, o `null` si no hay (agy no lo manda por el stream: se lee de su
+   * transcript). `esperado`: el paso dijo `thinking_tokens` > 0, así que si todavía no está vale la pena reintentar un instante.
+   */
+  pensamiento?: (conversacion: string, paso: number, esperado: boolean) => string | null;
 };
 
 /**
@@ -97,6 +110,7 @@ export class Traductor {
   /** Lo que se dijo en el turno: el transcript lo escribe quien traduce (el puente). */
   private texto = new Map<number, { id: string; acumulado: string }>();
   private herramientas = new Map<number, { id: string; name: string; input: Obj; resultado: boolean }>();
+  private pensados = new Set<number>();
   private usoTurno: Uso = { input_tokens: 0, output_tokens: 0 };
   private ultimaEntrada = 0;
   private cerrado = false;
@@ -106,6 +120,19 @@ export class Traductor {
     this.o = o;
     this.modelo = o.modelo;
   }
+
+  /** Lo que pesaba el contexto en lo último que contestó el modelo (0: este turno no contestó nada). */
+  get contexto(): number {
+    return this.ultimaEntrada;
+  }
+
+  /** Lo que se dice antes de la primera línea de agy: un `/compact` ya está compactando. */
+  inicio(): Obj[] {
+    return this.o.compactar ? [{ type: "system", subtype: "status", status: "compacting", ...this.base() }] : [];
+  }
+
+  /** Ya pasó el cierre de una compactación en este turno. */
+  compactado = false;
 
   private id(prefijo: string, paso: number) {
     return `${prefijo}_${this.conversacion ?? this.o.sid}_${paso}`;
@@ -141,6 +168,11 @@ export class Traductor {
     const hecho = s.state === "DONE";
     if (s.step_type === "agent_response") return this.respuesta(s, i, hecho);
     if (s.step_type === "tool") return this.herramienta(s, i, hecho);
+    if (s.step_type === "checkpoint" && hecho && !this.compactado) {
+      this.compactado = true;
+      const compact_metadata = { trigger: this.o.compactar ? "manual" : "auto", pre_tokens: this.o.contextoPrevio ?? this.ultimaEntrada ?? null };
+      return [{ type: "system", subtype: "compact_boundary", compact_metadata, ...this.base() }];
+    }
     return [];
   }
 
@@ -164,17 +196,34 @@ export class Traductor {
       t.acumulado += delta;
       out.push(this.ev({ type: "content_block_delta", index: 0, delta: { type: "text_delta", text: delta } }));
     }
+    // Su razonamiento llega entero al cerrar el paso (antes de sus herramientas o de su texto, en el orden en que se piensa).
+    const pen = hecho ? this.pensar(i, s.usage?.thinking_tokens) : null;
     if (hecho && t) {
       this.texto.delete(i);
       const completo = t.acumulado.replace(/\s+$/, "");
       out.push(this.ev({ type: "content_block_stop", index: 0 }));
-      if (completo) {
+      if (completo || pen) {
         const u = s.usage ? usoClaude(s.usage) : null;
-        out.push(this.mensaje(t.id, [{ type: "text", text: completo }], u));
+        out.push(this.mensaje(t.id, [...(pen ? [{ type: "thinking", thinking: pen }] : []), ...(completo ? [{ type: "text", text: completo }] : [])], u));
       }
       out.push(this.ev({ type: "message_stop" }));
+    } else if (pen) {
+      // Un paso sin texto (planeó y llama a una herramienta): el razonamiento solo, como un mensaje que piensa.
+      const id = this.id("msg_agy_p", i);
+      out.push(this.ev({ type: "content_block_start", index: 0, content_block: { type: "thinking", thinking: "" } }));
+      out.push(this.ev({ type: "content_block_delta", index: 0, delta: { type: "thinking_delta", thinking: pen } }));
+      out.push(this.ev({ type: "content_block_stop", index: 0 }));
+      out.push(this.mensaje(id, [{ type: "thinking", thinking: pen }], null));
     }
     return out;
+  }
+
+  /** El razonamiento de un paso, una sola vez (lo pide el cierre del paso). */
+  private pensar(i: number, tokens: unknown): string | null {
+    if (!this.o.pensamiento || !this.conversacion || this.pensados.has(i)) return null;
+    this.pensados.add(i);
+    const texto = this.o.pensamiento(this.conversacion, i, (num(tokens) ?? 0) > 0)?.trim();
+    return texto || null;
   }
 
   private herramienta(s: Obj, i: number, hecho: boolean): Obj[] {
@@ -197,6 +246,17 @@ export class Traductor {
         message: { role: "user", content: [{ type: "tool_result", tool_use_id: h.id, content: r.texto, ...(r.error ? { is_error: true } : {}) }] },
         ...this.base(),
       });
+    }
+    return out;
+  }
+
+  /** Se cortó el turno con herramientas a medias (un bucle): cada una queda cerrada con un error, para que el chat no la muestre corriendo. */
+  cerrarAbiertas(motivo: string): Obj[] {
+    const out: Obj[] = [];
+    for (const h of this.herramientas.values()) {
+      if (h.resultado) continue;
+      h.resultado = true;
+      out.push({ type: "user", message: { role: "user", content: [{ type: "tool_result", tool_use_id: h.id, content: motivo, is_error: true }] }, ...this.base() });
     }
     return out;
   }

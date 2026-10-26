@@ -3,7 +3,7 @@
 // `HILOS_VARIANTE=cuentas` (captura) se finge una, con Claude conectado y Gemini sin conectar.
 import { MODO } from "./modo";
 
-export type Cuenta = { instalado: boolean; logueado: boolean };
+export type Cuenta = { instalado: boolean; logueado: boolean; cuenta?: string | null; error?: string | null };
 export type CuentasOk = { claude: Cuenta; agy: Cuenta };
 export type Cuentas = CuentasOk | { error: string };
 export type Proveedor = "claude" | "gemini";
@@ -21,7 +21,7 @@ const FALSA: Carcasa = {
 };
 
 export function carcasa(): Carcasa | null {
-  if (MODO.variante === "cuentas") return FALSA;
+  if ((MODO.variante ?? "").startsWith("cuentas")) return FALSA;
   const c = (window as unknown as { carcasa?: Partial<Carcasa> }).carcasa;
   return c && typeof c.cuentas === "function" && typeof c.conectar === "function" ? (c as Carcasa) : null;
 }

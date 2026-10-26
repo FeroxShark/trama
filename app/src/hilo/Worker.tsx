@@ -14,6 +14,7 @@ import { Reloj } from "../barra/piezas";
 import { locale, t, type ClaveSola } from "../i18n";
 import { useIdioma } from "../i18n/react";
 import { mensaje } from "../puente";
+import { Boton } from "../ui/componentes";
 import { pintorDura } from "../tiempo";
 import "./worker.css";
 import { Entero } from "./Entero";
@@ -385,13 +386,13 @@ function Chips({ h, vista, pasos, vive, alElegir }: { h: Hilo; vista: VistaPasos
   return (
     <div className="wk-chips">
       {tests ? (
-        <button type="button" className="wk-chip" data-ok={tests.ok ? "" : undefined} data-mal={tests.ok ? undefined : ""} data-tip={t("wk.testsTip", { que: corto(tests.paso) })} onClick={() => alElegir(tests.paso.n)}>
+        <button type="button" className="ui-chip wk-chip" data-ok={tests.ok ? "" : undefined} data-mal={tests.ok ? undefined : ""} data-tip={t("wk.testsTip", { que: corto(tests.paso) })} onClick={() => alElegir(tests.paso.n)}>
           {tests.ok ? <Check size={13} strokeWidth={2.4} /> : null}
           {!tests.ok ? t("wk.testsFallan") : tests.n !== null ? t("wk.testsN", { n: tests.n }) : t("wk.tests")}
         </button>
       ) : null}
       {archivos.map((c) => (
-        <button key={c.ruta} type="button" className="wk-chip" data-tip={c.ruta} onClick={() => { const n = del(c.ruta); if (n !== undefined) alElegir(n); }}>
+        <button key={c.ruta} type="button" className="ui-chip wk-chip" data-tip={c.ruta} onClick={() => { const n = del(c.ruta); if (n !== undefined) alElegir(n); }}>
           {c.nombre}
           {c.mas ? <b className="wk-mas">+{c.mas}</b> : null}
           {c.menos ? <b className="wk-menos">−{c.menos}</b> : null}
@@ -399,7 +400,7 @@ function Chips({ h, vista, pasos, vive, alElegir }: { h: Hilo; vista: VistaPasos
       ))}
       {!vive && supuestos.length ? (
         <span className="wk-sup">
-          <button type="button" className="wk-chip">
+          <button type="button" className="ui-chip wk-chip">
             {supuestos.length === 1 ? t("wk.supuestos1") : t("wk.supuestosN", { n: supuestos.length })}
           </button>
           <div className="wk-pop" role="tooltip">
@@ -506,14 +507,14 @@ export function VistaWorker({ h, estado, vista, settle, alCerrar, alRetomar, alP
             {resultado ? <Entero texto={resultado} className="wk-txt" /> : <p className="wk-txt espera">{vive ? t("wk.espera") : t("wk.sinResultado")}</p>}
             <div className="wk-acc">
               {vive ? (
-                <button type="button" className="wk-parar" data-parar disabled={parando} onClick={parar}>
+                <Boton className="wk-parar" data-parar disabled={parando} onClick={parar}>
                   <Square size={12} strokeWidth={2.4} fill="currentColor" />
                   {parando ? t("accion.parando") : t("accion.parar")}
-                </button>
+                </Boton>
               ) : decide ? (
-                <button type="button" className="wk-parar" data-pasar data-tip={t("vista.pasarTip")} disabled={pasando} onClick={pasar}>
+                <Boton className="wk-parar" data-pasar data-tip={t("vista.pasarTip")} disabled={pasando} onClick={pasar}>
                   {pasando ? t("vista.pasando") : t("vista.pasar")}
-                </button>
+                </Boton>
               ) : null}
               {settle && !vive ? <AccionesWorker key={h.id} id={h.id} salida={settle} como={comoSettle(h)} alCerrar={alCerrar} alRetomar={alRetomar} className="btn2" /> : null}
             </div>

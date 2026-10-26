@@ -2,12 +2,13 @@
 // escena de 2.75rem que actúa lo que hace, el estado (punto de color + verbo), qué modelo y esfuerzo corre, lo concreto, el tiempo,
 // los tokens y los pasos de atrás con su icono (los últimos tres; el resto, tras "+N pasos"), y Parar.
 // Qué evento da cada tipo y cómo se limpia el detalle: src/hilo/actividad.ts. El movimiento: src/barra/latido-escenas.ts.
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Bot, Brain, Check, ChevronDown, FilePlus, FileText, Globe, Hand, MessageSquare, Pencil, Search, Terminal, Wrench, X, type LucideIcon } from "lucide-react";
 import { latir } from "../barra/latido";
 import { Reloj } from "../barra/piezas";
 import { t, type Clave } from "../i18n";
 import { pintorDura } from "../tiempo";
+import { alScroll, bajar, seguidor, seguir } from "./seguir";
 import { estadoDe, iconoDe, muyLargo, PASOS, textoPaso, type Actividad as Act, type Icono, type Paso } from "./actividad";
 import { Escena } from "./Escenas";
 import { Tierno } from "./Tierno";
@@ -59,6 +60,49 @@ function Entero({ texto, className }: { texto: string; className: string }) {
   );
 }
 
+/** El último paso de un razonamiento: su última línea con texto, sin las marcas de markdown de los títulos (`**Leyendo el repo**`). */
+export const ultimoPensado = (texto: string): string => {
+  const ls = texto.split("\n").map((l) => l.trim().replace(/^#+\s*/, "").replace(/^\*\*(.+?)\*\*:?$/, "$1")).filter(Boolean);
+  return ls.at(-1) ?? "";
+};
+
+/**
+ * El razonamiento de un motor que lo deja ver (Gemini), discreto: su último paso en una línea y, plegado, el del turno entero
+ * (una ventana que sigue lo que llega hasta que se sube). No tapa la respuesta: vive dentro de la tarjeta.
+ */
+function Razon({ texto }: { texto: string }) {
+  const [abierto, setAbierto] = useState(false);
+  const caja = useRef<HTMLDivElement>(null);
+  const seg = useRef(seguidor()).current;
+  const abrio = useRef(false);
+  useLayoutEffect(() => {
+    const u = caja.current;
+    if (!u) return void (abrio.current = false);
+    if (!abrio.current) {
+      abrio.current = true;
+      bajar(u, seg);
+    } else seguir(u, seg);
+  });
+  const ultimo = ultimoPensado(texto);
+  return (
+    <div className="tv-raz">
+      <div className="tv-rz-l">
+        <Brain className="tv-ic" size={13} strokeWidth={1.9} aria-hidden="true" />
+        <Entero texto={ultimo} className="tv-rz-p" />
+      </div>
+      <button type="button" className="tv-mas" aria-expanded={abierto} onClick={() => setAbierto((x) => !x)}>
+        {abierto ? t("hz.razonMenos") : t("hz.razonTodo")}
+        <ChevronDown className="tv-fl" size={12} strokeWidth={2} aria-hidden="true" />
+      </button>
+      {abierto ? (
+        <div className="tv-rz-t" ref={caja} onScroll={(e) => alScroll(e.currentTarget, seg)}>
+          {texto}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 type Props = {
   act: Act;
   pasos: Paso[];
@@ -70,6 +114,8 @@ type Props = {
   tokens: string | null;
   /** Con los mensajes tiernos prendidos, la frase de siempre en vez del verbo genérico (pensando / escribiendo). */
   tierno?: string;
+  /** Un motor que deja ver su razonamiento: lo que lleva el turno (puede estar vacío). `undefined`: no lo deja ver, y no se muestra nada. */
+  razon?: string;
   /** Qué modelo y esfuerzo corre ("Sonnet 5.5", "high"), cuando se saben. */
   modelo?: string | null;
   effort?: string | null;
@@ -80,7 +126,7 @@ type Props = {
   fin?: "listo" | "error";
 };
 
-export function Actividad({ act, pasos, pasosN, desde, tokens, tierno, modelo, effort, alParar, parando, fin }: Props) {
+export function Actividad({ act, pasos, pasosN, desde, tokens, tierno, razon, modelo, effort, alParar, parando, fin }: Props) {
   // La tarjeta existe sólo mientras hay actividad: el latido de las escenas corre mientras está montada.
   useEffect(() => (fin ? undefined : latir()), [fin]);
   const [todos, setTodos] = useState(false);
@@ -126,6 +172,7 @@ export function Actividad({ act, pasos, pasosN, desde, tokens, tierno, modelo, e
               <span className="tv-vivo">{t("hz.enCurso")}</span>
             </div>
           ) : null}
+          {razon && !fin ? <Razon texto={razon} /> : null}
           {vis.length ? (
             <ul className="tv-pasos">
               {vis.map((p, i) => {

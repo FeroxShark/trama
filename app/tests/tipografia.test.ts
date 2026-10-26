@@ -25,8 +25,8 @@ import {
 const raiz = path.join(import.meta.dirname, "..");
 const css = readFileSync(path.join(raiz, "src/index.css"), "utf8");
 
-test("el default es la maqueta: 13 px, Geist y Geist Mono", () => {
-  assert.deepEqual(APARIENCIA_DEF, { letra: 13, fuente: "geist", mono: "geist-mono" });
+test("el default es el estándar visual: 13 px, Inter y JetBrains Mono", () => {
+  assert.deepEqual(APARIENCIA_DEF, { letra: 13, fuente: "inter", mono: "jetbrains" });
   assert.deepEqual(apariencia(), APARIENCIA_DEF);
   assert.ok(LETRA_MIN <= LETRA_DEF && LETRA_DEF <= LETRA_MAX);
 });
@@ -34,14 +34,14 @@ test("el default es la maqueta: 13 px, Geist y Geist Mono", () => {
 test("normalizar: lo que no se entiende va a default, la letra se acota", () => {
   assert.deepEqual(normalizar(null), APARIENCIA_DEF);
   assert.deepEqual(normalizar({ letra: "16", fuente: "inter", mono: "fira" }), { letra: 16, fuente: "inter", mono: "fira" });
-  assert.deepEqual(normalizar({ letra: 99, fuente: "comic", mono: 3 }), { letra: LETRA_MAX, fuente: "geist", mono: "geist-mono" });
+  assert.deepEqual(normalizar({ letra: 99, fuente: "comic", mono: 3 }), { letra: LETRA_MAX, fuente: "inter", mono: "jetbrains" });
   assert.equal(normalizar({ letra: 2 }).letra, LETRA_MIN);
   assert.equal(normalizar({ letra: "" }).letra, LETRA_DEF);
   assert.equal(normalizar({ letra: "grande" }).letra, LETRA_DEF);
   assert.equal(normalizar({ letra: 14.6 }).letra, 15);
   // Una fuente de interfaz no vale como fuente de código, ni al revés.
-  assert.equal(normalizar({ mono: "inter" }).mono, "geist-mono");
-  assert.equal(normalizar({ fuente: "fira" }).fuente, "geist");
+  assert.equal(normalizar({ mono: "inter" }).mono, "jetbrains");
+  assert.equal(normalizar({ fuente: "fira" }).fuente, "inter");
 });
 
 test("los pasos no se salen de la escala", () => {
@@ -75,7 +75,7 @@ test("aplicar pone las tres variables CSS", () => {
   const puesto: Record<string, string> = {};
   aplicar({ setProperty: (k, v) => (puesto[k] = v) }, { letra: 16, fuente: "plex", mono: "jetbrains" });
   assert.equal(puesto["--letra"], "16");
-  assert.match(puesto["--font-sans"], /^"IBM Plex Sans", "Geist"/);
+  assert.match(puesto["--font-sans"], /^"IBM Plex Sans", "Inter"/);
   assert.match(puesto["--font-mono"], /^"JetBrains Mono", "Geist Mono"/);
 });
 
@@ -85,10 +85,10 @@ test("cambiarApariencia avisa y devuelve sólo lo que cambió", () => {
   try {
     assert.equal(cambiarApariencia({ letra: 13 }), null);
     assert.equal(avisos, 0);
-    assert.deepEqual(cambiarApariencia({ letra: 15, fuente: "geist" }), { letra: 15 });
+    assert.deepEqual(cambiarApariencia({ letra: 15, fuente: "inter" }), { letra: 15 });
     assert.deepEqual(cambiarApariencia({ letra: 40, mono: "fira" }), { letra: 18, mono: "fira" });
     assert.equal(cambiarApariencia({ fuente: "no-existe" }), null);
-    assert.deepEqual(apariencia(), { letra: 18, fuente: "geist", mono: "fira" });
+    assert.deepEqual(apariencia(), { letra: 18, fuente: "inter", mono: "fira" });
     assert.equal(avisos, 2);
   } finally {
     cambiarApariencia(APARIENCIA_DEF);

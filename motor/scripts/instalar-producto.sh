@@ -202,30 +202,90 @@ fi
 # --- build de la app -------------------------------------------------------------------------------------
 # El árbol exportado no trae dist/ ni dist-electron/ (el export los excluye): se compilan acá. La fuente puede ser de
 # sólo lectura o de otro usuario, así que se compila en una copia en ~/.local/share/trama/app. Deja APP apuntando ahí.
+# Guarda la huella de las fuentes (+ TRAMA_PAYLOAD_VERSION) en .build-huella y la del lock en node_modules/.lock-huella:
+# si la huella cambió, recompila en .build-nuevo y cambia dist/ y dist-electron/ atómicamente (con rollback a .build-viejo
+# si falla, dejando la app vieja andando).
+huella_app() {
+  (
+    cd "$1" 2>/dev/null || exit 1
+    [[ -n "${TRAMA_PAYLOAD_VERSION:-}" ]] && printf 'payload:%s\n' "$TRAMA_PAYLOAD_VERSION"
+    find package.json package-lock.json tsconfig.json tsconfig.node.json tsconfig.electron.json vite.config.ts index.html public src electron scripts \
+      -type f 2>/dev/null | LC_ALL=C sort | xargs -r sha256sum
+  ) | sha256sum | cut -c1-16
+}
 construir_app() {
-  local src="$1" dst="$HOME/.local/share/trama/app"
+  local src="$1" dst="$HOME/.local/share/trama/app" nueva actual lock_nueva lock_actual
+  [[ -f "$dst/dist-electron/motor.js" ]] && APP="$dst"
   [[ -f "$src/package.json" ]] || { aviso "app: $src no tiene package.json, no puedo compilar"; return 1; }
   [[ -n "$NODE" ]] || { aviso "app: sin node no puedo compilar"; return 1; }
   command -v npm >/dev/null 2>&1 || { aviso "app: falta npm"; return 1; }
+  nueva="$(huella_app "$src")"
+  actual="$(cat "$dst/.build-huella" 2>/dev/null || true)"
+  if [[ -f "$dst/dist-electron/motor.js" && -f "$dst/dist/index.html" && -n "$nueva" && "$nueva" == "$actual" ]]; then
+    ok "app compilada en $dst"
+    APP="$dst"
+    return 0
+  fi
   if [[ "$src" != "$dst" ]]; then
     mkdir -p "$dst"
-    tar -C "$src" --exclude=./node_modules --exclude=./.git --exclude=./dist --exclude=./dist-electron -cf - . | tar -C "$dst" -xf - \
-      || { aviso "app: no pude copiar $src a $dst"; return 1; }
+    tar -C "$src" --exclude=./node_modules --exclude=./.git --exclude=./dist --exclude=./dist-electron \
+      --exclude=./.build-huella --exclude=./.build-nuevo --exclude=./.build-viejo --exclude=./.build.log -cf - . \
+      | tar -C "$dst" -xf - || { aviso "app: no pude copiar $src a $dst"; return 1; }
   fi
-  if [[ ! -f "$dst/dist-electron/motor.js" || ! -f "$dst/dist/index.html" ]]; then
-    hecho "app: instalando dependencias y compilando en $dst (unos minutos)"
+  hecho "app: instalando dependencias y compilando en $dst (unos minutos)"
+  : >"$dst/.build.log"
+  lock_nueva="$(sha256sum "$dst/package-lock.json" 2>/dev/null | cut -c1-16 || true)"
+  lock_actual="$(cat "$dst/node_modules/.lock-huella" 2>/dev/null || true)"
+  if [[ ! -d "$dst/node_modules" || "${lock_nueva:-sin-lock}" != "$lock_actual" ]] \
+     || { [[ -d "$dst/node_modules/.bin" ]] && [[ ! -x "$dst/node_modules/.bin/tsc" || ! -x "$dst/node_modules/.bin/vite" ]]; }; then
     # sin el binario de Electron: el motor corre con node puro; Electron lo trae sólo la carcasa de escritorio.
-    ( cd "$dst" && ELECTRON_SKIP_BINARY_DOWNLOAD=1 npm "c""i" --no-audit --no-fund >"$dst/.build.log" 2>&1 \
-        && npm run build >>"$dst/.build.log" 2>&1 ) \
-      || { aviso "app: la compilación falló (ver $dst/.build.log)"; return 1; }
-    # el motor sólo importa módulos de node: las dependencias de compilación (~400 MB) sobran una vez compilado
-    [[ -f "$dst/dist-electron/motor.js" ]] && rm -rf "$dst/node_modules"
+    ( cd "$dst" && ELECTRON_SKIP_BINARY_DOWNLOAD=1 npm "c""i" --no-audit --no-fund --ignore-scripts >>"$dst/.build.log" 2>&1 ) \
+      || { aviso "app: la compilación falló en npm ci (ver $dst/.build.log)"; return 1; }
+    mkdir -p "$dst/node_modules"
+    printf '%s\n' "${lock_nueva:-sin-lock}" >"$dst/node_modules/.lock-huella"
   fi
-  [[ -f "$dst/dist-electron/motor.js" ]] || { aviso "app: la compilación no dejó dist-electron/motor.js"; return 1; }
+  rm -f "$dst/.build-nuevo/node_modules" 2>/dev/null || true
+  [[ -e "$dst/.build-nuevo" ]] && rm -r "$dst/.build-nuevo"
+  mkdir -p "$dst/.build-nuevo"
+  tar -C "$dst" --exclude=./node_modules --exclude=./.git --exclude=./dist --exclude=./dist-electron \
+    --exclude=./.build-huella --exclude=./.build-nuevo --exclude=./.build-viejo --exclude=./.build.log -cf - . \
+    | tar -C "$dst/.build-nuevo" -xf - \
+    || { rm -r "$dst/.build-nuevo" 2>/dev/null || true; aviso "app: no pude preparar .build-nuevo"; return 1; }
+  ln -s "$dst/node_modules" "$dst/.build-nuevo/node_modules"
+  if ! ( cd "$dst/.build-nuevo" && npm run build >>"$dst/.build.log" 2>&1 ) \
+     || [[ ! -f "$dst/.build-nuevo/dist-electron/motor.js" || ! -f "$dst/.build-nuevo/dist/index.html" ]]; then
+    rm -f "$dst/.build-nuevo/node_modules" 2>/dev/null || true
+    [[ -e "$dst/.build-nuevo" ]] && rm -r "$dst/.build-nuevo"
+    aviso "app: la compilación falló (ver $dst/.build.log)"
+    return 1
+  fi
+  [[ -e "$dst/.build-viejo" ]] && rm -r "$dst/.build-viejo"
+  mkdir -p "$dst/.build-viejo"
+  [[ -e "$dst/dist" ]] && mv "$dst/dist" "$dst/.build-viejo/dist"
+  [[ -e "$dst/dist-electron" ]] && mv "$dst/dist-electron" "$dst/.build-viejo/dist-electron"
+  if mv "$dst/.build-nuevo/dist" "$dst/dist" && mv "$dst/.build-nuevo/dist-electron" "$dst/dist-electron" \
+     && { [[ ! -f "$dst/scripts/build-listo.mjs" ]] || ( cd "$dst" && "$NODE" scripts/build-listo.mjs >>"$dst/.build.log" 2>&1 ); }; then
+    printf '%s\n' "$nueva" >"$dst/.build-huella"
+    rm -f "$dst/.build-nuevo/node_modules" 2>/dev/null || true
+    rm -r "$dst/.build-viejo" "$dst/.build-nuevo"
+  else
+    [[ -e "$dst/dist" ]] && rm -r "$dst/dist"
+    [[ -e "$dst/dist-electron" ]] && rm -r "$dst/dist-electron"
+    [[ -e "$dst/.build-viejo/dist" ]] && mv "$dst/.build-viejo/dist" "$dst/dist"
+    [[ -e "$dst/.build-viejo/dist-electron" ]] && mv "$dst/.build-viejo/dist-electron" "$dst/dist-electron"
+    rm -f "$dst/.build-nuevo/node_modules" 2>/dev/null || true
+    [[ -e "$dst/.build-viejo" ]] && rm -r "$dst/.build-viejo"
+    [[ -e "$dst/.build-nuevo" ]] && rm -r "$dst/.build-nuevo"
+    aviso "app: la compilación falló (ver $dst/.build.log)"
+    return 1
+  fi
+  if systemctl --user is-active --quiet trama-motor.service 2>/dev/null; then
+    systemctl --user try-restart trama-motor.service >/dev/null 2>&1 || aviso "systemctl --user try-restart trama-motor falló"
+  fi
   ok "app compilada en $dst"
   APP="$dst"
 }
-if [[ -n "$APP" && ! -f "$APP/dist-electron/motor.js" && -f "$APP/package.json" ]]; then construir_app "$APP" || true; fi
+if [[ -n "$APP" && -f "$APP/package.json" ]]; then construir_app "$APP" || true; fi
 
 # --- el motor --------------------------------------------------------------------------------------------
 motor_arriba() { trama-estado --json 2>/dev/null | jq -e '.motor.vivo' >/dev/null 2>&1; }

@@ -21,13 +21,13 @@ export type Fuente = {
 
 // Las que no son Geist llevan a Geist detrás: los .woff2 de Inter, Plex Sans y
 // Source Sans son el subconjunto latino, y lo que les falte (flechas, ✓) sale igual que siempre.
-const SANS = '"Geist", "Adwaita Sans", ui-sans-serif, system-ui, sans-serif';
-const MONO = '"Geist Mono", "Adwaita Mono", ui-monospace, monospace';
+const SANS = '"Inter", "Geist", "Adwaita Sans", ui-sans-serif, system-ui, sans-serif';
+const MONO = '"JetBrains Mono", "Geist Mono", "Adwaita Mono", ui-monospace, monospace';
 
-/** La fuente de la interfaz. La primera es el default (la de la maqueta). */
+/** La fuente de la interfaz. La primera es el default (la del estándar visual: docs/maquetas/lavado/ (dirección 1, "estándar pulido")). */
 export const FUENTES: readonly Fuente[] = [
-  { id: "geist", nombre: "Geist", pila: `"Geist", "Adwaita Sans", Inter, ui-sans-serif, system-ui, sans-serif` },
   { id: "inter", nombre: "Inter", pila: `"Inter", ${SANS}` },
+  { id: "geist", nombre: "Geist", pila: `"Geist", "Adwaita Sans", Inter, ui-sans-serif, system-ui, sans-serif` },
   { id: "plex", nombre: "IBM Plex Sans", pila: `"IBM Plex Sans", ${SANS}` },
   { id: "source", nombre: "Source Sans 3", pila: `"Source Sans 3", ${SANS}` },
   { id: "jetbrains", nombre: "JetBrains Mono", pila: `"JetBrains Mono", ${MONO}` },
@@ -36,8 +36,8 @@ export const FUENTES: readonly Fuente[] = [
 
 /** La fuente del código: bloques, comandos y todo lo que va en mono. */
 export const MONOS: readonly Fuente[] = [
-  { id: "geist-mono", nombre: "Geist Mono", pila: MONO },
-  { id: "jetbrains", nombre: "JetBrains Mono", pila: `"JetBrains Mono", ${MONO}` },
+  { id: "jetbrains", nombre: "JetBrains Mono", pila: MONO },
+  { id: "geist-mono", nombre: "Geist Mono", pila: `"Geist Mono", "Adwaita Mono", ui-monospace, monospace` },
   { id: "plex-mono", nombre: "IBM Plex Mono", pila: `"IBM Plex Mono", ${MONO}` },
   { id: "fira", nombre: "Fira Code", pila: `"Fira Code", ${MONO}` },
   { id: "sistema", nombre: null, pila: "ui-monospace, monospace" },

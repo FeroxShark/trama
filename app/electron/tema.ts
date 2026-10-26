@@ -8,6 +8,7 @@
 import { open, stat } from "node:fs/promises";
 import path from "node:path";
 import { separarAdjuntos } from "./adjunto.ts";
+import { ALIAS_DEFECTO } from "./registro.ts";
 
 /**
  * Lo que se sabe de un transcript leído hasta `bytes`. `resto`: la última línea, si quedó a medias.
@@ -104,7 +105,7 @@ export function tituloDeTexto(s: string): string {
 }
 
 /** Lo que hace falta de un proyecto del registry para reconocerlo en un texto. */
-export type ProyectoTexto = { nombre: string; slug: string; ruta: string };
+export type ProyectoTexto = { nombre: string; slug: string; ruta: string; alias?: string[] };
 
 const escapar = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
@@ -114,22 +115,52 @@ const escapar = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
  * slug (la carpeta de la barra) o `null`. Un nombre suelto cuenta como palabra
  * entera ("omc" sí en "Retomá omc v2", no en "nomcito").
  */
+const DETERMINANTE_PREVIO = new RegExp("(?:^|\\s)(?:el|la|los|las|un|una|unos|unas|al|del|su|sus|mi|mis|tu|tus|nuestr[oa]s?|vuestr[oa]s?|este|esta|est[oe]s|esas?|aquell[oa]s?|the|a|an|my|your|his|her|its|our|their|this|that|these|those)\\s+$", "i");
+const PREFIJO_EXPLICITO = new RegExp("(?:^|\\s)(?:proyecto|repo|carpeta|project|repository)\\s+(?:de\\s+)?$", "i");
+
+type Coincidencia = {
+  slug: string;
+  i: number;
+  largo: number;
+  peso: number;
+};
+
 export function proyectoEnTexto(texto: string, proyectos: ProyectoTexto[], home: string): string | null {
-  let mejor: { slug: string; i: number; largo: number } | null = null;
-  // La ruta de un adjunto (`~/.local/state/hilos/adjuntos/…`) no nombra ningún proyecto.
-  const bajo = separarAdjuntos(texto).texto.toLowerCase();
+  let mejor: Coincidencia | null = null;
+  const textoLimpio = separarAdjuntos(texto).texto;
+  const bajo = textoLimpio.toLowerCase();
+
   for (const p of proyectos) {
     const rutas = [p.ruta, p.ruta.startsWith(home + "/") ? "~" + p.ruta.slice(home.length) : null].filter((x): x is string => !!x);
-    const nombres = [p.nombre, p.slug, path.basename(p.ruta)].filter((x) => x.length >= 2);
-    const patrones = [
-      ...rutas.map((r) => new RegExp(`${escapar(r.toLowerCase())}(?![\\w.-])`)),
-      ...nombres.map((n) => new RegExp(`(?<![\\w./-])${escapar(n.toLowerCase())}(?![\\w-])`)),
-    ];
-    for (const re of patrones) {
-      const m = bajo.match(re);
-      if (!m || m.index === undefined) continue;
-      const largo = m[0].length;
-      if (!mejor || m.index < mejor.i || (m.index === mejor.i && largo > mejor.largo)) mejor = { slug: p.slug, i: m.index, largo };
+    const alias = [...(p.alias ?? []), ...(ALIAS_DEFECTO[p.slug] ?? ALIAS_DEFECTO[p.nombre] ?? [])];
+    const nombres = [...new Set([p.nombre, p.slug, path.basename(p.ruta), ...alias])].filter((x) => x.length >= 2);
+
+    for (const r of rutas) {
+      const re = new RegExp(escapar(r.toLowerCase()) + "(?![\\w.-])", "g");
+      for (const m of bajo.matchAll(re)) {
+        if (m.index === undefined) continue;
+        const largo = m[0].length;
+        const c: Coincidencia = { slug: p.slug, i: m.index, largo, peso: 2 };
+        if (!mejor || c.peso > mejor.peso || (c.peso === mejor.peso && (c.i < mejor.i || (c.i === mejor.i && c.largo > mejor.largo)))) {
+          mejor = c;
+        }
+      }
+    }
+
+    for (const n of nombres) {
+      const re = new RegExp("(?<![\\w./-])" + escapar(n.toLowerCase()) + "(?![\\w-])", "g");
+      for (const m of bajo.matchAll(re)) {
+        if (m.index === undefined) continue;
+        const largo = m[0].length;
+        const antes = textoLimpio.slice(0, m.index);
+        const original = textoLimpio.slice(m.index, m.index + largo);
+        const esPalabraComun = original === original.toLowerCase() && DETERMINANTE_PREVIO.test(antes) && !PREFIJO_EXPLICITO.test(antes);
+        const peso = esPalabraComun ? 1 : 2;
+        const c: Coincidencia = { slug: p.slug, i: m.index, largo, peso };
+        if (!mejor || c.peso > mejor.peso || (c.peso === mejor.peso && (c.i < mejor.i || (c.i === mejor.i && c.largo > mejor.largo)))) {
+          mejor = c;
+        }
+      }
     }
   }
   return mejor?.slug ?? null;

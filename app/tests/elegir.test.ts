@@ -67,7 +67,6 @@ test("el esfuerzo se recuerda por modelo; sin preferencia, la tabla de routing",
   assert.equal(effortPara("claude-opus-5-5", {}), "high");
   assert.equal(effortPara("claude-sonnet-5-5", {}), "high");
   assert.equal(effortPara("claude-fable-5-1", {}), "high");
-  assert.equal(effortPara("qwen-local", {}), "medium");
   const prefs = { "claude-opus-5-5": "high", "claude-sonnet-5-5": "medium" };
   assert.equal(effortPara("claude-sonnet-5-5", prefs), "medium");
   assert.equal(effortPara("claude-opus-5-5", prefs), "high");

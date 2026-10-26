@@ -236,7 +236,7 @@ const SIN_MEMORIA = /out of memory|cudaMalloc failed|failed to allocate|unable t
 const ERROR = /error|failed|fallo|cannot|unable|abort/i;
 
 /**
- * Por qué no cargó, de lo que dejaron `qwen-model-switch` (stderr) y el journal de la unit: `sinMemoria` si fue
+ * Por qué no cargó, de lo que dejó el conmutador (stderr) y el journal de la unit: `sinMemoria` si fue
  * la VRAM; si no, la última línea que suena a error (sin las de systemd), cortada.
  */
 export function motivoDeLog(texto: string): { sinMemoria: boolean; linea: string | null } {

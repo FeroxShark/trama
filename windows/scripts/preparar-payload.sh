@@ -5,8 +5,19 @@
 #
 # uso: scripts/preparar-payload.sh <árbol-exportado>
 set -euo pipefail
-aqui="$(cd "$(dirname "$0")/.." && pwd)"
-fuente="${1:?uso: preparar-payload.sh <árbol-exportado (con motor/ y app/)>}"
+aqui="${TRAMA_PAYLOAD_DEST:-$(cd "$(dirname "$0")/.." && pwd)}"
+tmp=""
+if [[ $# -ge 1 ]]; then
+  fuente="$1"
+elif command -v trama-exportar >/dev/null 2>&1; then
+  tmp="$(mktemp -d)"
+  trap '[[ -n "$tmp" && -d "$tmp" ]] && rm -r "$tmp"' EXIT
+  trama-exportar "$tmp"
+  fuente="$tmp"
+else
+  echo "uso: preparar-payload.sh <árbol-exportado>" >&2
+  exit 1
+fi
 [[ -d "$fuente/motor" && -d "$fuente/app" ]] || { echo "$fuente no tiene motor/ y app/"; exit 1; }
 [[ -f "$fuente/motor/scripts/instalar-producto.sh" ]] || { echo "falta motor/scripts/instalar-producto.sh"; exit 1; }
 [[ -e "$aqui/payload" ]] && rm -r "$aqui/payload"

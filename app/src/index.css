@@ -1,12 +1,12 @@
 @import "tailwindcss";
+@import "./tokens.css";
 
-/* Dirección "D · Minimal" (referencias/diseno-D-minimal.dc.html): negro puro,
-   Geist, bordes hairline y una sola escala de grises. Las medidas y colores
-   salen de la maqueta; lo que cambia es cómo se anima (ver "Estados"). */
+/* Dirección visual: docs/maquetas/lavado/ (dirección 1, "estándar pulido") (vidrio quieto, acento celeste, cápsulas, grilla de 4 px,
+   una sola fuente con cifras tabulares). Los tokens están en src/tokens.css; acá, el CSS de la app. */
 
 /* Las fuentes van adentro del repo (SIL OFL 1.1, ver THIRD_PARTY.md y
    src/fuentes/OFL*.txt): no están instaladas en el sistema y la app no baja
-   nada al abrir. Geist y Geist Mono son las de la maqueta; las demás se eligen
+   nada al abrir. Inter y JetBrains Mono son las del estándar; las demás se eligen
    en Ajustes (src/tipografia.ts) y recién se cargan cuando alguien las usa. */
 @font-face {
   font-family: "Geist";
@@ -70,13 +70,13 @@
 }
 
 @theme {
-  --font-sans: "Geist", "Adwaita Sans", Inter, ui-sans-serif, system-ui, sans-serif;
-  --font-mono: "Geist Mono", "Adwaita Mono", ui-monospace, monospace;
+  --font-sans: "Inter", "Geist", "Adwaita Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", "Geist Mono", "Adwaita Mono", ui-monospace, monospace;
   --text-2xs: 0.6875rem;
 
-  --color-background: #0a0a0a;
-  --color-foreground: #fafafa;
-  --color-secondary-label: #737373;
+  --color-background: #07080b;
+  --color-foreground: #f4f5f7;
+  --color-secondary-label: #7d8087;
 }
 
 /* El tamaño de letra (Ajustes, Ctrl+= / Ctrl+- / Ctrl+0): `--letra` son los px
@@ -95,145 +95,31 @@ html {
 }
 
 :root {
-  color-scheme: dark;
   font-family: var(--font-sans);
-  --ancho-barra: 320px;
-
-  --azul: #60a5fa;
-  --verde: #4ade80;
-  --ambar: #fbbf24;
-  --rojo: #ff453a;
-
-  /* Texto de la barra, de más a menos importante (cada uno un escalón más
-     claro que la escala de la maqueta: el usuario la quiere más legible). */
-  --txt-1: #f0f0f0;
-  --txt-2: #c4c4c4;
-  --txt-3: #a3a3a3;
-  --txt-4: #737373;
-
-  /* Tokens (etapa 4, "mismo look, emparejado"): todo color, letra, radio y espaciado de los CSS
-     sale de acá. Qué literal va a qué token: docs/estado/tokens.md; lo que falta reemplazar lo
-     lista scripts/tokens-faltan.mjs. Un mismo gris puede tener nombre de fondo, de borde y de
-     texto: se usa el del papel que cumple. */
-  --negro: #000;
-  --blanco: #fff;
-
-  /* Superficies (fondos), de la más honda a la más alta. */
-  --sup-0: #0a0a0a;
-  --sup-1: #0f0f0f;
-  --sup-2: #171717;
-  --sup-3: #1f1f1f;
-  --sup-4: #262626;
-
-  /* Bordes, de la hairline más suave al foco. */
-  --borde-1: #171717;
-  --borde-2: #1f1f1f;
-  --borde-3: #262626;
-  --borde-4: #333333;
-  --borde-5: #404040;
-  --borde-6: #525252;
-
-  /* Texto, del más claro al más apagado (los de la barra siguen en --txt-N). */
-  --texto-1: #fafafa;
-  --texto-2: #e5e5e5;
-  --texto-3: #d4d4d4;
-  --texto-4: #a3a3a3;
-  --texto-5: #8a8a8a;
-  --texto-6: #737373;
-  --texto-7: #525252;
-  --texto-8: #404040;
-
-  /* Acentos (además de azul, verde, ámbar y rojo). */
-  --azul-palido: #dbeafe;
-  --verde-suave: #7ad69b;
-  --verde-palido: #bbf7d0;
-  --verde-tinte: rgb(74 222 128 / 0.12);
-  --rojo-texto: #f87171;
-  --rojo-claro: #fca5a5;
-  --rojo-palido: #fecaca;
-  --rojo-tinte: rgb(255 69 58 / 0.12);
-  --rojo-borde: rgb(255 69 58 / 0.35);
-  --oro: #f2c24b;
-  --rosa: #eaa0c8;
-  --modo-plan: rgb(72 150 140);
-  --enlace-subrayado: rgb(143 181 240 / 0.35);
-  --sombra: rgb(0 0 0 / 65%);
-  --fondo-modal: rgb(0 0 0 / 70%);
-  --sombra-popover: rgb(0 0 0 / 70%);
-  --velo: rgb(0 0 0 / 0.82);
-  --resalte-1: rgb(255 255 255 / 0.02);
-  --resalte-2: rgb(255 255 255 / 0.06);
-
-  /* Resaltado de código. */
-  --sint-str: #9ad48a;
-  --sint-num: #f0c27a;
-  --sint-kw: #b9a3f0;
-  --sint-fn: #8fb5f0;
-  --sint-var: #7fd1c7;
-  --sint-menos: #f0a08a;
-  --sint-com: #6b6b6b;
-
-  /* La vista de worker (src/hilo/worker.css): el diff (lo que entra y lo que sale) y un color por clase de paso. */
-  --mas: var(--verde);
-  --menos: var(--rojo-texto);
-  --mas-fondo: color-mix(in srgb, var(--mas) 11%, var(--sup-0));
-  --mas-gutter: color-mix(in srgb, var(--mas) 20%, var(--sup-0));
-  --menos-fondo: color-mix(in srgb, var(--menos) 11%, var(--sup-0));
-  --menos-gutter: color-mix(in srgb, var(--menos) 20%, var(--sup-0));
-  --paso-pensar: #b9a3f0;
-  --paso-leer: var(--azul);
-  --paso-editar: var(--verde);
-  --paso-correr: #d4d4d4;
-  --paso-delegar: var(--rosa);
-  --paso-texto: #dbeafe;
-
-  /* Letra: 9, 10, 11, 12, 13, 14, 16 y 18 px a letra 13 (crecen con Ajustes, son rem). El 18 es
-     para el título # de un mensaje y las cifras grandes: sin él, # y ## quedaban iguales. */
-  --letra-1: 0.5625rem;
-  --letra-2: 0.625rem;
-  --letra-3: 0.6875rem;
-  --letra-4: 0.75rem;
-  --letra-5: 0.8125rem;
-  --letra-6: 0.875rem;
-  --letra-7: 1rem;
-  --letra-8: 1.125rem;
-
-  /* Radios: 2, 6, 8 y 12 px; la pastilla, redonda del todo. */
-  --radio-1: 0.125rem;
-  --radio-2: 0.375rem;
-  --radio-3: 0.5rem;
-  --radio-4: 0.75rem;
-  --radio-pastilla: 999rem;
-
-  /* Espaciado (padding, margin, gap): el número son pasos de 4 px. */
-  --esp-0-5: 0.125rem;
-  --esp-1: 0.25rem;
-  --esp-1-5: 0.375rem;
-  --esp-2: 0.5rem;
-  --esp-2-5: 0.625rem;
-  --esp-3: 0.75rem;
-  --esp-3-5: 0.875rem;
-  --esp-4: 1rem;
-  --esp-5: 1.25rem;
-  --esp-6: 1.5rem;
-  --esp-8: 2rem;
 }
 
 html,
 body,
 #root {
   height: 100%;
-  background: var(--color-background);
+  background: var(--fondo);
   color: var(--color-foreground);
   overflow: hidden;
 }
 
+/* La ventana: dos paneles de vidrio (la barra y lo abierto) flotando sobre el fondo, con aire entre ellos y al borde. */
 .app {
   display: flex;
   height: 100%;
-  background: var(--sup-0);
+  gap: var(--gap-paneles);
+  padding: var(--gap-paneles);
+  background: var(--fondo-ventana);
   font-size: var(--letra-5);
-  line-height: 1.4;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.45;
+}
+.app[data-oculta] {
+  gap: 0;
 }
 :where(.app) button {
   cursor: pointer;
@@ -284,8 +170,9 @@ body,
   width: calc(var(--ancho-barra) * var(--letra, 13) / 13);
   flex-direction: column;
   overflow: hidden;
-  border-right: 1px solid var(--borde-1);
-  background: var(--negro);
+  border-radius: var(--r-xl);
+  background: var(--vidrio-a);
+  box-shadow: var(--vidrio-borde), var(--sombra-vidrio);
   transition:
     transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1),
     visibility 0.22s;
@@ -335,9 +222,8 @@ body,
   flex: none;
   flex-direction: column;
   gap: var(--esp-2-5);
-  padding: var(--esp-3-5) var(--esp-3) var(--esp-3);
-  border-bottom: 1px solid var(--borde-1);
-  background: var(--negro);
+  padding: var(--esp-4) var(--esp-4) var(--esp-3);
+  background: transparent;
 }
 .cab {
   display: flex;
@@ -368,7 +254,10 @@ body,
 .usos {
   position: relative;
   z-index: 1;
-  padding: 0 var(--esp-1) var(--esp-0-5);
+  margin: 0 var(--esp-1);
+  padding: var(--esp-3);
+  border-radius: var(--r-md);
+  background: var(--capa-card);
 }
 .usos-l {
   display: flex;
@@ -393,14 +282,15 @@ body,
   .grupo {
     --g-nombre: 4.5rem;
   }
-  .g-hasta {
+  .g-hasta,
+  .g-sub {
     display: none;
   }
 }
 .g-id {
   display: grid;
   min-width: 0;
-  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   column-gap: var(--esp-1-5);
   color: var(--txt-2);
@@ -421,13 +311,55 @@ body,
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.g-hasta {
-  grid-column: 2;
+.g-hasta,
+.g-sub {
+  grid-column: 2 / -1;
+  overflow: hidden;
+  text-overflow: ellipsis;
   font-size: var(--letra-1);
   font-weight: 400;
   line-height: 1.1;
   color: var(--txt-4);
   white-space: nowrap;
+}
+/* Una suscripción con grupos: el renglón del más usado y, desplegados, uno por grupo (sin logo, indentados). */
+.susc {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--esp-1-5);
+}
+.g-plegar {
+  padding: 0;
+  border: 0;
+  border-radius: var(--radio-1);
+  background: none;
+  font: inherit;
+  font-size: var(--letra-4);
+  font-weight: 500;
+  line-height: 1.3;
+  text-align: left;
+  cursor: pointer;
+}
+.g-plegar:hover {
+  color: var(--txt-1);
+}
+.g-flecha {
+  color: var(--txt-4);
+}
+.grupo[data-hijo] .g-id {
+  grid-template-columns: minmax(0, 1fr);
+  padding-left: var(--esp-3);
+}
+.grupo[data-hijo] .g-n,
+.grupo[data-hijo] .g-hasta {
+  grid-column: 1;
+}
+.grupo[data-hijo] .g-n {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  white-space: normal;
 }
 .uso {
   display: flex;
@@ -495,24 +427,24 @@ body,
   }
 }
 .riel {
-  height: 0.1875rem;
+  height: 0.25rem;
   overflow: hidden;
   border-radius: var(--radio-1);
-  background: var(--sup-3);
+  background: var(--capa-track);
 }
 .riel i {
   display: block;
   height: 100%;
   border-radius: inherit;
   transform-origin: left;
-  background: var(--texto-3);
+  background: var(--acento);
 }
 /* Cerca del tope: ámbar desde 70 %, rojo desde 90 % (`nivel`, src/hilo/contexto.ts). */
 .uso[data-nivel="ambar"] .riel i {
-  background: var(--ambar);
+  background: var(--aviso);
 }
 .uso[data-nivel="rojo"] .riel i {
-  background: var(--rojo);
+  background: var(--critico);
 }
 .uso[data-nivel="ambar"] .pct {
   color: var(--ambar);
@@ -572,29 +504,27 @@ body,
   display: flex;
   min-width: 0;
   flex: 1;
-  height: 2rem;
+  height: var(--alto-boton);
   align-items: center;
   gap: var(--esp-2);
-  padding: 0 var(--esp-2-5);
-  border: 1px solid var(--borde-2);
-  border-radius: var(--radio-2);
-  background: var(--sup-0);
-  color: var(--txt-3);
+  padding: 0 var(--esp-3);
+  border: 0;
+  border-radius: var(--r-cap);
+  background: var(--capa-tile);
+  color: var(--apagado);
   cursor: text;
 }
 /* Pasar el mouse la aclara; con el foco (clic o Ctrl+K), borde claro y un anillo
    alrededor, como la caja de un líder pero más marcado: se ve dónde se escribe.
    El anillo aparece sin animar; el color funde (y con reduced motion, tampoco). */
 .buscar:hover {
-  border-color: var(--borde-4);
-  background: var(--sup-1);
-  color: var(--txt-2);
+  background: var(--capa-track);
+  color: var(--texto);
 }
 .buscar:focus-within {
-  border-color: var(--borde-6);
-  background: var(--sup-1);
-  box-shadow: 0 0 0 0.1875rem var(--resalte-2);
-  color: var(--txt-1);
+  background: var(--capa-track);
+  box-shadow: 0 0 0 0.125rem var(--acento);
+  color: var(--texto);
 }
 .buscar:focus-within kbd {
   color: var(--txt-3);
@@ -624,39 +554,38 @@ kbd {
 }
 .nueva {
   display: grid;
-  width: 2rem;
-  height: 2rem;
+  width: var(--alto-boton);
+  height: var(--alto-boton);
   flex: none;
   place-items: center;
-  border: 1px solid var(--borde-2);
-  border-radius: var(--radio-2);
-  background: var(--sup-0);
-  color: var(--txt-1);
+  border: 0;
+  border-radius: var(--r-cap);
+  background: var(--capa-tile);
+  color: var(--texto);
 }
 .nueva:hover {
-  background: var(--sup-2);
-  color: var(--blanco);
+  background: var(--capa-track);
 }
 /* Sólo líderes | todo (B15): dos íconos en una cápsula; el pulgar marca la vista y se desliza. */
 .vista {
   position: relative;
   display: flex;
-  height: 2rem;
+  height: var(--alto-boton);
   flex: none;
-  padding: var(--esp-0-5);
-  border: 1px solid var(--borde-2);
-  border-radius: var(--radio-2);
-  background: var(--sup-0);
+  padding: var(--esp-1);
+  border: 0;
+  border-radius: var(--r-cap);
+  background: var(--capa-tile);
 }
 .vista::before {
   content: "";
   position: absolute;
-  top: 0.125rem;
-  bottom: 0.125rem;
-  left: 0.125rem;
+  top: 0.25rem;
+  bottom: 0.25rem;
+  left: 0.25rem;
   width: 1.625rem;
-  border-radius: var(--radio-2);
-  background: var(--sup-3);
+  border-radius: var(--r-cap);
+  background: var(--capa-track);
   transition: transform 0.16s cubic-bezier(0.2, 0, 0, 1);
 }
 .vista[data-vista="todo"]::before {
@@ -668,9 +597,9 @@ kbd {
   width: 1.625rem;
   place-items: center;
   border: 0;
-  border-radius: var(--radio-2);
+  border-radius: var(--r-cap);
   background: transparent;
-  color: var(--txt-3);
+  color: var(--apagado);
 }
 .vista button:hover {
   color: var(--txt-1);
@@ -744,6 +673,7 @@ kbd {
 }
 .marco {
   position: absolute;
+  visibility: hidden;
   pointer-events: none;
 }
 /* En tres piezas para que el FLIP no deforme nada: las tapas (con las
@@ -796,17 +726,17 @@ kbd {
   gap: var(--esp-2);
   padding: 0 var(--esp-1-5);
   border: 0;
-  border-radius: var(--radio-2);
+  border-radius: var(--r-sm);
   background: transparent;
-  color: var(--txt-2);
-  font-size: var(--letra-4);
-  font-weight: 500;
+  color: var(--texto);
+  font-size: var(--letra-5);
+  font-weight: 600;
   text-align: left;
   user-select: none;
 }
 .proy-nom:hover {
-  background: var(--sup-1);
-  color: var(--texto-1);
+  background: var(--capa-hover);
+  color: var(--texto);
 }
 .proy-nom .n {
   min-width: 0;
@@ -839,7 +769,7 @@ kbd {
   font-family: var(--font-mono);
   font-size: var(--letra-3);
   font-weight: 400;
-  color: var(--txt-4);
+  color: var(--inactivo);
 }
 .chevron {
   flex: none;
@@ -882,35 +812,24 @@ kbd {
   width: 100%;
   align-items: center;
   gap: var(--esp-2-5);
-  padding: var(--esp-2) var(--esp-2) var(--esp-2) 1.875rem;
+  min-height: var(--alto-fila);
+  padding: var(--esp-2) var(--esp-3) var(--esp-2) 1.875rem;
   border: 0;
-  border-radius: var(--radio-2);
-  background: var(--sup-1);
+  border-radius: var(--r-sm);
+  background: transparent;
   color: inherit;
   text-align: left;
 }
 .lider:hover,
 .lider[data-cursor] {
-  background: var(--sup-2);
+  background: var(--capa-hover);
 }
 /* El que se está viendo se encuentra de un vistazo y no se confunde con el hover: barra blanca
    gruesa a la izquierda, fondo claramente más claro con su contorno, y el nombre en blanco y más
    grueso (los demás, apagados). Su carpeta también se marca (`.proy[data-viendo]`). Sin color:
    azul, verde, ámbar, rojo y dorado ya dicen el estado. */
 .lider[data-activa] {
-  background: var(--sup-4);
-  box-shadow: inset 0 0 0 1px var(--borde-6);
-}
-.lider[data-activa]::before,
-.w > .wbtn[data-activa]::before {
-  position: absolute;
-  top: 0.25rem;
-  bottom: 0.25rem;
-  left: 0;
-  width: 0.25rem;
-  border-radius: var(--radio-1);
-  background: var(--texto-1);
-  content: "";
+  background: var(--capa-tile);
 }
 /* La corona del líder: gris cuando está quieto, dorada y con fulgor mientras
    responde. El fulgor respira por latido.ts (opacity y transform); el brillo
@@ -966,7 +885,7 @@ kbd {
 .lider .nom {
   min-width: 3.25rem;
   overflow: hidden;
-  color: var(--txt-2);
+  color: var(--texto);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -974,7 +893,7 @@ kbd {
   color: var(--txt-3);
 }
 .lider[data-activa] .nom {
-  color: var(--blanco);
+  color: var(--texto);
   font-weight: 600;
 }
 .lider[data-activa] .s {
@@ -982,7 +901,7 @@ kbd {
 }
 .lider .s {
   font-size: var(--letra-3);
-  color: var(--txt-3);
+  color: var(--apagado);
 }
 /* Sin proceso: lo mataron (rojo, como "líder muerto") o cerró (apagado). Se retoma desde su vista. */
 .lider[data-caido] .corona {
@@ -1222,15 +1141,14 @@ kbd {
 }
 .w:hover > .wbtn,
 .wbtn[data-cursor] {
-  background: var(--sup-1);
+  background: var(--capa-hover);
 }
 .w > .wbtn[data-activa] {
-  background: var(--sup-4);
-  box-shadow: inset 0 0 0 1px var(--borde-6);
+  background: var(--capa-tile);
 }
 .w > .wbtn[data-activa] .l1 .t {
   font-weight: 600;
-  color: var(--blanco);
+  color: var(--texto);
 }
 .cerradas .wbtn {
   width: 100%;
@@ -1270,37 +1188,27 @@ kbd {
 .cerradas .donde {
   color: var(--txt-4);
 }
-/* El modelo, con su nombre corto ("Opus", "Sonnet"…), de un solo color; la
-   forma ayuda a reconocerlo de un vistazo (Opus lleno, Sonnet en cuadro,
-   Fable en píldora, Haiku suelto). */
+/* El modelo, con su nombre corto ("Opus", "Sonnet"…), en una cápsula de la insignia del estándar. */
 .glifo {
-  display: grid;
-  height: 0.875rem;
+  display: inline-flex;
+  height: 1rem;
   box-sizing: border-box;
-  place-items: center;
-  padding: 0 var(--esp-1);
-  border: 1px solid currentColor;
-  border-radius: var(--radio-1);
-  font-size: var(--letra-1);
-  font-weight: 600;
-  letter-spacing: 0.01em;
+  align-items: center;
+  justify-content: center;
+  padding: 0 var(--esp-2);
+  border-radius: var(--r-cap);
+  background: var(--capa-tile);
+  color: var(--apagado);
+  font-size: var(--letra-2);
+  font-weight: 500;
   line-height: 1;
   white-space: nowrap;
   user-select: none;
 }
-.glifo[data-fam="opus"] {
-  background: currentColor;
-  -webkit-text-fill-color: var(--negro);
-}
+/* La insignia del modelo es una cápsula para todos; la familia se lee por el texto, no por la forma. */
+.glifo[data-fam="opus"],
 .glifo[data-fam="fable"] {
-  border-radius: var(--radio-2);
-}
-.glifo[data-fam="haiku"] {
-  border-color: transparent;
-  padding: 0;
-}
-.glifo[data-fam="otro"] {
-  border-style: dotted;
+  color: var(--texto);
 }
 .l2 {
   display: flex;
@@ -1421,18 +1329,19 @@ kbd {
 }
 .mini {
   display: inline-flex;
-  height: 1.375rem;
+  height: 1.5rem;
   align-items: center;
-  padding: 0 var(--esp-2);
-  border: 1px solid var(--borde-3);
-  border-radius: var(--radio-2);
-  background: var(--negro);
-  color: var(--txt-1);
+  padding: 0 var(--esp-3);
+  border: 0;
+  border-radius: var(--r-cap);
+  background: var(--capa-tile);
+  color: var(--texto);
   font-size: var(--letra-4);
+  font-weight: 500;
 }
 .mini:hover {
-  border-color: var(--borde-5);
-  color: var(--blanco);
+  background: var(--capa-track);
+  color: var(--texto);
 }
 /* Los botones que salen con el hover de una fila (Archivar, Integrar, Cerrar líder…): sin fondo ni borde
    propios, sobre la tarjeta oscura; al pasarles el mouse, un velo suave. */
@@ -1455,9 +1364,12 @@ kbd {
   flex: none;
   align-items: center;
   gap: var(--esp-1);
+  padding: 0.0625rem var(--esp-2);
+  border-radius: var(--r-cap);
+  background: var(--capa-tile);
   font-family: var(--font-mono);
   font-size: var(--letra-3);
-  color: var(--txt-2);
+  color: var(--apagado);
 }
 .cache::before {
   content: "";
@@ -1622,25 +1534,25 @@ kbd {
   display: flex;
   flex: none;
   gap: var(--esp-0-5);
-  padding: var(--esp-2);
-  border-top: 1px solid var(--borde-1);
-  background: var(--negro);
+  padding: var(--esp-2) var(--esp-3);
+  border-top: 1px solid var(--capa-div);
+  background: transparent;
 }
 .pie button {
   position: relative;
   display: flex;
-  height: 1.875rem;
+  height: 2rem;
   flex: 1;
   align-items: center;
   justify-content: center;
   border: 0;
-  border-radius: var(--radio-2);
+  border-radius: var(--r-cap);
   background: transparent;
-  color: var(--txt-3);
+  color: var(--apagado);
 }
 .pie button:hover {
-  background: var(--sup-1);
-  color: var(--texto-1);
+  background: var(--capa-hover);
+  color: var(--texto);
 }
 /* El numerito del Tablero: cuántos items esperan al usuario. Sólo si hay (sin ellos, el pie queda como siempre). */
 .pie-n {
@@ -2050,16 +1962,19 @@ kbd {
   min-width: 0;
   flex: 1;
   flex-direction: column;
-  background: var(--sup-0);
+  overflow: hidden;
+  border-radius: var(--r-xl);
+  background: var(--vidrio-a);
+  box-shadow: var(--vidrio-borde), var(--sombra-vidrio);
 }
 .migas {
   display: flex;
-  height: 3rem;
+  height: 4rem;
   flex: none;
   align-items: center;
-  gap: var(--esp-2-5);
-  padding: 0 var(--esp-6) 0 var(--esp-3);
-  border-bottom: 1px solid var(--borde-1);
+  gap: var(--esp-3);
+  padding: 0 var(--esp-6) 0 var(--esp-4);
+  border-bottom: 1px solid var(--capa-div);
 }
 .lado {
   display: grid;
@@ -2112,18 +2027,19 @@ kbd {
   height: auto;
 }
 .btn2 {
-  height: 1.75rem;
+  height: var(--alto-boton);
   flex: none;
-  padding: 0 var(--esp-2-5);
-  border: 1px solid var(--borde-3);
-  border-radius: var(--radio-2);
-  background: transparent;
-  color: var(--texto-3);
-  font-size: var(--letra-4);
+  padding: 0 var(--esp-4);
+  border: 0;
+  border-radius: var(--r-cap);
+  background: var(--capa-tile);
+  color: var(--texto);
+  font-size: var(--letra-5);
+  font-weight: 500;
 }
 .btn2:hover {
-  background: var(--sup-2);
-  color: var(--blanco);
+  background: var(--capa-track);
+  color: var(--texto);
 }
 .conv-zona {
   min-height: 0;
@@ -2162,10 +2078,10 @@ kbd {
 .yo {
   max-width: 80%;
   align-self: flex-end;
-  padding: var(--esp-2-5) var(--esp-3-5);
-  border-radius: var(--radio-4);
-  background: var(--sup-2);
-  color: var(--texto-2);
+  padding: var(--esp-3) var(--esp-4);
+  border-radius: var(--r-lg) var(--r-lg) var(--r-xs) var(--r-lg);
+  background: var(--capa-tile);
+  color: var(--texto);
   line-height: 1.55;
 }
 /* Lo que espera en la cola mientras el líder responde: como un mensaje propio, apagado. */
@@ -2361,14 +2277,15 @@ kbd {
   display: flex;
   flex-direction: column;
   gap: var(--esp-1-5);
-  padding: var(--esp-2-5) var(--esp-3);
-  border: 1px solid var(--borde-3);
-  border-radius: var(--radio-4);
-  background: var(--sup-1);
-  transition: border-color 0.15s;
+  padding: var(--esp-3) var(--esp-3) var(--esp-3) var(--esp-4);
+  border: 0;
+  border-radius: var(--r-lg);
+  background: var(--capa-input);
+  box-shadow: var(--vidrio-borde);
+  transition: box-shadow 0.15s;
 }
 .caja:focus-within {
-  border-color: var(--borde-5);
+  box-shadow: inset 0 0 0 1px var(--acento);
 }
 .caja textarea {
   min-height: 2.75rem;
@@ -2403,29 +2320,28 @@ kbd {
 }
 .pbtn {
   display: inline-flex;
-  height: 1.75rem;
+  height: 2rem;
   align-items: center;
   gap: var(--esp-2);
-  padding: 0 var(--esp-2) 0 var(--esp-2);
-  border: 1px solid var(--borde-3);
-  border-radius: var(--radio-2);
-  background: transparent;
-  color: var(--texto-3);
+  padding: 0 var(--esp-3);
+  border: 0;
+  border-radius: var(--r-cap);
+  background: var(--capa-tile);
+  color: var(--texto);
   font-size: var(--letra-4);
+  font-weight: 500;
   transition:
     background-color 0.15s,
     border-color 0.15s,
     color 0.15s;
 }
 .pbtn:is(:hover, [aria-expanded="true"]) {
-  border-color: var(--borde-5);
-  background: var(--sup-2);
-  color: var(--texto-1);
+  background: var(--capa-track);
+  color: var(--texto);
 }
 .pbtn:disabled {
-  border-color: var(--borde-2);
-  background: transparent;
-  color: var(--texto-7);
+  background: var(--capa-card);
+  color: var(--inactivo);
   cursor: not-allowed;
 }
 .pbtn .chev {
@@ -2601,20 +2517,20 @@ kbd {
 }
 .prim {
   display: grid;
-  width: 1.875rem;
-  height: 1.875rem;
+  width: var(--alto-boton);
+  height: var(--alto-boton);
   place-items: center;
   border: 0;
-  border-radius: var(--radio-3);
-  background: var(--texto-1);
-  color: var(--negro);
+  border-radius: var(--r-cap);
+  background: var(--acento);
+  color: var(--acento-texto);
 }
 .prim:hover {
-  background: var(--blanco);
+  filter: brightness(1.08);
 }
 .prim:disabled {
-  background: var(--sup-4);
-  color: var(--texto-6);
+  background: var(--capa-tile);
+  color: var(--inactivo);
   cursor: not-allowed;
 }
 .meta {
@@ -3310,7 +3226,8 @@ kbd {
 }
 .cmd {
   display: grid;
-  grid-template-columns: minmax(7.5rem, auto) 1fr;
+  grid-template-columns: 1.0625rem minmax(7.5rem, auto) 1fr auto;
+  grid-template-areas: "m n d s";
   align-items: baseline;
   column-gap: var(--esp-3-5);
   padding: var(--esp-1-5) var(--esp-2-5);
@@ -3322,7 +3239,26 @@ kbd {
 .cmd[aria-selected="true"] {
   background: var(--sup-2);
 }
+/* La marca de un comando que sólo existe de un lado (Anthropic o Google): su logo a la izquierda, la etiqueta a la derecha. */
+.cmd-m {
+  grid-area: m;
+  display: flex;
+  align-self: center;
+}
+.cmd .logo {
+  color: var(--texto-6);
+}
+.cmd[aria-selected="true"] .logo {
+  color: var(--texto-2);
+}
+.cmd-s {
+  grid-area: s;
+  color: var(--texto-7);
+  font-size: var(--letra-3);
+  white-space: nowrap;
+}
 .cmd-n {
+  grid-area: n;
   color: var(--texto-2);
   font-family: var(--font-mono);
   font-size: var(--letra-4);
@@ -3340,6 +3276,7 @@ kbd {
   vertical-align: -0.0625rem;
 }
 .cmd-d {
+  grid-area: d;
   overflow: hidden;
   color: var(--texto-6);
   font-size: var(--letra-4);
@@ -3510,20 +3447,19 @@ kbd {
   grid-template-columns: 2.75rem minmax(0, 1fr);
   align-items: start;
   gap: var(--esp-3);
-  padding: var(--esp-3);
-  border: 1px solid var(--borde-3);
-  border-radius: var(--radio-4);
-  background: var(--sup-1);
+  padding: var(--esp-3) var(--esp-4);
+  border-radius: var(--r-md);
+  background: var(--capa-card);
+  box-shadow: inset 0 0 0 1px var(--capa-div);
 }
 .tv[data-t="permiso"] .tv-tar {
-  border-color: var(--c-borde);
+  box-shadow: inset 0 0 0 1px var(--c-borde);
 }
 .esc {
   width: 2.75rem;
   height: 2.75rem;
-  border-radius: var(--radio-3);
-  background: var(--sup-2);
-  box-shadow: inset 0 0 0 1px var(--c-borde);
+  border-radius: var(--r-sm);
+  background: var(--capa-tile);
   color: var(--c);
 }
 .esc svg {
@@ -3637,13 +3573,13 @@ kbd {
 }
 .tv-modelo {
   flex: none;
-  padding: 0 var(--esp-2);
-  border: 1px solid var(--borde-4);
-  border-radius: var(--radio-pastilla);
-  background: var(--sup-2);
-  color: var(--texto-3);
-  font-size: var(--letra-3);
-  line-height: 1.25rem;
+  padding: 0 var(--esp-3);
+  border-radius: var(--r-cap);
+  background: var(--capa-tile);
+  color: var(--apagado);
+  font-size: var(--letra-4);
+  font-weight: 500;
+  line-height: var(--alto-chip);
   white-space: nowrap;
 }
 .tv-ef {
@@ -3676,11 +3612,10 @@ kbd {
   align-items: flex-start;
   align-self: flex-start;
   gap: var(--esp-1-5);
-  padding: var(--esp-0-5) var(--esp-2);
-  border: 1px solid var(--c-borde);
-  border-radius: var(--radio-2);
-  background: color-mix(in srgb, var(--c) 10%, var(--sup-2));
-  color: var(--texto-2);
+  padding: var(--esp-1) var(--esp-3);
+  border-radius: var(--r-sm);
+  background: color-mix(in srgb, var(--c) 10%, var(--capa-tile));
+  color: var(--texto);
   font-family: var(--font-mono);
   font-size: var(--letra-4);
 }
@@ -3794,6 +3729,45 @@ kbd {
 }
 .tv-parar {
   margin-left: auto;
+}
+/* El razonamiento de un motor que lo deja ver (Gemini; src/hilo/Actividad.tsx, Razon): su último paso en una línea, discreto, y plegado el del turno entero. */
+.tv-raz {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--esp-0-5);
+  color: var(--texto-4);
+  font-size: var(--letra-4);
+}
+.tv-rz-l {
+  display: flex;
+  max-width: 100%;
+  min-width: 0;
+  align-items: flex-start;
+  gap: var(--esp-1-5);
+}
+.tv-raz .tv-ic {
+  margin-top: var(--esp-0-5);
+  color: var(--sint-kw);
+}
+.tv-rz-p {
+  display: block;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.tv-rz-t {
+  width: 100%;
+  max-height: 12rem;
+  margin: var(--esp-1) 0 0 var(--esp-1);
+  padding: 0 0 0 var(--esp-3);
+  border-left: 1px solid var(--borde-3);
+  color: var(--texto-6);
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow: hidden auto;
+  overflow-wrap: anywhere;
+  scrollbar-width: thin;
 }
 
 /* --- B16: el anillo de contexto ---------------------------------------------
@@ -4277,6 +4251,34 @@ kbd {
 }
 .ll-mas-n {
   color: var(--verde);
+}
+/* Cómo va un comando de un motor que deja ver su trabajo: corriendo (acento) / ok / error. Estático: sin animación infinita. */
+.ll-e {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--esp-1);
+  margin-left: auto;
+  padding-left: var(--esp-2);
+  color: var(--texto-6);
+  font-size: var(--letra-3);
+}
+.ll-e::before {
+  display: block;
+  width: 0.375rem;
+  height: 0.375rem;
+  border-radius: var(--radio-pastilla);
+  background: currentColor;
+  content: "";
+}
+.ll-e[data-e="corriendo"] {
+  color: var(--azul);
+}
+.ll-e[data-e="ok"] {
+  color: var(--verde);
+}
+.ll-e[data-e="error"] {
+  color: var(--rojo-texto);
 }
 .ll-menos-n {
   color: var(--rojo-texto);
@@ -5215,8 +5217,15 @@ summary.sis-div-t:hover,
    vez) y el dedo (blancos de 2.75rem, nada que dependa del hover). En el
    escritorio no entra ninguno. La consulta en rem no sigue a la letra: 35rem son 560 px. */
 @media (max-width: 35rem) {
+  /* En el celular los paneles de vidrio ocupan la pantalla entera: sin marco, sin radio ni sombra. */
   .app {
     position: relative;
+    padding: 0;
+  }
+  .barra-cuerpo,
+  .hilo {
+    border-radius: 0;
+    box-shadow: none;
   }
   /* La lista ocupa todo y tapa lo abierto; al abrir algo se va deslizando, como la barra al ocultarse. */
   .barra,
@@ -5263,14 +5272,15 @@ summary.sis-div-t:hover,
     left: 0.625rem;
   }
   .cmd {
-    grid-template-columns: minmax(0, 1fr);
+    grid-template-columns: 1.0625rem minmax(0, 1fr) auto;
+    grid-template-areas: "m n s" ". d d";
   }
   /* La fila de abajo de la caja, siempre una sola y con el enviar a la derecha, también a 360 px:
      el chip del modo queda en su símbolo, con su color (el nombre largo, "bypass permissions on",
      tiraba el enviar a otra fila); los selectores conservan su texto y pierden el adorno. */
   .barra-c {
     flex-wrap: nowrap;
-    gap: var(--esp-0-5);
+    gap: 0;
   }
   .barra-c > * {
     flex: none;
@@ -5279,11 +5289,11 @@ summary.sis-div-t:hover,
     flex: 1;
   }
   .barra-c :is(.clip, .ctx) {
-    width: 2.25rem;
+    width: 2rem;
   }
   /* Dictar a 360 px: en reposo sólo el micrófono; grabando, el contador; transcribiendo, el aro (el texto sale en la nota de abajo). */
   .barra-c .dic-b {
-    min-width: 2.25rem;
+    min-width: 2rem;
     padding: 0 var(--esp-1-5);
   }
   .dic-b:not([data-fase="grabando"]) .dic-t {
@@ -5291,7 +5301,8 @@ summary.sis-div-t:hover,
   }
   .barra-c .pbtn {
     gap: var(--esp-1-5);
-    padding: 0 var(--esp-2);
+    padding: 0 var(--esp-1-5);
+    font-size: var(--letra-3);
   }
   .barra-c .pbtn :is(.chev, .chip) {
     display: none;
@@ -5353,6 +5364,157 @@ summary.sis-div-t:hover,
 }
 
 /* Los teléfonos más angostos (360 px): el esfuerzo queda en su palabra, sin las barritas. */
+/* --- Subagentes ------------------------------------------------------------
+   Los que lanza una sesión con su herramienta Agent, colgando bajo su fila con el mismo riel que un worker.
+   Una fila de dos renglones (descripción + modelo; estado, tiempo, tokens y lo último que hizo) que se abre
+   para leer el informe. El punto de "corriendo" lo mueve latido.ts (Punto); nada anima por CSS. */
+.subs {
+  margin-bottom: var(--esp-0-5);
+}
+.sub-pt {
+  position: relative;
+  width: 0.4375rem;
+  height: 0.4375rem;
+  flex: none;
+}
+.sub-pt :is(.pt, .onda, .halo) {
+  top: 0;
+  left: 0;
+}
+.subs-chip {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--esp-1-5);
+  color: var(--azul);
+  font-size: var(--letra-3);
+  font-weight: 500;
+  white-space: nowrap;
+}
+.migas .subs-chip,
+.lider-linea .subs-chip {
+  font-size: var(--letra-4);
+}
+.sub-fila {
+  display: flex;
+  width: calc(100% - 0.75rem);
+  min-width: 0;
+  margin-left: var(--esp-3);
+  align-items: flex-start;
+  gap: var(--esp-2);
+  padding: var(--esp-1) var(--esp-2);
+  border: 0;
+  border-radius: var(--radio-2);
+  background: transparent;
+  color: var(--txt-2);
+  text-align: left;
+}
+.sub-fila:hover,
+.sub-fila:focus-visible {
+  background: var(--sup-2);
+}
+.sub-fila .sub-pt {
+  margin-top: var(--esp-1);
+}
+.sub-txt {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 1px;
+}
+.sub-t,
+.sub-s {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  gap: var(--esp-1-5);
+  white-space: nowrap;
+}
+.sub-desc {
+  min-width: 0;
+  flex: 0 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: var(--letra-4);
+  color: var(--txt-1);
+}
+.sub-modelo {
+  flex: none;
+  font-size: var(--letra-2);
+  color: var(--txt-4);
+}
+.sub-s {
+  font-size: var(--letra-3);
+  color: var(--txt-3);
+}
+.sub-s > * {
+  flex: none;
+}
+.sub-estado {
+  color: var(--azul);
+}
+.sub[data-estado="terminado"] .sub-estado {
+  color: var(--verde);
+}
+.sub[data-estado="error"] .sub-estado {
+  color: var(--rojo);
+}
+.sub[data-estado="obsoleto"] .sub-estado {
+  color: var(--txt-4);
+}
+.sub-ultimo {
+  min-width: 0;
+  flex: 0 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-family: var(--font-mono);
+  color: var(--txt-4);
+}
+.sub-fila .chevron {
+  flex: none;
+  margin-top: var(--esp-1);
+  color: var(--txt-4);
+}
+.sub-fila[aria-expanded="true"] .chevron {
+  transform: rotate(180deg);
+}
+.sub-cuerpo {
+  margin: 0 var(--esp-2) var(--esp-1) calc(var(--esp-3) + var(--esp-2) + 0.4375rem + var(--esp-2));
+}
+.sub-informe {
+  max-height: 16rem;
+  margin: 0;
+  overflow: auto;
+  padding: var(--esp-2);
+  border-radius: var(--radio-2);
+  background: var(--sup-1);
+  font-family: var(--font-mono);
+  font-size: var(--letra-3);
+  color: var(--txt-2);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.sub-vacio {
+  margin: 0;
+  font-size: var(--letra-3);
+  color: var(--txt-4);
+}
+.sub-ver {
+  margin-top: var(--esp-1);
+  padding: var(--esp-1) var(--esp-2);
+  border: 0;
+  border-radius: var(--radio-2);
+  background: var(--sup-3);
+  font-size: var(--letra-3);
+  color: var(--txt-2);
+}
+.sub-ver:hover:not(:disabled) {
+  background: var(--sup-4);
+}
+.sub-ver:disabled {
+  color: var(--txt-4);
+}
 @media (max-width: 35rem) {
   /* En una tabla, lo que no tiene espacios se parte antes: la pantalla es la mitad. */
   .tabla :is(th, td) {
@@ -5383,6 +5545,9 @@ summary.sis-div-t:hover,
     width: 2.75rem;
     height: 2.75rem;
   }
+  .g-plegar {
+    min-height: 2.75rem;
+  }
   .caja-carpeta input,
   .btn2,
   .pbtn,
@@ -5401,6 +5566,8 @@ summary.sis-div-t:hover,
   }
   .wbtn,
   .lider,
+  .sub-fila,
+  .sub-ver,
   .cmenu-op,
   .op,
   .cmd,
@@ -5424,9 +5591,17 @@ summary.sis-div-t:hover,
   .avs-d {
     width: 2.75rem;
   }
+  .vista {
+    padding: var(--esp-0-5);
+  }
   .vista::before,
   .vista button {
     width: 2.5rem;
+  }
+  .vista::before {
+    top: var(--esp-0-5);
+    bottom: var(--esp-0-5);
+    left: var(--esp-0-5);
   }
   .vista[data-vista="todo"]::before {
     transform: translateX(2.5rem);

@@ -10,7 +10,7 @@ import type { AddressInfo } from "node:net";
 import os from "node:os";
 import path from "node:path";
 import { DEFAULTS_CLAUDE, DEFAULTS_GEMINI, GEMINI, TIPOS, defaultsDe, efectivoDe, leerConfig, unir, urlOllama, validarConfig, HOY, type ConfigModelos } from "../electron/modelos-tipos.ts";
-import { guardarModelos, leerModelos, sincronizarRouting, sondearOllama, type CorrerPa } from "../electron/modelos-config.ts";
+import { guardarModelos, leerModelos, sondearOllama, type CorrerPa } from "../electron/modelos-config.ts";
 import { parsearRouting } from "../electron/routing.ts";
 import { cambiarIdioma, textoMain } from "../src/i18n/index.ts";
 
@@ -36,6 +36,7 @@ const CONTRATO = {
   locales: [{ id: "ollama:qwen3-coder:30b", nombre: "Qwen3 Coder 30B", url: "http://localhost:11434", modelo: "qwen3-coder:30b" }],
   gemini: { cupo_max: 70, sin_claude: "esperar" },
   claude: {},
+  destrabar: {},
 };
 const escribir = (ruta: string, x: unknown) => {
   mkdirSync(path.dirname(ruta), { recursive: true });
@@ -47,7 +48,7 @@ test("sin archivo: lo de hoy, y leer no crea nada", async () => {
   const e = await leerModelos(undefined, ruta);
   assert.equal(e.existe, false);
   assert.equal(e.error, null);
-  assert.deepEqual(e.config, { workers: {}, locales: [], gemini: {}, claude: {} });
+  assert.deepEqual(e.config, { workers: {}, locales: [], excluir: [], permitir_max: false, gemini: {}, claude: {}, destrabar: {} });
   assert.equal(e.efectivo, null);
   assert.equal(existsSync(path.dirname(ruta)), false);
 });
@@ -60,12 +61,14 @@ test("lee el contrato completo", async () => {
   assert.deepEqual(e.config.lider, { modelo: "claude-opus-5-5", effort: "high" });
   assert.deepEqual(e.config.workers["codigo-acotado"], { modelo: "gemini-4-argon-high" });
   assert.equal(e.config.locales[0]!.id, "ollama:qwen3-coder:30b");
-  assert.deepEqual(e.config.gemini, { cupo_max: 70, sin_claude: "esperar" });
+  assert.deepEqual(e.config.gemini, { cupo_max: 70 });
+  // El `sin_claude` viejo (Gemini) se lee como el `sin_cupo` de ahora.
+  assert.equal(e.config.sin_cupo, "esperar");
 });
 
 test("guardar crea la carpeta, escribe con version 1 y no deja temporales", async () => {
   const ruta = nuevaRuta();
-  const e = await guardarModelos({ lider: { modelo: "claude-opus-5-5", effort: "xhigh" }, workers: {}, locales: [], gemini: {}, claude: {} }, undefined, ruta);
+  const e = await guardarModelos({ lider: { modelo: "claude-opus-5-5", effort: "xhigh" }, workers: {}, locales: [], excluir: [], permitir_max: false, gemini: {}, claude: {}, destrabar: {} }, undefined, ruta);
   assert.equal(e.existe, true);
   const j = JSON.parse(readFileSync(ruta, "utf8"));
   assert.equal(j.version, 1);
@@ -152,7 +155,7 @@ test("validación: lo que no vale se rechaza con su motivo y sin tocar el archiv
     [{ gemini: { cupo_max: 0 } }, /número entero del 1 al 100/],
     [{ gemini: { cupo_max: 101 } }, /número entero del 1 al 100/],
     [{ gemini: { cupo_max: 5.5 } }, /número entero/],
-    [{ gemini: { sin_claude: "quizas" } }, /usar Claude, esperar o fallar/],
+    [{ sin_cupo: "quizas" }, /esperar o fallar/],
     [{ gemini: { rarisimo: 1 } }, /Campo desconocido/],
     [{ cosa: 1 }, /Campo desconocido/],
     [{ locales: [{ id: "ollama:x", modelo: "x", url: "ftp://a" }] }, /no es una dirección http/],
@@ -176,20 +179,20 @@ test("urlOllama normaliza y rechaza lo que no es http(s)", () => {
 
 test("leerConfig es tolerante: ignora lo que no entiende", () => {
   const c = leerConfig({ lider: 3, workers: { default: { modelo: "claude-sonnet-5-5" }, mecanico: { modelo: 5 } }, locales: [{ id: 1 }], gemini: { cupo_max: "mucho", sin_claude: "x" } });
-  assert.deepEqual(c, { workers: { default: { modelo: "claude-sonnet-5-5" } }, locales: [], gemini: {}, claude: {} });
+  assert.deepEqual(c, { workers: { default: { modelo: "claude-sonnet-5-5" } }, locales: [], excluir: [], permitir_max: false, gemini: {}, claude: {}, destrabar: {} });
 });
 
 test("qué corre hoy: el tipo, el default del archivo o lo de siempre", () => {
-  const vacia: ConfigModelos = { workers: {}, locales: [], gemini: {}, claude: {} };
+  const vacia: ConfigModelos = { workers: {}, locales: [], excluir: [], permitir_max: false, gemini: {}, claude: {}, destrabar: {} };
   assert.deepEqual(efectivoDe(vacia, "default"), HOY.workers.default);
   assert.deepEqual(efectivoDe(vacia, "mecanico"), { modelo: "claude-haiku-5-5", effort: "xhigh" });
-  const c: ConfigModelos = { workers: { default: { modelo: "gemini-4-argon-low" }, lectura: { modelo: "claude-opus-5-5", effort: "max" } }, locales: [], gemini: {}, claude: {} };
+  const c: ConfigModelos = { workers: { default: { modelo: "gemini-4-argon-low" }, lectura: { modelo: "claude-opus-5-5", effort: "max" } }, locales: [], excluir: [], permitir_max: false, gemini: {}, claude: {}, destrabar: {} };
   assert.deepEqual(efectivoDe(c, "debug"), { modelo: "gemini-4-argon-low" });
   assert.deepEqual(efectivoDe(c, "lectura"), { modelo: "claude-opus-5-5", effort: "max" });
 });
 
 test("defaults por tipo de tarea: Haiku para leer y lo mecánico, Sonnet para el código, Opus para debug y diseño", () => {
-  const vacia: ConfigModelos = { workers: {}, locales: [], gemini: {}, claude: {} };
+  const vacia: ConfigModelos = { workers: {}, locales: [], excluir: [], permitir_max: false, gemini: {}, claude: {}, destrabar: {} };
   const H = { modelo: "claude-haiku-5-5", effort: "xhigh" };
   const S = { modelo: "claude-sonnet-5-5", effort: "high" };
   const O = { modelo: "claude-opus-5-5", effort: "xhigh" };
@@ -199,12 +202,12 @@ test("defaults por tipo de tarea: Haiku para leer y lo mecánico, Sonnet para el
   );
   assert.equal(defaultsDe(false), DEFAULTS_CLAUDE);
   // El `default` del archivo sigue valiendo para los tipos que no tienen fila.
-  const c: ConfigModelos = { workers: { default: { modelo: "claude-opus-5-5", effort: "low" } }, locales: [], gemini: {}, claude: {} };
+  const c: ConfigModelos = { workers: { default: { modelo: "claude-opus-5-5", effort: "low" } }, locales: [], excluir: [], permitir_max: false, gemini: {}, claude: {}, destrabar: {} };
   assert.deepEqual(efectivoDe(c, "lectura"), { modelo: "claude-opus-5-5", effort: "low" });
 });
 
 test("sin Claude (sólo Gemini): Argon para todo lo que pesa y Flash sólo para lo mecánico", () => {
-  const vacia: ConfigModelos = { workers: {}, locales: [], gemini: {}, claude: {} };
+  const vacia: ConfigModelos = { workers: {}, locales: [], excluir: [], permitir_max: false, gemini: {}, claude: {}, destrabar: {} };
   for (const t of TIPOS) {
     const m = efectivoDe(vacia, t, true).modelo;
     assert.equal(m, t === "mecanico" ? "gemini-3.8-flash-medium" : "gemini-4-argon-high", t);
@@ -293,44 +296,53 @@ const CLAUDE_MD = `# Ejemplo
 <!-- /trama:routing -->
 `;
 
-test("las filas de CLAUDE.md salen de la config: código←codigo-acotado, exploración←lectura, diseño←frontend", async () => {
-  const md = path.join(tmp, "CLAUDE-1.md");
-  writeFileSync(md, CLAUDE_MD);
-  const c = validarConfig({
-    workers: { "codigo-acotado": { modelo: "gemini-4-argon-high" }, lectura: { modelo: "ollama:qwen3-coder:30b" } },
-    locales: CONTRATO.locales,
-  });
-  assert.equal(await sincronizarRouting(c, md), null);
-  const filas = parsearRouting(readFileSync(md, "utf8"));
-  assert.ok(!("error" in filas));
-  const f = (filas as { filas: { rol: string; modelo: string | null; effort: string | null }[] }).filas;
-  assert.deepEqual(f.find((x) => x.rol === "codigo"), { rol: "codigo", modelo: "gemini-4-argon-high", effort: null, nota: "—" });
-  assert.equal(f.find((x) => x.rol === "explorar")!.modelo, "ollama:qwen3-coder:30b");
-  // diseño no está en la config: queda como estaba
-  assert.equal(f.find((x) => x.rol === "diseno")!.modelo, "claude-fable-5-1");
+test("destrabar: se lee, se valida, se escribe disperso y no pisa lo ajeno", async () => {
+  assert.deepEqual(leerConfig({ destrabar: { "gemini-3.8-flash": false, "gemini-4-argon": true, "claude-opus-5-5": true, x: 3 } }).destrabar, { "gemini-3.8-flash": false, "gemini-4-argon": true });
+  assert.deepEqual(leerConfig({}).destrabar, {});
+  const base = { workers: {}, locales: [], excluir: [], permitir_max: false, gemini: {}, claude: {} };
+  assert.throws(() => validarConfig({ ...base, destrabar: { "gemini-3.8-flash": "si" } }));
+  assert.throws(() => validarConfig({ ...base, destrabar: { "claude-opus-5-5": true } }), "sólo modelos de agy");
+  const ruta = nuevaRuta();
+  mkdirSync(path.dirname(ruta), { recursive: true });
+  writeFileSync(ruta, JSON.stringify({ version: 1, algo_ajeno: { x: 1 } }));
+  await guardarModelos({ ...base, destrabar: { "gemini-3.8-flash": false } }, undefined, ruta);
+  let j = JSON.parse(readFileSync(ruta, "utf8"));
+  assert.deepEqual(j.destrabar, { "gemini-3.8-flash": false });
+  assert.deepEqual(j.algo_ajeno, { x: 1 });
+  assert.deepEqual((await leerModelos(undefined, ruta)).config.destrabar, { "gemini-3.8-flash": false });
+  await guardarModelos({ ...base, destrabar: {} }, undefined, ruta);
+  j = JSON.parse(readFileSync(ruta, "utf8"));
+  assert.ok(!("destrabar" in j), "sin nada tocado sale del archivo");
 });
 
-test("sin tipos que sincronizar no se toca CLAUDE.md; si no se puede, devuelve el motivo", async () => {
-  const md = path.join(tmp, "CLAUDE-2.md");
-  writeFileSync(md, CLAUDE_MD);
-  assert.equal(await sincronizarRouting({ workers: { debug: { modelo: "claude-opus-5-5" } }, locales: [], gemini: {}, claude: {} }, md), null);
-  assert.equal(readFileSync(md, "utf8"), CLAUDE_MD);
-  const sin = path.join(tmp, "CLAUDE-3.md");
-  writeFileSync(sin, "# nada\n<!-- trama:routing -->\n");
-  const motivo = await sincronizarRouting({ workers: { lectura: { modelo: "claude-opus-5-5", effort: "high" } }, locales: [], gemini: {}, claude: {} }, sin);
-  assert.match(enEs(motivo!), /No encuentro la tabla/);
-  assert.equal(readFileSync(sin, "utf8"), "# nada\n<!-- trama:routing -->\n");
-  // Una instalación nueva (sin la tabla) la recibe con la fila guardada.
-  const nueva = path.join(tmp, "CLAUDE-4.md");
-  writeFileSync(nueva, "# nada\n");
-  assert.equal(await sincronizarRouting({ workers: { lectura: { modelo: "claude-opus-5-5", effort: "high" } }, locales: [], gemini: {} }, nueva), null);
-  const filas = (parsearRouting(readFileSync(nueva, "utf8")) as { filas: { rol: string; modelo: string | null }[] }).filas;
-  assert.equal(filas.find((f) => f.rol === "explorar")?.modelo, "claude-opus-5-5");
+test("excluir y permitir_max: se leen, se validan y se escriben sólo si no son el default, sin pisar lo ajeno", async () => {
+  assert.deepEqual(leerConfig({ excluir: ["Fable", "claude-opus-5-*", 3, "con espacio"], permitir_max: true }).excluir, ["Fable", "claude-opus-5-*"]);
+  assert.equal(leerConfig({ permitir_max: true }).permitir_max, true);
+  assert.equal(leerConfig({}).permitir_max, false);
+  const base = { workers: {}, locales: [], gemini: {}, claude: {} };
+  assert.throws(() => validarConfig({ ...base, excluir: ["con espacio"] }));
+  assert.throws(() => validarConfig({ ...base, excluir: "fable" }));
+  assert.throws(() => validarConfig({ ...base, permitir_max: "si" }));
+  const ruta = nuevaRuta();
+  mkdirSync(path.dirname(ruta), { recursive: true });
+  writeFileSync(ruta, JSON.stringify({ version: 1, algo_ajeno: { x: 1 } }));
+  await guardarModelos({ workers: {}, locales: [], excluir: ["fable"], permitir_max: true, gemini: {}, claude: {} }, undefined, ruta);
+  let j = JSON.parse(readFileSync(ruta, "utf8"));
+  assert.deepEqual(j.excluir, ["fable"]);
+  assert.equal(j.permitir_max, true);
+  assert.deepEqual(j.algo_ajeno, { x: 1 });
+  const e = await leerModelos(undefined, ruta);
+  assert.deepEqual(e.config.excluir, ["fable"]);
+  assert.equal(e.config.permitir_max, true);
+  await guardarModelos({ workers: {}, locales: [], excluir: [], permitir_max: false, gemini: {}, claude: {}, destrabar: {} }, undefined, ruta);
+  j = JSON.parse(readFileSync(ruta, "utf8"));
+  assert.ok(!("excluir" in j) && !("permitir_max" in j), "lo que vuelve al default sale del archivo");
+  assert.deepEqual(j.algo_ajeno, { x: 1 });
 });
 
 test("guarda y lee reparto: auto y modelos agy:*", async () => {
   const ruta = nuevaRuta();
-  await guardarModelos({ lider: { modelo: "agy:claude-opus-5-5-high" }, reparto: "auto", workers: { mecanico: { modelo: "agy:gpt-oss-120b-medium" } }, locales: [], gemini: {}, claude: {} }, undefined, ruta);
+  await guardarModelos({ lider: { modelo: "agy:claude-opus-5-5-high" }, reparto: "auto", workers: { mecanico: { modelo: "agy:gpt-oss-120b-medium" } }, locales: [], excluir: [], permitir_max: false, gemini: {}, claude: {}, destrabar: {} }, undefined, ruta);
   const j = JSON.parse(readFileSync(ruta, "utf8"));
   assert.equal(j.reparto, "auto");
   assert.deepEqual(j.lider, { modelo: "agy:claude-opus-5-5-high" });
@@ -358,10 +370,31 @@ test("topes de Claude: `reserva` (lo libre) se lee como tope y se escribe como `
   c.claude = { tope_7d: 90 };
   await guardarModelos(c, undefined, ruta);
   assert.deepEqual(JSON.parse(readFileSync(ruta, "utf8")).reserva, { "7d": 0.1 });
-  // Sin topes: la clave se va.
+  // Sin topes (el interruptor apagado): `reserva: null`, que `reparto` lee como "no guardar nada".
   c.claude = {};
   await guardarModelos(c, undefined, ruta);
-  assert.equal("reserva" in JSON.parse(readFileSync(ruta, "utf8")), false);
+  assert.equal(JSON.parse(readFileSync(ruta, "utf8")).reserva, null);
+  // Y si nunca hubo reserva, no se inventa una.
+  const otra = nuevaRuta();
+  escribir(otra, { ...CONTRATO, reserva: undefined });
+  const d: ConfigModelos = structuredClone((await leerModelos(undefined, otra)).config);
+  d.claude = {};
+  d.lider = { modelo: "claude-sonnet-5-5", effort: "high" };
+  await guardarModelos(d, undefined, otra);
+  assert.equal("reserva" in JSON.parse(readFileSync(otra, "utf8")), false);
+});
+
+test("sin_cupo: se escribe, reemplaza al sin_claude viejo y se valida", async () => {
+  const ruta = nuevaRuta();
+  escribir(ruta, CONTRATO);
+  const c: ConfigModelos = structuredClone((await leerModelos(undefined, ruta)).config);
+  c.sin_cupo = "fallar";
+  await guardarModelos(c, undefined, ruta);
+  const j = JSON.parse(readFileSync(ruta, "utf8"));
+  assert.equal(j.sin_cupo, "fallar");
+  assert.equal("sin_claude" in (j.gemini ?? {}), false);
+  assert.equal((await leerModelos(undefined, ruta)).config.sin_cupo, "fallar");
+  await assert.rejects(guardarModelos({ ...c, sin_cupo: "quizas" as never }, undefined, ruta), lanza(/esperar o fallar/));
 });
 
 test("topes de Claude: un `reserva` que ya dice lo mismo no se reescribe", async () => {
@@ -386,10 +419,10 @@ test("topes de Claude: enteros de 1 a 100, y nada desconocido adentro", async ()
     [{ rarisimo: 1 }, /Campo desconocido/],
   ];
   for (const [claude, re] of casos) {
-    const x = { workers: {}, locales: [], gemini: {}, claude };
+    const x = { workers: {}, locales: [], excluir: [], permitir_max: false, gemini: {}, claude };
     assert.throws(() => validarConfig(x), lanza(re), JSON.stringify(claude));
     await assert.rejects(guardarModelos(x as ConfigModelos, undefined, ruta), lanza(re));
   }
   assert.equal(readFileSync(ruta, "utf8"), antes);
-  assert.doesNotThrow(() => validarConfig({ workers: {}, locales: [], gemini: {}, claude: { tope_5h: 1, tope_7d: 100 } }));
+  assert.doesNotThrow(() => validarConfig({ workers: {}, locales: [], excluir: [], permitir_max: false, gemini: {}, claude: { tope_5h: 1, tope_7d: 100 } }));
 });

@@ -8,7 +8,9 @@ import { fuente, type FaltaSetup } from "../datos/fuente";
 import { useFoco } from "../foco";
 import { t } from "../i18n";
 import { useIdioma } from "../i18n/react";
+import { carcasa } from "../carcasa";
 import { MODO } from "../modo";
+import { abrirAjustes, type CatId } from "../paneles/ajustes-nav";
 
 /** Las claves de cada una (literales: `t` las comprueba contra el diccionario). */
 const K = {
@@ -17,6 +19,10 @@ const K = {
   ollama: { nombre: "setup.ollama", nota: "setup.ollamaNota" },
   login: { nombre: "setup.login", nota: "setup.loginNota" },
 } as const;
+
+/** Dónde de Ajustes se arregla cada una (sin categoría: se consigue afuera y nada se configura acá). */
+const categoriaDe = (id: FaltaSetup["id"]): CatId | null =>
+  id === "ollama" ? "locales" : id === "agy" ? (carcasa() ? "cuentas" : "modelos") : id === "login" ? (carcasa() ? "cuentas" : null) : null;
 
 export const AvisoSetup = memo(function AvisoSetup() {
   useIdioma();
@@ -73,6 +79,19 @@ export const AvisoSetup = memo(function AvisoSetup() {
                   <div className="avs-n">{t(K[f.id].nombre)}</div>
                   <div className="avc-n">{t(K[f.id].nota)}</div>
                 </div>
+                {categoriaDe(f.id) ? (
+                  <button
+                    type="button"
+                    className="avs-a"
+                    data-tip={t("setup.irAjustesTip", { cat: t(`aj.cat.${categoriaDe(f.id)!}` as const) })}
+                    onClick={() => {
+                      abrirAjustes(categoriaDe(f.id)!);
+                      setAbierto(false);
+                    }}
+                  >
+                    {t("setup.irAjustes")}
+                  </button>
+                ) : null}
                 <a className="avs-a" href={f.url} target="_blank" rel="noopener noreferrer" data-tip={t("setup.abrirTip")}>
                   {t("setup.abrir")}
                 </a>

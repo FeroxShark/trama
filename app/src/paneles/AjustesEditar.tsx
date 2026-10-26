@@ -3,8 +3,11 @@
 // hasta Guardar (una sola barra fija abajo, ajustes-barra.ts), Cancelar vuelve a lo guardado y lo que no vale se dice en línea antes de mandar. El main vuelve a
 // validar con las mismas reglas (electron/valida-ajustes.ts) y, si algo falla, el borrador queda como estaba.
 import { useEffect, useRef, useState, useSyncExternalStore, type FormEvent, type ReactNode } from "react";
+import { Cat } from "./AjustesNav";
+import { declarar } from "./ajustes-nav";
 import { Plus, X } from "lucide-react";
-import { PUERTO_MAX, PUERTO_MIN, RED_MAX, RED_MIN } from "../../electron/valida-ajustes";
+import { detalleAcceso, EstadoEscucha, PasosCelular } from "./CelularGuia";
+import { PUERTO_MAX, PUERTO_MIN } from "../../electron/valida-ajustes";
 import { VERSION } from "../datos/contrato";
 import { fuentePaneles, type Ajustes as Datos, type EstadoRemoto } from "../datos/paneles";
 import { Selector, type Opcion } from "../hilo/Selector";
@@ -16,13 +19,13 @@ import { cancelarTodo, guardarTodo, publicar, resumen, suscribir } from "./ajust
 import { agregarDispositivo, numDesde, numPara, quitarDispositivo, remotoDesde, remotoPara, type BorradorNum, type BorradorRemoto } from "./ajustes-borrador";
 
 /** Las partes de una fila de Ajustes (la misma de Ajustes.tsx, que la pasa para no repetirla). */
-export type FilaDato = (p: { nombre: ClaveSola; que: ClaveSola; children: ReactNode }) => ReactNode;
+export type FilaDato = (p: { nombre: ClaveSola; que: ClaveSola; icono?: ReactNode; children: ReactNode }) => ReactNode;
 
 /**
  * El motivo de una validación: la clave que devuelve valida-ajustes.ts, traducida. Los topes que mencionan van como
  * `{min}` y `{max}` (los de la red o los del puerto, según el campo).
  */
-const motivo = (clave: string, min: number, max: number) =>
+export const motivo = (clave: string, min: number, max: number) =>
   (t as (k: Clave, v: { min: string; max: string }) => string)(clave as Clave, { min: min.toLocaleString(locale()), max: max.toLocaleString(locale()) });
 
 /** Para las capturas: `editando` deja cambios sin guardar; `editando-mal` los deja sin que valgan. */
@@ -104,8 +107,7 @@ export function PlanYRed({
   const [g, setG] = useState(inicial);
   const [b, setB] = useState<BorradorNum>(() => {
     const base = numDesde(inicial);
-    if (EDITANDO) return { plan: "pro", red: "350000" };
-    if (EDITANDO_MAL) return { plan: "pro", red: "50" };
+    if (EDITANDO) return { plan: "pro", red: base.red };
     return base;
   });
   const [guardando, setGuardando] = useState(false);
@@ -140,7 +142,6 @@ export function PlanYRed({
     }
   };
 
-  const redId = "ajustes-red";
   return (
     <>
       <section className="pn-sec">
@@ -159,37 +160,6 @@ export function PlanYRed({
           ) : (
             <span className="pn-falta">{g.plan_error ? textoError(g.plan_error) : t("comun.sinDato")}</span>
           )}
-        </Dato>
-      </section>
-
-      <section className="pn-sec pn-edita">
-        <h2 className="pn-h">{t("ajustes.compactacion")}</h2>
-        <Dato nombre="ajustes.compactar" que="ajustes.compactarQue">
-          <div className="pn-campo-fila">
-            <input
-              id={redId}
-              className="pn-campo pn-campo-num"
-              type="text"
-              inputMode="numeric"
-              autoComplete="off"
-              spellCheck={false}
-              value={b.red}
-              placeholder={t("ajustes.sinDefinir")}
-              aria-label={t("ajustes.compactar")}
-              aria-invalid={!valido}
-              aria-describedby={valido ? undefined : `${redId}-e`}
-              onChange={(e) => cambiar({ ...b, red: e.target.value })}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") void guardar();
-              }}
-            />
-            <span className="pn-unidad">{t("ajustes.redUnidad")}</span>
-          </div>
-          {r.error ? (
-            <div className="pn-error pn-campo-error" id={`${redId}-e`}>
-              {motivo(r.error, RED_MIN, RED_MAX)}
-            </div>
-          ) : null}
         </Dato>
         <Acciones id="plan" sucio={r.sucio} valido={valido} guardando={guardando} ok={ok} error={error} alGuardar={guardar} alCancelar={() => cambiar(numDesde(g))} />
       </section>
@@ -218,6 +188,19 @@ export function Celular({ Dato }: { Dato: FilaDato }) {
   const sec = useRef<HTMLElement>(null);
   const nuevoRef = useRef<HTMLInputElement>(null);
   useEffect(() => () => void (vivo.current = false), []);
+  // Quién entró y si escucha cambia sin que Ajustes se entere: se vuelve a mirar al volver a la ventana (sin reloj).
+  // Sólo se toma lo que informa el motor; el borrador no se toca.
+  useEffect(() => {
+    const alFoco = () => {
+      if (document.visibilityState === "hidden") return;
+      fuentePaneles.remoto().then(
+        (r) => vivo.current && r.editable && setE((antes) => (antes?.editable ? { ...antes, escuchando: r.escuchando, accesos: r.accesos } : antes)),
+        () => {},
+      );
+    };
+    window.addEventListener("focus", alFoco);
+    return () => window.removeEventListener("focus", alFoco);
+  }, []);
 
   useEffect(() => {
     fuentePaneles.remoto().then(
@@ -237,11 +220,16 @@ export function Celular({ Dato }: { Dato: FilaDato }) {
 
   // Las capturas del celular abren el panel mostrando esta sección.
   const visible = e?.editable === true && b !== null;
+  // La categoría Celular existe sólo si esta sección se ve (o si falló y hay que decirlo).
+  useEffect(() => {
+    declarar("celular", visible || falla !== null);
+    return () => declarar("celular", false);
+  }, [visible, falla]);
   useEffect(() => {
     if (visible && (MODO.variante === "celular" || EDITANDO || EDITANDO_MAL)) sec.current?.scrollIntoView({ block: "start" });
   }, [visible]);
 
-  if (falla) return <div className="pn-aviso" data-error>{textoMain(falla)}</div>;
+  if (falla) return <Cat id="celular"><div className="pn-aviso" data-error>{textoMain(falla)}</div></Cat>;
   if (!e || !e.editable || !b) return null;
 
   const r = remotoPara(e, b);
@@ -281,7 +269,7 @@ export function Celular({ Dato }: { Dato: FilaDato }) {
 
   // Lo que se dice de dónde escucha es lo guardado y andando, no el borrador.
   const escucha = e.escuchando[0];
-  const estado = !e.activo ? t("ajustes.celApagado") : escucha ? t("ajustes.celEscucha", { url: escucha }) : t("ajustes.celSinEscuchar");
+  const visto = new Map(e.accesos.map((a) => [a.nombre, a]));
   // Un nombre a medio escribir que no vale se señala con el error del campo, no con el general.
   const errNuevo = b.nuevo.trim() && r.errores.nuevo !== "ajustes.errDispPendiente" ? r.errores.nuevo : null;
   const errPuerto = r.errores.puerto ?? null;
@@ -289,12 +277,13 @@ export function Celular({ Dato }: { Dato: FilaDato }) {
   const opciones = ESTADOS.map((o) => ({ ...o, nombre: t(o.id === "on" ? "ajustes.celOn" : "ajustes.celOff"), desc: t("ajustes.celAccesoQue") }));
 
   return (
+    <Cat id="celular">
     <section className="pn-sec pn-edita" ref={sec} data-celular>
-      <h2 className="pn-h">{t("ajustes.celular")}</h2>
-      <Fijo k="ajustes.celularIntro" bloque className="pn-nota pn-intro" />
-      <div className="pn-estado" data-escucha={e.activo && escucha ? "" : undefined}>
-        {estado}
+      <EstadoEscucha activo={e.activo} url={escucha} />
+      <div data-opc="ajustes.celGuia">
+        <PasosCelular url={e.activo ? escucha : undefined} />
       </div>
+      <Fijo k="ajustes.celularIntro" bloque className="pn-nota pn-intro" />
 
       <Dato nombre="ajustes.celAcceso" que="ajustes.celAccesoQue">
         <div className="pn-sel">
@@ -321,10 +310,14 @@ export function Celular({ Dato }: { Dato: FilaDato }) {
         <ul className="pn-disp" aria-label={t("ajustes.celDisp")}>
           {b.dispositivos.length ? (
             b.dispositivos.map((d) => (
-              <li key={d}>
-                <span className="pn-disp-nom">{d}</span>
-                <button type="button" className="pn-quitar" aria-label={t("ajustes.celQuitar", { nombre: d })} data-tip={t("ajustes.celQuitar", { nombre: d })} onClick={() => cambiar(quitarDispositivo(b, d))}>
+              <li key={d} className="cel-disp">
+                <div className="cel-disp-txt">
+                  <div className="pn-disp-nom">{d}</div>
+                  <div className="cel-disp-sub">{detalleAcceso(visto.get(d))}</div>
+                </div>
+                <button type="button" className="pn-quitar cel-quitar" aria-label={t("ajustes.celQuitar", { nombre: d })} data-tip={t("ajustes.celQuitar", { nombre: d })} onClick={() => cambiar(quitarDispositivo(b, d))}>
                   <X size={14} aria-hidden />
+                  {t("ajustes.celQuitarAcceso")}
                 </button>
               </li>
             ))
@@ -367,5 +360,6 @@ export function Celular({ Dato }: { Dato: FilaDato }) {
         alCancelar={() => cambiar(remotoDesde(e))}
       />
     </section>
+    </Cat>
   );
 }

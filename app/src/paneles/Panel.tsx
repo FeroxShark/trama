@@ -12,6 +12,7 @@ import { useIdioma } from "../i18n/react";
 import { Fijo } from "../i18n/Fijo";
 import { Lado } from "../hilo/Lado";
 import "./paneles.css";
+import "./lavado.css";
 
 export type CualPanel = "ajustes" | "ramas" | "estadisticas" | "tablero";
 
@@ -50,7 +51,7 @@ export function Panel({ cual, barraAbierta, alAlternarBarra, alVolver, ramas, ta
       </header>
       <div className="conv-zona">
         {/* La clave: al cambiar de panel el contenido entra de nuevo. */}
-        <div key={cual} className={cual === "tablero" ? "pn pn-tablero" : "pn"} data-desliza>
+        <div key={cual} className={cual === "tablero" ? "pn pn-tablero" : cual === "ajustes" ? "pn pn-ajustes" : "pn"} data-desliza>
           {cual === "ajustes" ? (
             <Ajustes />
           ) : cual === "ramas" ? (

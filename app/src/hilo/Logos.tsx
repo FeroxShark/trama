@@ -1,6 +1,6 @@
 // Los logos de las empresas de los modelos, para el menú del selector: SVG propios, de un solo color (`currentColor`: siguen al
-// texto del tema, también en hover y en la fila elegida), sin red ni imágenes. El de Anthropic es su "A"; el de Qwen y el de
-// PrismML son marcas simplificadas (un hexágono con su cola, un prisma con su haz), no los archivos oficiales.
+// texto del tema, también en hover y en la fila elegida), sin red ni imágenes. El de Anthropic es su "A"; el de un modelo local
+// es un hexágono con su cola, una marca genérica, no la de ninguna empresa.
 import { Cpu } from "lucide-react";
 import { t } from "../i18n";
 import type { Empresa } from "./modelos";
@@ -23,7 +23,7 @@ const LOGOS: Record<Empresa, () => React.ReactElement> = {
       <path {...TRAZO} d="M12 2.5c.7 5.2 4.3 8.8 9.5 9.5-5.2.7-8.8 4.3-9.5 9.5-.7-5.2-4.3-8.8-9.5-9.5 5.2-.7 8.8-4.3 9.5-9.5Z" />
     </svg>
   ),
-  qwen: () => (
+  local: () => (
     <svg {...A}>
       <path {...TRAZO} d="M12 2.5 20.2 7.25v9.5L12 21.5 3.8 16.75v-9.5Z" />
       <circle {...TRAZO} cx="12" cy="11.6" r="3.1" />
@@ -38,12 +38,6 @@ const LOGOS: Record<Empresa, () => React.ReactElement> = {
       <circle cx="14.3" cy="13.2" r="0.9" fill="currentColor" />
     </svg>
   ),
-  prismml: () => (
-    <svg {...A}>
-      <path {...TRAZO} d="M12 3.5 21 19.5H3Z" />
-      <path {...TRAZO} d="M1.5 13.2h5.2M17.3 11.6l4.2-2M17.9 14l3.6.8" />
-    </svg>
-  ),
 };
 
 /** El logo de la empresa del modelo. */
@@ -55,3 +49,20 @@ export const ChipLocal = () => (
     <Cpu size={13} strokeWidth={1.8} aria-hidden="true" />
   </span>
 );
+
+/**
+ * El logo de una suscripción de la cabecera (`reparto --cupos`): el de su empresa si la conocemos (Claude, Google)
+ * y, para una nueva, una marca genérica con su inicial, así aparece sola sin tocar nada.
+ */
+export function LogoSuscripcion({ id, nombre }: { id: string; nombre: string }) {
+  if (id === "claude") return <Logo empresa="anthropic" />;
+  if (id === "google") return <Logo empresa="google" />;
+  return (
+    <svg {...A}>
+      <circle {...TRAZO} cx="12" cy="12" r="9.5" />
+      <text x="12" y="16.2" textAnchor="middle" fontSize="12" fontWeight="600" fill="currentColor" fontFamily="inherit">
+        {nombre.trim().charAt(0).toUpperCase()}
+      </text>
+    </svg>
+  );
+}

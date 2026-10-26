@@ -32,7 +32,8 @@
 #                                        suscripción; si reparto no responde, ~/.config/trama/modelos.json o el
 #                                        default de pa: claude-sonnet-5-5 high, claude-haiku-5-5 xhigh para
 #                                        --tipo mecanico). -m acepta claude-…, gemini-{4-argon,3.8-flash}-{low,medium,high},
-#                                        agy:{claude-{opus,sonnet}-5-5-{low,medium,high},gpt-oss-120b-medium} y
+#                                        agy:{claude-{opus,sonnet}-5-5-{low,medium,high},gpt-oss-120b-medium},
+#                                        codex:{gpt-6.1-sol,gpt-6-sol,gpt-6-luna,gpt-6-astra}-{low,medium,high} (ChatGPT) y
 #                                        ollama:<modelo> (sin effort; servidor caído o sin el modelo → sale 95)
 #   pa --modelos [--json]                tabla efectiva tipo → modelo (de dónde salió y qué elige reparto hoy), Gemini y locales
 #   pa --cupo-gemini [--json]            cupo de cada suscripción (Claude oficial y Google AI Pro/agy; alias de reparto --cupos)
@@ -44,8 +45,10 @@
 #   pa <proyecto> --ok-dueno ...         el dueño aprobó ESTA corrida: deja pasar opus max, sonnet max y fable.
 #                                        Sin variable de entorno; un --seguir no lo hereda (va de nuevo)
 #   pa <proyecto> --tipo <tipo> "<t>"    clasificar la corrida (o env PA_TIPO): mecanico | lectura | codigo-acotado |
-#                                        codigo-multi | frontend | diseno | debug. Va a medicion.tsv y al .hilo;
+#                                        codigo-multi | frontend | diseno | debug | final. Va a medicion.tsv y al .hilo;
 #                                        es lo que agrupa `pa --rinde`. Un --seguir sin --tipo hereda el de la retomada
+#   pa <proyecto> --cuenta <id> "<t>"   correr con esa cuenta de la suscripción (bin/cuentas; default: la de
+#                                        más cupo libre del proveedor del modelo, o la de siempre si hay una sola)
 #   pa --plan [pro|max]                  ver / cambiar el plan de la suscripción (pro = modo ahorro, el default)
 #                                        (se guarda en ~/.local/state/pa/plan; PA_PLAN del entorno le gana)
 #   pa <proyecto> --mcp "<tarea>"        dejarle los MCP de claude.ai (default: apagados)
@@ -293,6 +296,12 @@ tomá la suposición más razonable, seguí, y decí cuál tomaste en DECISION.'
 CONTRATO_AGY="${CONTRATO%%Commiteá ANTES*}Commiteá ANTES de cualquier comando largo (tests, builds), no al final: si la corrida se corta,
 lo commiteado no se pierde. Un comando largo pasa solo a segundo plano: seguilo con command_status
 hasta que termine y no lances otro encima. Tu respuesta final es texto plano con el bloque de arriba.
+Vos sos el worker:${CONTRATO#*Vos sos el worker:}"
+# El de un worker de codex (ChatGPT): sin el parámetro timeout del tool Bash ni run_in_background,
+# y sin command_status (eso es de agy). En codex un comando bloquea hasta que termina.
+CONTRATO_CODEX="${CONTRATO%%Commiteá ANTES*}Commiteá ANTES de cualquier comando largo (tests, builds), no al final: si la corrida se corta,
+lo commiteado no se pierde. Corré los comandos en primer plano (nada de &, nohup ni setsid): nadie te
+avisa cuando termina algo que quedó en segundo plano. Tu respuesta final es texto plano con el bloque de arriba.
 Vos sos el worker:${CONTRATO#*Vos sos el worker:}"
 
 # Con jefe (una sesión de Claude viva en esta máquina) hay canal de ida y vuelta por
@@ -1889,6 +1898,7 @@ cmd_hilos() {
          tarea: (($h.tarea | nonempty) // ($tarea_run | nonempty) // $tarea_t),
          modelo: $modelo,
          effort: ($h.effort | nonempty),
+         cuenta: ($h.cuenta | nonempty),
          origen: (($h.lanzo | nonempty) // "jefe"),
          sigue_de: (($h.origen | nonempty) // ($c.origen | nonempty)),
          jefe: (($h.jefe | nonempty) // ($c.jefe | nonempty)),
@@ -2451,7 +2461,8 @@ reescribe_lineas() {   # repo a1 b1 a2 b2
 # `--tipo` van en la fila `?`. `ok%` = integradas sin retrabajo sobre las que ya tienen dato
 # (`dato`: integrada=0, o integrada=1 con retrabajo 0/1; lo llena `pa --bien-auto`), mediana de
 # turnos, costo medio (US$ a precio de lista) y % de las corridas que compactaron. Lee por nombre
-# de columna: las filas de antes de `tipo` son más cortas y caen en `?` sin dato.
+# de columna: las filas de antes de `tipo` son más cortas y caen en `?` sin dato. Una cuenta que no es
+# la de siempre es una celda aparte (`modelo@cuenta`; en --json, el campo `cuenta`).
 cmd_rinde() {
   local dias=30 json=0
   while [[ $# -gt 0 ]]; do
@@ -2474,7 +2485,8 @@ cmd_rinde() {
     {
       t = v("tipo"); if (t == "") t = "~"
       e = v("effort"); if (e == "") e = "settings"
-      k = t OFS v("modelo") OFS e
+      cu = v("cuenta"); if (cu == "claude" || cu == "google" || cu == "chatgpt") cu = ""
+      k = t OFS v("modelo") OFS e OFS cu
       n[k]++
       i = v("integrada") ""; r = v("retrabajo") ""
       if (i == "0" || (i == "1" && (r == "0" || r == "1"))) { dato[k]++; if (i == "1" && r == "0") ok[k]++ }
@@ -2491,23 +2503,25 @@ cmd_rinde() {
         print k, n[k], dato[k] + 0, ok[k] + 0, (dato[k] ? sprintf("%.0f", 100 * ok[k] / dato[k]) : ""), med, \
           (nu[k] ? sprintf("%.2f", usd[k] / nu[k]) : ""), (nc[k] ? sprintf("%.0f", 100 * comp[k] / nc[k]) : "")
       }
-    }' "$MEDICION" | LC_ALL=C sort -t$'\t' -k1,1 -k2,2 -k3,3)"
+    }' "$MEDICION" | LC_ALL=C sort -t$'\t' -k1,1 -k2,2 -k3,3 -k4,4)"
   if (( json )); then
     jq -Rn --arg dias "$dias" --arg desde "$desde" '
       def n: if . == "" then null else tonumber end;
       {version: 1, dias: ($dias | tonumber), desde: $desde,
        celdas: [inputs | select(. != "") | split("\t")
                 | {tipo: (if .[0] == "~" then "?" else .[0] end), modelo: .[1], effort: .[2],
-                   n: (.[3] | n), con_dato: (.[4] | n), ok: (.[5] | n), pct_ok: (.[6] | n),
-                   turnos_mediana: (.[7] | n), costo_medio_usd: (.[8] | n), pct_compacto: (.[9] | n)}]}' <<<"$celdas"
+                   cuenta: (if .[3] == "" then null else .[3] end),
+                   n: (.[4] | n), con_dato: (.[5] | n), ok: (.[6] | n), pct_ok: (.[7] | n),
+                   turnos_mediana: (.[8] | n), costo_medio_usd: (.[9] | n), pct_compacto: (.[10] | n)}]}' <<<"$celdas"
     return 0
   fi
   [[ -n "$celdas" ]] || { echo "pa: ninguna corrida en los últimos $dias días."; return 0; }
   echo "últimos $dias días · ok% = integrada sin retrabajo, sobre las que ya tienen dato (pa --bien-auto) · turnos = mediana · US\$ = costo medio · comp% = compactaron"
   printf '%-15s %-18s %-8s %4s %5s %5s %7s %8s %6s\n' tipo modelo effort n dato 'ok%' turnos 'US$' 'comp%'
-  local t mo e n d o p tu us co
-  while IFS='|' read -r t mo e n d o p tu us co; do
+  local t mo e cu n d o p tu us co
+  while IFS='|' read -r t mo e cu n d o p tu us co; do
     [[ "$t" == "~" ]] && t="?"
+    [[ -n "$cu" ]] && mo="$mo@$cu"   # una cuenta que no es la de siempre (docs/cuentas-varias-por-proveedor.md)
     printf '%-15s %-18s %-8s %4s %5s %5s %7s %8s %6s\n' "$t" "$mo" "$e" "$n" "$d" "${p:--}" "${tu:--}" "${us:--}" "${co:--}"
   done < <(tr '\t' '|' <<<"$celdas")
 }
@@ -3238,8 +3252,8 @@ MEDICION_HEADER_VIEJO=$'fecha\tid\tproyecto\tmodelo\teffort\tleer\tseguir\tis_er
 # pone `--tipo`/PA_TIPO al lanzar; `integrada` y `retrabajo` nacen vacías y las llena `--bien-auto`.
 # Al final, por lo mismo. Quien lee este archivo va por NOMBRE de columna (o usa sólo las 13 viejas)
 # y tolera filas más cortas que el header: las de antes no se reescriben.
-MEDICION_HEADER="$MEDICION_HEADER_VIEJO"$'\tplan\tcompactaciones\tautocompact\torigen\tcache_read\tcache_creation\tephemeral_1h\tephemeral_5m\ttipo\tintegrada\tretrabajo'
-TIPOS_VALIDOS="mecanico|lectura|codigo-acotado|codigo-multi|frontend|diseno|debug"
+MEDICION_HEADER="$MEDICION_HEADER_VIEJO"$'\tplan\tcompactaciones\tautocompact\torigen\tcache_read\tcache_creation\tephemeral_1h\tephemeral_5m\ttipo\tintegrada\tretrabajo\tcuenta'
+TIPOS_VALIDOS="mecanico|lectura|codigo-acotado|codigo-multi|frontend|diseno|debug|final"
 # Un header que es un prefijo del de hoy se actualiza solo. Se llama CON el flock 7 tomado, y
 # reescribe sobre el MISMO inodo (cat >, no sed -i ni mv): el fd 7 del flock apunta a este archivo,
 # y con un archivo nuevo la fila que sigue se escribía en el viejo, ya borrado.
@@ -3264,8 +3278,64 @@ gemini_equivalente() {   # $1 = modelo de agy -> "modelo effort" del Claude ofic
     agy:gpt-oss-120b-*)      echo "claude-sonnet-5-5 medium" ;;
   esac
 }
-agy_cupo_json() { timeout "${PA_AGY_CHEQUEO_S:-40}" agy -p /quota --output-format json </dev/null 2>/dev/null; }
-agy_hooks_json() { timeout "${PA_AGY_CHEQUEO_S:-40}" agy -p /hooks --output-format json </dev/null 2>/dev/null; }
+agy_cupo_json() { timeout "${PA_AGY_CHEQUEO_S:-40}" "${cuenta_env[@]}" agy -p /quota --output-format json </dev/null 2>/dev/null; }
+agy_hooks_json() { timeout "${PA_AGY_CHEQUEO_S:-40}" "${cuenta_env[@]}" agy -p /hooks --output-format json </dev/null 2>/dev/null; }
+# --- varias cuentas por proveedor (docs/cuentas-varias-por-proveedor.md) -------------------------
+# Cada cuenta (bin/cuentas, ~/.config/trama/cuentas.json) tiene su carpeta de credenciales. El worker
+# corre con el entorno de SU cuenta sólo en su proceso (`env -u … CLAUDE_CONFIG_DIR=…`, o HOME para agy)
+# y nunca con ANTHROPIC_API_KEY: el entorno lo arma `cuentas env`. La cuenta de siempre tiene el id del
+# proveedor (claude, google) y no toca el entorno: sin cuentas.json todo es como antes.
+CUENTAS="${PA_CUENTAS_BIN:-$_BIN/cuentas}"
+CUENTAS_JSON="${TRAMA_CUENTAS:-${TRAMA_CUENTAS_HOME:-$HOME}/.config/trama/cuentas.json}"
+cuenta="" cuenta_flag="" cuenta_seguir="" cuenta_env=()
+proveedor_de_modelo() { if es_local "$1" || es_codex "$1"; then echo ""; elif es_gemini "$1"; then echo google; else echo claude; fi; }
+cuenta_proveedor() {   # $1 = id de cuenta -> su proveedor (nada si no existe)
+  case "$1" in claude|google|chatgpt) echo "$1"; return ;; esac
+  [[ -f "$CUENTAS_JSON" ]] && jq -r --arg i "$1" 'first(.cuentas[]? | select(.id == $i) | .proveedor) // empty' "$CUENTAS_JSON" 2>/dev/null
+}
+cuenta_preparar() {   # $1 = id, $2 = proveedor del modelo -> cuenta y cuenta_env; 1 (con aviso) si no va
+  local id="$1" prov="$2" j p
+  cuenta_env=()
+  case "$id" in
+    claude|google|chatgpt)
+      [[ "$id" == "$prov" ]] || { echo "pa: la cuenta '$id' es de $id y el modelo '$modelo' es de $prov." >&2; return 1; }
+      cuenta="$id"; return 0 ;;
+  esac
+  j="$("$CUENTAS" env "$id" --json 2>&1 </dev/null)" || { echo "pa: ${j:-no pude leer la cuenta $id}" >&2; return 1; }
+  p="$(jq -r '.proveedor // ""' <<<"$j" 2>/dev/null)"
+  [[ "$p" == "$prov" ]] || { echo "pa: la cuenta '$id' es de ${p:-?} y el modelo '$modelo' es de $prov." >&2; return 1; }
+  cuenta="$id"
+  mapfile -t cuenta_env < <(jq -r '(.sacar // [] | map("-u", .)) + (.poner // {} | to_entries | map("\(.key)=\(.value)"))
+    | if length > 0 then ["env"] + . else . end | .[]' <<<"$j" 2>/dev/null)
+  return 0
+}
+cuenta_elegir() {   # $1 = proveedor -> la cuenta con más cupo libre (la de siempre si es la única)
+  local prov="$1" c=""
+  [[ -f "$CUENTAS_JSON" ]] && jq -e --arg p "$prov" 'any(.cuentas[]?; .proveedor == $p and .id != $p)' "$CUENTAS_JSON" >/dev/null 2>&1 \
+    || { echo "$prov"; return 0; }
+  # La que eligió reparto junto con el modelo (si sigue siendo de este proveedor: agy pudo caer a Claude).
+  (( vino_de_reparto )) && c="$(jq -r '.cuenta // ""' <<<"${rep_json:-}" 2>/dev/null || true)"
+  [[ -n "$c" && "$(cuenta_proveedor "$c")" == "$prov" ]] || c=""
+  if [[ -z "$c" && -x "$REPARTO" ]]; then
+    c="$(REPARTO_STATE="${REPARTO_STATE:-$STATE/reparto}" PA_STATE="$STATE" \
+      timeout "${PA_REPARTO_TIMEOUT_S:-15}" "$REPARTO" --cuenta-para "$modelo" 2>/dev/null </dev/null)" || c=""
+  fi
+  echo "${c:-$prov}"
+}
+cuenta_resolver() {   # $1 = proveedor del modelo. --cuenta que no va: sale 2
+  local prov="$1" c="$cuenta_flag"
+  if [[ -z "$prov" ]]; then
+    [[ -n "$c" ]] && { echo "pa: --cuenta no va con '$modelo': un modelo local no usa ninguna suscripción." >&2; exit 2; }
+    cuenta=""; cuenta_env=(); return 0
+  fi
+  if [[ -n "$c" ]]; then cuenta_preparar "$c" "$prov" || exit 2; return 0; fi
+  # --seguir: la misma cuenta que la retomada, si es del mismo proveedor y sigue existiendo.
+  if [[ -n "$cuenta_seguir" && "$(cuenta_proveedor "$cuenta_seguir")" == "$prov" ]] && cuenta_preparar "$cuenta_seguir" "$prov" 2>/dev/null; then
+    return 0
+  fi
+  c="$(cuenta_elegir "$prov")"
+  cuenta_preparar "$c" "$prov" || cuenta_preparar "$prov" "$prov"
+}
 # Los grupos de /quota: "Gemini Models" (Flash: 5 h y semanal), "Claude and GPT models" (5 h y semanal)
 # y "Gemini 4 Argon" (semanal).
 cupo_grupo() {   # $1 = json de /quota, $2 = modelo -> el grupo de ese modelo (una línea de json), o nada
@@ -3355,6 +3425,76 @@ gemini_chequear() {   # $1 = modelo de agy (gemini-* o agy:*)
 }
 gemini_esperar=0
 
+# --- workers por codex (Codex CLI: ChatGPT) — docs/codex-workers.md --------------------------
+# `pa <proy> -m codex:<modelo>-<effort>` lanza `codex exec --json` en vez de claude. El effort va en el
+# nombre (model_reasoning_effort). Mismos candados de privacidad que agy (gemini_privacidad); codex no
+# tiene hooks: las guardias de git y cargo son los shims de codex/bin, primeros en el PATH, y el
+# sandbox de codex (workspace-write: escribe sólo en el worktree y el .git común, sin red).
+CODEX_MODELOS='codex:(gpt-6\.1-sol|gpt-6-sol|gpt-6-luna|gpt-6-astra)-(low|medium|high)'
+CODEX_SHIMS="${PA_CODEX_SHIMS:-$(dirname "$_BIN")/codex/bin}"
+es_codex() { [[ "${1,,}" == codex:* ]]; }
+codex_equivalente() {   # $1 = modelo de codex -> "modelo effort" del Claude oficial
+  local e="${1##*-}"
+  case "$1" in
+    codex:gpt-6-astra-*) echo "claude-opus-5-5 $e" ;;
+    codex:gpt-6-luna-*)  case "$e" in low) echo "claude-haiku-5-5 medium" ;; medium) echo "claude-haiku-5-5 high" ;; *) echo "claude-haiku-5-5 xhigh" ;; esac ;;
+    codex:*)             echo "claude-sonnet-5-5 $e" ;;
+  esac
+}
+# Privacidad, codex en el PATH y sesión iniciada -> motivo_cae (vacío = va) y clase_cae (siempre fijo:
+# el cupo lo mira reparto, esperar no arregla nada de esto).
+codex_chequear() {   # $1 = modelo de codex
+  local ruta_c
+  motivo_cae=""; clase_cae=fijo
+  ruta_c="$(proyecto-ruta "$proyecto" 2>/dev/null || true)"
+  [[ -n "$ruta_c" ]] && motivo_cae="$(gemini_privacidad "$(realpath -m "$ruta_c")" "$tarea")"
+  [[ -n "$motivo_cae" ]] && { motivo_cae="${motivo_cae/no se manda a Google/no se manda a OpenAI}"; return 0; }
+  if ! command -v codex >/dev/null 2>&1; then motivo_cae="codex no está en el PATH (npm install -g @openai/codex)"; return 0; fi
+  if ! timeout "${PA_CODEX_CHEQUEO_S:-20}" codex login status </dev/null >/dev/null 2>&1; then
+    motivo_cae="codex no tiene sesión iniciada (codex login)"
+  fi
+  return 0
+}
+# El latido de un worker de codex (no tiene hooks): lo escribe pa cada PA_CODEX_LATIDO_S mientras vive,
+# con el último comando o mensaje del stream.
+codex_latido() {
+  local d
+  d="$(tail -n 5 "$transcript" 2>/dev/null | jq -rs '[.[] | objects | .item? | objects | (.command // .text // .type // empty) | tostring] | last // ""' 2>/dev/null)"
+  {
+    printf 'epoch=%s\n' "$(date +%s)"
+    printf 'tool=%s\n' codex
+    printf 'envuelo=1\n'
+    printf 'desc=%s\n' "$(printf '%s' "$d" | tr '\n\r\t' '   ' | cut -c1-160)"
+  } >"$hb.tmp" 2>/dev/null && mv -f "$hb.tmp" "$hb" 2>/dev/null
+}
+# El JSON de estado de una corrida de codex, con la forma del de `claude -p` (como agy_a_json): result (el
+# último mensaje: el archivo de --output-last-message o el último agent_message), is_error (rc, turn.failed
+# o error), num_turns (mensajes del modelo), modelUsage con los tokens de turn.completed (input_tokens de
+# codex incluye lo cacheado) y total_cost_usd 0 (se paga con la suscripción de ChatGPT). Sin session_id.
+codex_a_json() {   # $1 = jsonl de codex, $2 = stderr, $3 = modelo de pa, $4 = rc, $5 = último mensaje, $6 = segundos
+  jq -Rs --arg m "$3" --arg err "$(tail -c 2000 "$2" 2>/dev/null)" --arg ult "$(cat "$5" 2>/dev/null)" \
+         --argjson rc "${4:-0}" --argjson seg "${6:-0}" '
+    [split("\n")[] | fromjson? | objects] as $ev
+    | [$ev[] | select(.type == "item.completed") | .item | objects | select(.type == "agent_message") | .text // empty] as $msgs
+    | [$ev[] | select(.type == "turn.completed") | .usage | objects] as $u
+    | ([$ev[] | select(.type == "turn.failed") | .error.message? // empty] + [$ev[] | select(.type == "error") | .message? // empty] | last) as $fallo
+    | (if $ult != "" then $ult else ($msgs | last // "") end) as $r
+    | { type: "result", motor: "codex",
+        subtype: (if $fallo == null and $rc == 0 then "success" else "error" end),
+        is_error: ($fallo != null or $rc != 0),
+        result: (if $fallo != null then ([$r, $fallo] | map(select(. != "")) | join("\n"))
+                 elif $r != "" then $r else $err end),
+        num_turns: ($msgs | length),
+        duration_ms: ($seg * 1000),
+        total_cost_usd: 0,
+        codex_thread_id: ([$ev[] | select(.type == "thread.started") | .thread_id // empty] | first),
+        modelUsage: (if ($u | length) == 0 then {} else
+          {($m): { inputTokens: ([$u[] | ((.input_tokens // 0) - (.cached_input_tokens // 0))] | add),
+                   cacheReadInputTokens: ([$u[] | .cached_input_tokens // 0] | add),
+                   cacheCreationInputTokens: 0,
+                   outputTokens: ([$u[] | .output_tokens // 0] | add) }} end) }' "$1"
+}
+
 # --- modelos.json: el contrato compartido con Trama (docs/modelos-json-tipo-a-modelo-y-locales-ollama.md) ---
 # `~/.config/trama/modelos.json` (TRAMA_MODELOS lo redirige: los tests) dice qué modelo usa cada
 # `--tipo` cuando no hay `-m`, qué locales (Ollama) existen y qué hace pa cuando un Gemini caería a
@@ -3368,12 +3508,12 @@ modelos_cargar() {   # 0 si hay un modelos.json válido (lo deja en MODELOS_TXT)
     if [[ -f "$MODELOS_JSON" ]]; then
       local txt err
       txt="$(cat "$MODELOS_JSON" 2>/dev/null)"
-      err="$(jq -r --arg tipos "default|$TIPOS_VALIDOS" --arg gem "$GEMINI_MODELOS" '
+      err="$(jq -r --arg tipos "default|$TIPOS_VALIDOS" --arg gem "$GEMINI_MODELOS" --arg cod "$CODEX_MODELOS" '
         def efok: . == null or (type == "string" and test("^(low|medium|high|xhigh|max)$"));
         . as $c |
         (if ($c | type) == "object" and ($c.locales | type) == "array" then $c.locales else [] end) as $L |
         [$L[] | objects | .id | strings] as $ids |
-        def modok: type == "string" and (test("^claude-[a-z0-9][a-z0-9.-]*$") or test("^(\($gem))$")
+        def modok: type == "string" and (test("^claude-[a-z0-9][a-z0-9.-]*$") or test("^(\($gem))$") or test("^(\($cod))$")
                    or (startswith("ollama:") and (. as $m | $ids | index([$m]) != null)));
         [ (if ($c | type) != "object" then "no es un objeto JSON" else empty end),
           (if ($c | type) == "object" then (
@@ -3387,7 +3527,7 @@ modelos_cargar() {   # 0 si hay un modelos.json válido (lo deja en MODELOS_TXT)
             (if ($c.workers | type) == "object" then ($c.workers | to_entries[] |
                 (if (.key | test("^(\($tipos))$") | not) then "tipo de worker desconocido: \(.key)" else empty end),
                 (if (.value | type) != "object" or (.value.modelo | modok | not)
-                   then "workers.\(.key): modelo desconocido \(.value.modelo? | tojson) (claude-…, gemini-… o agy:… de pa u ollama:… que esté en locales)" else empty end),
+                   then "workers.\(.key): modelo desconocido \(.value.modelo? | tojson) (claude-…, gemini-…, agy:… o codex:… de pa u ollama:… que esté en locales)" else empty end),
                 (if (.value | type) == "object" and (.value.effort | efok | not) then "workers.\(.key): effort \(.value.effort | tojson) no existe" else empty end))
              else empty end),
             (if $c.reparto != null and ($c.reparto | tostring | test("^(auto|fijo)$") | not)
@@ -3400,7 +3540,17 @@ modelos_cargar() {   # 0 si hay un modelos.json válido (lo deja en MODELOS_TXT)
                then "gemini.cupo_max \($c.gemini.cupo_max | tojson) (un número de 1 a 100)" else empty end),
             (if ($c.gemini | type) == "object" and $c.gemini.sin_claude != null
                 and ($c.gemini.sin_claude | tostring | test("^(claude|esperar|fallar)$") | not)
-               then "gemini.sin_claude \($c.gemini.sin_claude | tojson) (claude, esperar o fallar)" else empty end)
+               then "gemini.sin_claude \($c.gemini.sin_claude | tojson) (claude, esperar o fallar)" else empty end),
+            (def frac: type == "number" and . >= 0 and . < 1;
+             if $c.reserva != null and (($c.reserva | frac) or (($c.reserva | type) == "object" and ($c.reserva | length) > 0
+                 and ($c.reserva | keys - ["5h", "7d"] | length) == 0 and ([$c.reserva[] | frac] | all)) | not)
+               then "reserva \($c.reserva | tojson) (un número de 0 a 1, {\"5h\":…,\"7d\":…} o null)" else empty end),
+            (if $c.excluir != null and (($c.excluir | type) != "array" or ([$c.excluir[] | type == "string" and (gsub("\\s"; "") != "")] | all | not))
+               then "excluir \($c.excluir | tojson) (una lista de ids o familias)" else empty end),
+            (if $c | has("permitir_max") and ($c.permitir_max | type) != "boolean"
+               then "permitir_max \($c.permitir_max | tojson) (true o false)" else empty end),
+            (if $c.sin_cupo != null and ($c.sin_cupo | tostring | test("^(otro|esperar|fallar)$") | not)
+               then "sin_cupo \($c.sin_cupo | tojson) (otro, esperar o fallar)" else empty end)
           ) else empty end) ] | first // ""' <<<"$txt" 2>/dev/null)" || err="no es JSON válido"
       if [[ -z "$err" ]]; then MODELOS_TXT="$txt"
       else MODELOS_ERR="$err"; echo "pa: $MODELOS_JSON no va ($err); sigo con los modelos de siempre." >&2; fi
@@ -3422,8 +3572,39 @@ gemini_politica() {
   local v; v="$(modelos_gemini cupo_max)"
   [[ -n "$v" ]] && { GEMINI_CUPO_MAX="${v%%.*}"; GEMINI_CUPO_DE="gemini.cupo_max de modelos.json"; }
   GEMINI_SIN_CLAUDE="$(modelos_gemini sin_claude)"; GEMINI_SIN_CLAUDE="${GEMINI_SIN_CLAUDE:-claude}"
+  # sin_cupo (2026-10-24) generaliza gemini.sin_claude: qué hacer cuando el modelo elegido no tiene cupo,
+  # sea de Google o el Claude oficial. otro (default) | esperar | fallar. Sin sin_cupo vale gemini.sin_claude
+  # (claude = otro); con sin_cupo, gemini.sin_claude sale de él (otro = claude).
+  v="$(modelos_clave sin_cupo)"
+  if [[ -n "$v" ]]; then SIN_CUPO="$v"; SIN_CUPO_DE="sin_cupo de modelos.json"
+    GEMINI_SIN_CLAUDE="$( [[ "$v" == otro ]] && echo claude || echo "$v")"
+  elif [[ "$GEMINI_SIN_CLAUDE" != claude ]]; then SIN_CUPO="$GEMINI_SIN_CLAUDE"; SIN_CUPO_DE="gemini.sin_claude de modelos.json"
+  else SIN_CUPO=otro; SIN_CUPO_DE=default; fi
+  [[ "$(modelos_clave permitir_max)" == true ]] && PERMITIR_MAX=1 || PERMITIR_MAX=0
 }
-GEMINI_CUPO_DE="PA_GEMINI_CUPO_MAX"; GEMINI_SIN_CLAUDE=claude
+GEMINI_CUPO_DE="PA_GEMINI_CUPO_MAX"; GEMINI_SIN_CLAUDE=claude SIN_CUPO=otro SIN_CUPO_DE=default PERMITIR_MAX=0
+modelos_clave() {   # $1 = clave de primer nivel -> su valor (texto o JSON compacto), o nada
+  modelos_cargar || return 0
+  jq -r --arg k "$1" '.[$k] // empty | if type == "string" then . else tojson end' <<<"$MODELOS_TXT"
+}
+# excluir de modelos.json: ids o familias que reparto nunca elige y que -m no acepta sin --ok-dueno.
+# Misma regla que `reparto --excluido`: familia (fable, opus, sonnet, haiku, argon, flash, gpt-oss, astra, sol, luna) dentro
+# del id, id exacto, prefijo de id seguido de "-", o un patrón que termina en * (agy:*, ollama:*).
+excluido_por() {   # $1 = modelo -> la entrada de excluir que lo atrapa, o nada (rc 1)
+  modelos_cargar || return 1
+  local r
+  r="$(jq -r --arg m "${1,,}" '
+    def fam: ["fable","opus","sonnet","haiku","argon","flash","gpt-oss","astra","sol","luna"];
+    [.excluir[]? | select(type == "string") | . as $p | ($p | ascii_downcase | gsub("^\\s+|\\s+$"; "")) as $q
+      | select(($q | length) > 0)
+      | select(
+          (if ($q | endswith("*")) then ($m | startswith($q[:-1]))
+           elif (fam | index($q)) != null then ($m | contains($q))
+           else ($m == $q or ($m | startswith($q + "-"))) end))
+      | $p][0] // empty' <<<"$MODELOS_TXT")"
+  [[ -n "$r" ]] && { printf '%s\n' "$r"; return 0; }
+  return 1
+}
 modelos_reparto() {   # -> auto | fijo (default auto; PA_REPARTO=0 apaga reparto para tests de pa)
   [[ "${PA_REPARTO:-}" == 0 ]] && { echo fijo; return; }
   local v=""
@@ -3478,10 +3659,10 @@ cmd_modelos() {
     r="$(modelos_worker "$( [[ "$t" == default ]] || echo "$t")")"
     if [[ -n "$r" ]]; then
       IFS='|' read -r m e k <<<"$r"; de="modelos.json (workers.$k)"
-      if [[ -z "$e" ]] && ! es_gemini "$m" && ! es_local "$m"; then
+      if [[ -z "$e" ]] && ! es_gemini "$m" && ! es_codex "$m" && ! es_local "$m"; then
         case "${m,,}" in *haiku*) e=xhigh ;; *sonnet*) e=high ;; *opus*) [[ "$PLAN" == pro ]] && e=medium || e=settings ;; esac
       fi
-      es_gemini "$m" || es_local "$m" && e="-"
+      es_gemini "$m" || es_codex "$m" || es_local "$m" && e="-"
     else
       IFS=$'\t' read -r m e <<<"$(modelo_de_pa "$t")"; de="default de pa"
     fi
@@ -3510,11 +3691,14 @@ cmd_modelos() {
     jq -n --arg arch "$MODELOS_JSON" --arg err "$MODELOS_ERR" --arg ok "$( [[ -n "$MODELOS_TXT" ]] && echo 1)" \
           --arg existe "$( [[ -f "$MODELOS_JSON" ]] && echo 1)" --arg rep_modo "$rep_modo" \
           --arg filas "$filas" --arg locs "$locs" --arg lid "$lid" --arg plan "$PLAN" \
-          --argjson cupo "$GEMINI_CUPO_MAX" --arg cupo_de "$GEMINI_CUPO_DE" --arg sin "$GEMINI_SIN_CLAUDE" '
+          --argjson cupo "$GEMINI_CUPO_MAX" --arg cupo_de "$GEMINI_CUPO_DE" --arg sin "$GEMINI_SIN_CLAUDE" \
+          --argjson excluir "$(modelos_clave excluir | grep . || echo '[]')" --argjson pmax "$( (( PERMITIR_MAX )) && echo true || echo false)" \
+          --arg sin_cupo "$SIN_CUPO" --arg sin_cupo_de "$SIN_CUPO_DE" --argjson reserva "$(modelos_clave reserva | grep . || echo null)" '
       def lineas($s): $s | split("\n") | map(select(. != "") | split("\t"));
-      def motor($m): if ($m | startswith("ollama:")) then "ollama" elif (($m | startswith("gemini")) or ($m | startswith("agy:"))) then "agy" else "claude" end;
+      def motor($m): if ($m | startswith("ollama:")) then "ollama" elif ($m | startswith("codex:")) then "codex" elif (($m | startswith("gemini")) or ($m | startswith("agy:"))) then "agy" else "claude" end;
       { archivo: $arch, existe: ($existe == "1"), valido: ($ok == "1"), error: (if $err == "" then null else $err end), plan: $plan,
         reparto: $rep_modo,
+        excluir: $excluir, permitir_max: $pmax, sin_cupo: $sin_cupo, sin_cupo_de: $sin_cupo_de, reserva: $reserva,
         lider: (if $lid == "" then null else ($lid | split("|") | {modelo: .[0], effort: (if (.[1] // "") == "" then null else .[1] end), motor: motor(.[0])}) end),
         workers: ([lineas($filas)[] | {key: .[0], value: ({modelo: .[1], effort: (if .[2] == "-" then null else .[2] end), motor: motor(.[1]), origen: .[3]}
           + (if (.[4] // "") == "" then {reparto: null} else {reparto: {modelo: .[4], effort: (if (.[5] // "-") == "-" or (.[5] // "") == "" then null else .[5] end), motor: motor(.[4]), motivo: (.[6] // "")}} end))}] | from_entries),
@@ -3528,6 +3712,7 @@ cmd_modelos() {
   [[ -n "$lid" ]] && printf 'líder: %s\n' "${lid//|/ effort }" | sed 's/ effort $//'
   printf '%s' "$filas" | awk -F'\t' 'BEGIN{printf "%-15s %-26s %-8s %s\n", "tipo", "modelo", "effort", "de dónde"} {printf "%-15s %-26s %-8s %s%s\n", $1, $2, $3, $4, ($5 != "" ? "  (reparto hoy: " $5 ($6 != "-" && $6 != "" ? " " $6 : "") ")" : "")}'
   echo "gemini: si cae: $GEMINI_SIN_CLAUDE (el cupo lo elige reparto: modo $rep_modo)"
+  echo "sin cupo: $SIN_CUPO ($SIN_CUPO_DE); excluir: $(modelos_clave excluir | jq -r 'if length == 0 then "nada" else join(", ") end' 2>/dev/null || echo nada); reserva del Claude oficial: $(modelos_clave reserva | grep . || echo ninguna); max sin --ok-dueno: $( (( PERMITIR_MAX )) && echo sí || echo no)"
   if [[ -n "$locs" ]]; then
     echo "locales:"
     printf '%s' "$locs" | while IFS=$'\t' read -r k nom url mod est; do
@@ -3601,7 +3786,7 @@ medir() {   # $1 = json de salida de la corrida (puede no existir)
   # (resume=0) y se mide como nueva.
   local linea comp=""
   (( ${#jsons[@]} )) && comp="$(contar_compactaciones "$(transcript_de "${jsons[-1]}")")"
-  linea="$(printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t\t%s\t%s\t%s\t%s\t%s\t%s\t\t' "$(date -Iseconds)" "${ts:-}" "$slug" "$modelo" "${esfuerzo:-${ef_vacio:-settings}}" "$leer" "${resume:-$seguir}" "$nums" "$PLAN" "$comp" "$AUTOCOMPACT" "${lanzo:-jefe}" "$cache" "${tipo:-}")"
+  linea="$(printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t\t%s\t%s\t%s\t%s\t%s\t%s\t\t\t%s' "$(date -Iseconds)" "${ts:-}" "$slug" "$modelo" "${esfuerzo:-${ef_vacio:-settings}}" "$leer" "${resume:-$seguir}" "$nums" "$PLAN" "$comp" "$AUTOCOMPACT" "${lanzo:-jefe}" "$cache" "${tipo:-}" "${cuenta:-}")"
   # flock sobre el mismo archivo: dos corridas que terminan a la vez no se pisan el header ni la línea
   (
     flock 7
@@ -3741,7 +3926,7 @@ tarea=""
 tipo="${PA_TIPO:-}"
 # --ok-dueno: el dueño aprobó esta corrida (opus max, sonnet max, fable). Sólo por flag, a propósito:
 # una variable de entorno se hereda de una llamada a la otra y la aprobación es por corrida.
-ok_dueno=0
+ok_dueno=0 modelo_de_m=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -3765,10 +3950,11 @@ while [[ $# -gt 0 ]]; do
     --force)           force=1; shift ;;
     --nota)            anotar "$2"; shift 2 ;;   # la nota del jefe va pegada a esta llamada (ver anotar)
     --max-budget-usd)  max_budget="$2"; shift 2 ;;
-    -m|--model)        modelo="$2"; shift 2 ;;
+    -m|--model)        modelo="$2"; modelo_de_m=1; shift 2 ;;
     --effort)          esfuerzo="$2"; esfuerzo_flag=1; export PA_EFFORT="$2"; shift 2 ;;
     --tipo)            tipo="$2"; shift 2 ;;
     --ok-dueno)        ok_dueno=1; shift ;;
+    --cuenta)          cuenta_flag="$2"; shift 2 ;;
     --)                shift; tarea="$*"; break ;;
     -*)                # alias: --ok-<nombre del dueño en minúscula> (el nombre viejo del flag)
                        if [[ "$1" == "--ok-$(nombre_dueno | tr 'A-Z' 'a-z')" || ( -n "${USER:-}" && "$1" == "--ok-$USER" ) ]]; then ok_dueno=1; shift
@@ -3811,6 +3997,8 @@ vino_de_reparto=0; reparto_fallo=""
 # El tipo con el que reparto eligió, para pedirle el siguiente candidato si agy contesta 429 (el hijo de
 # --async lo recibe por el entorno: el padre es el que eligió).
 reparto_tipo_relanzable="${PA_REPARTO_TIPO:-}"; unset PA_REPARTO_TIPO
+# sin_cupo=esperar con todo lleno: el padre de --async lo marca y el hijo hace cola (más abajo, ya con su id).
+reparto_esperar="${PA_REPARTO_ESPERAR:-}"; unset PA_REPARTO_ESPERAR
 if [[ -z "$modelo" ]] && (( lanza )) && [[ "$(modelos_reparto)" == auto ]]; then
   if (( seguir )); then
     if [[ -n "$run_id" || -z "$tipo" ]]; then
@@ -3837,8 +4025,8 @@ if [[ -z "$modelo" ]] && (( lanza )) && [[ "$(modelos_reparto)" == auto ]]; then
     [[ -n "$tipo_rep" ]] || { (( leer )) && tipo_rep=lectura || tipo_rep=codigo-acotado; }
     rep_rc=0; rep_json=""
     if [[ -x "$REPARTO" ]]; then
-      rep_json="$(REPARTO_STATE="${REPARTO_STATE:-$STATE/reparto}" PA_STATE="$STATE" \
-        timeout "${PA_REPARTO_TIMEOUT_S:-15}" "$REPARTO" --tipo "$tipo_rep" --json 2>/dev/null </dev/null)" || rep_rc=$?
+      rep_json="$(REPARTO_RESERVAR=1 REPARTO_STATE="${REPARTO_STATE:-$STATE/reparto}" PA_STATE="$STATE" \
+        timeout "${PA_REPARTO_TIMEOUT_S:-15}" "$REPARTO" --tipo "$tipo_rep" ${cuenta_flag:+--cuenta "$cuenta_flag"} --json 2>/dev/null </dev/null)" || rep_rc=$?
     else
       rep_rc=127
     fi
@@ -3850,10 +4038,10 @@ if [[ -z "$modelo" ]] && (( lanza )) && [[ "$(modelos_reparto)" == auto ]]; then
     fi
     if [[ -n "$m_rep" ]]; then
       modelo="$m_rep"; vino_de_reparto=1; reparto_tipo_relanzable="$tipo_rep"
-      if [[ -n "$e_rep" ]] && ! es_gemini "$modelo" && ! es_local "$modelo"; then
+      if [[ -n "$e_rep" ]] && ! es_gemini "$modelo" && ! es_codex "$modelo" && ! es_local "$modelo"; then
         [[ -z "$esfuerzo" ]] && { esfuerzo="$e_rep"; export PA_EFFORT="$e_rep"; }
       fi
-      if (( esfuerzo_flag )) && es_gemini "$modelo" && [[ "$modelo" =~ ^(.*)-(low|medium|high)$ ]]; then
+      if (( esfuerzo_flag )) && { es_gemini "$modelo" || es_codex "$modelo"; } && [[ "$modelo" =~ ^(.*)-(low|medium|high)$ ]]; then
         base_rep="${BASH_REMATCH[1]}"
         case "${esfuerzo,,}" in
           low|medium|high)
@@ -3862,6 +4050,25 @@ if [[ -z "$modelo" ]] && (( lanza )) && [[ "$(modelos_reparto)" == auto ]]; then
         esac
       fi
       echo "pa: reparto ($tipo_rep) → $modelo${esfuerzo:+ effort $esfuerzo}: $mot_rep" >&2
+      # Todo lleno (2026-10-24): reparto dio el más barato que alcanza, que va a chocar el límite.
+      # sin_cupo dice qué hacer: otro (default) lanza igual y, si choca al arrancar, relanza con el
+      # siguiente; esperar hace cola con --async; fallar sale 96.
+      if [[ "$(jq -r '.todo_lleno // false' <<<"$rep_json" 2>/dev/null)" == true ]]; then
+        gemini_politica
+        case "$SIN_CUPO" in
+          fallar)
+            echo "pa: no hay cupo para $tipo_rep (todo lleno o en reserva) y modelos.json dice sin_cupo=fallar ($SIN_CUPO_DE): no lanzo." >&2
+            exit 96 ;;
+          esperar)
+            if (( async )); then
+              export PA_REPARTO_ESPERAR=1
+              echo "pa: no hay cupo para $tipo_rep y modelos.json dice sin_cupo=esperar: queda en cola hasta que haya." >&2
+            else
+              echo "pa: no hay cupo para $tipo_rep (todo lleno o en reserva) y modelos.json dice sin_cupo=esperar: lanzalo con --async (hace cola hasta que haya cupo)." >&2
+              exit 75
+            fi ;;
+        esac
+      fi
     else
       if (( rep_rc == 124 || rep_rc == 137 )); then reparto_fallo="timeout tras ${PA_REPARTO_TIMEOUT_S:-15}s"
       elif (( rep_rc == 127 )); then reparto_fallo="no existe $REPARTO"
@@ -3889,6 +4096,14 @@ fi
 # docs/gemini-workers-agy.md. Lo que agy no tiene (retomar sesión, MCP de claude.ai, tope de gasto
 # en US$, el tree principal sin worktree) se niega acá en vez de lanzar algo que no es lo pedido.
 motor=claude; gemini_pedido=""
+# La cuenta de la retomada (--seguir sin --cuenta): mismo puesto, misma suscripción.
+if (( lanza && seguir )) && [[ -z "$cuenta_flag" ]] && ruta_c="$(proyecto-ruta "$proyecto" 2>/dev/null)" && [[ -n "$ruta_c" ]]; then
+  slug_c="$(slug_de "$ruta_c")"; ts_c="$run_id"
+  [[ -z "$ts_c" ]] && (( ! leer )) && ts_c="$(cat "$STATE/$slug_c.session.ts" 2>/dev/null || true)"
+  [[ -n "$ts_c" ]] && cuenta_seguir="$(leer_campo "$STATE/$slug_c/$ts_c.hilo" cuenta || true)"
+fi
+# La cuenta de agy va ANTES del chequeo: /hooks corre con el HOME de esa cuenta.
+(( lanza )) && es_gemini "$modelo" && cuenta_resolver google
 if (( lanza )) && es_gemini "$modelo"; then
   if [[ ! "${modelo,,}" =~ ^($GEMINI_MODELOS)$ ]]; then
     echo "pa: modelo '$modelo' no va. Modelos de agy en pa: gemini-{4-argon,3.8-flash}-{low,medium,high}, agy:claude-{opus,sonnet}-5-5-{low,medium,high} o agy:gpt-oss-120b-medium." >&2
@@ -3931,6 +4146,51 @@ if (( lanza )) && es_gemini "$modelo"; then
     motor=agy
   fi
 fi
+# --- ChatGPT por codex: validar, privacidad, codex y su login, o caer al equivalente Claude ------
+# docs/codex-workers.md. Como agy: sin --seguir, --aca, --mcp ni --max-budget-usd.
+if (( lanza )) && es_codex "$modelo"; then
+  if [[ ! "${modelo,,}" =~ ^($CODEX_MODELOS)$ ]]; then
+    echo "pa: modelo '$modelo' no va. Modelos de codex en pa: codex:{gpt-6.1-sol,gpt-6-sol,gpt-6-luna,gpt-6-astra}-{low,medium,high}." >&2
+    exit 2
+  fi
+  modelo="${modelo,,}"
+  if (( esfuerzo_flag )); then
+    echo "pa: --effort no va con '$modelo': en codex el effort es parte del nombre (…-low, …-medium, …-high)." >&2
+    exit 2
+  fi
+  esfuerzo=""; unset PA_EFFORT
+  for no_va in "seguir:--seguir (codex no retoma una sesión de pa)" "aca:--aca/--sucio-mio (un worker de codex trabaja siempre en su worktree)" "con_mcp:--mcp (los MCP de claude.ai no existen en codex)"; do
+    v_no_va="${no_va%%:*}"
+    if (( ${!v_no_va} )); then echo "pa: ${no_va#*:} no va con '$modelo'. Sacalo, o usá un modelo Claude." >&2; exit 2; fi
+  done
+  [[ -n "$max_budget" ]] && { echo "pa: --max-budget-usd no va con '$modelo' (codex se paga con la suscripción de ChatGPT, no en US\$)." >&2; exit 2; }
+  gemini_politica
+  if [[ -z "${PA_ASYNC:-}" ]]; then
+    codex_chequear "$modelo"
+    if [[ -z "$motivo_cae" ]]; then
+      motor=codex
+    elif (( vino_de_reparto )) || [[ "$GEMINI_SIN_CLAUDE" == claude ]]; then
+      read -r m_eq e_eq <<<"$(codex_equivalente "$modelo")"
+      echo "pa: $modelo → $m_eq effort $e_eq: $motivo_cae." >&2
+      gemini_pedido="$modelo"; modelo="$m_eq"; esfuerzo="$e_eq"; export PA_EFFORT="$e_eq"
+    else
+      echo "pa: $modelo no está disponible ($motivo_cae) y modelos.json dice sin_cupo=$SIN_CUPO: no caigo a Claude. Esperar no lo arregla." >&2
+      exit 96
+    fi
+  else
+    motor=codex
+  fi
+fi
+# La cuenta de Claude (o ninguna, para un local). Si agy cayó al equivalente Claude, la --cuenta pedida
+# era de Google: no aplica, se elige la de Claude.
+if (( lanza )) && [[ "$motor" != agy ]]; then
+  if [[ -n "$gemini_pedido" && -n "$cuenta_flag" ]]; then
+    echo "pa: la cuenta $cuenta_flag es de agy y caí a $modelo: uso una cuenta de Claude." >&2
+    cuenta_flag=""
+  fi
+  cuenta_resolver "$(proveedor_de_modelo "$modelo")"
+fi
+[[ -n "$cuenta" && "$cuenta" != claude && "$cuenta" != google ]] && echo "pa: cuenta $cuenta." >&2
 # --- modelo local (ollama:*): validar y probar el servidor antes de lanzar nada -----------------
 # Lo prueba el padre de --async (o el pa en primer plano); el hijo recibe el mismo -m y no repite.
 local_url="" local_modelo=""
@@ -3950,16 +4210,23 @@ if (( lanza )) && es_local "$modelo"; then
   fi
   motor=ollama
 fi
-[[ "$motor" == agy || "$motor" == ollama ]] && ef_vacio="-"   # medicion.tsv y .hilo: sin effort (agy: va en el nombre)
+[[ "$motor" == agy || "$motor" == codex || "$motor" == ollama ]] && ef_vacio="-"   # medicion.tsv y .hilo: sin effort (agy y codex: va en el nombre)
 ojo_env="${PA_EFFORT:+ (ojo: puede venir de PA_EFFORT)}"
 ef="${esfuerzo,,}"
+(( lanza )) && gemini_politica
 if (( lanza && ! ok_dueno )); then
   m="${modelo,,}"
   con_ok="$(D "Si @DUENO@ aprobó esta corrida, repetila con --ok-dueno")"
+  # excluir de modelos.json (2026-10-24): un -m que el archivo excluye no corre sin --ok-dueno. El hijo
+  # de --async no lo mira: su -m lo puso el padre, que ya pasó por acá.
+  if (( modelo_de_m )) && [[ -z "${PA_ASYNC:-}" ]] && excl="$(excluido_por "$modelo")"; then
+    echo "pa: modelo '$modelo' está excluido en modelos.json (excluir: $excl). $con_ok; si no, elegí otro con -m o sacalo de excluir." >&2
+    exit 2
+  fi
   if [[ "$m" == *fable* ]]; then
     echo "pa: modelo '$modelo' no va sin --ok-dueno: Fable en \`-p\` cobra créditos sin preguntar y usa hasta la mitad del límite semanal. $con_ok; si no, para frontend/diseño o algo difícil: -m claude-opus-5-5 --effort xhigh." >&2
     exit 2
-  elif [[ "$ef" == max && "$m" != *haiku* ]]; then
+  elif [[ "$ef" == max && "$m" != *haiku* ]] && ! (( PERMITIR_MAX )); then
     if [[ "$m" == *opus* ]]; then
       echo "pa: effort 'max' con opus no va sin --ok-dueno: rinde 1,5 puntos más por 65 % más de costo. $con_ok; si no, usá low, medium, high o xhigh$ojo_env." >&2
     else
@@ -4090,8 +4357,9 @@ fi
 # --- límite de sesión conocido ----------------------------------------------------------
 # Si un worker ya chocó el límite de la suscripción, lanzar otro antes del reset es tirar el
 # intento (vuelve en <1s con num_turns:1). El wrapper viejo no lo sabía y reintentaba a ciegas:
-# tres intentos en 50 segundos, y cada uno destruía la sesión guardada.
-if [[ -f "$LIMITE" ]]; then
+# tres intentos en 50 segundos, y cada uno destruía la sesión guardada. Es el límite del Claude oficial:
+# una corrida de agy o de un local no lo mira.
+if [[ "$motor" == claude && -f "$LIMITE" ]]; then
   hasta="$(cat "$LIMITE")"
   if [[ "$hasta" =~ ^[0-9]+$ ]] && (( hasta > $(date +%s) )); then
     echo "pa: límite de sesión de la suscripción hasta las $(date -d "@$hasta" '+%H:%M'). No lanzo." >&2
@@ -4186,6 +4454,7 @@ if [[ $async -eq 1 ]]; then
   (( force ))            && hijo_args+=( --force )
   [[ -n "$tipo" ]]       && hijo_args+=( --tipo "$tipo" )
   (( ok_dueno ))         && hijo_args+=( --ok-dueno )
+  [[ -n "$cuenta" ]]     && hijo_args+=( --cuenta "$cuenta" )
   hijo_args+=( -- "$tarea" )
   # De quién es la corrida, ANTES del fork: mientras espera en cola no tiene `.corrida`, y
   # `--esperar` pelado necesita saber si es de su jefe para esperarla (y no cobrarle la del otro).
@@ -4275,6 +4544,52 @@ if (( gemini_esperar )); then
     gemini_chequear "$modelo"
   done
   rm -f "$dir/$ts.cola"
+fi
+# sin_cupo=esperar con todo lleno (sólo el hijo de --async llega acá): cola SIN puesto ni lugar del tope,
+# preguntándole a reparto cada PA_GEMINI_ESPERA_S (300 s) hasta que haya un candidato con cupo; a los
+# PA_GEMINI_ESPERA_MAX_MIN (720) sale 96. Si el candidato cambió, corre con ése.
+if [[ -n "$reparto_esperar" && -n "$reparto_tipo_relanzable" && -x "$REPARTO" ]]; then
+  r_ini="$SECONDS"
+  while :; do
+    rep_json="$(REPARTO_STATE="${REPARTO_STATE:-$STATE/reparto}" PA_STATE="$STATE"       timeout "${PA_REPARTO_TIMEOUT_S:-15}" "$REPARTO" --tipo "$reparto_tipo_relanzable" --json 2>/dev/null </dev/null)" || rep_json=""
+    m_rep=""; e_rep=""
+    [[ -n "$rep_json" ]] && IFS='|' read -r m_rep e_rep < <(jq -r '[(.modelo // ""), (.effort // "")] | join("|")' <<<"$rep_json" 2>/dev/null) || true
+    [[ -n "$m_rep" && "$(jq -r '.todo_lleno // false' <<<"$rep_json" 2>/dev/null)" != true ]] && break
+    if (( SECONDS - r_ini >= ${PA_GEMINI_ESPERA_MAX_MIN:-720} * 60 )); then
+      rm -f "$dir/$ts.cola"
+      echo "pa: sigue sin haber cupo para $reparto_tipo_relanzable y modelos.json dice sin_cupo=esperar: dejo de esperar." >&2
+      exit 96
+    fi
+    cola_clase=""; escribir_cola "sin cupo: todo lleno para $reparto_tipo_relanzable; espera cupo (sin_cupo=esperar)"
+    sleep "${PA_GEMINI_ESPERA_S:-300}"
+  done
+  rm -f "$dir/$ts.cola"
+  if [[ "$m_rep" != "$modelo" ]] && ! es_local "$m_rep"; then
+    echo "pa: volvió el cupo: corro con $m_rep${e_rep:+ effort $e_rep} (reparto)." >&2
+    modelo="$m_rep"; esfuerzo=""; unset PA_EFFORT
+    if es_gemini "$modelo"; then
+      gemini_chequear "$modelo"
+      if [[ -n "$motivo_cae" ]]; then
+        read -r m_eq e_eq <<<"$(gemini_equivalente "$modelo")"
+        echo "pa: $modelo → $m_eq effort $e_eq: $motivo_cae." >&2
+        gemini_pedido="$modelo"; modelo="$m_eq"; esfuerzo="$e_eq"; export PA_EFFORT="$e_eq"; motor=claude; ef_vacio=""
+      else
+        motor=agy; ef_vacio="-"
+      fi
+    elif es_codex "$modelo"; then
+      codex_chequear "$modelo"
+      if [[ -n "$motivo_cae" ]]; then
+        read -r m_eq e_eq <<<"$(codex_equivalente "$modelo")"
+        echo "pa: $modelo → $m_eq effort $e_eq: $motivo_cae." >&2
+        gemini_pedido="$modelo"; modelo="$m_eq"; esfuerzo="$e_eq"; export PA_EFFORT="$e_eq"; motor=claude; ef_vacio=""
+      else
+        motor=codex; ef_vacio="-"
+      fi
+    else
+      motor=claude; ef_vacio=""
+      [[ -n "$e_rep" ]] && { esfuerzo="$e_rep"; export PA_EFFORT="$e_rep"; }
+    fi
+  fi
 fi
 # Para el `.hilo`: la tarea como la escribió el jefe (abajo se le suman avisos o se reemplaza con
 # la de --actualizar) y quién lanzó (PA_ORIGEN: `app`, `nightloop`…; default `jefe`).
@@ -4478,6 +4793,7 @@ armar_llamada() {
 jefe="$(jefe_nombre)"; jefe_ident="$(jefe_id)"
 # Un Gemini no tiene SendMessage: corre como sin jefe (pregunta en DECISION).
 if [[ "$motor" == agy ]]; then contrato="$CONTRATO_AGY"$'\n'"$SIN_JEFE"
+elif [[ "$motor" == codex ]]; then contrato="$CONTRATO_CODEX"$'\n'"$SIN_JEFE"
 elif [[ -n "$jefe" ]]; then contrato="$CONTRATO"$'\n'"$(con_jefe "$jefe")"; else contrato="$CONTRATO"$'\n'"$SIN_JEFE"; fi
 contrato="$(D "$contrato")"
 # Orientación, no aislamiento (el aislamiento ya es estructural): un worker que ve una rama rara
@@ -4523,7 +4839,7 @@ nombre_worker="pa/$slug"; (( leer )) || nombre_worker+="$(suf_puesto "$puesto")"
 # tarda más de 2 s o si no dice nada: se omite, sin aviso. A un Gemini no se le manda: son los
 # pendientes y esperas personales del dueño, y lo que va a Google no se recupera.
 prompt="$tarea"
-if (( ! resume )) && [[ "$motor" != agy ]]; then
+if (( ! resume )) && [[ "$motor" != agy && "$motor" != codex ]]; then
   ficha="$(tablero_mudo 2 ficha "$slug" --corta)" || ficha=""
   if [[ -n "$ficha" ]]; then prompt+=$'\n\n'"Dónde quedó este proyecto:"$'\n'"$ficha"; fi
 fi
@@ -4586,6 +4902,35 @@ if [[ "$motor" == agy ]]; then
   if [[ -n "$actualizar" ]]; then export PA_AGY_REBASE=1; else export PA_AGY_REBASE=0; fi
   transcript="$dir/$ts.stream.jsonl"
 fi
+
+# --- armado de la llamada a codex (ChatGPT) ------------------------------------------------
+# Como agy: el contrato y los CLAUDE.md van adelante de la tarea (codex lee AGENTS.md, no CLAUDE.md).
+# Sandbox de codex: workspace-write (escribe en el worktree y en el .git común, que es donde commitea un
+# worktree; sin red) o read-only en --leer. Sin aprobaciones: no hay nadie para contestarlas.
+if [[ "$motor" == codex ]]; then
+  prompt_cx="INSTRUCCIONES DEL ORQUESTADOR (valen como system prompt):"$'\n'"$contrato"
+  for md in "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/CLAUDE.md" "$ruta_trabajo/CLAUDE.md"; do
+    [[ -s "$md" ]] || continue
+    prompt_cx+=$'\n\n'"INSTRUCCIONES ($md; valen igual que las de arriba):"$'\n'"$(cat "$md")"
+  done
+  prompt_cx+=$'\n\n'"TAREA:"$'\n'"$prompt"
+  cx_base="${modelo#codex:}"
+  args=( exec --json
+         -m "${cx_base%-*}"
+         -c "model_reasoning_effort=\"${modelo##*-}\""
+         -c 'approval_policy="never"'
+         --sandbox "$( (( leer )) && echo read-only || echo workspace-write)"
+         -C "$ruta_trabajo"
+         --output-last-message "$dir/$ts.codex-ultimo" )
+  if (( ! leer )); then
+    cx_git="$(git -C "$ruta_trabajo" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"
+    [[ -n "$cx_git" ]] && args+=( --add-dir "$cx_git" )
+    [[ -n "${CARGO_TARGET_DIR:-}" ]] && args+=( --add-dir "$CARGO_TARGET_DIR" )
+    [[ -f "$mapa_proy" ]] && args+=( --add-dir "$(dirname "$mapa_proy")" )
+  fi
+  args+=( "$prompt_cx" )
+  transcript="$dir/$ts.stream.jsonl"
+fi
 }
 armar_llamada
 
@@ -4620,8 +4965,8 @@ inicio="$(date +%s)"
 # El registro durable de la corrida (lo lee la app y --bien-auto): la `.corrida` se borra al
 # integrar/descartar, el `.hilo` nunca. Al salir se le suman decision/decision_nada/sigue.
 [[ -f "$dir/$ts.hilo" ]] || {
-  printf 'tarea=%s\nmodelo=%s\neffort=%s\ninicio=%s\nproyecto=%s\nruta_trabajo=%s\nrama=%s\norigen=%s\nleer=%s\npuesto=%s\nlanzo=%s\njefe=%s\njefe_id=%s\ntipo=%s\n' \
-    "${tarea_jefe//$'\n'/ }" "$modelo" "${esfuerzo:-${ef_vacio:-settings}}" "$inicio" "$slug" "$ruta_trabajo" "$rama" "$origen" "$leer" "$puesto" "$lanzo" "$jefe" "$jefe_ident" "$tipo" \
+  printf 'tarea=%s\nmodelo=%s\neffort=%s\ninicio=%s\nproyecto=%s\nruta_trabajo=%s\nrama=%s\norigen=%s\nleer=%s\npuesto=%s\nlanzo=%s\njefe=%s\njefe_id=%s\ntipo=%s\ncuenta=%s\n' \
+    "${tarea_jefe//$'\n'/ }" "$modelo" "${esfuerzo:-${ef_vacio:-settings}}" "$inicio" "$slug" "$ruta_trabajo" "$rama" "$origen" "$leer" "$puesto" "$lanzo" "$jefe" "$jefe_ident" "$tipo" "$cuenta" \
     >"$dir/$ts.hilo"
 } 2>/dev/null || true
 escribir_running() {
@@ -4635,6 +4980,7 @@ escribir_running() {
     printf 'ruta_trabajo=%s\n' "$ruta_trabajo"
     printf 'rama=%s\n'       "$rama"
     printf 'modelo=%s\n'     "$modelo"
+    printf 'cuenta=%s\n'     "$cuenta"
     printf 'leer=%s\n'       "$leer"
     printf 'jefe=%s\n'       "$jefe"
     printf 'jefe_id=%s\n'    "$jefe_ident"
@@ -4660,7 +5006,12 @@ correr() {
   # merge sin -m) abría un editor que nadie iba a cerrar: el worker quedaba colgado hasta el timeout.
   if [[ "$motor" == agy ]]; then
     # El stream crudo va aparte (es el "transcript" de la corrida); el .json se arma al terminar.
-    ( cd "$ruta_trabajo" && export PA_WORKER=1 GIT_EDITOR=true GIT_SEQUENCE_EDITOR=true && exec agy "${args[@]}" ) \
+    ( cd "$ruta_trabajo" && export PA_WORKER=1 GIT_EDITOR=true GIT_SEQUENCE_EDITOR=true && exec "${cuenta_env[@]}" agy "${args[@]}" ) \
+        </dev/null >"$transcript" 2>"$err" 9>&- 8>&- 6>&- 5>&- &
+  elif [[ "$motor" == codex ]]; then
+    # Los shims de codex/bin van primeros en el PATH: son las guardias de git y cargo (codex no tiene hooks).
+    rm -f "$dir/$ts.codex-ultimo"
+    ( cd "$ruta_trabajo" && export PA_WORKER=1 GIT_EDITOR=true GIT_SEQUENCE_EDITOR=true PATH="$CODEX_SHIMS:$PATH" && exec codex "${args[@]}" ) \
         </dev/null >"$transcript" 2>"$err" 9>&- 8>&- 6>&- 5>&- &
   elif [[ "$motor" == ollama ]]; then
     # Las ANTHROPIC_* del servidor local, SÓLO en este proceso (regla de facturación: nunca en otro, nunca
@@ -4672,15 +5023,22 @@ correr() {
         ANTHROPIC_DEFAULT_HAIKU_MODEL="$local_modelo" CLAUDE_CODE_SUBAGENT_MODEL="$local_modelo" && exec claude "${args[@]}" ) \
         </dev/null >"$out" 2>"$err" 9>&- 8>&- 6>&- 5>&- &
   else
-    ( cd "$ruta_trabajo" && export PA_WORKER=1 GIT_EDITOR=true GIT_SEQUENCE_EDITOR=true && exec claude "${args[@]}" ) \
+    # La cuenta (cuenta_env: `env -u ANTHROPIC_API_KEY … CLAUDE_CONFIG_DIR=…`) va SÓLO en este proceso.
+    ( cd "$ruta_trabajo" && export PA_WORKER=1 GIT_EDITOR=true GIT_SEQUENCE_EDITOR=true && exec "${cuenta_env[@]}" claude "${args[@]}" ) \
         </dev/null >"$out" 2>"$err" 9>&- 8>&- 6>&- 5>&- &
   fi
   hijo=$!
   escribir_running          # ahora sí con el pid del claude
-  local rc=0
+  local rc=0 lat="" t0="$SECONDS"
+  if [[ "$motor" == codex ]]; then
+    ( while kill -0 "$hijo" 2>/dev/null; do codex_latido; sleep "${PA_CODEX_LATIDO_S:-15}"; done ) </dev/null >/dev/null 2>&1 9>&- 8>&- 6>&- 5>&- &
+    lat=$!
+  fi
   wait "$hijo" || rc=$?
   hijo=""
+  [[ -n "$lat" ]] && { kill "$lat" 2>/dev/null; wait "$lat" 2>/dev/null; }
   if [[ "$motor" == agy ]]; then agy_a_json "$transcript" "$err" "$modelo" "$rc" >"$out" 2>/dev/null || true; fi
+  if [[ "$motor" == codex ]]; then codex_a_json "$transcript" "$err" "$modelo" "$rc" "$dir/$ts.codex-ultimo" "$((SECONDS - t0))" >"$out" 2>/dev/null || true; fi
   # Un local: el .json dice motor "ollama" y el modelo de pa (ollama:…), y no cuesta US$ (el CLI no
   # conoce el precio del modelo y podría inventar uno).
   if [[ "$motor" == ollama ]] && jq -e 'type == "object"' "$out" >/dev/null 2>&1; then
@@ -4700,17 +5058,32 @@ es_error()  { [[ "$(jq -r '.is_error // false' "$out" 2>/dev/null)" == "true" ]]
 rc=0
 correr || rc=$?
 
-# --- agy sin cupo (429): marcar el grupo agotado y relanzar con el siguiente candidato de reparto --------
+# --- sin cupo al arrancar: marcar el grupo agotado y relanzar con el siguiente candidato de reparto ----
 # agy contesta RESOURCE_EXHAUSTED / "Individual quota reached" cuando el grupo se quedó sin cupo, y los cupos de
 # agy son chicos (el grupo Claude/GPT pasó del 26 % a 0 en 2 minutos, más rápido que la caché de /quota). Si pasa
 # al arrancar (nada commiteado ni sucio en el worktree) y el modelo lo había elegido reparto (no un -m del jefe),
 # `reparto --agotar` marca ese grupo hasta su vuelve y se relanza, en la misma corrida y el mismo id, con lo que
 # reparto elige ahora. Hasta 3 veces (cada una agota un grupo distinto).
+# Desde 2026-10-24 vale también al revés (sin_cupo=otro, el default): si el Claude oficial dice límite (sesión,
+# semanal, rate limit, 429), se marca agotado hasta su reset (`reparto --agotar <modelo> --hasta`, y $LIMITE) y
+# se relanza con el candidato que quede, que puede ser de Google. Con sin_cupo esperar o fallar no se relanza.
 agy_sin_cupo() {
   [[ "$motor" == agy ]] || return 1
   local t; t="$(cat "$err" 2>/dev/null; res_texto)"
   grep -qiE 'RESOURCE_EXHAUSTED|Individual quota reached|(^|[^0-9])429([^0-9]|$)' <<<"$t"
 }
+claude_sin_cupo() {
+  [[ "$motor" == claude ]] || return 1
+  local t; t="$(res_texto)"
+  grep -qiE 'session limit|usage limit|weekly limit|hit your limit|rate.?limit|(^|[^0-9])429([^0-9]|$)' <<<"$t"
+}
+# codex: "You've hit your usage limit" / rate limit / 429 (en el stream, en stderr o en el result).
+codex_sin_cupo() {
+  [[ "$motor" == codex ]] || return 1
+  local t; t="$(cat "$err" "$transcript" 2>/dev/null; res_texto)"
+  grep -qiE 'usage limit|hit your limit|rate.?limit|Too Many Requests|quota|(^|[^0-9])429([^0-9]|$)' <<<"$t"
+}
+sin_cupo_al_arrancar() { agy_sin_cupo || codex_sin_cupo || claude_sin_cupo; }
 sin_trabajo_hecho() {
   [[ -z "$(git -C "$ruta_trabajo" status --porcelain 2>/dev/null)" ]] \
     && [[ "$(git -C "$ruta_trabajo" rev-list --count "${base:-HEAD}..HEAD" 2>/dev/null || echo 1)" == 0 ]]
@@ -4719,32 +5092,63 @@ cambiar_de_modelo() {   # $1 = modelo nuevo, $2 = su effort (sólo Claude)
   modelo="$1"; esfuerzo=""; unset PA_EFFORT
   if es_gemini "$modelo"; then
     motor=agy; ef_vacio="-"
+  elif es_codex "$modelo"; then
+    motor=codex; ef_vacio="-"
   else
     motor=claude; ef_vacio=""
     [[ -n "${2:-}" ]] && { esfuerzo="$2"; export PA_EFFORT="$2"; }
+    # Sesión nueva: la del intento que chocó el límite puede haber quedado creada con ese id.
+    (( resume )) || { sid="$(uuidgen)"; printf '%s' "$sid" >"$dir/$ts.sid"; }
     transcript="$PROJ/$(escapar "$ruta_trabajo")/$sid.jsonl"
   fi
   armar_llamada
-  sed -i -e "s|^modelo=.*|modelo=$modelo|" -e "s|^effort=.*|effort=${esfuerzo:-${ef_vacio:-settings}}|" "$dir/$ts.hilo" 2>/dev/null || true
+  sed -i -e "s|^modelo=.*|modelo=$modelo|" -e "s|^effort=.*|effort=${esfuerzo:-${ef_vacio:-settings}}|" -e "s|^cuenta=.*|cuenta=$cuenta|" "$dir/$ts.hilo" 2>/dev/null || true
   escribir_running
 }
 reintentos_cupo=0
-while (( reintentos_cupo < 3 )) && [[ -n "$reparto_tipo_relanzable" && -x "$REPARTO" ]] \
-      && { (( rc != 0 )) || es_error; } && agy_sin_cupo && sin_trabajo_hecho; do
+while (( reintentos_cupo < 3 )) && [[ "$SIN_CUPO" == otro && -n "$reparto_tipo_relanzable" && -x "$REPARTO" ]] \
+      && { (( rc != 0 )) || es_error; } && sin_cupo_al_arrancar && sin_trabajo_hecho; do
   reintentos_cupo=$((reintentos_cupo+1))
-  m_ant="$modelo"
-  REPARTO_STATE="${REPARTO_STATE:-$STATE/reparto}" PA_STATE="$STATE" "$REPARTO" --agotar "$m_ant" >/dev/null 2>&1 </dev/null || true
+  m_ant="$modelo"; hasta_args=()
+  if [[ "$motor" == claude ]]; then
+    quien="Claude dijo límite"
+    if hasta="$(epoch_reset "$(res_texto)")"; then
+      printf '%s' "$hasta" >"$LIMITE"
+      hasta_args=( --hasta "$(date -u -d "@$hasta" +%Y-%m-%dT%H:%M:%SZ)" )
+    fi
+  elif [[ "$motor" == codex ]]; then
+    quien="codex dijo sin cupo"
+  else
+    quien="agy dijo 429"
+  fi
+  # Se agota el grupo de ESA cuenta; el siguiente candidato prefiere otra cuenta del mismo proveedor.
+  c_ant="$cuenta"; p_ant="$(proveedor_de_modelo "$m_ant")"
+  REPARTO_STATE="${REPARTO_STATE:-$STATE/reparto}" PA_STATE="$STATE" "$REPARTO" --agotar "$m_ant" "${hasta_args[@]}" ${c_ant:+--cuenta "$c_ant"} >/dev/null 2>&1 </dev/null || true
   rep_json="$(REPARTO_STATE="${REPARTO_STATE:-$STATE/reparto}" PA_STATE="$STATE" \
-    timeout "${PA_REPARTO_TIMEOUT_S:-15}" "$REPARTO" --tipo "$reparto_tipo_relanzable" --json 2>/dev/null </dev/null)" || rep_json=""
+    timeout "${PA_REPARTO_TIMEOUT_S:-15}" "$REPARTO" --tipo "$reparto_tipo_relanzable" ${p_ant:+--mismo-proveedor "$p_ant"} --json 2>/dev/null </dev/null)" || rep_json=""
   m_rep=""; e_rep=""; mot_rep=""
   [[ -n "$rep_json" ]] && IFS='|' read -r m_rep e_rep mot_rep < <(
     jq -r '[(.modelo // ""), (.effort // ""), ((.motivo // "") | gsub("[\\r\\n\\t|]+"; " "))] | join("|")' <<<"$rep_json" 2>/dev/null
   ) || true
-  if [[ -z "$m_rep" || "$m_rep" == "$m_ant" ]] || es_local "$m_rep" || [[ "${m_rep,,}" != @(claude-*|gemini-*|agy:*) ]]; then
-    echo "pa: agy dijo 429 (sin cupo) con $m_ant, marqué su grupo como agotado, pero reparto no ofrece otro candidato; sigo como falló." >&2
+  # Todo lleno: reparto da el más barato, que también va a chocar; no vale relanzar.
+  [[ "$(jq -r '.todo_lleno // false' <<<"$rep_json" 2>/dev/null)" == true ]] && m_rep=""
+  c_rep="$(jq -r '.cuenta // ""' <<<"$rep_json" 2>/dev/null)"; [[ -n "$c_rep" ]] || c_rep="$(proveedor_de_modelo "$m_rep")"
+  if [[ -z "$m_rep" || ( "$m_rep" == "$m_ant" && "$c_rep" == "${c_ant:-$p_ant}" ) ]] || es_local "$m_rep" || [[ "${m_rep,,}" != @(claude-*|gemini-*|agy:*|codex:*) ]] \
+     || { ! es_codex "$m_rep" && ! cuenta_preparar "$c_rep" "$(proveedor_de_modelo "$m_rep")" 2>/dev/null; }; then
+    echo "pa: $quien (sin cupo) con $m_ant, lo marqué como agotado, pero reparto no ofrece otro candidato con cupo; sigo como falló." >&2
+    cuenta_preparar "${c_ant:-$p_ant}" "$p_ant" 2>/dev/null || true
     break
   fi
-  echo "pa: agy dijo 429 (sin cupo) con $m_ant: marco su grupo como agotado hasta que vuelva y relanzo con $m_rep${e_rep:+ effort $e_rep}: $mot_rep" >&2
+  if es_gemini "$m_rep" || es_codex "$m_rep"; then
+    if es_codex "$m_rep"; then codex_chequear "$m_rep"; else gemini_chequear "$m_rep"; fi
+    if [[ -n "$motivo_cae" ]]; then
+      echo "pa: $quien (sin cupo) con $m_ant; reparto ofrece $m_rep pero no puede correr ($motivo_cae); sigo como falló." >&2
+      cuenta_preparar "${c_ant:-$p_ant}" "$p_ant" 2>/dev/null || true
+      break
+    fi
+  fi
+  c_txt=""; [[ "$cuenta" != "$c_ant" && "$cuenta" != claude && "$cuenta" != google ]] && c_txt=" (cuenta $cuenta)"
+  echo "pa: $quien (sin cupo) con $m_ant: lo marco agotado hasta que vuelva y relanzo con $m_rep${e_rep:+ effort $e_rep}$c_txt: $mot_rep" >&2
   cambiar_de_modelo "$m_rep" "$e_rep"
   rc=0; correr || rc=$?
 done

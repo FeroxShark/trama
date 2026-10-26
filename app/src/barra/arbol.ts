@@ -2,7 +2,7 @@
 // son las sesiones de Claude Code con las que habla el usuario; los workers, las
 // corridas de `pa` que lanzó cada uno (`jefe_id`). Puro: lo prueba
 // `tests/arbol.test.ts`.
-import { cerrable, cerrado, GENERAL, type Caido, type Estado, type Hilo, type Lider, type Orden } from "../datos/contrato.ts";
+import { cerrable, cerrado, esShark, GENERAL, SHARK, type Caido, type Estado, type Hilo, type Lider, type Orden } from "../datos/contrato.ts";
 import { fraseConocida, t } from "../i18n/index.ts";
 import { porManual } from "./orden.ts";
 
@@ -249,8 +249,10 @@ export const ordenLideres = (a: Pick<Lider, "id" | "creado">, b: Pick<Lider, "id
 export type Rango = { r: 0 | 1 | 2; a: number };
 export type Prioridad = ReadonlyMap<string, Rango>;
 
-export function rangoLider(l: Pick<Lider, "espera" | "pide" | "cache_vence" | "caido" | "actividad">, ahora: number): Rango {
+export function rangoLider(l: Pick<Lider, "espera" | "pide" | "cache_vence" | "caido" | "actividad" | "subagentes">, ahora: number): Rango {
   if (!l.caido && (l.espera || l.pide)) return { r: 0, a: 0 };
+  // Con subagentes corriendo la sesión trabaja aunque su caché ya no cuente: no cae al rango de las dormidas.
+  if (!l.caido && l.subagentes) return { r: 1, a: 0 };
   if (!l.caido && l.cache_vence != null && l.cache_vence > ahora) return { r: 1, a: 0 };
   return { r: 2, a: l.actividad };
 }
@@ -418,6 +420,7 @@ export function armarArbol(hilos: Hilo[], { optimista, lideres: todos, settleado
   // sin workers, a la del proyecto que nombra su primer mensaje (`inferido`, del
   // main) y si no nombra ninguno, a "general". El primero y no el más nuevo: un
   // líder que reparte trabajo en varios proyectos no salta de carpeta con cada worker.
+  // Shark (el asistente de voz) va siempre a su carpeta propia, con sus workers, salvo que el usuario lo mueva.
   const primero = new Map<string, Hilo>();
   const vivos = new Set(lideres.map((l) => l.id));
   for (const h of hilos) {
@@ -427,7 +430,7 @@ export function armarArbol(hilos: Hilo[], { optimista, lideres: todos, settleado
   }
   const lid = new Map<string, Lider>();
   for (const l of lideres) {
-    const proyecto = mover?.get(l.id) ?? primero.get(l.id)?.proyecto ?? l.inferido ?? GENERAL;
+    const proyecto = mover?.get(l.id) ?? (esShark(l) ? SHARK : undefined) ?? primero.get(l.id)?.proyecto ?? l.inferido ?? GENERAL;
     lid.set(l.id, l.proyecto === proyecto ? l : { ...l, proyecto });
   }
 

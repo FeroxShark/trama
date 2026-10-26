@@ -8,7 +8,7 @@ export type Familia = "opus" | "sonnet" | "fable" | "haiku" | "otro";
 
 const FAMILIAS: Exclude<Familia, "otro">[] = ["opus", "sonnet", "fable", "haiku"];
 
-/** "claude-sonnet-5-5[1m]" → "sonnet". Lo que no es de la casa (Qwen local, etc.), "otro". */
+/** "claude-sonnet-5-5[1m]" → "sonnet". Lo que no es de la casa (un local, etc.), "otro". */
 export const familiaDe = (modelo: string | null | undefined): Familia =>
   FAMILIAS.find((f) => modelo?.toLowerCase().includes(f)) ?? "otro";
 
@@ -17,7 +17,7 @@ export const CORTO: Record<Exclude<Familia, "otro">, string> = { opus: "Opus", s
 
 /**
  * Lo que dice el chip del modelo en la fila: el nombre de la familia o, si no
- * es de la casa, la primera palabra del id ("qwen-local" → "Qwen"). `null`
+ * es de la casa, la primera palabra del id ("modelo-local-ejemplo" → "Modelo"). `null`
  * sin modelo: no hay chip.
  */
 export function modeloCorto(modelo: string | null | undefined): string | null {

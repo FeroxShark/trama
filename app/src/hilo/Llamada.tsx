@@ -66,8 +66,15 @@ function Cuerpo({ u }: { u: Uso }) {
 /** Tiene algo para mostrar al abrirse. */
 const abre = (u: Uso) => cuerpo(u.det).tipo !== "nada" || !!u.det?.resultado?.texto.trim();
 
-/** Una línea por grupo de llamadas iguales y seguidas. */
-export const Llamada = memo(function Llamada({ g }: { g: Grupo }) {
+/**
+ * Cómo va una llamada (un motor que deja ver su trabajo): sin resultado todavía y el turno corriendo es `corriendo`; con el resultado,
+ * `ok` o `error`. Un turno que terminó sin resultado no dice nada (no se sabe).
+ */
+export const estadoLlamada = (todos: Uso[], vivo: boolean): "corriendo" | "ok" | "error" | null =>
+  todos.some((x) => x.det?.resultado?.error) ? "error" : todos.every((x) => x.det?.resultado) ? "ok" : vivo ? "corriendo" : null;
+
+/** Una línea por grupo de llamadas iguales y seguidas. `estado`: el turno es de un motor que deja ver su trabajo (`vivo`: sigue corriendo). */
+export const Llamada = memo(function Llamada({ g, estado }: { g: Grupo; estado?: "vivo" | "fin" }) {
   useIdioma();
   const { uso: u, todos } = g;
   const [abierta, setAbierta] = useState(() => abiertaAlMontar(u));
@@ -80,6 +87,7 @@ export const Llamada = memo(function Llamada({ g }: { g: Grupo }) {
   // AskUserQuestion contestada: lo elegido en el renglón (./Preguntas.tsx).
   const rs = u.nombre === HERRAMIENTA_PREGUNTAS && todos.length === 1 && !error ? respondidas(u.det?.entrada, u.det?.resultado?.texto) : null;
   if (rs) return <LlamadaPreguntas nombre={u.nombre} rs={rs} />;
+  const est = estado ? estadoLlamada(todos, estado === "vivo") : null;
   const linea = (
     <>
       {se ? <ChevronRight className="ll-f" size={10} strokeWidth={2} /> : <span className="ll-f" />}
@@ -91,6 +99,11 @@ export const Llamada = memo(function Llamada({ g }: { g: Grupo }) {
       {c ? (
         <span className="ll-k">
           <span className="ll-mas-n">+{c.mas}</span> <span className="ll-menos-n">−{c.menos}</span>
+        </span>
+      ) : null}
+      {est ? (
+        <span className="ll-e" data-e={est}>
+          {t(`llamada.${est}`)}
         </span>
       ) : null}
     </>

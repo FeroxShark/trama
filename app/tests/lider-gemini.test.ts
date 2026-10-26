@@ -32,6 +32,10 @@ process.env.TRAMA_DUENO = "Ana"; // los prompts nombran al dueño: aquí es siem
 process.env.HILOS_CLAUDE = path.join(import.meta.dirname, "..", "scripts", "claude-falso.mjs");
 process.env.HILOS_AGY = path.join(import.meta.dirname, "..", "scripts", "agy-falso.mjs");
 process.env.TRAMA_FALSO_LOG = path.join(tmp, "agy.log");
+// Un `pa` fuera del PATH de la app (como bajo la unidad de systemd): el líder de Gemini tiene que poder llamarlo igual.
+const dirPa = path.join(tmp, "fuera-del-path");
+process.env.HILOS_PA = path.join(dirPa, "pa");
+process.env.PATH = "/usr/bin:/bin";
 process.env.TRAMA_FALSO_MS = "20";
 process.env.TRAMA_FALSO_MS_LENTO = "400";
 
@@ -81,6 +85,10 @@ test("un líder de Gemini contesta: modelo con su esfuerzo en agy, el prefacio c
   assert.match(l.prompt, /MARCA-CLAUDE-MD/, "agy no lee CLAUDE.md: el prefacio se lo da");
   assert.match(l.prompt, /Mensaje de [^\n]+:\nherramienta hola despacio/);
   assert.equal(l.env.length, 0, `ninguna variable de Claude/Ollama en agy: ${l.env}`);
+  // Delegar: `pa` en el PATH de agy aunque la app no lo traiga, la guía en el prefacio aunque no haya skill y la ruta por si falla.
+  assert.ok(l.path.split(":").includes(dirPa), `la carpeta de pa va en el PATH de agy: ${l.path}`);
+  assert.match(l.prompt, /pa <proyecto> --tipo/, "la guía de delegar viene en el prefacio, sin depender de ningún skill");
+  assert.ok(l.prompt.includes(`\`${process.env.HILOS_PA}\``), "la ruta de pa por si el comando no se encuentra");
   // Su transcript es aparte de los de Claude y lo encuentra el mismo lector.
   const t = await lider.transcriptDe(sid);
   assert.equal(t, path.join(process.env.HILOS_STATE!, "gemini", `${sid}.jsonl`));
@@ -205,4 +213,73 @@ test("agy expone sus skills de plugins sin pisar comandos.json de Claude, y cruz
   const guardados = await lider.lideresApp();
   assert.equal(guardados.find((g) => g.sid === sidGem)?.modelo, "gemini-4-argon");
   assert.equal(guardados.find((g) => g.sid === sidClaude)?.modelo, "claude-opus-5-5");
+});
+
+test("/compact en un líder de Gemini compacta de verdad la conversación de agy y se ve como en Claude: compactando, el cierre con el peso de antes y el transcript", { timeout: 60_000 }, async () => {
+  const sid = await lider.nuevo({ modelo: "gemini-3.8-flash", effort: "low", texto: "uno" });
+  await hasta(() => de(sid, "fin").length === 1);
+  const conversacion = JSON.parse(readFileSync(path.join(process.env.HILOS_STATE!, "gemini", `${sid}.json`), "utf8")).conversation_id as string;
+  const n0 = llamadas().length;
+  const avisos0 = de(sid, "aviso").length;
+
+  await lider.mandar({ sid, texto: "/compact", modelo: "gemini-3.8-flash", effort: "low" });
+  await hasta(() => de(sid, "fin").length === 2);
+  assert.equal(de(sid, "fin")[1].error, null);
+  // agy recibió el /compact tal cual, en la misma conversación.
+  const l = llamadas()[n0]!;
+  assert.equal(l.prompt, "/compact");
+  assert.equal(l.args[l.args.indexOf("--conversation") + 1], conversacion);
+  // La vista: "compactando" y después el aviso de compactó, con lo que pesaba (el contexto del turno anterior).
+  assert.ok(de(sid, "hace").some((h) => h.hace.que === "compactando"));
+  const compacto = de(sid, "aviso").slice(avisos0).map((a) => a.aviso).find((a) => a.clase === "compacto");
+  assert.deepEqual(compacto, { clase: "compacto", auto: false, antes: 5001 });
+  // El transcript lo anota como el de Claude: lo lee la conversación al abrirla de nuevo.
+  const linea = readFileSync(path.join(process.env.HILOS_STATE!, "gemini", `${sid}.jsonl`), "utf8")
+    .trim().split("\n").map((x) => JSON.parse(x)).find((o) => o.subtype === "compact_boundary");
+  assert.deepEqual(linea.compactMetadata, { trigger: "manual", preTokens: 5001 });
+
+  // Con un mensaje detrás: compacta y lo contesta.
+  await lider.mandar({ sid, texto: "/compact seguí con X", modelo: "gemini-3.8-flash", effort: "low" });
+  await hasta(() => de(sid, "fin").length === 3);
+  assert.match(textos(sid).join("\n"), /eco: \/compact seguí con X/);
+});
+
+test("/compact sin conversación de agy no corre nada: no hay qué compactar", { timeout: 60_000 }, async () => {
+  const n0 = llamadas().length;
+  const sid = await lider.nuevo({ modelo: "gemini-3.8-flash", effort: "low", texto: "/compact" });
+  await hasta(() => de(sid, "fin").length === 1);
+  assert.equal(de(sid, "fin")[0].error, null);
+  assert.equal(llamadas().length, n0, "agy no se lanzó");
+});
+
+test("el razonamiento de Gemini (que agy deja en su transcript, no en el stream) llega como `pensamiento` y `pensado`, con cada comando y su error", { timeout: 60_000 }, async () => {
+  process.env.HILOS_AGY_BRAIN = path.join(tmp, "brain");
+  const sid = await lider.nuevo({ modelo: "gemini-3.8-flash", effort: "low", texto: "herramienta pienso falla" });
+  await hasta(() => de(sid, "fin").length === 1, 45_000);
+  assert.equal(de(sid, "fin")[0].error, null);
+  const pensado = de(sid, "mensaje").map((m) => m.pensado).filter(Boolean);
+  assert.equal(pensado.length, 3, "un razonamiento por paso que razonó: " + JSON.stringify(pensado));
+  assert.match(pensado[0], /shell responde/);
+  assert.match(pensado[1], /algo que no existe/);
+  assert.ok(de(sid, "pensamiento").length >= 3, "también llega mientras piensa");
+  // Los dos comandos y el segundo con error.
+  const cmds = de(sid, "hace").filter((h) => h.hace.que === "herramienta" && h.hace.nombre === "Bash");
+  assert.ok(cmds.length >= 2);
+  delete process.env.HILOS_AGY_BRAIN;
+});
+
+test("el transcript cuenta un paso que sólo razonó: la tanda del stream y la conversación leída miden igual (el turno no se duplica)", async () => {
+  const { conversacionDe } = await import("../electron/lider-arma.ts");
+  const l = (o: object) => JSON.stringify(o);
+  const texto = [
+    l({ type: "user", message: { role: "user", content: "hacé algo" } }),
+    l({ type: "assistant", message: { id: "p1", content: [{ type: "thinking", thinking: "Primero miro." }] } }),
+    l({ type: "assistant", message: { id: "t1", content: [{ type: "tool_use", id: "u1", name: "Bash", input: { command: "ls" } }] } }),
+    l({ type: "user", message: { role: "user", content: [{ type: "tool_result", tool_use_id: "u1", content: "a" }] } }),
+    l({ type: "assistant", message: { id: "x1", content: [{ type: "text", text: "listo" }] } }),
+  ].join("\n");
+  const pag = conversacionDe("g", null, texto);
+  // user + razonamiento solo + herramienta + texto: los mismos 4 que arma la tanda.
+  assert.equal(pag.total, 4);
+  assert.equal(pag.mensajes[1].pensado, "Primero miro.");
 });

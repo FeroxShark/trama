@@ -229,6 +229,48 @@ def guardia_externa(archivo, disparo, requiere=()):
 guardia_externa("docker-guard.py", r"docker|podman")
 guardia_externa("nvibrant-guard.py", "nvibrant", requiere=("docker-guard.py",))
 
+# ---------------------------------------------------------------------------
+# SESION GRAFICA (2026-10-24). Por que existe este bloque:
+#   El 2026-10-24 un worker corrio `pkill -f "^Hyprland"` en la PC del dueno: sddm
+#   reinicio la sesion grafica y se perdieron todas las ventanas abiertas. Ningun
+#   patron miraba los kills: el comando no borraba nada, solo mataba procesos.
+#
+#   Regla: matar o cortar la sesion grafica (compositor, login manager, audio, shell)
+#   se bloquea. Un worker mata solo los PIDs que lanzo el mismo, con kill $PID.
+#   Pasan: kill 12345, pkill -f "^mpv ..." (procesos de una app) y todo lo de LEER
+#   (pgrep -a Hyprland, systemctl status sddm, hyprctl monitors).
+#
+#   `pkill -f "^qs -c <nombre>"` pasa: qs con -c es una shell puntual. `qs` pelado
+#   mata TODAS las shells de quickshell, por eso va bloqueado.
+#
+#   LIMITE HONESTO: mira el string del comando. Un script que haga el kill adentro
+#   pasa igual, y `killall -r "hypr.*"` (regex sin el nombre) tampoco se cubre.
+#   `kill -9 -1` (todos los procesos del usuario) no esta en esta lista todavia.
+# ---------------------------------------------------------------------------
+SESION_NOMBRES = r"(?:hyprland|xwayland|sddm|pipewire|wireplumber|caelestia|quickshell)"
+cmd_min = cmd.lower()  # Hyprland y hyprland dan lo mismo
+sesion_patterns = [
+    # pkill / killall con un patron que nombra la sesion
+    r"(?<![\w-])(?:pkill|killall)\b[^|;&]*" + SESION_NOMBRES,
+    # `qs` pelado: sin `-c <nombre>`. El lookahead deja pasar `qs -c <nombre>`.
+    r"(?<![\w-])(?:pkill|killall)\b[^|;&]*(?<![\w-])qs(?![\w-])(?!\s+-c\s+\S)",
+    # pgrep / pidof / ps / grep canalizado a xargs kill
+    r"(?<![\w-])(?:pgrep|pidof|ps|grep)\b[^;&]*" + SESION_NOMBRES + r"[^;&]*\|[^;&]*\bxargs\b[^;&]*\bkill\b",
+    # kill con $(...) o `...` que busca la sesion
+    r"\bkill\b[^;&|]*(?:\$\(|`)[^)`;&]*" + SESION_NOMBRES,
+    # cortar la sesion desde adentro
+    r"\bhyprctl\s+dispatch\s+exit\b",
+    r"\bloginctl\s+(?:terminate|kill)-(?:session|user)\b",
+    r"\bsystemctl\b[^|;&]*\b(?:stop|restart|kill)\b[^|;&]*\b(?:sddm|display-manager)(?:\.service)?\b",
+]
+for p in sesion_patterns:
+    if re.search(p, cmd_min):
+        sys.stderr.write(
+            "GUARD: esto mata o corta la sesion grafica (Hyprland, sddm, pipewire, shell). "
+            "Matá sólo PIDs que lanzaste vos (kill $PID). Patron: " + p + " | cmd: " + cmd[:300]
+        )
+        sys.exit(2)
+
 for p in patterns:
     if re.search(p, cmd):
         sys.stderr.write(

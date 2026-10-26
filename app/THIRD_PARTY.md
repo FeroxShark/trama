@@ -35,6 +35,12 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
+## Skills de diseño (`skills/`)
+
+- `skills/ui-ux-pro-max`: <https://github.com/nextlevelbuilder/ui-ux-pro-max-skill>, licencia MIT, © 2024 Next Level Builder.
+- `skills/taste-skill`: <https://github.com/Leonxlnx/taste-skill>, licencia MIT, © 2026 Leonxlnx.
+- Se redistribuyen enteras (sin `__pycache__`), cada una con su `LICENSE` copiado del repo de origen. `skills/diseno` es propia de trama.
+
 ## Geist y Geist Mono
 
 - Origen: <https://github.com/vercel/geist-font> (Vercel, con Basement Studio), licencia SIL Open

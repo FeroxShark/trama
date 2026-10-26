@@ -1,0 +1,58 @@
+/* El lavado de cara (docs/estado/lavado-sistema.md) para Ramas y Estadísticas: cada sección es una tarjeta del estándar
+   (capa-card, título chico en sentence case, filas con separador capa-div). Ajustes y el Tablero tienen lo suyo
+   (`.aj-cat`, `.pn-tablero`), por eso todo cuelga de `.pn` sin esas dos. */
+.pn:not(.pn-ajustes, .pn-tablero) {
+  gap: var(--esp-3);
+}
+.pn:not(.pn-ajustes, .pn-tablero) .pn-sec {
+  overflow: hidden;
+  border-radius: var(--r-md);
+  background: var(--capa-card);
+}
+.pn:not(.pn-ajustes, .pn-tablero) .pn-sec > .pn-h {
+  margin: 0;
+  padding: var(--esp-3) var(--esp-4) var(--esp-1);
+  color: var(--apagado);
+  font-size: var(--letra-4);
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.pn:not(.pn-ajustes, .pn-tablero) .pn-sec > :not(.pn-h) {
+  margin-right: var(--esp-4);
+  margin-left: var(--esp-4);
+}
+.pn:not(.pn-ajustes, .pn-tablero) .pn-sec > :last-child {
+  margin-bottom: var(--esp-3);
+}
+/* Ramas: la fila de 3rem con su separador, sin línea arriba de la primera. */
+.pn:not(.pn-ajustes, .pn-tablero) .pn-rama {
+  min-height: var(--alto-fila);
+  border-top-color: var(--capa-div);
+}
+.pn:not(.pn-ajustes, .pn-tablero) .pn-ramas > :first-child {
+  border-top-color: transparent;
+}
+/* Estadísticas: las cifras de arriba son una tarjeta y el período, una cápsula. */
+.pn:not(.pn-ajustes, .pn-tablero) .pn-cifras {
+  padding: var(--esp-3-5) var(--esp-4);
+  border: 0;
+  border-radius: var(--r-md);
+  background: var(--capa-card);
+}
+.pn:not(.pn-ajustes, .pn-tablero) .pn-cifra .pn-h {
+  color: var(--apagado);
+  letter-spacing: 0;
+  text-transform: none;
+}
+.pn:not(.pn-ajustes, .pn-tablero) .pn-seg {
+  border: 0;
+  border-radius: var(--r-cap);
+  background: var(--capa-card);
+}
+.pn:not(.pn-ajustes, .pn-tablero) .pn-seg button {
+  border-radius: var(--r-cap);
+}
+.pn:not(.pn-ajustes, .pn-tablero) .pn-seg button[aria-pressed="true"] {
+  background: var(--capa-tile);
+}

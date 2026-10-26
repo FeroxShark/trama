@@ -3,6 +3,7 @@
 import { MODO } from "../modo";
 import { resumir } from "../paneles/resumen";
 import type { EstadoModelos } from "../../electron/modelos-config";
+import type { EntornoOllama } from "../../electron/ollama-entorno";
 import type { Ajustes, Consulta, Medido, Corrida, EstadoAuto, EstadoSalud, Medicion, Muestra, PiezaConsulta } from "./paneles";
 
 const AHORA = Math.floor(Date.now() / 1000);
@@ -27,14 +28,34 @@ export const AJUSTES: Ajustes = {
  * La config de modelos de los fixtures (`~/.config/trama/modelos.json`; vive mientras la página). Sin variante no hay archivo
  * (se ve lo de hoy y no se crea nada hasta guardar); `mdl` trae uno armado como lo dejaría alguien que usa Gemini y un Ollama.
  */
-export const MODELOS_FIJOS = (con: boolean): EstadoModelos => ({
+export const MODELOS_FIJOS = (con: boolean, auto = false): EstadoModelos => ({
   version: 1,
   ruta: "~/.config/trama/modelos.json",
   existe: con,
   error: null,
-  efectivo: null,
+  // Con el reparto automático `pa --modelos --json` dice qué elegiría hoy por tipo (`null`: no pudo elegir).
+  efectivo:
+    auto || !con
+      ? {
+          lider: { modelo: "claude-opus-5-5", effort: "xhigh" },
+          workers: {},
+          reparto: {
+            default: { modelo: "claude-sonnet-5-5", effort: "high", motor: "claude", motivo: "mejor calidad con cupo libre" },
+            "codigo-acotado": { modelo: "claude-sonnet-5-5", effort: "medium", motor: "claude", motivo: "calidad suficiente, gasta poco cupo" },
+            "codigo-multi": { modelo: "claude-opus-5-5", effort: "high", motor: "claude", motivo: "mejor calidad con cupo libre" },
+            frontend: { modelo: "claude-sonnet-5-5", effort: "high", motor: "claude", motivo: "mejor calidad con cupo libre" },
+            debug: { modelo: "claude-opus-5-5", effort: "high", motor: "claude", motivo: "mejor calidad con cupo libre" },
+            diseno: { modelo: "gemini-4-argon-high", effort: null, motor: "agy", motivo: "Claude pasó el tope: sigue Gemini con cupo libre" },
+            lectura: { modelo: "claude-haiku-5-5", effort: "low", motor: "claude", motivo: "tarea liviana: el más barato que alcanza" },
+            mecanico: null,
+          },
+        }
+      : null,
   config: con
     ? {
+        ...(auto ? { reparto: "auto" as const } : { reparto: "fijo" as const }),
+        excluir: ["fable"],
+        permitir_max: false,
         lider: { modelo: "gemini-4-argon-high" },
         workers: {
           default: { modelo: "claude-sonnet-5-5", effort: "high" },
@@ -46,10 +67,14 @@ export const MODELOS_FIJOS = (con: boolean): EstadoModelos => ({
           { id: "ollama:qwen3-coder:30b", nombre: "Qwen3 Coder 30B", url: "http://localhost:11434", modelo: "qwen3-coder:30b" },
           { id: "ollama:llama3.2:3b", nombre: "llama3.2:3b", url: "http://caido.local:11434", modelo: "llama3.2:3b" },
         ],
-        gemini: { cupo_max: 70, sin_claude: "esperar" },
+        gemini: { cupo_max: 70 },
+        sin_cupo: "esperar",
         claude: { tope_7d: 60 },
+        destrabar: { "gemini-4-argon": true },
       }
-    : { workers: {}, locales: [], gemini: {}, claude: {} },
+    : { workers: {}, locales: [], excluir: [], permitir_max: false, gemini: {}, claude: {}, destrabar: {} },
+  // Con archivo (alguien que usa Gemini) ya hubo destrabos; sin él, ninguno.
+  destrabo: con ? { veces: 3, bien: 2, mal: 1, cortado: 0, pendiente: 0 } : { veces: 0, bien: 0, mal: 0, cortado: 0, pendiente: 0 },
 });
 
 /** Los modelos que "tiene instalados" el Ollama de mentira de los fixtures (una dirección con `caido` no contesta). */
@@ -59,8 +84,35 @@ export const OLLAMA_FALSO: { nombre: string; bytes: number | null }[] = [
   { nombre: "gemma3:12b", bytes: 8_100_000_000 },
 ];
 
+/** Lo que hay en la máquina de las capturas para Ollama: `mdl-sinollama` no lo tiene (Ubuntu, instalador oficial), `mdl-apagado` lo tiene sin arrancar (Arch con su servicio); el resto, andando. */
+export const ENTORNO_OLLAMA = (variante: string | null): EntornoOllama => {
+  const gpu = { fabricante: "nvidia" as const, nombre: "NVIDIA GeForce RTX 4070", vramMiB: 12282 };
+  if (variante === "mdl-sinollama")
+    return {
+      version: 1,
+      instalado: false,
+      distro: { id: "ubuntu", nombre: "Ubuntu 24.04.1 LTS", familia: "debian" },
+      gpu,
+      instalar: { via: "script", comando: "curl -fsSL https://ollama.com/install.sh | sh" },
+      arrancar: { via: "systemd", comando: "sudo systemctl enable --now ollama" },
+    };
+  return {
+    version: 1,
+    instalado: true,
+    distro: { id: "arch", nombre: "Arch Linux", familia: "arch" },
+    gpu,
+    instalar: { via: "pacman", comando: "sudo pacman -S ollama-cuda" },
+    arrancar: { via: "systemd", comando: "sudo systemctl enable --now ollama" },
+  };
+};
+
 /** El acceso desde el celular de los fixtures (se edita en Ajustes; vive mientras la página). */
 export const REMOTO = { activo: true, puerto: 8791, dispositivos: ["celu-de-prueba", "tablet-sala"] };
+/** Quién entró hace poco (datos inventados): el primero hace minutos, el segundo hace tres días. */
+export const ACCESOS_FALSOS = () => [
+  { nombre: "celu-de-prueba", sistema: "android", ip: "192.0.2.12", visto: Date.now() - 4 * 60_000 },
+  { nombre: "tablet-sala", sistema: "iOS", ip: "192.0.2.31", visto: Date.now() - 3 * 24 * 3600_000 },
+];
 export const URL_REMOTO_FALSA = (puerto: number) => `http://pc-de-prueba.tail1234.ts.net:${puerto}/`;
 
 // Siempre las mismas corridas (un generador con semilla fija): las capturas no cambian entre corridas.

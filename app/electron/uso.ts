@@ -30,6 +30,15 @@ const num = (x: unknown): x is number => typeof x === "number" && Number.isFinit
  */
 const MISMA_S = 3600;
 
+/** ¿El statusline es de la cuenta de siempre? `config_dir` es el `CLAUDE_CONFIG_DIR` de la sesión: vacío o `~/.claude` = la de siempre; otra carpeta = una cuenta agregada, que no cuenta en el cupo de Claude. */
+export function esCuentaDeSiempre(a: any, home = ""): boolean {
+  const d = a?.config_dir;
+  if (d == null || d === "") return true;
+  if (typeof d !== "string") return false;
+  const limpio = d.replace(/\/+$/, "");
+  return limpio === "~/.claude" || (!!home && limpio === `${home.replace(/\/+$/, "")}/.claude`);
+}
+
 /** Lo que dejó un statusline (`rate_limits.*`: `used_percentage` de 0 a 100). */
 export function deStatusline(a: any): Lectura {
   const ts = num(a?.ts) ? a.ts : 0;

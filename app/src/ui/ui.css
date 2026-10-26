@@ -1,0 +1,188 @@
+/* Los componentes base del estándar visual (src/ui/componentes.tsx). Sólo tokens de src/tokens.css; todo en rem. */
+.ui-btn {
+  display: inline-flex;
+  height: var(--alto-boton);
+  align-items: center;
+  justify-content: center;
+  gap: var(--esp-2);
+  padding: 0 var(--esp-4);
+  border: 0;
+  border-radius: var(--r-cap);
+  background: var(--capa-tile);
+  color: var(--texto);
+  font-size: var(--letra-5);
+  font-weight: 500;
+}
+.ui-btn:hover {
+  background: var(--capa-track);
+}
+.ui-btn[data-primario] {
+  background: var(--acento);
+  color: var(--acento-texto);
+  font-weight: 600;
+}
+.ui-btn[data-primario]:hover {
+  filter: brightness(1.08);
+}
+.ui-btn[data-ancho] {
+  width: 100%;
+}
+.ui-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.ui-sw {
+  position: relative;
+  width: 2.5rem;
+  height: 1.5rem;
+  flex: none;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-cap);
+  background: var(--capa-track);
+}
+.ui-sw::after {
+  position: absolute;
+  top: 0.25rem;
+  left: 0.25rem;
+  width: 1rem;
+  height: 1rem;
+  border-radius: var(--r-cap);
+  background: var(--texto);
+  content: "";
+  transition: transform var(--t-snappy);
+}
+.ui-sw[aria-checked="true"] {
+  background: var(--acento);
+}
+.ui-sw[aria-checked="true"]::after {
+  background: var(--acento-texto);
+  transform: translateX(1rem);
+}
+.ui-chip {
+  display: inline-flex;
+  height: var(--alto-chip);
+  align-items: center;
+  gap: var(--esp-1);
+  padding: 0 var(--esp-3);
+  border-radius: var(--r-cap);
+  background: var(--capa-tile);
+  color: var(--apagado);
+  font-size: var(--letra-4);
+  font-weight: 500;
+}
+.ui-chip[data-tono="ok"] {
+  color: var(--ok);
+}
+.ui-chip[data-tono="aviso"] {
+  background: var(--aviso-tinte);
+  color: var(--aviso);
+}
+.ui-chip[data-tono="critico"] {
+  background: var(--critico-tinte);
+  color: var(--critico);
+}
+.ui-chip[data-insignia] {
+  color: var(--texto);
+}
+.ui-card {
+  overflow: hidden;
+  border-radius: var(--r-md);
+  background: var(--capa-card);
+}
+.ui-card-t {
+  margin: 0;
+  padding: var(--esp-3) var(--esp-4) 0;
+  color: var(--apagado);
+  font-size: var(--letra-4);
+  font-weight: 500;
+}
+.ui-fila {
+  display: flex;
+  min-height: var(--alto-fila);
+  align-items: center;
+  gap: var(--esp-4);
+  padding: var(--esp-3) var(--esp-4);
+}
+.ui-fila + .ui-fila {
+  border-top: 1px solid var(--capa-div);
+}
+.ui-fila-ico {
+  display: grid;
+  width: 1.75rem;
+  height: 1.75rem;
+  flex: none;
+  place-items: center;
+  border-radius: var(--r-xs);
+  background: var(--capa-tile);
+  color: var(--apagado);
+}
+.ui-fila-txt {
+  min-width: 0;
+  flex: 1;
+}
+.ui-fila-t {
+  color: var(--texto);
+  font-weight: 500;
+}
+.ui-fila-d {
+  margin-top: var(--esp-0-5);
+  color: var(--apagado);
+  font-size: var(--letra-4);
+}
+.ui-bar {
+  height: 0.25rem;
+  overflow: hidden;
+  border-radius: var(--radio-1);
+  background: var(--capa-track);
+}
+.ui-bar i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--acento);
+  transform-origin: left;
+}
+.ui-bar[data-tono="aviso"] i {
+  background: var(--aviso);
+}
+.ui-bar[data-tono="critico"] i {
+  background: var(--critico);
+}
+.ui-logo {
+  display: grid;
+  width: 1.25rem;
+  height: 1.25rem;
+  flex: none;
+  place-items: center;
+  border-radius: var(--r-xs);
+  background: var(--capa-tile);
+}
+.ui-logo svg {
+  width: 0.875rem;
+  height: 0.875rem;
+}
+
+/* Esfuerzo: barritas de 2 px que suben por nivel; apagadas casi invisibles, llenas en el color del texto, y el tope en el acento. */
+.ui-esf {
+  display: inline-flex;
+  flex: none;
+  align-items: flex-end;
+  gap: 1px;
+  height: 0.625rem;
+  margin-left: var(--esp-1-5);
+}
+.ui-esf i {
+  display: block;
+  width: 2px;
+  border-radius: 1px;
+  background: currentcolor;
+  opacity: 0.22;
+}
+.ui-esf i[data-on] {
+  opacity: 0.85;
+}
+.ui-esf[data-tope] i[data-on] {
+  background: var(--acento);
+  opacity: 1;
+}

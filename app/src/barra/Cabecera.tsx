@@ -1,25 +1,28 @@
 // La cabecera de la barra. Arriba, sólo el logo de trama (sin la palabra: gana lugar), releer y
-// ocultar la barra; abajo, el uso de cada proveedor, un renglón por grupo: su logo y nombre corto
-// (Claude; con agy conectado también Gemini, Claude y GPT por Google, Argon) y, en columnas
-// alineadas, una celda por ventana ("5h", "Sem") con su porcentaje y un riel finito (ámbar desde
-// 70 %, rojo desde 90 %). Lo largo va al tooltip de cada celda (con el mouse o con foco): a qué
-// proveedor y ventana pertenece, cuándo se reinicia (relativo y hora exacta) y, si el dato es viejo,
-// cuándo se vio; el número de un dato de hace más de 15 min se apaga (`data-viejo`). Sin agy queda
-// sólo el renglón de Claude. Un límite del que no se sabe ni el porcentaje lo dice: "sin dato",
-// nunca una celda vacía. El botón de releer le pide a `claude` el uso como lo dice claude.ai
+// ocultar la barra; abajo, el uso de cada suscripción conectada, un renglón cada una: su logo y nombre
+// (Claude y las que dice `reparto --cupos`: Google AI Pro, y las que vengan, sin tocar esto) y, en columnas
+// alineadas, una celda por ventana: a la izquierda, cuánto falta para que se reinicie ("4 h 23 min", exacto y
+// corto; se repinta solo, una vez por minuto) y a la derecha el porcentaje, con un riel finito (ámbar desde
+// 70 %, rojo desde 90 %). El tooltip de cada celda (CSS, con el mouse o con foco; no el title nativo) dice a
+// qué proveedor y ventana pertenece, el porcentaje y cuándo se reinicia ("Claude · ventana de 5 horas · 62 % usado ·
+// se reinicia hoy 23:40"); si el dato es viejo, cuándo se vio; el número de un dato de hace más de 15 min se apaga
+// (`data-viejo`). Una suscripción con varios grupos (Google) va plegada en un renglón con el grupo más usado y se
+// despliega al tocar el nombre. Un límite del que no se sabe ni el porcentaje lo dice: "sin dato" (Claude) o "—"
+// (las demás), nunca una celda vacía. El botón de releer le pide a `claude` el uso como lo dice claude.ai
 // (`get_usage`) y relee todo.
-import { useEffect, useMemo, useRef, useState } from "react";
-import { PanelLeft, RotateCw } from "lucide-react";
-import type { GrupoCupo, Uso, Ventana, VentanaCupo } from "../datos/contrato";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { ChevronDown, ChevronRight, PanelLeft, RotateCw } from "lucide-react";
+import type { Uso, Ventana, VentanaCupo } from "../datos/contrato";
 import { fuente } from "../datos/fuente";
 import { nivel } from "../hilo/contexto";
-import { Logo as LogoEmpresa } from "../hilo/Logos";
-import type { Empresa } from "../hilo/modelos";
+import { LogoSuscripcion } from "../hilo/Logos";
+import { filasDeCupos, type FilaSusc } from "../datos/cuentas";
 import { MODO } from "../modo";
-import { VIEJO_S, pintorCuando, pintorReinicio, pintorVisto } from "../tiempo";
+import { VIEJO_S, pintorCuando, pintorVisto } from "../tiempo";
 import type { Pintor } from "../reloj";
+import { columnas, masUsado } from "./cuposVista";
 import { Marca } from "./Marca";
-import { filaDe, formatearHasta } from "./usoFila";
+import { filaDe, formatearFalta, formatearHasta, type Unidades } from "./usoFila";
 import { Reloj } from "./piezas";
 import { t, textoMain } from "../i18n";
 import { useIdioma } from "../i18n/react";
@@ -33,8 +36,18 @@ const ESPERA: Ventana = { pct: 0, resets_at: 0 };
 /** Las capturas `uso*` y `hover` dejan abierto el tip de la primera celda: se ve qué dice y que no tapa nada. */
 const VER_TIP = MODO.captura === "hover" || !!MODO.captura?.startsWith("uso");
 
-/** Una ventana lista para pintar: `pct` null = sin dato; `hasta` en epoch s (0: no se sabe cuándo se reinicia). */
-type Celda = { clave: "5h" | "sem"; pct: number | null; hasta: number };
+/**
+ * Una ventana lista para pintar: `pct` null = sin dato; `hasta` en epoch s (0: no se sabe cuándo se reinicia);
+ * `cupo`: viene de `reparto` (sin dato dice "—"), no de la statusline de Claude.
+ */
+type Celda = { clave: string; ventana: string; pct: number | null; hasta: number; cupo?: boolean };
+
+/** Cómo se llama una ventana en el tooltip (`5h`, `7d`; una desconocida, su id). */
+function ventanaDe(id: string): string {
+  if (id === "5h") return t("uso.5hLargo");
+  if (id === "7d" || id === "sem") return t("uso.semLargo");
+  return id;
+}
 
 export function Cabecera({ alOcultar }: { alOcultar: () => void }) {
   useIdioma();
@@ -60,6 +73,9 @@ export function Cabecera({ alOcultar }: { alOcultar: () => void }) {
     void fuente.releerUso().then(setUso, () => {});
   };
 
+  const datos = uso && !("error" in uso) ? uso : null;
+  const cupos = filasDeCupos(datos?.suscripciones, datos?.claudeNombre, t("cuentas.principal"));
+
   return (
     <>
       <div className="cab">
@@ -77,7 +93,7 @@ export function Cabecera({ alOcultar }: { alOcultar: () => void }) {
       {uso === undefined ? (
         <div className="usos" data-espera="" aria-hidden="true">
           <div className="usos-l">
-            <Grupo empresa="anthropic" id="claude" nombre={t("uso.claude")} celdas={[celdaDe("5h", ESPERA), celdaDe("sem", ESPERA)]} ts={0} />
+            <Grupo logo={<LogoSuscripcion id="claude" nombre="Claude" />} id="claude" nombre={t("uso.claude")} celdas={[celdaDe("5h", ESPERA), celdaDe("7d", ESPERA)]} ts={0} />
           </div>
         </div>
       ) : uso && "error" in uso ? (
@@ -92,21 +108,17 @@ export function Cabecera({ alOcultar }: { alOcultar: () => void }) {
         <div className="usos">
           <div className="usos-l">
             <Grupo
-              empresa="anthropic"
+              logo={<LogoSuscripcion id="claude" nombre="Claude" />}
               id="claude"
-              nombre={t("uso.claude")}
-              celdas={[celdaDe("5h", uso?.five_hour ?? null), celdaDe("sem", uso?.seven_day ?? null)]}
+              nombre={cupos.claudeCorto ?? t("uso.claude")}
+              quien={cupos.claude ?? undefined}
+              celdas={[celdaDe("5h", uso?.five_hour ?? null), celdaDe("7d", uso?.seven_day ?? null)]}
               ts={uso?.ts ?? 0}
               ver={VER_TIP}
             />
-            {uso?.google && uso.google.length > 0 && (
-              <>
-                <div className="usos-sep" aria-hidden="true" />
-                {uso.google.map((g) => (
-                  <GrupoGoogle key={g.id} g={g} ts={uso.ts} />
-                ))}
-              </>
-            )}
+            {cupos.filas.map((f) => (
+              <Suscripcion key={f.s.id} f={f} />
+            ))}
           </div>
         </div>
       )}
@@ -115,77 +127,145 @@ export function Cabecera({ alOcultar }: { alOcultar: () => void }) {
 }
 
 /** La ventana de Claude (statusline / stream) como celda. */
-function celdaDe(clave: Celda["clave"], v: Ventana | null): Celda {
+function celdaDe(clave: "5h" | "7d", v: Ventana | null): Celda {
   const f = filaDe(v);
-  return { clave, pct: f.pct, hasta: f.hasta ?? 0 };
+  return { clave, ventana: ventanaDe(clave), pct: f.pct, hasta: f.hasta ?? 0 };
 }
 
-function hastaVentanaS(w: VentanaCupo | undefined, ts: number): number {
-  if (!w) return 0;
-  if (typeof w.resetea === "number" && w.resetea > 0) return Math.round(w.resetea / 1000);
-  if (typeof w.vuelveEnS === "number" && w.vuelveEnS > 0 && ts > 0) return ts + w.vuelveEnS;
-  return 0;
+/** Una ventana de `reparto` como celda. */
+function celdaCupo(v: VentanaCupo | null): Celda | null {
+  return v && { clave: v.id, ventana: ventanaDe(v.id), pct: v.pct, hasta: v.vuelve ?? 0, cupo: true };
 }
 
-/** La ventana de un grupo de Google como celda. */
-function celdaGoogle(clave: Celda["clave"], w: VentanaCupo, ts: number): Celda {
-  return { clave, pct: Math.max(0, Math.min(100, Math.round(w.pct))), hasta: hastaVentanaS(w, ts) };
-}
+const celdasCupo = (ventanas: VentanaCupo[]) => columnas(ventanas).map(celdaCupo);
 
-function GrupoGoogle({ g, ts }: { g: GrupoCupo; ts: number }) {
-  const largo = g.id === "gemini" ? t("uso.googleGemini") : g.id === "claude-gpt" ? t("uso.googleClaudeGpt") : t("uso.googleArgon");
-  const corto = g.id === "gemini" ? t("uso.googleGemini") : g.id === "claude-gpt" ? t("uso.cortoClaudeGpt") : t("uso.cortoArgon");
-  const h = formatearHasta(g.hasta);
+/**
+ * Una suscripción de `reparto` (todas menos Claude): con ventanas propias, un renglón; con grupos, un renglón con el más
+ * usado, que se despliega al tocar el nombre en un renglón por grupo (con "hasta d/m" si el cupo vence).
+ */
+function Suscripcion({ f }: { f: FilaSusc }) {
+  const { s } = f;
+  const [abierto, setAbierto] = useState(false);
+  const logo = <LogoSuscripcion id={f.proveedor} nombre={s.nombre} />;
+  const grupos = s.grupos ?? [];
+  const arriba = grupos.length > 0 ? masUsado(grupos) : null;
+  const plegable = grupos.length > 1;
   return (
-    <Grupo
-      empresa="google"
-      id={g.id}
-      nombre={corto}
-      largo={largo}
-      hasta={h ? t("uso.hasta", h) : undefined}
-      celdas={[g.cincoH ? celdaGoogle("5h", g.cincoH, ts) : null, celdaGoogle("sem", g.semanal, ts)]}
-      ts={ts}
-    />
+    <>
+      {f.primera && <div className="usos-sep" aria-hidden="true" />}
+      <div className="susc" data-susc={s.id}>
+        <Grupo
+          logo={logo}
+          id={s.id}
+          nombre={f.corto}
+          sub={arriba?.nombre}
+          quien={arriba ? `${f.nombre} · ${arriba.nombre}` : f.nombre}
+          celdas={celdasCupo(s.ventanas?.length ? s.ventanas : (arriba?.ventanas ?? []))}
+          ts={s.ts}
+          plegable={plegable ? { abierto, alternar: () => setAbierto((a) => !a), n: grupos.length } : undefined}
+        />
+        {plegable &&
+          abierto &&
+          grupos.map((g) => {
+            const h = formatearHasta(g.hasta);
+            return (
+              <Grupo
+                key={g.id}
+                id={`${s.id}:${g.id}`}
+                nombre={g.nombre}
+                quien={`${f.nombre} · ${g.nombre}`}
+                hasta={h ? t("uso.hasta", h) : undefined}
+                celdas={celdasCupo(g.ventanas)}
+                ts={s.ts}
+                hijo
+              />
+            );
+          })}
+      </div>
+    </>
   );
 }
 
 /**
- * Un proveedor (o un grupo de modelos de él): logo y nombre corto, y las celdas en dos columnas fijas (5 h, semana).
- * Un grupo sin 5 h (Argon) deja la primera columna vacía: las semanas quedan alineadas.
+ * Un renglón: logo y nombre, y las celdas en dos columnas fijas (5 h, semana). Un grupo sin 5 h deja la primera
+ * columna vacía: las semanas quedan alineadas. `plegable`: el nombre es el botón que despliega los grupos;
+ * `hijo`: un grupo ya desplegado (sin logo, con el nombre en hasta dos líneas).
  */
 function Grupo({
-  empresa,
+  logo,
   id,
   nombre,
-  largo,
+  sub,
+  quien,
   hasta,
   celdas,
   ts,
   ver,
+  plegable,
+  hijo,
 }: {
-  empresa: Empresa;
+  logo?: ReactNode;
   id: string;
   nombre: string;
-  largo?: string;
+  /** El grupo que muestran las celdas de un renglón plegado. */
+  sub?: string;
+  /** A quién pertenecen las celdas (tooltips); por defecto, el nombre. */
+  quien?: string;
   hasta?: string;
   celdas: (Celda | null)[];
   ts: number;
   ver?: boolean;
+  plegable?: { abierto: boolean; alternar: () => void; n: number };
+  hijo?: boolean;
 }) {
-  const quien = largo ?? nombre;
+  const dueno = quien ?? nombre;
+  const cuerpo = (
+    <>
+      {logo}
+      <span className="g-n">{nombre}</span>
+      {plegable && (plegable.abierto ? <ChevronDown className="g-flecha" size={11} strokeWidth={2} /> : <ChevronRight className="g-flecha" size={11} strokeWidth={2} />)}
+      {sub && <span className="g-sub">{sub}</span>}
+      {hasta && <span className="g-hasta">{hasta}</span>}
+    </>
+  );
   return (
-    <div className="grupo" data-grupo={id}>
-      <span className="g-id" data-tip={hasta ? `${quien} · ${hasta}` : quien}>
-        <LogoEmpresa empresa={empresa} />
-        <span className="g-n">{nombre}</span>
-        {hasta && <span className="g-hasta">{hasta}</span>}
-      </span>
+    <div className="grupo" data-grupo={id} data-hijo={hijo ? "" : undefined}>
+      {plegable ? (
+        <button
+          type="button"
+          className="g-id g-plegar"
+          aria-expanded={plegable.abierto}
+          data-tip={`${dueno} · ${plegable.abierto ? t("uso.ocultarGrupos") : t("uso.verGrupos", { n: plegable.n })}`}
+          onClick={plegable.alternar}
+        >
+          {cuerpo}
+        </button>
+      ) : (
+        <span className="g-id" data-tip={hasta ? `${dueno} · ${hasta}` : dueno}>
+          {cuerpo}
+        </span>
+      )}
       {celdas.map((c, i) =>
-        c ? <UsoCelda key={c.clave} c={c} quien={quien} ts={ts} ver={ver && i === 0} /> : <span key={`v${i}`} className="uso-vacio" aria-hidden="true" />,
+        c ? <UsoCelda key={c.clave} c={c} quien={dueno} ts={ts} ver={ver && i === 0} /> : <span key={`v${i}`} className="uso-vacio" aria-hidden="true" />,
       )}
     </div>
   );
 }
+
+/** Las unidades de lo que falta, ya en el idioma de ahora (el reloj las repinta al cambiarlo). */
+const unidades = (): Unidades => ({
+  d: t("tiempo.unidadD"),
+  h: t("tiempo.unidadH"),
+  min: t("tiempo.unidadMin"),
+  s: t("tiempo.unidadS"),
+  ya: t("tiempo.ya"),
+});
+
+/** Lo que falta para el reinicio, en el renglón: `formatearFalta`, repintado por el reloj solo cuando cambia. */
+const pintorFalta =
+  (hasta: number): Pintor =>
+  (a) =>
+    formatearFalta(hasta - a, unidades());
 
 /** El número de la celda: se apaga (`data-viejo`) cuando el dato tiene más de 15 min (en el tip dice de cuándo es). */
 const pintorPct =
@@ -198,12 +278,24 @@ const pintorPct =
 
 /** `ts`: cuándo se vio el dato (0: no se sabe). */
 function UsoCelda({ c, quien, ts, ver }: { c: Celda; quien: string; ts: number; ver?: boolean }) {
-  const etiqueta = c.clave === "5h" ? t("uso.5h") : t("uso.semCorto");
-  const largo = `${quien} · ${c.clave === "5h" ? t("uso.5hLargo") : t("uso.semLargo")}`;
+  const largo = `${quien} · ${c.ventana}`;
   const hasta = c.hasta;
   const pct = c.pct;
-  const reinicio = useMemo(() => pintorVisto(ts, hasta > 0 ? pintorReinicio(hasta) : () => ({ texto: t("uso.sinHoraTip"), en: Infinity }), true), [ts, hasta]);
+  const falta = useMemo(() => pintorFalta(hasta), [hasta]);
   const cuando = useMemo(() => pintorCuando(hasta), [hasta]);
+  // Una sola línea: "Claude · ventana de 5 horas · 62 % usado · se reinicia hoy 23:40" (y "visto hace…" si el dato es viejo).
+  const explica = useMemo(
+    () =>
+      pintorVisto(
+        ts,
+        (a) => {
+          const reinicio = hasta > 0 ? cuando(a) : { texto: t("uso.sinHoraLinea"), en: Infinity };
+          return { texto: t("uso.tipLinea", { quien, ventana: c.ventana, pct: pct ?? 0, reinicio: reinicio.texto }), en: reinicio.en };
+        },
+        true,
+      ),
+    [ts, hasta, cuando, quien, c.ventana, pct],
+  );
   const numero = useMemo(() => pintorPct(pct ?? 0, ts), [pct, ts]);
   const n = pct === null ? "normal" : nivel(pct);
   return (
@@ -216,19 +308,18 @@ function UsoCelda({ c, quien, ts, ver }: { c: Celda; quien: string; ts: number; 
       data-ver={ver ? "" : undefined}
     >
       <div className="r">
-        <span className="n">{etiqueta}</span>
-        {pct === null ? <span className="sd">{t("uso.sinDato")}</span> : <Reloj pintor={numero} className="pct" />}
+        {hasta > 0 ? <Reloj pintor={falta} className="n" /> : <span className="n">—</span>}
+        {pct === null ? <span className="sd">{c.cupo ? "—" : t("uso.sinDato")}</span> : <Reloj pintor={numero} className="pct" />}
       </div>
       <div className="riel">{pct !== null && <i style={{ transform: `scaleX(${pct / 100})` }} />}</div>
       <span className="tip" role="tooltip">
-        <span className="tip-t">{largo}</span>
         {pct === null ? (
-          <span className="tip-l">{t("uso.sinDatoTip")}</span>
-        ) : (
           <>
-            <Reloj pintor={reinicio} className="tip-l" />
-            {hasta > 0 && <Reloj pintor={cuando} className="tip-l" />}
+            <span className="tip-t">{largo}</span>
+            <span className="tip-l">{c.cupo ? t("uso.sinDatoCupo") : t("uso.sinDatoTip")}</span>
           </>
+        ) : (
+          <Reloj pintor={explica} className="tip-t" />
         )}
       </span>
     </div>

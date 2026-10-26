@@ -1,0 +1,177 @@
+/* Ajustes > Celular: la guía, el estado y los renglones de los dispositivos. Tokens de src/tokens.css; nada suelto. */
+.cel-estado {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-3);
+  margin-bottom: var(--esp-3);
+  padding: var(--esp-3) var(--esp-4);
+  border-radius: var(--r-md);
+  background: var(--capa-card);
+}
+.cel-estado-ico {
+  display: grid;
+  width: 2.25rem;
+  height: 2.25rem;
+  flex: none;
+  place-items: center;
+  border-radius: var(--r-sm);
+  background: var(--capa-tile);
+  color: var(--apagado);
+}
+.cel-estado[data-escucha] .cel-estado-ico {
+  background: var(--ok-tinte);
+  color: var(--ok);
+}
+.cel-estado-txt {
+  min-width: 0;
+}
+.cel-estado-det {
+  margin-top: var(--esp-1);
+  color: var(--apagado);
+  font-size: var(--letra-4);
+}
+.cel-pasos {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-1);
+  margin: 0 0 var(--esp-4);
+  padding: var(--esp-1);
+  list-style: none;
+  border-radius: var(--r-md);
+  background: var(--capa-card);
+}
+.cel-paso {
+  display: flex;
+  gap: var(--esp-3);
+  padding: var(--esp-3);
+}
+.cel-paso + .cel-paso {
+  border-top: 1px solid var(--capa-div);
+}
+.cel-n {
+  display: grid;
+  width: 1.5rem;
+  height: 1.5rem;
+  flex: none;
+  place-items: center;
+  border-radius: var(--r-cap);
+  background: var(--acento-tinte);
+  color: var(--acento);
+  font-size: var(--letra-4);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.cel-paso-c {
+  min-width: 0;
+  flex: 1;
+}
+.cel-paso-t {
+  color: var(--texto);
+  font-size: var(--letra-5);
+  font-weight: 500;
+}
+.cel-paso-d {
+  margin-top: var(--esp-1);
+  color: var(--apagado);
+  font-size: var(--letra-4);
+  line-height: 1.5;
+}
+.cel-abrir {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--esp-4);
+  margin-top: var(--esp-1);
+}
+.cel-abrir-l {
+  min-width: 0;
+  flex: 1;
+}
+.cel-url {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-2);
+  margin-top: var(--esp-2);
+}
+.cel-url-txt {
+  min-width: 0;
+  flex: 1;
+  padding: var(--esp-2) var(--esp-3);
+  border-radius: var(--r-sm);
+  background: var(--capa-input);
+  color: var(--texto);
+  font-family: var(--font-mono);
+  font-size: var(--letra-4);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.cel-copiar {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--esp-1);
+}
+.cel-qr {
+  width: 8.5rem;
+  height: 8.5rem;
+  flex: none;
+  border-radius: var(--r-sm);
+}
+/* Un dispositivo: el nombre y debajo lo que se sabe de él; "Quitar acceso" a la derecha. */
+.pn-disp li.cel-disp {
+  min-height: 3rem;
+  padding: var(--esp-2) var(--esp-1) var(--esp-2) var(--esp-3);
+}
+.cel-disp-txt {
+  min-width: 0;
+  flex: 1;
+  font-family: var(--font-sans);
+  text-align: left;
+}
+.cel-disp-sub {
+  margin-top: 0.125rem;
+  overflow: hidden;
+  color: var(--apagado);
+  font-size: var(--letra-4);
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pn-quitar.cel-quitar {
+  display: inline-flex;
+  width: auto;
+  height: 1.75rem;
+  align-items: center;
+  gap: var(--esp-1);
+  padding: 0 var(--esp-2);
+  border-radius: var(--r-cap);
+  font-family: var(--font-sans);
+  font-size: var(--letra-4);
+}
+@media (max-width: 35rem) {
+  .cel-abrir {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .cel-qr {
+    align-self: center;
+    margin-top: var(--esp-2);
+    width: 11rem;
+    height: 11rem;
+  }
+  .cel-url {
+    flex-wrap: wrap;
+  }
+  .cel-disp-sub {
+    white-space: normal;
+  }
+}
+@media (pointer: coarse) {
+  .cel-copiar {
+    min-height: 2.75rem;
+  }
+  .pn-quitar.cel-quitar {
+    min-height: 2.75rem;
+    padding: 0 var(--esp-3);
+  }
+}

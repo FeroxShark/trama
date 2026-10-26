@@ -14,14 +14,18 @@
 # Entorno (para probar): TRAMA_CLAUDE / TRAMA_AGY (otro nombre del binario), TRAMA_MODELOS (otro
 # modelos.json), TRAMA_PUERTO (puerto del motor, default 8791), OLLAMA_HOST (si modelos.json no dice).
 # Doc: docs/instalacion-de-producto-trama.md
+import glob
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
 import urllib.request
 
 HOME = os.path.expanduser("~")
+# `agy models`: una línea por modelo, "id<TAB>nombre". Sin sesión no hay ninguna.
+MODELO_AGY = re.compile(r"^[a-z0-9][a-z0-9.-]*\t")
 
 
 def salida(cmd, espera=10):
@@ -32,12 +36,21 @@ def salida(cmd, espera=10):
         return 1, ""
 
 
-def en_path(nombre):
+def en_path(nombre, extra=()):
     ruta = shutil.which(nombre)
     if ruta:
         return ruta
-    local = os.path.join(HOME, ".local", "bin", nombre)  # un PATH pelado (systemd, wsl.exe) no lo trae
-    return local if os.access(local, os.X_OK) else None
+    # un PATH pelado (systemd, wsl.exe) no trae ~/.local/bin
+    for d in [os.path.join(HOME, ".local", "bin"), *extra]:
+        local = os.path.join(d, nombre)
+        if os.path.isfile(local) and os.access(local, os.X_OK):
+            return local
+    return None
+
+
+def dirs_agy():
+    # donde cae agy si no está en el PATH: /usr/local/bin y el ~/.antigravity*/bin del instalador
+    return ["/usr/local/bin"] + sorted(glob.glob(os.path.join(HOME, ".antigravity*", "bin")))
 
 
 def claude():
@@ -55,12 +68,13 @@ def claude():
 
 
 def agy():
-    ruta = en_path(os.environ.get("TRAMA_AGY", "agy"))
+    ruta = en_path(os.environ.get("TRAMA_AGY", "agy"), dirs_agy())
     if not ruta:
         return {"instalado": False, "logueado": False}
-    # agy guarda el login de Google en ~/.gemini/oauth_creds.json (la cuenta, no una API key).
-    cred = os.path.join(HOME, ".gemini", "oauth_creds.json")
-    return {"instalado": True, "logueado": os.path.isfile(cred) and os.path.getsize(cred) > 2}
+    # agy guarda el login de Google en el llavero del sistema (no hay archivo que mirar): con sesión lista modelos.
+    # Colgado: salida() corta a los 15 s y devuelve "" (queda en false).
+    _, out = salida([ruta, "models"], 15)
+    return {"instalado": True, "logueado": any(MODELO_AGY.match(l) for l in out.splitlines())}
 
 
 def modelos_json():

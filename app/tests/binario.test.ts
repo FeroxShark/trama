@@ -1,7 +1,7 @@
 // node --test tests/  (Node corre el TypeScript directo, sin compilar)
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { entornoPa, pathConLocal, resolverPa } from "../electron/binario.ts";
+import { entornoAgy, entornoPa, pathConLocal, resolverPa } from "../electron/binario.ts";
 
 const HOME = "/home/ana";
 const hay = (...fs: string[]) => (f: string) => fs.includes(f);
@@ -30,4 +30,17 @@ test("el PATH de pa lleva ~/.local/bin adelante, una sola vez", () => {
   const env = entornoPa({ PATH: "/usr/bin", OTRA: "1" }, HOME);
   assert.equal(env.OTRA, "1");
   assert.equal(env.PATH, "/home/ana/.local/bin:/usr/bin");
+});
+
+test("el entorno de agy trae la carpeta del pa encontrado, tras ~/.local/bin y sin repetirla", () => {
+  // pa en una carpeta que el PATH de la app no tiene (HILOS_PA): se agrega para que el líder de Gemini lo llame.
+  assert.equal(entornoAgy({ HILOS_PA: "/opt/trama/pa", PATH: "/usr/bin" }, HOME, hay()).PATH, "/home/ana/.local/bin:/opt/trama:/usr/bin");
+  // pa en ~/.local/bin: nada de más.
+  assert.equal(entornoAgy({ PATH: "/usr/bin" }, HOME, hay("/home/ana/.local/bin/pa")).PATH, "/home/ana/.local/bin:/usr/bin");
+  // pa en una carpeta que ya estaba en el PATH: pasa adelante, una sola vez.
+  assert.equal(entornoAgy({ PATH: "/usr/bin:/opt/bin" }, HOME, hay("/opt/bin/pa")).PATH, "/home/ana/.local/bin:/opt/bin:/usr/bin");
+  // sin pa en ningún lado: como pathConLocal, y el resto del entorno intacto.
+  const e = entornoAgy({ PATH: "/usr/bin", OTRA: "1" }, HOME, hay());
+  assert.equal(e.PATH, "/home/ana/.local/bin:/usr/bin");
+  assert.equal(e.OTRA, "1");
 });

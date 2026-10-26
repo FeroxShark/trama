@@ -93,19 +93,25 @@ export type RespuestaHilos = { version: number; hilos: Hilo[] };
  */
 export type Ventana = { pct: number; resets_at: number | null };
 
-export type IdGrupoCupo = "gemini" | "claude-gpt" | "argon";
+/** Una ventana de cupo de una suscripción (`5h`, `7d`…): `pct` 0..100 (`null`: sin dato) y cuándo vuelve (epoch s, `null`: no se sabe). */
+export type VentanaCupo = { id: string; pct: number | null; vuelve: number | null };
 
-export type VentanaCupo = {
-  pct: number;
-  resetea?: number;
-  vuelveEnS?: number;
-};
+/** Un grupo de modelos de una suscripción con sus propias ventanas; `hasta` (YYYY-MM-DD) si el cupo vence en una fecha. */
+export type GrupoCupo = { id: string; nombre: string; ventanas: VentanaCupo[]; hasta?: string };
 
-export type GrupoCupo = {
-  id: IdGrupoCupo;
-  semanal: VentanaCupo;
-  cincoH?: VentanaCupo;
-  hasta?: string;
+/**
+ * Una suscripción conectada que no es Claude (esa sale de `five_hour`/`seven_day`), tal como la dice
+ * `reparto --cupos --json`: con `ventanas` propias o repartida en `grupos`. `ts`: cuándo se leyó (epoch s).
+ */
+export type SuscripcionCupo = {
+  id: string;
+  nombre: string;
+  /** De qué proveedor es (`claude`, `google`, `chatgpt`) y cuál es su cuenta (id); la de siempre tiene el id del proveedor. Falta en un `reparto` viejo. */
+  proveedor?: string;
+  cuenta?: string;
+  ts: number;
+  ventanas?: VentanaCupo[];
+  grupos?: GrupoCupo[];
 };
 
 /**
@@ -119,7 +125,10 @@ export type Uso =
       ts: number;
       five_hour: Ventana | null;
       seven_day: Ventana | null;
-      google?: GrupoCupo[];
+      /** Las demás suscripciones conectadas (Google AI Pro, y las que vengan) y las cuentas agregadas de Claude, una fila cada una. */
+      suscripciones?: SuscripcionCupo[];
+      /** Cómo se llama la cuenta de siempre de Claude, si `reparto` lo dice. */
+      claudeNombre?: string;
     }
   | { version: number; error: string };
 
@@ -181,10 +190,14 @@ export type Lider = {
   /** El id ("claude-opus-5-5") y el esfuerzo, si se saben. */
   modelo: string | null;
   effort: string | null;
+  /** Cuántos subagentes suyos corren (lo suma la barra con `useSubagentes`; el main no lo manda). Con alguno corriendo la sesión está activa, no enfriándose. */
+  subagentes?: number;
   /** El modo de permisos de un líder de la app ("bypassPermissions", "plan"…; src/hilo/modos.ts). */
   modo?: string;
   /** El proyecto (slug) que nombra su primer mensaje: su carpeta mientras no tenga workers (B20). */
   inferido?: string | null;
+  /** Es la sesión de Shark (su cwd es `$SHARK_HOME`, default `/srv/shark`): va a la carpeta `SHARK`. Sin venir, no. */
+  shark?: boolean;
   /**
    * Quedó sin proceso y no es de la app: no se le escribe hasta retomarlo (`fuente.liderRetomar`).
    * "murio": lo mataron (OOM, kill -9; lo dice el main o `caidos`). "cerro": ya no está su sesión
@@ -299,6 +312,16 @@ export type RespuestaLideres = { version: number; lideres: Lider[]; analista?: L
 /** La carpeta de los líderes sin workers. Va primera. */
 export const GENERAL = "general";
 
+/**
+ * La carpeta de Shark (el asistente de voz de `asistente-voz`): su sesión jefe y los workers que lanza van
+ * acá y no a la de `asistente-voz`. Qué líder es de Shark: `Lider.shark` (el main, por su cwd) o, si no
+ * vino, un nombre que empieza con "shark-" (el que Claude Code deriva de esa carpeta). Ver `esShark`.
+ */
+export const SHARK = "Shark";
+
+/** Un líder de Shark: lo marcó el main por su cwd (`$SHARK_HOME`, `/srv/shark`) o su nombre empieza con "shark-". */
+export const esShark = (l: { shark?: boolean; nombre: string }) => l.shark === true || /^shark-/i.test(l.nombre);
+
 /** Lo que el main arma con los statusline: las barras de uso y los líderes. `uso` es `null` si no hay de dónde sacarlo. */
 export type Statusline = { uso: Uso | null; lideres: RespuestaLideres };
 
@@ -344,6 +367,8 @@ export type Mensaje = {
   error?: string | null;
   /** `system/compact_boundary`: compactó acá (texto vacío). `pa --hilo` no dice si fue auto (`null`). */
   compacto?: { auto: boolean | null; antes: number | null };
+  /** `system/trama_destrabo`: trama cortó un bucle de un líder Gemini y le mandó el aviso (`agotado`: a la segunda vez para). */
+  destrabo?: { que: string; agotado: boolean };
   /** Cada herramienta con su entrada (B19, src/hilo/herramientas.ts), en el orden de `herramientas`. */
   det?: Herramienta[];
   /** Las imágenes que mandó el usuario a un líder (B26), en base64. */

@@ -7,6 +7,7 @@ import { alCambiarActualizacion, carcasaActualiza as carcasa, comoError, esError
 import { MODO } from "../modo";
 import { t } from "../i18n";
 import type { FilaDato } from "./AjustesEditar";
+import { marcar } from "./ajustes-nav";
 
 type Restos = { paso: "mirando" } | { paso: "plan"; plan: PlanRestos } | { paso: "quitando"; plan: PlanRestos } | { paso: "hecho"; texto: string; mal: boolean } | { paso: "error"; texto: string };
 
@@ -43,6 +44,11 @@ export function Carcasa({ Dato }: { Dato: FilaDato }) {
     void carcasa.actualizacion().then((x) => vivo.current && setAct(x), () => {});
     return alCambiarActualizacion((e) => setAct(e));
   }, []);
+
+  useEffect(() => {
+    marcar("actualizaciones", act?.fase === "lista" ? "aj.marca.actualizacion" : null);
+    return () => marcar("actualizaciones", null);
+  }, [act?.fase]);
 
   // Cuando sale algo de verdad (no un cambio de versión ya andando) el que mira lo ve en pantalla sin tener que scrollear.
   const mirar = async () => {
@@ -91,7 +97,6 @@ export function Carcasa({ Dato }: { Dato: FilaDato }) {
 
   return (
     <section className="pn-sec pn-edita" ref={sec} data-carcasa>
-      <h2 className="pn-h">{t("carcasa.titulo")}</h2>
       <div className="pn-estado">{t("carcasa.version", { v: version || "…" })}</div>
 
       <Dato nombre="carcasa.act" que="carcasa.actQue">

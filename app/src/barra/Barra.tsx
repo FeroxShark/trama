@@ -45,6 +45,7 @@ import { apariencia, LETRA_DEF } from "../tipografia";
 import { esAngosto, useAngosto, useAtras, useMedio } from "../angosto";
 import { correrGuionPaneles } from "../paneles/guion";
 import { Panel, PANELES, type CualPanel } from "../paneles/Panel";
+import { alPedirAjustes } from "../paneles/ajustes-nav";
 import { Consumo } from "../paneles/Consumo";
 import { ramas } from "../paneles/Ramas";
 import { pasoLider, pasoWorker } from "../paneles/PasoLanzar";
@@ -83,6 +84,8 @@ import {
 import { armarArrastre, CARPETAS } from "./arrastre";
 import { control } from "./control";
 import { Fila, FilaLider, RESORTE } from "./Fila";
+import { Subagentes } from "./Subagentes";
+import { corriendo, useTodosSubagentes } from "./subagentes";
 import { correrGuion } from "./guion";
 import { Logo } from "./Logo";
 import { hayOrdenManual, ORDEN0, podar, prioridadPrendida, reordenar, reordenarPaso } from "./orden";
@@ -315,6 +318,15 @@ export function Barra() {
   const vistaAhora = useRef({ activa, panel: panel as string | null, abierta });
   vistaAhora.current = { activa, panel, abierta };
   useEffect(() => alLeerVista(() => vistaAhora.current), []);
+  // La pastilla "Falta configurar" abre Ajustes en la categoría que corresponde.
+  useEffect(
+    () =>
+      alPedirAjustes(() => {
+        if (esAngosto()) setAbierta(false);
+        setPanel("ajustes");
+      }),
+    [],
+  );
   // En el celular (src/angosto.ts) se ve una cosa a la vez y `abierta` dice cuál: la lista o lo abierto.
   const angosto = useAngosto();
   // Con ancho intermedio el panel de consumo no cabe al lado de la conversación: la reemplaza (CSS, `data-consumo`) y
@@ -422,13 +434,16 @@ export function Barra() {
   }, [hilos, llegados, frenos, nombres.titulos]);
   const todos = useMemo(() => vistos ?? [], [vistos]);
   // Con los que quedaron sin proceso y dejaron workers a la vista (`lideresSinProceso`): siguen en la barra.
-  const lideresVistos = useMemo(
-    () =>
-      [...lideres, ...lideresSinProceso(todos, { lideres, caidos, optimista, ahora: Math.floor(Date.now() / 1000) })].map((l) =>
-        nombres.titulos[l.id] ? { ...l, nombre: nombres.titulos[l.id] } : l,
-      ),
-    [lideres, todos, caidos, optimista, nombres.titulos],
-  );
+  // Los subagentes que corren de cada sesión: con alguno, el líder está activo (no enfriándose).
+  const subagentes = useTodosSubagentes();
+  const lideresVistos = useMemo(() => {
+    const ahora = Math.floor(Date.now() / 1000);
+    return [...lideres, ...lideresSinProceso(todos, { lideres, caidos, optimista, ahora })].map((l) => {
+      const n = corriendo(subagentes[l.id] ?? [], ahora).length;
+      const nombre = nombres.titulos[l.id];
+      return nombre || n ? { ...l, ...(nombre ? { nombre } : null), ...(n ? { subagentes: n } : null) } : l;
+    });
+  }, [lideres, todos, caidos, optimista, nombres.titulos, subagentes]);
   const mover = useMemo(() => new Map(Object.entries(nombres.proyectos)), [nombres.proyectos]);
   const ocultos = useMemo(() => new Set(nombres.ocultos), [nombres.ocultos]);
   // El `titulo` del registry de cada carpeta: se ve y se busca por él.
@@ -1000,7 +1015,7 @@ export function Barra() {
     const proyectos = grupos.map((g) => g.proyecto);
     // La caja (modelo, esfuerzo, aviso de cambiar de modelo), el indicador y los avisos: en el líder de la app.
     const app = lideres.find((l) => l.origen === "app" && l.vivo)?.id ?? lideres[0]?.id ?? "";
-    const enApp = ["lider", "modelo", "esfuerzo", "local-esfuerzo", "local-ctx", "aviso", "lider-trabajando", "lider-avisos", "lider-plan", "lider-permiso", "lider-preguntas", "lider-preguntas-dos", "lider-comandos", "lider-dictado", "lider-valores", "lider-sistema", "lider-compactando", "lider-relevo", "lider-imagenes", "lider-tabla", "lider-formato", "lider-listas", "lider-hover", "lider-pensando", "te-espera", "tablero-nuevo-chat", "foco-caja", "consumo"].includes(c) || c.startsWith("contexto");
+    const enApp = ["lider", "modelo", "esfuerzo", "local-esfuerzo", "local-ctx", "aviso", "lider-trabajando", "lider-avisos", "lider-plan", "lider-permiso", "lider-preguntas", "lider-preguntas-dos", "lider-comandos", "lider-dictado", "lider-valores", "lider-sistema", "lider-compactando", "lider-relevo", "lider-imagenes", "lider-tabla", "lider-formato", "lider-listas", "lider-hover", "lider-pensando", "lider-gemini", "te-espera", "tablero-nuevo-chat", "foco-caja", "consumo"].includes(c) || c.startsWith("contexto");
     if (enApp) setActiva(LIDER + app);
     if (c === "tablero-nuevo-chat") {
       // El tablero nuevo: el mensaje con las respuestas de muestra, armado en la caja del líder y sin enviar.
@@ -1014,6 +1029,10 @@ export function Barra() {
       // El usuario acaba de pedir algo y el líder razona: el pedido, "Pensando…" y el texto que va llegando (la charla de siempre tiene 6 mensajes).
       enviado(app, "Mirá por qué falla el índice de cauce y arreglalo.", 6);
       escenaFija(app, "pensando");
+    }
+    if (c === "lider-gemini") {
+      enviado(app, "Mirá por qué falla el índice de cauce y arreglalo.", 6);
+      escenaFija(app, "gemini");
     }
     if (c === "lider-plan") escenaFija(app, "plan");
     if (c === "lider-permiso") escenaFija(app, "permiso");
@@ -2012,6 +2031,7 @@ function Arbol({ ref, r, grupo, activo, alAbrirLider, alCerrarLider, alSettleLid
       ) : r.tipo === "huerfanos" ? (
         <SinLider muertos={r.muertos ?? SIN_NOMBRES} idos={r.idos ?? SIN_NOMBRES} />
       ) : null}
+      {r.lider && !resumida ? <Subagentes sid={r.lider.id} /> : null}
       <ul className="ramas">
         <Filas items={resumida ? SIN_FILAS : r.vivas} virtual={virtual} fila={fila} />
         {/* El "N terminados" va antes de lo terminado, no al final: es el mismo botón que lo despliega y el que lo

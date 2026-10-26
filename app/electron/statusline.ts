@@ -16,8 +16,8 @@ import { lideresApp, procDe, transcriptDe, transcriptPorDefecto, usoVisto } from
 import { real, registro, type Proyecto } from "./registro.js";
 import { sesiones, type Sesion } from "./sesiones.js";
 import { creadoEn, proyectoEnTexto, temaDe, tituloLider } from "./tema.js";
-import { cuposGoogleActuales, type GrupoCupo } from "./cupos.js";
-import { deStatusline, usoDe, type Ventana } from "./uso.ts";
+import { cuposActuales, type SuscripcionCupo } from "./cupos.js";
+import { deStatusline, esCuentaDeSiempre, usoDe, type Ventana } from "./uso.ts";
 import { verCaidos, type Caido } from "./vigia.js";
 import { silencio } from "./log.js";
 
@@ -29,7 +29,7 @@ const VIVO_S = 6 * 3600;
 const GENERAL = "general";
 
 type Uso =
-  | { version: 1; ts: number; five_hour: Ventana | null; seven_day: Ventana | null; google?: GrupoCupo[] }
+  | { version: 1; ts: number; five_hour: Ventana | null; seven_day: Ventana | null; suscripciones?: SuscripcionCupo[] }
   | { version: number; error: string };
 type Lider = {
   id: string;
@@ -50,6 +50,8 @@ type Lider = {
   pide?: boolean;
   modelo: string | null;
   effort: string | null;
+  /** Cuántos subagentes suyos corren (lo suma la ventana desde electron/subagentes.ts; el main no lo manda). */
+  subagentes?: number;
   /** El modo de permisos de un líder de la app (los de la terminal no lo dicen). */
   modo?: string;
   /** El proyecto (slug) que nombra su primer mensaje, si nombra uno (B20). */
@@ -85,6 +87,15 @@ const cacheSl = (a: any) =>
 export function modeloLindo(m: string): string {
   const x = m.match(/^claude-([a-z]+)-(\d+)-(\d+)/);
   return x ? `${x[1][0].toUpperCase()}${x[1].slice(1)} ${x[2]}.${x[3]}` : m;
+}
+
+/** La carpeta de Shark (el asistente de voz): `$SHARK_HOME` o `/srv/shark`. Su sesión jefe corre ahí. */
+const SHARK_HOME = process.env.SHARK_HOME || "/srv/shark";
+/** `{ shark: true }` si el cwd es el de Shark (o algo adentro); si no, nada. */
+async function sharkDe(cwd: string | null | undefined): Promise<{ shark?: true }> {
+  if (!cwd) return {};
+  const dentro = (c: string, r: string) => c === r || c.startsWith(r + "/");
+  return dentro(cwd, SHARK_HOME) || dentro(await real(cwd), await real(SHARK_HOME)) ? { shark: true } : {};
 }
 
 function proyectoDe(cwd: string, rutas: [string, string][]): string {
@@ -185,7 +196,7 @@ export async function leerStatusline(): Promise<Statusline> {
   // Para el uso, el más nuevo y los de las últimas 6 h: el de un líder vivo de hace días se lee por su caché, no por esto.
   const recientes = archivos.filter((a, i) => i === 0 || (a.ts ?? 0) > ahora - VIVO_S);
   const visto = await usoVisto();
-  const cupos = cuposGoogleActuales();
+  const cupos = cuposActuales();
   const tsCupos = cupos ? Math.round(cupos.ts / 1000) : 0;
   const lecturaCupos = cupos?.claude
     ? {
@@ -201,15 +212,16 @@ export async function leerStatusline(): Promise<Statusline> {
         },
       }
     : null;
-  const hayGoogle = !!cupos?.google.length;
-  const hayFuentes = recientes.length > 0 || !!visto || !!lecturaCupos || hayGoogle;
-  const baseUso = usoDe([...recientes.map(deStatusline), visto, lecturaCupos], ahora);
+  const hayOtras = !!cupos?.suscripciones.length;
+  const hayFuentes = recientes.length > 0 || !!visto || !!lecturaCupos || hayOtras;
+  const baseUso = usoDe([...recientes.filter((a) => esCuentaDeSiempre(a, os.homedir())).map(deStatusline), visto, lecturaCupos], ahora);
   const uso: Uso | null = hayFuentes
     ? {
         version: 1,
         ...baseUso,
         ts: baseUso.ts || tsCupos || Math.floor(ahora),
-        ...(hayGoogle ? { google: cupos!.google } : {}),
+        ...(hayOtras ? { suscripciones: cupos!.suscripciones } : {}),
+        ...(cupos?.claudeNombre ? { claudeNombre: cupos.claudeNombre } : {}),
       }
     : null;
 
@@ -248,6 +260,7 @@ export async function leerStatusline(): Promise<Statusline> {
       effort: mia ? g.effort : null,
       ...(mia ? { modo: g.modo } : {}),
       inferido: t.inferido,
+      ...(await sharkDe((g ? (g.cwd ?? null) : s.cwd))),
     });
     deApp.delete(s.id);
   }
@@ -274,6 +287,7 @@ export async function leerStatusline(): Promise<Statusline> {
       effort: g.effort,
       modo: g.modo,
       inferido: t.inferido,
+      ...(await sharkDe(g.cwd)),
       // Lo mataron (no lo cerró la app) y nadie lo retomó: Murió, con Retomar en vez de la caja.
       ...(g.murio && !p ? { caido: "murio" as const, ...(g.motivo ? { motivo: g.motivo } : {}) } : {}),
     });
@@ -298,6 +312,7 @@ export async function leerStatusline(): Promise<Statusline> {
       modelo,
       effort: null,
       inferido: t.inferido,
+      ...(await sharkDe(c.cwd)),
       caido: "murio",
     });
   }

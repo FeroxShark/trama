@@ -125,3 +125,20 @@ test("vuelve: la hora del límite contra la fecha del mensaje", () => {
   // Zona desconocida: la local.
   assert.ok(vuelve("resets 4:50pm (Marte/Olympus)", "2026-10-02T15:00:00Z"));
 });
+
+test("trama_destrabo: una línea de sistema por cada destrabo, sin contar como mensaje del modelo", () => {
+  const l = (o: object) => JSON.stringify({ timestamp: "2026-10-25T10:00:00.000Z", sessionId: SID, ...o });
+  const texto = [
+    l({ type: "user", message: { role: "user", content: "bajá el modelo" } }),
+    l({ type: "assistant", message: { role: "assistant", model: "gemini-3.8-flash", content: [{ type: "text", text: "Listo." }], usage: { input_tokens: 5, output_tokens: 2 } } }),
+    l({ type: "system", subtype: "trama_destrabo", que: "Bash: curl localhost/progreso", clase: "repite", veces: 6, intento: 1 }),
+    l({ type: "system", subtype: "trama_destrabo", que: "Bash: curl localhost/progreso", clase: "repite", veces: 6, intento: 3, agotado: true }),
+  ].join("\n");
+  const r = conversacionDe(SID, "/t.jsonl", texto);
+  assert.deepEqual(r.mensajes.map((m) => m.destrabo ?? null), [null, null, { que: "Bash: curl localhost/progreso", agotado: false }, { que: "Bash: curl localhost/progreso", agotado: true }]);
+  assert.equal(r.modelo, "gemini-3.8-flash", "la marca no pisa el último mensaje del modelo");
+  const its = turnos(r.mensajes);
+  assert.deepEqual(forma(its).slice(-2), ["linea:destrabo", "linea:destrabo"]);
+  const s = sis(its, "destrabo");
+  assert.equal(s.tipo === "linea" && s.clase === "destrabo" && s.que, "Bash: curl localhost/progreso");
+});

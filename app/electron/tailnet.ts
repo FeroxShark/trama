@@ -19,8 +19,8 @@ export type Yo = {
   usuario: number;
 };
 
-/** El nodo dueño de una IP. */
-export type Nodo = { nombre: string; usuario: number; etiquetado: boolean };
+/** El nodo dueño de una IP: su sistema (`Hostinfo.OS`: android, iOS, windows…) y su primera IP de tailnet, si Tailscale las dice. */
+export type Nodo = { nombre: string; usuario: number; etiquetado: boolean; sistema?: string | null; ip?: string | null };
 
 const obj = (x: unknown): Record<string, unknown> | null => (x && typeof x === "object" ? (x as Record<string, unknown>) : null);
 const sinPunto = (s: string) => s.replace(/\.$/, "").toLowerCase();
@@ -40,7 +40,15 @@ export function yoDe(json: unknown): Yo | null {
 export function nodoDe(json: unknown): Nodo | null {
   const n = obj(obj(json)?.Node);
   if (!n || typeof n.Name !== "string" || typeof n.User !== "number") return null;
-  return { nombre: sinPunto(n.Name), usuario: n.User, etiquetado: Array.isArray(n.Tags) && n.Tags.length > 0 };
+  const os = obj(n.Hostinfo)?.OS;
+  const dir = Array.isArray(n.Addresses) ? n.Addresses.find((a): a is string => typeof a === "string") : undefined;
+  return {
+    nombre: sinPunto(n.Name),
+    usuario: n.User,
+    etiquetado: Array.isArray(n.Tags) && n.Tags.length > 0,
+    sistema: typeof os === "string" && os ? os.slice(0, 20) : null,
+    ip: dir ? ipLimpia(dir.replace(/\/\d+$/, "")) || null : null,
+  };
 }
 
 /**

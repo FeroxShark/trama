@@ -25,6 +25,8 @@ export type Linea =
   | { tipo: "linea"; clase: "interrumpido"; texto: string }
   /** Compactó (B19: una raya); `resumen`: el texto con que siguió, si vino justo después (lo junta `turnos()`). */
   | { tipo: "linea"; clase: "compacto"; auto: boolean | null; antes: number | null; resumen?: string }
+  /** Trama destrabó al modelo (repetía `que`); `agotado`: lo intentó 2 veces y paró. */
+  | { tipo: "linea"; clase: "destrabo"; que: string; agotado: boolean }
   /** El primer mensaje de un líder que viene de un relevo (B19, `vieneDeRelevo`): el prompt fijo de `bin/relevo`. */
   | { tipo: "linea"; clase: "viene"; texto: string; traspaso: string | null };
 
@@ -51,6 +53,7 @@ const SINTETICO = "<synthetic>";
 
 /** Lo que es de sistema, o `null` si es del usuario o del modelo. */
 export function sistemaDe(m: Mensaje): Sistema | null {
+  if (m.destrabo) return { tipo: "linea", clase: "destrabo", que: m.destrabo.que, agotado: m.destrabo.agotado };
   if (m.compacto) return { tipo: "linea", clase: "compacto", auto: m.compacto.auto, antes: m.compacto.antes };
   return m.rol === "user" ? deUsuario(m) : deModelo(m);
 }

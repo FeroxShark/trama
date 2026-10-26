@@ -38,8 +38,19 @@ export type ModoReparto = (typeof REPARTO)[number];
 
 export const SIN_CLAUDE = ["claude", "esperar", "fallar"] as const;
 export type SinClaude = (typeof SIN_CLAUDE)[number];
+/** Qué hace `pa` si el modelo que eligió el reparto no tiene cupo (`sin_cupo`, de cualquier proveedor): lanzar otro, esperar o fallar. */
+export const SIN_CUPO = ["otro", "esperar", "fallar"] as const;
+export type SinCupo = (typeof SIN_CUPO)[number];
+/** El `gemini.sin_claude` de antes dice lo mismo con otro nombre para el primero (`claude` = `otro`). */
+export const sinCupoDe = (v: SinClaude): SinCupo => (v === "claude" ? "otro" : v);
 /** Cuánto del cupo de Claude no tocan los workers cuando el archivo no dice nada (`RESERVA` de `reparto`: 15 % libre = tope de 85 %). */
 export const TOPE_CLAUDE_DEFECTO = 85;
+/** Familias de modelo que `reparto` conoce por nombre (`excluir` las acepta además de ids y patrones con `*`). */
+export const FAMILIAS = ["fable", "opus", "sonnet", "haiku", "argon", "flash", "gpt-oss"] as const;
+/** Más entradas en `excluir` que esto no es una lista que alguien arme a mano. */
+export const EXCLUIR_MAX = 50;
+/** Una entrada de `excluir`: una familia, un id o un prefijo con `*` al final; sin espacios ni comillas. */
+const FORMA_EXCLUIR = /^[A-Za-z0-9][\w.:*/[\]-]{0,79}$/;
 export const CUPO_MIN = 1;
 export const CUPO_MAX = 100;
 export const URL_OLLAMA = "http://localhost:11434";
@@ -55,15 +66,26 @@ export type ConfigModelos = {
   reparto?: ModoReparto;
   workers: Partial<Record<Tipo, Eleccion>>;
   locales: Local[];
-  gemini: { cupo_max?: number; sin_claude?: SinClaude };
+  /** Modelos (familias, ids o prefijos con `*`) que `reparto` nunca elige y que un `-m` no puede usar sin permiso del dueño. */
+  excluir: string[];
+  /** Deja correr opus/sonnet con esfuerzo `max` sin pedir permiso (Fable lo sigue pidiendo). Sin la clave vale `false`. */
+  permitir_max: boolean;
+  gemini: { cupo_max?: number };
+  /** `sin_cupo` del archivo; un `gemini.sin_claude` viejo se lee como éste y se reescribe así al guardar. */
+  sin_cupo?: SinCupo;
   /**
    * Hasta qué % de cada ventana del plan de Claude (5 h, semanal) usan los workers; el resto queda para las sesiones propias.
    * En el archivo es `reserva` (lo que se guarda libre, 0–1; número o `{"5h", "7d"}`), la clave que ya lee `reparto`.
    */
   claude: { tope_5h?: number; tope_7d?: number };
+  /**
+   * «Destrabar solo cuando se repite», por modelo (la clave es el id sin esfuerzo: `gemini-3.8-flash`): sólo lo que se tocó. Sin
+   * la clave vale la fábrica (`destrabarPorDefecto`, electron/modelos-tipos.ts: prendido para Gemini 3.8 Flash, apagado el resto).
+   */
+  destrabar: Record<string, boolean>;
 };
 
-export const vacia = (): ConfigModelos => ({ workers: {}, locales: [], gemini: {}, claude: {} });
+export const vacia = (): ConfigModelos => ({ workers: {}, locales: [], excluir: [], permitir_max: false, gemini: {}, claude: {}, destrabar: {} });
 
 /** `reserva` (fracción libre que se guarda) ↔ tope (% usable), enteros. */
 export const topeDeReserva = (r: number) => Math.round((1 - r) * 100);
@@ -85,6 +107,21 @@ export function topesDe(reserva: unknown): ConfigModelos["claude"] {
 export const esClaude = (m: string) => m.startsWith("claude-");
 export const esGemini = (m: string) => m.startsWith("gemini-");
 export const esAgy = (m: string) => m.startsWith("agy:");
+
+// --- «Destrabar solo cuando se repite»: el detector está en destrabar.ts; acá, qué modelos lo traen y cómo se decide.
+/** El modelo para el que viene prendido; el resto, apagado hasta que se prende en Ajustes. */
+export const DESTRABAR_DE_FABRICA = ["gemini-3.8-flash"] as const;
+/** `gemini-3.8-flash-low` → `gemini-3.8-flash`; `agy:claude-opus-5-5-high` → `agy:claude-opus-5-5`. La clave del ajuste por modelo. */
+export const claveDestrabo = (modelo: string): string => modelo.replace(/-(low|medium|high)$/, "");
+/** Prendido de fábrica sólo para Gemini 3.8 Flash. */
+export const destrabarPorDefecto = (modelo: string): boolean => (DESTRABAR_DE_FABRICA as readonly string[]).includes(claveDestrabo(modelo));
+/** Lo que dice el ajuste (`destrabar` de modelos.json: sólo las claves que se tocaron) o, sin decir, la fábrica. */
+export const destrabarActivo = (modelo: string, ajuste: Record<string, boolean> | undefined): boolean => {
+  const v = ajuste?.[claveDestrabo(modelo)];
+  return typeof v === "boolean" ? v : destrabarPorDefecto(modelo);
+};
+/** Los modelos de agy que se ofrecen en Ajustes (uno por modelo, sin esfuerzo). */
+export const DESTRABAR_MODELOS: readonly string[] = [...new Set([...GEMINI, ...AGY].map(claveDestrabo))];
 export const esOllama = (m: string) => m.startsWith("ollama:");
 /** Un id con forma de id (va a un archivo y a una línea de comandos): sin espacios ni comillas. */
 const FORMA_ID = /^[A-Za-z0-9][\w.:/[\]-]{0,120}$/;
@@ -124,12 +161,16 @@ export function leerConfig(j: Record<string, unknown>): ConfigModelos {
   if (j.reparto === "auto" || j.reparto === "fijo") c.reparto = j.reparto;
   if (esObj(j.workers)) for (const t of TIPOS) { const e = eleccionDe(j.workers[t]); if (e?.modelo === "auto") c.reparto = "auto"; else if (e) c.workers[t] = e; }
   if (Array.isArray(j.locales)) for (const l of j.locales) { const x = localDe(l); if (x) c.locales.push(x); }
+  if (Array.isArray(j.excluir)) for (const x of j.excluir) if (typeof x === "string" && FORMA_EXCLUIR.test(x.trim()) && !c.excluir.includes(x.trim()) && c.excluir.length < EXCLUIR_MAX) c.excluir.push(x.trim());
+  c.permitir_max = j.permitir_max === true;
   if (esObj(j.gemini)) {
     const g = j.gemini;
     if (typeof g.cupo_max === "number" && Number.isInteger(g.cupo_max) && g.cupo_max >= CUPO_MIN && g.cupo_max <= CUPO_MAX) c.gemini.cupo_max = g.cupo_max;
-    if (typeof g.sin_claude === "string" && (SIN_CLAUDE as readonly string[]).includes(g.sin_claude)) c.gemini.sin_claude = g.sin_claude as SinClaude;
+    if (typeof g.sin_claude === "string" && (SIN_CLAUDE as readonly string[]).includes(g.sin_claude)) c.sin_cupo = sinCupoDe(g.sin_claude as SinClaude);
   }
+  if (typeof j.sin_cupo === "string" && (SIN_CUPO as readonly string[]).includes(j.sin_cupo)) c.sin_cupo = j.sin_cupo as SinCupo;
   c.claude = topesDe(j.reserva);
+  if (esObj(j.destrabar)) for (const [k, v] of Object.entries(j.destrabar)) if (typeof v === "boolean" && FORMA_ID.test(k) && (esGemini(k) || esAgy(k))) c.destrabar[k] = v;
   return c;
 }
 
@@ -150,7 +191,7 @@ function validarEleccion(x: unknown, donde: string, locales: Local[]): Eleccion 
 /** Lo que llega a guardar, revisado: tira con el motivo si algo no vale (y entonces no se escribe nada). */
 export function validarConfig(x: unknown): ConfigModelos {
   if (!esObj(x)) throw errorT("main.modelosForma");
-  const raro = Object.keys(x).find((k) => !["lider", "reparto", "workers", "locales", "gemini", "claude"].includes(k));
+  const raro = Object.keys(x).find((k) => !["lider", "reparto", "workers", "locales", "excluir", "permitir_max", "gemini", "claude", "sin_cupo", "destrabar"].includes(k));
   if (raro !== undefined) throw errorT("main.modelosCampo", { campo: raro.slice(0, 40) });
   const c = vacia();
 
@@ -167,6 +208,19 @@ export function validarConfig(x: unknown): ConfigModelos {
       const nombre = typeof l.nombre === "string" && l.nombre.trim() ? l.nombre.trim().slice(0, 80) : modelo;
       c.locales.push({ id: l.id, nombre, url, modelo });
     }
+  }
+  if (x.excluir !== undefined && x.excluir !== null) {
+    if (!Array.isArray(x.excluir)) throw errorT("main.modelosForma");
+    if (x.excluir.length > EXCLUIR_MAX) throw errorT("main.modelosDemasiados", { max: EXCLUIR_MAX });
+    for (const v of x.excluir) {
+      const e = typeof v === "string" ? v.trim() : "";
+      if (!FORMA_EXCLUIR.test(e)) throw errorT("main.modelosExcluir", { v: String(v).slice(0, 60) });
+      if (!c.excluir.includes(e)) c.excluir.push(e);
+    }
+  }
+  if (x.permitir_max !== undefined && x.permitir_max !== null) {
+    if (typeof x.permitir_max !== "boolean") throw errorT("main.modelosForma");
+    c.permitir_max = x.permitir_max;
   }
   if (x.reparto !== undefined && x.reparto !== null) {
     if (typeof x.reparto !== "string" || !(REPARTO as readonly string[]).includes(x.reparto)) throw errorT("main.modelosForma");
@@ -197,8 +251,12 @@ export function validarConfig(x: unknown): ConfigModelos {
     }
     if (g.sin_claude !== undefined && g.sin_claude !== null) {
       if (typeof g.sin_claude !== "string" || !(SIN_CLAUDE as readonly string[]).includes(g.sin_claude)) throw errorT("main.modelosSinClaude");
-      c.gemini.sin_claude = g.sin_claude as SinClaude;
+      c.sin_cupo = sinCupoDe(g.sin_claude as SinClaude);
     }
+  }
+  if (x.sin_cupo !== undefined && x.sin_cupo !== null) {
+    if (typeof x.sin_cupo !== "string" || !(SIN_CUPO as readonly string[]).includes(x.sin_cupo)) throw errorT("main.modelosSinCupo");
+    c.sin_cupo = x.sin_cupo as SinCupo;
   }
   if (x.claude !== undefined) {
     if (!esObj(x.claude)) throw errorT("main.modelosForma");
@@ -210,6 +268,14 @@ export function validarConfig(x: unknown): ConfigModelos {
       if (v === undefined || v === null) continue;
       if (!topeValido(v)) throw errorT("main.modelosTopeClaude", { min: CUPO_MIN, max: CUPO_MAX });
       c.claude[n] = v;
+    }
+  }
+  if (x.destrabar !== undefined && x.destrabar !== null) {
+    if (!esObj(x.destrabar)) throw errorT("main.modelosForma");
+    for (const [k, v] of Object.entries(x.destrabar)) {
+      if (!FORMA_ID.test(k) || !(esGemini(k) || esAgy(k))) throw errorT("main.modelosModelo", { donde: "destrabar", v: k.slice(0, 60) });
+      if (typeof v !== "boolean") throw errorT("main.modelosForma");
+      c.destrabar[k] = v;
     }
   }
   return c;
@@ -248,9 +314,18 @@ export function unir(antes: Record<string, unknown> | null, c: ConfigModelos): R
   const ls = c.locales.map((l) => sobre(viejos.find((v) => esObj(v) && v.id === l.id), { ...l }, []));
   if (ls.length || "locales" in base) base.locales = ls;
 
+  // `excluir` y `permitir_max` son de `reparto` y `pa`: sin entradas / en falso la clave sale (el default es el mismo).
+  if (c.excluir.length) base.excluir = [...c.excluir];
+  else delete base.excluir;
+  if (c.permitir_max) base.permitir_max = true;
+  else delete base.permitir_max;
+
+  // `gemini.sin_claude` se retira: lo dice `sin_cupo`, que vale para cualquier proveedor.
   const g = sobre(base.gemini, { ...c.gemini }, ["cupo_max", "sin_claude"]);
   if (Object.keys(g).length) base.gemini = g;
   else delete base.gemini;
+  if (c.sin_cupo) base.sin_cupo = c.sin_cupo;
+  else delete base.sin_cupo;
 
   // `reserva` es de `reparto`: si lo que había ya dice estos topes se deja tal cual (un 0.155 o un número suelto no se reescriben).
   const t = topesDe(base.reserva);
@@ -260,8 +335,13 @@ export function unir(antes: Record<string, unknown> | null, c: ConfigModelos): R
     if (c.claude.tope_5h !== undefined) r["5h"] = reservaDeTope(c.claude.tope_5h);
     if (c.claude.tope_7d !== undefined) r["7d"] = reservaDeTope(c.claude.tope_7d);
     if (Object.keys(r).length) base.reserva = r;
-    else delete base.reserva;
+    // Apagada: `null` si había una (así se ve que se apagó a propósito); si no había nada, el archivo no gana una clave.
+    else if (base.reserva !== undefined) base.reserva = null;
   }
+
+  // `destrabar` es de trama (el puente de agy lo lee en cada turno): sin entradas la clave sale (vale la fábrica).
+  if (Object.keys(c.destrabar).length) base.destrabar = { ...c.destrabar };
+  else delete base.destrabar;
   return base;
 }
 
@@ -274,7 +354,7 @@ const HAIKU = "claude-haiku-5-5";
 /**
  * Los modelos por defecto de cada tipo de tarea: lo barato y mecánico en Haiku, el código en
  * Sonnet y lo que piensa más (debug, diseño) en Opus. `bases` (Opus medium) no es un tipo de `pa` (`TIPOS_VALIDOS`): no
- * tiene fila acá. Es lo que trama muestra y lo que pone "Usar los recomendados"; lo que corre sin archivo lo decide `pa`.
+ * tiene fila acá. Es lo que trama muestra; lo que corre sin archivo lo decide `pa`.
  */
 export const DEFAULTS_CLAUDE: Record<Tipo, Eleccion> = {
   default: { modelo: SONNET, effort: "high" },
@@ -307,5 +387,3 @@ export function efectivoDe(c: ConfigModelos, tipo: Tipo, soloGemini = false): El
   return c.workers[tipo] ?? (tipo === "default" ? undefined : c.workers.default) ?? d[tipo];
 }
 
-/** Las tres filas de worker de `~/CLAUDE.md` y el tipo de la config del que salen. */
-export const ROL_DE_TIPO = { codigo: "codigo-acotado", explorar: "lectura", diseno: "frontend" } as const;

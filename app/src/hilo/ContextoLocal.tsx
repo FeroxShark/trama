@@ -26,7 +26,7 @@ type Nota = { tipo: "ok" | "error"; texto: string };
 const TOPE_MIN = 6;
 
 type Props = {
-  /** El id de la tabla (`qwen-local`). */
+  /** El id de la tabla (`modelo-local-ejemplo`). */
   modelo: string;
   lado?: "izq" | "der";
   /** Para las capturas: nace abierto. */

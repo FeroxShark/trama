@@ -1,0 +1,254 @@
+/* La bienvenida (src/paneles/Bienvenida.tsx): un modal de un paso por vez sobre `.at` / `.at-caja` (paneles.css) con los componentes de
+   `src/ui`. Sólo tokens y rem; el movimiento es una entrada corta de opacidad y transform, y se apaga con `prefers-reduced-motion`. */
+.bv-caja {
+  width: min(34rem, 100%);
+  padding: var(--esp-5) var(--esp-6) var(--esp-4);
+  gap: var(--esp-4);
+  overflow-y: auto;
+  border-radius: var(--r-xl);
+  scrollbar-width: thin;
+  scrollbar-color: var(--borde-3) transparent;
+}
+.bv-caja:focus {
+  outline: none;
+}
+.bv-cab {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--esp-3);
+}
+.bv-cab-t {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  gap: var(--esp-3);
+}
+.bv-marca {
+  color: var(--texto);
+  font-size: var(--letra-7);
+  font-weight: 600;
+}
+.bv-n {
+  color: var(--apagado);
+  font-size: var(--letra-4);
+  font-variant-numeric: tabular-nums;
+}
+.bv-x {
+  display: grid;
+  width: 2rem;
+  height: 2rem;
+  flex: none;
+  place-items: center;
+  border: 0;
+  border-radius: var(--r-cap);
+  background: transparent;
+  color: var(--apagado);
+  cursor: pointer;
+}
+.bv-x:hover {
+  background: var(--capa-hover);
+  color: var(--texto);
+}
+.bv-x:focus-visible {
+  outline: 2px solid var(--acento);
+  outline-offset: 2px;
+}
+
+/* El avance: una cápsula por paso. */
+.bv-prog {
+  display: flex;
+  gap: var(--esp-1-5);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.bv-prog li {
+  height: 0.25rem;
+  flex: 1;
+  border-radius: var(--r-cap);
+  background: var(--capa-track);
+}
+.bv-prog li[data-estado="hecho"] {
+  background: var(--acento-tinte);
+}
+.bv-prog li[data-estado="actual"] {
+  background: var(--acento);
+}
+
+.bv-cuerpo {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  animation: bv-entra var(--t-smooth) ease-out both;
+}
+@keyframes bv-entra {
+  from {
+    opacity: 0;
+    transform: translateY(0.375rem);
+  }
+}
+.bv-hoja {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-4);
+}
+.bv-h {
+  margin: 0;
+  color: var(--texto);
+  font-size: var(--letra-8);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.bv-p {
+  margin: calc(var(--esp-2) * -1) 0 0;
+  color: var(--apagado);
+  font-size: var(--letra-5);
+  line-height: 1.5;
+  text-wrap: pretty;
+}
+.bv-nota {
+  margin: 0;
+  color: var(--inactivo);
+  font-size: var(--letra-4);
+  line-height: 1.45;
+}
+.bv-hoja > .bv-nota {
+  margin-top: calc(var(--esp-2) * -1);
+}
+
+/* Más cuentas del mismo proveedor (CuentasVarias.tsx): una banda por proveedor con sus cuentas agregadas y el botón. */
+.bv-cuentas {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-4);
+  padding: var(--esp-3) var(--esp-4) var(--esp-4);
+}
+.bv-cuentas-p {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-2);
+}
+.bv-cuentas-n {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-2);
+  color: var(--texto);
+  font-size: var(--letra-5);
+  font-weight: 500;
+}
+
+/* Idioma: dos tarjetas grandes de elegir. */
+.bv-ops {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--esp-3);
+}
+.bv-op {
+  min-height: 3.5rem;
+  border: 1px solid var(--luz);
+  border-radius: var(--r-md);
+  background: var(--capa-card);
+  color: var(--texto);
+  font: inherit;
+  font-size: var(--letra-7);
+  font-weight: 500;
+  cursor: pointer;
+}
+.bv-op:hover {
+  background: var(--capa-hover);
+}
+.bv-op[aria-checked="true"] {
+  border-color: var(--acento);
+  background: var(--acento-tinte);
+}
+.bv-op:focus-visible,
+.bv-fila:focus-visible {
+  outline: 2px solid var(--acento);
+  outline-offset: 2px;
+}
+
+/* Casillas: una fila entera que se marca. */
+.bv-fila {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.bv-fila:hover:not(:disabled) {
+  background: var(--capa-hover);
+}
+.bv-fila:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.bv-fila + .bv-fila {
+  border-top: 1px solid var(--capa-div);
+}
+.bv-cb {
+  display: grid;
+  width: 1.25rem;
+  height: 1.25rem;
+  flex: none;
+  place-items: center;
+  border: 1px solid var(--borde-5);
+  border-radius: var(--r-xs);
+  color: var(--acento-texto);
+}
+.bv-fila[aria-checked="true"] .bv-cb {
+  border-color: var(--acento);
+  background: var(--acento);
+}
+
+.bv-error {
+  color: var(--rojo-texto);
+  font-size: var(--letra-4);
+  line-height: 1.4;
+}
+
+/* El pie: Atrás a la izquierda; Más tarde y el principal a la derecha. */
+.bv-pie {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--esp-2);
+}
+.bv-pie-der {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--esp-2);
+}
+
+@media (max-width: 35rem) {
+  .at:has(.bv-caja) {
+    padding: var(--esp-2);
+  }
+  .bv-caja {
+    padding: var(--esp-4);
+  }
+  .bv-pie-der {
+    flex: 1;
+  }
+}
+@media (pointer: coarse) {
+  .bv-x {
+    width: 2.75rem;
+    height: 2.75rem;
+  }
+  .bv-caja .ui-btn {
+    min-height: 2.75rem;
+  }
+  .bv-fila {
+    min-height: 2.75rem;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .bv-cuerpo {
+    animation: none;
+  }
+}

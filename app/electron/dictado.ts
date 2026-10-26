@@ -1,6 +1,8 @@
 // Dictar: el audio que grabó la caja de un líder (WAV 16 kHz mono, convertido en el cliente: src/hilo/dictado.ts)
 // llega por el RPC de siempre, se deja un momento en `$XDG_RUNTIME_DIR/trama/` y `handy --transcribe-file`
-// devuelve el texto (en WSL también el `handy.exe` de Windows o, sin Handy, el reconocedor de Windows: dictado-windows.ts). Sin `--model`: Handy usa el modelo que el usuario tiene elegido. El texto vuelve a la caja, no se manda.
+// devuelve el texto (en WSL también el `handy.exe` de Windows o, sin Handy, el reconocedor de Windows: dictado-windows.ts). El modelo
+// va con `--model`: el que se eligió en Ajustes o, sin elegir, Whisper Large v3 Turbo si Handy lo tiene bajado; si no, sin
+// `--model` (el que el usuario tiene elegido en Handy). Ver dictado-modelos.ts. El texto vuelve a la caja, no se manda.
 // Una transcripción a la vez (un Handy cargando un modelo ya es bastante) y el archivo se borra pase lo que pase.
 // Sin `electron`: lo prueba tests/dictado.test.ts con un `handy` falso (`ejecutar`), nunca el de verdad.
 import { execFile } from "node:child_process";
@@ -9,6 +11,7 @@ import { readdirSync } from "node:fs";
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { motoresDictado, traductor, type Motor } from "./dictado-windows.ts";
+import { modelosDeHandy, opcionesDictado, type ModelosDictado } from "./dictado-modelos.ts";
 import { errorT } from "./errores.ts";
 
 /** Lo más que se graba (el tope de la caja): 5 min. */
@@ -77,7 +80,7 @@ export function wavDe(x: unknown): Uint8Array {
   return datos;
 }
 
-/** El texto que dejó Handy: su stdout sin los renglones vacíos; si dijo un JSON con `text`, ése. */
+/** El texto que dejó Handy: con `--json`, su `text`; si no, el stdout sin los renglones vacíos ni la línea de métricas. */
 export function textoDe(stdout: string): string {
   const crudo = stdout.trim();
   if (crudo.startsWith("{")) {
@@ -91,7 +94,8 @@ export function textoDe(stdout: string): string {
   }
   return crudo
     .split("\n")
-    .map((l) => l.trim())
+    // Sin `--json`, Handy dice `model=… rtf=…x text: <texto>`: sólo el texto.
+    .map((l) => l.trim().replace(/^model=\S+(?: \S+=\S+)* text: /, ""))
     .filter(Boolean)
     .join(" ");
 }
@@ -104,7 +108,47 @@ export type OpcionesDictado = {
   motores?: Motor[];
   ejecutar?: Ejecutar;
   timeoutMs?: number;
+  /** El modelo que se eligió en Ajustes: va siempre con `--model` (si no está bajado, Handy lo dice). */
+  modelo?: string;
+  /** Sin elegido: éste, pero sólo si Handy lo tiene bajado; si no, Handy usa el suyo. Sin ninguno de los dos, nunca `--model`. */
+  porDefecto?: string;
 };
+
+/** Cuánto se espera a `handy --list-models` (no carga nada: lee su catálogo). */
+const LISTAR_MS = 10_000;
+
+/** Lo que dice `handy --list-models --json` de un motor Handy, o `null` si no contestó. */
+async function listarHandy(m: Motor, ejecutar: Ejecutar): Promise<ReturnType<typeof modelosDeHandy> | null> {
+  if (m.nombre === "windows") return null;
+  try {
+    const l = modelosDeHandy(await ejecutar(m.bin, ["--list-models", "--json"], { timeout: LISTAR_MS }));
+    return l.length ? l : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Lo que se le suma a `--transcribe-file` en un Handy: `--json` (sin él, Handy antepone una línea de métricas
+ * `model=… rtf=… text: …` al texto) y el `--model` (el elegido, o el de por defecto si está bajado). Nada para el
+ * reconocedor de Windows.
+ */
+async function extraHandy(m: Motor, o: OpcionesDictado, ejecutar: Ejecutar): Promise<string[]> {
+  if (m.nombre === "windows") return [];
+  if (o.modelo) return ["--json", "--model", o.modelo];
+  if (!o.porDefecto) return ["--json"];
+  const l = await listarHandy(m, ejecutar);
+  return l?.some((x) => x.id === o.porDefecto && x.bajado) ? ["--json", "--model", o.porDefecto] : ["--json"];
+}
+
+/** Para Ajustes: qué modelos hay para elegir en esta máquina y cuál rige (`elegido`, o el de por defecto). */
+export async function modelosDictado(o: { elegido: string; motores?: Motor[]; ejecutar?: Ejecutar }): Promise<ModelosDictado> {
+  const ejecutar = o.ejecutar ?? ejecutarDeVerdad;
+  const motores = o.motores ?? (await motoresDeEstaMaquina(ejecutar));
+  const handy = motores.find((m) => m.nombre !== "windows");
+  const lista = handy ? await listarHandy(handy, ejecutar) : null;
+  return { version: 1, elegido: o.elegido, modelos: opcionesDictado(lista, o.elegido), motor: handy?.nombre ?? motores[0]?.nombre ?? null };
+}
 
 /** Para que haya una sola a la vez. */
 let cola: Promise<unknown> = Promise.resolve();
@@ -143,7 +187,8 @@ async function correr(datos: Uint8Array, o: OpcionesDictado): Promise<string> {
     let primero: Error | null = null;
     for (const m of motores) {
       try {
-        const texto = textoDe(await ejecutar(m.bin, await m.args(archivo, aWindows), { timeout }));
+        const args = [...(await m.args(archivo, aWindows)), ...(await extraHandy(m, o, ejecutar))];
+        const texto = textoDe(await ejecutar(m.bin, args, { timeout }));
         if (!texto) throw errorT("main.dictadoVacio");
         return texto;
       } catch (e) {

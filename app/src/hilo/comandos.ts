@@ -41,7 +41,23 @@ export type Sugerencia = {
   descripcion: string | null;
   valor?: string;
   actual?: boolean;
+  /** Sólo existe de un lado: Claude Code (`anthropic`) o `agy` (`google`). Sin marca: está en los dos, o no se sabe. */
+  solo?: Proveedor;
 };
+
+export type Proveedor = "anthropic" | "google";
+
+/**
+ * ¿De qué proveedor es sólo la fila? Se compara con el otro lado: sus propios (`PROPIOS` / `PROPIOS_AGY`) y los
+ * comandos y skills que dijo (`deOtro`). Sin lista del otro lado (no hay `agy`, o `claude` nunca arrancó) no se
+ * afirma nada: ninguna marca. `agy`: el menú es el de un líder de `agy`.
+ */
+export function marcaDe(nombre: string, agy: boolean, deOtro: ComandoClaude[]): Proveedor | undefined {
+  if (!deOtro.length) return undefined;
+  const n = nombre.toLowerCase();
+  const otro = new Set([...(agy ? PROPIOS : PROPIOS_AGY).map((p) => p.nombre), ...deOtro.map((c) => c.nombre.toLowerCase())]);
+  return otro.has(n) ? undefined : agy ? "google" : "anthropic";
+}
 
 /** Los valores de un comando con lista fija (`/model`, `/effort`, `/output-style`): cada uno con su etiqueta. */
 export type Valores = Record<string, { lista: { valor: string; desc: string | null }[]; actual: string | null }>;
@@ -59,11 +75,16 @@ export const PROPIOS: { nombre: string; args: string | null; clave: ClaveComando
   { nombre: "output-style", args: "<style>", clave: "comando.outputStyle" },
 ];
 
-/** Los de un líder de `agy` (`gemini-*` o `agy:*`): sólo lo que funciona con `agy` (`/clear`, `/model` entre los de `agy` y `/effort`). */
+/**
+ * Los de un líder de `agy` (`gemini-*` o `agy:*`): sólo lo que funciona con `agy -p` (`/clear`, `/model` entre los de
+ * `agy` y `/effort` los resuelve la app; `/compact` se le manda y compacta de verdad). Los demás de `agy` (`/context`,
+ * `/diff`, `/config`…) abren una pantalla de la terminal y en `-p` no existen; `/usage` ya lo muestran los límites.
+ */
 export const PROPIOS_AGY: { nombre: string; args: string | null; clave: ClaveComando }[] = [
   { nombre: "clear", args: null, clave: "comando.clear" },
   { nombre: "model", args: "<gemini-4-argon|gemini-3.8-flash>", clave: "comando.model" },
   { nombre: "effort", args: "<low|medium|high>", clave: "comando.effort" },
+  { nombre: "compact", args: null, clave: "comando.compact" },
 ];
 
 /** ¿El modelo corre por `agy` (`gemini-*` o `agy:*`)? Ollama (`ollama:*`) y los de Claude o GPU local corren por `claude`. */
@@ -114,7 +135,7 @@ export function parsearComando(
         return { tipo: "error", clave: "comando.cambioProveedor", v: x.id };
       return { tipo: "modelo", modelo: x.id };
     }
-    if (tieneProveedor && a && (agy ? /^(?:claude-|opus$|sonnet$|haiku$|fable$|qwen|bonsai|ollama:)/.test(a) : esModeloAgy(a)))
+    if (tieneProveedor && a && (agy ? /^(?:claude-|opus$|sonnet$|haiku$|fable$|ollama:)/.test(a) : esModeloAgy(a)))
       return { tipo: "error", clave: "comando.cambioProveedor", v: arg };
     return { tipo: "error", clave: "comando.usoModelo", v: arg };
   }
@@ -140,6 +161,7 @@ export function sugerencias(
   deClaude: ComandoClaude[],
   valores: Valores = {},
   modeloActual?: string | boolean | null,
+  deOtro: ComandoClaude[] = [],
 ): Sugerencia[] {
   const agy = typeof modeloActual === "boolean" ? modeloActual : esModeloAgy(modeloActual);
   const tieneProveedor = modeloActual !== undefined && modeloActual !== null;
@@ -166,10 +188,10 @@ export function sugerencias(
   const q = m[1].toLowerCase();
   const base = agy ? PROPIOS_AGY : PROPIOS;
   const todos: Sugerencia[] = [
-    ...base.map((p) => ({ nombre: p.nombre, args: p.args, clave: p.clave, descripcion: null })),
+    ...base.map((p) => ({ nombre: p.nombre, args: p.args, clave: p.clave, descripcion: null, solo: marcaDe(p.nombre, agy, deOtro) })),
     ...deClaude
       .filter((c) => !DE_APP.has(c.nombre.toLowerCase()) && (c.agy === undefined || Boolean(c.agy) === agy))
-      .map((c) => ({ nombre: c.nombre, args: c.args || null, clave: null, descripcion: c.descripcion })),
+      .map((c) => ({ nombre: c.nombre, args: c.args || null, clave: null, descripcion: c.descripcion, solo: marcaDe(c.nombre, agy, deOtro) })),
   ];
   const n = (s: Sugerencia) => s.nombre.toLowerCase();
   return [...todos.filter((s) => n(s).startsWith(q)), ...todos.filter((s) => !n(s).startsWith(q) && n(s).includes(q))];
@@ -190,6 +212,7 @@ export function menuEn(
   deClaude: ComandoClaude[],
   valores: Valores = {},
   modeloActual?: string | boolean | null,
+  deOtro: ComandoClaude[] = [],
 ): Menu | null {
   const agy = typeof modeloActual === "boolean" ? modeloActual : esModeloAgy(modeloActual);
   const antes = texto.slice(0, caret);
@@ -197,7 +220,7 @@ export function menuEn(
   const cmd = v?.[1].toLowerCase();
   if (v && cmd && !(agy && cmd === "output-style") && valores[cmd]) {
     return {
-      filas: sugerencias(antes, deClaude, valores, modeloActual),
+      filas: sugerencias(antes, deClaude, valores, modeloActual, deOtro),
       ini: 0,
       fin: caret + (texto.slice(caret).match(/^\S*/)?.[0].length ?? 0),
     };
@@ -205,7 +228,7 @@ export function menuEn(
   const m = antes.match(/(?:^|\s)(\/[^\s/]*)$/);
   if (!m) return null;
   return {
-    filas: sugerencias(m[1], deClaude, valores, modeloActual),
+    filas: sugerencias(m[1], deClaude, valores, modeloActual, deOtro),
     ini: caret - m[1].length,
     fin: caret + (texto.slice(caret).match(/^[^\s/]*/)?.[0].length ?? 0),
   };

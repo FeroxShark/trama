@@ -44,3 +44,32 @@ test("registro: `titulo` opcional (texto no vacío), también desde un alias; `n
 test("slugsPorNombre: cada nombre del registry con el slug de su carpeta, los alias también; lo de home no", async () => {
   assert.deepEqual(await slugsPorNombre(), { "Atlas Web": "atlas", brote: "brote", cauce: "cauce", "Cauce de agua": "cauce" });
 });
+
+test("registro: alias de la misma carpeta se conservan", async () => {
+  const por = new Map((await registro()).map((p) => [p.slug, p]));
+  assert.deepEqual(por.get("cauce")?.alias, ["Cauce de agua"]);
+});
+
+test("registro: campo `alias` opcional en registry.json y alias por defecto de Trama", async () => {
+  const tmp2 = mkdtempSync(path.join(os.tmpdir(), "hilos-reg2-"));
+  for (const d of ["asistente-voz", "fotos"]) mkdirSync(path.join(tmp2, d));
+  writeFileSync(
+    path.join(tmp2, "registry.json"),
+    JSON.stringify({
+      projects: [
+        { name: "asistente-voz", path: path.join(tmp2, "asistente-voz"), alias: ["voz"] },
+        { name: "fotos", path: path.join(tmp2, "fotos"), aliases: ["album", "imagenes"] },
+      ],
+    }),
+  );
+  process.env.PROYECTOS_REGISTRY = path.join(tmp2, "registry.json");
+  const por = new Map((await registro()).map((p) => [p.slug, p]));
+  assert.deepEqual(por.get("asistente-voz")?.alias.sort(), ["shark", "voz"]);
+  assert.deepEqual(por.get("fotos")?.alias.sort(), ["album", "imagenes"]);
+  const s = await slugsPorNombre();
+  assert.equal(s["asistente-voz"], "asistente-voz");
+  assert.equal(s["voz"], "asistente-voz");
+  assert.equal(s["shark"], "asistente-voz");
+  assert.equal(s["album"], "fotos");
+  assert.equal(s["imagenes"], "fotos");
+});

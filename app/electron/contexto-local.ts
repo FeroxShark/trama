@@ -1,4 +1,4 @@
-// El contexto del usuario para un líder local (Bonsai / Qwen): lo que un líder Claude recibe solo (los CLAUDE.md, el índice de la
+// El contexto del usuario para un líder local (llama-server): lo que un líder Claude recibe solo (los CLAUDE.md, el índice de la
 // memoria y la salida de los hooks SessionStart) y un modelo local, con `--bare`, no. Se arma al lanzar su proceso y va en el
 // `--system-prompt` (`argvLider`). Sin workers: se sacan las secciones de jefe / `pa` / tabla de modelos de lo que se carga
 // (por encabezado, no por texto copiado: sigue los cambios de los archivos). Sin GPU ni red: sólo archivos y el hook del usuario.
@@ -11,7 +11,7 @@ import { deDueno, dueno } from "./dueno.ts";
 /** Los encabezados que no le tocan a un local: él no delega (no hay `pa`) ni elige workers. */
 export const ENCABEZADOS_FUERA = /^(jefe|modelos)\b/i;
 
-/** Caracteres por token: conservador para español con un tokenizador de Qwen (medido ≈ 3,3 en prosa; el código rinde menos). */
+/** Caracteres por token: conservador para español con un tokenizador de la familia Qwen (medido ≈ 3,3 en prosa; el código rinde menos). */
 export const CHARS_POR_TOKEN = 3;
 export const tokensDe = (texto: string) => Math.ceil(texto.length / CHARS_POR_TOKEN);
 
@@ -176,7 +176,12 @@ export async function armarContexto(x: {
 export const PROMPT_GEMINI = [
   "Sos un líder de Trama (una app para manejar workers de `pa` y chatear con sus líderes) y corrés como Gemini dentro de `agy`, no como Claude.",
   "Estás en el home de la persona: sos el jefe que delega el trabajo de cada proyecto a workers con `pa`, que tenés en el PATH de tu herramienta de comandos (`pa --help` explica cómo se usa).",
-  "Si tenés el skill `trama-orquestar`, leelo antes de delegar: dice qué delegar, con qué `--tipo` y cómo esperar al worker.",
+  "Cómo delegar, en corto (esto vale aunque no tengas ningún skill):",
+  "- `pa <proyecto> --tipo <tipo> \"<tarea>\"` lanza un worker adentro del proyecto y espera su resultado (RESULTADO / ARCHIVOS / DECISION). Tipos: mecanico, lectura, codigo-acotado, codigo-multi, frontend, diseno, debug. Sin `-m`, `pa` elige el modelo según el tipo.",
+  "- Varias tareas a la vez, o una larga: `pa <proyecto> --async --tipo <tipo> \"<tarea>\"` imprime el id; después `pa --esperar <proyecto> --id <id>` (o `pa --esperar-todos`) trae el resultado.",
+  "- `<proyecto>` es un nombre de `~/.config/proyectos/registry.json` (`proyecto-ruta --listar` los muestra). Si el proyecto no está, decíselo a la persona; no lo inventes.",
+  "- Lo que hace un worker queda en una rama: no está en main hasta `pa <proyecto> --integrar <id>`. No toques vos el código de un proyecto: delegá.",
+  "Si tenés el skill `trama-orquestar` (`~/.claude/skills/trama-orquestar/SKILL.md`), leelo con view_file antes de delegar algo más que lo básico: dice qué modelo y `--tipo` conviene, cómo integrar y cómo seguir a un worker.",
   "Tus herramientas son las de agy (comandos, archivos, búsqueda). Contestá en el idioma en que te escriben, claro y al grano, y contá qué hiciste.",
   "Antes de algo que no se deshace (borrar, sobrescribir, publicar), preguntá. Las reglas de abajo son los CLAUDE.md de esta persona: valen tal cual.",
 ].join("\n");
@@ -195,10 +200,15 @@ export async function skillOrquestar(home: string): Promise<string> {
   return SKILL_GENERICA;
 }
 
-/** El prefacio completo de un líder de Gemini en `cwd`: lo de arriba más sus CLAUDE.md. Un archivo ilegible no lo tira. */
-export async function prefacioGemini(x: { home: string; cwd?: string; deps?: Partial<DepsContexto> }): Promise<string> {
+/**
+ * El prefacio completo de un líder de Gemini en `cwd`: lo de arriba más sus CLAUDE.md. Un archivo ilegible no lo tira.
+ * `pa`: dónde está el binario si se encontró con ruta absoluta; se lo dice por si el PATH de la herramienta de comandos de
+ * agy no lo trae (la unidad de systemd y el menú de apps arrancan sin `~/.local/bin`), así nunca queda en "pa: command not found".
+ */
+export async function prefacioGemini(x: { home: string; cwd?: string; pa?: string; deps?: Partial<DepsContexto> }): Promise<string> {
   const c = await armarContexto({ home: x.home, cwd: x.cwd, ctx: 40000, perfil: "gemini", deps: x.deps }).catch(() => null);
   const skill = await skillOrquestar(x.home);
-  const prompt = skill === SKILL_GENERICA ? PROMPT_GEMINI : PROMPT_GEMINI.replaceAll(SKILL_GENERICA, skill);
+  const base = skill === SKILL_GENERICA ? PROMPT_GEMINI : PROMPT_GEMINI.replaceAll(SKILL_GENERICA, skill);
+  const prompt = x.pa && path.isAbsolute(x.pa) ? `${base}\nSi un comando dice "pa: command not found", \`pa\` está en \`${x.pa}\`: llamalo con esa ruta.` : base;
   return c?.texto ? `${prompt}\n\n${c.texto}` : prompt;
 }

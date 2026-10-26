@@ -15,7 +15,7 @@ import { Tierno, useTiernos } from "./Tierno";
 import { Compactando, Hojas } from "./Posta";
 import { Actividad } from "./Actividad";
 import { clasificar, clasificarPedido } from "./actividad";
-import { enCurso, indicador, suscribir, type Indicador } from "./vivo";
+import { enCurso, indicador, razonDelTurno, razona, suscribir, type Indicador } from "./vivo";
 
 const LEER = new Set(["Read", "WebFetch", "NotebookRead"]);
 const EDITAR = new Set(["Edit", "Write", "MultiEdit", "NotebookEdit"]);
@@ -119,12 +119,31 @@ const usePide = (sid: string) =>
     () => enCurso(sid).pide,
   );
 
+/** ¿Este líder deja ver su razonamiento (ya llegó alguno)? Si sí, la tarjeta lo muestra en vez de la frase tierna. */
+export const useRazona = (sid: string) =>
+  useSyncExternalStore(
+    useCallback((fn: () => void) => suscribir(sid, fn), [sid]),
+    () => razona(sid),
+  );
+
+/** El razonamiento del turno en curso (un texto: el snapshot es estable mientras no llega más). */
+const useRazon = (sid: string) =>
+  useSyncExternalStore(
+    useCallback((fn: () => void) => suscribir(sid, fn), [sid]),
+    () => razonDelTurno(sid),
+  );
+
 /** Debajo de la conversación, mientras responde: la tarjeta viva (src/hilo/Actividad.tsx) con qué hace, el tiempo y los pasos de atrás. */
-export function HaceChat({ sid, modelo, effort, alParar, parando }: { sid: string; modelo?: string | null; effort?: string | null; alParar?: () => void; parando?: boolean }) {
+export function HaceChat({ sid, modelo, effort, alParar, parando, piensa = false }: { sid: string; modelo?: string | null; effort?: string | null; alParar?: () => void; parando?: boolean; piensa?: boolean }) {
   useIdioma();
   const ind = useIndicador(sid);
   const pide = usePide(sid);
   const tierno = useTiernos();
+  // Un motor que deja ver su razonamiento (Gemini; se sabe por el modelo o porque ya llegó uno): su última línea y el razonamiento
+  // entero del turno en la tarjeta, en vez de la frase tierna. Claude y los que no lo traen siguen como siempre.
+  const razonaYa = useRazona(sid);
+  const veRazon = piensa || razonaYa;
+  const razon = useRazon(sid);
   // Captura `lider-trabajando` con `HILOS_VARIANTE=listo`: la tarjeta de un turno que terminó (en vivo se va con el turno).
   if (MODO.captura === "lider-trabajando" && MODO.variante === "listo")
     return <Actividad act={clasificar({ que: "herramienta", nombre: "Bash", detalle: "npm test -- --reporter dot" })} pasos={ind.pasos} pasosN={ind.pasosN} desde={ind.desde} tokens={ind.salida > 0 ? t("hace.tokens", { n: miles(ind.salida) }) : null} modelo={modelo} effort={effort} fin="listo" />;
@@ -141,7 +160,8 @@ export function HaceChat({ sid, modelo, effort, alParar, parando }: { sid: strin
       pasosN={ind.pasosN}
       desde={ind.desde}
       tokens={ind.salida > 0 ? t("hace.tokens", { n: miles(ind.salida) }) : null}
-      tierno={tierno && generico ? sid : undefined}
+      tierno={tierno && generico && !veRazon ? sid : undefined}
+      razon={veRazon ? razon : undefined}
       modelo={modelo}
       effort={effort}
       alParar={alParar}

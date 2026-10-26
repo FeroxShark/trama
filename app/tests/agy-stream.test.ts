@@ -79,3 +79,59 @@ test("basura en el stream no tira nada", () => {
   const t = new Traductor({ sid: "s", modelo: "m" });
   for (const x of [null, 3, "x", {}, { event: "otro" }, { event: "step_update" }, { event: "step_update", step_update: { step_type: "raro" } }]) assert.deepEqual(t.linea(x as any), []);
 });
+
+test("/compact de verdad (fixtures/agy-compact.jsonl): compacting al empezar y compact_boundary al llegar el checkpoint, sin texto", () => {
+  const compacto = readFileSync(new URL("./fixtures/agy-compact.jsonl", import.meta.url), "utf8").trim().split("\n").map((l) => JSON.parse(l));
+  const t = new Traductor({ sid: "sid-1", modelo: "gemini-3.8-flash-low", compactar: true, contextoPrevio: 41000 });
+  const lineas = [...t.inicio(), ...compacto.flatMap((e) => t.linea(e))] as any[];
+  const sis = lineas.filter((l) => l.type === "system");
+  assert.deepEqual(sis.map((l) => l.subtype), ["status", "compact_boundary"]);
+  assert.equal(sis[0].status, "compacting");
+  assert.deepEqual(sis[1].compact_metadata, { trigger: "manual", pre_tokens: 41000 });
+  assert.ok(lineas.every((l) => l.type === "system" || l.type === "result"), "ni texto ni herramientas");
+  assert.equal(lineas.at(-1).type, "result");
+  assert.equal(t.compactado, true);
+});
+
+test("un checkpoint sin que se pidiera /compact es una compactación sola: trigger auto, con el peso del último contexto; una sola vez", () => {
+  const t = new Traductor({ sid: "s", modelo: "gemini-4-argon-high" });
+  assert.deepEqual(t.inicio(), []);
+  t.linea({ event: "step_update", step_update: { step_index: 1, state: "DONE", step_type: "agent_response", usage: { input_tokens: 900000, output_tokens: 5 } } });
+  const paso = { event: "step_update", step_update: { step_index: 2, state: "DONE", step_type: "checkpoint" } };
+  const l = t.linea(paso) as any[];
+  assert.equal(l.length, 1);
+  assert.deepEqual(l[0].compact_metadata, { trigger: "auto", pre_tokens: 900000 });
+  assert.deepEqual(t.linea(paso), []);
+});
+
+// El razonamiento no viaja en el stream de agy (sólo `thinking_tokens`): lo lee el puente de su transcript y se lo da al traductor.
+test("el razonamiento de un paso sale una vez, como thinking de Claude, antes de sus herramientas", () => {
+  const preguntas: Array<[string, number, boolean]> = [];
+  const t = new Traductor({
+    sid: "sid-1",
+    modelo: "gemini-3.8-flash-low",
+    pensamiento: (c, i, esperado) => {
+      preguntas.push([c, i, esperado]);
+      return i === 1 ? "  Miro el directorio primero.  " : null;
+    },
+  });
+  const cierre = (extra: object = {}) => ({ event: "step_update", step_update: { conversation_id: "c1", step_index: 1, step_type: "agent_response", state: "DONE", usage: { thinking_tokens: 30 }, ...extra } });
+  const lineas = [cierre(), cierre()].flatMap((e) => t.linea(e)) as any[];
+  const pensados = lineas.filter((l) => l.type === "assistant" && l.message.content[0].type === "thinking");
+  assert.equal(pensados.length, 1, "una vez por paso");
+  assert.equal(pensados[0].message.content[0].thinking, "Miro el directorio primero.");
+  const delta = lineas.find((l) => l.type === "stream_event" && l.event.delta?.type === "thinking_delta");
+  assert.equal(delta.event.delta.thinking, "Miro el directorio primero.");
+  assert.deepEqual(preguntas, [["c1", 1, true]], "se pregunta una sola vez y avisa que hubo tokens de razonamiento");
+});
+
+test("un paso con texto lleva el razonamiento en el mismo mensaje entero; sin razonamiento todo queda como antes", () => {
+  const t = new Traductor({ sid: "sid-1", modelo: "gemini-3.8-flash-low", pensamiento: (_c, i) => (i === 2 ? "Contesto directo." : null) });
+  const paso = (i: number, texto: string) => [
+    { event: "step_update", step_update: { conversation_id: "c1", step_index: i, step_type: "agent_response", state: "ACTIVE", text_delta: texto } },
+    { event: "step_update", step_update: { conversation_id: "c1", step_index: i, step_type: "agent_response", state: "DONE", text_delta: "", usage: {} } },
+  ];
+  const lineas = [...paso(2, "Hola"), ...paso(3, "Chau")].flatMap((e) => t.linea(e)) as any[];
+  const enteros = lineas.filter((l) => l.type === "assistant").map((l) => l.message.content.map((c: any) => c.type));
+  assert.deepEqual(enteros, [["thinking", "text"], ["text"]]);
+});

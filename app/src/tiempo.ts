@@ -120,7 +120,7 @@ export const pintorResta =
     return { texto: t("tiempo.en", { t: f.texto }), en: f.en };
   };
 
-/** La hora local exacta, para el tooltip: "se reinicia a las 16:50"; otro día, "se reinicia el jueves a las 09:00". */
+/** La hora local exacta, para el tooltip: "se reinicia hoy 16:50", "se reinicia mañana 09:00", "se reinicia el jueves 18:00". */
 export const pintorCuando =
   (hasta: number): Pintor =>
   (a) => {
@@ -129,7 +129,10 @@ export const pintorCuando =
     const f = new Date(hasta * 1000);
     const hora = `${dos(f.getHours())}:${dos(f.getMinutes())}`;
     const medianoche = new Date(a * 1000).setHours(24, 0, 0, 0) / 1000;
-    if (hasta < medianoche) return { texto: t("tiempo.reiniciaALas", { hora }), en: r };
+    if (hasta < medianoche) return { texto: t("tiempo.reiniciaHoy", { hora }), en: r };
+    // "Mañana" dura hasta la medianoche, cuando pasa a ser "hoy": ahí se repinta.
+    const pasadoManana = new Date(a * 1000).setHours(48, 0, 0, 0) / 1000;
+    if (hasta < pasadoManana) return { texto: t("tiempo.reiniciaManana", { hora }), en: Math.min(r, medianoche - a) };
     return { texto: t("tiempo.reiniciaElDia", { dia: diaSemana(f, true), hora }), en: Math.min(r, medianoche - a) };
   };
 

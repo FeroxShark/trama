@@ -45,7 +45,7 @@ test("un local roto se descarta solo: sin prefijo ollama:, url rara, espacios o 
 
 test("clases de modelo y el id que se le pasa a agy", () => {
   assert.equal(claseDeModelo("claude-opus-5-5"), "claude");
-  assert.equal(claseDeModelo("qwen-local"), "claude");
+  assert.equal(claseDeModelo("modelo-local-ejemplo"), "claude");
   assert.equal(claseDeModelo("gemini-3.8-flash"), "gemini");
   assert.equal(claseDeModelo("gemini-4-argon-low"), "gemini");
   assert.equal(claseDeModelo("ollama:llama3"), "ollama");
@@ -80,5 +80,5 @@ test("al renderer sólo llegan ids y nombres: ninguna url; Gemini se habilita co
   assert.equal(vistaModelos(leerConfig('{"version":1}'))!.gemini, false);
   assert.equal(vistaModelos(leerConfig('{"version":1,"lider":{"modelo":"gemini-3.8-flash-low"}}'))!.gemini, true, "el líder por defecto es de Gemini");
   assert.equal(vistaModelos(null), null, "sin archivo y sin agy, nada cambia");
-  assert.deepEqual(vistaModelos(null, true), { version: 1, gemini: true, locales: [], lider: null }, "con agy instalado se habilita sin modelos.json");
+  assert.deepEqual(vistaModelos(null, true), { version: 1, gemini: true, locales: [], llama: [], lider: null }, "con agy instalado se habilita sin modelos.json");
 });

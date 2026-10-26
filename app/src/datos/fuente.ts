@@ -1,21 +1,24 @@
 // De dónde saca los datos la app: de `pa` por el main (`window.hilos`) o, en
 // bench y capturas (o con HILOS_FIXTURES=1), de los fixtures. La UI no se entera.
 import type { Compactando } from "../../electron/compactando";
+import type { Subagente, Subagentes } from "../../electron/subagentes";
 import type { Imagen } from "../../electron/imagenes";
 import type { EstadoLocales, ResultadoProbar } from "../../electron/locales";
 import type { EstadoVram, ResultadoLiberar } from "../../electron/vram";
+import { MODELO_LARGE_V3, MODELO_TURBO, type ModelosDictado } from "../../electron/dictado-modelos";
 import { main, mensaje, type Lectura } from "../puente";
 import { aplicarDif, esDif } from "./hilos-dif";
 import { MODO } from "../modo";
 import { t, textoMain } from "../i18n";
 import { comoSettle, GENERAL, type ComandoClaude, type Estilos, type EventoLider, type EventoPa, type Hilo, type Leidos, type Mensaje, type Nombres, type Orden, type RespuestaHilo, type RespuestaHilos, type RespuestaLideres, type Retomado, retomadoDe, type Statusline, type Traido, traidoDe, type Tokens, type Uso } from "./contrato";
 import { hiloDePa } from "./paHilo";
+import { listaValida, resultadoValido, type ListaCuentas, type PerfilCuenta, type ProveedorCuenta, type ResultadoCuenta } from "./cuentas";
 import { ordenDe } from "../barra/orden";
 import { consumoDe, consumoFijo, type Consumo, type Pedido } from "./consumo";
 import { cambioDe, vistaDe, type CambioPasos, type VistaPasos } from "./pasos";
 import { pasosFijos } from "./pasos-fixture";
 import { crearCola, type AvisoCola, type Encolado } from "../../electron/cola";
-import { ARRANCANDO, EN_COLA, HILOS_DELL, LIDER_DELL, PENSANDO_FIJO, charlaFormato, charlaLarga, charlaListas, charlaLider, charlaPensando, charlaSistema, charlaTabla, conversacion, conversacionSistema, HILOS, HILOS_EN_COLA, HILOS_TERMINADOS, ICONOS, LIDERES, LIDER_MUERTO, LIDER_TERMINADOS, FRENADO, TITULOS, USO, USO_GOOGLE, USO_SIN_HORA, imagenFija, localesFalsos, vramFalsa, vramLiberarFalso } from "./fixtures";
+import { ARRANCANDO, EN_COLA, HILOS_DELL, LIDER_DELL, PENSANDO_FIJO, charlaFormato, charlaLarga, charlaListas, charlaLider, charlaPensando, charlaSistema, charlaTabla, conversacion, conversacionSistema, HILOS, HILOS_EN_COLA, HILOS_TERMINADOS, ICONOS, LIDERES, LIDER_MUERTO, LIDER_TERMINADOS, FRENADO, TITULOS, USO, USO_CUENTAS, USO_GOOGLE, USO_SIN_HORA, imagenFija, localesFalsos, vramFalsa, vramLiberarFalso } from "./fixtures";
 
 export interface Fuente {
   /** La última lista buena de una corrida anterior, para pintar algo mientras `pa` contesta. */
@@ -79,6 +82,10 @@ export interface Fuente {
   guardarVista(vista: "todo" | "lideres"): void;
   /** El panel de consumo (a la derecha), a la vista u oculto: se recuerda en el mismo archivo. */
   guardarConsumo(si: boolean): void;
+  /** ¿Hay que abrir la bienvenida sola? (nunca se vio; una prueba dice que no). */
+  bienvenidaPendiente(): Promise<boolean>;
+  /** Marca la bienvenida como vista. */
+  guardarBienvenida(si: boolean): void;
   /** Empieza a mirar el consumo de esos líderes y workers (o cambia cuáles) y contesta cómo está. */
   consumoMirar(pedido: Pedido): Promise<Consumo>;
   /** El panel se ocultó: el main deja de mirar los transcripts. */
@@ -101,6 +108,10 @@ export interface Fuente {
   liderParar(sid: string): Promise<void>;
   /** Dictar: el WAV 16 kHz mono de lo grabado (src/hilo/dictado.ts) → el texto que dijo; no se manda solo. */
   dictar(datos: Uint8Array): Promise<string>;
+  /** Con qué modelo de Handy se dicta (Ajustes): los que hay en la máquina del motor y el que rige. */
+  dictadoModelos(): Promise<ModelosDictado>;
+  /** Elige el modelo del dictado (preferencias.json); devuelve cómo quedó. */
+  elegirDictadoModelo(id: string): Promise<ModelosDictado>;
   /** Los modelos locales: el contexto de cada uno y cuánto entra en la VRAM (estimado). */
   locales(): Promise<EstadoLocales>;
   /** Guarda el `-c` de un modelo local (rige en su próxima carga; no carga nada). */
@@ -171,6 +182,10 @@ export interface Fuente {
   /** Quién está compactando su contexto ahora (electron/compactando.ts): id de un run o de un líder → epoch (s) desde cuándo. */
   compactando(): Promise<Compactando>;
   alCambiarCompactando(fn: (c: Compactando) => void): () => void;
+  /** Los subagentes que lanzó cada sesión con proceso (electron/subagentes.ts): sesión → lista, y el informe entero de uno terminado. */
+  subagentes(): Promise<Subagentes>;
+  alCambiarSubagentes(fn: (s: Subagentes) => void): () => void;
+  subagenteInforme(sid: string, id: string): Promise<string | null>;
   /** Cerrar del todo (Ctrl+Q, la bandeja) con lo elegido en el diálogo: sale, o devuelve cuántos líderes están respondiendo (para confirmar). */
   salir(x: { modo: "seguir" | "parar"; forzar: boolean }): Promise<number>;
   /** La bandeja del sistema pide Cerrar del todo: la vista abre su diálogo. Sin bandeja (navegador, fixtures) no llega nada. */
@@ -210,6 +225,17 @@ export interface Fuente {
   faltasSetup(): Promise<FaltaSetup[]>;
   /** No avisar más de esa falta. */
   descartarSetup(id: FaltaSetup["id"]): void;
+  /** Si Claude y Gemini (agy) están conectados, según el motor (electron/cuentas.ts); `null`: no se pudo preguntar. */
+  cuentas(): Promise<EstadoCuentas | null>;
+  /** Las cuentas por proveedor que dice el CLI `cuentas` del motor; `null`: no está instalado (todo se ve con una cuenta por proveedor). `verificar` le pregunta el login a cada una (lento). */
+  listaCuentas(verificar: boolean): Promise<ListaCuentas | null>;
+  /** Crea la cuenta (sin login) y devuelve su id. Un fallo vuelve como `{ ok: false, error }` (clave `main.*` o texto del CLI). */
+  agregarCuenta(proveedor: ProveedorCuenta, nombre: string): Promise<ResultadoCuenta>;
+  renombrarCuenta(id: string, nombre: string): Promise<ResultadoCuenta>;
+  /** Saca la cuenta; con `borrarCredenciales`, también su carpeta de sesión. */
+  quitarCuenta(id: string, borrarCredenciales: boolean): Promise<ResultadoCuenta>;
+  /** El inicio de sesión de esa cuenta en una terminal de la PC; vuelve cuando la persona termina. */
+  loginCuenta(id: string): Promise<ResultadoCuenta>;
   /** Relanzar con la versión nueva los líderes que no están respondiendo. */
   reiniciarLideres(): Promise<{ reiniciados: number; ocupados: number }>;
 }
@@ -220,6 +246,19 @@ export type Actualizado = { ok: true; version: string; abiertos: number } | { ok
 export type Umbrales = { autoCompact: number | null };
 
 export type AvisoClaude = { instalada: string; ultima: string };
+
+/** Una cuenta de un CLI: `cuenta` es con quién está conectada; `error`, por qué no se pudo saber. */
+export type CuentaEstado = { instalado: boolean; logueado: boolean; cuenta: string | null; error: string | null };
+export type EstadoCuentas = { claude: CuentaEstado; agy: CuentaEstado; codex?: CuentaEstado };
+const cuentaValida = (x: unknown): CuentaEstado => {
+  const o = (x ?? {}) as Partial<CuentaEstado>;
+  return { instalado: o.instalado === true, logueado: o.logueado === true, cuenta: typeof o.cuenta === "string" && o.cuenta ? o.cuenta : null, error: typeof o.error === "string" && o.error ? o.error : null };
+};
+/** Sólo la forma esperada; cualquier otra cosa es «no se pudo preguntar». */
+export const cuentasValidas = (x: unknown): EstadoCuentas | null => {
+  const o = x as { version?: unknown; claude?: unknown; agy?: unknown; codex?: unknown } | null;
+  return o && o.version === 1 && o.claude && o.agy ? { claude: cuentaValida(o.claude), agy: cuentaValida(o.agy), ...(o.codex ? { codex: cuentaValida(o.codex) } : {}) } : null;
+};
 
 /** Lo que falta del setup de esta máquina (electron/setup.ts) y el enlace para conseguirlo. */
 export type FaltaSetup = { id: "handy" | "agy" | "ollama" | "login"; url: string };
@@ -375,6 +414,25 @@ const oyentesLideres = new Set<(r: RespuestaLideres) => void>();
 
 // Con fixtures no compacta nadie, salvo lo que fuerza la captura `compactando` (o el guion).
 let compactandoFijo: Compactando = {};
+
+/** El modelo del dictado de los fixtures: Turbo bajado y elegido, Large v3 sin bajar y otro que Handy ya tiene. */
+let dictadoFijo: ModelosDictado = {
+  version: 1,
+  elegido: MODELO_TURBO,
+  motor: "handy",
+  modelos: [
+    { id: MODELO_TURBO, nombre: "Whisper Large v3 Turbo", bajado: true },
+    { id: MODELO_LARGE_V3, nombre: "Whisper Large v3", bajado: false },
+    { id: "parakeet-tdt-0.6b-v3", nombre: "Parakeet V3", bajado: true },
+  ],
+};
+
+/** Lo que dijo el main de los modelos del dictado, validado: versión que no se conoce → error. */
+function comoModelosDictado(x: unknown): ModelosDictado {
+  const r = x as ModelosDictado | null;
+  if (!r || r.version !== 1 || !Array.isArray(r.modelos) || typeof r.elegido !== "string") throw new Error(t("error.version", { que: "dictado", v: String((r as { version?: unknown } | null)?.version), conozco: 1 }));
+  return r;
+}
 const oyentesCompactando = new Set<(c: Compactando) => void>();
 /** `id` (un run o un líder) empieza o deja de compactar. Sólo con fixtures. */
 export function compactarFijo(id: string, si: boolean) {
@@ -385,6 +443,47 @@ export function compactarFijo(id: string, si: boolean) {
 /** Lo que manda el main, mirado: sólo los ids con su hora. */
 const compactandoDe = (x: unknown): Compactando =>
   x && typeof x === "object" ? Object.fromEntries(Object.entries(x).filter((e): e is [string, number] => typeof e[1] === "number")) : {};
+/** Lo que manda el main, mirado: sesión → subagentes con los campos de lo que se pinta. */
+const subagentesDe = (x: unknown): Subagentes => {
+  if (!x || typeof x !== "object") return {};
+  const r: Subagentes = {};
+  for (const [sid, lista] of Object.entries(x)) {
+    if (!Array.isArray(lista)) continue;
+    const ok = lista.filter(
+      (u): u is Subagente =>
+        !!u && typeof u === "object" && typeof u.id === "string" && typeof u.descripcion === "string" && typeof u.inicio === "number" && ["corriendo", "terminado", "error"].includes(u.estado),
+    );
+    if (ok.length) r[sid] = ok;
+  }
+  return r;
+};
+// La captura `subagentes`: un líder con dos subagentes corriendo, uno que terminó (con informe más largo) y uno que falló.
+const subagentesFijos = (): Subagentes => {
+  if (MODO.captura !== "subagentes") return {};
+  const ahora = Math.floor(Date.now() / 1000);
+  const base = { sid: "s-fix-a3", tipo: "general-purpose" };
+  return {
+    "s-fix-a3": [
+      { ...base, id: "a0c1d2e3f4a5b6c7", descripcion: "Buscar dónde se arma el índice de cauce", modelo: "Haiku 5.5", estado: "corriendo", inicio: ahora - 42, ultimo_en: ahora - 3, ultimo: "Grep: indice_cauce en src/", tokens: 18400, resultado: null, hay_mas: false },
+      { ...base, id: "b1d2e3f4a5b6c7d8", descripcion: "Revisar los tests del módulo de cauce", modelo: "Sonnet 5.5", estado: "corriendo", inicio: ahora - 128, ultimo_en: ahora - 9, ultimo: "Bash: npm test -- cauce", tokens: 61200, resultado: null, hay_mas: false },
+      {
+        ...base,
+        id: "c2e3f4a5b6c7d8e9",
+        descripcion: "Listar los canales IPC que quedan sin prueba",
+        modelo: "Haiku 5.5",
+        estado: "terminado",
+        inicio: ahora - 400,
+        ultimo_en: ahora - 310,
+        ultimo: "Quedan 4 canales sin prueba.",
+        tokens: 9300,
+        resultado: "Quedan 4 canales sin prueba:\n- pasos:mirar\n- pasos:soltar\n- subagentes:leer\n- subagentes:informe",
+        hay_mas: true,
+      },
+      { ...base, id: "d3f4a5b6c7d8e9f0", descripcion: "Medir el arranque en frío", modelo: "Haiku 5.5", estado: "error", inicio: ahora - 900, ultimo_en: ahora - 880, ultimo: "API Error: 529 overloaded", tokens: 2100, resultado: null, hay_mas: false },
+    ],
+  };
+};
+const oyentesSubagentes = new Set<(s: Subagentes) => void>();
 const retomados = new Map<string, string>();
 // La captura `lider-terminal`: al escribirle, el de la terminal pasa a ser de la app.
 const traidos = new Set<string>();
@@ -398,7 +497,12 @@ const conEspera = (r: RespuestaLideres): RespuestaLideres =>
           l.id === "s-fix-a3" ? { ...l, espera: { motivo: "listo" as const, desde: 1 } } : l.id === "s-fix-c7" ? { ...l, espera: { motivo: "pide" as const, desde: 2 }, pide: true } : l,
         ),
       };
-const lideresFijos = (): RespuestaLideres => conEspera(lideresBase());
+const lideresFijos = (): RespuestaLideres => conEspera(MODO.captura === "lider-gemini" ? conGemini(lideresBase()) : lideresBase());
+/** Captura `lider-gemini`: el líder de la app que se abre corre con Gemini (su razonamiento y sus comandos se ven, no la frase tierna). */
+const conGemini = (r: RespuestaLideres): RespuestaLideres => {
+  const id = r.lideres.find((l) => l.origen === "app" && l.vivo)?.id ?? r.lideres[0]?.id;
+  return { ...r, lideres: r.lideres.map((l) => (l.id === id ? { ...l, modelo: "gemini-3.8-flash", effort: "low" } : l)) };
+};
 const lideresBase = (): RespuestaLideres =>
   filasDelDell()
     ? { ...LIDERES, lideres: [...LIDERES.lideres, LIDER_DELL] }
@@ -550,6 +654,51 @@ function responderFijo(sid: string, texto: string, modelo: string, imagenes?: Im
 const effortsFijos: Record<string, string> = {};
 
 /**
+ * Las cuentas con fixtures: sin variante, el `cuentas` instalado con una cuenta por proveedor; `cuentas-sin` = sin el comando
+ * (la lista es `null`); `cupos-cuentas` = Claude con la de siempre y «Trabajo». Se puede agregar, renombrar, quitar y conectar
+ * (el login tarda un instante y deja la cuenta conectada), todo en memoria.
+ */
+function cuentasFijas() {
+  const nueva = (id: string, proveedor: ProveedorCuenta, nombre: string, logueado: boolean | null, defecto = false): PerfilCuenta => ({ id, proveedor, nombre, defecto, logueado });
+  let lista: PerfilCuenta[] = [
+    nueva("claude", "claude", "Claude", true, true),
+    nueva("google", "google", "Google AI Pro", (MODO.variante ?? "").startsWith("cupos"), true),
+    ...(MODO.variante === "cupos-cuentas" ? [nueva("trabajo", "claude", "Trabajo", true)] : []),
+  ];
+  const pausa = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+  const ok: ResultadoCuenta = { ok: true };
+  const falta = (): ResultadoCuenta => ({ ok: false, error: "main.cuentasDato" });
+  return {
+    async listaCuentas(): Promise<ListaCuentas | null> {
+      return MODO.variante === "cuentas-sin" ? null : { version: 1, cuentas: lista.map((c) => ({ ...c })) };
+    },
+    async agregarCuenta(proveedor: ProveedorCuenta, nombre: string): Promise<ResultadoCuenta> {
+      const base = nombre.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "cuenta";
+      let id = base;
+      for (let n = 2; lista.some((c) => c.id === id); n++) id = `${base}-${n}`;
+      lista = [...lista, nueva(id, proveedor, nombre, false)];
+      return { ok: true, id };
+    },
+    async renombrarCuenta(id: string, nombre: string): Promise<ResultadoCuenta> {
+      if (!lista.some((c) => c.id === id)) return falta();
+      lista = lista.map((c) => (c.id === id ? { ...c, nombre } : c));
+      return ok;
+    },
+    async quitarCuenta(id: string): Promise<ResultadoCuenta> {
+      if (!lista.some((c) => c.id === id && !c.defecto)) return falta();
+      lista = lista.filter((c) => c.id !== id);
+      return ok;
+    },
+    async loginCuenta(id: string): Promise<ResultadoCuenta> {
+      await pausa(MODO.variante === "cuentas-login-lento" ? 60_000 : 700);
+      if (!lista.some((c) => c.id === id)) return falta();
+      lista = lista.map((c) => (c.id === id ? { ...c, logueado: true } : c));
+      return ok;
+    },
+  };
+}
+
+/**
  * El `usage` del líder con fixtures: lo que pesa su conversación contra el
  * umbral de 200 mil. Las capturas del anillo (docs/estado/B16/) lo fuerzan a
  * 30, 75 y 95 %.
@@ -563,6 +712,7 @@ const usoFixture = (): Uso => {
   if (MODO.captura === "uso-sin-hora") return USO_SIN_HORA;
   if (MODO.captura === "uso-sin-dato" || MODO.variante === "sin-uso") return { version: 1, ts: 0, five_hour: null, seven_day: null };
   if (MODO.variante === "cupos-google") return USO_GOOGLE;
+  if (MODO.variante === "cupos-cuentas") return USO_CUENTAS;
   return USO;
 };
 
@@ -577,13 +727,27 @@ function usoFijo(sid: string): Tokens {
  * que terminó mal (compactó, cerca del límite semanal, tope de 5 h y el
  * proceso que sale con código 1). Sólo con fixtures.
  */
-export function escenaFija(sid: string, escena: "trabajando" | "avisos" | "plan" | "permiso" | "preguntas" | "preguntas-dos" | "compactando" | "relevo" | "relevado" | "pensando") {
+export function escenaFija(sid: string, escena: "trabajando" | "avisos" | "plan" | "permiso" | "preguntas" | "preguntas-dos" | "compactando" | "relevo" | "relevado" | "pensando" | "gemini") {
   const ev = (e: EventoLider) => emitir(sid, e);
   const ahora = Math.floor(Date.now() / 1000);
   ev({ tipo: "estado", ocupado: true, vivo: true });
   if (escena === "compactando") {
     // B19: compacta y no termina nunca (la captura lo agarra a mitad).
     ev({ tipo: "hace", hace: { que: "compactando", nombre: null, detalle: null } });
+    return;
+  }
+  if (escena === "gemini") {
+    // Gemini a mitad de un turno: su razonamiento paso a paso y tres comandos (uno ok, uno con error, uno corriendo).
+    const m = "gemini-3.8-flash";
+    const paso = (mid: string, pensado: string, texto: string, nombre: string, entrada: Record<string, unknown>, id: string, resumen: string) =>
+      ev({ tipo: "mensaje", mid, texto, herramientas: [`${nombre}: ${resumen}`], modelo: m, pensado, det: [{ nombre, entrada, id }] });
+    paso("g1", "**Revisando el índice**\nPrimero miro qué pasa al correr los tests de cauce.", "", "Bash", { command: "npm test -- cauce", description: "Tests de cauce" }, "tg1", "npm test -- cauce");
+    ev({ tipo: "resultado", id: "tg1", texto: "12 passing, 1 failing\n  1) índice · rechaza cauces vacíos", error: true });
+    paso("g2", "**Buscando el índice**\nFalla el índice de cauce: busco dónde se arma antes de tocar nada.", "", "Bash", { command: "grep -rn \"armarIndice\" src/", description: "Dónde se arma el índice" }, "tg2", 'grep -rn "armarIndice" src/');
+    ev({ tipo: "resultado", id: "tg2", texto: "src/cauce/indice.ts:41:export function armarIndice(cauces: Cauce[]) {", error: false });
+    paso("g3", "**Leyendo el código**\nLa función no filtra los cauces vacíos: leo el archivo entero para ver el contexto antes de editar.", "", "Read", { file_path: "src/cauce/indice.ts" }, "tg3", "src/cauce/indice.ts");
+    ev({ tipo: "hace", hace: { que: "herramienta", nombre: "Read", detalle: "src/cauce/indice.ts" } });
+    ev({ tipo: "pensamiento", texto: "**Planeando el arreglo**\nDespués de leerlo, filtro los vacíos al armar el índice y agrego el caso a los tests." });
     return;
   }
   if (escena === "pensando") {
@@ -720,9 +884,25 @@ const COMANDOS_FIJOS: ComandoClaude[] = [
   { nombre: "cost", descripcion: "Show the total cost and duration of the current session", args: null },
   { nombre: "pr-comments", descripcion: "Get comments from a GitHub pull request", args: null },
   { nombre: "security-review", descripcion: "Complete a security review of the pending changes on the current branch", args: null },
+  { nombre: "design", descripcion: "Open Claude Design access and settings", args: null },
+  // Los de `agy` (con `agy: true`): una skill compartida con Claude (sin marca) y una sólo de Google.
+  { nombre: "security-review", descripcion: "Complete a security review of the pending changes on the current branch", args: null, agy: true },
+  { nombre: "review", descripcion: "Review a pull request", args: null, agy: true },
+  { nombre: "brainstorm", descripcion: "Explore options with Gemini before deciding", args: null, agy: true },
 ];
 
 const fija: Fuente = {
+  async subagentes() {
+    return subagentesFijos();
+  },
+  alCambiarSubagentes(fn) {
+    oyentesSubagentes.add(fn);
+    return () => void oyentesSubagentes.delete(fn);
+  },
+  async subagenteInforme(sid, id) {
+    const u = subagentesFijos()[sid]?.find((x) => x.id === id);
+    return u?.resultado ? `${u.resultado}\n\nEl informe entero sigue acá: cada canal con el archivo donde se registra y el test que le falta.` : null;
+  },
   async compactando() {
     return compactandoFijo;
   },
@@ -791,6 +971,16 @@ const fija: Fuente = {
     return MODO.captura === "setup" || MODO.captura === "setup-abierto" ? SETUP_FIJO : [];
   },
   descartarSetup() {},
+  // Con fixtures: Claude conectado, Gemini sin conectar (la captura `cuentas` de Ajustes).
+  async cuentas() {
+    return {
+      claude: { instalado: true, logueado: true, cuenta: "ana@ejemplo.org", error: null },
+      agy: MODO.variante === "cuentas-error" ? { instalado: true, logueado: false, cuenta: null, error: "sin conexión con el servicio de Google" } : { instalado: true, logueado: (MODO.variante ?? "").startsWith("cupos"), cuenta: null, error: null },
+      // Codex sin instalar: la tarjeta ChatGPT de Plan y cupos explica cómo conectarlo.
+      codex: { instalado: false, logueado: false, cuenta: null, error: null },
+    };
+  },
+  ...cuentasFijas(),
   alCambiarAvisoAgy: () => () => {},
   descartarAvisoAgy() {},
   async actualizarAgy() {
@@ -907,6 +1097,10 @@ const fija: Fuente = {
   guardarAvisarEspera() {},
   guardarVista() {},
   guardarConsumo() {},
+  async bienvenidaPendiente() {
+    return false;
+  },
+  guardarBienvenida() {},
   async consumoMirar(pedido) {
     return consumoFijo(pedido);
   },
@@ -941,6 +1135,13 @@ const fija: Fuente = {
   async liderParar() {},
   async dictar() {
     return "texto dictado de muestra";
+  },
+  async dictadoModelos() {
+    return dictadoFijo;
+  },
+  async elegirDictadoModelo(id) {
+    dictadoFijo = { ...dictadoFijo, elegido: id };
+    return dictadoFijo;
   },
   async locales() {
     return localesFalsos();
@@ -1131,6 +1332,15 @@ let statusline: Promise<Statusline> | null = null;
 const leerStatusline = () => (statusline ??= main!.statusline.leer());
 
 const conPa = (m: NonNullable<typeof main>): Fuente => ({
+  async subagentes() {
+    return subagentesDe(await m.subagentes.leer().catch(() => null));
+  },
+  alCambiarSubagentes(fn) {
+    return m.subagentes.alCambiar((s) => fn(subagentesDe(s)));
+  },
+  subagenteInforme(sid, id) {
+    return m.subagentes.informe(sid, id).catch(() => null);
+  },
   async compactando() {
     return compactandoDe(await m.compactando.leer().catch(() => null));
   },
@@ -1199,6 +1409,24 @@ const conPa = (m: NonNullable<typeof main>): Fuente => ({
   },
   descartarSetup(id) {
     void m.setup.descartar(id).catch(() => {});
+  },
+  async cuentas() {
+    return cuentasValidas(await m.cuentas.estado().catch(() => null));
+  },
+  async listaCuentas(verificar) {
+    return listaValida(await m.cuentas.lista(verificar).catch(() => null));
+  },
+  async agregarCuenta(proveedor, nombre) {
+    return resultadoValido(await m.cuentas.agregar(proveedor, nombre).catch(() => null));
+  },
+  async renombrarCuenta(id, nombre) {
+    return resultadoValido(await m.cuentas.renombrar(id, nombre).catch(() => null));
+  },
+  async quitarCuenta(id, borrar) {
+    return resultadoValido(await m.cuentas.quitar(id, borrar).catch(() => null));
+  },
+  async loginCuenta(id) {
+    return resultadoValido(await m.cuentas.login(id).catch(() => null));
   },
   alCambiarAvisoAgy(fn) {
     return m.agy.alCambiar((a) => fn(avisoValido(a)));
@@ -1377,6 +1605,12 @@ const conPa = (m: NonNullable<typeof main>): Fuente => ({
   guardarConsumo(si) {
     void m.preferencias.consumo(si).catch(() => {});
   },
+  bienvenidaPendiente() {
+    return m.preferencias.bienvenidaPendiente().catch(() => false);
+  },
+  guardarBienvenida(si) {
+    void m.preferencias.bienvenida(si).catch(() => {});
+  },
   async consumoMirar(pedido) {
     return consumoDe(await m.consumo.mirar(pedido));
   },
@@ -1443,6 +1677,16 @@ const conPa = (m: NonNullable<typeof main>): Fuente => ({
   },
   dictar(datos) {
     return m.dictado.transcribir({ datos }).catch((e) => {
+      throw new Error(mensaje(e));
+    });
+  },
+  dictadoModelos() {
+    return m.dictado.modelos().then(comoModelosDictado, (e) => {
+      throw new Error(mensaje(e));
+    });
+  },
+  elegirDictadoModelo(id) {
+    return m.dictado.elegirModelo(id).then(comoModelosDictado, (e) => {
       throw new Error(mensaje(e));
     });
   },

@@ -35,7 +35,7 @@ import {
   settleWorker,
   type Arbol,
 } from "../src/barra/arbol.ts";
-import { comoSettle } from "../src/datos/contrato.ts";
+import { comoSettle, SHARK } from "../src/datos/contrato.ts";
 import { argvIntegrar, argvSettle, comoSettle as comoSettleMain } from "../electron/settle.ts";
 import type { Estado, Hilo, Lider } from "../src/datos/contrato.ts";
 
@@ -123,6 +123,27 @@ test("dos líderes en el mismo proyecto: dos ramas, el que se creó primero arri
 });
 
 /** La barra como una lista: cada carpeta con sus líderes (los de la vista y los plegados en espera), en orden. */
+test("Shark: su sesión jefe y sus workers van a la carpeta Shark, no a la de asistente-voz", () => {
+  const w = hilo({ proyecto: "asistente-voz", estado: "trabajando", jefe: "shark-6f", jefe_id: "s" });
+  const propio = hilo({ proyecto: "asistente-voz", estado: "trabajando", ...deL("f") });
+  // Marcado por el main (cwd /srv/shark) y, sin la marca, por el nombre "shark-…".
+  for (const shark of [{ ...lider("s"), nombre: "otro nombre", shark: true }, { ...lider("s"), nombre: "shark-6f" }]) {
+    const a = armarArbol([w, propio], { lideres: [shark, lider("f")], ahora: AHORA });
+    assert.equal(a.lideres.get("s")!.proyecto, SHARK);
+    assert.equal(a.lideres.get("f")!.proyecto, "asistente-voz");
+    const sh = a.carpetas.find((c) => c.proyecto === SHARK)!;
+    assert.deepEqual(sh.ramas.map((r) => r.clave), ["lider:s"]);
+    assert.deepEqual(ids(sh.ramas[0].vivas), [w.id]);
+    const av = a.carpetas.find((c) => c.proyecto === "asistente-voz")!;
+    assert.deepEqual(av.ramas.map((r) => r.clave), ["lider:f"]);
+    assert.ok(!av.ramas.some((r) => r.vivas.some((x) => x.h.id === w.id)));
+    assert.equal(nombreCarpeta(SHARK, "ana", "/home/ana"), "Shark");
+  }
+  // Moverlo a mano sigue mandando.
+  const a = armarArbol([w], { lideres: [{ ...lider("s"), shark: true }], mover: new Map([["s", "atlas"]]), ahora: AHORA });
+  assert.equal(a.lideres.get("s")!.proyecto, "atlas");
+});
+
 const lugares = (a: Arbol) => a.carpetas.map((c) => [c.proyecto, ...[...c.ramas, ...c.espera].filter((r) => r.tipo === "lider").map((r) => r.lider!.id)].join(" "));
 
 test("orden fijo: la actividad de un líder (mensaje nuevo, responder, un worker que arranca o termina) no mueve a nadie", () => {

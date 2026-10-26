@@ -3,7 +3,7 @@
 // binario.ts: lo prueba tests/modo-local.test.ts.
 import { accessSync, constants } from "node:fs";
 import os from "node:os";
-import { resolverBinario } from "./binario.ts";
+import { resolverAgy, resolverBinario } from "./binario.ts";
 
 type Env = Record<string, string | undefined>;
 
@@ -42,7 +42,7 @@ export function capacidades(env: Env = process.env, home = os.homedir(), existe:
 export function hayAgy(env: Env = process.env, home = os.homedir(), existe: (f: string) => boolean = ejecutable): boolean {
   if (env.HILOS_AGY !== undefined) return !!env.HILOS_AGY && existe(env.HILOS_AGY);
   if (env.HILOS_CAPTURA) return false;
-  return resolverBinario("agy", "HILOS_AGY", env, home, existe) !== "agy";
+  return resolverAgy(env, home, existe) !== "agy";
 }
 
 /**

@@ -106,7 +106,14 @@ function crearAsistente(deps) {
     if (r.code !== 0 && !String(r.stdout).includes("{")) {
       throw new ErrorPaso("instalar", "No pude preguntarle a Trama cómo está.", ultimasLineas(r.stderr || r.stdout));
     }
-    return parsearEstado(r.stdout);
+    const e = parsearEstado(r.stdout);
+    // `trama-estado` mira ~/.gemini/oauth_creds.json y agy guarda su sesión en el llavero: con agy instalado y "sin conectar"
+    // se le pregunta a agy mismo (`agy models` trae modelos sólo con sesión), con ~/.local/bin en el PATH del servicio.
+    if (e.agy.instalado && !e.agy.logueado) {
+      const m = await sh('PATH="$HOME/.local/bin:$PATH" agy models </dev/null 2>/dev/null', { timeoutMs: 30000 }).catch(() => null);
+      if (m && String(m.stdout).split(/\r?\n/).some((l) => /^[a-z0-9][a-z0-9._:]*(?:-[a-z0-9._:]+)+\s+\S/i.test(l.trim()))) e.agy.logueado = true;
+    }
+    return e;
   }
 
   // ---------- wsl ----------
@@ -203,7 +210,7 @@ echo "usuario=$NOMBRE"`;
       );
       const k = claves(r.stdout);
       const hay = k.estado === "si";
-      const al_dia = !payload.version || k.version === payload.version;
+      const al_dia = payload.version ? k.version === payload.version : !version || guardado().instalado?.version === version;
       return { ok: hay && al_dia, actualizacion: hay && !al_dia };
     },
     async hacer(emit) {
@@ -228,7 +235,35 @@ echo "dest=$DEST"`,
       if (apt.code !== 0) throw new ErrorPaso("instalar", "Falló la instalación de paquetes de Ubuntu.", ultimasLineas(apt.stdout + apt.stderr));
 
       emit({ tipo: "linea", texto: "Instalando el motor de Trama…" });
-      const usr = await sh(`bash ${q(script)} --fuente ${q(dest)} </dev/null 2>&1`, { onLinea: alLinea, timeoutMs: 1800000 });
+      const correrMotor = [
+        "cd",
+        "PID_ANTES=\"$(systemctl --user show -p ExecMainPID --value trama-motor 2>/dev/null || echo 0)\"",
+        "[ -e .cache/trama/app-prev ] && rm -r .cache/trama/app-prev",
+        "mkdir -p .cache/trama/app-prev",
+        "[ -d .local/share/trama/app/dist ] && mv .local/share/trama/app/dist .cache/trama/app-prev/dist",
+        "[ -d .local/share/trama/app/dist-electron ] && mv .local/share/trama/app/dist-electron .cache/trama/app-prev/dist-electron",
+        "rc=0",
+        `TRAMA_PAYLOAD_VERSION=${q(payload.version || "")} bash ${q(script)} --fuente ${q(dest)} </dev/null 2>&1 || rc=$?`,
+        "cd",
+        "if [ \"$rc\" -ne 0 ]; then",
+        "  if [ ! -f .local/share/trama/app/dist-electron/motor.js ] && [ -d .cache/trama/app-prev/dist-electron ]; then",
+        "    mkdir -p .local/share/trama/app",
+        "    [ -e .local/share/trama/app/dist ] && rm -r .local/share/trama/app/dist",
+        "    [ -e .local/share/trama/app/dist-electron ] && rm -r .local/share/trama/app/dist-electron",
+        "    [ -d .cache/trama/app-prev/dist ] && mv .cache/trama/app-prev/dist .local/share/trama/app/dist",
+        "    mv .cache/trama/app-prev/dist-electron .local/share/trama/app/dist-electron",
+        "  fi",
+        "  [ -e .cache/trama/app-prev ] && rm -r .cache/trama/app-prev",
+        "  exit \"$rc\"",
+        "fi",
+        "[ -e .cache/trama/app-prev ] && rm -r .cache/trama/app-prev",
+        "PID_DESPUES=\"$(systemctl --user show -p ExecMainPID --value trama-motor 2>/dev/null || echo 0)\"",
+        "if [ -n \"$PID_ANTES\" ] && [ \"$PID_ANTES\" != \"0\" ] && [ \"$PID_ANTES\" = \"$PID_DESPUES\" ]; then",
+        "  echo \"Reiniciando el motor de Trama…\"",
+        "  systemctl --user restart trama-motor </dev/null ;",
+        "fi",
+      ].join("\n");
+      const usr = await sh(correrMotor, { onLinea: alLinea, timeoutMs: 1800000 });
       if (usr.code !== 0) throw new ErrorPaso("instalar", "Falló la instalación del motor de Trama.", ultimasLineas(usr.stdout + usr.stderr));
 
       guardar({ instalado: { version, payload: payload.version || null, fecha: new Date().toISOString() } });

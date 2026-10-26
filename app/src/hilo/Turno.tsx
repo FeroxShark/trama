@@ -62,16 +62,22 @@ type PropsTurno = {
   semilla?: string;
   /** Está razonando ahora (un líder de la app): el bloque dice "Pensando…". */
   pensando?: boolean;
+  /**
+   * Un motor que deja ver su razonamiento (Gemini): sus comandos van abiertos mientras el turno corre y cada uno dice cómo va
+   * (corriendo / ok / error); el razonamiento del turno en curso lo muestra la tarjeta de abajo, no un bloque acá.
+   */
+  razon?: boolean;
 };
 
 /**
  * `turnos()` arma objetos nuevos en cada pasada (con el stream, una por frame):
  * se compara lo que se pinta para que sólo se repinte el turno que cambió.
  */
-const igual = ({ t: a, vivo: va, enCurso: ca, pensando: pa }: PropsTurno, { t: b, vivo: vb, enCurso: cb, pensando: pb }: PropsTurno) =>
+const igual = ({ t: a, vivo: va, enCurso: ca, pensando: pa, razon: ra }: PropsTurno, { t: b, vivo: vb, enCurso: cb, pensando: pb, razon: rb }: PropsTurno) =>
   va === vb &&
   ca === cb &&
   !pa === !pb &&
+  !ra === !rb &&
   a.key === b.key &&
   a.texto === b.texto &&
   a.pensado === b.pensado &&
@@ -121,10 +127,10 @@ function Pensado({ texto, vivo }: { texto: string; vivo: boolean }) {
 }
 
 /** Un turno del worker: el trabajo colapsado ("Trabajó 12 m") y lo que contestó. */
-export const Turno = memo(function Turno({ t: turno, vivo, enCurso = false, semilla, pensando = false }: PropsTurno) {
-  // Captura `herramientas`: el trabajo, abierto.
-  const [abierto, setAbierto] = useState(MODO.captura === "herramientas" || MODO.captura === "herramientas-resultados");
-  const tierno = useTiernos();
+export const Turno = memo(function Turno({ t: turno, vivo, enCurso = false, semilla, pensando = false, razon = false }: PropsTurno) {
+  // Captura `herramientas`: el trabajo, abierto. Un motor que deja ver su razonamiento, también mientras corre: se ven todos sus comandos.
+  const [abierto, setAbierto] = useState(MODO.captura === "herramientas" || MODO.captura === "herramientas-resultados" || (razon && enCurso));
+  const tierno = useTiernos() && !razon;
   const corre = useMemo(
     () => (vivo && turno.desde !== null ? pintorDura(turno.desde, tierno ? "" : () => `${t("estado.trabajando")} `) : null),
     [vivo, turno.desde, tierno],
@@ -150,7 +156,7 @@ export const Turno = memo(function Turno({ t: turno, vivo, enCurso = false, semi
   });
   return (
     <>
-      {turno.pensado ? <Pensado texto={turno.pensado} vivo={pensando} /> : null}
+      {turno.pensado && !(razon && enCurso) ? <Pensado texto={turno.pensado} vivo={pensando} /> : null}
       {hayTrabajo ? (
         <details className="trabajo" open={abierto} onToggle={(e) => setAbierto(e.currentTarget.open)}>
           <summary>
@@ -165,7 +171,7 @@ export const Turno = memo(function Turno({ t: turno, vivo, enCurso = false, semi
                 <li key={i}>
                   {p.texto ? <span className="paso">{p.texto.split("\n")[0].slice(0, 240)}</span> : null}
                   {agrupar(p.usos).map((g, k) => (
-                    <Llamada key={k} g={g} />
+                    <Llamada key={k} g={g} estado={razon ? (enCurso ? "vivo" : "fin") : undefined} />
                   ))}
                 </li>
               ))}

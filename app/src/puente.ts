@@ -68,6 +68,10 @@ type Main = {
     vista(vista: "todo" | "lideres"): Promise<void>;
     /** El panel de consumo, a la vista u oculto. */
     consumo(si: boolean): Promise<void>;
+    /** ¿Abrir la bienvenida sola? Nunca se vio y no es una corrida de prueba. */
+    bienvenidaPendiente(): Promise<boolean>;
+    /** Marca la bienvenida como vista (`true`) o vuelve a dejarla pendiente. */
+    bienvenida(si: boolean): Promise<void>;
   };
   /** El panel de consumo (electron/consumo.ts): lo que contesta va sin validar (`consumoDe`). */
   consumo: {
@@ -93,7 +97,8 @@ type Main = {
   /** slug → data URL del logo de cada proyecto que tiene uno. */
   iconos(): Promise<Record<string, string>>;
   /** Dictar (electron/dictado.ts): un WAV 16 kHz mono de hasta 5 min → el texto que dijo (Handy, en la máquina del motor). */
-  dictado: { transcribir(x: { datos: Uint8Array }): Promise<string> };
+  /** `modelos` / `elegirModelo`: el modelo de Handy de Ajustes (electron/dictado-modelos.ts), sin validar. */
+  dictado: { transcribir(x: { datos: Uint8Array }): Promise<string>; modelos(): Promise<unknown>; elegirModelo(id: string): Promise<unknown> };
   /** Los modelos locales (electron/locales.ts): su contexto, la cuenta de la VRAM y Probar (carga el modelo de verdad). */
   locales: {
     leer(): Promise<EstadoLocales>;
@@ -182,6 +187,8 @@ type Main = {
     cancelarBajada(url: string, modelo: string): Promise<void>;
     /** Las bajadas en curso o terminadas desde que arrancó el motor. */
     bajadas(): Promise<unknown>;
+    /** Qué hay en esta máquina para Ollama: si está instalado, la distro, la GPU con su VRAM y los comandos de instalar y arrancar; sólo lee. */
+    entornoOllama(): Promise<unknown>;
     alBajar(fn: (b: unknown) => void): Soltar;
     /** Escribe el plan (`pa --plan`) y/o la red de seguridad (`autoCompactWindow`); rechaza con el motivo; devuelve Ajustes como quedó. */
     guardarAjustes(cambio: { plan?: string; red_seguridad?: number | null }): Promise<unknown>;
@@ -265,6 +272,16 @@ type Main = {
     estado(): Promise<unknown>;
     descartar(id: string): Promise<void>;
   };
+  /** Si Claude y Gemini (agy) están conectados: `{ version, claude, agy }` con `{ instalado, logueado, cuenta, error }`, sin validar. */
+  cuentas: {
+    estado(): Promise<unknown>;
+    /** Las cuentas del CLI `cuentas` (`{version,cuentas}` o `null` sin él), sin validar; `verificar` pregunta el login (lento). */
+    lista(verificar: boolean): Promise<unknown>;
+    agregar(proveedor: string, nombre: string): Promise<unknown>;
+    renombrar(id: string, nombre: string): Promise<unknown>;
+    quitar(id: string, borrarCredenciales: boolean): Promise<unknown>;
+    login(id: string): Promise<unknown>;
+  };
   /** Por la tailnet (el celular): `false` cuando se cae la conexión con la PC, `true` al volver. En la ventana no avisa nunca. */
   conexion: {
     alCambiar(fn: (conectado: unknown) => void): Soltar;
@@ -288,6 +305,8 @@ type Main = {
   pendientes: { leer(): Promise<unknown>; guardar(x: unknown): Promise<void> };
   /** Quién está compactando su contexto (electron/compactando.ts): id → epoch (s) desde cuándo, sin validar. */
   compactando: { leer(): Promise<unknown>; alCambiar(fn: (c: unknown) => void): Soltar };
+  /** Los subagentes de cada sesión con proceso (electron/subagentes.ts): sesión → lista, sin validar; y el informe entero de uno. */
+  subagentes: { leer(): Promise<unknown>; informe(sid: string, id: string): Promise<string | null>; alCambiar(fn: (x: unknown) => void): Soltar };
   pintado(): void;
   /** Cerrar del todo (Ctrl+Q, la bandeja) con lo elegido en el diálogo. Con líderes respondiendo y sin `forzar` no hace nada: devuelve cuántos son. Por la tailnet no existe. */
   salir(x: { modo: "seguir" | "parar"; forzar: boolean }): Promise<number>;

@@ -35,6 +35,25 @@ test("proyectoEnTexto: palabra entera o nada", () => {
   assert.equal(proyectoEnTexto("", REG, HOME), null);
 });
 
+test("proyectoEnTexto: alias de proyecto y palabras comunes en minúscula pesan menos", () => {
+  const reg = [
+    ...REG,
+    { nombre: "asistente-voz", slug: "asistente-voz", ruta: path.join(HOME, "Proyectos", "asistente-voz"), alias: ["shark"] },
+    { nombre: "ventanita", slug: "ventanita", ruta: path.join(HOME, "Proyectos", "ventanita") },
+  ];
+  assert.equal(proyectoEnTexto("que pueda mover su ventanita... shark", reg, HOME), "asistente-voz");
+  assert.equal(proyectoEnTexto("mover su ventanita... shark", reg, HOME), "asistente-voz");
+  assert.equal(proyectoEnTexto("que pueda mover su ventanita", reg, HOME), "ventanita");
+  assert.equal(proyectoEnTexto("en ventanita y shark", reg, HOME), "ventanita");
+  assert.equal(proyectoEnTexto("el proyecto ventanita y shark", reg, HOME), "ventanita");
+  const regSinAlias = [
+    ...REG,
+    { nombre: "asistente-voz", slug: "asistente-voz", ruta: path.join(HOME, "Proyectos", "asistente-voz") },
+    { nombre: "ventanita", slug: "ventanita", ruta: path.join(HOME, "Proyectos", "ventanita") },
+  ];
+  assert.equal(proyectoEnTexto("mover su ventanita... shark", regSinAlias, HOME), "asistente-voz");
+});
+
 test("avanzarTema: título de Claude Code y primer mensaje de Ana", () => {
   const lineas = [
     JSON.stringify({ type: "custom-title", customTitle: "trama-dce1", sessionId: "s" }),

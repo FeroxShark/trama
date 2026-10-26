@@ -7,7 +7,8 @@ import { readFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { codificarWav, agregarDictado, reloj, soporte, TOPE_S } from "../src/hilo/dictado.ts";
-import { DICTADO_MAX_S, WAV_MAX, entornoGrafico, textoDe, transcribir, wavDe, type Ejecutar } from "../electron/dictado.ts";
+import { DICTADO_MAX_S, WAV_MAX, entornoGrafico, modelosDictado, motorHandy, textoDe, transcribir, wavDe, type Ejecutar } from "../electron/dictado.ts";
+import { MODELO_LARGE_V3, MODELO_TURBO, esModeloDictado, modelosDeHandy, opcionesDictado } from "../electron/dictado-modelos.ts";
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "hilos-dictado-"));
 after(() => rmSync(tmp, { recursive: true, force: true }));
@@ -82,6 +83,7 @@ test("transcribir: pasa el WAV por --transcribe-file, devuelve el texto y borra 
   assert.equal(v.bin, "handy-falso");
   assert.equal(v.args[0], "--transcribe-file");
   assert.ok(!v.args.includes("--model"));
+  assert.ok(v.args.includes("--json"), "sin --json Handy antepone sus métricas al texto");
   assert.equal(v.bytes, w.length);
   assert.equal(v.timeout, 120_000);
   sinSobras();
@@ -129,4 +131,72 @@ test("entornoGrafico: completa la pantalla que le falta al motor de systemd (Han
   const dado = entornoGrafico({ XDG_RUNTIME_DIR: run, WAYLAND_DISPLAY: "wayland-9" }, 1000, x11);
   assert.equal(dado.WAYLAND_DISPLAY, "wayland-9");
   assert.equal(entornoGrafico({}, 4242, x11).XDG_RUNTIME_DIR, "/run/user/4242");
+});
+
+// --- El modelo (dictado-modelos.ts): lo que se elige en Ajustes y lo que va con `--model` ---
+
+const LISTA = JSON.stringify([
+  { id: MODELO_TURBO, name: "Whisper Large v3 Turbo", is_downloaded: true },
+  { id: MODELO_LARGE_V3, name: "Whisper Large v3", is_downloaded: false },
+  { id: "small", name: "Whisper Small", is_downloaded: false },
+  { id: "parakeet-tdt-0.6b-v3", name: "Parakeet V3", is_downloaded: true },
+  { id: "--raro", name: "no", is_downloaded: true },
+]);
+
+test("modelosDeHandy y opcionesDictado: Turbo y Large v3 siempre, después lo bajado, y el elegido aunque no esté", () => {
+  const l = modelosDeHandy(LISTA);
+  assert.equal(l.length, 4, "el id que parece una opción queda afuera");
+  assert.deepEqual(modelosDeHandy("no es json"), []);
+  assert.deepEqual(
+    opcionesDictado(l, MODELO_TURBO).map((m) => [m.id, m.bajado]),
+    [[MODELO_TURBO, true], [MODELO_LARGE_V3, false], ["parakeet-tdt-0.6b-v3", true]],
+  );
+  assert.deepEqual(opcionesDictado(null, "otro").map((m) => [m.id, m.bajado]), [[MODELO_TURBO, false], [MODELO_LARGE_V3, false], ["otro", false]]);
+  for (const malo of ["", "-x", "con espacio", 3, null, "a".repeat(201)]) assert.equal(esModeloDictado(malo), false);
+  assert.ok(esModeloDictado(MODELO_TURBO));
+});
+
+/** Un `handy` falso que contesta la lista y anota con qué argumentos se lo llamó para transcribir. */
+const handyCon = (lista: string, vistos: string[][]): Ejecutar => async (_b, args) => {
+  if (args[0] === "--list-models") return lista;
+  vistos.push(args);
+  return "hola";
+};
+
+test("transcribir: el elegido va con --model; sin elegir, Turbo sólo si está bajado; el reconocedor de Windows nunca", async () => {
+  const vistos: string[][] = [];
+  const modelo = () => {
+    const a = vistos.at(-1)!;
+    return a.includes("--model") ? a[a.indexOf("--model") + 1] : null;
+  };
+  await transcribir({ datos: wav() }, { dir, bin: "h", ejecutar: handyCon(LISTA, vistos), porDefecto: MODELO_TURBO });
+  assert.equal(modelo(), MODELO_TURBO);
+  const sinTurbo = LISTA.replace('"is_downloaded":true', '"is_downloaded":false');
+  await transcribir({ datos: wav() }, { dir, bin: "h", ejecutar: handyCon(sinTurbo, vistos), porDefecto: MODELO_TURBO });
+  assert.equal(modelo(), null, "sin Turbo bajado, Handy usa el suyo");
+  await transcribir({ datos: wav() }, { dir, bin: "h", ejecutar: handyCon("roto", vistos), porDefecto: MODELO_TURBO });
+  assert.equal(modelo(), null, "si la lista no contesta, igual que antes");
+  await transcribir({ datos: wav() }, { dir, bin: "h", ejecutar: handyCon(sinTurbo, vistos), modelo: MODELO_LARGE_V3, porDefecto: MODELO_TURBO });
+  assert.equal(modelo(), MODELO_LARGE_V3, "lo elegido va aunque no esté bajado: el error lo dice Handy");
+  const windows = { nombre: "windows" as const, bin: "powershell.exe", args: async (a: string) => ["-File", a] };
+  await transcribir({ datos: wav() }, { dir, motores: [windows], ejecutar: handyCon(LISTA, vistos), modelo: MODELO_LARGE_V3 });
+  assert.equal(modelo(), null);
+  sinSobras();
+});
+
+test("modelosDictado: lo que ve Ajustes, con o sin Handy", async () => {
+  const d = await modelosDictado({ elegido: MODELO_TURBO, motores: [motorHandy("h")], ejecutar: handyCon(LISTA, []) });
+  assert.equal(d.version, 1);
+  assert.equal(d.motor, "handy");
+  assert.equal(d.modelos[0].id, MODELO_TURBO);
+  assert.equal(d.modelos[0].bajado, true);
+  const nada = await modelosDictado({ elegido: MODELO_TURBO, motores: [], ejecutar: handyCon(LISTA, []) });
+  assert.equal(nada.motor, null);
+  assert.deepEqual(nada.modelos.map((m) => m.bajado), [false, false]);
+});
+
+test("textoDe: la salida de Handy con --json y la de sin --json (con su línea de métricas)", () => {
+  assert.equal(textoDe('{"audio_secs":2.1,"model":"x","text":" Hola, che. ","transcribe_ms":[219]}'), "Hola, che.");
+  assert.equal(textoDe("model=handy-computer/w/w.gguf device=settings backend=Vulkan0 audio=20.31s load=291ms best=1000ms rtf=20.31x text: Mira, o sea\n"), "Mira, o sea");
+  assert.equal(textoDe("hola\n\nmundo"), "hola mundo");
 });

@@ -337,7 +337,7 @@ export const HILOS: RespuestaHilos = {
       proyecto: "eco",
       tarea: "Medir el arranque en frío del lector",
       estado: "entregado",
-      modelo: "qwen-local",
+      modelo: "modelo-local-ejemplo",
       effort: "high",
       origen: "nightloop",
       inicio: AHORA - 8 * HORA - 10 * MIN,
@@ -852,6 +852,8 @@ export function charlaSistema(sid: string): Mensaje[] {
     { rol: "user", texto: "[Request interrupted by user]", herramientas: [], modelo: null },
     { rol: "assistant", texto: "", herramientas: [], modelo: null, compacto: { auto: true, antes: 167_000 } },
     { rol: "user", texto: "This session is being continued from a previous conversation that ran out of context. The summary below covers the earlier portion of the conversation.\n\nSummary:\n1. Atlas integrado, cauce en revisión.", herramientas: [], modelo: null, resumen: true },
+    { rol: "assistant", texto: "", herramientas: [], modelo: null, destrabo: { que: "Bash: curl -s localhost:9/progreso", agotado: false } },
+    { rol: "assistant", texto: "", herramientas: [], modelo: null, destrabo: { que: "Bash: curl -s localhost:9/progreso", agotado: true } },
     { rol: "assistant", texto: "API Error: Repeated 529 Overloaded errors", herramientas: [], modelo: "<synthetic>", error: "unknown" },
     { rol: "assistant", texto: LIMITE, herramientas: [], modelo: "<synthetic>", error: "rate_limit" },
   ];
@@ -1007,24 +1009,53 @@ export const USO_SIN_HORA: Uso = {
   seven_day: { pct: 61, resets_at: AHORA + 3 * DIA + 5 * HORA },
 };
 
-/** La variante `cupos-google`: las barras de Claude más los 3 grupos de Google AI Pro (`agy`). */
+/** La variante `cupos-cuentas`: dos cuentas de Claude (la de siempre y «Trabajo»), cada una con su 5 h y su semana. */
+export const USO_CUENTAS: Uso = {
+  ...USO,
+  claudeNombre: "Claude",
+  suscripciones: [
+    {
+      id: "trabajo",
+      nombre: "Trabajo",
+      proveedor: "claude",
+      cuenta: "trabajo",
+      ts: AHORA - 20,
+      ventanas: [
+        { id: "5h", pct: 12, vuelve: AHORA + 4 * HORA + 9 * MIN },
+        { id: "7d", pct: 27, vuelve: AHORA + 5 * DIA + 2 * HORA },
+      ],
+    },
+  ],
+};
+
+/** La variante `cupos-google`: las barras de Claude más Google AI Pro con sus 3 grupos (`reparto --cupos`), plegados en un renglón. */
 export const USO_GOOGLE: Uso = {
   ...USO,
-  google: [
+  suscripciones: [
     {
-      id: "gemini",
-      semanal: { pct: 8, resetea: (AHORA + 2 * DIA + 4 * HORA) * 1000 },
-      cincoH: { pct: 3, resetea: (AHORA + 2 * HORA) * 1000 },
-    },
-    {
-      id: "claude-gpt",
-      semanal: { pct: 24, resetea: (AHORA + 2 * DIA + 7 * HORA) * 1000 },
-      cincoH: { pct: 15, resetea: (AHORA + 3 * HORA) * 1000 },
-      hasta: "2026-11-02",
-    },
-    {
-      id: "argon",
-      semanal: { pct: 41, resetea: (AHORA + 2 * DIA + 19 * HORA) * 1000 },
+      id: "google",
+      nombre: "Google AI Pro",
+      ts: AHORA - 20,
+      grupos: [
+        {
+          id: "gemini",
+          nombre: "Gemini",
+          ventanas: [
+            { id: "5h", pct: 3, vuelve: AHORA + 2 * HORA },
+            { id: "7d", pct: 8, vuelve: AHORA + 2 * DIA + 4 * HORA },
+          ],
+        },
+        {
+          id: "claude-gpt",
+          nombre: "Claude y GPT por Google",
+          ventanas: [
+            { id: "5h", pct: 15, vuelve: AHORA + 3 * HORA },
+            { id: "7d", pct: 24, vuelve: AHORA + 2 * DIA + 7 * HORA },
+          ],
+          hasta: "2026-11-02",
+        },
+        { id: "gemini-4-argon", nombre: "Gemini 4 Argon", ventanas: [{ id: "7d", pct: 41, vuelve: AHORA + 2 * DIA + 19 * HORA }] },
+      ],
     },
   ],
 };
@@ -1059,10 +1090,14 @@ export function imagenFija(ancho: number, alto: number, tono: number): { tipo: s
  * Los modelos locales de muestra (electron/locales.ts): una GPU inventada de 24 GB con 1,5 GB en uso y ni Handy ni el TTS cargados;
  * el `-c` guardado se cambia llamando con `(id, ctx)`. La cuenta es la de verdad (`estimar`), sin tocar la GPU.
  */
-const LOCALES_CTX: Record<string, number> = { "qwen-local": 32768, "bonsai-local": 65536 };
+export const LLAMA_FIJOS = [
+  { id: "modelo-local-ejemplo", nombre: "Modelo local de ejemplo", empresa: "Empresa de ejemplo" },
+  { id: "modelo-local-chico", nombre: "Modelo local chico", empresa: "Otra empresa de ejemplo" },
+];
+const LOCALES_CTX: Record<string, number> = { "modelo-local-ejemplo": 32768, "modelo-local-chico": 65536 };
 export function localesFalsos(id?: string, ctx?: number): EstadoLocales {
   if (id && ctx) LOCALES_CTX[id] = ctx;
-  // `HILOS_VARIANTE=vram`: la GPU casi llena con los servicios de `vramFalsa` (Qwen no entra: el aviso con qué liberar).
+  // `HILOS_VARIANTE=vram`: la GPU casi llena con los servicios de `vramFalsa` (el modelo grande no entra: el aviso con qué liberar).
   const conVram = MODO.variante === "vram";
   const gpu = {
     totalMiB: 24576,
@@ -1085,7 +1120,7 @@ export function localesFalsos(id?: string, ctx?: number): EstadoLocales {
     ctxFijo: null,
     est: estimar(gpu, { pesosMiB, fijoMiB: 2048, kvBytesPorToken: kvBytesPorToken({ capas, ...forma }), ctxMin: 4096, ctxMax: 262144, paso: 1024 }),
   });
-  return { gpuMiB: gpu.totalMiB, modelos: [fila("qwen-local", 17955, 17), fila("bonsai-local", 6873, 16)] };
+  return { gpuMiB: gpu.totalMiB, modelos: [fila("modelo-local-ejemplo", 17955, 17), fila("modelo-local-chico", 6873, 16)] };
 }
 
 /** Lo que se puede liberar de la GPU de muestra (`vram --json` de ~/Proyectos/modos): inventado; liberar sólo lo quita de esta lista. */

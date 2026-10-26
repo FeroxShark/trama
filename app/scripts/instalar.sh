@@ -9,6 +9,7 @@
 # Lo mismo con el motor sin ventana (`systemd/trama-motor.service`, WantedBy=default.target): enlazado y
 # habilitado, sin arrancarlo; para que siga sin sesión gráfica hace falta `loginctl enable-linger $USER`
 # (lo hace Ana a mano: pide sudo).
+# Y enlaza las skills de diseño del repo (`skills/`, `scripts/instalar-skills.sh`): en ~/.claude/skills y, si hay agy, en la de agy.
 # Y registra el hook que dice quién compacta en `~/.claude/settings.json` (`scripts/registrar-hook.mjs`).
 #
 # uso: scripts/instalar.sh
@@ -94,4 +95,6 @@ fi
 # settings de usuario no es del repo, así que lo registra acá (PreCompact / PostCompact en ~/.claude/settings.json,
 # sin pisar los otros hooks; idempotente). Si el settings no se puede tocar, avisa y la instalación sigue.
 node "$raiz/scripts/registrar-hook.mjs" || echo "instalar.sh: el hook de compactando no quedó registrado (ver arriba)" >&2
+# Las skills de diseño (ui-ux-pro-max, taste-skill, diseno): enlaces, sin pisar una que ya exista y sea distinta.
+"$raiz/scripts/instalar-skills.sh" || echo "instalar.sh: las skills de diseño no quedaron instaladas (ver arriba)" >&2
 echo "instalado: $bin, $desktop"

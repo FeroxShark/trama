@@ -11,15 +11,16 @@ import { promptRetomar } from "./retomar";
 import { promptArreglar } from "./arreglar";
 import { salud as saludDe, type EstadoSalud } from "./salud";
 import type { Hilo } from "./contrato";
-import { AJUSTES, AUTO, MODELOS_FIJOS, OLLAMA_FALSO, arranqueMedidoFalso, historialFalso, MEDICION, REMOTO, SALUD, URL_REMOTO_FALSA } from "./fixtures-paneles";
+import { ACCESOS_FALSOS, AJUSTES, AUTO, ENTORNO_OLLAMA, MODELOS_FIJOS, OLLAMA_FALSO, arranqueMedidoFalso, historialFalso, MEDICION, REMOTO, SALUD, URL_REMOTO_FALSA } from "./fixtures-paneles";
 import type { EstadoAuto } from "../../electron/autointegrar";
 import type { Consulta, PiezaConsulta } from "../../electron/historial";
 import type { Arranque, Medido } from "../../electron/arranque";
 import type { EstadoModelos, Sondeo } from "../../electron/modelos-config";
 import type { ConfigModelos } from "../../electron/modelos-tipos";
 import type { Bajada } from "../../electron/ollama-bajar";
+import type { EntornoOllama } from "../../electron/ollama-entorno";
 
-export type { Arranque, Bajada, ConfigModelos, Consulta, EstadoAuto, EstadoModelos, EstadoSalud, Medido, PiezaConsulta, Sondeo };
+export type { Arranque, Bajada, ConfigModelos, Consulta, EntornoOllama, EstadoAuto, EstadoModelos, EstadoSalud, Medido, PiezaConsulta, Sondeo };
 
 /** El registro histórico de los últimos 7 o 30 días (electron/historial.ts), o por qué no se pudo. */
 export type Historial = Consulta | { version: number; error: string };
@@ -50,10 +51,13 @@ export type FilaRouting = {
 /** Lo que dice la tabla (o por qué no se pudo leer o escribir: entonces no se escribió nada). */
 export type Routing = { version: number; filas: FilaRouting[] } | { version: number; error: string };
 
-/** El acceso desde el celular (`remoto.json`) y dónde escucha ahora; por la tailnet no se edita (`editable: false`). */
+/** Un dispositivo que entró por la tailnet (electron/celular-accesos.ts): sistema e IP si Tailscale los dijo; `visto` en epoch, milisegundos. */
+export type AccesoCelular = { nombre: string; sistema: string | null; ip: string | null; visto: number };
+
+/** El acceso desde el celular (`remoto.json`), dónde escucha ahora y quién entró hace poco; por la tailnet no se edita (`editable: false`). */
 export type EstadoRemoto =
   | { version: number; editable: false }
-  | { version: number; editable: true; activo: boolean; puerto: number; dispositivos: string[]; escuchando: string[] };
+  | { version: number; editable: true; activo: boolean; puerto: number; dispositivos: string[]; escuchando: string[]; accesos: AccesoCelular[] };
 
 /** Lo que Ajustes cambia del plan y de la red de seguridad (electron/ajustes-editar.ts). */
 export type CambioAjustes = { plan?: string; red_seguridad?: number | null };
@@ -125,6 +129,8 @@ export interface FuentePaneles {
   /** Las bajadas en curso o terminadas (para una página recién cargada). */
   bajadas(): Promise<Bajada[]>;
   alBajar(fn: (b: Bajada) => void): () => void;
+  /** Qué hay en esta máquina para Ollama (instalado, distro, GPU y VRAM, comandos de instalar y arrancar); sólo lee. */
+  entornoOllama(): Promise<EntornoOllama>;
   /** Guarda el plan (`pa --plan`) y/o la red de seguridad (`autoCompactWindow`); devuelve Ajustes como quedó o rechaza con el motivo. */
   guardarAjustes(cambio: CambioAjustes): Promise<Ajustes>;
   /** El acceso desde el celular: cómo está y dónde escucha. */
@@ -224,7 +230,7 @@ const fija: FuentePaneles = {
     return AJUSTES;
   },
   async modelos() {
-    modelosFijos ??= MODELOS_FIJOS(MODO.variante?.startsWith("mdl") === true);
+    modelosFijos ??= MODELOS_FIJOS(MODO.variante?.startsWith("mdl") === true, MODO.variante === "mdl-auto");
     return structuredClone(modelosFijos);
   },
   async guardarModelos(config) {
@@ -240,8 +246,12 @@ const fija: FuentePaneles = {
   async sondearOllama(url) {
     await espera(250);
     // `mdl-sinollama`: la dirección de siempre no contesta (hasta que se "instala").
-    if (/caido|apagado/.test(url) || (MODO.variante === "mdl-sinollama" && /localhost:11434/.test(url))) return { ok: false, motivo: textoT("main.ollamaNoContesta") };
+    if (/caido|apagado/.test(url) || ((MODO.variante === "mdl-sinollama" || MODO.variante === "mdl-apagado") && /localhost:11434/.test(url))) return { ok: false, motivo: textoT("main.ollamaNoContesta") };
     return { ok: true, modelos: [...OLLAMA_FALSO, ...bajadosFalsos] };
+  },
+  async entornoOllama() {
+    await espera(120);
+    return structuredClone(ENTORNO_OLLAMA(MODO.variante));
   },
   async bajarModelo(url, modelo) {
     const nombre = modelo.trim();
@@ -284,7 +294,7 @@ const fija: FuentePaneles = {
     return () => void oyentesBajada.delete(fn);
   },
   async remoto() {
-    return { version: 1, editable: true, ...REMOTO, escuchando: REMOTO.activo ? [URL_REMOTO_FALSA(REMOTO.puerto)] : [] };
+    return { version: 1, editable: true, ...REMOTO, escuchando: REMOTO.activo ? [URL_REMOTO_FALSA(REMOTO.puerto)] : [], accesos: ACCESOS_FALSOS().filter((a) => REMOTO.dispositivos.includes(a.nombre)) };
   },
   async guardarRemoto(config) {
     await espera(150);
@@ -482,6 +492,9 @@ const conPa = (m: NonNullable<typeof main>): FuentePaneles => ({
   },
   async bajadas() {
     return ((await m.paneles.bajadas().catch(() => [])) as Bajada[]) ?? [];
+  },
+  async entornoOllama() {
+    return (await m.paneles.entornoOllama().catch(fallar)) as EntornoOllama;
   },
   alBajar(fn) {
     return m.paneles.alBajar((b) => {

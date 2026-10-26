@@ -59,6 +59,8 @@ contextBridge.exposeInMainWorld("hilos", {
     avisarEspera: (si: boolean): Promise<void> => ipcRenderer.invoke("preferencias:avisarEspera", si),
     vista: (vista: string): Promise<void> => ipcRenderer.invoke("preferencias:vista", vista),
     consumo: (si: boolean): Promise<void> => ipcRenderer.invoke("preferencias:consumo", si),
+    bienvenidaPendiente: (): Promise<boolean> => ipcRenderer.invoke("preferencias:bienvenidaPendiente"),
+    bienvenida: (si: boolean): Promise<void> => ipcRenderer.invoke("preferencias:bienvenida", si),
   },
   /** El panel de consumo (a la derecha): lo que consumió cada modelo y cómo va cada sesión. */
   consumo: {
@@ -83,6 +85,8 @@ contextBridge.exposeInMainWorld("hilos", {
   iconos: (): Promise<unknown> => ipcRenderer.invoke("proyectos:iconos"),
   dictado: {
     transcribir: (x: unknown): Promise<string> => ipcRenderer.invoke("dictado:transcribir", x),
+    modelos: (): Promise<unknown> => ipcRenderer.invoke("dictado:modelos"),
+    elegirModelo: (id: string): Promise<unknown> => ipcRenderer.invoke("dictado:elegirModelo", id),
   },
   /** Los modelos locales (electron/locales.ts): su contexto, la cuenta de la VRAM y Probar. */
   locales: {
@@ -140,6 +144,7 @@ contextBridge.exposeInMainWorld("hilos", {
     bajarModelo: (url: string, modelo: string): Promise<unknown> => ipcRenderer.invoke("modelos:bajar", url, modelo),
     cancelarBajada: (url: string, modelo: string): Promise<void> => ipcRenderer.invoke("modelos:cancelarBajada", url, modelo),
     bajadas: (): Promise<unknown> => ipcRenderer.invoke("modelos:bajadas"),
+    entornoOllama: (): Promise<unknown> => ipcRenderer.invoke("modelos:entorno"),
     alBajar: oir("modelos:bajando"),
     guardarAjustes: (cambio: unknown): Promise<unknown> => ipcRenderer.invoke("ajustes:guardar", cambio),
     remoto: (): Promise<unknown> => ipcRenderer.invoke("remoto:leer"),
@@ -194,6 +199,15 @@ contextBridge.exposeInMainWorld("hilos", {
     estado: (): Promise<unknown> => ipcRenderer.invoke("setup:estado"),
     descartar: (id: string): Promise<void> => ipcRenderer.invoke("setup:descartar", id),
   },
+  /** Si Claude y Gemini (agy) están conectados (electron/cuentas.ts). */
+  cuentas: {
+    estado: (): Promise<unknown> => ipcRenderer.invoke("cuentas:estado"),
+    lista: (verificar: boolean): Promise<unknown> => ipcRenderer.invoke("cuentas:lista", verificar),
+    agregar: (proveedor: string, nombre: string): Promise<unknown> => ipcRenderer.invoke("cuentas:agregar", proveedor, nombre),
+    renombrar: (id: string, nombre: string): Promise<unknown> => ipcRenderer.invoke("cuentas:renombrar", id, nombre),
+    quitar: (id: string, borrarCredenciales: boolean): Promise<unknown> => ipcRenderer.invoke("cuentas:quitar", id, borrarCredenciales),
+    login: (id: string): Promise<unknown> => ipcRenderer.invoke("cuentas:login", id),
+  },
   /** Sólo por la tailnet (lo arma electron/remoto-cliente.ts; en la ventana no llega nunca): `false` = se cayó la conexión con la PC. */
   conexion: {
     alCambiar: oir("remoto:conexion"),
@@ -220,6 +234,12 @@ contextBridge.exposeInMainWorld("hilos", {
   compactando: {
     leer: (): Promise<unknown> => ipcRenderer.invoke("compactando:leer"),
     alCambiar: oir("compactando:cambio"),
+  },
+  /** Los subagentes de cada sesión con proceso (electron/subagentes.ts): sesión → lista, sin validar; y el informe entero de uno. */
+  subagentes: {
+    leer: (): Promise<unknown> => ipcRenderer.invoke("subagentes:leer"),
+    informe: (sid: string, id: string): Promise<string | null> => ipcRenderer.invoke("subagentes:informe", sid, id),
+    alCambiar: oir("subagentes:cambio"),
   },
   /** Para la captura offscreen: avisa que los datos ya están pintados. */
   pintado: (): void => ipcRenderer.send("captura:pintado"),

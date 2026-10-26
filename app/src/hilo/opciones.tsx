@@ -15,7 +15,7 @@ const desc = <T extends object>(o: T, clave: ClaveSola) =>
 
 /** Cada modelo, bajo el divisor de su empresa y con su logo delante; los locales, además, con el chip de la GPU (`local`). */
 const opcionDe = (m: ModeloDef) =>
-  desc({ id: m.id, clave: m.clave, nombre: m.nombre, grupo: EMPRESAS[m.empresa], marca: <Logo empresa={m.empresa} />, ...(m.rec ? { rec: true } : {}), ...(m.local ? { local: true } : {}) }, m.desc);
+  desc({ id: m.id, clave: m.clave, nombre: m.nombre, grupo: m.empresaNombre ?? EMPRESAS[m.empresa], marca: <Logo empresa={m.empresa} />, ...(m.rec ? { rec: true } : {}), ...(m.local ? { local: true } : {}) }, m.desc);
 export const MODELOS: (Opcion & { clave: string })[] = TABLA.map(opcionDe);
 
 /** Los modelos de un worker de `pa` (`-m`): los mismos, sin los que sólo corren en un líder (los locales, Gemini, Ollama). */

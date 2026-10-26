@@ -2,7 +2,9 @@
 // reinicio el número va solo; "sin dato" sólo cuando no hay ni porcentaje. Puro, sin React.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { filaDe, formatearHasta } from "../src/barra/usoFila.ts";
+import { filaDe, formatearFalta, formatearHasta } from "../src/barra/usoFila.ts";
+
+const U = { d: "d", h: "h", min: "min", s: "s", ya: "ya" };
 
 test("sin ventana (ni porcentaje): sin dato, y nada más", () => {
   assert.deepEqual(filaDe(null), { cuando: "sinDato", pct: null, hasta: null });
@@ -29,4 +31,30 @@ test("formatearHasta extrae día y mes de YYYY-MM-DD", () => {
   assert.deepEqual(formatearHasta("2026-11-02"), { d: 2, m: 11 });
   assert.equal(formatearHasta(undefined), null);
   assert.equal(formatearHasta("invalida"), null);
+});
+
+test("lo que falta: dos unidades como mucho, la mayor primero, exacto y corto", () => {
+  const texto = (r: number) => formatearFalta(r, U).texto;
+  assert.equal(texto(59), "59 s");
+  assert.equal(texto(60), "1 min");
+  assert.equal(texto(12 * 60), "12 min");
+  assert.equal(texto(4 * 3600 + 23 * 60), "4 h 23 min");
+  assert.equal(texto(3600), "1 h 0 min");
+  assert.equal(texto(86_400), "1 d 0 h");
+  assert.equal(texto(6 * 86_400 + 14 * 3600), "6 d 14 h");
+  // Lo que falta se trunca, nunca se redondea para arriba: a 4 h 23 min 40 s todavía son 4 h 23 min.
+  assert.equal(texto(4 * 3600 + 23 * 60 + 40), "4 h 23 min");
+  assert.equal(texto(0.4), "1 s");
+});
+
+test("lo pasado dice ya y no vuelve a cambiar", () => {
+  assert.deepEqual(formatearFalta(0, U), { texto: "ya", en: Infinity });
+  assert.deepEqual(formatearFalta(-30, U), { texto: "ya", en: Infinity });
+});
+
+test("en: cuántos segundos hasta que cambia el texto (en el último minuto, cada segundo; después, cada minuto o cada hora)", () => {
+  assert.equal(formatearFalta(59.25, U).en, 0.25);
+  assert.equal(formatearFalta(720.5, U).en, 0.5);
+  assert.equal(formatearFalta(4 * 3600 + 23 * 60 + 40, U).en, 40);
+  assert.equal(formatearFalta(6 * 86_400 + 14 * 3600 + 1800, U).en, 1800);
 });

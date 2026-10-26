@@ -192,8 +192,27 @@ test("dictado:transcribir: por el RPC (con los bytes en base64 de la tailnet) pa
     await assert.rejects(nucleo.llamarRemoto("dictado:transcribir", [{ datos: Buffer.from(wav) }], "cel"), /main\.dictadoFalla.*modelo no cargado/);
     assert.deepEqual(readdirSync(process.env.HILOS_LOCAL), []);
     await assert.rejects(nucleo.llamarRemoto("dictado:transcribir", [{ datos: "no son bytes" }], "cel"), /main\.dictadoRaro/);
+    delete process.env.HANDY_FALSO_FALLA;
+    // El modelo: sin elegir va Turbo (el falso lo tiene bajado); elegido en Ajustes, va ése y queda en preferencias.json.
+    const anota = path.join(tmp, "handy-anota");
+    process.env.HANDY_FALSO_ANOTA = anota;
+    const { MODELO_TURBO, MODELO_LARGE_V3 } = await import("../electron/dictado-modelos.ts");
+    await nucleo.llamarRemoto("dictado:transcribir", [{ datos: Buffer.from(wav) }], "cel");
+    assert.match(readFileSync(anota, "utf8").trim().split("\n").at(-1)!, new RegExp(`--transcribe-file \\S+ --json --model ${MODELO_TURBO}$`));
+    const m = (await nucleo.llamarRemoto("dictado:modelos", [], "cel")) as { elegido: string; motor: string; modelos: { id: string; bajado: boolean }[] };
+    assert.equal(m.elegido, MODELO_TURBO);
+    assert.equal(m.motor, "handy");
+    assert.deepEqual(m.modelos.map((x) => [x.id, x.bajado]), [[MODELO_TURBO, true], [MODELO_LARGE_V3, false], ["parakeet-tdt-0.6b-v3", true]]);
+    const e = (await nucleo.llamarRemoto("dictado:elegirModelo", ["parakeet-tdt-0.6b-v3"], "cel")) as { elegido: string };
+    assert.equal(e.elegido, "parakeet-tdt-0.6b-v3");
+    assert.equal(JSON.parse(readFileSync(path.join(process.env.HILOS_STATE!, "preferencias.json"), "utf8")).dictadoModelo, "parakeet-tdt-0.6b-v3");
+    await nucleo.llamarRemoto("dictado:transcribir", [{ datos: Buffer.from(wav) }], "cel");
+    assert.match(readFileSync(anota, "utf8").trim().split("\n").at(-1)!, /--model parakeet-tdt-0\.6b-v3$/);
+    // Un id que parece una opción no se guarda.
+    assert.equal(((await nucleo.llamarRemoto("dictado:elegirModelo", ["--debug"], "cel")) as { elegido: string }).elegido, "parakeet-tdt-0.6b-v3");
   } finally {
     delete process.env.HANDY_FALSO_FALLA;
+    delete process.env.HANDY_FALSO_ANOTA;
     if (antes === undefined) delete process.env.HILOS_HANDY;
     else process.env.HILOS_HANDY = antes;
     if (local === undefined) delete process.env.HILOS_LOCAL;

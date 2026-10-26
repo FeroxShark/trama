@@ -38,6 +38,7 @@ const CAPTURAS = [
   "lider-preguntas",
   // Dos tandas de cuatro preguntas largas a la vez: una sola a la vista, "1 de 2", el cuerpo scrollea y Enviar queda fijo.
   "lider-preguntas-dos",
+  // El menú de "/" abierto; `HILOS_VARIANTE=agy`: el de un líder de agy (marcas "Anthropic only" / "Google only").
   "lider-comandos",
   // Dictar: el botón del micrófono en la caja; `HILOS_VARIANTE=grabando` (contador), `transcribiendo`, `error` (Reintentar y Descartar) e `inseguro` (apagado, por http) (docs/estado/dictado.md).
   "lider-dictado",
@@ -85,6 +86,8 @@ const CAPTURAS = [
   // La conversación de un worker con el final de lo que devolvió cada herramienta, plegado bajo su línea (docs/estado/chat-listas.md).
   "herramientas-resultados",
   "lider-compactando",
+  // Un líder con subagentes: dos corriendo, uno terminado con su informe y uno que falló (docs/estado/subagentes.md).
+  "subagentes",
   // Un worker y un líder de terminal compactando: la fila y el chat (`HILOS_VARIANTE=lider`: la vista del líder) (docs/estado/chat-vivo/).
   "compactando",
   "lider-relevo",
@@ -102,6 +105,8 @@ const CAPTURAS = [
   "lider-hover",
   // El razonamiento del líder en el chat: plegado en cada turno ("Pensó"); `HILOS_VARIANTE=abierto` abre uno y `=vivo` lo deja llegando, con "Pensando…" abierto (docs/estado/pensando.md).
   "lider-pensando",
+  // Un líder de Gemini a mitad de un turno: su último paso de razonamiento en la tarjeta y cada comando con su estado (docs/estado/pensando-gemini.md).
+  "lider-gemini",
   // Te espera: un líder de terminal que terminó y el de la app (abierto) que pide un permiso; fila y cabecera con la marca en ámbar (docs/estado/te-espera.md).
   "te-espera",
   // El tablero de pendientes: el kanban, el detalle de una tarjeta y la vista Proyectos (docs/estado/tablero/).
@@ -179,6 +184,8 @@ const CAPTURAS = [
   // La vista de un worker con pasos (src/hilo/Worker.tsx): uno que terminó y uno que sigue corriendo `npm test` (docs/estado/worker-vista.md).
   "worker-vista",
   "worker-vista-vivo",
+  // La bienvenida del primer arranque (src/paneles/Bienvenida.tsx); `HILOS_VARIANTE=<paso>` abre en ese paso (docs/estado/bienvenida.md).
+  "bienvenida",
 ] as const;
 
 export type Captura = (typeof CAPTURAS)[number];
@@ -210,7 +217,7 @@ export const MODO = {
    * (red de 50 tokens, puerto 80, una dirección en vez de un dispositivo), con su motivo en línea.
    * Modelos y proveedores (`AjustesModelos.tsx`): `mdl` deja a la vista la sección con un archivo de muestra, `mdl-agregar` con el
    * panel de Ollama en otra dirección abierto, `mdl-lider` con el selector del líder abierto, `mdl-bajando` con un modelo bajándose a mitad,
-   * `mdl-sinollama` con Ollama sin contestar (enlace para instalarlo), `mdl-tope` con el aviso de un tope de Claude cruzado y `sinmdl` sin archivo (lo de hoy).
+   * `mdl-sinollama` con Ollama sin instalar (distro, GPU y el comando para copiar), `mdl-apagado` instalado pero apagado, `mdl-sugeridos` andando con los modelos sugeridos a la vista, `mdl-tope` con el aviso de un tope de Claude cruzado y `sinmdl` sin archivo (lo de hoy).
    */
   variante: q.get("variante"),
   /** Fixtures de Estadísticas con pocos datos: lo que se ve los primeros días (`HILOS_POCOS=1`). */

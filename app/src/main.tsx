@@ -12,6 +12,7 @@ import { Cartel, ErrorBoundary } from "./ErrorBoundary";
 import { armarErrores } from "./errores";
 import { t } from "./i18n";
 import "./index.css";
+import "./ui/ui.css";
 import { MODO } from "./modo";
 import { traerVuelta } from "./volver";
 

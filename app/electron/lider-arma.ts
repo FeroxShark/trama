@@ -872,6 +872,8 @@ type Marcas = {
   origen?: string | null;
   error?: string | null;
   compacto?: { auto: boolean; antes: number | null };
+  /** `system/trama_destrabo` (agy-puente): trama cortó un bucle del modelo y le mandó el aviso; `agotado`: ya no lo intenta más. */
+  destrabo?: { que: string; agotado: boolean };
 };
 
 /** Los campos del transcript que dicen que una línea no la escribió el usuario ni la contestó el modelo. */
@@ -923,6 +925,11 @@ export function avanzarConv(est: EstadoConv, texto: string): void {
       const cm = o.compactMetadata ?? o.compact_metadata ?? {};
       const compacto = { auto: cm.trigger === "auto", antes: num(cm.preTokens ?? cm.pre_tokens) };
       todos.push({ rol: "assistant", texto: "", herramientas: [], det: [], ts: o.timestamp ?? null, modelo: null, mid: null, usage: null, marcas: { compacto } });
+      continue;
+    }
+    if (o.type === "system" && o.subtype === "trama_destrabo") {
+      const destrabo = { que: str(o.que) ?? "", agotado: o.agotado === true };
+      todos.push({ rol: "assistant", texto: "", herramientas: [], det: [], ts: o.timestamp ?? null, modelo: null, mid: null, usage: null, marcas: { destrabo } });
       continue;
     }
     if (o.type !== "user" && o.type !== "assistant") continue;
@@ -991,13 +998,14 @@ export function conversacionDe(id: string, transcript: string | null, texto: str
 /** Una página de la conversación, con la forma de `pa --hilo --json`. */
 export function paginaDe(est: EstadoConv, id: string, transcript: string | null, { n = 50, antes = null }: Pagina = {}) {
   const { todos, compactaciones, compactada } = est;
-  const lista = todos.filter((m) => m.texto !== "" || m.herramientas.length > 0 || m.marcas.compacto || m.imagenes);
+  // Un paso que sólo razonó (Gemini: el razonamiento y su herramienta son mensajes aparte) cuenta: la tanda del stream lo tiene igual.
+  const lista = todos.filter((m) => m.texto !== "" || m.herramientas.length > 0 || m.pensado || m.marcas.compacto || m.marcas.destrabo || m.imagenes);
   const total = lista.length;
   const k = Math.max(1, Math.min(500, Math.floor(n) || 50));
   const hasta = antes == null ? total : Math.min(total, Math.max(0, Math.floor(antes)));
   const desde = Math.max(0, hasta - k);
   // El último que contestó el modelo: el sintético y la marca de compactar no traen `usage`.
-  const ult = lista.findLast((m) => m.rol === "assistant" && !sintetico(m) && !m.marcas.compacto);
+  const ult = lista.findLast((m) => m.rol === "assistant" && !sintetico(m) && !m.marcas.compacto && !m.marcas.destrabo);
   return {
     version: 1,
     id,

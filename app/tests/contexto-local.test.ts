@@ -146,7 +146,7 @@ test("armarContexto: sin archivos ni hooks no hay contexto, y un hook que falla 
 });
 
 test("argv local: el contexto va en el prompt de sistema, después del prompt corto", () => {
-  const base = { modelo: "qwen-local", effort: "low", sid: "36ac312b-6241-4230-b3b3-c3decacc39c0", nombre: "trama-0a1b", resume: false };
+  const base = { modelo: "modelo-local-ejemplo", effort: "low", sid: "36ac312b-6241-4230-b3b3-c3decacc39c0", nombre: "trama-0a1b", resume: false };
   const a = argvLider({ ...base, local: { url: "http://127.0.0.1:8080", ctx: 32768, contexto: "# Contexto de Ana\n- hola" } });
   const p = a[a.indexOf("--system-prompt") + 1];
   assert.match(p, /tablero listar/);
@@ -178,6 +178,19 @@ test("prefacioGemini: las instrucciones de un líder de Gemini más los CLAUDE.m
 
 test("prefacioGemini: sin archivos queda el de las instrucciones solo", async () => {
   assert.equal(await prefacioGemini({ home: "/no/existe", deps: { leer: async () => null, hook: async () => "" } }), PROMPT_GEMINI);
+});
+
+test("prefacioGemini: trae la guía de delegar sin skill, y la ruta de pa sólo si se la pasan absoluta", async () => {
+  const deps = { leer: async () => null, hook: async () => "" };
+  const sin = await prefacioGemini({ home: "/no/existe", deps });
+  assert.match(sin, /pa <proyecto> --tipo/);
+  assert.match(sin, /--async/);
+  assert.match(sin, /--integrar/);
+  assert.doesNotMatch(sin, /command not found/, "sin ruta absoluta no se agrega nada");
+  assert.doesNotMatch(await prefacioGemini({ home: "/no/existe", pa: "pa", deps }), /command not found/);
+  const con = await prefacioGemini({ home: "/no/existe", pa: "/home/ana/.local/bin/pa", deps });
+  assert.ok(con.startsWith(PROMPT_GEMINI));
+  assert.match(con, /"pa: command not found".*`\/home\/ana\/\.local\/bin\/pa`/);
 });
 
 test("skillOrquestar: la propia de la persona manda; sin ninguna, la genérica del producto", async () => {
