@@ -5990,3 +5990,20 @@ summary.sis-div-t:hover,
     margin-top: var(--esp-1);
   }
 }
+/* Pantalla ancha: cada columna scrollea sola (si scrollea todo junto, las columnas cortas desaparecen al bajar en la larga). */
+@media (min-width: 62.0625rem) {
+  .menu[data-columnas] .mc-lista {
+    overflow: hidden;
+  }
+  .mc-cols {
+    min-height: 0;
+    flex: 1;
+    align-items: stretch;
+  }
+  .mc-col {
+    min-height: 0;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--borde-3) transparent;
+  }
+}
