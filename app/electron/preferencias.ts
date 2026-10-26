@@ -9,6 +9,7 @@ import path from "node:path";
 import { ESTADO, escribirAtomico } from "./pa.js";
 import { silencio } from "./log.js";
 import { esModeloDictado } from "./dictado-modelos.js";
+import { aplicarOpGuias, normalizarGuias, type EstadoGuias } from "./guias-estado.js";
 
 const ARCHIVO = path.join(ESTADO, "preferencias.json");
 const VERSION = 1;
@@ -38,6 +39,8 @@ export type Preferencias = {
   consumo?: boolean;
   dictadoModelo?: string;
   bienvenida?: boolean;
+  /** `guias`: qué guías de pantalla ya se vieron (versión por id) y si están apagadas (src/guia); sin el campo, todas por ver. */
+  guias?: EstadoGuias;
 } & Apariencia;
 
 let prefs: Preferencias | null = null;
@@ -64,6 +67,7 @@ function desde(j: {
   consumo?: unknown;
   dictadoModelo?: unknown;
   bienvenida?: unknown;
+  guias?: unknown;
 }): Preferencias {
   if (j.version !== VERSION) return { effort: {} };
   const p: Preferencias = { effort: texto(j.effort) ? j.effort : {} };
@@ -79,6 +83,7 @@ function desde(j: {
   if (typeof j.consumo === "boolean") p.consumo = j.consumo;
   if (esModeloDictado(j.dictadoModelo)) p.dictadoModelo = j.dictadoModelo;
   if (typeof j.bienvenida === "boolean") p.bienvenida = j.bienvenida;
+  if (j.guias && typeof j.guias === "object") p.guias = normalizarGuias(j.guias);
   return p;
 }
 
@@ -254,4 +259,27 @@ export async function guardarBienvenida(si: unknown) {
   if ((p.bienvenida === true) === si) return;
   p.bienvenida = si;
   await guardar(p);
+}
+
+/**
+ * El estado de las guías de pantalla. Una corrida de prueba (las mismas señales que la bienvenida) las trae apagadas, para que ningún
+ * script encuentre un globo encima de lo que mira.
+ */
+export async function guiasEstado(): Promise<EstadoGuias> {
+  const e = process.env;
+  const g = normalizarGuias((await leerPreferencias()).guias);
+  if (e.HILOS_BENCH || e.HILOS_CAPTURA || e.HILOS_CAPTURA_PNG || e.HILOS_PRUEBA || e.HILOS_GUION || e.HILOS_FIXTURES === "1") return { ...g, off: true };
+  return g;
+}
+
+/** Un cambio de las guías (vista, apagar/prender, reiniciar); lo inválido se ignora. Devuelve el estado que quedó. */
+export async function guardarGuias(op: unknown): Promise<EstadoGuias> {
+  const p = await leerPreferencias();
+  const antes = normalizarGuias(p.guias);
+  const despues = aplicarOpGuias(antes, op);
+  if (despues !== antes) {
+    p.guias = despues;
+    await guardar(p);
+  }
+  return despues;
 }

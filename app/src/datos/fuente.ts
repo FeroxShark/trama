@@ -6,6 +6,7 @@ import type { Imagen } from "../../electron/imagenes";
 import type { EstadoLocales, ResultadoProbar } from "../../electron/locales";
 import type { EstadoVram, ResultadoLiberar } from "../../electron/vram";
 import { MODELO_LARGE_V3, MODELO_TURBO, type ModelosDictado } from "../../electron/dictado-modelos";
+import { aplicarOpGuias, GUIAS_VACIO, normalizarGuias, type EstadoGuias, type OpGuias } from "../../electron/guias-estado";
 import { main, mensaje, type Lectura } from "../puente";
 import { aplicarDif, esDif } from "./hilos-dif";
 import { MODO } from "../modo";
@@ -86,6 +87,10 @@ export interface Fuente {
   bienvenidaPendiente(): Promise<boolean>;
   /** Marca la bienvenida como vista. */
   guardarBienvenida(si: boolean): void;
+  /** Las guías de pantalla (src/guia): el estado guardado en preferencias.json; sin motor (navegador), el del almacenamiento local. */
+  guias(): Promise<EstadoGuias>;
+  /** Un cambio de las guías (vista, apagar/prender, reiniciar); devuelve el estado que quedó. */
+  guardarGuias(op: OpGuias): Promise<EstadoGuias>;
   /** Empieza a mirar el consumo de esos líderes y workers (o cambia cuáles) y contesta cómo está. */
   consumoMirar(pedido: Pedido): Promise<Consumo>;
   /** El panel se ocultó: el main deja de mirar los transcripts. */
@@ -641,7 +646,7 @@ function responderFijo(sid: string, texto: string, modelo: string, imagenes?: Im
       : `Dale. Miro el estado y te digo: ${texto.split("\n")[0].slice(0, 60)}.`);
   // La captura del analista lo quiere ya contestado: todo de una.
   const novela = texto.trim() === "novela";
-  const palabras = MODO.captura === "ramas-analista" ? [resp] : novela ? Array.from({ length: 600 }, (_, i) => (i % 9 === 8 ? "palabra\n\n" : "palabra ")) : resp.split(/(?<= )/);
+  const palabras = MODO.captura === "ramas-analista" || MODO.captura === "guia-ramas-analisis" ? [resp] : novela ? Array.from({ length: 600 }, (_, i) => (i % 9 === 8 ? "palabra\n\n" : "palabra ")) : resp.split(/(?<= )/);
   let k = 0;
   const paso = () => {
     if (k === 0) {
@@ -668,6 +673,29 @@ function responderFijo(sid: string, texto: string, modelo: string, imagenes?: Im
   setTimeout(paso, 300);
 }
 const effortsFijos: Record<string, string> = {};
+
+/** Las guías sin motor (el navegador): en el almacenamiento local, si hay; si no (ventana privada, bloqueado) valen sólo mientras la página siga abierta. Las capturas no recuerdan nada. */
+let guiasMemoria: EstadoGuias = GUIAS_VACIO;
+function guiasLocal(op?: OpGuias): EstadoGuias {
+  const clave = "trama.guias";
+  if (!MODO.datosFijos) {
+    try {
+      guiasMemoria = normalizarGuias(JSON.parse(localStorage.getItem(clave) ?? "null"));
+    } catch {
+      // sin almacenamiento: queda lo de la memoria
+    }
+  }
+  if (!op) return guiasMemoria;
+  guiasMemoria = aplicarOpGuias(guiasMemoria, op);
+  if (!MODO.datosFijos) {
+    try {
+      localStorage.setItem(clave, JSON.stringify(guiasMemoria));
+    } catch {
+      // idem
+    }
+  }
+  return guiasMemoria;
+}
 
 /**
  * Las cuentas con fixtures: sin variante, el `cuentas` instalado con una cuenta por proveedor; `cuentas-sin` = sin el comando
@@ -1120,6 +1148,12 @@ const fija: Fuente = {
     return false;
   },
   guardarBienvenida() {},
+  async guias() {
+    return guiasLocal();
+  },
+  async guardarGuias(op) {
+    return guiasLocal(op);
+  },
   async consumoMirar(pedido) {
     return consumoFijo(pedido);
   },
@@ -1661,6 +1695,12 @@ const conPa = (m: NonNullable<typeof main>): Fuente => ({
   },
   guardarBienvenida(si) {
     void m.preferencias.bienvenida(si).catch(() => {});
+  },
+  async guias() {
+    return normalizarGuias(await m.preferencias.guias().catch(() => null));
+  },
+  async guardarGuias(op) {
+    return normalizarGuias(await m.preferencias.guiasOp(op).catch(() => null));
   },
   async consumoMirar(pedido) {
     return consumoDe(await m.consumo.mirar(pedido));

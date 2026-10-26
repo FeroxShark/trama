@@ -61,6 +61,8 @@ contextBridge.exposeInMainWorld("hilos", {
     consumo: (si: boolean): Promise<void> => ipcRenderer.invoke("preferencias:consumo", si),
     bienvenidaPendiente: (): Promise<boolean> => ipcRenderer.invoke("preferencias:bienvenidaPendiente"),
     bienvenida: (si: boolean): Promise<void> => ipcRenderer.invoke("preferencias:bienvenida", si),
+    guias: (): Promise<unknown> => ipcRenderer.invoke("preferencias:guias"),
+    guiasOp: (op: unknown): Promise<unknown> => ipcRenderer.invoke("preferencias:guiasOp", op),
   },
   /** El panel de consumo (a la derecha): lo que consumió cada modelo y cómo va cada sesión. */
   consumo: {

@@ -72,6 +72,9 @@ type Main = {
     bienvenidaPendiente(): Promise<boolean>;
     /** Marca la bienvenida como vista (`true`) o vuelve a dejarla pendiente. */
     bienvenida(si: boolean): Promise<void>;
+    /** Las guías de pantalla (src/guia): su estado guardado (sin validar: `normalizarGuias`) y un cambio de ese estado, que devuelve el que quedó. */
+    guias(): Promise<unknown>;
+    guiasOp(op: unknown): Promise<unknown>;
   };
   /** El panel de consumo (electron/consumo.ts): lo que contesta va sin validar (`consumoDe`). */
   consumo: {

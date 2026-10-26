@@ -120,7 +120,7 @@ export function Cabecera({ alOcultar }: { alOcultar: () => void }) {
           </div>
         </div>
       ) : (
-        <div className="usos">
+        <div className="usos" data-guia="uso">
           <div className="usos-l">
             <Grupo
               logo={<LogoSuscripcion id="claude" nombre="Claude" />}

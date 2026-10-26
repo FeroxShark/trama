@@ -1,6 +1,10 @@
 // Inglés: el idioma por default. Sus claves son las que existen (`Clave`); es.ts
 // tiene que tener las mismas, con las mismas `{variables}` (tests/i18n.test.ts).
+import { tourEn } from "../guia/textos.ts";
+
 export const en = {
+  // Las guías de pantalla (src/guia): el texto de cada paso vive en su módulo.
+  ...tourEn,
   // Estados de un hilo (barra, vista, Ramas)
   "estado.trabajando": "Working",
   "estado.decision": "Needs you",
@@ -2000,7 +2004,9 @@ export const en = {
   "bv.otrasCuentas": "More accounts",
   "hz.c.esperando": "Waiting",
   "hz.progreso": "Progress of this turn",
-  "main.rebobinarClase": "Only Claude leaders can go back, edit or branch",
+  "main.rebobinarClase": "Local models (llama-server, Ollama) can't go back, edit or branch",
+  "main.rebobinarMotor": "Going back or editing keeps the same engine: to switch engines pick another model and write",
+  "main.rebobinarSinTramo": "Can't go back to that point: Claude hadn't spoken yet in this conversation",
   "main.rebobinarSinSesion": "This conversation can't be rewound: its saved transcript or folder is missing",
   "acciones.titulo": "Message actions",
   "acciones.copiar": "Copy",

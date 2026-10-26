@@ -1,8 +1,10 @@
 // Español rioplatense, de vos. Las mismas claves y `{variables}` que en.ts: si
 // falta o sobra una clave, no compila; las variables las mira tests/i18n.test.ts.
 import type { en } from "./en.ts";
+import { tourEs } from "../guia/textos.ts";
 
 export const es: { [K in keyof typeof en]: string } = {
+  ...tourEs,
   "estado.trabajando": "Trabajando",
   "estado.decision": "Te necesita",
   "estado.termino": "Terminó",
@@ -1988,7 +1990,9 @@ export const es: { [K in keyof typeof en]: string } = {
   "bv.otrasCuentas": "Más cuentas",
   "hz.c.esperando": "Esperando",
   "hz.progreso": "Progreso de este turno",
-  "main.rebobinarClase": "Sólo los líderes de Claude pueden volver atrás, editar o ramificar",
+  "main.rebobinarClase": "Los modelos locales (llama-server, Ollama) no pueden volver atrás, editar ni ramificar",
+  "main.rebobinarMotor": "Volver atrás o editar sigue con el mismo motor: para cambiar de motor elegí otro modelo y escribí",
+  "main.rebobinarSinTramo": "No se puede volver a ese punto: Claude todavía no había hablado en esta conversación",
   "main.rebobinarSinSesion": "No se puede volver en esta conversación: falta su transcript guardado o su carpeta",
   "acciones.titulo": "Acciones del mensaje",
   "acciones.copiar": "Copiar",

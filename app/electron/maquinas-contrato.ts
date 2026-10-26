@@ -138,6 +138,8 @@ export const RUTAS: Readonly<Record<string, Ruta>> = {
   "preferencias:consumo": "local",
   "preferencias:bienvenidaPendiente": "local",
   "preferencias:bienvenida": "local",
+  "preferencias:guias": "local",
+  "preferencias:guiasOp": "local",
   "consumo:mirar": "local",
   "consumo:soltar": "local",
   // Los pasos de un worker, de su transcript: el de esta máquina (el de otra se pediría a su motor, todavía no).

@@ -31,7 +31,7 @@ import { iconosDe } from "./iconos.js";
 import { guardarYa, leerLeidos, marcarLeido } from "./leidos.js";
 import { almacenNombres } from "./nombres.js";
 import { almacenPendientes } from "./pendientes.js";
-import { guardarApariencia, guardarAutoIntegrar, guardarAvisarEspera, bienvenidaPendiente, guardarBienvenida, guardarConsumo, guardarDictadoModelo, guardarEffort, guardarIdioma, guardarTiernos, guardarVista, leerPreferencias } from "./preferencias.js";
+import { guardarApariencia, guardarAutoIntegrar, guardarAvisarEspera, bienvenidaPendiente, guardarBienvenida, guardarConsumo, guardarDictadoModelo, guardarEffort, guardarGuias, guardarIdioma, guardarTiernos, guardarVista, guiasEstado, leerPreferencias } from "./preferencias.js";
 import { accionRama, arreglarDatos, briefRamas, enCola, ejecutar, lanzarRama, leerAjustes, leerMedicion, pasarALider, retomarDatos, type AccionRama } from "./paneles.js";
 import { guardarRouting, type Cambio } from "./routing.js";
 import { argvAuditar, datosAgentsMd, guardarLecciones, leccionesPendientes, leerLecciones, textoPoda } from "./orquestacion.ts";
@@ -905,6 +905,8 @@ export function armarNucleo() {
   manejar("preferencias:consumo", (_e, si: unknown) => guardarConsumo(si));
   manejar("preferencias:bienvenidaPendiente", () => bienvenidaPendiente());
   manejar("preferencias:bienvenida", (_e, si: unknown) => guardarBienvenida(si));
+  manejar("preferencias:guias", () => guiasEstado());
+  manejar("preferencias:guiasOp", (_e, op: unknown) => guardarGuias(op));
   // El panel de consumo: qué líderes y workers mira; al ocultarlo se suelta todo.
   manejar("consumo:mirar", (_e, pedido: unknown) => consumo.mirar(pedido));
   manejar("consumo:soltar", () => consumo.soltar());

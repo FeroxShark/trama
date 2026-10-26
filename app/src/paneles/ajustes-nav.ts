@@ -77,6 +77,8 @@ export const ITEMS: readonly Item[] = [
   { cat: "general", nombre: "ajustes.aplicarAuto", que: "ajustes.aplicarAutoQue", sin: "ramas branches veredictos verdicts analista analyst aplicar apply automatico automatic integrar descartar" },
   { cat: "general", nombre: "ajustes.bienvenida", que: "ajustes.bienvenidaQue", sin: "welcome bienvenida primer arranque first start setup asistente configurar inicio" },
 
+  { cat: "guia", nombre: "tour.mostrar", que: "tour.mostrarQue", sin: "guias tour recorrido tutorial ayuda onboarding coach marks globos pistas help guides show hide apagar desactivar disable" },
+  { cat: "guia", nombre: "tour.reiniciar", que: "tour.reiniciarQue", sin: "guias tour recorrido reiniciar resetear volver a mostrar reset show again guides" },
   { cat: "guia", nombre: "guia.lider", que: "guia.liderQue", sin: "lider leader worker workers rama branch tarea task brief delegar delegate" },
   { cat: "guia", nombre: "guia.modelos", que: "guia.modelosQue", sin: "modelo model opus sonnet haiku esfuerzo effort inteligencia intelligence gratis free opencode low medium high xhigh elegir choose" },
   { cat: "guia", nombre: "guia.tablero", que: "guia.tableroQue", sin: "tablero board pendientes todo tareas tasks kanban preguntas questions iniciar start" },
