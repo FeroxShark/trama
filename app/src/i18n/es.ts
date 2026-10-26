@@ -1769,6 +1769,7 @@ export const es: { [K in keyof typeof en]: string } = {
   "ajustes.dshClaveNota": "Se guarda en un archivo que sólo vos podés leer y no se vuelve a mostrar.",
   "ajustes.dshProbar": "Probar",
   "ajustes.dshProbando": "Probando…",
+  "ajustes.cargando": "Cargando…",
   "ajustes.dshProbarDe": "Probar {que}",
   "ajustes.dshProbadoOk": "Anda · {n} modelos",
   "ajustes.dshProbadoNo": "Falló",

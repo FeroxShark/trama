@@ -4,6 +4,7 @@
 // validar con las mismas reglas (electron/valida-ajustes.ts) y, si algo falla, el borrador queda como estaba.
 import { useEffect, useRef, useState, useSyncExternalStore, type FormEvent, type ReactNode } from "react";
 import { Cat } from "./AjustesNav";
+import { PanelCargando } from "./PanelCargando";
 import { declarar } from "./ajustes-nav";
 import { Plus, X } from "lucide-react";
 import { detalleAcceso, EstadoEscucha, PasosCelular } from "./CelularGuia";
@@ -236,6 +237,7 @@ export function Celular({ Dato }: { Dato: FilaDato }) {
   }, [visible]);
 
   if (falla) return <Cat id="celular"><div className="pn-aviso" data-error>{textoMain(falla)}</div></Cat>;
+  if (!e && !falla) return <Cat id="celular"><PanelCargando /></Cat>;
   if (!e || !e.editable || !b) return null;
 
   const r = remotoPara(e, b);

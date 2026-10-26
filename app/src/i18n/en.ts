@@ -1781,6 +1781,7 @@ export const en = {
   "ajustes.dshClaveNota": "It is stored in a file only you can read and is never shown again.",
   "ajustes.dshProbar": "Test",
   "ajustes.dshProbando": "Testing…",
+  "ajustes.cargando": "Loading…",
   "ajustes.dshProbarDe": "Test {que}",
   "ajustes.dshProbadoOk": "Works · {n} models",
   "ajustes.dshProbadoNo": "Failed",

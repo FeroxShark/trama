@@ -12,6 +12,7 @@ import { Fijo } from "../i18n/Fijo";
 import { mensaje } from "../puente";
 import { Boton } from "../ui/componentes";
 import { Cat } from "./AjustesNav";
+import { PanelCargando } from "./PanelCargando";
 import type { FilaDato } from "./AjustesEditar";
 import { Comando } from "./AjustesLocales";
 import { URL_OLLAMA } from "./modelos-borrador";
@@ -172,7 +173,12 @@ export function AjustesDsh({ Dato }: { Dato: FilaDato }) {
         <div className="pn-aviso" data-error>{textoMain(falla)}</div>
       </Cat>
     );
-  if (!e) return null;
+  if (!e)
+    return (
+      <Cat id="dsh">
+        <PanelCargando />
+      </Cat>
+    );
 
   const botonProbar = (p: ProveedorDshUi, que: string) => (
     <Boton aria-label={t("ajustes.dshProbarDe", { que })} onClick={() => void probar(p)} disabled={pruebas[p] === "probando"}>

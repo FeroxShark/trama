@@ -20,6 +20,7 @@ import { Acciones, type FilaDato } from "./AjustesEditar";
 import { AjustesCupos, CuposTarjetas } from "./AjustesCupos";
 import { Boton } from "../ui/componentes";
 import { Cat } from "./AjustesNav";
+import { PanelCargando } from "./PanelCargando";
 import { AjustesDsh } from "./AjustesDsh";
 import { GuiaOllama, SugeridosOllama, textoBajada } from "./AjustesLocales";
 import { marcar } from "./ajustes-nav";
@@ -260,7 +261,12 @@ export function AjustesModelos({ Dato, plan = null }: { Dato: FilaDato; plan?: s
         <div className="pn-aviso" data-error>{textoMain(falla)}</div>
       </Cat>
     );
-  if (!e || !b) return null;
+  if (!e || !b)
+    return (
+      <Cat id="modelos">
+        <PanelCargando />
+      </Cat>
+    );
 
   const cambiar = (nuevo: Borrador) => {
     setB(nuevo);

@@ -245,6 +245,7 @@ const fija: FuentePaneles = {
     return AJUSTES;
   },
   async modelos() {
+    if (MODO.variante === "cargando") return new Promise(() => {});
     modelosFijos ??= MODELOS_FIJOS(MODO.variante?.startsWith("mdl") === true, MODO.variante === "mdl-auto");
     return structuredClone(modelosFijos);
   },
@@ -269,6 +270,7 @@ const fija: FuentePaneles = {
     return structuredClone(ENTORNO_OLLAMA(MODO.variante));
   },
   async estadoDsh() {
+    if (MODO.variante === "cargando-dsh") return new Promise(() => {});
     await espera(80);
     dshFijo ??= ESTADO_DSH(MODO.variante);
     return structuredClone(dshFijo);
@@ -333,6 +335,7 @@ const fija: FuentePaneles = {
     return () => void oyentesBajada.delete(fn);
   },
   async remoto() {
+    if (MODO.variante === "cargando") return new Promise(() => {});
     return { version: 1, editable: true, ...REMOTO, escuchando: REMOTO.activo ? [URL_REMOTO_FALSA(REMOTO.puerto)] : [], accesos: ACCESOS_FALSOS().filter((a) => REMOTO.dispositivos.includes(a.nombre)) };
   },
   async guardarRemoto(config) {

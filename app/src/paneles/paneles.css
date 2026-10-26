@@ -2458,3 +2458,58 @@
 [data-dsh] .ui-btn {
   white-space: nowrap;
 }
+
+/* El esqueleto de un panel de Ajustes que carga (PanelCargando.tsx): misma tarjeta y filas de --alto-fila que las de verdad. */
+.pn-cargando:not([data-visible]) {
+  display: none;
+}
+.pn-cargando-filas {
+  display: flex;
+  flex-direction: column;
+}
+.pn-cargando-h {
+  width: 7rem;
+  height: 0.75rem;
+  margin: var(--esp-3) var(--esp-4) var(--esp-2);
+}
+.pn-cargando-fila {
+  display: flex;
+  min-height: var(--alto-fila);
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--esp-4);
+  padding: var(--esp-3) var(--esp-4);
+  border-top: 1px solid var(--capa-div);
+}
+.pn-cargando-txt {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--esp-2);
+}
+.pn-cargando-barra {
+  height: 0.75rem;
+  border-radius: 0.25rem;
+  background: linear-gradient(90deg, var(--capa-tile) 25%, var(--capa-track) 50%, var(--capa-tile) 75%) 0 0 / 200% 100%;
+  animation: pn-brillo 1.4s linear infinite;
+}
+.pn-cargando-barra[data-fina] {
+  height: 0.625rem;
+}
+.pn-cargando-barra[data-ctl] {
+  max-width: 40%;
+  height: 1.75rem;
+  flex: none;
+  border-radius: var(--r-md);
+}
+@keyframes pn-brillo {
+  to {
+    background-position: -200% 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pn-cargando-barra {
+    animation: none;
+  }
+}
