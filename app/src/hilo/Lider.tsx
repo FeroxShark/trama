@@ -550,6 +550,8 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
   };
 
   const esClaude = !!l && !esAgy(l.modelo) && !sinWorkers(l.modelo);
+  // "Mandar ya": Claude lo recibe en su stdin y el puente de agy corta en la próxima pausa y retoma; los locales no tienen canal.
+  const puedeDirecto = !!l && !sinWorkers(l.modelo);
   const sinRebobinar = ocupado || enviando ? tr("acciones.ocupado") : ajeno ? tr("acciones.abierto") : null;
   const acciones = useMemo<Acciones | null>(
     () =>
@@ -605,7 +607,7 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
     }
     // "Mandar ya" (Ctrl+Enter o su botón): sólo un líder de Claude de la app con un turno en curso. Gemini no tiene canal y lo dice.
     const directo = ya && !!l && app && ocupado;
-    if (directo && !esClaude) return setErrorCaja(tr("directo.noPuede"));
+    if (directo && !puedeDirecto) return setErrorCaja(tr("directo.noPuede"));
     /** A mitad de un turno: a la cola; sale solo cuando termine. Al de la terminal, con lo que hace falta para traerlo. */
     const aLaCola = (id: string, nombre: string) => {
       const antes = adjuntos;
@@ -1186,7 +1188,7 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
               {esLocal(modelo) ? <ContextoLocal modelo={modelo} abierto={MODO.captura === "local-ctx"} /> : null}
               <span className="esp" />
               <Contexto sid={sid} modelo={modelo} vence={l?.cache_vence ?? null} abierto={MODO.captura === "contexto-abierto"} />
-              {app && ocupado && esClaude && (texto.trim() || adjuntos.length) && !enviando ? (
+              {app && ocupado && puedeDirecto && (texto.trim() || adjuntos.length) && !enviando ? (
                 <button type="button" className="btn2 directo" data-directo aria-label={tr("directo.boton")} data-tip={tr("directo.tip")} onClick={() => ejecutar(texto, true)}>
                   <Zap size={12} strokeWidth={2.2} aria-hidden="true" />
                   <span className="directo-t">{tr("directo.boton")}</span>

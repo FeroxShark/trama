@@ -825,12 +825,12 @@ export async function mandar(x: { sid: string; texto: string; imagenes?: unknown
  * "Mandar ya": el mensaje sale al stdin del `claude` aunque esté a mitad de un turno. El CLI lo guarda y lo entrega en el próximo límite de
  * `tool_result`, sin cortar la herramienta en curso (puede tardar lo que ella); si no hay herramienta, corre como turno propio al terminar el actual
  * (`docs/estado/mensaje-en-turno.md`). Sólo con un proceso de `claude` ocupado de la app, con el mismo modelo y esfuerzo; sin turno en curso es un
- * `mandar` normal. La cola no se toca: sigue saliendo de a uno al terminar el turno. Gemini no tiene canal (stdin ignorado): error claro.
+ * `mandar` normal. La cola no se toca: sigue saliendo de a uno al terminar el turno. Gemini: el puente (agy-puente.ts) corta a agy en el próximo límite de paso y retoma su conversación con el mensaje; los modelos locales no tienen canal: error claro.
  */
 export async function mandarDirecto(x: { sid: string; texto: string; imagenes?: unknown; modelo: string; effort: string }): Promise<void> {
   const sid = String(x.sid);
   const p = procs.get(sid);
-  if (p && (p.clase === "gemini" || p.local)) throw errorT("main.sinDirecto");
+  if (p?.local) throw errorT("main.sinDirecto");
   if (!p?.ocupado || mandando.has(sid)) return mandar(x);
   const g = (await lideresApp()).find((l) => l.sid === sid);
   if (!g) throw errorT("main.noEsDeLaApp");
@@ -841,7 +841,8 @@ export async function mandarDirecto(x: { sid: string; texto: string; imagenes?: 
   const imagenes = imagenesDe(x.imagenes);
   const texto = textoDe(x.texto, imagenes);
   p.directos.push(texto.trim());
-  p.p.stdin!.write(lineaUsuario(texto, imagenes));
+  // El puente de Gemini lo entrega en el próximo límite de paso de agy (corta a agy y sigue en la misma conversación) y devuelve el eco.
+  p.p.stdin!.write(lineaUsuario(texto, imagenes, p.clase === "gemini"));
 }
 
 /**
