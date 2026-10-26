@@ -3,7 +3,8 @@
 // `pa` si un proveedor se queda sin cupo). Trabaja sobre el borrador de AjustesModelos (nada se escribe hasta Guardar). Los textos que
 // cambian con el tiempo ("vuelve en 20 h") los escribe el reloj, no React.
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { BarraCupo, Boton, Chip, Interruptor, Tarjeta } from "../ui/componentes";
+import { Ban, CalendarClock, Check, ChevronDown, Clock, Info, Minus, TriangleAlert } from "lucide-react";
+import { Boton, Chip, Interruptor, Tarjeta } from "../ui/componentes";
 import { LogoCaja, type Proveedor } from "../ui/logos";
 import type { GrupoCupo, SuscripcionCupo, Uso, VentanaCupo } from "../datos/contrato";
 import { fuente, type CuentaEstado, type EstadoCuentas } from "../datos/fuente";
@@ -12,7 +13,10 @@ import { t, type ClaveSola } from "../i18n";
 import { enOtros } from "../i18n/Fijo";
 import { useIdioma } from "../i18n/react";
 import { Reloj } from "../barra/piezas";
-import { pintorVuelve } from "../tiempo";
+import { cuandoFuturo, fechaCorta, pintorVuelve } from "../tiempo";
+import { estadoVentana, resumenGrupo, resumenSusc } from "../barra/cuposVista";
+import { nombreGrupo, queGrupo } from "../barra/cuposNombres";
+import { textoEstado, textoSusc } from "../barra/cuposTextos";
 import { carcasa } from "../carcasa";
 import { cuentasDe, AgregarCuenta, CuentaFila, useCuentas } from "./CuentasVarias";
 import type { PerfilCuenta, ProveedorCuenta } from "../datos/cuentas";
@@ -32,48 +36,136 @@ const topeMal = (v: string) => !TOPE_FORMATO.test(v) || (v.trim() !== "" && (Num
 type UsoClaude = Extract<Uso, { five_hour: unknown }>;
 const conDatos = (u: Uso | null): u is UsoClaude => u !== null && "five_hour" in u;
 
-/** "vuelve en 20 h": lo escribe el reloj compartido; sin hora no se pinta nada. */
+/** "vuelve en 20 h · jue 01:01": lo relativo lo escribe el reloj compartido; la hora local exacta no cambia, va fija. Sin hora no se pinta nada. */
 function Vuelve({ epoch }: { epoch: number | null }) {
   const pintor = useMemo(() => (epoch === null ? null : pintorVuelve(epoch)), [epoch]);
-  return pintor ? <Reloj pintor={pintor} className="cu-vuelve" /> : null;
+  return pintor && epoch !== null ? (
+    <span className="cu-vuelve">
+      <Reloj pintor={pintor} />
+      <span className="cu-vuelve-abs"> · {cuandoFuturo(epoch)}</span>
+    </span>
+  ) : null;
 }
 
-/** Una ventana de cupo: su nombre, la barra, el porcentaje y cuándo vuelve; sin dato lo dice. */
-function Ventana({ nombre, pct, vuelve }: { nombre: string; pct: number | null; vuelve: number | null }) {
+const nombreVentana = (id: string) => (id === "5h" ? t("cu.v.5h") : id === "7d" ? t("cu.v.7d") : id);
+
+const ICONO_NIVEL = { ok: Check, bajo: TriangleAlert, lleno: Ban, parcial: Ban, marcado: Clock, sin: Minus } as const;
+
+/** Una ventana de cupo: nombre, barra, % usado y cuándo vuelve. Agotada: insignia y cuándo vuelve; que no rige: «no aplica ahora», sin 0 %. */
+function Ventana({ v }: { v: VentanaCupo }) {
+  const est = estadoVentana(v);
+  const nombre = nombreVentana(v.id);
   return (
-    <div className="cu-vent" role="group" aria-label={nombre}>
+    <div className="cu-vent" data-estado={est} role="group" aria-label={nombre}>
       <span className="cu-vent-n">{nombre}</span>
-      {pct === null ? (
+      {est === "off" ? (
+        <>
+          <span className="cu-off" title={t("cu.w.noAplicaQue")}>{t("cu.w.noAplica")}</span>
+          <span className="cu-nota">{t("cu.w.noAplicaQue")}</span>
+        </>
+      ) : est === "sin" ? (
         <span className="cu-sin">{t("uso.sinDatoCupo")}</span>
       ) : (
         <>
-          <BarraCupo fraccion={pct / 100} />
-          <span className="cu-pct">{Math.round(pct)} %</span>
-          <Vuelve epoch={vuelve} />
+          <div className="ui-bar" data-tono={est === "lleno" ? "critico" : est === "bajo" ? "aviso" : undefined}>
+            <i style={{ transform: `scaleX(${Math.min(1, Math.max(0, (v.pct ?? 0) / 100))})` }} />
+          </div>
+          {est === "lleno" ? (
+            <span className="cu-insignia" data-tono="critico">
+              <Ban size={12} strokeWidth={2.4} aria-hidden="true" />
+              {t("cu.w.agotada")}
+            </span>
+          ) : (
+            <span className="cu-pct" data-estado={est}>
+              {est === "bajo" ? <TriangleAlert size={12} strokeWidth={2.4} aria-hidden="true" /> : null}
+              {t("cu.w.usado", { pct: Math.round(v.pct ?? 0) })}
+            </span>
+          )}
+          <Vuelve epoch={v.vuelve} />
         </>
       )}
     </div>
   );
 }
 
-const nombreVentana = (id: string) => (id === "5h" ? t("uso.5h") : id === "7d" ? t("uso.sem") : id);
-
 const Ventanas = ({ vs }: { vs: VentanaCupo[] }) => (
   <>
     {vs.map((v) => (
-      <Ventana key={v.id} nombre={nombreVentana(v.id)} pct={v.pct} vuelve={v.vuelve} />
+      <Ventana key={v.id} v={v} />
     ))}
   </>
 );
 
-function Grupo({ g }: { g: GrupoCupo }) {
+/** Una píldora con icono y texto (el color solo no alcanza con daltonismo rojo-verde). */
+function Pildora({ nivel, children }: { nivel: keyof typeof ICONO_NIVEL; children: ReactNode }) {
+  const Icono = ICONO_NIVEL[nivel];
   return (
-    <div className="cu-grupo">
-      <div className="cu-grupo-n">{g.nombre}</div>
-      <Ventanas vs={g.ventanas} />
+    <span className="cu-pildora" data-nivel={nivel}>
+      <Icono size={13} strokeWidth={2.2} aria-hidden="true" />
+      <span>{children}</span>
+    </span>
+  );
+}
+
+function Grupo({ g }: { g: GrupoCupo }) {
+  const r = resumenGrupo(g, Date.now() / 1000);
+  const que = queGrupo(g);
+  return (
+    <div className="cu-grupo" data-estado={r.estado}>
+      <div className="cu-grupo-cab">
+        <div className="cu-grupo-id">
+          <div className="cu-grupo-n">{nombreGrupo(g)}</div>
+          {que ? <div className="cu-grupo-q">{que}</div> : null}
+        </div>
+        <Pildora nivel={r.estado}>{textoEstado(r)}</Pildora>
+      </div>
+      {r.estado === "marcado" ? <div className="cu-nota">{t("cu.w.marcaQue")}</div> : <Ventanas vs={g.ventanas} />}
+      {g.hasta ? (
+        <div className="cu-hasta">
+          <CalendarClock size={13} strokeWidth={2} aria-hidden="true" />
+          <span>{t("cu.hastaFecha", { d: fechaCorta(g.hasta) })}</span>
+        </div>
+      ) : null}
     </div>
   );
 }
+
+/** La línea de arriba de una tarjeta: «OK», «Queda poco», «Agotado hasta jue 01:01». */
+function Resumen({ s }: { s: { ventanas?: VentanaCupo[]; grupos?: GrupoCupo[]; agotado?: number } }) {
+  const r = resumenSusc(s, Date.now() / 1000);
+  return (
+    <div className="cu-res" data-nivel={r.nivel} role="status">
+      <Pildora nivel={r.nivel}>{textoSusc(r, s.grupos)}</Pildora>
+    </div>
+  );
+}
+
+/** «Cómo funcionan estos límites»: un botón que despliega las particularidades del proveedor (se toca; no depende de pasar el mouse). */
+function Ayuda({ lineas }: { lineas: ClaveSola[] }) {
+  const [abierta, setAbierta] = useState(false);
+  return (
+    <div className="cu-ayuda" data-abierta={abierta ? "" : undefined}>
+      <button type="button" className="cu-ayuda-b" aria-expanded={abierta} onClick={() => setAbierta((a) => !a)}>
+        <Info size={13} strokeWidth={2} aria-hidden="true" />
+        <span>{t("cu.ayuda")}</span>
+        <ChevronDown className="cu-ayuda-f" size={12} strokeWidth={2} aria-hidden="true" />
+      </button>
+      {abierta ? (
+        <ul className="cu-ayuda-l">
+          {lineas.map((k) => (
+            <li key={k}>{t(k)}</li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
+  );
+}
+
+/** Las ventanas de Claude (statusline) como ventanas de cupo. */
+const ventanasClaude = (uso: UsoClaude): VentanaCupo[] => [
+  { id: "5h", pct: uso.five_hour?.pct ?? null, vuelve: uso.five_hour?.resets_at ?? null },
+  { id: "7d", pct: uso.seven_day?.pct ?? null, vuelve: uso.seven_day?.resets_at ?? null },
+];
 
 /** El chip de arriba de una tarjeta: conectada, sin conectar, sin instalar, o sin saber. */
 function Estado({ c }: { c: CuentaEstado | undefined }) {
@@ -177,12 +269,8 @@ export function CuposTarjetas({ b, uso, plan }: { b: Borrador; uso: Uso | null; 
 
   const google: SuscripcionCupo | undefined = conDatos(uso) ? uso.suscripciones?.find((s) => s.id === "google") : undefined;
   const avisos = avisosTope(b, uso);
-  const cupoClaude = conDatos(uso) ? (
-    <>
-      <Ventana nombre={t("uso.5h")} pct={uso.five_hour?.pct ?? null} vuelve={uso.five_hour?.resets_at ?? null} />
-      <Ventana nombre={t("uso.sem")} pct={uso.seven_day?.pct ?? null} vuelve={uso.seven_day?.resets_at ?? null} />
-    </>
-  ) : (
+  const vClaude = conDatos(uso) ? ventanasClaude(uso) : null;
+  const cupoClaude = vClaude ? <Ventanas vs={vClaude} /> : (
     <div className="cu-sin">{t("uso.sinDatoCupo")}</div>
   );
   const cupoGoogle = google?.grupos ? google.grupos.map((g) => <Grupo key={g.id} g={g} />) : google?.ventanas ? <Ventanas vs={google.ventanas} /> : <div className="cu-sin">{t("uso.sinDatoCupo")}</div>;
@@ -192,7 +280,7 @@ export function CuposTarjetas({ b, uso, plan }: { b: Borrador; uso: Uso | null; 
       {avisos.map((a) => (
         <div key={a.ventana} className="pn-aviso mdl-cruce cu-aviso" role="status">
           <div>
-            {t("cu.avisoTope", { quien: "Claude", ventana: t(a.ventana === "5h" ? "cu.ventana5h" : "cu.ventanaSem"), pct: a.pct })}
+            {t("cu.avisoTope", { quien: t("cu.claude"), ventana: t(a.ventana === "5h" ? "cu.ventana5h" : "cu.ventanaSem"), pct: a.pct })}
             {a.vuelve !== null ? ", " : ""}
             <Vuelve epoch={a.vuelve} />
           </div>
@@ -209,7 +297,9 @@ export function CuposTarjetas({ b, uso, plan }: { b: Borrador; uso: Uso | null; 
                 <ListaCuentas proveedor="claude" perfiles={pClaude} uso={uso} deSiempre={cupoClaude} alCambiar={alCambiarCuentas} />
               ) : (
                 <>
+                  {vClaude ? <Resumen s={{ ventanas: vClaude }} /> : null}
                   {cupoClaude}
+                  <Ayuda lineas={["cu.ayuda.claude1"]} />
                   <Conectar id="claude" c={cuentas?.claude} como={t("cu.comoClaude")} alMirar={mirar} />
                 </>
               )}
@@ -220,20 +310,11 @@ export function CuposTarjetas({ b, uso, plan }: { b: Borrador; uso: Uso | null; 
 
         <div data-opc="cu.google">
           <Tarjeta>
-            <Cabecera id="google" nombre={google?.nombre ?? "Google AI Pro"} estado={pGoogle.length > 1 ? null : cuentas?.agy} />
+            <Cabecera id="google" nombre={t("cu.google")} estado={pGoogle.length > 1 ? null : cuentas?.agy} />
             <div className="cu-cuerpo">
+              {pGoogle.length > 1 ? null : google ? <Resumen s={google} /> : null}
               {pGoogle.length > 1 ? <ListaCuentas proveedor="google" perfiles={pGoogle} uso={uso} deSiempre={cupoGoogle} alCambiar={alCambiarCuentas} /> : cupoGoogle}
-              <div className="cu-topes" data-opc="cu.topesGoogle">
-                <div className="cu-tope">
-                  <span>{t("cu.topeLlena")}</span>
-                  <Chip>{t("cu.desdeUsado", { pct: GOOGLE_LLENA })}</Chip>
-                </div>
-                <div className="cu-tope">
-                  <span>{t("cu.topeCodigo")}</span>
-                  <Chip>{t("cu.desdeUsado", { pct: GOOGLE_CODIGO })}</Chip>
-                </div>
-                <div className="cu-sin">{t("cu.topesQue")}</div>
-              </div>
+              <Ayuda lineas={["cu.ayuda.google1", "cu.ayuda.google2", "cu.ayuda.google3", "cu.ayuda.google4", "cu.ayuda.google5", "cu.ayuda.google6"]} />
               {pGoogle.length > 1 ? null : <Conectar id="google" c={cuentas?.agy} como={t("cu.comoGoogle")} alMirar={mirar} />}
               {lista ? <AgregarCuenta proveedor="google" alCambiar={alCambiarCuentas} /> : null}
             </div>
@@ -242,13 +323,14 @@ export function CuposTarjetas({ b, uso, plan }: { b: Borrador; uso: Uso | null; 
 
         <div data-opc="cu.chatgpt">
           <Tarjeta>
-            <Cabecera id="chatgpt" nombre="ChatGPT" estado={pChatgpt.length > 1 ? null : (cuentas?.codex ?? (cuentas ? { instalado: false, logueado: false, cuenta: null, error: null } : undefined))} />
+            <Cabecera id="chatgpt" nombre={t("cu.chatgpt")} estado={pChatgpt.length > 1 ? null : (cuentas?.codex ?? (cuentas ? { instalado: false, logueado: false, cuenta: null, error: null } : undefined))} />
             <div className="cu-cuerpo">
               {pChatgpt.length > 1 ? (
                 <ListaCuentas proveedor="chatgpt" perfiles={pChatgpt} uso={uso} deSiempre={<div className="cu-sin">{t("cu.chatgptSinCupo")}</div>} alCambiar={alCambiarCuentas} />
               ) : (
                 <>
                   <div className="cu-sin">{t("cu.chatgptSinCupo")}</div>
+                  <Ayuda lineas={["cu.ayuda.chatgpt1"]} />
                   <Conectar id="chatgpt" c={cuentas?.codex} como={t(cuentas?.codex?.instalado ? "cu.comoCodex" : "cu.comoCodexInstalar")} alMirar={mirar} />
                 </>
               )}
@@ -286,7 +368,9 @@ export function AjustesCupos({ Dato, b, cambiar }: { Dato: FilaDato; b: Borrador
   );
 
   return (
-    <section className="pn-sec pn-edita">
+    <section className="pn-sec pn-edita cu-avanzado">
+      <h3 className="pn-h">{t("cu.avanzado")}</h3>
+      <div className="cu-av-q">{t("cu.avanzadoQue")}</div>
       <Dato nombre="ajustes.cuposGuardar" que="ajustes.cuposGuardarQue">
         <Interruptor activo={b.guardar} alCambiar={(v) => cambiar({ ...b, guardar: v })} aria-label={t("ajustes.cuposGuardar")} />
       </Dato>
@@ -312,6 +396,20 @@ export function AjustesCupos({ Dato, b, cambiar }: { Dato: FilaDato; b: Borrador
             alElegir={(id) => cambiar({ ...b, sin_cupo: id as SinCupo })}
             reserva={SIN_CUPO.flatMap((id) => enOtros(SIN_CUPO_CLAVES[id].nombre))}
           />
+        </div>
+      </Dato>
+
+      {/* Lo que pa ya hace con Google: valores fijos (no se editan), pero se ven acá junto a los ajustes que sí se editan. */}
+      <Dato nombre="cu.topesGoogle" que="cu.topesQue">
+        <div className="cu-topes">
+          <div className="cu-tope">
+            <span>{t("cu.saltoLlena")}</span>
+            <Chip>{t("cu.saltoDesde", { pct: GOOGLE_LLENA })}</Chip>
+          </div>
+          <div className="cu-tope">
+            <span>{t("cu.saltoCodigo")}</span>
+            <Chip>{t("cu.saltoDesde", { pct: GOOGLE_CODIGO })}</Chip>
+          </div>
         </div>
       </Dato>
     </section>

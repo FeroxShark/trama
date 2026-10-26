@@ -11,6 +11,8 @@ export interface VentanaCupo {
   id: string;
   pct: number | null;
   vuelve: number | null;
+  /** No rige ahora (Google: con la semana agotada el límite de 5 h no aplica): no es un 0 %. */
+  deshabilitada?: boolean;
 }
 
 export interface GrupoCupo {
@@ -19,6 +21,8 @@ export interface GrupoCupo {
   ventanas: VentanaCupo[];
   /** Fecha ISO corta (YYYY-MM-DD) hasta la que vale el grupo. */
   hasta?: string;
+  /** `reparto` lo marcó sin cupo (un 429) hasta ahí (epoch s): una marca, no un 100 % medido. */
+  agotado?: number;
 }
 
 /** Una suscripción con ventanas propias (`ventanas`) o repartidas en grupos (`grupos`). `ts`: cuándo se leyó (epoch s). */
@@ -31,6 +35,7 @@ export interface SuscripcionCupo {
   ts: number;
   ventanas?: VentanaCupo[];
   grupos?: GrupoCupo[];
+  agotado?: number;
 }
 
 export interface CuposLeidos {
@@ -68,9 +73,27 @@ function ventanasDe(raw: unknown): VentanaCupo[] {
     const id = texto(o.id);
     if (!id) continue;
     const vuelve = isoMs(o.vuelve);
-    res.push({ id, pct: pctDe(o.usado), vuelve: vuelve === null ? null : Math.round(vuelve / 1000) });
+    // `deshabilitada` (o `disabled`, como lo dice /quota de agy): la ventana no rige ahora.
+    const off = o.deshabilitada === true || o.disabled === true || o.aplica === false;
+    res.push({ id, pct: pctDe(o.usado), vuelve: vuelve === null ? null : Math.round(vuelve / 1000), ...(off ? { deshabilitada: true } : {}) });
   }
   return res;
+}
+
+/**
+ * Hoy `reparto` no distingue la 5 h «que no aplica» (agy: `disabled`, con la semana agotada): la manda como usado 0 sin hora de
+ * vuelta. Si en el mismo grupo la semana está al 100 %, ese 0 no es un 0: se marca deshabilitada para que la vista no mienta.
+ */
+function inferirDeshabilitadas(vs: VentanaCupo[]): VentanaCupo[] {
+  const semanaLlena = vs.some((v) => v.id === "7d" && v.pct !== null && v.pct >= 100 && !v.deshabilitada);
+  if (!semanaLlena) return vs;
+  return vs.map((v) => (v.id === "5h" && v.pct === 0 && v.vuelve === null ? { ...v, deshabilitada: true } : v));
+}
+
+/** `agotado` de `reparto` (ISO) a epoch s; sin marca o ya vencida, `undefined`. */
+function agotadoDe(raw: unknown, ahoraMs: number): number | undefined {
+  const ms = isoMs(raw);
+  return ms !== null && ms > ahoraMs ? Math.round(ms / 1000) : undefined;
 }
 
 /** Un grupo con `hasta` vencido ya no cuenta (el día de `hasta` todavía vale). */
@@ -83,10 +106,11 @@ function gruposDe(raw: unknown, ahoraMs: number): GrupoCupo[] {
     if (!g || typeof g !== "object") continue;
     const o = g as Record<string, unknown>;
     const id = texto(o.id);
-    const ventanas = ventanasDe(o.ventanas);
+    const ventanas = inferirDeshabilitadas(ventanasDe(o.ventanas));
     const hasta = texto(o.hasta) || undefined;
+    const agotado = agotadoDe(o.agotado, ahoraMs);
     if (!id || ventanas.length === 0 || vencido(hasta, ahoraMs)) continue;
-    res.push({ id, nombre: texto(o.nombre) || id, ventanas, ...(hasta ? { hasta } : {}) });
+    res.push({ id, nombre: texto(o.nombre) || id, ventanas, ...(hasta ? { hasta } : {}), ...(agotado ? { agotado } : {}) });
   }
   return res;
 }
@@ -130,6 +154,7 @@ export function parsearCuposReparto(salida: string, ahoraMs = Date.now()): Cupos
     if (ventanas.length === 0 && grupos.length === 0) continue;
     const proveedor = texto(o.proveedor);
     const cuenta = texto(o.cuenta);
+    const agotado = agotadoDe(o.agotado, ahoraMs);
     suscripciones.push({
       id,
       nombre: texto(o.nombre) || id,
@@ -138,6 +163,7 @@ export function parsearCuposReparto(salida: string, ahoraMs = Date.now()): Cupos
       ts: tsS,
       ...(ventanas.length ? { ventanas } : {}),
       ...(grupos.length ? { grupos } : {}),
+      ...(agotado ? { agotado } : {}),
     });
   }
   if (!claude && suscripciones.length === 0) return null;

@@ -94,6 +94,41 @@ describe("parsearCuposReparto", () => {
     ]);
   });
 
+  it("`agotado` (la marca de reparto tras un 429) pasa a epoch s; vencida o ausente, no sale", () => {
+    const res = parsearCuposReparto(JSON.stringify(CONTRATO), AHORA);
+    assert.equal(res?.suscripciones[0].grupos?.[2].agotado, s("2026-10-25T23:38:40Z"));
+    assert.equal(res?.suscripciones[0].grupos?.[0].agotado, undefined);
+    const despues = Date.parse("2026-10-26T00:00:00Z");
+    assert.equal(parsearCuposReparto(JSON.stringify(CONTRATO), despues)?.suscripciones[0].grupos?.[2].agotado, undefined);
+    const susc = JSON.stringify({ version: 1, suscripciones: [{ id: "chatgpt", nombre: "ChatGPT", ventanas: [{ id: "5h", usado: 1, vuelve: null }], agotado: "2026-10-25T00:00:00Z" }] });
+    assert.equal(parsearCuposReparto(susc, AHORA)?.suscripciones[0].agotado, s("2026-10-25T00:00:00Z"));
+  });
+
+  it("la 5 h que no aplica: `disabled` explícito, o el 0 sin hora de un grupo con la semana al 100 %, queda deshabilitada", () => {
+    const json = JSON.stringify({
+      version: 1,
+      suscripciones: [
+        {
+          id: "google",
+          nombre: "Google AI Pro",
+          grupos: [
+            // hoy reparto lo manda así (usado 0, sin hora) con la semana agotada
+            { id: "claude-gpt", nombre: "Claude y GPT por Google", ventanas: [{ id: "5h", usado: 0, vuelve: null }, { id: "7d", usado: 1, vuelve: "2026-10-30T04:01:00Z" }] },
+            // explícito
+            { id: "otro", nombre: "Otro", ventanas: [{ id: "5h", usado: 0.2, vuelve: null, disabled: true }, { id: "7d", usado: 0.3, vuelve: null }] },
+            // un 0 real (semana con lugar) NO se toca
+            { id: "gemini", nombre: "Gemini", ventanas: [{ id: "5h", usado: 0, vuelve: null }, { id: "7d", usado: 0.05, vuelve: null }] },
+          ],
+        },
+      ],
+    });
+    const gs = parsearCuposReparto(json, AHORA)?.suscripciones[0].grupos;
+    assert.equal(gs?.[0].ventanas[0].deshabilitada, true);
+    assert.equal(gs?.[0].ventanas[1].deshabilitada, undefined);
+    assert.equal(gs?.[1].ventanas[0].deshabilitada, true);
+    assert.equal(gs?.[2].ventanas[0].deshabilitada, undefined);
+  });
+
   it("un grupo con `hasta` vencido no sale; el día de `hasta` todavía vale", () => {
     const hoy = Date.parse("2026-11-02T23:00:00Z");
     assert.equal(parsearCuposReparto(JSON.stringify(CONTRATO), hoy)?.suscripciones[0].grupos?.length, 3);

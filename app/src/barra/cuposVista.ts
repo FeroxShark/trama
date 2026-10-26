@@ -18,3 +18,73 @@ export const usoMaximo = (g: GrupoCupo): number => g.ventanas.reduce((m, v) => (
 export function masUsado(grupos: GrupoCupo[]): GrupoCupo {
   return grupos.reduce((a, g) => (usoMaximo(g) > usoMaximo(a) ? g : a));
 }
+
+// --- Qué le pasa a cada ventana, grupo y suscripción (lo comparten la barra y Ajustes > Plan y cupos) ---
+
+/** Desde este % usado se dice «poco cupo» (la barra pasa a ámbar; el texto lo dice también, sin depender del color). */
+export const USO_BAJO = 90;
+
+export type EstadoVentana = "off" | "sin" | "lleno" | "bajo" | "ok";
+
+/** `off`: no rige ahora; `sin`: sin dato; `lleno`: 100 %; `bajo`: desde `USO_BAJO`; `ok` el resto. */
+export function estadoVentana(v: VentanaCupo): EstadoVentana {
+  if (v.deshabilitada) return "off";
+  if (v.pct === null) return "sin";
+  return v.pct >= 100 ? "lleno" : v.pct >= USO_BAJO ? "bajo" : "ok";
+}
+
+/** `marcado`: `reparto` lo marcó sin cupo tras un 429 (no es una medida). */
+export type EstadoGrupo = "ok" | "bajo" | "lleno" | "marcado" | "sin";
+
+export interface ResumenCupo {
+  estado: EstadoGrupo;
+  /** Lo más lleno entre las ventanas que rigen (`null`: sin dato o marcado). */
+  pct: number | null;
+  /** Cuándo vuelve (epoch s) si está lleno o marcado; `null`: no se sabe, o no aplica. */
+  vuelve: number | null;
+}
+
+/** Resumen de un conjunto de ventanas (una suscripción con ventanas propias, o un grupo). `agotado`: la marca de `reparto`. */
+export function resumenVentanas(ventanas: readonly VentanaCupo[], agotado: number | undefined, ahoraS: number): ResumenCupo {
+  if (agotado !== undefined && agotado > ahoraS) return { estado: "marcado", pct: null, vuelve: agotado };
+  const rigen = ventanas.filter((v) => estadoVentana(v) !== "off");
+  const llenas = rigen.filter((v) => estadoVentana(v) === "lleno");
+  if (llenas.length) {
+    // Vuelve cuando vuelve la última de las llenas (con la semana llena, la 5 h no cuenta).
+    const horas = llenas.map((v) => v.vuelve);
+    return { estado: "lleno", pct: 100, vuelve: horas.some((h) => h === null) ? null : Math.max(...(horas as number[])) };
+  }
+  const pcts = rigen.map((v) => v.pct).filter((p): p is number => p !== null);
+  if (pcts.length === 0) return { estado: "sin", pct: null, vuelve: null };
+  const pct = Math.max(...pcts);
+  return { estado: pct >= USO_BAJO ? "bajo" : "ok", pct, vuelve: null };
+}
+
+export const resumenGrupo = (g: GrupoCupo, ahoraS: number): ResumenCupo => resumenVentanas(g.ventanas, g.agotado, ahoraS);
+
+const PESO: Record<EstadoGrupo, number> = { sin: 0, ok: 1, bajo: 2, marcado: 3, lleno: 3 };
+
+export interface ResumenSusc {
+  /** `ok`, `bajo`, `sin` (nada con dato), `lleno` (todo agotado) o `parcial` (algún grupo agotado y otros no). */
+  nivel: "ok" | "bajo" | "sin" | "lleno" | "parcial";
+  /** Los grupos agotados (o marcados), con cuándo vuelven. */
+  agotados: { id: string; vuelve: number | null; marcado: boolean }[];
+  /** Cuándo vuelve lo primero que vuelve (epoch s), `null`: no se sabe. */
+  vuelve: number | null;
+}
+
+/** El estado de toda una suscripción en una línea: sirve igual para ventanas propias (un grupo implícito) que para varios grupos. */
+export function resumenSusc(s: { ventanas?: VentanaCupo[]; grupos?: GrupoCupo[]; agotado?: number }, ahoraS: number): ResumenSusc {
+  const partes: { id: string; r: ResumenCupo }[] = s.grupos?.length
+    ? s.grupos.map((g) => ({ id: g.id, r: resumenGrupo(g, ahoraS) }))
+    : [{ id: "", r: resumenVentanas(s.ventanas ?? [], s.agotado, ahoraS) }];
+  const agotados = partes.filter((p) => p.r.estado === "lleno" || p.r.estado === "marcado").map((p) => ({ id: p.id, vuelve: p.r.vuelve, marcado: p.r.estado === "marcado" }));
+  const horas = agotados.map((a) => a.vuelve).filter((h): h is number => h !== null);
+  const vuelve = horas.length ? Math.min(...horas) : null;
+  if (agotados.length) return { nivel: agotados.length === partes.length ? "lleno" : "parcial", agotados, vuelve };
+  const peor = partes.reduce((m, p) => (PESO[p.r.estado] > PESO[m] ? p.r.estado : m), "sin" as EstadoGrupo);
+  return { nivel: peor === "bajo" ? "bajo" : peor === "ok" ? "ok" : "sin", agotados, vuelve: null };
+}
+
+/** Un chip por grupo para la barra angosta: lo más lleno que rige y cuándo vuelve si está agotado. */
+export const chipsDe = (grupos: readonly GrupoCupo[], ahoraS: number) => grupos.map((g) => ({ g, r: resumenGrupo(g, ahoraS) }));

@@ -11,16 +11,18 @@
 // (las demás), nunca una celda vacía. El botón de releer le pide a `claude` el uso como lo dice claude.ai
 // (`get_usage`) y relee todo.
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { ChevronDown, ChevronRight, PanelLeft, RotateCw } from "lucide-react";
-import type { Uso, Ventana, VentanaCupo } from "../datos/contrato";
+import { Ban, Check, ChevronDown, ChevronRight, Clock, PanelLeft, RotateCw, TriangleAlert } from "lucide-react";
+import type { GrupoCupo, Uso, Ventana, VentanaCupo } from "../datos/contrato";
 import { fuente } from "../datos/fuente";
 import { nivel } from "../hilo/contexto-logica";
 import { LogoSuscripcion } from "../hilo/Logos";
 import { MARCA, filasDeCupos, type FilaSusc } from "../datos/cuentas";
 import { MODO } from "../modo";
-import { VIEJO_S, pintorCuando, pintorVisto } from "../tiempo";
+import { VIEJO_S, cuandoFuturo, pintorCuando, pintorVisto } from "../tiempo";
 import type { Pintor } from "../reloj";
-import { columnas, masUsado } from "./cuposVista";
+import { chipsDe, columnas, resumenGrupo, type ResumenCupo } from "./cuposVista";
+import { nombreGrupo, nombreGrupoCorto } from "./cuposNombres";
+import { textoEstado } from "./cuposTextos";
 import { Marca } from "./Marca";
 import { filaDe, formatearFalta, formatearHasta, type Unidades } from "./usoFila";
 import { Reloj } from "./piezas";
@@ -40,7 +42,17 @@ const VER_TIP = MODO.captura === "hover" || !!MODO.captura?.startsWith("uso");
  * Una ventana lista para pintar: `pct` null = sin dato; `hasta` en epoch s (0: no se sabe cuándo se reinicia);
  * `cupo`: viene de `reparto` (sin dato dice "—"), no de la statusline de Claude.
  */
-type Celda = { clave: string; ventana: string; pct: number | null; hasta: number; cupo?: boolean };
+type Celda = {
+  clave: string;
+  ventana: string;
+  pct: number | null;
+  hasta: number;
+  cupo?: boolean;
+  /** La ventana no rige ahora ("no aplica"), no es un 0 %. */
+  off?: boolean;
+  /** El grupo está marcado sin cupo hasta (epoch s) por un 429: una marca, no una medida. */
+  marcado?: number;
+};
 
 /** Cómo se llama una ventana en el tooltip (`5h`, `7d`; una desconocida, su id). */
 function ventanaDe(id: string): string {
@@ -137,10 +149,38 @@ function celdaDe(clave: "5h" | "7d", v: Ventana | null): Celda {
 
 /** Una ventana de `reparto` como celda. */
 function celdaCupo(v: VentanaCupo | null): Celda | null {
-  return v && { clave: v.id, ventana: ventanaDe(v.id), pct: v.pct, hasta: v.vuelve ?? 0, cupo: true };
+  return v && { clave: v.id, ventana: ventanaDe(v.id), pct: v.pct, hasta: v.vuelve ?? 0, cupo: true, ...(v.deshabilitada ? { off: true } : {}) };
 }
 
 const celdasCupo = (ventanas: VentanaCupo[]) => columnas(ventanas).map(celdaCupo);
+
+/** Un grupo marcado sin cupo (429): no se pintan sus 100 % inventados, una sola celda dice «marcado» y hasta cuándo. */
+const celdasGrupo = (g: GrupoCupo, r: ResumenCupo): (Celda | null)[] =>
+  r.estado === "marcado" ? [{ clave: "marca", ventana: t("cu.st.marcadoSin"), pct: null, hasta: r.vuelve ?? 0, cupo: true, marcado: r.vuelve ?? 0 }, null] : celdasCupo(g.ventanas);
+
+/** El mini-estado de un grupo en la barra: icono + texto (nunca sólo color: ámbar y rojo se confunden con deuteranomalía). */
+function ChipGrupo({ g, r }: { g: GrupoCupo; r: ResumenCupo }) {
+  const nombre = nombreGrupoCorto(g);
+  const ahora = Date.now() / 1000;
+  const valor =
+    r.estado === "ok" || r.estado === "bajo"
+      ? `${r.pct}%`
+      : r.estado === "sin"
+        ? "—"
+        : r.estado === "marcado"
+          ? t("cu.w.marcadoCorto")
+          : r.vuelve !== null
+            ? cuandoFuturo(r.vuelve, ahora)
+            : t("cu.w.agotada");
+  const Icono = r.estado === "ok" ? Check : r.estado === "bajo" ? TriangleAlert : r.estado === "marcado" ? Clock : r.estado === "lleno" ? Ban : null;
+  return (
+    <span className="g-chip" data-estado={r.estado} data-tip={`${nombreGrupo(g)} · ${textoEstado(r, ahora)}`} tabIndex={0}>
+      {Icono && <Icono size={10} strokeWidth={2.4} aria-hidden="true" />}
+      <span className="g-chip-n">{nombre}</span>
+      <span className="g-chip-v">{valor}</span>
+    </span>
+  );
+}
 
 /**
  * Una suscripción de `reparto` (todas menos Claude): con ventanas propias, un renglón; con grupos, un renglón con el más
@@ -151,8 +191,10 @@ function Suscripcion({ f }: { f: FilaSusc }) {
   const [abierto, setAbierto] = useState(false);
   const logo = <LogoSuscripcion id={f.proveedor} nombre={s.nombre} />;
   const grupos = s.grupos ?? [];
-  const arriba = grupos.length > 0 ? masUsado(grupos) : null;
   const plegable = grupos.length > 1;
+  const ahora = Date.now() / 1000;
+  // Con un solo grupo, sus dos celdas de siempre; con varios, un chip por grupo (cada uno con lo suyo, no sólo el peor).
+  const unico = grupos.length === 1 ? grupos[0] : null;
   // "Google AI Pro" no entra en la columna del nombre: el renglón dice la marca ("Google") y el nombre entero va al tooltip (`quien`).
   const marca = (MARCA as Record<string, string>)[f.proveedor];
   const visible = marca && f.corto === f.nombre && f.corto.startsWith(marca) ? marca : f.corto;
@@ -164,9 +206,9 @@ function Suscripcion({ f }: { f: FilaSusc }) {
           logo={logo}
           id={s.id}
           nombre={visible}
-          sub={arriba?.nombre}
-          quien={arriba ? `${f.nombre} · ${arriba.nombre}` : f.nombre}
-          celdas={celdasCupo(s.ventanas?.length ? s.ventanas : (arriba?.ventanas ?? []))}
+          quien={unico ? `${f.nombre} · ${nombreGrupo(unico)}` : f.nombre}
+          celdas={plegable ? [] : unico ? celdasGrupo(unico, resumenGrupo(unico, ahora)) : celdasCupo(s.ventanas ?? [])}
+          chips={plegable ? chipsDe(grupos, ahora).map(({ g, r }) => <ChipGrupo key={g.id} g={g} r={r} />) : undefined}
           ts={s.ts}
           plegable={plegable ? { abierto, alternar: () => setAbierto((a) => !a), n: grupos.length } : undefined}
         />
@@ -178,10 +220,10 @@ function Suscripcion({ f }: { f: FilaSusc }) {
               <Grupo
                 key={g.id}
                 id={`${s.id}:${g.id}`}
-                nombre={g.nombre}
-                quien={`${f.nombre} · ${g.nombre}`}
+                nombre={nombreGrupoCorto(g)}
+                quien={`${f.nombre} · ${nombreGrupo(g)}`}
                 hasta={h ? t("uso.hasta", h) : undefined}
-                celdas={celdasCupo(g.ventanas)}
+                celdas={celdasGrupo(g, resumenGrupo(g, ahora))}
                 ts={s.ts}
                 hijo
               />
@@ -205,6 +247,7 @@ function Grupo({
   quien,
   hasta,
   celdas,
+  chips,
   ts,
   ver,
   plegable,
@@ -219,6 +262,8 @@ function Grupo({
   quien?: string;
   hasta?: string;
   celdas: (Celda | null)[];
+  /** En lugar de las celdas: un chip por grupo (renglón plegado de una suscripción con varios grupos). */
+  chips?: ReactNode[];
   ts: number;
   ver?: boolean;
   plegable?: { abierto: boolean; alternar: () => void; n: number };
@@ -251,6 +296,7 @@ function Grupo({
           {cuerpo}
         </span>
       )}
+      {chips && <div className="g-chips">{chips}</div>}
       {celdas.map((c, i) =>
         c ? <UsoCelda key={c.clave} c={c} quien={dueno} ts={ts} ver={ver && i === 0} /> : <span key={`v${i}`} className="uso-vacio" aria-hidden="true" />,
       )}
@@ -304,6 +350,22 @@ function UsoCelda({ c, quien, ts, ver }: { c: Celda; quien: string; ts: number; 
   );
   const numero = useMemo(() => pintorPct(pct ?? 0, ts), [pct, ts]);
   const n = pct === null ? "normal" : nivel(pct);
+  // Una ventana que no rige ahora, o un grupo marcado sin cupo: ni barra ni porcentaje, una frase corta y la explicación en el tip.
+  if (c.off || c.marcado !== undefined) {
+    const marcado = c.marcado !== undefined;
+    return (
+      <div className="uso" tabIndex={0} data-aparte={marcado ? "marcado" : "off"} aria-label={`${largo}: ${marcado ? t("cu.w.marcadoCorto") : t("cu.w.noAplicaCorto")}`} data-ver={ver ? "" : undefined}>
+        <div className="r">
+          <span className="sd">{marcado ? t("cu.w.marcadoCorto") : t("cu.w.noAplicaCorto")}</span>
+        </div>
+        <div className="riel" data-hueco="" />
+        <span className="tip" role="tooltip">
+          <span className="tip-t">{marcado ? `${t("cu.st.marcado", { cuando: cuandoFuturo(hasta) })}` : largo}</span>
+          <span className="tip-l">{marcado ? t("cu.w.marcaQue") : t("cu.w.noAplicaQue")}</span>
+        </span>
+      </div>
+    );
+  }
   return (
     <div
       className="uso"
@@ -316,6 +378,7 @@ function UsoCelda({ c, quien, ts, ver }: { c: Celda; quien: string; ts: number; 
       <div className="r">
         {hasta > 0 ? <Reloj pintor={falta} className="n" /> : <span className="n">—</span>}
         {pct === null ? <span className="sd">{c.cupo ? "—" : t("uso.sinDato")}</span> : <Reloj pintor={numero} className="pct" />}
+        {pct !== null && pct >= 100 && <Ban className="uso-lleno" size={10} strokeWidth={2.4} aria-hidden="true" />}
       </div>
       <div className="riel">{pct !== null && <i style={{ transform: `scaleX(${pct / 100})` }} />}</div>
       <span className="tip" role="tooltip">

@@ -189,3 +189,26 @@ export function pintorBarato(vence: number | null, frio: boolean): Pintor {
     };
   };
 }
+
+/**
+ * Cuándo vuelve algo, en local y sin segundos: "hoy 01:01", "mañana 01:01", "jue 01:01" (dentro de la semana), "2 nov 01:01".
+ * Se calcula al pintar (no es un reloj: la hora absoluta no cambia con el tiempo).
+ */
+export function cuandoFuturo(epoch: number, ahora = Date.now() / 1000): string {
+  const f = new Date(epoch * 1000);
+  const h = new Date(ahora * 1000);
+  const hora = `${dos(f.getHours())}:${dos(f.getMinutes())}`;
+  const dias = Math.round((diaDe(f) - diaDe(h)) / (DIA * 1000));
+  if (dias <= 0) return t("tiempo.hoyA", { h: hora });
+  if (dias === 1) return t("tiempo.mananaA", { h: hora });
+  if (dias < 7) return `${diaSemana(f)} ${hora}`;
+  const fecha = f.toLocaleDateString(locale(), { day: "numeric", month: "short" }).replace(/\./g, "").replace(/ de /g, " ");
+  return `${fecha} ${hora}`;
+}
+
+/** "2 nov": una fecha ISO corta (YYYY-MM-DD) en local y sin año; si no es una fecha, el texto tal cual. */
+export function fechaCorta(iso: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
+  if (!m) return iso;
+  return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])).toLocaleDateString(locale(), { day: "numeric", month: "short" }).replace(/\./g, "").replace(/ de /g, " ");
+}
