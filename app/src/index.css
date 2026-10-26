@@ -1378,6 +1378,14 @@ kbd {
 .wbtn[data-cursor] + .acc,
 .acc:focus-within {
   opacity: 1;
+}
+/* La franja cubre toda la segunda línea pero no recibe clics (si no, tocar la fila ahí no la abre): sólo sus botones. */
+.w:hover > .acc > *,
+.wbtn[data-cursor] + .acc > *,
+.acc:focus-within > *,
+.lw:hover > .acc > *,
+.lider[data-cursor] ~ .acc > *,
+.lw > .acc:has(.settle-conf) > * {
   pointer-events: auto;
 }
 .w:has(> .acc):hover .l2,
@@ -1410,7 +1418,6 @@ kbd {
 .lw:hover > .acc,
 .lider[data-cursor] ~ .acc {
   opacity: 1;
-  pointer-events: auto;
 }
 /* "Quedan N ramas sin integrar: ¿Settle igual?": a la izquierda del Settle, mientras está armado. */
 .settle-conf {
@@ -1429,7 +1436,6 @@ kbd {
 /* Armado, queda a la vista aunque se vaya el mouse (se desarma al salir del botón o con Esc). */
 .lw > .acc:has(.settle-conf) {
   opacity: 1;
-  pointer-events: auto;
 }
 .mini {
   display: inline-flex;

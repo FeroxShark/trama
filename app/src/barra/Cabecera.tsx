@@ -10,7 +10,7 @@
 // despliega al tocar el nombre. Un límite del que no se sabe ni el porcentaje lo dice: "sin dato" (Claude) o "—"
 // (las demás), nunca una celda vacía. El botón de releer le pide a `claude` el uso como lo dice claude.ai
 // (`get_usage`) y relee todo.
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Ban, Check, ChevronDown, ChevronRight, Clock, PanelLeft, RotateCw, TriangleAlert } from "lucide-react";
 import type { GrupoCupo, Uso, Ventana, VentanaCupo } from "../datos/contrato";
 import { fuente } from "../datos/fuente";
@@ -208,7 +208,7 @@ function Suscripcion({ f }: { f: FilaSusc }) {
           nombre={visible}
           quien={unico ? `${f.nombre} · ${nombreGrupo(unico)}` : f.nombre}
           celdas={plegable ? [] : unico ? celdasGrupo(unico, resumenGrupo(unico, ahora)) : celdasCupo(s.ventanas ?? [])}
-          chips={plegable ? chipsDe(grupos, ahora).map(({ g, r }) => <ChipGrupo key={g.id} g={g} r={r} />) : undefined}
+          chips={plegable && !abierto ? chipsDe(grupos, ahora).map(({ g, r }) => <ChipGrupo key={g.id} g={g} r={r} />) : undefined}
           ts={s.ts}
           plegable={plegable ? { abierto, alternar: () => setAbierto((a) => !a), n: grupos.length } : undefined}
         />
@@ -273,7 +273,16 @@ function Grupo({
   const cuerpo = (
     <>
       {logo}
-      <span className="g-n">{nombre}</span>
+      <span className="g-n">
+        {/* "Claude/GPT" es una sola palabra: se deja partir después de la barra en vez de cortarla con "…". */}
+        {nombre.split("/").map((p, i) => (
+          <Fragment key={i}>
+            {i > 0 && "/"}
+            {i > 0 && <wbr />}
+            {p}
+          </Fragment>
+        ))}
+      </span>
       {plegable && (plegable.abierto ? <ChevronDown className="g-flecha" size={11} strokeWidth={2} /> : <ChevronRight className="g-flecha" size={11} strokeWidth={2} />)}
       {sub && <span className="g-sub">{sub}</span>}
       {hasta && <span className="g-hasta">{hasta}</span>}
@@ -376,8 +385,15 @@ function UsoCelda({ c, quien, ts, ver }: { c: Celda; quien: string; ts: number; 
       data-ver={ver ? "" : undefined}
     >
       <div className="r">
-        {hasta > 0 ? <Reloj pintor={falta} className="n" /> : <span className="n">—</span>}
-        {pct === null ? <span className="sd">{c.cupo ? "—" : t("uso.sinDato")}</span> : <Reloj pintor={numero} className="pct" />}
+        {/* Agotada: cuándo vuelve ("vie 01:01") y el ícono, sin el "100%" que no entra junto a la cuenta regresiva. */}
+        {pct !== null && pct >= 100 && hasta > 0 ? (
+          <span className="n">{cuandoFuturo(hasta)}</span>
+        ) : hasta > 0 ? (
+          <Reloj pintor={falta} className="n" />
+        ) : (
+          <span className="n">—</span>
+        )}
+        {pct === null ? <span className="sd">{c.cupo ? "—" : t("uso.sinDato")}</span> : pct >= 100 && hasta > 0 ? null : <Reloj pintor={numero} className="pct" />}
         {pct !== null && pct >= 100 && <Ban className="uso-lleno" size={10} strokeWidth={2.4} aria-hidden="true" />}
       </div>
       <div className="riel">{pct !== null && <i style={{ transform: `scaleX(${pct / 100})` }} />}</div>
