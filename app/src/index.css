@@ -3073,6 +3073,30 @@ kbd {
 .caja-local svg {
   flex: none;
 }
+/* "Mandar ya" a mitad de un turno: el botón con su rayo, y el aviso de que espera al paso en curso (callado, como .caja-local). */
+.btn2.directo {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--esp-1-5);
+}
+/* En el celular entra sólo el rayo (el nombre va en su aria-label): la fila de la caja sigue siendo una. */
+@media (max-width: 35rem) {
+  .btn2.directo .directo-t {
+    display: none;
+  }
+}
+.directo-espera {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-1-5);
+  padding: var(--esp-1) var(--esp-1);
+  color: var(--texto-4);
+  font-size: var(--letra-4);
+  line-height: 1.5;
+}
+.directo-espera svg {
+  flex: none;
+}
 /* "Te necesita": el enviar dice Responder. */
 .prim[data-texto] {
   display: inline-flex;

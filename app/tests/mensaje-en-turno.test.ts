@@ -156,19 +156,43 @@ test("rebobinar: el adjunto trae uuid y cuelga de la cadena; rebobinar antes lo 
   assert.ok((await hasta(despues.uuid)).includes(adj.uuid), "después: dentro");
 });
 
-test("la conversación de la app NO muestra el mensaje absorbido: `avanzarConv` ignora los adjuntos", () => {
+test("la conversación de la app muestra el mensaje absorbido como del usuario, con su uuid y sin cortar la cadena", () => {
+  const t = jsonl("herramienta.transcript.jsonl");
+  const adj = adjuntoDe(t);
   const est = convNueva();
   avanzarConv(est, readFileSync(ruta("herramienta.transcript.jsonl"), "utf8"));
-  assert.ok(est.todos.length > 0);
-  assert.ok(!est.todos.some((m: any) => String(m.texto).includes("MENSAJE-1")), "hoy no hay mensaje del usuario para ese texto");
-  assert.ok(!est.todos.some((m: any) => m.uuid && m.uuid === adjuntoDe(jsonl("herramienta.transcript.jsonl")).uuid), "ni uuid para señalarlo (Editar / Volver acá)");
-  // El adjunto en medio de la cadena no corta nada: los mensajes de después se siguen sumando.
-  const ultimo = jsonl("herramienta.transcript.jsonl").findLast((o) => o.type === "assistant");
+  const m = est.todos.find((x: any) => String(x.texto).includes("MENSAJE-1"));
+  assert.ok(m, "el mensaje absorbido es un mensaje de la conversación");
+  assert.equal(m.rol, "user");
+  assert.equal(m.uuid, adj.uuid, "con el uuid del adjunto (Editar / Volver acá / Ramificar)");
+  assert.equal(est.posDe.get(adj.uuid), est.todos.indexOf(m));
+  // El adjunto en medio de la cadena no corta nada: los mensajes de después se siguen sumando, y el mensaje queda antes de la respuesta.
+  const ultimo = t.findLast((o) => o.type === "assistant");
   assert.ok(est.posDe.has(ultimo.uuid));
-  // El mensaje sin absorber (texto.*) sí es un `user` normal.
+  assert.ok(est.posDe.get(ultimo.uuid)! > est.posDe.get(adj.uuid)!);
+  // Releer el transcript entero da lo mismo (no desaparece, no se duplica).
+  const est3 = convNueva();
+  const todo = readFileSync(ruta("herramienta.transcript.jsonl"), "utf8");
+  avanzarConv(est3, todo);
+  avanzarConv(est3, "");
+  assert.equal(est3.todos.filter((x: any) => String(x.texto).includes("MENSAJE-1")).length, 1);
+  // El mensaje sin absorber (texto.*) sigue siendo un `user` normal.
   const est2 = convNueva();
   avanzarConv(est2, readFileSync(ruta("texto.transcript.jsonl"), "utf8"));
-  assert.ok(est2.todos.some((m: any) => m.rol === "user" && String(m.texto).includes("MENSAJE-1")));
+  assert.ok(est2.todos.some((x: any) => x.rol === "user" && String(x.texto).includes("MENSAJE-1")));
+});
+
+test("un queued_command que no es un pedido del usuario (una notificación de fondo) no es un mensaje suyo", () => {
+  const est = convNueva();
+  const linea = (o: unknown) => JSON.stringify(o) + "\n";
+  avanzarConv(
+    est,
+    linea({ type: "attachment", uuid: "n1", attachment: { type: "queued_command", commandMode: "task-notification", prompt: "<task-notification>listo</task-notification>" } }),
+  );
+  assert.equal(est.todos.length, 0);
+  avanzarConv(est, linea({ type: "attachment", uuid: "p1", attachment: { type: "queued_command", commandMode: "prompt", prompt: [{ type: "text", text: "hola ya" }] } }));
+  assert.equal(est.todos.length, 1);
+  assert.equal(est.todos[0].texto, "hola ya");
 });
 
 // --- Con un claude real (cuesta unos centavos de Haiku; HILOS_CLAUDE_REAL=1) ---------------------------------------------

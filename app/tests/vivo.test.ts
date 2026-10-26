@@ -47,7 +47,7 @@ Object.assign(globalThis, {
   },
 });
 
-const { confirmar, contestado, enCurso, enviado, lineasDelTurno, mensajesVistos, pensandoAhora, suscribir } = await import("../src/hilo/vivo.ts");
+const { confirmar, contestado, enCurso, enviado, enviadoDirecto, falloDirecto, lineasDelTurno, mensajesVistos, pensandoAhora, suscribir } = await import("../src/hilo/vivo.ts");
 const { turnos } = await import("../src/hilo/turnos.ts");
 const { tandasPendientes } = await import("../src/hilo/preguntas-logica.ts");
 
@@ -72,6 +72,37 @@ function terminar(sid: string) {
   emitir({ sid, e: { tipo: "fin", error: null, ttl: 3600 } });
   emitir({ sid, e: { tipo: "estado", ocupado: false, vivo: true } });
 }
+
+test("Mandar ya: queda en el chat al instante, cuenta como esperando hasta su eco y no toca el turno", () => {
+  empezar("directo");
+  emitir({ sid: "directo", e: entero("msg_a", "Voy a mirar.", ["Bash: sleep 20"]) });
+  const antes = enCurso("directo");
+  enviadoDirecto("directo", "cambiá de idea");
+  const e = enCurso("directo");
+  assert.equal(e.directos, 1);
+  assert.equal(e.ocupado, true);
+  assert.equal(e.turno, antes.turno, "el turno en curso sigue siendo el mismo");
+  assert.deepEqual(visto("directo").filter((m) => m.rol === "user").map((m) => m.texto), ["hola", "contame", "cambiá de idea"]);
+  // El eco (entregado) baja la cuenta, y nunca por debajo de 0.
+  emitir({ sid: "directo", e: { tipo: "entregado", texto: "cambiá de idea" } });
+  assert.equal(enCurso("directo").directos, 0);
+  emitir({ sid: "directo", e: { tipo: "entregado", texto: "otro" } });
+  assert.equal(enCurso("directo").directos, 0);
+  terminar("directo");
+});
+
+test("Mandar ya que falla: el mensaje sale del chat y el turno sigue; un fin deja la cuenta en 0", () => {
+  empezar("directo2");
+  enviadoDirecto("directo2", "no sale");
+  assert.equal(enCurso("directo2").directos, 1);
+  falloDirecto("directo2");
+  assert.equal(enCurso("directo2").directos, 0);
+  assert.deepEqual(visto("directo2").filter((m) => m.rol === "user").map((m) => m.texto), ["hola", "contame"]);
+  assert.equal(enCurso("directo2").ocupado, true);
+  enviadoDirecto("directo2", "sin eco");
+  terminar("directo2");
+  assert.equal(enCurso("directo2").directos, 0, "terminado el turno no queda esperando nada");
+});
 
 test("parciales + definitivo = un solo mensaje, igual al de hoy", () => {
   // Con el texto llegando de a pedazos.

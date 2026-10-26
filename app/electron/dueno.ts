@@ -4,8 +4,10 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { configTrama } from "./rutas.ts";
 
-export const PERFIL_JSON = () => process.env.TRAMA_PERFIL ?? path.join(os.homedir(), ".config", "trama", "perfil.json");
+// Sin `XDG_CONFIG_HOME`, como siempre: el perfil no seguía esa variable.
+export const PERFIL_JSON = () => process.env.TRAMA_PERFIL ?? path.join(configTrama({ ...process.env, XDG_CONFIG_HOME: undefined }), "perfil.json");
 
 const limpio = (x: unknown): string => (typeof x === "string" ? x.replace(/[\r\n`]+/g, " ").trim().slice(0, 40) : "");
 

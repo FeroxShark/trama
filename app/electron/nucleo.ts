@@ -820,6 +820,11 @@ export function armarNucleo() {
     verEspera(String(x?.sid));
     return lider.mandar({ sid: x?.sid, texto: x?.texto, imagenes: x?.imagenes, modelo: x?.modelo, effort: x?.effort });
   });
+  // "Mandar ya": a mitad de un turno, sin esperar a la cola (`lider.mandarDirecto`); sin turno en curso es un `mandar` normal.
+  manejar("lider:mandarYa", (_e, x: { sid: string; texto: string; imagenes?: unknown; modelo: string; effort: string }) => {
+    verEspera(String(x?.sid));
+    return lider.mandarDirecto({ sid: x?.sid, texto: x?.texto, imagenes: x?.imagenes, modelo: x?.modelo, effort: x?.effort });
+  });
   // Editar y Volver acá: seguir desde un mensaje anterior de la conversación (`lider.rebobinar`); Ramificar: un líder nuevo hasta ese mensaje.
   manejar("lider:rebobinar", (_e, x: { sid: string; uuid: string; texto: string; imagenes?: unknown; modelo: string; effort: string; previa?: boolean }) => {
     verEspera(String(x?.sid));

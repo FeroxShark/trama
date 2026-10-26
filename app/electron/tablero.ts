@@ -3,25 +3,24 @@
 // trae (lo hecho, los proyectos, los pospuestos). Todo lo que escribe lo escribe el CLI (execFile, sin shell): la
 // app nunca toca `items.jsonl`. Node puro, como pa.ts, para probarlo con un tablero temporal:
 //   TABLERO_DIR=$(mktemp -d) node --test tests/tablero.test.ts
-import { execFile } from "node:child_process";
 import { mirarCarpeta, type Mirada } from "./mirar.ts";
 import { readFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { entornoPa, resolverBinario } from "./binario.ts";
+import { entornoPa, lanzarCmd, resolverComando } from "./binario.ts";
 import { errorT } from "./errores.ts";
+import { vistaTablero } from "./rutas.ts";
 
 type Env = Record<string, string | undefined>;
 
 /** `HILOS_TABLERO`, el `tablero` del PATH o `~/.local/bin/tablero`. */
-export const TABLERO = resolverBinario("tablero", "HILOS_TABLERO", process.env, os.homedir());
+export const TABLERO_CMD = resolverComando("tablero", "HILOS_TABLERO", process.env, os.homedir());
+export const TABLERO = TABLERO_CMD[TABLERO_CMD.length - 1];
 const ENV = entornoPa(process.env, os.homedir()) as NodeJS.ProcessEnv;
 
 /** Dónde deja el CLI la vista: la misma regla que él (`TABLERO_VISTA`, `$TABLERO_DIR/vista.json`, el estado). */
 export function rutaVista(env: Env, home: string): string {
-  if (env.TABLERO_VISTA) return env.TABLERO_VISTA;
-  if (env.TABLERO_DIR) return path.join(env.TABLERO_DIR, "vista.json");
-  return path.join(home, ".local", "state", "tablero", "vista.json");
+  return vistaTablero(env, home);
 }
 
 export const VISTA = rutaVista(process.env, os.homedir());
@@ -40,7 +39,7 @@ const LARGO_TITULO = 500;
 /** Corre `tablero` y devuelve su stdout; si falla, rechaza con lo último que dijo por stderr. */
 function correr(args: string[]): Promise<string> {
   return new Promise((ok, mal) => {
-    execFile(TABLERO, args, { env: ENV, maxBuffer: 32 * 1024 * 1024, timeout: TOPE_MS }, (err, stdout, stderr) => {
+    lanzarCmd(TABLERO_CMD, args, { env: ENV, maxBuffer: 32 * 1024 * 1024, timeout: TOPE_MS }, (err, stdout, stderr) => {
       if (!err) return ok(stdout);
       const dijo = String(stderr).trim().split("\n").filter(Boolean).slice(-2).join(" · ");
       mal(new Error(dijo || `tablero ${args[0]}: ${err.message}`));

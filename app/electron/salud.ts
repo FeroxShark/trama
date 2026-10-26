@@ -16,6 +16,7 @@ import path from "node:path";
 import { ENV, ESTADO, ID, PA_STATE, escribirAtomico } from "./pa.js";
 import { registro, type Proyecto } from "./registro.js";
 import { silencio } from "./log.js";
+import { matarArbol, shellDe } from "./procesos.ts";
 
 const ARCHIVO = path.join(ESTADO, "salud.json");
 /** El mismo tope que `pa --integrar --tests` (`PA_TESTS_MAX`). */
@@ -178,7 +179,8 @@ function correrTests(ruta: string, cmd: string, c: Corriendo): Promise<{ rc: num
     let salida = "";
     let pasado = false;
     // Su propio grupo de procesos: cortar (o el tope) mata también lo que lance.
-    const hijo = spawn("bash", ["-c", cmd], { cwd: ruta, env: ENV, stdio: ["ignore", "pipe", "pipe"], detached: true });
+    const [shell, ...flagC] = shellDe("bash", ENV);
+    const hijo = spawn(shell, [...flagC, cmd], { cwd: ruta, env: ENV, stdio: ["ignore", "pipe", "pipe"], detached: true, windowsHide: true });
     const juntar = (b: Buffer) => {
       salida += b.toString("utf8");
       if (salida.length > 64 * 1024) salida = salida.slice(-32 * 1024);
@@ -186,9 +188,7 @@ function correrTests(ruta: string, cmd: string, c: Corriendo): Promise<{ rc: num
     hijo.stdout?.on("data", juntar);
     hijo.stderr?.on("data", juntar);
     const matar = () => {
-      try {
-        if (hijo.pid) process.kill(-hijo.pid, "SIGKILL");
-      } catch {}
+      matarArbol(hijo.pid, "SIGKILL");
     };
     const reloj = setTimeout(() => {
       pasado = true;

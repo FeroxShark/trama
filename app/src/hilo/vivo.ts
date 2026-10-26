@@ -67,6 +67,8 @@ export type EnCurso = {
   modo: string | null;
   /** Los pedidos de permiso sin contestar, en orden. */
   pide: Pedido[];
+  /** Mensajes de "Mandar ya" que el `claude` todavía no entregó al modelo (esperan a que termine el paso en curso). */
+  directos: number;
 };
 
 export type Pedido = Omit<Extract<EventoLider, { tipo: "permiso" }>, "tipo">;
@@ -88,6 +90,7 @@ const VACIO: EnCurso = {
   fines: 0,
   modo: null,
   pide: [],
+  directos: 0,
 };
 
 const estados = new Map<string, EnCurso>();
@@ -202,11 +205,13 @@ function cambiarPor(sid: string, ev: EventoLider) {
       case "estilos":
         ponerEstilos(ev.actual, ev.lista);
         return e;
+      case "entregado":
+        return e.directos ? { ...e, directos: e.directos - 1 } : e;
       case "fin": {
         // Parar termina el turno con un error que no es error.
         let avisos = sinReintento(e.avisos);
         if (ev.error && !e.parando) avisos = sumarAviso(avisos, { clase: "error", texto: ev.error, codigo: null });
-        return conInd({ ...e, parcial: "", pensando: "", avisos, parando: false, fines: e.fines + 1, pide: [] }, { hace: null });
+        return conInd({ ...e, parcial: "", pensando: "", avisos, parando: false, fines: e.fines + 1, pide: [], directos: 0 }, { hace: null });
       }
       case "estado": {
         const desde = ev.ocupado ? (e.desde ?? ahora()) : null;
@@ -216,7 +221,7 @@ function cambiarPor(sid: string, ev: EventoLider) {
       case "salio": {
         let avisos = sinReintento(e.avisos);
         if (ev.error !== null) avisos = sumarAviso(avisos, { clase: "salio", codigo: ev.codigo, texto: ev.error || null });
-        return conInd({ ...e, ocupado: false, desde: null, parcial: "", pensando: "", avisos, fines: e.fines + 1, pide: [] }, { hace: null, desde: null });
+        return conInd({ ...e, ocupado: false, desde: null, parcial: "", pensando: "", avisos, fines: e.fines + 1, pide: [], directos: 0 }, { hace: null, desde: null });
       }
       default:
         return e;
@@ -311,6 +316,26 @@ export function enviado(sid: string, texto: string, base: number, imagenes?: Men
     const desde = e.desde ?? ahora();
     const x = { ...e, base: primero ? base : e.base, tanda, turno, avisos: [], tok: { previos: 0, actual: 0 }, ocupado: true, desde };
     return conInd(x, { hace: { que: "pidiendo", nombre: null, detalle: null }, desde, salida: 0 });
+  });
+}
+
+/**
+ * "Mandar ya": el usuario mandó algo con un turno en curso. Va al final de la tanda, pero el turno sigue siendo el mismo (no se reinician
+ * `turno`, los avisos ni los tokens): el CLI lo entrega en el próximo límite de herramienta y el modelo sigue desde ahí. `directos` cuenta
+ * lo que todavía no entró, para el aviso de que espera a la herramienta en curso.
+ */
+export function enviadoDirecto(sid: string, texto: string, imagenes?: Mensaje["imagenes"]) {
+  cambiar(sid, (e) => {
+    const yo: Mensaje = { i: e.tanda.length, rol: "user", texto, herramientas: [], ts: new Date().toISOString(), modelo: null, ...(imagenes?.length ? { imagenes } : {}) };
+    return { ...e, tanda: [...e.tanda, yo], directos: e.directos + 1 };
+  });
+}
+
+/** El "Mandar ya" no salió: se saca ese mensaje y el turno sigue como estaba. */
+export function falloDirecto(sid: string) {
+  cambiar(sid, (e) => {
+    const k = e.tanda.map((m) => m.rol).lastIndexOf("user");
+    return { ...e, tanda: k < 0 ? e.tanda : e.tanda.filter((_, j) => j !== k).map((m, i) => ({ ...m, i })), directos: Math.max(0, e.directos - 1) };
   });
 }
 

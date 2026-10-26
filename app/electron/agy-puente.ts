@@ -28,6 +28,7 @@ import { avisoDestrabo, REINTENTOS_MAX, Vigilante, type Bucle, type Senal } from
 import { cerrarDestrabo, registrarDestrabo } from "./destrabar-registro.ts";
 import { destrabarModelo, modeloAgy } from "./modelos-config.ts";
 import { ESTADO } from "./estado.ts";
+import { matarArbol } from "./procesos.ts";
 import { SESIONES } from "./sesiones.ts";
 
 /** El `agy` de verdad: bajo la unidad de systemd el PATH no trae `~/.local/bin` y el binario pelado no se encuentra. */
@@ -217,7 +218,7 @@ function correrAgy(prompt: string, conversacion: string | null, tr: Traductor): 
     const args = ["-p", prompt, "--model", modeloAgy(modelo), "--output-format", "stream-json", "--dangerously-skip-permissions", "--print-timeout", TIMEOUT_TURNO];
     if (conversacion) args.push("--conversation", conversacion);
     // Su propio grupo: al interrumpir caen también los comandos que lanzó.
-    const p = spawn(AGY, args, { cwd, env: ENTORNO, stdio: ["ignore", "pipe", "pipe"], detached: true });
+    const p = spawn(AGY, args, { cwd, env: ENTORNO, stdio: ["ignore", "pipe", "pipe"], detached: true, windowsHide: true });
     hijo = p;
     const v: Vuelta = { pasos: 0, sinConversacion: false, conversacion: !!conversacion, bucle: null, exito: null };
     let resto = "";
@@ -372,18 +373,8 @@ function cerrarTurno() {
 function cortarGrupo() {
   if (!hijo?.pid) return;
   const pid = hijo.pid;
-  try {
-    process.kill(-pid, "SIGTERM");
-  } catch {
-    /* ya salió */
-  }
-  setTimeout(() => {
-    try {
-      process.kill(-pid, "SIGKILL");
-    } catch {
-      /* ya salió */
-    }
-  }, 3000).unref();
+  matarArbol(pid, "SIGTERM");
+  setTimeout(() => matarArbol(pid, "SIGKILL"), 3000).unref();
 }
 
 function interrumpir() {

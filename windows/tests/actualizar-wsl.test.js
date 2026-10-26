@@ -416,9 +416,11 @@ test("construir_app con huella: recompila al cambiar versión aunque exista dist
   }
 });
 
-test("configuración de release 0.1.2: FeroxShark/trama activa electron-updater y construir.sh la trae por defecto", () => {
+// La versión no se fija acá: se comprueba la FORMA. Un número exacto obliga a tocar el test en cada
+// release y, si alguien se olvida, el rojo no dice nada útil (pasó al publicar la 0.1.3).
+test("configuración de release: FeroxShark/trama activa electron-updater y construir.sh la trae por defecto", () => {
   const pkg = JSON.parse(fs.readFileSync(path.join(REPO_WIN, "package.json"), "utf8"));
-  assert.equal(pkg.version, "0.1.2");
+  assert.match(pkg.version, /^\d+\.\d+\.\d+$/, "la versión de la carcasa es x.y.z");
 
   const construir = fs.readFileSync(path.join(REPO_WIN, "scripts/construir.sh"), "utf8");
   assert.match(construir, /TRAMA_GH_OWNER:-FeroxShark/);

@@ -7,24 +7,22 @@
 import { chmodSync, lstatSync, mkdirSync, readFileSync, rmSync } from "node:fs";
 import http from "node:http";
 import net from "node:net";
-import os from "node:os";
-import path from "node:path";
 import { crearCanal, negar, type OpcionesCanal } from "./remoto.js";
+import { carpetaMotor, esPipe, esWindows, socketMotor } from "./rutas.ts";
 
 /**
  * La carpeta del socket: la de `XDG_RUNTIME_DIR` (de este usuario, se borra al apagar); sin ella, una en el tmp.
  * `HILOS_LOCAL` la cambia (las pruebas: el motor y la ventana de prueba no ven al motor del usuario).
+ * En Windows el "socket" es una named pipe (`socketDe`), y esta carpeta sólo da el nombre.
  */
-export function carpetaLocal(env: NodeJS.ProcessEnv = process.env): string {
-  if (env.HILOS_LOCAL) return env.HILOS_LOCAL;
-  const base = env.XDG_RUNTIME_DIR || path.join(os.tmpdir(), `trama-${os.userInfo().uid}`);
-  return path.join(base, "trama");
-}
-export const socketDe = (carpeta: string) => path.join(carpeta, "motor.sock");
+export const carpetaLocal = (env: NodeJS.ProcessEnv = process.env): string => carpetaMotor(env);
+/** Dónde escucha el motor: `<carpeta>/motor.sock`, o en Windows `\\.\pipe\trama-motor-<usuario>` (rutas.ts). */
+export const socketDe = (carpeta: string, env: NodeJS.ProcessEnv = process.env) => socketMotor(carpeta, env);
 
 /** La carpeta, 0700 y de este usuario; si es de otro o es un enlace, no se usa. */
 export function prepararCarpeta(carpeta: string) {
   mkdirSync(carpeta, { recursive: true, mode: 0o700 });
+  if (esWindows()) return; // sin uid ni modos: la carpeta es del perfil del usuario y la pipe se nombra, no se archiva
   const st = lstatSync(carpeta);
   if (!st.isDirectory() || st.isSymbolicLink()) throw new Error(`${carpeta} no es una carpeta`);
   if (typeof process.getuid === "function" && st.uid !== process.getuid()) throw new Error(`${carpeta} es de otro usuario`);
@@ -49,6 +47,15 @@ export function hayMotor(sock: string, ms = 1000): Promise<boolean> {
 
 /** El arranque de un proceso (`/proc/<pid>/stat`, campo 22): con el pid, dice que es éste y no otro que reusó el número. */
 export function arranqueDe(pid: number): string | null {
+  if (esWindows()) {
+    // Sin /proc: no se lee la hora de arranque. El pid vivo es lo que hay (`kill 0` = OpenProcess).
+    try {
+      process.kill(pid, 0);
+      return "win";
+    } catch (e) {
+      return (e as NodeJS.ErrnoException).code === "EPERM" ? "win" : null;
+    }
+  }
   try {
     const t = readFileSync(`/proc/${pid}/stat`, "utf8");
     return t.slice(t.lastIndexOf(")") + 2).split(" ")[19] ?? null;
@@ -114,11 +121,11 @@ export async function abrirLocal(o: Omit<OpcionesCanal, "conOrigen"> & { carpeta
   } catch (e) {
     if ((e as NodeJS.ErrnoException).code !== "EADDRINUSE") throw e;
     if (await hayMotor(ruta)) return null;
-    rmSync(ruta, { force: true });
+    if (!esPipe(ruta)) rmSync(ruta, { force: true });
     await escuchar();
   }
-  // La carpeta ya es 0700; el socket, por las dudas, también sólo del dueño.
-  chmodSync(ruta, 0o600);
+  // La carpeta ya es 0700; el socket, por las dudas, también sólo del dueño. (Una pipe de Windows no tiene modo.)
+  if (!esPipe(ruta)) chmodSync(ruta, 0o600);
   return {
     ruta,
     difundir: canal.difundir,
@@ -129,7 +136,7 @@ export async function abrirLocal(o: Omit<OpcionesCanal, "conOrigen"> & { carpeta
       await new Promise<void>((ok) => {
         servidor.close(() => ok());
         servidor.closeAllConnections();
-        rmSync(ruta, { force: true });
+        if (!esPipe(ruta)) rmSync(ruta, { force: true });
       });
     },
   };

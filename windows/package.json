@@ -1,7 +1,7 @@
 {
   "name": "trama-windows",
   "productName": "Trama",
-  "version": "0.1.2",
+  "version": "0.1.4",
   "description": "Carcasa de Windows para Trama: asistente de primer arranque (WSL2 + motor) y ventana a http://localhost:8791",
   "private": true,
   "license": "MIT",

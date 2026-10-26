@@ -27,6 +27,7 @@ export const RUTAS: Readonly<Record<string, Ruta>> = {
   // Lo que se le hace a una fila: a su máquina.
   "lider:nuevo": "maquina",
   "lider:mandar": "maquina",
+  "lider:mandarYa": "maquina",
   "lider:archivo": "maquina",
   "lider:parar": "maquina",
   "lider:modo": "maquina",

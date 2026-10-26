@@ -4,8 +4,9 @@
 import { readFile, realpath, stat } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { registroProyectos } from "./rutas.ts";
 
-const rutaRegistry = () => process.env.PROYECTOS_REGISTRY ?? path.join(os.homedir(), ".config", "proyectos", "registry.json");
+const rutaRegistry = () => registroProyectos();
 
 const expandir = (p: string) => (p === "~" ? os.homedir() : p.startsWith("~/") ? path.join(os.homedir(), p.slice(2)) : p);
 

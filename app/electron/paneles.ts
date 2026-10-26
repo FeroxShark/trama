@@ -8,7 +8,8 @@ import path from "node:path";
 import { decisionDeConversacion, resultadoDeConversacion, type DatosPasar, type RamaBrief } from "./asistente.js";
 import { leerUmbral } from "./contexto.js";
 import { errorT, textoT } from "./errores.ts";
-import { argvIntegrarPa, ENV, ID, nombrePa, PA, PA_STATE, PROYECTO, proyectoPa } from "./pa.js";
+import { lanzarCmd } from "./binario.js";
+import { argvIntegrarPa, ENV, ID, nombrePa, PA, PA_CMD, PA_STATE, PROYECTO, proyectoPa } from "./pa.js";
 import { registro } from "./registro.js";
 import { leerRouting, type Routing } from "./routing.js";
 import { mientrasIntegra, estadoSalud, type Chequeo, type FilaIntegrada } from "./salud.js";
@@ -21,7 +22,7 @@ import { silencio } from "./log.js";
  */
 export function ejecutar(args: string[], env: NodeJS.ProcessEnv = ENV): Promise<{ rc: number; out: string; dijo: string }> {
   return new Promise((ok) => {
-    execFile(PA, args, { env, maxBuffer: 8 * 1024 * 1024 }, (err, stdout, stderr) => {
+    lanzarCmd(PA_CMD, args, { env, maxBuffer: 8 * 1024 * 1024 }, (err, stdout, stderr) => {
       const dijo = String(stderr).trim().split("\n").filter(Boolean).slice(-2).join(" · ");
       if (!err) return ok({ rc: 0, out: stdout, dijo });
       ok({

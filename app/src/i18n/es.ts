@@ -1732,4 +1732,11 @@ export const es: { [K in keyof typeof en]: string } = {
   "acciones.abierto": "Está abierto en una terminal: traelo primero escribiéndole",
   "acciones.volvio": "Volviste acá. Lo que venía después queda oculto hasta que escribas.",
   "acciones.deshacer": "Deshacer",
+  "atajos.directo": "Mandar ya, a mitad de un turno (Claude)",
+  "directo.boton": "Mandar ya",
+  "directo.tip": "Ctrl+Enter: entra cuando termine el paso en curso",
+  "directo.espera": "Tu mensaje entra cuando termine el paso en curso (un comando largo puede tardar). No se corta nada.",
+  "directo.esperaN": "{n} mensajes entran cuando termine el paso en curso (un comando largo puede tardar). No se corta nada.",
+  "directo.noPuede": "Este modelo no puede recibir un mensaje a mitad de un turno: con Enter queda en cola, o Parar.",
+  "main.sinDirecto": "Este modelo no puede recibir un mensaje a mitad de un turno: mandalo a la cola con Enter",
 };

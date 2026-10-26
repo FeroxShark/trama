@@ -40,6 +40,87 @@ algo no se puede hacer, lo dice como aviso, y `trama-estado --json` muestra qué
 Los comandos son enlaces a esta carpeta: no la muevas ni la borres. Al terminar, abrí
 `http://localhost:8791`.
 
+## Cómo se trabaja
+
+La idea es una sola: vos hablás con un **líder**, y el líder reparte el trabajo en **workers**.
+
+Cada worker es un Claude (o un Gemini) que corre **adentro de tu proyecto**, en su propio worktree de
+git y en su propia rama. Nunca toca tu copia de trabajo: podés seguir escribiendo código mientras
+trabajan. Cuando termina, te deja la rama lista y vos decidís si entra o no.
+
+### La app
+
+Abrí `http://localhost:8791` (o Trama desde el menú, en Windows).
+
+- **La barra de la izquierda** es el árbol: una fila por líder, y colgando de cada uno sus workers.
+  Un punto de color dice en qué anda cada uno: trabajando, terminó, te necesita, trabado.
+- **Un líder nuevo** se crea con el botón de arriba. Elegís modelo y, si querés, la carpeta donde
+  corre. Le escribís como a cualquier chat.
+- **Si le escribís mientras trabaja**, el mensaje espera en la cola y sale solo cuando termina el
+  turno. Si no querés esperar, `Ctrl+Enter` (o el botón con el rayo) lo manda ya: el agente lo recibe
+  en la primera pausa segura, sin cortarle lo que esté haciendo.
+- **Para ver qué hizo un worker**, tocá su fila: están los pasos que dio, con los diffs.
+- **El botón ✓** de una fila integra la rama (o archiva, si no hay rama). Si los tests fallan, no
+  integra y te lo dice.
+
+Trama queda viva en segundo plano: cerrar la ventana la esconde. Para cerrarla del todo, `Ctrl+Q`.
+
+### `pa`: delegar desde la terminal
+
+Lo mismo que hace el líder, pero a mano. Los proyectos salen de
+`~/.config/proyectos/registry.json`.
+
+```bash
+pa miproyecto "arreglá el parseo de fechas en el importador"   # espera y devuelve el resultado
+pa miproyecto --async "lo mismo, pero sin bloquear la terminal"
+pa miproyecto --tipo mecanico "renombrá la función vieja"      # tipo barato, modelo barato
+pa miproyecto --leer "¿dónde se valida el login?"              # sólo lectura, no escribe nada
+```
+
+Mientras corren:
+
+```bash
+workers                        # qué está trabajando ahora
+workers ver <id>               # espiarle el chat
+pa --esperar miproyecto --id <id>
+```
+
+Cuando terminan, el trabajo **no está en tu rama principal** hasta que lo integres:
+
+```bash
+pa miproyecto --ramas                  # qué quedó sin integrar
+pa miproyecto --integrar <id>          # entra a main
+pa miproyecto --integrar <id> --tests  # sólo si los tests pasan
+pa miproyecto --revertir <id>          # deshacer una integración
+pa miproyecto --descartar <id>         # tirar la rama
+```
+
+Si el worker se topa con algo que sólo vos podés decidir, no adivina: lo deja anotado en el tablero.
+
+### `tablero`: lo que te espera
+
+Un solo lugar para pendientes, preguntas, ideas y lo hecho. Los workers escriben acá solos cuando
+necesitan una decisión tuya.
+
+```bash
+tablero resumen                      # qué te espera, ramas sin integrar, avisos
+tablero listar                       # todo lo abierto
+tablero agregar "probar el importador con un CSV grande"
+tablero ver 42                       # un item entero, con sus opciones
+tablero responder 42 "la opción 2"   # contestar sin cerrarlo
+tablero cerrar 42                    # hecho
+```
+
+Dos vistas que valen la pena:
+
+```bash
+tablero ficha miproyecto   # dónde quedó: último commit, ramas sueltas, qué sigue
+tablero hoy                # qué se hizo en el día
+```
+
+Las columnas van `bandeja → sigue → en-curso → espera → hecho`, más `ideas` aparte. En la app, la
+pestaña **Te esperan** del Tablero muestra lo mismo y te deja contestar con botones.
+
 ## Modelos
 
 Sin configurar nada, los workers usan Claude Sonnet con effort `high` (y `--tipo mecanico` va a Haiku). Para elegir modelo por tipo de

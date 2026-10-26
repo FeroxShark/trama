@@ -12,6 +12,7 @@ import { mkdir, readFile, rm, stat } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { resolverBinario } from "./binario.ts";
+import { configTrama } from "./rutas.ts";
 import { errorT, textoT } from "./errores.ts";
 import {
   BYTES_Q8_0,
@@ -127,7 +128,7 @@ export function depsDeVerdad(env: NodeJS.ProcessEnv = process.env): Deps {
 
 // ---------- rutas ----------
 
-const carpetaEnv = (d: Deps) => d.env.HILOS_LOCALES_DIR || path.join(d.home, ".config", "trama", "locales");
+const carpetaEnv = (d: Deps) => d.env.HILOS_LOCALES_DIR || path.join(configTrama(d.env, d.home), "locales");
 export const archivoEnv = (d: Deps, l: LocalDef) => path.join(carpetaEnv(d), `${l.clave}.env`);
 export const archivoDsh = (d: Deps) => d.env.HILOS_DSH_SETTINGS || path.join(d.home, ".dsh", "settings.yaml");
 const urlLlama = (d: Deps, l?: LocalDef) => l?.url || d.env.HILOS_LLAMA_URL || "http://127.0.0.1:8080";

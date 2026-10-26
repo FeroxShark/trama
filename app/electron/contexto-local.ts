@@ -7,6 +7,7 @@ import { access, readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { entornoLider } from "./lider-arma.ts";
 import { deDueno, dueno } from "./dueno.ts";
+import { shellDe } from "./procesos.ts";
 
 /** Los encabezados que no le tocan a un local: él no delega (no hay `pa`) ni elige workers. */
 export const ENCABEZADOS_FUERA = /^(jefe|modelos)\b/i;
@@ -67,7 +68,8 @@ const MAX_HOOK_BYTES = 200_000;
 function correrHook(comando: string, cwd: string, home: string, env: Record<string, string | undefined>, timeoutMs: number): Promise<string> {
   return new Promise((ok) => {
     const entrada = JSON.stringify({ hook_event_name: "SessionStart", source: "startup", cwd });
-    const p = execFile("/bin/sh", ["-c", comando], { cwd, env: { ...env, HOME: home, CLAUDE_PROJECT_DIR: cwd }, timeout: timeoutMs, maxBuffer: MAX_HOOK_BYTES }, (err, stdout) => {
+    const [shell, ...flagC] = shellDe("sh", env);
+    const p = execFile(shell, [...flagC, comando], { cwd, env: { ...env, HOME: home, CLAUDE_PROJECT_DIR: cwd }, timeout: timeoutMs, maxBuffer: MAX_HOOK_BYTES, windowsHide: true }, (err, stdout) => {
       ok(err ? "" : String(stdout));
     });
     p.stdin?.on("error", () => {});

@@ -14,6 +14,7 @@
 import { readFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { configTrama } from "./rutas.ts";
 
 /** Una fila por modelo local: lo que hace falta saber de su unit y de su peso. */
 export type LocalDef = {
@@ -51,7 +52,7 @@ export type ConfigLocales = { conmutador: string | null; modelos: LocalDef[] };
 const VACIO: ConfigLocales = { conmutador: null, modelos: [] };
 
 export const rutaLocales = (env: NodeJS.ProcessEnv = process.env, home = os.homedir()) =>
-  env.HILOS_LOCALES_JSON || path.join(env.XDG_CONFIG_HOME || path.join(home, ".config"), "trama", "locales.json");
+  env.HILOS_LOCALES_JSON || path.join(configTrama(env, home), "locales.json");
 
 const esObj = (x: unknown): x is Record<string, unknown> => !!x && typeof x === "object" && !Array.isArray(x);
 /** Un valor que va a una línea de comandos o a un archivo: sin espacios ni nulos y que no empiece con guion. */

@@ -285,6 +285,8 @@ export type EventoLider =
   | { tipo: "tokens"; salida: number; nuevo: boolean }
   | { tipo: "aviso"; aviso: AvisoLider }
   | { tipo: "estado"; ocupado: boolean; vivo: boolean }
+  /** El `claude` entregó al modelo un mensaje de "Mandar ya" (antes esperaba a que terminara el paso en curso). */
+  | { tipo: "entregado"; texto: string }
   /** El modo de permisos de la sesión (B13). */
   | { tipo: "modo"; modo: string }
   /**

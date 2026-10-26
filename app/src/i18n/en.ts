@@ -1744,4 +1744,11 @@ export const en = {
   "acciones.abierto": "It's open in a terminal: bring it here first by writing to it",
   "acciones.volvio": "You went back here. What came after is hidden until you write.",
   "acciones.deshacer": "Undo",
+  "atajos.directo": "Send right now, mid-turn (Claude)",
+  "directo.boton": "Send now",
+  "directo.tip": "Ctrl+Enter: it enters when the step in progress finishes",
+  "directo.espera": "Your message goes in when the step in progress finishes (a long command can take a while). Nothing is cut.",
+  "directo.esperaN": "{n} messages go in when the step in progress finishes (a long command can take a while). Nothing is cut.",
+  "directo.noPuede": "This model can't take a message mid-turn: press Enter to queue it, or Stop.",
+  "main.sinDirecto": "This model can't take a message mid-turn: send it to the queue with Enter",
 } as const;

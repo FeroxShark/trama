@@ -131,6 +131,11 @@ let n = 0;
 let cortado = false;
 let iniciado = false;
 let cola = Promise.resolve();
+// Como el CLI real con --replay-user-messages: un mensaje que llega con una herramienta en vuelo se absorbe en
+// el próximo límite de tool_result (un `user` con isReplay y el mismo turno); sin herramienta corre como turno propio.
+const replay = process.argv.includes("--replay-user-messages");
+let herramientaEnVuelo = false;
+const absorbidos = [];
 // Los can_use_tool sin contestar: request_id → resolver (con la respuesta o null si se cortó).
 const pendientes = new Map();
 let pedidosN = 0;
@@ -305,8 +310,12 @@ async function turno(texto) {
     const command = `cd ~/Proyectos/hilos && ${"npm run prueba -- actividad --verbose --sin-cache "}${"--tope 120 ".repeat(18)}&& echo listo-${n}`;
     const input = { command, description: "Prueba larga de la tarjeta" };
     out({ type: "assistant", parent_tool_use_id: null, message: { id: `${mid}l`, model: modelo, role: "assistant", content: [{ type: "tool_use", id, name: "Bash", input }] } });
+    herramientaEnVuelo = true;
     await espera(Number(process.env.TRAMA_FALSO_LARGO_MS ?? 4000));
+    herramientaEnVuelo = false;
     out({ type: "user", parent_tool_use_id: null, message: { role: "user", content: [{ type: "tool_result", tool_use_id: id, content: "listo" }] } });
+    for (const a of absorbidos) out({ type: "user", isReplay: true, parent_tool_use_id: null, message: { role: "user", content: [{ type: "text", text: a }] } });
+    if (absorbidos.length) return contestar(mid, `eco: ${[texto, ...absorbidos.splice(0)].join(" + ")}`);
   }
   if (/herramienta/.test(texto)) {
     if (modo === "default") {
@@ -399,7 +408,8 @@ rl.on("line", (l) => {
         ? c
         : [n ? `[${n} ${n === 1 ? "imagen" : "imágenes"}]` : "", ...bs.filter((b) => b?.type === "text").map((b) => b.text)].filter(Boolean).join(" ");
     if (process.env.TRAMA_FALSO_DICHO) appendFileSync(process.env.TRAMA_FALSO_DICHO, JSON.stringify({ sid, texto }) + "\n");
-    cola = cola.then(() => turno(texto));
+    if (replay && herramientaEnVuelo) absorbidos.push(texto);
+    else cola = cola.then(() => turno(texto));
   }
 });
 rl.on("close", () => void cola.then(() => process.exit(0)));

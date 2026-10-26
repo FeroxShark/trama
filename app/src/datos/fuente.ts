@@ -102,6 +102,8 @@ export interface Fuente {
   liderNuevo(x: EnvioLider): Promise<string>;
   /** Escribirle a un líder de la app (lo relanza con `--resume` si no corre). */
   liderMandar(sid: string, x: EnvioLider): Promise<void>;
+  /** "Mandar ya": a mitad de un turno de un líder de Claude, sin pasar por la cola. Entra cuando termina el paso en curso. */
+  liderMandarYa(sid: string, x: EnvioLider): Promise<void>;
   /** Guarda un archivo adjunto que no es imagen; devuelve la ruta absoluta que va en el mensaje. */
   /** `maquina`: la del líder al que va (o la elegida para uno nuevo): la ruta que vuelve es de esa máquina. */
   liderArchivo(nombre: string, datos: Uint8Array, maquina?: string): Promise<string>;
@@ -1139,6 +1141,10 @@ const fija: Fuente = {
     if (fallaLanzar) throw new Error("claude: could not resume the session");
     responderFijo(sid, x.texto, x.modelo, x.imagenes);
   },
+  async liderMandarYa(sid, x) {
+    // Fixtures: el líder de muestra no tiene un turno real al que entrarle; el mensaje se contesta como cualquier otro.
+    responderFijo(sid, x.texto, x.modelo, x.imagenes);
+  },
   async liderRebobinar(sid, uuid, x) {
     // Fixtures: la conversación se recorta en el mensaje y sigue con lo nuevo.
     const lista = charlas.get(sid);
@@ -1664,6 +1670,11 @@ const conPa = (m: NonNullable<typeof main>): Fuente => ({
   },
   async liderMandar(sid, x) {
     await m.lider.mandar({ sid, ...x }).catch((e) => {
+      throw new Error(mensaje(e));
+    });
+  },
+  async liderMandarYa(sid, x) {
+    await m.lider.mandarYa({ sid, ...x }).catch((e) => {
       throw new Error(mensaje(e));
     });
   },

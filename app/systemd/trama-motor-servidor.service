@@ -1,9 +1,9 @@
 [Unit]
 Description=trama (hilos): el motor sin ventana en el servidor (líderes de Claude, cola, vigía y acceso por la tailnet)
 Documentation=file://%h/Proyectos/hilos/docs/estado/dell.md
-# La versión del servidor (el Dell) de trama-motor.service: unidad de usuario del usuario `agentes`, con `linger`
-# (arranca con la máquina y sigue sin sesión). Sin Electron ni pantalla: el `node` oficial que Ana deja en
-# ~/.local (docs/estado/dell.md). Lo enlaza scripts/instalar-servidor.sh; en la PC no se usa.
+# La versión de servidor de trama-motor.service: unidad de usuario, con `linger` (arranca con la máquina y
+# sigue sin sesión). Sin Electron ni pantalla: un `node` oficial instalado en ~/.local, no el del sistema.
+# Lo enlaza scripts/instalar-servidor.sh; en una máquina con pantalla no se usa.
 # Los límites de memoria y de red NO van acá: los pone el slice del usuario (/etc/systemd/system/user-<uid>.slice.d/).
 
 [Service]

@@ -4,6 +4,7 @@
 // `tests/lider.test.ts`.
 import path from "node:path";
 import { ttlDeUso } from "./cache.ts";
+import { clavePath, pathConLocal } from "./binario.ts";
 import { errorT, textoT } from "./errores.ts";
 import { deDueno } from "./dueno.ts";
 import { contenidoUsuario, imagenesDeContenido, type Imagen } from "./imagenes.ts";
@@ -123,6 +124,9 @@ export function argvLider({ modelo, effort, sid, nombre, resume, modo = MODO_DEF
     "stream-json",
     "--verbose",
     "--include-partial-messages",
+    // Un mensaje mandado a mitad de un turno ("Mandar ya") se entrega en el próximo límite de tool_result y el stream no dice nada;
+    // con esto trae un `user` con `isReplay` al entregarlo (`replay`, `docs/estado/mensaje-en-turno.md`).
+    "--replay-user-messages",
     ...(modo === "bypassPermissions" ? ["--dangerously-skip-permissions"] : ["--allow-dangerously-skip-permissions", "--permission-mode", modo]),
     "--permission-prompt-tool",
     "stdio",
@@ -153,8 +157,7 @@ export function entornoLider(env: Env, home: string): Env {
     if (/^PA_/.test(k) && k !== "PA_STATE") continue;
     out[k] = v;
   }
-  const local = path.join(home, ".local", "bin");
-  out.PATH = [local, ...(env.PATH ?? "").split(":").filter((d) => d && d !== local)].join(":");
+  out[clavePath(env)] = pathConLocal(env, home);
   return out;
 }
 
@@ -406,6 +409,8 @@ export type Evento =
   /** Lo que devolvió una herramienta (el final): va a su `det` por `id` (src/hilo/vivo.ts). */
   | { tipo: "resultado"; id: string; texto: string; error: boolean }
   | { tipo: "fin"; error: string | null; ttl: number | null }
+  /** El eco de un mensaje del usuario (`--replay-user-messages`): el CLI lo entregó al modelo. Sólo el texto; lo cruza `lider.ts` con lo que mandó. */
+  | { tipo: "replay"; texto: string }
   /** La respuesta a un `control_request` de la app; `error`: el motivo, si no salió. */
   | { tipo: "control"; id: string; ok: boolean; error?: string }
   | { tipo: "hace"; hace: Hace }
@@ -482,6 +487,17 @@ const hace = (que: "pidiendo" | "pensando" | "escribiendo" | "compactando"): Eve
 });
 const num = (x: unknown): number | null => (typeof x === "number" && Number.isFinite(x) ? x : null);
 const str = (x: unknown): string | null => (typeof x === "string" && x ? x : null);
+
+/** El texto de un `content` de usuario: el string, o los bloques de texto unidos por saltos de línea. */
+const textoDeContenido = (c: unknown): string =>
+  typeof c === "string"
+    ? c
+    : Array.isArray(c)
+      ? c
+          .filter((b: any) => b?.type === "text" && typeof b.text === "string")
+          .map((b: any) => b.text)
+          .join("\n")
+      : "";
 
 /** El `usage` de un mensaje si trae tokens de entrada (lo que pesa el contexto); si no, `null`. */
 function usoDe(u: any): Tokens | null {
@@ -669,6 +685,7 @@ export function parsearLinea(linea: string): Evento[] {
   if (o.parent_tool_use_id) return [];
   if (o.type === "stream_event") return deStream(o.event);
   if (o.type === "system") return deSistema(o);
+  if (o.type === "user" && o.isReplay === true) return [{ tipo: "replay", texto: textoDeContenido(o.message?.content) }];
   if (o.type === "user") return resultadosDe(o.message?.content).map((r) => ({ tipo: "resultado" as const, ...r }));
   if (o.type === "assistant") {
     const c: any[] = Array.isArray(o.message?.content) ? o.message.content : [];
@@ -1001,6 +1018,23 @@ export function avanzarConv(est: EstadoConv, texto: string): void {
       todos.push({ rol: "assistant", texto: "", herramientas: [], det: [], ts: o.timestamp ?? null, modelo: null, mid: null, usage: null, uuid: null, marcas: { destrabo } });
       continue;
     }
+    // Lo que el usuario mandó a mitad de un turno ("Mandar ya") no es una línea `user`: el CLI lo guarda como adjunto `queued_command`
+    // al entregarlo en el límite de un tool_result. Se cuenta como un mensaje suyo, con su `uuid` (Editar, Volver acá, Ramificar).
+    // Los que no son `prompt` (una `task-notification` de un proceso de fondo) no son del usuario.
+    if (o.type === "attachment" && o.attachment?.type === "queued_command" && o.attachment.commandMode === "prompt") {
+      const uuid = typeof o.uuid === "string" ? o.uuid : null;
+      const texto = textoDeContenido(o.attachment.prompt);
+      const imagenes = imagenesDeContenido(o.attachment.prompt);
+      if (!texto && !imagenes.length) continue;
+      const m: Crudo = { rol: "user", texto: sinAviso(texto), herramientas: [], det: [], ts: o.timestamp ?? null, modelo: null, mid: null, usage: null, uuid, marcas: {} };
+      if (imagenes.length) m.imagenes = imagenes;
+      todos.push(m);
+      if (uuid) {
+        est.cola = uuid;
+        est.posDe.set(uuid, todos.length - 1);
+      }
+      continue;
+    }
     if (o.type !== "user" && o.type !== "assistant") continue;
     const uuid = typeof o.uuid === "string" ? o.uuid : null;
     const padre = typeof o.parentUuid === "string" ? o.parentUuid : null;
@@ -1017,15 +1051,7 @@ export function avanzarConv(est: EstadoConv, texto: string): void {
         const d = porId.get(r.id);
         if (d) d.resultado = { texto: r.texto, error: r.error };
       }
-      const t =
-        typeof c === "string"
-          ? c
-          : Array.isArray(c)
-            ? c
-                .filter((b: any) => b?.type === "text")
-                .map((b: any) => b.text)
-                .join("\n")
-            : "";
+      const t = textoDeContenido(c);
       const imagenes = imagenesDeContenido(c);
       if (!t && !imagenes.length) {
         // Sólo resultados de herramientas: son parte del mensaje del asistente que las pidió (volver a él las incluye).

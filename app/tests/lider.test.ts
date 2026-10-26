@@ -40,7 +40,7 @@ const FALSO = path.join(import.meta.dirname, "..", "scripts", "claude-falso.mjs"
 
 test("argv nuevo: stream-json, permisos salteados, modelo, effort, session-id y nombre", () => {
   const a = argvLider({ modelo: "claude-sonnet-5-5", effort: "high", sid: SID, nombre: "trama-0a1b", resume: false });
-  assert.deepEqual(a.slice(0, 8), [
+  assert.deepEqual(a.slice(0, 9), [
     "-p",
     "--input-format",
     "stream-json",
@@ -48,10 +48,12 @@ test("argv nuevo: stream-json, permisos salteados, modelo, effort, session-id y 
     "stream-json",
     "--verbose",
     "--include-partial-messages",
+    // El eco de lo que el CLI entrega a mitad de un turno ("Mandar ya"): así se sabe cuándo llegó.
+    "--replay-user-messages",
     "--dangerously-skip-permissions",
   ]);
   // B13: los pedidos de permiso (el plan de ExitPlanMode) los contesta la app por stdio.
-  assert.deepEqual(a.slice(8), [
+  assert.deepEqual(a.slice(9), [
     "--permission-prompt-tool",
     "stdio",
     "--model",
@@ -72,7 +74,7 @@ test("argv con modo (B13): bypass con --dangerously-skip-permissions; otro, --al
   const plan = argvLider({ ...base, modo: "plan" });
   assert.ok(!plan.includes("--dangerously-skip-permissions"));
   // `--dangerously-skip-permissions --permission-mode plan` arranca en bypass (probado con claude 2.1.287): por eso --allow….
-  assert.deepEqual(plan.slice(7, 12), ["--allow-dangerously-skip-permissions", "--permission-mode", "plan", "--permission-prompt-tool", "stdio"]);
+  assert.deepEqual(plan.slice(8, 13), ["--allow-dangerously-skip-permissions", "--permission-mode", "plan", "--permission-prompt-tool", "stdio"]);
   assert.throws(() => argvLider({ ...base, modo: "auto" as never }));
 });
 

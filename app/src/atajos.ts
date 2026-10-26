@@ -37,6 +37,8 @@ export const ATAJOS = {
   vista: { grupo: "barra", teclas: [["W"]], desc: "atajos.vista", coincide: letra("w") },
   consumo: { grupo: "barra", teclas: [["T"]], desc: "atajos.consumo", coincide: letra("t") },
   enviar: { grupo: "caja", teclas: [["Enter"]], desc: "atajos.enviar", coincide: (e) => e.key === "Enter" && !e.shiftKey },
+  // A mitad de un turno de un líder de Claude, el mensaje entra ya (en el próximo límite de herramienta) en vez de esperar en la cola. Shift+Enter es el renglón.
+  directo: { grupo: "caja", teclas: [["Ctrl", "Enter"]], desc: "atajos.directo", coincide: (e) => e.key === "Enter" && (e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey },
   renglon: { grupo: "caja", teclas: [["Shift", "Enter"]], desc: "atajos.renglon", coincide: (e) => e.key === "Enter" && e.shiftKey },
   modo: { grupo: "caja", teclas: [["Shift", "Tab"]], desc: "atajos.modo", coincide: (e) => e.key === "Tab" && e.shiftKey },
   comandos: { grupo: "caja", teclas: [["/"]], desc: "atajos.comandos", coincide: (e) => e.key === "/" },

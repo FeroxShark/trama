@@ -3,8 +3,10 @@
 // (2026-10-03), y aunque se encuentre, `pa` necesita `claude` y `proyecto-ruta`,
 // que viven ahí. Puro (sin `electron` ni imports locales): lo prueba
 // `tests/binario.test.ts` con `node --test`.
+import { execFile, type ExecFileException, type ExecFileOptions } from "node:child_process";
 import { accessSync, constants } from "node:fs";
 import path from "node:path";
+import { caminoDe, carpetaApp, carpetaBin, delimitadorDe, nodeWindows, plataformaActual, type Plataforma } from "./rutas.ts";
 
 type Env = Record<string, string | undefined>;
 
@@ -17,16 +19,20 @@ const ejecutable = (f: string) => {
   }
 };
 
-/** El PATH con `~/.local/bin` adelante (sin repetirlo). */
-export function pathConLocal(env: Env, home: string): string {
-  const local = path.join(home, ".local", "bin");
-  const resto = (env.PATH ?? "").split(":").filter((d) => d && d !== local);
-  return [local, ...resto].join(":");
+/** La clave del PATH en un entorno: en Windows suele ser `Path` y un objeto común distingue las mayúsculas. */
+export const clavePath = (env: Env, plat: Plataforma = plataformaActual()) => (plat === "win32" ? Object.keys(env).find((k) => k.toLowerCase() === "path") ?? "PATH" : "PATH");
+const dirsDelPath = (env: Env, plat: Plataforma) => (env[clavePath(env, plat)] ?? "").split(delimitadorDe(plat));
+
+/** El PATH con la carpeta de binarios de trama (`~/.local/bin`) adelante (sin repetirla). */
+export function pathConLocal(env: Env, home: string, plat: Plataforma = plataformaActual()): string {
+  const local = carpetaBin(env, home, plat);
+  const resto = dirsDelPath(env, plat).filter((d) => d && d !== local);
+  return [local, ...resto].join(delimitadorDe(plat));
 }
 
 /** El entorno para correr `pa`: el de la app con `~/.local/bin` adelante en el PATH. */
-export function entornoPa(env: Env, home: string): Env {
-  return { ...env, PATH: pathConLocal(env, home) };
+export function entornoPa(env: Env, home: string, plat: Plataforma = plataformaActual()): Env {
+  return { ...env, [clavePath(env, plat)]: pathConLocal(env, home, plat) };
 }
 
 /**
@@ -34,19 +40,19 @@ export function entornoPa(env: Env, home: string): Env {
  * adelante y la carpeta del `pa` encontrado (`HILOS_PA`, o el del PATH de la app) justo después, para que `pa` no quede en
  * "command not found" aunque viva fuera del PATH que hereda el proceso (unidad de systemd, menú de apps, WSL).
  */
-export function entornoAgy(env: Env, home: string, esEjecutable: (f: string) => boolean = ejecutable): Env {
-  const pa = resolverPa(env, home, esEjecutable);
-  const dirPa = path.isAbsolute(pa) ? path.dirname(pa) : "";
-  const base = pathConLocal(env, home).split(":");
+export function entornoAgy(env: Env, home: string, esEjecutable: (f: string) => boolean = ejecutable, plat: Plataforma = plataformaActual()): Env {
+  const pa = resolverPa(env, home, esEjecutable, plat);
+  const dirPa = caminoDe(plat).isAbsolute(pa) ? caminoDe(plat).dirname(pa) : "";
+  const base = pathConLocal(env, home, plat).split(delimitadorDe(plat));
   const [local, ...resto] = base;
   const dirs = [local, ...(dirPa && dirPa !== local ? [dirPa] : []), ...resto.filter((d) => d !== dirPa)];
-  return { ...env, PATH: dirs.join(":") };
+  return { ...env, [clavePath(env, plat)]: dirs.join(delimitadorDe(plat)) };
 }
 
 /**
  * La variable de entorno si está; si no, el binario del PATH (el de la app, tal cual vino); si no,
  * `~/.local/bin/<nombre>`. Si no aparece en ningún lado queda el nombre pelado: el error de spawn
- * dice qué falta.
+ * dice qué falta. En Windows el binario es `<nombre>.exe` (o el nombre tal cual): nunca un `.cmd`.
  */
 export function resolverBinario(
   nombre: string,
@@ -54,27 +60,76 @@ export function resolverBinario(
   env: Env,
   home: string,
   esEjecutable: (f: string) => boolean = ejecutable,
+  plat: Plataforma = plataformaActual(),
 ): string {
   if (env[variable]) return env[variable];
-  for (const d of (env.PATH ?? "").split(":")) {
-    if (d && esEjecutable(path.join(d, nombre))) return path.join(d, nombre);
+  const c = caminoDe(plat);
+  const nombres = plat === "win32" ? [`${nombre}.exe`, nombre] : [nombre];
+  for (const d of dirsDelPath(env, plat)) {
+    if (!d) continue;
+    for (const n of nombres) if (esEjecutable(c.join(d, n))) return c.join(d, n);
   }
-  const local = path.join(home, ".local", "bin", nombre);
-  return esEjecutable(local) ? local : nombre;
+  const bin = carpetaBin(env, home, plat);
+  for (const n of nombres) if (esEjecutable(c.join(bin, n))) return c.join(bin, n);
+  return nombre;
 }
 
 /** `pa`: `HILOS_PA`, el del PATH o `~/.local/bin/pa`. */
-export function resolverPa(env: Env, home: string, esEjecutable: (f: string) => boolean = ejecutable): string {
-  return resolverBinario("pa", "HILOS_PA", env, home, esEjecutable);
+export function resolverPa(env: Env, home: string, esEjecutable: (f: string) => boolean = ejecutable, plat: Plataforma = plataformaActual()): string {
+  return resolverBinario("pa", "HILOS_PA", env, home, esEjecutable, plat);
+}
+
+const ESCRIPTO_JS = /\.[cm]?js$/i;
+
+/**
+ * Qué se lanza para correr una herramienta de trama (`pa`, `tablero`, `reparto`): el principio de la línea de comandos, **sin sus
+ * argumentos**. Linux: `[<binario>]`, el de siempre. Windows: `[node.exe, <script>.js]` y nunca un `.cmd` (Node ≥ 18.20.2 no lanza
+ * un `.cmd`/`.bat` sin shell: EINVAL). El script es el de la variable si apunta a un `.js`, o `<nombre>.js` en la carpeta de binarios o en
+ * la app; si no está, el nombre pelado y el error de spawn dice qué falta. Usar con `lanzarCmd` / `entornoCmd`.
+ */
+export function resolverComando(
+  nombre: string,
+  variable: string,
+  env: Env,
+  home: string,
+  esEjecutable: (f: string) => boolean = ejecutable,
+  plat: Plataforma = plataformaActual(),
+): string[] {
+  if (plat !== "win32") return [resolverBinario(nombre, variable, env, home, esEjecutable, plat)];
+  const node = esEjecutable(nodeWindows(env, home)) ? nodeWindows(env, home) : process.execPath;
+  const v = env[variable];
+  if (v) return ESCRIPTO_JS.test(v) ? [node, v] : [v];
+  const c = path.win32;
+  const bin = carpetaBin(env, home, plat);
+  const app = carpetaApp(env, home, plat);
+  for (const js of [c.join(bin, `${nombre}.js`), c.join(app, `${nombre}.js`), c.join(app, "bin", `${nombre}.js`)]) if (esEjecutable(js)) return [node, js];
+  const exe = resolverBinario(nombre, variable, env, home, esEjecutable, plat);
+  return [exe];
+}
+
+/** El entorno para lanzar `prefijo`: si el "node" es el propio ejecutable de la app (Electron), le pide que se porte como node. */
+export function entornoCmd(prefijo: string[], env: Env): Env {
+  if (prefijo.length > 1 && prefijo[0] === process.execPath && process.versions.electron) return { ...env, ELECTRON_RUN_AS_NODE: "1" };
+  return env;
+}
+
+/** `execFile` de un comando armado por `resolverComando`: el prefijo y después los argumentos. Sin shell. */
+export function lanzarCmd(
+  prefijo: string[],
+  args: string[],
+  opciones: ExecFileOptions,
+  fin: (err: ExecFileException | null, stdout: string, stderr: string) => void,
+) {
+  return execFile(prefijo[0], [...prefijo.slice(1), ...args], { ...opciones, env: entornoCmd(prefijo, (opciones.env ?? process.env) as Env) as NodeJS.ProcessEnv, encoding: "utf8" }, (e, o, r) => fin(e, String(o), String(r)));
 }
 
 /**
  * `agy` (Antigravity CLI): lo de `resolverBinario` y, si no aparece, las carpetas donde sus instaladores lo dejan fuera del PATH de una
  * unidad de systemd o de WSL (`/usr/local/bin`, `/usr/bin`, `~/.antigravity/bin`…). Si no está en ningún lado queda `agy` pelado.
  */
-export function resolverAgy(env: Env, home: string, esEjecutable: (f: string) => boolean = ejecutable): string {
-  const r = resolverBinario("agy", "HILOS_AGY", env, home, esEjecutable);
-  if (r !== "agy") return r;
+export function resolverAgy(env: Env, home: string, esEjecutable: (f: string) => boolean = ejecutable, plat: Plataforma = plataformaActual()): string {
+  const r = resolverBinario("agy", "HILOS_AGY", env, home, esEjecutable, plat);
+  if (r !== "agy" || plat === "win32") return r;
   const donde = ["/usr/local/bin", "/usr/bin", path.join(home, ".antigravity", "bin"), path.join(home, ".antigravity-cli", "bin"), path.join(home, ".gemini", "antigravity-cli", "bin")];
   for (const d of donde) if (esEjecutable(path.join(d, "agy"))) return path.join(d, "agy");
   return r;

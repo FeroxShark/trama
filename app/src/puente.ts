@@ -115,6 +115,7 @@ type Main = {
     /** Un líder nuevo con su primer mensaje; devuelve su session_id. */
     nuevo(x: { modelo: string; effort: string; texto: string; imagenes?: Imagen[]; modo?: string; rol?: "analista"; carpeta?: string }): Promise<string>;
     mandar(x: { sid: string; texto: string; imagenes?: Imagen[]; modelo: string; effort: string }): Promise<void>;
+    mandarYa(x: { sid: string; texto: string; imagenes?: Imagen[]; modelo: string; effort: string }): Promise<void>;
     /** Guarda un archivo adjunto (no imagen) y devuelve su ruta absoluta. */
     archivo(x: { nombre: string; datos: Uint8Array }): Promise<string>;
     parar(sid: string): Promise<void>;

@@ -7,8 +7,8 @@
 // Node puro: los tests lo usan directo (`TRAMA_MODELOS` o `HILOS_MODELOS` cambian la ruta; `pa` y Ollama, siempre falsos).
 import { readFileSync } from "node:fs";
 import { mkdir, readFile, realpath, rename, writeFile } from "node:fs/promises";
-import os from "node:os";
 import path from "node:path";
+import { configTrama } from "./rutas.ts";
 import { hayAgy, hayClaude } from "./capacidades.ts";
 import { leerDestrabos, type CuentaDestrabos } from "./destrabar-registro.ts";
 import { errorT, textoT } from "./errores.ts";
@@ -16,7 +16,7 @@ import { destrabarActivo, leerConfig, unir, urlOllama, validarConfig, TIPOS, typ
 
 /** Dónde está el archivo (se mira cada vez: los tests lo cambian por el entorno). */
 export const rutaModelos = () =>
-  process.env.TRAMA_MODELOS ?? process.env.HILOS_MODELOS ?? path.join(process.env.XDG_CONFIG_HOME ?? path.join(os.homedir(), ".config"), "trama", "modelos.json");
+  process.env.TRAMA_MODELOS ?? process.env.HILOS_MODELOS ?? path.join(configTrama(), "modelos.json");
 export const RUTA_MODELOS = rutaModelos();
 
 /** Lo que `reparto` elegiría hoy para un tipo de worker (`workers.<tipo>.reparto` de `pa --modelos --json`); sólo para mostrar. */

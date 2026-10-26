@@ -55,6 +55,7 @@ import {
 import { asegurarLocal, destinoLocal, localDe } from "./locales.js";
 import { armarContexto, prefacioGemini } from "./contexto-local.ts";
 import { resolverPa } from "./binario.ts";
+import { matarArbol } from "./procesos.ts";
 import { claseDeModelo, idAgy, localOllama, partirGemini, type Clase } from "./modelos-config.js";
 import { pedidoDe } from "./cache.ts";
 import { convDe } from "./conv-cache.ts";
@@ -134,6 +135,8 @@ export type EventoLider =
   | Exclude<Evento, { tipo: "permiso" }>
   | EventoPedido
   | { tipo: "estado"; ocupado: boolean; vivo: boolean }
+  /** El `claude` entregó al modelo un mensaje de "Mandar ya" (el eco de `--replay-user-messages` que coincide con uno mandado a mitad de turno). */
+  | { tipo: "entregado"; texto: string }
   /**
    * El proceso terminó. `error` si salió mal (código ≠ 0, o a mitad de un turno) y no porque se lo
    * cerró: las últimas líneas del stderr, o "" si no dijo nada. `null`: salió bien.
@@ -149,6 +152,8 @@ type Proc = {
   /** Un líder local: adónde le habla y con qué contexto arrancó (va en su entorno: cambiarlo es relanzarlo). */
   local?: Local;
   ocupado: boolean;
+  /** Los textos de "Mandar ya" que el CLI todavía no entregó (el eco con `isReplay` los saca de acá). */
+  directos: string[];
   /** Cuándo contestó su último pedido (epoch s; 0, ninguno todavía): cada uno renueva el caché, también a mitad de un turno. */
   pedido: number;
   /** El `pedido` con el que se avisó por última vez a la barra (`AVISO_CACHE_S`). */
@@ -326,9 +331,9 @@ export async function ponerEstilo(sid: string, nombre: unknown): Promise<"vivo" 
 }
 
 /** Lo que la app sabe de su proceso: vivo, ocupado y pid. */
-export function procDe(sid: string): { pid: number | null; ocupado: boolean; pedido: number; pide: boolean } | null {
+export function procDe(sid: string): { pid: number | null; ocupado: boolean; pedido: number; pide: boolean; directos: number } | null {
   const p = procs.get(sid);
-  return p ? { pid: p.p.pid ?? null, ocupado: p.ocupado, pedido: p.pedido, pide: p.pedidos.size > 0 } : null;
+  return p ? { pid: p.p.pid ?? null, ocupado: p.ocupado, pedido: p.pedido, pide: p.pedidos.size > 0, directos: p.directos.length } : null;
 }
 
 export const ocupados = () => [...procs.values()].filter((p) => p.ocupado).length;
@@ -390,15 +395,8 @@ const servirLocal = (modelo: string) => (localDe(modelo) ? locales.asegurar(mode
  */
 export function barrerGrupo(pid: number | undefined, kill: (pid: number, senal: NodeJS.Signals) => void = process.kill, esperaMs = 3000) {
   if (!pid || pid <= 1) return;
-  const mandar = (senal: NodeJS.Signals) => {
-    try {
-      kill(-pid, senal);
-    } catch {
-      /* grupo vacío (ESRCH): nada que barrer */
-    }
-  };
-  mandar("SIGTERM");
-  setTimeout(() => mandar("SIGKILL"), esperaMs).unref();
+  matarArbol(pid, "SIGTERM", { kill });
+  setTimeout(() => matarArbol(pid, "SIGKILL", { kill }), esperaMs).unref();
 }
 
 /** Lo que un líder de otra clase necesita para arrancar: adónde habla uno de Ollama, o el prefacio de uno de Gemini. */
@@ -434,7 +432,7 @@ function lanzar(g: Guardado, resume: boolean, local?: Local, extra: Extra = {}):
   const clase = claseDeModelo(g.modelo);
   const base = opcionesLider(process.env, HOME, g.cwd, local && { modelo: g.modelo, effort: g.effort, local }, extra.ollama) as { cwd: string; env: NodeJS.ProcessEnv };
   // Su propio grupo (setsid): lo que el líder deja corriendo desde sus herramientas (un `qs`, un watcher) se barre al salir.
-  const opciones = { ...base, stdio: ["pipe", "pipe", "pipe"] as ["pipe", "pipe", "pipe"], detached: true };
+  const opciones = { ...base, stdio: ["pipe", "pipe", "pipe"] as ["pipe", "pipe", "pipe"], detached: true, windowsHide: true };
   const bin = clase === "gemini" ? "agy" : path.basename(CLAUDE);
   const p =
     clase === "gemini"
@@ -445,7 +443,7 @@ function lanzar(g: Guardado, resume: boolean, local?: Local, extra: Extra = {}):
           { ...opciones, env: { ...base.env, ELECTRON_RUN_AS_NODE: "1", TRAMA_AGY_PREFACIO: extra.prefacio ?? "" } },
         )
       : spawn(CLAUDE, argvLider({ modelo: g.modelo, effort: g.effort, sid: g.sid, nombre: g.nombre, resume, modo: g.modo, local, ollama: extra.ollama, desde: extra.desde, rama: g.rama }), opciones);
-  const x: Proc = { p, modelo: g.modelo, effort: g.effort, clase, local, ocupado: false, pedido: 0, avisado: 0, resto: "", stderr: "", adrede: false, libre: [], pedidos: new Map(), controles: new Map(), estilo: null };
+  const x: Proc = { p, modelo: g.modelo, effort: g.effort, clase, local, ocupado: false, directos: [], pedido: 0, avisado: 0, resto: "", stderr: "", adrede: false, libre: [], pedidos: new Map(), controles: new Map(), estilo: null };
   procs.set(g.sid, x);
   p.stdout!.setEncoding("utf8");
   p.stdout!.on("data", (trozo: string) => {
@@ -466,7 +464,14 @@ function lanzar(g: Guardado, resume: boolean, local?: Local, extra: Extra = {}):
       const lu = lecturaDe(l, Math.floor(Date.now() / 1000)) ?? oficialDe(l, Math.floor(Date.now() / 1000));
       if (lu) anotarUso(lu);
       for (const e of parsearLinea(l)) {
-        if (e.tipo === "fin") {
+        if (e.tipo === "replay") {
+          // El eco de todo mensaje del usuario: sólo importa el de un "Mandar ya" (el resto no es noticia).
+          const k = x.directos.indexOf(e.texto.trim());
+          if (k >= 0) {
+            x.directos.splice(k, 1);
+            alEv(g.sid, { tipo: "entregado", texto: e.texto });
+          }
+        } else if (e.tipo === "fin") {
           x.ocupado = false;
           clearTimeout(x.parando);
           x.pedidos.clear();
@@ -495,6 +500,13 @@ function lanzar(g: Guardado, resume: boolean, local?: Local, extra: Extra = {}):
             f?.(e);
           }
           if (e.tipo === "permisoFuera" && x.pedidos.delete(e.id)) alCambio();
+          // Un turno que arranca solo (un mensaje directo que no pudo entrar a mitad del anterior, una `task_notification`) no
+          // pasa por `mandar`: sin esto la app lo creería en reposo hasta su `result`.
+          if (e.tipo === "hace" && e.hace.que === "pidiendo" && !x.ocupado) {
+            x.ocupado = true;
+            alEv(g.sid, { tipo: "estado", ocupado: true, vivo: true });
+            alCambio();
+          }
           if (e.tipo === "comandos" && e.lista.length) {
             if (clase === "gemini") {
               const lista = recordarComandosAgy(e.lista);
@@ -810,6 +822,29 @@ export async function mandar(x: { sid: string; texto: string; imagenes?: unknown
 }
 
 /**
+ * "Mandar ya": el mensaje sale al stdin del `claude` aunque esté a mitad de un turno. El CLI lo guarda y lo entrega en el próximo límite de
+ * `tool_result`, sin cortar la herramienta en curso (puede tardar lo que ella); si no hay herramienta, corre como turno propio al terminar el actual
+ * (`docs/estado/mensaje-en-turno.md`). Sólo con un proceso de `claude` ocupado de la app, con el mismo modelo y esfuerzo; sin turno en curso es un
+ * `mandar` normal. La cola no se toca: sigue saliendo de a uno al terminar el turno. Gemini no tiene canal (stdin ignorado): error claro.
+ */
+export async function mandarDirecto(x: { sid: string; texto: string; imagenes?: unknown; modelo: string; effort: string }): Promise<void> {
+  const sid = String(x.sid);
+  const p = procs.get(sid);
+  if (p && (p.clase === "gemini" || p.local)) throw errorT("main.sinDirecto");
+  if (!p?.ocupado || mandando.has(sid)) return mandar(x);
+  const g = (await lideresApp()).find((l) => l.sid === sid);
+  if (!g) throw errorT("main.noEsDeLaApp");
+  const { modelo, effort } = normalizar(sueltoDe("modelo", x.modelo), sueltoDe("effort", x.effort));
+  if (p.modelo !== modelo || p.effort !== effort) throw errorT("main.respondiendo");
+  // Pudo terminar el turno o salir el proceso mientras se leía la lista: entonces sí es un mensaje normal.
+  if (procs.get(sid) !== p || !p.ocupado) return mandar(x);
+  const imagenes = imagenesDe(x.imagenes);
+  const texto = textoDe(x.texto, imagenes);
+  p.directos.push(texto.trim());
+  p.p.stdin!.write(lineaUsuario(texto, imagenes));
+}
+
+/**
  * Los que acaban de traerse de una terminal, o de retomarse tras morir sin cerrar: su próximo mensaje lleva el
  * aviso de recoger a sus workers (`avisoTraido`, con el motivo que lo trajo).
  */
@@ -870,6 +905,7 @@ async function mandarYa(x: { sid: string; texto: string; imagenes?: unknown; mod
   }
   p ??= lanzar(g, true, local, await extraDe(modelo, g.cwd));
   p.ocupado = true;
+  p.directos.length = 0;
   // Recién traído de una terminal: se cortaron sus esperas, y sus workers siguen sin quien los recoja.
   const origen = recienTraidos.get(g.sid);
   recienTraidos.delete(g.sid);
