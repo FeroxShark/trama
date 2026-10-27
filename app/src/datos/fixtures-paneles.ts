@@ -5,6 +5,8 @@ import { resumir } from "../paneles/resumen";
 import type { EstadoModelos } from "../../electron/modelos-config";
 import type { EntornoOllama } from "../../electron/ollama-entorno";
 import type { EstadoDsh } from "../../electron/dsh-ajustes";
+import type { EstadoMcp } from "../../electron/mcp";
+import type { VistaServidorMcp } from "../../electron/mcp-config";
 import type { EstadoOpencodeUi } from "../../electron/opencode-ajustes";
 import type { FilaTabla, TablaReparto } from "../../electron/reparto-tabla";
 import { viejaAAa } from "../../electron/calidad-migracion";
@@ -445,4 +447,36 @@ export const TABLA_REPARTO = (aa = false): TablaReparto => {
   };
   const usuario = (f: FilaTabla): FilaTabla => (aa && f.familia === "sonnet" ? { ...f, calidad: 52.2, origen: "usuario" } : f);
   return { version: 1, leido: Date.now(), modelos: modelos.map(conAA).map(usuario) };
+};
+
+/** Los servidores MCP propios de la máquina de las capturas: `mcp-vacio` ninguno; si no, uno por URL (con cabecera guardada) y uno por comando. */
+export const ESTADO_MCP_FIJOS = (variante: string | null): VistaServidorMcp[] =>
+  variante === "mcp-vacio"
+    ? []
+    : [
+        { nombre: "notion", tipo: "http", url: "https://mcp.notion.com/mcp", variables: [{ tipo: "cabecera", nombre: "Authorization", hay: true }] },
+        { nombre: "archivos", tipo: "stdio", comando: "npx", args: ["-y", "@modelcontextprotocol/server-filesystem", "/home/ana/docs"], variables: [] },
+      ];
+
+/** Lo que ve `/mcp` en las capturas: los conectores de claude.ai (uno con login pendiente, uno caído) y los de Trama. */
+export const ESTADO_MCP = (motor: string, local: boolean, propios: VistaServidorMcp[]): EstadoMcp => {
+  const m = motor === "agy" || motor === "dsh" || motor === "opencode" ? motor : "claude";
+  const sinTrama = m === "claude" && local ? "local" : m === "agy" ? "agy" : null;
+  return {
+    version: 1,
+    motor: m,
+    claude:
+      m === "claude" && !local
+        ? {
+            error: null,
+            servidores: [
+              { nombre: "claude.ai Gmail", destino: "https://gmailmcp.googleapis.com/mcp/v1", tipo: "HTTP", estado: "ok", detalle: "Connected" },
+              { nombre: "claude.ai Google Calendar", destino: "https://calendarmcp.googleapis.com/mcp/v1", tipo: "HTTP", estado: "auth", detalle: "Needs authentication" },
+              { nombre: "plugin:design:figma", destino: "https://mcp.figma.com/mcp", tipo: "HTTP", estado: "falla", detalle: "Failed to connect" },
+            ],
+          }
+        : null,
+    trama: propios.map((s) => ({ nombre: s.nombre, tipo: s.tipo, destino: s.tipo === "stdio" ? [s.comando, ...(s.args ?? [])].join(" ") : (s.url ?? ""), pasa: sinTrama === null })),
+    sinTrama,
+  };
 };

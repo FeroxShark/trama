@@ -3050,3 +3050,90 @@
 .pn-umbral .pn-campo-error {
   margin-top: 0;
 }
+
+/* Ajustes > Conectores: la lista de servidores MCP propios, su formulario y los motores a los que llegan (estados con ícono y palabra). */
+.mcp-lista {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-2);
+  margin: 0 0 var(--esp-3);
+  padding: 0;
+  list-style: none;
+}
+.mcp-fila {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--esp-2);
+  padding: var(--esp-2) var(--esp-3);
+  border: 1px solid var(--borde-3);
+  border-radius: var(--radio-2);
+}
+.mcp-datos {
+  display: flex;
+  flex: 1 1 16rem;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--esp-2);
+  min-width: 0;
+}
+.mcp-tipo {
+  color: var(--texto-7);
+  font-size: var(--letra-3);
+}
+.mcp-destino {
+  flex-basis: 100%;
+  overflow-wrap: anywhere;
+  color: var(--texto-7);
+  font-size: var(--letra-3);
+}
+.mcp-vars-estado,
+.mcp-acciones,
+.mcp-motores {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--esp-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.mcp-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-3);
+  margin-bottom: var(--esp-3);
+}
+.mcp-campo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-1);
+}
+.mcp-vars {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--esp-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.mcp-var {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--esp-2);
+  width: 100%;
+}
+.mcp-var .pn-campo {
+  flex: 1 1 10rem;
+  min-width: 0;
+}
+[data-mcp] .pn-dato {
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--esp-2);
+}
+[data-mcp] .pn-val {
+  font-family: var(--font-sans);
+  text-align: left;
+  white-space: normal;
+}

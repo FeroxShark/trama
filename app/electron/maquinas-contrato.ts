@@ -112,6 +112,11 @@ export const RUTAS: Readonly<Record<string, Ruta>> = {
   "dsh:instalar": "local",
   "dsh:clave": "local",
   "dsh:probar": "local",
+  // Conectores (servidores MCP propios): de esta máquina, como el resto de Ajustes.
+  "mcp:estado": "local",
+  "mcp:lista": "local",
+  "mcp:guardar": "local",
+  "mcp:quitar": "local",
   "reparto:tabla": "local",
   "aa:estado": "local",
   "aa:refrescar": "local",

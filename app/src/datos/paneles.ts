@@ -12,7 +12,7 @@ import { promptArreglar } from "./arreglar";
 import { salud as saludDe, type EstadoSalud } from "./salud";
 import type { Hilo } from "./contrato";
 import { claveCalidad } from "../paneles/modelos-workers";
-import { ACCESOS_FALSOS, AJUSTES, AUTO, ENTORNO_OLLAMA, ESTADO_DSH, ESTADO_OPENCODE, MODELOS_FIJOS, TABLA_REPARTO, OLLAMA_FALSO, arranqueMedidoFalso, historialFalso, MEDICION, REMOTO, SALUD, URL_REMOTO_FALSA } from "./fixtures-paneles";
+import { ACCESOS_FALSOS, AJUSTES, AUTO, ENTORNO_OLLAMA, ESTADO_DSH, ESTADO_MCP, ESTADO_MCP_FIJOS, ESTADO_OPENCODE, MODELOS_FIJOS, TABLA_REPARTO, OLLAMA_FALSO, arranqueMedidoFalso, historialFalso, MEDICION, REMOTO, SALUD, URL_REMOTO_FALSA } from "./fixtures-paneles";
 import type { EstadoAuto } from "../../electron/autointegrar";
 import type { Consulta, PiezaConsulta } from "../../electron/historial";
 import type { Arranque, Medido } from "../../electron/arranque";
@@ -21,6 +21,8 @@ import type { ConfigModelos } from "../../electron/modelos-tipos";
 import type { Bajada } from "../../electron/ollama-bajar";
 import type { EntornoOllama } from "../../electron/ollama-entorno";
 import type { EstadoDsh, Prueba } from "../../electron/dsh-ajustes";
+import type { EstadoMcp } from "../../electron/mcp";
+import type { EntradaMcp, VistaServidorMcp } from "../../electron/mcp-config";
 import type { NombreClave } from "../../electron/claves";
 import type { EstadoOpencodeUi } from "../../electron/opencode-ajustes";
 import type { TablaReparto } from "../../electron/reparto-tabla";
@@ -33,6 +35,7 @@ export type { DatosAgentsMd, LeccionesPendiente };
 export type AgentsMd = DatosAgentsMd & { proyecto: string; ruta: string | null };
 /** Un worker de rama para auditar: `pa <proy> --auditar <id> -m <modelo> --async` (sólo Claude). */
 export type PedidoAuditar = { id: string; proyecto: string; modelo: string };
+export type { EntradaMcp, EstadoMcp, VistaServidorMcp };
 export type { Arranque, Bajada, ConfigModelos, Consulta, EntornoOllama, EstadoAuto, EstadoDsh, EstadoModelos, EstadoOpencodeUi, EstadoSalud, Medido, NombreClave, PiezaConsulta, Prueba, Sondeo };
 
 /** Los proveedores de DeepSeek Harness que se pueden probar desde Ajustes. */
@@ -168,6 +171,13 @@ export interface FuentePaneles {
   claveDsh(nombre: NombreClave, valor: string | null): Promise<EstadoDsh>;
   /** Prueba un proveedor con la key guardada (`GET /models`; Ollama, `/api/tags`); nunca rechaza por no contestar. */
   probarDsh(proveedor: ProveedorDshUi, url?: string): Promise<Prueba>;
+  /** Conectores: lo que ve un líder de ese motor (`claude mcp list` y los propios de Trama). `fresco`: sin la caché de medio minuto. */
+  estadoMcp(motor: string, local?: boolean, fresco?: boolean): Promise<EstadoMcp>;
+  /** Los servidores MCP propios de Trama; de las variables sólo se sabe si hay valor. */
+  listaMcp(): Promise<VistaServidorMcp[]>;
+  /** Agrega o reemplaza uno por nombre (los valores nuevos van a `claves.env`); devuelve la lista o rechaza con el motivo. */
+  guardarMcp(entrada: EntradaMcp): Promise<VistaServidorMcp[]>;
+  quitarMcp(nombre: string): Promise<VistaServidorMcp[]>;
   /** `reparto --tabla --json`: los modelos que reparto conoce con su inteligencia y cupo; `null` si no hay `reparto` (o es uno viejo). */
   repartoTabla(): Promise<TablaReparto | null>;
   /** La caché de Artificial Analysis se actualizó de fondo: conviene volver a pedir la tabla. */
@@ -245,6 +255,7 @@ function cae(que: keyof typeof FALLAS_PANEL): boolean {
 let modelosFijos: EstadoModelos | undefined;
 /** DeepSeek Harness de los fixtures (instalado o no, con qué keys): vive mientras la página. */
 let dshFijo: EstadoDsh | undefined;
+let mcpFijo: VistaServidorMcp[] = ESTADO_MCP_FIJOS(MODO.variante);
 /** Artificial Analysis en las capturas: la caché es de ayer en las variantes `mdl-wk-aa*` y no hay en las demás hasta que se refresca. */
 let aaFecha: number | null | undefined;
 const estadoAAFijo = () => {
@@ -336,6 +347,29 @@ const fija: FuentePaneles = {
     dshFijo ??= ESTADO_DSH(MODO.variante);
     dshFijo = { ...dshFijo, claves: { ...dshFijo.claves, [nombre]: valor !== null } };
     return structuredClone(dshFijo);
+  },
+  async estadoMcp(motor, local) {
+    await espera(120);
+    return ESTADO_MCP(motor, local === true, mcpFijo);
+  },
+  async listaMcp() {
+    await espera(60);
+    return structuredClone(mcpFijo);
+  },
+  async guardarMcp(entrada) {
+    await espera(100);
+    const previo = mcpFijo.find((x) => x.nombre === entrada.nombre);
+    const nuevo: VistaServidorMcp = {
+      ...entrada,
+      variables: entrada.variables.map((v) => ({ tipo: v.tipo, nombre: v.nombre, hay: !!v.valor || !!previo?.variables.find((y) => y.tipo === v.tipo && y.nombre === v.nombre)?.hay })),
+    };
+    mcpFijo = previo ? mcpFijo.map((x) => (x === previo ? nuevo : x)) : [...mcpFijo, nuevo];
+    return structuredClone(mcpFijo);
+  },
+  async quitarMcp(nombre) {
+    await espera(60);
+    mcpFijo = mcpFijo.filter((x) => x.nombre !== nombre);
+    return structuredClone(mcpFijo);
   },
   async probarDsh(proveedor) {
     await espera(500);
@@ -696,6 +730,18 @@ const conPa = (m: NonNullable<typeof main>): FuentePaneles => ({
   },
   async probarDsh(proveedor, url) {
     return (await m.paneles.probarDsh(proveedor, url).catch(fallar)) as Prueba;
+  },
+  async estadoMcp(motor, local, fresco) {
+    return (await m.paneles.estadoMcp({ motor, local, fresco }).catch(fallar)) as EstadoMcp;
+  },
+  async listaMcp() {
+    return (await m.paneles.listaMcp().catch(fallar)) as VistaServidorMcp[];
+  },
+  async guardarMcp(entrada) {
+    return (await m.paneles.guardarMcp(entrada).catch(fallar)) as VistaServidorMcp[];
+  },
+  async quitarMcp(nombre) {
+    return (await m.paneles.quitarMcp(nombre).catch(fallar)) as VistaServidorMcp[];
   },
   async repartoTabla() {
     return (await m.paneles.repartoTabla().catch(fallar)) as TablaReparto | null;

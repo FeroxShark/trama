@@ -26,6 +26,7 @@ import { fuente, type EnvioLider } from "../datos/fuente";
 import { ChipSubagentes } from "../barra/Fila";
 import { Reloj } from "../barra/piezas";
 import { Leyendo } from "./Leyendo";
+import { PanelMcp } from "./PanelMcp";
 import { MODO } from "../modo";
 import { esTactil } from "../angosto";
 import { pintorCache } from "../tiempo";
@@ -285,6 +286,8 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
   );
   const menu = mn?.filas ?? [];
   const [nota, setNota] = useState<string | null>(null);
+  /** El panel de `/mcp` (PanelMcp.tsx). */
+  const [mcpAbierto, setMcpAbierto] = useState(false);
   // Un modelo de otro motor para una conversación que ya empezó: el diálogo de confirmación (el chip no cambia hasta confirmar).
   /** Los datos del diálogo si elegir `m` sigue la conversación en otro motor; si no, `null`. */
   const datosCambio = (m: string): DatosCambio | null =>
@@ -560,6 +563,8 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
     if (a.tipo === "limpiar") return l ? alNuevo() : undefined;
     if (a.tipo === "modelo") return pedirModelo(a.modelo);
     if (a.tipo === "estilo") return elegirEstilo(a.estilo);
+    if (a.tipo === "mcp") return setMcpAbierto(true);
+    if (a.tipo === "terminal") return setErrorCaja(tr("comando.soloTerminal", { v: a.nombre }));
     elegirEffort(a.effort);
   };
 
@@ -1363,6 +1368,7 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
             }}
           />
         ) : null}
+        {mcpAbierto ? <PanelMcp modelo={modelo} alCerrar={() => setMcpAbierto(false)} /> : null}
         {nota && !errorCaja ? <div className="caja-nota" role="status">{nota}</div> : null}
         {aviso ? <Reloj pintor={aviso} className="caja-aviso" /> : null}
         {/* Un líder local corre en la GPU de esta máquina, sin pa ni subagentes: que se sepa antes de pedirle una tarea grande. */}

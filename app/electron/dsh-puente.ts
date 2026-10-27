@@ -453,6 +453,23 @@ function refrescarClave() {
   }
 }
 
+/** Los valores secretos de los servidores MCP (env y cabeceras): para sacarlos de un error antes de mostrarlo. */
+function secretosMcp(): string[] {
+  const r: string[] = [];
+  for (const s of mcpDeEntorno() as { env?: { value?: unknown }[]; headers?: { value?: unknown }[] }[])
+    for (const x of [...(s.env ?? []), ...(s.headers ?? [])]) if (typeof x?.value === "string") r.push(x.value);
+  return r;
+}
+
+function mcpDeEntorno(): unknown[] {
+  try {
+    const x = JSON.parse(process.env.TRAMA_MCP_ACP || "[]");
+    return Array.isArray(x) ? x : [];
+  } catch {
+    return [];
+  }
+}
+
 /** El `dsh` vivo con su sesión lista (lanzándolo y retomando o abriendo la sesión si hace falta). */
 function asegurar(): Promise<void> {
   if (cliente?.activo && acpSid) return Promise.resolve();
@@ -462,7 +479,7 @@ function asegurar(): Promise<void> {
 async function levantar(): Promise<void> {
   stderrPerdido = "";
   if (!prov && !oc) throw new Error(`modelo «${modelo}» no es de dsh ni de opencode (dsh:<proveedor>/<modelo>, opencode:<proveedor>/<modelo>)`);
-  const env0 = Object.fromEntries(Object.entries(process.env).filter(([k]) => k !== "CLAUDE_CONFIG_DIR"));
+  const env0 = Object.fromEntries(Object.entries(process.env).filter(([k]) => k !== "CLAUDE_CONFIG_DIR" && k !== "TRAMA_MCP_ACP"));
   let env: Record<string, string | undefined>;
   let comando: string;
   let args: string[];
@@ -488,6 +505,8 @@ async function levantar(): Promise<void> {
     env,
     raiz: cwd,
     ...(oc ? { permiso: politicaOpencode(cwd) } : {}),
+    // Los servidores MCP propios de Trama (Ajustes > Conectores), ya resueltos por lider.ts; ilegible = ninguno.
+    mcpServers: mcpDeEntorno(),
     alActualizar: (s, u) => {
       if (s !== acpSid || !actual) return;
       for (const o of actual.actualizacion(u)) salida(o);
@@ -542,7 +561,7 @@ async function levantar(): Promise<void> {
  * y si es de cuota de OpenCode, el mensaje que dice qué hacer (distinto con clave propia que con la pública).
  */
 function textoDeError(e: unknown): string {
-  const secretos = [process.env.OPENCODE_API_KEY, process.env.DEEPSEEK_API_KEY];
+  const secretos = [process.env.OPENCODE_API_KEY, process.env.DEEPSEEK_API_KEY, ...secretosMcp()];
   const err = cliente?.stderr || stderrPerdido;
   // El uso gratis de OpenCode es uno solo para todos sus modelos gratis: se anota para Trama (reparto, selector) y se dice qué hacer.
   if (oc && esLimiteGratisOpencode(`${String((e as Error)?.message ?? e)}\n${err}`)) {

@@ -17,6 +17,10 @@ export type Accion =
   | { tipo: "effort"; effort: string }
   /** /output-style: el nombre tal cual lo lista el CLI. */
   | { tipo: "estilo"; estilo: string }
+  /** /mcp: la app muestra los servidores MCP que ve el líder (en `-p` el de Claude es una pantalla de la terminal y no hace nada). */
+  | { tipo: "mcp" }
+  /** Un comando que en Claude Code abre una pantalla de la terminal (/config, /doctor…): con `-p` no existe, así que no se manda. */
+  | { tipo: "terminal"; nombre: string }
   | {
       tipo: "error";
       clave:
@@ -38,7 +42,8 @@ export type ClaveComando =
   | "comando.model"
   | "comando.effort"
   | "comando.compact"
-  | "comando.outputStyle";
+  | "comando.outputStyle"
+  | "comando.mcp";
 
 /**
  * Una fila del menú: de la app (`clave` de i18n) o de Claude Code (`descripcion` tal cual).
@@ -71,6 +76,7 @@ export const PROPIOS: { nombre: string; args: string | null; clave: ClaveComando
   { nombre: "effort", args: "<low|medium|high|xhigh|max>", clave: "comando.effort" },
   { nombre: "compact", args: null, clave: "comando.compact" },
   { nombre: "output-style", args: "<style>", clave: "comando.outputStyle" },
+  { nombre: "mcp", args: null, clave: "comando.mcp" },
 ];
 
 /**
@@ -83,13 +89,26 @@ export const PROPIOS_AGY: { nombre: string; args: string | null; clave: ClaveCom
   { nombre: "model", args: "<gemini-4-argon|gemini-3.8-flash>", clave: "comando.model" },
   { nombre: "effort", args: "<low|medium|high>", clave: "comando.effort" },
   { nombre: "compact", args: null, clave: "comando.compact" },
+  { nombre: "mcp", args: null, clave: "comando.mcp" },
 ];
+
+/**
+ * Los comandos que en Claude Code (y en `agy`) abren una pantalla de la terminal: con `-p` no hacen nada (a lo sumo dejan un
+ * «Local command note»). No se ofrecen en el menú y, escritos a mano, se avisa «sólo en la terminal» en vez de mandarlos.
+ */
+export const SOLO_TERMINAL: ReadonlySet<string> = new Set([
+  "config", "settings", "doctor", "login", "logout", "status", "permissions", "allowed-tools", "agents", "hooks", "ide",
+  "terminal-setup", "resume", "continue", "theme", "vim", "help", "memory", "statusline", "keybindings", "install-github-app",
+]);
+
+/** ¿Es un comando de pantalla de la terminal? */
+export const esSoloTerminal = (nombre: string): boolean => SOLO_TERMINAL.has(nombre.toLowerCase());
 
 /** ¿El modelo corre por `agy` (`gemini-*` o `agy:*`)? Ollama (`ollama:*`) y los de Claude o GPU local corren por `claude`. */
 export const esModeloAgy = (modelo: string | null | undefined): boolean => /^(?:gemini-|agy:)/.test(modelo ?? "");
 
 /** El motor de un modelo: `dsh:*` corre por DeepSeek Harness, `opencode:*` por opencode, `gemini-*` y `agy:*` por agy. Del esfuerzo y los comandos propios de cada uno. */
-const motorDe = (modelo: string | null | undefined): "claude" | "agy" | "dsh" | "opencode" => (/^opencode:/.test(modelo ?? "") ? "opencode" : /^dsh:/.test(modelo ?? "") ? "dsh" : esModeloAgy(modelo) ? "agy" : "claude");
+export const motorDe = (modelo: string | null | undefined): "claude" | "agy" | "dsh" | "opencode" => (/^opencode:/.test(modelo ?? "") ? "opencode" : /^dsh:/.test(modelo ?? "") ? "dsh" : esModeloAgy(modelo) ? "agy" : "claude");
 
 /** Si el CLI todavía no dijo cuáles hay (ningún líder arrancó nunca): los de fábrica. */
 export const ESTILOS_FABRICA = ["default", "Explanatory", "Learning"];
@@ -105,7 +124,7 @@ const MODO_DE: Record<string, Modo> = {
 };
 
 /** Los de la app (con sus alias): no se repiten con los de Claude Code. */
-const DE_APP = new Set([...Object.keys(MODO_DE), "clear", "model", "effort", "compact", "output-style"]);
+const DE_APP = new Set([...Object.keys(MODO_DE), "clear", "model", "effort", "compact", "output-style", "mcp"]);
 
 /**
  * Qué hacer con el texto de la caja. `modelos`: los del selector (`id` y
@@ -128,6 +147,8 @@ export function parsearComando(
   const modo = MODO_DE[nombre];
   if (modo && !agy) return { tipo: "modo", modo, resto: arg };
   if (nombre === "clear") return { tipo: "limpiar" };
+  if (nombre === "mcp") return { tipo: "mcp" };
+  if (esSoloTerminal(nombre)) return { tipo: "terminal", nombre };
   if (nombre === "model") {
     const a = arg.toLowerCase();
     const x = a ? modelos.find((o) => o.clave === a || o.id === a) ?? modelos.find((o) => o.id.includes(a)) : undefined;
@@ -195,7 +216,7 @@ export function sugerencias(
   const todos: Sugerencia[] = [
     ...propios.map((p) => ({ nombre: p.nombre, args: p.args, clave: p.clave, descripcion: null })),
     ...deClaude
-      .filter((c) => !DE_APP.has(c.nombre.toLowerCase()) && (c.agy === undefined || Boolean(c.agy) === agy))
+      .filter((c) => !DE_APP.has(c.nombre.toLowerCase()) && !esSoloTerminal(c.nombre) && (c.agy === undefined || Boolean(c.agy) === agy))
       .map((c) => ({ nombre: c.nombre, args: c.args || null, clave: null, descripcion: c.descripcion })),
   ];
   const n = (s: Sugerencia) => s.nombre.toLowerCase();
@@ -213,7 +234,7 @@ export function sugerencias(
   };
   for (const p of agy ? PROPIOS : PROPIOS_AGY) poner({ nombre: p.nombre, args: p.args, clave: p.clave, descripcion: null });
   for (const c of deOtro) {
-    if (DE_APP.has(c.nombre.toLowerCase()) || (c.agy !== undefined && Boolean(c.agy) === agy)) continue;
+    if (DE_APP.has(c.nombre.toLowerCase()) || esSoloTerminal(c.nombre) || (c.agy !== undefined && Boolean(c.agy) === agy)) continue;
     poner({ nombre: c.nombre, args: c.args || null, clave: null, descripcion: c.descripcion });
   }
   return [...propiosFilas, ...orden(ajenos)];

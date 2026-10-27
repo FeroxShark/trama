@@ -1,7 +1,7 @@
 // Los comandos con "/" de la caja del líder (src/hilo/comandos.ts).
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { completar, directo, menuEn, moverSel, parsearComando, reemplazar, sugerencias } from "../src/hilo/comandos.ts";
+import { completar, directo, esSoloTerminal, menuEn, moverSel, parsearComando, reemplazar, sugerencias } from "../src/hilo/comandos.ts";
 
 const MODELOS = [
   { id: "claude-opus-5-5", clave: "opus" },
@@ -44,7 +44,7 @@ test("menú: sólo con '/' y un nombre; los de la app primero, sin repetir; pref
     { nombre: "explain-plan", descripcion: "Una skill", args: "" },
   ];
   const todos = sugerencias("/", claude).map((s) => s.nombre);
-  assert.deepEqual(todos, ["plan", "default", "accept-edits", "bypass", "clear", "model", "effort", "compact", "output-style", "review", "explain-plan"]);
+  assert.deepEqual(todos, ["plan", "default", "accept-edits", "bypass", "clear", "model", "effort", "compact", "output-style", "mcp", "review", "explain-plan"]);
   assert.deepEqual(sugerencias("/pla", claude).map((s) => s.nombre), ["plan", "explain-plan"]);
   assert.deepEqual(sugerencias("/rev", claude).map((s) => s.nombre), ["review"]);
   assert.equal(sugerencias("/review ", claude).length, 0);
@@ -165,6 +165,7 @@ test("líder de agy (gemini-* o agy:*): el menú ofrece sólo /clear, /model, /e
       "model",
       "effort",
       "compact",
+      "mcp",
       "pa-worker:ana-orquestar",
       "pa-worker:gemini",
     ]);
@@ -180,7 +181,7 @@ test("líder de agy (gemini-* o agy:*): el menú ofrece sólo /clear, /model, /e
     assert.equal(menuEn("/output-style ", 14, mixtos, valores, mod), null);
   }
   const ollama = sugerencias("/", mixtos, valores, "ollama:qwen3.5:9b").map((s) => s.nombre);
-  assert.deepEqual(ollama, ["plan", "default", "accept-edits", "bypass", "clear", "model", "effort", "compact", "output-style", "review"]);
+  assert.deepEqual(ollama, ["plan", "default", "accept-edits", "bypass", "clear", "model", "effort", "compact", "output-style", "mcp", "review"]);
   // /compact va como texto a agy (no lo resuelve la app) y, con un mensaje, compacta y contesta.
   assert.deepEqual(parsearComando("/compact", [], [], [], "gemini-4-argon"), { tipo: "texto" });
   assert.deepEqual(parsearComando("/compact ahora seguí con X", [], [], [], "gemini-4-argon"), { tipo: "texto" });
@@ -273,4 +274,34 @@ test("/effort sin niveles dice que no hay; sin argumento muestra el uso; con niv
   assert.deepEqual(parsearComando("/effort", MODELOS, ["low", "high"], [], "opencode:opencode/beam-free"), { tipo: "error", clave: "comando.usoEffortVacio", v: "" });
   assert.deepEqual(parsearComando("/effort max", MODELOS, ["low", "high"], [], "opencode:opencode/beam-free"), { tipo: "error", clave: "comando.usoEffort", v: "max" });
   assert.deepEqual(parsearComando("/effort HIGH", MODELOS, ["low", "high"], [], "opencode:opencode/beam-free"), { tipo: "effort", effort: "high" });
+});
+
+test("/mcp lo resuelve la app (en cualquier motor, con o sin argumentos) y no va al líder", () => {
+  assert.deepEqual(p("/mcp"), { tipo: "mcp" });
+  assert.deepEqual(p("  /MCP list "), { tipo: "mcp" });
+  for (const m of ["claude-opus-5-5", "gemini-4-argon", "dsh:deepseek/v4", "opencode:opencode/big-pickle"]) assert.deepEqual(parsearComando("/mcp", MODELOS, EFFORTS, undefined, m), { tipo: "mcp" });
+  const menu = (m?: string) => sugerencias("/mc", [{ nombre: "mcp", descripcion: "Manage MCP servers", args: null }], {}, m);
+  for (const m of [undefined, "gemini-4-argon", "dsh:deepseek/v4"]) {
+    const filas = menu(m);
+    assert.deepEqual(filas.map((s) => s.nombre), ["mcp"], "una sola fila, la de la app");
+    assert.equal(filas[0].clave, "comando.mcp");
+  }
+});
+
+test("los comandos de pantalla de la terminal no se ofrecen y, escritos a mano, avisan 'sólo en la terminal'", () => {
+  const pantallas = ["config", "doctor", "login", "logout", "status", "permissions", "agents", "hooks", "ide", "terminal-setup", "resume"];
+  const claude = [...pantallas, "review", "init"].map((nombre) => ({ nombre, descripcion: "x", args: null }));
+  for (const m of [undefined, "gemini-4-argon"]) {
+    const nombres = sugerencias("/", claude, {}, m).map((s) => s.nombre);
+    for (const c of pantallas) assert.ok(!nombres.includes(c), `/${c} no debería ofrecerse`);
+    assert.ok(nombres.includes("review") || m === "gemini-4-argon");
+  }
+  // Ni buscándolos, ni como comandos de la otra empresa.
+  assert.deepEqual(sugerencias("/doctor", claude).map((s) => s.nombre), []);
+  assert.deepEqual(sugerencias("/conf", claude, {}, "claude-opus-5-5", claude).map((s) => s.nombre), []);
+  for (const c of pantallas) assert.deepEqual(p(`/${c}`), { tipo: "terminal", nombre: c });
+  assert.deepEqual(p("/Doctor --verbose"), { tipo: "terminal", nombre: "doctor" });
+  assert.ok(esSoloTerminal("CONFIG") && !esSoloTerminal("compact") && !esSoloTerminal("review"));
+  // Lo que sí corre con -p sigue yendo al líder.
+  for (const t of ["/compact", "/review 1", "/init"]) assert.deepEqual(p(t), { tipo: "texto" });
 });

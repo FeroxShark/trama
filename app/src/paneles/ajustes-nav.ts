@@ -4,7 +4,7 @@
 import type { Clave, ClaveSola } from "../i18n";
 import { TIPOS } from "../../electron/modelos-tipos";
 
-export const CATS = ["cuentas", "modelos", "cupos", "locales", "dsh", "celular", "actualizaciones", "proyectos", "general", "guia"] as const;
+export const CATS = ["cuentas", "modelos", "cupos", "locales", "dsh", "conectores", "celular", "actualizaciones", "proyectos", "general", "guia"] as const;
 export type CatId = (typeof CATS)[number];
 
 export const esCat = (x: unknown): x is CatId => typeof x === "string" && (CATS as readonly string[]).includes(x);
@@ -54,6 +54,10 @@ export const ITEMS: readonly Item[] = [
   { cat: "dsh", nombre: "ajustes.dshOpencode", que: "ajustes.dshOpencodeQue", sin: "opencode zen clave key api token pago paid modelos dsh" },
   { cat: "dsh", nombre: "ajustes.dshDeepseek", que: "ajustes.dshDeepseekQue", sin: "deepseek clave key api token probar test v4 flash" },
   { cat: "dsh", nombre: "ajustes.dshOllama", que: "ajustes.dshOllamaQue", sin: "ollama local dsh probar test" },
+
+  { cat: "conectores", nombre: "conectores.propios", que: "conectores.propiosQue", sin: "mcp servidor server conector connector notion gmail calendar calendario herramientas tools agregar add token clave key stdio http sse url comando command variables entorno env cabecera header" },
+  { cat: "conectores", nombre: "conectores.motores", que: "conectores.motoresQue", sin: "mcp motores engines claude deepseek dsh opencode gemini agy workers lider leader soporta supported" },
+  { cat: "conectores", nombre: "conectores.claudeai", que: "conectores.claudeaiQue", sin: "claude.ai conectores connectors web navegador browser gmail calendar notion drive cuenta account mcp" },
 
   { cat: "celular", nombre: "ajustes.celGuia", que: "ajustes.celPaso1Que", sin: "telefono movil phone mobile tailscale tailnet instalar install qr codigo code escanear scan direccion address url conectar connect guia guide" },
   { cat: "celular", nombre: "ajustes.celAcceso", que: "ajustes.celAccesoQue", sin: "telefono movil phone mobile tailscale tailnet remoto remote encender apagar on off" },
@@ -208,6 +212,7 @@ export function deVariante(v: string | null | undefined): CatId | null {
   if (v === "mdl-tope" || v.startsWith("cupos") || v === "editando" || v === "editando-mal") return "cupos";
   if (v === "celular") return "celular";
   if (v.startsWith("dsh")) return "dsh";
+  if (v.startsWith("mcp")) return "conectores";
   if (v.startsWith("mdl") || v === "sinmdl" || v === "modelo" || v === "dictado") return "modelos";
   if (v.startsWith("proyectos")) return "proyectos";
   if (v.startsWith("guia")) return "guia";

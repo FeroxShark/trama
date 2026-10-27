@@ -59,6 +59,8 @@ import { aplicarCortes, armarRelevo, hastaMensaje, MODELO_DE_FAMILIA, msDe, unir
 import { asegurarLocal, destinoLocal, localDe } from "./locales.js";
 import { armarContexto, prefacioDsh, prefacioGemini } from "./contexto-local.ts";
 import { conClaves } from "./claves.ts";
+import { archivoMcpClaudeSync } from "./mcp.ts";
+import { paraAcp, resueltos } from "./mcp-config.ts";
 import { resolverPa } from "./binario.ts";
 import { matarArbol } from "./procesos.ts";
 import { claseDeModelo, familiaDeModelo, idAgy, localDeModelo, localOllama, partirGemini, type Clase } from "./modelos-config.js";
@@ -480,6 +482,17 @@ function lanzar(g: Guardado, resume: boolean, local?: Local, extra: Extra = {}):
   // Los puentes de agy / dsh / opencode no repiten en una sesión nueva lo que se descartó al volver atrás; y si el relevo es de una vuelta atrás o
   // de una rama (trae toda la conversación hasta el punto), tampoco repiten lo suyo: ya está en el relevo.
   const cortesPuente: NodeJS.ProcessEnv = clase === "gemini" || clase === "dsh" || clase === "opencode" ? cortesParaPuente(g, clase, relevo) : {};
+  // Los servidores MCP propios de Trama (Ajustes > Conectores), sólo a líderes. Un archivo 0600 / el entorno del puente, nunca el argv; un fallo no impide lanzar.
+  let mcpClaude: string | undefined;
+  let mcpAcp = "";
+  try {
+    if (clase === "dsh" || clase === "opencode") {
+      const x = resueltos();
+      if (x.length) mcpAcp = JSON.stringify(paraAcp(x));
+    } else if (clase === "claude" && !local && !extra.ollama) mcpClaude = archivoMcpClaudeSync() ?? undefined;
+  } catch (e) {
+    silencio("mcp-lanzar")(e);
+  }
   const bin = clase === "gemini" ? "agy" : clase === "dsh" ? "dsh" : clase === "opencode" ? "opencode" : path.basename(CLAUDE);
   const p =
     clase === "opencode"
@@ -487,7 +500,7 @@ function lanzar(g: Guardado, resume: boolean, local?: Local, extra: Extra = {}):
           process.execPath,
           [PUENTE_DSH, "--sid", g.sid, "--nombre", g.nombre, "--modelo", g.modelo, "--cwd", base.cwd, ...(g.effort ? ["--effort", g.effort] : [])],
           // Sin las keys de dsh: opencode usa su propio login (el de la persona). El prefacio va por el entorno.
-          { ...opciones, env: { ...base.env, ...cortesPuente, ELECTRON_RUN_AS_NODE: "1", TRAMA_DSH_PREFACIO: extra.prefacio ?? "", ...(relevo ? { TRAMA_DSH_RELEVO: relevo } : {}) } },
+          { ...opciones, env: { ...base.env, ...cortesPuente, ELECTRON_RUN_AS_NODE: "1", TRAMA_DSH_PREFACIO: extra.prefacio ?? "", ...(mcpAcp ? { TRAMA_MCP_ACP: mcpAcp } : {}), ...(relevo ? { TRAMA_DSH_RELEVO: relevo } : {}) } },
         )
       : clase === "dsh"
       ? spawn(
@@ -495,7 +508,7 @@ function lanzar(g: Guardado, resume: boolean, local?: Local, extra: Extra = {}):
           [PUENTE_DSH, "--sid", g.sid, "--nombre", g.nombre, "--modelo", g.modelo, "--cwd", base.cwd],
           // Como el de Gemini: el Electron del motor como Node pelado. dsh no lee CLAUDE.md: el prefacio va por el entorno, y las keys guardadas
           // (claves.env) debajo de las que ya estén en el entorno.
-          { ...opciones, env: { ...conClaves(base.env), ...cortesPuente, ELECTRON_RUN_AS_NODE: "1", TRAMA_DSH_PREFACIO: extra.prefacio ?? "", ...(relevo ? { TRAMA_DSH_RELEVO: relevo } : {}), ...(extra.dshUrl ? { TRAMA_DSH_URL: extra.dshUrl } : {}) } },
+          { ...opciones, env: { ...conClaves(base.env), ...cortesPuente, ELECTRON_RUN_AS_NODE: "1", TRAMA_DSH_PREFACIO: extra.prefacio ?? "", ...(mcpAcp ? { TRAMA_MCP_ACP: mcpAcp } : {}), ...(relevo ? { TRAMA_DSH_RELEVO: relevo } : {}), ...(extra.dshUrl ? { TRAMA_DSH_URL: extra.dshUrl } : {}) } },
         )
       : clase === "gemini"
       ? spawn(
@@ -504,7 +517,7 @@ function lanzar(g: Guardado, resume: boolean, local?: Local, extra: Extra = {}):
           // El mismo Electron/Node que el motor, como Node pelado; el prefacio (agy no lee CLAUDE.md) va por el entorno.
           { ...opciones, env: { ...base.env, ...cortesPuente, ELECTRON_RUN_AS_NODE: "1", TRAMA_AGY_PREFACIO: extra.prefacio ?? "", ...(relevo ? { TRAMA_AGY_RELEVO: relevo } : {}) } },
         )
-      : spawn(CLAUDE, argvLider({ modelo: g.modelo, effort: g.effort, sid: g.sid, nombre: g.nombre, resume, modo: g.modo, local, ollama: extra.ollama, desde: extra.desde, rama: g.rama, relevo }), opciones);
+      : spawn(CLAUDE, argvLider({ modelo: g.modelo, effort: g.effort, sid: g.sid, nombre: g.nombre, resume, modo: g.modo, local, ollama: extra.ollama, desde: extra.desde, rama: g.rama, relevo, mcpConfig: mcpClaude }), opciones);
   const x: Proc = { p, modelo: g.modelo, effort: g.effort, clase, local, ocupado: false, directos: [], pedido: 0, avisado: 0, resto: "", stderr: "", adrede: false, libre: [], pedidos: new Map(), controles: new Map(), estilo: null };
   procs.set(g.sid, x);
   p.stdout!.setEncoding("utf8");

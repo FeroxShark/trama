@@ -6341,3 +6341,61 @@ summary.sis-div-t:hover,
     padding-left: 0;
   }
 }
+/* /mcp: los servidores MCP que ve un líder (PanelMcp.tsx). Cada estado con ícono y palabra. */
+.mcp-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-2);
+  margin-top: var(--esp-2);
+  padding: var(--esp-3);
+  border: 1px solid var(--borde-3);
+  border-radius: var(--radio-2);
+  font-size: var(--letra-4);
+}
+.mcp-cab {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--esp-2);
+}
+.mcp-cab-acc {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--esp-2);
+}
+.mcp-grupo h4 {
+  margin: 0 0 var(--esp-1);
+}
+.mcp-nota {
+  margin: 0 0 var(--esp-1);
+  color: var(--txt-3);
+  line-height: 1.5;
+}
+.mcp-items {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.mcp-items li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--esp-2);
+}
+.mcp-nombre {
+  font-weight: 600;
+}
+.mcp-marca {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--esp-1);
+}
+.mcp-destino {
+  flex-basis: 100%;
+  overflow-wrap: anywhere;
+  color: var(--txt-3);
+}

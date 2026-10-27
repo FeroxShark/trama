@@ -23,6 +23,7 @@ import { Boton } from "../ui/componentes";
 import { Cat } from "./AjustesNav";
 import { PanelCargando } from "./PanelCargando";
 import { AjustesDsh } from "./AjustesDsh";
+import { AjustesConectores } from "./AjustesConectores";
 import { ModelosParaWorkers } from "./AjustesWorkers";
 import { GuiaOllama, SugeridosOllama, textoBajada } from "./AjustesLocales";
 import { marcar } from "./ajustes-nav";
@@ -661,6 +662,8 @@ export function AjustesModelos({ Dato, plan = null }: { Dato: FilaDato; plan?: s
       </Cat>
 
       <AjustesDsh Dato={Dato} />
+
+      <AjustesConectores Dato={Dato} />
 
       <Cat id="cupos" orden={1}>
         <CuposTarjetas b={b} uso={uso} plan={plan} />
