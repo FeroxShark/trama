@@ -2,9 +2,11 @@
 // otro par permitido (de cualquier proveedor) rinde igual o más inteligencia por igual o menos costo. Puro: lo prueba tests/efforts-dominados.test.ts.
 //
 // Costo de un par, en este orden:
-//  1. el costo por tarea de Artificial Analysis cuando el dato lo trae (`FilaTabla.costoPorEffort`, USD);
+//  1. lo que cuesta correr el índice de inteligencia de Artificial Analysis («Cost to Run», USD), cuando el dato lo trae
+//     (`FilaTabla.costoPorEffort`). Es la misma prueba para todos los modelos, así que se puede comparar entre ellos;
 //  2. si no, COSTO_FAMILIA (el costo relativo de un token que usa `reparto`, COSTO en motor/bin/reparto) × MULT_EFFORT (cuánto más piensa
-//     un esfuerzo alto: low 0,5, medium 0,75, high 1, xhigh 1,5, max 2,5). Es un proxy: sólo sirve para ordenar pares entre sí.
+//     un esfuerzo alto: low 0,5, medium 0,75, high 1, xhigh 1,5, max 2,5) × ESCALA_INDICE, para llevarlo a la misma unidad que (1)
+//     (Opus 5.5 high, familia 1, cuesta ~2.170 USD). Es un proxy: sólo sirve para ordenar pares entre sí.
 // En los modelos de suscripción (Claude, Google, ChatGPT) no se paga por token: el costo es el equivalente en API y se usa como proxy
 // del cupo que se gasta. Los gratis y locales no entran (no hay nada que ahorrar con ellos).
 import { EFFORTS_CALIDAD, type EffortCalidad } from "../../electron/efforts-calidad";
@@ -16,6 +18,8 @@ export const MULT_EFFORT: Record<EffortCalidad, number> = { low: 0.5, medium: 0.
 /** Igual que COSTO de motor/bin/reparto; lo que no está (DeepSeek de pago, otros) usa `COSTO_DEFECTO`. */
 export const COSTO_FAMILIA: Record<string, number> = { opus: 1, argon: 0.6, sonnet: 0.35, "gpt-oss": 0.15, haiku: 0.12, flash: 0.2, astra: 1, sol: 0.6, luna: 0.08 };
 export const COSTO_DEFECTO = 0.25;
+/** USD de correr el índice de AA por cada 1 de COSTO_FAMILIA en high (Opus 5.5 high: ~2.170 USD). */
+export const ESCALA_INDICE = 2000;
 /** Proveedores que se pagan con suscripción (el costo es el equivalente en API). */
 export const SUSCRIPCION = ["claude", "google", "openai"];
 
@@ -35,7 +39,7 @@ export type Dominado = { par: Par; por: Par };
 export const costoDe = (f: FilaTabla, effort: EffortCalidad): { costo: number; fuente: "aa" | "estimado" } => {
   const aa = f.costoPorEffort?.[effort];
   if (aa !== undefined) return { costo: aa, fuente: "aa" };
-  return { costo: (COSTO_FAMILIA[f.familia] ?? COSTO_DEFECTO) * MULT_EFFORT[effort], fuente: "estimado" };
+  return { costo: (COSTO_FAMILIA[f.familia] ?? COSTO_DEFECTO) * MULT_EFFORT[effort] * ESCALA_INDICE, fuente: "estimado" };
 };
 
 /** Los esfuerzos que se ofrecen para un modelo: los medidos y los estimados que puede correr; sin desglose, los cinco. */

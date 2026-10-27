@@ -26,11 +26,11 @@ const fila = (id: string, familia: string, proveedor: string, q: FilaTabla["cali
 });
 const b0 = () => borradorDe({ version: 1, ruta: "/x", existe: true, error: null, efectivo: null, config: { workers: {}, locales: [], excluir: [], calidad: {}, permitir_max: false, gemini: {}, claude: {}, destrabar: {} } });
 
-const SONNET = fila("claude-sonnet-5-5", "sonnet", "claude", { low: 35.9, high: 46.8 }, { low: 0.345, high: 0.884 });
-const HAIKU = fila("claude-haiku-5-5", "haiku", "claude", { max: 43.4 }, { max: 0.2 });
-const DEEPSEEK = fila("deepseek:deepseek-v4.1-flash", "dsh", "deepseek", { max: 45.1 }, { max: 0.262 });
+const SONNET = fila("claude-sonnet-5-5", "sonnet", "claude", { low: 35.9, high: 46.8 }, { low: 482.13, high: 1027.4 });
+const HAIKU = fila("claude-haiku-5-5", "haiku", "claude", { max: 43.4 }, { max: 330.25 });
+const DEEPSEEK = fila("deepseek:deepseek-v4.1-flash", "dsh", "deepseek", { max: 45.1 }, { max: 444.6 });
 
-test("Sonnet low (35.9 @ 0,345) lo domina Haiku max (43,4 @ 0,20)", () => {
+test("Sonnet low (35,9 @ 482 USD) lo domina Haiku max (43,4 @ 330 USD)", () => {
   const d = dominados(paresDe([SONNET, HAIKU], b0()));
   const x = d.find((z) => z.par.id === SONNET.id && z.par.effort === "low");
   assert.ok(x);
@@ -38,10 +38,10 @@ test("Sonnet low (35.9 @ 0,345) lo domina Haiku max (43,4 @ 0,20)", () => {
   assert.equal(x.por.effort, "max");
 });
 
-test("DeepSeek Flash max (45,1 @ 0,262) casi iguala a Sonnet high (46,8 @ 0,884) pero no lo domina: rinde menos", () => {
+test("DeepSeek Flash max (45,1 @ 445 USD) casi iguala a Sonnet high (46,8 @ 1.027 USD) pero no lo domina: rinde menos", () => {
   const d = dominados(paresDe([SONNET, DEEPSEEK], b0()));
   assert.ok(!d.some((z) => z.par.id === SONNET.id && z.par.effort === "high"));
-  // y Sonnet low (35,9 @ 0,345) sí cae contra DeepSeek (más inteligente y más barato)
+  // y Sonnet low (35,9 @ 482 USD) sí cae contra DeepSeek (más inteligente y más barato)
   assert.ok(d.some((z) => z.par.id === SONNET.id && z.par.effort === "low" && z.por.id === DEEPSEEK.id));
 });
 
@@ -53,10 +53,10 @@ test("dos pares idénticos no se dominan; un modelo excluido no es alternativa",
   assert.ok(!dominados(paresDe([SONNET, HAIKU], b)).some((z) => z.por.id === HAIKU.id));
 });
 
-test("sin costo de AA: COSTO de la familia × multiplicador del esfuerzo", () => {
+test("sin costo de AA: COSTO de la familia × multiplicador del esfuerzo × escala del índice", () => {
   const f = fila("claude-sonnet-5-5", "sonnet", "claude", { low: 30, high: 40, max: 50 });
-  assert.equal(costoDe(f, "low").costo, 0.35 * 0.5);
-  assert.equal(costoDe(f, "max").costo, 0.35 * 2.5);
+  assert.equal(costoDe(f, "low").costo, 0.35 * 0.5 * 2000);
+  assert.equal(costoDe(f, "max").costo, 0.35 * 2.5 * 2000);
   assert.equal(costoDe(f, "high").fuente, "estimado");
   assert.equal(costoDe(SONNET, "low").fuente, "aa");
 });
