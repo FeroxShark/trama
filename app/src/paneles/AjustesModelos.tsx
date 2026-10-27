@@ -26,6 +26,7 @@ import { AjustesDsh } from "./AjustesDsh";
 import { AjustesOpencode } from "./AjustesOpencode";
 import { AjustesConectores } from "./AjustesConectores";
 import { ModelosParaWorkers } from "./AjustesWorkers";
+import { AutocompactFilas } from "./AjustesAutocompact";
 import { GuiaOllama, SugeridosOllama, textoBajada } from "./AjustesLocales";
 import { marcar } from "./ajustes-nav";
 import { avisosTope } from "./cupos-aviso";
@@ -468,6 +469,10 @@ export function AjustesModelos({ Dato, plan = null }: { Dato: FilaDato; plan?: s
           )}
 
           <ModelosParaWorkers b={b} cambiar={cambiar} />
+
+          <Dato nombre="ajustes.mdlCompactar" que="ajustes.mdlCompactarQue">
+            <AutocompactFilas b={b} cambiar={cambiar} />
+          </Dato>
 
           <Dato nombre="ajustes.mdlPermitirMax" que="ajustes.mdlPermitirMaxQue">
             <Interruptor activo={b.permitir_max} alCambiar={(v) => cambiar(ponerPermitirMax(b, v))} aria-label={t("ajustes.mdlPermitirMax")} />

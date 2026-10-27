@@ -3404,3 +3404,25 @@
     margin-top: var(--esp-2);
   }
 }
+
+/* Ajustes > Modelos > Contexto antes de compactar: una fila por familia (nombre, atajos y, con «Otro», el campo en miles de tokens). */
+.mdl-compactar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-2);
+  align-items: flex-end;
+}
+.mdl-compactar-fila {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: var(--esp-2);
+}
+.mdl-compactar-fila .pn-chips {
+  margin-top: 0;
+}
+.mdl-compactar-nom {
+  min-width: 4.5rem;
+  text-align: right;
+}

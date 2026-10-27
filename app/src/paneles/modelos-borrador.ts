@@ -26,6 +26,7 @@ import {
   TOPE_CLAUDE_DEFECTO,
   URL_OLLAMA,
   urlOllama,
+  type AutocompactConfig,
   type ConfigModelos,
   type Eleccion,
   type Local,
@@ -55,6 +56,8 @@ export type Borrador = {
   permitir_max: boolean;
   /** Esfuerzos permitidos por clave de `calidad`; sin la clave valen todos, `[]` saca al modelo. */
   efforts_permitidos: Record<string, EffortCalidad[]>;
+  /** «Contexto antes de compactar» (`autocompact` del archivo): `defecto` y el tope por familia; `null` es nativo. Sin entradas la clave no se escribe. */
+  autocompact: AutocompactConfig;
   /** Qué hace `pa` si un modelo no tiene cupo; sin elegir se escribe nada y vale `otro`. */
   sin_cupo?: SinCupo;
   /** Perfil de reparto; sin elegir vale `equilibrado` y no se escribe nada. */
@@ -77,6 +80,7 @@ export const borradorDe = (e: EstadoModelos): Borrador => ({
   calidad: { ...e.config.calidad },
   permitir_max: e.config.permitir_max,
   efforts_permitidos: Object.fromEntries(Object.entries(e.config.efforts_permitidos ?? {}).map(([k, v]) => [k, [...v]])),
+  autocompact: { defecto: e.config.autocompact?.defecto ?? null, por_modelo: { ...(e.config.autocompact?.por_modelo ?? {}) } },
   ...(e.config.sin_cupo ? { sin_cupo: e.config.sin_cupo } : {}),
   ...(e.config.perfil ? { perfil: e.config.perfil } : {}),
   guardar: e.config.claude.tope_5h !== undefined || e.config.claude.tope_7d !== undefined,
@@ -111,6 +115,7 @@ export function configDe(b: Borrador): ConfigModelos | null {
     calidad: { ...b.calidad },
     permitir_max: b.permitir_max,
     ...(Object.keys(b.efforts_permitidos).length ? { efforts_permitidos: Object.fromEntries(Object.entries(b.efforts_permitidos).map(([k, v]) => [k, [...v]])) } : {}),
+    ...(b.autocompact.defecto !== null || Object.keys(b.autocompact.por_modelo).length ? { autocompact: { defecto: b.autocompact.defecto, por_modelo: { ...b.autocompact.por_modelo } } } : {}),
     gemini: {},
     ...(b.sin_cupo ? { sin_cupo: b.sin_cupo } : {}),
     ...(b.perfil ? { perfil: b.perfil } : {}),
@@ -130,6 +135,8 @@ const huella = (c: ConfigModelos) =>
     Object.entries(c.calidad ?? {}).sort(([a], [z]) => (a < z ? -1 : 1)),
     c.permitir_max,
     Object.entries(c.efforts_permitidos ?? {}).sort(([a], [z]) => (a < z ? -1 : 1)),
+    c.autocompact?.defecto ?? null,
+    Object.entries(c.autocompact?.por_modelo ?? {}).sort(([a], [z]) => (a < z ? -1 : 1)),
     c.sin_cupo ?? null,
     c.perfil ?? "equilibrado",
     c.claude.tope_5h ?? null,

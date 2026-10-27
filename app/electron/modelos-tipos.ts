@@ -70,6 +70,18 @@ export const URL_OLLAMA = "http://localhost:11434";
 /** Más locales que esto no es una lista que alguien arme a mano. */
 export const LOCALES_MAX = 50;
 
+/** Familias con tope de compactación propio en `autocompact.por_modelo` (las que `pa` resuelve por nombre). */
+export const AUTOCOMPACT_FAMILIAS = ["haiku", "sonnet", "opus"] as const;
+/** Rango que acepta `pa` (y `--autocompact` de Claude Code): tokens. */
+export const AUTOCOMPACT_MIN = 100_000;
+export const AUTOCOMPACT_MAX = 1_000_000;
+/** Lo que `pa` usa para Haiku si el archivo no dice nada de él (cuenta mucho más barata por turno; ver autocompact_de en pa). */
+export const AUTOCOMPACT_HAIKU = 300_000;
+export const autocompactValido = (n: unknown): n is number => typeof n === "number" && Number.isInteger(n) && n >= AUTOCOMPACT_MIN && n <= AUTOCOMPACT_MAX;
+/** `null` = nativo (`pa` no pasa `--autocompact`: compacta Claude Code a su manera); un número son tokens. */
+export type TopeCompactar = number | null;
+export type AutocompactConfig = { defecto: TopeCompactar; por_modelo: Record<string, TopeCompactar> };
+
 /** Un modelo y, si es de Claude, su esfuerzo. */
 export type Eleccion = { modelo: string; effort?: string };
 /** Un modelo servido por Ollama: `id` es `ollama:<modelo>` y es lo que se elige en los selectores. */
@@ -93,6 +105,11 @@ export type ConfigModelos = {
    * queda fuera. Si el esfuerzo del tipo no está permitido, `reparto` usa el más cercano (primero el siguiente más alto).
    */
   efforts_permitidos?: Record<string, EffortCalidad[]>;
+  /**
+   * Cuántos tokens de contexto junta un worker antes de compactar, por modelo (clave: familia o id) y un `defecto`. `null` = nativo: `pa` no pasa
+   * `--autocompact`. Sin la clave (o sin la entrada) manda `pa`: Haiku 300 000, el resto nativo. `PA_AUTOCOMPACT` pisa todo.
+   */
+  autocompact?: AutocompactConfig;
   /** `cupo_max` de un archivo viejo: el motor ya no lo usa; se lee (no rompe) pero Guardar no lo vuelve a escribir. */
   gemini: { cupo_max?: number };
   /** `sin_cupo` del archivo; un `gemini.sin_claude` viejo se lee como éste y se reescribe así al guardar. */
@@ -199,6 +216,13 @@ export function leerConfig(j: Record<string, unknown>): ConfigModelos {
     for (const [k, v] of Object.entries(j.efforts_permitidos)) if (FORMA_CALIDAD.test(k) && Array.isArray(v) && Object.keys(ep).length < CALIDAD_MAX) ep[k] = EFFORTS_CALIDAD.filter((e) => v.includes(e));
     if (Object.keys(ep).length) c.efforts_permitidos = ep;
   }
+  if (esObj(j.autocompact)) {
+    const a = j.autocompact;
+    const por: Record<string, TopeCompactar> = {};
+    if (esObj(a.por_modelo)) for (const [k, v] of Object.entries(a.por_modelo)) if (FORMA_CALIDAD.test(k) && (v === null || autocompactValido(v)) && Object.keys(por).length < CALIDAD_MAX) por[k] = v;
+    const defecto = autocompactValido(a.defecto) ? a.defecto : null;
+    if (defecto !== null || Object.keys(por).length) c.autocompact = { defecto, por_modelo: por };
+  }
   if (esObj(j.gemini)) {
     const g = j.gemini;
     if (typeof g.cupo_max === "number" && Number.isInteger(g.cupo_max) && g.cupo_max >= CUPO_MIN && g.cupo_max <= CUPO_MAX) c.gemini.cupo_max = g.cupo_max;
@@ -228,7 +252,7 @@ function validarEleccion(x: unknown, donde: string, locales: Local[]): Eleccion 
 /** Lo que llega a guardar, revisado: tira con el motivo si algo no vale (y entonces no se escribe nada). */
 export function validarConfig(x: unknown): ConfigModelos {
   if (!esObj(x)) throw errorT("main.modelosForma");
-  const raro = Object.keys(x).find((k) => !["lider", "reparto", "workers", "locales", "excluir", "calidad", "efforts_permitidos", "permitir_max", "gemini", "claude", "sin_cupo", "perfil", "destrabar"].includes(k));
+  const raro = Object.keys(x).find((k) => !["lider", "reparto", "workers", "locales", "excluir", "calidad", "efforts_permitidos", "autocompact", "permitir_max", "gemini", "claude", "sin_cupo", "perfil", "destrabar"].includes(k));
   if (raro !== undefined) throw errorT("main.modelosCampo", { campo: raro.slice(0, 40) });
   const c = vacia();
 
@@ -276,6 +300,25 @@ export function validarConfig(x: unknown): ConfigModelos {
       ep[k] = EFFORTS_CALIDAD.filter((e) => v.includes(e));
     }
     if (ks.length) c.efforts_permitidos = ep;
+  }
+  if (x.autocompact !== undefined && x.autocompact !== null) {
+    if (!esObj(x.autocompact)) throw errorT("main.modelosForma");
+    const a = x.autocompact;
+    if (Object.keys(a).some((k) => k !== "defecto" && k !== "por_modelo")) throw errorT("main.modelosForma");
+    if (a.defecto !== undefined && a.defecto !== null && !autocompactValido(a.defecto)) throw errorT("main.modelosAutocompact", { v: String(a.defecto).slice(0, 60) });
+    const por: Record<string, TopeCompactar> = {};
+    if (a.por_modelo !== undefined && a.por_modelo !== null) {
+      if (!esObj(a.por_modelo)) throw errorT("main.modelosForma");
+      const ks = Object.keys(a.por_modelo);
+      if (ks.length > CALIDAD_MAX) throw errorT("main.modelosDemasiados", { max: CALIDAD_MAX });
+      for (const k of ks) {
+        const v = a.por_modelo[k];
+        if (!FORMA_CALIDAD.test(k) || !(v === null || autocompactValido(v))) throw errorT("main.modelosAutocompact", { v: k.slice(0, 60) });
+        por[k] = v;
+      }
+    }
+    const defecto = typeof a.defecto === "number" ? a.defecto : null;
+    if (defecto !== null || Object.keys(por).length) c.autocompact = { defecto, por_modelo: por };
   }
   if (x.permitir_max !== undefined && x.permitir_max !== null) {
     if (typeof x.permitir_max !== "boolean") throw errorT("main.modelosForma");
@@ -398,6 +441,10 @@ export function unir(antes: Record<string, unknown> | null, c: ConfigModelos): R
   // `efforts_permitidos` es de `reparto`: sin entradas la clave sale (valen todos los esfuerzos).
   if (c.efforts_permitidos && Object.keys(c.efforts_permitidos).length) base.efforts_permitidos = Object.fromEntries(Object.entries(c.efforts_permitidos).map(([k, v]) => [k, [...v]]));
   else delete base.efforts_permitidos;
+
+  // `autocompact` es de `pa`: sin entradas la clave sale (vale lo de fábrica: Haiku 300 000, el resto nativo).
+  if (c.autocompact && (c.autocompact.defecto !== null || Object.keys(c.autocompact.por_modelo).length)) base.autocompact = { defecto: c.autocompact.defecto, por_modelo: { ...c.autocompact.por_modelo } };
+  else delete base.autocompact;
 
   // `gemini.sin_claude` se retira: lo dice `sin_cupo`, que vale para cualquier proveedor.
   // `gemini.cupo_max` tampoco se escribe más: el motor ya no lo usa, y al guardar sale del archivo.
