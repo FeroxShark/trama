@@ -111,9 +111,9 @@ export function depsDeteccionDeVerdad(env: NodeJS.ProcessEnv = process.env): Dep
 
 export function limpiarNombreUnit(desc: string, alias: string): string {
   const s = desc
-    .replace(new RegExp('^llama-server\s+', 'i'), '')
-    .replace(new RegExp('\s+en\s+127\.0\.0\.1.*$', 'i'), '')
-    .replace(new RegExp('\s*\(fork\s+[^)]+\)', 'i'), '')
+    .replace(new RegExp('^llama-server\\s+', 'i'), '')
+    .replace(new RegExp('\\s+en\\s+127\\.0\\.0\\.1.*$', 'i'), '')
+    .replace(new RegExp('\\s*\\(fork\\s+[^)]+\\)', 'i'), '')
     .trim();
   return s || alias;
 }
@@ -134,17 +134,17 @@ export function parsearUnit(
   const esLlama = new RegExp('llama-server|vllm', 'i').test(contenido) || new RegExp('llama', 'i').test(unitName);
   if (!esLlama) return null;
 
-  const mDesc = new RegExp('^Description\s*=\s*(.+)', 'm').exec(contenido);
+  const mDesc = new RegExp('^Description\\s*=\\s*(.+)', 'm').exec(contenido);
   const rawDesc = mDesc ? mDesc[1].trim() : '';
 
-  const mExec = new RegExp('ExecStart\s*=\s*([^]+?)(?=' + NL + '\s*[A-Z][a-zA-Z0-9_]*\s*=|' + NL + '\[|$)', 'm').exec(contenido);
-  const execStr = mExec ? mExec[1].replace(new RegExp('\\' + NL + '\s*', 'g'), ' ') : contenido;
+  const mExec = new RegExp('ExecStart\\s*=\\s*([^]+?)(?=' + NL + '\\s*[A-Z][a-zA-Z0-9_]*\\s*=|' + NL + '\\[|(?![^]))', 'm').exec(contenido);
+  const execStr = mExec ? mExec[1].replace(new RegExp('\\\\' + NL + '\\s*', 'g'), ' ') : contenido;
 
-  const mAlias = new RegExp('--alias\s+([^\s\\]+)').exec(execStr);
-  const alias = mAlias ? mAlias[1] : unitName.replace(new RegExp('\.service$'), '');
+  const mAlias = new RegExp('--alias\\s+([^\\s\\\\]+)').exec(execStr);
+  const alias = mAlias ? mAlias[1] : unitName.replace(new RegExp('\\.service$'), '');
   const nombre = limpiarNombreUnit(rawDesc, alias);
 
-  const mModel = new RegExp('(?:-m|--model)\s+([^\s\\]+)').exec(execStr);
+  const mModel = new RegExp('(?:-m|--model)\\s+([^\\s\\\\]+)').exec(execStr);
   let ggufPath: string | undefined;
   if (mModel) {
     let p = mModel[1].replace(new RegExp('%h', 'g'), home);
@@ -154,10 +154,10 @@ export function parsearUnit(
     ggufPath = p;
   }
 
-  const mPort = new RegExp('--port\s+(\d+)').exec(execStr);
+  const mPort = new RegExp('--port\\s+(\\d+)').exec(execStr);
   const port = mPort ? parseInt(mPort[1], 10) : 8080;
 
-  const mHost = new RegExp('--host\s+([^\s\\]+)').exec(execStr);
+  const mHost = new RegExp('--host\\s+([^\\s\\\\]+)').exec(execStr);
   const host = mHost ? mHost[1] : '127.0.0.1';
 
   return {
@@ -189,7 +189,7 @@ export async function detectarUnits(d: DepsDeteccion): Promise<ModeloDetectado[]
       { timeout: 3000 },
     );
     for (const linea of listSalida.split('\n')) {
-      const parte = linea.trim().split(new RegExp('\s+'))[0];
+      const parte = linea.trim().split(new RegExp('\\s+'))[0];
       if (parte && parte.endsWith('.service')) {
         candidatos.add(parte);
       }
@@ -362,7 +362,7 @@ export async function detectarArchivosGguf(
     if (new RegExp('mmproj', 'i').test(nombreArchivo) || yaGgufs.has(rutaCompleta.toLowerCase())) return;
     yaGgufs.add(rutaCompleta.toLowerCase());
 
-    const limpio = nombreArchivo.replace(new RegExp('\.gguf$', 'i'), '').replace(new RegExp('[-_.]+', 'g'), ' ').trim();
+    const limpio = nombreArchivo.replace(new RegExp('\\.gguf$', 'i'), '').replace(new RegExp('[-_.]+', 'g'), ' ').trim();
     const archivoMiB = Math.round(bytes / (1024 * 1024));
     const vramEstimadaMiB = Math.round(archivoMiB * 1.15 + 1024);
 
@@ -374,7 +374,7 @@ export async function detectarArchivosGguf(
       servidor: 'llama-server',
       estadoServidor: 'apagado',
       url: 'http:' + S + S + '127.0.0.1:8080',
-      modelo: limpio.replace(new RegExp('\s+', 'g'), '-').toLowerCase(),
+      modelo: limpio.replace(new RegExp('\\s+', 'g'), '-').toLowerCase(),
       archivoGguf: rutaCompleta,
       vramEstimadaMiB,
       tamanoBytes: bytes,
@@ -496,7 +496,7 @@ export async function arrancarServidorLocal(
   unit: string,
   d: DepsDeteccion = depsDeteccionDeVerdad(),
 ): Promise<{ ok: boolean; error?: string }> {
-  if (!unit || typeof unit !== 'string' || !new RegExp('^[a-zA-Z0-9_\-.]+\.service$').test(unit) || unit.includes(S)) {
+  if (!unit || typeof unit !== 'string' || !new RegExp('^[a-zA-Z0-9_\\-.]+\\.service$').test(unit) || unit.includes(S)) {
     return { ok: false, error: 'Nombre de unit inválido' };
   }
 
