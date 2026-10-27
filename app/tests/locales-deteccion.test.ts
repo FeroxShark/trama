@@ -71,7 +71,7 @@ test('limpiarNombreUnit limpia encabezado y sufijo de IP', () => {
 });
 
 test('parsearUnit extrae datos de qwen-llama-server', () => {
-  const p = parsearUnit(SAMPLE_QWEN_UNIT, 'qwen-llama-server.service', '/home/ferox');
+  const p = parsearUnit(SAMPLE_QWEN_UNIT, 'qwen-llama-server.service', '/home/usuario');
   assert.ok(p);
   assert.equal(p.alias, 'qwen38-uncensored');
   assert.equal(p.modelo, 'qwen38-uncensored');
@@ -82,7 +82,7 @@ test('parsearUnit extrae datos de qwen-llama-server', () => {
 });
 
 test('parsearUnit extrae datos de bonsai', () => {
-  const p = parsearUnit(SAMPLE_BONSAI_UNIT, 'qwen-llama-server-bonsai.service', '/home/ferox');
+  const p = parsearUnit(SAMPLE_BONSAI_UNIT, 'qwen-llama-server-bonsai.service', '/home/usuario');
   assert.ok(p);
   assert.equal(p.alias, 'bonsai2-27b');
   assert.equal(p.port, 8080);
@@ -91,13 +91,13 @@ test('parsearUnit extrae datos de bonsai', () => {
 });
 
 test('parsearUnit ignora units que no son llama-server ni vllm', () => {
-  const p = parsearUnit(`Description=ssh daemon\nExecStart=bin`, 'sshd.service', '/home/ferox');
+  const p = parsearUnit(`Description=ssh daemon\nExecStart=bin`, 'sshd.service', '/home/usuario');
   assert.equal(p, null);
 });
 
 test('detectarUnits encuentra units y respeta estado apagado', async () => {
   const fakeDeps: DepsDeteccion = {
-    home: '/home/ferox',
+    home: '/home/usuario',
     env: {},
     ejecutar: async (bin, args) => {
       if (args[0] === '--user' && args[1] === 'is-active') return 'inactive\n';
@@ -132,7 +132,7 @@ test('detectarUnits encuentra units y respeta estado apagado', async () => {
 
 test('detectarPuertos detecta servidor prendido en puerto abierto', async () => {
   const fakeDeps: DepsDeteccion = {
-    home: '/home/ferox',
+    home: '/home/usuario',
     env: {},
     ejecutar: async () => '',
     leer: async () => null,
@@ -157,13 +157,13 @@ test('detectarPuertos detecta servidor prendido en puerto abierto', async () => 
 
 test('detectarArchivosGguf encuentra ggufs no cubiertos por units', async () => {
   const fakeDeps: DepsDeteccion = {
-    home: '/home/ferox',
+    home: '/home/usuario',
     env: {},
     ejecutar: async () => '',
     leer: async () => null,
     listarDir: async (d) => {
-      if (d === '/home/ferox/models') return ['nuevo-modelo.gguf', 'mmproj-ignorar.gguf', 'carpeta'];
-      if (d === '/home/ferox/models/carpeta') return ['submodelo.gguf'];
+      if (d === '/home/usuario/models') return ['nuevo-modelo.gguf', 'mmproj-ignorar.gguf', 'carpeta'];
+      if (d === '/home/usuario/models/carpeta') return ['submodelo.gguf'];
       return [];
     },
     stat: async (f) => {
@@ -183,7 +183,7 @@ test('detectarArchivosGguf encuentra ggufs no cubiertos por units', async () => 
 
 test('detectarArneses informa dsh, opencode y ollama instalados o con comando', async () => {
   const fakeDeps: DepsDeteccion = {
-    home: '/home/ferox',
+    home: '/home/usuario',
     env: { PATH: '/usr/bin' },
     ejecutar: async (_bin, args) => {
       if (args[0] === 'ollama') return '/usr/bin/ollama\n';
@@ -209,7 +209,7 @@ test('detectarArneses informa dsh, opencode y ollama instalados o con comando', 
 test('seguridad: detectarLocales es estrictamente de sólo lectura', async () => {
   const llamadas: string[] = [];
   const fakeDeps: DepsDeteccion = {
-    home: '/home/ferox',
+    home: '/home/usuario',
     env: {},
     ejecutar: async (bin, args) => {
       llamadas.push(bin + ' ' + args.join(' '));
@@ -252,7 +252,7 @@ test('arrancarServidorLocal valida nombres de unit y ejecuta systemctl start', a
 });
 
 const fakeDepsValidador: DepsDeteccion = {
-  home: '/home/ferox',
+  home: '/home/usuario',
   env: {},
   ejecutar: async () => '',
   leer: async () => null,
