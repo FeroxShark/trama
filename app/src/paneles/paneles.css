@@ -23,7 +23,13 @@
   gap: 1.75rem;
   margin: 0 auto;
   padding: 1.75rem var(--esp-6) 3rem;
-  animation: entra 0.16s ease-out;
+  animation: vista-entra 150ms ease-out;
+}
+.pn-main {
+  animation: vista-entra 150ms ease-out;
+}
+.app:not([data-panel]) > .hilo:not(.pn-main) {
+  animation: vista-entra 150ms ease-out;
 }
 .pn-aviso,
 .pn-nota {
@@ -3214,5 +3220,187 @@
   .cu-go th:nth-child(3),
   .cu-go td:nth-child(3) {
     display: none;
+  }
+}
+
+/* --- Transición de vistas principales (chat, Ajustes, Ramas, Tablero) --- */@ueyframes vista-entra {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pn,
+  .pn-main,
+  .app:not([data-panel]) > .hilo:not(.pn-main) {
+    animation: none !important;
+    transition: none !important;
+    transform: none !important;
+  }
+}
+
+:root[data-quieto] .pn,
+:root[data-quieto] .pn-main,
+:root[data-quieto] .app:not([data-panel]) > .hilo:not(.pn-main) {
+  animation: none !important;
+}
+
+/* --- Grupos y filas de Ajustes estilo macOS  (AjustesPiezas.tsx) --- */
+.aj-grupo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-2);
+  margin-bottom: var(--esp-5);
+}
+.aj-grupo-cab {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-0-5);
+  padding: 0 var(--esp-1);
+}
+.aj-grupo-tit {
+  margin: 0;
+  color: var(--apagado);
+  font-size: var(--letra-4);
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.aj-grupo-sub {
+  margin: 0;
+  color: var(--inactivo);
+  font-size: var(--letra-3);
+  line-height: 1.4;
+}
+.aj-grupo-card {
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--r-xl);
+  background: var(--capa-card);
+  border: 1px solid var(--capa-div);
+  overflow: hidden;
+}
+
+.aj-fila {
+  display: flex;
+  flex-direction: column;
+  padding: var(--esp-3) var(--esp-4);
+  min-height: var(--alto-fila);
+  justify-content: center;
+  transition: background-color var(--t-snappy);
+}
+.aj-fila + .aj-fila {
+  border-top: 1px solid var(--capa-div);
+}
+.aj-fila-cuerpo {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-3-5);
+  min-width: 0;
+  width: 100%;
+}
+.aj-fila-ico {
+  display: grid;
+  width: 1.875rem;
+  height: 1.875rem;
+  flex: none;
+  place-items: center;
+  border-radius: var(--r-xs);
+  background: var(--capa-tile);
+  color: var(--apagado);
+}
+.aj-fila-txt {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-0-5);
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.aj-fila-tit-fila {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-1-5);
+  min-width: 0;
+}
+.aj-fila-tit {
+  color: var(--texto);
+  font-size: var(--letra-5);
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.aj-fila-ayuda {
+  color: var(--apagado);
+  font-size: var(--letra-4);
+  line-height: 1.35;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.aj-info-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.25rem;
+  height: 1.25rem;
+  flex: none;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-cap);
+  background: transparent;
+  color: var(--inactivo);
+  cursor: pointer;
+  transition: color var(--t-snappy), background-color var(--t-snappy);
+}
+.aj-info-btn:hover,
+.aj-info-btn[aria-expanded="true"] {
+  color: var(--acento);
+  background: var(--capa-tile);
+}
+.aj-fila-ctrl {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--esp-2);
+  flex: none;
+  margin-left: auto;
+}
+.aj-fila-detalle {
+  margin-top: var(--esp-2-5);
+  padding: var(--esp-2-5) var(--esp-3);
+  border-radius: var(--r-sm);
+  background: var(--capa-tile);
+  border: 1px solid var(--capa-div);
+  color: var(--apagado);
+  font-size: var(--letra-4);
+  line-height: 1.45;
+}
+.aj-fila-pie {
+  margin-top: var(--esp-2);
+}
+.aj-fila-alerta {
+  margin-top: var(--esp-2);
+}
+
+.cu-avanzado-cont {
+  margin-top: var(--esp-5);
+}
+
+@container (max-width: 36bem) {
+  .aj-fila-cuerpo {
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+  .aj-fila-ctrl {
+    width: 100%;
+    justify-content: flex-start;
+    margin-left: 0;
+    margin-top: var(--esp-2);
   }
 }

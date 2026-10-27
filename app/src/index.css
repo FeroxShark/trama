@@ -4945,12 +4945,51 @@ summary.sis-div-t:hover,
 .menu {
   max-width: min(28rem, 90vw);
 }
-.op .on1,
-.op .md {
+.op .on1,.op .md {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* Selector con opciones que se leen enteras (sin truncar) */
+.menu[data-enteras] {
+  max-width: min(34rem, 92vw);
+  min-width: 18rem;
+}
+.menu[data-enteras] .op {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  column-gap: var(--esp-2);
+  row-gap: var(--esp-1);
+  padding: var(--esp-2-5) var(--esp-3);
+}
+.menu[data-enteras] .op .on1 {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--esp-2);
+  font-size: var(--letra-5);
+  font-weight: 500;
+  color: var(--texto);
+}
+.menu[data-enteras] .op .on-ico {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  color: var(--apagado);
+}
+.menu[data-enteras] .op:is(:hover, :focus-visible, [aria-selected="true"]) .on-ico {
+  color: var(--acento);
+}
+.menu[data-enteras] .op .md {
+  grid-column: 1 / -1;
+  white-space: normal;
+  text-overflow: clip;
+  overflow: visible;
+  line-height: 1.4;
+  color: var(--apagado);
+  font-size: var(--letra-4);
 }
 /* Lo que sobra va a la derecha en los botones. */
 .pbtn .fijo {

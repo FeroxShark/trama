@@ -85,6 +85,7 @@ type Props = {
   pendiente?: string;
   /** Lo mismo para algo que este botón no muestra de entrada (el esfuerzo, cuando la barra lo fusiona en el chip del modelo): la marca sólo se ve con la barra compacta. */
   pendienteCompacto?: string;
+  enteras?: boolean;
 };
 
 /** El nombre de una opción, en su fuente si trae una. */
@@ -125,7 +126,7 @@ function colocar(boton: HTMLElement, menu: HTMLElement) {
 /** Desde cuántas opciones el menú en columnas trae la búsqueda. */
 const CON_BUSQUEDA = 8;
 
-export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, abierto: deEntrada = false, reserva, columnas = false, confirmar, sufijo, confirmando, senalAbrir = 0, pestana = null, pendiente, pendienteCompacto }: Props) {
+export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, abierto: deEntrada = false, reserva, columnas = false, confirmar, sufijo, confirmando, senalAbrir = 0, pestana = null, pendiente, pendienteCompacto, enteras = false }: Props) {
   const [abierto, setAbierto] = useState(deEntrada || !!confirmando);
   const [pend, setPend] = useState<{ id: string; datos: DatosCambio } | null>(() => {
     const d = confirmando && confirmar ? confirmar(confirmando) : null;
@@ -352,6 +353,7 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
         }}
       >
         <span className="on1">
+          {o.marca ? <span className="on-ico" aria-hidden="true">{o.marca}</span> : null}
           {o.fuente ? <span style={{ fontFamily: o.fuente }}>{nom}</span> : <span className="on-n">{nom}</span>}
           {o.local ? <ChipLocal /> : null}
         </span>
@@ -427,6 +429,7 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
                 id={enColumnas ? undefined : id}
                 className="menu"
                 data-columnas={enColumnas ? reparto.columnas.length : undefined}
+                data-enteras={enteras ? "" : undefined}
                 role={enColumnas ? undefined : "listbox"}
                 aria-label={enColumnas ? undefined : etiqueta}
                 onKeyDown={teclaMenu}
