@@ -8,17 +8,17 @@ import { mirarCarpeta } from "./mirar.ts";
 import { open, readFile, rename, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { entornoPa, lanzarCmd, resolverComando } from "./binario.js";
+import { entornoPa, lanzarCmd, resolverComando } from "./binario.ts";
 import { estadoPa } from "./rutas.ts";
-import { completarCola } from "./cola-pa.js";
+import { completarCola } from "./cola-pa.ts";
 import { conLosResultados } from "./hilo-resultados.ts";
 import { errorT } from "./errores.ts";
-import { ESTADO } from "./estado.js";
-import { silencio } from "./log.js";
-import { eventosDe, podarFrenados, sumarFrenados, type EventoPa, type Frenados } from "./eventos-pa.js";
-import { registro } from "./registro.js";
-import { argvIntegrar, argvSettle, comoSettle } from "./settle.js";
-import { verMuertes, type Muertes } from "./vigia.js";
+import { ESTADO } from "./estado.ts";
+import { silencio } from "./log.ts";
+import { eventosDe, podarFrenados, sumarFrenados, type EventoPa, type Frenados } from "./eventos-pa.ts";
+import { registro } from "./registro.ts";
+import { argvIntegrar, argvSettle, comoSettle } from "./settle.ts";
+import { verMuertes, type Muertes } from "./vigia.ts";
 
 /** Lo que se lanza para correr `pa`: `[<pa>]` (Linux) o `[node, pa.js]` (Windows; nunca un `.cmd`). */
 export const PA_CMD = resolverComando("pa", "HILOS_PA", process.env, os.homedir());
