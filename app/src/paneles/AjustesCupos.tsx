@@ -25,7 +25,7 @@ import { nombreGrupo, queGrupo } from "../barra/cuposNombres";
 import { textoEstado, textoSusc } from "../barra/cuposTextos";
 import { carcasa } from "../carcasa";
 import { cuentasDe, AgregarCuenta, CuentaFila, useCuentas } from "./CuentasVarias";
-import type { PerfilCuenta, ProveedorCuenta } from "../datos/cuentas";
+import { suscripcionDe, type PerfilCuenta, type ProveedorCuenta } from "../datos/cuentas";
 import type { FilaDato } from "./AjustesEditar";
 import { avisosTope, GOOGLE_CODIGO, GOOGLE_LLENA } from "./cupos-aviso";
 import { PERFILES, SIN_CUPO, TOPE_CLAUDE_DEFECTO, type Borrador, type Perfil, type SinCupo } from "./modelos-borrador";
@@ -324,13 +324,13 @@ export function CuposTarjetas({ b, uso, plan }: { b: Borrador; uso: Uso | null; 
   const pGoogle = cuentasDe(lista, "google");
   const pChatgpt = cuentasDe(lista, "chatgpt");
 
-  const google: SuscripcionCupo | undefined = conDatos(uso) ? uso.suscripciones?.find((s) => s.id === "google") : undefined;
+  const google: SuscripcionCupo | undefined = uso && !("error" in uso) ? suscripcionDe(uso.suscripciones, "google") : undefined;
   const avisos = avisosTope(b, uso);
   const vClaude = conDatos(uso) ? ventanasClaude(uso) : null;
   const cupoClaude = vClaude ? <Ventanas vs={vClaude} reserva={reservaDePerfil(b.perfil)} /> : (
     <div className="cu-sin">{t("uso.sinDatoCupo")}</div>
   );
-  const cupoGoogle = google?.grupos ? google.grupos.map((g) => <Grupo key={g.id} g={g} />) : google?.ventanas ? <Ventanas vs={google.ventanas} /> : <div className="cu-sin">{t("uso.sinDatoCupo")}</div>;
+  const cupoGoogle = google?.grupos?.length ? google.grupos.map((g) => <Grupo key={g.id} g={g} />) : google?.ventanas?.length ? <Ventanas vs={google.ventanas} /> : <div className="cu-sin">{t("uso.sinDatoCupo")}</div>;
 
   return (
     <section className="cu-sec">

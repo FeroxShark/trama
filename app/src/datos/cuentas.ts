@@ -112,6 +112,15 @@ export function sinRepetir(lista: readonly SuscripcionCupo[]): SuscripcionCupo[]
 }
 
 /**
+ * La suscripción de la cuenta de siempre de un proveedor, la que lee la barra (por proveedor, no por id): con varias del mismo proveedor, la de siempre
+ * si está y, si no, la primera. `undefined`: no hay ninguna. Ajustes > Plan y cupos pinta sus tarjetas con esto, para no divergir de la barra.
+ */
+export function suscripcionDe(subs: readonly SuscripcionCupo[] | undefined, proveedor: string): SuscripcionCupo | undefined {
+  const delProveedor = sinRepetir(subs ?? []).filter((s) => proveedorDe(s) === proveedor);
+  return delProveedor.find(esDefecto) ?? delProveedor[0];
+}
+
+/**
  * Las filas de la barra de cupos. Con una sola cuenta por proveedor no hay filas de cuenta: los datos van en la fila del proveedor, con su nombre de siempre.
  * Con más de una, las de un proveedor van juntas: la fila del proveedor (la cuenta de siempre; si la renombraron, con su nombre) y debajo, sangrada y con
  * el nombre de la cuenta, una fila por cada agregada ("Claude · trabajo" en el tooltip).
