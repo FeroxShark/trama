@@ -238,8 +238,14 @@ contextBridge.exposeInMainWorld("hilos", {
   trama: {
     version: (): Promise<unknown> => ipcRenderer.invoke("trama:version"),
     descartar: (): Promise<void> => ipcRenderer.invoke("trama:descartar"),
-    actualizar: (): Promise<unknown> => ipcRenderer.invoke("trama:actualizar"),
+    actualizar: (modo: "ya" | "esperar"): Promise<unknown> => ipcRenderer.invoke("trama:actualizar", modo),
+    cancelarEspera: (): Promise<void> => ipcRenderer.invoke("trama:cancelarEspera"),
+    limpiar: (): Promise<void> => ipcRenderer.invoke("trama:limpiar"),
+    actualizacion: (): Promise<unknown> => ipcRenderer.invoke("trama:actualizacion"),
+    ocupacion: (): Promise<unknown> => ipcRenderer.invoke("trama:ocupacion"),
+    reiniciarVentana: (): Promise<void> => ipcRenderer.invoke("trama:reiniciarVentana"),
     alCambiar: oir("trama:version"),
+    alCambiarActualizacion: oir("trama:actualizacion"),
   },
   /** Lo que falta del setup (electron/setup.ts). */
   setup: {

@@ -20,6 +20,12 @@ export function ponerRecarga(fn: () => void) {
   recargarVentana = fn;
 }
 
+let relanzarVentana: () => void = () => {};
+/** Lo que hace "Reiniciar la ventana" tras instalar una Trama nueva (aviso del pie): main.ts relanza el proceso. */
+export function ponerRelanzo(fn: () => void) {
+  relanzarVentana = fn;
+}
+
 export const ventanas = () => BrowserWindow.getAllWindows();
 export const ocultar = () => {
   for (const v of ventanas()) v.hide();
@@ -132,6 +138,7 @@ export function armarCanalesVentana(salir: (x: { modo: "seguir" | "parar"; forza
     return r.canceled ? null : (r.filePaths[0] ?? null);
   });
   ipcMain.handle("app:recargar", () => recargarVentana());
+  ipcMain.handle("trama:reiniciarVentana", () => relanzarVentana());
   // Volver como estaba: sólo la ventana pasa por acá (el navegador se guarda lo suyo, src/volver.ts).
   ipcMain.handle("volver:leer", () => {
     const v = vistasDeAntes.ventana ?? null;

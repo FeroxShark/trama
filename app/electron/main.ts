@@ -17,7 +17,7 @@ import { carpetaLocal, motorVivo, socketDe } from "./local.js";
 import { log, logAparte } from "./log.js";
 import { ESTADO } from "./estado.js";
 import { baseConsulta, crearConsulta } from "./consulta.js";
-import { pedirSalida, pedirVista, ponerAnotadorDeVista, ponerEstadoEspera, ponerRecarga, ponerTextosBandeja, ponerVistas, ventanas } from "./ventana-canales.js";
+import { pedirSalida, pedirVista, ponerAnotadorDeVista, ponerEstadoEspera, ponerRecarga, ponerRelanzo, ponerTextosBandeja, ponerVistas, ventanas } from "./ventana-canales.js";
 import type { Cliente } from "./ventana-cliente.js";
 import { acomodar, crearGuardadoVolver, guardarVolver, leerVolver, lugarDeVentana, type Ventana, type Volver } from "./volver.js";
 import { silencio } from "./log.js";
@@ -243,6 +243,8 @@ function crearVentana() {
     tope.reiniciar();
     cargar(ventana);
   });
+  // "Reiniciar la ventana" tras instalar una Trama nueva: se anota cómo estaba y vuelve este proceso, ya con el build nuevo.
+  ponerRelanzo(() => (residente ? void anotarVolver().then(relanzarProceso) : recargarVentana()));
 
   if (png) {
     // Al crearla, Electron la recorta al monitor primario; para la foto no hace falta.

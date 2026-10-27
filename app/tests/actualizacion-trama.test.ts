@@ -91,7 +91,7 @@ test("pasosActualizar: fetch --tags, checkout --detach refs/tags/<tag> y el inst
     [
       ["git", "fetch", "--tags"],
       ["git", "-c", "advice.detachedHead=false", "checkout", "--detach", "refs/tags/v0.3.1"],
-      ["bash", "/home/u/trama/motor/scripts/instalar-producto.sh"],
+      ["bash", "/home/u/trama/motor/scripts/instalar-producto.sh", "--fuente", dir],
     ],
   );
   for (const x of p) assert.equal(x.cwd, dir);
@@ -144,7 +144,8 @@ test("leerCheckout: la ruta anotada si sigue siendo un checkout de Trama; si no,
 // --- el aviso entero, con GitHub y git de mentira ---
 
 type Llamada = { cmd: string; args: string[]; cwd: string; env?: Record<string, string> };
-function armar(o: { instalada: string; tag?: string | null; sucio?: boolean; sinRed?: boolean; falla?: string; avisoInstalador?: string; checkout?: string | null; archivo?: string }) {
+type Opciones = { instalada: string; tag?: string | null; sucio?: boolean; sinRed?: boolean; falla?: string; avisoInstalador?: string; checkout?: string | null; archivo?: string; archivoAct?: string; ocupacion?: () => import("../electron/actualizacion-trama.ts").Ocupacion; vivo?: (pid: number) => boolean; esperaMs?: number; quietas?: number };
+function armar(o: Opciones) {
   const llamadas: Llamada[] = [];
   let pedidos = 0;
   let reloj = 1_000_000;
@@ -152,6 +153,12 @@ function armar(o: { instalada: string; tag?: string | null; sucio?: boolean; sin
   const archivo = o.archivo ?? path.join(mkdtempSync(path.join(tmp, "st-")), "trama-version.json");
   const act = m.crearActualizacionTrama({
     archivo,
+    archivoAct: o.archivoAct ?? path.join(path.dirname(archivo), "trama-actualizacion.json"),
+    registro: path.join(path.dirname(archivo), "trama-actualizacion.log"),
+    ...(o.ocupacion ? { ocupacion: o.ocupacion } : {}),
+    ...(o.vivo ? { vivo: o.vivo } : {}),
+    esperaMs: o.esperaMs ?? 5,
+    quietas: o.quietas ?? 2,
     checkout: () => co,
     instalada: () => o.instalada,
     repo: () => "dueno/proyecto",
@@ -248,7 +255,7 @@ test("Actualizar corre fetch, checkout del tag y el instalador, en ese orden y e
       ["git", "status", "--porcelain", "--untracked-files=no"],
       ["git", "fetch", "--tags"],
       ["git", "-c", "advice.detachedHead=false", "checkout", "--detach", "refs/tags/v0.1.4"],
-      ["bash", path.join(x.co!, "motor", "scripts", "instalar-producto.sh")],
+      ["bash", path.join(x.co!, "motor", "scripts", "instalar-producto.sh"), "--fuente", x.co!],
     ],
   );
   assert.ok(x.llamadas.every((l) => l.cwd === x.co));
@@ -287,4 +294,184 @@ test("Actualizar: un AVISO app… del instalador (que sale 0) es una falla", asy
   await x.act.leerAviso();
   const r = await x.act.actualizar();
   assert.deepEqual(r, { ok: false, error: "app: la compilación falló (ver /x/.build.log)" });
+});
+
+// --- Actualizar sin cortar trabajo: esperar a que terminen, o ya ---
+
+const LIBRE = { lideres: 0, workers: 0, otras: 0, leyendo: false };
+const dormir = (ms: number) => new Promise((r) => setTimeout(r, ms));
+/** Espera (con tope) a que se cumpla algo asíncrono. */
+async function hasta(cond: () => boolean | Promise<boolean>, ms = 2000) {
+  const fin = Date.now() + ms;
+  while (!(await cond())) {
+    if (Date.now() > fin) throw new Error("no se cumplió a tiempo");
+    await dormir(2);
+  }
+}
+const instalador = (x: { llamadas: Llamada[] }) => x.llamadas.filter((l) => l.cmd === "bash");
+
+test("pedir('esperar') con un líder trabajando y un worker vivo: espera, no corre nada, y cuando terminan actualiza solo", async () => {
+  let ocupado = { lideres: 1, workers: 1, otras: 0, leyendo: false };
+  const x = armar({ instalada: "0.1.0", tag: "v0.1.4", ocupacion: () => ocupado });
+  await x.act.leerAviso();
+  x.llamadas.length = 0;
+  const estados: string[] = [];
+  x.act.alCambiarActualizacion((e) => estados.push(e.fase));
+  assert.deepEqual(await x.act.pedir("esperar"), { ok: true, version: "0.1.4" });
+  assert.deepEqual(await x.act.estadoActual(), { fase: "esperando", version: "0.1.4" });
+  await dormir(40);
+  assert.equal(instalador(x).length, 0, "con trabajo en curso no se instala");
+  assert.equal(x.llamadas.some((l) => l.args[0] === "fetch"), false);
+  // Termina el líder pero el worker sigue vivo: sigue esperando.
+  ocupado = { lideres: 0, workers: 1, otras: 0, leyendo: false };
+  await dormir(40);
+  assert.equal(instalador(x).length, 0, "con un worker vivo tampoco");
+  ocupado = LIBRE;
+  await hasta(() => instalador(x).length === 1);
+  await hasta(async () => (await x.act.estadoActual()).fase === "hecho");
+  assert.deepEqual(estados, ["esperando", "instalando", "hecho"]);
+  assert.deepEqual(instalador(x)[0].args, [path.join(x.co!, "motor", "scripts", "instalar-producto.sh"), "--fuente", x.co!, ...instalador(x)[0].args.slice(3)]);
+});
+
+test("la espera pide varias miradas seguidas sin nada ocupado: un hueco entre dos turnos no dispara la instalación", async () => {
+  const lecturas: boolean[] = [];
+  const y = armar({
+    instalada: "0.1.0",
+    tag: "v0.1.4",
+    quietas: 3,
+    ocupacion: () => {
+      const o = lecturas.length < 1 ? { lideres: 1, workers: 0, otras: 0, leyendo: false } : lecturas.length === 2 ? { lideres: 0, workers: 1, otras: 0, leyendo: false } : LIBRE;
+      lecturas.push(true);
+      return o;
+    },
+  });
+  await y.act.leerAviso();
+  y.llamadas.length = 0;
+  await y.act.pedir("esperar"); // lectura 0: ocupado, espera
+  await hasta(async () => (await y.act.estadoActual()).fase === "hecho");
+  // Lecturas: 0 ocupado (pedido), 1 libre, 2 ocupado (reinicia la cuenta), 3, 4, 5 libres: recién ahí instala.
+  assert.ok(lecturas.length >= 6, `miradas: ${lecturas.length}`);
+});
+
+test("pedir('esperar') sin nada ocupado actualiza enseguida; pedir('ya') actualiza aunque haya trabajo", async () => {
+  const libre = armar({ instalada: "0.1.0", tag: "v0.1.4", ocupacion: () => LIBRE });
+  await libre.act.leerAviso();
+  await libre.act.pedir("esperar");
+  await hasta(async () => (await libre.act.estadoActual()).fase === "hecho");
+  assert.equal(instalador(libre).length, 1);
+
+  const ocupado = armar({ instalada: "0.1.0", tag: "v0.1.4", ocupacion: () => ({ lideres: 2, workers: 3, otras: 0, leyendo: false }) });
+  await ocupado.act.leerAviso();
+  assert.deepEqual(await ocupado.act.pedir("ya"), { ok: true, version: "0.1.4" });
+  await hasta(async () => (await ocupado.act.estadoActual()).fase === "hecho");
+  assert.equal(instalador(ocupado).length, 1);
+});
+
+test("cancelarEspera: deja de esperar y no instala aunque después se libere", async () => {
+  let ocupado = true;
+  const x = armar({ instalada: "0.1.0", tag: "v0.1.4", ocupacion: () => (ocupado ? { lideres: 1, workers: 0, otras: 0, leyendo: false } : LIBRE) });
+  await x.act.leerAviso();
+  await x.act.pedir("esperar");
+  assert.equal((await x.act.estadoActual()).fase, "esperando");
+  await x.act.cancelarEspera();
+  assert.deepEqual(await x.act.estadoActual(), { fase: "nada" });
+  ocupado = false;
+  await dormir(40);
+  assert.equal(instalador(x).length, 0);
+});
+
+test("un segundo pedido mientras espera o instala se rechaza con el motivo; sin versión nueva o con checkout sucio ni siquiera espera", async () => {
+  const x = armar({ instalada: "0.1.0", tag: "v0.1.4", ocupacion: () => ({ lideres: 1, workers: 0, otras: 0, leyendo: false }) });
+  await x.act.leerAviso();
+  assert.equal((await x.act.pedir("esperar")).ok, true);
+  const otra = await x.act.pedir("ya");
+  assert.equal(otra.ok, false);
+  assert.match(String(!otra.ok && otra.error), /main\.tramaYaEnCurso/);
+  await x.act.cancelarEspera();
+
+  const sucio = armar({ instalada: "0.1.0", tag: "v0.1.4", sucio: true, ocupacion: () => ({ lideres: 1, workers: 0, otras: 0, leyendo: false }) });
+  await sucio.act.leerAviso();
+  assert.equal((await sucio.act.pedir("esperar")).ok, false);
+  assert.equal((await sucio.act.estadoActual()).fase, "nada");
+
+  const vieja = armar({ instalada: "0.2.0", tag: "v0.1.4" });
+  await vieja.act.leerAviso();
+  assert.equal((await vieja.act.pedir("ya")).ok, false);
+});
+
+test("si falla el instalador, el estado es error con el motivo y limpiar vuelve a nada", async () => {
+  const x = armar({ instalada: "0.1.0", tag: "v0.1.4", avisoInstalador: "AVISO  app: la compilación falló\n", ocupacion: () => LIBRE });
+  await x.act.leerAviso();
+  await x.act.pedir("ya");
+  await hasta(async () => (await x.act.estadoActual()).fase === "error");
+  assert.deepEqual(await x.act.estadoActual(), { fase: "error", error: "app: la compilación falló" });
+  await x.act.limpiar();
+  assert.deepEqual(await x.act.estadoActual(), { fase: "nada" });
+});
+
+test("limpiar no pisa una espera en curso", async () => {
+  const x = armar({ instalada: "0.1.0", tag: "v0.1.4", ocupacion: () => ({ lideres: 1, workers: 0, otras: 0, leyendo: false }) });
+  await x.act.leerAviso();
+  await x.act.pedir("esperar");
+  await x.act.limpiar();
+  assert.equal((await x.act.estadoActual()).fase, "esperando");
+  await x.act.cancelarEspera();
+});
+
+// --- el estado sobrevive al reinicio del motor ---
+
+function conArchivos(estado: object, registro?: string) {
+  const dir = mkdtempSync(path.join(tmp, "re-"));
+  const archivo = path.join(dir, "trama-version.json");
+  writeFileSync(path.join(dir, "trama-actualizacion.json"), JSON.stringify({ version: 1, ...estado }));
+  if (registro !== undefined) writeFileSync(path.join(dir, "trama-actualizacion.log"), registro);
+  return archivo;
+}
+
+test("motor nuevo tras el reinicio del instalador: un 'instalando' sin instalador vivo y sin AVISO es 'hecho' (la ventana ofrece reiniciarse)", async () => {
+  const archivo = conArchivos({ fase: "instalando", version: "0.1.4", pid: 4242 }, "ok  motor\nlisto.\n");
+  const x = armar({ instalada: "0.1.4", archivo, vivo: () => false });
+  assert.deepEqual(await x.act.estadoActual(), { fase: "hecho", version: "0.1.4" });
+  // Lo cerrado se guarda: otro motor lo lee igual.
+  const y = armar({ instalada: "0.1.4", archivo, vivo: () => false });
+  assert.deepEqual(await y.act.estadoActual(), { fase: "hecho", version: "0.1.4" });
+});
+
+test("motor nuevo: un 'instalando' cuyo instalador sigue vivo se queda instalando; con AVISO app… en la salida es error", async () => {
+  const vivo = armar({ instalada: "0.1.0", archivo: conArchivos({ fase: "instalando", version: "0.1.4", pid: 7 }), vivo: (pid) => pid === 7 });
+  assert.deepEqual(await vivo.act.estadoActual(), { fase: "instalando", version: "0.1.4" });
+  const roto = armar({ instalada: "0.1.0", archivo: conArchivos({ fase: "instalando", version: "0.1.4", pid: 7 }, "AVISO  app: la compilación falló\n"), vivo: () => false });
+  assert.deepEqual(await roto.act.estadoActual(), { fase: "error", error: "app: la compilación falló" });
+});
+
+test("motor nuevo: una espera que dejó el anterior sigue esperando y actualiza cuando se libera", async () => {
+  let ocupado = true;
+  const archivo = conArchivos({ fase: "esperando", version: "0.1.4" });
+  const x = armar({ instalada: "0.1.0", tag: "v0.1.4", archivo, ocupacion: () => (ocupado ? { lideres: 1, workers: 0, otras: 0, leyendo: false } : LIBRE) });
+  await x.act.leerAviso();
+  x.llamadas.length = 0;
+  await x.act.retomar();
+  assert.equal((await x.act.estadoActual()).fase, "esperando");
+  await dormir(30);
+  assert.equal(instalador(x).length, 0);
+  ocupado = false;
+  await hasta(async () => (await x.act.estadoActual()).fase === "hecho");
+  assert.equal(instalador(x).length, 1);
+});
+
+test("un archivo de estado roto o raro vale como 'nada'", async () => {
+  for (const crudo of ["no es json", JSON.stringify({ fase: "instalando" }), JSON.stringify({ fase: "volando", version: "1.0.0" })]) {
+    const dir = mkdtempSync(path.join(tmp, "raro-"));
+    writeFileSync(path.join(dir, "trama-actualizacion.json"), crudo);
+    const x = armar({ instalada: "0.1.0", archivo: path.join(dir, "trama-version.json") });
+    assert.deepEqual(await x.act.estadoActual(), { fase: "nada" }, crudo);
+  }
+});
+
+test("modoValido: sólo 'ya' y 'esperar'; total cuenta lo que cortaría", () => {
+  assert.equal(m.modoValido("ya"), true);
+  assert.equal(m.modoValido("esperar"), true);
+  for (const x of ["", "YA", null, undefined, 1, {}]) assert.equal(m.modoValido(x), false);
+  assert.equal(m.total(LIBRE), 0);
+  assert.equal(m.total({ lideres: 1, workers: 2, otras: 1, leyendo: true }), 5);
 });

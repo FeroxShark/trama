@@ -69,6 +69,9 @@ const CAPTURAS = [
   "trama",
   "trama-abierto",
   "trama-sucio",
+  // Lo mismo con trabajo en curso (Actualizar cuando terminen / ya) y con la Trama nueva ya instalada.
+  "trama-ocupado",
+  "trama-instalada",
   // "Falta configurar" en el pie (Handy y Ollama por instalar), cerrada y abierta.
   "setup",
   "setup-abierto",

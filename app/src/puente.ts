@@ -337,9 +337,18 @@ type Main = {
   trama: {
     version(): Promise<unknown>;
     descartar(): Promise<void>;
-    /** Actualizar (git + instalador, en el main): `{ ok, version | error }`, sin validar. */
-    actualizar(): Promise<unknown>;
+    /** Actualizar (git + instalador, en el main) en el modo "ya" o "esperar" a que no haya nada ocupado: `{ ok, version | error }` al arrancar, sin validar. El avance es `actualizacion`. */
+    actualizar(modo: "ya" | "esperar"): Promise<unknown>;
+    cancelarEspera(): Promise<void>;
+    /** Reconocer el "instalada" o el error. */
+    limpiar(): Promise<void>;
+    /** En qué anda Actualizar (`{ fase, version | error }`, sin validar) y qué cortaría hoy (`{ lideres, workers, otras, leyendo }`). */
+    actualizacion(): Promise<unknown>;
+    ocupacion(): Promise<unknown>;
+    /** Reinicia el proceso de la ventana (sólo la ventana de la PC; en el navegador no existe). */
+    reiniciarVentana?(): Promise<void>;
     alCambiar(fn: (a: unknown) => void): Soltar;
+    alCambiarActualizacion(fn: (e: unknown) => void): Soltar;
   };
   /** Lo que falta del setup (Handy, agy, Ollama, el login): `{ version, faltas: [{ id, url }] }`, sin validar. */
   setup: {

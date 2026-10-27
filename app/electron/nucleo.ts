@@ -20,7 +20,7 @@ import { alCambiarAuto, barrer, cambioPrendido, estadoAuto } from "./autointegra
 import { alCambiarSalud, barrerSalud, cortarChequeos, estadoSalud, integrando, integrandoDesde, mientrasIntegra } from "./salud.js";
 import { actualizar, alCambiarAviso, descartar, leerAviso } from "./actualizacion.js";
 import { actualizarAgy, alCambiarAvisoAgy, descartarAgy, leerAvisoAgy } from "./actualizacion-agy.js";
-import { actualizarTrama, alCambiarAvisoTrama, descartarTrama, leerAvisoTrama } from "./actualizacion-trama.js";
+import { alCambiarActualizacionTrama, alCambiarAvisoTrama, armarActualizacionTrama, cancelarEsperaTrama, descartarTrama, estadoActualizacionTrama, leerAvisoTrama, limpiarTrama, ocupacionTrama, pedirTrama, retomarTrama, type Ocupacion } from "./actualizacion-trama.js";
 import { crearCompactando } from "./compactando.js";
 import { crearSubagentes } from "./subagentes.js";
 import { crearConsumo, TRANSCRIPTS } from "./consumo.ts";
@@ -104,7 +104,7 @@ const manejadores = new Map<string, Manejador>();
  * Lo que cambia la máquina (reescribe `~/CLAUDE.md`, los ajustes, borra una cuenta, libera la GPU, actualiza `claude`): desde la
  * tailnet (el celular) no. Los `modelos:*` y `remoto:guardar` tienen su propio chequeo, con su mensaje, en el manejador.
  */
-export const SOLO_PC_TAILNET: ReadonlySet<string> = new Set(["routing:guardar", "ajustes:guardar", "orq:leccionesGuardar", "orq:mdAplicar", "orq:agentsGuardar", "orq:mdFusionar", "proyectos:renombrar", "cuentas:quitar", "vram:liberar", "claude:actualizar", "trama:actualizar", "dsh:clave", "dsh:instalar", "dsh:probar", "aa:refrescar", "mcp:guardar", "mcp:quitar", "opencode:planGuardar"]);
+export const SOLO_PC_TAILNET: ReadonlySet<string> = new Set(["routing:guardar", "ajustes:guardar", "orq:leccionesGuardar", "orq:mdAplicar", "orq:agentsGuardar", "orq:mdFusionar", "proyectos:renombrar", "cuentas:quitar", "vram:liberar", "claude:actualizar", "trama:actualizar", "trama:cancelarEspera", "trama:limpiar", "dsh:clave", "dsh:instalar", "dsh:probar", "aa:refrescar", "mcp:guardar", "mcp:quitar", "opencode:planGuardar"]);
 
 /** Anota (o reemplaza) el manejador de un canal. */
 export function manejar(canal: string, fn: Manejador) {
@@ -123,7 +123,7 @@ export function manejar(canal: string, fn: Manejador) {
 export const manejadoresAnotados = (): [string, Manejador][] => [...manejadores];
 
 /** Lo que por red no se puede: salir de trama, y lo que abre o enfoca cosas en la pantalla de la PC. */
-export const SOLO_VENTANA: ReadonlySet<string> = new Set(["app:salir", "carpeta:elegir", "app:pararTodo", "bandeja:textos", "lider:ir", "lider:ubicable", "claude:changelog", "volver:leer", "volver:guardar", "volver:anotar", "reinicio:marca", "borradores:leer", "borradores:guardar", "app:recargar", "consumo:mirar", "consumo:soltar", "cuentas:login", "espera:estado", "espera:notificar", "portapapeles:texto"]);
+export const SOLO_VENTANA: ReadonlySet<string> = new Set(["app:salir", "carpeta:elegir", "app:pararTodo", "bandeja:textos", "lider:ir", "lider:ubicable", "claude:changelog", "volver:leer", "volver:guardar", "volver:anotar", "reinicio:marca", "borradores:leer", "borradores:guardar", "app:recargar", "trama:reiniciarVentana", "consumo:mirar", "consumo:soltar", "cuentas:login", "espera:estado", "espera:notificar", "portapapeles:texto"]);
 
 /**
  * Lo que sigue vedado al navegador del modo local (`TRAMA_LOCAL=1`, ya con su token): ahí el navegador es la interfaz
@@ -325,6 +325,18 @@ export const tareasCorriendo = () => {
   const sids = lider.conProceso();
   return lider.respondiendo() + integrando() + (leyendoHilos() ? sids.length : workersEsperados(ultimosHilos, sids));
 };
+
+/**
+ * Lo que reiniciar el motor (Actualizar de Trama) cortaría ahora: líderes con un turno o un mensaje saliendo, TODOS los
+ * workers de `pa` vivos (cuelguen de quien cuelguen: ninguno tiene que quedarse sin quien cobre su resultado) y una integración
+ * corriendo. Con la lista de workers releyéndose no se sabe: `leyendo` cuenta como ocupado.
+ */
+export const ocupacionDeTrama = (): Ocupacion => ({
+  lideres: new Set([...lider.respondiendoSids(), ...cola.enCaminoSids()]).size,
+  workers: ultimosHilos.filter((h) => h.estado === "trabajando" || h.estado === "colgado" || h.en_cola === true).length,
+  otras: integrando(),
+  leyendo: leyendoHilos(),
+});
 
 /** Cuándo arrancó este proceso (ms): lo que nadie movió desde entonces cuenta desde acá. */
 const ARRANQUE = Date.now();
@@ -1090,7 +1102,16 @@ export function armarNucleo() {
   alCambiarAvisoTrama((a) => enviar("trama:version", a));
   manejar("trama:version", (e) => (tailnet(e) ? null : leerAvisoTrama()));
   manejar("trama:descartar", () => descartarTrama());
-  manejar("trama:actualizar", () => actualizarTrama());
+  // Actualizar reinicia el motor: "ya" (la UI confirma antes qué se corta) o "esperar" (a que no haya nada ocupado). Contesta al
+  // arrancar; el avance es `trama:actualizacion`, que sobrevive al reinicio del motor (electron/actualizacion-trama.ts).
+  armarActualizacionTrama(ocupacionDeTrama);
+  alCambiarActualizacionTrama((e) => enviar("trama:actualizacion", e));
+  void retomarTrama().catch(silencio("actualizacion-trama"));
+  manejar("trama:actualizar", (_e, modo: unknown) => pedirTrama(modo));
+  manejar("trama:cancelarEspera", () => cancelarEsperaTrama());
+  manejar("trama:limpiar", () => limpiarTrama());
+  manejar("trama:actualizacion", (e) => (tailnet(e) ? { fase: "nada" } : estadoActualizacionTrama()));
+  manejar("trama:ocupacion", (e) => (tailnet(e) ? { lideres: 0, workers: 0, otras: 0, leyendo: false } : ocupacionTrama()));
   // "Falta algo del setup" (Handy, agy, Ollama, el login): se mira al pedirlo, no hay reloj. Descartar anota una falta aparte.
   manejar("setup:estado", () => setupDeEstaMaquina());
   manejar("setup:descartar", (_e, id: unknown) => descartarSetup(id));

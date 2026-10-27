@@ -239,8 +239,20 @@ export interface Fuente {
   alCambiarAvisoTrama(fn: (a: AvisoClaude | null) => void): () => void;
   /** "Ahora no": no avisar de esa versión. */
   descartarAvisoTrama(): void;
-  /** Actualizar: `git fetch --tags`, el tag nuevo y el instalador, en el main (hasta que termina); `abiertos` es siempre 0. */
-  actualizarTrama(): Promise<Actualizado>;
+  /**
+   * Actualizar (`git fetch --tags`, el tag nuevo y el instalador, en el main). "ya" arranca ahora; "esperar" espera a que no haya
+   * líder trabajando ni worker vivo. Contesta al arrancar (el instalador reinicia el motor): el avance es `estadoActTrama`.
+   */
+  actualizarTrama(modo: "ya" | "esperar"): Promise<Actualizado>;
+  cancelarEsperaTrama(): void;
+  /** Reconocer el "instalada" o el error. */
+  limpiarTrama(): void;
+  estadoActTrama(): Promise<EstadoActTrama>;
+  alCambiarActTrama(fn: (e: EstadoActTrama) => void): () => void;
+  /** Qué cortaría Actualizar ahora. */
+  ocupacionTrama(): Promise<OcupacionTrama>;
+  /** Reinicia la ventana de la PC (sin el main de la ventana, recarga la página). */
+  reiniciarVentana(): void;
   /** Lo mismo para Antigravity CLI (`agy`): `null` también si no está instalado. */
   avisoAgy(): Promise<AvisoClaude | null>;
   alCambiarAvisoAgy(fn: (a: AvisoClaude | null) => void): () => void;
@@ -267,6 +279,15 @@ export interface Fuente {
   /** Relanzar con la versión nueva los líderes que no están respondiendo. */
   reiniciarLideres(): Promise<{ reiniciados: number; ocupados: number }>;
 }
+
+/** Lo que cortaría reiniciar el motor (electron/actualizacion-trama.ts `Ocupacion`). */
+export type OcupacionTrama = { lideres: number; workers: number; otras: number; leyendo: boolean };
+export const SIN_OCUPAR: OcupacionTrama = { lideres: 0, workers: 0, otras: 0, leyendo: false };
+/** En qué anda Actualizar (electron/actualizacion-trama.ts `EstadoAct`). */
+export type EstadoActTrama =
+  | { fase: "nada" }
+  | { fase: "esperando" | "instalando" | "hecho"; version: string }
+  | { fase: "error"; error: string };
 
 export type Actualizado = { ok: true; version: string; abiertos: number } | { ok: false; error: string; abiertos: number };
 
@@ -397,6 +418,17 @@ const ponerReinicioFijo = (r: Reinicio) => {
 };
 
 /** Lo que manda el main, mirado antes de creerle. */
+const natural = (x: unknown) => (typeof x === "number" && Number.isFinite(x) && x > 0 ? Math.floor(x) : 0);
+const ocupacionValida = (x: unknown): OcupacionTrama => {
+  const o = (x && typeof x === "object" ? x : {}) as Record<string, unknown>;
+  return { lideres: natural(o.lideres), workers: natural(o.workers), otras: natural(o.otras), leyendo: o.leyendo === true };
+};
+const estadoActValido = (x: unknown): EstadoActTrama => {
+  const o = (x && typeof x === "object" ? x : {}) as Record<string, unknown>;
+  if ((o.fase === "esperando" || o.fase === "instalando" || o.fase === "hecho") && typeof o.version === "string" && o.version) return { fase: o.fase, version: o.version };
+  if (o.fase === "error" && typeof o.error === "string") return { fase: "error", error: o.error };
+  return { fase: "nada" };
+};
 const avisoValido = (x: unknown): AvisoClaude | null => {
   const a = x as AvisoClaude | null;
   return a && typeof a.instalada === "string" && typeof a.ultima === "string" ? { instalada: a.instalada, ultima: a.ultima, ...(a.sucio === true ? { sucio: true } : {}), ...(typeof a.notas === "string" && a.notas.startsWith("https://github.com/") ? { notas: a.notas } : {}) } : null;
@@ -410,10 +442,18 @@ const oyentesAviso = new Set<(a: AvisoClaude | null) => void>();
 const sinAvisoAgy = async () => null;
 // El de Trama sólo sale en sus capturas, forzando una versión vieja (la instalada 0.1.0 contra la última 0.2.0).
 let avisoTramaFijo: AvisoClaude | null =
-  MODO.captura === "trama" || MODO.captura === "trama-abierto" || MODO.captura === "trama-sucio"
+  MODO.captura === "trama" || MODO.captura === "trama-abierto" || MODO.captura === "trama-sucio" || MODO.captura === "trama-ocupado" || MODO.captura === "trama-instalada"
     ? { instalada: "0.1.0", ultima: "0.2.0", notas: "https://github.com/trama/trama/releases/tag/v0.2.0", ...(MODO.captura === "trama-sucio" ? { sucio: true } : {}) }
     : null;
 const oyentesAvisoTrama = new Set<(a: AvisoClaude | null) => void>();
+// Actualizar con fixtures: la captura "trama-ocupado" tiene trabajo en curso; la "trama-instalada", la nueva ya instalada.
+let ocupacionTramaFija: OcupacionTrama = MODO.captura === "trama-ocupado" ? { lideres: 2, workers: 3, otras: 0, leyendo: false } : SIN_OCUPAR;
+let actTramaFija: EstadoActTrama = MODO.captura === "trama-instalada" ? { fase: "hecho", version: "0.2.0" } : { fase: "nada" };
+const oyentesActTrama = new Set<(e: EstadoActTrama) => void>();
+const ponerActTrama = (e: EstadoActTrama) => {
+  actTramaFija = e;
+  oyentesActTrama.forEach((f) => f(e));
+};
 const SETUP_FIJO: FaltaSetup[] = [
   { id: "handy", url: "https://handy.computer" },
   { id: "ollama", url: "https://ollama.com/download" },
@@ -1046,10 +1086,29 @@ const fija: Fuente = {
     avisoTramaFijo = null;
     oyentesAvisoTrama.forEach((f) => f(null));
   },
-  async actualizarTrama() {
-    await new Promise((r) => setTimeout(r, 600));
-    return { ok: true, version: avisoTramaFijo?.ultima ?? "0.2.0", abiertos: 0 };
+  async actualizarTrama(modo) {
+    const version = avisoTramaFijo?.ultima ?? "0.2.0";
+    ponerActTrama(modo === "esperar" && ocupacionTramaFija.lideres + ocupacionTramaFija.workers > 0 ? { fase: "esperando", version } : { fase: "instalando", version });
+    if (modo === "ya" || actTramaFija.fase === "instalando") setTimeout(() => ponerActTrama({ fase: "hecho", version }), 900);
+    return { ok: true, version, abiertos: 0 };
   },
+  cancelarEsperaTrama() {
+    ponerActTrama({ fase: "nada" });
+  },
+  limpiarTrama() {
+    ponerActTrama({ fase: "nada" });
+  },
+  async estadoActTrama() {
+    return actTramaFija;
+  },
+  alCambiarActTrama(fn) {
+    oyentesActTrama.add(fn);
+    return () => void oyentesActTrama.delete(fn);
+  },
+  async ocupacionTrama() {
+    return ocupacionTramaFija;
+  },
+  reiniciarVentana() {},
   // Con fixtures sólo sale en la captura `setup` (las demás quedan como estaban).
   async faltasSetup() {
     return MODO.captura === "setup" || MODO.captura === "setup-abierto" ? SETUP_FIJO : [];
@@ -1541,11 +1600,30 @@ const conPa = (m: NonNullable<typeof main>): Fuente => ({
   descartarAvisoTrama() {
     void m.trama.descartar().catch(() => {});
   },
-  async actualizarTrama() {
-    const r = (await m.trama.actualizar().catch((e) => ({ ok: false, error: mensaje(e) }))) as Record<string, unknown> | null;
+  async actualizarTrama(modo) {
+    const r = (await m.trama.actualizar(modo).catch((e) => ({ ok: false, error: mensaje(e) }))) as Record<string, unknown> | null;
     if (r?.ok === true && typeof r.version === "string") return { ok: true, version: r.version, abiertos: 0 };
     // El error puede venir como clave de `main.*` (electron/errores.ts): se traduce acá, antes de que el globito lo corte.
     return { ok: false, error: typeof r?.error === "string" && r.error ? textoMain(r.error) : "?", abiertos: 0 };
+  },
+  cancelarEsperaTrama() {
+    void m.trama.cancelarEspera().catch(() => {});
+  },
+  limpiarTrama() {
+    void m.trama.limpiar().catch(() => {});
+  },
+  async estadoActTrama() {
+    return estadoActValido(await m.trama.actualizacion().catch(() => null));
+  },
+  alCambiarActTrama(fn) {
+    return m.trama.alCambiarActualizacion((e) => fn(estadoActValido(e)));
+  },
+  async ocupacionTrama() {
+    return ocupacionValida(await m.trama.ocupacion().catch(() => null));
+  },
+  reiniciarVentana() {
+    if (m.trama.reiniciarVentana) void m.trama.reiniciarVentana().catch(() => {});
+    else location.reload();
   },
   async faltasSetup() {
     return faltasValidas(await m.setup.estado().catch(() => null));

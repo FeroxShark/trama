@@ -7,7 +7,7 @@ import * as nucleo from "./nucleo.js";
 import { cerrarDelTodo } from "./cierre.js";
 import { armarCanalesVentana, iconosVentana, ocultar, ventanas } from "./ventana-canales.js";
 
-export { pedirVista, ponerAnotadorDeVista, ponerRecarga, ponerVistas } from "./ventana-canales.js";
+export { pedirVista, ponerAnotadorDeVista, ponerRecarga, ponerRelanzo, ponerVistas } from "./ventana-canales.js";
 
 /** `irse`: se va el proceso (main.ts: bajo la unidad, con el código que no la levanta de nuevo). */
 export function armarIpc(irse: () => void) {
