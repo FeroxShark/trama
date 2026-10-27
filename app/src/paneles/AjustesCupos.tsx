@@ -9,6 +9,8 @@ import { LogoCaja, type Proveedor } from "../ui/logos";
 import type { GrupoCupo, SuscripcionCupo, Uso, VentanaCupo } from "../datos/contrato";
 import { fuente, type CuentaEstado, type EstadoCuentas } from "../datos/fuente";
 import { Selector } from "../hilo/Selector";
+import { Logo } from "../hilo/Logos";
+import { opencodeAgotadoDe } from "../hilo/agotados";
 import { t, type ClaveSola } from "../i18n";
 import { enOtros } from "../i18n/Fijo";
 import { useIdioma } from "../i18n/react";
@@ -366,8 +368,32 @@ export function CuposTarjetas({ b, uso, plan }: { b: Borrador; uso: Uso | null; 
             </div>
           </Tarjeta>
         </div>
+
+        <div data-opc="cu.opencode">
+          <TarjetaOpencode uso={uso} />
+        </div>
       </div>
     </section>
+  );
+}
+
+/** OpenCode: sus modelos gratis comparten UN cupo (no hay cuentas que rotar); acá se ve si está disponible o agotado y cuándo se renueva. */
+function TarjetaOpencode({ uso }: { uso: Uso | null }) {
+  const hasta = opencodeAgotadoDe(uso);
+  return (
+    <Tarjeta>
+      <div className="cu-cab">
+        <span className="cu-logo"><Logo empresa="opencode" /></span>
+        <h4 className="cu-nombre">{t("cu.opencode")}</h4>
+      </div>
+      <div className="cu-cuerpo">
+        <div className="cu-res" data-nivel={hasta ? "lleno" : "ok"} role="status">
+          <Pildora nivel={hasta ? "lleno" : "ok"}>{hasta ? t("cu.opencode.agotado", { cuando: cuandoFuturo(hasta) }) : t("cu.opencode.libre")}</Pildora>
+        </div>
+        <div className="cu-nota">{t("cu.opencode.libreQue")}</div>
+        <Ayuda lineas={["cu.opencode.pagos", "cu.opencode.mas"]} />
+      </div>
+    </Tarjeta>
   );
 }
 

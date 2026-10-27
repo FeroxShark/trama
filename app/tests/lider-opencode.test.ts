@@ -1,7 +1,8 @@
 // Un líder de opencode de punta a punta por electron/lider.ts (→ dsh-puente.ts con un modelo `opencode:` → `opencode acp` → scripts/openai-falso.mjs
 // como proveedor `falso`): la clase del modelo, el prefacio (opencode no lee el CLAUDE.md de Trama), el transcript aparte en $HILOS_STATE/opencode,
 // y que no se cruce con Claude, Gemini ni dsh en la misma sesión. Sin `opencode` (TRAMA_OPENCODE_BIN…) se saltea. HOME, XDG y HILOS_STATE en un tmp.
-import { test, after } from "node:test";
+import { after } from "node:test";
+import { testPosix as test } from "./plataforma.ts";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { registerHooks } from "node:module";
@@ -25,6 +26,7 @@ writeFileSync(path.join(home, "CLAUDE.md"), "# Reglas de prueba\n\n## Jefe (sesi
 const falso0 = await arrancarFalso(tmp);
 Object.assign(process.env, entornoOpencodeTmp(home, falso0.baseURL));
 process.env.HILOS_STATE = path.join(tmp, "estado");
+process.env.REPARTO_STATE = path.join(tmp, "reparto");
 process.env.HILOS_SESIONES = path.join(tmp, "sesiones");
 process.env.CLAUDE_CONFIG_DIR = path.join(tmp, "claude");
 process.env.TRAMA_MODELOS = path.join(tmp, "modelos.json");
@@ -75,4 +77,15 @@ test("un líder de opencode contesta: el prefacio con sus CLAUDE.md, su transcri
   await hasta(() => de(sid, "fin").length === 2, 120_000);
   assert.equal(de(sid, "fin")[1].error, null);
   assert.match(usuarios(falso0.pedidos().at(-1)!).join("\n"), /hola opencode/);
+});
+
+test("se terminó el uso gratis de OpenCode: mensaje claro (no el error crudo) y el grupo opencode-free queda agotado para reparto", { skip: SIN_OPENCODE, timeout: 150_000 }, async () => {
+  const sid = await lider.nuevo({ modelo: MODELO_FALSO, effort: "high", texto: "CUOTA por favor" });
+  await hasta(() => de(sid, "fin").length === 1, 120_000, `el turno no terminó: ${JSON.stringify(de(sid, "fin"))}`);
+  const err = String(de(sid, "fin")[0].error);
+  assert.match(err, /i18n:main\.opencodeSinCupo/, err);
+  assert.doesNotMatch(err, /session\/prompt|provider\.free-limit/);
+  const marca = JSON.parse(readFileSync(path.join(process.env.REPARTO_STATE!, "agotado.json"), "utf8"));
+  const vuelve = Date.parse(marca["opencode-free"].hasta);
+  assert.ok(vuelve > Date.now() + 50 * 60_000 && vuelve <= Date.now() + 61 * 60_000, "sin hora conocida vence en ~1 h");
 });

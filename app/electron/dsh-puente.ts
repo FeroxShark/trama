@@ -29,6 +29,8 @@ import { ClienteAcp, ErrorAcp, describirError, type BloqueAcp } from "./acp.ts";
 import { entornoAgy } from "./binario.ts";
 import { entornoDsh, escribirParche, esErrorCuota, falta, mensajeCuotaOpencode, parsearModelo, resolverDsh, valorModeloAcp } from "./dsh.ts";
 import { effortParaAcp, politicaOpencode, entornoOpencode, esErrorCuota as esCuotaOc, mensajeCuotaOpencode as mensajeCuotaOc, parsearModelo as parsearOpencode, resolverOpencode } from "./opencode.ts";
+import { esLimiteGratisOpencode, marcarOpencodeAgotado } from "./opencode-agotado.ts";
+import { textoT } from "./errores.ts";
 import { leerClavesSync, type NombreClave } from "./claves.ts";
 import { cortesDeEntorno, sinCortadas } from "./cortes.ts";
 import { deDueno, dueno } from "./dueno.ts";
@@ -542,6 +544,11 @@ async function levantar(): Promise<void> {
 function textoDeError(e: unknown): string {
   const secretos = [process.env.OPENCODE_API_KEY, process.env.DEEPSEEK_API_KEY];
   const err = cliente?.stderr || stderrPerdido;
+  // El uso gratis de OpenCode es uno solo para todos sus modelos gratis: se anota para Trama (reparto, selector) y se dice qué hacer.
+  if (oc && esLimiteGratisOpencode(`${String((e as Error)?.message ?? e)}\n${err}`)) {
+    marcarOpencodeAgotado();
+    return textoT("main.opencodeSinCupo", { modelo: oc.valor });
+  }
   if (oc && esCuotaOc(`${String((e as Error)?.message ?? e)}\n${err}`)) return mensajeCuotaOc(oc.valor);
   if (prov?.proveedor === "opencode" && esErrorCuota(`${String((e as Error)?.message ?? e)}\n${err}`)) return mensajeCuotaOpencode(!!process.env.OPENCODE_API_KEY);
   return describirError(e, err, secretos, 400);

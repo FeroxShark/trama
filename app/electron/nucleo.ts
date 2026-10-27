@@ -475,7 +475,10 @@ function mirarSl() {
   alCambiarCupos(avisar);
   // Los cupos de las demás suscripciones (reparto): se releen cada minuto desde acá, no desde la vista.
   setInterval(() => {
-    if (hayClientes()) void refrescarCupos(true);
+    if (hayClientes()) {
+      void refrescarCupos(true);
+      avisar(); // el uso gratis de OpenCode lo anota el puente (otro proceso) en agotado.json: se relee acá
+    }
   }, 60_000).unref();
 }
 

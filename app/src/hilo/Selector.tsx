@@ -3,9 +3,9 @@
 // <body> con `position: fixed` para que ningún `overflow` de un ancestro lo
 // recorte. Listbox con foco real en las opciones: flechas,
 // Inicio/Fin, Enter o Espacio para elegir; Esc, Tab o clic afuera lo cierran.
-import { Fragment, useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { Fragment, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { Check, ChevronUp, Search } from "lucide-react";
+import { Ban, Check, ChevronUp, Search } from "lucide-react";
 import { t } from "../i18n";
 import { Reserva } from "../i18n/Fijo";
 import { ChipLocal } from "./Logos";
@@ -23,6 +23,8 @@ export type Opcion = {
   rec?: boolean;
   /** `font-family` con que se escribe el nombre (el selector de fuentes: cada una en la suya). */
   fuente?: string;
+  /** Sin cupo ahora (el uso gratis de OpenCode): lleva «sin cupo gratis» con icono (no sólo color); se puede elegir, avisa al usar. */
+  agotada?: boolean;
   /** Se ve, con su `desc` diciendo por qué, pero no se elige (una máquina caída). */
   deshabilitada?: boolean;
   /** El rótulo de un grupo (la empresa de un modelo): se pinta antes de la primera opción de ese grupo, si la lista tiene más de uno. */
@@ -71,6 +73,9 @@ type Props = {
   sufijo?: string;
   /** Para las capturas: nace con el diálogo de esta opción. */
   confirmando?: string;
+  /** Cada vez que cambia (y no es 0) el menú se abre; con `pestana`, en el riel de ese proveedor (el “Cambiar de modelo” de un error). */
+  senalAbrir?: number;
+  pestana?: string | null;
 };
 
 /** El nombre de una opción, en su fuente si trae una. */
@@ -111,7 +116,7 @@ function colocar(boton: HTMLElement, menu: HTMLElement) {
 /** Desde cuántas opciones el menú en columnas trae la búsqueda. */
 const CON_BUSQUEDA = 8;
 
-export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, abierto: deEntrada = false, reserva, columnas = false, confirmar, sufijo, confirmando }: Props) {
+export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, abierto: deEntrada = false, reserva, columnas = false, confirmar, sufijo, confirmando, senalAbrir = 0, pestana = null }: Props) {
   const [abierto, setAbierto] = useState(deEntrada || !!confirmando);
   const [pend, setPend] = useState<{ id: string; datos: DatosCambio } | null>(() => {
     const d = confirmando && confirmar ? confirmar(confirmando) : null;
@@ -119,6 +124,11 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
   });
   const [busqueda, setBusqueda] = useState("");
   const [tab, setTab] = useState<string | null>(null);
+  useEffect(() => {
+    if (!senalAbrir || disabled) return;
+    setTab(pestana);
+    setAbierto(true);
+  }, [senalAbrir]); // eslint-disable-line react-hooks/exhaustive-deps
   const buscador = useRef<HTMLInputElement>(null);
   const boton = useRef<HTMLButtonElement>(null);
   const menu = useRef<HTMLDivElement>(null);
@@ -338,6 +348,7 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
         </span>
         <span className="oc-meta">
           {o.gratis ? <span className="oc-tag" data-tag="gratis">{t("selector.gratis")}</span> : null}
+          {o.agotada ? <span className="oc-tag" data-tag="agotado"><Ban size={11} strokeWidth={2.2} aria-hidden="true" /> {t("selector.sinCupo")}</span> : null}
           {o.pago ? <span className="oc-tag" data-tag="pago">{t("selector.pago")}</span> : null}
           {o.rec ? <span className="rec">{t("selector.default")}</span> : null}
         </span>

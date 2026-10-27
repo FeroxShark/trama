@@ -18,6 +18,7 @@ import { real, registro, type Proyecto } from "./registro.js";
 import { sesiones, type Sesion } from "./sesiones.js";
 import { creadoEn, proyectoEnTexto, temaDe, tituloDeRama, tituloLider } from "./tema.js";
 import { cuposActuales, type SuscripcionCupo } from "./cupos.js";
+import { GRUPO_OPENCODE_GRATIS, opencodeAgotadoHasta } from "./opencode-agotado.js";
 import { deStatusline, esCuentaDeSiempre, usoDe, type Ventana } from "./uso.ts";
 import { verCaidos, type Caido } from "./vigia.js";
 import { silencio } from "./log.js";
@@ -216,7 +217,13 @@ export async function leerStatusline(): Promise<Statusline> {
         },
       }
     : null;
-  const hayOtras = !!cupos?.suscripciones.length;
+  // El uso gratis de OpenCode (uno solo para todos sus modelos gratis): sólo se suma cuando está agotado (la barra lateral no lo muestra si no).
+  const ocHasta = opencodeAgotadoHasta();
+  const suscripciones: SuscripcionCupo[] = [
+    ...(cupos?.suscripciones ?? []),
+    ...(ocHasta ? [{ id: "opencode", nombre: "OpenCode", proveedor: "opencode", ts: Math.floor(ahora), grupos: [{ id: GRUPO_OPENCODE_GRATIS, nombre: "OpenCode gratis", ventanas: [{ id: "5h", pct: null, vuelve: null }], agotado: Math.round(ocHasta / 1000) }] }] : []),
+  ];
+  const hayOtras = suscripciones.length > 0;
   const hayFuentes = recientes.length > 0 || !!visto || !!lecturaCupos || hayOtras;
   const baseUso = usoDe([...recientes.filter((a) => esCuentaDeSiempre(a, os.homedir())).map(deStatusline), visto, lecturaCupos], ahora);
   const uso: Uso | null = hayFuentes
@@ -224,7 +231,7 @@ export async function leerStatusline(): Promise<Statusline> {
         version: 1,
         ...baseUso,
         ts: baseUso.ts || tsCupos || Math.floor(ahora),
-        ...(hayOtras ? { suscripciones: cupos!.suscripciones } : {}),
+        ...(hayOtras ? { suscripciones } : {}),
         ...(cupos?.claudeNombre ? { claudeNombre: cupos.claudeNombre } : {}),
       }
     : null;

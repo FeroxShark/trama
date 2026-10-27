@@ -36,6 +36,7 @@ export const ITEMS: readonly Item[] = [
   { cat: "cupos", nombre: "ajustes.planSus", que: "ajustes.planQue", sin: "suscripcion subscription pro max plan precio" },
   { cat: "cupos", nombre: "cu.claude", que: "cu.claudeQue", sin: "claude anthropic suscripcion subscription plan cupo quota ventana window 5h semana week conectar connect login" },
   { cat: "cupos", nombre: "cu.google", que: "cu.googleQue", sin: "google gemini agy ai pro suscripcion subscription plan cupo quota ventana window conectar connect login" },
+  { cat: "cupos", nombre: "cu.opencode", que: "cu.opencodeQue", sin: "opencode open code gratis free cupo quota agotado exhausted limite limit compartido shared" },
   { cat: "cupos", nombre: "cu.chatgpt", que: "cu.chatgptQue", sin: "chatgpt openai codex gpt suscripcion subscription plan cupo quota conectar connect login" },
   { cat: "cupos", nombre: "cu.topesGoogle", que: "cu.topesQue", sin: "google gemini agy tope limite limit cupo quota llena full codigo code umbral threshold porcentaje percent" },
   { cat: "cupos", nombre: "ajustes.cuposGuardar", que: "ajustes.cuposGuardarQue", sin: "reservar reserve guardar save reserva porcentaje percent mis sesiones my sessions cupo quota claude tope cap limite limit" },

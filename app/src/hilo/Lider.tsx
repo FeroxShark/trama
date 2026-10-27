@@ -21,7 +21,7 @@ import { es } from "../atajos";
 import { Fragment, memo, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ClipboardEvent, type DragEvent, type KeyboardEvent, type ReactNode } from "react";
 import { ArrowUp, Check, Clock, Cpu, Folder, Paperclip, X, Zap } from "lucide-react";
 import { motion, useReducedMotion } from "motion/react";
-import { VERSION, type Lider, type Mensaje, type MotivoRetomar, type MotivoTraer, type Tokens } from "../datos/contrato";
+import { VERSION, type Lider, type Mensaje, type MotivoRetomar, type MotivoTraer, type Tokens, type Uso } from "../datos/contrato";
 import { fuente, type EnvioLider } from "../datos/fuente";
 import { ChipSubagentes } from "../barra/Fila";
 import { Reloj } from "../barra/piezas";
@@ -47,6 +47,7 @@ import { Texto } from "./Texto";
 import { Hora, pintorAviso, tokens, Turno } from "./Turno";
 import { Marca } from "./Marca";
 import { Sistema } from "./Sistema";
+import { EVENTO_CAMBIAR_MODELO, marcarAgotadas, opencodeAgotadoDe, proveedorLibre } from "./agotados";
 import { Compactando, Pasando, relevoEn, Sigue } from "./Posta";
 import { juntar, repiteElPrimero, turnos, type Item, type Punto } from "./turnos";
 import { AccionesMensaje, EditorMensaje, sobreMensaje, type Acciones } from "./AccionesMensaje";
@@ -206,6 +207,25 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
     () => leerAdjuntos(clave),
   );
   const [arrastra, setArrastra] = useState(false);
+  // El uso gratis de OpenCode es uno solo: acabado, todos sus modelos gratis llevan «sin cupo gratis» en el selector, y el aviso de error
+  // trae «Cambiar de modelo», que abre el selector en un proveedor que no sea OpenCode.
+  const [uso, setUso] = useState<Uso | null>(null);
+  useEffect(() => {
+    let vivo = true;
+    void fuente.uso().then((u) => vivo && setUso(u), () => {});
+    const soltar = fuente.alCambiarUso((u) => vivo && setUso(u));
+    return () => {
+      vivo = false;
+      soltar();
+    };
+  }, []);
+  const modelosVistos = useMemo(() => marcarAgotadas(MODELOS, opencodeAgotadoDe(uso)), [uso]);
+  const [senalModelo, setSenalModelo] = useState(0);
+  useEffect(() => {
+    const abrir = () => setSenalModelo((n) => n + 1);
+    window.addEventListener(EVENTO_CAMBIAR_MODELO, abrir);
+    return () => window.removeEventListener(EVENTO_CAMBIAR_MODELO, abrir);
+  }, []);
   const elegir = useRef<HTMLInputElement>(null);
   // Captura `aviso`: otro modelo elegido con el caché vivo.
   const [modelo, setModelo] = useState(() =>
@@ -1231,7 +1251,9 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
               </button>
               <Selector
                 etiqueta={tr("comun.modelo")}
-                opciones={MODELOS}
+                opciones={modelosVistos}
+                senalAbrir={senalModelo}
+                pestana={proveedorLibre(modelosVistos)}
                 valor={modelo}
                 alElegir={elegirModelo}
                 confirmar={datosCambio}
