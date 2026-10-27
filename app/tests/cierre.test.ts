@@ -1,6 +1,7 @@
 // Cerrar trama sin Electron: cerrar la ventana no sale; "Cerrar del todo" con cada opción hace lo suyo; la bandeja
 // arma su menú con lo que le manda el renderer; "parar todo" frena sólo a los workers de los líderes de trama.
-import { test, after } from "node:test";
+import { after } from "node:test";
+import { testPosix as test } from "./plataforma.ts";
 import assert from "node:assert/strict";
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { registerHooks } from "node:module";

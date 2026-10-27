@@ -1,5 +1,6 @@
 // electron/transcripts.ts: los números de un transcript inventado, leídos de a pedazos.
 import { test } from "node:test";
+import { soloPosix } from "./plataforma.ts";
 import assert from "node:assert/strict";
 import { appendFileSync, mkdirSync, mkdtempSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
 import os from "node:os";
@@ -131,7 +132,7 @@ test("una sesión suma a sus subagentes, que no pesan en su contexto", async () 
   assert.equal(totalDe(s.reciente()["claude-haiku-5-5"]), 38);
 });
 
-test("los transcripts tocados desde un momento", async () => {
+test("los transcripts tocados desde un momento", { skip: soloPosix("symlinks") }, async () => {
   const proyectos = path.join(tmp, "proyectos");
   const viejo = path.join(proyectos, "-tmp-uno", "s-viejo.jsonl");
   writeFileSync(viejo, "");

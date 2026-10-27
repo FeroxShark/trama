@@ -2,7 +2,8 @@
 // (electron/lider.ts → rebobinar / ramificar): se sigue con un relevo (la conversación hasta el mensaje, de todos los motores), se aparta la
 // sesión del motor, se anota un corte y la vista esconde lo que venía después. El camino de Claude (--resume-session-at / --fork-session) no cambia.
 // Con el claude falso, el agy falso y (si hay `opencode`) el opencode contra scripts/openai-falso.mjs. HOME y HILOS_STATE en un tmp.
-import { test, after } from "node:test";
+import { after } from "node:test";
+import { testPosix as test } from "./plataforma.ts";
 import assert from "node:assert/strict";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { registerHooks } from "node:module";

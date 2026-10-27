@@ -1,6 +1,7 @@
 // Salir de trama nunca se cuelga (electron/lider.ts, `cerrarTodos`): con un líder falso que no contesta ni cierra,
 // la salida termina dentro del tope, lo corta y lo deja en el log. Estado, sesiones y claude en un tmp.
-import { test, after } from "node:test";
+import { after } from "node:test";
+import { testPosix as test } from "./plataforma.ts";
 import assert from "node:assert/strict";
 import { existsSync, mkdtempSync, readFileSync } from "node:fs";
 import { registerHooks } from "node:module";

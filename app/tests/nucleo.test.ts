@@ -1,7 +1,8 @@
 // electron/nucleo.ts: el núcleo sin Electron (los canales, lo que se difunde a quienes escuchan y los
 // ganchos de salida). Importa a sus vecinos con `.js` (lo compila tsc): un hook de resolución los lleva
 // al `.ts`. El entorno va antes del import: todo el estado en un tmp y los fakes de `pa` y `claude`.
-import { test, after } from "node:test";
+import { after } from "node:test";
+import { testPosix as test } from "./plataforma.ts";
 import assert from "node:assert/strict";
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { registerHooks } from "node:module";

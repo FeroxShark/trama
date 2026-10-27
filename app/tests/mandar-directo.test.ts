@@ -1,7 +1,8 @@
 // "Mandar ya": un mensaje a mitad de un turno de un líder de Claude, con el claude falso de scripts/
 // (que absorbe lo que llega con una herramienta en vuelo, como el real, y lo repite con isReplay).
 // Fija: la guarda aflojada de `mandarDirecto`, el `entregado` por el eco, y `ocupado` que vuelve a subir en la carrera.
-import { test, after } from "node:test";
+import { after } from "node:test";
+import { testPosix as test } from "./plataforma.ts";
 import assert from "node:assert/strict";
 import { existsSync, mkdtempSync } from "node:fs";
 import { registerHooks } from "node:module";

@@ -1,6 +1,7 @@
 // La orquestación de `pa` en la app (electron/orquestacion.ts): lecciones que piden poda, auditar una rama y la plantilla de
 // AGENTS.md, todo con un `pa` falso (scripts/pa-falso.sh anota el argv) y un estado de mentira.
-import { test, after } from "node:test";
+import { after } from "node:test";
+import { testPosix as test } from "./plataforma.ts";
 import assert from "node:assert/strict";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { registerHooks } from "node:module";

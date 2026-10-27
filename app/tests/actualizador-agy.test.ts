@@ -3,7 +3,7 @@
 // ni consulta, Ocultar, Actualizar, y de dónde sale la última (actualizador, y AUR si ese no contesta).
 // Actualizar de agy (el módulo) abre una terminal con `paru -S antigravity-cli`: la terminal es un falso que
 // anota sus argumentos y, con FALSA_MODO=instala, deja la versión nueva (lo que haría paru con la contraseña).
-import { test } from "node:test";
+import { testPosix as test } from "./plataforma.ts";
 import assert from "node:assert/strict";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { registerHooks } from "node:module";

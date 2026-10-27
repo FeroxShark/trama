@@ -6,7 +6,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const raiz = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
-const dirWinTests = path.join(raiz, "windows", "tests");
+const dirWinTests = path.join(raiz, "..", "windows", "tests");
 
 test("windows/tests: actualización 0.1.1 -> 0.1.2, preservación SHA-256 de cuentas y sesiones, y limpieza", () => {
   const archivos = readdirSync(dirWinTests)
@@ -17,7 +17,7 @@ test("windows/tests: actualización 0.1.1 -> 0.1.2, preservación SHA-256 de cue
   const env = { ...process.env };
   delete env.NODE_TEST_CONTEXT;
   const out = execFileSync(process.execPath, ["--test", "--test-reporter=spec", ...archivos], {
-    cwd: path.join(raiz, "windows"),
+    cwd: path.join(raiz, "..", "windows"),
     env,
     encoding: "utf8",
   });

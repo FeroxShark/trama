@@ -5,6 +5,7 @@
 // terminar. El tablero real no se toca nunca. El entorno va antes de los `await import`:
 // electron/tablero.ts resuelve el binario y la vista al cargar.
 import { after, test } from "node:test";
+import { POSIX } from "./plataforma.ts";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -303,7 +304,7 @@ test("recientes: de lo hecho, lo cerrado en los últimos días, lo más nuevo pr
 
 // --- Contra el CLI de verdad, en un tablero temporal ---------------------------------
 
-const hayCli = path.isAbsolute(cli.TABLERO) && existsSync(cli.TABLERO);
+const hayCli = POSIX && path.isAbsolute(cli.TABLERO) && existsSync(cli.TABLERO); // el CLI es Python con shebang: sólo POSIX por ahora
 const tablero = (...args: string[]) => execFileSync(cli.TABLERO, args, { env: process.env, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
 const enDisco = () => JSON.parse(tablero("listar", "--todo", "--json")) as { id: number; columna: string; titulo: string; proyecto: string; origen: string; hasta: string | null }[];
 const columnaDe = (id: number) => enDisco().find((i) => i.id === id)?.columna;

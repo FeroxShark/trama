@@ -1,7 +1,8 @@
 // Un líder de opencode de punta a punta: el puente (electron/dsh-puente.ts, con un modelo `opencode:`) con un `opencode acp` de verdad
 // y el servidor OpenAI falso (scripts/openai-falso.mjs) como proveedor `falso`. Habla como `claude -p` por stdin/stdout. Sin `opencode`
 // (TRAMA_OPENCODE_BIN, app/node_modules/.bin, PATH) se saltea. HOME, XDG_* y HILOS_STATE en un tmp.
-import { test, after } from "node:test";
+import { after } from "node:test";
+import { testPosix as test } from "./plataforma.ts";
 import assert from "node:assert/strict";
 import { spawn, type ChildProcess } from "node:child_process";
 import { existsSync, readFileSync, rmSync } from "node:fs";

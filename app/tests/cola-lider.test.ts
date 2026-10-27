@@ -2,7 +2,8 @@
 // "terminal" de mentira), armada como en electron/nucleo.ts: lo que se manda a mitad de un turno
 // queda en cola y sale solo cuando el turno termina, también al que está abierto en una
 // terminal (ahí recién se lo trae, y sólo a ese pid). Mismo armado que tests/traer-lider.test.ts.
-import { test, after } from "node:test";
+import { after } from "node:test";
+import { testPosix as test } from "./plataforma.ts";
 import assert from "node:assert/strict";
 import { spawn, type ChildProcess } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from "node:fs";

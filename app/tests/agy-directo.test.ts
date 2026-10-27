@@ -2,6 +2,7 @@
 // app, su transcript aparte, el archivo de sesión que ve la barra (y `pa`), la continuidad con `--conversation` (también tras
 // cerrar y volver) y su repetición si agy ya no la tiene. Nunca el agy de verdad. HOME en un tmp: el prefacio lee sus CLAUDE.md.
 import { test, after } from "node:test";
+import { soloPosix } from "./plataforma.ts";
 import assert from "node:assert/strict";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { registerHooks } from "node:module";
@@ -68,7 +69,7 @@ const textos = (sid: string) => de(sid, "mensaje").map((m) => m.texto as string)
 const PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/q842iQAAAABJRU5ErkJggg==", "base64");
 const M = { modelo: "gemini-3.8-flash", effort: "low" };
 
-test("las imágenes llegan a agy como archivos: bytes intactos, la ruta en el prompt, sin el aviso de que no se ven, y se limpian", { timeout: 60_000 }, async () => {
+test("las imágenes llegan a agy como archivos: bytes intactos, la ruta en el prompt, sin el aviso de que no se ven, y se limpian", { skip: soloPosix("modos de archivo"), timeout: 60_000 }, async () => {
   const sid = await lider.nuevo({ ...M, texto: "mirá esto", imagenes: [{ tipo: "image/png", datos: PNG.toString("base64") }] });
   await hasta(() => de(sid, "fin").length === 1);
   const l = llamadas().at(-1)!;

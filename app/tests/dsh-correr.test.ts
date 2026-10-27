@@ -1,7 +1,8 @@
 // El runner de workers de pa para dsh (motor/dsh/correr.mjs) contra un `dsh --profile headless --json` de verdad y el servidor OpenAI
 // falso (scripts/openai-falso.mjs): el NDJSON que copia al transcript, el .json final con la forma de codex_a_json, los códigos de
 // salida y los errores de argumentos. Sin `dsh` lo que lo necesita se saltea. HOME y DSH_HOME en un tmp.
-import { test, after } from "node:test";
+import { after } from "node:test";
+import { testPosix as test } from "./plataforma.ts";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { readFileSync, rmSync, writeFileSync, existsSync } from "node:fs";

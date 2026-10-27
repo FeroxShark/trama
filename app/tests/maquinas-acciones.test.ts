@@ -3,7 +3,8 @@
 // cada uno con su `pa` y su `claude` falsos y su tmp. Desde la PC se crea un líder en el Dell (con el selector), se le
 // escribe y se le integra un worker; lo de acá nunca se hace en el Dell ni lo del Dell acá. Con el Dell caído o con otro
 // build la acción se rechaza con aviso y no se hace en ningún lado (un cliente falso prueba la versión distinta).
-import { test, after } from "node:test";
+import { after } from "node:test";
+import { testPosix as test } from "./plataforma.ts";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";

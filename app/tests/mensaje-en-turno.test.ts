@@ -4,7 +4,8 @@
 //   herramienta.*  el mensaje sale 3 s después de que arranca una herramienta larga (python sleep)
 //   texto.*        el mensaje sale con el primer delta de la respuesta final, sin herramientas (la carrera con el `result`)
 // Con HILOS_CLAUDE_REAL=1 se vuelve a medir con un `claude` real (scripts/medir-mensaje-en-turno.mjs, unos centavos de Haiku).
-import { test, after } from "node:test";
+import { after } from "node:test";
+import { testPosix as test } from "./plataforma.ts";
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, realpathSync } from "node:fs";

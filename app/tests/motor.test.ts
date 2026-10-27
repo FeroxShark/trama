@@ -2,7 +2,8 @@
 // socket, anota `dueno`, un segundo motor sale con 3, quien se reconecta con `desde` recibe lo que se
 // perdió, y SIGTERM guarda lo que esperaba (los leídos), suelta el socket y `dueno`, y sale con 0.
 // Corre como Node (con el hook que lleva los `.js` al `.ts`), igual que con ELECTRON_RUN_AS_NODE.
-import { test, after } from "node:test";
+import { after } from "node:test";
+import { testPosix as test } from "./plataforma.ts";
 import assert from "node:assert/strict";
 import { spawn, type ChildProcess } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";

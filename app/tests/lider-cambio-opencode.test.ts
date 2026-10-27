@@ -1,7 +1,8 @@
 // Claude → opencode en el mismo líder (electron/lider.ts → dsh-puente.ts con `opencode acp` → scripts/openai-falso.mjs): el modelo nuevo recibe lo
 // hablado con Claude en su primer pedido (el relevo viaja por un archivo y el puente lo suma al prefacio) y la conversación sigue en su transcript.
 // Sin `opencode` (TRAMA_OPENCODE_BIN…) se saltea.
-import { test, after } from "node:test";
+import { after } from "node:test";
+import { testPosix as test } from "./plataforma.ts";
 import assert from "node:assert/strict";
 import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { registerHooks } from "node:module";

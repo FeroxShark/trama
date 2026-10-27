@@ -1,7 +1,8 @@
 // Seguir una conversación con un modelo de OTRO motor (Claude → Gemini → Claude) por electron/lider.ts, con el claude falso y el agy falso:
 // el mismo líder (mismo sid), una sesión nueva del motor que toca con lo hablado como relevo, la vista con los dos transcripts y una raya,
 // y que al volver a abrir siga la sesión del motor nuevo. HOME y HILOS_STATE en un tmp; nunca el claude ni el agy de verdad.
-import { test, after } from "node:test";
+import { after } from "node:test";
+import { testPosix as test } from "./plataforma.ts";
 import assert from "node:assert/strict";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { registerHooks } from "node:module";

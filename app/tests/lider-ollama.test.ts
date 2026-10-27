@@ -1,6 +1,7 @@
 // Un líder de Ollama: el mismo `claude` con el endpoint SÓLO en su proceso (contrato de modelos.json). Un `claude` de mentira
 // anota su argv y las variables que le llegan; nada habla con un Ollama de verdad (la url apunta a un puerto sin nadie) ni usa la GPU.
-import { test, after } from "node:test";
+import { after } from "node:test";
+import { testPosix as test } from "./plataforma.ts";
 import assert from "node:assert/strict";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { registerHooks } from "node:module";

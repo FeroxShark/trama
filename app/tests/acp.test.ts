@@ -1,7 +1,8 @@
 // El cliente ACP (electron/acp.ts): lo genérico contra agentes de mentira (timeouts, caída del hijo, política de permisos) y lo de
 // verdad contra un `dsh --profile acp` con el servidor OpenAI falso (scripts/openai-falso.mjs): initialize, session/new, prompt con
 // razonamiento + herramienta, set_config_option, resume, cancel, imágenes y session/request_permission. Sin `dsh` esas se saltean.
-import { test, after } from "node:test";
+import { after } from "node:test";
+import { testPosix as test } from "./plataforma.ts";
 import assert from "node:assert/strict";
 import { rmSync, writeFileSync, readFileSync, existsSync } from "node:fs";
 import path from "node:path";

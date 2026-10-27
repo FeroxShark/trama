@@ -2,7 +2,8 @@
 // (electron/proyectos-alias.ts), que `pa` lo entienda como alias (`pa Shark …` == `pa asistente-voz …`, `pa --renombrar`, `pa --proyectos`),
 // que el tablero también, y que nada de lo que no se puede renombrar (slug, ruta, carpeta de estado) cambie. El `pa` de la app y el de
 // bash usan las mismas reglas: se cruzan con los mismos nombres. Todo en un tmp: no toca el registry ni el estado de verdad.
-import { test, after } from "node:test";
+import { after } from "node:test";
+import { testPosix as test } from "./plataforma.ts";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";

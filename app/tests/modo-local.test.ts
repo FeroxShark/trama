@@ -1,6 +1,7 @@
 // El modo local (electron/modo-local.ts): el servidor en 127.0.0.1 sin Tailscale, y la detección de lo que hay
 // en la máquina (electron/capacidades.ts). Servidor de verdad en un puerto libre; nada toca la red de verdad.
-import { test, after } from "node:test";
+import { after } from "node:test";
+import { testPosix as test } from "./plataforma.ts";
 import assert from "node:assert/strict";
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import http from "node:http";

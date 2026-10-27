@@ -1,7 +1,8 @@
 // electron/remoto-armar.ts: trama por la tailnet se rearma sola si cambia la IP de Tailscale. Con un
 // `tailscale` falso (la IP sale de un archivo, en 127.0.0.x: nada sale de esta máquina) y un `ip monitor`
 // falso que avisa un cambio a los 2 s: escucha en la primera IP, y tras el aviso en la nueva y no en la vieja.
-import { test, after } from "node:test";
+import { after } from "node:test";
+import { testPosix as test } from "./plataforma.ts";
 import assert from "node:assert/strict";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { registerHooks } from "node:module";

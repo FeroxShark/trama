@@ -2,6 +2,7 @@
 // worker y reescribirlas sin tocar nada más. Siempre sobre un CLAUDE.md de
 // ejemplo en una carpeta temporal: nunca el ~/CLAUDE.md real.
 import { test } from "node:test";
+import { soloPosix } from "./plataforma.ts";
 import assert from "node:assert/strict";
 import { chmodSync, existsSync, mkdtempSync, readdirSync, readFileSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import os from "node:os";
@@ -127,7 +128,7 @@ test("valida lo que llega para escribir", () => {
   assert.throws(() => escribirRouting(EJEMPLO, [{ rol: "codigo", modelo: "claude-opus-5-5", effort: "mucho" }]), lanza(/effort raro/));
 });
 
-test("guardarRouting escribe atómico y sigue el symlink; con error no toca el archivo", async () => {
+test("guardarRouting escribe atómico y sigue el symlink; con error no toca el archivo", { skip: soloPosix("symlinks") }, async () => {
   const dir = mkdtempSync(path.join(os.tmpdir(), "routing-"));
   const real = path.join(dir, "real.md");
   const link = path.join(dir, "CLAUDE.md");
@@ -148,7 +149,7 @@ test("guardarRouting escribe atómico y sigue el symlink; con error no toca el a
   assert.ok("error" in (await leerRouting(path.join(dir, "no-existe.md"))));
 });
 
-test("guardarRouting: sin CLAUDE.md lo crea con el bloque; y reemplazar conserva el modo del original", async () => {
+test("guardarRouting: sin CLAUDE.md lo crea con el bloque; y reemplazar conserva el modo del original", { skip: soloPosix("modo de archivo") }, async () => {
   const dir = mkdtempSync(path.join(os.tmpdir(), "routing-"));
   const nuevo = path.join(dir, "CLAUDE.md");
   const r = await guardarRouting([{ rol: "codigo", modelo: "claude-opus-5-5", effort: "high" }], nuevo);

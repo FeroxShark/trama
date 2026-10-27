@@ -1,7 +1,8 @@
 // electron/local.ts: el socket local del motor. La carpeta queda 0700 (y el socket 0600), el socket es el
 // candado (otro que abre en la misma carpeta recibe null; un archivo que quedó de un motor muerto no
 // frena), y por ahí andan los mismos /rpc y /eventos que por red, sin Origin ni Tailscale.
-import { test, after } from "node:test";
+import { after } from "node:test";
+import { testPosix as test } from "./plataforma.ts";
 import assert from "node:assert/strict";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { registerHooks } from "node:module";

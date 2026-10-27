@@ -1,7 +1,8 @@
 // Un líder de Trama al que le matan el proceso: Murió + Retomar (electron/lider.ts, statusline.ts, con
 // el claude falso). Y el aviso de recoger a los workers en el primer mensaje de un líder traído de una
 // terminal. Mismo armado que tests/retomar-lider.test.ts.
-import { test, after } from "node:test";
+import { after } from "node:test";
+import { testPosix as test } from "./plataforma.ts";
 import assert from "node:assert/strict";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { registerHooks } from "node:module";

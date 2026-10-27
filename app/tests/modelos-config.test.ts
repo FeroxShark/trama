@@ -3,6 +3,7 @@
 // sondear Ollama (contra un servidor HTTP de mentira en loopback: nunca un modelo de verdad) y poner al día las
 // tres filas de `~/CLAUDE.md`. Todo en carpetas temporales con un `pa` de mentira.
 import { test, after } from "node:test";
+import { soloPosix } from "./plataforma.ts";
 import assert from "node:assert/strict";
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import http from "node:http";
@@ -131,7 +132,7 @@ test("un JSON roto o de otra versión se muestra y NO se pisa", async () => {
   }
 });
 
-test("sigue el symlink al guardar (dotfiles)", async () => {
+test("sigue el symlink al guardar (dotfiles)", { skip: soloPosix("symlinks") }, async () => {
   const dir = path.dirname(nuevaRuta());
   mkdirSync(dir, { recursive: true });
   const real = path.join(tmp, "real-modelos.json");
