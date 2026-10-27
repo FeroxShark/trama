@@ -81,8 +81,13 @@ export function aResultado({ eventos, modelo, rc, stderr, segundos, gratis, trun
   const ultimoFin = [...eventos].reverse().find((e) => e.type === "step_finish");
   const dicho = (textos.at(-1)?.part?.text ?? "").trim();
   const razon = ultimoFin?.part?.reason;
-  const cortado = truncado === 0 && !error && rc === 0 && eventos.length > 0 && razon !== undefined && razon !== "stop";
-  const malo = truncado > 0 || rc !== 0 || !!error || !ultimoFin || cortado;
+  // opencode 2.x no emite el step_finish del último paso: si el paso abierto (último step_start, después del último step_finish) dijo algo, cuenta como turno cerrado.
+  const iIni = eventos.findLastIndex((e) => e.type === "step_start");
+  const iFin = eventos.findLastIndex((e) => e.type === "step_finish");
+  const dijoAbierto = iIni > iFin && eventos.slice(iIni + 1).some((e) => e.type === "text" && typeof e.part?.text === "string" && e.part.text.trim());
+  const cerrado = truncado === 0 && !error && rc === 0 && dijoAbierto;
+  const cortado = !cerrado && truncado === 0 && !error && rc === 0 && eventos.length > 0 && razon !== undefined && razon !== "stop";
+  const malo = truncado > 0 || rc !== 0 || !!error || (!ultimoFin && !cerrado) || cortado;
   let motivo = truncado > 0 ? `se llegó al tope de ${truncado} pasos del modelo (--max-pasos)` : error ? textoDeError(error) : cortado ? `opencode terminó sin cerrar el turno (razón: ${razon})` : stderr.trim() ? stderr.trim().split("\n").slice(-3).join(" · ") : rc !== 0 ? `opencode salió con el código ${rc}` : "opencode no devolvió respuesta";
   if (malo && !truncado && esErrorCuota(`${error ? JSON.stringify(error) : ""}\n${stderr}`)) motivo = esModeloGo(modelo) ? mensajeCuotaGo(modelo) : mensajeCuotaOpencode(modelo);
   const suma = (f) => pasos.reduce((n, e) => n + (Number(f(e.part)) || 0), 0);
@@ -94,10 +99,11 @@ export function aResultado({ eventos, modelo, rc, stderr, segundos, gratis, trun
     subtype: truncado > 0 ? "error_max_turns" : malo ? "error" : "success",
     is_error: malo,
     result: malo ? [dicho, motivo].filter(Boolean).join("\n") : dicho,
-    num_turns: pasos.length,
+    num_turns: eventos.filter((e) => e.type === "step_start").length,
     duration_ms: Math.round(segundos * 1000),
     ...(gratis ? { total_cost_usd: 0 } : costo > 0 ? { total_cost_usd: costo } : {}),
     opencode_session_id: sesion,
+    // opencode 2.x no cierra el último paso: sus tokens no se conocen, se suman sólo los step_finish que hay.
     modelUsage: pasos.length
       ? {
           [modelo]: {
