@@ -1865,6 +1865,7 @@ export const en = {
   "sub.chipTip": "Subagents running: the session is working, not cooling down",
   "comando.soloAnthropic": "Anthropic only",
   "comando.soloGoogle": "Google only",
+  "comando.cambiaModelo": "Switch to a {empresa} model to use it",
   "ajustes.dictadoH": "Dictation",
   "ajustes.dictado": "Dictation model",
   "ajustes.dictadoQue": "The Handy model that transcribes what you dictate in a leader's box. It applies from the next recording.",

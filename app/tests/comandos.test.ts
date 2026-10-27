@@ -1,7 +1,7 @@
 // Los comandos con "/" de la caja del líder (src/hilo/comandos.ts).
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { completar, directo, marcaDe, menuEn, moverSel, parsearComando, reemplazar, sugerencias } from "../src/hilo/comandos.ts";
+import { completar, directo, menuEn, moverSel, parsearComando, reemplazar, sugerencias } from "../src/hilo/comandos.ts";
 
 const MODELOS = [
   { id: "claude-opus-5-5", clave: "opus" },
@@ -206,35 +206,36 @@ test("parsearComando: /model cruza entre agy y claude sin error (la caja pide la
   assert.deepEqual(parsearComando("/output-style Concise", todos, effAgy, ["Concise"], "gemini-4-argon"), { tipo: "texto" });
 });
 
-test("marca de proveedor: sólo si el otro lado se conoce; lo compartido y lo de los dos, sin marca", () => {
+test("otra empresa: con '/' solo nada ajeno; buscando, sus coincidencias van al final, marcadas, sin duplicar y sin ejecutarse", () => {
   const claude = [
     { nombre: "design", descripcion: null, args: null },
-    { nombre: "design-consent", descripcion: null, args: null },
     { nombre: "security-review", descripcion: null, args: null },
   ];
   const agy = [
     { nombre: "security-review", descripcion: null, args: null, agy: true },
     { nombre: "brainstorm", descripcion: null, args: null, agy: true },
   ];
-  const solo = (filas: { nombre: string; solo?: string }[]) => Object.fromEntries(filas.map((s) => [s.nombre, s.solo ?? null]));
-  // Un líder de Claude: lo suyo (builtin y skills) sólo de Anthropic; /clear, /model y /effort y las skills compartidas, sin marca.
-  const c = solo(sugerencias("/", claude, {}, false, agy));
-  assert.deepEqual(
-    [c.design, c["design-consent"], c["output-style"], c.plan, c.bypass],
-    ["anthropic", "anthropic", "anthropic", "anthropic", "anthropic"],
-  );
-  assert.deepEqual([c.clear, c.model, c.effort, c.compact, c["security-review"]], [null, null, null, null, null]);
-  // Un líder de agy: lo único suyo, de Google; lo compartido y sus propios de la app, sin marca.
-  const g = solo(sugerencias("/", agy, {}, true, claude));
-  assert.deepEqual([g.brainstorm], ["google"]);
-  assert.deepEqual([g.clear, g.model, g.effort, g.compact, g["security-review"]], [null, null, null, null, null]);
-  // Sin lista del otro lado (sin agy, o claude nunca arrancó) no se afirma nada.
-  assert.ok(sugerencias("/", claude, {}, false, []).every((s) => !s.solo));
-  assert.ok(sugerencias("/", agy, {}, true, []).every((s) => !s.solo));
-  assert.equal(marcaDe("DESIGN", false, agy), "anthropic");
-  assert.equal(marcaDe("Security-Review", false, agy), undefined);
-  // Llega por menuEn (con el token en medio de la caja).
-  assert.equal(menuEn("hola /desi", 10, claude, {}, false, agy)!.filas[0].solo, "anthropic");
+  // "/" solo: sólo lo que corre con el modelo puesto.
+  assert.ok(sugerencias("/", claude, {}, false, agy).every((s) => !s.ajeno));
+  assert.ok(sugerencias("/", agy, {}, true, claude).every((s) => !s.ajeno));
+  assert.equal(sugerencias("/", agy, {}, true, claude).some((s) => s.nombre === "design"), false);
+  // Buscando desde Claude: lo de Google, después de lo propio y marcado.
+  const f = sugerencias("/brain", claude, {}, false, agy);
+  assert.deepEqual(f.map((s) => [s.nombre, s.ajeno]), [["brainstorm", "google"]]);
+  const r = sugerencias("/r", claude, {}, false, agy);
+  assert.equal(r.filter((s) => s.nombre === "security-review").length, 1);
+  assert.equal(r.find((s) => s.nombre === "security-review")!.ajeno, undefined);
+  // Desde agy: lo de Anthropic (skills y builtin propios de la app), marcado.
+  const g = sugerencias("/des", agy, {}, true, claude);
+  assert.deepEqual(g.map((s) => [s.nombre, s.ajeno]), [["design", "anthropic"]]);
+  assert.equal(sugerencias("/plan", agy, {}, true, claude).find((s) => s.nombre === "plan")!.ajeno, "anthropic");
+  // No duplicados: /compact y /clear existen en los dos.
+  assert.equal(sugerencias("/c", claude, {}, false, agy).filter((s) => s.nombre === "compact").length, 1);
+  // La fila ajena ni es directa ni se ofrece en OpenCode/dsh.
+  assert.equal(directo(g[0]), false);
+  assert.ok(sugerencias("/des", claude, {}, "opencode:opencode/big-pickle", agy).every((s) => !s.ajeno));
+  // Llega por menuEn (token en medio de la caja).
+  assert.equal(menuEn("hola /brain", 11, claude, {}, false, agy)!.filas[0].ajeno, "google");
 });
 
 test("parsearComando: un líder de dsh puede seguir con Claude, Gemini u otro dsh con /model; un nombre que la tabla no conoce sigue siendo un error de uso", () => {

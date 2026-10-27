@@ -3619,6 +3619,16 @@ kbd {
 .cmd[aria-selected="true"] .logo {
   color: var(--texto-2);
 }
+/* De otra empresa: atenuada, con su logo y la etiqueta "only" (no depende sólo del color). */
+.cmd[aria-disabled="true"] {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+.cmd[aria-disabled="true"] .cmd-n {
+  font-style: italic;
+  text-decoration: line-through;
+  text-decoration-color: var(--texto-7);
+}
 .cmd-s {
   grid-area: s;
   color: var(--texto-7);

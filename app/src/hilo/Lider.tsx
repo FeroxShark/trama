@@ -260,7 +260,7 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
   // los muestran en vez de la frase tierna. Claude y los que no lo traen siguen como siempre.
   const piensa = esAgy(modeloDe(l?.modelo) ?? modelo) || esDsh(modeloDe(l?.modelo) ?? modelo) || esOpencode(modeloDe(l?.modelo) ?? modelo) || vivo.razona;
   const comandos = useSyncExternalStore(suscribirComandos, agy ? comandosAgy : comandosClaude);
-  // Los del otro proveedor: con ellos se sabe cuáles comandos sólo existen de este lado (la marca de cada fila).
+  // Los del otro proveedor: la búsqueda del menú también los muestra (marcados, sin poder usarse con este modelo).
   const deOtro = useSyncExternalStore(suscribirComandos, agy ? comandosClaude : comandosAgy);
   // El menú de "/": la fila elegida y si el usuario lo cerró con Esc (vuelve al cambiar el texto).
   const [sel, setSel] = useState(0);
@@ -874,7 +874,7 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
   };
 
   const elegirComando = (s: Sugerencia, ya: boolean) => {
-    if (!mn) return;
+    if (!mn || s.ajeno) return; // de otra empresa: no corre con este modelo (la fila ya dice qué hacer)
     const { texto: nuevo, caret: p } = reemplazar(texto, mn, s);
     // Enter o clic sobre un comando de la app al inicio de la caja lo ejecuta, con lo que sigue ("/plan armá X").
     if (ya && directo(s) && mn.ini === 0) return ejecutar(nuevo);
@@ -1096,6 +1096,7 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
                 type="button"
                 role="option"
                 aria-selected={k === sel}
+                aria-disabled={s.ajeno ? true : undefined}
                 aria-current={s.actual || undefined}
                 className="cmd"
                 onMouseDown={(e) => e.preventDefault()}
@@ -1103,7 +1104,7 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
                 onClick={() => elegirComando(s, true)}
               >
                 <span className="cmd-m" aria-hidden="true">
-                  {s.solo ? <Logo empresa={s.solo} /> : null}
+                  {s.ajeno ? <Logo empresa={s.ajeno} /> : null}
                 </span>
                 {s.valor !== undefined ? (
                   <span className="cmd-n">
@@ -1117,8 +1118,10 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
                     {s.args ? <i> {s.args}</i> : null}
                   </span>
                 )}
-                <span className="cmd-d">{s.clave ? tr(s.clave) : (s.descripcion ?? "")}</span>
-                {s.solo ? <span className="cmd-s">{tr(s.solo === "google" ? "comando.soloGoogle" : "comando.soloAnthropic")}</span> : null}
+                <span className="cmd-d">
+                  {s.ajeno ? tr("comando.cambiaModelo", { empresa: s.ajeno === "google" ? "Google" : "Anthropic" }) : s.clave ? tr(s.clave) : (s.descripcion ?? "")}
+                </span>
+                {s.ajeno ? <span className="cmd-s">{tr(s.ajeno === "google" ? "comando.soloGoogle" : "comando.soloAnthropic")}</span> : null}
               </button>
             ))}
           </div>

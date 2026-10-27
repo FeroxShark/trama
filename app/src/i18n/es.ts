@@ -1851,6 +1851,7 @@ export const es: { [K in keyof typeof en]: string } = {
   "sub.chipTip": "Subagentes corriendo: la sesión está trabajando, no enfriándose",
   "comando.soloAnthropic": "Sólo Anthropic",
   "comando.soloGoogle": "Sólo Google",
+  "comando.cambiaModelo": "Cambiá a un modelo de {empresa} para usarlo",
   "ajustes.dictadoH": "Dictado",
   "ajustes.dictado": "Modelo para dictar",
   "ajustes.dictadoQue": "El modelo de Handy que transcribe lo que dictás en la caja de un líder. Rige desde la próxima grabación.",

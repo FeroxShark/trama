@@ -51,23 +51,11 @@ export type Sugerencia = {
   descripcion: string | null;
   valor?: string;
   actual?: boolean;
-  /** Sólo existe de un lado: Claude Code (`anthropic`) o `agy` (`google`). Sin marca: está en los dos, o no se sabe. */
-  solo?: Proveedor;
+  /** Comando de OTRA empresa (sólo en la búsqueda): no corre con el modelo puesto, no se completa ni se ejecuta. */
+  ajeno?: Proveedor;
 };
 
 export type Proveedor = "anthropic" | "google";
-
-/**
- * ¿De qué proveedor es sólo la fila? Se compara con el otro lado: sus propios (`PROPIOS` / `PROPIOS_AGY`) y los
- * comandos y skills que dijo (`deOtro`). Sin lista del otro lado (no hay `agy`, o `claude` nunca arrancó) no se
- * afirma nada: ninguna marca. `agy`: el menú es el de un líder de `agy`.
- */
-export function marcaDe(nombre: string, agy: boolean, deOtro: ComandoClaude[]): Proveedor | undefined {
-  if (!deOtro.length) return undefined;
-  const n = nombre.toLowerCase();
-  const otro = new Set([...(agy ? PROPIOS : PROPIOS_AGY).map((p) => p.nombre), ...deOtro.map((c) => c.nombre.toLowerCase())]);
-  return otro.has(n) ? undefined : agy ? "google" : "anthropic";
-}
 
 /** Los valores de un comando con lista fija (`/model`, `/effort`, `/output-style`): cada uno con su etiqueta. */
 export type Valores = Record<string, { lista: { valor: string; desc: string | null }[]; actual: string | null }>;
@@ -205,13 +193,30 @@ export function sugerencias(
     ? base.flatMap((p) => (p.nombre !== "effort" ? [p] : nivelesPropios.length ? [{ ...p, args: `<${nivelesPropios.join("|")}>` }] : []))
     : base;
   const todos: Sugerencia[] = [
-    ...propios.map((p) => ({ nombre: p.nombre, args: p.args, clave: p.clave, descripcion: null, solo: marcaDe(p.nombre, agy, deOtro) })),
+    ...propios.map((p) => ({ nombre: p.nombre, args: p.args, clave: p.clave, descripcion: null })),
     ...deClaude
       .filter((c) => !DE_APP.has(c.nombre.toLowerCase()) && (c.agy === undefined || Boolean(c.agy) === agy))
-      .map((c) => ({ nombre: c.nombre, args: c.args || null, clave: null, descripcion: c.descripcion, solo: marcaDe(c.nombre, agy, deOtro) })),
+      .map((c) => ({ nombre: c.nombre, args: c.args || null, clave: null, descripcion: c.descripcion })),
   ];
   const n = (s: Sugerencia) => s.nombre.toLowerCase();
-  return [...todos.filter((s) => n(s).startsWith(q)), ...todos.filter((s) => !n(s).startsWith(q) && n(s).includes(q))];
+  const orden = (xs: Sugerencia[]) => [...xs.filter((s) => n(s).startsWith(q)), ...xs.filter((s) => !n(s).startsWith(q) && n(s).includes(q))];
+  const propiosFilas = orden(todos);
+  // Con "/" solo: sólo lo que corre con el modelo puesto. Buscando, también lo de la otra empresa (Anthropic <-> Google), al final y marcado.
+  if (!q || (motor !== "claude" && motor !== "agy")) return propiosFilas;
+  const ajena: Proveedor = agy ? "anthropic" : "google";
+  const vistos = new Set(todos.map(n));
+  const ajenos: Sugerencia[] = [];
+  const poner = (f: Sugerencia) => {
+    if (vistos.has(n(f))) return;
+    vistos.add(n(f));
+    ajenos.push({ ...f, ajeno: ajena });
+  };
+  for (const p of agy ? PROPIOS : PROPIOS_AGY) poner({ nombre: p.nombre, args: p.args, clave: p.clave, descripcion: null });
+  for (const c of deOtro) {
+    if (DE_APP.has(c.nombre.toLowerCase()) || (c.agy !== undefined && Boolean(c.agy) === agy)) continue;
+    poner({ nombre: c.nombre, args: c.args || null, clave: null, descripcion: c.descripcion });
+  }
+  return [...propiosFilas, ...orden(ajenos)];
 }
 
 /** Lo que el menú ofrece con el cursor donde está, y el tramo de la caja [ini, fin) que la fila elegida reemplaza. */
@@ -265,7 +270,7 @@ export function reemplazar(texto: string, m: Menu, s: Sugerencia): { texto: stri
 }
 
 /** Si elegir la fila ya la ejecuta (un valor, o un comando sin argumentos que completar). */
-export const directo = (s: Sugerencia) => s.valor !== undefined || !s.args;
+export const directo = (s: Sugerencia) => !s.ajeno && (s.valor !== undefined || !s.args);
 
 /**
  * La fila elegida tras una tecla del menú: flechas con vuelta (de la última a la
