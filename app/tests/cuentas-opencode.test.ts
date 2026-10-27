@@ -13,6 +13,7 @@ import { spawnSync } from "node:child_process";
 import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { listaValida } from "../src/datos/cuentas.ts";
 import { OPENCODE, SIN_OPENCODE } from "./opencode-ayuda.ts";
 import { conCuentaOpencode, cuentaAgregadaDe, entornoDeSalida } from "../electron/opencode-cuenta.ts";
 import { anotarPedidos, leerPedidos, marcasDeCuenta, suscripcionOpencode } from "../electron/opencode-pedidos.ts";
@@ -47,7 +48,7 @@ writeFileSync(
 echo "$*|DATA=$XDG_DATA_HOME|STATE=$XDG_STATE_HOME|CUENTA=$TRAMA_OPENCODE_CUENTA" >> "\${FALSO_LOG:-/dev/null}"
 case "$*" in
   *--help*) printf 'FLAGS\\n  --standalone    Run with a private server\\n  --variant string  x\\n'; exit 0 ;;
-  "models"*) printf 'opencode/beam-free\\nopencode/big-pickle\\n'; exit 0 ;;
+  "models"*) if [[ -n "$FALSO_MODELOS" ]]; then printf '%b' "$FALSO_MODELOS"; [[ "$FALSO_MODELOS" == "-" ]] && exit 1; else printf 'opencode/beam-free\\nopencode/big-pickle\\n'; fi; exit 0 ;;
   "auth list"*)
     if [[ -f "$XDG_DATA_HOME/opencode/login" ]]; then echo '[{"id":"opencode","name":"OpenCode Console","connections":[{"type":"oauth","id":"c1","label":"Personal","method":"x"}]}]'; else echo '[]'; fi
     exit 0 ;;
@@ -376,5 +377,50 @@ describe("con opencode de verdad (sin login)", { skip: SIN_OPENCODE }, () => {
     assert.equal(c(["quitar", "segunda", "--borrar-credenciales"]).rc, 0);
     assert.ok(!existsSync(dir));
     assert.ok(existsSync(path.join(dueno, "service.json")));
+  });
+});
+
+describe("plan detectado (lo que lista `opencode models` de cada cuenta)", () => {
+  const detectado = (modelos: string) => json(["--json", "--verificar"], { FALSO_MODELOS: modelos }).cuentas.find((c: any) => c.id === "trabajo").plan_detectado ?? null;
+
+  testPosix("sólo modelos gratis: gratis; con algún opencode-go/*: go; sin nada o con error: no se sabe", () => {
+    assert.equal(detectado("opencode/beam-free\\nopencode/big-pickle\\n"), "gratis");
+    assert.equal(detectado("opencode/beam-free\\nopencode-go/kimi-k3\\nopencode-go/glm-5\\n"), "go");
+    assert.equal(detectado("\\x1b[2mopencode-go/kimi-k3\\x1b[0m\\n"), "go");
+    assert.equal(detectado("sin modelos todavía\\n"), null);
+    assert.equal(detectado("-"), null);
+  });
+
+  testPosix("sólo se pregunta con --verificar, y con el entorno de ESA cuenta y --standalone", () => {
+    rmSync(log, { force: true });
+    assert.equal(json(["--json"]).cuentas.find((c: any) => c.id === "trabajo").plan_detectado, undefined);
+    assert.deepEqual(llamadas().filter((l) => l.startsWith("models")), []);
+    detectado("opencode/beam-free\\n");
+    const dir = path.join(cfg, "cuentas", "trabajo");
+    assert.ok(llamadas().some((l) => l.startsWith("models --standalone|") && l.includes(`DATA=${path.join(dir, "data")}`) && l.includes(`STATE=${path.join(dir, "state")}`)), llamadas().join("\\n"));
+  });
+
+  testPosix("`plan ID --detectar` guarda lo que vio en una agregada; Go Plus no se pisa con go; sin dato no toca nada (rc 3)", () => {
+    assert.equal(cuentas(["plan", "trabajo", "gratis"]).rc, 0);
+    assert.equal(cuentas(["plan", "trabajo", "--detectar"], { FALSO_MODELOS: "opencode-go/glm-5\\n" }).rc, 0);
+    assert.equal(json(["env", "trabajo", "--json"]).plan, "go");
+    assert.equal(cuentas(["plan", "trabajo", "go-plus"]).rc, 0);
+    assert.equal(cuentas(["plan", "trabajo", "--detectar"], { FALSO_MODELOS: "opencode-go/glm-5\\n" }).rc, 0);
+    assert.equal(json(["env", "trabajo", "--json"]).plan, "go-plus");
+    assert.equal(cuentas(["plan", "trabajo", "--detectar"], { FALSO_MODELOS: "-" }).rc, 3);
+    assert.equal(json(["env", "trabajo", "--json"]).plan, "go-plus");
+  });
+
+  it("la app lee `plan_detectado` sólo en OpenCode y sólo si es un plan conocido", () => {
+    const l = listaValida({
+      version: 1,
+      cuentas: [
+        { id: "opencode", proveedor: "opencode", plan_detectado: "gratis" },
+        { id: "casa", proveedor: "opencode", plan: "go", plan_detectado: "go" },
+        { id: "raro", proveedor: "opencode", plan_detectado: "platino" },
+        { id: "claude", proveedor: "claude", plan_detectado: "go" },
+      ],
+    });
+    assert.deepEqual(l?.cuentas.map((c) => [c.id, c.planDetectado ?? null]), [["opencode", "gratis"], ["casa", "go"], ["raro", null], ["claude", null]]);
   });
 });

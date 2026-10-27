@@ -326,7 +326,8 @@ export function Barra() {
   const [renombrando, setRenombrando] = useState<Renombrando | null>(null);
   // "Nueva tarea aquí": la carpeta del líder que está por nacer.
   const nuevaEn = useRef<string | null>(null);
-  const [ancho, setAncho] = useState(() => guardado(CLAVE_ANCHO, (c) => acotar(Number(c) || ANCHO), ANCHO));
+  // Las capturas `HILOS_VARIANTE=<x>-angosta` abren la barra en su ancho mínimo.
+  const [ancho, setAncho] = useState(() => guardado(CLAVE_ANCHO, (c) => acotar(Number(c) || ANCHO), MODO.variante?.endsWith("-angosta") ? ANCHO_MIN : ANCHO));
   const [abierta, setAbierta] = useState(() => vueltaInicial()?.abierta ?? guardado(CLAVE_ABIERTA, (c) => c !== "0", true));
   const reinicio = useReinicio();
   // Cuántos items esperan al usuario (el número del botón del Tablero, en el pie).

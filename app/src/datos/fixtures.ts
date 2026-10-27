@@ -1125,6 +1125,71 @@ export const USO_GOOGLE: Uso = {
   ],
 };
 
+/**
+ * La variante `cupos-todo`: Claude, Google con un grupo con 5 h y semana, uno sólo con 5 h y uno sin ventanas (desconocido), ChatGPT y OpenCode
+ * (una sola cuenta, plan Go con pedidos contados). `cupos-todo-dos`: lo mismo con una segunda cuenta de OpenCode («Casa», gratis, sin tope).
+ */
+export const USO_TODO: Uso = {
+  ...USO,
+  five_hour: { pct: 55, resets_at: AHORA + 1 * HORA + 20 * MIN },
+  seven_day: { pct: 31, resets_at: AHORA + 4 * DIA },
+  suscripciones: [
+    {
+      id: "google",
+      nombre: "Google AI Pro",
+      proveedor: "google",
+      ts: AHORA - 20,
+      grupos: [
+        {
+          id: "gemini",
+          nombre: "Gemini",
+          ventanas: [
+            { id: "5h", pct: 6, vuelve: AHORA + 1 * HORA + 20 * MIN },
+            { id: "7d", pct: 5, vuelve: AHORA + 5 * DIA + 6 * HORA },
+          ],
+        },
+        { id: "flash", nombre: "Gemini Flash", ventanas: [{ id: "5h", pct: 88, vuelve: AHORA + 3 * HORA + 5 * MIN }] },
+        { id: "claude-gpt", nombre: "Claude y GPT por Google", ventanas: [] },
+      ],
+    },
+    {
+      id: "chatgpt",
+      nombre: "ChatGPT",
+      proveedor: "chatgpt",
+      ts: AHORA - 20,
+      ventanas: [
+        { id: "5h", pct: 42, vuelve: AHORA + 2 * HORA + 30 * MIN },
+        { id: "7d", pct: 18, vuelve: AHORA + 6 * DIA },
+      ],
+    },
+    {
+      id: "opencode",
+      nombre: "OpenCode",
+      proveedor: "opencode",
+      ts: AHORA - 20,
+      ventanas: [
+        { id: "5h", pct: 24, vuelve: AHORA + 3 * HORA + 40 * MIN, pedidos: 290, tope: 1200 },
+        { id: "7d", pct: 9, vuelve: AHORA + 5 * DIA, pedidos: 1100, tope: 12000 },
+      ],
+    },
+  ],
+};
+
+export const USO_TODO_DOS: Uso = {
+  ...USO_TODO,
+  suscripciones: [
+    ...USO_TODO.suscripciones!,
+    {
+      id: "casa",
+      nombre: "Casa",
+      proveedor: "opencode",
+      cuenta: "casa",
+      ts: AHORA - 20,
+      ventanas: [{ id: "5h", pct: null, vuelve: null, pedidos: 37 }],
+    },
+  ],
+};
+
 /** La variante `cupos-marcado`: lo de `cupos-google`, pero «Claude y GPT» marcado sin cupo por un 429 (`agotado`), no medido. */
 export const USO_GOOGLE_MARCADO: Uso = {
   ...USO_GOOGLE,

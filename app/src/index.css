@@ -281,12 +281,22 @@ body,
 }
 @container (max-width: 17rem) {
   .grupo {
-    --g-nombre: 4.5rem;
+    --g-nombre: 5.5rem;
   }
   /* El logo no se esconde nunca: se achican el nombre y las barras, no la marca. */
   .g-hasta,
   .g-sub {
     display: none;
+  }
+}
+@container (max-width: 15rem) {
+  /* Más angosta: el nombre pasa arriba, a lo ancho, y las dos celdas debajo, así entran el nombre entero, el porcentaje y lo que falta para el reinicio. */
+  .grupo {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    row-gap: var(--esp-1);
+  }
+  .grupo > .g-id {
+    grid-column: 1 / -1;
   }
 }
 .g-id {
