@@ -1,7 +1,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { Subagente } from "../electron/subagentes.ts";
-import { activo, archivarSub, archivarTodosSubs, esSubArchivado, limpiarArchivadosSubs, ponerSubagentes } from "../src/barra/subagentes-logica.ts";
+import {
+  activo,
+  archivarSub,
+  archivarTodosSubs,
+  esSubArchivado,
+  limpiarArchivadosSubs,
+} from "../src/barra/subagentes-archivado.ts";
 
 test("los subagentes terminados se identifican como no activos y se pueden archivar", () => {
   limpiarArchivadosSubs();
@@ -53,19 +59,17 @@ test("los subagentes terminados se identifican como no activos y se pueden archi
   assert.equal(activo(terminado1, ahora), false);
   assert.equal(activo(terminado2, ahora), false);
 
-  ponerSubagentes({
-    "lider-a": [corriendo, terminado1, terminado2],
-  });
-
   assert.equal(esSubArchivado("lider-a", "sub-2"), false);
   archivarSub("lider-a", "sub-2");
   assert.equal(esSubArchivado("lider-a", "sub-2"), true);
   assert.equal(esSubArchivado("lider-a", "sub-3"), false);
 
-  archivarTodosSubs("lider-a", ahora);
+  archivarTodosSubs("lider-a", ahora, [corriendo, terminado1, terminado2]);
+  assert.equal(esSubArchivado("lider-a", "sub-1"), false);
+  assert.equal(esSubArchivado("lider-a", "sub-2"), true);
   assert.equal(esSubArchivado("lider-a", "sub-3"), true);
-  assert.equal(esSubArchivado("lider-a", "sub-1"), false, "el subagente corriendo no se archiva");
 
   limpiarArchivadosSubs();
   assert.equal(esSubArchivado("lider-a", "sub-2"), false);
+  assert.equal(esSubArchivado("lider-a", "sub-3"), false);
 });
