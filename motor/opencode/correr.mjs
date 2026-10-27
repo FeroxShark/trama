@@ -30,7 +30,7 @@ import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import { fileURLToPath } from "node:url";
 import os from "node:os";
 import path from "node:path";
-import { conModeloChico, esErrorCuota, esGratis, esModeloGo, mensajeCuotaGo, mensajeCuotaOpencode, parsearModelo, resolverOpencode } from "./config.mjs";
+import { conModeloChico, conPermisoFuera, esErrorCuota, esGratis, esModeloGo, mensajeCuotaGo, mensajeCuotaOpencode, parsearModelo, resolverOpencode } from "./config.mjs";
 
 /** ¿Es una cuenta agregada de OpenCode (la que pone `cuentas env`: TRAMA_OPENCODE_CUENTA con un id válido que no es la de siempre)? */
 export const cuentaAgregada = (env = process.env) => /^[a-z0-9][a-z0-9-]{0,39}$/.test(env.TRAMA_OPENCODE_CUENTA ?? "") && env.TRAMA_OPENCODE_CUENTA !== "opencode";
@@ -147,7 +147,7 @@ async function main() {
   mkdirSync(path.dirname(a.stream), { recursive: true });
   writeFileSync(a.stream, "");
   // Sin Go, el modelo chico de opencode (título, resumen) va a uno gratis: ver conModeloChico en config.mjs.
-  const env = { ...conModeloChico(process.env, os.homedir()) };
+  const env = { ...conPermisoFuera(conModeloChico(process.env, os.homedir()), "deny") };
   delete env.CLAUDE_CONFIG_DIR;
   env.PWD = path.resolve(a.cwd); // opencode toma su directorio de PWD, no de getcwd(): sin esto escribiría donde estaba el que lanzó a pa
   const bin = resolverOpencode(process.env, os.homedir());

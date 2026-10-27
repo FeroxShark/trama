@@ -126,3 +126,33 @@ export function conModeloChico(env = process.env, home = os.homedir(), leer = (f
   }
   return { ...env, OPENCODE_CONFIG_CONTENT: JSON.stringify({ ...previo, small_model: MODELO_CHICO_GRATIS }) };
 }
+
+/**
+ * Espejo de conPermisoFuera de app/electron/opencode.ts (duplicado a propósito): `permission.external_directory` en la config de opencode, `deny` en el
+ * runner `run` (sin ACP nadie contesta un permiso). Si la persona ya fijó external_directory (en OPENCODE_CONFIG_CONTENT o su config global) o un
+ * `permission` que no es objeto, no se toca.
+ */
+export function conPermisoFuera(env = process.env, valor = "deny", home = os.homedir(), leer = (f) => readFileSync(f, "utf8")) {
+  let previo = {};
+  if (env.OPENCODE_CONFIG_CONTENT) {
+    try {
+      previo = JSON.parse(env.OPENCODE_CONFIG_CONTENT);
+      if (!previo || typeof previo !== "object" || Array.isArray(previo)) return env;
+    } catch {
+      return env;
+    }
+  }
+  const permiso = previo.permission;
+  if (permiso !== undefined && (!permiso || typeof permiso !== "object" || Array.isArray(permiso))) return env;
+  if (permiso && "external_directory" in permiso) return env;
+  const base = env.XDG_CONFIG_HOME || path.join(home, ".config");
+  for (const f of [env.OPENCODE_CONFIG, path.join(base, "opencode", "opencode.json"), path.join(base, "opencode", "opencode.jsonc"), path.join(home, ".opencode", "opencode.json")]) {
+    if (!f) continue;
+    try {
+      if (/["']external_directory["']\s*:/.test(leer(f))) return env;
+    } catch {
+      /* sin ese archivo */
+    }
+  }
+  return { ...env, OPENCODE_CONFIG_CONTENT: JSON.stringify({ ...previo, permission: { ...permiso, external_directory: valor } }) };
+}

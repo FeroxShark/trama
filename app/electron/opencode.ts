@@ -208,6 +208,36 @@ export function conModeloChico(env: Env = process.env, home: string = os.homedir
   return { ...env, OPENCODE_CONFIG_CONTENT: JSON.stringify({ ...previo, small_model: MODELO_CHICO_GRATIS }) };
 }
 
+/**
+ * opencode 2.x ya no pregunta por defecto lo que sale de la carpeta de trabajo (`external_directory`): sin esta clave ni la política de dsh ni el runner
+ * ven el pedido. `ask` en el líder (ACP: politicaOpencode contesta); `deny` en el runner `run`. Se mezcla con lo que ya puso la persona: si ya fijó
+ * external_directory (en OPENCODE_CONFIG_CONTENT o en su config global) o un `permission` que no es objeto, no se toca. Ver conModeloChico.
+ */
+export function conPermisoFuera(env: Env = process.env, valor: "ask" | "deny", home: string = os.homedir(), leer: (f: string) => string = (f) => readFileSync(f, "utf8")): Env {
+  let previo: Record<string, unknown> = {};
+  if (env.OPENCODE_CONFIG_CONTENT) {
+    try {
+      previo = JSON.parse(env.OPENCODE_CONFIG_CONTENT);
+      if (!previo || typeof previo !== "object" || Array.isArray(previo)) return env;
+    } catch {
+      return env;
+    }
+  }
+  const permiso = previo.permission;
+  if (permiso !== undefined && (!permiso || typeof permiso !== "object" || Array.isArray(permiso))) return env;
+  if (permiso && "external_directory" in permiso) return env;
+  const base = env.XDG_CONFIG_HOME || path.join(home, ".config");
+  for (const f of [env.OPENCODE_CONFIG, path.join(base, "opencode", "opencode.json"), path.join(base, "opencode", "opencode.jsonc"), path.join(home, ".opencode", "opencode.json")]) {
+    if (!f) continue;
+    try {
+      if (/["']external_directory["']\s*:/.test(leer(f))) return env;
+    } catch {
+      /* sin ese archivo */
+    }
+  }
+  return { ...env, OPENCODE_CONFIG_CONTENT: JSON.stringify({ ...previo, permission: { ...(permiso as object | undefined), external_directory: valor } }) };
+}
+
 /** Las credenciales de OpenCode (`auth.json` en `$XDG_DATA_HOME/opencode` y en `~/.local/share/opencode`): los ids de proveedor con login. Nunca los valores. */
 export function proveedoresConLogin(env: Env = process.env, home: string = os.homedir()): string[] {
   const bases = [...new Set([env.XDG_DATA_HOME, path.join(home, ".local", "share")].filter((b): b is string => !!b))];

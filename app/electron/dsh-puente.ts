@@ -28,7 +28,7 @@ import os from "node:os";
 import { ClienteAcp, ErrorAcp, describirError, type BloqueAcp } from "./acp.ts";
 import { entornoAgy } from "./binario.ts";
 import { entornoDsh, escribirParche, esErrorCuota, falta, mensajeCuotaOpencode, parsearModelo, resolverDsh, valorModeloAcp } from "./dsh.ts";
-import { effortParaAcp, esModeloGo, politicaOpencode, entornoOpencode, esErrorCuota as esCuotaOc, mensajeCuotaOpencode as mensajeCuotaOc, parsearModelo as parsearOpencode, resolverOpencode } from "./opencode.ts";
+import { effortParaAcp, esModeloGo, politicaOpencode, entornoOpencode, conPermisoFuera, esErrorCuota as esCuotaOc, mensajeCuotaOpencode as mensajeCuotaOc, parsearModelo as parsearOpencode, resolverOpencode } from "./opencode.ts";
 import { esLimiteGratisOpencode, marcarModeloGoAgotado, marcarOpencodeAgotado } from "./opencode-agotado.ts";
 import { anotarPedidos, cuentaPedidos } from "./opencode-pedidos.ts";
 import { conCuentaOpencode, cuentaAgregadaDe } from "./opencode-cuenta.ts";
@@ -495,7 +495,7 @@ async function levantar(): Promise<void> {
     // opencode usa el login y la config de la persona (su HOME/XDG, sin tocarlos): el modelo se elige por ACP después de abrir la sesión.
     // Con TRAMA_OPENCODE_CUENTA=<id> corre con la cuenta agregada de OpenCode (su XDG_DATA_HOME y XDG_STATE_HOME; opencode-cuenta.ts): si no se puede armar, tira (no se usa
     // la de la persona en silencio). El entorno de la cuenta va ANTES de entornoOpencode: el modelo chico depende del plan de esa cuenta.
-    env = { ...entornoOpencode(entornoAgy(conCuentaOpencode(env0), os.homedir())), PWD: path.resolve(cwd) }; // opencode toma su directorio de PWD
+    env = { ...conPermisoFuera(entornoOpencode(entornoAgy(conCuentaOpencode(env0), os.homedir())), "ask"), PWD: path.resolve(cwd) }; // opencode toma su directorio de PWD
     comando = resolverOpencode(process.env, os.homedir());
     args = ["acp"];
   } else {
