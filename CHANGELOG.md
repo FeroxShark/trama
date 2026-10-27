@@ -1,5 +1,12 @@
 # Cambios
 
+## 0.2.6
+
+- OpenCode 2.x: los workers ya no pueden escribir fuera de su carpeta (cada corrida usa su propio servidor y la config bloquea lo de afuera; en el líder, pregunta).
+- OpenCode 2.x: una corrida que termina bien ya no se marca como fallida (2.x no cierra el último paso).
+- `pa`: rechaza modelos y esfuerzos apagados en Ajustes; fases, tareas y rúbrica para medir el rendimiento; `gate` para revisar el trabajo de un worker antes de integrarlo.
+- Ajustes > Modelos: contexto antes de compactar, por familia (Haiku 300k).
+
 ## 0.2.5
 
 - El aviso de Trama nueva aparece a los 30 min como mucho (antes 6 h).
