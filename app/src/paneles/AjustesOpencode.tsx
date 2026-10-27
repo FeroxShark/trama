@@ -1,14 +1,11 @@
 // Ajustes > OpenCode: lo que hace falta para usar OpenCode en trama. El programa `opencode` (instalado, versión, sesión, modelos, «Actualizar
-// modelos»), el plan (Gratis / Go / Go Plus; Gratis es como siempre y Go está APAGADO hasta elegirlo) y la clave de API de OpenCode (la de los
-// modelos de pago a través de dsh). Todo se aplica al toque, sin la barra de Guardar; elegir el plan y guardar la clave son sólo de la PC
-// (por la tailnet el main rechaza). Cada estado se dice con ícono y palabra, no sólo con color.
+// modelos») y la clave de API de OpenCode (la de los modelos de pago a través de dsh). El plan (Gratis / Go / Go Plus) es parte de la cuenta,
+// como el de Claude o Google: está en Plan y cupos (AjustesCupos.tsx), con su uso. Todo se aplica al toque, sin la barra de Guardar; guardar la
+// clave es sólo de la PC (por la tailnet el main rechaza). Cada estado se dice con ícono y palabra, no sólo con color.
 import { useEffect, useRef, useState } from "react";
-import { Check } from "lucide-react";
 import { VERSION } from "../datos/contrato";
-import { pedirModelos } from "../datos/modelos-config";
 import { fuentePaneles, type EstadoDsh, type EstadoOpencodeUi, type NombreClave, type Prueba } from "../datos/paneles";
-import { aplicarModelos } from "../hilo/opciones";
-import { t, textoMain, type ClaveSola } from "../i18n";
+import { t, textoMain } from "../i18n";
 import { Fijo } from "../i18n/Fijo";
 import { mensaje } from "../puente";
 import { Boton } from "../ui/componentes";
@@ -17,23 +14,12 @@ import { CampoClave, Estado, Resultado, type Probando } from "./AjustesDsh";
 import type { FilaDato } from "./AjustesEditar";
 import { Comando } from "./AjustesLocales";
 import { PanelCargando } from "./PanelCargando";
-
-type Plan = "gratis" | "go" | "go-plus";
-const PLANES: readonly { id: Plan; nombre: ClaveSola }[] = [
-  { id: "gratis", nombre: "ajustes.ocPlanGratis" },
-  { id: "go", nombre: "ajustes.ocPlanGo" },
-  { id: "go-plus", nombre: "ajustes.ocPlanGoPlus" },
-];
-
-/** El evento (en `window`) con que Ajustes > Plan y cupos se entera de que cambió el plan de OpenCode. */
-export const EVENTO_PLAN_OPENCODE = "trama:opencode-plan";
+import { EVENTO_PLAN_OPENCODE } from "./AjustesCupos";
 
 export function AjustesOpencode({ Dato }: { Dato: FilaDato }) {
   const [e, setE] = useState<EstadoOpencodeUi | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [actualizando, setActualizando] = useState(false);
-  const [guardando, setGuardando] = useState(false);
-  const [errPlan, setErrPlan] = useState<string | null>(null);
   // La clave de OpenCode (la que usa dsh) vive en el estado de dsh: acá sólo se ve si hay una y se guarda / borra / prueba.
   const [dsh, setDsh] = useState<EstadoDsh | null>(null);
   const [ocupado, setOcupado] = useState(false);
@@ -42,9 +28,15 @@ export function AjustesOpencode({ Dato }: { Dato: FilaDato }) {
   const vivo = useRef(true);
   useEffect(() => {
     vivo.current = true;
-    void fuentePaneles.estadoOpencode().then((r) => vivo.current && setE(r), (x) => vivo.current && setErr(mensaje(x)));
+    const leer = () => void fuentePaneles.estadoOpencode().then((r) => vivo.current && setE(r), (x) => vivo.current && setErr(mensaje(x)));
+    leer();
     void fuentePaneles.estadoDsh().then((r) => vivo.current && r.version === VERSION && setDsh(r), () => {});
-    return () => void (vivo.current = false);
+    // Cambió el plan en Plan y cupos: los modelos que se ofrecen (los de Go) cambian con él.
+    window.addEventListener(EVENTO_PLAN_OPENCODE, leer);
+    return () => {
+      vivo.current = false;
+      window.removeEventListener(EVENTO_PLAN_OPENCODE, leer);
+    };
   }, []);
 
   const actualizar = async () => {
@@ -57,24 +49,6 @@ export function AjustesOpencode({ Dato }: { Dato: FilaDato }) {
       if (vivo.current) setErr(mensaje(x));
     } finally {
       if (vivo.current) setActualizando(false);
-    }
-  };
-
-  const elegirPlan = async (plan: Plan) => {
-    if (guardando || plan === e?.plan) return;
-    setGuardando(true);
-    setErrPlan(null);
-    try {
-      await fuentePaneles.guardarPlanOpencode(plan);
-      window.dispatchEvent(new Event(EVENTO_PLAN_OPENCODE));
-      // Los modelos que se ofrecen cambian con el plan: el estado de acá y los selectores se piden de nuevo.
-      const r = await fuentePaneles.estadoOpencode();
-      if (vivo.current) setE(r);
-      void pedirModelos(5000).then((m) => m && aplicarModelos(m));
-    } catch (x) {
-      if (vivo.current) setErrPlan(mensaje(x));
-    } finally {
-      if (vivo.current) setGuardando(false);
     }
   };
 
@@ -130,33 +104,12 @@ export function AjustesOpencode({ Dato }: { Dato: FilaDato }) {
               )}
               {e.instalado && !e.consola ? <p className="ol-nota">{t("ajustes.ocLoginPie")}</p> : null}
               {e.instalado ? <p className="ol-nota">{t("ajustes.ocUsar")}</p> : null}
+              <p className="ol-nota">{t("ajustes.ocPlanEnCupos", { plan: t(e.plan === "go" ? "ajustes.ocPlanGo" : e.plan === "go-plus" ? "ajustes.ocPlanGoPlus" : "ajustes.ocPlanGratis") })}</p>
             </>
           ) : err ? null : (
             <PanelCargando />
           )}
           {err ? <div className="pn-error dsh-err" role="alert">{textoMain(err)}</div> : null}
-        </Dato>
-
-        <Dato nombre="ajustes.ocPlan" que="ajustes.ocPlanQue">
-          {e ? (
-            <>
-              {/* Un grupo de opciones con el elegido marcado con tilde y negrita además del color. */}
-              <div className="pn-letra oc-plan" role="radiogroup" aria-label={t("ajustes.ocPlanGrupo")} data-plan={e.plan}>
-                {PLANES.map((p) => (
-                  <button key={p.id} type="button" role="radio" aria-checked={p.id === e.plan} data-plan-id={p.id} disabled={guardando} onClick={() => void elegirPlan(p.id)}>
-                    {p.id === e.plan ? <Check size={14} strokeWidth={2.4} aria-hidden="true" /> : null}
-                    {t(p.nombre)}
-                  </button>
-                ))}
-                {guardando ? <span className="mdl-estado" role="status">{t("ajustes.ocPlanGuardando")}</span> : null}
-              </div>
-              <p className="ol-nota">{e.plan === "gratis" ? t("ajustes.ocPlanNotaGratis") : t("ajustes.ocPlanNotaGo", { n: e.go })}</p>
-              <p className="ol-nota">{t("ajustes.ocPlanTopes")}</p>
-            </>
-          ) : err ? null : (
-            <PanelCargando />
-          )}
-          {errPlan ? <div className="pn-error dsh-err" role="alert">{textoMain(errPlan)}</div> : null}
         </Dato>
 
         <Dato nombre="ajustes.dshOpencode" que="ajustes.dshOpencodeQue">

@@ -105,6 +105,26 @@ export function aResultado({ eventos, modelo, rc, stderr, segundos, gratis, trun
   };
 }
 
+/**
+ * Los pedidos de esta corrida al cupo de OpenCode (los gratis comparten uno; cada modelo de Go tiene el suyo): una línea en `opencode-pedidos.jsonl`,
+ * junto al agotado.json de `reparto` (REPARTO_STATE, o <PA_STATE o ~/.local/state/pa>/reparto). Lo lee la barra de la app (app/electron/opencode-pedidos.ts,
+ * mismo formato). Los de pago por uso no se anotan. Si no se puede escribir, la corrida sigue igual.
+ */
+export function anotarPedidos(modelo, n, env = process.env, home = os.homedir(), ahoraMs = Date.now()) {
+  const m = String(modelo).replace(/^opencode:/, "").toLowerCase();
+  if (!(n >= 1) || !(esGratis(m) || esModeloGo(m))) return false;
+  const dir = env.REPARTO_STATE || path.join(env.PA_STATE || path.join(home, ".local", "state", "pa"), "reparto");
+  try {
+    mkdirSync(dir, { recursive: true });
+    // `c`: la cuenta agregada de OpenCode con que corrió (TRAMA_OPENCODE_CUENTA, de `cuentas env`); sin ella, la de siempre.
+    const c = /^[a-z0-9][a-z0-9-]{0,39}$/.test(env.TRAMA_OPENCODE_CUENTA ?? "") ? { c: env.TRAMA_OPENCODE_CUENTA } : {};
+    appendFileSync(path.join(dir, "opencode-pedidos.jsonl"), JSON.stringify({ t: Math.floor(ahoraMs / 1000), m, n: Math.round(n), ...c }) + "\n");
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function main() {
   const a = argumentos(process.argv.slice(2));
   const salida = a.salida ?? null;
@@ -193,6 +213,7 @@ async function main() {
 
   const r = aResultado({ eventos, modelo: modeloPa, rc, stderr, segundos: (Date.now() - t0) / 1000, gratis: esGratis(prov.valor) || esModeloGo(prov.valor), truncado });
   escribirSalida(salida, r);
+  anotarPedidos(prov.valor, r.num_turns);
   if (rc === 127) process.stderr.write("opencode/correr: no está opencode (npm i -g opencode-ai, o HILOS_OPENCODE=<ruta>)\n");
   else if (r.is_error) process.stderr.write(`opencode/correr: la corrida falló: ${r.result.split("\n").at(-1)}\n`);
   process.exit(r.is_error ? (rc === 0 || truncado ? 1 : rc) : 0);

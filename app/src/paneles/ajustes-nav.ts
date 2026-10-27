@@ -36,7 +36,8 @@ export const ITEMS: readonly Item[] = [
   { cat: "cupos", nombre: "ajustes.planSus", que: "ajustes.planQue", sin: "suscripcion subscription pro max plan precio" },
   { cat: "cupos", nombre: "cu.claude", que: "cu.claudeQue", sin: "claude anthropic suscripcion subscription plan cupo quota ventana window 5h semana week conectar connect login" },
   { cat: "cupos", nombre: "cu.google", que: "cu.googleQue", sin: "google gemini agy ai pro suscripcion subscription plan cupo quota ventana window conectar connect login" },
-  { cat: "cupos", nombre: "cu.opencode", que: "cu.opencodeQue", sin: "opencode open code gratis free cupo quota agotado exhausted limite limit compartido shared" },
+  { cat: "cupos", nombre: "cu.opencode", que: "cu.opencodeQue", sin: "opencode open code gratis free cupo quota agotado exhausted limite limit compartido shared cuenta account conectar connect login pedidos requests uso usage" },
+  { cat: "cupos", nombre: "ajustes.ocPlan", que: "ajustes.ocPlanQue", sin: "opencode open code plan go plus pago paid suscripcion subscription gratis free topes limites limits cupo quota modelos models" },
   { cat: "cupos", nombre: "cu.opencodeGo", que: "cu.opencodeGoQue", sin: "opencode open code go plus plan pago paid topes limites limits pedidos requests 5h cinco horas five hours cupo quota agotado exhausted uso usage modelo model" },
   { cat: "cupos", nombre: "cu.chatgpt", que: "cu.chatgptQue", sin: "chatgpt openai codex gpt suscripcion subscription plan cupo quota conectar connect login" },
   { cat: "cupos", nombre: "cu.topesGoogle", que: "cu.topesQue", sin: "google gemini agy tope limite limit cupo quota llena full codigo code umbral threshold porcentaje percent" },
@@ -51,7 +52,6 @@ export const ITEMS: readonly Item[] = [
   { cat: "locales", nombre: "ajustes.mdlLocalesAgregados", que: "ajustes.mdlLocalesQue", sin: "ollama locales agregados added direccion address url servidor server quitar remove" },
 
   { cat: "opencode", nombre: "ajustes.ocPrograma", que: "ajustes.ocProgramaQue", sin: "opencode open code gratis free connect login console zen modelos models actualizar refresh instalar install" },
-  { cat: "opencode", nombre: "ajustes.ocPlan", que: "ajustes.ocPlanQue", sin: "opencode open code plan go plus pago paid suscripcion subscription gratis free topes limites limits cupo quota modelos models" },
   { cat: "dsh", nombre: "ajustes.dshPrograma", que: "ajustes.dshProgramaQue", sin: "dsh deepseek harness instalar install npm version programa" },
   { cat: "opencode", nombre: "ajustes.dshOpencode", que: "ajustes.dshOpencodeQue", sin: "opencode zen clave key api token pago paid modelos dsh" },
   { cat: "dsh", nombre: "ajustes.dshDeepseek", que: "ajustes.dshDeepseekQue", sin: "deepseek clave key api token probar test v4 flash" },

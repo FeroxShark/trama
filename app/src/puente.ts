@@ -344,6 +344,7 @@ type Main = {
     renombrar(id: string, nombre: string): Promise<unknown>;
     quitar(id: string, borrarCredenciales: boolean): Promise<unknown>;
     login(id: string): Promise<unknown>;
+    plan(id: string, plan: string): Promise<unknown>;
   };
   /** Por la tailnet (el celular): `false` cuando se cae la conexión con la PC, `true` al volver. En la ventana no avisa nunca. */
   conexion: {

@@ -107,6 +107,7 @@
 #   pa --archivar <id>                   sacarla de la vista de la app (no toca su resultado); se niega (92) si sigue viva;
 #                                        también: pa <proyecto> --archivar <id>
 #   pa --gemini-proyectos                Gemini corre en todos los proyectos: no hay lista (--marcar/--desmarcar no hacen nada)
+#   pa --version                         la versión de Trama (la de app/package.json)
 #   pa <proyecto> --integrar <id> --tests  corre el `tests` del registry sobre la rama ya rebaseada antes de mergear; rojo: 93
 #   pa <proyecto> --id ID ...            apuntar a esa corrida: con --seguir retoma ésa (y su puesto/rama), con --matar baja
 #                                        sólo ésa, con --leer lee lo que dejó ésa (el id que imprime --async)
@@ -266,7 +267,7 @@ modelo_local() {
 }
 if modelo_local; then
   case "${1:-}" in
-    --estado|--brief|--hilos|--hilo|--modelos|-h|--help|--ayuda) local_pasa=1 ;;
+    --estado|--brief|--hilos|--hilo|--modelos|--version|-h|--help|--ayuda) local_pasa=1 ;;
     --plan) [[ -z "${2:-}" || "${2:-}" == ver ]] && local_pasa=1 ;;
     *) [[ $# -eq 2 && "${2:-}" == --ramas ]] && local_pasa=1 ;;
   esac
@@ -3537,15 +3538,17 @@ CUENTAS="${PA_CUENTAS_BIN:-$_BIN/cuentas}"
 CUENTAS_JSON="${TRAMA_CUENTAS:-${TRAMA_CUENTAS_HOME:-$HOME}/.config/trama/cuentas.json}"
 cuenta="" cuenta_flag="" cuenta_seguir="" cuenta_env=()
 proveedor_de_modelo() { if es_local "$1" || es_dsh "$1"; then echo ""; elif es_codex "$1"; then echo chatgpt; elif es_gemini "$1"; then echo google; else echo claude; fi; }
+# La cuenta: opencode:* también tiene cuentas (bin/cuentas, proveedor opencode); para reparto (--mismo-proveedor) sigue sin proveedor.
+proveedor_cuenta_de() { if es_opencode "$1"; then echo opencode; else proveedor_de_modelo "$1"; fi; }
 cuenta_proveedor() {   # $1 = id de cuenta -> su proveedor (nada si no existe)
-  case "$1" in claude|google|chatgpt) echo "$1"; return ;; esac
+  case "$1" in claude|google|chatgpt|opencode) echo "$1"; return ;; esac
   [[ -f "$CUENTAS_JSON" ]] && jq -r --arg i "$1" 'first(.cuentas[]? | select(.id == $i) | .proveedor) // empty' "$CUENTAS_JSON" 2>/dev/null
 }
 cuenta_preparar() {   # $1 = id, $2 = proveedor del modelo -> cuenta y cuenta_env; 1 (con aviso) si no va
   local id="$1" prov="$2" j p
   cuenta_env=()
   case "$id" in
-    claude|google|chatgpt)
+    claude|google|chatgpt|opencode)
       [[ "$id" == "$prov" ]] || { echo "pa: la cuenta '$id' es de $id y el modelo '$modelo' es de $prov." >&2; return 1; }
       cuenta="$id"; return 0 ;;
   esac
@@ -3559,6 +3562,8 @@ cuenta_preparar() {   # $1 = id, $2 = proveedor del modelo -> cuenta y cuenta_en
 }
 cuenta_elegir() {   # $1 = proveedor -> la cuenta con más cupo libre (la de siempre si es la única)
   local prov="$1" c=""
+  # OpenCode: reparto no sabe el cupo de cada cuenta (lo cuenta la app): la de siempre, salvo --cuenta.
+  [[ "$prov" == opencode ]] && { echo opencode; return 0; }
   [[ -f "$CUENTAS_JSON" ]] && jq -e --arg p "$prov" 'any(.cuentas[]?; .proveedor == $p and .id != $p)' "$CUENTAS_JSON" >/dev/null 2>&1 \
     || { echo "$prov"; return 0; }
   # La que eligió reparto junto con el modelo (si sigue siendo de este proveedor: agy pudo caer a Claude).
@@ -4671,6 +4676,10 @@ case "${1:-}" in
   --limpiar) shift; cmd_limpiar "$@"; exit $? ;;
   --nota) [[ -n "${2:-}" ]] || { echo "uso: pa --nota \"<texto>\"  (pedido de $(nombre_dueno), decisión, qué sigue)" >&2; exit 2; }
           anotar "$2"; echo "pa: anotado."; exit 0 ;;
+  # La versión sale de app/package.json, al lado de motor/ (el checkout, o el árbol que instala instalar-producto.sh).
+  --version)
+    _v="$(jq -r '.version // empty' "$(dirname "$(dirname "$_BIN")")/app/package.json" 2>/dev/null || true)"
+    echo "pa ${_v:-desconocida}"; exit 0 ;;
   -h|--help|--ayuda)
     awk 'NR>1 && /^#/{sub(/^# ?/,""); print; next} NR>1{exit}' "$0"; exit 0 ;;
 esac
@@ -5041,7 +5050,7 @@ if (( lanza )) && es_dsh "$modelo"; then
     if (( ${!v_no_va} )); then echo "pa: ${no_va#*:} no va con '$modelo'. Sacalo, o usá un modelo Claude." >&2; exit 2; fi
   done
   [[ -n "$max_budget" ]] && { echo "pa: --max-budget-usd no va con '$modelo' ($eng_n no mide el gasto en US\$)." >&2; exit 2; }
-  [[ -n "$cuenta_flag" ]] && { echo "pa: --cuenta no va con '$modelo': $eng_n no usa ninguna suscripción de pa." >&2; exit 2; }
+  [[ -n "$cuenta_flag" ]] && ! es_opencode "$modelo" && { echo "pa: --cuenta no va con '$modelo': $eng_n no usa ninguna suscripción de pa." >&2; exit 2; }
   if [[ -z "${PA_ASYNC:-}" ]]; then
     dsh_chequear "$modelo"
     if [[ -z "$motivo_cae" ]]; then
@@ -5064,9 +5073,9 @@ if (( lanza )) && [[ "$motor" != agy ]]; then
     echo "pa: la cuenta $cuenta_flag es de agy y caí a $modelo: uso una cuenta de Claude." >&2
     cuenta_flag=""
   fi
-  cuenta_resolver "$(proveedor_de_modelo "$modelo")"
+  cuenta_resolver "$(proveedor_cuenta_de "$modelo")"
 fi
-[[ -n "$cuenta" && "$cuenta" != claude && "$cuenta" != google && "$cuenta" != chatgpt ]] && echo "pa: cuenta $cuenta." >&2
+[[ -n "$cuenta" && "$cuenta" != claude && "$cuenta" != google && "$cuenta" != chatgpt && "$cuenta" != opencode ]] && echo "pa: cuenta $cuenta." >&2
 # --- modelo local (ollama:*): validar y probar el servidor antes de lanzar nada -----------------
 # Lo prueba el padre de --async (o el pa en primer plano); el hijo recibe el mismo -m y no repite.
 local_url="" local_modelo=""
@@ -5991,10 +6000,11 @@ correr() {
     # (cabe cualquier largo y no se ve en `ps`); las keys, sólo en este proceso y sólo las que el proveedor usa.
     dsh_tarea="$dir/$ts.dsh-tarea"; ( umask 077; printf '%s' "$dsh_prompt" >"$dsh_tarea" )
     if es_opencode "$modelo"; then
-      # opencode usa el login de la persona (su HOME/XDG, tal cual): ninguna key de pa viaja.
+      # opencode usa el login de la persona (su HOME/XDG, tal cual): ninguna key de pa viaja. Una cuenta agregada de OpenCode
+      # (cuenta_env: `env XDG_DATA_HOME=<su carpeta> TRAMA_OPENCODE_CUENTA=… TRAMA_OPENCODE_PLAN=…`) va SÓLO en este proceso.
       ( cd "$ruta_trabajo" || exit 1
         export PA_WORKER=1 GIT_EDITOR=true GIT_SEQUENCE_EDITOR=true PATH="$CODEX_SHIMS:$PATH" HILOS_OPENCODE="$(opencode_bin)"
-        exec node "$OC_CORRER" "${args[@]}" --tarea-archivo "$dsh_tarea" ) \
+        exec "${cuenta_env[@]}" node "$OC_CORRER" "${args[@]}" --tarea-archivo "$dsh_tarea" ) \
           </dev/null >/dev/null 2>"$err" 9>&- 8>&- 6>&- 5>&- &
     else
     ( cd "$ruta_trabajo" || exit 1

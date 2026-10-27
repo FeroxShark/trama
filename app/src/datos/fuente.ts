@@ -13,7 +13,7 @@ import { MODO } from "../modo";
 import { t, textoMain } from "../i18n";
 import { comoSettle, GENERAL, type ComandoClaude, type Estilos, type EventoLider, type EventoPa, type Hilo, type Leidos, type Mensaje, type Nombres, type Orden, type RespuestaHilo, type RespuestaHilos, type RespuestaLideres, type Retomado, retomadoDe, type Statusline, type Traido, traidoDe, type Tokens, type Uso } from "./contrato";
 import { hiloDePa } from "./paHilo";
-import { listaValida, resultadoValido, type ListaCuentas, type PerfilCuenta, type ProveedorCuenta, type ResultadoCuenta } from "./cuentas";
+import { listaValida, resultadoValido, type ListaCuentas, type PerfilCuenta, type PlanCuentaOc, type ProveedorCuenta, type ResultadoCuenta } from "./cuentas";
 import { ordenDe } from "../barra/orden";
 import { consumoDe, consumoFijo, type Consumo, type Pedido } from "./consumo";
 import { cambioDe, vistaDe, type CambioPasos, type VistaPasos } from "./pasos";
@@ -253,6 +253,8 @@ export interface Fuente {
   quitarCuenta(id: string, borrarCredenciales: boolean): Promise<ResultadoCuenta>;
   /** El inicio de sesión de esa cuenta en una terminal de la PC; vuelve cuando la persona termina. */
   loginCuenta(id: string): Promise<ResultadoCuenta>;
+  /** El plan de OpenCode (gratis / go / go-plus) de una cuenta agregada de OpenCode (`cuentas plan`). */
+  planCuenta(id: string, plan: PlanCuentaOc): Promise<ResultadoCuenta>;
   /** Relanzar con la versión nueva los líderes que no están respondiendo. */
   reiniciarLideres(): Promise<{ reiniciados: number; ocupados: number }>;
 }
@@ -737,6 +739,11 @@ function cuentasFijas() {
       await pausa(MODO.variante === "cuentas-login-lento" ? 60_000 : 700);
       if (!lista.some((c) => c.id === id)) return falta();
       lista = lista.map((c) => (c.id === id ? { ...c, logueado: true } : c));
+      return ok;
+    },
+    async planCuenta(id: string, plan: PlanCuentaOc): Promise<ResultadoCuenta> {
+      if (!lista.some((c) => c.id === id && c.proveedor === "opencode" && !c.defecto)) return falta();
+      lista = lista.map((c) => (c.id === id ? { ...c, plan } : c));
       return ok;
     },
   };
@@ -1512,6 +1519,9 @@ const conPa = (m: NonNullable<typeof main>): Fuente => ({
   },
   async loginCuenta(id) {
     return resultadoValido(await m.cuentas.login(id).catch(() => null));
+  },
+  async planCuenta(id, plan) {
+    return resultadoValido(await m.cuentas.plan(id, plan).catch(() => null));
   },
   alCambiarAvisoAgy(fn) {
     return m.agy.alCambiar((a) => fn(avisoValido(a)));

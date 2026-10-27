@@ -13,7 +13,7 @@ export function textoEstado(r: ResumenCupo, ahoraS = Date.now() / 1000): string 
     case "bajo":
       return t("cu.st.bajo");
     case "sin":
-      return t("cu.st.sin");
+      return r.pedidos !== undefined ? t("cu.st.contados", { n: r.pedidos }) : t("cu.st.sin");
     case "lleno":
       return r.vuelve !== null ? t("cu.st.lleno", { cuando: cuandoFuturo(r.vuelve, ahoraS) }) : t("cu.st.llenoSin");
     case "marcado":

@@ -1,6 +1,7 @@
 // La cabecera de la barra. Arriba, sólo el logo de trama (sin la palabra: gana lugar), releer y
 // ocultar la barra; abajo, el uso de cada suscripción conectada, un renglón cada una: su logo y nombre
-// (Claude y las que dice `reparto --cupos`: Google AI Pro, y las que vengan, sin tocar esto) y, en columnas
+// (Claude, las que dice `reparto --cupos`: Google AI Pro, y las que vengan, sin tocar esto, y OpenCode con los pedidos que cuenta
+// Trama: electron/opencode-pedidos.ts) y, en columnas
 // alineadas, una celda por ventana: a la izquierda, cuánto falta para que se reinicie ("4 h 23 min", exacto y
 // corto; se repinta solo, una vez por minuto) y a la derecha el porcentaje, con un riel finito (ámbar desde
 // 70 %, rojo desde 90 %). El tooltip de cada celda (CSS, con el mouse o con foco; no el title nativo) dice a
@@ -52,6 +53,8 @@ type Celda = {
   off?: boolean;
   /** El grupo está marcado sin cupo hasta (epoch s) por un 429: una marca, no una medida. */
   marcado?: number;
+  /** Pedidos contados por Trama (OpenCode): sin porcentaje (los gratis no tienen tope publicado), la celda dice cuántos van. */
+  pedidos?: number;
 };
 
 /** Cómo se llama una ventana en el tooltip (`5h`, `7d`; una desconocida, su id). */
@@ -147,9 +150,16 @@ function celdaDe(clave: "5h" | "7d", v: Ventana | null): Celda {
   return { clave, ventana: ventanaDe(clave), pct: f.pct, hasta: f.hasta ?? 0 };
 }
 
-/** Una ventana de `reparto` como celda. */
+/** Una ventana de `reparto` como celda. Con pedidos contados (OpenCode), el tooltip dice cuántos van y de qué tope. */
 function celdaCupo(v: VentanaCupo | null): Celda | null {
-  return v && { clave: v.id, ventana: ventanaDe(v.id), pct: v.pct, hasta: v.vuelve ?? 0, cupo: true, ...(v.deshabilitada ? { off: true } : {}) };
+  if (!v) return null;
+  const ventana =
+    v.pedidos === undefined
+      ? ventanaDe(v.id)
+      : v.tope
+        ? t("uso.ventanaPedidos", { ventana: ventanaDe(v.id), n: v.pedidos.toLocaleString(), tope: v.tope.toLocaleString() })
+        : t("uso.ventanaPedidosSin", { ventana: ventanaDe(v.id), n: v.pedidos.toLocaleString() });
+  return { clave: v.id, ventana, pct: v.pct, hasta: v.vuelve ?? 0, cupo: true, ...(v.deshabilitada ? { off: true } : {}), ...(v.pedidos !== undefined ? { pedidos: v.pedidos } : {}) };
 }
 
 const celdasCupo = (ventanas: VentanaCupo[]) => columnas(ventanas).map(celdaCupo);
@@ -166,7 +176,9 @@ function ChipGrupo({ g, r }: { g: GrupoCupo; r: ResumenCupo }) {
     r.estado === "ok" || r.estado === "bajo"
       ? `${r.pct}%`
       : r.estado === "sin"
-        ? "—"
+        ? r.pedidos !== undefined
+          ? t("uso.pedidosCorto", { n: r.pedidos.toLocaleString() })
+          : "—"
         : r.estado === "marcado"
           ? t("cu.w.marcadoCorto")
           : r.vuelve !== null
@@ -379,7 +391,7 @@ function UsoCelda({ c, quien, ts, ver }: { c: Celda; quien: string; ts: number; 
     <div
       className="uso"
       tabIndex={0}
-      aria-label={pct === null ? t("uso.ariaSinDato", { largo }) : t("uso.aria", { largo, pct })}
+      aria-label={pct === null ? (c.pedidos !== undefined ? largo : t("uso.ariaSinDato", { largo })) : t("uso.aria", { largo, pct })}
       data-nivel={n === "normal" ? undefined : n}
       data-sin={pct === null ? "" : undefined}
       data-ver={ver ? "" : undefined}
@@ -394,7 +406,11 @@ function UsoCelda({ c, quien, ts, ver }: { c: Celda; quien: string; ts: number; 
         ) : (
           <span className="n">—</span>
         )}
-        {pct === null ? <span className="sd">{c.cupo ? "—" : t("uso.sinDato")}</span> : pct >= 100 && hasta > 0 ? null : <Reloj pintor={numero} className="pct" />}
+        {pct === null ? (
+          <span className="sd">{c.pedidos !== undefined ? t("uso.pedidosCorto", { n: c.pedidos.toLocaleString() }) : c.cupo ? "—" : t("uso.sinDato")}</span>
+        ) : pct >= 100 && hasta > 0 ? null : (
+          <Reloj pintor={numero} className="pct" />
+        )}
         {pct !== null && pct >= 100 && <Ban className="uso-lleno" size={10} strokeWidth={2.4} aria-hidden="true" />}
       </div>
       <div className="riel">{pct !== null && <i style={{ transform: `scaleX(${pct / 100})` }} />}</div>
@@ -402,7 +418,7 @@ function UsoCelda({ c, quien, ts, ver }: { c: Celda; quien: string; ts: number; 
         {pct === null ? (
           <>
             <span className="tip-t">{largo}</span>
-            <span className="tip-l">{c.cupo ? t("uso.sinDatoCupo") : t("uso.sinDatoTip")}</span>
+            <span className="tip-l">{c.pedidos !== undefined ? t("uso.pedidosTip") : c.cupo ? t("uso.sinDatoCupo") : t("uso.sinDatoTip")}</span>
           </>
         ) : (
           <Reloj pintor={explica} className="tip-t" />

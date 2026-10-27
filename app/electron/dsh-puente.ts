@@ -30,6 +30,7 @@ import { entornoAgy } from "./binario.ts";
 import { entornoDsh, escribirParche, esErrorCuota, falta, mensajeCuotaOpencode, parsearModelo, resolverDsh, valorModeloAcp } from "./dsh.ts";
 import { effortParaAcp, esModeloGo, politicaOpencode, entornoOpencode, esErrorCuota as esCuotaOc, mensajeCuotaOpencode as mensajeCuotaOc, parsearModelo as parsearOpencode, resolverOpencode } from "./opencode.ts";
 import { esLimiteGratisOpencode, marcarModeloGoAgotado, marcarOpencodeAgotado } from "./opencode-agotado.ts";
+import { anotarPedidos, cuentaPedidos } from "./opencode-pedidos.ts";
 import { textoT } from "./errores.ts";
 import { leerClavesSync, type NombreClave } from "./claves.ts";
 import { cortesDeEntorno, sinCortadas } from "./cortes.ts";
@@ -228,6 +229,9 @@ class Traductor {
   /** Lo último que dijo `usage_update`: lo que pesa el contexto y la ventana del modelo. */
   usado = 0;
   ventana = 0;
+  /** Los pedidos al modelo en este turno (OpenCode manda un `usage_update` por paso) y si dijo algo: lo que se cuenta del cupo (opencode-pedidos.ts). */
+  pasos = 0;
+  hablo = false;
   private buf: { id: string; pensado: string; texto: string; bloque: "" | "thinking" | "text"; indice: number } | null = null;
   private herramientas = new Map<string, { name: string; input: Obj; emitida: boolean; resultado: boolean }>();
   private n = 0;
@@ -244,6 +248,7 @@ class Traductor {
 
   /** Un `session/update` → las líneas de Claude. */
   actualizacion(u: Obj): Obj[] {
+    if (u.sessionUpdate === "agent_message_chunk" || u.sessionUpdate === "agent_thought_chunk" || u.sessionUpdate === "tool_call") this.hablo = true;
     switch (u.sessionUpdate) {
       case "agent_thought_chunk":
         return this.trozo(u, "thinking");
@@ -254,6 +259,7 @@ class Traductor {
       case "tool_call_update":
         return this.resultado(u);
       case "usage_update":
+        this.pasos++;
         if (typeof u.used === "number") this.usado = u.used;
         if (typeof u.size === "number") this.ventana = u.size;
         return [];
@@ -700,6 +706,8 @@ async function turno(m: Mensaje) {
   for (const o of ultimo.cerrarAbiertas(interrumpido ? "Interrumpido." : (error ?? "El turno terminó antes de que esta herramienta contestara."))) salida(o);
   for (const o of ultimo.fin(error, Date.now() - t0)) salir(o);
   if (ultimo.usado) guardarLado(acpSid ?? leerLado().acp_session, ultimo.usado);
+  // Los gratis y los de Go tienen cupo: se cuentan los pedidos de este turno (sin `usage_update`, uno si el modelo contestó algo).
+  if (oc && cuentaPedidos(oc.valor)) anotarPedidos(oc.valor, ultimo.pasos || (ultimo.hablo ? 1 : 0));
   cerrarTurno();
 }
 

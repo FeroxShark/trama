@@ -8,6 +8,8 @@ const NOMBRES: Record<string, { largo: ClaveSola; corto: ClaveSola; que?: ClaveS
   "claude-gpt": { largo: "cu.g.claude-gpt", corto: "cu.gc.claude-gpt", que: "cu.gd.claude-gpt" },
   "gemini-4-argon": { largo: "cu.g.gemini-4-argon", corto: "cu.gc.gemini-4-argon", que: "cu.gd.gemini-4-argon" },
   codex: { largo: "cu.g.codex", corto: "cu.gc.codex" },
+  "opencode-free": { largo: "cu.g.opencode-free", corto: "cu.gc.opencode-free", que: "cu.gd.opencode-free" },
+  "opencode-go": { largo: "cu.g.opencode-go", corto: "cu.gc.opencode-go", que: "cu.gd.opencode-go" },
 };
 
 /** El nombre entero ("Claude and GPT models"). */

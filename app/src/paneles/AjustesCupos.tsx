@@ -1,4 +1,4 @@
-// Ajustes > Plan y cupos: una tarjeta por suscripción (Claude, Google AI Pro, ChatGPT) con su logo, si está conectada, el plan y
+// Ajustes > Plan y cupos: una tarjeta por suscripción (Claude, Google AI Pro, ChatGPT, OpenCode) con su logo, si está conectada, el plan y
 // cada ventana con su barra y cuándo vuelve; abajo, lo que se escribe en `modelos.json` (guardar un % para mis sesiones y qué hace
 // `pa` si un proveedor se queda sin cupo). Trabaja sobre el borrador de AjustesModelos (nada se escribe hasta Guardar). Los textos que
 // cambian con el tiempo ("vuelve en 20 h") los escribe el reloj, no React.
@@ -9,12 +9,13 @@ import { LogoCaja, type Proveedor } from "../ui/logos";
 import type { GrupoCupo, SuscripcionCupo, Uso, VentanaCupo } from "../datos/contrato";
 import { fuente, type CuentaEstado, type EstadoCuentas } from "../datos/fuente";
 import { Selector } from "../hilo/Selector";
-import { Logo } from "../hilo/Logos";
-import { goAgotadosHasta, opencodeAgotadoDe } from "../hilo/agotados";
-import { fuentePaneles, type VistaPlanGo } from "../datos/paneles";
+import { goAgotadosHasta } from "../hilo/agotados";
+import { fuentePaneles, type EstadoOpencodeUi, type VistaPlanGo } from "../datos/paneles";
+import { pedirModelos } from "../datos/modelos-config";
+import { aplicarModelos } from "../hilo/opciones";
 import { nombreOpencode } from "../hilo/modelos";
-import { EVENTO_PLAN_OPENCODE } from "./AjustesOpencode";
-import { t, type ClaveSola } from "../i18n";
+import { mensaje } from "../puente";
+import { t, textoMain, type ClaveSola } from "../i18n";
 import { enOtros } from "../i18n/Fijo";
 import { useIdioma } from "../i18n/react";
 import { Reloj } from "../barra/piezas";
@@ -76,7 +77,7 @@ function Ventana({ v }: { v: VentanaCupo }) {
           <span className="cu-nota">{t("cu.w.noAplicaQue")}</span>
         </>
       ) : est === "sin" ? (
-        <span className="cu-sin">{t("uso.sinDatoCupo")}</span>
+        <span className="cu-sin">{v.pedidos !== undefined ? t("cu.w.pedidosSin", { n: v.pedidos.toLocaleString() }) : t("uso.sinDatoCupo")}</span>
       ) : (
         <>
           <div className="ui-bar" data-tono={est === "lleno" ? "critico" : est === "bajo" ? "aviso" : undefined}>
@@ -93,6 +94,7 @@ function Ventana({ v }: { v: VentanaCupo }) {
               {t("cu.w.usado", { pct: Math.round(v.pct ?? 0) })}
             </span>
           )}
+          {v.pedidos !== undefined && v.tope ? <span className="cu-nota">{t("cu.w.pedidosDe", { n: v.pedidos.toLocaleString(), tope: v.tope.toLocaleString() })}</span> : null}
           <Vuelve epoch={v.vuelve} />
         </>
       )}
@@ -229,7 +231,7 @@ function Conectar({ id, c, como, alMirar }: { id: Proveedor; c: CuentaEstado | u
         aria-expanded={abierto}
         onClick={() => {
           setAbierto((a) => !a);
-          if (puente && id !== "chatgpt" && c?.instalado) void puente.conectar(id === "claude" ? "claude" : "gemini");
+          if (puente && (id === "claude" || id === "google") && c?.instalado) void puente.conectar(id === "claude" ? "claude" : "gemini");
         }}
       >
         {t("cu.conectar")}
@@ -256,13 +258,35 @@ function CupoDe({ uso, proveedor, perfil }: { uso: Uso | null; proveedor: Provee
  * Las cuentas de un proveedor cuando hay más de una: una fila por cuenta con su nombre, su estado y su cupo (`deSiempre`: lo de
  * siempre para la principal). Con una sola, `null` y la tarjeta se ve como siempre.
  */
-function ListaCuentas({ proveedor, perfiles, uso, deSiempre, alCambiar }: { proveedor: ProveedorCuenta; perfiles: PerfilCuenta[]; uso: Uso | null; deSiempre: ReactNode; alCambiar: () => void }) {
+function ListaCuentas({
+  proveedor,
+  perfiles,
+  uso,
+  deSiempre,
+  alCambiar,
+  extra,
+}: {
+  proveedor: ProveedorCuenta;
+  perfiles: PerfilCuenta[];
+  uso: Uso | null;
+  deSiempre: ReactNode;
+  alCambiar: () => void;
+  /** Lo propio de una cuenta agregada debajo de su cupo (OpenCode: su plan). */
+  extra?: (p: PerfilCuenta) => ReactNode;
+}) {
   if (perfiles.length < 2) return null;
   return (
     <div className="cu-cuentas">
       {perfiles.map((p) => (
         <CuentaFila key={p.id} perfil={p} alCambiar={alCambiar}>
-          {p.defecto ? deSiempre : <CupoDe uso={uso} proveedor={proveedor} perfil={p} />}
+          {p.defecto ? (
+            deSiempre
+          ) : (
+            <>
+              <CupoDe uso={uso} proveedor={proveedor} perfil={p} />
+              {extra?.(p)}
+            </>
+          )}
         </CuentaFila>
       ))}
     </div>
@@ -373,99 +397,197 @@ export function CuposTarjetas({ b, uso, plan }: { b: Borrador; uso: Uso | null; 
         </div>
 
         <div data-opc="cu.opencode">
-          <TarjetaOpencode uso={uso} />
+          <TarjetaOpencode uso={uso} perfiles={cuentasDe(lista, "opencode")} lista={!!lista} alCambiar={alCambiarCuentas} />
         </div>
-        <TarjetaOpencodeGo uso={uso} />
       </div>
     </section>
   );
 }
 
-/** OpenCode: sus modelos gratis comparten UN cupo (no hay cuentas que rotar); acá se ve si está disponible o agotado y cuándo se renueva. */
-function TarjetaOpencode({ uso }: { uso: Uso | null }) {
-  const hasta = opencodeAgotadoDe(uso);
+type PlanOc = VistaPlanGo["plan"];
+const PLANES_OC: readonly { id: PlanOc; nombre: ClaveSola }[] = [
+  { id: "gratis", nombre: "ajustes.ocPlanGratis" },
+  { id: "go", nombre: "ajustes.ocPlanGo" },
+  { id: "go-plus", nombre: "ajustes.ocPlanGoPlus" },
+];
+
+/** El evento (en `window`) con que Ajustes > OpenCode se entera de que cambió el plan (los modelos que se ofrecen cambian con él). */
+export const EVENTO_PLAN_OPENCODE = "trama:opencode-plan";
+
+const nombrePlanOc = (p: PlanOc) => (p === "go" ? t("ajustes.ocPlanGo") : p === "go-plus" ? t("ajustes.ocPlanGoPlus") : t("ajustes.ocPlanGratis"));
+
+/**
+ * El plan de una cuenta de OpenCode: un grupo de opciones con el elegido marcado con tilde y negrita además del color. `opc`: la fila que encuentra
+ * el buscador de Ajustes (sólo la de la cuenta de siempre). `nota`: lo que dice debajo (con Go, cuántos modelos se ofrecen).
+ */
+function PlanOpencode({ plan, guardando, deshabilitado, error, nota, opc, alElegir }: { plan: PlanOc; guardando: boolean; deshabilitado?: boolean; error: string | null; nota: string; opc?: string; alElegir: (p: PlanOc) => void }) {
   return (
-    <Tarjeta>
-      <div className="cu-cab">
-        <span className="cu-logo"><Logo empresa="opencode" /></span>
-        <h4 className="cu-nombre">{t("cu.opencode")}</h4>
+    <div className="cu-oc-plan" data-opc={opc}>
+      <div className="cu-grupo-n">{t("ajustes.ocPlan")}</div>
+      <div className="pn-letra oc-plan" role="radiogroup" aria-label={t("ajustes.ocPlanGrupo")} data-plan={plan}>
+        {PLANES_OC.map((p) => (
+          <button key={p.id} type="button" role="radio" aria-checked={p.id === plan} data-plan-id={p.id} disabled={guardando || deshabilitado} onClick={() => p.id !== plan && alElegir(p.id)}>
+            {p.id === plan ? <Check size={14} strokeWidth={2.4} aria-hidden="true" /> : null}
+            {t(p.nombre)}
+          </button>
+        ))}
+        {guardando ? <span className="mdl-estado" role="status">{t("ajustes.ocPlanGuardando")}</span> : null}
       </div>
-      <div className="cu-cuerpo">
-        <div className="cu-res" data-nivel={hasta ? "lleno" : "ok"} role="status">
-          <Pildora nivel={hasta ? "lleno" : "ok"}>{hasta ? t("cu.opencode.agotado", { cuando: cuandoFuturo(hasta) }) : t("cu.opencode.libre")}</Pildora>
-        </div>
-        <div className="cu-nota">{t("cu.opencode.libreQue")}</div>
-        <Ayuda lineas={["cu.opencode.pagos", "cu.opencode.mas"]} />
-      </div>
-    </Tarjeta>
+      <div className="cu-nota">{nota}</div>
+      {error ? <div className="pn-error dsh-err" role="alert">{textoMain(error)}</div> : null}
+    </div>
   );
 }
 
-/**
- * OpenCode Go (plan pago, APAGADO por defecto: con el plan «Gratis» no se pinta nada): los topes de pedidos cada 5 h de cada modelo según el plan
- * elegido (motor/opencode/go-topes.json, con su fecha y su URL de origen) y cuáles están agotados ahora (cada modelo tiene su cupo). El uso real del
- * plan no se puede leer (OpenCode no lo expone por API ni CLI): se dice «uso no disponible», no se inventa.
- */
-function TarjetaOpencodeGo({ uso }: { uso: Uso | null }) {
-  useIdioma();
-  const [v, setV] = useState<VistaPlanGo | null>(null);
-  useEffect(() => {
-    let vivo = true;
-    const leer = () => void fuentePaneles.planOpencode().then((r) => vivo && setV(r), () => {});
-    leer();
-    window.addEventListener(EVENTO_PLAN_OPENCODE, leer);
-    return () => {
-      vivo = false;
-      window.removeEventListener(EVENTO_PLAN_OPENCODE, leer);
-    };
-  }, []);
-  if (!v || v.plan === "gratis") return null;
-  const agotados = goAgotadosHasta(uso);
-  const plan = v.plan === "go" ? t("ajustes.ocPlanGo") : t("ajustes.ocPlanGoPlus");
+/** El uso de una cuenta de OpenCode (el mismo de la barra): el resumen si dice algo y un bloque por grupo. */
+function UsoOpencode({ s }: { s: SuscripcionCupo | undefined }) {
   return (
-    <div data-opc="cu.opencodeGo">
-      <Tarjeta>
-        <div className="cu-cab">
-          <span className="cu-logo"><Logo empresa="opencode" /></span>
-          <h4 className="cu-nombre">{t("cu.opencodeGo")}</h4>
-          <Chip>{t("cu.opencodeGo.plan", { plan })}</Chip>
-          {v.precio !== null ? <span className="cu-nota">{t("cu.opencodeGo.precio", { usd: v.precio })}</span> : null}
-        </div>
-        <div className="cu-cuerpo">
-          {v.modelos.length ? (
-            <table className="cu-go" aria-label={t("cu.opencodeGo.topes")}>
-              <thead>
-                <tr>
-                  <th scope="col">{t("cu.opencodeGo.modelo")}</th>
-                  <th scope="col">{t("cu.opencodeGo.pedidos")}</th>
-                  <th scope="col">{t("cu.opencodeGo.usd")}</th>
-                  <th scope="col">{t("cu.opencodeGo.estado")}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {v.modelos.map((m) => {
-                  const hasta = agotados.get(`opencode:${m.id}`.toLowerCase()) ?? null;
-                  return (
-                    <tr key={m.id} data-agotado={hasta ? "" : undefined}>
-                      <th scope="row">{m.nombre || nombreOpencode(m.id)}</th>
-                      <td>{m.pedidos5h === null ? "—" : t("cu.opencodeGo.pedidosN", { n: m.pedidos5h.toLocaleString() })}</td>
-                      <td>{m.usdMes === null ? "—" : t("cu.opencodeGo.usdN", { n: m.usdMes.toLocaleString() })}</td>
-                      <td>
-                        <Pildora nivel={hasta ? "lleno" : "ok"}>{hasta ? t("cu.opencodeGo.agotado", { cuando: cuandoFuturo(hasta) }) : t("cu.opencodeGo.libre")}</Pildora>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          ) : (
-            <div className="cu-sin">{t("cu.opencodeGo.sinTabla")}</div>
-          )}
-          {!v.usoDisponible ? <div className="cu-nota" role="note">{t("cu.opencodeGo.usoNo")}</div> : null}
-          {v.fuente ? <div className="cu-nota">{t("cu.opencodeGo.fuente", { fuente: v.fuente, fecha: v.fecha ?? "—" })}</div> : null}
-        </div>
-      </Tarjeta>
-    </div>
+    <>
+      {/* Con sólo los gratis (sin tope publicado) el resumen no tiene nada que agregar: lo dice el grupo, con los pedidos contados. */}
+      {s && resumenSusc(s, Date.now() / 1000).nivel !== "sin" ? <Resumen s={s} /> : null}
+      {s?.grupos?.length ? s.grupos.map((g) => <Grupo key={g.id} g={g} />) : <div className="cu-sin">{t("uso.sinDatoCupo")}</div>}
+    </>
+  );
+}
+
+/** El plan de una cuenta AGREGADA de OpenCode: se guarda con `cuentas plan` (el de la de siempre va en modelos.json). */
+function PlanCuentaOpencode({ perfil, alCambiar }: { perfil: PerfilCuenta; alCambiar: () => void }) {
+  const [guardando, setGuardando] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const plan = perfil.plan ?? "gratis";
+  const elegir = async (p: PlanOc) => {
+    setGuardando(true);
+    setError(null);
+    const r = await fuente.planCuenta(perfil.id, p).catch(() => ({ ok: false as const, error: "main.cuentasFallo" }));
+    setGuardando(false);
+    if (!r.ok) setError(r.error);
+    alCambiar();
+  };
+  return <PlanOpencode plan={plan} guardando={guardando} error={error} nota={plan === "gratis" ? t("ajustes.ocPlanNotaGratis") : t("cu.opencode.planCuenta")} alElegir={(p) => void elegir(p)} />;
+}
+
+/**
+ * OpenCode, la cuenta como las demás: su estado (instalado, conectado), el uso que contó Trama (el mismo de la barra: los gratis comparten un cupo
+ * y, con Go, cada modelo contra su tope), el plan (Gratis / Go / Go Plus: Go está APAGADO hasta elegirlo; se aplica al toque, sin la barra de
+ * Guardar) y, con Go, la tabla de topes por modelo (motor/opencode/go-topes.json, con su fecha y su URL de origen). Con varias cuentas (CLI
+ * `cuentas`, proveedor opencode: cada una con su carpeta de login), una fila por cuenta con su plan y su uso, como Claude o Google. El programa y la
+ * clave de API siguen en Ajustes > OpenCode.
+ */
+function TarjetaOpencode({ uso, perfiles, lista, alCambiar }: { uso: Uso | null; perfiles: PerfilCuenta[]; lista: boolean; alCambiar: () => void }) {
+  useIdioma();
+  const [e, setE] = useState<EstadoOpencodeUi | null>(null);
+  const [v, setV] = useState<VistaPlanGo | null>(null);
+  const [guardando, setGuardando] = useState(false);
+  const [errPlan, setErrPlan] = useState<string | null>(null);
+  const vivo = useRef(true);
+  const mirar = useCallback(() => {
+    void fuentePaneles.estadoOpencode().then((r) => vivo.current && setE(r), () => undefined);
+    void fuentePaneles.planOpencode().then((r) => vivo.current && setV(r), () => undefined);
+  }, []);
+  useEffect(() => {
+    vivo.current = true;
+    mirar();
+    return () => void (vivo.current = false);
+  }, [mirar]);
+
+  const elegirPlan = async (plan: PlanOc) => {
+    if (guardando || plan === v?.plan) return;
+    setGuardando(true);
+    setErrPlan(null);
+    try {
+      const r = await fuentePaneles.guardarPlanOpencode(plan);
+      if (vivo.current) setV(r);
+      window.dispatchEvent(new Event(EVENTO_PLAN_OPENCODE));
+      // Los modelos que se ofrecen cambian con el plan: el estado y los selectores se piden de nuevo.
+      mirar();
+      void pedirModelos(5000).then((m) => m && aplicarModelos(m));
+    } catch (x) {
+      if (vivo.current) setErrPlan(mensaje(x));
+    } finally {
+      if (vivo.current) setGuardando(false);
+    }
+  };
+
+  const s = conDatos(uso) ? uso.suscripciones?.find((x) => x.id === "opencode") : undefined;
+  const plan = v?.plan ?? e?.plan ?? "gratis";
+  const go = plan !== "gratis";
+  const varias = perfiles.length > 1;
+  const algunGo = go || perfiles.some((p) => !p.defecto && p.plan && p.plan !== "gratis");
+  const estado: CuentaEstado | undefined = e ? { instalado: e.instalado, logueado: e.logueado === true, cuenta: null, error: null } : undefined;
+  const agotados = goAgotadosHasta(uso);
+  const deSiempre = (
+    <>
+      <UsoOpencode s={s} />
+      <PlanOpencode
+        plan={plan}
+        opc="ajustes.ocPlan"
+        guardando={guardando}
+        deshabilitado={!v}
+        error={errPlan}
+        nota={go ? t("ajustes.ocPlanNotaGo", { n: e?.go ?? v?.modelos.length ?? 0 }) : t("ajustes.ocPlanNotaGratis")}
+        alElegir={(p) => void elegirPlan(p)}
+      />
+      {go && v?.precio != null ? <div className="cu-nota">{t("cu.opencodeGo.precio", { usd: v.precio })}</div> : null}
+    </>
+  );
+  return (
+    <Tarjeta>
+      <Cabecera id="opencode" nombre={go && !varias ? `${t("cu.opencode")} ${nombrePlanOc(plan)}` : t("cu.opencode")} estado={varias ? null : estado} />
+      <div className="cu-cuerpo">
+        {varias ? (
+          <ListaCuentas
+            proveedor="opencode"
+            perfiles={perfiles}
+            uso={uso}
+            deSiempre={deSiempre}
+            alCambiar={alCambiar}
+            extra={(p) => <PlanCuentaOpencode perfil={p} alCambiar={alCambiar} />}
+          />
+        ) : (
+          deSiempre
+        )}
+
+        {algunGo && v ? (
+          <div data-opc="cu.opencodeGo">
+            {v.modelos.length ? (
+              <table className="cu-go" aria-label={t("cu.opencodeGo.topes")}>
+                <thead>
+                  <tr>
+                    <th scope="col">{t("cu.opencodeGo.modelo")}</th>
+                    <th scope="col">{t("cu.opencodeGo.pedidos")}</th>
+                    <th scope="col">{t("cu.opencodeGo.usd")}</th>
+                    <th scope="col">{t("cu.opencodeGo.estado")}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {v.modelos.map((m) => {
+                    const hasta = agotados.get(`opencode:${m.id}`.toLowerCase()) ?? null;
+                    return (
+                      <tr key={m.id} data-agotado={hasta ? "" : undefined}>
+                        <th scope="row">{m.nombre || nombreOpencode(m.id)}</th>
+                        <td>{m.pedidos5h === null ? "—" : t("cu.opencodeGo.pedidosN", { n: m.pedidos5h.toLocaleString() })}</td>
+                        <td>{m.usdMes === null ? "—" : t("cu.opencodeGo.usdN", { n: m.usdMes.toLocaleString() })}</td>
+                        <td>
+                          <Pildora nivel={hasta ? "lleno" : "ok"}>{hasta ? t("cu.opencodeGo.agotado", { cuando: cuandoFuturo(hasta) }) : t("cu.opencodeGo.libre")}</Pildora>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            ) : (
+              <div className="cu-sin">{t("cu.opencodeGo.sinTabla")}</div>
+            )}
+            {varias ? <div className="cu-nota">{t("cu.opencodeGo.topesDe", { plan: nombrePlanOc(go ? plan : "go") })}</div> : null}
+            {v.fuente ? <div className="cu-nota">{t("cu.opencodeGo.fuente", { fuente: v.fuente, fecha: v.fecha ?? "—" })}</div> : null}
+          </div>
+        ) : null}
+
+        <Ayuda lineas={["cu.opencode.libreQue", "cu.opencode.contados", "cu.opencode.pagos", "cu.opencode.cuentas", "cu.opencode.mas"]} />
+        {varias ? null : <Conectar id="opencode" c={estado} como={t(e && !e.instalado ? "cu.comoOpencodeInstalar" : "cu.comoOpencode")} alMirar={mirar} />}
+        {lista ? <AgregarCuenta proveedor="opencode" alCambiar={alCambiar} /> : null}
+      </div>
+    </Tarjeta>
   );
 }
 

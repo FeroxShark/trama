@@ -136,7 +136,7 @@ describe("canales cuentas:*", () => {
 
   it("registra los cinco canales", () => {
     const { canales } = registrar(falso().deps);
-    assert.deepEqual([...canales.keys()].sort(), ["cuentas:agregar", "cuentas:lista", "cuentas:login", "cuentas:quitar", "cuentas:renombrar"]);
+    assert.deepEqual([...canales.keys()].sort(), ["cuentas:agregar", "cuentas:lista", "cuentas:login", "cuentas:plan", "cuentas:quitar", "cuentas:renombrar"]);
   });
 
   it("devuelven { ok } y nunca tiran: un fallo vuelve como { ok: false, error }", async () => {

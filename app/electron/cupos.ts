@@ -13,6 +13,9 @@ export interface VentanaCupo {
   vuelve: number | null;
   /** No rige ahora (Google: con la semana agotada el límite de 5 h no aplica): no es un 0 %. */
   deshabilitada?: boolean;
+  /** Los pedidos contados en la ventana y el tope (OpenCode: los cuenta Trama, electron/opencode-pedidos.ts); sin tope, `pct` es `null`. */
+  pedidos?: number;
+  tope?: number;
 }
 
 export interface GrupoCupo {

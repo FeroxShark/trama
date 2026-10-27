@@ -3,13 +3,19 @@
 // trabajo") y en qué orden van. Puro: lo prueba tests/cuentas-vista.test.ts. Quien tiene una sola cuenta por proveedor no pasa por acá.
 import type { SuscripcionCupo } from "./contrato";
 
-export type ProveedorCuenta = "claude" | "google" | "chatgpt";
-export const PROVEEDORES: readonly ProveedorCuenta[] = ["claude", "google", "chatgpt"];
+export type ProveedorCuenta = "claude" | "google" | "chatgpt" | "opencode";
+export const PROVEEDORES: readonly ProveedorCuenta[] = ["claude", "google", "chatgpt", "opencode"];
 /** Cómo se nombra el proveedor delante de la cuenta (la tarjeta de Plan y cupos lleva el nombre largo de cada plan). */
-export const MARCA: Record<ProveedorCuenta, string> = { claude: "Claude", google: "Google", chatgpt: "ChatGPT" };
+export const MARCA: Record<ProveedorCuenta, string> = { claude: "Claude", google: "Google", chatgpt: "ChatGPT", opencode: "OpenCode" };
 
-/** `logueado`: `null` = no se preguntó (o el CLI no lo sabe). `defecto`: la de siempre, cuyo id es el del proveedor. */
-export type PerfilCuenta = { id: string; proveedor: ProveedorCuenta; nombre: string; defecto: boolean; logueado: boolean | null };
+export type PlanCuentaOc = "gratis" | "go" | "go-plus";
+const PLANES_OC: readonly string[] = ["gratis", "go", "go-plus"];
+
+/**
+ * `logueado`: `null` = no se preguntó (o el CLI no lo sabe). `defecto`: la de siempre, cuyo id es el del proveedor. `plan`: el de OpenCode de una
+ * cuenta agregada de OpenCode (el de la de siempre es `opencode_plan` de modelos.json).
+ */
+export type PerfilCuenta = { id: string; proveedor: ProveedorCuenta; nombre: string; defecto: boolean; logueado: boolean | null; plan?: PlanCuentaOc };
 export type ListaCuentas = { version: 1; cuentas: PerfilCuenta[] };
 export type ResultadoCuenta = { ok: true; id?: string } | { ok: false; error: string };
 
@@ -29,6 +35,7 @@ export function listaValida(x: unknown): ListaCuentas | null {
       nombre: typeof p.nombre === "string" && p.nombre ? p.nombre : p.id,
       defecto: p.defecto === true || p.id === p.proveedor,
       logueado: typeof p.logueado === "boolean" ? p.logueado : null,
+      ...(p.proveedor === "opencode" && p.id !== "opencode" ? { plan: PLANES_OC.includes(p.plan as string) ? (p.plan as PlanCuentaOc) : "gratis" } : {}),
     });
   }
   return cuentas.length ? { version: 1, cuentas } : null;
@@ -87,7 +94,7 @@ export function filasDeCupos(subs: readonly SuscripcionCupo[] | undefined, claud
     contar.set(p, (contar.get(p) ?? 0) + 1);
   }
   const varias = (p: string) => contarDe(p) > 1;
-  const fabrica = ["Claude", "Google AI Pro", "ChatGPT"];
+  const fabrica = ["Claude", "Google AI Pro", "ChatGPT", "OpenCode"];
 
   // Orden: la fila de Claude va siempre primera (la arma la cabecera), sus agregadas detrás; el resto por proveedor, agrupado.
   const orden: string[] = [];
