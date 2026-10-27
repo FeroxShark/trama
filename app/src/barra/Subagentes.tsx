@@ -45,7 +45,7 @@ const Fila = memo(function Fila({ u, vivo, activa, alAbrir }: { u: Subagente; vi
           className="sub-fila"
           aria-current={activa ? "true" : undefined}
           data-tip={alAbrir ? tr("sub.abrirTip") : undefined}
-          onClick={() => (alAbrir ? alAbrir(u.sid, u.id) : setAbierto((a) => !a)}
+          onClick={() => (alAbrir ? alAbrir(u.sid, u.id) : setAbierto((a) => !a))}
         >
           <span className="sub-pt">
             <Punto tipo={tipo} clave={`sub:${u.id}`} />
