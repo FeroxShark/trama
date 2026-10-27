@@ -4,6 +4,7 @@
   "version": "0.2.0",
   "type": "module",
   "license": "MIT",
+  "repository": "github:FeroxShark/trama",
   "scripts": {
     "dev": "node scripts/dev.mjs",
     "build": "tsc && vite build && tsc -p tsconfig.electron.json && node scripts/build-listo.mjs",

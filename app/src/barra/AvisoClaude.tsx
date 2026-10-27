@@ -7,6 +7,8 @@
 // abiertos siguen con la vieja hasta relanzarse (Reiniciar líderes inactivos).
 // El mismo globito sirve para Antigravity CLI (`cual="agy"`, Actualizar abre una terminal con paru): sin changelog ni
 // líderes que reiniciar, y sin `agy` instalado el main no avisa nada.
+// Y para una Trama nueva (`cual="trama"`, electron/actualizacion-trama.ts): las notas del release en vez del changelog, "Ahora no" en
+// vez de Ocultar, y Actualizar (git + instalador, en el main) deshabilitado y explicado si el checkout tiene cambios sin commitear.
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { fuente, type AvisoClaude as Aviso } from "../datos/fuente";
 import { useFoco } from "../foco";
@@ -28,6 +30,7 @@ type Fase =
 const K = {
   claude: { disponible: "claude.disponible", titulo: "claude.titulo", nota: "claude.nota", fallo: "claude.fallo", hecho: "claude.hecho", descartar: "claude.descartar" },
   agy: { disponible: "agy.disponible", titulo: "agy.titulo", nota: "agy.nota", fallo: "agy.fallo", hecho: "agy.hecho", descartar: "agy.descartar" },
+  trama: { disponible: "trama.disponible", titulo: "trama.titulo", nota: "trama.nota", fallo: "trama.fallo", hecho: "trama.hecho", descartar: "trama.descartar" },
 } as const;
 
 /** El primer renglón de un error, recortado (el entero va en el tooltip). */
@@ -39,11 +42,12 @@ const corto = (s: string) => {
 /** Lo que se ve en una captura `claude-actualizado`: ya actualizado, con dos líderes abiertos. */
 const faseInicial = (): Fase => (MODO.captura === "claude-actualizado" ? { tipo: "hecho", version: "2.1.300", abiertos: 2 } : { tipo: "nada" });
 
-export const AvisoClaude = memo(function AvisoClaude({ cual = "claude" }: { cual?: "claude" | "agy" }) {
+export const AvisoClaude = memo(function AvisoClaude({ cual = "claude" }: { cual?: "claude" | "agy" | "trama" }) {
   useIdioma();
   const agy = cual === "agy";
+  const trama = cual === "trama";
   const [aviso, setAviso] = useState<Aviso | null>(null);
-  const [abierto, setAbierto] = useState(MODO.captura === "claude-abierto" || MODO.captura === "claude-actualizado");
+  const [abierto, setAbierto] = useState(MODO.captura === "claude-abierto" || MODO.captura === "claude-actualizado" || (trama && (MODO.captura === "trama-abierto" || MODO.captura === "trama-sucio")));
   const [fase, setFase] = useState<Fase>(faseInicial);
   // Actualizado, el main ya no avisa (null): el globito sigue con lo último hasta cerrarlo.
   const visto = useRef<Aviso | null>(null);
@@ -53,8 +57,8 @@ export const AvisoClaude = memo(function AvisoClaude({ cual = "claude" }: { cual
 
   useEffect(() => {
     let vivo = true;
-    void (agy ? fuente.avisoAgy() : fuente.avisoClaude()).then((a) => vivo && setAviso(a));
-    const soltar = (agy ? fuente.alCambiarAvisoAgy : fuente.alCambiarAvisoClaude)((a) => {
+    void (trama ? fuente.avisoTrama() : agy ? fuente.avisoAgy() : fuente.avisoClaude()).then((a) => vivo && setAviso(a));
+    const soltar = (trama ? fuente.alCambiarAvisoTrama : agy ? fuente.alCambiarAvisoAgy : fuente.alCambiarAvisoClaude)((a) => {
       setAviso(a);
       if (!a && !enFase.current) setAbierto(false);
     });
@@ -62,7 +66,7 @@ export const AvisoClaude = memo(function AvisoClaude({ cual = "claude" }: { cual
       vivo = false;
       soltar();
     };
-  }, [agy]);
+  }, [agy, trama]);
 
   // Abierto: Esc (antes que la barra se entere), Tab que no se sale y un clic afuera lo cierran; el foco vuelve al botón.
   const globo = useRef<HTMLDivElement>(null);
@@ -85,7 +89,7 @@ export const AvisoClaude = memo(function AvisoClaude({ cual = "claude" }: { cual
 
   const actualizar = () => {
     setFase({ tipo: "actualizando" });
-    void (agy ? fuente.actualizarAgy() : fuente.actualizarClaude()).then((r) =>
+    void (trama ? fuente.actualizarTrama() : agy ? fuente.actualizarAgy() : fuente.actualizarClaude()).then((r) =>
       setFase(r.ok ? { tipo: "hecho", version: r.version, abiertos: r.abiertos } : { tipo: "error", texto: r.error }),
     );
   };
@@ -109,7 +113,7 @@ export const AvisoClaude = memo(function AvisoClaude({ cual = "claude" }: { cual
             <b>{a.ultima}</b>
           </div>
           {fase.tipo === "nada" || fase.tipo === "actualizando" ? (
-            <div className="avc-n">{t(K[cual].nota)}</div>
+            <div className="avc-n">{t(trama && a.sucio ? "trama.sucio" : K[cual].nota)}</div>
           ) : fase.tipo === "error" ? (
             <div className="avc-n avc-e" data-tip={fase.texto} role="alert">
               {t(K[cual].fallo, { e: corto(fase.texto) })}
@@ -137,7 +141,7 @@ export const AvisoClaude = memo(function AvisoClaude({ cual = "claude" }: { cual
                 </button>
               ) : null
             ) : fase.tipo === "reiniciado" ? null : (
-              <button type="button" className="avc-u" disabled={fase.tipo === "actualizando"} onClick={actualizar}>
+              <button type="button" className="avc-u" disabled={fase.tipo === "actualizando" || (trama && a.sucio === true)} onClick={actualizar}>
                 <Reserva
                   texto={t(fase.tipo === "actualizando" ? "claude.actualizando" : "claude.actualizar")}
                   reserva={[...enOtros("claude.actualizar"), ...enOtros("claude.actualizando"), t(fase.tipo === "actualizando" ? "claude.actualizar" : "claude.actualizando")]}
@@ -145,13 +149,20 @@ export const AvisoClaude = memo(function AvisoClaude({ cual = "claude" }: { cual
               </button>
             )}
             <span className="esp" />
-            {agy ? null : (
+            {trama ? (
+              // Un enlace de verdad no sirve acá (es un botón de la fila): window.open va al navegador del sistema (main.ts) o a otra pestaña.
+              a.notas ? (
+                <button type="button" className="avc-l" onClick={() => window.open(a.notas, "_blank", "noopener,noreferrer")}>
+                  {t("trama.notas")}
+                </button>
+              ) : null
+            ) : agy ? null : (
               <button type="button" className="avc-l" onClick={() => fuente.abrirChangelog()}>
                 {t("claude.changelog")}
               </button>
             )}
             {aviso ? (
-              <button type="button" className="avc-d" onClick={() => (agy ? fuente.descartarAvisoAgy() : fuente.descartarAvisoClaude())}>
+              <button type="button" className="avc-d" onClick={() => (trama ? fuente.descartarAvisoTrama() : agy ? fuente.descartarAvisoAgy() : fuente.descartarAvisoClaude())}>
                 {t(K[cual].descartar)}
               </button>
             ) : null}

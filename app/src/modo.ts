@@ -65,6 +65,10 @@ const CAPTURAS = [
   "claude",
   "claude-abierto",
   "claude-actualizado",
+  // El aviso de "hay una Trama nueva" (release de GitHub) en el pie: cerrado, abierto y con cambios sin commitear en el checkout.
+  "trama",
+  "trama-abierto",
+  "trama-sucio",
   // "Falta configurar" en el pie (Handy y Ollama por instalar), cerrada y abierta.
   "setup",
   "setup-abierto",

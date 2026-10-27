@@ -330,6 +330,14 @@ type Main = {
     actualizar(): Promise<unknown>;
     alCambiar(fn: (a: unknown) => void): Soltar;
   };
+  /** El aviso de "hay una Trama nueva": `null` si no hay, no se pudo saber o esta instalación no viene de un checkout. */
+  trama: {
+    version(): Promise<unknown>;
+    descartar(): Promise<void>;
+    /** Actualizar (git + instalador, en el main): `{ ok, version | error }`, sin validar. */
+    actualizar(): Promise<unknown>;
+    alCambiar(fn: (a: unknown) => void): Soltar;
+  };
   /** Lo que falta del setup (Handy, agy, Ollama, el login): `{ version, faltas: [{ id, url }] }`, sin validar. */
   setup: {
     estado(): Promise<unknown>;

@@ -20,6 +20,7 @@ import { alCambiarAuto, barrer, cambioPrendido, estadoAuto } from "./autointegra
 import { alCambiarSalud, barrerSalud, cortarChequeos, estadoSalud, integrando, integrandoDesde, mientrasIntegra } from "./salud.js";
 import { actualizar, alCambiarAviso, descartar, leerAviso } from "./actualizacion.js";
 import { actualizarAgy, alCambiarAvisoAgy, descartarAgy, leerAvisoAgy } from "./actualizacion-agy.js";
+import { actualizarTrama, alCambiarAvisoTrama, descartarTrama, leerAvisoTrama } from "./actualizacion-trama.js";
 import { crearCompactando } from "./compactando.js";
 import { crearSubagentes } from "./subagentes.js";
 import { crearConsumo, TRANSCRIPTS } from "./consumo.ts";
@@ -103,7 +104,7 @@ const manejadores = new Map<string, Manejador>();
  * Lo que cambia la máquina (reescribe `~/CLAUDE.md`, los ajustes, borra una cuenta, libera la GPU, actualiza `claude`): desde la
  * tailnet (el celular) no. Los `modelos:*` y `remoto:guardar` tienen su propio chequeo, con su mensaje, en el manejador.
  */
-export const SOLO_PC_TAILNET: ReadonlySet<string> = new Set(["routing:guardar", "ajustes:guardar", "orq:leccionesGuardar", "orq:mdAplicar", "orq:agentsGuardar", "proyectos:renombrar", "cuentas:quitar", "vram:liberar", "claude:actualizar", "dsh:clave", "dsh:instalar", "dsh:probar", "aa:refrescar", "mcp:guardar", "mcp:quitar", "opencode:planGuardar"]);
+export const SOLO_PC_TAILNET: ReadonlySet<string> = new Set(["routing:guardar", "ajustes:guardar", "orq:leccionesGuardar", "orq:mdAplicar", "orq:agentsGuardar", "proyectos:renombrar", "cuentas:quitar", "vram:liberar", "claude:actualizar", "trama:actualizar", "dsh:clave", "dsh:instalar", "dsh:probar", "aa:refrescar", "mcp:guardar", "mcp:quitar", "opencode:planGuardar"]);
 
 /** Anota (o reemplaza) el manejador de un canal. */
 export function manejar(canal: string, fn: Manejador) {
@@ -1066,6 +1067,12 @@ export function armarNucleo() {
   manejar("agy:version", () => leerAvisoAgy());
   manejar("agy:descartar", () => descartarAgy());
   manejar("agy:actualizar", () => actualizarAgy());
+  // "Hay una Trama nueva" (release de GitHub): sin checkout anotado por el instalador el aviso es siempre null. Actualizar corre
+  // git y el instalador: sólo la PC (`SOLO_PC_TAILNET`). Al celular ni se le avisa: no puede actualizar.
+  alCambiarAvisoTrama((a) => enviar("trama:version", a));
+  manejar("trama:version", (e) => (tailnet(e) ? null : leerAvisoTrama()));
+  manejar("trama:descartar", () => descartarTrama());
+  manejar("trama:actualizar", () => actualizarTrama());
   // "Falta algo del setup" (Handy, agy, Ollama, el login): se mira al pedirlo, no hay reloj. Descartar anota una falta aparte.
   manejar("setup:estado", () => setupDeEstaMaquina());
   manejar("setup:descartar", (_e, id: unknown) => descartarSetup(id));
