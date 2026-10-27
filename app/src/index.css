@@ -6274,6 +6274,16 @@ summary.sis-div-t:hover,
   border-style: dashed;
   color: var(--texto-2);
 }
+.oc-tag[data-tag="agotado"] {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--esp-1);
+  border-style: double;
+  color: var(--texto-2);
+}
+.aviso-accion {
+  margin-left: var(--esp-2);
+}
 .menu[data-columnas] .op .md {
   display: none;
   grid-column: 1 / -1;
