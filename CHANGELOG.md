@@ -1,5 +1,10 @@
 # Cambios
 
+## 0.2.5
+
+- El aviso de Trama nueva aparece a los 30 min como mucho (antes 6 h).
+- Ajustes > General: versión de Trama y botón "Buscar actualizaciones".
+
 ## 0.2.4
 
 - El líder elige modelo y esfuerzo de cada worker según el pedido. `reparto --resumen` le da al arrancar un resumen corto de cada modelo (nivel por esfuerzo, costo, cupo, para qué sirve); `reparto` sólo avisa si el modelo elegido no tiene cupo.
