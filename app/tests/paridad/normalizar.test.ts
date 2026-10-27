@@ -15,3 +15,12 @@ test("normalizar: CRLF a LF y lo estable queda igual", () => {
   assert.equal(normalizar("a\r\nb", { tmp: [] }), "a\nb");
   assert.equal(normalizar("RESULTADO: ok", { tmp: [] }), "RESULTADO: ok");
 });
+
+test("normalizar: duraciones de workers y campos JSON de edad", () => {
+  const n = normalizar('1h02m 20000h30m hace 12s) "arranco_hace_s": 5432, "herramienta_hace_s": 7,', { tmp: [] });
+  assert.equal(n, '<DUR> <DUR> hace <DUR>) "arranco_hace_s": <N>, "herramienta_hace_s": <N>,');
+});
+
+test("normalizar: la carpeta de transcripts de Claude (ruta con guiones)", () => {
+  assert.equal(normalizar("home/.claude/projects/-tmp-paridad-AjSrpl-proy", { tmp: ["/tmp/paridad-AjSrpl"] }), "home/.claude/projects/<TMP-CLAUDE>-proy");
+});

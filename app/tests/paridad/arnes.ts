@@ -10,6 +10,16 @@ import { normalizar, normalizarArgv, type Raices } from "./normalizar.ts";
 const APP = path.join(import.meta.dirname, "..", "..");
 export const MOTOR = path.join(APP, "..", "motor");
 export const PA_BASH = path.join(MOTOR, "bin", "pa");
+const CLI_TS = path.join(APP, "electron", "cli");
+
+/** Herramientas del motor que tienen versión bash/python (A) y versión TS (B). */
+export type Herramienta = "pa" | "proyecto-ruta" | "trama-estado" | "workers";
+const VARIABLE_B: Record<Herramienta, string> = { pa: "TRAMA_PA_B", "proyecto-ruta": "TRAMA_PROYECTO_RUTA_B", "trama-estado": "TRAMA_ESTADO_B", workers: "TRAMA_WORKERS_B" };
+
+/** El original (bash o python) de la herramienta. */
+export const originalDe = (h: Herramienta = "pa"): string => path.join(MOTOR, "bin", h);
+/** La versión TS de las herramientas chicas, corrida directo desde el fuente (Node saca los tipos). */
+export const tsDe = (h: Exclude<Herramienta, "pa">): string[] => [process.execPath, path.join(CLI_TS, `${h}.ts`)];
 const FALSO = path.join(APP, "scripts", "claude-falso.mjs");
 
 /** Contexto que ven `preparar` y los argumentos dinámicos de un caso. */
@@ -25,7 +35,8 @@ export interface Contexto {
 export interface Paso {
   /** Argumentos de `pa` (o una función si dependen de rutas del sandbox). */
   args: string[] | ((c: Contexto) => string[]);
-  env?: Record<string, string>;
+  /** Variables de entorno extra (o una función si dependen de rutas del sandbox). */
+  env?: Record<string, string> | ((c: Contexto) => Record<string, string>);
   stdin?: string;
   /** Código de salida esperado (se comprueba contra el bash; la paridad se compara siempre). */
   rc?: number;
@@ -33,6 +44,8 @@ export interface Paso {
 
 export interface Caso {
   nombre: string;
+  /** Qué herramienta se prueba (default: `pa`). Las demás comparan el original contra su versión TS (app/electron/cli). */
+  herramienta?: Herramienta;
   /** Un solo paso (atajo) o varios, en orden, en el mismo sandbox. */
   args?: Paso["args"];
   env?: Paso["env"];
@@ -53,9 +66,9 @@ export interface Resultado {
 
 const PREFIJOS_LIMPIOS = ["PA_", "TRAMA_", "HILOS_", "REPARTO_", "PROYECTOS_", "FALSO_", "CLAUDE"];
 
-/** Comando del segundo `pa` (TRAMA_PA_B): lista JSON o palabras separadas por espacios. null si no está. */
-export function comandoB(env = process.env): string[] | null {
-  const v = env.TRAMA_PA_B?.trim();
+/** Comando de la segunda implementación (TRAMA_PA_B para `pa`, TRAMA_PROYECTO_RUTA_B…): lista JSON o palabras separadas por espacios. null si no está. */
+export function comandoB(env = process.env, h: Herramienta = "pa"): string[] | null {
+  const v = env[VARIABLE_B[h]]?.trim();
   if (!v) return null;
   if (v.startsWith("[")) return JSON.parse(v) as string[];
   return v.split(/\s+/);
@@ -134,7 +147,8 @@ export function correr(caso: Caso, pa: string[]): Resultado {
   const res: Resultado = { pasos: [], argvClaude: [], estado: {} };
   for (const p of pasos) {
     const args = typeof p.args === "function" ? p.args(c) : p.args;
-    const s = spawnSync(pa[0]!, [...pa.slice(1), ...args], { encoding: "utf8", timeout: 120_000, input: p.stdin ?? "", env: entorno(c, { ...caso.env, ...p.env }) });
+    const dinamico = (e: Paso["env"]) => (typeof e === "function" ? e(c) : e);
+    const s = spawnSync(pa[0]!, [...pa.slice(1), ...args], { encoding: "utf8", timeout: 120_000, input: p.stdin ?? "", env: entorno(c, { ...dinamico(caso.env), ...dinamico(p.env) }) });
     res.pasos.push({ rc: s.status, stdout: normalizar(s.stdout ?? "", r), stderr: normalizar(s.stderr ?? "", r) });
   }
   const log = path.join(c.raiz, "claude-argv.jsonl");

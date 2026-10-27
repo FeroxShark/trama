@@ -5,11 +5,12 @@
 import { writeFileSync } from "node:fs";
 import path from "node:path";
 import type { Caso } from "./arnes.ts";
+import { casosHerramientas } from "./casos-herramientas.ts";
 
 const M = "claude-sonnet-5-5";
 const BRIEF = "Objetivo: x\nArchivos: a.ts\nListo cuando: pasa el test\nCómo verificar: npm test\nNo tocar: b.ts";
 
-export const casos: Caso[] = [
+export const casosPa: Caso[] = [
   // --- ayuda y errores de uso ---
   { nombre: "ayuda: --ayuda", args: ["--ayuda"], rc: 0 },
   { nombre: "uso: sin argumentos", args: [], rc: 2 },
@@ -60,3 +61,6 @@ export const casos: Caso[] = [
   { nombre: "rechazo: opencode con modelo mal armado", args: ["demo", "--sin-jefe", "-m", "opencode:suelto", "x"], rc: 2 },
   { nombre: "rechazo: opencode con --effort inválido de otro motor", args: ["demo", "--sin-jefe", "-m", "ollama:x", "--effort", "high", "x"] },
 ];
+
+/** Todos los casos: `pa` y las herramientas chicas (proyecto-ruta, trama-estado, workers). */
+export const casos: Caso[] = [...casosPa, ...casosHerramientas];

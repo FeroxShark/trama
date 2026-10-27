@@ -4,21 +4,24 @@
 import assert from "node:assert/strict";
 import { testPosix as test } from "../plataforma.ts";
 import { casos } from "./casos.ts";
-import { PA_BASH, comandoB, correr, diferencias } from "./arnes.ts";
+import type { Herramienta } from "./arnes.ts";
+import { comandoB, correr, diferencias, originalDe, tsDe } from "./arnes.ts";
 
-const B = comandoB() ?? [PA_BASH];
+/** A: el original; B: TRAMA_*_B si está, y si no el TS de las herramientas chicas (o el mismo bash en `pa`, para ver el determinismo). */
+const comandoA = (h: Herramienta = "pa") => [originalDe(h)];
+const comandoBDe = (h: Herramienta = "pa") => comandoB(process.env, h) ?? (h === "pa" ? [originalDe(h)] : tsDe(h));
 const filtro = process.env.TRAMA_PARIDAD_SOLO;
 
 for (const caso of casos) {
   if (filtro && !caso.nombre.includes(filtro)) continue;
   test(`paridad: ${caso.nombre}`, { timeout: 300_000 }, () => {
-    const a = correr(caso, [PA_BASH]);
+    const a = correr(caso, comandoA(caso.herramienta));
     const esperado = caso.pasos ? caso.pasos.map((p) => p.rc) : [caso.rc];
     esperado.forEach((rc, i) => {
-      if (rc !== undefined) assert.equal(a.pasos[i]?.rc, rc, `el bash dio otro código en el paso ${i + 1}: ${a.pasos[i]?.stderr}`);
+      if (rc !== undefined) assert.equal(a.pasos[i]?.rc, rc, `el original dio otro código en el paso ${i + 1}: ${a.pasos[i]?.stderr}`);
     });
-    const b = correr(caso, B);
+    const b = correr(caso, comandoBDe(caso.herramienta));
     const dif = diferencias(a, b);
-    assert.equal(dif, "", `A (bash) y B difieren:\n${dif}`);
+    assert.equal(dif, "", `A (original) y B difieren:\n${dif}`);
   });
 }

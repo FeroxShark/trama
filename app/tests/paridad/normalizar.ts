@@ -12,7 +12,11 @@ const escapar = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 export function normalizar(texto: string, raices: Raices): string {
   let t = texto.replace(/\r\n/g, "\n");
   for (const r of [...raices.tmp].sort((a, b) => b.length - a.length)) {
-    if (r) t = t.replace(new RegExp(escapar(r.replace(/\\/g, "/")), "g"), "<TMP>").replace(new RegExp(escapar(r), "g"), "<TMP>");
+    if (r) {
+      t = t.replace(new RegExp(escapar(r.replace(/\\/g, "/")), "g"), "<TMP>").replace(new RegExp(escapar(r), "g"), "<TMP>");
+      // la carpeta de transcripts de Claude: la ruta con todo lo que no es alfanumérico pasado a «-»
+      t = t.replace(new RegExp(escapar(r.replace(/[^A-Za-z0-9]/g, "-")), "g"), "<TMP-CLAUDE>");
+    }
   }
   return (
     t
@@ -31,6 +35,9 @@ export function normalizar(texto: string, raices: Raices): string {
       .replace(/\b20\d{6}\b/g, "<DIA>")
       // duraciones: «0s», «12s», «1m03s»
       .replace(/\b\d+m\d{2}s\b/g, "<DUR>")
+      .replace(/\b\d+h\d{2}m\b/g, "<DUR>")
+      .replace(/\bhace \d+s\b/g, "hace <DUR>")
+      .replace(/("(?:arranco_hace_s|herramienta_hace_s)": )\d+/g, "$1<N>")
       .replace(/ · \d+s ·/g, " · <DUR> ·")
       // pids
       .replace(/\b(pid[= :]+)\d+/gi, "$1<PID>")
