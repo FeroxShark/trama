@@ -108,6 +108,22 @@ if ((${#fuera[@]})); then
   rojo 21 "1 alcance: ${#fuera[@]} archivo(s) fuera de lo permitido"; printf '        %s\n' "${fuera[@]}"
 else echo "OK    1 alcance"; fi
 
+# 1b. snapshots: un __snapshots__/ cambiado tiene su ruta nombrada en --permitidos (no alcanza con un dir/ o un *)
+snap_fuera=()
+while IFS= read -r f; do
+  [[ "$f" == *__snapshots__/* ]] || continue
+  ok=0
+  while IFS= read -r p || [[ -n "$p" ]]; do
+    p="${p%$'\r'}"; [[ -z "$p" || "$p" == \#* || "$p" != *__snapshots__* ]] && continue
+    # shellcheck disable=SC2053
+    if [[ "$f" == $p ]]; then ok=1; break; fi
+  done <"$permitidos"
+  ((ok)) || snap_fuera+=("$f")
+done < <(git -C "$repo" diff --name-only "$main_ref...$rama")
+if ((${#snap_fuera[@]})); then
+  rojo 26 "1b snapshots: ${#snap_fuera[@]} snapshot(s) sin ruta explícita en --permitidos"; printf '        %s\n' "${snap_fuera[@]}"
+else echo "OK    1b snapshots"; fi
+
 # 2. test congelado (sin --test: camino trivial, no hay test que congelar)
 if [[ -z "$test_arg" ]]; then echo "SALTEADO 2 test congelado (sin --test)"
 else

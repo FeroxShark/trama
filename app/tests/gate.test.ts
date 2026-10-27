@@ -198,6 +198,36 @@ test("sin --test es el camino trivial: el paso 2 se saltea y el resto corre", ()
   assert.match(r.stdout, /GATE VERDE/);
 });
 
+test("26: un snapshot cambiado que --permitidos cubre sólo con un dir/ se rechaza, y lo dice", () => {
+  writeFileSync(path.join(tmp, "permitidos-snap.txt"), "src/\n");
+  const r = spawnSync(GATE, ["mi-proyecto", rama({ "src/__snapshots__/a.snap": "snap\n" }), "--chequeo", "true", "--permitidos", path.join(tmp, "permitidos-snap.txt")], {
+    encoding: "utf8",
+    env: { ...process.env, PROYECTOS_REGISTRY: registry, PA_STATE: estado },
+  });
+  assert.equal(r.status, 26, r.stdout + r.stderr);
+  assert.match(r.stdout, /ROJO\s+1b snapshots/);
+  assert.match(r.stdout, /src\/__snapshots__\/a\.snap/);
+});
+
+test("26: un snapshot con su ruta nombrada en --permitidos pasa", () => {
+  writeFileSync(path.join(tmp, "permitidos-snap2.txt"), "# snapshots aprobados\nsrc/__snapshots__/a.snap\n");
+  const r = spawnSync(GATE, ["mi-proyecto", rama({ "src/__snapshots__/a.snap": "snap\n" }), "--chequeo", "true", "--permitidos", path.join(tmp, "permitidos-snap2.txt")], {
+    encoding: "utf8",
+    env: { ...process.env, PROYECTOS_REGISTRY: registry, PA_STATE: estado },
+  });
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.match(r.stdout, /OK\s+1b snapshots/);
+});
+
+test("26: un glob que nombra __snapshots__ también cuenta como ruta explícita", () => {
+  writeFileSync(path.join(tmp, "permitidos-snap3.txt"), "src/*/__snapshots__/*.snap\n");
+  const r = spawnSync(GATE, ["mi-proyecto", rama({ "src/x/__snapshots__/b.snap": "snap\n" }), "--chequeo", "true", "--permitidos", path.join(tmp, "permitidos-snap3.txt")], {
+    encoding: "utf8",
+    env: { ...process.env, PROYECTOS_REGISTRY: registry, PA_STATE: estado },
+  });
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+});
+
 test("--help documenta los pasos y los exits, y sale en 0", () => {
   const r = spawnSync(GATE, ["--help"], { encoding: "utf8" });
   assert.equal(r.status, 0, r.stderr);
