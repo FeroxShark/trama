@@ -326,3 +326,85 @@ test("pa --rinde --rubrica: acierto por fila (corridas, cuántas corrieron con e
   assert.match(t.out, /fila\s*5|^5\b/m);
   assert.equal(pa(["--rinde", "--rubrica", "--por", "fase"]).rc, 2, "--por y --rubrica no se mezclan");
 });
+
+// Tabla v2 (motor/docs/protocolo-orquestacion-v2.md, sección 6), un caso por punto de la revisión de Opus (protocolo-revision-opus.md).
+const rub = (resp: string, env: Record<string, string> = {}) => {
+  const r = pa(["--rubrica", resp, "--json"], env);
+  return { rc: r.rc, j: r.out.trim() ? JSON.parse(r.out) : null, err: r.err };
+};
+
+test("pa --rubrica v2 punto 1: A acepta chico|mediano|grande y los viejos 1|2-3|>3; mediano y grande cambian la fila", () => {
+  assert.equal(rub("A=chico B=ejecutar C=parcial D=bajo E=si").j.fila, 7);
+  assert.equal(rub("A=1 B=ejecutar C=parcial D=bajo E=si").j.fila, 7);
+  for (const a of ["mediano", "2-3", "2", "3"]) {
+    const r = rub(`A=${a} B=ejecutar C=parcial D=bajo E=si`);
+    assert.deepEqual([r.rc, r.j.fila, r.j.lanza], [3, "7b", false], a);
+  }
+  for (const a of ["grande", ">3", "4"]) assert.deepEqual([rub(`A=${a} B=ejecutar C=parcial D=bajo E=si`).j.fila], [1], a);
+  assert.equal(rub("A=chico B=ejecutar C=completo D=bajo E=si M=si").j.fila, 9, "la 9 (gratis) sólo con A chico");
+  assert.equal(rub("A=mediano B=ejecutar C=completo D=bajo E=si M=si").j.fila, 10, "mediano no va a la 9");
+  const mal = pa(["--rubrica", "A=enorme B=ejecutar C=completo D=bajo E=si"]);
+  assert.equal(mal.rc, 2);
+  assert.match(mal.err, /A='enorme' no va/);
+});
+
+test("pa --rubrica v2 punto 2: C=ninguno va primero: sale fila 2 aunque el tamaño sea grande o E=no", () => {
+  for (const r of [
+    "A=grande B=ejecutar C=ninguno D=bajo E=si I=si",
+    "A=grande B=ejecutar C=ninguno D=bajo E=si",
+    "A=mediano B=decidir C=ninguno D=alto E=no",
+    "A=chico B=ejecutar C=ninguno D=alto E=no",
+  ]) {
+    const x = rub(r);
+    assert.deepEqual([x.rc, x.j.fila, x.j.lanza], [3, 2, false], r);
+  }
+});
+
+test("pa --rubrica v2 punto 3: 1b (grande indivisible, I=si) da Sonnet high, Opus medium con D=alto; sin I es la fila 1", () => {
+  const b = rub("A=grande B=ejecutar C=completo D=bajo E=si I=si");
+  assert.deepEqual([b.rc, b.j.fila, b.j.modelo, b.j.effort, b.j.lanza], [0, "1b", "claude-sonnet-5-5", "high", true]);
+  const ba = rub("A=grande B=ejecutar C=parcial D=alto E=si I=si");
+  assert.deepEqual([ba.j.fila, ba.j.modelo, ba.j.effort], ["1b", "claude-opus-5-5", "medium"]);
+  const sinI = rub("A=grande B=ejecutar C=completo D=bajo E=si");
+  assert.deepEqual([sinI.rc, sinI.j.fila, sinI.j.lanza], [3, 1, false]);
+});
+
+test("pa --rubrica v2 punto 4: una 1b que compactó (K=si) no vuelve a partir: estado final al dueño (tablero)", () => {
+  limpiar();
+  const k = rub("A=grande B=ejecutar C=completo D=bajo E=si I=si K=si");
+  assert.deepEqual([k.rc, k.j.fila, k.j.lanza], [3, "1c", false]);
+  const txt = pa(["--rubrica", "A=grande B=ejecutar C=completo D=bajo E=si I=si K=si"]);
+  assert.match(txt.out, /^fila 1c: no se lanza\. .*al dueño \(tablero\)/);
+  // la 1b que sí se lanza queda anotada con su id, y --rinde --rubrica la cuenta
+  const l = pa(["demo", "--sin-jefe", "--rubrica", "A=grande B=ejecutar C=completo D=bajo E=si I=si", "x"]);
+  assert.equal(l.rc, 0, l.err);
+  assert.equal(medicion().at(-1)!.rub_fila, "1b");
+  assert.match(pa(["--rinde", "--rubrica"]).out, /^1b\b/m);
+});
+
+test("pa --rubrica v2 punto 5: E=no da 3b (Sonnet high) con D=bajo y 3a (Opus medium) con D=alto", () => {
+  const b = rub("A=chico B=ejecutar C=completo D=bajo E=no");
+  assert.deepEqual([b.j.fila, b.j.modelo, b.j.effort], ["3b", "claude-sonnet-5-5", "high"]);
+  const a = rub("A=chico B=ejecutar C=completo D=alto E=no");
+  assert.deepEqual([a.j.fila, a.j.modelo, a.j.effort], ["3a", "claude-opus-5-5", "medium"]);
+});
+
+test("pa --rubrica v2 punto 6: nunca devuelve un modelo o effort que modelos.json apagó (exit 98); pa <p> tampoco lanza", () => {
+  const con = { TRAMA_MODELOS: path.join(home, "modelos-rubrica.json") };
+  writeFileSync(con.TRAMA_MODELOS, JSON.stringify({ version: 1, excluir: ["haiku"], efforts_permitidos: { sonnet: ["low", "medium"] } }));
+  const ex = pa(["--rubrica", "A=chico B=ejecutar C=completo D=bajo E=si"], con); // fila 10: haiku excluido
+  assert.equal(ex.rc, 98, ex.err);
+  assert.match(ex.err, /excluye/);
+  assert.equal(ex.out, "");
+  const ef = rub("A=chico B=decidir C=completo D=bajo E=si", con); // fila 5: sonnet high, y sólo quedan low y medium
+  assert.equal(ef.rc, 98);
+  assert.match(ef.err, /apagado/);
+  const ok = rub("A=chico B=ejecutar C=completo D=alto E=no", con); // fila 3a: opus medium, permitido
+  assert.deepEqual([ok.rc, ok.j.fila, ok.j.modelo], [0, "3a", "claude-opus-5-5"]);
+  limpiar();
+  const medPath = path.join(estado, "medicion.tsv");
+  const antes = existsSync(medPath) ? medicion().length : 0;
+  const lanza = pa(["demo", "--sin-jefe", "--rubrica", "A=chico B=ejecutar C=completo D=bajo E=si", "x"], con);
+  assert.equal(lanza.rc, 98, lanza.err);
+  assert.equal(existsSync(medPath) ? medicion().length : 0, antes, "no corrió nada");
+});
