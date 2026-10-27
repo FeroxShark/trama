@@ -8,8 +8,8 @@ description: Delegar trabajo sobre un proyecto a un worker que corre adentro de 
 Sos el **líder**: tu sesión corre en el home del usuario y coordina. Cada proyecto tiene sus propios
 workers (un modelo que corre **adentro** del proyecto, con su `CLAUDE.md`/`GEMINI.md` y su memoria). Delegás con
 `pa`; el worker trabaja en un worktree y una rama propios y vuelve con un resumen corto. Sirve igual si
-el líder es Claude o Gemini, y si los workers son Claude, Gemini o un modelo local: quién corre cada
-tipo de tarea lo decide `~/.config/trama/modelos.json` (o Trama > Ajustes), no vos.
+el líder es Claude o Gemini, y si los workers son Claude, Gemini o un modelo local: qué modelos
+están habilitados y cuáles se excluyen lo decide `~/.config/trama/modelos.json` (o Trama > Ajustes); cuál usar en cada tarea lo elegís vos.
 
 Elegís vos, sin preguntar:
 
@@ -28,13 +28,14 @@ Si la sesión corre **adentro** de un proyecto, esto no aplica: hacé la tarea, 
 ## Comandos
 
 ```
-pa <proyecto> --tipo <tipo> "<tarea>"     delegar: el worker puede escribir. --tipo SIEMPRE
+pa <proyecto> --tipo <tipo> -m <modelo> --effort <e> "<tarea>"   delegar: el worker puede escribir. --tipo, -m y --effort SIEMPRE
 pa <proyecto> --leer --tipo lectura "<p>"  sólo lectura (leer, explorar, auditar); corre en paralelo con un writer
 pa <proyecto> --async --tipo T "<tarea>"   lanzar desacoplado: imprime el id de la corrida (o EN COLA)
 pa --esperar <proyecto> [--timeout N] [--id ID]   cobrar el resultado más viejo, o esperar a que termine
 pa --esperar-todos [--timeout N]           cobrar todas las corridas async de una
 pa <proyecto> --seguir [--id ID] "<t>"     retomar esa corrida (misma rama, mismo contexto)
-pa <proyecto> -m <modelo> [--effort E]     fijar el modelo; gana siempre sobre modelos.json
+pa <proyecto> -m <modelo> [--effort E]     fijar el modelo; gana siempre sobre modelos.json (sólo avisa si no tiene cupo)
+reparto --resumen                          los modelos habilitados con inteligencia por effort, costo, cupo y para qué sirven
 pa <proyecto> --integrar <id>              mergear la rama del worker en main
 pa <proyecto> --actualizar <id>            si --integrar chocó (80): un worker rebasea esa rama sobre main
 pa <proyecto> --ramas                      ramas de workers todavía sin integrar
@@ -62,8 +63,9 @@ pa --estado                                qué corre ahora, sesiones guardadas,
 | `lectura` | leer, explorar, auditar (con `--leer`) |
 | `mecanico` | mecánico con un chequeo determinista (renombrar, migrar, formatear) |
 
-- Sin `-m`, el modelo sale de `modelos.json` (`workers.<tipo>`, si falta `workers.default`, si falta los
-  defaults de `pa`). `pa --modelos` lo muestra: miralo antes de elegir a mano.
+- Sin `-m`, `pa` sigue con lo que sugiere `reparto` (o `modelos.json`: `workers.<tipo>`, si falta `workers.default`, los
+  defaults de `pa`) pero **te avisa**: esa tabla no mira el tamaño real de la tarea. Vos elegís modelo y effort.
+  `pa --modelos` muestra la tabla.
 - **Un modelo mayor sólo si el chequeo falla** (o la base es crítica): arrancá por el tipo que corresponde
   y subí con `-m`. Más effort no es más inteligencia, es más exploración y más gasto.
 - Un modelo `ollama:<modelo>` es local: más lento y menos capaz; reservalo para `mecanico` y `lectura`
@@ -83,24 +85,40 @@ pa --estado                                qué corre ahora, sesiones guardadas,
 
 ## Elegir modelo en corto
 
-**Pasá `--tipo` y dejá que `reparto` elija.** Forzá `-m` sólo con uno de estos motivos:
+**Elegís vos `-m` y `--effort` en cada `pa`**, con lo que leíste del pedido. Al arrancar la sesión recibís el resumen de
+modelos habilitados (inteligencia por effort, costo, cupo libre, para qué sirve); los cupos cambian, así que `reparto --resumen`
+lo refresca. `--tipo` sigue yendo (clasifica la corrida y alimenta `pa --rinde`), pero **ya no decide el modelo**.
 
-- **Falló el chequeo** con lo que eligió `reparto`: una vez con el siguiente, no más.
-  `mecanico`/`lectura`: Haiku xhigh → `claude-sonnet-5-5`. `codigo-*`/`frontend`/`debug`/`diseno`:
-  Sonnet high → `claude-opus-5-5` (`medium`; `high` sólo en `debug` y `codigo-multi`).
-- **Base crítica** de la que cuelga todo lo demás: `-m claude-opus-5-5 --effort medium`.
+Criterio, de lo más importante a lo menos:
+
+1. **Tamaño real de la tarea** (no su etiqueta): un cambio chico en un archivo es chico aunque sea `frontend`; tocar varias
+   partes o decidir una arquitectura es grande.
+2. **Costo de un error**: ¿se ve enseguida y se arregla en un commit, o se cuela y cuesta caro (datos, base de la que cuelga todo)?
+3. **Hay chequeo o no**: con un test o comando que falla si está mal, un modelo chico alcanza y se reintenta barato.
+
+Qué elegir:
+
+- **Haiku (`claude-haiku-5-5`, `--effort xhigh`)** para lo chico con chequeo: lectura, mecánico, un cambio acotado de interfaz o código
+  con test. Hasta una interfaz buena sale de Haiku si la tarea es chica y está bien explicada.
+- **Sonnet (`claude-sonnet-5-5`, `--effort high`)** para lo normal: código de varias partes, frontend de tamaño medio, la mayoría del día.
+- **Opus (`claude-opus-5-5`, `--effort medium`; `high` sólo en `debug`)** sólo para: una **base crítica** de la que cuelga lo demás, un
+  **bug sin pista**, o **tras un fallo** de uno menor (una vez, no más).
+- **Preferí los cupos gratis cuando hay chequeo** (Gemini Flash, OpenCode `*-free`, Go): gastan una suscripción que, si no se usa, se pierde,
+  y dejan el cupo de Claude para vos. Sin chequeo o con un error caro, no.
 - **Segunda opinión** independiente: `--leer -m gemini-4-argon-high` (si el usuario tiene Google AI Pro).
 - **Medir un modelo nuevo** para `pa --rinde`: sólo con `--tipo lectura`.
 
-Qué esperar (datos propios de una instalación, 60 días): Sonnet high iguala o supera a Opus en
-`codigo-multi`, `frontend` y `debug` por un cuarto del costo; Opus rinde mejor en `medium` que en `high`;
-Haiku xhigh alcanza para `lectura`/`mecanico` y, con test automático, para `codigo-acotado`. Argon, Flash,
-GPT-OSS y Claude por `agy` tienen pocas corridas: no los fuerces para código.
+Si el modelo que pediste **no tiene cupo**, `pa` avisa y sugiere otro (`sin_cupo=fallar` no lanza: sale 96); no te cambia el modelo solo.
+Elegí el que sugiere o uno del resumen con cupo.
 
-- **Antes de forzar `-m`, mirá `reparto --tabla`** (`--json` para leerla): todos los modelos con su inteligencia (`~` = estimada
-  por el nombre), si son gratis, el cupo libre, cuándo se reinicia y si `modelos.json` los permite. `reparto` ya prefiere los
-  planes que se reinician pronto y todavía tienen cupo (ese cupo se pierde si no se usa) y los modelos gratis cuando el cupo
-  escasea: no hace falta que lo corrijas a mano. `pa --modelos` muestra la misma inteligencia.
+Qué esperar (datos propios de una instalación, 60 días): Sonnet high iguala o supera a Opus en `codigo-multi`, `frontend` y `debug` por un
+cuarto del costo; Opus rinde mejor en `medium` que en `high`; Haiku xhigh alcanza para `lectura`/`mecanico` y, con test automático, para
+`codigo-acotado`. Argon, Flash, GPT-OSS y Claude por `agy` tienen pocas corridas: no los fuerces para código sin chequeo.
+
+- **Para el detalle, `reparto --tabla`** (`--json` para leerla; el resumen sale de ella): todos los modelos con su inteligencia (`~` = estimada
+  por el nombre), si son gratis, el cupo libre, cuándo se reinicia y si `modelos.json` los permite. Lo que sugiere
+  `reparto --tipo T` prefiere los planes que se reinician pronto y todavía tienen cupo (ese cupo se pierde si no se usa) y los
+  modelos gratis cuando el cupo escasea: usalo como pista, no como decisión. `pa --modelos` muestra la misma inteligencia.
 - **Nunca effort `max`** salvo que el usuario prenda `permitir_max` en los ajustes de Trama.
 - **Fable no vale su precio** frente a Opus 5.5 (2,5× por token y peor resultado medido): no lo uses.
 - Effort no es inteligencia: más effort = más turnos y más gasto. Si falla, mejorá la tarea antes de subirlo.
@@ -114,7 +132,7 @@ GPT-OSS y Claude por `agy` tienen pocas corridas: no los fuerces para código.
 
 Vos sos un modelo de Anthropic y los workers de Claude gastan el mismo cupo semanal que tu conversación. `reparto` lleva un **ritmo**
 por ventana semanal: lo usado dividido por lo que ya pasó de la semana (1,0× = termina la semana en ~100 %). Si el usuario va por encima,
-los workers pasan a modelos gratis o de Google; si va por debajo y falta poco para el reinicio, usan más la suscripción (ese cupo se
+las sugerencias de `reparto` pasan a modelos gratis o de Google (y vos también: es la pista del resumen); si va por debajo y falta poco para el reinicio, usan más la suscripción (ese cupo se
 pierde si no se gasta). El perfil (`perfil` en `modelos.json`, o Ajustes > Plan y cupos) lo gradúa: `ahorro` casi siempre gratis/Google y
 guarda el 35 % de la semana de Claude para vos (`reserva_lider`), `equilibrado` es el de siempre, `rendimiento` prioriza la calidad.
 
