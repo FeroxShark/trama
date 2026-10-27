@@ -109,7 +109,7 @@ test("reparto ofrece los gratis de opencode: sin Claude, el mejor gana; REPARTO_
   const rep = (env: Record<string, string>) =>
     spawnSync(path.join(MOTOR, "bin", "reparto"), ["--tipo", "mecanico", "--json"], {
       encoding: "utf8",
-      env: { ...process.env, HOME: home, REPARTO_STATE: path.join(tmp, "rep"), PA_STATE: estado, TRAMA_MODELOS: path.join(home, "no-hay.json"), REPARTO_CLAUDE: "0", HILOS_OPENCODE: falso, ...env },
+      env: { ...process.env, HOME: home, REPARTO_STATE: path.join(tmp, "rep"), PA_STATE: estado, TRAMA_MODELOS: path.join(home, "no-hay.json"), REPARTO_CLAUDE: "0", REPARTO_AGY: "0", HILOS_OPENCODE: falso, ...env },
     });
   const r = rep({});
   assert.equal(r.status, 0, r.stderr);
