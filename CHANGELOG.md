@@ -1,5 +1,10 @@
 # Cambios
 
+## 0.2.4
+
+- El líder elige modelo y esfuerzo de cada worker según el pedido. `reparto --resumen` le da al arrancar un resumen corto de cada modelo (nivel por esfuerzo, costo, cupo, para qué sirve); `reparto` sólo avisa si el modelo elegido no tiene cupo.
+- Haiku por defecto para lo que se puede describir con precisión, con guía de cómo escribirle el pedido. Sonnet si es ambiguo o Haiku falló; Opus sólo para bases, bug sin pista o tras un fallo.
+
 ## 0.2.3
 
 - Actualizar desde la app sin cortar trabajo: con líderes o workers activos ofrece "Actualizar cuando terminen" o "Actualizar ya" (con confirmación). Al terminar avisa "Trama X instalada" con botón para reiniciar la ventana.
