@@ -98,3 +98,8 @@ En `app/tests/paridad/casos.ts`, un objeto más en `casos`:
 - Si el caso falla bash-contra-bash, falta normalizar algo: agregarlo a `normalizar.ts` (con un caso en `normalizar.test.ts`)
   antes de culpar al segundo `pa`. Con el claude falso una tarea real termina en 78 (contesta «ok» sin RESULTADO): es esperado.
 - Cada cambio al `pa` bash va con su caso (regla de las etapas 6–9).
+
+## Regla fija: Windows sin bash
+La versión nativa de Windows no lleva bash en ninguna forma (ni de respaldo): nada de `.sh`, Git Bash, WSL ni jq en el
+payload ni en el camino de ejecución. El respaldo `TRAMA_PA=bash` es sólo de Linux. La etapa 14 saca la búsqueda de Git
+Bash de `app/electron/procesos.ts`, y la 16 suma un test que falla si el payload de Windows contiene un `.sh` o invoca bash.
