@@ -143,6 +143,24 @@ test("sin --rojos se saltea el paso 4 y lo dice; --log avisa de la compactación
   assert.match(r.sal, /AVISO 5/);
 });
 
+test("sin --test es el camino trivial: el paso 2 se saltea y el resto corre", () => {
+  const r = spawnSync(GATE, ["mi-proyecto", rama({ "src/b.txt": "b\n" }), "--chequeo", "true", "--permitidos", path.join(tmp, "permitidos.txt")], {
+    encoding: "utf8",
+    env: { ...process.env, PROYECTOS_REGISTRY: registry, PA_STATE: estado },
+  });
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.match(r.stdout, /SALTEADO 2 test congelado/);
+  assert.match(r.stdout, /OK\s+3 chequeo/);
+  assert.match(r.stdout, /GATE VERDE/);
+});
+
+test("--help documenta los pasos y los exits, y sale en 0", () => {
+  const r = spawnSync(GATE, ["--help"], { encoding: "utf8" });
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /--test COPIA/);
+  for (const e of ["21", "22", "23", "24"]) assert.match(r.stdout, new RegExp(`\\b${e}\\b`));
+});
+
 test("2 y 3 los muestra aunque el 1 falle; el exit es el del primero", () => {
   const r = gate(rama({ "afuera.txt": "x\n" }), [], { chequeo: "exit 1" });
   assert.equal(r.exit, 21, r.sal);

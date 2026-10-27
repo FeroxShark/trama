@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# gate <proyecto> <id> --chequeo CMD --permitidos F --test COPIA[:RUTA] [--rojos CMD] [--main REF] [--log F]
+# gate <proyecto> <id> --chequeo CMD --permitidos F [--test COPIA[:RUTA]] [--rojos CMD] [--main REF] [--log F]
 #
 # Compuerta de cada corrida (F6) del protocolo de orquestación (motor/docs/protocolo-orquestacion.txt, sección 4).
 # La corre el líder, no el worker: la VERIFICACION del worker es un indicio, esto es la prueba. Corre los cinco pasos
@@ -7,8 +7,9 @@
 #
 #   1. alcance        los archivos que la rama cambió contra main están todos en --permitidos
 #                     (una ruta por línea: exacta, `dir/` = todo lo de adentro, o glob con * ; # y vacías se ignoran)
-#   2. test congelado el archivo de la rama es idéntico a COPIA (la del plan). RUTA = dónde está en el repo; sin ella,
-#                     el único archivo de la rama con el mismo nombre que COPIA
+#   2. test congelado (sólo con --test) el archivo de la rama es idéntico a COPIA (la del plan). RUTA = dónde está en el
+#                     repo; sin ella, el único archivo de la rama con el mismo nombre que COPIA. Sin --test es el camino
+#                     trivial: no hay test congelado y se saltea (y lo dice)
 #   3. chequeo        --chequeo CMD corre en el worktree de la rama y da exit 0
 #   4. rojos nuevos   --rojos CMD (corre los tests e imprime los que fallan, uno por línea) en la rama y en main:
 #                     lo que falla en la rama y no en main es nuevo. La base de main se guarda una vez por sha en
@@ -27,6 +28,7 @@ AQUI="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 STATE="${PA_STATE:-$HOME/.local/state/pa}"
 
 uso() { sed -n '2p' "${BASH_SOURCE[0]}" | sed 's/^# *//' >&2; exit 2; }
+ayuda() { awk 'NR>1 && !/^#/{exit} NR>1{sub(/^# ?/,""); print}' "${BASH_SOURCE[0]}"; exit 0; }
 fatal() { echo "gate: $*" >&2; exit 3; }
 
 proy=""; id=""; chequeo=""; permitidos=""; test_arg=""; rojos=""; main_ref="main"; log=""
@@ -39,18 +41,21 @@ while (($#)); do
     --rojos)      [[ $# -ge 2 ]] || uso; rojos="$2"; shift 2 ;;
     --main)       [[ $# -ge 2 ]] || uso; main_ref="$2"; shift 2 ;;
     --log)        [[ $# -ge 2 ]] || uso; log="$2"; shift 2 ;;
-    -h|--help)    uso ;;
+    -h|--help)    ayuda ;;
     -*)           echo "gate: opción desconocida: $1" >&2; uso ;;
     *)            pos+=("$1"); shift ;;
   esac
 done
 ((${#pos[@]} == 2)) || uso
 proy="${pos[0]}"; id="${pos[1]}"
-[[ -n "$chequeo" && -n "$permitidos" && -n "$test_arg" ]] || uso
+[[ -n "$chequeo" && -n "$permitidos" ]] || uso
 [[ -f "$permitidos" ]] || fatal "no existe --permitidos: $permitidos"
-copia="${test_arg%%:*}"; test_ruta=""
-[[ "$test_arg" == *:* ]] && test_ruta="${test_arg#*:}"
-[[ -f "$copia" ]] || fatal "no existe la copia del test: $copia"
+copia=""; test_ruta=""
+if [[ -n "$test_arg" ]]; then
+  copia="${test_arg%%:*}"
+  [[ "$test_arg" == *:* ]] && test_ruta="${test_arg#*:}"
+  [[ -f "$copia" ]] || fatal "no existe la copia del test: $copia"
+fi
 
 PR="$AQUI/proyecto-ruta"; [[ -x "$PR" ]] || PR="$(command -v proyecto-ruta || true)"
 [[ -n "$PR" ]] || fatal "no encuentro proyecto-ruta"
@@ -93,15 +98,18 @@ if ((${#fuera[@]})); then
   rojo 21 "1 alcance: ${#fuera[@]} archivo(s) fuera de lo permitido"; printf '        %s\n' "${fuera[@]}"
 else echo "OK    1 alcance"; fi
 
-# 2. test congelado
-if [[ -z "$test_ruta" ]]; then
-  mapfile -t cand < <(git -C "$repo" ls-tree -r --name-only "$rama" | awk -v b="$(basename "$copia")" '{n=split($0,a,"/"); if (a[n]==b) print}')
-  if ((${#cand[@]} == 1)); then test_ruta="${cand[0]}"; fi
+# 2. test congelado (sin --test: camino trivial, no hay test que congelar)
+if [[ -z "$test_arg" ]]; then echo "SALTEADO 2 test congelado (sin --test)"
+else
+  if [[ -z "$test_ruta" ]]; then
+    mapfile -t cand < <(git -C "$repo" ls-tree -r --name-only "$rama" | awk -v b="$(basename "$copia")" '{n=split($0,a,"/"); if (a[n]==b) print}')
+    if ((${#cand[@]} == 1)); then test_ruta="${cand[0]}"; fi
+  fi
+  if [[ -z "$test_ruta" ]]; then
+    rojo 22 "2 test congelado: la rama no tiene un único archivo llamado $(basename "$copia") (pasá --test COPIA:RUTA)"
+  elif git -C "$repo" show "$rama:$test_ruta" 2>/dev/null | cmp -s - "$copia"; then echo "OK    2 test congelado ($test_ruta)"
+  else rojo 22 "2 test congelado: $test_ruta cambió respecto de $copia (o no existe en la rama)"; fi
 fi
-if [[ -z "$test_ruta" ]]; then
-  rojo 22 "2 test congelado: la rama no tiene un único archivo llamado $(basename "$copia") (pasá --test COPIA:RUTA)"
-elif git -C "$repo" show "$rama:$test_ruta" 2>/dev/null | cmp -s - "$copia"; then echo "OK    2 test congelado ($test_ruta)"
-else rojo 22 "2 test congelado: $test_ruta cambió respecto de $copia (o no existe en la rama)"; fi
 
 # 3. chequeo de la subtarea
 sal3="$(cd "$wt" && bash -c "$chequeo" 2>&1)"; ex3=$?
