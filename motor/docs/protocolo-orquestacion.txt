@@ -748,6 +748,8 @@ Trama — protocolo de orquestación por fases
 
   Qué hay que agregar [AGREGAR]
 
+  Hecho 2026-10-27: los ítems 1, 2, 4 y 10 (pa y reparto; pruebas en app/tests/pa-fases.test.ts). Exit 97 = OpenCode cortó por límite; exit 3 = la rúbrica dice "no se lanza".
+
      #          Cambio                            Dónde                 Tamaño      Prioridad
 
      1           -m a,b,c : lista de fallback;    pa                    ~60         Alta
