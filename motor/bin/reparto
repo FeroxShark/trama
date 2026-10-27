@@ -11,8 +11,10 @@
   reparto --resolver ID [--json]               cómo se lanza un id de modelo (claude / agy / codex / ollama / dsh)
   reparto --agotar ID [--hasta ISO]            marca agotado el grupo de agy o de codex de ese modelo (o grupo), o el
                                                Claude oficial (claude-*), hasta que vuelve
+  reparto --enfriar ID [--horas N]             un modelo cortó por límite (pa sale 97): no es candidato N horas (default 5); es por modelo, no por grupo
+  reparto --enfriado ID                        si ese modelo sigue enfriado: imprime hasta cuándo y sale 0; si no, sale 1
   reparto --excluido ID                        si modelos.json excluye ese id: imprime la regla y sale 0; si no, sale 1
-  reparto --olvidar-agotados                   borra las marcas de agotado
+  reparto --olvidar-agotados                   borra las marcas de agotado y de enfriado
   reparto --plan ausente F[,F..] | presente F  días que no se trabaja (AAAA-MM-DD, hoy, manana, o A..B): el presupuesto semanal se reparte
                                                entre los demás días (antes de una ausencia + reinicio, hoy se gasta más)
   reparto --plan gastar-hoy | ahorrar-hoy      pisa el ritmo sólo por hoy (vence solo a medianoche)
@@ -235,6 +237,7 @@ DSH_GRUPOS = {"ollama": "dsh-ollama", "opencode": "dsh-opencode", "deepseek": "d
 # OpenCode Go: el plan lo dice modelos.json (`opencode_plan`); el grupo de cada modelo de Go es su propio id (cupo por modelo, ventana de 5 h).
 PLANES_OPENCODE = ("gratis", "go", "go-plus")
 COSTO_GO = 0.02           # costo marginal ~0 de un modelo de Go (plan fijo con cupo): casi como un gratis, pero un gratis sin gastar nada gana el empate
+ENFRIAR_H = 5             # un modelo de OpenCode que cortó por límite (pa sale 97) no es candidato esta cantidad de horas (`--enfriar ID [--horas N]`)
 VENCE_GO_H = 5            # un 429 de un modelo de Go lo marca agotado esta cantidad de horas (la ventana del plan)
 OC_GO_PREFIJO = "opencode:opencode-go/"
 OC_GRATIS_CONOCIDOS = ["big-pickle", "beam-free", "deepseek-v4.1-flash-free", "flint-40b-free", "glm-5.3-flash-free", "mimo-v2.6-flash-free",
@@ -1737,6 +1740,46 @@ def grupo_de_modelo(mid):
     return None
 
 
+def leer_enfriados(state, now):
+    """{modelo (minúsculas): ISO de cuándo vuelve} de los modelos que cortaron por límite y siguen enfriándose."""
+    try:
+        with open(os.path.join(state, "enfriado.json")) as f:
+            d = json.load(f)
+    except Exception:
+        return {}
+    out = {}
+    for mid, v in (d.items() if isinstance(d, dict) else []):
+        dt = parse_iso(v.get("hasta") if isinstance(v, dict) else None)
+        if dt and dt > now:
+            out[mid.lower()] = iso(dt)
+    return out
+
+
+def enfriar(mid, horas, now):
+    """Saca a ESE modelo (no a su grupo: `agotar` marca todos los gratis de OpenCode juntos) de los candidatos `horas` horas."""
+    mid = (mid or "").strip().lower()
+    if not mid:
+        err("--enfriar quiere un id de modelo")
+        return 2
+    hasta = now + timedelta(hours=horas)
+    state = state_dir()
+    try:
+        os.makedirs(state, exist_ok=True)
+        f = os.path.join(state, "enfriado.json")
+        with bloqueo(f):
+            actuales = leer_enfriados(state, now)
+            actuales[mid] = iso(hasta)
+            tmp = f + ".%d" % os.getpid()
+            with open(tmp, "w") as fh:
+                json.dump({k: {"hasta": v} for k, v in actuales.items()}, fh)
+            os.replace(tmp, f)
+    except OSError as e:
+        err("no pude guardar la marca: %s" % e)
+        return 1
+    print("%s enfriado hasta %s" % (mid, iso(hasta)))
+    return 0
+
+
 def agotar(mid, hasta_arg, cfg, now, cuenta=None):
     gid = grupo_de_modelo(mid)
     if not gid:
@@ -2260,6 +2303,7 @@ def armar_candidatos(tipo, cfg, cupos, now, effort=None):
     # dsh: Ollama y los gratis de OpenCode no gastan cupo (costo cero, como los locales); DeepSeek se paga y sólo entra con su key.
     # Un grupo marcado agotado (`reparto --agotar dsh:opencode/x`: pa vio un 429) no es candidato hasta que vuelve.
     agot = leer_agotados(state_dir(), now) if ofertas_dsh else {}
+    enfr = leer_enfriados(state_dir(), now) if ofertas_dsh else {}
     for mid, nombre, prov, gratis in ofertas_dsh:
         calidad, origen = calidad_origen(cfg, mid)
         estimada = origen == "estimada"
@@ -2285,6 +2329,9 @@ def armar_candidatos(tipo, cfg, cupos, now, effort=None):
         elif x:
             cand["descartado_por"] = "excluido en modelos.json (excluir: %s)" % x
             cand["duro"] = True
+        elif mid.lower() in enfr:
+            cand["descartado_por"] = "cortó por límite de uso (pa salió 97): enfriándose hasta %s" % enfr[mid.lower()]
+            cand["vuelve"] = enfr[mid.lower()]
         elif gid in agot:
             cand["descartado_por"] = "dijo sin cupo (429): vuelve %s" % agot[gid]
             cand["vuelve"] = agot[gid]
@@ -2927,13 +2974,22 @@ def main(argv):
     expl = "--explicar" in a
     a = [x for x in a if x not in ("--json", "--explicar")]
     opt = {}
-    for k in ("--cuenta", "--mismo-proveedor"):
+    for k in ("--cuenta", "--mismo-proveedor", "--horas"):
         if k in a[1:]:
             i = a.index(k, 1)
             if i + 1 >= len(a):
                 return uso()
             opt[k] = a[i + 1]
             del a[i:i + 2]
+    horas = ENFRIAR_H
+    if "--horas" in opt:
+        try:
+            horas = float(opt["--horas"])
+            if horas <= 0:
+                raise ValueError
+        except ValueError:
+            err("--horas quiere un número de horas mayor que cero (ej. 5)")
+            return 2
     if "--mismo-proveedor" in opt and opt["--mismo-proveedor"] not in PROVEEDORES:
         err("--mismo-proveedor quiere claude, google o chatgpt")
         return 2
@@ -2995,16 +3051,24 @@ def main(argv):
         return 0 if r.get("modelo") else 1
     if a[0] == "--agotar" and len(a) in (2, 4) and (len(a) == 2 or a[2] == "--hasta"):
         return agotar(a[1], a[3] if len(a) == 4 else None, cfg, now, opt.get("--cuenta"))
+    if a[0] == "--enfriar" and len(a) == 2:
+        return enfriar(a[1], horas, now)
+    if a[0] == "--enfriado" and len(a) == 2:
+        hasta = leer_enfriados(state_dir(), now).get(a[1].strip().lower())
+        if hasta:
+            print(hasta)
+        return 0 if hasta else 1
     if a[0] == "--excluido" and len(a) == 2:
         x = excluido_por(a[1], cfg["excluir"], "local" if a[1].lower().startswith("ollama:") else None)
         if x:
             print(x)
         return 0 if x else 1
     if a[0] == "--olvidar-agotados" and len(a) == 1:
-        try:
-            os.remove(os.path.join(state_dir(), "agotado.json"))
-        except FileNotFoundError:
-            pass
+        for nombre in ("agotado.json", "enfriado.json"):
+            try:
+                os.remove(os.path.join(state_dir(), nombre))
+            except FileNotFoundError:
+                pass
         return 0
     if a[0] == "--cuenta-para" and len(a) == 2:
         try:
