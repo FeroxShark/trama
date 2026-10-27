@@ -43,6 +43,9 @@
 #   pa <proyecto> --ramas                ramas de workers sin integrar
 #   pa <proyecto> --descartar <id>       tirar la rama de esa corrida (borra sus commits: confirmarlo antes)
 #   pa <proyecto> --async "<tarea>"      lanzar desacoplado y volver enseguida
+#   pa <proyecto> -m a,b,c "<tarea>"     lista de fallback: prueba a; si sale 76/77 (límite o API sobrecargada), 95/96 (no puede
+#                                        correr / sin cupo) o 97 (OpenCode cortó por límite) pasa a b, y así. Saltea los que reparto
+#                                        tiene enfriados. Sale con el código del último intento. Con --async cubre sólo lo que falla al lanzar
 #   pa <proyecto> -m <modelo> "<tarea>"  elegir modelo: el jefe lo elige (con --effort) según el tamaño real de la tarea
 #                                        (`reparto --resumen` lista las opciones); con -m, reparto sólo avisa si ese modelo no
 #                                        tiene cupo y sugiere otro (sin_cupo=fallar: sale 96). Sin -m pa avisa y sigue con lo
@@ -75,6 +78,13 @@
 #   pa <proyecto> --tipo <tipo> "<t>"    clasificar la corrida (o env PA_TIPO): mecanico | lectura | codigo-acotado |
 #                                        codigo-multi | frontend | diseno | debug | final. Va a medicion.tsv y al .hilo;
 #                                        es lo que agrupa `pa --rinde`. Un --seguir sin --tipo hereda el de la retomada
+#   pa <proyecto> --fase F1..F7 --tarea <slug> "<t>"  fase del protocolo y tarea madre de la corrida (o env PA_FASE / PA_TAREA): van a medicion.tsv
+#                                        y al .hilo; `pa --rinde --por fase|tarea` las agrupa. Un --seguir las hereda
+#   pa --rubrica 'A=1 B=ejecutar C=completo D=bajo E=si' [--json]  qué fila de la tabla de modelos del protocolo da (A archivos: 1|2-3|>3,
+#                                        B ejecutar|decidir, C completo|parcial|ninguno, D bajo|alto, E si|no; M=si = sin lógica nueva) y
+#                                        con qué -m/--effort; no lanza nada. Sale 3 si la fila dice "no se lanza" (partir / escribir el chequeo)
+#   pa <proyecto> --rubrica '<A=.. B=.. ..>' "<t>"  lanza con el modelo y el effort que da la fila (un -m/--effort le gana) y anota
+#                                        las respuestas, la fila y el modelo estimado en medicion.tsv
 #   pa <proyecto> --cuenta <id> "<t>"   correr con esa cuenta de la suscripción (bin/cuentas; default: la de
 #                                        más cupo libre del proveedor del modelo, o la de siempre si hay una sola)
 #   pa --plan [pro|max]                  ver / cambiar el plan de la suscripción (pro = modo ahorro, el default)
@@ -98,6 +108,9 @@
 #   pa --bien-auto                       completar solo `bien`, `integrada` y `retrabajo` desde integradas.tsv
 #   pa --rinde [--dias N] [--json]       tipo × modelo × effort: n, % integrada sin retrabajo, mediana de turnos,
 #                                        costo medio y % que compactó (default: últimos 30 días)
+#   pa --rinde --por fase|tarea          lo mismo agrupado por fase (--fase) o por tarea madre (--tarea) en vez de por tipo
+#   pa --rinde --rubrica [--json]        acierto de la rúbrica por fila: corridas, cuántas corrieron con el modelo estimado y % que
+#                                        se integró sin retrabajo con él
 #   pa --esperar-todos [--timeout N]     cobrar TODAS tus corridas async pendientes, de todos los proyectos,
 #                                        en una sola llamada (un turno del jefe para N resultados)
 #   pa --estado                          qué corre ahora y qué sesión hay guardada por proyecto
@@ -135,7 +148,9 @@
 #                    91 la integración no trajo commits que revertir · 92 --archivar/--descartar por id sobre una corrida viva ·
 #                    93 --integrar --tests dio rojo · 94 interno de --esperar-todos (no sale de pa) ·
 #                    95 el modelo local no responde (ollama caído o sin el modelo), o dsh no puede correr (sin dsh, sin key) ·
-#                    96 sin cupo / modelo no disponible y sin_cupo=fallar (o esperar sin --async, o se acabó la espera) · 130 matado.
+#                    96 sin cupo / modelo no disponible y sin_cupo=fallar (o esperar sin --async, o se acabó la espera) ·
+#                    97 OpenCode cortó por límite de uso: ese modelo queda enfriado N horas en reparto (PA_ENFRIAR_HORAS, default 5) · 130 matado.
+#                    (`pa --rubrica` / `pa <p> --rubrica`: 3 si la fila de la tabla dice "no se lanza".)
 #
 # Puestos: hasta PA_PUESTOS (default 3) workers que escriben corren EN PARALELO en el mismo
 # proyecto, cada uno en su worktree fijo (`worktrees/<slug>`, `worktrees/<slug>@2`, …) y su rama.
@@ -2700,6 +2715,73 @@ reescribe_lineas() {   # repo a1 b1 a2 b2
   return 1
 }
 
+# --- rúbrica: el modelo se elige antes de lanzar (protocolo por fases, sección 5) -------------------------
+# Cinco respuestas por subtarea y la tabla da modelo y effort; gana la primera fila que aplique:
+#   A archivos que modifica: 1 | 2-3 | >3        B ejecutar | decidir        C chequeo que lo desmienta: completo | parcial | ninguno
+#   D costo de un error: bajo | alto             E causa o lugar conocidos: si | no
+#   M (opcional) = si: sin lógica nueva (renombre, claves listadas): habilita la fila 9, el gratis de OpenCode
+# `rubrica_resolver '<texto>'` deja RUB_NORM (las respuestas normalizadas), RUB_FILA, RUB_MODELO, RUB_EFFORT, RUB_TIPO (sólo la 9: mecanico) y
+# RUB_NOTA (el "además" de la tabla). Sale 0 si se lanza, 3 si la fila dice "no se lanza" (RUB_MODELO queda vacío), 2 si el texto está mal.
+rubrica_resolver() {
+  local txt="${1//,/ }" t k v A="" B="" C="" D="" E="" M="no"
+  RUB_NORM="" RUB_FILA="" RUB_MODELO="" RUB_EFFORT="" RUB_TIPO="" RUB_NOTA=""
+  for t in $txt; do
+    [[ "$t" == *=* ]] || { echo "pa: --rubrica: '$t' no es CLAVE=valor. Va así: 'A=1 B=ejecutar C=completo D=bajo E=si' (A: 1|2-3|>3, B: ejecutar|decidir, C: completo|parcial|ninguno, D: bajo|alto, E: si|no)." >&2; return 2; }
+    k="${t%%=*}"; k="${k^^}"; v="${t#*=}"; v="${v,,}"; v="${v//á/a}"; v="${v//é/e}"; v="${v//í/i}"; v="${v//ó/o}"; v="${v//ú/u}"
+    case "$k" in
+      A) case "$v" in
+           1|uno) A=1 ;;
+           2|3|2-3|2–3|2a3) A=2-3 ;;
+           ">3"|">=4"|4+|3+|mas|mas3|mas-de-3|masde3|"+3"|[4-9]|[1-9][0-9]*) A=">3" ;;
+           *) echo "pa: --rubrica: A='$v' no va (A = cuántos archivos modifica: 1, 2-3 o >3)." >&2; return 2 ;;
+         esac ;;
+      B) [[ "$v" == @(ejecutar|decidir) ]] || { echo "pa: --rubrica: B='$v' no va (ejecutar o decidir)." >&2; return 2; }; B="$v" ;;
+      C) [[ "$v" == @(completo|parcial|ninguno) ]] || { echo "pa: --rubrica: C='$v' no va (completo, parcial o ninguno)." >&2; return 2; }; C="$v" ;;
+      D) [[ "$v" == @(bajo|alto) ]] || { echo "pa: --rubrica: D='$v' no va (bajo o alto)." >&2; return 2; }; D="$v" ;;
+      E) [[ "$v" == @(si|no) ]] || { echo "pa: --rubrica: E='$v' no va (si o no)." >&2; return 2; }; E="$v" ;;
+      M) [[ "$v" == @(si|no) ]] || { echo "pa: --rubrica: M='$v' no va (si o no)." >&2; return 2; }; M="$v" ;;
+      *) echo "pa: --rubrica: la clave '$k' no existe (A, B, C, D, E; opcional M)." >&2; return 2 ;;
+    esac
+  done
+  [[ -n "$A" && -n "$B" && -n "$C" && -n "$D" && -n "$E" ]] || { echo "pa: --rubrica: faltan respuestas. Van las cinco: 'A=1 B=ejecutar C=completo D=bajo E=si'." >&2; return 2; }
+  RUB_NORM="A=$A B=$B C=$C D=$D E=$E"; [[ "$M" == si ]] && RUB_NORM+=" M=si"
+  if [[ "$A" == ">3" ]]; then RUB_FILA=1; RUB_NOTA="Volver a F3 y partir."; return 3
+  elif [[ "$C" == ninguno ]]; then RUB_FILA=2; RUB_NOTA="Escribir el chequeo (F4). Si es imposible (puro visual), tratar como C=parcial."; return 3
+  elif [[ "$E" == no ]]; then RUB_FILA=3; RUB_MODELO=claude-opus-5-5; RUB_EFFORT=medium; RUB_NOTA="Antes, F2 variante hipótesis con Haiku: si una se confirma, E=si y se re-puntúa."
+  elif [[ "$B" == decidir && "$D" == alto ]]; then RUB_FILA=4; RUB_MODELO=claude-opus-5-5; RUB_EFFORT=medium; RUB_NOTA="F7 obligatoria. Opus high sólo con OK del dueño."
+  elif [[ "$B" == decidir ]]; then RUB_FILA=5; RUB_MODELO=claude-sonnet-5-5; RUB_EFFORT=high
+  elif [[ "$C" == parcial && "$D" == alto ]]; then RUB_FILA=6; RUB_MODELO=claude-sonnet-5-5; RUB_EFFORT=high; RUB_NOTA="PROBAR para el dueño."
+  elif [[ "$C" == parcial ]]; then RUB_FILA=7; RUB_MODELO=claude-haiku-5-5; RUB_EFFORT=xhigh; RUB_NOTA="PROBAR para el dueño."
+  elif [[ "$D" == alto ]]; then RUB_FILA=8; RUB_MODELO=claude-haiku-5-5; RUB_EFFORT=xhigh; RUB_NOTA="F7 obligatoria, con otra familia."
+  elif [[ "$A" == 1 && "$M" == si ]]; then RUB_FILA=9; RUB_MODELO=opencode:opencode/glm-5.3-flash-free; RUB_TIPO=mecanico; RUB_NOTA="--tipo mecanico; plan B claude-haiku-5-5 medium (-m opencode:opencode/glm-5.3-flash-free,claude-haiku-5-5)."
+  else RUB_FILA=10; RUB_MODELO=claude-haiku-5-5; RUB_EFFORT=xhigh
+  fi
+  return 0
+}
+# `pa --rubrica '<respuestas>' [--json]`: qué fila de la tabla da, con qué modelo y effort (no lanza nada). Sale 3 si la fila dice "no se lanza".
+cmd_rubrica() {
+  local texto="" json=0 rc=0
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --json) json=1; shift ;;
+      *) [[ -z "$texto" ]] || { echo "uso: pa --rubrica 'A=1 B=ejecutar C=completo D=bajo E=si' [--json]" >&2; return 2; }; texto="$1"; shift ;;
+    esac
+  done
+  [[ -n "$texto" ]] || { echo "uso: pa --rubrica 'A=1 B=ejecutar C=completo D=bajo E=si' [--json]" >&2; return 2; }
+  rubrica_resolver "$texto" || rc=$?
+  (( rc == 2 )) && return 2
+  if (( json )); then
+    jq -n --arg r "$RUB_NORM" --arg f "$RUB_FILA" --arg m "$RUB_MODELO" --arg e "$RUB_EFFORT" --arg t "$RUB_TIPO" --arg n "$RUB_NOTA" \
+      '{version: 1, rubrica: $r, fila: ($f | tonumber), lanza: ($m != ""), modelo: (if $m == "" then null else $m end),
+        effort: (if $e == "" then null else $e end), tipo: (if $t == "" then null else $t end), nota: $n}'
+  elif (( rc == 3 )); then
+    echo "fila $RUB_FILA: no se lanza. $RUB_NOTA"
+  else
+    echo "fila $RUB_FILA: -m $RUB_MODELO${RUB_EFFORT:+ --effort $RUB_EFFORT}${RUB_TIPO:+ --tipo $RUB_TIPO}${RUB_NOTA:+  ($RUB_NOTA)}"
+  fi
+  return "$rc"
+}
+
 # `pa --rinde [--dias N] [--json]`: qué rinde cada modelo × effort en cada tipo de tarea, desde
 # medicion.tsv. Una línea por celda (tipo × modelo × effort), ordenado por tipo; las corridas sin
 # `--tipo` van en la fila `?`. `ok%` = integradas sin retrabajo sobre las que ya tienen dato
@@ -2708,26 +2790,31 @@ reescribe_lineas() {   # repo a1 b1 a2 b2
 # de columna: las filas de antes de `tipo` son más cortas y caen en `?` sin dato. Una cuenta que no es
 # la de siempre es una celda aparte (`modelo@cuenta`; en --json, el campo `cuenta`).
 cmd_rinde() {
-  local dias=30 json=0
+  local dias=30 json=0 por=tipo rub=0 uso="uso: pa --rinde [--dias N] [--json] [--por tipo|fase|tarea | --rubrica]"
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --dias) dias="${2:-}"; shift; [[ $# -gt 0 ]] && shift ;;
       --json) json=1; shift ;;
-      *) echo "uso: pa --rinde [--dias N] [--json]" >&2; return 2 ;;
+      --por)  por="${2:-}"; shift; [[ $# -gt 0 ]] && shift ;;
+      --rubrica) rub=1; shift ;;
+      *) echo "$uso" >&2; return 2 ;;
     esac
   done
-  [[ "$dias" =~ ^[0-9]+$ ]] || { echo "uso: pa --rinde [--dias N] [--json]  (N = días, un número)" >&2; return 2; }
+  [[ "$dias" =~ ^[0-9]+$ ]] || { echo "$uso  (N = días, un número)" >&2; return 2; }
+  [[ "$por" == @(tipo|fase|tarea) ]] || { echo "$uso  (--por: tipo, fase o tarea, no '$por')" >&2; return 2; }
+  (( rub )) && [[ "$por" != tipo ]] && { echo "pa: --rubrica no se combina con --por: agrupa por fila de la tabla." >&2; return 2; }
+  (( rub )) && { cmd_rinde_rubrica "$dias" "$json"; return $?; }
   local MEDICION="$STATE/medicion.tsv" desde celdas=""
   desde="$(date -d "-$dias days" -Iseconds)"
   # tipo \t modelo \t effort \t n \t dato \t ok \t ok% \t mediana de turnos \t costo medio \t % compactó
   # (`~` = sin tipo, para que ordene al final; se muestra `?`)
-  [[ -f "$MEDICION" ]] && celdas="$(awk -F'\t' -v OFS='\t' -v desde="$desde" '
+  [[ -f "$MEDICION" ]] && celdas="$(awk -F'\t' -v OFS='\t' -v desde="$desde" -v por="$por" '
     function v(n) { return ((n in c) && c[n] <= NF) ? $c[n] : "" }
     function num(x) { return x ~ /^[0-9]+(\.[0-9]+)?([eE][-+]?[0-9]+)?$/ }
     FNR == 1 { for (i = 1; i <= NF; i++) c[$i] = i; next }
     NF < 5 || $1 !~ /^[0-9][0-9][0-9][0-9]-/ || $1 < desde { next }
     {
-      t = v("tipo"); if (t == "") t = "~"
+      t = v(por); if (t == "") t = "~"
       e = v("effort"); if (e == "") e = "settings"
       cu = v("cuenta"); if (cu == "claude" || cu == "google" || cu == "chatgpt") cu = ""
       k = t OFS v("modelo") OFS e OFS cu
@@ -2749,11 +2836,11 @@ cmd_rinde() {
       }
     }' "$MEDICION" | LC_ALL=C sort -t$'\t' -k1,1 -k2,2 -k3,3 -k4,4)"
   if (( json )); then
-    jq -Rn --arg dias "$dias" --arg desde "$desde" '
+    jq -Rn --arg dias "$dias" --arg desde "$desde" --arg por "$por" '
       def n: if . == "" then null else tonumber end;
-      {version: 1, dias: ($dias | tonumber), desde: $desde,
+      {version: 1, dias: ($dias | tonumber), desde: $desde, por: $por,
        celdas: [inputs | select(. != "") | split("\t")
-                | {tipo: (if .[0] == "~" then "?" else .[0] end), modelo: .[1], effort: .[2],
+                | {($por): (if .[0] == "~" then "?" else .[0] end), modelo: .[1], effort: .[2],
                    cuenta: (if .[3] == "" then null else .[3] end),
                    n: (.[4] | n), con_dato: (.[5] | n), ok: (.[6] | n), pct_ok: (.[7] | n),
                    turnos_mediana: (.[8] | n), costo_medio_usd: (.[9] | n), pct_compacto: (.[10] | n)}]}' <<<"$celdas"
@@ -2761,13 +2848,52 @@ cmd_rinde() {
   fi
   [[ -n "$celdas" ]] || { echo "pa: ninguna corrida en los últimos $dias días."; return 0; }
   echo "últimos $dias días · ok% = integrada sin retrabajo, sobre las que ya tienen dato (pa --bien-auto) · turnos = mediana · US\$ = costo medio · comp% = compactaron"
-  printf '%-15s %-18s %-8s %4s %5s %5s %7s %8s %6s\n' tipo modelo effort n dato 'ok%' turnos 'US$' 'comp%'
+  printf '%-15s %-18s %-8s %4s %5s %5s %7s %8s %6s\n' "$por" modelo effort n dato 'ok%' turnos 'US$' 'comp%'
   local t mo e cu n d o p tu us co
   while IFS='|' read -r t mo e cu n d o p tu us co; do
     [[ "$t" == "~" ]] && t="?"
     [[ -n "$cu" ]] && mo="$mo@$cu"   # una cuenta que no es la de siempre
     printf '%-15s %-18s %-8s %4s %5s %5s %7s %8s %6s\n' "$t" "$mo" "$e" "$n" "$d" "${p:--}" "${tu:--}" "${us:--}" "${co:--}"
   done < <(tr '\t' '|' <<<"$celdas")
+}
+
+# `pa --rinde --rubrica`: acierto de la rúbrica por fila de la tabla (columnas `rubrica`, `rub_fila` y `rub_modelo` de medicion.tsv; las
+# corridas sin rúbrica no cuentan). `n` = corridas con esa fila; `est` = las que corrieron con el modelo que daba la fila (el resto se
+# lanzó con otro: un -m del jefe, o la re-puntuación); `dato` = de las `est`, las que ya tienen integrada/retrabajo (pa --bien-auto);
+# `ok` = integrada sin retrabajo; `acierto%` = ok / dato: la fila acertó cuando el modelo estimado es el que se integró sin retrabajo.
+cmd_rinde_rubrica() {   # $1 = días, $2 = json 0|1
+  local dias="$1" json="$2" MEDICION="$STATE/medicion.tsv" desde filas=""
+  desde="$(date -d "-$dias days" -Iseconds)"
+  [[ -f "$MEDICION" ]] && filas="$(awk -F'\t' -v OFS='\t' -v desde="$desde" '
+    function v(n) { return ((n in c) && c[n] <= NF) ? $c[n] : "" }
+    FNR == 1 { for (i = 1; i <= NF; i++) c[$i] = i; next }
+    NF < 5 || $1 !~ /^[0-9][0-9][0-9][0-9]-/ || $1 < desde { next }
+    {
+      f = v("rub_fila"); if (f !~ /^[0-9]+$/) next
+      n[f]++; mo[f] = v("rub_modelo"); ef[f] = v("rub_effort")
+      if (v("modelo") == v("rub_modelo")) {
+        est[f]++
+        i = v("integrada") ""; r = v("retrabajo") ""
+        if (i == "0" || (i == "1" && (r == "0" || r == "1"))) { dato[f]++; if (i == "1" && r == "0") ok[f]++ }
+      }
+    }
+    END { for (f in n) print f + 0, mo[f], ef[f], n[f], est[f] + 0, dato[f] + 0, ok[f] + 0, (dato[f] ? sprintf("%.0f", 100 * ok[f] / dato[f]) : "") }' "$MEDICION" | LC_ALL=C sort -t$'\t' -k1,1n)"
+  if (( json )); then
+    jq -Rn --arg dias "$dias" --arg desde "$desde" '
+      def n: if . == "" then null else tonumber end;
+      {version: 1, dias: ($dias | tonumber), desde: $desde, por: "rubrica",
+       filas: [inputs | select(. != "") | split("\t")
+               | {fila: (.[0] | n), modelo_estimado: (if .[1] == "" then null else .[1] end), effort_estimado: (if .[2] == "" then null else .[2] end),
+                  n: (.[3] | n), con_modelo_estimado: (.[4] | n), con_dato: (.[5] | n), ok: (.[6] | n), pct_acierto: (.[7] | n)}]}' <<<"$filas"
+    return 0
+  fi
+  [[ -n "$filas" ]] || { echo "pa: ninguna corrida con rúbrica (pa <proy> --rubrica '…') en los últimos $dias días."; return 0; }
+  echo "últimos $dias días · est = corrieron con el modelo que daba la fila · acierto% = integrada sin retrabajo con ese modelo, sobre las que ya tienen dato (pa --bien-auto)"
+  printf '%-5s %-34s %-8s %4s %4s %5s %8s\n' fila 'modelo estimado' effort n est dato 'acierto%'
+  local f mo e n es d o p
+  while IFS='|' read -r f mo e n es d o p; do
+    printf '%-5s %-34s %-8s %4s %4s %5s %8s\n' "$f" "${mo:--}" "${e:--}" "$n" "$es" "$d" "${p:--}"
+  done < <(tr '\t' '|' <<<"$filas")
 }
 
 # Un campo del RESULTADO (stdin) en una línea: la ÚLTIMA línea que arranca con su encabezado
@@ -3506,7 +3632,11 @@ MEDICION_HEADER_VIEJO=$'fecha\tid\tproyecto\tmodelo\teffort\tleer\tseguir\tis_er
 # pone `--tipo`/PA_TIPO al lanzar; `integrada` y `retrabajo` nacen vacías y las llena `--bien-auto`.
 # Al final, por lo mismo. Quien lee este archivo va por NOMBRE de columna (o usa sólo las 13 viejas)
 # y tolera filas más cortas que el header: las de antes no se reescriben.
-MEDICION_HEADER="$MEDICION_HEADER_VIEJO"$'\tplan\tcompactaciones\tautocompact\torigen\tcache_read\tcache_creation\tephemeral_1h\tephemeral_5m\ttipo\tintegrada\tretrabajo\tcuenta'
+# fase, tarea y la rúbrica (2026-10-27, protocolo por fases): `fase` (F1..F7, --fase) y `tarea` (el slug de la tarea madre,
+# --tarea) agrupan `pa --rinde --por fase|tarea`; `rubrica` (las respuestas A=..B=..C=..D=..E=.., --rubrica) con la fila de
+# la tabla y el modelo/effort que daba (`rub_fila`, `rub_modelo`, `rub_effort`) permiten medir el acierto (`pa --rinde --rubrica`).
+# Al final, por lo mismo: las filas de antes quedan más cortas y se leen igual.
+MEDICION_HEADER="$MEDICION_HEADER_VIEJO"$'\tplan\tcompactaciones\tautocompact\torigen\tcache_read\tcache_creation\tephemeral_1h\tephemeral_5m\ttipo\tintegrada\tretrabajo\tcuenta\tfase\ttarea\trubrica\trub_fila\trub_modelo\trub_effort'
 TIPOS_VALIDOS="mecanico|lectura|codigo-acotado|codigo-multi|frontend|diseno|debug|final"
 # Un header que es un prefijo del de hoy se actualiza solo. Se llama CON el flock 7 tomado, y
 # reescribe sobre el MISMO inodo (cat >, no sed -i ni mv): el fd 7 del flock apunta a este archivo,
@@ -4224,7 +4354,7 @@ medir() {   # $1 = json de salida de la corrida (puede no existir)
   # (resume=0) y se mide como nueva.
   local linea comp=""
   (( ${#jsons[@]} )) && comp="$(contar_compactaciones "$(transcript_de "${jsons[-1]}")")"
-  linea="$(printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t\t%s\t%s\t%s\t%s\t%s\t%s\t\t\t%s' "$(date -Iseconds)" "${ts:-}" "$slug" "$modelo" "${esfuerzo:-${ef_vacio:-settings}}" "$leer" "${resume:-$seguir}" "$nums" "$PLAN" "$comp" "$AUTOCOMPACT" "${lanzo:-jefe}" "$cache" "${tipo:-}" "${cuenta:-}")"
+  linea="$(printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t\t%s\t%s\t%s\t%s\t%s\t%s\t\t\t%s\t%s\t%s\t%s\t%s\t%s\t%s' "$(date -Iseconds)" "${ts:-}" "$slug" "$modelo" "${esfuerzo:-${ef_vacio:-settings}}" "$leer" "${resume:-$seguir}" "$nums" "$PLAN" "$comp" "$AUTOCOMPACT" "${lanzo:-jefe}" "$cache" "${tipo:-}" "${cuenta:-}" "${fase:-}" "${tarea_id:-}" "${RUB_NORM:-}" "${RUB_FILA:-}" "${RUB_MODELO:-}" "${RUB_EFFORT:-}")"
   # flock sobre el mismo archivo: dos corridas que terminan a la vez no se pisan el header ni la línea
   (
     flock 7
@@ -4664,6 +4794,7 @@ case "${1:-}" in
   --bien) shift; cmd_bien "$@"; exit $? ;;
   --bien-auto) shift; cmd_bien_auto "$@"; exit $? ;;
   --rinde)    shift; cmd_rinde "$@"; exit $? ;;
+  --rubrica)  shift; cmd_rubrica "$@"; exit $? ;;
   --cupo-gemini) shift; cmd_cupo_gemini "$@"; exit $? ;;
   --modelos) shift; cmd_modelos "$@"; exit $? ;;
   --gemini-proyectos) shift; cmd_gemini_proyectos "$@"; exit $? ;;
@@ -4739,6 +4870,9 @@ force=0
 tarea=""
 # --tipo: qué clase de tarea es (ver TIPOS_VALIDOS). Opcional; vacío = sin clasificar (`?` en --rinde).
 tipo="${PA_TIPO:-}"
+# --fase / --tarea / --rubrica (2026-10-27, protocolo por fases): qué fase (F1..F7) y de qué tarea madre es la corrida, y las
+# respuestas de la rúbrica con las que se eligió el modelo. Van a medicion.tsv y al .hilo (`pa --rinde --por fase|tarea|--rubrica`).
+fase="${PA_FASE:-}"; tarea_id="${PA_TAREA:-}"; rubrica=""; RUB_NORM="" RUB_FILA="" RUB_MODELO="" RUB_EFFORT=""
 # --ok-dueno: el dueño aprobó esta corrida (opus max, sonnet max, fable). Sólo por flag, a propósito:
 # una variable de entorno se hereda de una llamada a la otra y la aprobación es por corrida.
 ok_dueno=0 modelo_de_m=0
@@ -4746,7 +4880,48 @@ ok_dueno=0 modelo_de_m=0
 brief_archivo=""; agents_md=0; unificar_md=0; aplicar=0; lecciones=0; lecciones_podar=0; leccion=""; auditar=""
 
 # Los flags que llevan valor: sin él, `$2` reventaba con "unbound variable" (set -u) sin decir qué faltaba.
-flags_con_valor=" --max-turns --id --integrar --descartar --actualizar --nota --max-budget-usd -m --model --effort --tipo --cuenta --brief-archivo --leccion --auditar "
+flags_con_valor=" --max-turns --id --integrar --descartar --actualizar --nota --max-budget-usd -m --model --effort --tipo --fase --tarea --rubrica --cuenta --brief-archivo --leccion --auditar "
+# -m a,b,c (2026-10-27, protocolo por fases): lista de fallback. Se prueba cada modelo, en orden, como una corrida entera con ese solo -m
+# (`pa <proyecto> … -m a …`); si sale 76/77 (límite de sesión, API sobrecargada), 95/96 (no puede correr / sin cupo) o 97 (OpenCode cortó por
+# límite) se pasa al siguiente, y cualquier otro código (0, 1, 78…) es el final: ése es el modelo que trabajó. Los que reparto tiene
+# enfriados (`reparto --enfriado`) se saltean. Con --async el hijo corre desacoplado y sólo se ve lo que falla al lanzar (95/96).
+# Sólo se mira la zona de flags (hasta la tarea): un "-m" dentro del texto de la tarea no cuenta.
+_fb_args=( "$@" ); _fb_i=0; _fb_n=${#_fb_args[@]}; _fb_m=-1
+while (( _fb_i < _fb_n )); do
+  _fb_a="${_fb_args[_fb_i]}"
+  if [[ "$_fb_a" == "--" ]]; then break
+  elif [[ "$_fb_a" == @(-m|--model) ]]; then
+    (( _fb_i + 1 < _fb_n )) || break
+    _fb_m=$((_fb_i + 1)); _fb_i=$((_fb_i + 2))
+  elif [[ "$flags_con_valor" == *" $_fb_a "* ]]; then _fb_i=$((_fb_i + 2))
+  elif [[ "$_fb_a" == -* ]]; then _fb_i=$((_fb_i + 1))
+  else break
+  fi
+done
+if (( _fb_m >= 0 )) && [[ "${_fb_args[_fb_m]}" == *,* ]]; then
+  IFS=, read -r -a _fb_lista <<<"${_fb_args[_fb_m]}"
+  for _fb_x in "${_fb_lista[@]}"; do
+    [[ -n "${_fb_x//[[:space:]]/}" ]] || { echo "pa: -m '${_fb_args[_fb_m]}': la lista tiene un modelo vacío (va a,b,c, sin espacios)." >&2; exit 2; }
+  done
+  _fb_rc=96; _fb_corrio=0; _fb_k=0
+  for _fb_x in "${_fb_lista[@]}"; do
+    _fb_k=$((_fb_k + 1))
+    if _fb_hasta="$(REPARTO_STATE="${REPARTO_STATE:-$STATE/reparto}" PA_STATE="$STATE" "$REPARTO" --enfriado "$_fb_x" 2>/dev/null </dev/null)"; then
+      echo "pa: -m: $_fb_x sigue enfriado hasta $_fb_hasta (cortó por límite): lo salteo." >&2
+      continue
+    fi
+    _fb_args[_fb_m]="$_fb_x"; _fb_corrio=1; _fb_rc=0
+    "$0" "$proyecto" "${_fb_args[@]}" || _fb_rc=$?
+    case "$_fb_rc" in
+      76|77|95|96|97)
+        if (( _fb_k < ${#_fb_lista[@]} )); then echo "pa: -m: $_fb_x salió $_fb_rc (sin cupo, sobrecargado o no puede correr); sigo con el siguiente de la lista." >&2; fi ;;
+      *) exit "$_fb_rc" ;;
+    esac
+  done
+  (( _fb_corrio )) || echo "pa: -m ${_fb_args[_fb_m]}: todos los modelos de la lista están enfriados por límite de uso; no lanzo." >&2
+  exit "$_fb_rc"
+fi
+unset _fb_args _fb_i _fb_n _fb_m _fb_a
 while [[ $# -gt 0 ]]; do
   if [[ "$flags_con_valor" == *" $1 "* && $# -lt 2 ]]; then
     echo "pa: $1 quiere un valor (ej: pa <proyecto> $1 <valor> \"<tarea>\"). Mirá pa --help." >&2; exit 2
@@ -4786,6 +4961,9 @@ while [[ $# -gt 0 ]]; do
     --effort)          [[ "${2,,}" =~ ^(low|medium|high|xhigh|max)$ ]] || { echo "pa: --effort '$2' no va. Válidos: low, medium, high, xhigh, max." >&2; exit 2; }
                        esfuerzo="${2,,}"; esfuerzo_flag=1; export PA_EFFORT="${2,,}"; shift 2 ;;
     --tipo)            tipo="$2"; shift 2 ;;
+    --fase)            fase="$2"; shift 2 ;;
+    --tarea)           tarea_id="$2"; shift 2 ;;
+    --rubrica)         rubrica="$2"; shift 2 ;;
     --ok-dueno)        ok_dueno=1; shift ;;
     --cuenta)          cuenta_flag="$2"; shift 2 ;;
     --)                shift; tarea="$*"; break ;;
@@ -4835,6 +5013,29 @@ tipo="${tipo,,}"; [[ "$tipo" == diseño ]] && tipo=diseno
 if (( lanza )) && [[ -n "$tipo" && ! "$tipo" =~ ^($TIPOS_VALIDOS)$ ]]; then
   echo "pa: --tipo '$tipo' no existe. Válidos: ${TIPOS_VALIDOS//|/, }${PA_TIPO:+ (ojo: puede venir de PA_TIPO)}." >&2
   exit 2
+fi
+# --fase y --tarea: una palabra (letras, números, . _ -), para que sirvan de clave en `pa --rinde --por`.
+if (( lanza )); then
+  for _v in fase tarea_id; do
+    if [[ -n "${!_v}" && ! "${!_v}" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,39}$ ]]; then
+      echo "pa: --${_v/_id/} '${!_v}' no va: una sola palabra de hasta 40 caracteres (letras, números, . _ -), ej. F4 o mi-tarea." >&2
+      exit 2
+    fi
+  done
+  [[ -n "$fase" ]] && fase="${fase^^}"
+fi
+# --rubrica '<A=.. B=.. C=.. D=.. E=..>': sin -m, la tabla de la sección 5 del protocolo da el modelo y el effort (y -m/--effort le
+# ganan: la fila igual queda anotada, que es cómo se mide si la estimación acertó). Fila "no se lanza": sale 3, sin lanzar nada.
+if (( lanza )) && [[ -n "$rubrica" ]]; then
+  rubrica_resolver "$rubrica" || exit $?
+  if (( ! modelo_de_m )); then
+    modelo="$RUB_MODELO"; modelo_de_m=1
+    if [[ -n "$RUB_EFFORT" && -z "$esfuerzo" ]]; then esfuerzo="$RUB_EFFORT"; esfuerzo_flag=1; export PA_EFFORT="$RUB_EFFORT"; fi
+    [[ -n "$RUB_TIPO" && -z "$tipo" ]] && tipo="$RUB_TIPO"
+    echo "pa: rúbrica ($RUB_NORM) → fila $RUB_FILA: $modelo${esfuerzo:+ effort $esfuerzo}." >&2
+  else
+    echo "pa: rúbrica ($RUB_NORM) → fila $RUB_FILA daba $RUB_MODELO${RUB_EFFORT:+ $RUB_EFFORT}; vale tu -m $modelo." >&2
+  fi
 fi
 # Sin -m, si reparto está en auto, `reparto --tipo <tipo> --json` elige modelo y effort según calidad
 # y cupo libre. Con --seguir se conserva el modelo de la corrida que se retoma (agy no retoma sesiones).
@@ -5436,6 +5637,9 @@ if [[ $async -eq 1 ]]; then
   (( aca ))              && hijo_args+=( --aca )
   (( force ))            && hijo_args+=( --force )
   [[ -n "$tipo" ]]       && hijo_args+=( --tipo "$tipo" )
+  [[ -n "$fase" ]]       && hijo_args+=( --fase "$fase" )
+  [[ -n "$tarea_id" ]]   && hijo_args+=( --tarea "$tarea_id" )
+  [[ -n "$rubrica" ]]    && hijo_args+=( --rubrica "$rubrica" )
   (( ok_dueno ))         && hijo_args+=( --ok-dueno )
   [[ -n "$cuenta" ]]     && hijo_args+=( --cuenta "$cuenta" )
   hijo_args+=( -- "$tarea" )
@@ -5962,6 +6166,15 @@ if [[ -z "$tipo" && -n "$ts_retomada" && -f "$dir/$ts_retomada.hilo" ]]; then
   tipo="$(leer_campo "$dir/$ts_retomada.hilo" tipo)" || tipo=""
   [[ "$tipo" =~ ^($TIPOS_VALIDOS)$ ]] || tipo=""
 fi
+# Y lo mismo con la fase, la tarea madre y la rúbrica: un --seguir es la misma tarea, y la medición los tiene que seguir juntando.
+if [[ -n "$ts_retomada" && -f "$dir/$ts_retomada.hilo" ]]; then
+  [[ -n "$fase" ]]     || fase="$(leer_campo "$dir/$ts_retomada.hilo" fase)" || fase=""
+  [[ -n "$tarea_id" ]] || tarea_id="$(leer_campo "$dir/$ts_retomada.hilo" tarea_id)" || tarea_id=""
+  if [[ -z "$rubrica" && -z "$RUB_NORM" ]]; then
+    rubrica="$(leer_campo "$dir/$ts_retomada.hilo" rubrica)" || rubrica=""
+    [[ -n "$rubrica" ]] && { rubrica_resolver "$rubrica" >/dev/null 2>&1 || RUB_NORM=""; }
+  fi
+fi
 # `puesto=` (dónde vuelve un --seguir; sin él se deduce de ruta_trabajo) y `jefe=`/`jefe_id=` (de
 # quién es: --esperar/--matar/--seguir pelados eligen por jefe_id, el nombre es para SendMessage).
 [[ -f "$dir/$ts.corrida" ]] || printf 'ruta_trabajo=%s\nrama=%s\nbase=%s\nproyecto=%s\norigen=%s\nleer=%s\npuesto=%s\njefe=%s\njefe_id=%s\n' \
@@ -5976,8 +6189,8 @@ inicio="$(date +%s)"
 # El registro durable de la corrida (lo lee la app y --bien-auto): la `.corrida` se borra al
 # integrar/descartar, el `.hilo` nunca. Al salir se le suman decision/decision_nada/sigue.
 [[ -f "$dir/$ts.hilo" ]] || {
-  printf 'tarea=%s\nmodelo=%s\neffort=%s\ninicio=%s\nproyecto=%s\nruta_trabajo=%s\nrama=%s\norigen=%s\nleer=%s\npuesto=%s\nlanzo=%s\njefe=%s\njefe_id=%s\ntipo=%s\ncuenta=%s\n' \
-    "${tarea_jefe//$'\n'/ }" "$modelo" "${esfuerzo:-${ef_vacio:-settings}}" "$inicio" "$slug" "$ruta_trabajo" "$rama" "$origen" "$leer" "$puesto" "$lanzo" "$jefe" "$jefe_ident" "$tipo" "$cuenta" \
+  printf 'tarea=%s\nmodelo=%s\neffort=%s\ninicio=%s\nproyecto=%s\nruta_trabajo=%s\nrama=%s\norigen=%s\nleer=%s\npuesto=%s\nlanzo=%s\njefe=%s\njefe_id=%s\ntipo=%s\ncuenta=%s\nfase=%s\ntarea_id=%s\nrubrica=%s\n' \
+    "${tarea_jefe//$'\n'/ }" "$modelo" "${esfuerzo:-${ef_vacio:-settings}}" "$inicio" "$slug" "$ruta_trabajo" "$rama" "$origen" "$leer" "$puesto" "$lanzo" "$jefe" "$jefe_ident" "$tipo" "$cuenta" "$fase" "$tarea_id" "$RUB_NORM" \
     >"$dir/$ts.hilo"
 } 2>/dev/null || true
 escribir_running() {
@@ -6133,6 +6346,10 @@ sin_trabajo_hecho() {
   [[ -z "$(git -C "$ruta_trabajo" status --porcelain 2>/dev/null)" ]] \
     && [[ "$(git -C "$ruta_trabajo" rev-list --count "${base:-HEAD}..HEAD" 2>/dev/null || echo 1)" == 0 ]]
 }
+# Marca ESE modelo de OpenCode como enfriado en reparto (`reparto --enfriar`); nunca rompe a pa.
+enfriar_modelo() {   # $1 = modelo
+  REPARTO_STATE="${REPARTO_STATE:-$STATE/reparto}" PA_STATE="$STATE" "$REPARTO" --enfriar "$1" ${PA_ENFRIAR_HORAS:+--horas "$PA_ENFRIAR_HORAS"} >/dev/null 2>&1 </dev/null || true
+}
 cambiar_de_modelo() {   # $1 = modelo nuevo, $2 = su effort (sólo Claude)
   local f
   modelo="$1"; esfuerzo=""; unset PA_EFFORT
@@ -6179,6 +6396,7 @@ while (( reintentos_cupo < 3 )) && [[ "$SIN_CUPO" == otro && -n "$reparto_tipo_r
   # Se agota el grupo de ESA cuenta; el siguiente candidato prefiere otra cuenta del mismo proveedor.
   c_ant="$cuenta"; p_ant="$(proveedor_de_modelo "$m_ant")"
   REPARTO_STATE="${REPARTO_STATE:-$STATE/reparto}" PA_STATE="$STATE" "$REPARTO" --agotar "$m_ant" "${hasta_args[@]}" ${c_ant:+--cuenta "$c_ant"} >/dev/null 2>&1 </dev/null || true
+  es_opencode "$m_ant" && enfriar_modelo "$m_ant"
   rep_json="$(REPARTO_STATE="${REPARTO_STATE:-$STATE/reparto}" PA_STATE="$STATE" \
     timeout "${PA_REPARTO_TIMEOUT_S:-15}" "$REPARTO" --tipo "$reparto_tipo_relanzable" ${p_ant:+--mismo-proveedor "$p_ant"} --json 2>/dev/null </dev/null)" || rep_json=""
   m_rep=""; e_rep=""; mot_rep=""
@@ -6214,6 +6432,15 @@ done
 
 if (( rc != 0 )) || es_error; then
   texto="$(res_texto)"
+
+  # 0. OpenCode cortó por límite de uso (los gratis lo hacen seguido): código propio, y ESE modelo (no todo OpenCode) queda enfriado
+  # N horas en reparto para que nadie, ni `-m a,b,c`, vuelva a elegirlo hasta que pase. El trabajo no empezó, la sesión no se toca.
+  if es_opencode "$modelo" && dsh_sin_cupo; then
+    enfriar_modelo "$modelo"
+    echo "pa: OpenCode cortó por límite de uso con $modelo: lo enfrío ${PA_ENFRIAR_HORAS:-5} h en reparto. Probá con otro modelo (-m a,b,c pasa solo al siguiente)." >&2
+    echo "$texto" >&2
+    exit 97
+  fi
 
   # 1. límite de sesión de la suscripción. No es rate limit: no se arregla reintentando.
   if [[ "$texto" == *"session limit"* ]]; then
