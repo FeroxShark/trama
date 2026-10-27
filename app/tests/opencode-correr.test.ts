@@ -43,7 +43,8 @@ test("una corrida buena: NDJSON al stream y un .json con la forma de codex_a_jso
   assert.equal(r.codigo, 0, r.stderr);
   const eventos = r.stream.trim().split("\n").map((l) => JSON.parse(l));
   assert.equal(eventos[0].type, "step_start");
-  assert.ok(eventos.some((e) => e.type === "tool_use" && e.part.tool === "bash"));
+  // opencode 2.x llama `shell` a la de shell que antes era `bash`
+  assert.ok(eventos.some((e) => e.type === "tool_use" && ["bash", "shell"].includes(e.part.tool)));
   assert.ok(eventos.some((e) => e.type === "reasoning"), "con --thinking el razonamiento queda en el transcript");
   assert.equal(eventos.at(-1).type, "step_finish");
   const j = r.json;
