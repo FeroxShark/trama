@@ -42,6 +42,8 @@ function reparto(args: string[], fijos: string, mod?: string) {
       REPARTO_OPENCODE_FIJO: '["opencode/big-pickle","opencode/zeta-ultra-free","opencode/kilo-mini-free","opencode/glm-5.3-flash-free"]',
       REPARTO_AGY: "0",
       REPARTO_STATE: path.join(tmp, "estado"),
+      // Sin esto reparto mira los workers vivos y el uso de ESTA máquina (~/.local/state/pa): la elección cambia con ellos.
+      PA_STATE: path.join(tmp, "pa-estado"),
       TRAMA_MODELOS: mod ?? path.join(tmp, "no-hay.json"),
     },
   });
