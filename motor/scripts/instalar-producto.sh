@@ -9,7 +9,7 @@
 # sale como AVISO y `trama-estado --json` dice qué quedó. Sale 2 sólo por uso o por una fuente rota.
 #
 #   --fuente DIR   árbol de `trama-exportar` (motor/ + app/), o el repo del motor suelto (bin/, hooks/, skills/…)
-#                  (default: el árbol del propio script)
+#                  (default: la raíz del checkout/árbol del propio script si trae motor/ y app/; si no, el motor suelto)
 #   --app DIR      la app hilos con dist-electron/ (default: DIR/app de la fuente, o $TRAMA_APP)
 #   --escritorio      también deja al día la app de escritorio (Electron + lanzador `trama`); es lo normal si hay sesión
 #                     gráfica ($WAYLAND_DISPLAY o $DISPLAY): baja el binario de Electron a la copia estable
@@ -85,7 +85,12 @@ fi
 
 # --- fuente ----------------------------------------------------------------------------------------------
 AQUI="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd -P)"
-[[ -n "$FUENTE" ]] || FUENTE="$AQUI"
+# Desde motor/scripts/ de un checkout (o de un árbol exportado) completo la fuente es la RAÍZ, no motor/: así se compila la app
+# y se anota el checkout. Sólo el motor suelto (sin app/package.json al lado) queda como fuente él mismo.
+if [[ -z "$FUENTE" ]]; then
+  if [[ "$(basename "$AQUI")" == motor && -x "$(dirname "$AQUI")/motor/bin/pa" && -f "$(dirname "$AQUI")/app/package.json" ]]; then FUENTE="$(dirname "$AQUI")"
+  else FUENTE="$AQUI"; fi
+fi
 FUENTE="$(cd "$FUENTE" 2>/dev/null && pwd -P)" || { echo "instalar-producto.sh: no existe la fuente '$FUENTE'" >&2; exit 2; }
 # El árbol exportado es <fuente>/{motor,app}; el repo del motor suelto es la fuente misma. Desde motor/scripts/ el
 # script se encuentra a sí mismo en <fuente>/motor.

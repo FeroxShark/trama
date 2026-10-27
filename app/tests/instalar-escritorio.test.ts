@@ -5,7 +5,7 @@ import { after } from "node:test";
 import { testPosix as test } from "./plataforma.ts";
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
-import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import http from "node:http";
 import os from "node:os";
 import path from "node:path";
@@ -175,6 +175,46 @@ exit 0
     const otra = await correr("--escritorio");
     assert.match(otra.salida, /^ok\s+app de escritorio: /m);
     assert.equal(readFileSync(bitacora, "utf8"), "install\n");
+  } finally {
+    srv.close();
+  }
+});
+
+test("instalar-producto.sh sin --fuente desde motor/scripts de un checkout completo: la fuente es la raíz (compila la app y anota el checkout)", { skip: comoRoot }, async () => {
+  const c = casa("raiz-checkout");
+  ejecutable(path.join(c.bin, "npm"), `#!/bin/sh
+case "$1" in
+  ci) mkdir -p node_modules/.bin; for b in tsc vite; do printf '#!/bin/sh\\n' >node_modules/.bin/$b; chmod +x node_modules/.bin/$b; done ;;
+  run) mkdir -p dist dist-electron; : >dist/index.html; : >dist-electron/motor.js ;;
+esac
+exit 0
+`);
+  // Un checkout git mínimo: motor/{bin/pa,scripts/instalar-producto.sh} y app/package.json.
+  const co = path.join(c.dir, "checkout");
+  ejecutable(path.join(co, "motor", "bin", "pa"), "#!/bin/sh\n");
+  mkdirSync(path.join(co, "motor", "scripts"), { recursive: true });
+  copyFileSync(path.join(motor, "scripts", "instalar-producto.sh"), path.join(co, "motor", "scripts", "instalar-producto.sh"));
+  mkdirSync(path.join(co, "app"), { recursive: true });
+  writeFileSync(path.join(co, "app", "package.json"), JSON.stringify({ name: "trama", version: "0.0.0" }));
+  writeFileSync(path.join(co, "app", "package-lock.json"), "{}");
+  const git = (...a: string[]) => spawnSync("git", ["-C", co, "-c", "user.name=t", "-c", "user.email=t@t", ...a], { encoding: "utf8" });
+  git("init", "-q");
+  git("add", "motor", "app");
+  git("commit", "-q", "-m", "x");
+  const srv = http.createServer((_, res) => res.end("ok"));
+  await new Promise<void>((r) => srv.listen(0, "127.0.0.1", r));
+  const env = { ...c.env, TRAMA_INSTALAR_CLI: "0", TRAMA_PUERTO: String((srv.address() as { port: number }).port), WAYLAND_DISPLAY: "", DISPLAY: "" };
+  try {
+    const r = await new Promise<{ status: number | null; salida: string }>((res) => {
+      const p = spawn("bash", [path.join(co, "motor", "scripts", "instalar-producto.sh")], { env });
+      let salida = "";
+      p.stdout.on("data", (d) => (salida += d));
+      p.stderr.on("data", (d) => (salida += d));
+      p.on("close", (status) => res({ status, salida }));
+    });
+    assert.equal(r.status, 0, r.salida);
+    assert.equal(readFileSync(path.join(c.h, ".config", "trama", "checkout"), "utf8").trim(), realpathSync(co), r.salida);
+    assert.ok(existsSync(path.join(c.h, ".local", "share", "trama", "app", "dist-electron", "motor.js")), r.salida);
   } finally {
     srv.close();
   }
