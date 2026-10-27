@@ -57,6 +57,19 @@ historia (force push); se puede subir directo y mergear sin esperar el CI.
 - **Port a Windows, etapas 0 a 4:** CI linux + windows, base TS (`app/electron/cli/base/`), arnés de paridad bash vs TS
   (`app/tests/paridad/`), `proyecto-ruta` / `trama-estado` / `workers` en TS, hooks en `.mjs`.
 
+## Hecho: la cola entrega entre herramientas, todo junto
+
+- **Entrega por defecto a mitad de turno:** lo que el usuario encola con el líder trabajando ya no espera al fin del turno ni obliga
+  a interrumpir. Pasado un ratito (`AGRUPAR_MS`, 1,5 s, para juntar lo que se escribe enseguida), `cola.ts` manda TODO lo encolado
+  por `lider.mandarDirecto`: el CLI lo guarda y lo entrega en el próximo `tool_result` (`queued_command`), sin cortar la herramienta.
+  Sin canal (modelos locales, o `trama` cerrándose) se entrega al terminar el turno. Gemini, DeepSeek Harness y OpenCode usan su
+  puente (corta en el próximo límite de paso).
+- **Siempre junto:** `juntar` arma UN mensaje en orden (`Mensaje 1 de N:` ... separado por `---`, con las imágenes de cada uno
+  indicadas); uno solo sale tal cual. `loteDe` parte el lote si pasa de 20 imágenes. Nunca uno por turno.
+- **Modelo y esfuerzo:** el lote sale con la selección vigente (`lider:colaSeleccion`); a mitad de turno no se cambia el modelo,
+  el cambio queda para el próximo turno (como antes). Si el envío falla, vuelve todo a la cola con el error y no se reintenta solo.
+- **Caja:** la cola se ve como "N en cola · salen en la próxima pausa" (`lider.cola1` / `lider.colaN`). "Mandar ya" desapareció.
+
 ## Hecho: cambiar modelo o esfuerzo con el líder trabajando
 
 - **Los selectores de modelo y esfuerzo de la caja del líder ya no se bloquean durante un turno.** El cambio no toca el turno en
@@ -66,7 +79,8 @@ historia (force push); se puede subir directo y mergear sin esperar el CI.
   cada cambio mientras hay cola (`lider:colaSeleccion`, `cola.elegir` en `app/electron/cola.ts`); la selección se olvida al
   vaciarse la cola.
 - **Mandar ya:** `mandarDirecto` ya no rechaza si difiere el modelo o el esfuerzo: el mensaje entra con el del turno, y la caja
-  dice "se aplica en el próximo turno" (`directo.pendiente`).
+  dice "se aplica en el próximo turno" (`directo.pendiente`). Desde la entrega por defecto (abajo) el botón y Ctrl+Enter ya no
+  existen como aparte: Ctrl+Enter es un Enter más; `mandarDirecto` es lo que usa la cola.
 - **Cómo se aplica entre turnos (camino que ya existía, se reusa):** `mandar` en `app/electron/lider.ts`. Claude CLI: `set_model` /
   `apply_flag_settings` en vivo, sin relanzar. Gemini (agy), DeepSeek Harness y OpenCode: se cierra el proceso y se relanza con
   `--resume` en el límite de turno (la sesión no se pierde). Locales/Ollama: relanza con su endpoint.

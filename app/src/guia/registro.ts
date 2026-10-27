@@ -81,7 +81,6 @@ export const GUIAS: readonly Guia[] = [
       paso("caja", "esfuerzo", ".caja .pick", { indice: 1, lado: "arriba" }),
       paso("caja", "mic", ".caja .dic", { lado: "arriba" }),
       paso("caja", "enviar", ".caja .prim", { lado: "arriba" }),
-      paso("caja", "ya", ".caja .directo", { lado: "arriba" }),
     ],
     ".caja",
   ),

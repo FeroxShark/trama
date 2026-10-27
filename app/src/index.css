@@ -3380,18 +3380,7 @@ kbd {
 .caja-local svg {
   flex: none;
 }
-/* "Mandar ya" a mitad de un turno: el botón con su rayo, y el aviso de que espera al paso en curso (callado, como .caja-local). */
-.btn2.directo {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--esp-1-5);
-}
-/* En el celular entra sólo el rayo (el nombre va en su aria-label): la fila de la caja sigue siendo una. */
-@media (max-width: 35rem) {
-  .btn2.directo .directo-t {
-    display: none;
-  }
-}
+/* El aviso de que lo escrito a mitad de un turno espera la próxima pausa (callado, como .caja-local). */
 .directo-espera {
   display: flex;
   align-items: center;

@@ -138,13 +138,15 @@ function alEvento(sid: string, ev: EventoLider) {
 
 /** Cambió la cola de un líder: lo que salió va a la tanda (como lo que se manda a mano); lo que no llegó, vuelve. */
 function alCola(a: AvisoCola) {
-  if (a.volvio) fallo(a.sid);
+  if (a.volvio) (a.enTurno ? falloDirecto : fallo)(a.sid);
   espejo.poner(a);
   if (!a.salio) return;
-  const { item, total, traido } = a.salio;
+  const { item, total, traido, enTurno } = a.salio;
   // Venía de una terminal: ya es de la app, con el modo que tenía la caja.
   if (traido && item.modo) ponerModo(a.sid, item.modo);
-  enviado(a.sid, item.texto, total ?? enCurso(a.sid).base, item.imagenes);
+  // A mitad de un turno (todo lo encolado, junto): entra al mismo turno en el próximo límite de herramienta, no empieza otro.
+  if (enTurno) enviadoDirecto(a.sid, item.texto, item.imagenes);
+  else enviado(a.sid, item.texto, total ?? enCurso(a.sid).base, item.imagenes);
 }
 
 function cambiarPor(sid: string, ev: EventoLider) {
@@ -320,7 +322,7 @@ export function enviado(sid: string, texto: string, base: number, imagenes?: Men
 }
 
 /**
- * "Mandar ya": el usuario mandó algo con un turno en curso. Va al final de la tanda, pero el turno sigue siendo el mismo (no se reinician
+ * Entrega a mitad de turno (la cola, o "Mandar ya"): el usuario mandó algo con un turno en curso. Va al final de la tanda, pero el turno sigue siendo el mismo (no se reinician
  * `turno`, los avisos ni los tokens): el CLI lo entrega en el próximo límite de herramienta y el modelo sigue desde ahí. `directos` cuenta
  * lo que todavía no entró, para el aviso de que espera a la herramienta en curso.
  */
@@ -331,7 +333,7 @@ export function enviadoDirecto(sid: string, texto: string, imagenes?: Mensaje["i
   });
 }
 
-/** El "Mandar ya" no salió: se saca ese mensaje y el turno sigue como estaba. */
+/** La entrega a mitad de turno no salió: se saca ese mensaje y el turno sigue como estaba. */
 export function falloDirecto(sid: string) {
   cambiar(sid, (e) => {
     const k = e.tanda.map((m) => m.rol).lastIndexOf("user");

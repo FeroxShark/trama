@@ -55,12 +55,8 @@ test("las teclas que reconoce", () => {
   assert.ok(es("atajos", tecla("?", { shiftKey: true })) && !es("atajos", tecla("?", { ctrlKey: true })));
   assert.ok(es("enviar", tecla("Enter")) && !es("enviar", tecla("Enter", { shiftKey: true })));
   assert.ok(es("renglon", tecla("Enter", { shiftKey: true })));
-  // "Mandar ya": Ctrl/Cmd+Enter; Shift+Enter sigue siendo el renglón y el Enter solo no lo dispara.
-  assert.ok(es("directo", tecla("Enter", { ctrlKey: true })));
-  assert.ok(es("directo", tecla("Enter", { metaKey: true })));
-  assert.ok(!es("directo", tecla("Enter")));
-  assert.ok(!es("directo", tecla("Enter", { shiftKey: true })));
-  assert.ok(!es("directo", tecla("Enter", { ctrlKey: true, shiftKey: true })));
+  // Ya no hay "Mandar ya": lo escrito a mitad de un turno entra solo en la próxima pausa, así que Ctrl/Cmd+Enter es un Enter más.
+  assert.ok(es("enviar", tecla("Enter", { ctrlKey: true })) && es("enviar", tecla("Enter", { metaKey: true })));
   assert.ok(es("modo", tecla("Tab", { shiftKey: true })) && !es("modo", tecla("Tab")));
   assert.ok(es("letraMas", tecla("=", { ctrlKey: true })) && es("letraMenos", tecla("-", { ctrlKey: true })) && es("letraBase", tecla("0", { ctrlKey: true })));
 });

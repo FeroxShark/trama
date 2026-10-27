@@ -294,6 +294,9 @@ const cola = crearCola({
   traer: (sid, x, cortar) => lider.traer({ sid, modelo: x.modelo, effort: x.effort, nombre: x.nombre, modo: x.modo, cortar }),
   mandar: (sid, x) => lider.mandar({ sid, texto: x.texto, imagenes: x.imagenes, modelo: x.modelo, effort: x.effort }),
   total: async (sid) => (await lider.conversacionLider({ sid, n: 1 })).total,
+  // A mitad de un turno todo lo encolado entra junto en el próximo límite de herramienta (sin interrumpir); sin canal, al terminar el turno.
+  puedeEnTurno: (sid) => !saliendo && lider.puedeEnTurno(sid),
+  enTurno: (sid, x) => lider.mandarDirecto({ sid, texto: x.texto, imagenes: x.imagenes, modelo: x.modelo, effort: x.effort }),
   textoError: (x) => ("motivo" in x ? (NO_TRAE[x.motivo] ?? NO_TRAE.abierto) : String((x.error as Error)?.message ?? x.error)),
   guardar: (json) => escribirAtomico(ARCHIVO_COLA, json).catch(silencio("cola")),
   avisar: (a) => (movio(a.sid), enviar("lider:cola", a)),
@@ -962,7 +965,7 @@ export function armarNucleo() {
     verEspera(String(x?.sid));
     return lider.mandar({ sid: x?.sid, texto: x?.texto, imagenes: x?.imagenes, modelo: x?.modelo, effort: x?.effort });
   });
-  // "Mandar ya": a mitad de un turno, sin esperar a la cola (`lider.mandarDirecto`); sin turno en curso es un `mandar` normal.
+  // "Mandar ya" (lo que la cola hace por defecto, sin agrupar): a mitad de un turno (`lider.mandarDirecto`); sin turno en curso es un `mandar` normal.
   manejar("lider:mandarYa", (_e, x: { sid: string; texto: string; imagenes?: unknown; modelo: string; effort: string }) => {
     verEspera(String(x?.sid));
     return lider.mandarDirecto({ sid: x?.sid, texto: x?.texto, imagenes: x?.imagenes, modelo: x?.modelo, effort: x?.effort });

@@ -930,11 +930,18 @@ export async function mandar(x: { sid: string; texto: string; imagenes?: unknown
   }
 }
 
+/** ¿Se le puede mandar algo a mitad de su turno? Un proceso de la app ocupado y con canal (los modelos locales no lo tienen). Lo usa la cola (electron/cola.ts). */
+export function puedeEnTurno(sid: string): boolean {
+  const p = procs.get(sid);
+  return !!p?.ocupado && !p.local && !mandando.has(sid);
+}
+
 /**
- * "Mandar ya": el mensaje sale al stdin del `claude` aunque esté a mitad de un turno. El CLI lo guarda y lo entrega en el próximo límite de
+ * Entrega a mitad de turno: es lo que hace la cola por defecto con lo que el usuario escribe mientras el líder trabaja (todo junto, en un solo
+ * mensaje; ya no hace falta un "Mandar ya" aparte). El mensaje sale al stdin del `claude` aunque esté a mitad de un turno. El CLI lo guarda y lo entrega en el próximo límite de
  * `tool_result`, sin cortar la herramienta en curso (puede tardar lo que ella); si no hay herramienta, corre como turno propio al terminar el actual.
  * Sólo con un proceso de `claude` ocupado de la app; el modelo y el esfuerzo del turno no cambian (lo que el usuario eligió de otro se aplica en el próximo turno); sin turno en curso es un
- * `mandar` normal (ahí sí se cambian). La cola no se toca: sigue saliendo de a uno al terminar el turno. Gemini y dsh: el puente (agy-puente.ts, dsh-puente.ts) corta a agy / dsh en el próximo límite de paso y retoma su conversación con el mensaje; los modelos locales no tienen canal: error claro.
+ * `mandar` normal (ahí sí se cambian). Gemini y dsh: el puente (agy-puente.ts, dsh-puente.ts) corta a agy / dsh en el próximo límite de paso y retoma su conversación con el mensaje; los modelos locales no tienen canal: error claro.
  */
 export async function mandarDirecto(x: { sid: string; texto: string; imagenes?: unknown; modelo: string; effort: string }): Promise<void> {
   const sid = String(x.sid);

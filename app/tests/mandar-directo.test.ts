@@ -116,3 +116,33 @@ test("la carrera: el mensaje llega sin herramienta; el CLI lo corre como turno p
   assert.equal(lider.procDe(sid)?.ocupado, false);
   assert.equal(cuantos(sid, "entregado"), 0, "sin absorber no hay entrega dentro del turno");
 });
+
+test("la cola con un líder respondiendo: dos encolados entran juntos, en un solo mensaje, dentro del turno en curso (sin interrumpir ni segundo turno)", { timeout: 20_000 }, async () => {
+  const { crearCola } = await import("../electron/cola.ts");
+  const enviados: string[] = [];
+  const cola = crearCola({
+    disponible: (sid) => lider.disponible(sid),
+    traer: async () => ({ ok: true }),
+    mandar: (sid, x) => lider.mandar({ sid, texto: x.texto, imagenes: x.imagenes, modelo: x.modelo, effort: x.effort }),
+    total: async () => null,
+    textoError: (x) => ("motivo" in x ? x.motivo : String(x.error)),
+    guardar: async () => {},
+    avisar: (a) => void (a.salio && enviados.push(a.salio.item.texto)),
+    puedeEnTurno: (sid) => lider.puedeEnTurno(sid),
+    enTurno: (sid, x) => lider.mandarDirecto({ sid, texto: x.texto, imagenes: x.imagenes, modelo: x.modelo, effort: x.effort }),
+    agrupar: 50,
+  });
+  const sid = await lider.nuevo({ ...M, texto: "comando largo" });
+  await enHerramienta(sid);
+  cola.encolar(sid, { ...M, texto: "COLA-1" });
+  cola.encolar(sid, { ...M, texto: "COLA-2" });
+  await hasta(() => cola.lista(sid).length === 0);
+  assert.equal(enviados.length, 1, "un solo mensaje");
+  assert.equal(enviados[0], "Mensaje 1 de 2:\nCOLA-1\n\n---\n\nMensaje 2 de 2:\nCOLA-2");
+  await hasta(() => cuantos(sid, "fin") === 1);
+  assert.equal(eventos.filter((x) => x.sid === sid && x.e.tipo === "entregado").length, 1, "entró una vez, en el límite de herramienta");
+  await espera(300);
+  assert.equal(cuantos(sid, "fin"), 1, "no hubo un segundo turno");
+  const dicho = eventos.filter((x) => x.sid === sid && x.e.tipo === "mensaje").map((x) => x.e.texto);
+  assert.match(String(dicho.at(-1)), /COLA-1/, "el modelo vio el mensaje junto");
+});

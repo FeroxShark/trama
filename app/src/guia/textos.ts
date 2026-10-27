@@ -68,8 +68,6 @@ export const tourEn = {
   "tour.caja.mic.b": "Talk instead of typing: click the microphone, say it, and the text lands in the box.",
   "tour.caja.enviar.t": "Send",
   "tour.caja.enviar.b": "Sends your message. If the lead is busy, it waits in line and goes in when the turn ends.",
-  "tour.caja.ya.t": "Send now",
-  "tour.caja.ya.b": "With a lead mid-turn (Claude), this slips your message in right away instead of waiting for it to finish.",
 
   "tour.worker.fila.t": "A worker",
   "tour.worker.fila.b": "Each worker is one task a lead handed off, with its own branch. Click it to follow what it's doing, step by step.",
@@ -228,8 +226,6 @@ export const tourEs: Record<keyof typeof tourEn, string> = {
   "tour.caja.mic.b": "Hablá en vez de escribir: tocá el micrófono, decilo y el texto cae en la caja.",
   "tour.caja.enviar.t": "Enviar",
   "tour.caja.enviar.b": "Manda tu mensaje. Si el líder está ocupado, espera en cola y entra cuando termine el turno.",
-  "tour.caja.ya.t": "Mandar ya",
-  "tour.caja.ya.b": "Con un líder a mitad de un turno (Claude), mete tu mensaje al toque en vez de esperar a que termine.",
 
   "tour.worker.fila.t": "Un worker",
   "tour.worker.fila.b": "Cada worker es una tarea que un líder le delegó, con su propia rama. Hacé clic para seguir qué hace, paso a paso.",

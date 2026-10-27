@@ -19,7 +19,7 @@
 // clip; miniaturas con × en la caja (src/hilo/adjuntos.ts) y en el globo.
 import { es } from "../atajos";
 import { Fragment, memo, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ClipboardEvent, type DragEvent, type KeyboardEvent, type ReactNode } from "react";
-import { ArrowUp, Check, Clock, Cpu, Folder, Paperclip, X, Zap } from "lucide-react";
+import { ArrowUp, Check, Clock, Cpu, Folder, Paperclip, X } from "lucide-react";
 import { motion, useReducedMotion } from "motion/react";
 import { VERSION, type Lider, type Mensaje, type MotivoRetomar, type MotivoTraer, type Tokens, type Uso } from "../datos/contrato";
 import { fuente, type EnvioLider } from "../datos/fuente";
@@ -57,7 +57,7 @@ import { anotar, bajar, seguir } from "./seguir";
 import { anotarScroll, faltaLlegar, guardarAncla, restaurarScroll, retomarScroll, soltarScroll } from "./scrollGuardado";
 import { useCompactando } from "./compactando";
 import { useSeguir } from "./useSeguir";
-import { cola, comandosAgy, comandosClaude, confirmar, contestado, enCurso, enviado, enviadoDirecto, escuchar, estilosClaude, fallo, falloDirecto, mensajesVistos, parando, ponerEstilos, ponerModo, suscribir, suscribirComandos, suscribirEstilos, type Pedido } from "./vivo";
+import { cola, comandosAgy, comandosClaude, confirmar, contestado, enCurso, enviado, escuchar, estilosClaude, fallo, mensajesVistos, parando, ponerEstilos, ponerModo, suscribir, suscribirComandos, suscribirEstilos, type Pedido } from "./vivo";
 import { ASPECTO, esModo, MODO_DEFAULT, siguienteModo, type Modo } from "./modos";
 import { directo, ESTILOS_FABRICA, menuEn, moverSel, parsearComando, reemplazar, type Sugerencia, type Valores } from "./comandos";
 import { esVentana, main, mensaje } from "../puente";
@@ -571,10 +571,10 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
   };
 
   /** Lo que se escribió: un comando de la app se resuelve acá; lo demás va al líder. */
-  const ejecutar = (crudo: string, ya = false) => {
+  const ejecutar = (crudo: string) => {
     if (!crudo.trim()) return enviar(crudo);
     const a = parsearComando(crudo, MODELOS, effortsDe(modelo), listaEstilos, modelo);
-    if (a.tipo === "texto") return enviar(crudo, undefined, ya);
+    if (a.tipo === "texto") return enviar(crudo);
     setErrorCaja(null);
     if (a.tipo === "error") return setErrorCaja(tr(a.clave, { v: a.v, niveles: effortsDe(modelo).join(", ") }));
     if (a.tipo === "modo") {
@@ -694,7 +694,7 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
     rebobinarUlt.current(x.punto.previo, x.punto.antes, (nuevo.trim() + cola).trim(), x.imagenes as Imagen[] | undefined, undefined, x.punto.previa);
   }, []);
 
-  const enviar = (crudo = texto, modoNuevoYa?: Modo, ya = false) => {
+  const enviar = (crudo = texto, modoNuevoYa?: Modo) => {
     const archivos = archivosDe(adjuntos);
     // Los archivos que no son imágenes van como rutas al final del texto: Claude los lee con Read.
     const t = textoConArchivos(crudo.trim(), archivos, (ruta) => tr("adjunto.linea", { ruta }));
@@ -714,12 +714,14 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
         agregarAdjuntos(clave, antes);
       }, volver.previa);
     }
-    // "Mandar ya" (Ctrl+Enter o su botón): sólo un líder de Claude de la app con un turno en curso. Gemini no tiene canal y lo dice.
-    const directo = ya && !!l && app && ocupado;
-    if (directo && !puedeDirecto) return setErrorCaja(tr("directo.noPuede"));
-    /** A mitad de un turno: a la cola; sale solo cuando termine. Al de la terminal, con lo que hace falta para traerlo. */
+    /**
+     * A mitad de un turno: a la cola. Todo lo encolado sale junto, en un solo mensaje, en la próxima pausa (el próximo límite de
+     * herramienta, sin interrumpir; sin ese canal, al terminar el turno). Al de la terminal, con lo que hace falta para traerlo.
+     */
     const aLaCola = (id: string, nombre: string) => {
       const antes = adjuntos;
+      // Lo elegido de otro modelo o esfuerzo no cambia el turno en curso: queda para el próximo, y se dice.
+      if (app && ocupado && puedeDirecto && (pend.modelo || pend.effort)) setNota(tr("directo.pendiente"));
       cola.encolar(id, { texto: t, modelo, effort, ...(imagenes ? { imagenes } : {}), ...(app ? {} : { modo: modoNuevoYa ?? modo, nombre }) }).catch((err) => {
         // No entró (el main lo rechazó, o el celular sin red): vuelve a la caja.
         const msg = mensaje(err);
@@ -737,26 +739,6 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
     };
     // El de la terminal: también si ya hay algo esperando (no se le adelanta a lo que está en la cola).
     if (l && (ocupado || (!app && encolados.length > 0))) return aLaCola(l.id, l.nombre);
-    // Sin pasar por la cola: entra en el próximo límite de herramienta, la herramienta en curso no se corta. Los mensajes de la cola siguen su orden.
-    if (directo && l) {
-      enviadoDirecto(l.id, t, imagenes);
-      vaciarAdjuntos(clave);
-      scroll.current = { tipo: "fondo" };
-      setTexto(""); setCaret(0);
-      setErrorCaja(null);
-      ponerBorrador(clave, { texto: "", error: null });
-      // El mensaje entra con el modelo y esfuerzo del turno; si hay otra cosa elegida, queda para el próximo turno y se dice.
-      if (pend.modelo || pend.effort) setNota(tr("directo.pendiente"));
-      fuente.liderMandarYa(l.id, { texto: t, modelo, effort, ...(imagenes ? { imagenes } : {}) }).catch((err) => {
-        falloDirecto(l.id);
-        const msg = mensaje(err);
-        ponerBorrador(clave, { texto: crudo, error: msg });
-        setTexto(crudo); setCaret(crudo.length);
-        setErrorCaja(msg);
-        if (adjuntos.length) agregarAdjuntos(clave, [...(imagenes ?? []), ...archivos]);
-      });
-      return;
-    }
     const e: EnvioLider = { texto: t, modelo, effort, ...(imagenes ? { imagenes } : {}), ...(l ? {} : { modo: modoNuevoYa ?? modoNuevo, ...(maquinaDe ? { maquina: maquinaDe } : {}), ...(carpeta.trim() ? { carpeta: carpeta.trim() } : {}) }) };
     setEnviando(true);
     setErrorCaja(null);
@@ -947,8 +929,7 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
     // Con el dedo no hay Shift+Enter: Enter es un renglón más y se manda con el botón.
     if (es("enviar", e) && !esTactil()) {
       e.preventDefault();
-      // Ctrl+Enter con el líder respondiendo = Mandar ya; sin turno en curso (o en otro líder) es un Enter más.
-      ejecutar(texto, es("directo", e));
+      ejecutar(texto);
     } else if (es("salirCaja", e)) e.currentTarget.blur();
   };
 
@@ -1085,11 +1066,17 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
               {tr(vivo.directos === 1 ? "directo.espera" : "directo.esperaN", { n: vivo.directos })}
             </div>
           ) : null}
+          {l && encolados.length ? (
+            <div className="directo-espera" role="status" data-cola-resumen>
+              <Clock size={12} strokeWidth={2} aria-hidden="true" />
+              {encolados.length === 1 ? tr("lider.cola1") : tr("lider.colaN", { n: encolados.length })}
+            </div>
+          ) : null}
           {l
             ? encolados.map((x, k) => (
                 <div key={x.id} className="yo encolado" data-error={k === 0 && errorCola ? "" : undefined}>
                   <div className="encolado-t">
-                    <span>{k === 0 && errorCola ? textoMain(errorCola) : tr("lider.enCola")}</span>
+                    <span>{k === 0 && errorCola ? textoMain(errorCola) : null}</span>
                     {k === 0 && errorCola ? (
                       <button type="button" className="encolado-re" data-reintentar-cola onClick={() => cola.ya(l.id, false)}>
                         {tr("lider.colaReintentar")}
@@ -1334,12 +1321,6 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
               {/* Lo de la derecha va junto: si la fila no entra, se parte lo de la izquierda y esto queda a la derecha de la última línea. */}
               <div className="barra-der">
               <Contexto sid={sid} modelo={modelo} vence={l?.cache_vence ?? null} abierto={MODO.captura === "contexto-abierto"} />
-              {app && ocupado && puedeDirecto && (texto.trim() || adjuntos.length) && !enviando ? (
-                <button type="button" className="btn2 directo" data-directo aria-label={tr("directo.boton")} data-tip={tr("directo.tip")} onClick={() => ejecutar(texto, true)}>
-                  <Zap size={12} strokeWidth={2.2} aria-hidden="true" />
-                  <span className="directo-t">{tr("directo.boton")}</span>
-                </button>
-              ) : null}
               {app && ocupado ? (
                 <button type="button" className="btn2" disabled={vivo.parando} onClick={parar}>
                   {vivo.parando ? tr("accion.parando") : tr("accion.parar")}

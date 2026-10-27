@@ -15,6 +15,10 @@ falta, está en `motor/docs/traspaso.md`.
 - **PR:** no se abren salvo que el dueño lo pida. Sin nombres de modelos de IA en commits ni en PR.
 - **Antes de cada commit**, desde `app/`: `npx tsc -p tsconfig.json --noEmit`, `npx tsc -p tsconfig.electron.json --noEmit`,
   `npx vite build`, `npm test`. Si se toca el motor que se está portando: `npm run test:paridad`.
+- **Cola de mensajes del líder (`app/electron/cola.ts`):** lo encolado con el líder trabajando sale TODO JUNTO en un solo mensaje
+  (`juntar`), nunca uno por turno. Por defecto se entrega a mitad del turno, sin interrumpir, en el próximo límite de
+  herramienta (`lider.mandarDirecto`, tras `AGRUPAR_MS` de agrupación); los motores sin ese canal (locales) lo entregan al
+  terminar el turno. Ya no hay "Mandar ya" aparte: Ctrl+Enter es un Enter más. Detalle en `motor/docs/traspaso.md`.
 - **Repo público:** nada de datos personales, de la red ni de la máquina del dueño en código, tests, fixtures ni docs.
   Los fixtures llevan ids, rutas y tareas inventados.
 

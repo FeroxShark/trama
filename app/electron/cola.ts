@@ -1,6 +1,9 @@
 // La cola de mensajes de un líder: lo que el usuario manda mientras el líder está a mitad de un
 // turno no se rechaza ni lo corta: espera acá (se ve debajo de la conversación y se puede
-// sacar) y sale solo, uno por turno, cuando el líder queda libre. Vale para los dos:
+// sacar) y sale solo cuando el líder puede recibirlo. Todo lo que hay en la cola sale JUNTO, en un solo
+// mensaje (`juntar`): nunca uno por turno. Con un `claude` de la app a mitad de un turno sale en la primera
+// pausa: se manda al stdin sin interrumpir (`enTurno`) y el CLI lo entrega en el próximo límite de herramienta
+// (`tool_result`); los motores sin ese canal (modelos locales) esperan al final del turno. Vale para los dos:
 //  - el de la app: al terminar el turno (o Parar, o el proceso que salió: `mandar` lo relanza);
 //  - el abierto en una terminal: cuando su turno termina (`status: idle`) se lo trae (se cierra
 //    ese `claude`, por su pid) y el mensaje sale con el `--resume` de siempre. Sin proceso en
@@ -59,10 +62,14 @@ export type AvisoCola = {
   sid: string;
   lista: readonly Encolado[];
   error: string | null;
-  /** Salió este: va a la conversación. `total`: mensajes del transcript en ese momento; `traido`: venía de una terminal. */
-  salio?: { item: Encolado; total: number | null; traido: boolean };
-  /** El que había salido no llegó: volvió a la cola (se saca de la conversación). */
+  /**
+   * Salió este (todo el lote junto): va a la conversación. `total`: mensajes del transcript en ese momento; `traido`: venía de una
+   * terminal; `enTurno`: entró a mitad del turno en curso (no empieza uno nuevo).
+   */
+  salio?: { item: Encolado; total: number | null; traido: boolean; enTurno?: boolean };
+  /** El que había salido no llegó: volvió a la cola (se saca de la conversación). `enTurno`: había salido a mitad de un turno. */
   volvio?: boolean;
+  enTurno?: boolean;
 };
 
 export type Deps = {
@@ -76,7 +83,57 @@ export type Deps = {
   textoError: (x: { motivo: string } | { error: unknown }) => string;
   guardar: (json: string) => Promise<void>;
   avisar: (a: AvisoCola) => void;
+  /** ¿Se le puede mandar algo a mitad de su turno (un `claude` de la app ocupado que acepta mensajes)? Sin esto, todo espera al fin del turno. */
+  puedeEnTurno?: (sid: string) => boolean | Promise<boolean>;
+  /** Lo manda a mitad del turno, sin interrumpir: el CLI lo entrega en el próximo `tool_result`. */
+  enTurno?: (sid: string, x: Encolado) => Promise<void>;
+  /** Cuánto se espera (ms) antes de mandar a mitad de un turno, para que varios mensajes seguidos salgan juntos. */
+  agrupar?: number;
 };
+
+/** Lo que tarda en salir lo encolado a mitad de un turno: lo que se escriba en este rato sale en el mismo mensaje. */
+export const AGRUPAR_MS = 1500;
+/** Imágenes por mensaje (el tope de `imagenesDe`): un lote que pasara de acá se parte en dos. */
+export const LOTE_IMAGENES_MAX = 20;
+
+/** Los que salen juntos: desde el primero de la cola, mientras sus imágenes entren en un mensaje (siempre sale al menos uno). */
+export function loteDe(lista: readonly Encolado[]): Encolado[] {
+  const r: Encolado[] = [];
+  let imgs = 0;
+  for (const e of lista) {
+    imgs += e.imagenes?.length ?? 0;
+    if (r.length && imgs > LOTE_IMAGENES_MAX) break;
+    r.push(e);
+  }
+  return r;
+}
+
+/**
+ * Un mensaje con todo el lote, en orden y con cada uno bien separado ("Mensaje 2 de 3" y una raya); las imágenes van juntas y el
+ * encabezado dice cuáles son de quién. Uno solo sale tal cual. Modelo y esfuerzo: los del último; modo y nombre: los del primero que los tenga.
+ */
+export function juntar(lote: readonly Encolado[]): Encolado {
+  if (lote.length === 1) return lote[0];
+  const imagenes: { tipo: string; datos: string }[] = [];
+  const partes = lote.map((e, k) => {
+    const n = e.imagenes?.length ?? 0;
+    const nota = n ? ` (${n === 1 ? `imagen ${imagenes.length + 1}` : `imágenes ${imagenes.length + 1} a ${imagenes.length + n}`} de las adjuntas)` : "";
+    if (e.imagenes) imagenes.push(...e.imagenes);
+    return `Mensaje ${k + 1} de ${lote.length}${nota}:\n${e.texto}`;
+  });
+  const ultimo = lote[lote.length - 1];
+  const modo = lote.find((e) => e.modo !== undefined)?.modo;
+  const nombre = lote.find((e) => e.nombre !== undefined)?.nombre;
+  return {
+    id: ultimo.id,
+    texto: partes.join("\n\n---\n\n"),
+    modelo: ultimo.modelo,
+    effort: ultimo.effort,
+    ...(imagenes.length ? { imagenes } : {}),
+    ...(modo !== undefined ? { modo } : {}),
+    ...(nombre !== undefined ? { nombre } : {}),
+  };
+}
 
 const VACIA: readonly Encolado[] = [];
 
@@ -116,43 +173,90 @@ export function crearCola(d: Deps) {
       colas.delete(sid);
       errores.delete(sid);
       selecciones.delete(sid);
+      soltarReloj(sid);
     }
     void guardar();
     d.avisar({ sid, lista: lista(sid), error: error(sid), ...extra });
   }
 
-  function fallar(sid: string, texto: string, volvio = false) {
+  function fallar(sid: string, texto: string, volvio = false, enTurno = false) {
     errores.set(sid, texto);
-    d.avisar({ sid, lista: lista(sid), error: texto, ...(volvio ? { volvio } : {}) });
+    d.avisar({ sid, lista: lista(sid), error: texto, ...(volvio ? { volvio, ...(enTurno ? { enTurno } : {}) } : {}) });
   }
 
-  /** Un intento de sacar el primero. `true`: salió (puede seguir el próximo). */
+  // Los que ya esperaron su rato para salir a mitad de un turno (y el reloj de cada uno).
+  const listos = new Set<string>();
+  const relojes = new Map<string, ReturnType<typeof setTimeout>>();
+  function esperarPausa(sid: string) {
+    if (relojes.has(sid)) return;
+    const r = setTimeout(() => {
+      relojes.delete(sid);
+      listos.add(sid);
+      void libre(sid);
+    }, d.agrupar ?? AGRUPAR_MS);
+    (r as { unref?: () => void }).unref?.();
+    relojes.set(sid, r);
+  }
+  function soltarReloj(sid: string) {
+    const r = relojes.get(sid);
+    if (r) clearTimeout(r);
+    relojes.delete(sid);
+    listos.delete(sid);
+  }
+
+  /** A mitad de un turno: todo lo que hay sale junto, sin interrumpir. `true`: salió. */
+  async function aMitadDeTurno(sid: string): Promise<boolean> {
+    if (!d.enTurno || !(await d.puedeEnTurno?.(sid))) return false;
+    // Un ratito para que lo que se escribe enseguida salga en el mismo mensaje.
+    if (!listos.has(sid)) {
+      esperarPausa(sid);
+      return false;
+    }
+    listos.delete(sid);
+    const lote = loteDe(lista(sid));
+    if (!lote.length) return false;
+    const total = await d.total(sid).catch(() => null);
+    const sel = selecciones.get(sid);
+    const item = conSeleccion(juntar(lote), sel);
+    if (!lote.every((y, i) => lista(sid)[i]?.id === y.id)) return false;
+    poner(sid, lista(sid).slice(lote.length), { salio: { item, total, traido: false, enTurno: true } });
+    try {
+      await d.enTurno(sid, item);
+    } catch (err) {
+      colas.set(sid, [...lote.map((y) => conSeleccion(y, { modelo: item.modelo, effort: item.effort })), ...lista(sid)]);
+      void guardar();
+      fallar(sid, d.textoError({ error: err }), true, true);
+      return false;
+    }
+    return true;
+  }
+
+  /** Un intento de sacar todo lo que espera, junto. `true`: salió (puede seguir lo que quedó). */
   async function intento(sid: string, cortar: boolean): Promise<boolean> {
     const disp = await d.disponible(sid);
-    let x = lista(sid)[0];
-    if (!x || disp === "ocupado" || (disp === "terminalOcupada" && !cortar)) return false;
+    if (!lista(sid).length || (disp === "terminalOcupada" && !cortar)) return false;
+    if (disp === "ocupado") return aMitadDeTurno(sid);
+    soltarReloj(sid);
     const traido = disp !== "app";
     if (traido) {
-      const r = await d.traer(sid, conSeleccion(x, selecciones.get(sid)), cortar);
+      const r = await d.traer(sid, conSeleccion(juntar(loteDe(lista(sid))), selecciones.get(sid)), cortar);
       if (!r.ok) {
         // Volvió a ponerse a trabajar justo ahora: se sigue esperando.
         if (r.motivo !== "trabajando") fallar(sid, d.textoError({ motivo: r.motivo }));
         return false;
       }
-      // Lo sacaron de la cola mientras se lo traía: ya es de la app, y no hay nada que mandar.
-      x = lista(sid)[0];
-      if (!x) return false;
     }
     const total = await d.total(sid).catch(() => null);
-    const original = x;
-    if (lista(sid)[0] !== original) return false;
+    // Lo que se sacó de la cola (o se sumó) mientras tanto ya cuenta: el lote es el de recién.
+    const lote = loteDe(lista(sid));
+    if (!lote.length) return false;
     // Recién ahora (al desencolarse) se toma la selección vigente.
-    const item = conSeleccion(original, selecciones.get(sid));
-    poner(sid, lista(sid).slice(1), { salio: { item, total, traido } });
+    const item = conSeleccion(juntar(lote), selecciones.get(sid));
+    poner(sid, lista(sid).slice(lote.length), { salio: { item, total, traido } });
     try {
       await d.mandar(sid, item);
     } catch (err) {
-      colas.set(sid, [item, ...lista(sid)]);
+      colas.set(sid, [...lote.map((y) => conSeleccion(y, { modelo: item.modelo, effort: item.effort })), ...lista(sid)]);
       void guardar();
       fallar(sid, d.textoError({ error: err }), true);
       return false;
@@ -161,7 +265,7 @@ export function crearCola(d: Deps) {
   }
 
   /**
-   * El líder pudo haber quedado libre: sale el primero (si hay, si no hay otro en camino y si
+   * El líder pudo haber quedado libre (o estar en una pausa de su turno): sale todo lo que hay, junto (si no hay otro en camino y si
    * lo anterior no había fallado). `cortar`: El usuario dijo que sí a cortar al de la terminal.
    */
   async function libre(sid: string, cortar = false): Promise<void> {
@@ -221,6 +325,7 @@ export function crearCola(d: Deps) {
     },
     /** El líder se cerró adrede: lo suyo no sale más. */
     vaciar(sid: string) {
+      soltarReloj(sid);
       if (lista(sid).length) poner(sid, VACIA);
     },
     libre: (sid: string) => libre(sid),

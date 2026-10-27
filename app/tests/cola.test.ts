@@ -1,17 +1,20 @@
 // La cola de mensajes de un líder (electron/cola.ts): lo que se manda a mitad de un turno
-// espera y sale solo cuando el líder queda libre; se puede sacar; no se pierde en un reinicio.
+// espera y sale solo, TODO JUNTO en un solo mensaje: a mitad del turno (sin interrumpir) si el motor tiene canal,
+// y si no, cuando el líder queda libre; se puede sacar; no se pierde en un reinicio.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { crearCola, type AvisoCola, type Disponible, type Encolado } from "../electron/cola.ts";
+import { crearCola, juntar, loteDe, type AvisoCola, type Disponible, type Encolado } from "../electron/cola.ts";
 
 const SID = "5a1f0c1d-0000-4000-8000-00000000c01a";
 // La cola espera a que `mandar` conteste: acá no se la espera (queda en curso hasta `contestar`), se le da un tic.
 const tic = () => new Promise((r) => setImmediate(r));
 
 /** Una cola con un líder de mentira: su estado a mano, y lo que se trae, manda, guarda y avisa queda anotado. */
-function armar({ disp = "ocupado" as Disponible, falla = false } = {}) {
-  const e = { disp, falla, motivo: null as string | null };
+function armar({ disp = "ocupado" as Disponible, falla = false, canal = false, fallaTurno = false } = {}) {
+  const e = { disp, falla, canal, fallaTurno, motivo: null as string | null };
   const mandados: string[] = [];
+  /** Lo que entró a mitad de un turno (sin interrumpir). */
+  const enTurnos: Encolado[] = [];
   const traidos: { texto: string; cortar: boolean }[] = [];
   const avisos: AvisoCola[] = [];
   const pendientes: { ok: () => void; mal: (x: Error) => void }[] = [];
@@ -36,6 +39,12 @@ function armar({ disp = "ocupado" as Disponible, falla = false } = {}) {
     textoError: (x) => ("motivo" in x ? `motivo:${x.motivo}` : (x.error as Error).message),
     guardar: async (json) => void (guardado = json),
     avisar: (a) => avisos.push(a),
+    puedeEnTurno: () => e.canal && e.disp === "ocupado",
+    enTurno: async (_sid, x) => {
+      if (e.fallaTurno) throw new Error("sin canal");
+      enTurnos.push(x);
+    },
+    agrupar: 5,
   });
   /** El `mandar` en curso contesta (o falla). */
   const contestar = async () => {
@@ -48,13 +57,17 @@ function armar({ disp = "ocupado" as Disponible, falla = false } = {}) {
     void cola.libre(SID);
     await tic();
   };
-  return { e, cola, mandados, traidos, avisos, contestar, finDeTurno, guardado: () => guardado };
+  /** Pasa el rato de agrupar a mitad de un turno. */
+  const pausa = () => new Promise((r) => setTimeout(r, 30));
+  return { e, cola, mandados, enTurnos, traidos, avisos, contestar, finDeTurno, pausa, guardado: () => guardado };
 }
 
 const x = (texto: string): Omit<Encolado, "id"> => ({ texto, modelo: "claude-opus-5-5", effort: "high" });
 const textos = (c: readonly Encolado[]) => c.map((y) => y.texto);
 
-test("ocupado + enviar = en cola; se entrega solo al terminar el turno, de a uno y en orden", async () => {
+const JUNTOS = (...t: string[]) => t.map((s, k) => `Mensaje ${k + 1} de ${t.length}:\n${s}`).join("\n\n---\n\n");
+
+test("ocupado + enviar = en cola; sin canal a mitad de turno, todo sale junto al terminar el turno, en orden", async () => {
   const a = armar();
   a.cola.encolar(SID, x("uno"));
   a.cola.encolar(SID, x("dos"));
@@ -63,21 +76,86 @@ test("ocupado + enviar = en cola; se entrega solo al terminar el turno, de a uno
   assert.deepEqual(textos(a.cola.lista(SID)), ["uno", "dos"]);
   assert.deepEqual(textos(a.avisos.at(-1)!.lista), ["uno", "dos"], "la vista los ve en cola");
 
-  await a.finDeTurno();
-  assert.deepEqual(a.mandados, ["uno"], "uno por turno");
-  assert.deepEqual(textos(a.cola.lista(SID)), ["dos"]);
-  const salio = a.avisos.find((v) => v.salio)!.salio!;
-  assert.deepEqual([salio.item.texto, salio.total, salio.traido], ["uno", 7, false], "avisa qué salió y con qué base");
+  await a.pausa();
+  assert.deepEqual([a.mandados, a.enTurnos], [[], []], "sin canal no se manda a mitad del turno, ni pasado el rato de agrupar");
 
-  // El turno de "uno" sigue: otro fin de turno falso (un aviso de las sesiones) no adelanta nada.
+  await a.finDeTurno();
+  assert.deepEqual(a.mandados, [JUNTOS("uno", "dos")], "un solo mensaje con los dos, no uno por turno");
+  assert.deepEqual(a.cola.lista(SID), []);
+  const salio = a.avisos.find((v) => v.salio)!.salio!;
+  assert.deepEqual([salio.item.texto, salio.total, salio.traido, salio.enTurno], [JUNTOS("uno", "dos"), 7, false, undefined], "avisa qué salió y con qué base");
+
+  // El turno sigue: otro fin de turno falso (un aviso de las sesiones) no manda nada de nuevo.
   void a.cola.revisar();
   await tic();
-  assert.deepEqual(a.mandados, ["uno"]);
+  assert.equal(a.mandados.length, 1);
   await a.contestar();
-  await a.finDeTurno();
-  assert.deepEqual(a.mandados, ["uno", "dos"]);
-  assert.deepEqual(a.cola.lista(SID), []);
   assert.deepEqual(a.cola.todas(), []);
+});
+
+test("con canal a mitad de turno: dos encolados salen en UN solo mensaje, sin interrumpir ni esperar al fin del turno", async () => {
+  const a = armar({ canal: true });
+  a.cola.encolar(SID, x("uno"));
+  a.cola.encolar(SID, x("dos"));
+  await tic();
+  assert.deepEqual(a.enTurnos, [], "se espera un ratito para juntar lo que se escribe enseguida");
+  assert.deepEqual(textos(a.cola.lista(SID)), ["uno", "dos"], "mientras, se ve en cola");
+  await a.pausa();
+  assert.deepEqual(a.enTurnos.map((y) => y.texto), [JUNTOS("uno", "dos")], "entran juntos");
+  assert.deepEqual(a.mandados, [], "no es un turno nuevo ni se interrumpe: no pasa por `mandar`");
+  assert.deepEqual(a.cola.lista(SID), []);
+  const v = a.avisos.find((z) => z.salio)!.salio!;
+  assert.deepEqual([v.enTurno, v.item.texto], [true, JUNTOS("uno", "dos")], "la vista lo suma al turno en curso");
+
+  // Otro mensaje, más tarde, en la misma herramienta larga: sale solo (uno).
+  a.cola.encolar(SID, x("tres"));
+  await a.pausa();
+  assert.deepEqual(a.enTurnos.map((y) => y.texto), [JUNTOS("uno", "dos"), "tres"], "uno solo sale tal cual");
+});
+
+test("a mitad de turno falla el envío: vuelve a la cola, se saca de la conversación y espera al fin del turno", async () => {
+  const a = armar({ canal: true, fallaTurno: true });
+  a.cola.encolar(SID, x("uno"));
+  a.cola.encolar(SID, x("dos"));
+  await a.pausa();
+  assert.deepEqual(textos(a.cola.lista(SID)), ["uno", "dos"], "los dos vuelven, en orden");
+  assert.equal(a.cola.error(SID), "sin canal");
+  const v = a.avisos.at(-1)!;
+  assert.deepEqual([v.volvio, v.enTurno], [true, true]);
+  await a.pausa();
+  assert.deepEqual(a.enTurnos, [], "no se reintenta solo");
+  // Reintentar al terminar el turno: sale por el camino de siempre, junto.
+  a.e.disp = "app";
+  void a.cola.ya(SID, false);
+  await tic();
+  assert.deepEqual(a.mandados, [JUNTOS("uno", "dos")]);
+});
+
+test("lo que se saca de la cola antes de que pase el rato no sale", async () => {
+  const a = armar({ canal: true });
+  const uno = a.cola.encolar(SID, x("uno"));
+  a.cola.encolar(SID, x("dos"));
+  a.cola.quitar(SID, uno.id);
+  await a.pausa();
+  assert.deepEqual(a.enTurnos.map((y) => y.texto), ["dos"]);
+});
+
+test("juntar: el orden, el separador y las imágenes de cada uno; lote: parte lo que no entra en un mensaje", () => {
+  const img = (n: number) => Array.from({ length: n }, (_, i) => ({ tipo: "image/png", datos: `AAAA${i}` }));
+  const m = juntar([
+    { id: 1, texto: "a", modelo: "m1", effort: "e1" },
+    { id: 2, texto: "b", modelo: "m2", effort: "e2", imagenes: img(2), modo: "plan", nombre: "ana" },
+    { id: 3, texto: "c", modelo: "m3", effort: "e3", imagenes: img(1) },
+  ]);
+  assert.equal(m.texto, "Mensaje 1 de 3:\na\n\n---\n\nMensaje 2 de 3 (imágenes 1 a 2 de las adjuntas):\nb\n\n---\n\nMensaje 3 de 3 (imagen 3 de las adjuntas):\nc");
+  assert.equal(m.imagenes?.length, 3);
+  assert.deepEqual([m.modelo, m.effort, m.modo, m.nombre, m.id], ["m3", "e3", "plan", "ana", 3]);
+  const uno = { id: 1, texto: "x", modelo: "m", effort: "e" };
+  assert.equal(juntar([uno]), uno, "uno solo sale tal cual");
+  const grande = (id: number, n: number): Encolado => ({ id, texto: String(id), modelo: "m", effort: "e", imagenes: img(n) });
+  assert.deepEqual(loteDe([grande(1, 12), grande(2, 9), grande(3, 1)]).map((y) => y.id), [1], "con 20 imágenes de tope");
+  assert.deepEqual(loteDe([grande(1, 12), grande(2, 8), grande(3, 1)]).map((y) => y.id), [1, 2]);
+  assert.deepEqual(loteDe([grande(1, 25)]).map((y) => y.id), [1], "siempre sale al menos uno");
 });
 
 test("si ya estaba libre (la vista lo vio ocupado un instante tarde), sale al encolar", async () => {
@@ -112,7 +190,7 @@ test("dos fines de turno seguidos no mandan dos", async () => {
   void a.cola.libre(SID);
   void a.cola.revisar();
   await tic();
-  assert.deepEqual(a.mandados, ["uno"]);
+  assert.deepEqual(a.mandados, [JUNTOS("uno", "dos")], "uno solo, con los dos");
 });
 
 test("abierto en una terminal a mitad de un turno: espera; cuando termina, lo trae y manda", async () => {
@@ -192,8 +270,8 @@ test("el mandar falló: vuelve a la cola, adelante, con el error; Reintentar lo 
   a.e.disp = "app";
   void a.cola.ya(SID, false);
   await tic();
-  assert.deepEqual(a.mandados, ["uno", "uno"]);
-  assert.deepEqual(textos(a.cola.lista(SID)), ["dos"]);
+  assert.deepEqual(a.mandados, ["uno", JUNTOS("uno", "dos")], "reintentar manda lo que volvió junto con lo nuevo");
+  assert.deepEqual(a.cola.lista(SID), []);
 });
 
 test("un reinicio no la pierde: lo guardado vuelve, se ve pendiente y sale cuando se puede", async () => {
@@ -211,7 +289,7 @@ test("un reinicio no la pierde: lo guardado vuelve, se ve pendiente y sale cuand
   assert.equal(b.cola.lista(SID)[0].modo, "plan");
   void b.cola.revisar();
   await tic();
-  assert.deepEqual(b.mandados, ["quedó"]);
+  assert.deepEqual(b.mandados, [JUNTOS("quedó", "y esto")], "lo guardado sale junto");
   // Los ids nuevos no pisan a los guardados.
   const nuevo = b.cola.encolar(SID, x("otro"));
   assert.ok(nuevo.id > Math.max(...JSON.parse(disco).colas[SID].map((y: Encolado) => y.id)));
@@ -285,10 +363,7 @@ test("mensaje encolado + cambio de modelo o esfuerzo: sale con lo elegido al des
   a.e.disp = "app";
   await dep.libre(SID);
   await tic();
-  assert.deepEqual(vistos, [
-    { modelo: "claude-sonnet-5-5", effort: "low" },
-    { modelo: "claude-sonnet-5-5", effort: "low" },
-  ]);
+  assert.deepEqual(vistos, [{ modelo: "claude-sonnet-5-5", effort: "low" }], "un solo mensaje con la selección vigente");
   // Vacía: no queda selección vieja para la próxima vez.
   assert.equal(dep.seleccion(SID), null);
   dep.encolar(SID, { ...x("tres"), modelo: "claude-haiku-5-5", effort: "high" });

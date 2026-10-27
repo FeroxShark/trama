@@ -77,12 +77,12 @@ after(async () => {
   await lider.cerrarTodos(true);
 });
 
-test("líder de la app respondiendo: lo que se manda queda en cola y sale al terminar el turno", { timeout: 30_000 }, async () => {
+test("líder de la app respondiendo: lo que se manda queda en cola y sale al terminar el turno, todo junto", { timeout: 30_000 }, async () => {
   const sid = await lider.nuevo({ ...M, texto: "hola" });
   assert.equal(await lider.disponible(sid), "ocupado");
   // El `mandar` de siempre se niega a mitad de un turno: por eso la cola.
   await assert.rejects(lider.mandar({ sid, texto: "x", ...M }));
-  const uno = cola.encolar(sid, { ...M, texto: "uno" });
+  cola.encolar(sid, { ...M, texto: "uno" });
   cola.encolar(sid, { ...M, texto: "dos" });
   const tres = cola.encolar(sid, { ...M, texto: "tres" });
   await espera(30);
@@ -92,10 +92,10 @@ test("líder de la app respondiendo: lo que se manda queda en cola y sale al ter
   // Cancelar uno de la cola: ese no sale.
   cola.quitar(sid, tres.id);
 
-  await hasta(() => fines() === 3);
-  assert.deepEqual(pasos, ["fin", "salio:uno", "fin", "salio:dos", "fin"], "uno por turno, cada uno después del fin del anterior");
+  await hasta(() => fines() === 2);
+  assert.deepEqual(pasos, ["fin", "salio:Mensaje 1 de 2:\nuno\n\n---\n\nMensaje 2 de 2:\ndos", "fin"], "sin canal a mitad de turno: los dos juntos, en un solo mensaje, al terminar el turno");
   assert.deepEqual(cola.lista(sid), []);
-  assert.equal(avisos.find((a) => a.salio?.item.id === uno.id)!.salio!.traido, false);
+  assert.equal(avisos.find((a) => a.salio)!.salio!.traido, false);
   assert.equal(lanzados().length, 1, "el mismo proceso, sin relanzar");
   assert.equal(await lider.disponible(sid), "app");
 });
