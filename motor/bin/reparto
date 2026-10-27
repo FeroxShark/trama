@@ -2782,7 +2782,7 @@ def texto_resumen(filas, now):
         elif r.get("plan"):
             precio = "plan Go"
         else:
-            precio = "pago x%s" % fn(r["costo"])
+            precio = "pago x%g" % round(r["costo"], 2)
         if r["cupo_libre"] is None:
             cupo = "cupo sin límite"
         elif r["agotado"]:
