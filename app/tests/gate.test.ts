@@ -71,7 +71,7 @@ test("verde: dentro de lo permitido, test intacto, chequeo en 0", () => {
   assert.equal(r.exit, 0, r.sal);
   assert.match(r.sal, /GATE VERDE/);
   assert.match(r.sal, /OK\s+1 alcance/);
-  assert.match(r.sal, /OK\s+2 test congelado \(tests\/t1\.test\.txt\)/);
+  assert.match(r.sal, /OK\s+2 test congelado \(tests\/t1\.test\.txt pisado/);
 });
 
 test("21: un archivo fuera de lo permitido, y dice cuál", () => {
@@ -82,21 +82,65 @@ test("21: un archivo fuera de lo permitido, y dice cuál", () => {
   assert.doesNotMatch(r.sal, /src\/b\.txt/);
 });
 
-test("22: el test congelado cambió", () => {
-  const r = gate(rama({ "tests/t1.test.txt": "tocado\n" }), [], {});
+test("2: el test congelado cambiado en la rama avisa, y tampoco lo rechaza por sí solo", () => {
   // tests/ no está en permitidos: falla también el alcance, pero manda el primer paso que falló (21) y se ven ambos
+  const r = gate(rama({ "tests/t1.test.txt": "tocado\n" }), [], {});
   assert.equal(r.exit, 21, r.sal);
+  assert.match(r.sal, /AVISO 2 la rama cambió tests\/t1\.test\.txt/);
+  assert.doesNotMatch(r.sal, /ROJO\s+2/);
+});
+
+test("2: pisa el test con la copia: el chequeo ve la copia y no lo que la rama cambió", () => {
+  writeFileSync(path.join(tmp, "permitidos4.txt"), "src/\ntests/\n");
+  const id = rama({ "tests/t1.test.txt": "tocado\n" });
+  const gateConPisado = (chequeo: string) =>
+    spawnSync(GATE, ["mi-proyecto", id, "--chequeo", chequeo, "--permitidos", path.join(tmp, "permitidos4.txt"), "--test", path.join(tmp, "t1.test.txt")], {
+      encoding: "utf8",
+      env: { ...process.env, PROYECTOS_REGISTRY: registry, PA_STATE: estado },
+    });
+  const ok = gateConPisado("grep -qx congelado tests/t1.test.txt");
+  assert.equal(ok.status, 0, ok.stdout + ok.stderr);
+  assert.match(ok.stdout, /OK\s+2 test congelado \(tests\/t1\.test\.txt pisado/);
+  const mal = gateConPisado("grep -qx tocado tests/t1.test.txt");
+  assert.equal(mal.status, 23, mal.stdout + mal.stderr);
+});
+
+test("2: el worktree del worker queda con su archivo de test como estaba", () => {
+  writeFileSync(path.join(tmp, "permitidos5.txt"), "src/\ntests/\n");
+  const id = rama({ "tests/t1.test.txt": "tocado\n" });
+  const wtw = path.join(tmp, "wt-worker");
+  git("worktree", "add", "-q", wtw, `pa/mi-proyecto/${id}`);
+  try {
+    const r = spawnSync(GATE, ["mi-proyecto", id, "--chequeo", "true", "--permitidos", path.join(tmp, "permitidos5.txt"), "--test", path.join(tmp, "t1.test.txt")], {
+      encoding: "utf8",
+      env: { ...process.env, PROYECTOS_REGISTRY: registry, PA_STATE: estado },
+    });
+    assert.equal(r.status, 0, r.stdout + r.stderr);
+    assert.equal(readFileSync(path.join(wtw, "tests", "t1.test.txt"), "utf8"), "tocado\n");
+  } finally {
+    git("worktree", "remove", "--force", wtw);
+  }
+});
+
+test("22: el test congelado no tiene una ruta única en la rama (dos archivos con su nombre)", () => {
+  const r = gate(rama({ "src/t1.test.txt": "x\n" }));
+  assert.equal(r.exit, 22, r.sal);
   assert.match(r.sal, /ROJO\s+2 test congelado/);
 });
 
-test("22: con el test dentro de lo permitido, sale 22", () => {
-  writeFileSync(path.join(tmp, "permitidos2.txt"), "tests/\n");
-  const id = rama({ "tests/t1.test.txt": "tocado\n" });
-  const rr = spawnSync(GATE, ["mi-proyecto", id, "--chequeo", "true", "--permitidos", path.join(tmp, "permitidos2.txt"), "--test", `${path.join(tmp, "t1.test.txt")}:tests/t1.test.txt`], {
-    encoding: "utf8",
-    env: { ...process.env, PROYECTOS_REGISTRY: registry, PA_STATE: estado },
-  });
-  assert.equal(rr.status, 22, rr.stdout + rr.stderr);
+test("3b: un *.extra.test.* que falla con --extras da 23; si pasa, OK", () => {
+  const malo = gate(rama({ "src/x.extra.test.txt": "x\n" }), ["--extras", "false"]);
+  assert.equal(malo.exit, 23, malo.sal);
+  assert.match(malo.sal, /3b extras: exit 1/);
+  const bueno = gate(rama({ "src/y.extra.test.txt": "y\n" }), ["--extras", "true"]);
+  assert.equal(bueno.exit, 0, bueno.sal);
+  assert.match(bueno.sal, /OK\s+3b extras \(1\)/);
+});
+
+test("3b: un *.extra.test.* sin --extras avisa que no corrió y no rechaza", () => {
+  const r = gate(rama({ "src/z.extra.test.txt": "z\n" }));
+  assert.equal(r.exit, 0, r.sal);
+  assert.match(r.sal, /AVISO 3b 1 extra/);
 });
 
 test("23: el chequeo da rojo, con el final de su salida", () => {
