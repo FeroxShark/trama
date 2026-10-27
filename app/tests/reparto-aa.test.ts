@@ -482,7 +482,9 @@ test("codigo-acotado (medium) va a Sonnet, no a Opus: el mínimo de Sonnet se mi
 // El fixture tiene EXACTAMENTE las filas de su aa-modelos.json (name | slug | intelligence | coding | agentic) que dieron el reporte
 // «sin datos por esfuerzo»: los Claude 5.5 sólo traen inteligencia (coding y agentic en null).
 const REAL_DUENO = path.join(import.meta.dirname, "fixtures", "aa-real-2026-10-27.json");
-const SUPLEMENTO = path.join(import.meta.dirname, "..", "..", "motor", "datos", "aa-suplemento.json");
+// La primera tabla suplementaria (lecturas de gráficos, con costo POR TAREA): fija, para que estos tests no cambien al ampliar la del motor.
+const SUPLEMENTO = path.join(import.meta.dirname, "fixtures", "aa-suplemento-parcial-2026-10-27.json");
+const SUPLEMENTO_MOTOR = path.join(import.meta.dirname, "..", "..", "motor", "datos", "aa-suplemento.json");
 const SUP = { REPARTO_AA: REAL_DUENO, REPARTO_AA_SUPLEMENTO: SUPLEMENTO };
 const filasReales = (JSON.parse(readFileSync(REAL_DUENO, "utf8")) as { modelos: { name: string; slug: string; intelligence: number | null; coding: number | null; agentic: number | null }[] }).modelos;
 type Ef = { medidos: Record<string, number>; todos: Record<string, { usado: number; estado: string; fuente: string | null }> };
@@ -634,4 +636,20 @@ test("extrapolación con la pendiente relativa de otros modelos: nunca se estima
   // extrapolación hacia arriba con dos puntos: usa la pendiente relativa, nunca baja del medido
   const arr = py(`aa = R.aa_cargar()\nm = R.aa_calidad_efforts(aa, "claude-sonnet-5-5")\nprint(json.dumps([R.calidad_en_effort(m, "xhigh", 46.8), R.calidad_en_effort(m, "max", 46.8)]))`, SUP) as number[];
   assert.ok(arr[0] > 46.8 && arr[1] >= arr[0]);
+});
+
+test("tabla del motor (páginas de AA, 2026-10-27): los 5.5 tienen sus cinco esfuerzos medidos y se rankean en high, no en max", () => {
+  const ef = diagReal({ REPARTO_AA: REAL_DUENO, REPARTO_AA_SUPLEMENTO: SUPLEMENTO_MOTOR });
+  const o = ef["claude-opus-5-5"].efforts;
+  assert.deepEqual(medidosDe(o), { low: 42.3, medium: 51.2, high: 53.6, xhigh: 56, max: 57.6 });
+  assert.equal(o.high.fuente, "suplemento");
+  assert.equal(o.max.fuente, "api", "max lo trae la API: manda la API");
+  assert.ok(ef["claude-opus-5-5"].calidad < 57.6, "se rankea en high, no por su max");
+  assert.deepEqual(medidosDe(ef["claude-sonnet-5-5"].efforts), { low: 35.9, medium: 40.8, high: 46.8, xhigh: 51.9, max: 56 });
+  assert.deepEqual(medidosDe(ef["claude-haiku-5-5"].efforts), { low: 29.5, medium: 34.5, high: 37.8, xhigh: 41.2, max: 43.4 });
+  assert.deepEqual(medidosDe(ef[ID("deepseek-v4.1-flash-free")].efforts), { max: 45.1 });
+  // el costo es el de correr el índice completo, en la misma unidad para todos
+  const tabla = JSON.parse(readFileSync(SUPLEMENTO_MOTOR, "utf8")) as { modelos: { name: string; intelligence: number | null; cost?: number }[] };
+  assert.ok(tabla.modelos.every((m) => typeof m.intelligence === "number"), "sin entradas vacías");
+  assert.ok(tabla.modelos.filter((m) => m.cost !== undefined).every((m) => m.cost! > 1), "costo de correr el índice (USD), no por tarea");
 });
