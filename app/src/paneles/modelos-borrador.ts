@@ -34,6 +34,7 @@ import {
   type SinCupo,
   type Tipo,
 } from "../../electron/modelos-tipos";
+import type { EffortCalidad } from "../../electron/efforts-calidad";
 import { defDe, effortDeModelo, TABLA } from "../hilo/modelos";
 
 export { DESTRABAR_MODELOS };
@@ -52,6 +53,8 @@ export type Borrador = {
   calidad: Record<string, number>;
   /** Deja correr opus/sonnet con esfuerzo `max` sin pedir permiso. */
   permitir_max: boolean;
+  /** Esfuerzos permitidos por clave de `calidad`; sin la clave valen todos, `[]` saca al modelo. */
+  efforts_permitidos: Record<string, EffortCalidad[]>;
   /** Qué hace `pa` si un modelo no tiene cupo; sin elegir se escribe nada y vale `otro`. */
   sin_cupo?: SinCupo;
   /** Perfil de reparto; sin elegir vale `equilibrado` y no se escribe nada. */
@@ -73,6 +76,7 @@ export const borradorDe = (e: EstadoModelos): Borrador => ({
   excluir: [...e.config.excluir],
   calidad: { ...e.config.calidad },
   permitir_max: e.config.permitir_max,
+  efforts_permitidos: Object.fromEntries(Object.entries(e.config.efforts_permitidos ?? {}).map(([k, v]) => [k, [...v]])),
   ...(e.config.sin_cupo ? { sin_cupo: e.config.sin_cupo } : {}),
   ...(e.config.perfil ? { perfil: e.config.perfil } : {}),
   guardar: e.config.claude.tope_5h !== undefined || e.config.claude.tope_7d !== undefined,
@@ -106,6 +110,7 @@ export function configDe(b: Borrador): ConfigModelos | null {
     excluir: [...b.excluir],
     calidad: { ...b.calidad },
     permitir_max: b.permitir_max,
+    ...(Object.keys(b.efforts_permitidos).length ? { efforts_permitidos: Object.fromEntries(Object.entries(b.efforts_permitidos).map(([k, v]) => [k, [...v]])) } : {}),
     gemini: {},
     ...(b.sin_cupo ? { sin_cupo: b.sin_cupo } : {}),
     ...(b.perfil ? { perfil: b.perfil } : {}),
@@ -124,6 +129,7 @@ const huella = (c: ConfigModelos) =>
     c.excluir,
     Object.entries(c.calidad ?? {}).sort(([a], [z]) => (a < z ? -1 : 1)),
     c.permitir_max,
+    Object.entries(c.efforts_permitidos ?? {}).sort(([a], [z]) => (a < z ? -1 : 1)),
     c.sin_cupo ?? null,
     c.perfil ?? "equilibrado",
     c.claude.tope_5h ?? null,

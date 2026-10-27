@@ -171,3 +171,12 @@ test("rutaCacheAA: REPARTO_AA manda ('0' la apaga), si no el estado de reparto c
   assert.deepEqual(await estadoAA(false, path.join(tmp, "no-existe.json")), { version: 1, hayClave: false, fecha: null, modelos: 0 });
   assert.equal(existsSync(path.join(tmp, "no-existe.json")), false);
 });
+
+test("modeloDe guarda costo, tokens y tiempo por tarea cuando AA los trae (sueltos o en objetos) y no inventa los que faltan", () => {
+  const a = modeloDe({ name: "X (high)", slug: "x-high", coding_index: 40, agentic_index: 38, evaluations: { artificial_analysis_intelligence_index: 46.8 }, cost_per_task: 0.884, tokens_per_task: 120000, time_per_task: 95 })!;
+  assert.deepEqual([a.intelligence, a.coding, a.agentic, a.cost, a.tokens, a.time], [46.8, 40, 38, 0.884, 120000, 95]);
+  const b = modeloDe({ name: "Y", coding_index: 30, intelligence_index_cost: { total_cost: 12.5 }, intelligence_index_token_counts: { input_tokens: 100, output_tokens: 50 } })!;
+  assert.deepEqual([b.cost, b.tokens, b.time], [12.5, 150, undefined]);
+  const c = modeloDe({ name: "Z", coding_index: 30 })!;
+  assert.equal("cost" in c || "tokens" in c || "time" in c, false);
+});

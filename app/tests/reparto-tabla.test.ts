@@ -61,7 +61,7 @@ test("--tabla --json: Claude con sus dos ventanas y los gratis de OpenCode, con 
   const t = tabla();
   const opus = t["claude-opus-5-5"]!;
   assert.equal(opus.proveedor, "claude");
-  assert.equal(opus.calidad, 100);
+  assert.equal(opus.calidad, 58, "unidades de AA: el 100 de la escala vieja");
   assert.equal(opus.estimada, false);
   assert.equal(opus.gratis, false);
   assert.equal(opus.permitido, true);
@@ -69,27 +69,27 @@ test("--tabla --json: Claude con sus dos ventanas y los gratis de OpenCode, con 
   const bp = t["opencode:opencode/big-pickle"]!;
   assert.equal(bp.proveedor, "opencode");
   assert.equal(bp.gratis, true);
-  assert.equal(bp.calidad, 60);
+  assert.equal(bp.calidad, 43);
   assert.equal(bp.estimada, false, "tiene calidad de fábrica");
 });
 
 test("inteligencia por defecto: sin `calidad` se estima por el nombre (base 50, ultra/super/pro/max +10, flash/lightning/mini/nano -10) y se marca estimada", () => {
   const t = tabla();
-  assert.deepEqual([t["opencode:opencode/zeta-ultra-free"]!.calidad, t["opencode:opencode/zeta-ultra-free"]!.estimada], [60, true]);
-  assert.deepEqual([t["opencode:opencode/kilo-mini-free"]!.calidad, t["opencode:opencode/kilo-mini-free"]!.estimada], [40, true]);
+  assert.deepEqual([t["opencode:opencode/zeta-ultra-free"]!.calidad, t["opencode:opencode/zeta-ultra-free"]!.estimada], [43, true]);
+  assert.deepEqual([t["opencode:opencode/kilo-mini-free"]!.calidad, t["opencode:opencode/kilo-mini-free"]!.estimada], [37.3, true]);
   // fijada en modelos.json: ya no es estimada
-  const m = modelos({ calidad: { "opencode:opencode/kilo-mini-free": 72 } });
+  const m = modelos({ calidad_unidades: "aa", calidad: { "opencode:opencode/kilo-mini-free": 46 } });
   const t2 = tabla(m);
-  assert.deepEqual([t2["opencode:opencode/kilo-mini-free"]!.calidad, t2["opencode:opencode/kilo-mini-free"]!.estimada], [72, false]);
+  assert.deepEqual([t2["opencode:opencode/kilo-mini-free"]!.calidad, t2["opencode:opencode/kilo-mini-free"]!.estimada], [46, false]);
 });
 
-test("la estimación entra al puntaje: un gratis `ultra` sin calidad propia pasa el mínimo de lectura (60) y uno `mini` no", () => {
+test("la estimación entra al puntaje: un gratis `ultra` sin calidad propia pasa el mínimo de lectura (43) y uno `mini` no", () => {
   const f = cupos([0.9, "2026-10-26T15:00:00Z"], [0.99, "2026-10-31T12:00:00Z"]); // Claude casi sin cupo
   const r = reparto(["--tipo", "lectura", "--json"], f);
   const j = JSON.parse(r.out) as { candidatos: { modelo: string; calidad: number; descartado_por: string | null }[] };
   const c = Object.fromEntries(j.candidatos.map((x) => [x.modelo, x]));
   assert.equal(c["opencode:opencode/zeta-ultra-free"]!.descartado_por, null);
-  assert.match(c["opencode:opencode/kilo-mini-free"]!.descartado_por ?? "", /calidad 40/);
+  assert.match(c["opencode:opencode/kilo-mini-free"]!.descartado_por ?? "", /calidad 37.3/);
 });
 
 test("excluir por id exacto saca a ese modelo (permitido false, con la regla) y deja los demás; una familia saca a todos los de la familia", () => {
@@ -106,8 +106,8 @@ test("--tabla en texto y --help la nombra", () => {
   const f = cupos([0.2, "2026-10-26T14:00:00Z"], [0.3, "2026-10-27T00:00:00Z"]);
   const r = reparto(["--tabla"], f);
   assert.equal(r.rc, 0);
-  assert.match(r.out, /claude-sonnet-5-5\s+claude\s+88/);
-  assert.match(r.out, /zeta-ultra-free\s+opencode\s+60~/);
+  assert.match(r.out, /claude-sonnet-5-5\s+claude\s+51.0/);
+  assert.match(r.out, /zeta-ultra-free\s+opencode\s+43.0~/);
   const h = reparto(["--help"], f);
   assert.match(h.out, /--tabla \[--json\]/);
 });
@@ -151,9 +151,9 @@ test("pa --modelos --json trae la inteligencia de cada modelo (estimada incluida
   const j = spawnSync(pa, ["--modelos", "--json"], { encoding: "utf8", env, timeout: 60_000 });
   assert.equal(j.status, 0, j.stderr);
   const i = JSON.parse(j.stdout).inteligencia;
-  assert.deepEqual(i["claude-sonnet-5-5"], { calidad: 88, estimada: false, gratis: false, permitido: true });
+  assert.deepEqual(i["claude-sonnet-5-5"], { calidad: 51, estimada: false, gratis: false, permitido: true });
   assert.equal(i["opencode:opencode/zeta-ultra-free"].estimada, true);
   const t = spawnSync(pa, ["--modelos"], { encoding: "utf8", env, timeout: 60_000 });
-  assert.match(t.stdout, /inteligencia \(0-100/);
-  assert.match(t.stdout, /opencode:opencode\/zeta-ultra-free\s+60~ · gratis/);
+  assert.match(t.stdout, /inteligencia \(unidades de Artificial Analysis/);
+  assert.match(t.stdout, /opencode:opencode\/zeta-ultra-free\s+43~ · gratis/);
 });

@@ -2886,8 +2886,65 @@
   font-size: var(--letra-3);
 }
 .wk-efforts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--esp-1) var(--esp-2);
   color: var(--texto-7);
   font-size: var(--letra-3);
+}
+/* Un chip por esfuerzo: prendido/apagado se dice con texto («no») y con el trazo (sólido / tachado y punteado), no sólo con el color. */
+.wk-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--esp-1);
+  padding: 0 var(--esp-2);
+  border: 1px solid var(--borde-3);
+  border-radius: var(--radio-pastilla);
+  background: transparent;
+  color: var(--texto);
+  font: inherit;
+  cursor: pointer;
+}
+.wk-chip:hover {
+  color: var(--texto);
+  border-color: var(--texto-2);
+}
+.wk-chip:focus-visible {
+  outline: 2px solid var(--texto-2);
+  outline-offset: 1px;
+}
+.wk-chip-v {
+  font-family: var(--font-mono);
+}
+.wk-chip[data-on="no"] {
+  border-style: dashed;
+  color: var(--texto-7);
+}
+.wk-chip[data-on="no"] .wk-chip-n,
+.wk-chip[data-on="no"] .wk-chip-v {
+  text-decoration: line-through;
+}
+.wk-chip[data-usado] {
+  border-width: 2px;
+  font-weight: 600;
+}
+.wk-chip[data-dominado] {
+  border-style: dotted;
+}
+.wk-sin-efforts,
+.wk-hint {
+  color: var(--texto-7);
+  font-size: var(--letra-3);
+  font-style: italic;
+}
+.wk-hint {
+  display: block;
+}
+.wk-sugerencias {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--esp-2);
 }
 .wk-gratis {
   color: var(--ok);

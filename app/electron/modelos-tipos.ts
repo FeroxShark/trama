@@ -2,6 +2,8 @@
 // junta lo que se edita en Ajustes con lo que ya hay en el archivo. Puro y sin imports de Node: lo usan el main (para no
 // escribir nada inválido) y el panel (el borrador). Lo que no conoce lo deja como estaba: otra versión de trama o de `pa`
 // puede haber agregado claves, y un Guardar no las borra. Lo prueba tests/modelos-config.test.ts.
+import { EFFORTS_CALIDAD, type EffortCalidad } from "./efforts-calidad.ts";
+import { esUnidadesAA, migrarValor, UNIDADES_AA, viejaAAa } from "./calidad-migracion.ts";
 import { errorT } from "./errores.ts";
 
 export const TIPOS = ["default", "codigo-acotado", "codigo-multi", "frontend", "debug", "diseno", "lectura", "mecanico"] as const;
@@ -60,7 +62,8 @@ const FORMA_EXCLUIR = /^[A-Za-z0-9][\w.:*/[\]-]{0,79}$/;
 export const CALIDAD_MAX = 200;
 /** La clave de `calidad`: una familia (`opus`), un id (`opencode:opencode/beam-free`) o un patrón con `*` (`dsh:deepseek/*pro*`). */
 const FORMA_CALIDAD = /^[A-Za-z0-9][\w.:*/[\]-]{0,119}$/;
-const calidadValida = (n: unknown): n is number => typeof n === "number" && Number.isInteger(n) && n >= 0 && n <= 100;
+/** Unidades de AA (promedio crudo de coding y agentic): un decimal, de 0 a 200 (no hay techo de 100). */
+const calidadValida = (n: unknown): n is number => typeof n === "number" && Number.isFinite(n) && n >= 0 && n <= 200 && Math.round(n * 10) === n * 10;
 export const CUPO_MIN = 1;
 export const CUPO_MAX = 100;
 export const URL_OLLAMA = "http://localhost:11434";
@@ -85,6 +88,11 @@ export type ConfigModelos = {
   calidad: Record<string, number>;
   /** Deja correr opus/sonnet con esfuerzo `max` sin pedir permiso (Fable lo sigue pidiendo). Sin la clave vale `false`. */
   permitir_max: boolean;
+  /**
+   * Esfuerzos que los workers pueden usar por modelo (clave: familia o id, como `calidad`). Sin la clave valen todos; lista vacía = el modelo
+   * queda fuera. Si el esfuerzo del tipo no está permitido, `reparto` usa el más cercano (primero el siguiente más alto).
+   */
+  efforts_permitidos?: Record<string, EffortCalidad[]>;
   /** `cupo_max` de un archivo viejo: el motor ya no lo usa; se lee (no rompe) pero Guardar no lo vuelve a escribir. */
   gemini: { cupo_max?: number };
   /** `sin_cupo` del archivo; un `gemini.sin_claude` viejo se lee como éste y se reescribe así al guardar. */
@@ -184,8 +192,13 @@ export function leerConfig(j: Record<string, unknown>): ConfigModelos {
   if (esObj(j.workers)) for (const t of TIPOS) { const e = eleccionDe(j.workers[t]); if (e?.modelo === "auto") c.reparto = "auto"; else if (e) c.workers[t] = e; }
   if (Array.isArray(j.locales)) for (const l of j.locales) { const x = localDe(l); if (x) c.locales.push(x); }
   if (Array.isArray(j.excluir)) for (const x of j.excluir) if (typeof x === "string" && FORMA_EXCLUIR.test(x.trim()) && !c.excluir.includes(x.trim()) && c.excluir.length < EXCLUIR_MAX) c.excluir.push(x.trim());
-  if (esObj(j.calidad)) for (const [k, v] of Object.entries(j.calidad)) if (FORMA_CALIDAD.test(k) && calidadValida(v) && Object.keys(c.calidad).length < CALIDAD_MAX) c.calidad[k] = v;
+  if (esObj(j.calidad)) for (const [k, v] of Object.entries(j.calidad)) if (FORMA_CALIDAD.test(k) && calidadValida(v) && Object.keys(c.calidad).length < CALIDAD_MAX) c.calidad[k] = migrarValor(v, j);
   c.permitir_max = j.permitir_max === true;
+  if (esObj(j.efforts_permitidos)) {
+    const ep: Record<string, EffortCalidad[]> = {};
+    for (const [k, v] of Object.entries(j.efforts_permitidos)) if (FORMA_CALIDAD.test(k) && Array.isArray(v) && Object.keys(ep).length < CALIDAD_MAX) ep[k] = EFFORTS_CALIDAD.filter((e) => v.includes(e));
+    if (Object.keys(ep).length) c.efforts_permitidos = ep;
+  }
   if (esObj(j.gemini)) {
     const g = j.gemini;
     if (typeof g.cupo_max === "number" && Number.isInteger(g.cupo_max) && g.cupo_max >= CUPO_MIN && g.cupo_max <= CUPO_MAX) c.gemini.cupo_max = g.cupo_max;
@@ -215,7 +228,7 @@ function validarEleccion(x: unknown, donde: string, locales: Local[]): Eleccion 
 /** Lo que llega a guardar, revisado: tira con el motivo si algo no vale (y entonces no se escribe nada). */
 export function validarConfig(x: unknown): ConfigModelos {
   if (!esObj(x)) throw errorT("main.modelosForma");
-  const raro = Object.keys(x).find((k) => !["lider", "reparto", "workers", "locales", "excluir", "calidad", "permitir_max", "gemini", "claude", "sin_cupo", "perfil", "destrabar"].includes(k));
+  const raro = Object.keys(x).find((k) => !["lider", "reparto", "workers", "locales", "excluir", "calidad", "efforts_permitidos", "permitir_max", "gemini", "claude", "sin_cupo", "perfil", "destrabar"].includes(k));
   if (raro !== undefined) throw errorT("main.modelosCampo", { campo: raro.slice(0, 40) });
   const c = vacia();
 
@@ -251,6 +264,18 @@ export function validarConfig(x: unknown): ConfigModelos {
       if (!FORMA_CALIDAD.test(k) || !calidadValida(v)) throw errorT("main.modelosCalidad", { v: k.slice(0, 60) });
       c.calidad[k] = v;
     }
+  }
+  if (x.efforts_permitidos !== undefined && x.efforts_permitidos !== null) {
+    if (!esObj(x.efforts_permitidos)) throw errorT("main.modelosForma");
+    const ks = Object.keys(x.efforts_permitidos);
+    if (ks.length > CALIDAD_MAX) throw errorT("main.modelosDemasiados", { max: CALIDAD_MAX });
+    const ep: Record<string, EffortCalidad[]> = {};
+    for (const k of ks) {
+      const v = x.efforts_permitidos[k];
+      if (!FORMA_CALIDAD.test(k) || !Array.isArray(v) || v.some((e) => !(EFFORTS_CALIDAD as readonly unknown[]).includes(e))) throw errorT("main.modelosCalidad", { v: k.slice(0, 60) });
+      ep[k] = EFFORTS_CALIDAD.filter((e) => v.includes(e));
+    }
+    if (ks.length) c.efforts_permitidos = ep;
   }
   if (x.permitir_max !== undefined && x.permitir_max !== null) {
     if (typeof x.permitir_max !== "boolean") throw errorT("main.modelosForma");
@@ -360,6 +385,19 @@ export function unir(antes: Record<string, unknown> | null, c: ConfigModelos): R
   else delete base.calidad;
   if (c.permitir_max) base.permitir_max = true;
   else delete base.permitir_max;
+  // `calidad`, `calidad_effort` y `minimo_por_tipo` numérico son de la escala vieja 0–100 mientras falte "calidad_unidades": "aa": se pasan a AA
+  // (una sola vez: desde acá el archivo lleva el marcador). Lo que la app no edita (calidad_effort, minimo_por_tipo) migra con el mismo marcador.
+  if (!esUnidadesAA(base)) {
+    const ce = base.calidad_effort;
+    if (ce && typeof ce === "object" && !Array.isArray(ce)) base.calidad_effort = Object.fromEntries(Object.entries(ce as Record<string, unknown>).map(([k, d]) => [k, d && typeof d === "object" && !Array.isArray(d) ? Object.fromEntries(Object.entries(d as Record<string, unknown>).map(([e, v]) => [e, typeof v === "number" && Number.isFinite(v) ? viejaAAa(v) : v])) : d]));
+    const mp = base.minimo_por_tipo;
+    if (mp && typeof mp === "object" && !Array.isArray(mp)) base.minimo_por_tipo = Object.fromEntries(Object.entries(mp as Record<string, unknown>).map(([k, v]) => [k, typeof v === "number" && Number.isFinite(v) ? viejaAAa(v) : v]));
+  }
+  if (Object.keys(c.calidad).length || base.calidad_effort !== undefined || base.minimo_por_tipo !== undefined) base.calidad_unidades = UNIDADES_AA;
+  else delete base.calidad_unidades;
+  // `efforts_permitidos` es de `reparto`: sin entradas la clave sale (valen todos los esfuerzos).
+  if (c.efforts_permitidos && Object.keys(c.efforts_permitidos).length) base.efforts_permitidos = Object.fromEntries(Object.entries(c.efforts_permitidos).map(([k, v]) => [k, [...v]]));
+  else delete base.efforts_permitidos;
 
   // `gemini.sin_claude` se retira: lo dice `sin_cupo`, que vale para cualquier proveedor.
   // `gemini.cupo_max` tampoco se escribe más: el motor ya no lo usa, y al guardar sale del archivo.

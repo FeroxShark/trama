@@ -7,6 +7,7 @@ import type { EntornoOllama } from "../../electron/ollama-entorno";
 import type { EstadoDsh } from "../../electron/dsh-ajustes";
 import type { EstadoOpencodeUi } from "../../electron/opencode-ajustes";
 import type { FilaTabla, TablaReparto } from "../../electron/reparto-tabla";
+import { viejaAAa } from "../../electron/calidad-migracion";
 import type { Ajustes, Consulta, Medido, Corrida, EstadoAuto, EstadoSalud, Medicion, Muestra, PiezaConsulta } from "./paneles";
 
 const AHORA = Math.floor(Date.now() / 1000);
@@ -400,18 +401,18 @@ export const ESTADO_OPENCODE = (variante: string | null): EstadoOpencodeUi => {
  */
 export const TABLA_REPARTO = (aa = false): TablaReparto => {
   const h = (horas: number) => Date.now() + horas * 3_600_000;
-  const base = { cuenta: null, calidadPorEffort: {} as FilaTabla["calidadPorEffort"], estimada: false, origen: "defecto" as const, aaFecha: null as string | null, gratis: false, ventanas: [], urgencia: 0, permitido: true, excluidoPor: null, agotado: false };
+  const base = { cuenta: null, effortUsado: null as FilaTabla["effortUsado"], calidadPorEffort: {} as FilaTabla["calidadPorEffort"], estimada: false, origen: "defecto" as const, aaFecha: null as string | null, gratis: false, ventanas: [], urgencia: 0, permitido: true, excluidoPor: null, agotado: false };
   const claude = (id: string, nombre: string, familia: string, calidad: number): FilaTabla => ({
-    ...base, id, nombre, proveedor: "claude", familia, familiaExcluir: familia, calidad, libre: 62, vuelve: h(20), urgencia: 0.62,
+    ...base, id, nombre, proveedor: "claude", familia, familiaExcluir: familia, calidad: viejaAAa(calidad), libre: 62, vuelve: h(20), urgencia: 0.62,
     ventanas: [{ id: "5h", libre: 80, vuelve: h(2) }, { id: "7d", libre: 62, vuelve: h(20) }],
   });
   const goog = (id: string, nombre: string, familia: string, calidad: number, libre: number, dias: number): FilaTabla => ({
-    ...base, id, nombre, proveedor: "google", familia, familiaExcluir: familia, calidad, libre, vuelve: h(dias * 24), urgencia: 0.2,
+    ...base, id, nombre, proveedor: "google", familia, familiaExcluir: familia, calidad: viejaAAa(calidad), libre, vuelve: h(dias * 24), urgencia: 0.2,
     ventanas: [{ id: "5h", libre: Math.min(100, libre + 20), vuelve: h(3) }, { id: "7d", libre, vuelve: h(dias * 24) }],
   });
   const oc = (m: string, calidad: number, estimada: boolean): FilaTabla => ({
     ...base, id: `opencode:opencode/${m}`, nombre: `${m} (OpenCode, gratis)`, proveedor: "opencode", familia: "dsh", familiaExcluir: "opencode",
-    calidad, estimada, origen: estimada ? "estimada" : "defecto", gratis: true, libre: 100, vuelve: null,
+    calidad: viejaAAa(calidad), estimada, origen: estimada ? "estimada" : "defecto", gratis: true, libre: 100, vuelve: null,
   });
   const modelos: FilaTabla[] = [
     claude("claude-opus-5-5", "Claude Opus 5.5", "opus", 100),
@@ -421,23 +422,27 @@ export const TABLA_REPARTO = (aa = false): TablaReparto => {
     goog("gemini-3.8-flash", "Gemini 3.8 Flash", "flash", 60, 40, 5),
     goog("agy:claude-sonnet-5-5", "Claude Sonnet 5.5 (por Google)", "sonnet", 88, 33, 5),
     goog("agy:gpt-oss-120b", "GPT-OSS 120B", "gpt-oss", 45, 33, 5),
-    { ...base, id: "codex:gpt-6.1-sol", nombre: "GPT-6.1 Sol (Codex)", proveedor: "openai", familia: "sol", familiaExcluir: "sol", calidad: 88, libre: 54, vuelve: h(60), urgencia: 0.3,
+    { ...base, id: "codex:gpt-6.1-sol", nombre: "GPT-6.1 Sol (Codex)", proveedor: "openai", familia: "sol", familiaExcluir: "sol", calidad: viejaAAa(88), libre: 54, vuelve: h(60), urgencia: 0.3,
       ventanas: [{ id: "5h", libre: 90, vuelve: h(4) }, { id: "7d", libre: 54, vuelve: h(60) }] },
     oc("big-pickle", 60, false),
     oc("glm-5.3-flash-free", 55, false),
     oc("nemotron-3-ultra-free", 55, false),
     oc("zeta-ultra-free", 60, true),
     oc("kilo-mini-free", 40, true),
-    { ...base, id: "ollama:qwen3-coder:30b", nombre: "Qwen3 Coder 30B", proveedor: "local", familia: "local", familiaExcluir: "local", calidad: 35, estimada: true, origen: "estimada", gratis: true, libre: 100 , vuelve: null },
+    { ...base, id: "ollama:qwen3-coder:30b", nombre: "Qwen3 Coder 30B", proveedor: "local", familia: "local", familiaExcluir: "local", calidad: viejaAAa(35), estimada: true, origen: "estimada", gratis: true, libre: 100 , vuelve: null },
   ];
   // Con Artificial Analysis: lo medido pisa a los defaults (menos lo que fijó el dueño, Sonnet, y lo que AA no conoce).
   const ayer = new Date(Date.now() - 20 * 3_600_000).toISOString().slice(0, 10);
   const conAA = (f: FilaTabla): FilaTabla => {
     if (!aa || f.estimada || f.origen !== "defecto" || f.familia === "sonnet" || f.id.includes("big-pickle")) return f;
-    const q = { "claude-opus-5-5": 100, "claude-haiku-5-5": 60, "gemini-4-argon": 83, "gemini-3.8-flash": 58, "agy:gpt-oss-120b": 47, "codex:gpt-6.1-sol": 90, "opencode:opencode/glm-5.3-flash-free": 64, "opencode:opencode/nemotron-3-ultra-free": 52 }[f.id];
-    const porEffort = f.id === "claude-opus-5-5" ? { low: 82, medium: 90, high: 96, max: 100 } : {};
-    return q === undefined ? f : { ...f, calidad: q, calidadPorEffort: porEffort, origen: "artificial-analysis", aaFecha: ayer };
+    // Unidades de AA (promedio de coding y agentic, crudo) al esfuerzo que se usaría (high); costo y tokens por tarea como los trae AA.
+    const q: Record<string, number> = { "claude-opus-5-5": 61, "claude-haiku-5-5": 38, "gemini-4-argon": 51, "gemini-3.8-flash": 45, "agy:gpt-oss-120b": 32, "codex:gpt-6.1-sol": 53, "opencode:opencode/glm-5.3-flash-free": 42, "opencode:opencode/nemotron-3-ultra-free": 47 };
+    const por: Record<string, Partial<FilaTabla>> = {
+      "claude-opus-5-5": { calidadPorEffort: { low: 46, medium: 55, high: 61, max: 65 }, costoPorEffort: { low: 0.62, medium: 0.9, high: 1.4, max: 3.1 }, inteligenciaPorEffort: { low: 52.4, medium: 55.7, high: 58.2, max: 60.1 }, tokensPorEffort: { low: 310000, medium: 520000, high: 760000, max: 1400000 }, tiempoPorEffort: { low: 95, medium: 160, high: 240, max: 520 } },
+      "claude-haiku-5-5": { calidadPorEffort: { low: 30, high: 38, max: 43.4 }, costoPorEffort: { low: 0.08, high: 0.13, max: 0.2 }, inteligenciaPorEffort: { low: 33.1, high: 39.5, max: 43.4 } },
+    };
+    return q[f.id] === undefined ? f : { ...f, calidad: q[f.id]!, effortUsado: por[f.id] ? "high" : null, calidadPorEffort: {}, ...(por[f.id] ?? {}), origen: "artificial-analysis", aaFecha: ayer };
   };
-  const usuario = (f: FilaTabla): FilaTabla => (aa && f.familia === "sonnet" ? { ...f, calidad: 90, origen: "usuario" } : f);
+  const usuario = (f: FilaTabla): FilaTabla => (aa && f.familia === "sonnet" ? { ...f, calidad: 52.2, origen: "usuario" } : f);
   return { version: 1, leido: Date.now(), modelos: modelos.map(conAA).map(usuario) };
 };

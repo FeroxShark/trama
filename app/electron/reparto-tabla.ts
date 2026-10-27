@@ -21,10 +21,23 @@ export type FilaTabla = {
   familiaExcluir: string;
   /** La cuenta cuando hay varias del mismo proveedor; `null` si no aplica. */
   cuenta: string | null;
-  /** Inteligencia 0–100 y si es una estimación por el nombre (nadie la fijó en `calidad`). */
+  /**
+   * Inteligencia en unidades reales de Artificial Analysis (promedio crudo de coding y agentic, sin calibrar a 100) al esfuerzo que `reparto` usaría
+   * (`effortUsado`, con `efforts_permitidos` aplicado): nunca el del esfuerzo máximo por defecto. Sin desglose por esfuerzo es la cifra única.
+   */
   calidad: number;
-  /** Inteligencia por effort (`low`…`max`) donde se conoce (Artificial Analysis o el dueño); `{}` si no hay desglose. `calidad` es la mejor. */
+  /** El esfuerzo al que corresponde `calidad`; `null` si el modelo no tiene desglose por esfuerzo. */
+  effortUsado: EffortCalidad | null;
+  /** Puntaje de AA por effort (`low`…`max`) donde se conoce (o el que fijó el dueño); `{}` si no hay desglose. */
   calidadPorEffort: Partial<Record<EffortCalidad, number>>;
+  /** Índice de inteligencia general de AA por effort (para el tooltip); ausente si AA no lo trae. */
+  inteligenciaPorEffort?: Partial<Record<EffortCalidad, number>>;
+  /** Costo de una tarea por effort (USD, Artificial Analysis) donde el dato lo trae; ausente: el panel estima con COSTO × multiplicador (src/paneles/efforts-dominados.ts). */
+  costoPorEffort?: Partial<Record<EffortCalidad, number>>;
+  /** Lo mismo para los otros datos por tarea de Artificial Analysis (si los trae): puntaje crudo, tokens y segundos. */
+  tokensPorEffort?: Partial<Record<EffortCalidad, number>>;
+  tiempoPorEffort?: Partial<Record<EffortCalidad, number>>;
+  crudoPorEffort?: Partial<Record<EffortCalidad, number>>;
   estimada: boolean;
   /** De dónde sale la cifra (`reparto` ya aplicó la precedencia): lo que fijó el dueño, Artificial Analysis, los defaults o la estimación por el nombre. */
   origen: OrigenCalidad;
@@ -65,7 +78,17 @@ const porEffort = (v: unknown): Partial<Record<EffortCalidad, number>> => {
   const o = v && typeof v === "object" ? (v as Record<string, unknown>) : {};
   for (const e of EFFORTS_CALIDAD) {
     const n = num(o[e]);
-    if (n !== null) out[e] = Math.max(0, Math.min(100, Math.round(n)));
+    if (n !== null) out[e] = Math.max(0, Math.round(n * 10) / 10);
+  }
+  return out;
+};
+
+const costoPorEffort = (v: unknown): Partial<Record<EffortCalidad, number>> => {
+  const out: Partial<Record<EffortCalidad, number>> = {};
+  const o = v && typeof v === "object" ? (v as Record<string, unknown>) : {};
+  for (const e of EFFORTS_CALIDAD) {
+    const n = num(o[e]);
+    if (n !== null && n >= 0) out[e] = n;
   }
   return out;
 };
@@ -102,8 +125,14 @@ export function parsearTabla(salida: string, ahoraMs = Date.now()): TablaReparto
       familia: texto(o.familia),
       familiaExcluir: texto(o.familia_excluir) || texto(o.familia),
       cuenta: texto(o.cuenta) || null,
-      calidad: Math.max(0, Math.min(100, Math.round(calidad))),
+      calidad: Math.max(0, Math.round(calidad * 10) / 10),
+      effortUsado: (EFFORTS_CALIDAD as readonly string[]).includes(texto(o.effort_usado)) ? (texto(o.effort_usado) as EffortCalidad) : null,
       calidadPorEffort: porEffort(o.calidad_por_effort),
+      ...(Object.keys(porEffort(o.inteligencia_por_effort)).length ? { inteligenciaPorEffort: porEffort(o.inteligencia_por_effort) } : {}),
+      ...(Object.keys(costoPorEffort(o.costo_por_effort)).length ? { costoPorEffort: costoPorEffort(o.costo_por_effort) } : {}),
+      ...(Object.keys(costoPorEffort(o.tokens_por_effort)).length ? { tokensPorEffort: costoPorEffort(o.tokens_por_effort) } : {}),
+      ...(Object.keys(costoPorEffort(o.tiempo_por_effort)).length ? { tiempoPorEffort: costoPorEffort(o.tiempo_por_effort) } : {}),
+      ...(Object.keys(costoPorEffort(o.crudo_por_effort)).length ? { crudoPorEffort: costoPorEffort(o.crudo_por_effort) } : {}),
       estimada: o.estimada === true,
       origen: (ORIGENES_CALIDAD as readonly string[]).includes(texto(o.origen)) ? (texto(o.origen) as OrigenCalidad) : o.estimada === true ? "estimada" : "defecto",
       aaFecha: /^\d{4}-\d{2}-\d{2}/.test(texto(o.aa_fecha)) ? texto(o.aa_fecha).slice(0, 10) : null,

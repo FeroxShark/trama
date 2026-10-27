@@ -92,8 +92,11 @@ test("inteligencia: se fija en calidad por familia (Claude) o por id (OpenCode),
   assert.deepEqual(ponerInteligencia(b, zeta, null).calidad, {});
   assert.deepEqual(ponerInteligencia(borrador(), opus, 90).calidad, { opus: 90 });
   assert.equal(calidadEscrita("100"), 100);
+  assert.equal(calidadEscrita("47.9"), 47.9, "unidades de AA: un decimal");
+  assert.equal(calidadEscrita("47,9"), 47.9);
+  assert.equal(calidadEscrita("200"), 200);
   assert.equal(calidadEscrita(" 0 "), 0);
-  for (const mal of ["", "101", "-1", "7.5", "abc", "1000"]) assert.equal(calidadEscrita(mal), null, mal);
+  for (const mal of ["", "201", "-1", "7.55", "abc", "1000"]) assert.equal(calidadEscrita(mal), null, mal);
 });
 
 test("agrupar y filtrar: por empresa en orden fijo, sin grupos vacíos; la búsqueda mira nombre, id y proveedor sin tildes", () => {
@@ -112,30 +115,35 @@ test("reglasSueltas: las familias y los patrones siguen a la vista; los ids de l
 });
 
 test("calidad viaja por modelos.json: se valida, se escribe sin perder lo demás y el borrador la ve sucia hasta guardar", async () => {
-  assert.throws(() => validarConfig({ calidad: { opus: 101 } }));
-  assert.throws(() => validarConfig({ calidad: { opus: 7.5 } }));
+  assert.throws(() => validarConfig({ calidad: { opus: 201 } }));
+  assert.throws(() => validarConfig({ calidad: { opus: 7.55 } }));
+  assert.doesNotThrow(() => validarConfig({ calidad: { opus: 47.9 } }), "unidades de AA: decimales y más de 100 valen");
   assert.throws(() => validarConfig({ calidad: { "con espacio": 5 } }));
   assert.throws(() => validarConfig({ calidad: [] }));
-  assert.deepEqual(leerConfig({ calidad: { opus: 90, malo: "x", fuera: 300 } }).calidad, { opus: 90 });
+  assert.deepEqual(leerConfig({ calidad_unidades: "aa", calidad: { opus: 90, malo: "x", fuera: 300 } }).calidad, { opus: 90 });
+  assert.deepEqual(leerConfig({ calidad: { opus: 100, malo: "x", fuera: 300 } }).calidad, { opus: 58 }, "sin calidad_unidades: escala vieja, migrada al leer");
 
   const ruta = path.join(tmp, "modelos.json");
   writeFileSync(ruta, JSON.stringify({ version: 1, excluir: ["fable"], calidad: { "dsh:deepseek/*pro*": 85 }, peso_costo: 9 }));
   const e0 = await leerModelos(undefined, ruta);
   let b = borradorDe(e0);
   assert.equal(sucio(e0, b), false);
-  b = ponerInteligencia(b, filas()[3]!, 72);
+  assert.deepEqual(b.calidad, { "dsh:deepseek/*pro*": 50.1 }, "el 85 de la escala vieja se ve en unidades de AA");
+  b = ponerInteligencia(b, filas()[3]!, 46);
   b = ponerPermitido(b, filas()[3]!, false);
   assert.equal(sucio(e0, b), true);
   const e1 = await guardarModelos(configDe(b), undefined, ruta);
   const j = JSON.parse(readFileSync(ruta, "utf8"));
-  assert.deepEqual(j.calidad, { "dsh:deepseek/*pro*": 85, "opencode:opencode/zeta-ultra-free": 72 });
+  assert.deepEqual(j.calidad, { "dsh:deepseek/*pro*": 50.1, "opencode:opencode/zeta-ultra-free": 46 });
+  assert.equal(j.calidad_unidades, "aa", "desde el primer guardado el archivo lleva el marcador y no se migra otra vez");
   assert.deepEqual(j.excluir, ["fable", "opencode:opencode/zeta-ultra-free"]);
   assert.equal(j.peso_costo, 9, "las claves que el panel no conoce se conservan");
   assert.equal(sucio(e1, borradorDe(e1)), false);
   // sin entradas la clave sale
   const vacio = ponerInteligencia(ponerInteligencia(borradorDe(e1), filas()[3]!, null), { ...filas()[0]!, id: "x", familia: "dsh", proveedor: "opencode" } as FilaTabla, null);
-  await guardarModelos({ ...configDe({ ...vacio, calidad: { "dsh:deepseek/*pro*": 85 } })!, calidad: {} }, undefined, ruta);
+  await guardarModelos({ ...configDe({ ...vacio, calidad: { "dsh:deepseek/*pro*": 50 } })!, calidad: {} }, undefined, ruta);
   assert.equal("calidad" in JSON.parse(readFileSync(ruta, "utf8")), false);
+  assert.equal("calidad_unidades" in JSON.parse(readFileSync(ruta, "utf8")), false);
 });
 
 test("el canal reparto:tabla existe en el contrato de máquinas y es local (sólo lee)", () => {

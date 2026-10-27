@@ -4,7 +4,7 @@
   reparto --cupos [--json]                     cupo de cada suscripción (Claude oficial, Google AI Pro/agy y ChatGPT/codex)
   reparto --tabla [--json]                     todos los modelos que conoce: id, inteligencia (~ = estimada), gratis/pago,
                                                cupo libre y cuándo vuelve, urgencia y si modelos.json los permite
-  reparto --aa-diag [--json]                   por modelo local: con qué entrada de Artificial Analysis se emparejó, puntaje crudo y calibrado por effort
+  reparto --aa-diag [--json]                   por modelo local: con qué entrada de Artificial Analysis se emparejó, puntaje de AA (crudo, sin calibrar) por effort
   reparto --tipo T [--json] [--explicar]       modelo y effort que conviene para el tipo T
   reparto --resolver ID [--json]               cómo se lanza un id de modelo (claude / agy / codex / ollama / dsh)
   reparto --agotar ID [--hasta ISO]            marca agotado el grupo de agy o de codex de ese modelo (o grupo), o el
@@ -23,8 +23,11 @@ cuenta elegida. --agotar ID --cuenta C marca agotado el grupo de esa cuenta; --t
 modelos de esa cuenta (pa --cuenta sin -m); --tipo T --mismo-proveedor P prefiere
 las cuentas de P (el relanzamiento por falta de cupo de pa: otra cuenta del mismo proveedor antes de cambiar).
 
-Inteligencia (`calidad`): sale de modelos.json; un modelo de opencode/dsh sin entrada se estima por el nombre (base 50, +10 con
-ultra/super/pro/max, -10 con flash/lightning/mini/nano) y --tabla lo marca estimada. Cuenta igual en el puntaje.
+Inteligencia (`calidad`): en UNIDADES REALES de Artificial Analysis (promedio crudo de su índice de coding y agentic, sin calibrar a 100).
+Sale de modelos.json (con "calidad_unidades": "aa"; sin eso son números de la escala vieja 0-100 y se migran al leer, ver vieja_a_aa);
+un modelo de opencode/dsh sin entrada se estima por el nombre (base 50, +10 con ultra/super/pro/max, -10 con flash/lightning/mini/nano,
+de la escala vieja, convertido a AA) y --tabla lo marca estimada. Los mínimos por tipo ("sonnet"...) valen el puntaje crudo de esa familia
+al esfuerzo del tipo. `efforts_permitidos` {"sonnet": ["low","high"]}: los esfuerzos que los workers pueden usar por familia o id. Cuenta igual en el puntaje.
 Si la app bajó los índices de Artificial Analysis (<estado>/aa-modelos.json; REPARTO_AA=<archivo> lo cambia, 0 lo apaga) valen antes que los
 defaults y la estimación, pero después de lo que fija modelos.json. --tabla dice de dónde sale cada cifra en `origen`
 (usuario | artificial-analysis | defecto | estimada) y la fecha del dato en `aa_fecha`.
@@ -69,6 +72,36 @@ import time
 from datetime import datetime, timedelta, timezone
 
 VERSION = 1
+
+# --- unidades de la inteligencia ----------------------------------------------------------------------
+# `calidad` y todo lo que se compara con ella está en UNIDADES REALES de Artificial Analysis: el promedio crudo de su índice de coding y su
+# índice agentic (sin calibrar a 100). Las cifras de abajo (CALIDAD, MINIMO por número, 70, 50, 35...) son de la escala vieja 0-100 en la que
+# se escribieron; `vieja_a_aa` las pasa a unidades de AA con la inversa de la calibración que se usaba (Haiku 5.5 -> 60, Sonnet 5.5 -> 88,
+# Opus 5.5 -> 100, línea quebrada entre esos puntos y con la pendiente del tramo más cercano afuera). Las anclas son estas AA_REF_VIEJA
+# (valores típicos de coding+agentic de esos tres modelos; fijas para que el pasaje sea el mismo en la app y acá). Se usa para: los defaults
+# sin dato de AA, la estimación por el nombre y los valores que el dueño escribió en la escala vieja (`calidad`, `calidad_effort`,
+# `minimo_por_tipo` numérico) cuando modelos.json NO trae "calidad_unidades": "aa" (la app lo escribe al guardar). Con "aa" valen tal cual.
+AA_REF_VIEJA = ((60.0, 43.0), (88.0, 51.0), (100.0, 58.0))   # (escala vieja, unidades de AA)
+
+
+def _n(x):
+    """Un decimal; entero si es redondo (43.0 -> 43): así el JSON no arrastra ceros."""
+    r = round(x, 1)
+    return int(r) if r == int(r) else r
+
+
+def fn(x):
+    """Una cifra de inteligencia para mostrar: un decimal sin ceros de sobra (43.0 -> 43, 47.9 -> 47.9)."""
+    return ("%.1f" % x).rstrip("0").rstrip(".") if isinstance(x, (int, float)) else str(x)
+
+
+def vieja_a_aa(q):
+    """Una inteligencia de la escala vieja 0-100 -> unidades de AA (un decimal, nunca negativa). Ver AA_REF_VIEJA."""
+    pts = AA_REF_VIEJA
+    i = 0 if q <= pts[1][0] else 1
+    (x0, y0), (x1, y1) = pts[i], pts[i + 1]
+    return _n(max(0.0, y0 + (y1 - y0) * (q - x0) / (x1 - x0)))
+
 
 # --- defaults (todo se pisa desde ~/.config/trama/modelos.json) --------------------------------------
 # Flash 60 (la guía dice 40): con Haiku en 60 como mínimo de lectura/mecanico, Flash 40 quedaría afuera; SOLO_EN lo limita a esos dos.
@@ -122,8 +155,9 @@ AVISO_USO = 0.85          # una ventana más usada que esto se avisa (avisos[] y
 SIN_CUPO = ("otro", "esperar", "fallar")
 FAMILIAS_EXCLUIBLES = ("fable", "opus", "sonnet", "haiku", "argon", "flash", "gpt-oss", "astra", "sol", "luna")
 LLENA = 0.03              # una ventana con menos libre que esto está llena
-MARGEN = 10               # calidad de más sobre el mínimo que todavía cuenta entera
+MARGEN = 3.0              # puntos de AA (coding+agentic crudo) de más sobre el mínimo que todavía cuentan enteros (antes 10 de la escala vieja 0-100)
 PESO_SOBRA = 0.5          # puntos que resta cada punto de calidad que pasa del margen (gastar de más)
+PTS_POR_AA = 3.0          # peso de un punto de AA en el puntaje: sólo para sumarlo con urgencia/costo/carga (antes 1 punto de la escala vieja ~ 0,3 de AA); no se muestra
 PESO_URGENCIA = 20.0      # puntos máximos por "este cupo se pierde pronto"
 PESO_COSTO = 15.0         # puntos que resta gastar un token caro
 PESO_CARGA = 12.0         # puntos que resta cada worker vivo (o recién repartido) que ya gasta ese grupo
@@ -299,13 +333,13 @@ def _cargar_config():
     """Defaults mezclados con las claves nuevas de modelos.json. Inválido: una línea y defaults."""
     cfg = {
         "calidad_usuario": set(),
-        "calidad": dict(CALIDAD), "minimo_por_tipo": dict(MINIMO_POR_TIPO), "solo_en": dict(SOLO_EN),
+        "calidad": {k: vieja_a_aa(v) for k, v in CALIDAD.items()}, "minimo_por_tipo": dict(MINIMO_POR_TIPO), "solo_en": dict(SOLO_EN),
         "effort_por_tipo": dict(EFFORT_POR_TIPO), "costo": dict(COSTO), "reserva": RESERVA,
         "reparto": "auto", "grupos_hasta": dict(GRUPOS_HASTA), "hasta_pisado": {}, "workers": {}, "locales": [],
         "llena": LLENA, "peso_urgencia": PESO_URGENCIA, "peso_costo": PESO_COSTO, "peso_carga": PESO_CARGA,
         "preferido_por_tipo": dict(PREFERIDO_POR_TIPO),
         "agy_min_libre_5h": AGY_MIN_LIBRE_5H, "agy_min_libre_tipos": list(AGY_MIN_LIBRE_TIPOS),
-        "excluir": [], "permitir_max": False,
+        "excluir": [], "permitir_max": False, "efforts_permitidos": {},
         "uso_por_modelo": list(USO_POR_MODELO.items()), "tipos_poco_importantes": list(TIPOS_POCO_IMPORTANTES),
         "tipos_finales": list(TIPOS_FINALES), "sin_cupo": "otro", "sin_cupo_de": "default",
         "perfil": PERFIL_DEFECTO, "reserva_lider": None, "peso_ritmo": PESO_RITMO, "peso_bono_ritmo": PESO_BONO_RITMO,
@@ -328,10 +362,20 @@ def _cargar_config():
     for k in ("calidad", "minimo_por_tipo", "solo_en", "effort_por_tipo", "costo", "preferido_por_tipo"):
         if isinstance(j.get(k), dict):
             cfg[k].update(j[k])
+    # Migración: sin "calidad_unidades": "aa", los números del dueño están en la escala vieja 0-100 y se pasan a unidades de AA al leer.
+    nuevo = j.get("calidad_unidades") == "aa"
+    esnum = lambda v: isinstance(v, (int, float)) and not isinstance(v, bool)
+    cv = (lambda v: v) if nuevo else (lambda v: vieja_a_aa(v) if esnum(v) else v)
+    if isinstance(j.get("calidad"), dict):
+        for k, v in j["calidad"].items():
+            cfg["calidad"][k] = cv(v)
+    if isinstance(j.get("minimo_por_tipo"), dict):
+        for k, v in j["minimo_por_tipo"].items():
+            cfg["minimo_por_tipo"][k] = cv(v)
     if isinstance(j.get("calidad"), dict):
         cfg["calidad_usuario"] = set(j["calidad"])   # lo que fijó el dueño: gana a Artificial Analysis
     if isinstance(j.get("calidad_effort"), dict):   # {"opus": {"low": 80, "high": 95}}: gana a Artificial Analysis para ese esfuerzo
-        cfg["calidad_effort_usuario"] = {k: {e: v for e, v in d.items() if e in EFFORTS_AA and isinstance(v, (int, float)) and not isinstance(v, bool)}
+        cfg["calidad_effort_usuario"] = {k: {e: cv(v) for e, v in d.items() if e in EFFORTS_AA and esnum(v)}
                                          for k, d in j["calidad_effort"].items() if isinstance(d, dict)}
     if isinstance(j.get("reserva"), (int, float, dict)) and not isinstance(j.get("reserva"), bool):
         cfg["reserva"] = j["reserva"]   # null o ausente: sin reserva
@@ -343,6 +387,8 @@ def _cargar_config():
         cfg["excluir"] = [x.strip().lower() for x in j["excluir"] if x.strip()]
     if isinstance(j.get("permitir_max"), bool):
         cfg["permitir_max"] = j["permitir_max"]
+    if isinstance(j.get("efforts_permitidos"), dict):   # {"opus": ["low","high"]}: los esfuerzos que los workers pueden usar (lista vacía = excluido)
+        cfg["efforts_permitidos"] = {k.strip().lower(): [e for e in v if e in EFFORTS_AA] for k, v in j["efforts_permitidos"].items()}
     if isinstance(j.get("uso_por_modelo"), dict):   # las reglas del usuario van antes que las de fábrica
         cfg["uso_por_modelo"] = [(k.strip().lower(), v) for k, v in j["uso_por_modelo"].items()] + cfg["uso_por_modelo"]
     for k in ("tipos_poco_importantes", "tipos_finales"):
@@ -378,14 +424,11 @@ def _cargar_config():
 # --- Artificial Analysis (inteligencia medida) ------------------------------------------------------
 # La app (electron/artificial-analysis.ts) baja los índices de coding y agentic de Artificial Analysis (con la key del dueño, una
 # vez por día) y deja el resultado en <state>/aa-modelos.json; reparto sólo LEE ese archivo (REPARTO_AA=<archivo> lo cambia, "0" lo
-# apaga). Acá viven el emparejamiento de nombres y la calibración porque acá se conocen los ids de los modelos (los de opencode
-# aparecen solos). Calibración (puntaje crudo de AA -> calidad 0-100 de Trama): con las tres anclas presentes y ordenadas igual en AA
-# que en Trama, línea quebrada por Haiku 5.5 -> 60, Sonnet 5.5 -> 88 y Opus 5.5 -> 100 (se ordenan por puntaje de AA; fuera de los
-# extremos sigue con la pendiente del tramo más cercano; se acota a 0-100). Va por tramos y no por una sola recta porque los mínimos
-# de MINIMO_POR_TIPO (codigo-acotado ~ 88, "calidad de Sonnet") se fijaron con Sonnet en 88: la recta Haiku-Opus lo dejaba en ~74 y
-# el trabajo de código habría ido sólo a Opus, quemando cupo. Si las anclas no son monótonas, vuelve a la recta por Opus y Haiku;
-# con menos anclas, los respaldos de aa_calibracion. Precedencia de `calidad`: modelos.json (usuario) > Artificial Analysis > defaults > estimación por el nombre.
-AA_ANCLAS = (("claude-opus-5-5", 100), ("claude-sonnet-5-5", 88), ("claude-haiku-5-5", 60))   # el default de cada uno
+# apaga). Acá vive el emparejamiento de nombres porque acá se conocen los ids de los modelos (los de opencode aparecen solos).
+# SIN calibración: la inteligencia de un modelo es el promedio crudo de coding y agentic de AA (si falta uno, el otro; si faltan los dos, el
+# índice de inteligencia general como respaldo). Los mínimos por tipo ("sonnet", "haiku", "argon") valen el puntaje crudo de esa familia
+# al esfuerzo del tipo. Precedencia de `calidad`: modelos.json (usuario) > Artificial Analysis > defaults > estimación por el nombre
+# (esos dos últimos, convertidos con vieja_a_aa: ver "unidades de la inteligencia").
 AA_PREFIJOS = re.compile(r"^(?:opencode|dsh|agy|codex|ollama):")
 # Niveles de esfuerzo con los que AA etiqueta sus variantes ("minimal" cuenta como low). "max" sólo vale entre paréntesis, con la
 # palabra "effort" o como sufijo del slug cuando existe el modelo sin él (Kimi K3 Max es un modelo, no un esfuerzo).
@@ -394,11 +437,11 @@ AA_NIVELES_SUFIJO = frozenset(k for k in AA_NIVELES if k != "max")
 # Palabras que describen el MODO de una variante, no el modelo: no cuentan en el emparejamiento ("adaptive", "thinking"...).
 # Los tamaños y variantes (flash, mini, lite, nano, small, air, 120b...) NO están acá: dos modelos con distinto tamaño nunca se juntan.
 AA_CALIFICADORES = frozenset(("reasoning", "thinking", "adaptive", "effort", "non", "nonreasoning"))
+EFFORT_TABLA = "high"   # el esfuerzo con que --tabla muestra la inteligencia de cada modelo (el de debug, diseno, codigo-multi, frontend y final)
 EFFORTS_AA = ("low", "medium", "high", "xhigh", "max")   # de menos a más; "none" (Non-reasoning) no entra al mapa por effort
 # "Reasoning" / "Thinking" / "Adaptive" sin nivel = el modelo en su effort por defecto: se toma como `high`. Una entrada pelada (sin
 # ninguna etiqueta) de un modelo claude/gpt/codex/gemini también se toma como `high`, pero sólo si no hay otra variante medida en high.
 AA_NIVEL_DEFECTO = "high"
-AA_TOPE_INT = 90   # techo de un modelo que AA sólo mide con el índice de inteligencia (otra escala, sin coding/agentic): nunca llega al nivel de Opus
 AA_CON_NIVEL_DEFECTO = re.compile(r"claude|gpt|codex|gemini|(?<![a-z])o\d")
 AA_PRIORIDAD = {"explicito": 3, "defecto": 2, "sin_razonar": 1, "pelado": 0}
 
@@ -446,7 +489,7 @@ def aa_tokens(nombre):
 
 def aa_puntaje_m(m):
     """(puntaje crudo, métrica) de un modelo de AA: promedio de coding y agentic (los que haya) con métrica "ca"; sin ninguno, el índice
-    de inteligencia con métrica "int" (otra escala: se calibra aparte, con la inteligencia de las anclas). Sin nada, None."""
+    de inteligencia general con métrica "int" (respaldo, en sus propias unidades de AA). Sin nada, None."""
     v = [m[k] for k in ("coding", "agentic") if isinstance(m.get(k), (int, float)) and not isinstance(m.get(k), bool)]
     if v:
         return sum(v) / len(v), "ca"
@@ -536,8 +579,12 @@ def aa_indice(modelos):
         if nivel is None and tipo == "pelado" and AA_CON_NIVEL_DEFECTO.search(((m.get("name") or "") + " " + (m.get("slug") or "")).lower()):
             nivel = AA_NIVEL_DEFECTO
         prio = AA_PRIORIDAD[tipo]
+        extra = {k: float(m[k]) for k in ("cost", "tokens", "time") if isinstance(m.get(k), (int, float)) and not isinstance(m.get(k), bool)}
+        extra["crudo"] = p
         ints = m.get("intelligence")
         ints = float(ints) if isinstance(ints, (int, float)) and not isinstance(ints, bool) else None
+        if ints is not None:
+            extra["intel"] = ints
         for tk in tks:
             if not tk:
                 continue
@@ -548,8 +595,8 @@ def aa_indice(modelos):
                         e[metrica] = (v, m.get("name") or m.get("slug"), m.get("slug") or "")
                 if met == "ca" and nivel in EFFORTS_AA:
                     ef = de.setdefault(k, {})
-                    if nivel not in ef or (prio, p) > ef[nivel]:
-                        ef[nivel] = (prio, p)
+                    if nivel not in ef or (prio, p) > ef[nivel][:2]:
+                        ef[nivel] = (prio, p, extra)
     return exacto, conjunto, ex_ef, co_ef
 
 
@@ -585,58 +632,18 @@ def aa_buscar_efforts(aa, mid):
     return {nivel: v[1] for nivel, v in aa["ex_ef" if clave[0] == "ex" else "co_ef"].get(clave[1], {}).items()}
 
 
-def aa_calibracion(puntos):
-    """[(puntaje AA, calidad de Trama)] de las anclas presentes -> (a, b) con calidad = a * puntaje + b, o None.
-    Con Opus (100) y Haiku (60) es la recta por los dos; con otro par (o con Sonnet, 88, entre las que quedan) se ajusta por
-    cuadrados mínimos; con una sola ancla, proporcional (ancla * x / puntaje del ancla); sin anclas no se calibra (la escala de AA no es la de reparto)."""
-    p = [(x, y) for x, y in puntos if x > 0]
-    if not p:
-        return None
-    xs = sorted(set(x for x, _ in p))
-    if len(xs) < 2:
-        return (p[0][1] / p[0][0], 0.0)
-    n = float(len(p))
-    mx, my = sum(x for x, _ in p) / n, sum(y for _, y in p) / n
-    sxx = sum((x - mx) ** 2 for x, _ in p)
-    a = sum((x - mx) * (y - my) for x, y in p) / sxx
-    if a <= 0:   # las anclas salen en orden raro en AA: la recta no sirve
-        return None
-    return (a, my - a * mx)
-
-
-def aa_tramos(puntos):
-    """[(puntaje AA, calidad de Trama)] -> los puntos ordenados por puntaje AA para la calibración por tramos, o None si no sirven:
-    hacen falta al menos tres y que la calidad suba estrictamente con el puntaje (anclas en orden raro en AA: se vuelve a la recta)."""
-    p = sorted((x, y) for x, y in puntos if x > 0)
-    if len(p) < 3 or any(p[i][0] >= p[i + 1][0] or p[i][1] >= p[i + 1][1] for i in range(len(p) - 1)):
-        return None
-    return p
-
-
-def aa_interpolar(tramos, x):
-    """Calidad (sin redondear ni acotar) de un puntaje AA x en la línea quebrada por los puntos de `tramos`; fuera de los extremos
-    sigue con la pendiente del tramo más cercano (el resultado de aa_calibrar se acota a 0-100)."""
-    i = 0
-    while i < len(tramos) - 2 and x > tramos[i + 1][0]:
-        i += 1
-    (x0, y0), (x1, y1) = tramos[i], tramos[i + 1]
-    return y0 + (y1 - y0) * (x - x0) / (x1 - x0)
-
-
-def aa_calibrar_cfg(puntos, minimo_rectas):
-    """(tramos, (a, b)) de una lista de anclas [(crudo, objetivo)]: línea quebrada si hay tres en orden; si no, la recta por Opus y
-    Haiku (sólo si están las dos), y si no la recta/proporcional de aa_calibracion (`minimo_rectas` anclas distintas como mínimo)."""
-    tramos = aa_tramos(puntos)
-    if not tramos and len({x for x, _ in puntos}) < minimo_rectas:
-        return None, None
-    return tramos, aa_calibracion(puntos)
+def aa_buscar_extras(aa, mid):
+    """{esfuerzo: {"crudo", "intel", "cost", "tokens", "time"}} de AA para ese id (costo USD, tokens y segundos por tarea: sólo los que AA trae; puede ser {})."""
+    e, clave = aa_entrada(aa, mid)
+    if not e:
+        return {}
+    return {nivel: dict(v[2]) for nivel, v in aa["ex_ef" if clave[0] == "ex" else "co_ef"].get(clave[1], {}).items()}
 
 
 def aa_cargar():
-    """El índice de <state>/aa-modelos.json: {"fecha", "exacto", "conjunto", "cal": (a, b), "tramos": [...] o None, "cal_int", "tramos_int"}, o None (sin archivo, roto o sin anclas).
-    Las anclas son el MEJOR puntaje de cada una (su effort más alto medido); los efforts de un modelo se calibran con las mismas
-    anclas, así que ningún effort sale por encima del mejor. Los modelos que AA sólo mide con el índice de inteligencia (otra escala) se
-    calibran con la inteligencia de las mismas anclas; si ésas no alcanzan para una recta, esos modelos quedan sin valor de AA."""
+    """El índice de <state>/aa-modelos.json: {"fecha", "exacto", "conjunto", "ex_ef", "co_ef"}, o None (sin archivo, roto o sin modelos).
+    Todo en unidades reales de AA: sin calibración. Por esfuerzo se guarda el puntaje (promedio coding+agentic), la inteligencia general,
+    el costo por tarea, los tokens y el tiempo, los que AA traiga."""
     ruta = os.environ.get("REPARTO_AA") or os.path.join(state_dir(), "aa-modelos.json")
     if ruta == "0":
         return None
@@ -647,56 +654,31 @@ def aa_cargar():
     except Exception:
         return None
     exacto, conjunto, ex_ef, co_ef = aa_indice(modelos)
-    aa = {"fecha": str(j.get("fetched") or "")[:10] or None, "exacto": exacto, "conjunto": conjunto, "ex_ef": ex_ef, "co_ef": co_ef, "cal": None,
-          "tramos": None, "cal_int": None, "tramos_int": None}
-    puntos, puntos_int = {}, {}
-    for mid, objetivo in AA_ANCLAS:
-        e, _ = aa_entrada(aa, mid)
-        if e and "ca" in e:
-            puntos[mid] = (e["ca"][0], objetivo)
-        if e and "int" in e:
-            puntos_int[mid] = (e["int"][0], objetivo)
-    aa["tramos"] = aa_tramos(list(puntos.values()))   # lo normal: Haiku (60), Sonnet (88) y Opus (100) clavados, y rectas entre cada par
-    if not aa["tramos"] and "claude-opus-5-5" in puntos and "claude-haiku-5-5" in puntos:   # anclas en orden raro: la recta por Opus y Haiku
-        puntos = {k: puntos[k] for k in ("claude-opus-5-5", "claude-haiku-5-5")}
-    aa["cal"] = aa_calibracion(list(puntos.values()))
-    aa["tramos_int"], aa["cal_int"] = aa_calibrar_cfg(list(puntos_int.values()), 2)
-    return aa if aa["cal"] else None
-
-
-def aa_calibrar(aa, x, metrica="ca"):
-    """Puntaje crudo de AA -> calidad entera 0-100 de Trama (mismas anclas para el mejor puntaje y para cada esfuerzo), o None si esa
-    métrica no se puede calibrar. Siempre acotada a [0, 100]: por encima del ancla de Opus la línea sigue subiendo, pero nadie pasa de 100."""
-    tramos, cal = (aa.get("tramos"), aa.get("cal")) if metrica == "ca" else (aa.get("tramos_int"), aa.get("cal_int"))
-    if tramos:
-        v = aa_interpolar(tramos, x)
-    elif cal:
-        v = cal[0] * x + cal[1]
-    else:
+    if not exacto:
         return None
-    return max(0, min(100 if metrica == "ca" else AA_TOPE_INT, int(round(max(0.0, min(100.0, v))))))
+    return {"fecha": str(j.get("fetched") or "")[:10] or None, "exacto": exacto, "conjunto": conjunto, "ex_ef": ex_ef, "co_ef": co_ef}
 
 
 def aa_calidad(aa, mid):
-    """(calidad 0-100 calibrada, nombre en AA) de ese id, o None si AA no lo conoce (o no se puede calibrar). Es el mejor puntaje (el de más esfuerzo)."""
+    """(puntaje de AA en unidades reales, nombre en AA) de ese id, o None si AA no lo conoce. Es el MEJOR puntaje medido (el de más esfuerzo):
+    sólo vale cuando no hay desglose por esfuerzo; con desglose se usa el del esfuerzo que corre (calidad_en_effort). Sin coding/agentic, el
+    índice de inteligencia general hace de respaldo."""
     r = aa_buscar(aa, mid)
     if not r:
         return None
-    v = aa_calibrar(aa, r[0], r[2])
-    return None if v is None else (v, r[1])
+    return (_n(max(0.0, r[0])), r[1])
 
 
 def aa_calidad_efforts(aa, mid):
-    """{esfuerzo: calidad calibrada} de los esfuerzos que AA midió para ese id ({} si ninguno). Nunca baja al subir el esfuerzo (un
-    effort más alto no puede valer menos que uno más bajo: si AA los midió en modos distintos, el más bajo se acota)."""
+    """{esfuerzo: puntaje de AA} de los esfuerzos que AA midió para ese id ({} si ninguno). Nunca baja al subir el esfuerzo (un effort más
+    alto no puede valer menos que uno más bajo: si AA los midió en modos distintos, el más bajo se acota)."""
     if not aa:
         return {}
-    out = {e: aa_calibrar(aa, p) for e, p in aa_buscar_efforts(aa, mid).items() if e in EFFORTS_AA}
-    out = {e: v for e, v in out.items() if v is not None}
-    tope = 100
+    out = {e: _n(max(0.0, p)) for e, p in aa_buscar_efforts(aa, mid).items() if e in EFFORTS_AA}
+    tope = None
     for e in reversed(EFFORTS_AA):
         if e in out:
-            out[e] = tope = min(out[e], tope)
+            tope = out[e] = out[e] if tope is None else min(out[e], tope)
     return out
 
 
@@ -769,6 +751,9 @@ def invalido(j):
     e = j.get("excluir")
     if e is not None and not (isinstance(e, list) and all(isinstance(x, str) and x.strip() for x in e)):
         return "excluir %s (una lista de ids o familias)" % json.dumps(e)
+    ep = j.get("efforts_permitidos")
+    if ep is not None and not (isinstance(ep, dict) and all(isinstance(k, str) and k.strip() and isinstance(v, list) and all(e in EFFORTS_AA for e in v) for k, v in ep.items())):
+        return "efforts_permitidos %s (un objeto familia o id → lista de low, medium, high, xhigh, max)" % json.dumps(ep)
     if "permitir_max" in j and not isinstance(j["permitir_max"], bool):
         return "permitir_max %s (true o false)" % json.dumps(j["permitir_max"])
     u = j.get("uso_por_modelo")
@@ -801,6 +786,34 @@ def excluido_por(mid, excl, fam=None):
         if p == fam or p == m or m.startswith(p + "-") or (p.endswith("*") and m.startswith(p[:-1])):
             return p
     return None
+
+
+def efforts_de(cfg, mid, fam=None):
+    """La lista de `efforts_permitidos` de ese modelo (clave = id exacto, si no la familia), o None si no hay regla."""
+    ep = cfg.get("efforts_permitidos") or {}
+    m = (mid or "").lower()
+    base = re.sub(r"-(low|medium|high|xhigh|max)$", "", m)
+    for k in (m, base, fam):
+        if k and k in ep:
+            return ep[k]
+    return None
+
+
+def effort_permitido(cfg, mid, fam, effort, disponibles=EFFORTS_AA):
+    """(effort a usar, nota) según `efforts_permitidos`. Si el del tipo no está permitido va el más cercano entre los permitidos
+    y disponibles (el siguiente más alto; si no hay, el más alto de los de abajo). (None, nota): lista vacía o ninguno disponible = excluido."""
+    perm = efforts_de(cfg, mid, fam)
+    if perm is None:
+        return effort, None
+    ok = [e for e in EFFORTS_AA if e in perm and e in disponibles]
+    if not ok:
+        return None, "efforts_permitidos deja sin ningún effort a %s" % (fam or mid)
+    if effort in ok:
+        return effort, None
+    i = EFFORTS_AA.index(effort) if effort in EFFORTS_AA else EFFORTS_AA.index("high")
+    arriba = [e for e in ok if EFFORTS_AA.index(e) > i]
+    nuevo = arriba[0] if arriba else ok[-1]
+    return nuevo, "el effort %s del tipo no está permitido en modelos.json (efforts_permitidos): uso %s" % (effort, nuevo)
 
 
 def uso_de(mid, uso, fam=None):
@@ -1152,7 +1165,7 @@ PALABRAS_BAJAS = ("flash", "lightning", "mini", "nano")
 
 
 def calidad_estimada(mid):
-    """Inteligencia por defecto de un modelo sin entrada en `calidad` (los que aparecen solos en `opencode models`): base 50,
+    """Inteligencia (en unidades de AA) por defecto de un modelo sin entrada en `calidad` (los que aparecen solos en `opencode models`): base 50,
     +10 con ultra/super/pro/max en el nombre, -10 con flash/lightning/mini/nano (si trae de las dos, se compensan)."""
     nombre = (mid or "").lower().split("/")[-1]
     palabras = re.split(r"[^a-z0-9]+", nombre)
@@ -1161,7 +1174,7 @@ def calidad_estimada(mid):
         q += 10
     if any(p in PALABRAS_BAJAS for p in palabras):
         q -= 10
-    return q
+    return vieja_a_aa(q)   # la regla es de la escala vieja; sale en unidades de AA
 
 
 def calidad_origen(cfg, mid, patrones=True):
@@ -1803,7 +1816,7 @@ def minimo_relajado(cfg, tipo, minimo, minimo_fam, e_tipo):
     if not PERFILES[cfg["perfil"]]["relaja"] or tipo not in RELAJA_AHORRO:
         return minimo, False
     n = RELAJA_AHORRO[tipo]
-    q = calidad_en_effort(mapa_efforts(cfg, n), e_tipo, cfg["calidad"][n]) if isinstance(n, str) and n in cfg["calidad"] else n
+    q = calidad_en_effort(mapa_efforts(cfg, n), e_tipo, cfg["calidad"][n]) if isinstance(n, str) and n in cfg["calidad"] else vieja_a_aa(n)
     return (q, True) if q < minimo else (minimo, False)
 
 
@@ -1811,7 +1824,7 @@ def efectivo(base, cfg_effort, e_tipo):
     return e_tipo if e_tipo in cfg_effort else cfg_effort[-1]
 
 
-def armar_candidatos(tipo, cfg, cupos, now):
+def armar_candidatos(tipo, cfg, cupos, now, effort=None):
     # Una vuelta por cuenta: cada cuenta es una suscripción aparte (sin cuentas agregadas, una de cada proveedor)
     subs = cupos.get("suscripciones", [])
     claudes = [s for s in subs if prov_de(s) == "claude"] or [{"id": "claude"}]
@@ -1826,11 +1839,11 @@ def armar_candidatos(tipo, cfg, cupos, now):
         claudes = []   # sin claude en la máquina el Claude oficial no es un candidato (la persona usa sólo dsh)
 
     carga = carga_por_grupo(now)
-    e_tipo = cfg["effort_por_tipo"].get(tipo, "high")
+    e_tipo = effort or cfg["effort_por_tipo"].get(tipo, "high")
     if e_tipo == "max":   # reparto nunca elige max por su cuenta (eso es de -m/--effort, con permitir_max o --ok-dueno)
         e_tipo = "xhigh"
     minimo_fam = cfg["minimo_por_tipo"].get(tipo, "sonnet")
-    minimo = cfg["calidad"].get(minimo_fam, minimo_fam if isinstance(minimo_fam, (int, float)) else 70)
+    minimo = cfg["calidad"].get(minimo_fam, minimo_fam if isinstance(minimo_fam, (int, float)) else vieja_a_aa(70))
     if isinstance(minimo_fam, str) and minimo_fam in cfg["calidad"]:
         # El mínimo se mide al mismo effort que el tipo: si no, Sonnet en medium (bajo su mejor puntaje) no llega a
         # "la calidad de Sonnet" y codigo-acotado terminaba en Opus.
@@ -1878,11 +1891,15 @@ def armar_candidatos(tipo, cfg, cupos, now):
             nombre = "%s · %s" % (nombre, cuenta_s.get("nombre") or cuenta)
         calidad_mejor = cfg["calidad"].get(fam, 0)
         mapa_ef = mapa_efforts(cfg, fam)
+        nota_effort = None
         if efs is None:   # Claude oficial: el effort va aparte
-            modelo, effort = base, e_tipo
-            e_cal = e_tipo
+            e_perm, nota_effort = effort_permitido(cfg, base, fam, e_tipo)
+            modelo, effort = base, e_perm or e_tipo
+            e_cal = effort
         else:
             e = efectivo(base, efs, e_tipo)
+            e_perm, nota_effort = effort_permitido(cfg, base, fam, e, [x for x in efs if x in EFFORTS_AA])
+            e = e_perm or e
             modelo, effort = "%s-%s" % (base, e), None
             e_cal = e
         calidad = calidad_en_effort(mapa_ef, e_cal, calidad_mejor)
@@ -1890,7 +1907,10 @@ def armar_candidatos(tipo, cfg, cupos, now):
                 "calidad_mejor": calidad_mejor, "calidad_por_effort": mapa_ef, "effort_calidad": e_cal if mapa_ef else None,
                 "cupo_libre": None, "vuelve": None, "puntaje": None, "descartado_por": None,
                 "aviso": None, "grupo": gid or "claude-oficial", "cuenta": cuenta, "proveedor": sus,
-                "estimada": fam not in cfg["calidad"], "origen": cfg["origen"].get(fam, "estimada")}
+                "estimada": fam not in cfg["calidad"], "origen": cfg["origen"].get(fam, "estimada"), "nota_effort": nota_effort}
+        if e_perm is None and nota_effort:
+            cand["descartado_por"] = "excluido en modelos.json (%s)" % nota_effort
+            cand["duro"] = True
         cand["clave"] = cand["grupo"] + suf(cuenta)
         if sus == "claude":
             vents = [cl_vent[w] for w in ("5h", "7d") if w in cl_vent] or \
@@ -1913,7 +1933,7 @@ def armar_candidatos(tipo, cfg, cupos, now):
                 vents = [ventana("7d", None, None)]
         # Reglas de calidad / tipo
         if calidad < minimo:
-            cand["descartado_por"] = "calidad %s menor que la %s que pide %s" % (calidad, minimo, tipo)
+            cand["descartado_por"] = "calidad %s menor que la %s que pide %s" % (fn(calidad), fn(minimo), tipo)
             cand["duro"] = True
         elif fam in cfg["solo_en"] and tipo not in cfg["solo_en"][fam]:
             cand["descartado_por"] = "%s sólo sirve para %s" % (nombre, " y ".join(cfg["solo_en"][fam]))
@@ -1979,7 +1999,7 @@ def armar_candidatos(tipo, cfg, cupos, now):
                     break
         # Puntaje
         q = float(calidad)
-        util = q if q <= minimo + MARGEN else minimo + MARGEN - (q - minimo - MARGEN) * PESO_SOBRA
+        util = PTS_POR_AA * (q if q <= minimo + MARGEN else minimo + MARGEN - (q - minimo - MARGEN) * PESO_SOBRA)
         us = []
         rt = urg7 = None
         for w in vents:
@@ -2022,18 +2042,18 @@ def armar_candidatos(tipo, cfg, cupos, now):
     for loc in cfg["locales"]:
         calidad, origen = calidad_origen(cfg, loc["id"], patrones=False)
         if origen == "estimada":
-            calidad = 35   # un local sin dato vale 35, no la cuenta por el nombre
+            calidad = vieja_a_aa(35)   # un local sin dato vale 35 de la escala vieja (unidades de AA), no la cuenta por el nombre
         cand = {"estimada": origen == "estimada", "origen": origen, "modelo": loc["id"], "effort": None, "nombre": loc.get("nombre", loc["id"]), "familia": "local",
                 "calidad": calidad, "cupo_libre": 1.0, "vuelve": None, "puntaje": None, "descartado_por": None,
                 "aviso": None, "grupo": "local", "urgencia": 0.0, "cuenta": None, "proveedor": "local", "clave": "local"}
         if calidad < minimo:
-            cand["descartado_por"] = "calidad %s menor que la %s que pide %s" % (calidad, minimo, tipo)
+            cand["descartado_por"] = "calidad %s menor que la %s que pide %s" % (fn(calidad), fn(minimo), tipo)
             cand["duro"] = True
         elif excluido_por(loc["id"], cfg["excluir"], "local"):
             cand["descartado_por"] = "excluido en modelos.json (excluir: %s)" % excluido_por(loc["id"], cfg["excluir"], "local")
             cand["duro"] = True
         q = float(calidad)
-        util = q if q <= minimo + MARGEN else minimo + MARGEN - (q - minimo - MARGEN) * PESO_SOBRA
+        util = PTS_POR_AA * (q if q <= minimo + MARGEN else minimo + MARGEN - (q - minimo - MARGEN) * PESO_SOBRA)
         cand["puntaje"] = round(util + 0.5 * cfg["peso_urgencia"], 2)   # ocioso y gratis: medio punto de urgencia
         out.append(cand)
     # dsh: Ollama y los gratis de OpenCode no gastan cupo (costo cero, como los locales); DeepSeek se paga y sólo entra con su key.
@@ -2044,13 +2064,21 @@ def armar_candidatos(tipo, cfg, cupos, now):
         estimada = origen == "estimada"
         gid = DSH_GRUPOS[prov]
         mapa_ef = mapa_efforts(cfg, mid, mid) if origen == "artificial-analysis" else {}
-        cand = {"calidad_mejor": calidad, "calidad_por_effort": mapa_ef, "effort_calidad": None, "estimada": estimada, "origen": origen, "modelo": mid, "effort": None, "nombre": nombre, "familia": "dsh", "calidad": calidad,
+        calidad_mejor = calidad
+        nota_effort = e_dsh = None
+        if mapa_ef:   # nunca se ordena por el mejor esfuerzo: va el puntaje del esfuerzo que correrá (el del tipo o el permitido más cercano)
+            e_dsh, nota_effort = effort_permitido(cfg, mid, "dsh", e_tipo, [e for e in EFFORTS_AA if e in mapa_ef])
+            calidad = calidad_en_effort(mapa_ef, e_dsh or e_tipo, calidad)
+        cand = {"calidad_mejor": calidad_mejor, "nota_effort": nota_effort, "calidad_por_effort": mapa_ef, "effort_calidad": (e_dsh or e_tipo) if mapa_ef else None, "estimada": estimada, "origen": origen, "modelo": mid, "effort": None, "nombre": nombre, "familia": "dsh", "calidad": calidad,
                 "cupo_libre": 1.0 if gratis else None, "vuelve": None, "puntaje": None, "descartado_por": None,
                 "aviso": None if gratis else "se paga con tu key de DeepSeek (no se sabe el precio)", "grupo": gid, "urgencia": 0.0,
                 "cuenta": None, "proveedor": "dsh", "clave": gid, "gratis": gratis}
         x = excluido_por(mid, cfg["excluir"], "opencode" if mid.startswith("opencode:") else "dsh")
-        if calidad < minimo:
-            cand["descartado_por"] = "calidad %s menor que la %s que pide %s" % (calidad, minimo, tipo)
+        if mapa_ef and e_dsh is None:
+            cand["descartado_por"] = "excluido en modelos.json (%s)" % nota_effort
+            cand["duro"] = True
+        elif calidad < minimo:
+            cand["descartado_por"] = "calidad %s menor que la %s que pide %s" % (fn(calidad), fn(minimo), tipo)
             cand["duro"] = cand["duro_calidad"] = True
         elif x:
             cand["descartado_por"] = "excluido en modelos.json (excluir: %s)" % x
@@ -2059,7 +2087,7 @@ def armar_candidatos(tipo, cfg, cupos, now):
             cand["descartado_por"] = "dijo sin cupo (429): vuelve %s" % agot[gid]
             cand["vuelve"] = agot[gid]
         q = float(calidad)
-        util = q if q <= minimo + MARGEN else minimo + MARGEN - (q - minimo - MARGEN) * PESO_SOBRA
+        util = PTS_POR_AA * (q if q <= minimo + MARGEN else minimo + MARGEN - (q - minimo - MARGEN) * PESO_SOBRA)
         cand["carga"] = carga.get(gid, 0)
         cand["puntaje"] = round(util + (0.5 * cfg["peso_urgencia"] if gratis else -cfg["peso_costo"] * cfg["costo"].get("dsh-pago", COSTO_DSH_PAGO))
                                 - cfg["peso_carga"] * cand["carga"], 2)
@@ -2138,8 +2166,10 @@ def elegir(tipo, cfg, cupos, now, mismo_proveedor=None, solo_cuenta=None, _contr
                    key=lambda c: (c["cupo_libre"] if c["cupo_libre"] is not None else -1.0, not suf(c.get("cuenta")),
                                   c["puntaje"]))
     motivo = motivo_de(gana, pool, tipo, minimo, minimo_fam, todo_lleno, now, cands)
+    if gana.get("nota_effort"):
+        motivo += " Effort %s: %s (calidad %s)." % (gana.get("effort") or gana["modelo"].rsplit("-", 1)[-1], gana["nota_effort"], fn(gana["calidad"]))
     if relajado and gana.get("relajado"):
-        motivo += " Ningún modelo llega a la calidad %s que pide %s: uso el mejor que hay (calidad %s, ajustable con \"calidad\" en modelos.json)." % (minimo, tipo, gana["calidad"])
+        motivo += " Ningún modelo llega a la calidad %s que pide %s: uso el mejor que hay (calidad %s, ajustable con \"calidad\" en modelos.json)." % (fn(minimo), tipo, fn(gana["calidad"]))
     if banda:
         motivo += " Para %s se prefiere la calidad de %s: los modelos más caros o menos parejos sólo entran si no queda cupo de esa banda." % (tipo, banda)
     ritmo_info = resumen_ritmo(cfg, cupos, now) if not _contra else []
@@ -2239,13 +2269,13 @@ def pct(f):
 
 
 def motivo_de(gana, pool, tipo, minimo, minimo_fam, todo_lleno, now, cands):
-    pide = "%s pide calidad %s o más" % (tipo, minimo)
+    pide = "%s pide calidad %s o más" % (tipo, fn(minimo))
     if todo_lleno:
         return ("Todos los cupos que sirven para %s están llenos o en reserva; el más barato que alcanza la calidad "
                 "(%s pide %s) es %s, que %s. Va a toparse con el límite." % (
-                    tipo, tipo, minimo, gana["nombre"],
+                    tipo, tipo, fn(minimo), gana["nombre"],
                     "vuelve en %s" % humano(horas_hasta(gana["vuelve"], now)) if gana["vuelve"] else "no dice cuándo vuelve"))
-    partes = ["%s alcanza para %s (calidad %s; %s)" % (gana["nombre"], tipo, gana["calidad"], pide)]
+    partes = ["%s alcanza para %s (calidad %s; %s)" % (gana["nombre"], tipo, fn(gana["calidad"]), pide)]
     if gana.get("proveedor") == "dsh":
         partes.append("Es gratis y no gasta ningún cupo" if gana.get("gratis") else "Se paga con tu key de DeepSeek")
     elif gana["cupo_libre"] is not None:
@@ -2416,11 +2446,24 @@ def proveedor_de(c):
     return "opencode" if c["modelo"].startswith("opencode:") else c["modelo"].split(":", 1)[1].split("/")[0]
 
 
+def extras_tabla(cfg, c):
+    """Por esfuerzo, lo que trae Artificial Analysis además del puntaje: crudo, costo por tarea (USD), tokens y segundos. Vacío si AA no lo trae."""
+    ex = aa_buscar_extras(cfg.get("aa"), c["modelo"]) if c.get("origen") == "artificial-analysis" else {}
+    out = {}
+    for campo, clave in (("crudo_por_effort", "crudo"), ("inteligencia_por_effort", "intel"), ("costo_por_effort", "cost"), ("tokens_por_effort", "tokens"), ("tiempo_por_effort", "time")):
+        d = {e: (_n(v[clave]) if clave in ("crudo", "intel") else round(v[clave], 4)) for e, v in ex.items() if clave in v}
+        if d:
+            out[campo] = d
+    return out
+
+
 def tabla(cfg, cupos, now):
     """Todos los modelos que reparto conoce, con lo que decide su puntaje (mismos candidatos que --tipo: armar_candidatos).
     `permitido` = ninguna regla de `excluir` lo saca. Se arma con el tipo más flojo (lectura) sólo para listar: la
     calidad mínima del tipo no entra en la tabla."""
-    cands, _, _ = armar_candidatos("lectura", cfg, cupos, now)
+    # Se arma con el effort de los tipos de código (EFFORT_TABLA = high) para que `calidad` sea el puntaje en el esfuerzo que se usaría de verdad
+    # (con efforts_permitidos aplicado), nunca el del mejor esfuerzo medido; `effort_usado` dice cuál es.
+    cands, _, _ = armar_candidatos("lectura", cfg, cupos, now, effort=EFFORT_TABLA)
     out = []
     for c in cands:
         fam = c["familia"]
@@ -2430,7 +2473,8 @@ def tabla(cfg, cupos, now):
         gratis = c["proveedor"] == "local" or bool(c.get("gratis"))
         out.append({
             "id": c["modelo"], "nombre": c["nombre"], "proveedor": proveedor_de(c), "cuenta": c.get("cuenta"),
-            "grupo": c["grupo"], "familia": c["familia"], "familia_excluir": fam, "calidad": c.get("calidad_mejor", c["calidad"]), "calidad_por_effort": c.get("calidad_por_effort") or {}, "estimada": bool(c.get("estimada")),
+            "grupo": c["grupo"], "familia": c["familia"], "familia_excluir": fam, "calidad": c["calidad"], "effort_usado": c.get("effort_calidad"), "calidad_por_effort": c.get("calidad_por_effort") or {}, "estimada": bool(c.get("estimada")),
+            **extras_tabla(cfg, c),
             "origen": c.get("origen") or ("estimada" if c.get("estimada") else "defecto"),
             "aa_fecha": cfg["aa"]["fecha"] if c.get("origen") == "artificial-analysis" and cfg.get("aa") else None,
             "gratis": gratis, "cupo_libre": c["cupo_libre"], "vuelve": c["vuelve"], "ventanas": c.get("ventanas", []),
@@ -2441,12 +2485,12 @@ def tabla(cfg, cupos, now):
 
 
 def texto_tabla(filas, now):
-    L = ["%-46s %-9s %4s  %-6s %-10s %s" % ("modelo", "proveedor", "int.", "costo", "cupo libre", "permitido")]
+    L = ["%-46s %-9s %5s  %-6s %-10s %s" % ("modelo", "proveedor", "int.", "costo", "cupo libre", "permitido")]
     for f in filas:
         cupo = "-" if f["cupo_libre"] is None else pct(f["cupo_libre"])
         if f["vuelve"]:
             cupo += " (vuelve en %s)" % humano(horas_hasta(f["vuelve"], now))
-        L.append("%-46s %-9s %3d%s  %-6s %-10s %s" % (f["id"] + (" · " + f["cuenta"] if suf(f.get("cuenta")) else ""),
+        L.append("%-46s %-9s %5.1f%s  %-6s %-10s %s" % (f["id"] + (" · " + f["cuenta"] if suf(f.get("cuenta")) else ""),
                  f["proveedor"], f["calidad"], "~" if f["estimada"] else " ", "gratis" if f["gratis"] else "pago", cupo,
                  "sí" if f["permitido"] else "no (%s)" % f["excluido_por"]))
     return "\n".join(L)
@@ -2454,12 +2498,9 @@ def texto_tabla(filas, now):
 
 def aa_diag(cfg, filas):
     """Por cada modelo local (ids únicos de la tabla): con qué entrada de AA se emparejó (nombre y slug), el puntaje crudo (con su métrica),
-    el calibrado, y lo mismo por esfuerzo; o "sin coincidencia" y de dónde sale entonces su cifra. Para revisar los emparejamientos."""
+    y lo mismo por esfuerzo; o "sin coincidencia" y de dónde sale entonces su cifra. Para revisar los emparejamientos."""
     aa = cfg.get("aa")
-    out = {"aa_fecha": aa["fecha"] if aa else None, "calibracion": None, "modelos": []}
-    if aa:
-        out["calibracion"] = {"anclas": [{"id": mid, "objetivo": obj, "crudo": (aa_buscar(aa, mid) or [None])[0]} for mid, obj in AA_ANCLAS],
-                              "tipo": "tramos" if aa.get("tramos") else "recta", "tramos": aa.get("tramos"), "recta": aa.get("cal")}
+    out = {"aa_fecha": aa["fecha"] if aa else None, "unidades": "AA crudo: promedio de coding y agentic (sin calibrar)", "modelos": []}
     vistos = set()
     for f in filas:
         mid = f["id"]
@@ -2472,10 +2513,10 @@ def aa_diag(cfg, filas):
              "aa": None, "efforts": {}}
         if r and e:
             met = r[2]
-            d["aa"] = {"nombre": r[1], "slug": e[met][2], "metrica": met, "crudo": round(r[0], 2), "calibrado": aa_calibrar(aa, r[0], met)}
+            d["aa"] = {"nombre": r[1], "slug": e[met][2], "metrica": met, "crudo": round(r[0], 2)}
             crudos = aa_buscar_efforts(aa, mid)
             cal = aa_calidad_efforts(aa, mid)
-            d["efforts"] = {ef: {"crudo": round(crudos[ef], 2), "calibrado": cal[ef]} for ef in EFFORTS_AA if ef in crudos and ef in cal}
+            d["efforts"] = {ef: {"crudo": round(crudos[ef], 2), "usado": cal[ef]} for ef in EFFORTS_AA if ef in crudos and ef in cal}
         out["modelos"].append(d)
     return out
 
@@ -2485,17 +2526,14 @@ def texto_aa_diag(d):
     if d["aa_fecha"] is None:
         L.append("sin caché de Artificial Analysis (aa-modelos.json): ningún modelo se mide; valen los defaults y la estimación por el nombre")
     else:
-        c = d["calibracion"]
-        L.append("Artificial Analysis, dato del %s. Anclas (id: crudo -> Trama): %s" % (d["aa_fecha"], ", ".join(
-            "%s: %s -> %s" % (a["id"], "?" if a["crudo"] is None else "%.1f" % a["crudo"], a["objetivo"]) for a in c["anclas"])))
-        L.append("calibración: %s" % ("línea quebrada por los puntos %s" % [(round(x, 1), y) for x, y in c["tramos"]] if c["tramos"] else "recta a=%.3f b=%.2f" % tuple(c["recta"])))
+        L.append("Artificial Analysis, dato del %s. Unidades: %s" % (d["aa_fecha"], d["unidades"]))
     for m in d["modelos"]:
         L.append("")
         L.append("%s%s" % (m["id"], "" if m["permitido"] else "   [excluido en modelos.json]"))
         if m["aa"]:
             a = m["aa"]
-            L.append("  AA: %s [%s]  crudo(%s) %s -> calibrado %s" % (a["nombre"], a["slug"] or "-", a["metrica"], a["crudo"], a["calibrado"]))
-            L.append("  por effort: %s" % (" · ".join("%s %s -> %s" % (ef, v["crudo"], v["calibrado"]) for ef, v in m["efforts"].items()) or "ninguno medido"))
+            L.append("  AA: %s [%s]  crudo(%s) %s" % (a["nombre"], a["slug"] or "-", a["metrica"], a["crudo"]))
+            L.append("  por effort: %s" % (" · ".join("%s %s" % (ef, v["usado"]) for ef, v in m["efforts"].items()) or "ninguno medido"))
         else:
             L.append("  AA: sin coincidencia (buscado como \"%s\"); cifra %s de origen %s" % (m["tokens"], m["calidad"], m["origen"]))
     return "\n".join(L)

@@ -1,7 +1,7 @@
 // Artificial Analysis (https://artificialanalysis.ai): de ahí sale la inteligencia medida de los modelos para `reparto` cuando el dueño
 // pegó su API key (Ajustes > Modelos > «Modelos para workers»). Acá: bajar la lista (a lo sumo una vez cada 24 h, o a pedido), guardarla
 // en la caché que lee `reparto` (<estado de pa>/reparto/aa-modelos.json) y contar qué pasó (key mala, límite diario, sin red, forma rara).
-// El emparejamiento de nombres y la calibración a la escala 0–100 de reparto viven en motor/bin/reparto, que es quien conoce los ids.
+// El emparejamiento de nombres vive en motor/bin/reparto, que es quien conoce los ids; los índices se guardan crudos (sin calibrar), junto con costo, tokens y tiempo por tarea cuando AA los trae.
 // Node puro con fetch y reloj inyectables: lo prueban tests/artificial-analysis.test.ts y un servidor falso. La key nunca se loguea ni
 // vuelve en un mensaje. Atribución obligatoria donde se muestren los números: «Datos: Artificial Analysis» con el enlace `URL_AA`.
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
@@ -18,7 +18,9 @@ export const ESPERA_FALLO_MS = 10 * 60_000;
 
 type Env = Record<string, string | undefined>;
 
-export type ModeloAA = { name: string; slug: string; creator: string; intelligence: number | null; coding: number | null; agentic: number | null };
+export type ModeloAA = { name: string; slug: string; creator: string; intelligence: number | null; coding: number | null; agentic: number | null;
+  /** Por tarea, si AA lo trae: costo (USD), tokens y segundos. Ausentes si el endpoint no los da. Los nombres de los campos de AA son los que se esperan (`COSTO_CLAVES` etc.): no hay forma de verlos sin key. */
+  cost?: number; tokens?: number; time?: number };
 export type CacheAA = { version: 1; fetched: string; modelos: ModeloAA[] };
 
 /** `fetch` mínimo (el global o uno falso). */
@@ -34,6 +36,10 @@ const indice = (v: unknown): number | null => {
   const n = typeof v === "string" && v.trim() !== "" ? Number(v) : v;
   return typeof n === "number" && Number.isFinite(n) ? n : null;
 };
+
+const COSTO_CLAVES = ["cost", "cost_per_task", "cost_to_run", "cost_to_run_usd", "total_cost"];
+const TOKENS_CLAVES = ["tokens", "tokens_per_task", "total_tokens", "output_tokens"];
+const TIEMPO_CLAVES = ["time", "time_per_task", "time_per_task_seconds", "total_time_seconds"];
 
 /** Un modelo de la respuesta → el que se guarda; `null` si no tiene nombre (o slug) ni ningún índice. Los índices pueden venir sueltos o en `evaluations`. */
 export function modeloDe(raw: unknown): ModeloAA | null {
@@ -55,7 +61,21 @@ export function modeloDe(raw: unknown): ModeloAA | null {
   const c = o.model_creator ?? o.creator;
   const creator = typeof c === "string" ? c.trim() : texto(obj(c)?.name) || texto(obj(c)?.slug);
   if ((!name && !slug) || (intelligence === null && coding === null && agentic === null)) return null;
-  return { name: name || slug, slug, creator, intelligence, coding, agentic };
+  // Costo y tokens también pueden venir en un objeto (`intelligence_index_cost: {total_cost}`, `intelligence_index_token_counts: {...}`).
+  const sub = (k: string, ...claves: string[]): number | null => {
+    const d = obj(o[k]) ?? obj(ev[k]);
+    if (!d) return null;
+    for (const c of claves) if (indice(d[c]) !== null) return indice(d[c]);
+    return null;
+  };
+  const suma = (k: string): number | null => {
+    const d = obj(o[k]) ?? obj(ev[k]);
+    const v = d ? Object.values(d).map(indice).filter((n): n is number => n !== null) : [];
+    return v.length ? v.reduce((x, y) => x + y, 0) : null;
+  };
+  const cost = pick(...COSTO_CLAVES) ?? sub("intelligence_index_cost", "total_cost", "total"), time = pick(...TIEMPO_CLAVES);
+  const tokens = pick(...TOKENS_CLAVES) ?? sub("intelligence_index_token_counts", "total_tokens", "total") ?? suma("intelligence_index_token_counts");
+  return { name: name || slug, slug, creator, intelligence, coding, agentic, ...(cost !== null ? { cost } : {}), ...(tokens !== null ? { tokens } : {}), ...(time !== null ? { time } : {}) };
 }
 
 /** El JSON de la respuesta → los modelos: `{data: [...]}`, `{models: [...]}` o el arreglo suelto. Lo que no sirve se descarta. */
