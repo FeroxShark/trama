@@ -129,6 +129,7 @@ contextBridge.exposeInMainWorld("hilos", {
     ir: (pid: number): Promise<boolean> => ipcRenderer.invoke("lider:ir", pid),
     ubicable: (pid: number): Promise<boolean> => ipcRenderer.invoke("lider:ubicable", pid),
     encolar: (x: unknown): Promise<void> => ipcRenderer.invoke("lider:encolar", x),
+    colaSeleccion: (x: unknown): Promise<void> => ipcRenderer.invoke("lider:colaSeleccion", x),
     colaQuitar: (x: unknown): Promise<void> => ipcRenderer.invoke("lider:colaQuitar", x),
     colas: (): Promise<unknown> => ipcRenderer.invoke("lider:colas"),
     colaYa: (x: unknown): Promise<void> => ipcRenderer.invoke("lider:colaYa", x),

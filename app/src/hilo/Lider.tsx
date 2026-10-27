@@ -39,6 +39,7 @@ import { effortsDe, esAgy, esDsh, esOpencode, esLocal, familiaDe, motorNombre, r
 import { ContextoLocal } from "./ContextoLocal";
 import { t as tr, textoMain } from "../i18n";
 import { Selector } from "./Selector";
+import { opcionesEnTurno, pendienteDe } from "./pendiente";
 import { DialogoCambio, type DatosCambio } from "./DialogoCambio";
 import { hayVarias, opcionesMaquina, useMaquinas } from "../maquinas";
 import { Contexto } from "./Contexto";
@@ -230,7 +231,10 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
   const elegir = useRef<HTMLInputElement>(null);
   // Captura `aviso`: otro modelo elegido con el caché vivo.
   const [modelo, setModelo] = useState(() =>
-    MODO.captura === "aviso" && l
+    // Captura `lider-trabajando` con `HILOS_VARIANTE=pendiente-modelo`: otro modelo del mismo motor elegido con el turno en curso.
+    MODO.captura === "lider-trabajando" && MODO.variante === "pendiente-modelo" && l
+      ? (MODELOS.find((m) => m.id !== modeloDe(l.modelo) && familiaDe(m.id) === familiaDe(l.modelo))?.id ?? MODELO_DEFAULT)
+      : MODO.captura === "aviso" && l
       ? (MODELOS.find((m) => m.id !== modeloDe(l.modelo))?.id ?? MODELO_DEFAULT)
       : MODO.captura === "lider-comandos" && MODO.variante === "agy"
         ? (MODELOS.find((m) => esAgy(m.id))?.id ?? MODELO_DEFAULT)
@@ -238,7 +242,12 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
           ? (MODELOS.find((m) => esLocal(m.id))?.id ?? MODELO_DEFAULT)
           : (modeloDe(l?.modelo) ?? MODELO_DEFAULT),
   );
-  const [effort, setEffort] = useState(() => effortDe(l?.effort, modelo) ?? effortPara(modelo, effortsLeidos() ?? {}));
+  const [effort, setEffort] = useState(() =>
+    // Captura `lider-trabajando` con `HILOS_VARIANTE=pendiente`: otro esfuerzo elegido con el turno en curso.
+    MODO.captura === "lider-trabajando" && MODO.variante === "pendiente" && l
+      ? (effortsDe(modelo).find((e) => e !== effortDe(l.effort, modelo)) ?? "low")
+      : (effortDe(l?.effort, modelo) ?? effortPara(modelo, effortsLeidos() ?? {})),
+  );
   const tocado = useRef(!!l);
   // El modelo del líder cambió del otro lado (otro motor confirmado en otra ventana o el celular, /model): la caja lo sigue.
   // Sin esto quedaba el de cuando se abrió la conversación, y Volver/Editar mandaba ese (un DeepSeek después de pasar a Opus).
@@ -251,6 +260,21 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
     setModelo(modeloServidor);
     setEffort(effortDe(effortServidor, modeloServidor) ?? effortPara(modeloServidor, effortsLeidos() ?? {}));
   }, [modeloServidor, effortServidor]);
+  // Con un turno en curso los selectores siguen abiertos: lo elegido no toca el turno, se aplica al próximo mensaje que salga
+  // (el de la caja o el de la cola al desencolarse). Lo que difiere de lo que usa el turno se marca en el selector.
+  const turnoModelo = modeloDe(l?.modelo);
+  const enTurno = app && ocupado;
+  const pend = pendienteDe({ ocupado: enTurno, modelo, effort, turno: l ? { modelo: turnoModelo ?? undefined, effort: effortDe(l.effort, turnoModelo) } : null });
+  const modelosEnTurno = useMemo(() => opcionesEnTurno(modelosVistos, enTurno, l?.modelo, tr("lider.cruceEnTurno")), [modelosVistos, enTurno, l?.modelo]);
+  // Con mensajes en la cola, cada cambio de la caja se avisa al main: el que sale lleva lo vigente al desencolarse, no lo de cuando se encoló.
+  const selVista = useRef<string | null>(null);
+  useEffect(() => {
+    const k = `${sid}|${modelo}|${effort}`;
+    const antes = selVista.current;
+    selVista.current = k;
+    if (antes === null || antes === k || !l || !encolados.length) return;
+    cola.elegir(l.id, modelo, effort);
+  }, [sid, modelo, effort, encolados.length]);
   // El modo de un líder nuevo se elige antes de que exista (y el de uno de la terminal, antes de
   // traerlo); el de uno de la app, lo dice el stream (o la lista).
   const [modoNuevo, setModoNuevo] = useState<Modo>(MODO_DEFAULT);
@@ -721,6 +745,8 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
       setTexto(""); setCaret(0);
       setErrorCaja(null);
       ponerBorrador(clave, { texto: "", error: null });
+      // El mensaje entra con el modelo y esfuerzo del turno; si hay otra cosa elegida, queda para el próximo turno y se dice.
+      if (pend.modelo || pend.effort) setNota(tr("directo.pendiente"));
       fuente.liderMandarYa(l.id, { texto: t, modelo, effort, ...(imagenes ? { imagenes } : {}) }).catch((err) => {
         falloDirecto(l.id);
         const msg = mensaje(err);
@@ -935,6 +961,8 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
   };
   /** De /model: si cruza de motor, pide confirmar antes de aplicar. */
   const pedirModelo = (m: string) => {
+    // Otro motor con un turno en curso: sigue como siempre (se confirma con el líder en reposo).
+    if (enTurno && datosCambio(m)) return setErrorCaja(tr("lider.cruceEnTurno"));
     if (datosCambio(m)) {
       setErrorCaja(null);
       setCruce(m);
@@ -1259,7 +1287,7 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
               </button>
               <Selector
                 etiqueta={tr("comun.modelo")}
-                opciones={modelosVistos}
+                opciones={modelosEnTurno}
                 senalAbrir={senalModelo}
                 pestana={proveedorLibre(modelosVistos)}
                 valor={modelo}
@@ -1269,7 +1297,8 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
                 sufijo={effortsDe(modelo).length ? abreviar(effort) : undefined}
                 chip={<span className="chip" />}
                 columnas
-                disabled={app && ocupado}
+                pendiente={pend.modelo ? tr("selector.pendienteTip", { actual: nombreModelo(turnoModelo ?? modelo) }) : undefined}
+                pendienteCompacto={!pend.modelo && pend.effort ? tr("selector.pendienteTip", { actual: `${abreviar(effortDe(l?.effort, turnoModelo) ?? "")}` }) : undefined}
                 abierto={MODO.captura === "modelo" || (MODO.captura === "lider-cambio-motor" && MODO.variante === "menu")}
               />
               {/* Un modelo sin niveles (Ollama) no tiene qué elegir acá. */}
@@ -1279,7 +1308,7 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
                   opciones={effortsOpciones(modelo)}
                   valor={effort}
                   alElegir={elegirEffort}
-                  disabled={app && ocupado}
+                  pendiente={pend.effort ? tr("selector.pendienteTip", { actual: effortDe(l?.effort, turnoModelo) ?? "" }) : undefined}
                   abierto={MODO.captura === "esfuerzo" || MODO.captura === "local-esfuerzo"}
                 />
               ) : esOpencode(modelo) || esDsh(modelo) ? (

@@ -377,6 +377,7 @@ export const cola = {
   error: espejo.error,
   suscribir: espejo.suscribir,
   encolar: (sid: string, x: Omit<Encolado, "id">) => fuente.liderEncolar(sid, x),
+  elegir: (sid: string, modelo: string, effort: string) => fuente.liderColaSeleccion(sid, modelo, effort),
   quitar: (sid: string, id: number) => fuente.liderColaQuitar(sid, id),
   /** Ahora: reintenta lo que no salió y, con `cortar`, corta lo que hace el de la terminal. */
   ya: (sid: string, cortar: boolean) => fuente.liderColaYa(sid, cortar),

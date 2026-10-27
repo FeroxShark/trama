@@ -161,6 +161,8 @@ type Main = {
     ubicable(pid: number): Promise<boolean>;
     /** A la cola del líder (electron/cola.ts): sale cuando quede libre. */
     encolar(x: { sid: string; texto: string; imagenes?: Imagen[]; modelo: string; effort: string; modo?: string; nombre?: string }): Promise<void>;
+    /** Lo elegido en la caja mientras hay cola: el mensaje que sale lleva lo vigente en ese momento. */
+    colaSeleccion(x: { sid: string; modelo: string; effort: string }): Promise<void>;
     colaQuitar(x: { sid: string; id: number }): Promise<void>;
     /** Todas las colas con algo, sin validar. */
     colas(): Promise<unknown>;

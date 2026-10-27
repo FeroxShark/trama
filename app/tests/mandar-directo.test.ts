@@ -75,13 +75,23 @@ test("el eco se compara sin los espacios de las puntas, y lo que no esperaba un 
   assert.equal(cuantos(sid, "entregado"), 1);
 });
 
-test("con otro modelo o esfuerzo que el del proceso, mandarDirecto no cambia nada en vivo: main.respondiendo", { timeout: 20_000 }, async () => {
+test("otro modelo o esfuerzo elegido en pleno turno: el mensaje directo entra con el del turno y el cambio se aplica al próximo mensaje", { timeout: 20_000 }, async () => {
   const sid = await lider.nuevo({ ...M, texto: "comando largo" });
   await enHerramienta(sid);
-  await assert.rejects(lider.mandarDirecto({ sid, texto: "x", modelo: "claude-sonnet-5-5", effort: "high" }), /respondiendo/);
-  await assert.rejects(lider.mandarDirecto({ sid, texto: "x", modelo: M.modelo, effort: "low" }), /respondiendo/);
-  assert.equal(lider.procDe(sid)?.directos, 0);
+  // No se rechaza ni se cambia nada en vivo: entra en el turno que corre.
+  await lider.mandarDirecto({ sid, texto: "YA-X", modelo: "claude-sonnet-5-5", effort: "low" });
+  assert.equal(lider.procDe(sid)?.directos, 1);
   await hasta(() => cuantos(sid, "fin") === 1);
+  const guardado = async () => (await lider.lideresApp()).find((l) => l.sid === sid);
+  assert.equal((await guardado())?.modelo, M.modelo, "el turno siguió con el modelo con que arrancó");
+  assert.equal((await guardado())?.effort, M.effort);
+  // El próximo mensaje sí lleva lo elegido.
+  await lider.mandar({ sid, texto: "siguiente", modelo: "claude-sonnet-5-5", effort: "low" });
+  assert.equal((await guardado())?.modelo, "claude-sonnet-5-5");
+  assert.equal((await guardado())?.effort, "low");
+  await hasta(() => cuantos(sid, "fin") === 2);
+  // Un valor roto sigue siendo un error (no se manda nada).
+  await assert.rejects(lider.mandarDirecto({ sid, texto: "x", modelo: "--malo", effort: "low" }), /./);
 });
 
 test("sin turno en curso, mandarDirecto es un mandar normal (sin esperar eco)", { timeout: 20_000 }, async () => {

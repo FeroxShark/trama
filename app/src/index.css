@@ -2556,6 +2556,27 @@ kbd {
   display: none;
   white-space: nowrap;
 }
+/* Lo elegido todavía no lo usa el turno en curso (se aplica al próximo): un reloj y "próx.", no sólo color. */
+.pbtn-pend {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--esp-1);
+  color: var(--ambar);
+  font-size: var(--letra-3);
+  font-weight: 500;
+  white-space: nowrap;
+}
+/* El del esfuerzo fusionado en el chip del modelo: sólo cuando la barra lo fusiona (pasos 2 y 3). */
+.pbtn-pend[data-compacto] {
+  display: none;
+}
+.barra-c:is([data-nivel="2"], [data-nivel="3"]) .pbtn-pend[data-compacto] {
+  display: inline-flex;
+}
+/* Con la barra apretada queda sólo el reloj (el tooltip y el nombre accesible dicen el resto). */
+.barra-c:is([data-nivel="2"], [data-nivel="3"]) .pbtn-pend-t {
+  display: none;
+}
 /* Paso 1: el modo de permisos queda en su símbolo (el tooltip dice el nombre entero). */
 .barra-c:not([data-nivel="0"]) .modo-t {
   display: none;

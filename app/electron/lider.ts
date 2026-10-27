@@ -852,6 +852,13 @@ export function paraCola(x: { sid?: unknown; texto?: unknown; imagenes?: unknown
   };
 }
 
+/** Lo elegido en la caja de un líder (modelo y esfuerzo), validado como lo valida `mandar`, para la cola. */
+export function paraSeleccion(x: { sid?: unknown; modelo?: unknown; effort?: unknown }) {
+  const sid = String(x?.sid);
+  if (!SID.test(sid)) throw errorT("main.sesionRara", { v: sid });
+  return { sid, seleccion: { modelo: sueltoDe("modelo", x.modelo), effort: sueltoDe("effort", x.effort) } };
+}
+
 /**
  * La carpeta donde arranca un líder nuevo (el campo "Carpeta" de la caja): absoluta (o `~`, `~/x`), que exista y sea un
  * directorio. Vacía o el home: `undefined` (el líder de siempre, en `~`). Tira con el motivo; nada se crea.
@@ -926,8 +933,8 @@ export async function mandar(x: { sid: string; texto: string; imagenes?: unknown
 /**
  * "Mandar ya": el mensaje sale al stdin del `claude` aunque esté a mitad de un turno. El CLI lo guarda y lo entrega en el próximo límite de
  * `tool_result`, sin cortar la herramienta en curso (puede tardar lo que ella); si no hay herramienta, corre como turno propio al terminar el actual.
- * Sólo con un proceso de `claude` ocupado de la app, con el mismo modelo y esfuerzo; sin turno en curso es un
- * `mandar` normal. La cola no se toca: sigue saliendo de a uno al terminar el turno. Gemini y dsh: el puente (agy-puente.ts, dsh-puente.ts) corta a agy / dsh en el próximo límite de paso y retoma su conversación con el mensaje; los modelos locales no tienen canal: error claro.
+ * Sólo con un proceso de `claude` ocupado de la app; el modelo y el esfuerzo del turno no cambian (lo que el usuario eligió de otro se aplica en el próximo turno); sin turno en curso es un
+ * `mandar` normal (ahí sí se cambian). La cola no se toca: sigue saliendo de a uno al terminar el turno. Gemini y dsh: el puente (agy-puente.ts, dsh-puente.ts) corta a agy / dsh en el próximo límite de paso y retoma su conversación con el mensaje; los modelos locales no tienen canal: error claro.
  */
 export async function mandarDirecto(x: { sid: string; texto: string; imagenes?: unknown; modelo: string; effort: string }): Promise<void> {
   const sid = String(x.sid);
@@ -936,8 +943,9 @@ export async function mandarDirecto(x: { sid: string; texto: string; imagenes?: 
   if (!p?.ocupado || mandando.has(sid)) return mandar(x);
   const g = (await lideresApp()).find((l) => l.sid === sid);
   if (!g) throw errorT("main.noEsDeLaApp");
-  const { modelo, effort } = normalizar(sueltoDe("modelo", x.modelo), sueltoDe("effort", x.effort));
-  if (p.modelo !== modelo || p.effort !== effort) throw errorT("main.respondiendo");
+  // Un modelo o esfuerzo distinto del que corre el turno no se cambia a mitad de turno: el mensaje entra con el del turno y lo elegido
+  // queda para el próximo (la caja lo conserva, y la cola lo toma al desencolar). Sólo se valida que sea un valor sano.
+  normalizar(sueltoDe("modelo", x.modelo), sueltoDe("effort", x.effort));
   // Pudo terminar el turno o salir el proceso mientras se leía la lista: entonces sí es un mensaje normal.
   if (procs.get(sid) !== p || !p.ocupado) return mandar(x);
   const imagenes = imagenesDe(x.imagenes);

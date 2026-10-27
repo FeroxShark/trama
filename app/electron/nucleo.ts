@@ -1047,6 +1047,11 @@ export function armarNucleo() {
     await leerCola();
     cola.encolar(sid, item);
   });
+  // Lo elegido en la caja (modelo y esfuerzo) mientras hay cola: el mensaje sale con lo vigente al desencolarse (cola.ts).
+  manejar("lider:colaSeleccion", (_e, x: { sid: string; modelo: string; effort: string }) => {
+    const { sid, seleccion } = lider.paraSeleccion(x ?? {});
+    cola.elegir(sid, seleccion);
+  });
   manejar("lider:colaQuitar", (_e, x: { sid: string; id: number }) => cola.quitar(String(x?.sid), Number(x?.id)));
   manejar("lider:colas", async () => {
     await leerCola();

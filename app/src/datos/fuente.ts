@@ -187,6 +187,8 @@ export interface Fuente {
    * turno se lo trae y sale. Rechaza si el envío no sirve.
    */
   liderEncolar(sid: string, x: Omit<Encolado, "id">): Promise<void>;
+  /** Lo elegido en la caja (modelo y esfuerzo) con cola: lo que lleva el mensaje cuando sale de la cola. */
+  liderColaSeleccion(sid: string, modelo: string, effort: string): void;
   liderColaQuitar(sid: string, id: number): void;
   /** Ahora: reintenta lo que no había salido y, con `cortar`, corta lo que hace el de la terminal. */
   liderColaYa(sid: string, cortar: boolean): void;
@@ -1326,6 +1328,9 @@ const fija: Fuente = {
   async liderEncolar(sid, x) {
     colaFija().encolar(sid, x);
   },
+  liderColaSeleccion(sid, modelo, effort) {
+    colaFija().elegir(sid, { modelo, effort });
+  },
   liderColaQuitar(sid, id) {
     colaFija().quitar(sid, id);
   },
@@ -1900,6 +1905,9 @@ const conPa = (m: NonNullable<typeof main>): Fuente => ({
     await m.lider.encolar({ sid, ...x }).catch((e) => {
       throw new Error(mensaje(e));
     });
+  },
+  liderColaSeleccion(sid, modelo, effort) {
+    void m.lider.colaSeleccion({ sid, modelo, effort }).catch(() => {});
   },
   liderColaQuitar(sid, id) {
     void m.lider.colaQuitar({ sid, id }).catch(() => {});

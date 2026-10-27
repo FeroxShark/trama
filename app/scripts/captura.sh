@@ -24,6 +24,7 @@
 #                    con `ajustes`/`estadisticas`, HILOS_VARIANTE=error deja el panel
 #                    que no cargó, con su Reintentar
 #                    con `ajustes`, HILOS_VARIANTE=cuentas|celular|editando|editando-mal: las cuentas (Windows), el acceso desde el celular, lo editado sin guardar, lo que no vale
+#                    con `lider-trabajando`, HILOS_VARIANTE=pendiente|pendiente-modelo: otro esfuerzo / otro modelo elegido con el turno en curso (la marca "próx.")
 #                    con `lider-formato`, HILOS_VARIANTE=larga la conversación de 3000 mensajes; con `lider-imagenes`, =visor el visor con la imagen sin llegar
 #   ej: scripts/captura.sh hover
 #
