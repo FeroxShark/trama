@@ -4,6 +4,8 @@
   reparto --cupos [--json]                     cupo de cada suscripción (Claude oficial, Google AI Pro/agy y ChatGPT/codex)
   reparto --tabla [--json]                     todos los modelos que conoce: id, inteligencia (~ = estimada), gratis/pago,
                                                cupo libre y cuándo vuelve, urgencia y si modelos.json los permite
+  reparto --resumen [--json]                   bloque corto (~30 líneas) para que el LÍDER elija modelo y effort: por modelo habilitado, id para `-m`,
+                                               inteligencia (AA) por effort, costo relativo, gratis/pago, cupo libre y cuándo vuelve, y para qué sirve
   reparto --aa-diag [--json]                   por modelo local: con qué entrada de Artificial Analysis se emparejó, índice de inteligencia de AA (sin calibrar) por effort, medido o estimado
   reparto --tipo T [--json] [--explicar]       modelo y effort que conviene para el tipo T
   reparto --resolver ID [--json]               cómo se lanza un id de modelo (claude / agy / codex / ollama / dsh)
@@ -2717,6 +2719,85 @@ def texto_tabla(filas, now):
     return "\n".join(L)
 
 
+RESUMEN_MAX = 24   # modelos que entran al resumen del líder (el bloque entero queda en ~30 líneas)
+RESUMEN_EFFORTS = (("low", "low"), ("medium", "med"), ("high", "high"), ("xhigh", "xhigh"), ("max", "max"))
+
+
+def para_que_sirve(f):
+    """Una frase de para qué sirve el modelo, por familia (o por nivel de inteligencia si es de OpenCode/dsh/local)."""
+    fam, mid = f["familia"], f["id"]
+    por_familia = {
+        "opus": "bases críticas, bug sin pista, o tras un fallo de uno menor",
+        "sonnet": "lo normal: código y frontend de tamaño medio",
+        "haiku": "tareas chicas con chequeo (lectura, mecánico, interfaz chica)",
+        "argon": "diseño y segunda opinión; contexto largo (1M)",
+        "flash": "lectura y mecánico con chequeo; cupo de Google",
+        "gpt-oss": "mecánico simple; sigue poco el contrato",
+        "astra": "tareas grandes (ChatGPT); pa todavía no lo lanza", "sol": "código medio (ChatGPT); pa todavía no lo lanza",
+        "luna": "tareas chicas (ChatGPT); pa todavía no lo lanza",
+    }
+    if fam in por_familia:
+        return por_familia[fam]
+    if f["proveedor"] == "local" or mid.lower().startswith(("ollama:", "dsh:ollama")):
+        return "mecánico y lectura; lento y usa la GPU del dueño"
+    if f["calidad"] >= 45:
+        return "código acotado con chequeo; no gasta cupo de pago"
+    if f["calidad"] >= 38:
+        return "mecánico, lectura y código chico con chequeo"
+    return "sólo mecánico con chequeo determinista"
+
+
+def resumen(cfg, cupos, now):
+    """Una fila por modelo habilitado (permitido) para el resumen del líder: de la tabla, sin repetir ids de varias cuentas (queda la de más cupo),
+    ordenado de más a menos inteligente. `intel` = {effort: (cifra, estimada)}; `costo` = costo relativo a Opus (1.0) o None si es gratis."""
+    por_id = {}
+    for f in tabla(cfg, cupos, now):
+        if not f["permitido"]:
+            continue
+        v = por_id.get(f["id"])
+        if v is None or (f["cupo_libre"] if f["cupo_libre"] is not None else 2) > (v["cupo_libre"] if v["cupo_libre"] is not None else 2):
+            por_id[f["id"]] = f
+    out = []
+    for f in por_id.values():
+        intel = {e: (v, False) for e, v in (f.get("calidad_por_effort") or {}).items()}
+        intel.update({e: (v, True) for e, v in (f.get("calidad_estimada_por_effort") or {}).items() if e not in intel})
+        costo = None if f["gratis"] else cfg["costo"].get("opencode-go", COSTO_GO) if f.get("plan") else cfg["costo"].get(f["familia"], COSTO_DSH_PAGO if f["familia"] == "dsh" else 0.3)
+        out.append({"id": f["id"], "proveedor": f["proveedor"], "familia": f["familia"], "calidad": f["calidad"], "estimada": f["estimada"],
+                    "effort_usado": f.get("effort_usado"), "intel": intel, "costo": costo, "gratis": f["gratis"], "plan": f.get("plan"),
+                    "cupo_libre": f["cupo_libre"], "vuelve": f["vuelve"], "agotado": f["agotado"], "sirve_para": para_que_sirve(f)})
+    out.sort(key=lambda r: (-r["calidad"], r["id"]))
+    return out
+
+
+def texto_resumen(filas, now):
+    L = ["Modelos habilitados hoy (reparto --resumen; se refresca con ese comando). Elegí vos con `-m <id>` y `--effort <e>` según el tamaño real de la tarea y lo que cuesta un error.",
+         "int. = índice de inteligencia de Artificial Analysis por effort (~ = estimado); costo relativo a Opus = 1,0; cupo = libre ahora (y cuándo vuelve)."]
+    for r in filas[:RESUMEN_MAX]:
+        if r["intel"]:
+            efs = " ".join("%s %s%s" % (c, fn(r["intel"][e][0]), "~" if r["intel"][e][1] else "") for e, c in RESUMEN_EFFORTS if e in r["intel"])
+        else:
+            efs = "%s%s" % (fn(r["calidad"]), "~" if r["estimada"] else "")
+        if r["gratis"]:
+            precio = "gratis"
+        elif r.get("plan"):
+            precio = "plan Go"
+        else:
+            precio = "pago x%s" % fn(r["costo"])
+        if r["cupo_libre"] is None:
+            cupo = "cupo sin límite"
+        elif r["agotado"]:
+            cupo = "SIN CUPO" + (" (vuelve en %s)" % humano(horas_hasta(r["vuelve"], now)) if r["vuelve"] else "")
+        else:
+            cupo = "cupo %s" % pct(r["cupo_libre"]) + (" (vuelve en %s)" % humano(horas_hasta(r["vuelve"], now)) if r["vuelve"] and r["cupo_libre"] < 0.999 else "")
+        L.append("-m %s · int. %s · %s · %s · %s" % (r["id"], efs, precio, cupo, r["sirve_para"]))
+    if len(filas) > RESUMEN_MAX:
+        L.append("(+%d modelos más: reparto --tabla)" % (len(filas) - RESUMEN_MAX))
+    if not filas:
+        L.append("(ningún modelo habilitado: revisá `excluir` en modelos.json)")
+    L.append("Guía: Haiku para lo chico con chequeo, Sonnet para lo normal, Opus sólo bases, bug sin pista o tras un fallo; si hay chequeo, preferí los cupos gratis. Detalle: skill trama-orquestar.")
+    return "\n".join(L)
+
+
 def aa_diag(cfg, filas):
     """Por cada modelo local (ids únicos de la tabla): con qué entrada de AA se emparejó (nombre y slug), su índice de inteligencia, y lo mismo por
     esfuerzo (medido, o estimado para los que faltan); o "sin coincidencia" y de dónde sale entonces su cifra. Para revisar los emparejamientos."""
@@ -2876,6 +2957,16 @@ def main(argv):
         filas = tabla(cfg, d, now)
         print(json.dumps({"version": VERSION, "leido": d.get("leido"), "modelos": filas}, ensure_ascii=False) if json_out
               else texto_tabla(filas, now))
+        return 0
+    if a[0] == "--resumen" and len(a) == 1:
+        try:
+            d = leer_cupos(cfg, now)
+        except Exception as e:
+            err("no pude leer los cupos: %s" % e)
+            return 1
+        filas = resumen(cfg, d, now)
+        print(json.dumps({"version": VERSION, "leido": d.get("leido"), "modelos": [{**r, "intel": {e: {"valor": v, "estimada": est} for e, (v, est) in r["intel"].items()}} for r in filas]}, ensure_ascii=False)
+              if json_out else texto_resumen(filas, now))
         return 0
     if a[0] == "--aa-diag" and len(a) == 1:
         try:

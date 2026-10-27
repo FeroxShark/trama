@@ -43,7 +43,10 @@
 #   pa <proyecto> --ramas                ramas de workers sin integrar
 #   pa <proyecto> --descartar <id>       tirar la rama de esa corrida (borra sus commits: confirmarlo antes)
 #   pa <proyecto> --async "<tarea>"      lanzar desacoplado y volver enseguida
-#   pa <proyecto> -m <modelo> "<tarea>"  elegir modelo (sin -m elige `reparto` según --tipo y el cupo de cada
+#   pa <proyecto> -m <modelo> "<tarea>"  elegir modelo: el jefe lo elige (con --effort) según el tamaño real de la tarea
+#                                        (`reparto --resumen` lista las opciones); con -m, reparto sólo avisa si ese modelo no
+#                                        tiene cupo y sugiere otro (sin_cupo=fallar: sale 96). Sin -m pa avisa y sigue con lo
+#                                        que sugiere `reparto` según --tipo y el cupo de cada
 #                                        suscripción; si reparto no responde, ~/.config/trama/modelos.json o el
 #                                        default de pa: claude-sonnet-5-5 high, claude-haiku-5-5 xhigh para
 #                                        --tipo mecanico). -m acepta claude-…, gemini-{4-argon,3.8-flash}-{low,medium,high},
@@ -4836,6 +4839,7 @@ fi
 # Sin -m, si reparto está en auto, `reparto --tipo <tipo> --json` elige modelo y effort según calidad
 # y cupo libre. Con --seguir se conserva el modelo de la corrida que se retoma (agy no retoma sesiones).
 # Si reparto falla o vence el tope (PA_REPARTO_TIMEOUT_S, default 15 s), cae a modelos.json o al default.
+modelo_pedido="$modelo"   # el -m del jefe (vacío = no eligió: lo decide la tabla de reparto/modelos.json y se avisa)
 vino_de_reparto=0; reparto_fallo=""
 # El tipo con el que reparto eligió, para pedirle el siguiente candidato si agy contesta 429 (el hijo de
 # --async lo recibe por el entorno: el padre es el que eligió).
@@ -4935,6 +4939,31 @@ if [[ -z "$modelo" ]]; then
   if [[ "$tipo" == mecanico ]] && (( ! leer && ! seguir )); then modelo="claude-haiku-5-5"; fi
 fi
 [[ -n "$reparto_fallo" ]] && echo "pa: reparto falló ($reparto_fallo); sigo con $modelo." >&2
+# El jefe elige modelo y effort según lo que leyó del pedido (skill trama-orquestar): una elección por tabla no mira el tamaño real de la tarea.
+# Sin -m, pa sigue con lo que sugiere reparto, pero lo avisa. Con -m, reparto sólo interviene si ese modelo no tiene cupo: avisa y sugiere otro.
+if (( lanza && ! seguir )) && [[ -z "${PA_ASYNC:-}" ]]; then
+  if [[ -z "$modelo_pedido" ]]; then
+    echo "pa: aviso: sin -m. Sigo con $modelo${esfuerzo:+ effort $esfuerzo} (lo sugirió la tabla), pero elegí vos modelo y effort según el tamaño real de la tarea: -m <id> --effort <e>. 'reparto --resumen' lista las opciones con inteligencia, costo y cupo." >&2
+  elif [[ -x "$REPARTO" ]] && [[ "$(modelos_reparto)" == auto ]]; then
+    calidad_de_modelo "$modelo" >/dev/null   # deja la tabla de reparto en $TABLA_JSON (una consulta por pa)
+    # "sin" + cuándo vuelve si el id está en la tabla y ninguna de sus cuentas tiene cupo; nada si hay cupo o no se lo conoce.
+    sc_vuelve="$(jq -r --arg m "$modelo" '[.modelos[]? | select(.id == $m)] | if length == 0 then empty
+      elif any(.[]; (.agotado | not) and (.cupo_libre == null or .cupo_libre >= 0.03)) then empty
+      else "sin " + (map(.vuelve // empty) | sort | .[0] // "") end' <<<"${TABLA_JSON:-}" 2>/dev/null || true)"
+    if [[ "$sc_vuelve" == sin* ]]; then
+      sc_tipo="$tipo"; [[ -n "$sc_tipo" ]] || { (( leer )) && sc_tipo=lectura || sc_tipo=codigo-acotado; }
+      sc_alt="$(REPARTO_STATE="${REPARTO_STATE:-$STATE/reparto}" PA_STATE="$STATE" timeout "${PA_REPARTO_TIMEOUT_S:-15}" "$REPARTO" --tipo "$sc_tipo" --json 2>/dev/null </dev/null \
+        | jq -r 'select(.modelo != null) | "-m \(.modelo)" + (if (.effort // "") != "" then " --effort \(.effort)" else "" end)' 2>/dev/null || true)"
+      gemini_politica
+      sc_hasta="${sc_vuelve#sin}"; sc_hasta="${sc_hasta# }"
+      echo "pa: aviso: $modelo no tiene cupo ahora${sc_hasta:+ (vuelve $sc_hasta)}.${sc_alt:+ Alternativa que sugiere reparto para $sc_tipo: $sc_alt.} 'reparto --resumen' lista las opciones." >&2
+      if [[ "$SIN_CUPO" == fallar ]]; then
+        echo "pa: modelos.json dice sin_cupo=fallar ($SIN_CUPO_DE): no lanzo con $modelo." >&2
+        exit 96
+      fi
+    fi
+  fi
+fi
 # --- Gemini y Claude/GPT por agy: validar, mirar el plugin y privacidad, o caer al equivalente Claude ---
 # Lo que agy no tiene (retomar sesión, MCP de claude.ai, tope de gasto
 # en US$, el tree principal sin worktree) se niega acá en vez de lanzar algo que no es lo pedido.
