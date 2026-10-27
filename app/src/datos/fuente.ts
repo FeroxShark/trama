@@ -232,6 +232,13 @@ export interface Fuente {
   abrirChangelog(): void;
   /** Actualizar Claude Code (`claude update`); `abiertos`: líderes de la app que siguen con la vieja. */
   actualizarClaude(): Promise<Actualizado>;
+  /** El aviso de "hay una Trama nueva" (release de GitHub); `null` si no hay, no se pudo saber, o esta instalación no viene de un checkout. */
+  avisoTrama(): Promise<AvisoClaude | null>;
+  alCambiarAvisoTrama(fn: (a: AvisoClaude | null) => void): () => void;
+  /** "Ahora no": no avisar de esa versión. */
+  descartarAvisoTrama(): void;
+  /** Actualizar: `git fetch --tags`, el tag nuevo y el instalador, en el main (hasta que termina); `abiertos` es siempre 0. */
+  actualizarTrama(): Promise<Actualizado>;
   /** Lo mismo para Antigravity CLI (`agy`): `null` también si no está instalado. */
   avisoAgy(): Promise<AvisoClaude | null>;
   alCambiarAvisoAgy(fn: (a: AvisoClaude | null) => void): () => void;
@@ -264,7 +271,8 @@ export type Actualizado = { ok: true; version: string; abiertos: number } | { ok
 /** Los umbrales del anillo de contexto (electron/contexto.ts); `null`, no se pudo leer. */
 export type Umbrales = { autoCompact: number | null };
 
-export type AvisoClaude = { instalada: string; ultima: string };
+/** `sucio` (sólo el de Trama): el checkout de donde se instaló tiene cambios sin commitear y Actualizar no tocaría nada. */
+export type AvisoClaude = { instalada: string; ultima: string; sucio?: boolean; notas?: string };
 
 /** Una cuenta de un CLI: `cuenta` es con quién está conectada; `error`, por qué no se pudo saber. */
 export type CuentaEstado = { instalado: boolean; logueado: boolean; cuenta: string | null; error: string | null };
@@ -389,7 +397,7 @@ const ponerReinicioFijo = (r: Reinicio) => {
 /** Lo que manda el main, mirado antes de creerle. */
 const avisoValido = (x: unknown): AvisoClaude | null => {
   const a = x as AvisoClaude | null;
-  return a && typeof a.instalada === "string" && typeof a.ultima === "string" ? { instalada: a.instalada, ultima: a.ultima } : null;
+  return a && typeof a.instalada === "string" && typeof a.ultima === "string" ? { instalada: a.instalada, ultima: a.ultima, ...(a.sucio === true ? { sucio: true } : {}), ...(typeof a.notas === "string" && a.notas.startsWith("https://github.com/") ? { notas: a.notas } : {}) } : null;
 };
 
 // Con fixtures el aviso sólo sale en sus capturas (las demás quedan como estaban).
@@ -398,6 +406,12 @@ let avisoFijo: AvisoClaude | null =
 const oyentesAviso = new Set<(a: AvisoClaude | null) => void>();
 // Con fixtures no hay aviso de agy (ninguna captura lo muestra).
 const sinAvisoAgy = async () => null;
+// El de Trama sólo sale en sus capturas, forzando una versión vieja (la instalada 0.1.0 contra la última 0.2.0).
+let avisoTramaFijo: AvisoClaude | null =
+  MODO.captura === "trama" || MODO.captura === "trama-abierto" || MODO.captura === "trama-sucio"
+    ? { instalada: "0.1.0", ultima: "0.2.0", notas: "https://github.com/trama/trama/releases/tag/v0.2.0", ...(MODO.captura === "trama-sucio" ? { sucio: true } : {}) }
+    : null;
+const oyentesAvisoTrama = new Set<(a: AvisoClaude | null) => void>();
 const SETUP_FIJO: FaltaSetup[] = [
   { id: "handy", url: "https://handy.computer" },
   { id: "ollama", url: "https://ollama.com/download" },
@@ -1018,6 +1032,21 @@ const fija: Fuente = {
     return { ok: true, version: avisoFijo?.ultima ?? "2.1.300", abiertos: 2 };
   },
   avisoAgy: sinAvisoAgy,
+  async avisoTrama() {
+    return avisoTramaFijo;
+  },
+  alCambiarAvisoTrama(fn) {
+    oyentesAvisoTrama.add(fn);
+    return () => void oyentesAvisoTrama.delete(fn);
+  },
+  descartarAvisoTrama() {
+    avisoTramaFijo = null;
+    oyentesAvisoTrama.forEach((f) => f(null));
+  },
+  async actualizarTrama() {
+    await new Promise((r) => setTimeout(r, 600));
+    return { ok: true, version: avisoTramaFijo?.ultima ?? "0.2.0", abiertos: 0 };
+  },
   // Con fixtures sólo sale en la captura `setup` (las demás quedan como estaban).
   async faltasSetup() {
     return MODO.captura === "setup" || MODO.captura === "setup-abierto" ? SETUP_FIJO : [];
@@ -1496,6 +1525,21 @@ const conPa = (m: NonNullable<typeof main>): Fuente => ({
   },
   async avisoAgy() {
     return avisoValido(await m.agy.version().catch(() => null));
+  },
+  async avisoTrama() {
+    return avisoValido(await m.trama.version().catch(() => null));
+  },
+  alCambiarAvisoTrama(fn) {
+    return m.trama.alCambiar((a) => fn(avisoValido(a)));
+  },
+  descartarAvisoTrama() {
+    void m.trama.descartar().catch(() => {});
+  },
+  async actualizarTrama() {
+    const r = (await m.trama.actualizar().catch((e) => ({ ok: false, error: mensaje(e) }))) as Record<string, unknown> | null;
+    if (r?.ok === true && typeof r.version === "string") return { ok: true, version: r.version, abiertos: 0 };
+    // El error puede venir como clave de `main.*` (electron/errores.ts): se traduce acá, antes de que el globito lo corte.
+    return { ok: false, error: typeof r?.error === "string" && r.error ? textoMain(r.error) : "?", abiertos: 0 };
   },
   async faltasSetup() {
     return faltasValidas(await m.setup.estado().catch(() => null));

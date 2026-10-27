@@ -52,6 +52,7 @@ import { ramas } from "../paneles/Ramas";
 import { pasoLider, pasoWorker } from "../paneles/PasoLanzar";
 import { conTexto, type Eleccion } from "../paneles/lanzar";
 import { rcDe, RC_CONFLICTO } from "../datos/errorpa";
+import { carcasa, carcasaActualiza } from "../carcasa";
 import { esVentana, main, mensaje } from "../puente";
 import {
   ACTIVAS,
@@ -1756,6 +1757,8 @@ export function Barra() {
             <Reinicio />
             <AvisoClaude />
             <AvisoClaude cual="agy" />
+            {/* En la carcasa de Windows el .exe se actualiza con lo suyo (Ajustes > Trama para Windows): acá no. */}
+            {carcasa() || carcasaActualiza ? null : <AvisoClaude cual="trama" />}
             <AvisoSetup />
             <footer className="pie" data-guia="pie">
               {BOTONES_PIE.map(([cual, icono]) => (

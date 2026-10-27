@@ -25,6 +25,7 @@
 # registry.json vacío si falta · unit de usuario trama-motor.service (node <app>/dist-electron/motor.js, TRAMA_LOCAL=1).
 # Si corre como root también hace el paso apt (y entonces instala TODO para root: sirve para contenedores).
 # Nada de timers ni de repos remotos.
+# TRAMA_SIN_REINICIO_VENTANA=1 no reinicia la ventana de trama al terminar (la usa la app al actualizarse a sí misma).
 # Entorno (pruebas): TRAMA_INSTALAR_CLI=0 no baja claude/agy/dsh · TRAMA_INSTALAR_DSH=0 no instala dsh · TRAMA_NODE_MAJOR (mínimo, default 22).
 set -uo pipefail
 
@@ -105,6 +106,16 @@ UNITS="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
 mal=0
 mkdir -p "$BIN" "$HOOKS" "$SKILLS" "$CONF" "$UNITS"
 export PATH="$BIN:$PATH"
+
+# De dónde se instaló: la app (aviso de "hay una Trama nueva") lee ~/.config/trama/checkout para saber en qué checkout
+# hacer `git fetch --tags` + checkout del tag + este mismo script. Sólo si la fuente es un checkout git de Trama
+# (no un worktree de pa ni un payload sin .git); si no, se borra la nota vieja y la app no avisa (no hay de dónde actualizar).
+if [[ -e "$FUENTE/.git" && -f "$FUENTE/motor/scripts/instalar-producto.sh" && "$FUENTE" != */pa/worktrees/* ]]; then
+  printf '%s\n' "$FUENTE" >"$CONF/checkout.tmp" && mv -f "$CONF/checkout.tmp" "$CONF/checkout" \
+    && ok "checkout anotado: $CONF/checkout" || aviso "no pude anotar el checkout en $CONF/checkout"
+else
+  rm -f "$CONF/checkout"
+fi
 
 # enlazar <origen absoluto> <carpeta destino> [nombre]
 enlazar() {
@@ -465,7 +476,8 @@ escritorio_app() {
   bash "$inst" --raiz "$dst" --sin-motor >>"$dst/.build.log" 2>&1 \
     || { aviso "app de escritorio: instalar.sh falló (ver $dst/.build.log)"; return 1; }
   # Si la ventana estaba andando, que pase a la versión nueva.
-  systemctl --user try-restart trama.service >/dev/null 2>&1 || true
+  # TRAMA_SIN_REINICIO_VENTANA=1 (la app que se actualiza a sí misma): no se reinicia la ventana que corre este instalador.
+  [[ "${TRAMA_SIN_REINICIO_VENTANA:-}" == 1 ]] || systemctl --user try-restart trama.service >/dev/null 2>&1 || true
   ok "app de escritorio: $dst (lanzador ~/.local/bin/trama)"
 }
 if [[ "$ESCRITORIO" == 1 || ( "$ESCRITORIO" == auto && ( -n "${WAYLAND_DISPLAY:-}" || -n "${DISPLAY:-}" ) ) ]]; then

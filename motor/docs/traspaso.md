@@ -17,7 +17,7 @@ historia (force push); se puede subir directo y mergear sin esperar el CI.
 - **Antes de cada commit**, desde `app/`: `npx tsc -p tsconfig.json --noEmit`, `npx tsc -p tsconfig.electron.json --noEmit`,
   `npx vite build`, `npm test`. Si se toca el motor que se está portando: `npm run test:paridad`.
 - **Instalar en la PC del dueño** (Linux), desde la carpeta del repo:
-  `git checkout main; git pull; bash motor/scripts/instalar-producto.sh`. No hay actualización automática todavía.
+  `git checkout main; git pull; bash motor/scripts/instalar-producto.sh`. Desde la app: el aviso "Hay una Trama nueva" hace lo mismo (ver Hecho).
 
 ## Qué es Trama (mapa rápido)
 
@@ -41,6 +41,19 @@ historia (force push); se puede subir directo y mergear sin esperar el CI.
 - **Conectores MCP:** `/mcp` en la app, Ajustes > Conectores (`mcp.json` + secretos en `claves.env`), se pasan a Claude, DeepSeek
   Harness y OpenCode; en Gemini figura "no disponible".
 - **Menú de comandos por motor**, guías rápidas que no mueven la pantalla.
+- **Aviso de "hay una Trama nueva" (Linux).** `app/electron/actualizacion-trama.ts` consulta `releases/latest` de GitHub
+  (sin token) al abrir la app y cada 6 h, sin bloquear y en silencio si no hay red; compara por semver contra la `version`
+  de `app/package.json` (0.2.0 contra v0.1.4: no avisa). Pie de la barra, mismo globito que Claude Code y agy
+  (`AvisoClaude cual="trama"`): versión nueva, "Notas de la versión", "Actualizar" y "Ahora no" (recordado por versión).
+  Actualizar corre en el main, por argv y sin shell, en el checkout de donde se instaló: `git fetch --tags`, `git checkout
+  --detach refs/tags/<tag>` y `bash motor/scripts/instalar-producto.sh`; el tag pasa por `^v\d+\.\d+\.\d+$`. El instalador
+  anota ese checkout en `~/.config/trama/checkout` (sólo si la fuente es un checkout git; si no, lo borra y la app no avisa).
+  Una instalación hecha antes de este cambio no tiene el archivo: hay que reinstalar una vez (`git checkout main; git pull;
+  bash motor/scripts/instalar-producto.sh`). Con cambios sin commitear en el checkout no toca nada y lo dice en el aviso.
+  `trama:actualizar` es sólo de la PC (`SOLO_PC_TAILNET`) y el celular ni recibe el aviso. En la carcasa de Windows no se
+  muestra (el `.exe` tiene lo suyo, Ajustes > Trama para Windows). El instalador respeta `TRAMA_SIN_REINICIO_VENTANA=1` (no
+  reinicia la ventana que lo corre: el resultado dice "Listo, reiniciá Trama"). Tests: `app/tests/actualizacion-trama.test.ts`;
+  capturas: `scripts/captura.sh trama|trama-abierto|trama-sucio`.
 - **Port a Windows, etapas 0 a 4:** CI linux + windows, base TS (`app/electron/cli/base/`), arnés de paridad bash vs TS
   (`app/tests/paridad/`), `proyecto-ruta` / `trama-estado` / `workers` en TS, hooks en `.mjs`.
 
@@ -94,16 +107,14 @@ Verificado antes del commit final: los dos `tsc` sin errores, `vite build` bien,
 
 1. **Mergear** la rama `claude/elegant-sagan-gvgbq5` a `main` e instalar.
 2. **Terminar varias cuentas de OpenCode** (punto 2 de arriba) y probarlo con opencode real.
-3. **Aviso de "hay una Trama nueva"** en la app: consultar el último release de GitHub (`FeroxShark/trama`), comparar con la
-   versión instalada y ofrecer un botón que traiga el tag y corra `instalar-producto.sh`. Aprobado por el dueño.
-4. **Revisión completa de experiencia de usuario** antes de seguir sumando cosas: ver `motor/docs/ux-pendientes.md`.
-5. **Port a Windows**, etapas 5 a 17 + W (prueba en un Windows real). Estimado: 3 a 5 días de agentes. Ideas a tomar del PR de
+3. **Revisión completa de experiencia de usuario** antes de seguir sumando cosas: ver `motor/docs/ux-pendientes.md`.
+4. **Port a Windows**, etapas 5 a 17 + W (prueba en un Windows real). Estimado: 3 a 5 días de agentes. Ideas a tomar del PR de
    Gonza ([FeroxShark/trama#1](https://github.com/FeroxShark/trama/pull/1), NO se mergea; tiene problemas de seguridad):
    terminal interactiva con `powershell -NoProfile -Command` y marca de rc (etapa 14), salud y hooks de inicio sin Git Bash
    (etapa 14), `windows/src/nativo.js` como esqueleto de la carcasa (etapa 15), listar skills de `~/.claude/skills`. Cuando
    esté la versión de Windows, avisarle a Gonza que la descargue.
-6. **Confirmar los ids `opencode-go/*`** con `opencode models` cuando el dueño tenga Go contratado.
-7. **AA:** ver si la API de AA trae costo, tokens y tiempo por esfuerzo para dejar de cargar la tabla a mano. Faltan en la tabla
+5. **Confirmar los ids `opencode-go/*`** con `opencode models` cuando el dueño tenga Go contratado.
+6. **AA:** ver si la API de AA trae costo, tokens y tiempo por esfuerzo para dejar de cargar la tabla a mano. Faltan en la tabla
    Gemini 3.8 Flash medium/low y GPT-6 Luna medium (sin costo), DeepSeek V4.1 Pro (no existe en AA) y GPT-6 Sol Daybreak (sin
    datos).
 

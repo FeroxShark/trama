@@ -1,0 +1,290 @@
+// El aviso de "hay una Trama nueva" (electron/actualizacion-trama.ts): la comparación por semver (la instalada 0.2.0
+// contra el release v0.1.4 NO avisa), la validación estricta del tag, el argv de Actualizar (sin shell), el checkout que
+// anota el instalador y el aviso entero con un GitHub y un git de mentira. Nunca toca la red ni corre el instalador real.
+import test from "node:test";
+import assert from "node:assert/strict";
+import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { registerHooks } from "node:module";
+import os from "node:os";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+registerHooks({
+  resolve(spec, ctx, next) {
+    if (spec.startsWith(".") && spec.endsWith(".js") && ctx.parentURL?.includes("/electron/")) {
+      const ts = path.join(path.dirname(fileURLToPath(ctx.parentURL)), spec.slice(0, -3) + ".ts");
+      if (existsSync(ts)) return next(spec.slice(0, -3) + ".ts", ctx);
+    }
+    return next(spec, ctx);
+  },
+});
+
+const tmp = mkdtempSync(path.join(os.tmpdir(), "trama-act-"));
+process.env.HILOS_STATE = path.join(tmp, "estado");
+const m = await import("../electron/actualizacion-trama.ts");
+
+// --- la comparación ---
+
+test("0.2.0 instalada contra v0.1.4 no es más nueva (semver, no texto)", () => {
+  assert.equal(m.esMasNueva("0.2.0", "v0.1.4"), false);
+  assert.equal(m.esMasNueva("0.2.0", "v0.2.0"), false);
+  assert.equal(m.esMasNueva("0.2.0", "v0.2.1"), true);
+  assert.equal(m.esMasNueva("0.1.4", "v0.2.0"), true);
+});
+
+test("la comparación es número a número: 0.10.0 es más nueva que 0.9.0 y 0.2.0 que 0.1.14", () => {
+  assert.equal(m.esMasNueva("0.9.0", "v0.10.0"), true);
+  assert.equal(m.esMasNueva("0.10.0", "v0.9.0"), false);
+  assert.equal(m.esMasNueva("0.1.14", "v0.2.0"), true);
+  assert.equal(m.esMasNueva("1.0.0", "v0.99.99"), false);
+});
+
+test("sin instalada o sin tag entendible no hay aviso", () => {
+  assert.equal(m.esMasNueva(null, "v1.0.0"), false);
+  assert.equal(m.esMasNueva("0.1.0", null), false);
+  assert.equal(m.esMasNueva("0.1.0", "latest"), false);
+  assert.equal(m.esMasNueva("0.1.0", "v1.0.0-rc1"), false);
+});
+
+// --- el tag ---
+
+test("tagValido: sólo vX.Y.Z", () => {
+  for (const ok of ["v0.1.4", "v10.20.30", "v0.0.0"]) assert.equal(m.tagValido(ok), true, ok);
+  const mal = ["0.1.4", "v0.1", "v0.1.4.1", "v0.1.4-beta", "v0.1.4\n", " v0.1.4", "v0.1.4 ", "V0.1.4", "v0.1.x", "v٠.١.٢", "--upload-pack=x", "v1.2.3; rm -rf ~", "v1.2.3\nv4.5.6", "../v1.2.3", "refs/tags/v1.2.3", "", null, undefined, 123, {}];
+  for (const x of mal) assert.equal(m.tagValido(x), false, JSON.stringify(x));
+});
+
+test("tagDeRelease: del JSON de GitHub, sólo un release publicado con un tag válido", () => {
+  assert.equal(m.tagDeRelease({ tag_name: "v0.1.4", draft: false, prerelease: false }), "v0.1.4");
+  assert.equal(m.tagDeRelease({ tag_name: "v0.1.4" }), "v0.1.4");
+  assert.equal(m.tagDeRelease({ tag_name: "v0.1.4", prerelease: true }), null);
+  assert.equal(m.tagDeRelease({ tag_name: "v0.1.4", draft: true }), null);
+  assert.equal(m.tagDeRelease({ tag_name: "v0.1.4; id" }), null);
+  assert.equal(m.tagDeRelease({ tag_name: 4 }), null);
+  assert.equal(m.tagDeRelease({ message: "API rate limit exceeded" }), null);
+  assert.equal(m.tagDeRelease(null), null);
+  assert.equal(m.tagDeRelease("v0.1.4"), null);
+});
+
+test("repoDe: del campo repository de package.json (URL, abreviatura u objeto); lo que no es de GitHub, null", () => {
+  assert.equal(m.repoDe("https://github.com/dueno/proyecto.git"), "dueno/proyecto");
+  assert.equal(m.repoDe("git+https://github.com/dueno/proyecto.git"), "dueno/proyecto");
+  assert.equal(m.repoDe("github:dueno/proyecto"), "dueno/proyecto");
+  assert.equal(m.repoDe({ type: "git", url: "https://github.com/dueno/proyecto" }), "dueno/proyecto");
+  for (const x of ["https://gitlab.com/a/b", "github:a/b/../c", "https://github.com/a/b?x=1", "", null, 3]) assert.equal(m.repoDe(x), null, JSON.stringify(x));
+});
+
+test("urlNotas sólo arma el link de un tag y un repo válidos", () => {
+  assert.equal(m.urlNotas("v0.1.4", "dueno/proyecto"), "https://github.com/dueno/proyecto/releases/tag/v0.1.4");
+  assert.equal(m.urlNotas("v0.1.4/../../x", "dueno/proyecto"), null);
+  assert.equal(m.urlNotas("v0.1.4", null), null);
+  assert.equal(m.urlNotas("v0.1.4", "a/b/../c"), null);
+});
+
+// --- el argv de Actualizar ---
+
+test("pasosActualizar: fetch --tags, checkout --detach refs/tags/<tag> y el instalador, todo por argv", () => {
+  const dir = "/home/u/trama";
+  const p = m.pasosActualizar("v0.3.1", dir);
+  assert.deepEqual(
+    p.map((x) => [x.cmd, ...x.args]),
+    [
+      ["git", "fetch", "--tags"],
+      ["git", "-c", "advice.detachedHead=false", "checkout", "--detach", "refs/tags/v0.3.1"],
+      ["bash", "/home/u/trama/motor/scripts/instalar-producto.sh"],
+    ],
+  );
+  for (const x of p) assert.equal(x.cwd, dir);
+  assert.equal(p[2].env?.TRAMA_SIN_REINICIO_VENTANA, "1");
+  // Ningún argumento sale del tag tal cual: el tag nunca se pega a un shell ni queda suelto como opción.
+  assert.ok(p.every((x) => !x.args.includes("v0.3.1")));
+});
+
+test("pasosActualizar rechaza un tag o una ruta que no valen (nunca llegan a git)", () => {
+  for (const tag of ["--force", "v1.2.3; touch /tmp/x", "main", "v1.2", "$(id)", "v1.2.3\n--exec=x"]) assert.throws(() => m.pasosActualizar(tag, "/x"), /tag inválido/, tag);
+  assert.throws(() => m.pasosActualizar("v1.2.3", "relativa/trama"), /checkout inválido/);
+  assert.throws(() => m.pasosActualizar("v1.2.3", "/x\0y"), /checkout inválido/);
+});
+
+test("falloDelInstalador: las líneas AVISO app… del instalador (que sale 0) son una falla; las demás no", () => {
+  assert.equal(m.falloDelInstalador("ok  algo\nAVISO  app: la compilación falló (ver /x/.build.log)\n"), "app: la compilación falló (ver /x/.build.log)");
+  assert.equal(m.falloDelInstalador("AVISO  app de escritorio: sin node"), "app de escritorio: sin node");
+  assert.equal(m.falloDelInstalador("AVISO  apt-get update falló\nok  todo"), null);
+  assert.equal(m.falloDelInstalador("listo."), null);
+});
+
+// --- el checkout que anota el instalador ---
+
+function checkoutFalso(ok = true) {
+  const dir = mkdtempSync(path.join(tmp, "co-"));
+  if (ok) {
+    mkdirSync(path.join(dir, ".git"));
+    mkdirSync(path.join(dir, "motor", "scripts"), { recursive: true });
+    writeFileSync(path.join(dir, "motor", "scripts", "instalar-producto.sh"), "#!/bin/bash\n");
+  }
+  return dir;
+}
+function configCon(linea: string | null) {
+  const cfg = mkdtempSync(path.join(tmp, "cfg-"));
+  mkdirSync(path.join(cfg, "trama"), { recursive: true });
+  if (linea !== null) writeFileSync(path.join(cfg, "trama", "checkout"), linea);
+  return { XDG_CONFIG_HOME: cfg, HOME: cfg } as NodeJS.ProcessEnv;
+}
+
+test("leerCheckout: la ruta anotada si sigue siendo un checkout de Trama; si no, null", () => {
+  const co = checkoutFalso();
+  assert.equal(m.leerCheckout(configCon(`${co}\n`)), co);
+  assert.equal(m.leerCheckout(configCon(co)), co);
+  assert.equal(m.leerCheckout(configCon(null)), null);
+  assert.equal(m.leerCheckout(configCon("")), null);
+  assert.equal(m.leerCheckout(configCon("relativa\n")), null);
+  assert.equal(m.leerCheckout(configCon(`${checkoutFalso(false)}\n`)), null);
+});
+
+// --- el aviso entero, con GitHub y git de mentira ---
+
+type Llamada = { cmd: string; args: string[]; cwd: string; env?: Record<string, string> };
+function armar(o: { instalada: string; tag?: string | null; sucio?: boolean; sinRed?: boolean; falla?: string; avisoInstalador?: string; checkout?: string | null; archivo?: string }) {
+  const llamadas: Llamada[] = [];
+  let pedidos = 0;
+  let reloj = 1_000_000;
+  const co = o.checkout === undefined ? checkoutFalso() : o.checkout;
+  const archivo = o.archivo ?? path.join(mkdtempSync(path.join(tmp, "st-")), "trama-version.json");
+  const act = m.crearActualizacionTrama({
+    archivo,
+    checkout: () => co,
+    instalada: () => o.instalada,
+    repo: () => "dueno/proyecto",
+    ahora: () => reloj,
+    traer: async () => {
+      pedidos++;
+      if (o.sinRed) throw new Error("ENOTFOUND api.github.com");
+      return { ok: true, json: async () => (o.tag === null ? { message: "Not Found" } : { tag_name: o.tag ?? "v0.1.4" }) };
+    },
+    correr: async (p) => {
+      llamadas.push({ cmd: p.cmd, args: p.args, cwd: p.cwd, env: p.env });
+      if (p.cmd === "git" && p.args[0] === "status") return { code: 0, salida: o.sucio ? " M motor/bin/pa\n" : "" };
+      if (o.falla && p.args.join(" ").includes(o.falla)) return { code: 128, salida: "fatal: unable to access 'https://github.com/x': Could not resolve host\n" };
+      if (p.cmd === "bash") return { code: 0, salida: o.avisoInstalador ?? "listo. Para abrir la interfaz: trama-motor abrir\n" };
+      return { code: 0, salida: "" };
+    },
+  });
+  return { act, llamadas, pedidos: () => pedidos, avanzar: (ms: number) => (reloj += ms), co, archivo };
+}
+
+test("instalada 0.2.0 y último release v0.1.4: no avisa", async () => {
+  const x = armar({ instalada: "0.2.0", tag: "v0.1.4" });
+  assert.equal(await x.act.leerAviso(), null);
+  assert.equal(x.pedidos(), 1);
+});
+
+test("instalada 0.1.0 y último v0.1.4: avisa con la versión nueva y si el checkout está sucio", async () => {
+  const x = armar({ instalada: "0.1.0", tag: "v0.1.4" });
+  assert.deepEqual(await x.act.leerAviso(), { instalada: "0.1.0", ultima: "0.1.4", sucio: false, notas: "https://github.com/dueno/proyecto/releases/tag/v0.1.4" });
+  const y = armar({ instalada: "0.1.0", tag: "v0.1.4", sucio: true });
+  assert.equal((await y.act.leerAviso())?.sucio, true);
+});
+
+test("sin red o con un GitHub que no contesta bien: silencio, y no se insiste en cada pedido", async () => {
+  const x = armar({ instalada: "0.1.0", sinRed: true });
+  assert.equal(await x.act.leerAviso(), null);
+  assert.equal(await x.act.leerAviso(), null);
+  assert.equal(x.pedidos(), 1);
+  x.avanzar(16 * 60_000);
+  await x.act.leerAviso();
+  assert.equal(x.pedidos(), 2);
+  const y = armar({ instalada: "0.1.0", tag: null });
+  assert.equal(await y.act.leerAviso(), null);
+});
+
+test("se vuelve a preguntar a las 6 h, no antes", async () => {
+  const x = armar({ instalada: "0.1.0" });
+  await x.act.leerAviso();
+  x.avanzar(60 * 60_000);
+  await x.act.leerAviso();
+  assert.equal(x.pedidos(), 1);
+  x.avanzar(6 * 60 * 60_000);
+  await x.act.leerAviso();
+  assert.equal(x.pedidos(), 2);
+});
+
+test("sin checkout anotado no hay aviso ni consulta ni Actualizar", async () => {
+  const x = armar({ instalada: "0.1.0", checkout: null });
+  assert.equal(await x.act.leerAviso(), null);
+  assert.equal(x.pedidos(), 0);
+  const r = await x.act.actualizar();
+  assert.equal(r.ok, false);
+  assert.equal(x.llamadas.length, 0);
+});
+
+test("Ahora no: oculta esa versión y avisa si sale otra más nueva", async () => {
+  const x = armar({ instalada: "0.1.0", tag: "v0.1.4" });
+  assert.ok(await x.act.leerAviso());
+  let visto: unknown = "nada";
+  x.act.alCambiarAviso((a) => (visto = a));
+  await x.act.descartar();
+  assert.equal(visto, null);
+  x.avanzar(7 * 60 * 60_000);
+  assert.equal(await x.act.leerAviso(), null);
+  // El mismo archivo de estado con un release más nuevo: la versión ocultada no vale para la siguiente.
+  const otra = armar({ instalada: "0.1.0", tag: "v0.1.4" });
+  await otra.act.leerAviso();
+  await otra.act.descartar();
+  const z = armar({ instalada: "0.1.0", tag: "v0.1.5", archivo: otra.archivo, checkout: otra.co });
+  assert.equal(await z.act.leerAviso(), null, "la ocultada 0.1.4 sigue oculta mientras el release sea el mismo día");
+  z.avanzar(7 * 60 * 60_000);
+  assert.equal((await z.act.leerAviso())?.ultima, "0.1.5");
+});
+
+test("Actualizar corre fetch, checkout del tag y el instalador, en ese orden y en el checkout", async () => {
+  const x = armar({ instalada: "0.1.0", tag: "v0.1.4" });
+  await x.act.leerAviso();
+  x.llamadas.length = 0;
+  const r = await x.act.actualizar();
+  assert.deepEqual(r, { ok: true, version: "0.1.4" });
+  assert.deepEqual(
+    x.llamadas.map((l) => [l.cmd, ...l.args]),
+    [
+      ["git", "status", "--porcelain", "--untracked-files=no"],
+      ["git", "fetch", "--tags"],
+      ["git", "-c", "advice.detachedHead=false", "checkout", "--detach", "refs/tags/v0.1.4"],
+      ["bash", path.join(x.co!, "motor", "scripts", "instalar-producto.sh")],
+    ],
+  );
+  assert.ok(x.llamadas.every((l) => l.cwd === x.co));
+});
+
+test("Actualizar con cambios sin commitear: no corre fetch ni checkout ni el instalador", async () => {
+  const x = armar({ instalada: "0.1.0", tag: "v0.1.4", sucio: true });
+  await x.act.leerAviso();
+  x.llamadas.length = 0;
+  const r = await x.act.actualizar();
+  assert.equal(r.ok, false);
+  assert.match(String(!r.ok && r.error), /main\.tramaSucio/);
+  assert.deepEqual(x.llamadas.map((l) => l.args[0]), ["status"]);
+});
+
+test("Actualizar sin versión nueva no corre nada", async () => {
+  const x = armar({ instalada: "0.2.0", tag: "v0.1.4" });
+  await x.act.leerAviso();
+  x.llamadas.length = 0;
+  const r = await x.act.actualizar();
+  assert.equal(r.ok, false);
+  assert.equal(x.llamadas.length, 0);
+});
+
+test("Actualizar: si git falla, el motivo corto es lo último que dijo y no sigue con los demás pasos", async () => {
+  const x = armar({ instalada: "0.1.0", tag: "v0.1.4", falla: "fetch" });
+  await x.act.leerAviso();
+  x.llamadas.length = 0;
+  const r = await x.act.actualizar();
+  assert.deepEqual(r, { ok: false, error: "fatal: unable to access 'https://github.com/x': Could not resolve host" });
+  assert.deepEqual(x.llamadas.map((l) => l.args[0]), ["status", "fetch"]);
+});
+
+test("Actualizar: un AVISO app… del instalador (que sale 0) es una falla", async () => {
+  const x = armar({ instalada: "0.1.0", tag: "v0.1.4", avisoInstalador: "AVISO  app: la compilación falló (ver /x/.build.log)\nlisto.\n" });
+  await x.act.leerAviso();
+  const r = await x.act.actualizar();
+  assert.deepEqual(r, { ok: false, error: "app: la compilación falló (ver /x/.build.log)" });
+});
