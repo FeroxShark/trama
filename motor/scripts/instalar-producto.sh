@@ -246,11 +246,9 @@ registrar_hooks() {
   command -v jq >/dev/null 2>&1 || { aviso "jq no está: no registré los hooks en $CFG"; return; }
   [[ -s "$CFG" ]] || echo '{}' >"$CFG"
   jq -e 'type == "object"' "$CFG" >/dev/null 2>&1 || { aviso "$CFG no es un JSON válido: no lo toqué (registrá a mano destructive-guard.sh y statusline-espejo.sh)"; return; }
-  local guard="$HOOKS/destructive-guard.sh" espejo="$HOOKS/statusline-espejo.sh" resumen="$HOOKS/resumen-modelos.sh" nuevo
-  nuevo="$(jq --arg guard "$guard" --arg espejo "$espejo" --arg resumen "$resumen" '
-      (if ([.hooks.SessionStart[]?.hooks[]?.command // empty] | any(test("resumen-modelos\\.sh")))
-       then . else .hooks.SessionStart = ((.hooks.SessionStart // []) + [{hooks: [{type: "command", command: ("bash " + ($resumen | @sh)), timeout: 10}]}]) end)
-      | (if ([.hooks.PreToolUse[]?.hooks[]?.command // empty] | any(test("destructive-guard\\.sh")))
+  local guard="$HOOKS/destructive-guard.sh" espejo="$HOOKS/statusline-espejo.sh" nuevo
+  nuevo="$(jq --arg guard "$guard" --arg espejo "$espejo" '
+      (if ([.hooks.PreToolUse[]?.hooks[]?.command // empty] | any(test("destructive-guard\\.sh")))
        then . else .hooks.PreToolUse = ((.hooks.PreToolUse // []) + [{matcher: "Bash", hooks: [{type: "command", command: ("bash " + ($guard | @sh))}]}]) end)
       | (if ((.statusLine.command // "") | test("statusline-espejo\\.sh")) then .
          elif (.statusLine.type // "command") == "command" and ((.statusLine.command // "") != "")
@@ -262,9 +260,22 @@ registrar_hooks() {
   # Si settings.json es un symlink (dotfiles, stow), se escribe el ARCHIVO al que apunta: un mv sobre el enlace lo
   # reemplazaba por un archivo común y lo dejaba afuera del repo de dotfiles.
   local destino; destino="$(readlink -f "$CFG" 2>/dev/null || echo "$CFG")"
-  printf '%s\n' "$nuevo" >"$destino.tmp.$$" && mv -f "$destino.tmp.$$" "$destino" && hecho "$CFG: destructive-guard, statusline-espejo y resumen-modelos registrados (copia: $CFG.trama-bak-$(date +%Y%m%d))"
+  printf '%s\n' "$nuevo" >"$destino.tmp.$$" && mv -f "$destino.tmp.$$" "$destino" && hecho "$CFG: destructive-guard y statusline-espejo registrados (copia: $CFG.trama-bak-$(date +%Y%m%d))"
 }
 registrar_hooks
+
+# Resumen de modelos para el líder (SessionStart): aparte de registrar_hooks, que el port de app/electron/cli/hooks.ts replica 1 a 1.
+registrar_resumen() {
+  local resumen="$HOOKS/resumen-modelos.sh" nuevo destino
+  [[ -e "$resumen" ]] && command -v jq >/dev/null 2>&1 && [[ -s "$CFG" ]] && jq -e 'type == "object"' "$CFG" >/dev/null 2>&1 || return 0
+  nuevo="$(jq --arg resumen "$resumen" '
+      if ([.hooks.SessionStart[]?.hooks[]?.command // empty] | any(test("resumen-modelos\\.sh"))) then .
+      else .hooks.SessionStart = ((.hooks.SessionStart // []) + [{hooks: [{type: "command", command: ("bash " + ($resumen | @sh)), timeout: 10}]}]) end' "$CFG")" || return 0
+  [[ "$nuevo" == "$(jq . "$CFG")" ]] && return 0
+  destino="$(readlink -f "$CFG" 2>/dev/null || echo "$CFG")"
+  printf '%s\n' "$nuevo" >"$destino.tmp.$$" && mv -f "$destino.tmp.$$" "$destino" && hecho "$CFG: resumen-modelos registrado (SessionStart del líder)"
+}
+registrar_resumen
 
 # --- home: líder genérico (sólo si no existen) -----------------------------------------------------------
 for p in CLAUDE.md GEMINI.md; do
