@@ -1,5 +1,16 @@
 # Cambios
 
+## 0.2.2
+
+- Mensajes en cola: todo lo encolado le llega al líder junto, en un solo mensaje y entre herramientas, sin interrumpir.
+- Barra de cupos: logos siempre visibles, Google con filas de Gemini, Claude/GPT y Argon (5 h y semana), cuánto falta para el reinicio a la vista y tooltip corto. Sin filas "principal" repetidas.
+- OpenCode: varias cuentas (cada una aislada), plan Gratis/Go/Go Plus detectado solo y fila propia en la barra.
+- Subagentes: los terminados se pliegan y se archivan.
+- Chip de modelo: muestra el esfuerzo en todos los motores (palabra y gráfico, max lleno).
+- Proyectos: estado de instrucciones legible, "Acortar con un agente" y fusión con un agente.
+- Transición corta entre vistas y piezas nuevas de Ajustes.
+- Base para detectar modelos locales de llama.cpp, LM Studio y vLLM (la pantalla llega en la próxima).
+
 ## 0.2.1
 
 - Aviso de "hay una Trama nueva": Trama mira el último release y ofrece Actualizar desde la app (sin GitHub ni comandos).
