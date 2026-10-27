@@ -211,7 +211,12 @@ test("probar sin conmutador: arranca la unit con systemctl y espera a que llama-
     };
     const r = await probarLocal({ id: "modelo-local-ejemplo", ctx: 65536 }, d);
     assert.equal(r.ok, true, r.error);
-    assert.deepEqual(e.acciones(), ["systemctl --user stop llama-server-ejemplo.service", "systemctl --user start llama-server-ejemplo.service"]);
+    // La otra unit del mismo puerto se para ANTES de arrancar esta.
+    assert.deepEqual(e.acciones(), [
+      "systemctl --user stop llama-server-ejemplo.service",
+      "systemctl --user stop llama-server-chico.service",
+      "systemctl --user start llama-server-ejemplo.service",
+    ]);
   } finally {
     await e.limpiar();
   }

@@ -252,8 +252,11 @@ const parar = (l: LocalDef, d: Deps) => d.ejecutar("systemctl", ["--user", "stop
 
 /** Sin conmutador: arranca la unit y espera a que llama-server conteste `/health` sirviendo a este modelo. Rechaza si no llega a tiempo. */
 async function arrancarUnit(l: LocalDef, d: Deps): Promise<string> {
-  await d.ejecutar("systemctl", ["--user", "start", l.unit], { timeout: 60_000 });
+  // Un modelo por puerto: las otras units declaradas que escuchan donde esta se paran ANTES (`stop` espera a que mueran). Sin
+  // esto, arrancarla con la otra viva daba "couldnt bind ... port: 8080", start-limit-hit y el modelo viejo seguía sirviendo.
   const url = urlLlama(d, l);
+  for (const o of defsDe(d)) if (o.unit !== l.unit && urlLlama(d, o) === url) await parar(o, d);
+  await d.ejecutar("systemctl", ["--user", "start", l.unit], { timeout: 60_000 });
   const fin = d.ahora() + PROBAR_ESPERA_MS;
   while (d.ahora() < fin) {
     if ((await d.pedirJson(`${url}/health`, 3000)) != null && aliasDe(await d.pedirJson(`${url}/v1/models`, 3000)).includes(l.dshId)) return "";
