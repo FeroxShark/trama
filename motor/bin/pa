@@ -81,9 +81,13 @@
 #                                        es lo que agrupa `pa --rinde`. Un --seguir sin --tipo hereda el de la retomada
 #   pa <proyecto> --fase F1..F7 --tarea <slug> "<t>"  fase del protocolo y tarea madre de la corrida (o env PA_FASE / PA_TAREA): van a medicion.tsv
 #                                        y al .hilo; `pa --rinde --por fase|tarea` las agrupa. Un --seguir las hereda
-#   pa --rubrica 'A=1 B=ejecutar C=completo D=bajo E=si' [--json]  qué fila de la tabla de modelos del protocolo da (A archivos: 1|2-3|>3,
-#                                        B ejecutar|decidir, C completo|parcial|ninguno, D bajo|alto, E si|no; M=si = sin lógica nueva) y
-#                                        con qué -m/--effort; no lanza nada. Sale 3 si la fila dice "no se lanza" (partir / escribir el chequeo)
+#   pa --rubrica 'A=chico B=ejecutar C=completo D=bajo E=si' [--json]  qué fila de la tabla v2 del protocolo da (protocolo-orquestacion-v2.md,
+#                                        sección 6) y con qué -m/--effort; no lanza nada. A tamaño: chico|mediano|grande (o 1|2-3|>3, se mapean),
+#                                        medido en archivos de código sin tests ni i18n de T0 y en KB de lectura; B ejecutar|decidir,
+#                                        C completo|parcial|ninguno, D bajo|alto, E si|no. Opcionales: I=si (indivisible, con A=grande),
+#                                        K=si (la corrida 1b ya compactó: va al dueño), M=si (sin lógica nueva: fila 9). Sale 3 si la fila dice
+#                                        "no se lanza" (partir, escribir el chequeo, al dueño) y 98 si la fila da un modelo o effort que
+#                                        modelos.json tiene apagado (no lo devuelve). --json: "fila" es número, o el id ("1b", "3a"...).
 #   pa <proyecto> --rubrica '<A=.. B=.. ..>' "<t>"  lanza con el modelo y el effort que da la fila (un -m/--effort le gana) y anota
 #                                        las respuestas, la fila y el modelo estimado en medicion.tsv
 #   pa <proyecto> --cuenta <id> "<t>"   correr con esa cuenta de la suscripción (bin/cuentas; default: la de
@@ -152,7 +156,7 @@
 #                    96 sin cupo / modelo no disponible y sin_cupo=fallar (o esperar sin --async, o se acabó la espera) ·
 #                    97 OpenCode cortó por límite de uso: ese modelo queda enfriado N horas en reparto (PA_ENFRIAR_HORAS, default 5) ·
 #                    98 el dueño apagó ese -m (excluir) o ese --effort (efforts_permitidos) en modelos.json: con --ok-dueno corre · 130 matado.
-#                    (`pa --rubrica` / `pa <p> --rubrica`: 3 si la fila de la tabla dice "no se lanza".)
+#                    (`pa --rubrica` / `pa <p> --rubrica`: 3 si la fila de la tabla dice "no se lanza"; 98 si da un modelo o effort apagado en modelos.json.)
 #
 # Puestos: hasta PA_PUESTOS (default 3) workers que escriben corren EN PARALELO en el mismo
 # proyecto, cada uno en su worktree fijo (`worktrees/<slug>`, `worktrees/<slug>@2`, …) y su rama.
@@ -2735,7 +2739,7 @@ reescribe_lineas() {   # repo a1 b1 a2 b2
 # RUB_MODELO, RUB_EFFORT, RUB_TIPO (sólo la 9: mecanico) y RUB_NOTA (el "además" de la tabla). Sale 0 si se lanza, 3 si la fila dice
 # "no se lanza" (RUB_MODELO queda vacío), 2 si el texto está mal.
 rubrica_resolver() {
-  local txt="${1//,/ }" t k v rc=0 A="" B="" C="" D="" E="" I="no" K="no" M="no"
+  local txt="${1//,/ }" t k v excl ap rc=0 A="" B="" C="" D="" E="" I="no" K="no" M="no"
   RUB_NORM="" RUB_FILA="" RUB_MODELO="" RUB_EFFORT="" RUB_TIPO="" RUB_NOTA=""
   for t in $txt; do
     [[ "$t" == *=* ]] || { echo "pa: --rubrica: '$t' no es CLAVE=valor. Va así: 'A=chico B=ejecutar C=completo D=bajo E=si' (A: chico|mediano|grande, B: ejecutar|decidir, C: completo|parcial|ninguno, D: bajo|alto, E: si|no; opcionales I, K, M: si|no)." >&2; return 2; }
@@ -2780,6 +2784,17 @@ rubrica_resolver() {
   elif [[ "$M" == si && "$A" == chico ]]; then RUB_FILA=9; RUB_MODELO=opencode:opencode/glm-5.3-flash-free; RUB_TIPO=mecanico; RUB_NOTA="--tipo mecanico; plan B claude-haiku-5-5 medium (-m opencode:opencode/glm-5.3-flash-free,claude-haiku-5-5)."
   else RUB_FILA=10; RUB_MODELO=claude-haiku-5-5; RUB_EFFORT=xhigh
   fi
+  # Nunca devolver un modelo o effort que el dueño apagó en modelos.json: los mismos chequeos que -m (exit 98).
+  if [[ -n "$RUB_MODELO" ]]; then
+    if excl="$(excluido_por "$RUB_MODELO")"; then
+      echo "pa: --rubrica: la fila $RUB_FILA da $RUB_MODELO, y modelos.json lo excluye (excluir: $excl). No lo devuelvo: el dueño lo prende en Ajustes > Modelos." >&2
+      RUB_MODELO="" RUB_EFFORT="" RUB_TIPO=""; return 98
+    fi
+    if [[ -n "$RUB_EFFORT" ]] && ap="$(effort_apagado "$RUB_MODELO" "$RUB_EFFORT")"; then
+      echo "pa: --rubrica: la fila $RUB_FILA da $RUB_MODELO con effort $RUB_EFFORT, y modelos.json lo tiene apagado (efforts_permitidos: ${ap// /, }). No lo devuelvo: el dueño lo prende en Ajustes > Modelos." >&2
+      RUB_MODELO="" RUB_EFFORT="" RUB_TIPO=""; return 98
+    fi
+  fi
   return "$rc"
 }
 # `pa --rubrica '<respuestas>' [--json]`: qué fila de la tabla da, con qué modelo y effort (no lanza nada). Sale 3 si la fila dice "no se lanza".
@@ -2793,7 +2808,7 @@ cmd_rubrica() {
   done
   [[ -n "$texto" ]] || { echo "uso: pa --rubrica 'A=chico B=ejecutar C=completo D=bajo E=si' [--json]" >&2; return 2; }
   rubrica_resolver "$texto" || rc=$?
-  (( rc == 2 )) && return 2
+  (( rc == 2 || rc == 98 )) && return "$rc"
   if (( json )); then
     jq -n --arg r "$RUB_NORM" --arg f "$RUB_FILA" --arg m "$RUB_MODELO" --arg e "$RUB_EFFORT" --arg t "$RUB_TIPO" --arg n "$RUB_NOTA" \
       '{version: 1, rubrica: $r, fila: (if $f | test("^[0-9]+$") then ($f | tonumber) else $f end), lanza: ($m != ""), modelo: (if $m == "" then null else $m end),
@@ -2893,7 +2908,7 @@ cmd_rinde_rubrica() {   # $1 = días, $2 = json 0|1
     FNR == 1 { for (i = 1; i <= NF; i++) c[$i] = i; next }
     NF < 5 || $1 !~ /^[0-9][0-9][0-9][0-9]-/ || $1 < desde { next }
     {
-      f = v("rub_fila"); if (f !~ /^[0-9]+$/) next
+      f = v("rub_fila"); if (f !~ /^[0-9]+[a-z]?$/) next
       n[f]++; mo[f] = v("rub_modelo"); ef[f] = v("rub_effort")
       if (v("modelo") == v("rub_modelo")) {
         est[f]++
@@ -2901,13 +2916,13 @@ cmd_rinde_rubrica() {   # $1 = días, $2 = json 0|1
         if (i == "0" || (i == "1" && (r == "0" || r == "1"))) { dato[f]++; if (i == "1" && r == "0") ok[f]++ }
       }
     }
-    END { for (f in n) print f + 0, mo[f], ef[f], n[f], est[f] + 0, dato[f] + 0, ok[f] + 0, (dato[f] ? sprintf("%.0f", 100 * ok[f] / dato[f]) : "") }' "$MEDICION" | LC_ALL=C sort -t$'\t' -k1,1n)"
+    END { for (f in n) print f, mo[f], ef[f], n[f], est[f] + 0, dato[f] + 0, ok[f] + 0, (dato[f] ? sprintf("%.0f", 100 * ok[f] / dato[f]) : "") }' "$MEDICION" | LC_ALL=C sort -t$'\t' -k1,1V)"
   if (( json )); then
     jq -Rn --arg dias "$dias" --arg desde "$desde" '
       def n: if . == "" then null else tonumber end;
       {version: 1, dias: ($dias | tonumber), desde: $desde, por: "rubrica",
        filas: [inputs | select(. != "") | split("\t")
-               | {fila: (.[0] | n), modelo_estimado: (if .[1] == "" then null else .[1] end), effort_estimado: (if .[2] == "" then null else .[2] end),
+               | {fila: (.[0] | if . == "" then null elif test("^[0-9]+$") then tonumber else . end), modelo_estimado: (if .[1] == "" then null else .[1] end), effort_estimado: (if .[2] == "" then null else .[2] end),
                   n: (.[3] | n), con_modelo_estimado: (.[4] | n), con_dato: (.[5] | n), ok: (.[6] | n), pct_acierto: (.[7] | n)}]}' <<<"$filas"
     return 0
   fi
@@ -5117,7 +5132,9 @@ fi
 # --rubrica '<A=.. B=.. C=.. D=.. E=..>': sin -m, la tabla de la sección 5 del protocolo da el modelo y el effort (y -m/--effort le
 # ganan: la fila igual queda anotada, que es cómo se mide si la estimación acertó). Fila "no se lanza": sale 3, sin lanzar nada.
 if (( lanza )) && [[ -n "$rubrica" ]]; then
-  rubrica_resolver "$rubrica" || exit $?
+  rub_rc=0; rubrica_resolver "$rubrica" || rub_rc=$?
+  (( rub_rc == 3 )) && echo "pa: rúbrica ($RUB_NORM): fila $RUB_FILA no se lanza. $RUB_NOTA" >&2
+  (( rub_rc )) && exit "$rub_rc"
   if (( ! modelo_de_m )); then
     modelo="$RUB_MODELO"; modelo_de_m=1
     if [[ -n "$RUB_EFFORT" && -z "$esfuerzo" ]]; then esfuerzo="$RUB_EFFORT"; esfuerzo_flag=1; export PA_EFFORT="$RUB_EFFORT"; fi
