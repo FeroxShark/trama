@@ -38,6 +38,14 @@ test("a npm se le pregunta si nunca contestó o pasaron 6 h", () => {
   assert.equal(hayQueConsultar(t + 60_000, t), true);
 });
 
+test("hayQueConsultar con otro intervalo (Trama: 30 min) no cambia el de Claude Code", () => {
+  const t = 1_800_000_000_000;
+  const media = 30 * 60_000;
+  assert.equal(hayQueConsultar(t - 10 * 60_000, t, media), false);
+  assert.equal(hayQueConsultar(t - media, t, media), true);
+  assert.equal(hayQueConsultar(t - 10 * 60_000, t), false);
+});
+
 test("el aviso sale sólo si hay una más nueva y no se descartó", () => {
   const c = { ...VACIO, instalada: "2.1.287", ultima: "2.1.300" };
   assert.deepEqual(avisoDe(c), { instalada: "2.1.287", ultima: "2.1.300" });

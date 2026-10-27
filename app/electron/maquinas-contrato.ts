@@ -185,6 +185,7 @@ export const RUTAS: Readonly<Record<string, Ruta>> = {
   "agy:descartar": "local",
   "agy:actualizar": "local",
   "trama:version": "local",
+  "trama:buscar": "local",
   "trama:descartar": "local",
   "trama:actualizar": "local",
   "trama:cancelarEspera": "local",

@@ -20,7 +20,7 @@ import { alCambiarAuto, barrer, cambioPrendido, estadoAuto } from "./autointegra
 import { alCambiarSalud, barrerSalud, cortarChequeos, estadoSalud, integrando, integrandoDesde, mientrasIntegra } from "./salud.js";
 import { actualizar, alCambiarAviso, descartar, leerAviso } from "./actualizacion.js";
 import { actualizarAgy, alCambiarAvisoAgy, descartarAgy, leerAvisoAgy } from "./actualizacion-agy.js";
-import { alCambiarActualizacionTrama, alCambiarAvisoTrama, armarActualizacionTrama, cancelarEsperaTrama, descartarTrama, estadoActualizacionTrama, leerAvisoTrama, limpiarTrama, ocupacionTrama, pedirTrama, retomarTrama, type Ocupacion } from "./actualizacion-trama.js";
+import { alCambiarActualizacionTrama, alCambiarAvisoTrama, armarActualizacionTrama, buscarTrama, cancelarEsperaTrama, descartarTrama, estadoActualizacionTrama, leerAvisoTrama, limpiarTrama, ocupacionTrama, pedirTrama, retomarTrama, type Ocupacion } from "./actualizacion-trama.js";
 import { crearCompactando } from "./compactando.js";
 import { crearSubagentes } from "./subagentes.js";
 import { crearConsumo, TRANSCRIPTS } from "./consumo.ts";
@@ -1101,6 +1101,8 @@ export function armarNucleo() {
   // git y el instalador: sólo la PC (`SOLO_PC_TAILNET`). Al celular ni se le avisa: no puede actualizar.
   alCambiarAvisoTrama((a) => enviar("trama:version", a));
   manejar("trama:version", (e) => (tailnet(e) ? null : leerAvisoTrama()));
+  // "Check for updates" (Ajustes > General): consulta ya; el aviso de la barra llega por `trama:version` como siempre.
+  manejar("trama:buscar", (e) => (tailnet(e) ? { ultima: null, nueva: false } : buscarTrama()));
   manejar("trama:descartar", () => descartarTrama());
   // Actualizar reinicia el motor: "ya" (la UI confirma antes qué se corta) o "esperar" (a que no haya nada ocupado). Contesta al
   // arrancar; el avance es `trama:actualizacion`, que sobrevive al reinicio del motor (actualizacion-trama.ts).

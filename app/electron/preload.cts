@@ -237,6 +237,7 @@ contextBridge.exposeInMainWorld("hilos", {
   /** El aviso de "hay una Trama nueva" del pie (electron/actualizacion-trama.ts). */
   trama: {
     version: (): Promise<unknown> => ipcRenderer.invoke("trama:version"),
+    buscar: (): Promise<unknown> => ipcRenderer.invoke("trama:buscar"),
     descartar: (): Promise<void> => ipcRenderer.invoke("trama:descartar"),
     actualizar: (modo: "ya" | "esperar"): Promise<unknown> => ipcRenderer.invoke("trama:actualizar", modo),
     cancelarEspera: (): Promise<void> => ipcRenderer.invoke("trama:cancelarEspera"),

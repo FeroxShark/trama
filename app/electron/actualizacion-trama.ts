@@ -26,7 +26,7 @@ import { ESTADO, escribirAtomico } from "./pa.js";
 import { textoT } from "./errores.js";
 import { configTrama } from "./rutas.js";
 import { silencio } from "./log.js";
-import { CADA_MS, comparar, desdeArchivo, hayQueConsultar, normal, type Chequeo } from "./version.js";
+import { comparar, desdeArchivo, hayQueConsultar, normal, type Chequeo } from "./version.js";
 
 const URL_RELEASE = (repo: string | null) => process.env.TRAMA_RELEASES_URL ?? (repo ? `https://api.github.com/repos/${repo}/releases/latest` : null);
 /** Un tag de versión estricto: es lo único que llega a `git`. */
@@ -144,6 +144,8 @@ export const falloDelInstalador = (salida: string): string | null => {
 };
 
 export type Aviso = { instalada: string; ultima: string; sucio: boolean; notas: string | null };
+/** Ajustes > "Check for updates": lo último que dijo GitHub (null si no se pudo saber) y si es más nueva que la instalada. */
+export type Buscada = { ultima: string | null; nueva: boolean };
 export type Actualizado = { ok: true; version: string } | { ok: false; error: string };
 /** Lo que un reinicio del motor cortaría: líderes con un turno o un mensaje saliendo, workers vivos, integraciones; `leyendo`: la lista de workers se está releyendo (no se sabe). */
 export type Ocupacion = { lideres: number; workers: number; otras: number; leyendo: boolean };
@@ -203,6 +205,8 @@ export async function ultimaTag(traer: Traer = fetch, repo: string | null = repo
 }
 
 const REINTENTO_MS = 15 * 60_000;
+/** Cada cuánto se mira si hay una Trama nueva: los releases salen varias veces por día (CADA_MS de version.ts es el de Claude Code). */
+export const CADA_TRAMA_MS = 30 * 60_000;
 
 export function crearActualizacionTrama(deps: Deps = {}) {
   const archivo = deps.archivo ?? path.join(ESTADO, "trama-version.json");
@@ -261,7 +265,7 @@ export function crearActualizacionTrama(deps: Deps = {}) {
       if (!checkout) return null;
       const c = await cargar();
       const t = ahora();
-      if (hayQueConsultar(c.chequeado, t) && t - falloEn >= REINTENTO_MS) {
+      if (hayQueConsultar(c.chequeado, t, CADA_TRAMA_MS) && t - falloEn >= REINTENTO_MS) {
         const tag = await ultimaTag(deps.traer, repoDeAqui());
         if (tag) {
           estado = { ...(estado ?? c), ultima: versionDeTag(tag), chequeado: t };
@@ -275,13 +279,24 @@ export function crearActualizacionTrama(deps: Deps = {}) {
     return enCurso;
   }
 
-  /** El aviso de ahora (o null). La primera vez arma el chequeo cada 6 h. */
+  /** El aviso de ahora (o null). La primera vez arma el chequeo cada 30 min. */
   function leerAviso(): Promise<Aviso | null> {
     if (!armado) {
       armado = true;
-      setInterval(() => void chequear().then((a) => oyentes.forEach((f) => f(a))), CADA_MS + 60_000).unref();
+      setInterval(() => void chequear().then((a) => oyentes.forEach((f) => f(a))), CADA_TRAMA_MS + 60_000).unref();
     }
     return chequear();
+  }
+
+  /** Ajustes > "Check for updates": consulta ya (ni el intervalo ni el reintento) y avisa a la barra si hay una nueva. Nunca rechaza. */
+  async function buscar(): Promise<Buscada> {
+    const checkout = checkoutDe();
+    const tag = checkout ? await ultimaTag(deps.traer, repoDeAqui()) : null;
+    if (!checkout || !tag) return { ultima: null, nueva: false };
+    estado = { ...(await cargar()), ultima: versionDeTag(tag), chequeado: ahora() };
+    await guardar(estado);
+    for (const f of oyentes) f(await avisoDeEstado(estado, checkout));
+    return { ultima: versionDeTag(tag), nueva: esMasNueva(instaladaDe(), tag) };
   }
 
   /** "Ahora no": no avisar de esta versión (sí de la próxima). */
@@ -443,6 +458,7 @@ export function crearActualizacionTrama(deps: Deps = {}) {
 
   return {
     leerAviso,
+    buscar,
     descartar,
     actualizar,
     pedir,
@@ -461,6 +477,7 @@ let ocupacionDelMotor: () => Ocupacion = () => SIN_OCUPAR;
 export const armarActualizacionTrama = (ocupacion: () => Ocupacion) => void (ocupacionDelMotor = ocupacion);
 const trama = crearActualizacionTrama({ ocupacion: () => ocupacionDelMotor() });
 export const leerAvisoTrama = () => trama.leerAviso();
+export const buscarTrama = () => trama.buscar();
 export const descartarTrama = () => trama.descartar();
 /** Un modo que no es "ya" se toma como "esperar": lo que no se entiende nunca corta nada. */
 export const pedirTrama = (modo: unknown) => trama.pedir(modoValido(modo) ? modo : "esperar");

@@ -42,8 +42,8 @@ export type Chequeo = {
 
 export const VACIO: Chequeo = { chequeado: 0, instalada: null, ultima: null, descartada: null };
 
-/** ¿Toca preguntarle a npm? Sí si nunca contestó, si pasaron 6 h o si el reloj volvió para atrás. */
-export const hayQueConsultar = (chequeado: number, ahora: number) => !chequeado || ahora - chequeado >= CADA_MS || ahora < chequeado;
+/** ¿Toca preguntarle a npm? Sí si nunca contestó, si pasaron `cadaMs` (6 h por defecto) o si el reloj volvió para atrás. */
+export const hayQueConsultar = (chequeado: number, ahora: number, cadaMs = CADA_MS) => !chequeado || ahora - chequeado >= cadaMs || ahora < chequeado;
 
 export type Aviso = { instalada: string; ultima: string };
 

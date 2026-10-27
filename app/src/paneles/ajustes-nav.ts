@@ -83,6 +83,7 @@ export const ITEMS: readonly Item[] = [
   { cat: "general", nombre: "ajustes.atajos", que: "ajustes.atajosQue", sin: "teclado keyboard shortcuts hotkeys teclas atajos" },
   { cat: "general", nombre: "ajustes.aplicarAuto", que: "ajustes.aplicarAutoQue", sin: "ramas branches veredictos verdicts analista analyst aplicar apply automatico automatic integrar descartar" },
   { cat: "general", nombre: "ajustes.bienvenida", que: "ajustes.bienvenidaQue", sin: "welcome bienvenida primer arranque first start setup asistente configurar inicio" },
+  { cat: "general", nombre: "ajustes.tramaVersion", que: "ajustes.tramaVersionQue", sin: "trama version actualizar actualizacion update updates buscar check release github novedades" },
 
   { cat: "guia", nombre: "tour.mostrar", que: "tour.mostrarQue", sin: "guias tour recorrido tutorial ayuda onboarding coach marks globos pistas help guides show hide apagar desactivar disable" },
   { cat: "guia", nombre: "tour.reiniciar", que: "tour.reiniciarQue", sin: "guias tour recorrido reiniciar resetear volver a mostrar reset show again guides" },

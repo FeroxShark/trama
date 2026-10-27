@@ -336,6 +336,8 @@ type Main = {
   /** El aviso de "hay una Trama nueva": `null` si no hay, no se pudo saber o esta instalación no viene de un checkout. */
   trama: {
     version(): Promise<unknown>;
+    /** "Check for updates" de Ajustes: consulta ya, `{ ultima, nueva }` sin validar. */
+    buscar(): Promise<unknown>;
     descartar(): Promise<void>;
     /** Actualizar (git + instalador, en el main) en el modo "ya" o "esperar" a que no haya nada ocupado: `{ ok, version | error }` al arrancar, sin validar. El avance es `actualizacion`. */
     actualizar(modo: "ya" | "esperar"): Promise<unknown>;

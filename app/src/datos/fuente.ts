@@ -237,6 +237,8 @@ export interface Fuente {
   /** El aviso de "hay una Trama nueva" (release de GitHub); `null` si no hay, no se pudo saber, o esta instalación no viene de un checkout. */
   avisoTrama(): Promise<AvisoClaude | null>;
   alCambiarAvisoTrama(fn: (a: AvisoClaude | null) => void): () => void;
+  /** "Check for updates" (Ajustes > General): consulta ya; `ultima` null si no se pudo saber. El aviso de la barra sale solo. */
+  buscarTrama(): Promise<BuscadaTrama>;
   /** "Ahora no": no avisar de esa versión. */
   descartarAvisoTrama(): void;
   /**
@@ -296,6 +298,7 @@ export type Umbrales = { autoCompact: number | null };
 
 /** `sucio` (sólo el de Trama): el checkout de donde se instaló tiene cambios sin commitear y Actualizar no tocaría nada. */
 export type AvisoClaude = { instalada: string; ultima: string; sucio?: boolean; notas?: string };
+export type BuscadaTrama = { ultima: string | null; nueva: boolean };
 
 /** Una cuenta de un CLI: `cuenta` es con quién está conectada; `error`, por qué no se pudo saber. */
 export type CuentaEstado = { instalado: boolean; logueado: boolean; cuenta: string | null; error: string | null };
@@ -428,6 +431,10 @@ const estadoActValido = (x: unknown): EstadoActTrama => {
   if ((o.fase === "esperando" || o.fase === "instalando" || o.fase === "hecho") && typeof o.version === "string" && o.version) return { fase: o.fase, version: o.version };
   if (o.fase === "error" && typeof o.error === "string") return { fase: "error", error: o.error };
   return { fase: "nada" };
+};
+const buscadaValida = (x: unknown): BuscadaTrama => {
+  const o = (x && typeof x === "object" ? x : {}) as Record<string, unknown>;
+  return { ultima: typeof o.ultima === "string" && o.ultima ? o.ultima : null, nueva: o.nueva === true };
 };
 const avisoValido = (x: unknown): AvisoClaude | null => {
   const a = x as AvisoClaude | null;
@@ -1082,6 +1089,9 @@ const fija: Fuente = {
     oyentesAvisoTrama.add(fn);
     return () => void oyentesAvisoTrama.delete(fn);
   },
+  async buscarTrama() {
+    return { ultima: avisoTramaFijo?.ultima ?? "0.2.0", nueva: avisoTramaFijo !== null };
+  },
   descartarAvisoTrama() {
     avisoTramaFijo = null;
     oyentesAvisoTrama.forEach((f) => f(null));
@@ -1596,6 +1606,9 @@ const conPa = (m: NonNullable<typeof main>): Fuente => ({
   },
   alCambiarAvisoTrama(fn) {
     return m.trama.alCambiar((a) => fn(avisoValido(a)));
+  },
+  async buscarTrama() {
+    return buscadaValida(await m.trama.buscar().catch(() => null));
   },
   descartarAvisoTrama() {
     void m.trama.descartar().catch(() => {});

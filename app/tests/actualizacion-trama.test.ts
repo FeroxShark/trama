@@ -204,15 +204,40 @@ test("sin red o con un GitHub que no contesta bien: silencio, y no se insiste en
   assert.equal(await y.act.leerAviso(), null);
 });
 
-test("se vuelve a preguntar a las 6 h, no antes", async () => {
+test("se vuelve a preguntar a los 30 min, no antes (los releases de Trama salen varias veces por día)", async () => {
   const x = armar({ instalada: "0.1.0" });
   await x.act.leerAviso();
-  x.avanzar(60 * 60_000);
+  x.avanzar(10 * 60_000);
   await x.act.leerAviso();
   assert.equal(x.pedidos(), 1);
-  x.avanzar(6 * 60 * 60_000);
+  x.avanzar(21 * 60_000);
   await x.act.leerAviso();
   assert.equal(x.pedidos(), 2);
+});
+
+test("Buscar (Ajustes) consulta siempre, aunque el chequeo de hace 10 min no toque; si hay una nueva avisa a la barra", async () => {
+  const x = armar({ instalada: "0.1.0", tag: "v0.1.4" });
+  const avisos: Array<{ ultima: string } | null> = [];
+  x.act.alCambiarAviso((a) => avisos.push(a));
+  await x.act.leerAviso();
+  x.avanzar(10 * 60_000);
+  assert.deepEqual(await x.act.buscar(), { ultima: "0.1.4", nueva: true });
+  assert.equal(x.pedidos(), 2);
+  assert.equal(avisos.at(-1)?.ultima, "0.1.4");
+});
+
+test("Buscar con la versión instalada al día: no es nueva, y la última queda para mostrarla", async () => {
+  const x = armar({ instalada: "0.2.0", tag: "v0.1.4" });
+  assert.deepEqual(await x.act.buscar(), { ultima: "0.1.4", nueva: false });
+});
+
+test("Buscar sin red o sin checkout anotado: no sabe (ultima null), y sólo sin checkout no consulta", async () => {
+  const sinRed = armar({ instalada: "0.1.0", sinRed: true });
+  assert.deepEqual(await sinRed.act.buscar(), { ultima: null, nueva: false });
+  assert.equal(sinRed.pedidos(), 1);
+  const sinCo = armar({ instalada: "0.1.0", tag: "v0.1.4", checkout: null });
+  assert.deepEqual(await sinCo.act.buscar(), { ultima: null, nueva: false });
+  assert.equal(sinCo.pedidos(), 0);
 });
 
 test("sin checkout anotado no hay aviso ni consulta ni Actualizar", async () => {

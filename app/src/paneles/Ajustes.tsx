@@ -17,6 +17,7 @@ import { BarraGuardar, Celular, PlanYRed } from "./AjustesEditar";
 import { AjustesCuentas } from "./AjustesCuentas";
 import { AjustesModelos } from "./AjustesModelos";
 import { Compactar } from "./AjustesCompactar";
+import { TramaVersion } from "./AjustesTrama";
 import { Guia } from "./AjustesGuia";
 import { Proyectos } from "./AjustesProyectos";
 import { alCambiarAplicarAuto, aplicarAuto, cambiarAplicarAuto } from "./aplicar-auto";
@@ -255,6 +256,9 @@ export function Ajustes() {
         <button type="button" className="btn2" onClick={abrirBienvenida}>
           <Fijo k="bv.ajustesVer" />
         </button>
+      </Dato>
+      <Dato nombre="ajustes.tramaVersion" que="ajustes.tramaVersionQue">
+        <TramaVersion />
       </Dato>
     </section>
   );
