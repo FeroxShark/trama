@@ -316,6 +316,32 @@
   align-items: center;
   gap: var(--esp-1);
 }
+/* Lo que dice el plan (el nombre y si es detectado o a mano) y, plegado, el selector de respaldo. */
+.cu-oc-plan-actual {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--esp-2);
+}
+.cu-oc-plan-origen {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--esp-1);
+  color: var(--apagado);
+  font-size: var(--letra-3);
+}
+.cu-oc-plan-actual[data-origen="detectado"] .cu-oc-plan-origen {
+  color: var(--ok);
+}
+.cu-oc-plan-mano > summary {
+  width: fit-content;
+  cursor: pointer;
+  color: var(--apagado);
+  font-size: var(--letra-3);
+}
+.cu-oc-plan-mano[open] > summary {
+  margin-bottom: var(--esp-2);
+}
 /* En la tarjeta de OpenCode (Plan y cupos): el plan va en su bloque, como un grupo más. */
 .cu-oc-plan {
   display: flex;

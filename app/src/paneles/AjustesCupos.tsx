@@ -417,22 +417,35 @@ export const EVENTO_PLAN_OPENCODE = "trama:opencode-plan";
 const nombrePlanOc = (p: PlanOc) => (p === "go" ? t("ajustes.ocPlanGo") : p === "go-plus" ? t("ajustes.ocPlanGoPlus") : t("ajustes.ocPlanGratis"));
 
 /**
- * El plan de una cuenta de OpenCode: un grupo de opciones con el elegido marcado con tilde y negrita además del color. `opc`: la fila que encuentra
- * el buscador de Ajustes (sólo la de la cuenta de siempre). `nota`: lo que dice debajo (con Go, cuántos modelos se ofrecen).
+ * El plan de una cuenta de OpenCode: lo que dice (el plan, y si es «detectado» —`opencode models` de esa cuenta— o elegido a mano) y, plegado como
+ * respaldo, el selector manual (el elegido, con tilde y negrita además del color). `detectado`: lo que detectó Trama; Go Plus no se distingue de Go,
+ * así que un Go detectado vale para un Go Plus elegido. `opc`: la fila que encuentra el buscador de Ajustes (sólo la de la cuenta de siempre).
+ * `nota`: lo que dice debajo (con Go, cuántos modelos se ofrecen).
  */
-function PlanOpencode({ plan, guardando, deshabilitado, error, nota, opc, alElegir }: { plan: PlanOc; guardando: boolean; deshabilitado?: boolean; error: string | null; nota: string; opc?: string; alElegir: (p: PlanOc) => void }) {
+function PlanOpencode({ plan, detectado, guardando, deshabilitado, error, nota, opc, alElegir }: { plan: PlanOc; detectado?: PlanOc | null; guardando: boolean; deshabilitado?: boolean; error: string | null; nota: string; opc?: string; alElegir: (p: PlanOc) => void }) {
+  const coincide = !!detectado && (detectado === plan || (detectado === "go" && plan === "go-plus"));
   return (
     <div className="cu-oc-plan" data-opc={opc}>
       <div className="cu-grupo-n">{t("ajustes.ocPlan")}</div>
-      <div className="pn-letra oc-plan" role="radiogroup" aria-label={t("ajustes.ocPlanGrupo")} data-plan={plan}>
-        {PLANES_OC.map((p) => (
-          <button key={p.id} type="button" role="radio" aria-checked={p.id === plan} data-plan-id={p.id} disabled={guardando || deshabilitado} onClick={() => p.id !== plan && alElegir(p.id)}>
-            {p.id === plan ? <Check size={14} strokeWidth={2.4} aria-hidden="true" /> : null}
-            {t(p.nombre)}
-          </button>
-        ))}
+      <div className="cu-oc-plan-actual" data-plan={plan} data-origen={coincide ? "detectado" : "manual"}>
+        <strong>{nombrePlanOc(plan)}</strong>
+        <span className="cu-oc-plan-origen" title={t(coincide ? "ajustes.ocPlanDetectadoQue" : "ajustes.ocPlanManualQue")}>
+          {coincide ? <Check size={12} strokeWidth={2.4} aria-hidden="true" /> : null}
+          {t(coincide ? "ajustes.ocPlanDetectado" : "ajustes.ocPlanManual")}
+        </span>
         {guardando ? <span className="mdl-estado" role="status">{t("ajustes.ocPlanGuardando")}</span> : null}
       </div>
+      <details className="cu-oc-plan-mano">
+        <summary>{t("ajustes.ocPlanCambiar")}</summary>
+        <div className="pn-letra oc-plan" role="radiogroup" aria-label={t("ajustes.ocPlanGrupo")} data-plan={plan}>
+          {PLANES_OC.map((p) => (
+            <button key={p.id} type="button" role="radio" aria-checked={p.id === plan} data-plan-id={p.id} disabled={guardando || deshabilitado} onClick={() => p.id !== plan && alElegir(p.id)}>
+              {p.id === plan ? <Check size={14} strokeWidth={2.4} aria-hidden="true" /> : null}
+              {t(p.nombre)}
+            </button>
+          ))}
+        </div>
+      </details>
       <div className="cu-nota">{nota}</div>
       {error ? <div className="pn-error dsh-err" role="alert">{textoMain(error)}</div> : null}
     </div>
@@ -463,7 +476,15 @@ function PlanCuentaOpencode({ perfil, alCambiar }: { perfil: PerfilCuenta; alCam
     if (!r.ok) setError(r.error);
     alCambiar();
   };
-  return <PlanOpencode plan={plan} guardando={guardando} error={error} nota={plan === "gratis" ? t("ajustes.ocPlanNotaGratis") : t("cu.opencode.planCuenta")} alElegir={(p) => void elegir(p)} />;
+  // Lo detectado manda: si `opencode models` de esa cuenta dice otro plan (Go y Go Plus se tratan igual), se guarda solo, una vez por cuenta y por lectura.
+  const intentado = useRef<string | null>(null);
+  const det = perfil.planDetectado;
+  useEffect(() => {
+    if (!det || det === plan || (det === "go" && plan === "go-plus") || intentado.current === `${det}>${plan}`) return;
+    intentado.current = `${det}>${plan}`;
+    void elegir(det);
+  }, [det, plan]);
+  return <PlanOpencode plan={plan} detectado={det} guardando={guardando} error={error} nota={plan === "gratis" ? t("ajustes.ocPlanNotaGratis") : t("cu.opencode.planCuenta")} alElegir={(p) => void elegir(p)} />;
 }
 
 /**
@@ -510,6 +531,14 @@ function TarjetaOpencode({ uso, perfiles, lista, alCambiar }: { uso: Uso | null;
 
   const s = conDatos(uso) ? uso.suscripciones?.find((x) => x.id === "opencode") : undefined;
   const plan = v?.plan ?? e?.plan ?? "gratis";
+  // El plan de la cuenta de siempre, detectado (`opencode models`): si difiere del guardado se aplica solo, una vez por lectura.
+  const detSiempre = perfiles.find((p) => p.defecto)?.planDetectado ?? null;
+  const intentado = useRef<string | null>(null);
+  useEffect(() => {
+    if (!v || !detSiempre || detSiempre === v.plan || (detSiempre === "go" && v.plan === "go-plus") || intentado.current === `${detSiempre}>${v.plan}`) return;
+    intentado.current = `${detSiempre}>${v.plan}`;
+    void elegirPlan(detSiempre);
+  }, [detSiempre, v?.plan]);
   const go = plan !== "gratis";
   const varias = perfiles.length > 1;
   const algunGo = go || perfiles.some((p) => !p.defecto && p.plan && p.plan !== "gratis");
@@ -520,6 +549,7 @@ function TarjetaOpencode({ uso, perfiles, lista, alCambiar }: { uso: Uso | null;
       <UsoOpencode s={s} />
       <PlanOpencode
         plan={plan}
+        detectado={detSiempre}
         opc="ajustes.ocPlan"
         guardando={guardando}
         deshabilitado={!v}

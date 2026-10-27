@@ -18,8 +18,9 @@ export type PlanCuentaOc = (typeof PLANES_OC)[number];
 /**
  * Una cuenta tal como la lista `cuentas --json`. `defecto`: la de siempre (su id es el del proveedor). `logueado`: `null` = no se preguntó o no se sabe.
  * `plan`: el de OpenCode de una cuenta agregada de OpenCode (el de la de siempre está en modelos.json, `opencode_plan`).
+ * `planDetectado`: el que dijo `opencode models` (`plan_detectado`, sólo con `--verificar`; no distingue Go de Go Plus).
  */
-export type PerfilCuenta = { id: string; proveedor: ProveedorCuenta; nombre: string; defecto: boolean; logueado: boolean | null; plan?: PlanCuentaOc };
+export type PerfilCuenta = { id: string; proveedor: ProveedorCuenta; nombre: string; defecto: boolean; logueado: boolean | null; plan?: PlanCuentaOc; planDetectado?: PlanCuentaOc };
 export type ListaCuentas = { version: 1; cuentas: PerfilCuenta[] };
 
 type Env = Record<string, string | undefined>;
@@ -93,6 +94,7 @@ export function parsearCuentas(salida: string): ListaCuentas | null {
       defecto: x.defecto === true || x.id === x.proveedor,
       logueado: typeof x.logueado === "boolean" ? x.logueado : null,
       ...(x.proveedor === "opencode" && x.id !== "opencode" ? { plan: (PLANES_OC as readonly unknown[]).includes(x.plan) ? (x.plan as PlanCuentaOc) : "gratis" } : {}),
+      ...(x.proveedor === "opencode" && (PLANES_OC as readonly unknown[]).includes(x.plan_detectado) ? { planDetectado: x.plan_detectado as PlanCuentaOc } : {}),
     });
   }
   return cuentas.length ? { version: 1, cuentas } : null;

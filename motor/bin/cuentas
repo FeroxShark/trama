@@ -10,6 +10,9 @@
   cuentas ver ID [--json]                      una cuenta
   cuentas plan ID gratis|go|go-plus            el plan de OpenCode de una cuenta agregada de OpenCode (el de la de
                                                siempre es `opencode_plan` de modelos.json: lo escribe la app)
+  cuentas plan ID --detectar                   lo detecta por `opencode models` (con `opencode-go/*` es go, si no gratis; Go Plus no se
+                                               distingue de Go) y, en una agregada, lo guarda; rc 3 si no se pudo saber
+  (`cuentas --json --verificar` suma `plan_detectado` a cada cuenta de OpenCode)
 
 PROVEEDOR: claude | google | chatgpt | opencode. La cuenta de siempre de cada proveedor tiene el id del proveedor y usa las
 credenciales de siempre (sin tocar nada): sin cuentas.json todo sigue como antes. Las agregadas viven en
@@ -314,9 +317,35 @@ def slug(nombre):
     return s or "cuenta"
 
 
+def plan_de_modelos(salida):
+    """El plan de OpenCode que dice la salida de `opencode models`: "go" si lista algún `opencode-go/*` (el catálogo de Go sólo aparece con
+    Go conectado), "gratis" si lista modelos pero ninguno de Go, None si no lista nada (no se sabe). Go Plus NO se distingue de Go: usa el mismo
+    catálogo `opencode-go/*`; ese salto sigue siendo manual."""
+    ids = [l.strip() for l in re.sub(r"\x1b\[[0-9;]*[A-Za-z]", "", salida or "").splitlines() if re.match(r"^\s*[a-z0-9][\w.-]*/[\w.:-]+\s*$", l)]
+    if any(i.startswith("opencode-go/") for i in ids):
+        return "go"
+    return "gratis" if ids else None
+
+
+def plan_detectado(c):
+    """El plan de esa cuenta de OpenCode según lo que lista `opencode models` con SU entorno (la agregada, con --standalone). None si no se pudo
+    preguntar. Siempre con tope de tiempo: opencode 2.x se cuelga con algunos estados."""
+    b = opencode_bin()
+    if not b:
+        return None
+    try:
+        r = subprocess.run([b, "models"] + opencode_standalone(c, ["models"]), env=env_de(c), capture_output=True, text=True, timeout=40,
+                           stdin=subprocess.DEVNULL, cwd=os.environ.get("TMPDIR", "/tmp"))
+    except Exception:
+        return None
+    return plan_de_modelos(r.stdout) if r.returncode == 0 else None
+
+
 def publico(c, verificar=False):
     d = dict(c)
     d["logueado"] = logueado(c, verificar)
+    if verificar and c["proveedor"] == "opencode":
+        d["plan_detectado"] = plan_detectado(c)
     return d
 
 
@@ -498,8 +527,21 @@ def cmd_ver(a):
 
 
 def cmd_plan(a):
+    if len(a) == 2 and a[1] == "--detectar":
+        # El plan que dice `opencode models` de esa cuenta (la de siempre incluida): se imprime y, en una agregada, se guarda. 3 = no se pudo saber.
+        c = buscar(a[0])
+        if not c or c["proveedor"] != "opencode":
+            err("no hay ninguna cuenta de OpenCode %s" % a[0])
+            return 1
+        plan = plan_detectado(c)
+        if not plan:
+            return 3
+        if not c["defecto"] and plan != (c.get("plan") or "gratis") and not (plan == "go" and c.get("plan") == "go-plus"):
+            return cmd_plan([a[0], plan])
+        print("%s: %s" % (a[0], plan))
+        return 0
     if len(a) != 2 or a[1] not in PLANES_OPENCODE:
-        err("uso: cuentas plan ID gratis|go|go-plus")
+        err("uso: cuentas plan ID gratis|go|go-plus|--detectar")
         return 2
     cid, plan = a
     if cid == "opencode":

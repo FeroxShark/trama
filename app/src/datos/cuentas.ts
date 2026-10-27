@@ -13,9 +13,10 @@ const PLANES_OC: readonly string[] = ["gratis", "go", "go-plus"];
 
 /**
  * `logueado`: `null` = no se preguntó (o el CLI no lo sabe). `defecto`: la de siempre, cuyo id es el del proveedor. `plan`: el de OpenCode de una
- * cuenta agregada de OpenCode (el de la de siempre es `opencode_plan` de modelos.json).
+ * cuenta agregada de OpenCode (el de la de siempre es `opencode_plan` de modelos.json). `planDetectado`: el que dijo `opencode models` de esa cuenta
+ * (sólo en la lista verificada; no distingue Go de Go Plus); ausente = no se preguntó o no se pudo saber.
  */
-export type PerfilCuenta = { id: string; proveedor: ProveedorCuenta; nombre: string; defecto: boolean; logueado: boolean | null; plan?: PlanCuentaOc };
+export type PerfilCuenta = { id: string; proveedor: ProveedorCuenta; nombre: string; defecto: boolean; logueado: boolean | null; plan?: PlanCuentaOc; planDetectado?: PlanCuentaOc };
 export type ListaCuentas = { version: 1; cuentas: PerfilCuenta[] };
 export type ResultadoCuenta = { ok: true; id?: string } | { ok: false; error: string };
 
@@ -36,6 +37,7 @@ export function listaValida(x: unknown): ListaCuentas | null {
       defecto: p.defecto === true || p.id === p.proveedor,
       logueado: typeof p.logueado === "boolean" ? p.logueado : null,
       ...(p.proveedor === "opencode" && p.id !== "opencode" ? { plan: PLANES_OC.includes(p.plan as string) ? (p.plan as PlanCuentaOc) : "gratis" } : {}),
+      ...(p.proveedor === "opencode" && PLANES_OC.includes(p.plan_detectado as string) ? { planDetectado: p.plan_detectado as PlanCuentaOc } : {}),
     });
   }
   return cuentas.length ? { version: 1, cuentas } : null;
