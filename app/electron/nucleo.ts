@@ -1103,7 +1103,7 @@ export function armarNucleo() {
   manejar("trama:version", (e) => (tailnet(e) ? null : leerAvisoTrama()));
   manejar("trama:descartar", () => descartarTrama());
   // Actualizar reinicia el motor: "ya" (la UI confirma antes qué se corta) o "esperar" (a que no haya nada ocupado). Contesta al
-  // arrancar; el avance es `trama:actualizacion`, que sobrevive al reinicio del motor (electron/actualizacion-trama.ts).
+  // arrancar; el avance es `trama:actualizacion`, que sobrevive al reinicio del motor (actualizacion-trama.ts).
   armarActualizacionTrama(ocupacionDeTrama);
   alCambiarActualizacionTrama((e) => enviar("trama:actualizacion", e));
   void retomarTrama().catch(silencio("actualizacion-trama"));

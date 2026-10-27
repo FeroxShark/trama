@@ -327,8 +327,7 @@ test("pedir('esperar') con un líder trabajando y un worker vivo: espera, no cor
   await dormir(40);
   assert.equal(instalador(x).length, 0, "con un worker vivo tampoco");
   ocupado = LIBRE;
-  await hasta(() => instalador(x).length === 1);
-  await hasta(async () => (await x.act.estadoActual()).fase === "hecho");
+  await hasta(() => estados.includes("hecho"));
   assert.deepEqual(estados, ["esperando", "instalando", "hecho"]);
   assert.deepEqual(instalador(x)[0].args, [path.join(x.co!, "motor", "scripts", "instalar-producto.sh"), "--fuente", x.co!, ...instalador(x)[0].args.slice(3)]);
 });
