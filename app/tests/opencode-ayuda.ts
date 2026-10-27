@@ -1,7 +1,7 @@
 // Lo que comparten las pruebas de opencode (puente de líder, runner de workers): encontrar un `opencode` de verdad y armarle un
 // entorno aislado con un proveedor OpenAI-compatible falso (scripts/openai-falso.mjs) por `OPENCODE_CONFIG_CONTENT`. Nunca toca el
 // `~` ni el login reales de OpenCode. No es una prueba.
-import { existsSync, mkdirSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 /** El `opencode` para las pruebas: `TRAMA_OPENCODE_BIN`, el de `app/node_modules`, o el del PATH. `null`: se saltean. */
@@ -22,11 +22,19 @@ export const SIN_OPENCODE: string | false = OPENCODE ? false : "no hay un binari
 export const MODELO_FALSO = "opencode:falso/fake-model";
 
 /**
+ * Puerto del servicio de fondo de cada `opencode` aislado. El default (49374) es el del servicio de la persona, que puede estar corriendo:
+ * un `opencode run` de la prueba tiraría «port already in use». Un puerto por proceso de pruebas (rango 52000-58999) para no pisarse.
+ */
+const PUERTO_SERVICIO = 52000 + (process.pid % 7000);
+
+/**
  * El entorno de un `opencode` aislado: HOME y XDG_* en `home`, sin actualizaciones ni descarga del catálogo de modelos (models.dev),
- * y un proveedor `falso` (OpenAI-compatible) que apunta al servidor falso `baseURL`.
+ * servicio de fondo en `PUERTO_SERVICIO`, y un proveedor `falso` (OpenAI-compatible) que apunta al servidor falso `baseURL`.
  */
 export function entornoOpencodeTmp(home: string, baseURL: string): Record<string, string> {
   for (const d of ["config", "data", "cache", "state"]) mkdirSync(path.join(home, ".xdg", d), { recursive: true });
+  mkdirSync(path.join(home, ".xdg", "config", "opencode"), { recursive: true });
+  writeFileSync(path.join(home, ".xdg", "config", "opencode", "service.json"), JSON.stringify({ port: PUERTO_SERVICIO }));
   return {
     HOME: home,
     XDG_CONFIG_HOME: path.join(home, ".xdg", "config"),
