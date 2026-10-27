@@ -45,7 +45,7 @@ import { apariencia, LETRA_DEF } from "../tipografia";
 import { esAngosto, useAngosto, useAtras, useMedio } from "../angosto";
 import { correrGuionPaneles } from "../paneles/guion";
 import { Panel, PANELES, type CualPanel } from "../paneles/Panel";
-import { alPedirAjustes } from "../paneles/ajustes-nav";
+import { alPedirAjustes, alPedirRamas } from "../paneles/ajustes-nav";
 import { panelDeCaptura } from "../guia/registro";
 import { Consumo } from "../paneles/Consumo";
 import { ramas } from "../paneles/Ramas";
@@ -340,6 +340,14 @@ export function Barra() {
       alPedirAjustes(() => {
         if (esAngosto()) setAbierta(false);
         setPanel("ajustes");
+      }),
+    [],
+  );
+  useEffect(
+    () =>
+      alPedirRamas(() => {
+        if (esAngosto()) setAbierta(false);
+        setPanel("ramas");
       }),
     [],
   );

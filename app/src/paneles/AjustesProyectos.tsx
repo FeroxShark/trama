@@ -4,7 +4,7 @@
 // repartidas y "Unificar todos": aplica directo sólo los casos mecánicos (unificar-clase.ts) y deja los que hay que fusionar para su tarjeta.
 // Los datos: src/datos/proyectos.ts.
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
-import { AlertTriangle, Check, FileText, Merge, PencilLine, RotateCcw, X } from "lucide-react";
+import { AlertTriangle, Bot, Check, FileText, GitBranch, Merge, PencilLine, RotateCcw, Sparkles, X } from "lucide-react";
 import { NOMBRE_MAX, validarNombre } from "../../electron/proyectos-nombre";
 import { fuenteProyectos, recargarProyectos, useProyectos, type EstadoMd, type PlanMd, type ProyectoNombre } from "../datos/proyectos";
 import { t, textoMain, type Clave } from "../i18n";
@@ -12,7 +12,8 @@ import { useIdioma } from "../i18n/react";
 import { MODO } from "../modo";
 import { mensaje } from "../puente";
 import { Cat } from "./AjustesNav";
-import { ArchivosMd, AvisoLargo, EditorAgents, textoAccion, UnificarPanel } from "./ProyectosMd";
+import { abrirRamas } from "./ajustes-nav";
+import { ArchivosMd, AvisoLargo, EditorAgents, EstadoLecturaMotores, textoAccion, UnificarPanel } from "./ProyectosMd";
 import { clasePlan } from "./unificar-clase";
 import "./proyectos.css";
 
@@ -355,10 +356,28 @@ function FilaNombre({ p, todos, abierto }: { p: ProyectoNombre; todos: readonly 
  */
 function FilaInstrucciones({ p, estado: e, resultado, releer, abrir }: { p: ProyectoNombre; estado: EstadoMd | string | null; resultado: Resultado | null; releer: () => void; abrir: "unificar" | "editor" | null }) {
   const [panel, setPanel] = useState<"unificar" | "editor" | null>(abrir);
+  const [lanzando, setLanzando] = useState(false);
+  const [tareaLocal, setTareaLocal] = useState<"acortar" | "fusionar" | null>(null);
+  const [errorTarea, setErrorTarea] = useState<string | null>(null);
   const estado = typeof e === "object" ? e : null;
   const error = typeof e === "string" ? e : null;
   const nombre = visible(p);
   const conContenido = estado?.archivos.filter((f) => f.tipo === "real").map((f) => f.archivo) ?? [];
+  const tareaActiva = tareaLocal ?? estado?.tareaEnCurso ?? null;
+
+  const lanzar = async (tipo: "acortar" | "fusionar") => {
+    if (lanzando || tareaActiva) return;
+    setLanzando(true);
+    setErrorTarea(null);
+    try {
+      await fuenteProyectos.mdFusionar(p.slug, tipo);
+      setTareaLocal(tipo);
+    } catch (err) {
+      setErrorTarea(mensaje(err));
+    } finally {
+      setLanzando(false);
+    }
+  };
   return (
     <div className="pry-ins">
       <div className="pry-cab">
@@ -375,11 +394,42 @@ function FilaInstrucciones({ p, estado: e, resultado, releer, abrir }: { p: Proy
         ) : null}
       </div>
       {error ? <p className="pry-err" role="alert"><AlertTriangle size={13} strokeWidth={2} aria-hidden="true" /> {textoMain(error)}</p> : null}
-      {estado ? <ArchivosMd estado={estado} /> : null}
+      {estado ? <EstadoLecturaMotores estado={estado}></EstadoLecturaMotores> : null}
+      {estado ? (
+        <details className="pry-md-detalles">
+          <summary className="pry-md-sum">{t("pry.md.detallesArchivos")}</summary>
+          <ArchivosMd estado={estado}></ArchivosMd>
+        </details>
+      ) : null}
       {estado?.truncado ? <AvisoLargo caracteres={estado.caracteres} tope={estado.tope} /> : null}
-      {estado && estado.porUnificar ? (
+      {tareaActiva === "acortar" ? (
+        <p className="pry-aviso" data-agente-acortando>
+          <Bot size={13} strokeWidth={1.8} aria-hidden="true"></Bot>
+          <span>{t("pry.md.agenteAcortando")}</span>
+          <button type="button" className="mini pry-btn-inline" onClick={abrirRamas} data-ir-ramas>
+            <GitBranch size={12} strokeWidth={1.8} aria-hidden="true"></GitBranch>
+            {t("pry.md.irRamas")}
+          </button>
+        </p>
+      ) : null}
+      {tareaActiva === "fusionar" ? (
+        <p className="pry-aviso" data-agente-fusionando>
+          <Bot size={13} strokeWidth={1.8} aria-hidden="true"></Bot>
+          <span>{t("pry.md.agenteFusionando")}</span>
+          <button type="button" className="mini pry-btn-inline" onClick={abrirRamas} data-ir-ramas>
+            <GitBranch size={12} strokeWidth={1.8} aria-hidden="true"></GitBranch>
+            {t("pry.md.irRamas")}
+          </button>
+        </p>
+      ) : null}
+      {errorTarea ? (
+        <p className="pry-err" role="alert">
+          <AlertTriangle size={13} strokeWidth={2} aria-hidden="true"></AlertTriangle> {textoMain(errorTarea)}
+        </p>
+      ) : null}
+      {estado && estado.porUnificar && tareaActiva !== "fusionar" ? (
         <p className="pry-aviso" data-aviso-repartido>
-          <AlertTriangle size={13} strokeWidth={2} aria-hidden="true" />
+          <AlertTriangle size={13} strokeWidth={2} aria-hidden="true"></AlertTriangle>
           {conContenido.length > 1 ? tv("pry.md.distintos", { f: conContenido.join(", ") }) : conContenido.some((f) => f !== "AGENTS.md") ? t("pry.md.porUnificar") : t("pry.md.faltaImport")}
         </p>
       ) : null}
@@ -401,9 +451,21 @@ function FilaInstrucciones({ p, estado: e, resultado, releer, abrir }: { p: Proy
       ) : null}
       {estado && p.existe ? (
         <div className="pry-acc">
+          {estado.truncado && tareaActiva !== "acortar" ? (
+            <button type="button" className="mini pn-primario" data-acortar disabled={lanzando} onClick={() => void lanzar("acortar")}>
+              <Sparkles size={13} strokeWidth={1.8} aria-hidden="true"></Sparkles>
+              {lanzando ? t("pry.md.lanzando") : t("pry.md.acortarBtn")}
+            </button>
+          ) : null}
+          {estado.porUnificar && conContenido.length > 1 && tareaActiva !== "fusionar" ? (
+            <button type="button" className="mini pn-primario" data-fusionar disabled={lanzando} onClick={() => void lanzar("fusionar")}>
+              <Merge size={13} strokeWidth={1.8} aria-hidden="true"></Merge>
+              {lanzando ? t("pry.md.lanzando") : t("pry.md.fusionarBtn")}
+            </button>
+          ) : null}
           {estado.porUnificar ? (
-            <button type="button" className="mini pn-primario" data-unificar aria-expanded={panel === "unificar"} onClick={() => setPanel(panel === "unificar" ? null : "unificar")}>
-              <Merge size={13} strokeWidth={1.8} aria-hidden="true" />
+            <button type="button" className={conContenido.length > 1 ? "mini" : "mini pn-primario"} data-unificar aria-expanded={panel === "unificar"} onClick={() => setPanel(panel === "unificar" ? null : "unificar")}>
+              <Merge size={13} strokeWidth={1.8} aria-hidden="true"></Merge>
               {t("pry.md.unificarBtn")}
             </button>
           ) : null}

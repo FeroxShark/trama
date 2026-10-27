@@ -63,6 +63,7 @@ export const RUTAS: Readonly<Record<string, Ruta>> = {
   "orq:mdEstado": "local",
   "orq:mdPlan": "local",
   "orq:mdAplicar": "local",
+  "orq:mdFusionar": "local",
   "orq:agentsLeer": "local",
   "orq:agentsGuardar": "local",
   "proyectos:lista": "local",

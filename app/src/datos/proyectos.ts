@@ -22,6 +22,7 @@ export interface FuenteProyectos {
   mdAplicar(slug: string, huella: string): Promise<Aplicado>;
   leerAgents(slug: string): Promise<string>;
   guardarAgents(slug: string, texto: string): Promise<MedidaAgents>;
+  mdFusionar(slug: string, tipo?: "acortar" | "fusionar"): Promise<{ rc: number; dijo: string }>;
 }
 
 const espera = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -67,6 +68,14 @@ const fija: FuenteProyectos = {
     agentsFalso = texto;
     return { caracteres: texto.length, tope: 20000, truncado: texto.length > 20000 };
   },
+  async mdFusionar(slug, tipo = "fusionar") {
+    await espera(200);
+    const e = ESTADOS_MD_FALSOS[slug];
+    if (e) {
+      e.tareaEnCurso = tipo;
+    }
+    return { rc: 0, dijo: `pa ${slug}: worker en camino` };
+  },
 };
 
 // --- Con el main -------------------------------------------------------------------------------------------------
@@ -96,6 +105,9 @@ const conMain = (m: NonNullable<typeof main>): FuenteProyectos => ({
   },
   async guardarAgents(slug, texto) {
     return (await m.paneles.guardarAgents(slug, texto).catch(rechazo)) as MedidaAgents;
+  },
+  async mdFusionar(slug, tipo) {
+    return (await m.paneles.mdFusionar(slug, tipo).catch(rechazo)) as { rc: number; dijo: string };
   },
 });
 

@@ -1,6 +1,7 @@
 // Los proyectos de mentira para las capturas y el modo sin main (Ajustes > Proyectos, nombres para mostrar, unificar instrucciones).
 import type { ProyectoNombre } from "../../electron/proyectos-alias";
 import type { EstadoMd, PlanMd } from "../../electron/unificar-md";
+import { MODO } from "../modo";
 
 export const PROYECTOS_FALSOS: ProyectoNombre[] = [
   { nombre: "asistente-voz", slug: "asistente-voz", ruta: "~/Proyectos/asistente-voz", titulo: "Shark", existe: true, alias: [] },
@@ -20,6 +21,10 @@ export const ESTADOS_MD_FALSOS: Record<string, EstadoMd> = {
   hilos: { ruta: "~/Proyectos/hilos", archivos: [fila("AGENTS.md", "falta"), fila("CLAUDE.md", "real", 5230), fila("GEMINI.md", "falta")], caracteres: 5230, tope: 20000, truncado: false, unificado: false, porUnificar: true },
   baliza: { ruta: "~/Proyectos/baliza", archivos: [fila("AGENTS.md", "falta"), fila("CLAUDE.md", "falta"), fila("GEMINI.md", "falta")], caracteres: 0, tope: 20000, truncado: false, unificado: false, porUnificar: false },
 };
+
+if (MODO.variante === "proyectos-trabajando") {
+  ESTADOS_MD_FALSOS.duna.tareaEnCurso = "acortar";
+}
 
 const CLAUDE_FALSO = "# Shark\n\nAsistente de escritorio por voz.\n\n## Build\n- `pnpm install`\n- `pnpm dev`\n\n## Tests\n- `pnpm test`\n\n## No tocar\n- `vendor/whisper/`";
 const GEMINI_FALSO = "# Shark (Gemini)\n\n- Usá `pnpm`, nunca npm.\n- El micrófono se prueba con `pnpm mic:check`.";

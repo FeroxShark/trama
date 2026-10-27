@@ -476,10 +476,10 @@ test("el prefacio de un líder de Gemini / dsh / opencode lleva el AGENTS.md del
 test("canales: el slug sale del registry (nada de rutas), escribir es sólo de la PC y leer sí se puede por la tailnet", async () => {
   nucleo.armarNucleo();
   const fn = (c: string) => new Map(nucleo.manejadoresAnotados()).get(c)!;
-  for (const c of ["orq:mdAplicar", "orq:agentsGuardar", "proyectos:renombrar"]) assert.ok(nucleo.SOLO_PC_TAILNET.has(c), c);
+  for (const c of ["orq:mdAplicar", "orq:mdFusionar", "orq:agentsGuardar", "proyectos:renombrar"]) assert.ok(nucleo.SOLO_PC_TAILNET.has(c), c);
   for (const c of ["orq:mdEstado", "orq:mdPlan", "orq:agentsLeer", "proyectos:lista"]) assert.ok(!nucleo.SOLO_PC_TAILNET.has(c), c);
   const contrato = readFileSync(path.join(import.meta.dirname, "..", "electron", "maquinas-contrato.ts"), "utf8");
-  for (const c of ["orq:mdEstado", "orq:mdPlan", "orq:mdAplicar", "orq:agentsLeer", "orq:agentsGuardar", "proyectos:lista", "proyectos:renombrar"]) {
+  for (const c of ["orq:mdEstado", "orq:mdPlan", "orq:mdAplicar", "orq:mdFusionar", "orq:agentsLeer", "orq:agentsGuardar", "proyectos:lista", "proyectos:renombrar"]) {
     assert.match(contrato, new RegExp(`"${c}": "local"`), c);
     assert.ok(new Map(nucleo.manejadoresAnotados()).has(c), c);
   }
@@ -487,6 +487,7 @@ test("canales: el slug sale del registry (nada de rutas), escribir es sólo de l
   const huella = ((await nucleo.llamarRemoto("orq:mdPlan", [s], "cel")) as { huella: string }).huella;
   await assert.rejects(nucleo.llamarRemoto("orq:mdAplicar", [s, huella], "cel"), /main\.soloPc/);
   await assert.rejects(nucleo.llamarRemoto("orq:agentsGuardar", [s, "x"], "cel"), /main\.soloPc/);
+  await assert.rejects(nucleo.llamarRemoto("orq:mdFusionar", [s], "cel"), /main\.soloPc/);
   await assert.rejects(nucleo.llamarRemoto("proyectos:renombrar", [s, "Otro"], "cel"), /main\.soloPc/);
   assert.equal(existsSync(path.join(dirApp, s, "AGENTS.md")), true, "este escenario ya se unificó arriba; nada nuevo se escribió por la red");
   // lo que no es un slug del registry se rechaza, sea ruta, salida de la carpeta o desconocido
@@ -494,6 +495,7 @@ test("canales: el slug sale del registry (nada de rutas), escribir es sólo de l
     for (const canal of ["orq:mdEstado", "orq:mdPlan", "orq:agentsLeer"]) await assert.rejects(fn(canal)({ sender: {} }, malo), /main\.proyectoRaro/, `${canal}(${String(malo)})`);
     await assert.rejects(fn("orq:agentsGuardar")({ sender: {} }, malo, "x"), /main\.proyectoRaro/);
     await assert.rejects(fn("orq:mdAplicar")({ sender: {} }, malo, "h"), /main\.proyectoRaro/);
+    await assert.rejects(fn("orq:mdFusionar")({ sender: {} }, malo), /main\.proyectoRaro/);
   }
   // la ventana sí: aplicar sobre otro escenario, con backup en la carpeta de estado de pa
   const ventana = { sender: {} };

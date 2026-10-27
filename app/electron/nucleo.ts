@@ -33,7 +33,7 @@ import { guardarYa, leerLeidos, marcarLeido } from "./leidos.js";
 import { almacenNombres } from "./nombres.js";
 import { almacenPendientes } from "./pendientes.js";
 import { guardarApariencia, guardarAutoIntegrar, guardarAvisarEspera, bienvenidaPendiente, guardarBienvenida, guardarConsumo, guardarDictadoModelo, guardarEffort, guardarGuias, guardarIdioma, guardarTiernos, guardarVista, guiasEstado, leerPreferencias } from "./preferencias.js";
-import { accionRama, arreglarDatos, briefRamas, enCola, ejecutar, lanzarRama, leerAjustes, leerMedicion, pasarALider, retomarDatos, type AccionRama } from "./paneles.js";
+import { accionRama, arreglarDatos, briefRamas, enCola, ejecutar, lanzarRama, lanzarTareaMd, leerAjustes, leerMedicion, pasarALider, retomarDatos, tareaMdEnCurso, type AccionRama, type TipoTareaMd } from "./paneles.js";
 import { guardarRouting, type Cambio } from "./routing.js";
 import { argvAuditar, datosAgentsMd, guardarLecciones, leccionesPendientes, leerLecciones, textoPoda } from "./orquestacion.ts";
 import { aplicarUnificar, estadoMd, guardarAgents, leerAgents, planUnificar } from "./unificar-md.ts";
@@ -104,7 +104,7 @@ const manejadores = new Map<string, Manejador>();
  * Lo que cambia la máquina (reescribe `~/CLAUDE.md`, los ajustes, borra una cuenta, libera la GPU, actualiza `claude`): desde la
  * tailnet (el celular) no. Los `modelos:*` y `remoto:guardar` tienen su propio chequeo, con su mensaje, en el manejador.
  */
-export const SOLO_PC_TAILNET: ReadonlySet<string> = new Set(["routing:guardar", "ajustes:guardar", "orq:leccionesGuardar", "orq:mdAplicar", "orq:agentsGuardar", "proyectos:renombrar", "cuentas:quitar", "vram:liberar", "claude:actualizar", "trama:actualizar", "dsh:clave", "dsh:instalar", "dsh:probar", "aa:refrescar", "mcp:guardar", "mcp:quitar", "opencode:planGuardar"]);
+export const SOLO_PC_TAILNET: ReadonlySet<string> = new Set(["routing:guardar", "ajustes:guardar", "orq:leccionesGuardar", "orq:mdAplicar", "orq:agentsGuardar", "orq:mdFusionar", "proyectos:renombrar", "cuentas:quitar", "vram:liberar", "claude:actualizar", "trama:actualizar", "dsh:clave", "dsh:instalar", "dsh:probar", "aa:refrescar", "mcp:guardar", "mcp:quitar", "opencode:planGuardar"]);
 
 /** Anota (o reemplaza) el manejador de un canal. */
 export function manejar(canal: string, fn: Manejador) {
@@ -789,7 +789,12 @@ export function armarNucleo() {
     if (!p) throw errorT("main.proyectoRaro", { v: s });
     return p;
   };
-  manejar("orq:mdEstado", async (_e, slug: unknown) => estadoMd((await carpetaDe(slug)).ruta));
+  manejar("orq:mdEstado", async (_e, slug: unknown) => {
+    const p = await carpetaDe(slug);
+    const st = await estadoMd(p.ruta);
+    st.tareaEnCurso = tareaMdEnCurso(p.slug, ultimosHilos);
+    return st;
+  });
   manejar("orq:mdPlan", async (_e, slug: unknown) => planUnificar((await carpetaDe(slug)).ruta));
   manejar("orq:mdAplicar", async (_e, slug: unknown, huella: unknown) => {
     const p = await carpetaDe(slug);
@@ -799,6 +804,11 @@ export function armarNucleo() {
   manejar("orq:agentsGuardar", async (_e, slug: unknown, texto: unknown) => {
     const p = await carpetaDe(slug);
     return guardarAgents(p.ruta, path.join(PA_STATE, p.slug), texto);
+  });
+  manejar("orq:mdFusionar", async (_e, slug: unknown, tipo: unknown) => {
+    const p = await carpetaDe(slug);
+    const t: TipoTareaMd = tipo === "acortar" ? "acortar" : "fusionar";
+    return lanzarTareaMd(p.slug, t, { hilos: ultimosHilos as any[] });
   });
   // El nombre para mostrar de cada proyecto (proyectos-alias.ts; `pa --renombrar` hace lo mismo): cambia sólo ese texto del registry.
   manejar("proyectos:lista", () => listarProyectos(registroProyectos()));

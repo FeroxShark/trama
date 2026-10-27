@@ -51,6 +51,7 @@ export type EstadoMd = {
   unificado: boolean;
   /** Hay algo que `unificar` pasaría a AGENTS.md o stubs que faltan. */
   porUnificar: boolean;
+  tareaEnCurso?: "acortar" | "fusionar" | null;
 };
 
 export async function estadoMd(ruta: string, env: Record<string, string | undefined> = process.env): Promise<EstadoMd> {
@@ -68,6 +69,7 @@ export async function estadoMd(ruta: string, env: Record<string, string | undefi
     truncado: caracteres > tope,
     unificado: por["AGENTS.md"].tipo === "real" && por["CLAUDE.md"].tipo !== "real" && por["GEMINI.md"].tipo !== "real" && por["CLAUDE.md"].tipo !== "falta",
     porUnificar: !plan.nada,
+    tareaEnCurso: null,
   };
 }
 

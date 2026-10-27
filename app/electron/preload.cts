@@ -187,6 +187,7 @@ contextBridge.exposeInMainWorld("hilos", {
     mdEstado: (slug: string): Promise<unknown> => ipcRenderer.invoke("orq:mdEstado", slug),
     mdPlan: (slug: string): Promise<unknown> => ipcRenderer.invoke("orq:mdPlan", slug),
     mdAplicar: (slug: string, huella: string): Promise<unknown> => ipcRenderer.invoke("orq:mdAplicar", slug, huella),
+    mdFusionar: (slug: string, tipo?: "acortar" | "fusionar"): Promise<unknown> => ipcRenderer.invoke("orq:mdFusionar", slug, tipo),
     leerAgents: (slug: string): Promise<string> => ipcRenderer.invoke("orq:agentsLeer", slug),
     guardarAgents: (slug: string, texto: string): Promise<unknown> => ipcRenderer.invoke("orq:agentsGuardar", slug, texto),
     retomar: (h: unknown): Promise<unknown> => ipcRenderer.invoke("hilo:retomar", h),

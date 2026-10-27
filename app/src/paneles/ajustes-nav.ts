@@ -248,6 +248,17 @@ export function abrirAjustes(cat: CatId) {
   alAbrir?.();
 }
 
+let alAbrirRamas: (() => void) | null = null;
+export function alPedirRamas(f: () => void) {
+  alAbrirRamas = f;
+  return () => {
+    if (alAbrirRamas === f) alAbrirRamas = null;
+  };
+}
+export function abrirRamas() {
+  alAbrirRamas?.();
+}
+
 /** Para los tests: todo como al arrancar. */
 export function reiniciar() {
   oyentes.clear();

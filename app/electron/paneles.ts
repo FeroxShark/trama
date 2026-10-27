@@ -14,6 +14,7 @@ import { registro } from "./registro.js";
 import { leerRouting, type Routing } from "./routing.js";
 import { mientrasIntegra, estadoSalud, type Chequeo, type FilaIntegrada } from "./salud.js";
 import { sesionesVivas } from "./sesiones.js";
+import { RESUELTO } from "./seguro.js";
 import { silencio } from "./log.js";
 
 /** Integrar corre los tests del proyecto: tope largo, pero tope (un `pa` colgado no puede dejar la cola de integración trabada). */
@@ -279,6 +280,83 @@ export async function lanzarRama(x: LanzarRama) {
   const args = await argvLanzarRama(x);
   const { rc, dijo } = await enCola(String(x.proyecto), () => ejecutar(args));
   return { rc, dijo };
+}
+
+// Tareas de instrucciones (AGENTS.md, CLAUDE.md, GEMINI.md)
+
+export type TipoTareaMd = "acortar" | "fusionar";
+
+export const MARCADOR_MD_ACORTAR = "[instrucciones:acortar]";
+export const MARCADOR_MD_FUSIONAR = "[instrucciones:fusionar]";
+
+export function briefTareaMd(tipo: TipoTareaMd, tope = 20_000): string {
+  if (tipo === "fusionar") {
+    return `${MARCADOR_MD_FUSIONAR}
+Objetivo: Unificar las instrucciones del proyecto en AGENTS.md sin perder reglas (fusión de CLAUDE.md y GEMINI.md).
+Archivos: AGENTS.md, CLAUDE.md, GEMINI.md
+Listo cuando: AGENTS.md contiene todas las reglas de los archivos de instrucciones sin duplicar (deduplicar sólo lo idéntico; ante contradicciones dejar las dos versiones marcadas con un comentario HTML para el dueño); CLAUDE.md y GEMINI.md quedan como stubs que importan @AGENTS.md (con el comentario estándar); si AGENTS.md supera el tope (${tope} caracteres), avisarlo en RESULTADO; y los cambios están commiteados en su rama.
+Cómo verificar: git status; git diff; wc -m AGENTS.md
+No tocar: código de la aplicación, dependencias ni configuración fuera de los archivos de instrucciones.`;
+  }
+  return `${MARCADOR_MD_ACORTAR}
+Objetivo: Acortar AGENTS.md para que quede por debajo del tope de caracteres sin perder reglas.
+Archivos: AGENTS.md, docs/
+Listo cuando: AGENTS.md queda por debajo del tope (${tope} caracteres) SIN perder ninguna regla: deduplicar, compactar redacción, y mover secciones de referencia larga a docs enlazados (docs/...md citado desde AGENTS.md); y los cambios están commiteados en su rama.
+Cómo verificar: wc -m AGENTS.md; git status; git diff
+No tocar: código de la aplicación, tests, dependencias ni archivos fuera de las instrucciones y su documentación enlazada.`;
+}
+
+export async function argvTareaMd(slug: string, tipo: TipoTareaMd, opts?: { tope?: number }): Promise<string[]> {
+  if (!PROYECTO.test(String(slug))) throw errorT("main.proyectoRaro", { v: String(slug) });
+  if (tipo !== "acortar" && tipo !== "fusionar") throw errorT("main.accionRara", { v: String(tipo) });
+  const nombre = await nombrePa(slug);
+  const brief = briefTareaMd(tipo, opts?.tope);
+  return [nombre, "--async", "--tipo", "codigo-acotado", brief];
+}
+
+const enCursoMd = new Set<string>();
+
+export function reiniciarTareasMd() {
+  enCursoMd.clear();
+}
+
+export function tareaMdEnCurso(slug: string, hilos?: readonly unknown[] | null): TipoTareaMd | null {
+  if (enCursoMd.has(`${slug}:acortar`)) return "acortar";
+  if (enCursoMd.has(`${slug}:fusionar`)) return "fusionar";
+  if (Array.isArray(hilos)) {
+    for (const h of hilos as any[]) {
+      if (!h || (h.proyecto !== slug && h.proyecto !== path.basename(slug))) continue;
+      const tarea = String(h.tarea ?? "");
+      const esAcortar = tarea.includes(MARCADOR_MD_ACORTAR) || (tarea.includes("Acortar AGENTS.md") && tarea.includes("tope"));
+      const esFusionar = tarea.includes(MARCADOR_MD_FUSIONAR) || (tarea.includes("Unificar las instrucciones") && tarea.includes("fusión"));
+      if (!esAcortar && !esFusionar) continue;
+      const tipo: TipoTareaMd = esAcortar ? "acortar" : "fusionar";
+      const estaVivo = h.estado === "trabajando" || h.estado === "colgado" || h.en_cola === true;
+      const ramaPendiente = !RESUELTO.has(h.estado) && !!h.rama && ((h.commits ?? 0) > 0 || estaVivo);
+      if (estaVivo || ramaPendiente) return tipo;
+    }
+  }
+  return null;
+}
+
+export async function lanzarTareaMd(slug: string, tipo: TipoTareaMd = "fusionar", opts?: { hilos?: readonly unknown[]; tope?: number }) {
+  if (!PROYECTO.test(String(slug))) throw errorT("main.proyectoRaro", { v: String(slug) });
+  if (tipo !== "acortar" && tipo !== "fusionar") throw errorT("main.accionRara", { v: String(tipo) });
+  const enCurso = tareaMdEnCurso(slug, opts?.hilos);
+  if (enCurso) throw errorT("main.tareaMdEnCurso", { p: slug });
+  const args = await argvTareaMd(slug, tipo, opts);
+  const clave = `${slug}:${tipo}`;
+  enCursoMd.add(clave);
+  try {
+    const { rc, dijo } = await enCola(String(slug), () => ejecutar(args));
+    if (rc !== 0) {
+      enCursoMd.delete(clave);
+    }
+    return { rc, dijo };
+  } catch (e) {
+    enCursoMd.delete(clave);
+    throw e;
+  }
 }
 
 // --- Asistente de Ramas ----------------------------------------------------------

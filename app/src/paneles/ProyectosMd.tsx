@@ -14,6 +14,74 @@ const tv = t as (k: Clave, v: Record<string, string | number>) => string;
 const num = (n: number) => n.toLocaleString(locale());
 
 /** Una línea por archivo: existe o no, cuánto pesa, si es un stub. Dice el estado con palabras (nunca sólo con color). */
+
+export function EstadoLecturaMotores({ estado }: { estado: EstadoMd }) {
+  const fAgents = estado.archivos.find((f) => f.archivo === "AGENTS.md");
+  const fClaude = estado.archivos.find((f) => f.archivo === "CLAUDE.md");
+
+  let claudeTexto: string;
+  let claudeOk = false;
+  let claudeFalta = false;
+
+  if (fClaude?.tipo === "stub") {
+    if (fAgents?.tipo === "real") {
+      claudeTexto = tv("pry.md.claudeLee", { f: "AGENTS.md" });
+      claudeOk = true;
+    } else {
+      claudeTexto = t("pry.md.claudeSin");
+      claudeFalta = true;
+    }
+  } else if (fClaude?.tipo === "real") {
+    claudeTexto = tv("pry.md.claudeLee", { f: "CLAUDE.md" });
+    claudeOk = true;
+  } else if (fAgents?.tipo === "real") {
+    claudeTexto = t("pry.md.claudeFalta");
+    claudeFalta = true;
+  } else {
+    claudeTexto = t("pry.md.claudeSin");
+    claudeFalta = true;
+  }
+
+  let otrosTexto: string;
+  let otrosOk = false;
+  let otrosAviso = false;
+  let otrosFalta = false;
+
+  if (fAgents?.tipo === "real") {
+    if (estado.truncado) {
+      otrosTexto = t("pry.md.otrosParte");
+      otrosAviso = true;
+    } else {
+      otrosTexto = tv("pry.md.otrosReciben", { f: "AGENTS.md" });
+      otrosOk = true;
+    }
+  } else if (fClaude?.tipo === "real") {
+    if (estado.truncado) {
+      otrosTexto = t("pry.md.otrosParte");
+      otrosAviso = true;
+    } else {
+      otrosTexto = tv("pry.md.otrosReciben", { f: "CLAUDE.md" });
+      otrosOk = true;
+    }
+  } else {
+    otrosTexto = t("pry.md.otrosSin");
+    otrosFalta = true;
+  }
+
+  return (
+    <div className="pry-md-motores" data-estado-motores>
+      <div className="pry-md-motor" data-motor="claude" data-ok={claudeOk ? "true" : undefined} data-falta={claudeFalta ? "true" : undefined}>
+        {claudeOk ? <Check size={12} strokeWidth={2} aria-hidden="true"></Check> : <AlertTriangle size={12} strokeWidth={2} aria-hidden="true"></AlertTriangle>}
+        <span>{claudeTexto}</span>
+      </div>
+      <div className="pry-md-motor" data-motor="otros" data-ok={otrosOk ? "true" : undefined} data-aviso={otrosAviso ? "true" : undefined} data-falta={otrosFalta ? "true" : undefined}>
+        {otrosOk ? <Check size={12} strokeWidth={2} aria-hidden="true"></Check> : <AlertTriangle size={12} strokeWidth={2} aria-hidden="true"></AlertTriangle>}
+        <span>{otrosTexto}</span>
+      </div>
+    </div>
+  );
+}
+
 export function ArchivosMd({ estado }: { estado: EstadoMd }) {
   const dice = (f: EstadoMd["archivos"][number]): string => {
     if (f.tipo === "real") return tv("pry.md.real", { n: num(f.caracteres) });

@@ -12,10 +12,14 @@ const archivos = readdirSync(dir)
   .sort()
   .map((f) => path.join("tests", f));
 
+const env = { ...process.env };
+for (const k of Object.keys(env)) {
+  if (k.startsWith("PA_") || k === "TRAMA_LOCAL") delete env[k];
+}
 const r = spawnSync(process.execPath, ["--test", ...process.argv.slice(2), ...archivos], {
   cwd: raiz,
   stdio: "inherit",
-  env: process.env,
+  env,
 });
 if (r.error) {
   console.error(r.error.message);

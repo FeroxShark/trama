@@ -292,3 +292,47 @@
 .pry-todos-l li[data-clase="fusion"] svg {
   color: var(--oro);
 }
+
+.pry-md-motores {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-1);
+  margin-top: var(--esp-2);
+}
+.pry-md-motor {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-1-5);
+  font-size: var(--letra-4);
+  color: var(--texto-2);
+}
+.pry-md-motor[data-ok="true"] svg {
+  color: var(--texto-4);
+}
+.pry-md-motor[data-aviso="true"] {
+  color: var(--oro);
+}
+.pry-md-motor[data-aviso="true"] svg {
+  color: var(--oro);
+}
+.pry-md-motor[data-falta="true"] {
+  color: var(--texto-5);
+}
+.pry-md-motor[data-falta="true"] svg {
+  color: var(--texto-5);
+}
+.pry-md-detalles {
+  margin-top: var(--esp-2);
+}
+.pry-md-sum {
+  cursor: pointer;
+  color: var(--texto-4);
+  font-size: var(--letra-3);
+  user-select: none;
+}
+.pry-md-sum:hover {
+  color: var(--texto-2);
+}
+.pry-btn-inline {
+  margin-left: var(--esp-2);
+}

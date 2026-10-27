@@ -122,9 +122,9 @@ Verificado antes del commit final: los dos `tsc` sin errores, `vite build` bien,
 | Varias cuentas de OpenCode | A medias: compila y pasa tests, sin probar con opencode real (ver punto 2 de arriba) |
 | Etapa 5 de Windows (`pa` en TS) | Empezada: `ayuda`, `contrato`, `entorno`; falta entrada, parseo, subcomandos y paridad |
 | Ajustes > Proyectos: tarjeta única, aviso y "Unificar todos" mecánico | Terminado y con tests (`app/src/paneles/unificar-clase.ts`) |
-| Fusión con un worker de `pa` (casos con contenido distinto) | **No hecho.** Hoy esos proyectos se marcan "hay que fusionar a mano" y se abren con Unificar en su tarjeta |
+| Fusión con un worker de `pa` (casos con contenido distinto) | **Hecho.** IPC `orq:mdFusionar` (fusión y acortado con brief, no relanzar si hay hilo o rama pendiente, botón a Ramas) |
 
-**Lo que falta de la fusión con worker, tal cual:**
+**Fusión con worker (implementado en `app/electron/paneles.ts`, `nucleo.ts`, `ProyectosMd.tsx`, `AjustesProyectos.tsx`):**
 1. IPC nuevo `orq:mdFusionar` en `app/electron/nucleo.ts` (sumarlo a `SOLO_PC_TAILNET`), `preload.cts`, `src/puente.ts` y la
    fuente fija de `src/datos/proyectos.ts`. Lanza `pa <nombrePa(slug)> --async --tipo codigo-acotado "<brief>"` sin `-m` (que
    reparto elija), por `enCola`, validando el slug con `PROYECTO` (ver `argvLanzarRama` en `app/electron/paneles.ts`).

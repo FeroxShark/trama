@@ -191,6 +191,7 @@ type Main = {
     mdEstado(slug: string): Promise<unknown>;
     mdPlan(slug: string): Promise<unknown>;
     mdAplicar(slug: string, huella: string): Promise<unknown>;
+    mdFusionar(slug: string, tipo?: "acortar" | "fusionar"): Promise<{ rc: number; dijo: string }>;
     leerAgents(slug: string): Promise<string>;
     guardarAgents(slug: string, texto: string): Promise<unknown>;
     /** Los umbrales del anillo de contexto (`{ autoCompact }`, electron/contexto.ts), sin validar. */
