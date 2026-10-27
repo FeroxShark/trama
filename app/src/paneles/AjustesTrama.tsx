@@ -29,7 +29,7 @@ export function TramaVersion() {
       <button type="button" className="btn2" disabled={estado.paso === "buscando"} onClick={buscar}>
         {t("ajustes.tramaBuscar")}
       </button>
-      <span className="pn-car-estado" role="status" aria-live="polite">
+      <span className="pn-car-estado" role="status" aria-live="polite" aria-atomic="true">
         {textoBusqueda(estado)}
       </span>
     </div>
