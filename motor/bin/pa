@@ -6001,7 +6001,8 @@ correr() {
     dsh_tarea="$dir/$ts.dsh-tarea"; ( umask 077; printf '%s' "$dsh_prompt" >"$dsh_tarea" )
     if es_opencode "$modelo"; then
       # opencode usa el login de la persona (su HOME/XDG, tal cual): ninguna key de pa viaja. Una cuenta agregada de OpenCode
-      # (cuenta_env: `env XDG_DATA_HOME=<su carpeta> TRAMA_OPENCODE_CUENTA=… TRAMA_OPENCODE_PLAN=…`) va SÓLO en este proceso.
+      # (cuenta_env: `env XDG_DATA_HOME=<su carpeta>/data XDG_STATE_HOME=<su carpeta>/state TRAMA_OPENCODE_CUENTA=… TRAMA_OPENCODE_PLAN=…`; correr.mjs le
+      # agrega --standalone a `opencode run`) va SÓLO en este proceso.
       ( cd "$ruta_trabajo" || exit 1
         export PA_WORKER=1 GIT_EDITOR=true GIT_SEQUENCE_EDITOR=true PATH="$CODEX_SHIMS:$PATH" HILOS_OPENCODE="$(opencode_bin)"
         exec "${cuenta_env[@]}" node "$OC_CORRER" "${args[@]}" --tarea-archivo "$dsh_tarea" ) \

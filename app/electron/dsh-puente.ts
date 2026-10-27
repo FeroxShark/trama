@@ -31,6 +31,7 @@ import { entornoDsh, escribirParche, esErrorCuota, falta, mensajeCuotaOpencode, 
 import { effortParaAcp, esModeloGo, politicaOpencode, entornoOpencode, esErrorCuota as esCuotaOc, mensajeCuotaOpencode as mensajeCuotaOc, parsearModelo as parsearOpencode, resolverOpencode } from "./opencode.ts";
 import { esLimiteGratisOpencode, marcarModeloGoAgotado, marcarOpencodeAgotado } from "./opencode-agotado.ts";
 import { anotarPedidos, cuentaPedidos } from "./opencode-pedidos.ts";
+import { conCuentaOpencode, cuentaAgregadaDe } from "./opencode-cuenta.ts";
 import { textoT } from "./errores.ts";
 import { leerClavesSync, type NombreClave } from "./claves.ts";
 import { cortesDeEntorno, sinCortadas } from "./cortes.ts";
@@ -491,7 +492,9 @@ async function levantar(): Promise<void> {
   let args: string[];
   if (oc) {
     // opencode usa el login y la config de la persona (su HOME/XDG, sin tocarlos): el modelo se elige por ACP después de abrir la sesión.
-    env = { ...entornoOpencode(entornoAgy(env0, os.homedir())), PWD: path.resolve(cwd) }; // opencode toma su directorio de PWD
+    // Con TRAMA_OPENCODE_CUENTA=<id> corre con la cuenta agregada de OpenCode (su XDG_DATA_HOME y XDG_STATE_HOME; opencode-cuenta.ts): si no se puede armar, tira (no se usa
+    // la de la persona en silencio). El entorno de la cuenta va ANTES de entornoOpencode: el modelo chico depende del plan de esa cuenta.
+    env = { ...entornoOpencode(entornoAgy(conCuentaOpencode(env0), os.homedir())), PWD: path.resolve(cwd) }; // opencode toma su directorio de PWD
     comando = resolverOpencode(process.env, os.homedir());
     args = ["acp"];
   } else {
@@ -571,12 +574,12 @@ function textoDeError(e: unknown): string {
   const err = cliente?.stderr || stderrPerdido;
   // OpenCode Go: el cupo es por modelo. Un 429 marca agotado SOLO este modelo (~5 h); los demás de Go y el límite de los gratis no se tocan.
   if (oc && esModeloGo(oc.valor) && esCuotaOc(`${String((e as Error)?.message ?? e)}\n${err}`)) {
-    marcarModeloGoAgotado(modelo);
+    marcarModeloGoAgotado(modelo, undefined, process.env, Date.now(), cuentaAgregadaDe(process.env));
     return textoT("main.opencodeGoSinCupo", { modelo: oc.valor });
   }
   // El uso gratis de OpenCode es uno solo para todos sus modelos gratis: se anota para Trama (reparto, selector) y se dice qué hacer.
   if (oc && !esModeloGo(oc.valor) && esLimiteGratisOpencode(`${String((e as Error)?.message ?? e)}\n${err}`)) {
-    marcarOpencodeAgotado();
+    marcarOpencodeAgotado(undefined, process.env, Date.now(), cuentaAgregadaDe(process.env));
     return textoT("main.opencodeSinCupo", { modelo: oc.valor });
   }
   if (oc && esCuotaOc(`${String((e as Error)?.message ?? e)}\n${err}`)) return mensajeCuotaOc(oc.valor);

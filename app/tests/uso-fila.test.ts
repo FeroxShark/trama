@@ -2,7 +2,7 @@
 // reinicio el número va solo; "sin dato" sólo cuando no hay ni porcentaje. Puro, sin React.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { filaDe, formatearFalta, formatearHasta } from "../src/barra/usoFila.ts";
+import { filaDe, formatearFalta, formatearFaltaCorto, formatearHasta } from "../src/barra/usoFila.ts";
 
 const U = { d: "d", h: "h", min: "min", s: "s", ya: "ya" };
 
@@ -57,4 +57,14 @@ test("en: cuántos segundos hasta que cambia el texto (en el último minuto, cad
   assert.equal(formatearFalta(720.5, U).en, 0.5);
   assert.equal(formatearFalta(4 * 3600 + 23 * 60 + 40, U).en, 40);
   assert.equal(formatearFalta(6 * 86_400 + 14 * 3600 + 1800, U).en, 1800);
+});
+
+test("la falta abreviada para la celda: una unidad pasado el día, horas con minutos pegados", () => {
+  const texto = (r: number) => formatearFaltaCorto(r, U).texto;
+  assert.equal(texto(45), "45 s");
+  assert.equal(texto(20 * 60), "20 min");
+  assert.equal(texto(3600 + 20 * 60), "1 h20");
+  assert.equal(texto(4 * 3600 + 5 * 60), "4 h05");
+  assert.equal(texto(4 * 86_400 + 3 * 3600), "4 d");
+  assert.deepEqual(formatearFaltaCorto(0, U), { texto: "ya", en: Infinity });
 });

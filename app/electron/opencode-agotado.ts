@@ -53,10 +53,13 @@ function anotar(grupo: string, hastaMs: number, env: NodeJS.ProcessEnv, ahoraMs:
 }
 
 /** Marca agotado el uso gratis de OpenCode hasta `hastaMs` (por defecto, dentro de 1 h). Devuelve cuándo vence (epoch ms), o `null` si no se pudo escribir. */
-export function marcarOpencodeAgotado(hastaMs?: number, env: NodeJS.ProcessEnv = process.env, ahoraMs = Date.now()): number | null {
+export function marcarOpencodeAgotado(hastaMs?: number, env: NodeJS.ProcessEnv = process.env, ahoraMs = Date.now(), cuenta: string | null = null): number | null {
   const hasta = hastaMs && hastaMs > ahoraMs ? hastaMs : ahoraMs + VENCE_SIN_HORA_MS;
-  return anotar(GRUPO_OPENCODE_GRATIS, hasta, env, ahoraMs) ? hasta : null;
+  return anotar(GRUPO_OPENCODE_GRATIS + sufijoCuenta(cuenta), hasta, env, ahoraMs) ? hasta : null;
 }
+
+/** El sufijo de las marcas de una cuenta agregada (`@<cuenta>`, como `suf` de `reparto`); la de siempre no lleva. */
+const sufijoCuenta = (cuenta: string | null): string => (cuenta && cuenta !== "opencode" ? `@${cuenta}` : "");
 
 /** Hasta cuándo (epoch ms) está agotado el uso gratis de OpenCode, o `null` si no lo está (o ya venció). */
 export function opencodeAgotadoHasta(env: NodeJS.ProcessEnv = process.env, ahoraMs = Date.now()): number | null {
@@ -70,10 +73,10 @@ export function opencodeAgotadoHasta(env: NodeJS.ProcessEnv = process.env, ahora
 export const grupoModeloGo = (id: string): string => (id.startsWith("opencode:") ? id : `opencode:${id}`).toLowerCase();
 
 /** Marca agotado SOLO ese modelo de Go hasta `hastaMs` (por defecto, dentro de 5 h). `null` si no es de Go o no se pudo escribir. */
-export function marcarModeloGoAgotado(id: string, hastaMs?: number, env: NodeJS.ProcessEnv = process.env, ahoraMs = Date.now()): number | null {
+export function marcarModeloGoAgotado(id: string, hastaMs?: number, env: NodeJS.ProcessEnv = process.env, ahoraMs = Date.now(), cuenta: string | null = null): number | null {
   if (!esModeloGo(id)) return null;
   const hasta = hastaMs && hastaMs > ahoraMs ? hastaMs : ahoraMs + VENCE_GO_MS;
-  return anotar(grupoModeloGo(id), hasta, env, ahoraMs) ? hasta : null;
+  return anotar(grupoModeloGo(id) + sufijoCuenta(cuenta), hasta, env, ahoraMs) ? hasta : null;
 }
 
 /** Los modelos de Go agotados ahora: id del grupo (`opencode:opencode-go/<modelo>`) → hasta cuándo (epoch ms). */
@@ -81,7 +84,8 @@ export function modelosGoAgotados(env: NodeJS.ProcessEnv = process.env, ahoraMs 
   const out: Record<string, number> = {};
   for (const [g, v] of Object.entries(leer(env))) {
     const ms = Date.parse(v?.hasta ?? "");
-    if (esModeloGo(g) && Number.isFinite(ms) && ms > ahoraMs) out[g] = ms;
+    // Las de una cuenta agregada (`…@<cuenta>`) no son las de la de siempre: salen por `marcasOpencode`.
+    if (esModeloGo(g) && !g.includes("@") && Number.isFinite(ms) && ms > ahoraMs) out[g] = ms;
   }
   return out;
 }

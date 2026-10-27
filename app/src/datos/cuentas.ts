@@ -70,23 +70,53 @@ export function parteCuenta(proveedor: string, nombre: string, defecto: boolean,
   return deFabrica ? principal : nombre;
 }
 
-/** `primera`: abre un proveedor nuevo (lleva el separador delante); las cuentas de Claude cuelgan de su fila de siempre. */
-/** `nombre`: el entero ("Claude · trabajo", para el tooltip); `corto`: lo que se escribe en la fila. */
-export type FilaSusc = { s: SuscripcionCupo; nombre: string; corto: string; proveedor: string; primera: boolean };
+/**
+ * `primera`: abre un proveedor nuevo (lleva el separador delante); las cuentas de Claude cuelgan de su fila de siempre.
+ * `nombre`: el entero ("Claude · trabajo", para el tooltip); `corto`: lo que se escribe en la fila.
+ * `cuenta`: la fila es una cuenta agregada que cuelga de la fila de su proveedor (se pinta debajo, sangrada y sin logo, con el nombre de la cuenta);
+ * las demás son la fila del proveedor (logo y nombre del proveedor, con los datos de la cuenta de siempre).
+ */
+export type FilaSusc = { s: SuscripcionCupo; nombre: string; corto: string; proveedor: string; primera: boolean; cuenta: boolean };
 export type FilasCupos = {
-  /** Cómo se llama la fila de Claude (la de siempre): `null` = como hoy, cuando es la única de Claude. */
+  /** Cómo se llama la fila de Claude (la de siempre) en el tooltip: `null` = como hoy, cuando es la única de Claude. */
   claude: string | null;
+  /** Lo que lleva la fila de Claude: `null` = "Claude" (la de siempre sin renombrar); si la renombraron, su nombre. */
   claudeCorto: string | null;
   filas: FilaSusc[];
 };
 
+/** ¿La suscripción trae algún dato (un porcentaje o pedidos contados)? Una vacía es un renglón de "sin lectura" (`—`). */
+function conDato(s: SuscripcionCupo): boolean {
+  const ventanas = [...(s.ventanas ?? []), ...(s.grupos ?? []).flatMap((g) => g.ventanas)];
+  return ventanas.some((v) => v.pct !== null || v.pedidos !== undefined) || (s.grupos ?? []).some((g) => g.agotado !== undefined);
+}
+
 /**
- * Las filas de la barra de cupos. Con una sola cuenta por proveedor queda todo como estaba (nombres de siempre, mismo orden).
- * Con más de una, las de un proveedor van juntas (la de siempre, después las agregadas) y se nombran "Claude · trabajo".
- * `claudeNombre`: cómo se llama la de siempre de Claude; `principal`: la palabra para la que no se renombró.
+ * Una sola suscripción por proveedor y cuenta: si dos fuentes dicen la misma (p. ej. `reparto --cupos` y la cuenta de OpenCode que arma Trama), se queda la
+ * que trae datos (y, con las dos igual, la última); va en el lugar de la primera. Sin esto una cuenta contaba dos y el proveedor parecía tener varias.
+ */
+export function sinRepetir(lista: readonly SuscripcionCupo[]): SuscripcionCupo[] {
+  const lugar = new Map<string, number>();
+  const out: SuscripcionCupo[] = [];
+  for (const s of lista) {
+    const k = `${proveedorDe(s)}\u0000${s.cuenta ?? s.id}`;
+    const i = lugar.get(k);
+    if (i === undefined) {
+      lugar.set(k, out.length);
+      out.push(s);
+    } else if (conDato(s) || !conDato(out[i])) out[i] = s;
+  }
+  return out;
+}
+
+/**
+ * Las filas de la barra de cupos. Con una sola cuenta por proveedor no hay filas de cuenta: los datos van en la fila del proveedor, con su nombre de siempre.
+ * Con más de una, las de un proveedor van juntas: la fila del proveedor (la cuenta de siempre; si la renombraron, con su nombre) y debajo, sangrada y con
+ * el nombre de la cuenta, una fila por cada agregada ("Claude · trabajo" en el tooltip).
+ * `claudeNombre`: cómo se llama la de siempre de Claude; `principal`: la palabra para la que no se renombró (sólo en los tooltips).
  */
 export function filasDeCupos(subs: readonly SuscripcionCupo[] | undefined, claudeNombre: string | undefined, principal: string): FilasCupos {
-  const lista = subs ?? [];
+  const lista = sinRepetir(subs ?? []);
   const contar = new Map<string, number>();
   const contarDe = (p: string) => (contar.get(p) ?? 0) + (p === "claude" ? 1 : 0);
   for (const s of lista) {
@@ -95,6 +125,8 @@ export function filasDeCupos(subs: readonly SuscripcionCupo[] | undefined, claud
   }
   const varias = (p: string) => contarDe(p) > 1;
   const fabrica = ["Claude", "Google AI Pro", "ChatGPT", "OpenCode"];
+  // La de siempre sin renombrar la dice el proveedor mismo ("Google"): su fila es la del proveedor, no una cuenta.
+  const sinRenombrar = (p: string, nombre: string) => parteCuenta(p, nombre, true, principal, fabrica) === principal;
 
   // Orden: la fila de Claude va siempre primera (la arma la cabecera), sus agregadas detrás; el resto por proveedor, agrupado.
   const orden: string[] = [];
@@ -107,15 +139,16 @@ export function filasDeCupos(subs: readonly SuscripcionCupo[] | undefined, claud
   for (const p of orden) {
     const delProveedor = lista.filter((s) => proveedorDe(s) === p).sort((a, b) => Number(esDefecto(b)) - Number(esDefecto(a)));
     delProveedor.forEach((s, i) => {
+      const cuelga = varias(p) && (p === "claude" || i > 0);
       const nombre = varias(p) ? etiquetaCuenta(p, s.nombre, esDefecto(s), principal, fabrica) : s.nombre;
-      const corto = varias(p) ? parteCuenta(p, s.nombre, esDefecto(s), principal, fabrica) : s.nombre;
-      filas.push({ s, nombre, corto, proveedor: p, primera: i === 0 && p !== "claude" });
+      const corto = !varias(p) ? s.nombre : cuelga ? s.nombre : esDefecto(s) && sinRenombrar(p, s.nombre) ? ((MARCA as Record<string, string>)[p] ?? s.nombre) : s.nombre;
+      filas.push({ s, nombre, corto, proveedor: p, primera: i === 0 && p !== "claude", cuenta: cuelga });
     });
   }
   const cNombre = claudeNombre ?? "Claude";
   return {
     claude: varias("claude") ? etiquetaCuenta("claude", cNombre, true, principal, fabrica) : null,
-    claudeCorto: varias("claude") ? parteCuenta("claude", cNombre, true, principal, fabrica) : null,
+    claudeCorto: varias("claude") && !sinRenombrar("claude", cNombre) ? cNombre : null,
     filas,
   };
 }

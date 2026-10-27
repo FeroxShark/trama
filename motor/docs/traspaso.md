@@ -100,11 +100,23 @@ historia (force push); se puede subir directo y mergear sin esperar el CI.
    (`app/electron/opencode-pedidos.ts`, archivo `opencode-pedidos.jsonl` en el estado de reparto; workers exacto por
    `step_finish` en `motor/opencode/correr.mjs`; líderes aproximado por `usage_update` en `dsh-puente.ts`). Ventana supuesta de
    5 h como Claude (OpenCode no la documenta). Lo usado fuera de trama no se ve; la interfaz lo dice.
-2. **Varias cuentas de OpenCode (A MEDIAS).** El agente se cortó por presupuesto. Hay cambios en `motor/bin/cuentas`,
-   `motor/bin/pa` (proveedor de cuenta `opencode`), `motor/bin/reparto` (`suf`), `app/electron/cuentas-varias*.ts`,
-   `src/datos/cuentas.ts` y la tarjeta (`AgregarCuenta proveedor="opencode"`). Compila y los tests pasan, pero **no está
-   probado de punta a punta**. Falta confirmar cómo aísla opencode cada login (su carpeta de datos / `auth.json`, p. ej. con
-   `XDG_DATA_HOME`) y probar agregar, elegir y quitar una segunda cuenta con opencode real.
+2. **Varias cuentas de OpenCode (hecho; falta probar con un login real).** Medido con opencode 2.1.4: el login vive en
+   `$XDG_DATA_HOME/opencode/opencode.db` y los comandos de un tiro hablan con un servicio de fondo (puerto 49374, registro en
+   `$XDG_STATE_HOME/opencode/service.json`) que ya corre con los datos del dueño. Cambiar sólo `XDG_STATE_HOME` NO aísla (da
+   error de puerto). Diseño: cada cuenta agregada tiene `data/` y `state/` propios (`~/.config/trama/cuentas/<id>/`, con marca
+   `.trama-cuenta`) y opencode corre con `XDG_DATA_HOME`/`XDG_STATE_HOME` de ella **y `--standalone`** (servidor propio; `login`,
+   `ver --verificar` y `correr.mjs` lo agregan). `opencode acp` (líder) corre en proceso: alcanza con el entorno; el puente lee
+   `TRAMA_OPENCODE_CUENTA=<id>` (`app/electron/opencode-cuenta.ts`, falla cerrado). Sin selector de cuenta en la interfaz para el
+   líder todavía: sólo por esa variable; los workers, con `pa --cuenta <id>`. Pedidos (`c`) y marcas de agotado (`@cuenta`) van
+   por cuenta; la fila de OpenCode de la barra sale sólo de trama (no de `reparto`). Quitar con `--borrar-credenciales` borra
+   únicamente su carpeta (`carpeta_borrable`; nunca `~/.local/{share,state}/opencode`). Tests: `tests/cuentas-opencode.test.ts`
+   (con opencode falso y, si está, el real sin login). **Para probar con login real:** Ajustes > Plan y cupos > OpenCode >
+   Agregar cuenta, poner nombre, tocar «Iniciar sesión» (o `cuentas login <id>`), completar el navegador, volver y ver que
+   la cuenta figura conectada (`cuentas ver <id> --verificar`) y que `pa <proy> -m opencode:opencode/beam-free --cuenta <id> "hola"`
+   responde y suma un pedido con esa cuenta, sin tocar el login del dueño (`opencode auth list` sigue igual).
+   **Plan detectado solo: no se hizo.** `opencode models` lista `opencode/*` (gratis y Zen) y habría `opencode-go/*` con Go, pero (a)
+   no se pudo comprobar el caso con Go (el dueño no lo tiene), (b) no distingue Go de Go Plus, y (c) la API de la Console necesita los
+   tokens de `opencode.db` (secretos, no se leen). El selector manual queda.
 3. **Port a Windows, etapa 5 (EMPEZADA).** `app/electron/cli/pa/{ayuda,contrato,entorno}.ts` (~500 líneas) y `pa --version`
    en el `pa` de bash. Falta el punto de entrada, el parseo completo, los subcomandos de lectura y los casos de paridad
    `app/tests/paridad/casos-pa.ts`. Detalle de etapas en `motor/docs/port-windows-plan.md`.
@@ -119,7 +131,7 @@ Verificado antes del commit final: los dos `tsc` sin errores, `vite build` bien,
 | Parte | Estado |
 |---|---|
 | OpenCode como proveedor (tarjeta, barra lateral, pedidos contados por trama) | Terminado y con tests |
-| Varias cuentas de OpenCode | A medias: compila y pasa tests, sin probar con opencode real (ver punto 2 de arriba) |
+| Varias cuentas de OpenCode | Hecho y con tests (opencode falso y real sin login); falta probar un login real (punto 2) |
 | Etapa 5 de Windows (`pa` en TS) | Empezada: `ayuda`, `contrato`, `entorno`; falta entrada, parseo, subcomandos y paridad |
 | Ajustes > Proyectos: tarjeta única, aviso y "Unificar todos" mecánico | Terminado y con tests (`app/src/paneles/unificar-clase.ts`) |
 | Fusión con un worker de `pa` (casos con contenido distinto) | **Hecho.** IPC `orq:mdFusionar` (fusión y acortado con brief, no relanzar si hay hilo o rama pendiente, botón a Ramas) |

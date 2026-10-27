@@ -12,6 +12,7 @@ import { dirEstadoReparto, GRUPO_OPENCODE_GRATIS, grupoModeloGo } from "./openco
 import { esGratis, esModeloGo, PROVEEDOR_GO, type PlanOpencode } from "./opencode.ts";
 import { esPlanGo, normalizarSlug, type TablaGo } from "./opencode-go.ts";
 import { cuentasDeEstaMaquinaVarias, listarCuentas, type ListaCuentas, type PerfilCuenta } from "./cuentas-varias.ts";
+import { cuentaAgregadaDe } from "./opencode-cuenta.ts";
 
 /** Lo que dura una ventana de OpenCode (la de los topes de Go: «pedidos cada 5 h»). */
 export const VENTANA_OC_S = 5 * 3600;
@@ -52,13 +53,17 @@ function leerTodo(env: NodeJS.ProcessEnv): Pedidos[] {
   return out;
 }
 
-/** Anota `n` pedidos de `modelo` ahora. Lo que no tiene cupo, o `n` < 1, no se anota. `false` si no se pudo escribir (no es un error: se cuenta menos). */
+/**
+ * Anota `n` pedidos de `modelo` ahora. Lo que no tiene cupo, o `n` < 1, no se anota. `false` si no se pudo escribir (no es un error: se cuenta menos).
+ * Con `TRAMA_OPENCODE_CUENTA` en `env` (un líder de una cuenta agregada) la línea lleva `c`: cada cuenta cuenta lo suyo (`suscripcionOpencode`).
+ */
 export function anotarPedidos(modelo: string, n: number, env: NodeJS.ProcessEnv = process.env, ahoraMs = Date.now()): boolean {
   if (!cuentaPedidos(modelo) || !(n >= 1)) return false;
   const f = archivoPedidos(env);
   try {
     mkdirSync(path.dirname(f), { recursive: true });
-    appendFileSync(f, JSON.stringify({ t: Math.floor(ahoraMs / 1000), m: claveModelo(modelo), n: Math.round(n) }) + "\n");
+    const cuenta = cuentaAgregadaDe(env);
+    appendFileSync(f, JSON.stringify({ t: Math.floor(ahoraMs / 1000), m: claveModelo(modelo), n: Math.round(n), ...(cuenta ? { c: cuenta } : {}) }) + "\n");
     if (statSync(f).size > PODAR_BYTES) {
       const desde = ahoraMs / 1000 - GUARDAR_S;
       const tmp = `${f}.${process.pid}`;
@@ -90,6 +95,12 @@ export function ventanaActual(ps: readonly Pedidos[], ahoraS: number, largoS = V
   }
   return inicio === null || ahoraS >= inicio + largoS ? null : { usados, vuelve: inicio + largoS };
 }
+
+/**
+ * Las suscripciones de `reparto --cupos` sin las de OpenCode: la fila de OpenCode (y la de cada cuenta agregada) la arma Trama con `suscripcionOpencode`.
+ * `reparto` lista las suyas vacías («proveedor sin lectura de cupo: no se reparte»); si pasaban las dos, la barra mostraba OpenCode repetido.
+ */
+export const sinOpencodeDeReparto = <T extends { id: string; proveedor?: string }>(subs: readonly T[]): T[] => subs.filter((s) => (s.proveedor ?? s.id) !== "opencode");
 
 export type EntradaOpencode = {
   /** Una cuenta agregada de OpenCode (`cuentas`); sin ella, la de siempre (id `opencode`). */

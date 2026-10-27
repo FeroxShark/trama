@@ -19,10 +19,18 @@ credenciales de siempre (sin tocar nada): sin cuentas.json todo sigue como antes
   google   HOME=<carpeta> y DBUS_SESSION_BUS_ADDRESS roto: agy no encuentra el llavero y guarda el token en un archivo
            de ese HOME; ~/.gemini/config, git, ~/.config/trama, ~/.local/{bin,state} y ~/.claude son symlinks
   chatgpt  CODEX_HOME=<carpeta>; config.toml, AGENTS.md y prompts son symlinks a ~/.codex
-  opencode XDG_DATA_HOME=<carpeta>: opencode guarda el login en $XDG_DATA_HOME/opencode/auth.json (y ahí sus sesiones);
-           la config (XDG_CONFIG_HOME, ~/.config/opencode) es la de siempre y opencode/bin (sus LSP) es un symlink.
+  opencode XDG_DATA_HOME=<carpeta>/data y XDG_STATE_HOME=<carpeta>/state. Verificado con opencode 2.1.4: el login vive en
+           $XDG_DATA_HOME/opencode/opencode.db (tabla `credential`; antes, auth.json), así que cada cuenta lleva su
+           PROPIO data dir (con él, también sus sesiones). Pero el CLI de 2.x habla con un servicio de fondo (su registro
+           es $XDG_STATE_HOME/opencode/service.json, en el puerto 49374) que ya corre con los datos de la persona: sin
+           `--standalone` cualquier comando vería la cuenta de la persona aunque cambie XDG_DATA_HOME. Por eso los
+           comandos de una cuenta agregada llevan `--standalone` (servidor propio, sin el servicio) y su XDG_STATE_HOME
+           propio, que además hace que un comando que se olvide el flag falle (puerto ocupado) en vez de usar la cuenta
+           equivocada. `opencode acp` (los líderes) corre dentro del proceso: alcanza con el entorno. La config
+           (XDG_CONFIG_HOME, ~/.config/opencode) es la de siempre.
            También TRAMA_OPENCODE_CUENTA=<id> y TRAMA_OPENCODE_PLAN=<plan> (el runner cuenta los pedidos y elige el
-           modelo chico según el plan de esa cuenta). La de siempre aparece si opencode está instalado.
+           modelo chico según el plan de esa cuenta; con TRAMA_OPENCODE_CUENTA el runner agrega --standalone).
+           La de siempre no toca nada (usa el servicio y los datos de siempre) y aparece si opencode está instalado.
 Sin dependencias (python3 estándar). TRAMA_CUENTAS_HOME = el home de
 verdad de donde salen los symlinks (default $HOME).
 """
@@ -51,7 +59,7 @@ LINKS = {   # proveedor: rutas relativas al home de verdad -> misma ruta relativ
     "google": [(n, n) for n in (".gemini/config", ".gemini/GEMINI.md", ".gitconfig", ".config/git", ".config/trama",
                                 ".local/bin", ".local/state", ".claude")],
     "chatgpt": [(".codex/" + n, n) for n in ("config.toml", "AGENTS.md", "prompts")],
-    "opencode": [(".local/share/opencode/bin", "opencode/bin")],
+    "opencode": [(".local/share/opencode/bin", "data/opencode/bin")],   # sus LSP bajados (en 2.x no existe: no se enlaza nada)
 }
 # `agy models`: el id solo, o "id<TAB>nombre" (mismo patrón que bin/trama-estado)
 MODELO_AGY = re.compile(r"^\s*(?:(?:gemini|claude|gpt)[-\w.]*\s*$|[a-z0-9][a-z0-9.-]*\t)", re.I)
@@ -152,11 +160,29 @@ class Candado:
         self.f.close()
 
 
+MARCA_DIR = ".trama-cuenta"   # la deja `agregar`/`login`: sólo se borra una carpeta que la lleva (o que cuelga de la carpeta de cuentas)
+
+
+def dirs_opencode(c):
+    """(datos, estado) de una cuenta agregada de OpenCode: XDG_DATA_HOME y XDG_STATE_HOME."""
+    return os.path.join(c["dir"], "data"), os.path.join(c["dir"], "state")
+
+
 def asegurar_links(c):
     """Crea la carpeta de la cuenta y los symlinks a lo compartido. No pisa nada que ya exista."""
     if c["defecto"]:
         return
     os.makedirs(c["dir"], mode=0o700, exist_ok=True)
+    if c["proveedor"] == "opencode":
+        for d in dirs_opencode(c):
+            os.makedirs(d, mode=0o700, exist_ok=True)
+    try:
+        with open(os.path.join(c["dir"], MARCA_DIR), "x") as f:
+            f.write(c["id"] + "\n")
+    except FileExistsError:
+        pass
+    except OSError as e:
+        err("no pude marcar %s: %s" % (c["dir"], e))
     for src, dst in LINKS[c["proveedor"]]:
         s = os.path.join(home_real(), src)
         t = os.path.join(c["dir"], dst)
@@ -178,14 +204,29 @@ def entorno(c):
     if c["proveedor"] == "google":
         return {"HOME": c["dir"], "DBUS_SESSION_BUS_ADDRESS": DBUS_ROTO}, []
     if c["proveedor"] == "opencode":
-        return {"XDG_DATA_HOME": c["dir"], "TRAMA_OPENCODE_CUENTA": c["id"], "TRAMA_OPENCODE_PLAN": c.get("plan") or "gratis"}, []
+        datos, estado = dirs_opencode(c)
+        return {"XDG_DATA_HOME": datos, "XDG_STATE_HOME": estado, "TRAMA_OPENCODE_CUENTA": c["id"],
+                "TRAMA_OPENCODE_PLAN": c.get("plan") or "gratis"}, []
     return {"CODEX_HOME": c["dir"]}, ["OPENAI_API_KEY"]
+
+
+def opencode_standalone(c, sub):
+    """["--standalone"] si ese subcomando de opencode lo tiene (2.x) y la cuenta es una agregada; si no, []. La de siempre nunca lo lleva:
+    usa el servicio de fondo y los datos de la persona, como siempre. `sub`: ["auth", "login"], ["auth", "list"]…"""
+    if c["defecto"]:
+        return []
+    try:
+        r = subprocess.run([opencode_bin() or "opencode"] + sub + ["--help"], env=env_de(c), capture_output=True, text=True,
+                           timeout=15, stdin=subprocess.DEVNULL)
+        return ["--standalone"] if re.search(r"(^|\s)--standalone(\s|$)", r.stdout + r.stderr, re.M) else []
+    except Exception:
+        return []
 
 
 def comando_login(c):
     poner, sacar = entorno(c)
     base = {"claude": ["claude", "auth", "login"], "google": ["agy"], "chatgpt": ["codex", "login"],
-            "opencode": [opencode_bin() or "opencode", "auth", "login"]}[c["proveedor"]]
+            "opencode": [opencode_bin() or "opencode", "auth", "login"] + (opencode_standalone(c, ["auth", "login"]) if c["proveedor"] == "opencode" else [])}[c["proveedor"]]
     pre = ["env"] + ["-u%s" % v for v in sacar] + ["%s=%s" % kv for kv in sorted(poner.items())] if (poner or sacar) else []
     return pre + base
 
@@ -197,6 +238,46 @@ def env_de(c):
         e.pop(v, None)
     e.update(poner)
     return e
+
+
+def logueado_opencode(c, verificar):
+    """True/False/None. opencode 1.x: auth.json en el data dir (sólo se cuentan las claves, nunca los valores). 2.x: el login está en
+    opencode.db y sólo lo dice `opencode auth list` (lento y con proceso: sólo con `verificar`). En la cuenta agregada va con
+    --standalone y su entorno; si el comando falla o no se entiende, None (no se sabe), nunca un False inventado."""
+    datos = dirs_opencode(c)[0] if c["dir"] else os.environ.get("XDG_DATA_HOME") or os.path.join(home_real(), ".local", "share")
+    try:
+        with open(os.path.join(datos, "opencode", "auth.json")) as f:
+            j = json.load(f)
+        if isinstance(j, dict) and len(j) > 0:
+            return True
+    except Exception:
+        pass
+    b = opencode_bin()
+    if not verificar or not b:
+        return None
+    sa = opencode_standalone(c, ["auth", "list"])
+    for extra in (["--format", "json"], []):
+        try:
+            r = subprocess.run([b, "auth", "list"] + sa + extra, env=env_de(c), capture_output=True, text=True, timeout=25,
+                               stdin=subprocess.DEVNULL, cwd=os.environ.get("TMPDIR", "/tmp"))
+        except Exception:
+            return None
+        if r.returncode != 0:
+            continue
+        if extra:
+            try:
+                j = json.loads(r.stdout)
+            except ValueError:
+                continue
+            if isinstance(j, list):
+                return any(isinstance(x, dict) and x.get("connections") for x in j)
+        else:
+            t = re.sub(r"\x1b\[[0-9;]*[A-Za-z]", "", r.stdout)
+            m = re.search(r"(\d+)\s+credentials?", t, re.I)
+            if m:
+                return int(m.group(1)) > 0
+            return any("stored" in l.lower() for l in t.splitlines())
+    return None
 
 
 def logueado(c, verificar=False):
@@ -216,14 +297,7 @@ def logueado(c, verificar=False):
         d = c["dir"] or os.environ.get("CODEX_HOME") or os.path.join(home_real(), ".codex")
         return os.path.exists(os.path.join(d, "auth.json"))
     if p == "opencode":
-        # Algún proveedor con login en el auth.json de esa cuenta (nunca se leen los valores, sólo las claves).
-        d = c["dir"] or os.environ.get("XDG_DATA_HOME") or os.path.join(home_real(), ".local", "share")
-        try:
-            with open(os.path.join(d, "opencode", "auth.json")) as f:
-                j = json.load(f)
-            return isinstance(j, dict) and len(j) > 0
-        except Exception:
-            return False
+        return logueado_opencode(c, verificar)
     if verificar and shutil.which("agy"):
         try:
             r = subprocess.run(["agy", "models"], env=env_de(c), capture_output=True, text=True, timeout=20,
@@ -295,6 +369,32 @@ def cmd_agregar(a):
     return 0
 
 
+def carpeta_borrable(c):
+    """¿Se puede borrar la carpeta de esa cuenta con --borrar-credenciales? Sólo una carpeta propia: que cuelgue de la carpeta de
+    cuentas (<carpeta de cuentas.json>/cuentas) o que lleve la marca que le puso `cuentas`. Nunca el home, ni el estado, los datos
+    o la config de siempre (~/.local/state/opencode, ~/.claude…), ni algo que los contenga o esté adentro de ellos."""
+    d = os.path.realpath(c["dir"] or "")
+    if not c["dir"] or not os.path.isdir(d) or os.path.islink(c["dir"]):
+        return False
+    h = os.path.realpath(home_real())
+    protegidas = [h] + [os.path.realpath(os.path.join(h, r)) for r in (
+        ".local", ".local/share", ".local/state", ".config", ".cache", ".claude", ".codex", ".gemini", ".opencode",
+        ".local/share/opencode", ".local/state/opencode", ".config/opencode", ".cache/opencode", ".config/trama")]
+    for p in protegidas:
+        if d == p or p.startswith(d + os.sep):
+            return False
+    if d.startswith(os.path.join(h, ".local", "share", "opencode") + os.sep) or d.startswith(os.path.join(h, ".local", "state", "opencode") + os.sep):
+        return False
+    raiz = os.path.realpath(os.path.join(os.path.dirname(os.path.abspath(ruta())), "cuentas"))
+    if d.startswith(raiz + os.sep):
+        return True
+    try:
+        with open(os.path.join(d, MARCA_DIR)) as f:
+            return f.read().strip() == c["id"]
+    except OSError:
+        return False
+
+
 def cmd_quitar(a):
     if not a or a[1:] not in ([], ["--borrar-credenciales"]):
         err("uso: cuentas quitar ID [--borrar-credenciales]")
@@ -308,8 +408,12 @@ def cmd_quitar(a):
         if not c:
             err("no hay ninguna cuenta %s" % cid)
             return 1
+        borrar = "--borrar-credenciales" in a and c["dir"] and os.path.isdir(c["dir"])
+        if borrar and not carpeta_borrable(c):
+            err("no borro %s: no es una carpeta propia de trama (sacala a mano si de verdad es esa); la cuenta sigue en la lista" % c["dir"])
+            return 1
         guardar([e for e in leer_archivo() if e["id"] != cid])
-    if "--borrar-credenciales" in a and c["dir"] and os.path.isdir(c["dir"]) and not os.path.islink(c["dir"]):
+    if borrar:
         # los symlinks a lo compartido se borran como links, nunca se sigue adentro
         shutil.rmtree(c["dir"])
         print("cuenta %s quitada y su carpeta borrada" % cid)

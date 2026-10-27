@@ -45,3 +45,14 @@ export function formatearHasta(iso: string | undefined): { d: number; m: number 
   if (!dia || !mes || mes < 1 || mes > 12 || dia < 1 || dia > 31) return null;
   return { d: dia, m: mes };
 }
+
+/**
+ * Lo mismo, abreviado para la celda de la barra, donde tiene que entrar al lado del porcentaje: "45 s", "20 min", "1 h20", "4 d" (una sola
+ * unidad cuando pasa de un día; las horas con los minutos pegados). Mismo `en` que `formatearFalta`.
+ */
+export function formatearFaltaCorto(r: number, u: Unidades): { texto: string; en: number } {
+  const largo = formatearFalta(r, u);
+  if (r < HORA) return largo;
+  if (r < DIA) return { texto: `${Math.floor(r / HORA)} ${u.h}${String(Math.floor((r % HORA) / MIN)).padStart(2, "0")}`, en: largo.en };
+  return { texto: `${Math.floor(r / DIA)} ${u.d}`, en: r % HORA || HORA };
+}

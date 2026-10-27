@@ -283,21 +283,10 @@ body,
   .grupo {
     --g-nombre: 4.5rem;
   }
-  /* Sin lugar para el logo: el nombre ("Google", "ChatGPT") se lee entero y la marca ya lo dice. */
-  .g-id .logo {
-    display: none;
-  }
+  /* El logo no se esconde nunca: se achican el nombre y las barras, no la marca. */
   .g-hasta,
   .g-sub {
     display: none;
-  }
-  /* Un grupo de adentro (Gemini, Claude/GPT, Argon): su nombre entero en su propia línea y las dos celdas debajo, en vez de partirse en dos renglones. */
-  .grupo[data-hijo] {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    row-gap: var(--esp-1);
-  }
-  .grupo[data-hijo] > .g-id {
-    grid-column: 1 / -1;
   }
 }
 .g-id {
@@ -315,15 +304,10 @@ body,
 .g-id .logo {
   width: 0.875rem;
   height: 0.875rem;
+  flex: none;
   overflow: visible;
   border-radius: 0;
   color: var(--txt-3);
-}
-/* Más angosta todavía, el "falta" de la celda (queda en el tooltip) cede ante el porcentaje y la barra. */
-@container (max-width: 16rem) {
-  .uso .n {
-    display: none;
-  }
 }
 .g-n {
   overflow: hidden;
@@ -341,95 +325,12 @@ body,
   color: var(--txt-4);
   white-space: nowrap;
 }
-/* Una suscripción con grupos: el renglón del más usado y, desplegados, uno por grupo (sin logo, indentados). */
+/* Una suscripción con grupos (Google): su renglón y, debajo, uno por grupo, alineados con las columnas de Claude. */
 .susc {
   display: flex;
   min-width: 0;
   flex-direction: column;
   gap: var(--esp-1-5);
-}
-.g-plegar {
-  padding: 0;
-  border: 0;
-  border-radius: var(--radio-1);
-  background: none;
-  font: inherit;
-  font-size: var(--letra-4);
-  font-weight: 500;
-  line-height: 1.3;
-  text-align: left;
-  cursor: pointer;
-}
-.g-plegar:hover {
-  color: var(--txt-1);
-}
-.g-flecha {
-  color: var(--txt-4);
-}
-/* Los grupos de una suscripción (Google) en el renglón plegado: un chip por grupo, con icono y texto además del color. */
-/* Con chips el nombre queda arriba, a la altura del primero (no centrado en un bloque alto). */
-.grupo:has(> .g-chips) {
-  align-items: start;
-}
-.g-chips {
-  display: flex;
-  min-width: 0;
-  grid-column: 2 / -1;
-  flex-wrap: wrap;
-  gap: var(--esp-1) var(--esp-1-5);
-}
-.g-chip {
-  display: inline-flex;
-  min-width: 0;
-  max-width: 100%;
-  align-items: center;
-  gap: var(--esp-1);
-  padding: 0 var(--esp-1-5);
-  border: 1px solid transparent;
-  border-radius: var(--radio-pastilla);
-  background: var(--capa-tile);
-  color: var(--txt-2);
-  font-size: var(--letra-3);
-  line-height: 1.5;
-  white-space: nowrap;
-}
-.g-chip svg {
-  flex: none;
-}
-/* El nombre del grupo nunca se recorta (un chip sin nombre no dice de qué es): si no entra, el chip baja de renglón. */
-.g-chip-n {
-  flex: none;
-}
-.g-chip-v {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-family: var(--font-mono);
-  color: var(--txt-1);
-}
-.g-chip[data-estado="bajo"] {
-  background: var(--aviso-tinte);
-  color: var(--aviso);
-}
-.g-chip[data-estado="lleno"] {
-  background: var(--critico-tinte);
-  color: var(--critico);
-}
-.g-chip[data-estado="lleno"] .g-chip-v {
-  color: inherit;
-}
-/* Marcado sin cupo (429): borde punteado, para no confundirlo con un 100 % medido. */
-.g-chip[data-estado="marcado"] {
-  border-style: dashed;
-  border-color: var(--critico);
-  background: transparent;
-  color: var(--critico);
-}
-.g-chip[data-estado="marcado"] .g-chip-v {
-  color: inherit;
-}
-.g-chip[data-estado="sin"] {
-  color: var(--txt-4);
 }
 /* Una ventana que no rige, o un grupo marcado: sin porcentaje; la barra va rayada y vacía. */
 .uso[data-aparte] .sd {
@@ -448,12 +349,30 @@ body,
   flex: none;
   color: var(--critico);
 }
+.uso-bajo {
+  align-self: center;
+  flex: none;
+  color: var(--aviso);
+}
+.uso[data-aparte="sin-limite"] .sd {
+  margin-left: 0;
+  color: var(--txt-3);
+}
 .grupo[data-hijo] .g-id {
   grid-template-columns: minmax(0, 1fr);
   padding-left: var(--esp-3);
 }
 .grupo[data-hijo] .g-n,
 .grupo[data-hijo] .g-hasta {
+  grid-column: 1;
+}
+/* Una cuenta agregada (la 2.ª de Google, las de Claude…): cuelga de la fila de su proveedor, sangrada y sin logo; lleva el nombre de la cuenta. */
+.grupo[data-cuenta] .g-id {
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding-left: var(--esp-3);
+}
+.grupo[data-cuenta] .g-n,
+.grupo[data-cuenta] .g-hasta {
   grid-column: 1;
 }
 .grupo[data-hijo] .g-n {
@@ -486,12 +405,30 @@ body,
   color: var(--txt-3);
   text-overflow: ellipsis;
 }
+/* Lo que falta para el reinicio se ve siempre, al lado del porcentaje: en una celda angosta se achica la letra (y, al final, se recorta con «…»), no se esconde. */
 @container (max-width: 5.5rem) {
-  .uso .r > .n {
-    display: none;
+  .uso .r {
+    gap: var(--esp-1);
+    font-size: var(--letra-2);
   }
 }
+/* Agotada y la celda no da para "Sat 00:29": queda el ícono de agotado (nunca sólo color) y la hora de vuelta en el tooltip. */
+@container (max-width: 4.5rem) {
+  .uso .r > .uso-hora {
+    display: none;
+  }
+  .uso .r > .uso-lleno {
+    margin-left: auto;
+  }
+}
+/* En una celda angosta el texto cede (se recorta con «…», el tooltip dice entero), nunca el ícono de estado ni se sale de la tarjeta. */
+.uso .r {
+  min-width: 0;
+}
 .uso .pct {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   margin-left: auto;
   font-family: var(--font-mono);
   color: var(--txt-1);
@@ -6009,9 +5946,6 @@ summary.sis-div-t:hover,
   .releer {
     width: 2.75rem;
     height: 2.75rem;
-  }
-  .g-plegar {
-    min-height: 2.75rem;
   }
   .caja-carpeta input,
   .btn2,

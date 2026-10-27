@@ -21,7 +21,9 @@
 // modelUsage:{<modelo>:{inputTokens,cacheReadInputTokens,cacheCreationInputTokens,outputTokens}} }. `total_cost_usd` es 0 para los gratis; para
 // los de pago, la suma de lo que opencode calculó (si calculó algo). Los de OpenCode Go también 0: es un plan fijo, el costo marginal es ~0.
 // Exit: 0 bien; 1 falló opencode o el modelo (el motivo, por stderr y en `result`); 2 argumentos; 127 no hay `opencode`.
-// Entorno: HILOS_OPENCODE (el binario). El login y la config de OpenCode son los de la persona (HOME/XDG tal cual).
+// Entorno: HILOS_OPENCODE (el binario). El login y la config de OpenCode son los de la persona (HOME/XDG tal cual), salvo en una cuenta agregada
+// (`cuentas env`, que pa pone sólo en este proceso): XDG_DATA_HOME (el login vive en su opencode.db) y XDG_STATE_HOME propios, y con
+// TRAMA_OPENCODE_CUENTA el runner le agrega `--standalone` a `opencode run`: sin él, opencode 2.x habla con el servicio de fondo de la persona.
 // Sin imports de app/: pa corre sin la app. app/electron/opencode.ts duplica a propósito motor/opencode/config.mjs.
 import { spawn, spawnSync } from "node:child_process";
 import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -29,6 +31,9 @@ import { fileURLToPath } from "node:url";
 import os from "node:os";
 import path from "node:path";
 import { conModeloChico, esErrorCuota, esGratis, esModeloGo, mensajeCuotaGo, mensajeCuotaOpencode, parsearModelo, resolverOpencode } from "./config.mjs";
+
+/** ¿Es una cuenta agregada de OpenCode (la que pone `cuentas env`: TRAMA_OPENCODE_CUENTA con un id válido que no es la de siempre)? */
+export const cuentaAgregada = (env = process.env) => /^[a-z0-9][a-z0-9-]{0,39}$/.test(env.TRAMA_OPENCODE_CUENTA ?? "") && env.TRAMA_OPENCODE_CUENTA !== "opencode";
 
 function argumentos(argv) {
   const o = { _: [] };
@@ -117,7 +122,7 @@ export function anotarPedidos(modelo, n, env = process.env, home = os.homedir(),
   try {
     mkdirSync(dir, { recursive: true });
     // `c`: la cuenta agregada de OpenCode con que corrió (TRAMA_OPENCODE_CUENTA, de `cuentas env`); sin ella, la de siempre.
-    const c = /^[a-z0-9][a-z0-9-]{0,39}$/.test(env.TRAMA_OPENCODE_CUENTA ?? "") ? { c: env.TRAMA_OPENCODE_CUENTA } : {};
+    const c = cuentaAgregada(env) ? { c: env.TRAMA_OPENCODE_CUENTA } : {};
     appendFileSync(path.join(dir, "opencode-pedidos.jsonl"), JSON.stringify({ t: Math.floor(ahoraMs / 1000), m, n: Math.round(n), ...c }) + "\n");
     return true;
   } catch {
@@ -158,7 +163,10 @@ async function main() {
   const tiene = (f) => !textoAyuda.trim() || new RegExp(`(^|\\s)${f}(\\s|=|,|$)`, "m").test(textoAyuda);
   const variante = /^[A-Za-z][A-Za-z0-9_-]{0,23}$/.test(a.effort ?? "") && tiene("--variant") ? ["--variant", a.effort] : [];
   const pensar = tiene("--thinking") ? ["--thinking"] : [];
-  const hijo = spawn(bin, ["run", "--format", "json", ...pensar, "-m", prov.valor, ...variante], { cwd: a.cwd, env, stdio: ["pipe", "pipe", "pipe"] });
+  // Una cuenta agregada corre con un servidor propio (--standalone): el servicio de fondo es el de la persona y vería SU login. Sin ese flag
+  // (opencode 1.x no tiene servicio) alcanza con su XDG_DATA_HOME. La de siempre no lo lleva.
+  const aparte = cuentaAgregada(process.env) && tiene("--standalone") ? ["--standalone"] : [];
+  const hijo = spawn(bin, ["run", "--format", "json", ...aparte, ...pensar, "-m", prov.valor, ...variante], { cwd: a.cwd, env, stdio: ["pipe", "pipe", "pipe"] });
   const eventos = [];
   let resto = "";
   let stderr = "";

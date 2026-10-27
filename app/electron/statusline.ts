@@ -21,7 +21,7 @@ import { cuposActuales, type SuscripcionCupo } from "./cupos.js";
 import { marcasOpencode } from "./opencode-agotado.js";
 import { hayOpencode, planOpencode } from "./opencode.js";
 import { cargarTablaGo, esPlanGo } from "./opencode-go.js";
-import { cuentasOpencode, leerPedidos, marcasDeCuenta, suscripcionOpencode } from "./opencode-pedidos.js";
+import { cuentasOpencode, leerPedidos, marcasDeCuenta, sinOpencodeDeReparto, suscripcionOpencode } from "./opencode-pedidos.js";
 import { deStatusline, esCuentaDeSiempre, usoDe, type Ventana } from "./uso.ts";
 import { verCaidos, type Caido } from "./vigia.js";
 import { silencio } from "./log.js";
@@ -231,7 +231,9 @@ export async function leerStatusline(): Promise<Statusline> {
   const pedidosOc = conOpencode ? leerPedidos() : [];
   const tablaOc = conOpencode && (esPlanGo(plan) || otrasOc.some((c) => esPlanGo(c.plan))) ? cargarTablaGo() : null;
   const suscripciones: SuscripcionCupo[] = [
-    ...(cupos?.suscripciones ?? []),
+    // La fila de OpenCode la arma Trama (suscripcionOpencode: sus pedidos, su plan, sus marcas). `reparto --cupos` también lista una, vacía y "sin lectura de
+    // cupo" (no reparte OpenCode): si pasaban las dos, la barra mostraba OpenCode dos veces y, al contar dos del mismo proveedor, las rotulaba «principal».
+    ...sinOpencodeDeReparto(cupos?.suscripciones ?? []),
     ...(conOpencode
       ? [
           suscripcionOpencode({ plan, tabla: tablaOc, pedidos: pedidosOc, ...deSiempre, ahoraMs: ahora * 1000 }),

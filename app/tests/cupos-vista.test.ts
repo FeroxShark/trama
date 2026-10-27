@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { chipsDe, columnas, estadoVentana, masUsado, resumenGrupo, resumenSusc } from "../src/barra/cuposVista.ts";
+import { chipsDe, columnas, estadoVentana, masUsado, renglonesDeGrupos, resumenGrupo, resumenSusc } from "../src/barra/cuposVista.ts";
 
 const v = (id: string, pct: number | null) => ({ id, pct, vuelve: null });
 const g = (id: string, ...ventanas: ReturnType<typeof v>[]) => ({ id, nombre: id, ventanas });
@@ -83,5 +83,43 @@ describe("resumenSusc", () => {
   });
   it("chipsDe: uno por grupo, con su resumen", () => {
     assert.deepEqual(chipsDe([gem, cg], AHORA).map((c) => [c.g.id, c.r.estado]), [["gemini", "ok"], ["claude-gpt", "lleno"]]);
+  });
+});
+
+describe("renglonesDeGrupos: la barra dibuja lo que venga, sin suponer grupos ni ventanas", () => {
+  const AH = 1_000_000;
+  it("Google hoy: Gemini con 5 h y semana, Claude/GPT agotado y Argon sólo semanal, en el orden que vino", () => {
+    const filas = renglonesDeGrupos(
+      [g("gemini", { id: "5h", pct: 4, vuelve: AH + 3600 }, { id: "7d", pct: 10, vuelve: AH + 9e4 }), g("claude-gpt", { id: "7d", pct: 100, vuelve: AH + 5000 }), g("gemini-4-argon", { id: "7d", pct: 91, vuelve: AH + 9e4 })],
+      AH,
+    );
+    assert.deepEqual(filas.map((f) => [f.g.id, f.r.estado, f.cols.map((c) => c?.id ?? null), f.sinLimite]), [
+      ["gemini", "ok", ["5h", "7d"], false],
+      ["claude-gpt", "lleno", [null, "7d"], false],
+      ["gemini-4-argon", "bajo", [null, "7d"], false],
+    ]);
+    assert.equal(filas[1].r.vuelve, AH + 5000);
+  });
+  it("un grupo sin ventanas (Google le saca el tope a Argon): sin límite, no una fila vacía ni un error", () => {
+    const [f] = renglonesDeGrupos([g("gemini-4-argon")], AH);
+    assert.deepEqual([f.cols, f.sinLimite, f.r.estado], [[null, null], true, "sin"]);
+  });
+  it("un grupo sin ventanas pero marcado sin cupo (429) no es «sin límite»: está marcado", () => {
+    const [f] = renglonesDeGrupos([{ ...g("x"), agotado: AH + 60 }], AH);
+    assert.deepEqual([f.sinLimite, f.r.estado], [false, "marcado"]);
+  });
+  it("un grupo con sólo 5 h: la semana queda vacía y alineada", () => {
+    const [f] = renglonesDeGrupos([g("solo-5h", { id: "5h", pct: 50, vuelve: AH + 100 })], AH);
+    assert.deepEqual([f.cols.map((c) => c?.id ?? null), f.sinLimite, f.r.estado], [["5h", null], false, "ok"]);
+  });
+  it("un grupo nuevo que no conocemos, con ventanas de otro id: se dibuja con lo que traiga", () => {
+    const filas = renglonesDeGrupos([g("grupo-nuevo-2027", { id: "30d", pct: 20, vuelve: null }), g("otro", { id: "1h", pct: 99, vuelve: null }, { id: "30d", pct: 1, vuelve: null })], AH);
+    assert.deepEqual(filas.map((f) => [f.g.id, f.cols.map((c) => c?.id ?? null), f.r.estado]), [
+      ["grupo-nuevo-2027", ["30d", null], "ok"],
+      ["otro", ["1h", "30d"], "bajo"],
+    ]);
+  });
+  it("sin grupos: nada", () => {
+    assert.deepEqual(renglonesDeGrupos([], AH), []);
   });
 });

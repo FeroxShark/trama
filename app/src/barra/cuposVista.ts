@@ -91,5 +91,24 @@ export function resumenSusc(s: { ventanas?: VentanaCupo[]; grupos?: GrupoCupo[];
   return { nivel: peor === "bajo" ? "bajo" : peor === "ok" ? "ok" : "sin", agotados, vuelve: null };
 }
 
-/** Un chip por grupo para la barra angosta: lo más lleno que rige y cuándo vuelve si está agotado. */
+/** Un chip por grupo (lo usa el panel del worker): lo más lleno que rige y cuándo vuelve si está agotado. */
 export const chipsDe = (grupos: readonly GrupoCupo[], ahoraS: number) => grupos.map((g) => ({ g, r: resumenGrupo(g, ahoraS) }));
+
+/**
+ * Qué dibuja la barra de una suscripción con varios grupos (Google: Gemini, Claude/GPT, Argon…): un renglón por grupo, TAL COMO VENGA de `reparto`.
+ * Nada de acá supone qué grupos hay ni qué ventanas tiene cada uno: `cols` son las dos columnas de siempre (5 h y semana; una ventana de otro id
+ * ocupa la que quede libre), y un grupo sin ninguna ventana (Google le saca el tope) es `sinLimite`: se dibuja como tal, no como una fila vacía.
+ */
+export interface RenglonGrupo {
+  g: GrupoCupo;
+  r: ResumenCupo;
+  cols: [VentanaCupo | null, VentanaCupo | null];
+  /** El grupo no trae ventanas ni está marcado sin cupo: sin límite medido. */
+  sinLimite: boolean;
+}
+
+export const renglonesDeGrupos = (grupos: readonly GrupoCupo[], ahoraS: number): RenglonGrupo[] =>
+  grupos.map((g) => {
+    const r = resumenGrupo(g, ahoraS);
+    return { g, r, cols: columnas(g.ventanas), sinLimite: g.ventanas.length === 0 && r.estado !== "marcado" };
+  });

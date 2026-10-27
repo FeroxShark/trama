@@ -174,7 +174,9 @@ export function planOpencode(env: Env = process.env, home: string = os.homedir()
  */
 export const MODELO_CHICO_GRATIS = "opencode/mimo-v2.6-flash-free";
 export function conModeloChico(env: Env = process.env, home: string = os.homedir(), leer: (f: string) => string = (f) => readFileSync(f, "utf8")): Env {
-  if (planOpencode(env, home) !== "gratis") return env;
+  // Una cuenta agregada de OpenCode trae el plan de ESA cuenta (TRAMA_OPENCODE_PLAN, de `cuentas env`; opencode-cuenta.ts): ése manda sobre el de modelos.json.
+  const deCuenta = (PLANES_OPENCODE as readonly unknown[]).includes(env.TRAMA_OPENCODE_PLAN) ? (env.TRAMA_OPENCODE_PLAN as PlanOpencode) : null;
+  if ((deCuenta ?? planOpencode(env, home)) !== "gratis") return env;
   const tiene = (txt: string) => /["']?small_model["']?\s*:/.test(txt);
   const base = env.XDG_CONFIG_HOME || path.join(home, ".config");
   for (const f of [env.OPENCODE_CONFIG, path.join(base, "opencode", "opencode.json"), path.join(base, "opencode", "opencode.jsonc"), path.join(home, ".opencode", "opencode.json")]) {
