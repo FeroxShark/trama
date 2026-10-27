@@ -12,14 +12,31 @@ export const MOTOR = path.join(APP, "..", "motor");
 export const PA_BASH = path.join(MOTOR, "bin", "pa");
 const CLI_TS = path.join(APP, "electron", "cli");
 
-/** Herramientas del motor que tienen versión bash/python (A) y versión TS (B). */
-export type Herramienta = "pa" | "proyecto-ruta" | "trama-estado" | "workers";
-const VARIABLE_B: Record<Herramienta, string> = { pa: "TRAMA_PA_B", "proyecto-ruta": "TRAMA_PROYECTO_RUTA_B", "trama-estado": "TRAMA_ESTADO_B", workers: "TRAMA_WORKERS_B" };
+/** Los hooks de motor/hooks: el original es el `.sh` (A) y la versión Node es el `.mjs` de al lado (B). */
+export const HOOKS = ["latido", "destructive-guard", "statusline-espejo", "agy-pa"] as const;
+export type Hook = (typeof HOOKS)[number];
+export const esHook = (h: string): h is Hook => (HOOKS as readonly string[]).includes(h);
+
+/** Herramientas del motor que tienen versión bash/python (A) y versión TS (B), y los hooks (`.sh` contra `.mjs`). */
+export type Herramienta = "pa" | "proyecto-ruta" | "trama-estado" | "workers" | Hook;
+const VARIABLE_B: Record<Herramienta, string> = {
+  pa: "TRAMA_PA_B",
+  "proyecto-ruta": "TRAMA_PROYECTO_RUTA_B",
+  "trama-estado": "TRAMA_ESTADO_B",
+  workers: "TRAMA_WORKERS_B",
+  latido: "TRAMA_LATIDO_B",
+  "destructive-guard": "TRAMA_GUARD_B",
+  "statusline-espejo": "TRAMA_ESPEJO_B",
+  "agy-pa": "TRAMA_AGY_PA_B",
+};
 
 /** El original (bash o python) de la herramienta. */
-export const originalDe = (h: Herramienta = "pa"): string => path.join(MOTOR, "bin", h);
-/** La versión TS de las herramientas chicas, corrida directo desde el fuente (Node saca los tipos). */
-export const tsDe = (h: Exclude<Herramienta, "pa">): string[] => [process.execPath, path.join(CLI_TS, `${h}.ts`)];
+export const originalDe = (h: Herramienta = "pa"): string => (esHook(h) ? path.join(MOTOR, "hooks", `${h}.sh`) : path.join(MOTOR, "bin", h));
+/** El comando que corre el original: los hooks `.sh` no son ejecutables sueltos en todos lados, se llaman con bash. */
+export const comandoOriginal = (h: Herramienta = "pa"): string[] => (esHook(h) ? ["bash", originalDe(h)] : [originalDe(h)]);
+/** La versión TS de las herramientas chicas, corrida directo desde el fuente (Node saca los tipos); para los hooks, el `.mjs`. */
+export const tsDe = (h: Exclude<Herramienta, "pa">): string[] =>
+  esHook(h) ? [process.execPath, path.join(MOTOR, "hooks", `${h}.mjs`)] : [process.execPath, path.join(CLI_TS, `${h}.ts`)];
 const FALSO = path.join(APP, "scripts", "claude-falso.mjs");
 
 /** Contexto que ven `preparar` y los argumentos dinámicos de un caso. */
@@ -37,7 +54,7 @@ export interface Paso {
   args: string[] | ((c: Contexto) => string[]);
   /** Variables de entorno extra (o una función si dependen de rutas del sandbox). */
   env?: Record<string, string> | ((c: Contexto) => Record<string, string>);
-  stdin?: string;
+  stdin?: string | ((c: Contexto) => string);
   /** Código de salida esperado (se comprueba contra el bash; la paridad se compara siempre). */
   rc?: number;
 }
@@ -148,7 +165,7 @@ export function correr(caso: Caso, pa: string[]): Resultado {
   for (const p of pasos) {
     const args = typeof p.args === "function" ? p.args(c) : p.args;
     const dinamico = (e: Paso["env"]) => (typeof e === "function" ? e(c) : e);
-    const s = spawnSync(pa[0]!, [...pa.slice(1), ...args], { encoding: "utf8", timeout: 120_000, input: p.stdin ?? "", env: entorno(c, { ...dinamico(caso.env), ...dinamico(p.env) }) });
+    const s = spawnSync(pa[0]!, [...pa.slice(1), ...args], { encoding: "utf8", timeout: 120_000, input: (typeof p.stdin === "function" ? p.stdin(c) : p.stdin) ?? "", env: entorno(c, { ...dinamico(caso.env), ...dinamico(p.env) }) });
     res.pasos.push({ rc: s.status, stdout: normalizar(s.stdout ?? "", r), stderr: normalizar(s.stderr ?? "", r) });
   }
   const log = path.join(c.raiz, "claude-argv.jsonl");
