@@ -205,12 +205,14 @@ describe("pa y el runner: un worker con `--cuenta`", () => {
     assert.equal(huellaDueno(), antes, "el estado y los datos de la persona no se tocan");
   });
 
-  testPosix("sin --cuenta: la de siempre, sin tocar el entorno ni --standalone, y sus pedidos van sin cuenta", () => {
+  testPosix("sin --cuenta: la de siempre, sin tocar el entorno, con --standalone (servidor propio), y sus pedidos van sin cuenta", () => {
     rmSync(log, { force: true });
     rmSync(path.join(estado, "reparto", "opencode-pedidos.jsonl"), { force: true });
     const r = pa(["demo", "-m", "opencode:opencode/beam-free", "haceme algo"]);
     assert.equal(r.rc, 0, r.err + r.out);
-    assert.doesNotMatch(r.out, /--standalone/);
+    // Seguridad: el servicio de fondo no aplica la config de este proceso (external_directory: deny de correr.mjs). Sin --standalone,
+    // con el servicio corriendo, un worker de la cuenta de siempre escribía fuera de su carpeta de trabajo. Por eso va siempre.
+    assert.match(r.out, /llamado run --format json --standalone /);
     assert.match(r.out, /CUENTA= PLAN=/);
     const run = llamadas().find((l) => l.startsWith("run --format json"));
     assert.ok(run && !run.includes("/cuentas/"), `el entorno de siempre no trae carpetas de cuenta: ${run}`);
