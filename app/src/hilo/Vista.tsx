@@ -3,7 +3,7 @@
 // colapsado) y la línea de meta. A un worker no se le escribe (B12): se habla
 // con su líder; la vista es de sólo lectura, con Parar mientras trabaja y
 // "Pasárselo a un líder" si pide algo y no tiene líder.
-// Un líder (sesión jefe) abre su chat (src/hilo/Lider.tsx).
+// Un líder (sesión jefe) abre su chat (src/hilo/Lider.tsx); uno de sus subagentes, sus pasos (src/hilo/Subagente.tsx).
 import { ChipEspera } from "../barra/Espera";
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Square } from "lucide-react";
@@ -38,11 +38,17 @@ import { useSeguir } from "./useSeguir";
 import { mensaje } from "../puente";
 import { usePasos } from "./usePasos";
 import { VistaWorker, WorkerExtras } from "./Worker";
+import { SubagenteMigas, VistaSubagente } from "./Subagente";
+import type { Subagente } from "../../electron/subagentes";
+import { activo as subActivo } from "../barra/subagentes-logica";
 
 const puesto = (p: string) => (p === "aca" ? tr("vista.aca") : tr("vista.puesto", { p }));
 
 /** Lo que manda la caja de un líder: texto, modelo y esfuerzo. */
 export type Envio = { texto: string; modelo: string; effort: string };
+
+/** Un subagente abierto: su clave (`claveSub`), lo último que se supo de él (si se sabe) y su líder. */
+export type SubAbiertoVista = { clave: string; u: Subagente | null; lider: Lider | null };
 
 /** Scrolleando a menos de esto del tope se pide la página anterior. */
 const MARGEN_PAGINA = 400;
@@ -55,6 +61,8 @@ type Props = {
   settle: Salida | null;
   /** Abierto un líder en vez de un hilo. */
   lider: Lider | null;
+  /** Abierto un subagente de un líder (sólo se mira). */
+  sub?: SubAbiertoVista | null;
   /** El Settle del líder abierto: las ramas sin integrar, o `null` si no puede (responde o tiene workers vivos). */
   settleLider: number | null;
   /** Abierto el chat de un líder nuevo (todavía sin sesión). */
@@ -81,6 +89,7 @@ export function Vista({
   estado,
   settle,
   lider,
+  sub = null,
   settleLider,
   liderNuevo,
   alLiderCreado,
@@ -99,9 +108,9 @@ export function Vista({
   const titulos = useTitulos();
   const t = estado && h ? tipoDe(h, estado) : undefined;
   // Los pasos de un worker (src/hilo/Worker.tsx): `undefined` leyendo, `null` o sin transcript, la vista de siempre.
-  const pasos = usePasos(h && estado ? h.id : null);
+  const pasos = usePasos(h && estado ? h.id : sub && !lider ? sub.clave : null);
   const conPasos = pasos && pasos.hay ? pasos : null;
-  const vive = estado === "trabajando" || estado === "colgado";
+  const vive = sub && !h ? (sub.u ? subActivo(sub.u) : false) : estado === "trabajando" || estado === "colgado";
   useEffect(() => {
     if (t?.tipo === "nec") latir();
   }, [t]);
@@ -123,6 +132,21 @@ export function Vista({
               {textoEstado(h, estado) ?? cierre(estado)}
             </span>
             {conPasos ? <WorkerExtras h={h} vista={conPasos} vive={vive} /> : null}
+          </>
+        ) : sub && !lider ? (
+          <>
+            <div className="ruta" data-desliza>
+              {sub.lider ? (
+                <>
+                  <span>{nombreCarpeta(sub.lider.proyecto, MODO.usuario, tr("barra.home"), titulos[sub.lider.proyecto])}</span>
+                  <span>/</span>
+                  <span>{sub.lider.nombre}</span>
+                  <span>/</span>
+                </>
+              ) : null}
+              <b>{sub.u?.descripcion ?? tr("subv.marca")}</b>
+            </div>
+            <SubagenteMigas u={sub.u} lider={sub.lider} vista={conPasos} vive={vive} />
           </>
         ) : lider || liderNuevo ? (
           <>
@@ -155,6 +179,16 @@ export function Vista({
         <VistaWorker key={h.id} h={h} estado={estado} vista={conPasos} settle={settle} alCerrar={alCerrar} alRetomar={alRetomar} alPasar={alPasar} />
       ) : h && estado ? (
         <Cuerpo key={h.id} h={h} estado={estado} settle={settle} alCerrar={alCerrar} alRetomar={alRetomar} alPasar={alPasar} />
+      ) : sub && !lider && pasos === undefined ? (
+        <Leyendo key={sub.clave} />
+      ) : sub && !lider ? (
+        conPasos ? (
+          <VistaSubagente key={sub.clave} u={sub.u} vista={conPasos} vive={vive} />
+        ) : (
+          <div className="vacio">
+            <span data-desliza>{tr("subv.sinTranscript")}</span>
+          </div>
+        )
       ) : lider || liderNuevo ? (
         <ChatLider
           key={lider?.id ?? "nuevo"}

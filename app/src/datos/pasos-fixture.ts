@@ -78,3 +78,41 @@ export function pasosFijos(id: string, vivo = false, grandes = false): VistaPaso
     },
   };
 }
+
+/**
+ * Un subagente inventado (la captura `subagente-vista`): `vivo`, el que revisa los tests con `npm test -- cauce`
+ * corriendo; si no, el que listó los canales sin prueba, con su informe.
+ */
+export function pasosSubFijos(id: string, vivo: boolean): VistaPasos {
+  n = 0;
+  const ahora = Date.now();
+  const desde = ahora - (vivo ? 128_000 : 400_000);
+  const en = (s: number) => desde + s * 1000;
+  const pasos: Paso[] = vivo
+    ? [
+        paso("buscar", "cauce", 0, 1, { clase: "buscar", herramienta: "Glob", patron: "tests/**/cauce*.test.ts", ruta: null, resultados: 2, texto: corto("tests/cauce.test.ts\ntests/cauce-indice.test.ts") }),
+        paso("leer", "tests/cauce.test.ts", 0, 1, { clase: "leer", ruta: "tests/cauce.test.ts", desde: 1, lineas: 4, total: 4, imagen: false, texto: corto('import { test } from "node:test";\nimport { cauce } from "../src/cauce.ts";\n\ntest("arma el índice", () => {});') }),
+        paso("pensar", "", 0, 4, { clase: "pensar" }),
+        paso("correr", "npm test -- cauce", 0, null, { clase: "correr", comando: corto("npm test -- cauce"), descripcion: "Corre los tests de cauce", codigo: null, interrumpido: false, fondo: false, salida: corto("# Subtest: arma el índice\nok 1 - arma el índice\n# Subtest: indice vacío") }, { estado: "corriendo" }),
+      ]
+    : [
+        paso("buscar", "ipcMain.handle", 0, 1, { clase: "buscar", herramienta: "Grep", patron: "manejar\\(\"", ruta: "electron", resultados: 41, texto: corto('electron/nucleo.ts:932:  manejar("pasos:mirar"\nelectron/nucleo.ts:933:  manejar("pasos:soltar"') }),
+        paso("buscar", "pasos:mirar", 0, 1, { clase: "buscar", herramienta: "Grep", patron: "pasos:mirar", ruta: "tests", resultados: 0, texto: corto("No files found") }),
+        paso("texto", "Quedan 4 canales sin prueba.", 0, 1, {
+          clase: "texto", final: true, texto: corto("Quedan 4 canales sin prueba.\n\n- pasos:mirar\n- pasos:soltar\n- subagentes:leer\n- subagentes:informe"),
+        }),
+      ];
+  // Los tiempos, contados desde que arrancó: 8 s entre paso y paso.
+  for (let i = 0; i < pasos.length; i++) pasos[i] = { ...pasos[i], t: en(i * 8) };
+  const tokens = vivo ? { entrada: 40, cacheCreado: 4_200, cacheLeido: 55_900, salida: 1_060 } : { entrada: 20, cacheCreado: 1_800, cacheLeido: 7_100, salida: 380 };
+  const total = tokens.entrada + tokens.cacheCreado + tokens.cacheLeido + tokens.salida;
+  return {
+    id, hay: true, gen: 1, v: n + 1, omitidos: 0, pasos,
+    encabezado: {
+      tarea: null, modelo: vivo ? "claude-sonnet-5-5" : "claude-haiku-5-5", effort: null, turnos: pasos.length,
+      tokens, total, cache: tokens.cacheLeido / (total - tokens.salida),
+      inicio: desde, fin: vivo ? null : en(90), dur: vivo ? null : 90_000, compactaciones: 0, pasos: pasos.length,
+      archivos: [], mas: 0, menos: 0,
+    },
+  };
+}

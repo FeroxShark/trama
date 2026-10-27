@@ -67,19 +67,9 @@ function Cursor() {
 
 // ---- La cabecera: la hora y el ⓘ con lo que no cambia una decisión ------------------------------------------------------
 
-/** Lo que va a la derecha de las migas de un worker: cuánto lleva o cuánto tardó, y el ⓘ (modelo, turnos, tokens y rama). */
-export function WorkerExtras({ h, vista, vive }: { h: Hilo; vista: VistaPasos; vive: boolean }) {
-  useIdioma();
-  const e = vista.encabezado;
-  const pintor = useMemo(() => pintorDura(h.inicio), [h.inicio]);
-  const dur = e.dur ?? (h.duracion_s !== null ? h.duracion_s * 1000 : null);
-  const modelo = e.modelo ?? h.modelo;
-  const filasInfo: [string, string, boolean?][] = [
-    [t("wk.infoModelo"), `${defDe(modelo)?.nombre ?? modelo}${e.effort ?? h.effort ? ` ${e.effort ?? h.effort}` : ""}`],
-    [t("wk.infoTurnos"), String(e.turnos)],
-    [t("wk.infoTokens"), `${compacto(e.total)}${e.cache !== null ? ` · ${Math.round(e.cache * 100)} %` : ""}`],
-    [t("wk.infoRama"), h.rama ?? t("comun.sinRama"), true],
-  ];
+/** Lo que va a la derecha de las migas: cuánto lleva o cuánto tardó, y el ⓘ con `filas` (dato, valor, si va en mono). */
+export function Extras({ inicio, dur, vive, filas: filasInfo }: { inicio: number; dur: number | null; vive: boolean; filas: [string, string, boolean?][] }) {
+  const pintor = useMemo(() => pintorDura(inicio), [inicio]);
   return (
     <>
       <span className="wk-tiempo">{vive ? <Reloj pintor={pintor} /> : dur !== null ? durCorta(dur) : null}</span>
@@ -100,6 +90,24 @@ export function WorkerExtras({ h, vista, vive }: { h: Hilo; vista: VistaPasos; v
       </div>
     </>
   );
+}
+
+/** Los tokens del ⓘ: el total y cuánto vino del caché. */
+export const tokensInfo = (e: VistaPasos["encabezado"]) => `${compacto(e.total)}${e.cache !== null ? ` · ${Math.round(e.cache * 100)} %` : ""}`;
+
+/** Lo que va a la derecha de las migas de un worker: cuánto lleva o cuánto tardó, y el ⓘ (modelo, turnos, tokens y rama). */
+export function WorkerExtras({ h, vista, vive }: { h: Hilo; vista: VistaPasos; vive: boolean }) {
+  useIdioma();
+  const e = vista.encabezado;
+  const dur = e.dur ?? (h.duracion_s !== null ? h.duracion_s * 1000 : null);
+  const modelo = e.modelo ?? h.modelo;
+  const filasInfo: [string, string, boolean?][] = [
+    [t("wk.infoModelo"), `${defDe(modelo)?.nombre ?? modelo}${e.effort ?? h.effort ? ` ${e.effort ?? h.effort}` : ""}`],
+    [t("wk.infoTurnos"), String(e.turnos)],
+    [t("wk.infoTokens"), tokensInfo(e)],
+    [t("wk.infoRama"), h.rama ?? t("comun.sinRama"), true],
+  ];
+  return <Extras inicio={h.inicio} dur={dur} vive={vive} filas={filasInfo} />;
 }
 
 // ---- El detalle del paso elegido -----------------------------------------------------------------------------------------
@@ -378,10 +386,11 @@ const GrupoFila = memo(function GrupoFila({ ps, abierto, alAlternar, elegido, an
 
 // ---- El resultado --------------------------------------------------------------------------------------------------------
 
-function Chips({ h, vista, pasos, vive, alElegir }: { h: Hilo; vista: VistaPasos; pasos: readonly Paso[]; vive: boolean; alElegir: (n: number) => void }) {
+/** Los chips del resultado: tests, archivos tocados y supuestos. `resultado`: el que se usa si los pasos no traen el texto final. */
+export function Chips({ resultado, vista, pasos, vive, alElegir }: { resultado: string | null; vista: VistaPasos; pasos: readonly Paso[]; vive: boolean; alElegir: (n: number) => void }) {
   const tests = useMemo(() => testsDe(pasos), [pasos]);
   const archivos = useMemo(() => chipsDe(vista.encabezado), [vista.encabezado]);
-  const { supuestos } = useMemo(() => resumenDe(textoFinal(vista.pasos) ?? h.resultado), [vista.pasos, h.resultado]);
+  const { supuestos } = useMemo(() => resumenDe(textoFinal(vista.pasos) ?? resultado), [vista.pasos, resultado]);
   const del = (ruta: string) => [...pasos].reverse().find((p) => (p.detalle.clase === "editar" || p.detalle.clase === "escribir") && p.detalle.ruta === ruta)?.n;
   return (
     <div className="wk-chips">
@@ -437,12 +446,9 @@ type Props = {
   alPasar: (h: Hilo) => Promise<void>;
 };
 
-export function VistaWorker({ h, estado, vista, settle, alCerrar, alRetomar, alPasar }: Props) {
-  useIdioma();
+/** El paso elegido, los grupos abiertos y el seguimiento del fondo: lo comparten la vista de un worker y la de un subagente. */
+export function useRecorrido(vista: VistaPasos, vive: boolean) {
   const angosto = useAngosto();
-  const vive = estado === "trabajando" || estado === "colgado";
-  const decide = estado === "decision";
-  const compacta = useCompactando(vive ? h.id : null);
   const raiz = useRef<HTMLDivElement>(null);
   const lista = useRef<HTMLDivElement>(null);
   // Mientras trabaja, la lista sigue su fondo (src/hilo/seguir.ts); en el celular la zona que se mueve es toda la vista.
@@ -469,6 +475,52 @@ export function VistaWorker({ h, estado, vista, settle, alCerrar, alRetomar, alP
     seg.pegado = false;
     raiz.current?.querySelector("[data-sel]")?.scrollIntoView({ block: "nearest" });
   }, []);
+
+  return { angosto, raiz, lista, pasos, abiertos, selN, sel, fs, alElegir, alternar };
+}
+
+/** El mapa de la corrida, la lista de pasos y el detalle del elegido. `compacta`: desde cuándo compacta su contexto, o `null`. */
+export function Recorrido({ r, vista, vive, compacta }: { r: ReturnType<typeof useRecorrido>; vista: VistaPasos; vive: boolean; compacta: number | null }) {
+  const { angosto, lista, pasos, abiertos, selN, sel, fs, alElegir, alternar } = r;
+  return (
+    <>
+      {pasos.length ? <Mapa pasos={pasos} fin={vive ? null : vista.encabezado.fin} sel={selN} alElegir={alElegir} /> : null}
+
+      <div className="wk-paneles">
+        <div className="wk-lista" ref={lista}>
+          <ol aria-label={t("wk.pasos")}>
+            {vista.omitidos > 0 ? <li className="wk-nota wk-omit">{t("wk.anteriores", { n: vista.omitidos })}</li> : null}
+            {!pasos.length ? <li className="wk-nota">{t("wk.sinPasos")}</li> : null}
+            {fs.map((f) =>
+              f.grupo ? (
+                <GrupoFila key={f.ps[0].n} ps={f.ps} abierto={abiertos.has(f.ps[0].n) || f.ps.some((p) => p.n === selN)} alAlternar={() => alternar(f.ps[0].n)} elegido={selN} angosto={angosto} alElegir={alElegir} />
+              ) : (
+                <FilaPaso key={f.p.n} p={f.p} sel={f.p.n === selN} angosto={angosto} alElegir={alElegir} />
+              ),
+            )}
+            {compacta !== null ? (
+              <li className="wk-li">
+                <Compactando desde={compacta} />
+              </li>
+            ) : null}
+          </ol>
+        </div>
+        {!angosto ? (
+          <section className="wk-panel" data-t={sel?.tipo}>
+            {sel ? <Detalle key={sel.n} p={sel} /> : null}
+          </section>
+        ) : null}
+      </div>
+    </>
+  );
+}
+
+export function VistaWorker({ h, estado, vista, settle, alCerrar, alRetomar, alPasar }: Props) {
+  useIdioma();
+  const vive = estado === "trabajando" || estado === "colgado";
+  const decide = estado === "decision";
+  const compacta = useCompactando(vive ? h.id : null);
+  const r = useRecorrido(vista, vive);
 
   const [parando, setParando] = useState(false);
   const [pasando, setPasando] = useState(false);
@@ -497,10 +549,9 @@ export function VistaWorker({ h, estado, vista, settle, alCerrar, alRetomar, alP
   // La pregunta de un worker que espera una decisión (sin líder): entera, de su último mensaje.
   const partida = decide && final ? partirDecision(final) : null;
   const pregunta = partida?.decision ?? h.decision;
-  const e = vista.encabezado;
 
   return (
-    <div className="wk" ref={raiz}>
+    <div className="wk" ref={r.raiz}>
       <div className="wk-in">
         <section className="wk-fin" aria-label={t("wk.resultado")}>
           <div className="wk-fila">
@@ -530,36 +581,10 @@ export function VistaWorker({ h, estado, vista, settle, alCerrar, alRetomar, alP
               <Texto texto={pregunta} />
             </div>
           ) : null}
-          <Chips h={h} vista={vista} pasos={pasos} vive={vive} alElegir={alElegir} />
+          <Chips resultado={h.resultado} vista={vista} pasos={r.pasos} vive={vive} alElegir={r.alElegir} />
         </section>
 
-        {pasos.length ? <Mapa pasos={pasos} fin={vive ? null : e.fin} sel={selN} alElegir={alElegir} /> : null}
-
-        <div className="wk-paneles">
-          <div className="wk-lista" ref={lista}>
-            <ol aria-label={t("wk.pasos")}>
-              {vista.omitidos > 0 ? <li className="wk-nota wk-omit">{t("wk.anteriores", { n: vista.omitidos })}</li> : null}
-              {!pasos.length ? <li className="wk-nota">{t("wk.sinPasos")}</li> : null}
-              {fs.map((f) =>
-                f.grupo ? (
-                  <GrupoFila key={f.ps[0].n} ps={f.ps} abierto={abiertos.has(f.ps[0].n) || f.ps.some((p) => p.n === selN)} alAlternar={() => alternar(f.ps[0].n)} elegido={selN} angosto={angosto} alElegir={alElegir} />
-                ) : (
-                  <FilaPaso key={f.p.n} p={f.p} sel={f.p.n === selN} angosto={angosto} alElegir={alElegir} />
-                ),
-              )}
-              {compacta !== null ? (
-                <li className="wk-li">
-                  <Compactando desde={compacta} />
-                </li>
-              ) : null}
-            </ol>
-          </div>
-          {!angosto ? (
-            <section className="wk-panel" data-t={sel?.tipo}>
-              {sel ? <Detalle key={sel.n} p={sel} /> : null}
-            </section>
-          ) : null}
-        </div>
+        <Recorrido r={r} vista={vista} vive={vive} compacta={compacta} />
       </div>
     </div>
   );

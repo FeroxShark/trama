@@ -9,6 +9,10 @@
 // El protocolo: `mirar` contesta la vista entera (`gen`, `v`); después llegan `CambioPasos` ("pasos:cambio")
 // con los pasos nuevos o tocados desde la revisión `desde`. Quien tenga `gen` distinto o `v < desde` (se perdió
 // uno) vuelve a pedir `mirar`. Un solo aviso por lote aunque lleguen muchas líneas (DEBOUNCE_MS).
+//
+// Un subagente de un líder (herramienta Agent de Claude Code) se mira igual, con el id `sub:<sid>:<agentId>`: su
+// transcript está en `projects/<cwd>/<sid>/subagents/agent-<agentId>.jsonl` y se arma como subagente (sin nietos).
+import { stat } from "node:fs/promises";
 import path from "node:path";
 import { ArmadorPasos, encabezadoVacio, type CambioPasos, type VistaPasos } from "./pasos.ts";
 import { sidDeWorker, transcriptDe } from "./consumo.ts";
@@ -16,6 +20,8 @@ import { mirarCarpeta, type Mirada } from "./mirar.ts";
 import { silencio } from "./log.ts";
 
 const ID = /^\d{8}-\d{6}-\d+$/;
+/** `sub:<sid de la sesión>:<agentId>`: un subagente (los ids, como los valida electron/subagentes.ts). */
+const SUB = /^sub:([A-Za-z0-9][A-Za-z0-9._-]{0,127}):([A-Za-z0-9][A-Za-z0-9._-]{0,127})$/;
 /** Lo que se espera a que el transcript termine de escribirse; varias líneas seguidas, un solo aviso. */
 export const DEBOUNCE_MS = 150;
 
@@ -64,7 +70,8 @@ export function crearPasos(o: { proyectos: string; paState: string; alCambiar: (
   function mirarCarpetas(m: Mirado): void {
     const a = m.armador;
     if (!a) return;
-    const dirs = [path.dirname(a.ruta), path.join(path.dirname(a.ruta), path.basename(a.ruta, ".jsonl"), "subagents")];
+    // Un subagente no lanza otros: sólo su carpeta.
+    const dirs = SUB.test(m.id) ? [path.dirname(a.ruta)] : [path.dirname(a.ruta), path.join(path.dirname(a.ruta), path.basename(a.ruta, ".jsonl"), "subagents")];
     for (const dir of dirs) {
       if (m.watches.has(dir)) continue;
       const principal = dir === dirs[0];
@@ -96,6 +103,14 @@ export function crearPasos(o: { proyectos: string; paState: string; alCambiar: (
   /** Busca el transcript del worker; `true` si lo encontró. */
   async function ubicar(m: Mirado): Promise<boolean> {
     if (m.armador) return true;
+    const sub = SUB.exec(m.id);
+    if (sub) {
+      const sesion = await transcriptDe(o.proyectos, sub[1]);
+      const ruta = sesion ? path.join(sesion.replace(/\.jsonl$/, ""), "subagents", `agent-${sub[2]}.jsonl`) : null;
+      if (!ruta || !(await stat(ruta).then((x) => x.isFile(), () => false))) return false;
+      m.armador = new ArmadorPasos(ruta, { subagente: true });
+      return true;
+    }
     const sid = await sidDeWorker(o.paState, m.id);
     const ruta = sid ? await transcriptDe(o.proyectos, sid) : null;
     if (!ruta) return false;
@@ -115,9 +130,9 @@ export function crearPasos(o: { proyectos: string; paState: string; alCambiar: (
   }
 
   return {
-    /** Esta vista pasa a mirar este worker (suelta el que miraba) y contesta cómo está todo. */
+    /** Esta vista pasa a mirar este worker o subagente (suelta el que miraba) y contesta cómo está todo. */
     mirar(vista: string, idPedido: unknown): Promise<VistaPasos> {
-      const id = typeof idPedido === "string" && ID.test(idPedido) ? idPedido : null;
+      const id = typeof idPedido === "string" && (ID.test(idPedido) || SUB.test(idPedido)) ? idPedido : null;
       soltar(vista, id);
       if (!id) return Promise.resolve(sinPasos(String(idPedido ?? "").slice(0, 64)));
       dondeMira.set(vista, id);

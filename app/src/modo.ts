@@ -191,6 +191,8 @@ const CAPTURAS = [
   // La vista de un worker con pasos (src/hilo/Worker.tsx): uno que terminó y uno que sigue corriendo `npm test`.
   "worker-vista",
   "worker-vista-vivo",
+  // La vista grande de un subagente (src/hilo/Subagente.tsx): el que corre `npm test`; `HILOS_VARIANTE=terminado`, el que terminó.
+  "subagente-vista",
   // La bienvenida del primer arranque (src/paneles/Bienvenida.tsx); `HILOS_VARIANTE=<paso>` abre en ese paso.
   "bienvenida",
   // Las guías de pantalla (src/guia): `guia-<id>` muestra esa guía en su pantalla; `HILOS_VARIANTE=nuevo`, como si ya hubiera visto la anterior (sólo lo nuevo, con su marca).

@@ -1,7 +1,7 @@
 // Los subagentes que lanza cada sesión con su herramienta Agent (electron/subagentes.ts, por src/datos/fuente.ts):
 // se piden una sola vez, cuando alguien pregunta por primera vez, y después llega cada cambio. Cada fila se suscribe
 // sólo a su sesión: que otra lance un subagente no la repinta.
-import { useSyncExternalStore } from "react";
+import { createContext, useSyncExternalStore } from "react";
 import type { Subagente, Subagentes } from "../../electron/subagentes";
 import { fuente } from "../datos/fuente";
 
@@ -17,6 +17,16 @@ const SIN: readonly Subagente[] = [];
 export const OBSOLETO_S = 30 * 60;
 
 export const activo = (u: Subagente, ahora = Math.floor(Date.now() / 1000)) => u.estado === "corriendo" && ahora - u.ultimo_en < OBSOLETO_S;
+
+/** El punto y la palabra de su estado (nunca sólo el color): `vivo` es `activo`. */
+export const pintaSub = (u: Subagente, vivo: boolean) =>
+  vivo
+    ? ({ tipo: "trab", clave: "sub.corriendo" } as const)
+    : u.estado === "error"
+      ? ({ tipo: "fallo", clave: "sub.error" } as const)
+      : u.estado === "corriendo"
+        ? ({ tipo: "frenado", clave: "sub.sinNoticias" } as const)
+        : ({ tipo: "term", clave: "sub.terminado" } as const);
 
 /** Los que corren de verdad ahora. */
 export const corriendo = (lista: readonly Subagente[], ahora?: number) => lista.filter((u) => activo(u, ahora));
@@ -47,3 +57,8 @@ export const useSubagentes = (sid: string | null): readonly Subagente[] =>
 
 /** Los de todas las sesiones: la barra suma cuántos corren por líder. */
 export const useTodosSubagentes = (): Subagentes => useSyncExternalStore(suscribir, () => actual);
+
+export { claveSub, deClaveSub } from "./subagente-clave";
+
+/** Qué subagente está abierto a la derecha (su `claveSub`) y cómo abrir uno: lo pone la barra, lo usa cada lista. */
+export const SubAbierto = createContext<{ abierta: string | null; abrir: (sid: string, id: string) => void } | null>(null);

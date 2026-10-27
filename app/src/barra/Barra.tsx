@@ -88,7 +88,8 @@ import { diferir, workerVivo, type Trabajador } from "./activas";
 import { control } from "./control";
 import { Fila, FilaLider, RESORTE } from "./Fila";
 import { Subagentes } from "./Subagentes";
-import { corriendo, useTodosSubagentes } from "./subagentes-logica";
+import { claveSub, corriendo, deClaveSub, SubAbierto, useTodosSubagentes } from "./subagentes-logica";
+import type { Subagente } from "../../electron/subagentes";
 import { correrGuion } from "./guion";
 import { Logo } from "./Logo";
 import { hayOrdenManual, ORDEN0, podar, prioridadPrendida, reordenar, reordenarPaso } from "./orden";
@@ -607,6 +608,13 @@ export function Barra() {
     setActiva(LIDER + id);
   }, []);
 
+  // Un subagente de un líder: sus pasos a la derecha (src/hilo/Subagente.tsx).
+  const abrirSub = useCallback((sid: string, id: string) => {
+    alFrente();
+    setPanel(null);
+    setActiva(claveSub(sid, id));
+  }, []);
+
   const abrirLiderNuevo = useCallback(() => {
     nuevaEn.current = null;
     alFrente();
@@ -1084,11 +1092,12 @@ export function Barra() {
     else if (c === "worker-en-cola") setActiva(EN_COLA.id);
     else if (c === "worker-vista") setActiva(primero("listo"));
     else if (c === "worker-vista-vivo") setActiva(primero("trabajando"));
+    else if (c === "subagente-vista") setActiva(claveSub("s-fix-a3", MODO.variante === "terminado" ? "c2e3f4a5b6c7d8e9" : "b1d2e3f4a5b6c7d8"));
     else if (c === "leyendo" && MODO.variante === "lider") setActiva(LIDER + app);
     else if (c === "leyendo") setActiva(primero("decision"));
     if (c === "lider-nuevo" || c === "lider-nuevo-carpeta" || c === "local-esfuerzo" || c === "local-ctx" || c.startsWith("maquinas-selector")) setActiva(LIDER_NUEVO);
     else if (c === "compactando" && MODO.variante === "lider") setActiva(LIDER + (terminal ?? ""));
-    else if (c !== "vacio" && !enApp && !guiaLider && !c.startsWith("lider") && c !== "settle-confirmar" && c !== "arrancando" && c !== "frenado" && c !== "worker-en-cola" && !c.startsWith("worker-vista") && c !== "leyendo" && c !== "maquinas-lider" && !c.startsWith("maquinas-selector")) setActiva(primero(c === "trabajando" || c === "compactando" ? "trabajando" : "decision"));
+    else if (c !== "vacio" && !enApp && !guiaLider && !c.startsWith("lider") && c !== "settle-confirmar" && c !== "arrancando" && c !== "frenado" && c !== "worker-en-cola" && !c.startsWith("worker-vista") && c !== "subagente-vista" && c !== "leyendo" && c !== "maquinas-lider" && !c.startsWith("maquinas-selector")) setActiva(primero(c === "trabajando" || c === "compactando" ? "trabajando" : "decision"));
     if (c === "buscar") {
       setBusqueda("yaml");
       campo.current?.focus();
@@ -1208,6 +1217,16 @@ export function Barra() {
   const hiloActivo = activa ? (todos.find((h) => h.id === activa) ?? null) : null;
   const sidActivo = activa?.startsWith(LIDER) && activa !== LIDER_NUEVO ? activa.slice(LIDER.length) : null;
   const liderActivo = sidActivo ? (arbol.lideres.get(sidActivo) ?? fantasmas.get(sidActivo) ?? null) : null;
+  // El subagente abierto: lo último que se supo de él queda aunque su sesión deje de seguirse (se cerró el líder).
+  const deSub = deClaveSub(activa);
+  const ultimoSub = useRef<Subagente | null>(null);
+  const uSub = deSub ? (subagentes[deSub.sid]?.find((u) => u.id === deSub.id) ?? null) : null;
+  if (uSub || !deSub) ultimoSub.current = uSub;
+  const subActivo = useMemo(
+    () => (deSub && activa ? { clave: activa, u: uSub ?? (ultimoSub.current?.sid === deSub.sid && ultimoSub.current.id === deSub.id ? ultimoSub.current : null), lider: arbol.lideres.get(deSub.sid) ?? fantasmas.get(deSub.sid) ?? null } : null),
+    [activa, uSub, arbol.lideres, fantasmas],
+  );
+  const subAbierto = useMemo(() => ({ abierta: deSub ? activa : null, abrir: abrirSub }), [activa, abrirSub]);
   // Lo abierto cambia: se guarda para volver (demorado, src/volver.ts).
   useEffect(huboCambio, [activa, panel, abierta]);
   // Lo que quedó abierto de la vez anterior y ya no existe (se archivó, se quitó, pasó más de un día): se abre normal, sin conversación.
@@ -1216,8 +1235,8 @@ export function Barra() {
     const a = porVerificar.current;
     if (!a || !listosPa || !listosLideres) return;
     porVerificar.current = null;
-    if (a === activa && a !== LIDER_NUEVO && !hiloActivo && !liderActivo) setActiva(null);
-  }, [listosPa, listosLideres, activa, hiloActivo, liderActivo]);
+    if (a === activa && a !== LIDER_NUEVO && !hiloActivo && !liderActivo && !subActivo) setActiva(null);
+  }, [listosPa, listosLideres, activa, hiloActivo, liderActivo, subActivo]);
   // La carpeta de lo que se está viendo (un líder, o un worker: la de su líder si cuelga de uno): se marca su marco.
   // "Te espera": título, bandeja y notificación; apagarlo al mirar esa conversación; la notificación abre la conversación.
   useEspera(lideresVistos, sidActivo);
@@ -1225,7 +1244,9 @@ export function Barra() {
 
   const carpetaActiva = liderActivo
     ? liderActivo.proyecto
-    : hiloActivo && !cerrados.some((it) => it.h.id === hiloActivo.id)
+    : subActivo?.lider
+      ? subActivo.lider.proyecto
+      : hiloActivo && !cerrados.some((it) => it.h.id === hiloActivo.id)
       ? (arbol.lideres.get(hiloActivo.jefe_id ?? "")?.proyecto ?? hiloActivo.proyecto)
       : null;
 
@@ -1566,6 +1587,7 @@ export function Barra() {
   );
 
   return (
+    <SubAbierto value={subAbierto}>
     <MotionConfig reducedMotion="user">
       <div
         ref={raiz}
@@ -1803,6 +1825,7 @@ export function Barra() {
           estado={hiloActivo ? estadoVisto(hiloActivo, optimista.get(hiloActivo.id)) : null}
           settle={hiloActivo ? salidaWorker(hiloActivo, estadoVisto(hiloActivo, optimista.get(hiloActivo.id)), arbol.aCargo) : null}
           lider={liderActivo}
+          sub={subActivo}
           settleLider={sidActivo ? settleDe(ramaDe(arbol, sidActivo)) : null}
           liderNuevo={activa === LIDER_NUEVO}
           alLiderCreado={liderCreado}
@@ -1832,6 +1855,7 @@ export function Barra() {
         {consumo && consumoPosible ? <Consumo lideres={lideresVistos} hilos={todos} carpeta={carpetaVista} alCerrar={alternarConsumo} /> : null}
       </div>
     </MotionConfig>
+    </SubAbierto>
   );
 }
 

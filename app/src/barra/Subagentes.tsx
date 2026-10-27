@@ -1,6 +1,7 @@
 // Los subagentes de una sesión, colgando bajo su fila como un worker: descripción, modelo, estado, cuánto lleva,
 // lo último que hizo en una línea y sus tokens. Al terminar, las primeras líneas de su informe y "Ver informe".
-import { memo, useMemo, useState } from "react";
+// Tocar la tarjeta abre sus pasos en la vista grande (como un worker, src/hilo/Subagente.tsx); la flecha despliega el resumen.
+import { memo, useContext, useMemo, useState } from "react";
 import { ChevronDown } from "lucide-react";
 import type { Subagente } from "../../electron/subagentes";
 import { fuente } from "../datos/fuente";
@@ -9,7 +10,7 @@ import { locale } from "../i18n/index";
 import { useIdioma } from "../i18n/react";
 import { duracion, pintorDura } from "../tiempo";
 import { Punto, Reloj } from "./piezas";
-import { activo, useSubagentes } from "./subagentes-logica";
+import { activo, claveSub, pintaSub, SubAbierto, useSubagentes } from "./subagentes-logica";
 
 /** Cuántos que ya cerraron se ven sin pedirlos: lo que sigue está tras "N anteriores". */
 const VISTOS = 4;
@@ -17,14 +18,14 @@ const VISTOS = 4;
 const compacto = (n: number) => new Intl.NumberFormat(locale(), { notation: "compact", maximumFractionDigits: 1 }).format(n);
 const quieto = (s: number) => (s < 60 ? `${Math.max(0, Math.round(s))} s` : duracion(s));
 
-const Fila = memo(function Fila({ u, vivo }: { u: Subagente; vivo: boolean }) {
+const Fila = memo(function Fila({ u, vivo, activa, alAbrir }: { u: Subagente; vivo: boolean; activa: boolean; alAbrir: ((sid: string, id: string) => void) | null }) {
   useIdioma();
   const [abierto, setAbierto] = useState(false);
   const [entero, setEntero] = useState<string | null>(null);
   const [pidiendo, setPidiendo] = useState(false);
   const dura = useMemo(() => pintorDura(u.inicio), [u.inicio]);
-  const tipo = vivo ? "trab" : u.estado === "error" ? "fallo" : u.estado === "corriendo" ? "frenado" : "term";
-  const estado = vivo ? tr("sub.corriendo") : u.estado === "error" ? tr("sub.error") : u.estado === "corriendo" ? tr("sub.sinNoticias") : tr("sub.terminado");
+  const { tipo, clave } = pintaSub(u, vivo);
+  const estado = tr(clave);
   const linea = u.estado === "terminado" ? (u.resultado?.split("\n").find((x) => x.trim()) ?? u.ultimo) : u.ultimo;
   const cuerpo = entero ?? (u.estado === "terminado" ? u.resultado : u.ultimo);
   const verInforme = () => {
@@ -39,25 +40,35 @@ const Fila = memo(function Fila({ u, vivo }: { u: Subagente; vivo: boolean }) {
     );
   };
   return (
-    <li className="w sub" data-estado={vivo || u.estado !== "corriendo" ? u.estado : "obsoleto"} data-sub={u.id}>
-      <button type="button" className="sub-fila" aria-expanded={abierto} onClick={() => setAbierto((a) => !a)}>
-        <span className="sub-pt">
-          <Punto tipo={tipo} clave={`sub:${u.id}`} />
-        </span>
-        <span className="sub-txt">
-          <span className="sub-t">
-            <span className="sub-desc">{u.descripcion}</span>
-            {u.modelo ? <span className="sub-modelo">{u.modelo}</span> : null}
+    <li className="w sub" data-estado={vivo || u.estado !== "corriendo" ? u.estado : "obsoleto"} data-sub={u.id} data-activa={activa ? "" : undefined}>
+      <div className="sub-cab">
+        <button
+          type="button"
+          className="sub-fila"
+          aria-current={activa ? "true" : undefined}
+          data-tip={alAbrir ? tr("sub.abrirTip") : undefined}
+          onClick={() => (alAbrir ? alAbrir(u.sid, u.id) : setAbierto((a) => !a))}
+        >
+          <span className="sub-pt">
+            <Punto tipo={tipo} clave={`sub:${u.id}`} />
           </span>
-          <span className="sub-s">
-            <span className="sub-estado">{estado}</span>
-            {vivo ? <Reloj pintor={dura} className="sub-dura" /> : <span className="sub-dura">{quieto(u.ultimo_en - u.inicio)}</span>}
-            {u.tokens > 0 ? <span className="sub-tok">{tr("sub.tokens", { n: compacto(u.tokens) })}</span> : null}
-            {!abierto && linea ? <span className="sub-ultimo">{linea}</span> : null}
+          <span className="sub-txt">
+            <span className="sub-t">
+              <span className="sub-desc">{u.descripcion}</span>
+              {u.modelo ? <span className="sub-modelo">{u.modelo}</span> : null}
+            </span>
+            <span className="sub-s">
+              <span className="sub-estado">{estado}</span>
+              {vivo ? <Reloj pintor={dura} className="sub-dura" /> : <span className="sub-dura">{quieto(u.ultimo_en - u.inicio)}</span>}
+              {u.tokens > 0 ? <span className="sub-tok">{tr("sub.tokens", { n: compacto(u.tokens) })}</span> : null}
+              {!abierto && linea ? <span className="sub-ultimo">{linea}</span> : null}
+            </span>
           </span>
-        </span>
-        <ChevronDown className="chevron" size={11} strokeWidth={2} aria-hidden />
-      </button>
+        </button>
+        <button type="button" className="sub-plegar" aria-expanded={abierto} aria-label={tr(abierto ? "sub.plegar" : "sub.desplegar")} onClick={() => setAbierto((a) => !a)}>
+          <ChevronDown className="chevron" size={11} strokeWidth={2} aria-hidden />
+        </button>
+      </div>
       {abierto ? (
         <div className="sub-cuerpo">
           {cuerpo ? <pre className="sub-informe">{cuerpo}</pre> : <p className="sub-vacio">{tr("sub.sinTexto")}</p>}
@@ -75,6 +86,8 @@ const Fila = memo(function Fila({ u, vivo }: { u: Subagente; vivo: boolean }) {
 export const Subagentes = memo(function Subagentes({ sid }: { sid: string }) {
   useIdioma();
   const lista = useSubagentes(sid);
+  const sub = useContext(SubAbierto);
+  const alAbrir = sub?.abrir ?? null;
   const [todos, setTodos] = useState(false);
   const { vivos, cerrados } = useMemo(() => {
     const ahora = Math.floor(Date.now() / 1000);
@@ -88,10 +101,10 @@ export const Subagentes = memo(function Subagentes({ sid }: { sid: string }) {
   return (
     <ul className="ramas subs" aria-label={tr("sub.lista")} data-subs={sid}>
       {vivos.map((u) => (
-        <Fila key={u.id} u={u} vivo />
+        <Fila key={u.id} u={u} vivo activa={sub?.abierta === claveSub(u.sid, u.id)} alAbrir={alAbrir} />
       ))}
       {cuantos.map((u) => (
-        <Fila key={u.id} u={u} vivo={false} />
+        <Fila key={u.id} u={u} vivo={false} activa={sub?.abierta === claveSub(u.sid, u.id)} alAbrir={alAbrir} />
       ))}
       {resto > 0 || (todos && cerrados.length > VISTOS) ? (
         <li className="w pliegue">
