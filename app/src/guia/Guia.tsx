@@ -13,7 +13,7 @@ import { categoria, irA } from "../paneles/ajustes-nav";
 import { colocar, type Lugar, type Rect } from "./posicion";
 import { candidatas, guiaDeCaptura, guiaPorId, panelDeCaptura, pendientes, simularNovedad, type Contexto, type CualPanel, type Guia as GuiaT, type Paso } from "./registro";
 import { cambiarGuias, cargarGuias, useGuias } from "./estado";
-import "./guia.css";
+import "./guia-tour.css";
 
 /** Lo que tarda una guía en aparecer una vez que la pantalla quedó quieta (ms): nada de globos sobre una pantalla que todavía se arma. */
 const QUIETA_MS = 600;
