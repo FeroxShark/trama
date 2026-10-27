@@ -188,6 +188,7 @@ function herramientaClaude(nombre: string, entrada: unknown): { name: string; in
   const con = (name: string, campos: Obj) => ({ name, input: Object.fromEntries(Object.entries(campos).filter(([, v]) => v !== null && v !== undefined)) });
   switch (nombre) {
     case "bash":
+    case "shell":
       return con("Bash", { command: texto(p.command), description: texto(p.description) });
     case "read":
       return con("Read", { file_path: ruta });
