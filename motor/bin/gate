@@ -11,6 +11,12 @@
 #                     con esa. Si la rama cambió el test, avisa y no rechaza: lo que manda es la copia. RUTA = dónde está
 #                     en el repo; sin ella, el único archivo de la rama con el mismo nombre que COPIA. Sin --test es el
 #                     camino trivial: no hay test congelado y se saltea (y lo dice). Al salir se restaura el worktree
+#   1b. snapshots     un __snapshots__/ cambiado tiene su ruta nombrada en --permitidos (exacta, o un glob que la
+#                     incluya): un `dir/` o un `*` no alcanzan
+#   1c. anti-patrones en las líneas agregadas del diff (no las quitadas; .md y .txt no cuentan). Fuera de tests:
+#                     @ts-ignore y `as any`. En todo archivo: .skip( .only( xit( xdescribe( it.todo .fails(. En tests,
+#                     además un `return;` al inicio de un test. @ts-expect-error y eslint-disable-next-line
+#                     react-hooks/exhaustive-deps sólo avisan
 #   3. chequeo        --chequeo CMD corre en el worktree de la rama y da exit 0
 #   3b extras         los *.extra.test.* que agregó o cambió la rama corren aparte, con --extras CMD (exit 0). Sin --extras
 #                     avisa que no corrieron
@@ -24,7 +30,8 @@
 # desechable en /tmp/gate-<id> y se borra al terminar.
 #
 # Exits:  0 verde · 2 uso · 3 no resuelve proyecto/rama/main/archivos del gate · 21 fuera de lo permitido ·
-#         22 test congelado cambiado · 23 el chequeo dio rojo · 24 rojos nuevos contra main
+#         22 test congelado sin ruta única · 23 el chequeo (o un extra) dio rojo · 24 rojos nuevos contra main ·
+#         25 anti-patrón en lo agregado · 26 snapshot sin ruta explícita en --permitidos
 set -uo pipefail
 
 AQUI="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -123,6 +130,40 @@ done < <(git -C "$repo" diff --name-only "$main_ref...$rama")
 if ((${#snap_fuera[@]})); then
   rojo 26 "1b snapshots: ${#snap_fuera[@]} snapshot(s) sin ruta explícita en --permitidos"; printf '        %s\n' "${snap_fuera[@]}"
 else echo "OK    1b snapshots"; fi
+
+# 1c. anti-patrones en las líneas agregadas (no en las quitadas; .md y .txt no cuentan). Fuera de tests: @ts-ignore y
+#     as any. En todo archivo: .skip( .only( xit( xdescribe( it.todo .fails(. En tests, además un `return;` al inicio de
+#     un test. @ts-expect-error y eslint-disable-next-line react-hooks/exhaustive-deps sólo avisan
+agregadas="$(git -C "$repo" diff --unified=0 "$main_ref...$rama" | awk '
+  function esTest(f) { return f ~ /(^|\/)(tests|__tests__)\// || f ~ /\.(test|spec)\./ }
+  /^\+\+\+ /{ f=substr($0,7); next }
+  /^@@/{ split($3,a,","); n=substr(a[1],2)+0; next }
+  /^\+/{
+    t=substr($0,2); tag=""
+    if (f ~ /\.(md|txt)$/) { n++; next }
+    if (t ~ /@ts-expect-error/ || t ~ /eslint-disable-next-line react-hooks\/exhaustive-deps/) tag="AVISO"
+    if (t ~ /\.skip\(|\.only\(|(^|[^A-Za-z0-9_.])xit\(|(^|[^A-Za-z0-9_.])xdescribe\(|(^|[^A-Za-z0-9_.])it\.todo|\.fails\(/) tag="ROJO"
+    if (!esTest(f) && (t ~ /@ts-ignore/ || t ~ /(^|[^A-Za-z0-9_])as any($|[^A-Za-z0-9_])/)) tag="ROJO"
+    if (esTest(f) && t ~ /^[[:space:]]*return;[[:space:]]*$/) tag="RETURN"
+    if (tag != "") print tag "\t" f "\t" n "\t" t
+    n++; next
+  }
+')"
+abre='(^|[^A-Za-z0-9_.])(test|it)(\.[a-z]+)?\(.*\{[[:space:]]*$'
+hall=(); avi=()
+while IFS=$'\t' read -r tag f n txt; do
+  [[ -n "$tag" ]] || continue
+  if [[ "$tag" == RETURN ]]; then   # sólo cuenta si la línea de arriba (no vacía) abre un test
+    prev="$(git -C "$repo" show "$rama:$f" 2>/dev/null | awk -v N="$n" 'NR==N{print p; exit} /[^[:space:]]/{p=$0}')"
+    [[ "$prev" =~ $abre ]] || continue
+    tag=ROJO
+  fi
+  if [[ "$tag" == ROJO ]]; then hall+=("$f:$n  ${txt#"${txt%%[![:space:]]*}"}")
+  else avi+=("AVISO 1c $f:$n  ${txt#"${txt%%[![:space:]]*}"}"); fi
+done <<<"$agregadas"
+if ((${#hall[@]})); then rojo 25 "1c anti-patrones: ${#hall[@]} línea(s) agregada(s)"; printf '        %s\n' "${hall[@]}"
+else echo "OK    1c anti-patrones"; fi
+if ((${#avi[@]})); then printf '%s\n' "${avi[@]}"; fi
 
 # 2. test congelado (sin --test: camino trivial, no hay test que congelar)
 if [[ -z "$test_arg" ]]; then echo "SALTEADO 2 test congelado (sin --test)"

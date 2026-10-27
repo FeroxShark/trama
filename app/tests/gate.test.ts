@@ -37,6 +37,7 @@ git("init", "-q", "-b", "main");
 git("config", "user.email", "t@t");
 git("config", "user.name", "t");
 escribir("src/a.txt", "a\n");
+escribir("src/viejo.ts", "const v = 1 as any;\n"); // ya estaba en main: los anti-patrones de líneas viejas no cuentan
 escribir("tests/viejo.txt", "falla-previa\n");
 escribir("tests/t1.test.txt", "congelado\n");
 git("add", ".");
@@ -228,11 +229,89 @@ test("26: un glob que nombra __snapshots__ también cuenta como ruta explícita"
   assert.equal(r.status, 0, r.stdout + r.stderr);
 });
 
+// 1c: un caso por cada anti-patrón, en código (fuera de tests) y en un test
+const permAnti = path.join(tmp, "permitidos-anti.txt");
+writeFileSync(permAnti, "src/\ntests/\ndocs/*.md\n");
+const gateAnti = (id: string, extra: string[] = []) =>
+  spawnSync(GATE, ["mi-proyecto", id, "--chequeo", "true", "--permitidos", permAnti, ...extra], {
+    encoding: "utf8",
+    env: { ...process.env, PROYECTOS_REGISTRY: registry, PA_STATE: estado },
+  });
+
+const ANTI_CODIGO: [string, string][] = [
+  ["@ts-ignore", "// @ts-ignore\nconst x = f();\n"],
+  ["as any", "const x = y as any;\n"],
+  [".skip(", "const r = lista.skip(1);\n"],
+  [".only(", "const r = lista.only(1);\n"],
+  ["xit(", 'xit("caso", () => {});\n'],
+  ["xdescribe(", 'xdescribe("caso", () => {});\n'],
+  ["it.todo", 'it.todo("caso");\n'],
+  [".fails(", "const r = f().fails(1);\n"],
+];
+for (const [nombre, texto] of ANTI_CODIGO) {
+  test(`25: ${nombre} en código (fuera de tests) rechaza`, () => {
+    const r = gateAnti(rama({ "src/c.ts": texto }));
+    assert.equal(r.status, 25, r.stdout + r.stderr);
+    assert.match(r.stdout, /ROJO\s+1c anti-patrones/);
+    assert.match(r.stdout, /src\/c\.ts:1/);
+  });
+}
+
+const ANTI_TEST: [string, string][] = [
+  [".skip(", 'test.skip("caso", () => {});\n'],
+  [".only(", 'test.only("caso", () => {});\n'],
+  ["xit(", 'xit("caso", () => {});\n'],
+  ["xdescribe(", 'xdescribe("caso", () => {});\n'],
+  ["it.todo", 'it.todo("caso");\n'],
+  [".fails(", 'test.fails("caso", () => {});\n'],
+  ["return; al inicio de un test", 'test("caso", () => {\n  return;\n});\n'],
+];
+for (const [nombre, texto] of ANTI_TEST) {
+  test(`25: ${nombre} en un test rechaza`, () => {
+    const r = gateAnti(rama({ "tests/nuevo.test.ts": texto }));
+    assert.equal(r.status, 25, r.stdout + r.stderr);
+    assert.match(r.stdout, /ROJO\s+1c anti-patrones/);
+  });
+}
+
+test("25: as any y @ts-ignore dentro de un test no rechazan (son de código, no de test)", () => {
+  const r = gateAnti(rama({ "tests/casteo.test.ts": "const x = y as any;\n// @ts-ignore\n" }));
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.match(r.stdout, /OK\s+1c anti-patrones/);
+});
+
+test("25: return; que no es la primera línea de un test no rechaza", () => {
+  const r = gateAnti(rama({ "tests/orden.test.ts": 'test("caso", () => {\n  expect(1).toBe(1);\n  return;\n});\n' }));
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+});
+
+test("25: return; en una función de ayuda de un archivo de tests no rechaza", () => {
+  const r = gateAnti(rama({ "tests/ayuda.test.ts": "function ayuda() {\n  return;\n}\n" }));
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+});
+
+test("25: @ts-expect-error y eslint-disable-next-line react-hooks/exhaustive-deps avisan y no rechazan", () => {
+  const r = gateAnti(rama({ "src/w.ts": "// @ts-expect-error\nconst x: number = 'a';\n// eslint-disable-next-line react-hooks/exhaustive-deps\nconst y = 1;\n" }));
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.match(r.stdout, /AVISO 1c src\/w\.ts:1/);
+  assert.match(r.stdout, /AVISO 1c src\/w\.ts:3/);
+});
+
+test("25: sólo cuentan las líneas agregadas: un as any que ya estaba en main no rechaza", () => {
+  const r = gateAnti(rama({ "src/viejo.ts": "const v = 1 as any;\nconst w = 2;\n" }));
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+});
+
+test("25: un .md con el anti-patrón escrito como texto no rechaza", () => {
+  const r = gateAnti(rama({ "docs/nota.md": "no uses @ts-ignore ni as any\n" }));
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+});
+
 test("--help documenta los pasos y los exits, y sale en 0", () => {
   const r = spawnSync(GATE, ["--help"], { encoding: "utf8" });
   assert.equal(r.status, 0, r.stderr);
   assert.match(r.stdout, /--test COPIA/);
-  for (const e of ["21", "22", "23", "24"]) assert.match(r.stdout, new RegExp(`\\b${e}\\b`));
+  for (const e of ["21", "22", "23", "24", "25", "26"]) assert.match(r.stdout, new RegExp(`\\b${e}\\b`));
 });
 
 test("2 y 3 los muestra aunque el 1 falle; el exit es el del primero", () => {
