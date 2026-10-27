@@ -18,7 +18,7 @@ import { real, registro, type Proyecto } from "./registro.js";
 import { sesiones, type Sesion } from "./sesiones.js";
 import { creadoEn, proyectoEnTexto, temaDe, tituloDeRama, tituloLider } from "./tema.js";
 import { cuposActuales, type SuscripcionCupo } from "./cupos.js";
-import { GRUPO_OPENCODE_GRATIS, opencodeAgotadoHasta } from "./opencode-agotado.js";
+import { GRUPO_OPENCODE_GRATIS, modelosGoAgotados, opencodeAgotadoHasta } from "./opencode-agotado.js";
 import { deStatusline, esCuentaDeSiempre, usoDe, type Ventana } from "./uso.ts";
 import { verCaidos, type Caido } from "./vigia.js";
 import { silencio } from "./log.js";
@@ -218,10 +218,16 @@ export async function leerStatusline(): Promise<Statusline> {
       }
     : null;
   // El uso gratis de OpenCode (uno solo para todos sus modelos gratis): sólo se suma cuando está agotado (la barra lateral no lo muestra si no).
+  // Y cada modelo de OpenCode Go agotado (su cupo es por modelo): un grupo por modelo, con el id del modelo.
   const ocHasta = opencodeAgotadoHasta();
+  const goAgotados = Object.entries(modelosGoAgotados());
+  const gruposOc = [
+    ...(ocHasta ? [{ id: GRUPO_OPENCODE_GRATIS, nombre: "OpenCode gratis", ventanas: [{ id: "5h", pct: null, vuelve: null }], agotado: Math.round(ocHasta / 1000) }] : []),
+    ...goAgotados.map(([id, hasta]) => ({ id, nombre: `OpenCode Go · ${id.slice(id.indexOf("/") + 1)}`, ventanas: [{ id: "5h", pct: null, vuelve: null }], agotado: Math.round(hasta / 1000) })),
+  ];
   const suscripciones: SuscripcionCupo[] = [
     ...(cupos?.suscripciones ?? []),
-    ...(ocHasta ? [{ id: "opencode", nombre: "OpenCode", proveedor: "opencode", ts: Math.floor(ahora), grupos: [{ id: GRUPO_OPENCODE_GRATIS, nombre: "OpenCode gratis", ventanas: [{ id: "5h", pct: null, vuelve: null }], agotado: Math.round(ocHasta / 1000) }] }] : []),
+    ...(gruposOc.length ? [{ id: "opencode", nombre: "OpenCode", proveedor: "opencode", ts: Math.floor(ahora), grupos: gruposOc }] : []),
   ];
   const hayOtras = suscripciones.length > 0;
   const hayFuentes = recientes.length > 0 || !!visto || !!lecturaCupos || hayOtras;

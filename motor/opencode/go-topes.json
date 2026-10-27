@@ -1,0 +1,29 @@
+{
+ "version": 1,
+ "fuente": "https://opencode.ai/go",
+ "fecha": "2026-10-27",
+ "nota": "Topes de OpenCode Go por modelo: pedidos cada 5 h y equivalente mensual en USD, para Go (10 USD/mes) y Go Plus. UNICO archivo de datos: lo leen reparto (motor/bin/reparto), el runner (motor/opencode/correr.mjs) y la app (app/electron/opencode-go.ts). Para actualizar: editar acá y cambiar `fecha`. El id es `opencode-go/<id>` como lo lista `opencode models`; si el listado trae otro slug, se empareja ignorando mayusculas y signos.",
+ "proveedor": "opencode-go",
+ "planes": {
+  "go": {
+   "nombre": "Go",
+   "usd_mes": 10
+  },
+  "go-plus": {
+   "nombre": "Go Plus"
+  }
+ },
+ "modelos": [
+  {"id": "kimi-k3.1-pro", "nombre": "Kimi K3.1 Pro", "go": {"pedidos_5h": 147, "usd_mes": 15}, "go-plus": {"pedidos_5h": 588, "usd_mes": 60}},
+  {"id": "gemini-4-argon", "nombre": "Gemini 4 Argon", "go": {"pedidos_5h": 440, "usd_mes": 30}, "go-plus": {"pedidos_5h": 1760, "usd_mes": 120}},
+  {"id": "kimi-k2.7-code", "nombre": "Kimi K2.7 Code", "go": {"pedidos_5h": 1350, "usd_mes": 60}, "go-plus": {"pedidos_5h": 4050, "usd_mes": 180}},
+  {"id": "minimax-m3", "nombre": "MiniMax M3", "go": {"pedidos_5h": 3200, "usd_mes": 60}, "go-plus": {"pedidos_5h": 9600, "usd_mes": 180}},
+  {"id": "claude-haiku-5-5", "nombre": "Claude Haiku 5.5", "go": {"pedidos_5h": 3850, "usd_mes": 15}, "go-plus": {"pedidos_5h": 15380, "usd_mes": 60}},
+  {"id": "minimax-m3.1-flash", "nombre": "MiniMax M3.1 Flash", "go": {"pedidos_5h": 3880, "usd_mes": 20}, "go-plus": {"pedidos_5h": 15500, "usd_mes": 80}},
+  {"id": "gpt-6-luna", "nombre": "GPT 6 Luna", "go": {"pedidos_5h": 4230, "usd_mes": 15}, "go-plus": {"pedidos_5h": 16920, "usd_mes": 60}},
+  {"id": "qwen3.7-plus", "nombre": "Qwen3.7 Plus", "go": {"pedidos_5h": 4300, "usd_mes": 60}, "go-plus": {"pedidos_5h": 12900, "usd_mes": 180}},
+  {"id": "glm-5.3-flash", "nombre": "GLM-5.3-Flash", "go": {"pedidos_5h": 6320, "usd_mes": 60}, "go-plus": {"pedidos_5h": 18960, "usd_mes": 180}},
+  {"id": "mimo-v2.6-flash", "nombre": "MiMo-V2.6-Flash", "go": {"pedidos_5h": 30100, "usd_mes": 60}, "go-plus": {"pedidos_5h": 60200, "usd_mes": 120}},
+  {"id": "deepseek-v4.1-flash", "nombre": "DeepSeek V4.1 Flash", "go": {"pedidos_5h": 34670, "usd_mes": 80}, "go-plus": {"pedidos_5h": 69330, "usd_mes": 160}}
+ ]
+}

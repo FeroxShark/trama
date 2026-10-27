@@ -34,6 +34,8 @@ export type ModeloDef = {
   rec?: boolean;
   /** Gratis (los `*-free` y `big-pickle` de OpenCode): el menú lo marca. */
   gratis?: boolean;
+  /** De OpenCode Go (plan pago de OpenCode, con el plan prendido en Ajustes > OpenCode): el menú lo marca con el texto «Plan Go». */
+  go?: boolean;
   /** Corre en la GPU de esta máquina (llama-server): sin límites de Claude, con contexto a elegir. */
   local?: boolean;
   /** Sólo se puede elegir para un líder: `pa -m` no lo conoce (Gemini, Ollama). Fuera de los selectores de worker. */
@@ -90,17 +92,21 @@ export function nombreOpencode(valor: string): string {
 }
 /** ¿Es gratis? (`*-free` y `big-pickle` de OpenCode.) Igual que `esGratis` de electron/opencode.ts. */
 export const esGratisOpencode = (valor: string) => /-free$/.test(valor) || valor === "opencode/big-pickle";
-/** Un modelo del programa `opencode`: el id es `opencode:<proveedor>/<modelo>` (lo que imprime `opencode models`, con el prefijo). */
-const opencode = (valor: string, niveles: readonly string[] = []): ModeloDef => {
+/** ¿Es de OpenCode Go? (proveedor `opencode-go`.) Igual que `esModeloGo` de electron/opencode.ts. */
+export const esGoOpencode = (valor: string) => /^(?:opencode:)?opencode-go\//.test(valor);
+/** Un modelo del programa `opencode`: el id es `opencode:<proveedor>/<modelo>` (lo que imprime `opencode models`, con el prefijo). Con el plan Go prendido, los de Go dicen «plan Go» (con texto, nunca sólo color). */
+const opencode = (valor: string, niveles: readonly string[] = [], planGo = false): ModeloDef => {
   const gratis = esGratisOpencode(valor);
+  const go = planGo && esGoOpencode(valor);
   const prov = valor.slice(0, valor.indexOf("/"));
   return {
     id: `opencode:${valor}`,
     clave: `opencode:${valor}`,
     empresa: "opencode",
-    nombre: `${nombreOpencode(valor)} · ${gratis ? "Gratis" : prov === "opencode" ? "Zen" : prov}`,
-    desc: gratis ? "modelo.opencodeGratis" : "modelo.opencode",
+    nombre: `${nombreOpencode(valor)} · ${gratis ? "Gratis" : go ? "Plan Go" : prov === "opencode" ? "Zen" : prov}`,
+    desc: gratis ? "modelo.opencodeGratis" : go ? "modelo.opencodeGo" : "modelo.opencode",
     ...(gratis ? { gratis: true } : {}),
+    ...(go ? { go: true } : {}),
     // Los niveles que `opencode models --verbose` dice (`variants`); sin ellos el modelo no razona y no hay selector. Por defecto `medium` si está.
     efforts: niveles,
     effortDefecto: niveles.includes("medium") ? "medium" : (niveles[0] ?? "high"),
@@ -118,6 +124,8 @@ export type ConfigModelos = {
   opencode?: string[];
   /** Los niveles de esfuerzo de esos modelos (`opencode/xxx` → `["low","medium","high"]`); el que no figura no razona. */
   opencodeEfforts?: Record<string, string[]>;
+  /** El plan de OpenCode Go prendido en Ajustes (`go` o `go-plus`); ausente: apagado, los modelos de OpenCode se ven como siempre. */
+  opencodePlan?: "go" | "go-plus";
   /** Los modelos de Ollama del archivo: su id (`ollama:…`), el nombre que se ve y el que Ollama conoce (para `dsh:ollama/<modelo>`). Ni la url ni nada más llega acá. */
   locales: { id: string; nombre: string; modelo?: string }[];
   /** Los modelos de llama-server que declara `locales.json`: su id, el nombre y quién lo hace. Ni la unit ni las rutas llegan acá. */
@@ -170,7 +178,10 @@ export function ponerConfig(c: ConfigModelos | null): { modelo: string; effort: 
   // Un líder por defecto de opencode aparece aunque el programa ya no lo liste; los gratis, primero.
   const delOpencode = c?.lider && esOpencode(c.lider.modelo) ? c.lider.modelo.slice("opencode:".length) : null;
   const valores = [...new Set([...(c?.opencode ?? []), ...(delOpencode ? [delOpencode] : [])])];
-  const opencodeTodos = [...valores.filter(esGratisOpencode), ...valores.filter((v) => !esGratisOpencode(v))].map((v) => opencode(v, c?.opencodeEfforts?.[v] ?? []));
+  const planGo = !!c?.opencodePlan;
+  // Gratis primero y, con el plan Go prendido, los de Go enseguida; el resto de Zen / proveedores propios al final.
+  const ordenOc = (v: string) => (esGratisOpencode(v) ? 0 : planGo && esGoOpencode(v) ? 1 : 2);
+  const opencodeTodos = [...valores].sort((a, b) => ordenOc(a) - ordenOc(b)).map((v) => opencode(v, c?.opencodeEfforts?.[v] ?? [], planGo));
   const base = BASE.map((m) => ({ ...m }));
   tabla.length = 0;
   tabla.push(...base, ...llama, ...(c?.gemini ? GEMINI.map((m) => ({ ...m })) : []), ...ollama, ...dshTodos, ...opencodeTodos);

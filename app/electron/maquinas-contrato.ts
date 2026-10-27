@@ -122,6 +122,8 @@ export const RUTAS: Readonly<Record<string, Ruta>> = {
   "aa:refrescar": "local",
   "opencode:estado": "local",
   "opencode:actualizar": "local",
+  "opencode:plan": "local",
+  "opencode:planGuardar": "local",
   "leidos:leer": "local",
   "leidos:marcar": "local",
   "nombres:leer": "local",

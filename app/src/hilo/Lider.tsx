@@ -48,7 +48,7 @@ import { Texto } from "./Texto";
 import { Hora, pintorAviso, tokens, Turno } from "./Turno";
 import { Marca } from "./Marca";
 import { Sistema } from "./Sistema";
-import { EVENTO_CAMBIAR_MODELO, marcarAgotadas, opencodeAgotadoDe, proveedorLibre } from "./agotados";
+import { EVENTO_CAMBIAR_MODELO, goAgotadosDe, marcarAgotadas, opencodeAgotadoDe, proveedorLibre } from "./agotados";
 import { Compactando, Pasando, relevoEn, Sigue } from "./Posta";
 import { juntar, repiteElPrimero, turnos, type Item, type Punto } from "./turnos";
 import { AccionesMensaje, EditorMensaje, sobreMensaje, type Acciones } from "./AccionesMensaje";
@@ -220,7 +220,7 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
       soltar();
     };
   }, []);
-  const modelosVistos = useMemo(() => marcarAgotadas(MODELOS, opencodeAgotadoDe(uso)), [uso]);
+  const modelosVistos = useMemo(() => marcarAgotadas(MODELOS, opencodeAgotadoDe(uso), Date.now() / 1000, goAgotadosDe(uso)), [uso]);
   const [senalModelo, setSenalModelo] = useState(0);
   useEffect(() => {
     const abrir = () => setSenalModelo((n) => n + 1);

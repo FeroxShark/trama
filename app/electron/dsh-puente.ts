@@ -28,8 +28,8 @@ import os from "node:os";
 import { ClienteAcp, ErrorAcp, describirError, type BloqueAcp } from "./acp.ts";
 import { entornoAgy } from "./binario.ts";
 import { entornoDsh, escribirParche, esErrorCuota, falta, mensajeCuotaOpencode, parsearModelo, resolverDsh, valorModeloAcp } from "./dsh.ts";
-import { effortParaAcp, politicaOpencode, entornoOpencode, esErrorCuota as esCuotaOc, mensajeCuotaOpencode as mensajeCuotaOc, parsearModelo as parsearOpencode, resolverOpencode } from "./opencode.ts";
-import { esLimiteGratisOpencode, marcarOpencodeAgotado } from "./opencode-agotado.ts";
+import { effortParaAcp, esModeloGo, politicaOpencode, entornoOpencode, esErrorCuota as esCuotaOc, mensajeCuotaOpencode as mensajeCuotaOc, parsearModelo as parsearOpencode, resolverOpencode } from "./opencode.ts";
+import { esLimiteGratisOpencode, marcarModeloGoAgotado, marcarOpencodeAgotado } from "./opencode-agotado.ts";
 import { textoT } from "./errores.ts";
 import { leerClavesSync, type NombreClave } from "./claves.ts";
 import { cortesDeEntorno, sinCortadas } from "./cortes.ts";
@@ -563,8 +563,13 @@ async function levantar(): Promise<void> {
 function textoDeError(e: unknown): string {
   const secretos = [process.env.OPENCODE_API_KEY, process.env.DEEPSEEK_API_KEY, ...secretosMcp()];
   const err = cliente?.stderr || stderrPerdido;
+  // OpenCode Go: el cupo es por modelo. Un 429 marca agotado SOLO este modelo (~5 h); los demás de Go y el límite de los gratis no se tocan.
+  if (oc && esModeloGo(oc.valor) && esCuotaOc(`${String((e as Error)?.message ?? e)}\n${err}`)) {
+    marcarModeloGoAgotado(modelo);
+    return textoT("main.opencodeGoSinCupo", { modelo: oc.valor });
+  }
   // El uso gratis de OpenCode es uno solo para todos sus modelos gratis: se anota para Trama (reparto, selector) y se dice qué hacer.
-  if (oc && esLimiteGratisOpencode(`${String((e as Error)?.message ?? e)}\n${err}`)) {
+  if (oc && !esModeloGo(oc.valor) && esLimiteGratisOpencode(`${String((e as Error)?.message ?? e)}\n${err}`)) {
     marcarOpencodeAgotado();
     return textoT("main.opencodeSinCupo", { modelo: oc.valor });
   }

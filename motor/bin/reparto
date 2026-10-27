@@ -4,7 +4,7 @@
   reparto --cupos [--json]                     cupo de cada suscripción (Claude oficial, Google AI Pro/agy y ChatGPT/codex)
   reparto --tabla [--json]                     todos los modelos que conoce: id, inteligencia (~ = estimada), gratis/pago,
                                                cupo libre y cuándo vuelve, urgencia y si modelos.json los permite
-  reparto --aa-diag [--json]                   por modelo local: con qué entrada de Artificial Analysis se emparejó, puntaje de AA (crudo, sin calibrar) por effort
+  reparto --aa-diag [--json]                   por modelo local: con qué entrada de Artificial Analysis se emparejó, índice de inteligencia de AA (sin calibrar) por effort, medido o estimado
   reparto --tipo T [--json] [--explicar]       modelo y effort que conviene para el tipo T
   reparto --resolver ID [--json]               cómo se lanza un id de modelo (claude / agy / codex / ollama / dsh)
   reparto --agotar ID [--hasta ISO]            marca agotado el grupo de agy o de codex de ese modelo (o grupo), o el
@@ -23,14 +23,17 @@ cuenta elegida. --agotar ID --cuenta C marca agotado el grupo de esa cuenta; --t
 modelos de esa cuenta (pa --cuenta sin -m); --tipo T --mismo-proveedor P prefiere
 las cuentas de P (el relanzamiento por falta de cupo de pa: otra cuenta del mismo proveedor antes de cambiar).
 
-Inteligencia (`calidad`): en UNIDADES REALES de Artificial Analysis (promedio crudo de su índice de coding y agentic, sin calibrar a 100).
+Inteligencia (`calidad`): en UNIDADES REALES del ÍNDICE DE INTELIGENCIA de Artificial Analysis (el general, el que AA mide completo; sin calibrar a 100).
+Coding y agentic de AA quedan como datos extra (--tabla: coding_por_effort / agentic_por_effort), nunca como base.
 Sale de modelos.json (con "calidad_unidades": "aa"; sin eso son números de la escala vieja 0-100 y se migran al leer, ver vieja_a_aa);
 un modelo de opencode/dsh sin entrada se estima por el nombre (base 50, +10 con ultra/super/pro/max, -10 con flash/lightning/mini/nano,
-de la escala vieja, convertido a AA) y --tabla lo marca estimada. Los mínimos por tipo ("sonnet"...) valen el puntaje crudo de esa familia
+de la escala vieja, convertido a AA) y --tabla lo marca estimada. Los mínimos por tipo ("sonnet"...) valen el índice de inteligencia de esa familia
 al esfuerzo del tipo. `efforts_permitidos` {"sonnet": ["low","high"]}: los esfuerzos que los workers pueden usar por familia o id. Cuenta igual en el puntaje.
 Si la app bajó los índices de Artificial Analysis (<estado>/aa-modelos.json; REPARTO_AA=<archivo> lo cambia, 0 lo apaga) valen antes que los
 defaults y la estimación, pero después de lo que fija modelos.json. --tabla dice de dónde sale cada cifra en `origen`
-(usuario | artificial-analysis | defecto | estimada) y la fecha del dato en `aa_fecha`.
+(usuario | artificial-analysis | defecto | estimada) y la fecha del dato en `aa_fecha`. Por esfuerzo, `calidad_por_effort` es lo MEDIDO (de la API o de
+datos/aa-suplemento.json: REPARTO_AA_SUPLEMENTO=<archivo> lo cambia, 0 lo apaga; la API manda) y `efforts_estimados` + `calidad_estimada_por_effort`
+lo que se estima por interpolación (ver `fuente_por_effort`: api | suplemento | suplemento~ si la cifra es aproximada).
 
 Ritmo y perfil (2026-10-26): cada ventana SEMANAL de una suscripción tiene un ritmo = usado / esperado; "esperado" = qué fracción de la
 semana (ponderada por los días de trabajo del plan) ya pasó. Pasarse del ritmo resta puntos; ir por debajo y cerca del reinicio suma.
@@ -56,6 +59,10 @@ la lista sale de `opencode models` (los `*-free` y `big-pickle` de `opencode/`; 
 REPARTO_OPENCODE_FIJO='["opencode/beam-free"]' (tests: no mira nada real). Los gratis de OpenCode por dsh (`dsh:opencode/*-free`) ya no se ofrecen solos:
 OpenCode los rechaza desde cualquier programa que no sea opencode (REPARTO_DSH_OPENCODE=1 los vuelve a ofrecer, con OPENCODE_API_KEY). La calidad sale de
 `calidad` ("opencode:opencode/glm-5.3-flash-free": 55; admite *), como la de dsh.
+OpenCode Go (plan pago de OpenCode, APAGADO por defecto): con `"opencode_plan": "go"` o `"go-plus"` en modelos.json los modelos de motor/opencode/go-topes.json
+(el único archivo de datos de los topes; REPARTO_GO_TABLA=<archivo> lo cambia) entran como candidatos `opencode:opencode-go/<modelo>` con costo marginal ~0
+(`costo["opencode-go"]`, 0,02), por calidad de AA al esfuerzo que se usaría, como cualquier otro. Cada modelo de Go tiene su cupo: un 429 (`--agotar`) marca agotado SOLO
+ese modelo (5 h), no el grupo `opencode-free`. Sin esa clave (o con "gratis") no cambia nada.
 """
 import contextlib
 import fcntl
@@ -74,11 +81,11 @@ from datetime import datetime, timedelta, timezone
 VERSION = 1
 
 # --- unidades de la inteligencia ----------------------------------------------------------------------
-# `calidad` y todo lo que se compara con ella está en UNIDADES REALES de Artificial Analysis: el promedio crudo de su índice de coding y su
-# índice agentic (sin calibrar a 100). Las cifras de abajo (CALIDAD, MINIMO por número, 70, 50, 35...) son de la escala vieja 0-100 en la que
+# `calidad` y todo lo que se compara con ella está en UNIDADES REALES de Artificial Analysis: su índice de INTELIGENCIA general (sin calibrar a
+# 100; coding y agentic son sólo datos extra). Las cifras de abajo (CALIDAD, MINIMO por número, 70, 50, 35...) son de la escala vieja 0-100 en la que
 # se escribieron; `vieja_a_aa` las pasa a unidades de AA con la inversa de la calibración que se usaba (Haiku 5.5 -> 60, Sonnet 5.5 -> 88,
 # Opus 5.5 -> 100, línea quebrada entre esos puntos y con la pendiente del tramo más cercano afuera). Las anclas son estas AA_REF_VIEJA
-# (valores típicos de coding+agentic de esos tres modelos; fijas para que el pasaje sea el mismo en la app y acá). Se usa para: los defaults
+# (valores típicos del índice de inteligencia de AA de esos tres modelos en su mejor esfuerzo: Haiku 5.5 max ~43, Sonnet 5.5 ~51, Opus 5.5 max ~58; fijas para que el pasaje sea el mismo en la app y acá). Se usa para: los defaults
 # sin dato de AA, la estimación por el nombre y los valores que el dueño escribió en la escala vieja (`calidad`, `calidad_effort`,
 # `minimo_por_tipo` numérico) cuando modelos.json NO trae "calidad_unidades": "aa" (la app lo escribe al guardar). Con "aa" valen tal cual.
 AA_REF_VIEJA = ((60.0, 43.0), (88.0, 51.0), (100.0, 58.0))   # (escala vieja, unidades de AA)
@@ -155,7 +162,7 @@ AVISO_USO = 0.85          # una ventana más usada que esto se avisa (avisos[] y
 SIN_CUPO = ("otro", "esperar", "fallar")
 FAMILIAS_EXCLUIBLES = ("fable", "opus", "sonnet", "haiku", "argon", "flash", "gpt-oss", "astra", "sol", "luna")
 LLENA = 0.03              # una ventana con menos libre que esto está llena
-MARGEN = 3.0              # puntos de AA (coding+agentic crudo) de más sobre el mínimo que todavía cuentan enteros (antes 10 de la escala vieja 0-100)
+MARGEN = 3.0              # puntos del índice de inteligencia de AA de más sobre el mínimo que todavía cuentan enteros (antes 10 de la escala vieja 0-100)
 PESO_SOBRA = 0.5          # puntos que resta cada punto de calidad que pasa del margen (gastar de más)
 PTS_POR_AA = 3.0          # peso de un punto de AA en el puntaje: sólo para sumarlo con urgencia/costo/carga (antes 1 punto de la escala vieja ~ 0,3 de AA); no se muestra
 PESO_URGENCIA = 20.0      # puntos máximos por "este cupo se pierde pronto"
@@ -222,7 +229,12 @@ EFFORTS_CODEX = ("low", "medium", "high")
 # aunque esté en `calidad`); DeepSeek se paga con su key; Ollama = lo que tenga bajado.
 DSH_OPENCODE_GRATIS = ["big-pickle", "deepseek-v4.1-flash-free", "glm-5.3-flash-free", "flint-40b-free", "longcat-2.5-preview-free"]
 DSH_DEEPSEEK = ["deepseek-v4-flash"]
-DSH_GRUPOS = {"ollama": "dsh-ollama", "opencode": "dsh-opencode", "deepseek": "dsh-deepseek", "opencode-prog": "opencode-free"}
+DSH_GRUPOS = {"ollama": "dsh-ollama", "opencode": "dsh-opencode", "deepseek": "dsh-deepseek", "opencode-prog": "opencode-free", "opencode-go": "opencode-go"}
+# OpenCode Go: el plan lo dice modelos.json (`opencode_plan`); el grupo de cada modelo de Go es su propio id (cupo por modelo, ventana de 5 h).
+PLANES_OPENCODE = ("gratis", "go", "go-plus")
+COSTO_GO = 0.02           # costo marginal ~0 de un modelo de Go (plan fijo con cupo): casi como un gratis, pero un gratis sin gastar nada gana el empate
+VENCE_GO_H = 5            # un 429 de un modelo de Go lo marca agotado esta cantidad de horas (la ventana del plan)
+OC_GO_PREFIJO = "opencode:opencode-go/"
 OC_GRATIS_CONOCIDOS = ["big-pickle", "beam-free", "deepseek-v4.1-flash-free", "flint-40b-free", "glm-5.3-flash-free", "mimo-v2.6-flash-free",
                        "minimax-m3.1-flash-free", "nemotron-3-ultra-free", "nemotron-3.5-lightning-free", "nemotron-3.5-super-vl-free"]
 COSTO_DSH_PAGO = 1.5      # DeepSeek se paga con la key del dueño: pierde contra un gratis salvo que la calidad lo pida (peso_costo × 1,5 puntos menos)
@@ -343,6 +355,7 @@ def _cargar_config():
         "uso_por_modelo": list(USO_POR_MODELO.items()), "tipos_poco_importantes": list(TIPOS_POCO_IMPORTANTES),
         "tipos_finales": list(TIPOS_FINALES), "sin_cupo": "otro", "sin_cupo_de": "default",
         "perfil": PERFIL_DEFECTO, "reserva_lider": None, "peso_ritmo": PESO_RITMO, "peso_bono_ritmo": PESO_BONO_RITMO,
+        "opencode_plan": "gratis",
     }
     p = ruta_modelos()
     if not os.path.isfile(p):
@@ -381,6 +394,8 @@ def _cargar_config():
         cfg["reserva"] = j["reserva"]   # null o ausente: sin reserva
     if j.get("perfil") in PERFILES:
         cfg["perfil"] = j["perfil"]
+    if j.get("opencode_plan") in PLANES_OPENCODE:   # cualquier otra cosa: gratis (Go apagado)
+        cfg["opencode_plan"] = j["opencode_plan"]
     if isinstance(j.get("reserva_lider"), (int, float)) and not isinstance(j.get("reserva_lider"), bool):
         cfg["reserva_lider"] = j["reserva_lider"]   # ausente/null: el del perfil
     if isinstance(j.get("excluir"), list):
@@ -422,11 +437,12 @@ def _cargar_config():
 
 
 # --- Artificial Analysis (inteligencia medida) ------------------------------------------------------
-# La app (electron/artificial-analysis.ts) baja los índices de coding y agentic de Artificial Analysis (con la key del dueño, una
+# La app (electron/artificial-analysis.ts) baja los índices de Artificial Analysis (con la key del dueño, una
 # vez por día) y deja el resultado en <state>/aa-modelos.json; reparto sólo LEE ese archivo (REPARTO_AA=<archivo> lo cambia, "0" lo
 # apaga). Acá vive el emparejamiento de nombres porque acá se conocen los ids de los modelos (los de opencode aparecen solos).
-# SIN calibración: la inteligencia de un modelo es el promedio crudo de coding y agentic de AA (si falta uno, el otro; si faltan los dos, el
-# índice de inteligencia general como respaldo). Los mínimos por tipo ("sonnet", "haiku", "argon") valen el puntaje crudo de esa familia
+# SIN calibración: la inteligencia de un modelo es el índice de inteligencia general de AA, para todos los modelos y todos los esfuerzos (es lo que
+# AA mide completo). Coding, agentic, costo, tokens y tiempo por tarea son extras que se muestran si existen; una entrada sin índice de
+# inteligencia no entra. Lo que la API de AA no trae lo completa `datos/aa-suplemento.json` (cargado a mano; la API manda). Los mínimos por tipo ("sonnet", "haiku", "argon") valen el índice de inteligencia de esa familia
 # al esfuerzo del tipo. Precedencia de `calidad`: modelos.json (usuario) > Artificial Analysis > defaults > estimación por el nombre
 # (esos dos últimos, convertidos con vieja_a_aa: ver "unidades de la inteligencia").
 AA_PREFIJOS = re.compile(r"^(?:opencode|dsh|agy|codex|ollama):")
@@ -436,7 +452,7 @@ AA_NIVELES = {"minimal": "low", "low": "low", "medium": "medium", "high": "high"
 AA_NIVELES_SUFIJO = frozenset(k for k in AA_NIVELES if k != "max")
 # Palabras que describen el MODO de una variante, no el modelo: no cuentan en el emparejamiento ("adaptive", "thinking"...).
 # Los tamaños y variantes (flash, mini, lite, nano, small, air, 120b...) NO están acá: dos modelos con distinto tamaño nunca se juntan.
-AA_CALIFICADORES = frozenset(("reasoning", "thinking", "adaptive", "effort", "non", "nonreasoning"))
+AA_CALIFICADORES = frozenset(("reasoning", "thinking", "adaptive", "effort", "non", "nonreasoning", "default", "fallback"))
 EFFORT_TABLA = "high"   # el esfuerzo con que --tabla muestra la inteligencia de cada modelo (el de debug, diseno, codigo-multi, frontend y final)
 EFFORTS_AA = ("low", "medium", "high", "xhigh", "max")   # de menos a más; "none" (Non-reasoning) no entra al mapa por effort
 # "Reasoning" / "Thinking" / "Adaptive" sin nivel = el modelo en su effort por defecto: se toma como `high`. Una entrada pelada (sin
@@ -487,18 +503,20 @@ def aa_tokens(nombre):
     return aa_pelar(out)
 
 
+def _num(v):
+    """float si v es un número de verdad (no bool, no NaN), si no None."""
+    return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) and v == v else None
+
+
 def aa_puntaje_m(m):
-    """(puntaje crudo, métrica) de un modelo de AA: promedio de coding y agentic (los que haya) con métrica "ca"; sin ninguno, el índice
-    de inteligencia general con métrica "int" (respaldo, en sus propias unidades de AA). Sin nada, None."""
-    v = [m[k] for k in ("coding", "agentic") if isinstance(m.get(k), (int, float)) and not isinstance(m.get(k), bool)]
-    if v:
-        return sum(v) / len(v), "ca"
-    i = m.get("intelligence")
-    return (float(i), "int") if isinstance(i, (int, float)) and not isinstance(i, bool) else None
+    """(puntaje, métrica) de un modelo de AA: su ÍNDICE DE INTELIGENCIA general, métrica "int", para todos los modelos y esfuerzos. Coding y
+    agentic NO son base (a lo sumo extras: ver aa_indice). Sin índice de inteligencia, None."""
+    i = _num(m.get("intelligence"))
+    return (i, "int") if i is not None else None
 
 
 def aa_puntaje(m):
-    """Puntaje crudo de un modelo de AA (ver aa_puntaje_m)."""
+    """Puntaje de un modelo de AA (ver aa_puntaje_m)."""
     r = aa_puntaje_m(m)
     return r[0] if r else None
 
@@ -560,7 +578,7 @@ def aa_esfuerzo(m):
 
 def aa_indice(modelos):
     """({tokens unidos: {métrica: (puntaje, nombre, slug)}}, {frozenset(tokens): ...}, {tokens unidos: {esfuerzo: (prioridad, puntaje)}}, {frozenset: ...}).
-    Las métricas son "ca" (coding/agentic) e "int" (inteligencia). Si varios caen en la misma clave (Reasoning y Non-reasoning, esfuerzos)
+    La única métrica es "int" (índice de inteligencia general). Si varios caen en la misma clave (Reasoning y Non-reasoning, esfuerzos)
     gana el de más puntaje; los dos últimos guardan el puntaje de cada esfuerzo conocido: gana la variante mejor etiquetada
     (explícita > "Reasoning" sin nivel > Non-reasoning con nivel > pelada) y, a igual etiqueta, el mayor puntaje."""
     ents = []
@@ -579,21 +597,21 @@ def aa_indice(modelos):
         if nivel is None and tipo == "pelado" and AA_CON_NIVEL_DEFECTO.search(((m.get("name") or "") + " " + (m.get("slug") or "")).lower()):
             nivel = AA_NIVEL_DEFECTO
         prio = AA_PRIORIDAD[tipo]
-        extra = {k: float(m[k]) for k in ("cost", "tokens", "time") if isinstance(m.get(k), (int, float)) and not isinstance(m.get(k), bool)}
-        extra["crudo"] = p
-        ints = m.get("intelligence")
-        ints = float(ints) if isinstance(ints, (int, float)) and not isinstance(ints, bool) else None
-        if ints is not None:
-            extra["intel"] = ints
+        # La base es siempre la inteligencia (`p`); coding, agentic, costo, tokens y tiempo por tarea son extras que se muestran si existen.
+        extra = {k: _num(m.get(k)) for k in ("coding", "agentic", "cost", "tokens", "time") if _num(m.get(k)) is not None}
+        extra["intel"] = p
+        if m.get("_suplemento"):
+            extra["suplemento"] = True
+            if m.get("aproximado"):
+                extra["aproximado"] = True
         for tk in tks:
             if not tk:
                 continue
             for d, de, k in ((exacto, ex_ef, " ".join(tk)), (conjunto, co_ef, frozenset(tk))):
                 e = d.setdefault(k, {})
-                for metrica, v in ((met, p), ("int", ints)):
-                    if v is not None and (metrica not in e or v > e[metrica][0]):
-                        e[metrica] = (v, m.get("name") or m.get("slug"), m.get("slug") or "")
-                if met == "ca" and nivel in EFFORTS_AA:
+                if met not in e or p > e[met][0]:
+                    e[met] = (p, m.get("name") or m.get("slug"), m.get("slug") or "")
+                if nivel in EFFORTS_AA:
                     ef = de.setdefault(k, {})
                     if nivel not in ef or (prio, p) > ef[nivel][:2]:
                         ef[nivel] = (prio, p, extra)
@@ -616,16 +634,15 @@ def aa_entrada(aa, mid):
 
 
 def aa_buscar(aa, mid):
-    """(puntaje crudo, nombre en AA, métrica) de ese id, o None. Coding/agentic si los hay; si no, el índice de inteligencia."""
+    """(índice de inteligencia, nombre en AA, "int") de ese id (el mejor esfuerzo medido), o None."""
     e, _ = aa_entrada(aa, mid)
-    if not e:
+    if not e or "int" not in e:
         return None
-    met = "ca" if "ca" in e else "int"
-    return (e[met][0], e[met][1], met)
+    return (e["int"][0], e["int"][1], "int")
 
 
 def aa_buscar_efforts(aa, mid):
-    """{esfuerzo: puntaje crudo} conocidos de ese id en AA (puede ser {}), con el mismo emparejamiento que aa_buscar."""
+    """{esfuerzo: índice de inteligencia} MEDIDOS de ese id en AA (puede ser {}), con el mismo emparejamiento que aa_buscar."""
     e, clave = aa_entrada(aa, mid)
     if not e:
         return {}
@@ -633,17 +650,54 @@ def aa_buscar_efforts(aa, mid):
 
 
 def aa_buscar_extras(aa, mid):
-    """{esfuerzo: {"crudo", "intel", "cost", "tokens", "time"}} de AA para ese id (costo USD, tokens y segundos por tarea: sólo los que AA trae; puede ser {})."""
+    """{esfuerzo: {"intel", "coding", "agentic", "cost", "tokens", "time", "suplemento", "aproximado"}} de ese id (coding/agentic: índices de AA; costo USD,
+    tokens y segundos por tarea: sólo los que se tengan; suplemento: sale de la tabla manual; puede ser {})."""
     e, clave = aa_entrada(aa, mid)
     if not e:
         return {}
     return {nivel: dict(v[2]) for nivel, v in aa["ex_ef" if clave[0] == "ex" else "co_ef"].get(clave[1], {}).items()}
 
 
+SUPLEMENTO_ARCHIVO = os.path.join("datos", "aa-suplemento.json")
+
+
+def aa_suplemento_ruta():
+    """Dónde está la tabla suplementaria manual: REPARTO_AA_SUPLEMENTO (archivo; "0" la apaga) o datos/aa-suplemento.json junto a bin/ (o a la
+    carpeta del enlace). None si no existe."""
+    env = os.environ.get("REPARTO_AA_SUPLEMENTO")
+    if env == "0":
+        return None
+    if env:
+        return env
+    aqui = os.path.dirname(os.path.realpath(__file__))
+    for base in (os.path.join(aqui, ".."), aqui):
+        r = os.path.normpath(os.path.join(base, SUPLEMENTO_ARCHIVO))
+        if os.path.isfile(r):
+            return r
+    return None
+
+
+def aa_suplemento():
+    """(fecha, fuente, [modelos]) de la tabla suplementaria manual: modelos que la API de AA no trae (o esfuerzos que le faltan). Mismo formato que
+    una entrada de la API (name, slug, intelligence y, si se tienen, coding, agentic, cost, time, tokens) más "aproximado": true si la cifra es ~.
+    Para ampliarla basta agregar entradas a datos/aa-suplemento.json. Sin archivo o roto: (None, None, [])."""
+    ruta = aa_suplemento_ruta()
+    if not ruta:
+        return None, None, []
+    try:
+        with open(ruta) as f:
+            j = json.load(f)
+        ms = [dict(m, _suplemento=True) for m in j["modelos"] if isinstance(m, dict) and aa_puntaje_m(m)]
+        return str(j.get("fecha") or "")[:10] or None, str(j.get("fuente") or "") or None, ms
+    except Exception:
+        return None, None, []
+
+
 def aa_cargar():
-    """El índice de <state>/aa-modelos.json: {"fecha", "exacto", "conjunto", "ex_ef", "co_ef"}, o None (sin archivo, roto o sin modelos).
-    Todo en unidades reales de AA: sin calibración. Por esfuerzo se guarda el puntaje (promedio coding+agentic), la inteligencia general,
-    el costo por tarea, los tokens y el tiempo, los que AA traiga."""
+    """El índice de <state>/aa-modelos.json (+ la tabla suplementaria): {"fecha", "exacto", "conjunto", "ex_ef", "co_ef", "suplemento"}, o None
+    (sin archivo, roto o sin modelos). Todo en unidades reales de AA: sin calibración. La base es el índice de INTELIGENCIA; por esfuerzo se
+    guardan además coding, agentic, costo, tokens y tiempo, los que haya. La API manda: una entrada del suplemento (mismo modelo y mismo
+    esfuerzo) sólo se usa si la API no trae esa entrada; si la trae pero le faltan costo/tokens/tiempo, se los completa."""
     ruta = os.environ.get("REPARTO_AA") or os.path.join(state_dir(), "aa-modelos.json")
     if ruta == "0":
         return None
@@ -653,16 +707,33 @@ def aa_cargar():
         modelos = [m for m in j["modelos"] if isinstance(m, dict)]
     except Exception:
         return None
+    fecha_s, fuente_s, supl = aa_suplemento()
+    if supl:
+        def clave(m):
+            return (" ".join(aa_tokens(m.get("name")) or aa_tokens(m.get("slug"))), aa_esfuerzo_info(m)[0])
+        api = {}
+        for m in modelos:
+            if aa_puntaje_m(m):
+                api.setdefault(clave(m), m)
+        for m in supl:
+            k = clave(m)
+            if k in api:
+                for campo in ("cost", "tokens", "time"):
+                    if _num(api[k].get(campo)) is None and _num(m.get(campo)) is not None:
+                        api[k][campo] = m[campo]   # completa lo que la API no trae (el puntaje y lo demás es de la API)
+            else:
+                modelos.append(m)
     exacto, conjunto, ex_ef, co_ef = aa_indice(modelos)
     if not exacto:
         return None
-    return {"fecha": str(j.get("fetched") or "")[:10] or None, "exacto": exacto, "conjunto": conjunto, "ex_ef": ex_ef, "co_ef": co_ef}
+    return {"fecha": str(j.get("fetched") or "")[:10] or None, "exacto": exacto, "conjunto": conjunto, "ex_ef": ex_ef, "co_ef": co_ef,
+            "suplemento": {"fecha": fecha_s, "fuente": fuente_s} if supl else None}
 
 
 def aa_calidad(aa, mid):
     """(puntaje de AA en unidades reales, nombre en AA) de ese id, o None si AA no lo conoce. Es el MEJOR puntaje medido (el de más esfuerzo):
-    sólo vale cuando no hay desglose por esfuerzo; con desglose se usa el del esfuerzo que corre (calidad_en_effort). Sin coding/agentic, el
-    índice de inteligencia general hace de respaldo."""
+    sólo vale cuando no hay desglose por esfuerzo; con desglose se usa el del esfuerzo que corre (calidad_en_effort). Siempre es el índice de
+    inteligencia general."""
     r = aa_buscar(aa, mid)
     if not r:
         return None
@@ -670,21 +741,70 @@ def aa_calidad(aa, mid):
 
 
 def aa_calidad_efforts(aa, mid):
-    """{esfuerzo: puntaje de AA} de los esfuerzos que AA midió para ese id ({} si ninguno). Nunca baja al subir el esfuerzo (un effort más
+    """{esfuerzo: índice de inteligencia} de los esfuerzos que AA midió (o que trae la tabla suplementaria) para ese id ({} si ninguno). Nunca baja al subir el esfuerzo (un effort más
     alto no puede valer menos que uno más bajo: si AA los midió en modos distintos, el más bajo se acota)."""
     if not aa:
         return {}
-    out = {e: _n(max(0.0, p)) for e, p in aa_buscar_efforts(aa, mid).items() if e in EFFORTS_AA}
+    out = MapaEf((e, _n(max(0.0, p))) for e, p in aa_buscar_efforts(aa, mid).items() if e in EFFORTS_AA)
     tope = None
     for e in reversed(EFFORTS_AA):
         if e in out:
             tope = out[e] = out[e] if tope is None else min(out[e], tope)
+    out.rel = aa_pendiente(aa, mid)
     return out
 
 
+class MapaEf(dict):
+    """{esfuerzo: calidad medida} con `rel(medido, objetivo)`: la razón (puntaje en `objetivo` / puntaje en `medido`) promedio de otros modelos, para
+    estimar los esfuerzos que faltan (ver calidad_en_effort). Sin `rel`, el mapa sólo interpola."""
+    rel = None
+
+
+def _curva_llena(v):
+    """Una curva {esfuerzo: puntaje} con los esfuerzos que caen ENTRE los medidos interpolados (por posición); fuera del rango no se inventa nada."""
+    out = dict(v)
+    ids = sorted(EFFORTS_AA.index(e) for e in v)
+    for i in range(ids[0], ids[-1] + 1):
+        e = EFFORTS_AA[i]
+        if e not in out:
+            a = max(j for j in ids if j < i)
+            b = min(j for j in ids if j > i)
+            out[e] = v[EFFORTS_AA[a]] + (v[EFFORTS_AA[b]] - v[EFFORTS_AA[a]]) * (i - a) / (b - a)
+    return out
+
+
+def aa_pendiente(aa, mid):
+    """Función rel(medido, objetivo) -> razón promedio puntaje[objetivo] / puntaje[medido] entre los modelos de AA con DOS o más esfuerzos medidos
+    (distintos de `mid`), en este orden: los de la misma empresa y generación, los de la misma empresa, todos. None si ningún modelo da esa razón.
+    Empresa = primer token del nombre; generación = su último token si es una versión (5.5, v4.1)."""
+    if not aa:
+        return None
+    tk = aa_tokens(mid)
+    if not tk:
+        return None
+    propio = " ".join(tk)
+    gen_de = lambda t: t[-1] if len(t) > 1 and re.fullmatch(r"v?\d+(?:\.\d+)?", t[-1]) else None
+    curvas = []
+    for k, ef in aa.get("ex_ef", {}).items():
+        if k == propio or len(ef) < 2:
+            continue
+        t = k.split()
+        curvas.append((t[0], gen_de(t), _curva_llena({e: v[1] for e, v in ef.items()})))
+
+    def rel(m, e):
+        for filtro in (lambda c: c[0] == tk[0] and gen_de(tk) is not None and c[1] == gen_de(tk), lambda c: c[0] == tk[0], lambda c: True):
+            rs = [c[2][e] / c[2][m] for c in curvas if filtro(c) and e in c[2] and m in c[2] and c[2][m] > 0]
+            if rs:
+                return sum(rs) / len(rs)
+        return None
+    return rel
+
+
 def calidad_en_effort(mapa, effort, base):
-    """Calidad para un effort: la medida si está; si falta, interpolada entre los vecinos conocidos (por posición en low<medium<high<xhigh<max;
-    fuera de los extremos, el vecino más cercano); sin mapa o effort desconocido, `base` (la mejor)."""
+    """Calidad para un effort: la medida si está; si falta, ESTIMADA (quien la muestre debe decir "estimado" cuando `effort` no está en `mapa`).
+    Entre dos medidos, interpolada (por posición en low<medium<high<xhigh<max). Con un solo medido, o fuera del rango medido, se extrapola desde el
+    medido más cercano con la pendiente RELATIVA de otros modelos (`mapa.rel`, ver aa_pendiente); nunca por encima del medido para un esfuerzo más
+    alto ni por debajo para uno más bajo. Sin `rel` (mapa común), el medido más cercano; sin mapa o effort desconocido, `base` (la mejor)."""
     if not mapa or effort not in EFFORTS_AA:
         return base
     if effort in mapa:
@@ -694,12 +814,16 @@ def calidad_en_effort(mapa, effort, base):
     sig = [(EFFORTS_AA.index(e), v) for e, v in mapa.items() if e in EFFORTS_AA and EFFORTS_AA.index(e) > i]
     if ant and sig:
         (i0, v0), (i1, v1) = max(ant), min(sig)
-        return int(round(v0 + (v1 - v0) * (i - i0) / (i1 - i0)))
-    if ant:
-        return max(ant)[1]
-    if sig:
-        return min(sig)[1]
-    return base
+        return _n(v0 + (v1 - v0) * (i - i0) / (i1 - i0))
+    cerca = max(ant) if ant else min(sig) if sig else None
+    if cerca is None:
+        return base
+    rel = getattr(mapa, "rel", None)
+    r = rel(EFFORTS_AA[cerca[0]], effort) if rel else None
+    if r is None:
+        return cerca[1]
+    v = cerca[1] * r
+    return _n(max(v, cerca[1]) if i > cerca[0] else min(v, cerca[1]))
 
 
 def cargar_config():
@@ -732,7 +856,9 @@ def mapa_efforts(cfg, clave, mid=None):
         base = aa_calidad_efforts(cfg.get("aa"), mid)
     else:
         base = cfg.get("calidad_ef", {}).get(clave, {})
-    return dict(base, **usr)
+    out = MapaEf(dict(base, **usr))
+    out.rel = getattr(base, "rel", None) if not usr else None   # con valores del dueño por esfuerzo no se mezcla con la pendiente de AA
+    return out
 
 
 
@@ -1225,29 +1351,34 @@ def opencode_bin():
     return next((os.path.join(d, "opencode") for d in dirs if os.access(os.path.join(d, "opencode"), os.X_OK)), None)
 
 
-def opencode_gratis(now):
-    """Los modelos gratis de opencode (`big-pickle` y los `*-free` de `opencode/`, sin el proveedor). [] sin opencode. Se guardan 1 h (REPARTO_OPENCODE_CACHE_S)."""
+def opencode_listado(now):
+    """{"gratis": [...], "go": [...] | None}: lo que lista `opencode models`. gratis: `big-pickle` y los `*-free` de `opencode/` (sin el proveedor); go: los de
+    `opencode-go/` (sin el proveedor; None si no se sabe, p. ej. una caché de antes de Go). Todo vacío sin opencode. Se guarda 1 h (REPARTO_OPENCODE_CACHE_S)."""
+    vacio = {"gratis": [], "go": None}
     if os.environ.get("REPARTO_OPENCODE") == "0" or os.environ.get("REPARTO_SIN_DSH") == "1":
-        return []
+        return vacio
     fijo = os.environ.get("REPARTO_OPENCODE_FIJO")
     if fijo:
         try:
-            return [m.split("/", 1)[1] if m.startswith("opencode/") else m for m in json.loads(fijo) if isinstance(m, str)]
+            lista = [m for m in json.loads(fijo) if isinstance(m, str)]
+            go = [m.split("/", 1)[1] for m in lista if m.startswith("opencode-go/")]
+            return {"gratis": [m.split("/", 1)[1] if m.startswith("opencode/") else m for m in lista if not m.startswith("opencode-go/")], "go": go or None}
         except Exception:
-            return []
+            return vacio
     exe = opencode_bin()
     if not exe:
-        return []
+        return vacio
     cache = os.path.join(state_dir(), "opencode-modelos.json")
     ttl = float(os.environ.get("REPARTO_OPENCODE_CACHE_S", 3600))
     try:
         with open(cache) as f:
             c = json.load(f)
         if c.get("exe") == exe and now.timestamp() - c.get("t", 0) < ttl:
-            return list(c.get("modelos") or [])
+            return {"gratis": list(c.get("modelos") or []), "go": list(c["go"]) if isinstance(c.get("go"), list) else None}
     except Exception:
         pass
     modelos = []
+    go = []
     try:
         import subprocess
         r = subprocess.run([exe, "models"], capture_output=True, text=True, timeout=float(os.environ.get("REPARTO_OPENCODE_CHEQUEO_S", 8)), stdin=subprocess.DEVNULL)
@@ -1255,6 +1386,9 @@ def opencode_gratis(now):
             m = re.match(r"^opencode/(big-pickle|\S*-free)$", ln.strip())
             if m and m.group(1) not in modelos:
                 modelos.append(m.group(1))
+            g = re.match(r"^opencode-go/(\S+)$", ln.strip())
+            if g and g.group(1) not in go:
+                go.append(g.group(1))
     except Exception:
         pass
     modelos = modelos or list(OC_GRATIS_CONOCIDOS)   # opencode no contestó a tiempo: los que se conocen (si fallan, un 429 los agota)
@@ -1262,11 +1396,68 @@ def opencode_gratis(now):
         os.makedirs(os.path.dirname(cache), exist_ok=True)
         tmp = "%s.%d" % (cache, os.getpid())
         with open(tmp, "w") as f:
-            json.dump({"exe": exe, "t": now.timestamp(), "modelos": modelos}, f)
+            json.dump({"exe": exe, "t": now.timestamp(), "modelos": modelos, "go": go}, f)
         os.replace(tmp, cache)
     except OSError:
         pass
-    return modelos
+    return {"gratis": modelos, "go": go or None}
+
+
+def opencode_gratis(now):
+    """Los modelos gratis de opencode (`big-pickle` y los `*-free` de `opencode/`, sin el proveedor). [] sin opencode."""
+    return opencode_listado(now)["gratis"]
+
+
+def go_tabla():
+    """La tabla de topes de OpenCode Go (motor/opencode/go-topes.json, junto a motor/bin; REPARTO_GO_TABLA la cambia): {"fuente", "fecha", "modelos": [...]}
+    o None si no está o no sirve (entonces Go no ofrece nada: no se inventa)."""
+    ruta = os.environ.get("REPARTO_GO_TABLA") or os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "opencode", "go-topes.json")
+    try:
+        with open(ruta) as f:
+            t = json.load(f)
+        ms = [m for m in t["modelos"] if isinstance(m, dict) and isinstance(m.get("id"), str) and m["id"]]
+        return {"fuente": t.get("fuente"), "fecha": t.get("fecha"), "modelos": ms} if t.get("version") == 1 and ms else None
+    except Exception:
+        return None
+
+
+def slug_go(s):
+    """`opencode:opencode-go/Kimi-K3.1-Pro`, `kimi_k3-1-pro` -> `kimik31pro`: para emparejar la tabla con lo que lista opencode."""
+    return re.sub(r"[^a-z0-9]", "", re.sub(r"^(?:opencode:)?(?:opencode-go/)?", "", (s or "").lower()))
+
+
+def go_modelos(cfg, now):
+    """[(id, entrada de la tabla)] de los modelos de Go que se ofrecen: con plan go / go-plus, los de la tabla (y, si `opencode models` ya listó modelos
+    de `opencode-go`, sólo los que aparecen, con el id que listó). Sin plan Go, sin opencode o sin tabla: []."""
+    if cfg.get("opencode_plan") not in ("go", "go-plus"):
+        return []
+    if os.environ.get("REPARTO_OPENCODE") == "0" or os.environ.get("REPARTO_SIN_DSH") == "1":
+        return []
+    if not os.environ.get("REPARTO_OPENCODE_FIJO") and not opencode_bin():
+        return []
+    tabla = go_tabla()
+    if not tabla:
+        return []
+    listados = opencode_listado(now)["go"]
+    out = []
+    for m in tabla["modelos"]:
+        if listados:
+            real = next((l for l in listados if slug_go(l) == slug_go(m["id"])), None)
+            if real:
+                out.append((real, m))
+        else:
+            out.append((m["id"], m))
+    return out
+
+
+def go_topes(cfg, mid):
+    """Los topes del plan elegido para un modelo de Go (por su id): {"pedidos_5h", "usd_mes"} o None."""
+    plan = cfg.get("opencode_plan")
+    t = go_tabla() if plan in ("go", "go-plus") else None
+    for m in (t or {}).get("modelos", []):
+        if slug_go(m["id"]) == slug_go(mid):
+            return m.get(plan)
+    return None
 
 
 def dsh_ofertas(cfg, now):
@@ -1275,6 +1466,9 @@ def dsh_ofertas(cfg, now):
     out = []
     for m in opencode_gratis(now):
         out.append(("opencode:opencode/%s" % m, "%s (OpenCode, gratis)" % m, "opencode-prog", True))
+    # OpenCode Go (sólo con plan go / go-plus): cupo propio por modelo, costo marginal ~0.
+    for real, m in go_modelos(cfg, now):
+        out.append((OC_GO_PREFIJO + real, "%s (OpenCode Go)" % (m.get("nombre") or real), "opencode-go", False))
     for m in st["ollama"]:
         out.append(("dsh:ollama/%s" % m, "%s (Ollama, dsh)" % m, "ollama", True))
     # Los gratis de OpenCode por dsh: OpenCode los rechaza (429) fuera de su programa; sólo con REPARTO_DSH_OPENCODE=1.
@@ -1524,6 +1718,8 @@ def grupo_de_modelo(mid):
     """Id de grupo de agy, de codex o de dsh de un modelo ('agy:claude-sonnet-5-5-medium', 'gemini-3.8-flash-low',
     'codex:gpt-6-luna-low', 'dsh:opencode/big-pickle', 'opencode:opencode/beam-free') o de un grupo ('claude-gpt', 'codex', 'dsh-opencode', 'opencode-free'). None si no es de ésos."""
     m = (mid or "").lower()
+    if m.startswith(OC_GO_PREFIJO):   # OpenCode Go: el cupo es por modelo, el grupo es el modelo (no `opencode-free`)
+        return m
     if m == "opencode-free" or m.startswith("opencode:"):
         return "opencode-free"
     for prov, gid in DSH_GRUPOS.items():
@@ -1549,6 +1745,8 @@ def agotar(mid, hasta_arg, cfg, now, cuenta=None):
     if hasta_arg and not hasta:
         err("--hasta quiere una fecha ISO (2026-10-23T15:00:00Z)")
         return 2
+    if not hasta and gid.startswith(OC_GO_PREFIJO):
+        hasta = now + timedelta(hours=VENCE_GO_H)   # un modelo de Go: su ventana de 5 h
     if not hasta:
         # cuándo vuelve el grupo según los mismos cupos que usa el reparto: su ventana de 5 h (o la semanal si no tiene)
         try:
@@ -1905,6 +2103,7 @@ def armar_candidatos(tipo, cfg, cupos, now, effort=None):
         calidad = calidad_en_effort(mapa_ef, e_cal, calidad_mejor)
         cand = {"modelo": modelo, "effort": effort, "nombre": nombre, "familia": fam, "calidad": calidad,
                 "calidad_mejor": calidad_mejor, "calidad_por_effort": mapa_ef, "effort_calidad": e_cal if mapa_ef else None,
+                "efforts_posibles": [x for x in EFFORTS_AA if efs is None or x in efs] if mapa_ef else [],
                 "cupo_libre": None, "vuelve": None, "puntaje": None, "descartado_por": None,
                 "aviso": None, "grupo": gid or "claude-oficial", "cuenta": cuenta, "proveedor": sus,
                 "estimada": fam not in cfg["calidad"], "origen": cfg["origen"].get(fam, "estimada"), "nota_effort": nota_effort}
@@ -2062,7 +2261,8 @@ def armar_candidatos(tipo, cfg, cupos, now, effort=None):
     for mid, nombre, prov, gratis in ofertas_dsh:
         calidad, origen = calidad_origen(cfg, mid)
         estimada = origen == "estimada"
-        gid = DSH_GRUPOS[prov]
+        es_go = prov == "opencode-go"
+        gid = mid.lower() if es_go else DSH_GRUPOS[prov]   # Go: cada modelo es su grupo
         mapa_ef = mapa_efforts(cfg, mid, mid) if origen == "artificial-analysis" else {}
         calidad_mejor = calidad
         nota_effort = e_dsh = None
@@ -2071,8 +2271,8 @@ def armar_candidatos(tipo, cfg, cupos, now, effort=None):
             calidad = calidad_en_effort(mapa_ef, e_dsh or e_tipo, calidad)
         cand = {"calidad_mejor": calidad_mejor, "nota_effort": nota_effort, "calidad_por_effort": mapa_ef, "effort_calidad": (e_dsh or e_tipo) if mapa_ef else None, "estimada": estimada, "origen": origen, "modelo": mid, "effort": None, "nombre": nombre, "familia": "dsh", "calidad": calidad,
                 "cupo_libre": 1.0 if gratis else None, "vuelve": None, "puntaje": None, "descartado_por": None,
-                "aviso": None if gratis else "se paga con tu key de DeepSeek (no se sabe el precio)", "grupo": gid, "urgencia": 0.0,
-                "cuenta": None, "proveedor": "dsh", "clave": gid, "gratis": gratis}
+                "aviso": None if gratis or es_go else "se paga con tu key de DeepSeek (no se sabe el precio)", "grupo": gid, "urgencia": 0.0,
+                "cuenta": None, "proveedor": "dsh", "clave": gid, "gratis": gratis, **({"plan_go": cfg["opencode_plan"]} if es_go else {})}
         x = excluido_por(mid, cfg["excluir"], "opencode" if mid.startswith("opencode:") else "dsh")
         if mapa_ef and e_dsh is None:
             cand["descartado_por"] = "excluido en modelos.json (%s)" % nota_effort
@@ -2089,7 +2289,9 @@ def armar_candidatos(tipo, cfg, cupos, now, effort=None):
         q = float(calidad)
         util = PTS_POR_AA * (q if q <= minimo + MARGEN else minimo + MARGEN - (q - minimo - MARGEN) * PESO_SOBRA)
         cand["carga"] = carga.get(gid, 0)
-        cand["puntaje"] = round(util + (0.5 * cfg["peso_urgencia"] if gratis else -cfg["peso_costo"] * cfg["costo"].get("dsh-pago", COSTO_DSH_PAGO))
+        # Go: costo marginal ~0 con cupo (plan fijo), como Claude con suscripción pero sin gastar la semana de nadie; DeepSeek por API se paga.
+        costo = -cfg["peso_costo"] * (cfg["costo"].get("opencode-go", COSTO_GO) if es_go else cfg["costo"].get("dsh-pago", COSTO_DSH_PAGO))
+        cand["puntaje"] = round(util + (0.5 * cfg["peso_urgencia"] if gratis else costo)
                                 - cfg["peso_carga"] * cand["carga"], 2)
         out.append(cand)
     return out, minimo, minimo_fam
@@ -2277,7 +2479,7 @@ def motivo_de(gana, pool, tipo, minimo, minimo_fam, todo_lleno, now, cands):
                     "vuelve en %s" % humano(horas_hasta(gana["vuelve"], now)) if gana["vuelve"] else "no dice cuándo vuelve"))
     partes = ["%s alcanza para %s (calidad %s; %s)" % (gana["nombre"], tipo, fn(gana["calidad"]), pide)]
     if gana.get("proveedor") == "dsh":
-        partes.append("Es gratis y no gasta ningún cupo" if gana.get("gratis") else "Se paga con tu key de DeepSeek")
+        partes.append("Es gratis y no gasta ningún cupo" if gana.get("gratis") else "Va por tu plan %s de OpenCode (cupo propio por modelo, costo marginal ~0)" % ("Go Plus" if gana["plan_go"] == "go-plus" else "Go") if gana.get("plan_go") else "Se paga con tu key de DeepSeek")
     elif gana["cupo_libre"] is not None:
         h = horas_hasta(gana["vuelve"], now)
         partes.append("Le queda %s libre y vuelve en %s" % (pct(gana["cupo_libre"]), humano(h)))
@@ -2447,14 +2649,29 @@ def proveedor_de(c):
 
 
 def extras_tabla(cfg, c):
-    """Por esfuerzo, lo que trae Artificial Analysis además del puntaje: crudo, costo por tarea (USD), tokens y segundos. Vacío si AA no lo trae."""
+    """Por esfuerzo, los extras de AA además del índice de inteligencia (que es `calidad_por_effort`): coding y agentic (sus índices), costo por tarea
+    (USD), tokens y segundos. Vacío si no se tienen. `fuente_por_effort` dice de dónde sale cada esfuerzo medido: "api" (Artificial Analysis) o
+    "suplemento" (tabla manual del dueño; "suplemento~" si la cifra es aproximada)."""
     ex = aa_buscar_extras(cfg.get("aa"), c["modelo"]) if c.get("origen") == "artificial-analysis" else {}
     out = {}
-    for campo, clave in (("crudo_por_effort", "crudo"), ("inteligencia_por_effort", "intel"), ("costo_por_effort", "cost"), ("tokens_por_effort", "tokens"), ("tiempo_por_effort", "time")):
-        d = {e: (_n(v[clave]) if clave in ("crudo", "intel") else round(v[clave], 4)) for e, v in ex.items() if clave in v}
+    for campo, clave in (("coding_por_effort", "coding"), ("agentic_por_effort", "agentic"), ("costo_por_effort", "cost"), ("tokens_por_effort", "tokens"), ("tiempo_por_effort", "time")):
+        d = {e: (_n(v[clave]) if clave in ("coding", "agentic") else round(v[clave], 4)) for e, v in ex.items() if clave in v}
         if d:
             out[campo] = d
+    if ex:
+        out["fuente_por_effort"] = {e: ("api" if not v.get("suplemento") else "suplemento~" if v.get("aproximado") else "suplemento") for e, v in ex.items()}
     return out
+
+
+def efforts_estimados_tabla(c):
+    """Los esfuerzos que el modelo puede correr y NO están medidos (se estiman con calidad_en_effort): `efforts_estimados` (lista) y
+    `calidad_estimada_por_effort` ({esfuerzo: cifra estimada}). El resto de `calidad_por_effort` es medido (o fijado por el dueño). El
+    `effort_usado` es estimado si está en `efforts_estimados`."""
+    medido = c.get("calidad_por_effort") or {}
+    est = [e for e in c.get("efforts_posibles") or [] if e not in medido]
+    if not medido or not est:
+        return {}
+    return {"efforts_estimados": est, "calidad_estimada_por_effort": {e: calidad_en_effort(medido, e, c["calidad_mejor"]) for e in est}}
 
 
 def tabla(cfg, cupos, now):
@@ -2474,10 +2691,12 @@ def tabla(cfg, cupos, now):
         out.append({
             "id": c["modelo"], "nombre": c["nombre"], "proveedor": proveedor_de(c), "cuenta": c.get("cuenta"),
             "grupo": c["grupo"], "familia": c["familia"], "familia_excluir": fam, "calidad": c["calidad"], "effort_usado": c.get("effort_calidad"), "calidad_por_effort": c.get("calidad_por_effort") or {}, "estimada": bool(c.get("estimada")),
+            **efforts_estimados_tabla(c),
             **extras_tabla(cfg, c),
             "origen": c.get("origen") or ("estimada" if c.get("estimada") else "defecto"),
             "aa_fecha": cfg["aa"]["fecha"] if c.get("origen") == "artificial-analysis" and cfg.get("aa") else None,
-            "gratis": gratis, "cupo_libre": c["cupo_libre"], "vuelve": c["vuelve"], "ventanas": c.get("ventanas", []),
+            "gratis": gratis, **({"plan": c["plan_go"], "go": go_topes(cfg, c["modelo"])} if c.get("plan_go") else {}),
+            "cupo_libre": c["cupo_libre"], "vuelve": c["vuelve"], "ventanas": c.get("ventanas", []),
             "urgencia": c.get("urgencia", 0.0), "permitido": not x, "excluido_por": x,
             "agotado": bool(c["descartado_por"]) and c["descartado_por"].startswith(("dijo sin cupo", "Claude dijo", "ventana")),
         })
@@ -2485,22 +2704,24 @@ def tabla(cfg, cupos, now):
 
 
 def texto_tabla(filas, now):
-    L = ["%-46s %-9s %5s  %-6s %-10s %s" % ("modelo", "proveedor", "int.", "costo", "cupo libre", "permitido")]
+    L = ["%-46s %-9s %5s  %-17s %-6s %-10s %s" % ("modelo", "proveedor", "int.", "esfuerzo", "costo", "cupo libre", "permitido")]
     for f in filas:
         cupo = "-" if f["cupo_libre"] is None else pct(f["cupo_libre"])
         if f["vuelve"]:
             cupo += " (vuelve en %s)" % humano(horas_hasta(f["vuelve"], now))
-        L.append("%-46s %-9s %5.1f%s  %-6s %-10s %s" % (f["id"] + (" · " + f["cuenta"] if suf(f.get("cuenta")) else ""),
-                 f["proveedor"], f["calidad"], "~" if f["estimada"] else " ", "gratis" if f["gratis"] else "pago", cupo,
+        ef = f.get("effort_usado")   # medido / estimado con texto (no sólo color o un símbolo): el esfuerzo sin dato propio se interpola
+        ef_txt = "-" if not ef else "%s %s" % (ef, "estimado" if ef in (f.get("efforts_estimados") or []) else "medido")
+        L.append("%-46s %-9s %5.1f%s  %-17s %-6s %-10s %s" % (f["id"] + (" · " + f["cuenta"] if suf(f.get("cuenta")) else ""),
+                 f["proveedor"], f["calidad"], "~" if f["estimada"] else " ", ef_txt, "gratis" if f["gratis"] else "Go" if f.get("plan") else "pago", cupo,
                  "sí" if f["permitido"] else "no (%s)" % f["excluido_por"]))
     return "\n".join(L)
 
 
 def aa_diag(cfg, filas):
-    """Por cada modelo local (ids únicos de la tabla): con qué entrada de AA se emparejó (nombre y slug), el puntaje crudo (con su métrica),
-    y lo mismo por esfuerzo; o "sin coincidencia" y de dónde sale entonces su cifra. Para revisar los emparejamientos."""
+    """Por cada modelo local (ids únicos de la tabla): con qué entrada de AA se emparejó (nombre y slug), su índice de inteligencia, y lo mismo por
+    esfuerzo (medido, o estimado para los que faltan); o "sin coincidencia" y de dónde sale entonces su cifra. Para revisar los emparejamientos."""
     aa = cfg.get("aa")
-    out = {"aa_fecha": aa["fecha"] if aa else None, "unidades": "AA crudo: promedio de coding y agentic (sin calibrar)", "modelos": []}
+    out = {"aa_fecha": aa["fecha"] if aa else None, "unidades": "Índice de inteligencia de AA (sin calibrar)", "modelos": []}
     vistos = set()
     for f in filas:
         mid = f["id"]
@@ -2513,10 +2734,15 @@ def aa_diag(cfg, filas):
              "aa": None, "efforts": {}}
         if r and e:
             met = r[2]
-            d["aa"] = {"nombre": r[1], "slug": e[met][2], "metrica": met, "crudo": round(r[0], 2)}
+            d["aa"] = {"nombre": r[1], "slug": e[met][2], "metrica": met, "indice": round(r[0], 2)}
             crudos = aa_buscar_efforts(aa, mid)
             cal = aa_calidad_efforts(aa, mid)
-            d["efforts"] = {ef: {"crudo": round(crudos[ef], 2), "usado": cal[ef]} for ef in EFFORTS_AA if ef in crudos and ef in cal}
+            fuentes = {ef: v.get("suplemento") and "suplemento" or "api" for ef, v in aa_buscar_extras(aa, mid).items()}
+            d["efforts"] = {ef: {"indice": round(crudos[ef], 2), "usado": cal[ef], "estado": "medido", "fuente": fuentes.get(ef, "api")} for ef in EFFORTS_AA if ef in crudos and ef in cal}
+            if d["efforts"]:   # los que faltan se estiman (calidad_en_effort): se marcan "estimado", nunca como medidos
+                d["efforts"].update({ef: {"indice": None, "usado": calidad_en_effort(cal, ef, d["aa"]["indice"]), "estado": "estimado", "fuente": None}
+                                     for ef in EFFORTS_AA if ef not in d["efforts"]})
+                d["efforts"] = {ef: d["efforts"][ef] for ef in EFFORTS_AA}
         out["modelos"].append(d)
     return out
 
@@ -2527,13 +2753,15 @@ def texto_aa_diag(d):
         L.append("sin caché de Artificial Analysis (aa-modelos.json): ningún modelo se mide; valen los defaults y la estimación por el nombre")
     else:
         L.append("Artificial Analysis, dato del %s. Unidades: %s" % (d["aa_fecha"], d["unidades"]))
+        L.append("(medido = lo trae AA o la tabla suplementaria; estimado = interpolado entre los medidos, no es un dato de AA)")
     for m in d["modelos"]:
         L.append("")
         L.append("%s%s" % (m["id"], "" if m["permitido"] else "   [excluido en modelos.json]"))
         if m["aa"]:
             a = m["aa"]
-            L.append("  AA: %s [%s]  crudo(%s) %s" % (a["nombre"], a["slug"] or "-", a["metrica"], a["crudo"]))
-            L.append("  por effort: %s" % (" · ".join("%s %s" % (ef, v["usado"]) for ef, v in m["efforts"].items()) or "ninguno medido"))
+            L.append("  AA: %s [%s]  índice de inteligencia %s" % (a["nombre"], a["slug"] or "-", a["indice"]))
+            L.append("  por effort: %s" % (" · ".join("%s %s (%s%s)" % (ef, fn(v["usado"]), v["estado"], " en " + v["fuente"] if v["fuente"] == "suplemento" else "")
+                                                   for ef, v in m["efforts"].items()) or "ninguno medido"))
         else:
             L.append("  AA: sin coincidencia (buscado como \"%s\"); cifra %s de origen %s" % (m["tokens"], m["calidad"], m["origen"]))
     return "\n".join(L)

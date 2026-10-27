@@ -1,0 +1,118 @@
+{
+ "version": 1,
+ "fetched": "2026-10-27T08:00:00Z",
+ "modelos": [
+  {
+   "name": "Claude Sonnet 5.5 (Medium, Default Fallback)",
+   "slug": "claude-sonnet-5-5-medium",
+   "creator": "x",
+   "intelligence": 40.8,
+   "coding": null,
+   "agentic": null
+  },
+  {
+   "name": "Claude Sonnet 5.5 (High, Default Fallback)",
+   "slug": "claude-sonnet-5-5-high",
+   "creator": "x",
+   "intelligence": 46.8,
+   "coding": null,
+   "agentic": null
+  },
+  {
+   "name": "Claude Opus 5.5 (Max, Default Fallback)",
+   "slug": "claude-opus-5-5",
+   "creator": "x",
+   "intelligence": 57.6,
+   "coding": null,
+   "agentic": null
+  },
+  {
+   "name": "Claude Haiku 5.5 (Low)",
+   "slug": "claude-haiku-5-5-low",
+   "creator": "x",
+   "intelligence": 29.5,
+   "coding": null,
+   "agentic": null
+  },
+  {
+   "name": "Claude Haiku 5.5 (High)",
+   "slug": "claude-haiku-5-5-high",
+   "creator": "x",
+   "intelligence": 37.8,
+   "coding": null,
+   "agentic": null
+  },
+  {
+   "name": "Claude Haiku 5.5 (Xhigh)",
+   "slug": "claude-haiku-5-5-xhigh",
+   "creator": "x",
+   "intelligence": 41.2,
+   "coding": null,
+   "agentic": null
+  },
+  {
+   "name": "Claude Fable 5.1 (Low, Default Fallback)",
+   "slug": "claude-fable-5-1-low",
+   "creator": "x",
+   "intelligence": 46.8,
+   "coding": 75.2,
+   "agentic": 47.1
+  },
+  {
+   "name": "Claude Fable 5.1 (Medium, Default Fallback)",
+   "slug": "claude-fable-5-1-medium",
+   "creator": "x",
+   "intelligence": 48.9,
+   "coding": 77.1,
+   "agentic": 50.2
+  },
+  {
+   "name": "Claude Fable 5.1 (Max, Default Fallback)",
+   "slug": "claude-fable-5-1",
+   "creator": "x",
+   "intelligence": 53.4,
+   "coding": 81.6,
+   "agentic": 57.9
+  },
+  {
+   "name": "Claude Opus 5 (Low)",
+   "slug": "claude-opus-5-low",
+   "creator": "x",
+   "intelligence": 39.4,
+   "coding": 66.9,
+   "agentic": 36.0
+  },
+  {
+   "name": "Claude Opus 5 (Xhigh)",
+   "slug": "claude-opus-5-xhigh",
+   "creator": "x",
+   "intelligence": 49.7,
+   "coding": 77.0,
+   "agentic": 55.6
+  },
+  {
+   "name": "Claude Sonnet 5 (Low)",
+   "slug": "claude-sonnet-5-low",
+   "creator": "x",
+   "intelligence": 24.3,
+   "coding": null,
+   "agentic": null
+  },
+  {
+   "name": "Claude Sonnet 5 (Max)",
+   "slug": "claude-sonnet-5",
+   "creator": "x",
+   "intelligence": 38.2,
+   "coding": 71.5,
+   "agentic": 43.6
+  },
+  {
+   "name": "DeepSeek V3.1 Terminus (Reasoning)",
+   "slug": "deepseek-v3-1-terminus-reasoning",
+   "creator": "x",
+   "intelligence": 14.8,
+   "coding": 43.5,
+   "agentic": 6.8
+  }
+ ]
+}

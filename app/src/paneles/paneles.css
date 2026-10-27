@@ -306,6 +306,16 @@
   background: currentColor;
   opacity: 0.6;
 }
+/* El plan de OpenCode (Gratis / Go / Go Plus): el elegido lleva tilde y negrita además del color. */
+.pn-letra.oc-plan {
+  flex-wrap: wrap;
+  align-items: center;
+}
+.pn-letra.oc-plan button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--esp-1);
+}
 .pn-sel .pn-falta {
   min-width: 4.5rem;
   font-size: var(--letra-4);
@@ -3136,4 +3146,37 @@
   font-family: var(--font-sans);
   text-align: left;
   white-space: normal;
+}
+
+/* OpenCode Go (Plan y cupos): los topes por modelo en una tabla; el agotado dice «Agotado» con ícono, no sólo color. */
+.cu-go {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--letra-3);
+}
+.cu-go th,
+.cu-go td {
+  padding: var(--esp-1-5) var(--esp-2);
+  border-bottom: 1px solid var(--borde-3);
+  text-align: left;
+  vertical-align: middle;
+}
+.cu-go thead th {
+  color: var(--texto-3);
+  font-weight: 500;
+}
+.cu-go tbody th {
+  color: var(--texto-1);
+  font-weight: 500;
+}
+.cu-go td {
+  color: var(--texto-2);
+  font-variant-numeric: tabular-nums;
+}
+@media (max-width: 40rem) {
+  /* En angosto se cae la columna del equivalente en USD: los pedidos cada 5 h y el estado son lo que se necesita. */
+  .cu-go th:nth-child(3),
+  .cu-go td:nth-child(3) {
+    display: none;
+  }
 }

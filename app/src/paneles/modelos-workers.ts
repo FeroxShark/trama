@@ -123,12 +123,19 @@ export const effortsPermitidos = (f: FilaTabla, b: Borrador): EffortCalidad[] =>
  * esfuerzo no está permitido, el permitido más cercano (primero el siguiente más alto). `efecto: null` = sin desglose por esfuerzo (la cifra es única)
  * o el modelo no tiene ningún esfuerzo permitido (`valor: null`: reparto no lo usa).
  */
-export function usadoDe(f: FilaTabla, b: Borrador): { efecto: EffortCalidad | null; valor: number | null } {
-  if (b.calidad[claveCalidad(f)] !== undefined) return { efecto: null, valor: b.calidad[claveCalidad(f)]! };
-  if (!Object.keys(f.calidadPorEffort).length) return { efecto: null, valor: f.calidad };
+export function usadoDe(f: FilaTabla, b: Borrador): { efecto: EffortCalidad | null; valor: number | null; estimado: boolean } {
+  if (b.calidad[claveCalidad(f)] !== undefined) return { efecto: null, valor: b.calidad[claveCalidad(f)]!, estimado: false };
+  if (!Object.keys(f.calidadPorEffort).length) return { efecto: null, valor: f.calidad, estimado: false };
   const e = masCercano(EFFORT_BASE, effortsPermitidos(f, b));
-  return e ? { efecto: e, valor: calidadEnEffort(f.calidadPorEffort, e, f.calidad) } : { efecto: null, valor: null };
+  return e ? { efecto: e, valor: f.calidadPorEffort[e] ?? f.calidadEstimadaPorEffort[e] ?? calidadEnEffort(f.calidadPorEffort, e, f.calidad), estimado: f.calidadPorEffort[e] === undefined } : { efecto: null, valor: null, estimado: false };
 }
+
+/** Los esfuerzos que se muestran de un modelo: los medidos y los estimados (en orden de menor a mayor); `[]` si no tiene desglose por esfuerzo. */
+export const effortsMostrados = (f: FilaTabla): EffortCalidad[] =>
+  Object.keys(f.calidadPorEffort).length ? EFFORTS_CALIDAD.filter((e) => f.calidadPorEffort[e] !== undefined || f.effortsEstimados.includes(e)) : [];
+
+/** ¿La cifra de ese esfuerzo es una estimación (no la midió Artificial Analysis ni la fijó el dueño)? */
+export const esEstimado = (f: FilaTabla, e: EffortCalidad): boolean => f.calidadPorEffort[e] === undefined && f.effortsEstimados.includes(e);
 
 export type OrigenVista = { tipo: "usuario" | "aa" | "estimada" | "defecto"; /** `26/10`: el día del dato de Artificial Analysis. */ fecha: string | null };
 

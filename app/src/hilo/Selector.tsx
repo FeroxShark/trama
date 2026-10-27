@@ -31,6 +31,8 @@ export type Opcion = {
   grupo?: string;
   /** Gratis: la lista compacta lo marca con "Gratis" a la derecha (no sólo con el color). */
   gratis?: boolean;
+  /** De OpenCode Go (plan pago de OpenCode): la lista compacta lo marca con el texto «Plan Go» a la derecha. */
+  go?: boolean;
   /** De pago (tu clave de API, se paga por uso): la lista compacta lo marca con "De pago" a la derecha. */
   pago?: boolean;
   /** Corre en la GPU de esta máquina: lleva el chip de "local" junto al nombre. */
@@ -323,7 +325,7 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
 
   /** Un modelo en la lista compacta: un renglón (nombre y, a la derecha, "Gratis" / "De pago" / "por defecto"); la descripción, sólo en el resaltado. */
   const opcionCompacta = (o: Opcion, colNombre: string) => {
-    const nom = o.nombre.replace(/\s·\s(?:por\s)?([^·]+)$/, (m, g: string) => (g === colNombre || g === o.colNombre || g === o.grupo || (o.gratis && g === "Gratis") ? "" : m));
+    const nom = o.nombre.replace(/\s·\s(?:por\s)?([^·]+)$/, (m, g: string) => (g === colNombre || g === o.colNombre || g === o.grupo || (o.gratis && g === "Gratis") || (o.go && g === "Plan Go") ? "" : m));
     return (
       <button
         key={o.id}
@@ -348,7 +350,8 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
         </span>
         <span className="oc-meta">
           {o.gratis ? <span className="oc-tag" data-tag="gratis">{t("selector.gratis")}</span> : null}
-          {o.agotada ? <span className="oc-tag" data-tag="agotado"><Ban size={11} strokeWidth={2.2} aria-hidden="true" /> {t("selector.sinCupo")}</span> : null}
+          {o.go ? <span className="oc-tag" data-tag="go">{t("selector.planGo")}</span> : null}
+          {o.agotada ? <span className="oc-tag" data-tag="agotado"><Ban size={11} strokeWidth={2.2} aria-hidden="true" /> {o.go ? t("selector.sinCupoGo") : t("selector.sinCupo")}</span> : null}
           {o.pago ? <span className="oc-tag" data-tag="pago">{t("selector.pago")}</span> : null}
           {o.rec ? <span className="rec">{t("selector.default")}</span> : null}
         </span>

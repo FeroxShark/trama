@@ -21,7 +21,7 @@ const { paresDe, dominados, aplicarSugerencias, ponerEffort, permitidosDe, costo
 const { borradorDe } = await import("../src/paneles/modelos-borrador.ts");
 
 const fila = (id: string, familia: string, proveedor: string, q: FilaTabla["calidadPorEffort"], costo?: FilaTabla["costoPorEffort"]): FilaTabla => ({
-  id, nombre: id, proveedor, familia, familiaExcluir: familia, cuenta: null, calidad: 100, effortUsado: null, calidadPorEffort: q, ...(costo ? { costoPorEffort: costo } : {}),
+  id, nombre: id, proveedor, familia, familiaExcluir: familia, cuenta: null, calidad: 100, effortUsado: null, calidadPorEffort: q, effortsEstimados: [], calidadEstimadaPorEffort: {}, ...(costo ? { costoPorEffort: costo } : {}),
   estimada: false, origen: "artificial-analysis", aaFecha: "2026-10-26", gratis: false, libre: 1, vuelve: null, ventanas: [], urgencia: 0, permitido: true, excluidoPor: null, agotado: false,
 });
 const b0 = () => borradorDe({ version: 1, ruta: "/x", existe: true, error: null, efectivo: null, config: { workers: {}, locales: [], excluir: [], calidad: {}, permitir_max: false, gemini: {}, claude: {}, destrabar: {} } });
@@ -74,7 +74,7 @@ test("aplicarSugerencias desmarca sólo los dominados y ponerEffort vuelve a la 
   assert.deepEqual(dominados(paresDe(filas, b)), []);
 });
 
-const { usadoDe, masCercano, calidadEnEffort, cifra } = await import("../src/paneles/modelos-workers.ts");
+const { usadoDe, masCercano, calidadEnEffort, cifra, effortsMostrados, esEstimado } = await import("../src/paneles/modelos-workers.ts");
 
 const OPUS = fila("claude-opus-5-5", "opus", "claude", { high: 55, max: 58 }, { high: 1.4, max: 3.1 });
 
@@ -92,13 +92,13 @@ test("un esfuerzo apagado no es alternativa: sin Haiku max, Sonnet low ya no est
 
 test("el número grande: el esfuerzo que reparto usaría (high), nunca el máximo; con high apagado, el siguiente más alto, si no el de abajo", () => {
   const f = fila("claude-sonnet-5-5", "sonnet", "claude", { low: 35.9, medium: 41, high: 46.8, max: 52 });
-  assert.deepEqual(usadoDe(f, b0()), { efecto: "high", valor: 46.8 });
-  assert.deepEqual(usadoDe(f, ponerEffort(b0(), f, "high", false)), { efecto: "max", valor: 52 }, "primero el siguiente más alto");
-  assert.deepEqual(usadoDe(f, ponerEffort(ponerEffort(b0(), f, "high", false), f, "max", false)), { efecto: "medium", valor: 41 }, "si no hay más alto, el más alto de los de abajo");
+  assert.deepEqual(usadoDe(f, b0()), { efecto: "high", valor: 46.8, estimado: false });
+  assert.deepEqual(usadoDe(f, ponerEffort(b0(), f, "high", false)), { efecto: "max", valor: 52, estimado: false }, "primero el siguiente más alto");
+  assert.deepEqual(usadoDe(f, ponerEffort(ponerEffort(b0(), f, "high", false), f, "max", false)), { efecto: "medium", valor: 41, estimado: false }, "si no hay más alto, el más alto de los de abajo");
   const nada = ["low", "medium", "high", "max"].reduce((b, e) => ponerEffort(b, f, e as "low", false), b0());
-  assert.deepEqual(usadoDe(f, nada), { efecto: null, valor: null }, "lista vacía: el modelo no se usa");
+  assert.deepEqual(usadoDe(f, nada), { efecto: null, valor: null, estimado: false }, "lista vacía: el modelo no se usa");
   const sinDesglose = fila("x", "dsh", "opencode", {});
-  assert.deepEqual(usadoDe({ ...sinDesglose, calidad: 43 }, b0()), { efecto: null, valor: 43 });
+  assert.deepEqual(usadoDe({ ...sinDesglose, calidad: 43 }, b0()), { efecto: null, valor: 43, estimado: false });
 });
 
 test("calidadEnEffort interpola entre vecinos como reparto, y cifra muestra un decimal sin ceros", () => {
@@ -108,4 +108,17 @@ test("calidadEnEffort interpola entre vecinos como reparto, y cifra muestra un d
   assert.equal(masCercano("high", []), null);
   assert.equal(cifra(43), "43");
   assert.equal(cifra(47.86), "47.9");
+});
+
+// Opus 5.5 real: AA sólo midió max (57,6); el resto es estimado y así se rotula (texto "estimado", no sólo color).
+const OPUS_AA = { ...fila("claude-opus-5-5", "opus", "claude", { max: 57.6 }), effortsEstimados: ["low", "medium", "high", "xhigh"] as FilaTabla["effortsEstimados"], calidadEstimadaPorEffort: { low: 39.2, medium: 44.7, high: 50.2, xhigh: 54.7 } };
+
+test("esfuerzos estimados: se muestran (con su rótulo) pero no se comparan; el número grande dice si es estimado", () => {
+  assert.deepEqual(effortsMostrados(OPUS_AA), ["low", "medium", "high", "xhigh", "max"]);
+  assert.equal(esEstimado(OPUS_AA, "high"), true);
+  assert.equal(esEstimado(OPUS_AA, "max"), false, "max está medido");
+  assert.deepEqual(usadoDe(OPUS_AA, b0()), { efecto: "high", valor: 50.2, estimado: true });
+  assert.deepEqual(paresDe([OPUS_AA], b0()).map((p) => p.effort), ["max"], "sólo lo medido entra a los pares dominados");
+  assert.deepEqual(effortsMostrados(fila("x", "dsh", "opencode", {})), [], "sin desglose no hay chips");
+  assert.deepEqual(permitidosDe(OPUS_AA, ponerEffort(b0(), OPUS_AA, "low", false)), ["medium", "high", "xhigh", "max"], "un estimado se apaga como cualquiera");
 });

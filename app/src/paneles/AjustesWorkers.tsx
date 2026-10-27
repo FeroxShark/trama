@@ -22,8 +22,11 @@ import { quitarExcluido, type Borrador } from "./modelos-borrador";
 import { aplicarSugerencias, dominados, paresDe, permitidosDe, ponerEffort, type Dominado } from "./efforts-dominados";
 import {
   agrupar,
+  calidadEnEffort,
   calidadEscrita,
   cifra,
+  effortsMostrados,
+  esEstimado,
   EMPRESA_DE_GRUPO,
   estadoDe,
   filasUnicas,
@@ -44,11 +47,21 @@ const tokensCorto = (n: number): string => (n >= 1e6 ? `${(n / 1e6).toFixed(1)} 
 const tiempoTarea = (s: number): string => (s >= 60 ? `${Math.floor(s / 60)} min ${Math.round(s % 60)} s` : `${Math.round(s)} s`);
 const dinero = (n: number): string => `$${n < 1 ? n.toFixed(3) : n.toFixed(2)}`;
 
-/** El tooltip de un chip de esfuerzo: inteligencia general, costo, tokens y tiempo por tarea (los que Artificial Analysis trae). */
+/** De dónde sale la cifra de un esfuerzo, con palabras (no sólo color): estimado, o medido por AA / en la tabla propia del dueño. */
+function estadoEffort(f: FilaTabla, e: (typeof EFFORTS_CALIDAD)[number]): string {
+  if (esEstimado(f, e)) return t("ajustes.mdlWkChipEstimado");
+  const fu = f.fuentePorEffort?.[e];
+  return fu === "suplemento" ? t("ajustes.mdlWkChipMedidoSup") : fu === "suplemento~" ? t("ajustes.mdlWkChipMedidoSupAprox") : t("ajustes.mdlWkChipMedido");
+}
+
+/** El tooltip de un chip de esfuerzo: medido o estimado, código y agentes de AA (extras, si los hay), costo, tokens y tiempo por tarea. */
 function tipChip(f: FilaTabla, e: (typeof EFFORTS_CALIDAD)[number]): string {
-  const partes: string[] = [];
-  const g = f.inteligenciaPorEffort?.[e];
-  partes.push(g !== undefined ? t("ajustes.mdlWkChipGeneral", { n: cifra(g) }) : t("ajustes.mdlWkChipSinGeneral"));
+  const partes: string[] = [estadoEffort(f, e)];
+  if (esEstimado(f, e)) partes.push(t("ajustes.mdlWkChipEstimadoQue"));
+  const cod = f.codingPorEffort?.[e];
+  if (cod !== undefined) partes.push(t("ajustes.mdlWkChipCodigo", { n: cifra(cod) }));
+  const ag = f.agenticPorEffort?.[e];
+  if (ag !== undefined) partes.push(t("ajustes.mdlWkChipAgentes", { n: cifra(ag) }));
   const c = f.costoPorEffort?.[e];
   partes.push(c !== undefined ? t("ajustes.mdlWkChipCosto", { n: dinero(c) }) : t("ajustes.mdlWkChipCostoEst"));
   const k = f.tokensPorEffort?.[e];
@@ -115,7 +128,7 @@ function Fila({ f, b, cambiar, dom }: { f: FilaTabla; b: Borrador; cambiar: (n: 
   // «gratis» se dice una vez (la etiqueta): el cupo de uno gratis sólo se nombra si ya se gastó algo.
   const cupo =
     f.libre !== null ? (f.gratis ? (f.libre < 100 ? t("ajustes.mdlWkQueda", { pct: String(f.libre) }) : null) : t("ajustes.mdlWkLibre", { pct: String(f.libre) })) : f.gratis ? t("ajustes.mdlWkSinCupo") : t("ajustes.mdlWkSinDato");
-  const medidos = EFFORTS_CALIDAD.filter((e) => f.calidadPorEffort[e] !== undefined);
+  const medidos = effortsMostrados(f);   // medidos + estimados (cada chip dice cuál es)
   const permitidos = permitidosDe(f, b);
   const ningunoPermitido = est.permitido && medidos.length > 0 && permitidos.length === 0;
   const dominadoDe = (e: (typeof EFFORTS_CALIDAD)[number]) => dom.find((d) => d.par.id === f.id && d.par.effort === e);
@@ -132,6 +145,7 @@ function Fila({ f, b, cambiar, dom }: { f: FilaTabla; b: Borrador; cambiar: (n: 
         <span className="wk-nombre">{nombreVisible(f.nombre, idioma())}</span>
         <span className="wk-meta">
           {f.gratis ? <span className="wk-gratis">{t("ajustes.mdlWkGratis")}</span> : null}
+          {f.plan ? <span className="wk-gratis" data-plan={f.plan}>{t("selector.planGo")}</span> : null}
           {f.agotado ? (
             <span className="wk-agotado">{t("ajustes.mdlWkAgotado")}</span>
           ) : (
@@ -158,8 +172,8 @@ function Fila({ f, b, cambiar, dom }: { f: FilaTabla; b: Borrador; cambiar: (n: 
                     data-tip={tipChip(f, e)}
                     onClick={() => cambiar(ponerEffort(b, f, e, !on))}
                   >
-                    <span className="wk-chip-n">{t(`ajustes.mdlWkEffort_${e}`)}</span> <span className="wk-chip-v">{cifra(f.calidadPorEffort[e]!)}</span>
-                    <span className="wk-chip-m">{!on ? ` · ${t("ajustes.mdlWkChipOff")}` : d ? ` · ${t("ajustes.mdlWkChipNoConviene")}` : u.efecto === e ? ` · ${t("ajustes.mdlWkChipUsado")}` : ""}</span>
+                    <span className="wk-chip-n">{t(`ajustes.mdlWkEffort_${e}`)}</span> <span className="wk-chip-v">{esEstimado(f, e) ? "~" : ""}{cifra(f.calidadPorEffort[e] ?? f.calidadEstimadaPorEffort[e] ?? calidadEnEffort(f.calidadPorEffort, e, f.calidad))}</span>
+                    <span className="wk-chip-m">{esEstimado(f, e) ? ` · ${t("ajustes.mdlWkChipEstimado")}` : ""}{!on ? ` · ${t("ajustes.mdlWkChipOff")}` : d ? ` · ${t("ajustes.mdlWkChipNoConviene")}` : u.efecto === e ? ` · ${t("ajustes.mdlWkChipUsado")}` : ""}</span>
                   </button>
                 );
               })}
@@ -183,7 +197,7 @@ function Fila({ f, b, cambiar, dom }: { f: FilaTabla; b: Borrador; cambiar: (n: 
         ) : (
           <>
             <CampoInteligencia f={f} valor={u.valor ?? q.valor} fijada={q.fijada} alCambiar={(n) => cambiar(ponerInteligencia(b, f, n))} />
-            {u.efecto ? <span className="wk-est" data-origen="esfuerzo">{t("ajustes.mdlWkAlEsfuerzo", { effort: t(`ajustes.mdlWkEffort_${u.efecto}`) })}</span> : null}
+            {u.efecto ? <span className="wk-est" data-origen="esfuerzo">{t("ajustes.mdlWkAlEsfuerzo", { effort: t(`ajustes.mdlWkEffort_${u.efecto}`) })}{u.estimado ? ` · ${t("ajustes.mdlWkChipEstimado")}` : ""}</span> : null}
           </>
         )}
         <span className="wk-est" data-origen={o.tipo} data-tip={o.tipo === "estimada" || o.tipo === "defecto" ? t("ajustes.mdlWkSinDatoAAQue") : o.tipo === "usuario" ? t("ajustes.mdlWkOrigenUsuarioQue") : o.tipo === "aa" ? t("ajustes.mdlWkOrigenAAQue", { fecha: o.fecha ?? "" }) : undefined}>

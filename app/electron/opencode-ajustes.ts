@@ -1,11 +1,12 @@
-// Ajustes > DeepSeek Harness > OpenCode: ¿está `opencode` instalado, en qué versión, hay login (OpenCode Console)? y los modelos que
+// Ajustes > OpenCode: ¿está `opencode` instalado, en qué versión, hay login (OpenCode Console)? y los modelos que
 // ofrece (`opencode models`), con una caché en `$HILOS_STATE/opencode-modelos.json` para que el selector no espere a un proceso de ~2 s.
 // Sólo se ofrecen los de proveedores usables: `opencode/*` (los gratis y los de Zen) y los de los proveedores con login. Node puro.
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { ESTADO } from "./estado.ts";
 import { errorT, MARCA } from "./errores.ts";
-import { estadoOpencode, esGratis, hayOpencode, listarModelosConEfforts, proveedoresConLogin, type EstadoOpencode } from "./opencode.ts";
+import { estadoOpencode, esGratis, esModeloGo, hayOpencode, listarModelosConEfforts, planOpencode, proveedoresConLogin, type EstadoOpencode, type PlanOpencode } from "./opencode.ts";
+import { cargarTablaGo, esPlanGo, ofertasGo, type TablaGo } from "./opencode-go.ts";
 
 const CACHE = () => path.join(process.env.HILOS_STATE ?? ESTADO, "opencode-modelos.json");
 
@@ -26,6 +27,9 @@ export type EstadoOpencodeUi = EstadoOpencode & {
   /** Cuántos modelos se ofrecen (los gratis y, con login, los de los proveedores conectados) y cuántos de ellos son gratis. */
   modelos: number;
   gratis: number;
+  /** Cuántos de ellos son de OpenCode Go (0 si el plan es «gratis») y el plan elegido. */
+  go: number;
+  plan: PlanOpencode;
   /** Cuándo se leyó la lista (ms); `null`: nunca (se muestran los conocidos). */
   actualizado: number | null;
 };
@@ -59,13 +63,19 @@ function guardarCache(modelos: string[], efforts: Record<string, string[]> = {})
   }
 }
 
-/** Los modelos que se ofrecen: los gratis (`opencode/*`) primero, después el resto de `opencode/*` y los de los proveedores con login. */
-export function elegibles(todos: string[], conLogin: string[]): string[] {
+/**
+ * Los modelos que se ofrecen: los gratis (`opencode/*`) primero, después el resto de `opencode/*` y los de los proveedores con login.
+ * Con un plan Go (`plan`), los modelos de Go son los de la tabla (`opencode-go/…`, ver ofertasGo): van justo después de los gratis y reemplazan a los
+ * `opencode-go/*` sueltos que haya listado `opencode` (aunque no haya login: el plan lo dice la persona). Sin plan Go, todo como antes.
+ */
+export function elegibles(todos: string[], conLogin: string[], plan: PlanOpencode = "gratis", tabla: TablaGo | null = null): string[] {
   const ok = todos.filter((m) => {
     const p = m.slice(0, m.indexOf("/"));
     return p === "opencode" || conLogin.includes(p);
   });
-  return [...ok.filter(esGratis), ...ok.filter((m) => !esGratis(m))];
+  if (!esPlanGo(plan)) return [...ok.filter(esGratis), ...ok.filter((m) => !esGratis(m))];
+  const resto = ok.filter((m) => !esModeloGo(m));
+  return [...resto.filter(esGratis), ...ofertasGo(plan, tabla, todos).map((o) => o.id), ...resto.filter((m) => !esGratis(m))];
 }
 
 /** Los modelos de OpenCode para el selector (`opencode/…`, sin el prefijo de Trama), de la caché. `[]` si `opencode` no está instalado. Nunca espera: la caché vieja se refresca aparte. */
@@ -74,7 +84,7 @@ export function modelosOpencode(env = process.env): string[] {
   const c = leerCache();
   // Una caché de antes de los niveles (sin `efforts`) se pide de nuevo ya.
   if (!c || !c.efforts || Date.now() - c.en > 24 * 3600_000) void refrescarModelos().catch(() => {});
-  return elegibles(c?.modelos ?? GRATIS_CONOCIDOS, proveedoresConLogin(env));
+  return elegibles(c?.modelos ?? GRATIS_CONOCIDOS, proveedoresConLogin(env), planOpencode(env), cargarTablaGo(env));
 }
 
 /** Los niveles de esfuerzo de los modelos que se ofrecen (de la caché): `opencode/xxx` → niveles. Sin caché (o sin niveles): `{}`. */
@@ -100,8 +110,9 @@ export function refrescarModelos(refrescar = false): Promise<string[]> {
 export async function vistaOpencode(): Promise<EstadoOpencodeUi> {
   const e = await estadoOpencode();
   const c = leerCache();
-  const lista = e.instalado ? elegibles(c?.modelos ?? GRATIS_CONOCIDOS, e.proveedores) : [];
-  return { ...e, modelos: lista.length, gratis: lista.filter(esGratis).length, actualizado: c?.en ?? null };
+  const plan = planOpencode();
+  const lista = e.instalado ? elegibles(c?.modelos ?? GRATIS_CONOCIDOS, e.proveedores, plan, cargarTablaGo()) : [];
+  return { ...e, modelos: lista.length, gratis: lista.filter(esGratis).length, go: lista.filter(esModeloGo).length, plan, actualizado: c?.en ?? null };
 }
 
 /** «Actualizar modelos»: pide la lista de nuevo y devuelve el estado de después. */

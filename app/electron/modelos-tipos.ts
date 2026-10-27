@@ -62,7 +62,7 @@ const FORMA_EXCLUIR = /^[A-Za-z0-9][\w.:*/[\]-]{0,79}$/;
 export const CALIDAD_MAX = 200;
 /** La clave de `calidad`: una familia (`opus`), un id (`opencode:opencode/beam-free`) o un patrón con `*` (`dsh:deepseek/*pro*`). */
 const FORMA_CALIDAD = /^[A-Za-z0-9][\w.:*/[\]-]{0,119}$/;
-/** Unidades de AA (promedio crudo de coding y agentic): un decimal, de 0 a 200 (no hay techo de 100). */
+/** Unidades del índice de inteligencia de AA: un decimal, de 0 a 200 (no hay techo de 100). */
 const calidadValida = (n: unknown): n is number => typeof n === "number" && Number.isFinite(n) && n >= 0 && n <= 200 && Math.round(n * 10) === n * 10;
 export const CUPO_MIN = 1;
 export const CUPO_MAX = 100;

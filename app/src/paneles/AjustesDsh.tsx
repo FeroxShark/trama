@@ -1,12 +1,12 @@
-// Ajustes > DeepSeek Harness: lo que hace falta para que un líder corra con `dsh` (modelos gratis de OpenCode, DeepSeek u Ollama local).
-// Si el programa está instalado (y cuál versión) con «Instalar» (`npm i -g @deepseek-ai/dsh`, o el comando para copiar), las API keys
-// de OpenCode y de DeepSeek (de escritura: se guardan en `claves.env` y NO vuelven: acá sólo se ve si hay una) y «Probar» de cada
+// Ajustes > DeepSeek Harness: lo que hace falta para que un líder corra con `dsh` (DeepSeek u Ollama local; lo de OpenCode está en AjustesOpencode.tsx).
+// Si el programa está instalado (y cuál versión) con «Instalar» (`npm i -g @deepseek-ai/dsh`, o el comando para copiar), la API key
+// de DeepSeek (de escritura: se guardan en `claves.env` y NO vuelven: acá sólo se ve si hay una) y «Probar» de cada
 // proveedor (`GET /models` con la key guardada). Todo se aplica al toque, sin la barra de Guardar. Sólo desde la PC: por la tailnet
 // el main rechaza instalar, guardar una key y probar. Cada estado se dice con ícono y palabra, no sólo con color.
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Check, X } from "lucide-react";
 import { VERSION } from "../datos/contrato";
-import { fuentePaneles, type EstadoDsh, type EstadoOpencodeUi, type NombreClave, type ProveedorDshUi, type Prueba } from "../datos/paneles";
+import { fuentePaneles, type EstadoDsh, type NombreClave, type ProveedorDshUi, type Prueba } from "../datos/paneles";
 import { t, textoMain } from "../i18n";
 import { Fijo } from "../i18n/Fijo";
 import { mensaje } from "../puente";
@@ -28,10 +28,10 @@ export function Estado({ ok, texto, tip }: { ok: boolean; texto: string; tip?: s
   );
 }
 
-type Probando = "probando" | Prueba | null;
+export type Probando = "probando" | Prueba | null;
 
 /** El resultado de una prueba: cuántos modelos contestó el proveedor, o por qué falló. */
-function Resultado({ p }: { p: Probando }) {
+export function Resultado({ p }: { p: Probando }) {
   if (p === null) return null;
   if (p === "probando") return <span className="mdl-estado" role="status">{t("ajustes.dshProbando")}</span>;
   return p.ok ? (
@@ -110,70 +110,6 @@ export function CampoClave({
         </>
       )}
     </div>
-  );
-}
-
-/**
- * El programa `opencode`: los modelos gratis de OpenCode sólo andan dentro de él (con el login de OpenCode Console). Se ve si está instalado
- * (y su versión), si hay sesión, cuántos modelos ofrece y «Actualizar modelos»; sin instalar o sin sesión, el paso que falta, para copiar.
- */
-function SeccionOpencode({ Dato }: { Dato: FilaDato }) {
-  const [e, setE] = useState<EstadoOpencodeUi | null>(null);
-  const [err, setErr] = useState<string | null>(null);
-  const [actualizando, setActualizando] = useState(false);
-  const vivo = useRef(true);
-  useEffect(() => {
-    vivo.current = true;
-    void fuentePaneles.estadoOpencode().then((r) => vivo.current && setE(r), (x) => vivo.current && setErr(mensaje(x)));
-    return () => void (vivo.current = false);
-  }, []);
-  const actualizar = async () => {
-    setActualizando(true);
-    setErr(null);
-    try {
-      const r = await fuentePaneles.actualizarOpencode();
-      if (vivo.current) setE(r);
-    } catch (x) {
-      if (vivo.current) setErr(mensaje(x));
-    } finally {
-      if (vivo.current) setActualizando(false);
-    }
-  };
-  return (
-    <Dato nombre="ajustes.ocPrograma" que="ajustes.ocProgramaQue">
-      {e ? (
-        <>
-          <div className="dsh-fila" data-opencode>
-            {e.instalado ? <Estado ok texto={e.versionOpencode ? t("ajustes.ocInstaladoV", { v: e.versionOpencode }) : t("ajustes.ocInstalado")} /> : <Estado ok={false} texto={t("ajustes.ocNoInstalado")} />}
-            {e.instalado ? (
-              e.logueado === null ? (
-                <Estado ok={false} texto={t("ajustes.ocLoginDesconocido")} />
-              ) : (
-                <Estado ok={e.logueado} texto={e.consola ? t("ajustes.ocConectado") : e.logueado ? t("ajustes.ocConectadoOtro") : t("ajustes.ocSinConectar")} />
-              )
-            ) : null}
-          </div>
-          {e.instalado ? (
-            <div className="dsh-fila">
-              <span className="mdl-estado" role="status">{t("ajustes.ocModelos", { n: e.modelos, g: e.gratis })}</span>
-              <Boton onClick={() => void actualizar()} disabled={actualizando}>
-                {actualizando ? t("ajustes.ocActualizando") : <Fijo k="ajustes.ocActualizar" />}
-              </Boton>
-            </div>
-          ) : (
-            <>
-              <p className="ol-nota">{t("ajustes.ocInstalarPie")}</p>
-              <Comando texto={e.comando} etiqueta={t("ajustes.ocPrograma")} />
-            </>
-          )}
-          {e.instalado && !e.consola ? <p className="ol-nota">{t("ajustes.ocLoginPie")}</p> : null}
-          {e.instalado ? <p className="ol-nota">{t("ajustes.ocUsar")}</p> : null}
-        </>
-      ) : err ? null : (
-        <PanelCargando />
-      )}
-      {err ? <div className="pn-error dsh-err" role="alert">{textoMain(err)}</div> : null}
-    </Dato>
   );
 }
 
@@ -258,8 +194,6 @@ export function AjustesDsh({ Dato }: { Dato: FilaDato }) {
       <section className="pn-sec pn-edita" data-dsh>
         <Fijo k="ajustes.dshIntro" bloque className="pn-nota pn-intro" />
 
-        <SeccionOpencode Dato={Dato} />
-
         <Dato nombre="ajustes.dshPrograma" que="ajustes.dshProgramaQue">
           <div className="dsh-fila">
             {e.instalado ? <Estado ok texto={e.versionDsh ? t("ajustes.dshInstaladoV", { v: e.versionDsh }) : t("ajustes.dshInstalado")} /> : <Estado ok={false} texto={t("ajustes.dshNoInstalado")} />}
@@ -279,22 +213,6 @@ export function AjustesDsh({ Dato }: { Dato: FilaDato }) {
             </>
           ) : null}
           {errInstalar ? <div className="pn-error dsh-err" role="alert">{textoMain(errInstalar)}</div> : null}
-        </Dato>
-
-        <Dato nombre="ajustes.dshOpencode" que="ajustes.dshOpencodeQue">
-          <CampoClave
-            nombre="OPENCODE_API_KEY"
-            que={t("ajustes.dshOpencode")}
-            hay={e.claves.OPENCODE_API_KEY}
-            ocupado={ocupado}
-            alGuardar={(v) => guardarClave("OPENCODE_API_KEY", v)}
-            alBorrar={() => void guardarClave("OPENCODE_API_KEY", null)}
-          />
-          <div className="dsh-fila">
-            {botonProbar("opencode", t("ajustes.dshOpencode"))}
-            <Resultado p={pruebas.opencode ?? null} />
-          </div>
-          <p className="ol-nota">{t("ajustes.dshClaveNota")}</p>
         </Dato>
 
         <Dato nombre="ajustes.dshDeepseek" que="ajustes.dshDeepseekQue">

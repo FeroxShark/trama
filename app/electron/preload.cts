@@ -169,6 +169,8 @@ contextBridge.exposeInMainWorld("hilos", {
     refrescarAA: (): Promise<unknown> => ipcRenderer.invoke("aa:refrescar"),
     estadoOpencode: (): Promise<unknown> => ipcRenderer.invoke("opencode:estado"),
     actualizarOpencode: (): Promise<unknown> => ipcRenderer.invoke("opencode:actualizar"),
+    planOpencode: (): Promise<unknown> => ipcRenderer.invoke("opencode:plan"),
+    guardarPlanOpencode: (plan: string): Promise<unknown> => ipcRenderer.invoke("opencode:planGuardar", plan),
     alBajar: oir("modelos:bajando"),
     alTablaNueva: oir("reparto:tablaNueva"),
     guardarAjustes: (cambio: unknown): Promise<unknown> => ipcRenderer.invoke("ajustes:guardar", cambio),
