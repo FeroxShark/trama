@@ -12,7 +12,7 @@ import { promptArreglar } from "./arreglar";
 import { salud as saludDe, type EstadoSalud } from "./salud";
 import type { Hilo } from "./contrato";
 import { claveCalidad } from "../paneles/modelos-workers";
-import { ACCESOS_FALSOS, AJUSTES, AUTO, ENTORNO_OLLAMA, ESTADO_DSH, ESTADO_MCP, ESTADO_MCP_FIJOS, ESTADO_OPENCODE, MODELOS_FIJOS, TABLA_REPARTO, OLLAMA_FALSO, arranqueMedidoFalso, historialFalso, MEDICION, REMOTO, SALUD, URL_REMOTO_FALSA } from "./fixtures-paneles";
+import { ACCESOS_FALSOS, AJUSTES, AUTO, ENTORNO_OLLAMA, ESTADO_DSH, ESTADO_MCP, ESTADO_MCP_FIJOS, ESTADO_OPENCODE, MODELOS_FIJOS, PLAN_GO, TABLA_REPARTO, OLLAMA_FALSO, arranqueMedidoFalso, historialFalso, MEDICION, REMOTO, SALUD, URL_REMOTO_FALSA } from "./fixtures-paneles";
 import type { EstadoAuto } from "../../electron/autointegrar";
 import type { Consulta, PiezaConsulta } from "../../electron/historial";
 import type { Arranque, Medido } from "../../electron/arranque";
@@ -25,6 +25,7 @@ import type { EstadoMcp } from "../../electron/mcp";
 import type { EntradaMcp, VistaServidorMcp } from "../../electron/mcp-config";
 import type { NombreClave } from "../../electron/claves";
 import type { EstadoOpencodeUi } from "../../electron/opencode-ajustes";
+import type { VistaPlanGo } from "../../electron/opencode-go";
 import type { TablaReparto } from "../../electron/reparto-tabla";
 import type { EstadoAA, ResultadoAA } from "../../electron/artificial-analysis";
 import type { DatosAgentsMd, LeccionesPendiente } from "../../electron/orquestacion";
@@ -36,7 +37,7 @@ export type AgentsMd = DatosAgentsMd & { proyecto: string; ruta: string | null }
 /** Un worker de rama para auditar: `pa <proy> --auditar <id> -m <modelo> --async` (sólo Claude). */
 export type PedidoAuditar = { id: string; proyecto: string; modelo: string };
 export type { EntradaMcp, EstadoMcp, VistaServidorMcp };
-export type { Arranque, Bajada, ConfigModelos, Consulta, EntornoOllama, EstadoAuto, EstadoDsh, EstadoModelos, EstadoOpencodeUi, EstadoSalud, Medido, NombreClave, PiezaConsulta, Prueba, Sondeo };
+export type { Arranque, Bajada, ConfigModelos, Consulta, EntornoOllama, EstadoAuto, EstadoDsh, EstadoModelos, EstadoOpencodeUi, EstadoSalud, Medido, NombreClave, PiezaConsulta, Prueba, Sondeo, VistaPlanGo };
 
 /** Los proveedores de DeepSeek Harness que se pueden probar desde Ajustes. */
 export type ProveedorDshUi = "opencode" | "deepseek" | "ollama";
@@ -190,6 +191,10 @@ export interface FuentePaneles {
   estadoOpencode(): Promise<EstadoOpencodeUi>;
   /** Vuelve a listar los modelos de `opencode`; devuelve el estado de después o rechaza con el motivo. */
   actualizarOpencode(): Promise<EstadoOpencodeUi>;
+  /** OpenCode Go (plan pago, apagado por defecto): el plan elegido y los topes por modelo. */
+  planOpencode(): Promise<VistaPlanGo>;
+  /** Elige el plan de OpenCode (`gratis`, `go` o `go-plus`); devuelve la vista de después o rechaza con el motivo. */
+  guardarPlanOpencode(plan: "gratis" | "go" | "go-plus"): Promise<VistaPlanGo>;
   /** Guarda el plan (`pa --plan`) y/o la red de seguridad (`autoCompactWindow`); devuelve Ajustes como quedó o rechaza con el motivo. */
   guardarAjustes(cambio: CambioAjustes): Promise<Ajustes>;
   /** El acceso desde el celular: cómo está y dónde escucha. */
@@ -263,6 +268,7 @@ const estadoAAFijo = () => {
   return { version: 1 as const, hayClave: (dshFijo ?? ESTADO_DSH(MODO.variante)).claves.ARTIFICIAL_ANALYSIS_API_KEY, fecha: aaFecha, modelos: aaFecha ? 187 : 0 };
 };
 let ocFijo: EstadoOpencodeUi | undefined;
+let planFijo: "gratis" | "go" | "go-plus" | undefined;
 
 const FALLA_CONFLICTO = "pa: conflicts merging into main. A worker can resolve it: pa atlas --actualizar 20261003-100000-11111";
 
@@ -411,6 +417,17 @@ const fija: FuentePaneles = {
     await espera(600);
     ocFijo = { ...(ocFijo ?? ESTADO_OPENCODE(MODO.variante)), actualizado: Date.now() };
     return structuredClone(ocFijo);
+  },
+  async planOpencode() {
+    await espera(60);
+    planFijo ??= MODO.variante === "oc-go" ? "go" : "gratis";
+    return PLAN_GO(planFijo);
+  },
+  async guardarPlanOpencode(plan) {
+    await espera(120);
+    planFijo = plan;
+    if (ocFijo) ocFijo = { ...ocFijo, plan, go: plan === "gratis" ? 0 : 11 };
+    return PLAN_GO(plan);
   },
   async bajarModelo(url, modelo) {
     const nombre = modelo.trim();
@@ -760,6 +777,12 @@ const conPa = (m: NonNullable<typeof main>): FuentePaneles => ({
   },
   async actualizarOpencode() {
     return (await m.paneles.actualizarOpencode().catch(fallar)) as EstadoOpencodeUi;
+  },
+  async planOpencode() {
+    return (await m.paneles.planOpencode().catch(fallar)) as VistaPlanGo;
+  },
+  async guardarPlanOpencode(plan) {
+    return (await m.paneles.guardarPlanOpencode(plan).catch(fallar)) as VistaPlanGo;
   },
   alBajar(fn) {
     return m.paneles.alBajar((b) => {

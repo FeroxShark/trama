@@ -62,6 +62,7 @@ import { estadoMcp } from "./mcp.ts";
 import { guardarServidor, quitarServidor, vistaMcp } from "./mcp-config.ts";
 import { crearLectorTabla, leerTabla } from "./reparto-tabla.ts";
 import { actualizarOpencode, effortsOpencode, modelosOpencode, vistaOpencode } from "./opencode-ajustes.ts";
+import { guardarPlanOpencode, planOpencode, vistaPlanGo } from "./opencode-go.ts";
 import { guardarClave, leerClaves } from "./claves.ts";
 import { estadoAA, refrescarAA } from "./artificial-analysis.ts";
 import { descartarSetup, setupDeEstaMaquina } from "./setup.ts";
@@ -102,7 +103,7 @@ const manejadores = new Map<string, Manejador>();
  * Lo que cambia la máquina (reescribe `~/CLAUDE.md`, los ajustes, borra una cuenta, libera la GPU, actualiza `claude`): desde la
  * tailnet (el celular) no. Los `modelos:*` y `remoto:guardar` tienen su propio chequeo, con su mensaje, en el manejador.
  */
-export const SOLO_PC_TAILNET: ReadonlySet<string> = new Set(["routing:guardar", "ajustes:guardar", "orq:leccionesGuardar", "orq:mdAplicar", "orq:agentsGuardar", "proyectos:renombrar", "cuentas:quitar", "vram:liberar", "claude:actualizar", "dsh:clave", "dsh:instalar", "dsh:probar", "aa:refrescar", "mcp:guardar", "mcp:quitar"]);
+export const SOLO_PC_TAILNET: ReadonlySet<string> = new Set(["routing:guardar", "ajustes:guardar", "orq:leccionesGuardar", "orq:mdAplicar", "orq:agentsGuardar", "proyectos:renombrar", "cuentas:quitar", "vram:liberar", "claude:actualizar", "dsh:clave", "dsh:instalar", "dsh:probar", "aa:refrescar", "mcp:guardar", "mcp:quitar", "opencode:planGuardar"]);
 
 /** Anota (o reemplaza) el manejador de un canal. */
 export function manejar(canal: string, fn: Manejador) {
@@ -727,7 +728,7 @@ export function armarNucleo() {
   manejar("hilos:guardados", () => hilosGuardados());
 
   // Los paneles del pie: Ajustes, Estadísticas y las acciones de Ramas.
-  manejar("modelos:config", () => vistaModelos(modelosConfig(), hayAgy(), vistaLocales(), hayDsh(), modelosOpencode(), effortsOpencode()));
+  manejar("modelos:config", () => vistaModelos(modelosConfig(), hayAgy(), vistaLocales(), hayDsh(), modelosOpencode(), effortsOpencode(), planOpencode()));
   manejar("dueno:nombre", () => nombreDueno());
   manejar("ajustes:leer", () => leerAjustes());
   // Ajustes editable: el plan y la red de seguridad (ajustes-editar.ts) y el acceso desde el celular (remoto-config.ts).
@@ -864,6 +865,12 @@ export function armarNucleo() {
   manejar("reparto:tabla", () => tablaReparto());
   manejar("opencode:estado", () => vistaOpencode());
   manejar("opencode:actualizar", () => actualizarOpencode());
+  // OpenCode Go (plan pago, apagado por defecto): el plan y los topes por modelo; elegir el plan es sólo de la PC (`SOLO_PC_TAILNET`).
+  manejar("opencode:plan", () => vistaPlanGo());
+  manejar("opencode:planGuardar", async (_e, plan: unknown) => {
+    await guardarPlanOpencode(plan);
+    return vistaPlanGo();
+  });
   manejar("ramas:brief", (_e, hs: Parameters<typeof briefRamas>[0]) => briefRamas(hs));
   manejar("hilo:retomar", (_e, h: Parameters<typeof retomarDatos>[0]) =>
     retomarDatos({

@@ -246,6 +246,10 @@ type Main = {
     estadoOpencode(): Promise<unknown>;
     /** Vuelve a listar los modelos (`opencode models --refresh`); rechaza con el motivo. Devuelve el estado de después. */
     actualizarOpencode(): Promise<unknown>;
+    /** OpenCode Go (plan pago, apagado por defecto): el plan elegido y los topes por modelo. */
+    planOpencode(): Promise<unknown>;
+    /** Elige el plan (`gratis` | `go` | `go-plus`; sólo desde la PC) y devuelve la vista de después. */
+    guardarPlanOpencode(plan: string): Promise<unknown>;
     alBajar(fn: (b: unknown) => void): Soltar;
     /** Artificial Analysis terminó de bajar de fondo y la tabla de «Modelos para workers» tiene datos nuevos. */
     alTablaNueva(fn: () => void): Soltar;

@@ -19,7 +19,7 @@
 // `error.error.{name,data:{message,statusCode}}`.
 // Salida (`--salida`): { type:"result", motor:"opencode", subtype, is_error, result, num_turns, duration_ms, total_cost_usd, opencode_session_id,
 // modelUsage:{<modelo>:{inputTokens,cacheReadInputTokens,cacheCreationInputTokens,outputTokens}} }. `total_cost_usd` es 0 para los gratis; para
-// los de pago, la suma de lo que opencode calculó (si calculó algo).
+// los de pago, la suma de lo que opencode calculó (si calculó algo). Los de OpenCode Go también 0: es un plan fijo, el costo marginal es ~0.
 // Exit: 0 bien; 1 falló opencode o el modelo (el motivo, por stderr y en `result`); 2 argumentos; 127 no hay `opencode`.
 // Entorno: HILOS_OPENCODE (el binario). El login y la config de OpenCode son los de la persona (HOME/XDG tal cual).
 // Sin imports de app/: pa corre sin la app. app/electron/opencode.ts duplica a propósito motor/opencode/config.mjs.
@@ -28,7 +28,7 @@ import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import { fileURLToPath } from "node:url";
 import os from "node:os";
 import path from "node:path";
-import { esErrorCuota, esGratis, mensajeCuotaOpencode, parsearModelo, resolverOpencode } from "./config.mjs";
+import { conModeloChico, esErrorCuota, esGratis, esModeloGo, mensajeCuotaGo, mensajeCuotaOpencode, parsearModelo, resolverOpencode } from "./config.mjs";
 
 function argumentos(argv) {
   const o = { _: [] };
@@ -78,7 +78,7 @@ export function aResultado({ eventos, modelo, rc, stderr, segundos, gratis, trun
   const cortado = truncado === 0 && !error && rc === 0 && eventos.length > 0 && razon !== undefined && razon !== "stop";
   const malo = truncado > 0 || rc !== 0 || !!error || !ultimoFin || cortado;
   let motivo = truncado > 0 ? `se llegó al tope de ${truncado} pasos del modelo (--max-pasos)` : error ? textoDeError(error) : cortado ? `opencode terminó sin cerrar el turno (razón: ${razon})` : stderr.trim() ? stderr.trim().split("\n").slice(-3).join(" · ") : rc !== 0 ? `opencode salió con el código ${rc}` : "opencode no devolvió respuesta";
-  if (malo && !truncado && esErrorCuota(`${error ? JSON.stringify(error) : ""}\n${stderr}`)) motivo = mensajeCuotaOpencode(modelo);
+  if (malo && !truncado && esErrorCuota(`${error ? JSON.stringify(error) : ""}\n${stderr}`)) motivo = esModeloGo(modelo) ? mensajeCuotaGo(modelo) : mensajeCuotaOpencode(modelo);
   const suma = (f) => pasos.reduce((n, e) => n + (Number(f(e.part)) || 0), 0);
   const sesion = eventos.find((e) => typeof e.sessionID === "string")?.sessionID ?? null;
   const costo = suma((p) => p?.cost);
@@ -121,7 +121,8 @@ async function main() {
 
   mkdirSync(path.dirname(a.stream), { recursive: true });
   writeFileSync(a.stream, "");
-  const env = { ...process.env };
+  // Sin Go, el modelo chico de opencode (título, resumen) va a uno gratis: ver conModeloChico en config.mjs.
+  const env = { ...conModeloChico(process.env, os.homedir()) };
   delete env.CLAUDE_CONFIG_DIR;
   env.PWD = path.resolve(a.cwd); // opencode toma su directorio de PWD, no de getcwd(): sin esto escribiría donde estaba el que lanzó a pa
   const bin = resolverOpencode(process.env, os.homedir());
@@ -190,7 +191,7 @@ async function main() {
   });
   if (resto.trim()) linea(resto);
 
-  const r = aResultado({ eventos, modelo: modeloPa, rc, stderr, segundos: (Date.now() - t0) / 1000, gratis: esGratis(prov.valor), truncado });
+  const r = aResultado({ eventos, modelo: modeloPa, rc, stderr, segundos: (Date.now() - t0) / 1000, gratis: esGratis(prov.valor) || esModeloGo(prov.valor), truncado });
   escribirSalida(salida, r);
   if (rc === 127) process.stderr.write("opencode/correr: no está opencode (npm i -g opencode-ai, o HILOS_OPENCODE=<ruta>)\n");
   else if (r.is_error) process.stderr.write(`opencode/correr: la corrida falló: ${r.result.split("\n").at(-1)}\n`);

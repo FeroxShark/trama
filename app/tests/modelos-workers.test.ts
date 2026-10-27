@@ -195,3 +195,22 @@ test("los canales de Artificial Analysis son locales y la refrescada es sólo de
   const nucleo = readFileSync(path.join(import.meta.dirname, "..", "electron", "nucleo.ts"), "utf8");
   assert.match(nucleo, /SOLO_PC_TAILNET[^\n]*"aa:refrescar"/);
 });
+
+test("parsearTabla: medido vs estimado por esfuerzo, fuente de cada medido, y coding/agentic como extras (nunca la base)", () => {
+  const salida = JSON.stringify({ version: 1, modelos: [{
+    id: "claude-sonnet-5-5", nombre: "Claude Sonnet 5.5", proveedor: "claude", familia: "sonnet", familia_excluir: "sonnet", calidad: 46.8, effort_usado: "high",
+    calidad_por_effort: { low: 35.9, medium: 40.8, high: 46.8 }, efforts_estimados: ["xhigh", "max", "raro"], calidad_estimada_por_effort: { xhigh: 46.8, max: 46.8 },
+    fuente_por_effort: { low: "suplemento", medium: "api", high: "api", max: "inventada" }, coding_por_effort: { high: 55.5 }, agentic_por_effort: { high: 40 },
+    costo_por_effort: { low: 0.345, high: 0.884 }, estimada: false, origen: "artificial-analysis", gratis: false,
+  }] });
+  const f = parsearTabla(salida)!.modelos[0]!;
+  assert.deepEqual(f.calidadPorEffort, { low: 35.9, medium: 40.8, high: 46.8 });
+  assert.deepEqual(f.effortsEstimados, ["xhigh", "max"], "sólo esfuerzos conocidos");
+  assert.deepEqual(f.calidadEstimadaPorEffort, { xhigh: 46.8, max: 46.8 });
+  assert.deepEqual(f.fuentePorEffort, { low: "suplemento", medium: "api", high: "api" }, "una fuente desconocida se ignora");
+  assert.deepEqual([f.codingPorEffort, f.agenticPorEffort], [{ high: 55.5 }, { high: 40 }]);
+  assert.deepEqual(f.costoPorEffort, { low: 0.345, high: 0.884 });
+  // una salida vieja (sin los campos nuevos) no rompe: nada estimado
+  const v = parsearTabla(JSON.stringify({ version: 1, modelos: [{ id: "x", calidad: 40 }] }))!.modelos[0]!;
+  assert.deepEqual([v.effortsEstimados, v.calidadEstimadaPorEffort], [[], {}]);
+});

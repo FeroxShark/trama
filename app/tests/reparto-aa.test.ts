@@ -1,14 +1,17 @@
 // Inteligencia de Artificial Analysis en `reparto` (motor/bin/reparto): el emparejamiento de nombres (aa_tokens / aa_buscar), la conversión de la escala vieja
 // 0-100 a unidades de AA (vieja_a_aa, sin calibración), y la precedencia en `--tabla`: modelos.json (usuario) > Artificial Analysis > defaults > estimada,
 // con `origen` y `aa_fecha`. Todo con un archivo de caché falso (REPARTO_AA): no mira la red ni el estado real.
+// La base de calidad es el ÍNDICE DE INTELIGENCIA de AA (coding y agentic son extras); la tabla suplementaria real (motor/datos) se apaga acá
+// salvo en los tests que la prueban.
 import { after } from "node:test";
 import { testPosix as test } from "./plataforma.ts";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
+process.env.REPARTO_AA_SUPLEMENTO = "0";
 const REPARTO = path.join(import.meta.dirname, "..", "..", "motor", "bin", "reparto");
 const tmp = mkdtempSync(path.join(os.tmpdir(), "reparto-aa-"));
 after(() => rmSync(tmp, { recursive: true, force: true }));
@@ -94,34 +97,37 @@ test("aa_buscar: exacto normalizado primero, después los mismos tokens en otro 
 test("Reasoning y Non-reasoning del mismo modelo: gana el de más puntaje; también se empareja por slug", () => {
   const f = arch(AA);
   const r = py(`aa = R.aa_cargar()\nprint(json.dumps([R.aa_buscar(aa, "claude-opus-5-5")[0], R.aa_buscar(aa, "kimi-k3-max")[0]]))`, { REPARTO_AA: f });
-  assert.deepEqual(r, [65, 60]);
+  assert.deepEqual(r, [70, 50], "el índice de inteligencia (70 el razonado, 60 el otro), no el promedio de coding y agentic");
   const g = arch({ ...AA, modelos: [...AA.modelos, M("Zeta (high)", 30, 30, 30, "zeta-ultra-free")] });
   const z = py(`aa = R.aa_cargar()\nprint(json.dumps(R.aa_buscar(aa, "opencode:opencode/zeta-ultra-free")))`, { REPARTO_AA: g });
   assert.equal(z[0], 30);
 });
 
-test("puntaje: promedio de coding y agentic; con uno solo ése; sin ninguno, la inteligencia; sin nada no entra", () => {
+test("puntaje: SIEMPRE el índice de inteligencia; coding y agentic no son base; sin inteligencia no entra", () => {
   const p = (m: object) => py(`print(json.dumps(R.aa_puntaje(json.loads(${JSON.stringify(JSON.stringify(m))}))))`);
-  assert.equal(p({ coding: 60, agentic: 40, intelligence: 99 }), 50);
-  assert.equal(p({ coding: 60, agentic: null, intelligence: 99 }), 60);
-  assert.equal(p({ coding: null, agentic: 44, intelligence: 99 }), 44);
+  assert.equal(p({ coding: 60, agentic: 40, intelligence: 99 }), 99);
+  assert.equal(p({ coding: 60, agentic: null, intelligence: 47 }), 47);
   assert.equal(p({ coding: null, agentic: null, intelligence: 47 }), 47);
+  assert.equal(p({ coding: 60, agentic: 40, intelligence: null }), null, "con coding y agentic pero sin inteligencia: no es base");
+  assert.equal(p({ coding: 60, agentic: 40 }), null);
   assert.equal(p({ coding: null, agentic: null, intelligence: null }), null);
-  assert.equal(p({ coding: true, agentic: "a" }), null);
+  assert.equal(p({ coding: true, agentic: "a", intelligence: true }), null);
 });
 
-test("unidades reales de AA, sin calibración: el puntaje de un modelo es su promedio crudo, sin techo ni anclas", () => {
+test("unidades reales de AA, sin calibración: el puntaje de un modelo es su índice de inteligencia, sin techo ni anclas", () => {
   const f = arch(AA);
   const t = py(`aa = R.aa_cargar()\nprint(json.dumps({m: R.aa_calidad(aa, m)[0] for m in ["claude-opus-5-5", "claude-haiku-5-5", "claude-sonnet-5-5", "opencode:opencode/glm-5.3-flash-free", "opencode:opencode/nemotron-3-ultra-free"]}))`, { REPARTO_AA: f });
-  assert.equal(t["claude-opus-5-5"], 65, "(66 + 64) / 2, no 100");
-  assert.equal(t["claude-haiku-5-5"], 39);
-  assert.equal(t["claude-sonnet-5-5"], 55);
-  assert.equal(t["opencode:opencode/glm-5.3-flash-free"], 42, "sólo coding: ése");
-  assert.equal(t["opencode:opencode/nemotron-3-ultra-free"], 47, "sólo inteligencia general: respaldo, tal cual");
-  const alto = arch({ ...AA, modelos: [...AA.modelos, M("Supermodelo 9", 200, 200)] });
+  assert.equal(t["claude-opus-5-5"], 70, "su inteligencia, no el (66 + 64) / 2 de coding y agentic");
+  assert.equal(t["claude-haiku-5-5"], 52);
+  assert.equal(t["claude-sonnet-5-5"], 62);
+  assert.equal(t["opencode:opencode/glm-5.3-flash-free"], 45, "coding 42 no cuenta: manda la inteligencia (45)");
+  assert.equal(t["opencode:opencode/nemotron-3-ultra-free"], 47, "sólo inteligencia: tal cual");
+  const alto = arch({ ...AA, modelos: [...AA.modelos, M("Supermodelo 9", 200, 200, 200)] });
   assert.equal(py(`aa = R.aa_cargar()\nprint(json.dumps(R.aa_calidad(aa, "supermodelo-9")[0]))`, { REPARTO_AA: alto }), 200, "sin techo de 100");
-  const bajo = arch({ ...AA, modelos: [...AA.modelos, M("Piso 1", -5, -5)] });
+  const bajo = arch({ ...AA, modelos: [...AA.modelos, M("Piso 1", -5, -5, -5)] });
   assert.equal(py(`aa = R.aa_cargar()\nprint(json.dumps(R.aa_calidad(aa, "piso-1")[0]))`, { REPARTO_AA: bajo }), 0, "nunca negativa");
+  const sinInt = arch({ ...AA, modelos: [...AA.modelos, { name: "Solo Codigo 1", slug: "solo-codigo-1", coding: 80, agentic: 80, intelligence: null }] });
+  assert.equal(py(`aa = R.aa_cargar()\nprint(json.dumps(R.aa_calidad(aa, "solo-codigo-1")))`, { REPARTO_AA: sinInt }), null, "una entrada sin inteligencia no es base (aunque traiga coding y agentic)");
 });
 
 test("vieja_a_aa: la inversa de la calibración vieja (Haiku 60, Sonnet 88, Opus 100 → 43, 51, 58), por tramos y extrapolando bajo Haiku", () => {
@@ -139,8 +145,8 @@ test("caché rota, vacía, sin modelos o apagada: reparto sigue con los defaults
   for (const f of [arch("{roto"), arch({ version: 1 }), arch({ version: 1, fetched: "2026-10-25T08:00:00Z", modelos: [] }), path.join(tmp, "no-hay.json"), "0"]) {
     assert.equal(py(`print(json.dumps(R.aa_cargar()))`, { REPARTO_AA: f }), null);
   }
-  const sin = arch({ version: 1, fetched: "2026-10-25T08:00:00Z", modelos: [M("GLM-5.3 Flash", 42, 40)] });
-  assert.equal(py(`aa = R.aa_cargar()\nprint(json.dumps(R.aa_calidad(aa, "glm-5.3-flash")[0]))`, { REPARTO_AA: sin }), 41, "ya no hacen falta anclas");
+  const sin = arch({ version: 1, fetched: "2026-10-25T08:00:00Z", modelos: [M("GLM-5.3 Flash", 42, 40, 44)] });
+  assert.equal(py(`aa = R.aa_cargar()\nprint(json.dumps(R.aa_calidad(aa, "glm-5.3-flash")[0]))`, { REPARTO_AA: sin }), 44, "ya no hacen falta anclas");
 });
 
 // --- --tabla -------------------------------------------------------------------------------------------------
@@ -176,11 +182,11 @@ test("--tabla sin caché de AA: origen defecto o estimada, sin fecha; el resto d
 
 test("--tabla con AA: lo medido pisa defaults y estimaciones; lo que AA no conoce sigue como estaba; lleva la fecha del dato", () => {
   const t = tabla(arch(AA));
-  assert.deepEqual([t["claude-opus-5-5"].origen, t["claude-opus-5-5"].calidad, t["claude-opus-5-5"].aa_fecha], ["artificial-analysis", 65, "2026-10-25"]);
-  assert.equal(t["claude-haiku-5-5"].calidad, 39);
+  assert.deepEqual([t["claude-opus-5-5"].origen, t["claude-opus-5-5"].calidad, t["claude-opus-5-5"].aa_fecha], ["artificial-analysis", 70, "2026-10-25"]);
+  assert.equal(t["claude-haiku-5-5"].calidad, 52);
   assert.equal(t["claude-sonnet-5-5"].origen, "artificial-analysis");
-  assert.equal(t["claude-sonnet-5-5"].calidad, 55);
-  assert.equal(t["opencode:opencode/glm-5.3-flash-free"].calidad, 42, "defecto 55 viejo (41,6) → medido 42");
+  assert.equal(t["claude-sonnet-5-5"].calidad, 62);
+  assert.equal(t["opencode:opencode/glm-5.3-flash-free"].calidad, 45, "defecto 55 viejo (41,6) → medido 45 (inteligencia)");
   assert.equal(t["opencode:opencode/glm-5.3-flash-free"].estimada, false);
   // Nemotron 3 Ultra: sólo trae inteligencia (47): sirve de reserva y estaba en defecto 55
   assert.equal(t["opencode:opencode/nemotron-3-ultra-free"].origen, "artificial-analysis");
@@ -198,7 +204,7 @@ test("--tabla: lo que fija el dueño en modelos.json gana a AA (por familia, por
   assert.deepEqual([t["opencode:opencode/glm-5.3-flash-free"].origen, t["opencode:opencode/glm-5.3-flash-free"].calidad], ["usuario", 29.3]);
   assert.deepEqual([t["opencode:opencode/nemotron-3-ultra-free"].origen, t["opencode:opencode/nemotron-3-ultra-free"].calidad], ["usuario", 47.9]);
   assert.equal(t["claude-haiku-5-5"].origen, "artificial-analysis");
-  assert.equal(t["claude-haiku-5-5"].calidad, 39, "lo que fija el dueño no mueve a los demás: no hay calibración");
+  assert.equal(t["claude-haiku-5-5"].calidad, 52, "lo que fija el dueño no mueve a los demás: no hay calibración");
   // Con "calidad_unidades": "aa" valen tal cual.
   const n = tabla(arch(AA), { calidad_unidades: "aa", calidad: { opus: 52, "opencode:opencode/nemotron-*": 44 } });
   assert.deepEqual([n["claude-opus-5-5"].origen, n["claude-opus-5-5"].calidad, n["opencode:opencode/nemotron-3-ultra-free"].calidad], ["usuario", 52, 44]);
@@ -221,7 +227,7 @@ test("--tabla: un valor de usuario que coincide con el default sigue siendo del 
 });
 
 // --- calidad por effort ---------------------------------------------------------------------------------------
-const ME = (name: string, v: number) => M(name, v, v);
+const ME = (name: string, v: number) => M(name, v, v, v);
 const AA_EF = {
   version: 1,
   fetched: "2026-10-25T08:00:00Z",
@@ -361,8 +367,8 @@ test("aa_tokens: variantes de AA se juntan con el modelo, pero tamaños y varian
 test("emparejamiento: flash/mini/lite/air nunca caen en el modelo base ni en otro tamaño; sin entrada exacta no hay valor de AA", () => {
   const t = calid([ID("glm-5.3-flash-free"), ID("glm-5.3-free"), ID("glm-5.3-lite-free"), ID("glm-5.3-mini-free"), ID("glm-5.3-nano-free"), ID("glm-5.3-small-free"),
     "agy:gpt-oss-120b", "agy:gpt-oss-20b", "gpt-oss-60b", "gpt-oss-120b-mini"]);
-  assert.equal(t[ID("glm-5.3-flash-free")], 37, "GLM-5.3 Flash (crudo 37), no el 54 del base");
-  assert.equal(t[ID("glm-5.3-free")], 54);
+  assert.equal(t[ID("glm-5.3-flash-free")], 52, "GLM-5.3 Flash (inteligencia 52), no el 66 del base");
+  assert.equal(t[ID("glm-5.3-free")], 66);
   for (const x of ["lite", "mini", "nano", "small"]) assert.equal(t[ID(`glm-5.3-${x}-free`)], null, `${x}: AA no lo tiene → estimación`);
   assert.ok(t["agy:gpt-oss-120b"]! > t["agy:gpt-oss-20b"]!, "120b y 20b son distintos");
   assert.equal(t["gpt-oss-60b"], null);
@@ -372,18 +378,18 @@ test("emparejamiento: flash/mini/lite/air nunca caen en el modelo base ni en otr
   assert.equal(calid([ID("glm-5.3-flash-free")], sinFlash)[ID("glm-5.3-flash-free")], null);
 });
 
-test("MiMo V2.6 flash y GPT-OSS: siguen a AA en crudo (slug con v2-6 también empareja)", () => {
+test("MiMo V2.6 flash y GPT-OSS: siguen a AA sin calibrar (slug con v2-6 también empareja)", () => {
   const t = calid([ID("mimo-v2.6-flash-free"), "agy:gpt-oss-120b"]);
-  assert.equal(t[ID("mimo-v2.6-flash-free")], 40);
-  assert.equal(t["agy:gpt-oss-120b"], 32);
+  assert.equal(t[ID("mimo-v2.6-flash-free")], 54);
+  assert.equal(t["agy:gpt-oss-120b"], 48);
   const soloSlug = { ...REAL, modelos: [...REAL.modelos.filter((m) => m.slug !== "mimo-v2-6-flash"), { name: "MiMo Flash", slug: "mimo-v2-6-flash", coding: 41, agentic: 39, intelligence: 54 }] };
-  assert.equal(calid([ID("mimo-v2.6-flash-free")], soloSlug)[ID("mimo-v2.6-flash-free")], 40);
+  assert.equal(calid([ID("mimo-v2.6-flash-free")], soloSlug)[ID("mimo-v2.6-flash-free")], 54);
 });
 
-test("efforts de Opus: low/medium/high/max, no sólo max; puntaje crudo de AA de cada esfuerzo", () => {
-  assert.deepEqual(efs("claude-opus-5-5"), { max: 65, high: 61, medium: 55, low: 46 });
-  assert.deepEqual(efs("claude-sonnet-5-5"), { high: 55, medium: 50 });
-  assert.deepEqual(efs("claude-haiku-5-5"), { xhigh: 40, high: 38, low: 30 });
+test("efforts de Opus: low/medium/high/max, no sólo max; índice de inteligencia de AA de cada esfuerzo", () => {
+  assert.deepEqual(efs("claude-opus-5-5"), { max: 78, high: 74, medium: 70, low: 64 });
+  assert.deepEqual(efs("claude-sonnet-5-5"), { high: 70, medium: 66 });
+  assert.deepEqual(efs("claude-haiku-5-5"), { xhigh: 58, high: 56, low: 50 });
   const o = efs("claude-opus-5-5");
   assert.ok(o.low < o.medium && o.medium < o.high && o.high < o.max);
 });
@@ -403,10 +409,10 @@ test("efforts: crecen con el esfuerzo (un nivel más alto nunca vale menos)", ()
 });
 
 test("Gemini Argon y Flash: entrada pelada o Reasoning = effort por defecto (high), por eso hay línea de efforts", () => {
-  assert.deepEqual(efs("gemini-4-argon"), { high: 51 });
-  assert.deepEqual(efs("gemini-3.8-flash"), { high: 45 });
+  assert.deepEqual(efs("gemini-4-argon"), { high: 68 });
+  assert.deepEqual(efs("gemini-3.8-flash"), { high: 60 });
   const cfg = py(`cfg = R.cargar_config()\nprint(json.dumps({"ef": cfg["calidad_ef"].get("argon"), "q": cfg["calidad"]["argon"], "o": cfg["origen"]["argon"]}))`, { REPARTO_AA: arch(REAL), REPARTO_STATE: path.join(tmp, "estado") }) as { ef: object; q: number; o: string };
-  assert.deepEqual(cfg, { ef: { high: 51 }, q: 51, o: "artificial-analysis" });
+  assert.deepEqual(cfg, { ef: { high: 68 }, q: 68, o: "artificial-analysis" });
 });
 
 test("sin calibración ni topes: los que sólo traen inteligencia usan ese índice tal cual; nada se acota a 100; piso 0", () => {
@@ -419,7 +425,7 @@ test("sin calibración ni topes: los que sólo traen inteligencia usan ese índi
   assert.equal(t[ID("piso-9")], 0);
 });
 
-test("--aa-diag: por modelo, la entrada de AA y su puntaje crudo por effort; los sin coincidencia lo dicen", () => {
+test("--aa-diag: por modelo, la entrada de AA y su índice de inteligencia por effort (medido o estimado); los sin coincidencia lo dicen", () => {
   const r = spawnSync(REPARTO, ["--aa-diag", "--json"], {
     encoding: "utf8",
     env: { ...process.env, REPARTO_CUPOS_FIJOS: cuposF, REPARTO_AHORA: AHORA, REPARTO_DSH_FIJO: '{"ollama":[],"opencode":false,"deepseek":false}',
@@ -427,19 +433,23 @@ test("--aa-diag: por modelo, la entrada de AA y su puntaje crudo por effort; los
       REPARTO_AGY: "0", REPARTO_STATE: path.join(tmp, "estado"), REPARTO_AA: arch(REAL), TRAMA_MODELOS: arch({ version: 1, excluir: [ID("glm-5.3-flash-free")] }) },
   });
   assert.equal(r.status, 0, r.stderr);
-  const d = JSON.parse(r.stdout) as { aa_fecha: string; modelos: { id: string; aa: null | { nombre: string; slug: string; crudo: number }; efforts: Record<string, { crudo: number; usado: number }>; permitido: boolean }[] };
+  const d = JSON.parse(r.stdout) as { aa_fecha: string; modelos: { id: string; aa: null | { nombre: string; slug: string; indice: number }; efforts: Record<string, { indice: number | null; usado: number; estado: string; fuente: string | null }>; permitido: boolean }[] };
   const por = Object.fromEntries(d.modelos.map((m) => [m.id, m]));
   assert.equal(d.aa_fecha, "2026-10-26");
-  assert.deepEqual(por["claude-opus-5-5"].efforts.max, { crudo: 65, usado: 65 });
+  assert.deepEqual(por["claude-opus-5-5"].efforts.max, { indice: 78, usado: 78, estado: "medido", fuente: "api" });
+  assert.equal(por["claude-opus-5-5"].efforts.xhigh.estado, "estimado", "xhigh no lo midió AA: se rotula estimado");
+  assert.equal(por["claude-opus-5-5"].efforts.xhigh.indice, null);
   assert.equal(por["claude-opus-5-5"].aa!.nombre, "Claude Opus 5.5 (Adaptive Reasoning, Max Effort)");
   assert.equal(por[ID("mimo-v2.6-flash-free")].aa!.slug, "mimo-v2-6-flash");
-  assert.equal(por[ID("mimo-v2.6-flash-free")].aa!.crudo, 40);
+  assert.equal(por[ID("mimo-v2.6-flash-free")].aa!.indice, 54);
   assert.equal(por[ID("glm-5.3-lite-free")].aa, null);
   assert.equal(por[ID("glm-5.3-flash-free")].permitido, false);
   const txt = spawnSync(REPARTO, ["--aa-diag"], { encoding: "utf8", env: { ...process.env, REPARTO_CUPOS_FIJOS: cuposF, REPARTO_AHORA: AHORA, REPARTO_DSH_FIJO: '{"ollama":[],"opencode":false,"deepseek":false}', REPARTO_AGY: "0", REPARTO_STATE: path.join(tmp, "estado"), REPARTO_AA: arch(REAL) } });
   assert.equal(txt.status, 0, txt.stderr);
   assert.match(txt.stdout, /claude-opus-5-5\n\s+AA: Claude Opus 5\.5 \(Adaptive Reasoning, Max Effort\) \[claude-opus-5-5-adaptive\]/);
-  assert.match(txt.stdout, /por effort: .*max 65\b/);
+  assert.match(txt.stdout, /por effort: .*max 78 \(medido\)/);
+  assert.match(txt.stdout, /xhigh [\d.]+ \(estimado\)/);
+  assert.match(txt.stdout, /índice de inteligencia 78/);
 });
 
 test("modelos excluidos: reparto nunca los elige, aunque tengan la mejor cifra", () => {
@@ -466,4 +476,162 @@ test("codigo-acotado (medium) va a Sonnet, no a Opus: el mínimo de Sonnet se mi
   assert.equal(r.status, 0, r.stderr);
   const j = JSON.parse(r.stdout) as { familia?: string; modelo: string; effort?: string };
   assert.match(j.modelo, /sonnet/, JSON.stringify(j));
+});
+
+// --- caché REAL del dueño (2026-10-27): sólo inteligencia en los 5.5, y la tabla suplementaria -------------------------
+// El fixture tiene EXACTAMENTE las filas de su aa-modelos.json (name | slug | intelligence | coding | agentic) que dieron el reporte
+// «sin datos por esfuerzo»: los Claude 5.5 sólo traen inteligencia (coding y agentic en null).
+const REAL_DUENO = path.join(import.meta.dirname, "fixtures", "aa-real-2026-10-27.json");
+const SUPLEMENTO = path.join(import.meta.dirname, "..", "..", "motor", "datos", "aa-suplemento.json");
+const SUP = { REPARTO_AA: REAL_DUENO, REPARTO_AA_SUPLEMENTO: SUPLEMENTO };
+const filasReales = (JSON.parse(readFileSync(REAL_DUENO, "utf8")) as { modelos: { name: string; slug: string; intelligence: number | null; coding: number | null; agentic: number | null }[] }).modelos;
+type Ef = { medidos: Record<string, number>; todos: Record<string, { usado: number; estado: string; fuente: string | null }> };
+/** Los esfuerzos de un id en `--aa-diag --json` con la caché real: medidos (con su cifra) y todos (medidos + estimados, con su estado). */
+function diagReal(env: Record<string, string> = SUP, ofertas = '["opencode/glm-5.3-flash-free","opencode/deepseek-v4.1-flash-free"]') {
+  const r = spawnSync(REPARTO, ["--aa-diag", "--json"], {
+    encoding: "utf8",
+    env: { ...process.env, REPARTO_CUPOS_FIJOS: cuposF, REPARTO_AHORA: AHORA, REPARTO_DSH_FIJO: '{"ollama":[],"opencode":false,"deepseek":false}', REPARTO_OPENCODE_FIJO: ofertas,
+      REPARTO_AGY: "0", REPARTO_STATE: path.join(tmp, "estado"), TRAMA_MODELOS: arch({ version: 1 }), ...env },
+  });
+  assert.equal(r.status, 0, r.stderr);
+  const d = JSON.parse(r.stdout) as { modelos: { id: string; aa: null | { nombre: string; indice: number }; efforts: Ef["todos"]; calidad: number; origen: string }[] };
+  return Object.fromEntries(d.modelos.map((m) => [m.id, m]));
+}
+const medidosDe = (efforts: Ef["todos"]) => Object.fromEntries(Object.entries(efforts).filter(([, v]) => v.estado === "medido").map(([k, v]) => [k, v.usado]));
+
+test("caché real: «(High, Default Fallback)» y «(Max, Default Fallback)» son high y max explícitos; claude-opus-5-5 sin sufijo cuenta como max", () => {
+  const e = (name: string, slug: string) => py(`print(json.dumps(R.aa_esfuerzo_info({"name": ${JSON.stringify(name)}, "slug": ${JSON.stringify(slug)}})))`) as [string | null, string];
+  assert.deepEqual(e("Claude Sonnet 5.5 (High, Default Fallback)", "claude-sonnet-5-5-high"), ["high", "explicito"]);
+  assert.deepEqual(e("Claude Sonnet 5.5 (Medium, Default Fallback)", "claude-sonnet-5-5-medium"), ["medium", "explicito"]);
+  assert.deepEqual(e("Claude Opus 5.5 (Max, Default Fallback)", "claude-opus-5-5"), ["max", "explicito"]);
+  assert.deepEqual(e("Claude Haiku 5.5 (Xhigh)", "claude-haiku-5-5-xhigh"), ["xhigh", "explicito"]);
+  assert.deepEqual(e("Claude Fable 5.1 (Max, Default Fallback)", "claude-fable-5-1"), ["max", "explicito"]);
+  assert.deepEqual(e("DeepSeek V3.1 Terminus (Reasoning)", "deepseek-v3-1-terminus-reasoning"), ["high", "defecto"]);
+  const tk = (s: string) => py(`print(json.dumps(R.aa_tokens(${JSON.stringify(s)})))`) as string[];
+  assert.deepEqual(tk("Claude Sonnet 5.5 (High, Default Fallback)"), ["claude", "sonnet", "5.5"]);
+  assert.deepEqual(tk("claude-opus-5-5"), ["claude", "opus", "5.5"]);
+  assert.deepEqual(tk("claude-opus-5-low"), ["claude", "opus", "5"], "Opus 5 no es Opus 5.5");
+});
+
+test("caché real: Sonnet 5.5 tiene medium 40.8 y high 46.8 MEDIDOS (de la API) y low 35.9 de la tabla suplementaria", () => {
+  const s = diagReal()["claude-sonnet-5-5"];
+  assert.equal(s.aa!.indice, 46.8);
+  assert.deepEqual(medidosDe(s.efforts), { low: 35.9, medium: 40.8, high: 46.8 });
+  assert.equal(s.efforts.medium.fuente, "api");
+  assert.equal(s.efforts.high.fuente, "api");
+  assert.equal(s.efforts.low.fuente, "suplemento", "low no está en la API: sale de la tabla del dueño");
+  assert.deepEqual([s.efforts.xhigh.estado, s.efforts.max.estado], ["estimado", "estimado"]);
+  // sin la tabla suplementaria sólo quedan los dos de la API
+  const sin = diagReal({ REPARTO_AA: REAL_DUENO, REPARTO_AA_SUPLEMENTO: "0" })["claude-sonnet-5-5"];
+  assert.deepEqual(medidosDe(sin.efforts), { medium: 40.8, high: 46.8 });
+  assert.equal(sin.efforts.low.estado, "estimado");
+});
+
+test("caché real: Haiku 5.5 low 29.5, high 37.8 y xhigh 41.2 medidos; medium estimado; max 43.4 de la tabla propia", () => {
+  const h = diagReal()["claude-haiku-5-5"];
+  assert.deepEqual(medidosDe(h.efforts), { low: 29.5, high: 37.8, xhigh: 41.2, max: 43.4 });
+  assert.equal(h.efforts.max.fuente, "suplemento");
+  assert.deepEqual([h.efforts.medium.estado, h.efforts.medium.usado], ["estimado", 33.6], "entre low (29.5) y high (37.8)");
+  assert.deepEqual(medidosDe(diagReal({ REPARTO_AA: REAL_DUENO, REPARTO_AA_SUPLEMENTO: "0" })["claude-haiku-5-5"].efforts), { low: 29.5, high: 37.8, xhigh: 41.2 });
+});
+
+test("caché real: Opus 5.5 max 57.6 medido y los demás esfuerzos estimados (rotulados «estimado», no medidos)", () => {
+  const o = diagReal()["claude-opus-5-5"];
+  assert.equal(o.aa!.nombre, "Claude Opus 5.5 (Max, Default Fallback)");
+  assert.deepEqual(medidosDe(o.efforts), { max: 57.6 });
+  for (const e of ["low", "medium", "high", "xhigh"]) assert.equal(o.efforts[e].estado, "estimado", e);
+});
+
+test("caché real: DeepSeek V4.1 Flash no está en la API; toma 45.1 de la tabla suplementaria (y sin ella, nada de AA)", () => {
+  const id = ID("deepseek-v4.1-flash-free");
+  const d = diagReal()[id];
+  assert.ok(d, "el modelo de DeepSeek aparece");
+  assert.equal(d.origen, "artificial-analysis");
+  assert.equal(d.aa!.indice, 45.1);
+  assert.ok(d.calidad < 45.1, "se rankea en high (estimado, bajo el max medido), no por su max");
+  assert.deepEqual(medidosDe(d.efforts), { max: 45.1 });
+  assert.equal(d.efforts.max.fuente, "suplemento");
+  const sin = diagReal({ REPARTO_AA: REAL_DUENO, REPARTO_AA_SUPLEMENTO: "0" })[id];
+  assert.equal(sin.aa, null, "sin la tabla: AA no lo conoce (cifra por defecto)");
+});
+
+test("tabla suplementaria: la API manda (misma entrada y mismo esfuerzo), completa costo/tiempo que le faltan, se amplía con otro archivo y datos rotos se ignoran", () => {
+  const supl = (modelos: object[], extra: object = {}) => arch({ fecha: "2026-10-27", fuente: "test", modelos, ...extra });
+  const q = (sup: string, id: string) => py(`aa = R.aa_cargar()\nprint(json.dumps([R.aa_calidad_efforts(aa, ${JSON.stringify(id)}), R.aa_buscar_extras(aa, ${JSON.stringify(id)})]))`, { REPARTO_AA: REAL_DUENO, REPARTO_AA_SUPLEMENTO: sup }) as [Record<string, number>, Record<string, Record<string, number | boolean>>];
+  const choca = supl([{ name: "Claude Sonnet 5.5 (High)", slug: "claude-sonnet-5-5-high", intelligence: 99, cost: 0.5 }]);
+  const [ef, ex] = q(choca, "claude-sonnet-5-5");
+  assert.equal(ef.high, 46.8, "la API manda: 99 de la tabla no pisa el 46.8");
+  assert.equal(ex.high.cost, 0.5, "pero le completa el costo que la API no trae");
+  assert.equal(ex.high.suplemento, undefined, "y el esfuerzo sigue siendo de la API");
+  const nueva = supl([{ name: "Modelo Nuevo 1 (Max)", slug: "modelo-nuevo-1", intelligence: 50.5, cost: 0.1, time: 60 }]);
+  assert.deepEqual(q(nueva, "modelo-nuevo-1")[0], { max: 50.5 }, "ampliar la tabla = agregar una entrada");
+  assert.equal(q(nueva, "modelo-nuevo-1")[1].max.suplemento, true);
+  for (const roto of [arch("{roto"), arch({ fecha: "x" }), arch({ modelos: [{ name: "Sin inteligencia (Max)", coding: 90 }, 5, null] }), path.join(tmp, "no-existe.json")]) {
+    assert.deepEqual(q(roto, "claude-sonnet-5-5")[0], { medium: 40.8, high: 46.8 }, "un archivo roto no rompe: se usa sólo la API");
+  }
+});
+
+test("caché real: nunca se rankea por max; --tabla da la cifra del esfuerzo que se usaría (high) y rotula medido/estimado con texto", () => {
+  const env = { REPARTO_CUPOS_FIJOS: cuposF, REPARTO_AHORA: AHORA, REPARTO_DSH_FIJO: '{"ollama":[],"opencode":false,"deepseek":false}', REPARTO_AGY: "0", REPARTO_STATE: path.join(tmp, "estado"), TRAMA_MODELOS: arch({ version: 1 }), ...SUP };
+  type FT = { id: string; calidad: number; effort_usado: string; calidad_por_effort: Record<string, number>; efforts_estimados?: string[]; calidad_estimada_por_effort?: Record<string, number>; fuente_por_effort?: Record<string, string>;
+    coding_por_effort?: Record<string, number>; costo_por_effort?: Record<string, number> };
+  const r = spawnSync(REPARTO, ["--tabla", "--json"], { encoding: "utf8", env: { ...process.env, ...env } });
+  assert.equal(r.status, 0, r.stderr);
+  const t = Object.fromEntries((JSON.parse(r.stdout).modelos as FT[]).map((m) => [m.id, m]));
+  const s = t["claude-sonnet-5-5"], h = t["claude-haiku-5-5"], o = t["claude-opus-5-5"];
+  assert.deepEqual([s.effort_usado, s.calidad], ["high", 46.8]);
+  assert.deepEqual([h.effort_usado, h.calidad], ["high", 37.8], "Haiku en high (37.8), no en su xhigh 41.2 ni en el max 43.4");
+  assert.equal(o.effort_usado, "high");
+  assert.ok(o.efforts_estimados!.includes("high"), "Opus high es estimado: sólo max está medido");
+  assert.deepEqual(o.calidad_por_effort, { max: 57.6 });
+  assert.deepEqual(s.calidad_por_effort, { low: 35.9, medium: 40.8, high: 46.8 });
+  assert.deepEqual(s.efforts_estimados, ["xhigh", "max"]);
+  assert.deepEqual(h.efforts_estimados, ["medium"]);
+  assert.deepEqual(h.calidad_estimada_por_effort, { medium: 33.6 });
+  assert.deepEqual([s.fuente_por_effort!.low, s.fuente_por_effort!.high, h.fuente_por_effort!.max], ["suplemento", "api", "suplemento~"], "el max de Haiku es aproximado (~43.4): se rotula aparte");
+  assert.deepEqual(s.costo_por_effort, { low: 0.345, high: 0.884 }, "costo de la tabla del dueño");
+  assert.equal(s.coding_por_effort, undefined, "coding null en la API: sin extra");
+  // en texto: el esfuerzo con la palabra medido / estimado
+  const txt = spawnSync(REPARTO, ["--tabla"], { encoding: "utf8", env: { ...process.env, ...env } });
+  assert.match(txt.stdout, /claude-opus-5-5 .* high estimado/);
+  assert.match(txt.stdout, /claude-sonnet-5-5 .* high medido/);
+  // y por esfuerzo pedido: low usa low (35.9), no el máximo; un esfuerzo sin medir se interpola (nunca salta al max)
+  const q = py(`cfg = R.cargar_config()\nm = R.mapa_efforts(cfg, "sonnet")\nprint(json.dumps([R.calidad_en_effort(m, e, cfg["calidad"]["sonnet"]) for e in ("low", "medium", "high", "xhigh")]))`, { ...SUP, REPARTO_STATE: path.join(tmp, "estado"), TRAMA_MODELOS: arch({ version: 1 }) });
+  assert.deepEqual(q.slice(0, 3), [35.9, 40.8, 46.8]);
+  assert.ok(q[3] > 46.8, "xhigh estimado, sobre el high medido");
+});
+
+test("caché real: coding y agentic son extras (Fable los trae), nunca la base", () => {
+  const ex = (id: string) => py(`aa = R.aa_cargar()\nprint(json.dumps([R.aa_calidad_efforts(aa, ${JSON.stringify(id)}), R.aa_buscar_extras(aa, ${JSON.stringify(id)}), R.aa_calidad(aa, ${JSON.stringify(id)})]))`, SUP) as [Record<string, number>, Record<string, Record<string, number>>, [number, string]];
+  const [ef, extras, mejor] = ex("claude-fable-5-1");
+  assert.deepEqual(ef, { low: 46.8, medium: 48.9, max: 53.4 }, "inteligencia, no el promedio de 75.2 y 47.1");
+  assert.deepEqual([extras.low.coding, extras.low.agentic, extras.max.coding, extras.max.agentic], [75.2, 47.1, 81.6, 57.9]);
+  assert.equal(mejor[0], 53.4);
+  const [efo, , mo] = ex("claude-opus-5");
+  assert.deepEqual(efo, { low: 39.4, xhigh: 49.7 });
+  assert.equal(mo[0], 49.7);
+  assert.deepEqual(ex("claude-sonnet-5")[0], { low: 24.3, max: 38.2 });
+  assert.deepEqual(ex("deepseek-v3.1-terminus")[0], { high: 14.8 }, "Reasoning = effort por defecto (high)");
+  // todas las filas reales con inteligencia entran al índice: ninguna queda fuera por no traer coding/agentic
+  assert.equal(filasReales.filter((m) => m.intelligence === null).length, 0);
+});
+
+test("extrapolación con la pendiente relativa de otros modelos: nunca se estima por max; Opus 5.5 high ronda 46-52, Haiku medium interpola", () => {
+  const ef = diagReal();
+  const o = ef["claude-opus-5-5"].efforts;
+  assert.ok(o.high.usado >= 46 && o.high.usado <= 52, `Opus high ${o.high.usado}`);
+  assert.ok(o.high.usado < 57.6 && o.high.estado === "estimado");
+  const orden = ["low", "medium", "high", "xhigh", "max"].map((e) => o[e].usado);
+  assert.deepEqual([...orden].sort((a, b) => a - b), orden, "crece con el esfuerzo");
+  assert.ok(orden.slice(0, 4).every((v) => v < 57.6), "los esfuerzos por debajo del medido quedan debajo");
+  assert.equal(ef["claude-haiku-5-5"].efforts.medium.usado, 33.6, "con dos o más medidos, interpola entre low y high");
+  const d = ef[ID("deepseek-v4.1-flash-free")].efforts;
+  assert.equal(d.max.usado, 45.1);
+  assert.ok(d.high.usado < 45.1 && d.high.estado === "estimado", "DeepSeek (sólo max): high sale más bajo");
+  // sin otros modelos con dos puntos no hay pendiente: queda el medido más cercano
+  const q = py(`print(json.dumps([R.calidad_en_effort({"max": 50}, "high", 50), R.calidad_en_effort({"low": 30, "high": 40}, "max", 40)]))`);
+  assert.deepEqual(q, [50, 40]);
+  // extrapolación hacia arriba con dos puntos: usa la pendiente relativa, nunca baja del medido
+  const arr = py(`aa = R.aa_cargar()\nm = R.aa_calidad_efforts(aa, "claude-sonnet-5-5")\nprint(json.dumps([R.calidad_en_effort(m, "xhigh", 46.8), R.calidad_en_effort(m, "max", 46.8)]))`, SUP) as number[];
+  assert.ok(arr[0] > 46.8 && arr[1] >= arr[0]);
 });

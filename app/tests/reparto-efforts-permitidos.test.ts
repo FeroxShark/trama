@@ -8,6 +8,8 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
+// La base es el índice de INTELIGENCIA de AA; la tabla suplementaria real se apaga.
+process.env.REPARTO_AA_SUPLEMENTO = "0";
 const REPARTO = path.join(import.meta.dirname, "..", "..", "motor", "bin", "reparto");
 const tmp = mkdtempSync(path.join(os.tmpdir(), "reparto-efp-"));
 after(() => rmSync(tmp, { recursive: true, force: true }));
@@ -23,8 +25,8 @@ const AA = arch({
   version: 1,
   fetched: "2026-10-25T08:00:00Z",
   modelos: [
-    ["Claude Opus 5.5 (Reasoning)", 66, 64], ["Claude Sonnet 5.5", 56, 54], ["Claude Haiku 5.5", 40, 38],
-  ].map(([name, coding, agentic]) => ({ name, slug: String(name).toLowerCase().replace(/[^a-z0-9.]+/g, "-"), creator: "x", intelligence: 50, coding, agentic })),
+    ["Claude Opus 5.5 (Reasoning)", 65], ["Claude Sonnet 5.5", 55], ["Claude Haiku 5.5", 39],
+  ].map(([name, intelligence]) => ({ name, slug: String(name).toLowerCase().replace(/[^a-z0-9.]+/g, "-"), creator: "x", intelligence, coding: null, agentic: null })),
 });
 
 function elegir(tipo: string, mod: object) {
@@ -78,7 +80,7 @@ const AA_EF = arch({
   modelos: [
     ["Claude Sonnet 5.5 (Low Effort)", 40], ["Claude Sonnet 5.5 (Medium Effort)", 46], ["Claude Sonnet 5.5 (High Effort)", 50], ["Claude Sonnet 5.5 (Max Effort)", 62],
     ["Claude Opus 5.5 (High Effort)", 56], ["Claude Opus 5.5 (Max Effort)", 70], ["Claude Haiku 5.5 (High Effort)", 38], ["Claude Haiku 5.5 (Max Effort)", 44],
-  ].map(([name, v]) => ({ name, slug: String(name).toLowerCase().replace(/[^a-z0-9.]+/g, "-"), creator: "x", intelligence: 50, coding: v, agentic: v })),
+  ].map(([name, v]) => ({ name, slug: String(name).toLowerCase().replace(/[^a-z0-9.]+/g, "-"), creator: "x", intelligence: v, coding: null, agentic: null })),
 });
 type Cand = { modelo: string; effort: string | null; calidad: number; calidad_mejor: number; descartado_por: string | null };
 function corrida(args: string[], mod: object) {

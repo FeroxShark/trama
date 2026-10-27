@@ -23,6 +23,7 @@ import { Boton } from "../ui/componentes";
 import { Cat } from "./AjustesNav";
 import { PanelCargando } from "./PanelCargando";
 import { AjustesDsh } from "./AjustesDsh";
+import { AjustesOpencode } from "./AjustesOpencode";
 import { AjustesConectores } from "./AjustesConectores";
 import { ModelosParaWorkers } from "./AjustesWorkers";
 import { GuiaOllama, SugeridosOllama, textoBajada } from "./AjustesLocales";
@@ -660,6 +661,8 @@ export function AjustesModelos({ Dato, plan = null }: { Dato: FilaDato; plan?: s
 
         </section>
       </Cat>
+
+      <AjustesOpencode Dato={Dato} />
 
       <AjustesDsh Dato={Dato} />
 

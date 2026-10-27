@@ -1,0 +1,11 @@
+{
+  "fecha": "2026-10-27",
+  "fuente": "artificialanalysis.ai (gráfico), cargado por el dueño",
+  "comentario": "Modelos o esfuerzos que la API de Artificial Analysis no trae. reparto (aa_cargar) los usa SOLO si la API no trae esa entrada (mismo modelo y mismo esfuerzo): la API manda. Para ampliar la tabla: agregá una entrada a `modelos` con el nombre al estilo de AA, el esfuerzo entre paréntesis ('(High)', '(Max)'...), `intelligence` (índice de inteligencia general, la base de calidad) y, si los tenés, `cost` (USD por tarea), `time` (segundos por tarea), `tokens`, `coding`, `agentic`. `aproximado: true` si la cifra es una lectura aproximada del gráfico. Actualizá `fecha` al cargar datos nuevos.",
+  "modelos": [
+    { "name": "DeepSeek V4.1 Flash (Max)", "slug": "deepseek-v4-1-flash", "intelligence": 45.1, "cost": 0.262, "time": 390 },
+    { "name": "Claude Sonnet 5.5 (Low)", "slug": "claude-sonnet-5-5-low", "intelligence": 35.9, "cost": 0.345 },
+    { "name": "Claude Sonnet 5.5 (High)", "slug": "claude-sonnet-5-5-high", "intelligence": 46.8, "cost": 0.884 },
+    { "name": "Claude Haiku 5.5 (Max)", "slug": "claude-haiku-5-5", "intelligence": 43.4, "cost": 0.2, "aproximado": true }
+  ]
+}

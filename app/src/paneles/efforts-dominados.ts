@@ -10,7 +10,7 @@
 import { EFFORTS_CALIDAD, type EffortCalidad } from "../../electron/efforts-calidad";
 import type { FilaTabla } from "../../electron/reparto-tabla";
 import type { Borrador } from "./modelos-borrador";
-import { claveCalidad, estadoDe } from "./modelos-workers";
+import { claveCalidad, effortsMostrados, estadoDe } from "./modelos-workers";
 
 export const MULT_EFFORT: Record<EffortCalidad, number> = { low: 0.5, medium: 0.75, high: 1, xhigh: 1.5, max: 2.5 };
 /** Igual que COSTO de motor/bin/reparto; lo que no está (DeepSeek de pago, otros) usa `COSTO_DEFECTO`. */
@@ -38,9 +38,9 @@ export const costoDe = (f: FilaTabla, effort: EffortCalidad): { costo: number; f
   return { costo: (COSTO_FAMILIA[f.familia] ?? COSTO_DEFECTO) * MULT_EFFORT[effort], fuente: "estimado" };
 };
 
-/** Los esfuerzos que se ofrecen para un modelo: los que tienen puntaje; sin desglose, los cinco. */
+/** Los esfuerzos que se ofrecen para un modelo: los medidos y los estimados que puede correr; sin desglose, los cinco. */
 export const effortsDe = (f: FilaTabla): EffortCalidad[] => {
-  const con = EFFORTS_CALIDAD.filter((e) => f.calidadPorEffort[e] !== undefined);
+  const con = effortsMostrados(f);
   return con.length ? con : [...EFFORTS_CALIDAD];
 };
 
@@ -68,7 +68,7 @@ export function paresDe(filas: FilaTabla[], b: Borrador): Par[] {
     if (f.gratis || !estadoDe(f, b).permitido) continue;
     for (const e of permitidosDe(f, b)) {
       const q = f.calidadPorEffort[e];
-      if (q === undefined) continue;
+      if (q === undefined) continue;   // un esfuerzo estimado no se compara: no hay dato de AA con qué decir que otro lo domina
       const c = costoDe(f, e);
       out.push({ clave: claveCalidad(f), id: f.id, nombre: f.nombre, effort: e, inteligencia: q, costo: c.costo, fuenteCosto: c.fuente, suscripcion: SUSCRIPCION.includes(f.proveedor) });
     }

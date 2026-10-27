@@ -130,11 +130,80 @@ export function hayOpencode(env: Env = process.env, home: string = os.homedir(),
   return resolverOpencode(env, home, existe) !== "opencode";
 }
 
-/** El entorno con el que correr `opencode`: el de la persona (su login y su config son lo que importa), sin variables de Claude. */
-export function entornoOpencode(env: Env = process.env): Env {
-  const e: Env = { ...env };
+/** El entorno con el que correr `opencode`: el de la persona (su login y su config son lo que importa), sin variables de Claude. Sin Go, con el modelo chico en uno gratis. */
+export function entornoOpencode(env: Env = process.env, home: string = os.homedir()): Env {
+  const e: Env = { ...conModeloChico(env, home) };
   delete e.CLAUDE_CONFIG_DIR;
   return e;
+}
+
+// --- OpenCode Go (plan pago de OpenCode, APAGADO por defecto) ------------------------------------------------------------------
+// DUPLICA A PROPÓSITO el final de motor/opencode/config.mjs. El plan vive en `opencode_plan` de modelos.json ("gratis" | "go" | "go-plus"; sin la
+// clave, gratis). Los modelos de Go son del proveedor `opencode-go`: cupo propio por modelo (un 429 agota SOLO ese modelo, ~5 h), aparte del límite
+// compartido de los gratis. Los topes, en motor/opencode/go-topes.json (ver opencode-go.ts).
+export const PROVEEDOR_GO = "opencode-go";
+export const PLANES_OPENCODE = ["gratis", "go", "go-plus"] as const;
+export type PlanOpencode = (typeof PLANES_OPENCODE)[number];
+/** ¿Es un modelo de OpenCode Go? Recibe `opencode-go/xxx` u `opencode:opencode-go/xxx`. */
+export const esModeloGo = (id: unknown): boolean => typeof id === "string" && /^(?:opencode:)?opencode-go\//.test(id);
+/** Cuánto dura la marca de agotado de un modelo de Go si no se sabe cuándo vuelve: la ventana de 5 h del plan. */
+export const VENCE_GO_MS = 5 * 3600_000;
+
+export const mensajeCuotaGo = (modelo: string): string =>
+  `OpenCode Go: se acabó el cupo de 5 h de ${modelo} (los demás modelos de Go siguen). Esperá a que se renueve o probá con otro modelo.`;
+
+/** Dónde está modelos.json (igual que `rutaModelos` de modelos-config.ts, que reparto y el runner también usan). */
+export function rutaModelosOc(env: Env = process.env, home: string = os.homedir()): string {
+  return env.TRAMA_MODELOS || env.HILOS_MODELOS || path.join(env.XDG_CONFIG_HOME || path.join(home, ".config"), "trama", "modelos.json");
+}
+
+/** El plan de OpenCode que dice modelos.json; cualquier cosa rara (sin archivo, JSON roto, valor desconocido) es «gratis». */
+export function planOpencode(env: Env = process.env, home: string = os.homedir()): PlanOpencode {
+  try {
+    const p = JSON.parse(readFileSync(rutaModelosOc(env, home), "utf8"))?.opencode_plan;
+    return (PLANES_OPENCODE as readonly unknown[]).includes(p) ? (p as PlanOpencode) : "gratis";
+  } catch {
+    return "gratis";
+  }
+}
+
+/**
+ * Sin Go, el modelo chico (`small_model`: el que opencode usa para el título y el resumen de cada sesión) se fija en uno GRATIS: si no, opencode elige
+ * solo uno barato del catálogo (en la consola de OpenCode aparecía GPT-6 Luna con 402, sin plan) y cada sesión deja un 402. No se pisa lo que la persona
+ * ya puso (su opencode.json, OPENCODE_CONFIG o un OPENCODE_CONFIG_CONTENT con `small_model`) ni se toca si tiene otro proveedor conectado.
+ */
+export const MODELO_CHICO_GRATIS = "opencode/mimo-v2.6-flash-free";
+export function conModeloChico(env: Env = process.env, home: string = os.homedir(), leer: (f: string) => string = (f) => readFileSync(f, "utf8")): Env {
+  if (planOpencode(env, home) !== "gratis") return env;
+  const tiene = (txt: string) => /["']?small_model["']?\s*:/.test(txt);
+  const base = env.XDG_CONFIG_HOME || path.join(home, ".config");
+  for (const f of [env.OPENCODE_CONFIG, path.join(base, "opencode", "opencode.json"), path.join(base, "opencode", "opencode.jsonc"), path.join(home, ".opencode", "opencode.json")]) {
+    if (!f) continue;
+    try {
+      if (tiene(leer(f))) return env;
+    } catch {
+      /* sin ese archivo */
+    }
+  }
+  for (const b of [env.XDG_DATA_HOME, path.join(home, ".local", "share")]) {
+    if (!b) continue;
+    try {
+      if (Object.keys(JSON.parse(leer(path.join(b, "opencode", "auth.json")))).some((k) => k !== "opencode")) return env;
+    } catch {
+      /* sin auth.json */
+    }
+  }
+  let previo: Record<string, unknown> = {};
+  if (env.OPENCODE_CONFIG_CONTENT) {
+    try {
+      previo = JSON.parse(env.OPENCODE_CONFIG_CONTENT);
+      if (!previo || typeof previo !== "object" || Array.isArray(previo)) return env;
+    } catch {
+      return env;
+    }
+    if (previo.small_model) return env;
+  }
+  return { ...env, OPENCODE_CONFIG_CONTENT: JSON.stringify({ ...previo, small_model: MODELO_CHICO_GRATIS }) };
 }
 
 /** Las credenciales de OpenCode (`auth.json` en `$XDG_DATA_HOME/opencode` y en `~/.local/share/opencode`): los ids de proveedor con login. Nunca los valores. */

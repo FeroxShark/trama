@@ -1,9 +1,9 @@
 // Migración de la inteligencia de modelos.json: de la escala vieja 0–100 a unidades reales de Artificial Analysis (AA).
 //
 // Antes, `reparto` calibraba el puntaje de AA a 0–100 (Haiku 5.5 → 60, Sonnet 5.5 → 88, Opus 5.5 → 100, línea quebrada entre esos puntos y con la
-// pendiente del tramo más cercano afuera). Ahora no hay calibración: `calidad` es el promedio crudo de coding y agentic de AA. Los números que el
+// pendiente del tramo más cercano afuera). Ahora no hay calibración: `calidad` es el índice de INTELIGENCIA general de AA (coding y agentic son sólo datos extra). Los números que el
 // dueño escribió en `calidad`, `calidad_effort` y `minimo_por_tipo` (numérico) son de la escala vieja; se pasan a AA al leerlos con la INVERSA de aquella
-// calibración. Las anclas son fijas (valores típicos de coding+agentic de esos tres modelos) para que el pasaje sea el mismo acá y en
+// calibración. Las anclas son fijas (valores típicos del índice de inteligencia de AA de esos tres modelos en su mejor esfuerzo: Haiku 5.5 max ~43, Opus 5.5 max ~58; Sonnet 5.5 ~51 es una extrapolación de su high 46,8) para que el pasaje sea el mismo acá y en
 // motor/bin/reparto (`vieja_a_aa`, `AA_REF_VIEJA`). Un modelos.json con `"calidad_unidades": "aa"` ya está en unidades de AA y no se toca;
 // la app lo escribe al guardar. Puro: lo prueba tests/calidad-migracion.test.ts.
 

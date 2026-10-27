@@ -5,6 +5,7 @@
 ### Modelos y motores
 - OpenCode y DeepSeek Harness como motores de líderes y workers, con modelos gratis (OpenCode) y Ollama.
 - Seguir una conversación con otro motor (Claude, Gemini, OpenCode, DeepSeek Harness): se pasa el historial y queda una raya "Siguió con…". Pide confirmación antes de cambiar.
+- OpenCode Go (plan pago de OpenCode, apagado por defecto): en Ajustes > OpenCode se elige Gratis / Go / Go Plus. Con Go, sus modelos se ofrecen a líderes y workers como «Plan Go», con cupo propio por modelo (un 429 agota sólo ese modelo, unas 5 h) y costo marginal ~0 en el reparto. Los topes por modelo están en `motor/opencode/go-topes.json` y se ven en Plan y cupos. Sin Go, opencode usa un modelo gratis para los títulos de sesión (antes podía intentar uno de pago y dejar un 402).
 - Selector de modelos compacto: proveedores a la izquierda, búsqueda en todos, marca "Gratis" / "De pago".
 - Inteligencia de los modelos desde Artificial Analysis, actualizada a diario y por esfuerzo (low, medium, high, xhigh, max). `reparto --aa-diag` muestra con qué entrada de AA se emparejó cada modelo.
 - El modo de permisos queda fijo y explicado en líderes de Gemini, OpenCode y DeepSeek Harness.

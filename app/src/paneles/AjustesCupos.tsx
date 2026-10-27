@@ -10,7 +10,10 @@ import type { GrupoCupo, SuscripcionCupo, Uso, VentanaCupo } from "../datos/cont
 import { fuente, type CuentaEstado, type EstadoCuentas } from "../datos/fuente";
 import { Selector } from "../hilo/Selector";
 import { Logo } from "../hilo/Logos";
-import { opencodeAgotadoDe } from "../hilo/agotados";
+import { goAgotadosHasta, opencodeAgotadoDe } from "../hilo/agotados";
+import { fuentePaneles, type VistaPlanGo } from "../datos/paneles";
+import { nombreOpencode } from "../hilo/modelos";
+import { EVENTO_PLAN_OPENCODE } from "./AjustesOpencode";
 import { t, type ClaveSola } from "../i18n";
 import { enOtros } from "../i18n/Fijo";
 import { useIdioma } from "../i18n/react";
@@ -372,6 +375,7 @@ export function CuposTarjetas({ b, uso, plan }: { b: Borrador; uso: Uso | null; 
         <div data-opc="cu.opencode">
           <TarjetaOpencode uso={uso} />
         </div>
+        <TarjetaOpencodeGo uso={uso} />
       </div>
     </section>
   );
@@ -394,6 +398,74 @@ function TarjetaOpencode({ uso }: { uso: Uso | null }) {
         <Ayuda lineas={["cu.opencode.pagos", "cu.opencode.mas"]} />
       </div>
     </Tarjeta>
+  );
+}
+
+/**
+ * OpenCode Go (plan pago, APAGADO por defecto: con el plan «Gratis» no se pinta nada): los topes de pedidos cada 5 h de cada modelo según el plan
+ * elegido (motor/opencode/go-topes.json, con su fecha y su URL de origen) y cuáles están agotados ahora (cada modelo tiene su cupo). El uso real del
+ * plan no se puede leer (OpenCode no lo expone por API ni CLI): se dice «uso no disponible», no se inventa.
+ */
+function TarjetaOpencodeGo({ uso }: { uso: Uso | null }) {
+  useIdioma();
+  const [v, setV] = useState<VistaPlanGo | null>(null);
+  useEffect(() => {
+    let vivo = true;
+    const leer = () => void fuentePaneles.planOpencode().then((r) => vivo && setV(r), () => {});
+    leer();
+    window.addEventListener(EVENTO_PLAN_OPENCODE, leer);
+    return () => {
+      vivo = false;
+      window.removeEventListener(EVENTO_PLAN_OPENCODE, leer);
+    };
+  }, []);
+  if (!v || v.plan === "gratis") return null;
+  const agotados = goAgotadosHasta(uso);
+  const plan = v.plan === "go" ? t("ajustes.ocPlanGo") : t("ajustes.ocPlanGoPlus");
+  return (
+    <div data-opc="cu.opencodeGo">
+      <Tarjeta>
+        <div className="cu-cab">
+          <span className="cu-logo"><Logo empresa="opencode" /></span>
+          <h4 className="cu-nombre">{t("cu.opencodeGo")}</h4>
+          <Chip>{t("cu.opencodeGo.plan", { plan })}</Chip>
+          {v.precio !== null ? <span className="cu-nota">{t("cu.opencodeGo.precio", { usd: v.precio })}</span> : null}
+        </div>
+        <div className="cu-cuerpo">
+          {v.modelos.length ? (
+            <table className="cu-go" aria-label={t("cu.opencodeGo.topes")}>
+              <thead>
+                <tr>
+                  <th scope="col">{t("cu.opencodeGo.modelo")}</th>
+                  <th scope="col">{t("cu.opencodeGo.pedidos")}</th>
+                  <th scope="col">{t("cu.opencodeGo.usd")}</th>
+                  <th scope="col">{t("cu.opencodeGo.estado")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {v.modelos.map((m) => {
+                  const hasta = agotados.get(`opencode:${m.id}`.toLowerCase()) ?? null;
+                  return (
+                    <tr key={m.id} data-agotado={hasta ? "" : undefined}>
+                      <th scope="row">{m.nombre || nombreOpencode(m.id)}</th>
+                      <td>{m.pedidos5h === null ? "—" : t("cu.opencodeGo.pedidosN", { n: m.pedidos5h.toLocaleString() })}</td>
+                      <td>{m.usdMes === null ? "—" : t("cu.opencodeGo.usdN", { n: m.usdMes.toLocaleString() })}</td>
+                      <td>
+                        <Pildora nivel={hasta ? "lleno" : "ok"}>{hasta ? t("cu.opencodeGo.agotado", { cuando: cuandoFuturo(hasta) }) : t("cu.opencodeGo.libre")}</Pildora>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          ) : (
+            <div className="cu-sin">{t("cu.opencodeGo.sinTabla")}</div>
+          )}
+          {!v.usoDisponible ? <div className="cu-nota" role="note">{t("cu.opencodeGo.usoNo")}</div> : null}
+          {v.fuente ? <div className="cu-nota">{t("cu.opencodeGo.fuente", { fuente: v.fuente, fecha: v.fecha ?? "—" })}</div> : null}
+        </div>
+      </Tarjeta>
+    </div>
   );
 }
 

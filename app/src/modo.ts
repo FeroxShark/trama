@@ -242,6 +242,7 @@ export const MODO = {
    * panel de Ollama en otra dirección abierto, `mdl-lider` con el selector del líder abierto, `mdl-bajando` con un modelo bajándose a mitad,
    * `mdl-sinollama` con Ollama sin instalar (distro, GPU y el comando para copiar), `mdl-apagado` instalado pero apagado, `mdl-sugeridos` andando con los modelos sugeridos a la vista, `mdl-tope` con el aviso de un tope de Claude cruzado, `mdl-wk` la tabla «Modelos para workers» (`mdl-wk-todo` con todos los grupos abiertos, `mdl-wk-sin` sin la lista del reparto, `mdl-wk-cargando` con la tabla todavía cargando: se ve su esqueleto y el resto del panel ya listo; `mdl-efectivo-tarda` con «Hoy elegiría» todavía en espera) y `sinmdl` sin archivo (lo de hoy).
    * `cargando`: Modelos y Celular no reciben respuesta nunca: se ve su esqueleto (`PanelCargando.tsx`); `cargando-dsh` lo mismo con DeepSeek Harness (Modelos sí carga: el de dsh nace adentro de su sección).
+   * OpenCode (`AjustesOpencode.tsx`): `oc-sin` sin instalar, `oc-sin-login` instalado sin sesión, `oc-go` con el plan Go prendido (y la tarjeta de topes en Plan y cupos).
    * DeepSeek Harness (`AjustesDsh.tsx`): `dsh` instalado y con la key de OpenCode guardada, `dsh-sin` sin instalar y sin keys, `dsh-falla` donde Instalar falla y DeepSeek rechaza su key; `dsh-menu` (con `modelo`) el selector con los modelos de dsh.
    */
   variante: q.get("variante"),

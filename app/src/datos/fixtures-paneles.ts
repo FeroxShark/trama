@@ -8,6 +8,7 @@ import type { EstadoDsh } from "../../electron/dsh-ajustes";
 import type { EstadoMcp } from "../../electron/mcp";
 import type { VistaServidorMcp } from "../../electron/mcp-config";
 import type { EstadoOpencodeUi } from "../../electron/opencode-ajustes";
+import type { VistaPlanGo } from "../../electron/opencode-go";
 import type { FilaTabla, TablaReparto } from "../../electron/reparto-tabla";
 import { viejaAAa } from "../../electron/calidad-migracion";
 import type { Ajustes, Consulta, Medido, Corrida, EstadoAuto, EstadoSalud, Medicion, Muestra, PiezaConsulta } from "./paneles";
@@ -392,9 +393,24 @@ export function historialFalso(dias: 7 | 30, rol?: "lider" | "worker" | "subagen
 /** OpenCode en la máquina de las capturas: `oc-sin` (no instalado), `oc-sin-login` (instalado, sin conectar); si no, instalado y conectado a OpenCode Console. */
 export const ESTADO_OPENCODE = (variante: string | null): EstadoOpencodeUi => {
   const comun = { version: 1 as const, comando: "npm i -g opencode-ai" };
-  if (variante === "oc-sin") return { ...comun, instalado: false, versionOpencode: null, logueado: null, proveedores: [], consola: false, modelos: 0, gratis: 0, actualizado: null };
-  if (variante === "oc-sin-login") return { ...comun, instalado: true, versionOpencode: "2.1.4", logueado: false, proveedores: [], consola: false, modelos: 9, gratis: 9, actualizado: null };
-  return { ...comun, instalado: true, versionOpencode: "2.1.4", logueado: true, proveedores: ["opencode"], consola: true, modelos: 12, gratis: 9, actualizado: 1_760_000_000_000 };
+  if (variante === "oc-sin") return { ...comun, instalado: false, versionOpencode: null, logueado: null, proveedores: [], consola: false, modelos: 0, gratis: 0, go: 0, plan: "gratis", actualizado: null };
+  if (variante === "oc-sin-login") return { ...comun, instalado: true, versionOpencode: "2.1.4", logueado: false, proveedores: [], consola: false, modelos: 9, gratis: 9, go: 0, plan: "gratis", actualizado: null };
+  if (variante === "oc-go") return { ...comun, instalado: true, versionOpencode: "2.1.4", logueado: true, proveedores: ["opencode", "opencode-go"], consola: true, modelos: 20, gratis: 9, go: 11, plan: "go", actualizado: 1_760_000_000_000 };
+  return { ...comun, instalado: true, versionOpencode: "2.1.4", logueado: true, proveedores: ["opencode"], consola: true, modelos: 12, gratis: 9, go: 0, plan: "gratis", actualizado: 1_760_000_000_000 };
+};
+
+/** OpenCode Go de las capturas: los topes de la tabla de motor/opencode/go-topes.json (algunos modelos), con el plan elegido. */
+export const PLAN_GO = (plan: "gratis" | "go" | "go-plus"): VistaPlanGo => {
+  const go = plan !== "go-plus";
+  const m = (slug: string, nombre: string, a: number, b: number, c: number, d: number) => ({ id: `opencode-go/${slug}`, nombre, pedidos5h: go ? a : b, usdMes: go ? c : d });
+  return {
+    plan,
+    fuente: "https://opencode.ai/go",
+    fecha: "2026-10-27",
+    precio: go ? 10 : null,
+    modelos: [m("kimi-k3.1-pro", "Kimi K3.1 Pro", 147, 588, 15, 60), m("minimax-m3", "MiniMax M3", 3200, 9600, 60, 180), m("deepseek-v4.1-flash", "DeepSeek V4.1 Flash", 34670, 69330, 80, 160)],
+    usoDisponible: false,
+  };
 };
 
 /**
@@ -403,7 +419,7 @@ export const ESTADO_OPENCODE = (variante: string | null): EstadoOpencodeUi => {
  */
 export const TABLA_REPARTO = (aa = false): TablaReparto => {
   const h = (horas: number) => Date.now() + horas * 3_600_000;
-  const base = { cuenta: null, effortUsado: null as FilaTabla["effortUsado"], calidadPorEffort: {} as FilaTabla["calidadPorEffort"], estimada: false, origen: "defecto" as const, aaFecha: null as string | null, gratis: false, ventanas: [], urgencia: 0, permitido: true, excluidoPor: null, agotado: false };
+  const base = { cuenta: null, effortUsado: null as FilaTabla["effortUsado"], calidadPorEffort: {} as FilaTabla["calidadPorEffort"], effortsEstimados: [] as FilaTabla["effortsEstimados"], calidadEstimadaPorEffort: {} as FilaTabla["calidadEstimadaPorEffort"], estimada: false, origen: "defecto" as const, aaFecha: null as string | null, gratis: false, ventanas: [], urgencia: 0, permitido: true, excluidoPor: null, agotado: false };
   const claude = (id: string, nombre: string, familia: string, calidad: number): FilaTabla => ({
     ...base, id, nombre, proveedor: "claude", familia, familiaExcluir: familia, calidad: viejaAAa(calidad), libre: 62, vuelve: h(20), urgencia: 0.62,
     ventanas: [{ id: "5h", libre: 80, vuelve: h(2) }, { id: "7d", libre: 62, vuelve: h(20) }],
@@ -437,13 +453,15 @@ export const TABLA_REPARTO = (aa = false): TablaReparto => {
   const ayer = new Date(Date.now() - 20 * 3_600_000).toISOString().slice(0, 10);
   const conAA = (f: FilaTabla): FilaTabla => {
     if (!aa || f.estimada || f.origen !== "defecto" || f.familia === "sonnet" || f.id.includes("big-pickle")) return f;
-    // Unidades de AA (promedio de coding y agentic, crudo) al esfuerzo que se usaría (high); costo y tokens por tarea como los trae AA.
-    const q: Record<string, number> = { "claude-opus-5-5": 61, "claude-haiku-5-5": 38, "gemini-4-argon": 51, "gemini-3.8-flash": 45, "agy:gpt-oss-120b": 32, "codex:gpt-6.1-sol": 53, "opencode:opencode/glm-5.3-flash-free": 42, "opencode:opencode/nemotron-3-ultra-free": 47 };
+    // Índice de inteligencia de AA al esfuerzo que se usaría (high; si no está medido, estimado); costo y tokens por tarea como los trae AA.
+    const q: Record<string, number> = { "claude-opus-5-5": 50.2, "claude-haiku-5-5": 37.8, "gemini-4-argon": 51, "gemini-3.8-flash": 45, "agy:gpt-oss-120b": 32, "codex:gpt-6.1-sol": 53, "opencode:opencode/glm-5.3-flash-free": 42, "opencode:opencode/nemotron-3-ultra-free": 47 };
     const por: Record<string, Partial<FilaTabla>> = {
-      "claude-opus-5-5": { calidadPorEffort: { low: 46, medium: 55, high: 61, max: 65 }, costoPorEffort: { low: 0.62, medium: 0.9, high: 1.4, max: 3.1 }, inteligenciaPorEffort: { low: 52.4, medium: 55.7, high: 58.2, max: 60.1 }, tokensPorEffort: { low: 310000, medium: 520000, high: 760000, max: 1400000 }, tiempoPorEffort: { low: 95, medium: 160, high: 240, max: 520 } },
-      "claude-haiku-5-5": { calidadPorEffort: { low: 30, high: 38, max: 43.4 }, costoPorEffort: { low: 0.08, high: 0.13, max: 0.2 }, inteligenciaPorEffort: { low: 33.1, high: 39.5, max: 43.4 } },
+      // Opus 5.5: AA sólo midió max; el resto se estima (y así se rotula).
+      "claude-opus-5-5": { calidadPorEffort: { max: 57.6 }, effortsEstimados: ["low", "medium", "high", "xhigh"], calidadEstimadaPorEffort: { low: 39.2, medium: 44.7, high: 50.2, xhigh: 54.7 }, fuentePorEffort: { max: "api" }, tokensPorEffort: { max: 1400000 }, tiempoPorEffort: { max: 520 } },
+      // Haiku 5.5: low, high y xhigh de AA; max de la tabla propia (aproximado); medium estimado. Coding y agentic sólo como extra del tooltip.
+      "claude-haiku-5-5": { calidadPorEffort: { low: 29.5, high: 37.8, xhigh: 41.2, max: 43.4 }, effortsEstimados: ["medium"], calidadEstimadaPorEffort: { medium: 33.6 }, fuentePorEffort: { low: "api", high: "api", xhigh: "api", max: "suplemento~" }, costoPorEffort: { max: 0.2 }, codingPorEffort: { high: 52.1 }, agenticPorEffort: { high: 40.3 } },
     };
-    return q[f.id] === undefined ? f : { ...f, calidad: q[f.id]!, effortUsado: por[f.id] ? "high" : null, calidadPorEffort: {}, ...(por[f.id] ?? {}), origen: "artificial-analysis", aaFecha: ayer };
+    return q[f.id] === undefined ? f : { ...f, calidad: q[f.id]!, effortUsado: por[f.id] ? "high" : null, ...(por[f.id] ?? {}), origen: "artificial-analysis", aaFecha: ayer };
   };
   const usuario = (f: FilaTabla): FilaTabla => (aa && f.familia === "sonnet" ? { ...f, calidad: 52.2, origen: "usuario" } : f);
   return { version: 1, leido: Date.now(), modelos: modelos.map(conAA).map(usuario) };

@@ -16,7 +16,7 @@ import { cambiarGuias, cargarGuias, useGuias } from "./estado";
 import "./guia-tour.css";
 
 /** Lo que tarda una guía en aparecer una vez que la pantalla quedó quieta (ms): nada de globos sobre una pantalla que todavía se arma. */
-const QUIETA_MS = 600;
+const QUIETA_MS = 250;
 /** Tras cerrar una guía, otra espera este rato (ms): no se encadenan tres globos seguidos. */
 const ENTRE_GUIAS_MS = 20_000;
 
@@ -84,6 +84,9 @@ export function Guia() {
   const pospuestas = useRef(new Set<string>());
   const quieta = useRef<string | null>(null);
   const descanso = useRef(0);
+  /** Pantalla en la que se está (cambia al cambiar de panel o de hash) y si ya se scrolleó en ella. */
+  const pantalla = useRef("");
+  const scrolleo = useRef(false);
   const yaEstado = useRef(estado);
   yaEstado.current = estado;
   const habilitada = (!MODO.captura && !MODO.guion) || !!captura;
@@ -118,6 +121,15 @@ export function Guia() {
       return;
     }
     if (hayModal() || escribiendo() || (!captura && Date.now() < descanso.current)) return;
+    const clave = `${location.hash}|${ids.join(",")}`;
+    if (clave !== pantalla.current) {
+      pantalla.current = clave;
+      scrolleo.current = false;
+    }
+    if (scrolleo.current && !captura) {
+      for (const id of ids) pospuestas.current.add(id);
+      return;
+    }
     for (const id of ids) {
       const base = sim && id === captura?.id ? sim.guia : guiaPorId(id);
       if (!base || pospuestas.current.has(id)) continue;
@@ -147,10 +159,17 @@ export function Guia() {
     mo.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["hidden", "class", "data-panel"] });
     window.addEventListener("hashchange", pronto);
     const tic = window.setInterval(evaluar, QUIETA_MS * 2);
+    // Si la persona ya scrolleó en esta pantalla, la guía no aparece tarde y la arrastra: queda para la próxima vez que entre.
+    const alScroll = (e: Event) => {
+      if (e.target instanceof Element && e.target.closest(".tour")) return;
+      scrolleo.current = true;
+    };
+    window.addEventListener("scroll", alScroll, { capture: true, passive: true });
     pronto();
     return () => {
       mo.disconnect();
       window.removeEventListener("hashchange", pronto);
+      window.removeEventListener("scroll", alScroll, { capture: true });
       clearInterval(id);
       clearInterval(tic);
     };
@@ -244,6 +263,9 @@ function Globo({ a, alEntender, alLuego, alApagar }: { a: Activa; alEntender: ()
       else alLuego();
       return;
     }
+    // El primer paso no mueve la pantalla si el ancla ya se ve: sólo "Siguiente" (que pidió la persona) scrollea.
+    const r = el.getBoundingClientRect();
+    if (i === 0 && r.bottom > 0 && r.top < window.innerHeight) return;
     const quieto = typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
     traer(el, !quieto);
     // eslint-disable-next-line react-hooks/exhaustive-deps

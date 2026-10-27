@@ -5,11 +5,11 @@ import assert from "node:assert/strict";
 import { testPosix as test } from "../plataforma.ts";
 import { casos } from "./casos.ts";
 import type { Herramienta } from "./arnes.ts";
-import { comandoB, correr, diferencias, originalDe, tsDe } from "./arnes.ts";
+import { comandoB, comandoOriginal, correr, diferencias, tsDe } from "./arnes.ts";
 
 /** A: el original; B: TRAMA_*_B si está, y si no el TS de las herramientas chicas (o el mismo bash en `pa`, para ver el determinismo). */
-const comandoA = (h: Herramienta = "pa") => [originalDe(h)];
-const comandoBDe = (h: Herramienta = "pa") => comandoB(process.env, h) ?? (h === "pa" ? [originalDe(h)] : tsDe(h));
+const comandoA = (h: Herramienta = "pa") => comandoOriginal(h);
+const comandoBDe = (h: Herramienta = "pa") => comandoB(process.env, h) ?? (h === "pa" ? comandoOriginal(h) : tsDe(h));
 const filtro = process.env.TRAMA_PARIDAD_SOLO;
 
 for (const caso of casos) {

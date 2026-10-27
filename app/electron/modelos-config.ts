@@ -278,8 +278,9 @@ export const localOllama = (id: string, cfg: ModelosConfig | null = modelosConfi
  * Lo que sabe el renderer: sin url ni nada que no sea para mostrar (`src/datos/modelos-config.ts`). Gemini está si el archivo
  * lo habilita o es el líder por defecto. `null`: no hay archivo y todo es como siempre (ni `agy`, ni `dsh`, ni modelos locales).
  */
-export function vistaModelos(cfg: ModelosConfig | null = modelosConfig(), agy = false, llama: { id: string; nombre: string; empresa: string }[] = [], dsh = false, opencode: string[] = [], opencodeEfforts: Record<string, string[]> = {}) {
-  const ef = opencode.length && Object.keys(opencodeEfforts).length ? { opencodeEfforts } : {};
+export function vistaModelos(cfg: ModelosConfig | null = modelosConfig(), agy = false, llama: { id: string; nombre: string; empresa: string }[] = [], dsh = false, opencode: string[] = [], opencodeEfforts: Record<string, string[]> = {}, opencodePlan: string = "gratis") {
+  // El plan de OpenCode Go sólo viaja si está prendido (go / go-plus): el selector rotula así sus modelos. Sin plan Go, nada cambia.
+  const ef = { ...(opencode.length && Object.keys(opencodeEfforts).length ? { opencodeEfforts } : {}), ...(opencode.length && (opencodePlan === "go" || opencodePlan === "go-plus") ? { opencodePlan } : {}) };
   if (!cfg) return agy || llama.length || dsh || opencode.length ? { version: 1, gemini: agy, dsh, ...(opencode.length ? { opencode } : {}), ...ef, locales: [], llama, lider: null } : null;
   return {
     version: 1,

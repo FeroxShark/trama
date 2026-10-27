@@ -6284,6 +6284,12 @@ summary.sis-div-t:hover,
   border-style: dashed;
   color: var(--texto-2);
 }
+/* «Plan Go» (OpenCode Go): borde punteado fino y el texto; el estado nunca se dice sólo con el color. */
+.oc-tag[data-tag="go"] {
+  border-style: dotted;
+  border-width: 2px;
+  color: var(--texto-2);
+}
 .oc-tag[data-tag="agotado"] {
   display: inline-flex;
   align-items: center;

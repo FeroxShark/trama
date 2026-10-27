@@ -10,6 +10,9 @@ export type VentanaTabla = { id: string; libre: number; vuelve: number | null };
 export const ORIGENES_CALIDAD = ["usuario", "artificial-analysis", "defecto", "estimada"] as const;
 export type OrigenCalidad = (typeof ORIGENES_CALIDAD)[number];
 
+export type FuenteEffort = "api" | "suplemento" | "suplemento~";
+const FUENTES: readonly string[] = ["api", "suplemento", "suplemento~"];
+
 export type FilaTabla = {
   id: string;
   nombre: string;
@@ -22,28 +25,38 @@ export type FilaTabla = {
   /** La cuenta cuando hay varias del mismo proveedor; `null` si no aplica. */
   cuenta: string | null;
   /**
-   * Inteligencia en unidades reales de Artificial Analysis (promedio crudo de coding y agentic, sin calibrar a 100) al esfuerzo que `reparto` usaría
-   * (`effortUsado`, con `efforts_permitidos` aplicado): nunca el del esfuerzo máximo por defecto. Sin desglose por esfuerzo es la cifra única.
+   * Índice de INTELIGENCIA general de Artificial Analysis (sin calibrar a 100) al esfuerzo que `reparto` usaría (`effortUsado`, con
+   * `efforts_permitidos` aplicado): nunca el del esfuerzo máximo por defecto. Sin desglose por esfuerzo es la cifra única. Es medido o
+   * estimado según `effortsEstimados` (ver abajo).
    */
   calidad: number;
   /** El esfuerzo al que corresponde `calidad`; `null` si el modelo no tiene desglose por esfuerzo. */
   effortUsado: EffortCalidad | null;
-  /** Puntaje de AA por effort (`low`…`max`) donde se conoce (o el que fijó el dueño); `{}` si no hay desglose. */
+  /** Índice de inteligencia por effort (`low`…`max`) MEDIDO (Artificial Analysis, su tabla suplementaria o lo que fijó el dueño); `{}` si no hay desglose. */
   calidadPorEffort: Partial<Record<EffortCalidad, number>>;
-  /** Índice de inteligencia general de AA por effort (para el tooltip); ausente si AA no lo trae. */
-  inteligenciaPorEffort?: Partial<Record<EffortCalidad, number>>;
+  /** Los esfuerzos que el modelo puede correr y NO están medidos: su cifra es una estimación (interpolada entre los medidos). Vacío si no hay. */
+  effortsEstimados: EffortCalidad[];
+  /** La cifra estimada de cada esfuerzo de `effortsEstimados`. */
+  calidadEstimadaPorEffort: Partial<Record<EffortCalidad, number>>;
+  /** De dónde sale cada esfuerzo medido: `api` (Artificial Analysis), `suplemento` (tabla manual del dueño) o `suplemento~` (aproximado). Ausente si no se sabe. */
+  fuentePorEffort?: Partial<Record<EffortCalidad, FuenteEffort>>;
+  /** Coding y agentic de AA por effort: datos extra para el tooltip, nunca la base; ausentes si no se tienen. */
+  codingPorEffort?: Partial<Record<EffortCalidad, number>>;
+  agenticPorEffort?: Partial<Record<EffortCalidad, number>>;
   /** Costo de una tarea por effort (USD, Artificial Analysis) donde el dato lo trae; ausente: el panel estima con COSTO × multiplicador (src/paneles/efforts-dominados.ts). */
   costoPorEffort?: Partial<Record<EffortCalidad, number>>;
-  /** Lo mismo para los otros datos por tarea de Artificial Analysis (si los trae): puntaje crudo, tokens y segundos. */
+  /** Lo mismo para los otros datos por tarea (si se tienen): tokens y segundos. */
   tokensPorEffort?: Partial<Record<EffortCalidad, number>>;
   tiempoPorEffort?: Partial<Record<EffortCalidad, number>>;
-  crudoPorEffort?: Partial<Record<EffortCalidad, number>>;
   estimada: boolean;
   /** De dónde sale la cifra (`reparto` ya aplicó la precedencia): lo que fijó el dueño, Artificial Analysis, los defaults o la estimación por el nombre. */
   origen: OrigenCalidad;
   /** Día (`AAAA-MM-DD`) en que se bajó el dato de Artificial Analysis; sólo con `origen` `artificial-analysis`. */
   aaFecha: string | null;
   gratis: boolean;
+  /** OpenCode Go: el plan (`go` / `go-plus`) y los topes del modelo en él; ausente si el modelo no es de Go (o el plan está apagado). */
+  plan?: "go" | "go-plus";
+  go?: { pedidos5h: number; usdMes: number } | null;
   /** El cupo libre más ajustado (0..100) y cuándo vuelve; `null`: sin dato (o no tiene cupo que agotar). */
   libre: number | null;
   vuelve: number | null;
@@ -83,6 +96,13 @@ const porEffort = (v: unknown): Partial<Record<EffortCalidad, number>> => {
   return out;
 };
 
+const fuentes = (v: unknown): Partial<Record<EffortCalidad, FuenteEffort>> => {
+  const out: Partial<Record<EffortCalidad, FuenteEffort>> = {};
+  const o = v && typeof v === "object" ? (v as Record<string, unknown>) : {};
+  for (const e of EFFORTS_CALIDAD) if (typeof o[e] === "string" && FUENTES.includes(o[e] as string)) out[e] = o[e] as FuenteEffort;
+  return out;
+};
+
 const costoPorEffort = (v: unknown): Partial<Record<EffortCalidad, number>> => {
   const out: Partial<Record<EffortCalidad, number>> = {};
   const o = v && typeof v === "object" ? (v as Record<string, unknown>) : {};
@@ -91,6 +111,13 @@ const costoPorEffort = (v: unknown): Partial<Record<EffortCalidad, number>> => {
     if (n !== null && n >= 0) out[e] = n;
   }
   return out;
+};
+
+const goTopes = (v: unknown): { pedidos5h: number; usdMes: number } | null => {
+  const o = v && typeof v === "object" ? (v as Record<string, unknown>) : {};
+  const p = num(o.pedidos_5h);
+  const u = num(o.usd_mes);
+  return p === null || u === null ? null : { pedidos5h: p, usdMes: u };
 };
 
 /** Parsea la salida de `reparto --tabla --json`; `null` si no es el contrato (JSON roto, otra versión, un `reparto` viejo). */
@@ -128,15 +155,19 @@ export function parsearTabla(salida: string, ahoraMs = Date.now()): TablaReparto
       calidad: Math.max(0, Math.round(calidad * 10) / 10),
       effortUsado: (EFFORTS_CALIDAD as readonly string[]).includes(texto(o.effort_usado)) ? (texto(o.effort_usado) as EffortCalidad) : null,
       calidadPorEffort: porEffort(o.calidad_por_effort),
-      ...(Object.keys(porEffort(o.inteligencia_por_effort)).length ? { inteligenciaPorEffort: porEffort(o.inteligencia_por_effort) } : {}),
+      effortsEstimados: Array.isArray(o.efforts_estimados) ? EFFORTS_CALIDAD.filter((e) => (o.efforts_estimados as unknown[]).includes(e)) : [],
+      calidadEstimadaPorEffort: porEffort(o.calidad_estimada_por_effort),
+      ...(Object.keys(fuentes(o.fuente_por_effort)).length ? { fuentePorEffort: fuentes(o.fuente_por_effort) } : {}),
+      ...(Object.keys(porEffort(o.coding_por_effort)).length ? { codingPorEffort: porEffort(o.coding_por_effort) } : {}),
+      ...(Object.keys(porEffort(o.agentic_por_effort)).length ? { agenticPorEffort: porEffort(o.agentic_por_effort) } : {}),
       ...(Object.keys(costoPorEffort(o.costo_por_effort)).length ? { costoPorEffort: costoPorEffort(o.costo_por_effort) } : {}),
       ...(Object.keys(costoPorEffort(o.tokens_por_effort)).length ? { tokensPorEffort: costoPorEffort(o.tokens_por_effort) } : {}),
       ...(Object.keys(costoPorEffort(o.tiempo_por_effort)).length ? { tiempoPorEffort: costoPorEffort(o.tiempo_por_effort) } : {}),
-      ...(Object.keys(costoPorEffort(o.crudo_por_effort)).length ? { crudoPorEffort: costoPorEffort(o.crudo_por_effort) } : {}),
       estimada: o.estimada === true,
       origen: (ORIGENES_CALIDAD as readonly string[]).includes(texto(o.origen)) ? (texto(o.origen) as OrigenCalidad) : o.estimada === true ? "estimada" : "defecto",
       aaFecha: /^\d{4}-\d{2}-\d{2}/.test(texto(o.aa_fecha)) ? texto(o.aa_fecha).slice(0, 10) : null,
       gratis: o.gratis === true,
+      ...((o.plan === "go" || o.plan === "go-plus") ? { plan: o.plan as "go" | "go-plus", go: goTopes(o.go) } : {}),
       libre: pct(o.cupo_libre),
       vuelve: iso(o.vuelve),
       ventanas,
