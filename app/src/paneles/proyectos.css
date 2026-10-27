@@ -336,3 +336,27 @@
 .pry-btn-inline {
   margin-left: var(--esp-2);
 }
+/* Filas del aviso de arriba que hay que fusionar: ícono y nombre en la misma línea, el botón al lado (baja de línea si no entra). */
+.pry-todos-fus {
+  padding-left: 0;
+  list-style: none;
+}
+.pry-todos-fila {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--esp-2);
+  padding: var(--esp-1) 0;
+}
+.pry-todos-nom {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--esp-1-5);
+}
+.pry-todos-nom svg {
+  flex: none;
+  color: var(--oro);
+}
+.pry-todos-est {
+  color: var(--oro);
+}

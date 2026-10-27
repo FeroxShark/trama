@@ -13,6 +13,7 @@ import { MODO } from "../modo";
 import { mensaje } from "../puente";
 import { Cat } from "./AjustesNav";
 import { abrirRamas } from "./ajustes-nav";
+import { FilaFusion } from "./FilaFusion";
 import { ArchivosMd, AvisoLargo, EditorAgents, EstadoLecturaMotores, textoAccion, UnificarPanel } from "./ProyectosMd";
 import { clasePlan } from "./unificar-clase";
 import "./proyectos.css";
@@ -68,6 +69,8 @@ export function Proyectos() {
           {repartidos.length ? (
             <UnificarTodos
               proyectos={repartidos}
+              estados={estados}
+              releer={leerMd}
               abierto={CAPTURA === "proyectos-todos"}
               alTerminar={(r) => {
                 setResultados((x) => ({ ...x, ...r }));
@@ -100,12 +103,31 @@ export function Proyectos() {
  * corta qué se haría y, al confirmar, aplica sólo los mecánicos (con la huella del plan que se vio; aplicarUnificar deja la copia en
  * md-backup). Los que hay que fusionar quedan señalados para revisarlos en su tarjeta.
  */
-function UnificarTodos({ proyectos, abierto, alTerminar }: { proyectos: ProyectoNombre[]; abierto: boolean; alTerminar: (r: Record<string, Resultado>) => void }) {
+function UnificarTodos({ proyectos, estados, abierto, alTerminar, releer }: { proyectos: ProyectoNombre[]; estados: Record<string, EstadoMd | string>; abierto: boolean; alTerminar: (r: Record<string, Resultado>) => void; releer: (slug: string) => void }) {
   const [planes, setPlanes] = useState<{ p: ProyectoNombre; plan: PlanMd }[] | null>(null);
   const [leyendo, setLeyendo] = useState(false);
   const [aplicando, setAplicando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hecho, setHecho] = useState<number | null>(null);
+  // Fusionar con IA desde la fila: el mismo lanzamiento que la tarjeta (mdFusionar); si ya hay una tarea en curso no se relanza.
+  const [lanzando, setLanzando] = useState<string | null>(null);
+  const [lanzadas, setLanzadas] = useState<Record<string, "fusionar">>({});
+  const [errores, setErrores] = useState<Record<string, string>>({});
+  const tareaDe = (slug: string) => lanzadas[slug] ?? (typeof estados[slug] === "object" ? (estados[slug] as EstadoMd).tareaEnCurso ?? null : null);
+  const fusionar = async (slug: string) => {
+    if (lanzando || tareaDe(slug)) return;
+    setLanzando(slug);
+    setErrores((x) => ({ ...x, [slug]: "" }));
+    try {
+      await fuenteProyectos.mdFusionar(slug, "fusionar");
+      setLanzadas((x) => ({ ...x, [slug]: "fusionar" }));
+      releer(slug);
+    } catch (e) {
+      setErrores((x) => ({ ...x, [slug]: textoMain(mensaje(e)) }));
+    } finally {
+      setLanzando(null);
+    }
+  };
   const preparar = async () => {
     if (leyendo) return;
     setLeyendo(true);
@@ -171,11 +193,18 @@ function UnificarTodos({ proyectos, abierto, alTerminar }: { proyectos: Proyecto
           {fusiones.length ? (
             <>
               <p className="pn-nota">{t("pry.todos.fusionQue")}</p>
-              <ul className="pry-todos-l">
+              <ul className="pry-todos-l pry-todos-fus">
                 {fusiones.map(({ p }) => (
-                  <li key={p.slug} data-clase="fusion">
-                    <AlertTriangle size={12} strokeWidth={2} aria-hidden="true" /> <b>{p.titulo ?? p.nombre}</b>: {t("pry.todos.fusion")}
-                  </li>
+                  <FilaFusion
+                    key={p.slug}
+                    slug={p.slug}
+                    nombre={p.titulo ?? p.nombre}
+                    tarea={tareaDe(p.slug)}
+                    lanzando={lanzando === p.slug}
+                    error={errores[p.slug] || null}
+                    alFusionar={() => void fusionar(p.slug)}
+                    alIrRamas={abrirRamas}
+                  />
                 ))}
               </ul>
             </>
@@ -195,7 +224,7 @@ function UnificarTodos({ proyectos, abierto, alTerminar }: { proyectos: Proyecto
             ) : null}
             <button type="button" className="mini" data-cerrar disabled={aplicando} onClick={() => setPlanes(null)}>
               <X size={13} strokeWidth={1.8} aria-hidden="true" />
-              {t("pry.cancelar")}
+              {mecanicos.length ? t("pry.todos.noAplicar") : t("pry.todos.cerrar")}
             </button>
           </div>
         </>
