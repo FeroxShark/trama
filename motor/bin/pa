@@ -45,7 +45,8 @@
 #   pa <proyecto> --async "<tarea>"      lanzar desacoplado y volver enseguida
 #   pa <proyecto> -m a,b,c "<tarea>"     lista de fallback: prueba a; si sale 76/77 (límite o API sobrecargada), 95/96 (no puede
 #                                        correr / sin cupo) o 97 (OpenCode cortó por límite) pasa a b, y así. Saltea los que reparto
-#                                        tiene enfriados. Sale con el código del último intento. Con --async cubre sólo lo que falla al lanzar
+#                                        tiene enfriados y los que modelos.json apagó (excluir; efforts_permitidos si va --effort; sale 98
+#                                        si no queda ninguno). Sale con el código del último intento. Con --async cubre sólo lo que falla al lanzar
 #   pa <proyecto> -m <modelo> "<tarea>"  elegir modelo: el jefe lo elige (con --effort) según el tamaño real de la tarea
 #                                        (`reparto --resumen` lista las opciones); con -m, reparto sólo avisa si ese modelo no
 #                                        tiene cupo y sugiere otro (sin_cupo=fallar: sale 96). Sin -m pa avisa y sigue con lo
@@ -149,7 +150,8 @@
 #                    93 --integrar --tests dio rojo · 94 interno de --esperar-todos (no sale de pa) ·
 #                    95 el modelo local no responde (ollama caído o sin el modelo), o dsh no puede correr (sin dsh, sin key) ·
 #                    96 sin cupo / modelo no disponible y sin_cupo=fallar (o esperar sin --async, o se acabó la espera) ·
-#                    97 OpenCode cortó por límite de uso: ese modelo queda enfriado N horas en reparto (PA_ENFRIAR_HORAS, default 5) · 130 matado.
+#                    97 OpenCode cortó por límite de uso: ese modelo queda enfriado N horas en reparto (PA_ENFRIAR_HORAS, default 5) ·
+#                    98 el dueño apagó ese -m (excluir) o ese --effort (efforts_permitidos) en modelos.json: con --ok-dueno corre · 130 matado.
 #                    (`pa --rubrica` / `pa <p> --rubrica`: 3 si la fila de la tabla dice "no se lanza".)
 #
 # Puestos: hasta PA_PUESTOS (default 3) workers que escriben corren EN PARALELO en el mismo
@@ -225,14 +227,18 @@ PLAN="$(plan_de)"
 # Un plan inválido no traba nada (tampoco la gestión: --matar, --integrar): avisa y ahorra.
 [[ "$PLAN" == pro || "$PLAN" == max ]] || { echo "pa: plan '$PLAN' no existe (PA_PLAN o $STATE/plan: pro o max); sigo como pro." >&2; PLAN=pro; }
 
-# Umbral de compactación de los workers. Con los modelos de 1M (Opus 5.5, Sonnet 5.5) el default
-# del CLI es ~967k: un worker sin tope relee casi un millón de tokens por turno antes de compactar.
-# Ya no hay recargo arriba de 200k (doc model-config, 2026-10): el tope es por volumen, no por precio.
-# PA_AUTOCOMPACT existe para el experimento de "compactar antes" (se anota en medicion.tsv).
-AUTOCOMPACT="${PA_AUTOCOMPACT:-180000}"
-if ! [[ "$AUTOCOMPACT" =~ ^[0-9]+$ ]] || (( AUTOCOMPACT < 100000 || AUTOCOMPACT > 1000000 )); then
-  echo "pa: PA_AUTOCOMPACT='$AUTOCOMPACT' no va (tokens, entre 100000 y 1000000); sigo con 180000." >&2
-  AUTOCOMPACT=180000
+# Umbral de compactación (--autocompact) de los workers, por modelo. Sin tope fijo: lo dice `autocompact` de
+# modelos.json (Ajustes > Modelos > «Context before compacting»): {"defecto": null, "por_modelo": {"haiku": 300000, "sonnet": null}}.
+# null = sin tope: NO se pasa --autocompact y el worker usa la ventana nativa del modelo (con Opus/Sonnet 5.5 son 1M: cada
+# turno relee todo el contexto, así que más contexto = más caro por turno; ya no hay recargo arriba de 200k, doc model-config,
+# 2026-10). PA_AUTOCOMPACT (tokens entre 100000 y 1000000, o `nativo`) pisa todo y es el experimento de "compactar antes".
+# El valor de la corrida se resuelve con `autocompact_de` y se anota en medicion.tsv (`nativo` si no se pasó el flag).
+AUTOCOMPACT_ENV="" AUTOCOMPACT=""
+if [[ -n "${PA_AUTOCOMPACT:-}" ]]; then
+  if [[ "${PA_AUTOCOMPACT,,}" == nativo ]]; then AUTOCOMPACT_ENV=nativo
+  elif [[ "$PA_AUTOCOMPACT" =~ ^[0-9]+$ ]] && (( PA_AUTOCOMPACT >= 100000 && PA_AUTOCOMPACT <= 1000000 )); then AUTOCOMPACT_ENV="$PA_AUTOCOMPACT"
+  else echo "pa: PA_AUTOCOMPACT='$PA_AUTOCOMPACT' no va (tokens, entre 100000 y 1000000, o nativo); lo ignoro y sigo con modelos.json." >&2
+  fi
 fi
 
 PUESTOS="${PA_PUESTOS:-3}"
@@ -3525,8 +3531,8 @@ cmd_matar() {
 }
 
 # Cuántas veces compactó el worker. Es la señal de "la tarea no entraba en una corrida", y es
-# mejor que los turnos: `pa` lanza con --autocompact 180000 (para no pagar el long-context
-# premium), así que una compactación significa que el worker quemó 180k de contexto. La corrida
+# mejor que los turnos: `pa` lanza con el --autocompact de modelos.json (antes 180000, para no pagar
+# el long-context premium), así que una compactación significa que el worker llenó ese contexto. La corrida
 # de widgets-reactivos del 2026-09-13 compactó DOS veces en 61 turnos, y después de compactar
 # perdió el rastro de qué archivos sucios eran suyos. El dato estaba en el transcript y nadie
 # lo miraba.
@@ -4084,6 +4090,14 @@ modelos_cargar() {   # 0 si hay un modelos.json válido (lo deja en MODELOS_TXT)
                then "reserva \($c.reserva | tojson) (un número de 0 a 1, {\"5h\":…,\"7d\":…} o null)" else empty end),
             (if $c.excluir != null and (($c.excluir | type) != "array" or ([$c.excluir[] | type == "string" and (gsub("\\s"; "") != "")] | all | not))
                then "excluir \($c.excluir | tojson) (una lista de ids o familias)" else empty end),
+            (def acok: . == null or (type == "number" and . == floor and . >= 100000 and . <= 1000000);
+             if $c.autocompact != null and (($c.autocompact | type) != "object"
+                 or ($c.autocompact.defecto | acok | not)
+                 or ($c.autocompact.por_modelo != null and (($c.autocompact.por_modelo | type) != "object" or ([$c.autocompact.por_modelo[] | acok] | all | not))))
+               then "autocompact \($c.autocompact | tojson) ({\"defecto\": null, \"por_modelo\": {\"haiku\": 300000}}: tokens enteros entre 100000 y 1000000, o null = ventana nativa)" else empty end),
+            (if $c.efforts_permitidos != null and (($c.efforts_permitidos | type) != "object"
+                 or ([$c.efforts_permitidos[] | type == "array" and all(.[]; type == "string" and test("^(low|medium|high|xhigh|max)$"))] | all | not))
+               then "efforts_permitidos \($c.efforts_permitidos | tojson) (un objeto familia o id → lista de low, medium, high, xhigh, max)" else empty end),
             (if $c | has("permitir_max") and ($c.permitir_max | type) != "boolean"
                then "permitir_max \($c.permitir_max | tojson) (true o false)" else empty end),
             (if $c.perfil != null and ($c.perfil | tostring | test("^(equilibrado|ahorro|rendimiento)$") | not)
@@ -4143,6 +4157,44 @@ excluido_por() {   # $1 = modelo -> la entrada de excluir que lo atrapa, o nada 
       | $p][0] // empty' <<<"$MODELOS_TXT")"
   [[ -n "$r" ]] && { printf '%s\n' "$r"; return 0; }
   return 1
+}
+# efforts_permitidos de modelos.json: los esfuerzos que el dueño dejó prendidos por familia o id (la misma regla que `efforts_de` de
+# reparto: id exacto, el id sin sufijo de effort o la familia). rc 1 = sin regla (valen todos); rc 0 = hay regla y se imprimen los
+# permitidos en orden low..max separados por espacio (nada si la lista está vacía: el modelo no admite ningún effort).
+efforts_permitidos_de() {   # $1 = modelo
+  modelos_cargar || return 1
+  local r
+  r="$(jq -r --arg m "${1,,}" '
+    def fam: ["fable","opus","sonnet","haiku","argon","flash","gpt-oss","astra","sol","luna"];
+    (.efforts_permitidos // {}) as $ep
+    | ($m | sub("-(low|medium|high|xhigh|max)$"; "")) as $base
+    | ([fam[] | select(. as $f | $m | contains($f))] | .[0]) as $f
+    | ([$m, $base, $f] | map(select(. as $c | $c != null and ($ep | has($c)))) | .[0]) as $k
+    | if $k == null then "SIN" else (["low","medium","high","xhigh","max"] | map(select(. as $e | $ep[$k] | index($e) != null)) | join(" ")) end' <<<"$MODELOS_TXT")"
+  [[ "$r" == SIN ]] && return 1
+  printf '%s\n' "$r"
+}
+effort_apagado() {   # $1 = modelo, $2 = effort -> rc 0 si el dueño lo apagó en efforts_permitidos (imprime los permitidos), 1 si vale
+  local ok
+  ok="$(efforts_permitidos_de "$1")" || return 1
+  [[ " $ok " == *" ${2,,} "* ]] && return 1
+  printf '%s\n' "${ok:-ninguno}"
+}
+# autocompact de modelos.json (ver arriba): PA_AUTOCOMPACT > por_modelo (id exacto, si no la familia; null = nativo) > defecto > el de
+# fábrica (haiku 300000; el resto nativo). Imprime los tokens, o nada si no hay que pasar --autocompact.
+autocompact_de() {   # $1 = modelo
+  if [[ -n "$AUTOCOMPACT_ENV" ]]; then [[ "$AUTOCOMPACT_ENV" == nativo ]] || printf '%s\n' "$AUTOCOMPACT_ENV"; return 0; fi
+  modelos_cargar || true
+  jq -r --arg m "${1,,}" '
+    ([ "fable","opus","sonnet","haiku" ] | map(select(. as $f | $m | contains($f))) | .[0]) as $f
+    | (.autocompact // {}) as $a
+    | (($a.por_modelo // {}) | with_entries(.key |= ascii_downcase)) as $p
+    | ([$m, $f] | map(select(. as $c | $c != null and ($p | has($c)))) | .[0]) as $k
+    | (if $k != null then $p[$k]
+       elif ($a.defecto | type) == "number" then $a.defecto
+       elif $f == "haiku" then 300000
+       else null end)
+    | if type == "number" then tostring else empty end' <<<"${MODELOS_TXT:-{\}}"
 }
 modelos_reparto() {   # -> auto | fijo (default auto; PA_REPARTO=0 apaga reparto para tests de pa)
   [[ "${PA_REPARTO:-}" == 0 ]] && { echo fijo; return; }
@@ -4354,7 +4406,7 @@ medir() {   # $1 = json de salida de la corrida (puede no existir)
   # (resume=0) y se mide como nueva.
   local linea comp=""
   (( ${#jsons[@]} )) && comp="$(contar_compactaciones "$(transcript_de "${jsons[-1]}")")"
-  linea="$(printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t\t%s\t%s\t%s\t%s\t%s\t%s\t\t\t%s\t%s\t%s\t%s\t%s\t%s\t%s' "$(date -Iseconds)" "${ts:-}" "$slug" "$modelo" "${esfuerzo:-${ef_vacio:-settings}}" "$leer" "${resume:-$seguir}" "$nums" "$PLAN" "$comp" "$AUTOCOMPACT" "${lanzo:-jefe}" "$cache" "${tipo:-}" "${cuenta:-}" "${fase:-}" "${tarea_id:-}" "${RUB_NORM:-}" "${RUB_FILA:-}" "${RUB_MODELO:-}" "${RUB_EFFORT:-}")"
+  linea="$(printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t\t%s\t%s\t%s\t%s\t%s\t%s\t\t\t%s\t%s\t%s\t%s\t%s\t%s\t%s' "$(date -Iseconds)" "${ts:-}" "$slug" "$modelo" "${esfuerzo:-${ef_vacio:-settings}}" "$leer" "${resume:-$seguir}" "$nums" "$PLAN" "$comp" "$([[ "$motor" == @(agy|codex|dsh) ]] && echo nativo || echo "${AUTOCOMPACT:-nativo}")" "${lanzo:-jefe}" "$cache" "${tipo:-}" "${cuenta:-}" "${fase:-}" "${tarea_id:-}" "${RUB_NORM:-}" "${RUB_FILA:-}" "${RUB_MODELO:-}" "${RUB_EFFORT:-}")"
   # flock sobre el mismo archivo: dos corridas que terminan a la vez no se pisan el header ni la línea
   (
     flock 7
@@ -4886,10 +4938,15 @@ flags_con_valor=" --max-turns --id --integrar --descartar --actualizar --nota --
 # límite) se pasa al siguiente, y cualquier otro código (0, 1, 78…) es el final: ése es el modelo que trabajó. Los que reparto tiene
 # enfriados (`reparto --enfriado`) se saltean. Con --async el hijo corre desacoplado y sólo se ve lo que falla al lanzar (95/96).
 # Sólo se mira la zona de flags (hasta la tarea): un "-m" dentro del texto de la tarea no cuenta.
-_fb_args=( "$@" ); _fb_i=0; _fb_n=${#_fb_args[@]}; _fb_m=-1
+_fb_args=( "$@" ); _fb_i=0; _fb_n=${#_fb_args[@]}; _fb_m=-1; _fb_ef="${PA_EFFORT:-}"; _fb_ok=0
 while (( _fb_i < _fb_n )); do
   _fb_a="${_fb_args[_fb_i]}"
   if [[ "$_fb_a" == "--" ]]; then break
+  elif [[ "$_fb_a" == --effort ]]; then
+    (( _fb_i + 1 < _fb_n )) || break
+    _fb_ef="${_fb_args[_fb_i + 1],,}"; _fb_i=$((_fb_i + 2))
+  elif [[ "$_fb_a" == "--ok-dueno" || "$_fb_a" == "--ok-$(nombre_dueno | tr 'A-Z' 'a-z')" || ( -n "${USER:-}" && "$_fb_a" == "--ok-$USER" ) ]]; then
+    _fb_ok=1; _fb_i=$((_fb_i + 1))
   elif [[ "$_fb_a" == @(-m|--model) ]]; then
     (( _fb_i + 1 < _fb_n )) || break
     _fb_m=$((_fb_i + 1)); _fb_i=$((_fb_i + 2))
@@ -4903,9 +4960,18 @@ if (( _fb_m >= 0 )) && [[ "${_fb_args[_fb_m]}" == *,* ]]; then
   for _fb_x in "${_fb_lista[@]}"; do
     [[ -n "${_fb_x//[[:space:]]/}" ]] || { echo "pa: -m '${_fb_args[_fb_m]}': la lista tiene un modelo vacío (va a,b,c, sin espacios)." >&2; exit 2; }
   done
-  _fb_rc=96; _fb_corrio=0; _fb_k=0
+  _fb_rc=96; _fb_corrio=0; _fb_k=0; _fb_apagados=0
   for _fb_x in "${_fb_lista[@]}"; do
     _fb_k=$((_fb_k + 1))
+    # Los que el dueño apagó en modelos.json (excluir, o el --effort pedido en efforts_permitidos) se saltean, salvo con --ok-dueno.
+    if (( ! _fb_ok )); then
+      if _fb_por="$(excluido_por "$_fb_x")"; then
+        echo "pa: -m: $_fb_x está excluido en modelos.json (excluir: $_fb_por): lo salteo." >&2; _fb_apagados=$((_fb_apagados + 1)); continue
+      fi
+      if [[ -n "$_fb_ef" ]] && _fb_por="$(effort_apagado "$_fb_x" "$_fb_ef")"; then
+        echo "pa: -m: effort '$_fb_ef' con $_fb_x está apagado en modelos.json (efforts_permitidos: ${_fb_por// /, }): lo salteo." >&2; _fb_apagados=$((_fb_apagados + 1)); continue
+      fi
+    fi
     if _fb_hasta="$(REPARTO_STATE="${REPARTO_STATE:-$STATE/reparto}" PA_STATE="$STATE" "$REPARTO" --enfriado "$_fb_x" 2>/dev/null </dev/null)"; then
       echo "pa: -m: $_fb_x sigue enfriado hasta $_fb_hasta (cortó por límite): lo salteo." >&2
       continue
@@ -4918,7 +4984,13 @@ if (( _fb_m >= 0 )) && [[ "${_fb_args[_fb_m]}" == *,* ]]; then
       *) exit "$_fb_rc" ;;
     esac
   done
-  (( _fb_corrio )) || echo "pa: -m ${_fb_args[_fb_m]}: todos los modelos de la lista están enfriados por límite de uso; no lanzo." >&2
+  if (( ! _fb_corrio )); then
+    if (( _fb_apagados )); then
+      echo "pa: -m ${_fb_args[_fb_m]}: todos los modelos de la lista están apagados en modelos.json (excluir o efforts_permitidos) o enfriados por límite de uso; no lanzo." >&2
+      exit 98
+    fi
+    echo "pa: -m ${_fb_args[_fb_m]}: todos los modelos de la lista están enfriados por límite de uso; no lanzo." >&2
+  fi
   exit "$_fb_rc"
 fi
 unset _fb_args _fb_i _fb_n _fb_m _fb_a
@@ -5336,7 +5408,7 @@ if (( lanza && ! ok_dueno )); then
   # de --async no lo mira: su -m lo puso el padre, que ya pasó por acá.
   if (( modelo_de_m )) && [[ -z "${PA_ASYNC:-}" ]] && excl="$(excluido_por "$modelo")"; then
     echo "pa: modelo '$modelo' está excluido en modelos.json (excluir: $excl). $con_ok; si no, elegí otro con -m o sacalo de excluir." >&2
-    exit 2
+    exit 98
   fi
   if [[ "$m" == *fable* ]]; then
     echo "pa: modelo '$modelo' no va sin --ok-dueno: Fable en \`-p\` cobra créditos sin preguntar y usa hasta la mitad del límite semanal. $con_ok; si no, para frontend/diseño o algo difícil: -m claude-opus-5-5 --effort xhigh." >&2
@@ -5350,6 +5422,7 @@ if (( lanza && ! ok_dueno )); then
     exit 2
   fi
 fi
+esf_pedido=0; [[ -n "$esfuerzo" ]] && esf_pedido=1
 if [[ -z "$esfuerzo" && "$motor" == claude ]]; then
   if [[ "${modelo,,}" == *haiku* ]]; then esfuerzo="xhigh"
   elif [[ "${modelo,,}" == *sonnet* ]]; then esfuerzo="high"
@@ -5359,6 +5432,26 @@ if [[ -z "$esfuerzo" && "$motor" == claude ]]; then
     # PA_CLAUDE_SETTINGS: para los tests (nunca el settings real).
     ef_settings="$(jq -r '.effortLevel // empty' "${PA_CLAUDE_SETTINGS:-${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json}" 2>/dev/null)"
     case "${ef_settings,,}" in ''|medium|high|xhigh) ;; *) esfuerzo="high" ;; esac
+  fi
+fi
+
+# efforts_permitidos de modelos.json: un --effort (o PA_EFFORT) que el dueño apagó no corre sin --ok-dueno (exit 98). Si el effort lo
+# puso el default de pa (no se pidió): se queda si está permitido y, si no, va el primero permitido de la familia (low..max).
+if (( lanza )) && [[ "$motor" == claude ]] && ! es_local "$modelo"; then
+  if ok_ef="$(efforts_permitidos_de "$modelo")" && (( ! ok_dueno )); then
+    if (( esf_pedido )); then
+      if [[ " $ok_ef " != *" ${esfuerzo,,} "* ]]; then
+        [[ -n "$ok_ef" ]] || ok_ef="ninguno"
+        echo "pa: effort '$esfuerzo' con '$modelo' está apagado en modelos.json (efforts_permitidos: ${ok_ef// /, }). Usá uno de esos con --effort, o $(D "si @DUENO@ aprobó esta corrida, repetila con --ok-dueno").$ojo_env" >&2
+        exit 98
+      fi
+    elif [[ -z "$ok_ef" ]]; then
+      echo "pa: modelos.json (efforts_permitidos) no deja ningún effort a '$modelo': no lo lanzo. Prendé alguno en Ajustes > Modelos, o $(D "si @DUENO@ aprobó esta corrida, repetila con --ok-dueno")." >&2
+      exit 98
+    elif [[ " $ok_ef " != *" ${esfuerzo,,} "* ]]; then
+      echo "pa: sin --effort, uso ${ok_ef%% *} con '$modelo' (el primero que deja efforts_permitidos de modelos.json; el de siempre, ${esfuerzo:-ninguno}, está apagado)." >&2
+      esfuerzo="${ok_ef%% *}"
+    fi
   fi
 fi
 
@@ -6030,19 +6123,20 @@ if (( ! resume )) && [[ "$motor" != agy && "$motor" != codex ]] && { [[ "$motor"
   ficha="$(tablero_mudo 2 ficha "$slug" --corta)" || ficha=""
   if [[ -n "$ficha" ]]; then prompt+=$'\n\n'"Dónde quedó este proyecto:"$'\n'"$ficha"; fi
 fi
+AUTOCOMPACT="$(autocompact_de "$modelo")"   # vacío = nativo: no se pasa --autocompact
 args=( -p "$prompt"
        --model "${local_modelo:-$modelo}"
        ${esfuerzo:+--effort "$esfuerzo"}
        --output-format json
        --append-system-prompt "$contrato"
        --permission-mode bypassPermissions
-       --autocompact "$AUTOCOMPACT"
+       ${AUTOCOMPACT:+--autocompact "$AUTOCOMPACT"}
        --settings "$settings_json"
        --name "$nombre_worker" )
-# --autocompact (180000 o PA_AUTOCOMPACT): con la ventana de 1M por default el worker no compactaba
-# nunca y 20 de 185 corridas pasaron los 200k por turno. Hasta 2026-09 el motivo era el recargo
-# long-context (input al doble arriba de 200k); desde los modelos 5.5 ese recargo no existe, y el
-# motivo es el volumen: cada turno relee todo el contexto.
+# --autocompact (el de modelos.json para este modelo, o PA_AUTOCOMPACT; sin valor no se pasa y rige la ventana nativa): con la
+# ventana de 1M por default el worker no compactaba nunca y 20 de 185 corridas pasaron los 200k por turno. Hasta 2026-09 el
+# motivo de tope era el recargo long-context (input al doble arriba de 200k); desde los modelos 5.5 ese recargo no existe, y lo que
+# queda es el volumen: cada turno relee todo el contexto.
 
 # Los MCP de claude.ai (Gmail, Calendar, Drive, Notion, Spotify, IBKR, S&P: ~100 tools) van
 # apagados porque hacen que --leer NO sea de lectura: un worker "de sólo lectura" con Notion
@@ -6518,7 +6612,7 @@ if [[ "$(jq -r '.subtype // ""' "$out" 2>/dev/null)" == "error_max_turns" ]]; th
            --output-format json
            --append-system-prompt "$contrato"
            --permission-mode bypassPermissions
-           --autocompact "$AUTOCOMPACT"
+           ${AUTOCOMPACT:+--autocompact "$AUTOCOMPACT"}
            --settings "$settings_json"
            --name "$nombre_worker"
            --resume "$nuevo_sid"

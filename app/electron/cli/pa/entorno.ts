@@ -46,7 +46,8 @@ export interface Pa {
   /** `motor/bin` (el `_BIN` del bash). */
   bin: string;
   plan: "pro" | "max";
-  autocompact: number;
+  /** Tokens de `PA_AUTOCOMPACT` si valen (`null`: no pisa nada, el de modelos.json o la ventana nativa; `"nativo"` fuerza sin tope). */
+  autocompact: number | "nativo" | null;
   puestos: number;
   tope: number;
   ramWorkerMb: number;
@@ -102,10 +103,11 @@ export function prologo(argv: string[], env: Env, io: Io, plat: Plataforma = pla
   mkdirSync(lockdir, { recursive: true });
   const plan = planDe(env, state, io);
 
-  let autocompact = 180000;
-  const ac = v(env, "PA_AUTOCOMPACT", "180000");
-  if (/^[0-9]+$/.test(ac) && Number(ac) >= 100000 && Number(ac) <= 1000000) autocompact = Number(ac);
-  else io.err(`pa: PA_AUTOCOMPACT='${ac}' no va (tokens, entre 100000 y 1000000); sigo con 180000.\n`);
+  let autocompact: number | "nativo" | null = null;
+  const ac = v(env, "PA_AUTOCOMPACT");
+  if (ac.toLowerCase() === "nativo") autocompact = "nativo";
+  else if (ac && /^[0-9]+$/.test(ac) && Number(ac) >= 100000 && Number(ac) <= 1000000) autocompact = Number(ac);
+  else if (ac) io.err(`pa: PA_AUTOCOMPACT='${ac}' no va (tokens, entre 100000 y 1000000, o nativo); lo ignoro y sigo con modelos.json.\n`);
 
   const puestos = v(env, "PA_PUESTOS", "3");
   if (!/^[1-9][0-9]*$/.test(puestos)) {
