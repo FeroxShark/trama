@@ -105,6 +105,9 @@ export type VentanaCupo = {
   vuelve: number | null;
   /** La ventana no rige ahora (Google: con la semana agotada el límite de 5 h "no aplica"): no es un 0 %, es «no aplica». */
   deshabilitada?: boolean;
+  /** Los pedidos contados en la ventana y su tope (OpenCode: los cuenta Trama). Sin tope (los gratis), `pct` es `null` y se dice cuántos van. */
+  pedidos?: number;
+  tope?: number;
 };
 
 /** Un grupo de modelos de una suscripción con sus propias ventanas; `hasta` (YYYY-MM-DD) si el cupo vence en una fecha. */

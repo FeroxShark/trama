@@ -45,7 +45,7 @@ export function AvisoLargo({ caracteres, tope }: { caracteres: number; tope: num
 const DONDE_BACKUP = "~/.local/state/pa/<slug>/md-backup/";
 
 /** El texto de cada acción del plan, en el idioma de ahora. */
-function textoAccion(a: PlanMd["acciones"][number]): string {
+export function textoAccion(a: PlanMd["acciones"][number]): string {
   switch (a.que) {
     case "crea":
       return t(`pry.um.crea.${a.de === "ambos" || a.de === "iguales" ? a.de : (a.de ?? "CLAUDE.md")}` as "pry.um.crea.ambos");

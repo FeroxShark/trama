@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""cuentas — varias cuentas por proveedor (Claude, Google/agy, ChatGPT/codex), cada una con su carpeta de credenciales.
+"""cuentas — varias cuentas por proveedor (Claude, Google/agy, ChatGPT/codex, OpenCode), cada una con su carpeta de credenciales.
 
   cuentas [--json] [--verificar]               las cuentas (la de siempre de cada proveedor + las agregadas)
   cuentas agregar PROVEEDOR "Nombre" [--id ID] crea la cuenta y su carpeta (no hace el login)
@@ -8,8 +8,10 @@
   cuentas login ID [--imprimir]                lanza el login de esa cuenta (interactivo); --imprimir sólo lo muestra
   cuentas env ID [--json]                      el entorno con que se corre un worker de esa cuenta
   cuentas ver ID [--json]                      una cuenta
+  cuentas plan ID gratis|go|go-plus            el plan de OpenCode de una cuenta agregada de OpenCode (el de la de
+                                               siempre es `opencode_plan` de modelos.json: lo escribe la app)
 
-PROVEEDOR: claude | google | chatgpt. La cuenta de siempre de cada proveedor tiene el id del proveedor y usa las
+PROVEEDOR: claude | google | chatgpt | opencode. La cuenta de siempre de cada proveedor tiene el id del proveedor y usa las
 credenciales de siempre (sin tocar nada): sin cuentas.json todo sigue como antes. Las agregadas viven en
 ~/.config/trama/cuentas.json (TRAMA_CUENTAS) y cada una tiene su carpeta (default <carpeta de cuentas.json>/cuentas/<id>):
   claude   CLAUDE_CONFIG_DIR=<carpeta> (y sin ANTHROPIC_API_KEY); settings, hooks, skills, plugins y projects son
@@ -17,6 +19,10 @@ credenciales de siempre (sin tocar nada): sin cuentas.json todo sigue como antes
   google   HOME=<carpeta> y DBUS_SESSION_BUS_ADDRESS roto: agy no encuentra el llavero y guarda el token en un archivo
            de ese HOME; ~/.gemini/config, git, ~/.config/trama, ~/.local/{bin,state} y ~/.claude son symlinks
   chatgpt  CODEX_HOME=<carpeta>; config.toml, AGENTS.md y prompts son symlinks a ~/.codex
+  opencode XDG_DATA_HOME=<carpeta>: opencode guarda el login en $XDG_DATA_HOME/opencode/auth.json (y ahí sus sesiones);
+           la config (XDG_CONFIG_HOME, ~/.config/opencode) es la de siempre y opencode/bin (sus LSP) es un symlink.
+           También TRAMA_OPENCODE_CUENTA=<id> y TRAMA_OPENCODE_PLAN=<plan> (el runner cuenta los pedidos y elige el
+           modelo chico según el plan de esa cuenta). La de siempre aparece si opencode está instalado.
 Sin dependencias (python3 estándar). TRAMA_CUENTAS_HOME = el home de
 verdad de donde salen los symlinks (default $HOME).
 """
@@ -34,7 +40,9 @@ PROVEEDORES = {   # id: (nombre de la cuenta de siempre, motor que la usa)
     "claude": ("Claude", "claude"),
     "google": ("Google AI Pro", "agy"),
     "chatgpt": ("ChatGPT", "codex"),
+    "opencode": ("OpenCode", "opencode"),
 }
+PLANES_OPENCODE = ("gratis", "go", "go-plus")
 ID_OK = re.compile(r"^[a-z0-9][a-z0-9-]{0,39}$")
 DBUS_ROTO = "unix:path=/nonexistent/trama-sin-llavero"
 LINKS = {   # proveedor: rutas relativas al home de verdad -> misma ruta relativa en la carpeta de la cuenta
@@ -43,6 +51,7 @@ LINKS = {   # proveedor: rutas relativas al home de verdad -> misma ruta relativ
     "google": [(n, n) for n in (".gemini/config", ".gemini/GEMINI.md", ".gitconfig", ".config/git", ".config/trama",
                                 ".local/bin", ".local/state", ".claude")],
     "chatgpt": [(".codex/" + n, n) for n in ("config.toml", "AGENTS.md", "prompts")],
+    "opencode": [(".local/share/opencode/bin", "opencode/bin")],
 }
 # `agy models`: el id solo, o "id<TAB>nombre" (mismo patrón que bin/trama-estado)
 MODELO_AGY = re.compile(r"^\s*(?:(?:gemini|claude|gpt)[-\w.]*\s*$|[a-z0-9][a-z0-9.-]*\t)", re.I)
@@ -91,7 +100,8 @@ def cargar():
     for c in ent:
         por_id.setdefault(c["id"], c)
     out = []
-    provs = ["claude", "google"] + (["chatgpt"] if any(c["proveedor"] == "chatgpt" for c in ent) else [])
+    provs = ["claude", "google"] + (["chatgpt"] if any(c["proveedor"] == "chatgpt" for c in ent) else []) \
+        + (["opencode"] if opencode_bin() or any(c["proveedor"] == "opencode" for c in ent) else [])
     for p in provs:
         r = por_id.get(p)
         out.append({"id": p, "proveedor": p, "motor": PROVEEDORES[p][1],
@@ -100,9 +110,21 @@ def cargar():
         if c["id"] in PROVEEDORES or c is not por_id[c["id"]]:
             continue
         d = os.path.expanduser(c.get("dir") or dir_default(c["id"]))
-        out.append({"id": c["id"], "proveedor": c["proveedor"], "motor": PROVEEDORES[c["proveedor"]][1],
-                    "nombre": c.get("nombre") or c["id"], "dir": os.path.abspath(d), "defecto": False})
+        cu = {"id": c["id"], "proveedor": c["proveedor"], "motor": PROVEEDORES[c["proveedor"]][1],
+              "nombre": c.get("nombre") or c["id"], "dir": os.path.abspath(d), "defecto": False}
+        if c["proveedor"] == "opencode":
+            cu["plan"] = c.get("plan") if c.get("plan") in PLANES_OPENCODE else "gratis"
+        out.append(cu)
     return out
+
+
+def opencode_bin():
+    """El binario opencode (el PATH o ~/.opencode/bin, como pa): None si no está."""
+    c = shutil.which("opencode")
+    if c:
+        return c
+    f = os.path.join(home_real(), ".opencode", "bin", "opencode")
+    return f if os.access(f, os.X_OK) else None
 
 
 def buscar(cid):
@@ -155,12 +177,15 @@ def entorno(c):
         return {"CLAUDE_CONFIG_DIR": c["dir"]}, ["ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_BASE_URL"]
     if c["proveedor"] == "google":
         return {"HOME": c["dir"], "DBUS_SESSION_BUS_ADDRESS": DBUS_ROTO}, []
+    if c["proveedor"] == "opencode":
+        return {"XDG_DATA_HOME": c["dir"], "TRAMA_OPENCODE_CUENTA": c["id"], "TRAMA_OPENCODE_PLAN": c.get("plan") or "gratis"}, []
     return {"CODEX_HOME": c["dir"]}, ["OPENAI_API_KEY"]
 
 
 def comando_login(c):
     poner, sacar = entorno(c)
-    base = {"claude": ["claude", "auth", "login"], "google": ["agy"], "chatgpt": ["codex", "login"]}[c["proveedor"]]
+    base = {"claude": ["claude", "auth", "login"], "google": ["agy"], "chatgpt": ["codex", "login"],
+            "opencode": [opencode_bin() or "opencode", "auth", "login"]}[c["proveedor"]]
     pre = ["env"] + ["-u%s" % v for v in sacar] + ["%s=%s" % kv for kv in sorted(poner.items())] if (poner or sacar) else []
     return pre + base
 
@@ -190,6 +215,15 @@ def logueado(c, verificar=False):
     if p == "chatgpt":
         d = c["dir"] or os.environ.get("CODEX_HOME") or os.path.join(home_real(), ".codex")
         return os.path.exists(os.path.join(d, "auth.json"))
+    if p == "opencode":
+        # Algún proveedor con login en el auth.json de esa cuenta (nunca se leen los valores, sólo las claves).
+        d = c["dir"] or os.environ.get("XDG_DATA_HOME") or os.path.join(home_real(), ".local", "share")
+        try:
+            with open(os.path.join(d, "opencode", "auth.json")) as f:
+                j = json.load(f)
+            return isinstance(j, dict) and len(j) > 0
+        except Exception:
+            return False
     if verificar and shutil.which("agy"):
         try:
             r = subprocess.run(["agy", "models"], env=env_de(c), capture_output=True, text=True, timeout=20,
@@ -228,14 +262,14 @@ def cmd_listar(a):
 
 def cmd_agregar(a):
     if len(a) < 2 or a[0] not in PROVEEDORES:
-        err("uso: cuentas agregar claude|google|chatgpt \"Nombre\" [--id ID]")
+        err("uso: cuentas agregar claude|google|chatgpt|opencode \"Nombre\" [--id ID]")
         return 2
     prov, nombre, resto = a[0], a[1], a[2:]
     cid = None
     if resto[:1] == ["--id"] and len(resto) == 2:
         cid = resto[1]
     elif resto:
-        err("uso: cuentas agregar claude|google|chatgpt \"Nombre\" [--id ID]")
+        err("uso: cuentas agregar claude|google|chatgpt|opencode \"Nombre\" [--id ID]")
         return 2
     with Candado():
         ent = leer_archivo()
@@ -336,7 +370,8 @@ def cmd_env(a):
     poner, sacar = entorno(c)
     if "--json" in a:
         print(json.dumps({"id": c["id"], "proveedor": c["proveedor"], "motor": c["motor"], "nombre": c["nombre"],
-                          "defecto": c["defecto"], "poner": poner, "sacar": sacar}, ensure_ascii=False))
+                          "defecto": c["defecto"], "poner": poner, "sacar": sacar, **({"plan": c["plan"]} if "plan" in c else {})},
+                         ensure_ascii=False))
     else:
         for v in sacar:
             print("-%s" % v)
@@ -358,6 +393,31 @@ def cmd_ver(a):
     return 0
 
 
+def cmd_plan(a):
+    if len(a) != 2 or a[1] not in PLANES_OPENCODE:
+        err("uso: cuentas plan ID gratis|go|go-plus")
+        return 2
+    cid, plan = a
+    if cid == "opencode":
+        err("el plan de la cuenta de siempre de OpenCode es `opencode_plan` de modelos.json (Ajustes > Plan y cupos)")
+        return 2
+    with Candado():
+        c = buscar(cid)
+        if not c or c["proveedor"] != "opencode":
+            err("no hay ninguna cuenta de OpenCode %s" % cid)
+            return 1
+        ent = leer_archivo()
+        for e in ent:
+            if e["id"] == cid:
+                if plan == "gratis":
+                    e.pop("plan", None)
+                else:
+                    e["plan"] = plan
+        guardar(ent)
+    print("%s: %s" % (cid, plan))
+    return 0
+
+
 def main(argv):
     if not argv or argv[0] in ("--json", "--verificar"):
         return cmd_listar(argv)
@@ -365,7 +425,7 @@ def main(argv):
         sys.stdout.write(__doc__)
         return 0
     f = {"agregar": cmd_agregar, "quitar": cmd_quitar, "renombrar": cmd_renombrar, "login": cmd_login,
-         "env": cmd_env, "ver": cmd_ver, "listar": cmd_listar}.get(argv[0])
+         "env": cmd_env, "ver": cmd_ver, "listar": cmd_listar, "plan": cmd_plan}.get(argv[0])
     if not f:
         sys.stdout.write(__doc__)
         return 2

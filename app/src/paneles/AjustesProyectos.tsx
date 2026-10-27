@@ -1,28 +1,36 @@
-// Ajustes > Proyectos: (1) cómo se llama cada proyecto en la app y en `pa` (el `titulo` del registry; sólo cambia el nombre que se ve: slug, carpeta,
-// ramas y estado quedan) y (2) las instrucciones de cada proyecto para todos los modelos: qué archivos hay (AGENTS.md / CLAUDE.md / GEMINI.md),
-// "Unificar en AGENTS.md" (vista previa y confirmación) y un editor de AGENTS.md. Los datos: src/datos/proyectos.ts.
-import { useEffect, useRef, useState, type FormEvent } from "react";
+// Ajustes > Proyectos: una tarjeta por proyecto con todo junto: cómo se llama en la app y en `pa` (el `titulo` del registry; sólo cambia el nombre
+// que se ve: slug, carpeta, ramas y estado quedan) y el estado de sus instrucciones para todos los modelos (AGENTS.md / CLAUDE.md / GEMINI.md),
+// con "Unificar en AGENTS.md" (vista previa y confirmación) y un editor de AGENTS.md. Arriba, un resumen de los que tienen las instrucciones
+// repartidas y "Unificar todos": aplica directo sólo los casos mecánicos (unificar-clase.ts) y deja los que hay que fusionar para su tarjeta.
+// Los datos: src/datos/proyectos.ts.
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { AlertTriangle, Check, FileText, Merge, PencilLine, RotateCcw, X } from "lucide-react";
 import { NOMBRE_MAX, validarNombre } from "../../electron/proyectos-nombre";
-import { fuenteProyectos, recargarProyectos, useProyectos, type EstadoMd, type ProyectoNombre } from "../datos/proyectos";
+import { fuenteProyectos, recargarProyectos, useProyectos, type EstadoMd, type PlanMd, type ProyectoNombre } from "../datos/proyectos";
 import { t, textoMain, type Clave } from "../i18n";
 import { useIdioma } from "../i18n/react";
 import { MODO } from "../modo";
 import { mensaje } from "../puente";
 import { Cat } from "./AjustesNav";
-import { ArchivosMd, AvisoLargo, EditorAgents, UnificarPanel } from "./ProyectosMd";
+import { ArchivosMd, AvisoLargo, EditorAgents, textoAccion, UnificarPanel } from "./ProyectosMd";
+import { clasePlan } from "./unificar-clase";
 import "./proyectos.css";
 
 const tv = t as (k: Clave, v: Record<string, string | number>) => string;
 
-/** La captura `proyectos-renombrar` abre el editor del primero con un nombre que no vale; `-unificar` y `-editor` abren esos paneles. */
+/** La captura `proyectos-renombrar` abre el editor del primero con un nombre que no vale; `-unificar` y `-editor` abren esos paneles; `-todos` la confirmación de Unificar todos. */
 const CAPTURA = MODO.variante?.startsWith("proyectos-") ? MODO.variante : null;
+
+/** Lo que pasó con un proyecto en "Unificar todos". */
+type Resultado = { ok: true; backup: string } | { ok: false; fusion: true } | { ok: false; error: string };
 
 export function Proyectos() {
   useIdioma();
   const lista = useProyectos();
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [estados, setEstados] = useState<Record<string, EstadoMd | string>>({});
+  const [resultados, setResultados] = useState<Record<string, Resultado>>({});
   useEffect(() => {
     let vivo = true;
     recargarProyectos().then(
@@ -33,30 +41,171 @@ export function Proyectos() {
       vivo = false;
     };
   }, []);
+  // El estado de las instrucciones de cada proyecto (o el error al leerlo): lo usan la tarjeta y el resumen de arriba.
+  const leerMd = useCallback((slug: string) => {
+    fuenteProyectos.mdEstado(slug).then(
+      (e) => setEstados((x) => ({ ...x, [slug]: e })),
+      (e) => setEstados((x) => ({ ...x, [slug]: mensaje(e) })),
+    );
+  }, []);
+  const slugs = lista.map((p) => p.slug).join("\n");
+  useEffect(() => {
+    for (const p of lista) leerMd(p.slug);
+  }, [slugs]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const repartidos = lista.filter((p) => p.existe && typeof estados[p.slug] === "object" && (estados[p.slug] as EstadoMd).porUnificar);
   return (
     <Cat id="proyectos">
       <section className="pn-sec" data-opc="pry.nombres">
-        <h2 className="pn-h">{t("pry.nombres")}</h2>
+        <h2 className="pn-h">{t("pry.titulo")}</h2>
         <p className="pn-nota">{t("pry.intro")}</p>
+        <p className="pn-nota">{t("pry.instruccionesQue")}</p>
         {error ? <p className="pn-error" role="alert">{tv("pry.error", { e: textoMain(error) })}</p> : null}
         {cargando && !lista.length ? <p className="pn-nota">{t("pry.cargando")}</p> : null}
         {!cargando && !lista.length && !error ? <p className="pn-nota">{t("pry.sinProyectos")}</p> : null}
+        <div data-opc="pry.instrucciones">
+          {repartidos.length ? (
+            <UnificarTodos
+              proyectos={repartidos}
+              abierto={CAPTURA === "proyectos-todos"}
+              alTerminar={(r) => {
+                setResultados((x) => ({ ...x, ...r }));
+                for (const s of Object.keys(r)) leerMd(s);
+              }}
+            />
+          ) : null}
+        </div>
         <div className="pry">
           {lista.map((p, i) => (
-            <FilaNombre key={p.slug} p={p} todos={lista} abierto={CAPTURA === "proyectos-renombrar" && i === 0} />
-          ))}
-        </div>
-      </section>
-      <section className="pn-sec" data-opc="pry.instrucciones">
-        <h2 className="pn-h">{t("pry.instrucciones")}</h2>
-        <p className="pn-nota">{t("pry.instruccionesQue")}</p>
-        <div className="pry">
-          {lista.map((p) => (
-            <FilaInstrucciones key={p.slug} p={p} abrir={CAPTURA === "proyectos-unificar" && p.slug === "asistente-voz" ? "unificar" : CAPTURA === "proyectos-editor" && p.slug === "atlas" ? "editor" : null} />
+            <div key={p.slug} className="pry-fila" data-proyecto={p.slug} data-nombre-fila data-md-fila>
+              <FilaNombre p={p} todos={lista} abierto={CAPTURA === "proyectos-renombrar" && i === 0} />
+              <FilaInstrucciones
+                p={p}
+                estado={estados[p.slug] ?? null}
+                resultado={resultados[p.slug] ?? null}
+                releer={() => leerMd(p.slug)}
+                abrir={CAPTURA === "proyectos-unificar" && p.slug === "asistente-voz" ? "unificar" : CAPTURA === "proyectos-editor" && p.slug === "atlas" ? "editor" : null}
+              />
+            </div>
           ))}
         </div>
       </section>
     </Cat>
+  );
+}
+
+/**
+ * El aviso de arriba ("N proyectos tienen las instrucciones repartidas") y "Unificar todos": lee el plan de cada uno, muestra en una lista
+ * corta qué se haría y, al confirmar, aplica sólo los mecánicos (con la huella del plan que se vio; aplicarUnificar deja la copia en
+ * md-backup). Los que hay que fusionar quedan señalados para revisarlos en su tarjeta.
+ */
+function UnificarTodos({ proyectos, abierto, alTerminar }: { proyectos: ProyectoNombre[]; abierto: boolean; alTerminar: (r: Record<string, Resultado>) => void }) {
+  const [planes, setPlanes] = useState<{ p: ProyectoNombre; plan: PlanMd }[] | null>(null);
+  const [leyendo, setLeyendo] = useState(false);
+  const [aplicando, setAplicando] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [hecho, setHecho] = useState<number | null>(null);
+  const preparar = async () => {
+    if (leyendo) return;
+    setLeyendo(true);
+    setError(null);
+    setHecho(null);
+    try {
+      setPlanes(await Promise.all(proyectos.map(async (p) => ({ p, plan: await fuenteProyectos.mdPlan(p.slug) }))));
+    } catch (e) {
+      setError(mensaje(e));
+    } finally {
+      setLeyendo(false);
+    }
+  };
+  useEffect(() => {
+    if (abierto) void preparar();
+  }, [abierto]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const mecanicos = planes?.filter((x) => clasePlan(x.plan) === "mecanico") ?? [];
+  const fusiones = planes?.filter((x) => clasePlan(x.plan) === "fusion") ?? [];
+  const aplicar = async () => {
+    if (aplicando) return;
+    setAplicando(true);
+    const r: Record<string, Resultado> = {};
+    // De a uno: cada uno con la huella de su plan; si los archivos cambiaron desde la vista previa, ése falla y los demás siguen.
+    for (const { p, plan } of mecanicos) {
+      try {
+        const a = await fuenteProyectos.mdAplicar(p.slug, plan.huella);
+        r[p.slug] = { ok: true, backup: a.backup ?? "" };
+      } catch (e) {
+        r[p.slug] = { ok: false, error: mensaje(e) };
+      }
+    }
+    for (const { p } of fusiones) r[p.slug] = { ok: false, fusion: true };
+    setAplicando(false);
+    setHecho(Object.values(r).filter((x) => x.ok).length);
+    setPlanes(null);
+    alTerminar(r);
+  };
+
+  return (
+    <div className="pry-todos" role="region" aria-label={t("pry.todos.titulo")} data-unificar-todos>
+      <p className="pry-todos-t">
+        <AlertTriangle size={14} strokeWidth={2} aria-hidden="true" />
+        {proyectos.length === 1 ? t("pry.todos.uno") : tv("pry.todos.varios", { n: proyectos.length })}
+      </p>
+      {!planes ? (
+        <div className="pry-acc">
+          <button type="button" className="mini pn-primario" data-unificar-todos-btn disabled={leyendo} onClick={() => void preparar()}>
+            <Merge size={13} strokeWidth={1.8} aria-hidden="true" />
+            {leyendo ? t("pry.um.leyendo") : t("pry.todos.btn")}
+          </button>
+        </div>
+      ) : (
+        <>
+          {mecanicos.length ? <p className="pn-nota">{t("pry.todos.seAplica")}</p> : null}
+          <ul className="pry-todos-l">
+            {mecanicos.map(({ p, plan }) => (
+              <li key={p.slug} data-clase="mecanico">
+                <b>{p.titulo ?? p.nombre}</b>: {plan.acciones.filter((a) => a.que !== "ya-dentro").map(textoAccion).join(" · ")}
+              </li>
+            ))}
+          </ul>
+          {fusiones.length ? (
+            <>
+              <p className="pn-nota">{t("pry.todos.fusionQue")}</p>
+              <ul className="pry-todos-l">
+                {fusiones.map(({ p }) => (
+                  <li key={p.slug} data-clase="fusion">
+                    <AlertTriangle size={12} strokeWidth={2} aria-hidden="true" /> <b>{p.titulo ?? p.nombre}</b>: {t("pry.todos.fusion")}
+                  </li>
+                ))}
+              </ul>
+            </>
+          ) : null}
+          {mecanicos.length ? (
+            <>
+              <p className="pn-nota">{tv("pry.um.backup", { donde: "~/.local/state/pa/<slug>/md-backup/" })}</p>
+              <p className="pn-nota">{t("pry.um.commit")}</p>
+            </>
+          ) : null}
+          <div className="pry-acc">
+            {mecanicos.length ? (
+              <button type="button" className="mini pn-primario" data-confirmar-todos disabled={aplicando} onClick={() => void aplicar()}>
+                <Merge size={13} strokeWidth={1.8} aria-hidden="true" />
+                {aplicando ? t("pry.um.aplicando") : tv("pry.todos.confirmar", { n: mecanicos.length })}
+              </button>
+            ) : null}
+            <button type="button" className="mini" data-cerrar disabled={aplicando} onClick={() => setPlanes(null)}>
+              <X size={13} strokeWidth={1.8} aria-hidden="true" />
+              {t("pry.cancelar")}
+            </button>
+          </div>
+        </>
+      )}
+      {hecho !== null ? (
+        <p className="pn-nota pry-ok" role="status">
+          <Check size={13} strokeWidth={2} aria-hidden="true" /> {tv("pry.todos.hecho", { n: hecho })}
+        </p>
+      ) : null}
+      {error ? <p className="pn-error" role="alert">{textoMain(error)}</p> : null}
+    </div>
   );
 }
 
@@ -123,7 +272,7 @@ function FilaNombre({ p, todos, abierto }: { p: ProyectoNombre; todos: readonly 
   const n = [...valor.trim()].length;
 
   return (
-    <div className="pry-fila" data-proyecto={p.slug} data-nombre-fila>
+    <>
       <div className="pry-cab">
         <span className="pry-nom">{visible(p)}</span>
         {p.titulo ? <span className="pry-orig" data-tip={t("pry.original")}>{p.nombre}</span> : null}
@@ -196,41 +345,60 @@ function FilaNombre({ p, todos, abierto }: { p: ProyectoNombre; todos: readonly 
           <Check size={13} strokeWidth={2} aria-hidden="true" /> {aviso}
         </p>
       ) : null}
-    </div>
+    </>
   );
 }
 
-/** Las instrucciones de un proyecto: qué archivos hay y qué se puede hacer (Unificar, Abrir AGENTS.md). */
-function FilaInstrucciones({ p, abrir }: { p: ProyectoNombre; abrir: "unificar" | "editor" | null }) {
-  const [estado, setEstado] = useState<EstadoMd | null>(null);
-  const [error, setError] = useState<string | null>(null);
+/**
+ * Las instrucciones de un proyecto, dentro de su tarjeta: qué archivos hay, el aviso si están repartidas y qué hacer (Unificar, Abrir AGENTS.md),
+ * y lo que pasó si se unificó con "Unificar todos".
+ */
+function FilaInstrucciones({ p, estado: e, resultado, releer, abrir }: { p: ProyectoNombre; estado: EstadoMd | string | null; resultado: Resultado | null; releer: () => void; abrir: "unificar" | "editor" | null }) {
   const [panel, setPanel] = useState<"unificar" | "editor" | null>(abrir);
-  const leer = () => {
-    fuenteProyectos.mdEstado(p.slug).then(
-      (e) => (setEstado(e), setError(null)),
-      (e) => setError(mensaje(e)),
-    );
-  };
-  useEffect(leer, [p.slug]); // eslint-disable-line react-hooks/exhaustive-deps
+  const estado = typeof e === "object" ? e : null;
+  const error = typeof e === "string" ? e : null;
   const nombre = visible(p);
+  const conContenido = estado?.archivos.filter((f) => f.tipo === "real").map((f) => f.archivo) ?? [];
   return (
-    <div className="pry-fila" data-proyecto={p.slug} data-md-fila>
+    <div className="pry-ins">
       <div className="pry-cab">
         <FileText size={14} strokeWidth={1.8} aria-hidden="true" />
-        <span className="pry-nom">{nombre}</span>
-        {estado?.unificado ? (
+        <span className="pry-ins-t">{t("pry.instrucciones")}</span>
+        {estado?.unificado && !estado.porUnificar ? (
           <span className="pry-estado" data-unificado>
             <Check size={13} strokeWidth={2} aria-hidden="true" /> {t("pry.md.unificado")}
+          </span>
+        ) : estado?.porUnificar ? (
+          <span className="pry-estado" data-repartido>
+            <AlertTriangle size={13} strokeWidth={2} aria-hidden="true" /> {t("pry.md.pendiente")}
           </span>
         ) : null}
       </div>
       {error ? <p className="pry-err" role="alert"><AlertTriangle size={13} strokeWidth={2} aria-hidden="true" /> {textoMain(error)}</p> : null}
       {estado ? <ArchivosMd estado={estado} /> : null}
       {estado?.truncado ? <AvisoLargo caracteres={estado.caracteres} tope={estado.tope} /> : null}
-      {estado && !estado.unificado && estado.porUnificar ? (
-        <p className="pn-nota">{estado.archivos.some((f) => f.archivo !== "AGENTS.md" && f.tipo === "real") ? t("pry.md.porUnificar") : t("pry.md.faltaImport")}</p>
+      {estado && estado.porUnificar ? (
+        <p className="pry-aviso" data-aviso-repartido>
+          <AlertTriangle size={13} strokeWidth={2} aria-hidden="true" />
+          {conContenido.length > 1 ? tv("pry.md.distintos", { f: conContenido.join(", ") }) : conContenido.some((f) => f !== "AGENTS.md") ? t("pry.md.porUnificar") : t("pry.md.faltaImport")}
+        </p>
       ) : null}
       {estado && !estado.porUnificar && !estado.unificado && estado.archivos.every((f) => f.tipo === "falta") ? <p className="pn-nota">{t("pry.md.sinNada")}</p> : null}
+      {resultado ? (
+        resultado.ok ? (
+          <p className="pn-nota pry-ok" role="status" data-resultado="ok">
+            <Check size={13} strokeWidth={2} aria-hidden="true" /> {tv("pry.um.hecho", { backup: resultado.backup || "~/.local/state/pa/<slug>/md-backup/" })}
+          </p>
+        ) : "fusion" in resultado ? (
+          <p className="pry-aviso" role="status" data-resultado="fusion">
+            <Merge size={13} strokeWidth={1.8} aria-hidden="true" /> {t("pry.todos.fusionTarjeta")}
+          </p>
+        ) : (
+          <p className="pry-err" role="alert" data-resultado="error">
+            <AlertTriangle size={13} strokeWidth={2} aria-hidden="true" /> {textoMain(resultado.error)}
+          </p>
+        )
+      ) : null}
       {estado && p.existe ? (
         <div className="pry-acc">
           {estado.porUnificar ? (
@@ -251,12 +419,12 @@ function FilaInstrucciones({ p, abrir }: { p: ProyectoNombre; abrir: "unificar" 
           nombre={nombre}
           alCerrar={() => {
             setPanel(null);
-            leer();
+            releer();
           }}
-          alHecho={leer}
+          alHecho={releer}
         />
       ) : null}
-      {panel === "editor" ? <EditorAgents slug={p.slug} nombre={nombre} alCerrar={() => setPanel(null)} alGuardar={leer} /> : null}
+      {panel === "editor" ? <EditorAgents slug={p.slug} nombre={nombre} alCerrar={() => setPanel(null)} alGuardar={releer} /> : null}
     </div>
   );
 }

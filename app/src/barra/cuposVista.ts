@@ -42,6 +42,8 @@ export interface ResumenCupo {
   pct: number | null;
   /** Cuándo vuelve (epoch s) si está lleno o marcado; `null`: no se sabe, o no aplica. */
   vuelve: number | null;
+  /** Sin porcentaje pero con pedidos contados (los gratis de OpenCode: sin tope publicado): cuántos van. */
+  pedidos?: number;
 }
 
 /** Resumen de un conjunto de ventanas (una suscripción con ventanas propias, o un grupo). `agotado`: la marca de `reparto`. */
@@ -55,7 +57,10 @@ export function resumenVentanas(ventanas: readonly VentanaCupo[], agotado: numbe
     return { estado: "lleno", pct: 100, vuelve: horas.some((h) => h === null) ? null : Math.max(...(horas as number[])) };
   }
   const pcts = rigen.map((v) => v.pct).filter((p): p is number => p !== null);
-  if (pcts.length === 0) return { estado: "sin", pct: null, vuelve: null };
+  if (pcts.length === 0) {
+    const contadas = rigen.filter((v) => v.pedidos !== undefined);
+    return { estado: "sin", pct: null, vuelve: null, ...(contadas.length ? { pedidos: contadas.reduce((n, v) => n + (v.pedidos ?? 0), 0) } : {}) };
+  }
   const pct = Math.max(...pcts);
   return { estado: pct >= USO_BAJO ? "bajo" : "ok", pct, vuelve: null };
 }

@@ -85,3 +85,19 @@ export function modelosGoAgotados(env: NodeJS.ProcessEnv = process.env, ahoraMs 
   }
   return out;
 }
+
+// --- Varias cuentas de OpenCode -----------------------------------------------------------------------------------------------------
+
+/**
+ * Todas las marcas de OpenCode que siguen vigentes, tal cual están en agotado.json: grupo → hasta cuándo (epoch ms). Las de una cuenta agregada
+ * llevan el sufijo `@<cuenta>` (lo pone `reparto --agotar … --cuenta`, `suf` de motor/bin/reparto); las de la de siempre, ninguno.
+ */
+export function marcasOpencode(env: NodeJS.ProcessEnv = process.env, ahoraMs = Date.now()): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const [g, v] of Object.entries(leer(env))) {
+    const ms = Date.parse(v?.hasta ?? "");
+    const base = g.replace(/@[^@]*$/, "");
+    if ((base === GRUPO_OPENCODE_GRATIS || esModeloGo(base)) && Number.isFinite(ms) && ms > ahoraMs) out[g] = ms;
+  }
+  return out;
+}

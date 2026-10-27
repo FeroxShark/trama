@@ -242,3 +242,53 @@
   color: var(--texto-5);
   font-style: italic;
 }
+/* Las instrucciones dentro de la tarjeta de cada proyecto, separadas del nombre por una línea. */
+.pry-ins {
+  margin-top: var(--esp-3);
+  padding-top: var(--esp-3);
+  border-top: 1px solid var(--borde-2);
+}
+.pry-ins-t {
+  color: var(--texto-2);
+  font-size: var(--letra-4);
+  font-weight: 600;
+}
+.pry-aviso {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--esp-1-5);
+  margin: var(--esp-2) 0 0;
+  color: var(--oro);
+  font-size: var(--letra-4);
+}
+/* El resumen de arriba: cuántos tienen las instrucciones repartidas y "Unificar todos". */
+.pry-todos {
+  margin-top: var(--esp-3);
+  padding: var(--esp-3) var(--esp-4);
+  border: 1px solid var(--borde-4);
+  border-radius: var(--radio-2);
+  background: var(--sup-1);
+}
+.pry-todos-t {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-1-5);
+  margin: 0;
+  color: var(--texto-1);
+  font-weight: 600;
+}
+.pry-todos-t svg {
+  color: var(--oro);
+}
+.pry-todos-l {
+  margin: var(--esp-2) 0;
+  padding-left: var(--esp-5);
+  color: var(--texto-3);
+  font-size: var(--letra-4);
+}
+.pry-todos-l b {
+  color: var(--texto-1);
+}
+.pry-todos-l li[data-clase="fusion"] svg {
+  color: var(--oro);
+}

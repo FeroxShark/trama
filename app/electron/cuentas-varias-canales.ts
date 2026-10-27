@@ -1,7 +1,7 @@
-// Los canales `cuentas:lista|agregar|renombrar|quitar|login` (varias cuentas por proveedor) sobre electron/cuentas-varias.ts.
+// Los canales `cuentas:lista|agregar|renombrar|quitar|login|plan` (varias cuentas por proveedor) sobre electron/cuentas-varias.ts.
 // Aparte de nucleo.ts para probarlos sin Electron: `manejar` y las dependencias entran por argumento. Un fallo vuelve como
 // `{ ok: false, error }` (texto ya codificado, lo traduce el renderer con `textoMain`), nunca como excepción del IPC.
-import { agregarCuenta, listarCuentas, loginCuenta, quitarCuenta, renombrarCuenta, type DepsVarias, type ListaCuentas } from "./cuentas-varias.ts";
+import { agregarCuenta, listarCuentas, loginCuenta, planCuenta, quitarCuenta, renombrarCuenta, type DepsVarias, type ListaCuentas } from "./cuentas-varias.ts";
 
 export type ResultadoCuenta = { ok: true; id?: string } | { ok: false; error: string };
 
@@ -25,4 +25,5 @@ export function cuentasVarias(manejar: Registrar, deps: DepsVarias, alCambiar: (
   manejar("cuentas:renombrar", (_e, id, nombre) => hacer(() => renombrarCuenta(deps, id, nombre)));
   manejar("cuentas:quitar", (_e, id, borrar) => hacer(() => quitarCuenta(deps, id, borrar)));
   manejar("cuentas:login", (_e, id) => hacer(() => loginCuenta(deps, id)));
+  manejar("cuentas:plan", (_e, id, plan) => hacer(() => planCuenta(deps, id, plan)));
 }

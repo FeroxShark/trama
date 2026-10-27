@@ -331,8 +331,8 @@ def cuenta_de(s):
 
 
 def suf(cuenta):
-    """Sufijo de las claves de grupo (carga, agotados, asignaciones): nada para la cuenta de siempre."""
-    return "" if not cuenta or cuenta in PROVEEDORES or cuenta == "openai" else "@" + cuenta
+    """Sufijo de las claves de grupo (carga, agotados, asignaciones): nada para la cuenta de siempre (también la de OpenCode)."""
+    return "" if not cuenta or cuenta in PROVEEDORES or cuenta in ("openai", "opencode") else "@" + cuenta
 
 
 # --- configuración -----------------------------------------------------------------------------------

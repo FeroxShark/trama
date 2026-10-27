@@ -316,6 +316,16 @@
   align-items: center;
   gap: var(--esp-1);
 }
+/* En la tarjeta de OpenCode (Plan y cupos): el plan va en su bloque, como un grupo más. */
+.cu-oc-plan {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--esp-2-5);
+  padding: var(--esp-3);
+  border-radius: var(--radio-3);
+  background: var(--capa-div);
+}
 .pn-sel .pn-falta {
   min-width: 4.5rem;
   font-size: var(--letra-4);

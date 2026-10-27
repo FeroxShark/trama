@@ -165,7 +165,7 @@ export type VistaPlanGo = {
   /** USD por mes de Go (el de Go Plus no se sabe). */
   precio: number | null;
   modelos: { id: string; nombre: string; pedidos5h: number | null; usdMes: number | null }[];
-  /** El uso real del plan (cuánto se gastó de cada tope). OpenCode no lo expone por API ni CLI: siempre `false` (la tarjeta dice «uso no disponible»). */
+  /** El uso real del plan según OpenCode. No lo expone por API ni CLI: siempre `false`; los pedidos los cuenta Trama aparte (opencode-pedidos.ts). */
   usoDisponible: boolean;
 };
 

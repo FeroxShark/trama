@@ -73,8 +73,12 @@ export function rutaModelos(env = process.env, home = os.homedir()) {
   return env.TRAMA_MODELOS || env.HILOS_MODELOS || path.join(env.XDG_CONFIG_HOME || path.join(home, ".config"), "trama", "modelos.json");
 }
 
-/** El plan de OpenCode que dice modelos.json; cualquier cosa rara (sin archivo, JSON roto, valor desconocido) es «gratis». */
+/**
+ * El plan de OpenCode que dice modelos.json; cualquier cosa rara (sin archivo, JSON roto, valor desconocido) es «gratis». Un worker de una cuenta
+ * agregada de OpenCode trae el plan de esa cuenta en TRAMA_OPENCODE_PLAN (lo pone `cuentas env`): ése manda.
+ */
 export function planOpencode(env = process.env, home = os.homedir()) {
+  if (PLANES_OPENCODE.includes(env.TRAMA_OPENCODE_PLAN)) return env.TRAMA_OPENCODE_PLAN;
   try {
     const p = JSON.parse(readFileSync(rutaModelos(env, home), "utf8"))?.opencode_plan;
     return PLANES_OPENCODE.includes(p) ? p : "gratis";

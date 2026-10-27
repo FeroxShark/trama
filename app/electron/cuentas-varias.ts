@@ -10,11 +10,16 @@ import { pathConLocal, resolverBinario } from "./binario.ts";
 import { correrReal, type Salida } from "./cuentas.ts";
 import { textoT } from "./errores.ts";
 
-export type ProveedorCuenta = "claude" | "google" | "chatgpt";
-export const PROVEEDORES_CUENTA: readonly ProveedorCuenta[] = ["claude", "google", "chatgpt"];
+export type ProveedorCuenta = "claude" | "google" | "chatgpt" | "opencode";
+export const PROVEEDORES_CUENTA: readonly ProveedorCuenta[] = ["claude", "google", "chatgpt", "opencode"];
+const PLANES_OC = ["gratis", "go", "go-plus"] as const;
+export type PlanCuentaOc = (typeof PLANES_OC)[number];
 
-/** Una cuenta tal como la lista `cuentas --json`. `defecto`: la de siempre (su id es el del proveedor). `logueado`: `null` = no se preguntó o no se sabe. */
-export type PerfilCuenta = { id: string; proveedor: ProveedorCuenta; nombre: string; defecto: boolean; logueado: boolean | null };
+/**
+ * Una cuenta tal como la lista `cuentas --json`. `defecto`: la de siempre (su id es el del proveedor). `logueado`: `null` = no se preguntó o no se sabe.
+ * `plan`: el de OpenCode de una cuenta agregada de OpenCode (el de la de siempre está en modelos.json, `opencode_plan`).
+ */
+export type PerfilCuenta = { id: string; proveedor: ProveedorCuenta; nombre: string; defecto: boolean; logueado: boolean | null; plan?: PlanCuentaOc };
 export type ListaCuentas = { version: 1; cuentas: PerfilCuenta[] };
 
 type Env = Record<string, string | undefined>;
@@ -87,6 +92,7 @@ export function parsearCuentas(salida: string): ListaCuentas | null {
       nombre: nombreValido(x.nombre) ?? x.id,
       defecto: x.defecto === true || x.id === x.proveedor,
       logueado: typeof x.logueado === "boolean" ? x.logueado : null,
+      ...(x.proveedor === "opencode" && x.id !== "opencode" ? { plan: (PLANES_OC as readonly unknown[]).includes(x.plan) ? (x.plan as PlanCuentaOc) : "gratis" } : {}),
     });
   }
   return cuentas.length ? { version: 1, cuentas } : null;
@@ -120,6 +126,12 @@ export async function renombrarCuenta(d: DepsVarias, id: unknown, nombre: unknow
 export async function quitarCuenta(d: DepsVarias, id: unknown, borrarCredenciales: unknown): Promise<void> {
   if (!idValido(id) || proveedorValido(id)) throw new Error(marca("main.cuentasDato"));
   await cli(d, ["quitar", id, ...(borrarCredenciales === true ? ["--borrar-credenciales"] : [])], TOPE_RAPIDO);
+}
+
+/** El plan de OpenCode de una cuenta agregada de OpenCode (`cuentas plan`). La de siempre no: su plan es `opencode_plan` de modelos.json. */
+export async function planCuenta(d: DepsVarias, id: unknown, plan: unknown): Promise<void> {
+  if (!idValido(id) || id === "opencode" || !(PLANES_OC as readonly unknown[]).includes(plan)) throw new Error(marca("main.cuentasDato"));
+  await cli(d, ["plan", id, plan as string], TOPE_RAPIDO);
 }
 
 /** El login de esa cuenta en una terminal; vuelve cuando la persona termina (o la cierra). Después hay que volver a verificar. */
