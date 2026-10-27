@@ -56,24 +56,26 @@ function suscribir(fn: () => void) {
   return () => void oyentes.delete(fn);
 }
 
-export const useSubagentes = (sid: string | null): readonly Subagente[] =>
-  useSyncExternalStore(suscribir, () => {
-    if (!sid) return SIN;
-    const lista = actual[sid];
-    if (!lista) return SIN;
+// El snapshot tiene que ser estable entre lecturas (useSyncExternalStore): se reusa la lista previa si trae lo mismo.
+let ultimo: Subagentes = {};
+const igual = (x: readonly Subagente[], y: readonly Subagente[]) => x.length === y.length && x.every((u, i) => u === y[i]);
+const todos = (): Subagentes => {
+  const res: Subagentes = {};
+  for (const [sid, lista] of Object.entries(actual)) {
     const visibles = lista.filter((u) => !archivados.has(`${sid}:${u.id}`));
-    return visibles.length ? visibles : SIN;
-  });
+    if (visibles.length) res[sid] = visibles;
+  }
+  const ks = Object.keys(res);
+  if (ks.length === Object.keys(ultimo).length && ks.every((k) => ultimo[k] && igual(ultimo[k], res[k]))) return ultimo;
+  return (ultimo = res);
+};
 
-export const useTodosSubagentes = (): Subagentes =>
-  useSyncExternalStore(suscribir, () => {
-    const res: Subagentes = {};
-    for (const [sid, lista] of Object.entries(actual)) {
-      const visibles = lista.filter((u) => !archivados.has(`${sid}:${u.id}`));
-      if (visibles.length) res[sid] = visibles;
-    }
-    return res;
-  });
+export const useSubagentes = (sid: string | null): readonly Subagente[] => {
+  const t = useSyncExternalStore(suscribir, todos);
+  return (sid && t[sid]) || SIN;
+};
+
+export const useTodosSubagentes = (): Subagentes => useSyncExternalStore(suscribir, todos);
 
 export { claveSub, deClaveSub } from "./subagente-clave";
 
