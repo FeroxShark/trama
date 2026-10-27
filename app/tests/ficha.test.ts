@@ -34,7 +34,7 @@ test("el chip del modelo dice su nombre corto, nunca una letra suelta", () => {
 test("la ficha trae proyecto, máquina, rama y modelo completo (en inglés por default)", () => {
   assert.equal(
     ficha(h({ rama: "pa/atlas/20261003-100000-10001" }), "taller"),
-    "Project: atlas\nMachine: local (taller)\nBranch: pa/atlas/20261003-100000-10001\nModel: claude-opus-5-5 · high",
+    "Project: atlas\nMachine: local (taller)\nBranch: pa/atlas/20261003-100000-10001\nModel: claude-opus-5-5 · high\nEffort: high (3 of 5)",
   );
   assert.equal(ficha(h({ effort: "" }), null), "Project: atlas\nMachine: local\nBranch: no branch\nModel: claude-opus-5-5");
 });
@@ -44,7 +44,7 @@ test("la ficha en español", () => {
   try {
     assert.equal(
       ficha(h({ rama: "pa/atlas/20261003-100000-10001" }), "taller"),
-      "Proyecto: atlas\nMáquina: local (taller)\nRama: pa/atlas/20261003-100000-10001\nModelo: claude-opus-5-5 · high",
+      "Proyecto: atlas\nMáquina: local (taller)\nRama: pa/atlas/20261003-100000-10001\nModelo: claude-opus-5-5 · high\nEsfuerzo: high (3 de 5)",
     );
     assert.equal(ficha(h({ effort: "" }), null), "Proyecto: atlas\nMáquina: local\nRama: sin rama\nModelo: claude-opus-5-5");
   } finally {

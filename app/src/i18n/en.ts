@@ -87,6 +87,7 @@ export const en = {
   "ficha.nube": "cloud",
   "ficha.rama": "Branch: {v}",
   "ficha.modelo": "Model: {v}",
+  "ficha.esfuerzo": "Effort: {v} ({n} of {total})",
   "uso.releer": "Refresh limits",
   "uso.5h": "5 h",
   "uso.sem": "Week",

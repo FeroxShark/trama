@@ -179,6 +179,11 @@
 .ui-esf i[data-on] {
   opacity: 0.85;
 }
+.ui-esf-p {
+  margin-left: var(--esp-1);
+  font-size: var(--letra-2);
+  opacity: 0.8;
+}
 .ui-esf[data-tope] i[data-on] {
   background: var(--acento);
   opacity: 1;

@@ -84,6 +84,7 @@ export const es: { [K in keyof typeof en]: string } = {
   "ficha.nube": "nube",
   "ficha.rama": "Rama: {v}",
   "ficha.modelo": "Modelo: {v}",
+  "ficha.esfuerzo": "Esfuerzo: {v} ({n} de {total})",
   "uso.releer": "Actualizar límites",
   "uso.5h": "5 h",
   "uso.sem": "Semana",

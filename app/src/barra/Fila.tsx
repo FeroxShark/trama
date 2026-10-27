@@ -10,7 +10,7 @@ import { pintorCache, pintorDura, pintorHace } from "../tiempo";
 import { cacheAplica } from "../../electron/cache";
 import { errorCorto, fin, type Como, type Salida } from "./arbol";
 import { Esfuerzo } from "../ui/componentes";
-import { effortsDe, esLocal } from "../hilo/modelos";
+import { esfuerzoDe } from "./esfuerzo";
 import { familiaDe, ficha, lugarDe, modeloCorto } from "./ficha";
 import { latir } from "./latido";
 import { cierre as cierreDe, Punto, Reloj, tareaDe, textoEstado, tipoDe } from "./piezas";
@@ -80,8 +80,8 @@ export const Fila = memo(function Fila({ ref, h, estado, apagada, cursor, activa
   );
   const fam = familiaDe(h.modelo);
   const corto = modeloCorto(h.modelo);
-  // Un modelo local tiene otra escala (no es el esfuerzo de Claude): sin barritas.
-  const efforts = h.effort && !esLocal(h.modelo) ? effortsDe(h.modelo) : null;
+  // El esfuerzo sale del id (Gemini/agy) o del campo `effort`, en la escala de su motor; si no se sabe, no se dibuja nada.
+  const esf = esfuerzoDe(h.modelo, h.effort);
   const Lugar = lugarDe(h) === "nube" ? Cloud : Laptop;
 
   return (
@@ -115,7 +115,7 @@ export const Fila = memo(function Fila({ ref, h, estado, apagada, cursor, activa
             {corto ? (
               <span className="glifo" data-fam={fam}>
                 {corto}
-                {efforts ? <Esfuerzo nivel={h.effort} niveles={efforts} /> : null}
+                {esf ? <Esfuerzo nivel={esf.nivel} niveles={esf.niveles} lleno={esf.lleno} palabra /> : null}
               </span>
             ) : null}
             <Lugar size={12} strokeWidth={1.8} />

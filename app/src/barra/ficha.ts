@@ -3,6 +3,7 @@
 // entera en el tooltip. Sin React: lo prueban los tests.
 import type { Hilo } from "../datos/contrato.ts";
 import { t } from "../i18n/index.ts";
+import { esfuerzoDe } from "./esfuerzo.ts";
 
 export type Familia = "opus" | "sonnet" | "fable" | "haiku" | "otro";
 
@@ -49,11 +50,13 @@ export const lugarDe = (_h: Hilo): Lugar => "local";
 /** El tooltip de la fila: proyecto, máquina, rama y modelo completo, un dato por renglón. */
 export function ficha(h: Hilo, maquina: string | null): string {
   const lugar = lugarDe(h);
+  const esf = esfuerzoDe(h.modelo, h.effort);
   const donde = lugar === "nube" ? t("ficha.nube") : maquina ? t("ficha.localEn", { maquina }) : t("ficha.local");
   return [
     t("ficha.proyecto", { v: h.proyecto }),
     t("ficha.maquina", { v: donde }),
     t("ficha.rama", { v: h.rama ?? t("comun.sinRama") }),
-    t("ficha.modelo", { v: `${h.modelo || t("comun.sinDato")}${h.effort && h.effort !== "-" ? ` · ${h.effort}` : ""}` }),
+    t("ficha.modelo", { v: `${h.modelo || t("comun.sinDato")}${esf ? ` · ${esf.nivel}` : h.effort && h.effort !== "-" ? ` · ${h.effort}` : ""}` }),
+    ...(esf ? [t("ficha.esfuerzo", { v: esf.nivel, n: esf.lleno, total: esf.niveles.length })] : []),
   ].join("\n");
 }

@@ -55,17 +55,19 @@ export function BarraCupo({ fraccion }: { fraccion: number }) {
 }
 
 /**
- * Indicador chico del esfuerzo: una barrita por nivel de `niveles`, llenas hasta `nivel`; el último nivel (max) lleva el acento.
- * Sin nivel conocido no pinta nada. Decorativo (`aria-hidden`): el dato lo dice el tooltip de quien lo envuelve.
+ * Indicador chico del esfuerzo: una barrita por nivel de `niveles`, llenas las primeras `lleno` (el último nivel, max, las llena todas); el último nivel (max) lleva el acento.
+ * Con `palabra`, el nivel escrito al lado (para que no dependa sólo del dibujo). Las barritas son decorativas (`aria-hidden`).
  */
-export function Esfuerzo({ nivel, niveles }: { nivel: string | null | undefined; niveles: readonly string[] }) {
-  const i = nivel ? niveles.indexOf(nivel) : -1;
-  if (i < 0 || niveles.length < 2) return null;
+export function Esfuerzo({ nivel, niveles, lleno, palabra }: { nivel: string; niveles: readonly string[]; lleno: number; palabra?: boolean }) {
+  if (niveles.length < 2) return null;
   return (
-    <span className="ui-esf" data-tope={i === niveles.length - 1 && niveles.length > 3 ? "" : undefined} aria-hidden>
-      {niveles.map((n, k) => (
-        <i key={n} data-on={k <= i ? "" : undefined} style={{ height: `${0.25 + (k * 0.375) / (niveles.length - 1)}rem` }} />
-      ))}
-    </span>
+    <>
+      <span className="ui-esf" data-tope={lleno === niveles.length && niveles.length > 3 ? "" : undefined} aria-hidden>
+        {niveles.map((n, k) => (
+          <i key={n} data-on={k < lleno ? "" : undefined} style={{ height: `${0.25 + (k * 0.375) / (niveles.length - 1)}rem` }} />
+        ))}
+      </span>
+      {palabra ? <span className="ui-esf-p">{nivel}</span> : null}
+    </>
   );
 }
