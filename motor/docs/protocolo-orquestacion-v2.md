@@ -43,7 +43,7 @@ Novedad de la v2 respecto de la v1: (a) una **vía rápida** para tareas chicas 
 | `pa <p> --seguir --id ID "<t>"` | Retomar esa corrida (misma rama y puesto). Se niega si la sesión compactó (`--force` lo saltea); si pasaron >55 min arranca sesión nueva en la misma rama. |
 | `-m a,b,c` | Lista de fallback: pasa al siguiente con exit 76/77/95/96/97 y saltea modelos enfriados. Con `--async` sólo cubre fallas al lanzar. |
 | `--fase F1..F7 --tarea <slug>` | Etiquetan la corrida en `medicion.tsv`; `pa --rinde --por fase\|tarea` agrupa. |
-| `pa --rubrica 'A=.. B=.. C=.. D=.. E=..'` | Muestra qué fila de la tabla (v1) corresponde y no lanza. Con `pa <p> --rubrica '...' "<t>"` lanza con ese modelo/effort y anota fila y modelo estimado. Sale 3 si la fila dice "no se lanza". |
+| `pa --rubrica 'A=.. B=.. C=.. D=.. E=..'` | Muestra qué fila de la tabla (v2, sección 6) corresponde y no lanza. Con `pa <p> --rubrica '...' "<t>"` lanza con ese modelo/effort y anota fila y modelo estimado. Sale 3 si la fila dice "no se lanza"; sale 98 si la fila da un modelo o effort que `modelos.json` apaga. |
 | `pa --rinde [--por tipo\|fase\|tarea \| --rubrica] [--json]` | Rendimiento: n, % integrada sin retrabajo, turnos, costo medio, % que compactó. `--rubrica`: acierto por fila. |
 | `--auditar <id> -m M` | Revisor de sólo lectura del diff contra main (CRITICO/ALTO/MEDIO/BAJO). |
 | `--integrar <id> [--tests]` · `--actualizar <id>` · `--descartar <id>` | Integrar (rebase + fast-forward), resolver choque de rebase, borrar rama (**destructivo: exige OK del dueño**). |
@@ -279,31 +279,33 @@ Intento previo (id <ID>, <modelo>):
 
 ## 6. Rúbrica v2
 
-### 6.1 Las cinco preguntas (más dos marcas opcionales)
+### 6.1 Las cinco preguntas (más tres marcas opcionales)
 
 El líder contesta por subtarea, leyendo el pedido y los hechos de F2; la tabla da modelo y effort. No se prueba de abajo hacia arriba.
 
 | | Pregunta | Respuestas |
 |---|---|---|
-| **A** | ¿Qué tamaño tiene? Se mide en archivos a modificar **y** en KB de lectura (`wc -c` de los "Leer"); manda el mayor de los dos | **chico**: 1 archivo y ≤15 KB · **mediano**: 2–3 archivos, o 15–40 KB · **grande**: >3 archivos, o >40 KB |
+| **A** | ¿Qué tamaño tiene? Se cuentan los archivos a modificar **y** los KB de lectura (`wc -c` de los "Leer"); manda el mayor de los dos. **No cuentan** los tests (`*.test.*`, `*.extra.test.*`) ni las claves i18n de T0 (en/es): un cambio con su test sigue siendo 1 archivo. Los valores viejos 1, 2-3 y >3 valen como chico, mediano y grande | **chico**: 1 archivo y ≤15 KB · **mediano**: 2–3 archivos, o 15–40 KB · **grande**: >3 archivos, o >40 KB |
 | **B** | ¿Ejecutar o decidir? | **ejecutar**: el brief dice qué y cómo · **decidir**: hay que elegir estructura, API o flujo |
 | **C** | ¿Hay un chequeo que lo desmienta? | **completo**: test o script determinista que da rojo en main · **parcial**: typecheck + build, el resto a ojo · **ninguno** |
 | **D** | ¿Cuánto cuesta un error? | **bajo**: local, se revierte sin daño · **alto**: base de la que cuelga otra cosa, datos del usuario, seguridad, migración, `nucleo.ts`/`puente.ts` |
 | **E** | ¿La causa o el lugar del cambio son conocidos? | **sí**: hay un hecho verificado con archivo:línea · **no** |
 | M | (opcional) ¿Sin lógica nueva? (renombre, claves listadas) | sí / no |
 | I | (opcional) ¿Indivisible? Ya se intentó partir y no se puede (un solo archivo grande, o tipos acoplados que rompen el typecheck si se parten) | sí / no |
+| K | (opcional, con I = sí) ¿Una corrida 1b anterior ya compactó? | sí / no |
 
 La lógica: C dice si un error se ve antes de main; B y E dicen cuánto hay que pensar; D dice cuánto control extra pagar; A dice si entra en el contexto del modelo chico.
 
 ### 6.2 Tabla de decisión (gana la primera fila que aplique)
 
-Todos los modelos y efforts de la tabla están habilitados hoy.
+Si `~/.config/trama/modelos.json` apaga (`excluir`, `efforts_permitidos`) un modelo o effort que una fila devuelve, `pa --rubrica` no lo devuelve: sale 98 y dice qué está apagado.
 
 | # | Condición | `-m` | `--effort` | Además |
 |---|---|---|---|---|
+| 2 | C = ninguno (va primero: gana aunque A sea grande o E = sí) | no se lanza | — | Escribir el chequeo (F4). Si es imposible (puro visual), tratar como C = parcial. |
 | 1 | A = grande, **divisible** (I ≠ sí) | no se lanza | — | Volver a F3 y partir (o extraer T0). |
-| 1b | A = grande, **indivisible** (I = sí) | `claude-sonnet-5-5` (`claude-opus-5-5` si D = alto) | high (medium en Opus) | Tope de lectura 80 KB. Con D = alto, F7 obligatoria. Evita el bucle "no se lanza porque es grande / no se puede partir". |
-| 2 | C = ninguno | no se lanza | — | Escribir el chequeo (F4). Si es imposible (puro visual), tratar como C = parcial. |
+| 1c | A = grande, **indivisible** (I = sí) y **K = sí** | no se lanza | — | Pasar al dueño (tablero): la 1b ya compactó y partir otra vez no alcanza. |
+| 1b | A = grande, **indivisible** (I = sí) y C ≠ ninguno | `claude-sonnet-5-5` (`claude-opus-5-5` si D = alto) | high (medium en Opus) | Tope de lectura 80 KB. Con D = alto, F7 obligatoria. Evita el bucle "no se lanza porque es grande / no se puede partir". Si la corrida compacta, la próxima vez es 1c, no otra partición. |
 | 3a | E = no, D = alto | `claude-opus-5-5` | medium | Antes, F2 variante hipótesis (abanico). Si una se confirma, E = sí y se re-puntúa. F7 obligatoria. |
 | 3b | E = no, D = bajo | `claude-sonnet-5-5` | high | Antes, F2 variante hipótesis. Si una se confirma, E = sí y se re-puntúa. Antes iba a Opus: Opus es para bases y fallos, no para un bug menor. |
 | 4 | B = decidir, D = alto | `claude-opus-5-5` | medium | F7 obligatoria. Opus high sólo con OK del dueño. |
@@ -318,11 +320,11 @@ Todos los modelos y efforts de la tabla están habilitados hoy.
 
 `claude-opus-5-5` va en `medium` porque en esta instalación rinde mejor que en `high`. Si no hay modelo gratis disponible, el plan B es el más barato habilitado (Haiku): gratis es preferencia, no requisito.
 
-**Estado de `pa --rubrica` [HOY]:** implementa la tabla v1 (A = 1/2-3/>3 sin KB; filas 3 única, 6, 7, 8 sin distinguir tamaño; fila 9 con M). **[AGREGAR]**: A en chico/mediano/grande por archivos y KB, marca I, filas 1b/3a/3b/7b/8b (~30 líneas en `rubrica_resolver`).
+**Estado de `pa --rubrica` [HOY]:** implementa la tabla v2: A = chico/mediano/grande (los viejos 1, 2-3 y >3 se mapean), marcas I y K, filas 2, 1, 1c, 1b, 3a/3b, 7b/8b, fila 9 con M, y sale 98 si modelos.json apaga el modelo o el effort. Quien calcula A (wc -c, sin tests ni i18n T0) sigue siendo el líder. **[AGREGAR]**: que `pa` o el gate calculen A, D y las marcas solos (sección 9).
 
 ### 6.3 Medir la rúbrica
 
-Cada subtarea anota en `estado.tsv` y en `medicion.tsv` (vía `pa --rubrica`): A–E (+M, I), fila, modelo estimado, modelo que terminó integrado y qué respuesta se corrigió, si hubo.
+Cada subtarea anota en `estado.tsv` y en `medicion.tsv` (vía `pa --rubrica`): A–E (+M, I, K), fila, modelo estimado, modelo que terminó integrado y qué respuesta se corrigió, si hubo.
 
 - **Acierto**: el modelo estimado es el que se integró sin re-puntuar.
 - **Subestimación**: hubo que re-puntuar hacia arriba. Se anota qué pregunta falló; la que junte la mayoría de los errores se afina.
@@ -478,7 +480,7 @@ Otros exits: 0 verde · 2 uso · 3 no resuelve proyecto/rama/main/archivos del g
 | `pa -m a,b,c` | Fallback por infra (76/77/95/96/97), saltea modelos enfriados. |
 | Exit 97 y enfriamiento | OpenCode cortó por límite: `reparto --enfriar` N horas (default 5). |
 | `--fase` / `--tarea` | Columnas en `medicion.tsv`; `pa --rinde --por fase\|tarea`. |
-| `pa --rubrica` | Tabla v1; `pa --rinde --rubrica` mide acierto por fila. |
+| `pa --rubrica` | Tabla v2 (sección 6); `pa --rinde --rubrica` mide acierto por fila. |
 | `reparto --resumen` | Se imprime al arrancar el líder (modelos habilitados). |
 
 **Falta:**
@@ -540,7 +542,7 @@ Tarea: "El botón de reintento de la barra no reintenta si el estado es `error`.
 
 ```sh
 # F0: 00-pedido.md  →  A=chico B=ejecutar C=completo D=bajo E=si
-pa --rubrica 'A=chico B=ejecutar C=completo D=bajo E=si'       # fila 10 → claude-haiku-5-5 xhigh (la v1 no admite 'chico': A=1)
+pa --rubrica 'A=chico B=ejecutar C=completo D=bajo E=si'       # fila 10 → claude-haiku-5-5 xhigh
 # El líder localiza con un comando, escribe el brief (2 commits: test, fix) en tareas/<slug>/T1.brief.md
 pa trama --async --tipo frontend --fase F5 --tarea reintento-barra -m claude-haiku-5-5 --effort xhigh \
    --max-turns 60 --max-budget-usd 1 --brief-archivo ~/.local/state/pa/trama/tareas/reintento-barra/T1.brief.md
