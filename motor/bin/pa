@@ -2721,48 +2721,66 @@ reescribe_lineas() {   # repo a1 b1 a2 b2
   return 1
 }
 
-# --- rúbrica: el modelo se elige antes de lanzar (protocolo por fases, sección 5) -------------------------
-# Cinco respuestas por subtarea y la tabla da modelo y effort; gana la primera fila que aplique:
-#   A archivos que modifica: 1 | 2-3 | >3        B ejecutar | decidir        C chequeo que lo desmienta: completo | parcial | ninguno
-#   D costo de un error: bajo | alto             E causa o lugar conocidos: si | no
-#   M (opcional) = si: sin lógica nueva (renombre, claves listadas): habilita la fila 9, el gratis de OpenCode
-# `rubrica_resolver '<texto>'` deja RUB_NORM (las respuestas normalizadas), RUB_FILA, RUB_MODELO, RUB_EFFORT, RUB_TIPO (sólo la 9: mecanico) y
-# RUB_NOTA (el "además" de la tabla). Sale 0 si se lanza, 3 si la fila dice "no se lanza" (RUB_MODELO queda vacío), 2 si el texto está mal.
+# --- rúbrica: el modelo se elige antes de lanzar (protocolo v2, motor/docs/protocolo-orquestacion-v2.md, sección 6) ----
+# Respuestas por subtarea; la tabla da modelo y effort. Gana la primera fila que aplique, en el orden de este código.
+#   A tamaño: chico | mediano | grande (o 1 | 2-3 | >3, los viejos). Se mide en archivos de código a modificar SIN tests
+#     (*.test.*, *.extra.test.*) ni los de T0 (i18n en/es), y en KB de lectura; manda el mayor. chico = 1 archivo y ≤15 KB;
+#     mediano = 2-3 archivos o 15-40 KB; grande = >3 archivos o >40 KB.
+#   B ejecutar | decidir        C chequeo que lo desmienta: completo | parcial | ninguno
+#   D costo de un error: bajo | alto                        E causa o lugar conocidos: si | no
+#   I (opcional, si|no) = indivisible: ya se intentó partir y no se puede. Sólo cuenta con A=grande.
+#   K (opcional, si|no) = la última corrida de esta subtarea (fila 1b) compactó: no vuelve a partir, va al dueño.
+#   M (opcional, si|no) = sin lógica nueva (renombre, claves listadas): habilita la fila 9, el gratis de OpenCode.
+# `rubrica_resolver '<texto>'` deja RUB_NORM (las respuestas normalizadas), RUB_FILA (el id de la fila: 1, 1b, 1c, 2, 3a, 3b, 4…10, 7b, 8b),
+# RUB_MODELO, RUB_EFFORT, RUB_TIPO (sólo la 9: mecanico) y RUB_NOTA (el "además" de la tabla). Sale 0 si se lanza, 3 si la fila dice
+# "no se lanza" (RUB_MODELO queda vacío), 2 si el texto está mal.
 rubrica_resolver() {
-  local txt="${1//,/ }" t k v A="" B="" C="" D="" E="" M="no"
+  local txt="${1//,/ }" t k v rc=0 A="" B="" C="" D="" E="" I="no" K="no" M="no"
   RUB_NORM="" RUB_FILA="" RUB_MODELO="" RUB_EFFORT="" RUB_TIPO="" RUB_NOTA=""
   for t in $txt; do
-    [[ "$t" == *=* ]] || { echo "pa: --rubrica: '$t' no es CLAVE=valor. Va así: 'A=1 B=ejecutar C=completo D=bajo E=si' (A: 1|2-3|>3, B: ejecutar|decidir, C: completo|parcial|ninguno, D: bajo|alto, E: si|no)." >&2; return 2; }
+    [[ "$t" == *=* ]] || { echo "pa: --rubrica: '$t' no es CLAVE=valor. Va así: 'A=chico B=ejecutar C=completo D=bajo E=si' (A: chico|mediano|grande, B: ejecutar|decidir, C: completo|parcial|ninguno, D: bajo|alto, E: si|no; opcionales I, K, M: si|no)." >&2; return 2; }
     k="${t%%=*}"; k="${k^^}"; v="${t#*=}"; v="${v,,}"; v="${v//á/a}"; v="${v//é/e}"; v="${v//í/i}"; v="${v//ó/o}"; v="${v//ú/u}"
     case "$k" in
       A) case "$v" in
-           1|uno) A=1 ;;
-           2|3|2-3|2–3|2a3) A=2-3 ;;
-           ">3"|">=4"|4+|3+|mas|mas3|mas-de-3|masde3|"+3"|[4-9]|[1-9][0-9]*) A=">3" ;;
-           *) echo "pa: --rubrica: A='$v' no va (A = cuántos archivos modifica: 1, 2-3 o >3)." >&2; return 2 ;;
+           chico|1|uno) A=chico ;;
+           mediano|2|3|2-3|2–3|2a3) A=mediano ;;
+           grande|">3"|">=4"|4+|3+|mas|mas3|mas-de-3|masde3|"+3"|[4-9]|[1-9][0-9]*) A=grande ;;
+           *) echo "pa: --rubrica: A='$v' no va (A = chico, mediano o grande; o 1, 2-3 o >3)." >&2; return 2 ;;
          esac ;;
       B) [[ "$v" == @(ejecutar|decidir) ]] || { echo "pa: --rubrica: B='$v' no va (ejecutar o decidir)." >&2; return 2; }; B="$v" ;;
       C) [[ "$v" == @(completo|parcial|ninguno) ]] || { echo "pa: --rubrica: C='$v' no va (completo, parcial o ninguno)." >&2; return 2; }; C="$v" ;;
       D) [[ "$v" == @(bajo|alto) ]] || { echo "pa: --rubrica: D='$v' no va (bajo o alto)." >&2; return 2; }; D="$v" ;;
       E) [[ "$v" == @(si|no) ]] || { echo "pa: --rubrica: E='$v' no va (si o no)." >&2; return 2; }; E="$v" ;;
+      I) [[ "$v" == @(si|no) ]] || { echo "pa: --rubrica: I='$v' no va (si o no)." >&2; return 2; }; I="$v" ;;
+      K) [[ "$v" == @(si|no) ]] || { echo "pa: --rubrica: K='$v' no va (si o no)." >&2; return 2; }; K="$v" ;;
       M) [[ "$v" == @(si|no) ]] || { echo "pa: --rubrica: M='$v' no va (si o no)." >&2; return 2; }; M="$v" ;;
-      *) echo "pa: --rubrica: la clave '$k' no existe (A, B, C, D, E; opcional M)." >&2; return 2 ;;
+      *) echo "pa: --rubrica: la clave '$k' no existe (A, B, C, D, E; opcionales I, K, M)." >&2; return 2 ;;
     esac
   done
-  [[ -n "$A" && -n "$B" && -n "$C" && -n "$D" && -n "$E" ]] || { echo "pa: --rubrica: faltan respuestas. Van las cinco: 'A=1 B=ejecutar C=completo D=bajo E=si'." >&2; return 2; }
-  RUB_NORM="A=$A B=$B C=$C D=$D E=$E"; [[ "$M" == si ]] && RUB_NORM+=" M=si"
-  if [[ "$A" == ">3" ]]; then RUB_FILA=1; RUB_NOTA="Volver a F3 y partir."; return 3
-  elif [[ "$C" == ninguno ]]; then RUB_FILA=2; RUB_NOTA="Escribir el chequeo (F4). Si es imposible (puro visual), tratar como C=parcial."; return 3
-  elif [[ "$E" == no ]]; then RUB_FILA=3; RUB_MODELO=claude-opus-5-5; RUB_EFFORT=medium; RUB_NOTA="Antes, F2 variante hipótesis con Haiku: si una se confirma, E=si y se re-puntúa."
+  [[ -n "$A" && -n "$B" && -n "$C" && -n "$D" && -n "$E" ]] || { echo "pa: --rubrica: faltan respuestas. Van las cinco: 'A=chico B=ejecutar C=completo D=bajo E=si'." >&2; return 2; }
+  RUB_NORM="A=$A B=$B C=$C D=$D E=$E"
+  [[ "$I" == si ]] && RUB_NORM+=" I=si"; [[ "$K" == si ]] && RUB_NORM+=" K=si"; [[ "$M" == si ]] && RUB_NORM+=" M=si"
+  # Sin chequeo no se lanza, sea cual sea el tamaño: va primero.
+  if [[ "$C" == ninguno ]]; then RUB_FILA=2; RUB_NOTA="Escribir el chequeo (F4). Si es imposible (puro visual), tratar como C=parcial."; rc=3
+  elif [[ "$A" == grande && "$I" != si ]]; then RUB_FILA=1; RUB_NOTA="Volver a F3 y partir (o extraer T0)."; rc=3
+  elif [[ "$A" == grande && "$K" == si ]]; then RUB_FILA=1c; RUB_NOTA="Pasar al dueño (tablero): la corrida de 1b ya compactó y partir otra vez no alcanza."; rc=3
+  elif [[ "$A" == grande ]]; then RUB_FILA=1b; RUB_MODELO=claude-sonnet-5-5; RUB_EFFORT=high; RUB_NOTA="Indivisible: tope de lectura 80 KB. Si compacta, la próxima va a la fila 1c (al dueño)."
+    [[ "$D" == alto ]] && { RUB_MODELO=claude-opus-5-5; RUB_EFFORT=medium; RUB_NOTA+=" Con D=alto, F7 obligatoria."; }
+  elif [[ "$E" == no && "$D" == alto ]]; then RUB_FILA=3a; RUB_MODELO=claude-opus-5-5; RUB_EFFORT=medium; RUB_NOTA="Antes, F2 variante hipótesis (abanico). Si una se confirma, E=si y se re-puntúa. F7 obligatoria."
+  elif [[ "$E" == no ]]; then RUB_FILA=3b; RUB_MODELO=claude-sonnet-5-5; RUB_EFFORT=high; RUB_NOTA="Antes, F2 variante hipótesis. Si una se confirma, E=si y se re-puntúa."
   elif [[ "$B" == decidir && "$D" == alto ]]; then RUB_FILA=4; RUB_MODELO=claude-opus-5-5; RUB_EFFORT=medium; RUB_NOTA="F7 obligatoria. Opus high sólo con OK del dueño."
   elif [[ "$B" == decidir ]]; then RUB_FILA=5; RUB_MODELO=claude-sonnet-5-5; RUB_EFFORT=high
   elif [[ "$C" == parcial && "$D" == alto ]]; then RUB_FILA=6; RUB_MODELO=claude-sonnet-5-5; RUB_EFFORT=high; RUB_NOTA="PROBAR para el dueño."
-  elif [[ "$C" == parcial ]]; then RUB_FILA=7; RUB_MODELO=claude-haiku-5-5; RUB_EFFORT=xhigh; RUB_NOTA="PROBAR para el dueño."
-  elif [[ "$D" == alto ]]; then RUB_FILA=8; RUB_MODELO=claude-haiku-5-5; RUB_EFFORT=xhigh; RUB_NOTA="F7 obligatoria, con otra familia."
-  elif [[ "$A" == 1 && "$M" == si ]]; then RUB_FILA=9; RUB_MODELO=opencode:opencode/glm-5.3-flash-free; RUB_TIPO=mecanico; RUB_NOTA="--tipo mecanico; plan B claude-haiku-5-5 medium (-m opencode:opencode/glm-5.3-flash-free,claude-haiku-5-5)."
+  elif [[ "$C" == parcial && "$A" == chico ]]; then RUB_FILA=7; RUB_MODELO=claude-haiku-5-5; RUB_EFFORT=xhigh; RUB_NOTA="PROBAR para el dueño."
+  elif [[ "$C" == parcial ]]; then RUB_FILA=7b; RUB_NOTA="Partir más chico y volver a la fila 7 con cada pedazo. PROBAR para el dueño."
+    if [[ "$I" == si ]]; then RUB_MODELO=claude-sonnet-5-5; RUB_EFFORT=high; else rc=3; fi
+  elif [[ "$D" == alto && "$A" == chico ]]; then RUB_FILA=8; RUB_MODELO=claude-haiku-5-5; RUB_EFFORT=xhigh; RUB_NOTA="F7 obligatoria, con otra familia."
+  elif [[ "$D" == alto ]]; then RUB_FILA=8b; RUB_NOTA="Partir primero y volver a la fila 8. F7 obligatoria, con otra familia."
+    if [[ "$I" == si ]]; then RUB_MODELO=claude-sonnet-5-5; RUB_EFFORT=high; else rc=3; fi
+  elif [[ "$M" == si && "$A" == chico ]]; then RUB_FILA=9; RUB_MODELO=opencode:opencode/glm-5.3-flash-free; RUB_TIPO=mecanico; RUB_NOTA="--tipo mecanico; plan B claude-haiku-5-5 medium (-m opencode:opencode/glm-5.3-flash-free,claude-haiku-5-5)."
   else RUB_FILA=10; RUB_MODELO=claude-haiku-5-5; RUB_EFFORT=xhigh
   fi
-  return 0
+  return "$rc"
 }
 # `pa --rubrica '<respuestas>' [--json]`: qué fila de la tabla da, con qué modelo y effort (no lanza nada). Sale 3 si la fila dice "no se lanza".
 cmd_rubrica() {
@@ -2770,15 +2788,15 @@ cmd_rubrica() {
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --json) json=1; shift ;;
-      *) [[ -z "$texto" ]] || { echo "uso: pa --rubrica 'A=1 B=ejecutar C=completo D=bajo E=si' [--json]" >&2; return 2; }; texto="$1"; shift ;;
+      *) [[ -z "$texto" ]] || { echo "uso: pa --rubrica 'A=chico B=ejecutar C=completo D=bajo E=si' [--json]" >&2; return 2; }; texto="$1"; shift ;;
     esac
   done
-  [[ -n "$texto" ]] || { echo "uso: pa --rubrica 'A=1 B=ejecutar C=completo D=bajo E=si' [--json]" >&2; return 2; }
+  [[ -n "$texto" ]] || { echo "uso: pa --rubrica 'A=chico B=ejecutar C=completo D=bajo E=si' [--json]" >&2; return 2; }
   rubrica_resolver "$texto" || rc=$?
   (( rc == 2 )) && return 2
   if (( json )); then
     jq -n --arg r "$RUB_NORM" --arg f "$RUB_FILA" --arg m "$RUB_MODELO" --arg e "$RUB_EFFORT" --arg t "$RUB_TIPO" --arg n "$RUB_NOTA" \
-      '{version: 1, rubrica: $r, fila: ($f | tonumber), lanza: ($m != ""), modelo: (if $m == "" then null else $m end),
+      '{version: 1, rubrica: $r, fila: (if $f | test("^[0-9]+$") then ($f | tonumber) else $f end), lanza: ($m != ""), modelo: (if $m == "" then null else $m end),
         effort: (if $e == "" then null else $e end), tipo: (if $t == "" then null else $t end), nota: $n}'
   elif (( rc == 3 )); then
     echo "fila $RUB_FILA: no se lanza. $RUB_NOTA"

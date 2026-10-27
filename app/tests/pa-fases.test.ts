@@ -274,12 +274,12 @@ test("pa --rubrica: da la fila de la tabla (modelo, effort, tipo) y --json; fila
   const f2 = caso("A=1 B=ejecutar C=ninguno D=bajo E=si");
   assert.equal(f2.rc, 3);
   assert.equal(f2.j.fila, 2);
-  assert.equal(caso("A=1 B=ejecutar C=completo D=bajo E=no").j.fila, 3);
+  assert.equal(caso("A=1 B=ejecutar C=completo D=bajo E=no").j.fila, "3b");
   assert.equal(caso("A=1 B=decidir C=completo D=alto E=si").j.fila, 4);
   assert.equal(caso("A=1 B=decidir C=completo D=bajo E=si").j.fila, 5);
   assert.equal(caso("A=1 B=ejecutar C=parcial D=alto E=si").j.fila, 6);
   assert.equal(caso("A=1 B=ejecutar C=parcial D=bajo E=si").j.fila, 7);
-  assert.equal(caso("A=2-3 B=ejecutar C=completo D=alto E=si").j.fila, 8);
+  assert.equal(caso("A=2-3 B=ejecutar C=completo D=alto E=si").j.fila, "8b");
   const f9 = caso("A=1 B=ejecutar C=completo D=bajo E=si M=si");
   assert.deepEqual([f9.j.fila, f9.j.modelo, f9.j.tipo], [9, "opencode:opencode/glm-5.3-flash-free", "mecanico"]);
   const txt = pa(["--rubrica", "A=1 B=ejecutar C=completo D=bajo E=si"]);
@@ -306,7 +306,7 @@ test("pa <p> --rubrica: lanza con el modelo/effort de la fila y anota rub_* en m
   assert.equal(fila.effort, "high");
   assert.equal(fila.rub_fila, "5");
   assert.equal(fila.rub_modelo, "claude-sonnet-5-5");
-  assert.match(fila.rubrica ?? "", /A=1 B=decidir/);
+  assert.match(fila.rubrica ?? "", /A=chico B=decidir/);
   const gana = pa(["demo", "--sin-jefe", "--rubrica", resp, "-m", "claude-haiku-5-5", "otra"]);
   assert.equal(gana.rc, 0, gana.err);
   fila = medicion().at(-1)!;
