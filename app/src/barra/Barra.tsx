@@ -89,7 +89,7 @@ import { diferir, workerVivo, type Trabajador } from "./activas";
 import { control } from "./control";
 import { Fila, FilaLider, RESORTE } from "./Fila";
 import { Subagentes } from "./Subagentes";
-import { claveSub, corriendo, deClaveSub, SubAbierto, useTodosSubagentes } from "./subagentes-logica";
+import { archivarTodosSubs, claveSub, corriendo, deClaveSub, SubAbierto, useTodosSubagentes } from "./subagentes-logica";
 import type { Subagente } from "../../electron/subagentes";
 import { correrGuion } from "./guion";
 import { Logo } from "./Logo";
@@ -673,6 +673,7 @@ export function Barra() {
       }
       if (r.lider.origen === "app") cerrarLider(sid, "archivar");
       else setActiva((a) => (a === LIDER + sid ? null : a));
+      archivarTodosSubs(sid);
     },
     [ultimo, cerrarLider],
   );

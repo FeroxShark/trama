@@ -10,15 +10,60 @@ let pedido = false;
 const oyentes = new Set<() => void>();
 const SIN: readonly Subagente[] = [];
 
-/**
- * Un subagente "corriendo" que no escribe nada hace tanto es de una sesión que se reinició o lo perdió (sus
- * mensajes quedan en disco para siempre): no cuenta como activo. Una herramienta larga (un build) cabe de sobra.
- */
+const CLAVE_ARCHIVADOS = "trama:subagentes:archivados";
+
+function guardado<T>(clave: string, leer: (crudo: string) => T, defecto: T): T {
+  if (typeof localStorage === "undefined") return defecto;
+  try {
+    const crudo = localStorage.getItem(clave);
+    return crudo === null ? defecto : leer(crudo);
+  } catch {
+    return defecto;
+  }
+}
+
+function guardar(clave: string, valor: string) {
+  if (typeof localStorage === "undefined") return;
+  try {
+    localStorage.setItem(clave, valor);
+  } catch {}
+}
+
+const archivados = new Set<string>(guardado<string[]>(CLAVE_ARCHIVADOS, (c) => JSON.parse(c), []));
+
+export const esSubArchivado = (sid: string, id: string): boolean => archivados.has(`${sid}:${id}`);
+
+export function archivarSub(sid: string, id: string) {
+  archivados.add(`${sid}:${id}`);
+  guardar(CLAVE_ARCHIVADOS, JSON.stringify([...archivados]));
+  poner({ ...actual });
+}
+
+export function archivarTodosSubs(sid: string, ahora = Math.floor(Date.now() / 1000)) {
+  const lista = actual[sid] ?? [];
+  let cambio = false;
+  for (const u of lista) {
+    if (!activo(u, ahora)) {
+      archivados.add(`${sid}:${u.id}`);
+      cambio = true;
+    }
+  }
+  if (cambio) {
+    guardar(CLAVE_ARCHIVADOS, JSON.stringify([...archivados]));
+    poner({ ...actual });
+  }
+}
+
+export function limpiarArchivadosSubs() {
+  archivados.clear();
+  guardar(CLAVE_ARCHIVADOS, "[]");
+  poner({ ...actual });
+}
+
 export const OBSOLETO_S = 30 * 60;
 
 export const activo = (u: Subagente, ahora = Math.floor(Date.now() / 1000)) => u.estado === "corriendo" && ahora - u.ultimo_en < OBSOLETO_S;
 
-/** El punto y la palabra de su estado (nunca sólo el color): `vivo` es `activo`. */
 export const pintaSub = (u: Subagente, vivo: boolean) =>
   vivo
     ? ({ tipo: "trab", clave: "sub.corriendo" } as const)
@@ -28,8 +73,11 @@ export const pintaSub = (u: Subagente, vivo: boolean) =>
         ? ({ tipo: "frenado", clave: "sub.sinNoticias" } as const)
         : ({ tipo: "term", clave: "sub.terminado" } as const);
 
-/** Los que corren de verdad ahora. */
 export const corriendo = (lista: readonly Subagente[], ahora?: number) => lista.filter((u) => activo(u, ahora));
+
+export function ponerSubagentes(s: Subagentes) {
+  poner(s);
+}
 
 function poner(s: Subagentes) {
   actual = s;
@@ -39,7 +87,6 @@ function poner(s: Subagentes) {
 function suscribir(fn: () => void) {
   if (!pedido) {
     pedido = true;
-    // Si un cambio llega antes que la primera lectura, la lectura ya es vieja.
     let llego = false;
     fuente.alCambiarSubagentes((s) => {
       llego = true;
@@ -51,14 +98,25 @@ function suscribir(fn: () => void) {
   return () => void oyentes.delete(fn);
 }
 
-/** Los subagentes de una sesión (el más nuevo primero), o ninguno. */
 export const useSubagentes = (sid: string | null): readonly Subagente[] =>
-  useSyncExternalStore(suscribir, () => (sid ? (actual[sid] ?? SIN) : SIN));
+  useSyncExternalStore(suscribir, () => {
+    if (!sid) return SIN;
+    const lista = actual[sid];
+    if (!lista) return SIN;
+    const visibles = lista.filter((u) => !archivados.has(`${sid}:${u.id}`));
+    return visibles.length ? visibles : SIN;
+  });
 
-/** Los de todas las sesiones: la barra suma cuántos corren por líder. */
-export const useTodosSubagentes = (): Subagentes => useSyncExternalStore(suscribir, () => actual);
+export const useTodosSubagentes = (): Subagentes =>
+  useSyncExternalStore(suscribir, () => {
+    const res: Subagentes = {};
+    for (const [sid, lista] of Object.entries(actual)) {
+      const visibles = lista.filter((u) => !archivados.has(`${sid}:${u.id}`));
+      if (visibles.length) res[sid] = visibles;
+    }
+    return res;
+  });
 
 export { claveSub, deClaveSub } from "./subagente-clave";
 
-/** Qué subagente está abierto a la derecha (su `claveSub`) y cómo abrir uno: lo pone la barra, lo usa cada lista. */
 export const SubAbierto = createContext<{ abierta: string | null; abrir: (sid: string, id: string) => void } | null>(null);

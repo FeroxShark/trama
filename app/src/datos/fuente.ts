@@ -499,7 +499,6 @@ const subagentesFijos = (): Subagentes => {
   const base = { sid: "s-fix-a3", tipo: "general-purpose" };
   return {
     "s-fix-a3": [
-      { ...base, id: "a0c1d2e3f4a5b6c7", descripcion: "Buscar dónde se arma el índice de cauce", modelo: "Haiku 5.5", estado: "corriendo", inicio: ahora - 42, ultimo_en: ahora - 3, ultimo: "Grep: indice_cauce en src/", tokens: 18400, resultado: null, hay_mas: false },
       { ...base, id: "b1d2e3f4a5b6c7d8", descripcion: "Revisar los tests del módulo de cauce", modelo: "Sonnet 5.5", estado: "corriendo", inicio: ahora - 128, ultimo_en: ahora - 9, ultimo: "Bash: npm test -- cauce", tokens: 61200, resultado: null, hay_mas: false },
       {
         ...base,
@@ -514,7 +513,7 @@ const subagentesFijos = (): Subagentes => {
         resultado: "Quedan 4 canales sin prueba:\n- pasos:mirar\n- pasos:soltar\n- subagentes:leer\n- subagentes:informe",
         hay_mas: true,
       },
-      { ...base, id: "d3f4a5b6c7d8e9f0", descripcion: "Medir el arranque en frío", modelo: "Haiku 5.5", estado: "error", inicio: ahora - 900, ultimo_en: ahora - 880, ultimo: "API Error: 529 overloaded", tokens: 2100, resultado: null, hay_mas: false },
+      { ...base, id: "d3f4a5b6c7d8e9f0", descripcion: "Medir el arranque en frío", modelo: "Haiku 5.5", estado: "terminado", inicio: ahora - 900, ultimo_en: ahora - 880, ultimo: "Arranque medido: 410 ms en frío.", tokens: 2100, resultado: "Arranque medido: 410 ms en frío.", hay_mas: false },
     ],
   };
 };

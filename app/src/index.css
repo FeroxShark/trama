@@ -5785,6 +5785,7 @@ summary.sis-div-t:hover,
 }
 /* La tarjeta abre los pasos del subagente; la flecha de al lado despliega su resumen. */
 .sub-cab {
+  position: relative;
   display: flex;
   width: calc(100% - 0.75rem);
   min-width: 0;
@@ -5928,6 +5929,68 @@ summary.sis-div-t:hover,
 .sub-ver:disabled {
   color: var(--txt-4);
 }
+.sub-acc {
+  position: absolute;
+  right: 1.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  gap: var(--esp-1);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s;
+}
+.sub:hover .sub-acc,
+.sub-cab:focus-within .sub-acc {
+  opacity: 1;
+}
+.sub:hover .sub-acc > *,
+.sub-cab:focus-within .sub-acc > * {
+  pointer-events: auto;
+}
+.sub:has(.sub-acc):hover .sub-s,
+.sub:has(.sub-acc:focus-within) .sub-s {
+  padding-right: 4.5rem;
+}
+.pliegue-acc {
+  position: absolute;
+  right: var(--esp-2);
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s;
+}
+.w.pliegue:hover .pliegue-acc,
+.w.pliegue:focus-within .pliegue-acc {
+  opacity: 1;
+}
+.w.pliegue:hover .pliegue-acc > *,
+.w.pliegue:focus-within .pliegue-acc > * {
+  pointer-events: auto;
+}
+.sub-pie-acciones {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-2);
+  margin-top: var(--esp-1);
+}
+.sub-archivar {
+  padding: var(--esp-1) var(--esp-2);
+  border: 0;
+  border-radius: var(--radio-2);
+  background: var(--sup-3);
+  font-size: var(--letra-3);
+  color: var(--txt-2);
+}
+.sub-archivar:hover {
+  background: var(--sup-4);
+  color: var(--texto);
+}
+
 @media (max-width: 35rem) {
   /* En una tabla, lo que no tiene espacios se parte antes: la pantalla es la mitad. */
   .tabla :is(th, td) {

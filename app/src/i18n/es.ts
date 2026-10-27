@@ -1885,6 +1885,8 @@ export const es: { [K in keyof typeof en]: string } = {
   "sub.abrirTip": "Ver sus pasos",
   "sub.desplegar": "Ver el resumen",
   "sub.plegar": "Ocultar el resumen",
+  "sub.archivarTodos": "Archivar terminados",
+  "sub.archivarTodosTip": "Archiva todos los subagentes terminados de este líder",
   "subv.marca": "Subagente",
   "subv.marcaModelo": "Subagente · {modelo}",
   "subv.deTip": "Lo lanzó {lider}. Sólo se mira: no se le puede escribir.",

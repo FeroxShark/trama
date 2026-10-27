@@ -1899,6 +1899,8 @@ export const en = {
   "sub.abrirTip": "See its steps",
   "sub.desplegar": "Show the summary",
   "sub.plegar": "Hide the summary",
+  "sub.archivarTodos": "Archive done",
+  "sub.archivarTodosTip": "Archive all finished subagents of this leader",
   "subv.marca": "Subagent",
   "subv.marcaModelo": "Subagent · {modelo}",
   "subv.deTip": "Launched by {lider}. Read-only: you can't write to it.",

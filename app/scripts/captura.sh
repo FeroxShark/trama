@@ -55,7 +55,7 @@ set +e
 env -u CLAUDE_CONFIG_DIR -u PA_STATE -u PROYECTOS_REGISTRY -u TABLERO_DIR -u TABLERO_VISTA \
   HOME="$casa" XDG_CONFIG_HOME="$casa/.config" XDG_DATA_HOME="$casa/.local/share" XDG_CACHE_HOME="$casa/.cache" XDG_STATE_HOME="$casa/.local/state" \
   PATH="$camino" HILOS_STATE="$casa/estado" HILOS_PERFIL="$casa/perfil" \
-  HILOS_CAPTURA="$estado" HILOS_CAPTURA_PNG="$out" HILOS_TAM="${TAM:-1920 1200}" HILOS_ESCALA="${ESCALA:-1.5}" "$@" \
+  HILOS_CAPTURA="$estado" HILOS_CAPTURA_PNG="$out" HILOS_TAM="${TAM:-1920 1200}" HILOS_ESCALA="${ESCALA:-1.5}" HILOS_IDIOMA="${HILOS_IDIOMA:-es}" "$@" \
   timeout 15 "$bin" "$raiz" 2>"$casa/err" >/dev/null
 rc=$?
 set -e
