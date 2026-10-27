@@ -1,0 +1,970 @@
+Trama — protocolo de orquestación por fases
+
+
+
+
+  Trama — protocolo de orquestación por fases
+    Oct 27, 2026         · ​@Juan Martin lopez Granero
+
+  Un modelo chico rinde como uno grande cuando la tarea entra en su contexto, el objetivo
+  no es ambiguo y alguien que no es él puede desmentirlo. Los logs muestran las tres fallas:
+  compactación (tarea que no entra), trabajo que resuelve otra cosa, y VERIFICACION que
+  el mismo worker se autoaprueba. El protocolo ataca las tres: partir hasta que entre (≤40
+  KB de lectura), escribir un chequeo que da rojo en main antes de implementar, y que el
+  líder corra ese chequeo, no el worker.
+
+  Los datos de --rinde no prueban que Haiku rinda igual que Opus: a Haiku le tocaron las
+  tareas ya juzgadas fáciles. La apuesta es otra: el líder estima la complejidad antes de
+  lanzar y elige el modelo justo de una (rúbrica de la sección 5). Con tareas bien partidas y
+  un chequeo que las desmiente, ese modelo justo suele ser uno chico; cuando no lo es, la
+  rúbrica lo dice antes de gastar.
+
+  Leyenda: [HOY] funciona con lo que existe · [AGREGAR] hay que construirlo (tamaño en
+  la sección 6).
+
+
+  Cuándo aplica
+
+     Pedido                                              Qué se hace
+
+     Trivial: 1 archivo, chequeo obvio                   Un Haiku xhigh directo + gate (F6). Sin F1–F3.
+
+     codigo-acotado / frontend / codigo-multi            Protocolo completo.
+     mediano o grande
+
+     Bug sin pista                                       Variante hipótesis en F2, después protocolo
+                                                         normal.
+
+     diseno, decisiones de rumbo                         No se parte en Haikus. Líder u Opus
+                                                         medium.
+
+
+
+
+  Estado en disco [HOY]
+  El líder también compacta. Todo el estado de una tarea vive en archivos, no en el chat, así
+  un líder compactado retoma leyendo estado.tsv :
+
+
+
+
+                                                                                                   Page 1 of 20
+Trama — protocolo de orquestación por fases
+
+
+
+
+     ~/.local/state/pa/<proyecto>/tareas/<slug>/
+       00-pedido.md     pedido + triage (tipo, tamaño, riesgo)
+       10-mapa.tsv      trozos de lectura: área, bytes
+       11-hechos.md     sólo hechos que pasaron el chequeo
+       20-plan.md       subtareas atómicas
+       Tn.brief.md      brief de cada subtarea
+       Tn.test.*        test aprobado (congelado) de la subtarea
+       estado.tsv       subtarea · intento · id · modelo · effort · exit · gate ·
+     US$
+     ~/.local/state/pa/<proyecto>/base-<sha>.txt   tests rojos de main en ese sha
+
+
+
+
+  1. Fases
+  Ocho fases; sólo F2 (lectura) y F5 (implementación de subtareas independientes) van en
+  paralelo. Todo lo que decide (F0, F3, F6, F8) lo hace el líder, y lo que acepta o rechaza es
+  siempre un comando, no la opinión de un modelo.
+
+
+
+
+  flujo de fases · 2 abanicos paralelos, 1 gate, 2 vueltas atrás
+
+  El gate es el único punto de decisión: rojo vuelve a F5 con un --seguir o con el modelo re-
+  puntuado; compactación vuelve a F3 para partir la subtarea.
+
+  F0 · Triage (líder, sin worker). Entra: el pedido. Sale: 00-pedido.md con tipo, tamaño
+  (archivos estimados) y riesgo. Riesgo alto = toca una base de la que cuelga otra cosa,
+  datos del usuario, seguridad o migraciones. Decide si aplica el protocolo (tabla de arriba).
+
+
+
+                                                                                           Page 2 of 20
+Trama — protocolo de orquestación por fases
+
+
+
+
+  F1 · Mapa (líder, script). Entra: rutas del área. Sale: 10-mapa.tsv con trozos de ≤40 KB. Se
+  hace con git ls-files <área> | xargs wc -c , agrupando por directorio hasta 40 000
+  bytes. Un archivo solo >40 KB es un trozo grande: va a Argon o Sonnet, nunca a Haiku.
+  [HOY] a mano; [AGREGAR] motor/bin/trozos .
+
+  F2 · Reconocimiento (abanico --leer , paralelo, hasta ~10). Entra: un trozo + las
+  preguntas de F0. Sale: hechos con formato fijo HECHO: ruta:línea | texto literal de
+  la línea | qué significa , más NO ENCONTRADO: qué busqué y dónde . El líder los pasa
+  por un chequeo (sección 4) y sólo los que pasan van a 11-hechos.md .
+
+        Variante debug: cada worker devuelve HIPOTESIS: causa | PRUEBA: comando de
+        sólo lectura | ESPERADO: salida si es cierta . El líder corre las pruebas; la
+        hipótesis confirmada entra al plan como hecho.
+
+  F2b · Investigación externa (opcional, --leer ). Para docs/APIs fuera del repo o archivos
+  >40 KB. Sale igual: hechos con fuente.
+
+  F3 · Plan (líder; segunda opinión si riesgo alto). Entra: sólo 11-hechos.md , no el código.
+  Sale: 20-plan.md , una entrada por subtarea:
+
+     ## T2 Botón de reintento en la barra
+     Depende de: T1
+     Leer: app/src/barra/Barra.tsx (9.8 KB), app/src/barra/estado.ts (4.1 KB)
+     Modificar: app/src/barra/Barra.tsx, app/src/barra/Barra.test.tsx
+     Calientes: i18n
+     Chequeo: npx vitest run app/src/barra/Barra.test.tsx   # tiene que dar ROJO
+     en main
+     Modelo: claude-haiku-5-5 xhigh
+
+
+  Reglas de partición: una subtarea = un área, ≤40 KB de lectura, ≤3 archivos a modificar, un
+  chequeo propio. Si no podés escribir el chequeo de una subtarea, está mal partida o es
+  diseño. El líder valida el plan con comandos antes de lanzar nada (sección 4, gate del
+  plan).
+
+  F4 · Chequeo primero (Haiku, sólo si el comportamiento no tiene ya un test o grep que lo
+  cubra). Un worker escribe el test de la subtarea en su rama. Sale: Tn.test.* aprobado y
+  congelado. El líder lo lee (son ≤50 líneas) y confirma que da rojo por la aserción, no por un
+  import roto. La rama de F4 no se integra: el test viaja dentro del brief de F5. Frontend
+  visual: el chequeo es parcial (typecheck + build + grep del componente) y se suma
+   PROBAR para el dueño.
+
+
+
+
+                                                                                           Page 3 of 20
+Trama — protocolo de orquestación por fases
+
+
+
+
+  F5 · Implementación (modelo según la rúbrica de la sección 5, paralelo si no hay
+  dependencia y los Modificar son disjuntos). Entra: Tn.brief.md . Sale: rama con
+  commits chicos, uno por paso. PA_PUESTOS=8 para no encolar.
+
+  F6 · Gate (líder, script). Acepta, rechaza con evidencia o re-puntúa la rúbrica (secciones 4
+  y 5).
+
+  F7 · Auditoría (sólo riesgo alto, o subtarea que llegó a Opus). pa --auditar con un
+  modelo de otra familia que el autor: los errores correlacionan menos.
+
+  F8 · Integración (líder, de a una, en orden de dependencias). --integrar --tests ; 80 → -
+  -actualizar → gate de nuevo (el rebase cambió el código) → integrar. Recién con la
+  dependencia en main se lanza la subtarea siguiente. Cierre: pa --bien , --leccion si
+  apareció un patrón nuevo, release a cargo del líder.
+
+
+
+  2. Modelo por fase
+  El líder pasa siempre -m y --effort : así -m gana sobre reparto y minimo_por_tipo
+  deja de mandar un frontend chico a Opus [HOY] . --tipo se sigue pasando con el tipo
+  real, sólo para que pa --rinde mida. Lo que falta es el plan B automático cuando el
+  elegido no está (sección 6, -m a,b,c ).
+
+
+    Fase                          -m                       --         --tipo    Plan B → C    Por qué
+                                                           effort
+
+    F2 trozo ≤40 KB               opencode:opencode/glm-   — ( --     lectura   gemini-3.8-   La salida pasa
+                                 5.3-flash-free            variant              flash-        por chequeo
+                                                           por                  medium →      línea a línea: una
+                                                           defecto)             claude-       alucinación
+                                                                                haiku-5-5     cuesta un
+                                                                                high          relanzamiento,
+                                                                                              no un error en
+                                                                                              main. GLM tiene
+                                                                                              el mejor índice de
+                                                                                              los gratis (41.8).
+                                                                                              Se corta sin
+                                                                                              aviso: por eso
+                                                                                              dos planes B.
+
+
+
+
+                                                                                                           Page 4 of 20
+Trama — protocolo de orquestación por fases
+
+
+
+
+    Fase                          -m                       --           --tipo    Plan B → C   Por qué
+                                                           effort
+
+    F2 trozo >40 KB o             gemini-4-argon-medium    (en el id)   lectura   claude-      1M de contexto,
+    F2b                                                                           sonnet-5-5   índice 52.6, cupo
+                                                                                  high         Google a 0 US$.
+                                                                                               Su 0 % en código
+                                                                                               no importa en
+                                                                                               sólo lectura con
+                                                                                               hechos
+                                                                                               verificados.
+
+    F2 variante debug             claude-haiku-5-5         high         debug     claude-      Hipótesis +
+                                                                                  sonnet-5-5   comando de
+                                                                                  high         prueba; el líder
+                                                                                               corre la prueba,
+                                                                                               así que un Haiku
+                                                                                               que se equivoca
+                                                                                               sólo gasta 0,2
+                                                                                               US$.
+
+    F3 plan                      el líder (Opus low, ya    —            —         —            Lee sólo hechos
+                                 corriendo)                                                    verificados,
+                                                                                               pocos KB. Es
+                                                                                               quien conoce
+                                                                                               tamaño y riesgo.
+
+    F3 segunda                    gemini-4-argon-high --   (en el id)   lectura   claude-      Otra familia,
+    opinión (riesgo              leer                                             sonnet-5-5   cupo Google.
+    alto)                                                                         high         Busca
+                                                                                               dependencias
+                                                                                               faltantes y
+                                                                                               chequeos que no
+                                                                                               prueban lo que
+                                                                                               dicen.
+
+    F4 test                       claude-haiku-5-5         xhigh        codigo-   claude-      Un archivo,
+                                                                        acotado   sonnet-5-5   criterio claro:
+                                                                                  high         ejecutar, no
+                                                                                               diseñar.
+
+
+
+
+                                                                                                             Page 5 of 20
+Trama — protocolo de orquestación por fases
+
+
+
+
+    Fase                          -m                       --           --tipo     Plan B → C      Por qué
+                                                           effort
+
+    F5                            claude-haiku-5-5         xhigh        el real    si falla,       Lo que dé la
+    implementación                                                                 reestimar       rúbrica; esta fila
+    (caso típico)                                                                  (sección 5)     es el caso
+                                                                                                   ejecutar + ≤3
+                                                                                                   archivos +
+                                                                                                   chequeo
+                                                                                                   completo. Haiku
+                                                                                                   compacta en 68
+                                                                                                   % de frontend:
+                                                                                                   ahí F3 parte más
+                                                                                                   fino.
+
+    mecanico                      opencode:opencode/glm-   —            mecanico   claude-         Sólo con
+    (renombres,                  5.3-flash-free                                    haiku-5-5       chequeo
+    claves i18n                                                                    medium          determinista
+    listadas)                                                                                      (grep/conteo).
+
+    F7 auditoría                  gemini-4-argon-high      (en el id)   —          claude-         Familia distinta al
+                                                                                   sonnet-5-5      autor (casi
+                                                                                   high            siempre Claude),
+                                                                                                   0 US$.
+
+    F8 --actualizar               claude-haiku-5-5         xhigh        mecanico   claude-         Un conflicto de
+                                                                                   sonnet-5-5      agregados en
+                                                                                   high si         i18n es mecánico.
+                                                                                   choca lógica,
+                                                                                   no sólo
+                                                                                   agregados
+
+
+  Fuera del protocolo: Flash en F4/F5 (0 % ok, 150+ turnos); agy:gpt-oss-120b y los
+  excluidos de OpenCode; ollama: (GPU, pide permiso); max y fable; ANTHROPIC_API_KEY
+  en el claude oficial.
+
+  Avisos esperables: Haiku está debajo de 46 en AA, así que pa avisa en cada lanzamiento.
+  El brief de la sección 3 ya trae pasos numerados y comandos explícitos, que es lo que ese
+  aviso pide.
+
+  Privacidad: los gratis de OpenCode son remotos. No mandarles trozos con claves, .env
+  ni datos del usuario; esos trozos van a Haiku.
+
+
+
+
+                                                                                                                Page 6 of 20
+Trama — protocolo de orquestación por fases
+
+
+
+
+  3. Briefs entre fases
+  El brief de pa --brief se amplía con tres campos (Contexto verificado, Pasos, Intento
+  previo) y dos reglas de cierre. Tope: ≤4 KB de brief y ≤40 KB de lectura, así casi todo el
+  contexto de Haiku queda para trabajar. Se pasa siempre con --brief-archivo [HOY] .
+
+
+  Plantilla de lectura (F2)
+
+     Objetivo:                     responder <preguntas numeradas>
+     Archivos:                     <trozo: rutas exactas, total N KB>. No leas fuera de esto.
+     Listo cuando:                 cada pregunta tiene HECHOs o un NO ENCONTRADO.
+     Formato:                      una línea por hecho, sin prosa:
+                                   HECHO: <ruta>:<línea> | <texto de esa línea, copiado tal cual>
+     | <qué significa>
+                    NO ENCONTRADO: <qué buscaste y dónde>
+     Cómo verificar: el líder corre un script que compara cada texto con la línea
+     citada.
+                                   Un hecho inventado invalida todo tu reporte.
+     No tocar:                     todo (sólo lectura).
+
+
+
+  Plantilla de implementación (F4/F5)
+
+     Objetivo:                     <qué queda distinto, 1-2 oraciones>
+     Contexto verificado:
+       - <ruta:línea> <hecho de 11-hechos.md que aplica>                  (máx. 15 líneas)
+     Archivos:                     Leer primero: <rutas> (total N KB)
+                                   Podés modificar: <rutas exactas>
+     Pasos:
+       1. Copiá ~/.local/state/pa/<p>/tareas/<slug>/Tn.test.ts a <ruta del test>
+            y commitealo sin cambios.
+         2. <paso> → commit
+       3. <paso> → commit
+     Listo cuando: <comando> da verde.
+     Cómo verificar: <comando exacto>; esperado: <salida>. El líder lo va a correr
+     igual.
+     No tocar:      <ruta del test> (aserciones), <archivos calientes>, todo lo
+     que no esté en "Podés modificar".
+     Si te trabás:                 supuesto técnico → RESULTADO. Si falta algo del plan, DECISION
+     y terminá
+                                   con lo commiteado, sin dejar nada a medias sin commitear.
+
+
+  Por qué cada cosa:
+
+
+                                                                                                Page 7 of 20
+Trama — protocolo de orquestación por fases
+
+
+
+
+        Commit por paso: baja el exit 86 y deja recuperable lo hecho si el worker compacta o
+        choca con --max-turns .
+        Test congelado en el brief: cualquier modelo, también uno re-puntuado, arranca de
+        main con el mismo test, sin depender de la rama de F4.
+        "El líder lo va a correr igual": saca el incentivo de inventar la VERIFICACION.
+
+
+  Bloque de reintento (sólo en --seguir o modelo re-puntuado)
+
+     Intento previo (id <ID>, <modelo>):
+       Chequeo: <comando>
+         Salida (≤20 líneas, recortada a la primera falla):
+           ...
+         git diff --stat main...<rama>:
+           ...
+         Qué falló según el líder: <una oración>
+
+
+
+  Reglas de traspaso
+        El líder nunca pasa logs, JSON ni la respuesta completa de un worker. Pasa hechos
+        verificados, líneas de RESULTADO y salida de comandos recortada.
+        Los hechos van inline en el brief, no como "leé 11-hechos.md": el worker no gasta un
+        turno y el brief es autocontenido.
+         --leccion no sirve para pasar estado entre fases: es para patrones que valen para
+        toda tarea futura del proyecto (tope 30 líneas). Ejemplo válido: "en app/src/i18n las
+        claves nuevas van al final del objeto, en orden alfabético".
+
+
+  4. Verificación determinista
+  Tres compuertas, todas comandos que corre el líder: hechos (F2), plan (F3) y gate de cada
+  corrida (F6). Todo funciona hoy a mano [HOY] ; empaquetarlo como scripts es [AGREGAR]
+  (sección 6).
+
+
+
+
+                                                                                           Page 8 of 20
+Trama — protocolo de orquestación por fases
+
+
+
+
+  Compuerta de hechos (F2)
+
+     # hechos-check <repo> < salida-del-worker                        → OK/FALSO por hecho
+     repo=$1
+     grep '^HECHO:' | while IFS='|' read -r ref texto _; do
+         ref=$(sed 's/^HECHO: *//; s/ *$//' <<<"$ref"); f=${ref%:*}; l=${ref##*:}
+         t=$(sed 's/^ *//; s/ *$//' <<<"$texto")
+         lo=$(( l>3 ? l-3 : 1 )); hi=$(( l+3 ))       # tolerancia ±3 líneas
+         sed -n "${lo},${hi}p" "$repo/$f" 2>/dev/null | grep -Fq -- "$t" \
+             && echo "OK                      $f:$l" || echo "FALSO $f:$l"
+     done
+
+
+  Sólo los OK pasan a 11-hechos.md . Si menos del 70 % de los hechos de un trozo dan OK,
+  ese reporte se tira entero y el trozo se relanza con el siguiente modelo de la lista: un lector
+  que inventa una línea probablemente inventó también la interpretación.
+
+
+  Compuerta del plan (F3, antes de lanzar nada)
+
+     wc -c <rutas "Leer" de Tn> | tail -1                                     # total ≤ 40000
+     comm -12 <(sort T1.mod) <(sort T2.mod)                                   # vacío entre subtareas
+     paralelas
+     sha=$(git -C $repo rev-parse --short main)
+     git -C $repo worktree add --detach /tmp/base-$sha main                       # tree limpio de
+     main
+     (cd /tmp/base-$sha && <Chequeo de Tn>); echo $?                              # ≠0: tiene que dar
+     ROJO
+
+
+  Un chequeo que da verde en main no prueba nada: se reescribe antes de gastar un worker.
+  (Para un test nuevo de F4, el rojo se comprueba en la rama de F4, mirando que falle la
+  aserción y no un import.)
+
+
+
+
+                                                                                                     Page 9 of 20
+Trama — protocolo de orquestación por fases
+
+
+
+
+  Gate de cada corrida (F6)
+
+     p=trama; id=<ID>; rama=pa/$p/$id
+     wt=$(git -C $repo worktree list | awk -v r="[$rama]" '$3==r{print $1}')
+     # si ya no existe: git -C $repo worktree add --detach /tmp/gate-$id $rama
+
+
+     # 1. alcance: nada fuera de "Podés modificar"
+     git -C $repo diff --name-only main...$rama | grep -vxF -f Tn.permitidos                   #
+     vacío
+     # 2. test congelado intacto
+     git -C $repo show $rama:<ruta del test> | cmp - Tn.test.ts                                #
+     sin salida
+     # 3. el chequeo de la subtarea
+     (cd $wt && <Chequeo de Tn>)                                                               #
+     exit 0
+     # 4. rojos nuevos contra main
+     (cd $wt && <tests>) 2>&1 | <extraer rojos> | sort > /tmp/rojos-$id.txt
+     comm -13 ~/.local/state/pa/$p/base-$sha.txt /tmp/rojos-$id.txt                            #
+     vacío
+     # 5. compactación: mirar el pie ("K compactación(es)")
+
+
+         Base de rojos (una vez por sha de main): mismo comando 4 en /tmp/base-$sha ,
+         guardado en base-$sha.txt . <extraer rojos> depende del runner del registry:
+         vitest --reporter=json + jq -r '.testResults[].assertionResults[] |
+         select(.status=="failed") | .fullName' ; TAP grep '^not ok' .
+         Decidido: arreglar primero los 8 rojos de main, todos de esta máquina (OpenCode sin
+         login), como subtarea normal. Con main en verde, --integrar --tests alcanza
+         [HOY] y la base de rojos queda sólo de respaldo.
+         "SIN VERIFICAR": la VERIFICACION del worker es un indicio, nunca prueba. El gate
+         corre el chequeo igual. Verde → se acepta y se anota en estado.tsv . Rojo → reintento
+         con evidencia (sección 5).
+         Compactó pero el gate da verde: se acepta. El gate juzga el código, no la memoria del
+         worker. Con riesgo alto, además F7.
+
+
+  Exit codes
+
+     Exit                          Qué hace el líder
+
+     0                             Gate.
+
+
+
+
+                                                                                          Page 10 of 20
+Trama — protocolo de orquestación por fases
+
+
+
+
+     Exit                          Qué hace el líder
+
+     1                             Leer el log y clasificar: ¿brief, infra o capacidad?
+                                   Nunca relanzar igual a ciegas.
+
+     75                            Relanzar con --async : queda EN COLA y arranca
+                                   solo.
+
+     76 / 77                       Infra. Mismo modelo por otra vía ( agy:claude-
+                                   sonnet-5-5-high usa el cupo de Google) o
+                                   esperar. No cambia de modelo.
+
+     78                            Si chocó con --max-turns o compactó: partir la
+                                   subtarea. Si no: pa <p> --seguir --id <ID>
+                                   'Terminá: commiteá lo hecho y respondé con
+                                   el bloque.' , una sola vez.
+
+     80                             pa <p> --actualizar <ID> → gate de nuevo → --
+                                   integrar .
+
+     82                            Relanzar una vez igual; si se repite, clasificar la falla
+                                   (sección 5).
+
+     86                             --seguir "commiteá y reportá". Si compactó, gate
+                                   directo sobre lo commiteado.
+
+     93                            Comparar contra base-$sha.txt . Sólo rojos
+                                   previos y gate verde → integrar sin --tests .
+
+     95 / 96                       Siguiente modelo de la lista de fallback.
+
+     79, 83, 87, 89–91             Requieren al dueño: tablero agregar con el exit y
+                                   la línea del log.
+
+
+
+
+  5. Rúbrica: el modelo se elige antes de lanzar
+  El líder contesta cinco preguntas por subtarea, leyendo el pedido y los hechos de F2, y la
+  tabla le da modelo y effort. No se prueba de abajo hacia arriba: si una corrida falla por mala
+  estimación, se re-puntúa y se va directo al modelo que correspondía.
+
+
+
+
+                                                                                               Page 11 of 20
+Trama — protocolo de orquestación por fases
+
+
+
+
+  Las cinco preguntas
+
+                Pregunta                                        Respuestas
+
+     A          ¿Cuántos archivos modifica?                     1 · 2–3 · más de 3
+
+     B          ¿Ejecutar o decidir?                            ejecutar: el brief dice qué y cómo · decidir:
+                                                                hay que elegir estructura, API o flujo
+
+     C          ¿Hay un chequeo que lo desmienta?               completo: test o script determinista ·
+                                                                parcial: typecheck + build, el resto a ojo ·
+                                                                ninguno
+
+     D          ¿Cuánto cuesta un error?                        bajo: local, se revierte sin daño · alto: base
+                                                                de la que cuelga otra cosa, datos del
+                                                                usuario, seguridad, migración, nucleo.ts /
+                                                                puente.ts
+
+     E          ¿La causa o el lugar del cambio son             sí: hay un hecho verificado con
+                conocidos?                                       archivo:línea · no
+
+
+  La lógica: C dice si un error se ve antes de main; B y E dicen cuánto hay que pensar; D dice
+  cuánto control extra pagar.
+
+
+  Tabla de decisión (gana la primera fila que aplique)
+
+     #          Condición                     -m                               --         Además
+                                                                              effort
+
+     1          A = más de 3, o               no se lanza                     —           Volver a F3 y partir.
+                lectura >40 KB
+
+     2          C = ninguno                   no se lanza                     —           Escribir el chequeo
+                                                                                          (F4). Si es
+                                                                                          imposible (puro
+                                                                                          visual), tratar
+                                                                                          como C = parcial.
+
+     3          E = no                        claude-opus-5-5                 medium      Antes, F2 variante
+                                                                                          hipótesis con
+                                                                                          Haiku: si una se
+                                                                                          confirma, E = sí y
+                                                                                          se re-puntúa.
+
+
+
+                                                                                                          Page 12 of 20
+Trama — protocolo de orquestación por fases
+
+
+
+
+     #          Condición                     -m                        --           Además
+                                                                        effort
+
+     4          B = decidir, D = alto         claude-opus-5-5           medium       F7 obligatoria.
+                                                                                     Opus high sólo con
+                                                                                     tu OK.
+
+     5          B = decidir, D =              claude-sonnet-5-5         high         —
+                bajo
+
+     6          C = parcial, D = alto         claude-sonnet-5-5         high         PROBAR para el
+                                                                                     dueño.
+
+     7          C = parcial, D =              claude-haiku-5-5          xhigh        PROBAR para el
+                bajo                                                                 dueño.
+
+     8          C = completo, D =             claude-haiku-5-5          xhigh        F7 obligatoria, con
+                alto                                                                 otra familia.
+
+     9          C = completo, D =             opencode:opencode/glm-    —            --tipo mecanico ;
+                bajo, A = 1, sin              5.3-flash-free                         plan B claude-
+                lógica nueva                                                         haiku-5-5
+                (renombre, claves                                                    medium .
+                listadas)
+
+     10         C = completo, D =             claude-haiku-5-5          xhigh        —
+                bajo
+
+
+  Opus va en medium porque en esta instalación rinde mejor que en high. Topes por corrida
+  ( --max-budget-usd ): Haiku 1 US$, Sonnet 3, Opus medium 4. --max-turns 60 para Haiku
+  como punto de partida.
+
+
+  Cuando una corrida falla
+  Primero se clasifica la falla. Sólo una clase cambia de modelo.
+
+
+     Qué pasó                                      Qué fue             Qué se hace
+
+     Chequeo rojo; el diff toca lo                 Error puntual; la   Un --seguir --id con la salida
+     correcto y falla un detalle                   estimación vale     real del chequeo. Mismo
+                                                                       modelo.
+
+     Hizo otra cosa o tocó fuera de                Brief malo          Reescribir el brief. Mismo
+     alcance                                                           modelo, corrida nueva.
+
+
+
+                                                                                                    Page 13 of 20
+Trama — protocolo de orquestación por fases
+
+
+
+
+     Qué pasó                                 Qué fue               Qué se hace
+
+     Compactó o chocó con --max-              Partición mala        Volver a F3 y partir.
+     turns
+
+     Exit 76, 77, 78, 82, 86, 95, 96          Infra o cierre        Tabla de exits (sección 4).
+
+     Entendió y no pudo: había que            La estimación falló   Corregir la respuesta que
+     decidir algo, la causa era otra o                              estuvo mal (B, D o E) y lanzar
+     el riesgo era mayor                                            directo el modelo que da la
+                                                                    tabla, desde main, con el bloque
+                                                                    "Intento previo". Si la tabla da el
+                                                                    mismo modelo, el problema no
+                                                                    es el modelo: es brief o
+                                                                    partición.
+
+
+
+  Medir la rúbrica
+  Cada subtarea anota en estado.tsv : A–E, fila, modelo estimado, modelo que terminó
+  integrado y qué respuesta se corrigió, si hubo.
+
+        Acierto: el modelo estimado es el que se integró, sin re-puntuar.
+        Subestimación: hubo que re-puntuar hacia arriba. Se anota qué pregunta falló; si una
+        junta la mayoría de los errores, se afina su definición.
+        Sobreestimación: no se ve sola. 1 de cada 5 subtareas que la tabla manda a Sonnet u
+        Opus se lanza también, en sombra, con el modelo de la fila de abajo ( --async , rama
+        propia, no se integra). Si pasa el gate, esa fila pide de más. Las ramas sombra se
+        descartan en lote con tu OK.
+        Revisión cada ~20 subtareas: acierto por fila, y se mueven filas o definiciones. El
+        objetivo de acierto se fija después de esas primeras 20.
+
+   [AGREGAR] pa --rubrica 'A=1 B=ejecutar C=completo D=bajo E=si' → columnas en
+   medicion.tsv y pa --rinde --rubrica con acierto por fila (sección 6).
+
+  Pedir OK al dueño ( tablero agregar , y la subtarea queda en pausa):
+
+        Antes de lanzar Opus high.
+        Si una subtarea acumula más de 3 US$ entre todos sus intentos.
+        Si dos o más subtareas de la misma tarea fallaron también con el modelo re-puntuado:
+        el plan está mal, no los modelos. Vuelve a F3 con el dueño al tanto.
+        Cualquier DECISION de un worker (ya entra sola a tablero [HOY] ).
+
+
+
+                                                                                                  Page 14 of 20
+Trama — protocolo de orquestación por fases
+
+
+
+
+  6. Encaje con lo existente
+  El protocolo entero se puede correr hoy a mano; lo que falta es automatizar el gate, el plan
+  B de modelos y la medición por fase. La orquestación declarativa va al final, cuando el
+  protocolo esté validado.
+
+
+  Qué se usa tal cual [HOY]
+
+     Pieza                                    Uso en el protocolo
+
+      -m + --effort                           El líder elige siempre; saltea reparto y
+                                              minimo_por_tipo .
+
+      --tipo                                  Etiqueta real para --rinde .
+
+      --leer                                  F2, F2b, segunda opinión de F3. No toma puesto.
+
+      --async + --esperar-todos               Abanicos de F2 y subtareas paralelas de F5.
+
+      PA_PUESTOS=8                            F5 sin encolar.
+
+      --brief-archivo                         Todos los briefs, desde tareas/<slug>/ .
+
+      --max-turns , --max-budget-usd          Topes por modelo.
+
+      --seguir --id                           Reintento con evidencia y cierre de 78/86.
+
+      --auditar -m                            F7 con otra familia.
+
+      --integrar --tests , --actualizar       F8.
+
+      --bien , --rinde --json                 Medición (sección 8).
+
+      --leccion                               Patrones durables del proyecto.
+
+      tablero agregar                         OKs (Opus high, >3 US$) y exits que requieren al
+                                              dueño.
+
+
+
+
+                                                                                            Page 15 of 20
+Trama — protocolo de orquestación por fases
+
+
+
+
+  Qué hay que agregar [AGREGAR]
+
+     #          Cambio                            Dónde                 Tamaño      Prioridad
+
+     1           -m a,b,c : lista de fallback;    pa                    ~60         Alta
+                pasa al siguiente con                                   líneas
+                76/77/95/96 o corte de
+                OpenCode
+
+     2          Exit propio para "OpenCode        pa + reparto          ~50 +       Alta
+                cortó por límite" (p. ej. 97) +                         ~40
+                enfriamiento de ese modelo
+                N horas en reparto
+
+     3           gate <p> <id> --chequeo          motor/bin/gate        ~150        Alta
+                CMD --permitidos F --                                   bash
+                test F : pasos 1–5 de la
+                sección 4, exit propio por
+                falla
+
+     4           --fase F y --tarea               pa                    ~60         Alta: sin esto
+                <slug> → columnas nuevas                                            no se mide
+                en medicion.tsv ; --rinde
+                --por fase|tarea
+
+     5           --integrar --tests --            pa                    ~80–150     Baja: main
+                base : falla sólo con rojos                             (según      queda verde;
+                nuevos contra main                                      runner)     sólo respaldo
+
+     6           hechos-check (el script de       motor/bin             ~50         Media
+                la sección 4, robusto)                                  python
+
+     7           trozos <repo> <rutas> --         motor/bin             ~40         Media
+                max 40000
+
+     8          Sección "protocolo por            motor/skills/trama-   ~150        Alta
+                fases" + plantillas en el skill   orquestar             líneas de
+                                                                        texto
+
+
+
+
+                                                                                                Page 16 of 20
+Trama — protocolo de orquestación por fases
+
+
+
+
+     #          Cambio                            Dónde                      Tamaño     Prioridad
+
+     9           pa --receta                       pa o script aparte        ~500–      Baja: sólo
+                tareas/<slug>/plan.tsv :                                     800        después del
+                lanza en orden de                                                       experimento
+                dependencias, gate
+                automático, modelo por
+                rúbrica, para en los OK
+
+     10         pa --rubrica 'A=… B=… C=…         pa                         ~80        Alta: sin esto la
+                D=… E=…' → respuestas,                                                  rúbrica no se
+                fila y modelo estimado en                                               corrige
+                medicion.tsv; pa --rinde --
+                rubrica con acierto por fila
+
+
+   --plan ya existe ( ausente , gastar-hoy , ahorrar-hoy , ver ), por eso el 9 se llama --
+  receta .
+
+  Una sola fuente de verdad para modelos. Hoy chocan CLAUDE.md ("ante la duda Haiku"),
+   perfil ahorro y minimo_por_tipo . Propuesta: la rúbrica de la sección 5 vive en el skill;
+   CLAUDE.md sólo apunta al skill; modelos.json queda para lanzamientos sin -m (lo que no
+  pasa por el protocolo).
+
+
+  7. Fallos conocidos
+  Cada fallo de la sección 6 del documento original tiene una prevención en el plan y una
+  respuesta en el gate.
+
+
+     Fallo                                    Prevención                     Si pasa igual
+
+     Compactación                             F3: ≤40 KB de lectura          Nada de --seguir --
+                                              medidos con wc -c , ≤3         force . Gate sobre lo
+                                              archivos, --max-turns          commiteado: verde → se
+                                                                             acepta; rojo → partir la
+                                                                             subtarea. No cambia de
+                                                                             modelo.
+
+     Trabajo a medias / sin                   Commit por paso en el brief;   Un --seguir "commiteá
+     commitear (86)                           "no dejes nada sin             y reportá". El gate de
+                                              commitear" en Si te trabás     alcance detecta lo que
+                                                                             tocó de más.
+
+
+
+                                                                                                    Page 17 of 20
+Trama — protocolo de orquestación por fases
+
+
+
+
+     Fallo                                    Prevención                      Si pasa igual
+
+     Sin RESULTADO (78)                       --max-turns acorde al           Ver tabla de exits.
+                                              tamaño; tareas chicas
+
+     Cortes de OpenCode                       Los gratis sólo en F2 y         Plan B de la fila (hoy a
+                                              mecanico, nunca en el           mano; [AGREGAR] 1 y 2 lo
+                                              camino crítico                  hacen solo).
+
+     Cupo de Google agotado                   reparto --cupos / pa --         Pasa a la fila Claude del
+                                              cupo-gemini antes de lanzar     plan B.
+                                              un abanico o F7 sobre agy
+
+     Conflictos en archivos                   F3 marca Calientes: .           80 → --actualizar
+     calientes ( i18n/{en,es}.ts ,            Subtareas con el mismo          (Haiku si son sólo
+     index.css , puente.ts ,                  caliente no van en paralelo:    agregados) → gate de
+     nucleo.ts ,                              A → integrar → B. Alternativa   nuevo.
+     docs/traspaso.md )                       si el código tolera claves
+                                              faltantes: descartada. t()
+                                              comprueba las claves contra
+                                              el diccionario, así que una
+                                              clave faltante rompe el
+                                              typecheck.
+
+     Tests rojos previos                      Arreglar primero los 8 rojos    Base por sha (sección 4);
+                                              de main (OpenCode sin login     [AGREGAR] 5.
+                                              en esta máquina)
+
+     El worker no ve cambios sin              git -C $repo status --          79 al integrar → tablero
+     commitear del líder                      porcelain vacío antes de        agregar .
+                                              F4/F5; el líder commitea lo
+                                              suyo (los workers no pueden
+                                               stash )
+
+     Hechos inventados en F2                  Texto literal obligatorio en    hechos-check ; <70 % OK
+                                              cada HECHO                      → se tira el reporte y se
+                                                                              relanza con otro modelo.
+
+     El líder compacta a mitad de             Todo el estado en               Retoma leyendo
+     tarea                                    tareas/<slug>/                  estado.tsv y 20-
+                                                                              plan.md .
+
+
+
+
+                                                                                                     Page 18 of 20
+Trama — protocolo de orquestación por fases
+
+
+
+
+  8. Medición
+  La unidad es la tarea madre (el pedido del dueño), no la corrida: el protocolo lanza más
+  corridas a propósito, y medido por corrida parecería peor aunque gane. Un --seguir
+  automático del líder suma costo pero no cuenta como retrabajo; retrabajo es que el dueño
+  tenga que intervenir.
+
+
+     Métrica                                  De dónde sale
+
+     Integrada sin retrabajo del dueño         pa --bien si|no|parcial por tarea madre
+
+     Costo total (US$ de lista, todas las      pa --rinde --json sumado por los ids de
+     fases)                                    estado.tsv
+
+     % del cupo 7 d de Claude consumido        reparto --cupos antes y después
+
+     Re-puntuaciones y corridas por tarea      estado.tsv
+
+     Tiempo de pared                           estado.tsv (primer lanzamiento → integración)
+
+     % de hechos OK por modelo lector         salida de hechos-check
+
+     Acierto de la rúbrica, por fila          estado.tsv (hoy a mano); pa --rinde --rubrica
+                                              cuando exista
+
+
+  Sin [AGREGAR] 4, el cruce se hace a mano: estado.tsv tiene los ids y --rinde --json el
+  costo de cada uno.
+
+
+  Experimento mínimo (antes de adoptar)
+  Validar sólo el núcleo, F3–F6 con la rúbrica, que es la hipótesis más fuerte: "rúbrica +
+  chequeo rojo primero + gate" iguala o supera a "el flujo de hoy" a menos costo.
+
+   1. Elegir 8 tareas reales chicas o medianas (codigo-acotado o frontend chico) del
+      tablero .
+   2. Cada tarea corre dos veces en paralelo, en worktrees separados [HOY] : brazo A =
+        como hoy (reparto elige el modelo, un brief); brazo B = protocolo F3–F6. Comparar
+        sobre la misma tarea quita la varianza de dificultad, que con n=8 lo taparía todo.
+   3. El dueño elige qué integrar viendo "X" e "Y" sin saber cuál es cuál. La otra rama se
+      descarta con su OK.
+   4. Gana B si su tasa de "integrada sin retrabajo" es ≥ la de A y su costo total ≤60 % del de
+      A.
+
+
+
+                                                                                              Page 19 of 20
+Trama — protocolo de orquestación por fases
+
+
+
+
+  Con n=8 esto es un filtro de "vale la pena seguir", no una prueba estadística. Si pasa,
+  extender a 20 tareas sumando F2 (abanico) en codigo-multi.
+
+  En paralelo y barato: los mismos 3 trozos de lectura a glm-5.3-flash-free , mimo-v2.6-
+  flash-free , gemini-3.8-flash-medium y claude-haiku-5-5 high , midiendo % de
+  hechos OK con hechos-check . Eso decide el lector por defecto de F2 con datos en vez de
+  por índice AA.
+
+
+  9. Ejemplo completo
+  Pendiente: la sección 7 del documento original vino sin el problema del dueño. Con el
+  problema escrito, acá va la secuencia real: 00-pedido.md , mapa de trozos, briefs de F2,
+   20-plan.md , briefs de F4/F5 y cada comando pa con su gate.
+
+
+
+
+                                                                                            Page 20 of 20
+
