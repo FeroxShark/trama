@@ -1,0 +1,136 @@
+#!/usr/bin/env bash
+# gate <proyecto> <id> --chequeo CMD --permitidos F --test COPIA[:RUTA] [--rojos CMD] [--main REF] [--log F]
+#
+# Compuerta de cada corrida (F6) del protocolo de orquestación (motor/docs/protocolo-orquestacion.txt, sección 4).
+# La corre el líder, no el worker: la VERIFICACION del worker es un indicio, esto es la prueba. Corre los cinco pasos
+# aunque alguno falle (así el reintento lleva toda la evidencia) y sale con el exit del PRIMER paso que falló.
+#
+#   1. alcance        los archivos que la rama cambió contra main están todos en --permitidos
+#                     (una ruta por línea: exacta, `dir/` = todo lo de adentro, o glob con * ; # y vacías se ignoran)
+#   2. test congelado el archivo de la rama es idéntico a COPIA (la del plan). RUTA = dónde está en el repo; sin ella,
+#                     el único archivo de la rama con el mismo nombre que COPIA
+#   3. chequeo        --chequeo CMD corre en el worktree de la rama y da exit 0
+#   4. rojos nuevos   --rojos CMD (corre los tests e imprime los que fallan, uno por línea) en la rama y en main:
+#                     lo que falla en la rama y no en main es nuevo. La base de main se guarda una vez por sha en
+#                     $PA_STATE/<proyecto>/base-<sha>.txt. Sin --rojos se saltea (y lo dice)
+#   5. compactación   con --log F, avisa si el log del worker menciona compactación. Es aviso: no rechaza (el gate
+#                     juzga el código, no la memoria del worker)
+#
+# <id> es el de la rama pa/<proyecto>/<id> (también vale la rama entera). Si la rama ya no tiene worktree, se saca uno
+# desechable en /tmp/gate-<id> y se borra al terminar.
+#
+# Exits:  0 verde · 2 uso · 3 no resuelve proyecto/rama/main/archivos del gate · 21 fuera de lo permitido ·
+#         22 test congelado cambiado · 23 el chequeo dio rojo · 24 rojos nuevos contra main
+set -uo pipefail
+
+AQUI="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+STATE="${PA_STATE:-$HOME/.local/state/pa}"
+
+uso() { sed -n '2p' "${BASH_SOURCE[0]}" | sed 's/^# *//' >&2; exit 2; }
+fatal() { echo "gate: $*" >&2; exit 3; }
+
+proy=""; id=""; chequeo=""; permitidos=""; test_arg=""; rojos=""; main_ref="main"; log=""
+pos=()
+while (($#)); do
+  case "$1" in
+    --chequeo)    [[ $# -ge 2 ]] || uso; chequeo="$2"; shift 2 ;;
+    --permitidos) [[ $# -ge 2 ]] || uso; permitidos="$2"; shift 2 ;;
+    --test)       [[ $# -ge 2 ]] || uso; test_arg="$2"; shift 2 ;;
+    --rojos)      [[ $# -ge 2 ]] || uso; rojos="$2"; shift 2 ;;
+    --main)       [[ $# -ge 2 ]] || uso; main_ref="$2"; shift 2 ;;
+    --log)        [[ $# -ge 2 ]] || uso; log="$2"; shift 2 ;;
+    -h|--help)    uso ;;
+    -*)           echo "gate: opción desconocida: $1" >&2; uso ;;
+    *)            pos+=("$1"); shift ;;
+  esac
+done
+((${#pos[@]} == 2)) || uso
+proy="${pos[0]}"; id="${pos[1]}"
+[[ -n "$chequeo" && -n "$permitidos" && -n "$test_arg" ]] || uso
+[[ -f "$permitidos" ]] || fatal "no existe --permitidos: $permitidos"
+copia="${test_arg%%:*}"; test_ruta=""
+[[ "$test_arg" == *:* ]] && test_ruta="${test_arg#*:}"
+[[ -f "$copia" ]] || fatal "no existe la copia del test: $copia"
+
+PR="$AQUI/proyecto-ruta"; [[ -x "$PR" ]] || PR="$(command -v proyecto-ruta || true)"
+[[ -n "$PR" ]] || fatal "no encuentro proyecto-ruta"
+repo="$("$PR" "$proy" 2>/dev/null)" && [[ -n "$repo" ]] || fatal "no resuelvo el proyecto: $proy"
+slug="$(basename "$repo")"; slug="${slug//[^A-Za-z0-9._-]/-}"; slug="${slug,,}"   # = slug_de de pa
+rama="$id"; [[ "$id" == pa/* ]] || rama="pa/$slug/$id"
+git -C "$repo" rev-parse --verify -q "refs/heads/$rama" >/dev/null || fatal "no existe la rama $rama en $repo"
+git -C "$repo" rev-parse --verify -q "$main_ref" >/dev/null || fatal "no existe $main_ref en $repo"
+
+# Worktree de la rama: el que ya la tiene, o uno desechable.
+wt="$(git -C "$repo" worktree list --porcelain | awk -v r="refs/heads/$rama" '/^worktree /{w=substr($0,10)} $0=="branch " r{print w; exit}')"
+desechables=()
+limpiar() { local d; for d in "${desechables[@]}"; do git -C "$repo" worktree remove --force "$d" >/dev/null 2>&1; done; }
+trap limpiar EXIT
+if [[ -z "$wt" || ! -d "$wt" ]]; then
+  wt="/tmp/gate-${rama//\//-}"
+  git -C "$repo" worktree add --detach "$wt" "$rama" >/dev/null 2>&1 || fatal "no pude sacar un worktree de $rama en $wt"
+  desechables+=("$wt")
+fi
+
+falla=0
+rojo() { # <exit> <mensaje>: anota la falla; el primero manda el exit
+  echo "ROJO  $2"
+  ((falla == 0)) && falla="$1"
+}
+
+# 1. alcance
+fuera=()
+while IFS= read -r f; do
+  [[ -n "$f" ]] || continue
+  ok=0
+  while IFS= read -r p || [[ -n "$p" ]]; do
+    p="${p%$'\r'}"; [[ -z "$p" || "$p" == \#* ]] && continue
+    # shellcheck disable=SC2053
+    if [[ "$f" == "$p" || ( "$p" == */ && "$f" == "$p"* ) || "$f" == $p ]]; then ok=1; break; fi
+  done <"$permitidos"
+  ((ok)) || fuera+=("$f")
+done < <(git -C "$repo" diff --name-only "$main_ref...$rama")
+if ((${#fuera[@]})); then
+  rojo 21 "1 alcance: ${#fuera[@]} archivo(s) fuera de lo permitido"; printf '        %s\n' "${fuera[@]}"
+else echo "OK    1 alcance"; fi
+
+# 2. test congelado
+if [[ -z "$test_ruta" ]]; then
+  mapfile -t cand < <(git -C "$repo" ls-tree -r --name-only "$rama" | awk -v b="$(basename "$copia")" '{n=split($0,a,"/"); if (a[n]==b) print}')
+  if ((${#cand[@]} == 1)); then test_ruta="${cand[0]}"; fi
+fi
+if [[ -z "$test_ruta" ]]; then
+  rojo 22 "2 test congelado: la rama no tiene un único archivo llamado $(basename "$copia") (pasá --test COPIA:RUTA)"
+elif git -C "$repo" show "$rama:$test_ruta" 2>/dev/null | cmp -s - "$copia"; then echo "OK    2 test congelado ($test_ruta)"
+else rojo 22 "2 test congelado: $test_ruta cambió respecto de $copia (o no existe en la rama)"; fi
+
+# 3. chequeo de la subtarea
+sal3="$(cd "$wt" && bash -c "$chequeo" 2>&1)"; ex3=$?
+if ((ex3 == 0)); then echo "OK    3 chequeo"
+else rojo 23 "3 chequeo: exit $ex3"; printf '%s\n' "$sal3" | tail -n 15 | sed 's/^/        /'; fi
+
+# 4. rojos nuevos contra main
+if [[ -z "$rojos" ]]; then echo "SALTEADO 4 rojos nuevos (sin --rojos)"
+else
+  sha="$(git -C "$repo" rev-parse --short "$main_ref")"
+  base="$STATE/$slug/base-$sha.txt"
+  if [[ ! -f "$base" ]]; then
+    bwt="/tmp/base-$sha"
+    if [[ ! -d "$bwt" ]]; then
+      git -C "$repo" worktree add --detach "$bwt" "$main_ref" >/dev/null 2>&1 || fatal "no pude sacar $main_ref en $bwt"
+    fi
+    mkdir -p "$(dirname "$base")"
+    (cd "$bwt" && bash -c "$rojos" 2>&1) | sort -u >"$base.tmp" && mv -f "$base.tmp" "$base"
+  fi
+  nuevos="$(cd "$wt" && bash -c "$rojos" 2>&1 | sort -u | comm -13 "$base" -)"
+  if [[ -z "$nuevos" ]]; then echo "OK    4 rojos nuevos (base $(wc -l <"$base") en $sha)"
+  else rojo 24 "4 rojos nuevos contra $main_ref ($sha)"; printf '%s\n' "$nuevos" | sed 's/^/        /'; fi
+fi
+
+# 5. compactación (aviso)
+if [[ -n "$log" ]]; then
+  if [[ -f "$log" ]] && grep -qi 'compactaci' "$log"; then echo "AVISO 5 el worker compactó (no rechaza: manda el código)"
+  else echo "OK    5 sin compactación"; fi
+fi
+
+((falla == 0)) && echo "GATE VERDE $rama" || echo "GATE ROJO $rama (exit $falla)"
+exit "$falla"

@@ -19,7 +19,7 @@
 #
 # Qué hace (usuario normal): node LTS en ~/.local si falta · `claude` y `agy` por sus instaladores oficiales si
 # faltan · `dsh` (npm i -g --prefix ~/.local @deepseek-ai/dsh, para workers con modelos gratis) si falta y hay npm · symlinks en ~/.local/bin (pa, tablero, trama-estado, trama-motor, proyecto-ruta, reparto, workers,
-# cuentas) · hooks en
+# cuentas, gate) · hooks en
 # ~/.claude/hooks y la skill trama-orquestar · destructive-guard (PreToolUse) y statusline-espejo registrados en
 # ~/.claude/settings.json SIN pisar lo que hay · ~/CLAUDE.md y ~/GEMINI.md si no existen · ~/.config/trama/app ·
 # registry.json vacío si falta · unit de usuario trama-motor.service (node <app>/dist-electron/motor.js, TRAMA_LOCAL=1).
@@ -224,7 +224,7 @@ for b in pa tablero trama-estado trama-motor; do enlazar "$MOTOR/bin/$b" "$BIN";
 # Los que un payload viejo puede no traer (se enlazan sólo si están). reparto es el que más duele:
 # sin él `pa` no puede elegir modelo por cupo, cae a los defaults y manda todo a Claude, así que un
 # líder Gemini no logra lanzar workers (lo encontró un tercero con la 0.1.2).
-for b in proyecto-ruta workers reparto cuentas; do [[ -e "$MOTOR/bin/$b" ]] && enlazar "$MOTOR/bin/$b" "$BIN"; done
+for b in proyecto-ruta workers reparto cuentas gate; do [[ -e "$MOTOR/bin/$b" ]] && enlazar "$MOTOR/bin/$b" "$BIN"; done
 for h in latido.sh destructive-guard.sh statusline-espejo.sh resumen-modelos.sh; do [[ -e "$MOTOR/hooks/$h" ]] && enlazar "$MOTOR/hooks/$h" "$HOOKS"; done
 enlazar "$MOTOR/skills/trama-orquestar" "$SKILLS"
 
