@@ -100,10 +100,10 @@ historia (force push); se puede subir directo y mergear sin esperar el CI.
    (`app/electron/opencode-pedidos.ts`, archivo `opencode-pedidos.jsonl` en el estado de reparto; workers exacto por
    `step_finish` en `motor/opencode/correr.mjs`; líderes aproximado por `usage_update` en `dsh-puente.ts`). Ventana supuesta de
    5 h como Claude (OpenCode no la documenta). Lo usado fuera de trama no se ve; la interfaz lo dice.
-2. **Varias cuentas de OpenCode (hecho; falta probar con un login real).** Medido con opencode 2.1.4: el login vive en
+2. **Varias cuentas de OpenCode (hecho; falta probar con un login real).** Medido con opencode 2.1.4 (el aislamiento NO es sólo por estado: se probó): el login vive en
    `$XDG_DATA_HOME/opencode/opencode.db` y los comandos de un tiro hablan con un servicio de fondo (puerto 49374, registro en
    `$XDG_STATE_HOME/opencode/service.json`) que ya corre con los datos del dueño. Cambiar sólo `XDG_STATE_HOME` NO aísla (da
-   error de puerto). Diseño: cada cuenta agregada tiene `data/` y `state/` propios (`~/.config/trama/cuentas/<id>/`, con marca
+   error de puerto; y `XDG_STATE_HOME` solo tampoco aísla el login, que está en los datos). Diseño: cada cuenta agregada tiene `data/` y `state/` propios (`~/.config/trama/cuentas/<id>/`, con marca
    `.trama-cuenta`) y opencode corre con `XDG_DATA_HOME`/`XDG_STATE_HOME` de ella **y `--standalone`** (servidor propio; `login`,
    `ver --verificar` y `correr.mjs` lo agregan). `opencode acp` (líder) corre en proceso: alcanza con el entorno; el puente lee
    `TRAMA_OPENCODE_CUENTA=<id>` (`app/electron/opencode-cuenta.ts`, falla cerrado). Sin selector de cuenta en la interfaz para el
@@ -114,9 +114,18 @@ historia (force push); se puede subir directo y mergear sin esperar el CI.
    Agregar cuenta, poner nombre, tocar «Iniciar sesión» (o `cuentas login <id>`), completar el navegador, volver y ver que
    la cuenta figura conectada (`cuentas ver <id> --verificar`) y que `pa <proy> -m opencode:opencode/beam-free --cuenta <id> "hola"`
    responde y suma un pedido con esa cuenta, sin tocar el login del dueño (`opencode auth list` sigue igual).
-   **Plan detectado solo: no se hizo.** `opencode models` lista `opencode/*` (gratis y Zen) y habría `opencode-go/*` con Go, pero (a)
-   no se pudo comprobar el caso con Go (el dueño no lo tiene), (b) no distingue Go de Go Plus, y (c) la API de la Console necesita los
-   tokens de `opencode.db` (secretos, no se leen). El selector manual queda.
+   **Plan detectado solo (hecho).** `cuentas --json --verificar` suma `plan_detectado` a cada cuenta de OpenCode, leído de
+   `opencode models` con el entorno de ESA cuenta (`gratis` si lista modelos y ninguno `opencode-go/*`; `go` si hay alguno;
+   nada si no contesta o con error). La tarjeta de Ajustes lo muestra como «detectado» y lo aplica sola si difiere; el
+   selector Gratis/Go/Go Plus quedó plegado («elegido a mano») de respaldo. `cuentas plan <id> --detectar` lo guarda en una
+   agregada. **Límites:** (a) no se pudo comprobar el caso con Go (no hay cuenta con Go a mano; sólo se ve con salida
+   inventada en los tests), (b) Go y Go Plus usan el mismo catálogo `opencode-go/*`: no se distinguen, Go Plus sigue siendo
+   manual (si lo elegiste a mano y se detecta Go, no se pisa), (c) la API de la Console necesita los tokens de `opencode.db`
+   (secretos, no se leen).
+   **Barra de cupos.** Una cuenta por proveedor: sin subfila de cuenta ni «principal»; 2 o más: la fila del proveedor y debajo
+   una por cuenta con su nombre. Google dibuja una subfila por grupo (lo que traiga: 5 h, semana o ninguna). El reinicio va
+   siempre junto al %; en barra angosta (≤ 15 rem útiles) el nombre pasa arriba y las dos celdas debajo, el logo no se
+   esconde. Capturas: `HILOS_VARIANTE=cupos-todo[-dos][-angosta] scripts/captura.sh normal`.
 3. **Port a Windows, etapa 5 (EMPEZADA).** `app/electron/cli/pa/{ayuda,contrato,entorno}.ts` (~500 líneas) y `pa --version`
    en el `pa` de bash. Falta el punto de entrada, el parseo completo, los subcomandos de lectura y los casos de paridad
    `app/tests/paridad/casos-pa.ts`. Detalle de etapas en `motor/docs/port-windows-plan.md`.
@@ -151,7 +160,7 @@ Verificado antes del commit final: los dos `tsc` sin errores, `vite build` bien,
 ## Pendiente (en orden sugerido)
 
 1. **Mergear** la rama `claude/elegant-sagan-gvgbq5` a `main` e instalar.
-2. **Terminar varias cuentas de OpenCode** (punto 2 de arriba) y probarlo con opencode real.
+2. **Probar varias cuentas de OpenCode con un login real** (punto 2 de arriba) y confirmar la detección del plan con Go.
 3. **Revisión completa de experiencia de usuario** antes de seguir sumando cosas: ver `motor/docs/ux-pendientes.md`.
 4. **Port a Windows**, etapas 5 a 17 + W (prueba en un Windows real). Estimado: 3 a 5 días de agentes. Ideas a tomar del PR de
    Gonza ([FeroxShark/trama#1](https://github.com/FeroxShark/trama/pull/1), NO se mergea; tiene problemas de seguridad):
