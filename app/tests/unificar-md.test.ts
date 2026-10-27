@@ -6,7 +6,8 @@
 //     caracteres y una nota cuando corta; el líder que no es Claude recibe lo mismo en su prefacio (electron/contexto-local.ts).
 //   - Los canales de la app: el slug sale del registry (nada de rutas), y escribir es sólo de la PC (no por la tailnet).
 // Todo en un tmp (HOME, estado y registry propios): no toca nada de verdad.
-import { test, after } from "node:test";
+import { after } from "node:test";
+import { testPosix as test } from "./plataforma.ts";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, readlinkSync, rmSync, symlinkSync, writeFileSync } from "node:fs";

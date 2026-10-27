@@ -104,7 +104,7 @@ export function entornoDsh(proveedor: ProveedorDsh, env: Env = process.env, home
 export const falta = (proveedor: ProveedorDsh, env: Env = process.env): string | null => (proveedor === "deepseek" && !env.DEEPSEEK_API_KEY ? "DEEPSEEK_API_KEY" : null);
 
 /** ¿El error de dsh/OpenCode es de cuota o de límite de uso (HTTP 429, `QUOTA`, `FreeUsageLimitError`)? */
-export const esErrorCuota = (texto: string): boolean => /\bQUOTA\b|FreeUsageLimitError|\b429\b\s*[:\-]\s*(?:\{|Too Many|rate|quota|free)|(?:HTTP|status|code)\W{0,3}429\b/i.test(texto);
+export const esErrorCuota = (texto: string): boolean => /\bQUOTA\b|FreeUsageLimitError|Free usage limit|provider\.free-limit|\b429\b\s*[:\-]\s*(?:\{|Too Many|rate|quota|free)|(?:HTTP|status|code)\W{0,3}429\b/i.test(texto);
 
 /** Qué decirle a la persona cuando OpenCode corta por cuota: sin clave propia es el cupo gratis COMPARTIDO de la clave pública. */
 export const mensajeCuotaOpencode = (conClave: boolean): string =>

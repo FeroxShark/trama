@@ -46,6 +46,7 @@ import { esAngosto, useAngosto, useAtras, useMedio } from "../angosto";
 import { correrGuionPaneles } from "../paneles/guion";
 import { Panel, PANELES, type CualPanel } from "../paneles/Panel";
 import { alPedirAjustes } from "../paneles/ajustes-nav";
+import { panelDeCaptura } from "../guia/registro";
 import { Consumo } from "../paneles/Consumo";
 import { ramas } from "../paneles/Ramas";
 import { pasoLider, pasoWorker } from "../paneles/PasoLanzar";
@@ -1037,7 +1038,9 @@ export function Barra() {
     // La caja (modelo, esfuerzo, aviso de cambiar de modelo), el indicador y los avisos: en el líder de la app.
     const app = lideres.find((l) => l.origen === "app" && l.vivo)?.id ?? lideres[0]?.id ?? "";
     const enApp = ["lider", "modelo", "esfuerzo", "local-esfuerzo", "local-ctx", "aviso", "lider-trabajando", "lider-avisos", "lider-plan", "lider-permiso", "lider-preguntas", "lider-preguntas-dos", "lider-comandos", "lider-dictado", "lider-valores", "lider-sistema", "lider-cambio-motor", "lider-compactando", "lider-relevo", "lider-imagenes", "lider-tabla", "lider-formato", "lider-listas", "lider-hover", "lider-pensando", "lider-gemini", "te-espera", "tablero-nuevo-chat", "foco-caja", "consumo"].includes(c) || c.startsWith("contexto");
-    if (enApp) setActiva(LIDER + app);
+    // Las guías del chat y de su caja piden el líder de la app abierto.
+    const guiaLider = c === "guia-lider" || c === "guia-caja" || c === "guia-modelo";
+    if (enApp || guiaLider) setActiva(LIDER + app);
     if (c === "tablero-nuevo-chat") {
       // El tablero nuevo: el mensaje con las respuestas de muestra, armado en la caja del líder y sin enviar.
       const ahora = Date.now();
@@ -1085,7 +1088,7 @@ export function Barra() {
     else if (c === "leyendo") setActiva(primero("decision"));
     if (c === "lider-nuevo" || c === "lider-nuevo-carpeta" || c === "local-esfuerzo" || c === "local-ctx" || c.startsWith("maquinas-selector")) setActiva(LIDER_NUEVO);
     else if (c === "compactando" && MODO.variante === "lider") setActiva(LIDER + (terminal ?? ""));
-    else if (c !== "vacio" && !enApp && !c.startsWith("lider") && c !== "settle-confirmar" && c !== "arrancando" && c !== "frenado" && c !== "worker-en-cola" && !c.startsWith("worker-vista") && c !== "leyendo" && c !== "maquinas-lider" && !c.startsWith("maquinas-selector")) setActiva(primero(c === "trabajando" || c === "compactando" ? "trabajando" : "decision"));
+    else if (c !== "vacio" && !enApp && !guiaLider && !c.startsWith("lider") && c !== "settle-confirmar" && c !== "arrancando" && c !== "frenado" && c !== "worker-en-cola" && !c.startsWith("worker-vista") && c !== "leyendo" && c !== "maquinas-lider" && !c.startsWith("maquinas-selector")) setActiva(primero(c === "trabajando" || c === "compactando" ? "trabajando" : "decision"));
     if (c === "buscar") {
       setBusqueda("yaml");
       campo.current?.focus();
@@ -1143,6 +1146,9 @@ export function Barra() {
     // Angosto se ve lo abierto; la lista, con HILOS_VARIANTE=lista (o si no hay nada que abrir).
     if (esAngosto()) setAbierta(MODO.variante === "lista" || c === "vacio" || c === "foco-barra" || c === "orden-arrastrando" || c === "orden-menu" || c === "orden-prioridad" || c === "activas" || c === "mover-menu" || (c.startsWith("maquinas") && c !== "maquinas-lider" && !c.startsWith("maquinas-selector")));
     if (c === "ajustes") setPanel("ajustes");
+    // Las guías de pantalla: el panel que cada una necesita abierto.
+    const pg = c.startsWith("guia-") ? panelDeCaptura(c.slice(5)) : null;
+    if (pg) setPanel(pg.panel);
     if (c === "estadisticas" || c === "estadisticas-30" || c === "estadisticas-medido" || c === "estadisticas-vacia") setPanel("estadisticas");
     if (c.startsWith("tablero") && c !== "tablero-nuevo-chat") setPanel("tablero");
     if (c === "ramas" || c === "ramas-confirmar" || c === "ramas-analista" || c === "ramas-conflicto" || c === "ramas-lanzar" || c === "ramas-lanzar-error") setPanel("ramas");
@@ -1598,6 +1604,7 @@ export function Barra() {
                 <button
                   type="button"
                   className="nueva"
+                  data-guia="nueva"
                   aria-label={tr("lider.nuevo")}
                   data-tip={tr("lider.nuevoTipN")}
                   aria-pressed={activa === LIDER_NUEVO}
@@ -1728,7 +1735,7 @@ export function Barra() {
             <AvisoClaude />
             <AvisoClaude cual="agy" />
             <AvisoSetup />
-            <footer className="pie">
+            <footer className="pie" data-guia="pie">
               {BOTONES_PIE.map(([cual, icono]) => (
                 <BotonPie
                   key={cual}
@@ -1861,6 +1868,7 @@ function Activas({ ref, ramas, abierta, alAlternar, liderActivo, alAbrirLider, a
       transition={RESORTE}
       className="proy activas"
       data-activas=""
+      data-guia="activas"
       aria-label={tr("barra.activas")}
     >
       <div className="marco marco-arriba" />

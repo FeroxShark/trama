@@ -1,0 +1,27 @@
+# Todo el repo en LF (en Windows, CRLF rompe scripts, hooks y plantillas).
+* text=auto eol=lf
+
+# Scripts y programas que nunca pueden tener CRLF
+motor/bin/* text eol=lf
+motor/hooks/* text eol=lf
+motor/plantillas/** text eol=lf
+*.sh text eol=lf
+*.mjs text eol=lf
+*.py text eol=lf
+*.service text eol=lf
+
+# Binarios
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.icns binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.otf binary
+
+# Licencia de la fuente: se conserva byte a byte (viene con CRLF)
+app/src/fuentes/OFL-IBMPlex.txt -text

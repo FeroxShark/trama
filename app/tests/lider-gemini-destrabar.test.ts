@@ -1,7 +1,8 @@
 // «Destrabar solo cuando se repite» de punta a punta (electron/lider.ts → agy-puente.ts → scripts/agy-falso.mjs): un Gemini que se
 // traba pidiendo lo mismo con el porcentaje subiendo se corta, recibe el aviso en su misma conversación y termina; con el
 // tope de reintentos para y lo dice; con la opción apagada no hace nada. Nunca el agy de verdad.
-import { test, after } from "node:test";
+import { after } from "node:test";
+import { testPosix as test } from "./plataforma.ts";
 import assert from "node:assert/strict";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { registerHooks } from "node:module";

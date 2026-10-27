@@ -2,7 +2,8 @@
 // "pasos chicos" para modelos flojos, VERIFICACION (campo `verificado`), lecciones del proyecto y `--auditar`.
 // Un `claude` falso (anota su argv y contesta el RESULTADO que le dé FALSO_RESULT) y un `opencode` falso (anota su stdin).
 // HOME, estado y registry en un tmp: no toca nada de verdad.
-import { test, after } from "node:test";
+import { after } from "node:test";
+import { testPosix as test } from "./plataforma.ts";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -196,10 +197,10 @@ test("--agents-md: imprime la plantilla si falta; si existe avisa y no la imprim
   rmSync(path.join(proy, "AGENTS.md"));
 });
 
-test("modelo de poca inteligencia (< 70): el contrato suma 'pasos chicos' y el jefe recibe un aviso; Claude Sonnet (88) no", () => {
+test("modelo de poca inteligencia (< 46 en unidades de AA): el contrato suma 'pasos chicos' y el jefe recibe un aviso; Claude Sonnet (51) no", () => {
   const flojo = pa(["demo", "--sin-jefe", "-m", "opencode:opencode/beam-free", "tarea cuatro"]);
   assert.equal(flojo.rc, 0, flojo.err);
-  assert.match(flojo.err, /aviso: 'opencode:opencode\/beam-free' tiene inteligencia 40/);
+  assert.match(flojo.err, /aviso: 'opencode:opencode\/beam-free' tiene inteligencia 37.3/);
   assert.match(readFileSync(stdinFile, "utf8"), /Trabajá en pasos chicos: un cambio por vez, corré la verificación después de CADA cambio/);
   const bueno = paClaude(["--tipo", "codigo-acotado"], BRIEF, { REPARTO_CLAUDE: "" });
   assert.equal(bueno.rc, 0, bueno.err);

@@ -1,7 +1,7 @@
 {
   "name": "trama",
   "private": true,
-  "version": "0.1.4",
+  "version": "0.2.0",
   "type": "module",
   "license": "MIT",
   "scripts": {
@@ -10,9 +10,10 @@
     "start": "electron .",
     "bench": "bash scripts/dev/bench.sh",
     "postinstall": "node node_modules/electron/install.js",
-    "test": "node --test 'tests/*.test.ts'",
+    "test": "node scripts/test.mjs",
     "prueba": "node scripts/prueba-todas.mjs",
-    "visual": "node scripts/visual.mjs"
+    "visual": "node scripts/visual.mjs",
+    "test:paridad": "node --test tests/paridad/paridad.test.ts tests/paridad/normalizar.test.ts"
   },
   "dependencies": {
     "lucide-react": "^0.540.0",

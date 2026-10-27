@@ -1,6 +1,7 @@
 // Las API keys de DeepSeek Harness (electron/claves.ts): `claves.env` en 0600, sólo los nombres que se conocen, sin pisar lo que
 // ya está en el entorno, y nada de la key de vuelta hacia la interfaz.
 import { test, after } from "node:test";
+import { soloPosix } from "./plataforma.ts";
 import assert from "node:assert/strict";
 import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync, mkdirSync } from "node:fs";
 import os from "node:os";
@@ -33,7 +34,7 @@ test("analizar: sólo los nombres conocidos, sin comillas ni export, ignorando l
   assert.deepEqual(analizarClaves("OPENCODE_API_KEY=a\r\nDEEPSEEK_API_KEY=b\r\n"), { OPENCODE_API_KEY: "a", DEEPSEEK_API_KEY: "b" });
 });
 
-test("guardar crea la carpeta en 0700 y el archivo en 0600, con una línea por key", async () => {
+test("guardar crea la carpeta en 0700 y el archivo en 0600, con una línea por key", { skip: soloPosix("modos 0600/0700") }, async () => {
   const ruta = nueva();
   await guardarClave("OPENCODE_API_KEY", "oc-secreta", ruta);
   assert.equal(readFileSync(ruta, "utf8"), "OPENCODE_API_KEY=oc-secreta\n");
@@ -45,7 +46,7 @@ test("guardar crea la carpeta en 0700 y el archivo en 0600, con una línea por k
   assert.deepEqual(await leerClaves(ruta), { OPENCODE_API_KEY: "oc-secreta", DEEPSEEK_API_KEY: "sk-1" });
 });
 
-test("guardar sobre un archivo con permisos de más lo deja en 0600 y no pierde nada ajeno al formato", async () => {
+test("guardar sobre un archivo con permisos de más lo deja en 0600 y no pierde nada ajeno al formato", { skip: soloPosix("modos 0600") }, async () => {
   const ruta = nueva();
   mkdirSync(path.dirname(ruta), { recursive: true });
   writeFileSync(ruta, "DEEPSEEK_API_KEY=viejo\n", { mode: 0o644 });
@@ -54,7 +55,7 @@ test("guardar sobre un archivo con permisos de más lo deja en 0600 y no pierde 
   assert.equal(readFileSync(ruta, "utf8"), "DEEPSEEK_API_KEY=nuevo\n");
 });
 
-test("borrar con null saca la línea y deja el archivo vacío cuando era la última", async () => {
+test("borrar con null saca la línea y deja el archivo vacío cuando era la última", { skip: soloPosix("modos 0600") }, async () => {
   const ruta = nueva();
   await guardarClave("OPENCODE_API_KEY", "a", ruta);
   await guardarClave("DEEPSEEK_API_KEY", "b", ruta);
@@ -85,7 +86,7 @@ test("conClaves: lo ya puesto en el entorno gana", () => {
   assert.equal(e.PATH, "/bin");
 });
 
-test("la key de Artificial Analysis se guarda como las otras, se cuenta como presente y no pasa al entorno de los líderes", async () => {
+test("la key de Artificial Analysis se guarda como las otras, se cuenta como presente y no pasa al entorno de los líderes", { skip: soloPosix("modos 0600") }, async () => {
   const ruta = nueva();
   const hay = await guardarClave("ARTIFICIAL_ANALYSIS_API_KEY", "aa-secreta", ruta);
   assert.equal(hay.ARTIFICIAL_ANALYSIS_API_KEY, true);

@@ -1,7 +1,8 @@
 // El runner de workers de pa para opencode (motor/opencode/correr.mjs) contra un `opencode run --format json` de verdad y el servidor
 // OpenAI falso (scripts/openai-falso.mjs) como proveedor `falso`: el NDJSON que copia al transcript, el .json final con la forma de
 // codex_a_json, los códigos de salida y los errores de argumentos. Sin `opencode` lo que lo necesita se saltea. HOME y XDG en un tmp.
-import { test, after } from "node:test";
+import { after } from "node:test";
+import { testPosix as test } from "./plataforma.ts";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";

@@ -1,6 +1,7 @@
 // electron/pc-estado.ts: "PC apagada · Prender" en la trama del Dell. Con un `prender-pc` falso (scripts/prender-pc-falso.sh)
 // y una PC falsa que abre su puerto sólo después de que el "paquete" salió. Nada sale a la red: todo en 127.0.0.1 y un tmp.
-import { test, after } from "node:test";
+import { after } from "node:test";
+import { testPosix as test } from "./plataforma.ts";
 import assert from "node:assert/strict";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { registerHooks } from "node:module";

@@ -2,7 +2,8 @@
 // proceso vivo. lider.ts importa sus vecinos con `.js` (lo compila tsc): acá un
 // hook de resolución los lleva al `.ts`. El entorno va antes del import (lider.ts
 // lo lee al cargar): estado, sesiones y config de Claude en un tmp.
-import { test, after } from "node:test";
+import { after } from "node:test";
+import { testPosix as test } from "./plataforma.ts";
 import assert from "node:assert/strict";
 import { existsSync, mkdtempSync } from "node:fs";
 import { registerHooks } from "node:module";

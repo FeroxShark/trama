@@ -6,6 +6,8 @@ import { useCallback, useMemo, useSyncExternalStore, type ReactNode } from "reac
 import type { HaceLider } from "../datos/contrato";
 import { Reloj } from "../barra/piezas";
 import { pintorDura } from "../tiempo";
+import { Boton } from "../ui/componentes";
+import { EVENTO_CAMBIAR_MODELO, esAvisoSinCupoOpencode } from "./agotados";
 import { coma, diaSemana, locale, t, textoError } from "../i18n";
 import { useIdioma } from "../i18n/react";
 import type { AvisoVisto } from "./avisos";
@@ -99,6 +101,11 @@ export function Avisos({ avisos }: { avisos: AvisoVisto[] }) {
         return (
           <div key={`${a.clase}:${i}`} className="aviso" data-tono={tono ?? undefined}>
             {texto}
+            {a.clase === "error" && esAvisoSinCupoOpencode(a.texto) ? (
+              <Boton type="button" className="aviso-accion" onClick={() => window.dispatchEvent(new Event(EVENTO_CAMBIAR_MODELO))}>
+                {t("aviso.cambiarModelo")}
+              </Boton>
+            ) : null}
           </div>
         );
       })}

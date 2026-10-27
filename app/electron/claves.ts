@@ -51,6 +51,70 @@ export function leerClavesSync(ruta = rutaClaves()): Partial<Record<NombreClave,
   }
 }
 
+/**
+ * Los valores secretos de los servidores MCP propios (Ajustes > Conectores): `MCP_<SERVIDOR>__E_<VARIABLE>` (entorno de un stdio) o
+ * `MCP_<SERVIDOR>__H_<CABECERA>` (cabecera de un http/sse). Viven en este mismo archivo, nunca en `mcp.json`. `guardarClave` los conserva.
+ */
+export const esClaveMcp = (n: unknown): n is string => typeof n === "string" && /^MCP_[A-Z0-9_]{1,200}$/.test(n);
+
+/** Las líneas `MCP_…=valor` del texto. */
+export function analizarClavesMcp(texto: string): Record<string, string> {
+  const r: Record<string, string> = {};
+  for (const linea of texto.split(/\r?\n/)) {
+    const m = /^\s*(?:export\s+)?([A-Z][A-Z0-9_]*)=(.*)$/.exec(linea);
+    if (!m || !esClaveMcp(m[1])) continue;
+    const v = m[2].trim();
+    if (v) r[m[1]] = v;
+  }
+  return r;
+}
+
+export async function leerClavesMcp(ruta = rutaClaves()): Promise<Record<string, string>> {
+  try {
+    return analizarClavesMcp(await readFile(ruta, "utf8"));
+  } catch {
+    return {};
+  }
+}
+
+export function leerClavesMcpSync(ruta = rutaClaves()): Record<string, string> {
+  try {
+    return analizarClavesMcp(readFileSync(ruta, "utf8"));
+  } catch {
+    return {};
+  }
+}
+
+/** Un valor de un servidor MCP: una línea (puede llevar espacios: `Bearer …`), sin saltos ni nulos ni comillas que lo envuelvan. */
+const validoMcp = (v: string) => v.length > 0 && v.length <= 4096 && !/[\r\n\0]/.test(v) && !/^(["']).*\1$/.test(v);
+
+async function escribir(ruta: string, hoy: Partial<Record<NombreClave, string>>, mcp: Record<string, string>) {
+  const texto =
+    NOMBRES_CLAVE.filter((n) => hoy[n]).map((n) => `${n}=${hoy[n]}\n`).join("") +
+    Object.keys(mcp).sort().map((n) => `${n}=${mcp[n]}\n`).join("");
+  const dir = path.dirname(ruta);
+  await mkdir(dir, { recursive: true, mode: 0o700 });
+  const tmp = `${ruta}.trama-${process.pid}.tmp`;
+  await writeFile(tmp, texto, { mode: 0o600 });
+  await chmod(tmp, 0o600);
+  await rename(tmp, ruta);
+}
+
+/** Guarda (valor) o borra (`null`) valores de servidores MCP, todos de una vez; el resto del archivo queda como estaba. Valida antes de escribir. */
+export async function guardarClavesMcp(cambios: Record<string, string | null>, ruta = rutaClaves()): Promise<void> {
+  for (const [n, v] of Object.entries(cambios)) {
+    if (!esClaveMcp(n)) throw errorT("main.claveNombre", { v: String(n).slice(0, 40) });
+    if (v !== null && (typeof v !== "string" || !validoMcp(v.trim()))) throw errorT("main.mcpValor");
+  }
+  const hoy = await leerClaves(ruta);
+  const mcp = await leerClavesMcp(ruta);
+  for (const [n, v] of Object.entries(cambios)) {
+    if (v === null) delete mcp[n];
+    else mcp[n] = v.trim();
+  }
+  await escribir(ruta, hoy, mcp);
+}
+
 /** Un valor que cabe en una línea sin comillas: sin espacios, saltos ni nulos (una key de verdad no los tiene). */
 const valido = (v: string) => v.length > 0 && v.length <= 512 && !/[\s\0"'\\]/.test(v);
 
@@ -65,13 +129,7 @@ export async function guardarClave(nombre: unknown, valor: string | null, ruta =
   const hoy = await leerClaves(ruta);
   if (valor === null) delete hoy[nombre];
   else hoy[nombre] = valor;
-  const texto = NOMBRES_CLAVE.filter((n) => hoy[n]).map((n) => `${n}=${hoy[n]}\n`).join("");
-  const dir = path.dirname(ruta);
-  await mkdir(dir, { recursive: true, mode: 0o700 });
-  const tmp = `${ruta}.trama-${process.pid}.tmp`;
-  await writeFile(tmp, texto, { mode: 0o600 });
-  await chmod(tmp, 0o600);
-  await rename(tmp, ruta);
+  await escribir(ruta, hoy, await leerClavesMcp(ruta));
   return hayClaves(hoy);
 }
 

@@ -1,7 +1,8 @@
 // Un líder de Gemini de punta a punta (electron/lider.ts → agy-puente.ts → scripts/agy-falso.mjs): los eventos que pinta la
 // app, su transcript aparte, el archivo de sesión que ve la barra (y `pa`), la continuidad con `--conversation` (también tras
 // cerrar y volver) y su repetición si agy ya no la tiene. Nunca el agy de verdad. HOME en un tmp: el prefacio lee sus CLAUDE.md.
-import { test, after } from "node:test";
+import { after } from "node:test";
+import { testPosix as test } from "./plataforma.ts";
 import assert from "node:assert/strict";
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { registerHooks } from "node:module";

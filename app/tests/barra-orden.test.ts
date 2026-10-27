@@ -227,3 +227,12 @@ test("flotar es estable y no toca lo que recibe", () => {
   assert.deepEqual(xs, ["g", "a", "b", "c", "d"]);
   assert.deepEqual(flotar(xs, () => false), xs);
 });
+
+test("Activas: el caché caliente sólo cuenta en Claude (OpenCode, dsh y Gemini no tienen vencimiento que afirmar)", () => {
+  const base = { espera: undefined, pide: undefined, ocupado: false, caido: undefined, subagentes: 0, cache_vence: AHORA + 30 * MIN };
+  assert.equal(calorLider({ ...base, modelo: "claude-opus-5-5" }, 0, AHORA), 3);
+  assert.equal(calorLider({ ...base, modelo: "opencode:opencode/deepseek-v4.1-flash-free" }, 0, AHORA), null);
+  assert.equal(calorLider({ ...base, modelo: "gemini-3.8-flash" }, 0, AHORA), null);
+  assert.equal(calorLider({ ...base, modelo: "opencode:opencode/big-pickle", ocupado: true }, 0, AHORA), 1, "ocupado sigue contando");
+  assert.equal(proximoVencimiento([{ cache_vence: AHORA + 99, caido: undefined, modelo: "dsh:x/y" }], AHORA), null);
+});

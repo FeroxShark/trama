@@ -1,7 +1,8 @@
 // Un líder de DeepSeek Harness de punta a punta por electron/lider.ts (→ dsh-puente.ts → `dsh --profile acp` → scripts/openai-falso.mjs): la clase del
 // modelo, la URL del Ollama de modelos.json, el prefacio (dsh no lee CLAUDE.md), el transcript aparte, y que no se cruce con Claude ni
 // Gemini en la misma sesión. Sin `dsh` (TRAMA_DSH_BIN…) se saltea. HOME, HILOS_STATE y DSH_HOME en un tmp.
-import { test, after } from "node:test";
+import { after } from "node:test";
+import { testPosix as test } from "./plataforma.ts";
 import assert from "node:assert/strict";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { registerHooks } from "node:module";

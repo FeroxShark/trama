@@ -1,6 +1,7 @@
 // "Medir exacto" el peso de arrancar (electron/arranque.ts), a pedido, con el claude falso: los cuatro
 // pedidos de a uno, la resta de cada parte, lo que queda guardado, y los fallos que se dicen sin tirar.
 import { test } from "node:test";
+import { soloPosix } from "./plataforma.ts";
 import assert from "node:assert/strict";
 import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { registerHooks } from "node:module";
@@ -43,7 +44,7 @@ test("partesDe: cada parte es una resta y nunca da negativo", () => {
   for (const n of Object.values(raro)) assert.ok(n >= 0);
 });
 
-test("medir: mide los cuatro pedidos, lo guarda y leer lo devuelve", async () => {
+test("medir: mide los cuatro pedidos, lo guarda y leer lo devuelve", { skip: soloPosix("ejecuta claude-falso.mjs por shebang") }, async () => {
   const a = nuevo();
   assert.equal(await a.leer(), null, "antes de medir no hay nada");
   const r = await a.medir();
@@ -55,13 +56,13 @@ test("medir: mide los cuatro pedidos, lo guarda y leer lo devuelve", async () =>
   assert.deepEqual(await a.leer(), r);
 });
 
-test("medir: apretar de nuevo mientras corre espera el mismo resultado", async () => {
+test("medir: apretar de nuevo mientras corre espera el mismo resultado", { skip: soloPosix("ejecuta claude-falso.mjs por shebang") }, async () => {
   const a = nuevo();
   const [x, y] = await Promise.all([a.medir(), a.medir()]);
   assert.strictEqual(x, y);
 });
 
-test("medir: un error de claude se dice y no deja nada guardado", async () => {
+test("medir: un error de claude se dice y no deja nada guardado", { skip: soloPosix("ejecuta claude-falso.mjs por shebang") }, async () => {
   const estado = path.join(tmp, "falla");
   const a = nuevo({ TRAMA_FALSO_MEDIR_FALLA: "error" }, estado);
   const r = await a.medir();
@@ -70,7 +71,7 @@ test("medir: un error de claude se dice y no deja nada guardado", async () => {
   assert.equal(existsSync(path.join(estado, "arranque-medido.json")), false);
 });
 
-test("medir: una respuesta sin uso se dice, y lo medido antes sigue ahí", async () => {
+test("medir: una respuesta sin uso se dice, y lo medido antes sigue ahí", { skip: soloPosix("ejecuta claude-falso.mjs por shebang") }, async () => {
   const estado = path.join(tmp, "sin-uso");
   assert.ok(!("error" in (await nuevo({}, estado).medir())));
   const r = await nuevo({ TRAMA_FALSO_MEDIR_FALLA: "sin-uso" }, estado).medir();

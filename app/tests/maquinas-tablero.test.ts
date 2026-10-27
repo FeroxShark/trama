@@ -3,7 +3,8 @@
 // `TABLERO_DIR` en un tmp). Los números de item se repiten en los dos: los de allá llegan como `dell:N` con su
 // máquina y cada acción corre el CLI de la máquina del item. Con el Dell caído sus items no están y se avisa.
 // Sin el CLI `tablero` instalado se saltea. Nunca toca el tablero de verdad.
-import { test, after } from "node:test";
+import { after } from "node:test";
+import { testPosix as test } from "./plataforma.ts";
 import assert from "node:assert/strict";
 import { execFileSync, spawn } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";

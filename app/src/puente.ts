@@ -72,6 +72,9 @@ type Main = {
     bienvenidaPendiente(): Promise<boolean>;
     /** Marca la bienvenida como vista (`true`) o vuelve a dejarla pendiente. */
     bienvenida(si: boolean): Promise<void>;
+    /** Las guías de pantalla (src/guia): su estado guardado (sin validar: `normalizarGuias`) y un cambio de ese estado, que devuelve el que quedó. */
+    guias(): Promise<unknown>;
+    guiasOp(op: unknown): Promise<unknown>;
   };
   /** El panel de consumo (electron/consumo.ts): lo que contesta va sin validar (`consumoDe`). */
   consumo: {
@@ -226,6 +229,13 @@ type Main = {
     claveDsh(nombre: string, valor: string | null): Promise<unknown>;
     /** Prueba un proveedor (`opencode`, `deepseek`, `ollama`) con la key guardada; nunca rechaza por no contestar. */
     probarDsh(proveedor: string, url?: string): Promise<unknown>;
+    /** Conectores: lo que ve un líder de ese motor (`claude mcp list` + los propios de Trama). Tarda con Claude (prueba cada servidor). */
+    estadoMcp(x: { motor: string; local?: boolean; fresco?: boolean }): Promise<unknown>;
+    /** Los servidores MCP propios de Trama (nunca los valores, sólo si hay). */
+    listaMcp(): Promise<unknown>;
+    /** Agrega o reemplaza uno; los valores secretos van a `claves.env`. Devuelve la lista. Sólo desde la PC. */
+    guardarMcp(entrada: unknown): Promise<unknown>;
+    quitarMcp(nombre: string): Promise<unknown>;
     /** `reparto --tabla --json`: cada modelo que reparto conoce con su inteligencia, cupo y si está permitido; `null` sin `reparto` o con uno viejo. */
     repartoTabla(): Promise<unknown>;
     /** Artificial Analysis: si hay key (nunca el valor) y de cuándo es la caché de inteligencias. */

@@ -22,15 +22,21 @@ const AUR = process.env.HILOS_AGY_AUR ?? "https://aur.archlinux.org/rpc/v5/info?
 
 type Traer = (url: string, init: { signal: AbortSignal }) => Promise<{ ok: boolean; text(): Promise<string> }>;
 
-/** La última de agy: el actualizador primero, AUR si ese no contesta. null si ninguno. */
-export async function ultimaAgy(traer: Traer = fetch): Promise<string | null> {
+/**
+ * La última de agy que se puede instalar. En Arch se actualiza con `paru -S antigravity-cli`, así que manda AUR: el
+ * actualizador de Google anuncia versiones horas o días antes de que el paquete las tenga, y avisar de una que paru
+ * todavía no baja terminaba en "No se pudo actualizar" (paru reinstalaba la misma). Sin pacman, el actualizador primero
+ * y AUR si ese no contesta. null si ninguno.
+ */
+export async function ultimaAgy(traer: Traer = fetch, aurPrimero = hayPacman()): Promise<string | null> {
   const pedir = async (url: string) => {
     const r = await traer(url, { signal: AbortSignal.timeout(15_000) });
     return r.ok ? r.text() : null;
   };
-  const delActualizador = await pedir(ACTUALIZADOR).then(ultimaDeActualizador, () => null);
-  if (delActualizador) return delActualizador;
-  return pedir(AUR).then((t) => (t ? ultimaDeAur(JSON.parse(t)) : null)).catch(() => null);
+  const deAur = () => pedir(AUR).then((t) => (t ? ultimaDeAur(JSON.parse(t)) : null)).catch(() => null);
+  const deActualizador = () => pedir(ACTUALIZADOR).then(ultimaDeActualizador, () => null);
+  const [primero, segundo] = aurPrimero ? [deAur, deActualizador] : [deActualizador, deAur];
+  return (await primero()) ?? (await segundo());
 }
 
 /** `paru -S` sólo existe en Arch (hay `pacman`; `HILOS_PACMAN` lo reemplaza en las pruebas). */

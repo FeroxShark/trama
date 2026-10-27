@@ -150,10 +150,10 @@ test("perfil ahorro con uso de Pro: workers a gratis/Google; Claude sólo donde 
   const ahorro = modelos({ perfil: "ahorro" });
   assert.ok(tipo("lectura", f, ahorro).modelo.startsWith("opencode:"));
   assert.ok(tipo("mecanico", f, ahorro).modelo.startsWith("opencode:"));
-  // codigo-acotado: el mínimo baja una banda (Haiku): el gratis de 60 alcanza. El equilibrado sigue pidiendo Sonnet.
+  // codigo-acotado: el mínimo baja una banda (Haiku): el gratis de 43 (60 en la escala vieja) alcanza. El equilibrado sigue pidiendo Sonnet.
   const ca = tipo("codigo-acotado", f, ahorro);
   assert.ok(ca.modelo.startsWith("opencode:"), ca.modelo);
-  assert.match(ca.motivo, /codigo-acotado pide calidad 60 o más/);
+  assert.match(ca.motivo, /codigo-acotado pide calidad 43 o más/);
   assert.ok(esClaude(tipo("codigo-acotado", f, modelos()).modelo));
   assert.match(tipo("codigo-acotado", f, ahorro).motivo, /perfil ahorro: uso big-pickle.* en lugar de Claude/);
   // debug pide Argon-88: ningún gratis llega, queda Claude (con un 50 % usado de 65 % disponibles todavía hay cupo para workers).

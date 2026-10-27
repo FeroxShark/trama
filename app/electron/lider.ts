@@ -12,7 +12,7 @@ import { imagenesDe, type Imagen } from "./imagenes.ts";
 import { inputRespondido, respuestasValidas, type Pregunta } from "./preguntas.ts";
 import { spawn, type ChildProcess } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { access, mkdir, open, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -53,11 +53,14 @@ import {
   type Guardado,
   type Local,
   type Modo,
+  type Rama,
 } from "./lider-arma.js";
-import { armarRelevo, MODELO_DE_FAMILIA, msDe, unirConvs, type Familia } from "./relevo-motor.ts";
+import { aplicarCortes, armarRelevo, hastaMensaje, MODELO_DE_FAMILIA, msDe, unirConvs, type Familia } from "./relevo-motor.ts";
 import { asegurarLocal, destinoLocal, localDe } from "./locales.js";
 import { armarContexto, prefacioDsh, prefacioGemini } from "./contexto-local.ts";
 import { conClaves } from "./claves.ts";
+import { archivoMcpClaudeSync } from "./mcp.ts";
+import { paraAcp, resueltos } from "./mcp-config.ts";
 import { resolverPa } from "./binario.ts";
 import { matarArbol } from "./procesos.ts";
 import { claseDeModelo, familiaDeModelo, idAgy, localDeModelo, localOllama, partirGemini, type Clase } from "./modelos-config.js";
@@ -445,6 +448,23 @@ function normalizar(modelo: string, effort: string): { modelo: string; effort: s
   return claseDeModelo(modelo) === "gemini" ? partirGemini(modelo, effort) : { modelo, effort };
 }
 
+/** El entorno de un puente (agy / dsh / opencode) sobre los cortes del líder (`electron/cortes.ts`). */
+function cortesParaPuente(g: Guardado, clase: Clase, relevo: string | undefined): NodeJS.ProcessEnv {
+  if (!g.cortes?.length && !g.heredado) return {};
+  let completo = false;
+  try {
+    // Un relevo de una vuelta atrás o de una rama es la conversación entera hasta el punto; el de un cambio de motor, sólo lo que le falta al motor.
+    completo = !!relevo && /^# Historial de esta conversación \((?:se volvió atrás|rama)\)/.test(readFileSync(relevo, "utf8").slice(0, 200));
+  } catch {
+    /* sin relevo legible */
+  }
+  const fam: Familia = clase === "gemini" ? "gemini" : clase === "dsh" ? "dsh" : "opencode";
+  return {
+    ...(g.cortes?.length ? { TRAMA_CORTES: JSON.stringify(g.cortes.slice(-50)) } : {}),
+    ...(completo && !existsSync(lado(g.sid, fam)) ? { TRAMA_SIN_REPETIR: "1" } : {}),
+  };
+}
+
 function lanzar(g: Guardado, resume: boolean, local?: Local, extra: Extra = {}): Proc {
   // Vuelve a tener proceso: ya no está muerto.
   if (g.murio) {
@@ -457,7 +477,22 @@ function lanzar(g: Guardado, resume: boolean, local?: Local, extra: Extra = {}):
   // Su propio grupo (setsid): lo que el líder deja corriendo desde sus herramientas (un `qs`, un watcher) se barre al salir.
   const opciones = { ...base, stdio: ["pipe", "pipe", "pipe"] as ["pipe", "pipe", "pipe"], detached: true, windowsHide: true };
   // Si la conversación venía de otro motor, lo hablado va aparte de los mensajes (prompt de sistema o prefacio): no ensucia el transcript.
-  const relevo = g.cambios?.length && existsSync(archivoRelevo(g.sid)) ? archivoRelevo(g.sid) : undefined;
+  // (También el de una rama hecha con relevo o una vuelta atrás en un motor sin `--resume-session-at`: el archivo sólo existe si hace falta.)
+  const relevo = existsSync(archivoRelevo(g.sid)) ? archivoRelevo(g.sid) : undefined;
+  // Los puentes de agy / dsh / opencode no repiten en una sesión nueva lo que se descartó al volver atrás; y si el relevo es de una vuelta atrás o
+  // de una rama (trae toda la conversación hasta el punto), tampoco repiten lo suyo: ya está en el relevo.
+  const cortesPuente: NodeJS.ProcessEnv = clase === "gemini" || clase === "dsh" || clase === "opencode" ? cortesParaPuente(g, clase, relevo) : {};
+  // Los servidores MCP propios de Trama (Ajustes > Conectores), sólo a líderes. Un archivo 0600 / el entorno del puente, nunca el argv; un fallo no impide lanzar.
+  let mcpClaude: string | undefined;
+  let mcpAcp = "";
+  try {
+    if (clase === "dsh" || clase === "opencode") {
+      const x = resueltos();
+      if (x.length) mcpAcp = JSON.stringify(paraAcp(x));
+    } else if (clase === "claude" && !local && !extra.ollama) mcpClaude = archivoMcpClaudeSync() ?? undefined;
+  } catch (e) {
+    silencio("mcp-lanzar")(e);
+  }
   const bin = clase === "gemini" ? "agy" : clase === "dsh" ? "dsh" : clase === "opencode" ? "opencode" : path.basename(CLAUDE);
   const p =
     clase === "opencode"
@@ -465,7 +500,7 @@ function lanzar(g: Guardado, resume: boolean, local?: Local, extra: Extra = {}):
           process.execPath,
           [PUENTE_DSH, "--sid", g.sid, "--nombre", g.nombre, "--modelo", g.modelo, "--cwd", base.cwd, ...(g.effort ? ["--effort", g.effort] : [])],
           // Sin las keys de dsh: opencode usa su propio login (el de la persona). El prefacio va por el entorno.
-          { ...opciones, env: { ...base.env, ELECTRON_RUN_AS_NODE: "1", TRAMA_DSH_PREFACIO: extra.prefacio ?? "", ...(relevo ? { TRAMA_DSH_RELEVO: relevo } : {}) } },
+          { ...opciones, env: { ...base.env, ...cortesPuente, ELECTRON_RUN_AS_NODE: "1", TRAMA_DSH_PREFACIO: extra.prefacio ?? "", ...(mcpAcp ? { TRAMA_MCP_ACP: mcpAcp } : {}), ...(relevo ? { TRAMA_DSH_RELEVO: relevo } : {}) } },
         )
       : clase === "dsh"
       ? spawn(
@@ -473,16 +508,16 @@ function lanzar(g: Guardado, resume: boolean, local?: Local, extra: Extra = {}):
           [PUENTE_DSH, "--sid", g.sid, "--nombre", g.nombre, "--modelo", g.modelo, "--cwd", base.cwd],
           // Como el de Gemini: el Electron del motor como Node pelado. dsh no lee CLAUDE.md: el prefacio va por el entorno, y las keys guardadas
           // (claves.env) debajo de las que ya estén en el entorno.
-          { ...opciones, env: { ...conClaves(base.env), ELECTRON_RUN_AS_NODE: "1", TRAMA_DSH_PREFACIO: extra.prefacio ?? "", ...(relevo ? { TRAMA_DSH_RELEVO: relevo } : {}), ...(extra.dshUrl ? { TRAMA_DSH_URL: extra.dshUrl } : {}) } },
+          { ...opciones, env: { ...conClaves(base.env), ...cortesPuente, ELECTRON_RUN_AS_NODE: "1", TRAMA_DSH_PREFACIO: extra.prefacio ?? "", ...(mcpAcp ? { TRAMA_MCP_ACP: mcpAcp } : {}), ...(relevo ? { TRAMA_DSH_RELEVO: relevo } : {}), ...(extra.dshUrl ? { TRAMA_DSH_URL: extra.dshUrl } : {}) } },
         )
       : clase === "gemini"
       ? spawn(
           process.execPath,
           [PUENTE_AGY, "--sid", g.sid, "--nombre", g.nombre, "--modelo", idAgy(g.modelo, g.effort), "--cwd", base.cwd],
           // El mismo Electron/Node que el motor, como Node pelado; el prefacio (agy no lee CLAUDE.md) va por el entorno.
-          { ...opciones, env: { ...base.env, ELECTRON_RUN_AS_NODE: "1", TRAMA_AGY_PREFACIO: extra.prefacio ?? "", ...(relevo ? { TRAMA_AGY_RELEVO: relevo } : {}) } },
+          { ...opciones, env: { ...base.env, ...cortesPuente, ELECTRON_RUN_AS_NODE: "1", TRAMA_AGY_PREFACIO: extra.prefacio ?? "", ...(relevo ? { TRAMA_AGY_RELEVO: relevo } : {}) } },
         )
-      : spawn(CLAUDE, argvLider({ modelo: g.modelo, effort: g.effort, sid: g.sid, nombre: g.nombre, resume, modo: g.modo, local, ollama: extra.ollama, desde: extra.desde, rama: g.rama, relevo }), opciones);
+      : spawn(CLAUDE, argvLider({ modelo: g.modelo, effort: g.effort, sid: g.sid, nombre: g.nombre, resume, modo: g.modo, local, ollama: extra.ollama, desde: extra.desde, rama: g.rama, relevo, mcpConfig: mcpClaude }), opciones);
   const x: Proc = { p, modelo: g.modelo, effort: g.effort, clase, local, ocupado: false, directos: [], pedido: 0, avisado: 0, resto: "", stderr: "", adrede: false, libre: [], pedidos: new Map(), controles: new Map(), estilo: null };
   procs.set(g.sid, x);
   p.stdout!.setEncoding("utf8");
@@ -936,7 +971,7 @@ async function mandarYa(x: { sid: string; texto: string; imagenes?: unknown; mod
   if (p?.ocupado) throw errorT("main.respondiendo");
   if (await ajeno(g.sid)) throw errorT("main.otroProceso");
   // Antes de tocar nada: un modelo que no se puede lanzar (un `dsh:` mal armado, un Ollama que ya no está) falla acá y deja todo como estaba.
-  const extraCruce = cruza ? await extraDe(modelo, g.cwd) : undefined;
+  let extraCruce = cruza ? await extraDe(modelo, g.cwd) : undefined;
   let local: Local | undefined;
   if (localDe(modelo)) {
     // Cargar el modelo puede tardar un minuto: mientras, el líder se ve trabajando.
@@ -971,7 +1006,9 @@ async function mandarYa(x: { sid: string; texto: string; imagenes?: unknown; mod
   if (cruza && p) await terminar(p);
   if (cruza) {
     p = undefined;
-    await cambiarDeMotor(g, modelo);
+    // Volviendo a Claude tras un corte: retoma su archivo en el último mensaje que la vista conserva (`--resume-session-at`).
+    const desde = await cambiarDeMotor(g, modelo);
+    if (desde) extraCruce = { ...extraCruce, desde };
   }
   if (g.modelo !== modelo || g.effort !== effort) {
     g.modelo = modelo;
@@ -992,7 +1029,7 @@ async function mandarYa(x: { sid: string; texto: string; imagenes?: unknown; mod
 
 /** ¿Hay una sesión de Claude que retomar con `--resume`? Siempre, salvo que la conversación venga de otro motor y Claude todavía no haya hablado en ella. */
 async function haySesionClaude(g: Guardado): Promise<boolean> {
-  if (!g.cambios?.length) return true;
+  if (!g.cambios?.length && !g.heredado) return true;
   return (await transcriptFamilia(g.sid, "claude", g.cwd)) !== null;
 }
 
@@ -1003,20 +1040,33 @@ async function haySesionClaude(g: Guardado): Promise<boolean> {
  * suyo: Claude retoma la suya y el relevo trae sólo lo que pasó después; un puente abre una sesión de agy / dsh nueva (la anterior
  * se aparta) y repite lo suyo de antes, como cuando agy pierde una conversación.
  */
-async function cambiarDeMotor(g: Guardado, modelo: string): Promise<void> {
+async function cambiarDeMotor(g: Guardado, modelo: string): Promise<string | undefined> {
   const antes = familiaDeModelo(g.modelo);
   const ahora = familiaDeModelo(modelo);
   const hubo = await transcriptFamilia(g.sid, antes, g.cwd);
   const archivo = archivoRelevo(g.sid);
   await rm(archivo, { force: true });
-  if (!hubo) return;
-  const todo = g.cambios?.length ? await convUnida(g) : await convDe(`${g.sid}#${antes}`, hubo);
+  // Una rama con relevo (`heredado`) todavía sin transcript propio también tiene qué relevar: lo heredado.
+  if (!hubo && !g.heredado) return;
+  const todo = conVista(g) ? await convUnida(g) : await convDe(`${g.sid}#${antes}`, hubo);
   // Lo que el motor nuevo ya tiene en su propia sesión: sólo se le cuenta lo posterior.
   const propio = await transcriptFamilia(g.sid, ahora, g.cwd);
   let desde: number | undefined;
+  let retomaEn: string | undefined;
   if (propio) {
-    const horas = (await convDe(`${g.sid}#${ahora}`, propio)).todos.map(msDe).filter((h): h is number => h !== null);
+    const suya = await convDe(`${g.sid}#${ahora}`, propio);
+    const horas = suya.todos.map(msDe).filter((h): h is number => h !== null);
     if (horas.length) desde = Math.max(...horas);
+    // Tras volver atrás con un corte, lo que la vista ya no muestra sigue en el archivo de Claude: retoma en su último mensaje visible.
+    if (ahora === "claude" && g.cortes?.length) {
+      const visible = todo.todos.findLast((m) => m.motor === "claude" && m.uuid);
+      const ultimo = suya.todos.findLast((m) => m.uuid);
+      const cad = visible?.uuid && ultimo && ultimo.uuid !== visible.uuid ? await cadenaHasta(propio, visible.uuid) : null;
+      if (visible?.uuid && cad && !cad.previa) {
+        retomaEn = visible.uuid;
+        desde = msDe(visible) ?? desde;
+      }
+    }
   }
   const relevo = armarRelevo(todo.todos, { de: g.modelo, a: modelo, ...(desde !== undefined ? { desde } : {}) });
   if (relevo.texto) {
@@ -1027,6 +1077,7 @@ async function cambiarDeMotor(g: Guardado, modelo: string): Promise<void> {
   if (ahora !== "claude" && propio) await rename(lado(g.sid, ahora), `${lado(g.sid, ahora)}.previa`).catch(() => {});
   (g.cambios ??= []).push({ ts: Date.now(), de: g.modelo, a: modelo });
   log.escribir("info", "lider", `cambio de motor: "${g.nombre}" (${g.sid}) ${g.modelo} → ${modelo}; relevo de ${relevo.incluidos} mensajes${relevo.omitidos ? ` (${relevo.omitidos} omitidos)` : ""}`);
+  return retomaEn;
 }
 
 /** El archivo con la sesión de agy / dsh / opencode de un líder (`<sid>.json` junto a su transcript). */
@@ -1044,6 +1095,12 @@ export async function rebobinar(x: { sid: string; uuid: string; texto: string; i
   if (mandando.has(sid)) throw errorT("main.respondiendo");
   mandando.add(sid);
   try {
+    // Gemini, dsh y opencode (y un mensaje de otro motor en una conversación mixta) no retroceden su sesión: se sigue con un relevo.
+    const plan = await planRelevo(sid, String(x?.uuid));
+    if (plan) {
+      await rebobinarRelevo(plan, x);
+      return null;
+    }
     // Antes de la última compactación el `claude` no alcanza ese mensaje en su archivo: se sigue en un líder nuevo, con una copia de la cadena.
     if (x?.previa === true && SID.test(sid) && SID.test(String(x.uuid))) {
       const origen = (await lideresApp()).find((l) => l.sid === sid);
@@ -1110,8 +1167,109 @@ async function copiarHasta(t: string, uuid: string): Promise<string | null> {
   return nuevo;
 }
 
-/** Una clase de líder que se puede reanudar en un punto: el `claude` de Anthropic, no Gemini, Ollama ni un local. */
-const reanudable = (modelo: string) => claseDeModelo(modelo) === "claude" && !localDe(modelo);
+/**
+ * Un líder al que se puede volver atrás, editar o ramificar: cualquiera con sesión propia (Claude, Gemini, dsh, opencode). Los
+ * locales (llama-server, `localDe`) y Ollama no: sus contextos son chicos y no tienen una sesión que retomar con un relevo grande.
+ */
+const rebobinable = (modelo: string) => claseDeModelo(modelo) !== "ollama" && !localDe(modelo);
+
+/** La conversación de un líder tal como se ve: los transcripts de todos sus motores, lo heredado de otro líder y sin lo cortado. */
+const conVista = (g: Guardado) => !!(g.cambios?.length || g.cortes?.length || g.heredado);
+
+/** De qué motor es el transcript de un sid que no está en `lideres.json` (Claude si no hay de ninguno de los otros). */
+async function familiaDeTranscript(sid: string): Promise<Familia> {
+  for (const f of ["gemini", "dsh", "opencode"] as const) if (await transcriptFamilia(sid, f)) return f;
+  return "claude";
+}
+
+type PlanRelevo = { g: Guardado | undefined; fam: Familia; conv: EstadoConv; k: number };
+
+/**
+ * ¿Hay que volver atrás con un relevo? Sí si el líder no es de Claude, o si es de Claude pero el mensaje no está en el transcript
+ * de su último tramo (es de otro motor, de antes de un cambio de motor o heredado de otra conversación). Un líder de Claude sin
+ * cambios de motor, y un mensaje de su tramo de ahora, siguen por `--resume-session-at`. Devuelve la conversación y dónde está el mensaje.
+ */
+async function planRelevo(sid: string, uuid: string): Promise<PlanRelevo | null> {
+  if (!SID.test(sid) || !SID.test(uuid)) return null;
+  const g = (await lideresApp()).find((l) => l.sid === sid);
+  const fam = g ? familiaDeModelo(g.modelo) : await familiaDeTranscript(sid);
+  if (fam === "claude" && !g?.cambios?.length && !g?.heredado) return null;
+  const conv = g ? await convUnida(g) : await convDe(`${sid}#${fam}`, await transcriptFamilia(sid, fam));
+  const k = conv.todos.findIndex((m) => m.uuid === uuid);
+  if (fam === "claude") {
+    if (k < 0) return null;
+    // En el tramo de ahora de Claude (ninguna raya de cambio después): el `claude` lo alcanza en su propio archivo.
+    if (conv.todos[k].motor === "claude" && !conv.todos.slice(k + 1).some((m) => m.marcas.cambio)) return null;
+  } else if (k < 0) {
+    throw errorT("main.rebobinarSinSesion");
+  }
+  return { g, fam, conv, k };
+}
+
+/**
+ * Volver atrás / Editar con un relevo, para lo que no retrocede su propia sesión: se corta el proceso, se aparta la sesión de agy / dsh /
+ * opencode (`<sid>.json` → `.previa`, como al cambiar de motor; su transcript queda como estaba), se arma el relevo con la conversación hasta el
+ * mensaje (todos los motores) y se anota un corte: la vista esconde lo que había después. El mensaje nuevo abre la sesión fresca con ese relevo.
+ * Claude (mensaje de otro tramo) retoma su archivo en su último mensaje anterior (`--resume-session-at`) y el relevo trae sólo lo que falta hasta ahí.
+ */
+async function rebobinarRelevo(plan: PlanRelevo, x: { sid: string; uuid: string; texto: string; imagenes?: unknown; modelo: string; effort: string }): Promise<void> {
+  const sid = String(x.sid);
+  const uuid = String(x.uuid);
+  const imagenes = imagenesDe(x.imagenes);
+  const texto = textoDe(x.texto, imagenes);
+  const { modelo, effort } = normalizar(sueltoDe("modelo", x.modelo), sueltoDe("effort", x.effort));
+  if (!rebobinable(modelo)) throw errorT("main.rebobinarClase");
+  if (await ajeno(sid)) throw errorT("main.otroProceso");
+  let g = plan.g;
+  if (g && !rebobinable(g.modelo)) throw errorT("main.rebobinarClase");
+  if (!g) {
+    // Sin proceso y sin anotar (cerrado, o nació en una terminal): se lo anota como en Retomar.
+    const r = await anotar(sid, { modelo, effort, modo: MODO_DEFAULT });
+    if (!r.ok) throw errorT("main.rebobinarSinSesion");
+    g = (await lideresApp()).find((l) => l.sid === sid)!;
+  }
+  // Volver atrás no cambia de motor (para eso está elegir otro modelo y escribir).
+  if (familiaDeModelo(modelo) !== plan.fam || familiaDeModelo(g.modelo) !== plan.fam) throw errorT("main.rebobinarMotor");
+  const p = procs.get(sid);
+  if (p?.ocupado) throw errorT("main.respondiendo");
+  const { conv, k } = plan;
+  // Antes de tocar nada: un modelo que no se puede lanzar falla acá y deja todo como estaba.
+  if (plan.fam !== "claude") await extraDe(modelo, g.cwd);
+  // Claude: el último mensaje suyo hasta el punto, y que su archivo lo alcance (no anterior a una compactación).
+  let propio: { uuid: string; ts: number | null } | null = null;
+  if (plan.fam === "claude") {
+    const i = conv.todos.slice(0, k + 1).findLastIndex((m) => m.motor === "claude" && !!m.uuid);
+    if (i < 0) throw errorT("main.rebobinarSinTramo");
+    const tc = await transcriptFamilia(sid, "claude", g.cwd);
+    const cad = tc ? await cadenaHasta(tc, conv.todos[i].uuid!) : null;
+    if (!cad || cad.previa) throw errorT("main.rebobinarSinSesion");
+    propio = { uuid: conv.todos[i].uuid!, ts: msDe(conv.todos[i]) };
+  }
+  if (p) await terminar(p);
+  if (procs.get(sid)?.ocupado) throw errorT("main.respondiendo");
+  const relevo = armarRelevo(conv.todos.slice(0, k + 1), { de: g.modelo, a: modelo, motivo: "volver", ...(propio?.ts != null ? { desde: propio.ts } : {}) });
+  const archivo = archivoRelevo(sid);
+  await rm(archivo, { force: true });
+  if (relevo.texto) {
+    await mkdir(path.dirname(archivo), { recursive: true });
+    await writeFile(archivo, relevo.texto + "\n", { mode: 0o600 });
+  }
+  if (plan.fam !== "claude") await rename(lado(sid, plan.fam), `${lado(sid, plan.fam)}.previa`).catch(() => {});
+  (g.cortes ??= []).push({ ts: Date.now(), uuid });
+  g.modelo = modelo;
+  g.effort = effort;
+  await guardar();
+  log.escribir("info", "lider", `volver atrás con relevo: "${g.nombre}" (${sid}) en ${uuid}; relevo de ${relevo.incluidos} mensajes${relevo.omitidos ? ` (${relevo.omitidos} omitidos)` : ""}`);
+  if (plan.fam === "claude") {
+    const q = lanzar(g, true, undefined, { desde: propio!.uuid });
+    q.ocupado = true;
+    q.p.stdin!.write(lineaUsuario(texto, imagenes));
+    alEv(g.sid, { tipo: "estado", ocupado: true, vivo: true });
+    alCambio();
+    return;
+  }
+  await mandarYa({ sid, texto: x.texto, imagenes: x.imagenes, modelo, effort });
+}
 
 async function rebobinarYa(x: { sid: string; uuid: string; texto: string; imagenes?: unknown; modelo: string; effort: string }): Promise<void> {
   const sid = String(x?.sid);
@@ -1121,10 +1279,10 @@ async function rebobinarYa(x: { sid: string; uuid: string; texto: string; imagen
   const imagenes = imagenesDe(x.imagenes);
   const texto = textoDe(x.texto, imagenes);
   const { modelo, effort } = normalizar(sueltoDe("modelo", x.modelo), sueltoDe("effort", x.effort));
-  if (!reanudable(modelo)) throw errorT("main.rebobinarClase");
+  if (!rebobinable(modelo)) throw errorT("main.rebobinarClase");
   if (await ajeno(sid)) throw errorT("main.otroProceso");
   let g = (await lideresApp()).find((l) => l.sid === sid);
-  if (g && !reanudable(g.modelo)) throw errorT("main.rebobinarClase");
+  if (g && !rebobinable(g.modelo)) throw errorT("main.rebobinarClase");
   if (!g) {
     // Sin proceso y sin anotar (nació en una terminal): se lo anota como en Retomar.
     const r = await anotar(sid, { modelo, effort, modo: MODO_DEFAULT });
@@ -1162,9 +1320,12 @@ export async function ramificar(x: { sid: string; uuid: string; modelo: string; 
   if (!SID.test(sid)) throw errorT("main.sesionRara", { v: sid });
   if (!SID.test(uuid)) throw errorT("main.sesionRara", { v: uuid });
   const { modelo, effort } = normalizar(sueltoDe("modelo", x.modelo), sueltoDe("effort", x.effort));
-  if (!reanudable(modelo)) throw errorT("main.rebobinarClase");
+  if (!rebobinable(modelo)) throw errorT("main.rebobinarClase");
   const origen = (await lideresApp()).find((l) => l.sid === sid);
-  if (origen && !reanudable(origen.modelo)) throw errorT("main.rebobinarClase");
+  if (origen && !rebobinable(origen.modelo)) throw errorT("main.rebobinarClase");
+  // `--fork-session` sólo entre líderes de Claude de una sola pieza: con otro motor de por medio (o de origen, o elegido) la rama lleva un relevo.
+  const fam = origen ? familiaDeModelo(origen.modelo) : await familiaDeTranscript(sid);
+  if (fam !== "claude" || familiaDeModelo(modelo) !== "claude" || origen?.cambios?.length || origen?.heredado) return ramificarRelevo(sid, uuid, modelo, effort, origen, fam);
   const t = await transcriptDe(sid, origen?.cwd);
   if (!t) throw errorT("main.rebobinarSinSesion");
   let cwd = origen?.cwd;
@@ -1202,6 +1363,71 @@ export async function ramificar(x: { sid: string; uuid: string; modelo: string; 
   lanzar(g, false);
   alEv(g.sid, { tipo: "estado", ocupado: false, vivo: true });
   alCambio();
+  return g.sid;
+}
+
+/** El `cwd` de un transcript, de su principio. */
+async function cwdDe(t: string): Promise<string | undefined> {
+  const f = await open(t, "r").catch(() => null);
+  if (!f) return undefined;
+  try {
+    const b = Buffer.alloc(CABEZA);
+    const { bytesRead } = await f.read(b, 0, CABEZA, 0);
+    return cwdDeTranscript(b.subarray(0, bytesRead).toString("utf8")) ?? undefined;
+  } finally {
+    await f.close();
+  }
+}
+
+/**
+ * Ramificar con un relevo (el origen es de Gemini, dsh u opencode, tiene cambios de motor, o se eligió otro motor): un líder nuevo
+ * (sid nuevo, el modelo elegido) con una sesión fresca que recibe, como relevo, la conversación del origen hasta el mensaje; el origen no se
+ * toca. Hasta que tenga transcript propio —y siempre, delante de lo suyo— la vista muestra esa conversación (`heredado`).
+ */
+async function ramificarRelevo(sid: string, uuid: string, modelo: string, effort: string, origen: Guardado | undefined, fam: Familia): Promise<string> {
+  let conv: EstadoConv;
+  let cwd = origen?.cwd;
+  if (origen) {
+    conv = await convUnida(origen);
+  } else {
+    const t = await transcriptFamilia(sid, fam);
+    if (!t) throw errorT("main.rebobinarSinSesion");
+    conv = await convDe(`${sid}#${fam}`, t);
+    cwd = await cwdDe(t);
+  }
+  const hasta = hastaMensaje(conv, uuid);
+  if (!hasta) throw errorT("main.rebobinarSinSesion");
+  if (cwd && !(await stat(cwd).then((s) => s.isDirectory(), () => false))) throw errorT("main.rebobinarSinSesion");
+  // Antes de anotar nada: un modelo que no se puede lanzar falla acá.
+  const extra = await extraDe(modelo, cwd);
+  const nuevo = randomUUID();
+  const relevo = armarRelevo(hasta.todos, { de: origen?.modelo ?? MODELO_DE_FAMILIA[fam], a: modelo, motivo: "ramificar" });
+  const archivo = archivoRelevo(nuevo);
+  if (relevo.texto) {
+    await mkdir(path.dirname(archivo), { recursive: true });
+    await writeFile(archivo, relevo.texto + "\n", { mode: 0o600 });
+  }
+  const tituloOrigen = tituloLider(await temaDe(sid, await transcriptDe(sid, origen?.cwd)), origen?.nombre ?? "");
+  const ls = await lideresApp();
+  const g: Guardado = {
+    sid: nuevo,
+    nombre: nombreNuevo(),
+    modelo,
+    effort,
+    creado: Math.floor(Date.now() / 1000),
+    ultimo: 0,
+    cache_ttl_s: null,
+    modo: origen?.modo ?? MODO_DEFAULT,
+    ...(cwd && cwd !== HOME ? { cwd } : {}),
+    heredado: { de: sid, hasta: uuid },
+    origen: { sid, titulo: tituloOrigen },
+  };
+  ls.push(g);
+  await guardar();
+  lanzar(g, false, undefined, extra);
+  alEv(g.sid, { tipo: "estado", ocupado: false, vivo: true });
+  alCambio();
+  log.escribir("info", "lider", `rama con relevo: ${sid} → ${nuevo} hasta ${uuid}; relevo de ${relevo.incluidos} mensajes`);
   return g.sid;
 }
 
@@ -1539,7 +1765,7 @@ export async function reanudarDormidos(escalonMs = 150): Promise<string[]> {
   for (const g of ls) {
     delete g.dormido;
     if (g.rol === "analista" || procs.has(g.sid) || mandando.has(g.sid) || (await ajeno(g.sid))) continue;
-    const hay = (g.cambios?.length ? await transcriptFamilia(g.sid, familiaDeModelo(g.modelo), g.cwd) : await transcriptDe(g.sid, g.cwd)) !== null;
+    const hay = (g.cambios?.length || g.heredado ? await transcriptFamilia(g.sid, familiaDeModelo(g.modelo), g.cwd) : await transcriptDe(g.sid, g.cwd)) !== null;
     // Uno local vuelve ocioso sin cargar el modelo (nada de GPU al arrancar trama): lo carga su próximo mensaje.
     const local = localDe(g.modelo) ? await locales.destino(g.modelo).catch(() => undefined) : undefined;
     if (localDe(g.modelo) && !local) continue;
@@ -1603,11 +1829,27 @@ export async function transcriptFamilia(sid: string, familia: Familia, cwd?: str
 /** La conversación de un líder que cambió de motor: los transcripts de todos los motores por los que pasó, juntos y con una raya en cada cambio. */
 async function convUnida(g: Guardado): Promise<EstadoConv> {
   const cambios = g.cambios ?? [];
-  const inicial = familiaDeModelo(cambios[0].de);
+  const inicial = cambios.length ? familiaDeModelo(cambios[0].de) : familiaDeModelo(g.modelo);
   const pasos = cambios.map((cambio) => ({ cambio, a: familiaDeModelo(cambio.a) }));
   const porFamilia = new Map<Familia, EstadoConv>();
   for (const f of new Set<Familia>([inicial, ...pasos.map((x) => x.a)])) porFamilia.set(f, await convDe(`${g.sid}#${f}`, await transcriptFamilia(g.sid, f, g.cwd)));
-  return unirConvs(porFamilia, inicial, pasos);
+  const propia = unirConvs(porFamilia, inicial, pasos);
+  let { todos, compactaciones } = propia;
+  // Una rama con relevo: delante de lo propio, la conversación de donde salió (en ningún transcript de este líder).
+  const base = g.heredado ? await convHeredada(g.heredado) : null;
+  if (base) {
+    todos = [...base.todos.map(({ motor: _m, previa: _p, ...resto }) => resto), ...todos];
+    compactaciones += base.compactaciones;
+  }
+  return { ...propia, todos: aplicarCortes(todos, g.cortes ?? []), compactaciones };
+}
+
+/** La conversación del líder de donde sale una rama con relevo, hasta el mensaje de la rama; `null` si ya no se encuentra. */
+async function convHeredada(h: Rama): Promise<EstadoConv | null> {
+  const o = (await lideresApp()).find((l) => l.sid === h.de);
+  if (o) return hastaMensaje(await convUnida(o), h.hasta);
+  const fam = await familiaDeTranscript(h.de);
+  return hastaMensaje(await convDe(`${h.de}#${fam}`, await transcriptFamilia(h.de, fam)), h.hasta);
 }
 
 /** El transcript de un líder de Gemini (lo escribe su puente): `$HILOS_STATE/gemini/<sid>.jsonl`. */
@@ -1627,7 +1869,7 @@ export async function conversacionLider(x: { sid: string; n?: number; antes?: nu
   const g = (await lideresApp()).find((l) => l.sid === x.sid);
   const t = await transcriptDe(String(x.sid), g?.cwd);
   const pag = { n: Number(x.n) || 50, antes: x.antes ?? null };
-  if (g?.cambios?.length) return paginaDe(await convUnida(g), x.sid, t, pag);
+  if (g && conVista(g)) return paginaDe(await convUnida(g), x.sid, t, pag);
   // Una rama sin su primer turno no tiene transcript: se ve lo que tiene el líder de origen hasta el mensaje de donde sale.
   const rama = t ? undefined : (await lideresApp()).find((l) => l.sid === x.sid)?.rama;
   if (rama) return paginaDe(hastaUuid(await convDe(rama.de, await transcriptDe(rama.de)), rama.hasta), x.sid, null, pag);

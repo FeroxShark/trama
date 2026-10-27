@@ -112,6 +112,11 @@ export const RUTAS: Readonly<Record<string, Ruta>> = {
   "dsh:instalar": "local",
   "dsh:clave": "local",
   "dsh:probar": "local",
+  // Conectores (servidores MCP propios): de esta máquina, como el resto de Ajustes.
+  "mcp:estado": "local",
+  "mcp:lista": "local",
+  "mcp:guardar": "local",
+  "mcp:quitar": "local",
   "reparto:tabla": "local",
   "aa:estado": "local",
   "aa:refrescar": "local",
@@ -138,6 +143,8 @@ export const RUTAS: Readonly<Record<string, Ruta>> = {
   "preferencias:consumo": "local",
   "preferencias:bienvenidaPendiente": "local",
   "preferencias:bienvenida": "local",
+  "preferencias:guias": "local",
+  "preferencias:guiasOp": "local",
   "consumo:mirar": "local",
   "consumo:soltar": "local",
   // Los pasos de un worker, de su transcript: el de esta máquina (el de otra se pediría a su motor, todavía no).

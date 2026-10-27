@@ -2,6 +2,7 @@
 // y `autoCompactWindow` de settings.json), validado antes de escribir nada y sin tocar el resto del archivo.
 // Siempre sobre un settings.json de ejemplo y un `pa` de mentira: nunca el ~/.claude real.
 import { test, after } from "node:test";
+import { soloPosix } from "./plataforma.ts";
 import assert from "node:assert/strict";
 import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { registerHooks } from "node:module";
@@ -109,7 +110,7 @@ test("conserva la sangría del archivo y crea el settings si no existía", async
   assert.deepEqual(JSON.parse(e.leer()), { autoCompactWindow: 200_000 });
 });
 
-test("escribe a través de un enlace (el settings suele ser un symlink a dotfiles) sin reemplazarlo", async () => {
+test("escribe a través de un enlace (el settings suele ser un symlink a dotfiles) sin reemplazarlo", { skip: soloPosix("symlinks") }, async () => {
   const real = path.join(tmp, "real.json");
   writeFileSync(real, SETTINGS);
   const enlace = path.join(tmp, "enlace.json");

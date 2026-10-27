@@ -61,6 +61,8 @@ contextBridge.exposeInMainWorld("hilos", {
     consumo: (si: boolean): Promise<void> => ipcRenderer.invoke("preferencias:consumo", si),
     bienvenidaPendiente: (): Promise<boolean> => ipcRenderer.invoke("preferencias:bienvenidaPendiente"),
     bienvenida: (si: boolean): Promise<void> => ipcRenderer.invoke("preferencias:bienvenida", si),
+    guias: (): Promise<unknown> => ipcRenderer.invoke("preferencias:guias"),
+    guiasOp: (op: unknown): Promise<unknown> => ipcRenderer.invoke("preferencias:guiasOp", op),
   },
   /** El panel de consumo (a la derecha): lo que consumió cada modelo y cómo va cada sesión. */
   consumo: {
@@ -158,6 +160,10 @@ contextBridge.exposeInMainWorld("hilos", {
     instalarDsh: (): Promise<unknown> => ipcRenderer.invoke("dsh:instalar"),
     claveDsh: (nombre: string, valor: string | null): Promise<unknown> => ipcRenderer.invoke("dsh:clave", nombre, valor),
     probarDsh: (proveedor: string, url?: string): Promise<unknown> => ipcRenderer.invoke("dsh:probar", proveedor, url),
+    estadoMcp: (x: { motor: string; local?: boolean; fresco?: boolean }): Promise<unknown> => ipcRenderer.invoke("mcp:estado", x),
+    listaMcp: (): Promise<unknown> => ipcRenderer.invoke("mcp:lista"),
+    guardarMcp: (entrada: unknown): Promise<unknown> => ipcRenderer.invoke("mcp:guardar", entrada),
+    quitarMcp: (nombre: string): Promise<unknown> => ipcRenderer.invoke("mcp:quitar", nombre),
     repartoTabla: (): Promise<unknown> => ipcRenderer.invoke("reparto:tabla"),
     estadoAA: (): Promise<unknown> => ipcRenderer.invoke("aa:estado"),
     refrescarAA: (): Promise<unknown> => ipcRenderer.invoke("aa:refrescar"),

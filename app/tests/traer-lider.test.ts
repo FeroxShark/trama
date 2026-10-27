@@ -2,7 +2,8 @@
 // "terminales" de mentira: un proceso propio con su `sessions/<pid>.json`). Cierra ese proceso
 // por su pid exacto, y sólo ese; si está a mitad de algo no lo toca sin permiso; lo que no es
 // de una terminal o no se puede confirmar, tampoco. Mismo armado que tests/retomar-lider.test.ts.
-import { test, after } from "node:test";
+import { after } from "node:test";
+import { testPosix as test } from "./plataforma.ts";
 import assert from "node:assert/strict";
 import { spawn, type ChildProcess } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";

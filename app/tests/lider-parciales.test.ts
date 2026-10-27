@@ -2,7 +2,8 @@
 // contesta "novela" de a un delta por palabra y electron/lider.ts los junta (PARCIAL_MS) antes de
 // pasarlos. Lo que sale: muchos menos eventos que deltas, el mismo texto, y siempre antes del
 // mensaje entero. El entorno va antes del import (lider.ts lo lee al cargar).
-import { test, after } from "node:test";
+import { after } from "node:test";
+import { testPosix as test } from "./plataforma.ts";
 import assert from "node:assert/strict";
 import { existsSync, mkdtempSync } from "node:fs";
 import { registerHooks } from "node:module";

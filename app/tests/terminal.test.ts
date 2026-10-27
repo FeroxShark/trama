@@ -2,7 +2,8 @@
 // camino entero contra un kitten y un hyprctl de mentira: la pestaña exacta de kitty, cuál de
 // sus ventanas del sistema es (título de marca) y el `dispatch` en la sintaxis que entienda
 // el compositor. Nunca toca el kitty ni el Hyprland de verdad.
-import { test, after } from "node:test";
+import { after } from "node:test";
+import { testPosix as test } from "./plataforma.ts";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";

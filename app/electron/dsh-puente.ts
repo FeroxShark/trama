@@ -29,7 +29,10 @@ import { ClienteAcp, ErrorAcp, describirError, type BloqueAcp } from "./acp.ts";
 import { entornoAgy } from "./binario.ts";
 import { entornoDsh, escribirParche, esErrorCuota, falta, mensajeCuotaOpencode, parsearModelo, resolverDsh, valorModeloAcp } from "./dsh.ts";
 import { effortParaAcp, politicaOpencode, entornoOpencode, esErrorCuota as esCuotaOc, mensajeCuotaOpencode as mensajeCuotaOc, parsearModelo as parsearOpencode, resolverOpencode } from "./opencode.ts";
+import { esLimiteGratisOpencode, marcarOpencodeAgotado } from "./opencode-agotado.ts";
+import { textoT } from "./errores.ts";
 import { leerClavesSync, type NombreClave } from "./claves.ts";
+import { cortesDeEntorno, sinCortadas } from "./cortes.ts";
 import { deDueno, dueno } from "./dueno.ts";
 import { ESTADO } from "./estado.ts";
 import { SESIONES } from "./sesiones.ts";
@@ -56,6 +59,9 @@ const relevo = (() => {
   }
 })();
 const prefacio = [process.env.TRAMA_DSH_PREFACIO ?? "", relevo].filter(Boolean).join("\n\n---\n\n");
+/** Lo que se descartó al volver atrás (lider.ts, `Guardado.cortes`): no se repite en una sesión nueva. Y si el relevo es de una vuelta atrás, ya trae todo. */
+const CORTES = cortesDeEntorno(process.env.TRAMA_CORTES);
+const SIN_REPETIR = process.env.TRAMA_SIN_REPETIR === "1";
 /** Cuánto de lo hablado se repite si hay que empezar una sesión nueva (caracteres). */
 const TOPE_REPETIR = 12000;
 /** Lo que se espera a que dsh cierre el turno tras un `session/cancel` antes de matarlo (se retoma la sesión después). */
@@ -139,6 +145,8 @@ function guardarLado(acp: string | null, contexto: number | null = leerLado().co
 
 /** Lo hablado, del transcript propio, en texto: para empezar en una sesión nueva de dsh sin perder el hilo. */
 function hablado(): string {
+  // El relevo ya trae toda la conversación hasta el punto al que se volvió: no se repite en la sesión nueva.
+  if (SIN_REPETIR && !leerLado().acp_session) return "";
   let texto = "";
   try {
     texto = readFileSync(TRANSCRIPT, "utf8");
@@ -146,7 +154,7 @@ function hablado(): string {
     return "";
   }
   const partes: string[] = [];
-  for (const l of texto.split("\n")) {
+  for (const l of sinCortadas(texto.split("\n"), CORTES)) {
     if (!l) continue;
     try {
       const o = JSON.parse(l);
@@ -445,6 +453,23 @@ function refrescarClave() {
   }
 }
 
+/** Los valores secretos de los servidores MCP (env y cabeceras): para sacarlos de un error antes de mostrarlo. */
+function secretosMcp(): string[] {
+  const r: string[] = [];
+  for (const s of mcpDeEntorno() as { env?: { value?: unknown }[]; headers?: { value?: unknown }[] }[])
+    for (const x of [...(s.env ?? []), ...(s.headers ?? [])]) if (typeof x?.value === "string") r.push(x.value);
+  return r;
+}
+
+function mcpDeEntorno(): unknown[] {
+  try {
+    const x = JSON.parse(process.env.TRAMA_MCP_ACP || "[]");
+    return Array.isArray(x) ? x : [];
+  } catch {
+    return [];
+  }
+}
+
 /** El `dsh` vivo con su sesión lista (lanzándolo y retomando o abriendo la sesión si hace falta). */
 function asegurar(): Promise<void> {
   if (cliente?.activo && acpSid) return Promise.resolve();
@@ -454,7 +479,7 @@ function asegurar(): Promise<void> {
 async function levantar(): Promise<void> {
   stderrPerdido = "";
   if (!prov && !oc) throw new Error(`modelo «${modelo}» no es de dsh ni de opencode (dsh:<proveedor>/<modelo>, opencode:<proveedor>/<modelo>)`);
-  const env0 = Object.fromEntries(Object.entries(process.env).filter(([k]) => k !== "CLAUDE_CONFIG_DIR"));
+  const env0 = Object.fromEntries(Object.entries(process.env).filter(([k]) => k !== "CLAUDE_CONFIG_DIR" && k !== "TRAMA_MCP_ACP"));
   let env: Record<string, string | undefined>;
   let comando: string;
   let args: string[];
@@ -480,6 +505,8 @@ async function levantar(): Promise<void> {
     env,
     raiz: cwd,
     ...(oc ? { permiso: politicaOpencode(cwd) } : {}),
+    // Los servidores MCP propios de Trama (Ajustes > Conectores), ya resueltos por lider.ts; ilegible = ninguno.
+    mcpServers: mcpDeEntorno(),
     alActualizar: (s, u) => {
       if (s !== acpSid || !actual) return;
       for (const o of actual.actualizacion(u)) salida(o);
@@ -534,8 +561,13 @@ async function levantar(): Promise<void> {
  * y si es de cuota de OpenCode, el mensaje que dice qué hacer (distinto con clave propia que con la pública).
  */
 function textoDeError(e: unknown): string {
-  const secretos = [process.env.OPENCODE_API_KEY, process.env.DEEPSEEK_API_KEY];
+  const secretos = [process.env.OPENCODE_API_KEY, process.env.DEEPSEEK_API_KEY, ...secretosMcp()];
   const err = cliente?.stderr || stderrPerdido;
+  // El uso gratis de OpenCode es uno solo para todos sus modelos gratis: se anota para Trama (reparto, selector) y se dice qué hacer.
+  if (oc && esLimiteGratisOpencode(`${String((e as Error)?.message ?? e)}\n${err}`)) {
+    marcarOpencodeAgotado();
+    return textoT("main.opencodeSinCupo", { modelo: oc.valor });
+  }
   if (oc && esCuotaOc(`${String((e as Error)?.message ?? e)}\n${err}`)) return mensajeCuotaOc(oc.valor);
   if (prov?.proveedor === "opencode" && esErrorCuota(`${String((e as Error)?.message ?? e)}\n${err}`)) return mensajeCuotaOpencode(!!process.env.OPENCODE_API_KEY);
   return describirError(e, err, secretos, 400);

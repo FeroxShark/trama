@@ -4127,7 +4127,7 @@ cmd_modelos() {
   echo "reparto: modo $rep_modo (el cupo lo elige reparto)"
   echo "sin cupo: $SIN_CUPO ($SIN_CUPO_DE); excluir: $(modelos_clave excluir | jq -r 'if length == 0 then "nada" else join(", ") end' 2>/dev/null || echo nada); reserva del Claude oficial: $(modelos_clave reserva | grep . || echo ninguna); max sin --ok-dueno: $( (( PERMITIR_MAX )) && echo sí || echo no)"
   if [[ "$tab" != '[]' ]]; then
-    echo "inteligencia (0-100; ~ = estimada por el nombre; editable en Ajustes > Modelos o con \"calidad\" en modelos.json; reparto --tabla):"
+    echo "inteligencia (unidades de Artificial Analysis: coding+agentic crudo, al esfuerzo que se usaría; ~ = estimada por el nombre; editable en Ajustes > Modelos o con \"calidad\" en modelos.json; reparto --tabla):"
     jq -r '.[] | "\(.id)\t\(.calidad)\(if .estimada then "~" else "" end)\(if .gratis then " · gratis" else "" end)\(if .permitido then "" else " · NO permitido" end)"' <<<"$tab" \
       | awk -F'\t' '{printf "  %-52s %s\n", $1, $2}'
   fi
@@ -4572,7 +4572,8 @@ calidad_de_modelo() {   # $1 = id de modelo
   jq -r --arg m "$1" '[.modelos[]? | select(.id == $m) | .calidad][0] // empty' <<<"$TABLA_JSON" 2>/dev/null || true
 }
 # Debajo de este umbral el worker recibe el bloque de "pasos chicos" y el jefe un aviso.
-CALIDAD_BAJA="${PA_CALIDAD_BAJA:-70}"
+# En unidades de AA (promedio crudo de coding y agentic de Artificial Analysis): 46 = el 70 de la escala vieja 0-100 (vieja_a_aa de reparto).
+CALIDAD_BAJA="${PA_CALIDAD_BAJA:-46}"
 modelo_flojo() {   # $1 = modelo: 0 si su inteligencia es < CALIDAD_BAJA (deja el número en $calidad_modelo)
   calidad_modelo="$(calidad_de_modelo "$1")"
   [[ "$calidad_modelo" =~ ^[0-9]+([.][0-9]+)?$ ]] || return 1
@@ -5733,7 +5734,7 @@ if [[ "$motor" == agy ]]; then contrato="$CONTRATO_AGY"$'\n'"$SIN_JEFE"
 elif [[ "$motor" == codex || "$motor" == dsh ]]; then contrato="$CONTRATO_CODEX"$'\n'"$SIN_JEFE"
 elif [[ -n "$jefe" ]]; then contrato="$CONTRATO"$'\n'"$(con_jefe "$jefe")"; else contrato="$CONTRATO"$'\n'"$SIN_JEFE"; fi
 contrato="$(D "$contrato")"
-# Un modelo de poca inteligencia (reparto --tabla, < PA_CALIDAD_BAJA=70) rinde con pasos chicos y verificación
+# Un modelo de poca inteligencia (reparto --tabla, < PA_CALIDAD_BAJA=46, unidades de AA) rinde con pasos chicos y verificación
 # constante: se lo pedimos en el contrato. Los que escriben nomás (un --leer no cambia nada que verificar).
 if (( ! leer )) && modelo_flojo "$modelo"; then
   contrato+=$'\n'"Trabajá en pasos chicos: un cambio por vez, corré la verificación después de CADA cambio y commiteá cuando pase antes de seguir con el próximo. Si algo falla, arreglalo antes de tocar otra cosa. Quedate en los archivos de la tarea: nada de refactors ni de \"ya que estoy\". Si la tarea es más grande de lo que pinta, hacé la parte que cierra, commiteala y decí en DECISION cómo partir el resto."

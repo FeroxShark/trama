@@ -1,7 +1,8 @@
 // "Actualizar límites" (lider.pedirUsoOficial) con el claude falso: el uso como lo dice claude.ai
 // (`get_usage`), por un líder de la app vivo o por un `claude` de un rato. Mismo arreglo que
 // tests/lider-proceso.test.ts: hook de `.js` a `.ts` y el entorno antes del import.
-import { test, after } from "node:test";
+import { after } from "node:test";
+import { testPosix as test } from "./plataforma.ts";
 import assert from "node:assert/strict";
 import { existsSync, mkdtempSync, readFileSync } from "node:fs";
 import { registerHooks } from "node:module";

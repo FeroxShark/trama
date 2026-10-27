@@ -40,7 +40,7 @@ export function Panel({ cual, barraAbierta, alAlternarBarra, alVolver, ramas, ta
   useFoco(raiz, { atrapar: false, enfocar: "raiz" });
   const lado = barraAbierta ? t("panel.ocultarBarra") : t("panel.mostrarBarra");
   return (
-    <main ref={raiz} className="hilo pn-main" tabIndex={-1} aria-label={t(PANELES[cual])}>
+    <main ref={raiz} className="hilo pn-main" data-panel={cual} tabIndex={-1} aria-label={t(PANELES[cual])}>
       <header className="migas">
         <Lado etq={lado} alAlternar={alAlternarBarra} />
         <div className="ruta" data-desliza>

@@ -1,6 +1,7 @@
 // Ajustes > Cuentas (electron/cuentas.ts): agy conectado, sin conectar y con el binario en ~/.local/bin fuera del PATH
 // del servicio, contra scripts/agy-falso.mjs; Claude con su `auth status`. Nada toca la red ni una cuenta de verdad.
-import { test, after } from "node:test";
+import { after } from "node:test";
+import { testPosix as test } from "./plataforma.ts";
 import assert from "node:assert/strict";
 import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";

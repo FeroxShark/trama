@@ -1,7 +1,8 @@
 // El paso previo de las acciones de Ramas que lanzan algo: lo elegido (modelo, effort, texto) llega a la línea de `pa`
 // con `--tipo` siempre (con el `pa` falso, que anota su argv), y lo raro no sale. La lógica pura del paso (defaults,
 // esfuerzo por modelo, texto sumado) va aparte. Los imports de src/ van sin extensión: un hook los lleva al `.ts`.
-import { test, after } from "node:test";
+import { after } from "node:test";
+import { testPosix as test } from "./plataforma.ts";
 import assert from "node:assert/strict";
 import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { registerHooks } from "node:module";

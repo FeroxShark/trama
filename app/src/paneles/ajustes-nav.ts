@@ -4,7 +4,7 @@
 import type { Clave, ClaveSola } from "../i18n";
 import { TIPOS } from "../../electron/modelos-tipos";
 
-export const CATS = ["cuentas", "modelos", "cupos", "locales", "dsh", "celular", "actualizaciones", "proyectos", "general", "guia"] as const;
+export const CATS = ["cuentas", "modelos", "cupos", "locales", "dsh", "conectores", "celular", "actualizaciones", "proyectos", "general", "guia"] as const;
 export type CatId = (typeof CATS)[number];
 
 export const esCat = (x: unknown): x is CatId => typeof x === "string" && (CATS as readonly string[]).includes(x);
@@ -36,6 +36,7 @@ export const ITEMS: readonly Item[] = [
   { cat: "cupos", nombre: "ajustes.planSus", que: "ajustes.planQue", sin: "suscripcion subscription pro max plan precio" },
   { cat: "cupos", nombre: "cu.claude", que: "cu.claudeQue", sin: "claude anthropic suscripcion subscription plan cupo quota ventana window 5h semana week conectar connect login" },
   { cat: "cupos", nombre: "cu.google", que: "cu.googleQue", sin: "google gemini agy ai pro suscripcion subscription plan cupo quota ventana window conectar connect login" },
+  { cat: "cupos", nombre: "cu.opencode", que: "cu.opencodeQue", sin: "opencode open code gratis free cupo quota agotado exhausted limite limit compartido shared" },
   { cat: "cupos", nombre: "cu.chatgpt", que: "cu.chatgptQue", sin: "chatgpt openai codex gpt suscripcion subscription plan cupo quota conectar connect login" },
   { cat: "cupos", nombre: "cu.topesGoogle", que: "cu.topesQue", sin: "google gemini agy tope limite limit cupo quota llena full codigo code umbral threshold porcentaje percent" },
   { cat: "cupos", nombre: "ajustes.cuposGuardar", que: "ajustes.cuposGuardarQue", sin: "reservar reserve guardar save reserva porcentaje percent mis sesiones my sessions cupo quota claude tope cap limite limit" },
@@ -53,6 +54,10 @@ export const ITEMS: readonly Item[] = [
   { cat: "dsh", nombre: "ajustes.dshOpencode", que: "ajustes.dshOpencodeQue", sin: "opencode zen clave key api token pago paid modelos dsh" },
   { cat: "dsh", nombre: "ajustes.dshDeepseek", que: "ajustes.dshDeepseekQue", sin: "deepseek clave key api token probar test v4 flash" },
   { cat: "dsh", nombre: "ajustes.dshOllama", que: "ajustes.dshOllamaQue", sin: "ollama local dsh probar test" },
+
+  { cat: "conectores", nombre: "conectores.propios", que: "conectores.propiosQue", sin: "mcp servidor server conector connector notion gmail calendar calendario herramientas tools agregar add token clave key stdio http sse url comando command variables entorno env cabecera header" },
+  { cat: "conectores", nombre: "conectores.motores", que: "conectores.motoresQue", sin: "mcp motores engines claude deepseek dsh opencode gemini agy workers lider leader soporta supported" },
+  { cat: "conectores", nombre: "conectores.claudeai", que: "conectores.claudeaiQue", sin: "claude.ai conectores connectors web navegador browser gmail calendar notion drive cuenta account mcp" },
 
   { cat: "celular", nombre: "ajustes.celGuia", que: "ajustes.celPaso1Que", sin: "telefono movil phone mobile tailscale tailnet instalar install qr codigo code escanear scan direccion address url conectar connect guia guide" },
   { cat: "celular", nombre: "ajustes.celAcceso", que: "ajustes.celAccesoQue", sin: "telefono movil phone mobile tailscale tailnet remoto remote encender apagar on off" },
@@ -77,6 +82,8 @@ export const ITEMS: readonly Item[] = [
   { cat: "general", nombre: "ajustes.aplicarAuto", que: "ajustes.aplicarAutoQue", sin: "ramas branches veredictos verdicts analista analyst aplicar apply automatico automatic integrar descartar" },
   { cat: "general", nombre: "ajustes.bienvenida", que: "ajustes.bienvenidaQue", sin: "welcome bienvenida primer arranque first start setup asistente configurar inicio" },
 
+  { cat: "guia", nombre: "tour.mostrar", que: "tour.mostrarQue", sin: "guias tour recorrido tutorial ayuda onboarding coach marks globos pistas help guides show hide apagar desactivar disable" },
+  { cat: "guia", nombre: "tour.reiniciar", que: "tour.reiniciarQue", sin: "guias tour recorrido reiniciar resetear volver a mostrar reset show again guides" },
   { cat: "guia", nombre: "guia.lider", que: "guia.liderQue", sin: "lider leader worker workers rama branch tarea task brief delegar delegate" },
   { cat: "guia", nombre: "guia.modelos", que: "guia.modelosQue", sin: "modelo model opus sonnet haiku esfuerzo effort inteligencia intelligence gratis free opencode low medium high xhigh elegir choose" },
   { cat: "guia", nombre: "guia.tablero", que: "guia.tableroQue", sin: "tablero board pendientes todo tareas tasks kanban preguntas questions iniciar start" },
@@ -205,6 +212,7 @@ export function deVariante(v: string | null | undefined): CatId | null {
   if (v === "mdl-tope" || v.startsWith("cupos") || v === "editando" || v === "editando-mal") return "cupos";
   if (v === "celular") return "celular";
   if (v.startsWith("dsh")) return "dsh";
+  if (v.startsWith("mcp")) return "conectores";
   if (v.startsWith("mdl") || v === "sinmdl" || v === "modelo" || v === "dictado") return "modelos";
   if (v.startsWith("proyectos")) return "proyectos";
   if (v.startsWith("guia")) return "guia";

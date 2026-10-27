@@ -22,6 +22,7 @@ import { Leyendo } from "./Leyendo";
 import { t as tr } from "../i18n";
 import { useIdioma } from "../i18n/react";
 import { pintorBarato } from "../tiempo";
+import { cacheAplica } from "../../electron/cache";
 import { Contexto } from "./Contexto";
 import { ChatLider } from "./Lider";
 import { Marca } from "./Marca";
@@ -415,7 +416,7 @@ function Cuerpo({ h, estado, settle, alCerrar, alRetomar, alPasar }: PropsCuerpo
           {pag?.usage ? <Contexto usage={pag.usage} modelo={h.modelo} vence={vive ? null : h.cache_vence} frio={h.cache_frio !== null} lado="izq" /> : null}
           {h.puesto ? <span>{puesto(h.puesto)}</span> : null}
           <span>{h.rama ?? (h.en_cola || arrancando(h, Math.floor(Date.now() / 1000)) ? "…" : tr("comun.sinRama"))}</span>
-          {h.cache_vence !== null && !vive ? <Reloj pintor={barato} /> : null}
+          {h.cache_vence !== null && !vive && cacheAplica(h.modelo) ? <Reloj pintor={barato} /> : null}
         </div>
       </div>
     </>

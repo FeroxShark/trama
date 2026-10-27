@@ -1,7 +1,8 @@
 // Un líder de dsh de punta a punta: el puente (electron/dsh-puente.ts) con un `dsh --profile acp` de verdad y el servidor OpenAI falso
 // (scripts/openai-falso.mjs). Habla como `claude -p` por stdin/stdout: lo que sale lo entiende parsearLinea (lider-arma.ts). Sin `dsh`
 // (TRAMA_DSH_BIN, app/node_modules/.bin, PATH…) se saltea. HOME, DSH_HOME y HILOS_STATE en un tmp.
-import { test, after } from "node:test";
+import { after } from "node:test";
+import { testPosix as test } from "./plataforma.ts";
 import assert from "node:assert/strict";
 import { spawn, type ChildProcess } from "node:child_process";
 import { existsSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";

@@ -4,7 +4,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { cacheDe, pedidoDe, ttlDeUso } from "../electron/cache.ts";
+import { cacheAplica, cacheDe, keepAliveS, motorDeCache, pedidoDe, ttlDeUso } from "../electron/cache.ts";
 import { pintorCache } from "../src/tiempo.ts";
 
 const MIN = 60;
@@ -97,4 +97,53 @@ test("pedidoDe: en un stream de verdad, un pedido por mensaje del asistente", ()
   const pedidos = lineas.map(pedidoDe).filter((p) => p !== null);
   assert.equal(pedidos.length, 2);
   assert.deepEqual(pedidos, [{ ttl: HORA }, { ttl: HORA }]);
+});
+
+const OC = "opencode:opencode/deepseek-v4.1-flash-free";
+
+test("motorDeCache / cacheAplica: sólo Claude tiene un caché con TTL", () => {
+  assert.equal(motorDeCache("claude-opus-5-5"), "claude");
+  assert.equal(motorDeCache(null), "claude");
+  assert.equal(motorDeCache(OC), "opencode");
+  assert.equal(motorDeCache("dsh:deepseek/deepseek-chat"), "dsh");
+  assert.equal(motorDeCache("gemini-3.8-flash"), "gemini");
+  assert.equal(motorDeCache("agy:gemini-3.8-pro"), "gemini");
+  assert.equal(motorDeCache("ollama:qwen3"), "ollama");
+  assert.deepEqual([OC, "dsh:x/y", "gemini-3.8-flash", "ollama:q"].map(cacheAplica), [false, false, false, false]);
+  assert.deepEqual(["claude-opus-5-5", null, undefined].map(cacheAplica), [true, true, true]);
+});
+
+test("un líder de OpenCode / dsh / Gemini no tiene vencimiento aunque el statusline o el stream traigan un TTL de 1 h", () => {
+  const app = { ultimo: AHORA - MIN, pedido: AHORA - 5, ttl: HORA };
+  const sl = { ttl: HORA, vence: AHORA + 56 * MIN };
+  for (const m of [OC, "dsh:deepseek/deepseek-chat", "gemini-3.8-flash", "agy:gemini-3.8-pro"]) {
+    assert.deepEqual(cacheDe(sl, app, m), { cache_ttl_s: null, cache_vence: null }, m);
+    assert.equal(dice(cacheDe(sl, app, m), AHORA), null, m);
+  }
+  // Y el de Claude, con el mismo dato, sí.
+  assert.equal(dice(cacheDe(sl, app, "claude-opus-5-5"), AHORA), "59m");
+});
+
+test("Ollama: el modelo sigue cargado hasta el último pedido + keep_alive; sin keep_alive conocido, nada", () => {
+  const app = { ultimo: AHORA - 2 * MIN, pedido: 0, ttl: null };
+  assert.deepEqual(cacheDe(null, app, "ollama:qwen3", "5m"), { cache_ttl_s: 300, cache_vence: AHORA + 3 * MIN });
+  assert.equal(cacheDe(null, app, "ollama:qwen3").cache_vence, null);
+  assert.equal(cacheDe(null, app, "ollama:qwen3", "-1").cache_vence, null);
+  assert.equal(cacheDe(null, null, "ollama:qwen3", "5m").cache_vence, null);
+  assert.deepEqual(["5m", "1h", "30s", 300, "90", "0", "-1", "", null, "abc"].map(keepAliveS), [300, 3600, 30, 300, 90, null, null, null, null, null]);
+});
+
+test("TTL medido del transcript: manda lo que escribió el pedido (1 h o 5 min), no una suposición por plan", () => {
+  const linea = (cc: object) => JSON.stringify({ type: "assistant", message: { usage: { cache_read_input_tokens: 10, cache_creation: cc } } });
+  // Suscripción dentro del plan: 1 h. Pasado a créditos extra o con API key: 5 min. El mismo código lo lee de la misma forma.
+  const t1 = pedidoDe(linea({ ephemeral_1h_input_tokens: 80, ephemeral_5m_input_tokens: 0 }))!.ttl;
+  const t5 = pedidoDe(linea({ ephemeral_1h_input_tokens: 0, ephemeral_5m_input_tokens: 80 }))!.ttl;
+  assert.deepEqual([t1, t5], [HORA, 300]);
+  assert.equal(dice(cacheDe(null, { ultimo: AHORA - 4 * MIN, pedido: 0, ttl: t1 }, "claude-opus-5-5"), AHORA), "56m");
+  assert.equal(dice(cacheDe(null, { ultimo: AHORA - 4 * MIN, pedido: 0, ttl: t5 }, "claude-opus-5-5"), AHORA), "1m");
+  assert.equal(dice(cacheDe(null, { ultimo: AHORA - 6 * MIN, pedido: 0, ttl: t5 }, "claude-opus-5-5"), AHORA), "Uncached");
+  // Un pedido que sólo leyó caché no cambia el TTL medido antes (lo conserva `ttl` de la app).
+  assert.equal(pedidoDe(linea({ ephemeral_1h_input_tokens: 0, ephemeral_5m_input_tokens: 0 }))!.ttl, null);
+  // Un usage con mezcla (1 h primero, 5 min después en el prompt): el pedido cuenta como 1 h.
+  assert.equal(ttlDeUso({ cache_creation: { ephemeral_1h_input_tokens: 10, ephemeral_5m_input_tokens: 10 } }), HORA);
 });

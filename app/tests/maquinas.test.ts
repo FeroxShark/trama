@@ -3,7 +3,8 @@
 // servido en 127.0.0.2). Los dos con el `pa` y el `claude` falsos, cada uno con su estado en un tmp: los ids de
 // los workers son los mismos en las dos y no chocan. Se ven las filas de ambas, lo que pasa allá llega acá, su
 // conversación se lee, ninguna acción se le manda, y con el Dell muerto queda la lista de acá sola.
-import { test, after } from "node:test";
+import { after } from "node:test";
+import { testPosix as test } from "./plataforma.ts";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";

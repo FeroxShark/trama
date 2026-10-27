@@ -1,7 +1,8 @@
-// Inteligencia de Artificial Analysis en `reparto` (motor/bin/reparto): el emparejamiento de nombres (aa_tokens / aa_buscar), la calibración a la
-// escala de reparto (aa_calibracion), y la precedencia en `--tabla`: modelos.json (usuario) > Artificial Analysis > defaults > estimada,
+// Inteligencia de Artificial Analysis en `reparto` (motor/bin/reparto): el emparejamiento de nombres (aa_tokens / aa_buscar), la conversión de la escala vieja
+// 0-100 a unidades de AA (vieja_a_aa, sin calibración), y la precedencia en `--tabla`: modelos.json (usuario) > Artificial Analysis > defaults > estimada,
 // con `origen` y `aa_fecha`. Todo con un archivo de caché falso (REPARTO_AA): no mira la red ni el estado real.
-import { test, after } from "node:test";
+import { after } from "node:test";
+import { testPosix as test } from "./plataforma.ts";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
@@ -109,56 +110,37 @@ test("puntaje: promedio de coding y agentic; con uno solo ése; sin ninguno, la 
   assert.equal(p({ coding: true, agentic: "a" }), null);
 });
 
-test("calibración: Opus 5.5 → 100 y Haiku 5.5 → 60 (anclas), recta por los puntos, clamp 0–100, una sola ancla proporcional", () => {
-  const cal = (pts: [number, number][]) => py(`print(json.dumps(R.aa_calibracion(${JSON.stringify(pts)})))`) as [number, number] | null;
-  const [a, b] = cal([[65, 100], [39, 60]])!;
-  assert.ok(Math.abs(a * 65 + b - 100) < 1e-9 && Math.abs(a * 39 + b - 60) < 1e-9);
-  assert.deepEqual(cal([[50, 100]]), [2, 0]);
-  assert.deepEqual(cal([[30, 60]]), [2, 0]);
-  assert.equal(cal([]), null);
-  assert.equal(cal([[65, 60], [39, 100]]), null, "anclas al revés: no sirve");
-  assert.equal(cal([[50, 100], [50, 60]]) === null, false, "dos anclas con el mismo puntaje: proporcional a la primera");
-  // de punta a punta con el archivo: Opus 65 → 100, Haiku 39 → 60, GLM-5.3 Flash (42) → 65, Sonnet (55)
+test("unidades reales de AA, sin calibración: el puntaje de un modelo es su promedio crudo, sin techo ni anclas", () => {
   const f = arch(AA);
   const t = py(`aa = R.aa_cargar()\nprint(json.dumps({m: R.aa_calidad(aa, m)[0] for m in ["claude-opus-5-5", "claude-haiku-5-5", "claude-sonnet-5-5", "opencode:opencode/glm-5.3-flash-free", "opencode:opencode/nemotron-3-ultra-free"]}))`, { REPARTO_AA: f });
-  assert.equal(t["claude-opus-5-5"], 100);
-  assert.equal(t["claude-haiku-5-5"], 60);
-  assert.ok(t["claude-sonnet-5-5"] > 60 && t["claude-sonnet-5-5"] < 100);
-  assert.equal(t["opencode:opencode/glm-5.3-flash-free"], 65);
+  assert.equal(t["claude-opus-5-5"], 65, "(66 + 64) / 2, no 100");
+  assert.equal(t["claude-haiku-5-5"], 39);
+  assert.equal(t["claude-sonnet-5-5"], 55);
+  assert.equal(t["opencode:opencode/glm-5.3-flash-free"], 42, "sólo coding: ése");
+  assert.equal(t["opencode:opencode/nemotron-3-ultra-free"], 47, "sólo inteligencia general: respaldo, tal cual");
   const alto = arch({ ...AA, modelos: [...AA.modelos, M("Supermodelo 9", 200, 200)] });
-  const c = py(`aa = R.aa_cargar()\nprint(json.dumps(R.aa_calidad(aa, "supermodelo-9")[0]))`, { REPARTO_AA: alto });
-  assert.equal(c, 100, "clamp a 100");
-  const bajo = arch({ ...AA, modelos: [...AA.modelos, M("Piso 1", 0, 0)] });
-  assert.equal(py(`aa = R.aa_cargar()\nprint(json.dumps(R.aa_calidad(aa, "piso-1")[0]))`, { REPARTO_AA: bajo }), 0, "clamp a 0");
+  assert.equal(py(`aa = R.aa_cargar()\nprint(json.dumps(R.aa_calidad(aa, "supermodelo-9")[0]))`, { REPARTO_AA: alto }), 200, "sin techo de 100");
+  const bajo = arch({ ...AA, modelos: [...AA.modelos, M("Piso 1", -5, -5)] });
+  assert.equal(py(`aa = R.aa_cargar()\nprint(json.dumps(R.aa_calidad(aa, "piso-1")[0]))`, { REPARTO_AA: bajo }), 0, "nunca negativa");
 });
 
-test("calibración por tramos: Haiku<Sonnet<Opus en AA → Sonnet exacto 88; entre Sonnet y Opus entre 88 y 100; bajo Haiku extrapola y acota", () => {
-  const AA3 = { ...AA, modelos: [M("Claude Opus 5.5", 66, 64), M("Claude Sonnet 5.5", 56, 54), M("Claude Haiku 5.5", 40, 38), M("Medio 1", 60, 60), M("Bajo 1", 30, 30), M("Piso 2", 0, 0), M("Alto 2", 200, 200)] };
-  const q = (f: string, ids: string[]) => py(`aa = R.aa_cargar()\nprint(json.dumps({m: R.aa_calidad(aa, m)[0] for m in ${JSON.stringify(ids)}}))`, { REPARTO_AA: f }) as Record<string, number>;
-  const t = q(arch(AA3), ["claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5", "medio-1", "bajo-1", "piso-2", "alto-2"]);
-  assert.equal(t["claude-sonnet-5-5"], 88, "la recta Haiku-Opus lo dejaba en ~74");
-  assert.equal(t["claude-opus-5-5"], 100);
-  assert.equal(t["claude-haiku-5-5"], 60);
-  assert.ok(t["medio-1"] > 88 && t["medio-1"] < 100, `entre Sonnet y Opus: ${t["medio-1"]}`);
-  assert.ok(t["bajo-1"] < 60 && t["bajo-1"] > 0, `bajo Haiku extrapola: ${t["bajo-1"]}`);
-  assert.equal(t["piso-2"], 0, "acota a 0");
-  assert.equal(t["alto-2"], 100, "acota a 100");
-  // anclas no monótonas (Sonnet por debajo de Haiku en AA): vuelve a la recta Opus-Haiku
-  const raro = { ...AA, modelos: [M("Claude Opus 5.5", 66, 64), M("Claude Sonnet 5.5", 30, 30), M("Claude Haiku 5.5", 40, 38)] };
-  const r = q(arch(raro), ["claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5"]);
-  assert.deepEqual([r["claude-opus-5-5"], r["claude-haiku-5-5"]], [100, 60]);
-  assert.ok(r["claude-sonnet-5-5"] < 60);
-  // sin Haiku: la recta por Sonnet y Opus (dos anclas) sigue clavando a los dos
-  const sinH = { ...AA, modelos: [M("Claude Opus 5.5", 66, 64), M("Claude Sonnet 5.5", 56, 54)] };
-  const s2 = q(arch(sinH), ["claude-opus-5-5", "claude-sonnet-5-5"]);
-  assert.deepEqual([s2["claude-opus-5-5"], s2["claude-sonnet-5-5"]], [100, 88]);
+test("vieja_a_aa: la inversa de la calibración vieja (Haiku 60, Sonnet 88, Opus 100 → 43, 51, 58), por tramos y extrapolando bajo Haiku", () => {
+  const v = (xs: number[]) => py(`print(json.dumps([R.vieja_a_aa(x) for x in ${JSON.stringify(xs)}]))`) as number[];
+  assert.deepEqual(v([60, 88, 100]), [43, 51, 58], "las anclas clavadas");
+  assert.deepEqual(v([74, 94]), [47, 54.5], "a mitad de cada tramo");
+  assert.deepEqual(v([40, 35]), [37.3, 35.9], "bajo Haiku sigue con la pendiente Haiku-Sonnet");
+  assert.equal(v([0])[0], 25.9);
+  assert.equal(v([-500])[0], 0, "nunca negativa");
+  const m = v([0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100]);
+  assert.deepEqual([...m].sort((a, b) => a - b), m, "crece con la escala vieja");
 });
 
-test("sin anclas en los datos, caché rota, vacía o apagada: reparto sigue con los defaults", () => {
-  const sin = arch({ version: 1, fetched: "2026-10-25T08:00:00Z", modelos: [M("GLM-5.3 Flash", 42, 40)] });
-  for (const f of [sin, arch("{roto"), arch({ version: 1 }), path.join(tmp, "no-hay.json"), "0"]) {
+test("caché rota, vacía, sin modelos o apagada: reparto sigue con los defaults; con modelos sin ninguna familia de referencia igual hay índice", () => {
+  for (const f of [arch("{roto"), arch({ version: 1 }), arch({ version: 1, fetched: "2026-10-25T08:00:00Z", modelos: [] }), path.join(tmp, "no-hay.json"), "0"]) {
     assert.equal(py(`print(json.dumps(R.aa_cargar()))`, { REPARTO_AA: f }), null);
   }
+  const sin = arch({ version: 1, fetched: "2026-10-25T08:00:00Z", modelos: [M("GLM-5.3 Flash", 42, 40)] });
+  assert.equal(py(`aa = R.aa_cargar()\nprint(json.dumps(R.aa_calidad(aa, "glm-5.3-flash")[0]))`, { REPARTO_AA: sin }), 41, "ya no hacen falta anclas");
 });
 
 // --- --tabla -------------------------------------------------------------------------------------------------
@@ -187,41 +169,55 @@ function tabla(aa: string | undefined, modelos?: object) {
 
 test("--tabla sin caché de AA: origen defecto o estimada, sin fecha; el resto de los campos igual que siempre", () => {
   const t = tabla(undefined);
-  assert.deepEqual([t["claude-opus-5-5"].origen, t["claude-opus-5-5"].calidad, t["claude-opus-5-5"].aa_fecha], ["defecto", 100, null]);
+  assert.deepEqual([t["claude-opus-5-5"].origen, t["claude-opus-5-5"].calidad, t["claude-opus-5-5"].aa_fecha], ["defecto", 58, null], "el 100 de la escala vieja = 58 en unidades de AA");
   assert.deepEqual([t["opencode:opencode/zeta-ultra-free"].origen, t["opencode:opencode/zeta-ultra-free"].estimada], ["estimada", true]);
   assert.equal(t["opencode:opencode/glm-5.3-flash-free"].origen, "defecto");
 });
 
 test("--tabla con AA: lo medido pisa defaults y estimaciones; lo que AA no conoce sigue como estaba; lleva la fecha del dato", () => {
   const t = tabla(arch(AA));
-  assert.deepEqual([t["claude-opus-5-5"].origen, t["claude-opus-5-5"].calidad, t["claude-opus-5-5"].aa_fecha], ["artificial-analysis", 100, "2026-10-25"]);
-  assert.equal(t["claude-haiku-5-5"].calidad, 60);
+  assert.deepEqual([t["claude-opus-5-5"].origen, t["claude-opus-5-5"].calidad, t["claude-opus-5-5"].aa_fecha], ["artificial-analysis", 65, "2026-10-25"]);
+  assert.equal(t["claude-haiku-5-5"].calidad, 39);
   assert.equal(t["claude-sonnet-5-5"].origen, "artificial-analysis");
-  assert.ok(t["claude-sonnet-5-5"].calidad > 60 && t["claude-sonnet-5-5"].calidad < 100);
-  assert.equal(t["opencode:opencode/glm-5.3-flash-free"].calidad, 65, "defecto 55 → medido 65");
+  assert.equal(t["claude-sonnet-5-5"].calidad, 55);
+  assert.equal(t["opencode:opencode/glm-5.3-flash-free"].calidad, 42, "defecto 55 viejo (41,6) → medido 42");
   assert.equal(t["opencode:opencode/glm-5.3-flash-free"].estimada, false);
   // Nemotron 3 Ultra: sólo trae inteligencia (47): sirve de reserva y estaba en defecto 55
   assert.equal(t["opencode:opencode/nemotron-3-ultra-free"].origen, "artificial-analysis");
   // AA no lo conoce: se queda con su defecto / su estimación por el nombre
-  assert.deepEqual([t["opencode:opencode/big-pickle"].origen, t["opencode:opencode/big-pickle"].calidad], ["defecto", 60]);
+  assert.deepEqual([t["opencode:opencode/big-pickle"].origen, t["opencode:opencode/big-pickle"].calidad], ["defecto", 43]);
   assert.deepEqual([t["opencode:opencode/zeta-ultra-free"].origen, t["opencode:opencode/zeta-ultra-free"].estimada], ["estimada", true]);
   // el local de Ollama: 30b no es 30b-a3b → sigue en su defecto de 35
-  assert.deepEqual([t["dsh:ollama/qwen3-coder:30b"].origen, t["dsh:ollama/qwen3-coder:30b"].calidad], ["defecto", 35]);
+  assert.deepEqual([t["dsh:ollama/qwen3-coder:30b"].origen, t["dsh:ollama/qwen3-coder:30b"].calidad], ["defecto", 35.9]);
 });
 
 test("--tabla: lo que fija el dueño en modelos.json gana a AA (por familia, por id exacto y por patrón), y lo demás sigue midiéndose", () => {
+  // Sin "calidad_unidades": "aa" son números de la escala vieja y se migran al leer (vieja_a_aa): 90 → 52.2, 12 → 29.3, 77 → 47.9.
   const t = tabla(arch(AA), { calidad: { opus: 90, "opencode:opencode/glm-5.3-flash-free": 12, "opencode:opencode/nemotron-*": 77 } });
-  assert.deepEqual([t["claude-opus-5-5"].origen, t["claude-opus-5-5"].calidad, t["claude-opus-5-5"].aa_fecha], ["usuario", 90, null]);
-  assert.deepEqual([t["opencode:opencode/glm-5.3-flash-free"].origen, t["opencode:opencode/glm-5.3-flash-free"].calidad], ["usuario", 12]);
-  assert.deepEqual([t["opencode:opencode/nemotron-3-ultra-free"].origen, t["opencode:opencode/nemotron-3-ultra-free"].calidad], ["usuario", 77]);
+  assert.deepEqual([t["claude-opus-5-5"].origen, t["claude-opus-5-5"].calidad, t["claude-opus-5-5"].aa_fecha], ["usuario", 52.2, null]);
+  assert.deepEqual([t["opencode:opencode/glm-5.3-flash-free"].origen, t["opencode:opencode/glm-5.3-flash-free"].calidad], ["usuario", 29.3]);
+  assert.deepEqual([t["opencode:opencode/nemotron-3-ultra-free"].origen, t["opencode:opencode/nemotron-3-ultra-free"].calidad], ["usuario", 47.9]);
   assert.equal(t["claude-haiku-5-5"].origen, "artificial-analysis");
-  // la calibración no se mueve porque el dueño fije Opus: Haiku sigue en 60
-  assert.equal(t["claude-haiku-5-5"].calidad, 60);
+  assert.equal(t["claude-haiku-5-5"].calidad, 39, "lo que fija el dueño no mueve a los demás: no hay calibración");
+  // Con "calidad_unidades": "aa" valen tal cual.
+  const n = tabla(arch(AA), { calidad_unidades: "aa", calidad: { opus: 52, "opencode:opencode/nemotron-*": 44 } });
+  assert.deepEqual([n["claude-opus-5-5"].origen, n["claude-opus-5-5"].calidad, n["opencode:opencode/nemotron-3-ultra-free"].calidad], ["usuario", 52, 44]);
+});
+
+test("migración de calidad_effort y minimo_por_tipo numérico: escala vieja → AA al leer; con calidad_unidades aa, tal cual", () => {
+  const leer = (mod: object) => py(`cfg = R.cargar_config()\nprint(json.dumps({"ce": cfg["calidad_effort_usuario"], "min": cfg["minimo_por_tipo"]["lectura"], "q": cfg["calidad"]["opus"]}))`,
+    { REPARTO_AA: "0", TRAMA_MODELOS: arch({ version: 1, ...mod }), REPARTO_STATE: path.join(tmp, "estado") }) as { ce: Record<string, Record<string, number>>; min: number | string; q: number };
+  const v = leer({ calidad: { opus: 100 }, calidad_effort: { opus: { low: 60, high: 88 } }, minimo_por_tipo: { lectura: 74 } });
+  assert.deepEqual([v.q, v.ce.opus, v.min], [58, { low: 43, high: 51 }, 47]);
+  const n = leer({ calidad_unidades: "aa", calidad: { opus: 100 }, calidad_effort: { opus: { low: 60, high: 88 } }, minimo_por_tipo: { lectura: 74 } });
+  assert.deepEqual([n.q, n.ce.opus, n.min], [100, { low: 60, high: 88 }, 74]);
+  assert.equal(leer({}).min, "haiku", "los mínimos por familia no se tocan");
 });
 
 test("--tabla: un valor de usuario que coincide con el default sigue siendo del usuario", () => {
   const t = tabla(undefined, { calidad: { haiku: 60 } });
   assert.equal(t["claude-haiku-5-5"].origen, "usuario");
+  assert.equal(t["claude-haiku-5-5"].calidad, 43);
 });
 
 // --- calidad por effort ---------------------------------------------------------------------------------------
@@ -251,20 +247,19 @@ test("aa_esfuerzo: sale de paréntesis y de sufijos del slug; Non-reasoning es n
   assert.equal(e("Claude Opus 5.5 (Reasoning)"), "high", "Reasoning sin nivel = el effort por defecto (high)");
 });
 
-test("--tabla expone calidad_por_effort calibrada con las mismas anclas; calidad sigue siendo la mejor; low < high", () => {
+test("--tabla expone calidad_por_effort cruda; calidad es la del esfuerzo que se usaría (high), nunca la del máximo; low < high", () => {
   const t = tablaEf(arch(AA_EF));
   const o = t["claude-opus-5-5"];
-  assert.equal(o.calidad, 100);
-  assert.equal(o.calidad_por_effort.max, 100);
-  assert.ok(o.calidad_por_effort.low < o.calidad_por_effort.high && o.calidad_por_effort.high < 100);
-  assert.deepEqual(Object.keys(o.calidad_por_effort).sort(), ["high", "low", "max"], "medium desconocido no se inventa en el mapa; none no entra");
-  assert.equal(t["claude-sonnet-5-5"].calidad, 88);
-  assert.deepEqual(t["claude-sonnet-5-5"].calidad_por_effort, { high: 88 }, "entrada pelada de claude = el effort por defecto (high), con el mismo 88");
+  assert.deepEqual(o.calidad_por_effort, { low: 50, high: 60, max: 66 }, "medium desconocido no se inventa en el mapa; none no entra");
+  assert.equal(o.calidad, 60, "high, no el 66 del max");
+  assert.equal((o as unknown as { effort_usado: string }).effort_usado, "high");
+  assert.equal(t["claude-sonnet-5-5"].calidad, 56);
+  assert.deepEqual(t["claude-sonnet-5-5"].calidad_por_effort, { high: 56 }, "entrada pelada de claude = el effort por defecto (high)");
 });
 
 test("calidad_en_effort: el medido, interpolado entre vecinos, el extremo más cercano, o la mejor sin mapa", () => {
   const q = (mapa: object, ef: string, base: number) => py(`print(json.dumps(R.calidad_en_effort(${JSON.stringify(mapa)}, ${JSON.stringify(ef)}, ${base})))`);
-  const m = { low: 80, high: 96, max: 100 };
+  const m = { low: 80, high: 96, max: 100 };   // los números de este test son sólo de la interpolación
   assert.equal(q(m, "low", 100), 80);
   assert.equal(q(m, "medium", 100), 88, "entre low (80) y high (96)");
   assert.equal(q(m, "xhigh", 100), 98, "entre high (96) y max (100)");
@@ -289,9 +284,11 @@ test("--tipo con effort low usa la calidad de low; la del dueño por familia val
     { REPARTO_AA: f, TRAMA_MODELOS: arch({ version: 1, ...modelos }), REPARTO_STATE: path.join(tmp, "estado") });
   const bajo = cfgq({}, "low") as number, alto = cfgq({}, "high") as number;
   assert.ok(bajo < alto);
-  assert.equal(cfgq({ calidad: { opus: 77 } }, "low"), 77, "calidad fija del dueño: para todos los efforts");
-  assert.equal(cfgq({ calidad: { opus: 77 }, calidad_effort: { opus: { low: 55 } } }, "low"), 55, "por effort del dueño gana");
-  assert.equal(cfgq({ calidad: { opus: 77 }, calidad_effort: { opus: { low: 55 } } }, "high"), 77);
+  const aa = { calidad_unidades: "aa" };
+  assert.equal(cfgq({ ...aa, calidad: { opus: 47 } }, "low"), 47, "calidad fija del dueño: para todos los efforts");
+  assert.equal(cfgq({ ...aa, calidad: { opus: 47 }, calidad_effort: { opus: { low: 41 } } }, "low"), 41, "por effort del dueño gana");
+  assert.equal(cfgq({ ...aa, calidad: { opus: 47 }, calidad_effort: { opus: { low: 41 } } }, "high"), 47);
+  assert.equal(cfgq({ calidad: { opus: 77 }, calidad_effort: { opus: { low: 55 } } }, "low"), 41.6, "sin calidad_unidades: escala vieja, 55 → 41.6");
   const r = pick({ effort_por_tipo: { lectura: "low" } });
   assert.ok(r.modelo, "elige algo");
 });
@@ -364,8 +361,8 @@ test("aa_tokens: variantes de AA se juntan con el modelo, pero tamaños y varian
 test("emparejamiento: flash/mini/lite/air nunca caen en el modelo base ni en otro tamaño; sin entrada exacta no hay valor de AA", () => {
   const t = calid([ID("glm-5.3-flash-free"), ID("glm-5.3-free"), ID("glm-5.3-lite-free"), ID("glm-5.3-mini-free"), ID("glm-5.3-nano-free"), ID("glm-5.3-small-free"),
     "agy:gpt-oss-120b", "agy:gpt-oss-20b", "gpt-oss-60b", "gpt-oss-120b-mini"]);
-  assert.equal(t[ID("glm-5.3-flash-free")], 54, "GLM-5.3 Flash (crudo 37), no el 86 del base");
-  assert.equal(t[ID("glm-5.3-free")], 86);
+  assert.equal(t[ID("glm-5.3-flash-free")], 37, "GLM-5.3 Flash (crudo 37), no el 54 del base");
+  assert.equal(t[ID("glm-5.3-free")], 54);
   for (const x of ["lite", "mini", "nano", "small"]) assert.equal(t[ID(`glm-5.3-${x}-free`)], null, `${x}: AA no lo tiene → estimación`);
   assert.ok(t["agy:gpt-oss-120b"]! > t["agy:gpt-oss-20b"]!, "120b y 20b son distintos");
   assert.equal(t["gpt-oss-60b"], null);
@@ -375,18 +372,18 @@ test("emparejamiento: flash/mini/lite/air nunca caen en el modelo base ni en otr
   assert.equal(calid([ID("glm-5.3-flash-free")], sinFlash)[ID("glm-5.3-flash-free")], null);
 });
 
-test("MiMo V2.6 flash y GPT-OSS: siguen a AA con la calibración (slug con v2-6 también empareja)", () => {
+test("MiMo V2.6 flash y GPT-OSS: siguen a AA en crudo (slug con v2-6 también empareja)", () => {
   const t = calid([ID("mimo-v2.6-flash-free"), "agy:gpt-oss-120b"]);
-  assert.equal(t[ID("mimo-v2.6-flash-free")], 60, "crudo 40 = ancla de Haiku → 60");
-  assert.equal(t["agy:gpt-oss-120b"], 45, "crudo 32 → bajo Haiku: 60 - 8 × 28/15 = 45");
+  assert.equal(t[ID("mimo-v2.6-flash-free")], 40);
+  assert.equal(t["agy:gpt-oss-120b"], 32);
   const soloSlug = { ...REAL, modelos: [...REAL.modelos.filter((m) => m.slug !== "mimo-v2-6-flash"), { name: "MiMo Flash", slug: "mimo-v2-6-flash", coding: 41, agentic: 39, intelligence: 54 }] };
-  assert.equal(calid([ID("mimo-v2.6-flash-free")], soloSlug)[ID("mimo-v2.6-flash-free")], 60);
+  assert.equal(calid([ID("mimo-v2.6-flash-free")], soloSlug)[ID("mimo-v2.6-flash-free")], 40);
 });
 
-test("efforts de Opus: low/medium/high/max, no sólo max; un solo juego de anclas (el mejor puntaje de cada modelo)", () => {
-  assert.deepEqual(efs("claude-opus-5-5"), { max: 100, high: 95, medium: 88, low: 71 });
-  assert.deepEqual(efs("claude-sonnet-5-5"), { high: 88, medium: 79 }, "medium no baja a 58: se calibra con las mismas anclas, 50 crudo → 79");
-  assert.deepEqual(efs("claude-haiku-5-5"), { xhigh: 60, high: 56, low: 41 });
+test("efforts de Opus: low/medium/high/max, no sólo max; puntaje crudo de AA de cada esfuerzo", () => {
+  assert.deepEqual(efs("claude-opus-5-5"), { max: 65, high: 61, medium: 55, low: 46 });
+  assert.deepEqual(efs("claude-sonnet-5-5"), { high: 55, medium: 50 });
+  assert.deepEqual(efs("claude-haiku-5-5"), { xhigh: 40, high: 38, low: 30 });
   const o = efs("claude-opus-5-5");
   assert.ok(o.low < o.medium && o.medium < o.high && o.high < o.max);
 });
@@ -406,28 +403,23 @@ test("efforts: crecen con el esfuerzo (un nivel más alto nunca vale menos)", ()
 });
 
 test("Gemini Argon y Flash: entrada pelada o Reasoning = effort por defecto (high), por eso hay línea de efforts", () => {
-  assert.deepEqual(efs("gemini-4-argon"), { high: 81 });
-  assert.deepEqual(efs("gemini-3.8-flash"), { high: 69 });
+  assert.deepEqual(efs("gemini-4-argon"), { high: 51 });
+  assert.deepEqual(efs("gemini-3.8-flash"), { high: 45 });
   const cfg = py(`cfg = R.cargar_config()\nprint(json.dumps({"ef": cfg["calidad_ef"].get("argon"), "q": cfg["calidad"]["argon"], "o": cfg["origen"]["argon"]}))`, { REPARTO_AA: arch(REAL), REPARTO_STATE: path.join(tmp, "estado") }) as { ef: object; q: number; o: string };
-  assert.deepEqual(cfg, { ef: { high: 81 }, q: 81, o: "artificial-analysis" });
+  assert.deepEqual(cfg, { ef: { high: 51 }, q: 51, o: "artificial-analysis" });
 });
 
-test("calibración acotada: nada pasa de 100; los que sólo traen inteligencia nunca llegan al nivel de Opus (tope 90)", () => {
+test("sin calibración ni topes: los que sólo traen inteligencia usan ese índice tal cual; nada se acota a 100; piso 0", () => {
   const t = calid([ID("glm-5.3-air-free"), ID("super-9"), ID("piso-9")], {
     ...REAL,
     modelos: [...REAL.modelos, { name: "Super 9", slug: "super-9", coding: 300, agentic: 300, intelligence: 300 }, { name: "Piso 9", slug: "piso-9", coding: -50, agentic: -50, intelligence: 0 }],
   });
-  assert.equal(t[ID("glm-5.3-air-free")], 90, "inteligencia 80 > la de Opus (78): antes habría salido 100");
-  assert.equal(t[ID("super-9")], 100);
+  assert.equal(t[ID("glm-5.3-air-free")], 80, "inteligencia 80, tal cual");
+  assert.equal(t[ID("super-9")], 300);
   assert.equal(t[ID("piso-9")], 0);
-  const todo = py(`aa = R.aa_cargar()\nprint(json.dumps([R.aa_calibrar(aa, x) for x in range(-100, 400, 7)] + [R.aa_calibrar(aa, x, "int") for x in range(-100, 400, 7)]))`, { REPARTO_AA: arch(REAL) }) as number[];
-  assert.ok(todo.every((v) => v >= 0 && v <= 100));
-  // sin anclas de inteligencia utilizables, los que sólo traen inteligencia quedan sin valor de AA
-  const sinInt = { ...REAL, modelos: REAL.modelos.map((m) => (/Claude/.test(m.name) ? { ...m, intelligence: 50 } : m)) };
-  assert.equal(calid([ID("glm-5.3-air-free")], sinInt)[ID("glm-5.3-air-free")], null);
 });
 
-test("--aa-diag: por modelo, la entrada de AA, crudo y calibrado por effort; los sin coincidencia lo dicen", () => {
+test("--aa-diag: por modelo, la entrada de AA y su puntaje crudo por effort; los sin coincidencia lo dicen", () => {
   const r = spawnSync(REPARTO, ["--aa-diag", "--json"], {
     encoding: "utf8",
     env: { ...process.env, REPARTO_CUPOS_FIJOS: cuposF, REPARTO_AHORA: AHORA, REPARTO_DSH_FIJO: '{"ollama":[],"opencode":false,"deepseek":false}',
@@ -435,19 +427,19 @@ test("--aa-diag: por modelo, la entrada de AA, crudo y calibrado por effort; los
       REPARTO_AGY: "0", REPARTO_STATE: path.join(tmp, "estado"), REPARTO_AA: arch(REAL), TRAMA_MODELOS: arch({ version: 1, excluir: [ID("glm-5.3-flash-free")] }) },
   });
   assert.equal(r.status, 0, r.stderr);
-  const d = JSON.parse(r.stdout) as { aa_fecha: string; modelos: { id: string; aa: null | { nombre: string; slug: string; crudo: number; calibrado: number }; efforts: Record<string, { crudo: number; calibrado: number }>; permitido: boolean }[] };
+  const d = JSON.parse(r.stdout) as { aa_fecha: string; modelos: { id: string; aa: null | { nombre: string; slug: string; crudo: number }; efforts: Record<string, { crudo: number; usado: number }>; permitido: boolean }[] };
   const por = Object.fromEntries(d.modelos.map((m) => [m.id, m]));
   assert.equal(d.aa_fecha, "2026-10-26");
-  assert.deepEqual(por["claude-opus-5-5"].efforts.max, { crudo: 65, calibrado: 100 });
+  assert.deepEqual(por["claude-opus-5-5"].efforts.max, { crudo: 65, usado: 65 });
   assert.equal(por["claude-opus-5-5"].aa!.nombre, "Claude Opus 5.5 (Adaptive Reasoning, Max Effort)");
   assert.equal(por[ID("mimo-v2.6-flash-free")].aa!.slug, "mimo-v2-6-flash");
-  assert.equal(por[ID("mimo-v2.6-flash-free")].aa!.calibrado, 60);
+  assert.equal(por[ID("mimo-v2.6-flash-free")].aa!.crudo, 40);
   assert.equal(por[ID("glm-5.3-lite-free")].aa, null);
   assert.equal(por[ID("glm-5.3-flash-free")].permitido, false);
   const txt = spawnSync(REPARTO, ["--aa-diag"], { encoding: "utf8", env: { ...process.env, REPARTO_CUPOS_FIJOS: cuposF, REPARTO_AHORA: AHORA, REPARTO_DSH_FIJO: '{"ollama":[],"opencode":false,"deepseek":false}', REPARTO_AGY: "0", REPARTO_STATE: path.join(tmp, "estado"), REPARTO_AA: arch(REAL) } });
   assert.equal(txt.status, 0, txt.stderr);
   assert.match(txt.stdout, /claude-opus-5-5\n\s+AA: Claude Opus 5\.5 \(Adaptive Reasoning, Max Effort\) \[claude-opus-5-5-adaptive\]/);
-  assert.match(txt.stdout, /por effort: .*max 65\.0 -> 100/);
+  assert.match(txt.stdout, /por effort: .*max 65\b/);
 });
 
 test("modelos excluidos: reparto nunca los elige, aunque tengan la mejor cifra", () => {

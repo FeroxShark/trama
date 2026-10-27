@@ -5,7 +5,8 @@ import assert from "node:assert/strict";
 import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { after, test } from "node:test";
+import { after } from "node:test";
+import { testPosix as test } from "./plataforma.ts";
 import { acomodar, crearGuardadoVolver, guardarVolver, leerVolver, lugarDeVentana, pasos, type Lugar } from "../electron/volver.ts";
 
 const tmp = mkdtempSync(path.join(tmpdir(), "trama-volver-"));

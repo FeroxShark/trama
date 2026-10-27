@@ -2,7 +2,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 process.env.TRAMA_DUENO = "Ana";
-const { armarRelevo, unirConvs, TOPE_RELEVO } = await import("../electron/relevo-motor.ts");
+const { aplicarCortes, armarRelevo, hastaMensaje, unirConvs, TOPE_RELEVO } = await import("../electron/relevo-motor.ts");
 const { convNueva } = await import("../electron/lider-arma.ts");
 
 const m = (rol: "user" | "assistant", texto: string, ts: string | null, extra: object = {}) =>
@@ -44,7 +44,7 @@ test("armarRelevo con `desde`: sólo lo posterior a esa hora (un motor que vuelv
   assert.match(r.texto, /sin vos/);
 });
 
-test("unirConvs: cada motor en su tramo, una raya por cambio, y sólo el último tramo conserva uuid", () => {
+test("unirConvs: cada motor en su tramo, una raya por cambio, todos conservan su uuid y llevan el motor de su tramo", () => {
   const claude = est([m("user", "c1", "2026-01-01T10:00:00Z"), m("user", "c2", "2026-01-01T12:00:00Z")]);
   const gem = est([m("user", "g1", "2026-01-01T11:00:00Z")]);
   const mapa = new Map([["claude" as const, claude], ["gemini" as const, gem]]);
@@ -53,5 +53,20 @@ test("unirConvs: cada motor en su tramo, una raya por cambio, y sólo el último
     { cambio: { ts: Date.parse("2026-01-01T11:30:00Z"), de: "gemini-4-argon", a: "claude-opus-5-5" }, a: "claude" },
   ]);
   assert.deepEqual(u.todos.map((x) => x.marcas.cambio?.modelo ?? x.texto), ["c1", "gemini-4-argon", "g1", "claude-opus-5-5", "c2"]);
-  assert.deepEqual(u.todos.map((x) => x.uuid !== null), [false, false, false, false, true]);
+  // Los mensajes de todos los tramos se pueden señalar (volver atrás / editar / ramificar con un relevo); las rayas no.
+  assert.deepEqual(u.todos.map((x) => x.uuid !== null), [true, false, true, false, true]);
+  assert.deepEqual(u.todos.map((x) => x.motor), ["claude", undefined, "gemini", undefined, "claude"]);
+});
+
+test("aplicarCortes: quita lo que sigue al mensaje y es anterior al corte; lo posterior queda; hastaMensaje corta en un uuid", () => {
+  const t = (s: string) => `2026-01-01T10:00:${s}Z`;
+  const todos = [m("user", "aaaa", t("00")), m("assistant", "bbbb", t("01")), m("user", "cccc", t("02")), m("assistant", "dddd", t("03")), m("user", "eeee", t("10"))];
+  const r = aplicarCortes(todos, [{ ts: Date.parse(t("05")), uuid: "u-bbbb" }]);
+  assert.deepEqual(r.map((x) => x.texto), ["aaaa", "bbbb", "eeee"]);
+  assert.deepEqual(aplicarCortes(todos, [{ ts: Date.parse(t("05")), uuid: "u-nada" }]).length, 5, "un uuid que no está no corta nada");
+  // Dos cortes seguidos: el segundo ya ve la lista recortada.
+  const dos = aplicarCortes(todos, [{ ts: Date.parse(t("05")), uuid: "u-bbbb" }, { ts: Date.parse(t("20")), uuid: "u-aaaa" }]);
+  assert.deepEqual(dos.map((x) => x.texto), ["aaaa"]);
+  assert.deepEqual(hastaMensaje({ ...convNueva(), todos }, "u-cccc")!.todos.map((x) => x.texto), ["aaaa", "bbbb", "cccc"]);
+  assert.equal(hastaMensaje({ ...convNueva(), todos }, "u-x"), null);
 });

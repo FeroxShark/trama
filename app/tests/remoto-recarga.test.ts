@@ -1,7 +1,8 @@
 // Prender y apagar el acceso desde el celular desde Ajustes (canal `remoto:guardar` + remoto-armar.ts) sin reiniciar:
 // con un `remoto.json` apagado no se escucha en ninguna IP; al prenderlo escucha en la IP de Tailscale (falsa, en
 // 127.0.0.1: nada sale de esta máquina) y al apagarlo deja de escuchar. El estado se lee de lo que el servidor dice.
-import { test, after } from "node:test";
+import { after } from "node:test";
+import { testPosix as test } from "./plataforma.ts";
 import assert from "node:assert/strict";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { registerHooks } from "node:module";

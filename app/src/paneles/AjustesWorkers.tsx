@@ -1,6 +1,7 @@
 // Ajustes > Modelos > «Modelos para workers»: cada modelo que `reparto` conoce (reparto --tabla), agrupado por empresa, con su
-// logo, un interruptor permitido/no (se guarda en `excluir` por id exacto), la inteligencia editable de 0 a 100 (se guarda en
-// `calidad`; "estimada" mientras nadie la fijó) y, sólo para leer, cuánto cupo queda y cuándo se reinicia. Trabaja sobre el borrador
+// logo, un interruptor permitido/no (se guarda en `excluir` por id exacto), la inteligencia en unidades de Artificial Analysis (editable: se
+// guarda en `calidad`), un chip por esfuerzo que se prende o apaga para los workers (se guarda en `efforts_permitidos`) y, sólo para leer, cuánto
+// cupo queda y cuándo se reinicia. El número grande es la inteligencia al esfuerzo que `reparto` usaría (nunca el máximo por defecto). Trabaja sobre el borrador
 // de AjustesModelos: nada se escribe hasta Guardar. Las reglas de `excluir` por familia o patrón siguen valiendo y se ven abajo.
 import { useEffect, useMemo, useState } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
@@ -18,9 +19,11 @@ import { MODO } from "../modo";
 import { pintorVuelve } from "../tiempo";
 import { AtribucionAA, ClaveArtificialAnalysis } from "./AjustesWorkersAA";
 import { quitarExcluido, type Borrador } from "./modelos-borrador";
+import { aplicarSugerencias, dominados, paresDe, permitidosDe, ponerEffort, type Dominado } from "./efforts-dominados";
 import {
   agrupar,
   calidadEscrita,
+  cifra,
   EMPRESA_DE_GRUPO,
   estadoDe,
   filasUnicas,
@@ -31,8 +34,29 @@ import {
   ponerInteligencia,
   ponerPermitido,
   reglasSueltas,
+  usadoDe,
   type GrupoTabla,
 } from "./modelos-workers";
+
+/** Tokens por tarea en una palabra («850k», «1,2 M»). */
+const tokensCorto = (n: number): string => (n >= 1e6 ? `${(n / 1e6).toFixed(1)} M` : n >= 1e3 ? `${Math.round(n / 1e3)}k` : String(Math.round(n)));
+/** Segundos por tarea («42 s», «3 min 10 s»). */
+const tiempoTarea = (s: number): string => (s >= 60 ? `${Math.floor(s / 60)} min ${Math.round(s % 60)} s` : `${Math.round(s)} s`);
+const dinero = (n: number): string => `$${n < 1 ? n.toFixed(3) : n.toFixed(2)}`;
+
+/** El tooltip de un chip de esfuerzo: inteligencia general, costo, tokens y tiempo por tarea (los que Artificial Analysis trae). */
+function tipChip(f: FilaTabla, e: (typeof EFFORTS_CALIDAD)[number]): string {
+  const partes: string[] = [];
+  const g = f.inteligenciaPorEffort?.[e];
+  partes.push(g !== undefined ? t("ajustes.mdlWkChipGeneral", { n: cifra(g) }) : t("ajustes.mdlWkChipSinGeneral"));
+  const c = f.costoPorEffort?.[e];
+  partes.push(c !== undefined ? t("ajustes.mdlWkChipCosto", { n: dinero(c) }) : t("ajustes.mdlWkChipCostoEst"));
+  const k = f.tokensPorEffort?.[e];
+  if (k !== undefined) partes.push(t("ajustes.mdlWkChipTokens", { n: tokensCorto(k) }));
+  const m = f.tiempoPorEffort?.[e];
+  if (m !== undefined) partes.push(t("ajustes.mdlWkChipTiempo", { n: tiempoTarea(m) }));
+  return partes.join(" · ");
+}
 
 const nombreGrupo = (g: GrupoTabla): string => {
   if (g === "openai") return t("ajustes.mdlWkOpenai");
@@ -46,12 +70,12 @@ function Vuelve({ ms }: { ms: number }) {
   return <Reloj pintor={pintor} className="wk-vuelve" />;
 }
 
-/** El campo de inteligencia: escribe un entero 0–100 (vacío: vuelve a la estimada); lo que no vale queda marcado y no cambia el borrador. */
+/** El campo de inteligencia: escribe unidades de AA, 0–200 con un decimal (vacío: vuelve a la estimada); lo que no vale queda marcado y no cambia el borrador. */
 function CampoInteligencia({ f, valor, fijada, alCambiar }: { f: FilaTabla; valor: number; fijada: boolean; alCambiar: (n: number | null) => void }) {
-  const [texto, setTexto] = useState(String(valor));
+  const [texto, setTexto] = useState(cifra(valor));
   const [enfoque, setEnfoque] = useState(false);
   useEffect(() => {
-    if (!enfoque) setTexto(String(valor));
+    if (!enfoque) setTexto(cifra(valor));
   }, [valor, enfoque]);
   const n = calidadEscrita(texto);
   const mal = texto.trim() !== "" && n === null;
@@ -60,14 +84,14 @@ function CampoInteligencia({ f, valor, fijada, alCambiar }: { f: FilaTabla; valo
       className="pn-campo wk-num"
       inputMode="numeric"
       value={texto}
-      maxLength={3}
+      maxLength={5}
       aria-invalid={mal || undefined}
       aria-label={t("ajustes.mdlWkInteligencia", { modelo: f.nombre })}
       data-tip={fijada ? t("ajustes.mdlWkFijada") : t("ajustes.mdlWkInteligenciaQue")}
       onFocus={() => setEnfoque(true)}
       onBlur={() => {
         setEnfoque(false);
-        setTexto(String(valor));
+        setTexto(cifra(valor));
       }}
       onChange={(ev) => {
         const s = ev.target.value;
@@ -82,14 +106,19 @@ function CampoInteligencia({ f, valor, fijada, alCambiar }: { f: FilaTabla; valo
   );
 }
 
-/** Una fila: interruptor, nombre y datos de cupo, y la inteligencia. */
-function Fila({ f, b, cambiar }: { f: FilaTabla; b: Borrador; cambiar: (n: Borrador) => void }) {
+/** Una fila: interruptor, nombre y datos de cupo, los chips de esfuerzo y la inteligencia al esfuerzo que se usaría. */
+function Fila({ f, b, cambiar, dom }: { f: FilaTabla; b: Borrador; cambiar: (n: Borrador) => void; dom: Dominado[] }) {
   const est = estadoDe(f, b);
   const q = inteligenciaDe(f, b);
+  const u = usadoDe(f, b);
   const o = origenDe(f, b);
   // «gratis» se dice una vez (la etiqueta): el cupo de uno gratis sólo se nombra si ya se gastó algo.
   const cupo =
     f.libre !== null ? (f.gratis ? (f.libre < 100 ? t("ajustes.mdlWkQueda", { pct: String(f.libre) }) : null) : t("ajustes.mdlWkLibre", { pct: String(f.libre) })) : f.gratis ? t("ajustes.mdlWkSinCupo") : t("ajustes.mdlWkSinDato");
+  const medidos = EFFORTS_CALIDAD.filter((e) => f.calidadPorEffort[e] !== undefined);
+  const permitidos = permitidosDe(f, b);
+  const ningunoPermitido = est.permitido && medidos.length > 0 && permitidos.length === 0;
+  const dominadoDe = (e: (typeof EFFORTS_CALIDAD)[number]) => dom.find((d) => d.par.id === f.id && d.par.effort === e);
   return (
     <li className="wk-fila" data-id={f.id} data-off={est.permitido ? undefined : ""} style={est.permitido ? undefined : { opacity: 0.55 }}>
       <Interruptor
@@ -111,18 +140,54 @@ function Fila({ f, b, cambiar }: { f: FilaTabla; b: Borrador; cambiar: (n: Borra
           {f.libre !== null && f.vuelve !== null ? <Vuelve ms={f.vuelve} /> : null}
         </span>
         {/* Los excluidos no entran al reparto: la fila va atenuada (arriba) y sin el desglose por effort, que no se usa. */}
-        {est.permitido && o.tipo === "aa" && Object.keys(f.calidadPorEffort).length > 0 ? (
-          <span className="wk-efforts" data-tip={t("ajustes.mdlWkPorEffortQue")}>
-            {EFFORTS_CALIDAD.filter((e) => f.calidadPorEffort[e] !== undefined)
-              .map((e) => `${t(`ajustes.mdlWkEffort_${e}`)} ${f.calidadPorEffort[e]}`)
-              .join(" · ")}
-          </span>
+        {est.permitido && o.tipo === "aa" ? (
+          medidos.length > 0 ? (
+            <span className="wk-efforts" role="group" aria-label={t("ajustes.mdlWkEfforts", { modelo: f.nombre })}>
+              {medidos.map((e) => {
+                const on = permitidos.includes(e);
+                const d = on ? dominadoDe(e) : undefined;
+                return (
+                  <button
+                    key={e}
+                    type="button"
+                    className="wk-chip"
+                    aria-pressed={on}
+                    data-on={on ? "si" : "no"}
+                    data-usado={u.efecto === e ? "" : undefined}
+                    data-dominado={d ? "" : undefined}
+                    data-tip={tipChip(f, e)}
+                    onClick={() => cambiar(ponerEffort(b, f, e, !on))}
+                  >
+                    <span className="wk-chip-n">{t(`ajustes.mdlWkEffort_${e}`)}</span> <span className="wk-chip-v">{cifra(f.calidadPorEffort[e]!)}</span>
+                    <span className="wk-chip-m">{!on ? ` · ${t("ajustes.mdlWkChipOff")}` : d ? ` · ${t("ajustes.mdlWkChipNoConviene")}` : u.efecto === e ? ` · ${t("ajustes.mdlWkChipUsado")}` : ""}</span>
+                  </button>
+                );
+              })}
+            </span>
+          ) : (
+            <span className="wk-sin-efforts">{t("ajustes.mdlWkSinEfforts")}</span>
+          )
         ) : null}
+        {ningunoPermitido ? <span className="wk-hint" role="note">{t("ajustes.mdlWkNingunEffort")}</span> : null}
+        {est.permitido
+          ? dom.filter((d) => d.par.id === f.id && permitidos.includes(d.par.effort)).map((d) => (
+              <span className="wk-hint" role="note" key={d.par.effort}>
+                {t("ajustes.mdlWkNoConviene", { effort: t(`ajustes.mdlWkEffort_${d.par.effort}`), alternativa: `${nombreVisible(d.por.nombre, idioma())} ${t(`ajustes.mdlWkEffort_${d.por.effort}`)}` })}
+              </span>
+            ))
+          : null}
       </div>
       <div className="wk-q">
-        <CampoInteligencia f={f} valor={q.valor} fijada={q.fijada} alCambiar={(n) => cambiar(ponerInteligencia(b, f, n))} />
-        <span className="wk-est" data-origen={o.tipo} data-tip={o.tipo === "estimada" ? t("ajustes.mdlWkEstimadaQue") : o.tipo === "usuario" ? t("ajustes.mdlWkOrigenUsuarioQue") : o.tipo === "aa" ? t("ajustes.mdlWkOrigenAAQue", { fecha: o.fecha ?? "" }) : undefined}>
-          {o.tipo === "estimada" ? t("ajustes.mdlWkOrigenEstimada") : o.tipo === "usuario" ? t("ajustes.mdlWkOrigenUsuario") : o.tipo === "aa" ? t("ajustes.mdlWkOrigenAA", { fecha: o.fecha ?? "" }) : ""}
+        {u.valor === null ? (
+          <span className="wk-est" data-origen="excluido">{t("ajustes.mdlWkSinUso")}</span>
+        ) : (
+          <>
+            <CampoInteligencia f={f} valor={u.valor ?? q.valor} fijada={q.fijada} alCambiar={(n) => cambiar(ponerInteligencia(b, f, n))} />
+            {u.efecto ? <span className="wk-est" data-origen="esfuerzo">{t("ajustes.mdlWkAlEsfuerzo", { effort: t(`ajustes.mdlWkEffort_${u.efecto}`) })}</span> : null}
+          </>
+        )}
+        <span className="wk-est" data-origen={o.tipo} data-tip={o.tipo === "estimada" || o.tipo === "defecto" ? t("ajustes.mdlWkSinDatoAAQue") : o.tipo === "usuario" ? t("ajustes.mdlWkOrigenUsuarioQue") : o.tipo === "aa" ? t("ajustes.mdlWkOrigenAAQue", { fecha: o.fecha ?? "" }) : undefined}>
+          {o.tipo === "estimada" || o.tipo === "defecto" ? t("ajustes.mdlWkSinDatoAA") : o.tipo === "usuario" ? t("ajustes.mdlWkOrigenUsuario") : o.tipo === "aa" ? t("ajustes.mdlWkOrigenAA", { fecha: o.fecha ?? "" }) : ""}
         </span>
       </div>
     </li>
@@ -150,6 +215,10 @@ export function ModelosParaWorkers({ b, cambiar }: { b: Borrador; cambiar: (n: B
   const buscando = q.trim() !== "";
   const grupos = useMemo(() => agrupar(filtrar(filas, q), b), [filas, q, b]);
   const sueltas = reglasSueltas(b.excluir, filas);
+  // Los pares modelo+esfuerzo dominados (otro permitido rinde igual o más por menos): se ven en cada fila y se desmarcan con «Aplicar sugerencias».
+  const dom = useMemo(() => dominados(paresDe(filas, b)), [filas, b]);
+  const [confirmando, setConfirmando] = useState(false);
+  const hayAA = filas.some((f) => f.origen === "artificial-analysis");
   const nombreRegla = (id: string) => ({ fable: "Fable", opus: "Opus", sonnet: "Sonnet", haiku: "Haiku", argon: "Gemini Argon", flash: "Gemini Flash", "gpt-oss": "GPT-OSS" } as Record<string, string>)[id] ?? id;
 
   return (
@@ -192,7 +261,7 @@ export function ModelosParaWorkers({ b, cambiar }: { b: Borrador; cambiar: (n: B
                 {abierto ? (
                   <ul className="wk-lista" aria-label={nombre}>
                     {g.filas.map((f) => (
-                      <Fila key={f.id} f={f} b={b} cambiar={cambiar} />
+                      <Fila key={f.id} f={f} b={b} cambiar={cambiar} dom={dom} />
                     ))}
                   </ul>
                 ) : null}
@@ -202,10 +271,39 @@ export function ModelosParaWorkers({ b, cambiar }: { b: Borrador; cambiar: (n: B
         </>
       ) : null}
 
-      {filas.some((f) => f.origen === "artificial-analysis") ? (
-        <p className="pn-nota wk-aa-pie">
-          <AtribucionAA />
-        </p>
+      {filas.length > 0 ? (
+        <div className="wk-sugerencias">
+          <p className="pn-nota" data-wk-indice>
+            {t("ajustes.mdlWkIndice")} <AtribucionAA />
+          </p>
+          <p className="pn-nota">{t("ajustes.mdlWkCostoNota")}</p>
+          {dom.length > 0 ? (
+            confirmando ? (
+              <p className="pn-nota" role="alert">
+                {t("ajustes.mdlWkAplicarPregunta", { n: String(dom.length) })}{" "}
+                <button
+                  type="button"
+                  className="btn2"
+                  onClick={() => {
+                    cambiar(aplicarSugerencias(b, filas, dom));
+                    setConfirmando(false);
+                  }}
+                >
+                  {t("ajustes.mdlWkAplicarSi")}
+                </button>{" "}
+                <button type="button" className="btn2" onClick={() => setConfirmando(false)}>
+                  {t("ajustes.cancelar")}
+                </button>
+              </p>
+            ) : (
+              <button type="button" className="btn2" onClick={() => setConfirmando(true)}>
+                {t("ajustes.mdlWkAplicar", { n: String(dom.length) })}
+              </button>
+            )
+          ) : hayAA ? (
+            <p className="pn-nota">{t("ajustes.mdlWkNadaSugerir")}</p>
+          ) : null}
+        </div>
       ) : null}
 
       {sueltas.length ? (

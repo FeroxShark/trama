@@ -1,7 +1,8 @@
 // Seguir una conversación con un modelo de OTRO motor (Claude → Gemini → Claude) por electron/lider.ts, con el claude falso y el agy falso:
 // el mismo líder (mismo sid), una sesión nueva del motor que toca con lo hablado como relevo, la vista con los dos transcripts y una raya,
 // y que al volver a abrir siga la sesión del motor nuevo. HOME y HILOS_STATE en un tmp; nunca el claude ni el agy de verdad.
-import { test, after } from "node:test";
+import { after } from "node:test";
+import { testPosix as test } from "./plataforma.ts";
 import assert from "node:assert/strict";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { registerHooks } from "node:module";
@@ -135,7 +136,7 @@ test("Claude → Gemini: el mismo líder sigue con una sesión nueva de agy que 
   assert.ok(filas.slice(0, k).some((f: string) => f.includes("Hay 120 archivos")));
   assert.ok(filas.slice(k + 1).some((f: string) => f === "user: seguí vos"));
   assert.ok(filas.slice(k + 1).some((f: string) => f.includes("eco: ")));
-  assert.ok(pag.mensajes.slice(0, k).every((m: any) => !m.uuid), "volver atrás es de la sesión de ahora: las de otro motor no llevan uuid");
+  assert.ok(pag.mensajes.filter((m: any) => !m.cambio).every((m: any) => m.uuid), "todos los mensajes se pueden señalar (volver atrás con un relevo), también los de otro motor");
   assert.ok(pag.mensajes[k].ts, "la raya lleva la hora del cambio");
 });
 

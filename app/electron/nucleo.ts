@@ -31,7 +31,7 @@ import { iconosDe } from "./iconos.js";
 import { guardarYa, leerLeidos, marcarLeido } from "./leidos.js";
 import { almacenNombres } from "./nombres.js";
 import { almacenPendientes } from "./pendientes.js";
-import { guardarApariencia, guardarAutoIntegrar, guardarAvisarEspera, bienvenidaPendiente, guardarBienvenida, guardarConsumo, guardarDictadoModelo, guardarEffort, guardarIdioma, guardarTiernos, guardarVista, leerPreferencias } from "./preferencias.js";
+import { guardarApariencia, guardarAutoIntegrar, guardarAvisarEspera, bienvenidaPendiente, guardarBienvenida, guardarConsumo, guardarDictadoModelo, guardarEffort, guardarGuias, guardarIdioma, guardarTiernos, guardarVista, guiasEstado, leerPreferencias } from "./preferencias.js";
 import { accionRama, arreglarDatos, briefRamas, enCola, ejecutar, lanzarRama, leerAjustes, leerMedicion, pasarALider, retomarDatos, type AccionRama } from "./paneles.js";
 import { guardarRouting, type Cambio } from "./routing.js";
 import { argvAuditar, datosAgentsMd, guardarLecciones, leccionesPendientes, leerLecciones, textoPoda } from "./orquestacion.ts";
@@ -58,6 +58,8 @@ import { destinos, registro, slugsPorNombre } from "./registro.js";
 import { registroProyectos } from "./rutas.ts";
 import { capacidades, hayAgy, hayDsh } from "./capacidades.js";
 import { estadoDsh, instalarDsh, probarProveedor } from "./dsh-ajustes.ts";
+import { estadoMcp } from "./mcp.ts";
+import { guardarServidor, quitarServidor, vistaMcp } from "./mcp-config.ts";
 import { crearLectorTabla, leerTabla } from "./reparto-tabla.ts";
 import { actualizarOpencode, effortsOpencode, modelosOpencode, vistaOpencode } from "./opencode-ajustes.ts";
 import { guardarClave, leerClaves } from "./claves.ts";
@@ -100,7 +102,7 @@ const manejadores = new Map<string, Manejador>();
  * Lo que cambia la máquina (reescribe `~/CLAUDE.md`, los ajustes, borra una cuenta, libera la GPU, actualiza `claude`): desde la
  * tailnet (el celular) no. Los `modelos:*` y `remoto:guardar` tienen su propio chequeo, con su mensaje, en el manejador.
  */
-export const SOLO_PC_TAILNET: ReadonlySet<string> = new Set(["routing:guardar", "ajustes:guardar", "orq:leccionesGuardar", "orq:mdAplicar", "orq:agentsGuardar", "proyectos:renombrar", "cuentas:quitar", "vram:liberar", "claude:actualizar", "dsh:clave", "dsh:instalar", "dsh:probar", "aa:refrescar"]);
+export const SOLO_PC_TAILNET: ReadonlySet<string> = new Set(["routing:guardar", "ajustes:guardar", "orq:leccionesGuardar", "orq:mdAplicar", "orq:agentsGuardar", "proyectos:renombrar", "cuentas:quitar", "vram:liberar", "claude:actualizar", "dsh:clave", "dsh:instalar", "dsh:probar", "aa:refrescar", "mcp:guardar", "mcp:quitar"]);
 
 /** Anota (o reemplaza) el manejador de un canal. */
 export function manejar(canal: string, fn: Manejador) {
@@ -475,7 +477,10 @@ function mirarSl() {
   alCambiarCupos(avisar);
   // Los cupos de las demás suscripciones (reparto): se releen cada minuto desde acá, no desde la vista.
   setInterval(() => {
-    if (hayClientes()) void refrescarCupos(true);
+    if (hayClientes()) {
+      void refrescarCupos(true);
+      avisar(); // el uso gratis de OpenCode lo anota el puente (otro proceso) en agotado.json: se relee acá
+    }
   }, 60_000).unref();
 }
 
@@ -831,6 +836,12 @@ export function armarNucleo() {
     return estadoDsh();
   });
   manejar("dsh:probar", (_e, proveedor: unknown, url: unknown) => probarProveedor(proveedor, url));
+  // Conectores (Ajustes > Conectores y el `/mcp` de un líder): los servidores MCP propios de Trama (`mcp.json`; los valores secretos van a `claves.env` y no vuelven)
+  // y lo que ve un líder de cada motor. Guardar y quitar son sólo de la PC: `SOLO_PC_TAILNET`.
+  manejar("mcp:estado", (_e, x: { motor?: unknown; local?: unknown; fresco?: unknown } | undefined) => estadoMcp(x?.motor, x?.local === true, x?.fresco === true));
+  manejar("mcp:lista", () => vistaMcp());
+  manejar("mcp:guardar", (_e, entrada: unknown) => guardarServidor(entrada));
+  manejar("mcp:quitar", (_e, nombre: unknown) => quitarServidor(nombre));
   // OpenCode (el programa `opencode`: los modelos gratis sólo andan por él): instalado, versión, login y modelos; «Actualizar modelos» vuelve a listarlos.
   // La tabla de `reparto --tabla --json` (Ajustes > Modelos > Modelos para workers): sólo lee. Guardar el permitido y la inteligencia
   // va por `modelos:guardar` (excluir / calidad de modelos.json), que ya rechaza a quien entra por la tailnet.
@@ -905,6 +916,8 @@ export function armarNucleo() {
   manejar("preferencias:consumo", (_e, si: unknown) => guardarConsumo(si));
   manejar("preferencias:bienvenidaPendiente", () => bienvenidaPendiente());
   manejar("preferencias:bienvenida", (_e, si: unknown) => guardarBienvenida(si));
+  manejar("preferencias:guias", () => guiasEstado());
+  manejar("preferencias:guiasOp", (_e, op: unknown) => guardarGuias(op));
   // El panel de consumo: qué líderes y workers mira; al ocultarlo se suelta todo.
   manejar("consumo:mirar", (_e, pedido: unknown) => consumo.mirar(pedido));
   manejar("consumo:soltar", () => consumo.soltar());

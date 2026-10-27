@@ -2,7 +2,8 @@
 // `compact_boundary` y rechaza esos `uuid` ("No message found with message.uuid"), así que trama deja el `uuid` en el mensaje
 // (`previa`) y, al usarlo, bifurca de una copia de la cadena bajo un sid nuevo. Transcripts inventados, `claude` falso.
 // Armado como tests/lider-reinicio.test.ts.
-import { test, after } from "node:test";
+import { after } from "node:test";
+import { testPosix as test } from "./plataforma.ts";
 import assert from "node:assert/strict";
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { registerHooks } from "node:module";

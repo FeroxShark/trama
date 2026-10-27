@@ -2,7 +2,8 @@
 // levanta; statusline.ts no los esconde). Tres líderes —uno ocupado, uno quieto, uno recién creado sin turnos—
 // con el claude falso: el "reinicio" es una segunda copia del módulo (otro `procs`) leyendo el mismo
 // `lideres.json`. Lo que no puede levantarse queda Murió con su motivo. Armado como tests/lider-murio.test.ts.
-import { test, after } from "node:test";
+import { after } from "node:test";
+import { testPosix as test } from "./plataforma.ts";
 import assert from "node:assert/strict";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { registerHooks } from "node:module";

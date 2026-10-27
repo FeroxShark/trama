@@ -2,6 +2,7 @@
 // (electron/reparto-tabla.ts); lo que se edita es el borrador de modelos.json: `excluir` por id exacto (el interruptor) y `calidad`
 // (la inteligencia). Una regla de `excluir` por familia o patrón sigue valiendo y se ve aparte: el interruptor de un modelo que
 // saca una de esas reglas no se puede prender desde acá (se saca la regla).
+import { EFFORTS_CALIDAD, type EffortCalidad } from "../../electron/efforts-calidad";
 import type { FilaTabla } from "../../electron/reparto-tabla";
 import type { Empresa } from "../hilo/modelos";
 import { EXCLUIR_MAX, type Borrador } from "./modelos-borrador";
@@ -73,12 +74,60 @@ export function inteligenciaDe(f: FilaTabla, b: Borrador): { valor: number; esti
   return v === undefined ? { valor: f.calidad, estimada: f.estimada, fijada: false } : { valor: v, estimada: false, fijada: true };
 }
 
-/** Lo que se escribe en el campo de inteligencia → un entero 0–100, o `null` si no vale. */
+/** Lo que se escribe en el campo de inteligencia → unidades de Artificial Analysis (0–200, un decimal), o `null` si no vale. */
 export function calidadEscrita(texto: string): number | null {
-  const s = texto.trim();
-  if (!/^\d{1,3}$/.test(s)) return null;
+  const s = texto.trim().replace(",", ".");
+  if (!/^\d{1,3}(\.\d)?$/.test(s)) return null;
   const n = Number(s);
-  return n >= 0 && n <= 100 ? n : null;
+  return n >= 0 && n <= 200 ? n : null;
+}
+
+/** Una cifra de inteligencia para mostrar: un decimal sin ceros de sobra (43 → «43», 47.9 → «47.9»). */
+export const cifra = (n: number): string => String(Math.round(n * 10) / 10);
+
+/** El esfuerzo con que se muestra la inteligencia de cada modelo cuando nada lo restringe (el de los tipos de código; igual a EFFORT_TABLA de reparto). */
+export const EFFORT_BASE: EffortCalidad = "high";
+
+/** El esfuerzo más cercano entre `ok` a `efecto`: primero el siguiente más alto, si no el más alto de los de abajo; `null` si no hay ninguno. */
+export function masCercano(efecto: EffortCalidad, ok: EffortCalidad[]): EffortCalidad | null {
+  if (!ok.length) return null;
+  if (ok.includes(efecto)) return efecto;
+  const i = EFFORTS_CALIDAD.indexOf(efecto);
+  return ok.find((e) => EFFORTS_CALIDAD.indexOf(e) > i) ?? [...ok].reverse().find((e) => EFFORTS_CALIDAD.indexOf(e) < i) ?? null;
+}
+
+/** Igual que `calidad_en_effort` de reparto: el medido, interpolado entre vecinos (por posición), o el vecino más cercano; sin mapa, `base`. */
+export function calidadEnEffort(mapa: Partial<Record<EffortCalidad, number>>, effort: EffortCalidad, base: number): number {
+  const m = EFFORTS_CALIDAD.filter((e) => mapa[e] !== undefined);
+  if (!m.length) return base;
+  const v = mapa[effort];
+  if (v !== undefined) return v;
+  const i = EFFORTS_CALIDAD.indexOf(effort);
+  const ant = m.filter((e) => EFFORTS_CALIDAD.indexOf(e) < i).pop();
+  const sig = m.find((e) => EFFORTS_CALIDAD.indexOf(e) > i);
+  if (ant && sig) {
+    const [i0, i1] = [EFFORTS_CALIDAD.indexOf(ant), EFFORTS_CALIDAD.indexOf(sig)];
+    return Math.round((mapa[ant]! + ((mapa[sig]! - mapa[ant]!) * (i - i0)) / (i1 - i0)) * 10) / 10;
+  }
+  return mapa[ant ?? sig!]!;
+}
+
+/** Los esfuerzos que los workers pueden usar de ese modelo según el borrador (sin la clave: todos). */
+export const effortsPermitidos = (f: FilaTabla, b: Borrador): EffortCalidad[] => {
+  const l = b.efforts_permitidos[claveCalidad(f)];
+  return l === undefined ? [...EFFORTS_CALIDAD] : EFFORTS_CALIDAD.filter((e) => l.includes(e));
+};
+
+/**
+ * El número grande de la fila: la inteligencia al esfuerzo que `reparto` usaría de verdad. Sin restricción es `high` (nunca el máximo); si el
+ * esfuerzo no está permitido, el permitido más cercano (primero el siguiente más alto). `efecto: null` = sin desglose por esfuerzo (la cifra es única)
+ * o el modelo no tiene ningún esfuerzo permitido (`valor: null`: reparto no lo usa).
+ */
+export function usadoDe(f: FilaTabla, b: Borrador): { efecto: EffortCalidad | null; valor: number | null } {
+  if (b.calidad[claveCalidad(f)] !== undefined) return { efecto: null, valor: b.calidad[claveCalidad(f)]! };
+  if (!Object.keys(f.calidadPorEffort).length) return { efecto: null, valor: f.calidad };
+  const e = masCercano(EFFORT_BASE, effortsPermitidos(f, b));
+  return e ? { efecto: e, valor: calidadEnEffort(f.calidadPorEffort, e, f.calidad) } : { efecto: null, valor: null };
 }
 
 export type OrigenVista = { tipo: "usuario" | "aa" | "estimada" | "defecto"; /** `26/10`: el día del dato de Artificial Analysis. */ fecha: string | null };

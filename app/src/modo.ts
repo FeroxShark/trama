@@ -193,6 +193,22 @@ const CAPTURAS = [
   "worker-vista-vivo",
   // La bienvenida del primer arranque (src/paneles/Bienvenida.tsx); `HILOS_VARIANTE=<paso>` abre en ese paso.
   "bienvenida",
+  // Las guías de pantalla (src/guia): `guia-<id>` muestra esa guía en su pantalla; `HILOS_VARIANTE=nuevo`, como si ya hubiera visto la anterior (sólo lo nuevo, con su marca).
+  "guia-principal",
+  "guia-lider",
+  "guia-caja",
+  "guia-worker",
+  "guia-modelo",
+  "guia-ajustes",
+  "guia-ajustes-general",
+  "guia-ajustes-modelos",
+  "guia-ajustes-cupos",
+  "guia-ajustes-proyectos",
+  "guia-ajustes-guia",
+  "guia-ramas",
+  "guia-ramas-analisis",
+  "guia-estadisticas",
+  "guia-tablero",
 ] as const;
 
 export type Captura = (typeof CAPTURAS)[number];

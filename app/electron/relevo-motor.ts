@@ -3,7 +3,7 @@
 // "relevo" —lo hablado hasta acá, sólo texto— y la vista junta los transcripts con una raya en cada cambio. Puro (sin
 // archivos): lo prueba `tests/relevo-motor.test.ts`; lider.ts lee los transcripts y lanza el proceso.
 import { deDueno, dueno } from "./dueno.ts";
-import { convNueva, type Cambio, type Crudo, type EstadoConv } from "./lider-arma.ts";
+import { convNueva, type Cambio, type Corte, type Crudo, type EstadoConv } from "./lider-arma.ts";
 
 /** Los motores que no se mezclan en una misma sesión (`familiaDeModelo`, modelos-config.ts). */
 export type Familia = "claude" | "gemini" | "dsh" | "opencode";
@@ -42,7 +42,9 @@ const rayaDe = (c: Cambio): Crudo => ({
  * Los transcripts de cada motor, juntos y en orden, con una raya en cada cambio. `porFamilia`: lo leído de cada transcript;
  * `inicial`: el motor con que empezó la conversación; `cambios`: de la más vieja a la más nueva (cada uno con el motor al que pasó).
  * Si un motor aparece en dos tramos (Claude → Gemini → Claude) cada tramo toma los mensajes de su ventana de tiempo.
- * Sólo los mensajes del último tramo conservan su `uuid` (volver atrás, editar y ramificar son de la sesión de ahora).
+ * Todos los mensajes conservan su `uuid` (los puentes de agy / dsh / opencode ponen uno propio a cada línea) y llevan `motor`, el
+ * motor de cuyo transcript salen: volver atrás, editar y ramificar señalan un mensaje de cualquier tramo (`lider.ts`, `rebobinar`).
+ * La `previa` (anterior a una compactación) sólo vale en el último tramo, donde el `claude` carga su propio archivo.
  */
 export function unirConvs(porFamilia: Map<Familia, EstadoConv>, inicial: Familia, cambios: { cambio: Cambio; a: Familia }[]): EstadoConv {
   const tramos: { fam: Familia; desde: number; hasta: number }[] = [];
@@ -71,16 +73,38 @@ export function unirConvs(porFamilia: Map<Familia, EstadoConv>, inicial: Familia
     const est = porFamilia.get(t.fam) ?? convNueva();
     const esElUltimo = k === tramos.length - 1;
     const suyos = (veces.get(t.fam) ?? 0) > 1 ? est.todos.filter((m) => (horas.get(m) ?? -Infinity) >= t.desde && (horas.get(m) ?? -Infinity) < t.hasta) : est.todos;
-    // Lo que entra de un tramo anterior: sin `uuid` ni `previa`, que sólo valen para `--resume-session-at` de la sesión viva.
     for (const m of suyos) {
       const { previa: _previa, ...resto } = m;
-      todos.push(esElUltimo ? m : { ...resto, uuid: null });
+      todos.push({ ...(esElUltimo ? m : resto), motor: t.fam });
     }
     compactaciones += suyos.filter((m) => m.marcas.compacto).length;
     if (!esElUltimo) todos.push(rayaDe(cambios[k].cambio));
   });
   const ultimo = porFamilia.get(tramos[tramos.length - 1].fam);
   return { todos, porId: new Map(), compactaciones, compactada: ultimo?.compactada ?? false, cola: null, posDe: new Map() };
+}
+
+/** Los mensajes hasta el que tiene ese `uuid` (inclusive); `null` si no está. */
+export function hastaMensaje(est: EstadoConv, uuid: string): EstadoConv | null {
+  const k = est.todos.findIndex((m) => m.uuid === uuid);
+  return k < 0 ? null : { ...est, todos: est.todos.slice(0, k + 1) };
+}
+
+/**
+ * Aplica los cortes (volver atrás en un motor que no puede retroceder su sesión, ver `Guardado.cortes`): de cada uno, en orden, se
+ * quita lo que viene después del mensaje `uuid` y es anterior al momento del corte. Lo posterior (lo que se habló ya de nuevo) queda.
+ * Puro: devuelve una lista nueva. Un `uuid` que no está se ignora.
+ */
+export function aplicarCortes(todos: Crudo[], cortes: Corte[]): Crudo[] {
+  let lista = todos;
+  for (const c of [...cortes].sort((a, b) => a.ts - b.ts)) {
+    const k = lista.findIndex((m) => m.uuid === c.uuid);
+    if (k < 0) continue;
+    let ultima = -Infinity;
+    const horas = lista.map((m) => (ultima = msDe(m) ?? ultima));
+    lista = lista.filter((_, i) => i <= k || horas[i] >= c.ts);
+  }
+  return lista;
 }
 
 /** Un comando, en un renglón corto. */
@@ -135,7 +159,7 @@ export type Relevo = {
  * más reciente hasta `tope` caracteres y se avisa cuántos mensajes anteriores se omitieron. `desde` (ms): sólo lo posterior a esa
  * hora, para un motor que vuelve a una sesión suya y ya tiene lo anterior. `de` y `a`: los modelos, para la nota.
  */
-export function armarRelevo(todos: Crudo[], x: { de: string; a: string; tope?: number; desde?: number }): Relevo {
+export function armarRelevo(todos: Crudo[], x: { de: string; a: string; tope?: number; desde?: number; motivo?: "volver" | "ramificar" }): Relevo {
   const tope = x.tope ?? TOPE_RELEVO;
   const quien = dueno();
   const horas = new Map<Crudo, number>();
@@ -160,8 +184,18 @@ export function armarRelevo(todos: Crudo[], x: { de: string; a: string; tope?: n
   }
   const omitidos = bloques.length - entran.length;
   const nota = [
-    "# Historial de esta conversación (cambio de motor)",
-    x.desde === undefined
+    x.motivo === "volver"
+      ? "# Historial de esta conversación (se volvió atrás)"
+      : x.motivo === "ramificar"
+        ? "# Historial de esta conversación (rama)"
+        : "# Historial de esta conversación (cambio de motor)",
+    x.motivo === "volver"
+      ? `Esta conversación ${deDueno()} se retomó desde un mensaje anterior: lo que se habló después se descartó y para vos nunca pasó. ${
+          x.desde === undefined ? "Abajo está lo hablado hasta ahí." : "Lo anterior ya lo tenés en tu propia sesión; abajo está sólo lo que falta hasta ahí."
+        } Seguís vos (\`${x.a}\`), en la misma carpeta y con las mismas herramientas.`
+      : x.motivo === "ramificar"
+        ? `Esta conversación ${deDueno()} es una rama de otra: arranca desde un mensaje de esa conversación (que venía con \`${x.de}\`) y seguís vos (\`${x.a}\`), en la misma carpeta y con las mismas herramientas.`
+        : x.desde === undefined
       ? `Esta conversación ${deDueno()} empezó con \`${x.de}\` y ahora seguís vos (\`${x.a}\`), en la misma carpeta y con las mismas herramientas.`
       : `Ya habías hablado en esta conversación ${deDueno()}, pero siguió un rato con \`${x.de}\` sin vos, y ahora volvés vos (\`${x.a}\`), en la misma carpeta. Lo anterior ya lo tenés en tu propia sesión; abajo está sólo lo que pasó mientras no estabas.`,
     `Abajo está lo hablado: sólo los textos, sin lo que devolvieron las herramientas (cada una aparece resumida en un renglón, por ejemplo "[corrió: git status]"). Tomalo como contexto y seguí desde el último mensaje, sin repetir lo que ya está hecho.`,

@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: app - dependencias
+        working-directory: app
+        run: npm ci
+      - name: app - tsc (interfaz)
+        working-directory: app
+        run: npx tsc -p tsconfig.json --noEmit
+      - name: app - tsc (electron)
+        working-directory: app
+        run: npx tsc -p tsconfig.electron.json --noEmit
+      - name: app - vite build
+        working-directory: app
+        run: npx vite build
+      - name: app - tests
+        working-directory: app
+        run: npm test
+      - name: windows - dependencias
+        working-directory: windows
+        run: npm ci
+      - name: windows - tests
+        working-directory: windows
+        run: npm test
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: app - dependencias
+        working-directory: app
+        run: npm ci
+      - name: app - tests
+        working-directory: app
+        run: npm test
+      - name: windows - dependencias
+        working-directory: windows
+        run: npm ci
+      - name: windows - tests
+        working-directory: windows
+        run: npm test

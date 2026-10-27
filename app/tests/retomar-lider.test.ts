@@ -1,7 +1,8 @@
 // Retomar un líder sin proceso (electron/lider.ts, con el claude falso): pasa a ser de la
 // app sin lanzar nada ni mandarle nada; el primer mensaje hace `--resume` en su carpeta.
 // Y lo que no se puede retomar dice por qué. Mismo armado que tests/lider-proceso.test.ts.
-import { test, after } from "node:test";
+import { after } from "node:test";
+import { testPosix as test } from "./plataforma.ts";
 import assert from "node:assert/strict";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { registerHooks } from "node:module";

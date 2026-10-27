@@ -12,6 +12,8 @@ import { MODELO_DEFAULT } from "../hilo/opciones";
 import { t, type ClaveSola } from "../i18n";
 import { useIdioma } from "../i18n/react";
 import { MODO } from "../modo";
+import { cambiarGuias, cargarGuias, useGuias } from "../guia/estado";
+import { Interruptor } from "../ui/componentes";
 import { mensaje } from "../puente";
 import { pasoLider } from "./PasoLanzar";
 import { conTexto } from "./lanzar";
@@ -38,6 +40,7 @@ export function Guia() {
     <Cat id="guia">
       <section className="pn-sec gu">
         <p className="pn-nota">{t("gu.intro")}</p>
+        <ControlGuias />
         {TEMAS.map(({ id, icono: I, n }) => (
           <article key={id} className="gu-tema" data-opc={`guia.${id}`}>
             <h3 className="gu-t">
@@ -55,6 +58,53 @@ export function Guia() {
         ))}
       </section>
     </Cat>
+  );
+}
+
+/** El interruptor global de las guías de pantalla (src/guia) y el botón para volver a mostrarlas todas. */
+function ControlGuias() {
+  const { estado } = useGuias();
+  const [reiniciado, setReiniciado] = useState(false);
+  useEffect(() => {
+    void cargarGuias();
+  }, []);
+  return (
+    <article className="gu-tema tour-ctl">
+      <div className="pn-dato" data-opc="tour.mostrar">
+        <div className="pn-dato-id">
+          <div className="pn-dato-txt">
+            <div className="pn-nom">{t("tour.mostrar")}</div>
+            <div className="pn-que">{t("tour.mostrarQue")}</div>
+          </div>
+        </div>
+        <div className="pn-val">
+          <Interruptor activo={!estado.off} alCambiar={(v) => (setReiniciado(false), cambiarGuias({ off: !v }))} aria-label={t("tour.mostrar")} />
+        </div>
+      </div>
+      <div className="pn-dato" data-opc="tour.reiniciar">
+        <div className="pn-dato-id">
+          <div className="pn-dato-txt">
+            <div className="pn-nom">{t("tour.reiniciar")}</div>
+            <div className="pn-que">{t("tour.reiniciarQue")}</div>
+          </div>
+        </div>
+        <div className="pn-val">
+          <button
+            type="button"
+            className="btn2"
+            onClick={() => {
+              cambiarGuias({ reiniciar: true });
+              setReiniciado(true);
+            }}
+          >
+            {t("tour.reiniciarBoton")}
+          </button>
+        </div>
+      </div>
+      <div className="tour-fila-nota" role="status">
+        {reiniciado ? t(estado.off ? "tour.reiniciadoApagadas" : "tour.reiniciado") : null}
+      </div>
+    </article>
   );
 }
 

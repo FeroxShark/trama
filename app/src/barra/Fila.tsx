@@ -7,6 +7,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { comoSettle, type Estado, type Hilo, type Lider } from "../datos/contrato";
 import { MODO } from "../modo";
 import { pintorCache, pintorDura, pintorHace } from "../tiempo";
+import { cacheAplica } from "../../electron/cache";
 import { errorCorto, fin, type Como, type Salida } from "./arbol";
 import { Esfuerzo } from "../ui/componentes";
 import { effortsDe, esLocal } from "../hilo/modelos";
@@ -72,7 +73,7 @@ export const Fila = memo(function Fila({ ref, h, estado, apagada, cursor, activa
   const dura = useMemo(() => pintorDura(h.inicio, tierno ? "" : () => `${tr("estado.trabajando")} `), [h.inicio, tierno]);
   const cache = useMemo(
     () =>
-      h.cache_vence === null
+      h.cache_vence === null || !cacheAplica(h.modelo)
         ? null
         : pintorCache(`${h.id}:${h.cache_vence}`, h.cache_vence, h.cache_ttl_s, h.cache_frio !== null),
     [h],
@@ -393,7 +394,7 @@ export const FilaLider = memo(function FilaLider({
   const hace = useMemo(() => pintorHace(l.actividad, marca ? `${marca} · ` : ""), [l.actividad, marca]);
   // Con subagentes corriendo la sesión trabaja: el numerito de caché no cuenta (se muestra el chip de abajo).
   const cache = useMemo(
-    () => (l.cache_vence === null || l.subagentes ? null : pintorCache(`lider:${l.id}:${l.cache_vence}`, l.cache_vence, l.cache_ttl_s, false)),
+    () => (l.cache_vence === null || l.subagentes || !cacheAplica(l.modelo) ? null : pintorCache(`lider:${l.id}:${l.cache_vence}`, l.cache_vence, l.cache_ttl_s, false)),
     [l],
   );
   useEffect(() => {

@@ -1,7 +1,7 @@
 // systemd/trama.service y systemd/trama-motor.service, sin correr systemd: que el reinicio rápido (500 ms) no
 // rompa lo que depende de ellas (KillMode=process, el código 3 que no se levanta de nuevo), que un bucle al
 // ritmo de RestartSec pase el tope de arranques antes de que su ventana se reinicie, y que pasan el verify.
-import { test } from "node:test";
+import { testPosix as test } from "./plataforma.ts";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";

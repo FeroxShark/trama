@@ -1,7 +1,8 @@
 // Editar / Volver acá sobre un mensaje anterior a una compactación abre un líder nuevo (rama de una copia). Ese líder tiene que
 // sobrevivir a un reinicio de trama: seguir en lideres.json con el sid real de su transcript, no el de la copia, y recordar de
 // dónde salió. Transcripts inventados, `claude` falso. Armado como tests/rebobinar-previa.test.ts.
-import { test, after } from "node:test";
+import { after } from "node:test";
+import { testPosix as test } from "./plataforma.ts";
 import assert from "node:assert/strict";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { registerHooks } from "node:module";

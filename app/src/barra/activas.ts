@@ -5,7 +5,7 @@
 //   0  te necesita: pide un permiso o una pregunta, o terminó su turno y no lo viste (`Lider.pide` / `espera`);
 //   1  corre un turno ahora (`ocupado`);
 //   2  tiene workers vivos (trabajando, trabados o en cola) o subagentes corriendo;
-//   3  tiene el caché caliente (`cache_vence` en el futuro: lo que el numerito no marca "Uncached").
+//   3  tiene el caché caliente (`cache_vence` en el futuro, sólo en Claude: fuera de él no hay vencimiento que afirmar, `cacheAplica`).
 // Uno sin proceso (`caido`) nunca lo está. Mientras está caliente vive sólo en "Activas" (no se repite en su
 // proyecto); al enfriarse vuelve a su lugar de siempre, el que le dio el usuario arrastrando (`orden.ts`).
 // Un proyecto con algo caliente (un líder o workers vivos) flota arriba de los fríos; entre sí, y los fríos
@@ -14,6 +14,7 @@
 // Nada salta bajo el mouse: lo caliente se calcula en una "foto" (`Foto`) que quien arma la barra congela
 // mientras el usuario la mira (`congelada`) y que se pone al día al soltarla (`usePrioridad.ts`).
 import type { Lider } from "../datos/contrato.ts";
+import { cacheAplica } from "../../electron/cache.ts";
 
 export type Calor = 0 | 1 | 2 | 3;
 
@@ -28,7 +29,7 @@ export const FOTO0: Foto = { lideres: new Map(), carpetas: new Set() };
 /** Lo que hace falta saber de un worker para decidir si su proyecto flota. */
 export type Trabajador = { jefe_id: string | null; proyecto: string; vivo: boolean };
 
-type DeLider = Pick<Lider, "id" | "espera" | "pide" | "ocupado" | "cache_vence" | "caido" | "actividad" | "subagentes">;
+type DeLider = Pick<Lider, "id" | "espera" | "pide" | "ocupado" | "cache_vence" | "caido" | "actividad" | "subagentes"> & { modelo?: string | null };
 
 /** Un worker que sigue en marcha: trabaja, está trabado o espera en la cola. */
 export const workerVivo = (h: { estado: string; en_cola?: boolean }): boolean => h.estado === "trabajando" || h.estado === "colgado" || !!h.en_cola;
@@ -39,7 +40,7 @@ export function calorLider(l: Omit<DeLider, "id" | "actividad">, trabajan: numbe
   if (l.espera || l.pide) return 0;
   if (l.ocupado) return 1;
   if (trabajan > 0 || (l.subagentes ?? 0) > 0) return 2;
-  if (l.cache_vence != null && l.cache_vence > ahora) return 3;
+  if (cacheAplica(l.modelo) && l.cache_vence != null && l.cache_vence > ahora) return 3;
   return null;
 }
 
@@ -69,9 +70,9 @@ export function igualFoto(a: Foto | undefined, b: Foto | undefined): boolean {
 }
 
 /** Cuándo (epoch s) vence el primer caché que hoy está vivo: ahí hay que volver a mirar. `null`: ninguno. */
-export function proximoVencimiento(lideres: readonly Pick<Lider, "cache_vence" | "caido">[], ahora: number): number | null {
+export function proximoVencimiento(lideres: readonly (Pick<Lider, "cache_vence" | "caido"> & { modelo?: string | null })[], ahora: number): number | null {
   let min: number | null = null;
-  for (const l of lideres) if (!l.caido && l.cache_vence != null && l.cache_vence > ahora && (min === null || l.cache_vence < min)) min = l.cache_vence;
+  for (const l of lideres) if (!l.caido && cacheAplica(l.modelo) && l.cache_vence != null && l.cache_vence > ahora && (min === null || l.cache_vence < min)) min = l.cache_vence;
   return min;
 }
 

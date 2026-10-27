@@ -1,7 +1,8 @@
 // El motor `opencode` de pa (motor/bin/pa + reparto + motor/opencode/correr.mjs) con un `opencode` FALSO (un script que imprime los eventos
 // de `opencode run --format json`): validación del modelo, los códigos de salida (2 argumentos, 95 sin opencode), el .json que deja el
 // runner, `pa --modelos --json`, y que `reparto` ofrece los gratis cuando no hay Claude. HOME, estado y registry en un tmp.
-import { test, after } from "node:test";
+import { after } from "node:test";
+import { testPosix as test } from "./plataforma.ts";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { chmodSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";

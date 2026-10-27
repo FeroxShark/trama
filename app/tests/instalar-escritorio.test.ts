@@ -1,7 +1,8 @@
 // scripts/instalar.sh (--raiz, --sin-motor, StartupWMClass), el paso de escritorio de motor/scripts/instalar-producto.sh
 // y la rama de `opencode auth list` de motor/bin/trama-estado. Todo en un tmp con HOME y XDG propios, un systemctl y
 // un npm de mentira en el PATH y un install.js de Electron falso: no se baja ni se toca nada de verdad.
-import { test, after } from "node:test";
+import { after } from "node:test";
+import { testPosix as test } from "./plataforma.ts";
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
 import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";

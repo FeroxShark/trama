@@ -89,6 +89,8 @@ export type OpcionesAcp = {
   alSalir?: (codigo: number | null, senal: NodeJS.Signals | null) => void;
   /** Tiempo máximo de una petición que no sea `session/prompt` (que dura lo que dure el turno). Default 60 s. */
   tiempoMs?: number;
+  /** Los servidores MCP que se le dan a cada sesión (`session/new` y `session/resume`), en el formato de ACP; con valores secretos, nunca se loguean. */
+  mcpServers?: unknown[];
 };
 
 export type RespuestaInicio = { protocolVersion: number; agentCapabilities: Obj; agentInfo?: Obj; authMethods?: unknown[] };
@@ -187,14 +189,14 @@ export class ClienteAcp {
 
   /** `session/new`: `cwd` absoluto. Devuelve el id de la sesión y las opciones de configuración (el modelo, el razonamiento…). */
   async nuevaSesion(cwd: string): Promise<{ sessionId: string; configOptions: Obj[] }> {
-    const r = await this.pedir("session/new", { cwd: path.resolve(cwd), mcpServers: [] });
+    const r = await this.pedir("session/new", { cwd: path.resolve(cwd), mcpServers: this.o.mcpServers ?? [] });
     if (typeof r?.sessionId !== "string") throw new Error("acp: session/new no devolvió sessionId");
     return { sessionId: r.sessionId, configOptions: Array.isArray(r.configOptions) ? r.configOptions : [] };
   }
 
   /** `session/resume`: la misma sesión de antes (el agente la guardó) sin reenviar la historia. Falla si no la tiene o el cwd no coincide. */
   async retomar(sessionId: string, cwd: string): Promise<{ configOptions: Obj[] }> {
-    const r = await this.pedir("session/resume", { sessionId, cwd: path.resolve(cwd), mcpServers: [] });
+    const r = await this.pedir("session/resume", { sessionId, cwd: path.resolve(cwd), mcpServers: this.o.mcpServers ?? [] });
     return { configOptions: Array.isArray(r?.configOptions) ? r.configOptions : [] };
   }
 

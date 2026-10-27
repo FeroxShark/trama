@@ -4,7 +4,8 @@
 // tmp). Comprueba que se compila aparte, que un build que falla no toca el vivo, que no queda nada a medias,
 // que la unidad pasa `systemd-analyze --user verify`, y que el motor compilado corre con el `node` pelado
 // (sin node_modules ni Electron al lado).
-import { test, after } from "node:test";
+import { after } from "node:test";
+import { testPosix as test } from "./plataforma.ts";
 import assert from "node:assert/strict";
 import { execFileSync, spawn, spawnSync, type ChildProcess } from "node:child_process";
 import { chmodSync, copyFileSync, renameSync, symlinkSync, existsSync, mkdirSync, mkdtempSync, readFileSync, lstatSync, rmSync, utimesSync, writeFileSync } from "node:fs";

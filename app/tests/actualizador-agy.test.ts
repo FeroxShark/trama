@@ -3,7 +3,7 @@
 // ni consulta, Ocultar, Actualizar, y de dónde sale la última (actualizador, y AUR si ese no contesta).
 // Actualizar de agy (el módulo) abre una terminal con `paru -S antigravity-cli`: la terminal es un falso que
 // anota sus argumentos y, con FALSA_MODO=instala, deja la versión nueva (lo que haría paru con la contraseña).
-import { test } from "node:test";
+import { testPosix as test } from "./plataforma.ts";
 import assert from "node:assert/strict";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { registerHooks } from "node:module";
@@ -189,7 +189,7 @@ test("agy (módulo): sin terminal (kitty no está): error que lo dice, sin colga
   }
 });
 
-test("la última de agy: el actualizador primero, AUR si ese falla, null si ninguno", async () => {
+test("la última de agy sin pacman: el actualizador primero, AUR si ese falla, null si ninguno", async () => {
   const pedidos: string[] = [];
   const respuestas = (mapa: Record<string, { ok: boolean; texto: string } | "cae">) => async (url: string) => {
     pedidos.push(url);
@@ -198,10 +198,20 @@ test("la última de agy: el actualizador primero, AUR si ese falla, null si ning
     return { ok: r.ok, text: async () => r.texto };
   };
   const aur = { ok: true, texto: JSON.stringify({ results: [{ Version: "1.4.5_99-1" }] }) };
-  assert.equal(await ultimaAgy(respuestas({ act: { ok: true, texto: "Stable Version: 1.4.4. Rolled out to 100%" }, aur })), "1.4.4");
+  assert.equal(await ultimaAgy(respuestas({ act: { ok: true, texto: "Stable Version: 1.4.4. Rolled out to 100%" }, aur }), false), "1.4.4");
   assert.equal(pedidos.length, 1, "con el actualizador no se toca AUR");
-  assert.equal(await ultimaAgy(respuestas({ act: "cae", aur })), "1.4.5");
-  assert.equal(await ultimaAgy(respuestas({ act: { ok: false, texto: "" }, aur })), "1.4.5");
-  assert.equal(await ultimaAgy(respuestas({ act: "cae", aur: "cae" })), null);
-  assert.equal(await ultimaAgy(respuestas({ act: { ok: true, texto: "<html>" }, aur: { ok: true, texto: "no es json" } })), null);
+  assert.equal(await ultimaAgy(respuestas({ act: "cae", aur }), false), "1.4.5");
+  assert.equal(await ultimaAgy(respuestas({ act: { ok: false, texto: "" }, aur }), false), "1.4.5");
+  assert.equal(await ultimaAgy(respuestas({ act: "cae", aur: "cae" }), false), null);
+  assert.equal(await ultimaAgy(respuestas({ act: { ok: true, texto: "<html>" }, aur: { ok: true, texto: "no es json" } }), false), null);
+});
+
+test("la última de agy en Arch: manda AUR (lo que paru puede instalar), aunque el actualizador anuncie una más nueva", async () => {
+  const respuestas = (act: string, aur: string) => async (url: string) => ({ ok: true, text: async () => (url.includes("aur.archlinux.org") ? aur : act) });
+  const aur147 = JSON.stringify({ results: [{ Version: "1.4.7-1" }] });
+  assert.equal(await ultimaAgy(respuestas("Stable Version: 1.4.8. Rolled out to 100%", aur147), true), "1.4.7");
+  assert.equal(await ultimaAgy(async (url) => {
+    if (url.includes("aur.archlinux.org")) throw new Error("sin red");
+    return { ok: true, text: async () => "Stable Version: 1.4.8." };
+  }, true), "1.4.8", "AUR caído: el actualizador de respaldo");
 });

@@ -3561,6 +3561,13 @@ kbd {
 .modo:hover {
   background: var(--sup-2);
 }
+/* Motor sin modos (Gemini, OpenCode, DeepSeek Harness): se lee, no se cambia. */
+.modo[data-fijo] {
+  cursor: default;
+}
+.modo[data-fijo]:hover {
+  background: transparent;
+}
 .caja-zona {
   position: relative;
 }
@@ -3611,6 +3618,16 @@ kbd {
 }
 .cmd[aria-selected="true"] .logo {
   color: var(--texto-2);
+}
+/* De otra empresa: atenuada, con su logo y la etiqueta "only" (no depende sólo del color). */
+.cmd[aria-disabled="true"] {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+.cmd[aria-disabled="true"] .cmd-n {
+  font-style: italic;
+  text-decoration: line-through;
+  text-decoration-color: var(--texto-7);
 }
 .cmd-s {
   grid-area: s;
@@ -6267,6 +6284,16 @@ summary.sis-div-t:hover,
   border-style: dashed;
   color: var(--texto-2);
 }
+.oc-tag[data-tag="agotado"] {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--esp-1);
+  border-style: double;
+  color: var(--texto-2);
+}
+.aviso-accion {
+  margin-left: var(--esp-2);
+}
 .menu[data-columnas] .op .md {
   display: none;
   grid-column: 1 / -1;
@@ -6313,4 +6340,62 @@ summary.sis-div-t:hover,
   .mc-lista {
     padding-left: 0;
   }
+}
+/* /mcp: los servidores MCP que ve un líder (PanelMcp.tsx). Cada estado con ícono y palabra. */
+.mcp-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-2);
+  margin-top: var(--esp-2);
+  padding: var(--esp-3);
+  border: 1px solid var(--borde-3);
+  border-radius: var(--radio-2);
+  font-size: var(--letra-4);
+}
+.mcp-cab {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--esp-2);
+}
+.mcp-cab-acc {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--esp-2);
+}
+.mcp-grupo h4 {
+  margin: 0 0 var(--esp-1);
+}
+.mcp-nota {
+  margin: 0 0 var(--esp-1);
+  color: var(--txt-3);
+  line-height: 1.5;
+}
+.mcp-items {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.mcp-items li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--esp-2);
+}
+.mcp-nombre {
+  font-weight: 600;
+}
+.mcp-marca {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--esp-1);
+}
+.mcp-destino {
+  flex-basis: 100%;
+  overflow-wrap: anywhere;
+  color: var(--txt-3);
 }

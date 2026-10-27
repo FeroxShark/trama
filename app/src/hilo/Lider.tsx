@@ -21,14 +21,16 @@ import { es } from "../atajos";
 import { Fragment, memo, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ClipboardEvent, type DragEvent, type KeyboardEvent, type ReactNode } from "react";
 import { ArrowUp, Check, Clock, Cpu, Folder, Paperclip, X, Zap } from "lucide-react";
 import { motion, useReducedMotion } from "motion/react";
-import { VERSION, type Lider, type Mensaje, type MotivoRetomar, type MotivoTraer, type Tokens } from "../datos/contrato";
+import { VERSION, type Lider, type Mensaje, type MotivoRetomar, type MotivoTraer, type Tokens, type Uso } from "../datos/contrato";
 import { fuente, type EnvioLider } from "../datos/fuente";
 import { ChipSubagentes } from "../barra/Fila";
 import { Reloj } from "../barra/piezas";
 import { Leyendo } from "./Leyendo";
+import { PanelMcp } from "./PanelMcp";
 import { MODO } from "../modo";
 import { esTactil } from "../angosto";
 import { pintorCache } from "../tiempo";
+import { cacheAplica } from "../../electron/cache";
 import { cursorDe, escucharBorrador, guardarCursor, leerBorrador, ponerBorrador } from "./borradores";
 import { effortPara } from "./elegir";
 import { effortsLeidos, leerEfforts, recordarEffort } from "./efforts";
@@ -46,6 +48,7 @@ import { Texto } from "./Texto";
 import { Hora, pintorAviso, tokens, Turno } from "./Turno";
 import { Marca } from "./Marca";
 import { Sistema } from "./Sistema";
+import { EVENTO_CAMBIAR_MODELO, marcarAgotadas, opencodeAgotadoDe, proveedorLibre } from "./agotados";
 import { Compactando, Pasando, relevoEn, Sigue } from "./Posta";
 import { juntar, repiteElPrimero, turnos, type Item, type Punto } from "./turnos";
 import { AccionesMensaje, EditorMensaje, sobreMensaje, type Acciones } from "./AccionesMensaje";
@@ -205,6 +208,25 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
     () => leerAdjuntos(clave),
   );
   const [arrastra, setArrastra] = useState(false);
+  // El uso gratis de OpenCode es uno solo: acabado, todos sus modelos gratis llevan «sin cupo gratis» en el selector, y el aviso de error
+  // trae «Cambiar de modelo», que abre el selector en un proveedor que no sea OpenCode.
+  const [uso, setUso] = useState<Uso | null>(null);
+  useEffect(() => {
+    let vivo = true;
+    void fuente.uso().then((u) => vivo && setUso(u), () => {});
+    const soltar = fuente.alCambiarUso((u) => vivo && setUso(u));
+    return () => {
+      vivo = false;
+      soltar();
+    };
+  }, []);
+  const modelosVistos = useMemo(() => marcarAgotadas(MODELOS, opencodeAgotadoDe(uso)), [uso]);
+  const [senalModelo, setSenalModelo] = useState(0);
+  useEffect(() => {
+    const abrir = () => setSenalModelo((n) => n + 1);
+    window.addEventListener(EVENTO_CAMBIAR_MODELO, abrir);
+    return () => window.removeEventListener(EVENTO_CAMBIAR_MODELO, abrir);
+  }, []);
   const elegir = useRef<HTMLInputElement>(null);
   // Captura `aviso`: otro modelo elegido con el caché vivo.
   const [modelo, setModelo] = useState(() =>
@@ -218,6 +240,17 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
   );
   const [effort, setEffort] = useState(() => effortDe(l?.effort, modelo) ?? effortPara(modelo, effortsLeidos() ?? {}));
   const tocado = useRef(!!l);
+  // El modelo del líder cambió del otro lado (otro motor confirmado en otra ventana o el celular, /model): la caja lo sigue.
+  // Sin esto quedaba el de cuando se abrió la conversación, y Volver/Editar mandaba ese (un DeepSeek después de pasar a Opus).
+  const modeloServidor = l ? modeloDe(l.modelo) : undefined;
+  const effortServidor = l?.effort;
+  const vistoServidor = useRef(modeloServidor);
+  useEffect(() => {
+    if (!modeloServidor || modeloServidor === vistoServidor.current) return;
+    vistoServidor.current = modeloServidor;
+    setModelo(modeloServidor);
+    setEffort(effortDe(effortServidor, modeloServidor) ?? effortPara(modeloServidor, effortsLeidos() ?? {}));
+  }, [modeloServidor, effortServidor]);
   // El modo de un líder nuevo se elige antes de que exista (y el de uno de la terminal, antes de
   // traerlo); el de uno de la app, lo dice el stream (o la lista).
   const [modoNuevo, setModoNuevo] = useState<Modo>(MODO_DEFAULT);
@@ -228,7 +261,7 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
   // los muestran en vez de la frase tierna. Claude y los que no lo traen siguen como siempre.
   const piensa = esAgy(modeloDe(l?.modelo) ?? modelo) || esDsh(modeloDe(l?.modelo) ?? modelo) || esOpencode(modeloDe(l?.modelo) ?? modelo) || vivo.razona;
   const comandos = useSyncExternalStore(suscribirComandos, agy ? comandosAgy : comandosClaude);
-  // Los del otro proveedor: con ellos se sabe cuáles comandos sólo existen de este lado (la marca de cada fila).
+  // Los del otro proveedor: la búsqueda del menú también los muestra (marcados, sin poder usarse con este modelo).
   const deOtro = useSyncExternalStore(suscribirComandos, agy ? comandosClaude : comandosAgy);
   // El menú de "/": la fila elegida y si el usuario lo cerró con Esc (vuelve al cambiar el texto).
   const [sel, setSel] = useState(0);
@@ -253,6 +286,8 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
   );
   const menu = mn?.filas ?? [];
   const [nota, setNota] = useState<string | null>(null);
+  /** El panel de `/mcp` (PanelMcp.tsx). */
+  const [mcpAbierto, setMcpAbierto] = useState(false);
   // Un modelo de otro motor para una conversación que ya empezó: el diálogo de confirmación (el chip no cambia hasta confirmar).
   /** Los datos del diálogo si elegir `m` sigue la conversación en otro motor; si no, `null`. */
   const datosCambio = (m: string): DatosCambio | null =>
@@ -496,8 +531,12 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
     ponerBorrador(clave, { texto: v });
   };
 
+  // Gemini, OpenCode y DeepSeek Harness no tienen modos de permisos: su puente contesta siempre el mismo (bypass o accept edits).
+  const motorLider = l?.modelo ?? modelo;
+  const modoFijo = esAgy(motorLider) ? "modo.fijoAgy" : esDsh(motorLider) || esOpencode(motorLider) ? "modo.fijoDsh" : null;
   const cambiarModo = (m: Modo) => {
     if (!puede) return;
+    if (modoFijo) return setNota(tr(modoFijo));
     if (!l || !app) return setModoNuevo(m);
     const antes = modo;
     ponerModo(l.id, m);
@@ -524,6 +563,8 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
     if (a.tipo === "limpiar") return l ? alNuevo() : undefined;
     if (a.tipo === "modelo") return pedirModelo(a.modelo);
     if (a.tipo === "estilo") return elegirEstilo(a.estilo);
+    if (a.tipo === "mcp") return setMcpAbierto(true);
+    if (a.tipo === "terminal") return setErrorCaja(tr("comando.soloTerminal", { v: a.nombre }));
     elegirEffort(a.effort);
   };
 
@@ -553,7 +594,11 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
    */
   const rebobinarA = (uuid: string, n: number, t: string, imagenes: Imagen[] | undefined, alFallar?: (msg: string) => void, previa = false) => {
     if (!l || enviando) return;
-    const e: EnvioLider = { texto: t, modelo, effort, ...(imagenes ? { imagenes } : {}) };
+    // Volver/Editar no cambia de motor: con otro motor elegido en la caja sigue con el modelo del líder.
+    const mismoMotor = !datosCambio(modelo);
+    const mod = mismoMotor ? modelo : (modeloDe(l.modelo) ?? modelo);
+    const ef = mismoMotor ? effort : (effortDe(l.effort, mod) ?? effort);
+    const e: EnvioLider = { texto: t, modelo: mod, effort: ef, ...(imagenes ? { imagenes } : {}) };
     const antesPag = pag;
     const antesVolver = volver;
     setEnviando(true);
@@ -588,13 +633,14 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
     );
   };
 
-  const esClaude = !!l && !esAgy(l.modelo) && !esDsh(l.modelo) && !esOpencode(l.modelo) && !sinWorkers(l.modelo);
+  // Volver acá, Editar y Ramificar: Claude, Gemini, OpenCode y DeepSeek Harness (los tres últimos con un relevo, electron/lider.ts); no los locales.
+  const rebobinable = !!l && !sinWorkers(l.modelo);
   // "Mandar ya": Claude lo recibe en su stdin y el puente de agy o el de dsh corta en la próxima pausa y retoma; los locales no tienen canal.
   const puedeDirecto = !!l && !sinWorkers(l.modelo);
   const sinRebobinar = ocupado || enviando ? tr("acciones.ocupado") : ajeno ? tr("acciones.abierto") : null;
   const acciones = useMemo<Acciones | null>(
     () =>
-      l && esClaude
+      l && rebobinable
         ? {
             rebobina: sinRebobinar === null,
             ramifica: true,
@@ -613,7 +659,7 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
           }
         : null,
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [l?.id, esClaude, sinRebobinar, modelo, effort, alCreado, alAbrirLider],
+    [l?.id, rebobinable, sinRebobinar, modelo, effort, alCreado, alAbrirLider],
   );
   /** Editar un pedido: sigue desde el mensaje de antes con el texto nuevo (las rutas de archivos que traía se conservan). */
   const rebobinarUlt = useRef(rebobinarA);
@@ -833,7 +879,7 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
   };
 
   const elegirComando = (s: Sugerencia, ya: boolean) => {
-    if (!mn) return;
+    if (!mn || s.ajeno) return; // de otra empresa: no corre con este modelo (la fila ya dice qué hacer)
     const { texto: nuevo, caret: p } = reemplazar(texto, mn, s);
     // Enter o clic sobre un comando de la app al inicio de la caja lo ejecuta, con lo que sigue ("/plan armá X").
     if (ya && directo(s) && mn.ini === 0) return ejecutar(nuevo);
@@ -909,7 +955,7 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
   };
 
   const cache = useMemo(
-    () => (l && l.cache_vence !== null && !l.subagentes ? pintorCache(`lider:${l.id}:${l.cache_vence}`, l.cache_vence, l.cache_ttl_s, false) : null),
+    () => (l && l.cache_vence !== null && !l.subagentes && cacheAplica(l.modelo) ? pintorCache(`lider:${l.id}:${l.cache_vence}`, l.cache_vence, l.cache_ttl_s, false) : null),
     [l],
   );
 
@@ -1055,6 +1101,7 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
                 type="button"
                 role="option"
                 aria-selected={k === sel}
+                aria-disabled={s.ajeno ? true : undefined}
                 aria-current={s.actual || undefined}
                 className="cmd"
                 onMouseDown={(e) => e.preventDefault()}
@@ -1062,7 +1109,7 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
                 onClick={() => elegirComando(s, true)}
               >
                 <span className="cmd-m" aria-hidden="true">
-                  {s.solo ? <Logo empresa={s.solo} /> : null}
+                  {s.ajeno ? <Logo empresa={s.ajeno} /> : null}
                 </span>
                 {s.valor !== undefined ? (
                   <span className="cmd-n">
@@ -1076,8 +1123,10 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
                     {s.args ? <i> {s.args}</i> : null}
                   </span>
                 )}
-                <span className="cmd-d">{s.clave ? tr(s.clave) : (s.descripcion ?? "")}</span>
-                {s.solo ? <span className="cmd-s">{tr(s.solo === "google" ? "comando.soloGoogle" : "comando.soloAnthropic")}</span> : null}
+                <span className="cmd-d">
+                  {s.ajeno ? tr("comando.cambiaModelo", { empresa: s.ajeno === "google" ? "Google" : "Anthropic" }) : s.clave ? tr(s.clave) : (s.descripcion ?? "")}
+                </span>
+                {s.ajeno ? <span className="cmd-s">{tr(s.ajeno === "google" ? "comando.soloGoogle" : "comando.soloAnthropic")}</span> : null}
               </button>
             ))}
           </div>
@@ -1198,7 +1247,9 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
                 className="modo"
                 style={{ color: ASPECTO[modo].color }}
                 // Con el dedo no hay Shift+Tab, y en angosto el chip es sólo el símbolo: el tooltip dice el modo.
-                data-tip={esTactil() ? tr(ASPECTO[modo].clave) : nivel >= 1 ? `${tr(ASPECTO[modo].clave)} · Shift+Tab` : "Shift+Tab"}
+                data-tip={modoFijo ? tr(modoFijo) : esTactil() ? tr(ASPECTO[modo].clave) : nivel >= 1 ? `${tr(ASPECTO[modo].clave)} · Shift+Tab` : "Shift+Tab"}
+                aria-disabled={modoFijo ? true : undefined}
+                data-fijo={modoFijo ? "" : undefined}
                 aria-label={tr("modo.tip", { modo: tr(ASPECTO[modo].clave) })}
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => cambiarModo(siguienteModo(modo))}
@@ -1208,7 +1259,9 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
               </button>
               <Selector
                 etiqueta={tr("comun.modelo")}
-                opciones={MODELOS}
+                opciones={modelosVistos}
+                senalAbrir={senalModelo}
+                pestana={proveedorLibre(modelosVistos)}
                 valor={modelo}
                 alElegir={elegirModelo}
                 confirmar={datosCambio}
@@ -1315,6 +1368,7 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
             }}
           />
         ) : null}
+        {mcpAbierto ? <PanelMcp modelo={modelo} alCerrar={() => setMcpAbierto(false)} /> : null}
         {nota && !errorCaja ? <div className="caja-nota" role="status">{nota}</div> : null}
         {aviso ? <Reloj pintor={aviso} className="caja-aviso" /> : null}
         {/* Un líder local corre en la GPU de esta máquina, sin pa ni subagentes: que se sepa antes de pedirle una tarea grande. */}

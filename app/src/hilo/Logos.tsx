@@ -70,6 +70,7 @@ export const ChipLocal = () => (
 export function LogoSuscripcion({ id, nombre }: { id: string; nombre: string }) {
   if (id === "claude") return <Logo empresa="anthropic" />;
   if (id === "google") return <Logo empresa="google" />;
+  if (id === "opencode") return <Logo empresa="opencode" />;
   return (
     <svg {...A}>
       <circle {...TRAZO} cx="12" cy="12" r="9.5" />

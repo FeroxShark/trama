@@ -13,9 +13,9 @@ import "./acciones.css";
 
 /** Qué se puede hacer en este líder, ahora. Un objeto estable: sólo cambia si cambia algo de esto. */
 export type Acciones = {
-  /** Volver acá y Editar: un líder de Claude, quieto y que ningún otro proceso tiene abierto. */
+  /** Volver acá y Editar: un líder que no sea local (cualquier motor), quieto y que ningún otro proceso tiene abierto. */
   rebobina: boolean;
-  /** Ramificar: un líder de Claude. */
+  /** Ramificar: un líder que no sea local (cualquier motor). */
   ramifica: boolean;
   /** Por qué no se puede rebobinar ahora (tooltip de los botones apagados), o `null`. */
   motivo: string | null;

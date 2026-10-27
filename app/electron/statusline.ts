@@ -18,6 +18,7 @@ import { real, registro, type Proyecto } from "./registro.js";
 import { sesiones, type Sesion } from "./sesiones.js";
 import { creadoEn, proyectoEnTexto, temaDe, tituloDeRama, tituloLider } from "./tema.js";
 import { cuposActuales, type SuscripcionCupo } from "./cupos.js";
+import { GRUPO_OPENCODE_GRATIS, opencodeAgotadoHasta } from "./opencode-agotado.js";
 import { deStatusline, esCuentaDeSiempre, usoDe, type Ventana } from "./uso.ts";
 import { verCaidos, type Caido } from "./vigia.js";
 import { silencio } from "./log.js";
@@ -216,7 +217,13 @@ export async function leerStatusline(): Promise<Statusline> {
         },
       }
     : null;
-  const hayOtras = !!cupos?.suscripciones.length;
+  // El uso gratis de OpenCode (uno solo para todos sus modelos gratis): sólo se suma cuando está agotado (la barra lateral no lo muestra si no).
+  const ocHasta = opencodeAgotadoHasta();
+  const suscripciones: SuscripcionCupo[] = [
+    ...(cupos?.suscripciones ?? []),
+    ...(ocHasta ? [{ id: "opencode", nombre: "OpenCode", proveedor: "opencode", ts: Math.floor(ahora), grupos: [{ id: GRUPO_OPENCODE_GRATIS, nombre: "OpenCode gratis", ventanas: [{ id: "5h", pct: null, vuelve: null }], agotado: Math.round(ocHasta / 1000) }] }] : []),
+  ];
+  const hayOtras = suscripciones.length > 0;
   const hayFuentes = recientes.length > 0 || !!visto || !!lecturaCupos || hayOtras;
   const baseUso = usoDe([...recientes.filter((a) => esCuentaDeSiempre(a, os.homedir())).map(deStatusline), visto, lecturaCupos], ahora);
   const uso: Uso | null = hayFuentes
@@ -224,7 +231,7 @@ export async function leerStatusline(): Promise<Statusline> {
         version: 1,
         ...baseUso,
         ts: baseUso.ts || tsCupos || Math.floor(ahora),
-        ...(hayOtras ? { suscripciones: cupos!.suscripciones } : {}),
+        ...(hayOtras ? { suscripciones } : {}),
         ...(cupos?.claudeNombre ? { claudeNombre: cupos.claudeNombre } : {}),
       }
     : null;
@@ -254,7 +261,7 @@ export async function leerStatusline(): Promise<Statusline> {
       actividad: Math.max(s.actividad, g?.ultimo ?? 0, typeof a?.ts === "number" ? a.ts : 0),
       creado: creadoEn(t.creado, g?.creado, s.inicio, s.actividad),
       // El statusline de uno que se trajo a la app quedó viejo: vale lo último que se vio, de cualquiera de los dos.
-      ...cacheDe(cacheSl(a), g ? { ultimo: g.ultimo, pedido: p?.pedido ?? 0, ttl: g.cache_ttl_s } : null),
+      ...cacheDe(cacheSl(a), g ? { ultimo: g.ultimo, pedido: p?.pedido ?? 0, ttl: g.cache_ttl_s } : null, modelo),
       origen: mia ? "app" : "terminal",
       pid: s.pid,
       vivo: true,
@@ -281,7 +288,7 @@ export async function leerStatusline(): Promise<Statusline> {
       titulo: modeloLindo(g.modelo),
       actividad: ultimo,
       creado: creadoEn(t.creado, g.creado),
-      ...cacheDe(cacheSl(porSesion.get(g.sid)), { ultimo: g.ultimo, pedido: p?.pedido ?? 0, ttl: g.cache_ttl_s }),
+      ...cacheDe(cacheSl(porSesion.get(g.sid)), { ultimo: g.ultimo, pedido: p?.pedido ?? 0, ttl: g.cache_ttl_s }, g.modelo),
       origen: "app",
       pid: p?.pid ?? null,
       vivo: !!p,
@@ -308,7 +315,7 @@ export async function leerStatusline(): Promise<Statusline> {
       titulo: modeloLindo(modelo ?? ""),
       actividad: Math.max(c.actividad ?? 0, typeof a?.ts === "number" ? a.ts : 0) || c.ts,
       creado: creadoEn(t.creado, undefined, c.actividad, c.ts),
-      ...cacheDe(cacheSl(a), null),
+      ...cacheDe(cacheSl(a), null, modelo),
       origen: "terminal",
       pid: null,
       vivo: false,

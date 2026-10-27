@@ -1,6 +1,7 @@
 // El campo "Carpeta" de un líder nuevo (`carpetaDe` y `nuevo({ carpeta })` de electron/lider.ts): absoluta o con ~, que exista y
 // sea un directorio; vacía o el home = el líder de siempre. Mismo armado que tests/lider-proceso.test.ts (claude falso, estado en un tmp).
-import { test, after } from "node:test";
+import { after } from "node:test";
+import { testPosix as test } from "./plataforma.ts";
 import assert from "node:assert/strict";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { registerHooks } from "node:module";
