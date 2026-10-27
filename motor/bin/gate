@@ -2,7 +2,7 @@
 # gate <proyecto> <id> --chequeo CMD --permitidos F [--test COPIA[:RUTA]] [--extras CMD] [--rojos CMD] [--main REF] [--log F]
 #
 # Compuerta de cada corrida (F6) del protocolo de orquestación (motor/docs/protocolo-orquestacion.txt, sección 4).
-# La corre el líder, no el worker: la VERIFICACION del worker es un indicio, esto es la prueba. Corre los cinco pasos
+# La corre el líder, no el worker: la VERIFICACION del worker es un indicio, esto es la prueba. Corre todos los pasos
 # aunque alguno falle (así el reintento lleva toda la evidencia) y sale con el exit del PRIMER paso que falló.
 #
 #   1. alcance        los archivos que la rama cambió contra main están todos en --permitidos
