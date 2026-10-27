@@ -75,20 +75,20 @@ const tipo = (t: string, fijos: string, mod: string, extra: Record<string, strin
 const esClaude = (m: string) => m.startsWith("claude-");
 const cand = (s: Sal, m: string) => s.candidatos.find((c) => c.modelo === m)!;
 
-test("por encima del ritmo semanal: Google gana a Claude en codigo-acotado, y el motivo lo dice", () => {
+test("por encima del ritmo semanal: Google gana a Claude en codigo-multi, y el motivo lo dice", () => {
   // 3 de 7 días pasados (esperado 43 %) y 50 % usado = 1,2× el ritmo. Sin ritmo Claude gana por poco (urgencia de su semanal).
   const f = cupos({ c7: 0.5, vuelve7: 96, google: true, g5: 0.7, g7: 0.4 });
-  const sin = tipo("codigo-acotado", f, modelos({ peso_ritmo: 0, peso_bono_ritmo: 0 }));
+  const sin = tipo("codigo-multi", f, modelos({ peso_ritmo: 0, peso_bono_ritmo: 0 }));
   assert.ok(esClaude(sin.modelo), `sin ritmo gana Claude: ${sin.modelo}`);
   assert.doesNotMatch(sin.motivo, /ritmo/);
-  const con = tipo("codigo-acotado", f, modelos());
+  const con = tipo("codigo-multi", f, modelos());
   assert.ok(con.modelo.startsWith("agy:"), con.modelo);
   const rt = con.ritmo.find((r) => r.ventana === "7d" && r.nivel === "encima");
   assert.ok(rt && Math.abs(rt.ratio - 1.17) < 0.03, JSON.stringify(con.ritmo));
   assert.match(con.motivo, /Claude va 1,2× por encima del ritmo semanal: uso .* en lugar de Claude Sonnet 5\.5\./);
   assert.ok(cand(con, "claude-sonnet-5-5").ritmo_pts! < 0);
   // Más arriba todavía, más puntos menos.
-  const mas = tipo("codigo-acotado", cupos({ c7: 0.62, vuelve7: 96, google: true, g5: 0.7, g7: 0.4 }), modelos());
+  const mas = tipo("codigo-multi", cupos({ c7: 0.62, vuelve7: 96, google: true, g5: 0.7, g7: 0.4 }), modelos());
   assert.ok(cand(mas, "claude-sonnet-5-5").ritmo_pts! < cand(con, "claude-sonnet-5-5").ritmo_pts!);
 });
 
@@ -106,12 +106,12 @@ test("por debajo del ritmo y cerca del reinicio: Claude gana (aunque sea perfil 
   // Queda 1 día, 20 % usado: va a 0,23× el ritmo y el cupo se perdería.
   const f = cupos({ c7: 0.2, vuelve7: 24, google: true, g7: 0.2 });
   for (const perfil of ["equilibrado", "ahorro"]) {
-    const r = tipo("codigo-acotado", f, modelos({ perfil }));
+    const r = tipo("codigo-multi", f, modelos({ perfil }));
     assert.ok(esClaude(r.modelo), `${perfil}: ${r.modelo}`);
     assert.equal(r.ritmo.find((x) => x.ventana === "7d")!.nivel, "debajo");
   }
   // Y sin el atraso (mismo uso a mitad de semana) el ahorro se va a Google o a un gratis.
-  const mitad = tipo("codigo-acotado", cupos({ c7: 0.5, vuelve7: 84, google: true, g7: 0.2 }), modelos({ perfil: "ahorro" }));
+  const mitad = tipo("codigo-multi", cupos({ c7: 0.5, vuelve7: 84, google: true, g7: 0.2 }), modelos({ perfil: "ahorro" }));
   assert.ok(!esClaude(mitad.modelo), mitad.modelo);
 });
 
@@ -150,12 +150,12 @@ test("perfil ahorro con uso de Pro: workers a gratis/Google; Claude sólo donde 
   const ahorro = modelos({ perfil: "ahorro" });
   assert.ok(tipo("lectura", f, ahorro).modelo.startsWith("opencode:"));
   assert.ok(tipo("mecanico", f, ahorro).modelo.startsWith("opencode:"));
-  // codigo-acotado: el mínimo baja una banda (Haiku): el gratis de 43 (60 en la escala vieja) alcanza. El equilibrado sigue pidiendo Sonnet.
+  // codigo-acotado ya pide Haiku (2026-10-27): el gratis de 43 alcanza, y en el ahorro el motivo lo dice. codigo-multi sigue pidiendo Sonnet en ambos perfiles.
   const ca = tipo("codigo-acotado", f, ahorro);
   assert.ok(ca.modelo.startsWith("opencode:"), ca.modelo);
   assert.match(ca.motivo, /codigo-acotado pide calidad 43 o más/);
-  assert.ok(esClaude(tipo("codigo-acotado", f, modelos()).modelo));
-  assert.match(tipo("codigo-acotado", f, ahorro).motivo, /perfil ahorro: uso big-pickle.* en lugar de Claude/);
+  assert.ok(esClaude(tipo("codigo-multi", f, modelos()).modelo));
+  assert.ok(esClaude(tipo("codigo-multi", f, ahorro).modelo));
   // debug pide Argon-88: ningún gratis llega, queda Claude (con un 50 % usado de 65 % disponibles todavía hay cupo para workers).
   const dbg = tipo("debug", f, ahorro);
   assert.ok(esClaude(dbg.modelo), dbg.modelo);

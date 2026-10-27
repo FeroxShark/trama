@@ -68,8 +68,8 @@ const elegir = (tipo: string, o: Parameters<typeof reparto>[1]) => {
   return JSON.parse(r.out) as { modelo: string; motivo: string; candidatos: Cand[] };
 };
 
-test("con Go activo, un worker de código acotado va a DeepSeek V4.1 Flash por Go cuando hay que cuidar a Claude", () => {
-  const r = elegir("codigo-acotado", { cupos: CLAUDE_JUSTO, modelos: modelos({ opencode_plan: "go" }) });
+test("con Go activo, un worker de código de varias partes va a DeepSeek V4.1 Flash por Go cuando hay que cuidar a Claude", () => {
+  const r = elegir("codigo-multi", { cupos: CLAUDE_JUSTO, modelos: modelos({ opencode_plan: "go" }) });
   assert.equal(r.modelo, DS);
   assert.match(r.motivo, /plan Go de OpenCode/);
   assert.doesNotMatch(r.motivo, /key de DeepSeek/, "no se paga con ninguna key: es el plan");
@@ -81,24 +81,25 @@ test("con Go activo, un worker de código acotado va a DeepSeek V4.1 Flash por G
 });
 
 test("Go es costo marginal ~0: a calidad pareja gana al Claude que cuesta; con Claude de sobra, Claude sigue ganando", () => {
-  const sobra = elegir("codigo-acotado", { cupos: CLAUDE_DE_SOBRA, modelos: modelos({ opencode_plan: "go" }) });
+  // Go a la calidad justa de Sonnet (51): con más, el margen de calidad lo favorece y el caso deja de ser «pareja».
+  const sobra = elegir("codigo-multi", { cupos: CLAUDE_DE_SOBRA, modelos: modelos({ opencode_plan: "go", calidad: { [DS]: 51, [KIMI]: 44 } }) });
   assert.equal(sobra.modelo, "claude-sonnet-5-5", "la semana de Claude está por reiniciarse con 70 % libre: se gasta");
   assert.ok(sobra.candidatos.some((c) => c.modelo === DS && !c.descartado_por), "Go es candidato igual");
   // Mismo modelo y calidad: el costo marginal de Go (0,02) es menor que el de Claude por suscripción.
-  const j = elegir("codigo-acotado", { cupos: CLAUDE_JUSTO, modelos: modelos({ opencode_plan: "go" }) });
+  const j = elegir("codigo-multi", { cupos: CLAUDE_JUSTO, modelos: modelos({ opencode_plan: "go" }) });
   const ds = j.candidatos.find((c) => c.modelo === DS)!;
   const sonnet = j.candidatos.find((c) => c.modelo === "claude-sonnet-5-5")!;
   assert.ok(ds.puntaje > sonnet.puntaje);
 });
 
 test("sin Go no cambia nada: ni sin la clave, ni con «gratis», ni con un plan desconocido (misma salida, byte a byte)", () => {
-  const sin = reparto(["--tipo", "codigo-acotado", "--json"], { cupos: CLAUDE_JUSTO, modelos: modelos(), estado: path.join(tmp, "e-fijo") });
+  const sin = reparto(["--tipo", "codigo-multi", "--json"], { cupos: CLAUDE_JUSTO, modelos: modelos(), estado: path.join(tmp, "e-fijo") });
   assert.equal(sin.rc, 0, sin.err);
   const otro = JSON.parse(sin.out);
   assert.notEqual(otro.modelo, DS);
   assert.ok(!sin.out.includes("opencode-go"), "ni como candidato descartado");
   for (const plan of ["gratis", "oro", 3]) {
-    const r = reparto(["--tipo", "codigo-acotado", "--json"], { cupos: CLAUDE_JUSTO, modelos: modelos({ opencode_plan: plan }), estado: path.join(tmp, "e-fijo") });
+    const r = reparto(["--tipo", "codigo-multi", "--json"], { cupos: CLAUDE_JUSTO, modelos: modelos({ opencode_plan: plan }), estado: path.join(tmp, "e-fijo") });
     assert.equal(r.out, sin.out, `opencode_plan ${JSON.stringify(plan)}`);
   }
   // Y --tabla: ninguna fila de Go, ningún campo nuevo.
@@ -123,13 +124,13 @@ test("--tabla --json con Go: la fila trae el plan y los topes de ese plan; no es
 test("un 429 de un modelo de Go lo agota SÓLO a él (5 h): el otro de Go y los gratis siguen; el límite gratis no arrastra a Go", () => {
   const estado = path.join(tmp, "estado-429");
   const o = { cupos: CLAUDE_JUSTO, modelos: modelos({ opencode_plan: "go", calidad: { [DS]: 52, [KIMI]: 52 } }), estado };
-  assert.equal(elegir("codigo-acotado", o).modelo, DS, "antes del 429");
+  assert.equal(elegir("codigo-multi", o).modelo, DS, "antes del 429");
   const a = reparto(["--agotar", DS], o);
   assert.equal(a.rc, 0, a.err);
   assert.match(a.out, /opencode:opencode-go\/deepseek-v4\.1-flash agotado hasta 2026-10-26T17:00:00Z/, "5 h desde AHORA");
   const f = JSON.parse(readFileSync(path.join(estado, "agotado.json"), "utf8"));
   assert.deepEqual(Object.keys(f), [DS], "sólo ese grupo: nada de opencode-free");
-  const r = elegir("codigo-acotado", o);
+  const r = elegir("codigo-multi", o);
   assert.equal(r.modelo, KIMI, "pasa al otro modelo de Go");
   assert.match(r.candidatos.find((c) => c.modelo === DS)!.descartado_por ?? "", /dijo sin cupo \(429\): vuelve 2026-10-26T17:00:00Z/);
   // Al revés: agotar los gratis (opencode-free) no toca a los de Go.
@@ -137,7 +138,7 @@ test("un 429 de un modelo de Go lo agota SÓLO a él (5 h): el otro de Go y los 
   const o2 = { ...o, estado: estado2 };
   assert.equal(reparto(["--agotar", "opencode:opencode/big-pickle"], o2).rc, 0);
   assert.deepEqual(Object.keys(JSON.parse(readFileSync(path.join(estado2, "agotado.json"), "utf8"))), ["opencode-free"]);
-  const r2 = elegir("codigo-acotado", o2);
+  const r2 = elegir("codigo-multi", o2);
   assert.equal(r2.modelo, DS);
   assert.equal(r2.candidatos.find((c) => c.modelo === DS)!.descartado_por, null);
   // Con --hasta explícito manda esa hora.

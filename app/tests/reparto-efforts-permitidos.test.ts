@@ -106,11 +106,11 @@ test("--tipo: el puntaje de Sonnet es el de high (50), no el del max (62) ni el 
 });
 
 test("efforts_permitidos cambia el puntaje al del esfuerzo que se usa: sólo low → 40, y ya no llega al mínimo de Sonnet", () => {
-  const r = corrida(["--tipo", "codigo-acotado", "--json"], { excluir: ["opus", "haiku"], efforts_permitidos: { sonnet: ["low"] } });
+  const r = corrida(["--tipo", "codigo-multi", "--json"], { excluir: ["opus", "haiku"], efforts_permitidos: { sonnet: ["low"] } });
   const c = cand(r, "claude-sonnet-5-5");
   assert.equal(c.effort, "low");
   assert.equal(c.calidad, 40);
-  assert.match(c.descartado_por ?? "", /calidad 40 menor que la 46/);
+  assert.match(c.descartado_por ?? "", /calidad 40 menor que la 50/);
 });
 
 test("--tabla: calidad es la del esfuerzo que se usaría (high), con effort_usado; sólo [low, max] permitidos → el siguiente más alto (max)", () => {

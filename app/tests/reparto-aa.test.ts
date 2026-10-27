@@ -467,8 +467,8 @@ test("modelos excluidos: reparto nunca los elige, aunque tengan la mejor cifra",
   assert.notEqual(pick([primero]).modelo, primero, "excluido por id exacto: se elige el otro");
 });
 
-test("codigo-acotado (medium) va a Sonnet, no a Opus: el mínimo de Sonnet se mide al mismo effort que el candidato", () => {
-  const r = spawnSync(REPARTO, ["--tipo", "codigo-acotado", "--json"], {
+test("codigo-multi (high) va a Sonnet, no a Opus: el mínimo de Sonnet se mide al mismo effort que el candidato", () => {
+  const r = spawnSync(REPARTO, ["--tipo", "codigo-multi", "--json"], {
     encoding: "utf8",
     env: { ...process.env, REPARTO_CUPOS_FIJOS: cuposF, REPARTO_AHORA: AHORA, REPARTO_DSH_FIJO: '{"opencode":false,"deepseek":false}', REPARTO_AGY: "0",
       REPARTO_STATE: path.join(tmp, "estado"), REPARTO_AA: arch(REAL), TRAMA_MODELOS: arch({ version: 1 }) },

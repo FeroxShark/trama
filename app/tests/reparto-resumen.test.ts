@@ -91,10 +91,10 @@ test("--resumen: una línea por modelo habilitado con id para -m, inteligencia p
   assert.match(sonnet, /pago x0\.35/);
   assert.match(sonnet, /cupo 8\d %/, "el libre es la ventana más escasa");
   assert.match(sonnet, /vuelve en/);
-  assert.match(sonnet, /lo normal/);
+  assert.match(sonnet, /pedido ambiguo/);
   const gratis = lineas.find((l) => l.startsWith("-m opencode:opencode/glm-5.3-flash-free "))!;
   assert.match(gratis, / gratis · cupo 100 %/);
-  assert.match(r.out, /Haiku para lo chico con chequeo, Sonnet para lo normal, Opus sólo bases/);
+  assert.match(r.out, /Haiku por defecto si se describe con precisión, Sonnet si es ambiguo o Haiku falló, Opus sólo bases/);
 });
 
 test("--resumen: no lista lo que modelos.json excluye, marca SIN CUPO y --json trae los mismos modelos", () => {

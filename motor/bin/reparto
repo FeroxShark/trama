@@ -2794,7 +2794,7 @@ def texto_resumen(filas, now):
         L.append("(+%d modelos más: reparto --tabla)" % (len(filas) - RESUMEN_MAX))
     if not filas:
         L.append("(ningún modelo habilitado: revisá `excluir` en modelos.json)")
-    L.append("Guía: Haiku para lo chico con chequeo, Sonnet para lo normal, Opus sólo bases, bug sin pista o tras un fallo; si hay chequeo, preferí los cupos gratis. Detalle: skill trama-orquestar.")
+    L.append("Guía: Haiku por defecto si se describe con precisión, Sonnet si es ambiguo o Haiku falló, Opus sólo bases, bug sin pista o tras un fallo de Sonnet; si hay chequeo, preferí los cupos gratis. Detalle: skill trama-orquestar.")
     return "\n".join(L)
 
 
