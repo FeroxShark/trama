@@ -1,0 +1,171 @@
+// Arnés de paridad: corre un caso con el `pa` bash (motor/bin/pa) y con otro `pa` (TRAMA_PA_B), cada uno en su propio
+// sandbox (HOME, estado, registry y proyecto git en un tmp) con el claude falso headless (app/scripts/claude-falso.mjs),
+// y junta lo observable: stdout, stderr, código de salida, argv que recibió claude y archivos de estado escritos.
+import { spawnSync } from "node:child_process";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, statSync, writeFileSync } from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { normalizar, normalizarArgv, type Raices } from "./normalizar.ts";
+
+const APP = path.join(import.meta.dirname, "..", "..");
+export const MOTOR = path.join(APP, "..", "motor");
+export const PA_BASH = path.join(MOTOR, "bin", "pa");
+const FALSO = path.join(APP, "scripts", "claude-falso.mjs");
+
+/** Contexto que ven `preparar` y los argumentos dinámicos de un caso. */
+export interface Contexto {
+  raiz: string;
+  home: string;
+  proyecto: string;
+  estado: string;
+  /** Lugar para archivos auxiliares del caso (briefs, etc.). */
+  aux: string;
+}
+
+export interface Paso {
+  /** Argumentos de `pa` (o una función si dependen de rutas del sandbox). */
+  args: string[] | ((c: Contexto) => string[]);
+  env?: Record<string, string>;
+  stdin?: string;
+  /** Código de salida esperado (se comprueba contra el bash; la paridad se compara siempre). */
+  rc?: number;
+}
+
+export interface Caso {
+  nombre: string;
+  /** Un solo paso (atajo) o varios, en orden, en el mismo sandbox. */
+  args?: Paso["args"];
+  env?: Paso["env"];
+  stdin?: Paso["stdin"];
+  rc?: number;
+  pasos?: Paso[];
+  /** Prepara el sandbox antes de correr (archivos, ramas…). */
+  preparar?: (c: Contexto) => void;
+  /** Subárboles del estado a comparar (default: todo salvo lock/, worktrees/ y *.log). */
+  estadoIgnorar?: RegExp[];
+}
+
+export interface Resultado {
+  pasos: { rc: number | null; stdout: string; stderr: string }[];
+  argvClaude: string[];
+  estado: Record<string, string>;
+}
+
+const PREFIJOS_LIMPIOS = ["PA_", "TRAMA_", "HILOS_", "REPARTO_", "PROYECTOS_", "FALSO_", "CLAUDE"];
+
+/** Comando del segundo `pa` (TRAMA_PA_B): lista JSON o palabras separadas por espacios. null si no está. */
+export function comandoB(env = process.env): string[] | null {
+  const v = env.TRAMA_PA_B?.trim();
+  if (!v) return null;
+  if (v.startsWith("[")) return JSON.parse(v) as string[];
+  return v.split(/\s+/);
+}
+
+function crearSandbox(): Contexto {
+  const raiz = realpathSync(mkdtempSync(path.join(os.tmpdir(), "paridad-")));
+  const c: Contexto = {
+    raiz,
+    home: path.join(raiz, "home"),
+    proyecto: path.join(raiz, "proy"),
+    estado: path.join(raiz, "estado"),
+    aux: path.join(raiz, "aux"),
+  };
+  for (const d of [path.join(c.home, ".config", "proyectos"), c.proyecto, c.estado, c.aux, path.join(raiz, "shim")]) mkdirSync(d, { recursive: true });
+  const git = (...a: string[]) => spawnSync("git", ["-C", c.proyecto, "-c", "user.email=a@b", "-c", "user.name=x", ...a], { encoding: "utf8" });
+  git("init", "-q", "-b", "main");
+  git("commit", "-q", "--allow-empty", "-m", "init");
+  writeFileSync(path.join(c.home, ".config", "proyectos", "registry.json"), JSON.stringify({ projects: [{ name: "demo", path: c.proyecto }] }));
+  // `claude` en el PATH: el falso headless.
+  const shim = path.join(raiz, "shim", "claude");
+  writeFileSync(shim, `#!/bin/sh\nexec "${process.execPath}" "${FALSO}" "$@"\n`);
+  chmodSync(shim, 0o755);
+  return c;
+}
+
+function entorno(c: Contexto, extra: Record<string, string> = {}): NodeJS.ProcessEnv {
+  const base: NodeJS.ProcessEnv = {};
+  for (const [k, v] of Object.entries(process.env)) if (!PREFIJOS_LIMPIOS.some((p) => k.startsWith(p))) base[k] = v;
+  return {
+    ...base,
+    HOME: c.home,
+    XDG_CONFIG_HOME: path.join(c.home, ".config"),
+    TZ: "UTC",
+    PA_STATE: c.estado,
+    STATE: c.estado,
+    PA_PROJ: path.join(c.home, "claude-proyectos"),
+    PROYECTOS_REGISTRY: path.join(c.home, ".config", "proyectos", "registry.json"),
+    TRAMA_MODELOS: path.join(c.home, "no-hay.json"),
+    TRAMA_CLAVES: path.join(c.home, "no-hay.env"),
+    REPARTO_STATE: path.join(c.raiz, "rep"),
+    REPARTO_CLAUDE: "0",
+    PA_REPARTO: "0",
+    PA_CLAUDE_SETTINGS: path.join(c.home, "no-hay-settings.json"),
+    TRAMA_FALSO_LOG: path.join(c.raiz, "claude-argv.jsonl"),
+    PATH: `${path.join(c.raiz, "shim")}${path.delimiter}${MOTOR}/bin${path.delimiter}${process.env.PATH}`,
+    ...extra,
+  };
+}
+
+function recolectarEstado(dir: string, ignorar: RegExp[], r: Raices): Record<string, string> {
+  const salida: Record<string, string> = {};
+  const caminar = (d: string, rel: string) => {
+    for (const nombre of readdirSync(d).sort()) {
+      const abs = path.join(d, nombre);
+      const rr = rel ? `${rel}/${nombre}` : nombre;
+      if (ignorar.some((re) => re.test(rr))) continue;
+      const st = statSync(abs);
+      if (st.isDirectory()) caminar(abs, rr);
+      else if (/\.pid$/.test(nombre)) salida[normalizar(rr, r)] = "<PID>";
+      else if (st.size <= 256 * 1024) salida[normalizar(rr, r)] = normalizar(readFileSync(abs, "utf8"), r);
+    }
+  };
+  if (existsSync(dir)) caminar(dir, "");
+  return salida;
+}
+
+const IGNORAR_ESTADO = [/^lock(\/|$)/, /^worktrees(\/|$)/, /\.log$/, /\.lock$/];
+
+/** Corre el caso completo con el `pa` dado (comando + argumentos previos) y devuelve lo observable, ya normalizado. */
+export function correr(caso: Caso, pa: string[]): Resultado {
+  const c = crearSandbox();
+  const r: Raices = { tmp: [c.raiz] };
+  caso.preparar?.(c);
+  const pasos = caso.pasos ?? [{ args: caso.args ?? [], env: caso.env, stdin: caso.stdin, rc: caso.rc }];
+  const res: Resultado = { pasos: [], argvClaude: [], estado: {} };
+  for (const p of pasos) {
+    const args = typeof p.args === "function" ? p.args(c) : p.args;
+    const s = spawnSync(pa[0]!, [...pa.slice(1), ...args], { encoding: "utf8", timeout: 120_000, input: p.stdin ?? "", env: entorno(c, { ...caso.env, ...p.env }) });
+    res.pasos.push({ rc: s.status, stdout: normalizar(s.stdout ?? "", r), stderr: normalizar(s.stderr ?? "", r) });
+  }
+  const log = path.join(c.raiz, "claude-argv.jsonl");
+  if (existsSync(log)) {
+    for (const l of readFileSync(log, "utf8").split("\n").filter(Boolean)) {
+      const j = JSON.parse(l) as { args: string[]; cwd?: string };
+      res.argvClaude.push(normalizarArgv(j.args, r));
+    }
+  }
+  res.estado = recolectarEstado(c.estado, [...IGNORAR_ESTADO, ...(caso.estadoIgnorar ?? [])], r);
+  return res;
+}
+
+/** Las diferencias entre dos resultados, en texto legible; "" si son iguales. */
+export function diferencias(a: Resultado, b: Resultado): string {
+  const out: string[] = [];
+  const n = Math.max(a.pasos.length, b.pasos.length);
+  for (let i = 0; i < n; i++) {
+    const x = a.pasos[i];
+    const y = b.pasos[i];
+    if (!x || !y) { out.push(`paso ${i + 1}: falta en uno de los dos`); continue; }
+    if (x.rc !== y.rc) out.push(`paso ${i + 1}: código de salida ${x.rc} vs ${y.rc}`);
+    if (x.stdout !== y.stdout) out.push(`paso ${i + 1}: stdout\n--- A\n${x.stdout}\n--- B\n${y.stdout}`);
+    if (x.stderr !== y.stderr) out.push(`paso ${i + 1}: stderr\n--- A\n${x.stderr}\n--- B\n${y.stderr}`);
+  }
+  if (JSON.stringify(a.argvClaude) !== JSON.stringify(b.argvClaude)) out.push(`argv de claude\n--- A\n${a.argvClaude.join("\n==\n")}\n--- B\n${b.argvClaude.join("\n==\n")}`);
+  const ks = new Set([...Object.keys(a.estado), ...Object.keys(b.estado)]);
+  for (const k of [...ks].sort()) {
+    if (a.estado[k] === undefined) out.push(`estado: ${k} sólo en B`);
+    else if (b.estado[k] === undefined) out.push(`estado: ${k} sólo en A`);
+    else if (a.estado[k] !== b.estado[k]) out.push(`estado: ${k} difiere\n--- A\n${a.estado[k]}\n--- B\n${b.estado[k]}`);
+  }
+  return out.join("\n");
+}

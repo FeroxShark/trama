@@ -71,3 +71,30 @@ Mientras dure 6–9, cada cambio al `pa` bash va con su caso de paridad (o se co
 ## Primer paso al aprobar
 Etapas 0 y 1 (en paralelo: CI + `.gitattributes` + `soloPosix` por un lado; base TS de locks/procesos/archivos por otro),
 en la rama `claude/elegant-sagan-gvgbq5`. Antes, guardo este diseño en `motor/docs/port-windows-plan.md`.
+
+## Arnés de paridad (etapa 2)
+Vive en `app/tests/paridad/` y se corre con `npm run test:paridad` (en `app/`). No entra en `npm test`.
+- Cada caso corre dos veces, en sandboxes nuevos (HOME, estado, registry y un proyecto git `demo` en un tmp, `claude` = el
+  falso headless `app/scripts/claude-falso.mjs`): con el bash (`motor/bin/pa`, A) y con el segundo `pa` (B).
+- B sale de `TRAMA_PA_B`: un comando (`node dist-electron/cli/pa.js`) o una lista JSON (`["node","ruta con espacios/pa.js"]`).
+  Sin la variable compara bash contra bash: sirve para ver que el caso es determinista y que la normalización alcanza.
+  `TRAMA_PARIDAD_SOLO=<texto>` corre sólo los casos cuyo nombre lo contiene.
+- Compara: stdout y stderr, código de salida, argv que recibió `claude` (de `TRAMA_FALSO_LOG`, un argumento por línea) y los
+  archivos del estado (`PA_STATE`, menos `lock/`, `worktrees/` y `*.log`; el contenido de `*.pid` se ignora).
+- Normaliza (`normalizar.ts`, con su test): la carpeta del sandbox → `<TMP>`, uuids, ids de corrida `AAAAMMDD-HHMMSS-pid`,
+  shas de git, fechas ISO, epochs, días sueltos, duraciones, pids y la RAM libre. Todo lo demás se compara tal cual.
+- Los tests usan `testPosix` (el bash no corre en Windows).
+
+### Cómo agregar un caso
+En `app/tests/paridad/casos.ts`, un objeto más en `casos`:
+```ts
+{ nombre: "área: qué prueba", args: ["demo", "--sin-jefe", "-m", M, "hacé algo"], rc: 78 }
+```
+- `args`: los argumentos de `pa` (o `(c) => [...]` si necesita rutas del sandbox: `c.proyecto`, `c.estado`, `c.aux`, `c.home`).
+- `rc`: código que debe dar el bash (la paridad con B se compara siempre; `rc` evita casos que no prueban lo que dicen).
+- `pasos: [{ args, rc, env, stdin }, ...]` para varios comandos seguidos en el mismo sandbox (async + esperar, plan max + ver).
+- `preparar: (c) => {...}` deja archivos o ramas antes de correr; `env` suma variables; `estadoIgnorar: [/regex/]` saca rutas
+  del estado que sean legítimamente no deterministas.
+- Si el caso falla bash-contra-bash, falta normalizar algo: agregarlo a `normalizar.ts` (con un caso en `normalizar.test.ts`)
+  antes de culpar al segundo `pa`. Con el claude falso una tarea real termina en 78 (contesta «ok» sin RESULTADO): es esperado.
+- Cada cambio al `pa` bash va con su caso (regla de las etapas 6–9).
