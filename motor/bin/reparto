@@ -130,7 +130,7 @@ CALIDAD = {"opus": 100, "sonnet": 88, "argon": 85, "haiku": 60, "gpt-oss": 45, "
 # Qué se pide como mínimo según el tipo de tarea (nombre de familia). Un tipo desconocido pide Sonnet.
 MINIMO_POR_TIPO = {
     "debug": "argon", "diseno": "argon",   # Sonnet (88) también los resuelve
-    "codigo-multi": "argon", "frontend": "argon",
+    "codigo-multi": "sonnet", "frontend": "sonnet",   # 2026-10-27: con Argon sin cupo, pedir Argon mandaba todo a Opus
     "final": "argon",                      # revisión/integración final, lo crítico, o lo que falló con el modelo anterior
     "codigo-acotado": "sonnet",            # 2026-10-25: pide calidad de Sonnet, no Haiku
     "lectura": "haiku", "mecanico": "haiku",
