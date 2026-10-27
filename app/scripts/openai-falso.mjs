@@ -4,8 +4,8 @@
 // la ÚLTIMA entrada de la conversación (el mensaje de la persona, o el resultado de una herramienta):
 //   (nada especial)  "eco: <texto del mensaje>" (más "[imagen]" si el mensaje trae una imagen)
 //   "RAZONA"         primero un bloque de razonamiento (`reasoning_content`), después lo que corresponda (eco o herramienta)
-//   "HERRAMIENTA"    pide la herramienta `bash` (`echo hola-desde-bash`, con su `description`); con el resultado contesta "listo: <salida>"
-//   "OC_ESCRIBE <ruta>"  pide `write` con `filePath` (el nombre de opencode); fuera del cwd, opencode pide permiso
+//   "HERRAMIENTA"    pide la herramienta `bash` (o `shell` si el pedido la trae: opencode 2.x) (`echo hola-desde-bash`, con su `description`); con el resultado contesta "listo: <salida>"
+//   "OC_ESCRIBE <ruta>"  pide `write` con el campo que el pedido declara (`path` en opencode 2.x, `filePath` en 1.x); fuera del cwd, opencode pide permiso
 //   "ESCALA"         pide `write` con `sandbox_permissions` (escalar el sandbox: dsh pregunta por session/request_permission en modo read-only)
 //   "HERRAMIENTA_LENTA"  igual, pero el comando es `sleep 30` (para cortarlo con session/cancel)
 //   "DESPACIO"       tarda OPENAI_FALSO_MS_LENTO (default 400) ms entre cada uno de 12 deltas de texto (para cortar el turno a mitad)
@@ -84,11 +84,17 @@ async function chat(req, res, body) {
     await mandar(mk({ tool_calls: [{ index: 0, function: { arguments: JSON.stringify(args) } }] }));
     return cerrar("tool_calls", { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 });
   };
-  // "OC_ESCRIBE <ruta>": `write` como lo declara opencode (`filePath`, camelCase), para probar sus permisos (una ruta fuera del cwd pide permiso).
+  // "OC_ESCRIBE <ruta>": `write` como lo declara opencode, para probar sus permisos (una ruta fuera del cwd pide permiso). opencode 2.x
+  // lo declara con `path`; 1.x con `filePath`: se usa el que el pedido trae.
   const oc = /OC_ESCRIBE\s+(\S+)/.exec(texto);
-  if (oc) return llamar("write", { filePath: oc[1], content: "x\n" });
+  if (oc) {
+    const props = (json.tools ?? []).find((t) => (t.function?.name ?? t.name) === "write")?.function?.parameters?.properties ?? {};
+    return llamar("write", { [("path" in props) ? "path" : "filePath"]: oc[1], content: "x\n" });
+  }
   if (texto.includes("ESCALA")) return llamar("write", { file_path: "escalado.txt", content: "x\n", sandbox_permissions: "workspace-write", justification: "prueba de permisos" });
-  if (texto.includes("HERRAMIENTA")) return llamar("bash", { command: texto.includes("HERRAMIENTA_LENTA") ? "sleep 30" : "echo hola-desde-bash", description: "una herramienta de prueba" });
+  // opencode 2.x declara la de shell como `shell` (antes `bash`): si el pedido la trae, se pide con ese nombre.
+  const bash = (json.tools ?? []).some((t) => (t.function?.name ?? t.name) === "shell") ? "shell" : "bash";
+  if (texto.includes("HERRAMIENTA")) return llamar(bash, { command: texto.includes("HERRAMIENTA_LENTA") ? "sleep 30" : "echo hola-desde-bash", description: "una herramienta de prueba" });
   if (texto.includes("DESPACIO")) {
     for (let i = 0; i < 12; i++) await mandar(mk({ content: `parte${i} ` }), MS_LENTO);
   } else {
