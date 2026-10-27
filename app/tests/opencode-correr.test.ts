@@ -46,7 +46,8 @@ test("una corrida buena: NDJSON al stream y un .json con la forma de codex_a_jso
   // opencode 2.x llama `shell` a la de shell que antes era `bash`
   assert.ok(eventos.some((e) => e.type === "tool_use" && ["bash", "shell"].includes(e.part.tool)));
   assert.ok(eventos.some((e) => e.type === "reasoning"), "con --thinking el razonamiento queda en el transcript");
-  assert.equal(eventos.at(-1).type, "step_finish");
+  // opencode 1.x cierra cada paso con step_finish; 2.x no cierra el último (queda el texto como último evento)
+  assert.ok(["step_finish", "text"].includes(eventos.at(-1).type));
   const j = r.json;
   assert.equal(j.type, "result");
   assert.equal(j.motor, "opencode");
@@ -57,7 +58,12 @@ test("una corrida buena: NDJSON al stream y un .json con la forma de codex_a_jso
   assert.ok(j.duration_ms > 0);
   assert.equal(j.total_cost_usd, undefined, "un modelo que no es gratis (falso/…) no inventa costo");
   assert.match(j.opencode_session_id, /^ses_/);
-  assert.deepEqual(j.modelUsage[MODELO_FALSO], { inputTokens: 30, cacheReadInputTokens: 0, cacheCreationInputTokens: 0, outputTokens: 9 });
+  // Con step_finish final (1.x): 30 y 9 de los dos pasos. Si no (2.x): la suma de los step_finish que hay.
+  const fins = eventos.filter((e) => e.type === "step_finish");
+  const suma = (f: (t: any) => number) => fins.reduce((n, e) => n + f(e.part.tokens), 0);
+  const sumados = { inputTokens: suma((t) => t.input), cacheReadInputTokens: suma((t) => t.cache.read), cacheCreationInputTokens: suma((t) => t.cache.write), outputTokens: suma((t) => t.output + (t.reasoning ?? 0)) };
+  const esperado = eventos.at(-1).type === "step_finish" ? { inputTokens: 30, cacheReadInputTokens: 0, cacheCreationInputTokens: 0, outputTokens: 9 } : sumados;
+  assert.deepEqual(j.modelUsage[MODELO_FALSO], esperado);
 });
 
 test("la tarea larga y con comillas llega entera (por stdin); --tarea-archivo y `-- -` también", { skip: SIN_OPENCODE, timeout: 120_000 }, async () => {
@@ -118,6 +124,36 @@ test("aResultado: un 429 de OpenCode dice qué hacer; un error cualquiera trae s
   assert.equal(bien.is_error, false);
   assert.equal(bien.total_cost_usd, 0.25);
   assert.deepEqual(bien.modelUsage.m, { inputTokens: 1, cacheReadInputTokens: 3, cacheCreationInputTokens: 4, outputTokens: 3 });
+});
+
+test("aResultado: opencode 2.x no cierra el último paso: un paso abierto con texto es un turno bueno; sin texto, error", () => {
+  const dijo = [
+    { type: "step_start", sessionID: "ses_2", part: {} },
+    { type: "text", sessionID: "ses_2", part: { text: "hola" } },
+  ];
+  const bien = aResultado({ eventos: dijo, modelo: "m", rc: 0, stderr: "", segundos: 1, gratis: false });
+  assert.equal(bien.is_error, false);
+  assert.equal(bien.subtype, "success");
+  assert.equal(bien.result, "hola");
+  assert.equal(bien.num_turns, 1);
+  const mudo = aResultado({ eventos: [{ type: "step_start", sessionID: "ses_2", part: {} }], modelo: "m", rc: 0, stderr: "", segundos: 1, gratis: false });
+  assert.equal(mudo.is_error, true);
+  assert.match(mudo.result, /no devolvió respuesta/);
+  // Con una herramienta antes: su paso cierra con tool-calls (tokens contados) y el de la respuesta queda abierto (dos pasos).
+  const herramienta = [
+    { type: "step_start", sessionID: "ses_2", part: {} },
+    { type: "tool_use", sessionID: "ses_2", part: { tool: "bash" } },
+    { type: "step_finish", sessionID: "ses_2", part: { reason: "tool-calls", cost: 0, tokens: { input: 7, output: 1, reasoning: 0, cache: { read: 0, write: 0 } } } },
+    { type: "step_start", sessionID: "ses_2", part: {} },
+  ];
+  const sinTexto = aResultado({ eventos: herramienta, modelo: "m", rc: 0, stderr: "", segundos: 1, gratis: false });
+  assert.equal(sinTexto.is_error, true);
+  assert.match(sinTexto.result, /sin cerrar el turno \(razón: tool-calls\)/);
+  const r = aResultado({ eventos: [...herramienta, { type: "text", sessionID: "ses_2", part: { text: "listo" } }], modelo: "m", rc: 0, stderr: "", segundos: 1, gratis: false });
+  assert.equal(r.is_error, false);
+  assert.equal(r.result, "listo");
+  assert.equal(r.num_turns, 2);
+  assert.deepEqual(r.modelUsage.m, { inputTokens: 7, cacheReadInputTokens: 0, cacheCreationInputTokens: 0, outputTokens: 1 });
 });
 
 test("config.mjs (pa) y opencode.ts (app) dicen lo mismo", () => {
