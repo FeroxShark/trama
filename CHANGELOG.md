@@ -1,5 +1,11 @@
 # Cambios
 
+## 0.2.1
+
+- Aviso de "hay una Trama nueva": Trama mira el último release y ofrece Actualizar desde la app (sin GitHub ni comandos).
+- Cambiar el modelo o el esfuerzo mientras el líder trabaja: se aplica al próximo mensaje, y un mensaje en cola sale con lo elegido al mandarse. El selector marca "próx." cuando hay un cambio pendiente.
+- Subagentes en la vista grande: tocar su tarjeta abre sus pasos, en vivo o con el informe final.
+
 ## 0.2.0
 
 ### Modelos y motores
