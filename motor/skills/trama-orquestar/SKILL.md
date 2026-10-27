@@ -55,7 +55,7 @@ pa --estado                                qué corre ahora, sesiones guardadas,
 
 | `--tipo` | Cuándo |
 |---|---|
-| `codigo-acotado` | código acotado y bien definido, con criterio de "listo" (también una base de la que cuelga lo demás) |
+| `codigo-acotado` | código acotado y bien definido, con criterio de "listo" (Haiku por defecto; una base crítica va a Opus con `-m`) |
 | `codigo-multi` | varias partes: partila en pedazos chicos |
 | `frontend` | interfaz, estilos, diseño visual |
 | `debug` | bug sin pista |
@@ -98,11 +98,13 @@ Criterio, de lo más importante a lo menos:
 
 Qué elegir:
 
-- **Haiku (`claude-haiku-5-5`, `--effort xhigh`)** para lo chico con chequeo: lectura, mecánico, un cambio acotado de interfaz o código
-  con test. Hasta una interfaz buena sale de Haiku si la tarea es chica y está bien explicada.
-- **Sonnet (`claude-sonnet-5-5`, `--effort high`)** para lo normal: código de varias partes, frontend de tamaño medio, la mayoría del día.
+- **Haiku (`claude-haiku-5-5`, `--effort xhigh`) es el default** para todo lo que puedas describir con precisión: archivos, qué cambiar,
+  criterio de "listo" y chequeo. Incluye código acotado, mecánico, lectura y una interfaz chica. Haiku no es un modelo malo: rinde cuando la
+  tarea viene bien guiada (ver "Brief para Haiku" en "Cómo se escribe la tarea"). No le tengas miedo: si falla, el chequeo lo muestra y se reintenta barato.
+- **Sonnet (`claude-sonnet-5-5`, `--effort high`)** sólo si el pedido es ambiguo (no podés decir qué archivos ni qué cambia), si toca muchas
+  partes, o si Haiku ya falló una vez en esa tarea.
 - **Opus (`claude-opus-5-5`, `--effort medium`; `high` sólo en `debug`)** sólo para: una **base crítica** de la que cuelga lo demás, un
-  **bug sin pista**, o **tras un fallo** de uno menor (una vez, no más).
+  **bug sin pista**, o **tras un fallo** de Sonnet (una vez, no más).
 - **Preferí los cupos gratis cuando hay chequeo** (Gemini Flash, OpenCode `*-free`, Go): gastan una suscripción que, si no se usa, se pierde,
   y dejan el cupo de Claude para vos. Sin chequeo o con un error caro, no.
 - **Segunda opinión** independiente: `--leer -m gemini-4-argon-high` (si el usuario tiene Google AI Pro).
@@ -112,8 +114,7 @@ Si el modelo que pediste **no tiene cupo**, `pa` avisa y sugiere otro (`sin_cupo
 Elegí el que sugiere o uno del resumen con cupo.
 
 Qué esperar (datos propios de una instalación, 60 días): Sonnet high iguala o supera a Opus en `codigo-multi`, `frontend` y `debug` por un
-cuarto del costo; Opus rinde mejor en `medium` que en `high`; Haiku xhigh alcanza para `lectura`/`mecanico` y, con test automático, para
-`codigo-acotado`. Argon, Flash, GPT-OSS y Claude por `agy` tienen pocas corridas: no los fuerces para código sin chequeo.
+cuarto del costo; Opus rinde mejor en `medium` que en `high`; Haiku xhigh alcanza para `lectura`/`mecanico`, para `codigo-acotado` bien guiado y para una interfaz chica. Argon, Flash, GPT-OSS y Claude por `agy` tienen pocas corridas: no los fuerces para código sin chequeo.
 
 - **Para el detalle, `reparto --tabla`** (`--json` para leerla; el resumen sale de ella): todos los modelos con su inteligencia (`~` = estimada
   por el nombre), si son gratis, el cupo libre, cuándo se reinicia y si `modelos.json` los permite. Lo que sugiere
@@ -203,6 +204,13 @@ No tocar:       lo que no se cambia
 - **Ajustá el detalle a la inteligencia del modelo** (`reparto --tabla`; `pa` te avisa si es < 70). Debajo de ~70:
   pasos numerados, comandos explícitos, un solo archivo o área por tarea, y partí lo grande en varias.
   Arriba, alcanzan el problema y el criterio de listo.
+- **Brief para Haiku** (el default): rutas exactas, pasos numerados y un chequeo que falla si está mal.
+  1. `Archivos:` rutas completas (`app/src/x.ts`), qué leer primero y qué función o bloque cambiar; nada de "buscá donde esté".
+  2. `Objetivo:` un solo cambio, con el antes y el después en una oración cada uno; si son dos cambios, son dos `pa`.
+  3. Los pasos, numerados y en orden (leer A, cambiar B así, agregar el test C). Si hay un patrón a copiar, nombrá el archivo y la línea.
+  4. `Listo cuando:` algo observable (un test que antes fallaba y ahora pasa, un texto en la salida).
+  5. `Cómo verificar:` el comando exacto, la salida esperada y `No tocar:` lo que no se cambia.
+  Si no podés escribir los pasos 1 a 5, el pedido es ambiguo: partilo, o usá Sonnet.
 - Entre comillas **simples**, o desde un archivo (`--brief-archivo`): con comillas dobles tu shell ejecuta
   cada `` `comando` `` antes de que `pa` lo vea.
 - Una tarea, un `pa`. Cada `pa` arranca una sesión limpia; un seguimiento corto va con `--seguir --id`.

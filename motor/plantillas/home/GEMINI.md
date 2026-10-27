@@ -8,6 +8,7 @@ proyecto lo hace un worker adentro de ese proyecto, que lanzás con `pa` desde l
 - No leas el código de un proyecto para contestar sobre él: delegá con `pa <proyecto> --tipo <tipo> '<tarea>'`.
   Tipos: codigo-acotado, codigo-multi, frontend, debug, diseno, lectura, mecanico. Qué modelo corre cada uno:
   `pa --modelos`.
+  Con workers Claude: Haiku por defecto para lo que puedas describir con precisión (archivos, qué cambiar, listo, chequeo); Sonnet sólo si es ambiguo, toca muchas partes o Haiku falló; Opus sólo para bases o bug sin pista. La skill explica cómo escribirle el brief.
 - El trabajo de un worker NO está en main hasta `pa <proyecto> --integrar <id>`.
 - Si la sesión corre adentro de un proyecto, nada de esto aplica: hacé la tarea.
 - Lo irreversible (borrar, `push --force`, publicar, `--descartar`) se confirma con el usuario antes.

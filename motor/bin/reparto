@@ -134,13 +134,13 @@ MINIMO_POR_TIPO = {
     "debug": "argon", "diseno": "argon",   # Sonnet (88) también los resuelve
     "codigo-multi": "sonnet", "frontend": "sonnet",   # 2026-10-27: con Argon sin cupo, pedir Argon mandaba todo a Opus
     "final": "argon",                      # revisión/integración final, lo crítico, o lo que falló con el modelo anterior
-    "codigo-acotado": "sonnet",            # 2026-10-25: pide calidad de Sonnet, no Haiku
+    "codigo-acotado": "haiku",             # 2026-10-27: Haiku es el default de lo que se puede describir con precisión (con chequeo); Sonnet sólo si es ambiguo o Haiku falló
     "lectura": "haiku", "mecanico": "haiku",
 }
 # Para estos tipos (patrones fnmatch) el modelo que pasa de la calidad de la familia dada, o no llega a ella,
 # sólo entra si ninguno de la banda [familia, familia + MARGEN] tiene cupo: la urgencia no manda Argon/Opus a
 # lo que Sonnet resuelve (incidente 2026-10-25: 8 frontend juntos fueron todos a Argon, 14 % del semanal).
-PREFERIDO_POR_TIPO = {"frontend": "sonnet", "codigo-*": "sonnet"}
+PREFERIDO_POR_TIPO = {"frontend": "sonnet", "codigo-multi": "sonnet", "codigo-acotado": "haiku"}
 # Familias que sólo valen para ciertos tipos (Flash: un worker, y sólo con un chequeo que lo desmienta).
 SOLO_EN = {}
 # Uso por modelo (2026-10-26, regla para quien tiene Google AI Pro): "poco_importante" = sólo en los tipos de
@@ -2728,8 +2728,8 @@ def para_que_sirve(f):
     fam, mid = f["familia"], f["id"]
     por_familia = {
         "opus": "bases críticas, bug sin pista, o tras un fallo de uno menor",
-        "sonnet": "lo normal: código y frontend de tamaño medio",
-        "haiku": "tareas chicas con chequeo (lectura, mecánico, interfaz chica)",
+        "sonnet": "pedido ambiguo, varias partes, o si Haiku ya falló",
+        "haiku": "default si la tarea se describe con precisión (archivos, qué cambiar, listo, chequeo): lectura, mecánico, código e interfaz chica",
         "argon": "diseño y segunda opinión; contexto largo (1M)",
         "flash": "lectura y mecánico con chequeo; cupo de Google",
         "gpt-oss": "mecánico simple; sigue poco el contrato",
