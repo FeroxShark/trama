@@ -263,3 +263,54 @@ test("a disco: las imágenes pasan de un tope y los mensajes siguientes se guard
   assert.equal(colas.get("s1")![2].imagenes?.length, 1, "en memoria siguen completas");
   assert.equal(Object.keys(paraDisco(new Map())).length, 0);
 });
+
+test("mensaje encolado + cambio de modelo o esfuerzo: sale con lo elegido al desencolarse, no con lo que había al encolar", async () => {
+  const a = armar();
+  const vistos: { modelo: string; effort: string }[] = [];
+  const dep = crearCola({
+    disponible: async () => a.e.disp,
+    traer: async () => ({ ok: true }),
+    mandar: async (_s, it) => void vistos.push({ modelo: it.modelo, effort: it.effort }),
+    total: async () => 1,
+    textoError: () => "",
+    guardar: async () => {},
+    avisar: () => {},
+  });
+  dep.encolar(SID, x("uno")); // opus high, ocupado
+  dep.encolar(SID, x("dos"));
+  await tic();
+  assert.equal(vistos.length, 0);
+  dep.elegir(SID, { modelo: "claude-sonnet-5-5", effort: "low" });
+  assert.deepEqual(dep.seleccion(SID), { modelo: "claude-sonnet-5-5", effort: "low" });
+  a.e.disp = "app";
+  await dep.libre(SID);
+  await tic();
+  assert.deepEqual(vistos, [
+    { modelo: "claude-sonnet-5-5", effort: "low" },
+    { modelo: "claude-sonnet-5-5", effort: "low" },
+  ]);
+  // Vacía: no queda selección vieja para la próxima vez.
+  assert.equal(dep.seleccion(SID), null);
+  dep.encolar(SID, { ...x("tres"), modelo: "claude-haiku-5-5", effort: "high" });
+  await tic();
+  assert.deepEqual(vistos.at(-1), { modelo: "claude-haiku-5-5", effort: "high" });
+});
+
+test("el aviso de lo que salió lleva lo vigente, y si falla vuelve a la cola con eso (el reintento no pierde la elección)", async () => {
+  const a = armar();
+  a.cola.encolar(SID, x("uno"));
+  a.cola.elegir(SID, { modelo: "claude-sonnet-5-5", effort: "medium" });
+  await a.finDeTurno();
+  assert.equal(a.avisos.find((v) => v.salio)?.salio?.item.modelo, "claude-sonnet-5-5");
+  assert.equal(a.cola.lista(SID).length, 0);
+  a.e.falla = true;
+  await a.contestar();
+  assert.equal(a.cola.lista(SID)[0]?.modelo, "claude-sonnet-5-5");
+  assert.equal(a.cola.lista(SID)[0]?.effort, "medium");
+});
+
+test("elegir sin cola no guarda nada (no queda una selección vieja pisando a un mensaje futuro)", () => {
+  const a = armar();
+  a.cola.elegir(SID, { modelo: "claude-sonnet-5-5", effort: "low" });
+  assert.equal(a.cola.seleccion(SID), null);
+});

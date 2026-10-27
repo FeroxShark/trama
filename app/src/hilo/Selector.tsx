@@ -5,7 +5,7 @@
 // Inicio/Fin, Enter o Espacio para elegir; Esc, Tab o clic afuera lo cierran.
 import { Fragment, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { Ban, Check, ChevronUp, Search } from "lucide-react";
+import { Ban, Check, ChevronUp, Clock, Search } from "lucide-react";
 import { t } from "../i18n";
 import { Reserva } from "../i18n/Fijo";
 import { ChipLocal } from "./Logos";
@@ -78,6 +78,13 @@ type Props = {
   /** Cada vez que cambia (y no es 0) el menú se abre; con `pestana`, en el riel de ese proveedor (el “Cambiar de modelo” de un error). */
   senalAbrir?: number;
   pestana?: string | null;
+  /**
+   * Lo elegido difiere de lo que usa el turno en curso: se aplica al próximo mensaje. Lleva un reloj y "próx." junto al valor (no sólo
+   * color) y el texto de acá como tooltip y en el nombre accesible del botón. El selector sigue abierto: nunca se bloquea por un turno.
+   */
+  pendiente?: string;
+  /** Lo mismo para algo que este botón no muestra de entrada (el esfuerzo, cuando la barra lo fusiona en el chip del modelo): la marca sólo se ve con la barra compacta. */
+  pendienteCompacto?: string;
 };
 
 /** El nombre de una opción, en su fuente si trae una. */
@@ -118,7 +125,7 @@ function colocar(boton: HTMLElement, menu: HTMLElement) {
 /** Desde cuántas opciones el menú en columnas trae la búsqueda. */
 const CON_BUSQUEDA = 8;
 
-export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, abierto: deEntrada = false, reserva, columnas = false, confirmar, sufijo, confirmando, senalAbrir = 0, pestana = null }: Props) {
+export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, abierto: deEntrada = false, reserva, columnas = false, confirmar, sufijo, confirmando, senalAbrir = 0, pestana = null, pendiente, pendienteCompacto }: Props) {
   const [abierto, setAbierto] = useState(deEntrada || !!confirmando);
   const [pend, setPend] = useState<{ id: string; datos: DatosCambio } | null>(() => {
     const d = confirmando && confirmar ? confirmar(confirmando) : null;
@@ -371,7 +378,9 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
         aria-haspopup="listbox"
         aria-expanded={abierto}
         aria-controls={abierto ? id : undefined}
-        aria-label={`${etiqueta}: ${actual.nombre}`}
+        aria-label={`${etiqueta}: ${actual.nombre}${pendiente || pendienteCompacto ? `, ${t("selector.pendienteEtiqueta")}` : ""}`}
+        data-tip={pendiente ?? pendienteCompacto}
+        data-pendiente={pendiente ? "" : undefined}
         onClick={() => setAbierto((a) => !a)}
         onKeyDown={teclaBoton}
       >
@@ -384,6 +393,12 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
         {sufijo ? (
           <span className="pbtn-suf" aria-hidden="true">
             · {sufijo}
+          </span>
+        ) : null}
+        {pendiente || pendienteCompacto ? (
+          <span className="pbtn-pend" data-compacto={pendiente ? undefined : ""} aria-hidden="true">
+            <Clock size={11} strokeWidth={2.2} />
+            <span className="pbtn-pend-t">{t("selector.proximo")}</span>
           </span>
         ) : null}
         <ChevronUp className="chev" size={12} strokeWidth={2} />

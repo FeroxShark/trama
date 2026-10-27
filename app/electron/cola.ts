@@ -80,6 +80,15 @@ export type Deps = {
 
 const VACIA: readonly Encolado[] = [];
 
+/** Lo que el usuario tiene elegido en la caja del líder (modelo y esfuerzo). */
+export type Seleccion = { modelo: string; effort: string };
+
+/**
+ * Un mensaje de la cola sale con lo elegido en la caja en el momento en que de verdad se entrega al modelo, no con lo que había al
+ * encolarlo: si el usuario cambió el modelo o el esfuerzo mientras esperaba, manda lo nuevo. Sin selección vigente, la del mensaje.
+ */
+export const conSeleccion = (x: Encolado, s: Seleccion | undefined): Encolado => (s ? { ...x, modelo: s.modelo, effort: s.effort } : x);
+
 const esEncolado = (x: unknown): x is Encolado => {
   const e = x as Encolado;
   return !!e && Number.isInteger(e.id) && typeof e.texto === "string" && typeof e.modelo === "string" && typeof e.effort === "string";
@@ -93,6 +102,8 @@ export function crearCola(d: Deps) {
   // Avisaron que quedó libre mientras se miraba (un intento que lo vio ocupado justo antes del fin
   // del turno): se vuelve a mirar al terminar, en vez de perder el aviso. El valor: si era con `cortar`.
   const otraVez = new Map<string, boolean>();
+  // Lo elegido en la caja de cada líder con cola (la vista lo avisa en cada cambio): se aplica al salir cada mensaje y se olvida al vaciarse la cola.
+  const selecciones = new Map<string, Seleccion>();
   let n = 0;
 
   const lista = (sid: string) => colas.get(sid) ?? VACIA;
@@ -104,6 +115,7 @@ export function crearCola(d: Deps) {
     else {
       colas.delete(sid);
       errores.delete(sid);
+      selecciones.delete(sid);
     }
     void guardar();
     d.avisar({ sid, lista: lista(sid), error: error(sid), ...extra });
@@ -121,7 +133,7 @@ export function crearCola(d: Deps) {
     if (!x || disp === "ocupado" || (disp === "terminalOcupada" && !cortar)) return false;
     const traido = disp !== "app";
     if (traido) {
-      const r = await d.traer(sid, x, cortar);
+      const r = await d.traer(sid, conSeleccion(x, selecciones.get(sid)), cortar);
       if (!r.ok) {
         // Volvió a ponerse a trabajar justo ahora: se sigue esperando.
         if (r.motivo !== "trabajando") fallar(sid, d.textoError({ motivo: r.motivo }));
@@ -132,8 +144,10 @@ export function crearCola(d: Deps) {
       if (!x) return false;
     }
     const total = await d.total(sid).catch(() => null);
-    const item = x;
-    if (lista(sid)[0] !== item) return false;
+    const original = x;
+    if (lista(sid)[0] !== original) return false;
+    // Recién ahora (al desencolarse) se toma la selección vigente.
+    const item = conSeleccion(original, selecciones.get(sid));
     poner(sid, lista(sid).slice(1), { salio: { item, total, traido } });
     try {
       await d.mandar(sid, item);
@@ -195,6 +209,12 @@ export function crearCola(d: Deps) {
       void libre(sid);
       return e;
     },
+    /** Lo elegido ahora en la caja del líder: lo que lleva el próximo mensaje de la cola al salir. Sin cola, no se guarda nada. */
+    elegir(sid: string, s: Seleccion) {
+      if (lista(sid).length) selecciones.set(sid, s);
+    },
+    /** La selección vigente de un líder con cola (para probar y para la vista). */
+    seleccion: (sid: string): Seleccion | null => selecciones.get(sid) ?? null,
     quitar(sid: string, id: number) {
       const c = lista(sid);
       if (c.some((x) => x.id === id)) poner(sid, c.filter((x) => x.id !== id));

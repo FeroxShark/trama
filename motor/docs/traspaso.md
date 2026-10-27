@@ -57,6 +57,25 @@ historia (force push); se puede subir directo y mergear sin esperar el CI.
 - **Port a Windows, etapas 0 a 4:** CI linux + windows, base TS (`app/electron/cli/base/`), arnés de paridad bash vs TS
   (`app/tests/paridad/`), `proyecto-ruta` / `trama-estado` / `workers` en TS, hooks en `.mjs`.
 
+## Hecho: cambiar modelo o esfuerzo con el líder trabajando
+
+- **Los selectores de modelo y esfuerzo de la caja del líder ya no se bloquean durante un turno.** El cambio no toca el turno en
+  curso: se aplica al próximo mensaje que salga. Si lo elegido difiere de lo que usa el turno, el selector lleva un reloj y
+  "próx." (tooltip y nombre accesible lo dicen; no depende del color). `app/src/hilo/pendiente.ts`, `Selector.tsx` (`pendiente`).
+- **Cola:** un mensaje encolado sale con lo elegido en el momento en que se desencola, no con lo de cuando se encoló. La caja avisa
+  cada cambio mientras hay cola (`lider:colaSeleccion`, `cola.elegir` en `app/electron/cola.ts`); la selección se olvida al
+  vaciarse la cola.
+- **Mandar ya:** `mandarDirecto` ya no rechaza si difiere el modelo o el esfuerzo: el mensaje entra con el del turno, y la caja
+  dice "se aplica en el próximo turno" (`directo.pendiente`).
+- **Cómo se aplica entre turnos (camino que ya existía, se reusa):** `mandar` en `app/electron/lider.ts`. Claude CLI: `set_model` /
+  `apply_flag_settings` en vivo, sin relanzar. Gemini (agy), DeepSeek Harness y OpenCode: se cierra el proceso y se relanza con
+  `--resume` en el límite de turno (la sesión no se pierde). Locales/Ollama: relanza con su endpoint.
+- **Supuesto:** cambiar de motor (Claude, Gemini, DeepSeek Harness, OpenCode) a mitad de un turno queda como estaba: en el selector
+  esas opciones se ven apagadas ("Otro motor: se cambia cuando el líder termine su turno") y `/model` lo rechaza; con el líder en
+  reposo sigue con su confirmación. Ningún motor quedó sin cubrir dentro del mismo motor.
+- **Supuesto:** el aviso de pendiente sólo existe con un turno en curso; en reposo, lo elegido simplemente sale con el próximo mensaje.
+- Capturas: `HILOS_VARIANTE=pendiente|pendiente-modelo scripts/captura.sh lider-trabajando`.
+
 ## Hecho en esta última pasada (commit final de la rama `claude/elegant-sagan-gvgbq5`, falta mergear)
 
 > Ver el resultado de cada parte más abajo en "Estado de la última pasada".
