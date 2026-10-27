@@ -1,5 +1,12 @@
 # Cambios
 
+## 0.2.3
+
+- Actualizar desde la app sin cortar trabajo: con líderes o workers activos ofrece "Actualizar cuando terminen" o "Actualizar ya" (con confirmación). Al terminar avisa "Trama X instalada" con botón para reiniciar la ventana.
+- El instalador corrido desde `motor/scripts` de un checkout ya compila la app y anota de dónde actualizar (antes quedaba en la versión vieja diciendo "listo").
+- Ajustes > Proyectos: botón "Merge with AI" en el aviso de instrucciones repartidas.
+- Reparto: frontend y código de varias partes piden nivel Sonnet, no Argon (sin cupo de Argon caía en Opus).
+
 ## 0.2.2
 
 - Mensajes en cola: todo lo encolado le llega al líder junto, en un solo mensaje y entre herramientas, sin interrumpir.
