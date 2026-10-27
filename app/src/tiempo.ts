@@ -110,7 +110,7 @@ export const pintorResta =
     return { texto: t("tiempo.en", { t: f.texto }), en: f.en };
   };
 
-/** La hora local exacta, para el tooltip: "se reinicia hoy 16:50", "se reinicia mañana 09:00", "se reinicia el jueves 18:00". */
+/** La hora local exacta, para el tooltip: "se reinicia a las 16:50", "se reinicia mañana 09:00", "se reinicia el jueves 18:00". */
 export const pintorCuando =
   (hasta: number): Pintor =>
   (a) => {

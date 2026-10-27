@@ -41,7 +41,7 @@ test("el tooltip del reinicio dice la hora local exacta: hoy, mañana, o qué d�
   const hoy = pintorCuando(new Date(2026, 9, 3, 16, 50).getTime() / 1000);
   const manana = pintorCuando(new Date(2026, 9, 4, 9, 0).getTime() / 1000);
   const jueves = pintorCuando(new Date(2026, 9, 8, 9, 0).getTime() / 1000);
-  assert.equal(hoy(a).texto, "resets today at 16:50");
+  assert.equal(hoy(a).texto, "resets at 16:50");
   assert.equal(hoy(a).en, 16 * MIN);
   assert.equal(hoy(a + 17 * MIN).texto, "resets now");
   assert.equal(manana(a).texto, "resets tomorrow at 09:00");
@@ -51,7 +51,7 @@ test("el tooltip del reinicio dice la hora local exacta: hoy, mañana, o qué d�
   assert.equal(jueves(a).en, 7 * HORA + 26 * MIN);
   cambiarIdioma("es");
   try {
-    assert.equal(hoy(a).texto, "se reinicia hoy 16:50");
+    assert.equal(hoy(a).texto, "se reinicia a las 16:50");
     assert.equal(manana(a).texto, "se reinicia mañana 09:00");
     assert.equal(jueves(a).texto, "se reinicia el jueves 09:00");
   } finally {
