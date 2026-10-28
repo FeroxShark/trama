@@ -210,6 +210,32 @@ test('detectarArneses informa dsh, opencode y ollama instalados o con comando', 
   }
 });
 
+test('detectarArneses busca ollama con `where` en Windows (no hay `which`)', async () => {
+  const llamadas: string[] = [];
+  const fakeDeps: DepsDeteccion = {
+    home: 'C:\\Users\\usuario',
+    env: {},
+    ejecutar: async (bin, args) => {
+      llamadas.push(bin);
+      if (bin === 'where' && args[0] === 'ollama') return 'C:\\Program Files\\Ollama\\ollama.exe\r\n';
+      if (bin === 'ollama' && args[0] === '--version') return 'ollama version is 0.5.1\r\n';
+      return '';
+    },
+    leer: async () => null,
+    listarDir: async () => [],
+    stat: async () => null,
+    pedirJson: async () => null,
+    puertoAbierto: async () => false,
+  };
+
+  const arneses = await detectarArneses(fakeDeps, 'win32');
+  const ollama = arneses.find((a) => a.id === 'ollama');
+  assert.equal(ollama?.instalado, true);
+  assert.equal(ollama?.version, '0.5.1');
+  assert.ok(llamadas.includes('where'));
+  assert.ok(!llamadas.includes('which'));
+});
+
 test('seguridad: detectarLocales es estrictamente de sólo lectura', async () => {
   const llamadas: string[] = [];
   const fakeDeps: DepsDeteccion = {

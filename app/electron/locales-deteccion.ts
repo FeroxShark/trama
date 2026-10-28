@@ -413,7 +413,7 @@ export async function detectarArchivosGguf(
   return encontrados;
 }
 
-export async function detectarArneses(d: DepsDeteccion): Promise<ArnesLocal[]> {
+export async function detectarArneses(d: DepsDeteccion, plat: Plataforma = plataformaActual()): Promise<ArnesLocal[]> {
   const arneses: ArnesLocal[] = [];
 
   let dshInstalado = false;
@@ -453,7 +453,8 @@ export async function detectarArneses(d: DepsDeteccion): Promise<ArnesLocal[]> {
   let ollamaInstalado = false;
   let ollamaVersion: string | null = null;
   try {
-    const out = await d.ejecutar('which', ['ollama'], { timeout: 1000 });
+    // Windows no tiene `which`: `where` dice lo mismo (y sale con error si no está).
+    const out = await d.ejecutar(plat === 'win32' ? 'where' : 'which', ['ollama'], { timeout: 1000 });
     ollamaInstalado = Boolean(out.trim());
     if (ollamaInstalado) {
       const v = await d.ejecutar('ollama', ['--version'], { timeout: 1000 });
