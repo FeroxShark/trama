@@ -16,6 +16,7 @@ import { cmdLeccion, cmdLecciones, cmdLeccionesPodar } from "./pa/lecciones.ts";
 import { cmdLimpiar } from "./pa/limpiar.ts";
 import { cmdParar, matarProyecto } from "./pa/matar.ts";
 import { lanzarProyecto } from "./pa/orquesta.ts";
+import { motoresDe } from "./pa/otros-motores.ts";
 import { cmdProyectos, cmdRenombrar } from "./pa/proyectos.ts";
 import { cmdDescartar, cmdDescartarId, cmdIntegrar, cmdRamas } from "./pa/ramas.ts";
 import { fijarProyecto } from "./pa/ramas-base.ts";
@@ -77,7 +78,8 @@ export const deps: Deps = {
     }
     return r.tarea;
   },
-  // motores (agy, codex, dsh, opencode, ollama), agents-md, unificar-md, hilos y el resto: siguen en el bash (70).
+  motores: motoresDe,
+  // agents-md, unificar-md, hilos y el resto: siguen en el bash (70).
 };
 
 if (esPrincipal(import.meta.url)) {

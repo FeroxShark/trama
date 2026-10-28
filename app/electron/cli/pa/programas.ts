@@ -15,6 +15,8 @@ export interface Reparto {
   ejecutable(): boolean;
   /** `reparto --enfriado <m>`: hasta cuándo, o null si no está enfriado (o no contesta). */
   enfriado(modelo: string): Promise<string | null>;
+  /** `reparto --enfriar <m> [--horas N]`: marca ese modelo de OpenCode como enfriado (nunca rompe). */
+  enfriar?(modelo: string, horas?: string): Promise<void>;
   /** `reparto --tipo T [--cuenta C] --json` (con REPARTO_RESERVAR=1 si `reservar`). rc 124/137 = venció el tope, 127 = no está. */
   elegir(tipo: string, o?: { reservar?: boolean; sinDsh?: boolean; cuenta?: string }): Promise<{ rc: number; salida: string }>;
   /** `reparto --tabla --json` ("" si falla). */
@@ -61,6 +63,9 @@ export function repartoProceso(pa: Pa): Reparto {
     async enfriado(modelo) {
       const r = await llamar(["--enfriado", modelo], {}, false);
       return r.codigo === 0 ? recortar(r.salida) : null;
+    },
+    async enfriar(modelo, horas) {
+      await llamar(["--enfriar", modelo, ...(horas ? ["--horas", horas] : [])]).catch(() => {});
     },
     async elegir(tipo, o = {}) {
       const extra: Env = {};

@@ -88,7 +88,7 @@ export interface Deps {
   auditar?: (l: Llamada, pa: Pa, p: Proyecto) => string | Promise<string>;
   reparto?: (pa: Pa) => Reparto;
   cuentas?: (pa: Pa) => Cuentas;
-  motores?: Partial<Motores>;
+  motores?: Partial<Motores> | ((pa: Pa) => Partial<Motores>);
   /** Corre otro `pa` con esos argumentos y variables extra (los intentos de -m a,b,c); devuelve su código. */
   relanzar?: (argv: string[], extra: Env) => number | Promise<number>;
   plat?: Plataforma;
@@ -339,7 +339,7 @@ async function correrPa(argv: string[], env: Env, io: Io, deps: Deps): Promise<n
   const o = parsearOpciones(args, opcionesIniciales(proyecto, env, pa.plan), { env, io, dueno, anotar: (t) => anotar(pa, t) });
   const l = llamadaDe(o);
   l.fbResto = fbResto;
-  const motores = deps.motores ?? {};
+  const motores = (typeof deps.motores === "function" ? deps.motores(pa) : deps.motores) ?? {};
   const sinMotor = (que: string) => async () => {
     salir(noPortado(pa, que));
     return "";

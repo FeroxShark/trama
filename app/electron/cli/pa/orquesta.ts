@@ -3,8 +3,9 @@
 // caché frío, sesión compactada), el límite de sesión, la sesión (nueva o retomada), `claude --version`, --async, el lugar y el
 // puesto, el worktree, los archivos sucios, --actualizar, y el armado de la `Corrida` que recibe `lanzarClaude`.
 //
-// Sólo el motor `claude`. Lo que todavía no está en TS (agy, codex, dsh, ollama; relanzar por falta de cupo con reparto; esperar cupo
-// con sin_cupo=esperar) corta ANTES de dejar rastro con `noPortado` (código 70): el envoltorio de motor/bin/pa vuelve al bash.
+// Todos los motores: claude y ollama (el mismo claude CLI) por lanzarClaude; agy, codex y dsh/opencode por `ejecutarOtro`
+// (otros-motores.ts). Lo que todavía no está en TS (relanzar por falta de cupo con reparto; esperar cupo con sin_cupo=esperar)
+// corta ANTES de dejar rastro con `noPortado` (código 70): el envoltorio de motor/bin/pa vuelve al bash.
 import { randomUUID } from "node:crypto";
 import { existsSync, lstatSync, mkdirSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import path from "node:path";
@@ -12,7 +13,7 @@ import { escribirAtomico } from "../base/archivo.ts";
 import { correr } from "../base/proc.ts";
 import { enPath, esEjecutable } from "../base/buscar.ts";
 import { entornoCmd } from "../../binario.ts";
-import { prefijoDe } from "./programas.ts";
+import { prefijoDe, repartoProceso } from "./programas.ts";
 import { noPortado, type DeProyecto, type Proyecto as ProyectoCli } from "./cli.ts";
 import { argsHijo, lanzarAsync } from "./async.ts";
 import { armarActualizar } from "./auditar.ts";
@@ -29,6 +30,8 @@ import { prepararWorktree, type Proyecto as ProyectoWt } from "./worktrees.ts";
 import type { Llamada } from "./politica.ts";
 import { ORDEN_PARAR } from "./matar.ts";
 import { Modelos } from "./modelos.ts";
+import { dshProveedor, esOpencode } from "./motores/modelos.ts";
+import { cuentaEnvDe, ejecutarOtro, esMotorOtro, localesDe } from "./otros-motores.ts";
 
 export interface OpcionesOrquesta extends OpcionesLanzar {
   /** Ganchos que se suman a los propios (medir, tablero…). */
@@ -115,20 +118,6 @@ async function fichaDe(pa: Pa, slug: string): Promise<string> {
   }
 }
 
-/** `cuenta_env` (`env -u A -u B K=V …`) como lo entiende `entornoClaude`. */
-function cuentaEnvDe(a: string[]): Corrida["cuentaEnv"] {
-  const poner: Record<string, string> = {};
-  const quitar: string[] = [];
-  for (let i = a[0] === "env" ? 1 : 0; i < a.length; i++) {
-    if (a[i] === "-u" && a[i + 1] !== undefined) quitar.push(a[++i]!);
-    else {
-      const j = a[i]!.indexOf("=");
-      if (j > 0) poner[a[i]!.slice(0, j)] = a[i]!.slice(j + 1);
-    }
-  }
-  return { poner, quitar };
-}
-
 const corteBytes120 = (t: string) => {
   let s = "";
   let b = 0;
@@ -156,7 +145,8 @@ async function orquestar(l: Llamada, pa: Pa, p: ProyectoCli, o: OpcionesOrquesta
   const modelos = new Modelos(env, io, pa.home, pa.plat);
 
   // --- lo que el pa de TS todavía no hace: corta antes de dejar rastro, y el envoltorio vuelve al bash
-  if (l.motor !== "claude") return noPortado(pa, `lanzar con el motor ${l.motor}`);
+  const motor = l.motor;
+  const conClaude = motor === "claude" || motor === "ollama";
   if (l.repartoTipoRelanzable || l.repartoEsperar || l.fbResto) return noPortado(pa, "relanzar por falta de cupo (reparto, -m a,b,c)");
 
   // --- --leer --seguir
@@ -238,7 +228,7 @@ async function orquestar(l: Llamada, pa: Pa, p: ProyectoCli, o: OpcionesOrquesta
 
   // --- límite de sesión conocido
   const limite = limiteDe(pa, l.cuentaUsada);
-  if (esArch(limite)) {
+  if (motor === "claude" && esArch(limite)) {
     const hasta = leerTexto(limite);
     if (/^[0-9]+$/.test(hasta) && Number(hasta) > ahoraS()) {
       io.err(`pa: límite de sesión de la suscripción hasta las ${horaMinuto(Number(hasta), env.TZ)}. No lanzo.\n`);
@@ -280,7 +270,7 @@ async function orquestar(l: Llamada, pa: Pa, p: ProyectoCli, o: OpcionesOrquesta
   if (l.actualizar) tsRetomada = l.actualizar;
 
   // --- claude instalado y sano (el hijo de --async no lo repite)
-  if (!env.PA_ASYNC) {
+  if (!env.PA_ASYNC && conClaude) {
     const s = await claudeSano(pa, o.claude);
     if (!s.ok) {
       const rc = claudeRc(pa);
@@ -291,7 +281,7 @@ async function orquestar(l: Llamada, pa: Pa, p: ProyectoCli, o: OpcionesOrquesta
 
   // --- async: relanzarse desacoplado y volver
   if (l.async) {
-    const x0: ProyectoWt = { pa, proyecto: l.proyecto, ruta, slug, dir, ts: "", motor: "claude" };
+    const x0: ProyectoWt = { pa, proyecto: l.proyecto, ruta, slug, dir, ts: "", motor };
     await lanzarAsync(pa, {
       proyecto: l.proyecto,
       slug,
@@ -335,7 +325,7 @@ async function orquestar(l: Llamada, pa: Pa, p: ProyectoCli, o: OpcionesOrquesta
   const ts = env.PA_TS || idCorrida();
   const tareaJefe = l.tarea;
   const lanzo = /^[a-z0-9_-]+$/.test(env.PA_ORIGEN || "jefe") ? env.PA_ORIGEN || "jefe" : "jefe";
-  const xw: ProyectoWt = { pa, proyecto: l.proyecto, ruta, slug, dir, ts, motor: "claude" };
+  const xw: ProyectoWt = { pa, proyecto: l.proyecto, ruta, slug, dir, ts, motor };
   const parar = new AbortController();
   const adm = new Admision(xw, {
     leer,
@@ -444,7 +434,9 @@ async function orquestar(l: Llamada, pa: Pa, p: ProyectoCli, o: OpcionesOrquesta
     }
 
     // --- la ficha va en la TAREA (no en el contrato: el contrato es el prefijo del caché)
-    const ficha = !resume ? await fichaDe(pa, slug) : "";
+    // (a un agy, codex u opencode no: son los pendientes del dueño y lo que va a otra empresa no se recupera; dsh:ollama es local)
+    const conFicha = motor === "claude" || motor === "ollama" || (motor === "dsh" && !esOpencode(l.modelo) && dshProveedor(l.modelo) === "ollama");
+    const ficha = !resume && conFicha ? await fichaDe(pa, slug) : "";
     const paralelos = leer
       ? ""
       : otrosWriters(xw, ts)
@@ -485,7 +477,7 @@ async function orquestar(l: Llamada, pa: Pa, p: ProyectoCli, o: OpcionesOrquesta
       maxBudget: l.maxBudget,
       espejo: l.espejo || undefined,
       actualizar,
-      autocompact: modelos.autocompactDe(l.modelo, pa.autocompact),
+      autocompact: conClaude ? modelos.autocompactDe(l.modelo, pa.autocompact) : "",
       ficha,
       modeloFlojo: !leer && Boolean(l.flojo),
       paralelos,
@@ -494,9 +486,14 @@ async function orquestar(l: Llamada, pa: Pa, p: ProyectoCli, o: OpcionesOrquesta
       jefe: jefeNombre(pa),
       jefeId: jefeId(pa),
       async: Boolean(env.PA_ASYNC),
+      motor,
+      local: motor === "ollama" ? { url: l.localUrl, modelo: l.localModelo } : undefined,
+      ocEffort: l.ocEffort,
+      locales: motor === "dsh" ? localesDe(modelos) : undefined,
     };
     const paRun: Pa = t.cargoTargetDir ? { ...pa, env: { ...env, CARGO_TARGET_DIR: t.cargoTargetDir } as Env } : pa;
     const g: Ganchos = ganchosDe(pa, l, {
+      enfriar: (m) => repartoProceso(pa).enfriar?.(m, env.PA_ENFRIAR_HORAS) ?? Promise.resolve(),
       ...o.ganchos,
       soltar: async () => {
         await adm.soltarTodo();
@@ -504,7 +501,7 @@ async function orquestar(l: Llamada, pa: Pa, p: ProyectoCli, o: OpcionesOrquesta
       },
     });
     // pa --parar / --matar: en Windows por el canal de control del lock; en Linux, SIGTERM
-    const rc = await lanzarClaude(paRun, c, { ...o, ganchos: g, senal: o.senal ?? parar.signal });
+    const rc = await lanzarClaude(paRun, c, { ...o, ganchos: g, senal: o.senal ?? parar.signal, ejecutar: o.ejecutar ?? (esMotorOtro(motor) ? ejecutarOtro : undefined) });
     return rc;
   } finally {
     await adm.soltarTodo();

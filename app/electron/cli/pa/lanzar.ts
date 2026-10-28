@@ -17,7 +17,7 @@ import { enPath, esEjecutable } from "../base/buscar.ts";
 import { tomar } from "../base/lock.ts";
 import { matarArbol } from "../base/proc.ts";
 import { comandoHook, entreComillas, type VarianteHook } from "../hooks.ts";
-import { CIERRE_TAREA, CIERRE_TURNOS, CONTRATO, conJefe, SIN_JEFE } from "./contrato.ts";
+import { CIERRE_TAREA, CIERRE_TURNOS } from "./contrato.ts";
 import { caminoDe } from "../../rutas.ts";
 import { conDueno, type Env, type Pa } from "./entorno.ts";
 import {
@@ -36,6 +36,10 @@ import {
   type Solapamiento,
 } from "./resultado-lanzar.ts";
 import { deltaSucios, limpiarBuild } from "./sucios.ts";
+import { contratoBase, entornoOllama } from "./motores/llamada.ts";
+import { arreglarJsonOllama } from "./motores/salida.ts";
+import type { Local } from "./motores/chequeo.ts";
+import { esOpencode, type Motor } from "./motores/modelos.ts";
 
 /** Todo lo que `pa` ya decidió antes de lanzar (argumentos, política, puesto, worktree). Los nombres son los del bash. */
 export interface Corrida {
@@ -105,6 +109,14 @@ export interface Corrida {
   jefeId: string;
   /** El que corre en segundo plano (`PA_ASYNC`): deja `.listo`. */
   async: boolean;
+  /** El motor que corre al worker (default `claude`). agy, codex y dsh/opencode los corre `OpcionesLanzar.ejecutar`. */
+  motor?: Motor;
+  /** ollama:* — el servidor local y su modelo: el MISMO claude CLI contra él (`--model <modelo local>`). */
+  local?: { url: string; modelo: string };
+  /** opencode: el effort pedido (su `--variant`). */
+  ocEffort?: string;
+  /** `locales` de modelos.json (dsh:ollama saca de ahí su url). */
+  locales?: Local[] | null;
 }
 
 /** Lo que todavía vive en otras partes del port. Sin el gancho, ese paso no se hace (como si fallara en silencio, `|| true`). */
@@ -117,6 +129,8 @@ export interface Ganchos {
   anotarTablero?: (l: Lanzamiento) => Promise<void>;
   /** Soltar el puesto y el lugar del tope global (el `exec 9>&- 6>&-`). */
   soltar?: () => Promise<void>;
+  /** `enfriar_modelo`: marca ese modelo de OpenCode como enfriado en reparto (nunca rompe). */
+  enfriar?: (modelo: string) => Promise<void>;
   /** Relanzar con otro modelo por falta de cupo (reparto): true si cambió la corrida y hay que correr de nuevo (hasta 3 veces). */
   relanzarPorCupo?: (l: Lanzamiento, intento: number) => Promise<boolean>;
   /** Las ramas sin integrar que tocan lo mismo (la cola de `linea_rama`). */
@@ -135,6 +149,8 @@ export interface OpcionesLanzar {
   espera529Ms?: number;
   /** El ejecutable de claude (default: `claude` del PATH de `pa.env`). */
   claude?: string;
+  /** Cómo se corre al worker (default `correrClaude`): agy, codex y dsh/opencode lo reemplazan (otros-motores.ts). Devuelve el código. */
+  ejecutar?: (l: Lanzamiento, o: { alArrancar: (pid: number) => void }) => Promise<number>;
 }
 
 /** El estado vivo de una corrida mientras se lanza: lo que en el bash son variables globales. */
@@ -257,9 +273,12 @@ const TXT_PRO =
 const TXT_ABANICO =
   'Abanico de Haikus: cuando muchos intentos verificables valen más que uno pensado (buscar algo que un grep no encuentra, revisar muchos archivos o candidatos, probar variantes contra un test o chequeo), repartilo en paralelo entre subagentes (Agent con model "haiku" y effort xhigh si se puede; hasta ~10, un pedazo cada uno, que devuelvan algo verificable) y verificá vos. No para diseño, decisiones ni código donde un intento malo cuesta caro. Esos subagentes no son delegar: siguen siendo tu trabajo.';
 
+/** El bloque del proyecto en el mapa de interconexiones (`mapa_proy`; PA_MAPA_DIR sólo para los tests). */
+export const mapaDe = (pa: Pa, slug: string) => path.join(pa.env.PA_MAPA_DIR || path.join(pa.env.XDG_CONFIG_HOME || path.join(pa.home, ".config"), "trama", "mapa"), `${slug}.md`);
+
 /** El texto de `--append-system-prompt` de un worker de claude (el `contrato` de `armar_llamada`). */
 export function contratoClaude(pa: Pa, c: Corrida): string {
-  let k = c.jefe ? `${CONTRATO}\n${conJefe(c.jefe)}` : `${CONTRATO}\n${SIN_JEFE}`;
+  let k = contratoBase(c.motor ?? "claude", c.jefe);
   k = conDueno(k, pa.env, pa.home).replace(/\n+$/, "");
   if (!c.leer && c.modeloFlojo) k += `\n${TXT_FLOJO}`;
   if (!c.leer) k += leccionesBloque(path.join(pa.state, c.slug));
@@ -269,7 +288,7 @@ export function contratoClaude(pa: Pa, c: Corrida): string {
   } else if (c.usaWorktree) {
     k += `\nEstás en la rama ${c.rama} de un worktree propio (${c.rutaTrabajo}), sacada del HEAD del tree principal del proyecto. Commiteá ahí, archivo por archivo. No cambies de rama, no mergees, no toques el tree principal: integra el jefe.`;
   }
-  const mapa = path.join(pa.env.PA_MAPA_DIR || path.join(pa.env.XDG_CONFIG_HOME || path.join(pa.home, ".config"), "trama", "mapa"), `${c.slug}.md`);
+  const mapa = mapaDe(pa, c.slug);
   if (!c.leer && !c.actualizar && existsSync(mapa) && statSync(mapa).isFile()) {
     k += `\nSi tu cambio modificó lo que este proyecto expone, consume o escribe para OTROS proyectos (CLIs, puertos, archivos compartidos, units), actualizá su bloque del mapa en ${mapa} y poné la fecha de hoy en su \`verificado:\`. Sólo ese archivo: no abras el índice general del mapa (es generado) ni los bloques de otros proyectos. Si no cambió nada de eso, no lo toques.`;
   }
@@ -279,7 +298,7 @@ export function contratoClaude(pa: Pa, c: Corrida): string {
   }
   if (c.leer) k += `\n${TXT_LEER}`;
   if (pa.plan === "pro") k += `\n${TXT_PRO}`;
-  if (pa.plan !== "pro" && !c.leer) k += `\n${TXT_ABANICO}`;
+  if (pa.plan !== "pro" && !c.leer && (c.motor ?? "claude") === "claude") k += `\n${TXT_ABANICO}`;
   return k;
 }
 
@@ -293,7 +312,7 @@ const mcpApagado = ["--strict-mcp-config", "--mcp-config", '{"mcpServers":{}}'];
 export function argsClaude(pa: Pa, c: Corrida, o: { contrato: string; settings: string; nombre: string }): string[] {
   let prompt = c.tarea;
   if (!c.resume && c.ficha) prompt += `\n\nDónde quedó este proyecto:\n${c.ficha}`;
-  const a = ["-p", prompt, "--model", c.modelo];
+  const a = ["-p", prompt, "--model", c.local?.modelo ?? c.modelo];
   if (c.esfuerzo) a.push("--effort", c.esfuerzo);
   a.push("--output-format", "json", "--append-system-prompt", o.contrato, "--permission-mode", "bypassPermissions");
   if (c.autocompact) a.push("--autocompact", c.autocompact);
@@ -310,7 +329,7 @@ export function argsClaude(pa: Pa, c: Corrida, o: { contrato: string; settings: 
 
 /** El argv del auto-cierre de una corrida que se quedó sin turnos: un resume corto con CIERRE_TAREA. */
 export function argsCierre(pa: Pa, c: Corrida, o: { contrato: string; settings: string; nombre: string; sid: string }): string[] {
-  const a = ["-p", CIERRE_TAREA, "--model", c.modelo];
+  const a = ["-p", CIERRE_TAREA, "--model", c.local?.modelo ?? c.modelo];
   if (c.esfuerzo) a.push("--effort", c.esfuerzo);
   a.push("--output-format", "json", "--append-system-prompt", o.contrato, "--permission-mode", "bypassPermissions");
   if (c.autocompact) a.push("--autocompact", c.autocompact);
@@ -521,10 +540,24 @@ export function guardarSesion(l: Lanzamiento, sid: string): void {
 /** El env del claude: el de pa, más PA_WORKER y los editores de git apagados, más la cuenta (sólo en este proceso). */
 export function entornoClaude(l: Lanzamiento): Env {
   const e: Env = { ...l.pa.env, ...l.envClaude, PA_WORKER: "1", GIT_EDITOR: "true", GIT_SEQUENCE_EDITOR: "true" };
+  // un local: las ANTHROPIC_* del servidor van SÓLO en este proceso (regla de facturación)
+  if (l.c.local) Object.assign(e, entornoOllama({}, l.c.local.url, l.c.local.modelo));
   for (const k of l.c.cuentaEnv?.quitar ?? []) delete e[k];
   Object.assign(e, l.c.cuentaEnv?.poner ?? {});
   for (const k of Object.keys(e)) if (e[k] === undefined) delete e[k];
   return e;
+}
+
+/** `dsh_sin_cupo`: el proveedor contestó 429 / rate limit. Sólo el final de stderr y el result: el stream trae lo que el modelo dijo. */
+export function dshSinCupo(err: string, texto: string): boolean {
+  let cola = "";
+  try {
+    const b = readFileSync(err);
+    cola = b.subarray(Math.max(0, b.length - 4000)).toString("utf8");
+  } catch {
+    cola = "";
+  }
+  return /rate.?limit|Too Many Requests|quota|FreeUsageLimit|cortó por límite de uso|(^|[^0-9])429([^0-9]|$)/i.test(cola + texto);
 }
 
 const NUM_SENAL: Record<string, number> = { SIGHUP: 1, SIGINT: 2, SIGQUIT: 3, SIGKILL: 9, SIGTERM: 15 };
@@ -554,7 +587,11 @@ export function correrClaude(l: Lanzamiento, o: { claude?: string; alArrancar?: 
         }
         fin(127);
       });
-      h.on("exit", (code, sig) => fin(code ?? 128 + (sig ? (NUM_SENAL[sig] ?? 0) : 0)));
+      h.on("exit", (code, sig) => {
+        // un local: el .json dice motor "ollama", el modelo de pa y no cuesta US$ (el CLI podría inventar un precio)
+        if (l.c.motor === "ollama") arreglarJsonOllama(l.out, l.c.modelo);
+        fin(code ?? 128 + (sig ? (NUM_SENAL[sig] ?? 0) : 0));
+      });
       if (h.pid) o.alArrancar?.(h.pid);
     } catch (e) {
       try {
@@ -684,14 +721,12 @@ export async function lanzarClaude(pa: Pa, c: Corrida, o: OpcionesLanzar = {}): 
 
   const correr = async (): Promise<number> => {
     if (matado) return 130;
-    const rc = await correrClaude(l, {
-      claude: o.claude,
-      alArrancar: (pid) => {
-        l.hijo = pid;
-        escribirRunning(l);
-        if (matado) matar();
-      },
-    });
+    const alArrancar = (pid: number) => {
+      l.hijo = pid;
+      escribirRunning(l);
+      if (matado) matar();
+    };
+    const rc = o.ejecutar ? await o.ejecutar(l, { alArrancar }) : await correrClaude(l, { claude: o.claude, alArrancar });
     l.hijo = null;
     return rc;
   };
@@ -741,6 +776,13 @@ export async function lanzarClaude(pa: Pa, c: Corrida, o: OpcionesLanzar = {}): 
 
   if (fallo(rc)) {
     const texto = res();
+    // 0. OpenCode cortó por límite de uso (los gratis lo hacen seguido): código propio, y ESE modelo queda enfriado en reparto.
+    if (c.motor === "dsh" && esOpencode(c.modelo) && dshSinCupo(l.err, texto)) {
+      await g.enfriar?.(c.modelo).catch(() => {});
+      io.err(`pa: OpenCode cortó por límite de uso con ${c.modelo}: lo enfrío ${pa.env.PA_ENFRIAR_HORAS || "5"} h en reparto. Probá con otro modelo (-m a,b,c pasa solo al siguiente).\n`);
+      io.err(`${texto}\n`);
+      return salir(97);
+    }
     // 1. límite de sesión de la suscripción: no se arregla reintentando.
     if (texto.includes("session limit")) {
       const hasta = epochReset(texto, pa.env);
@@ -819,7 +861,7 @@ export async function lanzarClaude(pa: Pa, c: Corrida, o: OpcionesLanzar = {}): 
   }
 
   // 3c. la instalación de claude se rompió: código propio y el arreglo escrito.
-  if (fallo(rc) && (rc === 127 || esClaudeRoto(leerErr()))) {
+  if (fallo(rc) && (c.motor === undefined || c.motor === "claude" || c.motor === "ollama") && (rc === 127 || esClaudeRoto(leerErr()))) {
     const rcC = claudeRc(pa);
     io.err(claudeFalla(pa, rcC, leerErr()));
     return salir(rcC);
