@@ -543,7 +543,9 @@ export function correrClaude(l: Lanzamiento, o: { claude?: string; alArrancar?: 
       resolve(rc);
     };
     try {
-      const h = spawn(bin, l.args, { cwd: l.c.rutaTrabajo, env: env as NodeJS.ProcessEnv, stdio: ["ignore", fo, fe], windowsHide: true });
+      // un guion de node (el claude falso de las pruebas) no se ejecuta solo en Windows: se corre con este node
+      const guion = /\.m?js$/i.test(bin);
+      const h = spawn(guion ? process.execPath : bin, guion ? [bin, ...l.args] : l.args, { cwd: l.c.rutaTrabajo, env: env as NodeJS.ProcessEnv, stdio: ["ignore", fo, fe], windowsHide: true });
       h.on("error", (e) => {
         try {
           writeFileSync(l.err, `pa: no pude lanzar ${bin}: ${e.message}\n`, { flag: "a" });

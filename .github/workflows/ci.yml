@@ -29,6 +29,13 @@ jobs:
         working-directory: app
         timeout-minutes: 15
         run: npm test
+      - name: app - build de electron (dist-electron)
+        working-directory: app
+        run: npx tsc -p tsconfig.electron.json
+      - name: app - prueba de humo del motor (locks, enlaces, pa, claude falso en primer plano y async, matar, motor.js)
+        working-directory: app
+        timeout-minutes: 5
+        run: node scripts/humo-motor.mjs
       - name: windows - dependencias
         working-directory: windows
         run: npm ci
@@ -51,6 +58,13 @@ jobs:
         working-directory: app
         timeout-minutes: 15
         run: npm test
+      - name: app - build de electron (dist-electron)
+        working-directory: app
+        run: npx tsc -p tsconfig.electron.json
+      - name: app - prueba de humo del motor (locks, enlaces, pa, claude falso en primer plano y async, matar, motor.js)
+        working-directory: app
+        timeout-minutes: 5
+        run: node scripts/humo-motor.mjs
       - name: windows - dependencias
         working-directory: windows
         run: npm ci
