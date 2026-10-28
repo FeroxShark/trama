@@ -12,6 +12,8 @@
   reparto --agotar ID [--hasta ISO]            marca agotado el grupo de agy o de codex de ese modelo (o grupo), o el
                                                Claude oficial (claude-*), hasta que vuelve
   reparto --enfriar ID [--horas N]             un modelo cortó por límite (pa sale 97): no es candidato N horas (default 5); es por modelo, no por grupo
+  reparto --opencode-limite                    lee por stdin la salida de OpenCode: si dice "Free usage limit", agota el grupo opencode-free (24 h, o el "retrying in N" del mensaje)
+  reparto --sondear-opencode                   un pedido mínimo a un modelo gratis de OpenCode; si dice "Free usage limit" agota el grupo (gasta cupo: sólo a mano, nunca solo)
   reparto --enfriado ID                        si ese modelo sigue enfriado: imprime hasta cuándo y sale 0; si no, sale 1
   reparto --excluido ID                        si modelos.json excluye ese id: imprime la regla y sale 0; si no, sale 1
   reparto --olvidar-agotados                   borra las marcas de agotado y de enfriado
@@ -84,6 +86,7 @@ import os
 import re
 import shutil
 import subprocess
+import tempfile
 import sys
 import time
 from datetime import datetime, timedelta, timezone
@@ -244,6 +247,7 @@ DSH_GRUPOS = {"ollama": "dsh-ollama", "opencode": "dsh-opencode", "deepseek": "d
 PLANES_OPENCODE = ("gratis", "go", "go-plus")
 COSTO_GO = 0.02           # costo marginal ~0 de un modelo de Go (plan fijo con cupo): casi como un gratis, pero un gratis sin gastar nada gana el empate
 ENFRIAR_H = 5             # un modelo de OpenCode que cortó por límite (pa sale 97) no es candidato esta cantidad de horas (`--enfriar ID [--horas N]`)
+VENCE_FREE_H = 24         # "Free usage limit reached" de OpenCode: el límite gratis es de TODA la cuenta, no de un modelo; el grupo `opencode-free` vuelve en un día salvo que el mensaje diga cuándo
 VENCE_GO_H = 5            # un 429 de un modelo de Go lo marca agotado esta cantidad de horas (la ventana del plan)
 OC_GO_PREFIJO = "opencode:opencode-go/"
 OC_GRATIS_CONOCIDOS = ["big-pickle", "beam-free", "deepseek-v4.1-flash-free", "flint-40b-free", "glm-5.3-flash-free", "mimo-v2.6-flash-free",
@@ -1855,6 +1859,54 @@ def enfriar(mid, horas, now):
     return 0
 
 
+RE_LIMITE_GRATIS = re.compile(r"Free usage (?:limit|exceeded)|FreeUsageLimit", re.I)
+RE_VUELTA = re.compile(r"retry(?:ing)?\s+in\s+(\d+(?:[.,]\d+)?)\s*(h|hours?|m|min|minutes?|s|secs?|seconds?)?", re.I)
+
+
+def limite_gratis_opencode(texto, now):
+    """Si la salida de OpenCode es el límite gratis de la cuenta ("Free usage limit reached"): cuándo vuelve (datetime; con
+    "retrying in N s/m/h" ésos, si no VENCE_FREE_H horas). None si no es ese mensaje."""
+    if not RE_LIMITE_GRATIS.search(texto or ""):
+        return None
+    m = RE_VUELTA.search(texto)
+    if m:
+        n = float(m.group(1).replace(",", "."))
+        u = (m.group(2) or "s").lower()
+        seg = n * (3600 if u.startswith("h") else 60 if u.startswith("m") else 1)
+        return now + timedelta(seconds=max(seg, 60))
+    return now + timedelta(hours=VENCE_FREE_H)
+
+
+def agotar_gratis_opencode(texto, cfg, now):
+    """Marca agotado el grupo `opencode-free` entero si `texto` es el límite gratis de OpenCode. 0 si lo marcó, 1 si el texto no lo era."""
+    hasta = limite_gratis_opencode(texto, now)
+    if not hasta:
+        return 1
+    return agotar("opencode-free", iso(hasta), cfg, now)
+
+
+def sondear_opencode(cfg, now):
+    """Pedido mínimo a un modelo gratis de OpenCode para enterarse del límite sin quemar una corrida de worker (gasta cupo: sólo a mano).
+    Si dice "Free usage limit", marca el grupo (0); si contesta, lo deja como está (1)."""
+    exe = opencode_bin()
+    if not exe:
+        err("opencode no está instalado")
+        return 2
+    gratis = opencode_gratis(now)
+    modelo = next((m for m in gratis if m.endswith("-free")), None) or (gratis[0] if gratis else "big-pickle")
+    try:
+        with tempfile.TemporaryDirectory() as cwd:
+            r = subprocess.run([exe, "run", "-m", "opencode/" + modelo, "OK"], capture_output=True, text=True, timeout=120, stdin=subprocess.DEVNULL, cwd=cwd)
+        texto = (r.stdout or "") + (r.stderr or "")
+    except (subprocess.TimeoutExpired, OSError) as e:
+        err("no pude sondear opencode: %s" % e)
+        return 2
+    if agotar_gratis_opencode(texto, cfg, now) == 0:
+        return 0
+    print("opencode contesta: el grupo opencode-free no se toca")
+    return 1
+
+
 def agotar(mid, hasta_arg, cfg, now, cuenta=None):
     gid = grupo_de_modelo(mid)
     if not gid:
@@ -1865,6 +1917,8 @@ def agotar(mid, hasta_arg, cfg, now, cuenta=None):
     if hasta_arg and not hasta:
         err("--hasta quiere una fecha ISO (2026-10-23T15:00:00Z)")
         return 2
+    if not hasta and gid == "opencode-free":
+        hasta = now + timedelta(hours=VENCE_FREE_H)
     if not hasta and gid.startswith(OC_GO_PREFIJO):
         hasta = now + timedelta(hours=VENCE_GO_H)   # un modelo de Go: su ventana de 5 h
     if not hasta:
@@ -2411,6 +2465,10 @@ def armar_candidatos(tipo, cfg, cupos, now, effort=None):
         elif gid in agot:
             cand["descartado_por"] = "dijo sin cupo (429): vuelve %s" % agot[gid]
             cand["vuelve"] = agot[gid]
+        if prov == "opencode-prog" and gid in agot:   # el límite gratis es de toda la cuenta: figura sin cupo aunque otra regla ya lo haya descartado
+            cand["cupo_libre"] = 0.0
+            cand["vuelve"] = agot[gid]
+            cand["agotado_grupo"] = True
         q = float(calidad)
         util = PTS_POR_AA * (q if q <= minimo + MARGEN else minimo + MARGEN - (q - minimo - MARGEN) * PESO_SOBRA)
         cand["carga"] = carga.get(gid, 0)
@@ -2823,7 +2881,7 @@ def tabla(cfg, cupos, now):
             "gratis": gratis, **({"plan": c["plan_go"], "go": go_topes(cfg, c["modelo"])} if c.get("plan_go") else {}),
             "cupo_libre": c["cupo_libre"], "vuelve": c["vuelve"], "ventanas": c.get("ventanas", []),
             "urgencia": c.get("urgencia", 0.0), "permitido": not x, "excluido_por": x,
-            "agotado": bool(c["descartado_por"]) and c["descartado_por"].startswith(("dijo sin cupo", "Claude dijo", "ventana")),
+            "agotado": bool(c.get("agotado_grupo")) or bool(c["descartado_por"]) and c["descartado_por"].startswith(("dijo sin cupo", "Claude dijo", "ventana")),
         })
     return out
 
@@ -2832,6 +2890,8 @@ def texto_tabla(filas, now):
     L = ["%-46s %-9s %5s  %-17s %-6s %-10s %s" % ("modelo", "proveedor", "int.", "esfuerzo", "costo", "cupo libre", "permitido")]
     for f in filas:
         cupo = "-" if f["cupo_libre"] is None else pct(f["cupo_libre"])
+        if f["agotado"] and f["grupo"] == "opencode-free":
+            cupo = "SIN CUPO"
         if f["vuelve"]:
             cupo += " (vuelve en %s)" % humano(horas_hasta(f["vuelve"], now))
         ef = f.get("effort_usado")   # medido / estimado con texto (no sólo color o un símbolo): el esfuerzo sin dato propio se interpola
@@ -3129,8 +3189,15 @@ def main(argv):
         return agotar(a[1], a[3] if len(a) == 4 else None, cfg, now, opt.get("--cuenta"))
     if a[0] == "--enfriar" and len(a) == 2:
         return enfriar(a[1], horas, now)
+    if a[0] == "--opencode-limite" and len(a) == 1:   # la salida de OpenCode por stdin (pa la pasa cuando corta)
+        return agotar_gratis_opencode(sys.stdin.read(), cfg, now)
+    if a[0] == "--sondear-opencode" and len(a) == 1:
+        return sondear_opencode(cfg, now)
     if a[0] == "--enfriado" and len(a) == 2:
-        hasta = leer_enfriados(state_dir(), now).get(a[1].strip().lower())
+        mid_e = a[1].strip().lower()
+        hasta = leer_enfriados(state_dir(), now).get(mid_e)
+        if not hasta and grupo_de_modelo(mid_e) == "opencode-free":   # el límite gratis es de toda la cuenta
+            hasta = leer_agotados(state_dir(), now).get("opencode-free")
         if hasta:
             print(hasta)
         return 0 if hasta else 1

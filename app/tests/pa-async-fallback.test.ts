@@ -38,8 +38,13 @@ cat >/dev/null
 m=""; while [[ $# -gt 0 ]]; do [[ "$1" == -m ]] && m="$2"; shift; done
 echo "$m" >> "${ocLog}"
 if [[ ",\${FALSO_CORTE:-}," == *",$m,"* ]]; then
-  echo '{"type":"error","error":{"name":"APIError","data":{"message":"FreeUsageLimitError: Free usage limit reached","statusCode":429}}}'
-  echo "FreeUsageLimitError: 429 Too Many Requests" >&2
+  if [[ -n "\${FALSO_GRATIS:-}" ]]; then
+    echo '{"type":"error","error":{"name":"APIError","data":{"message":"Free usage limit reached. Connect a provider or subscribe to OpenCode Go to keep going, or switch models.","statusCode":429}}}'
+    echo "Error: Free usage limit reached. retrying in 7200s" >&2
+  else
+    echo '{"type":"error","error":{"name":"APIError","data":{"message":"Rate limit exceeded","statusCode":429}}}'
+    echo "Too Many Requests: 429" >&2
+  fi
   exit 1
 fi
 echo '{"type":"step_start","sessionID":"ses_falso","part":{}}'
@@ -135,4 +140,21 @@ test("--async con -m a (sin lista): un 97 sale 97 como siempre, sin relanzar", (
   assert.equal(e.rc, 97, e.err + e.log);
   assert.deepEqual(ocCorridos(), ["opencode/beam-free"]);
   assert.doesNotMatch(e.log, /sigo con/);
+});
+
+test("--async con -m a,b: \"Free usage limit\" es de TODA la cuenta: agota el grupo opencode-free (con el retrying in del mensaje) y b ni corre", () => {
+  limpiar();
+  const id = lanzar(["-m", `${BEAM},${PICKLE}`, "haceme algo"], { FALSO_CORTE: "opencode/beam-free", FALSO_GRATIS: "1" });
+  const e = esperar(id);
+  assert.equal(e.rc, 97, e.err + e.log);
+  assert.deepEqual(ocCorridos(), ["opencode/beam-free"]);
+  assert.match(e.log, /big-pickle sigue enfriado/);
+  const ag = JSON.parse(readFileSync(path.join(rep, "agotado.json"), "utf8"));
+  const horas = (Date.parse(ag["opencode-free"].hasta) - Date.now()) / 3_600_000;
+  assert.ok(horas > 1.9 && horas < 2.1, `vuelve en ~2 h (retrying in 7200s), no ${horas}`);
+  // reparto lo muestra sin cupo, con la hora de vuelta, y no lo ofrece
+  const r = spawnSync("python3", [path.join(MOTOR, "bin", "reparto"), "--resumen"], { encoding: "utf8", env: entorno({ REPARTO_OPENCODE: "1" }) });
+  const filas = r.stdout.split("\n").filter((l) => l.includes("opencode:opencode/"));
+  assert.ok(filas.length > 0, r.stdout);
+  for (const l of filas) assert.match(l, /SIN CUPO \(vuelve en 1 h 5\d min\)|SIN CUPO \(vuelve en 2 h/, l);
 });

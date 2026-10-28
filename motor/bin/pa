@@ -6601,7 +6601,7 @@ codex_sin_cupo() {
 dsh_sin_cupo() {
   [[ "$motor" == dsh ]] || return 1
   local t; t="$(tail -c 4000 "$err" 2>/dev/null; res_texto)"
-  grep -qiE 'rate.?limit|Too Many Requests|quota|FreeUsageLimit|cortó por límite de uso|(^|[^0-9])429([^0-9]|$)' <<<"$t"
+  grep -qiE 'rate.?limit|Too Many Requests|quota|FreeUsageLimit|Free usage (limit|exceeded)|cortó por límite de uso|(^|[^0-9])429([^0-9]|$)' <<<"$t"
 }
 sin_cupo_al_arrancar() { agy_sin_cupo || codex_sin_cupo || claude_sin_cupo || dsh_sin_cupo; }
 sin_trabajo_hecho() {
@@ -6634,7 +6634,10 @@ fb_siguiente() {   # $1 = lista pendiente
   return 1
 }
 # Marca ESE modelo de OpenCode como enfriado en reparto (`reparto --enfriar`); nunca rompe a pa.
+# Si lo que dijo OpenCode es "Free usage limit" (el límite gratis es de TODA la cuenta, no del modelo), reparto agota el grupo
+# opencode-free entero (24 h, o el "retrying in N" del mensaje). Los de OpenCode Go (opencode-go/*) no pasan por acá.
 enfriar_modelo() {   # $1 = modelo
+  { tail -c 4000 "$err" 2>/dev/null; res_texto; } | REPARTO_STATE="${REPARTO_STATE:-$STATE/reparto}" PA_STATE="$STATE" "$REPARTO" --opencode-limite >/dev/null 2>&1 || true
   REPARTO_STATE="${REPARTO_STATE:-$STATE/reparto}" PA_STATE="$STATE" "$REPARTO" --enfriar "$1" ${PA_ENFRIAR_HORAS:+--horas "$PA_ENFRIAR_HORAS"} >/dev/null 2>&1 </dev/null || true
 }
 cambiar_de_modelo() {   # $1 = modelo nuevo, $2 = su effort (sólo Claude)
