@@ -481,7 +481,7 @@ export const ESTADO_MCP_FIJOS = (variante: string | null): VistaServidorMcp[] =>
 
 /** Lo que tiene conectado Claude Code en la máquina de las capturas (todo inventado): un poco de cada tipo, prendido y apagado. */
 export const CONECTORES_FIJOS = (variante: string | null): Inventario => {
-  if (variante === "conectores-vacio") return { version: 1, items: [], proyectos: [] };
+  if (variante === "mcp-vacio") return { version: 1, items: [], proyectos: [] };
   const p = "/home/ana/proyectos/tienda";
   const items: Conector[] = [
     { id: "skill|usuario|diseno", tipo: "skill", nombre: "diseno", origen: "usuario", de: "", descripcion: "Tarea de diseño: crear, rediseñar o pulir cómo se ve algo.", activo: true, conmutable: false },

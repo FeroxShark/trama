@@ -2415,7 +2415,7 @@ export const en = {
   "comando.mcp": "See the MCP servers (connectors) this leader sees",
   "comando.soloTerminal": "/{v} is a Claude Code terminal screen and doesn't exist here. Run it in a terminal with claude.",
   "aj.cat.conectores": "Connectors",
-  "aj.cat.conectoresQue": "Your own MCP servers (Notion, Gmail, anything) for leaders, and the claude.ai connectors.",
+  "aj.cat.conectoresQue": "Claude Code skills, plugins, MCP servers and hooks, and Trama's own MCP servers for leaders.",
   "conectores.intro": "A connector (MCP server) gives a leader tools: read Notion, your calendar, a database. The ones here are trama's own and reach the Claude, DeepSeek Harness and OpenCode leaders; workers still run without connectors. Changes apply to leaders that start from now on.",
   "conectores.propios": "Your servers",
   "conectores.propiosQue": "A program launched by command or a server by URL. Secret values (tokens, headers) are stored separately in claves.env and never shown again.",

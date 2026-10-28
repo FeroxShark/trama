@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { RefreshCw, Search } from "lucide-react";
 import { fuentePaneles, type Conector, type Inventario } from "../datos/paneles";
 import { t, textoMain, type ClaveSola } from "../i18n";
+import { MODO } from "../modo";
 import { mensaje } from "../puente";
 import { Boton, Interruptor } from "../ui/componentes";
 import { Estado } from "./AjustesDsh";
@@ -84,6 +85,7 @@ export function InventarioConectores() {
   const [ocupado, setOcupado] = useState(false);
   const [busca, setBusca] = useState("");
   const vivo = useRef(true);
+  const raiz = useRef<HTMLDivElement>(null);
 
   const leer = () => {
     setFalla(null);
@@ -98,6 +100,11 @@ export function InventarioConectores() {
     leer();
     return () => void (vivo.current = false);
   }, []);
+
+  // Captura `ajustes` con HILOS_VARIANTE=mcp: la sección a la vista una vez cargada.
+  useEffect(() => {
+    if (inv && MODO.variante?.startsWith("mcp")) raiz.current?.scrollIntoView({ block: "start" });
+  }, [inv]);
 
   const cambiar = async (c: Conector, activo: boolean) => {
     setOcupado(true);
@@ -118,7 +125,7 @@ export function InventarioConectores() {
   const visibles = filtrar(inv.items, busca);
   const buscando = busca.trim() !== "";
   return (
-    <div className="cn-inv" data-conectores-claude>
+    <div className="cn-inv" data-conectores-claude ref={raiz}>
       <p className="pn-nota pn-intro">{t("conectores.invIntro")}</p>
       <div className="cn-barra">
         <label className="cn-buscar">

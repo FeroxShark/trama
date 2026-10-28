@@ -2401,7 +2401,7 @@ export const es: { [K in keyof typeof en]: string } = {
   "comando.mcp": "Ver los servidores MCP (conectores) que ve este líder",
   "comando.soloTerminal": "/{v} es una pantalla de la terminal de Claude Code y acá no existe. Corrélo en una terminal con claude.",
   "aj.cat.conectores": "Conectores",
-  "aj.cat.conectoresQue": "Servidores MCP propios (Notion, Gmail, lo que quieras) para los líderes, y los conectores de claude.ai.",
+  "aj.cat.conectoresQue": "Skills, plugins, servidores MCP y hooks de Claude Code, y los servidores MCP propios de Trama para los líderes.",
   "conectores.intro": "Un conector (servidor MCP) le da herramientas a un líder: leer Notion, tu calendario, una base de datos. Los de acá son de trama y le llegan al líder de Claude, DeepSeek Harness y OpenCode; los workers siguen sin conectores. Los cambios rigen en los líderes que arranquen de ahora en más.",
   "conectores.propios": "Servidores propios",
   "conectores.propiosQue": "Un programa que se lanza por comando o un servidor por URL. Los valores secretos (tokens, cabeceras) se guardan aparte, en claves.env, y no se vuelven a mostrar.",

@@ -3226,6 +3226,8 @@
   font-size: var(--letra-3);
 }
 .cn-fila .aj-fila-ayuda {
+  white-space: normal;
+  overflow: visible;
   display: flex;
   flex-direction: column;
   gap: var(--esp-0-5);
