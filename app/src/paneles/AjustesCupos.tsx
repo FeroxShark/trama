@@ -712,13 +712,15 @@ export function AjustesCupos({ Dato, b, cambiar, uso }: { Dato: FilaDato; b: Bor
           <summary>{t("cu.topesPorqueTit")}</summary>
           <p>{t("cu.topesPorque")}</p>
         </details>
-        <details className="cu-topes-adv">
-          <summary>{t("cu.topesAdv")}</summary>
-          <GrupoAjustes>
-            <FilaTope b={b} cambiar={cambiar} id="google:codigo" titulo={t("cu.topeCodigo")} ayuda={t("cu.topeCodigoFila", { pct: topeDe(b, "google:codigo") })} />
-          </GrupoAjustes>
-          <p className="cu-topes-nota">{t("cu.topeCodigoQue")}</p>
-        </details>
+        {grupos.length ? (
+          <details className="cu-topes-adv">
+            <summary>{t("cu.topesAdv")}</summary>
+            <GrupoAjustes>
+              <FilaTope b={b} cambiar={cambiar} id="google:codigo" titulo={t("cu.topeCodigo")} ayuda={t("cu.topeCodigoFila", { pct: topeDe(b, "google:codigo") })} />
+            </GrupoAjustes>
+            <p className="cu-topes-nota">{t("cu.topeCodigoQue")}</p>
+          </details>
+        ) : null}
       </div>
 
       <Dato nombre="ajustes.cuposSinCupo" que="ajustes.cuposSinCupoQue">

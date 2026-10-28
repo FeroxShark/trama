@@ -3431,6 +3431,10 @@
   font-variant-numeric: tabular-nums;
   text-align: right;
 }
+.cu-topes-porque,
+.cu-topes-adv {
+  padding: var(--esp-1) var(--esp-2);
+}
 .cu-topes-porque > summary,
 .cu-topes-adv > summary {
   width: fit-content;
