@@ -129,11 +129,14 @@ test("reparto --enfriar/--enfriado/--horas: marca un modelo, dice hasta cuándo,
 
 test("reparto --tipo: descarta el modelo enfriado y elige otro", () => {
   limpiar();
-  const antes = JSON.parse(reparto(["--tipo", "mecanico", "--json"], { REPARTO_OPENCODE: "1" }).out);
+  // Cerrado a opencode con dos modelos que dan la calidad de «mecanico»: sin el Gemini ni el Codex de esta máquina
+  // (en un runner limpio sólo quedaba big-pickle y, enfriado, volvía a salir igual).
+  const solo = { REPARTO_OPENCODE: "1", REPARTO_OPENCODE_FIJO: '["opencode/big-pickle","opencode/deepseek-v4.1-flash-free"]', REPARTO_AGY: "0", REPARTO_CODEX: "0" };
+  const antes = JSON.parse(reparto(["--tipo", "mecanico", "--json"], solo).out);
   const elegido = antes.modelo as string;
   assert.ok(elegido.startsWith("opencode:"), `sin Claude gana un opencode (fue ${elegido})`);
   reparto(["--enfriar", elegido]);
-  const despues = JSON.parse(reparto(["--tipo", "mecanico", "--json"], { REPARTO_OPENCODE: "1" }).out);
+  const despues = JSON.parse(reparto(["--tipo", "mecanico", "--json"], solo).out);
   assert.notEqual(despues.modelo, elegido, "el enfriado no se vuelve a elegir");
 });
 

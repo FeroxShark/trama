@@ -1,6 +1,9 @@
 /* Tests de detección segura de modelos locales (systemd, puertos, GGUF, arneses). */
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { existsSync } from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import {
   parsearUnit,
   limpiarNombreUnit,
@@ -262,7 +265,13 @@ const fakeDepsValidador: DepsDeteccion = {
   puertoAbierto: async () => false,
 };
 
-test('máquina real: detecta las dos units de llama-server del dueño y ambas están apagadas', async () => {
+// Sólo tiene sentido en la máquina del dueño (sus dos units de systemd); en CI y en otras máquinas se saltea.
+const UNITS_DEL_DUENO = ['qwen-llama-server.service', 'qwen-llama-server-bonsai.service'];
+const SIN_UNITS_DEL_DUENO = UNITS_DEL_DUENO.some((u) => !existsSync(path.join(os.homedir(), '.config', 'systemd', 'user', u)))
+  ? 'esta máquina no tiene las units de llama-server del dueño'
+  : false;
+
+test('máquina real: detecta las dos units de llama-server del dueño y ambas están apagadas', { skip: SIN_UNITS_DEL_DUENO }, async () => {
   const realDeps = depsDeteccionDeVerdad();
   const res = await detectarUnits(realDeps);
   assert.ok(res.length >= 2, 'Deben detectarse al menos las 2 units del dueño');
