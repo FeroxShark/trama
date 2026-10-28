@@ -7,7 +7,7 @@
 // TRAMA_MODO=nativo|wsl lo fuerza. Si el motor no está, el asistente de primer arranque (src/ui/) deja todo listo y sólo
 // entonces carga la página; acá sólo se conecta con Windows.
 
-const { app, BrowserWindow, ipcMain, shell, Menu, Tray, dialog, clipboard, Notification, nativeImage } = require("electron");
+const { app, BrowserWindow, ipcMain, shell, Menu, Tray, dialog, clipboard, Notification, nativeImage, powerMonitor } = require("electron");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
@@ -258,7 +258,7 @@ const AVISO_JS = (version) => `(() => {
   d.append(t, b); document.body.append(d);
 })()`;
 
-const actualizador = { instalar() {}, buscar: async () => {} };
+const actualizador = { instalar() {}, buscar: async () => {}, refrescar: async () => {} };
 
 // Los pedidos de la página (Ajustes) sólo valen si vienen del asistente o de la Trama de localhost.
 const deConfianza = (e) => {
@@ -414,7 +414,11 @@ function arrancar() {
   ventana.webContents.on("did-finish-load", () => {
     if (enMotor && ultimaActualizacion?.fase === "lista") ventana.webContents.executeJavaScript(AVISO_JS(ultimaActualizacion.version)).catch(() => {});
   });
-  ventana.on("focus", () => guardiaFoco.volvio());
+  // Al enfocar la ventana se pregunta a GitHub de nuevo (con un mínimo entre preguntas: ver actualizar.js).
+  ventana.on("focus", () => {
+    guardiaFoco.volvio();
+    void actualizador.refrescar();
+  });
   // Nativo: cerrar la ventana la esconde (el motor y sus líderes siguen; se sale desde la bandeja).
   ventana.on("close", (e) => {
     if (NATIVO && !saliendo && !CAPTURA) {
@@ -520,5 +524,8 @@ app.whenReady().then(async () => {
   });
   actualizador.instalar = u.instalar;
   actualizador.buscar = u.buscar;
+  actualizador.refrescar = u.refrescar;
+  // Al volver de la suspensión se pregunta de nuevo (el ciclo de 2 min y el reintento de la red cubren el resto).
+  powerMonitor.on("resume", () => void actualizador.refrescar());
   setTimeout(() => u.buscar(), 4000);
 });
