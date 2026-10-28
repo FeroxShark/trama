@@ -256,12 +256,12 @@ export function descDsh(stream: string): string {
   return sinSaltosFinales(ultimo(xs));
 }
 
-/** El archivo de latido (`$hb`): epoch, tool, envuelo=1 y desc (sin saltos ni tabs, cortado a 160 bytes como `cut -c`). */
+/** El archivo de latido (`$hb`): epoch, tool, envuelo=1 y desc (sin saltos ni tabs, cortado a 160 caracteres como `cut -c`). */
 export function escribirLatido(hb: string, tool: string, desc: string, ahora = Math.floor(Date.now() / 1000)): void {
-  const d = Buffer.from(desc.replace(/[\n\r\t]/g, " "), "utf8").subarray(0, 160);
+  const d = Array.from(desc.replace(/[\n\r\t]/g, " ")).slice(0, 160).join("");
   const tmp = `${hb}.tmp`;
   try {
-    writeFileSync(tmp, Buffer.concat([Buffer.from(`epoch=${ahora}\ntool=${tool}\nenvuelo=1\ndesc=`), d, Buffer.from("\n")]));
+    writeFileSync(tmp, `epoch=${ahora}\ntool=${tool}\nenvuelo=1\ndesc=${d}\n`);
     renameSync(tmp, hb);
   } catch {
     /* sin latido esta vuelta */
