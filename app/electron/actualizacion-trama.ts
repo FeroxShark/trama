@@ -390,6 +390,9 @@ export function crearActualizacionTrama(deps: Deps = {}) {
    */
   async function pedir(modo: Modo): Promise<Actualizado> {
     try {
+      // Un "instalando" de un instalador que murió después de que arrancó este motor (seguía vivo al reiniciarlo) se cierra acá:
+      // si no, Actualizar quedaba trabado en "ya en curso" para siempre.
+      await estadoActual();
       const e = await cargarAct();
       if (e.fase === "esperando" || e.fase === "instalando" || actualizando) return { ok: false, error: textoT("main.tramaYaEnCurso") };
       const v = await validar();

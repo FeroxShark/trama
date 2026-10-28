@@ -468,6 +468,16 @@ test("motor nuevo: un 'instalando' cuyo instalador sigue vivo se queda instaland
   assert.deepEqual(await roto.act.estadoActual(), { fase: "error", error: "app: la compilación falló" });
 });
 
+test("motor nuevo: el instalador seguía vivo al arrancar y murió después; Actualizar no queda trabado en 'ya en curso'", async () => {
+  let vive = true;
+  const x = armar({ instalada: "0.1.4", tag: "v0.1.5", archivo: conArchivos({ fase: "instalando", version: "0.1.4", pid: 7 }, "ok  motor\nlisto.\n"), vivo: () => vive });
+  assert.deepEqual(await x.act.estadoActual(), { fase: "instalando", version: "0.1.4" });
+  vive = false;
+  const r = await x.act.pedir("ya");
+  assert.ok(r.ok || !r.error.includes("tramaYaEnCurso"), JSON.stringify(r));
+  assert.deepEqual(await x.act.estadoActual(), { fase: "hecho", version: "0.1.4" });
+});
+
 test("motor nuevo: una espera que dejó el anterior sigue esperando y actualiza cuando se libera", async () => {
   let ocupado = true;
   const archivo = conArchivos({ fase: "esperando", version: "0.1.4" });

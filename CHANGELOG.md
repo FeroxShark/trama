@@ -1,5 +1,9 @@
 # Cambios
 
+## 0.2.8
+
+- Actualizar ya no queda trabado en "Actualizando…" si el instalador anterior terminó después de que arrancó el motor nuevo.
+
 ## 0.2.7
 
 - El botón "Notas de la versión" del aviso de Trama nueva abre el release en el navegador (antes no hacía nada).
