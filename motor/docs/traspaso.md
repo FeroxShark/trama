@@ -38,6 +38,11 @@ historia (force push); se puede subir directo y mergear sin esperar el CI.
   tarea; el costo estimado se escala a esa unidad (`ESCALA_INDICE` en `app/src/paneles/efforts-dominados.ts`).
 - **OpenCode Go** (plan gratis / go / go-plus, topes en `motor/opencode/go-topes.json`, agotado por modelo). Sin Go se fuerza
   un `small_model` gratis para evitar los 402 de GPT-6 Luna.
+- **NVIDIA NIM** (gratis, clave propia `NVIDIA_API_KEY` en `claves.env`, ~40 pedidos/min por modelo, sin tope diario; para desarrollo y
+  prototipos): corre por opencode (`pa -m opencode:nvidia/<modelo>`), grupo `nvidia-nim` en `reparto`, modelos en `nvidia_modelos` de
+  `modelos.json`. Un 429 enfría sólo ese modelo unos minutos (nunca agota `opencode-free`). En la app: Ajustes > OpenCode (clave, Probar,
+  ayuda, modelos; `app/electron/nvidia-nim.ts`) y su fila `nvidia-nim` (ventana `1m`) en Plan y cupos y en la barra: los pedidos se cuentan por
+  paso en `opencode-pedidos.jsonl` (`nvidia/<modelo>`).
 - **Conectores MCP:** `/mcp` en la app, Ajustes > Conectores (`mcp.json` + secretos en `claves.env`), se pasan a Claude, DeepSeek
   Harness y OpenCode; en Gemini figura "no disponible".
 - **Menú de comandos por motor**, guías rápidas que no mueven la pantalla.
