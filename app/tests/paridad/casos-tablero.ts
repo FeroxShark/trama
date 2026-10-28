@@ -3,7 +3,7 @@
 // arnés compare items.jsonl, seq, hecho/ y vista.json; el repo git propio del tablero (.git) no se compara. Todo es POSIX (los originales son
 // Python y los fixtures usan scripts `#!/bin/sh`).
 import { spawnSync } from "node:child_process";
-import { chmodSync, mkdirSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, symlinkSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import type { Caso, Contexto, Paso } from "./arnes.ts";
 
@@ -278,6 +278,7 @@ const casosDeTablero: Caso[] = [
 const entornoCuentas = (c: Contexto): Record<string, string> => ({
   TRAMA_CUENTAS: path.join(c.estado, "cuentas.json"),
   TRAMA_CUENTAS_HOME: c.home,
+  APPDATA: path.join(c.aux, "appdata"), // donde la Trama nativa vieja de Windows dejaba su Trama\\cuentas.json
   // un opencode de mentira (lista modelos de Go y dice que tiene --standalone) para que el resultado no dependa de lo instalado
   PATH: `${path.join(c.aux, "bin")}${path.delimiter}${path.join(c.raiz, "shim")}${path.delimiter}/usr/bin${path.delimiter}/bin`,
 });
@@ -326,6 +327,39 @@ const perfilesViejos = (c: Contexto, dir = path.join(c.home, ".local", "state", 
         { id: "cuenta_4", email: "sin@example.com", nombre: "Sin credenciales", activa: false, creada: 4 },
         { id: "cuenta_5", email: "casa@example.com", nombre: "Casa", activa: false, creada: 5 },
         { id: "../afuera", email: "x@example.com", nombre: "Mala id", activa: false, creada: 6 },
+      ],
+    }),
+  );
+};
+
+/** La Trama nativa vieja de Windows: <APPDATA>/Trama/cuentas.json (mismo esquema que el nuestro) y una carpeta por cuenta. Ids, emails y tokens inventados. */
+const nativaVieja = (c: Contexto, extra: object[] = []) => {
+  const raiz = path.join(c.aux, "appdata", "Trama");
+  const carpeta = (id: string, email: string | null) => {
+    escribir(path.join(raiz, "cuentas", id, ".credentials.json"), TOKEN(id));
+    if (email) escribir(path.join(raiz, "cuentas", id, ".claude.json"), JSON.stringify({ oauthAccount: { emailAddress: email }, otro: 1 }));
+    escribir(path.join(raiz, "cuentas", id, ".oauth_refresh.lock.owner.tmp.4242"), "temporal");
+    escribir(path.join(raiz, "cuentas", id, "sub", "dato.txt"), `dato ${id}`);
+    symlinkSync("/etc/hostname", path.join(raiz, "cuentas", id, "enlace"));
+  };
+  carpeta("casa-x", "ana@example.com");
+  carpeta("cuenta_2", "bruno@example.com");
+  carpeta("repe", "ANA@example.com");
+  carpeta("otra", null);
+  escribir(
+    path.join(raiz, "cuentas.json"),
+    JSON.stringify({
+      version: 1,
+      cuentas: [
+        { id: "casa-x", proveedor: "claude", nombre: "Casa", dir: path.join(raiz, "cuentas", "casa-x") },
+        { id: "cuenta_2", proveedor: "claude", nombre: "Trabajo" },
+        { id: "repe", proveedor: "claude", nombre: "Repetida", dir: path.join(raiz, "cuentas", "repe") },
+        { id: "sin-carpeta", proveedor: "claude", nombre: "Sin carpeta" },
+        { id: "gemini", proveedor: "google", nombre: "No es Claude" },
+        { id: "claude", proveedor: "claude", nombre: "La de siempre" },
+        { id: "../mala", proveedor: "claude", nombre: "Mala" },
+        { id: "casa", proveedor: "claude", nombre: "El home", dir: c.home },
+        ...extra,
       ],
     }),
   );
@@ -471,6 +505,31 @@ const casosCuentas: Caso[] = [
     p(["listar", "--json"], 0),
   ], (c) => {
     perfilesViejos(c, path.join(c.aux, "viejo"));
+  }),
+  cu("importar-perfiles: cuentas.json de la Trama nativa vieja (copia la carpeta entera, sin duplicar)", [
+    p(["importar-perfiles"], 0),
+    p(["importar-perfiles"], 0),
+    p(["importar-perfiles", "--json"], 0),
+    p(["listar", "--json"], 0),
+    p(["env", "cuenta-2", "--json"], 0),
+  ], (c) => nativaVieja(c)),
+  cu("importar-perfiles: la Trama nativa vieja y los perfiles del fork juntos, con una cuenta que ya existe", [
+    p(["importar-perfiles", "--json"], 0),
+    p(["importar-perfiles"], 0),
+    p(["listar", "--json"], 0),
+  ], (c) => {
+    perfilesViejos(c);
+    nativaVieja(c);
+    escribir(path.join(c.estado, "cuentas.json"), JSON.stringify({ version: 1, cuentas: [{ id: "casa-x", proveedor: "claude", nombre: "Ya estaba" }, { id: "mia", proveedor: "claude", nombre: "Mía", dir: path.join(c.aux, "appdata", "Trama", "cuentas", "otra") }] }));
+  }),
+  cu("importar-perfiles: --nativa de otra ruta; sin el archivo no hace nada; uso", [
+    p((c) => ["importar-perfiles", "--nativa", path.join(c.aux, "otro", "cuentas.json"), "--json"], 0),
+    p((c) => ["importar-perfiles", "--nativa", path.join(c.aux, "no-hay.json")], 0),
+    p(["importar-perfiles", "--nativa"], 2),
+    p(["listar", "--json"], 0),
+  ], (c) => {
+    escribir(path.join(c.aux, "otro", "cuentas", "uno", ".credentials.json"), TOKEN("uno"));
+    escribir(path.join(c.aux, "otro", "cuentas.json"), JSON.stringify({ version: 1, cuentas: [{ id: "uno", proveedor: "claude", nombre: "Uno" }] }));
   }),
 ];
 

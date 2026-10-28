@@ -9,11 +9,12 @@ const { ENTRADAS_NATIVO } = require("../src/manifiesto-nativo");
 const { agregarAlPath, quitarDelPath } = require("../src/nativo");
 
 const L = "C:\\Users\\Ana\\AppData\\Local";
+const VIEJA = "C:\\Users\\Ana\\AppData\\Roaming\\Trama"; // la Trama nativa vieja (su cuentas.json y cuentas\): no es nuestra
 const ENV = { LOCALAPPDATA: L, APPDATA: "C:\\Users\\Ana\\AppData\\Roaming", USERPROFILE: "C:\\Users\\Ana" };
 
 function windowsFalso() {
   const w = {
-    carpetas: new Set([`${L}\\trama\\app`, `${L}\\trama\\node`, `${L}\\trama\\bin`, `${L}\\trama\\estado`, `${L}\\trama\\config`, "C:\\Users\\Ana\\AppData\\Roaming\\Trama"]),
+    carpetas: new Set([`${L}\\trama\\app`, `${L}\\trama\\node`, `${L}\\trama\\bin`, `${L}\\trama\\estado`, `${L}\\trama\\config`, "C:\\Users\\Ana\\AppData\\Roaming\\Trama-nativo", VIEJA]),
     registro: new Set(["HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run|Trama"]),
     path: `C:\\Windows;${L}\\trama\\bin`,
     borrados: [],
@@ -49,7 +50,7 @@ test("desinstalar: lista el arranque, el PATH y las carpetas del motor para quit
   const plan = await crear(w).planificar({ modo: "desinstalar" });
   const por = (a) => plan.items.filter((i) => i.accion === a).map((i) => i.id).sort();
   assert.deepEqual(por("quitar"), ["win-nativo-app", "win-nativo-arranque", "win-nativo-bin", "win-nativo-node", "win-nativo-path"]);
-  assert.deepEqual(por("datos"), ["win-datos-carcasa", "win-nativo-config", "win-nativo-estado"]);
+  assert.deepEqual(por("datos"), ["win-nativo-carcasa", "win-nativo-config", "win-nativo-estado"]);
   assert.deepEqual(por("queda"), ["win-nativo-hooks", "win-nativo-wt"]);
   assert.equal(plan.distro, null);
 });
@@ -74,4 +75,14 @@ test("lo que ya no está no aparece en el plan", async () => {
   w.registro.clear();
   const plan = await crear(w).planificar({ modo: "desinstalar" });
   assert.ok(!plan.items.some((i) => i.id === "win-nativo-path" || i.id === "win-nativo-arranque"));
+});
+
+test("%APPDATA%\\Trama (la Trama nativa vieja) no está en el manifiesto y desinstalar con todos los datos no la toca", async () => {
+  assert.ok(!ENTRADAS_NATIVO.some((e) => /%APPDATA%\\Trama(\\|$)/i.test(e.ruta)), "ninguna entrada apunta a %APPDATA%\\Trama");
+  const w = windowsFalso();
+  const l = crear(w);
+  const r = await l.ejecutar({ modo: "desinstalar", ids: ENTRADAS_NATIVO.map((e) => e.id), datos: ENTRADAS_NATIVO.map((e) => e.id) });
+  assert.ok(r.resultados.length > 0);
+  assert.ok(w.carpetas.has(VIEJA), "la carpeta de la Trama vieja sigue ahí");
+  assert.ok(!w.borrados.includes(VIEJA));
 });

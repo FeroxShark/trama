@@ -13,10 +13,14 @@
   cuentas plan ID --detectar                   lo detecta por `opencode models` (con `opencode-go/*` es go, si no gratis; Go Plus no se
                                                distingue de Go) y, en una agregada, lo guarda; rc 3 si no se pudo saber
   (`cuentas --json --verificar` suma `plan_detectado` a cada cuenta de OpenCode)
-  cuentas importar-perfiles [--dir D] [--json] importa las cuentas de Claude de una Trama vieja (<home>/.local/state/hilos/perfiles_claude:
-                                               perfiles.json + una carpeta por perfil con .credentials.json y .claude.json): crea las
-                                               que no estén (mismo email) y COPIA las credenciales (nunca mueve ni borra; permisos 0600);
-                                               no imprime su contenido. Sin carpeta vieja no hace nada
+  cuentas importar-perfiles [--dir D] [--nativa F] [--json]
+                                               importa las cuentas de Claude de una Trama vieja, de dos formatos: (1) la carpeta de
+                                               perfiles (<home>/.local/state/hilos/perfiles_claude, o D: perfiles.json + una carpeta por
+                                               perfil con .credentials.json y .claude.json) y (2) el cuentas.json de la Trama nativa vieja
+                                               de Windows (%APPDATA%\\Trama\\cuentas.json, o F: mismo esquema que el nuestro, cada dir
+                                               con sus credenciales). Crea las que no estén (mismo email, id o carpeta) y COPIA (nunca
+                                               mueve ni borra; permisos 0600) las credenciales o la carpeta entera (sin los
+                                               .oauth_refresh.lock.owner.tmp.*); no imprime su contenido. Sin nada viejo no hace nada
 
 PROVEEDOR: claude | google | chatgpt | opencode. La cuenta de siempre de cada proveedor tiene el id del proveedor y usa las
 credenciales de siempre (sin tocar nada): sin cuentas.json todo sigue como antes. Las agregadas viven en
@@ -618,14 +622,63 @@ def copiar_privado(src, dst):
     os.chmod(dst, 0o600)
 
 
+PREFIJO_LOCK_REFRESCO = ".oauth_refresh.lock.owner.tmp."   # temporales de la Trama nativa vieja: no se copian
+
+
+def copiar_arbol(src, dst):
+    """Copia la carpeta src a dst (archivos 0600, carpetas 0700) sin seguir symlinks ni llevar los temporales de refresco. No toca src."""
+    os.makedirs(dst, mode=0o700, exist_ok=True)
+    for n in sorted(os.listdir(src)):
+        s, t = os.path.join(src, n), os.path.join(dst, n)
+        if n.startswith(PREFIJO_LOCK_REFRESCO) or os.path.islink(s):
+            continue
+        if os.path.isdir(s):
+            copiar_arbol(s, t)
+        elif os.path.isfile(s):
+            copiar_privado(s, t)
+
+
+def carpeta_origen_segura(src, destino):
+    """¿Se puede copiar src entera a destino? No si es el home (o lo contiene) ni si una contiene a la otra."""
+    s, d, h = (os.path.realpath(x) for x in (src, destino, home_real()))
+    return not (s == h or h.startswith(s + os.sep) or d.startswith(s + os.sep) or s.startswith(d + os.sep) or s == d)
+
+
+def cuentas_nativas(f):
+    """[(id, nombre, dir)] de las cuentas de Claude del cuentas.json de la Trama nativa vieja (mismo esquema que el nuestro). Más tolerante que
+    el nuestro con el id (el viejo puede traer `cuenta_123`): sólo se pide que sea un nombre de carpeta seguro. Archivo roto: []."""
+    try:
+        with open(f) as fh:
+            d = json.load(fh)
+    except Exception:
+        return []
+    out, vistos = [], set()
+    for c in (d.get("cuentas") if isinstance(d, dict) else None) or []:
+        if not isinstance(c, dict) or not isinstance(c.get("id"), str) or not ID_VIEJO_OK.match(c["id"]) or c["id"] in vistos \
+                or c.get("proveedor", "claude") != "claude" or c["id"] in PROVEEDORES:
+            continue
+        vistos.add(c["id"])
+        txt = lambda k: c[k].strip() if isinstance(c.get(k), str) and c[k].strip() else None
+        out.append((c["id"], txt("nombre"), txt("dir")))
+    return out
+
+
+def archivo_nativo_viejo():
+    """El cuentas.json de la Trama nativa vieja de Windows: %APPDATA%\\Trama\\cuentas.json (None si no hay APPDATA)."""
+    a = os.environ.get("APPDATA")
+    return os.path.join(a, "Trama", "cuentas.json") if a else None
+
+
 def cmd_importar_perfiles(a):
-    uso = "uso: cuentas importar-perfiles [--dir D] [--json]"
-    d, js, i = None, False, 0
+    uso = "uso: cuentas importar-perfiles [--dir D] [--nativa F] [--json]"
+    d, nativa, js, i = None, None, False, 0
     while i < len(a):
         if a[i] == "--json":
             js = True
         elif a[i] == "--dir" and i + 1 < len(a) and d is None:
             d, i = a[i + 1], i + 1
+        elif a[i] == "--nativa" and i + 1 < len(a) and nativa is None:
+            nativa, i = a[i + 1], i + 1
         else:
             err(uso)
             return 2
@@ -633,61 +686,101 @@ def cmd_importar_perfiles(a):
     if d is None:
         d = os.path.join(home_real(), ".local", "state", "hilos", "perfiles_claude")
     d = os.path.expanduser(d)
+    nativa = os.path.expanduser(nativa) if nativa else archivo_nativo_viejo()
     importadas, omitidas, lineas = [], 0, []
-    if os.path.isdir(d):
+    hay_perfiles, hay_nativa = os.path.isdir(d), bool(nativa) and os.path.isfile(nativa)
+    if hay_perfiles or hay_nativa:
         with Candado():
             ent = leer_archivo()
             usados = set(PROVEEDORES) | {c["id"] for c in ent}
             actual = email_de_claude_json(home_real())   # la cuenta de siempre de Claude no se importa dos veces
             emails = {actual.lower()} if actual else set()
-            de_antes = set()
+            de_antes, carpetas = set(), set()
             for c in ent:
                 if c["proveedor"] != "claude":
                     continue
+                cdir = os.path.expanduser(c.get("dir") or dir_default(c["id"]))
+                carpetas.add(os.path.realpath(cdir))
                 e = c.get("email") if isinstance(c.get("email"), str) else None
-                e = e or email_de_claude_json(os.path.expanduser(c.get("dir") or dir_default(c["id"])))
+                e = e or email_de_claude_json(cdir)
                 if e:
                     emails.add(e.lower())
                 if isinstance(c.get("importada_de"), str):
                     de_antes.add(c["importada_de"])
-            for vid, nombre, email in perfiles_viejos(d):
-                src = os.path.join(d, vid)
-                if os.path.islink(src) or not os.path.isfile(os.path.join(src, ARCHIVOS_PERFIL[0])):
-                    omitidas += 1
-                    lineas.append("salteada: %s (sin %s)" % (vid, ARCHIVOS_PERFIL[0]))
-                    continue
-                email = email or email_de_claude_json(src)
-                if vid in de_antes or (email and email.lower() in emails):
-                    omitidas += 1
-                    lineas.append("ya estaba: %s" % (nombre or email or vid))
-                    continue
-                nombre = nombre or email or vid
-                base = slug(nombre)
-                cid, n = base, 2
-                while cid in usados:
-                    cid, n = "%s-%d" % (base, n), n + 1
+
+            def agregar(cid, nombre, email, origen, copiar):
+                """Copia (con `copiar(destino)`), anota la cuenta y la deja lista. False si no se pudo copiar."""
                 destino = dir_default(cid)
                 try:
-                    os.makedirs(destino, mode=0o700, exist_ok=True)
-                    for f in ARCHIVOS_PERFIL:
-                        if os.path.isfile(os.path.join(src, f)):
-                            copiar_privado(os.path.join(src, f), os.path.join(destino, f))
+                    copiar(destino)
                 except OSError as e:
-                    err("no pude copiar el perfil %s: %s" % (vid, e))
-                    omitidas += 1
-                    continue
+                    err("no pude copiar la cuenta %s: %s" % (origen, e))
+                    return False
                 nueva = {"id": cid, "proveedor": "claude", "nombre": nombre}
                 if email:
                     nueva["email"] = email
-                nueva["importada_de"] = vid
+                nueva["importada_de"] = origen
                 ent.append(nueva)
                 usados.add(cid)
                 if email:
                     emails.add(email.lower())
+                carpetas.add(os.path.realpath(destino))
                 guardar(ent)
                 asegurar_links(buscar(cid))
                 importadas.append(cid)
                 lineas.append("importada: %s (%s)" % (cid, nombre))
+                return True
+
+            if hay_perfiles:
+                for vid, nombre, email in perfiles_viejos(d):
+                    src = os.path.join(d, vid)
+                    if os.path.islink(src) or not os.path.isfile(os.path.join(src, ARCHIVOS_PERFIL[0])):
+                        omitidas += 1
+                        lineas.append("salteada: %s (sin %s)" % (vid, ARCHIVOS_PERFIL[0]))
+                        continue
+                    email = email or email_de_claude_json(src)
+                    if vid in de_antes or (email and email.lower() in emails):
+                        omitidas += 1
+                        lineas.append("ya estaba: %s" % (nombre or email or vid))
+                        continue
+                    nombre = nombre or email or vid
+                    base = slug(nombre)
+                    cid, n = base, 2
+                    while cid in usados:
+                        cid, n = "%s-%d" % (base, n), n + 1
+
+                    def copiar(destino, src=src):
+                        os.makedirs(destino, mode=0o700, exist_ok=True)
+                        for f in ARCHIVOS_PERFIL:
+                            if os.path.isfile(os.path.join(src, f)):
+                                copiar_privado(os.path.join(src, f), os.path.join(destino, f))
+                    if not agregar(cid, nombre, email, vid, copiar):
+                        omitidas += 1
+            if hay_nativa:
+                base_dir = os.path.dirname(os.path.abspath(nativa))
+                for vid, nombre, dcfg in cuentas_nativas(nativa):
+                    cid = vid if ID_OK.match(vid) else slug(vid)
+                    src = os.path.abspath(os.path.join(base_dir, os.path.expanduser(dcfg or os.path.join("cuentas", vid))))
+                    nombre = nombre or vid
+                    if "nativa:" + vid in de_antes or cid in usados or os.path.realpath(src) in carpetas:
+                        omitidas += 1
+                        lineas.append("ya estaba: %s" % nombre)
+                        continue
+                    if not os.path.isdir(src) or os.path.islink(src):
+                        omitidas += 1
+                        lineas.append("salteada: %s (sin carpeta)" % vid)
+                        continue
+                    if not carpeta_origen_segura(src, dir_default(cid)):
+                        omitidas += 1
+                        lineas.append("salteada: %s (carpeta no segura para copiar)" % vid)
+                        continue
+                    email = email_de_claude_json(src)
+                    if email and email.lower() in emails:
+                        omitidas += 1
+                        lineas.append("ya estaba: %s" % nombre)
+                        continue
+                    if not agregar(cid, nombre, email, "nativa:" + vid, lambda destino, src=src: copiar_arbol(src, destino)):
+                        omitidas += 1
     else:
         lineas.append("no hay perfiles viejos en %s" % d)
     if js:

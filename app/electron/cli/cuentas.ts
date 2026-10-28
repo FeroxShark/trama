@@ -43,6 +43,7 @@ const LINKS: Record<string, [string, string][]> = {
 // `agy models`: el id solo, o "id<TAB>nombre" (mismo patrón que bin/trama-estado)
 const MODELO_AGY = /^\s*(?:(?:gemini|claude|gpt)[-\w.]*\s*$|[a-z0-9][a-z0-9.-]*\t)/i;
 const ID_VIEJO_OK = /^[A-Za-z0-9_][A-Za-z0-9_.-]*$/;
+const PREFIJO_LOCK_REFRESCO = ".oauth_refresh.lock.owner.tmp."; // temporales de la Trama nativa vieja: no se copian
 const ARCHIVOS_PERFIL = [".credentials.json", ".claude.json"]; // lo que se copia de cada perfil viejo (el primero es obligatorio)
 const ANSI = /\x1b\[[0-9;]*[A-Za-z]/g;
 
@@ -456,19 +457,69 @@ class Cuentas {
     chmodSync(dst, 0o600);
   }
 
+  /** [id, nombre, dir] de las cuentas de Claude del cuentas.json de la Trama nativa vieja (mismo esquema que el nuestro). Más tolerante que el nuestro con el id (el viejo puede traer `cuenta_123`): sólo se pide un nombre de carpeta seguro. Archivo roto: []. */
+  cuentasNativas(f: string): [string, string | null, string | null][] {
+    let d: unknown;
+    try {
+      d = JSON.parse(readFileSync(f, "utf8"));
+    } catch {
+      return [];
+    }
+    const lista = esObjeto(d) && verdad(d.cuentas) ? d.cuentas : [];
+    const out: [string, string | null, string | null][] = [];
+    const vistos = new Set<string>();
+    for (const c of Array.isArray(lista) ? lista : []) {
+      if (!esObjeto(c) || typeof c.id !== "string" || !ID_VIEJO_OK.test(c.id) || vistos.has(c.id) || (c.proveedor ?? "claude") !== "claude" || c.id in PROVEEDORES) continue;
+      vistos.add(c.id);
+      const txt = (k: string) => (typeof c[k] === "string" && (c[k] as string).trim() ? (c[k] as string).trim() : null);
+      out.push([c.id, txt("nombre"), txt("dir")]);
+    }
+    return out;
+  }
+
+  /** %APPDATA%\Trama\cuentas.json de la Trama nativa vieja de Windows (en Windows, sin APPDATA, el Roaming del home; en otro sistema sólo con APPDATA). */
+  archivoNativoViejo(): string | null {
+    const a = this.env.APPDATA || (process.platform === "win32" ? path.join(homeDe(this.env), "AppData", "Roaming") : "");
+    return a ? path.join(a, "Trama", "cuentas.json") : null;
+  }
+
+  /** Copia la carpeta src a dst (archivos 0600, carpetas 0700) sin seguir symlinks ni llevar los temporales de refresco. No toca src. */
+  copiarArbol(src: string, dst: string) {
+    mkdirSync(dst, { recursive: true, mode: 0o700 });
+    for (const n of readdirSync(src).sort()) {
+      const s = path.join(src, n);
+      const t = path.join(dst, n);
+      if (n.startsWith(PREFIJO_LOCK_REFRESCO) || lstatSync(s).isSymbolicLink()) continue;
+      if (esDir(s)) this.copiarArbol(s, t);
+      else if (esArchivo(s)) this.copiarPrivado(s, t);
+    }
+  }
+
+  /** ¿Se puede copiar src entera a destino? No si es el home (o lo contiene) ni si una contiene a la otra. */
+  carpetaOrigenSegura(src: string, destino: string): boolean {
+    const [s, d, h] = [src, destino, this.homeReal()].map(realpathPy);
+    return !(s === h || h.startsWith(s + path.sep) || d.startsWith(s + path.sep) || s.startsWith(d + path.sep) || s === d);
+  }
+
   async cmdImportarPerfiles(a: string[]): Promise<number> {
     let d: string | null = null;
+    let nativa: string | null = null;
     let js = false;
     for (let i = 0; i < a.length; i++) {
       if (a[i] === "--json") js = true;
       else if (a[i] === "--dir" && i + 1 < a.length && d === null) d = a[++i]!;
-      else return this.err("uso: cuentas importar-perfiles [--dir D] [--json]"), 2;
+      else if (a[i] === "--nativa" && i + 1 < a.length && nativa === null) nativa = a[++i]!;
+      else return this.err("uso: cuentas importar-perfiles [--dir D] [--nativa F] [--json]"), 2;
     }
-    d = expandir(d ?? path.join(this.homeReal(), ".local", "state", "hilos", "perfiles_claude"), homeDe(this.env));
+    const home = homeDe(this.env);
+    d = expandir(d ?? path.join(this.homeReal(), ".local", "state", "hilos", "perfiles_claude"), home);
+    const archivoNativo = nativa ? expandir(nativa, home) : this.archivoNativoViejo();
     const importadas: string[] = [];
     let omitidas = 0;
     const lineas: string[] = [];
-    if (esDir(d)) {
+    const hayPerfiles = esDir(d);
+    const hayNativa = !!archivoNativo && esArchivo(archivoNativo);
+    if (hayPerfiles || hayNativa) {
       const dir = d;
       await this.conCandado(() => {
         const ent = this.leerArchivo();
@@ -476,45 +527,88 @@ class Cuentas {
         const actual = this.emailDeClaudeJson(this.homeReal()); // la cuenta de siempre de Claude no se importa dos veces
         const emails = new Set<string>(actual ? [actual.toLowerCase()] : []);
         const deAntes = new Set<string>();
+        const carpetas = new Set<string>();
         for (const c of ent) {
           if (c.proveedor !== "claude") continue;
-          const e = (typeof c.email === "string" ? c.email : null) || this.emailDeClaudeJson(expandir(verdad(c.dir) ? String(c.dir) : this.dirDefault(c.id), homeDe(this.env)));
+          const cdir = expandir(verdad(c.dir) ? String(c.dir) : this.dirDefault(c.id), home);
+          carpetas.add(realpathPy(cdir));
+          const e = (typeof c.email === "string" ? c.email : null) || this.emailDeClaudeJson(cdir);
           if (e) emails.add(e.toLowerCase());
           if (typeof c.importada_de === "string") deAntes.add(c.importada_de);
         }
-        for (const [vid, nombre0, email0] of this.perfilesViejos(dir)) {
-          const src = path.join(dir, vid);
-          if ((lexists(src) && lstatSync(src).isSymbolicLink()) || !esArchivo(path.join(src, ARCHIVOS_PERFIL[0]!))) {
-            omitidas++;
-            lineas.push(`salteada: ${vid} (sin ${ARCHIVOS_PERFIL[0]})`);
-            continue;
-          }
-          const email = email0 ?? this.emailDeClaudeJson(src);
-          if (deAntes.has(vid) || (email && emails.has(email.toLowerCase()))) {
-            omitidas++;
-            lineas.push(`ya estaba: ${nombre0 || email || vid}`);
-            continue;
-          }
-          const nombre = nombre0 || email || vid;
-          const base = Cuentas.slug(nombre);
-          let cid = base;
-          for (let n = 2; usados.has(cid); n++) cid = `${base}-${n}`;
+        /** Copia (con `copiar(destino)`), anota la cuenta y la deja lista. false si no se pudo copiar. */
+        const agregar = (cid: string, nombre: string, email: string | null, origen: string, copiar: (destino: string) => void): boolean => {
           const destino = this.dirDefault(cid);
           try {
-            mkdirSync(destino, { recursive: true, mode: 0o700 });
-            for (const f of ARCHIVOS_PERFIL) if (esArchivo(path.join(src, f))) this.copiarPrivado(path.join(src, f), path.join(destino, f));
+            copiar(destino);
           } catch (e) {
-            this.err(`no pude copiar el perfil ${vid}: ${(e as NodeJS.ErrnoException).message}`);
-            omitidas++;
-            continue;
+            this.err(`no pude copiar la cuenta ${origen}: ${(e as NodeJS.ErrnoException).message}`);
+            return false;
           }
-          ent.push({ id: cid, proveedor: "claude", nombre, ...(email ? { email } : {}), importada_de: vid });
+          ent.push({ id: cid, proveedor: "claude", nombre, ...(email ? { email } : {}), importada_de: origen });
           usados.add(cid);
           if (email) emails.add(email.toLowerCase());
+          carpetas.add(realpathPy(destino));
           this.guardar(ent);
           this.asegurarLinks(this.buscar(cid)!);
           importadas.push(cid);
           lineas.push(`importada: ${cid} (${nombre})`);
+          return true;
+        };
+        if (hayPerfiles) {
+          for (const [vid, nombre0, email0] of this.perfilesViejos(dir)) {
+            const src = path.join(dir, vid);
+            if ((lexists(src) && lstatSync(src).isSymbolicLink()) || !esArchivo(path.join(src, ARCHIVOS_PERFIL[0]!))) {
+              omitidas++;
+              lineas.push(`salteada: ${vid} (sin ${ARCHIVOS_PERFIL[0]})`);
+              continue;
+            }
+            const email = email0 ?? this.emailDeClaudeJson(src);
+            if (deAntes.has(vid) || (email && emails.has(email.toLowerCase()))) {
+              omitidas++;
+              lineas.push(`ya estaba: ${nombre0 || email || vid}`);
+              continue;
+            }
+            const nombre = nombre0 || email || vid;
+            const base = Cuentas.slug(nombre);
+            let cid = base;
+            for (let n = 2; usados.has(cid); n++) cid = `${base}-${n}`;
+            const copiar = (destino: string) => {
+              mkdirSync(destino, { recursive: true, mode: 0o700 });
+              for (const f of ARCHIVOS_PERFIL) if (esArchivo(path.join(src, f))) this.copiarPrivado(path.join(src, f), path.join(destino, f));
+            };
+            if (!agregar(cid, nombre, email, vid, copiar)) omitidas++;
+          }
+        }
+        if (hayNativa) {
+          const baseDir = path.dirname(path.resolve(archivoNativo!));
+          for (const [vid, nombre0, dcfg] of this.cuentasNativas(archivoNativo!)) {
+            const cid = ID_OK.test(vid) ? vid : Cuentas.slug(vid);
+            const src = path.resolve(baseDir, expandir(dcfg ?? path.join("cuentas", vid), home));
+            const nombre = nombre0 || vid;
+            if (deAntes.has("nativa:" + vid) || usados.has(cid) || carpetas.has(realpathPy(src))) {
+              omitidas++;
+              lineas.push(`ya estaba: ${nombre}`);
+              continue;
+            }
+            if (!esDir(src) || lstatSync(src).isSymbolicLink()) {
+              omitidas++;
+              lineas.push(`salteada: ${vid} (sin carpeta)`);
+              continue;
+            }
+            if (!this.carpetaOrigenSegura(src, this.dirDefault(cid))) {
+              omitidas++;
+              lineas.push(`salteada: ${vid} (carpeta no segura para copiar)`);
+              continue;
+            }
+            const email = this.emailDeClaudeJson(src);
+            if (email && emails.has(email.toLowerCase())) {
+              omitidas++;
+              lineas.push(`ya estaba: ${nombre}`);
+              continue;
+            }
+            if (!agregar(cid, nombre, email, "nativa:" + vid, (destino) => this.copiarArbol(src, destino))) omitidas++;
+          }
         }
       });
     } else lineas.push(`no hay perfiles viejos en ${d}`);

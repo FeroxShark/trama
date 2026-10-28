@@ -30,14 +30,19 @@ const ENLACES_OK = new Set(["https://ollama.com/download", "https://ollama.com"]
 // carpeta, sin ventana y sin candado de instancia única. Su userData va a una carpeta temporal para no recrear ni
 // trabar %APPDATA%\Trama, que es justo una de las cosas que se pregunta si borrar.
 const DESINSTALAR = process.argv.includes("--desinstalar");
-// La carpeta de verdad (antes de moverla): ahí viven estado.json y carcasa.log.
-const USERDATA = app.getPath("userData");
-if (DESINSTALAR) app.setPath("userData", fs.mkdtempSync(path.join(os.tmpdir(), "trama-desinstalar-")));
-else if (!app.requestSingleInstanceLock()) app.quit();
-
 // El árbol del Trama nativo que trae el instalador (node.exe, app compilada, bin\*.cmd); en desarrollo, windows/payload-nativo/.
 const dirPayloadNativo = () => (app.isPackaged ? path.join(process.resourcesPath, "payload-nativo") : path.join(__dirname, "..", "payload-nativo"));
 const NATIVO = process.env.TRAMA_MODO ? process.env.TRAMA_MODO === "nativo" : fs.existsSync(dirPayloadNativo());
+// La carpeta de verdad (antes de moverla): ahí viven estado.json y carcasa.log. En el Trama nativo es %APPDATA%\Trama-nativo y no la de
+// siempre de Electron (%APPDATA%\Trama): esa es de la Trama nativa vieja (su cuentas.json y sus cuentas, que `cuentas importar-perfiles`
+// sólo lee y copia) y ni el asistente, ni Electron (cachés), ni el desinstalador tienen que pisarla.
+const USERDATA = NATIVO ? path.join(app.getPath("appData"), "Trama-nativo") : app.getPath("userData");
+if (DESINSTALAR) app.setPath("userData", fs.mkdtempSync(path.join(os.tmpdir(), "trama-desinstalar-")));
+else {
+  if (NATIVO) app.setPath("userData", USERDATA);
+  if (!app.requestSingleInstanceLock()) app.quit();
+}
+
 const SEGUNDO_PLANO = NATIVO && process.argv.includes(nativo.SEGUNDO_PLANO);
 
 let ventana = null;

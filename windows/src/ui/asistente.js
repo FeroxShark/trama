@@ -74,7 +74,7 @@ function pantallaError(e) {
     h("div", { class: "error", role: "alert" }, nombre ? h("b", {}, `${nombre}: `) : null, e.mensaje),
     e.detalle ? h("details", {}, h("summary", {}, "Ver detalle"), h("pre", {}, e.detalle)) : null,
     h("div", { class: "acciones" }, h("button", { class: "primario", onclick: () => iniciar() }, "Reintentar")),
-    h("p", { class: "nota ancho" }, "Si se repite, el registro está en %APPDATA%\\Trama\\carcasa.log."),
+    h("p", { class: "nota ancho" }, `Si se repite, el registro está en %APPDATA%\\${ahora.nativo ? "Trama-nativo" : "Trama"}\\carcasa.log.`),
   ];
 }
 

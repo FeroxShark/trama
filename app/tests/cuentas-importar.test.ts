@@ -3,7 +3,7 @@
 import { after, test } from "node:test";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { main } from "../electron/cli/cuentas.ts";
@@ -44,7 +44,7 @@ function banco() {
       ],
     }),
   );
-  const env = { HOME: home, TRAMA_CUENTAS_HOME: home, TRAMA_CUENTAS: path.join(raiz, "config", "cuentas.json"), PATH: "/usr/bin:/bin" };
+  const env = { HOME: home, TRAMA_CUENTAS_HOME: home, TRAMA_CUENTAS: path.join(raiz, "config", "cuentas.json"), PATH: "/usr/bin:/bin", APPDATA: path.join(raiz, "appdata") };
   const correr = async (...args: string[]) => {
     let out = "";
     let err = "";
@@ -152,4 +152,117 @@ test("un id de perfil con .. en perfiles.json no sale de la carpeta vieja", asyn
   escribir(path.join(b.viejo, "perfiles.json"), JSON.stringify({ version: 1, cuentas: [{ id: "../afuera", nombre: "Mala" }] }));
   const r = await b.correr("importar-perfiles", "--json");
   assert.equal(JSON.parse(r.out).cuentas.includes("mala"), false);
+});
+
+// ---- el segundo formato: el cuentas.json de la Trama nativa vieja de Windows (%APPDATA%\Trama\cuentas.json) ----
+
+const TOKENS_NATIVA = ["sk-ant-INVENTADO-casa-x", "sk-ant-INVENTADO-cuenta_2", "sk-ant-INVENTADO-repe"];
+
+/** %APPDATA%\Trama con ids, emails, rutas y tokens inventados: casa-x y cuenta_2 (id con guion bajo) con carpeta, repe con el mismo email que casa-x. */
+function nativaVieja(b: ReturnType<typeof banco>) {
+  rmSync(b.viejo, { recursive: true, force: true }); // sólo el formato nativo: sin los perfiles del fork de banco()
+  const raiz = path.join(b.env.APPDATA, "Trama");
+  const carpeta = (id: string, email: string) => {
+    const d = path.join(raiz, "cuentas", id);
+    escribir(path.join(d, ".credentials.json"), JSON.stringify({ claudeAiOauth: { accessToken: `sk-ant-INVENTADO-${id}` } }));
+    escribir(path.join(d, ".claude.json"), JSON.stringify({ oauthAccount: { emailAddress: email } }));
+    escribir(path.join(d, ".oauth_refresh.lock.owner.tmp.4242"), "temporal");
+    escribir(path.join(d, "sub", "dato.txt"), `dato ${id}`);
+    return d;
+  };
+  const dirCasa = carpeta("casa-x", "ana@example.com");
+  carpeta("cuenta_2", "bruno@example.com");
+  const dirRepe = carpeta("repe", "ANA@example.com");
+  escribir(
+    path.join(raiz, "cuentas.json"),
+    JSON.stringify({
+      version: 1,
+      cuentas: [
+        { id: "casa-x", proveedor: "claude", nombre: "Casa", dir: dirCasa },
+        { id: "cuenta_2", proveedor: "claude", nombre: "Trabajo" },
+        { id: "repe", proveedor: "claude", nombre: "Repetida", dir: dirRepe },
+        { id: "gemini", proveedor: "google", nombre: "No es Claude" },
+        { id: "claude", proveedor: "claude", nombre: "La de siempre" },
+        { id: "sin-carpeta", proveedor: "claude", nombre: "Sin carpeta" },
+      ],
+    }),
+  );
+  return { raiz, dirCasa, dirRepe };
+}
+
+test("nativa vieja: copia la carpeta entera sin los temporales de refresco y agrega la cuenta a nuestro cuentas.json", async () => {
+  const b = banco();
+  const n = nativaVieja(b);
+  const r = await b.correr("importar-perfiles");
+  assert.equal(r.rc, 0);
+  assert.match(r.out, /importada: casa-x \(Casa\)/);
+  assert.match(r.out, /importada: cuenta-2 \(Trabajo\)/, "el id con guion bajo pasa a uno válido");
+  assert.match(r.out, /ya estaba: Repetida/, "mismo email que casa-x");
+  assert.match(r.out, /salteada: sin-carpeta \(sin carpeta\)/);
+  assert.match(r.out, /importadas: 2\n$/);
+  assert.deepEqual(b.registro().map((c) => c.id), ["casa-x", "cuenta-2"]);
+  assert.equal(b.registro()[0]!.email, "ana@example.com");
+  const dest = path.join(b.raiz, "config", "cuentas", "casa-x");
+  for (const f of [".credentials.json", ".claude.json", path.join("sub", "dato.txt")]) assert.equal(readFileSync(path.join(dest, f), "utf8"), readFileSync(path.join(n.dirCasa, f), "utf8"));
+  assert.equal(existsSync(path.join(dest, ".oauth_refresh.lock.owner.tmp.4242")), false);
+  assert.match((await b.correr("env", "casa-x")).out, /CLAUDE_CONFIG_DIR=/);
+});
+
+testPosix("nativa vieja: permisos sólo del usuario y los enlaces simbólicos no se siguen", async () => {
+  const b = banco();
+  const n = nativaVieja(b);
+  symlinkSync("/etc/hostname", path.join(n.dirCasa, "enlace"));
+  await b.correr("importar-perfiles");
+  const dest = path.join(b.raiz, "config", "cuentas", "casa-x");
+  assert.equal(statSync(path.join(dest, ".credentials.json")).mode & 0o777, 0o600);
+  assert.equal(statSync(path.join(dest, "sub")).mode & 0o777, 0o700);
+  assert.equal(lstatSync(path.join(dest, "enlace"), { throwIfNoEntry: false }), undefined);
+});
+
+test("nativa vieja: no toca los originales, no duplica en la segunda corrida y no imprime secretos", async () => {
+  const b = banco();
+  const n = nativaVieja(b);
+  const antes = huella(n.raiz);
+  const r1 = await b.correr("importar-perfiles");
+  const reg = readFileSync(b.env.TRAMA_CUENTAS, "utf8");
+  const r2 = await b.correr("importar-perfiles", "--json");
+  assert.deepEqual(JSON.parse(r2.out), { importadas: 0, omitidas: 4, cuentas: [] });
+  assert.equal(readFileSync(b.env.TRAMA_CUENTAS, "utf8"), reg);
+  assert.deepEqual(huella(n.raiz), antes);
+  for (const r of [r1, r2]) for (const t of TOKENS_NATIVA) assert.ok(!(r.out + r.err).includes(t), `se coló ${t}`);
+  assert.ok(!reg.includes("INVENTADO"));
+});
+
+test("nativa vieja: una cuenta con el mismo id, o con la misma carpeta, o la de siempre (<home>/.claude) no se agrega", async () => {
+  const b = banco();
+  const n = nativaVieja(b);
+  escribir(path.join(b.home, ".claude", ".credentials.json"), '{"de":"siempre"}');
+  const siempre = huella(path.join(b.home, ".claude"));
+  await b.correr("agregar", "claude", "Ya estaba", "--id", "casa-x"); // mismo id
+  escribir(path.join(b.raiz, "config", "cuentas.json"), JSON.stringify({ version: 1, cuentas: [{ id: "casa-x", proveedor: "claude", nombre: "Ya estaba" }, { id: "mia", proveedor: "claude", nombre: "Mía", dir: path.join(n.raiz, "cuentas", "cuenta_2") }] })); // misma carpeta
+  const r = await b.correr("importar-perfiles", "--json");
+  assert.deepEqual(JSON.parse(r.out).cuentas, ["repe"], "sólo la que no coincide en id, carpeta ni email");
+  assert.deepEqual(b.registro().map((c) => c.id), ["casa-x", "mia", "repe"]);
+  assert.deepEqual(huella(path.join(b.home, ".claude")), siempre);
+});
+
+test("nativa vieja: una carpeta que es el home (o lo contiene) no se copia", async () => {
+  const b = banco();
+  rmSync(b.viejo, { recursive: true, force: true });
+  const raiz = path.join(b.env.APPDATA, "Trama");
+  escribir(path.join(b.home, "algo.txt"), "x");
+  escribir(path.join(raiz, "cuentas.json"), JSON.stringify({ version: 1, cuentas: [{ id: "casa", proveedor: "claude", dir: b.home }, { id: "raiz", proveedor: "claude", dir: b.raiz }] }));
+  const r = await b.correr("importar-perfiles");
+  assert.match(r.out, /salteada: casa \(carpeta no segura/);
+  assert.match(r.out, /salteada: raiz \(carpeta no segura/);
+  assert.equal(existsSync(b.env.TRAMA_CUENTAS), false);
+});
+
+test("--nativa lee otro archivo; los perfiles del fork y la nativa vieja se importan juntos", async () => {
+  const b = banco();
+  const otro = path.join(b.raiz, "otro");
+  escribir(path.join(otro, "cuentas", "uno", ".credentials.json"), "{}");
+  escribir(path.join(otro, "cuentas.json"), JSON.stringify({ version: 1, cuentas: [{ id: "uno", proveedor: "claude", nombre: "Uno" }] }));
+  const r = await b.correr("importar-perfiles", "--nativa", path.join(otro, "cuentas.json"), "--json");
+  assert.deepEqual(JSON.parse(r.out).cuentas, ["ana-example-com", "trabajo", "huerfana-example-com", "uno"]);
 });

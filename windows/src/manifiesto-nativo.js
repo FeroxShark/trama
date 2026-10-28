@@ -8,12 +8,21 @@
 
 const { ENTRADAS } = require("./manifiesto");
 
-const DE_LA_CARCASA = ["win-instalacion", "win-cache-actualizador", "win-datos-carcasa"];
+// OJO con %APPDATA%\\Trama: es la carpeta de la Trama nativa vieja (su cuentas.json y cuentas\\, que `cuentas importar-perfiles` sólo lee y
+// copia). La carcasa nativa guarda lo suyo en %APPDATA%\\Trama-nativo (main.js) y esa es la única que este manifiesto ofrece quitar: el
+// desinstalador nativo nunca toca %APPDATA%\\Trama.
+const DE_LA_CARCASA = ["win-instalacion", "win-cache-actualizador"];
 
 const nativa = (id, campos) => ({ id, ambito: "windows", grupo: "motor-nativo", desde: "0.2.0", hasta: null, auto: false, ...campos });
 
 const ENTRADAS_NATIVO = [
   ...ENTRADAS.filter((e) => DE_LA_CARCASA.includes(e.id)),
+  nativa("win-nativo-carcasa", {
+    tipo: "carpeta",
+    ruta: "%APPDATA%\\Trama-nativo",
+    que: "Los ajustes de la app de Windows, su registro (carcasa.log) y el estado del asistente",
+    quitar: "datos",
+  }),
   nativa("win-nativo-arranque", {
     tipo: "registro",
     ruta: "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run|Trama",
