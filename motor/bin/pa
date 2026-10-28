@@ -4437,6 +4437,7 @@ medir() {   # $1 = json de salida de la corrida (puede no existir)
                        suma(.usage.cache_creation.ephemeral_5m_input_tokens) ] | join("\t")' "${jsons[@]}" 2>/dev/null)" || cache=""
   fi
   [[ -n "$nums" ]] || nums=$'\t\t\t\t'
+  MED_USD="${nums##*$'\t'}"   # el costo (última columna de nums): lo toma anotar_estado (estado.tsv)
   [[ -n "$cache" ]] || cache=$'\t\t\t'
   # seguir = si la corrida RETOMÓ una sesión: un --seguir cuya sesión ya no existía arrancó limpia
   # (resume=0) y se mide como nueva.
@@ -4451,6 +4452,26 @@ medir() {   # $1 = json de salida de la corrida (puede no existir)
     fi
     printf '%s\n' "$linea" >&7
   ) 7>>"$MEDICION"
+}
+
+# --- estado de la tarea madre (2026-10-27): $dir/tareas/<slug>/estado.tsv ---------------------
+# Una fila por corrida con --tarea: en qué subtarea (--subtarea/PA_SUBTAREA, '-' si no hay) y en qué
+# intento (filas previas de esa subtarea + 1), con el modelo y effort que usó de verdad (el último si
+# hubo fallback de -m: cada intento de la lista es su propio pa, con su fila), el exit de la corrida y
+# el usd que pone medir. gate va '-' (lo llena quien corre el chequeo). Se escribe en el mismo punto que
+# medicion.tsv (trap de EXIT), bajo flock sobre el mismo archivo: el intento se cuenta DENTRO del lock,
+# si no dos corridas que terminan a la vez sacan el mismo número. El que llama le pone `|| true`.
+ESTADO_HEADER=$'subtarea\tintento\tid\tmodelo\teffort\texit\tgate\tusd'
+anotar_estado() {   # $1 = exit de la corrida
+  local est="$dir/tareas/$tarea_id/estado.tsv" sub="${subtarea:--}" mod="${modelo:--}" ef previas
+  ef="${esfuerzo:-${ef_vacio:-settings}}"
+  mkdir -p "$dir/tareas/$tarea_id" || return 0
+  (
+    flock 7
+    previas="$(awk -F'\t' -v s="$sub" 'NR > 1 && $1 == s { n++ } END { print n + 0 }' "$est")"
+    [[ -s "$est" ]] || printf '%s\n' "$ESTADO_HEADER" >&7
+    printf '%s\t%s\t%s\t%s\t%s\t%s\t-\t%s\n' "$sub" "$((previas + 1))" "${ts:-}" "$mod" "$ef" "$1" "${MED_USD:--}" >&7
+  ) 7>>"$est"
 }
 
 # --- orquestación: brief, verificación, AGENTS.md, lecciones, calidad del modelo (2026-10-26) ----
@@ -5958,6 +5979,8 @@ al_salir() {
   # la fila de medicion.tsv todavía escrita (review 2026-09-30 #13).
   # `out` existe desde que se armó la corrida: antes de eso no se lanzó nada que medir.
   [[ -n "${out:-}" ]] && { medir "$out" 2>/dev/null || true; }
+  # estado.tsv de la tarea madre: sólo con --tarea, y después de medir (le pasa el usd)
+  [[ -n "${out:-}" && -n "${tarea_id:-}" ]] && { anotar_estado "$rc" 2>/dev/null || true; }
   [[ -n "${out:-}" ]] && { anotar_decision "$out" 2>/dev/null || true; }
   # El puesto queda libre: su build (target-wt/ y cía.) se va, ANTES del .ultimo/.listo (un
   # --integrar justo después del --esperar necesita el puesto suelto). `|| true`: con set -e, un

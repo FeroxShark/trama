@@ -5,7 +5,7 @@
 import { after } from "node:test";
 import { testPosix as test } from "./plataforma.ts";
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -82,7 +82,7 @@ const entorno = (env: Record<string, string> = {}) => {
     PATH: `${MOTOR}/bin:${shim}:${process.env.PATH}`,
     ...env,
   };
-  for (const k of ["PA_WORKER", "PA_FASE", "PA_TAREA", "PA_ENFRIAR_HORAS"]) if (!(k in env)) delete e[k];
+  for (const k of ["PA_WORKER", "PA_FASE", "PA_TAREA", "PA_SUBTAREA", "PA_ENFRIAR_HORAS"]) if (!(k in env)) delete e[k];
   return e;
 };
 function pa(args: string[], env: Record<string, string> = {}) {
@@ -407,4 +407,67 @@ test("pa --rubrica v2 punto 6: nunca devuelve un modelo o effort que modelos.jso
   const lanza = pa(["demo", "--sin-jefe", "--rubrica", "A=chico B=ejecutar C=completo D=bajo E=si", "x"], con);
   assert.equal(lanza.rc, 98, lanza.err);
   assert.equal(existsSync(medPath) ? medicion().length : 0, antes, "no corrió nada");
+});
+
+// ---- estado.tsv de la tarea madre: una fila por corrida con --tarea (2026-10-27) ------------------------------------
+
+const estadoTarea = (tarea: string) => {
+  const f = path.join(estado, "proy", "tareas", tarea, "estado.tsv");
+  if (!existsSync(f)) return [] as Record<string, string>[];
+  const [h, ...filas] = readFileSync(f, "utf8").trim().split("\n");
+  const cols = h!.split("\t");
+  return filas.map((l) => Object.fromEntries(l.split("\t").map((v, i) => [cols[i], v])));
+};
+
+test("--tarea: anota una fila por corrida en tareas/<slug>/estado.tsv (subtarea, intento, modelo, effort, exit, gate, usd)", () => {
+  const T = "est-tarea";
+  const a = pa(["demo", "--sin-jefe", "-m", "claude-sonnet-5-5", "--effort", "high", "--tarea", T, "--subtarea", "T1", "paso uno"]);
+  assert.equal(a.rc, 0, a.err);
+  const b = pa(["demo", "--sin-jefe", "-m", "claude-sonnet-5-5", "--effort", "high", "--tarea", T, "--subtarea", "T1", "paso uno otra vez"]);
+  assert.equal(b.rc, 0, b.err);
+  const c = pa(["demo", "--sin-jefe", "-m", "claude-sonnet-5-5", "--tarea", T, "--subtarea", "T2", "paso dos"]);
+  assert.equal(c.rc, 0, c.err);
+  const sin = pa(["demo", "--sin-jefe", "-m", "claude-sonnet-5-5", "--tarea", T, "sin subtarea"]);
+  assert.equal(sin.rc, 0, sin.err);
+  const filas = estadoTarea(T);
+  assert.deepEqual(filas.map((f) => [f.subtarea, f.intento]), [["T1", "1"], ["T1", "2"], ["T2", "1"], ["-", "1"]]);
+  const f = filas[1]!;
+  assert.match(f.id!, /^\d{8}-\d{6}-\d+$/);
+  assert.notEqual(f.id, filas[0]!.id, "cada corrida su id");
+  assert.deepEqual([f.modelo, f.effort, f.exit, f.gate, f.usd], ["claude-sonnet-5-5", "high", "0", "-", "0.01"]);
+  const cab = readFileSync(path.join(estado, "proy", "tareas", T, "estado.tsv"), "utf8").split("\n")[0];
+  assert.equal(cab, "subtarea\tintento\tid\tmodelo\teffort\texit\tgate\tusd");
+});
+
+test("--tarea: PA_SUBTAREA sirve, un --seguir hereda la subtarea y sigue el intento; sin --tarea no escribe nada", () => {
+  const T = "est-env";
+  const e = pa(["demo", "--sin-jefe", "-m", "claude-sonnet-5-5", "otra"], { PA_TAREA: T, PA_SUBTAREA: "T3" });
+  assert.equal(e.rc, 0, e.err);
+  const s = pa(["demo", "--sin-jefe", "--seguir", "-m", "claude-sonnet-5-5", "lo que falta"]);
+  assert.equal(s.rc, 0, s.err);
+  assert.deepEqual(estadoTarea(T).map((f) => [f.subtarea, f.intento]), [["T3", "1"], ["T3", "2"]]);
+  const antes = readdirSync(path.join(estado, "proy", "tareas")).length;
+  const n = pa(["demo", "--sin-jefe", "-m", "claude-sonnet-5-5", "--subtarea", "T9", "sin tarea"]);
+  assert.equal(n.rc, 0, n.err);
+  assert.equal(readdirSync(path.join(estado, "proy", "tareas")).length, antes, "sin --tarea no crea tareas/");
+});
+
+test("--subtarea con valores raros → 2", () => {
+  const r = pa(["demo", "--sin-jefe", "-m", "claude-sonnet-5-5", "--tarea", "est-raro", "--subtarea", "T 1", "x"]);
+  assert.equal(r.rc, 2);
+  assert.match(r.err, /--subtarea/);
+});
+
+test("--tarea: corridas que terminan a la vez no repiten intento (el conteo va dentro del flock)", async () => {
+  const T = "est-paralelo";
+  assert.equal(pa(["demo", "--sin-jefe", "-m", "claude-sonnet-5-5", "calienta el puesto"]).rc, 0); // que los puestos existan antes de la carrera
+  const corre = (i: number) => new Promise<{ rc: number | null; err: string }>((res) => {
+    const p = spawn(path.join(MOTOR, "bin", "pa"), ["demo", "--sin-jefe", "-m", "claude-sonnet-5-5", "--tarea", T, "--subtarea", "TP", `paralelo ${i}`], { env: entorno({ PA_PUESTOS: "4", PA_RAM_WORKER_MB: "0", PA_RAM_RESERVA_MB: "0" }) }); // 4 puestos (con 3, el cuarto sale 75) y sin el chequeo de RAM de la máquina
+    let err = "";
+    p.stderr.on("data", (d) => (err += d));
+    p.on("close", (rc) => res({ rc, err }));
+  });
+  const r = await Promise.all([0, 1, 2, 3].map(corre));
+  assert.deepEqual(r.map((x) => x.rc), [0, 0, 0, 0], r.map((x) => x.err).join("\n---\n"));
+  assert.deepEqual(estadoTarea(T).map((f) => f.intento).sort(), ["1", "2", "3", "4"]);
 });
