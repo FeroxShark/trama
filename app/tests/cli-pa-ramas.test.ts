@@ -113,7 +113,8 @@ testPosix("verificacionDe / verificadoDe: igual que verificacion_de / verificado
     "VERIFICACION:\n\n",
   ];
   for (const t of textos) {
-    assert.equal(verificacionDe(t), funcionBash("verificacion_de", t).salida, JSON.stringify(t));
+    // los que la usan la toman con $(…): sin los `\n` del final
+    assert.equal(verificacionDe(t), funcionBash("verificacion_de", t).salida.replace(/\n+$/, ""), JSON.stringify(t));
     // verificado_de llama a verificacion_de: se le pasan las dos
     const src = readFileSync(PA_BASH, "utf8");
     const def = (n: string) => src.slice(src.indexOf(`\n${n}() {`), src.indexOf("\n}\n", src.indexOf(`\n${n}() {`)) + 3);

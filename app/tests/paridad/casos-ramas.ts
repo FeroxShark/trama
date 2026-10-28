@@ -148,6 +148,26 @@ export const casosRamas: Caso[] = [
       writeFileSync(path.join(c.estado, SLUG, `${ID}.corrida`), `ruta_trabajo=${c.proyecto}\nrama=pa/${SLUG}/${ID}\nbase=${base}\nproyecto=demo\npuesto=1\n`);
     },
   },
+  {
+    nombre: "integrar: la corrida dejó sin commitear en su worktree (86)",
+    args: ["demo", "--integrar", ID],
+    rc: 86,
+    preparar: (c) => {
+      una(c);
+      const wt = path.join(c.estado, "worktrees", SLUG);
+      gitFijo(c, "worktree", "add", "-q", wt, `pa/${SLUG}/${ID}`);
+      writeFileSync(path.join(wt, "a.txt"), "a medias\n");
+    },
+  },
+  {
+    nombre: "integrar: una huérfana sin .corrida se adopta y entra",
+    args: ["demo", "--integrar", "huerfano-20261028-090000-1"],
+    rc: 0,
+    preparar: (c) => {
+      fijo(c);
+      corrida(c, "huerfano-20261028-090000-1", { "h.txt": "h\n" }, { rama: `pa/${SLUG}/huerfano-20261028-090000-1`, corrida: false });
+    },
+  },
   { nombre: "integrar: corrida que no existe", args: ["demo", "--integrar", ID], rc: 1, preparar: fijo },
   { nombre: "integrar: rama sin commits", args: ["demo", "--integrar", ID], rc: 1, preparar: (c) => (fijo(c), corrida(c, ID, null)) },
   {
