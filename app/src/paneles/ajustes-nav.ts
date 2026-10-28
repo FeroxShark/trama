@@ -10,7 +10,7 @@ export type CatId = (typeof CATS)[number];
 export const esCat = (x: unknown): x is CatId => typeof x === "string" && (CATS as readonly string[]).includes(x);
 
 /** Una fila de Ajustes que se puede buscar: `nombre` es la misma clave con que se pinta (`data-opc` de la fila). */
-export type Item = { cat: CatId; nombre: ClaveSola; que: ClaveSola | null; sin: string };
+export type Item = { cat: CatId; nombre: ClaveSola; que: ClaveSola | null; sin: string; /** Sólo existe en el .exe de Windows (la fila no se pinta en Linux). */ soloWindows?: true };
 
 const tipoDe = (tipo: (typeof TIPOS)[number]): Item => ({
   cat: "modelos",
@@ -63,8 +63,8 @@ export const ITEMS: readonly Item[] = [
   { cat: "celular", nombre: "ajustes.celPuerto", que: "ajustes.celPuertoQue", sin: "telefono movil phone mobile tailscale tailnet remoto remote port" },
   { cat: "celular", nombre: "ajustes.celDisp", que: "ajustes.celDispQue", sin: "telefono movil phone mobile tailscale tailnet dispositivos devices permitidos allowed agregar add" },
 
-  { cat: "actualizaciones", nombre: "carcasa.act", que: "carcasa.actQue", sin: "windows update version buscar check descargar download reiniciar restart exe" },
-  { cat: "actualizaciones", nombre: "carcasa.restos", que: "carcasa.restosQue", sin: "windows limpiar clean restos leftovers versiones anteriores previous desinstalar uninstall" },
+  { cat: "actualizaciones", nombre: "carcasa.act", que: "carcasa.actQue", sin: "windows update version buscar check descargar download reiniciar restart exe trama github release novedades" },
+  { cat: "actualizaciones", nombre: "carcasa.restos", que: "carcasa.restosQue", sin: "windows limpiar clean restos leftovers versiones anteriores previous desinstalar uninstall", soloWindows: true },
 
   { cat: "proyectos", nombre: "pry.nombres", que: "pry.nombresQue", sin: "renombrar rename nombre name alias proyecto project mostrar display titulo title slug registro registry shark" },
   { cat: "proyectos", nombre: "pry.instrucciones", que: "pry.instruccionesQue", sin: "agents.md agents claude.md gemini.md unificar unify instrucciones instructions import stub modelos models fuente unica single source editar edit manual" },
@@ -81,7 +81,6 @@ export const ITEMS: readonly Item[] = [
   { cat: "general", nombre: "ajustes.atajos", que: "ajustes.atajosQue", sin: "teclado keyboard shortcuts hotkeys teclas atajos" },
   { cat: "general", nombre: "ajustes.aplicarAuto", que: "ajustes.aplicarAutoQue", sin: "ramas branches veredictos verdicts analista analyst aplicar apply automatico automatic integrar descartar" },
   { cat: "general", nombre: "ajustes.bienvenida", que: "ajustes.bienvenidaQue", sin: "welcome bienvenida primer arranque first start setup asistente configurar inicio" },
-  { cat: "general", nombre: "ajustes.tramaVersion", que: "ajustes.tramaVersionQue", sin: "trama version actualizar actualizacion update updates buscar check release github novedades" },
 
   { cat: "guia", nombre: "tour.mostrar", que: "tour.mostrarQue", sin: "guias tour recorrido tutorial ayuda onboarding coach marks globos pistas help guides show hide apagar desactivar disable" },
   { cat: "guia", nombre: "tour.reiniciar", que: "tour.reiniciarQue", sin: "guias tour recorrido reiniciar resetear volver a mostrar reset show again guides" },
@@ -108,14 +107,14 @@ export type Resultado = { item: Item; titulo: string; desc: string; cat: string 
 /**
  * Lo que responde el buscador: cada palabra de la consulta tiene que estar en el título, la descripción, los sinónimos o el
  * nombre de la categoría (en el idioma de ahora, `traducir`); primero lo que la tiene en el título, y a igual puntaje el orden
- * de Ajustes. `disponible` deja afuera lo que no existe en esta máquina (cuentas fuera de Windows).
+ * de Ajustes. `disponible` deja afuera lo que no existe en esta máquina (cuentas y restos fuera de Windows).
  */
-export function buscar(consulta: string, traducir: (k: ClaveSola) => string, nombreCat: (c: CatId) => string, disponible: (c: CatId) => boolean = () => true, tope = 8): Resultado[] {
+export function buscar(consulta: string, traducir: (k: ClaveSola) => string, nombreCat: (c: CatId) => string, disponible: (c: CatId, item: Item) => boolean = () => true, tope = 8): Resultado[] {
   const palabras = normalizar(consulta).split(/\s+/).filter(Boolean);
   if (!palabras.length) return [];
   const llenos: { r: Resultado; punto: number; i: number }[] = [];
   ITEMS.forEach((item, i) => {
-    if (!disponible(item.cat)) return;
+    if (!disponible(item.cat, item)) return;
     const titulo = traducir(item.nombre);
     const desc = item.que ? traducir(item.que) : "";
     const cat = nombreCat(item.cat);

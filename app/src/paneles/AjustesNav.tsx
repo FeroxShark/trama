@@ -73,7 +73,7 @@ function Buscador({ presentes }: { presentes: ReturnType<typeof presentesDe> }) 
   const [cursor, setCursor] = useState(0);
   const campo = useRef<HTMLInputElement>(null);
   const lista = useId();
-  const res: Resultado[] = q.trim() ? buscar(q, t as (k: ClaveSola) => string, (c) => t(TEXTOS[c].nombre), (c) => hay(c, presentes)) : [];
+  const res: Resultado[] = q.trim() ? buscar(q, t as (k: ClaveSola) => string, (c) => t(TEXTOS[c].nombre), (c, item) => hay(c, presentes) && (!item.soloWindows || carcasaActualiza !== null)) : [];
   const abierto = foco && q.trim() !== "";
   const actual = Math.min(cursor, Math.max(res.length - 1, 0));
 
