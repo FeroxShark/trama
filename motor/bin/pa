@@ -81,6 +81,9 @@
 #                                        es lo que agrupa `pa --rinde`. Un --seguir sin --tipo hereda el de la retomada
 #   pa <proyecto> --fase F1..F7 --tarea <slug> "<t>"  fase del protocolo y tarea madre de la corrida (o env PA_FASE / PA_TAREA): van a medicion.tsv
 #                                        y al .hilo; `pa --rinde --por fase|tarea` las agrupa. Un --seguir las hereda
+#   pa <proyecto> --subtarea <Tn> --tarea <slug> "<t>"  subtarea de la tarea madre (o env PA_SUBTAREA; sin ella, '-'). Con --tarea, al
+#                                        terminar la corrida anota una fila en tareas/<slug>/estado.tsv (intento = filas previas de esa
+#                                        subtarea + 1; modelo, effort, exit y usd de la corrida). Un --seguir la hereda
 #   pa --rubrica 'A=chico B=ejecutar C=completo D=bajo E=si' [--json]  qué fila de la tabla v2 del protocolo da (protocolo-orquestacion-v2.md,
 #                                        sección 6) y con qué -m/--effort; no lanza nada. A tamaño: chico|mediano|grande (o 1|2-3|>3, se mapean),
 #                                        medido en archivos de código sin tests ni i18n de T0 y en KB de lectura; B ejecutar|decidir,
@@ -4958,6 +4961,8 @@ tipo="${PA_TIPO:-}"
 # --fase / --tarea / --rubrica (2026-10-27, protocolo por fases): qué fase (F1..F7) y de qué tarea madre es la corrida, y las
 # respuestas de la rúbrica con las que se eligió el modelo. Van a medicion.tsv y al .hilo (`pa --rinde --por fase|tarea|--rubrica`).
 fase="${PA_FASE:-}"; tarea_id="${PA_TAREA:-}"; rubrica=""; RUB_NORM="" RUB_FILA="" RUB_MODELO="" RUB_EFFORT=""
+# --subtarea (2026-10-27): la subtarea (T1, T2...) de la tarea madre; clave de estado.tsv. Vacía = '-'.
+subtarea="${PA_SUBTAREA:-}"
 # --ok-dueno: el dueño aprobó esta corrida (opus max, sonnet max, fable). Sólo por flag, a propósito:
 # una variable de entorno se hereda de una llamada a la otra y la aprobación es por corrida.
 ok_dueno=0 modelo_de_m=0
@@ -4965,7 +4970,7 @@ ok_dueno=0 modelo_de_m=0
 brief_archivo=""; agents_md=0; unificar_md=0; aplicar=0; lecciones=0; lecciones_podar=0; leccion=""; auditar=""
 
 # Los flags que llevan valor: sin él, `$2` reventaba con "unbound variable" (set -u) sin decir qué faltaba.
-flags_con_valor=" --max-turns --id --integrar --descartar --actualizar --nota --max-budget-usd -m --model --effort --tipo --fase --tarea --rubrica --cuenta --brief-archivo --leccion --auditar "
+flags_con_valor=" --max-turns --id --integrar --descartar --actualizar --nota --max-budget-usd -m --model --effort --tipo --fase --tarea --subtarea --rubrica --cuenta --brief-archivo --leccion --auditar "
 # -m a,b,c (2026-10-27, protocolo por fases): lista de fallback. Se prueba cada modelo, en orden, como una corrida entera con ese solo -m
 # (`pa <proyecto> … -m a …`); si sale 76/77 (límite de sesión, API sobrecargada), 95/96 (no puede correr / sin cupo) o 97 (OpenCode cortó por
 # límite) se pasa al siguiente, y cualquier otro código (0, 1, 78…) es el final: ése es el modelo que trabajó. Los que reparto tiene
@@ -5068,6 +5073,7 @@ while [[ $# -gt 0 ]]; do
     --tipo)            tipo="$2"; shift 2 ;;
     --fase)            fase="$2"; shift 2 ;;
     --tarea)           tarea_id="$2"; shift 2 ;;
+    --subtarea)        subtarea="$2"; shift 2 ;;
     --rubrica)         rubrica="$2"; shift 2 ;;
     --ok-dueno)        ok_dueno=1; shift ;;
     --cuenta)          cuenta_flag="$2"; shift 2 ;;
@@ -5121,7 +5127,7 @@ if (( lanza )) && [[ -n "$tipo" && ! "$tipo" =~ ^($TIPOS_VALIDOS)$ ]]; then
 fi
 # --fase y --tarea: una palabra (letras, números, . _ -), para que sirvan de clave en `pa --rinde --por`.
 if (( lanza )); then
-  for _v in fase tarea_id; do
+  for _v in fase tarea_id subtarea; do
     if [[ -n "${!_v}" && ! "${!_v}" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,39}$ ]]; then
       echo "pa: --${_v/_id/} '${!_v}' no va: una sola palabra de hasta 40 caracteres (letras, números, . _ -), ej. F4 o mi-tarea." >&2
       exit 2
@@ -5767,6 +5773,7 @@ if [[ $async -eq 1 ]]; then
   [[ -n "$tipo" ]]       && hijo_args+=( --tipo "$tipo" )
   [[ -n "$fase" ]]       && hijo_args+=( --fase "$fase" )
   [[ -n "$tarea_id" ]]   && hijo_args+=( --tarea "$tarea_id" )
+  [[ -n "$subtarea" ]]   && hijo_args+=( --subtarea "$subtarea" )
   [[ -n "$rubrica" ]]    && hijo_args+=( --rubrica "$rubrica" )
   (( ok_dueno ))         && hijo_args+=( --ok-dueno )
   [[ -n "$cuenta" ]]     && hijo_args+=( --cuenta "$cuenta" )
@@ -6299,6 +6306,7 @@ fi
 if [[ -n "$ts_retomada" && -f "$dir/$ts_retomada.hilo" ]]; then
   [[ -n "$fase" ]]     || fase="$(leer_campo "$dir/$ts_retomada.hilo" fase)" || fase=""
   [[ -n "$tarea_id" ]] || tarea_id="$(leer_campo "$dir/$ts_retomada.hilo" tarea_id)" || tarea_id=""
+  [[ -n "$subtarea" ]] || subtarea="$(leer_campo "$dir/$ts_retomada.hilo" subtarea)" || subtarea=""
   if [[ -z "$rubrica" && -z "$RUB_NORM" ]]; then
     rubrica="$(leer_campo "$dir/$ts_retomada.hilo" rubrica)" || rubrica=""
     [[ -n "$rubrica" ]] && { rubrica_resolver "$rubrica" >/dev/null 2>&1 || RUB_NORM=""; }
@@ -6318,8 +6326,8 @@ inicio="$(date +%s)"
 # El registro durable de la corrida (lo lee la app y --bien-auto): la `.corrida` se borra al
 # integrar/descartar, el `.hilo` nunca. Al salir se le suman decision/decision_nada/sigue.
 [[ -f "$dir/$ts.hilo" ]] || {
-  printf 'tarea=%s\nmodelo=%s\neffort=%s\ninicio=%s\nproyecto=%s\nruta_trabajo=%s\nrama=%s\norigen=%s\nleer=%s\npuesto=%s\nlanzo=%s\njefe=%s\njefe_id=%s\ntipo=%s\ncuenta=%s\nfase=%s\ntarea_id=%s\nrubrica=%s\n' \
-    "${tarea_jefe//$'\n'/ }" "$modelo" "${esfuerzo:-${ef_vacio:-settings}}" "$inicio" "$slug" "$ruta_trabajo" "$rama" "$origen" "$leer" "$puesto" "$lanzo" "$jefe" "$jefe_ident" "$tipo" "$cuenta" "$fase" "$tarea_id" "$RUB_NORM" \
+  printf 'tarea=%s\nmodelo=%s\neffort=%s\ninicio=%s\nproyecto=%s\nruta_trabajo=%s\nrama=%s\norigen=%s\nleer=%s\npuesto=%s\nlanzo=%s\njefe=%s\njefe_id=%s\ntipo=%s\ncuenta=%s\nfase=%s\ntarea_id=%s\nrubrica=%s\nsubtarea=%s\n' \
+    "${tarea_jefe//$'\n'/ }" "$modelo" "${esfuerzo:-${ef_vacio:-settings}}" "$inicio" "$slug" "$ruta_trabajo" "$rama" "$origen" "$leer" "$puesto" "$lanzo" "$jefe" "$jefe_ident" "$tipo" "$cuenta" "$fase" "$tarea_id" "$RUB_NORM" "$subtarea" \
     >"$dir/$ts.hilo"
 } 2>/dev/null || true
 escribir_running() {
