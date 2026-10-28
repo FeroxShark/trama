@@ -230,3 +230,13 @@ export const primeraLineaPensada = (texto: string): string =>
     .split("\n")
     .map((l) => l.trim().replace(/^#+\s*/, "").replace(/^\*\*(.+?)\*\*:?$/, "$1"))
     .find(Boolean) ?? "";
+
+/** La última frase de lo que lleva escrito un pensamiento que todavía llega, sin `#` ni `**`: lo que dice la línea plegada mientras corre. */
+export const ultimaFrasePensada = (texto: string): string => {
+  const linea = texto
+    .split("\n")
+    .map((l) => l.trim().replace(/^#+\s*/, "").replace(/\*\*/g, ""))
+    .filter(Boolean)
+    .at(-1);
+  return linea?.split(/(?<=[.!?:;])\s+/).filter(Boolean).at(-1) ?? "";
+};

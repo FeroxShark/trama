@@ -10,7 +10,7 @@ import { Chip } from "../ui/componentes";
 import { t, type Clave } from "../i18n";
 import { pintorDura } from "../tiempo";
 import { alScroll, bajar, seguidor, seguir } from "./seguir";
-import { estadoDe, iconoDe, muyLargo, PASOS, primeraLineaPensada, textoPaso, type Actividad as Act, type Icono, type Paso } from "./actividad-logica";
+import { estadoDe, iconoDe, muyLargo, PASOS, primeraLineaPensada, textoPaso, ultimaFrasePensada, type Actividad as Act, type Icono, type Paso } from "./actividad-logica";
 import type { LineaTiempo } from "./linea-tiempo";
 import { Escena } from "./Escenas";
 import { Tierno } from "./Tierno";
@@ -65,11 +65,12 @@ function Entero({ texto, className }: { texto: string; className: string }) {
 /**
  * Un pensamiento: una línea compacta y gris ("Pensó: " y su primera línea, con "…" si no entra) que es un botón; un clic lo despliega
  * entero y otro lo pliega. Nada se pierde al llegar el siguiente: cada uno es su propia línea. El que todavía llega (`vivo`) dice
- * "Pensando" y está desplegado, siguiendo lo último que escribe, hasta que se lo pliega o se sube.
+ * "Pensando…" y, plegado, muestra la última frase que escribió en esa misma línea (no empuja la conversación); abierto, sigue lo último que
+ * escribe hasta que se sube.
  */
 export function Pensamiento({ texto, vivo = false, abierto: inicial = false }: { texto: string; vivo?: boolean; abierto?: boolean }) {
   const [manual, setManual] = useState<boolean | null>(inicial ? true : null);
-  const abierto = manual ?? vivo;
+  const abierto = manual ?? false;
   const caja = useRef<HTMLDivElement>(null);
   const seg = useRef(seguidor()).current;
   const abrio = useRef(false);
@@ -87,7 +88,7 @@ export function Pensamiento({ texto, vivo = false, abierto: inicial = false }: {
       <button type="button" className="tv-pb" aria-expanded={abierto} onClick={() => setManual(!abierto)}>
         <ChevronRight className="tv-pf" size={11} strokeWidth={2} aria-hidden="true" />
         <span className="tv-pq">{vivo ? t("turno.pensando") : `${t("turno.penso")}:`}</span>
-        {abierto ? null : <span className="tv-pr">{primeraLineaPensada(texto)}</span>}
+        {abierto ? null : <span className="tv-pr">{vivo ? ultimaFrasePensada(texto) : primeraLineaPensada(texto)}</span>}
       </button>
       {abierto ? (
         <div className="tv-pe" ref={caja} onScroll={(e) => alScroll(e.currentTarget, seg)}>

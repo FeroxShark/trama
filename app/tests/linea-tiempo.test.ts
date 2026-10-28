@@ -25,7 +25,7 @@ registerHooks({
 });
 
 const { lineaDeTiempo } = await import("../src/hilo/linea-tiempo.ts");
-const { primeraLineaPensada } = await import("../src/hilo/actividad-logica.ts");
+const { primeraLineaPensada, ultimaFrasePensada } = await import("../src/hilo/actividad-logica.ts");
 
 // La línea de tiempo de la tarjeta: los pensamientos terminados y las herramientas, en el orden en que pasaron.
 const asis = (i: number, pensado: string | undefined, herramientas: string[] = [], det?: Mensaje["det"]): Mensaje => ({ i, rol: "assistant", texto: "", herramientas, ts: null, modelo: "claude-opus-5-5", ...(pensado ? { pensado } : {}), ...(det ? { det } : {}) });
@@ -48,4 +48,10 @@ test("la primera línea de un pensamiento: sin títulos ni negritas, y vacío si
   assert.equal(primeraLineaPensada("\n\n**Buscando el log**\nDespués sigo"), "Buscando el log");
   assert.equal(primeraLineaPensada("## Plan\npaso uno"), "Plan");
   assert.equal(primeraLineaPensada("   \n  "), "");
+});
+
+test("la última frase de un pensamiento que llega: la última línea, su última oración, sin marcas", () => {
+  assert.equal(ultimaFrasePensada("Miro el test. Si es el orden de claves, es chico; si es la migración, reviso"), "si es la migración, reviso");
+  assert.equal(ultimaFrasePensada("Primero esto.\n\n**Después** el log. Y luego\n  "), "Y luego");
+  assert.equal(ultimaFrasePensada("  \n "), "");
 });

@@ -100,11 +100,11 @@ const resultados = (x: PropsTurno["t"]) => x.pasos.reduce((n, p) => n + p.usos.f
 
 /**
  * El razonamiento del modelo (un líder de la app): uno solo es una línea plegada ("Pensó: …", un clic lo abre); varios, una sola fila
- * plegada ("Pensó · 10") que al abrirse los lista en orden. Mientras llega, el último dice "Pensando" y se ve entero, siguiendo lo que escribe.
+ * plegada ("Pensó · 10") que al abrirse los lista en orden. Mientras llega, el último dice "Pensando…" y, plegado, muestra en la misma línea su última frase; un clic lo abre.
  */
 function Pensado({ items, vivo }: { items: string[]; vivo: boolean }) {
   useIdioma();
-  const abierto = MODO.captura === "lider-pensando" && (MODO.variante === "abierto" || MODO.variante === "vivo");
+  const abierto = MODO.captura === "lider-pensando" && MODO.variante === "abierto";
   return (
     <div className="tv-pensados">
       <Pensados items={items} vivo={vivo} abierto={abierto} />
