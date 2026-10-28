@@ -130,6 +130,8 @@ function entorno(c: Contexto, extra: Record<string, string> = {}): NodeJS.Proces
     HOME: c.home,
     XDG_CONFIG_HOME: path.join(c.home, ".config"),
     TZ: "UTC",
+    // la locale de la máquina cambia el orden de `sort` y si `cut -c` corta bytes o caracteres: fija la de C como la TZ
+    LC_ALL: "C",
     PA_STATE: c.estado,
     STATE: c.estado,
     PA_PROJ: path.join(c.home, "claude-proyectos"),
