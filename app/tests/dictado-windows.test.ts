@@ -135,3 +135,92 @@ test("transcribir: si el .exe falla o no dice nada se prueba System.Speech; si n
   await assert.rejects(transcribir({ datos: wav() }, { dir, motores: [], ejecutar: hacer("falla", "falla") }), /dictadoFalta/);
   assert.deepEqual(existsSync(dir) ? (await import("node:fs")).readdirSync(dir) : [], []);
 });
+
+/** Un disco falso con archivos en rutas exactas de Windows (la prueba corre en cualquier sistema). */
+const discoDeArchivos = (...archivos: string[]) => ({ hay: (f: string) => archivos.includes(f), lista: (): string[] => [] });
+
+/** Corre `f` como si el proceso fuera Windows nativo: `process.platform` falso, restaurado al terminar. */
+async function comoWin32<T>(f: () => Promise<T>): Promise<T> {
+  const real = Object.getOwnPropertyDescriptor(process, "platform")!;
+  Object.defineProperty(process, "platform", { value: "win32" });
+  try {
+    return await f();
+  } finally {
+    Object.defineProperty(process, "platform", real);
+  }
+}
+
+const WIN = { LOCALAPPDATA: "C:\\Usuarios\\ana\\AppData\\Local", ProgramFiles: "D:\\Programas", PATH: "C:\\Windows" };
+const HOME_WIN = "C:\\Usuarios\\ana";
+const HANDY_USUARIO = "C:\\Usuarios\\ana\\AppData\\Local\\Handy\\handy.exe";
+const HANDY_EQUIPO = "D:\\Programas\\Handy\\handy.exe";
+
+test("Windows nativo: el handy.exe de %LOCALAPPDATA%\\Handy, sin where.exe ni wslpath (el WAV va tal cual)", async () => {
+  await comoWin32(async () => {
+    const vistos: string[] = [];
+    const correr = async (b: string, a: string[]) => {
+      vistos.push(`${b} ${a.join(" ")}`);
+      return "";
+    };
+    const motores = await motoresDictado({ env: WIN, home: HOME_WIN, correr, disco: discoDeArchivos(HANDY_USUARIO, HANDY_EQUIPO), esEjecutable: () => false });
+    assert.deepEqual(motores.map((m) => [m.nombre, m.bin]), [["handy-windows", HANDY_USUARIO]]);
+    assert.deepEqual(await motores[0].args("C:\\t\\dictado.wav", nada), ["--transcribe-file", "C:\\t\\dictado.wav"]);
+    assert.deepEqual(vistos, []);
+  });
+});
+
+test("Windows nativo: %ProgramFiles%\\Handy si no está por usuario; si no, el PATH (where.exe) tal cual", async () => {
+  await comoWin32(async () => {
+    const equipo = await motoresDictado({ env: WIN, home: HOME_WIN, correr: nada, disco: discoDeArchivos(HANDY_EQUIPO), esEjecutable: () => false });
+    assert.deepEqual(equipo.map((m) => m.bin), [HANDY_EQUIPO]);
+    const vistos: string[] = [];
+    const correr = async (b: string, a: string[]) => {
+      vistos.push(`${b} ${a.join(" ")}`);
+      return "INFO: no hay nada\r\nC:\\Tools\\handy.exe\r\n";
+    };
+    const porPath = await motoresDictado({ env: WIN, home: HOME_WIN, correr, disco: discoDeArchivos(), esEjecutable: () => false });
+    assert.deepEqual(porPath.map((m) => [m.nombre, m.bin]), [["handy-windows", "C:\\Tools\\handy.exe"]]);
+    assert.deepEqual(vistos, ["where.exe handy"]);
+  });
+});
+
+test("Windows nativo: HILOS_HANDY_EXE manda; si apunta a nada, no busca otro ni corre where.exe", async () => {
+  await comoWin32(async () => {
+    const vistos: string[] = [];
+    const correr = async (b: string, a: string[]) => {
+      vistos.push(`${b} ${a.join(" ")}`);
+      return "C:\\Tools\\handy.exe\r\n";
+    };
+    const env = { ...WIN, HILOS_HANDY_EXE: "E:\\Inventado\\handy.exe" };
+    assert.deepEqual(await motoresDictado({ env, home: HOME_WIN, correr, disco: discoDeArchivos(HANDY_USUARIO, HANDY_EQUIPO), esEjecutable: () => false }), []);
+    assert.deepEqual(vistos, []);
+    const bien = await motoresDictado({ env, home: HOME_WIN, correr: nada, disco: discoDeArchivos("E:\\Inventado\\handy.exe"), esEjecutable: () => false });
+    assert.deepEqual(bien.map((m) => m.bin), ["E:\\Inventado\\handy.exe"]);
+  });
+});
+
+test("Windows nativo: el aviso de Handy (hayHandy) usa la misma detección; sin Handy, falta", async () => {
+  await comoWin32(async () => {
+    const base = { env: WIN, home: HOME_WIN, correr: nada, esEjecutable: () => false };
+    assert.equal(await hayHandy({ ...base, disco: discoDeArchivos(HANDY_USUARIO) }), true);
+    assert.equal(await hayHandy({ ...base, disco: discoDeArchivos() }), false);
+  });
+});
+
+test("transcribir en Windows nativo: corre el handy.exe con la ruta del WAV tal cual, sin wslpath", async () => {
+  await comoWin32(async () => {
+    const dir = path.join(tmp, "nativo");
+    const llamadas: string[][] = [];
+    const ejecutar: Ejecutar = async (bin, args) => {
+      llamadas.push([bin, ...args]);
+      return "hola desde windows\r\n";
+    };
+    const motores = await motoresDictado({ env: WIN, home: HOME_WIN, correr: nada, disco: discoDeArchivos(HANDY_USUARIO), esEjecutable: () => false });
+    assert.equal(await transcribir({ datos: wav() }, { dir, motores, ejecutar }), "hola desde windows");
+    assert.equal(llamadas.length, 1);
+    assert.equal(llamadas[0][0], HANDY_USUARIO);
+    assert.equal(llamadas[0][1], "--transcribe-file");
+    assert.match(llamadas[0][2], /dictado-.*\.wav$/);
+    assert.deepEqual(existsSync(dir) ? (await import("node:fs")).readdirSync(dir) : [], []);
+  });
+});
