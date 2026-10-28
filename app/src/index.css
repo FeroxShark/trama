@@ -2096,19 +2096,24 @@ kbd {
   padding: 0 var(--esp-6) 0 var(--esp-4);
   border-bottom: 1px solid var(--capa-div);
 }
-/* Ventana de Windows sin barra de título (la carcasa: src/titulo.ts pone `data-titulo-nativo`): la app empieza 32 px
-   abajo y esa franja, que es el fondo, arrastra la ventana salvo donde están los tres botones nativos (46 px cada uno:
-   138 px, fijos porque la ventana no escala con la letra). Fuera de la carcasa no cambia nada. */
+/* Ventana de Windows sin barra de título (la carcasa: src/titulo.ts pone `data-titulo-nativo`): la app empieza debajo de
+   la franja, que es el fondo y arrastra la ventana salvo donde están los tres botones nativos. Son medidas de Windows
+   (windows/src/titulo.js: 32 px de franja, 46 px por botón), no de la letra: por eso van en px fijos. Fuera de la
+   carcasa no cambia nada. */
+html[data-titulo-nativo] {
+  --franja-titulo: 32px;
+  --botones-titulo: 138px;
+}
 html[data-titulo-nativo] #root {
   box-sizing: border-box;
-  padding-top: 32px;
+  padding-top: var(--franja-titulo);
 }
 html[data-titulo-nativo] #root::before,
 html[data-titulo-nativo] #root::after {
   content: "";
   position: fixed;
   top: 0;
-  height: 32px;
+  height: var(--franja-titulo);
 }
 html[data-titulo-nativo] #root::before {
   left: 0;
@@ -2117,7 +2122,7 @@ html[data-titulo-nativo] #root::before {
 }
 html[data-titulo-nativo] #root::after {
   right: 0;
-  width: 138px;
+  width: var(--botones-titulo);
   -webkit-app-region: no-drag;
 }
 .lado {
