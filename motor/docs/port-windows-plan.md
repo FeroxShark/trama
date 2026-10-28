@@ -1,5 +1,26 @@
 # Trama nativo en Windows (sin WSL), en el mismo código
 
+## Estado (2026-10-28)
+- Etapa 0: hecha (`2aadb1f` — `.gitattributes` LF, tests compatibles con cmd, `soloPosix`, CI linux + windows-latest).
+- Etapa 1: hecha (`d1b8ef2` — Base TS multiplataforma: `lock`, `archivo`, `enlaces`, `proc`, `git`).
+- Etapa 2: hecha (`fdca343` — Arnés de paridad de `pa`: 29 casos comparando bash vs TS).
+- Etapa 3: hecha (`fd7372c` — Herramientas chicas en TS: `proyecto-ruta`, `trama-estado`, `workers`).
+- Etapa 4: hecha (`66e0296` — Hooks en `.mjs` sin bash ni jq, registro de hooks en TS).
+- Etapa 5: hecha (`12f3926` — CLI de `pa` en TS: parseo, validaciones, política de modelos, rúbrica y `modelos.json`).
+- Etapa 6: hecha (`857e629` — Lanzar worker de claude en TS: settings, contrato, argv, rastro, al_salir).
+- Etapa 7: hecha (`06e63ee` — Puestos, tope global, RAM, worktrees y cachés de `pa` en TS).
+- Etapa 8: hecha (`73da113` — `pa` en TS: `--estado`, `--esperar`, `--esperar-todos`, `--parar`, `--matar` y el fork de `--async`).
+- Etapa 9: hecha (`2f71772` — `pa` en TS: ramas, integrar, descartar, lecciones y auditar o actualizar).
+- Etapa 10: hecha (`a922184` — `pa` en TS: otros motores: agy, codex, dsh, opencode, ollama).
+- Etapa 11: a medias (en curso: motor TS listo y paridad completa; falta el despachador en `motor/bin/pa` para usar TS por defecto en Linux con `TRAMA_PA=bash`).
+- Etapa 12: hecha (`3e390eb` — `tablero` y `cuentas` en TypeScript).
+- Etapa 13: hecha (`211f1f9` — `reparto` en TypeScript).
+- Etapa 14: hecha (`8dfd8d6` — Ramas win32 en la app: terminal con `wt` y `cmd start`, interrumpir sin SIGINT, binarios `.cmd`, capacidades, datos de opencode).
+- Etapa 15: hecha (`87eb6e0` — Carcasa nativa de Windows: supervisor del motor con chequeo por rpc, PATH de usuario, clave Run, pasos sin WSL).
+- Etapa 16: hecha (`7321717` — Payload nativo por lista permitida, `electron-builder-nativo.yml` y build del `.exe` en CI).
+- Etapa 17: hecha (`7306c6e` — Prueba de humo del motor en Windows y Linux en CI).
+- Etapa W: falta (lista corta de pruebas en un Windows real, ver `motor/docs/windows-prueba-real.md`).
+
 ## Contexto
 Gonza va a hacer su propia versión aparte; nosotros seguimos el desarrollo de Trama en el repo de Ferox. Objetivo:
 Trama corre nativo en Windows (sin WSL, sin bash/jq/flock en el camino crítico), **en el mismo código** que Linux, y
