@@ -12,7 +12,7 @@ Un modelo chico rinde como uno grande cuando se cumplen tres cosas: la tarea ent
 
 El protocolo ataca las tres: partir hasta que entre (hoy ≤40 KB de lectura), exigir un chequeo que da rojo en `main` antes de implementar, y que lo corra el líder (un script, `gate`) y no el worker.
 
-Lo que los datos NO prueban: que Haiku rinda igual que Opus. A Haiku le tocaron las tareas ya juzgadas fáciles. La apuesta es otra: **el líder estima la complejidad antes de lanzar y elige de una el modelo justo** (rúbrica, sección 5). Con tareas bien partidas y un chequeo que las desmienta, ese modelo justo suele ser uno chico. Cuando no lo es, la rúbrica lo dice antes de gastar.
+Lo que los datos NO prueban: que Haiku rinda igual que Opus. A Haiku le tocaron las tareas ya juzgadas fáciles. La apuesta es otra: **el líder estima la complejidad antes de lanzar y elige de una el modelo justo** (rúbrica, sección 6). Con tareas bien partidas y un chequeo que las desmienta, ese modelo justo suele ser uno chico. Cuando no lo es, la rúbrica lo dice antes de gastar.
 
 Novedad de la v2 respecto de la v1: (a) una **vía rápida** para tareas chicas y medianas, porque las 8 fases completas pueden costar más en coordinación del líder que la tarea misma; (b) **gate endurecido sin LLM** contra trampas típicas de un modelo chico; (c) **no se escala probando**: un solo reintento con el error real, después se clasifica la falla y, si la estimación estuvo mal, se va directo al modelo correcto; (d) rúbrica con tamaño medido también en KB y filas nuevas; (e) todo ajustado a los modelos realmente habilitados hoy.
 
@@ -24,7 +24,7 @@ Novedad de la v2 respecto de la v1: (a) una **vía rápida** para tareas chicas 
 
 | Pieza | Qué es |
 |---|---|
-| **Líder** | Una sesión de Claude (Opus; effort `low` según `modelos.json`) que corre fuera de los proyectos. Entiende el pedido, escribe briefs, lanza workers, verifica, integra. No lee el código del proyecto para contestar: delega. **Gasta el mismo cupo de Claude (ventanas de 5 h y 7 d) que los workers Claude.** |
+| **Líder** | Una sesión de Claude (Opus; effort `medium` según `modelos.json`) que corre fuera de los proyectos. Entiende el pedido, escribe briefs, lanza workers, verifica, integra. No lee el código del proyecto para contestar: delega. **Gasta el mismo cupo de Claude (ventanas de 5 h y 7 d) que los workers Claude.** |
 | **Worker** | Un modelo lanzado por `pa`, dentro del proyecto, en un worktree git y una rama propios (`pa/<proyecto>/<id>`). Hace UNA tarea, commitea, responde con un bloque corto. No puede preguntar (headless). No ve lo que el líder dejó sin commitear. Tiene bloqueados `git stash` y `git add -A`. |
 | `pa` | Lanza, vigila, mide e integra workers (bash, ~6600 líneas). |
 | `reparto` | Elige modelo+effort según tipo de tarea y cupo; sabe los cupos y los modelos enfriados. `reparto --resumen` lista las opciones habilitadas y se imprime al arrancar el líder. |
@@ -105,7 +105,7 @@ Lectura honesta: ningún (tipo, modelo) pasa de ~55 %. La muestra de Haiku es ch
 | Pedido | Camino |
 |---|---|
 | **Trivial**: tamaño chico (1 archivo, ≤15 KB de lectura) y **ya existe** un chequeo que da rojo en main (test, grep, typecheck) | Directo: brief mínimo, el modelo que dé la rúbrica (casi siempre Haiku xhigh), gate (F6) sin test congelado. Sin F1–F4. |
-| **Vía rápida**: chico o mediano, `E = sí` (lugar conocido), `D = bajo`, localizable con un comando local (`grep -rn`, `git ls-files`) o un `--leer` puntual, y hay que escribir un test | Sección 3.1: un solo worker, dos commits (test y código), gate retroactivo. Sin F1–F4. |
+| **Vía rápida**: chico o mediano, `E = sí` (lugar conocido), `D = bajo`, localizable con un comando local (`grep -rn`, `git ls-files`) o un `--leer` puntual, y hay que escribir un test | Sección 3.2: un solo worker, dos commits (test y código), gate retroactivo. Sin F1–F4. |
 | **Protocolo completo**: `codigo-multi`, varias partes, `E = no`, `D = alto`, más de 3 archivos o más de 40 KB de lectura | Fases F0–F8 (sección 4), con T0 si toca i18n/tipos compartidos. |
 | **Bug sin pista** | F2 variante debug (abanico de hipótesis con prueba de sólo lectura). Con una hipótesis confirmada, `E = sí` y sigue por vía rápida o completa según el alcance. |
 | **Diseño, decisiones de rumbo** | No se parte en Haikus. Líder u Opus medium. |
@@ -144,7 +144,7 @@ Reemplaza F1–F4 cuando el lugar del cambio ya es conocido. Un solo worker (rú
 2. Implementá sin tocar las aserciones del test y commiteá (`fix:`/`feat:`).
 3. `Cómo verificar: <comando>`; esperado: verde. El líder lo va a correr igual.
 
-El **gate de vía rápida** (sección 7) comprueba por script: (a) el test del primer commit, aplicado sobre un worktree limpio de `main`, **da rojo** y por aserción; (b) el archivo de test **no cambió después** del primer commit (salvo agregar aserciones); (c) en el HEAD de la rama **da verde**. Eso conserva la garantía "el test daba rojo en main" sin lanzar un worker aparte para el test ni dejar ramas de F4 sin integrar.
+El **gate de vía rápida** (sección 8) comprueba por script: (a) el test del primer commit, aplicado sobre un worktree limpio de `main`, **da rojo** y por aserción; (b) el archivo de test **no cambió después** del primer commit (salvo agregar aserciones); (c) en el HEAD de la rama **da verde**. Eso conserva la garantía "el test daba rojo en main" sin lanzar un worker aparte para el test ni dejar ramas de F4 sin integrar.
 
 Costo evitado: la mitad de las corridas de Haiku y los turnos del líder en F1–F4. Costo asumido: el mismo modelo escribe test e implementación, así que el test puede ser más débil (ver tests tautológicos en la sección 7: el espejo oculto y los anti-patrones están para eso). Por eso la vía rápida es sólo para `D = bajo`.
 
@@ -158,7 +158,7 @@ Ocho fases. Sólo F2 (lectura) y F5 (implementación de subtareas independientes
 F0 triage → F1 mapa → F2 lectura (abanico) → F3 plan [T0 primero] → F4 test → F5 implementación (abanico)
                                                     ↑                                  ↓
                                                     └── compactación / partición mala ─ F6 gate ── verde → [F7 audit] → F8 integrar
-                                                                 rojo → un --seguir con el error real → si falla otra vez: clasificar (sección 6)
+                                                                 rojo → un --seguir con el error real → si falla otra vez: clasificar (sección 7)
 ```
 
 | Fase | Quién | Entra | Sale | Estado |
@@ -346,7 +346,7 @@ Paso 2: si vuelve a fallar, o si no aplicaba el reintento, **clasificar**:
 | Chequeo rojo, el diff toca lo correcto y falla un detalle | Error puntual; la estimación vale | El único `--seguir` del paso 1. Si ya se usó: clasificar de nuevo como brief o partición. |
 | Hizo otra cosa o tocó fuera de alcance (gate 21) | Brief malo | Reescribir el brief. Mismo modelo, corrida nueva desde main. |
 | Compactó o chocó con `--max-turns` | Partición mala | Volver a F3 y partir. Nada de `--seguir --force`. Gate sobre lo commiteado: verde → se acepta; rojo → partir. |
-| Exit 76, 77 | Infra (cupo/API) | Mismo modelo por otra vía (ej. `agy:claude-sonnet-5-5-high` usa cupo Google) o esperar. No cambia de modelo. |
+| Exit 76, 77 | Infra (cupo/API) | Mismo modelo por otra vía o esperar. No cambia de modelo. |
 | Exit 95, 96, 97 | Modelo no disponible/cortado | Siguiente de la lista `-m a,b,c`; el cortado queda enfriado. |
 | Exit 75 | Tope ocupado | `--async`: queda EN COLA. |
 | Entendió y no pudo: había que decidir algo, la causa era otra o el riesgo era mayor | **La estimación falló** | Corregir la respuesta que estuvo mal (B, D o E; o A si compactó por tamaño) y **lanzar directo el modelo que da la tabla corregida**, desde main, con el bloque "Intento previo". Si la tabla da el mismo modelo, el problema no es el modelo: es brief o partición. |
@@ -436,17 +436,19 @@ Un chequeo que da verde en main no prueba nada: se reescribe antes de gastar un 
 
 ### 8.3 Gate de cada corrida (F6): `motor/bin/gate`
 
-**Firma real [HOY, v1]:** `gate <proyecto> <id> --chequeo CMD --permitidos F --test COPIA[:RUTA] [--rojos CMD] [--main REF] [--log F]`. Corre los pasos aunque alguno falle (así el reintento lleva toda la evidencia) y sale con el exit del primer paso que falló. Si la rama ya no tiene worktree saca uno desechable en `/tmp/gate-<id>`.
+**Firma real [HOY, v1]:** `gate <proyecto> <id> --chequeo CMD --permitidos F [--test COPIA[:RUTA]] [--extras CMD] [--rojos CMD] [--main REF] [--log F]`. Corre los pasos aunque alguno falle (así el reintento lleva toda la evidencia) y sale con el exit del primer paso que falló. Si la rama ya no tiene worktree saca uno desechable en `/tmp/gate-<id>`.
 
 | Paso | Qué comprueba | Exit | Estado |
 |---|---|---|---|
-| 1 alcance | Los archivos que la rama cambió contra main están en `--permitidos` (ruta exacta, `dir/` o glob) | 21 | [HOY] |
-| 2 test congelado | El archivo de test de la rama es **byte a byte idéntico** a la copia del plan | 22 | [HOY] (v2 lo afloja, abajo) |
-| 3 chequeo | `--chequeo CMD` corre en el worktree de la rama y da exit 0 | 23 | [HOY] |
+| 1 alcance | Los archivos que la rama cambió contra main están todos en `--permitidos` (ruta exacta, `dir/` o glob) | 21 | [HOY] |
+| 2 test congelado | (Sólo con `--test`) Pisa en el worktree con la copia del plan (no compara byte a byte) y corre chequeo/rojos con esa; si no hay ruta única falla. Sin `--test` se saltea | 22 | [HOY] |
+| 3 chequeo | `--chequeo CMD` (o extras con `--extras CMD`) corre en el worktree de la rama y da exit 0 | 23 | [HOY] |
 | 4 rojos nuevos | `--rojos CMD` en la rama y en main (base por sha en `base-<sha>.txt`): lo que falla en la rama y no en main es nuevo | 24 | [HOY] |
+| 1c anti-patrón | Anti-patrones en las líneas agregadas del diff (`@ts-ignore`, `as any`, `.skip(`, `.only(`, etc.) | 25 | [HOY] |
+| 1b snapshot | Un `__snapshots__/` cambiado tiene su ruta nombrada explícita en `--permitidos` | 26 | [HOY] |
 | 5 compactación | Con `--log F`, avisa si el worker compactó. Es aviso: el gate juzga el código, no la memoria del worker | — | [HOY] |
 
-Otros exits: 0 verde · 2 uso · 3 no resuelve proyecto/rama/main/archivos del gate. Hoy `--test` es obligatorio: una tarea trivial sin test congelado no puede pasar por el gate.
+Otros exits: 0 verde · 2 uso · 3 no resuelve proyecto/rama/main/archivos del gate · 21 fuera de lo permitido · 22 test congelado sin ruta única · 23 el chequeo (o un extra) dio rojo · 24 rojos nuevos contra main · 25 anti-patrón en lo agregado · 26 snapshot sin ruta explícita en --permitidos. Sin `--test` es el camino trivial: no hay test congelado y se saltea.
 
 **Cuatro maneras en que el gate v1 da verde con trabajo malo**, y cómo se cierran **sin LLM (0 US$)**:
 
