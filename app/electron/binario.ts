@@ -166,6 +166,22 @@ export function resolverAgy(env: Env, home: string, esEjecutable: (f: string) =>
   return r;
 }
 
+/**
+ * `tailscale`: lo de `resolverBinario` y, en Windows (el instalador no lo pone en el PATH de un servicio), el `tailscale.exe` de
+ * `Program Files\Tailscale` (también el x86). Si no aparece queda `tailscale` pelado.
+ */
+export function resolverTailscale(env: Env, home: string, esEjecutable: (f: string) => boolean = ejecutable, plat: Plataforma = plataformaActual()): string {
+  const r = resolverBinario("tailscale", "HILOS_TAILSCALE", env, home, esEjecutable, plat);
+  if (r !== "tailscale" || plat !== "win32") return r;
+  const dato = (k: string) => env[k] ?? env[Object.keys(env).find((x) => x.toLowerCase() === k.toLowerCase()) ?? ""];
+  const bases = [dato("ProgramFiles"), dato("ProgramW6432"), dato("ProgramFiles(x86)"), "C:\\Program Files", "C:\\Program Files (x86)"].filter((b): b is string => !!b);
+  for (const b of new Set(bases)) {
+    const exe = path.win32.join(b, "Tailscale", "tailscale.exe");
+    if (esEjecutable(exe)) return exe;
+  }
+  return r;
+}
+
 /** Las carpetas donde `npm i -g` deja sus binarios: Linux `<prefijo>/bin`; Windows el prefijo mismo (`%APPDATA%\npm`), donde quedan los `.cmd`. */
 export function carpetasNpm(env: Env, home: string, plat: Plataforma = plataformaActual()): string[] {
   const c = caminoDe(plat);

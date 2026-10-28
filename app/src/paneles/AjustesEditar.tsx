@@ -178,7 +178,7 @@ const ESTADOS: Opcion[] = [
 
 /**
  * El acceso desde el celular: prendido o apagado, el puerto y los dispositivos que entran. Sólo en la PC (por la tailnet
- * `editable` viene en falso y la sección no se ve). Dónde se escucha no se elige acá: siempre y sólo las direcciones de
+ * `editable` viene en falso y la sección no se ve; sin Tailscale en la PC se explica cómo instalarlo). Dónde se escucha no se elige acá: siempre y sólo las direcciones de
  * Tailscale, y un nombre que parezca una dirección no se acepta como dispositivo.
  */
 export function Celular({ Dato }: { Dato: FilaDato }) {
@@ -226,7 +226,8 @@ export function Celular({ Dato }: { Dato: FilaDato }) {
   }, []);
 
   // Las capturas del celular abren el panel mostrando esta sección.
-  const visible = e?.editable === true && b !== null;
+  const sinTs = e?.editable === false ? e.sinTailscale : undefined;
+  const visible = (e?.editable === true && b !== null) || sinTs !== undefined;
   // La categoría Celular existe sólo si esta sección se ve (o si falló y hay que decirlo).
   useEffect(() => {
     declarar("celular", visible || falla !== null);
@@ -238,6 +239,19 @@ export function Celular({ Dato }: { Dato: FilaDato }) {
 
   if (falla) return <Cat id="celular"><div className="pn-aviso" data-error>{textoMain(falla)}</div></Cat>;
   if (!e && !falla) return <Cat id="celular"><PanelCargando /></Cat>;
+  // En la PC pero sin Tailscale: no hay qué prender; se explica cómo instalarlo (volver a abrir Ajustes lo detecta).
+  if (sinTs) {
+    const como = sinTs === "win32" ? "ajustes.celSinTsWin" : sinTs === "linux" ? "ajustes.celSinTsLinux" : "ajustes.celSinTsOtro";
+    return (
+      <Cat id="celular">
+        <section className="pn-sec" ref={sec} data-celular data-sin-tailscale>
+          <Fijo k="ajustes.celSinTsT" bloque className="pn-nota pn-intro" />
+          <Fijo k={como} bloque className="pn-nota" />
+          <Fijo k="ajustes.celSinTsFin" bloque className="pn-nota" />
+        </section>
+      </Cat>
+    );
+  }
   if (!e || !e.editable || !b) return null;
 
   const r = remotoPara(e, b);

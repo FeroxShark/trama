@@ -1,5 +1,6 @@
 // Prende trama por la tailnet (remoto.ts) y la mantiene prendida: sólo si existe `remoto.json` en el
-// estado propio. Escucha en las IPs de Tailscale de esta máquina y en ninguna otra; si cambian (Tailscale
+// estado propio (y no está apagado). En modo local (`TRAMA_LOCAL=1`) además hay siempre un servidor en 127.0.0.1 (el
+// navegador de esta máquina, con token): el de la tailnet se suma a ése sólo si Ajustes prendió el acceso del celular. Escucha en las IPs de Tailscale de esta máquina y en ninguna otra; si cambian (Tailscale
 // se levantó después, `tailscale down`/`up`, otra IP), cierra lo que tenía y vuelve a escuchar.
 // El cambio lo avisa `ip -o monitor address dev tailscale0` (un proceso hijo que espera sin gastar nada);
 // de respaldo, cada 5 min se le pregunta a Tailscale. Lo usan main.ts (todo en uno) y motor.ts.
@@ -33,11 +34,11 @@ export type OpcionesArmar = {
 /**
  * Modo local (`TRAMA_LOCAL=1`, docs/remoto.md): el servidor en 127.0.0.1 y ya, sin Tailscale ni `remoto.json`.
  * Si el puerto está ocupado reintenta (5, 15, 60 s y después cada 5 min); no hay nada que releer.
+ * Siempre va aparte del servidor de la tailnet (armarTailnet): otra instancia, otras reglas (token y loopback acá).
  */
 function armarLocal(o: OpcionesArmar) {
   const puerto = puertoLocal();
   const url = `http://localhost:${puerto}/`;
-  let servidor: http.Server | null = null;
   let intentos = 0;
   const ESPERAS = [5, 15, 60];
   const abrir = async () => {
@@ -53,7 +54,7 @@ function armarLocal(o: OpcionesArmar) {
         seFue: soltarRemoto,
         changelog: CHANGELOG,
       });
-      servidor = await remoto.escuchar(puerto);
+      await remoto.escuchar(puerto);
     } catch (e) {
       const espera = ESPERAS[intentos++] ?? RESPALDO_MS / 1000;
       if (intentos === 1 || intentos === 4) console.error(`[remoto] no se pudo escuchar en ${IP_LOCAL}:${puerto} (${(e as Error).message}): se reintenta`);
@@ -65,11 +66,15 @@ function armarLocal(o: OpcionesArmar) {
     console.error(`[remoto] ${url} (modo local: sólo ${IP_LOCAL})`);
   };
   void abrir();
-  ponerEnlaceRemoto({ recargar: async () => {}, escuchando: () => (servidor ? [url] : []) });
 }
 
 export function armarRemoto(o: OpcionesArmar) {
-  if (modoLocal()) return armarLocal(o);
+  if (modoLocal()) armarLocal(o);
+  armarTailnet(o);
+}
+
+/** El servidor de la tailnet (el celular): se arma, se rearma y se cierra según `remoto.json` y lo que diga Tailscale. */
+function armarTailnet(o: OpcionesArmar) {
   const archivo = path.join(ESTADO, "remoto.json");
   let cfg = leerConfig(archivo);
   const red = tailnet();
@@ -124,7 +129,8 @@ export function armarRemoto(o: OpcionesArmar) {
         if (ok && nodo) void accesos.anotar(nodo.nombre.slice(0, -(yo.sufijo.length + 1)), nodo.sistema ?? null, nodo.ip ?? null).catch(silencio("remoto"));
         return ok;
       },
-      llamar: llamarRemoto,
+      // `tailnet`: aun con el motor en modo local, lo que entra por acá es el celular (no puede lo de la PC).
+      llamar: (canal, args, cliente, ip) => llamarRemoto(canal, args, cliente, ip, { tailnet: true }),
       consulta: o.consulta,
       identidad: identidadEsta,
       seFue: soltarRemoto,

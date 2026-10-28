@@ -76,7 +76,7 @@ export type AccesoCelular = { nombre: string; sistema: string | null; ip: string
 
 /** El acceso desde el celular (`remoto.json`), dónde escucha ahora y quién entró hace poco; por la tailnet no se edita (`editable: false`). */
 export type EstadoRemoto =
-  | { version: number; editable: false }
+  | { version: number; editable: false; sinTailscale?: "linux" | "win32" | "darwin" }
   | { version: number; editable: true; activo: boolean; puerto: number; dispositivos: string[]; escuchando: string[]; accesos: AccesoCelular[] };
 
 /** Lo que Ajustes cambia del plan y de la red de seguridad (electron/ajustes-editar.ts). */

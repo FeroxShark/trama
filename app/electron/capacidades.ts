@@ -3,7 +3,7 @@
 // binario.ts: lo prueba tests/modo-local.test.ts.
 import { accessSync, constants } from "node:fs";
 import os from "node:os";
-import { resolverAgy, resolverBinario } from "./binario.ts";
+import { resolverAgy, resolverBinario, resolverTailscale } from "./binario.ts";
 import { resolverDsh } from "./dsh.ts";
 import { type Plataforma, plataformaActual } from "./rutas.ts";
 
@@ -37,7 +37,7 @@ export function capacidades(env: Env = process.env, home = os.homedir(), existe:
   const hay = (nombre: string, variable: string) => !!env[variable] || resolverBinario(nombre, variable, env, home, existe, plat) !== nombre;
   // Hyprland, kitty (su `kitten @`) y systemd son de Linux: en Windows y macOS no se ofrecen aunque una variable los nombre.
   const linux = plat === "linux";
-  return { tailscale: hay("tailscale", "HILOS_TAILSCALE"), hyprctl: linux && hay("hyprctl", "HILOS_HYPRCTL"), kitten: linux && hay("kitten", "HILOS_KITTEN"), systemd: linux && hay("systemctl", "HILOS_SYSTEMCTL") };
+  return { tailscale: !!env.HILOS_TAILSCALE || resolverTailscale(env, home, existe, plat) !== "tailscale", hyprctl: linux && hay("hyprctl", "HILOS_HYPRCTL"), kitten: linux && hay("kitten", "HILOS_KITTEN"), systemd: linux && hay("systemctl", "HILOS_SYSTEMCTL") };
 }
 
 /**

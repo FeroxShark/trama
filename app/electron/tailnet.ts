@@ -5,7 +5,7 @@
 // Ninguno de los dos pide sudo. Puro salvo `tailnet()`: lo prueba tests/tailnet.test.ts.
 import { execFile } from "node:child_process";
 import os from "node:os";
-import { resolverBinario } from "./binario.ts";
+import { resolverTailscale } from "./binario.ts";
 
 /** Esta máquina en la tailnet. */
 export type Yo = {
@@ -66,10 +66,10 @@ export const ipLimpia = (ip: string | undefined) => (ip ?? "").replace(/^::ffff:
 /** Una IP y nada más (lo que va de argumento a `tailscale whois`). */
 export const esIp = (s: string) => /^(\d{1,3}\.){3}\d{1,3}$/.test(s) || (/^[0-9a-f:]{2,39}$/.test(s) && s.includes(":"));
 
-const BIN = resolverBinario("tailscale", "HILOS_TAILSCALE", process.env, os.homedir());
+const BIN = resolverTailscale(process.env, os.homedir());
 const correr = (args: string[]) =>
   new Promise<unknown>((resolve) => {
-    execFile(BIN, args, { timeout: 5000, maxBuffer: 4 * 1024 * 1024 }, (err, stdout) => {
+    execFile(BIN, args, { timeout: 5000, maxBuffer: 4 * 1024 * 1024, windowsHide: true }, (err, stdout) => {
       if (err) return resolve(null);
       try {
         resolve(JSON.parse(stdout));

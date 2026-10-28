@@ -58,7 +58,7 @@ import { crearAvisosWorker, REVISAR_MS, textoParaLider, type AvisoWorker } from 
 import { procesoVivoDe, rastroDeWorker } from "./avisos-worker-disco.js";
 import { errorT, textoT } from "./errores.ts";
 import { destinos, registro, slugsPorNombre } from "./registro.js";
-import { registroProyectos } from "./rutas.ts";
+import { plataformaActual, registroProyectos } from "./rutas.ts";
 import { capacidades, hayAgy, hayDsh } from "./capacidades.js";
 import { estadoDsh, instalarDsh, probarProveedor } from "./dsh-ajustes.ts";
 import { estadoMcp } from "./mcp.ts";
@@ -97,8 +97,19 @@ const RESPALDO_MS = 5 * 60_000;
 export type Origen = object;
 export type Manejador = (e: Origen, ...args: any[]) => unknown;
 export const quien = (e: Origen) => ("remoto" in e ? String(e.remoto) : "local" in e ? `local:${String(e.local)}` : "ventana");
-/** ¿Llegó por la tailnet? En modo local (TRAMA_LOCAL=1) o por loopback (127.0.0.0/8, ::1) el `/rpc` también viene como `remoto`, pero es esta misma máquina. */
-const tailnet = (e: Origen) => "remoto" in e && !modoLocal() && !("ip" in e && typeof e.ip === "string" && esLoopback(e.ip));
+/**
+ * ¿Llegó por la tailnet? En modo local (TRAMA_LOCAL=1) o por loopback (127.0.0.0/8, ::1) el `/rpc` también viene como `remoto`, pero es esta
+ * misma máquina. El servidor de la tailnet (aun en modo local, donde también hay uno) se marca con `tailnet`; y en modo local una IP que no
+ * es loopback tampoco es de acá.
+ */
+const tailnet = (e: Origen) => {
+  if (!("remoto" in e)) return false;
+  if ("tailnet" in e) return true;
+  const ip = "ip" in e && typeof e.ip === "string" ? e.ip : null;
+  return ip !== null ? !esLoopback(ip) : !modoLocal();
+};
+/** ¿Es la PC la que pide (la ventana, o el navegador del modo local con su token)? Sólo así se lee y se guarda el acceso desde el celular. */
+const esPc = (e: Origen) => !("remoto" in e) || ("navegador" in e && modoLocal() && !tailnet(e));
 
 /** Los manejadores, por canal: los mismos para la ventana y para quien entra por red. */
 const manejadores = new Map<string, Manejador>();
@@ -135,12 +146,13 @@ export const SOLO_VENTANA_LOCAL: ReadonlySet<string> = new Set([...SOLO_VENTANA]
 
 /**
  * Un pedido que llegó por red (ya con la identidad comprobada): el mismo manejador que usa la ventana. `ip` es la dirección real del socket.
- * `local` = el servidor del modo local (modo-local.ts), no la tailnet: usa `SOLO_VENTANA_LOCAL`.
+ * `local` = el servidor del modo local (modo-local.ts), no la tailnet: usa `SOLO_VENTANA_LOCAL`. `tailnet` = el servidor de la tailnet (el celular),
+ * también cuando el motor está en modo local.
  */
-export async function llamarRemoto(canal: string, args: unknown[], cliente: string, ip?: string, opts?: { local?: boolean }): Promise<unknown> {
+export async function llamarRemoto(canal: string, args: unknown[], cliente: string, ip?: string, opts?: { local?: boolean; tailnet?: boolean }): Promise<unknown> {
   const fn = (opts?.local ? SOLO_VENTANA_LOCAL : SOLO_VENTANA).has(canal) ? undefined : manejadores.get(canal);
   if (!fn) throw new Error(`canal desconocido: ${canal}`);
-  return fn(ip !== undefined ? { remoto: cliente, ip } : { remoto: cliente }, ...args);
+  return fn({ remoto: cliente, ...(ip !== undefined ? { ip } : {}), ...(opts?.local ? { navegador: true } : {}), ...(opts?.tailnet ? { tailnet: true } : {}) }, ...args);
 }
 
 /**
@@ -800,12 +812,13 @@ export function armarNucleo() {
   });
   // Quién entra por la tailnet no lo cambia nadie que haya entrado por ella: por red se contesta que no es editable.
   manejar("remoto:leer", async (e) => {
-    // Por red, o en una máquina sin Tailscale o en modo local (TRAMA_LOCAL=1): no hay acceso por la tailnet que editar.
-    if ("remoto" in e || modoLocal() || !capacidades().tailscale) return { version: 1, editable: false };
+    // Por red (el celular, o un navegador sin ser el local) no hay acceso por la tailnet que editar. En la PC sin Tailscale se explica cómo instalarlo.
+    if (!esPc(e)) return { version: 1, editable: false };
+    if (!capacidades().tailscale) return { version: 1, editable: false, sinTailscale: plataformaActual() };
     return { version: 1, editable: true, ...(await leerEditable()), escuchando: enlaceRemoto?.escuchando() ?? [], accesos: await accesos.leer() };
   });
   manejar("remoto:guardar", async (e, config: unknown) => {
-    if ("remoto" in e) throw errorT("main.remotoSoloPc");
+    if (!esPc(e)) throw errorT("main.remotoSoloPc");
     const c = await guardarConfig(config);
     await accesos.olvidar(c.dispositivos);
     await enlaceRemoto?.recargar();
