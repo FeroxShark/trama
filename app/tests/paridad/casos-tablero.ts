@@ -25,7 +25,7 @@ const entornoTablero = (c: Contexto): Record<string, string> => ({
   TABLERO_DIR: DIR(c),
   TABLERO_VISTA: path.join(c.estado, "vista.json"),
   BARRENDERO_DIR: path.join(c.aux, "barrendero"),
-  TRAMA_DUENO: "Ferox",
+  TRAMA_DUENO: "Marta",
   TRAMA_PERFIL: path.join(c.home, "no-hay-perfil.json"),
 });
 const items = (c: Contexto, ...lineas: object[]) => escribir(path.join(DIR(c), "items.jsonl"), lineas.map((l) => JSON.stringify(l) + "\n").join(""));
@@ -267,7 +267,7 @@ const casosDeTablero: Caso[] = [
     escribir(path.join(DIR(c), "seq"), "4\n");
   }),
   tb("ids: seq sin archivo reusa el máximo del archivo", [p(["agregar", "x"], 0)], (c) => escribir(path.join(DIR(c), "hecho", "2024-01.jsonl"), JSON.stringify(item(41, { columna: "hecho", cerrado: "2024-01-02T10:00:00+00:00" })) + "\n")),
-  tb("columna vieja espera-<dueño> se lee como espera-dueno", [p(["listar", "--columna", "espera-dueno"], 0), p(["listar", "--columna", "espera-ferox"], 0), p(["agregar", "x", "--columna", "espera-ferox"], 0), p(["listar", "--json"], 0)], (c) => items(c, item(1, { columna: "espera-ferox" }))),
+  tb("columna vieja espera-<dueño> se lee como espera-dueno", [p(["listar", "--columna", "espera-dueno"], 0), p(["listar", "--columna", "espera-marta"], 0), p(["agregar", "x", "--columna", "espera-marta"], 0), p(["listar", "--json"], 0)], (c) => items(c, item(1, { columna: "espera-marta" }))),
   tb("línea rota en items.jsonl: leer avisa, escribir se niega", [p(["listar"], 0), p(["agregar", "x"], 1), p(["cerrar", "1"], 1)], (c) => escribir(path.join(DIR(c), "items.jsonl"), JSON.stringify(item(1)) + "\nesto no es json\n[1, 2]\n")),
   tb("ver: un item archivado y uno que no existe", [p(["ver", "7"], 0), p(["ver", "#7", "--json"], 0), p(["ver", "8"], 1)], (c) => escribir(path.join(DIR(c), "hecho", "2024-01.jsonl"), JSON.stringify(item(7, { columna: "hecho", cerrado: "2024-01-02T10:00:00+00:00" })) + "\n")),
   tb("vista.json se regenera en cada escritura", [p(["agregar", "uno", "--columna", "espera-dueno"], 0), p(["agregar", "dos", "--hasta", "+9d"], 0), p(["cerrar", "1"], 0), p(["sigue", "demo", "un paso"], 0)]),
