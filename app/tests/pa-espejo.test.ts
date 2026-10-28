@@ -134,6 +134,23 @@ test("--espejo con -m a,b,c: el primer modelo se saltea (enfriado) y el segundo 
   rmSync(rep, { recursive: true, force: true }); // que el enfriamiento no le toque a los tests de después
 });
 
+test("--espejo con --async: el hijo que corre el worker también recibe el deny de la ruta movida", () => {
+  const T = "espejo-async";
+  mkdirSync(tareaDir(T), { recursive: true });
+  const src = path.join(tareaDir(T), "T1.gate.test.ts");
+  writeFileSync(src, "expect(4).toBe(4);\n");
+  const a = pa(["demo", "--sin-jefe", "-m", "claude-sonnet-5-5", "--async", "--espejo", src, "--tarea", T, "--subtarea", "T1", "en async"]);
+  assert.equal(a.rc, 0, a.err);
+  const id = /--id (\S+)/.exec(a.out)?.[1];
+  assert.ok(id, a.out);
+  const e = pa(["--esperar", "demo", "--id", id]);
+  assert.equal(e.rc, 0, e.err);
+  assert.equal(existsSync(src), false, "el padre ya lo movió antes del fork");
+  const dest = /espejo movido fuera de tareas\/: (\S+) \(/.exec(a.err)![1]!;
+  const deny: string[] = JSON.parse(argDe("--settings")).permissions.deny;
+  assert.ok(deny.includes(`Read(/${path.dirname(dest)}/**)`), JSON.stringify(deny));
+});
+
 test("--espejo a un archivo que no existe → 2 y no lanza nada", () => {
   const r = pa(["demo", "--sin-jefe", "-m", "claude-sonnet-5-5", "--espejo", path.join(tmp, "no-hay.ts"), "x"]);
   assert.equal(r.rc, 2);
