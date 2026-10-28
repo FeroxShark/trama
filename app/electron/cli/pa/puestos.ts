@@ -36,8 +36,19 @@ export function runningVivo(run: string): boolean {
   return /^[0-9]+$/.test(p) && existe(Number(p));
 }
 
-/** `printf %.Ns` / `${t:0:N}`: los primeros N caracteres. */
+/** `${t:0:N}`: los primeros N caracteres. */
 const corte = (t: string, n: number) => Array.from(t).slice(0, n).join("");
+/** `printf %.Ns`: los primeros N BYTES (sin dejar un carácter partido a la mitad, que el bash sí deja). */
+function corteBytes(t: string, n: number): string {
+  let s = "";
+  let b = 0;
+  for (const c of t) {
+    b += Buffer.byteLength(c);
+    if (b > n) break;
+    s += c;
+  }
+  return s;
+}
 
 /** Los `*.running` del estado (todos los proyectos), ordenados como el glob. */
 function runnings(state: string, filtro: (nombre: string) => boolean = () => true): string[] {
@@ -88,7 +99,7 @@ export function describirPuestos(x: Proyecto, puestos: string[]): string {
   for (const k of puestos) {
     const r = path.join(x.pa.state, `${x.slug}${sufPuesto(k)}.running`);
     if (existsSync(r))
-      s += `    ${nombrePuesto(k)}: id ${leerCampo(r, "id")} · jefe ${leerCampo(r, "jefe")} · ${corte(leerCampo(r, "tarea"), 80)}\n`;
+      s += `    ${nombrePuesto(k)}: id ${leerCampo(r, "id")} · jefe ${leerCampo(r, "jefe")} · ${corteBytes(leerCampo(r, "tarea"), 80)}\n`;
     else s += `    ${nombrePuesto(k)}: tomado (arrancando)\n`;
   }
   return s;
@@ -105,7 +116,7 @@ export function describirVivos(state: string): string {
       p = leerCampo(r, "puesto");
       p = p === "aca" ? "tree principal" : `puesto ${p || "1"}`;
     }
-    s += `    ${leerCampo(r, "proyecto")} (${p}): id ${leerCampo(r, "id")} · jefe ${leerCampo(r, "jefe")} · ${corte(leerCampo(r, "tarea"), 80)}\n`;
+    s += `    ${leerCampo(r, "proyecto")} (${p}): id ${leerCampo(r, "id")} · jefe ${leerCampo(r, "jefe")} · ${corteBytes(leerCampo(r, "tarea"), 80)}\n`;
   }
   return s;
 }
