@@ -128,12 +128,13 @@ El líder también compacta (200k). Todo el estado de una tarea vive en archivos
   20-plan.md        subtareas atómicas
   Tn.brief.md       brief de cada subtarea
   Tn.test.*         test aprobado (congelado) de la subtarea
-  Tn.gate.test.*    test espejo oculto (el worker nunca lo ve)
+  Tn.gate.test.*    test espejo oculto: `pa --espejo` lo mueve a espejos/ (abajo) y el worker no lo ve
   Tn.permitidos     lista de archivos que Tn puede modificar
   intento-<id>-<n>.patch   diff de intentos descartados
   estado.tsv        subtarea · intento · id · modelo · effort · exit · gate · US$
                     + A,B,C,D,E (+M,I) · fila · modelo estimado · modelo integrado · pregunta corregida
 ~/.local/state/pa/<proyecto>/base-<sha>.txt     tests rojos de main en ese sha
+~/.local/state/pa/<proyecto>/espejos/<id>/      Tn.gate.test.* movido por `pa --espejo` (fuera de tareas/; el worker tiene deny de Read/Bash ahí)
 ```
 
 ### 3.2 La vía rápida (una sola corrida, dos commits) [AGREGAR: el gate; HOY: el resto]
@@ -169,7 +170,7 @@ F0 triage → F1 mapa → F2 lectura (abanico) → F3 plan [T0 primero] → F4 t
 | **F2 debug** | Abanico `--leer` | Síntoma | `HIPOTESIS: causa \| PRUEBA: comando de sólo lectura \| ESPERADO: salida si es cierta`. El líder corre las pruebas; la confirmada entra al plan como hecho (`E = sí`). | [HOY] |
 | **F2b Externo** | `--leer` | Docs/APIs fuera del repo, archivos >40 KB | Hechos con fuente. | [HOY] |
 | **F3 Plan** | Líder (segunda opinión si riesgo alto) | `11-hechos.md` (hechos con contexto, no el código completo) | `20-plan.md`, una entrada por subtarea (abajo). Primero se define **T0** si hay claves i18n o tipos compartidos nuevos. | [HOY] a mano |
-| **F4 Test primero** | Haiku, sólo si el comportamiento no tiene ya un test o grep que lo cubra | Brief de F4 | `Tn.test.*` aprobado y congelado (≤50 líneas) y, si aplica, `Tn.gate.test.*` (espejo). El líder lo lee y confirma rojo **por la aserción**. La rama de F4 no se integra: el test viaja dentro del brief de F5. | [HOY]; espejo [AGREGAR] |
+| **F4 Test primero** | Haiku, sólo si el comportamiento no tiene ya un test o grep que lo cubra | Brief de F4 | `Tn.test.*` aprobado y congelado (≤50 líneas) y, si aplica, `Tn.gate.test.*` (espejo). El líder lo lee y confirma rojo **por la aserción**. La rama de F4 no se integra: el test viaja dentro del brief de F5. | [HOY]; espejo [HOY: `pa --espejo`] |
 | **F5 Implementación** | Modelo según la rúbrica, paralelo si no hay dependencias ni archivos calientes comunes | `Tn.brief.md` | Rama con commits chicos, uno por paso. | [HOY] |
 | **F6 Gate** | Líder, script | Rama + `Tn.permitidos` + test | Verde o rojo con evidencia; el exit dice qué paso falló (sección 7). | v1 [HOY]; v2 [AGREGAR] |
 | **F7 Auditoría** | Modelo de OTRA familia que el autor | `pa --auditar <id> -m M` | Hallazgos CRITICO/ALTO/MEDIO/BAJO; el líder verifica cada uno con un comando antes de actuar. Sólo riesgo alto, o subtarea que terminó en Opus. | [HOY] |
@@ -247,7 +248,7 @@ Contexto verificado:
 Archivos:           Leer primero: <rutas> (total N KB)
                     Podés modificar: <rutas exactas>
 Pasos:
-  1. Copiá <ruta de Tn.test.*> a <ruta del test> y commitealo sin cambios.
+  1. Copiá <ruta de Tn.test.*> a <ruta del test> y commitealo sin cambios. (Con `--test-inline`: copiá el test de «Test que tiene que pasar, no lo modifiques:» en vez de la ruta.)
   2. <paso> → commit
   3. <paso> → commit
 Listo cuando:       <comando> da verde.
@@ -455,12 +456,14 @@ Otros exits: 0 verde · 2 uso · 3 no resuelve proyecto/rama/main/archivos del g
 | Trampa | Cierre v2 [AGREGAR, todo en `gate`] | Exit (propuesto) | Tamaño |
 |---|---|---|---|
 | El worker silencia errores en vez de arreglarlos (`@ts-ignore`, `as any`, `eslint-disable`, `.skip`/`.only`), sobre todo con chequeo parcial (typecheck + build) | **Anti-patrones**: se rechazan las líneas agregadas (`^+`) del diff completo de la rama contra main que contengan `@ts-ignore`, `@ts-expect-error`, `as any`, `eslint-disable`, `.skip(` o `.only(` | 25 | ~15 líneas |
-| Test débil o tautológico (`expect(typeof f).toBe('function')`) que el worker satisface con un stub | **Test espejo oculto**: junto al test visible, `Tn.gate.test.*` con otros valores de entrada/salida. Vive fuera del repo; el worker nunca lo ve. El gate lo copia al worktree y lo corre. Detecta código hardcodeado a medida (`if (x === 'caso') return ...`). Lo escribe el mismo F4 (un Haiku) y el líder lo aprueba; en vía rápida lo escribe un Haiku aparte que sólo ve el brief | 26 | ~15 líneas (+ una corrida chica de Haiku) |
+| Test débil o tautológico (`expect(typeof f).toBe('function')`) que el worker satisface con un stub | **Test espejo oculto**: junto al test visible, `Tn.gate.test.*` con otros valores de entrada/salida. Vive fuera de `tareas/`: `pa --espejo <Tn.gate.test.*>` lo mueve a `espejos/<id>/` e imprime esa ruta; los settings del worker le niegan Read y los Bash que nombren ese directorio (best-effort: un patrón de Bash no cierra un `find` sobre `~/.local`). El gate lo copia al worktree y lo corre (flag `--espejo` del gate: pendiente, paso 26). Detecta código hardcodeado a medida (`if (x === 'caso') return ...`). Lo escribe el mismo F4 (un Haiku) y el líder lo aprueba; en vía rápida lo escribe un Haiku aparte que sólo ve el brief | 26 | ~15 líneas (+ una corrida chica de Haiku) |
 | Hardcoding contra el test congelado (idem) | (cubierto por el espejo) | 26 | — |
 | `cmp` byte a byte rechaza al worker que legítimamente agrega un caso de borde o actualiza un mock compartido en un archivo de test existente | **Proteger aserciones, no el archivo**: el paso 2 pasa a comprobar que **toda línea de aserción** (`expect(`, `assert`) de la copia congelada sigue presente e intacta en el archivo de la rama; se permite agregar | 22 | ~10 líneas |
 | Bug intermitente (race, timeout, IPC): una corrida da verde por azar | **`--repetir K`** (para tipo debug): en F3 el chequeo debe fallar **al menos 1 de K** veces en main; en F6 debe pasar **K de K** | 23 | ~20 líneas |
 
 **Vía rápida en el gate** (`--via-rapida`, ~35 líneas): toma el test del primer commit de la rama que lo agrega, lo aplica sobre un worktree limpio de main y exige **rojo** (exit 27 si da verde o si el rojo es por import roto); comprueba que el test no cambió después (mismo criterio de aserciones que el paso 2) y exige **verde** en HEAD. Sin esto, la vía rápida no es verificable.
+
+**Espejo y test inline en la corrida de F5 [HOY]:** `pa <p> --tarea <slug> --subtarea Tn --brief-archivo tareas/<slug>/Tn.brief.md --test-inline tareas/<slug>/Tn.test.* --espejo tareas/<slug>/Tn.gate.test.* …`. `--test-inline` pega el test congelado al final del brief, bajo «Test que tiene que pasar, no lo modifiques:», así el brief no lleva su ruta. `--espejo` mueve el espejo a `espejos/<id>/` (una sola vez, también con `-m a,b,c`) y pone en stderr la ruta final, que va al gate. Lo que todavía no hay: el flag `--espejo` en `gate`, y que el deny sea a prueba de un `find` (ver arriba). Un reintento (`--seguir`) pasa la misma ruta impresa y no vuelve a mover el archivo.
 
 **Otras mejoras del gate [AGREGAR]:** `--test` opcional (tareas triviales, ~5 líneas); paso 0 `git status --porcelain` del árbol principal vacío (evita el exit 79 al integrar y el worker que no ve cambios del líder, ~5 líneas); los exits 25–27 propuestos no chocan con los de `pa`.
 
