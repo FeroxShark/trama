@@ -4,15 +4,22 @@
 // envoltorio de motor/bin/pa (TRAMA_PA=ts) vuelve entonces al bash.
 import { spawnSync } from "node:child_process";
 import { esPrincipal } from "./base/principal.ts";
+import { cmdArchivar } from "./pa/archivar.ts";
 import { prepararAuditar } from "./pa/auditar.ts";
 import { main, type Deps } from "./pa/cli.ts";
 import { cmdEsperar, cmdEsperarTodos, cmdEstado } from "./pa/async.ts";
 import { salir, type Env } from "./pa/entorno.ts";
+import { cmdHilo } from "./pa/hilo.ts";
+import { cmdHilos } from "./pa/hilos.ts";
 import { cmdLeccion, cmdLecciones, cmdLeccionesPodar } from "./pa/lecciones.ts";
+import { cmdLimpiar } from "./pa/limpiar.ts";
 import { cmdParar, matarProyecto } from "./pa/matar.ts";
 import { lanzarProyecto } from "./pa/orquesta.ts";
+import { cmdProyectos, cmdRenombrar } from "./pa/proyectos.ts";
 import { cmdDescartar, cmdDescartarId, cmdIntegrar, cmdRamas } from "./pa/ramas.ts";
 import { fijarProyecto } from "./pa/ramas-base.ts";
+import { cmdRevertir } from "./pa/revertir.ts";
+import { cmdTraspaso } from "./pa/traspaso.ts";
 
 /** Otro `pa` igual a éste (los intentos de -m a,b,c), con la salida a la vista. */
 function relanzar(argv: string[], extra: Env): number {
@@ -34,6 +41,14 @@ export const deps: Deps = {
     esperarTodos: (a, pa) => cmdEsperarTodos(pa, a),
     parar: (a, pa) => cmdParar(pa, a[0]),
     descartarId: (a, pa) => cmdDescartarId(pa, a[0]),
+    hilos: (a, pa) => cmdHilos(pa, a),
+    hilo: (a, pa) => cmdHilo(pa, a),
+    archivar: (a, pa) => cmdArchivar(pa, a[0]),
+    revertir: (a, pa) => cmdRevertir(pa, a[0]),
+    renombrar: (a, pa) => cmdRenombrar(pa, a),
+    traspaso: (_a, pa) => cmdTraspaso(pa),
+    proyectos: (a, pa) => cmdProyectos(pa, a),
+    limpiar: (a, pa) => cmdLimpiar(pa, a),
   },
   proyecto: {
     matar: (l, pa, p) => matarProyecto(pa, l.proyecto, p.ruta, { runId: l.runId, leer: l.leer }),
