@@ -36,7 +36,7 @@ printf '{"type":"result","is_error":false,"result":%s,"session_id":"%s","num_tur
 `,
 );
 chmodSync(path.join(shim, "claude"), 0o755);
-// opencode falso: los modelos de FALSO_CORTE (separados por coma) cortan por límite (FreeUsageLimitError); el resto contesta bien.
+// opencode falso: los modelos de FALSO_CORTE (separados por coma) cortan por límite de un modelo (429; el "Free usage limit" de toda la cuenta se prueba en pa-async-fallback.test.ts); el resto contesta bien.
 // Anota en OC_LOG qué modelo corrió.
 const ocLog = path.join(tmp, "oc.log");
 const ocFalso = path.join(tmp, "opencode-falso.sh");
@@ -48,8 +48,8 @@ cat >/dev/null
 m=""; while [[ $# -gt 0 ]]; do [[ "$1" == -m ]] && m="$2"; shift; done
 echo "$m" >> "${ocLog}"
 if [[ ",\${FALSO_CORTE:-}," == *",$m,"* ]]; then
-  echo '{"type":"error","error":{"name":"APIError","data":{"message":"FreeUsageLimitError: Free usage limit reached","statusCode":429}}}'
-  echo "FreeUsageLimitError: 429 Too Many Requests" >&2
+  echo '{"type":"error","error":{"name":"APIError","data":{"message":"Rate limit exceeded","statusCode":429}}}'
+  echo "Too Many Requests: 429" >&2
   exit 1
 fi
 echo '{"type":"step_start","sessionID":"ses_falso","part":{}}'
