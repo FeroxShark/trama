@@ -1,5 +1,15 @@
 # Cambios
 
+## 0.2.18
+
+- Ajustes > Conectores: skills, plugins, servidores MCP y hooks en un solo lugar, con de dónde viene cada uno, qué hace, buscador y prender/apagar.
+- Mensaje mandado con el líder trabajando: dice "en cola" hasta que el líder lo recibe.
+- Editar un mensaje: la caja crece con el texto y se pueden quitar, agregar o pegar capturas.
+- Bienvenida: "Conectar otra cuenta" aunque Claude ya esté conectado; estado de los modelos locales.
+- Ramas: "Ver el análisis" vuelve a la conversación del líder que analizó la rama.
+- Avisos al líder: uno solo al terminar la tanda (o por worker, en Ajustes > General); cupo y cuelgues, al momento.
+- Artificial Analysis: actualizar desde la laptop o el celular ya no da error de conexión.
+
 ## 0.2.17
 
 - Acceso desde el celular con Trama instalada (Linux y Windows): se prende desde Ajustes, sin tocar el servicio; escucha sólo en Tailscale y sólo entran los dispositivos de la lista.
