@@ -1,5 +1,10 @@
 # Cambios
 
+## 0.2.11
+
+- Windows (en camino, todavía no se publica): la app ya sabe abrir la terminal, cortar procesos y lanzar programas en Windows; `pa` en TypeScript avanza (puestos, worktrees, esperar/parar/matar, integrar y lecciones); `tablero` y `cuentas` portados; carcasa nativa y armado del .exe listos para probar en CI.
+- CI: los tests que dependían de esta máquina ya no rompen el job de Linux y cada archivo tiene tope de tiempo.
+
 ## 0.2.10
 
 - Avisos de workers: cuando uno termina, falla o se cuelga, el líder que lo lanzó se entera solo; notificación de escritorio para fallas y para "terminó la tanda" (configurable en Ajustes > General). Falla por cupo: dice el proveedor, cuándo vuelve y ofrece relanzar con otro modelo.
