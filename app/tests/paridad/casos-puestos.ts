@@ -96,6 +96,8 @@ export const casosPuestos: Caso[] = [
   {
     nombre: "huérfano: el worktree del puesto 1 tenía trabajo sin commitear",
     preparar: conHuerfano,
+    // con identidad de git: si no, el commit del huérfano falla callado y el trabajo queda sucio en la rama nueva
+    env: { GIT_AUTHOR_NAME: "x", GIT_AUTHOR_EMAIL: "a@b", GIT_COMMITTER_NAME: "x", GIT_COMMITTER_EMAIL: "a@b" },
     args: ["demo", "--sin-jefe", "-m", M, "hacé algo"],
     rc: 78,
   },
