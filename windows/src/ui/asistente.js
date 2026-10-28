@@ -25,6 +25,19 @@ const TEXTOS = {
   },
 };
 
+// Trama nativo de Windows (pasos-nativo.js): los mismos pasos sin WSL ni Ubuntu.
+const TEXTOS_NATIVO = {
+  instalar: {
+    t: "Instalando Trama",
+    d: "Copiamos el motor y sus herramientas a tu carpeta de usuario. Tarda un momento.",
+    n: "Trama corre directo en Windows: no hace falta WSL ni Linux.",
+  },
+  instalarAct: { t: "Actualizando el motor", d: "Hay una versión nueva. Queda lista en un momento." },
+  sistema: { t: "Comandos y arranque", d: "Sumamos los comandos de Trama a tu PATH y la dejamos arrancando con Windows, en segundo plano. No pide permiso de administrador." },
+};
+const texto = (clave) => (ahora.nativo && TEXTOS_NATIVO[clave]) || TEXTOS[clave];
+const enUbuntu = () => (ahora.nativo ? "" : " en Ubuntu");
+
 const ahora = { paso: "abriendo", pasos: [], hechos: new Set(), lineas: [], actualizando: false, conectado: null, sondeo: null, ocupado: false };
 const $ = (id) => document.getElementById(id);
 
@@ -50,7 +63,7 @@ const barra = () => h("div", { class: "barra", role: "progressbar", "aria-label"
 const registro = () => h("ul", { class: "registro", "aria-label": "Detalle" }, ahora.lineas.slice(-6).map((l) => h("li", {}, l)));
 
 function pantallaTrabajo(clave) {
-  const x = TEXTOS[clave];
+  const x = texto(clave);
   return [h("h1", {}, x.t), h("p", {}, x.d), x.n ? h("p", { class: "nota ancho" }, x.n) : null, barra(), ahora.lineas.length ? registro() : null];
 }
 
@@ -70,7 +83,7 @@ function chip(texto, ok) {
 }
 
 function estadoProveedor(p) {
-  return p.logueado ? "Conectado" : p.saltado ? "Lo hago después" : p.instalado ? "Sin conectar" : "No instalado en Ubuntu";
+  return p.logueado ? "Conectado" : p.saltado ? "Lo hago después" : p.instalado ? "Sin conectar" : `No instalado${enUbuntu()}`;
 }
 
 function pantallaLogin(info) {
@@ -78,7 +91,7 @@ function pantallaLogin(info) {
     h(
       "div",
       { class: "tarjeta" },
-      h("div", { class: "quien" }, h("b", {}, nombre), h("span", { class: "sub" }, prov.instalado || prov.logueado ? "Con tu cuenta personal" : "Hay que instalarlo en Ubuntu primero")),
+      h("div", { class: "quien" }, h("b", {}, nombre), h("span", { class: "sub" }, prov.instalado || prov.logueado ? "Con tu cuenta personal" : `Hay que instalarlo${enUbuntu()} primero`)),
       chip(estadoProveedor(prov), prov.logueado),
       prov.logueado ? null : h("button", { class: ahora.conectado || info.puedeContinuar ? "" : "primario", onclick: () => conectar(clave) }, boton),
       prov.logueado || prov.saltado ? null : h("button", { class: "suave salto", onclick: () => saltarLogin(clave) }, "Seguir sin iniciar sesión (lo hago después)"),
@@ -89,7 +102,7 @@ function pantallaLogin(info) {
     h("div", { class: "tarjetas" }, tarjeta("claude", "Claude", "Conectar Claude", info.claude), tarjeta("gemini", "Gemini", "Conectar Gemini", info.agy)),
     ahora.conectado
       ? h("p", { class: "nota ancho" }, "Se abrió una consola. Iniciá sesión ahí y volvé: acá se detecta solo. Trama no se pone encima mientras escribís.")
-      : h("p", { class: "nota ancho" }, "Se abre una consola de Ubuntu para que inicies sesión; Trama nunca ve tu contraseña."),
+      : h("p", { class: "nota ancho" }, `Se abre una consola${ahora.nativo ? "" : " de Ubuntu"} para que inicies sesión; Trama nunca ve tu contraseña.`),
     h("p", { class: "nota ancho" }, "Claude va a abrir tu navegador y pedir «autorizar acceso»: es normal, es el inicio de sesión de tu cuenta."),
     info.puedeContinuar
       ? null
@@ -279,6 +292,7 @@ async function arrancar() {
   const demoId = new URLSearchParams(location.search).get("demo");
   if (demoId) return demo(demoId);
   ahora.pasos = await window.carcasa.pasos();
+  ahora.nativo = ahora.pasos.some((p) => p.nativo);
   $("version").textContent = `Trama ${await window.carcasa.version()}`;
   window.carcasa.onEvento(alEvento);
   window.carcasa.onActualizacion(avisoActualizacion);

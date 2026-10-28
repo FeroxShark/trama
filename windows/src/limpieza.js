@@ -192,6 +192,11 @@ function crearLimpieza(deps) {
       const [clave, valor] = e.ruta.split("|");
       return (await win.registro.hay(clave, valor)) ? "presente" : "ausente";
     }
+    if (e.tipo === "path") {
+      // Una carpeta en el PATH del usuario (Trama nativo): `ruta` es la carpeta que se sumó.
+      if (!win.path) return "ausente";
+      return (await win.path.tiene(rutaWin(e))) ? "presente" : "ausente";
+    }
     if (e.tipo === "carpeta") {
       const ruta = rutaWin(e);
       if (!sanaWin(e, ruta)) return "ajeno";
@@ -207,7 +212,8 @@ function crearLimpieza(deps) {
       if (e.tipo === "registro") {
         const [clave, valor] = e.ruta.split("|");
         await win.registro.quitar(clave, valor);
-      } else await win.borrar(rutaWin(e));
+      } else if (e.tipo === "path") await win.path.quitar(rutaWin(e));
+      else await win.borrar(rutaWin(e));
       return "quitado";
     } catch {
       return "error";

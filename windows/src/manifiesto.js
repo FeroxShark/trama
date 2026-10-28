@@ -12,7 +12,7 @@
 //   ambito    "windows" (el lado de Windows) | "wsl" (dentro de la distro de Trama)
 //   grupo     "carcasa" (la app de Windows) | "motor-wsl" (el motor y sus enlaces dentro de WSL) |
 //             "sistema" (cosas compartidas con el resto de la máquina)
-//   tipo      windows: carpeta | registro | gestionado (lo maneja el instalador NSIS)
+//   tipo      windows: carpeta | registro | path (una carpeta en el PATH del usuario) | gestionado (lo maneja el instalador NSIS)
 //             wsl: enlace | archivo | carpeta | unit | bloque | hooks | sudoers | distro | compartido
 //   ruta      windows: con %VARIABLES% · wsl: con ~/ (el HOME de la distro) o absoluta
 //   que       qué es, en una frase (se muestra tal cual)
