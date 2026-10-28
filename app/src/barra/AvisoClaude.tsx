@@ -56,6 +56,8 @@ const queHay = (o: OcupacionTrama) =>
 const hayTrabajo = (o: OcupacionTrama) => o.lideres + o.workers + o.otras > 0;
 /** Cada cuánto se mira qué hay ocupado mientras el globito está abierto (ms). */
 const MIRAR_MS = 3000;
+/** Cada cuánto se le pregunta al motor en qué anda Actualizar mientras diga "instalando" (ms). */
+const PREGUNTAR_MS = 30_000;
 
 /** Lo que se ve en una captura `claude-actualizado`: ya actualizado, con dos líderes abiertos. */
 const faseInicial = (): Fase => (MODO.captura === "claude-actualizado" ? { tipo: "hecho", version: "2.1.300", abiertos: 2 } : { tipo: "nada" });
@@ -128,6 +130,22 @@ export const AvisoClaude = memo(function AvisoClaude({ cual = "claude" }: { cual
       clearInterval(id);
     };
   }, [mirando]);
+  // Al abrir el aviso se pregunta en qué anda Actualizar, y mientras diga "instalando" cada tanto: el motor cierra un instalador
+  // muerto sólo cuando le preguntan, así que sin esto el globito quedaba en "Actualizando…" para siempre.
+  const instalando = trama && act.fase === "instalando";
+  useEffect(() => {
+    if (!trama || !abierto) return;
+    let vivo = true;
+    void fuente.estadoActTrama().then((e) => vivo && setAct(e));
+    return () => {
+      vivo = false;
+    };
+  }, [abierto, trama]);
+  useEffect(() => {
+    if (!instalando) return;
+    const id = setInterval(() => void fuente.estadoActTrama().then(setAct), PREGUNTAR_MS);
+    return () => clearInterval(id);
+  }, [instalando]);
 
   // Abierto: Esc (antes que la barra se entere), Tab que no se sale y un clic afuera lo cierran; el foco vuelve al botón.
   const globo = useRef<HTMLDivElement>(null);
