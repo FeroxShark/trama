@@ -42,10 +42,9 @@ const TEXTOS: Record<CatId, { nombre: ClaveSola; que: ClaveSola; icono: LucideIc
 
 const CatCtx = createContext<CatId>("general");
 
-/** Existe en esta máquina: Cuentas y Actualizaciones sólo en el .exe de Windows; Celular, cuando el acceso es editable (lo dice su sección). */
+/** Existe en esta máquina: Cuentas sólo en el .exe de Windows; Celular, cuando el acceso es editable (lo dice su sección). */
 export function hay(c: CatId, presentes = presentesDe()): boolean {
   if (c === "cuentas") return carcasa() !== null;
-  if (c === "actualizaciones") return carcasaActualiza !== null;
   if (c === "celular") return presentes.celular === true;
   return true;
 }

@@ -17,11 +17,12 @@ import { BarraGuardar, Celular, PlanYRed } from "./AjustesEditar";
 import { AjustesCuentas } from "./AjustesCuentas";
 import { AjustesModelos } from "./AjustesModelos";
 import { Compactar } from "./AjustesCompactar";
-import { TramaVersion } from "./AjustesTrama";
+import { TramaActualizaciones } from "./AjustesTrama";
 import { Guia } from "./AjustesGuia";
 import { Proyectos } from "./AjustesProyectos";
 import { alCambiarAplicarAuto, aplicarAuto, cambiarAplicarAuto } from "./aplicar-auto";
 import { IcApariencia, IcAtajos, IcAviso, IcCodigo, ICONO, IcIdioma, IcLetra, IcTiernos, IcTipografia } from "../ui/iconos";
+import { carcasaActualiza } from "../carcasa";
 import { Carcasa } from "./AjustesCarcasa";
 import { AjustesMarco, Cat } from "./AjustesNav";
 import { ErrorCarga } from "./ErrorCarga";
@@ -281,9 +282,6 @@ export function Ajustes() {
           <Fijo k="bv.ajustesVer" />
         </button>
       </Dato>
-      <Dato nombre="ajustes.tramaVersion" que="ajustes.tramaVersionQue">
-        <TramaVersion />
-      </Dato>
     </section>
   );
 
@@ -320,7 +318,7 @@ export function Ajustes() {
         <AjustesModelos Dato={Dato} plan={a?.plan ?? null} />
         <Celular Dato={Dato} />
         <Cat id="actualizaciones">
-          <Carcasa Dato={Dato} />
+          {carcasaActualiza ? <Carcasa Dato={Dato} /> : <TramaActualizaciones Dato={Dato} />}
         </Cat>
         <Proyectos />
         <Guia />
