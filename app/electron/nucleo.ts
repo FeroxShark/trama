@@ -537,6 +537,7 @@ function mirarSl() {
   // Los cupos de las demás suscripciones (reparto): se releen cada minuto desde acá, no desde la vista.
   setInterval(() => {
     if (hayClientes()) {
+      void lider.pedirUsoCuentas().then((nuevo) => { if (nuevo) void refrescarCupos(true); });
       void refrescarCupos(true);
       avisar(); // el uso gratis de OpenCode lo anota el puente (otro proceso) en agotado.json: se relee acá
     }
@@ -718,7 +719,8 @@ export function armarNucleo() {
   // "Actualizar límites": antes de releer, el uso como lo dice claude.ai (`get_usage`, por `claude`
   // mismo). Si no contesta queda lo que había, con su "visto hace". Las otras vistas se enteran.
   manejar("statusline:sincronizar", async () => {
-    await Promise.all([lider.pedirUsoOficial(), refrescarCupos(true)]);
+    await Promise.all([lider.pedirUsoOficial(), lider.pedirUsoCuentas(true)]);
+    await refrescarCupos(true);
     await avisarSl();
     return leerSl();
   });

@@ -70,7 +70,8 @@ import { pedidoDe } from "./cache.ts";
 import { convDe } from "./conv-cache.ts";
 import { guardada, igual, juntar, lecturaDe, oficialDe, type Lectura } from "./uso.ts";
 import { errorT } from "./errores.ts";
-import { ESTADO, escribirAtomico } from "./pa.js";
+import { ESTADO, escribirAtomico, PA_STATE } from "./pa.js";
+import { archivoUsoCuenta, cuentasClaude, entornoCuenta, usoParaReparto } from "./uso-cuentas.ts";
 import { esElProceso, sesionesVivas, type Sesion } from "./sesiones.js";
 import { log, silencio } from "./log.js";
 import { temaDe, tituloLider } from "./tema.js";
@@ -721,12 +722,13 @@ export function pedirUsoOficial(): Promise<boolean> {
 }
 
 /** El `get_usage` por un `claude` que arranca, contesta y sale (`argvUso`): sin turno, no gasta nada del plan. */
-function usoDeUnRato(): Promise<void> {
+function usoDeUnRato(dir?: string, alLeer: (l: Lectura) => void = anotarUso): Promise<void> {
   const ID = "trama-uso";
   return new Promise((listo) => {
     let p: ChildProcess;
     try {
-      p = spawn(CLAUDE, argvUso(), { ...(opcionesLider(process.env, HOME) as { cwd: string; env: NodeJS.ProcessEnv }), stdio: ["pipe", "pipe", "ignore"] });
+      const op = opcionesLider(process.env, HOME) as { cwd: string; env: NodeJS.ProcessEnv };
+      p = spawn(CLAUDE, argvUso(), { ...op, ...(dir ? { env: entornoCuenta(op.env, dir) } : {}), stdio: ["pipe", "pipe", "ignore"] });
     } catch (e) {
       log.escribir("aviso", "lider", `get_usage: ${(e as Error).message}`);
       return listo();
@@ -753,7 +755,7 @@ function usoDeUnRato(): Promise<void> {
       resto = c.resto;
       for (const l of c.lineas) {
         const lu = oficialDe(l, Math.floor(Date.now() / 1000));
-        if (lu) anotarUso(lu);
+        if (lu) alLeer(lu);
         for (const e of parsearLinea(l))
           if (e.tipo === "control" && e.id === ID) {
             if (!e.ok) log.escribir("aviso", "lider", `get_usage: ${e.error || "error"}`);
@@ -771,6 +773,40 @@ function usoDeUnRato(): Promise<void> {
     p.stdin!.write(lineaInicio(`${ID}-inicio`));
     p.stdin!.write(lineaUso(ID));
   });
+}
+
+/** Cada cuántos s se vuelve a pedir el uso de las cuentas agregadas (salvo `forzar`): cada pedido arranca un `claude`. */
+const USO_CUENTAS_S = 300;
+let usoCuentasTs = 0;
+let pidiendoCuentas: Promise<boolean> | null = null;
+
+/**
+ * El uso de cada cuenta agregada de Claude, por un `claude` de un rato con su `CLAUDE_CONFIG_DIR`, a
+ * `<PA_STATE>/cuentas/<id>/uso.json` (lo que lee `reparto --cupos`). Sin statusline de esa cuenta es la única fuente.
+ * `true`: se guardó alguno nuevo.
+ */
+export function pedirUsoCuentas(forzar = false): Promise<boolean> {
+  const ahora = Math.floor(Date.now() / 1000);
+  if (!forzar && ahora - usoCuentasTs < USO_CUENTAS_S) return Promise.resolve(false);
+  pidiendoCuentas ??= (async () => {
+    usoCuentasTs = ahora;
+    let nuevo = false;
+    for (const c of cuentasClaude(process.env, HOME)) {
+      let lectura: Lectura | null = null;
+      await usoDeUnRato(c.dir, (l) => {
+        lectura = juntar(lectura, l);
+      });
+      const l = lectura as Lectura | null;
+      if (!l || (!l.five_hour && !l.seven_day)) continue;
+      const f = archivoUsoCuenta(PA_STATE, c.id);
+      await mkdir(path.dirname(f), { recursive: true });
+      await escribirAtomico(f, JSON.stringify(usoParaReparto(l))).then(() => (nuevo = true), silencio("lider"));
+    }
+    return nuevo;
+  })().finally(() => {
+    pidiendoCuentas = null;
+  });
+  return pidiendoCuentas;
 }
 
 /**
