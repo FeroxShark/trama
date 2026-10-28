@@ -21,6 +21,8 @@ contextBridge.exposeInMainWorld("carcasa", {
   restosPlan: () => invocar("restos:plan"),
   restosQuitar: (ids) => invocar("restos:quitar", ids),
   restosQuitarDistro: (nombre) => invocar("restos:quitarDistro", nombre),
+  // La página lo lee al pintar: el sistema se sabe antes del primer cuadro (la franja no puede aparecer después).
+  plataforma: process.platform,
   tituloTema: (t) => invocar("ventana:titulo", t),
   onEvento: (cb) => ipcRenderer.on("asistente:evento", (_e, ev) => cb(ev)),
   onActualizacion: (cb) => ipcRenderer.on("actualizar:cambio", (_e, ev) => cb(ev)),

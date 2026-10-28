@@ -399,10 +399,10 @@ function arrancar() {
   mostrarAsistente();
 }
 
-// La página pide los símbolos del tema que pintó (y el alto de su franja): los botones nativos siguen al tema.
+// La página pide los símbolos del tema que pintó: los botones nativos siguen al tema.
 ipcMain.handle("ventana:titulo", (e, t) => {
   const v = BrowserWindow.fromWebContents(e.sender);
-  if (v && !v.isDestroyed() && process.platform === "win32") v.setTitleBarOverlay(overlayDesde(t?.simbolo, t?.alto));
+  if (v && !v.isDestroyed() && process.platform === "win32") v.setTitleBarOverlay(overlayDesde(t?.simbolo));
 });
 ipcMain.handle("asistente:pasos", () => asistente.PASOS);
 ipcMain.handle("asistente:avanzar", () => correrAsistente());
