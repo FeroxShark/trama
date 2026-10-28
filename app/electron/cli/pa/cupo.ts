@@ -12,7 +12,7 @@ import { esEjecutable } from "../base/buscar.ts";
 import { entornoCmd } from "../../binario.ts";
 import type { Pa } from "./entorno.ts";
 import { carpetaProyectos, contratoClaude, escapar, hiloPoner, limiteDe, type Corrida, type Ganchos, type Lanzamiento } from "./lanzar.ts";
-import { esCodex, esDsh, esGemini, esLocal } from "./modelos.ts";
+import { Modelos, esCodex, esDsh, esGemini, esLocal } from "./modelos.ts";
 import { cuentaProveedor, modeloFlojo, proveedorDe, type DepsPolitica, type Llamada } from "./politica.ts";
 import type { Admision } from "./puestos.ts";
 import { cuentasProceso, prefijoDe, repartoProceso, topeReparto } from "./programas.ts";
@@ -193,6 +193,7 @@ export function relanzarPorCupo(pa: Pa, l: Llamada): NonNullable<Ganchos["relanz
       }
     }
     lz.transcript = path.join(carpetaProyectos(pa), escapar(c.rutaTrabajo), `${c.sid}.jsonl`);
+    c.autocompact = new Modelos(pa.env, io, pa.home, pa.plat).autocompactDe(mRep, pa.autocompact);
     if (!c.leer) c.modeloFlojo = (await modeloFlojo(pa, { reparto: repartoProceso(pa) } as DepsPolitica, mRep)) !== null;
     lz.contrato = contratoClaude(pa, c);
     if (existsSync(path.join(lz.dir, `${c.ts}.hilo`))) {

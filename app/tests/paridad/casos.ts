@@ -96,3 +96,7 @@ casos.push(...casosMotoresLanzar);
 // agents-md y unificar-md (casos-md.ts).
 import { casosMd } from "./casos-md.ts";
 casos.push(...casosMd);
+
+// falta de cupo con reparto (casos-cupo.ts).
+import { casosCupo } from "./casos-cupo.ts";
+casos.push(...casosCupo);

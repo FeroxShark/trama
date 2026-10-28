@@ -72,6 +72,8 @@ export interface Paso {
   stdin?: string | ((c: Contexto) => string);
   /** Código de salida esperado (se comprueba contra el bash; la paridad se compara siempre). */
   rc?: number;
+  /** Espera (ms) después del paso: da tiempo a un hijo --async que sigue corriendo (una cola de cupo) antes del paso que lo lee. */
+  pausaMs?: number;
 }
 
 export interface Caso {
@@ -185,6 +187,7 @@ export function correr(caso: Caso, pa: string[]): Resultado {
     const dinamico = (e: Paso["env"]) => (typeof e === "function" ? e(c) : e);
     const s = spawnSync(pa[0]!, [...pa.slice(1), ...args], { encoding: "utf8", timeout: 120_000, input: (typeof p.stdin === "function" ? p.stdin(c) : p.stdin) ?? "", env: entorno(c, { ...dinamico(caso.env), ...dinamico(p.env) }) });
     res.pasos.push({ rc: s.status, stdout: normalizar(s.stdout ?? "", r), stderr: normalizar(s.stderr ?? "", r) });
+    if (p.pausaMs) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, p.pausaMs);
   }
   const log = path.join(c.raiz, "claude-argv.jsonl");
   if (existsSync(log)) {
