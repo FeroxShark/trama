@@ -66,3 +66,7 @@ export const casosPa: Caso[] = [
 
 /** Todos los casos: `pa`, las herramientas chicas (proyecto-ruta, trama-estado, workers) y los hooks (.sh contra .mjs). */
 export const casos: Caso[] = [...casosPa, ...casosHerramientas, ...casosHooks, ...casosAsync];
+
+// Etapa 7: puestos, tope global, RAM, cola, worktrees y huérfanos (casos-puestos.ts).
+import { casosPuestos } from "./casos-puestos.ts";
+casos.push(...casosPuestos);
