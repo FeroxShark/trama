@@ -5,7 +5,7 @@ import { lstatSync, mkdirSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { borrarSinSeguir } from "../base/enlaces.ts";
 import { tomar } from "../base/lock.ts";
-import { esCarpeta, listar } from "./corridas.ts";
+import { esCarpeta, listar, runningVivo } from "./corridas.ts";
 import { v, type Pa } from "./entorno.ts";
 import { dirsDeBuild, raizWorktrees, sufPuesto } from "./worktrees.ts";
 
@@ -109,7 +109,8 @@ export async function cmdLimpiar(pa: Pa, args: string[]): Promise<number> {
   let total = 0;
   let hay = false;
   for (const w of puestos(pa)) {
-    const lg = await tomar(path.join(pa.lockdir, w.nombre), { plat: pa.plat, env: pa.env });
+    // el candado no lo ve el flock del bash: un `.running` vivo de ese puesto también lo marca en uso
+    const lg = runningVivo(path.join(pa.state, `${w.nombre}.running`)) ? null : await tomar(path.join(pa.lockdir, w.nombre), { plat: pa.plat, env: pa.env });
     if (!lg) {
       io.out(`  ${w.nombre}: puesto en uso, no lo toco\n`);
       continue;
