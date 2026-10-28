@@ -46,7 +46,7 @@ function matar(hijo) {
 /** Corre un archivo; devuelve { archivo, codigo, colgado, salida }. */
 function correr(archivo) {
   return new Promise((resolve) => {
-    const hijo = spawn(process.execPath, ["--test", `--test-timeout=${TOPE_MS - 30_000}`, "--test-force-exit", ...extra, archivo], {
+    const hijo = spawn(process.execPath, ["--test", `--test-timeout=${Math.floor(TOPE_MS * 0.8)}`, "--test-force-exit", ...extra, archivo], {
       cwd: raiz,
       env,
       stdio: ["ignore", "pipe", "pipe"],
