@@ -1600,7 +1600,7 @@ export const es: { [K in keyof typeof en]: string } = {
   // El aviso de Antigravity CLI nuevo (mismo globito que el de Claude Code).
   "agy.disponible": "Antigravity CLI {v} disponible",
   "agy.titulo": "Hay un Antigravity CLI nuevo",
-  "agy.nota": "Actualizar abre una terminal con paru: ahí va la contraseña. trama no necesita reiniciarse.",
+  "agy.nota": "En Arch, Actualizar abre una terminal con paru: ahí va la contraseña. trama no necesita reiniciarse.",
   "agy.descartar": "Ocultar",
   "agy.hecho": "Actualizado a {v}. trama no necesita reiniciarse.",
   "agy.fallo": "No se pudo actualizar: {e}",

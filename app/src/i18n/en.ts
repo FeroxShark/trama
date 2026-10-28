@@ -1614,7 +1614,7 @@ export const en = {
   // El aviso de Antigravity CLI nuevo (mismo globito que el de Claude Code).
   "agy.disponible": "Antigravity CLI {v} available",
   "agy.titulo": "New Antigravity CLI version",
-  "agy.nota": "Update opens a terminal with paru: the password goes there. trama doesn't need a restart.",
+  "agy.nota": "On Arch, Update opens a terminal with paru: the password goes there. trama doesn't need a restart.",
   "agy.descartar": "Dismiss",
   "agy.hecho": "Updated to {v}. trama doesn't need a restart.",
   "agy.fallo": "Couldn't update: {e}",
