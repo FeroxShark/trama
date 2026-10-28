@@ -1,5 +1,6 @@
-// Los avisos de los workers de `pa`: cuando uno termina, falla o se cuelga se entera solo el líder que lo lanzó (un mensaje
-// corto por la cola de electron/cola.ts) y, si corresponde, el dueño (notificación y barra). Se deriva de lo que ya llega:
+// Los avisos de los workers de `pa`: cuando uno termina, falla o se cuelga se entera solo el líder que lo lanzó (por la cola de
+// electron/cola.ts: un solo mensaje cuando termina su tanda, con una línea por worker; o uno por worker si lo eligió en Ajustes.
+// Cupo y colgado van al momento) y, si corresponde, el dueño (notificación y barra). Se deriva de lo que ya llega:
 // cada lista de `pa --hilos` (los cambios de estado de un worker vivo) y cada línea de `eventos.jsonl` (`inicio`, `fin` con su
 // `rc`). Sin Electron, sin disco ni reloj propio: lo de afuera (leer el `.err`, los cupos, entregar) se inyecta, y lo prueba
 // tests/avisos-worker.test.ts con workers falsos.
@@ -25,6 +26,9 @@ export type EventoWorker = { tipo: string; id: string; rc?: number };
 
 export type TipoAviso = "fin" | "falla" | "cupo" | "colgado" | "tanda";
 
+/** Cómo se avisa al líder que lanzó al worker: un mensaje al terminar su tanda (una línea por worker), o uno por cada worker. */
+export type ModoAvisoLider = "tanda" | "worker";
+
 /** Lo que se avisa: va al renderer (que lo escribe en el idioma de la app) y, para el líder, a `textoParaLider`. */
 export type AvisoWorker = {
   tipo: TipoAviso;
@@ -49,9 +53,10 @@ export type AvisoWorker = {
   rc?: number;
   /** `colgado`: minutos sin actividad. */
   minutos?: number;
-  /** `tanda`: cuántos eran y cuántos fallaron. */
+  /** `tanda`: cuántos eran y cuántos fallaron. `lineas` (lo que se le dice al líder): el último aviso de cada worker de la tanda. */
   n?: number;
   fallas?: number;
+  lineas?: AvisoWorker[];
   /** epoch ms */
   ts: number;
 };
@@ -152,11 +157,20 @@ export type Deps = {
   /** ¿Sigue corriendo (su `.running` con el pid vivo, o su `.json` vacío recién creado)? Sin dato: no. */
   procesoVivo?: (h: FilaWorker) => Promise<boolean>;
   cupos?: () => CuposMin | null;
+  /** Lo que se le dice al líder que lanzó al worker (`textoParaLider`). Sin esto, a nadie. */
+  alLider?: (a: AvisoWorker) => void;
+  /** Cómo se avisa al líder; sin esto, al terminar la tanda. Se mira en cada aviso (Ajustes lo cambia sin reiniciar). */
+  avisoLider?: () => ModoAvisoLider;
   emitir: (a: AvisoWorker) => void;
   ahora?: () => number;
 };
 
-type Tanda = { ids: Set<string>; fallas: number };
+type Tanda = {
+  ids: Set<string>;
+  fallas: number;
+  /** El último aviso de cada worker de la tanda (por id): lo que se le dice al líder al cerrarla. */
+  lineas: Map<string, AvisoWorker>;
+};
 
 export function crearAvisosWorker(d: Deps) {
   const ahora = d.ahora ?? Date.now;
@@ -174,12 +188,32 @@ export function crearAvisosWorker(d: Deps) {
   const filas = new Map<string, FilaWorker>();
   let pendiente: Promise<unknown> = Promise.resolve();
 
-  function emitir(a: Omit<AvisoWorker, "clave" | "ts">) {
+  /** Al dueño (ventana y celular): una vez por worker y tipo. `null`: ya se había avisado. */
+  function emitir(a: Omit<AvisoWorker, "clave" | "ts">): AvisoWorker | null {
     const clave = `${a.id}:${a.tipo}`;
-    if (avisados.has(clave)) return;
+    if (avisados.has(clave)) return null;
     avisados.add(clave);
     if (avisados.size > MAX_AVISADOS) for (const k of [...avisados].slice(0, MAX_AVISADOS / 2)) avisados.delete(k);
-    d.emitir({ ...a, clave, ts: ahora() });
+    const aviso: AvisoWorker = { ...a, clave, ts: ahora() };
+    d.emitir(aviso);
+    return aviso;
+  }
+
+  const tandaDe = (clave: string): Tanda => {
+    let t = tandas.get(clave);
+    if (!t) tandas.set(clave, (t = { ids: new Set(), fallas: 0, lineas: new Map() }));
+    return t;
+  };
+
+  /**
+   * Lo de un worker que terminó, falló, se colgó o se quedó sin cupo: al dueño, y al líder que lo lanzó. Cupo y colgado (puede
+   * necesitar relanzar) van al líder al momento; lo demás, al momento si el líder lo pidió por worker, o en la línea de su tanda.
+   */
+  function avisarWorker(a: Omit<AvisoWorker, "clave" | "ts">) {
+    const aviso = emitir(a);
+    if (!aviso) return;
+    if (a.tipo === "cupo" || a.tipo === "colgado" || d.avisoLider?.() === "worker") d.alLider?.(aviso);
+    tandaDe(a.jefe_id ?? "").lineas.set(a.id, aviso);
   }
 
   const base_ = (h: FilaWorker) => ({
@@ -197,9 +231,9 @@ export function crearAvisosWorker(d: Deps) {
     const detalle = motivoDe(texto);
     if (esDeCupo(texto)) {
       const p = proveedorDe(h.modelo);
-      emitir({ ...base_(h), tipo: "cupo", motivo: detalle, proveedor: p.nombre, vuelve: vuelveDe(d.cupos?.(), p.id, Math.floor(ahora() / 1000)) });
+      avisarWorker({ ...base_(h), tipo: "cupo", motivo: detalle, proveedor: p.nombre, vuelve: vuelveDe(d.cupos?.(), p.id, Math.floor(ahora() / 1000)) });
     } else {
-      emitir({ ...base_(h), tipo: "falla", motivo: detalle, ...(h.sin_arrancar ? { sinArrancar: true } : {}), ...(rc !== undefined && rc !== 0 ? { rc } : {}) });
+      avisarWorker({ ...base_(h), tipo: "falla", motivo: detalle, ...(h.sin_arrancar ? { sinArrancar: true } : {}), ...(rc !== undefined && rc !== 0 ? { rc } : {}) });
     }
   }
 
@@ -215,30 +249,24 @@ export function crearAvisosWorker(d: Deps) {
         await falla(h, rc);
         return true;
       }
-      emitir({ ...base_(h), tipo: "fin", motivo: "", ...(h.estado === "decision" ? { decision: true } : {}) });
+      avisarWorker({ ...base_(h), tipo: "fin", motivo: "", ...(h.estado === "decision" ? { decision: true } : {}) });
     }
     return false;
   }
 
+  /** Se acabó la tanda (no le queda ningún worker vivo): el dueño ve el resumen si eran dos o más; el líder, una línea por worker. */
   function cerrarTanda(clave: string) {
     const t = tandas.get(clave);
     if (!t) return;
     tandas.delete(clave);
-    if (t.ids.size < 2) return;
-    const primero = [...t.ids][0];
-    const h = filas.get(primero);
-    emitir({
-      tipo: "tanda",
-      id: [...t.ids].sort()[0],
-      proyecto: h?.proyecto ?? "",
-      tarea: "",
-      modelo: "",
-      jefe_id: clave === "" ? null : clave,
-      jefe: h?.jefe ?? null,
-      motivo: "",
-      n: t.ids.size,
-      fallas: t.fallas,
-    });
+    const id = [...t.ids].sort()[0] ?? "";
+    const h = filas.get(id);
+    const de = { id, proyecto: h?.proyecto ?? "", tarea: "", modelo: "", jefe_id: clave === "" ? null : clave, jefe: h?.jefe ?? null, motivo: "" };
+    if (t.ids.size >= 2) emitir({ ...de, tipo: "tanda", n: t.ids.size, fallas: t.fallas });
+    const lineas = [...t.lineas.values()];
+    if (lineas.length && d.avisoLider?.() !== "worker") {
+      d.alLider?.({ ...de, tipo: "tanda", n: lineas.length, fallas: lineas.filter((l) => l.tipo !== "fin").length, lineas, clave: `${id}:tanda`, ts: ahora() });
+    }
   }
 
   async function procesar(lista: readonly FilaWorker[]) {
@@ -253,9 +281,7 @@ export function crearAvisosWorker(d: Deps) {
         avisados.delete(`${h.id}:terminado`);
         if (h.estado !== "colgado") avisados.delete(`${h.id}:colgado`);
         filas.set(h.id, h);
-        const t = tandas.get(clave) ?? { ids: new Set(), fallas: 0 };
-        t.ids.add(h.id);
-        tandas.set(clave, t);
+        tandaDe(clave).ids.add(h.id);
         vivosPor.set(clave, (vivosPor.get(clave) ?? 0) + 1);
         if (h.estado === "colgado") {
           if (!colgadoDesde.has(h.id)) colgadoDesde.set(h.id, ahora());
@@ -274,10 +300,9 @@ export function crearAvisosWorker(d: Deps) {
           avisados.add(`${h.id}:terminado`);
           const huboFalla = await terminoVivo(h);
           rcs.delete(h.id);
-          const t = tandas.get(clave) ?? { ids: new Set<string>(), fallas: 0 };
+          const t = tandaDe(clave);
           t.ids.add(h.id);
           if (huboFalla) t.fallas++;
-          tandas.set(clave, t);
         }
       }
       antes.set(h.id, h);
@@ -315,7 +340,7 @@ export function crearAvisosWorker(d: Deps) {
         if (sin < COLGADO_MS) continue;
         const h = filas.get(id);
         if (!h) continue;
-        emitir({ ...base_(h), tipo: "colgado", motivo: "", minutos: Math.floor(sin / 60_000) });
+        avisarWorker({ ...base_(h), tipo: "colgado", motivo: "", minutos: Math.floor(sin / 60_000) });
       }
     },
     /** ¿Hay algo que vigilar? (el reloj corre sólo entonces). */
@@ -331,22 +356,30 @@ const hora = (epochS: number, ahoraMs: number) => {
   return epochS * 1000 - ahoraMs > 12 * 3600_000 ? `${["dom", "lun", "mar", "mié", "jue", "vie", "sáb"][d.getDay()]} ${hm}` : hm;
 };
 
+/** Cómo terminó un worker, en una oración sin su nombre: «terminó…» o «falló: …». */
+function comoTermino(a: AvisoWorker): string {
+  if (a.tipo === "fin") return `terminó${a.decision ? " pidiendo una decisión" : ""}.`;
+  if (a.tipo === "colgado") return `falló: parece colgado, sin actividad hace ${a.minutos ?? 15} min.`;
+  if (a.tipo === "cupo") {
+    const vuelve = a.vuelve ? `vuelve a las ${hora(a.vuelve, a.ts)}` : "no sé cuándo vuelve";
+    return `falló: ${a.proveedor ?? "el proveedor"} sin cupo (${vuelve}).${a.motivo ? ` ${a.motivo}` : ""}`;
+  }
+  const por = a.motivo || (a.sinArrancar ? "murió en la cola sin arrancar" : a.rc ? `salió con código ${a.rc}` : "el proceso se cortó sin dejar mensaje");
+  return `falló: ${por}.`;
+}
+
 /**
- * El mensaje corto para el líder que lanzó al worker. Va en español y en un solo lugar (es una instrucción para un modelo, no
- * texto de la interfaz). Vacío para lo que al líder no le toca (la tanda es del dueño).
+ * El mensaje para el líder que lanzó a los workers. Va en español y en un solo lugar (es una instrucción para un modelo, no texto
+ * de la interfaz). Un worker: una línea con su id. Una tanda: una línea por worker, con su id, y cuántos fallaron. Vacío si no hay nada.
  */
 export function textoParaLider(a: AvisoWorker): string {
-  if (a.tipo === "tanda") return "";
-  const w = `Worker «${a.tarea || a.id}»`;
-  let r: string;
-  if (a.tipo === "fin") r = `${w} terminó${a.decision ? " pidiendo una decisión" : ""}.`;
-  else if (a.tipo === "colgado") r = `${w} falló: parece colgado, sin actividad hace ${a.minutos ?? 15} min.`;
-  else if (a.tipo === "cupo") {
-    const vuelve = a.vuelve ? `vuelve a las ${hora(a.vuelve, a.ts)}` : "no sé cuándo vuelve";
-    r = `${w} falló: ${a.proveedor ?? "el proveedor"} sin cupo (${vuelve}).${a.motivo ? ` ${a.motivo}` : ""}`;
-  } else {
-    const por = a.motivo || (a.sinArrancar ? "murió en la cola sin arrancar" : a.rc ? `salió con código ${a.rc}` : "el proceso se cortó sin dejar mensaje");
-    r = `${w} falló: ${por}.`;
+  if (a.tipo === "tanda") {
+    const lineas = a.lineas ?? [];
+    if (lineas.length === 1) return textoParaLider(lineas[0]);
+    if (!lineas.length) return "";
+    const fallas = lineas.filter((l) => l.tipo !== "fin").length;
+    const cabeza = `[Aviso automático de Trama] Terminaron los ${lineas.length} workers que lanzaste${fallas ? `, ${fallas} con falla` : ""}:`;
+    return [cabeza, ...lineas.map((l) => `- «${l.tarea || l.id}» (${l.id}): ${comoTermino(l)}`), "Revisá cada uno con `pa --hilo <id>`."].join("\n");
   }
-  return `[Aviso automático de Trama] ${r} Id: ${a.id}. Revisalo con \`pa --hilo ${a.id}\`.`;
+  return `[Aviso automático de Trama] Worker «${a.tarea || a.id}» ${comoTermino(a)} Id: ${a.id}. Revisalo con \`pa --hilo ${a.id}\`.`;
 }
