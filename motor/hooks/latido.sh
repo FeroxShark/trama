@@ -138,7 +138,7 @@ if [[ -n "$hb" ]]; then
       printf 'epoch=%s\n'   "$(date +%s)"
       printf 'tool=%s\n'    "${herramienta:-?}"
       printf 'envuelo=%s\n' "$envuelo"
-      printf 'desc=%s\n'    "$(printf '%s' "${desc:-}" | tr '\n\r\t' '   ' | cut -c1-160)"
+      printf 'desc=%s\n'    "$(printf '%s' "${desc:-}" | tr '\n\r\t' '   ' | LC_ALL=C cut -c1-160)"
     } >"$hb_tmp" 2>/dev/null && mv -f "$hb_tmp" "$hb" 2>/dev/null || rm -f "$hb_tmp"
   }
 fi
