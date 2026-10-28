@@ -18,7 +18,7 @@ export type Hook = (typeof HOOKS)[number];
 export const esHook = (h: string): h is Hook => (HOOKS as readonly string[]).includes(h);
 
 /** Herramientas del motor que tienen versión bash/python (A) y versión TS (B), y los hooks (`.sh` contra `.mjs`). */
-export type Herramienta = "pa" | "proyecto-ruta" | "trama-estado" | "workers" | "tablero" | "cuentas" | Hook | "pa-async" | "pa-cli";
+export type Herramienta = "pa" | "proyecto-ruta" | "trama-estado" | "workers" | "tablero" | "cuentas" | Hook | "pa-async" | "pa-cli" | "reparto";
 const VARIABLE_B: Record<Herramienta, string> = {
   pa: "TRAMA_PA_B",
   "proyecto-ruta": "TRAMA_PROYECTO_RUTA_B",
@@ -33,6 +33,7 @@ const VARIABLE_B: Record<Herramienta, string> = {
   "pa-async": "TRAMA_PA_ASYNC_B",
   // el pa bash contra el pa de TS (electron/cli/pa.ts) en lo que ya está portado (etapa 5: CLI y política)
   "pa-cli": "TRAMA_PA_CLI_B",
+  reparto: "TRAMA_REPARTO_B",
 };
 
 /** El original (bash o python) de la herramienta. */
