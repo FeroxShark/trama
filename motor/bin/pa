@@ -24,6 +24,12 @@
 #   pa <proyecto> --brief-archivo F      la tarea sale de un archivo con el brief (Objetivo / Archivos / Listo cuando /
 #                                        Cómo verificar / No tocar); `pa --brief` imprime la plantilla. Sin "Listo cuando" o
 #                                        "Cómo verificar" avisa por stderr (no bloquea)
+#   pa <proyecto> --espejo F [...]       el test espejo oculto (el que corre el gate) sale de tareas/: F se MUEVE a
+#                                        <proyecto>/espejos/<id>/ (fuera de tareas/) y pa imprime esa ruta para el gate. Los
+#                                        settings del worker le niegan Read y los Bash que nombren ese directorio (best-effort).
+#                                        Con -m a,b,c se mueve una sola vez: los intentos reciben la ruta nueva
+#   pa <proyecto> --test-inline F        pega el test congelado F al final del brief, bajo "Test que tiene que pasar, no lo
+#                                        modifiques:": el worker no necesita la ruta. Con --brief-archivo o con la tarea
 #   pa <proyecto> --auditar <id|rama> [-m M] [--decisiones <archivo>]  revisor de sólo lectura (--leer) de esa rama: lee el diff contra
 #                                        main y reporta problemas por severidad (CRITICO/ALTO/MEDIO/BAJO); tipo lectura si no hay --tipo.
 #                                        --decisiones: archivo con lo que se decidió a propósito; el auditor lo lee bajo "Decisiones tomadas
@@ -4880,6 +4886,24 @@ mostrar_resultado() {   # $1 = json de salida
   linea_rama "$1"
 }
 
+# --espejo F (item 4 del protocolo de revisión, 2026-10-27): el test espejo oculto (el que corre el gate) sale de tareas/ y se
+# MUEVE a <proyecto>/espejos/<id>/, donde el worker no lo ve (el deny de sus settings lo cubre). Imprime la ruta final por stdout
+# (la captura el bloque de -m a,b,c más abajo) y el aviso por stderr. Si F ya está en espejos/ (un reintento que pasa la ruta
+# impresa), lo deja donde está. Necesita $proyecto.
+espejo_colocar() {   # $1 = archivo del jefe -> ruta final
+  local src="$1" id dest
+  [[ -f "$src" && -r "$src" ]] || { echo "pa: --espejo '$src' no es un archivo legible." >&2; exit 2; }
+  ruta="$(proyecto-ruta "$proyecto")" || exit $?
+  fijar_proyecto
+  if [[ "$src" == "$dir/espejos/"* ]]; then printf '%s\n' "$src"; return 0; fi
+  id="$(date +%Y%m%d-%H%M%S)-$$"
+  dest="$dir/espejos/$id/$(basename "$src")"
+  mkdir -p "$(dirname "$dest")" || exit 1
+  mv -- "$src" "$dest" || { echo "pa: no pude mover el espejo '$src' a $dest." >&2; exit 1; }
+  echo "pa: espejo movido fuera de tareas/: $dest (pasale esta ruta al gate)." >&2
+  printf '%s\n' "$dest"
+}
+
 # ========================================================================================
 # parseo de argumentos
 # ========================================================================================
@@ -4994,9 +5018,11 @@ subtarea="${PA_SUBTAREA:-}"
 ok_dueno=0 modelo_de_m=0
 # Orquestación (2026-10-26): brief desde archivo, AGENTS.md, lecciones, auditoría de una rama.
 brief_archivo=""; agents_md=0; unificar_md=0; aplicar=0; lecciones=0; lecciones_podar=0; leccion=""; auditar=""; decisiones=""
+# Item 4 del protocolo de revisión (2026-10-27): el espejo y el test inline (ver el bloque de --espejo más abajo).
+espejo=""; test_inline=""
 
 # Los flags que llevan valor: sin él, `$2` reventaba con "unbound variable" (set -u) sin decir qué faltaba.
-flags_con_valor=" --max-turns --id --integrar --descartar --actualizar --nota --max-budget-usd -m --model --effort --tipo --fase --tarea --subtarea --rubrica --cuenta --brief-archivo --leccion --auditar --decisiones "
+flags_con_valor=" --max-turns --id --integrar --descartar --actualizar --nota --max-budget-usd -m --model --effort --tipo --fase --tarea --subtarea --rubrica --cuenta --brief-archivo --leccion --auditar --decisiones --espejo --test-inline "
 # -m a,b,c (2026-10-27, protocolo por fases): lista de fallback. Se prueba cada modelo, en orden, como una corrida entera con ese solo -m
 # (`pa <proyecto> … -m a …`); si sale 76/77 (límite de sesión, API sobrecargada), 95/96 (no puede correr / sin cupo) o 97 (OpenCode cortó por
 # límite) se pasa al siguiente, y cualquier otro código (0, 1, 78…) es el final: ése es el modelo que trabajó. Los que reparto tiene
@@ -5005,7 +5031,7 @@ flags_con_valor=" --max-turns --id --integrar --descartar --actualizar --nota --
 # Sólo se mira la zona de flags (hasta la tarea): un "-m" dentro del texto de la tarea no cuenta.
 # Lo que le queda a una corrida --async (lo pasa el padre por el entorno; el hijo lo lee y no lo hereda a los procesos del worker).
 fb_resto="${PA_FALLBACK_RESTO:-}"; unset PA_FALLBACK_RESTO
-_fb_args=( "$@" ); _fb_i=0; _fb_n=${#_fb_args[@]}; _fb_m=-1; _fb_ef="${PA_EFFORT:-}"; _fb_ok=0
+_fb_args=( "$@" ); _fb_i=0; _fb_n=${#_fb_args[@]}; _fb_m=-1; _fb_ef="${PA_EFFORT:-}"; _fb_ok=0; _fb_esp=-1; _fb_ti=-1
 while (( _fb_i < _fb_n )); do
   _fb_a="${_fb_args[_fb_i]}"
   if [[ "$_fb_a" == "--" ]]; then break
@@ -5017,11 +5043,26 @@ while (( _fb_i < _fb_n )); do
   elif [[ "$_fb_a" == @(-m|--model) ]]; then
     (( _fb_i + 1 < _fb_n )) || break
     _fb_m=$((_fb_i + 1)); _fb_i=$((_fb_i + 2))
+  elif [[ "$_fb_a" == --espejo ]]; then
+    (( _fb_i + 1 < _fb_n )) || break
+    _fb_esp=$((_fb_i + 1)); _fb_i=$((_fb_i + 2))
+  elif [[ "$_fb_a" == --test-inline ]]; then
+    (( _fb_i + 1 < _fb_n )) || break
+    _fb_ti=$((_fb_i + 1)); _fb_i=$((_fb_i + 2))
   elif [[ "$flags_con_valor" == *" $_fb_a "* ]]; then _fb_i=$((_fb_i + 2))
   elif [[ "$_fb_a" == -* ]]; then _fb_i=$((_fb_i + 1))
   else break
   fi
 done
+# --espejo se MUEVE una sola vez, acá, antes de cualquier intento: un -m a,b,c relanza este mismo pa por cada modelo, y el
+# segundo no encontraría el archivo en su origen. Los intentos (y el hijo de --async) reciben la ruta ya movida.
+if (( _fb_esp >= 0 )); then
+  _fb_args[_fb_esp]="$(espejo_colocar "${_fb_args[_fb_esp]}")" || exit $?
+  set -- "${_fb_args[@]}"
+fi
+if (( _fb_ti >= 0 )) && [[ ! -r "${_fb_args[_fb_ti]}" || ! -f "${_fb_args[_fb_ti]}" ]]; then
+  echo "pa: --test-inline '${_fb_args[_fb_ti]}' no se puede leer." >&2; exit 2
+fi
 if (( _fb_m >= 0 )) && [[ "${_fb_args[_fb_m]}" == *,* ]]; then
   IFS=, read -r -a _fb_lista <<<"${_fb_args[_fb_m]}"
   for _fb_x in "${_fb_lista[@]}"; do
@@ -5079,6 +5120,8 @@ while [[ $# -gt 0 ]]; do
     --leccion)         leccion="$2"; shift 2 ;;
     --auditar)         auditar="$2"; leer=1; shift 2 ;;   # auditar es una corrida --leer (ver más abajo)
     --decisiones)      decisiones="$2"; shift 2 ;;        # sólo con --auditar: se lee en el bloque de auditoría
+    --espejo)          espejo="$2"; shift 2 ;;            # ya movido a espejos/ por el bloque de -m (ver espejo_colocar)
+    --test-inline)     test_inline="$2"; shift 2 ;;       # se pega al final de la tarea (abajo, tras --brief-archivo)
     --olvidar)         olvidar=1; shift ;;
     --matar)           matar=1; shift ;;
     --mcp)             con_mcp=1; shift ;;
@@ -5125,6 +5168,18 @@ if [[ -n "$brief_archivo" ]]; then
   brief_txt="$(cat "$brief_archivo")"
   [[ -n "${brief_txt//[[:space:]]/}" ]] || { echo "pa: --brief-archivo '$brief_archivo' está vacío." >&2; exit 2; }
   if [[ -n "$tarea" ]]; then tarea="$brief_txt"$'\n\n'"Contexto del jefe: $tarea"; else tarea="$brief_txt"; fi
+fi
+# --test-inline F (item 4, 2026-10-27): el test congelado va pegado al final de la tarea, así el worker no necesita su ruta.
+# La cerca se alarga si el test trae backticks; el lenguaje es la extensión. Va antes del fork de --async: el hijo recibe la tarea ya armada.
+if [[ -n "$test_inline" ]]; then
+  [[ -r "$test_inline" && -f "$test_inline" ]] || { echo "pa: --test-inline '$test_inline' no se puede leer." >&2; exit 2; }
+  test_txt="$(cat "$test_inline")"
+  test_cerca='```'
+  while [[ "$test_txt" == *"$test_cerca"* ]]; do test_cerca+='`'; done
+  test_base="$(basename "$test_inline")"; test_lang=""
+  if [[ "$test_base" == *.* ]]; then test_lang="${test_base##*.}"; fi
+  test_bloque="Test que tiene que pasar, no lo modifiques:"$'\n'"$test_cerca$test_lang"$'\n'"$test_txt"$'\n'"$test_cerca"
+  if [[ -n "$tarea" ]]; then tarea+=$'\n\n'"$test_bloque"; else tarea="$test_bloque"; fi
 fi
 # Auditar es una corrida de lectura: si el jefe no clasificó, es `lectura`.
 [[ -n "$auditar" && -z "$tipo" ]] && tipo=lectura
@@ -6120,8 +6175,15 @@ fi
 # sigue prendido para las sesiones del dueño). Es el mismo settings_json de writers, --leer,
 # --seguir, --aca y el auto-cierre.
 modo_latido=""; (( leer )) && modo_latido=" leer"
+# --espejo (item 4): el espejo ya está fuera de tareas/ y el worker no tiene por qué leerlo. Deny de Read sobre su directorio y de
+# Bash que lo nombre (ruta absoluta o con ~). Best-effort: un patrón de Bash no cierra un `find` sobre ~/.local/state.
+deny_espejo='[]'
+if [[ -n "$espejo" ]]; then
+  _esp_dir="$(dirname "$espejo")"; _esp_rel="~${_esp_dir#"$HOME"}"
+  deny_espejo="$(jq -cn --arg d "$_esp_dir" --arg r "$_esp_rel" '["Read(/" + $d + "/**)", "Bash(*" + $d + "*)", "Bash(*" + $r + "*)"]')"
+fi
 # Rutas entre comillas (@sh): el command de un hook lo corre un shell, y una ruta con espacios se partía.
-settings_json="$(jq -cn --arg latido "$LATIDO" --arg guard "$GUARD" --arg hb "$hb" --arg modo "$modo_latido" --arg home "$HOME" '
+settings_json="$(jq -cn --arg latido "$LATIDO" --arg guard "$GUARD" --arg hb "$hb" --arg modo "$modo_latido" --arg home "$HOME" --argjson deny "$deny_espejo" '
   {crossSessionInbound: "accept",
    claudeMdExcludes: [($home + "/CLAUDE.md")],
    enabledPlugins: {"caveman@caveman": false},
@@ -6129,7 +6191,7 @@ settings_json="$(jq -cn --arg latido "$LATIDO" --arg guard "$GUARD" --arg hb "$h
      PreToolUse: [ {matcher: "Bash", hooks: [ {type:"command", command:("bash " + ($guard|@sh))} ]},
                    {hooks: [ {type:"command", command:("bash " + ($latido|@sh) + " " + ($hb|@sh) + " pre" + $modo)} ]} ],
      PostToolUse: [ {hooks: [ {type:"command", command:("bash " + ($latido|@sh) + " " + ($hb|@sh) + " post")} ]} ]
-   }}')"
+   }} + (if ($deny | length) > 0 then {permissions: {deny: $deny}} else {} end)')"
 
 # --- --actualizar: la tarea es fija --------------------------------------------------------
 if [[ -n "$actualizar" ]]; then
