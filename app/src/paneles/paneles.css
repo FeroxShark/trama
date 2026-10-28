@@ -2175,6 +2175,38 @@
 .aj-cat .pn-sec > .pn-h + .pn-dato {
   border-top-color: transparent;
 }
+/* Modelos y OpenCode, en escritorio: la descripción conserva un ancho mínimo (12 rem) y el control va a la derecha, en lo que sobra.
+   Si el control no entra junto a ella (dos selectores, un campo con su botón), baja debajo, a la derecha, en vez de dejar la
+   descripción en 100 px o desbordar. Sin flex-wrap en `.pn-val`: los selectores van con su texto sin partir. En angosto la fila
+   va apilada (las reglas de arriba, que siguen en grid). */
+@container (min-width: 40rem) {
+  .aj-cat:is([data-cat="modelos"], [data-cat="opencode"]) .pn-dato {
+    display: flex;
+    flex-wrap: wrap;
+  }
+  .aj-cat:is([data-cat="modelos"], [data-cat="opencode"]) .pn-dato-id {
+    flex: 1 1 12rem;
+  }
+  .aj-cat:is([data-cat="modelos"], [data-cat="opencode"]) .pn-val {
+    margin-left: auto;
+    max-width: 100%;
+  }
+  .aj-cat:is([data-cat="modelos"], [data-cat="opencode"]) .pn-sel {
+    flex-wrap: wrap;
+  }
+}
+/* OpenCode: sus controles van en la letra de la interfaz (no en la mono de los valores). El texto largo y el comando van debajo de
+   su fila, cada uno en su línea (no dentro de la columna del control). */
+.aj-cat[data-cat="opencode"] .pn-val {
+  font-family: var(--font-sans);
+}
+.oc-notas {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-2);
+  min-width: 0;
+  padding-bottom: var(--esp-3);
+}
 .aj-cat[hidden] {
   display: none;
 }

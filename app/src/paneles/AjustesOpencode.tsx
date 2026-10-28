@@ -96,21 +96,27 @@ export function AjustesOpencode({ Dato }: { Dato: FilaDato }) {
                     {actualizando ? t("ajustes.ocActualizando") : <Fijo k="ajustes.ocActualizar" />}
                   </Boton>
                 </div>
-              ) : (
-                <>
-                  <p className="ol-nota">{t("ajustes.ocInstalarPie")}</p>
-                  <Comando texto={e.comando} etiqueta={t("ajustes.ocPrograma")} />
-                </>
-              )}
-              {e.instalado && !e.consola ? <p className="ol-nota">{t("ajustes.ocLoginPie")}</p> : null}
-              {e.instalado ? <p className="ol-nota">{t("ajustes.ocUsar")}</p> : null}
-              <p className="ol-nota">{t("ajustes.ocPlanEnCupos", { plan: t(e.plan === "go" ? "ajustes.ocPlanGo" : e.plan === "go-plus" ? "ajustes.ocPlanGoPlus" : "ajustes.ocPlanGratis") })}</p>
+              ) : null}
             </>
           ) : err ? null : (
             <PanelCargando />
           )}
-          {err ? <div className="pn-error dsh-err" role="alert">{textoMain(err)}</div> : null}
         </Dato>
+        {/* El texto largo y el comando van debajo de su fila, no en la columna del control. */}
+        {e ? (
+          <div className="oc-notas">
+            {e.instalado ? null : (
+              <>
+                <p className="ol-nota">{t("ajustes.ocInstalarPie")}</p>
+                <Comando texto={e.comando} etiqueta={t("ajustes.ocPrograma")} />
+              </>
+            )}
+            {e.instalado && !e.consola ? <p className="ol-nota">{t("ajustes.ocLoginPie")}</p> : null}
+            {e.instalado ? <p className="ol-nota">{t("ajustes.ocUsar")}</p> : null}
+            <p className="ol-nota">{t("ajustes.ocPlanEnCupos", { plan: t(e.plan === "go" ? "ajustes.ocPlanGo" : e.plan === "go-plus" ? "ajustes.ocPlanGoPlus" : "ajustes.ocPlanGratis") })}</p>
+          </div>
+        ) : null}
+        {err ? <div className="pn-error dsh-err" role="alert">{textoMain(err)}</div> : null}
 
         <Dato nombre="ajustes.dshOpencode" que="ajustes.dshOpencodeQue">
           {dsh ? (
@@ -127,15 +133,19 @@ export function AjustesOpencode({ Dato }: { Dato: FilaDato }) {
                 <Boton aria-label={t("ajustes.dshProbarDe", { que: t("ajustes.dshOpencode") })} onClick={() => void probar()} disabled={prueba === "probando"}>
                   {prueba === "probando" ? t("ajustes.dshProbando") : <Fijo k="ajustes.dshProbar" />}
                 </Boton>
-                <Resultado p={prueba} />
               </div>
-              <p className="ol-nota">{t("ajustes.dshClaveNota")}</p>
             </>
           ) : (
             <PanelCargando />
           )}
-          {errClave ? <div className="pn-error dsh-err" role="alert">{textoMain(errClave)}</div> : null}
         </Dato>
+        {dsh ? (
+          <div className="oc-notas">
+            <Resultado p={prueba} />
+            <p className="ol-nota">{t("ajustes.dshClaveNota")}</p>
+          </div>
+        ) : null}
+        {errClave ? <div className="pn-error dsh-err" role="alert">{textoMain(errClave)}</div> : null}
       </section>
     </Cat>
   );
