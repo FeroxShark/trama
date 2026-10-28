@@ -88,7 +88,7 @@ export function sinMaquina(id: string): { maquina: string | undefined; id: strin
 }
 
 /** Una línea de `eventos.jsonl` de `pa` (`inicio`, `fin`, `parar`, …): llega al instante, la lista tarda. */
-export type EventoPa = { tipo: string; id: string; proyecto: string; ts: number; jefe_id?: string; jefe?: string | null };
+export type EventoPa = { tipo: string; id: string; proyecto: string; ts: number; rc?: number; jefe_id?: string; jefe?: string | null };
 
 export type RespuestaHilos = { version: number; hilos: Hilo[] };
 

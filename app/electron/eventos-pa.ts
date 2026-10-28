@@ -3,7 +3,8 @@
 // "Arrancando…" y "frenado" sin esperarla. Sin imports locales: lo prueba `tests/eventos-pa.test.ts`.
 
 /** Una línea de `eventos.jsonl`. `proyecto` es el slug (como en la lista); `ts`, epoch en segundos. */
-export type EventoPa = { tipo: string; id: string; proyecto: string; ts: number; jefe_id?: string; jefe?: string | null };
+/** `rc`: el código de salida de `pa` en el evento `fin`. */
+export type EventoPa = { tipo: string; id: string; proyecto: string; ts: number; rc?: number; jefe_id?: string; jefe?: string | null };
 
 /** Las líneas buenas de un trozo de `eventos.jsonl` (lo que no es JSON o no trae id y tipo se descarta). */
 export function eventosDe(texto: string): EventoPa[] {
@@ -17,6 +18,7 @@ export function eventosDe(texto: string): EventoPa[] {
           id: e.id,
           proyecto: typeof e.proyecto === "string" ? e.proyecto : "",
           ts: typeof e.ts === "number" ? e.ts : 0,
+          ...(typeof e.rc === "number" ? { rc: e.rc } : {}),
           // Hoy `pa` no lo escribe en el evento: lo completa el main (`jefeDeCorrida`). Si `pa` lo trae, vale.
           ...(typeof e.jefe_id === "string" && e.jefe_id ? { jefe_id: e.jefe_id, jefe: typeof e.jefe === "string" ? e.jefe : null } : {}),
         });
