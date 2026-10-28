@@ -13,6 +13,10 @@
   cuentas plan ID --detectar                   lo detecta por `opencode models` (con `opencode-go/*` es go, si no gratis; Go Plus no se
                                                distingue de Go) y, en una agregada, lo guarda; rc 3 si no se pudo saber
   (`cuentas --json --verificar` suma `plan_detectado` a cada cuenta de OpenCode)
+  cuentas importar-perfiles [--dir D] [--json] importa las cuentas de Claude de una Trama vieja (<home>/.local/state/hilos/perfiles_claude:
+                                               perfiles.json + una carpeta por perfil con .credentials.json y .claude.json): crea las
+                                               que no estén (mismo email) y COPIA las credenciales (nunca mueve ni borra; permisos 0600);
+                                               no imprime su contenido. Sin carpeta vieja no hace nada
 
 PROVEEDOR: claude | google | chatgpt | opencode. La cuenta de siempre de cada proveedor tiene el id del proveedor y usa las
 credenciales de siempre (sin tocar nada): sin cuentas.json todo sigue como antes. Las agregadas viven en
@@ -564,6 +568,137 @@ def cmd_plan(a):
     return 0
 
 
+ID_VIEJO_OK = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9_.-]*$")
+ARCHIVOS_PERFIL = (".credentials.json", ".claude.json")   # lo que se copia de cada perfil viejo (el primero es obligatorio)
+
+
+def email_de_claude_json(d):
+    """El email de la cuenta que dice <d>/.claude.json (oauthAccount.emailAddress), o None. Sólo se lee ese campo."""
+    try:
+        with open(os.path.join(d, ".claude.json")) as f:
+            e = json.load(f)["oauthAccount"]["emailAddress"]
+        return (e.strip() or None) if isinstance(e, str) else None
+    except Exception:
+        return None
+
+
+def perfiles_viejos(d):
+    """[(id viejo, nombre, email)] de la carpeta de perfiles de una Trama vieja: los de perfiles.json y, después, las subcarpetas
+    con .credentials.json que el registro no nombra. Nombre y email None si no los dice."""
+    out, vistos = [], set()
+    try:
+        with open(os.path.join(d, "perfiles.json")) as f:
+            reg = json.load(f)
+        lista = reg.get("cuentas") if isinstance(reg, dict) else None
+    except Exception:
+        lista = None
+    for c in lista if isinstance(lista, list) else []:
+        if not isinstance(c, dict) or not isinstance(c.get("id"), str) or not ID_VIEJO_OK.match(c["id"]) or c["id"] in vistos:
+            continue
+        vistos.add(c["id"])
+        txt = lambda k: c[k].strip() if isinstance(c.get(k), str) and c[k].strip() else None
+        out.append((c["id"], txt("nombre"), txt("email")))
+    try:
+        sub = sorted(os.listdir(d))
+    except OSError:
+        sub = []
+    for n in sub:
+        if n not in vistos and ID_VIEJO_OK.match(n) and os.path.isfile(os.path.join(d, n, ARCHIVOS_PERFIL[0])):
+            out.append((n, None, None))
+    return out
+
+
+def copiar_privado(src, dst):
+    """Copia src a dst (por un temporal) con permisos sólo del usuario. No toca src."""
+    tmp = "%s.%d.tmp" % (dst, os.getpid())
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "wb") as o, open(src, "rb") as i:
+        shutil.copyfileobj(i, o)
+    os.replace(tmp, dst)
+    os.chmod(dst, 0o600)
+
+
+def cmd_importar_perfiles(a):
+    uso = "uso: cuentas importar-perfiles [--dir D] [--json]"
+    d, js, i = None, False, 0
+    while i < len(a):
+        if a[i] == "--json":
+            js = True
+        elif a[i] == "--dir" and i + 1 < len(a) and d is None:
+            d, i = a[i + 1], i + 1
+        else:
+            err(uso)
+            return 2
+        i += 1
+    if d is None:
+        d = os.path.join(home_real(), ".local", "state", "hilos", "perfiles_claude")
+    d = os.path.expanduser(d)
+    importadas, omitidas, lineas = [], 0, []
+    if os.path.isdir(d):
+        with Candado():
+            ent = leer_archivo()
+            usados = set(PROVEEDORES) | {c["id"] for c in ent}
+            actual = email_de_claude_json(home_real())   # la cuenta de siempre de Claude no se importa dos veces
+            emails = {actual.lower()} if actual else set()
+            de_antes = set()
+            for c in ent:
+                if c["proveedor"] != "claude":
+                    continue
+                e = c.get("email") if isinstance(c.get("email"), str) else None
+                e = e or email_de_claude_json(os.path.expanduser(c.get("dir") or dir_default(c["id"])))
+                if e:
+                    emails.add(e.lower())
+                if isinstance(c.get("importada_de"), str):
+                    de_antes.add(c["importada_de"])
+            for vid, nombre, email in perfiles_viejos(d):
+                src = os.path.join(d, vid)
+                if os.path.islink(src) or not os.path.isfile(os.path.join(src, ARCHIVOS_PERFIL[0])):
+                    omitidas += 1
+                    lineas.append("salteada: %s (sin %s)" % (vid, ARCHIVOS_PERFIL[0]))
+                    continue
+                email = email or email_de_claude_json(src)
+                if vid in de_antes or (email and email.lower() in emails):
+                    omitidas += 1
+                    lineas.append("ya estaba: %s" % (nombre or email or vid))
+                    continue
+                nombre = nombre or email or vid
+                base = slug(nombre)
+                cid, n = base, 2
+                while cid in usados:
+                    cid, n = "%s-%d" % (base, n), n + 1
+                destino = dir_default(cid)
+                try:
+                    os.makedirs(destino, mode=0o700, exist_ok=True)
+                    for f in ARCHIVOS_PERFIL:
+                        if os.path.isfile(os.path.join(src, f)):
+                            copiar_privado(os.path.join(src, f), os.path.join(destino, f))
+                except OSError as e:
+                    err("no pude copiar el perfil %s: %s" % (vid, e))
+                    omitidas += 1
+                    continue
+                nueva = {"id": cid, "proveedor": "claude", "nombre": nombre}
+                if email:
+                    nueva["email"] = email
+                nueva["importada_de"] = vid
+                ent.append(nueva)
+                usados.add(cid)
+                if email:
+                    emails.add(email.lower())
+                guardar(ent)
+                asegurar_links(buscar(cid))
+                importadas.append(cid)
+                lineas.append("importada: %s (%s)" % (cid, nombre))
+    else:
+        lineas.append("no hay perfiles viejos en %s" % d)
+    if js:
+        print(json.dumps({"importadas": len(importadas), "omitidas": omitidas, "cuentas": importadas}, ensure_ascii=False))
+        return 0
+    for l in lineas:
+        print(l)
+    print("importadas: %d" % len(importadas))
+    return 0
+
+
 def main(argv):
     if not argv or argv[0] in ("--json", "--verificar"):
         return cmd_listar(argv)
@@ -571,7 +706,8 @@ def main(argv):
         sys.stdout.write(__doc__)
         return 0
     f = {"agregar": cmd_agregar, "quitar": cmd_quitar, "renombrar": cmd_renombrar, "login": cmd_login,
-         "env": cmd_env, "ver": cmd_ver, "listar": cmd_listar, "plan": cmd_plan}.get(argv[0])
+         "env": cmd_env, "ver": cmd_ver, "listar": cmd_listar, "plan": cmd_plan,
+         "importar-perfiles": cmd_importar_perfiles}.get(argv[0])
     if not f:
         sys.stdout.write(__doc__)
         return 2

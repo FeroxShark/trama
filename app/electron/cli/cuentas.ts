@@ -5,7 +5,7 @@
 // `exec` (Node no puede): lanza el login como hijo con la terminal heredada y sale con su código. Con `--imprimir` sale lo mismo que antes.
 // TRAMA_CUENTAS (el cuentas.json) y TRAMA_CUENTAS_HOME (el home de verdad de donde salen los symlinks, default $HOME) mueven las rutas.
 import { spawn } from "node:child_process";
-import { closeSync, existsSync, lstatSync, mkdirSync, openSync, readFileSync, realpathSync, renameSync, statSync, writeFileSync } from "node:fs";
+import { chmodSync, closeSync, copyFileSync, existsSync, lstatSync, mkdirSync, openSync, readdirSync, readFileSync, realpathSync, renameSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { homeDe } from "../rutas.ts";
 import { borrarSinSeguir, enlazarArchivo, enlazarDir } from "./base/enlaces.ts";
@@ -42,6 +42,8 @@ const LINKS: Record<string, [string, string][]> = {
 };
 // `agy models`: el id solo, o "id<TAB>nombre" (mismo patrón que bin/trama-estado)
 const MODELO_AGY = /^\s*(?:(?:gemini|claude|gpt)[-\w.]*\s*$|[a-z0-9][a-z0-9.-]*\t)/i;
+const ID_VIEJO_OK = /^[A-Za-z0-9_][A-Za-z0-9_.-]*$/;
+const ARCHIVOS_PERFIL = [".credentials.json", ".claude.json"]; // lo que se copia de cada perfil viejo (el primero es obligatorio)
 const ANSI = /\x1b\[[0-9;]*[A-Za-z]/g;
 
 const esObjeto = (x: unknown): x is Record<string, unknown> => typeof x === "object" && x !== null && !Array.isArray(x);
@@ -60,6 +62,13 @@ const lexists = (p: string) => {
 const esDir = (p: string) => {
   try {
     return statSync(p).isDirectory();
+  } catch {
+    return false;
+  }
+};
+const esArchivo = (p: string) => {
+  try {
+    return statSync(p).isFile();
   } catch {
     return false;
   }
@@ -403,6 +412,121 @@ class Cuentas {
     return 0;
   }
 
+  /** El email de la cuenta que dice <d>/.claude.json (oauthAccount.emailAddress), o null. Sólo se lee ese campo. */
+  emailDeClaudeJson(d: string): string | null {
+    try {
+      const e = (JSON.parse(readFileSync(path.join(d, ".claude.json"), "utf8")) as { oauthAccount: { emailAddress: unknown } }).oauthAccount.emailAddress;
+      return typeof e === "string" ? e.trim() || null : null;
+    } catch {
+      return null;
+    }
+  }
+
+  /** [id viejo, nombre, email] de la carpeta de perfiles de una Trama vieja: los de perfiles.json y, después, las subcarpetas con .credentials.json que el registro no nombra. */
+  perfilesViejos(d: string): [string, string | null, string | null][] {
+    const out: [string, string | null, string | null][] = [];
+    const vistos = new Set<string>();
+    let lista: unknown;
+    try {
+      const reg = JSON.parse(readFileSync(path.join(d, "perfiles.json"), "utf8"));
+      lista = esObjeto(reg) ? reg.cuentas : null;
+    } catch {
+      lista = null;
+    }
+    for (const c of Array.isArray(lista) ? lista : []) {
+      if (!esObjeto(c) || typeof c.id !== "string" || !ID_VIEJO_OK.test(c.id) || vistos.has(c.id)) continue;
+      vistos.add(c.id);
+      const txt = (k: string) => (typeof c[k] === "string" && (c[k] as string).trim() ? (c[k] as string).trim() : null);
+      out.push([c.id, txt("nombre"), txt("email")]);
+    }
+    let sub: string[] = [];
+    try {
+      sub = readdirSync(d).sort();
+    } catch {}
+    for (const n of sub) if (!vistos.has(n) && ID_VIEJO_OK.test(n) && esArchivo(path.join(d, n, ARCHIVOS_PERFIL[0]!))) out.push([n, null, null]);
+    return out;
+  }
+
+  /** Copia src a dst (por un temporal) con permisos sólo del usuario. No toca src. */
+  copiarPrivado(src: string, dst: string) {
+    const tmp = `${dst}.${process.pid}.tmp`;
+    copyFileSync(src, tmp);
+    chmodSync(tmp, 0o600);
+    renameSync(tmp, dst);
+    chmodSync(dst, 0o600);
+  }
+
+  async cmdImportarPerfiles(a: string[]): Promise<number> {
+    let d: string | null = null;
+    let js = false;
+    for (let i = 0; i < a.length; i++) {
+      if (a[i] === "--json") js = true;
+      else if (a[i] === "--dir" && i + 1 < a.length && d === null) d = a[++i]!;
+      else return this.err("uso: cuentas importar-perfiles [--dir D] [--json]"), 2;
+    }
+    d = expandir(d ?? path.join(this.homeReal(), ".local", "state", "hilos", "perfiles_claude"), homeDe(this.env));
+    const importadas: string[] = [];
+    let omitidas = 0;
+    const lineas: string[] = [];
+    if (esDir(d)) {
+      const dir = d;
+      await this.conCandado(() => {
+        const ent = this.leerArchivo();
+        const usados = new Set([...Object.keys(PROVEEDORES), ...ent.map((c) => c.id)]);
+        const actual = this.emailDeClaudeJson(this.homeReal()); // la cuenta de siempre de Claude no se importa dos veces
+        const emails = new Set<string>(actual ? [actual.toLowerCase()] : []);
+        const deAntes = new Set<string>();
+        for (const c of ent) {
+          if (c.proveedor !== "claude") continue;
+          const e = (typeof c.email === "string" ? c.email : null) || this.emailDeClaudeJson(expandir(verdad(c.dir) ? String(c.dir) : this.dirDefault(c.id), homeDe(this.env)));
+          if (e) emails.add(e.toLowerCase());
+          if (typeof c.importada_de === "string") deAntes.add(c.importada_de);
+        }
+        for (const [vid, nombre0, email0] of this.perfilesViejos(dir)) {
+          const src = path.join(dir, vid);
+          if ((lexists(src) && lstatSync(src).isSymbolicLink()) || !esArchivo(path.join(src, ARCHIVOS_PERFIL[0]!))) {
+            omitidas++;
+            lineas.push(`salteada: ${vid} (sin ${ARCHIVOS_PERFIL[0]})`);
+            continue;
+          }
+          const email = email0 ?? this.emailDeClaudeJson(src);
+          if (deAntes.has(vid) || (email && emails.has(email.toLowerCase()))) {
+            omitidas++;
+            lineas.push(`ya estaba: ${nombre0 || email || vid}`);
+            continue;
+          }
+          const nombre = nombre0 || email || vid;
+          const base = Cuentas.slug(nombre);
+          let cid = base;
+          for (let n = 2; usados.has(cid); n++) cid = `${base}-${n}`;
+          const destino = this.dirDefault(cid);
+          try {
+            mkdirSync(destino, { recursive: true, mode: 0o700 });
+            for (const f of ARCHIVOS_PERFIL) if (esArchivo(path.join(src, f))) this.copiarPrivado(path.join(src, f), path.join(destino, f));
+          } catch (e) {
+            this.err(`no pude copiar el perfil ${vid}: ${(e as NodeJS.ErrnoException).message}`);
+            omitidas++;
+            continue;
+          }
+          ent.push({ id: cid, proveedor: "claude", nombre, ...(email ? { email } : {}), importada_de: vid });
+          usados.add(cid);
+          if (email) emails.add(email.toLowerCase());
+          this.guardar(ent);
+          this.asegurarLinks(this.buscar(cid)!);
+          importadas.push(cid);
+          lineas.push(`importada: ${cid} (${nombre})`);
+        }
+      });
+    } else lineas.push(`no hay perfiles viejos en ${d}`);
+    if (js) {
+      this.print(jsonPy({ importadas: importadas.length, omitidas, cuentas: importadas }));
+      return 0;
+    }
+    for (const l of lineas) this.print(l);
+    this.print(`importadas: ${importadas.length}`);
+    return 0;
+  }
+
   async cmdRenombrar(a: string[]): Promise<number> {
     if (a.length !== 2 || !a[1]!.trim()) return this.err('uso: cuentas renombrar ID "Nombre"'), 2;
     const [cid, nombre] = a as [string, string];
@@ -538,6 +662,7 @@ export async function main(argv: string[], env: Env = process.env, io: Io = porD
     case "ver": return c.cmdVer(resto);
     case "listar": return c.cmdListar(resto);
     case "plan": return c.cmdPlan(resto);
+    case "importar-perfiles": return c.cmdImportarPerfiles(resto);
     default:
       io.out(AYUDA_CUENTAS);
       return 2;

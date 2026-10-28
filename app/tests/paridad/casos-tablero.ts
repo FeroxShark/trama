@@ -299,6 +299,38 @@ const cu = (nombre: string, pasos: Paso[], preparar?: Caso["preparar"], sinOpenc
   env: entornoCuentas,
 });
 
+/** Una carpeta de perfiles de una Trama vieja (perfiles_claude/): emails y tokens inventados. */
+const TOKEN = (quien: string) => JSON.stringify({ claudeAiOauth: { accessToken: `sk-ant-INVENTADO-${quien}`, refreshToken: `sk-ant-r-INVENTADO-${quien}` } });
+const perfilesViejos = (c: Contexto, dir = path.join(c.home, ".local", "state", "hilos", "perfiles_claude")) => {
+  const perfil = (id: string, email: string | null, creds = true) => {
+    if (creds) escribir(path.join(dir, id, ".credentials.json"), TOKEN(id));
+    if (email) escribir(path.join(dir, id, ".claude.json"), JSON.stringify({ oauthAccount: { emailAddress: email }, otro: 1 }));
+    else escribir(path.join(dir, id, "algo.txt"), "x");
+  };
+  perfil("cuenta_1", "ana@example.com");
+  perfil("cuenta_2", "bruno@example.com");
+  perfil("cuenta_3", "ANA@example.com");
+  perfil("cuenta_4", "sin@example.com", false);
+  perfil("cuenta_5", "casa@example.com");
+  perfil("huerfana", "huerfana@example.com");
+  escribir(path.join(c.home, ".claude.json"), JSON.stringify({ oauthAccount: { emailAddress: "casa@example.com" } }));
+  escribir(
+    path.join(dir, "perfiles.json"),
+    JSON.stringify({
+      version: 1,
+      activa: "cuenta_1",
+      cuentas: [
+        { id: "cuenta_1", email: "ana@example.com", nombre: "ana@example.com", activa: true, creada: 1 },
+        { id: "cuenta_2", email: "bruno@example.com", nombre: "Trabajo", activa: false, creada: 2 },
+        { id: "cuenta_3", email: "ANA@example.com", nombre: "Repetida", activa: false, creada: 3 },
+        { id: "cuenta_4", email: "sin@example.com", nombre: "Sin credenciales", activa: false, creada: 4 },
+        { id: "cuenta_5", email: "casa@example.com", nombre: "Casa", activa: false, creada: 5 },
+        { id: "../afuera", email: "x@example.com", nombre: "Mala id", activa: false, creada: 6 },
+      ],
+    }),
+  );
+};
+
 const casosCuentas: Caso[] = [
   cu("ayuda: -h", [p(["-h"], 0)]),
   cu("ayuda: comando desconocido", [p(["zz"], 2)]),
@@ -419,6 +451,26 @@ const casosCuentas: Caso[] = [
     escribir(path.join(c.home, ".codex", "auth.json"), "{}");
     escribir(path.join(c.estado, "cuentas.json"), JSON.stringify({ version: 1, cuentas: [{ id: "trabajo", proveedor: "claude", nombre: "Trabajo", dir: path.join(c.aux, "trabajo") }, { id: "codex", proveedor: "chatgpt", nombre: "Codex" }] }));
     escribir(path.join(c.aux, "trabajo", ".credentials.json"), "{}");
+  }),
+  cu("importar-perfiles: perfiles de una Trama vieja, sin duplicar en la segunda corrida", [
+    p(["importar-perfiles"], 0),
+    p(["importar-perfiles"], 0),
+    p(["importar-perfiles", "--json"], 0),
+    p(["listar", "--json"], 0),
+    p(["env", "ana-example-com", "--json"], 0),
+  ], (c) => {
+    perfilesViejos(c);
+  }),
+  cu("importar-perfiles: --dir, --json, uso y sin carpeta", [
+    p(["importar-perfiles"], 0),
+    p(["importar-perfiles", "--json"], 0),
+    p((c) => ["importar-perfiles", "--dir", path.join(c.aux, "no-existe"), "--json"], 0),
+    p(["importar-perfiles", "--dir"], 2),
+    p(["importar-perfiles", "--otra"], 2),
+    p((c) => ["importar-perfiles", "--dir", path.join(c.aux, "viejo"), "--json"], 0),
+    p(["listar", "--json"], 0),
+  ], (c) => {
+    perfilesViejos(c, path.join(c.aux, "viejo"));
   }),
 ];
 
