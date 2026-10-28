@@ -1,5 +1,5 @@
 // El panel de consumo (a la derecha): cuánto consumió hoy cada modelo, en líderes y en workers, y
-// cómo va cada sesión que se pide mirar (modelo, contexto, tokens, compactaciones). Todo sale del
+// cómo va cada sesión que se pide mirar (modelo, contexto, tokens, compactaciones, último paso). Todo sale del
 // `usage` de los transcripts (electron/transcripts.ts): exacto, sin estimar nada. Un worker se une
 // con su sesión por `$PA_STATE/<proyecto>/<id>.sid`.
 //
@@ -10,6 +10,7 @@ import { access, readdir, readFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { medianoche, Sesion, sumar, transcriptsDesde, type Suma, type Uso } from "./transcripts.ts";
+import type { Hace } from "./lider-arma.ts";
 import { silencio } from "./log.ts";
 import { mirarCarpeta, type Mirada } from "./mirar.ts";
 
@@ -28,6 +29,8 @@ export type FilaConsumo = {
   /** Compactó y no volvió a contestar: lo que pesa ahora no se sabe. */
   compactada: boolean;
   compactaciones: number;
+  /** Lo último que hizo (una herramienta con lo que hizo, o que pensaba o escribía). `null`: todavía no hizo nada. */
+  ultimo: Hace | null;
   /** Todo lo que consumió la sesión (con sus subagentes), por modelo. */
   total: Record<string, Suma>;
 };
@@ -224,7 +227,7 @@ export function crearConsumo(o: { proyectos: string; paState: string; alCambiar:
       const s = sid ? porSid.get(sid) : undefined;
       if (!s) return null;
       const l = s.principal.lectura;
-      return { modelo: l.modelo, effort: l.effort, uso: l.uso, compactada: l.compactada, compactaciones: l.compactaciones, total: s.total() };
+      return { modelo: l.modelo, effort: l.effort, uso: l.uso, compactada: l.compactada, compactaciones: l.compactaciones, ultimo: l.ultimo, total: s.total() };
     };
     for (const sid of pedido?.lideres ?? []) c.filas[sid] = fila(sid);
     for (const id of pedido?.workers ?? []) c.filas[id] = fila(sidDe.get(id));

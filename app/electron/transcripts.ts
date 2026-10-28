@@ -1,10 +1,12 @@
 // Los números de un transcript de Claude Code (`~/.claude/projects/<carpeta>/<sid>.jsonl`), leídos de a
 // pedazos: cada vez se lee sólo lo que el archivo creció, nunca entero de nuevo. De acá salen **sólo
 // nombres de modelo y números** (el `usage` de cada mensaje, las compactaciones): el texto de los
-// mensajes no se guarda ni sale de este módulo. Sin Electron: lo prueba `tests/transcripts.test.ts`,
-// y es lo que después indexa el registro histórico.
+// mensajes no se guarda ni sale de este módulo, salvo el último paso de la conversación principal (`ultimo`: una
+// herramienta con lo que hizo, o que pensaba o escribía; nunca el texto). Sin Electron: lo prueba
+// `tests/transcripts.test.ts`, y es lo que después indexa el registro histórico.
 import { lstat, open, readdir, stat } from "node:fs/promises";
 import path from "node:path";
+import { detalleHace, type Hace } from "./lider-arma.ts";
 import { silencio } from "./log.ts";
 
 /** Los tokens de un modelo, por clase. Todo exacto: es la suma del `usage` de cada mensaje. */
@@ -25,6 +27,8 @@ export type Lectura = {
   compactaciones: number;
   /** Compactó después del último mensaje: lo que pesa ahora no se sabe hasta que conteste. */
   compactada: boolean;
+  /** Lo último que hizo la conversación principal (no un subagente). `null`: todavía no hizo nada. */
+  ultimo: Hace | null;
 };
 
 export const sumaVacia = (): Suma => ({ entrada: 0, cacheCreado: 0, cacheLeido: 0, salida: 0 });
@@ -79,7 +83,7 @@ export class Lector {
   desde: number;
   /** Un subagente: suma tokens, pero no dice cuánto pesa la conversación ni si compactó. */
   subagente: boolean;
-  lectura: Lectura = { total: {}, reciente: {}, modelo: null, effort: null, uso: null, compactaciones: 0, compactada: false };
+  lectura: Lectura = { total: {}, reciente: {}, modelo: null, effort: null, uso: null, compactaciones: 0, compactada: false, ultimo: null };
   private leido = 0;
   private vistos = new Map<string, Visto>();
 
@@ -92,7 +96,7 @@ export class Lector {
   private reiniciar(): void {
     this.leido = 0;
     this.vistos.clear();
-    this.lectura = { total: {}, reciente: {}, modelo: null, effort: null, uso: null, compactaciones: 0, compactada: false };
+    this.lectura = { total: {}, reciente: {}, modelo: null, effort: null, uso: null, compactaciones: 0, compactada: false, ultimo: null };
   }
 
   /** Lee lo que creció. `true` si cambió algún número. */
@@ -182,9 +186,28 @@ export class Lector {
       this.lectura.uso = uso;
       this.lectura.compactada = false;
       if (typeof d.effort === "string" && d.effort) this.lectura.effort = d.effort;
+      const paso = pasoDe(m.content);
+      if (paso) this.lectura.ultimo = paso;
     }
     return true;
   }
+}
+
+/**
+ * Lo que hace un mensaje del asistente: su último bloque (una línea por bloque, así que es el paso). Una herramienta
+ * dice lo mismo que la tarjeta del líder (`detalleHace`); pensar y escribir no llevan texto. `null`: otro bloque.
+ */
+export function pasoDe(contenido: unknown): Hace | null {
+  const bloques = Array.isArray(contenido) ? contenido : [];
+  const b = bloques[bloques.length - 1] as Record<string, unknown> | undefined;
+  if (!b || typeof b !== "object") return null;
+  if (b.type === "tool_use") {
+    const nombre = typeof b.name === "string" && b.name ? b.name : "?";
+    return { que: "herramienta", nombre, ...detalleHace(nombre, b.input) };
+  }
+  if (b.type === "thinking") return { que: "pensando", nombre: null, detalle: null };
+  if (b.type === "text") return { que: "escribiendo", nombre: null, detalle: null };
+  return null;
 }
 
 /**

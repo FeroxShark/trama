@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { appendFileSync, mkdirSync, mkdtempSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { Lector, Sesion, medianoche, totalDe, transcriptsDesde } from "../electron/transcripts.ts";
+import { Lector, Sesion, medianoche, pasoDe, totalDe, transcriptsDesde } from "../electron/transcripts.ts";
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "hilos-transcripts-"));
 const HOY = Date.parse("2026-03-10T12:00:00Z");
@@ -108,7 +108,7 @@ test("lo que no se entiende se saltea", async () => {
   );
   const l = new Lector(ruta, 0);
   assert.equal(await l.leer(), false);
-  assert.deepEqual(l.lectura, { total: {}, reciente: {}, modelo: null, effort: null, uso: null, compactaciones: 0, compactada: false });
+  assert.deepEqual(l.lectura, { total: {}, reciente: {}, modelo: null, effort: null, uso: null, compactaciones: 0, compactada: false, ultimo: null });
   assert.equal(await new Lector(path.join(tmp, "no-existe.jsonl"), 0).leer(), false);
 });
 
@@ -150,4 +150,25 @@ test("la medianoche local", () => {
   const m = new Date(medianoche(HOY));
   assert.deepEqual([m.getHours(), m.getMinutes(), m.getSeconds(), m.getMilliseconds()], [0, 0, 0, 0]);
   assert.ok(HOY - m.getTime() < 86_400_000 && HOY >= m.getTime());
+});
+
+test("el último paso: una herramienta con lo que hizo, o pensar y escribir (sin texto); un subagente no lo cambia", async () => {
+  const ruta = path.join(tmp, "paso.jsonl");
+  // Una línea por bloque, como escribe Claude Code: el último bloque es el paso.
+  const bloque = (b: object, mas: object = {}) =>
+    JSON.stringify({ type: "assistant", timestamp: hora(HOY), message: { id: `b${Math.random()}`, model: "claude-opus-5-5", usage: uso([1, 2, 3, 4]), content: [b] }, ...mas }) + "\n";
+  writeFileSync(ruta, bloque({ type: "thinking", thinking: "inventado" }) + bloque({ type: "tool_use", id: "t1", name: "Bash", input: { command: "git status" } }));
+  const l = new Lector(ruta, 0);
+  await l.leer();
+  assert.equal(l.lectura.ultimo?.que, "herramienta");
+  assert.equal(l.lectura.ultimo?.nombre, "Bash");
+  assert.ok(l.lectura.ultimo?.detalle?.includes("git status"));
+  appendFileSync(ruta, bloque({ type: "text", text: "de un subagente" }, { isSidechain: true }));
+  await l.leer();
+  assert.equal(l.lectura.ultimo?.nombre, "Bash");
+  appendFileSync(ruta, bloque({ type: "text", text: "hola" }));
+  await l.leer();
+  assert.deepEqual(l.lectura.ultimo, { que: "escribiendo", nombre: null, detalle: null });
+  assert.deepEqual(pasoDe([{ type: "thinking", thinking: "x" }]), { que: "pensando", nombre: null, detalle: null });
+  assert.equal(pasoDe([{ type: "redacted_thinking" }]), null);
 });

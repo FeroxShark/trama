@@ -2,6 +2,7 @@
 // y las cuentas del panel. Puro: lo prueba `tests/consumo-panel.test.ts`. Todo número viene del
 // `usage` de un transcript; lo que no llegó es `null` ("sin dato"), nunca un cero puesto a mano.
 import type { Consumo, FilaConsumo, Pedido } from "../../electron/consumo";
+import type { Hace } from "../../electron/lider-arma";
 import type { Suma } from "../../electron/transcripts";
 import { nivel, usados, ventanaDe, type Nivel } from "../hilo/contexto-logica";
 import { total } from "./tokens";
@@ -22,6 +23,15 @@ function porModelo(x: unknown): Record<string, Suma> {
   return r;
 }
 
+/** El último paso de una fila, con forma (el mismo espejo que `HaceLider`): lo que no encaja queda `null`. */
+function pasoDeFila(x: unknown): Hace | null {
+  if (!x || typeof x !== "object") return null;
+  const p = x as Record<string, unknown>;
+  if (p.que === "herramienta") return typeof p.nombre === "string" && p.nombre ? { que: "herramienta", nombre: p.nombre, detalle: texto(p.detalle) } : null;
+  if (p.que === "pensando" || p.que === "escribiendo" || p.que === "pidiendo" || p.que === "compactando") return { que: p.que, nombre: null, detalle: null };
+  return null;
+}
+
 function filaDe(x: unknown): FilaConsumo | null {
   if (!x || typeof x !== "object") return null;
   const f = x as Record<string, unknown>;
@@ -39,6 +49,7 @@ function filaDe(x: unknown): FilaConsumo | null {
       : null,
     compactada: f.compactada === true,
     compactaciones: num(f.compactaciones),
+    ultimo: pasoDeFila(f.ultimo),
     total: porModelo(f.total),
   };
 }
@@ -120,9 +131,19 @@ function filaFija(id: string, i: number): FilaConsumo | null {
     uso,
     compactada: false,
     compactaciones: s % 7 === 0 ? 1 + (s % 2) : 0,
+    ultimo: ULTIMOS[s % ULTIMOS.length],
     total: { [modelo]: { entrada: uso.input_tokens * vueltas, cacheCreado: uso.cache_creation_input_tokens * 9, cacheLeido: Math.round(leido * vueltas * 0.6), salida: uso.output_tokens * vueltas } },
   };
 }
+
+/** Último paso inventado (rutas y comandos de ejemplo): las capturas lo muestran sin datos reales. */
+const ULTIMOS: Hace[] = [
+  { que: "herramienta", nombre: "Bash", detalle: "npm test" },
+  { que: "herramienta", nombre: "Edit", detalle: "src/ejemplo.ts" },
+  { que: "pensando", nombre: null, detalle: null },
+  { que: "herramienta", nombre: "Grep", detalle: "TODO", extra: "src" },
+  { que: "escribiendo", nombre: null, detalle: null },
+];
 
 let ordenFijo = 0;
 
