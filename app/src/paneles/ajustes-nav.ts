@@ -207,7 +207,7 @@ export function inicial(cat: CatId) {
 export function deVariante(v: string | null | undefined): CatId | null {
   if (!v) return null;
   if (v.startsWith("cuentas")) return "cuentas";
-  if (v.startsWith("carcasa")) return "actualizaciones";
+  if (v.startsWith("carcasa") || v === "trama-al-dia" || v === "trama-nueva") return "actualizaciones";
   if (v === "mdl-agregar" || v === "mdl-bajando" || v === "mdl-sinollama" || v === "mdl-apagado" || v === "mdl-sugeridos") return "locales";
   if (v === "mdl-tope" || v.startsWith("cupos") || v === "editando" || v === "editando-mal") return "cupos";
   if (v === "celular") return "celular";
