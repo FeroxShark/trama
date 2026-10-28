@@ -124,3 +124,20 @@ export const resumenLote = (pasos: readonly PasoLote[]) => ({
   mal: pasos.filter((p) => p.fase === "error").length,
   faltan: pasos.filter((p) => p.fase === "espera" || p.fase === "curso").length,
 });
+
+/** Qué líder analizó cada rama (rama → id de sesión del analista), para el enlace "Ver el análisis". */
+export type Analisis = Readonly<Record<string, string>>;
+
+/** Lo guardado en el navegador, leído con cuidado: algo roto o de otra forma cuenta como vacío. */
+export function leerAnalisis(crudo: string | null): Analisis {
+  try {
+    const v: unknown = JSON.parse(crudo ?? "{}");
+    if (!v || typeof v !== "object" || Array.isArray(v)) return {};
+    return Object.fromEntries(Object.entries(v).filter((e): e is [string, string] => typeof e[1] === "string"));
+  } catch {
+    return {};
+  }
+}
+
+/** El enlace sólo vale si el analista que hizo el análisis de esa rama sigue abierto: uno cerrado no tiene conversación a la que volver. */
+export const analisisVigente = (a: Analisis, id: string, sidAnalista: string | undefined): boolean => !!sidAnalista && a[id] === sidAnalista;

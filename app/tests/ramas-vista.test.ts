@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { conCuenta, cuentas, filtroVigente, pasa } from "../src/paneles/ramas-vista.ts";
+import { analisisVigente, conCuenta, cuentas, filtroVigente, leerAnalisis, pasa } from "../src/paneles/ramas-vista.ts";
 import type { Juicio } from "../src/datos/analista.ts";
 
 const j = (id: string, veredicto: Juicio["veredicto"]): [string, Juicio] => [id, { id, veredicto, motivo: "" }];
@@ -83,4 +83,20 @@ test("el prompt de AGENTS.md lleva la plantilla y la ruta; la medida de leccione
   assert.deepEqual(medidaLecciones("a\nb\n"), { lineas: 2, cars: 4, pasa: false });
   assert.equal(medidaLecciones("x\n".repeat(31)).pasa, true);
   assert.equal(medidaLecciones("x".repeat(3001)).pasa, true);
+});
+
+test("leerAnalisis: lo guardado sale tal cual; lo roto o de otra forma cuenta como vacío", () => {
+  assert.deepEqual(leerAnalisis('{"a":"s1","b":"s1"}'), { a: "s1", b: "s1" });
+  assert.deepEqual(leerAnalisis('{"a":"s1","b":3,"c":null}'), { a: "s1" });
+  assert.deepEqual(leerAnalisis(null), {});
+  assert.deepEqual(leerAnalisis("no es json"), {});
+  assert.deepEqual(leerAnalisis("[1,2]"), {});
+});
+
+test("analisisVigente: el enlace vale sólo si su analista sigue abierto", () => {
+  const a = { a: "s1", b: "s0" };
+  assert.equal(analisisVigente(a, "a", "s1"), true);
+  assert.equal(analisisVigente(a, "b", "s1"), false, "rama de un análisis anterior");
+  assert.equal(analisisVigente(a, "c", "s1"), false, "rama sin analizar");
+  assert.equal(analisisVigente(a, "a", undefined), false, "sin analista abierto");
 });
