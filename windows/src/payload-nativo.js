@@ -52,6 +52,8 @@ const INVOCA_BASH = [
   [/\b(?:spawn|spawnSync|execFile|execFileSync|exec|execSync)\(\s*["'`](?:\/(?:usr\/)?bin\/)?(?:ba)?sh(?:\.exe)?["'`]/, "lanza bash/sh"],
   [/\bbash\.exe\b/i, "busca bash.exe"],
   [/\bwsl(?:\.exe)?["'`]?\s*[,(]?\s*\[?\s*["'`]?(?:-d|-e|--exec|--distribution)\b/i, "llama a wsl"],
+  [/["'`](?:\/bin\/)?(?:ba)?sh["'`]\s*,\s*["'`]-l?c["'`]/, "arma un `sh -c`"],
+  [/\[\s*["'`](?:ba)?sh["'`]\s*,\s*\[/, "elige bash como programa"],
   [/^\s*(?:call\s+)?(?:ba)?sh(?:\.exe)?\s/im, "un .cmd que corre bash"],
 ];
 
@@ -63,6 +65,18 @@ const EXCEPCIONES = [
   {
     archivo: "app/dist-electron/procesos.js",
     motivo: "busca el bash.exe de Git para Windows; la etapa 14 del port (ramas win32 de la app) lo saca",
+  },
+  {
+    archivo: "app/dist-electron/actualizador.js",
+    motivo: "la terminal de Linux corre la actualización con `sh -c`; la etapa 14 (terminal en win32: wt / cmd start) la cambia",
+  },
+  {
+    archivo: "app/hooks/docker-guard.mjs",
+    motivo: "no lanza nada: `/bin/sh -c` es el CMD por defecto de Docker, que la guardia reproduce para leer un Dockerfile",
+  },
+  {
+    archivo: "app/hooks/agy-pa.mjs",
+    motivo: "corre con bash sólo una guardia .sh; en Windows el plugin de agy apunta a las .mjs (hooksJsonAgy de cli/hooks.ts)",
   },
 ];
 
