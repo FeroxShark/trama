@@ -335,18 +335,25 @@ export function crearActualizacionTrama(deps: Deps = {}) {
   }
 
   /**
-   * El estado de Actualizar. Un "instalando" que dejó un motor anterior (el instalador lo reinició) se cierra acá: si el
-   * instalador ya no corre, su salida dice si quedó (`AVISO app…` = no) y la ventana avisa "instalada" o el motivo.
+   * El estado de Actualizar. Un "instalando" que dejó un motor anterior (el instalador lo reinició) se cierra acá, mire lo
+   * que mire la memoria o el disco (`cargarAct`): con el pid muerto, si es de una versión anterior a la instalada se descarta
+   * sin avisar (es un estado viejo); si no, la salida del instalador dice si quedó (`AVISO app…` = no) y la ventana avisa
+   * "instalada" o el motivo. Con el instalador vivo no se toca.
    */
   async function estadoActual(): Promise<EstadoAct> {
     const e = await cargarAct();
     if (e.fase === "instalando" && !actualizando && !(e.pid && vivo(e.pid))) {
-      let salida = "";
-      try {
-        salida = await readFile(registro, "utf8");
-      } catch {}
-      const falla = falloDelInstalador(salida);
-      await poner(falla ? { fase: "error", error: falla } : e.pid ? { fase: "hecho", version: e.version } : { fase: "error", error: textoT("main.tramaInterrumpida") });
+      const instalada = normal(instaladaDe());
+      if (instalada && comparar(e.version, instalada) < 0) {
+        await poner({ fase: "nada" });
+      } else {
+        let salida = "";
+        try {
+          salida = await readFile(registro, "utf8");
+        } catch {}
+        const falla = falloDelInstalador(salida);
+        await poner(falla ? { fase: "error", error: falla } : e.pid ? { fase: "hecho", version: e.version } : { fase: "error", error: textoT("main.tramaInterrumpida") });
+      }
     }
     return publico(act ?? e);
   }

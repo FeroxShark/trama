@@ -496,6 +496,27 @@ test("motor nuevo: una espera que dejó el anterior sigue esperando y actualiza 
   assert.equal(instalador(x).length, 1);
 });
 
+test("el caso exacto: 'instalando' 0.2.10 (pid muerto) en memoria desde que el motor arrancó con el instalador vivo: se descarta, instalada 0.2.15", async () => {
+  let vivo = true;
+  const archivo = conArchivos({ fase: "instalando", version: "0.2.10", pid: 2906155 }, "ok  motor\nlisto.\n");
+  const x = armar({ instalada: "0.2.15", archivo, vivo: (pid) => vivo && pid === 2906155 });
+  assert.deepEqual(await x.act.estadoActual(), { fase: "instalando", version: "0.2.10" }, "con el instalador vivo no se toca");
+  vivo = false;
+  assert.deepEqual(await x.act.estadoActual(), { fase: "nada" });
+  // Lo descartado se guarda: otro motor que lee el mismo archivo tampoco lo levanta.
+  const y = armar({ instalada: "0.2.15", archivo, vivo: () => false });
+  assert.deepEqual(await y.act.estadoActual(), { fase: "nada" });
+});
+
+test("'instalando' en memoria con el pid muerto: si la versión es más nueva que la instalada, cierra en 'hecho' (no sólo lo del disco)", async () => {
+  let vivo = true;
+  const archivo = conArchivos({ fase: "instalando", version: "0.2.16", pid: 7 }, "ok  motor\nlisto.\n");
+  const x = armar({ instalada: "0.2.15", archivo, vivo: (pid) => vivo && pid === 7 });
+  assert.deepEqual(await x.act.estadoActual(), { fase: "instalando", version: "0.2.16" });
+  vivo = false;
+  assert.deepEqual(await x.act.estadoActual(), { fase: "hecho", version: "0.2.16" });
+});
+
 test("un archivo de estado roto o raro vale como 'nada'", async () => {
   for (const crudo of ["no es json", JSON.stringify({ fase: "instalando" }), JSON.stringify({ fase: "volando", version: "1.0.0" })]) {
     const dir = mkdtempSync(path.join(tmp, "raro-"));
