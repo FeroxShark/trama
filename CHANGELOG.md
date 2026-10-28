@@ -1,5 +1,12 @@
 # Cambios
 
+## 0.2.14
+
+- Windows nativo: `pa`, `reparto`, `tablero` y `cuentas` se lanzan bien (conversaciones que no se guardaban, Plan y cupos sin datos).
+- Windows nativo: sin barra de título; el contenido ocupa toda la ventana y los botones flotan arriba a la derecha.
+- Windows nativo: la versión sale de la app (no más 0.1.3), se llama Trama y no Electron, y cada release trae lo que necesita "Buscar actualizaciones".
+- Windows nativo: Handy se detecta donde lo instala su instalador; actualizar Antigravity usa `agy update`.
+
 ## 0.2.13
 
 - Windows nativo (beta, sin WSL): instalador .exe en esta release. Al instalar trae solas las cuentas de Claude de una Trama anterior (copia sus logins, no toca los originales).
