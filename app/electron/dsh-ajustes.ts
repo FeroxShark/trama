@@ -4,10 +4,9 @@
 import { execFile } from "node:child_process";
 import { accessSync, constants } from "node:fs";
 import os from "node:os";
-import path from "node:path";
-import { paraLanzar, resolverNpm } from "./binario.ts";
+import { carpetasNpm, clavePath, paraLanzar, resolverNpm } from "./binario.ts";
 import { hayClaves, leerClaves, type NombreClave } from "./claves.ts";
-import { PROVEEDORES, resolverDsh, type ProveedorDsh } from "./dsh.ts";
+import { PROVEEDORES, prefijoDsh, resolverDsh, type ProveedorDsh } from "./dsh.ts";
 import { errorT, textoT } from "./errores.ts";
 import { sondearOllama } from "./modelos-config.ts";
 import { URL_OLLAMA } from "./modelos-tipos.ts";
@@ -19,7 +18,14 @@ export const PAQUETE_DSH = "@deepseek-ai/dsh";
 // En ~/.local (como el instalador del producto): sin sudo y con el binario en ~/.local/bin, que ya se busca.
 // npm nuevo bloquea los scripts de instalación fuera de allowScripts: sin los de dsh-subprocess-local y node-pty dsh no corre comandos.
 export const SCRIPTS_DSH = "--allow-scripts=@deepseek-ai/dsh-subprocess-local,koffi,node-pty,@google/genai,protobufjs";
-export const COMANDO_INSTALAR_DSH = `npm i -g --prefix ~/.local ${SCRIPTS_DSH} ${PAQUETE_DSH}`;
+/**
+ * El comando que se muestra (y se copia) para instalar dsh. Linux: `~/.local` (la shell lo expande). Windows: la ruta real de la casa
+ * (cmd y PowerShell no expanden `~`), entre comillas si tiene espacios.
+ */
+export const comandoInstalarDsh = (home: string = os.homedir(), plat: Plataforma = plataformaActual()): string => {
+  const prefijo = plat === "win32" ? prefijoDsh(home, plat) : "~/.local";
+  return `npm i -g --prefix ${/\s/.test(prefijo) ? `"${prefijo}"` : prefijo} ${SCRIPTS_DSH} ${PAQUETE_DSH}`;
+};
 
 export const URL_MODELOS: Record<Exclude<ProveedorDsh, "ollama">, string> = {
   opencode: "https://opencode.ai/inference/v1/models",
@@ -55,11 +61,17 @@ const ejecutable = (f: string) => {
   }
 };
 
-/** Abierta desde el menú de apps la sesión gráfica puede no traer `~/.local/bin` ni `~/.npm-global/bin` en el PATH (como actualizador.ts). */
-function entornoNpm(): NodeJS.ProcessEnv {
-  const extra = [path.join(os.homedir(), ".local", "bin"), path.join(os.homedir(), ".npm-global", "bin")];
-  const resto = (process.env.PATH ?? "").split(path.delimiter).filter((d) => d && !extra.includes(d));
-  return { ...process.env, PATH: [...extra, ...resto].join(path.delimiter) };
+/**
+ * Abierta desde el menú de apps la sesión gráfica puede no traer `~/.local/bin` ni `~/.npm-global/bin` en el PATH (como actualizador.ts).
+ * En Windows: la raíz del prefijo de la instalación (`~\.local`) y la carpeta global de npm (`%APPDATA%\npm`); la clave del PATH es `Path`.
+ */
+function entornoNpm(plat: Plataforma = plataformaActual()): NodeJS.ProcessEnv {
+  const c = caminoDe(plat);
+  const home = os.homedir();
+  const extra = plat === "win32" ? [prefijoDsh(home, plat), ...carpetasNpm(process.env, home, plat)] : [c.join(home, ".local", "bin"), c.join(home, ".npm-global", "bin")];
+  const k = clavePath(process.env, plat);
+  const resto = (process.env[k] ?? "").split(delimitadorDe(plat)).filter((d) => d && !extra.includes(d));
+  return { ...process.env, [k]: [...extra, ...resto].join(delimitadorDe(plat)) };
 }
 
 const depsDeVerdad = (): Deps => ({
@@ -76,7 +88,7 @@ const depsDeVerdad = (): Deps => ({
 
 /** ¿Hay `nombre` en el PATH? En Windows los de npm son `<nombre>.cmd`. */
 const hayBin = (nombre: string, d: Deps, plat: Plataforma = plataformaActual()) =>
-  (d.env.PATH ?? "").split(delimitadorDe(plat)).some((dir) => dir && (plat === "win32" ? [".cmd", ".exe", ""] : [""]).some((ext) => d.existe(caminoDe(plat).join(dir, nombre + ext))));
+  (d.env[clavePath(d.env, plat)] ?? "").split(delimitadorDe(plat)).some((dir) => dir && (plat === "win32" ? [".cmd", ".exe", ""] : [""]).some((ext) => d.existe(caminoDe(plat).join(dir, nombre + ext))));
 
 /** El estado de DeepSeek Harness en esta máquina: se mira cada vez que se pide (instalarlo después lo activa sin reiniciar). */
 export async function estadoDsh(d: Deps = depsDeVerdad(), claves?: Partial<Record<NombreClave, string>>): Promise<EstadoDsh> {
@@ -84,20 +96,20 @@ export async function estadoDsh(d: Deps = depsDeVerdad(), claves?: Partial<Recor
   const instalado = d.env.HILOS_DSH !== undefined ? !!d.env.HILOS_DSH && d.existe(d.env.HILOS_DSH) : bin !== "dsh";
   let versionDsh: string | null = null;
   if (instalado) versionDsh = normal(await d.correr(bin, ["--version"], 5000).catch(() => "")) ?? null;
-  return { version: 1, instalado, versionDsh, hayNpm: hayBin("npm", d), comando: COMANDO_INSTALAR_DSH, claves: hayClaves(claves ?? (await leerClaves()), d.env) };
+  return { version: 1, instalado, versionDsh, hayNpm: hayBin("npm", d), comando: comandoInstalarDsh(d.home), claves: hayClaves(claves ?? (await leerClaves()), d.env) };
 }
 
 /** Las últimas líneas de lo que dijo npm al fallar, sin ruido (para mostrarlas). */
 const cola = (s: string) => s.trim().split("\n").slice(-4).join("\n").slice(-400);
 
-/** `npm i -g --prefix ~/.local @deepseek-ai/dsh`; tira con el motivo (sin npm, sin permiso para el prefijo global, sin red). Devuelve cómo quedó. */
+/** `npm i -g --prefix <casa>/.local @deepseek-ai/dsh`; tira con el motivo (sin npm, sin permiso para el prefijo global, sin red). Devuelve cómo quedó. */
 export async function instalarDsh(d: Deps = depsDeVerdad()): Promise<EstadoDsh> {
-  if (!hayBin("npm", d)) throw errorT("main.dshSinNpm", { cmd: COMANDO_INSTALAR_DSH });
+  if (!hayBin("npm", d)) throw errorT("main.dshSinNpm", { cmd: comandoInstalarDsh(d.home) });
   try {
-    await d.correr("npm", ["install", "-g", "--prefix", path.join(os.homedir(), ".local"), SCRIPTS_DSH, PAQUETE_DSH], 5 * 60 * 1000);
+    await d.correr("npm", ["install", "-g", "--prefix", prefijoDsh(d.home), SCRIPTS_DSH, PAQUETE_DSH], 5 * 60 * 1000);
   } catch (e) {
     const dijo = cola(String((e as { stderr?: string }).stderr || (e as Error).message));
-    throw errorT("main.dshInstalarFallo", { cmd: COMANDO_INSTALAR_DSH, e: dijo });
+    throw errorT("main.dshInstalarFallo", { cmd: comandoInstalarDsh(d.home), e: dijo });
   }
   return estadoDsh(d);
 }

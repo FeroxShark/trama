@@ -8,7 +8,7 @@ import http from "node:http";
 import type { AddressInfo } from "node:net";
 import os from "node:os";
 import path from "node:path";
-import { COMANDO_INSTALAR_DSH, SCRIPTS_DSH, estadoDsh, instalarDsh, probarProveedor } from "../electron/dsh-ajustes.ts";
+import { comandoInstalarDsh, SCRIPTS_DSH, estadoDsh, instalarDsh, probarProveedor } from "../electron/dsh-ajustes.ts";
 import { hayDsh } from "../electron/capacidades.ts";
 import { guardarClave } from "../electron/claves.ts";
 
@@ -25,7 +25,7 @@ const enEs = async (p: Promise<unknown>) => p.then(() => null, (e: Error) => e.m
 
 test("estado: sin dsh no está instalado; con dsh sale su versión; las keys sólo dicen si hay", { skip: soloPosix("dsh y npm falsos por shebang") }, async () => {
   const sin = await estadoDsh(deps([]), {});
-  assert.deepEqual(sin, { version: 1, instalado: false, versionDsh: null, hayNpm: false, comando: COMANDO_INSTALAR_DSH, claves: { OPENCODE_API_KEY: false, DEEPSEEK_API_KEY: false, ARTIFICIAL_ANALYSIS_API_KEY: false, NVIDIA_API_KEY: false } });
+  assert.deepEqual(sin, { version: 1, instalado: false, versionDsh: null, hayNpm: false, comando: comandoInstalarDsh("/h"), claves: { OPENCODE_API_KEY: false, DEEPSEEK_API_KEY: false, ARTIFICIAL_ANALYSIS_API_KEY: false, NVIDIA_API_KEY: false } });
   const con = await estadoDsh(deps(["/b/dsh", "/a/npm"]), { OPENCODE_API_KEY: "oc-secreta" });
   assert.equal(con.instalado, true);
   assert.equal(con.versionDsh, "0.2.1");
@@ -58,16 +58,16 @@ test("instalar: corre `npm install -g --prefix ~/.local @deepseek-ai/dsh` y devu
   });
   d.existe = (f) => f === "/a/npm" || (instalado && f === "/b/dsh");
   const e = await instalarDsh(d);
-  assert.deepEqual(llamadas[0], ["npm", "install", "-g", "--prefix", path.join(os.homedir(), ".local"), SCRIPTS_DSH, "@deepseek-ai/dsh"]);
+  assert.deepEqual(llamadas[0], ["npm", "install", "-g", "--prefix", path.join("/h", ".local"), SCRIPTS_DSH, "@deepseek-ai/dsh"]);
   assert.equal(e.instalado, true);
   assert.equal(e.versionDsh, "0.3.0");
 
   const m1 = await enEs(instalarDsh(deps([])));
   assert.match(m1!, /main\.dshSinNpm/);
-  assert.ok(m1!.includes(COMANDO_INSTALAR_DSH));
+  assert.ok(m1!.includes(comandoInstalarDsh("/h")));
   const m2 = await enEs(instalarDsh(deps(["/a/npm"], async () => { throw Object.assign(new Error("Command failed"), { stderr: "npm error code EACCES\nnpm error path /usr/lib/node_modules\n" }); })));
   assert.match(m2!, /main\.dshInstalarFallo/);
-  assert.ok(m2!.includes("EACCES") && m2!.includes(COMANDO_INSTALAR_DSH));
+  assert.ok(m2!.includes("EACCES") && m2!.includes(comandoInstalarDsh("/h")));
 });
 
 /** Un `/models` de mentira: cuenta qué Authorization llegó. */

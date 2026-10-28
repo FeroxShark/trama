@@ -5,12 +5,14 @@
  * (arrancarServidorLocal).
  */
 import { execFile } from 'node:child_process';
+import { accessSync, constants } from 'node:fs';
 import { readdir, readFile, stat } from 'node:fs/promises';
 import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
-import { COMANDO_INSTALAR_DSH } from './dsh-ajustes.ts';
+import { comandoInstalarDsh } from './dsh-ajustes.ts';
 import { resolverDsh } from './dsh.ts';
+import { paraLanzar } from './binario.ts';
 import { type Plataforma, plataformaActual } from './rutas.ts';
 import { COMANDO_INSTALAR_OPENCODE, hayOpencode } from './opencode.ts';
 import { leerEntornoOllama } from './ollama-entorno.ts';
@@ -72,6 +74,8 @@ export type DepsDeteccion = {
   home: string;
   env: NodeJS.ProcessEnv;
   ejecutar: (bin: string, args: string[], o: { timeout: number }) => Promise<string>;
+  /** ¿Hay un ejecutable en esa ruta? (inyectable para probar Windows con un disco falso). Sin él, el del disco real. */
+  existe?: (f: string) => boolean;
   leer: (archivo: string) => Promise<string | null>;
   listarDir: (dir: string) => Promise<string[]>;
   stat: (archivo: string) => Promise<{ size: number; isDirectory: boolean } | null>;
@@ -106,7 +110,9 @@ export function depsDeteccionDeVerdad(env: NodeJS.ProcessEnv = process.env): Dep
     env,
     ejecutar: (bin, args, o) =>
       new Promise((ok, mal) => {
-        execFile(bin, args, { timeout: o.timeout, killSignal: 'SIGKILL', maxBuffer: 4 * 1024 * 1024 }, (e, stdout) =>
+        // `paraLanzar`: un `.cmd` de npm (dsh en Windows) no se lanza directo (EINVAL); el resto queda igual.
+        const l = paraLanzar(bin, args);
+        execFile(l.file, l.args, { timeout: o.timeout, killSignal: 'SIGKILL', maxBuffer: 4 * 1024 * 1024, windowsVerbatimArguments: l.verbatim }, (e, stdout) =>
           e ? mal(e) : ok(String(stdout)),
         );
       }),
@@ -433,24 +439,25 @@ export async function detectarArchivosGguf(
 export async function detectarArneses(d: DepsDeteccion, plat: Plataforma = plataformaActual()): Promise<ArnesLocal[]> {
   const arneses: ArnesLocal[] = [];
 
-  let dshInstalado = false;
+  // `resolverDsh` devuelve `dsh` pelado si no lo encuentra: eso no es instalado. `HILOS_DSH` manda si está (como `hayDsh`).
+  const existe = d.existe ?? ((f: string) => { try { accessSync(f, constants.X_OK); return true; } catch { return false; } });
+  const rutaDsh = resolverDsh(d.env, d.home, existe, plat);
+  const dshInstalado = d.env.HILOS_DSH !== undefined ? !!d.env.HILOS_DSH && existe(d.env.HILOS_DSH) : rutaDsh !== 'dsh';
   let dshVersion: string | null = null;
-  try {
-    const rutaDsh = resolverDsh(d.env, d.home);
-    dshInstalado = Boolean(rutaDsh);
-    if (dshInstalado) {
-      const v = await d.ejecutar(rutaDsh, ['--version'], { timeout: 1500 });
-      dshVersion = v.trim() || null;
+  if (dshInstalado) {
+    // Instalado aunque no diga la versión (igual que `estadoDsh`).
+    try {
+      dshVersion = (await d.ejecutar(rutaDsh, ['--version'], { timeout: 1500 })).trim() || null;
+    } catch {
+      dshVersion = null;
     }
-  } catch {
-    dshInstalado = false;
   }
   arneses.push({
     id: 'dsh',
     nombre: 'DeepSeek Harness (dsh)',
     instalado: dshInstalado,
     version: dshVersion,
-    comando: COMANDO_INSTALAR_DSH,
+    comando: comandoInstalarDsh(d.home, plat),
   });
 
   let ocInstalado = false;

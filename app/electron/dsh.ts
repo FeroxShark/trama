@@ -123,8 +123,15 @@ const ejecutable = (f: string) => {
   }
 };
 
-/** El binario `dsh`: `HILOS_DSH`, el PATH, `~/.local/bin`, y el prefijo global de npm (`npm_config_prefix`, `~/.npm-global`, `/usr/local`, la carpeta de node). Sin nada: `dsh` pelado. */
+/**
+ * El `--prefix` con el que se instala dsh (`~/.local`, la casa del usuario + `.local`). Es el mismo en Linux y Windows, pero en Windows npm
+ * deja `dsh.cmd` en la RAÍZ del prefijo (`<casa>\.local\dsh.cmd`), no en `bin\`: por eso se busca ahí también.
+ */
+export const prefijoDsh = (home: string, plat: Plataforma = plataformaActual()): string => caminoDe(plat).join(home, ".local");
+
+/** El binario `dsh`: `HILOS_DSH`, el PATH, `~/.local/bin`, el prefijo de la instalación de Trama (en Windows, su raíz) y el prefijo global de npm (`npm_config_prefix`, `%APPDATA%\npm`, `~/.npm-global`, `/usr/local`, la carpeta de node). Sin nada: `dsh` pelado. */
 export function resolverDsh(env: Env = process.env, home: string = os.homedir(), esEjecutable: (f: string) => boolean = ejecutable, plat: Plataforma = plataformaActual()): string {
   if (env.HILOS_DSH) return env.HILOS_DSH;
-  return resolverNpm("dsh", env, home, [caminoDe(plat).join(home, ".local", "bin")], esEjecutable, plat);
+  const extra = [caminoDe(plat).join(home, ".local", "bin"), ...(plat === "win32" ? [prefijoDsh(home, plat)] : [])];
+  return resolverNpm("dsh", env, home, extra, esEjecutable, plat);
 }
