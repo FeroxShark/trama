@@ -17,6 +17,9 @@ const iso = (d: Date) => d.toISOString().replace(/\.\d+Z$/, "+00:00");
 const epoch = (d: Date) => Math.floor(d.getTime() / 1000);
 /** Una fila de medicion.tsv por nombre de columna (lo que falta queda vacío). */
 const fila = (o: Record<string, string | number>) => COLS.map((c) => String(o[c] ?? "")).join("\t");
+// Las lecciones de bien-auto salen mal en el bash cuando falta el tipo (el `read` con tabuladores junta los campos vacíos): los datos de
+// bien-auto lo traen siempre.
+const filaT = (o: Record<string, string | number>) => fila({ tipo: "debug", ...o });
 const M = "claude-sonnet-5-5";
 const H = "claude-haiku-5-5";
 
@@ -75,18 +78,18 @@ const SHA = "a".repeat(40);
 const datosBienAuto = todo(
   (c) =>
     medicion(
-      fila({ fecha: iso(hace(24 * 11)), id: "b1", proyecto: "proy", modelo: M, effort: "high", leer: 0, seguir: 0, tipo: "codigo-acotado" }),
-      fila({ fecha: iso(hace(24 * 4)), id: "b2", proyecto: "proy", modelo: M, effort: "high", leer: 0, seguir: 0, tipo: "debug" }),
-      fila({ fecha: iso(hace(24 * 3)), id: "b3", proyecto: "proy", modelo: H, effort: "xhigh", leer: 0, seguir: 0, tipo: "mecanico" }),
-      fila({ fecha: iso(hace(24 * 3)), id: "b4", proyecto: "proy", modelo: M, effort: "high", leer: 0, seguir: 0 }),
-      fila({ fecha: iso(hace(24 * 5)), id: "b5", proyecto: "proy", modelo: M, effort: "high", leer: 0, seguir: 0 }),
-      fila({ fecha: iso(hace(24 * 12)), id: "b6", proyecto: "proy", modelo: M, effort: "high", leer: 0, seguir: 0 }),
-      fila({ fecha: iso(hace(24 * 12)), id: "b7", proyecto: "proy", modelo: M, effort: "high", leer: 1, seguir: 0 }),
-      fila({ fecha: iso(hace(24 * 12)), id: "b8", proyecto: "proy", modelo: M, effort: "high", leer: 0, seguir: 0, bien: "parcial" }),
-      fila({ fecha: iso(hace(2)), id: "b9", proyecto: "proy", modelo: M, effort: "high", leer: 0, seguir: 0 }),
+      filaT({ fecha: iso(hace(24 * 11)), id: "b1", proyecto: "proy", modelo: M, effort: "high", leer: 0, seguir: 0, tipo: "codigo-acotado" }),
+      filaT({ fecha: iso(hace(24 * 4)), id: "b2", proyecto: "proy", modelo: M, effort: "high", leer: 0, seguir: 0, tipo: "debug" }),
+      filaT({ fecha: iso(hace(24 * 3)), id: "b3", proyecto: "proy", modelo: H, effort: "xhigh", leer: 0, seguir: 0, tipo: "mecanico" }),
+      filaT({ fecha: iso(hace(24 * 3)), id: "b4", proyecto: "proy", modelo: M, effort: "high", leer: 0, seguir: 0 }),
+      filaT({ fecha: iso(hace(24 * 5)), id: "b5", proyecto: "proy", modelo: M, effort: "high", leer: 0, seguir: 0 }),
+      filaT({ fecha: iso(hace(24 * 12)), id: "b6", proyecto: "proy", modelo: M, effort: "high", leer: 0, seguir: 0 }),
+      filaT({ fecha: iso(hace(24 * 12)), id: "b7", proyecto: "proy", modelo: M, effort: "high", leer: 1, seguir: 0 }),
+      filaT({ fecha: iso(hace(24 * 12)), id: "b8", proyecto: "proy", modelo: M, effort: "high", leer: 0, seguir: 0, bien: "parcial" }),
+      filaT({ fecha: iso(hace(2)), id: "b9", proyecto: "proy", modelo: M, effort: "high", leer: 0, seguir: 0 }),
       `${iso(hace(24 * 12))}\tb10\tproy\t${M}\thigh\t0\t0\t0\t5`,
       // una corrida que arrancó después de la integración de la rama de su origen no la cubre esa fila
-      fila({ fecha: iso(hace(24 * 9)), id: "b11", proyecto: "proy", modelo: M, effort: "high", leer: 0, seguir: 1 }),
+      filaT({ fecha: iso(hace(24 * 9)), id: "b11", proyecto: "proy", modelo: M, effort: "high", leer: 0, seguir: 1 }),
     )(c),
   (c) =>
     integradas(
@@ -134,9 +137,9 @@ function datosLineas(c: Contexto) {
   git("commit", "-q", "-am", "tercera");
   const c3 = git("rev-parse", "HEAD");
   medicion(
-    fila({ fecha: iso(hace(24 * 3)), id: "g1", proyecto: "proy", modelo: M, effort: "high", leer: 0, seguir: 0 }),
-    fila({ fecha: iso(hace(24 * 3)), id: "g2", proyecto: "proy", modelo: M, effort: "high", leer: 0, seguir: 0 }),
-    fila({ fecha: iso(hace(24 * 3)), id: "g3", proyecto: "proy", modelo: M, effort: "high", leer: 0, seguir: 0 }),
+    filaT({ fecha: iso(hace(24 * 3)), id: "g1", proyecto: "proy", modelo: M, effort: "high", leer: 0, seguir: 0 }),
+    filaT({ fecha: iso(hace(24 * 3)), id: "g2", proyecto: "proy", modelo: M, effort: "high", leer: 0, seguir: 0 }),
+    filaT({ fecha: iso(hace(24 * 3)), id: "g3", proyecto: "proy", modelo: M, effort: "high", leer: 0, seguir: 0 }),
   )(c);
   integradas(
     c,
@@ -188,7 +191,7 @@ export const casosMedicion: Caso[] = [
   pcli("bien con una corrida que no existe", ["--bien", "nada", "si"], 1, { preparar: datosRinde }),
   pcli("bien anota la columna 13", ["--bien", "r1", "parcial"], 0, { preparar: datosRinde }),
   pcli("bien completa una fila corta", ["--bien", "corta", "no"], 0, { preparar: datosRinde }),
-  pcli("bien con el id «id» (el header también cuenta)", ["--bien", "proyecto", "si"], 0, { preparar: medicion(fila({ fecha: iso(hace(1)), id: "x", proyecto: "proy" })) }),
+  pcli("bien con el id «id» (el header también cuenta)", ["--bien", "id", "si"], 0, { preparar: medicion(fila({ fecha: iso(hace(1)), id: "x", proyecto: "proy" })) }),
 
   // --- --rinde ---
   pcli("rinde sin medicion.tsv", ["--rinde"], 0),
