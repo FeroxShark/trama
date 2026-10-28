@@ -302,3 +302,32 @@ test("--auditar <id|rama>: corrida --leer con el contrato de auditoría (diff co
   const mal = pa(["demo", "--sin-jefe", "--auditar", id, "--seguir"]);
   assert.equal(mal.rc, 2);
 });
+
+test("--auditar --decisiones <archivo>: el texto va al pedido del auditor bajo su título; sin archivo legible o sin --auditar sale 2", () => {
+  git("checkout", "-q", "-b", "pa/proy/aud2");
+  writeFileSync(path.join(proy, "y.txt"), "chau");
+  git("add", "y.txt");
+  git("commit", "-q", "-m", "agrega y");
+  git("checkout", "-q", "main");
+  const dec = path.join(tmp, "decisiones.md");
+  writeFileSync(dec, "- El doble guion en el nombre es a propósito (lo pidió el dueño).\n");
+
+  const r = pa(["demo", "--sin-jefe", "--auditar", "pa/proy/aud2", "--decisiones", dec, "-m", "claude-sonnet-5-5"]);
+  assert.equal(r.rc, 0, r.err);
+  const a = readFileSync(argvFile, "utf8").split("\0");
+  const tarea = a[a.indexOf("-p") + 1]!;
+  assert.match(tarea, /Decisiones tomadas a propósito \(no las marques como error\):\n- El doble guion en el nombre es a propósito/);
+  assert.match(tarea, /Respondé con el bloque de siempre/, "la sección va antes de las instrucciones de respuesta");
+
+  // sin --decisiones, la sección no aparece
+  const sin = pa(["demo", "--sin-jefe", "--auditar", "pa/proy/aud2", "-m", "claude-sonnet-5-5"]);
+  assert.equal(sin.rc, 0, sin.err);
+  assert.doesNotMatch(readFileSync(argvFile, "utf8"), /Decisiones tomadas a propósito/);
+
+  const falta = pa(["demo", "--sin-jefe", "--auditar", "pa/proy/aud2", "--decisiones", path.join(tmp, "no-existe.md")]);
+  assert.equal(falta.rc, 2);
+  assert.match(falta.err, /no existe o no se puede leer/);
+  const suelto = pa(["demo", "--sin-jefe", "--decisiones", dec, "-m", "claude-sonnet-5-5", "hacé algo"]);
+  assert.equal(suelto.rc, 2);
+  assert.match(suelto.err, /sólo va con --auditar/);
+});

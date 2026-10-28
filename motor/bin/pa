@@ -24,8 +24,10 @@
 #   pa <proyecto> --brief-archivo F      la tarea sale de un archivo con el brief (Objetivo / Archivos / Listo cuando /
 #                                        Cómo verificar / No tocar); `pa --brief` imprime la plantilla. Sin "Listo cuando" o
 #                                        "Cómo verificar" avisa por stderr (no bloquea)
-#   pa <proyecto> --auditar <id|rama> [-m M]  revisor de sólo lectura (--leer) de esa rama: lee el diff contra main y reporta
-#                                        problemas por severidad (CRITICO/ALTO/MEDIO/BAJO); tipo lectura si no hay --tipo
+#   pa <proyecto> --auditar <id|rama> [-m M] [--decisiones <archivo>]  revisor de sólo lectura (--leer) de esa rama: lee el diff contra
+#                                        main y reporta problemas por severidad (CRITICO/ALTO/MEDIO/BAJO); tipo lectura si no hay --tipo.
+#                                        --decisiones: archivo con lo que se decidió a propósito; el auditor lo lee bajo "Decisiones tomadas
+#                                        a propósito" y no lo marca como error (sólo con --auditar)
 #   pa <proyecto> --agents-md            imprime una plantilla de AGENTS.md (build, tests, convenciones, no tocar) si falta;
 #                                        a agy/codex/dsh/opencode el contrato les suma AGENTS.md (o CLAUDE.md; los `@archivo`
 #                                        sueltos en su línea se resuelven, un nivel y dentro del repo), tope 20000 caracteres
@@ -4988,10 +4990,10 @@ subtarea="${PA_SUBTAREA:-}"
 # una variable de entorno se hereda de una llamada a la otra y la aprobación es por corrida.
 ok_dueno=0 modelo_de_m=0
 # Orquestación (2026-10-26): brief desde archivo, AGENTS.md, lecciones, auditoría de una rama.
-brief_archivo=""; agents_md=0; unificar_md=0; aplicar=0; lecciones=0; lecciones_podar=0; leccion=""; auditar=""
+brief_archivo=""; agents_md=0; unificar_md=0; aplicar=0; lecciones=0; lecciones_podar=0; leccion=""; auditar=""; decisiones=""
 
 # Los flags que llevan valor: sin él, `$2` reventaba con "unbound variable" (set -u) sin decir qué faltaba.
-flags_con_valor=" --max-turns --id --integrar --descartar --actualizar --nota --max-budget-usd -m --model --effort --tipo --fase --tarea --subtarea --rubrica --cuenta --brief-archivo --leccion --auditar "
+flags_con_valor=" --max-turns --id --integrar --descartar --actualizar --nota --max-budget-usd -m --model --effort --tipo --fase --tarea --subtarea --rubrica --cuenta --brief-archivo --leccion --auditar --decisiones "
 # -m a,b,c (2026-10-27, protocolo por fases): lista de fallback. Se prueba cada modelo, en orden, como una corrida entera con ese solo -m
 # (`pa <proyecto> … -m a …`); si sale 76/77 (límite de sesión, API sobrecargada), 95/96 (no puede correr / sin cupo) o 97 (OpenCode cortó por
 # límite) se pasa al siguiente, y cualquier otro código (0, 1, 78…) es el final: ése es el modelo que trabajó. Los que reparto tiene
@@ -5069,6 +5071,7 @@ while [[ $# -gt 0 ]]; do
     --lecciones-podar) lecciones_podar=1; shift ;;
     --leccion)         leccion="$2"; shift 2 ;;
     --auditar)         auditar="$2"; leer=1; shift 2 ;;   # auditar es una corrida --leer (ver más abajo)
+    --decisiones)      decisiones="$2"; shift 2 ;;        # sólo con --auditar: se lee en el bloque de auditoría
     --olvidar)         olvidar=1; shift ;;
     --matar)           matar=1; shift ;;
     --mcp)             con_mcp=1; shift ;;
@@ -5121,6 +5124,7 @@ fi
 if [[ -n "$auditar" ]] && { (( seguir || aca )) || [[ -n "$actualizar$integrar$descartar" ]]; }; then
   echo "pa: --auditar no va con --seguir, --aca, --actualizar, --integrar ni --descartar: es una corrida --leer nueva." >&2; exit 2
 fi
+if [[ -n "$decisiones" && -z "$auditar" ]]; then echo "pa: --decisiones sólo va con --auditar (lo lee el auditor)." >&2; exit 2; fi
 
 # --- política de modelos (el dueño, 2026-09-30; plan pro 2026-10-02; por situación 2026-10-10) ---
 # El modelo se elige por situación, no por un índice promedio, y para elegir hay que poder medir:
@@ -5587,13 +5591,23 @@ elif [[ -n "$auditar" ]]; then
     echo "pa: --auditar '$auditar': no encuentro esa corrida ni esa rama en '$slug' (¿integrada o descartada? mirá pa '$proyecto' --ramas)." >&2; exit 2
   fi
   aud_base="$(git -C "$ruta" rev-parse --abbrev-ref HEAD 2>/dev/null || echo main)"
+  # --decisiones <archivo>: lo que se decidió a propósito. El auditor lo lee y no lo marca como error (un auditor sin
+  # ese dato marcó como error algo deliberado).
+  aud_decisiones=""
+  if [[ -n "$decisiones" ]]; then
+    [[ -f "$decisiones" && -r "$decisiones" ]] || { echo "pa: --decisiones '$decisiones': no existe o no se puede leer." >&2; exit 2; }
+    aud_decisiones="$(cat -- "$decisiones")"
+  fi
   tarea="AUDITORÍA de la rama $aud_rama (sólo lectura: no modificás nada).
 Qué hacer:
 1) Mirá qué cambió: \`git -C $ruta diff --stat $aud_base...$aud_rama\`, \`git -C $ruta log --oneline $aud_base..$aud_rama\` y el diff completo con \`git -C $ruta diff $aud_base...$aud_rama\` (por archivo si es largo). ${aud_wt:+Los archivos completos de la rama están en $aud_wt (leelos con Read).}
 2) Leé el contexto que haga falta del código vecino para juzgar si el cambio es correcto, no sólo si compila.
 3) Verificación: el modo lectura NO te deja correr tests ni builds. Revisá la evidencia que dejó el autor y decí si alcanza y si calza con el diff${aud_prev:+. El autor declaró:
 $aud_prev}
-4) Buscá, por orden: bugs y casos borde sin cubrir, regresiones en lo que el diff toca, tests que faltan o que no prueban lo que dicen, seguridad, y recién al final estilo.
+4) Buscá, por orden: bugs y casos borde sin cubrir, regresiones en lo que el diff toca, tests que faltan o que no prueban lo que dicen, seguridad, y recién al final estilo.${aud_decisiones:+
+
+Decisiones tomadas a propósito (no las marques como error):
+$aud_decisiones}
 Respondé con el bloque de siempre. En RESULTADO: el veredicto en una oración (\"sin problemas\", \"hay que arreglar X\" o \"no integrar\") y los problemas ordenados por severidad, una línea cada uno: CRITICO / ALTO / MEDIO / BAJO, \`archivo:línea\`, qué pasa y cómo arreglarlo. VERIFICACION: qué comprobaste vos (los comandos git que corriste y qué viste) y, si la verificación del autor no alcanza, el comando exacto que el jefe debería correr. DECISION: nada, salvo que haya que decidir algo de rumbo.${tarea:+
 Pedido del jefe: $tarea}"
 else
