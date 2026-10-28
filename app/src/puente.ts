@@ -65,6 +65,8 @@ type Main = {
     tiernos(si: boolean): Promise<void>;
     /** La notificación de "te espera", prendida o apagada. */
     avisarEspera(si: boolean): Promise<void>;
+    /** La notificación de un worker que falla o de una tanda que terminó, prendida o apagada. */
+    avisarWorkers(si: boolean): Promise<void>;
     vista(vista: "todo" | "lideres"): Promise<void>;
     /** El panel de consumo, a la vista u oculto. */
     consumo(si: boolean): Promise<void>;
@@ -423,6 +425,8 @@ type Main = {
   /** El cartel "Hay una actualización disponible": un build de trama más nuevo que el que corre (electron/relanzar.ts), sin validar. */
   reinicio: { leer(): Promise<unknown>; pedir(igual?: boolean): Promise<void>; cancelar(): Promise<void>; marca(paso: string): Promise<void>; alCambiar(fn: (r: unknown) => void): Soltar };
   /** La PC que la otra máquina sabe prender (electron/pc-estado.ts): su estado y Prender; sin PC configurada, `leer` da null. */
+  /** Avisos de los workers (electron/avisos-worker.ts): terminó, falló o se colgó (sin validar), y relanzar uno caído por cupo. */
+  workers?: { alAviso(fn: (a: unknown) => void): Soltar; relanzar(id: string): Promise<unknown> };
   pc: { leer(): Promise<unknown>; prender(): Promise<unknown>; alCambiar(fn: (e: unknown) => void): Soltar };
   /** Volver como estaba tras ese reinicio (sólo la ventana): lo que tenía abierto y escrito (src/volver.ts). */
   volver: { leer(): Promise<unknown>; guardar(vista: unknown): Promise<void>; alPedir(fn: () => void): Soltar; anotar(vista: unknown): Promise<void> };

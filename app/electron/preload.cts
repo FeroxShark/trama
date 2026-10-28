@@ -57,6 +57,7 @@ contextBridge.exposeInMainWorld("hilos", {
     apariencia: (a: unknown): Promise<void> => ipcRenderer.invoke("preferencias:apariencia", a),
     tiernos: (si: boolean): Promise<void> => ipcRenderer.invoke("preferencias:tiernos", si),
     avisarEspera: (si: boolean): Promise<void> => ipcRenderer.invoke("preferencias:avisarEspera", si),
+    avisarWorkers: (si: boolean): Promise<void> => ipcRenderer.invoke("preferencias:avisarWorkers", si),
     vista: (vista: string): Promise<void> => ipcRenderer.invoke("preferencias:vista", vista),
     consumo: (si: boolean): Promise<void> => ipcRenderer.invoke("preferencias:consumo", si),
     bienvenidaPendiente: (): Promise<boolean> => ipcRenderer.invoke("preferencias:bienvenidaPendiente"),
@@ -321,6 +322,11 @@ contextBridge.exposeInMainWorld("hilos", {
   bitacora: (x: { donde: string; detalle: string }): Promise<void> => ipcRenderer.invoke("bitacora:escribir", x),
   /** El cartel "Hay una actualización disponible" (un build de trama más nuevo que el que corre). */
   /** "PC apagada · Prender" (sólo con una PC configurada en maquinas.json de la otra máquina). */
+  workers: {
+    /** Un worker terminó, falló o se colgó (electron/avisos-worker.ts). */
+    alAviso: oir("workers:aviso"),
+    relanzar: (id: string): Promise<unknown> => ipcRenderer.invoke("workers:relanzar", { id }),
+  },
   pc: {
     leer: (): Promise<unknown> => ipcRenderer.invoke("pc:leer"),
     prender: (): Promise<unknown> => ipcRenderer.invoke("pc:prender"),

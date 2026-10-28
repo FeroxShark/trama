@@ -101,6 +101,8 @@ import { Menu, Renombre, type ItemMenu } from "./Menu";
 import { armarTips } from "./tooltip";
 import { AvisoClaude } from "./AvisoClaude";
 import { AvisoSetup } from "./AvisoSetup";
+import { AvisoWorkers } from "./AvisoWorkers";
+import { useAvisosWorkers } from "./useAvisosWorkers";
 import { Pc } from "./Pc";
 import { useAlAbrirEspera, useEspera } from "./useEspera";
 import { Reinicio } from "./Reinicio";
@@ -1253,6 +1255,7 @@ export function Barra() {
   // "Te espera": título, bandeja y notificación; apagarlo al mirar esa conversación; la notificación abre la conversación.
   useEspera(lideresVistos, sidActivo);
   useAlAbrirEspera(abrirLider);
+  useAvisosWorkers();
 
   const carpetaActiva = liderActivo
     ? liderActivo.proyecto
@@ -1770,6 +1773,7 @@ export function Barra() {
             <AvisoClaude cual="agy" />
             {/* En la carcasa de Windows el .exe se actualiza con lo suyo (Ajustes > Trama para Windows): acá no. */}
             {carcasa() || carcasaActualiza ? null : <AvisoClaude cual="trama" />}
+            <AvisoWorkers />
             <AvisoSetup />
             <footer className="pie" data-guia="pie">
               {BOTONES_PIE.map(([cual, icono]) => (

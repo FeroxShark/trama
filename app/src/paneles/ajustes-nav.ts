@@ -76,6 +76,7 @@ export const ITEMS: readonly Item[] = [
   { cat: "general", nombre: "ajustes.mono", que: "ajustes.monoQue", sin: "monoespaciada monospace codigo code fira tipografia font fuente" },
   { cat: "general", nombre: "ajustes.tiernos", que: "ajustes.tiernosQue", sin: "mensajes carinosos tiernos friendly messages gatito carita" },
   { cat: "general", nombre: "ajustes.avisarEspera", que: "ajustes.avisarEsperaQue", sin: "notificacion notification aviso te necesita te espera lider escritorio desktop alerta" },
+  { cat: "general", nombre: "ajustes.avisarWorkers", que: "ajustes.avisarWorkersQue", sin: "notificacion notification aviso worker falla fallo cupo cuota quota terminaron tanda celular phone escritorio desktop alerta" },
   { cat: "general", nombre: "ajustes.compactar", que: "ajustes.compactarQue", sin: "compactacion compaction contexto context autocompact ventana window tokens" },
   { cat: "general", nombre: "ajustes.atajos", que: "ajustes.atajosQue", sin: "teclado keyboard shortcuts hotkeys teclas atajos" },
   { cat: "general", nombre: "ajustes.aplicarAuto", que: "ajustes.aplicarAutoQue", sin: "ramas branches veredictos verdicts analista analyst aplicar apply automatico automatic integrar descartar" },

@@ -3,6 +3,7 @@
 
 export const VERSION = 1;
 
+export type { AvisoWorker } from "../../electron/avisos-worker.ts";
 export type { ArchivoTocado, Cambio, CambioPasos, Cortado, Detalle, Encabezado, EstadoPaso, Paso, TipoPaso, VistaPasos } from "./pasos";
 
 export type Estado =

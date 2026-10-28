@@ -2001,6 +2001,13 @@ kbd {
 .avs .avc-p {
   background: var(--ambar);
 }
+/* Una falla de worker pide más atención que algo por configurar. */
+.avs .avc-p.avw-p {
+  background: var(--rojo, var(--ambar));
+}
+.avw-e {
+  color: var(--rojo-texto, var(--txt-3));
+}
 .avs-l {
   display: flex;
   flex-direction: column;

@@ -30,6 +30,7 @@ import { enOtros, Fijo } from "../i18n/Fijo";
 import { cambiarTiernos } from "../hilo/tierno-logica";
 import { useTiernos } from "../hilo/Tierno";
 import { alCambiarAvisarEspera, avisarEspera, cambiarAvisarEspera } from "../espera";
+import { alCambiarAvisarWorkers, avisarWorkers, cambiarAvisarWorkers } from "../avisos-worker";
 import { mensaje } from "../puente";
 import { TEMAS } from "../temas";
 import { alCambiarApariencia, apariencia, FUENTES, LETRA_DEF, LETRA_MAX, LETRA_MIN, MONOS, type Fuente } from "../tipografia";
@@ -143,6 +144,14 @@ function elegirAvisarEspera(id: string) {
   fuente.guardarAvisarEspera(si);
 }
 
+/** La notificación de workers (falla o tanda terminada): igual. Al prenderla se pide el permiso del navegador (el celular; en la PC no hace falta). */
+function elegirAvisarWorkers(id: string) {
+  const si = id === "si";
+  cambiarAvisarWorkers(si);
+  fuente.guardarAvisarWorkers(si);
+  if (si && typeof Notification !== "undefined" && Notification.permission === "default") void Notification.requestPermission().catch(() => {});
+}
+
 /** Los mensajes tiernos (B17): igual, al toque y a preferencias.json. */
 function elegirTiernos(id: string) {
   const si = id === "si";
@@ -178,6 +187,7 @@ export function Ajustes() {
   const [error, setError] = useState<string | null>(null);
   const tiernos = useTiernos();
   const avisar = useSyncExternalStore(alCambiarAvisarEspera, avisarEspera);
+  const avisarW = useSyncExternalStore(alCambiarAvisarWorkers, avisarWorkers);
   const aplicarSolo = useSyncExternalStore(alCambiarAplicarAuto, aplicarAuto);
   const [intento, setIntento] = useState(0);
 
@@ -229,6 +239,20 @@ export function Ajustes() {
             ]}
             valor={avisar ? "si" : "no"}
             alElegir={elegirAvisarEspera}
+            reserva={[...enOtros("ajustes.tiernosSi"), ...enOtros("ajustes.tiernosNo")]}
+          />
+        </div>
+      </Dato>
+      <Dato nombre="ajustes.avisarWorkers" que="ajustes.avisarWorkersQue" icono={<IcAviso {...ICONO} />}>
+        <div className="pn-sel">
+          <Selector
+            etiqueta={t("ajustes.avisarWorkers")}
+            opciones={[
+              { id: "si", nombre: t("ajustes.tiernosSi"), desc: "" },
+              { id: "no", nombre: t("ajustes.tiernosNo"), desc: "" },
+            ]}
+            valor={avisarW ? "si" : "no"}
+            alElegir={elegirAvisarWorkers}
             reserva={[...enOtros("ajustes.tiernosSi"), ...enOtros("ajustes.tiernosNo")]}
           />
         </div>

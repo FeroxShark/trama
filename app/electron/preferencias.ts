@@ -26,6 +26,7 @@ export type VistaBarra = "todo" | "lideres";
 /** `tiernos`: los mensajes tiernos (B17); sin el campo, prendidos. */
 /** `autoIntegrar`: "Integrar solo lo seguro" de Ramas (B22); sin el campo, prendido. */
 /** `consumo`: el panel de consumo (a la derecha) está a la vista; sin el campo, oculto. */
+/** `avisarWorkers`: la notificación de escritorio (y del celular) cuando un worker falla o terminan todos los de una tanda; sin el campo, prendida. */
 /** `avisarEspera`: la notificación de escritorio cuando un líder te espera y la ventana no tiene el foco; sin el campo, prendida. */
 /** `bienvenida`: la pantalla de primer arranque ya se vio (o se cerró); sin el campo, se muestra. */
 /** `dictadoModelo`: el modelo de Handy con que se transcribe el dictado (dictado-modelos.ts); sin el campo, Whisper Large v3 Turbo. */
@@ -34,6 +35,7 @@ export type Preferencias = {
   idioma?: Idioma;
   tiernos?: boolean;
   avisarEspera?: boolean;
+  avisarWorkers?: boolean;
   vista?: VistaBarra;
   autoIntegrar?: boolean;
   consumo?: boolean;
@@ -62,6 +64,7 @@ function desde(j: {
   tema?: unknown;
   tiernos?: unknown;
   avisarEspera?: unknown;
+  avisarWorkers?: unknown;
   vista?: unknown;
   autoIntegrar?: unknown;
   consumo?: unknown;
@@ -78,6 +81,7 @@ function desde(j: {
   if (esFuente(j.tema)) p.tema = j.tema;
   if (typeof j.tiernos === "boolean") p.tiernos = j.tiernos;
   if (typeof j.avisarEspera === "boolean") p.avisarEspera = j.avisarEspera;
+  if (typeof j.avisarWorkers === "boolean") p.avisarWorkers = j.avisarWorkers;
   if (esVista(j.vista)) p.vista = j.vista;
   if (typeof j.autoIntegrar === "boolean") p.autoIntegrar = j.autoIntegrar;
   if (typeof j.consumo === "boolean") p.consumo = j.consumo;
@@ -202,6 +206,24 @@ export async function guardarAvisarEspera(si: unknown) {
   const p = await leerPreferencias();
   if ((p.avisarEspera !== false) === si) return;
   p.avisarEspera = si;
+  await guardar(p);
+}
+
+/** El aviso de workers guardado, síncrono como el de "te espera": va en la query. Sin nada guardado, prendido. */
+export function avisarWorkersGuardado(): boolean {
+  if (prefs) return prefs.avisarWorkers !== false;
+  try {
+    return desde(JSON.parse(readFileSync(ARCHIVO, "utf8"))).avisarWorkers !== false;
+  } catch {
+    return true;
+  }
+}
+
+export async function guardarAvisarWorkers(si: unknown) {
+  if (typeof si !== "boolean") return;
+  const p = await leerPreferencias();
+  if ((p.avisarWorkers !== false) === si) return;
+  p.avisarWorkers = si;
   await guardar(p);
 }
 

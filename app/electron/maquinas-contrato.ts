@@ -51,6 +51,7 @@ export const RUTAS: Readonly<Record<string, Ruta>> = {
   "pa:parar": "maquina",
   "pa:rama": "maquina",
   "pa:lanzar": "maquina",
+  "workers:relanzar": "local",
   "ramas:brief": "maquina",
   // La orquestación de `pa`: las lecciones y AGENTS.md son de esta máquina; auditar va a la del worker.
   "orq:auditar": "maquina",
@@ -143,6 +144,7 @@ export const RUTAS: Readonly<Record<string, Ruta>> = {
   "preferencias:apariencia": "local",
   "preferencias:tiernos": "local",
   "preferencias:avisarEspera": "local",
+  "preferencias:avisarWorkers": "local",
   "preferencias:vista": "local",
   "preferencias:consumo": "local",
   "preferencias:bienvenidaPendiente": "local",
@@ -254,6 +256,7 @@ export const EVENTOS: Readonly<Record<string, "reenviar" | "local">> = {
   "nombres:orden": "local",
   "reinicio:cambio": "local",
   "pc:cambio": "local",
+  "workers:aviso": "local",
 };
 
 /**

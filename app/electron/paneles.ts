@@ -282,6 +282,30 @@ export async function lanzarRama(x: LanzarRama) {
   return { rc, dijo };
 }
 
+/** Lo que hace falta de un worker caído para volver a lanzar su tarea. */
+export type Relanzable = { id: string; proyecto: string; tarea?: string | null; jefe?: string | null; jefe_id?: string | null };
+
+/**
+ * Relanzar un worker que se cayó por cupo: la misma tarea, sin `-m`, para que `reparto` elija entre lo que tiene cupo (ya sabe
+ * cuál se agotó: `pa` lo marcó al fallar), y colgada del mismo líder (`PA_JEFE`/`PA_JEFE_ID`) para que él se entere del nuevo.
+ */
+export async function argvRelanzar(h: Relanzable): Promise<{ args: string[]; env: NodeJS.ProcessEnv }> {
+  if (!ID.test(String(h.id))) throw errorT("main.idRaro", { v: String(h.id) });
+  if (!PROYECTO.test(String(h.proyecto))) throw errorT("main.proyectoRaro", { v: String(h.proyecto) });
+  const tarea = typeof h.tarea === "string" ? h.tarea.trim() : "";
+  if (!tarea) throw errorT("main.sinTarea", { v: String(h.id) });
+  const nombre = await nombrePa(h.proyecto);
+  const env: NodeJS.ProcessEnv = { ...ENV };
+  if (h.jefe_id) (env.PA_JEFE_ID = String(h.jefe_id)), (env.PA_JEFE = String(h.jefe ?? ""));
+  return { args: [nombre, "--async", "--tipo", "codigo-acotado", "--", tarea], env };
+}
+
+export async function relanzarWorker(h: Relanzable) {
+  const { args, env } = await argvRelanzar(h);
+  const { rc, dijo } = await enCola(String(h.proyecto), () => ejecutar(args, env));
+  return { rc, dijo };
+}
+
 // Tareas de instrucciones (AGENTS.md, CLAUDE.md, GEMINI.md)
 
 export type TipoTareaMd = "acortar" | "fusionar";

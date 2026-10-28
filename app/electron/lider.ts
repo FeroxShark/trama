@@ -930,6 +930,12 @@ export async function mandar(x: { sid: string; texto: string; imagenes?: unknown
   }
 }
 
+/** El modelo y el esfuerzo con los que corre el líder de la app (para un mensaje automático que no los cambia); `null`: no tiene proceso nuestro. */
+export function seleccionDe(sid: string): { modelo: string; effort: string } | null {
+  const p = procs.get(sid);
+  return p ? { modelo: p.modelo, effort: p.effort } : null;
+}
+
 /** ¿Se le puede mandar algo a mitad de su turno? Un proceso de la app ocupado y con canal (los modelos locales no lo tienen). Lo usa la cola (electron/cola.ts). */
 export function puedeEnTurno(sid: string): boolean {
   const p = procs.get(sid);

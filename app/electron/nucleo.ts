@@ -32,8 +32,8 @@ import { iconosDe } from "./iconos.js";
 import { guardarYa, leerLeidos, marcarLeido } from "./leidos.js";
 import { almacenNombres } from "./nombres.js";
 import { almacenPendientes } from "./pendientes.js";
-import { guardarApariencia, guardarAutoIntegrar, guardarAvisarEspera, bienvenidaPendiente, guardarBienvenida, guardarConsumo, guardarDictadoModelo, guardarEffort, guardarGuias, guardarIdioma, guardarTiernos, guardarVista, guiasEstado, leerPreferencias } from "./preferencias.js";
-import { accionRama, arreglarDatos, briefRamas, enCola, ejecutar, lanzarRama, lanzarTareaMd, leerAjustes, leerMedicion, pasarALider, retomarDatos, tareaMdEnCurso, type AccionRama, type TipoTareaMd } from "./paneles.js";
+import { guardarApariencia, guardarAutoIntegrar, guardarAvisarEspera, guardarAvisarWorkers, bienvenidaPendiente, guardarBienvenida, guardarConsumo, guardarDictadoModelo, guardarEffort, guardarGuias, guardarIdioma, guardarTiernos, guardarVista, guiasEstado, leerPreferencias } from "./preferencias.js";
+import { accionRama, arreglarDatos, briefRamas, enCola, ejecutar, lanzarRama, lanzarTareaMd, leerAjustes, leerMedicion, pasarALider, relanzarWorker, retomarDatos, tareaMdEnCurso, type AccionRama, type TipoTareaMd } from "./paneles.js";
 import { guardarRouting, type Cambio } from "./routing.js";
 import { argvAuditar, datosAgentsMd, guardarLecciones, leccionesPendientes, leerLecciones, textoPoda } from "./orquestacion.ts";
 import { aplicarUnificar, estadoMd, guardarAgents, leerAgents, planUnificar } from "./unificar-md.ts";
@@ -54,6 +54,8 @@ import { nombreDueno } from "./dueno.ts";
 import { entornoLider } from "./lider-arma.js";
 import { crearCola } from "./cola.js";
 import { crearEspera } from "./espera.js";
+import { crearAvisosWorker, REVISAR_MS, textoParaLider, type AvisoWorker } from "./avisos-worker.js";
+import { rastroDeWorker } from "./avisos-worker-disco.js";
 import { errorT, textoT } from "./errores.ts";
 import { destinos, registro, slugsPorNombre } from "./registro.js";
 import { registroProyectos } from "./rutas.ts";
@@ -71,7 +73,7 @@ import { cuentasDeEstaMaquina } from "./cuentas.ts";
 import { enTerminal } from "./actualizador.ts";
 import { cuentasVarias } from "./cuentas-varias-canales.ts";
 import { cuentasDeEstaMaquinaVarias } from "./cuentas-varias.ts";
-import { alCambiarCupos, refrescarCupos } from "./cupos.js";
+import { alCambiarCupos, cuposActuales, refrescarCupos } from "./cupos.js";
 import { esLoopback, modoLocal } from "./modo-local.js";
 import { DIR, leerStatusline, SESIONES, type Statusline } from "./statusline.js";
 import * as tablero from "./tablero.js";
@@ -303,6 +305,45 @@ const cola = crearCola({
 });
 /** La última lista buena de `pa --hilos` que pasó por acá. */
 let ultimosHilos: readonly { id?: unknown; estado?: unknown; en_cola?: unknown; jefe_id?: unknown }[] = [];
+
+// Los avisos de los workers (avisos-worker.ts): terminó, falló por cupo o por lo que sea, o se colgó. Al líder que lo lanzó le
+// llega un mensaje corto por la cola (sale en su próxima pausa); la ventana y el celular reciben el aviso para la notificación.
+const avisosW = crearAvisosWorker({
+  leerRastro: async (h) => {
+    // Un corte por cupo dice cuándo vuelve en los cupos de `reparto`: se los pone al día antes de armar el aviso.
+    await refrescarCupos(false).catch(() => null);
+    return rastroDeWorker(PA_STATE, h);
+  },
+  cupos: () => cuposActuales(),
+  emitir: (a) => {
+    enviar("workers:aviso", a);
+    avisarAlLider(a);
+  },
+});
+/**
+ * El aviso al líder de la app que lanzó al worker. Un fin normal sólo entra a mitad de un turno (a un líder ocioso no se lo
+ * despierta por eso: su `pa --esperar` lo cobra); una falla sí, aunque esté ocioso: nadie más se entera. Los líderes de una
+ * terminal no reciben nada (no se los trae por un aviso): se enteran por la notificación del dueño.
+ */
+function avisarAlLider(a: AvisoWorker) {
+  const texto = textoParaLider(a);
+  const sid = a.jefe_id;
+  const sel = sid ? lider.seleccionDe(sid) : null;
+  if (!texto || !sid || !sel) return;
+  if (a.tipo === "fin" && !lider.puedeEnTurno(sid)) return;
+  void leerCola().then(() => cola.encolar(sid, { texto, modelo: sel.modelo, effort: sel.effort }), silencio("cola"));
+}
+let relojAvisosW: NodeJS.Timeout | null = null;
+/** Mientras haya un worker colgado a la vista, cada tanto se mira si ya cruzó el umbral. */
+function vigilarAvisosW() {
+  if (relojAvisosW || !avisosW.vigilando()) return;
+  relojAvisosW = setTimeout(() => {
+    relojAvisosW = null;
+    avisosW.revisar();
+    vigilarAvisosW();
+  }, REVISAR_MS);
+  relojAvisosW.unref();
+}
 /**
  * Los líderes de la app con workers vivos (su `pa --esperar` moriría con ellos): main.ts no relanza
  * trama mientras tanto. Con la lista releyéndose no se sabe (un worker recién lanzado todavía no
@@ -697,6 +738,7 @@ export function armarNucleo() {
       hayVivos = d.hilos.some(vivoEnPa);
       ultimosHilos = d.hilos;
     }
+    if (d?.version === 1 && Array.isArray(d.hilos)) void avisosW.hilos(d.hilos as Parameters<typeof avisosW.hilos>[0]).then(vigilarAvisosW, silencio("ipc"));
     consumo.repasar();
     if (!sinHistorial) historial.pedir();
     // Terminó un worker (o la lectura): main.ts mira si ya puede relanzarse.
@@ -733,6 +775,7 @@ export function armarNucleo() {
         void anotarFrenados(eventos)
           .catch(silencio("ipc"))
           .then(releerHilos);
+        avisosW.eventos(eventos);
         enviar("eventos:ids", ids);
         // En cadena: los eventos salen en el orden en que `pa` los escribió aunque uno espere su lectura.
         if (eventos.length) enviarEventos = enviarEventos.then(() => conLider(eventos, PA_STATE)).then((es) => enviar("eventos:pa", es), silencio("ipc"));
@@ -775,6 +818,12 @@ export function armarNucleo() {
     accionRama(accion, { id: h?.id, proyecto: h?.proyecto }),
   );
   // Un worker de rama (Actualizar) con el modelo y el effort que eligió el usuario en el paso previo.
+  // "Relanzar con otro modelo" de un aviso de cupo: la misma tarea, sin modelo fijo, colgada del mismo líder. La tarea sale de la lista, no del renderer.
+  manejar("workers:relanzar", (_e, x: { id?: unknown }) => {
+    const h = (ultimosHilos as readonly unknown[]).find((f) => (f as { id?: unknown }).id === x?.id) as Parameters<typeof relanzarWorker>[0] | undefined;
+    if (!h) throw errorT("main.idRaro", { v: String(x?.id) });
+    return relanzarWorker(h);
+  });
   manejar("pa:lanzar", (_e, x: Parameters<typeof lanzarRama>[0]) =>
     lanzarRama({ accion: x?.accion, id: x?.id, proyecto: x?.proyecto, modelo: x?.modelo, effort: x?.effort, texto: x?.texto }),
   );
@@ -947,6 +996,7 @@ export function armarNucleo() {
   manejar("preferencias:apariencia", (_e, a: unknown) => guardarApariencia(a));
   manejar("preferencias:tiernos", (_e, si: unknown) => guardarTiernos(si));
   manejar("preferencias:avisarEspera", (_e, si: unknown) => guardarAvisarEspera(si));
+  manejar("preferencias:avisarWorkers", (_e, si: unknown) => guardarAvisarWorkers(si));
   manejar("preferencias:vista", (_e, vista: unknown) => guardarVista(vista));
   manejar("preferencias:consumo", (_e, si: unknown) => guardarConsumo(si));
   manejar("preferencias:bienvenidaPendiente", () => bienvenidaPendiente());

@@ -11,7 +11,7 @@ import { main, mensaje, type Lectura } from "../puente";
 import { aplicarDif, esDif } from "./hilos-dif";
 import { MODO } from "../modo";
 import { t, textoMain } from "../i18n";
-import { comoSettle, GENERAL, type ComandoClaude, type Estilos, type EventoLider, type EventoPa, type Hilo, type Leidos, type Mensaje, type Nombres, type Orden, type RespuestaHilo, type RespuestaHilos, type RespuestaLideres, type Retomado, retomadoDe, type Statusline, type Traido, traidoDe, type Tokens, type Uso } from "./contrato";
+import { comoSettle, GENERAL, type AvisoWorker, type ComandoClaude, type Estilos, type EventoLider, type EventoPa, type Hilo, type Leidos, type Mensaje, type Nombres, type Orden, type RespuestaHilo, type RespuestaHilos, type RespuestaLideres, type Retomado, retomadoDe, type Statusline, type Traido, traidoDe, type Tokens, type Uso } from "./contrato";
 import { hiloDePa } from "./paHilo";
 import { listaValida, resultadoValido, type ListaCuentas, type PerfilCuenta, type PlanCuentaOc, type ProveedorCuenta, type ResultadoCuenta } from "./cuentas";
 import { ordenDe } from "../barra/orden";
@@ -79,6 +79,11 @@ export interface Fuente {
   guardarTiernos(si: boolean): void;
   /** La notificación de "te espera" (Ajustes), en el mismo archivo. */
   guardarAvisarEspera(si: boolean): void;
+  guardarAvisarWorkers(si: boolean): void;
+  /** Un worker terminó, falló o se colgó (el main lo detecta: electron/avisos-worker.ts). Sin motor (navegador sin PC, fixtures) no llega nada. */
+  alAvisoWorker(fn: (a: AvisoWorker) => void): () => void;
+  /** Relanza la tarea de un worker caído por cupo, sin modelo fijo; tira el error del main si no se pudo. */
+  relanzarWorker(id: string): Promise<void>;
   /** La vista de la barra (B15): todo o sólo líderes. */
   guardarVista(vista: "todo" | "lideres"): void;
   /** El panel de consumo (a la derecha), a la vista u oculto: se recuerda en el mismo archivo. */
@@ -1253,6 +1258,11 @@ const fija: Fuente = {
   guardarApariencia() {},
   guardarTiernos() {},
   guardarAvisarEspera() {},
+  guardarAvisarWorkers() {},
+  alAvisoWorker() {
+    return () => {};
+  },
+  async relanzarWorker() {},
   guardarVista() {},
   guardarConsumo() {},
   async bienvenidaPendiente() {
@@ -1838,6 +1848,21 @@ const conPa = (m: NonNullable<typeof main>): Fuente => ({
   },
   guardarTiernos(si) {
     void m.preferencias.tiernos(si).catch(() => {});
+  },
+  guardarAvisarWorkers(si) {
+    void m.preferencias.avisarWorkers(si).catch(() => {});
+  },
+  alAvisoWorker(fn) {
+    return m.workers?.alAviso((x) => {
+      const a = x as Partial<AvisoWorker> | null;
+      if (a && typeof a.clave === "string" && typeof a.tipo === "string" && typeof a.id === "string" && typeof a.ts === "number") fn(a as AvisoWorker);
+    }) ?? (() => {});
+  },
+  async relanzarWorker(id) {
+    const r = (await m.workers?.relanzar(id).catch((e) => {
+      throw new Error(mensaje(e));
+    })) as { rc?: number; dijo?: string } | undefined;
+    if (r && r.rc !== 0) throw new Error(r.dijo || `pa: ${r.rc}`);
   },
   guardarAvisarEspera(si) {
     void m.preferencias.avisarEspera(si).catch(() => {});

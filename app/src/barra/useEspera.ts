@@ -1,7 +1,8 @@
 // "Te espera" en la ventana (electron/espera.ts lo decide; acá se muestra y se avisa): el número en el título y en la bandeja,
 // la notificación de escritorio (una por líder y por turno, sólo con la ventana sin el foco) y apagar el estado cuando el usuario
 // ya tiene esa conversación a la vista. Sin timers: se mueve sólo cuando llega la lista de líderes o cambia el foco.
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useSyncExternalStore } from "react";
+import { suscribirAvisos, terminadosSinVer } from "../avisos-worker";
 import type { Lider } from "../datos/contrato";
 import { fuente } from "../datos/fuente";
 import { esperan, porAvisar, avisarEspera } from "../espera";
@@ -11,6 +12,10 @@ const TITULO = typeof document === "undefined" ? "trama" : document.title || "tr
 
 /** El texto del tooltip de la bandeja y del título: "2 líderes te esperan". */
 export const textoEspera = (n: number) => (n === 0 ? "" : n === 1 ? t("espera.uno") : t("espera.varios", { n }));
+
+/** Lo que dice la bandeja: los líderes que esperan y, aparte, los workers que terminaron bien mientras no se miraba ("el punto"). */
+export const textoBandeja = (esperan: number, terminados: number) =>
+  [textoEspera(esperan), terminados > 0 ? t(terminados === 1 ? "avisoW.terminado1" : "avisoW.terminados", { n: terminados }) : ""].filter(Boolean).join(" · ");
 
 const enfocada = () => typeof document !== "undefined" && document.hasFocus();
 
@@ -22,19 +27,21 @@ export function useEspera(lideres: readonly Lider[], sid: string | null) {
   const ya = useRef(new Map<string, number>());
   const primera = useRef(true);
   const idioma = t("espera.uno");
+  const terminados = useSyncExternalStore(suscribirAvisos, terminadosSinVer);
 
   // Título, bandeja y notificación, con cada lista nueva.
   useEffect(() => {
     const quienes = esperan(lideres);
     const n = quienes.length;
-    if (typeof document !== "undefined") document.title = n > 0 ? `(${n}) ${TITULO}` : TITULO;
-    void fuente.esperaEstado({ n, texto: textoEspera(n) });
+    const hay = n + terminados;
+    if (typeof document !== "undefined") document.title = hay > 0 ? `(${hay}) ${TITULO}` : TITULO;
+    void fuente.esperaEstado({ n: hay, texto: textoBandeja(n, terminados) });
     for (const l of porAvisar(lideres, ya.current, { avisar: avisarEspera(), enfocada: enfocada(), primera: primera.current })) {
       const nombre = l.nombre || t("lider.sesionJefe");
       fuente.esperaNotificar({ sid: l.id, titulo: nombre, cuerpo: t(l.espera!.motivo === "pide" ? "espera.pide" : "espera.listo") });
     }
     if (lideres.length > 0) primera.current = false;
-  }, [lideres, idioma]);
+  }, [lideres, idioma, terminados]);
 
   // El usuario mira esa conversación: deja de esperar.
   useEffect(() => {

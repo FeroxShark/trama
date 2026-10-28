@@ -5,7 +5,7 @@ import path from "node:path";
 import { ESTADO } from "./estado.js";
 import { identidadDe, type Identidad } from "./identidad.js";
 import { leerMaquinas, SOLA } from "./maquinas-config.js";
-import { aparienciaGuardada, avisarEsperaGuardado, consumoGuardado, idiomaGuardado, tiernosGuardados, vistaGuardada } from "./preferencias.js";
+import { aparienciaGuardada, avisarEsperaGuardado, avisarWorkersGuardado, consumoGuardado, idiomaGuardado, tiernosGuardados, vistaGuardada } from "./preferencias.js";
 
 /** Lo fijo: si hay fixtures, y con datos de verdad el nombre de esta máquina (ficha de cada worker) y el usuario (la carpeta del home en la barra). */
 export function baseConsulta(fixtures: boolean): Record<string, string> {
@@ -32,6 +32,9 @@ export function crearConsulta(base: Record<string, string>, modo: boolean): () =
     // El aviso de "te espera", igual: sólo viaja cuando está apagado.
     const avisar = process.env.HILOS_AVISAR;
     if (avisar ? avisar === "0" : !modo && !avisarEsperaGuardado()) q.avisar = "0";
+    // El de los workers, igual (`avisarw`).
+    const avisarW = process.env.HILOS_AVISAR_WORKERS;
+    if (avisarW ? avisarW === "0" : !modo && !avisarWorkersGuardado()) q.avisarw = "0";
 
     // El tamaño de letra y las fuentes, igual (el renderer valida: src/tipografia.ts).
     const guardada = modo ? {} : aparienciaGuardada();
