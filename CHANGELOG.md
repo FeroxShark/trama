@@ -1,5 +1,11 @@
 # Cambios
 
+## 0.2.9
+
+- `pa --tarea` anota cada corrida en `estado.tsv` (`--subtarea`); `gate` anota su resultado ahí y corre el chequeo con las dependencias del proyecto (antes daba rojo falso).
+- `pa --async` con varios modelos (`-m a,b`) relanza solo con el siguiente si se corta OpenCode; `--auditar --decisiones` le pasa al auditor lo decidido a propósito.
+- `clasificar` nuevo: dice qué hacer con un intento fallido (rehacer el pedido, reintentar, subir de modelo o preguntarle al dueño).
+
 ## 0.2.8
 
 - Actualizar ya no queda trabado en "Actualizando…" si el instalador anterior terminó después de que arrancó el motor nuevo.
