@@ -1,5 +1,9 @@
 # Cambios
 
+## Sin publicar
+
+- Avisos de workers: cuando uno termina, falla (por cupo, con el proveedor y cuándo vuelve) o se cuelga (15 min sin actividad), el líder que lo lanzó recibe un mensaje corto por la cola y el dueño una notificación (PC y celular) por las fallas y cuando termina toda la tanda; los terminados normales suman un punto en la bandeja. Se prende en Ajustes > General; una falla por cupo ofrece «Relanzar con otro modelo».
+
 ## 0.2.9
 
 - Los topes de OpenCode Go (pedidos cada 5 h y USD por mes, Go y Go Plus) se leen de opencode.ai/go al arrancar y cada día, y se guardan con su fecha de lectura; sin conexión se muestra la copia que viene con Trama («Datos del <fecha>»). `reparto` y los workers leen lo mismo.
