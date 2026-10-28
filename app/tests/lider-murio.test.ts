@@ -79,14 +79,15 @@ test("un líder de la app al que le matan el proceso queda Murió hasta que se l
   const l = lideres.find((x) => x.id === sid)!;
   assert.deepEqual([l.origen, l.vivo, l.caido], ["app", false, "murio"]);
 
-  // Retomar: ya no es Murió, y sigue sin proceso hasta que se le escribe.
+  // Retomar: ya no es Murió, y lo relanza ya con --resume (ocioso, sin mandarle nada).
   assert.deepEqual(await lider.retomar({ sid, ...M }), { ok: true });
   assert.equal((await guardado(sid))!.murio, undefined);
   assert.equal(enDisco(sid).murio, undefined, "también en disco");
   assert.equal((await leerStatusline()).lideres.lideres.find((x) => x.id === sid)!.caido, undefined);
-  assert.equal(lider.procDe(sid), null, "retomar no lanza nada");
+  assert.ok(lider.procDe(sid), "retomar lo relanza ya");
+  assert.equal(lider.procDe(sid)!.ocupado, false, "sin mandarle nada");
   await lider.mandar({ sid, texto: "seguimos", ...M });
-  assert.ok(lider.procDe(sid), "el primer mensaje relanza con --resume");
+  assert.ok(lider.procDe(sid), "el primer mensaje entra a ese proceso");
 });
 
 test("lo que cierra la app no es morir: Cerrar y reiniciar los ociosos", { timeout: 30_000 }, async () => {
