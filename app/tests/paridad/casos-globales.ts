@@ -276,8 +276,8 @@ export const casosGlobales: Caso[] = [
   hilos("vacío, json", ["--hilos", "--json"]),
   hilos("opción que no va", ["--hilos", "--xx"], { rc: 2 }),
   hilos("de todo, texto", ["--hilos"], { preparar: escenario }),
-  hilos("de todo, json", ["--hilos", "--json"], { preparar: (c) => escenarioQuieto }),
-  hilos("de todo con --todo, json", ["--hilos", "--todo", "--json"], { preparar: (c) => escenarioQuieto }),
+  hilos("de todo, json", ["--hilos", "--json"], { preparar: escenarioQuieto }),
+  hilos("de todo con --todo, json", ["--hilos", "--todo", "--json"], { preparar: escenarioQuieto }),
   hilos("de todo con --todo, texto", ["--hilos", "--todo"], { preparar: escenario }),
   hilos("sin jq: archivos rotos", ["--hilos", "--json"], {
     preparar: (c) => {
