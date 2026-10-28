@@ -140,13 +140,12 @@ export class Modelos {
   readonly archivo: string;
   private principal = false;
   private leido: { conf: Record<string, Json> | null; err: string } | null = null;
+  private env: Env;
+  private io: Io;
 
-  constructor(
-    private env: Env,
-    private io: Io,
-    home: string = homeDe(env),
-    plat: Plataforma = plataformaActual(),
-  ) {
+  constructor(env: Env, io: Io, home: string = homeDe(env), plat: Plataforma = plataformaActual()) {
+    this.env = env;
+    this.io = io;
     this.archivo = env.TRAMA_MODELOS || path.join(configTrama(env, home, plat), "modelos.json");
   }
 

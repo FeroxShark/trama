@@ -18,7 +18,7 @@ export type Hook = (typeof HOOKS)[number];
 export const esHook = (h: string): h is Hook => (HOOKS as readonly string[]).includes(h);
 
 /** Herramientas del motor que tienen versión bash/python (A) y versión TS (B), y los hooks (`.sh` contra `.mjs`). */
-export type Herramienta = "pa" | "proyecto-ruta" | "trama-estado" | "workers" | "tablero" | "cuentas" | Hook | "pa-async";
+export type Herramienta = "pa" | "proyecto-ruta" | "trama-estado" | "workers" | "tablero" | "cuentas" | Hook | "pa-async" | "pa-cli";
 const VARIABLE_B: Record<Herramienta, string> = {
   pa: "TRAMA_PA_B",
   "proyecto-ruta": "TRAMA_PROYECTO_RUTA_B",
@@ -31,15 +31,22 @@ const VARIABLE_B: Record<Herramienta, string> = {
   "statusline-espejo": "TRAMA_ESPEJO_B",
   "agy-pa": "TRAMA_AGY_PA_B",
   "pa-async": "TRAMA_PA_ASYNC_B",
+  // el pa bash contra el pa de TS (electron/cli/pa.ts) en lo que ya está portado (etapa 5: CLI y política)
+  "pa-cli": "TRAMA_PA_CLI_B",
 };
 
 /** El original (bash o python) de la herramienta. */
-export const originalDe = (h: Herramienta = "pa"): string => (esHook(h) ? path.join(MOTOR, "hooks", `${h}.sh`) : h === "pa-async" ? PA_BASH : path.join(MOTOR, "bin", h));
+export const originalDe = (h: Herramienta = "pa"): string =>
+  esHook(h) ? path.join(MOTOR, "hooks", `${h}.sh`) : h === "pa-async" || h === "pa-cli" ? PA_BASH : path.join(MOTOR, "bin", h);
 /** El comando que corre el original: los hooks `.sh` no son ejecutables sueltos en todos lados, se llaman con bash. */
 export const comandoOriginal = (h: Herramienta = "pa"): string[] => (esHook(h) ? ["bash", originalDe(h)] : [originalDe(h)]);
 /** La versión TS de las herramientas chicas, corrida directo desde el fuente (Node saca los tipos); para los hooks, el `.mjs`. */
 export const tsDe = (h: Exclude<Herramienta, "pa">): string[] =>
-  esHook(h) ? [process.execPath, path.join(MOTOR, "hooks", `${h}.mjs`)] : h === "pa-async" ? [process.execPath, path.join(CLI_TS, "pa", "async.ts")] : [process.execPath, path.join(CLI_TS, `${h}.ts`)];
+  esHook(h)
+    ? [process.execPath, path.join(MOTOR, "hooks", `${h}.mjs`)]
+    : h === "pa-async"
+      ? [process.execPath, path.join(CLI_TS, "pa", "async.ts")]
+      : [process.execPath, path.join(CLI_TS, `${h === "pa-cli" ? "pa" : h}.ts`)];
 const FALSO = path.join(APP, "scripts", "claude-falso.mjs");
 
 /** Contexto que ven `preparar` y los argumentos dinámicos de un caso. */
