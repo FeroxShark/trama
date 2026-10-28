@@ -188,6 +188,8 @@ Chequeo: npx vitest run app/src/barra/Barra.test.tsx                          # 
 Rúbrica: A=chico B=ejecutar C=completo D=bajo E=si  → fila 10 → claude-haiku-5-5 xhigh
 ```
 
+**Formato que lee `gate --plan`** (definido acá porque antes sólo había el ejemplo): cada subtarea abre con `## T<n> <título>` (`T0`, `T1`, `T0b`...); debajo, una línea por campo con la forma `Campo: valor`, en cualquier orden y con los que falten tratados como vacíos: `Depende de`, `Leer`, `Modificar`, `Calientes`, `Chequeo`, `Rúbrica`. `Leer` y `Modificar` son listas de rutas del repo separadas por coma (un `(9.8 KB)` al final de cada ruta es sólo comentario: los bytes se miden en `main`). `—` o `-` es "ninguno". Un comentario al final de la línea se separa con dos o más espacios y `#`. `Chequeo` es un comando de shell que se corre desde la raíz del repo (puede ir entre comillas invertidas). `Calientes` y `Rúbrica` los escribe el líder para sí; el gate calcula los calientes y no lee la rúbrica. Todo lo que no sea `## T…` ni un campo se ignora.
+
 Reglas de partición: una subtarea = un área, ≤40 KB de lectura, ≤3 archivos a modificar, un chequeo propio. Si no se puede escribir el chequeo, está mal partida o es diseño.
 
 ### 4.2 T0: subtarea de claves i18n y tipos compartidos [AGREGAR: regla en el skill]
@@ -321,7 +323,7 @@ Si `~/.config/trama/modelos.json` apaga (`excluir`, `efforts_permitidos`) un mod
 
 `claude-opus-5-5` va en `medium` porque en esta instalación rinde mejor que en `high`. Si no hay modelo gratis disponible, el plan B es el más barato habilitado (Haiku): gratis es preferencia, no requisito.
 
-**Estado de `pa --rubrica` [HOY]:** implementa la tabla v2: A = chico/mediano/grande (los viejos 1, 2-3 y >3 se mapean), marcas I y K, filas 2, 1, 1c, 1b, 3a/3b, 7b/8b, fila 9 con M, y sale 98 si modelos.json apaga el modelo o el effort. Quien calcula A (wc -c, sin tests ni i18n T0) sigue siendo el líder. **[AGREGAR]**: que `pa` o el gate calculen A, D y las marcas solos (sección 9).
+**Estado de `pa --rubrica` [HOY]:** implementa la tabla v2: A = chico/mediano/grande (los viejos 1, 2-3 y >3 se mapean), marcas I y K, filas 2, 1, 1c, 1b, 3a/3b, 7b/8b, fila 9 con M, y sale 98 si modelos.json apaga el modelo o el effort. Quien calcula A (wc -c, sin tests ni i18n T0) sigue siendo el líder. `gate --plan` ya calcula A y el piso de D (sección 8.2); **[AGREGAR]**: que `pa` calcule también las marcas I y M.
 
 ### 6.3 Medir la rúbrica
 
@@ -418,7 +420,9 @@ sys.exit(0 if total and ok * 10 >= total * 7 else 1)   # < 70 % OK: se tira el r
 
 Sólo los OK pasan a `11-hechos.md`. Si menos del 70 % de los hechos de un trozo dan OK, el reporte se tira entero (un lector que inventa una línea probablemente inventó también la interpretación) y el trozo se relanza **una vez** con el siguiente lector de la lista; si falla otra vez, el problema es el trozo o las preguntas (partir, reformular), no el lector. Las ±8 líneas arreglan un segundo defecto: en F3 el líder planifica sin abrir el código, y un hecho con una sola línea no le da firmas multilínea, tipos de retorno ni imports.
 
-### 8.2 Compuerta del plan (F3, antes de lanzar nada) [HOY a mano; script `gate --plan` AGREGAR, ~40 líneas, media]
+### 8.2 Compuerta del plan (F3, antes de lanzar nada) [`gate --plan` HOY; a mano lo de abajo]
+
+`gate <proyecto> --plan <slug> [--json] [--main REF] [--no-correr]` lee `tareas/<slug>/20-plan.md` (formato en 4.1) e imprime, por subtarea, **A** (chico/mediano/grande por `wc -c` de los "Leer" en main y cantidad de archivos de "Modificar", **sin tests ni archivos de T0**), el **piso de D** (alto si toca `nucleo.ts`, `puente.ts`, `preload`, `migrations/`, `.env` o `permisos`; "bajo" sólo dice que ninguna ruta lo sube, el líder puede subirlo), los **archivos calientes** (en el "Modificar" de más de una subtarea, con quién), los **KB de lectura** y si el **chequeo da rojo en main** (lo corre en el worktree limpio `/tmp/base-<sha>`; `--no-correr` lo saltea). El líder sólo contesta B, C y E. Exit 28 si una subtarea tiene un chequeo verde en main, lee más de 40 000 bytes o modifica más de 3 archivos (sin tests ni T0); 0 si no; 2 uso; 3 no encuentra proyecto, main o plan. Lo de abajo es lo mismo a mano:
 
 ```sh
 wc -c <rutas "Leer" de Tn> | tail -1                          # total ≤ 40000
@@ -498,7 +502,7 @@ Otros exits: 0 verde · 2 uso · 3 no resuelve proyecto/rama/main/archivos del g
 | 3 | Sección "protocolo por fases" en el skill del líder: tabla v2, plantillas, vía rápida, T0, una sola fuente de verdad de modelos (hoy chocan `CLAUDE.md` "ante la duda Haiku", perfil `ahorro` y `minimo_por_tipo`) | `motor/skills/trama-orquestar` | ~200 líneas de texto | **Alta** |
 | 4 | `--desde-main` en `--seguir`: guarda `.patch`, resetea la rama a main | `pa` | ~60 líneas | Media-alta: evita ramas muertas y pedidos de `--descartar` |
 | 5 | `hechos-check` (script de 8.1) | `motor/bin` | ~75 líneas python | Media: no hace falta para el experimento (F3–F6 + vía rápida); sí para F2 en `codigo-multi` |
-| 6 | `gate --plan` (compuerta del plan) | `motor/bin/gate` | ~40 líneas | Media |
+| 6 | ~~`gate --plan` (compuerta del plan)~~ **hecho**: calcula A, piso de D, calientes, KB y rojo en main (8.2) | `motor/bin/gate` | ~40 líneas | Media |
 | 7 | Regla de test de render para frontend (si el proyecto lo soporta) | skill + F3 | chico | Media, **sin decidir** |
 | 8 | `trozos <repo> <rutas> --max 40000` | `motor/bin` | ~40 líneas | Baja: `git ls-files \| xargs wc -c` alcanza |
 | 9 | `--integrar --tests --base` (falla sólo con rojos nuevos contra main) | `pa` | ~80–150 líneas | Baja: con P0 hecho, es respaldo |

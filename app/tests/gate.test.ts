@@ -1,7 +1,8 @@
 // motor/bin/gate: la compuerta de cada corrida (F6) del protocolo de orquestación. Con un repo git de verdad en un tmp
 // (main + una rama pa/<slug>/<id> por caso), un registry de prueba (PROYECTOS_REGISTRY) y el estado en el tmp (PA_STATE):
 // verde, y un exit propio por cada falla (21 alcance, 22 test congelado, 23 chequeo, 24 rojos nuevos), más la base de
-// rojos por sha de main y el aviso de compactación. También que el instalador enlaza el script.
+// rojos por sha de main y el aviso de compactación. También gate --plan (compuerta del plan) con un 20-plan.md de fixture,
+// y que el instalador enlaza el script.
 import { after } from "node:test";
 import { testPosix as test } from "./plataforma.ts";
 import assert from "node:assert/strict";
@@ -16,10 +17,13 @@ const tmp = mkdtempSync(path.join(os.tmpdir(), "gate-"));
 after(() => {
   const sha = spawnSync("git", ["-C", repo, "rev-parse", "--short", "main"], { encoding: "utf8" }).stdout.trim();
   if (sha) rmSync(path.join("/tmp", `base-${sha}`), { recursive: true, force: true });
+  const shaPlan = spawnSync("git", ["-C", repoPlan, "rev-parse", "--short", "main"], { encoding: "utf8" }).stdout.trim();
+  if (shaPlan) rmSync(path.join("/tmp", `base-${shaPlan}`), { recursive: true, force: true });
   rmSync(tmp, { recursive: true, force: true });
 });
 
 const repo = path.join(tmp, "Mi-Proyecto");
+const repoPlan = path.join(tmp, "Plan-Proy"); // un segundo repo, sólo para gate --plan (así no toca el main de los otros casos)
 const estado = path.join(tmp, "estado");
 const registry = path.join(tmp, "registry.json");
 const git = (...a: string[]) => {
@@ -43,7 +47,32 @@ escribir("tests/viejo.txt", "falla-previa\n");
 escribir("tests/t1.test.txt", "congelado\n");
 git("add", ".");
 git("commit", "-qm", "base");
-writeFileSync(registry, JSON.stringify({ projects: [{ name: "mi-proyecto", path: repo }] }));
+mkdirSync(repoPlan, { recursive: true });
+const gitPlan = (...a: string[]) => {
+  const r = spawnSync("git", ["-C", repoPlan, ...a], { encoding: "utf8" });
+  assert.equal(r.status, 0, `git ${a.join(" ")}: ${r.stderr}`);
+};
+gitPlan("init", "-q", "-b", "main");
+gitPlan("config", "user.email", "t@t");
+gitPlan("config", "user.name", "t");
+for (const [f, t] of Object.entries({
+  "src/barra/Barra.tsx": "export const Barra = 1;\n",
+  "src/barra/estado.ts": "x".repeat(20_000), // 20 KB: solo ya es mediano
+  "src/i18n/en.ts": "export default {};\n",
+  "src/i18n/es.ts": "export default {};\n",
+  "src/main/nucleo.ts": "export {};\n",
+  "src/enorme.ts": "y".repeat(41_000),
+  "src/a.ts": "a\n",
+  "src/b.ts": "b\n",
+  "src/c.ts": "c\n",
+  "src/d.ts": "d\n",
+})) {
+  mkdirSync(path.dirname(path.join(repoPlan, f)), { recursive: true });
+  writeFileSync(path.join(repoPlan, f), t);
+}
+gitPlan("add", ".");
+gitPlan("commit", "-qm", "base");
+writeFileSync(registry, JSON.stringify({ projects: [{ name: "mi-proyecto", path: repo }, { name: "plan-proy", path: repoPlan }] }));
 writeFileSync(path.join(tmp, "permitidos.txt"), "# comentario\nsrc/\ndocs/*.md\n");
 writeFileSync(path.join(tmp, "t1.test.txt"), "congelado\n");
 
@@ -400,6 +429,126 @@ test("tarea: la toma de PA_TAREA si no hay --tarea (y crea el estado.tsv); un sl
     `subtarea\tintento\tid\tmodelo\teffort\texit\tgate\tusd\n-\t-\t${id}\t-\t-\t-\t0\t-\n`,
   );
   assert.equal(gate(id, ["--tarea", "../x"]).exit, 2);
+});
+
+// --- gate --plan: 20-plan.md inventado ------------------------------------------------------------------------------------
+const PLAN_OK = `# Plan de prueba
+
+## T0 Claves i18n
+Depende de: —
+Leer: src/i18n/en.ts (0.0 KB)
+Modificar: src/i18n/en.ts, src/i18n/es.ts
+Calientes: —
+Chequeo: grep -q reintento src/i18n/en.ts                                   # rojo en main
+Rúbrica: A=chico B=ejecutar C=completo D=bajo E=si
+
+## T1 Botón de reintento en la barra
+Depende de: T0
+Leer: src/barra/Barra.tsx (0.0 KB), src/barra/estado.ts (20 KB)
+Modificar: src/barra/Barra.tsx, src/barra/Barra.test.tsx, src/i18n/en.ts
+Calientes: src/barra/Barra.tsx
+Chequeo: \`grep -q reintento src/barra/Barra.tsx\`
+Rúbrica: A=mediano B=ejecutar C=completo D=bajo E=si
+
+## T2 Núcleo y barra
+Depende de: T0
+Leer: src/barra/Barra.tsx
+Modificar: src/main/nucleo.ts, src/barra/Barra.tsx
+Chequeo: true
+Rúbrica: A=mediano B=decidir C=completo D=alto E=si
+
+## T3 Sin chequeo
+Leer: src/a.ts
+Modificar: src/a.ts
+Chequeo: —
+`;
+const planDir = path.join(estado, "plan-proy", "tareas", "demo");
+mkdirSync(planDir, { recursive: true });
+writeFileSync(path.join(planDir, "20-plan.md"), PLAN_OK);
+const gatePlan = (slug: string, extra: string[] = []) => {
+  const r = spawnSync(GATE, ["plan-proy", "--plan", slug, ...extra], {
+    encoding: "utf8",
+    env: { ...process.env, PROYECTOS_REGISTRY: registry, PA_STATE: estado },
+  });
+  return { exit: r.status, sal: r.stdout + r.stderr };
+};
+
+test("--plan --json: A sin tests ni archivos de T0, piso de D, calientes, KB y rojo en main", () => {
+  const r = gatePlan("demo", ["--json"]);
+  assert.equal(r.exit, 28, r.sal); // T2 tiene el chequeo en verde en main
+  const j = JSON.parse(r.sal);
+  assert.equal(j.ok, false);
+  const [t0, t1, t2, t3] = j.subtareas;
+  assert.deepEqual(j.subtareas.map((s: { id: string }) => s.id), ["T0", "T1", "T2", "T3"]);
+  // T0: sus propios archivos cuentan (en.ts y es.ts: mediano); rojo (grep no encuentra la clave)
+  assert.equal(t0.archivos_contados, 2);
+  assert.equal(t0.a, "mediano");
+  assert.equal(t0.rojo_en_main, "rojo");
+  // T1: el test y en.ts (de T0) no cuentan: 1 archivo; manda el KB (20 000 bytes de estado.ts: mediano)
+  assert.equal(t1.archivos_contados, 1);
+  assert.equal(t1.leer_bytes, 20_000 + 24);
+  assert.equal(t1.leer_kb, 20);
+  assert.equal(t1.a, "mediano");
+  assert.equal(t1.d_piso, "bajo");
+  assert.equal(t1.rojo_en_main, "rojo");
+  assert.deepEqual(t1.calientes, { "src/barra/Barra.tsx": ["T2"], "src/i18n/en.ts": ["T0"] });
+  // T2: nucleo.ts sube el piso de D; chequeo en verde en main es un problema
+  assert.equal(t2.a, "mediano");
+  assert.equal(t2.d_piso, "alto");
+  assert.deepEqual(t2.d_motivos, ["nucleo.ts/puente.ts"]);
+  assert.equal(t2.rojo_en_main, "verde");
+  assert.match(t2.problemas.join("\n"), /verde en main/);
+  // T3: chico, sin chequeo
+  assert.equal(t3.a, "chico");
+  assert.equal(t3.rojo_en_main, "sin-chequeo");
+  assert.deepEqual(t3.calientes, {});
+});
+
+test("--plan en texto: imprime A, D, calientes y chequeo por subtarea, y avisa que el líder sólo contesta B, C y E", () => {
+  const r = gatePlan("demo");
+  assert.equal(r.exit, 28, r.sal);
+  assert.match(r.sal, /T1  Botón de reintento en la barra\n\s+A\s+mediano  \(1 archivo\(s\) sin tests ni T0, 20\.0 KB/);
+  assert.match(r.sal, /D \(piso\)\s+alto  \(nucleo\.ts\/puente\.ts\)/);
+  assert.match(r.sal, /calientes src\/barra\/Barra\.tsx \(con T2\)/);
+  assert.match(r.sal, /chequeo\s+VERDE en main/);
+  assert.match(r.sal, /PROBLEMA\s+el chequeo da verde en main/);
+  assert.match(r.sal, /El líder contesta B, C y E/);
+  assert.match(r.sal, /PLAN CON PROBLEMAS \(exit 28\)/);
+});
+
+test("--plan: más de 40 000 bytes de lectura o más de 3 archivos es A=grande y problema; plan sano sale 0; --no-correr no corre el chequeo", () => {
+  const dir = path.join(estado, "plan-proy", "tareas", "grande");
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(
+    path.join(dir, "20-plan.md"),
+    ["## T1 Lee de más", "Leer: src/enorme.ts", "Modificar: src/a.ts", "Chequeo: false", "", "## T2 Toca de más", "Modificar: src/a.ts, src/b.ts, src/c.ts, src/d.ts, src/a.test.ts", "Chequeo: false", ""].join("\n"),
+  );
+  const g = JSON.parse(gatePlan("grande", ["--json"]).sal);
+  assert.equal(g.subtareas[0].a, "grande");
+  assert.match(g.subtareas[0].problemas.join(), /40 000/);
+  assert.equal(g.subtareas[1].a, "grande");
+  assert.equal(g.subtareas[1].archivos_contados, 4);
+  assert.match(g.subtareas[1].problemas.join(), /más de 3 archivos/);
+
+  const sano = path.join(estado, "plan-proy", "tareas", "sano");
+  mkdirSync(sano, { recursive: true });
+  writeFileSync(path.join(sano, "20-plan.md"), "## T1 Una\nLeer: src/a.ts\nModificar: src/a.ts\nChequeo: false\n");
+  const ok = gatePlan("sano");
+  assert.equal(ok.exit, 0, ok.sal);
+  assert.match(ok.sal, /ROJO en main \(exit 1\)/);
+  assert.match(ok.sal, /PLAN LISTO/);
+
+  const sinCorrer = gatePlan("demo", ["--json", "--no-correr"]);
+  const j = JSON.parse(sinCorrer.sal);
+  assert.equal(j.subtareas[2].rojo_en_main, "no-corrido");
+  assert.equal(sinCorrer.exit, 0, sinCorrer.sal); // sin correr, el verde de T2 no se detecta
+});
+
+test("--plan: sin plan es exit 3; slug inválido o argumento de más es uso (2)", () => {
+  assert.equal(gatePlan("no-existe").exit, 3);
+  assert.equal(gatePlan("../x").exit, 2);
+  const r = spawnSync(GATE, ["plan-proy", "otro", "--plan", "demo"], { encoding: "utf8", env: { ...process.env, PROYECTOS_REGISTRY: registry, PA_STATE: estado } });
+  assert.equal(r.status, 2);
 });
 
 test("el instalador del producto enlaza gate junto a los otros bin", () => {

@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # gate <proyecto> <id> --chequeo CMD --permitidos F [--test COPIA[:RUTA]] [--extras CMD] [--rojos CMD] [--main REF] [--log F] [--tarea SLUG]
+# gate <proyecto> --plan SLUG [--json] [--main REF] [--no-correr]
 #
 # Compuerta de cada corrida (F6) del protocolo de orquestación (motor/docs/protocolo-orquestacion.txt, sección 4).
 # La corre el líder, no el worker: la VERIFICACION del worker es un indicio, esto es la prueba. Corre todos los pasos
@@ -34,18 +35,27 @@
 # Con tarea (--tarea o env PA_TAREA) anota el exit en la columna gate de tareas/<slug>/estado.tsv: la fila del <id>, o una
 # nueva con '-' si no existe.
 #
+# gate --plan (compuerta del plan, F3; sección 8.2 de protocolo-orquestacion-v2.md): lee tareas/<slug>/20-plan.md y, por
+# subtarea, calcula lo que no necesita juicio: A (chico/mediano/grande por wc -c de los "Leer" en main y cantidad de archivos
+# de "Modificar", sin tests ni archivos de T0), el piso de D (alto si toca nucleo.ts, puente.ts, preload, migrations/, .env o
+# permisos), los archivos calientes (en el "Modificar" de más de una subtarea), los KB de lectura y si el "Chequeo" da rojo
+# en un worktree limpio de main (/tmp/base-<sha>; --no-correr no lo corre). El líder sólo contesta B, C y E. Con --json sale
+# JSON. Formato de 20-plan.md: sección 4.1 del protocolo. Exits: 0 listo · 2 uso · 3 no resuelve proyecto/main/plan ·
+# 28 el plan tiene un problema (chequeo verde en main, "Leer" de más de 40 000 bytes, o más de 3 archivos a modificar)
+#
 # Exits:  0 verde · 2 uso · 3 no resuelve proyecto/rama/main/archivos del gate · 21 fuera de lo permitido ·
 #         22 test congelado sin ruta única · 23 el chequeo (o un extra) dio rojo · 24 rojos nuevos contra main ·
-#         25 anti-patrón en lo agregado · 26 snapshot sin ruta explícita en --permitidos
+#         25 anti-patrón en lo agregado · 26 snapshot sin ruta explícita en --permitidos · 28 (sólo --plan) problema en el plan
 set -uo pipefail
 
 AQUI="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 STATE="${PA_STATE:-$HOME/.local/state/pa}"
 
-uso() { sed -n '2p' "${BASH_SOURCE[0]}" | sed 's/^# *//' >&2; exit 2; }
+uso() { sed -n '2,3p' "${BASH_SOURCE[0]}" | sed 's/^# *//' >&2; exit 2; }
 ayuda() { awk 'NR>1 && !/^#/{exit} NR>1{sub(/^# ?/,""); print}' "${BASH_SOURCE[0]}"; exit 0; }
 fatal() { echo "gate: $*" >&2; exit 3; }
 
+plan=""; json=0; no_correr=0
 proy=""; id=""; chequeo=""; permitidos=""; test_arg=""; extras_cmd=""; rojos=""; main_ref="main"; log=""
 tarea="${PA_TAREA:-}"; enlaces=()   # tarea de estado.tsv; node_modules enlazados (symlinks que hay que quitar al salir)
 bk=""; existia=0   # backup del archivo de test del worktree mientras está pisado (paso 2)
@@ -60,15 +70,24 @@ while (($#)); do
     --main)       [[ $# -ge 2 ]] || uso; main_ref="$2"; shift 2 ;;
     --log)        [[ $# -ge 2 ]] || uso; log="$2"; shift 2 ;;
     --tarea)      [[ $# -ge 2 ]] || uso; tarea="$2"; shift 2 ;;
+    --plan)       [[ $# -ge 2 ]] || uso; plan="$2"; shift 2 ;;
+    --json)       json=1; shift ;;
+    --no-correr)  no_correr=1; shift ;;
     -h|--help)    ayuda ;;
     -*)           echo "gate: opción desconocida: $1" >&2; uso ;;
     *)            pos+=("$1"); shift ;;
   esac
 done
-((${#pos[@]} == 2)) || uso
-proy="${pos[0]}"; id="${pos[1]}"
-[[ -n "$chequeo" && -n "$permitidos" ]] || uso
-[[ -f "$permitidos" ]] || fatal "no existe --permitidos: $permitidos"
+if [[ -n "$plan" ]]; then
+  ((${#pos[@]} == 1)) || uso
+  [[ "$plan" =~ ^[A-Za-z0-9_][A-Za-z0-9._-]*$ ]] || { echo "gate: --plan inválido (letras, números, . _ -): $plan" >&2; exit 2; }
+  proy="${pos[0]}"
+else
+  ((${#pos[@]} == 2)) || uso
+  proy="${pos[0]}"; id="${pos[1]}"
+  [[ -n "$chequeo" && -n "$permitidos" ]] || uso
+  [[ -f "$permitidos" ]] || fatal "no existe --permitidos: $permitidos"
+fi
 if [[ -n "$tarea" && ! "$tarea" =~ ^[A-Za-z0-9_][A-Za-z0-9._-]*$ ]]; then
   echo "gate: --tarea inválido (letras, números, . _ -): $tarea" >&2; exit 2
 fi
@@ -83,13 +102,6 @@ PR="$AQUI/proyecto-ruta"; [[ -x "$PR" ]] || PR="$(command -v proyecto-ruta || tr
 [[ -n "$PR" ]] || fatal "no encuentro proyecto-ruta"
 repo="$("$PR" "$proy" 2>/dev/null)" && [[ -n "$repo" ]] || fatal "no resuelvo el proyecto: $proy"
 slug="$(basename "$repo")"; slug="${slug//[^A-Za-z0-9._-]/-}"; slug="${slug,,}"   # = slug_de de pa
-rama="$id"; [[ "$id" == pa/* ]] || rama="pa/$slug/$id"
-idKey="${rama#pa/$slug/}"   # el id de la fila de estado.tsv (también sirve la rama entera como <id>)
-git -C "$repo" rev-parse --verify -q "refs/heads/$rama" >/dev/null || fatal "no existe la rama $rama en $repo"
-git -C "$repo" rev-parse --verify -q "$main_ref" >/dev/null || fatal "no existe $main_ref en $repo"
-
-# Worktree de la rama: el que ya la tiene, o uno desechable.
-wt="$(git -C "$repo" worktree list --porcelain | awk -v r="refs/heads/$rama" '/^worktree /{w=substr($0,10)} $0=="branch " r{print w; exit}')"
 desechables=()
 limpiar() { local d; for d in "${desechables[@]}"; do git -C "$repo" worktree remove --force "$d" >/dev/null 2>&1; done; }
 restaurar() { # devuelve al worktree el archivo de test que el paso 2 pisó
@@ -111,6 +123,143 @@ desenlazar_deps() { # quita sólo los symlinks que puso enlazar_deps (unlink: nu
   enlaces=()
 }
 trap 'restaurar; desenlazar_deps; limpiar' EXIT
+
+# --plan: compuerta del plan (F3). Lee tareas/<slug>/20-plan.md y calcula por subtarea lo que no necesita juicio del líder.
+if [[ -n "$plan" ]]; then
+  git -C "$repo" rev-parse --verify -q "$main_ref" >/dev/null || fatal "no existe $main_ref en $repo"
+  plan_md="$STATE/$slug/tareas/$plan/20-plan.md"
+  [[ -f "$plan_md" ]] || fatal "no existe el plan: $plan_md"
+  sha="$(git -C "$repo" rev-parse --short "$main_ref")"
+  bwt=""
+  if ((!no_correr)); then
+    bwt="/tmp/base-$sha"
+    if [[ ! -d "$bwt" ]]; then
+      git -C "$repo" worktree add --detach "$bwt" "$main_ref" >/dev/null 2>&1 || fatal "no pude sacar $main_ref en $bwt"
+    fi
+    enlazar_deps "$bwt"
+  fi
+  python3 -I - "$repo" "$main_ref" "$sha" "$plan_md" "$plan" "$json" "$bwt" <<'PY'
+import json, os, re, subprocess, sys
+repo, main_ref, sha, plan_md, plan, como_json, bwt = sys.argv[1:8]
+como_json = como_json == "1"
+
+CAMPOS = {"depende de": "depende", "leer": "leer", "modificar": "modificar", "calientes": "calientes", "chequeo": "chequeo", "rúbrica": "rubrica"}
+subs = []
+for linea in open(plan_md, encoding="utf-8").read().splitlines():
+    m = re.match(r"^##\s+(T[0-9A-Za-z]+)\b\s*(.*)$", linea)
+    if m:
+        subs.append({"id": m.group(1), "titulo": m.group(2).strip(), "crudo": {}})
+        continue
+    m = re.match(r"^(Depende de|Leer|Modificar|Calientes|Chequeo|Rúbrica):\s*(.*)$", linea)
+    if m and subs:
+        subs[-1]["crudo"][CAMPOS[m.group(1).lower()]] = re.sub(r"\s{2,}#.*$", "", m.group(2)).strip()
+
+def lista(txt):
+    out = []
+    for it in (txt or "").split(","):
+        it = re.sub(r"\s*\([^)]*\)\s*$", "", it.strip()).strip("`").strip()
+        if it and it not in ("—", "-", "–"):
+            out.append(it)
+    return out
+
+def es_test(ruta):
+    return re.search(r"(^|/)[^/]*\.(test|spec)\.[^/]*$", ruta) is not None
+
+SENSIBLES = [
+    (lambda r: os.path.basename(r) in ("nucleo.ts", "puente.ts"), "nucleo.ts/puente.ts"),
+    (lambda r: "preload" in r.lower(), "preload"),
+    (lambda r: "migrations/" in r, "migrations/"),
+    (lambda r: os.path.basename(r).startswith(".env"), ".env"),
+    (lambda r: "permisos" in r.lower(), "permisos"),
+]
+
+def bytes_en_main(ruta):
+    r = subprocess.run(["git", "-C", repo, "cat-file", "-s", f"{main_ref}:{ruta}"], capture_output=True, text=True)
+    return int(r.stdout.strip()) if r.returncode == 0 else None
+
+for s in subs:
+    c = s.pop("crudo")
+    s["depende"] = lista(c.get("depende"))
+    s["leer"] = [{"ruta": r, "bytes": bytes_en_main(r)} for r in lista(c.get("leer"))]
+    s["modificar"] = lista(c.get("modificar"))
+    chq = (c.get("chequeo") or "").strip().strip("`").strip()
+    s["chequeo"] = "" if chq in ("", "—", "-", "–") else chq
+
+t0 = set(next((s["modificar"] for s in subs if s["id"] == "T0"), []))
+por_archivo = {}
+for s in subs:
+    for f in s["modificar"]:
+        por_archivo.setdefault(f, []).append(s["id"])
+
+problemas_total = 0
+for s in subs:
+    s["leer_bytes"] = sum(x["bytes"] or 0 for x in s["leer"])
+    s["leer_kb"] = round(s["leer_bytes"] / 1000, 1)
+    s["leer_faltan_en_main"] = [x["ruta"] for x in s["leer"] if x["bytes"] is None]
+    contados = [f for f in s["modificar"] if not es_test(f) and (s["id"] == "T0" or f not in t0)]
+    s["archivos_contados"] = len(contados)
+    por_n = "chico" if len(contados) <= 1 else "mediano" if len(contados) <= 3 else "grande"
+    por_kb = "chico" if s["leer_bytes"] <= 15000 else "mediano" if s["leer_bytes"] <= 40000 else "grande"
+    orden = ["chico", "mediano", "grande"]
+    s["a"] = max(por_n, por_kb, key=orden.index)
+    motivos = sorted({n for f in s["modificar"] for fn, n in SENSIBLES if fn(f)})
+    s["d_piso"] = "alto" if motivos else "bajo"
+    s["d_motivos"] = motivos
+    s["calientes"] = {f: [x for x in por_archivo[f] if x != s["id"]] for f in s["modificar"] if len(por_archivo[f]) > 1}
+    s["rojo_en_main"], s["chequeo_exit"] = "sin-chequeo", None
+    if s["chequeo"]:
+        if not bwt:
+            s["rojo_en_main"] = "no-corrido"
+        else:
+            try:
+                r = subprocess.run(["bash", "-c", s["chequeo"]], cwd=bwt, capture_output=True, text=True, timeout=900)
+                s["chequeo_exit"] = r.returncode
+                s["rojo_en_main"] = "rojo" if r.returncode != 0 else "verde"
+            except subprocess.TimeoutExpired:
+                s["rojo_en_main"] = "timeout"
+    pr = []
+    if s["rojo_en_main"] == "verde":
+        pr.append("el chequeo da verde en main: no prueba nada, reescribirlo")
+    if s["leer_bytes"] > 40000:
+        pr.append("lee más de 40 000 bytes: partir")
+    if s["archivos_contados"] > 3:
+        pr.append("modifica más de 3 archivos (sin tests ni T0): partir")
+    s["problemas"] = pr
+    problemas_total += len(pr)
+
+ok = problemas_total == 0
+if como_json:
+    print(json.dumps({"plan": plan, "main": sha, "ok": ok, "subtareas": subs}, ensure_ascii=False, indent=2))
+else:
+    print(f"PLAN {plan} contra main {sha}: {len(subs)} subtarea(s)")
+    for s in subs:
+        print(f"{s['id']}  {s['titulo']}")
+        print(f"    A         {s['a']}  ({s['archivos_contados']} archivo(s) sin tests ni T0, {s['leer_kb']} KB de lectura)")
+        print(f"    D (piso)  {s['d_piso']}" + (f"  ({', '.join(s['d_motivos'])})" if s["d_motivos"] else ""))
+        if s["calientes"]:
+            print("    calientes " + "; ".join(f"{f} (con {', '.join(o)})" for f, o in s["calientes"].items()))
+        else:
+            print("    calientes —")
+        etiqueta = {"rojo": f"ROJO en main (exit {s['chequeo_exit']})", "verde": "VERDE en main", "sin-chequeo": "sin chequeo (C = ninguno)", "no-corrido": "no corrido (--no-correr)", "timeout": "timeout al correrlo en main"}[s["rojo_en_main"]]
+        print(f"    chequeo   {etiqueta}")
+        if s["leer_faltan_en_main"]:
+            print("    AVISO     no están en main (cuentan 0 bytes): " + ", ".join(s["leer_faltan_en_main"]))
+        for p in s["problemas"]:
+            print(f"    PROBLEMA  {p}")
+    print("El líder contesta B, C y E." )
+    print("PLAN LISTO" if ok else "PLAN CON PROBLEMAS (exit 28)")
+sys.exit(0 if ok else 28)
+PY
+  exit $?
+fi
+
+rama="$id"; [[ "$id" == pa/* ]] || rama="pa/$slug/$id"
+idKey="${rama#pa/$slug/}"   # el id de la fila de estado.tsv (también sirve la rama entera como <id>)
+git -C "$repo" rev-parse --verify -q "refs/heads/$rama" >/dev/null || fatal "no existe la rama $rama en $repo"
+git -C "$repo" rev-parse --verify -q "$main_ref" >/dev/null || fatal "no existe $main_ref en $repo"
+
+# Worktree de la rama: el que ya la tiene, o uno desechable.
+wt="$(git -C "$repo" worktree list --porcelain | awk -v r="refs/heads/$rama" '/^worktree /{w=substr($0,10)} $0=="branch " r{print w; exit}')"
 if [[ -z "$wt" || ! -d "$wt" ]]; then
   wt="/tmp/gate-${rama//\//-}"
   git -C "$repo" worktree add --detach "$wt" "$rama" >/dev/null 2>&1 || fatal "no pude sacar un worktree de $rama en $wt"
