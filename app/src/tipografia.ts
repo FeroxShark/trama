@@ -8,6 +8,7 @@
 //
 // Sin imports de React ni del DOM a la fuerza: lo prueba `node --test`.
 import { CLAVE_TEMA, esTema, resolverTema, TEMA_DEF, type Tema } from "./temas.ts";
+import { sincronizarTitulo } from "./titulo.ts";
 
 /** Px del texto base: 13 es la maqueta. */
 export const LETRA_DEF = 13;
@@ -93,6 +94,8 @@ export function aplicarTema(tema: Tema) {
   const pintar = () => {
     const claro = typeof matchMedia === "function" && matchMedia("(prefers-color-scheme: light)").matches;
     document.documentElement.setAttribute("data-tema", resolverTema(tema, claro));
+    // Los símbolos de los botones nativos (la carcasa de Windows) siguen al tema que quedó pintado.
+    sincronizarTitulo();
   };
   pintar();
   try {
@@ -152,6 +155,8 @@ export function cambiarApariencia(cambio: Partial<Apariencia>): Partial<Aparienc
   if (typeof document !== "undefined") {
     aplicar(document.documentElement.style, actual);
     if (dif.tema) aplicarTema(actual.tema);
+    // La letra cambia la altura de la franja (4 rem): los botones nativos la siguen.
+    sincronizarTitulo();
   }
   for (const f of oyentes) f();
   return dif;
