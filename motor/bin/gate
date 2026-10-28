@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# gate <proyecto> <id> --chequeo CMD --permitidos F [--test COPIA[:RUTA]] [--extras CMD] [--rojos CMD] [--main REF] [--log F] [--tarea SLUG]
+# gate <proyecto> <id> --chequeo CMD --permitidos F [--test COPIA[:RUTA]] [--espejo F [--espejo-cmd CMD]] [--extras CMD] [--rojos CMD] [--main REF] [--log F] [--tarea SLUG]
 # gate <proyecto> --plan SLUG [--json] [--main REF] [--no-correr]
 #
 # Compuerta de cada corrida (F6) del protocolo de orquestación (motor/docs/protocolo-orquestacion.txt, sección 4).
@@ -21,6 +21,10 @@
 #   3. chequeo        --chequeo CMD corre en el worktree de la rama y da exit 0
 #   3b extras         los *.extra.test.* que agregó o cambió la rama corren aparte, con --extras CMD (exit 0). Sin --extras
 #                     avisa que no corrieron
+#   3c espejo         sólo con --espejo F (el test oculto que pa --espejo sacó de tareas/): F se copia al worktree al lado del
+#                     test congelado, con nombre gate-espejo-*, y corre con el mismo comando que el chequeo, cambiando la ruta
+#                     del test congelado por la del espejo. Con --espejo-cmd CMD corre ese comando, donde {} es la ruta del
+#                     espejo. Se borra al terminar, también con error (trap). Sin --test ni --espejo-cmd no sabe cómo correrlo: 3
 #   4. rojos nuevos   --rojos CMD (corre los tests e imprime los que fallan, uno por línea) en la rama y en main:
 #                     lo que falla en la rama y no en main es nuevo. La base de main se guarda una vez por sha en
 #                     $PA_STATE/<proyecto>/base-<sha>.txt. Sin --rojos se saltea (y lo dice)
@@ -45,7 +49,8 @@
 #
 # Exits:  0 verde · 2 uso · 3 no resuelve proyecto/rama/main/archivos del gate · 21 fuera de lo permitido ·
 #         22 test congelado sin ruta única · 23 el chequeo (o un extra) dio rojo · 24 rojos nuevos contra main ·
-#         25 anti-patrón en lo agregado · 26 snapshot sin ruta explícita en --permitidos · 28 (sólo --plan) problema en el plan
+#         25 anti-patrón en lo agregado · 26 snapshot sin ruta explícita en --permitidos · 28 (sólo --plan) problema en el plan ·
+#         29 (sólo --espejo) el espejo dio rojo
 set -uo pipefail
 
 AQUI="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -59,12 +64,15 @@ plan=""; json=0; no_correr=0
 proy=""; id=""; chequeo=""; permitidos=""; test_arg=""; extras_cmd=""; rojos=""; main_ref="main"; log=""
 tarea="${PA_TAREA:-}"; enlaces=()   # tarea de estado.tsv; node_modules enlazados (symlinks que hay que quitar al salir)
 bk=""; existia=0   # backup del archivo de test del worktree mientras está pisado (paso 2)
+espejo=""; espejo_cmd=""; esp_rel=""   # test espejo (paso 3c), su comando, y su copia en el worktree mientras existe
 pos=()
 while (($#)); do
   case "$1" in
     --chequeo)    [[ $# -ge 2 ]] || uso; chequeo="$2"; shift 2 ;;
     --permitidos) [[ $# -ge 2 ]] || uso; permitidos="$2"; shift 2 ;;
     --test)       [[ $# -ge 2 ]] || uso; test_arg="$2"; shift 2 ;;
+    --espejo)     [[ $# -ge 2 ]] || uso; espejo="$2"; shift 2 ;;
+    --espejo-cmd) [[ $# -ge 2 ]] || uso; espejo_cmd="$2"; shift 2 ;;
     --extras)     [[ $# -ge 2 ]] || uso; extras_cmd="$2"; shift 2 ;;
     --rojos)      [[ $# -ge 2 ]] || uso; rojos="$2"; shift 2 ;;
     --main)       [[ $# -ge 2 ]] || uso; main_ref="$2"; shift 2 ;;
@@ -97,6 +105,11 @@ if [[ -n "$test_arg" ]]; then
   [[ "$test_arg" == *:* ]] && test_ruta="${test_arg#*:}"
   [[ -f "$copia" ]] || fatal "no existe la copia del test: $copia"
 fi
+if [[ -n "$espejo" ]]; then
+  [[ -f "$espejo" && -r "$espejo" ]] || fatal "no existe o no se puede leer el espejo: $espejo"
+elif [[ -n "$espejo_cmd" ]]; then
+  uso
+fi
 
 PR="$AQUI/proyecto-ruta"; [[ -x "$PR" ]] || PR="$(command -v proyecto-ruta || true)"
 [[ -n "$PR" ]] || fatal "no encuentro proyecto-ruta"
@@ -122,7 +135,11 @@ desenlazar_deps() { # quita sólo los symlinks que puso enlazar_deps (unlink: nu
   for e in "${enlaces[@]}"; do unlink "$e"; done
   enlaces=()
 }
-trap 'restaurar; desenlazar_deps; limpiar' EXIT
+borrar_espejo() { # quita la copia del espejo del worktree (paso 3c); también corre al salir, con error
+  [[ -n "$esp_rel" && -n "${wt:-}" ]] && rm -f "$wt/$esp_rel"
+  esp_rel=""
+}
+trap 'restaurar; desenlazar_deps; limpiar; borrar_espejo' EXIT
 
 # --plan: compuerta del plan (F3). Lee tareas/<slug>/20-plan.md y calcula por subtarea lo que no necesita juicio del líder.
 if [[ -n "$plan" ]]; then
@@ -387,6 +404,24 @@ else
   sal3b="$(cd "$wt" && bash -c "$extras_cmd" 2>&1)"; ex3b=$?
   if ((ex3b == 0)); then echo "OK    3b extras (${#extras[@]})"
   else rojo 23 "3b extras: exit $ex3b"; printf '%s\n' "$sal3b" | tail -n 15 | sed 's/^/        /'; fi
+fi
+
+# 3c. espejo (sólo con --espejo): la copia va al lado del test congelado (o en la raíz) y corre con el mismo comando que el
+#     chequeo, con la ruta del test congelado cambiada por la de la copia; con --espejo-cmd, {} es la ruta de la copia
+if [[ -n "$espejo" ]]; then
+  esp_dir=""; [[ "$test_ruta" == */* ]] && esp_dir="$(dirname "$test_ruta")/"
+  esp_rel="${esp_dir}gate-espejo-$$-$(basename "$espejo")"
+  if [[ -n "$espejo_cmd" ]]; then cmd3c="${espejo_cmd//\{\}/"$esp_rel"}"
+  elif [[ -n "$test_ruta" && "$chequeo" == *"$test_ruta"* ]]; then cmd3c="${chequeo//"$test_ruta"/"$esp_rel"}"
+  else cmd3c=""; fi
+  if [[ -z "$cmd3c" ]]; then rojo 3 "3c espejo: no sé cómo correrlo (el chequeo no nombra el test congelado; pasá --espejo-cmd con {})"
+  else
+    mkdir -p "$(dirname "$wt/$esp_rel")" && cp "$espejo" "$wt/$esp_rel" || fatal "no pude copiar el espejo a $wt/$esp_rel"
+    sal3c="$(cd "$wt" && bash -c "$cmd3c" 2>&1)"; ex3c=$?
+    borrar_espejo
+    if ((ex3c == 0)); then echo "OK    3c espejo ($(basename "$espejo"))"
+    else rojo 29 "3c espejo: exit $ex3c"; printf '%s\n' "$sal3c" | tail -n 15 | sed 's/^/        /'; fi
+  fi
 fi
 
 # 4. rojos nuevos contra main

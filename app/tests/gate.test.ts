@@ -1,13 +1,13 @@
 // motor/bin/gate: la compuerta de cada corrida (F6) del protocolo de orquestación. Con un repo git de verdad en un tmp
 // (main + una rama pa/<slug>/<id> por caso), un registry de prueba (PROYECTOS_REGISTRY) y el estado en el tmp (PA_STATE):
-// verde, y un exit propio por cada falla (21 alcance, 22 test congelado, 23 chequeo, 24 rojos nuevos), más la base de
+// verde, y un exit propio por cada falla (21 alcance, 22 test congelado, 23 chequeo, 24 rojos nuevos, 29 espejo), más la base de
 // rojos por sha de main y el aviso de compactación. También gate --plan (compuerta del plan) con un 20-plan.md de fixture,
 // y que el instalador enlaza el script.
 import { after } from "node:test";
 import { testPosix as test } from "./plataforma.ts";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
@@ -151,6 +151,68 @@ test("2: el worktree del worker queda con su archivo de test como estaba", () =>
   } finally {
     git("worktree", "remove", "--force", wtw);
   }
+});
+
+test("3c: --espejo-cmd con {} corre la copia en el worktree: verde pasa, rojo da 29 y la copia no queda", () => {
+  const id = rama({ "src/b.txt": "b\n" });
+  const wtw = path.join(tmp, "wt-espejo");
+  git("worktree", "add", "-q", wtw, `pa/mi-proyecto/${id}`);
+  const espejo = path.join(tmp, "T1.gate.test.txt");
+  const correr = (contenido: string) => {
+    writeFileSync(espejo, contenido);
+    return spawnSync(GATE, ["mi-proyecto", id, "--chequeo", "true", "--permitidos", path.join(tmp, "permitidos.txt"), "--espejo", espejo, "--espejo-cmd", "grep -qx verde {}"], {
+      encoding: "utf8",
+      env: { ...process.env, PROYECTOS_REGISTRY: registry, PA_STATE: estado },
+    });
+  };
+  try {
+    const verde = correr("verde\n");
+    assert.equal(verde.status, 0, verde.stdout + verde.stderr);
+    assert.match(verde.stdout, /OK\s+3c espejo \(T1\.gate\.test\.txt\)/);
+    const rojo = correr("rojo\n");
+    assert.equal(rojo.status, 29, rojo.stdout + rojo.stderr);
+    assert.match(rojo.stdout, /ROJO\s+3c espejo: exit 1/);
+    assert.deepEqual(readdirSync(wtw).filter((f) => f.includes("espejo")), []);
+  } finally {
+    git("worktree", "remove", "--force", wtw);
+  }
+});
+
+test("3c: sin --espejo-cmd corre el chequeo con la ruta del test congelado cambiada por la del espejo; si no la nombra, es 3", () => {
+  const id = rama({ "src/b.txt": "b\n" });
+  const wtw = path.join(tmp, "wt-espejo-chequeo");
+  git("worktree", "add", "-q", wtw, `pa/mi-proyecto/${id}`);
+  const espejo = path.join(tmp, "T2.gate.test.txt");
+  const correr = (chequeo: string) =>
+    spawnSync(GATE, ["mi-proyecto", id, "--chequeo", chequeo, "--permitidos", path.join(tmp, "permitidos.txt"), "--test", `${path.join(tmp, "t1.test.txt")}:tests/t1.test.txt`, "--espejo", espejo], {
+      encoding: "utf8",
+      env: { ...process.env, PROYECTOS_REGISTRY: registry, PA_STATE: estado },
+    });
+  try {
+    // el chequeo nombra el test congelado: con el espejo en su lugar, pasa sólo si el espejo tiene lo que el chequeo espera
+    const chequeo = "grep -qx congelado tests/t1.test.txt";
+    writeFileSync(espejo, "congelado\n");
+    const ok = correr(chequeo);
+    assert.equal(ok.status, 0, ok.stdout + ok.stderr);
+    assert.match(ok.stdout, /OK\s+3c espejo \(T2\.gate\.test\.txt\)/);
+    writeFileSync(espejo, "otro\n");
+    const mal = correr(chequeo);
+    assert.equal(mal.status, 29, mal.stdout + mal.stderr);
+    assert.deepEqual(readdirSync(path.join(wtw, "tests")).filter((f) => f.includes("espejo")), []);
+    const sin = correr("true");
+    assert.equal(sin.status, 3, sin.stdout + sin.stderr);
+    assert.match(sin.stdout, /3c espejo: no sé cómo correrlo/);
+  } finally {
+    git("worktree", "remove", "--force", wtw);
+  }
+});
+
+test("3c: --espejo a un archivo que no existe es 3; --espejo-cmd sin --espejo es uso (2)", () => {
+  const sinArchivo = gate(rama({ "src/b.txt": "b\n" }), ["--espejo", path.join(tmp, "no-hay.test.txt"), "--espejo-cmd", "true"]);
+  assert.equal(sinArchivo.exit, 3, sinArchivo.sal);
+  assert.match(sinArchivo.sal, /no existe o no se puede leer el espejo/);
+  const sinEspejo = gate(rama({ "src/b.txt": "b\n" }), ["--espejo-cmd", "true"]);
+  assert.equal(sinEspejo.exit, 2, sinEspejo.sal);
 });
 
 test("22: el test congelado no tiene una ruta única en la rama (dos archivos con su nombre)", () => {
