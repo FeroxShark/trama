@@ -1462,9 +1462,11 @@ const Mensajes = memo(function Mensajes({ items, ultimoTurno, app, ocupado, pasa
 });
 
 /** Un pedido del usuario; Editar lo cambia por un campo en su mismo lugar. */
+/** La captura `lider-editar`: el pedido ya abierto para editar (ver `charlaEditar` en datos/fuente.ts). */
+const EDITANDO_CAPTURA = MODO.captura === "lider-editar";
 const YoEditable = memo(function YoEditable({ x, acciones, editar, guardar }: { x: Extract<Item, { tipo: "yo" }>; acciones: Acciones | null; editar: PropsMensajes["editar"]; guardar: PropsMensajes["guardar"] }) {
-  const [editando, setEditando] = useState(false);
   useIdioma();
+  const [editando, setEditando] = useState(EDITANDO_CAPTURA);
   const { texto: sinArchivos, archivos } = separarAdjuntos(x.texto);
   return (
     <Fragment>

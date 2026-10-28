@@ -657,7 +657,7 @@ const charlas = new Map<string, Mensaje[]>();
 const uuidFijo = (sid: string, i: number) => `00000000-0000-4000-9000-${sid.slice(-8)}${String(i).padStart(4, "0")}`;
 const charla = (sid: string) => {
   let c = charlas.get(sid);
-  if (!c) charlas.set(sid, (c = MODO.captura === "lider-sistema" ? charlaSistema(sid) : MODO.captura === "lider-cambio-motor" ? charlaCambio(sid) : MODO.captura === "lider-imagenes" ? charlaImagenes(sid) : MODO.captura === "lider-tabla" ? charlaTabla(sid) : MODO.captura === "lider-listas" ? charlaListas(sid) : MODO.captura === "lider-pensando" && MODO.variante !== "vivo" ? charlaPensando(sid) : MODO.captura === "lider-formato" ? (MODO.variante === "larga" ? charlaLarga(sid) : charlaFormato(sid, MODO.variante === "pegado")) : charlaLider(sid)));
+  if (!c) charlas.set(sid, (c = MODO.captura === "lider-sistema" ? charlaSistema(sid) : MODO.captura === "lider-cambio-motor" ? charlaCambio(sid) : MODO.captura === "lider-imagenes" ? charlaImagenes(sid) : MODO.captura === "lider-editar" ? charlaEditar(sid) : MODO.captura === "lider-tabla" ? charlaTabla(sid) : MODO.captura === "lider-listas" ? charlaListas(sid) : MODO.captura === "lider-pensando" && MODO.variante !== "vivo" ? charlaPensando(sid) : MODO.captura === "lider-formato" ? (MODO.variante === "larga" ? charlaLarga(sid) : charlaFormato(sid, MODO.variante === "pegado")) : charlaLider(sid)));
   return c;
 };
 // La conversación larga de las pruebas (`scripts/prueba-scroll-lideres.mjs`) recibe mensajes nuevos mientras otra está abierta.
@@ -687,6 +687,20 @@ function charlaImagenes(sid: string): Mensaje[] {
     imagenes: [imagenFija(1280, 800, 210), imagenFija(1280, 800, 30)],
   };
   return [yo, ...c].map((m, i) => ({ ...m, i }));
+}
+
+/** Captura `lider-editar`: el pedido de siempre con dos capturas y un archivo (el de `lider-imagenes`, con ruta inventada). */
+function charlaEditar(sid: string): Mensaje[] {
+  const [pedido, ...resto] = charlaLider(sid);
+  if (!pedido) return [];
+  return [
+    {
+      ...pedido,
+      texto: "Mirá estas dos y el resumen: el panel se corre al abrir Ajustes.\n\nArchivo adjunto (leelo con Read): /ejemplo/resumen.md",
+      imagenes: [imagenFija(1280, 800, 210), imagenFija(1280, 800, 30)],
+    },
+    ...resto,
+  ];
 }
 
 /** Con fixtures, el analista de Ramas (B22) contesta un veredicto por rama, rotando los cuatro. */

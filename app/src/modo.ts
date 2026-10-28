@@ -104,6 +104,8 @@ const CAPTURAS = [
   "lider-valores",
   // Imágenes en el globo y en la caja.
   "lider-imagenes",
+  // Un pedido propio abierto para editar: el campo con sus capturas y su archivo.
+  "lider-editar",
   // Tablas del markdown en la respuesta de un líder.
   "lider-tabla",
   // Cada forma del texto de un mensaje, y lo que no tiene espacios (`HILOS_VARIANTE=pegado`).
