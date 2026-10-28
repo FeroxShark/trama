@@ -42,7 +42,8 @@ historia (force push); se puede subir directo y mergear sin esperar el CI.
   Harness y OpenCode; en Gemini figura "no disponible".
 - **Menú de comandos por motor**, guías rápidas que no mueven la pantalla.
 - **Aviso de "hay una Trama nueva" (Linux).** `app/electron/actualizacion-trama.ts` consulta `releases/latest` de GitHub
-  (sin token) al abrir la app y cada 6 h, sin bloquear y en silencio si no hay red; compara por semver contra la `version`
+  (sin token) al abrir la app, al enfocarla, al volver la red y cada 2 min (con ETag: un 304 no gasta el límite; un 403/429
+  espera sin mostrar nada), sin bloquear y en silencio si no hay red; compara por semver contra la `version`
   de `app/package.json` (0.2.0 contra v0.1.4: no avisa). Pie de la barra, mismo globito que Claude Code y agy
   (`AvisoClaude cual="trama"`): versión nueva, "Notas de la versión", "Actualizar" y "Ahora no" (recordado por versión).
   Actualizar corre en el main, por argv y sin shell, en el checkout de donde se instaló: `git fetch --tags`, `git checkout
