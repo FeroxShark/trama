@@ -38,6 +38,7 @@ import { effortDe, effortsOpciones, MODELO_DEFAULT, MODELOS, modeloDe, nombreMod
 import { effortsDe, esAgy, esDsh, esOpencode, esLocal, familiaDe, motorNombre, reajustarEffort, sinWorkers } from "./modelos";
 import { ContextoLocal } from "./ContextoLocal";
 import { t as tr, textoMain } from "../i18n";
+import { useIdioma } from "../i18n/react";
 import { Selector } from "./Selector";
 import { opcionesEnTurno, pendienteDe } from "./pendiente";
 import { DialogoCambio, type DatosCambio } from "./DialogoCambio";
@@ -1457,10 +1458,12 @@ const Mensajes = memo(function Mensajes({ items, ultimoTurno, app, ocupado, pasa
 /** Un pedido del usuario; Editar lo cambia por un campo en su mismo lugar. */
 const YoEditable = memo(function YoEditable({ x, acciones, editar }: { x: Extract<Item, { tipo: "yo" }>; acciones: Acciones | null; editar: PropsMensajes["editar"] }) {
   const [editando, setEditando] = useState(false);
+  useIdioma();
   return (
     <Fragment>
       <Marca k={x.key} />
-      <div className="yo" data-editando={editando ? "" : undefined}>
+      {/* En cola: mandado a mitad de un turno, el modelo todavía no lo recibió. Se ve apagado y dice "en cola" (no sólo el color). */}
+      <div className={x.enCola ? "yo encolado" : "yo"} data-editando={editando ? "" : undefined} data-en-cola={x.enCola ? "" : undefined}>
         {editando ? (
           <EditorMensaje
             inicial={separarAdjuntos(x.texto).texto}
@@ -1471,7 +1474,15 @@ const YoEditable = memo(function YoEditable({ x, acciones, editar }: { x: Extrac
             }}
           />
         ) : (
-          <Yo texto={x.texto} imagenes={x.imagenes} />
+          <>
+            {x.enCola ? (
+              <div className="encolado-t" role="status">
+                <Clock size={12} strokeWidth={2} aria-hidden="true" />
+                <span>{tr("lider.enCola")}</span>
+              </div>
+            ) : null}
+            <Yo texto={x.texto} imagenes={x.imagenes} />
+          </>
         )}
       </div>
       {x.ts !== null && !editando ? <Hora ts={x.ts} der /> : null}

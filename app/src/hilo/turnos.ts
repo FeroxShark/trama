@@ -12,7 +12,7 @@ export type Paso = { texto: string; usos: Uso[] };
 
 export type Item =
   /** `ts`: epoch (s) de cuando lo mandó el usuario (`null` si no se sabe). */
-  | { tipo: "yo"; key: string; texto: string; ts: number | null; imagenes?: { tipo: string; datos: string }[]; punto?: Punto }
+  | { tipo: "yo"; key: string; texto: string; ts: number | null; imagenes?: { tipo: string; datos: string }[]; punto?: Punto; enCola?: boolean }
   /** Una línea o una tarjeta de sistema (B18). */
   | { tipo: "sistema"; key: string; s: Sistema }
   | {
@@ -75,6 +75,7 @@ export function turnos(mensajes: Mensaje[], transcript: string | null = null): I
           texto: m.texto,
           ts: epoch(m.ts),
           ...(m.imagenes?.length ? { imagenes: m.imagenes } : {}),
+          ...(m.enCola ? { enCola: true } : {}),
           ...(m.uuid ? { punto: { uuid: m.uuid, n: m.i + 1, antes: m.i, ...(m.previo ? { previo: m.previo } : {}), ...(m.previa ? { previa: true as const } : {}) } } : {}),
         });
       i++;

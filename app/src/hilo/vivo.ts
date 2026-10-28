@@ -207,8 +207,13 @@ function cambiarPor(sid: string, ev: EventoLider) {
       case "estilos":
         ponerEstilos(ev.actual, ev.lista);
         return e;
-      case "entregado":
-        return e.directos ? { ...e, directos: e.directos - 1 } : e;
+      case "entregado": {
+        // El eco: sale el más viejo que todavía espera con ese texto (el mismo orden en que se mandaron).
+        const k = e.tanda.findIndex((m) => m.enCola && m.texto.trim() === ev.texto.trim());
+        if (k < 0 && !e.directos) return e;
+        const tanda = k < 0 ? e.tanda : e.tanda.map((m, j) => (j === k ? { ...m, enCola: undefined } : m));
+        return { ...e, tanda, directos: Math.max(0, e.directos - 1) };
+      }
       case "fin": {
         // Parar termina el turno con un error que no es error.
         let avisos = sinReintento(e.avisos);
@@ -324,11 +329,11 @@ export function enviado(sid: string, texto: string, base: number, imagenes?: Men
 /**
  * Entrega a mitad de turno (la cola, o "Mandar ya"): el usuario mandó algo con un turno en curso. Va al final de la tanda, pero el turno sigue siendo el mismo (no se reinician
  * `turno`, los avisos ni los tokens): el CLI lo entrega en el próximo límite de herramienta y el modelo sigue desde ahí. `directos` cuenta
- * lo que todavía no entró, para el aviso de que espera a la herramienta en curso.
+ * lo que todavía no entró, para el aviso de que espera a la herramienta en curso. Su burbuja dice "en cola" hasta el eco (`entregado`).
  */
 export function enviadoDirecto(sid: string, texto: string, imagenes?: Mensaje["imagenes"]) {
   cambiar(sid, (e) => {
-    const yo: Mensaje = { i: e.tanda.length, rol: "user", texto, herramientas: [], ts: new Date().toISOString(), modelo: null, ...(imagenes?.length ? { imagenes } : {}) };
+    const yo: Mensaje = { i: e.tanda.length, rol: "user", texto, herramientas: [], ts: new Date().toISOString(), modelo: null, enCola: true, ...(imagenes?.length ? { imagenes } : {}) };
     return { ...e, tanda: [...e.tanda, yo], directos: e.directos + 1 };
   });
 }

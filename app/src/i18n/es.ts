@@ -749,6 +749,7 @@ export const es: { [K in keyof typeof en]: string } = {
   "lider.cola1": "1 en cola · sale en la próxima pausa",
   "lider.colaN": "{n} en cola · salen en la próxima pausa",
   "lider.quitarCola": "Sacar de la cola",
+  "lider.enCola": "en cola",
   "barra.home": "Inicio",
   "accion.integrar": "Integrar",
   "accion.quitar": "Quitar",

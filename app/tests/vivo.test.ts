@@ -104,6 +104,24 @@ test("Mandar ya que falla: el mensaje sale del chat y el turno sigue; un fin dej
   assert.equal(enCurso("directo2").directos, 0, "terminado el turno no queda esperando nada");
 });
 
+test("Mandar ya: la burbuja dice en cola hasta su eco (el más viejo con ese texto); el fin del turno no la quita", () => {
+  empezar("encola");
+  emitir({ sid: "encola", e: entero("msg_b", "Voy a mirar.", ["Bash: sleep 20"]) });
+  enviadoDirecto("encola", "primero");
+  enviadoDirecto("encola", "segundo");
+  const encolados = () => enCurso("encola").tanda.filter((m) => m.enCola).map((m) => m.texto);
+  assert.deepEqual(encolados(), ["primero", "segundo"]);
+  emitir({ sid: "encola", e: { tipo: "entregado", texto: "otro" } });
+  assert.deepEqual(encolados(), ["primero", "segundo"], "un eco de otro texto no toca ninguna");
+  emitir({ sid: "encola", e: { tipo: "entregado", texto: "segundo" } });
+  assert.deepEqual(encolados(), ["primero"]);
+  terminar("encola");
+  assert.deepEqual(encolados(), ["primero"], "sin eco todavía sigue en cola aunque el turno haya terminado");
+  emitir({ sid: "encola", e: { tipo: "entregado", texto: " primero " } });
+  assert.deepEqual(encolados(), []);
+  assert.equal(enCurso("encola").directos, 0);
+});
+
 test("parciales + definitivo = un solo mensaje, igual al de hoy", () => {
   // Con el texto llegando de a pedazos.
   empezar("con");

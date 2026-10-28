@@ -760,6 +760,7 @@ export const en = {
   "lider.cola1": "1 queued · goes out at the next pause",
   "lider.colaN": "{n} queued · go out at the next pause",
   "lider.quitarCola": "Remove from queue",
+  "lider.enCola": "queued",
   "barra.home": "Home",
   "accion.integrar": "Merge",
   "accion.quitar": "Remove",
