@@ -16,6 +16,7 @@ const wslReal = require("./wsl");
 const { crearGuardiaFoco } = require("./foco");
 const { iniciarActualizador } = require("./actualizar");
 const { crearLimpieza } = require("./limpieza");
+const { opcionesTitulo, overlayDesde } = require("./titulo");
 const nativo = require("./nativo");
 const { crearAsistenteNativo } = require("./pasos-nativo");
 const { ENTRADAS_NATIVO } = require("./manifiesto-nativo");
@@ -350,6 +351,7 @@ function arrancar() {
     backgroundColor: COLOR_FONDO,
     title: "Trama",
     icon: path.join(__dirname, "..", "build", "icon.png"),
+    ...opcionesTitulo(),
     webPreferences: { preload: path.join(__dirname, "preload.js"), sandbox: true, contextIsolation: true, nodeIntegration: false, offscreen: !!CAPTURA },
   });
   ventana.once("ready-to-show", () => ventana.show());
@@ -392,6 +394,11 @@ function arrancar() {
   mostrarAsistente();
 }
 
+// La página pide los símbolos del tema que pintó (y el alto de su franja): los botones nativos siguen al tema.
+ipcMain.handle("ventana:titulo", (e, t) => {
+  const v = BrowserWindow.fromWebContents(e.sender);
+  if (v && !v.isDestroyed() && process.platform === "win32") v.setTitleBarOverlay(overlayDesde(t?.simbolo, t?.alto));
+});
 ipcMain.handle("asistente:pasos", () => asistente.PASOS);
 ipcMain.handle("asistente:avanzar", () => correrAsistente());
 ipcMain.handle("asistente:conectar", (_e, proveedor) => (guardiaFoco.consolaAbierta(), asistente.conectar(proveedor)).then(() => ({}), (e) => ({ error: e.message })));

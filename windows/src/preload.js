@@ -21,6 +21,7 @@ contextBridge.exposeInMainWorld("carcasa", {
   restosPlan: () => invocar("restos:plan"),
   restosQuitar: (ids) => invocar("restos:quitar", ids),
   restosQuitarDistro: (nombre) => invocar("restos:quitarDistro", nombre),
+  tituloTema: (t) => invocar("ventana:titulo", t),
   onEvento: (cb) => ipcRenderer.on("asistente:evento", (_e, ev) => cb(ev)),
   onActualizacion: (cb) => ipcRenderer.on("actualizar:cambio", (_e, ev) => cb(ev)),
 });
