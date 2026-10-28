@@ -48,7 +48,9 @@
 #   pa <proyecto> -m a,b,c "<tarea>"     lista de fallback: prueba a; si sale 76/77 (límite o API sobrecargada), 95/96 (no puede
 #                                        correr / sin cupo) o 97 (OpenCode cortó por límite) pasa a b, y así. Saltea los que reparto
 #                                        tiene enfriados y los que modelos.json apagó (excluir; efforts_permitidos si va --effort; sale 98
-#                                        si no queda ninguno). Sale con el código del último intento. Con --async cubre sólo lo que falla al lanzar
+#                                        si no queda ninguno). Sale con el código del último intento. Con --async: lo que falla al lanzar (95/96)
+#                                        pasa al siguiente, y un 97 de la corrida ya lanzada relanza sola con el siguiente en esa misma corrida
+#                                        (mismo id; --esperar --id trae el del último intento; sólo si el intento no dejó commits ni cambios)
 #   pa <proyecto> -m <modelo> "<tarea>"  elegir modelo: el jefe lo elige (con --effort) según el tamaño real de la tarea
 #                                        (`reparto --resumen` lista las opciones); con -m, reparto sólo avisa si ese modelo no
 #                                        tiene cupo y sugiere otro (sin_cupo=fallar: sale 96). Sin -m pa avisa y sigue con lo
@@ -6527,6 +6529,31 @@ sin_trabajo_hecho() {
   [[ -z "$(git -C "$ruta_trabajo" status --porcelain 2>/dev/null)" ]] \
     && [[ "$(git -C "$ruta_trabajo" rev-list --count "${base:-HEAD}..HEAD" 2>/dev/null || echo 1)" == 0 ]]
 }
+# Próximo modelo usable de una lista de fallback (lo que queda, separado por coma) para relanzar en esta corrida --async:
+# saltea, con aviso como en primer plano, los que el dueño apagó en modelos.json (excluir; efforts_permitidos si va --effort;
+# con --ok-dueno no) y los enfriados. Deja fb_sig (el modelo) y fb_sig_resto (lo que sigue); rc 1 si no queda ninguno.
+fb_siguiente() {   # $1 = lista pendiente
+  local lista="$1" x por i
+  local -a items
+  IFS=, read -r -a items <<<"$lista"
+  fb_sig=""; fb_sig_resto=""
+  for (( i = 0; i < ${#items[@]}; i++ )); do
+    x="${items[i]}"
+    if (( ! ok_dueno )); then
+      if por="$(excluido_por "$x")"; then echo "pa: -m: $x está excluido en modelos.json (excluir: $por): lo salteo." >&2; continue; fi
+      if [[ -n "$esfuerzo_pedido" ]] && por="$(effort_apagado "$x" "$esfuerzo_pedido")"; then
+        echo "pa: -m: effort '$esfuerzo_pedido' con $x está apagado en modelos.json (efforts_permitidos: ${por// /, }): lo salteo." >&2; continue
+      fi
+    fi
+    if REPARTO_STATE="${REPARTO_STATE:-$STATE/reparto}" PA_STATE="$STATE" "$REPARTO" --enfriado "$x" >/dev/null 2>&1 </dev/null; then
+      echo "pa: -m: $x sigue enfriado (cortó por límite): lo salteo." >&2; continue
+    fi
+    fb_sig="$x"
+    fb_sig_resto="$(IFS=,; printf '%s' "${items[*]:i+1}")"
+    return 0
+  done
+  return 1
+}
 # Marca ESE modelo de OpenCode como enfriado en reparto (`reparto --enfriar`); nunca rompe a pa.
 enfriar_modelo() {   # $1 = modelo
   REPARTO_STATE="${REPARTO_STATE:-$STATE/reparto}" PA_STATE="$STATE" "$REPARTO" --enfriar "$1" ${PA_ENFRIAR_HORAS:+--horas "$PA_ENFRIAR_HORAS"} >/dev/null 2>&1 </dev/null || true
@@ -6608,6 +6635,19 @@ while (( reintentos_cupo < 3 )) && [[ "$SIN_CUPO" == otro && -n "$reparto_tipo_r
   c_txt=""; [[ "$cuenta" != "$c_ant" && "$cuenta" != claude && "$cuenta" != google && "$cuenta" != chatgpt ]] && c_txt=" (cuenta $cuenta)"
   echo "pa: $quien (sin cupo) con $m_ant: lo marco agotado hasta que vuelva y relanzo con $m_rep${e_rep:+ effort $e_rep}$c_txt: $mot_rep" >&2
   cambiar_de_modelo "$m_rep" "$e_rep"
+  rc=0; correr || rc=$?
+done
+
+# --async con -m a,b,c: un corte de OpenCode (97) pasa al siguiente de la lista EN ESTA corrida: mismo id y mismo puesto, así que
+# el .listo (el trap de EXIT) trae el resultado del último intento y `--esperar` lo entrega. Sólo si el intento que cortó no dejó
+# nada (sin commits ni cambios): si ya tocó algo, sale 97 como siempre. En primer plano el padre de la lista lo hace con una
+# corrida nueva por modelo.
+while [[ -n "${PA_ASYNC:-}" && -n "$fb_resto" ]] && { (( rc != 0 )) || es_error; } && es_opencode "$modelo" && dsh_sin_cupo && sin_trabajo_hecho; do
+  enfriar_modelo "$modelo"
+  fb_siguiente "$fb_resto" || break
+  echo "pa: OpenCode cortó por límite con $modelo: sigo con $fb_sig (lista de fallback, mismo id)." >&2
+  fb_resto="$fb_sig_resto"
+  cambiar_de_modelo "$fb_sig" "$esfuerzo_pedido"
   rc=0; correr || rc=$?
 done
 
