@@ -325,4 +325,21 @@ const casosWorkers: Caso[] = [
   }) },
 ];
 
-export const casosHerramientas: Caso[] = [...casosRuta, ...casosEstado, ...casosWorkers];
+// ============================================================================ carcasa nativa de Windows
+
+// La carcasa nativa (windows/src/pasos-nativo.js) le pregunta a `trama-estado --json` con el entorno que arma para el motor
+// (nativo.js, entornoMotor): las variables de Windows y las del motor no cambian lo que contesta.
+const casosCarcasaNativa: Caso[] = [
+  te("--json con el entorno de la carcasa nativa de Windows", ["--json"], undefined, (c) => ({
+    LOCALAPPDATA: path.join(c.aux, "Local"),
+    APPDATA: path.join(c.aux, "Roaming"),
+    USERPROFILE: c.home,
+    USERNAME: "ana",
+    TRAMA_APP: path.join(c.aux, "Local", "trama", "app"),
+    HILOS_MOTOR: "1",
+    TRAMA_UNIDAD: "1",
+    TRAMA_LOCAL: "1",
+  })),
+];
+
+export const casosHerramientas: Caso[] = [...casosRuta, ...casosEstado, ...casosWorkers, ...casosCarcasaNativa];
