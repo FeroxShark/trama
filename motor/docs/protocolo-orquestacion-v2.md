@@ -353,7 +353,7 @@ Paso 2: si vuelve a fallar, o si no aplicaba el reintento, **clasificar**:
 | Exit 95, 96, 97 | Modelo no disponible/cortado | Siguiente de la lista `-m a,b,c`; el cortado queda enfriado. |
 | Exit 75 | Tope ocupado | `--async`: queda EN COLA. |
 | Entendió y no pudo: había que decidir algo, la causa era otra o el riesgo era mayor | **La estimación falló** | Corregir la respuesta que estuvo mal (B, D o E; o A si compactó por tamaño) y **lanzar directo el modelo que da la tabla corregida**, desde main, con el bloque "Intento previo". Si la tabla da el mismo modelo, el problema no es el modelo: es brief o partición. |
-| Tests/gate rojo por anti-patrón (25), espejo (26), no era rojo en main (27) | Trampa o test débil | Un reintento con el error real; si se repite, brief malo (el brief no dejó claro qué hace falta) o tarea con `C` sobreestimado. |
+| Tests/gate rojo por anti-patrón (25), espejo (29), no era rojo en main (27) | Trampa o test débil | Un reintento con el error real; si se repite, brief malo (el brief no dejó claro qué hace falta) o tarea con `C` sobreestimado. |
 
 **Reciclar en la misma rama [AGREGAR, ~60 líneas en `pa`]:** cuando hay que relanzar desde main (brief malo, estimación corregida, partición nueva), `pa <p> --seguir --id ID --desde-main -m M` guarda `git diff main...rama` en `tareas/<slug>/intento-<ID>-<n>.patch`, resetea la rama y el worktree a main y corre el nuevo intento ahí. Así **no quedan ramas muertas ni hace falta pedir `pa --descartar`** (destructivo) por cada reintento, y `pa` no da falsas alarmas de choque entre ramas sin integrar. Hay que verificar que `destructive-guard` (hook que bloquea comandos catastróficos) acepte el reset dentro del worktree del worker.
 
@@ -441,7 +441,7 @@ Un chequeo que da verde en main no prueba nada: se reescribe antes de gastar un 
 
 ### 8.3 Gate de cada corrida (F6): `motor/bin/gate`
 
-**Firma real [HOY, v1]:** `gate <proyecto> <id> --chequeo CMD --permitidos F [--test COPIA[:RUTA]] [--extras CMD] [--rojos CMD] [--main REF] [--log F]`. Corre los pasos aunque alguno falle (así el reintento lleva toda la evidencia) y sale con el exit del primer paso que falló. Si la rama ya no tiene worktree saca uno desechable en `/tmp/gate-<id>`.
+**Firma real [HOY, v1]:** `gate <proyecto> <id> --chequeo CMD --permitidos F [--test COPIA[:RUTA]] [--espejo F [--espejo-cmd CMD]] [--extras CMD] [--rojos CMD] [--main REF] [--log F]`. Corre los pasos aunque alguno falle (así el reintento lleva toda la evidencia) y sale con el exit del primer paso que falló. Si la rama ya no tiene worktree saca uno desechable en `/tmp/gate-<id>`.
 
 | Paso | Qué comprueba | Exit | Estado |
 |---|---|---|---|
@@ -449,25 +449,26 @@ Un chequeo que da verde en main no prueba nada: se reescribe antes de gastar un 
 | 2 test congelado | (Sólo con `--test`) Pisa en el worktree con la copia del plan (no compara byte a byte) y corre chequeo/rojos con esa; si no hay ruta única falla. Sin `--test` se saltea | 22 | [HOY] |
 | 3 chequeo | `--chequeo CMD` (o extras con `--extras CMD`) corre en el worktree de la rama y da exit 0 | 23 | [HOY] |
 | 4 rojos nuevos | `--rojos CMD` en la rama y en main (base por sha en `base-<sha>.txt`): lo que falla en la rama y no en main es nuevo | 24 | [HOY] |
+| 3c espejo | Sólo con `--espejo F` (el `Tn.gate.test.*` que `pa --espejo` sacó de `tareas/`): F se copia al worktree al lado del test congelado (nombre `gate-espejo-*`) y corre con el mismo comando que el chequeo, con la ruta del test congelado cambiada por la del espejo; o con `--espejo-cmd CMD` (`{}` = ruta del espejo). Se borra al terminar, también con error. Sin `--test` ni `--espejo-cmd` no sabe cómo correrlo: exit 3 | 29 | [HOY] |
 | 1c anti-patrón | Anti-patrones en las líneas agregadas del diff (`@ts-ignore`, `as any`, `.skip(`, `.only(`, etc.) | 25 | [HOY] |
 | 1b snapshot | Un `__snapshots__/` cambiado tiene su ruta nombrada explícita en `--permitidos` | 26 | [HOY] |
 | 5 compactación | Con `--log F`, avisa si el worker compactó. Es aviso: el gate juzga el código, no la memoria del worker | — | [HOY] |
 
-Otros exits: 0 verde · 2 uso · 3 no resuelve proyecto/rama/main/archivos del gate · 21 fuera de lo permitido · 22 test congelado sin ruta única · 23 el chequeo (o un extra) dio rojo · 24 rojos nuevos contra main · 25 anti-patrón en lo agregado · 26 snapshot sin ruta explícita en --permitidos. Sin `--test` es el camino trivial: no hay test congelado y se saltea.
+Otros exits: 0 verde · 2 uso · 3 no resuelve proyecto/rama/main/archivos del gate · 21 fuera de lo permitido · 22 test congelado sin ruta única · 23 el chequeo (o un extra) dio rojo · 24 rojos nuevos contra main · 25 anti-patrón en lo agregado · 26 snapshot sin ruta explícita en --permitidos · 29 (sólo con `--espejo`) el espejo dio rojo. Sin `--test` es el camino trivial: no hay test congelado y se saltea.
 
 **Cuatro maneras en que el gate v1 da verde con trabajo malo**, y cómo se cierran **sin LLM (0 US$)**:
 
 | Trampa | Cierre v2 [AGREGAR, todo en `gate`] | Exit (propuesto) | Tamaño |
 |---|---|---|---|
 | El worker silencia errores en vez de arreglarlos (`@ts-ignore`, `as any`, `eslint-disable`, `.skip`/`.only`), sobre todo con chequeo parcial (typecheck + build) | **Anti-patrones**: se rechazan las líneas agregadas (`^+`) del diff completo de la rama contra main que contengan `@ts-ignore`, `@ts-expect-error`, `as any`, `eslint-disable`, `.skip(` o `.only(` | 25 | ~15 líneas |
-| Test débil o tautológico (`expect(typeof f).toBe('function')`) que el worker satisface con un stub | **Test espejo oculto**: junto al test visible, `Tn.gate.test.*` con otros valores de entrada/salida. Vive fuera de `tareas/`: `pa --espejo <Tn.gate.test.*>` lo mueve a `espejos/<id>/` e imprime esa ruta; los settings del worker le niegan Read y los Bash que nombren ese directorio (best-effort: un patrón de Bash no cierra un `find` sobre `~/.local`). El gate lo copia al worktree y lo corre (flag `--espejo` del gate: pendiente, paso 26). Detecta código hardcodeado a medida (`if (x === 'caso') return ...`). Lo escribe el mismo F4 (un Haiku) y el líder lo aprueba; en vía rápida lo escribe un Haiku aparte que sólo ve el brief | 26 | ~15 líneas (+ una corrida chica de Haiku) |
-| Hardcoding contra el test congelado (idem) | (cubierto por el espejo) | 26 | — |
+| Test débil o tautológico (`expect(typeof f).toBe('function')`) que el worker satisface con un stub | **Test espejo oculto**: junto al test visible, `Tn.gate.test.*` con otros valores de entrada/salida. Vive fuera de `tareas/`: `pa --espejo <Tn.gate.test.*>` lo mueve a `espejos/<id>/` e imprime esa ruta; los settings del worker le niegan Read y los Bash que nombren ese directorio (best-effort: un patrón de Bash no cierra un `find` sobre `~/.local`). El gate lo copia al worktree y lo corre (flag `--espejo` del gate, paso 3c [HOY]). Detecta código hardcodeado a medida (`if (x === 'caso') return ...`). Lo escribe el mismo F4 (un Haiku) y el líder lo aprueba; en vía rápida lo escribe un Haiku aparte que sólo ve el brief | 29 | ~15 líneas (+ una corrida chica de Haiku) |
+| Hardcoding contra el test congelado (idem) | (cubierto por el espejo) | 29 | — |
 | `cmp` byte a byte rechaza al worker que legítimamente agrega un caso de borde o actualiza un mock compartido en un archivo de test existente | **Proteger aserciones, no el archivo**: el paso 2 pasa a comprobar que **toda línea de aserción** (`expect(`, `assert`) de la copia congelada sigue presente e intacta en el archivo de la rama; se permite agregar | 22 | ~10 líneas |
 | Bug intermitente (race, timeout, IPC): una corrida da verde por azar | **`--repetir K`** (para tipo debug): en F3 el chequeo debe fallar **al menos 1 de K** veces en main; en F6 debe pasar **K de K** | 23 | ~20 líneas |
 
 **Vía rápida en el gate** (`--via-rapida`, ~35 líneas): toma el test del primer commit de la rama que lo agrega, lo aplica sobre un worktree limpio de main y exige **rojo** (exit 27 si da verde o si el rojo es por import roto); comprueba que el test no cambió después (mismo criterio de aserciones que el paso 2) y exige **verde** en HEAD. Sin esto, la vía rápida no es verificable.
 
-**Espejo y test inline en la corrida de F5 [HOY]:** `pa <p> --tarea <slug> --subtarea Tn --brief-archivo tareas/<slug>/Tn.brief.md --test-inline tareas/<slug>/Tn.test.* --espejo tareas/<slug>/Tn.gate.test.* …`. `--test-inline` pega el test congelado al final del brief, bajo «Test que tiene que pasar, no lo modifiques:», así el brief no lleva su ruta. `--espejo` mueve el espejo a `espejos/<id>/` (una sola vez, también con `-m a,b,c`) y pone en stderr la ruta final, que va al gate. Lo que todavía no hay: el flag `--espejo` en `gate`, y que el deny sea a prueba de un `find` (ver arriba). Un reintento (`--seguir`) pasa la misma ruta impresa y no vuelve a mover el archivo.
+**Espejo y test inline en la corrida de F5 [HOY]:** `pa <p> --tarea <slug> --subtarea Tn --brief-archivo tareas/<slug>/Tn.brief.md --test-inline tareas/<slug>/Tn.test.* --espejo tareas/<slug>/Tn.gate.test.* …`. `--test-inline` pega el test congelado al final del brief, bajo «Test que tiene que pasar, no lo modifiques:», así el brief no lleva su ruta. `--espejo` mueve el espejo a `espejos/<id>/` (una sola vez, también con `-m a,b,c`) y pone en stderr la ruta final, que va al gate. El gate lo corre con `--espejo <ruta que imprimió pa>` (paso 3c, exit 29 si da rojo). Lo que todavía no hay: que el deny sea a prueba de un `find` (ver arriba). Un reintento (`--seguir`) pasa la misma ruta impresa y no vuelve a mover el archivo.
 
 **Otras mejoras del gate [AGREGAR]:** `--test` opcional (tareas triviales, ~5 líneas); paso 0 `git status --porcelain` del árbol principal vacío (evita el exit 79 al integrar y el worker que no ve cambios del líder, ~5 líneas); los exits 25–27 propuestos no chocan con los de `pa`.
 
@@ -497,7 +498,7 @@ Otros exits: 0 verde · 2 uso · 3 no resuelve proyecto/rama/main/archivos del g
 | # | Cambio | Dónde | Tamaño | Prioridad |
 |---|---|---|---|---|
 | P0 | Arreglar los 8 tests rojos de entorno de `main` (OpenCode sin login): saltearlos si no hay login, o mockearlos | tests | chico | **Alta, bloqueante**: sin esto `--integrar --tests` da 93 siempre |
-| 1 | `gate` v2: anti-patrones (25), aserciones protegidas (22), espejo (26), `--repetir K`, `--via-rapida` (27), `--test` opcional, `git status` limpio | `motor/bin/gate` | ~110 líneas bash | **Alta**: habilita vía rápida y cierra las trampas |
+| 1 | `gate` v2: anti-patrones (25), aserciones protegidas (22), espejo (29), `--repetir K`, `--via-rapida` (27), `--test` opcional, `git status` limpio | `motor/bin/gate` | ~110 líneas bash | **Alta**: habilita vía rápida y cierra las trampas |
 | 2 | Actualizar `rubrica_resolver` a v2: A en KB, marca I, filas 1b/3a/3b/7b/8b | `pa` | ~30 líneas | **Alta** (chica): sin esto la rúbrica de `pa` y la de este documento divergen |
 | 3 | Sección "protocolo por fases" en el skill del líder: tabla v2, plantillas, vía rápida, T0, una sola fuente de verdad de modelos (hoy chocan `CLAUDE.md` "ante la duda Haiku", perfil `ahorro` y `minimo_por_tipo`) | `motor/skills/trama-orquestar` | ~200 líneas de texto | **Alta** |
 | 4 | `--desde-main` en `--seguir`: guarda `.patch`, resetea la rama a main | `pa` | ~60 líneas | Media-alta: evita ramas muertas y pedidos de `--descartar` |
