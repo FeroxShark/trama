@@ -3,7 +3,7 @@
 // Todo git va por base/git.ts (sin shell) y los candados por base/lock.ts (las mismas rutas de `lock/` que el flock del bash, como clave).
 import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, readlinkSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { git, type ResultadoGit } from "../base/git.ts";
+import { git, parsearWorktrees, type ResultadoGit } from "../base/git.ts";
 import { borrarSinSeguir, enlazarArchivo, enlazarDir, esLink } from "../base/enlaces.ts";
 import { probar, tomar, type Lock } from "../base/lock.ts";
 import { rutaReal } from "../proyecto-ruta.ts";
@@ -79,11 +79,12 @@ export async function gOk(x: Proy, cwd: string, args: string[]): Promise<boolean
 
 export const existeRama = (x: Proy, repo: string, rama: string) => gOk(x, repo, ["rev-parse", "-q", "--verify", `refs/heads/${rama}`]);
 
+/** `git worktree list --porcelain` ya parseado (en Windows con `\\`, como las rutas que arma pa). */
+const worktrees = async (x: Proy, repo: string) => parsearWorktrees(await gs(x, repo, ["worktree", "list", "--porcelain"]), x.pa.plat);
+
 /** `tree_principal`: el primer worktree que lista git. */
 export async function treePrincipal(x: Proy, repo: string): Promise<string> {
-  const t = await gs(x, repo, ["worktree", "list", "--porcelain"]);
-  const l = t.split("\n")[0] ?? "";
-  return l.startsWith("worktree ") ? l.slice(9) : "";
+  return (await worktrees(x, repo))[0]?.ruta ?? "";
 }
 
 /** `rev-list --count` (0 si falla). */
@@ -100,13 +101,7 @@ export async function commitsPendientes(x: Proy, repo: string, rama: string): Pr
 
 /** `wt_de_rama`: el worktree donde está checkouteada la rama, o "". */
 export async function wtDeRama(x: Proy, rama: string): Promise<string> {
-  const t = await gs(x, x.ruta, ["worktree", "list", "--porcelain"]);
-  let w = "";
-  for (const l of t.split("\n")) {
-    if (l.startsWith("worktree ")) w = l.slice(9);
-    else if (l === `branch refs/heads/${rama}`) return w;
-  }
-  return "";
+  return (await worktrees(x, x.ruta)).find((w) => w.rama === `refs/heads/${rama}`)?.ruta ?? "";
 }
 
 // ---------------------------------------------------------------- puestos y candados

@@ -13,7 +13,7 @@ import { agregarLinea } from "../base/archivo.ts";
 import { esEjecutable } from "../base/buscar.ts";
 import { esPrincipal } from "../base/principal.ts";
 import { correr, matarArbol, vivo } from "../base/proc.ts";
-import type { Lock } from "../base/lock.ts";
+import { tomar, type Lock } from "../base/lock.ts";
 import { registroProyectos } from "../../rutas.ts";
 import { resolverProyecto } from "../proyecto-ruta.ts";
 import { prologo, Salida, salir, v, type Env, type Io, type Pa } from "./entorno.ts";
@@ -127,7 +127,7 @@ export async function anotarIntegrada(
   const auto = pa.env.PA_AUTO === "1" ? "1" : "0";
   const arch = integradasDe(pa);
   mkdirSync(pa.state, { recursive: true });
-  const l = await tomarLock({ pa } as Proy, arch, 10_000).catch(() => null);
+  const l = await tomar(arch, { esperarMs: 10_000, plat: pa.plat, env: pa.env }).catch(() => null);
   try {
     if (!l) throw new Error("ocupado");
     let vacio = true;
@@ -239,12 +239,12 @@ export async function empujarMain(x: Proy, ruta: string): Promise<void> {
   const rs = new Set((await gs(x, ruta, ["remote"])).split("\n"));
   if (!remotos.split(/\s+/).some((r) => r && rs.has(r))) return;
   etq ||= "Remoto";
-  const env: Env = { ...pa.env };
+  // con un PA_STATE de mentira su estado cae ahí adentro y, sin TABLERO_DIR, no anota en el tablero (como tablero_mudo)
+  const env: Env = { ...pa.env, REPOS_EMPUJAR_TABLERO: pa.env.PA_TABLERO || path.join(pa.bin, "tablero") };
   if (pa.env.PA_STATE) {
     env.REPOS_EMPUJAR_STATE = pa.env.REPOS_EMPUJAR_STATE || path.join(pa.state, "repos-empujar");
     if (!pa.env.TABLERO_DIR) env.REPOS_EMPUJAR_TABLERO = "/no-hay-tablero";
-    else env.REPOS_EMPUJAR_TABLERO = pa.env.PA_TABLERO || path.join(pa.bin, "tablero");
-  } else env.REPOS_EMPUJAR_TABLERO = pa.env.PA_TABLERO || path.join(pa.bin, "tablero");
+  }
   const r = await correr(emp, ["--repo", ruta, "--tope", String(tope)], { env, timeoutMs: (tope + 5) * 1000, killAfterMs: 2000, plat: pa.plat });
   if (r.codigo === 124 || r.codigo === 137) {
     pa.io.out(`— ${etq}: el empuje de main no terminó en ${tope}s; queda para la próxima pasada de repos-empujar.\n`);
