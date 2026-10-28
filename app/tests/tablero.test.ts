@@ -290,8 +290,9 @@ test("validar trae lo nuevo del item (tipo, palabras simples, opciones, respuest
 
 test("la vista se busca donde la deja el CLI", () => {
   assert.equal(cli.rutaVista({ TABLERO_VISTA: "/x/v.json", TABLERO_DIR: "/t" }, "/home/ana"), "/x/v.json");
-  assert.equal(cli.rutaVista({ TABLERO_DIR: "/t" }, "/home/ana"), "/t/vista.json");
-  assert.equal(cli.rutaVista({}, "/home/ana"), "/home/ana/.local/state/tablero/vista.json");
+  // Las rutas POSIX se piden con plat «linux»: en Windows el CLI arma con path.win32, igual que la app.
+  assert.equal(cli.rutaVista({ TABLERO_DIR: "/t" }, "/home/ana", "linux"), "/t/vista.json");
+  assert.equal(cli.rutaVista({}, "/home/ana", "linux"), "/home/ana/.local/state/tablero/vista.json");
   assert.equal(cli.VISTA, path.join(TMP, "tablero", "vista.json"));
 });
 
