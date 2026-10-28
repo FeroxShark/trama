@@ -909,6 +909,7 @@ export const en = {
   "ramas.reanalizar": "Analyze again",
   "ramas.analizando": "Gathering the branches…",
   "ramas.analistaVer": "Show the analyst",
+  "ramas.verAnalisis": "View the analysis",
   "ramas.analistaOcultar": "Hide the analyst",
   "ramas.analistaCerrar": "Close the analyst",
   "ramas.v.integrar": "Integrate",

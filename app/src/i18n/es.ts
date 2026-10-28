@@ -897,6 +897,7 @@ export const es: { [K in keyof typeof en]: string } = {
   "ramas.reanalizar": "Analizar de nuevo",
   "ramas.analizando": "Juntando las ramas…",
   "ramas.analistaVer": "Ver al analista",
+  "ramas.verAnalisis": "Ver el análisis",
   "ramas.analistaOcultar": "Ocultar al analista",
   "ramas.analistaCerrar": "Cerrar al analista",
   "ramas.v.integrar": "Integrar",
