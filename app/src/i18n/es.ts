@@ -2320,6 +2320,7 @@ export const es: { [K in keyof typeof en]: string } = {
   "ajustes.aaFalloRed": "No pude hablar con Artificial Analysis. Revisá la conexión.",
   "ajustes.aaFalloForma": "Artificial Analysis contestó algo que no entiendo. Se siguen usando los datos de antes.",
   "ajustes.aaFalloSinClave": "Primero guardá la key.",
+  "ajustes.aaSoloPc": "Sólo desde la PC",
   "tiempo.hoyA": "hoy {h}",
   "tiempo.mananaA": "mañana {h}",
   "cu.g.gemini": "Modelos Gemini",

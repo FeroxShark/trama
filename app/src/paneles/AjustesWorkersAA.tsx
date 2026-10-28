@@ -39,6 +39,8 @@ export function ClaveArtificialAnalysis({ alActualizar }: { alActualizar: () => 
   const [ocupado, setOcupado] = useState(false);
   const [bajando, setBajando] = useState<"probar" | "actualizar" | null>(null);
   const [res, setRes] = useState<ResultadoAA | null>(null);
+  // Un rechazo al pedir la lista (la PC no contestó, o el motor dijo que esto no se hace desde acá): se muestra tal cual.
+  const [rechazo, setRechazo] = useState<string | null>(null);
   const vivo = useRef(true);
   useEffect(() => {
     vivo.current = true;
@@ -64,9 +66,14 @@ export function ClaveArtificialAnalysis({ alActualizar }: { alActualizar: () => 
   const bajar = async (cual: "probar" | "actualizar") => {
     setBajando(cual);
     setRes(null);
-    const r = await fuentePaneles.refrescarAA().catch((x) => ({ resultado: { ok: false, tipo: "red", detalle: mensaje(x) } as const, estado: null }));
+    setRechazo(null);
+    const r = await fuentePaneles.refrescarAA().catch((x) => {
+      setRechazo(mensaje(x));
+      return null;
+    });
     if (!vivo.current) return;
     setBajando(null);
+    if (!r) return;
     setRes(r.resultado);
     if (r.estado) setE(r.estado);
     if (r.resultado.ok) alActualizar();
@@ -89,16 +96,19 @@ export function ClaveArtificialAnalysis({ alActualizar }: { alActualizar: () => 
       />
       {e?.hayClave ? (
         <div className="dsh-fila">
-          <Boton aria-label={t("ajustes.aaProbar")} onClick={() => void bajar("probar")} disabled={bajando !== null}>
+          <Boton aria-label={t("ajustes.aaProbar")} onClick={() => void bajar("probar")} disabled={bajando !== null || !!e.soloPc}>
             {bajando === "probar" ? t("ajustes.aaProbando") : <Fijo k="ajustes.aaProbar" />}
           </Boton>
           {e.fecha ? (
-            <Boton onClick={() => void bajar("actualizar")} disabled={bajando !== null}>
+            <Boton onClick={() => void bajar("actualizar")} disabled={bajando !== null || !!e.soloPc}>
               {bajando === "actualizar" ? t("ajustes.aaActualizando") : <Fijo k="ajustes.aaActualizar" />}
             </Boton>
           ) : null}
+          {e.soloPc ? <span className="mdl-estado">{t("ajustes.aaSoloPc")}</span> : null}
           <span role="status" className="wk-aa-estado">
-            {res ? (
+            {rechazo ? (
+              <Estado ok={false} texto={rechazo} />
+            ) : res ? (
               res.ok ? <Estado ok texto={t("ajustes.aaProbadaOk", { n: res.modelos })} /> : <Estado ok={false} texto={fraseFalloAA(res)} />
             ) : e.fecha ? (
               <Estado ok texto={t("ajustes.aaAlDia", { n: e.modelos, fecha: fecha ?? "" })} />

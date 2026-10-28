@@ -2333,6 +2333,7 @@ export const en = {
   "ajustes.aaFalloLimiteEn": "You hit Artificial Analysis's daily limit. You can retry in {tiempo}.",
   "ajustes.aaFalloRed": "Couldn't reach Artificial Analysis. Check your connection.",
   "ajustes.aaFalloForma": "Artificial Analysis answered something I don't understand. The earlier data stays in use.",
+  "ajustes.aaSoloPc": "Only from the computer",
   "ajustes.aaFalloSinClave": "Save the key first.",
   "tiempo.hoyA": "today {h}",
   "tiempo.mananaA": "tomorrow {h}",

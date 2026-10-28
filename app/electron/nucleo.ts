@@ -945,7 +945,8 @@ export function armarNucleo() {
   // tabla se refresca sola (de fondo) si la caché tiene más de un día (sin key, en pruebas y capturas no se llama a nadie salvo con AA_URL).
   const claveAA = async () => process.env.ARTIFICIAL_ANALYSIS_API_KEY || (await leerClaves()).ARTIFICIAL_ANALYSIS_API_KEY;
   const aislado = () => (process.env.HILOS_PRUEBA === "1" || process.env.HILOS_CAPTURA === "1" || process.env.HILOS_BENCH === "1") && !process.env.AA_URL;
-  manejar("aa:estado", async () => estadoAA(!!(await claveAA())));
+  // `soloPc`: el refresco es sólo de la PC (`SOLO_PC_TAILNET`): por la tailnet Ajustes lo dice en el botón, no falla con un error de red.
+  manejar("aa:estado", async (e) => ({ ...(await estadoAA(!!(await claveAA()))), soloPc: tailnet(e) }));
   manejar("aa:refrescar", async () => {
     const clave = await claveAA();
     const resultado = await refrescarAA(clave, { forzar: true, baseUrl: process.env.AA_URL });

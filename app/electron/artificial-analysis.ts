@@ -184,7 +184,8 @@ export async function refrescarAA(clave: string | undefined, o: { forzar?: boole
 }
 
 /** Lo que ve Ajustes: si hay key, y de cuándo es la caché y cuántos modelos trae. Nunca la key. */
-export type EstadoAA = { version: 1; hayClave: boolean; fecha: number | null; modelos: number };
+/** `soloPc`: por la tailnet no se baja la lista (`aa:refrescar` es sólo de la PC): lo pone el núcleo (nucleo.ts), no esta caché. */
+export type EstadoAA = { version: 1; hayClave: boolean; fecha: number | null; modelos: number; soloPc?: boolean };
 export async function estadoAA(hayClave: boolean, ruta: string | null = rutaCacheAA()): Promise<EstadoAA> {
   const c = await leerCacheAA(ruta);
   return { version: 1, hayClave, fecha: c ? Date.parse(c.fetched) : null, modelos: c?.modelos.length ?? 0 };
