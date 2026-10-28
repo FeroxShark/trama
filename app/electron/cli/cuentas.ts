@@ -69,7 +69,12 @@ const expandir = (p: string, home: string) => (p === "~" ? home : p.startsWith("
 type Cuenta = { id: string; proveedor: string; motor: string; nombre: string; dir: string | null; defecto: boolean; plan?: string; logueado?: boolean | null; plan_detectado?: string | null };
 
 class Cuentas {
-  constructor(readonly env: Env, readonly io: Io) {}
+  readonly env: Env;
+  readonly io: Io;
+  constructor(env: Env, io: Io) {
+    this.env = env;
+    this.io = io;
+  }
 
   err = (m: string) => this.io.err(`cuentas: ${m}\n`);
   print = (s: string) => this.io.out(s + "\n");

@@ -18,12 +18,14 @@ export type Hook = (typeof HOOKS)[number];
 export const esHook = (h: string): h is Hook => (HOOKS as readonly string[]).includes(h);
 
 /** Herramientas del motor que tienen versión bash/python (A) y versión TS (B), y los hooks (`.sh` contra `.mjs`). */
-export type Herramienta = "pa" | "proyecto-ruta" | "trama-estado" | "workers" | Hook | "pa-async";
+export type Herramienta = "pa" | "proyecto-ruta" | "trama-estado" | "workers" | "tablero" | "cuentas" | Hook | "pa-async";
 const VARIABLE_B: Record<Herramienta, string> = {
   pa: "TRAMA_PA_B",
   "proyecto-ruta": "TRAMA_PROYECTO_RUTA_B",
   "trama-estado": "TRAMA_ESTADO_B",
   workers: "TRAMA_WORKERS_B",
+  tablero: "TRAMA_TABLERO_B",
+  cuentas: "TRAMA_CUENTAS_B",
   latido: "TRAMA_LATIDO_B",
   "destructive-guard": "TRAMA_GUARD_B",
   "statusline-espejo": "TRAMA_ESPEJO_B",

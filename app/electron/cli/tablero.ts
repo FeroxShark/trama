@@ -19,7 +19,7 @@ import { vivo } from "./base/proc.ts";
 import { jsonPy } from "./trama-estado.ts";
 import { rutaReal } from "./proyecto-ruta.ts";
 import { MARCA_DUENO } from "./tablero-ayuda.ts";
-import { ErrorTipo, Salida, enteroPy, parsear, type Accion, type Io, type Parser } from "./tablero-args.ts";
+import { ErrorTipo, Salida, enteroPy, parsear, reprPy, type Accion, type Io, type Parser } from "./tablero-args.ts";
 
 type Env = Record<string, string | undefined>;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -126,7 +126,12 @@ function edad(iso: unknown): string {
 class Registro {
   private _proy: Entrada[] | null = null;
   private _rutas = new Map<unknown, string>();
-  constructor(private ruta_: string, private home: string) {}
+  private ruta_: string;
+  private home: string;
+  constructor(ruta: string, home: string) {
+    this.ruta_ = ruta;
+    this.home = home;
+  }
 
   get proyectos(): Entrada[] {
     if (this._proy === null) {
@@ -319,7 +324,14 @@ class Tablero {
   private _dueno: string | null = null;
   private _legadas: Set<string> | null = null;
 
-  constructor(readonly env: Env, readonly io: Io, private leerStdin: () => string = () => readFileSync(0, "utf8")) {
+  readonly env: Env;
+  readonly io: Io;
+  private leerStdin: () => string;
+
+  constructor(env: Env, io: Io, leerStdin: () => string = () => readFileSync(0, "utf8")) {
+    this.env = env;
+    this.io = io;
+    this.leerStdin = leerStdin;
     this.home = homeDe(env);
     this.dir = env.TABLERO_DIR || path.join(this.home, "tablero");
     this.items = path.join(this.dir, "items.jsonl");
@@ -403,7 +415,7 @@ class Tablero {
       const bytes = ruta === "-" ? Buffer.from(this.leerStdin(), "utf8") : readFileSync(ruta);
       return new TextDecoder("utf-8", { fatal: true }).decode(bytes).replace(/^\n+|\n+$/g, "");
     } catch (e) {
-      return this.morir(`${que}: no pude leer ${ruta}: ${e instanceof Error ? e.message : e}`, 2);
+      return this.morir(`${que}: no pude leer ${ruta}: ${errorPy(e, ruta)}`, 2);
     }
   }
   /** --<campo> o --<campo>-archivo (uno solo de los dos); null si no vino ninguno. */
@@ -1341,6 +1353,16 @@ const ENCABEZADO_UNO = /^[*#> \t-]*(RESULTADO|ARCHIVOS|DECISI[OÓ]N|SIGUE)[*]*:[
 const OTRO_CAMPO = /\b(ARCHIVOS|DECISI[OÓ]N|SIGUE)[*]*:/;
 // fin de oración: punto, ! o ? seguido de un espacio y de algo que arranca otra oración (un "p. ej." o un `bin/pa.` seguido de minúscula no corta)
 const FIN_ORACION = /[.!?…](?=\s+[A-ZÁÉÍÓÚÑ¿¡`"«(\d]|\s*$)/;
+
+/** El texto del error de archivo como lo da Python (`[Errno 2] No such file or directory: 'x'`). */
+function errorPy(e: unknown, ruta: string): string {
+  const code = (e as NodeJS.ErrnoException).code;
+  const tabla: Record<string, [number, string]> = { ENOENT: [2, "No such file or directory"], EACCES: [13, "Permission denied"], EISDIR: [21, "Is a directory"], ENOTDIR: [20, "Not a directory"], EPERM: [1, "Operation not permitted"] };
+  const t = code ? tabla[code] : undefined;
+  if (t) return `[Errno ${t[0]}] ${t[1]}: ${reprPy(ruta)}`;
+  if (e instanceof TypeError) return "'utf-8' codec can't decode bytes: invalid data";
+  return e instanceof Error ? e.message : String(e);
+}
 
 function statSyncDir(p: string): boolean {
   try {

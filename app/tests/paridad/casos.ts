@@ -8,6 +8,7 @@ import type { Caso } from "./arnes.ts";
 import { casosHerramientas } from "./casos-herramientas.ts";
 import { casosHooks } from "./casos-hooks.ts";
 import { casosAsync } from "./casos-async.ts";
+import { casosTablero } from "./casos-tablero.ts";
 
 const M = "claude-sonnet-5-5";
 const BRIEF = "Objetivo: x\nArchivos: a.ts\nListo cuando: pasa el test\nCómo verificar: npm test\nNo tocar: b.ts";
@@ -70,3 +71,4 @@ export const casos: Caso[] = [...casosPa, ...casosHerramientas, ...casosHooks, .
 // Etapa 7: puestos, tope global, RAM, cola, worktrees y huérfanos (casos-puestos.ts).
 import { casosPuestos } from "./casos-puestos.ts";
 casos.push(...casosPuestos);
+casos.push(...casosTablero);
