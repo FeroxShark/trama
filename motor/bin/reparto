@@ -44,6 +44,11 @@ semana (ponderada por los días de trabajo del plan) ya pasó. Pasarse del ritmo
 modelos.json `perfil` = equilibrado (default) | ahorro (workers a gratis/Google casi siempre, Claude sólo si nada más llega o si va
 atrasado) | rendimiento (calidad primero); `reserva_lider` = fracción de la semana de Claude que queda para el líder (ver RITMO abajo).
 
+Dónde deja de usarse cada proveedor (2026-10-27): `topes_uso` {"google": 90, "google:claude-gpt": 80, "openai": 95} = desde qué % USADO de una ventana no se elige
+(el del grupo gana al del proveedor; sin entrada, `llena`: 97 %). Claude se dice con `reserva` ({"5h": 0.2, "7d": 0.2} = lo que se guarda libre; sin ella, 97 %
+más la reserva de `perfil`/`reserva_lider` en la semanal). `agy_min_libre_5h` (0,30 = desde 70 % usado) es el tope aparte de Google para trabajo de código en 5 h.
+OpenCode no informa % usado: se deja de usar cuando corta por límite (`--enfriar`, `--agotar`).
+
 Sin dependencias (python3 estándar).
 Entorno (para tests): REPARTO_CUPOS_FIJOS=archivo.json (mismo formato que `--cupos --json`, no lee
 nada real), REPARTO_AHORA=ISO (la hora de "ahora"), REPARTO_STATE (caché de agy y grupos agotados; default
@@ -361,7 +366,7 @@ def _cargar_config():
         "uso_por_modelo": list(USO_POR_MODELO.items()), "tipos_poco_importantes": list(TIPOS_POCO_IMPORTANTES),
         "tipos_finales": list(TIPOS_FINALES), "sin_cupo": "otro", "sin_cupo_de": "default",
         "perfil": PERFIL_DEFECTO, "reserva_lider": None, "peso_ritmo": PESO_RITMO, "peso_bono_ritmo": PESO_BONO_RITMO,
-        "opencode_plan": "gratis",
+        "opencode_plan": "gratis", "topes_uso": {},
     }
     p = ruta_modelos()
     if not os.path.isfile(p):
@@ -404,6 +409,8 @@ def _cargar_config():
         cfg["opencode_plan"] = j["opencode_plan"]
     if isinstance(j.get("reserva_lider"), (int, float)) and not isinstance(j.get("reserva_lider"), bool):
         cfg["reserva_lider"] = j["reserva_lider"]   # ausente/null: el del perfil
+    if isinstance(j.get("topes_uso"), dict):   # {"google": 90, "google:claude-gpt": 80, "openai": 95}: desde qué % USADO se descarta (ver tope_uso)
+        cfg["topes_uso"] = {k.strip().lower(): v for k, v in j["topes_uso"].items() if tope_uso_valido(k, v)}
     if isinstance(j.get("excluir"), list):
         cfg["excluir"] = [x.strip().lower() for x in j["excluir"] if x.strip()]
     if isinstance(j.get("permitir_max"), bool):
@@ -868,6 +875,28 @@ def mapa_efforts(cfg, clave, mid=None):
 
 
 
+TOPES_USO_PROVEEDORES = ("google", "openai")   # Claude se dice con `reserva`; OpenCode no informa % usado
+
+
+def tope_uso_valido(k, v):
+    """Una entrada de `topes_uso`: `google`, `openai` o `google:<grupo>` → entero de 1 a 100 (% usado desde el que se descarta)."""
+    if not isinstance(k, str) or isinstance(v, bool) or not isinstance(v, int) or not 1 <= v <= 100:
+        return False
+    k = k.strip().lower()
+    return k in TOPES_USO_PROVEEDORES or (k.startswith("google:") and len(k) > 7)
+
+
+def ventana_llena(cfg, sus, gid, w):
+    """¿Esta ventana de un proveedor que no es Claude está llena? Con `topes_uso` del dueño (el del grupo gana al del proveedor) vale su
+    % usado; sin él, `llena` (libre < 3 %, o sea desde 97 % usado)."""
+    tu = cfg["topes_uso"]
+    p = tu.get("%s:%s" % (sus, gid)) if sus == "google" else None
+    p = p if p is not None else tu.get(sus)
+    if p is not None:
+        return round(w["usado"] * 100, 6) >= p
+    return 1 - w["usado"] < cfg["llena"]
+
+
 def invalido(j):
     """Las claves nuevas (2026-10-24) con un valor que no va -> qué está mal (como la validación de pa)."""
     num = lambda v: isinstance(v, (int, float)) and not isinstance(v, bool) and 0 <= v < 1
@@ -880,6 +909,9 @@ def invalido(j):
     rl = j.get("reserva_lider")
     if rl is not None and not num(rl):
         return "reserva_lider %s (un número de 0 a 1 o null)" % json.dumps(rl)
+    tu = j.get("topes_uso")
+    if tu is not None and not (isinstance(tu, dict) and all(tope_uso_valido(k, v) for k, v in tu.items())):
+        return "topes_uso %s (un objeto google, openai o google:<grupo> → %% usado de 1 a 100)" % json.dumps(tu)
     e = j.get("excluir")
     if e is not None and not (isinstance(e, list) and all(isinstance(x, str) and x.strip() for x in e)):
         return "excluir %s (una lista de ids o familias)" % json.dumps(e)
@@ -2156,8 +2188,8 @@ def armar_candidatos(tipo, cfg, cupos, now, effort=None):
             return False
         hf = hasta_fin(hasta_de(cfg, "claude-gpt", agy_claude))
         vigente = hf is None or now < hf
-        libres = [1 - w["usado"] for w in agy_claude.get("ventanas", []) if w.get("usado") is not None]
-        ok = vigente and (not libres or min(libres) >= cfg["llena"])
+        conocidas_g = [w for w in agy_claude.get("ventanas", []) if w.get("usado") is not None]
+        ok = vigente and not any(ventana_llena(cfg, "google", "claude-gpt", w) for w in conocidas_g)
         w5 = next((w for w in agy_claude.get("ventanas", []) if w.get("id") == "5h" and w.get("usado") is not None), None)
         if w5 is not None and 1 - w5["usado"] < cfg["agy_min_libre_5h"] and \
                 any(fnmatch.fnmatchcase(tipo, p) for p in cfg["agy_min_libre_tipos"]):
@@ -2275,11 +2307,12 @@ def armar_candidatos(tipo, cfg, cupos, now, effort=None):
                         (nombre_ventana(w["id"]), round(libre * 100), round(reserva_de(w["id"]) * 100)) if lider else
                         (nombre_ventana(w["id"]), round(w["usado"] * 100), round(reserva_de(w["id"]) * 100)))
                     break
-                if libre < cfg["llena"] and sus != "claude" and (grupos.get(gid) or {}).get("agotado"):
+                llena = ventana_llena(cfg, sus, gid, w) if sus != "claude" else reserva_de(w["id"]) is None and libre < cfg["llena"]   # Claude: si el dueño fijó `reserva`, manda ésa
+                if llena and sus != "claude" and (grupos.get(gid) or {}).get("agotado"):
                     cand["descartado_por"] = "ventana %s llena: %s dijo que se acabó el cupo, vuelve en %s" % (
                         w["id"], "codex" if sus == "openai" else "agy (429)", humano(horas_hasta(w.get("vuelve"), now)))
                     break
-                if libre < cfg["llena"]:
+                if llena:
                     cand["descartado_por"] = "ventana %s llena (%d %% usado)%s" % (
                         w["id"], round(w["usado"] * 100),
                         ", vuelve en %s" % humano(horas_hasta(w.get("vuelve"), now)) if w.get("vuelve") else "")
