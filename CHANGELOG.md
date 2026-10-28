@@ -1,5 +1,9 @@
 # Cambios
 
+## 0.2.19
+
+- Versiones nuevas casi al instante (Linux y Windows): Trama mira cada 2 minutos, al volver a la ventana y al volver la red; el aviso siempre muestra la última.
+
 ## 0.2.18
 
 - Ajustes > Conectores: skills, plugins, servidores MCP y hooks en un solo lugar, con de dónde viene cada uno, qué hace, buscador y prender/apagar.
