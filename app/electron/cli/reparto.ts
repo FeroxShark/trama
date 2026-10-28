@@ -14,6 +14,7 @@ import path from "node:path";
 import { enPath, esEjecutable } from "./base/buscar.ts";
 import { tomar } from "./base/lock.ts";
 import { esPrincipal } from "./base/principal.ts";
+import { estadoHilos, estadoPa, plataformaActual, type Plataforma } from "../rutas.ts";
 import { lanzarSuelto } from "./base/proc.ts";
 import { carpetaMotor } from "./pa/entorno.ts";
 import {
@@ -175,6 +176,9 @@ const FAMILIAS: Familia[] = [
 const esDict = (x: unknown): x is Obj => typeof x === "object" && x !== null && !Array.isArray(x);
 const get = (o: unknown, k: string, d: unknown = null): any => (esDict(o) && k in o ? o[k] : d);
 const home = () => os.homedir();
+/** El estado de `pa` y el de la app: `PA_STATE` / `HILOS_STATE`, o el de la plataforma (en Windows `%LOCALAPPDATA%\\trama\\estado\\…`, donde escriben el espejo y la app). */
+const estadoPaPlat = () => estadoPa(E, home());
+const estadoHilosPlat = () => estadoHilos(E, home());
 const expandir = (p: string) => (p === "~" ? home() : p.startsWith("~/") ? path.join(home(), p.slice(2)) : p);
 const esArchivo = (p: string) => {
   try {
@@ -940,24 +944,40 @@ function ventana(id: string, usado: unknown, vuelve: unknown): Obj {
   return u !== null ? conFloat(w, "usado") : w;
 }
 
-function mismaCarpeta(a: unknown, b: string): boolean {
+/** Windows: sin mayúsculas, con `\\` y sin barra final (el disco no distingue); no se resuelven enlaces. */
+const claveWin = (p: string) => path.win32.normalize(p).replace(/[\\/]+$/, "").toLowerCase();
+
+export function mismaCarpeta(a: unknown, b: string, plat: Plataforma = plataformaActual(), h: string = home()): boolean {
   try {
     if (typeof a !== "string") return false;
-    return realpath(expandir(a)) === realpath(expandir(b));
+    const exp = (p: string) => (p === "~" ? h : p.startsWith("~/") || p.startsWith("~\\") ? path.join(h, p.slice(2)) : p);
+    if (plat === "win32") return claveWin(exp(a)) === claveWin(exp(b));
+    return realpath(exp(a)) === realpath(exp(b));
   } catch {
     return false;
   }
 }
 
-function deLaCuenta(cfgdir: unknown, cuenta: Obj | null | undefined): boolean {
-  if (!cuenta || cuenta.defecto) return !verdad(cfgdir) || mismaCarpeta(cfgdir, "~/.claude");
-  return verdad(cfgdir) && mismaCarpeta(cfgdir, cuenta.dir);
+export function deLaCuenta(cfgdir: unknown, cuenta: Obj | null | undefined, plat: Plataforma = plataformaActual(), h: string = home()): boolean {
+  if (!cuenta || cuenta.defecto) return !verdad(cfgdir) || mismaCarpeta(cfgdir, "~/.claude", plat, h);
+  return verdad(cfgdir) && mismaCarpeta(cfgdir, cuenta.dir, plat, h);
 }
 
 const esNumPy = (v: unknown) => typeof v === "number" || typeof v === "boolean";
 
+/** Los `uso.json` de donde sale el cupo de Claude: el del estado de `pa` y, para la cuenta de siempre, el de la app (lo que dijo el stream de los líderes). */
+export function fuentesUso(paState: string, cuenta: Obj | null, env: NodeJS.ProcessEnv = E, h: string = home(), plat: Plataforma = plataformaActual()): string[] {
+  const c = plat === "win32" ? path.win32 : path;
+  if (cuenta && !cuenta.defecto) return [c.join(paState, "cuentas", cuenta.id, "uso.json")];
+  const usos = [c.join(paState, "uso.json")];
+  if (env.HILOS_STATE) usos.push(c.join(env.HILOS_STATE, "uso.json"));
+  else if (c.resolve(paState) === c.resolve(estadoPa(env, h, plat))) usos.push(c.join(estadoHilos(env, h, plat), "uso.json"));
+  else usos.push(c.join(paState, "hilos", "uso.json"));
+  return usos;
+}
+
 function cuposClaude(estado: string | undefined, now: Date, cuenta: Obj | null = null): Obj {
-  const paState = estado || path.join(home(), ".local", "state", "pa");
+  const paState = estado || estadoPaPlat();
   const mejor: Record<string, [number, number, number] | null> = { "5h": null, "7d": null };
   const claves: Record<string, string> = { "5h": "five_hour", "7d": "seven_day" };
   const tsNow = now.getTime() / 1000;
@@ -1008,11 +1028,7 @@ function cuposClaude(estado: string | undefined, now: Date, cuenta: Obj | null =
       ofrecer("7d", get(r, "ts", 0), get(r, "sem"), get(r, "sem_reset"));
     }
   }
-  let usos = [path.join(paState, "uso.json")];
-  if (cuenta && !cuenta.defecto) usos = [path.join(paState, "cuentas", cuenta.id, "uso.json")];
-  else if (E.HILOS_STATE) usos.push(path.join(E.HILOS_STATE, "uso.json"));
-  else if (path.resolve(paState) === path.resolve(path.join(home(), ".local", "state", "pa"))) usos.push(path.join(home(), ".local", "state", "hilos", "uso.json"));
-  else usos.push(path.join(paState, "hilos", "uso.json"));
+  const usos = fuentesUso(paState, cuenta);
   for (const f of usos) {
     let d: unknown;
     try {
@@ -1321,7 +1337,7 @@ function opencodeListado(now: Date): { gratis: string[]; go: string[] | null } {
 
 const opencodeGratis = (now: Date) => opencodeListado(now).gratis;
 
-const goCacheRuta = () => path.join(E.HILOS_STATE || path.join(home(), ".local", "state", "hilos"), "opencode-go-topes.json");
+const goCacheRuta = () => path.join(estadoHilosPlat(), "opencode-go-topes.json");
 
 function goLeerTabla(ruta: string): Obj | null {
   try {
@@ -1503,7 +1519,7 @@ function cuposOpenai(cfg: Obj, now: Date): Obj {
 
 function stateDir(): string {
   if (E.REPARTO_STATE) return E.REPARTO_STATE;
-  return path.join(E.PA_STATE || path.join(home(), ".local", "state", "pa"), "reparto");
+  return path.join(estadoPaPlat(), "reparto");
 }
 
 function ventanaAsignacion(): number {
@@ -1526,7 +1542,7 @@ function cargaPorGrupo(now: Date): Obj {
     }
   }
   const out: Obj = {};
-  const base = E.PA_STATE || path.join(home(), ".local", "state", "pa");
+  const base = estadoPaPlat();
   const vistos = new Set<string>();
   const sumar = (m: string | null, cu: string | null) => {
     let g = m ? grupoDeModelo(m) : null;
