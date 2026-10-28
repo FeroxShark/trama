@@ -125,6 +125,8 @@ export function cliente(cfg: ConfigCliente, preload: (require: (m: string) => un
       if (canal === "bench:modo") return false;
       if (canal.startsWith("bench:")) return null;
       if (canal === "claude:changelog") return void g.open(cfg.changelog, "_blank", "noopener");
+      // Las notas de Trama: en el navegador se abren acá (la URL, sólo de github.com: igual que notasDeGithub en enlace.ts, que acá no se puede importar).
+      if (canal === "trama:notas") return void (typeof args[0] === "string" && args[0].startsWith("https://github.com/") && g.open(args[0], "_blank", "noopener"));
       await listo;
       const r = await g
         .fetch("rpc", {

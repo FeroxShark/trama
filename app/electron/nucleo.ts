@@ -123,7 +123,7 @@ export function manejar(canal: string, fn: Manejador) {
 export const manejadoresAnotados = (): [string, Manejador][] => [...manejadores];
 
 /** Lo que por red no se puede: salir de trama, y lo que abre o enfoca cosas en la pantalla de la PC. */
-export const SOLO_VENTANA: ReadonlySet<string> = new Set(["app:salir", "carpeta:elegir", "app:pararTodo", "bandeja:textos", "lider:ir", "lider:ubicable", "claude:changelog", "volver:leer", "volver:guardar", "volver:anotar", "reinicio:marca", "borradores:leer", "borradores:guardar", "app:recargar", "trama:reiniciarVentana", "consumo:mirar", "consumo:soltar", "cuentas:login", "espera:estado", "espera:notificar", "portapapeles:texto"]);
+export const SOLO_VENTANA: ReadonlySet<string> = new Set(["app:salir", "carpeta:elegir", "app:pararTodo", "bandeja:textos", "lider:ir", "lider:ubicable", "claude:changelog", "trama:notas", "volver:leer", "volver:guardar", "volver:anotar", "reinicio:marca", "borradores:leer", "borradores:guardar", "app:recargar", "trama:reiniciarVentana", "consumo:mirar", "consumo:soltar", "cuentas:login", "espera:estado", "espera:notificar", "portapapeles:texto"]);
 
 /**
  * Lo que sigue vedado al navegador del modo local (`TRAMA_LOCAL=1`, ya con su token): ahí el navegador es la interfaz

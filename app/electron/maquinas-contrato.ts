@@ -193,6 +193,7 @@ export const RUTAS: Readonly<Record<string, Ruta>> = {
   "trama:actualizacion": "local",
   "trama:ocupacion": "local",
   "trama:reiniciarVentana": "local",
+  "trama:notas": "local",
   "setup:estado": "local",
   "cuentas:estado": "local",
   "cuentas:lista": "local",
