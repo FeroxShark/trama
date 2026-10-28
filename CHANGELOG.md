@@ -1,5 +1,13 @@
 # Cambios
 
+## 0.2.10
+
+- Avisos de workers: cuando uno termina, falla o se cuelga, el líder que lo lanzó se entera solo; notificación de escritorio para fallas y para "terminó la tanda" (configurable en Ajustes > General). Falla por cupo: dice el proveedor, cuándo vuelve y ofrece relanzar con otro modelo.
+- Ajustes > Plan y cupos > Avanzado: los umbrales donde pa deja de usar un proveedor son editables, para Claude y Google, con botón para volver al de fábrica.
+- Los topes de OpenCode Go se leen de OpenCode (con respaldo sin red, que muestra la fecha).
+- Un subagente cortado por una interrupción ya no queda "Running" para siempre.
+- `gate --espejo` corre el test oculto; `gate --plan` calcula tamaño, riesgo y archivos calientes desde el plan.
+
 ## Sin publicar
 
 - Avisos de workers: cuando uno termina, falla (por cupo, con el proveedor y cuándo vuelve) o se cuelga (15 min sin actividad), el líder que lo lanzó recibe un mensaje corto por la cola y el dueño una notificación (PC y celular) por las fallas y cuando termina toda la tanda; los terminados normales suman un punto en la bandeja. Se prende en Ajustes > General; una falla por cupo ofrece «Relanzar con otro modelo».
