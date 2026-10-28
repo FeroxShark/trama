@@ -5,7 +5,7 @@ import { after } from "node:test";
 import { testPosix as test } from "./plataforma.ts";
 import assert from "node:assert/strict";
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { registerHooks } from "node:module";
+import { createRequire, registerHooks } from "node:module";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -46,6 +46,15 @@ test("armado: los canales del núcleo, sin los de la pantalla de la PC", () => {
   for (const c of ["statusline:leer", "hilos:leer", "lider:mandar", "lider:encolar", "tablero:leer", "proyectos:iconos", "borradores:guardar", "consumo:mirar", "reinicio:pedir"])
     assert.ok(canales.has(c), c);
   for (const c of ["app:salir", "app:recargar", "volver:leer", "volver:guardar", "volver:anotar", "lider:ir", "lider:ubicable", "claude:changelog"]) assert.ok(!canales.has(c), c);
+});
+
+test("la carcasa de Windows atiende cada canal que el motor le niega a la página en local", () => {
+  // windows/src/ventana.js es puro (sin Electron): la carcasa arma su tabla con fakes. Tiene que tener los canales de
+  // SOLO_VENTANA_LOCAL, y sólo esos: un canal nuevo de la ventana sin manejador en la carcasa falla acá.
+  const { crearCanalesVentana } = createRequire(import.meta.url)("../../windows/src/ventana.js");
+  const tabla = crearCanalesVentana({ electron: {}, nativo: true, changelog: "", bandeja: {}, abrirLogin: () => {}, abrirAviso: () => {}, log: () => {} });
+  assert.deepEqual(Object.keys(tabla).sort(), [...nucleo.SOLO_VENTANA_LOCAL].sort());
+  for (const c of nucleo.SOLO_VENTANA) if (nucleo.SOLO_VENTANA_LOCAL.has(c)) assert.equal(typeof tabla[c], "function", c);
 });
 
 test("manejadores: por red llega con quién pide; lo de la ventana y lo desconocido, no", async () => {
