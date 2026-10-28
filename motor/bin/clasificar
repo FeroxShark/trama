@@ -1,0 +1,325 @@
+#!/usr/bin/env python3
+"""clasificar — qué hacer con la falla del último intento de una subtarea (protocolo v2, sección 7).
+
+  clasificar <proyecto> <slug> <subtarea> [--json]
+
+Lee <estado>/<proyecto>/tareas/<slug>/estado.tsv (encabezado `subtarea intento id modelo effort exit gate usd`;
+`-` = no se sabe) y mira el último intento de esa subtarea. Gana la primera fila que aplique:
+
+  gate 21                                         brief       rehacer el brief (corrida nueva desde main, mismo modelo)
+  exit 78 con compactación o max-turns            partición   volver a F3 y partir; si su fila de rúbrica es 1b: dueño
+  el RESULTADO trae DECISION distinta de nada     estimación  subir B (ejecutar → decidir)
+  gate 22, 25, 26 o 27                            trampa      un reintento con el error real
+  gate 23, primera vez de la subtarea             puntual     pa <p> --seguir --id <id> con la salida del chequeo
+  gate 23, segunda o más                          estimación  subir B, y si no cambia el modelo E (sí → no);
+                                                              si la tabla da el mismo modelo que se usó: brief
+  exit 0 y la rama no cambió contra su base       brief       el worker dijo listo y no hizo el cambio
+  gate 0                                          ok          gate verde
+  cualquier otro                                  dueño       pasarle al dueño (tablero)
+
+Salida: la clase (brief, partición, estimación, trampa, puntual, ok, dueño), la acción y el motivo; --json lo mismo.
+Exit: 0 clasificó · 2 uso, o no hay estado.tsv, o la subtarea no está en él.
+
+De dónde sale cada señal (si no se puede saber, la fila no aplica y sigue la tabla):
+- compactó: `compactaciones > 0` en <estado>/medicion.tsv, la última fila del id. pa no tiene exit propio para la
+  compactación: el worker compactado termina sin RESULTADO (exit 78, sección 7.1), igual que con --max-turns.
+- max-turns: `subtype` error_max_turns en <estado>/<proyecto>/<id>.json, o en <id>.sin-turnos.json si el cierre
+  automático lo pisó.
+- DECISION: la última línea `DECISION:` del `result` de <estado>/<proyecto>/<id>.json. Es "nada" sólo si el valor
+  es vacío, `-`, `—` o `nada` exacto; "nada. Supuestos: …" cuenta como distinta (es pendiente).
+- rúbrica (fila `rub_fila` y respuestas A–E, I, K, M, de la columna `rubrica`): de medicion.tsv, del último intento
+  de la subtarea que la tenga (sólo existe si la corrida se lanzó con --rubrica). Sin respuestas no se sabe qué subir:
+  gate 23 por segunda vez → dueño.
+- modelo que da la tabla: `pa --rubrica '<respuestas>' --json`. La tabla no se copia acá: pa es la única fuente.
+  Si pa no responde (98 por modelos.json, 88, o 1 dentro de un worker con PA_WORKER) → no se sabe → dueño.
+- rama sin cambios: `git diff --quiet <base> <rama>` con `base` y `rama` de <estado>/<proyecto>/<id>.corrida, en la
+  carpeta `ruta_trabajo`. Si la rama o esa carpeta ya no están (integrada, descartada, worktree borrado), no se sabe.
+
+Pendiente (no está en las fuentes, no se inventa):
+- gate 24 (rojos nuevos contra main) no está en la tabla: cae en dueño.
+- gate 27 (no era rojo en main) lo nombra el protocolo, pero gate todavía no lo emite.
+- trampa repetida (el segundo 22/25/26/27 → brief, sección 7): la tabla sólo dice "un reintento", no se cambia.
+- una corrida --leer no tiene rama: no hay diff que mirar.
+- la fila de rúbrica de 1b vale para partir (exit 78) sólo si la corrida se lanzó con --rubrica.
+"""
+import argparse
+import csv
+import json
+import os
+import re
+import subprocess
+import sys
+
+AQUI = os.path.dirname(os.path.abspath(__file__))
+PA = os.path.join(AQUI, "pa")
+STATE = os.environ.get("PA_STATE") or os.path.join(os.path.expanduser("~"), ".local", "state", "pa")
+
+REQUERIDAS = ("subtarea", "intento", "id", "modelo", "effort", "exit", "gate")
+TRAMPA = ("22", "25", "26", "27")
+NADA = ("", "-", "—", "nada")
+ETIQUETA = {"brief": "brief", "particion": "partición", "estimacion": "estimación", "trampa": "trampa",
+            "puntual": "puntual", "ok": "ok", "dueno": "dueño"}
+RE_DECISION = re.compile(r"^[\s*#>_-]*DECISI[ÓO]N[*_\s]*:[*_\s]*(.*)$", re.IGNORECASE)
+
+
+def fatal(msg):
+    print(f"clasificar: {msg}", file=sys.stderr)
+    sys.exit(2)
+
+
+def tsv(ruta):
+    """(encabezado, filas) de un TSV; sin comillas, porque los campos pueden traer `"`."""
+    with open(ruta, newline="", encoding="utf-8") as f:
+        lector = csv.DictReader(f, delimiter="\t", quoting=csv.QUOTE_NONE)
+        return list(lector.fieldnames or []), list(lector)
+
+
+def campo(fila, k):
+    """Valor de una columna; `-` si falta o está vacía."""
+    return ((fila or {}).get(k) or "").strip() or "-"
+
+
+def intento_num(fila):
+    try:
+        return int(campo(fila, "intento"))
+    except ValueError:
+        return -1
+
+
+def medicion(state):
+    """La última fila de medicion.tsv de cada id (las columnas nuevas van al final: se leen por nombre)."""
+    ruta = os.path.join(state, "medicion.tsv")
+    filas = {}
+    if os.path.isfile(ruta):
+        for fila in tsv(ruta)[1]:
+            if campo(fila, "id") != "-":
+                filas[campo(fila, "id")] = fila
+    return filas
+
+
+def json_de(ruta):
+    try:
+        with open(ruta, encoding="utf-8") as f:
+            j = json.load(f)
+    except (OSError, ValueError):
+        return None
+    return j if isinstance(j, dict) else None
+
+
+def campos(ruta):
+    """Los `clave=valor` de un .corrida; vacío si no existe."""
+    c = {}
+    try:
+        with open(ruta, encoding="utf-8") as f:
+            for linea in f:
+                k, sep, v = linea.rstrip("\n").partition("=")
+                if sep:
+                    c[k] = v
+    except OSError:
+        pass
+    return c
+
+
+def compactaciones(fila_med):
+    try:
+        return int(campo(fila_med, "compactaciones"))
+    except ValueError:
+        return None
+
+
+def max_turns(corridas, id_):
+    """True si la corrida se quedó sin turnos; None si no hay ningún .json de ella."""
+    visto = False
+    for nombre in (f"{id_}.json", f"{id_}.sin-turnos.json"):
+        j = json_de(os.path.join(corridas, nombre))
+        if j is not None:
+            visto = True
+            if j.get("subtype") == "error_max_turns":
+                return True
+    return False if visto else None
+
+
+def decision(corridas, id_):
+    """Texto de la DECISION del RESULTADO de la corrida; None si es nada o no hay RESULTADO."""
+    texto = (json_de(os.path.join(corridas, f"{id_}.json")) or {}).get("result")
+    if not isinstance(texto, str):
+        return None
+    cruda = None
+    for linea in texto.splitlines():
+        m = RE_DECISION.match(linea)
+        if m:
+            cruda = m.group(1)  # la última, como pa
+    if cruda is None or cruda.strip().strip("*_ ").rstrip(".").strip().lower() in NADA:
+        return None
+    return cruda.strip().strip("*_ ")
+
+
+def rubrica(fila_med):
+    """Respuestas A–E (y I, K, M si van) guardadas en medicion.tsv; None si la corrida no tuvo rúbrica."""
+    resp = {}
+    for tok in re.split(r"[\s,]+", (fila_med or {}).get("rubrica") or ""):
+        clave, sep, valor = tok.partition("=")
+        if sep:
+            resp[clave.strip().upper()] = valor.strip().lower()
+    return resp if all(k in resp for k in "ABCDE") else None
+
+
+def subir(resp, letra):
+    """Las respuestas con B un paso más (ejecutar → decidir) o E un paso más (sí → no); None si ya no sube."""
+    r = dict(resp)
+    if letra == "B" and resp["B"] == "ejecutar":
+        r["B"] = "decidir"
+    elif letra == "E" and resp["E"] == "si":
+        r["E"] = "no"
+    else:
+        return None
+    return r
+
+
+def tabla(resp):
+    """Lo que da `pa --rubrica` con esas respuestas (fila, modelo, effort, lanza); None si pa no lo da."""
+    txt = " ".join(f"{k}={resp[k]}" for k in ("A", "B", "C", "D", "E", "I", "K", "M") if k in resp)
+    try:
+        r = subprocess.run([PA, "--rubrica", txt, "--json"], capture_output=True, text=True, timeout=60)
+        j = json.loads(r.stdout) if r.returncode in (0, 3) else None  # 3 = "no se lanza", igual trae el JSON
+    except (OSError, subprocess.TimeoutExpired, ValueError):
+        return None
+    return j if isinstance(j, dict) else None
+
+
+def diff_vacio(corridas, id_):
+    """True si la rama no cambió nada contra su base, False si cambió, None si no se sabe."""
+    c = campos(os.path.join(corridas, f"{id_}.corrida"))
+    base, rama, ruta = c.get("base", ""), c.get("rama", ""), c.get("ruta_trabajo", "")
+    if not (base and rama and os.path.isdir(ruta)):
+        return None
+    try:
+        r = subprocess.run(["git", "-C", ruta, "diff", "--quiet", base, rama], capture_output=True, timeout=60)
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    return {0: True, 1: False}.get(r.returncode)
+
+
+def accion_estimacion(letra, t):
+    if t is None:
+        return f"subir {letra} y relanzar con la fila que da la tabla (no pude calcularla: pa --rubrica no respondió)"
+    if not t.get("lanza"):
+        return f"subir {letra}: la tabla da «no se lanza» (volver a F3 y partir)"
+    effort = f" --effort {t['effort']}" if t.get("effort") else ""
+    return f"subir {letra} y relanzar con -m {t.get('modelo')}{effort}"
+
+
+def clasificar(proy, slug, subtarea, state):
+    corridas = os.path.join(state, proy)
+    ruta = os.path.join(corridas, "tareas", slug, "estado.tsv")
+    if not os.path.isfile(ruta):
+        fatal(f"no encuentro {ruta}")
+    cabecera, filas = tsv(ruta)
+    if not all(k in cabecera for k in REQUERIDAS):
+        fatal(f"{ruta}: el encabezado no es subtarea intento id modelo effort exit gate usd")
+    de_sub = [f for f in filas if campo(f, "subtarea") == subtarea]
+    if not de_sub:
+        fatal(f"no hay intentos de '{subtarea}' en {ruta}")
+
+    med = medicion(state)
+    orden = sorted(range(len(de_sub)), key=lambda i: (intento_num(de_sub[i]), i), reverse=True)  # más nuevo primero
+    ult = de_sub[orden[0]]
+    id_, gate, exit_ = campo(ult, "id"), campo(ult, "gate"), campo(ult, "exit")
+    fm = med.get(id_, {})
+    rub, fm_rub = None, {}
+    for i in orden:  # la rúbrica de la subtarea: la del último intento que la tenga
+        fi = med.get(campo(de_sub[i], "id"))
+        if rubrica(fi):
+            rub, fm_rub = rubrica(fi), fi
+            break
+    fila_rub = campo(fm_rub, "rub_fila")
+    n23 = sum(1 for f in de_sub if campo(f, "gate") == "23")
+
+    def res(clase, motivo, accion, t=None):
+        fila = (t or {}).get("fila")
+        return {"clase": clase, "motivo": motivo, "accion": accion, "fila": fila if fila is not None else (None if fila_rub == "-" else fila_rub),
+                "modelo": (t or {}).get("modelo"), "effort": (t or {}).get("effort")}
+
+    if gate == "21":
+        return res("brief", f"gate 21 en {id_}: salió de lo permitido", "rehacer el brief y relanzar desde main, mismo modelo")
+
+    if exit_ == "78" and id_ != "-":
+        comp = compactaciones(fm)
+        mt = max_turns(corridas, id_)
+        if comp or mt:
+            causa = ([f"compactó ({comp})"] if comp else []) + (["se quedó sin turnos"] if mt else [])
+            motivo = f"exit 78 en {id_}: {' y '.join(causa)}"
+            if fila_rub == "1b":
+                return res("dueno", motivo + "; su fila de rúbrica es 1b (indivisible): partir no alcanza", "pasarle al dueño (tablero)")
+            return res("particion", motivo, "volver a F3 y partir la subtarea (nada de --seguir --force)")
+
+    dec = decision(corridas, id_) if id_ != "-" else None
+    if dec is not None:
+        motivo = f"el RESULTADO de {id_} trae DECISION: {dec}"
+        if rub is None:
+            return res("estimacion", motivo, "subir B (ejecutar → decidir) y relanzar con la fila que da la tabla; no hay rúbrica guardada para calcularla")
+        if rub["B"] == "decidir":
+            return res("dueno", motivo + "; B ya es decidir: no hay paso que subir", "pasarle al dueño (tablero)")
+        t = tabla(subir(rub, "B"))
+        return res("estimacion", motivo, accion_estimacion("B", t), t)
+
+    if gate in TRAMPA:
+        return res("trampa", f"gate {gate} en {id_}", "un reintento con el error real del gate")
+
+    if gate == "23":
+        motivo = f"gate 23 en {id_} (intento {n23} de '{subtarea}')"
+        if n23 == 1:
+            return res("puntual", motivo, f"pa {proy} --seguir --id {id_} con la salida del chequeo, mismo modelo y rama")
+        if rub is None:
+            return res("dueno", motivo + "; no hay rúbrica guardada: no sé qué subir", "pasarle al dueño (tablero)")
+        subidas = []
+        for letra in ("B", "E"):
+            r2 = subir(rub, letra)
+            if r2 is not None:
+                subidas.append((letra, tabla(r2)))
+        if any(t is None for _, t in subidas):
+            return res("dueno", motivo + "; pa --rubrica no respondió", "pasarle al dueño (tablero)")
+        ref = campo(ult, "modelo")
+        if ref == "-":
+            actual = tabla(rub)
+            if actual is None:
+                return res("dueno", motivo + "; pa --rubrica no respondió", "pasarle al dueño (tablero)")
+            ref = actual.get("modelo")
+        for letra, t in subidas:
+            if t.get("modelo") != ref:
+                return res("estimacion", motivo, accion_estimacion(letra, t), t)
+        return res("brief", motivo + f"; subir B o E deja el mismo modelo ({ref})", "rehacer el brief: el modelo no es el problema")
+
+    if exit_ == "0" and id_ != "-" and diff_vacio(corridas, id_) is True:
+        return res("brief", f"exit 0 en {id_} y la rama no cambió nada contra su base", "rehacer el brief: el worker dijo listo y no hizo el cambio")
+
+    if gate == "0":
+        return res("ok", f"gate verde en {id_}", "gate verde: aceptar el resultado y dejarlo listo para integrar")
+
+    return res("dueno", f"gate {gate}, exit {exit_} en {id_}: ninguna fila de la tabla", "pasarle al dueño (tablero)")
+
+
+def main(argv=None):
+    ap = argparse.ArgumentParser(prog="clasificar",
+                                 description="Clase de falla y acción para el último intento de una subtarea (estado.tsv).")
+    ap.add_argument("proyecto")
+    ap.add_argument("slug", help="el slug de la tarea (tareas/<slug>/)")
+    ap.add_argument("subtarea", help="p. ej. T2")
+    ap.add_argument("--json", action="store_true")
+    a = ap.parse_args(argv)
+
+    r = clasificar(a.proyecto, a.slug, a.subtarea, STATE)
+    if a.json:
+        print(json.dumps({"version": 1, "proyecto": a.proyecto, "slug": a.slug, "subtarea": a.subtarea,
+                          "clase": r["clase"], "accion": r["accion"], "motivo": r["motivo"],
+                          "fila_rubrica": r["fila"], "modelo": r["modelo"], "effort": r["effort"]},
+                         ensure_ascii=False, indent=2))
+    else:
+        print(f"clase: {ETIQUETA[r['clase']]}")
+        print(f"acción: {r['accion']}")
+        print(f"motivo: {r['motivo']}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
