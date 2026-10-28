@@ -22,6 +22,8 @@ export function normalizar(texto: string, raices: Raices): string {
     t
       // sha de git (el commit inicial lleva la hora)
       .replace(/\b[0-9a-f]{40}\b/g, "<SHA>")
+      // sha corto de «N commit(s) sobre <sha>» (--ramas y el resultado de una corrida con worktree)
+      .replace(/\bsobre [0-9a-f]{7,12}\b/g, "sobre <SHA>")
       // uuid
       .replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, "<UUID>")
       // id de corrida: AAAAMMDD-HHMMSS-pid

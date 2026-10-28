@@ -28,3 +28,7 @@ test("normalizar: la carpeta de transcripts de Claude (ruta con guiones)", () =>
 test("normalizar: el pid del claude que baja --matar/--parar", () => {
   assert.equal(normalizar("pa: worker de 'proy' matado (claude 123456 y su árbol).", { tmp: [] }), "pa: worker de 'proy' matado (claude <PID> y su árbol).");
 });
+
+test("normalizar: el sha corto de «commit(s) sobre»", () => {
+  assert.equal(normalizar("1 commit(s) sobre 09b9128. NO está en main", { tmp: [] }), "1 commit(s) sobre <SHA>. NO está en main");
+});

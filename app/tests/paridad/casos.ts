@@ -76,3 +76,7 @@ export const casos: Caso[] = [...casosPa, ...casosHerramientas, ...casosHooks, .
 import { casosPuestos } from "./casos-puestos.ts";
 casos.push(...casosPuestos);
 casos.push(...casosTablero);
+
+// Etapa 11: de punta a punta (casos-e2e.ts).
+import { casosE2e } from "./casos-e2e.ts";
+casos.push(...casosE2e);

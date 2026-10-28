@@ -16,6 +16,8 @@ export interface Respuesta {
   err?: string;
   rc?: number;
   crear?: string[];
+  /** Archivos que deja commiteados en la rama del worker. */
+  commitear?: string[];
 }
 
 export interface CasoLanzar extends Caso {

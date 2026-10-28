@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 // Un `claude -p --output-format json` falso con guion, para los casos de lanzar (casos-lanzar.ts). Lee de $GUION_DIR/guion.json
-// una lista de respuestas (una por llamada, la última se repite): { json, err, rc, crear }. `json` es el objeto que imprime
+// una lista de respuestas (una por llamada, la última se repite): { json, err, rc, crear, commitear }. `json` es el objeto que imprime
 // (con "@SID@" cambiado por el --session-id/--resume que le pasaron); `err` va a stderr; `crear` son archivos que deja en el cwd
 // (trabajo sin commitear del worker). Anota el argv en TRAMA_FALSO_LOG como claude-falso.mjs. En la PRIMERA llamada guarda una
 // foto del estado de pa y del proyecto en $GUION_DIR/antes (y el entorno en antes/env.json): es el «justo antes de lanzar» que
 // el test de paridad de lanzar usa para correr la versión TS desde el mismo punto.
+import { execFileSync } from "node:child_process";
 import { appendFileSync, cpSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
@@ -33,6 +34,13 @@ writeFileSync(nf, String(n + 1));
 const guion = JSON.parse(readFileSync(path.join(dir, "guion.json"), "utf8"));
 const r = guion[Math.min(n, guion.length - 1)];
 for (const f of r.crear ?? []) writeFileSync(path.join(process.cwd(), f), "trabajo del worker\n");
+for (const f of r.commitear ?? []) {
+  // trabajo ya commiteado en la rama del worker (lo que después se ve con --ramas y se integra)
+  writeFileSync(path.join(process.cwd(), f), `trabajo commiteado del worker (llamada ${n})\n`);
+  const g = (...a) => execFileSync("git", ["-c", "user.email=a@b", "-c", "user.name=x", ...a], { cwd: process.cwd(), stdio: "ignore" });
+  g("add", f);
+  g("commit", "-q", "-m", `agrega ${f}`);
+}
 if (r.json) process.stdout.write(JSON.stringify(r.json).split("@SID@").join(sid) + "\n");
 if (r.err) process.stderr.write(r.err);
 process.exit(r.rc ?? 0);
