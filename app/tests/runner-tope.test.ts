@@ -44,7 +44,7 @@ test("un archivo que se cuelga se corta a su tope y no deja vivo ni uno de sus p
   assert.deepEqual(lista.filter((p) => vivo(p)), []);
 });
 
-test("un archivo que termina con un proceso desprendido vivo: lo mata y avisa, sin fallar", { timeout: 60_000 }, async () => {
+test("un archivo que termina con un proceso desprendido vivo: lo mata y avisa, sin fallar", { skip: process.platform !== "linux", timeout: 60_000 }, async () => {
   const pids = pidsEn();
   const r = await runner("sobra", { TRAMA_TEST_PIDS: pids }).fin;
   assert.equal(r.codigo, 0);
