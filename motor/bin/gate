@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# gate <proyecto> <id> --chequeo CMD --permitidos F [--test COPIA[:RUTA]] [--extras CMD] [--rojos CMD] [--main REF] [--log F]
+# gate <proyecto> <id> --chequeo CMD --permitidos F [--test COPIA[:RUTA]] [--extras CMD] [--rojos CMD] [--main REF] [--log F] [--tarea SLUG]
 #
 # Compuerta de cada corrida (F6) del protocolo de orquestación (motor/docs/protocolo-orquestacion.txt, sección 4).
 # La corre el líder, no el worker: la VERIFICACION del worker es un indicio, esto es la prueba. Corre todos los pasos
@@ -29,6 +29,11 @@
 # <id> es el de la rama pa/<proyecto>/<id> (también vale la rama entera). Si la rama ya no tiene worktree, se saca uno
 # desechable en /tmp/gate-<id> y se borra al terminar.
 #
+# Las dependencias no van a git: si el worktree tiene package.json (raíz o app/) y no su node_modules, pero el checkout
+# principal sí lo tiene, se enlaza (symlink) antes del chequeo y se quita al salir, también con error (unlink: sólo el enlace).
+# Con tarea (--tarea o env PA_TAREA) anota el exit en la columna gate de tareas/<slug>/estado.tsv: la fila del <id>, o una
+# nueva con '-' si no existe.
+#
 # Exits:  0 verde · 2 uso · 3 no resuelve proyecto/rama/main/archivos del gate · 21 fuera de lo permitido ·
 #         22 test congelado sin ruta única · 23 el chequeo (o un extra) dio rojo · 24 rojos nuevos contra main ·
 #         25 anti-patrón en lo agregado · 26 snapshot sin ruta explícita en --permitidos
@@ -42,6 +47,7 @@ ayuda() { awk 'NR>1 && !/^#/{exit} NR>1{sub(/^# ?/,""); print}' "${BASH_SOURCE[0
 fatal() { echo "gate: $*" >&2; exit 3; }
 
 proy=""; id=""; chequeo=""; permitidos=""; test_arg=""; extras_cmd=""; rojos=""; main_ref="main"; log=""
+tarea="${PA_TAREA:-}"; enlaces=()   # tarea de estado.tsv; node_modules enlazados (symlinks que hay que quitar al salir)
 bk=""; existia=0   # backup del archivo de test del worktree mientras está pisado (paso 2)
 pos=()
 while (($#)); do
@@ -53,6 +59,7 @@ while (($#)); do
     --rojos)      [[ $# -ge 2 ]] || uso; rojos="$2"; shift 2 ;;
     --main)       [[ $# -ge 2 ]] || uso; main_ref="$2"; shift 2 ;;
     --log)        [[ $# -ge 2 ]] || uso; log="$2"; shift 2 ;;
+    --tarea)      [[ $# -ge 2 ]] || uso; tarea="$2"; shift 2 ;;
     -h|--help)    ayuda ;;
     -*)           echo "gate: opción desconocida: $1" >&2; uso ;;
     *)            pos+=("$1"); shift ;;
@@ -62,6 +69,9 @@ done
 proy="${pos[0]}"; id="${pos[1]}"
 [[ -n "$chequeo" && -n "$permitidos" ]] || uso
 [[ -f "$permitidos" ]] || fatal "no existe --permitidos: $permitidos"
+if [[ -n "$tarea" && ! "$tarea" =~ ^[A-Za-z0-9_][A-Za-z0-9._-]*$ ]]; then
+  echo "gate: --tarea inválido (letras, números, . _ -): $tarea" >&2; exit 2
+fi
 copia=""; test_ruta=""
 if [[ -n "$test_arg" ]]; then
   copia="${test_arg%%:*}"
@@ -74,6 +84,7 @@ PR="$AQUI/proyecto-ruta"; [[ -x "$PR" ]] || PR="$(command -v proyecto-ruta || tr
 repo="$("$PR" "$proy" 2>/dev/null)" && [[ -n "$repo" ]] || fatal "no resuelvo el proyecto: $proy"
 slug="$(basename "$repo")"; slug="${slug//[^A-Za-z0-9._-]/-}"; slug="${slug,,}"   # = slug_de de pa
 rama="$id"; [[ "$id" == pa/* ]] || rama="pa/$slug/$id"
+idKey="${rama#pa/$slug/}"   # el id de la fila de estado.tsv (también sirve la rama entera como <id>)
 git -C "$repo" rev-parse --verify -q "refs/heads/$rama" >/dev/null || fatal "no existe la rama $rama en $repo"
 git -C "$repo" rev-parse --verify -q "$main_ref" >/dev/null || fatal "no existe $main_ref en $repo"
 
@@ -86,7 +97,20 @@ restaurar() { # devuelve al worktree el archivo de test que el paso 2 pisó
   if ((existia)); then cp -p "$bk" "$wt/$test_ruta"; else rm -f "$wt/$test_ruta"; fi
   rm -f "$bk"; bk=""
 }
-trap 'restaurar; limpiar' EXIT
+enlazar_deps() { # <worktree>: symlink al node_modules del checkout donde el worktree tiene package.json y no tiene el suyo
+  local d dir origen
+  for d in "" app; do
+    dir="$1${d:+/$d}"; origen="$repo${d:+/$d}/node_modules"
+    [[ -f "$dir/package.json" && ! -e "$dir/node_modules" && ! -L "$dir/node_modules" && -d "$origen" ]] || continue
+    ln -s "$origen" "$dir/node_modules" && enlaces+=("$dir/node_modules")
+  done
+}
+desenlazar_deps() { # quita sólo los symlinks que puso enlazar_deps (unlink: nunca toca el directorio del checkout)
+  local e
+  for e in "${enlaces[@]}"; do unlink "$e"; done
+  enlaces=()
+}
+trap 'restaurar; desenlazar_deps; limpiar' EXIT
 if [[ -z "$wt" || ! -d "$wt" ]]; then
   wt="/tmp/gate-${rama//\//-}"
   git -C "$repo" worktree add --detach "$wt" "$rama" >/dev/null 2>&1 || fatal "no pude sacar un worktree de $rama en $wt"
@@ -97,6 +121,22 @@ falla=0
 rojo() { # <exit> <mensaje>: anota la falla; el primero manda el exit
   echo "ROJO  $2"
   ((falla == 0)) && falla="$1"
+}
+
+# estado.tsv de la tarea: el exit del gate va a la columna gate (7) de la fila del id; si no hay fila, se agrega con '-'.
+# Escritura atómica: tmp al lado + mv
+anotar_gate() { # <exit>
+  local dir="$STATE/$slug/tareas/$tarea" f tmp
+  f="$dir/estado.tsv"; tmp="$f.$$.tmp"
+  mkdir -p "$dir" || return 1
+  {
+    if [[ -s "$f" ]]; then cat "$f"; else printf 'subtarea\tintento\tid\tmodelo\teffort\texit\tgate\tusd\n'; fi
+  } | awk -F'\t' -v OFS='\t' -v id="$idKey" -v ex="$1" '
+    NR == 1 { print; next }
+    $3 == id { $7 = ex; hit = 1 }
+    { print }
+    END { if (!hit) print "-", "-", id, "-", "-", "-", ex, "-" }
+  ' >"$tmp" && mv -f "$tmp" "$f" || { rm -f "$tmp"; return 1; }
 }
 
 # 1. alcance
@@ -184,7 +224,8 @@ else
   fi
 fi
 
-# 3. chequeo de la subtarea
+# 3. chequeo de la subtarea (y los extras y rojos de abajo, que corren en el mismo worktree)
+enlazar_deps "$wt"
 sal3="$(cd "$wt" && bash -c "$chequeo" 2>&1)"; ex3=$?
 if ((ex3 == 0)); then echo "OK    3 chequeo"
 else rojo 23 "3 chequeo: exit $ex3"; printf '%s\n' "$sal3" | tail -n 15 | sed 's/^/        /'; fi
@@ -210,6 +251,7 @@ else
       git -C "$repo" worktree add --detach "$bwt" "$main_ref" >/dev/null 2>&1 || fatal "no pude sacar $main_ref en $bwt"
     fi
     mkdir -p "$(dirname "$base")"
+    enlazar_deps "$bwt"
     (cd "$bwt" && bash -c "$rojos" 2>&1) | sort -u >"$base.tmp" && mv -f "$base.tmp" "$base"
   fi
   nuevos="$(cd "$wt" && bash -c "$rojos" 2>&1 | sort -u | comm -13 "$base" -)"
@@ -225,5 +267,8 @@ if [[ -n "$log" ]]; then
   else echo "OK    5 sin compactación"; fi
 fi
 
+if [[ -n "$tarea" ]]; then
+  anotar_gate "$falla" && echo "OK    estado.tsv ($tarea): gate $falla" || echo "AVISO no pude anotar el gate en el estado.tsv de $tarea"
+fi
 ((falla == 0)) && echo "GATE VERDE $rama" || echo "GATE ROJO $rama (exit $falla)"
 exit "$falla"

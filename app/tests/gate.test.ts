@@ -6,7 +6,7 @@ import { after } from "node:test";
 import { testPosix as test } from "./plataforma.ts";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
@@ -36,6 +36,7 @@ mkdirSync(repo, { recursive: true });
 git("init", "-q", "-b", "main");
 git("config", "user.email", "t@t");
 git("config", "user.name", "t");
+writeFileSync(path.join(repo, ".git", "info", "exclude"), "node_modules/\n"); // las dependencias no van a git (ni a las ramas)
 escribir("src/a.txt", "a\n");
 escribir("src/viejo.ts", "const v = 1 as any;\n"); // ya estaba en main: los anti-patrones de líneas viejas no cuentan
 escribir("tests/viejo.txt", "falla-previa\n");
@@ -336,6 +337,69 @@ test("acepta la rama entera como id y la deja sin worktrees desechables", () => 
   const r = gate(`pa/mi-proyecto/${id}`);
   assert.equal(r.exit, 0, r.sal);
   assert.equal(existsSync(path.join("/tmp", `gate-pa-mi-proyecto-${id}`)), false);
+});
+
+test("node_modules: el worktree sin dependencias las enlaza durante el chequeo; el enlace no queda, ni con el chequeo rojo", () => {
+  // el checkout tiene node_modules en la raíz y en app/ (no van a git); la rama trae package.json en las dos
+  for (const d of [path.join(repo, "node_modules"), path.join(repo, "app", "node_modules")]) {
+    mkdirSync(d, { recursive: true });
+    writeFileSync(path.join(d, "marca.txt"), "dep\n");
+  }
+  writeFileSync(path.join(tmp, "permitidos-deps.txt"), "app/package.json\npackage.json\n");
+  const id = rama({ "app/package.json": "{}\n", "package.json": "{}\n" });
+  const wtw = path.join(tmp, "wt-deps");
+  git("worktree", "add", "-q", wtw, `pa/mi-proyecto/${id}`);
+  const correr = (chequeo: string) =>
+    spawnSync(GATE, ["mi-proyecto", id, "--chequeo", chequeo, "--permitidos", path.join(tmp, "permitidos-deps.txt")], {
+      encoding: "utf8",
+      env: { ...process.env, PROYECTOS_REGISTRY: registry, PA_STATE: estado },
+    });
+  const sinEnlace = (p: string) => assert.throws(() => lstatSync(p), { code: "ENOENT" });
+  try {
+    const ok = correr("test -L node_modules && test -L app/node_modules && test -f app/node_modules/marca.txt && test -f node_modules/marca.txt");
+    assert.equal(ok.status, 0, ok.stdout + ok.stderr);
+    assert.match(ok.stdout, /OK\s+3 chequeo/);
+    sinEnlace(path.join(wtw, "node_modules"));
+    sinEnlace(path.join(wtw, "app", "node_modules"));
+    assert.equal(readFileSync(path.join(repo, "app", "node_modules", "marca.txt"), "utf8"), "dep\n"); // unlink: el del checkout sigue
+
+    const malo = correr("exit 3");
+    assert.equal(malo.status, 23, malo.stdout + malo.stderr);
+    sinEnlace(path.join(wtw, "app", "node_modules"));
+  } finally {
+    git("worktree", "remove", "--force", wtw);
+  }
+});
+
+test("tarea: anota el exit en la columna gate de la fila del id; si no hay fila la agrega con '-'", () => {
+  const idA = rama({ "src/b.txt": "b\n" });
+  const idB = rama({ "src/c.txt": "c\n" });
+  const f = path.join(estado, "mi-proyecto", "tareas", "t-prueba", "estado.tsv");
+  mkdirSync(path.dirname(f), { recursive: true });
+  writeFileSync(f, ["subtarea\tintento\tid\tmodelo\teffort\texit\tgate\tusd", `T1\t1\t${idA}\thaiku\tlow\t0\t-\t0.01`, "T2\t1\totro\tsonnet\tmedium\t0\t-\t0.2", ""].join("\n"));
+  const verde = gate(idA, ["--tarea", "t-prueba"]);
+  assert.equal(verde.exit, 0, verde.sal);
+  assert.match(verde.sal, /OK\s+estado\.tsv \(t-prueba\): gate 0/);
+  const malo = gate(`pa/mi-proyecto/${idB}`, ["--tarea", "t-prueba"], { chequeo: "exit 3" });
+  assert.equal(malo.exit, 23, malo.sal);
+  assert.equal(
+    readFileSync(f, "utf8"),
+    ["subtarea\tintento\tid\tmodelo\teffort\texit\tgate\tusd", `T1\t1\t${idA}\thaiku\tlow\t0\t0\t0.01`, "T2\t1\totro\tsonnet\tmedium\t0\t-\t0.2", `-\t-\t${idB}\t-\t-\t-\t23\t-`, ""].join("\n"),
+  );
+});
+
+test("tarea: la toma de PA_TAREA si no hay --tarea (y crea el estado.tsv); un slug con / da uso", () => {
+  const id = rama({ "src/d.txt": "d\n" });
+  const r = spawnSync(GATE, ["mi-proyecto", id, "--chequeo", "true", "--permitidos", path.join(tmp, "permitidos.txt")], {
+    encoding: "utf8",
+    env: { ...process.env, PROYECTOS_REGISTRY: registry, PA_STATE: estado, PA_TAREA: "t-env" },
+  });
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.equal(
+    readFileSync(path.join(estado, "mi-proyecto", "tareas", "t-env", "estado.tsv"), "utf8"),
+    `subtarea\tintento\tid\tmodelo\teffort\texit\tgate\tusd\n-\t-\t${id}\t-\t-\t-\t0\t-\n`,
+  );
+  assert.equal(gate(id, ["--tarea", "../x"]).exit, 2);
 });
 
 test("el instalador del producto enlaza gate junto a los otros bin", () => {
