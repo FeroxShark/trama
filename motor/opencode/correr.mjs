@@ -81,10 +81,11 @@ export function aResultado({ eventos, modelo, rc, stderr, segundos, gratis, trun
   const ultimoFin = [...eventos].reverse().find((e) => e.type === "step_finish");
   const dicho = (textos.at(-1)?.part?.text ?? "").trim();
   const razon = ultimoFin?.part?.reason;
-  // opencode 2.x no emite el step_finish del último paso: si el paso abierto (último step_start, después del último step_finish) dijo algo, cuenta como turno cerrado.
-  const iIni = eventos.findLastIndex((e) => e.type === "step_start");
+  // El paso abierto es lo que viene después del último step_finish. opencode 2.x no emite el step_finish del último paso, y a veces tampoco
+  // el step_start del paso que sigue a una herramienta (carrera de opencode: 2 de cada 25 con un falso veloz). Si ese paso dijo algo, cuenta como turno cerrado.
   const iFin = eventos.findLastIndex((e) => e.type === "step_finish");
-  const dijoAbierto = iIni > iFin && eventos.slice(iIni + 1).some((e) => e.type === "text" && typeof e.part?.text === "string" && e.part.text.trim());
+  const abiertos = eventos.slice(iFin + 1).filter((e) => e.type !== "error");
+  const dijoAbierto = abiertos.some((e) => e.type === "text" && typeof e.part?.text === "string" && e.part.text.trim());
   const cerrado = truncado === 0 && !error && rc === 0 && dijoAbierto;
   const cortado = !cerrado && truncado === 0 && !error && rc === 0 && eventos.length > 0 && razon !== undefined && razon !== "stop";
   const malo = truncado > 0 || rc !== 0 || !!error || (!ultimoFin && !cerrado) || cortado;
@@ -99,7 +100,7 @@ export function aResultado({ eventos, modelo, rc, stderr, segundos, gratis, trun
     subtype: truncado > 0 ? "error_max_turns" : malo ? "error" : "success",
     is_error: malo,
     result: malo ? [dicho, motivo].filter(Boolean).join("\n") : dicho,
-    num_turns: eventos.filter((e) => e.type === "step_start").length,
+    num_turns: pasos.length + (abiertos.length ? 1 : 0),
     duration_ms: Math.round(segundos * 1000),
     ...(gratis ? { total_cost_usd: 0 } : costo > 0 ? { total_cost_usd: costo } : {}),
     opencode_session_id: sesion,
@@ -193,8 +194,9 @@ async function main() {
       /* sin transcript la corrida sigue */
     }
     eventos.push(e);
-    // El tope de pasos: si arranca el paso N+1 se corta a opencode (si el N-ésimo era el último, termina solo y no se toca).
-    if (maxPasos && !truncado && e.type === "step_start" && eventos.filter((x) => x.type === "step_finish").length >= maxPasos) {
+    // El tope de pasos: si arranca el paso N+1 se corta a opencode (si el N-ésimo era el último, termina solo y no se toca). El paso N+1 se nota
+    // por cualquier evento después del N-ésimo step_finish: opencode 2.x a veces no emite su step_start.
+    if (maxPasos && !truncado && e.type !== "step_finish" && e.type !== "error" && eventos.filter((x) => x.type === "step_finish").length >= maxPasos) {
       truncado = maxPasos;
       hijo.kill("SIGTERM");
     }
