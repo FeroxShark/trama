@@ -1928,7 +1928,7 @@ export const en = {
   "sub.corriendo": "Running",
   "sub.terminado": "Done",
   "sub.error": "Failed",
-  "sub.sinNoticias": "No news",
+  "sub.parado": "Stopped",
   "sub.tokens": "{n} tokens",
   "sub.verInforme": "See full report",
   "sub.cargando": "Loading…",

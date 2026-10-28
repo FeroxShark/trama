@@ -50,17 +50,19 @@ export function limpiarArchivadosSubs(alCambiar?: () => void) {
   alCambiar?.();
 }
 
-export const OBSOLETO_S = 30 * 60;
+/** Sin eventos nuevos por tanto y sin herramienta en vuelo, un subagente que "corre" en realidad se paró. */
+export const OBSOLETO_S = 15 * 60;
 
-export const activo = (u: Subagente, ahora = Math.floor(Date.now() * 0.001)) => u.estado === "corriendo" && ahora - u.ultimo_en < OBSOLETO_S;
+export const activo = (u: Subagente, ahora = Math.floor(Date.now() * 0.001)) =>
+  u.estado === "corriendo" && (u.en_vuelo === true || ahora - u.ultimo_en < OBSOLETO_S);
 
 export const pintaSub = (u: Subagente, vivo: boolean) =>
   vivo
     ? ({ tipo: "trab", clave: "sub.corriendo" } as const)
     : u.estado === "error"
       ? ({ tipo: "frenado", clave: "sub.error" } as const)
-      : u.estado === "corriendo"
-        ? ({ tipo: "frenado", clave: "sub.sinNoticias" } as const)
+      : u.estado === "corriendo" || u.estado === "parado"
+        ? ({ tipo: "frenado", clave: "sub.parado" } as const)
         : ({ tipo: "term", clave: "sub.terminado" } as const);
 
 export const corriendo = (lista: readonly Subagente[], ahora?: number) => lista.filter((u) => activo(u, ahora));

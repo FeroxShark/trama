@@ -1914,7 +1914,7 @@ export const es: { [K in keyof typeof en]: string } = {
   "sub.corriendo": "Corriendo",
   "sub.terminado": "Terminó",
   "sub.error": "Falló",
-  "sub.sinNoticias": "Sin noticias",
+  "sub.parado": "Parado",
   "sub.tokens": "{n} tokens",
   "sub.verInforme": "Ver informe completo",
   "sub.cargando": "Cargando…",

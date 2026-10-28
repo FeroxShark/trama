@@ -89,7 +89,7 @@ import { diferir, workerVivo, type Trabajador } from "./activas";
 import { control } from "./control";
 import { Fila, FilaLider, RESORTE } from "./Fila";
 import { Subagentes } from "./Subagentes";
-import { archivarTodosSubs, claveSub, corriendo, deClaveSub, SubAbierto, useTodosSubagentes } from "./subagentes-logica";
+import { archivarTodosSubs, claveSub, corriendo, deClaveSub, SubAbierto, useTicSubagentes, useTodosSubagentes } from "./subagentes-logica";
 import type { Subagente } from "../../electron/subagentes";
 import { correrGuion } from "./guion";
 import { Logo } from "./Logo";
@@ -461,6 +461,7 @@ export function Barra() {
   // Con los que quedaron sin proceso y dejaron workers a la vista (`lideresSinProceso`): siguen en la barra.
   // Los subagentes que corren de cada sesión: con alguno, el líder está activo (no enfriándose).
   const subagentes = useTodosSubagentes();
+  const ticSub = useTicSubagentes(subagentes);
   const lideresVistos = useMemo(() => {
     const ahora = Math.floor(Date.now() / 1000);
     return [...lideres, ...lideresSinProceso(todos, { lideres, caidos, optimista, ahora })].map((l) => {
@@ -468,7 +469,7 @@ export function Barra() {
       const nombre = nombres.titulos[l.id];
       return nombre || n ? { ...l, ...(nombre ? { nombre } : null), ...(n ? { subagentes: n } : null) } : l;
     });
-  }, [lideres, todos, caidos, optimista, nombres.titulos, subagentes]);
+  }, [lideres, todos, caidos, optimista, nombres.titulos, subagentes, ticSub]);
   const mover = useMemo(() => new Map(Object.entries(nombres.proyectos)), [nombres.proyectos]);
   const ocultos = useMemo(() => new Set(nombres.ocultos), [nombres.ocultos]);
   // El `titulo` del registry de cada carpeta: se ve y se busca por él.

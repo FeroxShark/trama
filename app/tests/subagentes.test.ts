@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { appendFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { avisosDe, crearSubagentes, informeDe, leerCarpeta, leerSubagente, modeloCorto, resumir, type Subagentes } from "../electron/subagentes.ts";
+import { avisosDe, cortesDe, crearSubagentes, informeDe, leerCarpeta, leerSubagente, modeloCorto, resumir, type Subagentes } from "../electron/subagentes.ts";
 
 const temporal = () => mkdtempSync(path.join(tmpdir(), "trama-subagentes-"));
 const espera = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -158,4 +158,62 @@ test("la sesión recibió que lo cortaron: un subagente que parecía correr qued
   assert.equal((await s.leer())[sid]?.[0]?.estado, "error");
   s.cerrar();
   rmSync(base, { recursive: true });
+});
+
+const interrumpe = (ts: string) => linea({ type: "user", timestamp: ts, message: { role: "user", content: [{ type: "text", text: "[Request interrupted by user]" }] } });
+const cierraLider = (ts: string) => linea({ type: "assistant", timestamp: ts, message: { stop_reason: "end_turn", content: [{ type: "text", text: "listo" }] } });
+
+async function estadoCon(extra: string, agente: string, metaSub: object = meta) {
+  const base = temporal();
+  const { sid, transcript, dir } = sesion(base);
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(path.join(dir, "agent-p1.jsonl"), agente);
+  writeFileSync(path.join(dir, "agent-p1.meta.json"), JSON.stringify(metaSub));
+  appendFileSync(transcript, extra);
+  const s = crearSubagentes({ transcript: async () => transcript, alCambiar: () => {} });
+  await s.sincronizar([sid]);
+  const u = (await s.leer())[sid]?.[0];
+  s.cerrar();
+  rmSync(base, { recursive: true });
+  return u;
+}
+
+test("cortes: las interrupciones y el cierre del turno del líder", () => {
+  const r = cortesDe(interrumpe("2026-10-24T10:01:00.000Z") + cierraLider("2026-10-24T10:02:00.000Z") + linea({ type: "user", timestamp: "2026-10-24T10:03:00.000Z", message: { content: "no interrumpido" } }));
+  assert.deepEqual(r.interrupciones, [Date.parse("2026-10-24T10:01:00.000Z") / 1000]);
+  assert.equal(r.cierre, Date.parse("2026-10-24T10:02:00.000Z") / 1000);
+});
+
+test("interrupción del líder sin resultado: el subagente queda parado", async () => {
+  const agente = pedido("2026-10-24T10:00:00.000Z") + usa("2026-10-24T10:00:03.000Z");
+  const u = await estadoCon(interrumpe("2026-10-24T10:00:10.000Z"), agente);
+  assert.equal(u?.estado, "parado");
+});
+
+test("una interrupción anterior a su último mensaje no lo para", async () => {
+  const agente = pedido("2026-10-24T10:05:00.000Z") + usa("2026-10-24T10:05:30.000Z");
+  const u = await estadoCon(interrumpe("2026-10-24T10:00:10.000Z"), agente);
+  assert.equal(u?.estado, "corriendo");
+});
+
+test("en primer plano, el cierre del turno del líder lo para; en segundo plano no", async () => {
+  const agente = pedido("2026-10-24T10:00:00.000Z") + usa("2026-10-24T10:00:03.000Z");
+  const cierre = cierraLider("2026-10-24T10:00:30.000Z");
+  assert.equal((await estadoCon(cierre, agente, { ...meta, requestShape: "foreground" }))?.estado, "parado");
+  assert.equal((await estadoCon(cierre, agente, meta))?.estado, "corriendo", "segundo plano: el líder cierra y él sigue");
+});
+
+test("si el resultado sí llegó (terminó o la sesión lo avisó), la interrupción no lo pisa", async () => {
+  const termina = pedido("2026-10-24T10:00:00.000Z") + usa("2026-10-24T10:00:03.000Z") + cierra("2026-10-24T10:00:08.000Z", "listo");
+  assert.equal((await estadoCon(interrumpe("2026-10-24T10:00:10.000Z"), termina))?.estado, "terminado");
+  const aviso = linea({ type: "user", timestamp: "2026-10-24T10:00:09.000Z", message: { content: "<task-notification><task-id>p1</task-id><status>completed</status></task-notification>" } });
+  const agente = pedido("2026-10-24T10:00:00.000Z") + usa("2026-10-24T10:00:03.000Z");
+  assert.equal((await estadoCon(aviso + interrumpe("2026-10-24T10:00:10.000Z"), agente))?.estado, "corriendo");
+});
+
+test("en_vuelo: el último mensaje pidió una herramienta y no volvió; si volvió, no", () => {
+  const vuelo = pedido("2026-10-24T10:00:00.000Z") + usa("2026-10-24T10:00:03.000Z");
+  assert.equal(leerSubagente("s", "a", meta, "", vuelo, 0).en_vuelo, true);
+  assert.equal(leerSubagente("s", "a", meta, "", vuelo + vuelta("2026-10-24T10:00:23.000Z"), 0).en_vuelo, false);
+  assert.equal(leerSubagente("s", "a", meta, "", vuelo + cierra("2026-10-24T10:00:25.000Z", "x"), 0).en_vuelo, false);
 });

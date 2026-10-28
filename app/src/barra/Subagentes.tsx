@@ -11,7 +11,7 @@ import { useIdioma } from "../i18n/react";
 import { MODO } from "../modo";
 import { pintorDura, pintorHace } from "../tiempo";
 import { Punto, Reloj } from "./piezas";
-import { activo, archivarSub, archivarTodosSubs, claveSub, pintaSub, SubAbierto, useSubagentes } from "./subagentes-logica";
+import { activo, archivarSub, archivarTodosSubs, claveSub, pintaSub, SubAbierto, useSubagentes, useTicSubagentes } from "./subagentes-logica";
 
 const compacto = (n: number) => new Intl.NumberFormat(locale(), { notation: "compact", maximumFractionDigits: 1 }).format(n);
 
@@ -38,7 +38,7 @@ const Fila = memo(function Fila({ u, vivo, activa, alAbrir }: { u: Subagente; vi
     );
   };
   return (
-    <li className="w sub" data-estado={vivo || u.estado !== "corriendo" ? u.estado : "obsoleto"} data-sub={u.id} data-activa={activa ? "" : undefined}>
+    <li className="w sub" data-estado={vivo || u.estado !== "corriendo" ? u.estado : "parado"} data-sub={u.id} data-activa={activa ? "" : undefined}>
       <div className="sub-cab">
         <button
           type="button"
@@ -113,6 +113,7 @@ const Fila = memo(function Fila({ u, vivo, activa, alAbrir }: { u: Subagente; vi
 export const Subagentes = memo(function Subagentes({ sid }: { sid: string }) {
   useIdioma();
   const lista = useSubagentes(sid);
+  const tic = useTicSubagentes(lista);
   const sub = useContext(SubAbierto);
   const alAbrir = sub?.abrir ?? null;
   const [desplegado, setDesplegado] = useState(() => MODO.captura === "subagentes" && MODO.variante === "abierto");
@@ -121,7 +122,7 @@ export const Subagentes = memo(function Subagentes({ sid }: { sid: string }) {
     const v = lista.filter((u) => activo(u, ahora));
     const c = lista.filter((u) => !activo(u, ahora)).sort((a, b) => b.ultimo_en - a.ultimo_en);
     return { vivos: v, cerrados: c };
-  }, [lista]);
+  }, [lista, tic]);
 
   if (!lista.length) return null;
 

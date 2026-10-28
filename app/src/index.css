@@ -5839,7 +5839,7 @@ summary.sis-div-t:hover,
 .sub[data-estado="error"] .sub-estado {
   color: var(--rojo);
 }
-.sub[data-estado="obsoleto"] .sub-estado {
+.sub[data-estado="parado"] .sub-estado {
   color: var(--txt-4);
 }
 .sub-ultimo {

@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import type { Subagente } from "../electron/subagentes.ts";
 import {
   activo,
+  pintaSub,
   archivarSub,
   archivarTodosSubs,
   esSubArchivado,
@@ -72,4 +73,18 @@ test("los subagentes terminados se identifican como no activos y se pueden archi
   limpiarArchivadosSubs();
   assert.equal(esSubArchivado("lider-a", "sub-2"), false);
   assert.equal(esSubArchivado("lider-a", "sub-3"), false);
+});
+
+test("silencio: pasados 15 min sin eventos y sin herramienta en vuelo ya no está activo; con una herramienta en vuelo sigue", () => {
+  const ahora = 100000;
+  const base: Subagente = { id: "s", sid: "l", descripcion: "x", modelo: null, tipo: null, estado: "corriendo", inicio: ahora - 7000, ultimo_en: ahora - 14 * 60, ultimo: null, tokens: 0, resultado: null, hay_mas: false };
+  assert.equal(activo(base, ahora), true, "14 min: todavía");
+  const callado = { ...base, ultimo_en: ahora - 16 * 60 };
+  assert.equal(activo(callado, ahora), false, "16 min sin nada");
+  assert.equal(activo({ ...callado, en_vuelo: true }, ahora), true, "esperando una herramienta");
+  assert.deepEqual(pintaSub(callado, false), { tipo: "frenado", clave: "sub.parado" }, "se ve con palabra: Parado");
+  assert.deepEqual(pintaSub({ ...base, estado: "parado" }, false), { tipo: "frenado", clave: "sub.parado" });
+  assert.deepEqual(pintaSub(base, true), { tipo: "trab", clave: "sub.corriendo" });
+  assert.deepEqual(pintaSub({ ...base, estado: "terminado" }, false), { tipo: "term", clave: "sub.terminado" }, "el fin normal sigue como hoy");
+  assert.equal(activo({ ...base, estado: "parado" }, ahora), false);
 });

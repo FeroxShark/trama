@@ -1,4 +1,4 @@
-import { createContext, useSyncExternalStore } from "react";
+import { createContext, useEffect, useState, useSyncExternalStore } from "react";
 import type { Subagente, Subagentes } from "../../electron/subagentes";
 import { fuente } from "../datos/fuente";
 import {
@@ -74,6 +74,21 @@ export const useSubagentes = (sid: string | null): readonly Subagente[] => {
   const t = useSyncExternalStore(suscribir, todos);
   return (sid && t[sid]) || SIN;
 };
+
+/**
+ * El paso del tiempo cuenta: un subagente deja de estar activo por callarse (`activo`), sin que llegue ningún evento nuevo.
+ * Devuelve un número que cambia cada medio minuto mientras alguno de los `listas` figure corriendo, para volver a calcular.
+ */
+export function useTicSubagentes(listas: Subagentes | readonly Subagente[]): number {
+  const [tic, setTic] = useState(0);
+  const hay = (Array.isArray(listas) ? [listas as readonly Subagente[]] : Object.values(listas as Subagentes)).some((l) => l.some((u) => u.estado === "corriendo"));
+  useEffect(() => {
+    if (!hay) return;
+    const i = setInterval(() => setTic((n) => n + 1), 30_000);
+    return () => clearInterval(i);
+  }, [hay]);
+  return tic;
+}
 
 export const useTodosSubagentes = (): Subagentes => useSyncExternalStore(suscribir, todos);
 

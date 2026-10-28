@@ -11,7 +11,7 @@ import path from "node:path";
 import { mirarCarpeta, type Mirada } from "./mirar.ts";
 import { silencio } from "./log.ts";
 
-export type EstadoSubagente = "corriendo" | "terminado" | "error";
+export type EstadoSubagente = "corriendo" | "terminado" | "error" | "parado";
 
 export type Subagente = {
   id: string;
@@ -35,6 +35,10 @@ export type Subagente = {
   resultado: string | null;
   /** El informe tiene más que `resultado`: se pide entero con `informe`. */
   hay_mas: boolean;
+  /** Su último mensaje pidió una herramienta y todavía no volvió el resultado: está esperando, no colgado. */
+  en_vuelo?: boolean;
+  /** Lo lanzó en segundo plano: el líder puede cerrar su turno y él sigue. Uno en primer plano muere con el turno. */
+  segundo_plano?: boolean;
 };
 
 const LINEAS_RESUMEN = 6;
@@ -155,6 +159,8 @@ export function leerSubagente(sid: string, id: string, meta: any, cabeza: string
     tokens: tokensDe(ultimoAsistente?.msg?.usage),
     resultado: r?.resumen ?? null,
     hay_mas: r?.mas ?? false,
+    en_vuelo: estado === "corriendo" && ultimoMsg?.tipo === "assistant" && Array.isArray(ultimoMsg.msg.content) && ultimoMsg.msg.content.some((b: any) => b?.type === "tool_use"),
+    segundo_plano: !(typeof meta?.requestShape === "string" && meta.requestShape !== "background"),
   };
 }
 
@@ -244,6 +250,30 @@ export function avisosDe(texto: string): Map<string, { status: string; ts: numbe
   return r;
 }
 
+/** Lo que el líder escribió al interrumpirlo el usuario: "[Request interrupted by user]" o "… for tool use]". */
+const INTERRUMPIDO = "[Request interrupted by user";
+
+/**
+ * Cuándo se cortó o cerró el turno del líder (su transcript): `interrupciones` son las veces que lo interrumpieron
+ * y `cierre` el último mensaje suyo que terminó el turno. Sirve para saber que un subagente que seguía "corriendo"
+ * ya no tiene a quién mandarle su resultado.
+ */
+export function cortesDe(texto: string): { interrupciones: number[]; cierre: number } {
+  const interrupciones: number[] = [];
+  let cierre = 0;
+  for (const m of mensajesDe(texto)) {
+    if (m.tipo === "user") {
+      const c = m.msg?.content;
+      const t = typeof c === "string" ? c : Array.isArray(c) ? (c.find((b: any) => b?.type === "text" && typeof b.text === "string")?.text ?? "") : "";
+      if (t.startsWith(INTERRUMPIDO) && m.ts) interrupciones.push(m.ts);
+    } else if (!m.error && m.msg?.stop_reason === "end_turn" && m.ts) cierre = Math.max(cierre, m.ts);
+  }
+  return { interrupciones, cierre };
+}
+
+/** Holgura entre la interrupción del líder y el último mensaje del subagente (puede alcanzar a escribir uno tras la orden). */
+const HOLGURA_CORTE_S = 10;
+
 const MAL_CERRADOS = new Set(["failed", "killed", "stopped"]);
 
 export type Subagentes = Record<string, Subagente[]>;
@@ -254,7 +284,7 @@ type Opciones = {
   alCambiar: (todos: Subagentes) => void;
 };
 
-type Seguida = { sid: string; dir: string; avisos: { firma: string; por: Map<string, { status: string; ts: number }> } | null; cache: Map<string, { firma: string; sub: Subagente }>; miradas: Mirada[]; nivel: number; lista: Subagente[] };
+type Seguida = { sid: string; dir: string; avisos: { firma: string; por: Map<string, { status: string; ts: number }>; cortes: ReturnType<typeof cortesDe> } | null; cache: Map<string, { firma: string; sub: Subagente }>; miradas: Mirada[]; nivel: number; lista: Subagente[] };
 
 export function crearSubagentes(o: Opciones) {
   const seguidas = new Map<string, Seguida>();
@@ -265,17 +295,29 @@ export function crearSubagentes(o: Opciones) {
   const hay = (d: string) => stat(d).then((s) => s.isDirectory(), () => false);
   const dirDe = (x: Seguida) => path.join(x.dir, "subagents");
 
-  /** Un subagente que parece correr pero la sesión ya recibió que lo cortaron o falló: error. */
+  /**
+   * Un subagente que parece correr pero la sesión ya recibió que lo cortaron o falló: error. Y si interrumpieron al
+   * líder después de su último mensaje (o, en primer plano, el líder cerró su turno) sin que llegara su resultado: parado.
+   */
   async function conAvisos(x: Seguida, lista: Subagente[]): Promise<Subagente[]> {
     if (!lista.some((u) => u.estado === "corriendo")) return lista;
     const archivo = `${x.dir}.jsonl`;
     const s = await stat(archivo).catch(() => null);
     if (!s) return lista;
     const firma = `${s.size}:${s.mtimeMs}`;
-    if (x.avisos?.firma !== firma) x.avisos = { firma, por: avisosDe(await colaDe(archivo, s.size, 2 * COLA_BYTES).catch(() => "")) };
+    if (x.avisos?.firma !== firma) {
+      const cola = await colaDe(archivo, s.size, 2 * COLA_BYTES).catch(() => "");
+      x.avisos = { firma, por: avisosDe(cola), cortes: cortesDe(cola) };
+    }
+    const { por, cortes } = x.avisos;
     return lista.map((u) => {
-      const a = x.avisos!.por.get(u.id);
-      return u.estado === "corriendo" && a && MAL_CERRADOS.has(a.status) && a.ts >= u.ultimo_en ? { ...u, estado: "error" as const } : u;
+      if (u.estado !== "corriendo") return u;
+      const a = por.get(u.id);
+      if (a && MAL_CERRADOS.has(a.status) && a.ts >= u.ultimo_en) return { ...u, estado: "error" as const };
+      if (a?.status === "completed") return u;
+      const cortado = cortes.interrupciones.some((t) => t + HOLGURA_CORTE_S >= u.ultimo_en && t >= u.inicio);
+      const sinPadre = u.segundo_plano === false && cortes.cierre >= u.ultimo_en;
+      return cortado || sinPadre ? { ...u, estado: "parado" as const } : u;
     });
   }
 
