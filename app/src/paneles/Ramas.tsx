@@ -30,7 +30,7 @@ import { pasoAuditar, pasoLider, pasoWorker } from "./PasoLanzar";
 import { effortPara } from "../hilo/elegir";
 import { effortsLeidos } from "../hilo/efforts";
 import { conTexto, type Eleccion } from "./lanzar";
-import { conCuenta, correrLote, cuentas, filtroVigente, pasa, pasosDe, planAplicar, resumenLote, type FiltroRama, type PasoLote, type PlanLote } from "./ramas-vista";
+import { analisisVigente, conCuenta, correrLote, cuentas, filtroVigente, leerAnalisis, pasa, pasosDe, planAplicar, resumenLote, type Analisis, type FiltroRama, type PasoLote, type PlanLote } from "./ramas-vista";
 import { alCambiarAplicarAuto, aplicarAuto, cambiarAplicarAuto } from "./aplicar-auto";
 import { useNombreProyecto } from "../datos/proyectos";
 import "./ramas-tarjetas.css";
@@ -70,6 +70,22 @@ const VIVO: ReadonlySet<Estado> = new Set(["trabajando", "colgado"]);
 const INTEGRADAS = 8;
 /** Cuánto queda armado el Descartar esperando el segundo clic. */
 const ARMADO_MS = 4000;
+/** Qué líder analizó cada rama: en el navegador, para que "Ver el análisis" sobreviva a cambiar de conversación. */
+const CLAVE_ANALISIS = "trama.ramas.analisis";
+const leerGuardado = (): Analisis => {
+  try {
+    return leerAnalisis(localStorage.getItem(CLAVE_ANALISIS));
+  } catch {
+    return {};
+  }
+};
+const guardarAnalisis = (a: Analisis) => {
+  try {
+    localStorage.setItem(CLAVE_ANALISIS, JSON.stringify(a));
+  } catch {
+    /* sin almacenamiento: vale en esta sesión */
+  }
+};
 
 const fin = (h: Hilo) => h.inicio + (h.duracion_s ?? 0);
 
@@ -170,6 +186,8 @@ export function Ramas({ hilos, optimista, errores, enCurso, alActuar, alAbrir, a
   const [lanzando, setLanzando] = useState(false);
   const [errorAn, setErrorAn] = useState<string | null>(null);
   const [respuesta, setRespuesta] = useState("");
+  const [analisis, setAnalisis] = useState<Analisis>(leerGuardado);
+  const seccionAnalista = useRef<HTMLElement>(null);
   const filas = useMemo(() => pendientes.flatMap((g) => g.filas.map((f) => f.h)), [pendientes]);
   const juicios = useMemo(() => {
     const ids = new Set(filas.map((h) => h.id));
@@ -274,6 +292,10 @@ export function Ramas({ hilos, optimista, errores, enCurso, alActuar, alAbrir, a
       if (an) await fuente.liderCerrar(an.id, "analista").catch(() => {});
       const e = { texto, modelo, effort, rol: "analista" as const };
       const sid = await fuente.liderNuevo(e);
+      // Cada rama que este líder analiza tiene su enlace "Ver el análisis" (mientras corre y después).
+      const nuevo = Object.fromEntries(quietas.map((h) => [h.id, sid]));
+      guardarAnalisis(nuevo);
+      setAnalisis(nuevo);
       setNacido(fantasma(sid, e));
       setRespuesta("");
       setAbierto(true);
@@ -290,7 +312,14 @@ export function Ramas({ hilos, optimista, errores, enCurso, alActuar, alAbrir, a
     if (an) void fuente.liderCerrar(an.id, "analista").catch(() => {});
     setNacido(null);
     setRespuesta("");
+    guardarAnalisis({});
+    setAnalisis({});
   }, [an]);
+  // "Ver el análisis": abre la sección del analista (la conversación) con su chat a la vista.
+  const verAnalisis = () => {
+    setAbierto(true);
+    seccionAnalista.current?.scrollIntoView({ block: "start" });
+  };
   const sinCrear = useCallback(() => {}, []);
   // Una respuesta sin bloque json (seguir charlando) no borra los veredictos de antes.
   const guardarRespuesta = useCallback((t: string) => /```json/.test(t) && setRespuesta(t), []);
@@ -328,6 +357,7 @@ export function Ramas({ hilos, optimista, errores, enCurso, alActuar, alAbrir, a
         alActualizar={alActualizar}
         alAuditar={auditar}
         choco={conflictos.has(h.id) || f?.rc === 80}
+        alVerAnalisis={analisisVigente(analisis, h.id, an?.id) ? verAnalisis : null}
       />
     );
   };
@@ -353,7 +383,7 @@ export function Ramas({ hilos, optimista, errores, enCurso, alActuar, alAbrir, a
       </div>
       {auto ? <div className="pn-nota pn-auto-nota">{tr("ramas.autoExplica", { estado: tr(auto.prendido ? "ramas.autoOn" : "ramas.autoOff") })}</div> : null}
 
-      <section className="pn-analista" data-abierto={abierto && an ? "" : undefined}>
+      <section ref={seccionAnalista} className="pn-analista" data-abierto={abierto && an ? "" : undefined}>
         <div className="pn-analista-cab">
           <button
             type="button"
@@ -610,9 +640,11 @@ type PropsFila = {
   alAuditar: (h: Hilo) => void;
   /** Chocó con main (80): ofrece Actualizar. */
   choco: boolean;
+  /** El análisis de esta rama sigue abierto en Ramas: el enlace "Ver el análisis" (`null`: no hay). */
+  alVerAnalisis: (() => void) | null;
 };
 
-function FilaRama({ ref, h, estado, error, enCurso, auto, sola, salud, alArreglar, juicio, armado, alArmar, alActuar, alAbrir, alRetomar, alActualizar, alAuditar, choco }: PropsFila) {
+function FilaRama({ ref, h, estado, error, enCurso, auto, sola, salud, alArreglar, juicio, armado, alArmar, alActuar, alAbrir, alRetomar, alActualizar, alAuditar, choco, alVerAnalisis }: PropsFila) {
   const vivo = VIVO.has(estado);
   const nombreProy = useNombreProyecto();
   // Retomar, Arreglar y Actualizar no lanzan al tocarlos: abren el paso previo (modelo, esfuerzo y un texto) y lanza "Lanzar".
@@ -724,6 +756,12 @@ function FilaRama({ ref, h, estado, error, enCurso, auto, sola, salud, alArregla
               <Iv size={11} strokeWidth={2} aria-hidden="true" />
               {tr("ramas.veredictoDe", { v: tr(`ramas.v.${juicio.veredicto}`).toLowerCase() })}
             </span>
+          ) : null}
+          {alVerAnalisis ? (
+            <button type="button" className="mini" data-ver-analisis onClick={alVerAnalisis}>
+              <Sparkles size={11} strokeWidth={1.8} aria-hidden="true" />
+              {tr("ramas.verAnalisis")}
+            </button>
           ) : null}
         </div>
         <div className="pn-sub">
