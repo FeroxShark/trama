@@ -33,7 +33,7 @@ import { iconosDe } from "./iconos.js";
 import { guardarYa, leerLeidos, marcarLeido } from "./leidos.js";
 import { almacenNombres } from "./nombres.js";
 import { almacenPendientes } from "./pendientes.js";
-import { guardarApariencia, guardarAutoIntegrar, guardarAvisarEspera, guardarAvisarWorkers, bienvenidaPendiente, guardarBienvenida, guardarConsumo, guardarDictadoModelo, guardarEffort, guardarGuias, guardarIdioma, guardarTiernos, guardarVista, guiasEstado, leerPreferencias } from "./preferencias.js";
+import { guardarApariencia, guardarAutoIntegrar, guardarAvisarEspera, guardarAvisarWorkers, guardarAvisoLider, avisoLiderGuardado, bienvenidaPendiente, guardarBienvenida, guardarConsumo, guardarDictadoModelo, guardarEffort, guardarGuias, guardarIdioma, guardarTiernos, guardarVista, guiasEstado, leerPreferencias } from "./preferencias.js";
 import { accionRama, arreglarDatos, briefRamas, enCola, ejecutar, lanzarRama, lanzarTareaMd, leerAjustes, leerMedicion, pasarALider, relanzarWorker, retomarDatos, tareaMdEnCurso, type AccionRama, type TipoTareaMd } from "./paneles.js";
 import { guardarRouting, type Cambio } from "./routing.js";
 import { argvAuditar, datosAgentsMd, guardarLecciones, leccionesPendientes, leerLecciones, textoPoda } from "./orquestacion.ts";
@@ -320,7 +320,8 @@ const cola = crearCola({
 let ultimosHilos: readonly { id?: unknown; estado?: unknown; en_cola?: unknown; jefe_id?: unknown }[] = [];
 
 // Los avisos de los workers (avisos-worker.ts): terminó, falló por cupo o por lo que sea, o se colgó. Al líder que lo lanzó le
-// llega un mensaje corto por la cola (sale en su próxima pausa); la ventana y el celular reciben el aviso para la notificación.
+// llega por la cola (sale en su próxima pausa): al terminar su tanda, un mensaje con una línea por worker; o uno por worker si
+// lo eligió en Ajustes. La ventana y el celular reciben cada aviso para la notificación.
 const avisosW = crearAvisosWorker({
   leerRastro: async (h) => {
     // Un corte por cupo dice cuándo vuelve en los cupos de `reparto`: se los pone al día antes de armar el aviso.
@@ -329,22 +330,22 @@ const avisosW = crearAvisosWorker({
   },
   procesoVivo: (h) => procesoVivoDe(PA_STATE, h),
   cupos: () => cuposActuales(),
-  emitir: (a) => {
-    enviar("workers:aviso", a);
-    avisarAlLider(a);
-  },
+  emitir: (a) => enviar("workers:aviso", a),
+  alLider: (a) => avisarAlLider(a),
+  avisoLider: () => avisoLiderGuardado(),
 });
 /**
- * El aviso al líder de la app que lanzó al worker. Un fin normal sólo entra a mitad de un turno (a un líder ocioso no se lo
- * despierta por eso: su `pa --esperar` lo cobra); una falla sí, aunque esté ocioso: nadie más se entera. Los líderes de una
- * terminal no reciben nada (no se los trae por un aviso): se enteran por la notificación del dueño.
+ * El aviso al líder de la app que lanzó al worker (o la tanda entera). Un fin, o una tanda que sólo tuvo fines, sólo entra a mitad
+ * de un turno (a un líder ocioso no se lo despierta por eso: su `pa --esperar` lo cobra); una falla sí, aunque esté ocioso: nadie
+ * más se entera. Los líderes de una terminal no reciben nada (no se los trae por un aviso): se enteran por la notificación del dueño.
  */
 function avisarAlLider(a: AvisoWorker) {
   const texto = textoParaLider(a);
   const sid = a.jefe_id;
   const sel = sid ? lider.seleccionDe(sid) : null;
   if (!texto || !sid || !sel) return;
-  if (a.tipo === "fin" && !lider.puedeEnTurno(sid)) return;
+  const soloFines = a.tipo === "tanda" ? (a.lineas ?? []).every((l) => l.tipo === "fin") : a.tipo === "fin";
+  if (soloFines && !lider.puedeEnTurno(sid)) return;
   void leerCola().then(() => cola.encolar(sid, { texto, modelo: sel.modelo, effort: sel.effort }), silencio("cola"));
 }
 let relojAvisosW: NodeJS.Timeout | null = null;
@@ -1016,6 +1017,7 @@ export function armarNucleo() {
   manejar("preferencias:tiernos", (_e, si: unknown) => guardarTiernos(si));
   manejar("preferencias:avisarEspera", (_e, si: unknown) => guardarAvisarEspera(si));
   manejar("preferencias:avisarWorkers", (_e, si: unknown) => guardarAvisarWorkers(si));
+  manejar("preferencias:avisoLider", (_e, v: unknown) => guardarAvisoLider(v));
   manejar("preferencias:vista", (_e, vista: unknown) => guardarVista(vista));
   manejar("preferencias:consumo", (_e, si: unknown) => guardarConsumo(si));
   manejar("preferencias:bienvenidaPendiente", () => bienvenidaPendiente());

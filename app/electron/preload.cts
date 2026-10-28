@@ -58,6 +58,7 @@ contextBridge.exposeInMainWorld("hilos", {
     tiernos: (si: boolean): Promise<void> => ipcRenderer.invoke("preferencias:tiernos", si),
     avisarEspera: (si: boolean): Promise<void> => ipcRenderer.invoke("preferencias:avisarEspera", si),
     avisarWorkers: (si: boolean): Promise<void> => ipcRenderer.invoke("preferencias:avisarWorkers", si),
+    avisoLider: (v: string): Promise<void> => ipcRenderer.invoke("preferencias:avisoLider", v),
     vista: (vista: string): Promise<void> => ipcRenderer.invoke("preferencias:vista", vista),
     consumo: (si: boolean): Promise<void> => ipcRenderer.invoke("preferencias:consumo", si),
     bienvenidaPendiente: (): Promise<boolean> => ipcRenderer.invoke("preferencias:bienvenidaPendiente"),

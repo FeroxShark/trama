@@ -81,6 +81,8 @@ export interface Fuente {
   /** La notificación de "te espera" (Ajustes), en el mismo archivo. */
   guardarAvisarEspera(si: boolean): void;
   guardarAvisarWorkers(si: boolean): void;
+  /** Cómo se avisa al líder de un worker (Ajustes): al terminar la tanda o por cada worker. */
+  guardarAvisoLider(v: "tanda" | "worker"): void;
   /** Un worker terminó, falló o se colgó (el main lo detecta: electron/avisos-worker.ts). Sin motor (navegador sin PC, fixtures) no llega nada. */
   alAvisoWorker(fn: (a: AvisoWorker) => void): () => void;
   /** Relanza la tarea de un worker caído por cupo, sin modelo fijo; tira el error del main si no se pudo. */
@@ -1294,6 +1296,7 @@ const fija: Fuente = {
   guardarTiernos() {},
   guardarAvisarEspera() {},
   guardarAvisarWorkers() {},
+  guardarAvisoLider() {},
   alAvisoWorker() {
     return () => {};
   },
@@ -1889,6 +1892,9 @@ const conPa = (m: NonNullable<typeof main>): Fuente => ({
   },
   guardarAvisarWorkers(si) {
     void m.preferencias.avisarWorkers(si).catch(() => {});
+  },
+  guardarAvisoLider(v) {
+    void m.preferencias.avisoLider(v).catch(() => {});
   },
   alAvisoWorker(fn) {
     return m.workers?.alAviso((x) => {

@@ -10,6 +10,7 @@ import { ESTADO, escribirAtomico } from "./pa.js";
 import { silencio } from "./log.js";
 import { esModeloDictado } from "./dictado-modelos.js";
 import { aplicarOpGuias, normalizarGuias, type EstadoGuias } from "./guias-estado.js";
+import type { ModoAvisoLider } from "./avisos-worker.js";
 
 const ARCHIVO = path.join(ESTADO, "preferencias.json");
 const VERSION = 1;
@@ -36,6 +37,8 @@ export type Preferencias = {
   tiernos?: boolean;
   avisarEspera?: boolean;
   avisarWorkers?: boolean;
+  /** `avisoLider`: cómo se avisa al líder de un worker que termina (avisos-worker.ts); sin el campo, al terminar la tanda. */
+  avisoLider?: ModoAvisoLider;
   vista?: VistaBarra;
   autoIntegrar?: boolean;
   consumo?: boolean;
@@ -51,6 +54,7 @@ const texto = (r: unknown): r is Record<string, string> =>
   !!r && typeof r === "object" && Object.values(r).every((v) => typeof v === "string");
 const esIdioma = (x: unknown): x is Idioma => x === "en" || x === "es";
 const esVista = (x: unknown): x is VistaBarra => x === "todo" || x === "lideres";
+const esAvisoLider = (x: unknown): x is ModoAvisoLider => x === "tanda" || x === "worker";
 const esLetra = (x: unknown): x is number => typeof x === "number" && Number.isInteger(x) && x >= 8 && x <= 40;
 const esFuente = (x: unknown): x is string => typeof x === "string" && /^[a-z0-9-]{1,32}$/.test(x);
 
@@ -65,6 +69,7 @@ function desde(j: {
   tiernos?: unknown;
   avisarEspera?: unknown;
   avisarWorkers?: unknown;
+  avisoLider?: unknown;
   vista?: unknown;
   autoIntegrar?: unknown;
   consumo?: unknown;
@@ -82,6 +87,7 @@ function desde(j: {
   if (typeof j.tiernos === "boolean") p.tiernos = j.tiernos;
   if (typeof j.avisarEspera === "boolean") p.avisarEspera = j.avisarEspera;
   if (typeof j.avisarWorkers === "boolean") p.avisarWorkers = j.avisarWorkers;
+  if (esAvisoLider(j.avisoLider)) p.avisoLider = j.avisoLider;
   if (esVista(j.vista)) p.vista = j.vista;
   if (typeof j.autoIntegrar === "boolean") p.autoIntegrar = j.autoIntegrar;
   if (typeof j.consumo === "boolean") p.consumo = j.consumo;
@@ -224,6 +230,24 @@ export async function guardarAvisarWorkers(si: unknown) {
   const p = await leerPreferencias();
   if ((p.avisarWorkers !== false) === si) return;
   p.avisarWorkers = si;
+  await guardar(p);
+}
+
+/** Cómo se avisa al líder de un worker (Ajustes > General): sin nada guardado, al terminar la tanda. Síncrono, como el de workers. */
+export function avisoLiderGuardado(): ModoAvisoLider {
+  if (prefs) return prefs.avisoLider ?? "tanda";
+  try {
+    return desde(JSON.parse(readFileSync(ARCHIVO, "utf8"))).avisoLider ?? "tanda";
+  } catch {
+    return "tanda";
+  }
+}
+
+export async function guardarAvisoLider(v: unknown) {
+  if (!esAvisoLider(v)) return;
+  const p = await leerPreferencias();
+  if ((p.avisoLider ?? "tanda") === v) return;
+  p.avisoLider = v;
   await guardar(p);
 }
 

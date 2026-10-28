@@ -25,6 +25,22 @@ export function alCambiarAvisarWorkers(f: () => void): () => void {
   return () => void oyentes.delete(f);
 }
 
+// Cómo se avisa al líder (Ajustes > General): lo pone el main en la query (`avisolider=worker` sólo cuando es por worker). Sólo lo
+// muestra Ajustes: quien decide qué sale al líder es el main (electron/avisos-worker.ts).
+export type ModoAvisoLider = "tanda" | "worker";
+let modoLider: ModoAvisoLider = q?.get("avisolider") === "worker" ? "worker" : "tanda";
+const oyentesLider = new Set<() => void>();
+export const avisoLider = (): ModoAvisoLider => modoLider;
+export function cambiarAvisoLider(m: ModoAvisoLider) {
+  if (m === modoLider) return;
+  modoLider = m;
+  for (const f of oyentesLider) f();
+}
+export function alCambiarAvisoLider(f: () => void): () => void {
+  oyentesLider.add(f);
+  return () => void oyentesLider.delete(f);
+}
+
 // --- Lo que se queda a la vista (fallas y colgados) y lo que se cuenta (terminados) ---
 
 const TOPE = 30;

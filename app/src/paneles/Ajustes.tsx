@@ -31,7 +31,7 @@ import { enOtros, Fijo } from "../i18n/Fijo";
 import { cambiarTiernos } from "../hilo/tierno-logica";
 import { useTiernos } from "../hilo/Tierno";
 import { alCambiarAvisarEspera, avisarEspera, cambiarAvisarEspera } from "../espera";
-import { alCambiarAvisarWorkers, avisarWorkers, cambiarAvisarWorkers } from "../avisos-worker";
+import { alCambiarAvisarWorkers, alCambiarAvisoLider, avisarWorkers, avisoLider, cambiarAvisarWorkers, cambiarAvisoLider, type ModoAvisoLider } from "../avisos-worker";
 import { mensaje } from "../puente";
 import { TEMAS } from "../temas";
 import { alCambiarApariencia, apariencia, FUENTES, LETRA_DEF, LETRA_MAX, LETRA_MIN, MONOS, type Fuente } from "../tipografia";
@@ -153,6 +153,13 @@ function elegirAvisarWorkers(id: string) {
   if (si && typeof Notification !== "undefined" && Notification.permission === "default") void Notification.requestPermission().catch(() => {});
 }
 
+/** Cómo se avisa al líder de un worker (al terminar la tanda, o por cada worker): al toque y a preferencias.json. */
+function elegirAvisoLider(id: string) {
+  const m: ModoAvisoLider = id === "worker" ? "worker" : "tanda";
+  cambiarAvisoLider(m);
+  fuente.guardarAvisoLider(m);
+}
+
 /** Los mensajes tiernos (B17): igual, al toque y a preferencias.json. */
 function elegirTiernos(id: string) {
   const si = id === "si";
@@ -189,6 +196,7 @@ export function Ajustes() {
   const tiernos = useTiernos();
   const avisar = useSyncExternalStore(alCambiarAvisarEspera, avisarEspera);
   const avisarW = useSyncExternalStore(alCambiarAvisarWorkers, avisarWorkers);
+  const modoLider = useSyncExternalStore(alCambiarAvisoLider, avisoLider);
   const aplicarSolo = useSyncExternalStore(alCambiarAplicarAuto, aplicarAuto);
   const [intento, setIntento] = useState(0);
 
@@ -255,6 +263,20 @@ export function Ajustes() {
             valor={avisarW ? "si" : "no"}
             alElegir={elegirAvisarWorkers}
             reserva={[...enOtros("ajustes.tiernosSi"), ...enOtros("ajustes.tiernosNo")]}
+          />
+        </div>
+      </Dato>
+      <Dato nombre="ajustes.avisoLider" que="ajustes.avisoLiderQue" icono={<IcAviso {...ICONO} />}>
+        <div className="pn-sel">
+          <Selector
+            etiqueta={t("ajustes.avisoLider")}
+            opciones={[
+              { id: "tanda", nombre: t("ajustes.avisoLiderTanda"), desc: "" },
+              { id: "worker", nombre: t("ajustes.avisoLiderWorker"), desc: "" },
+            ]}
+            valor={modoLider}
+            alElegir={elegirAvisoLider}
+            reserva={[...enOtros("ajustes.avisoLiderTanda"), ...enOtros("ajustes.avisoLiderWorker")]}
           />
         </div>
       </Dato>

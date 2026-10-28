@@ -68,6 +68,8 @@ type Main = {
     avisarEspera(si: boolean): Promise<void>;
     /** La notificación de un worker que falla o de una tanda que terminó, prendida o apagada. */
     avisarWorkers(si: boolean): Promise<void>;
+    /** Cómo se avisa al líder de un worker: al terminar la tanda (`tanda`) o por cada worker (`worker`). */
+    avisoLider(v: "tanda" | "worker"): Promise<void>;
     vista(vista: "todo" | "lideres"): Promise<void>;
     /** El panel de consumo, a la vista u oculto. */
     consumo(si: boolean): Promise<void>;
