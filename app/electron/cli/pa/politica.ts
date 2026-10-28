@@ -196,7 +196,7 @@ function filasCuentas(pa: Pa): CuentaFila[] | null {
 }
 
 /** `cuenta_proveedor`: el proveedor de una cuenta ("" si no existe). */
-function cuentaProveedor(id: string, pa: Pa): string {
+export function cuentaProveedor(id: string, pa: Pa): string {
   if (["claude", "google", "chatgpt", "opencode"].includes(id)) return id;
   const p = filasCuentas(pa)?.find((c) => c && c.id === id)?.proveedor;
   return p === undefined || p === null || p === false ? "" : String(p);

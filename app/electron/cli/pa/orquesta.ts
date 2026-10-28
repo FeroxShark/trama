@@ -4,8 +4,7 @@
 // puesto, el worktree, los archivos sucios, --actualizar, y el armado de la `Corrida` que recibe `lanzarClaude`.
 //
 // Todos los motores: claude y ollama (el mismo claude CLI) por lanzarClaude; agy, codex y dsh/opencode por `ejecutarOtro`
-// (otros-motores.ts). Lo que todavía no está en TS (relanzar por falta de cupo con reparto; esperar cupo con sin_cupo=esperar)
-// corta ANTES de dejar rastro con `noPortado` (código 70): el envoltorio de motor/bin/pa vuelve al bash.
+// (otros-motores.ts). Esperar cupo (sin_cupo=esperar) y relanzar por falta de cupo con reparto: ver cupo.ts.
 import { randomUUID } from "node:crypto";
 import { existsSync, lstatSync, mkdirSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import path from "node:path";
@@ -14,7 +13,7 @@ import { correr } from "../base/proc.ts";
 import { enPath, esEjecutable } from "../base/buscar.ts";
 import { entornoCmd } from "../../binario.ts";
 import { prefijoDe, repartoProceso } from "./programas.ts";
-import { noPortado, type DeProyecto, type Proyecto as ProyectoCli } from "./cli.ts";
+import { type DeProyecto, type Proyecto as ProyectoCli } from "./cli.ts";
 import { argsHijo, lanzarAsync } from "./async.ts";
 import { armarActualizar } from "./auditar.ts";
 import { esArchivo, idCorrida, leerCampo, leerTexto, listar } from "./corridas.ts";
@@ -22,6 +21,7 @@ import { jefeId, jefeNombre, type Env, type Pa } from "./entorno.ts";
 import { carpetaProyectos, claudeFalla, claudeRc, escapar, limiteDe, lanzarClaude, type Corrida, type Ganchos, type OpcionesLanzar } from "./lanzar.ts";
 import { TIPOS_VALIDOS } from "./modelos.ts";
 import { Admision, avisarParalelo, otrosWriters, runningVivo } from "./puestos.ts";
+import { esperarCupo, relanzarPorCupo } from "./cupo.ts";
 import { ganchosDe } from "./ganchos.ts";
 import { fijarProyecto as fijarProy } from "./ramas-base.ts";
 import { campoJson, contarCompactaciones, horaMinuto, leerSalida, textoResultado } from "./resultado-lanzar.ts";
@@ -144,10 +144,9 @@ async function orquestar(l: Llamada, pa: Pa, p: ProyectoCli, o: OpcionesOrquesta
   const leer = l.leer;
   const modelos = new Modelos(env, io, pa.home, pa.plat);
 
-  // --- lo que el pa de TS todavía no hace: corta antes de dejar rastro, y el envoltorio vuelve al bash
+  // --- motor
   const motor = l.motor;
   const conClaude = motor === "claude" || motor === "ollama";
-  if (l.repartoTipoRelanzable || l.repartoEsperar || l.fbResto) return noPortado(pa, "relanzar por falta de cupo (reparto, -m a,b,c)");
 
   // --- --leer --seguir
   if (leer && l.seguir) {
@@ -336,6 +335,9 @@ async function orquestar(l: Llamada, pa: Pa, p: ProyectoCli, o: OpcionesOrquesta
       if (m.orden === ORDEN_PARAR.orden) parar.abort();
     },
   });
+  // sin_cupo=esperar con todo lleno (el hijo de --async): cola sin puesto hasta que reparto ofrezca un candidato con cupo
+  const sinCupo = await esperarCupo(pa, l, adm, dir, ts);
+  if (sinCupo !== null) return sinCupo;
   let tengoLock = false;
   if (leer) {
     await adm.esperarLugar();
@@ -494,6 +496,7 @@ async function orquestar(l: Llamada, pa: Pa, p: ProyectoCli, o: OpcionesOrquesta
     const paRun: Pa = t.cargoTargetDir ? { ...pa, env: { ...env, CARGO_TARGET_DIR: t.cargoTargetDir } as Env } : pa;
     const g: Ganchos = ganchosDe(pa, l, {
       enfriar: (m) => repartoProceso(pa).enfriar?.(m, env.PA_ENFRIAR_HORAS) ?? Promise.resolve(),
+      relanzarPorCupo: relanzarPorCupo(pa, l),
       ...o.ganchos,
       soltar: async () => {
         await adm.soltarTodo();
