@@ -118,6 +118,10 @@
 }
 
 /* Más cuentas del mismo proveedor (CuentasVarias.tsx): una banda por proveedor con sus cuentas agregadas y el botón. */
+/* "Conectar otra cuenta" bajo la fila de un proveedor conectado. */
+.bv-otra {
+  padding: 0 var(--esp-4) var(--esp-3);
+}
 .bv-cuentas {
   display: flex;
   flex-direction: column;

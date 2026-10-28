@@ -3,7 +3,7 @@
 // compactación y celular. Guarda por los mismos caminos que Ajustes (`fuentePaneles.guardarModelos|guardarAjustes|guardarRemoto`, la
 // validación de `valida-ajustes`), nunca por uno propio. La marca de "ya vista" va en preferencias.json al cerrarla, de cualquier modo.
 // Es un modal: atrapa el foco, Esc lo cierra (`useFoco`). Los componentes son los de `src/ui`; la lógica pura, `bienvenida-pasos.ts`.
-import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
+import { Fragment, useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { carcasa } from "../carcasa";
 import { fuente, type CuentaEstado, type EstadoCuentas } from "../datos/fuente";
@@ -318,9 +318,11 @@ function PasoProveedores({ ctx }: { ctx: Ctx }) {
   }, [refrescarCuentas]);
 
   const filas = [
-    { id: "claude" as const, nombre: "bv.provClaude" as const, e: estadoCuenta(cuentas?.claude), conectar: "claude" as const },
-    { id: "google" as const, nombre: "bv.provGoogle" as const, e: estadoCuenta(cuentas?.agy), conectar: "gemini" as const },
+    { id: "claude" as const, nombre: "bv.provClaude" as const, e: estadoCuenta(cuentas?.claude), conectar: "claude" as const, conectada: cuentas?.claude?.logueado === true },
+    { id: "google" as const, nombre: "bv.provGoogle" as const, e: estadoCuenta(cuentas?.agy), conectar: "gemini" as const, conectada: cuentas?.agy?.logueado === true },
   ];
+  // Las cuentas agregadas (no la de siempre): se listan aparte, con sus acciones.
+  const extras = lista ? (["claude", "google"] as const).map((p) => ({ p, cs: cuentasDe(lista, p).filter((c) => !c.defecto) })).filter((x) => x.cs.length > 0) : [];
   const sinConectar = filas.some((f) => f.e.conectable);
   const vivoLocal = local?.ok === true;
 
@@ -328,13 +330,21 @@ function PasoProveedores({ ctx }: { ctx: Ctx }) {
     <Hoja paso="proveedores">
       <Tarjeta>
         {filas.map((f) => (
-          <FilaAjuste key={f.id} icono={<LogoCaja id={f.id} />} titulo={t(f.nombre)} detalle={f.e.cuenta ? t("bv.provConectadoComo", { cuenta: f.e.cuenta }) : undefined}>
-            {f.e.conectable && puente ? (
-              <Boton onClick={() => void puente.conectar(f.conectar)}>{t("bv.provConectar")}</Boton>
-            ) : (
-              <Chip tono={f.e.tono}>{t(f.e.chip)}</Chip>
-            )}
-          </FilaAjuste>
+          <Fragment key={f.id}>
+            <FilaAjuste icono={<LogoCaja id={f.id} />} titulo={t(f.nombre)} detalle={f.e.cuenta ? t("bv.provConectadoComo", { cuenta: f.e.cuenta }) : undefined}>
+              {f.e.conectable && puente ? (
+                <Boton onClick={() => void puente.conectar(f.conectar)}>{t("bv.provConectar")}</Boton>
+              ) : (
+                <Chip tono={f.e.tono}>{t(f.e.chip)}</Chip>
+              )}
+            </FilaAjuste>
+            {/* Con la cuenta de siempre conectada se ofrece sumar otra, igual que en Ajustes > Cuentas (mismo `AgregarCuenta`). */}
+            {lista && f.conectada ? (
+              <div className="bv-otra">
+                <AgregarCuenta proveedor={f.id} alCambiar={mirarCuentas} />
+              </div>
+            ) : null}
+          </Fragment>
         ))}
         <FilaAjuste icono={<LogoCaja id="chatgpt" />} titulo={t("bv.provChatgpt")}>
           <Chip>{t("bv.provSinDato")}</Chip>
@@ -347,21 +357,18 @@ function PasoProveedores({ ctx }: { ctx: Ctx }) {
           {local ? <Chip tono={vivoLocal ? "ok" : undefined}>{t(vivoLocal ? "bv.provConectado" : "bv.provNoInstalado")}</Chip> : null}
         </FilaAjuste>
       </Tarjeta>
-      {lista ? (
+      {extras.length > 0 ? (
         <Tarjeta titulo={t("bv.otrasCuentas")}>
           <div className="bv-cuentas">
-            {(["claude", "google"] as const).map((p) => (
+            {extras.map(({ p, cs }) => (
               <div key={p} className="bv-cuentas-p" data-proveedor={p}>
                 <div className="bv-cuentas-n">
                   <LogoCaja id={p} />
                   <span>{t(p === "claude" ? "bv.provClaude" : "bv.provGoogle")}</span>
                 </div>
-                {cuentasDe(lista, p)
-                  .filter((c) => !c.defecto)
-                  .map((c) => (
-                    <CuentaFila key={c.id} perfil={c} alCambiar={mirarCuentas} />
-                  ))}
-                <AgregarCuenta proveedor={p} alCambiar={mirarCuentas} />
+                {cs.map((c) => (
+                  <CuentaFila key={c.id} perfil={c} alCambiar={mirarCuentas} />
+                ))}
               </div>
             ))}
           </div>
