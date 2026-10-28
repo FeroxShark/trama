@@ -2,7 +2,7 @@
 // Sin TRAMA_PA (el caso de hoy) no toca nada: sigue siendo el bash de siempre.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync } from "node:fs";
+import { existsSync, mkdtempSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { testPosix as test } from "./plataforma.ts";
@@ -39,10 +39,15 @@ test("TRAMA_PA=ts corre el pa de TypeScript", { skip: existsSync(JS) ? false : "
   assert.equal(r.err, "");
 });
 
-test("TRAMA_PA=ts: un modo no portado (rc 70) cae al bash con aviso", { skip: existsSync(JS) ? false : "falta tsc -p tsconfig.electron.json" }, () => {
-  const r = correr({ TRAMA_PA: "ts" }, "--hilos", "--json");
+test("TRAMA_PA=ts: un modo no portado (rc 70) cae al bash con aviso", () => {
+  // Hoy el pa de TS porta todos los modos, así que el 70 se prueba con un pa.js falso que sale 70 (TRAMA_PA_JS).
+  const falso = mkdtempSync(path.join(os.tmpdir(), "pa-js-falso-"));
+  const js = path.join(falso, "pa.js");
+  writeFileSync(js, 'process.stderr.write("pa-js-falso\\n");\nprocess.exit(70);\n');
+  const r = correr({ TRAMA_PA: "ts", TRAMA_PA_JS: js }, "--version");
   assert.equal(r.rc, 0);
-  assert.match(r.out, /"version"/);
+  assert.match(r.out, /^pa \d/);
+  assert.match(r.err, /pa-js-falso/);
   assert.match(r.err, /sigo con el de bash/);
 });
 
