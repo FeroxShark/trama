@@ -170,6 +170,8 @@ const CAPTURAS = [
   "salir-ocupados",
   // El panel de consumo a la derecha de un líder abierto; a 800 px (ancho intermedio) ocupa el lugar de la conversación.
   "consumo",
+  // "De Claude Code (N)": la sección plegable de atlas abierta, con el buscador y las conversaciones (con una de carpeta que ya no existe y una de otra cuenta).
+  "claude-code",
   // El orden de la barra: a mitad de un arrastre (lo que se lleva apagado, la línea donde cae) y el menú de una carpeta con Subir / Bajar / Orden por defecto.
   "orden-arrastrando",
   "orden-menu",

@@ -34,6 +34,8 @@ test("leerConv: el título sale de /rename, del generado, del resumen o del prim
   assert.equal(leerConv("a", 5, base + l({ type: "ai-title", aiTitle: "Login roto" }), null)?.titulo, "Login roto");
   assert.equal(leerConv("a", 5, base + l({ type: "ai-title", aiTitle: "Login roto" }) + l({ type: "custom-title", customTitle: "Mi nombre" }), null)?.titulo, "Mi nombre");
   assert.equal(leerConv("a", 5, l({ type: "summary", summary: "Resumen viejo" }) + base, null)?.titulo, "Resumen viejo");
+  // El nombre interno de un líder de Trama no es un título.
+  assert.equal(leerConv("a", 5, base + l({ type: "custom-title", customTitle: "trama-0a1f" }), null)?.titulo, "Arreglá el login y después el logout");
   // El modelo es el último que contestó, sin contar "<synthetic>".
   assert.equal(leerConv("a", 5, base + asistente("claude-sonnet-5-5") + asistente("<synthetic>"), null)?.modelo, "claude-sonnet-5-5");
   // Sin ningún mensaje de la persona, o sin carpeta: no es una conversación.

@@ -12,7 +12,7 @@ import { main, mensaje, type Lectura } from "../puente";
 import { aplicarDif, esDif } from "./hilos-dif";
 import { MODO } from "../modo";
 import { t, textoMain } from "../i18n";
-import { comoSettle, GENERAL, type AvisoWorker, type ComandoClaude, type Estilos, type EventoLider, type EventoPa, type Hilo, type Leidos, type Mensaje, type Nombres, type Orden, type RespuestaHilo, type RespuestaHilos, type RespuestaLideres, type Retomado, retomadoDe, type Statusline, type Traido, traidoDe, type Tokens, type Uso } from "./contrato";
+import { comoSettle, convsClaudeCodeDe, GENERAL, type AvisoWorker, type ConvClaudeCode, type ComandoClaude, type Estilos, type EventoLider, type EventoPa, type Hilo, type Leidos, type Mensaje, type Nombres, type Orden, type RespuestaHilo, type RespuestaHilos, type RespuestaLideres, type Retomado, retomadoDe, type Statusline, type Traido, traidoDe, type Tokens, type Uso } from "./contrato";
 import { hiloDePa } from "./paHilo";
 import { listaValida, resultadoValido, type ListaCuentas, type PerfilCuenta, type PlanCuentaOc, type ProveedorCuenta, type ResultadoCuenta } from "./cuentas";
 import { ordenDe } from "../barra/orden";
@@ -160,6 +160,8 @@ export interface Fuente {
   umbralContexto(): Promise<Umbrales>;
   /** Cerrar un líder de la app (termina su proceso, sale de lideres.json). `motivo`: por qué, para el log (`MOTIVOS`, electron/lider.ts). */
   liderCerrar(sid: string, motivo?: string): Promise<void>;
+  /** Las conversaciones de Claude Code que no son de Trama (de solo lectura), de la más reciente a la más vieja. */
+  claudeCodeListar(): Promise<ConvClaudeCode[]>;
   /**
    * Retomar un líder sin proceso (`Lider.caido`): pasa a ser de la app y queda listo para
    * escribirle. No lanza nada ni le manda nada: sale con el primer mensaje del usuario.
@@ -1080,6 +1082,39 @@ const PLAN_FIJO = `# Settle en lote
 2. \`electron/settle.ts\`: la regla, una sola vez por hilo.
 3. Tests: \`tests/settle.test.ts\`.`;
 
+/** Conversaciones de Claude Code inventadas (con fixtures): de atlas, de la carpeta personal y de carpetas sueltas (una ya borrada y una de otra cuenta). */
+const claudeCodeFijas = (): ConvClaudeCode[] => {
+  const ahora = Date.now();
+  const hace = (min: number) => ahora - min * 60_000;
+  const c = (sid: string, titulo: string, min: number, modelo: string | null, cwd: string, proyecto: string | null, extra: Partial<ConvClaudeCode> = {}): ConvClaudeCode => ({
+    sid: `00000000-0000-4000-8000-${sid.padStart(12, "0")}`,
+    titulo,
+    ms: hace(min),
+    modelo,
+    cwd,
+    proyecto,
+    existe: true,
+    ajena: false,
+    ...extra,
+  });
+  const atlas = "/home/ana/atlas";
+  return [
+    c("1", "Migrar el webhook de pagos a la cola nueva", 25, "claude-opus-5-5", atlas, "atlas"),
+    c("2", "Por qué fallan los tests de integración en CI", 60 * 3, "claude-sonnet-5-5", atlas, "atlas"),
+    c("3", "Revisar el diseño de la pantalla de ajustes", 60 * 26, "claude-sonnet-5-5", atlas, "atlas"),
+    c("4", "Renombrar las variables del parser", 60 * 24 * 3, "claude-haiku-5-5", atlas, "atlas"),
+    c("9", "Agregar paginado a la lista de pedidos", 60 * 24 * 4, "claude-sonnet-5-5", atlas, "atlas"),
+    c("10", "Ordenar los imports del módulo de cobros", 60 * 24 * 5, "claude-haiku-5-5", atlas, "atlas"),
+    c("11", "Explicame cómo funciona el scheduler", 60 * 24 * 6, "claude-opus-5-5", atlas, "atlas"),
+    c("12", "Bajar el tiempo de arranque de la app", 60 * 24 * 12, "claude-sonnet-5-5", atlas, "atlas"),
+    c("13", "Escribir el changelog de la versión 2", 60 * 24 * 30, "claude-sonnet-5-5", atlas, "atlas"),
+    c("5", "Preparar la presentación del viernes", 60 * 5, "claude-opus-5-5", "/home/ana", "general"),
+    c("6", "Script para ordenar las fotos del viaje", 60 * 24 * 9, "claude-sonnet-5-5", "/home/ana/fotos", null),
+    c("7", "Probar la receta de pan de masa madre", 60 * 24 * 20, "claude-haiku-5-5", "/home/ana/viejo", null, { existe: false }),
+    c("8", "Cuenta del trabajo: revisar el contrato", 60 * 24 * 2, "claude-opus-5-5", "/home/ana/trabajo", null, { ajena: true }),
+  ];
+};
+
 /** Los slash commands de una sesión inventada (con fixtures). */
 const COMANDOS_FIJOS: ComandoClaude[] = [
   { nombre: "review", descripcion: "Review a pull request", args: null },
@@ -1483,6 +1518,9 @@ const fija: Fuente = {
     return { autoCompact: 200_000 };
   },
   async liderCerrar() {},
+  async claudeCodeListar() {
+    return claudeCodeFijas();
+  },
   async liderRetomar(sid, x) {
     // `HILOS_VARIANTE=no`: la conversación ya no está en disco.
     if (MODO.variante === "no") return { ok: false, motivo: "sinSesion" };
@@ -2141,6 +2179,9 @@ const conPa = (m: NonNullable<typeof main>): Fuente => ({
     await m.lider.cerrar(sid, motivo).catch((e) => {
       throw new Error(mensaje(e));
     });
+  },
+  async claudeCodeListar() {
+    return convsClaudeCodeDe(await m.claudeCode.listar().catch(() => []));
   },
   async liderRetomar(sid, x) {
     return retomadoDe(

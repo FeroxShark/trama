@@ -240,6 +240,32 @@ export type Lider = {
 /** Por qué un líder espera al usuario y desde cuándo (epoch ms). */
 export type EsperaLider = { motivo: "pide" | "listo"; desde: number };
 
+/**
+ * Una conversación de Claude Code que no es de Trama (electron/claude-code.ts, `VistaConv`). `proyecto`: el slug de su carpeta, `GENERAL`
+ * o `null` (una carpeta que no es un proyecto registrado). `existe`: su carpeta sigue en el disco. `ajena`: es de otra cuenta de Claude.
+ */
+export type ConvClaudeCode = { sid: string; titulo: string; ms: number; modelo: string | null; cwd: string; proyecto: string | null; existe: boolean; ajena: boolean };
+
+/** La lista del main, validada: lo que no tiene forma se descarta. */
+export function convsClaudeCodeDe(x: unknown): ConvClaudeCode[] {
+  if (!Array.isArray(x)) return [];
+  const r: ConvClaudeCode[] = [];
+  for (const c of x as Record<string, unknown>[]) {
+    if (typeof c?.sid !== "string" || typeof c.titulo !== "string" || typeof c.ms !== "number" || typeof c.cwd !== "string") continue;
+    r.push({
+      sid: c.sid,
+      titulo: c.titulo,
+      ms: c.ms,
+      modelo: typeof c.modelo === "string" ? c.modelo : null,
+      cwd: c.cwd,
+      proyecto: typeof c.proyecto === "string" ? c.proyecto : null,
+      existe: c.existe !== false,
+      ajena: c.ajena === true,
+    });
+  }
+  return r;
+}
+
 /** Lo que contesta retomar un líder: listo para escribirle, o por qué no se pudo. */
 export type Retomado = { ok: true } | { ok: false; motivo: MotivoRetomar };
 /** Está abierto en otro proceso (terminal, otra trama), su conversación ya no está en disco, o su carpeta no existe. */

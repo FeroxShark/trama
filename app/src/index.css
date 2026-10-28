@@ -1223,6 +1223,91 @@ img.logo {
   color: var(--txt-2);
 }
 
+/* "De Claude Code (N)": las conversaciones que no se abrieron desde Trama, plegadas al final de la carpeta. Cada una, título y una línea con la
+   fecha, el modelo y, si hace falta, la palabra que dice por qué no se puede retomar (no sólo el color). */
+.cc-cuerpo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-1);
+  padding: var(--esp-1) var(--esp-2) var(--esp-1) var(--esp-3);
+}
+.cc-buscar {
+  flex: none;
+}
+.cc-lista {
+  display: flex;
+  margin: 0;
+  padding: 0;
+  flex-direction: column;
+  list-style: none;
+}
+.cc-fila {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  gap: 1px;
+  padding: var(--esp-1-5) var(--esp-2);
+  border: 0;
+  border-radius: var(--radio-2);
+  background: transparent;
+  color: inherit;
+  text-align: left;
+}
+.cc-fila:hover {
+  background: var(--capa-hover);
+}
+.cc-fila[aria-busy="true"] {
+  opacity: 0.6;
+}
+.cc-fila .t {
+  overflow: hidden;
+  color: var(--txt-1);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cc-fila[data-sin] .t {
+  color: var(--txt-3);
+}
+.cc-fila .m {
+  display: flex;
+  min-width: 0;
+  overflow: hidden;
+  gap: var(--esp-1-5);
+  font-size: var(--letra-3);
+  color: var(--txt-3);
+  white-space: nowrap;
+}
+.cc-fila .m > * + *::before {
+  margin-right: var(--esp-1-5);
+  content: "·";
+}
+.cc-fila .m > * {
+  flex: none;
+}
+.cc-fila .m > .cc-carpeta {
+  min-width: 0;
+  flex: 0 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cc-etiqueta {
+  color: var(--aviso);
+}
+.cc-vacio,
+.cc-aviso {
+  padding: var(--esp-1-5) var(--esp-2);
+  font-size: var(--letra-3);
+  color: var(--txt-3);
+}
+.cc-aviso {
+  border-left: 2px solid var(--aviso);
+  color: var(--txt-2);
+}
+.cc-mas {
+  margin-left: 0;
+  align-self: flex-start;
+}
+
 /* --- Fila -----------------------------------------------------------------
    El hover va a mano porque el mismo estado lo dispara el mouse o el cursor del
    teclado (`data-cursor`), que es también como se fuerza en las capturas y en
@@ -6049,6 +6134,7 @@ summary.sis-div-t:hover,
   .mini,
   .proy-nom,
   .mini-pliegue,
+  .cc-fila,
   .prim[data-texto],
   .pie button {
     height: 2.75rem;

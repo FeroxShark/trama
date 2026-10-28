@@ -24,6 +24,9 @@ export type ConvClaude = { sid: string; titulo: string; ms: number; modelo: stri
 type Anotado = [mtimeMs: number, tam: number, conv: ConvClaude | null];
 type Guardado = { version: number; archivos: Record<string, Anotado> };
 
+/** El nombre interno que Trama le da a la sesión de un líder (`trama-ab12`, electron/tema.ts): no es un título. */
+const NOMBRE_INTERNO = /^trama-[0-9a-f]{4}$/;
+
 /** Lo que pone Claude Code en un mensaje que no escribió la persona (comandos, avisos, recordatorios). */
 const ES_ETIQUETA = /^\s*<(?:local-command|command-|system-reminder|user-prompt-submit-hook|bash-|task-notification|ide_|teammate-message)/i;
 
@@ -60,7 +63,7 @@ function recorrer(texto: string, d: Dato, parcial: boolean): void {
     if (d.cwd === null && typeof o.cwd === "string" && path.isAbsolute(o.cwd)) d.cwd = o.cwd;
     switch (o.type) {
       case "custom-title":
-        if (typeof o.customTitle === "string" && o.customTitle.trim()) d.titulo = o.customTitle;
+        if (typeof o.customTitle === "string" && o.customTitle.trim() && !NOMBRE_INTERNO.test(o.customTitle.trim())) d.titulo = o.customTitle;
         break;
       case "ai-title":
         if (typeof o.aiTitle === "string" && o.aiTitle.trim()) d.ia = o.aiTitle;

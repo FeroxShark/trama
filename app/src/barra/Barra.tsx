@@ -18,8 +18,8 @@ import {
   type Ref,
 } from "react";
 import { AnimatePresence, motion, MotionConfig } from "motion/react";
-import { BarChart3, ChevronDown, Crown, GitBranch, ListTree, PanelRight, PencilLine, Plus, Search, Settings, SquareKanban, Zap, type LucideIcon } from "lucide-react";
-import { cerrable, cerrado, comoSettle, GENERAL, VERSION, type Caido, type Estado, type EventoPa, type Hilo, type Leidos, type Lider, type Nombres, type Orden, type RespuestaLideres } from "../datos/contrato";
+import { BarChart3, ChevronDown, Crown, Folders, GitBranch, ListTree, PanelRight, PencilLine, Plus, Search, Settings, SquareKanban, Zap, type LucideIcon } from "lucide-react";
+import { cerrable, cerrado, comoSettle, GENERAL, VERSION, type Caido, type ConvClaudeCode, type Estado, type EventoPa, type Hilo, type Leidos, type Lider, type Nombres, type Orden, type RespuestaLideres } from "../datos/contrato";
 import { compactarFijo, escenaFija, fuente } from "../datos/fuente";
 import { ARRANCANDO, EN_COLA, FRENADO, imagenFija } from "../datos/fixtures";
 import { agregarAdjuntos } from "../hilo/adjuntos";
@@ -29,6 +29,8 @@ import { useIdioma } from "../i18n/react";
 import { leerBorrador, llenarBorrador, soltarBorrador } from "../hilo/borradores";
 import { BORRADOR_LIDER } from "../hilo/Lider";
 import { fantasma, MODELO_DEFAULT, modeloDe, primeraLinea } from "../hilo/opciones";
+import { ClaudeCode } from "./ClaudeCode";
+import { carpetaCorta, carpetasExtra, claveClaude, OTRAS, repartirClaude } from "./claude-code";
 import { effortPara } from "../hilo/elegir";
 import { effortsLeidos } from "../hilo/efforts";
 import { enviado } from "../hilo/vivo";
@@ -286,10 +288,15 @@ export function Barra() {
   const [llegados, setLlegados] = useState(() => new Map<string, Hilo>());
   const [frenos, setFrenos] = useState(() => new Map<string, number>());
   const [colapsados, setColapsados] = useState(
-    () => new Set(guardado<string[]>(CLAVE_COLAPSADOS, (c) => JSON.parse(c) as string[], [])),
+    () =>
+      // Captura "claude-code": sólo queda abierta la carpeta que se mira (atlas, o "Otras carpetas" con `HILOS_VARIANTE=otras`).
+      new Set(MODO.captura === "claude-code" ? [ACTIVAS, GENERAL, "cauce", "brote", "duna", "eco", ...(MODO.variante === "otras" ? ["atlas"] : [])] : guardado<string[]>(CLAVE_COLAPSADOS, (c) => JSON.parse(c) as string[], [])),
   );
   // Los pliegues abiertos: el "+N" de un líder o "N terminadas" (clave de la rama), o los "N líderes en espera" (`espera:<proyecto>`).
-  const [pliegues, setPliegues] = useState(() => new Set<string>());
+  const [pliegues, setPliegues] = useState(() => new Set<string>(MODO.captura === "claude-code" ? [claveClaude(MODO.variante === "otras" ? OTRAS : "atlas")] : []));
+  // Las conversaciones de Claude Code que no son de Trama ("De Claude Code (N)" al final de cada carpeta) y las que se retomaron desde acá.
+  const [convsCC, setConvsCC] = useState<ConvClaudeCode[]>([]);
+  const [abiertasCC, setAbiertasCC] = useState(() => new Set<string>());
   const [vista, setVista] = useState<VistaBarra>(MODO.vista);
   // El panel de consumo (a la derecha): arranca oculto y se recuerda en preferencias.json.
   const [consumo, setConsumo] = useState(MODO.consumo);
@@ -507,6 +514,15 @@ export function Barra() {
         : [{ proyecto: GENERAL, ramas: [], espera: [], dormidos: [], cuenta: 0 }, ...hayGrupos],
     [hayGrupos, busqueda, hilos],
   );
+  // Las de Claude Code, cada una en su carpeta, sin las que ya son líderes de la barra; y las carpetas con conversaciones que todavía no tienen sección.
+  const porCarpetaCC = useMemo(() => {
+    const ocultas = new Set([...arbol.lideres.keys(), ...fantasmas.keys(), ...abiertasCC]);
+    return repartirClaude(convsCC, ocultas);
+  }, [convsCC, arbol.lideres, fantasmas, abiertasCC]);
+  const extrasCC = useMemo(
+    () => (busqueda.trim() ? [] : carpetasExtra(porCarpetaCC, new Set(grupos.map((g) => g.proyecto)))),
+    [porCarpetaCC, grupos, busqueda],
+  );
   const buscando = busqueda.trim() !== "";
   // Clave con ":" = el pliegue de una rama; sin ":" = una carpeta (el nombre del proyecto).
   // Buscando, las carpetas se abren pero los pliegues no: lo inactivo sigue en su "+N" / "N terminadas".
@@ -620,6 +636,46 @@ export function Barra() {
     setPanel(null);
     setActiva(LIDER + id);
   }, []);
+
+  // "De Claude Code": la lista se lee de fondo (el main la cachea por mtime) cuando ya llegaron los líderes y de nuevo al volver a la ventana.
+  useEffect(() => {
+    if (!listosLideres) return;
+    let ult = 0;
+    const cargar = () => {
+      ult = Date.now();
+      void fuente.claudeCodeListar().then(setConvsCC, () => {});
+    };
+    const id = setTimeout(cargar, MODO.captura ? 0 : 1500);
+    const alFoco = () => {
+      if (document.visibilityState === "visible" && Date.now() - ult > 60_000) cargar();
+    };
+    window.addEventListener("focus", alFoco);
+    return () => {
+      clearTimeout(id);
+      window.removeEventListener("focus", alFoco);
+    };
+  }, [listosLideres]);
+
+  // Tocar una conversación de Claude Code: pasa a ser un líder de Trama (`--resume` en su carpeta, con el primer mensaje) y se abre. Devuelve por qué no, o `null`.
+  const abrirClaude = useCallback(
+    async (c: ConvClaudeCode): Promise<string | null> => {
+      const modelo = modeloDe(c.modelo) ?? MODELO_DEFAULT;
+      const effort = effortPara(modelo, effortsLeidos() ?? {});
+      try {
+        const r = await fuente.liderRetomar(c.sid, { modelo, effort });
+        if (!r.ok) return tr(r.motivo === "abierto" ? "barra.claudeAbierta" : r.motivo === "sinCarpeta" ? "barra.claudeNoCarpeta" : "barra.claudeSinSesion", { c: carpetaCorta(c.cwd) });
+        setAbiertasCC((a) => new Set(a).add(c.sid));
+        // Hasta que la lista de líderes lo traiga: sin proceso, con la conversación que ya tiene.
+        const f = fantasma(c.sid, { modelo, effort, texto: c.titulo }, c.proyecto ?? GENERAL);
+        setFantasmas((m) => new Map(m).set(c.sid, { ...f, ocupado: false, vivo: false, cache_vence: null, actividad: Math.floor(c.ms / 1000), creado: Math.floor(c.ms / 1000) }));
+        abrirLider(c.sid);
+        return null;
+      } catch (e) {
+        return mensaje(e);
+      }
+    },
+    [abrirLider],
+  );
 
   // Un subagente de un líder: sus pasos a la derecha (src/hilo/Subagente.tsx).
   const abrirSub = useCallback((sid: string, id: string) => {
@@ -1710,9 +1766,33 @@ export function Barra() {
                       virtual={virtual}
                       soloLideres={soloLideres}
                       mueve={!buscando && !MODO.captura}
+                      claude={porCarpetaCC.get(g.proyecto) ?? SIN_CONVS}
+                      alAbrirClaude={abrirClaude}
                     />
                   ))}
-                  {hayGrupos.length === 0 ? (
+                  {extrasCC.map((k) => (
+                    <Carpeta
+                      key={k}
+                      g={{ proyecto: k, ramas: [], espera: [], dormidos: [], cuenta: 0 }}
+                      viendo={false}
+                      liderActivo={activa}
+                      alAbrirLider={abrirLider}
+                      alCerrarLider={cerrarLider}
+                      alSettleLider={settleLiderYa}
+                      alLiderNuevo={null}
+                      liderNuevo={false}
+                      desplegada={desplegada}
+                      alAlternar={alternar}
+                      alPlegar={plegar}
+                      fila={fila}
+                      virtual={virtual}
+                      soloLideres={soloLideres}
+                      mueve={false}
+                      claude={porCarpetaCC.get(k) ?? SIN_CONVS}
+                      alAbrirClaude={abrirClaude}
+                    />
+                  ))}
+                  {hayGrupos.length === 0 && extrasCC.length === 0 ? (
                     <motion.div
                       key="vacio"
                       layout="position"
@@ -1977,7 +2057,12 @@ type PropsCarpeta = {
   soloLideres: boolean;
   /** Se puede reordenar arrastrando (buscando, no): la carpeta y sus líderes llevan `data-mueve`. */
   mueve: boolean;
+  /** Sus conversaciones de Claude Code (las que no son de Trama), de la más reciente a la más vieja. */
+  claude: ConvClaudeCode[];
+  alAbrirClaude: (c: ConvClaudeCode) => Promise<string | null>;
 };
+
+const SIN_CONVS: ConvClaudeCode[] = [];
 
 /**
  * Un proyecto. El marco va aparte y en piezas (ver `.marco` en index.css) para
@@ -2001,10 +2086,13 @@ function Carpeta({
   virtual,
   soloLideres,
   mueve,
+  claude,
+  alAbrirClaude,
 }: PropsCarpeta) {
   const abierto = desplegada(g.proyecto);
   const titulo = useTitulos()[g.proyecto];
-  const nombre = nombreCarpeta(g.proyecto, MODO.usuario, tr("barra.home"), titulo);
+  const otras = g.proyecto === OTRAS;
+  const nombre = otras ? tr("barra.otrasCarpetas") : nombreCarpeta(g.proyecto, MODO.usuario, tr("barra.home"), titulo);
   return (
     <motion.section
       ref={ref}
@@ -2024,7 +2112,13 @@ function Carpeta({
       <motion.div layout transition={RESORTE} className="marco marco-lado" data-der="" />
       <motion.div layout="position" transition={RESORTE} className="marco marco-abajo" />
       <button type="button" className="proy-nom" data-carpeta={g.proyecto} aria-expanded={abierto} onClick={() => alAlternar(g.proyecto)}>
-        <Logo proyecto={g.proyecto} titulo={titulo} />
+        {otras ? (
+          <span className="logo" data-neutro="">
+            <Folders size={10} strokeWidth={2.2} />
+          </span>
+        ) : (
+          <Logo proyecto={g.proyecto} titulo={titulo} />
+        )}
         <span className="n">{nombre}</span>
         <span className="cuenta">{g.cuenta || null}</span>
         <ChevronDown className="chevron" size={12} strokeWidth={2} />
@@ -2077,6 +2171,16 @@ function Carpeta({
               ) : null}
               {g.dormidos.length ? (
                 <Dormidos key="dormidos" n={g.dormidos.length} abierta={desplegada(claveDormidos(g.proyecto))} alPlegar={() => alPlegar(claveDormidos(g.proyecto))} />
+              ) : null}
+              {claude.length ? (
+                <ClaudeCode
+                  key="claude-code"
+                  convs={claude}
+                  abierta={desplegada(claveClaude(g.proyecto))}
+                  alPlegar={() => alPlegar(claveClaude(g.proyecto))}
+                  alAbrir={alAbrirClaude}
+                  conCarpeta={otras}
+                />
               ) : null}
             </AnimatePresence>
           </motion.div>
