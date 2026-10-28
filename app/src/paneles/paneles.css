@@ -3622,3 +3622,158 @@
     min-height: 2.75rem;
   }
 }
+
+/* Lo que se detecta en esta máquina (LocalesDetectados.tsx): una tarjeta por programa, sus modelos, el aviso de prender y el arnés. */
+.lc {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-3);
+  padding: 0 var(--esp-4) var(--esp-4);
+}
+.lc-cab {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--esp-3);
+}
+.lc-cab .ui-btn {
+  flex: none;
+  white-space: nowrap;
+}
+.lc-nota {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-2);
+  margin: 0;
+  color: var(--ok);
+  font-size: var(--letra-4);
+}
+.lc-nota[data-tipo="error"] {
+  color: var(--critico);
+}
+.lc-sv {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-2);
+  padding: var(--esp-3);
+  border-radius: var(--r-sm);
+  background: var(--capa-input);
+}
+.lc-sv-cab {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--esp-2);
+}
+.lc-sv-nom {
+  color: var(--texto);
+  font-size: var(--letra-6);
+  font-weight: 600;
+}
+.lc-sv-meta {
+  margin-left: auto;
+  color: var(--apagado);
+  font-size: var(--letra-4);
+  font-variant-numeric: tabular-nums;
+}
+.lc-modelos {
+  display: flex;
+  flex-direction: column;
+}
+.lc-m {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-2);
+  padding: var(--esp-1) 0 var(--esp-3);
+}
+.lc-m + .lc-m {
+  border-top: 1px solid var(--capa-div);
+  padding-top: var(--esp-3);
+}
+.lc-m-nom {
+  font-family: var(--font-mono);
+  font-size: var(--letra-5);
+}
+.lc-m[data-armado] {
+  outline: 1px solid var(--aviso);
+  outline-offset: var(--esp-1);
+  border-radius: var(--r-sm);
+}
+.lc-aviso {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-2);
+  padding: var(--esp-3);
+  border-radius: var(--r-sm);
+  background: var(--aviso-tinte);
+}
+.lc-aviso-t {
+  color: var(--aviso);
+  font-size: var(--letra-5);
+  font-weight: 600;
+}
+.lc-aviso-b {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--esp-2);
+}
+.lc-choque {
+  color: var(--critico);
+}
+.lc-pie {
+  margin: 0;
+}
+.lc-uso {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--esp-2);
+}
+.lc-uso-t {
+  color: var(--apagado);
+  font-size: var(--letra-4);
+}
+.lc-seg {
+  display: inline-flex;
+  overflow: hidden;
+  border-radius: var(--r-cap);
+  background: var(--capa-track);
+}
+.lc-seg-b {
+  display: inline-flex;
+  min-height: 2rem;
+  align-items: center;
+  gap: var(--esp-1);
+  padding: 0 var(--esp-3);
+  border: 0;
+  background: transparent;
+  color: var(--texto-4);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--letra-4);
+}
+.lc-seg-b[aria-checked="true"] {
+  background: var(--acento-tinte);
+  color: var(--acento);
+  font-weight: 600;
+}
+.lc-seg-b:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+.lc-guia {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-2);
+  padding-top: var(--esp-1);
+}
+.lc-guia .mdl-enlace {
+  align-self: flex-start;
+  padding: 0 var(--esp-4);
+}
+@media (pointer: coarse) {
+  .lc .ui-btn,
+  .lc-seg-b {
+    min-height: 2.75rem;
+  }
+}

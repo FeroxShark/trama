@@ -28,6 +28,7 @@ import { AjustesConectores } from "./AjustesConectores";
 import { ModelosParaWorkers } from "./AjustesWorkers";
 import { AutocompactFilas } from "./AjustesAutocompact";
 import { GuiaOllama, SugeridosOllama, textoBajada } from "./AjustesLocales";
+import { LocalesDetectados } from "./LocalesDetectados";
 import { marcar } from "./ajustes-nav";
 import { avisosTope } from "./cupos-aviso";
 import {
@@ -65,7 +66,7 @@ import {
 import { esClaude, urlOllama } from "../../electron/modelos-tipos";
 import type { EfectivoPa } from "../../electron/modelos-config";
 
-/** Para las capturas: `mdl` (con archivo), `mdl-agregar` (con el panel de otra dirección abierto), `mdl-lider` (el selector del líder abierto), `mdl-bajando` (un modelo a mitad de bajada), `mdl-sinollama` (Ollama sin instalar), `mdl-apagado` (instalado y apagado), `mdl-sugeridos` (los modelos sugeridos), `mdl-tope` (el aviso de un tope cruzado) y `sinmdl` (sin archivo). */
+/** Para las capturas: `mdl` (con archivo), `mdl-agregar` (con el panel de otra dirección abierto), `mdl-lider` (el selector del líder abierto), `mdl-bajando` (un modelo a mitad de bajada), `mdl-sinollama` (Ollama sin instalar), `mdl-apagado` (instalado y apagado), `mdl-sugeridos` (los modelos sugeridos), `mdl-servidores` (lo que se detecta en la máquina), `mdl-prender` (con el aviso de prender abierto), `mdl-guias` (las guías de instalación), `mdl-win` (lo mismo visto desde Windows), `mdl-tope` (el aviso de un tope cruzado) y `sinmdl` (sin archivo). */
 const VARIANTE = MODO.variante ?? "";
 const ES_CAPTURA = VARIANTE.startsWith("mdl") || VARIANTE === "sinmdl";
 
@@ -262,7 +263,7 @@ export function AjustesModelos({ Dato, plan = null }: { Dato: FilaDato; plan?: s
   useEffect(() => {
     if (!visible || !ES_CAPTURA) return;
     // Captura: `mdl-agregar` deja a la vista los locales y su panel; el resto, la cabecera de la sección.
-    const mira = sec.current?.querySelector(VARIANTE === "mdl-agregar" ? ".mdl-panel" : VARIANTE === "mdl-bajando" || VARIANTE === "mdl-sinollama" || VARIANTE === "mdl-apagado" ? ".mdl-ollama" : VARIANTE.startsWith("mdl-wk") ? ".mdl-wk" : VARIANTE === "mdl-sugeridos" ? ".ol-sug" : VARIANTE === "mdl-tope" ? ".mdl-cruce" : "x:not(x)");
+    const mira = sec.current?.querySelector(VARIANTE === "mdl-agregar" ? ".mdl-panel" : VARIANTE === "mdl-bajando" || VARIANTE === "mdl-sinollama" || VARIANTE === "mdl-apagado" ? ".mdl-ollama" : VARIANTE.startsWith("mdl-wk") ? ".mdl-wk" : VARIANTE === "mdl-sugeridos" ? ".ol-sug" : VARIANTE === "mdl-servidores" || VARIANTE === "mdl-prender" || VARIANTE === "mdl-win" || VARIANTE === "mdl-guias" ? ".lc" : VARIANTE === "mdl-tope" ? ".mdl-cruce" : "x:not(x)");
     if (mira) mira.scrollIntoView({ block: "center" });
     else sec.current?.scrollIntoView({ block: "start" });
   }, [visible]);
@@ -500,6 +501,8 @@ export function AjustesModelos({ Dato, plan = null }: { Dato: FilaDato; plan?: s
 
       <Cat id="locales">
         <section className="pn-sec pn-edita">
+          <LocalesDetectados b={b} cambiar={cambiar} />
+
           <GuiaOllama estado={ollama} entorno={entorno} alMirar={() => void mirarOllama()} />
 
           {instaladosOl ? (
