@@ -817,6 +817,8 @@ export type Guardado = {
   motivo?: string;
   /** Epoch: trama se cerró (reinicio, salida) con su proceso vivo. Al arrancar se lo levanta de nuevo con `--resume`. */
   dormido?: number;
+  /** Epoch: cuándo se lanzó su proceso y todavía no terminó. Si trama se corta con él vivo (la PC, la app), al arrancar es Murió (`marcarCortados`). */
+  corriendo?: number;
   /** Una rama de otro líder que todavía no tuvo su primer turno: se lanza (y se vuelve a lanzar) con `--fork-session`. */
   rama?: Rama;
   /** De qué líder salió (Ramificar / Editar antes de una compactación); no se borra. */
@@ -890,6 +892,7 @@ export function leerGuardados(texto: string): Guardado[] {
         ...(Number(l.murio) > 0 ? { murio: Number(l.murio) } : {}),
         ...(typeof l.motivo === "string" && l.motivo ? { motivo: l.motivo.slice(0, 300) } : {}),
         ...(Number(l.dormido) > 0 ? { dormido: Number(l.dormido) } : {}),
+        ...(Number(l.corriendo) > 0 ? { corriendo: Number(l.corriendo) } : {}),
         ...(SID.test(String(l.rama?.de)) && SID.test(String(l.rama?.hasta)) ? { rama: { de: String(l.rama.de), hasta: String(l.rama.hasta) } } : {}),
         ...(SID.test(String(l.origen?.sid)) ? { origen: { sid: String(l.origen.sid), titulo: String(l.origen.titulo ?? "").slice(0, 300) } } : {}),
         ...(cambiosDe(l.cambios).length ? { cambios: cambiosDe(l.cambios) } : {}),

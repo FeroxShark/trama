@@ -467,12 +467,13 @@ function cortesParaPuente(g: Guardado, clase: Clase, relevo: string | undefined)
 }
 
 function lanzar(g: Guardado, resume: boolean, local?: Local, extra: Extra = {}): Proc {
-  // Vuelve a tener proceso: ya no está muerto.
+  // Vuelve a tener proceso: ya no está muerto. Y queda `corriendo` hasta que `fin` vea que terminó (`marcarCortados`).
   if (g.murio) {
     delete g.murio;
     delete g.motivo;
-    void guardar();
   }
+  if (!g.corriendo) g.corriendo = Math.floor(Date.now() / 1000);
+  void guardar();
   const clase = claseDeModelo(g.modelo);
   const base = opcionesLider(process.env, HOME, g.cwd, local && { modelo: g.modelo, effort: g.effort, local }, extra.ollama) as { cwd: string; env: NodeJS.ProcessEnv };
   // Su propio grupo (setsid): lo que el líder deja corriendo desde sus herramientas (un `qs`, un watcher) se barre al salir.
@@ -625,14 +626,16 @@ function lanzar(g: Guardado, resume: boolean, local?: Local, extra: Extra = {}):
     barrerGrupo(p.pid);
     if (procs.get(g.sid) !== x) return;
     procs.delete(g.sid);
+    // Ya no tiene proceso: no es uno que trama se haya cortado con él vivo (`marcarCortados`).
+    delete g.corriendo;
     const dijo = x.stderr.trim().split("\n").filter(Boolean).slice(-2).join(" · ");
     // Lo mataron o se cayó (no lo cerró la app): la barra lo marca Murió hasta que el usuario lo retome.
     if (seMurio) {
       g.murio = Math.floor(Date.now() / 1000);
       const motivo = (dijo || error || (codigo === null ? "lo mataron (sin código de salida)" : `salió con el código ${codigo}`)).slice(0, 300);
       g.motivo = motivo;
-      void guardar();
     }
+    void guardar();
     for (const f of x.libre.splice(0)) f();
     for (const f of x.controles.values()) f({ ok: false });
     x.controles.clear();
@@ -1850,6 +1853,32 @@ export async function reanudarDormidos(escalonMs = 150): Promise<string[]> {
     alCambio();
   }
   return hechos;
+}
+
+/**
+ * Al arrancar: los líderes que tenían proceso (`corriendo`) cuando trama se cortó sin cerrarlos (la PC se reinició, se cayó la app)
+ * murieron: quedan Murió con su motivo y Retomar (`retomar`) los levanta. Los `dormido` no entran: son los que cerró `cerrarTodos`
+ * (`reanudarDormidos`). Devuelve los sids que quedaron Murió.
+ */
+export async function marcarCortados(): Promise<string[]> {
+  const ahora = Math.floor(Date.now() / 1000);
+  const cortados: string[] = [];
+  let cambio = false;
+  for (const g of await lideresApp()) {
+    if (!g.corriendo) continue;
+    cambio = true;
+    const cortado = !g.dormido && g.rol !== "analista" && !procs.has(g.sid);
+    delete g.corriendo;
+    if (!cortado) continue;
+    g.murio = ahora;
+    g.motivo = "trama se cerró con el líder en marcha (se cortó la PC o la app)";
+    cortados.push(g.sid);
+  }
+  if (cambio) {
+    await guardar();
+    alCambio();
+  }
+  return cortados;
 }
 
 // --- Leer (también los de la terminal) -------------------------------------------
