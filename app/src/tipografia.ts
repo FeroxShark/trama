@@ -155,8 +155,6 @@ export function cambiarApariencia(cambio: Partial<Apariencia>): Partial<Aparienc
   if (typeof document !== "undefined") {
     aplicar(document.documentElement.style, actual);
     if (dif.tema) aplicarTema(actual.tema);
-    // La letra cambia la altura de la franja (4 rem): los botones nativos la siguen.
-    sincronizarTitulo();
   }
   for (const f of oyentes) f();
   return dif;

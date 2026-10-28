@@ -2096,18 +2096,29 @@ kbd {
   padding: 0 var(--esp-6) 0 var(--esp-4);
   border-bottom: 1px solid var(--capa-div);
 }
-/* Ventana de Windows sin barra de título (la carcasa: src/titulo.ts pone `data-titulo-nativo`): la franja de arriba
-   arrastra la ventana y sus controles no; el migas deja a la derecha el sitio de los tres botones nativos (46 px cada
-   uno: 8.625 rem = 138 px a letra 13, y crece con la letra como el resto). Fuera de la carcasa no cambia nada. */
-html[data-titulo-nativo] .cab,
-html[data-titulo-nativo] .migas {
+/* Ventana de Windows sin barra de título (la carcasa: src/titulo.ts pone `data-titulo-nativo`): la app empieza 32 px
+   abajo y esa franja, que es el fondo, arrastra la ventana salvo donde están los tres botones nativos (46 px cada uno:
+   138 px, fijos porque la ventana no escala con la letra). Fuera de la carcasa no cambia nada. */
+html[data-titulo-nativo] #root {
+  box-sizing: border-box;
+  padding-top: 32px;
+}
+html[data-titulo-nativo] #root::before,
+html[data-titulo-nativo] #root::after {
+  content: "";
+  position: fixed;
+  top: 0;
+  height: 32px;
+}
+html[data-titulo-nativo] #root::before {
+  left: 0;
+  right: 0;
   -webkit-app-region: drag;
 }
-html[data-titulo-nativo] :is(button, a, input, select, textarea, label) {
+html[data-titulo-nativo] #root::after {
+  right: 0;
+  width: 138px;
   -webkit-app-region: no-drag;
-}
-html[data-titulo-nativo] .migas {
-  padding-right: calc(var(--esp-6) + 8.625rem);
 }
 .lado {
   display: grid;
