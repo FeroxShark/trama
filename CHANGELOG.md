@@ -1,5 +1,10 @@
 # Cambios
 
+## 0.2.15
+
+- Windows nativo: el `pa` de TypeScript tiene todos los modos (conversaciones, archivar, renombrar, proyectos, medición, modelos, workers con todos los motores, relanzar sin cupo). Se acabó el error "todavía no está en el pa de TypeScript".
+- Windows nativo: la barra de título vuelve, transparente, y los botones de Windows ya no tapan nada.
+
 ## 0.2.14
 
 - Windows nativo: `pa`, `reparto`, `tablero` y `cuentas` se lanzan bien (conversaciones que no se guardaban, Plan y cupos sin datos).
