@@ -1512,6 +1512,9 @@ export async function retomar(x: { sid: string; modelo: string; effort: string; 
   if (!r.ok) return r;
   if (murio) recienTraidos.set(sid, "murio");
   await guardar();
+  // Lo relanza ya con su sesión (`--resume`, ocioso, sin mandarle nada): sigue donde estaba.
+  const g = (await lideresApp()).find((l) => l.sid === sid);
+  if (g) await levantar(g);
   alCambio();
   return { ok: true };
 }
@@ -1810,6 +1813,23 @@ export async function cerrarTodos(forzar: boolean, topeMs: number = TOPE_SALIDA_
 }
 
 /**
+ * Levanta a un líder de la app con su sesión (`--resume`, o `--session-id` si nunca tuvo turno) sin mandarle nada: ocioso, no gasta
+ * tokens. No lo hace si es el analista, si ya tiene proceso, si está abierto en una terminal o si su modelo local no está listo (lo
+ * carga su próximo mensaje). Devuelve si lo lanzó.
+ */
+async function levantar(g: Guardado): Promise<boolean> {
+  if (g.rol === "analista" || procs.has(g.sid) || mandando.has(g.sid) || (await ajeno(g.sid))) return false;
+  const hay = (g.cambios?.length || g.heredado ? await transcriptFamilia(g.sid, familiaDeModelo(g.modelo), g.cwd) : await transcriptDe(g.sid, g.cwd)) !== null;
+  // Uno local vuelve ocioso sin cargar el modelo (nada de GPU al arrancar trama): lo carga su próximo mensaje.
+  const local = localDe(g.modelo) ? await locales.destino(g.modelo).catch(() => undefined) : undefined;
+  if (localDe(g.modelo) && !local) return false;
+  const extra = await extraDe(g.modelo, g.cwd).catch((e) => (silencio("reanudar-extra")(e), null));
+  if (!extra) return false;
+  lanzar(g, hay, local && (await conContexto(local, g.cwd)), extra);
+  return true;
+}
+
+/**
  * Al arrancar: levanta de nuevo (`--resume`) a los líderes de la app que tenían proceso cuando trama se cerró
  * (`dormido`, lo anota `cerrarTodos`). Uno que nunca tuvo un turno no tiene transcript: se lo lanza con
  * `--session-id`, no con `--resume`. Sin mandarles nada (no gasta tokens). Los de una terminal (`ajeno`) no se tocan. El que no se pueda
@@ -1821,14 +1841,7 @@ export async function reanudarDormidos(escalonMs = 150): Promise<string[]> {
   const hechos: string[] = [];
   for (const g of ls) {
     delete g.dormido;
-    if (g.rol === "analista" || procs.has(g.sid) || mandando.has(g.sid) || (await ajeno(g.sid))) continue;
-    const hay = (g.cambios?.length || g.heredado ? await transcriptFamilia(g.sid, familiaDeModelo(g.modelo), g.cwd) : await transcriptDe(g.sid, g.cwd)) !== null;
-    // Uno local vuelve ocioso sin cargar el modelo (nada de GPU al arrancar trama): lo carga su próximo mensaje.
-    const local = localDe(g.modelo) ? await locales.destino(g.modelo).catch(() => undefined) : undefined;
-    if (localDe(g.modelo) && !local) continue;
-    const extra = await extraDe(g.modelo, g.cwd).catch((e) => (silencio("reanudar-extra")(e), null));
-    if (!extra) continue;
-    lanzar(g, hay, local && (await conContexto(local, g.cwd)), extra);
+    if (!(await levantar(g))) continue;
     hechos.push(g.sid);
     if (escalonMs > 0) await new Promise((ok) => setTimeout(ok, escalonMs));
   }

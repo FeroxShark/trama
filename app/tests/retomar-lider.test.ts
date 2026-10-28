@@ -1,5 +1,5 @@
 // Retomar un líder sin proceso (electron/lider.ts, con el claude falso): pasa a ser de la
-// app sin lanzar nada ni mandarle nada; el primer mensaje hace `--resume` en su carpeta.
+// app y la relanza ya con `--resume` en su carpeta, ociosa (sin mandarle nada).
 // Y lo que no se puede retomar dice por qué. Mismo armado que tests/lider-proceso.test.ts.
 import { after } from "node:test";
 import { testPosix as test } from "./plataforma.ts";
@@ -57,16 +57,21 @@ function transcript(sid: string, cwd: string) {
 }
 const lanzados = () => (existsSync(log) ? readFileSync(log, "utf8").trim().split("\n").map((l) => JSON.parse(l)).filter((x) => x.args) : []);
 
-test("retomar: pasa a ser de la app sin lanzar nada; el primer mensaje hace --resume en su carpeta", { timeout: 20_000 }, async () => {
+test("retomar: pasa a ser de la app y lo relanza ya con --resume en su carpeta, sin mandarle nada; el primer mensaje sigue ahí", { timeout: 20_000 }, async () => {
   const sid = "11111111-1111-4111-8111-111111111111";
   const carpeta = path.join(tmp, "proyecto");
   mkdirSync(carpeta);
   transcript(sid, carpeta);
   const antes = cambios;
   assert.deepEqual(await lider.retomar({ sid, ...M, nombre: "ana-d2" }), { ok: true });
-  assert.equal(lider.procDe(sid), null, "retomar no lanza ningún proceso");
-  assert.deepEqual(lanzados(), [], "ni le manda nada");
-  assert.equal(cambios, antes + 1, "la barra se entera");
+  await hasta(() => lanzados().length > 0);
+  assert.notEqual(lider.procDe(sid), null, "la relanza ya");
+  const [uno, ...mas] = lanzados();
+  assert.equal(mas.length, 0, "lo lanza una sola vez");
+  assert.equal(uno.args[uno.args.indexOf("--resume") + 1], sid);
+  assert.equal(uno.cwd, carpeta, "corre donde vivía la sesión: ahí está su transcript");
+  assert.equal(lider.procDe(sid)!.ocupado, false, "ocioso: no le mandó nada");
+  assert.ok(cambios > antes, "la barra se entera");
   const g = (await lider.lideresApp()).find((l) => l.sid === sid)!;
   assert.deepEqual([g.nombre, g.cwd, g.ultimo], ["ana-d2", carpeta, 0]);
   assert.ok(g.retomado! > 0);
@@ -76,12 +81,10 @@ test("retomar: pasa a ser de la app sin lanzar nada; el primer mensaje hace --re
 
   await lider.mandar({ sid, texto: "seguimos", ...M });
   await hasta(() => eventos.some((x) => x.sid === sid && x.e.tipo === "fin"));
-  const [uno, ...mas] = lanzados();
-  assert.equal(mas.length, 0);
-  assert.equal(uno.args[uno.args.indexOf("--resume") + 1], sid);
-  assert.equal(uno.cwd, carpeta, "corre donde vivía la sesión: ahí está su transcript");
+  assert.equal(lanzados().length, 1, "el primer mensaje entra al mismo proceso, no lanza otro");
   // Otra vez Retomar sobre el mismo: nada que hacer, no se duplica.
   assert.deepEqual(await lider.retomar({ sid, ...M }), { ok: true });
+  assert.equal(lanzados().length, 1);
   assert.equal((await lider.lideresApp()).filter((l) => l.sid === sid).length, 1);
 });
 
