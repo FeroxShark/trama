@@ -1,16 +1,19 @@
 // El panel de consumo: a la derecha, ocultable (botón del pie, tecla `t`, o su ×). Arriba, lo que
 // consumió hoy cada modelo, en líderes y en workers; abajo, una fila por líder y por worker vivo
 // (colgados de su líder, o de su proyecto si no lo tienen a la vista): modelo, esfuerzo, estado,
-// contexto, tokens y compactaciones. Los números los lee el main de los transcripts
+// contexto, tokens, compactaciones, último paso y, en los workers, cuánto llevan corriendo. Cada fila
+// tiene un botón para abrir su hilo. Los números y el último paso los lee el main de los transcripts
 // (electron/consumo.ts) y sólo mientras el panel está a la vista; lo que no se sabe dice "sin dato".
 // En el celular no existe (lo decide la barra: `useAngosto`).
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
-import { PanelRightClose } from "lucide-react";
+import { ArrowUpRight, PanelRightClose } from "lucide-react";
 import type { Hilo, Lider } from "../datos/contrato";
 import { fuente } from "../datos/fuente";
 import { contextoFila, resumen, totalSesion, type Consumo as Datos, type FilaConsumo, type Suma } from "../datos/consumo";
-import { tareaDe, tipoDe } from "../barra/piezas";
+import { Reloj, tareaDe, tipoDe } from "../barra/piezas";
+import { textoHace } from "../hilo/Hace";
 import { modeloDe, nombreModelo } from "../hilo/opciones";
+import { pintorDura } from "../tiempo";
 import { locale, t } from "../i18n";
 import { useIdioma } from "../i18n/react";
 import "./consumo-logica.css";
@@ -22,6 +25,9 @@ type Props = {
   /** Cómo se ve una carpeta (el título del registry, o el slug). */
   carpeta: (proyecto: string) => string;
   alCerrar: () => void;
+  /** Abren el hilo de un worker y el de un líder (los mismos que usa la barra). */
+  alAbrirHilo: (id: string) => void;
+  alAbrirLider: (id: string) => void;
 };
 
 const vivo = (h: Hilo) => h.estado === "trabajando" || h.estado === "colgado";
@@ -53,17 +59,23 @@ type PropsFila = {
   effort: string | null;
   /** `undefined`: todavía no contestó el main. `null`: sin transcript. */
   fila: FilaConsumo | null | undefined;
+  /** Cuándo empezó a correr (epoch s), si es un worker: el reloj de "lleva". */
+  inicio?: number;
   worker?: boolean;
+  /** Abre su hilo: sin esto no hay botón. */
+  onAbrir?: () => void;
 };
 
-function Fila({ id, nombre, estado, tipo, modelo, effort, fila, worker }: PropsFila) {
+function Fila({ id, nombre, estado, tipo, modelo, effort, fila, inicio, worker, onAbrir }: PropsFila) {
   const m = modelo ?? fila?.modelo ?? null;
   const e = effort ?? fila?.effort ?? null;
   const ctx = contextoFila(fila, m);
+  const dura = useMemo(() => (inicio !== undefined ? pintorDura(inicio) : null), [inicio]);
   // `undefined`: el main todavía no contestó, no es que falte el dato.
   const leyendo = fila === undefined;
   const sinDato = t(leyendo ? "consumo.leyendo" : "comun.sinDato");
   const falta = leyendo ? { "data-cargando": "" } : { "data-falta": "" };
+  const abrir = onAbrir ? t("consumo.abrirDe", { n: nombre }) : undefined;
   return (
     <li className="cs-fila" data-consumo={id} data-worker={worker ? "" : undefined}>
       <div className="cs-quien">
@@ -71,6 +83,11 @@ function Fila({ id, nombre, estado, tipo, modelo, effort, fila, worker }: PropsF
         <span className="cs-est" data-tipo={tipo}>
           {estado}
         </span>
+        {onAbrir ? (
+          <button type="button" className="cs-abrir" aria-label={abrir} data-tip={abrir} onClick={onAbrir}>
+            <ArrowUpRight size={14} strokeWidth={1.8} />
+          </button>
+        ) : null}
       </div>
       <div className="cs-modelo">
         <span {...(m ? {} : falta)}>{m ? lindo(m) : sinDato}</span>
@@ -78,6 +95,14 @@ function Fila({ id, nombre, estado, tipo, modelo, effort, fila, worker }: PropsF
         <span {...(e ? {} : falta)}>{e ?? sinDato}</span>
       </div>
       <dl className="cs-datos">
+        {dura ? (
+          <>
+            <dt>{t("consumo.lleva")}</dt>
+            <dd data-campo="lleva">
+              <Reloj pintor={dura} />
+            </dd>
+          </>
+        ) : null}
         <dt>{t("consumo.contexto")}</dt>
         {ctx ? (
           <>
@@ -112,12 +137,22 @@ function Fila({ id, nombre, estado, tipo, modelo, effort, fila, worker }: PropsF
             {sinDato}
           </dd>
         )}
+        <dt>{t("consumo.ultimo")}</dt>
+        {fila?.ultimo ? (
+          <dd data-campo="ultimo" className="cs-paso" data-tip={textoHace(fila.ultimo)}>
+            <span>{textoHace(fila.ultimo)}</span>
+          </dd>
+        ) : (
+          <dd data-campo="ultimo" {...falta}>
+            {sinDato}
+          </dd>
+        )}
       </dl>
     </li>
   );
 }
 
-export const Consumo = memo(function Consumo({ lideres, hilos, carpeta, alCerrar }: Props) {
+export const Consumo = memo(function Consumo({ lideres, hilos, carpeta, alCerrar, alAbrirHilo, alAbrirLider }: Props) {
   useIdioma();
   const vivos = useMemo(() => hilos.filter(vivo), [hilos]);
   // Lo que se le pide al main: cambia sólo cuando entra o sale alguien, no con cada lista.
@@ -170,6 +205,8 @@ export const Consumo = memo(function Consumo({ lideres, hilos, carpeta, alCerrar
       modelo={h.modelo}
       effort={h.effort}
       fila={datos ? (datos.filas[h.id] ?? null) : fallo ? null : undefined}
+      inicio={h.inicio}
+      onAbrir={() => alAbrirHilo(h.id)}
     />
   );
 
@@ -234,6 +271,7 @@ export const Consumo = memo(function Consumo({ lideres, hilos, carpeta, alCerrar
                     modelo={l.modelo}
                     effort={l.effort}
                     fila={datos ? (datos.filas[l.id] ?? null) : fallo ? null : undefined}
+                    onAbrir={() => alAbrirLider(l.id)}
                   />
                   {deLider.get(l.id)?.map(filaWorker)}
                 </ul>

@@ -203,6 +203,39 @@
   }
 }
 
+/* El botón de abrir el hilo, a la derecha del nombre: un ícono; el nombre va en su aria-label y en el tip. */
+.cs-abrir {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  align-self: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radio-1);
+  background: transparent;
+  color: var(--txt-3);
+  cursor: pointer;
+}
+.cs-abrir:hover {
+  background: var(--sup-3);
+  color: var(--txt-1);
+}
+
+/* El último paso ocupa lo que quede de la fila, cortado con puntos suspensivos. */
+.cs-datos .cs-paso {
+  justify-content: flex-start;
+}
+.cs-paso span {
+  overflow: hidden;
+  min-width: 0;
+  color: var(--txt-2);
+  text-overflow: ellipsis;
+}
+
 /* --- Celular: el panel no existe (tampoco se monta: src/barra/Barra.tsx) --- */
 @media (max-width: 35rem) {
   .cs {

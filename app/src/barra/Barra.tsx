@@ -1870,7 +1870,9 @@ export function Barra() {
           />
         ) : null}
         {/* El panel de consumo, a la derecha de todo. En el celular y por la tailnet no existe. */}
-        {consumo && consumoPosible ? <Consumo lideres={lideresVistos} hilos={todos} carpeta={carpetaVista} alCerrar={alternarConsumo} /> : null}
+        {consumo && consumoPosible ? (
+          <Consumo lideres={lideresVistos} hilos={todos} carpeta={carpetaVista} alCerrar={alternarConsumo} alAbrirHilo={abrir} alAbrirLider={abrirLider} />
+        ) : null}
       </div>
     </MotionConfig>
     </SubAbierto>

@@ -37,7 +37,15 @@ test("lo que manda el main se valida: sin forma, vacío (sin dato), nunca un nú
     desde: 5,
     lideres: { "claude-opus-5-5": { entrada: 1, cacheCreado: "x", cacheLeido: -3, salida: 2 }, roto: 7 },
     workers: "no",
-    filas: { a: null, b: { modelo: 3, uso: { input_tokens: 9 }, compactaciones: 2, compactada: true, total: { m: { salida: 4 } } }, c: "x" },
+    filas: {
+      a: null,
+      b: { modelo: 3, uso: { input_tokens: 9 }, compactaciones: 2, compactada: true, total: { m: { salida: 4 } } },
+      c: "x",
+      d: { ultimo: { que: "herramienta", nombre: "Edit", detalle: "src/a.ts", extra: "no" } },
+      e: { ultimo: { que: "herramienta", nombre: "" } },
+      f: { ultimo: { que: "nada" } },
+      g: { ultimo: { que: "pensando" } },
+    },
   });
   assert.deepEqual(c.lideres, { "claude-opus-5-5": s(1, 0, 0, 2) });
   assert.deepEqual(c.workers, {});
@@ -49,8 +57,14 @@ test("lo que manda el main se valida: sin forma, vacío (sin dato), nunca un nú
     uso: { input_tokens: 9, cache_creation_input_tokens: 0, cache_read_input_tokens: 0, output_tokens: 0 },
     compactada: true,
     compactaciones: 2,
+    ultimo: null,
     total: { m: s(0, 0, 0, 4) },
   });
+  // El último paso: una herramienta con su nombre; lo que no tiene forma queda sin dato.
+  assert.deepEqual(c.filas.d?.ultimo, { que: "herramienta", nombre: "Edit", detalle: "src/a.ts" });
+  assert.equal(c.filas.e?.ultimo, null);
+  assert.equal(c.filas.f?.ultimo, null);
+  assert.deepEqual(c.filas.g?.ultimo, { que: "pensando", nombre: null, detalle: null });
 });
 
 test("el resumen: un renglón por modelo, el que más consumió arriba, y los totales", () => {
