@@ -271,7 +271,7 @@ export async function cmdMatar(pa: Pa, slug: string, a: { runId?: string; leer?:
       else {
         pa.io.err(`pa: hay ${writersVivos.length} workers escribiendo en '${slug}'${mios.length ? ` (${mios.length} tuyos)` : ""}; decime cuál con --id:\n`);
         for (const f of writersVivos) {
-          const tarea = [...leerCampo(f, "tarea")].slice(0, 70).join("");
+          const tarea = Buffer.from(leerCampo(f, "tarea")).subarray(0, 70).toString(); // %.70s: bytes, no caracteres
           pa.io.err(`    pa ${citar(slug)} --matar --id ${leerCampo(f, "id")}   # puesto ${leerCampo(f, "puesto")} · jefe ${leerCampo(f, "jefe")} · ${tarea}\n`);
         }
         salir(2);

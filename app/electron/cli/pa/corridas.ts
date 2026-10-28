@@ -51,10 +51,22 @@ export const esCarpeta = (f: string) => {
   }
 };
 
-/** Los nombres de una carpeta que cumplen `filtro`, ordenados (el glob de bash). Vacío si la carpeta no está. */
+/**
+ * El orden de un glob de bash (y de `sort`): el de la colación del locale. Con C/POSIX (o sin locale) es por bytes; con un locale
+ * UTF-8 de glibc la puntuación no cuenta en la primera pasada (`proy@2.running` va antes que `proy.running`), que es lo que hace
+ * ICU con `ignorePunctuation`.
+ */
+export function comparadorGlob(env: Record<string, string | undefined> = process.env): (a: string, b: string) => number {
+  const loc = env.LC_ALL || env.LC_COLLATE || env.LANG || "";
+  if (!loc || loc === "C" || loc === "POSIX" || loc.startsWith("C.")) return (a, b) => (a < b ? -1 : a > b ? 1 : 0);
+  return new Intl.Collator(undefined, { ignorePunctuation: true }).compare;
+}
+const COMPARAR = comparadorGlob();
+
+/** Los nombres de una carpeta que cumplen `filtro`, en el orden del glob de bash. Vacío si la carpeta no está. */
 export function listar(dir: string, filtro: (n: string) => boolean = () => true): string[] {
   try {
-    return readdirSync(dir).filter(filtro).sort();
+    return readdirSync(dir).filter(filtro).sort(COMPARAR);
   } catch {
     return [];
   }
