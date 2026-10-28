@@ -156,6 +156,19 @@ test("aResultado: opencode 2.x no cierra el último paso: un paso abierto con te
   assert.deepEqual(r.modelUsage.m, { inputTokens: 7, cacheReadInputTokens: 0, cacheCreationInputTokens: 0, outputTokens: 1 });
 });
 
+test("aResultado: opencode a veces no emite el step_start del paso que sigue a una herramienta: el texto igual es el segundo turno", () => {
+  const sinStep2 = [
+    { type: "step_start", sessionID: "ses_3", part: {} },
+    { type: "tool_use", sessionID: "ses_3", part: { tool: "bash" } },
+    { type: "step_finish", sessionID: "ses_3", part: { reason: "tool-calls", cost: 0, tokens: { input: 7, output: 1, reasoning: 0, cache: { read: 0, write: 0 } } } },
+    { type: "text", sessionID: "ses_3", part: { text: "listo" } },
+  ];
+  const r = aResultado({ eventos: sinStep2, modelo: "m", rc: 0, stderr: "", segundos: 1, gratis: false });
+  assert.equal(r.is_error, false);
+  assert.equal(r.result, "listo");
+  assert.equal(r.num_turns, 2);
+});
+
 test("config.mjs (pa) y opencode.ts (app) dicen lo mismo", () => {
   for (const id of ["opencode:opencode/beam-free", "opencode:openrouter/qwen/qwen3:free", "opencode:", "opencode:x", "dsh:opencode/big-pickle", "opencode:a b/c"]) assert.deepEqual(cfg.parsearModelo(id), app.parsearModelo(id), id);
   for (const id of ["opencode/beam-free", "opencode:opencode/big-pickle", "opencode/gpt-5", "anthropic/claude"]) assert.equal(cfg.esGratis(id), app.esGratis(id), id);
