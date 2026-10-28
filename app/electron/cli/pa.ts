@@ -1,6 +1,6 @@
 // pa — el `pa` de TypeScript (dist-electron/cli/pa.js; en Windows lo busca binario.ts). Etapa 11: despacha cada modo a su pieza
 // (lanzar en primer plano y --async, esperar, parar, matar, integrar, descartar, ramas, lecciones, auditar, estado). Lo que todavía
-// vive sólo en motor/bin/pa (hilos, rinde, bien, modelos, otros motores…) explica eso por stderr y sale 70 SIN haber hecho nada: el
+// vive sólo en motor/bin/pa (otros motores…) explica eso por stderr y sale 70 SIN haber hecho nada: el
 // envoltorio de motor/bin/pa (TRAMA_PA=ts) vuelve entonces al bash.
 import { spawnSync } from "node:child_process";
 import { esPrincipal } from "./base/principal.ts";
