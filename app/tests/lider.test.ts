@@ -1,6 +1,7 @@
 // Los líderes de la app: argv y entorno de `claude`, el stream-json (con el
 // claude falso de scripts/), el transcript y `lideres.json`.
 import { test } from "node:test";
+import { soloPosix } from "./plataforma.ts";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { mkdtempSync, readFileSync } from "node:fs";
@@ -92,7 +93,7 @@ test("argv rechaza lo que sería un flag o tiene espacios", () => {
   assert.throws(() => argvLider({ ...base, sid: "../../etc" }));
 });
 
-test("entorno: sin CLAUDE*, CLAUDECODE, ANTHROPIC_* ni PA_* (salvo PA_STATE); ~/.local/bin adelante", () => {
+test("entorno: sin CLAUDE*, CLAUDECODE, ANTHROPIC_* ni PA_* (salvo PA_STATE); ~/.local/bin adelante", { skip: soloPosix("rutas y PATH de Linux; claude falso por shebang") }, () => {
   const env = entornoLider(
     {
       PATH: "/usr/bin:/home/ana/.local/bin",
@@ -116,7 +117,7 @@ test("entorno: sin CLAUDE*, CLAUDECODE, ANTHROPIC_* ni PA_* (salvo PA_STATE); ~/
   assert.equal(entornoLider({}, HOME).PATH, "/home/ana/.local/bin");
 });
 
-test("líder nuevo: corre en el home, sin proyecto que elegir (como abrir Claude Code en ~)", () => {
+test("líder nuevo: corre en el home, sin proyecto que elegir (como abrir Claude Code en ~)", { skip: soloPosix("rutas y PATH de Linux; claude falso por shebang") }, () => {
   const o = opcionesLider({ PATH: "/usr/bin", HOME, PWD: "/home/ana/Proyectos/hilos" }, HOME);
   assert.equal(o.cwd, HOME);
   assert.equal(o.env.PATH, "/home/ana/.local/bin:/usr/bin");
@@ -288,7 +289,7 @@ test("transcript: como pa --hilo (texto de usuario, mismo mensaje junto, sin sub
   assert.equal(dirProyecto("/home/ana/.local/state"), "-home-ana--local-state");
 });
 
-test("claude falso: un turno por stdin sale como deltas, mensaje y fin; el interrupt corta", async () => {
+test("claude falso: un turno por stdin sale como deltas, mensaje y fin; el interrupt corta", { skip: soloPosix("rutas y PATH de Linux; claude falso por shebang") }, async () => {
   const dir = mkdtempSync(path.join(os.tmpdir(), "lider-"));
   const log = path.join(dir, "log");
   const argv = argvLider({ modelo: "claude-sonnet-5-5", effort: "high", sid: SID, nombre: "trama-0a1b", resume: false });

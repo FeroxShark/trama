@@ -57,7 +57,7 @@ function entorno(sobre = {}) {
       p.stderr.on("data", (d) => (stderr += d));
       p.on("close", (code) => res({ code, stdout, stderr }));
       // /home/* del bash de prueba es el de esta máquina: se lo cambia por una carpeta de la prueba.
-      p.stdin.end(input.replace("for d in /home/*;", `for d in ${e.dir}/otros/*;`));
+      p.stdin.end(input.replace("for d in /home/*;", `for d in ${e.dir.replaceAll("\\", "/")}/otros/*;`));
     });
   };
   e.win_ = {

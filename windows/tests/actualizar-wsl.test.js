@@ -13,6 +13,8 @@ const { crearLimpieza } = require(path.join(REPO_WIN, "src/limpieza"));
 const { esDeRelleno } = require(path.join(REPO_WIN, "src/actualizar"));
 
 const DISTRO = "Ubuntu-24.04";
+// El camino viejo con WSL se prueba con un «wsl» falso hecho de scripts bash; en Windows nativo no hay bash (regla fija del port).
+const SIN_BASH = process.platform === "win32" ? "camino WSL: necesita bash, que Windows nativo no tiene" : false;
 
 const ARCHIVOS_USUARIO = [
   [".claude/.credentials.json", JSON.stringify({ claudeAiOauth: { accessToken: "tok-secreto-claude", refreshToken: "ref-1", expiresAt: 1999999999000 } })],
@@ -55,7 +57,7 @@ function hashesDe(home, lista = ARCHIVOS_USUARIO) {
 }
 
 function escribirEjecutable(ruta, lineas) {
-  const conShebang = lineas[0]?.startsWith("#!") ? lineas : ["#!/bin/sh", ...lineas];
+  const conShebang = lineas[0]?.startsWith("#!") ? lineas : ["#!/usr/bin/env bash", ...lineas];
   fs.writeFileSync(ruta, conShebang.join("\n") + "\n", { mode: 0o755 });
 }
 
@@ -185,7 +187,7 @@ function armarPayloadExportado(dirBase, { versionUi = "0.1.2", instalarLineas })
   return { payloadDir, version };
 }
 
-test("actualizar 0.1.1 -> 0.1.2: recompila y reinicia el motor en WSL y deja idénticos (SHA-256) logins, config, sesiones, proyectos y tablero", async () => {
+test("actualizar 0.1.1 -> 0.1.2: recompila y reinicia el motor en WSL y deja idénticos (SHA-256) logins, config, sesiones, proyectos y tablero", { skip: SIN_BASH }, async () => {
   const env = crearEntorno011();
   try {
     const hashesAntes = hashesDe(env.home);
@@ -299,7 +301,7 @@ test("actualizar 0.1.1 -> 0.1.2: recompila y reinicia el motor en WSL y deja id�
   }
 });
 
-test("actualizar 0.1.1 -> 0.1.2: si instalar-producto.sh falla a mitad, restaura el motor 0.1.1 y no toca credenciales", async () => {
+test("actualizar 0.1.1 -> 0.1.2: si instalar-producto.sh falla a mitad, restaura el motor 0.1.1 y no toca credenciales", { skip: SIN_BASH }, async () => {
   const env = crearEntorno011();
   try {
     const hashesAntes = hashesDe(env.home);

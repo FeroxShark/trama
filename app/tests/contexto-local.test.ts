@@ -1,6 +1,7 @@
 // El contexto de Ana para un líder local: los CLAUDE.md sin lo del jefe, el índice de memoria y los hooks de arranque, con tope.
 // Todo en una carpeta temporal y un hook de mentira: ni GPU, ni el `tablero` ni el `~` de verdad.
 import { test } from "node:test";
+import { soloPosix } from "./plataforma.ts";
 import assert from "node:assert/strict";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
@@ -55,7 +56,7 @@ test("recortar y tokens: corta en una línea y dice dónde está el archivo ente
   assert.equal(topeParaCtx(262144), 15000);
 });
 
-test("carpetasDe y memoriaDe: de ~ hacia el cwd, y la memoria con la regla de Claude Code", () => {
+test("carpetasDe y memoriaDe: de ~ hacia el cwd, y la memoria con la regla de Claude Code", { skip: soloPosix("hook y carpetas de Linux (bash, ~/.claude)") }, () => {
   assert.deepEqual(carpetasDe("/h", "/h"), ["/h"]);
   assert.deepEqual(carpetasDe("/h", "/h/a/b"), ["/h", "/h/a", "/h/a/b"]);
   assert.deepEqual(carpetasDe("/h", "/otro/lado"), ["/otro/lado"]);
@@ -93,7 +94,7 @@ async function casa() {
   return home;
 }
 
-test("armarContexto en ~: globales + CLAUDE.md sin jefe + hook + memoria; nada de workers ni de la tabla de modelos", async () => {
+test("armarContexto en ~: globales + CLAUDE.md sin jefe + hook + memoria; nada de workers ni de la tabla de modelos", { skip: soloPosix("hook y carpetas de Linux (bash, ~/.claude)") }, async () => {
   const home = await casa();
   try {
     const memo = memoriaDe(home, home);
@@ -114,7 +115,7 @@ test("armarContexto en ~: globales + CLAUDE.md sin jefe + hook + memoria; nada d
   }
 });
 
-test("armarContexto en un proyecto: suma su CLAUDE.md con lo que queda del tope, y lo recorta", async () => {
+test("armarContexto en un proyecto: suma su CLAUDE.md con lo que queda del tope, y lo recorta", { skip: soloPosix("hook y carpetas de Linux (bash, ~/.claude)") }, async () => {
   const home = await casa();
   try {
     const proy = path.join(home, "Proyectos", "uno");

@@ -1,6 +1,7 @@
 // El aislamiento de las corridas de prueba (electron/aislar.ts): qué cuenta como dato de Ana.
 import assert from "node:assert/strict";
 import test from "node:test";
+import { soloPosix } from "./plataforma.ts";
 
 const { crearAislamiento, codigoSalida } = await import("../electron/aislar.ts");
 
@@ -10,7 +11,7 @@ const armar = () => {
   return { a, anotadas };
 };
 
-test("lo de Ana: bajo el home y fuera del checkout", () => {
+test("lo de Ana: bajo el home y fuera del checkout", { skip: soloPosix("rutas /home/ana de Linux; en Windows las rutas son otras") }, () => {
   const { a } = armar();
   assert.equal(a.ajeno("/home/ana/.claude/projects/x.jsonl"), true);
   assert.equal(a.ajeno("/home/ana/.local/state/hilos/nombres.json"), true);
@@ -28,7 +29,7 @@ test("no es de Ana: el checkout, /tmp, el home mismo y lo de otro lado", () => {
   assert.equal(a.ajeno("/usr/lib/x"), false);
 });
 
-test("un binario: el nombre suelto cuenta, /tmp y el checkout no", () => {
+test("un binario: el nombre suelto cuenta, /tmp y el checkout no", { skip: soloPosix("rutas /home/ana de Linux; en Windows las rutas son otras") }, () => {
   const { a } = armar();
   assert.equal(a.binarioAjeno("claude"), true);
   assert.equal(a.binarioAjeno("/home/ana/.local/bin/pa"), true);
@@ -37,7 +38,7 @@ test("un binario: el nombre suelto cuenta, /tmp y el checkout no", () => {
   assert.equal(a.binarioAjeno("/usr/bin/env"), false);
 });
 
-test("un nombre suelto cuenta sólo si el PATH tiene carpetas del home", () => {
+test("un nombre suelto cuenta sólo si el PATH tiene carpetas del home", { skip: soloPosix("rutas /home/ana de Linux; en Windows las rutas son otras") }, () => {
   const limpio = crearAislamiento({ home: ["/home/ana"], permitidas: [], temporales: ["/tmp"], camino: () => "/usr/bin:/bin", anotar: () => {} });
   assert.equal(limpio.binarioAjeno("git"), false);
   const sucio = crearAislamiento({ home: ["/home/ana"], permitidas: [], temporales: ["/tmp"], camino: () => "/usr/bin:/home/ana/.local/bin", anotar: () => {} });

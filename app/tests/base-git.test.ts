@@ -42,7 +42,7 @@ test("argvWorktreeAdd: rama nueva, rama existente, detach", () => {
 });
 
 test("repo real: worktreeAdd / list / remove, y la config fija llega a git", async () => {
-  const base = realpathSync(mkdtempSync(path.join(os.tmpdir(), "base-git-")));
+  const base = realpathSync.native(mkdtempSync(path.join(os.tmpdir(), "base-git-")));
   const repo = path.join(base, "repo");
   execFileSync("git", ["init", "-q", "-b", "main", repo]);
   const env = { ...process.env, GIT_AUTHOR_NAME: "t", GIT_AUTHOR_EMAIL: "t@t", GIT_COMMITTER_NAME: "t", GIT_COMMITTER_EMAIL: "t@t", GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_SYSTEM: "/dev/null" };

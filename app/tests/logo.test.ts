@@ -1,4 +1,5 @@
 import { test } from "node:test";
+import { soloPosix } from "./plataforma.ts";
 import assert from "node:assert/strict";
 import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
 import os from "node:os";
@@ -25,7 +26,7 @@ test("el tono es de la paleta y siempre el mismo para el mismo nombre", () => {
   assert.ok(usados.size >= 4, "ocho nombres distintos no caen todos en los mismos tonos");
 });
 
-test("candidatos: primero el del registry, después los lugares fijos", () => {
+test("candidatos: primero el del registry, después los lugares fijos", { skip: soloPosix("rutas POSIX (/p/atlas/docs/marca.png)") }, () => {
   const c = candidatos({ ruta: "/p/atlas", icono: "docs/marca.png" });
   assert.equal(c[0], "/p/atlas/docs/marca.png");
   assert.equal(c.length, LUGARES.length + 1);

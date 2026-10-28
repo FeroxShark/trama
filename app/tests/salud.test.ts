@@ -2,6 +2,7 @@
 // de integradas.tsv / medicion.tsv (electron/salud.ts).
 // electron/ importa con `.js`: el hook lo lleva al `.ts`; el entorno va antes del import.
 import { test } from "node:test";
+import { soloPosix } from "./plataforma.ts";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
@@ -136,7 +137,7 @@ async function hasta(f: () => Promise<boolean>, ms = 10_000) {
   }
 }
 
-test("una corrida que pasa a integrado corre los tests en main y guarda el rojo por id", async () => {
+test("una corrida que pasa a integrado corre los tests en main y guarda el rojo por id", { skip: soloPosix("corre los tests de la corrida con sh") }, async () => {
   const ruta = path.join(tmp, "proy", "atlas");
   mkdirSync(ruta, { recursive: true });
   const git = (...a: string[]) => execFileSync("git", ["-C", ruta, ...a], { encoding: "utf8" }).trim();

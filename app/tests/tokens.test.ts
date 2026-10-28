@@ -37,6 +37,6 @@ test("los CSS ya pasados a tokens no tienen literales", () => {
   const salida = execFileSync(process.execPath, [path.join(raiz, "scripts/tokens-faltan.mjs"), "--resumen", ...hechos], {
     cwd: raiz,
     encoding: "utf8",
-  });
+  }).replaceAll("\\", "/"); // en Windows el script imprime src\x.css
   for (const f of hechos) assert.match(salida, new RegExp(`^${f.replace(/[./]/g, "\\$&")}: 0$`, "m"), salida);
 });

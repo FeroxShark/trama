@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
+import { spawnSync } from "node:child_process";
 import { readdirSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -16,11 +16,15 @@ test("windows/tests: actualización 0.1.1 -> 0.1.2, preservación SHA-256 de cue
   assert.ok(archivos.some((f) => f.endsWith("actualizar-wsl.test.js")));
   const env = { ...process.env };
   delete env.NODE_TEST_CONTEXT;
-  const out = execFileSync(process.execPath, ["--test", "--test-reporter=spec", ...archivos], {
+  const r = spawnSync(process.execPath, ["--test", "--test-reporter=spec", ...archivos], {
     cwd: path.join(raiz, "..", "windows"),
     env,
     encoding: "utf8",
+    maxBuffer: 64 * 1024 * 1024,
   });
+  const out = r.stdout ?? "";
+  // Si falla, que el log de CI diga cuál (antes sólo mostraba el comando).
+  assert.equal(r.status, 0, `windows/tests salió con ${r.status}:\n${out.split("\n").filter((l) => /^\s*(✖|ℹ (fail|pass))/.test(l)).join("\n")}\n${r.stderr ?? ""}`.slice(0, 6000));
   assert.match(out, /actualizar 0\.1\.1 -> 0\.1\.2: recompila y reinicia el motor en WSL/);
   assert.match(out, /fail 0/);
 });

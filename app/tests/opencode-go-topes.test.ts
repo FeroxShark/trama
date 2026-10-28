@@ -2,6 +2,7 @@
 // sin red. Acá: el parseo con una respuesta guardada (tests/fixtures/opencode-go.html y opencode-go-ids.json), el caché, el respaldo sin red y que
 // `reparto` y la app lean la misma fuente. Sin red de verdad: el `fetch` es de mentira.
 import { test, after } from "node:test";
+import { soloPosix } from "./plataforma.ts";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, utimesSync, writeFileSync } from "node:fs";
@@ -73,7 +74,7 @@ test("armarTabla: ids emparejados con la lista de OpenCode (aunque cambien los s
   assert.equal(new Set(t.modelos.map((m: { id: string }) => m.id)).size, 12);
 });
 
-test("refrescar: lee la página, escribe el caché con la fecha de lectura; la app y el reparto lo leen como `cache`", async () => {
+test("refrescar: lee la página, escribe el caché con la fecha de lectura; la app y el reparto lo leen como `cache`", { skip: soloPosix("corre un script con shebang") }, async () => {
   const d = carpeta();
   const cache = path.join(d, "opencode-go-topes.json");
   const r = await refrescar({ cache, fetch: fetchFixture(), ahora: AHORA, respaldo: RESPALDO, env: {} });

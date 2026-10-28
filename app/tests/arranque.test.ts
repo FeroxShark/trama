@@ -79,7 +79,7 @@ test("medir: una respuesta sin uso se dice, y lo medido antes sigue ahí", { ski
   assert.equal((await nuevo({}, estado).leer())?.total, 33480);
 });
 
-test("leer: un archivo de otra versión o roto es como si no hubiera", async () => {
+test("leer: un archivo de otra versión o roto es como si no hubiera", { skip: soloPosix("ejecuta claude-falso.mjs por shebang") }, async () => {
   const estado = path.join(tmp, "roto");
   const a = nuevo({}, estado);
   await a.medir();

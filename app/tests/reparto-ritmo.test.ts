@@ -1,7 +1,8 @@
 // Ritmo semanal, reserva del líder, perfiles y plan de `reparto` (motor/bin/reparto): una suscripción que va por encima del ritmo que
 // termina la semana en ~100 % cede a los gratis/Google; por debajo y cerca del reinicio, se usa más. Todo con cupos, hora y modelos
 // fijos por entorno (REPARTO_CUPOS_FIJOS / REPARTO_AHORA / TZ=UTC): no mira nada real.
-import { test, after, beforeEach } from "node:test";
+import { after, beforeEach } from "node:test";
+import { testPosix as test } from "./plataforma.ts";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { mkdtempSync, existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";

@@ -1,7 +1,8 @@
 // `reparto --tabla [--json]` (motor/bin/reparto): todos los modelos que conoce, con inteligencia (estimada por el nombre si nadie la fijó),
 // gratis/pago, cupo, urgencia y si `excluir` los permite; y la prioridad por plan (Claude que se reinicia pronto con cupo de sobra gana a un
 // gratis de OpenCode; con poco cupo y reset lejano gana el gratis). Cupos, hora y modelos fijos por entorno: no mira nada real.
-import { test, after } from "node:test";
+import { after } from "node:test";
+import { testPosix as test } from "./plataforma.ts";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";

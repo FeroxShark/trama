@@ -1,6 +1,7 @@
 // Ajustes > DeepSeek Harness en el main (electron/dsh-ajustes.ts): si `dsh` está instalado y su versión, instalarlo, qué keys hay (sólo si
 // hay, nunca el valor) y probar un proveedor contra su `/models` con la key guardada. Todo con dependencias inyectadas: ni red, ni npm, ni dsh.
 import { test, after } from "node:test";
+import { soloPosix } from "./plataforma.ts";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import http from "node:http";
@@ -22,7 +23,7 @@ const deps = (hay: string[], corre: (bin: string, args: string[]) => Promise<str
 });
 const enEs = async (p: Promise<unknown>) => p.then(() => null, (e: Error) => e.message);
 
-test("estado: sin dsh no está instalado; con dsh sale su versión; las keys sólo dicen si hay", async () => {
+test("estado: sin dsh no está instalado; con dsh sale su versión; las keys sólo dicen si hay", { skip: soloPosix("dsh y npm falsos por shebang") }, async () => {
   const sin = await estadoDsh(deps([]), {});
   assert.deepEqual(sin, { version: 1, instalado: false, versionDsh: null, hayNpm: false, comando: COMANDO_INSTALAR_DSH, claves: { OPENCODE_API_KEY: false, DEEPSEEK_API_KEY: false, ARTIFICIAL_ANALYSIS_API_KEY: false } });
   const con = await estadoDsh(deps(["/b/dsh", "/a/npm"]), { OPENCODE_API_KEY: "oc-secreta" });
@@ -37,7 +38,7 @@ test("estado: sin dsh no está instalado; con dsh sale su versión; las keys só
   assert.equal(raro.versionDsh, null);
 });
 
-test("hayDsh: HILOS_DSH manda; una captura no lo prende sola; si no, lo que encuentra resolverDsh", () => {
+test("hayDsh: HILOS_DSH manda; una captura no lo prende sola; si no, lo que encuentra resolverDsh", { skip: soloPosix("dsh y npm falsos por shebang") }, () => {
   const si = (f: string) => f === "/x/dsh";
   assert.equal(hayDsh({ HILOS_DSH: "/x/dsh" }, "/h", si), true);
   assert.equal(hayDsh({ HILOS_DSH: "/no/dsh" }, "/h", si), false);
@@ -47,7 +48,7 @@ test("hayDsh: HILOS_DSH manda; una captura no lo prende sola; si no, lo que encu
   assert.equal(hayDsh({ PATH: "/y" }, "/h", si), false);
 });
 
-test("instalar: corre `npm install -g --prefix ~/.local @deepseek-ai/dsh` y devuelve el estado; sin npm o si npm falla, el motivo con el comando", async () => {
+test("instalar: corre `npm install -g --prefix ~/.local @deepseek-ai/dsh` y devuelve el estado; sin npm o si npm falla, el motivo con el comando", { skip: soloPosix("dsh y npm falsos por shebang") }, async () => {
   const llamadas: string[][] = [];
   let instalado = false;
   const d = deps(["/a/npm"], async (bin, args) => {

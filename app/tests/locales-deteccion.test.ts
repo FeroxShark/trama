@@ -98,7 +98,7 @@ test('parsearUnit ignora units que no son llama-server ni vllm', () => {
   assert.equal(p, null);
 });
 
-test('detectarUnits encuentra units y respeta estado apagado', async () => {
+test('detectarUnits encuentra units y respeta estado apagado', { skip: soloPosix("units de systemd y ggufs bajo /home") }, async () => {
   const fakeDeps: DepsDeteccion = {
     home: '/home/usuario',
     env: {},
@@ -158,7 +158,7 @@ test('detectarPuertos detecta servidor prendido en puerto abierto', async () => 
   assert.equal(res[0].url, 'http://127.0.0.1:1234');
 });
 
-test('detectarArchivosGguf encuentra ggufs no cubiertos por units', async () => {
+test('detectarArchivosGguf encuentra ggufs no cubiertos por units', { skip: soloPosix("units de systemd y ggufs bajo /home") }, async () => {
   const fakeDeps: DepsDeteccion = {
     home: '/home/usuario',
     env: {},

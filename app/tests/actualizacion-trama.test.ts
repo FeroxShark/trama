@@ -8,6 +8,7 @@ import { registerHooks } from "node:module";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { configTrama } from "../electron/rutas.ts";
 
 registerHooks({
   resolve(spec, ctx, next) {
@@ -91,7 +92,7 @@ test("pasosActualizar: fetch --tags, checkout --detach refs/tags/<tag> y el inst
     [
       ["git", "fetch", "--tags"],
       ["git", "-c", "advice.detachedHead=false", "checkout", "--detach", "refs/tags/v0.3.1"],
-      ["bash", "/home/u/trama/motor/scripts/instalar-producto.sh", "--fuente", dir],
+      ["bash", path.join(dir, "motor", "scripts", "instalar-producto.sh"), "--fuente", dir],
     ],
   );
   for (const x of p) assert.equal(x.cwd, dir);
@@ -126,9 +127,11 @@ function checkoutFalso(ok = true) {
 }
 function configCon(linea: string | null) {
   const cfg = mkdtempSync(path.join(tmp, "cfg-"));
-  mkdirSync(path.join(cfg, "trama"), { recursive: true });
-  if (linea !== null) writeFileSync(path.join(cfg, "trama", "checkout"), linea);
-  return { XDG_CONFIG_HOME: cfg, HOME: cfg } as NodeJS.ProcessEnv;
+  const env = { XDG_CONFIG_HOME: cfg, HOME: cfg, USERPROFILE: cfg, LOCALAPPDATA: cfg } as NodeJS.ProcessEnv;
+  const dir = configTrama(env);
+  mkdirSync(dir, { recursive: true });
+  if (linea !== null) writeFileSync(path.join(dir, "checkout"), linea);
+  return env;
 }
 
 test("leerCheckout: la ruta anotada si sigue siendo un checkout de Trama; si no, null", () => {

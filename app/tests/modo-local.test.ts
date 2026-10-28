@@ -1,7 +1,7 @@
 // El modo local (electron/modo-local.ts): el servidor en 127.0.0.1 sin Tailscale, y la detección de lo que hay
 // en la máquina (electron/capacidades.ts). Servidor de verdad en un puerto libre; nada toca la red de verdad.
 import { after } from "node:test";
-import { testPosix as test } from "./plataforma.ts";
+import { POSIX, testPosix as test } from "./plataforma.ts";
 import assert from "node:assert/strict";
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import http from "node:http";
@@ -144,7 +144,7 @@ after(() => servidorT.closeAllConnections?.() ?? servidorT.close());
 const pt = (servidorT.address() as net.AddressInfo).port;
 const hostT = `localhost:${pt}`;
 const archivoToken = path.join(config, "trama", "token");
-const token = readFileSync(archivoToken, "utf8").trim();
+const token = POSIX ? readFileSync(archivoToken, "utf8").trim() : ""; // en Windows el token vive en %LOCALAPPDATA%; sus pruebas son POSIX
 const rpc = (extra: http.OutgoingHttpHeaders = {}) =>
   pedirEn(pt, hostT, "/rpc", { "x-trama-cliente": "abcdef0123456789", origin: `http://${hostT}`, "content-type": "application/json", ...extra }, "POST", JSON.stringify({ canal: "x:y", args: [] }));
 

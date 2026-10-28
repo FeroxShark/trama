@@ -1,6 +1,7 @@
 // Dónde `reparto` (motor/bin/reparto) deja de usar cada proveedor: lo que el dueño fija en modelos.json (`reserva` para Claude, `topes_uso`
 // para Google y ChatGPT, `agy_min_libre_5h` para código en la ventana de 5 h de Google) cambia la elección. Cupos y hora fijos por entorno.
-import { test, after, beforeEach } from "node:test";
+import { after, beforeEach } from "node:test";
+import { testPosix as test } from "./plataforma.ts";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";

@@ -2,6 +2,7 @@
 // la caché de 24 h con reloj inyectado, el servidor falso por HTTP de verdad (header x-api-key, segunda ruta si la primera da 404) y que la
 // key no aparezca en ningún mensaje ni en la caché. Sin red real: la API no se puede alcanzar desde los tests.
 import { test, after } from "node:test";
+import { soloPosix } from "./plataforma.ts";
 import assert from "node:assert/strict";
 import http from "node:http";
 import { mkdtempSync, readFileSync, rmSync, existsSync } from "node:fs";
@@ -160,7 +161,7 @@ test("servidor falso por HTTP: manda x-api-key, la primera ruta 404 pasa a la se
   }
 });
 
-test("rutaCacheAA: REPARTO_AA manda ('0' la apaga), si no el estado de reparto como el motor; sin archivo o roto no hay caché", async () => {
+test("rutaCacheAA: REPARTO_AA manda ('0' la apaga), si no el estado de reparto como el motor; sin archivo o roto no hay caché", { skip: soloPosix("compara rutas POSIX (/e/aa-modelos.json)") }, async () => {
   assert.equal(rutaCacheAA({ REPARTO_AA: "/x/y.json" }), "/x/y.json");
   assert.equal(rutaCacheAA({ REPARTO_AA: "0" }), null);
   assert.equal(rutaCacheAA({ REPARTO_STATE: "/e" }), "/e/aa-modelos.json");

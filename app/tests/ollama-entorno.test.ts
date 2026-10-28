@@ -1,6 +1,7 @@
 // Qué hay en la máquina para correr Ollama (electron/ollama-entorno.ts) con `Deps` FALSOS: nunca corre `nvidia-smi` ni
 // `systemctl` de verdad, y se mira que sólo se llame a lo que lee (nombre y memoria, lista de units), jamás a algo que cargue un modelo.
 import { test } from "node:test";
+import { soloPosix } from "./plataforma.ts";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { existsSync } from "node:fs";
@@ -107,7 +108,7 @@ test("Arch con NVIDIA, sin Ollama: ollama-cuda, la GPU a la vista y sólo se lee
   assert.deepEqual(llamadas.find((l) => l.bin !== "systemctl")?.args, ["--query-gpu=name,memory.total", "--format=csv,noheader,nounits"]);
 });
 
-test("Ubuntu con Ollama instalado y su servicio, GPU AMD con memoria de sysfs", async () => {
+test("Ubuntu con Ollama instalado y su servicio, GPU AMD con memoria de sysfs", { skip: soloPosix("ollama de Linux (systemd, sysfs)") }, async () => {
   const e = await leerEntornoOllama(
     deps({
       ejecutables: ["/usr/bin/ollama"],
@@ -121,7 +122,7 @@ test("Ubuntu con Ollama instalado y su servicio, GPU AMD con memoria de sysfs", 
   assert.deepEqual(e.arrancar, { via: "systemd", comando: "sudo systemctl enable --now ollama" });
 });
 
-test("instalado pero sin unit de systemd (a mano en ~/.local/bin): se arranca con ollama serve", async () => {
+test("instalado pero sin unit de systemd (a mano en ~/.local/bin): se arranca con ollama serve", { skip: soloPosix("ollama de Linux (systemd, sysfs)") }, async () => {
   const e = await leerEntornoOllama(deps({ ejecutables: ["/home/ana/.local/bin/ollama"], units: "", archivos: { "/etc/os-release": UBUNTU, "/run/systemd/system": "" } }));
   assert.equal(e.instalado, true);
   assert.equal(e.arrancar.via, "serve");

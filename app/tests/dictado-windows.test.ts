@@ -1,6 +1,7 @@
 // Dictar desde WSL (electron/dictado-windows.ts): el `handy.exe` de Windows y el reconocedor que Windows trae, con un
 // disco y un `Ejecutar` falsos. Nada de Windows ni de Handy de verdad.
 import { test, after } from "node:test";
+import { soloPosix } from "./plataforma.ts";
 import assert from "node:assert/strict";
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import os from "node:os";
@@ -22,7 +23,7 @@ const nada = async () => {
   throw new Error("no debería correr nada");
 };
 
-test("handyExeEnMnt: el de AppData\\Local de cualquier usuario, sin importar mayúsculas; ignora Public", () => {
+test("handyExeEnMnt: el de AppData\\Local de cualquier usuario, sin importar mayúsculas; ignora Public", { skip: soloPosix("detección de Handy/wslpath: desde WSL, no desde Windows nativo") }, () => {
   const disco = discoCon({
     "/mnt/c/Users": ["Public", "gonza"],
     "/mnt/c/Users/gonza/AppData/Local/Handy": ["Handy.exe", "uninstall.exe"],
@@ -54,7 +55,7 @@ test("esWsl: por la variable o por el interop", () => {
   assert.equal(esWsl({}, () => false), false);
 });
 
-test("motoresDictado: con handy de Linux, sólo ése; fuera de WSL sin Handy, ninguno", async () => {
+test("motoresDictado: con handy de Linux, sólo ése; fuera de WSL sin Handy, ninguno", { skip: soloPosix("detección de Handy/wslpath: desde WSL, no desde Windows nativo") }, async () => {
   const solo = async (env: Record<string, string>, ejec = (f: string) => f === "/usr/bin/handy") =>
     motoresDictado({ env, home: "/h", correr: nada, disco: discoCon({}), esEjecutable: ejec });
   const a = await solo({ PATH: "/usr/bin", ...WSL });
@@ -62,7 +63,7 @@ test("motoresDictado: con handy de Linux, sólo ése; fuera de WSL sin Handy, ni
   assert.deepEqual(await solo({ PATH: "/usr/bin" }, () => false), []);
 });
 
-test("motoresDictado: en WSL sin handy de Linux, el .exe y detrás System.Speech; sin .exe, sólo System.Speech", async () => {
+test("motoresDictado: en WSL sin handy de Linux, el .exe y detrás System.Speech; sin .exe, sólo System.Speech", { skip: soloPosix("detección de Handy/wslpath: desde WSL, no desde Windows nativo") }, async () => {
   const disco = discoCon({ "/mnt/c/Users": ["gonza"], "/mnt/c/Users/gonza/AppData/Local/Handy": ["handy.exe"] });
   const ps = (f: string) => f === "/mnt/c/WINDOWS/powershell.exe";
   const base = { env: { PATH: "/mnt/c/WINDOWS", ...WSL }, home: "/h", correr: async () => { throw new Error("sin where"); }, esEjecutable: ps };
@@ -87,7 +88,7 @@ test("argsSpeech: la ruta va entre comillas simples (y una comilla se duplica) y
 
 const wav = () => codificarWav(new Float32Array(1600).fill(0.25));
 
-test("transcribir con el .exe de Windows: le pasa la ruta traducida con wslpath -w y borra el WAV", async () => {
+test("transcribir con el .exe de Windows: le pasa la ruta traducida con wslpath -w y borra el WAV", { skip: soloPosix("detección de Handy/wslpath: desde WSL, no desde Windows nativo") }, async () => {
   const dir = path.join(tmp, "a");
   const vistos: string[][] = [];
   let archivo = "";
@@ -109,7 +110,7 @@ test("transcribir con el .exe de Windows: le pasa la ruta traducida con wslpath 
   assert.deepEqual(existsSync(dir) ? (await import("node:fs")).readdirSync(dir) : [], []);
 });
 
-test("transcribir: si el .exe falla o no dice nada se prueba System.Speech; si nada anda, se cuenta el primer fallo", async () => {
+test("transcribir: si el .exe falla o no dice nada se prueba System.Speech; si nada anda, se cuenta el primer fallo", { skip: soloPosix("detección de Handy/wslpath: desde WSL, no desde Windows nativo") }, async () => {
   const dir = path.join(tmp, "b");
   const motores = await motoresDictado({
     env: { ...WSL, PATH: "/w" }, home: "/h", correr: nada, esEjecutable: (f) => f === "/w/powershell.exe",

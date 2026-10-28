@@ -90,7 +90,7 @@ test("las imágenes llegan a agy como archivos: bytes intactos, la ruta en el pr
   assert.ok(!existsSync(path.dirname(ruta)));
 });
 
-test("«Mandar ya» con Gemini: corta a agy en un límite de paso y sigue en la misma conversación, con un solo fin", { timeout: 60_000 }, async () => {
+test("«Mandar ya» con Gemini: corta a agy en un límite de paso y sigue en la misma conversación, con un solo fin", { timeout: 60_000, skip: soloPosix("agy falso por shebang") }, async () => {
   const sid = await lider.nuevo({ ...M, texto: "herramienta despacio uno" });
   await hasta(() => de(sid, "hace").length > 0);
   const n0 = llamadas().length;
@@ -115,7 +115,7 @@ test("«Mandar ya» con Gemini: corta a agy en un límite de paso y sigue en la 
   assert.match(t, /YA-GEMINI/);
 });
 
-test("«Mandar ya» con Gemini sin turno en curso es un mensaje normal, y su eco igual llega", { timeout: 30_000 }, async () => {
+test("«Mandar ya» con Gemini sin turno en curso es un mensaje normal, y su eco igual llega", { timeout: 30_000, skip: soloPosix("agy falso por shebang") }, async () => {
   const sid = await lider.nuevo({ ...M, texto: "uno" });
   await hasta(() => de(sid, "fin").length === 1);
   await lider.mandarDirecto({ sid, texto: "normal", ...M });

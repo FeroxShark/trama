@@ -1,6 +1,7 @@
 // electron/opencode.ts: el modelo `opencode:<proveedor>/<modelo>`, qué es gratis, la lista de `opencode models`, dónde está el binario
 // y cómo se sabe si hay login. Sin opencode de verdad (la parte con binario está en opencode-puente.test.ts).
 import { test } from "node:test";
+import { soloPosix } from "./plataforma.ts";
 import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
@@ -25,7 +26,7 @@ test("parsearModelos: una línea <proveedor>/<modelo>, sin ruido ni repetidos", 
   assert.deepEqual(parsearModelos(sal), ["opencode/beam-free", "opencode/big-pickle", "amazon-bedrock/amazon.nova-lite-v1:0", "openrouter/qwen/qwen3-coder:free"]);
 });
 
-test("resolverOpencode / hayOpencode: HILOS_OPENCODE, PATH, ~/.opencode/bin", () => {
+test("resolverOpencode / hayOpencode: HILOS_OPENCODE, PATH, ~/.opencode/bin", { skip: soloPosix("rutas POSIX (~/.opencode/bin)") }, () => {
   const existe = (f: string) => f === "/h/.opencode/bin/opencode";
   assert.equal(resolverOpencode({ PATH: "/usr/bin" }, "/h", existe), "/h/.opencode/bin/opencode");
   assert.equal(resolverOpencode({ PATH: "/usr/bin" }, "/h", () => false), "opencode");

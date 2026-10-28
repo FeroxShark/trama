@@ -22,7 +22,7 @@ const enEs = (s: string) => {
   }
 };
 
-test("la ruta sale de XDG_CONFIG_HOME, de ~/.config o de TRAMA_CLAVES", () => {
+test("la ruta sale de XDG_CONFIG_HOME, de ~/.config o de TRAMA_CLAVES", { skip: soloPosix("la ruta de claves.env en Windows sale de %LOCALAPPDATA%") }, () => {
   assert.equal(rutaClaves({ XDG_CONFIG_HOME: "/x/cfg" }), "/x/cfg/trama/claves.env");
   assert.equal(rutaClaves({ HOME: "/home/u" }), "/home/u/.config/trama/claves.env");
   assert.equal(rutaClaves({ TRAMA_CLAVES: "/t/c.env", HOME: "/h" }), "/t/c.env");
