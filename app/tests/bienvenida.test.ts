@@ -105,3 +105,15 @@ test("excluir y permitir_max: se leen, se validan y se unen", () => {
   assert.equal("permitir_max" in nuevo, false);
   assert.equal(nuevo.rara, 1);
 });
+
+test('estadoLocales dice andando, apagado, instalado, ninguno o sin dato', () => {
+  const modelo = (estadoServidor: "prendido" | "apagado") => ({ id: "x", nombre: "x", origen: "archivo", origenDetalle: "x", servidor: "llama-server", estadoServidor, url: "", modelo: "x" });
+  const arnes = (nombre: string, instalado: boolean) => ({ id: "ollama", nombre, instalado, version: null, comando: "" });
+  const r = (modelos: ReturnType<typeof modelo>[], arneses: ReturnType<typeof arnes>[]) => ({ modelos, arneses, vramGpuMiB: null }) as never;
+  assert.deepEqual(pasos.estadoLocales(null), { estado: "sinDato", andando: 0, apagados: 0, arneses: [] });
+  assert.equal(pasos.estadoLocales(r([modelo("prendido"), modelo("apagado")], [])).estado, "andando");
+  assert.deepEqual(pasos.estadoLocales(r([modelo("prendido"), modelo("apagado")], [])), { estado: "andando", andando: 1, apagados: 1, arneses: [] });
+  assert.equal(pasos.estadoLocales(r([modelo("apagado")], [arnes("Ollama", true)])).estado, "apagado");
+  assert.deepEqual(pasos.estadoLocales(r([], [arnes("Ollama", true), arnes("dsh", false)])), { estado: "instalado", andando: 0, apagados: 0, arneses: ["Ollama"] });
+  assert.equal(pasos.estadoLocales(r([], [arnes("Ollama", false)])).estado, "ninguno");
+});

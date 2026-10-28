@@ -4,6 +4,7 @@
 import type { Dif } from "./datos/hilos-dif";
 import type { Imagen } from "../electron/imagenes";
 import type { EstadoLocales, ResultadoProbar } from "../electron/locales";
+import type { ResultadoDeteccion } from "../electron/locales-deteccion";
 import type { EstadoVram, ResultadoLiberar } from "../electron/vram";
 import type { EventoLider, Statusline } from "./datos/contrato";
 import type { DatosPasar, RamaBrief } from "../electron/asistente";
@@ -111,6 +112,8 @@ type Main = {
     leer(): Promise<EstadoLocales>;
     guardar(x: { id: string; ctx: number }): Promise<EstadoLocales>;
     probar(x: { id: string; ctx: number }): Promise<ResultadoProbar>;
+    /** Lo que hay instalado o andando en esta máquina (sólo se lee). */
+    detectar(): Promise<ResultadoDeteccion>;
   };
   /** Quién tiene la GPU y cómo liberarla (electron/vram.ts): la lista no toca nada; `liberar` para o reinicia un servicio (sólo con el clic). */
   vram: {

@@ -4,6 +4,7 @@ import type { Compactando } from "../../electron/compactando";
 import type { Subagente, Subagentes } from "../../electron/subagentes";
 import type { Imagen } from "../../electron/imagenes";
 import type { EstadoLocales, ResultadoProbar } from "../../electron/locales";
+import type { ModeloDetectado, ResultadoDeteccion } from "../../electron/locales-deteccion";
 import type { EstadoVram, ResultadoLiberar } from "../../electron/vram";
 import { MODELO_LARGE_V3, MODELO_TURBO, type ModelosDictado } from "../../electron/dictado-modelos";
 import { aplicarOpGuias, GUIAS_VACIO, normalizarGuias, type EstadoGuias, type OpGuias } from "../../electron/guias-estado";
@@ -128,6 +129,8 @@ export interface Fuente {
   elegirDictadoModelo(id: string): Promise<ModelosDictado>;
   /** Los modelos locales: el contexto de cada uno y cuánto entra en la VRAM (estimado). */
   locales(): Promise<EstadoLocales>;
+  /** Qué modelos locales hay (instalados, apagados o andando) y qué arneses; sólo se lee, no arranca nada. */
+  detectarLocales(): Promise<ResultadoDeteccion>;
   /** Guarda el `-c` de un modelo local (rige en su próxima carga; no carga nada). */
   guardarLocal(id: string, ctx: number): Promise<EstadoLocales>;
   /** Carga el modelo con ese `-c` para confirmar que entra (usa la GPU: sólo con el clic del usuario). */
@@ -782,6 +785,24 @@ function guiasLocal(op?: OpGuias): EstadoGuias {
   return guiasMemoria;
 }
 
+/** Sin la máquina: un Ollama andando con dos modelos y un GGUF apagado en disco. `mdl-apagado` deja sólo lo apagado; `mdl-sinollama` no hay nada. */
+function deteccionLocalesFalsa(): ResultadoDeteccion {
+  const v = MODO.variante ?? "";
+  const modelos: ModeloDetectado[] = [];
+  if (v !== "mdl-sinollama" && v !== "mdl-apagado") {
+    for (const modelo of ["qwen3-coder:30b", "llama3.2:3b"])
+      modelos.push({ id: `puerto:11434:${modelo}`, nombre: modelo, origen: "puerto", origenDetalle: "ollama (puerto 11434)", servidor: "ollama", estadoServidor: "prendido", url: "http://127.0.0.1:11434", modelo });
+  }
+  if (v !== "mdl-sinollama")
+    modelos.push({ id: "archivo:/home/usuario/models/gemma-3-4b.gguf", nombre: "gemma 3 4b", origen: "archivo", origenDetalle: "~/models/gemma-3-4b.gguf", servidor: "llama-server", estadoServidor: "apagado", url: "http://127.0.0.1:8080", modelo: "gemma-3-4b", archivoGguf: "/home/usuario/models/gemma-3-4b.gguf" });
+  const arneses = [
+    { id: "dsh" as const, nombre: "DeepSeek Harness (dsh)", instalado: false, version: null, comando: "" },
+    { id: "opencode" as const, nombre: "OpenCode", instalado: true, version: null, comando: "" },
+    { id: "ollama" as const, nombre: "Ollama", instalado: v !== "mdl-sinollama", version: null, comando: "" },
+  ];
+  return { modelos, arneses, vramGpuMiB: null };
+}
+
 /**
  * Las cuentas con fixtures: sin variante, el `cuentas` instalado con una cuenta por proveedor; `cuentas-sin` = sin el comando
  * (la lista es `null`); `cupos-cuentas` = Claude con la de siempre y «Trabajo». Se puede agregar, renombrar, quitar y conectar
@@ -1356,6 +1377,9 @@ const fija: Fuente = {
   },
   async locales() {
     return localesFalsos();
+  },
+  async detectarLocales() {
+    return deteccionLocalesFalsa();
   },
   async guardarLocal(id, ctx) {
     localesFalsos(id, ctx);
@@ -1964,6 +1988,11 @@ const conPa = (m: NonNullable<typeof main>): Fuente => ({
   },
   locales() {
     return m.locales.leer().catch((e) => {
+      throw new Error(mensaje(e));
+    });
+  },
+  detectarLocales() {
+    return m.locales.detectar().catch((e) => {
       throw new Error(mensaje(e));
     });
   },

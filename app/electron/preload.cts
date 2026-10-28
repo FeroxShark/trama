@@ -103,6 +103,7 @@ contextBridge.exposeInMainWorld("hilos", {
     leer: (): Promise<unknown> => ipcRenderer.invoke("locales:leer"),
     guardar: (x: unknown): Promise<unknown> => ipcRenderer.invoke("locales:guardar", x),
     probar: (x: unknown): Promise<unknown> => ipcRenderer.invoke("locales:probar", x),
+    detectar: (): Promise<unknown> => ipcRenderer.invoke("locales:detectar"),
   },
   /** Quién tiene la GPU y cómo liberarla (electron/vram.ts). */
   vram: {

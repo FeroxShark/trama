@@ -165,6 +165,7 @@ export const RUTAS: Readonly<Record<string, Ruta>> = {
   "locales:leer": "local",
   "locales:guardar": "local",
   "locales:probar": "local",
+  "locales:detectar": "local",
   "vram:leer": "local",
   "vram:liberar": "local",
   "lider:comandos": "local",

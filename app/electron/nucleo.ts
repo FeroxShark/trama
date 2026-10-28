@@ -8,6 +8,7 @@ import { modelosDictado, transcribir } from "./dictado.ts";
 import { MODELO_TURBO } from "./dictado-modelos.ts";
 import { guardarLocal, leerLocales, probarLocal } from "./locales.ts";
 import { vistaLocales } from "./locales-config.ts";
+import { detectarLocales } from "./locales-deteccion.ts";
 import { leerVram, liberarVram } from "./vram.ts";
 import { leerEntornoOllama } from "./ollama-entorno.ts";
 import { carpetaLocal } from "./local.ts";
@@ -1090,6 +1091,8 @@ export function armarNucleo() {
   manejar("locales:leer", () => leerLocales());
   manejar("locales:guardar", (_e, x: unknown) => guardarLocal(x));
   manejar("locales:probar", (_e, x: unknown) => probarLocal(x));
+  // Lo que hay instalado o andando en esta máquina (units, puertos, GGUF, arneses): sólo se lee, no arranca nada.
+  manejar("locales:detectar", () => detectarLocales());
   // Quién tiene la GPU y cómo liberarla (CLI `vram` (PATH o HILOS_VRAM)): la lista no toca nada; `vram:liberar` SÍ para un servicio, sólo con el clic.
   manejar("vram:leer", () => leerVram());
   manejar("vram:liberar", (_e, x: unknown) => liberarVram(x));

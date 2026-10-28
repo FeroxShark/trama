@@ -7,7 +7,7 @@ import { Fragment, useEffect, useRef, useState, useSyncExternalStore, type React
 import { createPortal } from "react-dom";
 import { carcasa } from "../carcasa";
 import { fuente, type CuentaEstado, type EstadoCuentas } from "../datos/fuente";
-import { fuentePaneles, type Ajustes, type ConfigModelos, type EstadoModelos, type EstadoRemoto, type Sondeo } from "../datos/paneles";
+import { fuentePaneles, type Ajustes, type ConfigModelos, type EstadoModelos, type EstadoRemoto } from "../datos/paneles";
 import { useFoco } from "../foco";
 import { cambiarIdioma, esIdioma, IDIOMAS, idioma, locale, t, textoMain, type Clave, type ClaveSola } from "../i18n";
 import { useIdioma } from "../i18n/react";
@@ -16,17 +16,20 @@ import { esVentana, mensaje } from "../puente";
 import { Boton, Chip, FilaAjuste, Interruptor, Tarjeta } from "../ui/componentes";
 import { IcCerrar, IcLocal, IcOk, ICONO } from "../ui/iconos";
 import { LogoCaja } from "../ui/logos";
+import type { ResultadoDeteccion } from "../../electron/locales-deteccion";
 import { cuentasDe, AgregarCuenta, CuentaFila, useCuentas } from "./CuentasVarias";
 import { UmbralCompactar } from "./UmbralCompactar";
 import {
   automaticoPrendido,
   COMPACTACION_SUGERIDA,
+  estadoLocales,
   excluirCon,
   FAMILIAS,
   familiasMarcadas,
   pasosVisibles,
   type Familia,
   type Paso,
+  type SituacionLocales,
 } from "./bienvenida-pasos";
 import "./bienvenida-logica.css";
 
@@ -61,8 +64,8 @@ export function Bienvenida() {
 type Datos = { modelos: EstadoModelos | null; ajustes: Ajustes | null; remoto: EstadoRemoto | null; cuentas: EstadoCuentas | null };
 
 /** Una fuente lenta (el motor reconectando) no deja la bienvenida sin abrir: a los 4 s se sigue sin ella. */
-const conTope = <T,>(p: Promise<T>): Promise<T | null> =>
-  Promise.race([p.catch(() => null), new Promise<null>((ok) => setTimeout(() => ok(null), 4000))]);
+const conTope = <T,>(p: Promise<T>, ms = 4000): Promise<T | null> =>
+  Promise.race([p.catch(() => null), new Promise<null>((ok) => setTimeout(() => ok(null), ms))]);
 
 type Nav = { atras: (() => void) | null; sig: () => void; primera: boolean; ultima: boolean };
 type Ctx = {
@@ -297,20 +300,37 @@ function estadoCuenta(c: CuentaEstado | null | undefined): { chip: ClaveSola; to
   return { chip: "bv.provSinConectar", cuenta: null, conectable: true };
 }
 
-const OLLAMA = "http://localhost:11434";
+/** El chip de cada situación de los modelos locales, y la línea de detalle con sus números (ver `estadoLocales`). */
+const CHIP_LOCALES: Record<SituacionLocales, ClaveSola> = {
+  andando: "bv.locAndando",
+  apagado: "bv.locApagado",
+  instalado: "bv.locInstalado",
+  ninguno: "bv.provNoInstalado",
+  sinDato: "bv.provSinDato",
+};
+
+function detalleLocales(s: ReturnType<typeof estadoLocales>): string | undefined {
+  if (s.estado === "andando") return t("bv.locAndandoD", { n: s.andando, m: s.apagados });
+  if (s.estado === "apagado") return t("bv.locApagadoD", { n: s.apagados });
+  if (s.estado === "instalado") return t("bv.locInstaladoD", { lista: s.arneses.join(", ") });
+  if (s.estado === "ninguno") return t("bv.locNingunoD");
+  return undefined;
+}
 
 function PasoProveedores({ ctx }: { ctx: Ctx }) {
   useIdioma();
   const { cuentas } = ctx.d;
   const puente = carcasa();
-  const [local, setLocal] = useState<Sondeo | null>(null);
+  const [local, setLocal] = useState<{ r: ResultadoDeteccion | null } | null>(null);
   const { refrescarCuentas } = ctx;
   const { lista, mirar: mirarCuentas } = useCuentas();
   useEffect(() => {
     let vivo = true;
-    void conTope(fuentePaneles.sondearOllama(OLLAMA)).then((s) => vivo && setLocal(s));
+    // Lo que hay en esta máquina (units, puertos, GGUF, arneses): sólo se lee, pero puede tardar más que lo demás.
+    void conTope(fuente.detectarLocales(), 8000).then((r) => vivo && setLocal({ r }));
     return () => void (vivo = false);
   }, []);
+  const sit = local ? estadoLocales(local.r) : null;
   // Al volver a la ventana (se cerró la consola donde se inició sesión) se mira de nuevo, sin reloj.
   useEffect(() => {
     window.addEventListener("focus", refrescarCuentas);
@@ -324,7 +344,6 @@ function PasoProveedores({ ctx }: { ctx: Ctx }) {
   // Las cuentas agregadas (no la de siempre): se listan aparte, con sus acciones.
   const extras = lista ? (["claude", "google"] as const).map((p) => ({ p, cs: cuentasDe(lista, p).filter((c) => !c.defecto) })).filter((x) => x.cs.length > 0) : [];
   const sinConectar = filas.some((f) => f.e.conectable);
-  const vivoLocal = local?.ok === true;
 
   return (
     <Hoja paso="proveedores">
@@ -349,12 +368,8 @@ function PasoProveedores({ ctx }: { ctx: Ctx }) {
         <FilaAjuste icono={<LogoCaja id="chatgpt" />} titulo={t("bv.provChatgpt")}>
           <Chip>{t("bv.provSinDato")}</Chip>
         </FilaAjuste>
-        <FilaAjuste
-          icono={<IcLocal {...ICONO} />}
-          titulo={t("bv.provLocal")}
-          detalle={local ? (vivoLocal ? t("bv.provLocalVivo", { n: local.modelos.length }) : t("bv.provLocalNo")) : undefined}
-        >
-          {local ? <Chip tono={vivoLocal ? "ok" : undefined}>{t(vivoLocal ? "bv.provConectado" : "bv.provNoInstalado")}</Chip> : null}
+        <FilaAjuste icono={<IcLocal {...ICONO} />} titulo={t("bv.provLocal")} detalle={sit ? detalleLocales(sit) : undefined}>
+          {sit ? <Chip tono={sit.estado === "andando" ? "ok" : undefined}>{t(CHIP_LOCALES[sit.estado])}</Chip> : null}
         </FilaAjuste>
       </Tarjeta>
       {extras.length > 0 ? (

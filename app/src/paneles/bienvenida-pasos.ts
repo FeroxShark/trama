@@ -1,6 +1,7 @@
 // La lógica pura de la bienvenida (src/paneles/Bienvenida.tsx): qué pasos hay, qué familias de modelos se pueden dejar de usar y cómo
 // se arma la lista `excluir` de modelos.json sin pisar lo que la persona ya tenía. Sin React ni imports de la app: la prueba el test.
 import { validarRed } from "../../electron/valida-ajustes";
+import type { ResultadoDeteccion } from "../../electron/locales-deteccion";
 
 export const PASOS = ["idioma", "proveedores", "automatico", "excluir", "max", "compactacion", "celular"] as const;
 export type Paso = (typeof PASOS)[number];
@@ -54,3 +55,15 @@ export function compactacionDe(texto: string): { valor: number | null; error: st
 
 /** El reparto automático está prendido salvo que el archivo diga `fijo` (sin archivo, de fábrica, prendido). */
 export const automaticoPrendido = (reparto: string | undefined): boolean => reparto !== "fijo";
+
+/** Qué se ve de los modelos locales: `andando` si algún servidor contesta, `apagado` si hay modelos y ninguno contesta, `instalado` si sólo hay un arnés (Ollama, OpenCode, dsh), `ninguno` si no hay nada y `sinDato` si no se pudo mirar. */
+export type SituacionLocales = "andando" | "apagado" | "instalado" | "ninguno" | "sinDato";
+
+export function estadoLocales(r: ResultadoDeteccion | null): { estado: SituacionLocales; andando: number; apagados: number; arneses: string[] } {
+  if (!r) return { estado: "sinDato", andando: 0, apagados: 0, arneses: [] };
+  const andando = r.modelos.filter((m) => m.estadoServidor === "prendido").length;
+  const apagados = r.modelos.length - andando;
+  const arneses = r.arneses.filter((a) => a.instalado).map((a) => a.nombre);
+  const estado: SituacionLocales = andando > 0 ? "andando" : r.modelos.length > 0 ? "apagado" : arneses.length > 0 ? "instalado" : "ninguno";
+  return { estado, andando, apagados, arneses };
+}
