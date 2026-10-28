@@ -130,8 +130,9 @@ function entorno(c: Contexto, extra: Record<string, string> = {}): NodeJS.Proces
     HOME: c.home,
     XDG_CONFIG_HOME: path.join(c.home, ".config"),
     TZ: "UTC",
-    // la locale de la máquina cambia el orden de `sort` y si `cut -c` corta bytes o caracteres: fija la de C como la TZ
-    LC_ALL: "C",
+    // la locale de la máquina cambia el orden de `sort` y si `wc -m`/`cut -c` cuentan bytes o caracteres: fija una UTF-8
+    // neutra (orden por código, caracteres) como la TZ; el `cut` de latido.sh pide bytes por su cuenta
+    LC_ALL: "C.UTF-8",
     PA_STATE: c.estado,
     STATE: c.estado,
     PA_PROJ: path.join(c.home, "claude-proyectos"),
