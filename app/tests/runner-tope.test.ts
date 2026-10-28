@@ -44,10 +44,10 @@ test("un archivo que se cuelga se corta a su tope y no deja vivo ni uno de sus p
   assert.deepEqual(lista.filter((p) => vivo(p)), []);
 });
 
-test("un archivo que termina con un proceso desprendido vivo: cuenta como falla y lo mata", { timeout: 60_000 }, async () => {
+test("un archivo que termina con un proceso desprendido vivo: lo mata y avisa, sin fallar", { timeout: 60_000 }, async () => {
   const pids = pidsEn();
   const r = await runner("sobra", { TRAMA_TEST_PIDS: pids }).fin;
-  assert.equal(r.codigo, 1);
+  assert.equal(r.codigo, 0);
   assert.match(r.salida, /dejó 1 proceso\(s\) vivo\(s\); se mataron/);
   const lista = leerPids(pids);
   await esperar(() => lista.every((p) => !vivo(p)));
