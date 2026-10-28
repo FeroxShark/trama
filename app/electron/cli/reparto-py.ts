@@ -252,7 +252,7 @@ export function fnmatchcase(nombre: string, patron: string): boolean {
           const esc = dentro.replace(/[\\\]^]/g, (m) => "\\" + m);
           s += neg ? `[^${esc}]` : `[${esc}]`;
         }
-      } else s += c.replace(/[.*+?^${}()|[\]\\/-]/g, "\\$&");
+      } else s += c.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&");
     }
     re = new RegExp(`^(?:${s})$`, "u");
     CACHE_FN.set(patron, re);
