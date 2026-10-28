@@ -26,7 +26,7 @@ function gitFijo(c: Contexto, ...a: string[]) {
 function fijo(c: Contexto) {
   gitFijo(c, "config", "user.email", "a@b");
   gitFijo(c, "config", "user.name", "x");
-  gitFijo(c, "commit", "-q", "--amend", "--allow-empty", "-m", "init");
+  gitFijo(c, "commit", "-q", "--amend", "--reset-author", "--allow-empty", "-m", "init");
 }
 
 const escribir = (c: Contexto, rel: string, texto: string) => {
