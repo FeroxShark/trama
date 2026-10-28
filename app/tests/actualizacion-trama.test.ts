@@ -166,6 +166,8 @@ function armar(o: Opciones) {
     instalada: () => o.instalada,
     repo: () => "dueno/proyecto",
     ahora: () => reloj,
+    cada: () => {},
+    despues: () => {},
     traer: async () => {
       pedidos++;
       if (o.sinRed) throw new Error("ENOTFOUND api.github.com");
@@ -207,13 +209,13 @@ test("sin red o con un GitHub que no contesta bien: silencio, y no se insiste en
   assert.equal(await y.act.leerAviso(), null);
 });
 
-test("se vuelve a preguntar a los 30 min, no antes (los releases de Trama salen varias veces por día)", async () => {
+test("se vuelve a preguntar a los 2 min, no antes (los releases de Trama salen varias veces por día)", async () => {
   const x = armar({ instalada: "0.1.0" });
   await x.act.leerAviso();
-  x.avanzar(10 * 60_000);
+  x.avanzar(60_000);
   await x.act.leerAviso();
   assert.equal(x.pedidos(), 1);
-  x.avanzar(21 * 60_000);
+  x.avanzar(60_000);
   await x.act.leerAviso();
   assert.equal(x.pedidos(), 2);
 });
@@ -269,6 +271,134 @@ test("Ahora no: oculta esa versión y avisa si sale otra más nueva", async () =
   assert.equal(await z.act.leerAviso(), null, "la ocultada 0.1.4 sigue oculta mientras el release sea el mismo día");
   z.avanzar(7 * 60 * 60_000);
   assert.equal((await z.act.leerAviso())?.ultima, "0.1.5");
+});
+
+// --- GitHub de mentira: cada respuesta la decide `responder(n)`; `ciclo()` y `reintento()` disparan lo que el proceso dejó armado ---
+type Resp = { status?: number; tag?: string; etag?: string; headers?: Record<string, string>; red?: boolean };
+const flush = () => new Promise((r) => setTimeout(r, 10));
+function armarGitHub(o: { instalada: string; responder: (n: number) => Resp }) {
+  const pedidos: Array<Record<string, string>> = [];
+  const esperas: number[] = [];
+  let reloj = 1_000_000;
+  let ciclo: () => void = () => {};
+  let reintento: () => void = () => {};
+  const archivo = path.join(mkdtempSync(path.join(tmp, "gh-")), "trama-version.json");
+  const act = m.crearActualizacionTrama({
+    archivo,
+    archivoAct: path.join(path.dirname(archivo), "trama-actualizacion.json"),
+    registro: path.join(path.dirname(archivo), "trama-actualizacion.log"),
+    checkout: () => checkoutFalso(),
+    instalada: () => o.instalada,
+    repo: () => "dueno/proyecto",
+    ahora: () => reloj,
+    cada: (f) => (ciclo = f),
+    despues: (f, ms) => ((reintento = f), esperas.push(ms)),
+    traer: async (_url, init) => {
+      pedidos.push({ ...init.headers });
+      const r = o.responder(pedidos.length);
+      if (r.red) throw new Error("ENOTFOUND api.github.com");
+      const cab = Object.fromEntries(Object.entries(r.headers ?? {}).map(([k, v]) => [k.toLowerCase(), v]));
+      if (r.etag) cab.etag = r.etag;
+      return { ok: (r.status ?? 200) < 300, status: r.status ?? 200, headers: { get: (k: string) => cab[k.toLowerCase()] ?? null }, json: async () => (r.tag ? { tag_name: r.tag } : { message: "x" }) };
+    },
+    correr: async () => ({ code: 0, salida: "" }),
+  });
+  return { act, pedidos, esperas, avanzar: (ms: number) => (reloj += ms), ciclo: () => ciclo(), reintento: () => reintento() };
+}
+
+test("ETag: el ciclo manda If-None-Match con el del último release; un 304 no cambia el aviso ni es un error", async () => {
+  const x = armarGitHub({ instalada: "0.1.0", responder: (n) => (n === 1 ? { tag: "v0.1.4", etag: 'W/"a"' } : { status: 304 }) });
+  assert.equal((await x.act.leerAviso())?.ultima, "0.1.4");
+  assert.equal(x.pedidos[0]["if-none-match"], undefined);
+  x.avanzar(2 * 60_000);
+  x.ciclo();
+  await flush();
+  assert.equal(x.pedidos[1]["if-none-match"], 'W/"a"');
+  assert.equal((await x.act.leerAviso())?.ultima, "0.1.4");
+  assert.equal(x.pedidos.length, 2);
+});
+
+test("200 con una versión nueva: el aviso sube a la nueva aunque se haya descartado la anterior", async () => {
+  const x = armarGitHub({ instalada: "0.1.0", responder: (n) => (n === 1 ? { tag: "v0.1.4", etag: 'W/"a"' } : { tag: "v0.1.5", etag: 'W/"b"' }) });
+  const vistos: Array<string | null> = [];
+  await x.act.leerAviso();
+  x.act.alCambiarAviso((a) => vistos.push(a?.ultima ?? null));
+  await x.act.descartar();
+  x.avanzar(2 * 60_000);
+  x.ciclo();
+  await flush();
+  assert.deepEqual(vistos, [null, "0.1.5"]);
+  assert.equal(x.pedidos[1]["if-none-match"], 'W/"a"');
+});
+
+test("200 con una versión nueva mientras el aviso sigue abierto: la barra recibe la nueva sin cerrar nada", async () => {
+  const x = armarGitHub({ instalada: "0.1.0", responder: (n) => (n === 1 ? { tag: "v0.1.4" } : { tag: "v0.1.5" }) });
+  const vistos: Array<string | null> = [];
+  await x.act.leerAviso();
+  x.act.alCambiarAviso((a) => vistos.push(a?.ultima ?? null));
+  x.avanzar(2 * 60_000);
+  x.ciclo();
+  await flush();
+  assert.deepEqual(vistos, ["0.1.5"]);
+  assert.equal((await x.act.leerAviso())?.ultima, "0.1.5");
+});
+
+test("403: GitHub limita → espera lo que dice (Retry-After), sin error ni aviso borrado; después vuelve a preguntar", async () => {
+  const x = armarGitHub({ instalada: "0.1.0", responder: (n) => (n === 1 ? { tag: "v0.1.4" } : n === 2 ? { status: 403, headers: { "retry-after": "600" } } : { tag: "v0.1.5" }) });
+  const vistos: Array<string | null> = [];
+  await x.act.leerAviso();
+  x.act.alCambiarAviso((a) => vistos.push(a?.ultima ?? null));
+  x.avanzar(2 * 60_000);
+  x.ciclo();
+  await flush();
+  assert.equal(x.pedidos.length, 2);
+  x.avanzar(5 * 60_000);
+  await x.act.refrescar();
+  x.ciclo();
+  await flush();
+  assert.equal(x.pedidos.length, 2, "dentro de la pausa no sale ninguna consulta");
+  assert.ok(vistos.length > 0 && vistos.every((v) => v === "0.1.4"), "el límite no borra ni muestra nada");
+  x.avanzar(6 * 60_000);
+  x.ciclo();
+  await flush();
+  assert.equal(x.pedidos.length, 3);
+  assert.equal((await x.act.leerAviso())?.ultima, "0.1.5");
+});
+
+test("Buscar con GitHub limitado: no es un error, da lo último que se supo", async () => {
+  const x = armarGitHub({ instalada: "0.1.0", responder: (n) => (n === 1 ? { tag: "v0.1.4" } : { status: 429 }) });
+  await x.act.leerAviso();
+  x.avanzar(60_000);
+  assert.deepEqual(await x.act.buscar(), { ultima: "0.1.4", nueva: true });
+  assert.equal(x.pedidos.length, 2);
+});
+
+test("sin red: el reintento es a los 30 s y no espera al ciclo; al volver la red el aviso aparece", async () => {
+  const x = armarGitHub({ instalada: "0.1.0", responder: (n) => (n === 1 ? { red: true } : { tag: "v0.1.4" }) });
+  assert.equal(await x.act.leerAviso(), null);
+  assert.deepEqual(x.esperas, [30_000]);
+  x.avanzar(30_000);
+  x.reintento();
+  await flush();
+  assert.equal(x.pedidos.length, 2);
+  assert.equal((await x.act.leerAviso())?.ultima, "0.1.4");
+});
+
+test("consultarRelease: 304 igual, 429 límite con sus cabeceras, 500 fallo, sin red red; un release nuevo trae su ETag", async () => {
+  const con = (r: Resp) => (async () => ({ ok: (r.status ?? 200) < 300, status: r.status ?? 200, headers: { get: (k: string) => ({ etag: 'W/"z"', "retry-after": "30" } as Record<string, string>)[k] ?? null }, json: async () => ({ tag_name: r.tag }) }));
+  assert.deepEqual(await m.consultarRelease(con({ status: 304 }), "d/p", 'W/"z"'), { estado: "igual" });
+  assert.deepEqual(await m.consultarRelease(con({ status: 429 }), "d/p"), { estado: "limite", retryAfter: "30", reset: null });
+  assert.deepEqual(await m.consultarRelease(con({ status: 500 }), "d/p"), { estado: "fallo" });
+  assert.deepEqual(await m.consultarRelease(con({ tag: "v0.1.4" }), "d/p"), { estado: "nueva", tag: "v0.1.4", etag: 'W/"z"' });
+  assert.deepEqual(await m.consultarRelease(async () => { throw new Error("ENOTFOUND"); }, "d/p"), { estado: "red" });
+});
+
+test("pausaDeLimite: Retry-After o hasta x-ratelimit-reset; sin dato 15 min; entre 1 min y 1 h", () => {
+  assert.equal(m.pausaDeLimite("600", null, 0), 600_000);
+  assert.equal(m.pausaDeLimite(null, String(1000 + 120), 1_000_000), 120_000);
+  assert.equal(m.pausaDeLimite(null, null, 0), 15 * 60_000);
+  assert.equal(m.pausaDeLimite("1", null, 0), 60_000);
+  assert.equal(m.pausaDeLimite("999999", null, 0), 3_600_000);
 });
 
 test("Actualizar corre fetch, checkout del tag y el instalador, en ese orden y en el checkout", async () => {
