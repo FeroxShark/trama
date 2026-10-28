@@ -1,11 +1,13 @@
-// Dictar desde WSL: el motor corre en Linux pero el micrófono y, casi siempre, Handy viven en Windows. Acá se decide con
-// qué se transcribe: el `handy` de Linux (lo de siempre), el `handy.exe` de Windows (por el interop de WSL: /mnt/c o
-// `where.exe`) o, si no hay Handy, el reconocedor que Windows trae (System.Speech, por `powershell.exe`: sin instalar nada,
-// sin red, sin GPU). Sin `electron`: lo prueba tests/dictado-windows.test.ts con un sistema de archivos y un `Ejecutar` falsos.
+// Dictar desde Windows: el motor corre en Linux (WSL) o en Windows nativo, pero el micrófono y, casi siempre, Handy viven en
+// Windows. Acá se decide con qué se transcribe: el `handy` de Linux (lo de siempre), el `handy.exe` de Windows (desde WSL, por
+// el interop: /mnt/c o `where.exe`; en Windows nativo, en %LOCALAPPDATA%, %ProgramFiles% o el PATH) o, si no hay Handy en WSL,
+// el reconocedor que Windows trae (System.Speech, por `powershell.exe`: sin instalar nada, sin red, sin GPU). Sin `electron`:
+// lo prueba tests/dictado-windows.test.ts con un sistema de archivos y un `Ejecutar` falsos.
 import { existsSync, readdirSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { resolverBinario } from "./binario.ts";
+import { plataformaActual } from "./rutas.ts";
 
 type Env = Record<string, string | undefined>;
 
@@ -70,6 +72,19 @@ export async function handyExePorWhere(correr: Correr, aLinux: (p: string) => Pr
 }
 
 /**
+ * El `handy.exe` de la Windows nativa (sin WSL): `HILOS_HANDY_EXE` manda (si apunta a nada, no hay Handy); si no, la
+ * instalación por usuario (`%LOCALAPPDATA%\Handy`), la de todo el equipo (`%ProgramFiles%\Handy`) y el PATH (`where.exe`).
+ * Las rutas se arman con path.win32, así la prueba las arma igual desde Linux.
+ */
+export async function handyExeNativo(o: { env: Env; home: string; correr: Correr; disco: Disco }): Promise<string | null> {
+  const c = path.win32;
+  if (o.env.HILOS_HANDY_EXE) return o.disco.hay(o.env.HILOS_HANDY_EXE) ? o.env.HILOS_HANDY_EXE : null;
+  const carpetas = [c.join(o.env.LOCALAPPDATA || c.join(o.home, "AppData", "Local"), "Handy"), ...(o.env.ProgramFiles ? [c.join(o.env.ProgramFiles, "Handy")] : [])];
+  for (const d of carpetas) if (o.disco.hay(c.join(d, "handy.exe"))) return c.join(d, "handy.exe");
+  return handyExePorWhere(o.correr, async (p) => p);
+}
+
+/**
  * El script de PowerShell que transcribe un WAV con System.Speech (viene con Windows). La salida va en UTF-8 para que
  * lleguen las tildes; la ruta entra como argumento, no pegada al texto del script.
  */
@@ -106,7 +121,8 @@ type Opciones = {
 };
 
 /**
- * Los motores disponibles, en el orden en que se prueban. Linux (con `handy`): sólo él, como siempre. En WSL sin `handy`
+ * Los motores disponibles, en el orden en que se prueban. Linux (con `handy`): sólo él, como siempre. Windows nativo sin
+ * `handy` en el PATH: el `handy.exe` de `handyExeNativo` o ninguno (el WAV va tal cual, sin `wslpath`). En WSL sin `handy`
  * de Linux: el `handy.exe` de Windows si está y, detrás, System.Speech (si el interop deja correr `powershell.exe`;
  * `HILOS_SPEECH=0` lo apaga). Fuera de WSL sin `handy`: ninguno.
  */
@@ -118,6 +134,10 @@ export async function motoresDictado(o: Opciones): Promise<Motor[]> {
     return [{ nombre: "handy", bin: linux, args: async (a) => ["--transcribe-file", a] }];
   }
   const disco = o.disco ?? discoReal;
+  if (plataformaActual() === "win32") {
+    const exe = await handyExeNativo({ env, home, correr: o.correr, disco });
+    return exe ? [{ nombre: "handy-windows", bin: exe, args: async (a) => ["--transcribe-file", a] }] : [];
+  }
   if (!esWsl(env, disco.hay)) return [];
   const motores: Motor[] = [];
   const exe = handyExeEnMnt(env, disco) ?? (await handyExePorWhere(o.correr, traductor(o.correr, "-u")));
