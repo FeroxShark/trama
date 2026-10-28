@@ -4944,6 +4944,7 @@ esac
 modelo=""   # vacío = el default de la política (abajo, después de saber si es --leer)
 esfuerzo="${PA_EFFORT:-}"
 esfuerzo_flag=0
+esfuerzo_pedido=""   # el --effort que el jefe escribió (no el que sale de modelos.json): un relevo de la lista --async lo reusa
 leer=0
 seguir=0
 olvidar=0
@@ -4997,8 +4998,12 @@ flags_con_valor=" --max-turns --id --integrar --descartar --actualizar --nota --
 # -m a,b,c (2026-10-27, protocolo por fases): lista de fallback. Se prueba cada modelo, en orden, como una corrida entera con ese solo -m
 # (`pa <proyecto> … -m a …`); si sale 76/77 (límite de sesión, API sobrecargada), 95/96 (no puede correr / sin cupo) o 97 (OpenCode cortó por
 # límite) se pasa al siguiente, y cualquier otro código (0, 1, 78…) es el final: ése es el modelo que trabajó. Los que reparto tiene
-# enfriados (`reparto --enfriado`) se saltean. Con --async el hijo corre desacoplado y sólo se ve lo que falla al lanzar (95/96).
+# enfriados (`reparto --enfriado`) se saltean. Con --async, lo que falla al lanzar (95/96) pasa al siguiente acá; un 97 de la corrida
+# ya lanzada lo relanza el hijo con lo que queda de la lista (PA_FALLBACK_RESTO, ver el bloque de 97 más abajo).
 # Sólo se mira la zona de flags (hasta la tarea): un "-m" dentro del texto de la tarea no cuenta.
+# Lo que le queda a una corrida --async (lo pasa el padre por el entorno; el hijo lo lee y no lo hereda a los procesos del worker).
+fb_resto="${PA_FALLBACK_RESTO:-}"; unset PA_FALLBACK_RESTO
+pa_argv0=( "$@" )
 _fb_args=( "$@" ); _fb_i=0; _fb_n=${#_fb_args[@]}; _fb_m=-1; _fb_ef="${PA_EFFORT:-}"; _fb_ok=0
 while (( _fb_i < _fb_n )); do
   _fb_a="${_fb_args[_fb_i]}"
@@ -5038,7 +5043,8 @@ if (( _fb_m >= 0 )) && [[ "${_fb_args[_fb_m]}" == *,* ]]; then
       continue
     fi
     _fb_args[_fb_m]="$_fb_x"; _fb_corrio=1; _fb_rc=0
-    "$0" "$proyecto" "${_fb_args[@]}" || _fb_rc=$?
+    _fb_resto="$(IFS=,; printf '%s' "${_fb_lista[*]:_fb_k}")"   # lo que queda después de éste (sólo lo lee el hijo de --async)
+    PA_FALLBACK_RESTO="$_fb_resto" "$0" "$proyecto" "${_fb_args[@]}" || _fb_rc=$?
     case "$_fb_rc" in
       76|77|95|96|97)
         if (( _fb_k < ${#_fb_lista[@]} )); then echo "pa: -m: $_fb_x salió $_fb_rc (sin cupo, sobrecargado o no puede correr); sigo con el siguiente de la lista." >&2; fi ;;
@@ -5093,7 +5099,7 @@ while [[ $# -gt 0 ]]; do
                        max_budget="$2"; shift 2 ;;
     -m|--model)        modelo="$2"; modelo_de_m=1; shift 2 ;;
     --effort)          [[ "${2,,}" =~ ^(low|medium|high|xhigh|max)$ ]] || { echo "pa: --effort '$2' no va. Válidos: low, medium, high, xhigh, max." >&2; exit 2; }
-                       esfuerzo="${2,,}"; esfuerzo_flag=1; export PA_EFFORT="${2,,}"; shift 2 ;;
+                       esfuerzo="${2,,}"; esfuerzo_flag=1; esfuerzo_pedido="${2,,}"; export PA_EFFORT="${2,,}"; shift 2 ;;
     --tipo)            tipo="$2"; shift 2 ;;
     --fase)            fase="$2"; shift 2 ;;
     --tarea)           tarea_id="$2"; shift 2 ;;
@@ -5812,12 +5818,13 @@ if [[ $async -eq 1 ]]; then
   [[ -n "$rubrica" ]]    && hijo_args+=( --rubrica "$rubrica" )
   (( ok_dueno ))         && hijo_args+=( --ok-dueno )
   [[ -n "$cuenta" ]]     && hijo_args+=( --cuenta "$cuenta" )
+  [[ -n "$esfuerzo_pedido" ]] && hijo_args+=( --effort "$esfuerzo_pedido" )
   hijo_args+=( -- "$tarea" )
   # De quién es la corrida, ANTES del fork: mientras espera en cola no tiene `.corrida`, y
   # `--esperar` pelado necesita saber si es de su jefe para esperarla (y no cobrarle la del otro).
   jefe_async="$(jefe_nombre)"; jefe_id_async="$(jefe_id)"
   (( leer )) || printf 'jefe=%s\njefe_id=%s\n' "$jefe_async" "$jefe_id_async" >"$dir/$ts.jefe"
-  PA_TS="$ts" PA_JEFE="$jefe_async" PA_JEFE_ID="$jefe_id_async" PA_ASYNC=1 PA_REPARTO_TIPO="$reparto_tipo_relanzable" setsid nohup "$0" "${hijo_args[@]}" >"$log" 2>&1 &
+  PA_TS="$ts" PA_JEFE="$jefe_async" PA_JEFE_ID="$jefe_id_async" PA_ASYNC=1 PA_REPARTO_TIPO="$reparto_tipo_relanzable" PA_FALLBACK_RESTO="$fb_resto" setsid nohup "$0" "${hijo_args[@]}" >"$log" 2>&1 &
   lanzado=$!
   disown || true
   # El pid del hijo, ya: mientras espera en cola (`flock 9` bloqueante, más abajo) es la ÚNICA
