@@ -19,6 +19,7 @@ import { jefeId, jefeNombre, type Env, type Pa } from "./entorno.ts";
 import { carpetaProyectos, claudeFalla, claudeRc, escapar, limiteDe, lanzarClaude, type Corrida, type Ganchos, type OpcionesLanzar } from "./lanzar.ts";
 import { TIPOS_VALIDOS } from "./modelos.ts";
 import { Admision, avisarParalelo, otrosWriters, runningVivo } from "./puestos.ts";
+import { ganchosDe } from "./ganchos.ts";
 import { fijarProyecto as fijarProy } from "./ramas-base.ts";
 import { campoJson, contarCompactaciones, horaMinuto, leerSalida, textoResultado } from "./resultado-lanzar.ts";
 import { edadSucios, suciosDe } from "./sucios.ts";
@@ -493,7 +494,13 @@ async function orquestar(l: Llamada, pa: Pa, p: ProyectoCli, o: OpcionesOrquesta
       async: Boolean(env.PA_ASYNC),
     };
     const paRun: Pa = t.cargoTargetDir ? { ...pa, env: { ...env, CARGO_TARGET_DIR: t.cargoTargetDir } as Env } : pa;
-    const g: Ganchos = { ...o.ganchos, soltar: async () => { await adm.soltarTodo(); await o.ganchos?.soltar?.(); } };
+    const g: Ganchos = ganchosDe(pa, l, {
+      ...o.ganchos,
+      soltar: async () => {
+        await adm.soltarTodo();
+        await o.ganchos?.soltar?.();
+      },
+    });
     // pa --parar / --matar: en Windows por el canal de control del lock; en Linux, SIGTERM
     const rc = await lanzarClaude(paRun, c, { ...o, ganchos: g, senal: o.senal ?? parar.signal });
     return rc;
