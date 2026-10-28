@@ -55,6 +55,28 @@ function crearAsistenteNativo(deps) {
   }
 
   // ---------- instalar ----------
+  /** «Se importaron N cuentas de tu Trama anterior» (una cuenta: «Se importó 1 cuenta…»). */
+  const textoImportadas = (n) => `Se ${n === 1 ? "importó 1 cuenta" : `importaron ${n} cuentas`} de tu Trama anterior`;
+
+  // Una sola vez: `cuentas importar-perfiles` copia (nunca mueve) las cuentas de Claude de una Trama vieja (perfiles_claude\) y no hace
+  // nada si esa carpeta no existe. Si falla no frena la instalación y se reintenta en la próxima; el resultado queda en el estado
+  // (`cuentasImportadas`) para que la pantalla de cuentas lo muestre. Nunca se loguea más que el conteo: las credenciales no se leen acá.
+  async function importarCuentasViejas(emit) {
+    if (guardado().cuentasImportadas) return;
+    let n = null;
+    try {
+      const r = await correrCli("cuentas", ["importar-perfiles", "--json"], { timeoutMs: 60000 });
+      const m = r.code === 0 ? /\{[^{}]*"importadas"\s*:\s*(\d+)[^{}]*\}/.exec(String(r.stdout)) : null;
+      if (m) n = Number(m[1]);
+      else log(`cuentas importar-perfiles terminó con ${r.code}`);
+    } catch (e) {
+      log(`cuentas importar-perfiles: ${e.message}`);
+    }
+    if (n === null) return;
+    guardar({ cuentasImportadas: { n, fecha: new Date().toISOString() } });
+    if (n > 0) emit({ tipo: "linea", texto: textoImportadas(n) });
+  }
+
   const instalado = () => (disco.leer(rutas.marca) || "").trim();
   const pasoInstalar = {
     async comprobar() {
@@ -84,6 +106,7 @@ function crearAsistenteNativo(deps) {
       if (r.code === -1) throw new ErrorPaso("instalar", "No pude correr el instalador de Trama.", ultimasLineas(r.stderr));
       // Con avisos (un settings.json que no se pudo tocar) se sigue: el motor anda igual; quedan en el registro.
       if (r.code !== 0) log(`instalar-nativo terminó con ${r.code}:\n${ultimasLineas(r.stdout + r.stderr)}`);
+      await importarCuentasViejas(emit);
       disco.escribir(rutas.marca, payload.version);
       guardar({ instalado: { version, payload: payload.version, fecha: new Date().toISOString(), modo: "nativo" } });
       return {};
@@ -120,7 +143,7 @@ function crearAsistenteNativo(deps) {
       const resuelto = (p) => p.logueado || p.saltado;
       const algunaConectada = claude.logueado || agy.logueado;
       const ok = resuelto(claude) && resuelto(agy) ? true : algunaConectada && !!g.loginHecho;
-      return { ok, claude, agy, puedeContinuar: algunaConectada, nativo: true };
+      return { ok, claude, agy, puedeContinuar: algunaConectada, nativo: true, cuentasImportadas: (g.cuentasImportadas && g.cuentasImportadas.n) || 0 };
     },
   };
 

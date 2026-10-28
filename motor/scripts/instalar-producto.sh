@@ -293,6 +293,16 @@ if ! grep -qs 'trama:path' "$HOME/.bashrc" 2>/dev/null; then
     && hecho "$HOME/.bashrc: ~/.local/bin en el PATH"
 fi
 
+# --- cuentas de Claude de una Trama vieja (si existe su carpeta) ------------------------------------------
+# Copia (nunca mueve) las credenciales a cuentas propias; sin carpeta vieja no hace nada y repetirlo no duplica.
+VIEJAS="$HOME/.local/state/hilos/perfiles_claude"
+if [[ -d "$VIEJAS" && -x "$MOTOR/bin/cuentas" ]]; then
+  if IMP="$("$MOTOR/bin/cuentas" importar-perfiles --json 2>/dev/null)"; then
+    N="$(printf '%s\n' "$IMP" | sed -n 's/.*"importadas": \([0-9][0-9]*\).*/\1/p')"
+    if [[ "${N:-0}" -gt 0 ]]; then hecho "Se importaron $N cuentas de tu Trama anterior"; else ok "cuentas de la Trama anterior: nada nuevo que importar"; fi
+  else aviso "no pude importar las cuentas de la Trama anterior (cuentas importar-perfiles)"; fi
+fi
+
 # --- build de la app -------------------------------------------------------------------------------------
 # El árbol exportado no trae dist/ ni dist-electron/ (el export los excluye): se compilan acá. La fuente puede ser de
 # sólo lectura o de otro usuario, así que se compila en una copia en ~/.local/share/trama/app. Deja APP apuntando ahí.

@@ -100,6 +100,9 @@ function pantallaLogin(info) {
     h("h1", {}, TEXTOS.login.t),
     h("p", {}, TEXTOS.login.d),
     h("div", { class: "tarjetas" }, tarjeta("claude", "Claude", "Conectar Claude", info.claude), tarjeta("gemini", "Gemini", "Conectar Gemini", info.agy)),
+    info.cuentasImportadas > 0
+      ? h("p", { class: "nota ancho" }, `Se ${info.cuentasImportadas === 1 ? "importó 1 cuenta" : `importaron ${info.cuentasImportadas} cuentas`} de tu Trama anterior.`)
+      : null,
     ahora.conectado
       ? h("p", { class: "nota ancho" }, "Se abrió una consola. Iniciá sesión ahí y volvé: acá se detecta solo. Trama no se pone encima mientras escribís.")
       : h("p", { class: "nota ancho" }, `Se abre una consola${ahora.nativo ? "" : " de Ubuntu"} para que inicies sesión; Trama nunca ve tu contraseña.`),

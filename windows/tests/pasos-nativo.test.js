@@ -61,6 +61,7 @@ function banco(sobre = {}) {
     correrCli: async (nombre, args) => {
       b.cli.push([nombre, ...args]);
       if (nombre === "trama-estado") return { code: 0, stdout: b.estadoTrama, stderr: "" };
+      if (nombre === "cuentas") return { code: b.importarRc ?? 0, stdout: b.importarOut ?? '{"importadas": 0, "omitidas": 0, "cuentas": []}\n', stderr: "" };
       if (nombre === "instalar-nativo") return { code: b.instaladorRc, stdout: "hecho  settings.json: destructive-guard y statusline-espejo registrados\n", stderr: "" };
       return { code: 1, stdout: "", stderr: "?" };
     },
@@ -202,4 +203,33 @@ test("en segundo plano: sin instalar no hace nada; instalado arranca el motor; d
   assert.equal(await b.asistente.arrancarSoloMotor(), true);
   assert.equal(b.copias.length, 3);
   assert.equal(b.archivos.get(b.rutas.marca), "v2");
+});
+
+test("al instalar corre `cuentas importar-perfiles` una sola vez y muestra «Se importaron N cuentas de tu Trama anterior»", async () => {
+  const b = banco();
+  b.importarOut = '{"importadas": 2, "omitidas": 1, "cuentas": ["ana", "bruno"]}\n';
+  const ev = [];
+  const r = await b.asistente.avanzar((e) => ev.push(e));
+  assert.deepEqual(b.cli.filter(([n]) => n === "cuentas"), [["cuentas", "importar-perfiles", "--json"]]);
+  assert.ok(ev.some((e) => e.tipo === "linea" && e.texto === "Se importaron 2 cuentas de tu Trama anterior"));
+  assert.equal(b.guardado.cuentasImportadas.n, 2);
+  assert.equal(r.info.cuentasImportadas, 2, "la pantalla de cuentas lo recibe");
+  // otra instalación (actualización): no se vuelve a correr
+  b.archivos.set(b.rutas.marca, "v1");
+  await b.asistente.avanzar();
+  assert.equal(b.cli.filter(([n]) => n === "cuentas").length, 1);
+});
+
+test("sin Trama vieja (0 importadas) no dice nada; si el comando falla no frena la instalación y se reintenta", async () => {
+  const b = banco();
+  const ev = [];
+  await b.asistente.avanzar((e) => ev.push(e));
+  assert.ok(!ev.some((e) => e.tipo === "linea" && /Trama anterior/.test(e.texto)));
+  assert.equal(b.guardado.cuentasImportadas.n, 0);
+
+  const c = banco();
+  c.importarRc = 1;
+  const r = await c.asistente.avanzar(() => {});
+  assert.equal(r.espera, "login", "la instalación siguió");
+  assert.equal(c.guardado.cuentasImportadas, undefined, "sin marca: se reintenta");
 });
