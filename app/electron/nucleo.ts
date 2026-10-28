@@ -13,7 +13,7 @@ import { leerVram, liberarVram } from "./vram.ts";
 import { leerEntornoOllama } from "./ollama-entorno.ts";
 import { carpetaLocal } from "./local.ts";
 import { existsSync } from "node:fs";
-import { readFile } from "node:fs/promises";
+import { readFile, stat as statArchivo } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { almacenBorradores } from "./borradores.js";
@@ -28,6 +28,8 @@ import { crearConsumo, TRANSCRIPTS } from "./consumo.ts";
 import { crearPasos } from "./pasos-worker.ts";
 import { crearArranque } from "./arranque.ts";
 import { crearHistorial } from "./historial.ts";
+import { crearIndiceClaudeCode, sidsDePa, vistaConvs } from "./claude-code.ts";
+import { cuentasClaude } from "./uso-cuentas.ts";
 import { leerUmbrales } from "./contexto.js";
 import { iconosDe } from "./iconos.js";
 import { guardarYa, leerLeidos, marcarLeido } from "./leidos.js";
@@ -58,7 +60,7 @@ import { crearEspera } from "./espera.js";
 import { crearAvisosWorker, REVISAR_MS, textoParaLider, type AvisoWorker } from "./avisos-worker.js";
 import { procesoVivoDe, rastroDeWorker } from "./avisos-worker-disco.js";
 import { errorT, textoT } from "./errores.ts";
-import { destinos, registro, slugsPorNombre } from "./registro.js";
+import { destinos, real, registro, slugsPorNombre } from "./registro.js";
 import { plataformaActual, registroProyectos } from "./rutas.ts";
 import { capacidades, hayAgy, hayDsh } from "./capacidades.js";
 import { estadoDsh, instalarDsh, probarProveedor } from "./dsh-ajustes.ts";
@@ -288,6 +290,12 @@ const pasos = crearPasos({ proyectos: TRANSCRIPTS, paState: PA_STATE, alCambiar:
  * como mucho una vez por hora. Con fixtures, bench o captura no corre (`HILOS_HISTORIAL=0` lo apaga).
  */
 const historial = crearHistorial({ proyectos: TRANSCRIPTS, paState: PA_STATE, carpeta: path.join(ESTADO, "historial") });
+/** Las conversaciones de Claude Code que no son de Trama (claude-code.ts): índice cacheado por mtime en `$HILOS_STATE/claude-code.json`. */
+const claudeCode = crearIndiceClaudeCode({
+  raices: () => [TRANSCRIPTS, path.join(os.homedir(), ".claude", "projects"), ...cuentasClaude().map((c) => path.join(c.dir, "projects"))],
+  propia: () => TRANSCRIPTS,
+  cache: path.join(ESTADO, "claude-code.json"),
+});
 /** "Medir exacto" el peso de arrancar (arranque.ts): a pedido, con el mismo `claude` y entorno que los líderes. */
 const arranque = crearArranque({ claude: process.env.HILOS_CLAUDE ?? "claude", cwd: os.homedir(), env: entornoLider(process.env, os.homedir()), estado: ESTADO });
 const sinHistorial =
@@ -834,6 +842,17 @@ export function armarNucleo() {
   // Los umbrales del anillo de contexto (B16): el relevo del líder y el autocompact.
   manejar("contexto:umbral", () => leerUmbrales());
   manejar("medicion:leer", () => leerMedicion());
+  manejar("claudeCode:listar", async () => {
+    const { convs } = await claudeCode.listar();
+    const [apps, pa, reg] = await Promise.all([lider.lideresApp(), sidsDePa(PA_STATE), registro()]);
+    return vistaConvs(convs, {
+      excluidas: new Set([...apps.map((l) => l.sid), ...pa]),
+      rutas: reg.map((p): [string, string] => [p.ruta, p.slug]),
+      casa: await real(os.homedir()),
+      real,
+      existe: (p) => statArchivo(p).then((s) => s.isDirectory(), () => false),
+    });
+  });
   manejar("historial:consultar", (_e, dias: unknown, rol: unknown) => historial.ultimos(dias, rol));
   manejar("historial:arranque", () => arranque.leer());
   manejar("historial:medir", () => arranque.medir());

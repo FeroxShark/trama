@@ -125,6 +125,10 @@ type Main = {
     leer(): Promise<EstadoVram>;
     liberar(x: { id: string }): Promise<ResultadoLiberar>;
   };
+  /** Las conversaciones de Claude Code que no son de Trama (electron/claude-code.ts), sin validar. */
+  claudeCode: {
+    listar(): Promise<unknown>;
+  };
   /** Los líderes: los de la app se manejan desde acá; los de la terminal se leen (electron/lider.ts). */
   lider: {
     /** Un líder nuevo con su primer mensaje; devuelve su session_id. */

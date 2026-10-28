@@ -113,6 +113,10 @@ contextBridge.exposeInMainWorld("hilos", {
     leer: (): Promise<unknown> => ipcRenderer.invoke("vram:leer"),
     liberar: (x: unknown): Promise<unknown> => ipcRenderer.invoke("vram:liberar", x),
   },
+  /** Las conversaciones de Claude Code que no son de Trama (electron/claude-code.ts). */
+  claudeCode: {
+    listar: (): Promise<unknown> => ipcRenderer.invoke("claudeCode:listar"),
+  },
   lider: {
     nuevo: (x: unknown): Promise<string> => ipcRenderer.invoke("lider:nuevo", x),
     mandar: (x: unknown): Promise<void> => ipcRenderer.invoke("lider:mandar", x),
