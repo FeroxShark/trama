@@ -62,7 +62,8 @@ export function llamadaDe(l: Lanzamiento): Llamada {
     ocEffort: c.ocEffort,
     locales: c.locales,
     cuenta: cuentaDe(c),
-    env: pa.env,
+    // bash exporta PA_RECORTE y PA_MAX_TURNS en el entorno de pa antes de armar la llamada: lo heredan todos los motores
+    env: { ...pa.env, ...l.envClaude },
     io: pa.io,
     plat: pa.plat,
   });

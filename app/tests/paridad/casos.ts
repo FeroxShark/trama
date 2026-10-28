@@ -88,3 +88,7 @@ casos.push(...casosGlobales);
 // Globales de medición y modelos (casos-medicion.ts).
 import { casosMedicion } from "./casos-medicion.ts";
 casos.push(...casosMedicion);
+
+// Lanzar con los otros motores: agy, codex, opencode, dsh y ollama (casos-motores-lanzar.ts).
+import { casosMotoresLanzar } from "./casos-motores-lanzar.ts";
+casos.push(...casosMotoresLanzar);
