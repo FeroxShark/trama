@@ -2562,25 +2562,10 @@
   font-size: var(--letra-4);
   line-height: 1.45;
 }
-/* Avanzado (los topes): su título y su explicación; los valores fijos de Google en renglones. */
+/* Avanzado: su título y su explicación. */
 .cu-av-q {
   padding-bottom: var(--esp-2);
   color: var(--apagado);
-  font-size: var(--letra-4);
-}
-.cu-topes {
-  display: flex;
-  flex-direction: column;
-  gap: var(--esp-1-5);
-}
-.cu-tope {
-  font-family: inherit;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--esp-2);
-  color: var(--texto);
   font-size: var(--letra-4);
 }
 .cu-conectar {
@@ -3425,4 +3410,42 @@
 .mdl-compactar-nom {
   min-width: 4.5rem;
   text-align: right;
+}
+
+/* Plan y cupos > Avanzado > «Dónde pa deja de usar cada proveedor»: deslizador, valor y el botón para volver a de fábrica en cada fila. */
+.cu-topes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-2);
+  padding-top: var(--esp-3);
+}
+.cu-tope-rango {
+  width: 8rem;
+  accent-color: var(--acento);
+  cursor: pointer;
+}
+.cu-tope-valor {
+  min-width: 3rem;
+  color: var(--texto);
+  font-size: var(--letra-4);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.cu-topes-porque > summary,
+.cu-topes-adv > summary {
+  width: fit-content;
+  cursor: pointer;
+  color: var(--apagado);
+  font-size: var(--letra-3);
+}
+.cu-topes-porque[open] > summary,
+.cu-topes-adv[open] > summary {
+  margin-bottom: var(--esp-2);
+}
+.cu-topes-porque > p,
+.cu-topes-nota {
+  margin: var(--esp-2) 0 0;
+  color: var(--apagado);
+  font-size: var(--letra-4);
+  line-height: 1.45;
 }

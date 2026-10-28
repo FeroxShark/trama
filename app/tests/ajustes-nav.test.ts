@@ -87,9 +87,9 @@ test("sin elegir, no hay categoría; irA la fija, la pide mostrar y avisa una ve
   assert.equal(categoria(), null);
   let avisos = 0;
   const baja = suscribir(() => avisos++);
-  irA("cupos", "ajustes.mdlTope5");
+  irA("cupos", "cu.topes");
   assert.equal(categoria(), "cupos");
-  assert.equal(pendienteDeMostrar()?.opc, "ajustes.mdlTope5");
+  assert.equal(pendienteDeMostrar()?.opc, "cu.topes");
   assert.ok(avisos >= 1);
   baja();
 });

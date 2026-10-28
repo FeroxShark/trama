@@ -116,8 +116,8 @@ export const tourEn = {
   "tour.ajustes-cupos.ritmo.b": "Whether you're ahead of or behind the pace that would use the week up evenly. Shown in words and an icon, not only color.",
   "tour.ajustes-cupos.perfil.t": "Profile",
   "tour.ajustes-cupos.perfil.b": "Saving, balanced or performance: how much workers lean on free models to protect your Claude week.",
-  "tour.ajustes-cupos.reserva.t": "Keep some for you",
-  "tour.ajustes-cupos.reserva.b": "On, workers stop at the cap you set and the rest stays for your own sessions.",
+  "tour.ajustes-cupos.reserva.t": "Where pa stops",
+  "tour.ajustes-cupos.reserva.b": "Set, per provider, the % used at which workers stop using it; lower keeps more for your own sessions.",
 
   "tour.ajustes-proyectos.nombres.t": "Project names",
   "tour.ajustes-proyectos.nombres.b": "Choose what a project is called in the app. Only the displayed name changes.",
@@ -274,8 +274,8 @@ export const tourEs: Record<keyof typeof tourEn, string> = {
   "tour.ajustes-cupos.ritmo.b": "Si vas por delante o por detrás del paso que gasta la semana parejo. Va con palabras e ícono, no sólo con color.",
   "tour.ajustes-cupos.perfil.t": "Perfil",
   "tour.ajustes-cupos.perfil.b": "Ahorro, equilibrado o rendimiento: cuánto se apoyan los workers en modelos gratis para cuidar tu semana de Claude.",
-  "tour.ajustes-cupos.reserva.t": "Guardar para vos",
-  "tour.ajustes-cupos.reserva.b": "Prendido, los workers paran en el tope que pongas y el resto queda para tus sesiones.",
+  "tour.ajustes-cupos.reserva.t": "Dónde pa deja de usar",
+  "tour.ajustes-cupos.reserva.b": "Poné, por proveedor, el % usado en que los workers lo dejan de usar; más bajo guarda más para tus sesiones.",
 
   "tour.ajustes-proyectos.nombres.t": "Nombres de proyecto",
   "tour.ajustes-proyectos.nombres.b": "Elegí cómo se llama un proyecto en la app. Sólo cambia el nombre que se muestra.",

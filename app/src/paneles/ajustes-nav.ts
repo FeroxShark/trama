@@ -40,10 +40,7 @@ export const ITEMS: readonly Item[] = [
   { cat: "cupos", nombre: "ajustes.ocPlan", que: "ajustes.ocPlanQue", sin: "opencode open code plan go plus pago paid suscripcion subscription gratis free topes limites limits cupo quota modelos models" },
   { cat: "cupos", nombre: "cu.opencodeGo", que: "cu.opencodeGoQue", sin: "opencode open code go plus plan pago paid topes limites limits pedidos requests 5h cinco horas five hours cupo quota agotado exhausted uso usage modelo model" },
   { cat: "cupos", nombre: "cu.chatgpt", que: "cu.chatgptQue", sin: "chatgpt openai codex gpt suscripcion subscription plan cupo quota conectar connect login" },
-  { cat: "cupos", nombre: "cu.topesGoogle", que: "cu.topesQue", sin: "google gemini agy tope limite limit cupo quota llena full codigo code umbral threshold porcentaje percent" },
-  { cat: "cupos", nombre: "ajustes.cuposGuardar", que: "ajustes.cuposGuardarQue", sin: "reservar reserve guardar save reserva porcentaje percent mis sesiones my sessions cupo quota claude tope cap limite limit" },
-  { cat: "cupos", nombre: "ajustes.mdlTope5", que: "ajustes.mdlTope5Que", sin: "claude limite limit cupo quota reserva cinco horas 5h five hours porcentaje percent" },
-  { cat: "cupos", nombre: "ajustes.mdlTope7", que: "ajustes.mdlTope7Que", sin: "claude limite limit cupo quota reserva semana semanal week weekly 7d porcentaje percent" },
+  { cat: "cupos", nombre: "cu.topes", que: "cu.topesQue", sin: "tope limite limit cupo quota llena full umbral threshold porcentaje percent usado used dejar de usar stop using claude google gemini chatgpt codex opencode reserva reserve guardar save sesiones sessions codigo code fabrica factory" },
   { cat: "cupos", nombre: "ajustes.cuposSinCupo", que: "ajustes.cuposSinCupoQue", sin: "sin cupo out of quota agotado usar otro use another esperar wait fallar fail reemplazo fallback proveedor provider" },
 
   { cat: "locales", nombre: "ajustes.mdlLocales", que: "ajustes.mdlOllamaQue", sin: "ollama local llama gpu offline detectar detect" },

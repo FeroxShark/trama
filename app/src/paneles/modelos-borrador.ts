@@ -19,11 +19,13 @@ import {
   EXCLUIR_MAX,
   FAMILIAS,
   GEMINI,
+  GOOGLE_CODIGO_FABRICA,
   HOY,
   PERFILES,
   SIN_CUPO,
   TIPOS,
   TOPE_CLAUDE_DEFECTO,
+  TOPE_FABRICA,
   URL_OLLAMA,
   urlOllama,
   type AutocompactConfig,
@@ -39,7 +41,7 @@ import type { EffortCalidad } from "../../electron/efforts-calidad";
 import { defDe, effortDeModelo, TABLA } from "../hilo/modelos";
 
 export { DESTRABAR_MODELOS };
-export { AGY, CUPO_MAX, CUPO_MIN, EXCLUIR_MAX, FAMILIAS, GEMINI, PERFILES, SIN_CUPO, TIPOS, TOPE_CLAUDE_DEFECTO, URL_OLLAMA };
+export { AGY, CUPO_MAX, CUPO_MIN, EXCLUIR_MAX, FAMILIAS, GEMINI, GOOGLE_CODIGO_FABRICA, PERFILES, SIN_CUPO, TIPOS, TOPE_CLAUDE_DEFECTO, TOPE_FABRICA, URL_OLLAMA };
 export type { Eleccion, Local, Perfil, SinCupo, Tipo };
 
 /** Los topes van como texto mientras se escriben; el resto es la config tal cual. */
@@ -67,6 +69,10 @@ export type Borrador = {
   /** Los topes de Claude (5 h y semanal) como texto mientras se escriben. */
   tope5: string;
   tope7: string;
+  /** «Dónde pa deja de usar cada uno»: el % usado de los proveedores que se cambiaron (`google`, `openai`, `google:<grupo>`); lo que no está vale la fábrica. */
+  topes: Record<string, number>;
+  /** El tope aparte de Google para código en la ventana de 5 h (% usado); `null`: el de fábrica. */
+  codigoGoogle: number | null;
   /** «Destrabar solo cuando se repite», por modelo: sólo lo que se tocó (lo demás vale la fábrica). */
   destrabar: Record<string, boolean>;
 };
@@ -86,6 +92,8 @@ export const borradorDe = (e: EstadoModelos): Borrador => ({
   guardar: e.config.claude.tope_5h !== undefined || e.config.claude.tope_7d !== undefined,
   tope5: e.config.claude.tope_5h === undefined ? "" : String(e.config.claude.tope_5h),
   tope7: e.config.claude.tope_7d === undefined ? "" : String(e.config.claude.tope_7d),
+  topes: { ...(e.config.topes_uso ?? {}) },
+  codigoGoogle: e.config.google_codigo_5h ?? null,
   destrabar: { ...e.config.destrabar },
 });
 
@@ -120,6 +128,8 @@ export function configDe(b: Borrador): ConfigModelos | null {
     ...(b.sin_cupo ? { sin_cupo: b.sin_cupo } : {}),
     ...(b.perfil ? { perfil: b.perfil } : {}),
     claude: { ...(t5 !== null ? { tope_5h: t5 } : {}), ...(t7 !== null ? { tope_7d: t7 } : {}) },
+    ...(Object.keys(b.topes).length ? { topes_uso: { ...b.topes } } : {}),
+    ...(b.codigoGoogle !== null ? { google_codigo_5h: b.codigoGoogle } : {}),
     destrabar: { ...b.destrabar },
   };
 }
@@ -141,6 +151,8 @@ const huella = (c: ConfigModelos) =>
     c.perfil ?? "equilibrado",
     c.claude.tope_5h ?? null,
     c.claude.tope_7d ?? null,
+    Object.entries(c.topes_uso ?? {}).sort(([a], [z]) => (a < z ? -1 : 1)),
+    c.google_codigo_5h ?? null,
     Object.entries(c.destrabar).sort(([a], [z]) => (a < z ? -1 : 1)),
   ]);
 

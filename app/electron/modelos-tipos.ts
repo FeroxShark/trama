@@ -122,6 +122,16 @@ export type ConfigModelos = {
    */
   claude: { tope_5h?: number; tope_7d?: number };
   /**
+   * Desde qué % USADO de una ventana `reparto` deja de elegir a ese proveedor, sólo lo que el dueño cambió: `google`, `openai` (ChatGPT) o
+   * `google:<grupo>` (el del grupo gana). En el archivo es `topes_uso` (enteros de 1 a 100). Sin la entrada vale `TOPE_FABRICA`.
+   */
+  topes_uso?: Record<string, number>;
+  /**
+   * Para trabajo de código, desde qué % usado de la ventana de 5 h de un grupo de Google `reparto` lo salta (`GOOGLE_CODIGO_FABRICA` sin la clave).
+   * En el archivo es `agy_min_libre_5h` (lo que tiene que quedar libre, 0–1).
+   */
+  google_codigo_5h?: number;
+  /**
    * «Destrabar solo cuando se repite», por modelo (la clave es el id sin esfuerzo: `gemini-3.8-flash`): sólo lo que se tocó. Sin
    * la clave vale la fábrica (`destrabarPorDefecto`, electron/modelos-tipos.ts: prendido para Gemini 3.8 Flash, apagado el resto).
    */
@@ -146,6 +156,23 @@ export function topesDe(reserva: unknown): ConfigModelos["claude"] {
   }
   return c;
 }
+
+/** Donde `reparto` deja de usar un proveedor si el dueño no dice otra cosa (`LLENA` = 3 % libre): vale para todos los proveedores. */
+export const TOPE_FABRICA = 97;
+/** El tope aparte de Google para trabajo de código en la ventana de 5 h (`AGY_MIN_LIBRE_5H` = 30 % libre). */
+export const GOOGLE_CODIGO_FABRICA = 70;
+/** Una clave de `topes_uso`: el proveedor (`google`, `openai`) o un grupo de Google (`google:claude-gpt`). Claude va por `reserva`; OpenCode no informa % usado. */
+export const claveTopeValida = (k: string): boolean => k === "google" || k === "openai" || /^google:[a-z0-9][a-z0-9-]{0,40}$/.test(k);
+
+/** Los topes que dice un `topes_uso` ya parseado; lo que no tiene forma se ignora. */
+export function topesUsoDe(x: unknown): Record<string, number> {
+  const r: Record<string, number> = {};
+  if (esObj(x)) for (const [k, v] of Object.entries(x)) if (claveTopeValida(k) && topeValido(v)) r[k] = v;
+  return r;
+}
+
+/** `agy_min_libre_5h` (lo que tiene que quedar libre, 0–1) como % usado, entero; `undefined` si no es una fracción. */
+export const googleCodigoDe = (libre: unknown): number | undefined => (reservaValida(libre) ? topeDeReserva(libre) : undefined);
 
 export const esClaude = (m: string) => m.startsWith("claude-");
 export const esGemini = (m: string) => m.startsWith("gemini-");
@@ -231,6 +258,10 @@ export function leerConfig(j: Record<string, unknown>): ConfigModelos {
   if (typeof j.sin_cupo === "string" && (SIN_CUPO as readonly string[]).includes(j.sin_cupo)) c.sin_cupo = j.sin_cupo as SinCupo;
   if (typeof j.perfil === "string" && (PERFILES as readonly string[]).includes(j.perfil)) c.perfil = j.perfil as Perfil;
   c.claude = topesDe(j.reserva);
+  const tu = topesUsoDe(j.topes_uso);
+  if (Object.keys(tu).length) c.topes_uso = tu;
+  c.google_codigo_5h = googleCodigoDe(j.agy_min_libre_5h);
+  if (c.google_codigo_5h === undefined) delete c.google_codigo_5h;
   if (esObj(j.destrabar)) for (const [k, v] of Object.entries(j.destrabar)) if (typeof v === "boolean" && FORMA_ID.test(k) && (esGemini(k) || esAgy(k))) c.destrabar[k] = v;
   return c;
 }
@@ -252,7 +283,7 @@ function validarEleccion(x: unknown, donde: string, locales: Local[]): Eleccion 
 /** Lo que llega a guardar, revisado: tira con el motivo si algo no vale (y entonces no se escribe nada). */
 export function validarConfig(x: unknown): ConfigModelos {
   if (!esObj(x)) throw errorT("main.modelosForma");
-  const raro = Object.keys(x).find((k) => !["lider", "reparto", "workers", "locales", "excluir", "calidad", "efforts_permitidos", "autocompact", "permitir_max", "gemini", "claude", "sin_cupo", "perfil", "destrabar"].includes(k));
+  const raro = Object.keys(x).find((k) => !["lider", "reparto", "workers", "locales", "excluir", "calidad", "efforts_permitidos", "autocompact", "permitir_max", "gemini", "claude", "sin_cupo", "perfil", "destrabar", "topes_uso", "google_codigo_5h"].includes(k));
   if (raro !== undefined) throw errorT("main.modelosCampo", { campo: raro.slice(0, 40) });
   const c = vacia();
 
@@ -376,6 +407,18 @@ export function validarConfig(x: unknown): ConfigModelos {
       c.claude[n] = v;
     }
   }
+  if (x.topes_uso !== undefined && x.topes_uso !== null) {
+    if (!esObj(x.topes_uso)) throw errorT("main.modelosForma");
+    for (const [k, v] of Object.entries(x.topes_uso)) {
+      if (!claveTopeValida(k)) throw errorT("main.modelosCampo", { campo: `topes_uso.${k.slice(0, 30)}` });
+      if (!topeValido(v)) throw errorT("main.modelosTopeClaude", { min: CUPO_MIN, max: CUPO_MAX });
+      (c.topes_uso ??= {})[k] = v;
+    }
+  }
+  if (x.google_codigo_5h !== undefined && x.google_codigo_5h !== null) {
+    if (!topeValido(x.google_codigo_5h)) throw errorT("main.modelosTopeClaude", { min: CUPO_MIN, max: CUPO_MAX });
+    c.google_codigo_5h = x.google_codigo_5h;
+  }
   if (x.destrabar !== undefined && x.destrabar !== null) {
     if (!esObj(x.destrabar)) throw errorT("main.modelosForma");
     for (const [k, v] of Object.entries(x.destrabar)) {
@@ -467,6 +510,19 @@ export function unir(antes: Record<string, unknown> | null, c: ConfigModelos): R
     if (Object.keys(r).length) base.reserva = r;
     // Apagada: `null` si había una (así se ve que se apagó a propósito); si no había nada, el archivo no gana una clave.
     else if (base.reserva !== undefined) base.reserva = null;
+  }
+
+  // `topes_uso` es de `reparto`: sin entradas la clave sale (vale `TOPE_FABRICA`). Lo que no entiende (un proveedor nuevo) queda como estaba.
+  const tuAntes = esObj(base.topes_uso) ? base.topes_uso : {};
+  const tuNuevo: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(tuAntes)) if (!claveTopeValida(k) || !topeValido(v)) tuNuevo[k] = v;
+  Object.assign(tuNuevo, c.topes_uso ?? {});
+  if (Object.keys(tuNuevo).length) base.topes_uso = tuNuevo;
+  else delete base.topes_uso;
+  // `agy_min_libre_5h`: si lo que había ya dice este tope se deja tal cual (un 0.25 o un 0.255 no se reescriben).
+  if (googleCodigoDe(base.agy_min_libre_5h) !== c.google_codigo_5h) {
+    if (c.google_codigo_5h !== undefined) base.agy_min_libre_5h = reservaDeTope(c.google_codigo_5h);
+    else delete base.agy_min_libre_5h;
   }
 
   // `destrabar` es de trama (el puente de agy lo lee en cada turno): sin entradas la clave sale (vale la fábrica).

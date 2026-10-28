@@ -4,7 +4,7 @@
 // cambian con el tiempo ("vuelve en 20 h") los escribe el reloj, no React.
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Ban, CalendarClock, Check, ChevronDown, Clock, Info, Minus, TrendingDown, TrendingUp, TriangleAlert } from "lucide-react";
-import { Boton, Chip, Interruptor, Tarjeta } from "../ui/componentes";
+import { Boton, Chip, Tarjeta } from "../ui/componentes";
 import { LogoCaja, type Proveedor } from "../ui/logos";
 import type { GrupoCupo, SuscripcionCupo, Uso, VentanaCupo } from "../datos/contrato";
 import { fuente, type CuentaEstado, type EstadoCuentas } from "../datos/fuente";
@@ -27,8 +27,10 @@ import { carcasa } from "../carcasa";
 import { cuentasDe, AgregarCuenta, CuentaFila, useCuentas } from "./CuentasVarias";
 import { suscripcionDe, type PerfilCuenta, type ProveedorCuenta } from "../datos/cuentas";
 import type { FilaDato } from "./AjustesEditar";
-import { avisosTope, GOOGLE_CODIGO, GOOGLE_LLENA } from "./cupos-aviso";
-import { PERFILES, SIN_CUPO, TOPE_CLAUDE_DEFECTO, type Borrador, type Perfil, type SinCupo } from "./modelos-borrador";
+import { avisosTope } from "./cupos-aviso";
+import { cambiado, fabricaDe, poner, restaurar, topeDe, TOPE_MAX, TOPE_MIN, type IdTope } from "./cupos-topes";
+import { GrupoAjustes, FilaAjuste } from "./AjustesPiezas";
+import { PERFILES, SIN_CUPO, type Borrador, type Perfil, type SinCupo } from "./modelos-borrador";
 import { reservaDePerfil, ritmoSemanal, type Ritmo } from "./cupos-ritmo";
 
 const SIN_CUPO_CLAVES: Record<SinCupo, { nombre: ClaveSola; que: ClaveSola }> = {
@@ -42,9 +44,6 @@ const PERFIL_CLAVES: Record<Perfil, { nombre: ClaveSola; que: ClaveSola }> = {
   ahorro: { nombre: "cu.perfilAhorro", que: "cu.perfilAhorroQue" },
   rendimiento: { nombre: "cu.perfilRendimiento", que: "cu.perfilRendimientoQue" },
 };
-
-const TOPE_FORMATO = /^\s*$|^\d{1,3}$/;
-const topeMal = (v: string) => !TOPE_FORMATO.test(v) || (v.trim() !== "" && (Number(v) < 1 || Number(v) > 100));
 
 type UsoClaude = Extract<Uso, { five_hour: unknown }>;
 const conDatos = (u: Uso | null): u is UsoClaude => u !== null && "five_hour" in u;
@@ -625,29 +624,57 @@ function TarjetaOpencode({ uso, perfiles, lista, alCambiar }: { uso: Uso | null;
   );
 }
 
-/** Lo que se escribe en `modelos.json`: guardar un % para mis sesiones y qué hace `pa` sin cupo. */
-export function AjustesCupos({ Dato, b, cambiar }: { Dato: FilaDato; b: Borrador; cambiar: (b: Borrador) => void }) {
-  useIdioma();
-  const errTope5 = topeMal(b.tope5);
-  const errTope7 = topeMal(b.tope7);
-  const nuevo = (k: "tope5" | "tope7") => (ev: { target: { value: string } }) => cambiar({ ...b, [k]: ev.target.value });
-  const campo = (k: "tope5" | "tope7", mal: boolean, etiqueta: ClaveSola) => (
-    <div className="pn-campo-fila">
-      <input
-        className="pn-campo pn-campo-num"
-        type="text"
-        inputMode="numeric"
-        autoComplete="off"
-        spellCheck={false}
-        value={b[k]}
-        placeholder={String(TOPE_CLAUDE_DEFECTO)}
-        aria-label={t(etiqueta)}
-        aria-invalid={mal}
-        onChange={nuevo(k)}
-      />
-      <span className="pn-unidad">%</span>
-    </div>
+/** Una fila de «Dónde pa deja de usar…»: deslizador con el % usado, «De fábrica» o el botón para volver a él, y la frase corta. */
+function FilaTope({ b, cambiar, id, titulo, ayuda, detalle }: { b: Borrador; cambiar: (b: Borrador) => void; id: IdTope; titulo: string; ayuda?: ReactNode; detalle?: ReactNode }) {
+  const v = topeDe(b, id);
+  const fab = fabricaDe(id);
+  const otro = cambiado(b, id);
+  return (
+    <FilaAjuste
+      opc={`cu.tope.${id}`}
+      titulo={titulo}
+      ayuda={ayuda ?? t("cu.topeFila", { pct: v })}
+      detalle={detalle}
+      control={
+        <>
+          <input
+            type="range"
+            className="cu-tope-rango"
+            min={TOPE_MIN}
+            max={TOPE_MAX}
+            step={1}
+            value={Math.max(TOPE_MIN, v)}
+            aria-label={t("cu.topeAria", { quien: titulo })}
+            aria-valuetext={t("cu.topeValor", { pct: v })}
+            onChange={(ev) => cambiar(poner(b, id, Number(ev.target.value)))}
+          />
+          <output className="cu-tope-valor">{t("cu.topeValor", { pct: v })}</output>
+          {otro ? (
+            <Boton onClick={() => cambiar(restaurar(b, id))} aria-label={t("cu.topeVolverAria", { quien: titulo, pct: fab })}>
+              {t("cu.topeVolver", { pct: fab })}
+            </Boton>
+          ) : (
+            <Chip tono="ok">{t("cu.topeFabrica")}</Chip>
+          )}
+        </>
+      }
+    />
   );
+}
+
+/** Los proveedores con cupo que se ven en Plan y cupos, y los grupos de Google que reparto conoce hoy (sin dato de Google: ninguno). */
+function filasDeUso(uso: Uso | null) {
+  const subs = uso && !("error" in uso) ? (uso.suscripciones ?? []) : [];
+  const google = suscripcionDe(subs, "google");
+  const grupos = google?.grupos?.length ? google.grupos.map((g) => ({ id: `google:${g.id}`, nombre: nombreGrupo(g) })) : google ? [{ id: "google", nombre: t("cu.google") }] : [];
+  return { grupos, chatgpt: !!suscripcionDe(subs, "chatgpt") };
+}
+
+/** Lo que se escribe en `modelos.json`: dónde deja pa de usar cada proveedor, qué hace sin cupo y cómo reparte. */
+export function AjustesCupos({ Dato, b, cambiar, uso }: { Dato: FilaDato; b: Borrador; cambiar: (b: Borrador) => void; uso: Uso | null }) {
+  useIdioma();
+  const { grupos, chatgpt } = filasDeUso(uso);
+  const reserva = reservaDePerfil(b.perfil);
 
   return (
     <section className="pn-sec pn-edita cu-avanzado">
@@ -664,21 +691,35 @@ export function AjustesCupos({ Dato, b, cambiar }: { Dato: FilaDato; b: Borrador
           />
         </div>
       </Dato>
-      <Dato nombre="ajustes.cuposGuardar" que="ajustes.cuposGuardarQue">
-        <Interruptor activo={b.guardar} alCambiar={(v) => cambiar({ ...b, guardar: v })} aria-label={t("ajustes.cuposGuardar")} />
-      </Dato>
-      {b.guardar ? (
-        <>
-          <Dato nombre="ajustes.mdlTope5" que="ajustes.mdlTope5Que">
-            {campo("tope5", errTope5, "ajustes.mdlTope5")}
-            {errTope5 ? <div className="pn-error pn-campo-error">{t("ajustes.mdlTopeErr")}</div> : null}
-          </Dato>
-          <Dato nombre="ajustes.mdlTope7" que="ajustes.mdlTope7Que">
-            {campo("tope7", errTope7, "ajustes.mdlTope7")}
-            {errTope7 ? <div className="pn-error pn-campo-error">{t("ajustes.mdlTopeErr")}</div> : null}
-          </Dato>
-        </>
-      ) : null}
+
+      <div data-opc="cu.topes" className="cu-topes">
+        <GrupoAjustes titulo={t("cu.topes")} subtitulo={t("cu.topesSub")}>
+          <FilaTope b={b} cambiar={cambiar} id="claude:5h" titulo={t("cu.topeClaude5h")} />
+          <FilaTope
+            b={b}
+            cambiar={cambiar}
+            id="claude:7d"
+            titulo={t("cu.topeClaudeSem")}
+            ayuda={reserva ? t("cu.topeClaudeReserva", { pct: topeDe(b, "claude:7d"), reserva: Math.round(reserva * 100) }) : undefined}
+          />
+          {grupos.map((g) => (
+            <FilaTope key={g.id} b={b} cambiar={cambiar} id={g.id} titulo={`${t("cu.google")} · ${g.nombre}`} />
+          ))}
+          {chatgpt ? <FilaTope b={b} cambiar={cambiar} id="openai" titulo={t("cu.chatgpt")} /> : null}
+          <FilaAjuste opc="cu.tope.opencode" titulo={t("cu.opencode")} ayuda={t("cu.topeOpencode")} control={<Chip>{t("cu.topeAuto")}</Chip>} />
+        </GrupoAjustes>
+        <details className="cu-topes-porque">
+          <summary>{t("cu.topesPorqueTit")}</summary>
+          <p>{t("cu.topesPorque")}</p>
+        </details>
+        <details className="cu-topes-adv">
+          <summary>{t("cu.topesAdv")}</summary>
+          <GrupoAjustes>
+            <FilaTope b={b} cambiar={cambiar} id="google:codigo" titulo={t("cu.topeCodigo")} ayuda={t("cu.topeCodigoFila", { pct: topeDe(b, "google:codigo") })} />
+          </GrupoAjustes>
+          <p className="cu-topes-nota">{t("cu.topeCodigoQue")}</p>
+        </details>
+      </div>
 
       <Dato nombre="ajustes.cuposSinCupo" que="ajustes.cuposSinCupoQue">
         <div className="pn-sel">
@@ -689,20 +730,6 @@ export function AjustesCupos({ Dato, b, cambiar }: { Dato: FilaDato; b: Borrador
             alElegir={(id) => cambiar({ ...b, sin_cupo: id as SinCupo })}
             reserva={SIN_CUPO.flatMap((id) => enOtros(SIN_CUPO_CLAVES[id].nombre))}
           />
-        </div>
-      </Dato>
-
-      {/* Lo que pa ya hace con Google: valores fijos (no se editan), pero se ven acá junto a los ajustes que sí se editan. */}
-      <Dato nombre="cu.topesGoogle" que="cu.topesQue">
-        <div className="cu-topes">
-          <div className="cu-tope">
-            <span>{t("cu.saltoLlena")}</span>
-            <Chip>{t("cu.saltoDesde", { pct: GOOGLE_LLENA })}</Chip>
-          </div>
-          <div className="cu-tope">
-            <span>{t("cu.saltoCodigo")}</span>
-            <Chip>{t("cu.saltoDesde", { pct: GOOGLE_CODIGO })}</Chip>
-          </div>
         </div>
       </Dato>
     </section>

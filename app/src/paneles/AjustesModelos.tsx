@@ -677,7 +677,7 @@ export function AjustesModelos({ Dato, plan = null }: { Dato: FilaDato; plan?: s
         <CuposTarjetas b={b} uso={uso} plan={plan} />
       </Cat>
       <Cat id="cupos" orden={2}>
-        <AjustesCupos Dato={Dato} b={b} cambiar={cambiar} />
+        <AjustesCupos Dato={Dato} b={b} cambiar={cambiar} uso={uso} />
       </Cat>
 
       <Acciones id="modelos" sucio={hayCambio} valido={valido} guardando={guardando} ok={ok} error={error} alGuardar={guardar} alCancelar={() => cambiar(borradorDe(e))} />
