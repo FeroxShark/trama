@@ -8,7 +8,7 @@ import { delimitadorDe, homeDe, plataformaActual, type Plataforma } from "../../
 import { CONTRATO, CONTRATO_AGY, CONTRATO_CODEX, SIN_JEFE, conJefe } from "../contrato.ts";
 import type { Env, Io } from "../entorno.ts";
 import { codexShims, dshBin, dshClave, dshCorrer, localDe, opencodeBin, opencodeCorrer, type Local } from "./chequeo.ts";
-import { dshModeloDe, dshProveedor, esOpencode, type Motor } from "./modelos.ts";
+import { dshModeloDe, dshProveedor, esNvidia, esOpencode, type Motor } from "./modelos.ts";
 import { claudeMdDueno, promptOtroMotor } from "./prompt.ts";
 
 /** El contrato de un motor antes de `conDueno`: agy y codex/dsh tienen el suyo y corren sin jefe (no tienen SendMessage). */
@@ -202,6 +202,11 @@ export function armarLlamada(d: DatosLlamada): Llamada {
   if (oc) {
     // opencode usa el login de la persona (su HOME/XDG): ninguna key de pa viaja. Una cuenta agregada va sólo en este proceso.
     env = conCuenta({ ...env, HILOS_OPENCODE: opencodeBin(d.env, plat) }, d.cuenta);
+    // NVIDIA NIM: la key de claves.env viaja sólo a este proceso (opencode la toma de NVIDIA_API_KEY); nunca se imprime.
+    if (esNvidia(d.modelo)) {
+      const kn = dshClave("NVIDIA_API_KEY", d.env, plat);
+      if (kn) env.NVIDIA_API_KEY = kn;
+    }
   } else {
     env = { ...env, HILOS_DSH: dshBin(d.env, plat) };
     const k = prov === "opencode" ? "OPENCODE_API_KEY" : prov === "deepseek" ? "DEEPSEEK_API_KEY" : "";

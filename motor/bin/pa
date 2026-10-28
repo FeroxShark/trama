@@ -72,7 +72,9 @@
 #                                        dsh sin instalar, sin key o Ollama caído → sale 95) y
 #                                        opencode:<proveedor>/<modelo> (el programa opencode: sus modelos gratis, p. ej.
 #                                        opencode:opencode/deepseek-v4.1-flash-free, sólo andan por él con tu login de
-#                                        OpenCode Console; effort = su --variant; opencode sin instalar → sale 95)
+#                                        OpenCode Console; effort = su --variant; opencode sin instalar → sale 95).
+#                                        opencode:nvidia/<modelo> (NVIDIA NIM, gratis: p. ej. opencode:nvidia/deepseek-ai/deepseek-v4.1-flash) usa
+#                                        NVIDIA_API_KEY de claves.env; sin ella sale 95; un 429 lo enfría minutos, no horas
 #   pa --proyectos [--json]              los proyectos del registry con su nombre para mostrar (`titulo`), slug y ruta
 #   pa --renombrar <proy> <nombre>       nombre para mostrar de un proyecto (la app lo muestra en todos lados y `pa <nombre> …`
 #                                        vale como alias del suyo). SÓLO cambia lo que se ve: slug, ruta, ramas y estado quedan.

@@ -67,7 +67,7 @@ export async function dshCatalogo(pa: Pa, locales: Local[] | null): Promise<stri
 }
 
 /** `opencode_catalogo`: los gratis que lista `opencode models` o, si no contesta, los conocidos. */
-export async function opencodeCatalogo(pa: Pa): Promise<string[]> {
+export async function opencodeCatalogo(pa: Pa, archivoModelos = ""): Promise<string[]> {
   const inst = opencodeBin(pa.env, pa.plat);
   let lista: string[] = [];
   if (inst) {
@@ -81,7 +81,18 @@ export async function opencodeCatalogo(pa: Pa): Promise<string[]> {
   }
   if (!lista.length) lista = OC_GRATIS_CONOCIDOS;
   const detalle = inst ? "con tu login de OpenCode Console (opencode → /connect)" : "no está instalado opencode";
-  return lista.map((m) => `opencode:opencode/${m}\t1\t${inst ? 1 : 0}\t${detalle}`);
+  const out = lista.map((m) => `opencode:opencode/${m}\t1\t${inst ? 1 : 0}\t${detalle}`);
+  // NVIDIA NIM: los de `nvidia_modelos` de modelos.json (default deepseek-ai/deepseek-v4.1-flash); disponibles con NVIDIA_API_KEY.
+  const hayKey = !!inst && dshClave("NVIDIA_API_KEY", pa.env, pa.plat) !== "";
+  const detNv = !inst ? "no está instalado opencode" : hayKey ? "con tu NVIDIA_API_KEY (NVIDIA NIM, ~40 pedidos por minuto)" : `falta NVIDIA_API_KEY (build.nvidia.com; en ${clavesEnv(pa.env, pa.plat)})`;
+  let nv: string[] = ["deepseek-ai/deepseek-v4.1-flash"];
+  try {
+    const j = parsear(readFileSync(archivoModelos, "utf8"));
+    if (esObj(j) && Array.isArray(j.nvidia_modelos)) nv = j.nvidia_modelos.filter((x): x is string => typeof x === "string" && /^[A-Za-z0-9][A-Za-z0-9._/-]*$/.test(x));
+  } catch {
+    /* sin modelos.json: el default */
+  }
+  return out.concat(nv.map((m) => `opencode:nvidia/${m}\t1\t${hayKey ? 1 : 0}\t${detNv}`));
 }
 
 // ------------------------------------------------------------------------------------------- pa --modelos
@@ -210,7 +221,7 @@ export async function cmdModelos(pa: Pa, args: string[]): Promise<number> {
   const localesConf = valido ? parsear(confClave("locales")) : undefined;
   const locales: Local[] | null = Array.isArray(localesConf) ? (localesConf.filter(esObj) as unknown as Local[]) : null;
   const dshs = valido ? await dshCatalogo(pa, locales) : await dshCatalogo(pa, null);
-  const ocs = await opencodeCatalogo(pa);
+  const ocs = await opencodeCatalogo(pa, modelos.archivo);
   const locs: string[][] = [];
   if (valido && Array.isArray(localesConf)) {
     for (const l of localesConf) {

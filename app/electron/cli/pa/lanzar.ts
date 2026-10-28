@@ -39,7 +39,7 @@ import { deltaSucios, limpiarBuild } from "./sucios.ts";
 import { contratoBase, entornoOllama } from "./motores/llamada.ts";
 import { arreglarJsonOllama } from "./motores/salida.ts";
 import type { Local } from "./motores/chequeo.ts";
-import { esOpencode, type Motor } from "./motores/modelos.ts";
+import { esNvidia, esOpencode, minutosEnfriarNvidia, type Motor } from "./motores/modelos.ts";
 
 /** Todo lo que `pa` ya decidió antes de lanzar (argumentos, política, puesto, worktree). Los nombres son los del bash. */
 export interface Corrida {
@@ -779,7 +779,7 @@ export async function lanzarClaude(pa: Pa, c: Corrida, o: OpcionesLanzar = {}): 
     // 0. OpenCode cortó por límite de uso (los gratis lo hacen seguido): código propio, y ESE modelo queda enfriado en reparto.
     if (c.motor === "dsh" && esOpencode(c.modelo) && dshSinCupo(l.err, texto)) {
       await g.enfriar?.(c.modelo).catch(() => {});
-      io.err(`pa: OpenCode cortó por límite de uso con ${c.modelo}: lo enfrío ${pa.env.PA_ENFRIAR_HORAS || "5"} h en reparto. Probá con otro modelo (-m a,b,c pasa solo al siguiente).\n`);
+      io.err(`pa: OpenCode cortó por límite de uso con ${c.modelo}: lo enfrío ${esNvidia(c.modelo) ? `${minutosEnfriarNvidia(pa.env)} min (NVIDIA NIM limita por minuto)` : `${pa.env.PA_ENFRIAR_HORAS || "5"} h`} en reparto. Probá con otro modelo (-m a,b,c pasa solo al siguiente).\n`);
       io.err(`${texto}\n`);
       return salir(97);
     }

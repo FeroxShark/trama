@@ -74,6 +74,9 @@ OpenCode Go (plan pago de OpenCode, APAGADO por defecto): con `"opencode_plan": 
 (se leen de opencode.ai/go con motor/opencode/go-topes.mjs a un caché en ~/.local/state/hilos; go-topes.json es el respaldo sin red; REPARTO_GO_TABLA=<archivo> lo cambia) entran como candidatos `opencode:opencode-go/<modelo>` con costo marginal ~0
 (`costo["opencode-go"]`, 0,02), por calidad de AA al esfuerzo que se usaría, como cualquier otro. Cada modelo de Go tiene su cupo: un 429 (`--agotar`) marca agotado SOLO
 ese modelo (5 h), no el grupo `opencode-free`. Sin esa clave (o con "gratis") no cambia nada.
+NVIDIA NIM (build.nvidia.com, gratis, ~40 pedidos por minuto por modelo; por opencode, `opencode:nvidia/<modelo>`; grupo `nvidia-nim`): candidatos sólo con NVIDIA_API_KEY
+(entorno o ~/.config/trama/claves.env) y `opencode` instalado. Los modelos salen de `nvidia_modelos` de modelos.json (default ["deepseek-ai/deepseek-v4.1-flash"]; [] lo apaga),
+REPARTO_NVIDIA=0 los apaga. Un 429 es por minuto: pa enfría SÓLO ese modelo unos minutos (`--enfriar ID --horas`), no hay grupo que agotar. La calidad sale de `calidad`.
 """
 import contextlib
 import fcntl

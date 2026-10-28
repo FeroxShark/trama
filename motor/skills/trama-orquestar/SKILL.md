@@ -80,6 +80,9 @@ pa --estado                                qué corre ahora, sesiones guardadas,
   login de la persona en `opencode` (`opencode` → /connect → OpenCode Console): no hay key que pasarles, y por dsh no
   andan (429). `opencode` y `deepseek` son remotos: `pa` no les manda la ficha del proyecto ni el CLAUDE.md del
   dueño. `pa --modelos` los lista.
+  NVIDIA NIM (gratis, ~40 pedidos/min por modelo, sin tope diario): `opencode:nvidia/deepseek-ai/deepseek-v4.1-flash` (más en `nvidia_modelos` de
+  `modelos.json`); necesita `NVIDIA_API_KEY` en `~/.config/trama/claves.env` (si falta, `pa` sale 95; nunca la pidas ni la imprimas). `reparto` los
+  ofrece sólo con esa key, en el grupo `nvidia-nim`; un 429 enfría sólo ese modelo ~5 min.
 - Cuando el modelo elegido no tiene cupo, `sin_cupo` de `modelos.json` dice qué hace `pa`: `otro` (el
   default: relanza con el siguiente candidato de `reparto`), `esperar` (queda en cola con `--async`) o `fallar`.
 

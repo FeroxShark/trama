@@ -59,11 +59,21 @@ export function dshGratis(m: string): boolean {
   }
   return false;
 }
-/** opencode: gratis son `opencode/big-pickle` y los `*-free`. */
+/** opencode: gratis son `opencode/big-pickle`, los `*-free` y los de NVIDIA NIM (`nvidia/*`, con NVIDIA_API_KEY). */
 export function opencodeGratis(m: string): boolean {
   const v = m.startsWith("opencode:") ? m.slice("opencode:".length) : m;
-  return v === "opencode/big-pickle" || v.endsWith("-free");
+  return v === "opencode/big-pickle" || v.endsWith("-free") || v.startsWith("nvidia/");
 }
+/** NVIDIA NIM (build.nvidia.com): opencode trae el proveedor `nvidia` y toma la key de NVIDIA_API_KEY; límite por minuto y por modelo. */
+export const esNvidia = (m: string) => min(m).startsWith("opencode:nvidia/");
+/** Minutos que enfría un 429 de NVIDIA NIM (PA_ENFRIAR_NVIDIA_MIN, default 5): el límite es por minuto, no las horas de los gratis de OpenCode. */
+export const minutosEnfriarNvidia = (env: Record<string, string | undefined>) => {
+  const n = Number(env.PA_ENFRIAR_NVIDIA_MIN ?? 5);
+  return n > 0 ? n : 5;
+};
+/** Las horas que pa le pasa a `reparto --enfriar` para ese modelo (undefined: las de reparto). */
+export const horasEnfriar = (m: string, env: Record<string, string | undefined>): string | undefined =>
+  esNvidia(m) ? (minutosEnfriarNvidia(env) / 60).toFixed(4) : env.PA_ENFRIAR_HORAS || undefined;
 
 /** La suscripción que paga el modelo (para reparto); vacío para un local o dsh. */
 export function proveedorDeModelo(m: string): Proveedor {

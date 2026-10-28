@@ -9,7 +9,7 @@ import { enPath, esEjecutable } from "../../base/buscar.ts";
 import { rutaReal, resolverProyecto } from "../../proyecto-ruta.ts";
 import type { Env } from "../entorno.ts";
 import { carpetaMotor } from "../entorno.ts";
-import { calza, dshGratis, dshModeloDe, dshProveedor, esOpencode, OC_MODELOS } from "./modelos.ts";
+import { calza, dshGratis, dshModeloDe, dshProveedor, esNvidia, esOpencode, OC_MODELOS } from "./modelos.ts";
 import { privacidad } from "./privacidad.ts";
 
 /** Las rutas de los runners y los shims (PA_DSH_CORRER, PA_OPENCODE_CORRER, PA_CODEX_SHIMS o los de motor/). */
@@ -21,7 +21,7 @@ export const clavesEnv = (env: Env, plat: Plataforma = plataformaActual()) => en
 
 /** La key de un proveedor: el entorno primero y, si no, claves.env (NOMBRE=valor, sin `source`, con o sin comillas). */
 export function dshClave(nombre: string, env: Env, plat: Plataforma = plataformaActual()): string {
-  if (nombre !== "OPENCODE_API_KEY" && nombre !== "DEEPSEEK_API_KEY") return "";
+  if (nombre !== "OPENCODE_API_KEY" && nombre !== "DEEPSEEK_API_KEY" && nombre !== "NVIDIA_API_KEY") return "";
   let v = env[nombre] ?? "";
   const f = clavesEnv(env, plat);
   if (!v && existsSync(f)) {
@@ -178,6 +178,8 @@ export function chequearOpencode(modelo: string, d: DatosChequeo): string {
   const m = privacidadDe(d.proyecto, d.tarea, "OpenCode", d.env);
   if (m) return m;
   if (!enPath("node", [], d.env, plat)) return "node no está en el PATH (opencode lo necesita)";
+  if (esNvidia(modelo) && !dshClave("NVIDIA_API_KEY", d.env, plat))
+    return `falta NVIDIA_API_KEY para '${modelo}' (NVIDIA NIM, gratis: sacala en build.nvidia.com y ponela en ${clavesEnv(d.env, plat)} como NVIDIA_API_KEY=…, o en el entorno)`;
   if (!existsSync(opencodeCorrer(d.env))) return `falta ${opencodeCorrer(d.env)}`;
   if (!opencodeBin(d.env, plat)) return "opencode no está instalado (npm i -g opencode-ai; después `opencode` → /connect → OpenCode Console para los gratis)";
   return "";
