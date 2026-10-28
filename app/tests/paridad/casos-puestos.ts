@@ -23,6 +23,8 @@ const respiro: Paso = { args: ["--esperar", "demo", "--timeout", "1"] };
 const esperarTodo: Paso = { args: ["--esperar", "demo", "--timeout", "60"] };
 
 const meminfo = (c: Contexto) => path.join(c.aux, "meminfo");
+/** RAM de sobra: sin PA_MEMINFO la admisión mira la RAM real de la máquina y el resultado depende de la carga de otros workers. */
+const RAM_SOBRADA = "MemTotal:       64000000 kB\nMemAvailable:    48000000 kB\n";
 
 /** El worktree del puesto 1 ya existe (en HEAD suelto) con lo que dejó un worker que murió sin commitear. */
 function conHuerfano(c: Contexto) {
@@ -51,12 +53,20 @@ export const casosPuestos: Caso[] = [
   },
   {
     nombre: "puestos: el segundo writer va al puesto 2 y avisa que corre en paralelo",
-    preparar: lento,
+    preparar: (c) => {
+      lento(c);
+      writeFileSync(meminfo(c), RAM_SOBRADA);
+    },
+    env: (c) => ({ PA_MEMINFO: meminfo(c) }),
     pasos: [vivo(), respiro, { args: ["demo", "--sin-jefe", "-m", M, "otra"], rc: 78 }, esperarTodo],
   },
   {
     nombre: "puestos: --aca con el tree principal ocupado sale 75",
-    preparar: lento,
+    preparar: (c) => {
+      lento(c);
+      writeFileSync(meminfo(c), RAM_SOBRADA);
+    },
+    env: (c) => ({ PA_MEMINFO: meminfo(c) }),
     pasos: [vivo("--aca"), respiro, { args: ["demo", "--sin-jefe", "--aca", "-m", M, "otra"], rc: 75 }, esperarTodo],
   },
   {
