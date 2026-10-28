@@ -819,6 +819,11 @@ kbd {
   line-height: 1;
   object-fit: contain;
 }
+/* Un ícono de verdad llena el círculo; lo transparente se apoya en un fondo neutro. */
+img.logo {
+  background: var(--sup-3);
+  object-fit: cover;
+}
 .logo[data-neutro] {
   background: var(--sup-3);
   color: var(--txt-2);

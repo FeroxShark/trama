@@ -4,11 +4,11 @@ import type { EstadoMd, PlanMd } from "../../electron/unificar-md";
 import { MODO } from "../modo";
 
 export const PROYECTOS_FALSOS: ProyectoNombre[] = [
-  { nombre: "asistente-voz", slug: "asistente-voz", ruta: "~/Proyectos/asistente-voz", titulo: "Shark", existe: true, alias: [] },
-  { nombre: "atlas", slug: "atlas", ruta: "~/Proyectos/atlas", titulo: null, existe: true, alias: [] },
-  { nombre: "duna", slug: "duna", ruta: "~/Proyectos/duna", titulo: "Duna Studio", existe: true, alias: [] },
-  { nombre: "hilos", slug: "hilos", ruta: "~/Proyectos/hilos", titulo: "trama", existe: true, alias: [] },
-  { nombre: "baliza", slug: "baliza", ruta: "~/Proyectos/baliza", titulo: "Baliza Android", existe: false, alias: [] },
+  { nombre: "asistente-voz", slug: "asistente-voz", ruta: "~/Proyectos/asistente-voz", titulo: "Shark", existe: true, alias: [], logo: false },
+  { nombre: "atlas", slug: "atlas", ruta: "~/Proyectos/atlas", titulo: null, existe: true, alias: [], logo: false },
+  { nombre: "duna", slug: "duna", ruta: "~/Proyectos/duna", titulo: "Duna Studio", existe: true, alias: [], logo: false },
+  { nombre: "hilos", slug: "hilos", ruta: "~/Proyectos/hilos", titulo: "trama", existe: true, alias: [], logo: false },
+  { nombre: "baliza", slug: "baliza", ruta: "~/Proyectos/baliza", titulo: "Baliza Android", existe: false, alias: [], logo: false },
 ];
 
 const fila = (archivo: "AGENTS.md" | "CLAUDE.md" | "GEMINI.md", tipo: EstadoMd["archivos"][number]["tipo"], caracteres = 0) => ({ archivo, tipo, bytes: caracteres, caracteres });

@@ -3,6 +3,7 @@
 // Un solo almacén para todo lo que muestra un proyecto (barra, Tablero, Ramas, Estadísticas, selectores, Guía): al renombrar, todos se enteran.
 import { useMemo, useSyncExternalStore } from "react";
 import { MODO } from "../modo";
+import { recargarIconos } from "../barra/Logo";
 import { main, mensaje } from "../puente";
 import { mapaNombres } from "../../electron/proyectos-nombre";
 import type { ProyectoNombre } from "../../electron/proyectos-alias";
@@ -16,6 +17,8 @@ export interface FuenteProyectos {
   lista(): Promise<ProyectoNombre[]>;
   /** Pone el nombre para mostrar (`null`: lo saca). Rechaza con el motivo (clave de i18n del main). */
   renombrar(slug: string, nombre: string | null): Promise<ProyectoNombre>;
+  /** Guarda el logo elegido a mano (la imagen achicada que devolvió `main.archivo.elegirLogo`); `null`: vuelve al automático. */
+  logo(slug: string, logo: string | null): Promise<ProyectoNombre>;
   mdEstado(slug: string): Promise<EstadoMd>;
   mdPlan(slug: string): Promise<PlanMd>;
   /** Escribe lo que dice el plan que se vio (`huella`); rechaza si los archivos cambiaron desde entonces. */
@@ -40,6 +43,13 @@ const fija: FuenteProyectos = {
     const p = falsos.find((x) => x.slug === slug);
     if (!p) throw new Error(slug);
     p.titulo = nombre;
+    return { ...p };
+  },
+  async logo(slug, logo) {
+    await espera(150);
+    const p = falsos.find((x) => x.slug === slug);
+    if (!p) throw new Error(slug);
+    p.logo = logo !== null;
     return { ...p };
   },
   async mdEstado(slug) {
@@ -90,6 +100,9 @@ const conMain = (m: NonNullable<typeof main>): FuenteProyectos => ({
   },
   async renombrar(slug, nombre) {
     return (await m.proyectosNombres.renombrar(slug, nombre).catch(rechazo)) as ProyectoNombre;
+  },
+  async logo(slug, logo) {
+    return (await m.proyectosNombres.logo(slug, logo).catch(rechazo)) as ProyectoNombre;
   },
   async mdEstado(slug) {
     return (await m.paneles.mdEstado(slug).catch(rechazo)) as EstadoMd;
@@ -142,6 +155,11 @@ export const fuenteProyectos: FuenteProyectos = {
   async renombrar(slug, nombre) {
     const r = await base.renombrar(slug, nombre);
     await recargarProyectos();
+    return r;
+  },
+  async logo(slug, logo) {
+    const r = await base.logo(slug, logo);
+    await Promise.all([recargarProyectos(), recargarIconos()]);
     return r;
   },
 };

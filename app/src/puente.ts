@@ -100,7 +100,7 @@ type Main = {
   /** slug → `titulo` del registry, sin validar. */
   titulos(): Promise<unknown>;
   /** Los proyectos con su nombre para mostrar (electron/proyectos-alias.ts); `renombrar(slug, null)` lo saca. */
-  proyectosNombres: { lista(): Promise<unknown>; renombrar(slug: string, nombre: string | null): Promise<unknown> };
+  proyectosNombres: { lista(): Promise<unknown>; renombrar(slug: string, nombre: string | null): Promise<unknown>; logo(slug: string, logo: string | null): Promise<unknown> };
   /** slug → data URL del logo de cada proyecto que tiene uno. */
   iconos(): Promise<Record<string, string>>;
   /** Dictar (electron/dictado.ts): un WAV 16 kHz mono de hasta 5 min → el texto que dijo (Handy, en la máquina del motor). */
@@ -412,6 +412,8 @@ type Main = {
   portapapeles?: { texto(): Promise<string> };
   /** El selector nativo de carpetas (campo "Carpeta" de un líder nuevo): la ruta o `null` si se canceló. El objeto existe también en el navegador, pero ahí el canal se rechaza: mostralo sólo si `esVentana()`. */
   carpeta?: { elegir(): Promise<string | null> };
+  /** El selector nativo de una imagen para el logo de un proyecto: la imagen achicada a 64 px (data URL) o `null` si se canceló. Como `carpeta`: sólo con `esVentana()`. */
+  archivo?: { elegirLogo(): Promise<string | null> };
   /** Vuelve a cargar la ventana (el cartel de error); por la tailnet no existe. */
   recargar?(): Promise<void>;
   /** Un error del renderer, al log del main (src/errores.ts). */

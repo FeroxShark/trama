@@ -34,6 +34,32 @@
   gap: var(--esp-1-5);
   margin-left: auto;
 }
+.pry-logo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--esp-2);
+  margin-top: var(--esp-2);
+}
+.pry-logo-t {
+  color: var(--texto-3);
+  font-size: var(--letra-4);
+  font-weight: 600;
+}
+.pry-logo-est {
+  color: var(--texto-5);
+  font-size: var(--letra-3);
+}
+.pry-logo .mini {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--esp-1-5);
+}
+.pry-logo .pry-err,
+.pry-logo .pry-ok {
+  flex-basis: 100%;
+  margin: 0;
+}
 .pry-meta {
   margin: var(--esp-1) 0 0;
   color: var(--texto-5);

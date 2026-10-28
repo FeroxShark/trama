@@ -28,6 +28,8 @@ export type Proyecto = {
   desc: string;
   /** Campo opcional `icono` (o `icon`, como ya lo trae el registry): la ruta de su logo, tal cual está escrita. */
   icono: string | null;
+  /** Campo opcional `logo`: el logo elegido a mano en Ajustes > Proyectos (una imagen ya achicada en data URL, no una ruta). */
+  logo: string | null;
   /** Campo opcional `titulo`: cómo se ve la carpeta en la barra (a `pa` va siempre `nombre`). */
   titulo: string | null;
   /** El `tests` del registry (lo que corre `pa --integrar --tests`); `null` si no tiene: ahí `--tests` sale 2. */
@@ -50,6 +52,7 @@ export async function registro(): Promise<Proyecto[]> {
     desc?: unknown;
     icono?: unknown;
     icon?: unknown;
+    logo?: unknown;
     tests?: unknown;
     titulo?: unknown;
     estado?: unknown;
@@ -66,6 +69,7 @@ export async function registro(): Promise<Proyecto[]> {
     const ruta = await real(expandir(r.path));
     if (ruta === casa || ruta === "/") continue;
     const icono = [r.icono, r.icon].find((x): x is string => typeof x === "string" && x !== "") ?? null;
+    const logo = typeof r.logo === "string" && r.logo.startsWith("data:image/") ? r.logo : null;
     const tests = typeof r.tests === "string" && r.tests.trim() ? r.tests : null;
     const titulo = typeof r.titulo === "string" && r.titulo.trim() ? r.titulo.trim() : null;
     const estado = typeof r.estado === "string" && r.estado.trim() ? r.estado.trim().toLowerCase() : null;
@@ -82,6 +86,7 @@ export async function registro(): Promise<Proyecto[]> {
       ruta,
       desc: typeof r.desc === "string" ? r.desc : "",
       icono,
+      logo,
       tests,
       titulo,
       estado,
@@ -94,12 +99,14 @@ export async function registro(): Promise<Proyecto[]> {
       porRuta.set(ruta, {
         ...p,
         icono: p.icono ?? ya?.icono ?? null,
+        logo: p.logo ?? ya?.logo ?? null,
         tests: p.tests ?? ya?.tests ?? null,
         titulo: p.titulo ?? ya?.titulo ?? null,
         alias: aliasCombinados.filter((a) => a !== p.nombre),
       });
     } else {
       if (!ya.icono && icono) ya.icono = icono;
+      if (!ya.logo && logo) ya.logo = logo;
       if (!ya.tests && tests) ya.tests = tests;
       if (!ya.titulo && titulo) ya.titulo = titulo;
       const aliasCombinados = [...new Set([...ya.alias, ...p.alias, p.nombre])].filter((a) => a !== ya.nombre);

@@ -4,13 +4,14 @@
 // repartidas y "Unificar todos": aplica directo sólo los casos mecánicos (unificar-clase.ts) y deja los que hay que fusionar para su tarjeta.
 // Los datos: src/datos/proyectos.ts.
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
-import { AlertTriangle, Bot, Check, FileText, GitBranch, Merge, PencilLine, RotateCcw, Sparkles, X } from "lucide-react";
+import { AlertTriangle, Bot, Check, FileText, GitBranch, ImagePlus, Merge, PencilLine, RotateCcw, Sparkles, X } from "lucide-react";
 import { NOMBRE_MAX, validarNombre } from "../../electron/proyectos-nombre";
 import { fuenteProyectos, recargarProyectos, useProyectos, type EstadoMd, type PlanMd, type ProyectoNombre } from "../datos/proyectos";
 import { t, textoMain, type Clave } from "../i18n";
 import { useIdioma } from "../i18n/react";
 import { MODO } from "../modo";
-import { mensaje } from "../puente";
+import { esVentana, main, mensaje } from "../puente";
+import { Logo } from "../barra/Logo";
 import { Cat } from "./AjustesNav";
 import { abrirRamas } from "./ajustes-nav";
 import { FilaFusion } from "./FilaFusion";
@@ -304,6 +305,7 @@ function FilaNombre({ p, todos, abierto }: { p: ProyectoNombre; todos: readonly 
   return (
     <>
       <div className="pry-cab">
+        <Logo proyecto={p.slug} titulo={visible(p)} />
         <span className="pry-nom">{visible(p)}</span>
         {p.titulo ? <span className="pry-orig" data-tip={t("pry.original")}>{p.nombre}</span> : null}
         {!editando ? (
@@ -316,6 +318,7 @@ function FilaNombre({ p, todos, abierto }: { p: ProyectoNombre; todos: readonly 
       <p className="pry-meta">
         {p.ruta} · {t("pry.slug")}: {p.slug}
       </p>
+      <FilaLogo p={p} />
       {!p.existe ? (
         <p className="pry-falta">
           <AlertTriangle size={12} strokeWidth={2} aria-hidden="true" /> {t("pry.sinCarpeta")}
@@ -376,6 +379,76 @@ function FilaNombre({ p, todos, abierto }: { p: ProyectoNombre; todos: readonly 
         </p>
       ) : null}
     </>
+  );
+}
+
+/**
+ * El logo del proyecto: automático (el ícono que se encuentra en su carpeta o las iniciales) o elegido a mano. "Cambiar logo" abre el
+ * selector de archivos de la ventana; la imagen llega ya achicada y se guarda esa copia, no la ruta.
+ */
+function FilaLogo({ p }: { p: ProyectoNombre }) {
+  const [ocupado, setOcupado] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [aviso, setAviso] = useState<string | null>(null);
+  const nombre = visible(p);
+  const elegir = async () => {
+    if (ocupado || !main?.archivo) return;
+    setOcupado(true);
+    setError(null);
+    setAviso(null);
+    try {
+      const url = await main.archivo.elegirLogo();
+      if (url) {
+        await fuenteProyectos.logo(p.slug, url);
+        setAviso(tv("pry.logoGuardado", { p: nombre }));
+      }
+    } catch (err) {
+      setError(mensaje(err));
+    } finally {
+      setOcupado(false);
+    }
+  };
+  const quitar = async () => {
+    if (ocupado) return;
+    setOcupado(true);
+    setError(null);
+    setAviso(null);
+    try {
+      await fuenteProyectos.logo(p.slug, null);
+      setAviso(tv("pry.logoQuitado", { p: nombre }));
+    } catch (err) {
+      setError(mensaje(err));
+    } finally {
+      setOcupado(false);
+    }
+  };
+  return (
+    <div className="pry-logo" data-logo-fila>
+      <span className="pry-logo-t">{t("pry.logo")}</span>
+      <span className="pry-logo-est">{p.logo ? t("pry.logoPropio") : t("pry.logoAuto")}</span>
+      {esVentana() || MODO.fixtures ? (
+        <button type="button" className="mini" data-logo-cambiar aria-label={tv("pry.logoCambiarDe", { p: nombre })} onClick={() => void elegir()} disabled={ocupado}>
+          <ImagePlus size={13} strokeWidth={1.8} aria-hidden="true" />
+          {t("pry.logoCambiar")}
+        </button>
+      ) : null}
+      {p.logo ? (
+        <button type="button" className="mini" data-logo-quitar aria-label={tv("pry.logoQuitarDe", { p: nombre })} onClick={() => void quitar()} disabled={ocupado}>
+          <RotateCcw size={13} strokeWidth={1.8} aria-hidden="true" />
+          {t("pry.logoQuitar")}
+        </button>
+      ) : null}
+      {error ? (
+        <p className="pry-err" role="alert">
+          <AlertTriangle size={13} strokeWidth={2} aria-hidden="true" /> {textoMain(error)}
+        </p>
+      ) : null}
+      {aviso ? (
+        <p className="pn-nota pry-ok" role="status">
+          <Check size={13} strokeWidth={2} aria-hidden="true" /> {aviso}
+        </p>
+      ) : null}
+    </div>
   );
 }
 

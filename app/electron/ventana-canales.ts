@@ -3,9 +3,12 @@
 // de un líder, abrir el changelog y las notas de Trama, y los íconos achicados con `nativeImage`. Sin el núcleo: en modo cliente
 // la ventana no lo carga.
 import { BrowserWindow, clipboard, dialog, ipcMain, nativeImage, Notification, shell } from "electron";
+import { readFile, stat } from "node:fs/promises";
+import path from "node:path";
 import { CHANGELOG } from "./actualizacion.js";
+import { errorT } from "./errores.js";
 import { pedidoDeSalida } from "./cierre.js";
-import { iconosDe } from "./iconos.js";
+import { iconosDe, LADO_MAX, logoDeBytes } from "./iconos.js";
 import { abrirEnlace, notasDeGithub } from "./enlace.js";
 import { log, silencio } from "./log.js";
 import { textoDelPortapapeles } from "./portapapeles.js";
@@ -59,12 +62,36 @@ export function pedirVista(): Promise<unknown> {
   });
 }
 
-/** Los logos de las carpetas: archivos locales, achicados acá (36 px alcanzan para 18 px a 2×). */
+/** Un PNG/JPG/WebP achicado a `LADO_MAX` px de lado (sin agrandar lo que ya es más chico), como data URL; `null` si no se pudo leer. */
+function achicarLogo(crudo: Buffer): string | null {
+  const img = nativeImage.createFromBuffer(crudo);
+  if (img.isEmpty()) return null;
+  const { width, height } = img.getSize();
+  if (width <= LADO_MAX && height <= LADO_MAX) return img.toDataURL();
+  const f = LADO_MAX / Math.max(width, height);
+  return img.resize({ width: Math.max(1, Math.round(width * f)), height: Math.max(1, Math.round(height * f)), quality: "best" }).toDataURL();
+}
+
+/** Los logos de las carpetas: archivos locales, achicados acá (64 px alcanzan para el círculo a 2×). */
 export async function iconosVentana() {
-  return iconosDe(await registro(), (crudo) => {
-    const img = nativeImage.createFromBuffer(crudo);
-    return img.isEmpty() ? null : img.resize({ width: 36, height: 36, quality: "best" }).toDataURL();
-  });
+  return iconosDe(await registro(), achicarLogo);
+}
+
+/** Lo más que se lee de una imagen elegida a mano. */
+const TOPE_ELEGIDA = 8 * 1024 * 1024;
+
+/** El selector nativo de una imagen para el logo de un proyecto: la imagen ya achicada (data URL) o `null` si se canceló. */
+async function elegirLogo(e: Electron.IpcMainInvokeEvent): Promise<string | null> {
+  const v = BrowserWindow.fromWebContents(e.sender) ?? undefined;
+  const filtros = [{ name: "PNG, JPG, WebP, ICO, SVG", extensions: ["png", "jpg", "jpeg", "webp", "ico", "svg"] }];
+  const r = await (v ? dialog.showOpenDialog(v, { properties: ["openFile"], filters: filtros }) : dialog.showOpenDialog({ properties: ["openFile"], filters: filtros }));
+  const archivo = r.canceled ? null : (r.filePaths[0] ?? null);
+  if (!archivo) return null;
+  const s = await stat(archivo).catch(() => null);
+  if (!s?.isFile() || s.size === 0 || s.size > TOPE_ELEGIDA) throw errorT("main.logo.invalido");
+  const url = logoDeBytes(await readFile(archivo), path.extname(archivo), achicarLogo);
+  if (!url) throw errorT("main.logo.invalido");
+  return url;
 }
 
 /** Quien tiene la bandeja (main.ts): el renderer le manda los textos del menú ya traducidos. */
@@ -113,6 +140,7 @@ export function pedirSalida() {
  * eligió el usuario en el diálogo: devuelve cuántos líderes responden (y no hizo nada), o 0 y el proceso se va.
  */
 export function armarCanalesVentana(salir: (x: { modo: "seguir" | "parar"; forzar: boolean }) => Promise<number>) {
+  ipcMain.handle("archivo:elegirLogo", (e) => elegirLogo(e));
   ipcMain.handle("app:salir", (_e, x: unknown) => salir(pedidoDeSalida(x)));
   ipcMain.handle("bandeja:textos", (_e, x: unknown) => {
     const t = textosValidos(x);

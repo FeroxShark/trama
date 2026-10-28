@@ -6,6 +6,7 @@ import { copyFile, readFile, rename, rm, stat, writeFile } from "node:fs/promise
 import os from "node:os";
 import path from "node:path";
 import { errorT } from "./errores.ts";
+import { validarLogo } from "./iconos.ts";
 import { NOMBRE_MAX, validarNombre, type NombreUsado } from "./proyectos-nombre.ts";
 import { real, slug as slugDe } from "./registro.ts";
 
@@ -13,7 +14,7 @@ const SLUG = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 
 const expandir = (p: string) => (p === "~" ? os.homedir() : p.startsWith("~/") ? path.join(os.homedir(), p.slice(2)) : p);
 
-type Cruda = { i: number; nombre: string; ruta: string; slug: string; titulo: string | null; alias: string[] };
+type Cruda = { i: number; nombre: string; ruta: string; slug: string; titulo: string | null; alias: string[]; logo: boolean };
 
 const textos = (x: unknown): string[] =>
   (Array.isArray(x) ? x : typeof x === "string" ? [x] : []).filter((a): a is string => typeof a === "string" && a.trim() !== "").map((a) => a.trim());
@@ -38,6 +39,7 @@ async function entradas(archivo: string): Promise<{ json: { projects: Record<str
       slug: slugDe(ruta),
       titulo: typeof r.titulo === "string" && r.titulo.trim() ? r.titulo.trim() : null,
       alias: [...textos(r.alias), ...textos(r.aliases)],
+      logo: typeof r.logo === "string" && r.logo !== "",
     });
   }
   return { json, lista };
@@ -56,6 +58,8 @@ export type ProyectoNombre = {
   alias: string[];
   /** La carpeta existe en esta máquina. */
   existe: boolean;
+  /** Tiene un logo elegido a mano (campo `logo`); si no, se ve el que encuentre solo `electron/iconos.ts` o el monograma. */
+  logo: boolean;
 };
 
 /** Un proyecto por carpeta (varios nombres para la misma son uno), los de la carpeta más corta primero no: por nombre. */
@@ -79,9 +83,23 @@ export async function listarProyectos(archivo: string): Promise<ProyectoNombre[]
       titulo: es.find((e) => e.titulo)?.titulo ?? null,
       alias: [...new Set(es.flatMap((e) => e.alias))],
       existe: !!(await stat(ruta).catch(() => null)),
+      logo: es.some((e) => e.logo),
     });
   }
   return salida.sort((a, b) => (a.titulo ?? a.nombre).localeCompare(b.titulo ?? b.nombre, "es", { sensitivity: "base" }));
+}
+
+/** Escribe el registry entero con `registry.json.bak` de respaldo, por un archivo temporal para no dejarlo a medias. */
+async function escribir(archivo: string, json: unknown) {
+  const tmp = `${archivo}.trama-${process.pid}.tmp`;
+  try {
+    await copyFile(archivo, `${archivo}.bak`).catch(() => {});
+    await writeFile(tmp, `${JSON.stringify(json, null, 2)}\n`, { mode: await stat(archivo).then((x) => x.mode & 0o777, () => 0o644) });
+    await rename(tmp, archivo);
+  } catch (e) {
+    await rm(tmp, { force: true });
+    throw e;
+  }
 }
 
 /**
@@ -107,14 +125,31 @@ export async function renombrarProyecto(archivo: string, slug: unknown, nombre: 
     if (valor === null) delete p.titulo;
     else p.titulo = valor;
   }
-  const tmp = `${archivo}.trama-${process.pid}.tmp`;
-  try {
-    await copyFile(archivo, `${archivo}.bak`).catch(() => {});
-    await writeFile(tmp, `${JSON.stringify(json, null, 2)}\n`, { mode: await stat(archivo).then((x) => x.mode & 0o777, () => 0o644) });
-    await rename(tmp, archivo);
-  } catch (e) {
-    await rm(tmp, { force: true });
-    throw e;
+  await escribir(archivo, json);
+  return (await listarProyectos(archivo)).find((p) => p.slug === propias[0].slug) as ProyectoNombre;
+}
+
+/**
+ * Pone (o, con `logo === null`, saca) el logo elegido a mano del proyecto con ese slug, en todas sus entradas del registry. Lo que
+ * llega es la imagen ya achicada (data URL de un PNG de hasta 64 px o un SVG limpio, `validarLogo`), nunca una ruta; si no sirve,
+ * rechaza con `main.logo.invalido`. Sacarlo devuelve al ícono automático.
+ */
+export async function logoProyecto(archivo: string, slug: unknown, logo: unknown): Promise<ProyectoNombre> {
+  const s = String(slug ?? "");
+  if (!SLUG.test(s)) throw errorT("main.proyectoRaro", { v: s });
+  let valor: string | null = null;
+  if (logo !== null) {
+    valor = validarLogo(logo);
+    if (!valor) throw errorT("main.logo.invalido");
   }
+  const { json, lista } = await entradas(archivo);
+  const propias = lista.filter((e) => e.slug === s.toLowerCase());
+  if (!propias.length) throw errorT("main.proyectoRaro", { v: s });
+  for (const e of propias) {
+    const p = json.projects[e.i];
+    if (valor === null) delete p.logo;
+    else p.logo = valor;
+  }
+  await escribir(archivo, json);
   return (await listarProyectos(archivo)).find((p) => p.slug === propias[0].slug) as ProyectoNombre;
 }

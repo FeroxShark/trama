@@ -88,6 +88,8 @@ contextBridge.exposeInMainWorld("hilos", {
   proyectosNombres: {
     lista: (): Promise<unknown> => ipcRenderer.invoke("proyectos:lista"),
     renombrar: (slug: string, nombre: string | null): Promise<unknown> => ipcRenderer.invoke("proyectos:renombrar", slug, nombre),
+    /** Guarda el logo elegido a mano (la data URL que devolvió `elegirLogo`); `null`: vuelve al automático. */
+    logo: (slug: string, logo: string | null): Promise<unknown> => ipcRenderer.invoke("proyectos:logo", slug, logo),
   },
   /** slug → data URL del logo de cada proyecto que tiene uno (electron/iconos.ts). */
   iconos: (): Promise<unknown> => ipcRenderer.invoke("proyectos:iconos"),
@@ -316,6 +318,8 @@ contextBridge.exposeInMainWorld("hilos", {
   portapapeles: { texto: (): Promise<string> => ipcRenderer.invoke("portapapeles:texto") },
   /** El selector nativo de carpetas (el campo "Carpeta" de un líder nuevo); sólo la ventana de la PC. */
   carpeta: { elegir: (): Promise<string | null> => ipcRenderer.invoke("carpeta:elegir") },
+  /** El selector nativo de una imagen para el logo de un proyecto: la imagen ya achicada a 64 px (data URL) o `null` si se canceló; sólo la ventana de la PC. */
+  archivo: { elegirLogo: (): Promise<string | null> => ipcRenderer.invoke("archivo:elegirLogo") },
   /** Vuelve a cargar la ventana (el cartel de error); sólo en la ventana de la PC. */
   recargar: (): Promise<void> => ipcRenderer.invoke("app:recargar"),
   /** Un error del renderer, al log del main (electron/log.ts). */

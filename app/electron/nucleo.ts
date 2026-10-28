@@ -37,7 +37,7 @@ import { accionRama, arreglarDatos, briefRamas, enCola, ejecutar, lanzarRama, la
 import { guardarRouting, type Cambio } from "./routing.js";
 import { argvAuditar, datosAgentsMd, guardarLecciones, leccionesPendientes, leerLecciones, textoPoda } from "./orquestacion.ts";
 import { aplicarUnificar, estadoMd, guardarAgents, leerAgents, planUnificar } from "./unificar-md.ts";
-import { listarProyectos, renombrarProyecto } from "./proyectos-alias.ts";
+import { listarProyectos, logoProyecto, renombrarProyecto } from "./proyectos-alias.ts";
 import { guardarAjustes } from "./ajustes-editar.js";
 import { crearBajadas } from "./ollama-bajar.ts";
 import { efectivoDePa, guardarModelos, leerModelos, modelosConfig, sondearOllama, vistaModelos } from "./modelos-config.ts";
@@ -106,7 +106,7 @@ const manejadores = new Map<string, Manejador>();
  * Lo que cambia la máquina (reescribe `~/CLAUDE.md`, los ajustes, borra una cuenta, libera la GPU, actualiza `claude`): desde la
  * tailnet (el celular) no. Los `modelos:*` y `remoto:guardar` tienen su propio chequeo, con su mensaje, en el manejador.
  */
-export const SOLO_PC_TAILNET: ReadonlySet<string> = new Set(["routing:guardar", "ajustes:guardar", "orq:leccionesGuardar", "orq:mdAplicar", "orq:agentsGuardar", "orq:mdFusionar", "proyectos:renombrar", "cuentas:quitar", "vram:liberar", "claude:actualizar", "trama:actualizar", "trama:cancelarEspera", "trama:limpiar", "dsh:clave", "dsh:instalar", "dsh:probar", "aa:refrescar", "mcp:guardar", "mcp:quitar", "opencode:planGuardar"]);
+export const SOLO_PC_TAILNET: ReadonlySet<string> = new Set(["routing:guardar", "ajustes:guardar", "orq:leccionesGuardar", "orq:mdAplicar", "orq:agentsGuardar", "orq:mdFusionar", "proyectos:renombrar", "proyectos:logo", "cuentas:quitar", "vram:liberar", "claude:actualizar", "trama:actualizar", "trama:cancelarEspera", "trama:limpiar", "dsh:clave", "dsh:instalar", "dsh:probar", "aa:refrescar", "mcp:guardar", "mcp:quitar", "opencode:planGuardar"]);
 
 /** Anota (o reemplaza) el manejador de un canal. */
 export function manejar(canal: string, fn: Manejador) {
@@ -125,7 +125,7 @@ export function manejar(canal: string, fn: Manejador) {
 export const manejadoresAnotados = (): [string, Manejador][] => [...manejadores];
 
 /** Lo que por red no se puede: salir de trama, y lo que abre o enfoca cosas en la pantalla de la PC. */
-export const SOLO_VENTANA: ReadonlySet<string> = new Set(["app:salir", "carpeta:elegir", "app:pararTodo", "bandeja:textos", "lider:ir", "lider:ubicable", "claude:changelog", "trama:notas", "volver:leer", "volver:guardar", "volver:anotar", "reinicio:marca", "borradores:leer", "borradores:guardar", "app:recargar", "trama:reiniciarVentana", "consumo:mirar", "consumo:soltar", "cuentas:login", "espera:estado", "espera:notificar", "portapapeles:texto"]);
+export const SOLO_VENTANA: ReadonlySet<string> = new Set(["app:salir", "carpeta:elegir", "archivo:elegirLogo", "app:pararTodo", "bandeja:textos", "lider:ir", "lider:ubicable", "claude:changelog", "trama:notas", "volver:leer", "volver:guardar", "volver:anotar", "reinicio:marca", "borradores:leer", "borradores:guardar", "app:recargar", "trama:reiniciarVentana", "consumo:mirar", "consumo:soltar", "cuentas:login", "espera:estado", "espera:notificar", "portapapeles:texto"]);
 
 /**
  * Lo que sigue vedado al navegador del modo local (`TRAMA_LOCAL=1`, ya con su token): ahí el navegador es la interfaz
@@ -875,6 +875,8 @@ export function armarNucleo() {
   // El nombre para mostrar de cada proyecto (proyectos-alias.ts; `pa --renombrar` hace lo mismo): cambia sólo ese texto del registry.
   manejar("proyectos:lista", () => listarProyectos(registroProyectos()));
   manejar("proyectos:renombrar", (_e, slug: unknown, nombre: unknown) => renombrarProyecto(registroProyectos(), slug, nombre));
+  // El logo elegido a mano (ya achicado por la ventana; `null`: vuelve al automático): se guarda en el registry, junto al nombre propio.
+  manejar("proyectos:logo", (_e, slug: unknown, logo: unknown) => logoProyecto(registroProyectos(), slug, logo));
   manejar("routing:guardar", (_e, cambios: Cambio[]) =>
     guardarRouting((Array.isArray(cambios) ? cambios : []).map((c) => ({ rol: c?.rol, modelo: c?.modelo ?? null, effort: c?.effort ?? null }))),
   );

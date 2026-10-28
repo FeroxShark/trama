@@ -26,13 +26,23 @@ test("el tono es de la paleta y siempre el mismo para el mismo nombre", () => {
   assert.ok(usados.size >= 4, "ocho nombres distintos no caen todos en los mismos tonos");
 });
 
-test("candidatos: primero el del registry, después los lugares fijos", { skip: soloPosix("rutas POSIX (/p/atlas/docs/marca.png)") }, () => {
+test("candidatos: primero el del registry, después los lugares fijos en el orden del dueño", { skip: soloPosix("rutas POSIX (/p/atlas/docs/marca.png)") }, () => {
   const c = candidatos({ ruta: "/p/atlas", icono: "docs/marca.png" });
   assert.equal(c[0], "/p/atlas/docs/marca.png");
   assert.equal(c.length, LUGARES.length + 1);
   assert.equal(candidatos({ ruta: "/p/atlas", icono: "~/iconos/atlas.svg" })[0], path.join(os.homedir(), "iconos/atlas.svg"));
   assert.equal(candidatos({ ruta: "/p/atlas", icono: "/abs/a.png" })[0], "/abs/a.png");
   assert.equal(candidatos({ ruta: "/p/atlas", icono: null }).length, LUGARES.length);
+  // favicon, logo, icon, public/favicon, app/public/favicon, assets/icon, build/icon, src-tauri/icons/icon.png
+  const orden = ["favicon.svg", "favicon.ico", "favicon.png", "logo.svg", "logo.png", "icon.svg", "icon.png", "public/favicon.svg", "app/public/favicon.svg", "assets/icon.svg", "build/icon.svg", "src-tauri/icons/icon.png"];
+  const pos = orden.map((l) => LUGARES.indexOf(l));
+  assert.ok(pos.every((x) => x >= 0), "están todos");
+  assert.deepEqual(pos, [...pos].sort((x, y) => x - y), "en ese orden");
+  // ninguno baja más de tres carpetas ni entra a lo prohibido
+  for (const l of LUGARES) {
+    assert.ok(l.split("/").length - 1 <= 3, l);
+    assert.ok(!/node_modules|\.git|dist/.test(l), l);
+  }
 });
 
 test("iconoDe: lee el primero que exista y lo devuelve como data URL", async () => {
