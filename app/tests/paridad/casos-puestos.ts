@@ -26,7 +26,7 @@ const meminfo = (c: Contexto) => path.join(c.aux, "meminfo");
 
 /** El worktree del puesto 1 ya existe (en HEAD suelto) con lo que dejó un worker que murió sin commitear. */
 function conHuerfano(c: Contexto) {
-  const wt = path.join(c.estado, "worktrees", "demo");
+  const wt = path.join(c.estado, "worktrees", path.basename(c.proyecto)); // el slug es el de la carpeta
   mkdirSync(path.dirname(wt), { recursive: true });
   spawnSync("git", ["-C", c.proyecto, "worktree", "add", "-q", "--detach", wt, "HEAD"], { encoding: "utf8" });
   writeFileSync(path.join(wt, "medio-hecho.txt"), "a medias\n");

@@ -934,20 +934,21 @@ puesto_para_retomar() {   # $1 = ts de la corrida retomada, o "-"
   puesto_de_corrida "$c"
 }
 
-# Los otros writers vivos del proyecto: "id<TAB>puesto<TAB>jefe<TAB>tarea".
+# Los otros writers vivos del proyecto: "id<US>puesto<US>jefe<US>tarea" (US = \x1f). No TAB: es blanco para `read`, y
+# un jefe vacío (--sin-jefe) juntaba los dos TAB y corría la tarea al campo del jefe (2026-10-28).
 otros_writers() {   # $1 = ts propio
   local r p
   for r in "$STATE/$slug.running" "$STATE/$slug"@*.running; do
     [[ -f "$r" ]] && vivo "$r" || continue
     [[ "$(leer_campo "$r" id)" == "$1" ]] && continue
     p="$(leer_campo "$r" puesto)"
-    printf '%s\t%s\t%s\t%s\n' "$(leer_campo "$r" id)" "${p:-1}" "$(leer_campo "$r" jefe)" "$(leer_campo "$r" tarea)"
+    printf '%s\x1f%s\x1f%s\x1f%s\n' "$(leer_campo "$r" id)" "${p:-1}" "$(leer_campo "$r" jefe)" "$(leer_campo "$r" tarea)"
   done
 }
 # Al jefe, por stderr: con quién comparte el repo esta corrida. Si tocan lo mismo, choca al integrar.
 avisar_paralelo() {   # $1 = ts propio, $2 = puesto propio
   local id p j t
-  while IFS=$'\t' read -r id p j t; do
+  while IFS=$'\x1f' read -r id p j t; do
     [[ "$p" == aca ]] && p="tree principal" || p="puesto $p"
     echo "pa: corre en paralelo con $id ($p, jefe ${j:-?}): ${t:0:100}" >&2
   done < <(otros_writers "$1")
@@ -6242,7 +6243,7 @@ if (( ! leer )) && [[ -z "$actualizar" && -f "$mapa_proy" ]]; then
 fi
 # En paralelo con otros writers del mismo proyecto (puestos): que sepa con quién comparte el repo.
 if (( ! leer )); then
-  paralelos="$(otros_writers "$ts" | while IFS=$'\t' read -r o_id o_p o_j o_t; do printf -- '- %s (%s): %.120s\n' "$o_id" "$([[ "$o_p" == aca ]] && echo 'tree principal' || echo "puesto $o_p")" "$o_t"; done)"
+  paralelos="$(otros_writers "$ts" | while IFS=$'\x1f' read -r o_id o_p o_j o_t; do printf -- '- %s (%s): %.120s\n' "$o_id" "$([[ "$o_p" == aca ]] && echo 'tree principal' || echo "puesto $o_p")" "$o_t"; done)"
   if [[ -n "$paralelos" ]]; then
     contrato+=$'\n'"En este mismo proyecto están corriendo AHORA otros workers, cada uno en su worktree y su rama:
 $paralelos
