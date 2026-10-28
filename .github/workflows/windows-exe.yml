@@ -1,0 +1,59 @@
+name: Windows nativo (.exe)
+
+# Arma el instalador de Trama nativo de Windows (sin WSL ni bash) en windows-latest, sin wine: compila la app, arma el payload
+# por lista permitida (windows/scripts/preparar-payload-nativo.mjs, que falla si lleva bash) y corre electron-builder con
+# windows/electron-builder-nativo.yml. El .exe queda como artefacto del job; no publica nada.
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  exe-nativo:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: app - dependencias
+        working-directory: app
+        run: npm ci
+      - name: app - build (interfaz + electron)
+        working-directory: app
+        run: npm run build
+      - name: windows - dependencias
+        working-directory: windows
+        run: npm ci
+      - name: windows - tests
+        working-directory: windows
+        run: npm test
+      - name: node.exe fijado (caché)
+        uses: actions/cache@v4
+        with:
+          path: windows/.cache
+          key: node-exe-${{ hashFiles('windows/src/payload-nativo.js') }}
+      - name: payload nativo (sin bash)
+        working-directory: windows
+        run: node scripts/preparar-payload-nativo.mjs
+      - name: electron-builder (NSIS x64)
+        working-directory: windows
+        env:
+          TRAMA_GH_OWNER: ${{ github.repository_owner }}
+          TRAMA_GH_REPO: ${{ github.event.repository.name }}
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        run: npx --no-install electron-builder --config electron-builder-nativo.yml --win nsis --x64 --publish never
+      - name: el .exe y lo que lleva adentro
+        working-directory: windows
+        run: node scripts/verificar-exe-nativo.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: trama-nativo-windows
+          path: |
+            windows/dist-nativo/*.exe
+            windows/dist-nativo/*.blockmap
+            windows/dist-nativo/nativo.yml
+          if-no-files-found: error

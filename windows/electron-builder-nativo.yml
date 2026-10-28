@@ -1,0 +1,40 @@
+# Instalador de Trama nativo de Windows (sin WSL ni bash): el motor corre en Windows con su propio node.exe.
+# Se arma en Windows (el job windows-exe de .github/workflows/windows-exe.yml, en windows-latest; sin wine):
+#   (en app/) npm run build
+#   node scripts/preparar-payload-nativo.mjs
+#   npx electron-builder --config electron-builder-nativo.yml --win nsis --x64 --publish never
+# Mismo appId que el de WSL (electron-builder.yml): instalar uno reemplaza al otro. Lo que cambia es el payload (payload-nativo/,
+# por lista permitida, ver src/payload-nativo.js) y el canal de actualizaciones (nativo.yml en vez de latest.yml, para que los
+# dos instaladores convivan en la misma release de GitHub).
+appId: app.trama.windows
+productName: Trama
+copyright: MIT
+directories:
+  output: dist-nativo
+  buildResources: build
+files:
+  - package.json
+  - src/**/*
+  - build/icon.png
+asar: true
+extraResources:
+  - from: payload-nativo
+    to: payload-nativo
+    filter: ["**/*"]
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  icon: build/icon.ico
+  artifactName: Trama-Nativo-Setup-${version}.${ext}
+nsis:
+  oneClick: true
+  perMachine: false
+  deleteAppDataOnUninstall: false
+  shortcutName: Trama
+# Dueño y repo de GitHub Releases: salen del entorno (en CI, los del repo; sin ellos el .exe no busca actualizaciones).
+publish:
+  provider: github
+  owner: ${env.TRAMA_GH_OWNER}
+  repo: ${env.TRAMA_GH_REPO}
+  channel: nativo

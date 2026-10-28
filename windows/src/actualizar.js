@@ -26,7 +26,8 @@ function esDeRelleno(recursos) {
 const corto = (e) => String(e?.message || e || "error").split(/\r?\n/)[0].slice(0, 200);
 
 // La máquina de estados, sin Electron: `autoUpdater` es el de electron-updater (o un falso en los tests).
-function crearActualizador({ autoUpdater, onEstado, log = () => {} }) {
+// `canal`: el del instalador nativo es «nativo» (nativo.yml en la release; electron-builder-nativo.yml), el de WSL el de siempre.
+function crearActualizador({ autoUpdater, onEstado, log = () => {}, canal = null }) {
   let fase = "";
   let version = null;
   let porcentaje = -1;
@@ -37,6 +38,11 @@ function crearActualizador({ autoUpdater, onEstado, log = () => {} }) {
   autoUpdater.autoDownload = true;
   autoUpdater.autoInstallOnAppQuit = true;
   autoUpdater.allowPrerelease = false;
+  if (canal) {
+    autoUpdater.channel = canal;
+    // Poner un canal prende allowDowngrade en electron-updater: acá nunca se baja de versión.
+    autoUpdater.allowDowngrade = false;
+  }
   autoUpdater.on("checking-for-update", () => decir({ fase: "buscando" }));
   autoUpdater.on("update-not-available", () => decir({ fase: "al-dia" }));
   autoUpdater.on("update-available", (i) => {
@@ -71,7 +77,7 @@ function crearActualizador({ autoUpdater, onEstado, log = () => {} }) {
   return { buscar, instalar: () => autoUpdater.quitAndInstall(), activo: true };
 }
 
-function iniciarActualizador({ app, recursos, onEstado, log = () => {} }) {
+function iniciarActualizador({ app, recursos, onEstado, log = () => {}, canal = null }) {
   const nulo = {
     instalar() {},
     buscar: async () => onEstado({ fase: "inactiva" }),
@@ -85,7 +91,7 @@ function iniciarActualizador({ app, recursos, onEstado, log = () => {} }) {
     log(`electron-updater no está: ${e.message}`);
     return nulo;
   }
-  return crearActualizador({ autoUpdater, onEstado, log });
+  return crearActualizador({ autoUpdater, onEstado, log, canal });
 }
 
 module.exports = { iniciarActualizador, crearActualizador, esDeRelleno };

@@ -458,6 +458,7 @@ app.whenReady().then(async () => {
   const u = iniciarActualizador({
     app,
     recursos: process.resourcesPath,
+    canal: NATIVO ? "nativo" : null,
     onEstado: (e) => {
       ultimaActualizacion = e;
       enviar("actualizar:cambio", e);
