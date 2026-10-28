@@ -223,6 +223,8 @@ export const casosReparto: Caso[] = [
     modelos: { opencode_plan: "go-plus" },
     env: { REPARTO_GO_TABLA: GO_TABLA, REPARTO_OPENCODE_FIJO: JSON.stringify(["opencode-go/kimi-k3.1-pro", "opencode-go/minimax-m3"]) },
   }),
+  rp("NVIDIA NIM con key: --tabla", ["--tabla"], 0, { env: { NVIDIA_API_KEY: "clave-de-mentira", TRAMA_CLAVES: "/no/existe" }, modelos: { nvidia_modelos: ["deepseek-ai/deepseek-v4.1-flash", "otro/modelo-x"] } }),
+  rp("NVIDIA NIM sin key: --tabla", ["--tabla"], 0, { env: { NVIDIA_API_KEY: "", TRAMA_CLAVES: "/no/existe" } }),
   rpPasos("REPARTO_RESERVAR anota la asignación y la siguiente la cuenta como carga", [[["--tipo", "lectura"], 0], [["--tipo", "lectura", "--json"], 0]], { env: { REPARTO_RESERVAR: "1", REPARTO_CARGA_FIJA: "" } }),
 
   // cupos

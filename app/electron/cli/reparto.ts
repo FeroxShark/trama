@@ -82,6 +82,8 @@ const CALIDAD: Obj = {
   "opencode:opencode/nemotron-3-ultra-free": 55, "opencode:opencode/minimax-m3.1-flash-free": 50, "opencode:opencode/mimo-v2.6-flash-free": 50,
   "opencode:opencode/nemotron-3.5-super-vl-free": 50, "opencode:opencode/flint-40b-free": 40, "opencode:opencode/beam-free": 40,
   "opencode:opencode/nemotron-3.5-lightning-free": 40,
+  // NVIDIA NIM (build.nvidia.com, gratis con key; por el programa opencode): el mismo modelo que el *-free de OpenCode.
+  "opencode:nvidia/deepseek-ai/deepseek-v4.1-flash": 60,
 };
 const MINIMO_POR_TIPO: Obj = {
   debug: "argon", diseno: "argon",
@@ -147,12 +149,17 @@ const GRUPOS_OPENAI: Grupo[] = [["codex", "Codex (ChatGPT)", ["5h", "7d"], ["cod
 const EFFORTS_CODEX = ["low", "medium", "high"];
 const DSH_OPENCODE_GRATIS = ["big-pickle", "deepseek-v4.1-flash-free", "glm-5.3-flash-free", "flint-40b-free", "longcat-2.5-preview-free"];
 const DSH_DEEPSEEK = ["deepseek-v4-flash"];
-const DSH_GRUPOS: Obj = { ollama: "dsh-ollama", opencode: "dsh-opencode", deepseek: "dsh-deepseek", "opencode-prog": "opencode-free", "opencode-go": "opencode-go" };
+const DSH_GRUPOS: Obj = { ollama: "dsh-ollama", opencode: "dsh-opencode", deepseek: "dsh-deepseek", "opencode-prog": "opencode-free", "opencode-go": "opencode-go", nvidia: "nvidia-nim" };
 const PLANES_OPENCODE = ["gratis", "go", "go-plus"];
 const COSTO_GO = 0.02;
 const ENFRIAR_H = 5;
 const VENCE_GO_H = 5;
 const OC_GO_PREFIJO = "opencode:opencode-go/";
+// NVIDIA NIM (integrate.api.nvidia.com/v1, ~40 req/min por modelo, sin tope diario): gratis por opencode (`opencode:nvidia/<modelo>`), sólo con
+// NVIDIA_API_KEY. La lista sale de `nvidia_modelos` de modelos.json (default NVIDIA_DEFECTO). Un 429 es por minuto: pa enfría a ESE modelo
+// unos minutos (--enfriar --horas); no hay grupo que agotar.
+const NVIDIA_PREFIJO = "opencode:nvidia/";
+const NVIDIA_DEFECTO = ["deepseek-ai/deepseek-v4.1-flash"];
 const OC_GRATIS_CONOCIDOS = ["big-pickle", "beam-free", "deepseek-v4.1-flash-free", "flint-40b-free", "glm-5.3-flash-free", "mimo-v2.6-flash-free",
   "minimax-m3.1-flash-free", "nemotron-3-ultra-free", "nemotron-3.5-lightning-free", "nemotron-3.5-super-vl-free"];
 const COSTO_DSH_PAGO = 1.5;
@@ -438,7 +445,7 @@ function cargarConfigBase(): Obj {
     uso_por_modelo: Object.entries(USO_POR_MODELO), tipos_poco_importantes: [...TIPOS_POCO_IMPORTANTES],
     tipos_finales: [...TIPOS_FINALES], sin_cupo: "otro", sin_cupo_de: "default",
     perfil: PERFIL_DEFECTO, reserva_lider: null, peso_ritmo: PESO_RITMO, peso_bono_ritmo: PESO_BONO_RITMO,
-    opencode_plan: "gratis", topes_uso: {},
+    opencode_plan: "gratis", topes_uso: {}, nvidia_modelos: [...NVIDIA_DEFECTO],
   };
   conFloat(cfg, "reserva_lider");
   const p = rutaModelos();
@@ -481,6 +488,7 @@ function cargarConfigBase(): Obj {
   if (esNum(j.reserva) || esDict(j.reserva)) cfg.reserva = j.reserva;
   if (j.perfil in PERFILES && typeof j.perfil === "string") cfg.perfil = j.perfil;
   if (PLANES_OPENCODE.includes(j.opencode_plan)) cfg.opencode_plan = j.opencode_plan;
+  if (Array.isArray(j.nvidia_modelos)) cfg.nvidia_modelos = j.nvidia_modelos.filter((m: unknown) => typeof m === "string" && /^[A-Za-z0-9][A-Za-z0-9._/-]*$/.test(m));
   if (esNum(j.reserva_lider)) {
     cfg.reserva_lider = j.reserva_lider;
     marcarSi(cfg, "reserva_lider", esFloat(j, "reserva_lider"));
@@ -1179,7 +1187,7 @@ function binDe(nombre: string, envVar: string, previos: string[]): string | null
 const dshBin = () => binDe("dsh", "HILOS_DSH", [path.join(home(), ".local", "bin")]);
 
 function dshClave(nombre: string): string | null {
-  if (nombre !== "OPENCODE_API_KEY" && nombre !== "DEEPSEEK_API_KEY") return null;
+  if (nombre !== "OPENCODE_API_KEY" && nombre !== "DEEPSEEK_API_KEY" && nombre !== "NVIDIA_API_KEY") return null;
   if (E[nombre]) return E[nombre]!;
   const xdg = E.XDG_CONFIG_HOME || path.join(home(), ".config");
   const f = E.TRAMA_CLAVES || path.join(xdg, "trama", "claves.env");
@@ -1408,10 +1416,19 @@ function goTopes(cfg: Obj, mid: string): unknown {
   return null;
 }
 
+/** Los modelos de NVIDIA NIM que se ofrecen: sólo con NVIDIA_API_KEY y opencode instalado (REPARTO_OPENCODE_FIJO en los tests). REPARTO_NVIDIA=0 los apaga. */
+function nvidiaModelos(cfg: Obj): string[] {
+  if (E.REPARTO_NVIDIA === "0" || E.REPARTO_OPENCODE === "0" || E.REPARTO_SIN_DSH === "1") return [];
+  if (!dshClave("NVIDIA_API_KEY")) return [];
+  if (!E.REPARTO_OPENCODE_FIJO && !opencodeBin()) return [];
+  return [...(cfg.nvidia_modelos || [])];
+}
+
 function dshOfertas(cfg: Obj, now: Date): [string, string, string, boolean][] {
   const st = dshEstado(now);
   const out: [string, string, string, boolean][] = [];
   for (const m of opencodeGratis(now)) out.push([`opencode:opencode/${m}`, `${m} (OpenCode, gratis)`, "opencode-prog", true]);
+  for (const m of nvidiaModelos(cfg)) out.push([NVIDIA_PREFIJO + m, `${m} (NVIDIA NIM, gratis)`, "nvidia", true]);
   for (const [real, m] of goModelos(cfg, now)) out.push([OC_GO_PREFIJO + real, `${m.nombre || real} (OpenCode Go)`, "opencode-go", false]);
   for (const m of st.ollama) out.push([`dsh:ollama/${m}`, `${m} (Ollama, dsh)`, "ollama", true]);
   if (st.opencode && E.REPARTO_DSH_OPENCODE === "1") {
@@ -1684,6 +1701,7 @@ const CLAUDE_OFICIAL = "claude-oficial";
 export function grupoDeModelo(mid: unknown): string | null {
   const m = pyStr(mid || "").toLowerCase();
   if (m.startsWith(OC_GO_PREFIJO)) return m;
+  if (m.startsWith(NVIDIA_PREFIJO)) return null; // NVIDIA NIM: límite por minuto y por modelo; se enfría ese modelo, no hay grupo
   if (m === "opencode-free" || m.startsWith("opencode:")) return "opencode-free";
   for (const [prov, gid] of Object.entries(DSH_GRUPOS)) if (prov !== "opencode-prog" && (m === gid || m.startsWith(`dsh:${prov}/`))) return gid;
   if (m.startsWith("codex:gpt-6-sol")) return "codex";

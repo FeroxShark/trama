@@ -139,7 +139,9 @@ CALIDAD = {"opus": 100, "sonnet": 88, "argon": 85, "haiku": 60, "gpt-oss": 45, "
            "opencode:opencode/big-pickle": 60, "opencode:opencode/deepseek-v4.1-flash-free": 60, "opencode:opencode/glm-5.3-flash-free": 55,
            "opencode:opencode/nemotron-3-ultra-free": 55, "opencode:opencode/minimax-m3.1-flash-free": 50, "opencode:opencode/mimo-v2.6-flash-free": 50,
            "opencode:opencode/nemotron-3.5-super-vl-free": 50, "opencode:opencode/flint-40b-free": 40, "opencode:opencode/beam-free": 40,
-           "opencode:opencode/nemotron-3.5-lightning-free": 40}
+           "opencode:opencode/nemotron-3.5-lightning-free": 40,
+           # NVIDIA NIM (build.nvidia.com, gratis con key; por el programa opencode): el mismo modelo que el *-free de OpenCode.
+           "opencode:nvidia/deepseek-ai/deepseek-v4.1-flash": 60}
 # Qué se pide como mínimo según el tipo de tarea (nombre de familia). Un tipo desconocido pide Sonnet.
 MINIMO_POR_TIPO = {
     "debug": "argon", "diseno": "argon",   # Sonnet (88) también los resuelve
@@ -242,7 +244,7 @@ EFFORTS_CODEX = ("low", "medium", "high")
 # aunque esté en `calidad`); DeepSeek se paga con su key; Ollama = lo que tenga bajado.
 DSH_OPENCODE_GRATIS = ["big-pickle", "deepseek-v4.1-flash-free", "glm-5.3-flash-free", "flint-40b-free", "longcat-2.5-preview-free"]
 DSH_DEEPSEEK = ["deepseek-v4-flash"]
-DSH_GRUPOS = {"ollama": "dsh-ollama", "opencode": "dsh-opencode", "deepseek": "dsh-deepseek", "opencode-prog": "opencode-free", "opencode-go": "opencode-go"}
+DSH_GRUPOS = {"ollama": "dsh-ollama", "opencode": "dsh-opencode", "deepseek": "dsh-deepseek", "opencode-prog": "opencode-free", "opencode-go": "opencode-go", "nvidia": "nvidia-nim"}
 # OpenCode Go: el plan lo dice modelos.json (`opencode_plan`); el grupo de cada modelo de Go es su propio id (cupo por modelo, ventana de 5 h).
 PLANES_OPENCODE = ("gratis", "go", "go-plus")
 COSTO_GO = 0.02           # costo marginal ~0 de un modelo de Go (plan fijo con cupo): casi como un gratis, pero un gratis sin gastar nada gana el empate
@@ -250,6 +252,12 @@ ENFRIAR_H = 5             # un modelo de OpenCode que cortó por límite (pa sal
 VENCE_FREE_H = 24         # "Free usage limit reached" de OpenCode: el límite gratis es de TODA la cuenta, no de un modelo; el grupo `opencode-free` vuelve en un día salvo que el mensaje diga cuándo
 VENCE_GO_H = 5            # un 429 de un modelo de Go lo marca agotado esta cantidad de horas (la ventana del plan)
 OC_GO_PREFIJO = "opencode:opencode-go/"
+# NVIDIA NIM (https://integrate.api.nvidia.com/v1, ~40 req/min por modelo, sin tope diario): los modelos gratis van por opencode (`opencode:nvidia/<modelo>`)
+# y sólo se ofrecen con NVIDIA_API_KEY. La lista sale de `nvidia_modelos` de modelos.json (default: NVIDIA_DEFECTO). Un 429 es por minuto: enfría
+# a ESE modelo NVIDIA_ENFRIAR_MIN minutos (lo hace pa con --enfriar --horas), nunca marca agotado un grupo.
+NVIDIA_PREFIJO = "opencode:nvidia/"
+NVIDIA_DEFECTO = ["deepseek-ai/deepseek-v4.1-flash"]
+NVIDIA_ENFRIAR_MIN = 5
 OC_GRATIS_CONOCIDOS = ["big-pickle", "beam-free", "deepseek-v4.1-flash-free", "flint-40b-free", "glm-5.3-flash-free", "mimo-v2.6-flash-free",
                        "minimax-m3.1-flash-free", "nemotron-3-ultra-free", "nemotron-3.5-lightning-free", "nemotron-3.5-super-vl-free"]
 COSTO_DSH_PAGO = 1.5      # DeepSeek se paga con la key del dueño: pierde contra un gratis salvo que la calidad lo pida (peso_costo × 1,5 puntos menos)
@@ -370,7 +378,7 @@ def _cargar_config():
         "uso_por_modelo": list(USO_POR_MODELO.items()), "tipos_poco_importantes": list(TIPOS_POCO_IMPORTANTES),
         "tipos_finales": list(TIPOS_FINALES), "sin_cupo": "otro", "sin_cupo_de": "default",
         "perfil": PERFIL_DEFECTO, "reserva_lider": None, "peso_ritmo": PESO_RITMO, "peso_bono_ritmo": PESO_BONO_RITMO,
-        "opencode_plan": "gratis", "topes_uso": {},
+        "opencode_plan": "gratis", "topes_uso": {}, "nvidia_modelos": list(NVIDIA_DEFECTO),
     }
     p = ruta_modelos()
     if not os.path.isfile(p):
@@ -411,6 +419,8 @@ def _cargar_config():
         cfg["perfil"] = j["perfil"]
     if j.get("opencode_plan") in PLANES_OPENCODE:   # cualquier otra cosa: gratis (Go apagado)
         cfg["opencode_plan"] = j["opencode_plan"]
+    if isinstance(j.get("nvidia_modelos"), list):   # [] apaga NVIDIA NIM; los ids con forma rara se ignoran
+        cfg["nvidia_modelos"] = [m for m in j["nvidia_modelos"] if isinstance(m, str) and re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._/-]*", m)]
     if isinstance(j.get("reserva_lider"), (int, float)) and not isinstance(j.get("reserva_lider"), bool):
         cfg["reserva_lider"] = j["reserva_lider"]   # ausente/null: el del perfil
     if isinstance(j.get("topes_uso"), dict):   # {"google": 90, "google:claude-gpt": 80, "openai": 95}: desde qué % USADO se descarta (ver tope_uso)
@@ -1252,7 +1262,7 @@ def dsh_bin():
 
 def dsh_clave(nombre):
     """La key (OPENCODE_API_KEY / DEEPSEEK_API_KEY): el entorno, o el claves.env de Trama (NOMBRE=valor, sin source). Nunca se imprime."""
-    if nombre not in ("OPENCODE_API_KEY", "DEEPSEEK_API_KEY"):
+    if nombre not in ("OPENCODE_API_KEY", "DEEPSEEK_API_KEY", "NVIDIA_API_KEY"):
         return None
     if os.environ.get(nombre):
         return os.environ[nombre]
@@ -1544,12 +1554,26 @@ def go_topes(cfg, mid):
     return None
 
 
+def nvidia_modelos(cfg):
+    """Los modelos de NVIDIA NIM que se ofrecen: sólo con NVIDIA_API_KEY y con opencode instalado (REPARTO_OPENCODE_FIJO en los tests).
+    REPARTO_NVIDIA=0 (o REPARTO_OPENCODE=0 / REPARTO_SIN_DSH=1) los apaga."""
+    if os.environ.get("REPARTO_NVIDIA") == "0" or os.environ.get("REPARTO_OPENCODE") == "0" or os.environ.get("REPARTO_SIN_DSH") == "1":
+        return []
+    if not dsh_clave("NVIDIA_API_KEY"):
+        return []
+    if not os.environ.get("REPARTO_OPENCODE_FIJO") and not opencode_bin():
+        return []
+    return list(cfg.get("nvidia_modelos") or [])
+
+
 def dsh_ofertas(cfg, now):
     """[(id, nombre, proveedor, gratis)] de lo que dsh y opencode pueden correr ahora."""
     st = dsh_estado(now)
     out = []
     for m in opencode_gratis(now):
         out.append(("opencode:opencode/%s" % m, "%s (OpenCode, gratis)" % m, "opencode-prog", True))
+    for m in nvidia_modelos(cfg):
+        out.append((NVIDIA_PREFIJO + m, "%s (NVIDIA NIM, gratis)" % m, "nvidia", True))
     # OpenCode Go (sólo con plan go / go-plus): cupo propio por modelo, costo marginal ~0.
     for real, m in go_modelos(cfg, now):
         out.append((OC_GO_PREFIJO + real, "%s (OpenCode Go)" % (m.get("nombre") or real), "opencode-go", False))
@@ -1804,6 +1828,8 @@ def grupo_de_modelo(mid):
     m = (mid or "").lower()
     if m.startswith(OC_GO_PREFIJO):   # OpenCode Go: el cupo es por modelo, el grupo es el modelo (no `opencode-free`)
         return m
+    if m.startswith(NVIDIA_PREFIJO):   # NVIDIA NIM: el límite es por minuto y por modelo; se enfría ese modelo (--enfriar), no hay grupo que agotar
+        return None
     if m == "opencode-free" or m.startswith("opencode:"):
         return "opencode-free"
     for prov, gid in DSH_GRUPOS.items():

@@ -3963,9 +3963,9 @@ dsh_gratis() {   # $1 = id de pa -> 0 si no cuesta
 }
 # El valor de una key: el entorno primero y, si no, claves.env (líneas NOMBRE=valor; sin `source`: sólo se aceptan
 # esas dos claves y un valor sin espacios ni caracteres raros, con o sin comillas).
-dsh_clave() {   # $1 = OPENCODE_API_KEY | DEEPSEEK_API_KEY
+dsh_clave() {   # $1 = OPENCODE_API_KEY | DEEPSEEK_API_KEY | NVIDIA_API_KEY
   local n="$1" l v
-  case "$n" in OPENCODE_API_KEY|DEEPSEEK_API_KEY) ;; *) return 1 ;; esac
+  case "$n" in OPENCODE_API_KEY|DEEPSEEK_API_KEY|NVIDIA_API_KEY) ;; *) return 1 ;; esac
   v="${!n:-}"
   if [[ -z "$v" && -f "$CLAVES_ENV" ]]; then
     while IFS= read -r l || [[ -n "$l" ]]; do
@@ -4062,8 +4062,10 @@ opencode_bin() {
 }
 opencode_gratis() {   # $1 = id de pa (opencode:<prov>/<modelo>) -> 0 si es gratis
   local v="${1#opencode:}"
-  [[ "$v" == opencode/big-pickle || "$v" == *-free ]]
+  [[ "$v" == opencode/big-pickle || "$v" == *-free || "$v" == nvidia/* ]]   # nvidia/*: NVIDIA NIM, gratis con NVIDIA_API_KEY
 }
+# NVIDIA NIM (build.nvidia.com): opencode trae el proveedor `nvidia` y toma la key de NVIDIA_API_KEY; no hace falta /connect.
+es_nvidia() { [[ "${1,,}" == opencode:nvidia/* ]]; }
 # Privacidad, node, opencode -> motivo_cae (vacío = va). El login no se mira (no hay forma barata): un 429 lo cuenta después.
 opencode_chequear() {   # $1 = modelo opencode:…
   local ruta_d
@@ -4073,6 +4075,10 @@ opencode_chequear() {   # $1 = modelo opencode:…
   [[ -n "$ruta_d" ]] && motivo_cae="$(gemini_privacidad "$(realpath -m "$ruta_d")" "$tarea")"
   [[ -n "$motivo_cae" ]] && { motivo_cae="${motivo_cae/no se manda a Google/no se manda a OpenCode}"; return 0; }
   command -v node >/dev/null 2>&1 || { motivo_cae="node no está en el PATH (opencode lo necesita)"; return 0; }
+  if es_nvidia "$1" && [[ -z "$(dsh_clave NVIDIA_API_KEY)" ]]; then
+    motivo_cae="falta NVIDIA_API_KEY para '$1' (NVIDIA NIM, gratis: sacala en build.nvidia.com y ponela en $CLAVES_ENV como NVIDIA_API_KEY=…, o en el entorno)"
+    return 0
+  fi
   [[ -f "$OC_CORRER" ]] || { motivo_cae="falta $OC_CORRER"; return 0; }
   [[ -n "$(opencode_bin)" ]] || motivo_cae="opencode no está instalado (npm i -g opencode-ai; después \`opencode\` → /connect → OpenCode Console para los gratis)"
   return 0
@@ -4088,6 +4094,13 @@ opencode_catalogo() {   # -> una línea por modelo: id<TAB>gratis(1|0)<TAB>dispo
   ok=0; detalle="no está instalado opencode"
   [[ -n "$inst" ]] && { ok=1; detalle="con tu login de OpenCode Console (opencode → /connect)"; }
   for m in $lista; do printf 'opencode:opencode/%s\t1\t%s\t%s\n' "$m" "$ok" "$detalle"; done
+  # NVIDIA NIM: los de `nvidia_modelos` de modelos.json (default deepseek-ai/deepseek-v4.1-flash); disponibles con NVIDIA_API_KEY.
+  local nv_ok=0 nv_det="falta NVIDIA_API_KEY (build.nvidia.com; en $CLAVES_ENV)" nv_lista=""
+  [[ -n "$inst" && -n "$(dsh_clave NVIDIA_API_KEY)" ]] && { nv_ok=1; nv_det="con tu NVIDIA_API_KEY (NVIDIA NIM, ~40 pedidos por minuto)"; }
+  [[ -n "$inst" ]] || nv_det="no está instalado opencode"
+  [[ -f "$MODELOS_JSON" ]] && nv_lista="$(jq -r '(.nvidia_modelos // empty) | if type == "array" then .[] | strings else empty end' "$MODELOS_JSON" 2>/dev/null | grep -E '^[A-Za-z0-9][A-Za-z0-9._/-]*$' || true)"
+  [[ -n "$nv_lista" ]] || { [[ -f "$MODELOS_JSON" ]] && jq -e '.nvidia_modelos | type == "array"' "$MODELOS_JSON" >/dev/null 2>&1; } || nv_lista="deepseek-ai/deepseek-v4.1-flash"
+  for m in $nv_lista; do printf 'opencode:nvidia/%s\t1\t%s\t%s\n' "$m" "$nv_ok" "$nv_det"; done
 }
 # El latido de un worker de dsh (no tiene hooks): lo escribe pa cada PA_DSH_LATIDO_S mientras vive, con la última
 # herramienta o texto del stream.
@@ -6509,6 +6522,8 @@ correr() {
       # agrega --standalone a `opencode run`) va SÓLO en este proceso.
       ( cd "$ruta_trabajo" || exit 1
         export PA_WORKER=1 GIT_EDITOR=true GIT_SEQUENCE_EDITOR=true PATH="$CODEX_SHIMS:$PATH" HILOS_OPENCODE="$(opencode_bin)"
+        # NVIDIA NIM: la key de claves.env viaja sólo a este proceso (opencode la toma de NVIDIA_API_KEY); nunca se imprime.
+        if es_nvidia "$modelo"; then k_nv="$(dsh_clave NVIDIA_API_KEY)"; [[ -n "$k_nv" ]] && export NVIDIA_API_KEY="$k_nv"; unset k_nv; fi
         exec "${cuenta_env[@]}" node "$OC_CORRER" "${args[@]}" --tarea-archivo "$dsh_tarea" ) \
           </dev/null >/dev/null 2>"$err" 9>&- 8>&- 6>&- 5>&- &
     else
@@ -6637,8 +6652,12 @@ fb_siguiente() {   # $1 = lista pendiente
 # Si lo que dijo OpenCode es "Free usage limit" (el límite gratis es de TODA la cuenta, no del modelo), reparto agota el grupo
 # opencode-free entero (24 h, o el "retrying in N" del mensaje). Los de OpenCode Go (opencode-go/*) no pasan por acá.
 enfriar_modelo() {   # $1 = modelo
-  { tail -c 4000 "$err" 2>/dev/null; res_texto; } | REPARTO_STATE="${REPARTO_STATE:-$STATE/reparto}" PA_STATE="$STATE" "$REPARTO" --opencode-limite >/dev/null 2>&1 || true
-  REPARTO_STATE="${REPARTO_STATE:-$STATE/reparto}" PA_STATE="$STATE" "$REPARTO" --enfriar "$1" ${PA_ENFRIAR_HORAS:+--horas "$PA_ENFRIAR_HORAS"} >/dev/null 2>&1 </dev/null || true
+  # NVIDIA NIM no comparte el límite gratis de OpenCode: su 429 es por minuto y por modelo, así que nunca agota opencode-free.
+  es_nvidia "$1" || { tail -c 4000 "$err" 2>/dev/null; res_texto; } | REPARTO_STATE="${REPARTO_STATE:-$STATE/reparto}" PA_STATE="$STATE" "$REPARTO" --opencode-limite >/dev/null 2>&1 || true
+  # NVIDIA NIM limita por minuto (~40 pedidos por modelo): un 429 enfría pocos minutos (PA_ENFRIAR_NVIDIA_MIN, default 5), no las 5 h de los gratis de OpenCode.
+  local horas="${PA_ENFRIAR_HORAS:-}"
+  es_nvidia "$1" && horas="$(awk -v m="${PA_ENFRIAR_NVIDIA_MIN:-5}" 'BEGIN { printf "%.4f", (m + 0 > 0 ? m : 5) / 60 }')"
+  REPARTO_STATE="${REPARTO_STATE:-$STATE/reparto}" PA_STATE="$STATE" "$REPARTO" --enfriar "$1" ${horas:+--horas "$horas"} >/dev/null 2>&1 </dev/null || true
 }
 cambiar_de_modelo() {   # $1 = modelo nuevo, $2 = su effort (sólo Claude)
   local f
@@ -6740,7 +6759,7 @@ if (( rc != 0 )) || es_error; then
   # N horas en reparto para que nadie, ni `-m a,b,c`, vuelva a elegirlo hasta que pase. El trabajo no empezó, la sesión no se toca.
   if es_opencode "$modelo" && dsh_sin_cupo; then
     enfriar_modelo "$modelo"
-    echo "pa: OpenCode cortó por límite de uso con $modelo: lo enfrío ${PA_ENFRIAR_HORAS:-5} h en reparto. Probá con otro modelo (-m a,b,c pasa solo al siguiente)." >&2
+    echo "pa: OpenCode cortó por límite de uso con $modelo: lo enfrío $(es_nvidia "$modelo" && echo "${PA_ENFRIAR_NVIDIA_MIN:-5} min (NVIDIA NIM limita por minuto)" || echo "${PA_ENFRIAR_HORAS:-5} h") en reparto. Probá con otro modelo (-m a,b,c pasa solo al siguiente)." >&2
     echo "$texto" >&2
     exit 97
   fi

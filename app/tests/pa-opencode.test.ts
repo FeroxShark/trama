@@ -97,8 +97,9 @@ test("pa --modelos --json lista los gratis de opencode (sólo opencode/*-free y 
   assert.equal(r.rc, 0, r.err);
   const j = JSON.parse(r.out);
   assert.equal(j.opencode.instalado, true);
-  assert.deepEqual(j.opencode.modelos.map((m: any) => m.id), ["opencode:opencode/beam-free", "opencode:opencode/big-pickle"]);
-  assert.ok(j.opencode.modelos.every((m: any) => m.gratis && m.disponible));
+  const propios = j.opencode.modelos.filter((m: any) => !m.id.startsWith("opencode:nvidia/"));
+  assert.deepEqual(propios.map((m: any) => m.id), ["opencode:opencode/beam-free", "opencode:opencode/big-pickle"]);
+  assert.ok(propios.every((m: any) => m.gratis && m.disponible));
   assert.ok(!j.dsh.modelos.some((m: any) => m.id.startsWith("dsh:opencode/")));
   const sin = JSON.parse(pa(["--modelos", "--json"], { HILOS_OPENCODE: path.join(tmp, "no-existe") }).out);
   assert.equal(sin.opencode.instalado, false);
@@ -131,3 +132,32 @@ test("pa sin -m, sin Claude: reparto elige opencode y la corrida sale con ese mo
   assert.match(r.err, /reparto \(.*\) → opencode:opencode\/big-pickle/);
   assert.match(r.out, /-m opencode\/big-pickle/);
   });
+
+test("NVIDIA NIM: sin NVIDIA_API_KEY pa sale 95 diciendo dónde ponerla; con la de claves.env corre y opencode la recibe sin que se imprima", () => {
+  const sin = pa(["demo", "-m", "opencode:nvidia/deepseek-ai/deepseek-v4.1-flash", "x"]);
+  assert.equal(sin.rc, 95, sin.err);
+  assert.match(sin.err, /falta NVIDIA_API_KEY.*build\.nvidia\.com.*no-hay\.env/);
+  // La key de mentira, sólo en claves.env: pa la exporta al worker (el opencode falso la imprime a un archivo para comprobarlo).
+  const claves = path.join(tmp, "claves-nvidia.env");
+  writeFileSync(claves, "NVIDIA_API_KEY=nvapi-de-mentira\n");
+  const visto = path.join(tmp, "key-vista.txt");
+  const falsoKey = path.join(tmp, "opencode-key.sh");
+  writeFileSync(falsoKey, readFileSync(falso, "utf8").replace("cat >/dev/null", `printf '%s' "$NVIDIA_API_KEY" > ${visto}\ncat >/dev/null`));
+  chmodSync(falsoKey, 0o755);
+  const r = pa(["demo", "-m", "opencode:nvidia/deepseek-ai/deepseek-v4.1-flash", "haceme algo"], { TRAMA_CLAVES: claves, HILOS_OPENCODE: falsoKey });
+  assert.equal(r.rc, 0, r.err + r.out);
+  assert.match(r.out, /-m nvidia\/deepseek-ai\/deepseek-v4\.1-flash/);
+  assert.equal(readFileSync(visto, "utf8"), "nvapi-de-mentira");
+  assert.doesNotMatch(r.out + r.err, /nvapi-de-mentira/, "la key no se imprime");
+});
+
+test("NVIDIA NIM: pa --modelos lista los de nvidia_modelos; con key quedan disponibles", () => {
+  const modelos = path.join(tmp, "modelos-nvidia.json");
+  writeFileSync(modelos, JSON.stringify({ nvidia_modelos: ["deepseek-ai/deepseek-v4.1-flash", "otro/modelo-x"] }));
+  const nv = (env: Record<string, string>) =>
+    (JSON.parse(pa(["--modelos", "--json"], { TRAMA_MODELOS: modelos, ...env }).out).opencode.modelos as any[]).filter((m) => m.id.startsWith("opencode:nvidia/"));
+  const sin = nv({});
+  assert.deepEqual(sin.map((m) => m.id), ["opencode:nvidia/deepseek-ai/deepseek-v4.1-flash", "opencode:nvidia/otro/modelo-x"]);
+  assert.ok(sin.every((m) => m.gratis && !m.disponible && /NVIDIA_API_KEY/.test(m.detalle ?? "")));
+  assert.ok(nv({ NVIDIA_API_KEY: "k" }).every((m) => m.gratis && m.disponible));
+});
