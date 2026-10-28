@@ -11,6 +11,8 @@ import path from "node:path";
 import { escribirAtomico } from "../base/archivo.ts";
 import { correr } from "../base/proc.ts";
 import { enPath, esEjecutable } from "../base/buscar.ts";
+import { entornoCmd } from "../../binario.ts";
+import { prefijoDe } from "./programas.ts";
 import { noPortado, type DeProyecto, type Proyecto as ProyectoCli } from "./cli.ts";
 import { argsHijo, lanzarAsync } from "./async.ts";
 import { armarActualizar } from "./auditar.ts";
@@ -102,11 +104,11 @@ export async function claudeSano(pa: Pa, claude?: string): Promise<{ ok: boolean
 
 /** `tablero_mudo 2 ficha <slug> --corta`: la ficha del proyecto, o "" (sin tablero, si falla, si tarda más de 2 s). */
 async function fichaDe(pa: Pa, slug: string): Promise<string> {
-  const tb = pa.env.PA_TABLERO || path.join(pa.bin, "tablero");
-  if (!esEjecutable(tb, pa.plat)) return "";
+  const tb = prefijoDe(pa, "tablero", pa.env.PA_TABLERO, pa.env.PA_TABLERO || path.join(pa.bin, "tablero"));
+  if (!esEjecutable(tb[tb.length - 1]!, pa.plat)) return "";
   if (!pa.env.TABLERO_DIR && pa.env.PA_STATE) return "";
   try {
-    const r = await correr(tb, ["ficha", slug, "--corta"], { env: pa.env, timeoutMs: 2000, killAfterMs: 1000, plat: pa.plat });
+    const r = await correr(tb[0]!, [...tb.slice(1), "ficha", slug, "--corta"], { env: entornoCmd(tb, pa.env), timeoutMs: 2000, killAfterMs: 1000, plat: pa.plat });
     return r.codigo === 0 ? r.salida.replace(/\n+$/, "") : "";
   } catch {
     return "";

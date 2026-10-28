@@ -3,10 +3,11 @@
 // (2026-10-03), y aunque se encuentre, `pa` necesita `claude` y `proyecto-ruta`,
 // que viven ahí. Puro (sin `electron` ni imports locales): lo prueba
 // `tests/binario.test.ts` con `node --test`.
-import { execFile, type ExecFileException, type ExecFileOptions } from "node:child_process";
+import { execFile, execFileSync, spawn, type ChildProcess, type ExecFileException, type ExecFileOptions, type ExecFileSyncOptions, type SpawnOptions } from "node:child_process";
 import { accessSync, constants } from "node:fs";
 import path from "node:path";
-import { caminoDe, carpetaApp, carpetaBin, delimitadorDe, nodeWindows, plataformaActual, type Plataforma } from "./rutas.ts";
+import { fileURLToPath } from "node:url";
+import { caminoDe, carpetaApp, carpetaBin, delimitadorDe, homeDe, nodeWindows, plataformaActual, type Plataforma } from "./rutas.ts";
 
 type Env = Record<string, string | undefined>;
 
@@ -102,9 +103,39 @@ export function resolverComando(
   const c = path.win32;
   const bin = carpetaBin(env, home, plat);
   const app = carpetaApp(env, home, plat);
-  for (const js of [c.join(bin, `${nombre}.js`), c.join(app, `${nombre}.js`), c.join(app, "bin", `${nombre}.js`)]) if (esEjecutable(js)) return [node, js];
+  // El CLI compilado vive en `<app>\dist-electron\cli\<nombre>.js` (así lo arma el payload nativo); el `.cmd` de bin\ sólo lo usa quien tipea en una terminal.
+  const propio = path.join(path.dirname(fileURLToPath(import.meta.url)), "cli", `${nombre}.js`);
+  const candidatos = [c.join(app, "dist-electron", "cli", `${nombre}.js`), propio, c.join(bin, `${nombre}.js`), c.join(app, `${nombre}.js`), c.join(app, "bin", `${nombre}.js`)];
+  for (const js of candidatos) if (esEjecutable(js)) return [node, js];
   const exe = resolverBinario(nombre, variable, env, home, esEjecutable, plat);
   return [exe];
+}
+
+/** Las herramientas propias de trama y la variable que fija su ruta (las de `cli/`; `gate` y `clasificar` aún no tienen CLI en TS y quedan por su nombre). */
+export const HERRAMIENTAS_PROPIAS: Readonly<Record<string, string>> = {
+  pa: "HILOS_PA",
+  reparto: "HILOS_REPARTO",
+  tablero: "HILOS_TABLERO",
+  cuentas: "HILOS_CUENTAS",
+  workers: "HILOS_WORKERS",
+  "trama-estado": "HILOS_TRAMA_ESTADO",
+  gate: "HILOS_GATE",
+  clasificar: "HILOS_CLASIFICAR",
+};
+
+/**
+ * EL ayudante para lanzar una herramienta propia: el principio de la línea de comandos, sin sus argumentos. Linux/mac: `[<binario>]`, el de
+ * siempre. Windows: `[node.exe, <app>\dist-electron\cli\<nombre>.js]` directo, nunca un `.cmd` ni `cmd.exe` (sin problemas de comillas ni de
+ * `spawn pa ENOENT`: node no resuelve `.cmd` sin shell). Usar con `lanzarPropio` / `lanzarPropioSync` / `spawnPropio` o con `entornoCmd`.
+ */
+export function comandoPropio(
+  nombre: string,
+  env: Env = process.env,
+  home: string = homeDe(env),
+  esEjecutable: (f: string) => boolean = ejecutable,
+  plat: Plataforma = plataformaActual(),
+): string[] {
+  return resolverComando(nombre, HERRAMIENTAS_PROPIAS[nombre] ?? `HILOS_${nombre.toUpperCase().replace(/-/g, "_")}`, env, home, esEjecutable, plat);
 }
 
 /** El entorno para lanzar `prefijo`: si el "node" es el propio ejecutable de la app (Electron), le pide que se porte como node. */
@@ -175,4 +206,28 @@ export function paraLanzar(cmd: string, args: string[], env: Env = process.env, 
   if (plat !== "win32" || !ES_CMD.test(cmd)) return { file: cmd, args, verbatim: false };
   const linea = [cmd, ...args].map(argParaCmd).join(" ");
   return { file: env.ComSpec || env.COMSPEC || "cmd.exe", args: ["/d", "/s", "/c", `"${linea}"`], verbatim: true };
+}
+
+/** `execFile` de una herramienta propia (`comandoPropio` + `lanzarCmd`). */
+export function lanzarPropio(
+  nombre: string,
+  args: string[],
+  opciones: ExecFileOptions,
+  fin: (err: ExecFileException | null, stdout: string, stderr: string) => void,
+) {
+  return lanzarCmd(comandoPropio(nombre, (opciones.env ?? process.env) as Env), args, opciones, fin);
+}
+
+/** `execFileSync` de una herramienta propia: devuelve su stdout. */
+export function lanzarPropioSync(nombre: string, args: string[], opciones: ExecFileSyncOptions = {}, home?: string): string {
+  const env = (opciones.env ?? process.env) as Env;
+  const p = comandoPropio(nombre, env, home);
+  return String(execFileSync(p[0], [...p.slice(1), ...args], { ...opciones, env: entornoCmd(p, env) as NodeJS.ProcessEnv, encoding: "utf8" }));
+}
+
+/** `spawn` de una herramienta propia. */
+export function spawnPropio(nombre: string, args: string[], opciones: SpawnOptions = {}): ChildProcess {
+  const env = (opciones.env ?? process.env) as Env;
+  const p = comandoPropio(nombre, env);
+  return spawn(p[0], [...p.slice(1), ...args], { ...opciones, env: entornoCmd(p, env) as NodeJS.ProcessEnv });
 }

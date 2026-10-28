@@ -11,6 +11,8 @@ import { appendFileSync, closeSync, existsSync, mkdirSync, openSync, readdirSync
 import path from "node:path";
 import { agregarLinea } from "../base/archivo.ts";
 import { esEjecutable } from "../base/buscar.ts";
+import { entornoCmd } from "../../binario.ts";
+import { prefijoDe } from "./programas.ts";
 import { esPrincipal } from "../base/principal.ts";
 import { correr, matarArbol, vivo } from "../base/proc.ts";
 import { tomar, type Lock } from "../base/lock.ts";
@@ -186,10 +188,10 @@ export function decisionEsNada(s: string): boolean {
 
 /** `tablero_mudo`: corre bin/tablero con tope, sin stdin ni stderr; con un PA_STATE de mentira y sin TABLERO_DIR no se llama. */
 export async function tableroMudo(pa: Pa, topeS: number, args: string[]): Promise<boolean> {
-  const tb = pa.env.PA_TABLERO || path.join(pa.bin, "tablero");
-  if (!esEjecutable(tb, pa.plat)) return false;
+  const tb = prefijoDe(pa, "tablero", pa.env.PA_TABLERO, pa.env.PA_TABLERO || path.join(pa.bin, "tablero"));
+  if (!esEjecutable(tb[tb.length - 1]!, pa.plat)) return false;
   if (!pa.env.TABLERO_DIR && pa.env.PA_STATE) return false;
-  const r = await correr(tb, args, { env: pa.env, timeoutMs: topeS * 1000, killAfterMs: 1000, plat: pa.plat });
+  const r = await correr(tb[0]!, [...tb.slice(1), ...args], { env: entornoCmd(tb, pa.env), timeoutMs: topeS * 1000, killAfterMs: 1000, plat: pa.plat });
   return r.codigo === 0;
 }
 

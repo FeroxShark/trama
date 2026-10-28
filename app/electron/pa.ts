@@ -8,7 +8,7 @@ import { mirarCarpeta } from "./mirar.ts";
 import { open, readFile, rename, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { entornoPa, lanzarCmd, resolverComando } from "./binario.ts";
+import { comandoPropio, entornoPa, lanzarCmd } from "./binario.ts";
 import { estadoPa } from "./rutas.ts";
 import { completarCola } from "./cola-pa.ts";
 import { conLosResultados } from "./hilo-resultados.ts";
@@ -21,7 +21,7 @@ import { argvIntegrar, argvSettle, comoSettle } from "./settle.ts";
 import { verMuertes, type Muertes } from "./vigia.ts";
 
 /** Lo que se lanza para correr `pa`: `[<pa>]` (Linux) o `[node, pa.js]` (Windows; nunca un `.cmd`). */
-export const PA_CMD = resolverComando("pa", "HILOS_PA", process.env, os.homedir());
+export const PA_CMD = comandoPropio("pa", process.env, os.homedir());
 /** El ejecutable o script de `pa`, para los mensajes. */
 export const PA = PA_CMD[PA_CMD.length - 1];
 /** `pa` necesita `claude` y `proyecto-ruta` (en ~/.local/bin, que el menú de apps no pone en el PATH). */

@@ -3,6 +3,7 @@
 // (etapas 12-13) se enchufa otra implementación sin tocar la política. Nada de esto tira: una falla vuelve como código.
 import { spawnSync } from "node:child_process";
 import path from "node:path";
+import { comandoPropio, entornoCmd, HERRAMIENTAS_PROPIAS } from "../../binario.ts";
 import { esEjecutable } from "../base/buscar.ts";
 import { correr } from "../base/proc.ts";
 import type { Env, Pa } from "./entorno.ts";
@@ -35,17 +36,28 @@ export const topeReparto = (env: Env) => env.PA_REPARTO_TIMEOUT_S || "15";
 /** `$(…)`: la salida sin los saltos de línea del final. */
 const recortar = (s: string) => s.replace(/\n+$/, "");
 
+/**
+ * Qué se lanza para correr `nombre`: Linux `[<ruta>]`, como siempre; Windows `[node, <app>\dist-electron\cli\<nombre>.js]` (el ayudante `comandoPropio`,
+ * nunca un `.cmd`). `anulada` es lo que pone la variable de `pa` (`PA_REPARTO`, `PA_CUENTAS_BIN`), que gana si está.
+ */
+export function prefijoDe(pa: Pa, nombre: string, anulada: string | undefined, ruta: string): string[] {
+  if (pa.plat !== "win32") return [ruta];
+  const env = { ...pa.env, ...(anulada && anulada !== "0" ? { [HERRAMIENTAS_PROPIAS[nombre]!]: anulada } : {}) };
+  return comandoPropio(nombre, env, pa.home, (f) => esEjecutable(f, pa.plat), "win32");
+}
+
 /** reparto como proceso (lo de siempre en Linux). */
 export function repartoProceso(pa: Pa): Reparto {
   // PA_REPARTO=0 apaga la elección automática (modelos.reparto()), no el comando.
   const ruta = pa.env.PA_REPARTO && pa.env.PA_REPARTO !== "0" ? pa.env.PA_REPARTO : path.join(pa.bin, "reparto");
+  const prefijo = prefijoDe(pa, "reparto", pa.env.PA_REPARTO, ruta);
   const entorno = (extra: Env = {}): Env => ({ ...pa.env, REPARTO_STATE: pa.env.REPARTO_STATE || path.join(pa.state, "reparto"), PA_STATE: pa.state, ...extra });
   const ms = () => Number(topeReparto(pa.env)) * 1000;
   const llamar = (args: string[], extra: Env = {}, tope = true) =>
-    correr(ruta, args, { env: entorno(extra), timeoutMs: tope ? ms() : undefined, input: "" });
+    correr(prefijo[0]!, [...prefijo.slice(1), ...args], { env: entornoCmd(prefijo, entorno(extra)), timeoutMs: tope ? ms() : undefined, input: "" });
   return {
-    ruta,
-    ejecutable: () => esEjecutable(ruta, pa.plat),
+    ruta: prefijo[prefijo.length - 1]!,
+    ejecutable: () => esEjecutable(prefijo[prefijo.length - 1]!, pa.plat),
     async enfriado(modelo) {
       const r = await llamar(["--enfriado", modelo], {}, false);
       return r.codigo === 0 ? recortar(r.salida) : null;
@@ -66,7 +78,7 @@ export function repartoProceso(pa: Pa): Reparto {
       return r.codigo === 0 ? recortar(r.salida) : "";
     },
     plan(sub, args) {
-      const r = spawnSync(ruta, ["--plan", sub, ...args], { env: entorno() as NodeJS.ProcessEnv, stdio: "inherit" });
+      const r = spawnSync(prefijo[0]!, [...prefijo.slice(1), "--plan", sub, ...args], { env: entornoCmd(prefijo, entorno()) as NodeJS.ProcessEnv, stdio: "inherit" });
       return r.status ?? (r.error ? 127 : 1);
     },
   };
@@ -74,10 +86,10 @@ export function repartoProceso(pa: Pa): Reparto {
 
 /** cuentas como proceso. */
 export function cuentasProceso(pa: Pa): Cuentas {
-  const ruta = pa.env.PA_CUENTAS_BIN || path.join(pa.bin, "cuentas");
+  const prefijo = prefijoDe(pa, "cuentas", pa.env.PA_CUENTAS_BIN, pa.env.PA_CUENTAS_BIN || path.join(pa.bin, "cuentas"));
   return {
     async env(id) {
-      const r = await correr(ruta, ["env", id, "--json"], { env: pa.env, input: "" });
+      const r = await correr(prefijo[0]!, [...prefijo.slice(1), "env", id, "--json"], { env: entornoCmd(prefijo, pa.env), input: "" });
       return { rc: r.codigo, salida: recortar(r.salida + r.errores) };
     },
   };

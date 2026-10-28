@@ -1,131 +1,81 @@
-// B19: una línea por herramienta (resumen, ruta relativa, grupos), el diff de
-// Edit/Write, el relevo y lo que arma el transcript/stream de un líder.
+// El ayudante único para lanzar las herramientas propias (pa, reparto, tablero, cuentas, workers, trama-estado, gate, clasificar):
+// con `process.platform` simulado, en win32 es `node <app>\dist-electron\cli\<x>.js` (nunca un .cmd ni cmd.exe) y en linux lo de siempre.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { agrupar, cambios, contar, cuerpo, diffLineas, esRelevo, relativa, relevoHecho, resumen, usosDe, vieneDeRelevo } from "../src/hilo/herramientas.ts";
-import { colaDe, conversacionDe, detDe, parsearLinea } from "../electron/lider-arma.ts";
-import type { Herramienta } from "../src/datos/contrato.ts";
+import { comandoPropio, entornoCmd, HERRAMIENTAS_PROPIAS } from "../electron/binario.ts";
+import { prefijoDe } from "../electron/cli/pa/programas.ts";
 
-const T = "/home/ana/.claude/projects/-home-ana-Proyectos-mi-app/abc.jsonl";
+const WENV = { LOCALAPPDATA: "C:\\Users\\Ana\\AppData\\Local", USERPROFILE: "C:\\Users\\Ana", Path: "C:\\Windows;C:\\Users\\Ana\\AppData\\Local\\trama\\bin" };
+const WHOME = "C:\\Users\\Ana";
+const RAIZ = "C:\\Users\\Ana\\AppData\\Local\\trama";
+const NODE = `${RAIZ}\\node\\node.exe`;
+const hay = (...fs: string[]) => (f: string) => fs.includes(f);
 
-test("relativa: la raíz sale del directorio del transcript; si no, ~", () => {
-  assert.equal(relativa("/home/ana/Proyectos/mi-app/src/x.ts", T), "src/x.ts");
-  assert.equal(relativa("/home/ana/Proyectos/otra/y.ts", T), "~/Proyectos/otra/y.ts");
-  assert.equal(relativa("/etc/hosts", null), "/etc/hosts");
-  assert.equal(relativa("src/rel.ts", T), "src/rel.ts");
-});
+/** Corre `f` con `process.platform` simulado. */
+function conPlataforma<T>(plat: NodeJS.Platform, f: () => T): T {
+  const original = Object.getOwnPropertyDescriptor(process, "platform")!;
+  Object.defineProperty(process, "platform", { value: plat });
+  try {
+    return f();
+  } finally {
+    Object.defineProperty(process, "platform", original);
+  }
+}
 
-test("resumen de cada herramienta", () => {
-  assert.equal(resumen("Bash", { command: "npm test", description: "Corre los tests" }), "Corre los tests");
-  assert.equal(resumen("Bash", { command: "\n  git status\ngit diff" }), "git status");
-  assert.equal(resumen("Edit", { file_path: "/home/ana/Proyectos/mi-app/a.ts" }, T), "a.ts");
-  assert.equal(resumen("Grep", { pattern: "foo\\(" }), "foo\\(");
-  assert.equal(resumen("Agent", { description: "Busca usos", prompt: "…" }), "Busca usos");
-  assert.equal(resumen("SendMessage", { to: "jefe", message: "hola" }), "jefe");
-  assert.equal(resumen("ToolSearch", { query: "select:Read" }), "select:Read");
-  assert.equal(resumen("WebFetch", { url: "https://x.y", prompt: "z" }), "https://x.y");
-  assert.equal(resumen("Raro", {}), "");
-  assert.ok(resumen("Bash", { command: "x".repeat(400) }).length <= 160);
-});
-
-test("usosDe: con det, del det; sin det, del texto viejo", () => {
-  const det: Herramienta[] = [{ nombre: "Read", entrada: { file_path: "/a/b" } }];
-  assert.deepEqual(usosDe(["Read"], det, null), [{ nombre: "Read", resumen: "/a/b", det: det[0] }]);
-  assert.deepEqual(usosDe(["Bash: git status", "Read"], undefined, null), [
-    { nombre: "Bash", resumen: "git status", det: null },
-    { nombre: "Read", resumen: "", det: null },
-  ]);
-});
-
-test("agrupar: sólo las iguales y seguidas", () => {
-  const u = (nombre: string, r: string) => ({ nombre, resumen: r, det: null });
-  const g = agrupar([u("Read", "a"), u("Read", "a"), u("Read", "b"), u("Read", "a")]);
-  assert.deepEqual(
-    g.map((x) => [x.uso.resumen, x.todos.length]),
-    [
-      ["a", 2],
-      ["b", 1],
-      ["a", 1],
-    ],
-  );
-});
-
-test("diffLineas: bordes comunes, LCS en el medio, los - antes que los +", () => {
-  const d = diffLineas("a\nb\nc\nd", "a\nB\nc\nd\ne");
-  assert.deepEqual(d, [
-    { tipo: " ", texto: "a" },
-    { tipo: "-", texto: "b" },
-    { tipo: "+", texto: "B" },
-    { tipo: " ", texto: "c" },
-    { tipo: " ", texto: "d" },
-    { tipo: "+", texto: "e" },
-  ]);
-  assert.deepEqual(contar(d), { mas: 2, menos: 1 });
-  assert.deepEqual(diffLineas("", "x\ny"), [
-    { tipo: "+", texto: "x" },
-    { tipo: "+", texto: "y" },
-  ]);
-  assert.deepEqual(contar(diffLineas("x\ny\n", "x\ny\n")), { mas: 0, menos: 0 });
-  // Un tramo con varias: primero todas las que salen.
-  assert.deepEqual(
-    diffLineas("1\n2\n3", "4\n5").map((l) => l.tipo),
-    ["-", "-", "-", "+", "+"],
-  );
-});
-
-test("cuerpo y cambios", () => {
-  assert.deepEqual(cuerpo({ nombre: "Bash", entrada: { command: "ls" } }), { tipo: "comando", comando: "ls", cortado: false });
-  assert.equal((cuerpo({ nombre: "Bash", entrada: { command: "x".repeat(2000) } }) as { cortado: boolean }).cortado, true);
-  assert.deepEqual(cambios({ nombre: "Edit", entrada: { old_string: "a", new_string: "b\nc" } }), { mas: 2, menos: 1 });
-  assert.deepEqual(cambios({ nombre: "Write", entrada: { content: "1\n2\n3\n" } }), { mas: 3, menos: 0 });
-  const me = cuerpo({ nombre: "MultiEdit", entrada: { edits: [{ old_string: "a", new_string: "b" }, { old_string: "c", new_string: "d" }, { nope: 1 }] } });
-  assert.ok(me.tipo === "diff" && me.tramos.length === 2);
-  assert.equal(cambios({ nombre: "Read", entrada: { file_path: "/x" } }), null);
-  assert.equal(cuerpo(null).tipo, "nada");
-});
-
-test("relevo: la llamada, si salió y el primer mensaje del nuevo", () => {
-  const b = (command: string, resultado?: Herramienta["resultado"]): Herramienta => ({ nombre: "Bash", entrada: { command }, resultado });
-  assert.ok(esRelevo(b("relevo")));
-  assert.ok(esRelevo(b("pa --nota 'x' && relevo")));
-  assert.ok(esRelevo(b("~/orquestador/bin/relevo --ya")));
-  assert.ok(!esRelevo(b("cat relevo.md")));
-  assert.ok(!esRelevo(b("grep relevo x")));
-  assert.ok(!esRelevo({ nombre: "Read", entrada: { file_path: "relevo" } }));
-  assert.ok(relevoHecho(b("relevo", { texto: "relevo: sesión nueva corriendo (pid 12)", error: false })));
-  assert.ok(!relevoHecho(b("relevo", { texto: "relevo: sesión nueva corriendo (pid 12)", error: true })));
-  assert.ok(!relevoHecho(b("relevo")));
-  assert.deepEqual(vieneDeRelevo("Sos el jefe. Esto es un RELEVO automático: traspaso en ~/.claude/plans/relevo-20261003-120000.md"), {
-    traspaso: "~/.claude/plans/relevo-20261003-120000.md",
+test("win32 simulado: cada herramienta propia es node + su .js de dist-electron\\cli, aunque en bin\\ sólo haya .cmd", () => {
+  conPlataforma("win32", () => {
+    for (const h of Object.keys(HERRAMIENTAS_PROPIAS)) {
+      const js = `${RAIZ}\\app\\dist-electron\\cli\\${h}.js`;
+      // el .cmd está en bin\ y en el PATH, pero no se usa
+      const r = comandoPropio(h, WENV, WHOME, hay(NODE, js, `${RAIZ}\\bin\\${h}.cmd`));
+      assert.deepEqual(r, [NODE, js], h);
+      assert.ok(!r.some((x) => /\.(cmd|bat)$/i.test(x) || /cmd\.exe/i.test(x)), `${h} no pasa por cmd`);
+    }
   });
-  assert.equal(vieneDeRelevo("hola"), null);
 });
 
-test("líder: det y resultados del stream y del transcript", () => {
-  const d = detDe({ type: "tool_use", id: "tu1", name: "Bash", input: { command: "y".repeat(2500), description: "d" } });
-  assert.equal(d.id, "tu1");
-  assert.equal(d.cortado, true);
-  assert.equal((d.entrada.command as string).length, 2000);
+test("win32 simulado: TRAMA_APP mueve la app; la variable HILOS_* gana; sin script queda el nombre pelado", () => {
+  conPlataforma("win32", () => {
+    const js = "D:\\trama-app\\dist-electron\\cli\\pa.js";
+    assert.deepEqual(comandoPropio("pa", { ...WENV, TRAMA_APP: "D:\\trama-app" }, WHOME, hay(NODE, js)), [NODE, js]);
+    assert.deepEqual(comandoPropio("pa", { ...WENV, HILOS_PA: "D:\\x\\pa.js" }, WHOME, hay(NODE)), [NODE, "D:\\x\\pa.js"]);
+    assert.deepEqual(comandoPropio("reparto", WENV, WHOME, hay(NODE)), ["reparto"]);
+  });
+});
 
-  const [m] = parsearLinea(JSON.stringify({ type: "assistant", message: { id: "m1", content: [{ type: "tool_use", id: "tu1", name: "Read", input: { file_path: "/a" } }] } }));
-  assert.ok(m.tipo === "mensaje" && m.det.length === 1 && m.det[0].id === "tu1");
-  assert.deepEqual(
-    parsearLinea(JSON.stringify({ type: "user", message: { content: [{ type: "tool_result", tool_use_id: "tu1", content: "ok", is_error: true }] } })),
-    [{ tipo: "resultado", id: "tu1", texto: "ok", error: true }],
-  );
+test("win32 simulado: sin el node propio se usa el ejecutable actual, y Electron se porta como node", () => {
+  conPlataforma("win32", () => {
+    const js = `${RAIZ}\\app\\dist-electron\\cli\\tablero.js`;
+    const r = comandoPropio("tablero", WENV, WHOME, hay(js));
+    assert.deepEqual(r, [process.execPath, js]);
+    const antes = process.versions.electron;
+    Object.defineProperty(process.versions, "electron", { value: "99", configurable: true });
+    try {
+      assert.equal(entornoCmd(r, {}).ELECTRON_RUN_AS_NODE, "1");
+    } finally {
+      if (antes === undefined) delete (process.versions as Record<string, string>).electron;
+      else Object.defineProperty(process.versions, "electron", { value: antes, configurable: true });
+    }
+  });
+});
 
-  const largo = Array.from({ length: 30 }, (_, i) => `l${i}`).join("\n");
-  assert.ok(colaDe(largo).startsWith("…\nl15"));
-  assert.equal(colaDe([{ type: "text", text: "a" }, { type: "image" }]), "a");
+test("linux simulado: lo de siempre (el binario del PATH o ~/.local/bin, o la variable)", () => {
+  conPlataforma("linux", () => {
+    assert.deepEqual(comandoPropio("pa", { PATH: "/usr/bin" }, "/home/ana", hay("/usr/bin/pa")), ["/usr/bin/pa"]);
+    assert.deepEqual(comandoPropio("reparto", { PATH: "/usr/bin" }, "/home/ana", hay("/home/ana/.local/bin/reparto")), ["/home/ana/.local/bin/reparto"]);
+    assert.deepEqual(comandoPropio("cuentas", { HILOS_CUENTAS: "/falso/cuentas" }, "/home/ana", hay()), ["/falso/cuentas"]);
+    assert.deepEqual(comandoPropio("workers", { PATH: "/usr/bin" }, "/home/ana", hay()), ["workers"]);
+  });
+});
 
-  const lineas = [
-    { type: "user", message: { content: "corré" } },
-    { type: "assistant", message: { id: "m1", content: [{ type: "tool_use", id: "tu1", name: "Bash", input: { command: "ls" } }] } },
-    { type: "user", message: { content: [{ type: "tool_result", tool_use_id: "tu1", content: [{ type: "text", text: "a\nb" }] }] } },
-    { type: "assistant", message: { id: "m2", content: [{ type: "text", text: "listo" }] } },
-  ];
-  const r = conversacionDe("s", "/t.jsonl", lineas.map((x) => JSON.stringify(x)).join("\n"));
-  assert.equal(r.mensajes.length, 3);
-  assert.deepEqual(r.mensajes[1].det, [{ nombre: "Bash", entrada: { command: "ls" }, id: "tu1", resultado: { texto: "a\nb", error: false } }]);
-  assert.equal(r.mensajes[2].det, undefined);
+test("pa --plan: el prefijo de reparto/cuentas/tablero según la plataforma de pa", () => {
+  const pa = (plat: "linux" | "win32", env: Record<string, string> = {}) => ({ plat, home: plat === "win32" ? WHOME : "/home/ana", env: { ...(plat === "win32" ? WENV : {}), ...env } }) as never;
+  assert.deepEqual(prefijoDe(pa("linux"), "reparto", undefined, "/m/bin/reparto"), ["/m/bin/reparto"]);
+  assert.deepEqual(prefijoDe(pa("linux", { PA_TABLERO: "/x/t" }), "tablero", "/x/t", "/x/t"), ["/x/t"]);
+  // win32: sin script a mano queda el nombre pelado (no hay node.exe real en esta máquina); con la variable de pa, ese script
+  const r = prefijoDe(pa("win32", { PA_CUENTAS_BIN: "D:\\x\\cuentas.js" }), "cuentas", "D:\\x\\cuentas.js", "D:\\x\\cuentas.js");
+  assert.equal(r.length, 2);
+  assert.equal(r[1], "D:\\x\\cuentas.js");
+  assert.ok(!r.some((x) => /\.(cmd|bat)$/i.test(x)));
+  assert.deepEqual(prefijoDe(pa("win32", { PA_REPARTO: "0" }), "reparto", "0", "x"), ["reparto"]);
 });

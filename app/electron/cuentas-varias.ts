@@ -6,7 +6,7 @@
 // electron/actualizador.ts) y se espera a que termine; después la vista vuelve a preguntar `--verificar`. Sin `electron`: lo prueba
 // tests/cuentas-varias.test.ts con scripts/cuentas-falso.mjs.
 import os from "node:os";
-import { pathConLocal, resolverBinario } from "./binario.ts";
+import { comandoPropio, entornoCmd, entornoPa } from "./binario.ts";
 import { correrReal, type Salida } from "./cuentas.ts";
 import { textoT } from "./errores.ts";
 
@@ -55,8 +55,8 @@ const ultimaLinea = (t: string) => t.trim().split(/\r?\n/).filter(Boolean).slice
 
 /** Corre `cuentas <args>`; sin el comando lo dice (clave), con código distinto de 0 devuelve lo que dijo. */
 async function cli(d: DepsVarias, args: string[], timeout: number): Promise<string> {
-  const bin = resolverBinario("cuentas", "HILOS_CUENTAS", d.env, d.home, d.esEjecutable);
-  const r = await d.correr(bin, args, { ...d.env, PATH: pathConLocal(d.env, d.home) }, timeout);
+  const cmd = comandoPropio("cuentas", d.env, d.home, d.esEjecutable);
+  const r = await d.correr(cmd[0], [...cmd.slice(1), ...args], entornoCmd(cmd, entornoPa(d.env, d.home)) as NodeJS.ProcessEnv, timeout);
   if (r.noExiste) throw new Error(marca("main.cuentasNo"));
   if (r.tiempo) throw new Error(marca("main.cuentasTiempo"));
   if (r.code !== 0) throw new Error(ultimaLinea(r.stderr) || ultimaLinea(r.stdout) || marca("main.cuentasFallo", { rc: String(r.code) }));
@@ -140,8 +140,8 @@ export async function planCuenta(d: DepsVarias, id: unknown, plan: unknown): Pro
 export async function loginCuenta(d: DepsVarias, id: unknown): Promise<void> {
   if (!idValido(id)) throw new Error(marca("main.cuentasDato"));
   if (!d.terminal) throw new Error(marca("main.cuentasSinTerminal"));
-  const bin = resolverBinario("cuentas", "HILOS_CUENTAS", d.env, d.home, d.esEjecutable);
-  const r = await d.terminal([bin, "login", id], { ...d.env, PATH: pathConLocal(d.env, d.home) });
+  const cmd = comandoPropio("cuentas", d.env, d.home, d.esEjecutable);
+  const r = await d.terminal([...cmd, "login", id], entornoCmd(cmd, entornoPa(d.env, d.home)) as NodeJS.ProcessEnv);
   if (r.err) throw new Error(r.err);
 }
 

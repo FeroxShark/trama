@@ -3,7 +3,7 @@
 // el único lector. Genérico: una suscripción nueva aparece sola en la cabecera, sin tocar esto.
 // Lo que no se sabe es `null` ("sin dato"), nunca un número inventado.
 import { homedir } from "node:os";
-import { entornoPa, lanzarCmd, resolverComando } from "./binario.js";
+import { comandoPropio, entornoPa, lanzarCmd } from "./binario.js";
 
 
 /** Una ventana de cupo: `pct` 0..100 (`null`: sin dato) y cuándo vuelve (epoch s, `null`: no se sabe). */
@@ -197,7 +197,7 @@ async function consultarCupos(): Promise<CuposLeidos | null> {
   if (modoAisladoSinCupos()) return null;
   try {
     const env = entornoPa(process.env, homedir()) as NodeJS.ProcessEnv;
-    const cmd = resolverComando("reparto", "HILOS_REPARTO", process.env, homedir());
+    const cmd = comandoPropio("reparto", process.env, homedir());
     const stdout = await new Promise<string>((ok, mal) => lanzarCmd(cmd, ["--cupos", "--json"], { env, timeout: 6000, maxBuffer: 512 * 1024 }, (e, o) => (e ? mal(e) : ok(o))));
     return parsearCuposReparto(stdout, Date.now());
   } catch {

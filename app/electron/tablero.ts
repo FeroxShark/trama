@@ -7,14 +7,14 @@ import { mirarCarpeta, type Mirada } from "./mirar.ts";
 import { readFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { entornoPa, lanzarCmd, resolverComando } from "./binario.ts";
+import { comandoPropio, entornoPa, lanzarCmd } from "./binario.ts";
 import { errorT } from "./errores.ts";
 import { plataformaActual, vistaTablero, type Plataforma } from "./rutas.ts";
 
 type Env = Record<string, string | undefined>;
 
 /** `HILOS_TABLERO`, el `tablero` del PATH o `~/.local/bin/tablero`. */
-export const TABLERO_CMD = resolverComando("tablero", "HILOS_TABLERO", process.env, os.homedir());
+export const TABLERO_CMD = comandoPropio("tablero", process.env, os.homedir());
 export const TABLERO = TABLERO_CMD[TABLERO_CMD.length - 1];
 const ENV = entornoPa(process.env, os.homedir()) as NodeJS.ProcessEnv;
 

@@ -7,9 +7,8 @@
 // silencio la cuenta de la persona gastaría el cupo equivocado. `opencode acp` corre dentro del proceso (no habla con el servicio de fondo de 2.x), así
 // que con el entorno alcanza: no necesita `--standalone`, que sólo tienen los comandos de un solo tiro (`run`, `auth`, `models`).
 // Node puro (sin `electron`): lo prueba tests/opencode-cuenta.test.ts.
-import { execFileSync } from "node:child_process";
 import os from "node:os";
-import { pathConLocal, resolverBinario } from "./binario.ts";
+import { entornoPa, lanzarPropioSync } from "./binario.ts";
 
 type Env = Record<string, string | undefined>;
 
@@ -53,12 +52,12 @@ export type DepsCuentaOpencode = {
 };
 
 const leerReal = (id: string, env: Env, home: string): string =>
-  execFileSync(resolverBinario("cuentas", "HILOS_CUENTAS", env, home), ["env", id, "--json"], {
-    env: { ...env, PATH: pathConLocal(env, home) } as NodeJS.ProcessEnv,
+  lanzarPropioSync("cuentas", ["env", id, "--json"], {
+    env: entornoPa(env, home) as NodeJS.ProcessEnv,
     encoding: "utf8",
     timeout: 15_000,
     stdio: ["ignore", "pipe", "pipe"],
-  });
+  }, home);
 
 /**
  * El entorno del líder con la cuenta de OpenCode que pide `TRAMA_OPENCODE_CUENTA`. Sin pedido: el mismo entorno. Con pedido que no se puede cumplir:

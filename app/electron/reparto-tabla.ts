@@ -2,7 +2,7 @@
 // inteligencia, si son gratis, el cupo libre y cuándo se reinicia, y si modelos.json los permite). Es EL lector de esa salida;
 // el puntaje no se recalcula acá: lo que se muestra sale de las mismas funciones que `reparto --tipo`. Node puro.
 import { homedir } from "node:os";
-import { entornoPa, lanzarCmd, resolverComando } from "./binario.ts";
+import { comandoPropio, entornoPa, lanzarCmd } from "./binario.ts";
 
 /** Una ventana de cupo de un modelo: cuánto queda libre (0..100) y cuándo vuelve (epoch ms, `null`: no se sabe). */
 export type VentanaTabla = { id: string; libre: number; vuelve: number | null };
@@ -187,7 +187,7 @@ export async function leerTabla(): Promise<TablaReparto | null> {
   if (aislado && !process.env.HILOS_REPARTO) return null;
   try {
     const env = entornoPa(process.env, homedir()) as NodeJS.ProcessEnv;
-    const cmd = resolverComando("reparto", "HILOS_REPARTO", process.env, homedir());
+    const cmd = comandoPropio("reparto", process.env, homedir());
     const stdout = await new Promise<string>((ok, mal) => lanzarCmd(cmd, ["--tabla", "--json"], { env, timeout: 15000, maxBuffer: 2 * 1024 * 1024 }, (e, o) => (e ? mal(e) : ok(o))));
     return parsearTabla(stdout);
   } catch {
