@@ -64,7 +64,7 @@ REPARTO_OPENCODE_FIJO='["opencode/beam-free"]' (tests: no mira nada real). Los g
 OpenCode los rechaza desde cualquier programa que no sea opencode (REPARTO_DSH_OPENCODE=1 los vuelve a ofrecer, con OPENCODE_API_KEY). La calidad sale de
 `calidad` ("opencode:opencode/glm-5.3-flash-free": 55; admite *), como la de dsh.
 OpenCode Go (plan pago de OpenCode, APAGADO por defecto): con `"opencode_plan": "go"` o `"go-plus"` en modelos.json los modelos de motor/opencode/go-topes.json
-(el único archivo de datos de los topes; REPARTO_GO_TABLA=<archivo> lo cambia) entran como candidatos `opencode:opencode-go/<modelo>` con costo marginal ~0
+(se leen de opencode.ai/go con motor/opencode/go-topes.mjs a un caché en ~/.local/state/hilos; go-topes.json es el respaldo sin red; REPARTO_GO_TABLA=<archivo> lo cambia) entran como candidatos `opencode:opencode-go/<modelo>` con costo marginal ~0
 (`costo["opencode-go"]`, 0,02), por calidad de AA al esfuerzo que se usaría, como cualquier otro. Cada modelo de Go tiene su cupo: un 429 (`--agotar`) marca agotado SOLO
 ese modelo (5 h), no el grupo `opencode-free`. Sin esa clave (o con "gratis") no cambia nada.
 """
@@ -77,6 +77,7 @@ import importlib.util
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import time
@@ -1413,17 +1414,57 @@ def opencode_gratis(now):
     return opencode_listado(now)["gratis"]
 
 
-def go_tabla():
-    """La tabla de topes de OpenCode Go (motor/opencode/go-topes.json, junto a motor/bin; REPARTO_GO_TABLA la cambia): {"fuente", "fecha", "modelos": [...]}
-    o None si no está o no sirve (entonces Go no ofrece nada: no se inventa)."""
-    ruta = os.environ.get("REPARTO_GO_TABLA") or os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "opencode", "go-topes.json")
+def go_cache_ruta():
+    """El caché de topes de Go que escribe motor/opencode/go-topes.mjs, en el estado de trama (igual que la app: $HILOS_STATE o ~/.local/state/hilos)."""
+    return os.path.join(os.environ.get("HILOS_STATE") or os.path.expanduser("~/.local/state/hilos"), "opencode-go-topes.json")
+
+
+def go_leer_tabla(ruta):
+    """El archivo de topes (formato de go-topes.json) o None si no está / no sirve."""
     try:
         with open(ruta) as f:
             t = json.load(f)
         ms = [m for m in t["modelos"] if isinstance(m, dict) and isinstance(m.get("id"), str) and m["id"]]
-        return {"fuente": t.get("fuente"), "fecha": t.get("fecha"), "modelos": ms} if t.get("version") == 1 and ms else None
+        return {"fuente": t.get("fuente"), "fecha": t.get("fecha"), "leido": t.get("leido"), "modelos": ms} if t.get("version") == 1 and ms else None
     except Exception:
         return None
+
+
+def go_pedir_actualizacion():
+    """Si el caché de topes tiene más de un día (o no existe), lanza APARTE `node go-topes.mjs --refrescar --si-viejo` (no espera ni falla: la próxima
+    corrida ya lo lee). Ese script decide solo si hay que ir a la red (una vez por día, un intento por hora). TRAMA_GO_SIN_RED=1 lo apaga."""
+    if os.environ.get("TRAMA_GO_SIN_RED") == "1":
+        return
+    cache = go_cache_ruta()
+    for archivo, vale in ((cache, 3600 * 24), (cache + ".intento", 3600)):
+        try:
+            if time.time() - os.path.getmtime(archivo) < vale:
+                return
+        except OSError:
+            pass
+    node = shutil.which("node")
+    mjs = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "opencode", "go-topes.mjs")
+    if not node or not os.path.exists(mjs):
+        return
+    try:
+        subprocess.Popen([node, mjs, "--refrescar", "--si-viejo", "--cache", cache], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+    except OSError:
+        pass
+
+
+def go_tabla():
+    """La tabla de topes de OpenCode Go: {"fuente", "fecha", "leido", "origen", "modelos": [...]} o None si ninguna sirve (entonces Go no ofrece nada: no se inventa).
+    Sale del caché leído de OpenCode (go_cache_ruta); el respaldo sin red es motor/opencode/go-topes.json (junto a motor/bin; "origen": "respaldo").
+    REPARTO_GO_TABLA=<archivo> manda sobre todo (pruebas)."""
+    explicita = os.environ.get("REPARTO_GO_TABLA")
+    if explicita:
+        t = go_leer_tabla(explicita)
+        return {**t, "origen": "respaldo"} if t else None
+    t = go_leer_tabla(go_cache_ruta())
+    if t:
+        return {**t, "origen": "cache"}
+    t = go_leer_tabla(os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "opencode", "go-topes.json"))
+    return {**t, "origen": "respaldo"} if t else None
 
 
 def slug_go(s):
@@ -1440,6 +1481,8 @@ def go_modelos(cfg, now):
         return []
     if not os.environ.get("REPARTO_OPENCODE_FIJO") and not opencode_bin():
         return []
+    if not os.environ.get("REPARTO_GO_TABLA"):
+        go_pedir_actualizacion()
     tabla = go_tabla()
     if not tabla:
         return []

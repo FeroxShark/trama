@@ -63,7 +63,7 @@ import { estadoMcp } from "./mcp.ts";
 import { guardarServidor, quitarServidor, vistaMcp } from "./mcp-config.ts";
 import { crearLectorTabla, leerTabla } from "./reparto-tabla.ts";
 import { actualizarOpencode, effortsOpencode, modelosOpencode, vistaOpencode } from "./opencode-ajustes.ts";
-import { guardarPlanOpencode, planOpencode, vistaPlanGo } from "./opencode-go.ts";
+import { guardarPlanOpencode, mantenerTopesGo, planOpencode, vistaPlanGo } from "./opencode-go.ts";
 import { guardarClave, leerClaves } from "./claves.ts";
 import { estadoAA, refrescarAA } from "./artificial-analysis.ts";
 import { descartarSetup, setupDeEstaMaquina } from "./setup.ts";
@@ -892,6 +892,8 @@ export function armarNucleo() {
   manejar("opencode:estado", () => vistaOpencode());
   manejar("opencode:actualizar", () => actualizarOpencode());
   // OpenCode Go (plan pago, apagado por defecto): el plan y los topes por modelo; elegir el plan es sólo de la PC (`SOLO_PC_TAILNET`).
+  // Los topes se leen de opencode.ai/go al arrancar y cada día (caché en el estado de trama; sin red queda el respaldo go-topes.json).
+  if (!aislado()) mantenerTopesGo();
   manejar("opencode:plan", () => vistaPlanGo());
   manejar("opencode:planGuardar", async (_e, plan: unknown) => {
     await guardarPlanOpencode(plan);

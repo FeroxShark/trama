@@ -1,13 +1,15 @@
 // OpenCode Go (plan pago de OpenCode: «Go» y «Go Plus»), APAGADO por defecto: sin elegir un plan en Ajustes > OpenCode todo queda como antes.
-// Acá: la tabla de topes por modelo (UN solo archivo de datos, motor/opencode/go-topes.json, con fecha y URL de origen: se actualiza ahí; la
-// leen también `reparto` y el runner de workers), qué modelos de Go se ofrecen según el plan y cómo se guarda el plan (`opencode_plan` de
-// modelos.json, junto a lo demás de Trama). Sin Electron.
+// Acá: la tabla de topes por modelo (se lee de opencode.ai/go con motor/opencode/go-topes.mjs, al arrancar y cada día, a un caché en el estado de
+// trama: `opencode-go-topes.json`, con la fecha de lectura; lo lee también `reparto`. Sin red, el respaldo es motor/opencode/go-topes.json y la
+// interfaz lo dice), qué modelos de Go se ofrecen según el plan y cómo se guarda el plan (`opencode_plan` de modelos.json). Sin Electron.
 import { readFileSync, realpathSync } from "node:fs";
+import { pathToFileURL } from "node:url";
 import { mkdir, readFile, realpath, rename, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { resolverPa } from "./binario.ts";
 import { errorT } from "./errores.ts";
+import { estadoHilos } from "./rutas.ts";
 import { PLANES_OPENCODE, PROVEEDOR_GO, planOpencode, rutaModelosOc, type PlanOpencode } from "./opencode.ts";
 
 type Env = Record<string, string | undefined>;
@@ -28,6 +30,10 @@ export type TablaGo = {
   /** De dónde salen los topes y a qué fecha. */
   fuente: string;
   fecha: string;
+  /** Cuándo se leyó de OpenCode (ISO); `""` en el respaldo, que es a mano. */
+  leido: string;
+  /** `cache`: leída de opencode.ai/go; `respaldo`: go-topes.json (no hay caché o no sirve). */
+  origen: "cache" | "respaldo";
   /** Lo que cuesta Go por mes, USD (Go Plus: no se sabe, `null`). */
   precios: Record<PlanGo, number | null>;
   modelos: ModeloGo[];
@@ -63,12 +69,17 @@ export function parsearTablaGo(texto: string): TablaGo | null {
   return {
     fuente: typeof r.fuente === "string" ? r.fuente : "",
     fecha: typeof r.fecha === "string" ? r.fecha : "",
+    leido: typeof r.leido === "string" ? r.leido : "",
+    origen: "respaldo",
     precios: { go: entero(planes.go?.usd_mes), "go-plus": entero(planes["go-plus"]?.usd_mes) },
     modelos,
   };
 }
 
-/** Dónde puede estar go-topes.json: `HILOS_OPENCODE_GO` (pruebas), junto al `pa` instalado (motor/bin/../opencode) o junto a esta app (el repo). */
+/** El caché de topes leído de OpenCode (lo escribe motor/opencode/go-topes.mjs; lo lee también `reparto`). */
+export const rutaCacheGo = (env: Env = process.env, home: string = os.homedir()): string => path.join(estadoHilos(env, home), "opencode-go-topes.json");
+
+/** Dónde puede estar go-topes.json (el respaldo): `HILOS_OPENCODE_GO` (pruebas), junto al `pa` instalado (motor/bin/../opencode) o junto a esta app (el repo). */
 export function rutasTablaGo(env: Env = process.env, home: string = os.homedir()): string[] {
   const out: string[] = [];
   if (env.HILOS_OPENCODE_GO) out.push(env.HILOS_OPENCODE_GO);
@@ -82,17 +93,57 @@ export function rutasTablaGo(env: Env = process.env, home: string = os.homedir()
   return out;
 }
 
-/** La tabla de topes de Go; `null` si no se encuentra o no sirve (entonces Go no ofrece modelos: no se inventa nada). */
+/**
+ * La tabla de topes de Go: `HILOS_OPENCODE_GO` (pruebas) manda; si no, el caché leído de OpenCode; si no hay o no sirve, el respaldo
+ * (go-topes.json, con `origen: "respaldo"`); `null` si nada sirve (entonces Go no ofrece modelos: no se inventa nada).
+ */
 export function cargarTablaGo(env: Env = process.env, home: string = os.homedir()): TablaGo | null {
-  for (const f of rutasTablaGo(env, home)) {
+  const lugares = rutasTablaGo(env, home).map((f) => ({ f, origen: "respaldo" as TablaGo["origen"] }));
+  lugares.splice(env.HILOS_OPENCODE_GO ? 1 : 0, 0, { f: rutaCacheGo(env, home), origen: "cache" });
+  for (const { f, origen } of lugares) {
     try {
       const t = parsearTablaGo(readFileSync(f, "utf8"));
-      if (t) return t;
+      if (t) return { ...t, origen };
     } catch {
       /* el siguiente lugar */
     }
   }
   return null;
+}
+
+type ResultadoTopes = { ok: boolean; vigente?: boolean; motivo?: string };
+type ModuloTopes = { refrescar(o: { cache: string; siViejo: boolean; respaldo?: string; env: Env }): Promise<ResultadoTopes> };
+
+/**
+ * Lee los topes de OpenCode y actualiza el caché (motor/opencode/go-topes.mjs, el mismo código que usan `reparto` y el runner). `siViejo`: sólo si
+ * el caché tiene más de un día y no se intentó hace una hora. Nunca tira: sin red (o sin el módulo) devuelve `ok: false` y queda lo que había.
+ */
+export async function refrescarTopesGo(env: Env = process.env, home: string = os.homedir(), siViejo = true): Promise<ResultadoTopes> {
+  if (env.TRAMA_GO_SIN_RED === "1") return { ok: false, motivo: "sin red (TRAMA_GO_SIN_RED=1)" };
+  for (const json of rutasTablaGo(env, home)) {
+    const mjs = path.join(path.dirname(json), "go-topes.mjs");
+    try {
+      readFileSync(mjs);
+    } catch {
+      continue;
+    }
+    try {
+      const m = (await import(pathToFileURL(mjs).href)) as ModuloTopes;
+      return await m.refrescar({ cache: rutaCacheGo(env, home), siViejo, respaldo: json, env });
+    } catch (e) {
+      return { ok: false, motivo: (e as Error).message };
+    }
+  }
+  return { ok: false, motivo: "no se encontró motor/opencode/go-topes.mjs" };
+}
+
+/** Al arrancar y después cada hora (que sólo trabaja si el caché pasó de un día): mantiene el caché al día. Devuelve cómo parar. */
+export function mantenerTopesGo(env: Env = process.env, home: string = os.homedir(), alRefrescar: () => void = () => {}): () => void {
+  const una = () => void refrescarTopesGo(env, home, true).then((r) => r.ok && !r.vigente && alRefrescar());
+  una();
+  const t = setInterval(una, 3600_000);
+  t.unref();
+  return () => clearInterval(t);
 }
 
 /** `Kimi K3.1 Pro`, `opencode-go/kimi-k3.1-pro`, `kimi_k3-1-pro` → `kimik31pro`: para emparejar el slug de la tabla con el que lista `opencode models`. */
@@ -162,10 +213,13 @@ export type VistaPlanGo = {
   /** De dónde salen los topes y a qué fecha (`null`: no se encontró la tabla). */
   fuente: string | null;
   fecha: string | null;
+  /** De dónde salen: `cache` (leídos de OpenCode, `leido` es cuándo) o `respaldo` (go-topes.json: sin caché; la interfaz dice «datos del <fecha>»). */
+  origen: TablaGo["origen"] | null;
+  leido: string | null;
   /** USD por mes de Go (el de Go Plus no se sabe). */
   precio: number | null;
   modelos: { id: string; nombre: string; pedidos5h: number | null; usdMes: number | null }[];
-  /** El uso real del plan según OpenCode. No lo expone por API ni CLI: siempre `false`; los pedidos los cuenta Trama aparte (opencode-pedidos.ts). */
+  /** El uso real del plan según OpenCode. Vive en su consola, detrás del login (ni la API ni el CLI lo traen): siempre `false`; los pedidos los cuenta Trama aparte (opencode-pedidos.ts). */
   usoDisponible: boolean;
 };
 
@@ -178,6 +232,8 @@ export function vistaPlanGo(env: Env = process.env, home: string = os.homedir())
     plan,
     fuente: tabla?.fuente || null,
     fecha: tabla?.fecha || null,
+    origen: tabla?.origen ?? null,
+    leido: tabla?.leido || null,
     precio: tabla?.precios[p] ?? null,
     modelos: (tabla?.modelos ?? []).map((m) => ({ id: `${PROVEEDOR_GO}/${m.slug}`, nombre: m.nombre, pedidos5h: m.topes[p]?.pedidos5h ?? null, usdMes: m.topes[p]?.usdMes ?? null })),
     usoDisponible: false,

@@ -1,8 +1,8 @@
 {
  "version": 1,
  "fuente": "https://opencode.ai/go",
- "fecha": "2026-10-27",
- "nota": "Topes de OpenCode Go por modelo: pedidos cada 5 h y equivalente mensual en USD, para Go (10 USD/mes) y Go Plus. UNICO archivo de datos: lo leen reparto (motor/bin/reparto), el runner (motor/opencode/correr.mjs) y la app (app/electron/opencode-go.ts). Para actualizar: editar acá y cambiar `fecha`. El id es `opencode-go/<id>` como lo lista `opencode models`; si el listado trae otro slug, se empareja ignorando mayusculas y signos.",
+ "fecha": "2026-10-28",
+ "nota": "RESPALDO sin red. Los topes de OpenCode Go (pedidos cada 5 h y equivalente mensual en USD, por modelo, para Go y Go Plus) se leen de https://opencode.ai/go con motor/opencode/go-topes.mjs al arrancar y cada día, a un caché en el estado de trama (opencode-go-topes.json, con la fecha de lectura); lo leen reparto (motor/bin/reparto), el runner (motor/opencode/correr.mjs) y la app (app/electron/opencode-go.ts). Este archivo sólo se usa si no hay caché; la interfaz dice «datos del <fecha>» cuando lo usa. Para refrescarlo a mano: copiar los modelos del caché y cambiar `fecha`. El id es `opencode-go/<id>` como lo lista `opencode models`; si el listado trae otro slug, se empareja ignorando mayusculas y signos.",
  "proveedor": "opencode-go",
  "planes": {
   "go": {
@@ -10,7 +10,8 @@
    "usd_mes": 10
   },
   "go-plus": {
-   "nombre": "Go Plus"
+   "nombre": "Go Plus",
+   "usd_mes": 40
   }
  },
  "modelos": [

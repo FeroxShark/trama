@@ -407,7 +407,9 @@ export const PLAN_GO = (plan: "gratis" | "go" | "go-plus"): VistaPlanGo => {
     plan,
     fuente: "https://opencode.ai/go",
     fecha: "2026-10-27",
-    precio: go ? 10 : null,
+    origen: "cache",
+    leido: "2026-10-27T09:30:00.000Z",
+    precio: go ? 10 : 40,
     modelos: [m("kimi-k3.1-pro", "Kimi K3.1 Pro", 147, 588, 15, 60), m("minimax-m3", "MiniMax M3", 3200, 9600, 60, 180), m("deepseek-v4.1-flash", "DeepSeek V4.1 Flash", 34670, 69330, 80, 160)],
     usoDisponible: false,
   };

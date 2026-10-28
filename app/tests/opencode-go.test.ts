@@ -38,7 +38,8 @@ test("la tabla real: 11 modelos con los topes de Go y Go Plus, fecha y URL de or
   assert.deepEqual(por["mimo-v2.6-flash"]!.topes["go-plus"], { pedidos5h: 60200, usdMes: 120 });
   assert.equal(por["gpt-6-luna"]!.nombre, "GPT 6 Luna");
   assert.equal(t.precios.go, 10);
-  assert.equal(t.precios["go-plus"], null, "el precio de Go Plus no se sabe: no se inventa");
+  assert.equal(t.precios["go-plus"], 40);
+  assert.equal(t.origen, "respaldo");
 });
 
 test("parsearTablaGo: lo que no es el contrato no es una tabla", () => {
@@ -58,7 +59,7 @@ test("cargarTablaGo: HILOS_OPENCODE_GO manda; sin nada que sirva, null", () => {
 });
 
 test("ofertasGo: sin plan Go no se ofrece nada; con plan, los de la tabla (o los que opencode listó, con su id)", () => {
-  const t = cargarTablaGo()!;
+  const t = cargarTablaGo({ HILOS_STATE: carpeta() })!;
   assert.deepEqual(ofertasGo("gratis", t), []);
   assert.deepEqual(ofertasGo("go", null), [], "sin tabla no se inventa");
   const todos = ofertasGo("go", t);
@@ -73,7 +74,7 @@ test("ofertasGo: sin plan Go no se ofrece nada; con plan, los de la tabla (o los
 });
 
 test("elegibles: sin plan Go todo como antes; con plan, los de Go van después de los gratis y reemplazan a los opencode-go sueltos", () => {
-  const t = cargarTablaGo()!;
+  const t = cargarTablaGo({ HILOS_STATE: carpeta() })!;
   const todos = ["opencode/gpt-5", "opencode/big-pickle", "opencode/beam-free", "opencode-go/glm-5.3-flash", "anthropic/claude-x"];
   const antes = elegibles(todos, ["opencode-go"]);
   assert.deepEqual(antes, ["opencode/big-pickle", "opencode/beam-free", "opencode/gpt-5", "opencode-go/glm-5.3-flash"], "gratis: igual que siempre");
@@ -121,7 +122,7 @@ test("vistaPlanGo: topes del plan elegido; el uso real no está disponible (Open
   assert.equal(v.fuente, "https://opencode.ai/go");
   assert.equal(v.usoDisponible, false);
   assert.deepEqual(v.modelos.find((m) => m.id === "opencode-go/minimax-m3")!, { id: "opencode-go/minimax-m3", nombre: "MiniMax M3", pedidos5h: 9600, usdMes: 180 });
-  assert.equal(v.precio, null);
+  assert.equal(v.precio, 40);
   writeFileSync(env.TRAMA_MODELOS, JSON.stringify({ version: 1 }));
   const g = vistaPlanGo(env, d);
   assert.equal(g.plan, "gratis");

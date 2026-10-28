@@ -54,6 +54,8 @@ function reparto(args: string[], o: { cupos: string; modelos: string; estado?: s
       REPARTO_AGY: "0",
       REPARTO_AA: "0",
       REPARTO_GO_TABLA: TABLA_PRUEBA,
+      HILOS_STATE: path.join(tmp, "hilos-estado"),
+      TRAMA_GO_SIN_RED: "1",
       REPARTO_STATE: o.estado ?? path.join(tmp, `estado${n++}`),
       // Sin esto reparto mira los workers vivos y el uso de ESTA máquina (~/.local/state/pa): la elección cambia con ellos.
       PA_STATE: path.join(tmp, "pa-estado"),

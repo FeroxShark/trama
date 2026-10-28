@@ -16,6 +16,7 @@ const env = { ...process.env };
 for (const k of Object.keys(env)) {
   if (k.startsWith("PA_") || k === "TRAMA_LOCAL") delete env[k];
 }
+env.TRAMA_GO_SIN_RED = "1"; // las pruebas no leen opencode.ai/go (los topes de Go salen del caché de cada prueba o del respaldo)
 const r = spawnSync(process.execPath, ["--test", ...process.argv.slice(2), ...archivos], {
   cwd: raiz,
   stdio: "inherit",

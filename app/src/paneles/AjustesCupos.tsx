@@ -609,7 +609,11 @@ function TarjetaOpencode({ uso, perfiles, lista, alCambiar }: { uso: Uso | null;
               <div className="cu-sin">{t("cu.opencodeGo.sinTabla")}</div>
             )}
             {varias ? <div className="cu-nota">{t("cu.opencodeGo.topesDe", { plan: nombrePlanOc(go ? plan : "go") })}</div> : null}
-            {v.fuente ? <div className="cu-nota">{t("cu.opencodeGo.fuente", { fuente: v.fuente, fecha: v.fecha ?? "—" })}</div> : null}
+            {v.fuente ? (
+              <div className="cu-nota">
+                {v.origen === "cache" ? t("cu.opencodeGo.fuente", { fuente: v.fuente, fecha: v.fecha ?? "—" }) : t("cu.opencodeGo.respaldo", { fecha: v.fecha ?? "—" })}
+              </div>
+            ) : null}
           </div>
         ) : null}
 

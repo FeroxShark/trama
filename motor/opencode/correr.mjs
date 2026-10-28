@@ -31,7 +31,7 @@ import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import { fileURLToPath } from "node:url";
 import os from "node:os";
 import path from "node:path";
-import { conModeloChico, conPermisoFuera, esErrorCuota, esGratis, esModeloGo, mensajeCuotaGo, mensajeCuotaOpencode, parsearModelo, resolverOpencode } from "./config.mjs";
+import { conModeloChico, conPermisoFuera, esErrorCuota, esGratis, esModeloGo, mensajeCuotaGo, mensajeCuotaOpencode, parsearModelo, planOpencode, resolverOpencode } from "./config.mjs";
 
 /** ¿Es una cuenta agregada de OpenCode (la que pone `cuentas env`: TRAMA_OPENCODE_CUENTA con un id válido que no es la de siempre)? */
 export const cuentaAgregada = (env = process.env) => /^[a-z0-9][a-z0-9-]{0,39}$/.test(env.TRAMA_OPENCODE_CUENTA ?? "") && env.TRAMA_OPENCODE_CUENTA !== "opencode";
@@ -157,6 +157,14 @@ async function main() {
   // Sin Go, el modelo chico de opencode (título, resumen) va a uno gratis: ver conModeloChico en config.mjs.
   const env = { ...conPermisoFuera(conModeloChico(process.env, os.homedir()), "deny") };
   delete env.CLAUDE_CONFIG_DIR;
+  // Con plan Go, los topes por modelo (go-topes.mjs → caché en el estado de trama; los lee también reparto y la app) se mantienen al día: aparte, sin esperar ni fallar.
+  if (planOpencode(process.env, os.homedir()) !== "gratis" && process.env.TRAMA_GO_SIN_RED !== "1") {
+    try {
+      spawn(process.execPath, [fileURLToPath(new URL("./go-topes.mjs", import.meta.url)), "--refrescar", "--si-viejo"], { detached: true, stdio: "ignore" }).on("error", () => {}).unref();
+    } catch {
+      /* sin topes frescos queda el caché o el respaldo */
+    }
+  }
   env.PWD = path.resolve(a.cwd); // opencode toma su directorio de PWD, no de getcwd(): sin esto escribiría donde estaba el que lanzó a pa
   const bin = resolverOpencode(process.env, os.homedir());
   const t0 = Date.now();

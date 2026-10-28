@@ -32,7 +32,7 @@ export function rutaCache(env = process.env, home = os.homedir()) {
 const norm = (s) => String(s ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
 const ENTIDADES = { "&amp;": "&", "&lt;": "<", "&gt;": ">", "&quot;": '"', "&#39;": "'", "&nbsp;": " " };
 /** El texto de un pedazo de HTML: sin comentarios, sin etiquetas, con las entidades de siempre. */
-const texto = (h) => h.replace(/<!--.*?-->/gs, "").replace(/<[^>]*>/g, "").replace(/&(?:amp|lt|gt|quot|nbsp|#39);/g, (e) => ENTIDADES[e]).replace(/\s+/g, " ").trim();
+const texto = (h, sep = "") => h.replace(/<!--.*?-->/gs, "").replace(/<[^>]*>/g, sep).replace(/&(?:amp|lt|gt|quot|nbsp|#39);/g, (e) => ENTIDADES[e]).replace(/\s+/g, " ").trim();
 const numero = (s) => {
   const m = /^\$?\s*(\d[\d,]*(?:\.\d+)?)$/.exec(s.trim());
   return m ? Number(m[1].replaceAll(",", "")) : null;
@@ -57,12 +57,12 @@ export function parsearPagina(html) {
     modelos.push({ nombre, go: { pedidos_5h: pedidos[0], usd_mes: usd[0] }, "go-plus": { pedidos_5h: pedidos[1], usd_mes: usd[1] } });
   }
   if (modelos.length < MINIMO_MODELOS) return null;
-  const plano = texto(html.replace(/<head>.*?<\/head>/s, ""));
+  const plano = texto(html.replace(/<head>.*?<\/head>/s, ""), " ");
   const precio = (re) => {
     const m = re.exec(plano);
     return m ? Number(m[1]) : null;
   };
-  return { precios: { go: precio(/(?<![A-Za-z])Go costs \$(\d+)\s*\/\s*month/i), "go-plus": precio(/(?<![A-Za-z])Go Plus costs \$(\d+)\s*\/\s*month/i) }, modelos };
+  return { precios: { go: precio(/\bGo costs \$(\d+)\s*\/\s*month/i), "go-plus": precio(/\bGo Plus costs \$(\d+)\s*\/\s*month/i) }, modelos };
 }
 
 /** El JSON de /zen/go/v1/models → los ids. [] si no es el contrato. */

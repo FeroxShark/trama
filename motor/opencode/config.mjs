@@ -56,7 +56,7 @@ export function resolverOpencode(env = process.env, home = os.homedir(), esEjecu
 // --- OpenCode Go (plan pago de OpenCode, APAGADO por defecto) ------------------------------------------------------------------
 // El plan se guarda en `opencode_plan` de modelos.json ("gratis" | "go" | "go-plus"; sin la clave, gratis). Los modelos de Go son del proveedor
 // `opencode-go` (`opencode:opencode-go/<modelo>`) y tienen su cupo propio por modelo: un 429 de uno no agota a los demás ni al límite compartido
-// de los gratis. Los topes están en go-topes.json (el ÚNICO archivo de datos; lo lee también reparto). DUPLICADO en app/electron/opencode.ts.
+// de los gratis. Los topes se leen de opencode.ai/go (go-topes.mjs → caché en el estado de trama; go-topes.json es el respaldo sin red); los lee también reparto. DUPLICADO en app/electron/opencode.ts.
 export const PROVEEDOR_GO = "opencode-go";
 export const PLANES_OPENCODE = ["gratis", "go", "go-plus"];
 /** ¿Es un modelo de OpenCode Go? Recibe `opencode-go/xxx` u `opencode:opencode-go/xxx`. */
