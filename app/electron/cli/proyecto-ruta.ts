@@ -43,8 +43,14 @@ export function leerProyectos(registry: string): Proyecto[] {
   return ps.map((p) => (p && typeof p === "object" && !Array.isArray(p) ? (p as Proyecto) : {}));
 }
 
+/** Orden de `sort` en el locale del entorno: por código en C/POSIX (y C.UTF-8), si no, el de la configuración regional. */
+const ordenarComoSort = (xs: string[]): string[] => {
+  const loc = process.env.LC_ALL || process.env.LC_COLLATE || process.env.LANG || "";
+  return /^(C|POSIX)(\.|$)/.test(loc) ? xs.sort() : xs.sort((a, b) => a.localeCompare(b));
+};
+
 /** Nombres únicos y ordenados (`sort -u`). */
-export const nombres = (ps: Proyecto[]): string[] => [...new Set(ps.map((p) => comoTexto(p.name)))].sort();
+export const nombres = (ps: Proyecto[]): string[] => ordenarComoSort([...new Set(ps.map((p) => comoTexto(p.name)))]);
 
 /** Nombre para mostrar y alias del proyecto, en minúsculas ASCII. */
 function nombresAlternos(p: Proyecto): string[] {
