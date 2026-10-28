@@ -1,5 +1,6 @@
 /* Tests de detección segura de modelos locales (systemd, puertos, GGUF, arneses). */
 import test from 'node:test';
+import { soloPosix } from "./plataforma.ts";
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
 import os from 'node:os';
