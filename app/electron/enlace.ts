@@ -16,6 +16,12 @@ export function abrible(url: string): string | null {
   }
 }
 
+/** Las notas de una Trama nueva (el aviso de la barra): `abrible` y además de github.com. `null`: no sirve. */
+export function notasDeGithub(url: string): string | null {
+  const u = abrible(url);
+  return u?.startsWith("https://github.com/") ? u : null;
+}
+
 /**
  * Abre un enlace con `abrir` (el navegador del sistema). `HILOS_ABRIR=<archivo>` (pruebas): en
  * vez de abrir nada, anota la URL en ese archivo. `false`: no era algo que se abra.

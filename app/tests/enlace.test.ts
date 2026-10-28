@@ -5,13 +5,19 @@ import assert from "node:assert/strict";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { abrible, abrirEnlace } from "../electron/enlace.ts";
+import { abrible, abrirEnlace, notasDeGithub } from "../electron/enlace.ts";
 
 test("abrible: http, https y mailto; nada más", () => {
   assert.equal(abrible("https://example.com/a?b=1#c"), "https://example.com/a?b=1#c");
   assert.equal(abrible("http://example.com"), "http://example.com/");
   assert.equal(abrible("mailto:alguien@example.com"), "mailto:alguien@example.com");
   for (const no of ["file:///etc/passwd", "javascript:alert(1)", "data:text/html,<b>x</b>", "vscode://file/x", "smb://servidor/x", "about:blank", "/etc/passwd", "example.com", "", "https://"]) assert.equal(abrible(no), null, no);
+});
+
+test("notasDeGithub: sólo https://github.com/; lo demás se rechaza", () => {
+  assert.equal(notasDeGithub("https://github.com/trama/trama/releases/tag/v0.2.0"), "https://github.com/trama/trama/releases/tag/v0.2.0");
+  assert.equal(notasDeGithub("https://github.com"), "https://github.com/");
+  for (const no of ["http://github.com/trama/trama", "https://gist.github.com/x", "https://github.com.evil.example/x", "https://github.com@evil.example/x", "https://evil.example/github.com/x", "file:///etc/passwd", "mailto:alguien@example.com", "javascript:alert(1)", "", "no es una url"]) assert.equal(notasDeGithub(no), null, no);
 });
 
 test("abrirEnlace: abre lo que se puede abrir y nada más", () => {
