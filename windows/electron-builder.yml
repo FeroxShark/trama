@@ -1,6 +1,7 @@
 # Instalador de Windows de Trama. Se arma en Linux con wine (scripts/construir.sh).
 appId: app.trama.windows
 productName: Trama
+executableName: Trama
 copyright: MIT
 directories:
   output: dist

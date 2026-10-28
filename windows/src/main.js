@@ -31,6 +31,9 @@ const ENLACES_OK = new Set(["https://ollama.com/download", "https://ollama.com"]
 // carpeta, sin ventana y sin candado de instancia única. Su userData va a una carpeta temporal para no recrear ni
 // trabar %APPDATA%\Trama, que es justo una de las cosas que se pregunta si borrar.
 const DESINSTALAR = process.argv.includes("--desinstalar");
+// El AppUserModelId es el appId de electron-builder*.yml (con ése crea el instalador el atajo de Inicio): así la barra de
+// tareas y las notificaciones son de Trama y no de Electron. Lo prueba tests/identidad.test.js.
+app.setAppUserModelId("app.trama.windows");
 // El árbol del Trama nativo que trae el instalador (node.exe, app compilada, bin\*.cmd); en desarrollo, windows/payload-nativo/.
 const dirPayloadNativo = () => (app.isPackaged ? path.join(process.resourcesPath, "payload-nativo") : path.join(__dirname, "..", "payload-nativo"));
 const NATIVO = process.env.TRAMA_MODO ? process.env.TRAMA_MODO === "nativo" : fs.existsSync(dirPayloadNativo());
@@ -354,6 +357,8 @@ function arrancar() {
     ...opcionesTitulo(),
     webPreferences: { preload: path.join(__dirname, "preload.js"), sandbox: true, contextIsolation: true, nodeIntegration: false, offscreen: !!CAPTURA },
   });
+  // La página del motor trae su propio <title> (app/index.html): la ventana se llama Trama aunque la página diga otra cosa.
+  ventana.webContents.on("page-title-updated", (e) => e.preventDefault());
   ventana.once("ready-to-show", () => ventana.show());
   ventana.webContents.setWindowOpenHandler(({ url }) => {
     if (/^https?:\/\//.test(url)) shell.openExternal(url);

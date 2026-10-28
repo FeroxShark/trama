@@ -8,6 +8,8 @@
 # dos instaladores convivan en la misma release de GitHub).
 appId: app.trama.windows
 productName: Trama
+# El nombre del .exe (Trama.exe) y del atajo: Trama, no Electron. Igual que el productName, para que nada caiga al default.
+executableName: Trama
 copyright: MIT
 directories:
   output: dist-nativo
