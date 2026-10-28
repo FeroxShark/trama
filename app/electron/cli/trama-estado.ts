@@ -20,7 +20,9 @@ import http from "node:http";
 import https from "node:https";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
-import { configTrama, estadoHilos, homeDe } from "../rutas.ts";
+import { carpetasNpm, paraLanzar } from "../binario.ts";
+import { prefijoDsh } from "../dsh.ts";
+import { configTrama, esWindows, estadoHilos, homeDe } from "../rutas.ts";
 import { enPath, esEjecutable } from "./base/buscar.ts";
 import { esPrincipal } from "./base/principal.ts";
 import { correr, vivo } from "./base/proc.ts";
@@ -53,7 +55,9 @@ export type Contexto = { env: Env; home: string };
 
 /** Corre un programa y devuelve [código, stdout]; cualquier falla (no existe, tiempo vencido) es [1, ""]. */
 export async function salida(cmd: string[], espera = 10, env: Env = process.env): Promise<[number, string]> {
-  const r = await correr(cmd[0]!, cmd.slice(1), { timeoutMs: espera * 1000, env, input: "" });
+  // En Windows un `.cmd` de npm (dsh, opencode) no se lanza directo: `paraLanzar` lo pasa por cmd.exe. En Linux no cambia nada.
+  const l = paraLanzar(cmd[0]!, cmd.slice(1), env);
+  const r = await correr(l.file, l.args, { timeoutMs: espera * 1000, env, input: "", verbatim: l.verbatim });
   if (r.error || r.agotado) return [1, ""];
   return [r.codigo, r.salida];
 }
@@ -118,9 +122,9 @@ export function claveDsh(nombre: string, c: Contexto): boolean {
 }
 
 function dirsDsh(c: Contexto): string[] {
-  // donde cae dsh si no está en el PATH: el prefijo global de npm (npm_config_prefix, ~/.npm-global) y /usr/local/bin
-  const d = c.env.npm_config_prefix ? [path.join(c.env.npm_config_prefix, "bin")] : [];
-  return [...d, path.join(c.home, ".npm-global", "bin"), "/usr/local/bin"];
+  // donde cae dsh si no está en el PATH: el prefijo global de npm (`carpetasNpm`: en Linux npm_config_prefix/bin, ~/.npm-global/bin y /usr/local/bin;
+  // en Windows el prefijo y %APPDATA%\npm) y, en Windows, la raíz del prefijo de la instalación (~\.local: ahí npm deja dsh.cmd)
+  return [...carpetasNpm(c.env, c.home), ...(esWindows() ? [prefijoDsh(c.home)] : [])];
 }
 
 async function dsh(c: Contexto) {

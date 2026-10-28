@@ -32,6 +32,8 @@ export type OpcionesCorrer = {
   matar?: (pid: number, senal: NodeJS.Signals) => void;
   /** `spawn`, inyectable. */
   spawn?: (cmd: string, args: string[], o: SpawnOptions) => ChildProcess;
+  /** Windows: los argumentos van tal cual (`windowsVerbatimArguments`); lo pide `paraLanzar` para un `.cmd` que va por cmd.exe. */
+  verbatim?: boolean;
 };
 
 export type ResultadoCorrer = {
@@ -73,6 +75,7 @@ export function correr(cmd: string, args: string[], o: OpcionesCorrer = {}): Pro
         env: (o.env ?? process.env) as NodeJS.ProcessEnv,
         stdio: [o.input === undefined ? "ignore" : "pipe", "pipe", "pipe"],
         windowsHide: true,
+        ...(o.verbatim ? { windowsVerbatimArguments: true } : {}),
         detached: plat !== "win32", // su propio grupo: se lo mata entero con kill(-pid). Como `timeout`, que se pone en su grupo.
       });
     } catch (e) {
