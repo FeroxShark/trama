@@ -1046,6 +1046,12 @@ export function conversacion(h: Hilo, antes: number | null, n = 50, resultados =
 /** Respaldo de las barras de arriba cuando no hay statusline real. */
 /** El logo inventado de un proyecto (los demás muestran su monograma). */
 export const ICONOS: Record<string, string> = {
+  atlas: `data:image/svg+xml,${encodeURIComponent(
+    "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' fill='#2b2160'/><circle cx='16' cy='16' r='9' fill='none' stroke='#c9b8ff' stroke-width='3'/><path d='M16 4v24M4 16h24' stroke='#c9b8ff' stroke-width='2'/></svg>",
+  )}`,
+  brote: `data:image/svg+xml,${encodeURIComponent(
+    "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' fill='#17391f'/><path d='M16 27V14M16 14c0-5 4-8 9-8 0 5-3 8-9 8zM16 18c0-4-3-6-8-6 0 4 3 6 8 6z' fill='#9be39f'/></svg>",
+  )}`,
   cauce: `data:image/svg+xml,${encodeURIComponent(
     "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' fill='#0c3a4d'/><path d='M5 13c3.7-5 7.3-5 11 0s7.300 5 11 0M5 21c3.700-5 7.300-5 11 0s7.300 5 11 0' fill='none' stroke='#8fdcf0' stroke-width='3' stroke-linecap='round'/></svg>",
   )}`,

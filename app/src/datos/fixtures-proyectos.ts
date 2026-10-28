@@ -5,7 +5,7 @@ import { MODO } from "../modo";
 
 export const PROYECTOS_FALSOS: ProyectoNombre[] = [
   { nombre: "asistente-voz", slug: "asistente-voz", ruta: "~/Proyectos/asistente-voz", titulo: "Shark", existe: true, alias: [], logo: false },
-  { nombre: "atlas", slug: "atlas", ruta: "~/Proyectos/atlas", titulo: null, existe: true, alias: [], logo: false },
+  { nombre: "atlas", slug: "atlas", ruta: "~/Proyectos/atlas", titulo: null, existe: true, alias: [], logo: true },
   { nombre: "duna", slug: "duna", ruta: "~/Proyectos/duna", titulo: "Duna Studio", existe: true, alias: [], logo: false },
   { nombre: "hilos", slug: "hilos", ruta: "~/Proyectos/hilos", titulo: "trama", existe: true, alias: [], logo: false },
   { nombre: "baliza", slug: "baliza", ruta: "~/Proyectos/baliza", titulo: "Baliza Android", existe: false, alias: [], logo: false },
