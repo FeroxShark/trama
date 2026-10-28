@@ -1,5 +1,11 @@
 # Cambios
 
+## 0.2.12
+
+- Avisos de workers: ya no avisan "se cortó sin dejar mensaje" de un worker que sigue corriendo.
+- CI en verde (Linux, Windows y armado del .exe nativo); prueba de humo del motor en Windows.
+- Windows (en camino): todas las piezas de `pa` portadas a TypeScript (opciones, lanzar, motores, `reparto`); falta conectarlas.
+
 ## 0.2.11
 
 - Windows (en camino, todavía no se publica): la app ya sabe abrir la terminal, cortar procesos y lanzar programas en Windows; `pa` en TypeScript avanza (puestos, worktrees, esperar/parar/matar, integrar y lecciones); `tablero` y `cuentas` portados; carcasa nativa y armado del .exe listos para probar en CI.
