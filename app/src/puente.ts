@@ -264,6 +264,12 @@ type Main = {
     planOpencode(): Promise<unknown>;
     /** Elige el plan (`gratis` | `go` | `go-plus`; sólo desde la PC) y devuelve la vista de después. */
     guardarPlanOpencode(plan: string): Promise<unknown>;
+    /** NVIDIA NIM (gratis): si hay clave (el valor nunca viaja), los modelos que ofrece reparto y el tope por minuto. */
+    estadoNvidia(): Promise<unknown>;
+    /** Guarda qué modelos de NIM se ofrecen (sólo desde la PC); devuelve el estado de después o rechaza con el motivo. */
+    guardarModelosNvidia(lista: string[]): Promise<unknown>;
+    /** Una llamada mínima con la clave guardada (sólo desde la PC); nunca rechaza por no contestar. */
+    probarNvidia(): Promise<unknown>;
     alBajar(fn: (b: unknown) => void): Soltar;
     /** Artificial Analysis terminó de bajar de fondo y la tabla de «Modelos para workers» tiene datos nuevos. */
     alTablaNueva(fn: () => void): Soltar;

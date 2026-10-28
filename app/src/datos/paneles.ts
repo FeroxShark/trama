@@ -12,7 +12,7 @@ import { promptArreglar } from "./arreglar";
 import { salud as saludDe, type EstadoSalud } from "./salud";
 import type { Hilo } from "./contrato";
 import { claveCalidad } from "../paneles/modelos-workers";
-import { ACCESOS_FALSOS, AJUSTES, AUTO, ENTORNO_OLLAMA, ESTADO_DSH, CONECTORES_FIJOS, ESTADO_MCP, ESTADO_MCP_FIJOS, ESTADO_OPENCODE, MODELOS_FIJOS, PLAN_GO, TABLA_REPARTO, OLLAMA_FALSO, arranqueMedidoFalso, historialFalso, MEDICION, REMOTO, SALUD, URL_REMOTO_FALSA } from "./fixtures-paneles";
+import { ACCESOS_FALSOS, AJUSTES, AUTO, ENTORNO_OLLAMA, ESTADO_DSH, ESTADO_NIM, CONECTORES_FIJOS, ESTADO_MCP, ESTADO_MCP_FIJOS, ESTADO_OPENCODE, MODELOS_FIJOS, PLAN_GO, TABLA_REPARTO, OLLAMA_FALSO, arranqueMedidoFalso, historialFalso, MEDICION, REMOTO, SALUD, URL_REMOTO_FALSA } from "./fixtures-paneles";
 import type { EstadoAuto } from "../../electron/autointegrar";
 import type { Consulta, PiezaConsulta } from "../../electron/historial";
 import type { Arranque, Medido } from "../../electron/arranque";
@@ -27,6 +27,7 @@ import type { Conector, Inventario } from "../../electron/conectores-claude";
 import type { NombreClave } from "../../electron/claves";
 import type { EstadoOpencodeUi } from "../../electron/opencode-ajustes";
 import type { VistaPlanGo } from "../../electron/opencode-go";
+import type { EstadoNim, PruebaNim } from "../../electron/nvidia-nim";
 import type { TablaReparto } from "../../electron/reparto-tabla";
 import type { EstadoAA, ResultadoAA } from "../../electron/artificial-analysis";
 import type { DatosAgentsMd, LeccionesPendiente } from "../../electron/orquestacion";
@@ -38,7 +39,7 @@ export type AgentsMd = DatosAgentsMd & { proyecto: string; ruta: string | null }
 /** Un worker de rama para auditar: `pa <proy> --auditar <id> -m <modelo> --async` (sólo Claude). */
 export type PedidoAuditar = { id: string; proyecto: string; modelo: string };
 export type { Conector, EntradaMcp, EstadoMcp, Inventario, VistaServidorMcp };
-export type { Arranque, Bajada, ConfigModelos, Consulta, EntornoOllama, EstadoAuto, EstadoDsh, EstadoModelos, EstadoOpencodeUi, EstadoSalud, Medido, NombreClave, PiezaConsulta, Prueba, Sondeo, VistaPlanGo };
+export type { Arranque, Bajada, ConfigModelos, Consulta, EntornoOllama, EstadoAuto, EstadoDsh, EstadoNim, PruebaNim, EstadoModelos, EstadoOpencodeUi, EstadoSalud, Medido, NombreClave, PiezaConsulta, Prueba, Sondeo, VistaPlanGo };
 
 /** Los proveedores de DeepSeek Harness que se pueden probar desde Ajustes. */
 export type ProveedorDshUi = "opencode" | "deepseek" | "ollama";
@@ -200,6 +201,12 @@ export interface FuentePaneles {
   planOpencode(): Promise<VistaPlanGo>;
   /** Elige el plan de OpenCode (`gratis`, `go` o `go-plus`); devuelve la vista de después o rechaza con el motivo. */
   guardarPlanOpencode(plan: "gratis" | "go" | "go-plus"): Promise<VistaPlanGo>;
+  /** NVIDIA NIM (gratis, con clave propia): si hay clave (la clave se guarda con `claveDsh`), los modelos que ofrece reparto y el tope por minuto. */
+  estadoNvidia(): Promise<EstadoNim>;
+  /** Qué modelos de NIM ofrece reparto; devuelve el estado de después o rechaza con el motivo. */
+  guardarModelosNvidia(lista: string[]): Promise<EstadoNim>;
+  /** Una llamada mínima con la clave guardada; nunca rechaza por no contestar. */
+  probarNvidia(): Promise<PruebaNim>;
   /** Guarda el plan (`pa --plan`) y/o la red de seguridad (`autoCompactWindow`); devuelve Ajustes como quedó o rechaza con el motivo. */
   guardarAjustes(cambio: CambioAjustes): Promise<Ajustes>;
   /** El acceso desde el celular: cómo está y dónde escucha. */
@@ -274,6 +281,7 @@ const estadoAAFijo = () => {
   return { version: 1 as const, hayClave: (dshFijo ?? ESTADO_DSH(MODO.variante)).claves.ARTIFICIAL_ANALYSIS_API_KEY, fecha: aaFecha, modelos: aaFecha ? 187 : 0 };
 };
 let ocFijo: EstadoOpencodeUi | undefined;
+let nimFijo: string[] | undefined;
 let planFijo: "gratis" | "go" | "go-plus" | undefined;
 
 const FALLA_CONFLICTO = "pa: conflicts merging into main. A worker can resolve it: pa atlas --actualizar 20261003-100000-11111";
@@ -437,6 +445,22 @@ const fija: FuentePaneles = {
     await espera(60);
     planFijo ??= MODO.variante === "oc-go" ? "go" : "gratis";
     return PLAN_GO(planFijo);
+  },
+  async estadoNvidia() {
+    await espera(60);
+    return ESTADO_NIM(MODO.variante, dshFijo ?? ESTADO_DSH(MODO.variante), nimFijo);
+  },
+  async guardarModelosNvidia(lista) {
+    await espera(100);
+    if (lista.some((m) => !/^[A-Za-z0-9][A-Za-z0-9._/-]*$/.test(m))) throw new Error(textoT("main.nimModeloId", { v: lista.find((m) => !/^[A-Za-z0-9][A-Za-z0-9._/-]*$/.test(m)) ?? "" }));
+    nimFijo = [...new Set(lista)];
+    return ESTADO_NIM(MODO.variante, dshFijo ?? ESTADO_DSH(MODO.variante), nimFijo);
+  },
+  async probarNvidia() {
+    await espera(500);
+    if (!(dshFijo ?? ESTADO_DSH(MODO.variante)).claves.NVIDIA_API_KEY) return { ok: false, motivo: textoT("main.nimSinClave") };
+    if (MODO.variante === "nim-falla") return { ok: false, motivo: textoT("main.nimClaveMala") };
+    return { ok: true, modelo: (nimFijo ?? ESTADO_NIM(MODO.variante, dshFijo ?? ESTADO_DSH(MODO.variante)).modelos)[0] ?? "deepseek-ai/deepseek-v4.1-flash" };
   },
   async guardarPlanOpencode(plan) {
     await espera(120);
@@ -804,6 +828,15 @@ const conPa = (m: NonNullable<typeof main>): FuentePaneles => ({
   },
   async guardarPlanOpencode(plan) {
     return (await m.paneles.guardarPlanOpencode(plan).catch(fallar)) as VistaPlanGo;
+  },
+  async estadoNvidia() {
+    return (await m.paneles.estadoNvidia().catch(fallar)) as EstadoNim;
+  },
+  async guardarModelosNvidia(lista) {
+    return (await m.paneles.guardarModelosNvidia(lista).catch(fallar)) as EstadoNim;
+  },
+  async probarNvidia() {
+    return (await m.paneles.probarNvidia().catch(fallar)) as PruebaNim;
   },
   alBajar(fn) {
     return m.paneles.alBajar((b) => {
