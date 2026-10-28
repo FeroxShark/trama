@@ -1,5 +1,12 @@
 # Cambios
 
+## 0.2.16
+
+- Windows nativo: elegir carpeta (agregar proyectos, carpeta del líder), portapapeles, salir y los demás pedidos de la ventana ya andan (antes "canal desconocido").
+- Ajustes > Actualizaciones también en Linux; el aviso ya no queda trabado en "Actualizando…" de una instalación vieja.
+- Logos de proyectos: Trama usa el ícono del proyecto (favicon, logo, ícono de la app) o la inicial; en Ajustes > Proyectos se puede elegir otro.
+- Prueba de humo de Windows (`windows/humo/humo-gonza.ps1`).
+
 ## 0.2.15
 
 - Windows nativo: el `pa` de TypeScript tiene todos los modos (conversaciones, archivar, renombrar, proyectos, medición, modelos, workers con todos los motores, relanzar sin cupo). Se acabó el error "todavía no está en el pa de TypeScript".
