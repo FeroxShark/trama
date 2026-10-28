@@ -18,6 +18,7 @@ import { tomar } from "../base/lock.ts";
 import { matarArbol } from "../base/proc.ts";
 import { comandoHook, entreComillas, type VarianteHook } from "../hooks.ts";
 import { CIERRE_TAREA, CIERRE_TURNOS, CONTRATO, conJefe, SIN_JEFE } from "./contrato.ts";
+import { caminoDe } from "../../rutas.ts";
 import { conDueno, type Env, type Pa } from "./entorno.ts";
 import {
   campoJson,
@@ -193,7 +194,8 @@ export function settingsWorker(
   o: { hb: string; leer: boolean; espejo?: string; variante?: VarianteHook; node?: string },
 ): string {
   const variante = o.variante ?? (pa.plat === "win32" ? "mjs" : "sh");
-  const hooks = path.join(path.dirname(pa.bin), "hooks");
+  const cam = caminoDe(pa.plat);
+  const hooks = cam.join(cam.dirname(pa.bin), "hooks");
   const opc = { node: o.node, plataforma: pa.plat === "win32" ? ("win32" as const) : ("linux" as const) };
   const guard = comandoHook("destructive-guard", variante, hooks, opc);
   const latido = comandoHook("latido", variante, hooks, opc);
@@ -201,7 +203,7 @@ export function settingsWorker(
   const modo = o.leer ? " leer" : "";
   let deny: string[] = [];
   if (o.espejo) {
-    const d = path.dirname(o.espejo);
+    const d = cam.dirname(o.espejo);
     const r = `~${d.startsWith(pa.home) ? d.slice(pa.home.length) : d}`;
     deny = [`Read(/${d}/**)`, `Bash(*${d}*)`, `Bash(*${r}*)`];
   }
