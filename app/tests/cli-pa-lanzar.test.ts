@@ -1,4 +1,4 @@
-// lanzar.ts y resultado.ts (etapa 6 del port de pa). Los parsers del bloque del worker se comparan con las funciones del bash
+// lanzar.ts y resultado-lanzar.ts (etapa 6 del port de pa). Los parsers del bloque del worker se comparan con las funciones del bash
 // (sacadas de motor/bin/pa por patrón de texto); lo demás (settings de Windows, .ultimo/.listo de al_salir, hora de reset) se
 // prueba directo. El recorrido entero contra el bash está en tests/paridad/lanzar.test.ts.
 import assert from "node:assert/strict";
@@ -10,7 +10,7 @@ import { test } from "node:test";
 import { testPosix } from "./plataforma.ts";
 import type { Pa } from "../electron/cli/pa/entorno.ts";
 import { alSalir, armarLanzamiento, settingsWorker, type Corrida } from "../electron/cli/pa/lanzar.ts";
-import { campoDe, decisionEsNada, epochReset, verificadoDe } from "../electron/cli/pa/resultado.ts";
+import { campoDe, decisionEsNada, epochReset, verificadoDe } from "../electron/cli/pa/resultado-lanzar.ts";
 
 const PA = path.join(import.meta.dirname, "..", "..", "motor", "bin", "pa");
 
