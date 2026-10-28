@@ -180,6 +180,13 @@ Verificado antes del commit final: los dos `tsc` sin errores, `vite build` bien,
 
 ## Datos útiles
 
+- **Ajustes > Locales (modelos locales detectados):** `app/electron/locales-deteccion.ts` mira (sin prender nada) llama.cpp, LM Studio,
+  vLLM y Ollama: instalado / apagado / andando, sus modelos y la VRAM. La ventana lo pinta en `LocalesDetectados.tsx` (canal
+  `locales:detectar`), con las guías de instalación de Linux y Windows (`locales-detectados.ts`). Prender y apagar el servicio de un modelo
+  son los canales `locales:prender` / `locales:apagar` (sólo units de systemd que la detección encuentra; sólo con el clic, tras un aviso
+  de que ocupa la GPU; no existen por la tailnet). **Falta en Windows:** no hay units, así que ahí Trama muestra y guía pero no prende ni
+  apaga. «Usar como motor» agrega el modelo a los `locales` del borrador de Modelos con el arnés elegido (`ollama:<m>` = Claude Code,
+  `dsh:ollama/<m>` = dsh) y se aplica con el Guardar de Modelos; OpenCode no va por acá (usa sus propios proveedores).
 - Uso medido de OpenCode del dueño: ~200–250 pedidos por día. Go cuesta 10 USD/mes con topes equivalentes a ~80 USD de
   DeepSeek V4.1 Flash; conviene si lo usa todos los días.
 - PR abierto de Gonza: #1 (rama `windows-nativo` del fork `MaxCuratAnima/trama`). El dueño se lo comunica él.
