@@ -2,7 +2,8 @@ name: Windows nativo (.exe)
 
 # Arma el instalador de Trama nativo de Windows (sin WSL ni bash) en windows-latest, sin wine: compila la app, arma el payload
 # por lista permitida (windows/scripts/preparar-payload-nativo.mjs, que falla si lleva bash) y corre electron-builder con
-# windows/electron-builder-nativo.yml. El .exe queda como artefacto del job; no publica nada.
+# windows/electron-builder-nativo.yml. El .exe queda como artefacto del job. En un tag v*, el job publicar-nativo sube a la
+# release del tag lo que la carcasa busca para actualizarse (nativo.yml, el .exe y su .blockmap).
 
 on:
   push:
@@ -14,6 +15,8 @@ on:
 jobs:
   exe-nativo:
     runs-on: windows-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -39,6 +42,9 @@ jobs:
       - name: payload nativo (sin bash)
         working-directory: windows
         run: node scripts/preparar-payload-nativo.mjs
+      - name: versión de la carcasa (de app/package.json)
+        working-directory: windows
+        run: node scripts/sincronizar-version.mjs
       - name: electron-builder (NSIS x64)
         working-directory: windows
         env:
@@ -57,3 +63,27 @@ jobs:
             windows/dist-nativo/*.blockmap
             windows/dist-nativo/nativo.yml
           if-no-files-found: error
+  publicar-nativo:
+    # Sólo en un tag v*: la carcasa busca actualizaciones en la última release (nativo.yml, con el .exe y su .blockmap por
+    # nombre), así que los tres van a la release del tag. Va aparte del armado: sólo este job tiene contents: write y no
+    # ejecuta código del repo. Supone que la release del tag ya existe (como la de WSL, que se crea a mano).
+    needs: exe-nativo
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: trama-nativo-windows
+      - name: nativo.yml es de la versión del tag
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          grep -qx "version: ${TAG#v}" nativo.yml || { echo "nativo.yml no es de $TAG:"; grep "^version:" nativo.yml; exit 1; }
+      - name: subir a la release del tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: gh release upload "$TAG" nativo.yml Trama-Nativo-Setup-*.exe Trama-Nativo-Setup-*.exe.blockmap --clobber
