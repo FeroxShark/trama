@@ -15,6 +15,7 @@ import { cmdBien, cmdBienAuto } from "./pa/medicion.ts";
 import { cmdLeccion, cmdLecciones, cmdLeccionesPodar } from "./pa/lecciones.ts";
 import { cmdLimpiar } from "./pa/limpiar.ts";
 import { cmdParar, matarProyecto } from "./pa/matar.ts";
+import { cmdAgentsMd, cmdUnificarMd } from "./pa/md-proyecto.ts";
 import { lanzarProyecto } from "./pa/orquesta.ts";
 import { motoresDe } from "./pa/otros-motores.ts";
 import { cmdProyectos, cmdRenombrar } from "./pa/proyectos.ts";
@@ -68,6 +69,8 @@ export const deps: Deps = {
     leccion: (l, pa, p) => cmdLeccion(fijarProyecto(pa, l.proyecto, p.ruta), l.leccion),
     lecciones: async (l, pa, p) => cmdLecciones(fijarProyecto(pa, l.proyecto, p.ruta)),
     leccionesPodar: async (l, pa, p) => cmdLeccionesPodar(fijarProyecto(pa, l.proyecto, p.ruta)),
+    agentsMd: cmdAgentsMd,
+    unificarMd: cmdUnificarMd,
     lanzar: lanzarProyecto(),
   },
   auditar: async (l, pa, p) => {

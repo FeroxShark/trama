@@ -20,6 +20,8 @@ export function normalizar(texto: string, raices: Raices): string {
   }
   return (
     t
+      // la carpeta con sello de hora de los backups de --unificar-md (la hora de cada corrida es otra)
+      .replace(/\bmd-backup\/\d{8}-\d{6}\b/g, "md-backup/<TS>")
       // sha de git (el commit inicial lleva la hora)
       .replace(/\b[0-9a-f]{40}\b/g, "<SHA>")
       // sha corto de «N commit(s) sobre <sha>» (--ramas y el resultado de una corrida con worktree)

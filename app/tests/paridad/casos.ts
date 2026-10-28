@@ -92,3 +92,7 @@ casos.push(...casosMedicion);
 // Lanzar con los otros motores: agy, codex, opencode, dsh y ollama (casos-motores-lanzar.ts).
 import { casosMotoresLanzar } from "./casos-motores-lanzar.ts";
 casos.push(...casosMotoresLanzar);
+
+// agents-md y unificar-md (casos-md.ts).
+import { casosMd } from "./casos-md.ts";
+casos.push(...casosMd);
