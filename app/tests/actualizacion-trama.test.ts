@@ -209,13 +209,13 @@ test("sin red o con un GitHub que no contesta bien: silencio, y no se insiste en
   assert.equal(await y.act.leerAviso(), null);
 });
 
-test("se vuelve a preguntar a los 2 min, no antes (los releases de Trama salen varias veces por día)", async () => {
+test("cada pedido de la interfaz (abrir, foco, red) consulta ya, con un mínimo de 15 s entre consultas que salen", async () => {
   const x = armar({ instalada: "0.1.0" });
   await x.act.leerAviso();
-  x.avanzar(60_000);
+  x.avanzar(5_000);
   await x.act.leerAviso();
-  assert.equal(x.pedidos(), 1);
-  x.avanzar(60_000);
+  assert.equal(x.pedidos(), 1, "un foco seguido no martilla a GitHub");
+  x.avanzar(15_000);
   await x.act.leerAviso();
   assert.equal(x.pedidos(), 2);
 });
@@ -263,12 +263,12 @@ test("Ahora no: oculta esa versión y avisa si sale otra más nueva", async () =
   assert.equal(visto, null);
   x.avanzar(7 * 60 * 60_000);
   assert.equal(await x.act.leerAviso(), null);
-  // El mismo archivo de estado con un release más nuevo: la versión ocultada no vale para la siguiente.
+  // El mismo archivo de estado con un release más nuevo: la ocultada 0.1.4 no vuelve, y la 0.1.5 se ve apenas se pregunta.
   const otra = armar({ instalada: "0.1.0", tag: "v0.1.4" });
   await otra.act.leerAviso();
   await otra.act.descartar();
   const z = armar({ instalada: "0.1.0", tag: "v0.1.5", archivo: otra.archivo, checkout: otra.co });
-  assert.equal(await z.act.leerAviso(), null, "la ocultada 0.1.4 sigue oculta mientras el release sea el mismo día");
+  assert.equal((await z.act.leerAviso())?.ultima, "0.1.5");
   z.avanzar(7 * 60 * 60_000);
   assert.equal((await z.act.leerAviso())?.ultima, "0.1.5");
 });
@@ -353,7 +353,7 @@ test("403: GitHub limita → espera lo que dice (Retry-After), sin error ni avis
   await flush();
   assert.equal(x.pedidos.length, 2);
   x.avanzar(5 * 60_000);
-  await x.act.refrescar();
+  await x.act.leerAviso();
   x.ciclo();
   await flush();
   assert.equal(x.pedidos.length, 2, "dentro de la pausa no sale ninguna consulta");

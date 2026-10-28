@@ -103,6 +103,30 @@ export const AvisoClaude = memo(function AvisoClaude({ cual = "claude" }: { cual
     };
   }, [agy, trama]);
 
+  // Trama: al enfocar la ventana, al volver la red y al volver a mostrarse se vuelve a preguntar (el motor sólo consulta a GitHub si
+  // hace falta). Si salió una versión más nueva, el aviso cambia a esa; si no, queda como estaba.
+  useEffect(() => {
+    if (!trama) return;
+    let vivo = true;
+    const pedir = () => {
+      if (document.visibilityState !== "visible") return;
+      void fuente.avisoTrama().then((a) => {
+        if (!vivo) return;
+        setAviso(a);
+        if (!a && !enFase.current) setAbierto(false);
+      });
+    };
+    window.addEventListener("focus", pedir);
+    window.addEventListener("online", pedir);
+    document.addEventListener("visibilitychange", pedir);
+    return () => {
+      vivo = false;
+      window.removeEventListener("focus", pedir);
+      window.removeEventListener("online", pedir);
+      document.removeEventListener("visibilitychange", pedir);
+    };
+  }, [trama]);
+
   useEffect(() => {
     if (!trama) return;
     let vivo = true;

@@ -1,9 +1,9 @@
 // El aviso de "hay una Trama nueva" (pie de la barra, hermano de los de Claude Code y agy): la instalada es la
 // `version` de app/package.json; la última, el release más nuevo de GitHub (`releases/latest` del repo que dice el campo
-// `repository` de app/package.json: ni el dueño ni el repo van escritos en el código), API pública, sin token. Se chequea al abrir (cuando
-// la interfaz lo pide), cada 2 min, al enfocar la ventana y al volver de la suspensión (`refrescarAvisoTrama`), sin bloquear nada. La
-// consulta va con ETag (un 304 no gasta el límite de la API sin token); si GitHub limita (403/429) se espera lo que dice y no se muestra
-// nada. Sin red o con GitHub caído, silencio: queda lo último que se supo y nunca se muestra un error por eso.
+// `repository` de app/package.json: ni el dueño ni el repo van escritos en el código), API pública, sin token. La interfaz lo pide al
+// abrir, al enfocar la ventana, al volver la red y al volver a mostrarse (`leerAvisoTrama`); además el ciclo del motor lo mira cada 2
+// min, sin bloquear nada. La consulta va con ETag (un 304 no gasta el límite de la API sin token); si GitHub limita (403/429) se espera
+// lo que dice y no se muestra nada. Sin red o con GitHub caído, silencio: queda lo último que se supo y nunca se muestra un error por eso.
 //
 // Actualizar corre en el checkout de donde se instaló Trama, que anota `instalar-producto.sh` en
 // `~/.config/trama/checkout` (una línea: la ruta). Sin ese archivo (instalación que no viene de un checkout git,
@@ -357,16 +357,13 @@ export function crearActualizacionTrama(deps: Deps = {}) {
     cada(() => void refrescar(false), CADA_TRAMA_MS);
   }
 
-  /** El aviso de ahora (o null). Al abrir, consulta si la cadencia lo pide. */
+  /**
+   * El aviso de ahora (o null). Lo pide la interfaz al abrir, al enfocar la ventana, al volver la red y al volver a mostrarse: consulta
+   * ya (salvo el mínimo entre intentos) y avisa a la barra si cambió.
+   */
   function leerAviso(): Promise<Aviso | null> {
     armar();
-    return chequear(false);
-  }
-
-  /** Foco de la ventana y vuelta de la suspensión: consulta ya (salvo el mínimo entre intentos) y avisa a la barra si cambió. */
-  async function refrescarAviso(): Promise<void> {
-    armar();
-    await refrescar(true);
+    return refrescar(true);
   }
 
   /**
@@ -553,7 +550,6 @@ export function crearActualizacionTrama(deps: Deps = {}) {
 
   return {
     leerAviso,
-    refrescar: refrescarAviso,
     buscar,
     descartar,
     actualizar,
@@ -573,8 +569,6 @@ let ocupacionDelMotor: () => Ocupacion = () => SIN_OCUPAR;
 export const armarActualizacionTrama = (ocupacion: () => Ocupacion) => void (ocupacionDelMotor = ocupacion);
 const trama = crearActualizacionTrama({ ocupacion: () => ocupacionDelMotor() });
 export const leerAvisoTrama = () => trama.leerAviso();
-/** Foco de la ventana y vuelta de la suspensión (main.ts): consulta ya y avisa a la barra si cambió. */
-export const refrescarAvisoTrama = () => trama.refrescar();
 export const buscarTrama = () => trama.buscar();
 export const descartarTrama = () => trama.descartar();
 /** Un modo que no es "ya" se toma como "esperar": lo que no se entiende nunca corta nada. */
