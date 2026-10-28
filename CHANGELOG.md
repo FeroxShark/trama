@@ -1,5 +1,11 @@
 # Cambios
 
+## 0.2.17
+
+- Acceso desde el celular con Trama instalada (Linux y Windows): se prende desde Ajustes, sin tocar el servicio; escucha sólo en Tailscale y sólo entran los dispositivos de la lista.
+- Windows: los cupos de Claude (cuenta de siempre y agregadas) se leen bien.
+- Ajustes > OpenCode y Modelos: el texto ya no se amontona ni se sale de la pantalla.
+
 ## 0.2.16
 
 - Windows nativo: elegir carpeta (agregar proyectos, carpeta del líder), portapapeles, salir y los demás pedidos de la ventana ya andan (antes "canal desconocido").
