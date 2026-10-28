@@ -5,7 +5,7 @@ import { validarRed } from "../../electron/valida-ajustes";
 export const PASOS = ["idioma", "proveedores", "automatico", "excluir", "max", "compactacion", "celular"] as const;
 export type Paso = (typeof PASOS)[number];
 
-/** Los pasos que se muestran: el del celular sólo existe donde se puede editar (no por la tailnet ni en modo local). */
+/** Los pasos que se muestran: el del celular sólo existe donde se puede editar (no por la tailnet; en modo local sí, con Tailscale). */
 export const pasosVisibles = (celularEditable: boolean): Paso[] => PASOS.filter((p) => p !== "celular" || celularEditable);
 
 /** Las familias que `reparto` sabe sacar (`excluir` de modelos.json: una familia saca a todo id que la contenga). `sugerida`: viene marcada de fábrica. */

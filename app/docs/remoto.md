@@ -7,7 +7,7 @@ al main de Electron que ya está corriendo. Código: `electron/remoto.ts` (servi
 
 ## Prenderlo
 
-Apagado por default. Se prende desde **Ajustes → Acceso desde el celular** (Dejar entrar al celular: Prendido / Apagado,
+Apagado por default (también con el producto instalado, en modo local: ver abajo). Se prende desde **Ajustes → Acceso desde el celular** (Dejar entrar al celular: Prendido / Apagado,
 puerto y lista de dispositivos, con Guardar y Cancelar), o a mano en `~/.local/state/hilos/remoto.json`. Al guardar,
 trama relee el archivo y vuelve a armar los servidores sin reiniciar: un dispositivo quitado se corta en el acto.
 
@@ -20,7 +20,7 @@ trama relee el archivo y vuelve a armar los servidores sin reiniciar: un disposi
   `100.x.y.z`, nada con `.` ni `:`) se rechaza como nombre. Vacío, mal escrito o sin el archivo: no se abre ningún puerto.
 - `activo: false` (sólo aparece cuando se apaga desde Ajustes): conserva puerto y dispositivos pero no abre nada.
 - Un campo que no es de esta lista (por ejemplo `host`) se rechaza al guardar: no hay forma de escribir otro bind.
-- Desde el celular la sección no se ve: el acceso sólo se cambia desde la PC (`remoto:guardar` contesta `main.remotoSoloPc`).
+- Desde el celular la sección no se ve: el acceso sólo se cambia desde la PC (`remoto:guardar` contesta `main.remotoSoloPc`). Vale igual en modo local.
 
 Al arrancar, el main dice en stderr `[remoto] http://<nombre>:<puerto>/ …`. Si Tailscale todavía no
 levantó, reintenta a los 5, 15 y 60 s y después no insiste.
@@ -41,13 +41,24 @@ según `maquinas.json`, así el celular tiene un acceso directo por máquina.
 El destino de `serve` tiene que ser la IP de Tailscale (en `127.0.0.1` no hay nadie escuchando).
 **Nunca `tailscale funnel`**: eso lo saca a internet.
 
-## Modo local (sin Tailscale)
+## Modo local (el producto) y el celular
 
-Con `TRAMA_LOCAL=1` en el entorno del motor (la unidad `trama-motor.service` del producto lo pone; `TRAMA_PUERTO` cambia el 8791) el
-mismo servidor escucha **sólo en `127.0.0.1`** y no mira `remoto.json` ni Tailscale: lo abre un navegador de la misma máquina (en
+Con `TRAMA_LOCAL=1` en el entorno del motor (la unidad `trama-motor.service` del producto y la carcasa de Windows lo ponen; `TRAMA_PUERTO` cambia el 8791) el
+motor sirve **siempre** en `127.0.0.1` con el token de la instalación, sin mirar `remoto.json` ni Tailscale: lo abre un navegador de la misma máquina (en
 Windows con WSL2, `localhost` se reenvía solo). Entra cualquier conexión desde loopback; el `Host` tiene que ser `localhost` o
-`127.0.0.1` (DNS rebinding), el `Origin` y la cabecera de `/rpc` valen igual y `X-Forwarded-For` se ignora. Ajustes no ofrece el
-acceso desde el celular. Sin la variable, nada de esto cambia.
+`127.0.0.1` (DNS rebinding), el `Origin` y la cabecera de `/rpc` valen igual y `X-Forwarded-For` se ignora. Ese es el default, y es seguro: nada fuera de la máquina.
+
+**El celular también se prende en modo local, desde Ajustes, sin tocar servicios:**
+
+- Ajustes → Acceso desde el celular se ve en modo local cuando hay Tailscale (`tailscale` en el PATH, `~/.local/bin`, `HILOS_TAILSCALE`, o en Windows
+  `Program Files\Tailscale\tailscale.exe`). Sin Tailscale la sección explica cómo instalarlo (Windows: tailscale.com/download o `winget install Tailscale.Tailscale`;
+  Linux: `curl -fsSL https://tailscale.com/install.sh | sh` y `sudo tailscale up`) y no ofrece nada que prender (`remoto:leer` contesta `sinTailscale`).
+- Al guardar con "Dejar entrar al celular" prendido, el motor **además** escucha en las IPs de Tailscale (nunca la LAN ni `0.0.0.0`) con todo lo de este documento: sólo los
+  dispositivos de `remoto.json`, mismas reglas de host, origen e identidad. Es otro servidor, aparte del de `127.0.0.1` (que no cambia). Al apagarlo se cierra en el acto.
+  No hay que reiniciar nada (`armarTailnet` en `electron/remoto-armar.ts` relee `remoto.json` con `recargar`).
+- Quién puede leer y guardar el acceso: la ventana, o el navegador local con su token (los marca `navegador` en `llamarRemoto`). Lo que entra por la tailnet (el servidor
+  de la tailnet lo marca `tailnet`, también en modo local) sigue sin poder cambiar accesos ni ajustes (`remoto:guardar` contesta `main.remotoSoloPc`, `SOLO_PC_TAILNET`, `SOLO_VENTANA`).
+- En Windows no hay `ip monitor`: un cambio de IP de Tailscale se nota con el respaldo de 5 min o al guardar de nuevo.
 
 ## Quién entra
 
@@ -147,6 +158,7 @@ navegador de la PC no puede (pasos 2 y 3).
 - `npm run build && node scripts/prueba-motor.mjs`: con el motor sin ventana y los fakes, matar la ventana no corta el `/rpc` del
   motor, reiniciarlo pasa por "Reconectando" y vuelve, y un cambio de IP (`HILOS_IP`, `HILOS_TAILSCALE` falsos) rearma el remoto.
 
+- `node --test tests/celular-local.test.ts tests/modo-local.test.ts`: el motor en modo local suma la tailnet al guardar desde Ajustes (con un `tailscale` falso), el celular sigue sin poder cambiar accesos, y `tailscale.exe` de Windows se encuentra con la plataforma simulada.
 - `node --test tests/remoto.test.ts tests/tailnet.test.ts`: el servidor en `127.0.0.1` con una
   identidad de mentira (rechazos, pedidos, avisos, el puente en un `vm`) y las reglas de identidad.
 - `npm run build && node scripts/prueba-remoto.mjs`: de punta a punta contra la IP de Tailscale de

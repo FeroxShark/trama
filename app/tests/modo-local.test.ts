@@ -8,6 +8,7 @@ import http from "node:http";
 import net from "node:net";
 import os from "node:os";
 import path from "node:path";
+import { resolverTailscale } from "../electron/binario.ts";
 import { capacidades, hayClaude } from "../electron/capacidades.ts";
 import { crearRemotoLocal, esLoopback, modoLocal, puertoLocal } from "../electron/modo-local.ts";
 
@@ -200,4 +201,24 @@ test("token: con la cookie la página y /rpc andan; el Host sigue controlado", a
 test("TRAMA_TOKEN=0: como antes, sin cookie entra (el servidor del principio)", async () => {
   assert.equal((await pedir(`localhost:${port}`)).codigo, 200);
   assert.equal((await pedirEn(port, `localhost:${port}`, "/rpc", { "x-trama-cliente": "abcdef0123456789", origin: `http://localhost:${port}`, "content-type": "application/json" }, "POST", JSON.stringify({ canal: "x:y", args: [] }))).codigo, 200);
+});
+
+// Windows (plataforma simulada, sin tocar el disco): el instalador de Tailscale lo deja en Program Files, fuera del PATH de un servicio.
+test("Windows: tailscale.exe se encuentra en Program Files\\Tailscale (también el x86); sin él, el nombre pelado", () => {
+  const exe = "C:\\Program Files\\Tailscale\\tailscale.exe";
+  const hay = (...fs: string[]) => (f: string) => fs.includes(f);
+  const env = { PATH: "C:\\Windows\\System32", ProgramFiles: "C:\\Program Files" };
+  assert.equal(resolverTailscale(env, "C:\\Users\\yo", hay(exe), "win32"), exe);
+  assert.equal(resolverTailscale({ PATH: "" }, "C:\\Users\\yo", hay(exe), "win32"), exe, "sin ProgramFiles en el entorno, la carpeta de siempre");
+  const x86 = "D:\\Programas (x86)\\Tailscale\\tailscale.exe";
+  assert.equal(resolverTailscale({ PATH: "", "ProgramFiles(x86)": "D:\\Programas (x86)" }, "C:\\Users\\yo", hay(x86), "win32"), x86);
+  assert.equal(resolverTailscale(env, "C:\\Users\\yo", hay(), "win32"), "tailscale");
+  // Lo que ya está en el PATH o en la variable manda; en Linux no se miran las carpetas de Windows.
+  const enPath = "C:\\Windows\\System32\\tailscale.exe";
+  assert.equal(resolverTailscale(env, "C:\\Users\\yo", hay(exe, enPath), "win32"), enPath);
+  assert.equal(resolverTailscale({ ...env, HILOS_TAILSCALE: "X:\\falso.exe" }, "C:\\Users\\yo", hay(exe), "win32"), "X:\\falso.exe");
+  assert.equal(resolverTailscale({ PATH: "" }, "/home/yo", hay(exe), "linux"), "tailscale");
+  // La detección de Ajustes usa lo mismo.
+  assert.equal(capacidades(env, "C:\\Users\\yo", hay(exe), "win32").tailscale, true);
+  assert.equal(capacidades(env, "C:\\Users\\yo", hay(), "win32").tailscale, false);
 });
