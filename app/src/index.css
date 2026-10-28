@@ -2097,8 +2097,8 @@ kbd {
   border-bottom: 1px solid var(--capa-div);
 }
 /* Ventana de Windows sin barra de título (la carcasa: src/titulo.ts pone `data-titulo-nativo`): la franja de arriba
-   arrastra la ventana y sus controles no; el migas deja a la derecha el sitio de los tres botones nativos (138 px, los
-   de Windows). Fuera de la carcasa no cambia nada. */
+   arrastra la ventana y sus controles no; el migas deja a la derecha el sitio de los tres botones nativos (46 px cada
+   uno: 8.625 rem = 138 px a letra 13, y crece con la letra como el resto). Fuera de la carcasa no cambia nada. */
 html[data-titulo-nativo] .cab,
 html[data-titulo-nativo] .migas {
   -webkit-app-region: drag;
@@ -2107,7 +2107,7 @@ html[data-titulo-nativo] :is(button, a, input, select, textarea, label) {
   -webkit-app-region: no-drag;
 }
 html[data-titulo-nativo] .migas {
-  padding-right: calc(var(--esp-6) + 138px);
+  padding-right: calc(var(--esp-6) + 8.625rem);
 }
 .lado {
   display: grid;
