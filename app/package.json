@@ -14,7 +14,7 @@
     "test": "node scripts/test.mjs",
     "prueba": "node scripts/prueba-todas.mjs",
     "visual": "node scripts/visual.mjs",
-    "test:paridad": "node --test tests/paridad/paridad.test.ts tests/paridad/normalizar.test.ts tests/paridad/ramas.test.ts"
+    "test:paridad": "node --test tests/paridad/paridad.test.ts tests/paridad/normalizar.test.ts tests/paridad/ramas.test.ts tests/paridad/lanzar.test.ts"
   },
   "dependencies": {
     "lucide-react": "^0.540.0",

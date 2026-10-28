@@ -9,6 +9,7 @@ import { casosHerramientas } from "./casos-herramientas.ts";
 import { casosHooks } from "./casos-hooks.ts";
 import { casosAsync } from "./casos-async.ts";
 import { casosTablero } from "./casos-tablero.ts";
+import { casosLanzar } from "./casos-lanzar.ts";
 
 const M = "claude-sonnet-5-5";
 const BRIEF = "Objetivo: x\nArchivos: a.ts\nListo cuando: pasa el test\nCómo verificar: npm test\nNo tocar: b.ts";
@@ -66,7 +67,7 @@ export const casosPa: Caso[] = [
 ];
 
 /** Todos los casos: `pa`, las herramientas chicas (proyecto-ruta, trama-estado, workers) y los hooks (.sh contra .mjs). */
-export const casos: Caso[] = [...casosPa, ...casosHerramientas, ...casosHooks, ...casosAsync];
+export const casos: Caso[] = [...casosPa, ...casosHerramientas, ...casosHooks, ...casosAsync, ...casosLanzar];
 
 // Etapa 7: puestos, tope global, RAM, cola, worktrees y huérfanos (casos-puestos.ts).
 import { casosPuestos } from "./casos-puestos.ts";
