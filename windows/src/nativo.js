@@ -265,12 +265,14 @@ function chequearRpc({ puerto = PUERTO, token = () => null, timeoutMs = 5000 } =
     new Promise((resolver) => {
       const cuerpo = JSON.stringify({ canal: "maquina:saludo", args: [] });
       const t = token();
+      // Sin pool (agent: false): un socket keep-alive que el motor ya cerró se reusaría y daría «socket hang up» en vez de «no escucha».
       const req = http.request(
         {
           host: "127.0.0.1",
           port: puerto,
           path: "/rpc",
           method: "POST",
+          agent: false,
           timeout: timeoutMs,
           headers: {
             host: `127.0.0.1:${puerto}`,
