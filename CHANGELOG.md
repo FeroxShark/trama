@@ -1,5 +1,9 @@
 # Cambios
 
+## 0.2.7
+
+- El botón "Notas de la versión" del aviso de Trama nueva abre el release en el navegador (antes no hacía nada).
+
 ## 0.2.6
 
 - OpenCode 2.x: los workers ya no pueden escribir fuera de su carpeta (cada corrida usa su propio servidor y la config bloquea lo de afuera; en el líder, pregunta).
