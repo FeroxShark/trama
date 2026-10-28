@@ -7,6 +7,7 @@ import path from "node:path";
 import type { Caso } from "./arnes.ts";
 import { casosHerramientas } from "./casos-herramientas.ts";
 import { casosHooks } from "./casos-hooks.ts";
+import { casosAsync } from "./casos-async.ts";
 
 const M = "claude-sonnet-5-5";
 const BRIEF = "Objetivo: x\nArchivos: a.ts\nListo cuando: pasa el test\nCómo verificar: npm test\nNo tocar: b.ts";
@@ -64,4 +65,4 @@ export const casosPa: Caso[] = [
 ];
 
 /** Todos los casos: `pa`, las herramientas chicas (proyecto-ruta, trama-estado, workers) y los hooks (.sh contra .mjs). */
-export const casos: Caso[] = [...casosPa, ...casosHerramientas, ...casosHooks];
+export const casos: Caso[] = [...casosPa, ...casosHerramientas, ...casosHooks, ...casosAsync];

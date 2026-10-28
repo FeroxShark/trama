@@ -41,6 +41,8 @@ export function normalizar(texto: string, raices: Raices): string {
       .replace(/ · \d+s ·/g, " · <DUR> ·")
       // pids
       .replace(/\b(pid[= :]+)\d+/gi, "$1<PID>")
+      // el pid del claude que baja --matar/--parar («matado (claude 1234 y su árbol)»)
+      .replace(/\b(claude )\d+\b/g, "$1<PID>")
       // RAM libre / reservada (varía con la máquina)
       .replace(/(disponible |reservada )\d+ MB/g, "$1<N> MB")
   );
