@@ -7,7 +7,7 @@
 // TRAMA_MODO=nativo|wsl lo fuerza. Si el motor no está, el asistente de primer arranque (src/ui/) deja todo listo y sólo
 // entonces carga la página; acá sólo se conecta con Windows.
 
-const { app, BrowserWindow, ipcMain, shell, Menu, Tray, dialog, clipboard, Notification } = require("electron");
+const { app, BrowserWindow, ipcMain, shell, Menu, Tray, dialog, clipboard, Notification, nativeImage } = require("electron");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
@@ -270,7 +270,7 @@ const textoError = (e) => ({ error: e instanceof Error ? e.message : String(e), 
 
 // Lo de la pantalla de la PC (ventana.js): la página lo pide por window.carcasa.ventana (preload.js), no al motor, que lo rechaza por red.
 const canalesVentana = crearCanalesVentana({
-  electron: { app, BrowserWindow, dialog, clipboard, shell, Notification },
+  electron: { app, BrowserWindow, dialog, clipboard, shell, Notification, nativeImage },
   nativo: NATIVO,
   changelog: CHANGELOG,
   bandeja: {

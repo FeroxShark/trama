@@ -4,10 +4,25 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const Module = require("node:module");
+const fs = require("node:fs");
+const os = require("node:os");
+const path = require("node:path");
 const { crearCanalesVentana, textosValidos, estadoValido, avisoValido, ID_VALIDO } = require("../src/ventana");
 
 // Lo que la carcasa usa de Electron, y lo que hizo cada llamada (en `llamadas`).
 function electronFalso({ carpeta = null, texto = "", notificaciones = [] } = {}) {
+  // nativeImage de mentira: un buffer que empieza con "PNG" es una imagen de 200×100; el resto no se lee.
+  const nativeImage = {
+    createFromBuffer: (b) => {
+      const ok = b.subarray(0, 3).toString() === "PNG";
+      return {
+        isEmpty: () => !ok,
+        getSize: () => ({ width: 200, height: 100 }),
+        toDataURL: () => "data:image/png;base64,original",
+        resize: ({ width, height }) => ({ toDataURL: () => `redimensionada:${width}x${height}` }),
+      };
+    },
+  };
   const llamadas = [];
   const ventana = { hide: () => llamadas.push("ocultar"), webContents: { reload: () => llamadas.push("recargar") } };
   const electron = {
@@ -42,7 +57,7 @@ function electronFalso({ carpeta = null, texto = "", notificaciones = [] } = {})
       }
     },
   };
-  return { electron, llamadas, notificaciones };
+  return { electron: { ...electron, nativeImage }, llamadas, notificaciones };
 }
 
 function carcasa(over = {}, opts = {}) {
@@ -89,6 +104,18 @@ test("el preload no deja pedir canales que no son de la ventana", async () => {
 test("carpeta:elegir: abre el selector de carpetas y devuelve la elegida o null si se canceló", async () => {
   assert.equal(await carcasa({ carpeta: "C:\\proyectos\\x" }).manejadores["carpeta:elegir"]({ sender: {} }), "C:\\proyectos\\x");
   assert.equal(await carcasa({ carpeta: null }).manejadores["carpeta:elegir"]({ sender: {} }), null);
+});
+
+test("archivo:elegirLogo: la imagen elegida achicada a 64 px; null si se canceló; lo que no es imagen, error", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "logo-"));
+  const png = path.join(dir, "logo.png");
+  const basura = path.join(dir, "malo.png");
+  fs.writeFileSync(png, "PNG de prueba");
+  fs.writeFileSync(basura, "no es una imagen");
+  const manejar = (carpeta) => carcasa({ carpeta }).manejadores["archivo:elegirLogo"]({ sender: {} });
+  assert.equal(await manejar(null), null);
+  assert.equal(await manejar(png), "redimensionada:64x32");
+  await assert.rejects(manejar(basura), /no sirve como logo/);
 });
 
 test("portapapeles:texto: el texto del sistema, o vacío si no se puede leer", () => {

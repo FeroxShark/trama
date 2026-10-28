@@ -4,6 +4,9 @@
 // atienden en el proceso main de la carcasa, con los mismos nombres de canal que app/electron/ventana-canales.ts.
 // Pura: lo de Electron entra por `o.electron`, así lo prueban tests/ventana.test.js y app/tests sin Electron.
 
+const fs = require("node:fs/promises");
+const path = require("node:path");
+
 // Igual que ID_VALIDO de app/electron/cuentas-varias.ts: el id va a una línea de comando de cmd.exe.
 const ID_VALIDO = /^[a-z0-9][a-z0-9._-]{0,63}$/;
 
@@ -27,9 +30,43 @@ function avisoValido(x) {
   return { sid: x.sid, titulo: x.titulo.slice(0, 120), cuerpo: x.cuerpo.slice(0, 200) };
 }
 
+// Lo más que se lee de una imagen elegida a mano, y el lado del logo: los de app/electron/ventana-canales.ts e iconos.ts.
+const TOPE_ELEGIDA = 8 * 1024 * 1024;
+const LADO_MAX = 64;
+const PNG_FIRMA = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+
+/** Igual que pngDeIco de app/electron/iconos.ts: el PNG más grande que lleva un .ico; `null` si sólo trae mapas de bits. */
+function pngDeIco(b) {
+  if (b.length < 22 || b.readUInt16LE(0) !== 0 || b.readUInt16LE(2) !== 1) return null;
+  let mejor = null;
+  for (let i = 0, n = Math.min(b.readUInt16LE(4), 64); i < n; i++) {
+    const e = 6 + i * 16;
+    if (e + 16 > b.length) break;
+    const largo = b.readUInt32LE(e + 8);
+    const desde = b.readUInt32LE(e + 12);
+    if (desde + largo > b.length || largo < 24) continue;
+    const datos = b.subarray(desde, desde + largo);
+    if (!datos.subarray(0, 8).equals(PNG_FIRMA)) continue;
+    const lado = Math.max(datos.readUInt32BE(16), datos.readUInt32BE(20));
+    if (!mejor || lado > mejor.lado) mejor = { lado, datos };
+  }
+  return mejor?.datos ?? null;
+}
+
+/** Igual que logoDeBytes + achicarLogo de app/electron: la imagen como data URL de a lo más LADO_MAX px, o `null` si no se lee. */
+function logoDeBytes(crudo, ext, nativeImage) {
+  const base = ext.toLowerCase() === ".ico" ? (pngDeIco(crudo) ?? crudo) : crudo;
+  const img = nativeImage.createFromBuffer(base);
+  if (img.isEmpty()) return null;
+  const { width, height } = img.getSize();
+  if (width <= LADO_MAX && height <= LADO_MAX) return img.toDataURL();
+  const f = LADO_MAX / Math.max(width, height);
+  return img.resize({ width: Math.max(1, Math.round(width * f)), height: Math.max(1, Math.round(height * f)), quality: "best" }).toDataURL();
+}
+
 /**
  * Un manejador por canal: `(evento, ...args) => valor`. `o`:
- *  - electron: { app, BrowserWindow, dialog, clipboard, shell, Notification }
+ *  - electron: { app, BrowserWindow, dialog, clipboard, shell, Notification, nativeImage }
  *  - nativo: si el motor es el de Windows (no WSL). Ahí "seguir" esconde la ventana (el motor y los líderes siguen con el
  *    ícono de la bandeja); en WSL no hay bandeja y cerrar la carcasa es lo que se pide.
  *  - changelog: la URL de "ver cambios" de Claude Code.
@@ -39,7 +76,7 @@ function avisoValido(x) {
  *  - log(texto): lo que no se puede mostrar al usuario.
  */
 function crearCanalesVentana(o) {
-  const { app, BrowserWindow, dialog, clipboard, shell, Notification } = o.electron;
+  const { app, BrowserWindow, dialog, clipboard, shell, Notification, nativeImage } = o.electron;
   const avisos = new Set();
   const ventanaDe = (e) => BrowserWindow.fromWebContents(e?.sender) ?? BrowserWindow.getAllWindows()[0] ?? null;
   const abrirExterno = (url) => shell.openExternal(url).catch((err) => o.log(`ventana: ${err.message}`));
@@ -74,6 +111,20 @@ function crearCanalesVentana(o) {
       const v = ventanaDe(e);
       const r = await (v ? dialog.showOpenDialog(v, { properties: ["openDirectory"] }) : dialog.showOpenDialog({ properties: ["openDirectory"] }));
       return r.canceled ? null : (r.filePaths[0] ?? null);
+    },
+    // El logo de un proyecto (Ajustes > Proyectos): la imagen elegida ya achicada (data URL), o null si se canceló. Igual que
+    // app/electron/ventana-canales.ts. Sin SVG: el selector no lo ofrece (nativeImage no lo lee y no se copió su saneado).
+    "archivo:elegirLogo": async (e) => {
+      const v = ventanaDe(e);
+      const filtros = [{ name: "PNG, JPG, WebP, ICO", extensions: ["png", "jpg", "jpeg", "webp", "ico"] }];
+      const r = await (v ? dialog.showOpenDialog(v, { properties: ["openFile"], filters: filtros }) : dialog.showOpenDialog({ properties: ["openFile"], filters: filtros }));
+      const archivo = r.canceled ? null : (r.filePaths[0] ?? null);
+      if (!archivo) return null;
+      const s = await fs.stat(archivo).catch(() => null);
+      if (!s?.isFile() || s.size === 0 || s.size > TOPE_ELEGIDA) throw new Error("Esa imagen no sirve como logo (PNG, JPG, WebP o ICO).");
+      const url = logoDeBytes(await fs.readFile(archivo), path.extname(archivo), nativeImage);
+      if (!url) throw new Error("Esa imagen no sirve como logo (PNG, JPG, WebP o ICO).");
+      return url;
     },
     "portapapeles:texto": () => {
       try {
