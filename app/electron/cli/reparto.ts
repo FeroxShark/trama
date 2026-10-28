@@ -1067,7 +1067,7 @@ function quotaAgy(state: string, _now: Date, cuenta: Obj | null = null): Obj | n
   }
   let j: Obj;
   try {
-    const salida = correrSync("agy", ["-p", "/quota", "--output-format", "json"], { timeoutS: pyFloat(E.REPARTO_AGY_S ?? "40"), cwd: E.TMPDIR || "/tmp", env: envCuenta(cuenta) });
+    const salida = correrSync("agy", ["-p", "/quota", "--output-format", "json"], { timeoutS: pyFloat(E.REPARTO_AGY_S ?? "40"), cwd: os.tmpdir(), env: envCuenta(cuenta) });
     if (salida === null) return null;
     j = leerJson(salida);
     if (!verdad(get(get(get(j, "command", {}), "data", {}), "groups"))) return null;
