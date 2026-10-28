@@ -104,8 +104,8 @@ test("hayClaude: HILOS_CLAUDE manda; sin eso el PATH o ~/.local/bin; una captura
 test("capacidades con PATH vacío: no hay nada", () => {
   const casa = path.join(tmp, "casa");
   mkdirSync(casa);
-  assert.deepEqual(capacidades({ PATH: "" }, casa), { tailscale: false, hyprctl: false, kitten: false });
-  assert.deepEqual(capacidades({}, casa), { tailscale: false, hyprctl: false, kitten: false });
+  assert.deepEqual(capacidades({ PATH: "" }, casa), { tailscale: false, hyprctl: false, kitten: false, systemd: false });
+  assert.deepEqual(capacidades({}, casa), { tailscale: false, hyprctl: false, kitten: false, systemd: false });
 });
 
 test("capacidades: se detecta por el PATH, ~/.local/bin o la variable HILOS_*", () => {
@@ -115,9 +115,9 @@ test("capacidades: se detecta por el PATH, ~/.local/bin o la variable HILOS_*", 
   mkdirSync(bin);
   const falso = (d: string, n: string) => (writeFileSync(path.join(d, n), "#!/bin/sh\n"), chmodSync(path.join(d, n), 0o755));
   falso(bin, "hyprctl");
-  assert.deepEqual(capacidades({ PATH: bin }, casa), { tailscale: false, hyprctl: true, kitten: false });
+  assert.deepEqual(capacidades({ PATH: bin }, casa), { tailscale: false, hyprctl: true, kitten: false, systemd: false });
   falso(path.join(casa, ".local", "bin"), "kitten");
-  assert.deepEqual(capacidades({ PATH: bin }, casa), { tailscale: false, hyprctl: true, kitten: true });
+  assert.deepEqual(capacidades({ PATH: bin }, casa), { tailscale: false, hyprctl: true, kitten: true, systemd: false });
   assert.equal(capacidades({ PATH: "", HILOS_TAILSCALE: "/x/tailscale" }, casa).tailscale, true);
   // Un archivo sin permiso de ejecución no cuenta.
   writeFileSync(path.join(bin, "tailscale"), "");

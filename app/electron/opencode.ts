@@ -11,6 +11,8 @@ import { accessSync, constants, readFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import type { Politica } from "./acp.ts";
+import { paraLanzar, resolverNpm } from "./binario.ts";
+import { caminoDe, type Plataforma, plataformaActual } from "./rutas.ts";
 import { normal } from "./version.ts";
 
 type Env = Record<string, string | undefined>;
@@ -113,14 +115,10 @@ const ejecutable = (f: string) => {
 };
 
 /** El binario `opencode`: `HILOS_OPENCODE`, el PATH, `~/.opencode/bin` (su instalador), `~/.local/bin` y el prefijo global de npm. Sin nada: `opencode` pelado. */
-export function resolverOpencode(env: Env = process.env, home: string = os.homedir(), esEjecutable: (f: string) => boolean = ejecutable): string {
+export function resolverOpencode(env: Env = process.env, home: string = os.homedir(), esEjecutable: (f: string) => boolean = ejecutable, plat: Plataforma = plataformaActual()): string {
   if (env.HILOS_OPENCODE) return env.HILOS_OPENCODE;
-  const dirs = (env.PATH ?? "").split(path.delimiter).filter(Boolean);
-  dirs.push(path.join(home, ".opencode", "bin"), path.join(home, ".local", "bin"));
-  if (env.npm_config_prefix) dirs.push(path.join(env.npm_config_prefix, "bin"));
-  dirs.push(path.join(home, ".npm-global", "bin"), "/usr/local/bin", path.dirname(process.execPath));
-  for (const d of dirs) if (esEjecutable(path.join(d, "opencode"))) return path.join(d, "opencode");
-  return "opencode";
+  const c = caminoDe(plat);
+  return resolverNpm("opencode", env, home, [c.join(home, ".opencode", "bin"), c.join(home, ".local", "bin")], esEjecutable, plat);
 }
 
 /** ¿Está instalado `opencode`? `HILOS_OPENCODE` definido vale si apunta a un ejecutable (las pruebas); en una captura sin él no se prende solo. */
@@ -187,8 +185,7 @@ export function conModeloChico(env: Env = process.env, home: string = os.homedir
       /* sin ese archivo */
     }
   }
-  for (const b of [env.XDG_DATA_HOME, path.join(home, ".local", "share")]) {
-    if (!b) continue;
+  for (const b of carpetasDatosOpencode(env, home)) {
     try {
       if (Object.keys(JSON.parse(leer(path.join(b, "opencode", "auth.json")))).some((k) => k !== "opencode")) return env;
     } catch {
@@ -238,9 +235,20 @@ export function conPermisoFuera(env: Env = process.env, valor: "ask" | "deny", h
   return { ...env, OPENCODE_CONFIG_CONTENT: JSON.stringify({ ...previo, permission: { ...(permiso as object | undefined), external_directory: valor } }) };
 }
 
-/** Las credenciales de OpenCode (`auth.json` en `$XDG_DATA_HOME/opencode` y en `~/.local/share/opencode`): los ids de proveedor con login. Nunca los valores. */
+/**
+ * Dónde puede estar la carpeta de datos de OpenCode (su `opencode/auth.json` cuelga de ahí). opencode usa `xdg-basedir`, que en Windows también da
+ * `~/.local/share` (`%USERPROFILE%\.local\share\opencode`) y respeta `XDG_DATA_HOME`; en Windows se miran además `%LOCALAPPDATA%` y `%APPDATA%`
+ * por si una versión usa la convención de la plataforma. Sólo lectura: una de más no cuesta nada.
+ */
+export function carpetasDatosOpencode(env: Env = process.env, home: string = os.homedir(), plat: Plataforma = plataformaActual()): string[] {
+  const c = caminoDe(plat);
+  const win = plat === "win32" ? [env.LOCALAPPDATA ?? c.join(home, "AppData", "Local"), env.APPDATA ?? c.join(home, "AppData", "Roaming")] : [];
+  return [...new Set([env.XDG_DATA_HOME, c.join(home, ".local", "share"), ...win].filter((b): b is string => !!b))];
+}
+
+/** Las credenciales de OpenCode (`auth.json` en `carpetasDatosOpencode`): los ids de proveedor con login. Nunca los valores. */
 export function proveedoresConLogin(env: Env = process.env, home: string = os.homedir()): string[] {
-  const bases = [...new Set([env.XDG_DATA_HOME, path.join(home, ".local", "share")].filter((b): b is string => !!b))];
+  const bases = carpetasDatosOpencode(env, home);
   const ids = new Set<string>();
   for (const b of bases) {
     try {
@@ -287,7 +295,8 @@ const depsDeVerdad = (): Deps => ({
   existe: ejecutable,
   correr: (bin, args, timeout) =>
     new Promise((ok, mal) => {
-      execFile(bin, args, { timeout, env: entornoOpencode(process.env) as NodeJS.ProcessEnv, maxBuffer: 64 * 1024 * 1024 }, (err, out) => (err ? mal(err) : ok(String(out))));
+      const l = paraLanzar(bin, args);
+      execFile(l.file, l.args, { timeout, env: entornoOpencode(process.env) as NodeJS.ProcessEnv, maxBuffer: 64 * 1024 * 1024, windowsVerbatimArguments: l.verbatim }, (err, out) => (err ? mal(err) : ok(String(out))));
     }),
 });
 

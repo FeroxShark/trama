@@ -62,7 +62,7 @@ import { conClaves } from "./claves.ts";
 import { archivoMcpClaudeSync } from "./mcp.ts";
 import { paraAcp, resueltos } from "./mcp-config.ts";
 import { resolverPa } from "./binario.ts";
-import { matarArbol } from "./procesos.ts";
+import { interrumpir, matarArbol } from "./procesos.ts";
 import { claseDeModelo, familiaDeModelo, idAgy, localDeModelo, localOllama, partirGemini, type Clase } from "./modelos-config.js";
 import { parsearModelo } from "./dsh.ts";
 import { parsearModelo as parsearOpencode } from "./opencode.ts";
@@ -1686,7 +1686,7 @@ export function parar(sid: string) {
     if (procs.get(sid) === p && p.ocupado) {
       // Lo corta el usuario con Parar: que salga por la señal no es que haya muerto.
       p.adrede = true;
-      pid.kill("SIGINT");
+      interrumpir(pid);
     }
   }, PARAR_MS);
   p.parando.unref();

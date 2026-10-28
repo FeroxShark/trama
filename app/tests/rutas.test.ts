@@ -95,12 +95,10 @@ test("matarArbol: Linux kill(-pid); Windows taskkill /T /F; pids imposibles no h
   matarArbol(4321, "SIGTERM", { plat: "linux", kill: () => { throw Object.assign(new Error("x"), { code: "ESRCH" }); } });
 });
 
-test("shellDe: Linux bash / sh de siempre; Windows el bash de Git, nunca el de System32", () => {
-  assert.deepEqual(shellDe("bash", {}, "linux"), ["bash", "-c"]);
-  assert.deepEqual(shellDe("sh", {}, "linux"), ["/bin/sh", "-c"]);
-  const git = "C:\\Program Files\\Git\\bin\\bash.exe";
-  assert.deepEqual(shellDe("bash", WENV, "win32", hay(git, "C:\\Windows\\System32\\bash.exe")), [git, "-c"]);
-  assert.deepEqual(shellDe("sh", WENV, "win32", hay(git)), [git, "-c"]);
-  assert.deepEqual(shellDe("sh", { ...WENV, HILOS_BASH: "D:\\g\\bash.exe" }, "win32", hay(git, "D:\\g\\bash.exe")), ["D:\\g\\bash.exe", "-c"]);
-  assert.deepEqual(shellDe("bash", WENV, "win32", hay()), ["bash", "-c"]);
+test("shellDe: Linux bash / sh de siempre; Windows cmd.exe verbatim, nunca bash", () => {
+  assert.deepEqual(shellDe("bash", "npm test", {}, "linux"), { file: "bash", args: ["-c", "npm test"], verbatim: false });
+  assert.deepEqual(shellDe("sh", "echo $HOME", {}, "linux"), { file: "/bin/sh", args: ["-c", "echo $HOME"], verbatim: false });
+  assert.deepEqual(shellDe("bash", 'node "a b.mjs"', {}, "win32"), { file: "cmd.exe", args: ["/d", "/s", "/c", '"node "a b.mjs""'], verbatim: true });
+  assert.equal(shellDe("sh", "x", { ComSpec: "C:\\Windows\\System32\\cmd.exe" }, "win32").file, "C:\\Windows\\System32\\cmd.exe");
+  assert.ok(!/bash/.test(JSON.stringify(shellDe("bash", "x", {}, "win32"))));
 });

@@ -11,6 +11,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { COMANDO_INSTALAR_DSH } from './dsh-ajustes.ts';
 import { resolverDsh } from './dsh.ts';
+import { type Plataforma, plataformaActual } from './rutas.ts';
 import { COMANDO_INSTALAR_OPENCODE, hayOpencode } from './opencode.ts';
 import { leerEntornoOllama } from './ollama-entorno.ts';
 
@@ -171,7 +172,9 @@ export function parsearUnit(
   };
 }
 
-export async function detectarUnits(d: DepsDeteccion): Promise<ModeloDetectado[]> {
+export async function detectarUnits(d: DepsDeteccion, plat: Plataforma = plataformaActual()): Promise<ModeloDetectado[]> {
+  // Las units son de systemd: sin él (Windows, macOS) no hay nada que mirar ni `systemctl` que correr.
+  if (plat !== 'linux') return [];
   const candidatos = new Set<string>();
 
   const dirUser = path.join(d.home, '.config', 'systemd', 'user');

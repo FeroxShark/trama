@@ -15,6 +15,8 @@
 import { accessSync, constants } from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { resolverNpm } from "./binario.ts";
+import { caminoDe, type Plataforma, plataformaActual } from "./rutas.ts";
 
 export const PROVEEDORES = ["ollama", "opencode", "deepseek"] as const;
 export type ProveedorDsh = (typeof PROVEEDORES)[number];
@@ -122,12 +124,7 @@ const ejecutable = (f: string) => {
 };
 
 /** El binario `dsh`: `HILOS_DSH`, el PATH, `~/.local/bin`, y el prefijo global de npm (`npm_config_prefix`, `~/.npm-global`, `/usr/local`, la carpeta de node). Sin nada: `dsh` pelado. */
-export function resolverDsh(env: Env = process.env, home: string = os.homedir(), esEjecutable: (f: string) => boolean = ejecutable): string {
+export function resolverDsh(env: Env = process.env, home: string = os.homedir(), esEjecutable: (f: string) => boolean = ejecutable, plat: Plataforma = plataformaActual()): string {
   if (env.HILOS_DSH) return env.HILOS_DSH;
-  const dirs = (env.PATH ?? "").split(path.delimiter).filter(Boolean);
-  dirs.push(path.join(home, ".local", "bin"));
-  if (env.npm_config_prefix) dirs.push(path.join(env.npm_config_prefix, "bin"));
-  dirs.push(path.join(home, ".npm-global", "bin"), "/usr/local/bin", path.dirname(process.execPath));
-  for (const d of dirs) if (esEjecutable(path.join(d, "dsh"))) return path.join(d, "dsh");
-  return "dsh";
+  return resolverNpm("dsh", env, home, [caminoDe(plat).join(home, ".local", "bin")], esEjecutable, plat);
 }

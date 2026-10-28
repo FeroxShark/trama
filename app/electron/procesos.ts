@@ -1,12 +1,9 @@
 // Lo de procesos que cambia con la plataforma: matar el ÁRBOL de lo que lanzó un líder / agy / un chequeo, y el shell que
 // corre un `-c`. Node puro (sin `electron`); en Linux es exactamente lo de siempre (el grupo de procesos con `kill(-pid)`,
 // `bash -c` y `/bin/sh -c`). Windows no tiene grupos de procesos como POSIX: el árbol se mata con `taskkill /T /F` y el
-// shell es el bash de Git for Windows (el mismo con el que corren los hooks y el Bash tool de Claude Code), nunca el
-// `bash.exe` de `System32`, que es el lanzador de WSL. Lo prueba tests/procesos.test.ts con la plataforma inyectada.
+// shell es `cmd.exe` (la versión nativa de Windows no lleva bash en ninguna forma). Lo prueba tests/procesos.test.ts con la plataforma inyectada.
 import { execFile } from "node:child_process";
-import { existsSync } from "node:fs";
-import path from "node:path";
-import { esWindows, homeDe, type Plataforma, plataformaActual } from "./rutas.ts";
+import { esWindows, type Plataforma, plataformaActual } from "./rutas.ts";
 
 type Env = Record<string, string | undefined>;
 
@@ -42,23 +39,23 @@ export function matarArbol(pid: number | undefined, senal: NodeJS.Signals = "SIG
   }
 }
 
-/** Dónde busca el bash de Git for Windows (en orden). */
-export function bashsDeGit(env: Env, plat: Plataforma = "win32"): string[] {
-  if (!esWindows(plat)) return [];
-  const w = path.win32;
-  const archivos = env.ProgramFiles || "C:\\Program Files";
-  const x86 = env["ProgramFiles(x86)"] || "C:\\Program Files (x86)";
-  const local = env.LOCALAPPDATA || w.join(homeDe(env, "win32"), "AppData", "Local");
-  const sub = (raiz: string) => [w.join(raiz, "Git", "bin", "bash.exe"), w.join(raiz, "Git", "usr", "bin", "bash.exe")];
-  return [env.HILOS_BASH, env.GIT_BASH, ...sub(archivos), ...sub(x86), ...sub(w.join(local, "Programs"))].filter((x): x is string => !!x);
+/**
+ * Corta lo que corre `pid` cuando el interrupt amable no contestó (Parar). Linux: `SIGINT` al proceso (como siempre). Windows no tiene SIGINT para
+ * un hijo (`kill("SIGINT")` lo termina sin avisarle y deja a sus hijos): se mata el árbol con `taskkill /T /F`.
+ */
+export function interrumpir(hijo: { pid?: number; kill: (senal: NodeJS.Signals) => boolean }, o: OpcionesArbol = {}): void {
+  if (esWindows(o.plat ?? plataformaActual())) return matarArbol(hijo.pid, "SIGTERM", o);
+  hijo.kill("SIGINT");
 }
 
+/** Cómo se lanza el shell que corre un comando escrito como texto (el `npm test` de un chequeo, el hook de un `settings.json`). */
+export type ShellLanzar = { file: string; args: string[]; verbatim: boolean };
+
 /**
- * El shell para un `-c`: `[ejecutable, "-c"]`. `bash` y `sh` son lo que pedía cada llamada de hoy (`bash -c` en salud.ts, `/bin/sh -c`
- * en el hook de contexto-local.ts); en Windows las dos son el bash de Git. Si no hay Git for Windows queda `bash` pelado: el error
- * de spawn dice qué falta.
+ * El shell para un comando como texto. Linux: `bash -c` / `/bin/sh -c`, lo de siempre. Windows: `cmd.exe /d /s /c "<comando>"` (verbatim: las
+ * comillas del comando llegan tal cual); nunca bash, ni el de Git for Windows ni el `System32\bash.exe` que es WSL. Lo prueba tests/rutas.test.ts.
  */
-export function shellDe(cual: "bash" | "sh", env: Env = process.env, plat: Plataforma = plataformaActual(), existe: (f: string) => boolean = existsSync): string[] {
-  if (!esWindows(plat)) return [cual === "sh" ? "/bin/sh" : "bash", "-c"];
-  return [bashsDeGit(env, plat).find((f) => existe(f)) ?? "bash", "-c"];
+export function shellDe(cual: "bash" | "sh", comando: string, env: Env = process.env, plat: Plataforma = plataformaActual()): ShellLanzar {
+  if (!esWindows(plat)) return { file: cual === "sh" ? "/bin/sh" : "bash", args: ["-c", comando], verbatim: false };
+  return { file: env.ComSpec || env.COMSPEC || "cmd.exe", args: ["/d", "/s", "/c", `"${comando}"`], verbatim: true };
 }

@@ -65,12 +65,12 @@ export function carpetasDe(home: string, cwd: string): string[] {
 
 const MAX_HOOK_BYTES = 200_000;
 
-/** Corre un comando de hook como Claude Code (por `sh -c`, el JSON del evento por stdin); nunca falla ni pasa de `timeout`. */
+/** Corre un comando de hook como Claude Code (por `sh -c`; en Windows `cmd /c`, el JSON del evento por stdin); nunca falla ni pasa de `timeout`. */
 function correrHook(comando: string, cwd: string, home: string, env: Record<string, string | undefined>, timeoutMs: number): Promise<string> {
   return new Promise((ok) => {
     const entrada = JSON.stringify({ hook_event_name: "SessionStart", source: "startup", cwd });
-    const [shell, ...flagC] = shellDe("sh", env);
-    const p = execFile(shell, [...flagC, comando], { cwd, env: { ...env, HOME: home, CLAUDE_PROJECT_DIR: cwd }, timeout: timeoutMs, maxBuffer: MAX_HOOK_BYTES, windowsHide: true }, (err, stdout) => {
+    const sh = shellDe("sh", comando, env);
+    const p = execFile(sh.file, sh.args, { cwd, env: { ...env, HOME: home, CLAUDE_PROJECT_DIR: cwd }, timeout: timeoutMs, maxBuffer: MAX_HOOK_BYTES, windowsHide: true, windowsVerbatimArguments: sh.verbatim }, (err, stdout) => {
       ok(err ? "" : String(stdout));
     });
     p.stdin?.on("error", () => {});

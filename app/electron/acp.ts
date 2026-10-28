@@ -13,6 +13,7 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { createInterface } from "node:readline";
 import path from "node:path";
+import { paraLanzar } from "./binario.ts";
 
 type Obj = Record<string, any>;
 
@@ -154,11 +155,14 @@ export class ClienteAcp {
   /** Lanza el agente y hace el `initialize` (protocolo 1, sin `fs` ni terminal del cliente). */
   async iniciar(): Promise<RespuestaInicio> {
     if (this.hijo) throw new Error("acp: el agente ya está lanzado");
-    const p = spawn(this.o.comando, this.o.args ?? [], {
+    // En Windows un binario de npm es un `.cmd`: por cmd.exe (binario.ts). En Linux es el spawn de siempre.
+    const l = paraLanzar(this.o.comando, this.o.args ?? [], this.o.env ?? process.env);
+    const p = spawn(l.file, l.args, {
       cwd: this.o.cwd,
       env: this.o.env as NodeJS.ProcessEnv | undefined,
       stdio: ["pipe", "pipe", "pipe"],
       windowsHide: true,
+      windowsVerbatimArguments: l.verbatim,
     });
     this.hijo = p;
     this.vivo = true;

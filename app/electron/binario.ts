@@ -134,3 +134,45 @@ export function resolverAgy(env: Env, home: string, esEjecutable: (f: string) =>
   for (const d of donde) if (esEjecutable(path.join(d, "agy"))) return path.join(d, "agy");
   return r;
 }
+
+/** Las carpetas donde `npm i -g` deja sus binarios: Linux `<prefijo>/bin`; Windows el prefijo mismo (`%APPDATA%\npm`), donde quedan los `.cmd`. */
+export function carpetasNpm(env: Env, home: string, plat: Plataforma = plataformaActual()): string[] {
+  const c = caminoDe(plat);
+  const prefijo = env.npm_config_prefix;
+  if (plat === "win32") return [...new Set([prefijo, env.APPDATA ? c.join(env.APPDATA, "npm") : "", c.join(home, "AppData", "Roaming", "npm")].filter((d): d is string => !!d))];
+  return [prefijo ? c.join(prefijo, "bin") : "", c.join(home, ".npm-global", "bin"), "/usr/local/bin"].filter(Boolean);
+}
+
+/**
+ * Un binario instalado con npm (`dsh`, `opencode`): el PATH, las `extra` (como `~/.local/bin`), el prefijo global de npm y la carpeta de node.
+ * En Windows npm deja `<nombre>.cmd` (y `.exe` en algunos): se prueban en ese orden y se devuelve la ruta tal cual; para lanzarla hay que pasarla
+ * por `paraLanzar`. Sin nada: el nombre pelado.
+ */
+export function resolverNpm(nombre: string, env: Env, home: string, extra: string[], esEjecutable: (f: string) => boolean = ejecutable, plat: Plataforma = plataformaActual()): string {
+  const c = caminoDe(plat);
+  const nombres = plat === "win32" ? [`${nombre}.cmd`, `${nombre}.exe`, nombre] : [nombre];
+  const dirs = [...dirsDelPath(env, plat), ...extra, ...carpetasNpm(env, home, plat), c.dirname(process.execPath)].filter(Boolean);
+  for (const d of dirs) for (const n of nombres) if (esEjecutable(c.join(d, n))) return c.join(d, n);
+  return nombre;
+}
+
+const ES_CMD = /\.(cmd|bat)$/i;
+
+/** Un argumento para la línea de `cmd.exe`: entre comillas si lleva espacios o caracteres que cmd interpreta; tira si lleva `"`, `%` o un salto de línea (no hay forma segura de pasarlos). */
+function argParaCmd(a: string): string {
+  if (/["%\r\n]/.test(a)) throw new Error(`argumento no apto para cmd.exe: ${JSON.stringify(a.slice(0, 40))}`);
+  return a === "" || /[\s&|<>^()!,;=]/.test(a) ? `"${a}"` : a;
+}
+
+/** Cómo se lanza un comando: el ejecutable, sus argumentos y si Node debe pasarlos tal cual (`windowsVerbatimArguments`). */
+export type Lanzar = { file: string; args: string[]; verbatim: boolean };
+
+/**
+ * `cmd args` listo para `spawn`/`execFile`. Linux y los `.exe`: tal cual. Un `.cmd`/`.bat` (los binarios de npm en Windows) no se puede lanzar
+ * directo (Node ≥ 18.20.2: EINVAL): va por `cmd.exe /d /s /c "<cmd> <args>"` con los argumentos verbatim. Sin shell de Node.
+ */
+export function paraLanzar(cmd: string, args: string[], env: Env = process.env, plat: Plataforma = plataformaActual()): Lanzar {
+  if (plat !== "win32" || !ES_CMD.test(cmd)) return { file: cmd, args, verbatim: false };
+  const linea = [cmd, ...args].map(argParaCmd).join(" ");
+  return { file: env.ComSpec || env.COMSPEC || "cmd.exe", args: ["/d", "/s", "/c", `"${linea}"`], verbatim: true };
+}

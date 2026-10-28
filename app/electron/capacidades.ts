@@ -1,10 +1,11 @@
-// Detectar en vez de configurar: qué herramientas de esta máquina existen (Tailscale, Hyprland, kitty), para no
+// Detectar en vez de configurar: qué herramientas de esta máquina existen (Tailscale, Hyprland, kitty, systemd), para no
 // ofrecer lo que no hay (el acceso por la tailnet, "Ir a la ventana"). Sin `electron` ni imports locales salvo
 // binario.ts: lo prueba tests/modo-local.test.ts.
 import { accessSync, constants } from "node:fs";
 import os from "node:os";
 import { resolverAgy, resolverBinario } from "./binario.ts";
 import { resolverDsh } from "./dsh.ts";
+import { type Plataforma, plataformaActual } from "./rutas.ts";
 
 type Env = Record<string, string | undefined>;
 
@@ -15,6 +16,8 @@ export type Capacidades = {
   hyprctl: boolean;
   /** Hay `kitten` (kitty): lo mismo, en kitty. */
   kitten: boolean;
+  /** Hay systemd de usuario (`systemctl`): las units de modelos locales y el arranque como servicio. Sólo Linux. */
+  systemd: boolean;
 };
 
 const ejecutable = (f: string) => {
@@ -30,9 +33,11 @@ const ejecutable = (f: string) => {
  * Qué herramientas hay en esta máquina: la variable de entorno que la nombra (`HILOS_TAILSCALE`…), el PATH o
  * `~/.local/bin`. Se mira cada vez que se pregunta (unos `access`): instalar una después la activa sin reiniciar.
  */
-export function capacidades(env: Env = process.env, home = os.homedir(), existe: (f: string) => boolean = ejecutable): Capacidades {
-  const hay = (nombre: string, variable: string) => !!env[variable] || resolverBinario(nombre, variable, env, home, existe) !== nombre;
-  return { tailscale: hay("tailscale", "HILOS_TAILSCALE"), hyprctl: hay("hyprctl", "HILOS_HYPRCTL"), kitten: hay("kitten", "HILOS_KITTEN") };
+export function capacidades(env: Env = process.env, home = os.homedir(), existe: (f: string) => boolean = ejecutable, plat: Plataforma = plataformaActual()): Capacidades {
+  const hay = (nombre: string, variable: string) => !!env[variable] || resolverBinario(nombre, variable, env, home, existe, plat) !== nombre;
+  // Hyprland, kitty (su `kitten @`) y systemd son de Linux: en Windows y macOS no se ofrecen aunque una variable los nombre.
+  const linux = plat === "linux";
+  return { tailscale: hay("tailscale", "HILOS_TAILSCALE"), hyprctl: linux && hay("hyprctl", "HILOS_HYPRCTL"), kitten: linux && hay("kitten", "HILOS_KITTEN"), systemd: linux && hay("systemctl", "HILOS_SYSTEMCTL") };
 }
 
 /**

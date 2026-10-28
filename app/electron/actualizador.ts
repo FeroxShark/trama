@@ -8,7 +8,7 @@
 // (paru). Los usos: electron/actualizacion.ts (claude) y electron/actualizacion-agy.ts (agy, en terminal).
 //   HILOS_TERMINAL  la terminal de Actualizar en terminal (en la prueba, un falso). Si no, $TERMINAL o la primera que haya.
 import { execFile, spawn } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -16,7 +16,8 @@ import { escribirAtomico } from "./pa.js";
 import { textoT } from "./errores.js";
 import { avisoDe, CADA_MS, comparar, desdeArchivo, hayQueConsultar, normal, type Aviso, type Chequeo } from "./version.js";
 import { silencio } from "./log.js";
-import { resolverTerminal } from "./terminal-lanzar.js";
+import { esWindows } from "./rutas.ts";
+import { envoltorioWindows, resolverTerminal } from "./terminal-lanzar.js";
 
 /** Abierta desde el menú de apps la sesión gráfica puede no traer estas carpetas en el PATH (ver binario.ts). */
 export function entorno(): NodeJS.ProcessEnv {
@@ -77,10 +78,18 @@ export function enTerminal(argv: string[], env: NodeJS.ProcessEnv): Promise<Corr
       cerrar({ err: falla, dijo: falla });
       return true;
     };
-    const p = spawn(term, [...bandera, "sh", "-c", envoltorio, "sh", marca, ...argv], { env, stdio: "ignore" });
+    // Windows: el envoltorio es un .cmd (junto a la marca) y se lo nombra relativo con `cwd: dir`/`wt -d` (la ruta del tmp puede llevar espacios).
+    // `wt.exe` entrega la orden a la ventana de Windows Terminal y sale al instante: ahí la marca es lo único que avisa, con un tope.
+    const win = esWindows();
+    const enWt = win && /(^|[\\/])wt(\.exe)?$/i.test(term);
+    if (win) writeFileSync(path.join(dir, "ejecutar.cmd"), envoltorioWindows());
+    const orden = win ? [...(enWt ? ["-d", dir] : []), "cmd.exe", "/d", "/c", "ejecutar.cmd", ...argv] : ["sh", "-c", envoltorio, "sh", marca, ...argv];
+    const p = spawn(term, [...bandera, ...orden], { env, stdio: "ignore", ...(win ? { cwd: dir } : {}) });
     p.on("error", () => cerrar({ err: textoT("main.terminalNo", { t: term }), dijo: null }));
     p.on("exit", () => {
-      if (!mirar()) cerrar({ err: null, dijo: textoT("main.terminalCerro") });
+      if (mirar()) return;
+      if (!enWt) return cerrar({ err: null, dijo: textoT("main.terminalCerro") });
+      setTimeout(() => cerrar({ err: null, dijo: textoT("main.terminalCerro") }), 30 * 60 * 1000).unref();
     });
     reloj = setInterval(mirar, 250);
   });

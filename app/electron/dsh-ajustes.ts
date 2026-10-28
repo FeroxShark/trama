@@ -5,11 +5,13 @@ import { execFile } from "node:child_process";
 import { accessSync, constants } from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { paraLanzar, resolverNpm } from "./binario.ts";
 import { hayClaves, leerClaves, type NombreClave } from "./claves.ts";
 import { PROVEEDORES, resolverDsh, type ProveedorDsh } from "./dsh.ts";
 import { errorT, textoT } from "./errores.ts";
 import { sondearOllama } from "./modelos-config.ts";
 import { URL_OLLAMA } from "./modelos-tipos.ts";
+import { caminoDe, delimitadorDe, esWindows, type Plataforma, plataformaActual } from "./rutas.ts";
 import { normal } from "./version.ts";
 
 /** El paquete de npm de DeepSeek Harness y el comando que lo instala (también se le muestra al usuario para copiar). */
@@ -66,11 +68,15 @@ const depsDeVerdad = (): Deps => ({
   existe: ejecutable,
   correr: (bin, args, timeout) =>
     new Promise((ok, mal) => {
-      execFile(bin, args, { timeout, env: entornoNpm(), maxBuffer: 1024 * 1024 }, (err, out, errout) => (err ? mal(Object.assign(err, { stderr: String(errout) })) : ok(String(out))));
+      // Windows: `npm` es `npm.cmd`, que execFile no encuentra por el nombre pelado.
+      const l = paraLanzar(bin === "npm" && esWindows() ? resolverNpm("npm", process.env, os.homedir(), []) : bin, args);
+      execFile(l.file, l.args, { timeout, env: entornoNpm(), maxBuffer: 1024 * 1024, windowsVerbatimArguments: l.verbatim }, (err, out, errout) => (err ? mal(Object.assign(err, { stderr: String(errout) })) : ok(String(out))));
     }),
 });
 
-const hayBin = (nombre: string, d: Deps) => (d.env.PATH ?? "").split(path.delimiter).some((dir) => dir && d.existe(path.join(dir, nombre)));
+/** ¿Hay `nombre` en el PATH? En Windows los de npm son `<nombre>.cmd`. */
+const hayBin = (nombre: string, d: Deps, plat: Plataforma = plataformaActual()) =>
+  (d.env.PATH ?? "").split(delimitadorDe(plat)).some((dir) => dir && (plat === "win32" ? [".cmd", ".exe", ""] : [""]).some((ext) => d.existe(caminoDe(plat).join(dir, nombre + ext))));
 
 /** El estado de DeepSeek Harness en esta máquina: se mira cada vez que se pide (instalarlo después lo activa sin reiniciar). */
 export async function estadoDsh(d: Deps = depsDeVerdad(), claves?: Partial<Record<NombreClave, string>>): Promise<EstadoDsh> {

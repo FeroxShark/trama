@@ -173,14 +173,14 @@ export function colaDe(salida: string): string {
   return l.length > COLA_BYTES ? l.slice(-COLA_BYTES) : l;
 }
 
-/** `bash -c <tests>` en `ruta`, con tope; nunca rechaza. `null`: lo cortaron. */
+/** `bash -c <tests>` (en Windows `cmd /c`) en `ruta`, con tope; nunca rechaza. `null`: lo cortaron. */
 function correrTests(ruta: string, cmd: string, c: Corriendo): Promise<{ rc: number; salida: string } | null> {
   return new Promise((ok) => {
     let salida = "";
     let pasado = false;
     // Su propio grupo de procesos: cortar (o el tope) mata también lo que lance.
-    const [shell, ...flagC] = shellDe("bash", ENV);
-    const hijo = spawn(shell, [...flagC, cmd], { cwd: ruta, env: ENV, stdio: ["ignore", "pipe", "pipe"], detached: true, windowsHide: true });
+    const sh = shellDe("bash", cmd, ENV);
+    const hijo = spawn(sh.file, sh.args, { cwd: ruta, env: ENV, stdio: ["ignore", "pipe", "pipe"], detached: true, windowsHide: true, windowsVerbatimArguments: sh.verbatim });
     const juntar = (b: Buffer) => {
       salida += b.toString("utf8");
       if (salida.length > 64 * 1024) salida = salida.slice(-32 * 1024);
