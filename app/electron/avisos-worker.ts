@@ -149,6 +149,8 @@ export function motivoDe(texto: string, tope = 140): string {
 export type Deps = {
   /** El texto crudo para entender por qué murió (el final de su `.err` y su resultado); sin acceso, `""`. */
   leerRastro: (h: FilaWorker) => Promise<string>;
+  /** ¿Sigue corriendo (su `.running` con el pid vivo, o su `.json` vacío recién creado)? Sin dato: no. */
+  procesoVivo?: (h: FilaWorker) => Promise<boolean>;
   cupos?: () => CuposMin | null;
   emitir: (a: AvisoWorker) => void;
   ahora?: () => number;
@@ -263,6 +265,12 @@ export function crearAvisosWorker(d: Deps) {
         // Terminó desde la lectura anterior, o nació y terminó entre dos (un fallo al arrancar tarda segundos; la lista, ~11 s).
         const visto = prev ? vivo(prev) : base && iniciados.has(h.id);
         if (visto && !avisados.has(`${h.id}:terminado`)) {
+          // Lo lista muerto pero sigue corriendo (su `.running` o su pid viven): no es un fin ni una falla. No se toca `antes`,
+          // así la próxima lectura lo mira otra vez desde lo último que se vio vivo.
+          if (await d.procesoVivo?.(h)) {
+            vivosPor.set(clave, (vivosPor.get(clave) ?? 0) + 1);
+            continue;
+          }
           avisados.add(`${h.id}:terminado`);
           const huboFalla = await terminoVivo(h);
           rcs.delete(h.id);

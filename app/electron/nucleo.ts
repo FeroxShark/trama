@@ -55,7 +55,7 @@ import { entornoLider } from "./lider-arma.js";
 import { crearCola } from "./cola.js";
 import { crearEspera } from "./espera.js";
 import { crearAvisosWorker, REVISAR_MS, textoParaLider, type AvisoWorker } from "./avisos-worker.js";
-import { rastroDeWorker } from "./avisos-worker-disco.js";
+import { procesoVivoDe, rastroDeWorker } from "./avisos-worker-disco.js";
 import { errorT, textoT } from "./errores.ts";
 import { destinos, registro, slugsPorNombre } from "./registro.js";
 import { registroProyectos } from "./rutas.ts";
@@ -314,6 +314,7 @@ const avisosW = crearAvisosWorker({
     await refrescarCupos(false).catch(() => null);
     return rastroDeWorker(PA_STATE, h);
   },
+  procesoVivo: (h) => procesoVivoDe(PA_STATE, h),
   cupos: () => cuposActuales(),
   emitir: (a) => {
     enviar("workers:aviso", a);
