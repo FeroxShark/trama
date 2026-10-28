@@ -255,6 +255,32 @@ function pluginPrendido(a: Ajustes, clave: string): boolean {
 
 const idDe = (...partes: string[]) => partes.join("|");
 
+type Sincronizado = { cuenta: string; nombre: string; mercado: string; descripcion: string; version: string; dir: string; presente: boolean };
+
+/** Los plugins de `plugins/synced/<cuenta>/manifest.json`: nombre, descripción, versión y de qué catálogo de claude.ai vienen. Sin esa carpeta, ninguno. */
+export async function sincronizados(rutas: Rutas): Promise<Sincronizado[]> {
+  const base = path.join(rutas.claude, "plugins", "synced");
+  let cuentas: string[];
+  try {
+    cuentas = (await readdir(base)).filter((c) => !c.startsWith(".")).sort((a, b) => a.localeCompare(b));
+  } catch {
+    return [];
+  }
+  const r: Sincronizado[] = [];
+  for (const cuenta of cuentas) {
+    const manifiesto = await leerJson(path.join(base, cuenta, "manifest.json"));
+    for (const p of Array.isArray(manifiesto?.plugins) ? manifiesto!.plugins : []) {
+      // El nombre es también el de su carpeta: nada de separadores ni de `..`.
+      if (!esObj(p) || !/^[\w][\w.-]*$/.test(texto(p.name))) continue;
+      const nombre = texto(p.name);
+      const dir = path.join(base, cuenta, nombre);
+      const meta = await leerJson(path.join(base, cuenta, `${nombre}.meta.json`));
+      r.push({ cuenta, nombre, mercado: texto(p.marketplaceName) || texto(meta?.marketplace_name), descripcion: resumir(texto(p.description)), version: texto(p.version), dir, presente: await esCarpeta(dir) });
+    }
+  }
+  return r;
+}
+
 export async function inventario(rutas: Rutas = rutasClaude()): Promise<Inventario> {
   const items: Conector[] = [];
   const cj = await leerJson(rutas.claudeJson);
@@ -325,6 +351,14 @@ export async function inventario(rutas: Rutas = rutasClaude()): Promise<Inventar
         }),
       );
     }
+  }
+  // Plugins que Claude Code sincroniza desde la cuenta de claude.ai (`~/.claude/plugins/synced/<cuenta>/`): el `manifest.json` los lista y cada uno
+  // tiene su carpeta (con sus skills) y un `<nombre>.meta.json`. Se ven pero no se prenden ni apagan desde acá: los maneja la cuenta.
+  for (const sp of await sincronizados(rutas)) {
+    items.push({ id: idDe("plugin", "claudeai", sp.cuenta, sp.nombre), tipo: "plugin", nombre: sp.nombre, origen: "claudeai", de: sp.mercado, descripcion: sp.descripcion, activo: sp.presente, conmutable: false, clase: sp.version || undefined, nota: sp.presente ? undefined : "no-instalado" });
+    if (!sp.presente) continue;
+    for (const s of await skillsDe(path.join(sp.dir, "skills")))
+      items.push({ id: idDe("skill", "claudeai", sp.cuenta, sp.nombre, s.nombre), tipo: "skill", nombre: s.nombre, origen: "claudeai", de: sp.nombre, descripcion: s.descripcion, activo: true, conmutable: false });
   }
   const enSettings = usuario.usuario?.enabledPlugins;
   for (const [clave, v] of Object.entries(esObj(enSettings) ? enSettings : {}))

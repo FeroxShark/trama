@@ -1,6 +1,6 @@
 // Ajustes > Conectores, lo que tiene conectado Claude Code: skills, plugins, servidores MCP y hooks agrupados por tipo, cada uno con su
 // nombre, de dónde viene, qué hace en una línea y si está prendido; se prende o apaga lo que Claude Code deja (plugins y servidores de
-// `.mcp.json`). Buscador arriba. Todo se lee de los archivos de Claude Code (electron/conectores-claude.ts) y nunca trae un secreto.
+// `.mcp.json`). Buscador arriba y, antes, los catálogos de plugins para instalar más (AjustesPlugins.tsx). Todo se lee de los archivos de Claude Code (electron/conectores-claude.ts) y nunca trae un secreto.
 // Cada estado se dice con ícono y palabra, no sólo con color.
 import { useEffect, useRef, useState } from "react";
 import { RefreshCw, Search } from "lucide-react";
@@ -10,6 +10,7 @@ import { MODO } from "../modo";
 import { mensaje } from "../puente";
 import { Boton, Interruptor } from "../ui/componentes";
 import { Estado } from "./AjustesDsh";
+import { CatalogosPlugins } from "./AjustesPlugins";
 import { FilaAjuste, GrupoAjustes } from "./AjustesPiezas";
 import { PanelCargando } from "./PanelCargando";
 import { delTipo, deDonde, filtrar, TIPOS } from "./conectores-vista";
@@ -127,6 +128,7 @@ export function InventarioConectores() {
   return (
     <div className="cn-inv" data-conectores-claude ref={raiz}>
       <p className="pn-nota pn-intro">{t("conectores.invIntro")}</p>
+      <CatalogosPlugins alCambiar={leer} />
       <div className="cn-barra">
         <label className="cn-buscar">
           <Search size={14} strokeWidth={2} aria-hidden />

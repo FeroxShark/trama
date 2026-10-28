@@ -64,6 +64,7 @@ import { capacidades, hayAgy, hayDsh } from "./capacidades.js";
 import { estadoDsh, instalarDsh, probarProveedor } from "./dsh-ajustes.ts";
 import { estadoMcp } from "./mcp.ts";
 import { alternar as alternarConector, inventario as inventarioConectores } from "./conectores-claude.ts";
+import { agregarCatalogo, estadoCatalogos, instalarPlugin, quitarPlugin, type DepsPlugins } from "./plugins-claude.ts";
 import { guardarServidor, quitarServidor, vistaMcp } from "./mcp-config.ts";
 import { crearLectorTabla, leerTabla } from "./reparto-tabla.ts";
 import { actualizarOpencode, effortsOpencode, modelosOpencode, vistaOpencode } from "./opencode-ajustes.ts";
@@ -120,7 +121,7 @@ const manejadores = new Map<string, Manejador>();
  * Lo que cambia la máquina (reescribe `~/CLAUDE.md`, los ajustes, borra una cuenta, libera la GPU, actualiza `claude`): desde la
  * tailnet (el celular) no. Los `modelos:*` y `remoto:guardar` tienen su propio chequeo, con su mensaje, en el manejador.
  */
-export const SOLO_PC_TAILNET: ReadonlySet<string> = new Set(["routing:guardar", "ajustes:guardar", "orq:leccionesGuardar", "orq:mdAplicar", "orq:agentsGuardar", "orq:mdFusionar", "proyectos:renombrar", "proyectos:logo", "cuentas:quitar", "vram:liberar", "claude:actualizar", "trama:actualizar", "trama:cancelarEspera", "trama:limpiar", "dsh:clave", "dsh:instalar", "dsh:probar", "aa:refrescar", "mcp:guardar", "mcp:quitar", "conectores:alternar", "opencode:planGuardar", "nvidia:modelos", "nvidia:probar"]);
+export const SOLO_PC_TAILNET: ReadonlySet<string> = new Set(["routing:guardar", "ajustes:guardar", "orq:leccionesGuardar", "orq:mdAplicar", "orq:agentsGuardar", "orq:mdFusionar", "proyectos:renombrar", "proyectos:logo", "cuentas:quitar", "vram:liberar", "claude:actualizar", "trama:actualizar", "trama:cancelarEspera", "trama:limpiar", "dsh:clave", "dsh:instalar", "dsh:probar", "aa:refrescar", "mcp:guardar", "mcp:quitar", "conectores:alternar", "plugins:agregarCatalogo", "plugins:instalar", "plugins:quitar", "opencode:planGuardar", "nvidia:modelos", "nvidia:probar"]);
 
 /** Anota (o reemplaza) el manejador de un canal. */
 export function manejar(canal: string, fn: Manejador) {
@@ -943,6 +944,12 @@ export function armarNucleo() {
   // Lo que tiene conectado Claude Code (skills, plugins, MCP, hooks) y prender o apagar lo que deja: de esta máquina, nunca los secretos.
   manejar("conectores:inventario", () => inventarioConectores());
   manejar("conectores:alternar", (_e, id: unknown, activo: unknown) => alternarConector(id, activo));
+  // Catálogos de plugins (Ajustes > Conectores): leer los catálogos y agregar, instalar o quitar con el `claude plugin …` de la cuenta elegida.
+  const depsPlugins = (): DepsPlugins => ({ env: process.env, home: os.homedir() });
+  manejar("plugins:catalogos", () => estadoCatalogos(depsPlugins()));
+  manejar("plugins:agregarCatalogo", (_e, repo: unknown, cuenta: unknown) => agregarCatalogo(repo, cuenta, depsPlugins()));
+  manejar("plugins:instalar", (_e, plugin: unknown, catalogo: unknown, cuenta: unknown) => instalarPlugin(plugin, catalogo, cuenta, depsPlugins()));
+  manejar("plugins:quitar", (_e, plugin: unknown, catalogo: unknown, cuenta: unknown) => quitarPlugin(plugin, catalogo, cuenta, depsPlugins()));
   // OpenCode (el programa `opencode`: los modelos gratis sólo andan por él): instalado, versión, login y modelos; «Actualizar modelos» vuelve a listarlos.
   // La tabla de `reparto --tabla --json` (Ajustes > Modelos > Modelos para workers): sólo lee. Guardar el permitido y la inteligencia
   // va por `modelos:guardar` (excluir / calidad de modelos.json), que ya rechaza a quien entra por la tailnet.

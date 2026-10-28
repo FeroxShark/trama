@@ -250,6 +250,14 @@ type Main = {
     inventarioConectores(): Promise<unknown>;
     /** Prende o apaga un plugin o un servidor de `.mcp.json`; devuelve el inventario nuevo. */
     alternarConector(id: string, activo: boolean): Promise<unknown>;
+    /** Los catálogos de plugins de Claude Code (los oficiales de Anthropic y los que se agregaron) con lo que traen. */
+    catalogosPlugins(): Promise<unknown>;
+    /** `claude plugin marketplace add <usuario/repo>` con la cuenta elegida (vacío: la de siempre); devuelve los catálogos. Sólo desde la PC. */
+    agregarCatalogoPlugins(repo: string, cuenta?: string): Promise<unknown>;
+    /** `claude plugin install <plugin>@<catálogo>`; devuelve los catálogos. Sólo desde la PC. */
+    instalarPlugin(plugin: string, catalogo: string, cuenta?: string): Promise<unknown>;
+    /** `claude plugin uninstall <plugin>@<catálogo>`; devuelve los catálogos. Sólo desde la PC. */
+    quitarPlugin(plugin: string, catalogo: string, cuenta?: string): Promise<unknown>;
     /** `reparto --tabla --json`: cada modelo que reparto conoce con su inteligencia, cupo y si está permitido; `null` sin `reparto` o con uno viejo. */
     repartoTabla(): Promise<unknown>;
     /** Artificial Analysis: si hay key (nunca el valor) y de cuándo es la caché de inteligencias. */

@@ -28,3 +28,13 @@ export function delTipo(items: Conector[], tipo: TipoConector): Conector[] {
     .filter((c) => c.tipo === tipo)
     .sort((a, b) => ORDEN_ORIGEN[a.origen] - ORDEN_ORIGEN[b.origen] || deDonde(a).localeCompare(deDonde(b)) || a.nombre.localeCompare(b.nombre));
 }
+
+/** Los plugins de un catálogo que coinciden con la búsqueda: cada palabra tiene que estar en el nombre, la categoría o la descripción (sin tildes ni mayúsculas). */
+export function buscarPlugins<T extends { nombre: string; descripcion: string; categoria: string }>(plugins: T[], consulta: string): T[] {
+  const palabras = sinTildes(consulta).split(/\s+/).filter(Boolean);
+  if (!palabras.length) return plugins;
+  return plugins.filter((p) => {
+    const pajar = sinTildes(`${p.nombre} ${p.categoria} ${p.descripcion}`);
+    return palabras.every((w) => pajar.includes(w));
+  });
+}

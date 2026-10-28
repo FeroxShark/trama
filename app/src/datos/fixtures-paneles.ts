@@ -9,6 +9,7 @@ import type { EstadoNim } from "../../electron/nvidia-nim";
 import type { EstadoMcp } from "../../electron/mcp";
 import type { VistaServidorMcp } from "../../electron/mcp-config";
 import type { Conector, Inventario } from "../../electron/conectores-claude";
+import type { EstadoCatalogos } from "../../electron/plugins-claude";
 import type { EstadoOpencodeUi } from "../../electron/opencode-ajustes";
 import type { VistaPlanGo } from "../../electron/opencode-go";
 import type { FilaTabla, TablaReparto } from "../../electron/reparto-tabla";
@@ -494,11 +495,44 @@ export const CONECTORES_FIJOS = (variante: string | null): Inventario => {
     { id: "mcp|usuario|archivos", tipo: "mcp", nombre: "archivos", origen: "usuario", de: "", descripcion: "", activo: true, conmutable: false, clase: "stdio", destino: "npx -y @modelcontextprotocol/server-filesystem /home/ana/docs", variables: [] },
     { id: `mcp|proyecto|${p}|calendario`, tipo: "mcp", nombre: "calendario", origen: "proyecto", de: p, descripcion: "", activo: true, conmutable: true, clase: "http", destino: "https://mcp.ejemplo.com/calendario", variables: ["Authorization"] },
     { id: `mcp|proyecto|${p}|base`, tipo: "mcp", nombre: "base", origen: "proyecto", de: p, descripcion: "", activo: false, conmutable: true, clase: "stdio", destino: "node servidor.js --token ••••", variables: ["DB_PASSWORD"] },
+    { id: "plugin|claudeai|cuenta-1|design", tipo: "plugin", nombre: "design", origen: "claudeai", de: "knowledge-work-plugins", descripcion: "Críticas de diseño, accesibilidad y entrega a desarrollo.", activo: true, conmutable: false, clase: "0040" },
+    { id: "skill|claudeai|cuenta-1|design|design-critique", tipo: "skill", nombre: "design-critique", origen: "claudeai", de: "design", descripcion: "Devolución estructurada sobre un diseño.", activo: true, conmutable: false },
     { id: "mcp|claudeai|claude.ai Correo", tipo: "mcp", nombre: "Correo", origen: "claudeai", de: "", descripcion: "", activo: false, conmutable: false, clase: "http" },
     { id: "hook|usuario||settings.json|0", tipo: "hook", nombre: "PreToolUse · Bash", origen: "usuario", de: "", descripcion: "", activo: true, conmutable: false, clase: "PreToolUse", destino: "bash ~/.claude/hooks/guardia.sh" },
     { id: "hook|plugin|estilo@mercado||0", tipo: "hook", nombre: "SessionStart", origen: "plugin", de: "estilo@mercado", descripcion: "Cargando el estilo…", activo: true, conmutable: false, clase: "SessionStart", destino: "node estilo/arranque.js" },
   ];
   return { version: 1, items, proyectos: [p] };
+};
+
+/** Los catálogos de plugins de las capturas (todo inventado): el de skills de Anthropic agregado y a medias, el oficial sin agregar y uno propio. `plugins-vacio`: ninguno agregado. */
+export const CATALOGOS_FIJOS = (variante: string | null): EstadoCatalogos => {
+  const sinAgregar = { id: "claude-plugins-official", repo: "anthropics/claude-plugins-official", conocido: true, agregado: false, plugins: [] };
+  if (variante === "plugins-vacio") return { version: 1, cuentas: [], catalogos: [{ id: "anthropic-agent-skills", repo: "anthropics/skills", conocido: true, agregado: false, plugins: [] }, sinAgregar] };
+  return {
+    version: 1,
+    cuentas: ["cuenta-2"],
+    catalogos: [
+      {
+        id: "anthropic-agent-skills",
+        repo: "anthropics/skills",
+        conocido: true,
+        agregado: true,
+        plugins: [
+          { nombre: "claude-api", descripcion: "Armar apps con la API de Claude: modelos, herramientas y caché.", categoria: "", instalado: false },
+          { nombre: "document-skills", descripcion: "Crear y editar documentos de Word, planillas de Excel, presentaciones de PowerPoint y PDF.", categoria: "", instalado: true },
+          { nombre: "example-skills", descripcion: "Ejemplos de skills: arte generativo, diseño de temas, servidores MCP y más.", categoria: "", instalado: false },
+        ],
+      },
+      sinAgregar,
+      {
+        id: "mercado-de-ana",
+        repo: "ana/plugins",
+        conocido: false,
+        agregado: true,
+        plugins: [{ nombre: "estilo", descripcion: "Textos más claros y cortos.", categoria: "escritura", instalado: false }],
+      },
+    ],
+  };
 };
 
 /** Lo que ve `/mcp` en las capturas: los conectores de claude.ai (uno con login pendiente, uno caído) y los de Trama. */

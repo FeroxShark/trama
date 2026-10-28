@@ -3260,6 +3260,36 @@
 .cn-propios {
   margin-top: var(--esp-4);
 }
+/* Catálogos de plugins (AjustesPlugins.tsx): el selector de cuenta, el alta de otro catálogo y el ícono de «en curso» que gira. */
+.pl-cuenta {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-2);
+  color: var(--texto-7);
+  font-size: var(--letra-3);
+}
+.pl-otro {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--esp-2);
+}
+.pl-otro .mcp-campo {
+  flex: 1 1 16rem;
+}
+.pl-gira {
+  animation: pl-gira 1s linear infinite;
+}
+@keyframes pl-gira {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pl-gira {
+    animation: none;
+  }
+}
 
 [data-mcp] .pn-dato {
   grid-template-columns: minmax(0, 1fr);

@@ -12,7 +12,7 @@ import { promptArreglar } from "./arreglar";
 import { salud as saludDe, type EstadoSalud } from "./salud";
 import type { Hilo } from "./contrato";
 import { claveCalidad } from "../paneles/modelos-workers";
-import { ACCESOS_FALSOS, AJUSTES, AUTO, ENTORNO_OLLAMA, ESTADO_DSH, ESTADO_NIM, CONECTORES_FIJOS, ESTADO_MCP, ESTADO_MCP_FIJOS, ESTADO_OPENCODE, MODELOS_FIJOS, PLAN_GO, TABLA_REPARTO, OLLAMA_FALSO, arranqueMedidoFalso, historialFalso, MEDICION, REMOTO, SALUD, URL_REMOTO_FALSA } from "./fixtures-paneles";
+import { ACCESOS_FALSOS, AJUSTES, AUTO, ENTORNO_OLLAMA, ESTADO_DSH, ESTADO_NIM, CATALOGOS_FIJOS, CONECTORES_FIJOS, ESTADO_MCP, ESTADO_MCP_FIJOS, ESTADO_OPENCODE, MODELOS_FIJOS, PLAN_GO, TABLA_REPARTO, OLLAMA_FALSO, arranqueMedidoFalso, historialFalso, MEDICION, REMOTO, SALUD, URL_REMOTO_FALSA } from "./fixtures-paneles";
 import type { EstadoAuto } from "../../electron/autointegrar";
 import type { Consulta, PiezaConsulta } from "../../electron/historial";
 import type { Arranque, Medido } from "../../electron/arranque";
@@ -24,6 +24,7 @@ import type { EstadoDsh, Prueba } from "../../electron/dsh-ajustes";
 import type { EstadoMcp } from "../../electron/mcp";
 import type { EntradaMcp, VistaServidorMcp } from "../../electron/mcp-config";
 import type { Conector, Inventario } from "../../electron/conectores-claude";
+import type { Catalogo, EstadoCatalogos, PluginCatalogo } from "../../electron/plugins-claude";
 import type { NombreClave } from "../../electron/claves";
 import type { EstadoOpencodeUi } from "../../electron/opencode-ajustes";
 import type { VistaPlanGo } from "../../electron/opencode-go";
@@ -38,7 +39,7 @@ export type { DatosAgentsMd, LeccionesPendiente };
 export type AgentsMd = DatosAgentsMd & { proyecto: string; ruta: string | null };
 /** Un worker de rama para auditar: `pa <proy> --auditar <id> -m <modelo> --async` (sólo Claude). */
 export type PedidoAuditar = { id: string; proyecto: string; modelo: string };
-export type { Conector, EntradaMcp, EstadoMcp, Inventario, VistaServidorMcp };
+export type { Catalogo, Conector, EntradaMcp, EstadoCatalogos, EstadoMcp, Inventario, PluginCatalogo, VistaServidorMcp };
 export type { Arranque, Bajada, ConfigModelos, Consulta, EntornoOllama, EstadoAuto, EstadoDsh, EstadoNim, PruebaNim, EstadoModelos, EstadoOpencodeUi, EstadoSalud, Medido, NombreClave, PiezaConsulta, Prueba, Sondeo, VistaPlanGo };
 
 /** Los proveedores de DeepSeek Harness que se pueden probar desde Ajustes. */
@@ -185,6 +186,14 @@ export interface FuentePaneles {
   inventarioConectores(): Promise<Inventario>;
   /** Prende o apaga un plugin o un servidor de `.mcp.json` (los demás no se pueden desde acá). */
   alternarConector(id: string, activo: boolean): Promise<Inventario>;
+  /** Los catálogos de plugins de Claude Code (los oficiales de Anthropic y los agregados) con sus plugins y cuáles están instalados. */
+  catalogosPlugins(): Promise<EstadoCatalogos>;
+  /** `claude plugin marketplace add <usuario/repo>` (con la cuenta elegida; vacía = la de siempre); devuelve los catálogos o rechaza con el motivo. */
+  agregarCatalogoPlugins(repo: string, cuenta?: string): Promise<EstadoCatalogos>;
+  /** `claude plugin install <plugin>@<catálogo>`; devuelve los catálogos. */
+  instalarPlugin(plugin: string, catalogo: string, cuenta?: string): Promise<EstadoCatalogos>;
+  /** `claude plugin uninstall <plugin>@<catálogo>`; devuelve los catálogos. */
+  quitarPlugin(plugin: string, catalogo: string, cuenta?: string): Promise<EstadoCatalogos>;
   /** `reparto --tabla --json`: los modelos que reparto conoce con su inteligencia y cupo; `null` si no hay `reparto` (o es uno viejo). */
   repartoTabla(): Promise<TablaReparto | null>;
   /** La caché de Artificial Analysis se actualizó de fondo: conviene volver a pedir la tabla. */
@@ -274,6 +283,13 @@ let modelosFijos: EstadoModelos | undefined;
 let dshFijo: EstadoDsh | undefined;
 let mcpFijo: VistaServidorMcp[] = ESTADO_MCP_FIJOS(MODO.variante);
 let conectoresFijos: Inventario = CONECTORES_FIJOS(MODO.variante);
+let catalogosFijos: EstadoCatalogos = CATALOGOS_FIJOS(MODO.variante);
+const cambiarPluginFijo = async (plugin: string, catalogo: string, instalado: boolean) => {
+  await espera(500);
+  const p = catalogosFijos.catalogos.find((c: Catalogo) => c.id === catalogo)?.plugins.find((x: PluginCatalogo) => x.nombre === plugin);
+  if (p) p.instalado = instalado;
+  return structuredClone(catalogosFijos);
+};
 /** Artificial Analysis en las capturas: la caché es de ayer en las variantes `mdl-wk-aa*` y no hay en las demás hasta que se refresca. */
 let aaFecha: number | null | undefined;
 const estadoAAFijo = () => {
@@ -399,6 +415,24 @@ const fija: FuentePaneles = {
     await espera(60);
     conectoresFijos = { ...conectoresFijos, items: conectoresFijos.items.map((x) => (x.id === id && x.conmutable ? { ...x, activo } : x)) };
     return structuredClone(conectoresFijos);
+  },
+  async catalogosPlugins() {
+    await espera(80);
+    return structuredClone(catalogosFijos);
+  },
+  async agregarCatalogoPlugins(repo) {
+    await espera(400);
+    const r = repo.trim().toLowerCase();
+    const hay = catalogosFijos.catalogos.find((c) => c.repo.toLowerCase() === r);
+    if (hay) hay.agregado = true;
+    else catalogosFijos.catalogos.push({ id: r.split("/")[1] ?? r, repo: repo.trim(), conocido: false, agregado: true, plugins: [] });
+    return structuredClone(catalogosFijos);
+  },
+  async instalarPlugin(plugin, catalogo) {
+    return cambiarPluginFijo(plugin, catalogo, true);
+  },
+  async quitarPlugin(plugin, catalogo) {
+    return cambiarPluginFijo(plugin, catalogo, false);
   },
   async probarDsh(proveedor) {
     await espera(500);
@@ -801,6 +835,18 @@ const conPa = (m: NonNullable<typeof main>): FuentePaneles => ({
   },
   async alternarConector(id, activo) {
     return (await m.paneles.alternarConector(id, activo).catch(fallar)) as Inventario;
+  },
+  async catalogosPlugins() {
+    return (await m.paneles.catalogosPlugins().catch(fallar)) as EstadoCatalogos;
+  },
+  async agregarCatalogoPlugins(repo, cuenta) {
+    return (await m.paneles.agregarCatalogoPlugins(repo, cuenta).catch(fallar)) as EstadoCatalogos;
+  },
+  async instalarPlugin(plugin, catalogo, cuenta) {
+    return (await m.paneles.instalarPlugin(plugin, catalogo, cuenta).catch(fallar)) as EstadoCatalogos;
+  },
+  async quitarPlugin(plugin, catalogo, cuenta) {
+    return (await m.paneles.quitarPlugin(plugin, catalogo, cuenta).catch(fallar)) as EstadoCatalogos;
   },
   async quitarMcp(nombre) {
     return (await m.paneles.quitarMcp(nombre).catch(fallar)) as VistaServidorMcp[];
