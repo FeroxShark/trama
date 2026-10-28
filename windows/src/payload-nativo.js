@@ -71,6 +71,10 @@ const EXCEPCIONES = [
     motivo: "la terminal de Linux corre la actualización con `sh -c`; la etapa 14 (terminal en win32: wt / cmd start) la cambia",
   },
   {
+    archivo: "app/dist-electron/cli/pa/ramas.js",
+    motivo: "correrTests: fuera de win32 corre el `tests` del registry con `bash -c` (como el original); en win32 va por cmd.exe, así que el .exe no lo lanza",
+  },
+  {
     archivo: "app/hooks/docker-guard.mjs",
     motivo: "no lanza nada: `/bin/sh -c` es el CMD por defecto de Docker, que la guardia reproduce para leer un Dockerfile",
   },
