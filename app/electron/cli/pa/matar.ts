@@ -77,6 +77,8 @@ export type OpcionesMatar = {
   arbolDe?: (pids: number[]) => number[];
   delSid?: (sid: string) => number[];
   cortar?: (pid: number) => void;
+  /** Windows: pedirle al pa que pare por su canal (default: `consultar(canal, ORDEN_PARAR)`). */
+  pedir?: (canal: string) => Promise<unknown>;
   /** Escala de los tiempos (1 = los del bash: 5 s, 3 s y 1 s). */
   escala?: number;
 };
@@ -129,7 +131,7 @@ export async function matarArbolPa(sid: string, paciente: number | undefined, pi
         }
       });
     if (paciente && o.canal && viveP(paciente)) {
-      await consultar(o.canal, ORDEN_PARAR, { plat, timeoutMs: 2000 * esc });
+      await (o.pedir ?? ((c: string) => consultar(c, ORDEN_PARAR, { plat, timeoutMs: 2000 * esc })))(o.canal);
       for (let i = 0; i < 30 && viveP(paciente); i++) await dormir(100 * esc);
     }
     for (const p of vivos(todos)) cortar(p);

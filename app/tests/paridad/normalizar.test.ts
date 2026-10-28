@@ -24,3 +24,7 @@ test("normalizar: duraciones de workers y campos JSON de edad", () => {
 test("normalizar: la carpeta de transcripts de Claude (ruta con guiones)", () => {
   assert.equal(normalizar("home/.claude/projects/-tmp-paridad-AjSrpl-proy", { tmp: ["/tmp/paridad-AjSrpl"] }), "home/.claude/projects/<TMP-CLAUDE>-proy");
 });
+
+test("normalizar: el pid del claude que baja --matar/--parar", () => {
+  assert.equal(normalizar("pa: worker de 'proy' matado (claude 123456 y su árbol).", { tmp: [] }), "pa: worker de 'proy' matado (claude <PID> y su árbol).");
+});
