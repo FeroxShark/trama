@@ -84,3 +84,7 @@ casos.push(...casosE2e);
 // Los globales de la app (--hilos, --hilo, --archivar, --revertir, --proyectos, --renombrar, --traspaso, --limpiar): casos-globales.ts.
 import { casosGlobales } from "./casos-globales.ts";
 casos.push(...casosGlobales);
+
+// Globales de medición y modelos (casos-medicion.ts).
+import { casosMedicion } from "./casos-medicion.ts";
+casos.push(...casosMedicion);

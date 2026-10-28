@@ -11,6 +11,7 @@ import { cmdEsperar, cmdEsperarTodos, cmdEstado } from "./pa/async.ts";
 import { salir, type Env } from "./pa/entorno.ts";
 import { cmdHilo } from "./pa/hilo.ts";
 import { cmdHilos } from "./pa/hilos.ts";
+import { cmdBien, cmdBienAuto } from "./pa/medicion.ts";
 import { cmdLeccion, cmdLecciones, cmdLeccionesPodar } from "./pa/lecciones.ts";
 import { cmdLimpiar } from "./pa/limpiar.ts";
 import { cmdParar, matarProyecto } from "./pa/matar.ts";
@@ -20,6 +21,8 @@ import { cmdDescartar, cmdDescartarId, cmdIntegrar, cmdRamas } from "./pa/ramas.
 import { fijarProyecto } from "./pa/ramas-base.ts";
 import { cmdRevertir } from "./pa/revertir.ts";
 import { cmdTraspaso } from "./pa/traspaso.ts";
+import { cmdRinde } from "./pa/rinde.ts";
+import { cmdCupoGemini, cmdGeminiProyectos, cmdModelos } from "./pa/tabla-modelos.ts";
 
 /** Otro `pa` igual a éste (los intentos de -m a,b,c), con la salida a la vista. */
 function relanzar(argv: string[], extra: Env): number {
@@ -49,6 +52,12 @@ export const deps: Deps = {
     traspaso: (_a, pa) => cmdTraspaso(pa),
     proyectos: (a, pa) => cmdProyectos(pa, a),
     limpiar: (a, pa) => cmdLimpiar(pa, a),
+    bien: (a, pa) => cmdBien(pa, a),
+    bienAuto: (_a, pa) => cmdBienAuto(pa),
+    rinde: (a, pa) => cmdRinde(pa, a),
+    modelos: (a, pa) => cmdModelos(pa, a),
+    cupoGemini: (a, pa) => cmdCupoGemini(pa, a),
+    geminiProyectos: (a, pa) => cmdGeminiProyectos(pa, a),
   },
   proyecto: {
     matar: (l, pa, p) => matarProyecto(pa, l.proyecto, p.ruta, { runId: l.runId, leer: l.leer }),
