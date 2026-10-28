@@ -25,7 +25,7 @@ import { appendFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFile
 import os from "node:os";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
-import { entornoDsh, escribirParche, esErrorCuota, falta, mensajeCuotaOpencode, parsearModelo, resolverDsh } from "./config.mjs";
+import { entornoDsh, escribirParche, esErrorCuota, falta, lanzarDsh, mensajeCuotaOpencode, parsearModelo, resolverDsh } from "./config.mjs";
 
 function argumentos(argv) {
   const o = { _: [] };
@@ -116,7 +116,8 @@ async function main() {
   const t0 = Date.now();
   const maxPasos = Number.parseInt(a["max-pasos"] ?? "", 10) > 0 ? Number.parseInt(a["max-pasos"], 10) : 0;
   let truncado = 0;
-  const hijo = spawn(dsh, ["--profile", "headless", "--patch", parche, "--json", "-"], { cwd: a.cwd, env, stdio: ["pipe", "pipe", "pipe"] });
+  const l = lanzarDsh(dsh, ["--profile", "headless", "--patch", parche, "--json", "-"], env);
+  const hijo = spawn(l.file, l.args, { cwd: a.cwd, env, stdio: ["pipe", "pipe", "pipe"], windowsVerbatimArguments: l.verbatim });
   const eventos = [];
   let resto = "";
   let stderr = "";

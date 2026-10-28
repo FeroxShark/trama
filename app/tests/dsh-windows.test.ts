@@ -7,6 +7,8 @@ import { paraLanzar } from "../electron/binario.ts";
 import { PAQUETE_DSH, SCRIPTS_DSH, comandoInstalarDsh, estadoDsh, instalarDsh } from "../electron/dsh-ajustes.ts";
 import { prefijoDsh, resolverDsh } from "../electron/dsh.ts";
 import { type DepsDeteccion, detectarArneses } from "../electron/locales-deteccion.ts";
+import { dirsDsh } from "../electron/cli/pa/motores/chequeo.ts";
+import { lanzarDsh as lanzarDshMotor, resolverDsh as resolverDshMotor } from "../../motor/dsh/config.mjs";
 
 const hay = (...fs: string[]) => (f: string) => fs.includes(f);
 const CASA = "C:\\Users\\Ana";
@@ -129,4 +131,22 @@ test("detección de arneses en Windows: dsh.cmd en la raíz de .local, con su ve
   const despues = await conPlataforma("win32", dshDe);
   assert.equal(despues.instalado, true, "'Volver a mirar' lo detecta sin reiniciar");
   assert.equal(despues.version, "0.2.1");
+});
+
+test("el runner de motor (motor/dsh) encuentra y lanza dsh igual en Windows", () => {
+  assert.equal(resolverDshMotor(WENV, CASA, hay(DSH_RAIZ), "win32"), DSH_RAIZ);
+  assert.equal(resolverDshMotor(WENV, CASA, hay(), "win32"), "dsh");
+  assert.equal(resolverDshMotor({ PATH: "/a:/b" }, "/home/x", hay("/b/dsh"), "linux"), "/b/dsh");
+  // un .cmd va por cmd.exe con los argumentos tal cual; en Linux no cambia nada
+  const w = lanzarDshMotor(DSH_RAIZ, ["--profile", "headless", "--patch", `${CASA}\\Mis Cosas\\p.yml`], {}, "win32");
+  assert.equal(w.file, "cmd.exe");
+  assert.equal(w.verbatim, true);
+  assert.equal(w.args[3], `"${DSH_RAIZ} --profile headless --patch "${CASA}\\Mis Cosas\\p.yml""`);
+  assert.deepEqual(lanzarDshMotor("/b/dsh", ["--json"], {}, "linux"), { file: "/b/dsh", args: ["--json"], verbatim: false });
+  assert.throws(() => lanzarDshMotor(DSH_RAIZ, ['x"y'], {}, "win32"), /no apto/);
+});
+
+test("dirs de dsh en el CLI (pa): Windows suma la raíz de .local y %APPDATA%\\npm; Linux queda como estaba", () => {
+  assert.deepEqual(dirsDsh(WENV, CASA, "win32"), [`${CASA}\\.local\\bin`, `${CASA}\\.local`, `${CASA}\\AppData\\Roaming\\npm`]);
+  assert.deepEqual(dirsDsh({ npm_config_prefix: "/opt/n" }, "/home/x", "linux"), ["/home/x/.local/bin", "/opt/n/bin", "/home/x/.npm-global/bin", "/usr/local/bin"]);
 });

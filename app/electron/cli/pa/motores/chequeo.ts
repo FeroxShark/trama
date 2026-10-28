@@ -53,8 +53,17 @@ function binario(nombre: string, fijo: string | undefined, extra: string[], env:
   return enPath(nombre, extra, env, plat) ?? "";
 }
 const carpetasNpm = (env: Env, home: string) => [path.join(home, ".local", "bin"), ...(env.npm_config_prefix ? [path.join(env.npm_config_prefix, "bin")] : []), path.join(home, ".npm-global", "bin"), "/usr/local/bin"];
-/** El binario dsh: HILOS_DSH, el PATH, ~/.local/bin, el prefijo global de npm. "" si no está. */
-export const dshBin = (env: Env, plat: Plataforma = plataformaActual()) => binario("dsh", env.HILOS_DSH, carpetasNpm(env, homeDe(env, plat)), env, plat);
+/**
+ * Las carpetas donde buscar dsh además del PATH. Linux: `~/.local/bin` y el prefijo global de npm. Windows: también la raíz del prefijo de
+ * la instalación (`<casa>\.local\dsh.cmd`) y `%APPDATA%\npm`: npm no deja los `.cmd` en `bin\`.
+ */
+export function dirsDsh(env: Env, home: string, plat: Plataforma = plataformaActual()): string[] {
+  if (plat !== "win32") return carpetasNpm(env, home);
+  const c = path.win32;
+  return [c.join(home, ".local", "bin"), c.join(home, ".local"), ...(env.npm_config_prefix ? [env.npm_config_prefix] : []), c.join(env.APPDATA || c.join(home, "AppData", "Roaming"), "npm")];
+}
+/** El binario dsh: HILOS_DSH, el PATH y `dirsDsh`. "" si no está. */
+export const dshBin = (env: Env, plat: Plataforma = plataformaActual()) => binario("dsh", env.HILOS_DSH, dirsDsh(env, homeDe(env, plat), plat), env, plat);
 /** El binario opencode: HILOS_OPENCODE, el PATH, ~/.opencode/bin (su instalador), y los de dsh. "" si no está. */
 export const opencodeBin = (env: Env, plat: Plataforma = plataformaActual()) => {
   const home = homeDe(env, plat);

@@ -1179,10 +1179,14 @@ function binDe(nombre: string, envVar: string, previos: string[]): string | null
   if (h) return accesoX(h) ? h : null;
   const c = enPath(nombre);
   if (c) return c;
+  // Windows: npm deja `<nombre>.cmd` en la raíz del prefijo de la instalación (`<casa>\.local`) y en `%APPDATA%\npm`, no en `bin\`.
+  const win = process.platform === "win32";
   const dirs = [...previos];
-  if (E.npm_config_prefix) dirs.push(path.join(E.npm_config_prefix, "bin"));
+  if (win) dirs.push(path.join(home(), ".local"), ...(E.APPDATA ? [path.join(E.APPDATA, "npm")] : []));
+  if (E.npm_config_prefix) dirs.push(win ? E.npm_config_prefix : path.join(E.npm_config_prefix, "bin"));
   dirs.push(path.join(home(), ".npm-global", "bin"), "/usr/local/bin");
-  return dirs.map((d) => path.join(d, nombre)).find(accesoX) ?? null;
+  const nombres = win ? [`${nombre}.cmd`, `${nombre}.exe`, nombre] : [nombre];
+  return dirs.flatMap((d) => nombres.map((n) => path.join(d, n))).find(accesoX) ?? null;
 }
 const dshBin = () => binDe("dsh", "HILOS_DSH", [path.join(home(), ".local", "bin")]);
 

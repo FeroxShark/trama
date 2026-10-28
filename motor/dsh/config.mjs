@@ -107,14 +107,34 @@ const ejecutable = (f) => {
   }
 };
 
-/** El binario `dsh`: `HILOS_DSH`, el PATH, `~/.local/bin`, y el prefijo global de npm (`npm_config_prefix`, `~/.npm-global`, `/usr/local`, la carpeta de node). Sin nada: `dsh` pelado. */
-export function resolverDsh(env = process.env, home = os.homedir(), esEjecutable = ejecutable) {
+/**
+ * El binario `dsh`: `HILOS_DSH`, el PATH, `~/.local/bin`, el prefijo de la instalación de Trama y el prefijo global de npm
+ * (`npm_config_prefix`, `~/.npm-global`, `/usr/local`, la carpeta de node). En Windows npm deja `dsh.cmd` en la RAÍZ del prefijo
+ * (`<casa>\.local`) y en `%APPDATA%\npm`, no en `bin\`. Sin nada: `dsh` pelado. Igual que `resolverDsh` de app/electron/dsh.ts.
+ */
+export function resolverDsh(env = process.env, home = os.homedir(), esEjecutable = ejecutable, plat = process.platform === "win32" ? "win32" : "linux") {
   if (env.HILOS_DSH) return env.HILOS_DSH;
-  const dirs = (env.PATH ?? "").split(path.delimiter).filter(Boolean);
-  dirs.push(path.join(home, ".local", "bin"));
-  if (env.npm_config_prefix) dirs.push(path.join(env.npm_config_prefix, "bin"));
-  dirs.push(path.join(home, ".npm-global", "bin"), "/usr/local/bin", path.dirname(process.execPath));
-  for (const d of dirs) if (esEjecutable(path.join(d, "dsh"))) return path.join(d, "dsh");
+  const c = plat === "win32" ? path.win32 : path.posix;
+  const nombres = plat === "win32" ? ["dsh.cmd", "dsh.exe", "dsh"] : ["dsh"];
+  const dirs = (env.PATH ?? env.Path ?? "").split(c.delimiter).filter(Boolean);
+  dirs.push(c.join(home, ".local", "bin"));
+  if (plat === "win32") dirs.push(c.join(home, ".local"), ...(env.APPDATA ? [c.join(env.APPDATA, "npm")] : []), c.join(home, "AppData", "Roaming", "npm"));
+  if (env.npm_config_prefix) dirs.push(plat === "win32" ? env.npm_config_prefix : c.join(env.npm_config_prefix, "bin"));
+  dirs.push(c.join(home, ".npm-global", "bin"), "/usr/local/bin", c.dirname(process.execPath));
+  for (const d of dirs) for (const n of nombres) if (esEjecutable(c.join(d, n))) return c.join(d, n);
   return "dsh";
+}
+
+/**
+ * Cómo lanzar `dsh`: en Windows un `.cmd` de npm no se ejecuta directo (EINVAL), va por cmd.exe con los argumentos tal cual
+ * (`windowsVerbatimArguments`). En Linux, igual que siempre. Igual que `paraLanzar` de app/electron/binario.ts.
+ */
+export function lanzarDsh(cmd, args, env = process.env, plat = process.platform === "win32" ? "win32" : "linux") {
+  if (plat !== "win32" || !/\.(cmd|bat)$/i.test(cmd)) return { file: cmd, args, verbatim: false };
+  const arg = (a) => {
+    if (/["%\r\n]/.test(a)) throw new Error(`argumento no apto para cmd.exe: ${JSON.stringify(String(a).slice(0, 40))}`);
+    return a === "" || /[\s&|<>^()!,;=]/.test(a) ? `"${a}"` : a;
+  };
+  return { file: env.ComSpec || env.COMSPEC || "cmd.exe", args: ["/d", "/s", "/c", `"${[cmd, ...args].map(arg).join(" ")}"`], verbatim: true };
 }
 
