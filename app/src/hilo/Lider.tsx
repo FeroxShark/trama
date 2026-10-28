@@ -1354,13 +1354,15 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
           <div className="caja lider-ajeno" data-caido={l.caido}>
             <span title={l.motivo}>{tr(noRetoma ? NO_RETOMA[noRetoma] : l.caido === "murio" ? "lider.caidoMurio" : "lider.caidoCerro")}</span>
             <span className="esp" />
-            {sinVuelta ? (
-              archivar
-            ) : (
-              <button type="button" className="prim" data-texto data-retomar-lider disabled={retomando} onClick={retomar}>
-                {tr("lider.retomar")}
-              </button>
-            )}
+            {/* Sólo se retoma lo que murió: lo que cerró normalmente no se ofrece. */}
+            {l.caido === "murio" &&
+              (sinVuelta ? (
+                archivar
+              ) : (
+                <button type="button" className="prim" data-texto data-retomar-lider disabled={retomando} onClick={retomar}>
+                  {tr("lider.retomar")}
+                </button>
+              ))}
           </div>
         ) : (
           <div className="caja lider-ajeno">
