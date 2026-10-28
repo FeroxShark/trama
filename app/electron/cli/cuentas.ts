@@ -7,7 +7,7 @@
 import { spawn } from "node:child_process";
 import { chmodSync, closeSync, copyFileSync, existsSync, lstatSync, mkdirSync, openSync, readdirSync, readFileSync, realpathSync, renameSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { homeDe } from "../rutas.ts";
+import { homeDe, plataformaActual } from "../rutas.ts";
 import { borrarSinSeguir, enlazarArchivo, enlazarDir } from "./base/enlaces.ts";
 import { enPath, esEjecutable } from "./base/buscar.ts";
 import { tomar } from "./base/lock.ts";
@@ -367,8 +367,12 @@ class Cuentas {
     });
     if (r) return r;
     this.asegurarLinks(this.buscar(cid!)!);
+    // El aviso va por stderr (como el Python) salvo en Windows: PowerShell trata cualquier línea de stderr de un .exe como error
+    // (NativeCommandError, `$?` en falso) aunque el código de salida sea 0. Ahí va por stdout, ANTES del id (quien lee el id toma la última línea).
+    const aviso = `cuentas: falta el login: cuentas login ${cid}\n`;
+    if (plataformaActual() === "win32") this.print(aviso.trimEnd());
+    else this.io.err(aviso);
     this.print(cid!);
-    this.io.err(`cuentas: falta el login: cuentas login ${cid}\n`);
     return 0;
   }
 

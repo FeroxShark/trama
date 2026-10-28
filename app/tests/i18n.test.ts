@@ -76,6 +76,13 @@ test("textoMain: traduce lo codificado por el main (aunque venga envuelto) y dej
   assert.equal(textoMain(null), null);
 });
 
+test("textoMain: una clave pelada (sin marca) también se traduce, nunca se ve cruda; las variables que faltan quedan en ?", () => {
+  assert.equal(textoMain("main.cuentasFallo"), "The accounts command failed (exit code ?)");
+  assert.equal(textoMain("main.cuentasDato"), en["main.cuentasDato"]);
+  assert.equal(textoMain("main.noExisteEstaClave"), "main.noExisteEstaClave");
+  assert.equal(textoMain("main.cuentasFallo y más"), "main.cuentasFallo y más");
+});
+
 test("index.html lleva los textos del cartel \"Actualizando Trama…\" (los pinta antes de que cargue React) iguales a los diccionarios", () => {
   const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
   const tabla = JSON.parse(/<script type="application\/json" id="act-textos">([\s\S]*?)<\/script>/.exec(html)![1]) as Record<string, Record<string, string>>;

@@ -69,11 +69,16 @@ export function tDe<K extends Clave>(i: Idioma, k: K, ...a: Args<K>): string {
  * existe, el texto queda como vino: lo de `pa` y `claude` no se traduce.
  */
 const MARCA_MAIN = /\u0001i18n:([\w.]+)\u0001([^\u0001]*)\u0001/g;
+const BASE_MAIN = /^main\.\w+$/;
 
 export function textoMain(s: string): string;
 export function textoMain(s: string | null): string | null;
 export function textoMain(s: string | null): string | null {
-  if (!s || !s.includes("\u0001")) return s;
+  if (!s) return s;
+  // La clave pelada ("main.cuentasFallo", sin marca): la arma el renderer cuando el canal no contestó (fuente.ts, CuentasVarias) y nunca
+  // debe verse cruda. Las variables que no vienen quedan en "?".
+  if (BASE_MAIN.test(s) && s in en) return (t as (k: Clave) => string)(s as Clave).replace(/\{\w+\}/g, "?");
+  if (!s.includes("\u0001")) return s;
   return s.replace(MARCA_MAIN, (m, k: string, json: string) => {
     if (!(k in en)) return m;
     let vars: Record<string, string | number> = {};
