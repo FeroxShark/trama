@@ -184,7 +184,7 @@ else {
 Write-Host ''
 Write-Host 'Log de Trama:'
 if (-not (Test-Path -LiteralPath $logTrama)) {
-    Anotar 'trama.log' 'OK' "no existe $logTrama: no se escribió ningún error"
+    Anotar 'trama.log' 'OK' "no existe ${logTrama}: no se escribió ningún error"
 }
 else {
     $ultimas = @(Get-Content -LiteralPath $logTrama -Tail 200 -Encoding UTF8)
