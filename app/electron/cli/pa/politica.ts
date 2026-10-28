@@ -47,6 +47,8 @@ export interface Llamada extends Opciones {
   politica: Politica;
   /** ¿El effort lo pidió alguien (flag, entorno, modelos.json, reparto, rúbrica) o lo puso el default de pa? */
   esfPedido: boolean;
+  /** ¿Modelo de poca inteligencia? (lo calcula cli.ts antes de lanzar). */
+  flojo?: boolean;
 }
 
 export function llamadaDe(o: Opciones): Llamada {

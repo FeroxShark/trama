@@ -272,6 +272,20 @@ export class Modelos {
     return { sinCupo, sinCupoDe, permitirMax: this.clave("permitir_max") === "true" };
   }
 
+  /** `autocompact_de`: los tokens de `--autocompact` para ese modelo ("" = ventana nativa, no se pasa). `env` = PA_AUTOCOMPACT ya leído. */
+  autocompactDe(modelo: string, env: number | "nativo" | null): string {
+    if (env !== null) return env === "nativo" ? "" : String(env);
+    const m = modelo.toLowerCase();
+    const f = ["fable", "opus", "sonnet", "haiku"].find((x) => m.includes(x)) ?? null;
+    const c = this.conf();
+    const a = c && esObjeto(c.autocompact) ? c.autocompact : {};
+    const por: Record<string, Json> = {};
+    if (esObjeto(a.por_modelo)) for (const [k, x] of Object.entries(a.por_modelo)) por[k.toLowerCase()] = x;
+    const k = [m, f].find((x) => x !== null && x in por);
+    const v = k !== undefined ? por[k!] : typeof a.defecto === "number" ? a.defecto : f === "haiku" ? 300000 : null;
+    return typeof v === "number" ? String(v) : "";
+  }
+
   /** `modelos_reparto`: auto | fijo (PA_REPARTO=0 lo apaga, para los tests). */
   reparto(): string {
     if (this.env.PA_REPARTO === "0") return "fijo";

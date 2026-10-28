@@ -1,10 +1,18 @@
-// pa — el `pa` de TypeScript (dist-electron/cli/pa.js; en Windows lo busca binario.ts). Hoy cubre el CLI (etapa 5: parseo,
-// validaciones, política de modelos y los subcomandos chicos); lo que todavía vive sólo en motor/bin/pa sale 70 con un aviso.
-// Los ports de las etapas 6-10 se enchufan en `deps` (ver Deps en pa/cli.ts).
+// pa — el `pa` de TypeScript (dist-electron/cli/pa.js; en Windows lo busca binario.ts). Etapa 11: despacha cada modo a su pieza
+// (lanzar en primer plano y --async, esperar, parar, matar, integrar, descartar, ramas, lecciones, auditar, estado). Lo que todavía
+// vive sólo en motor/bin/pa (hilos, rinde, bien, modelos, otros motores…) explica eso por stderr y sale 70 SIN haber hecho nada: el
+// envoltorio de motor/bin/pa (TRAMA_PA=ts) vuelve entonces al bash.
 import { spawnSync } from "node:child_process";
 import { esPrincipal } from "./base/principal.ts";
+import { prepararAuditar } from "./pa/auditar.ts";
 import { main, type Deps } from "./pa/cli.ts";
-import type { Env } from "./pa/entorno.ts";
+import { cmdEsperar, cmdEsperarTodos, cmdEstado } from "./pa/async.ts";
+import { salir, type Env } from "./pa/entorno.ts";
+import { cmdLeccion, cmdLecciones, cmdLeccionesPodar } from "./pa/lecciones.ts";
+import { cmdParar, matarProyecto } from "./pa/matar.ts";
+import { lanzarProyecto } from "./pa/orquesta.ts";
+import { cmdDescartar, cmdDescartarId, cmdIntegrar, cmdRamas } from "./pa/ramas.ts";
+import { fijarProyecto } from "./pa/ramas-base.ts";
 
 /** Otro `pa` igual a éste (los intentos de -m a,b,c), con la salida a la vista. */
 function relanzar(argv: string[], extra: Env): number {
@@ -17,7 +25,35 @@ function relanzar(argv: string[], extra: Env): number {
 
 export const deps: Deps = {
   relanzar,
-  // globales: { … }, proyecto: { lanzar, … }, auditar, motores: { … } — los suman las etapas 6-10.
+  globales: {
+    estado: async (_a, pa) => {
+      await cmdEstado(pa);
+      return 0;
+    },
+    esperar: (a, pa) => cmdEsperar(pa, a),
+    esperarTodos: (a, pa) => cmdEsperarTodos(pa, a),
+    parar: (a, pa) => cmdParar(pa, a[0]),
+    descartarId: (a, pa) => cmdDescartarId(pa, a[0]),
+  },
+  proyecto: {
+    matar: (l, pa, p) => matarProyecto(pa, l.proyecto, p.ruta, { runId: l.runId, leer: l.leer }),
+    integrar: (l, pa, p) => cmdIntegrar(fijarProyecto(pa, l.proyecto, p.ruta), l.integrar, { tests: l.integrarTests }),
+    descartar: (l, pa, p) => cmdDescartar(fijarProyecto(pa, l.proyecto, p.ruta), l.descartar),
+    ramas: (l, pa, p) => cmdRamas(fijarProyecto(pa, l.proyecto, p.ruta)),
+    leccion: (l, pa, p) => cmdLeccion(fijarProyecto(pa, l.proyecto, p.ruta), l.leccion),
+    lecciones: async (l, pa, p) => cmdLecciones(fijarProyecto(pa, l.proyecto, p.ruta)),
+    leccionesPodar: async (l, pa, p) => cmdLeccionesPodar(fijarProyecto(pa, l.proyecto, p.ruta)),
+    lanzar: lanzarProyecto(),
+  },
+  auditar: async (l, pa, p) => {
+    const r = await prepararAuditar(fijarProyecto(pa, l.proyecto, p.ruta), l.auditar, l.decisiones, l.tarea);
+    if (!r.ok) {
+      pa.io.err(r.mensaje);
+      return salir(r.codigo);
+    }
+    return r.tarea;
+  },
+  // motores (agy, codex, dsh, opencode, ollama), agents-md, unificar-md, hilos y el resto: siguen en el bash (70).
 };
 
 if (esPrincipal(import.meta.url)) {

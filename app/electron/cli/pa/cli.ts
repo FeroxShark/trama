@@ -414,9 +414,10 @@ async function correrPa(argv: string[], env: Env, io: Io, deps: Deps): Promise<n
   }
 
   // Avisos al jefe (stderr, nunca bloquean): brief incompleto y modelo de poca inteligencia. No los repite el hijo de --async.
+  const calidad = l.lanza && !l.leer ? await modeloFlojo(pa, depsPol, l.modelo) : null;
+  l.flojo = calidad !== null;
   if (l.lanza && !l.leer && !l.actualizar && !env.PA_ASYNC) {
     if (!l.seguir) avisarBrief(io, l.tarea);
-    const calidad = await modeloFlojo(pa, depsPol, l.modelo);
     if (calidad !== null)
       io.err(
         `pa: aviso: '${l.modelo}' tiene inteligencia ${calidad} (< ${env.PA_CALIDAD_BAJA || "46"}, reparto --tabla): dale pasos numerados, comandos explícitos, un solo archivo o área, y partí lo grande en varias tareas. El worker recibe además la consigna de trabajar en pasos chicos y verificar tras cada cambio.\n`,
