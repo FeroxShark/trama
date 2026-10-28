@@ -172,6 +172,13 @@ function escenario(c: Contexto) {
   escribir(c, `${SLUG}/${ID_SEGUIDA}.sid`, "sid-ok\n");
 }
 
+/** El escenario sin nada vivo: lo vivo cambia su duración de un segundo al otro (sólo se mira en la salida de texto). */
+function escenarioQuieto(c: Contexto) {
+  escenario(c);
+  escribir(c, `${SLUG}.running`, "");
+  escribir(c, `${SLUG}/${ID_COLA}.pid`, "0\n");
+}
+
 const hilos = (nombre: string, args: string[], extra: Partial<Caso> = {}): Caso => ({ herramienta: "pa-cli", nombre: `globales: hilos ${nombre}`, args, rc: 0, ...extra });
 
 // ---------------------------------------------------------------- --hilo: un transcript con de todo
@@ -218,7 +225,8 @@ const integrar: Paso = { args: ["demo", "--integrar", ID_REV], rc: 0 };
 // ---------------------------------------------------------------- proyectos y renombrar
 
 const registro = (c: Contexto, proyectos: unknown) => writeFileSync(path.join(c.home, ".config", "proyectos", "registry.json"), typeof proyectos === "string" ? proyectos : JSON.stringify(proyectos));
-const dosProyectos = (c: Contexto) =>
+const dosProyectos = (c: Contexto) => {
+  mkdirSync(path.join(c.raiz, "Otro Proyecto"), { recursive: true });
   registro(c, {
     projects: [
       { name: "demo", path: c.proyecto },
@@ -226,6 +234,7 @@ const dosProyectos = (c: Contexto) =>
       { name: "tres", path: "~/tres", aliases: ["t3"] },
     ],
   });
+};
 const ren = (nombre: string, args: string[], rc: number, extra: Partial<Caso> = {}): Caso => ({ herramienta: "pa-cli", nombre: `globales: renombrar ${nombre}`, args, rc, ...extra });
 
 // ---------------------------------------------------------------- traspaso
@@ -267,8 +276,8 @@ export const casosGlobales: Caso[] = [
   hilos("vacío, json", ["--hilos", "--json"]),
   hilos("opción que no va", ["--hilos", "--xx"], { rc: 2 }),
   hilos("de todo, texto", ["--hilos"], { preparar: escenario }),
-  hilos("de todo, json", ["--hilos", "--json"], { preparar: (c) => (escenario(c), escribir(c, `${SLUG}.running`, ""), escribir(c, `${SLUG}/${ID_COLA}.pid`, "0\n")) }),
-  hilos("de todo con --todo, json", ["--hilos", "--todo", "--json"], { preparar: (c) => (escenario(c), escribir(c, `${SLUG}.running`, ""), escribir(c, `${SLUG}/${ID_COLA}.pid`, "0\n")) }),
+  hilos("de todo, json", ["--hilos", "--json"], { preparar: (c) => escenarioQuieto }),
+  hilos("de todo con --todo, json", ["--hilos", "--todo", "--json"], { preparar: (c) => escenarioQuieto }),
   hilos("de todo con --todo, texto", ["--hilos", "--todo"], { preparar: escenario }),
   hilos("sin jq: archivos rotos", ["--hilos", "--json"], {
     preparar: (c) => {
@@ -285,7 +294,7 @@ export const casosGlobales: Caso[] = [
   hilo1("id con guion", ["--hilo", "-x"], 2),
   hilo1("opción que no va", ["--hilo", ID_TRANS, "--xx"], 2, { preparar: conTranscript }),
   hilo1("-n que no es número", ["--hilo", ID_TRANS, "-n", "x"], 2, { preparar: conTranscript }),
-  hilo1("-n sin valor", ["--hilo", ID_TRANS, "-n"], 2, { preparar: conTranscript }),
+  hilo1("-n sin valor (el bash sale 1 callado)", ["--hilo", ID_TRANS, "-n"], 1, { preparar: conTranscript }),
   hilo1("--antes que no es número", ["--hilo", ID_TRANS, "--antes", "1.5"], 2, { preparar: conTranscript }),
   hilo1("corrida que no existe", ["--hilo", "20261028-101010-1"], 1),
   hilo1("sin transcript", ["--hilo", ID_LISTO, "--json"], 0, { preparar: (c) => (fijo(c), hilo(c, ID_LISTO, "tarea=x\n"), salida(c, ID_LISTO, jsonOk(RESULT()))) }),
@@ -309,7 +318,7 @@ export const casosGlobales: Caso[] = [
   {
     herramienta: "pa-cli",
     nombre: "globales: archivar y verla archivada",
-    preparar: escenario,
+    preparar: escenarioQuieto,
     pasos: [{ args: ["--archivar", ID_LISTO], rc: 0 }, { args: ["--hilos", "--json"], rc: 0 }],
   },
   {

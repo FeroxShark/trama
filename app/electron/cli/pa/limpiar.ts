@@ -42,7 +42,7 @@ function tocadoReciente(d: string, dias: number, ahora = Date.now()): boolean {
   return caminar(d);
 }
 
-/** `du -sb`: el tamaño aparente de todo lo que cuelga de `d` (cada inodo una vez, enlaces sin seguir; los directorios cuentan). */
+/** `du -sb`: el tamaño aparente de los archivos que cuelgan de `d` (cada inodo una vez, enlaces sin seguir). */
 function tamanoDe(d: string): number {
   const vistos = new Set<string>();
   const caminar = (p: string): number => {
@@ -58,8 +58,9 @@ function tamanoDe(d: string): number {
       if (vistos.has(clave)) return 0;
       vistos.add(clave);
     }
-    n += st.size;
-    if (st.isDirectory()) {
+    // du -sb (coreutils 9) no cuenta el tamaño de los directorios mismos
+    if (!st.isDirectory()) n += st.size;
+    else {
       try {
         for (const x of readdirSync(p)) n += caminar(path.join(p, x));
       } catch {

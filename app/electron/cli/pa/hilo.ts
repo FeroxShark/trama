@@ -131,8 +131,12 @@ export function cmdHilo(pa: Pa, args: string[]): number {
   for (let i = 0; i < r.length; i++) {
     const a = r[i]!;
     if (a === "--json") continue;
-    if (a === "-n") n = r[++i] ?? "";
-    else if (a === "--antes") antes = r[++i] ?? "";
+    if (a === "-n" || a === "--antes") {
+      // el bash hace `shift` dos veces: con la opción de última, el segundo falla bajo `set -e` y sale 1 sin decir nada
+      if (i + 1 >= r.length) return 1;
+      if (a === "-n") n = r[++i]!;
+      else antes = r[++i]!;
+    }
     else {
       io.err(USO);
       return 2;
