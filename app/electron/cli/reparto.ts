@@ -971,7 +971,7 @@ export function fuentesUso(paState: string, cuenta: Obj | null, env: NodeJS.Proc
   if (cuenta && !cuenta.defecto) return [c.join(paState, "cuentas", cuenta.id, "uso.json")];
   const usos = [c.join(paState, "uso.json")];
   if (env.HILOS_STATE) usos.push(c.join(env.HILOS_STATE, "uso.json"));
-  else if (c.resolve(paState) === c.resolve(estadoPa(env, h, plat))) usos.push(c.join(estadoHilos(env, h, plat), "uso.json"));
+  else if (c.resolve(paState) === c.resolve(estadoPa({ ...env, PA_STATE: undefined }, h, plat))) usos.push(c.join(estadoHilos({ ...env, HILOS_STATE: undefined }, h, plat), "uso.json"));
   else usos.push(c.join(paState, "hilos", "uso.json"));
   return usos;
 }
