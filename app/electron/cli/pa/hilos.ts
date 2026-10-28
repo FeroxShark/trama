@@ -239,7 +239,9 @@ class Hilos {
   private readonly rutaDe = new Map<string, string>();
   private readonly refsDe = new Set<string>();
 
-  constructor(readonly pa: Pa) {
+  readonly pa: Pa;
+  constructor(pa: Pa) {
+    this.pa = pa;
     const d = new Date(this.now * 1000);
     d.setDate(d.getDate() - 7);
     this.corte = sello(d);

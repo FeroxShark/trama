@@ -80,3 +80,7 @@ casos.push(...casosTablero);
 // Etapa 11: de punta a punta (casos-e2e.ts).
 import { casosE2e } from "./casos-e2e.ts";
 casos.push(...casosE2e);
+
+// Los globales de la app (--hilos, --hilo, --archivar, --revertir, --proyectos, --renombrar, --traspaso, --limpiar): casos-globales.ts.
+import { casosGlobales } from "./casos-globales.ts";
+casos.push(...casosGlobales);

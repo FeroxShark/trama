@@ -32,6 +32,8 @@ export function normalizar(texto: string, raices: Raices): string {
       .replace(/\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:?\d{2})?/g, "<FECHA>")
       // epoch en segundos o ms (10 o 13 dígitos sueltos)
       .replace(/\b1[5-9]\d{8}(\d{3})?\b/g, "<EPOCH>")
+      // «2026-10-28 12:31» (las notas del jefe y el encabezado del traspaso, al minuto)
+      .replace(/\b20\d{2}-\d{2}-\d{2} \d{2}:\d{2}\b/g, "<FECHA>")
       // fecha suelta de hoy (el 'Hoy:' del plan, nombres de carpetas con fecha)
       .replace(/\b20\d{2}-\d{2}-\d{2}\b/g, "<DIA>")
       .replace(/\b20\d{6}\b/g, "<DIA>")
