@@ -7,7 +7,7 @@
 // TRAMA_MODO=nativo|wsl lo fuerza. Si el motor no está, el asistente de primer arranque (src/ui/) deja todo listo y sólo
 // entonces carga la página; acá sólo se conecta con Windows.
 
-const { app, BrowserWindow, ipcMain, shell, Menu, Tray, dialog } = require("electron");
+const { app, BrowserWindow, ipcMain, shell, Menu, Tray, dialog, clipboard, Notification } = require("electron");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
@@ -20,12 +20,17 @@ const { opcionesTitulo, overlayDesde } = require("./titulo");
 const nativo = require("./nativo");
 const { crearAsistenteNativo } = require("./pasos-nativo");
 const { ENTRADAS_NATIVO } = require("./manifiesto-nativo");
+const { crearCanalesVentana } = require("./ventana");
 
 // TRAMA_CAPTURA=<png> (sólo para la prueba de arranque sin Windows): offscreen, foto a los 4 s y sale.
 const CAPTURA = process.env.TRAMA_CAPTURA || "";
 
 const COLOR_FONDO = "#0a0a0a";
 const ENLACES_OK = new Set(["https://ollama.com/download", "https://ollama.com"]);
+// Lo mismo que CHANGELOG de app/electron/actualizacion.ts (la página de Trama lo abre por "claude:changelog").
+const CHANGELOG = "https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md";
+// Los textos del menú de la bandeja: la página los manda ya traducidos (bandeja:textos); esto es lo que hay hasta que llegan.
+let textosBandeja = { abrir: "Abrir Trama", cerrar: "Salir (apaga el motor y los líderes)" };
 
 // El desinstalador de Windows (build/installer.nsh) nos llama con --desinstalar: quita lo que Trama dejó fuera de su
 // carpeta, sin ventana y sin candado de instancia única. Su userData va a una carpeta temporal para no recrear ni
@@ -263,6 +268,35 @@ const deConfianza = (e) => {
 const protegido = (fn) => (e, ...a) => (deConfianza(e) ? fn(...a) : Promise.reject(new Error("No autorizado")));
 const textoError = (e) => ({ error: e instanceof Error ? e.message : String(e), detalle: e?.detalle || "" });
 
+// Lo de la pantalla de la PC (ventana.js): la página lo pide por window.carcasa.ventana (preload.js), no al motor, que lo rechaza por red.
+const canalesVentana = crearCanalesVentana({
+  electron: { app, BrowserWindow, dialog, clipboard, shell, Notification },
+  nativo: NATIVO,
+  changelog: CHANGELOG,
+  bandeja: {
+    textos(t) {
+      textosBandeja = t;
+      bandeja?.setContextMenu(menuBandeja());
+    },
+    espera(e) {
+      bandeja?.setToolTip(e.n > 0 ? e.texto : "Trama");
+    },
+  },
+  abrirLogin(id) {
+    if (!NATIVO) throw new Error("Agregar una cuenta todavía no anda con Trama en WSL: usá la versión nativa.");
+    return nativo.abrirConsolaNativa(rutasNativas)(`cuentas login ${id}`);
+  },
+  // Tocó la notificación de un líder: la ventana se trae y la página abre esa conversación.
+  abrirAviso(sid) {
+    mostrarVentana();
+    enviar("espera:abrir", sid);
+  },
+  log,
+});
+for (const [canal, fn] of Object.entries(canalesVentana)) {
+  ipcMain.handle(canal, (e, ...a) => (deConfianza(e) ? fn(e, ...a) : Promise.reject(new Error("No autorizado"))));
+}
+
 // ---- --desinstalar: lo único que hace este modo ----
 // En modo nativo el motor (node.exe, de la carcasa que quedó en la bandeja) tiene abiertos los archivos que se van a borrar:
 // se lo baja primero, con todo lo que lanzó. Su pid está en `dueno` (motor.ts).
@@ -430,17 +464,18 @@ function mostrarVentana() {
 }
 
 // Nativo: el ícono de la bandeja es lo que queda cuando la ventana está cerrada (o arrancó con la sesión, sin ventana).
+function menuBandeja() {
+  return Menu.buildFromTemplate([
+    { label: textosBandeja.abrir, click: () => mostrarVentana() },
+    { type: "separator" },
+    { label: textosBandeja.cerrar, click: () => app.quit() },
+  ]);
+}
 function crearBandeja() {
   if (bandeja) return;
   bandeja = new Tray(path.join(__dirname, "..", "build", "icon.png"));
   bandeja.setToolTip("Trama");
-  bandeja.setContextMenu(
-    Menu.buildFromTemplate([
-      { label: "Abrir Trama", click: () => mostrarVentana() },
-      { type: "separator" },
-      { label: "Salir (apaga el motor y los líderes)", click: () => app.quit() },
-    ]),
-  );
+  bandeja.setContextMenu(menuBandeja());
   bandeja.on("click", () => mostrarVentana());
 }
 

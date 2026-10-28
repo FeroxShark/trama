@@ -118,8 +118,12 @@ export function cliente(cfg: ConfigCliente, preload: (require: (m: string) => un
   const binarios = (_k: string, v: unknown) =>
     v instanceof Uint8Array ? { $bin: b64(v) } : v instanceof ArrayBuffer ? { $bin: b64(new Uint8Array(v)) } : v;
 
+  // Lo que avisa la carcasa de Windows (espera:abrir) no viene del SSE: se suscribe a su preload, y el off lo suelta.
+  const porCarcasa = new Map<Oyente, () => void>();
   const ipcRenderer = {
     async invoke(canal: string, ...args: unknown[]): Promise<unknown> {
+      // La carcasa de Windows (windows/src/preload.js) atiende lo de la pantalla de la PC: el motor lo rechaza por red.
+      if (g.carcasa?.ventana?.canales?.includes(canal)) return g.carcasa.ventana.llamar(canal, ...args);
       // Lo que es de la ventana de la PC no se pide: salir de trama, el bench y abrir el navegador de allá.
       if (canal === "app:salir") return 0;
       if (canal === "bench:modo") return false;
@@ -145,6 +149,7 @@ export function cliente(cfg: ConfigCliente, preload: (require: (m: string) => un
       return j.valor;
     },
     on(canal: string, f: Oyente) {
+      if (g.carcasa?.ventana?.avisa?.includes(canal)) return void porCarcasa.set(f, g.carcasa.ventana.alRecibir(canal, (d: unknown) => f(null, d)));
       let s = oyentes.get(canal);
       if (!s) oyentes.set(canal, (s = new Set()));
       s.add(f);
@@ -152,6 +157,8 @@ export function cliente(cfg: ConfigCliente, preload: (require: (m: string) => un
       if (canal === "remoto:conexion" && caida) f(null, false);
     },
     off(canal: string, f: Oyente) {
+      const quitar = porCarcasa.get(f);
+      if (quitar) return void (quitar(), porCarcasa.delete(f));
       oyentes.get(canal)?.delete(f);
     },
     send() {},
