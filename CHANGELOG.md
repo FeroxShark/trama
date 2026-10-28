@@ -1,5 +1,12 @@
 # Cambios
 
+## 0.2.13
+
+- Windows nativo (beta, sin WSL): instalador .exe en esta release. Al instalar trae solas las cuentas de Claude de una Trama anterior (copia sus logins, no toca los originales).
+- `pa` en TypeScript conectado de punta a punta (se prueba con `TRAMA_PA=ts`; lo que falta cae al de siempre).
+- Tests: un archivo que se pasa del tope de tiempo se corta entero, sin dejar procesos colgados.
+- Docs: estado del port a Windows y lista de pruebas para un Windows real.
+
 ## 0.2.12
 
 - Avisos de workers: ya no avisan "se cortó sin dejar mensaje" de un worker que sigue corriendo.
