@@ -5005,7 +5005,6 @@ flags_con_valor=" --max-turns --id --integrar --descartar --actualizar --nota --
 # Sólo se mira la zona de flags (hasta la tarea): un "-m" dentro del texto de la tarea no cuenta.
 # Lo que le queda a una corrida --async (lo pasa el padre por el entorno; el hijo lo lee y no lo hereda a los procesos del worker).
 fb_resto="${PA_FALLBACK_RESTO:-}"; unset PA_FALLBACK_RESTO
-pa_argv0=( "$@" )
 _fb_args=( "$@" ); _fb_i=0; _fb_n=${#_fb_args[@]}; _fb_m=-1; _fb_ef="${PA_EFFORT:-}"; _fb_ok=0
 while (( _fb_i < _fb_n )); do
   _fb_a="${_fb_args[_fb_i]}"
