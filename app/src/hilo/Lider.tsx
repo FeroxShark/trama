@@ -62,7 +62,7 @@ import { cola, comandosAgy, comandosClaude, confirmar, contestado, enCurso, envi
 import { ASPECTO, esModo, MODO_DEFAULT, siguienteModo, type Modo } from "./modos";
 import { directo, ESTILOS_FABRICA, menuEn, moverSel, parsearComando, reemplazar, type Sugerencia, type Valores } from "./comandos";
 import { esVentana, main, mensaje } from "../puente";
-import { agregarAdjuntos, archivosDe, archivosDeDatos, ErrorAdjunto, escucharAdjuntos, imagenesDe, leerAdjuntos, pegadoSinTexto, prepararAdjunto, quitarAdjunto, textoConArchivos, vaciarAdjuntos } from "./adjuntos";
+import { agregarAdjuntos, archivosDe, archivosDeDatos, type Adjunto, ErrorAdjunto, escucharAdjuntos, imagenesDe, leerAdjuntos, pegadoSinTexto, prepararAdjunto, quitarAdjunto, textoConArchivos, vaciarAdjuntos } from "./adjuntos";
 import { Adjuntos, Miniaturas } from "./Imagenes";
 import { Dictar } from "./Dictar";
 import { Logo } from "./Logos";
@@ -689,11 +689,14 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
   /** Editar un pedido: sigue desde el mensaje de antes con el texto nuevo (las rutas de archivos que traía se conservan). */
   const rebobinarUlt = useRef(rebobinarA);
   rebobinarUlt.current = rebobinarA;
-  const editar = useCallback((x: Extract<Item, { tipo: "yo" }>, nuevo: string) => {
+  const editar = useCallback((x: Extract<Item, { tipo: "yo" }>, nuevo: string, adjuntos: readonly Adjunto[]) => {
     if (!x.punto?.previo) return;
-    const cola = x.texto.slice(separarAdjuntos(x.texto).texto.length);
-    rebobinarUlt.current(x.punto.previo, x.punto.antes, (nuevo.trim() + cola).trim(), x.imagenes as Imagen[] | undefined, undefined, x.punto.previa);
+    const imgs = imagenesDe(adjuntos);
+    const t = textoConArchivos(nuevo.trim(), archivosDe(adjuntos), (ruta) => tr("adjunto.linea", { ruta }));
+    rebobinarUlt.current(x.punto.previo, x.punto.antes, t, imgs.length ? imgs : undefined, undefined, x.punto.previa);
   }, []);
+  // Un archivo nuevo de un mensaje que se edita sale por la misma máquina que el líder (como los de la caja).
+  const guardarArchivo = useCallback((nombre: string, datos: Uint8Array) => fuente.liderArchivo(nombre, datos, maquinaDe), [maquinaDe]);
 
   const enviar = (crudo = texto, modoNuevoYa?: Modo) => {
     const archivos = archivosDe(adjuntos);
@@ -1045,6 +1048,7 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
             alAbrirLider={alAbrirLider}
             acciones={acciones}
             editar={editar}
+            guardar={guardarArchivo}
           />
           {volver ? (
             <div className="am-volvio">
@@ -1421,19 +1425,21 @@ type PropsMensajes = {
   alAbrirLider: ((id: string) => void) | undefined;
   /** Las acciones por mensaje (Copiar, Editar, Volver acá, Ramificar); `null`: sólo Copiar. */
   acciones: Acciones | null;
-  editar: (x: Extract<Item, { tipo: "yo" }>, texto: string) => void;
+  editar: (x: Extract<Item, { tipo: "yo" }>, texto: string, adjuntos: readonly Adjunto[]) => void;
+  /** Guarda un archivo nuevo de un mensaje que se edita (el de la caja, con la máquina del líder). */
+  guardar: (nombre: string, datos: Uint8Array) => Promise<string>;
 };
 
 /**
  * La conversación. Aparte de la caja para que cada tecla no la recorra entera: lo que se escribe es estado de `ChatLider`, y con
  * 3000 mensajes volver a armarlos en cada letra tardaba más de 50 ms. Sólo se repinta cuando cambian los mensajes o el turno.
  */
-const Mensajes = memo(function Mensajes({ items, ultimoTurno, app, ocupado, pasando, pensando, razon, relevo, sigue, nombre, alAbrirLider, acciones, editar }: PropsMensajes) {
+const Mensajes = memo(function Mensajes({ items, ultimoTurno, app, ocupado, pasando, pensando, razon, relevo, sigue, nombre, alAbrirLider, acciones, editar, guardar }: PropsMensajes) {
   return (
     <>
       {items.map((x, i) =>
         x.tipo === "yo" ? (
-          <YoEditable key={x.key} x={x} acciones={acciones} editar={editar} />
+          <YoEditable key={x.key} x={x} acciones={acciones} editar={editar} guardar={guardar} />
         ) : x.tipo === "sistema" ? (
           <Fragment key={x.key}>
             <Marca k={x.key} />
@@ -1456,9 +1462,10 @@ const Mensajes = memo(function Mensajes({ items, ultimoTurno, app, ocupado, pasa
 });
 
 /** Un pedido del usuario; Editar lo cambia por un campo en su mismo lugar. */
-const YoEditable = memo(function YoEditable({ x, acciones, editar }: { x: Extract<Item, { tipo: "yo" }>; acciones: Acciones | null; editar: PropsMensajes["editar"] }) {
+const YoEditable = memo(function YoEditable({ x, acciones, editar, guardar }: { x: Extract<Item, { tipo: "yo" }>; acciones: Acciones | null; editar: PropsMensajes["editar"]; guardar: PropsMensajes["guardar"] }) {
   const [editando, setEditando] = useState(false);
   useIdioma();
+  const { texto: sinArchivos, archivos } = separarAdjuntos(x.texto);
   return (
     <Fragment>
       <Marca k={x.key} />
@@ -1466,11 +1473,13 @@ const YoEditable = memo(function YoEditable({ x, acciones, editar }: { x: Extrac
       <div className={x.enCola ? "yo encolado" : "yo"} data-editando={editando ? "" : undefined} data-en-cola={x.enCola ? "" : undefined}>
         {editando ? (
           <EditorMensaje
-            inicial={separarAdjuntos(x.texto).texto}
+            inicial={sinArchivos}
+            previos={[...(x.imagenes ?? []), ...archivos]}
+            guardar={guardar}
             alCancelar={() => setEditando(false)}
-            alEnviar={(v) => {
+            alEnviar={(v, adjuntos) => {
               setEditando(false);
-              editar(x, v);
+              editar(x, v, adjuntos);
             }}
           />
         ) : (
@@ -1486,7 +1495,7 @@ const YoEditable = memo(function YoEditable({ x, acciones, editar }: { x: Extrac
         )}
       </div>
       {x.ts !== null && !editando ? <Hora ts={x.ts} der /> : null}
-      {!editando ? <AccionesMensaje texto={separarAdjuntos(x.texto).texto} punto={x.punto} propio acciones={acciones} alEditar={() => setEditando(true)} /> : null}
+      {!editando ? <AccionesMensaje texto={sinArchivos} punto={x.punto} propio acciones={acciones} alEditar={() => setEditando(true)} /> : null}
     </Fragment>
   );
 });

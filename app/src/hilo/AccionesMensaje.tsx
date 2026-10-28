@@ -1,13 +1,17 @@
 // Las acciones de cada mensaje del chat de un líder: Copiar (todos), Editar (los del usuario), Volver acá y Ramificar.
 // La fila vive aparte de `Turno` y de `Yo` (un hermano más en `.conv`, sin alto: no mueve nada) y se muestra al pasar el mouse
 // por el mensaje o al tener el foco adentro; con el dedo, al tocar el mensaje.
-import { memo, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type PointerEvent as EventoPuntero } from "react";
-import { Check, Copy, GitBranch, Pencil, Undo2 } from "lucide-react";
+import { memo, useEffect, useLayoutEffect, useRef, useState, type ClipboardEvent, type KeyboardEvent, type PointerEvent as EventoPuntero } from "react";
+import { Check, Copy, GitBranch, Paperclip, Pencil, Undo2 } from "lucide-react";
 import { copiar } from "../copiar";
 import { es } from "../atajos";
 import { esTactil } from "../angosto";
 import { t } from "../i18n";
 import { useIdioma } from "../i18n/react";
+import { esVentana, main, mensaje } from "../puente";
+import { ARCHIVO_MAX, IMAGENES_MAX, type Imagen } from "../../electron/imagenes";
+import { archivosDeDatos, type Adjunto, type Archivo, ErrorAdjunto, pegadoSinTexto, prepararAdjunto, sumarAdjuntos } from "./adjuntos";
+import { Adjuntos } from "./Imagenes";
 import type { Punto } from "./turnos";
 import "./acciones.css";
 
@@ -86,14 +90,41 @@ export const AccionesMensaje = memo(function AccionesMensaje({
 });
 
 /**
- * Editar un mensaje del usuario, en su lugar: el campo con el texto de antes, Enviar y Cancelar. Enviar sigue la
- * conversación desde el mensaje anterior, con el texto nuevo; lo que venía después queda fuera de esa línea.
+ * Editar un mensaje del usuario, en su lugar: el texto, sus imágenes y archivos (se quitan con × y se suman con el clip o
+ * pegando, como en la caja), Enviar y Cancelar. Enviar sigue la conversación desde el mensaje anterior, con lo nuevo; lo que
+ * venía después queda fuera de esa línea.
  */
-export function EditorMensaje({ inicial, alEnviar, alCancelar }: { inicial: string; alEnviar: (texto: string) => void; alCancelar: () => void }) {
+export function EditorMensaje({
+  inicial,
+  previos,
+  guardar,
+  alEnviar,
+  alCancelar,
+}: {
+  inicial: string;
+  /** Las imágenes y archivos que tenía el mensaje. */
+  previos: readonly (Imagen | Archivo)[];
+  /** Guarda un archivo nuevo y da su ruta (el mismo que usa la caja). */
+  guardar: (nombre: string, datos: Uint8Array) => Promise<string>;
+  alEnviar: (texto: string, adjuntos: readonly Adjunto[]) => void;
+  alCancelar: () => void;
+}) {
   useIdioma();
   const [v, setV] = useState(inicial);
+  const [inicio] = useState(() => sumarAdjuntos([], previos).lista);
+  const [lista, setLista] = useState(inicio);
+  // La lista también va en `ahora`: dos pegados seguidos ven lo del otro antes de repintar.
+  const ahora = useRef(inicio);
+  const cambiar = (nueva: readonly Adjunto[]) => {
+    ahora.current = nueva;
+    setLista(nueva);
+  };
+  const [error, setError] = useState<string | null>(null);
   const campo = useRef<HTMLTextAreaElement>(null);
-  // Al abrir: foco al final del texto. Y el alto sigue al contenido.
+  const elegir = useRef<HTMLInputElement>(null);
+  // Adónde va el cursor tras pegar texto (el de Wayland, que llega async).
+  const cursor = useRef<number | null>(null);
+  // Al abrir: foco al final del texto. El alto lo pone el CSS (field-sizing), como en la caja.
   useLayoutEffect(() => {
     const c = campo.current;
     if (!c) return;
@@ -102,12 +133,13 @@ export function EditorMensaje({ inicial, alEnviar, alCancelar }: { inicial: stri
   }, []);
   useLayoutEffect(() => {
     const c = campo.current;
-    if (!c) return;
-    c.style.height = "auto";
-    c.style.height = `${c.scrollHeight}px`;
+    if (c && cursor.current !== null) {
+      c.setSelectionRange(cursor.current, cursor.current);
+      cursor.current = null;
+    }
   }, [v]);
-  const puede = v.trim().length > 0;
-  const enviar = () => puede && alEnviar(v);
+  const puede = v.trim().length > 0 || lista.length > 0;
+  const enviar = () => puede && alEnviar(v, lista);
   const tecla = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Escape") {
       e.preventDefault();
@@ -118,10 +150,68 @@ export function EditorMensaje({ inicial, alEnviar, alCancelar }: { inicial: stri
       enviar();
     }
   };
+  // Archivos pegados o elegidos: las imágenes se achican si hace falta; el resto lo guarda `guardar`.
+  const adjuntar = (fs: readonly File[]) => {
+    if (!fs.length) return;
+    setError(null);
+    void Promise.allSettled(fs.map((f) => prepararAdjunto(f, guardar))).then((rs) => {
+      const ok = rs.flatMap((r) => (r.status === "fulfilled" ? [r.value] : []));
+      const mal = rs.find((r): r is PromiseRejectedResult => r.status === "rejected");
+      const { lista: nueva, sobran } = sumarAdjuntos(ahora.current, ok);
+      cambiar(nueva);
+      if (mal)
+        setError(
+          mal.reason instanceof ErrorAdjunto
+            ? mal.reason.grande
+              ? t("adjunto.grande", { v: mal.reason.grande, n: ARCHIVO_MAX / 1024 / 1024 })
+              : t("adjunto.leer")
+            : mensaje(mal.reason),
+        );
+      else if (sobran) setError(t("adjunto.muchas", { n: IMAGENES_MAX }));
+    });
+    campo.current?.focus();
+  };
+  const quitar = (id: number) => cambiar(ahora.current.filter((a) => a.id !== id));
+  // Igual que en la caja: el texto pegado sigue su camino; los archivos del portapapeles, a la lista.
+  const pegar = (e: ClipboardEvent<HTMLTextAreaElement>) => {
+    const fs = archivosDeDatos(e.clipboardData);
+    if (!fs.length) {
+      // Sin nada que el navegador sepa pegar (Wayland): el texto lo pide el main.
+      const leer = esVentana() ? main?.portapapeles : undefined;
+      if (!leer || !pegadoSinTexto(e.clipboardData)) return;
+      e.preventDefault();
+      const c = e.currentTarget;
+      const [ini, fin] = [c.selectionStart, c.selectionEnd];
+      void leer.texto().then((txt) => {
+        if (!txt) return;
+        const base = c.value;
+        cursor.current = ini + txt.length;
+        setV(base.slice(0, ini) + txt + base.slice(fin));
+      }, (err) => setError(mensaje(err)));
+      return;
+    }
+    if (!e.clipboardData.types.includes("text/plain")) e.preventDefault();
+    adjuntar(fs);
+  };
   return (
     <div className="am-editor">
-      <textarea ref={campo} value={v} rows={1} aria-label={t("acciones.editar")} spellCheck={false} onChange={(e) => setV(e.target.value)} onKeyDown={tecla} />
+      {lista.length ? <Adjuntos lista={lista} alQuitar={quitar} /> : null}
+      <textarea ref={campo} value={v} rows={1} aria-label={t("acciones.editar")} spellCheck={false} onChange={(e) => setV(e.target.value)} onKeyDown={tecla} onPaste={pegar} />
+      {error ? <div className="caja-error" role="alert">{error}</div> : null}
       <div className="am-editor-b">
+        <input
+          ref={elegir}
+          type="file"
+          multiple
+          hidden
+          onChange={(e) => {
+            adjuntar(Array.from(e.currentTarget.files ?? []));
+            e.currentTarget.value = "";
+          }}
+        />
+        <button type="button" className="clip" aria-label={t("adjunto.adjuntar")} data-tip={t("adjunto.adjuntar")} onMouseDown={(e) => e.preventDefault()} onClick={() => elegir.current?.click()}>
+          <Paperclip size={13} strokeWidth={2} />
+        </button>
         <button type="button" className="am-cancelar" onClick={alCancelar}>
           {t("acciones.cancelar")}
         </button>

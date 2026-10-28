@@ -45,13 +45,20 @@ export function escucharAdjuntos(clave: string, fn: () => void) {
   return () => void s.delete(fn);
 }
 
-/** Agrega al final (las imágenes que pasen del tope por mensaje, no). Devuelve cuántas no entraron. */
-export function agregarAdjuntos(clave: string, nuevos: readonly (Imagen | Archivo)[]): number {
-  const antes = leerAdjuntos(clave);
+/** Suma al final de una lista (las imágenes que pasen del tope por mensaje, no). Devuelve la lista nueva y cuántas no entraron. */
+export function sumarAdjuntos(antes: readonly Adjunto[], nuevos: readonly (Imagen | Archivo)[]): { lista: readonly Adjunto[]; sobran: number } {
   let lugar = IMAGENES_MAX - antes.filter((a) => !esArchivo(a)).length;
   const entran = nuevos.filter((a) => esArchivo(a) || lugar-- > 0);
-  if (entran.length) poner(clave, [...antes, ...entran.map((a) => (esArchivo(a) ? { nombre: a.nombre, ruta: a.ruta, id: ++n } : { tipo: a.tipo, datos: a.datos, id: ++n }))]);
-  return nuevos.length - entran.length;
+  const lista = entran.length ? [...antes, ...entran.map((a) => (esArchivo(a) ? { nombre: a.nombre, ruta: a.ruta, id: ++n } : { tipo: a.tipo, datos: a.datos, id: ++n }))] : antes;
+  return { lista, sobran: nuevos.length - entran.length };
+}
+
+/** Agrega a la caja (ver `sumarAdjuntos`). Devuelve cuántas no entraron. */
+export function agregarAdjuntos(clave: string, nuevos: readonly (Imagen | Archivo)[]): number {
+  const antes = leerAdjuntos(clave);
+  const { lista, sobran } = sumarAdjuntos(antes, nuevos);
+  if (lista !== antes) poner(clave, lista);
+  return sobran;
 }
 
 export const quitarAdjunto = (clave: string, id: number) => poner(clave, leerAdjuntos(clave).filter((a) => a.id !== id));
