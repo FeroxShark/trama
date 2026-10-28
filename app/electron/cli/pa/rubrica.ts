@@ -22,7 +22,7 @@ const sinTilde = (v: string) => v.replace(/á/g, "a").replace(/é/g, "e").replac
 function tamano(v: string): string | null {
   if (["chico", "1", "uno"].includes(v)) return "chico";
   if (["mediano", "2", "3", "2-3", "2–3", "2a3"].includes(v)) return "mediano";
-  if ([">3", ">=4", "4+", "3+", "mas", "mas3", "mas-de-3", "masde3", "+3"].includes(v) || /^[4-9]$/.test(v) || /^[1-9][0-9]/.test(v)) return "grande";
+  if (["grande", ">3", ">=4", "4+", "3+", "mas", "mas3", "mas-de-3", "masde3", "+3"].includes(v) || /^[4-9]$/.test(v) || /^[1-9][0-9]/.test(v)) return "grande";
   return null;
 }
 

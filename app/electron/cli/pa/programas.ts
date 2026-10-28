@@ -37,7 +37,8 @@ const recortar = (s: string) => s.replace(/\n+$/, "");
 
 /** reparto como proceso (lo de siempre en Linux). */
 export function repartoProceso(pa: Pa): Reparto {
-  const ruta = pa.env.PA_REPARTO || path.join(pa.bin, "reparto");
+  // PA_REPARTO=0 apaga la elección automática (modelos.reparto()), no el comando.
+  const ruta = pa.env.PA_REPARTO && pa.env.PA_REPARTO !== "0" ? pa.env.PA_REPARTO : path.join(pa.bin, "reparto");
   const entorno = (extra: Env = {}): Env => ({ ...pa.env, REPARTO_STATE: pa.env.REPARTO_STATE || path.join(pa.state, "reparto"), PA_STATE: pa.state, ...extra });
   const ms = () => Number(topeReparto(pa.env)) * 1000;
   const llamar = (args: string[], extra: Env = {}, tope = true) =>
