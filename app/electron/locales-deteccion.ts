@@ -14,6 +14,7 @@ import { resolverDsh } from './dsh.ts';
 import { type Plataforma, plataformaActual } from './rutas.ts';
 import { COMANDO_INSTALAR_OPENCODE, hayOpencode } from './opencode.ts';
 import { leerEntornoOllama } from './ollama-entorno.ts';
+import { textoT } from './errores.ts';
 
 const S = '/';
 const NL = '\n';
@@ -45,9 +46,25 @@ export type ArnesLocal = {
   comando: string;
 };
 
+/** Cada programa que sirve modelos locales: si está instalado, si anda y qué modelos se le ven. */
+export type ServidorLocal = {
+  id: Exclude<ServidorTipo, 'desconocido'>;
+  nombre: string;
+  instalado: boolean;
+  version: string | null;
+  /** 'andando' (contesta en su puerto), 'apagado' (instalado, no contesta) o 'no-instalado'. */
+  estado: 'andando' | 'apagado' | 'no-instalado';
+  puerto: number;
+  /** Los ids (`ModeloDetectado.id`) de los modelos que se le vieron. */
+  modelos: string[];
+};
+
 export type ResultadoDeteccion = {
   modelos: ModeloDetectado[];
   arneses: ArnesLocal[];
+  servidores: ServidorLocal[];
+  /** Para elegir la guía de instalación (Linux o Windows) y saber si hay units que prender. */
+  plataforma: Plataforma;
   vramGpuMiB: number | null;
 };
 
@@ -474,11 +491,94 @@ export async function detectarArneses(d: DepsDeteccion, plat: Plataforma = plata
   return arneses;
 }
 
-export async function detectarLocales(d: DepsDeteccion = depsDeteccionDeVerdad()): Promise<ResultadoDeteccion> {
-  const units = await detectarUnits(d);
+const SERVIDORES: readonly { id: ServidorLocal['id']; nombre: string; puerto: number }[] = [
+  { id: 'llama-server', nombre: 'llama.cpp (llama-server)', puerto: 8080 },
+  { id: 'lm-studio', nombre: 'LM Studio', puerto: 1234 },
+  { id: 'vllm', nombre: 'vLLM', puerto: 8000 },
+  { id: 'ollama', nombre: 'Ollama', puerto: 11434 },
+];
+
+/** ¿Hay un ejecutable con ese nombre en el PATH? (`which`, o `where` en Windows; sólo busca, no corre nada del programa.) */
+async function hayEnPath(d: DepsDeteccion, plat: Plataforma, bin: string): Promise<boolean> {
+  try {
+    return Boolean((await d.ejecutar(plat === 'win32' ? 'where' : 'which', [bin], { timeout: 1000 })).trim());
+  } catch {
+    return false;
+  }
+}
+
+async function algunoExiste(d: DepsDeteccion, rutas: string[]): Promise<boolean> {
+  for (const r of rutas) if (await d.stat(r)) return true;
+  return false;
+}
+
+/**
+ * Qué programa de modelos locales está instalado, cuál anda y qué modelos tiene cada uno. Sólo mira: PATH, rutas de instalación
+ * típicas y puertos abiertos. Ninguna versión se pide a llama-server ni a vLLM (arrancarían la GPU); la de Ollama ya la trae `arneses`.
+ */
+export async function detectarServidores(
+  d: DepsDeteccion,
+  modelos: ModeloDetectado[],
+  arneses: ArnesLocal[],
+  plat: Plataforma = plataformaActual(),
+): Promise<ServidorLocal[]> {
+  const win = plat === 'win32';
+  const appdata = d.env.LOCALAPPDATA || path.join(d.home, 'AppData', 'Local');
+  const rutas: Record<ServidorLocal['id'], string[]> = {
+    'llama-server': win
+      ? [path.join(d.home, 'llama.cpp', 'build', 'bin', 'Release', 'llama-server.exe'), path.join(d.home, 'llama.cpp', 'llama-server.exe')]
+      : [path.join(d.home, 'llama.cpp', 'build', 'bin', 'llama-server'), path.join(d.home, '.local', 'bin', 'llama-server')],
+    'lm-studio': win
+      ? [path.join(appdata, 'Programs', 'LM Studio', 'LM Studio.exe'), path.join(d.home, '.lmstudio', 'bin', 'lms.exe')]
+      : [path.join(d.home, '.lmstudio', 'bin', 'lms'), path.join(d.home, '.cache', 'lm-studio')],
+    vllm: [],
+    ollama: [],
+  };
+  const resultado: ServidorLocal[] = [];
+  for (const sv of SERVIDORES) {
+    const suyos = modelos.filter((m) => m.servidor === sv.id);
+    let instalado = false;
+    let version: string | null = null;
+    if (sv.id === 'ollama') {
+      const a = arneses.find((x) => x.id === 'ollama');
+      instalado = Boolean(a?.instalado);
+      version = a?.version ?? null;
+    } else if (sv.id === 'vllm') {
+      // vLLM no tiene versión para Windows: sólo se lo busca en Linux.
+      instalado = !win && (await hayEnPath(d, plat, 'vllm'));
+    } else {
+      const bin = sv.id === 'lm-studio' ? 'lms' : 'llama-server';
+      instalado = (await hayEnPath(d, plat, bin)) || (await algunoExiste(d, rutas[sv.id]));
+    }
+    const prendidos = suyos.some((m) => m.estadoServidor === 'prendido');
+    let andando = prendidos;
+    if (!andando && (instalado || sv.id === 'ollama')) {
+      try {
+        andando = await d.puertoAbierto('127.0.0.1', sv.puerto, 300);
+      } catch {
+        andando = false;
+      }
+    }
+    // Si anda es que está: aunque no se haya encontrado el ejecutable (instalado a mano en otra ruta).
+    if (andando) instalado = true;
+    resultado.push({
+      id: sv.id,
+      nombre: sv.nombre,
+      instalado,
+      version,
+      estado: andando ? 'andando' : instalado ? 'apagado' : 'no-instalado',
+      puerto: sv.puerto,
+      modelos: suyos.map((m) => m.id),
+    });
+  }
+  return resultado;
+}
+
+export async function detectarLocales(d: DepsDeteccion = depsDeteccionDeVerdad(), plat: Plataforma = plataformaActual()): Promise<ResultadoDeteccion> {
+  const units = await detectarUnits(d, plat);
   const puertos = await detectarPuertos(d, units);
   const archivos = await detectarArchivosGguf(d, [...units, ...puertos]);
-  const arneses = await detectarArneses(d);
+  const arneses = await detectarArneses(d, plat);
 
   let vramGpuMiB: number | null = null;
   try {
@@ -493,7 +593,8 @@ export async function detectarLocales(d: DepsDeteccion = depsDeteccionDeVerdad()
     return a.nombre.localeCompare(b.nombre);
   });
 
-  return { modelos, arneses, vramGpuMiB };
+  const servidores = await detectarServidores(d, modelos, arneses, plat);
+  return { modelos, arneses, servidores, plataforma: plat, vramGpuMiB };
 }
 
 export async function arrancarServidorLocal(
@@ -510,5 +611,29 @@ export async function arrancarServidorLocal(
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     return { ok: false, error: msg };
+  }
+}
+
+/**
+ * Prender o apagar el servicio de un modelo detectado, con el clic del usuario. Sólo units de systemd (Linux) y sólo una que la
+ * detección encuentre: no se le pasa a `systemctl` un nombre que alguien más escriba. Apagar libera la GPU; prender la ocupa.
+ */
+export async function controlarServidorLocal(
+  accion: 'prender' | 'apagar',
+  unit: unknown,
+  d: DepsDeteccion = depsDeteccionDeVerdad(),
+  plat: Plataforma = plataformaActual(),
+): Promise<{ ok: boolean; error?: string }> {
+  if (plat !== 'linux') return { ok: false, error: textoT('main.localesSinServicio') };
+  if (accion !== 'prender' && accion !== 'apagar') return { ok: false, error: textoT('main.localesAccion') };
+  if (typeof unit !== 'string') return { ok: false, error: textoT('main.localesUnit') };
+  const conocidas = await detectarUnits(d, plat);
+  if (!conocidas.some((m) => m.unit === unit)) return { ok: false, error: textoT('main.localesUnit') };
+  if (accion === 'prender') return arrancarServidorLocal(unit, d);
+  try {
+    await d.ejecutar('systemctl', ['--user', 'stop', unit], { timeout: 15000 });
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
   }
 }

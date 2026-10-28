@@ -14,6 +14,8 @@ import {
   detectarArneses,
   detectarLocales,
   arrancarServidorLocal,
+  controlarServidorLocal,
+  detectarServidores,
   depsDeteccionDeVerdad,
   type DepsDeteccion,
 } from '../electron/locales-deteccion.ts';
@@ -279,6 +281,67 @@ test('arrancarServidorLocal valida nombres de unit y ejecuta systemctl start', a
   const rOk = await arrancarServidorLocal('qwen-llama-server.service', fakeDepsOk);
   assert.equal(rOk.ok, true);
   assert.equal(comandoEjecutado, 'systemctl --user start qwen-llama-server.service');
+});
+
+test('detectarServidores: instalado / apagado / andando por programa, con sus modelos', async () => {
+  const modelos = [
+    { id: 'puerto:11434:m', nombre: 'm', origen: 'puerto' as const, origenDetalle: 'x', servidor: 'ollama' as const, estadoServidor: 'prendido' as const, url: 'http://127.0.0.1:11434', modelo: 'm' },
+    { id: 'archivo:/x.gguf', nombre: 'x', origen: 'archivo' as const, origenDetalle: 'x', servidor: 'llama-server' as const, estadoServidor: 'apagado' as const, url: 'http://127.0.0.1:8080', modelo: 'x' },
+  ];
+  const arneses = [{ id: 'ollama' as const, nombre: 'Ollama', instalado: true, version: '0.9.0', comando: '' }];
+  const d: DepsDeteccion = {
+    ...fakeDepsValidador,
+    ejecutar: async (bin, args) => {
+      if (bin === 'which' && args[0] === 'llama-server') return '/usr/bin/llama-server\n';
+      throw new Error('no está');
+    },
+  };
+  const r = await detectarServidores(d, modelos, arneses, 'linux');
+  const por = Object.fromEntries(r.map((x) => [x.id, x]));
+  assert.equal(por['llama-server'].estado, 'apagado');
+  assert.deepEqual(por['llama-server'].modelos, ['archivo:/x.gguf']);
+  assert.equal(por.ollama.estado, 'andando');
+  assert.equal(por.ollama.version, '0.9.0');
+  assert.equal(por['lm-studio'].estado, 'no-instalado');
+  assert.equal(por.vllm.estado, 'no-instalado');
+});
+
+test('detectarServidores: un puerto abierto prueba que está instalado; vLLM no existe en Windows', async () => {
+  const d: DepsDeteccion = {
+    ...fakeDepsValidador,
+    ejecutar: async () => {
+      throw new Error('no está');
+    },
+    stat: async (f) => (f.includes('LM Studio') ? { size: 1, isDirectory: false } : null),
+    puertoAbierto: async (_h, puerto) => puerto === 1234 || puerto === 8000,
+  };
+  const r = await detectarServidores({ ...d, env: { LOCALAPPDATA: 'C:\\Users\\u\\AppData\\Local' } }, [], [], 'win32');
+  const por = Object.fromEntries(r.map((x) => [x.id, x]));
+  assert.equal(por['lm-studio'].estado, 'andando');
+  assert.equal(por.vllm.estado, 'no-instalado', 'en Windows ni se mira');
+  assert.equal(por['llama-server'].estado, 'no-instalado');
+});
+
+test('controlarServidorLocal: sólo Linux y sólo units que la detección encuentra; apagar corre `systemctl --user stop`', async () => {
+  const llamadas: string[] = [];
+  const d: DepsDeteccion = {
+    ...fakeDepsValidador,
+    ejecutar: async (bin, args) => {
+      llamadas.push(bin + ' ' + args.join(' '));
+      return args[1] === 'is-active' ? 'inactive\n' : '';
+    },
+    leer: async (f) => (f.endsWith('qwen-llama-server.service') ? SAMPLE_QWEN_UNIT : null),
+    listarDir: async () => ['qwen-llama-server.service'],
+  };
+  assert.equal((await controlarServidorLocal('prender', 'qwen-llama-server.service', d, 'win32')).ok, false);
+  assert.equal((await controlarServidorLocal('prender', 'otra.service', d, 'linux')).ok, false, 'no es una unit detectada');
+  assert.equal((await controlarServidorLocal('borrar' as never, 'qwen-llama-server.service', d, 'linux')).ok, false);
+  assert.equal((await controlarServidorLocal('prender', 7, d, 'linux')).ok, false);
+  assert.ok(!llamadas.some((l) => /\b(start|stop)\b/.test(l)), 'lo inválido no llega a systemctl');
+  assert.equal((await controlarServidorLocal('apagar', 'qwen-llama-server.service', d, 'linux')).ok, true);
+  assert.ok(llamadas.includes('systemctl --user stop qwen-llama-server.service'));
+  assert.equal((await controlarServidorLocal('prender', 'qwen-llama-server.service', d, 'linux')).ok, true);
+  assert.ok(llamadas.includes('systemctl --user start qwen-llama-server.service'));
 });
 
 const fakeDepsValidador: DepsDeteccion = {

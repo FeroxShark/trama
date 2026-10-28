@@ -4,7 +4,7 @@ import type { Compactando } from "../../electron/compactando";
 import type { Subagente, Subagentes } from "../../electron/subagentes";
 import type { Imagen } from "../../electron/imagenes";
 import type { EstadoLocales, ResultadoProbar } from "../../electron/locales";
-import type { ModeloDetectado, ResultadoDeteccion } from "../../electron/locales-deteccion";
+import type { ModeloDetectado, ResultadoDeteccion, ServidorLocal } from "../../electron/locales-deteccion";
 import type { EstadoVram, ResultadoLiberar } from "../../electron/vram";
 import { MODELO_LARGE_V3, MODELO_TURBO, type ModelosDictado } from "../../electron/dictado-modelos";
 import { aplicarOpGuias, GUIAS_VACIO, normalizarGuias, type EstadoGuias, type OpGuias } from "../../electron/guias-estado";
@@ -133,6 +133,9 @@ export interface Fuente {
   locales(): Promise<EstadoLocales>;
   /** Qué modelos locales hay (instalados, apagados o andando) y qué arneses; sólo se lee, no arranca nada. */
   detectarLocales(): Promise<ResultadoDeteccion>;
+  /** Prende (ocupa la GPU) o apaga el servicio de un modelo detectado: sólo con el clic y la confirmación del usuario. */
+  prenderLocal(unit: string): Promise<{ ok: boolean; error?: string }>;
+  apagarLocal(unit: string): Promise<{ ok: boolean; error?: string }>;
   /** Guarda el `-c` de un modelo local (rige en su próxima carga; no carga nada). */
   guardarLocal(id: string, ctx: number): Promise<EstadoLocales>;
   /** Carga el modelo con ese `-c` para confirmar que entra (usa la GPU: sólo con el clic del usuario). */
@@ -787,22 +790,62 @@ function guiasLocal(op?: OpGuias): EstadoGuias {
   return guiasMemoria;
 }
 
-/** Sin la máquina: un Ollama andando con dos modelos y un GGUF apagado en disco. `mdl-apagado` deja sólo lo apagado; `mdl-sinollama` no hay nada. */
+/** Las units de muestra que se prenden y apagan en memoria (nunca toca systemd): id de la unit → ¿prendida? */
+const unitsFalsas = new Map<string, boolean>();
+
+/**
+ * Sin la máquina: un Ollama andando con dos modelos, dos servicios de llama-server apagados (uno solo puede ocupar la GPU a la vez) y un
+ * GGUF suelto. `mdl-apagado` deja sólo lo apagado; `mdl-sinollama` no hay nada; `mdl-win` la misma muestra vista desde Windows.
+ */
 function deteccionLocalesFalsa(): ResultadoDeteccion {
   const v = MODO.variante ?? "";
+  const win = v === "mdl-win";
+  const sinOllama = v === "mdl-sinollama";
   const modelos: ModeloDetectado[] = [];
-  if (v !== "mdl-sinollama" && v !== "mdl-apagado") {
+  if (!sinOllama && v !== "mdl-apagado") {
     for (const modelo of ["qwen3-coder:30b", "llama3.2:3b"])
-      modelos.push({ id: `puerto:11434:${modelo}`, nombre: modelo, origen: "puerto", origenDetalle: "ollama (puerto 11434)", servidor: "ollama", estadoServidor: "prendido", url: "http://127.0.0.1:11434", modelo });
+      modelos.push({ id: `puerto:11434:${modelo}`, nombre: modelo, origen: "puerto", origenDetalle: "ollama (puerto 11434)", servidor: "ollama", estadoServidor: "prendido", url: "http://127.0.0.1:11434", modelo, tamanoBytes: modelo === "llama3.2:3b" ? 2_019_393_189 : 18_556_701_041 });
   }
-  if (v !== "mdl-sinollama")
-    modelos.push({ id: "archivo:/home/usuario/models/gemma-3-4b.gguf", nombre: "gemma 3 4b", origen: "archivo", origenDetalle: "~/models/gemma-3-4b.gguf", servidor: "llama-server", estadoServidor: "apagado", url: "http://127.0.0.1:8080", modelo: "gemma-3-4b", archivoGguf: "/home/usuario/models/gemma-3-4b.gguf" });
+  if (!sinOllama && !win) {
+    for (const [unit, nombre, gib] of [["llama-server-codigo.service", "Modelo de código 14B", 9], ["llama-server-general.service", "Modelo general 27B", 16]] as const) {
+      const prendida = unitsFalsas.get(unit) ?? false;
+      modelos.push({
+        id: `systemd:${unit}`,
+        nombre,
+        origen: "systemd",
+        origenDetalle: unit,
+        servidor: "llama-server",
+        estadoServidor: prendida ? "prendido" : "apagado",
+        url: "http://127.0.0.1:8080",
+        unit,
+        modelo: unit.replace(/^llama-server-|\.service$/g, ""),
+        archivoGguf: `/home/usuario/models/${unit.replace(/\.service$/, "")}.gguf`,
+        vramEstimadaMiB: Math.round(gib * 1024 * 1.15 + 1024),
+        tamanoBytes: gib * 1024 ** 3,
+      });
+    }
+  }
+  if (!sinOllama)
+    modelos.push({ id: "archivo:/home/usuario/models/gemma-3-4b.gguf", nombre: "gemma 3 4b", origen: "archivo", origenDetalle: "~/models/gemma-3-4b.gguf", servidor: "llama-server", estadoServidor: "apagado", url: "http://127.0.0.1:8080", modelo: "gemma-3-4b", archivoGguf: "/home/usuario/models/gemma-3-4b.gguf", vramEstimadaMiB: 4096, tamanoBytes: 2_700_000_000 });
+  modelos.sort((a, b) => (a.estadoServidor === b.estadoServidor ? a.nombre.localeCompare(b.nombre) : a.estadoServidor === "prendido" ? -1 : 1));
   const arneses = [
-    { id: "dsh" as const, nombre: "DeepSeek Harness (dsh)", instalado: false, version: null, comando: "" },
+    { id: "dsh" as const, nombre: "DeepSeek Harness (dsh)", instalado: v === "mdl-dsh", version: null, comando: "" },
     { id: "opencode" as const, nombre: "OpenCode", instalado: true, version: null, comando: "" },
-    { id: "ollama" as const, nombre: "Ollama", instalado: v !== "mdl-sinollama", version: null, comando: "" },
+    { id: "ollama" as const, nombre: "Ollama", instalado: !sinOllama, version: null, comando: "" },
   ];
-  return { modelos, arneses, vramGpuMiB: null };
+  const hay = (id: ServidorLocal["id"]) => modelos.filter((m) => m.servidor === id);
+  const servidor = (id: ServidorLocal["id"], nombre: string, puerto: number, instalado: boolean): ServidorLocal => {
+    const suyos = hay(id);
+    const andando = suyos.some((m) => m.estadoServidor === "prendido");
+    return { id, nombre, instalado: instalado || andando, version: null, estado: andando ? "andando" : instalado ? "apagado" : "no-instalado", puerto, modelos: suyos.map((m) => m.id) };
+  };
+  const servidores = [
+    servidor("llama-server", "llama.cpp (llama-server)", 8080, !sinOllama && !win),
+    servidor("lm-studio", "LM Studio", 1234, false),
+    servidor("vllm", "vLLM", 8000, false),
+    servidor("ollama", "Ollama", 11434, !sinOllama),
+  ];
+  return { modelos, arneses, servidores, plataforma: win ? "win32" : "linux", vramGpuMiB: 12288 };
 }
 
 /**
@@ -1384,6 +1427,16 @@ const fija: Fuente = {
   },
   async detectarLocales() {
     return deteccionLocalesFalsa();
+  },
+  async prenderLocal(unit) {
+    // Nunca arranca nada: marca la unit de muestra como prendida (y apaga las otras, que comparten el puerto).
+    for (const u of unitsFalsas.keys()) unitsFalsas.set(u, false);
+    unitsFalsas.set(unit, true);
+    return { ok: true };
+  },
+  async apagarLocal(unit) {
+    unitsFalsas.set(unit, false);
+    return { ok: true };
   },
   async guardarLocal(id, ctx) {
     localesFalsos(id, ctx);
@@ -2000,6 +2053,16 @@ const conPa = (m: NonNullable<typeof main>): Fuente => ({
   },
   detectarLocales() {
     return m.locales.detectar().catch((e) => {
+      throw new Error(mensaje(e));
+    });
+  },
+  prenderLocal(unit) {
+    return m.locales.prender(unit).catch((e) => {
+      throw new Error(mensaje(e));
+    });
+  },
+  apagarLocal(unit) {
+    return m.locales.apagar(unit).catch((e) => {
       throw new Error(mensaje(e));
     });
   },

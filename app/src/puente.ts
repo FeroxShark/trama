@@ -116,6 +116,9 @@ type Main = {
     probar(x: { id: string; ctx: number }): Promise<ResultadoProbar>;
     /** Lo que hay instalado o andando en esta máquina (sólo se lee). */
     detectar(): Promise<ResultadoDeteccion>;
+    /** Prende el servicio de un modelo detectado (ocupa la GPU): sólo con el clic, la ventana ya pidió confirmar. */
+    prender(unit: string): Promise<{ ok: boolean; error?: string }>;
+    apagar(unit: string): Promise<{ ok: boolean; error?: string }>;
   };
   /** Quién tiene la GPU y cómo liberarla (electron/vram.ts): la lista no toca nada; `liberar` para o reinicia un servicio (sólo con el clic). */
   vram: {

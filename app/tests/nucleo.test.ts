@@ -134,7 +134,7 @@ test("ajustes y acceso del celular: se guardan desde la PC; por la tailnet el ce
   assert.equal(a.red_seguridad, 250_000);
   assert.equal(JSON.parse(readFileSync(process.env.HILOS_CLAUDE_SETTINGS!, "utf8")).autoCompactWindow, 250_000);
   // Por la tailnet el celular no cambia ajustes ni lo demás que reescribe la máquina; con TRAMA_LOCAL (navegador local) sí, y valida.
-  for (const [canal, args] of [["ajustes:guardar", [{ plan: "pro" }]], ["routing:guardar", [[]]], ["cuentas:quitar", ["x", false]], ["vram:liberar", [{}]], ["claude:actualizar", []], ["trama:actualizar", []], ["aa:refrescar", []]] as [string, unknown[]][])
+  for (const [canal, args] of [["ajustes:guardar", [{ plan: "pro" }]], ["routing:guardar", [[]]], ["cuentas:quitar", ["x", false]], ["vram:liberar", [{}]], ["locales:prender", ["x.service"]], ["locales:apagar", ["x.service"]], ["claude:actualizar", []], ["trama:actualizar", []], ["aa:refrescar", []]] as [string, unknown[]][])
     await assert.rejects(nucleo.llamarRemoto(canal, args, "cel", "192.0.2.2"), /main\.soloPc/, canal);
   // Artificial Analysis: por la tailnet el estado dice que el refresco es sólo de la PC (Ajustes lo muestra en el botón); de la PC, no.
   assert.equal(((await nucleo.llamarRemoto("aa:estado", [], "cel", "192.0.2.2")) as { soloPc: boolean }).soloPc, true);

@@ -8,7 +8,7 @@ import { modelosDictado, transcribir } from "./dictado.ts";
 import { MODELO_TURBO } from "./dictado-modelos.ts";
 import { guardarLocal, leerLocales, probarLocal } from "./locales.ts";
 import { vistaLocales } from "./locales-config.ts";
-import { detectarLocales } from "./locales-deteccion.ts";
+import { controlarServidorLocal, detectarLocales } from "./locales-deteccion.ts";
 import { leerVram, liberarVram } from "./vram.ts";
 import { leerEntornoOllama } from "./ollama-entorno.ts";
 import { carpetaLocal } from "./local.ts";
@@ -121,7 +121,7 @@ const manejadores = new Map<string, Manejador>();
  * Lo que cambia la máquina (reescribe `~/CLAUDE.md`, los ajustes, borra una cuenta, libera la GPU, actualiza `claude`): desde la
  * tailnet (el celular) no. Los `modelos:*` y `remoto:guardar` tienen su propio chequeo, con su mensaje, en el manejador.
  */
-export const SOLO_PC_TAILNET: ReadonlySet<string> = new Set(["routing:guardar", "ajustes:guardar", "orq:leccionesGuardar", "orq:mdAplicar", "orq:agentsGuardar", "orq:mdFusionar", "proyectos:renombrar", "proyectos:logo", "cuentas:quitar", "vram:liberar", "claude:actualizar", "trama:actualizar", "trama:cancelarEspera", "trama:limpiar", "dsh:clave", "dsh:instalar", "dsh:probar", "aa:refrescar", "mcp:guardar", "mcp:quitar", "conectores:alternar", "plugins:agregarCatalogo", "plugins:instalar", "plugins:quitar", "opencode:planGuardar", "nvidia:modelos", "nvidia:probar"]);
+export const SOLO_PC_TAILNET: ReadonlySet<string> = new Set(["routing:guardar", "ajustes:guardar", "orq:leccionesGuardar", "orq:mdAplicar", "orq:agentsGuardar", "orq:mdFusionar", "proyectos:renombrar", "proyectos:logo", "cuentas:quitar", "vram:liberar", "locales:prender", "locales:apagar", "claude:actualizar", "trama:actualizar", "trama:cancelarEspera", "trama:limpiar", "dsh:clave", "dsh:instalar", "dsh:probar", "aa:refrescar", "mcp:guardar", "mcp:quitar", "conectores:alternar", "plugins:agregarCatalogo", "plugins:instalar", "plugins:quitar", "opencode:planGuardar", "nvidia:modelos", "nvidia:probar"]);
 
 /** Anota (o reemplaza) el manejador de un canal. */
 export function manejar(canal: string, fn: Manejador) {
@@ -1115,6 +1115,9 @@ export function armarNucleo() {
   manejar("locales:probar", (_e, x: unknown) => probarLocal(x));
   // Lo que hay instalado o andando en esta máquina (units, puertos, GGUF, arneses): sólo se lee, no arranca nada.
   manejar("locales:detectar", () => detectarLocales());
+  // Prender o apagar el servicio (unit de systemd) de un modelo detectado: SÍ toca la GPU, sólo con el clic (la ventana pide confirmar antes).
+  manejar("locales:prender", (_e, unit: unknown) => controlarServidorLocal("prender", unit));
+  manejar("locales:apagar", (_e, unit: unknown) => controlarServidorLocal("apagar", unit));
   // Quién tiene la GPU y cómo liberarla (CLI `vram` (PATH o HILOS_VRAM)): la lista no toca nada; `vram:liberar` SÍ para un servicio, sólo con el clic.
   manejar("vram:leer", () => leerVram());
   manejar("vram:liberar", (_e, x: unknown) => liberarVram(x));
