@@ -85,7 +85,7 @@ export const casosE2e: Caso[] = [
   }),
   e2e("--parar de una corrida que no existe", { args: ["--parar", "20261028-101010-111"], rc: 1 }),
   e2e("--matar sin nada corriendo", { args: ["demo", "--matar", "--sin-jefe"] }),
-  e2e("el límite de sesión conocido corta antes de lanzar", {
+  e2e("dos corridas seguidas en el tree principal", {
     preparar: (c) => {
       ponerGuion(c, [ok(BLOQUE)]);
     },
