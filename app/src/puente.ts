@@ -339,6 +339,8 @@ type Main = {
     /** "Check for updates" de Ajustes: consulta ya, `{ ultima, nueva }` sin validar. */
     buscar(): Promise<unknown>;
     descartar(): Promise<void>;
+    /** Las notas de la Trama nueva en el navegador del sistema: sólo si la URL es de github.com (electron/ventana-canales.ts). */
+    notas(url: string): Promise<void>;
     /** Actualizar (git + instalador, en el main) en el modo "ya" o "esperar" a que no haya nada ocupado: `{ ok, version | error }` al arrancar, sin validar. El avance es `actualizacion`. */
     actualizar(modo: "ya" | "esperar"): Promise<unknown>;
     cancelarEspera(): Promise<void>;

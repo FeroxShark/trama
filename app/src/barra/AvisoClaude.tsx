@@ -270,9 +270,9 @@ export const AvisoClaude = memo(function AvisoClaude({ cual = "claude" }: { cual
             )}
             <span className="esp" />
             {trama ? (
-              // Un enlace de verdad no sirve acá (es un botón de la fila): window.open va al navegador del sistema (main.ts) o a otra pestaña.
+              // Un enlace de verdad no sirve acá (es un botón de la fila): lo abre el main (trama:notas) o, en el navegador, otra pestaña.
               a.notas ? (
-                <button type="button" className="avc-l" onClick={() => window.open(a.notas, "_blank", "noopener,noreferrer")}>
+                <button type="button" className="avc-l" onClick={() => fuente.abrirNotasTrama(a.notas ?? "")}>
                   {t("trama.notas")}
                 </button>
               ) : null

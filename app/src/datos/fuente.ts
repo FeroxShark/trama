@@ -241,6 +241,8 @@ export interface Fuente {
   buscarTrama(): Promise<BuscadaTrama>;
   /** "Ahora no": no avisar de esa versión. */
   descartarAvisoTrama(): void;
+  /** "Release notes" del aviso de Trama: abre la URL (de github.com) en el navegador del sistema. */
+  abrirNotasTrama(url: string): void;
   /**
    * Actualizar (`git fetch --tags`, el tag nuevo y el instalador, en el main). "ya" arranca ahora; "esperar" espera a que no haya
    * líder trabajando ni worker vivo. Contesta al arrancar (el instalador reinicia el motor): el avance es `estadoActTrama`.
@@ -1096,6 +1098,7 @@ const fija: Fuente = {
     avisoTramaFijo = null;
     oyentesAvisoTrama.forEach((f) => f(null));
   },
+  abrirNotasTrama() {},
   async actualizarTrama(modo) {
     const version = avisoTramaFijo?.ultima ?? "0.2.0";
     ponerActTrama(modo === "esperar" && ocupacionTramaFija.lideres + ocupacionTramaFija.workers > 0 ? { fase: "esperando", version } : { fase: "instalando", version });
@@ -1612,6 +1615,9 @@ const conPa = (m: NonNullable<typeof main>): Fuente => ({
   },
   descartarAvisoTrama() {
     void m.trama.descartar().catch(() => {});
+  },
+  abrirNotasTrama(url) {
+    void m.trama.notas(url).catch(() => {});
   },
   async actualizarTrama(modo) {
     const r = (await m.trama.actualizar(modo).catch((e) => ({ ok: false, error: mensaje(e) }))) as Record<string, unknown> | null;

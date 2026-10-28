@@ -245,6 +245,7 @@ contextBridge.exposeInMainWorld("hilos", {
     actualizacion: (): Promise<unknown> => ipcRenderer.invoke("trama:actualizacion"),
     ocupacion: (): Promise<unknown> => ipcRenderer.invoke("trama:ocupacion"),
     reiniciarVentana: (): Promise<void> => ipcRenderer.invoke("trama:reiniciarVentana"),
+    notas: (url: string): Promise<void> => ipcRenderer.invoke("trama:notas", url),
     alCambiar: oir("trama:version"),
     alCambiarActualizacion: oir("trama:actualizacion"),
   },
