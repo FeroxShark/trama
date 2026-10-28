@@ -10,7 +10,7 @@ import type { GrupoCupo, SuscripcionCupo, Uso, VentanaCupo } from "../datos/cont
 import { fuente, type CuentaEstado, type EstadoCuentas } from "../datos/fuente";
 import { Selector } from "../hilo/Selector";
 import { goAgotadosHasta } from "../hilo/agotados";
-import { fuentePaneles, type EstadoOpencodeUi, type VistaPlanGo } from "../datos/paneles";
+import { fuentePaneles, type EstadoNim, type EstadoOpencodeUi, type VistaPlanGo } from "../datos/paneles";
 import { pedirModelos } from "../datos/modelos-config";
 import { aplicarModelos } from "../hilo/opciones";
 import { nombreOpencode } from "../hilo/modelos";
@@ -59,7 +59,7 @@ function Vuelve({ epoch }: { epoch: number | null }) {
   ) : null;
 }
 
-const nombreVentana = (id: string) => (id === "5h" ? t("cu.v.5h") : id === "7d" ? t("cu.v.7d") : id);
+const nombreVentana = (id: string) => (id === "5h" ? t("cu.v.5h") : id === "7d" ? t("cu.v.7d") : id === "1m" ? t("cu.v.1m") : id);
 
 const ICONO_NIVEL = { ok: Check, bajo: TriangleAlert, lleno: Ban, parcial: Ban, marcado: Clock, sin: Minus } as const;
 
@@ -398,6 +398,10 @@ export function CuposTarjetas({ b, uso, plan }: { b: Borrador; uso: Uso | null; 
         <div data-opc="cu.opencode">
           <TarjetaOpencode uso={uso} perfiles={cuentasDe(lista, "opencode")} lista={!!lista} alCambiar={alCambiarCuentas} />
         </div>
+
+        <div data-opc="cu.nvidia">
+          <TarjetaNvidia uso={uso} />
+        </div>
       </div>
     </section>
   );
@@ -619,6 +623,35 @@ function TarjetaOpencode({ uso, perfiles, lista, alCambiar }: { uso: Uso | null;
         <Ayuda lineas={["cu.opencode.libreQue", "cu.opencode.contados", "cu.opencode.pagos", "cu.opencode.cuentas", "cu.opencode.mas"]} />
         {varias ? null : <Conectar id="opencode" c={estado} como={t(e && !e.instalado ? "cu.comoOpencodeInstalar" : "cu.comoOpencode")} alMirar={mirar} />}
         {lista ? <AgregarCuenta proveedor="opencode" alCambiar={alCambiar} /> : null}
+      </div>
+    </Tarjeta>
+  );
+}
+
+/**
+ * NVIDIA NIM (gratis, con clave propia): el uso que contó Trama (el mismo de la barra: pedidos del último minuto del modelo más cargado contra el tope por
+ * modelo) y si hay clave. Sin cupo diario: el límite es por minuto, y un 429 sólo enfría a ese modelo unos minutos. La clave, la prueba y los modelos que
+ * se ofrecen están en Ajustes > OpenCode.
+ */
+function TarjetaNvidia({ uso }: { uso: Uso | null }) {
+  useIdioma();
+  const [e, setE] = useState<EstadoNim | null>(null);
+  useEffect(() => {
+    let vivo = true;
+    void fuentePaneles.estadoNvidia().then((r) => vivo && setE(r), () => undefined);
+    return () => void (vivo = false);
+  }, []);
+  const s = conDatos(uso) ? uso.suscripciones?.find((x) => x.id === "nvidia-nim") : undefined;
+  return (
+    <Tarjeta>
+      <div className="cu-cab">
+        <LogoCaja id="nvidia" />
+        <h4 className="cu-nombre">{t("cu.nvidia")}</h4>
+        {e ? <Pildora nivel={e.hayClave ? "ok" : "sin"}>{e.hayClave ? t("cu.nvidia.conClave") : t("cu.nvidia.sinClave")}</Pildora> : null}
+      </div>
+      <div className="cu-cuerpo">
+        {s?.grupos?.length ? s.grupos.map((g) => <Grupo key={g.id} g={g} />) : <div className="cu-sin">{t(e && !e.hayClave ? "cu.nvidia.sinClaveQue" : "cu.nvidia.sinUso")}</div>}
+        <Ayuda lineas={["cu.nvidia.libreQue", "cu.nvidia.contados", "cu.nvidia.mas"]} />
       </div>
     </Tarjeta>
   );

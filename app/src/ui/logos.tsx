@@ -3,7 +3,7 @@
 // simplificado. `Logo` de ahí sigue siendo el del selector de modelos (por empresa); éste es por proveedor.
 import { Logo } from "../hilo/Logos";
 
-export type Proveedor = "claude" | "google" | "chatgpt" | "opencode";
+export type Proveedor = "claude" | "google" | "chatgpt" | "opencode" | "nvidia";
 
 const NUDO =
   "M12 3.2c2 0 3.7 1.2 4.4 3 1.9.1 3.5 1.3 4.1 3.2.6 1.9-.1 3.8-1.6 4.9.2 1.8-.7 3.5-2.4 4.3-1.7.8-3.7.4-4.9-.9-1.3.7-3 .8-4.4-.1-1.4-.9-2.1-2.5-1.9-4.1-1.5-1-2.2-2.9-1.7-4.7.6-1.8 2.2-3 4.1-3.1.7-1.8 2.4-3 4.3-3Z";
@@ -15,6 +15,13 @@ export function LogoProveedor({ id }: { id: Proveedor }) {
   if (id === "claude") return <Logo empresa="anthropic" />;
   if (id === "google") return <Logo empresa="google" />;
   if (id === "opencode") return <Logo empresa="opencode" />;
+  if (id === "nvidia")
+    return (
+      <svg {...A} className="logo">
+        <circle cx="12" cy="12" r="9.5" fill="none" stroke="currentColor" strokeWidth={1.8} />
+        <text x="12" y="16.2" textAnchor="middle" fontSize="12" fontWeight="600" fill="currentColor" fontFamily="inherit">N</text>
+      </svg>
+    );
   return (
     <svg {...A} className="logo">
       <path d={NUDO} fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinejoin="round" />

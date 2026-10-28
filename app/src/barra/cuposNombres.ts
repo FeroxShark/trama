@@ -9,6 +9,7 @@ const NOMBRES: Record<string, { largo: ClaveSola; corto: ClaveSola; que?: ClaveS
   "gemini-4-argon": { largo: "cu.g.gemini-4-argon", corto: "cu.gc.gemini-4-argon", que: "cu.gd.gemini-4-argon" },
   codex: { largo: "cu.g.codex", corto: "cu.gc.codex" },
   "opencode-free": { largo: "cu.g.opencode-free", corto: "cu.gc.opencode-free", que: "cu.gd.opencode-free" },
+  "nvidia-nim": { largo: "cu.g.nvidia-nim", corto: "cu.gc.nvidia-nim", que: "cu.gd.nvidia-nim" },
   "opencode-go": { largo: "cu.g.opencode-go", corto: "cu.gc.opencode-go", que: "cu.gd.opencode-go" },
 };
 

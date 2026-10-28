@@ -255,6 +255,7 @@ export const MODO = {
    * `cargando`: Modelos y Celular no reciben respuesta nunca: se ve su esqueleto (`PanelCargando.tsx`); `cargando-dsh` lo mismo con DeepSeek Harness (Modelos sí carga: el de dsh nace adentro de su sección).
    * OpenCode (`AjustesOpencode.tsx`): `oc-sin` sin instalar, `oc-sin-login` instalado sin sesión, `oc-go` con el plan Go prendido (y la tarjeta de topes en Plan y cupos).
    * Conectores (`AjustesConectoresInventario.tsx`): `mcp` deja a la vista el inventario de Claude Code y los servidores propios, `mcp-vacio` sin nada conectado.
+   * NVIDIA NIM (`AjustesNvidia.tsx`, en Ajustes > OpenCode): `nim` con la clave guardada y dos modelos prendidos, `nim-falla` donde Probar falla; sin variante, sin clave. `cupos-nim`: Plan y cupos con la tarjeta y la fila de la barra con 25 de 40 pedidos.
    * DeepSeek Harness (`AjustesDsh.tsx`): `dsh` instalado y con la key de OpenCode guardada, `dsh-sin` sin instalar y sin keys, `dsh-falla` donde Instalar falla y DeepSeek rechaza su key; `dsh-menu` (con `modelo`) el selector con los modelos de dsh.
    */
   variante: q.get("variante"),

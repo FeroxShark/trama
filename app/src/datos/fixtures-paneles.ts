@@ -124,7 +124,7 @@ export const ESTADO_DSH = (variante: string | null): EstadoDsh => {
   const comando = "npm i -g @deepseek-ai/dsh";
   if (variante === "dsh-sin") return { version: 1, instalado: false, versionDsh: null, hayNpm: true, comando, claves: { OPENCODE_API_KEY: false, DEEPSEEK_API_KEY: false, ARTIFICIAL_ANALYSIS_API_KEY: false, NVIDIA_API_KEY: false } };
   if (variante === "dsh-falla") return { version: 1, instalado: false, versionDsh: null, hayNpm: true, comando, claves: { OPENCODE_API_KEY: true, DEEPSEEK_API_KEY: true, ARTIFICIAL_ANALYSIS_API_KEY: false, NVIDIA_API_KEY: false } };
-  return { version: 1, instalado: true, versionDsh: "0.2.1", hayNpm: true, comando, claves: { OPENCODE_API_KEY: true, DEEPSEEK_API_KEY: false, ARTIFICIAL_ANALYSIS_API_KEY: variante?.startsWith("mdl-wk-aa") === true, NVIDIA_API_KEY: variante === "nim" || variante === "nim-falla" } };
+  return { version: 1, instalado: true, versionDsh: "0.2.1", hayNpm: true, comando, claves: { OPENCODE_API_KEY: true, DEEPSEEK_API_KEY: false, ARTIFICIAL_ANALYSIS_API_KEY: variante?.startsWith("mdl-wk-aa") === true, NVIDIA_API_KEY: conNim(variante) } };
 };
 
 /** El acceso desde el celular de los fixtures (se edita en Ajustes; vive mientras la página). */
@@ -524,11 +524,12 @@ export const ESTADO_MCP = (motor: string, local: boolean, propios: VistaServidor
   };
 };
 
+const conNim = (variante: string | null) => variante === "nim" || variante === "nim-falla" || variante === "cupos-nim";
 /** NVIDIA NIM: `nim` con la clave guardada y dos modelos prendidos, `nim-falla` donde la prueba falla; sin variante, sin clave y sólo el modelo base. */
 export const ESTADO_NIM = (variante: string | null, dsh: EstadoDsh, fijo?: string[]): EstadoNim => ({
   version: 1,
   hayClave: dsh.claves.NVIDIA_API_KEY,
-  modelos: fijo ?? (variante === "nim" || variante === "nim-falla" ? ["deepseek-ai/deepseek-v4.1-flash", "meta/llama-3.3-70b-instruct"] : ["deepseek-ai/deepseek-v4.1-flash"]),
+  modelos: fijo ?? (conNim(variante) ? ["deepseek-ai/deepseek-v4.1-flash", "meta/llama-3.3-70b-instruct"] : ["deepseek-ai/deepseek-v4.1-flash"]),
   base: "deepseek-ai/deepseek-v4.1-flash",
   tope: 40,
 });

@@ -39,6 +39,7 @@ export const ITEMS: readonly Item[] = [
   { cat: "cupos", nombre: "cu.opencode", que: "cu.opencodeQue", sin: "opencode open code gratis free cupo quota agotado exhausted limite limit compartido shared cuenta account conectar connect login pedidos requests uso usage" },
   { cat: "cupos", nombre: "ajustes.ocPlan", que: "ajustes.ocPlanQue", sin: "opencode open code plan go plus pago paid suscripcion subscription gratis free topes limites limits cupo quota modelos models" },
   { cat: "cupos", nombre: "cu.opencodeGo", que: "cu.opencodeGoQue", sin: "opencode open code go plus plan pago paid topes limites limits pedidos requests 5h cinco horas five hours cupo quota agotado exhausted uso usage modelo model" },
+  { cat: "cupos", nombre: "cu.nvidia", que: "cu.nvidiaQue", sin: "nvidia nim build.nvidia.com gratis free cupo quota pedidos requests minuto minute tope limit 429 clave key uso usage" },
   { cat: "cupos", nombre: "cu.chatgpt", que: "cu.chatgptQue", sin: "chatgpt openai codex gpt suscripcion subscription plan cupo quota conectar connect login" },
   { cat: "cupos", nombre: "cu.topes", que: "cu.topesQue", sin: "tope limite limit cupo quota llena full umbral threshold porcentaje percent usado used dejar de usar stop using claude google gemini chatgpt codex opencode reserva reserve guardar save sesiones sessions codigo code fabrica factory" },
   { cat: "cupos", nombre: "ajustes.cuposSinCupo", que: "ajustes.cuposSinCupoQue", sin: "sin cupo out of quota agotado usar otro use another esperar wait fallar fail reemplazo fallback proveedor provider" },
@@ -49,6 +50,8 @@ export const ITEMS: readonly Item[] = [
   { cat: "locales", nombre: "ajustes.mdlLocalesAgregados", que: "ajustes.mdlLocalesQue", sin: "ollama locales agregados added direccion address url servidor server quitar remove" },
 
   { cat: "opencode", nombre: "ajustes.ocPrograma", que: "ajustes.ocProgramaQue", sin: "opencode open code gratis free connect login console zen modelos models actualizar refresh instalar install" },
+  { cat: "opencode", nombre: "ajustes.nimClave", que: "ajustes.nimClaveQue", sin: "nvidia nim build.nvidia.com clave key api token gratis free probar test get api key desarrollo prototipos prototyping" },
+  { cat: "opencode", nombre: "ajustes.nimModelos", que: "ajustes.nimModelosQue", sin: "nvidia nim modelos models deepseek v4.1 flash prender apagar ofrecer offer reparto router agregar add id" },
   { cat: "dsh", nombre: "ajustes.dshPrograma", que: "ajustes.dshProgramaQue", sin: "dsh deepseek harness instalar install npm version programa" },
   { cat: "opencode", nombre: "ajustes.dshOpencode", que: "ajustes.dshOpencodeQue", sin: "opencode zen clave key api token pago paid modelos dsh" },
   { cat: "dsh", nombre: "ajustes.dshDeepseek", que: "ajustes.dshDeepseekQue", sin: "deepseek clave key api token probar test v4 flash" },
@@ -213,7 +216,7 @@ export function deVariante(v: string | null | undefined): CatId | null {
   if (v === "mdl-tope" || v.startsWith("cupos") || v === "editando" || v === "editando-mal") return "cupos";
   if (v === "celular") return "celular";
   if (v.startsWith("dsh")) return "dsh";
-  if (v.startsWith("oc-")) return "opencode";
+  if (v.startsWith("oc-") || v.startsWith("nim")) return "opencode";
   if (v.startsWith("mcp")) return "conectores";
   if (v.startsWith("mdl") || v === "sinmdl" || v === "modelo" || v === "dictado") return "modelos";
   if (v.startsWith("proyectos")) return "proyectos";

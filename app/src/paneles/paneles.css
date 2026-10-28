@@ -3549,3 +3549,46 @@
   font-size: var(--letra-4);
   line-height: 1.45;
 }
+
+/* Ajustes > OpenCode > NVIDIA NIM (AjustesNvidia.tsx): la lista de modelos, cada uno con su interruptor y su palabra (se ofrece / apagado). */
+.nim-lista {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-2);
+  margin: 0 0 var(--esp-3);
+  padding: 0;
+  list-style: none;
+}
+.nim-fila {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--esp-2);
+  min-width: 0;
+}
+.nim-fila[data-off] .nim-id {
+  color: var(--apagado);
+}
+.nim-id {
+  font-family: var(--font-mono);
+  font-size: var(--letra-3);
+  overflow-wrap: anywhere;
+}
+.nim-marca {
+  padding: 0 var(--esp-2);
+  border: 1px solid var(--borde-4);
+  border-radius: var(--radio-1);
+  color: var(--apagado);
+  font-size: var(--letra-4);
+}
+[data-nim] .ui-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--esp-1);
+}
+@media (pointer: coarse) {
+  [data-nim] .ui-btn,
+  [data-nim] .ui-sw {
+    min-height: 2.75rem;
+  }
+}

@@ -193,7 +193,7 @@ export function suscripcionNvidia(e: { hayClave: boolean; modelos: readonly stri
     pedidos: usados,
     tope: e.tope,
   };
-  return { id: "nvidia-nim", nombre: "NVIDIA NIM", proveedor: "nvidia", cuenta: "nvidia-nim", ts: ahoraS, grupos: [{ id: "nvidia-nim", nombre: "NVIDIA NIM", ventanas: [ventana] }] };
+  return { id: "nvidia-nim", nombre: "NVIDIA", proveedor: "nvidia", cuenta: "nvidia-nim", ts: ahoraS, grupos: [{ id: "nvidia-nim", nombre: "NVIDIA NIM", ventanas: [ventana] }] };
 }
 
 /** De todas las marcas de OpenCode (`marcasOpencode`), las de una cuenta (`null`: la de siempre), sin el sufijo `@<cuenta>`. */

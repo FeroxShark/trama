@@ -15,6 +15,7 @@ import type { FilaDato } from "./AjustesEditar";
 import { Comando } from "./AjustesLocales";
 import { PanelCargando } from "./PanelCargando";
 import { EVENTO_PLAN_OPENCODE } from "./AjustesCupos";
+import { AjustesNvidia } from "./AjustesNvidia";
 
 export function AjustesOpencode({ Dato }: { Dato: FilaDato }) {
   const [e, setE] = useState<EstadoOpencodeUi | null>(null);
@@ -147,6 +148,7 @@ export function AjustesOpencode({ Dato }: { Dato: FilaDato }) {
         ) : null}
         {errClave ? <div className="pn-error dsh-err" role="alert">{textoMain(errClave)}</div> : null}
       </section>
+      <AjustesNvidia Dato={Dato} />
     </Cat>
   );
 }

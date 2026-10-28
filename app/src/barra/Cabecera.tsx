@@ -61,6 +61,7 @@ type Celda = {
 function ventanaDe(id: string): string {
   if (id === "5h") return t("uso.5hLargo");
   if (id === "7d" || id === "sem") return t("uso.semLargo");
+  if (id === "1m") return t("uso.minLargo");
   return id;
 }
 

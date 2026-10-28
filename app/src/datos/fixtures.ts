@@ -1197,6 +1197,22 @@ export const USO_TODO_DOS: Uso = {
   ],
 };
 
+/** La variante `cupos-nim`: lo de `cupos-todo` y la fila de NVIDIA NIM con 25 de 40 pedidos en el último minuto del modelo más cargado. */
+export const USO_NIM: Uso = {
+  ...USO_TODO,
+  suscripciones: [
+    ...USO_TODO.suscripciones!,
+    {
+      id: "nvidia-nim",
+      nombre: "NVIDIA",
+      proveedor: "nvidia",
+      cuenta: "nvidia-nim",
+      ts: AHORA - 5,
+      grupos: [{ id: "nvidia-nim", nombre: "NVIDIA NIM", ventanas: [{ id: "1m", pct: 63, vuelve: AHORA + 38, pedidos: 25, tope: 40 }] }],
+    },
+  ],
+};
+
 /** La variante `cupos-marcado`: lo de `cupos-google`, pero «Claude y GPT» marcado sin cupo por un 429 (`agotado`), no medido. */
 export const USO_GOOGLE_MARCADO: Uso = {
   ...USO_GOOGLE,
