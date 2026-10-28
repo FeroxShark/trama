@@ -121,9 +121,9 @@ export const ENTORNO_OLLAMA = (variante: string | null): EntornoOllama => {
  */
 export const ESTADO_DSH = (variante: string | null): EstadoDsh => {
   const comando = "npm i -g @deepseek-ai/dsh";
-  if (variante === "dsh-sin") return { version: 1, instalado: false, versionDsh: null, hayNpm: true, comando, claves: { OPENCODE_API_KEY: false, DEEPSEEK_API_KEY: false, ARTIFICIAL_ANALYSIS_API_KEY: false } };
-  if (variante === "dsh-falla") return { version: 1, instalado: false, versionDsh: null, hayNpm: true, comando, claves: { OPENCODE_API_KEY: true, DEEPSEEK_API_KEY: true, ARTIFICIAL_ANALYSIS_API_KEY: false } };
-  return { version: 1, instalado: true, versionDsh: "0.2.1", hayNpm: true, comando, claves: { OPENCODE_API_KEY: true, DEEPSEEK_API_KEY: false, ARTIFICIAL_ANALYSIS_API_KEY: variante?.startsWith("mdl-wk-aa") === true } };
+  if (variante === "dsh-sin") return { version: 1, instalado: false, versionDsh: null, hayNpm: true, comando, claves: { OPENCODE_API_KEY: false, DEEPSEEK_API_KEY: false, ARTIFICIAL_ANALYSIS_API_KEY: false, NVIDIA_API_KEY: false } };
+  if (variante === "dsh-falla") return { version: 1, instalado: false, versionDsh: null, hayNpm: true, comando, claves: { OPENCODE_API_KEY: true, DEEPSEEK_API_KEY: true, ARTIFICIAL_ANALYSIS_API_KEY: false, NVIDIA_API_KEY: false } };
+  return { version: 1, instalado: true, versionDsh: "0.2.1", hayNpm: true, comando, claves: { OPENCODE_API_KEY: true, DEEPSEEK_API_KEY: false, ARTIFICIAL_ANALYSIS_API_KEY: variante?.startsWith("mdl-wk-aa") === true, NVIDIA_API_KEY: false } };
 };
 
 /** El acceso desde el celular de los fixtures (se edita en Ajustes; vive mientras la página). */

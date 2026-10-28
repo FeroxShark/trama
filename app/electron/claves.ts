@@ -9,8 +9,11 @@ import path from "node:path";
 import { errorT } from "./errores.ts";
 import { configTrama } from "./rutas.ts";
 
-export const NOMBRES_CLAVE = ["OPENCODE_API_KEY", "DEEPSEEK_API_KEY", "ARTIFICIAL_ANALYSIS_API_KEY"] as const;
-/** La de Artificial Analysis es de la app (baja los índices de inteligencia): no va al entorno de ningún líder ni worker. */
+export const NOMBRES_CLAVE = ["OPENCODE_API_KEY", "DEEPSEEK_API_KEY", "ARTIFICIAL_ANALYSIS_API_KEY", "NVIDIA_API_KEY"] as const;
+/**
+ * La de Artificial Analysis es de la app (baja los índices de inteligencia): no va al entorno de ningún líder ni worker. La de NVIDIA NIM
+ * la lee `pa` del mismo archivo al lanzar un worker de opencode: tampoco va al entorno del líder.
+ */
 export const CLAVES_DE_PROVEEDOR = ["OPENCODE_API_KEY", "DEEPSEEK_API_KEY"] as const;
 export type NombreClave = (typeof NOMBRES_CLAVE)[number];
 export const esNombreClave = (n: unknown): n is NombreClave => (NOMBRES_CLAVE as readonly string[]).includes(n as string);
@@ -139,6 +142,7 @@ export function hayClaves(guardadas: Partial<Record<NombreClave, string>>, env: 
     OPENCODE_API_KEY: !!(env.OPENCODE_API_KEY || guardadas.OPENCODE_API_KEY),
     DEEPSEEK_API_KEY: !!(env.DEEPSEEK_API_KEY || guardadas.DEEPSEEK_API_KEY),
     ARTIFICIAL_ANALYSIS_API_KEY: !!(env.ARTIFICIAL_ANALYSIS_API_KEY || guardadas.ARTIFICIAL_ANALYSIS_API_KEY),
+    NVIDIA_API_KEY: !!(env.NVIDIA_API_KEY || guardadas.NVIDIA_API_KEY),
   };
 }
 
