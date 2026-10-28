@@ -12,7 +12,7 @@ registerHooks({
     if (spec.startsWith(".") && !path.extname(spec) && ctx.parentURL?.includes("/src/")) {
       const base = path.join(path.dirname(fileURLToPath(ctx.parentURL)), spec);
       for (const f of [base + ".ts", base + ".tsx", path.join(base, "index.ts")])
-        if (existsSync(f)) return next(path.relative(path.dirname(fileURLToPath(ctx.parentURL)), f).replace(/^(?!\.)/, "./"), ctx);
+        if (existsSync(f)) return next(path.relative(path.dirname(fileURLToPath(ctx.parentURL)), f).replace(/\\/g, "/").replace(/^(?!\.)/, "./"), ctx);
     }
     return next(spec, ctx);
   },

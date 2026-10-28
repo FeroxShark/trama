@@ -19,7 +19,7 @@ registerHooks({
     }
     if (spec.startsWith(".") && !path.extname(spec) && ctx.parentURL?.includes("/src/")) {
       for (const f of [path.join(desde, spec + ".ts"), path.join(desde, spec + ".tsx")])
-        if (existsSync(f)) return next(path.relative(desde, f).replace(/^(?!\.)/, "./"), ctx);
+        if (existsSync(f)) return next(path.relative(desde, f).replace(/\\/g, "/").replace(/^(?!\.)/, "./"), ctx);
     }
     return next(spec, ctx);
   },

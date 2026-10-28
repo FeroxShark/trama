@@ -19,7 +19,7 @@ registerHooks({
       if (!path.extname(spec) && ctx.parentURL.includes("/src/")) {
         const base = path.join(dir, spec);
         for (const f of [base + ".ts", base + ".tsx", path.join(base, "index.ts")])
-          if (existsSync(f)) return next(path.relative(dir, f).replace(/^(?!\.)/, "./"), ctx);
+          if (existsSync(f)) return next(path.relative(dir, f).replace(/\\/g, "/").replace(/^(?!\.)/, "./"), ctx);
       }
       if (spec.endsWith(".js") && ctx.parentURL.includes("/electron/") && existsSync(path.join(dir, spec.slice(0, -3) + ".ts")))
         return next(spec.slice(0, -3) + ".ts", ctx);
