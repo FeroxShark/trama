@@ -1,7 +1,7 @@
 {
   "name": "trama-windows",
   "productName": "Trama",
-  "version": "0.1.4",
+  "version": "0.2.13",
   "description": "Carcasa de Windows para Trama: asistente de primer arranque (WSL2 + motor) y ventana a http://localhost:8791",
   "private": true,
   "license": "MIT",
@@ -10,10 +10,10 @@
     "start": "electron .",
     "test": "node scripts/test.mjs",
     "payload": "bash scripts/preparar-payload.sh",
-    "dist": "bash scripts/construir.sh",
+    "dist": "node scripts/sincronizar-version.mjs && bash scripts/construir.sh",
     "pantalla": "bash scripts/captura.sh",
     "payload:nativo": "node scripts/preparar-payload-nativo.mjs",
-    "dist:nativo": "electron-builder --config electron-builder-nativo.yml --win nsis --x64 --publish never"
+    "dist:nativo": "node scripts/sincronizar-version.mjs && electron-builder --config electron-builder-nativo.yml --win nsis --x64 --publish never"
   },
   "dependencies": {
     "electron-updater": "^6.8.0"

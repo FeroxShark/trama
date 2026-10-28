@@ -259,7 +259,7 @@ function demo(nombre) {
     { id: "login", titulo: "Conectar tu cuenta" }, { id: "ollama", titulo: "Modelos locales (Ollama)" }, { id: "motor", titulo: "Arrancar Trama" },
   ];
   ahora.pasos = pasos;
-  $("version").textContent = "Trama 0.1.0";
+  $("version").textContent = "Trama";
   const previos = { wsl: [], sistema: ["wsl"], instalar: ["wsl", "sistema"], login: ["wsl", "sistema", "instalar"], "login-uno": ["wsl", "sistema", "instalar"], ollama: ["wsl", "sistema", "instalar", "login"], error: ["wsl"], reinicio: [] };
   ahora.hechos = new Set(previos[nombre] || []);
   if (nombre === "instalar") {
