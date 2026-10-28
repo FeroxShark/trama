@@ -23,8 +23,10 @@ test("windows/tests: actualización 0.1.1 -> 0.1.2, preservación SHA-256 de cue
     maxBuffer: 64 * 1024 * 1024,
   });
   const out = r.stdout ?? "";
-  // Si falla, que el log de CI diga cuál (antes sólo mostraba el comando).
-  assert.equal(r.status, 0, `windows/tests salió con ${r.status}:\n${out.split("\n").filter((l) => /^\s*(✖|ℹ (fail|pass))/.test(l)).join("\n")}\n${r.stderr ?? ""}`.slice(0, 6000));
+  // Si falla, que el log de CI diga cuál y por qué (desde «✖ failing tests:» trae el error de cada uno).
+  const i = out.indexOf("✖ failing tests:");
+  const detalle = i < 0 ? "" : out.slice(i);
+  assert.equal(r.status, 0, `windows/tests salió con ${r.status}:\n${out.split("\n").filter((l) => /^\s*(✖|ℹ (fail|pass))/.test(l)).join("\n")}\n${detalle}\n${r.stderr ?? ""}`.slice(0, 6000));
   assert.match(out, /actualizar 0\.1\.1 -> 0\.1\.2: recompila y reinicia el motor en WSL/);
   assert.match(out, /fail 0/);
 });
