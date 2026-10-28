@@ -134,10 +134,20 @@ test("ajustes y acceso del celular: se guardan desde la PC; por la tailnet el ce
   assert.equal(a.red_seguridad, 250_000);
   assert.equal(JSON.parse(readFileSync(process.env.HILOS_CLAUDE_SETTINGS!, "utf8")).autoCompactWindow, 250_000);
   // Por la tailnet el celular no cambia ajustes ni lo demás que reescribe la máquina; con TRAMA_LOCAL (navegador local) sí, y valida.
-  for (const [canal, args] of [["ajustes:guardar", [{ plan: "pro" }]], ["routing:guardar", [[]]], ["cuentas:quitar", ["x", false]], ["vram:liberar", [{}]], ["claude:actualizar", []], ["trama:actualizar", []]] as [string, unknown[]][])
+  for (const [canal, args] of [["ajustes:guardar", [{ plan: "pro" }]], ["routing:guardar", [[]]], ["cuentas:quitar", ["x", false]], ["vram:liberar", [{}]], ["claude:actualizar", []], ["trama:actualizar", []], ["aa:refrescar", []]] as [string, unknown[]][])
     await assert.rejects(nucleo.llamarRemoto(canal, args, "cel", "192.0.2.2"), /main\.soloPc/, canal);
+  // Artificial Analysis: por la tailnet el estado dice que el refresco es sólo de la PC (Ajustes lo muestra en el botón); de la PC, no.
+  assert.equal(((await nucleo.llamarRemoto("aa:estado", [], "cel", "192.0.2.2")) as { soloPc: boolean }).soloPc, true);
+  assert.equal(((await fn("aa:estado")(ventana)) as { soloPc: boolean }).soloPc, false);
   await assert.rejects(nucleo.llamarRemoto("ajustes:guardar", [{ plan: "oro" }], "cel", "127.0.0.1"), /main\.ajustesPlan/, "por loopback (el dueño) sí llega a validar");
   assert.equal(JSON.parse(readFileSync(process.env.HILOS_CLAUDE_SETTINGS!, "utf8")).autoCompactWindow, 250_000, "lo de la tailnet no tocó nada");
+  // Ajustes > General, Avisar al líder: se guarda de la PC; un valor que no existe no cambia nada.
+  const prefs = path.join(process.env.HILOS_STATE!, "preferencias.json");
+  const guardado = () => (existsSync(prefs) ? JSON.parse(readFileSync(prefs, "utf8")).avisoLider : undefined);
+  await fn("preferencias:avisoLider")(ventana, "todo");
+  assert.equal(guardado(), undefined);
+  await fn("preferencias:avisoLider")(ventana, "worker");
+  assert.equal(guardado(), "worker");
   // El acceso: de la PC se lee y se guarda (y queda en remoto.json).
   const antes = (await fn("remoto:leer")(ventana)) as { editable: boolean; activo: boolean; puerto: number };
   assert.deepEqual([antes.editable, antes.activo, antes.puerto], [true, false, 8791]);
