@@ -317,7 +317,7 @@ listar() {
     printf '%s%-18s%s %s%s%s\n' "$B" "$(basename "$s" .jsonl | cut -c1-18)" "$R" \
            "$C_TOOL" "$(ultimo_paso "$s")" "$R"
     printf '   %s%s%s\n' "$D" "$s" "$R"
-  done < <(find "$PROJ" -path '*/subagents/agent-*.jsonl' -mmin -2 2>/dev/null | head -8)
+  done < <(find "$PROJ" -path '*/subagents/agent-*.jsonl' -mmin -2 2>/dev/null | LC_ALL=C sort | head -8)
 
   (( hubo )) || echo "no hay workers corriendo."
 
