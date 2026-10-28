@@ -5874,6 +5874,7 @@ if [[ $async -eq 1 ]]; then
   [[ -n "$rubrica" ]]    && hijo_args+=( --rubrica "$rubrica" )
   (( ok_dueno ))         && hijo_args+=( --ok-dueno )
   [[ -n "$cuenta" ]]     && hijo_args+=( --cuenta "$cuenta" )
+  [[ -n "$espejo" ]]     && hijo_args+=( --espejo "$espejo" )   # ya movido (espejo_colocar): el hijo sólo arma el deny
   [[ -n "$esfuerzo_pedido" ]] && hijo_args+=( --effort "$esfuerzo_pedido" )
   hijo_args+=( -- "$tarea" )
   # De quién es la corrida, ANTES del fork: mientras espera en cola no tiene `.corrida`, y
