@@ -121,6 +121,8 @@ export const RUTAS: Readonly<Record<string, Ruta>> = {
   "mcp:lista": "local",
   "mcp:guardar": "local",
   "mcp:quitar": "local",
+  "conectores:inventario": "local",
+  "conectores:alternar": "local",
   "reparto:tabla": "local",
   "aa:estado": "local",
   "aa:refrescar": "local",

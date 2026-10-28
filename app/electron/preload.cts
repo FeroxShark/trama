@@ -170,6 +170,8 @@ contextBridge.exposeInMainWorld("hilos", {
     listaMcp: (): Promise<unknown> => ipcRenderer.invoke("mcp:lista"),
     guardarMcp: (entrada: unknown): Promise<unknown> => ipcRenderer.invoke("mcp:guardar", entrada),
     quitarMcp: (nombre: string): Promise<unknown> => ipcRenderer.invoke("mcp:quitar", nombre),
+    inventarioConectores: (): Promise<unknown> => ipcRenderer.invoke("conectores:inventario"),
+    alternarConector: (id: string, activo: boolean): Promise<unknown> => ipcRenderer.invoke("conectores:alternar", id, activo),
     repartoTabla: (): Promise<unknown> => ipcRenderer.invoke("reparto:tabla"),
     estadoAA: (): Promise<unknown> => ipcRenderer.invoke("aa:estado"),
     refrescarAA: (): Promise<unknown> => ipcRenderer.invoke("aa:refrescar"),

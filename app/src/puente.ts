@@ -246,6 +246,10 @@ type Main = {
     /** Agrega o reemplaza uno; los valores secretos van a `claves.env`. Devuelve la lista. Sólo desde la PC. */
     guardarMcp(entrada: unknown): Promise<unknown>;
     quitarMcp(nombre: string): Promise<unknown>;
+    /** Todo lo que tiene conectado Claude Code (skills, plugins, MCP, hooks), sin secretos. */
+    inventarioConectores(): Promise<unknown>;
+    /** Prende o apaga un plugin o un servidor de `.mcp.json`; devuelve el inventario nuevo. */
+    alternarConector(id: string, activo: boolean): Promise<unknown>;
     /** `reparto --tabla --json`: cada modelo que reparto conoce con su inteligencia, cupo y si está permitido; `null` sin `reparto` o con uno viejo. */
     repartoTabla(): Promise<unknown>;
     /** Artificial Analysis: si hay key (nunca el valor) y de cuándo es la caché de inteligencias. */

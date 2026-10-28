@@ -1,4 +1,4 @@
-// Ajustes > Conectores: los servidores MCP propios de Trama (Notion, un Gmail propio, lo que sea): nombre, tipo (programa por comando o servidor
+// Ajustes > Conectores: arriba todo lo que tiene conectado Claude Code (AjustesConectoresInventario.tsx); abajo los servidores MCP propios de Trama (Notion, un Gmail propio, lo que sea): nombre, tipo (programa por comando o servidor
 // por URL) y sus variables. Se guardan en `~/.config/trama/mcp.json`; los valores secretos (tokens, cabeceras) van a `claves.env` y NUNCA vuelven
 // a esta pantalla: sólo se ve si hay uno guardado. Le llegan a los líderes de Claude, DeepSeek Harness y OpenCode (no a los workers ni a Gemini).
 // Al toque, sin la barra de Guardar; sólo desde la PC. Cada estado se dice con ícono y palabra, no sólo con color.
@@ -13,6 +13,7 @@ import { Cat } from "./AjustesNav";
 import { PanelCargando } from "./PanelCargando";
 import type { FilaDato } from "./AjustesEditar";
 import { Estado } from "./AjustesDsh";
+import { InventarioConectores } from "./AjustesConectoresInventario";
 
 type Tipo = VistaServidorMcp["tipo"];
 type VariableBorrador = { nombre: string; valor: string; hay: boolean };
@@ -129,7 +130,7 @@ function Formulario({ b, cambiar, ocupado, alGuardar, alCancelar }: { b: Borrado
   );
 }
 
-export function AjustesConectores({ Dato }: { Dato: FilaDato }) {
+function ServidoresPropios({ Dato }: { Dato: FilaDato }) {
   const [lista, setLista] = useState<VistaServidorMcp[] | null>(null);
   const [falla, setFalla] = useState<string | null>(null);
   const [edita, setEdita] = useState<Borrador | null>(null);
@@ -160,21 +161,11 @@ export function AjustesConectores({ Dato }: { Dato: FilaDato }) {
     }
   };
 
-  if (falla)
-    return (
-      <Cat id="conectores">
-        <div className="pn-aviso" data-error>{textoMain(falla)}</div>
-      </Cat>
-    );
-  if (!lista)
-    return (
-      <Cat id="conectores">
-        <PanelCargando />
-      </Cat>
-    );
+  if (falla) return <div className="pn-aviso" data-error>{textoMain(falla)}</div>;
+  if (!lista) return <PanelCargando />;
 
   return (
-    <Cat id="conectores">
+    <>
       <section className="pn-sec pn-edita" data-mcp>
         <Fijo k="conectores.intro" bloque className="pn-nota pn-intro" />
 
@@ -243,6 +234,21 @@ export function AjustesConectores({ Dato }: { Dato: FilaDato }) {
           <p className="ol-nota">{t("conectores.claudeaiNota")}</p>
         </Dato>
       </section>
+    </>
+  );
+}
+
+export function AjustesConectores({ Dato }: { Dato: FilaDato }) {
+  return (
+    <Cat id="conectores">
+      <section className="pn-sec">
+        <InventarioConectores />
+      </section>
+      <div className="aj-grupo-cab cn-propios">
+        <h3 className="aj-grupo-tit">{t("conectores.propiosTit")}</h3>
+        <p className="aj-grupo-sub">{t("conectores.propiosSub")}</p>
+      </div>
+      <ServidoresPropios Dato={Dato} />
     </Cat>
   );
 }

@@ -12,7 +12,7 @@ import { promptArreglar } from "./arreglar";
 import { salud as saludDe, type EstadoSalud } from "./salud";
 import type { Hilo } from "./contrato";
 import { claveCalidad } from "../paneles/modelos-workers";
-import { ACCESOS_FALSOS, AJUSTES, AUTO, ENTORNO_OLLAMA, ESTADO_DSH, ESTADO_MCP, ESTADO_MCP_FIJOS, ESTADO_OPENCODE, MODELOS_FIJOS, PLAN_GO, TABLA_REPARTO, OLLAMA_FALSO, arranqueMedidoFalso, historialFalso, MEDICION, REMOTO, SALUD, URL_REMOTO_FALSA } from "./fixtures-paneles";
+import { ACCESOS_FALSOS, AJUSTES, AUTO, ENTORNO_OLLAMA, ESTADO_DSH, CONECTORES_FIJOS, ESTADO_MCP, ESTADO_MCP_FIJOS, ESTADO_OPENCODE, MODELOS_FIJOS, PLAN_GO, TABLA_REPARTO, OLLAMA_FALSO, arranqueMedidoFalso, historialFalso, MEDICION, REMOTO, SALUD, URL_REMOTO_FALSA } from "./fixtures-paneles";
 import type { EstadoAuto } from "../../electron/autointegrar";
 import type { Consulta, PiezaConsulta } from "../../electron/historial";
 import type { Arranque, Medido } from "../../electron/arranque";
@@ -23,6 +23,7 @@ import type { EntornoOllama } from "../../electron/ollama-entorno";
 import type { EstadoDsh, Prueba } from "../../electron/dsh-ajustes";
 import type { EstadoMcp } from "../../electron/mcp";
 import type { EntradaMcp, VistaServidorMcp } from "../../electron/mcp-config";
+import type { Conector, Inventario } from "../../electron/conectores-claude";
 import type { NombreClave } from "../../electron/claves";
 import type { EstadoOpencodeUi } from "../../electron/opencode-ajustes";
 import type { VistaPlanGo } from "../../electron/opencode-go";
@@ -36,7 +37,7 @@ export type { DatosAgentsMd, LeccionesPendiente };
 export type AgentsMd = DatosAgentsMd & { proyecto: string; ruta: string | null };
 /** Un worker de rama para auditar: `pa <proy> --auditar <id> -m <modelo> --async` (sólo Claude). */
 export type PedidoAuditar = { id: string; proyecto: string; modelo: string };
-export type { EntradaMcp, EstadoMcp, VistaServidorMcp };
+export type { Conector, EntradaMcp, EstadoMcp, Inventario, VistaServidorMcp };
 export type { Arranque, Bajada, ConfigModelos, Consulta, EntornoOllama, EstadoAuto, EstadoDsh, EstadoModelos, EstadoOpencodeUi, EstadoSalud, Medido, NombreClave, PiezaConsulta, Prueba, Sondeo, VistaPlanGo };
 
 /** Los proveedores de DeepSeek Harness que se pueden probar desde Ajustes. */
@@ -179,6 +180,10 @@ export interface FuentePaneles {
   /** Agrega o reemplaza uno por nombre (los valores nuevos van a `claves.env`); devuelve la lista o rechaza con el motivo. */
   guardarMcp(entrada: EntradaMcp): Promise<VistaServidorMcp[]>;
   quitarMcp(nombre: string): Promise<VistaServidorMcp[]>;
+  /** Lo que tiene conectado Claude Code en esta máquina (skills, plugins, MCP, hooks); nunca un secreto. */
+  inventarioConectores(): Promise<Inventario>;
+  /** Prende o apaga un plugin o un servidor de `.mcp.json` (los demás no se pueden desde acá). */
+  alternarConector(id: string, activo: boolean): Promise<Inventario>;
   /** `reparto --tabla --json`: los modelos que reparto conoce con su inteligencia y cupo; `null` si no hay `reparto` (o es uno viejo). */
   repartoTabla(): Promise<TablaReparto | null>;
   /** La caché de Artificial Analysis se actualizó de fondo: conviene volver a pedir la tabla. */
@@ -261,6 +266,7 @@ let modelosFijos: EstadoModelos | undefined;
 /** DeepSeek Harness de los fixtures (instalado o no, con qué keys): vive mientras la página. */
 let dshFijo: EstadoDsh | undefined;
 let mcpFijo: VistaServidorMcp[] = ESTADO_MCP_FIJOS(MODO.variante);
+let conectoresFijos: Inventario = CONECTORES_FIJOS(MODO.variante);
 /** Artificial Analysis en las capturas: la caché es de ayer en las variantes `mdl-wk-aa*` y no hay en las demás hasta que se refresca. */
 let aaFecha: number | null | undefined;
 const estadoAAFijo = () => {
@@ -376,6 +382,15 @@ const fija: FuentePaneles = {
     await espera(60);
     mcpFijo = mcpFijo.filter((x) => x.nombre !== nombre);
     return structuredClone(mcpFijo);
+  },
+  async inventarioConectores() {
+    await espera(80);
+    return structuredClone(conectoresFijos);
+  },
+  async alternarConector(id, activo) {
+    await espera(60);
+    conectoresFijos = { ...conectoresFijos, items: conectoresFijos.items.map((x) => (x.id === id && x.conmutable ? { ...x, activo } : x)) };
+    return structuredClone(conectoresFijos);
   },
   async probarDsh(proveedor) {
     await espera(500);
@@ -756,6 +771,12 @@ const conPa = (m: NonNullable<typeof main>): FuentePaneles => ({
   },
   async guardarMcp(entrada) {
     return (await m.paneles.guardarMcp(entrada).catch(fallar)) as VistaServidorMcp[];
+  },
+  async inventarioConectores() {
+    return (await m.paneles.inventarioConectores().catch(fallar)) as Inventario;
+  },
+  async alternarConector(id, activo) {
+    return (await m.paneles.alternarConector(id, activo).catch(fallar)) as Inventario;
   },
   async quitarMcp(nombre) {
     return (await m.paneles.quitarMcp(nombre).catch(fallar)) as VistaServidorMcp[];

@@ -7,6 +7,7 @@ import type { EntornoOllama } from "../../electron/ollama-entorno";
 import type { EstadoDsh } from "../../electron/dsh-ajustes";
 import type { EstadoMcp } from "../../electron/mcp";
 import type { VistaServidorMcp } from "../../electron/mcp-config";
+import type { Conector, Inventario } from "../../electron/conectores-claude";
 import type { EstadoOpencodeUi } from "../../electron/opencode-ajustes";
 import type { VistaPlanGo } from "../../electron/opencode-go";
 import type { FilaTabla, TablaReparto } from "../../electron/reparto-tabla";
@@ -477,6 +478,27 @@ export const ESTADO_MCP_FIJOS = (variante: string | null): VistaServidorMcp[] =>
         { nombre: "notion", tipo: "http", url: "https://mcp.notion.com/mcp", variables: [{ tipo: "cabecera", nombre: "Authorization", hay: true }] },
         { nombre: "archivos", tipo: "stdio", comando: "npx", args: ["-y", "@modelcontextprotocol/server-filesystem", "/home/ana/docs"], variables: [] },
       ];
+
+/** Lo que tiene conectado Claude Code en la máquina de las capturas (todo inventado): un poco de cada tipo, prendido y apagado. */
+export const CONECTORES_FIJOS = (variante: string | null): Inventario => {
+  if (variante === "conectores-vacio") return { version: 1, items: [], proyectos: [] };
+  const p = "/home/ana/proyectos/tienda";
+  const items: Conector[] = [
+    { id: "skill|usuario|diseno", tipo: "skill", nombre: "diseno", origen: "usuario", de: "", descripcion: "Tarea de diseño: crear, rediseñar o pulir cómo se ve algo.", activo: true, conmutable: false },
+    { id: "skill|usuario|revisar", tipo: "skill", nombre: "revisar", origen: "usuario", de: "", descripcion: "Revisar el diff actual en busca de errores antes de commitear.", activo: true, conmutable: false },
+    { id: `skill|proyecto|${p}|deploy`, tipo: "skill", nombre: "deploy", origen: "proyecto", de: p, descripcion: "Publicar la tienda en el servidor de pruebas.", activo: true, conmutable: false },
+    { id: "skill|plugin|estilo@mercado||tono", tipo: "skill", nombre: "tono", origen: "plugin", de: "estilo@mercado", descripcion: "Ajusta el tono de los textos largos.", activo: true, conmutable: false },
+    { id: "plugin|estilo@mercado|", tipo: "plugin", nombre: "estilo", origen: "usuario", de: "mercado", descripcion: "Textos más claros y cortos.", activo: true, conmutable: true, clase: "1.2.0" },
+    { id: "plugin|graficos@mercado|", tipo: "plugin", nombre: "graficos", origen: "usuario", de: "mercado", descripcion: "Gráficos y tableros a partir de datos.", activo: false, conmutable: true, clase: "0.9.1" },
+    { id: "mcp|usuario|archivos", tipo: "mcp", nombre: "archivos", origen: "usuario", de: "", descripcion: "", activo: true, conmutable: false, clase: "stdio", destino: "npx -y @modelcontextprotocol/server-filesystem /home/ana/docs", variables: [] },
+    { id: `mcp|proyecto|${p}|calendario`, tipo: "mcp", nombre: "calendario", origen: "proyecto", de: p, descripcion: "", activo: true, conmutable: true, clase: "http", destino: "https://mcp.ejemplo.com/calendario", variables: ["Authorization"] },
+    { id: `mcp|proyecto|${p}|base`, tipo: "mcp", nombre: "base", origen: "proyecto", de: p, descripcion: "", activo: false, conmutable: true, clase: "stdio", destino: "node servidor.js --token ••••", variables: ["DB_PASSWORD"] },
+    { id: "mcp|claudeai|claude.ai Correo", tipo: "mcp", nombre: "Correo", origen: "claudeai", de: "", descripcion: "", activo: false, conmutable: false, clase: "http" },
+    { id: "hook|usuario||settings.json|0", tipo: "hook", nombre: "PreToolUse · Bash", origen: "usuario", de: "", descripcion: "", activo: true, conmutable: false, clase: "PreToolUse", destino: "bash ~/.claude/hooks/guardia.sh" },
+    { id: "hook|plugin|estilo@mercado||0", tipo: "hook", nombre: "SessionStart", origen: "plugin", de: "estilo@mercado", descripcion: "Cargando el estilo…", activo: true, conmutable: false, clase: "SessionStart", destino: "node estilo/arranque.js" },
+  ];
+  return { version: 1, items, proyectos: [p] };
+};
 
 /** Lo que ve `/mcp` en las capturas: los conectores de claude.ai (uno con login pendiente, uno caído) y los de Trama. */
 export const ESTADO_MCP = (motor: string, local: boolean, propios: VistaServidorMcp[]): EstadoMcp => {
