@@ -98,6 +98,7 @@ export const RUTAS: Readonly<Record<string, Ruta>> = {
   "remoto:guardar": "local",
   "contexto:umbral": "local",
   "medicion:leer": "local",
+  "claudeCode:listar": "local",
   "historial:consultar": "local",
   "historial:arranque": "local",
   "historial:medir": "local",
