@@ -16,15 +16,19 @@ import { escribirAtomico } from "./pa.js";
 import { textoT } from "./errores.js";
 import { avisoDe, CADA_MS, comparar, desdeArchivo, hayQueConsultar, normal, type Aviso, type Chequeo } from "./version.js";
 import { silencio } from "./log.js";
-import { esWindows } from "./rutas.ts";
+import { esWindows, delimitadorDe, plataformaActual } from "./rutas.ts";
+import { clavePath } from "./binario.ts";
 import { envoltorioWindows, resolverTerminal } from "./terminal-lanzar.js";
 
-/** Abierta desde el menú de apps la sesión gráfica puede no traer estas carpetas en el PATH (ver binario.ts). */
+/** Abierta desde el menú de apps la sesión gráfica puede no traer estas carpetas en el PATH (ver binario.ts). En Windows el PATH va con `;` y la clave es `Path`. */
 export function entorno(): NodeJS.ProcessEnv {
   const home = os.homedir();
+  const plat = plataformaActual();
+  const sep = delimitadorDe(plat);
+  const clave = clavePath(process.env, plat);
   const extra = [path.join(home, ".local", "bin"), path.join(home, ".npm-global", "bin")];
-  const resto = (process.env.PATH ?? "").split(":").filter((d) => d && !extra.includes(d));
-  return { ...process.env, PATH: [...extra, ...resto].join(":") };
+  const resto = (process.env[clave] ?? "").split(sep).filter((d) => d && !extra.includes(d));
+  return { ...process.env, [clave]: [...extra, ...resto].join(sep) };
 }
 
 /** Lo que imprime el comando, normalizado a "x.y.z"; null si falló o no se entiende. */
