@@ -160,7 +160,7 @@ else {
         if ($LASTEXITCODE -ne 0) { throw "git no pudo hacer el commit inicial (código $LASTEXITCODE)" }
         # Registry propio por PROYECTOS_REGISTRY: el de la PC no se toca.
         $json = '{"projects":[{"name":"' + $proyecto + '","path":"' + $repo.Replace('\', '\\') + '"}]}'
-        [IO.File]::WriteAllText($registro, $json, (New-Object Text.UTF8Encoding($false)))
+        [IO.File]::WriteAllText($registro, $json, (New-Object -TypeName Text.UTF8Encoding -ArgumentList $false))
         $r = Correr -ruta (Join-Path $bin 'pa.cmd') -argumentos @($proyecto, '--leer', 'decí OK') -segundos $segundosWorker -entorno @{ PROYECTOS_REGISTRY = $registro }
         $lineas = @($r.Texto -split '\r?\n' | Where-Object { $_.Trim() -ne '' })
         $primera = ''
