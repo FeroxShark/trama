@@ -9,7 +9,7 @@ import { appendFileSync, mkdirSync, readFileSync, statSync, writeFileSync, renam
 import path from "node:path";
 import type { GrupoCupo, SuscripcionCupo, VentanaCupo } from "./cupos.ts";
 import { dirEstadoReparto, GRUPO_OPENCODE_GRATIS, grupoModeloGo } from "./opencode-agotado.ts";
-import { esGratis, esModeloGo, PROVEEDOR_GO, type PlanOpencode } from "./opencode.ts";
+import { esGratis, esModeloGo, esNvidia, PROVEEDOR_GO, type PlanOpencode } from "./opencode.ts";
 import { esPlanGo, normalizarSlug, type TablaGo } from "./opencode-go.ts";
 import { cuentasDeEstaMaquinaVarias, listarCuentas, type ListaCuentas, type PerfilCuenta } from "./cuentas-varias.ts";
 import { cuentaAgregadaDe } from "./opencode-cuenta.ts";
@@ -29,8 +29,8 @@ export type Pedidos = { t: number; m: string; n: number; c?: string };
 /** `opencode:opencode-go/Kimi-K3.1-Pro` → `opencode-go/kimi-k3.1-pro`: como se anota (sin el prefijo de Trama, en minúsculas). */
 const claveModelo = (m: string): string => m.replace(/^opencode:/, "").toLowerCase();
 
-/** Se cuentan sólo los que tienen cupo: los gratis (uno solo, compartido) y los de Go (uno por modelo). Los de pago por uso, no. */
-export const cuentaPedidos = (modelo: string): boolean => esGratis(claveModelo(modelo)) || esModeloGo(claveModelo(modelo));
+/** Se cuentan sólo los que tienen cupo: los gratis (uno solo, compartido), los de Go (uno por modelo) y los de NVIDIA NIM (por minuto, uno por modelo). Los de pago por uso, no. */
+export const cuentaPedidos = (modelo: string): boolean => esGratis(claveModelo(modelo)) || esModeloGo(claveModelo(modelo)) || esNvidia(claveModelo(modelo));
 
 function leerTodo(env: NodeJS.ProcessEnv): Pedidos[] {
   let texto = "";
@@ -164,6 +164,36 @@ export function suscripcionOpencode(e: EntradaOpencode): SuscripcionCupo {
   }
   const c = e.cuenta;
   return { id: c?.id ?? "opencode", nombre: c?.nombre ?? "OpenCode", proveedor: "opencode", cuenta: c?.id ?? "opencode", ts: ahoraS, grupos };
+}
+
+/** NVIDIA NIM da ~40 pedidos por minuto y por modelo (sin tope diario): la ventana es de un minuto que se mueve con el reloj. */
+export const VENTANA_NIM_S = 60;
+
+/**
+ * La fila de NVIDIA NIM de la barra: un grupo (`nvidia-nim`, el mismo id que usa `reparto`) con una ventana de 1 minuto. El % es el del modelo más
+ * cargado del último minuto contra el tope por modelo (el límite es de cada modelo, no de todos juntos); `vuelve` es cuándo sale del minuto su pedido
+ * más viejo. Nunca hay marca de agotado: un 429 de NIM dura un minuto y `pa` sólo enfría ese modelo. `null`: sin clave o sin modelos prendidos.
+ */
+export function suscripcionNvidia(e: { hayClave: boolean; modelos: readonly string[]; tope: number; pedidos: readonly Pedidos[]; ahoraMs: number }): SuscripcionCupo | null {
+  if (!e.hayClave || !e.modelos.length) return null;
+  const ahoraS = Math.floor(e.ahoraMs / 1000);
+  const porModelo = new Map<string, { n: number; viejo: number }>();
+  for (const p of e.pedidos) {
+    if (!esNvidia(p.m) || p.t <= ahoraS - VENTANA_NIM_S) continue;
+    const a = porModelo.get(p.m);
+    porModelo.set(p.m, { n: (a?.n ?? 0) + p.n, viejo: Math.min(a?.viejo ?? p.t, p.t) });
+  }
+  let mejor: { n: number; viejo: number } | null = null;
+  for (const v of porModelo.values()) if (!mejor || v.n > mejor.n) mejor = v;
+  const usados = mejor?.n ?? 0;
+  const ventana: VentanaCupo = {
+    id: "1m",
+    pct: Math.min(100, Math.round((usados / e.tope) * 100)),
+    vuelve: mejor ? mejor.viejo + VENTANA_NIM_S : null,
+    pedidos: usados,
+    tope: e.tope,
+  };
+  return { id: "nvidia-nim", nombre: "NVIDIA NIM", proveedor: "nvidia", cuenta: "nvidia-nim", ts: ahoraS, grupos: [{ id: "nvidia-nim", nombre: "NVIDIA NIM", ventanas: [ventana] }] };
 }
 
 /** De todas las marcas de OpenCode (`marcasOpencode`), las de una cuenta (`null`: la de siempre), sin el sufijo `@<cuenta>`. */

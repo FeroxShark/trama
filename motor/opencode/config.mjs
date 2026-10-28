@@ -62,6 +62,9 @@ export const PLANES_OPENCODE = ["gratis", "go", "go-plus"];
 /** ¿Es un modelo de OpenCode Go? Recibe `opencode-go/xxx` u `opencode:opencode-go/xxx`. */
 export const esModeloGo = (id) => /^(?:opencode:)?opencode-go\//.test(String(id));
 
+/** ¿Es un modelo de NVIDIA NIM (`nvidia/<org>/<modelo>` u `opencode:nvidia/...`)? Gratis con clave, ~40 pedidos por minuto por modelo. DUPLICADO en app/electron/opencode.ts. */
+export const esNvidia = (id) => /^(?:opencode:)?nvidia\//.test(String(id));
+
 /** Cuánto dura la marca de agotado de un modelo de Go si no se sabe cuándo vuelve: la ventana de 5 h del plan. */
 export const VENCE_GO_MS = 5 * 3600_000;
 

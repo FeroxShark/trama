@@ -77,3 +77,37 @@ test("probar manda la clave sólo en la cabecera y pide una llamada mínima", as
   assert.equal(JSON.parse(String(visto!.init.body)).max_tokens, 1);
   assert.equal(String(visto!.init.body).includes("secreta"), false);
 });
+
+test("la barra: el modelo más cargado del último minuto contra el tope, sin marca de agotado", async () => {
+  const { suscripcionNvidia } = await import("../electron/opencode-pedidos.ts");
+  const ahora = 1_800_000_000;
+  const m = "nvidia/deepseek-ai/deepseek-v4.1-flash";
+  const e = { hayClave: true, modelos: [MODELO_NIM_BASE], tope: 40, ahoraMs: ahora * 1000 };
+  assert.equal(suscripcionNvidia({ ...e, hayClave: false, pedidos: [] }), null, "sin clave no hay fila");
+  assert.equal(suscripcionNvidia({ ...e, modelos: [], pedidos: [] }), null, "todos apagados no hay fila");
+  const vacio = suscripcionNvidia({ ...e, pedidos: [] })!;
+  assert.deepEqual(vacio.grupos![0].ventanas[0], { id: "1m", pct: 0, vuelve: null, pedidos: 0, tope: 40 });
+  const s = suscripcionNvidia({
+    ...e,
+    pedidos: [
+      { t: ahora - 90, m, n: 30 }, // fuera del minuto
+      { t: ahora - 50, m, n: 6 },
+      { t: ahora - 5, m, n: 4 },
+      { t: ahora - 5, m: "nvidia/meta/llama-3.3-70b-instruct", n: 2 }, // otro modelo: el tope es de cada uno
+    ],
+  })!;
+  assert.equal(s.proveedor, "nvidia");
+  assert.equal(s.grupos![0].id, "nvidia-nim");
+  assert.equal(s.grupos![0].agotado, undefined);
+  assert.deepEqual(s.grupos![0].ventanas[0], { id: "1m", pct: 25, vuelve: ahora - 50 + 60, pedidos: 10, tope: 40 });
+});
+
+test("anotar: los pedidos de NIM cuentan (como nvidia/<modelo>) y los de pago por uso no", async () => {
+  const { anotarPedidos, cuentaPedidos, leerPedidos } = await import("../electron/opencode-pedidos.ts");
+  const dir = await mkdtemp(path.join(os.tmpdir(), "nim-ped-"));
+  const env = { REPARTO_STATE: dir } as NodeJS.ProcessEnv;
+  assert.equal(cuentaPedidos("opencode:nvidia/deepseek-ai/deepseek-v4.1-flash"), true);
+  assert.equal(cuentaPedidos("opencode:anthropic/claude-x"), false);
+  assert.equal(anotarPedidos("opencode:nvidia/deepseek-ai/deepseek-v4.1-flash", 3, env), true);
+  assert.deepEqual(leerPedidos(env).map((p) => [p.m, p.n]), [["nvidia/deepseek-ai/deepseek-v4.1-flash", 3]]);
+});

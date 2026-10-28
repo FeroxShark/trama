@@ -54,7 +54,11 @@ test("el runner de workers (motor/opencode/correr.mjs) anota con el mismo format
   const env = { REPARTO_STATE: dir } as NodeJS.ProcessEnv;
   assert.equal(anotarMotor("opencode-go/glm-5.3-flash", 4, env, os.homedir(), AHORA), true);
   assert.equal(anotarMotor("opencode/gpt-5", 4, env, os.homedir(), AHORA), false);
-  assert.deepEqual(leerPedidos(env, AHORA), [{ t: S, m: "opencode-go/glm-5.3-flash", n: 4 }]);
+  assert.equal(anotarMotor("opencode:nvidia/deepseek-ai/deepseek-v4.1-flash", 2, env, os.homedir(), AHORA), true, "NVIDIA NIM también se anota");
+  assert.deepEqual(leerPedidos(env, AHORA), [
+    { t: S, m: "opencode-go/glm-5.3-flash", n: 4 },
+    { t: S, m: "nvidia/deepseek-ai/deepseek-v4.1-flash", n: 2 },
+  ]);
   // Sin REPARTO_STATE: <PA_STATE>/reparto, como agotado.json.
   const pa = carpeta();
   anotarMotor("opencode/beam-free", 1, { PA_STATE: pa }, os.homedir(), AHORA);

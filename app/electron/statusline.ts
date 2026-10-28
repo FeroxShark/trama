@@ -17,11 +17,13 @@ import { claseDeModelo, familiaDeModelo } from "./modelos-config.js";
 import { real, registro, type Proyecto } from "./registro.js";
 import { sesiones, type Sesion } from "./sesiones.js";
 import { creadoEn, proyectoEnTexto, temaDe, tituloDeRama, tituloLider } from "./tema.js";
+import { hayClaves, leerClavesSync } from "./claves.ts";
 import { cuposActuales, type SuscripcionCupo } from "./cupos.js";
+import { modelosNim, TOPE_NIM_MIN } from "./nvidia-nim.ts";
 import { marcasOpencode } from "./opencode-agotado.js";
 import { hayOpencode, planOpencode } from "./opencode.js";
 import { cargarTablaGo, esPlanGo } from "./opencode-go.js";
-import { cuentasOpencode, leerPedidos, marcasDeCuenta, sinOpencodeDeReparto, suscripcionOpencode } from "./opencode-pedidos.js";
+import { cuentasOpencode, leerPedidos, marcasDeCuenta, sinOpencodeDeReparto, suscripcionNvidia, suscripcionOpencode } from "./opencode-pedidos.js";
 import { deStatusline, esCuentaDeSiempre, usoDe, type Ventana } from "./uso.ts";
 import { verCaidos, type Caido } from "./vigia.js";
 import { silencio } from "./log.js";
@@ -230,6 +232,7 @@ export async function leerStatusline(): Promise<Statusline> {
   const conOpencode = hayOpencode() || esPlanGo(plan) || otrasOc.length > 0 || Object.keys(marcas).length > 0;
   const pedidosOc = conOpencode ? leerPedidos() : [];
   const tablaOc = conOpencode && (esPlanGo(plan) || otrasOc.some((c) => esPlanGo(c.plan))) ? cargarTablaGo() : null;
+  const nim = suscripcionNvidia({ hayClave: hayClaves(leerClavesSync()).NVIDIA_API_KEY, modelos: modelosNim(), tope: TOPE_NIM_MIN, pedidos: leerPedidos(), ahoraMs: ahora * 1000 });
   const suscripciones: SuscripcionCupo[] = [
     // La fila de OpenCode la arma Trama (suscripcionOpencode: sus pedidos, su plan, sus marcas). `reparto --cupos` también lista una, vacía y "sin lectura de
     // cupo" (no reparte OpenCode): si pasaban las dos, la barra mostraba OpenCode dos veces y, al contar dos del mismo proveedor, las rotulaba «principal».
@@ -240,6 +243,8 @@ export async function leerStatusline(): Promise<Statusline> {
           ...otrasOc.map((c) => suscripcionOpencode({ cuenta: { id: c.id, nombre: c.nombre }, plan: c.plan ?? "gratis", tabla: tablaOc, pedidos: pedidosOc, ...marcasDeCuenta(marcas, c.id), ahoraMs: ahora * 1000 })),
         ]
       : []),
+    // NVIDIA NIM (gratis, con clave propia): su grupo con el tope por minuto, sólo si hay clave y algún modelo prendido.
+    ...(nim ? [nim] : []),
   ];
   const hayOtras = suscripciones.length > 0;
   const hayFuentes = recientes.length > 0 || !!visto || !!lecturaCupos || hayOtras;

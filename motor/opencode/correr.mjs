@@ -31,7 +31,7 @@ import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import { fileURLToPath } from "node:url";
 import os from "node:os";
 import path from "node:path";
-import { conModeloChico, conPermisoFuera, esErrorCuota, esGratis, esModeloGo, mensajeCuotaGo, mensajeCuotaOpencode, parsearModelo, planOpencode, resolverOpencode } from "./config.mjs";
+import { conModeloChico, conPermisoFuera, esErrorCuota, esGratis, esModeloGo, esNvidia, mensajeCuotaGo, mensajeCuotaOpencode, parsearModelo, planOpencode, resolverOpencode } from "./config.mjs";
 
 /** ¿Es una cuenta agregada de OpenCode (la que pone `cuentas env`: TRAMA_OPENCODE_CUENTA con un id válido que no es la de siempre)? */
 export const cuentaAgregada = (env = process.env) => /^[a-z0-9][a-z0-9-]{0,39}$/.test(env.TRAMA_OPENCODE_CUENTA ?? "") && env.TRAMA_OPENCODE_CUENTA !== "opencode";
@@ -125,7 +125,7 @@ export function aResultado({ eventos, modelo, rc, stderr, segundos, gratis, trun
  */
 export function anotarPedidos(modelo, n, env = process.env, home = os.homedir(), ahoraMs = Date.now()) {
   const m = String(modelo).replace(/^opencode:/, "").toLowerCase();
-  if (!(n >= 1) || !(esGratis(m) || esModeloGo(m))) return false;
+  if (!(n >= 1) || !(esGratis(m) || esModeloGo(m) || esNvidia(m))) return false;
   const dir = env.REPARTO_STATE || path.join(env.PA_STATE || path.join(home, ".local", "state", "pa"), "reparto");
   try {
     mkdirSync(dir, { recursive: true });
@@ -170,6 +170,7 @@ async function main() {
   const t0 = Date.now();
   const maxPasos = Number.parseInt(a["max-pasos"] ?? "", 10) > 0 ? Number.parseInt(a["max-pasos"], 10) : 0;
   let truncado = 0;
+  let pasosAnotados = 0; // pasos de NVIDIA NIM ya anotados al terminar cada uno
   // La tarea siempre por stdin (cabe cualquier largo, no se confunde con un flag y no se ve en `ps`): `run` la lee si no hay mensaje.
   // El esfuerzo (--effort) es el `--variant` de opencode; vacío o con pinta rara: no se pasa (el modelo usa el suyo).
   // Cada versión de opencode trae otros flags en `run` (2.x no tiene --dir): sólo se pasan los que su --help nombra.
@@ -202,6 +203,8 @@ async function main() {
       /* sin transcript la corrida sigue */
     }
     eventos.push(e);
+    // NVIDIA NIM cuenta por minuto: cada paso se anota cuando termina (no todos juntos al final) para que la barra vea el ritmo de verdad.
+    if (e.type === "step_finish" && esNvidia(prov.valor) && anotarPedidos(prov.valor, 1)) pasosAnotados++;
     // El tope de pasos: si arranca el paso N+1 se corta a opencode (si el N-ésimo era el último, termina solo y no se toca). El paso N+1 se nota
     // por cualquier evento después del N-ésimo step_finish: opencode 2.x a veces no emite su step_start.
     if (maxPasos && !truncado && e.type !== "step_finish" && e.type !== "error" && eventos.filter((x) => x.type === "step_finish").length >= maxPasos) {
@@ -239,7 +242,7 @@ async function main() {
 
   const r = aResultado({ eventos, modelo: modeloPa, rc, stderr, segundos: (Date.now() - t0) / 1000, gratis: esGratis(prov.valor) || esModeloGo(prov.valor), truncado });
   escribirSalida(salida, r);
-  anotarPedidos(prov.valor, r.num_turns);
+  anotarPedidos(prov.valor, esNvidia(prov.valor) ? r.num_turns - pasosAnotados : r.num_turns); // de NIM sólo lo que faltó anotar
   if (rc === 127) process.stderr.write("opencode/correr: no está opencode (npm i -g opencode-ai, o HILOS_OPENCODE=<ruta>)\n");
   else if (r.is_error) process.stderr.write(`opencode/correr: la corrida falló: ${r.result.split("\n").at(-1)}\n`);
   process.exit(r.is_error ? (rc === 0 || truncado ? 1 : rc) : 0);
