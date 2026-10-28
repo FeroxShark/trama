@@ -22,6 +22,16 @@ registerHooks({
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "hilos-nucleo-"));
 after(() => rmSync(tmp, { recursive: true, force: true }));
+// Lo de la máquina no entra (como en CI): la casa es una vacía de la prueba, y el PATH pierde lo que cae bajo la casa
+// real (~/.local/bin trae el dsh y el agy de la persona, que la prueba ejecutaría). Lo que la app lee de `~` (~/CLAUDE.md
+// con la tabla de routing, ~/.config/trama/perfil.json) y los XDG de la sesión tampoco son de la máquina que corre el test.
+const casaReal = os.homedir();
+const bajoCasaReal = (d: string) => d === casaReal || d.startsWith(`${casaReal}/`);
+process.env.PATH = (process.env.PATH ?? "").split(":").filter((d) => d && !bajoCasaReal(d)).join(":");
+const casa = path.join(tmp, "casa");
+mkdirSync(casa);
+process.env.HOME = casa;
+for (const k of ["XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_CACHE_HOME", "XDG_STATE_HOME"]) delete process.env[k];
 process.env.HILOS_STATE = path.join(tmp, "estado");
 // `remoto:leer` sólo es editable en una máquina con Tailscale: el test no depende de que esté instalado.
 process.env.HILOS_TAILSCALE ||= "/usr/bin/tailscale";
