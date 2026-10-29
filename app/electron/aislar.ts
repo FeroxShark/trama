@@ -15,8 +15,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const e = process.env;
-/** ¿Esta corrida es de prueba? (las mismas señales que apagan el historial, el autointegrar, el motor real…) */
-export const enPrueba = !!(e.HILOS_BENCH || e.HILOS_CAPTURA || e.HILOS_CAPTURA_PNG || e.HILOS_PRUEBA || e.HILOS_GUION || e.HILOS_FIXTURES === "1");
+/** ¿Esta corrida es de prueba? (las mismas señales que apagan el historial, el autointegrar, el motor real…; y `TRAMA_AISLAR=1`, que pone scripts/aislar-pruebas.mjs en cada archivo de `node --test`) */
+export const enPrueba = !!(e.HILOS_BENCH || e.HILOS_CAPTURA || e.HILOS_CAPTURA_PNG || e.HILOS_PRUEBA || e.HILOS_GUION || e.HILOS_FIXTURES === "1" || e.TRAMA_AISLAR === "1");
 
 const violaciones: string[] = [];
 
