@@ -385,6 +385,38 @@ body,
 .grupo[data-cuenta] .g-hasta {
   grid-column: 1;
 }
+/* El control de una cuenta («En uso» / «Usar primero»): una línea a todo lo ancho debajo de sus barras; en una cuenta agregada, sangrada como su nombre. */
+.grupo > .g-acc {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--esp-1) var(--esp-2);
+  font-size: var(--letra-1);
+}
+.grupo[data-cuenta] > .g-acc {
+  padding-left: var(--esp-3);
+}
+.g-acc-uso {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--esp-1);
+  color: var(--texto-1);
+  font-weight: 600;
+}
+.g-acc-btn {
+  min-height: 1.5rem;
+  padding: 0 var(--esp-2);
+  font-size: var(--letra-1);
+}
+.g-acc-err {
+  color: var(--critico);
+}
+@media (pointer: coarse) {
+  .g-acc-btn {
+    min-height: 2.75rem;
+  }
+}
 .grupo[data-hijo] .g-n {
   display: -webkit-box;
   -webkit-box-orient: vertical;

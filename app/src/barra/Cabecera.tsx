@@ -16,7 +16,8 @@ import type { GrupoCupo, Uso, Ventana, VentanaCupo } from "../datos/contrato";
 import { fuente } from "../datos/fuente";
 import { nivel } from "../hilo/contexto-logica";
 import { LogoSuscripcion } from "../hilo/Logos";
-import { MARCA, filasDeCupos, type FilaSusc } from "../datos/cuentas";
+import { MARCA, cuentaParaElegir, filasDeCupos, type FilaSusc, type ListaCuentas } from "../datos/cuentas";
+import { ElegirCuenta, useCuentasBarra } from "./ElegirCuenta";
 import { MODO } from "../modo";
 import { VIEJO_S, cuandoFuturo, pintorCuando, pintorVisto } from "../tiempo";
 import type { Pintor } from "../reloj";
@@ -94,6 +95,8 @@ export function Cabecera({ alOcultar }: { alOcultar: () => void }) {
 
   const datos = uso && !("error" in uso) ? uso : null;
   const cupos = filasDeCupos(datos?.suscripciones, datos?.claudeNombre, t("cuentas.principal"));
+  // Las cuentas de cada proveedor (sólo cuando hay varias, cada fila lleva su «En uso» / «Usar primero»).
+  const [cuentas, releerCuentas] = useCuentasBarra();
 
   return (
     <>
@@ -134,15 +137,22 @@ export function Cabecera({ alOcultar }: { alOcultar: () => void }) {
               celdas={[celdaDe("5h", uso?.five_hour ?? null), celdaDe("7d", uso?.seven_day ?? null)]}
               ts={uso?.ts ?? 0}
               ver={VER_TIP}
+              accion={controlDe(cuentas, "claude", "claude", releerCuentas)}
             />
             {cupos.filas.map((f) => (
-              <Suscripcion key={f.s.id} f={f} />
+              <Suscripcion key={f.s.id} f={f} cuentas={cuentas} releerCuentas={releerCuentas} />
             ))}
           </div>
         </div>
       )}
     </>
   );
+}
+
+/** El control «En uso» / «Usar primero» de una fila, si su proveedor tiene varias cuentas; `undefined`: la fila queda como hoy. */
+function controlDe(cuentas: ListaCuentas | null, proveedor: string, cuenta: string, releer: () => void): ReactNode {
+  const perfil = cuentaParaElegir(cuentas, proveedor, cuenta);
+  return perfil ? <ElegirCuenta perfil={perfil} alCambiar={releer} /> : undefined;
 }
 
 /** La ventana de Claude (statusline / stream) como celda. */
@@ -179,7 +189,7 @@ const celdasGrupo = (g: GrupoCupo, r: ResumenCupo): (Celda | null)[] =>
  * celdas en las mismas dos columnas que Claude (con "hasta d/m" si el cupo vence). Qué grupos hay y qué ventanas trae cada uno lo dice `reparto`
  * (`renglonesDeGrupos`): un grupo nuevo, sin ventanas o con una sola se dibuja igual, sin tocar esto.
  */
-function Suscripcion({ f }: { f: FilaSusc }) {
+function Suscripcion({ f, cuentas, releerCuentas }: { f: FilaSusc; cuentas: ListaCuentas | null; releerCuentas: () => void }) {
   const { s } = f;
   // Una cuenta agregada cuelga de la fila de su proveedor: sin logo (ya lo dice la de arriba), sangrada y con el nombre de la cuenta.
   const logo = f.cuenta ? undefined : <LogoSuscripcion id={f.proveedor} nombre={s.nombre} />;
@@ -202,6 +212,7 @@ function Suscripcion({ f }: { f: FilaSusc }) {
           celdas={varios ? [] : unico ? celdasGrupo(unico, resumenGrupo(unico, ahora)) : celdasCupo(s.ventanas ?? [])}
           ts={s.ts}
           cuenta={f.cuenta}
+          accion={controlDe(cuentas, f.proveedor, s.cuenta ?? s.id, releerCuentas)}
         />
         {varios &&
           renglonesDeGrupos(grupos, ahora).map(({ g, r }) => {
@@ -241,6 +252,7 @@ function Grupo({
   ver,
   hijo,
   cuenta,
+  accion,
 }: {
   logo?: ReactNode;
   id: string;
@@ -255,6 +267,8 @@ function Grupo({
   hijo?: boolean;
   /** Una cuenta agregada que cuelga de la fila de su proveedor (sangrada, sin logo). */
   cuenta?: boolean;
+  /** El control de la cuenta («En uso» / «Usar primero»), a todo lo ancho debajo de las barras; sólo si el proveedor tiene varias. */
+  accion?: ReactNode;
 }) {
   const dueno = quien ?? nombre;
   return (
@@ -277,6 +291,7 @@ function Grupo({
       {celdas.map((c, i) =>
         c ? <UsoCelda key={c.clave} c={c} quien={dueno} ts={ts} ver={ver && i === 0} /> : <span key={`v${i}`} className="uso-vacio" aria-hidden="true" />,
       )}
+      {accion ? <div className="g-acc">{accion}</div> : null}
     </div>
   );
 }
