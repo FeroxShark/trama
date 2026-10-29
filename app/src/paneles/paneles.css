@@ -1700,23 +1700,6 @@
   font-size: var(--letra-4);
   color: var(--verde-suave);
 }
-.pn-car-distro {
-  display: flex;
-  flex-direction: column;
-  gap: var(--esp-2);
-  padding-top: var(--esp-3);
-  border-top: 1px solid var(--borde-3);
-}
-.pn-car-distro[data-peligro] {
-  padding: var(--esp-3);
-  border: 1px solid var(--rojo-borde);
-  border-radius: var(--radio-3);
-  background: var(--rojo-tinte);
-}
-.pn-car-aviso {
-  font-size: var(--letra-4);
-  color: var(--rojo-claro);
-}
 .btn2[data-peligro]:not(:disabled) {
   border-color: var(--rojo-borde);
   color: var(--rojo-texto);

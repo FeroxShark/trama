@@ -1,9 +1,8 @@
 // Ajustes > Trama para Windows: la versión, "Buscar actualizaciones" (buscando / al día / descargando % / Reiniciar para actualizar)
 // y "Quitar restos de versiones anteriores": muestra qué se va a quitar y pide confirmar. Sólo existe dentro de la carcasa de
-// Windows (`window.carcasa`, src/carcasa.ts). Nunca se tocan tus proyectos, el tablero, las sesiones ni tus cuentas; la distro de
-// Ubuntu sólo se ofrece si la creó Trama y no tiene nada tuyo, y pide escribir su nombre.
+// Windows (`window.carcasa`, src/carcasa.ts). Nunca se tocan tus proyectos, el tablero, las sesiones ni tus cuentas.
 import { useEffect, useRef, useState } from "react";
-import { alCambiarActualizacion, carcasaActualiza as carcasa, comoError, esError, FIXTURE_CARCASA, type DistroResto, type EstadoActualizacion, type ItemResto, type PlanRestos } from "../carcasa";
+import { alCambiarActualizacion, carcasaActualiza as carcasa, comoError, esError, FIXTURE_CARCASA, type EstadoActualizacion, type ItemResto, type PlanRestos } from "../carcasa";
 import { MODO } from "../modo";
 import { t } from "../i18n";
 import type { FilaDato } from "./AjustesEditar";
@@ -33,7 +32,6 @@ export function Carcasa({ Dato }: { Dato: FilaDato }) {
   const [version, setVersion] = useState("");
   const [act, setAct] = useState<EstadoActualizacion | null>(null);
   const [restos, setRestos] = useState<Restos | null>(null);
-  const [nombre, setNombre] = useState("");
   const vivo = useRef(true);
   const sec = useRef<HTMLElement>(null);
   useEffect(() => {
@@ -58,18 +56,16 @@ export function Carcasa({ Dato }: { Dato: FilaDato }) {
     const c = carcasa;
     if (!c) return;
     setRestos({ paso: "mirando" });
-    setNombre("");
     const p = await c.restosPlan().catch(comoError);
     if (!vivo.current) return;
     setRestos(esError(p) ? { paso: "error", texto: p.error } : { paso: "plan", plan: p });
   };
 
-  // Las capturas abren la sección con el plan o la distro a la vista.
+  // Las capturas abren la sección con el plan a la vista.
   useEffect(() => {
     if (!FIXTURE_CARCASA) return;
     sec.current?.scrollIntoView({ block: "start" });
-    if (MODO.variante === "carcasa-restos" || MODO.variante === "carcasa-distro") void mirar();
-    if (MODO.variante === "carcasa-distro") setNombre("Ubuntu");
+    if (MODO.variante === "carcasa-restos") void mirar();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -87,15 +83,6 @@ export function Carcasa({ Dato }: { Dato: FilaDato }) {
     const bien = r.resultados.filter((x) => x.estado === "quitado").length;
     const mal = r.resultados.filter((x) => x.estado === "error").length;
     setRestos({ paso: "hecho", mal: mal > 0, texto: mal > 0 ? t("carcasa.restosHechoMal", { n: bien, m: mal }) : t("carcasa.restosHecho", { n: bien }) });
-  };
-
-  const quitarDistro = async (d: DistroResto) => {
-    setRestos({ paso: "mirando" });
-    const r = await c.restosQuitarDistro(nombre.trim()).catch(comoError);
-    if (!vivo.current) return;
-    if (esError(r)) return setRestos({ paso: "error", texto: r.error });
-    const ok = r.resultados.some((x) => x.id === d.id && x.estado === "quitado");
-    setRestos({ paso: "hecho", mal: !ok, texto: ok ? t("carcasa.distroHecho", { d: d.nombre }) : t("carcasa.distroNoQuitada", { d: d.nombre }) });
   };
 
   return (
@@ -146,18 +133,17 @@ export function Carcasa({ Dato }: { Dato: FilaDato }) {
               {restos.texto}
             </div>
           ) : null}
-          {restos.paso === "plan" ? <Plan plan={restos.plan} nombre={nombre} setNombre={setNombre} cancelar={() => setRestos(null)} quitar={(ids) => void quitar(restos.plan, ids)} quitarDistro={(d) => void quitarDistro(d)} /> : null}
+          {restos.paso === "plan" ? <Plan plan={restos.plan} cancelar={() => setRestos(null)} quitar={(ids) => void quitar(restos.plan, ids)} /> : null}
         </div>
       ) : null}
     </section>
   );
 }
 
-function Plan({ plan, nombre, setNombre, cancelar, quitar, quitarDistro }: { plan: PlanRestos; nombre: string; setNombre: (s: string) => void; cancelar: () => void; quitar: (ids: string[]) => void; quitarDistro: (d: DistroResto) => void }) {
+function Plan({ plan, cancelar, quitar }: { plan: PlanRestos; cancelar: () => void; quitar: (ids: string[]) => void }) {
   const aQuitar = plan.items.filter((i) => i.accion === "quitar");
   const ajenos = plan.items.filter((i) => i.accion === "ajeno");
-  const d = plan.distro;
-  if (!aQuitar.length && !ajenos.length && !d) {
+  if (!aQuitar.length && !ajenos.length) {
     return (
       <>
         <div className="pn-car-estado">{t("carcasa.restosNada")}</div>
@@ -200,7 +186,6 @@ function Plan({ plan, nombre, setNombre, cancelar, quitar, quitarDistro }: { pla
           </button>
         </div>
       )}
-      {d ? <Distro d={d} nombre={nombre} setNombre={setNombre} quitar={() => quitarDistro(d)} /> : null}
     </>
   );
 }
@@ -215,41 +200,5 @@ function Lista({ items, apagada }: { items: ItemResto[]; apagada?: boolean }) {
         </li>
       ))}
     </ul>
-  );
-}
-
-// La distro es lo único que no se recupera: segundo paso aparte, con lo que se pierde dicho y el nombre escrito.
-function Distro({ d, nombre, setNombre, quitar }: { d: DistroResto; nombre: string; setNombre: (s: string) => void; quitar: () => void }) {
-  if (!d.puede) {
-    return (
-      <div className="pn-car-distro">
-        <div className="pn-nota">{t("carcasa.distroSeQueda", { d: d.nombre, m: d.motivo })}</div>
-        {d.ajenos.length ? <div className="pn-car-ruta">{d.ajenos.join(" · ")}</div> : null}
-      </div>
-    );
-  }
-  const igual = nombre.trim() === d.nombre;
-  return (
-    <div className="pn-car-distro" data-peligro>
-      <div className="pn-nom">{t("carcasa.distroTitulo", { d: d.nombre })}</div>
-      <div className="pn-car-aviso">{t("carcasa.distroPierde", { p: d.pierde })}</div>
-      <div className="pn-car-aviso">{t("carcasa.distroSinVuelta")}</div>
-      <input
-        className="pn-campo"
-        type="text"
-        autoComplete="off"
-        autoCapitalize="none"
-        spellCheck={false}
-        value={nombre}
-        placeholder={t("carcasa.distroEscribi", { d: d.nombre })}
-        aria-label={t("carcasa.distroEscribi", { d: d.nombre })}
-        onChange={(ev) => setNombre(ev.target.value)}
-      />
-      <div className="pn-acciones-btns">
-        <button type="button" className="btn2" data-peligro disabled={!igual} onClick={quitar}>
-          {t("carcasa.distroBtn", { d: d.nombre })}
-        </button>
-      </div>
-    </div>
   );
 }
