@@ -7,6 +7,7 @@
 // corriendo). Sólo se siguen sesiones con proceso vivo (`sincronizar`): una sin proceso no tiene a nadie corriendo.
 // Sin Electron ni imports locales salvo mirar.ts: lo prueba `tests/subagentes.test.ts`.
 import { open, readdir, readFile, stat } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import { mirarCarpeta, type Mirada } from "./mirar.ts";
 import { silencio } from "./log.ts";
@@ -39,7 +40,19 @@ export type Subagente = {
   en_vuelo?: boolean;
   /** Lo lanzó en segundo plano: el líder puede cerrar su turno y él sigue. Uno en primer plano muere con el turno. */
   segundo_plano?: boolean;
+  /** El esfuerzo con que corre ("high", "xhigh"…), o `null` si no se sabe. Sale de la llamada Agent, de su transcript o de su definición. */
+  esfuerzo: string | null;
+  /** El modelo no lo dijo la llamada, su definición ni su transcript: es el del líder que lo lanzó. */
+  modelo_heredado?: boolean;
+  /** El esfuerzo no lo dijo la llamada, su definición ni su transcript: es el del líder que lo lanzó. */
+  esfuerzo_heredado?: boolean;
 };
+
+/** Lo que una definición de agente (`.claude/agents/<tipo>.md`) fija: su modelo y su esfuerzo, si los pone. */
+export type Definicion = { modelo?: string | null; esfuerzo?: string | null };
+
+/** Lo que tenía el líder cuando lanzó al subagente: su modelo y su esfuerzo. */
+export type Herencia = { modelo: string | null; esfuerzo: string | null };
 
 const LINEAS_RESUMEN = 6;
 const CARACTERES_RESUMEN = 700;
@@ -65,7 +78,13 @@ function detalleHerramienta(nombre: string, input: any): string {
   return d ? `${nombre}: ${d}` : nombre;
 }
 
-type Mensaje = { tipo: "assistant" | "user"; ts: number; msg: any; error: boolean };
+type Mensaje = { tipo: "assistant" | "user"; ts: number; msg: any; error: boolean; esfuerzo: string | null; sidechain: boolean };
+
+/** Un esfuerzo ("High" → "high") o `null`: "-", vacío o lo que no es texto no cuentan. */
+const esfuerzoLimpio = (v: unknown): string | null => {
+  const x = typeof v === "string" ? v.trim().toLowerCase() : "";
+  return x && x !== "-" ? x : null;
+};
 
 /** Las líneas de mensaje (assistant/user) de un trozo de transcript; ignora lo demás y lo ilegible. */
 function mensajesDe(texto: string): Mensaje[] {
@@ -80,7 +99,14 @@ function mensajesDe(texto: string): Mensaje[] {
     }
     if ((o?.type !== "assistant" && o?.type !== "user") || !o.message) continue;
     const ts = Date.parse(o.timestamp);
-    r.push({ tipo: o.type, ts: Number.isFinite(ts) ? Math.floor(ts / 1000) : 0, msg: o.message, error: o.isApiErrorMessage === true });
+    r.push({
+      tipo: o.type,
+      ts: Number.isFinite(ts) ? Math.floor(ts / 1000) : 0,
+      msg: o.message,
+      error: o.isApiErrorMessage === true,
+      esfuerzo: esfuerzoLimpio(o?.effort),
+      sidechain: o.isSidechain === true,
+    });
   }
   return r;
 }
@@ -110,10 +136,13 @@ export function resumir(texto: string): { resumen: string; mas: boolean } {
  * Lo que dicen el principio y el final del transcript de un subagente (y su meta). `cola`: el final, desde una línea
  * entera; `cabeza`: el principio, que trae el primer mensaje con la hora de arranque.
  */
-export function leerSubagente(sid: string, id: string, meta: any, cabeza: string, cola: string, nacio: number): Subagente {
+export function leerSubagente(sid: string, id: string, meta: any, cabeza: string, cola: string, nacio: number, def: Definicion = {}): Subagente {
   const msgs = mensajesDe(cola);
   const primero = mensajesDe(cabeza)[0];
   const ultimoMsg = msgs[msgs.length - 1];
+  // El esfuerzo que corrió (el último que dejó su transcript) cuenta antes que la definición, que pudo cambiar después.
+  let propio: string | null = null;
+  for (const m of msgs) if (m.esfuerzo) propio = m.esfuerzo;
   let ultimoAsistente: Mensaje | undefined;
   for (let i = msgs.length - 1; i >= 0 && !ultimoAsistente; i--) if (msgs[i].tipo === "assistant") ultimoAsistente = msgs[i];
   const inicio = primero?.ts || nacio;
@@ -150,7 +179,10 @@ export function leerSubagente(sid: string, id: string, meta: any, cabeza: string
     id,
     sid,
     descripcion: typeof meta?.description === "string" && meta.description ? meta.description : id,
-    modelo: ultimoAsistente?.msg?.model ? modeloCorto(String(ultimoAsistente.msg.model)) : typeof meta?.model === "string" ? meta.model : null,
+    // El modelo que dice su último mensaje; si no hay ninguno todavía, el que pidió la llamada o su definición.
+    modelo: ultimoAsistente?.msg?.model ? modeloCorto(String(ultimoAsistente.msg.model)) : modeloDePedido(meta, def),
+    // Lo de la llamada Agent (su meta, igual a lo que se le pasó) manda; después lo que corrió; después la definición.
+    esfuerzo: esfuerzoLimpio(meta?.effort) ?? propio ?? esfuerzoLimpio(def.esfuerzo),
     tipo: typeof meta?.agentType === "string" ? meta.agentType : null,
     estado,
     inicio,
@@ -162,6 +194,87 @@ export function leerSubagente(sid: string, id: string, meta: any, cabeza: string
     en_vuelo: estado === "corriendo" && ultimoMsg?.tipo === "assistant" && Array.isArray(ultimoMsg.msg.content) && ultimoMsg.msg.content.some((b: any) => b?.type === "tool_use"),
     segundo_plano: !(typeof meta?.requestShape === "string" && meta.requestShape !== "background"),
   };
+}
+
+/** El modelo que pidió la llamada (su meta, un alias como "haiku") o, si no, su definición; `null` si nadie dijo nada. */
+function modeloDePedido(meta: any, def: Definicion): string | null {
+  const pedido = typeof meta?.model === "string" && meta.model.trim() ? meta.model.trim() : null;
+  const x = pedido ?? def.modelo ?? null;
+  return x ? modeloCorto(x) : null;
+}
+
+/** La carpeta de trabajo de la sesión, de la línea de un subagente (`"cwd"`); `null` si no trae. Ahí cuelga `.claude/agents/`. */
+export function cwdDe(cabeza: string): string | null {
+  const m = cabeza.match(/"cwd":"((?:[^"\\]|\\.)*)"/);
+  if (!m) return null;
+  try {
+    const v = JSON.parse(`"${m[1]}"`);
+    return typeof v === "string" && v ? v : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Los `clave: valor` de la cabecera `---` de un `.md` de agente (lo que Claude Code lee de su definición). */
+export function frontmatterDe(texto: string): Record<string, string> {
+  const r: Record<string, string> = {};
+  const m = texto.replace(/^\uFEFF/, "").match(/^---\r?\n([\s\S]*?)\r?\n---/);
+  if (!m) return r;
+  for (const linea of m[1].split(/\r?\n/)) {
+    const x = linea.match(/^([A-Za-z_][\w-]*):\s*(.*?)\s*$/);
+    if (x) r[x[1]] = x[2].replace(/^(["'])(.*)\1$/, "$2");
+  }
+  return r;
+}
+
+/** Un tipo de agente que se puede usar de nombre de archivo (los de plugin, con `:`, no). */
+const TIPO = /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/;
+
+/**
+ * La definición del agente `tipo`: `<cwd>/.claude/agents/<tipo>.md` o, si no está, la del usuario en `<home>/.claude/agents/`
+ * (gana la del proyecto, como en Claude Code). Sólo cuenta lo que fija el modelo y el esfuerzo; `model: inherit` no fija
+ * nada (sale del líder). `{}` si no hay ninguna o no se lee.
+ */
+export async function definicionDe(cwd: string | null, tipo: unknown, home: string = os.homedir()): Promise<Definicion> {
+  if (typeof tipo !== "string" || !TIPO.test(tipo)) return {};
+  const carpetas = [cwd ? path.join(cwd, ".claude", "agents") : null, path.join(home, ".claude", "agents")];
+  for (const carpeta of carpetas) {
+    if (!carpeta) continue;
+    const texto = await readFile(path.join(carpeta, `${tipo}.md`), "utf8").catch(() => null);
+    if (texto === null) continue;
+    const fm = frontmatterDe(texto);
+    return { modelo: fm.model && fm.model !== "inherit" ? fm.model : null, esfuerzo: esfuerzoLimpio(fm.effort) };
+  }
+  return {};
+}
+
+/**
+ * Con qué modelo (ya lindo) y esfuerzo estaba el líder cuando lanzó al subagente (`en`, epoch s): lo último que escribió
+ * antes de esa hora en su transcript (`texto`, su final). Lo que no hay antes de `en` en lo leído queda `null`.
+ */
+export function liderEn(texto: string, en: number): Herencia {
+  const r: Herencia = { modelo: null, esfuerzo: null };
+  for (const m of mensajesDe(texto)) {
+    if (m.tipo !== "assistant" || m.sidechain || !m.ts || m.ts > en) continue;
+    const modelo = typeof m.msg?.model === "string" ? m.msg.model : "";
+    if (modelo && !modelo.startsWith("<")) r.modelo = modeloCorto(modelo);
+    if (m.esfuerzo) r.esfuerzo = m.esfuerzo;
+  }
+  return r;
+}
+
+/** Lo que al subagente le falta (modelo o esfuerzo) lo pone el del líder que lo lanzó, y se marca como heredado. */
+export function conHerencia(u: Subagente, lider: Herencia): Subagente {
+  const r: Subagente = { ...u };
+  if (!r.modelo && lider.modelo) {
+    r.modelo = lider.modelo;
+    r.modelo_heredado = true;
+  }
+  if (!r.esfuerzo && lider.esfuerzo) {
+    r.esfuerzo = lider.esfuerzo;
+    r.esfuerzo_heredado = true;
+  }
+  return r;
 }
 
 /** Los `n` bytes del final de un archivo, empezando en una línea entera. */
@@ -191,10 +304,14 @@ async function cabezaDe(archivo: string): Promise<string> {
   }
 }
 
-/** Los subagentes de una carpeta `subagents/`, los más nuevos primero. `cache` evita releer lo que no cambió. */
-export async function leerCarpeta(dir: string, sid: string, cache?: Map<string, { firma: string; sub: Subagente }>): Promise<Subagente[]> {
+/**
+ * Los subagentes de una carpeta `subagents/`, los más nuevos primero. `cache` evita releer lo que no cambió.
+ * `leerLider`: el final del transcript del líder, para lo que el subagente no dice (su modelo y su esfuerzo); se lee una vez.
+ */
+export async function leerCarpeta(dir: string, sid: string, cache?: Map<string, { firma: string; sub: Subagente }>, leerLider?: () => Promise<string>): Promise<Subagente[]> {
   const nombres = await readdir(dir).catch(() => [] as string[]);
   const r: Subagente[] = [];
+  let lider: Promise<string> | null = null;
   for (const n of nombres) {
     const m = n.match(/^agent-(.+)\.jsonl$/);
     if (!m || !ID.test(m[1])) continue;
@@ -211,7 +328,10 @@ export async function leerCarpeta(dir: string, sid: string, cache?: Map<string, 
     }
     try {
       const meta = sm ? JSON.parse(await readFile(metaArchivo, "utf8")) : null;
-      const sub = leerSubagente(sid, m[1], meta, await cabezaDe(archivo), await colaDe(archivo, s.size), Math.floor(s.birthtimeMs / 1000));
+      const cabeza = await cabezaDe(archivo);
+      const def = await definicionDe(cwdDe(cabeza), meta?.agentType);
+      let sub = leerSubagente(sid, m[1], meta, cabeza, await colaDe(archivo, s.size), Math.floor(s.birthtimeMs / 1000), def);
+      if ((!sub.modelo || !sub.esfuerzo) && leerLider) sub = conHerencia(sub, liderEn(await (lider ??= leerLider()), sub.inicio));
       cache?.set(archivo, { firma, sub });
       r.push(sub);
     } catch (e) {
@@ -348,13 +468,20 @@ export function crearSubagentes(o: Opciones) {
     espera = setTimeout(() => void avisar(), DEBOUNCE_MS);
   }
 
+  /** El final del transcript del líder de `x` (su `.jsonl`): de ahí sale con qué modelo y esfuerzo lanzó a cada subagente. Nunca falla: sin nada, `""`. */
+  async function liderTexto(x: Seguida): Promise<string> {
+    const archivo = `${x.dir}.jsonl`;
+    const s = await stat(archivo).catch(() => null);
+    return s?.isFile() ? colaDe(archivo, s.size, 2 * COLA_BYTES).catch(() => "") : "";
+  }
+
   /** Lo de ahora de todas las sesiones seguidas: relee lo que cambió y mira dónde estar. */
   async function ahora(): Promise<Subagentes> {
     const todos: Subagentes = {};
     for (const x of [...seguidas.values()]) {
       await armar(x);
       if (seguidas.get(x.sid) !== x) continue;
-      x.lista = await conAvisos(x, await leerCarpeta(dirDe(x), x.sid, x.cache));
+      x.lista = await conAvisos(x, await leerCarpeta(dirDe(x), x.sid, x.cache, () => liderTexto(x)));
       if (x.lista.length) todos[x.sid] = x.lista;
     }
     return todos;
