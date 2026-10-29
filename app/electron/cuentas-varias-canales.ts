@@ -9,22 +9,23 @@ type Registrar = (canal: string, fn: (e: unknown, ...args: unknown[]) => unknown
 
 const mensaje = (e: unknown): string => (e instanceof Error ? e.message : String(e));
 
-export function cuentasVarias(manejar: Registrar, deps: DepsVarias, alCambiar: () => void): void {
-  const hacer = async (fn: () => Promise<string | void>): Promise<ResultadoCuenta> => {
+/** `alCambiar(que)`: algo de las cuentas cambió; `que` es la acción ("agregar", "login"…) para que quien escucha decida qué releer. */
+export function cuentasVarias(manejar: Registrar, deps: DepsVarias, alCambiar: (que: string) => void): void {
+  const hacer = async (que: string, fn: () => Promise<string | void>): Promise<ResultadoCuenta> => {
     try {
       const id = await fn();
       return typeof id === "string" ? { ok: true, id } : { ok: true };
     } catch (e) {
       return { ok: false, error: mensaje(e) };
     } finally {
-      alCambiar();
+      alCambiar(que);
     }
   };
   manejar("cuentas:lista", (_e, verificar): Promise<ListaCuentas | null> => listarCuentas(deps, verificar === true));
-  manejar("cuentas:agregar", (_e, proveedor, nombre) => hacer(() => agregarCuenta(deps, proveedor, nombre)));
-  manejar("cuentas:renombrar", (_e, id, nombre) => hacer(() => renombrarCuenta(deps, id, nombre)));
-  manejar("cuentas:quitar", (_e, id, borrar) => hacer(() => quitarCuenta(deps, id, borrar)));
-  manejar("cuentas:login", (_e, id) => hacer(() => loginCuenta(deps, id)));
-  manejar("cuentas:plan", (_e, id, plan) => hacer(() => planCuenta(deps, id, plan)));
-  manejar("cuentas:preferir", (_e, id) => hacer(() => preferirCuenta(deps, id)));
+  manejar("cuentas:agregar", (_e, proveedor, nombre) => hacer("agregar", () => agregarCuenta(deps, proveedor, nombre)));
+  manejar("cuentas:renombrar", (_e, id, nombre) => hacer("renombrar", () => renombrarCuenta(deps, id, nombre)));
+  manejar("cuentas:quitar", (_e, id, borrar) => hacer("quitar", () => quitarCuenta(deps, id, borrar)));
+  manejar("cuentas:login", (_e, id) => hacer("login", () => loginCuenta(deps, id)));
+  manejar("cuentas:plan", (_e, id, plan) => hacer("plan", () => planCuenta(deps, id, plan)));
+  manejar("cuentas:preferir", (_e, id) => hacer("preferir", () => preferirCuenta(deps, id)));
 }

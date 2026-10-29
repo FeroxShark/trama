@@ -1094,8 +1094,8 @@ export function armarNucleo() {
     void avisarSl();
     cambioLider();
   });
-  manejar("lider:nuevo", (_e, x: { modelo: string; effort: string; texto: string; imagenes?: unknown; modo?: string; rol?: string; carpeta?: unknown }) =>
-    lider.nuevo({ modelo: x?.modelo, effort: x?.effort, texto: x?.texto, imagenes: x?.imagenes, modo: x?.modo, rol: x?.rol, carpeta: x?.carpeta }),
+  manejar("lider:nuevo", (_e, x: { modelo: string; effort: string; texto: string; imagenes?: unknown; modo?: string; rol?: string; carpeta?: unknown; cuenta?: unknown }) =>
+    lider.nuevo({ modelo: x?.modelo, effort: x?.effort, texto: x?.texto, imagenes: x?.imagenes, modo: x?.modo, rol: x?.rol, carpeta: x?.carpeta, cuenta: x?.cuenta }),
   );
   manejar("lider:mandar", (_e, x: { sid: string; texto: string; imagenes?: unknown; modelo: string; effort: string }) => {
     verEspera(String(x?.sid));
@@ -1146,6 +1146,8 @@ export function armarNucleo() {
   // "Cerrar y parar todo" con la ventana como cliente: la ventana se lo pide al motor (no existe por red: SOLO_VENTANA).
   manejar("app:pararTodo", (_e, forzar: unknown) => pararTodo(forzar === true));
   manejar("lider:modo", (_e, x: { sid: string; modo: string }) => lider.cambiarModo(String(x?.sid), x?.modo));
+  // La cuenta de Claude de ese líder (la elige la persona; nunca cambia sola): se aplica en el próximo mensaje (`lider.cambiarCuenta`).
+  manejar("lider:cuenta", (_e, x: { sid: string; cuenta: unknown }) => lider.cambiarCuenta(String(x?.sid), x?.cuenta));
   manejar("lider:permiso", (_e, x: { sid: string; id: string; ok: boolean; mensaje?: string; respuestas?: unknown }) =>
     lider.responderPermiso(String(x?.sid), String(x?.id), {
       ok: x?.ok === true,
@@ -1239,7 +1241,11 @@ export function armarNucleo() {
   // Ajustes > Cuentas: ¿están conectados Claude y Gemini? Se les pregunta a los CLI al pedirlo (sin reloj ni caché).
   manejar("cuentas:estado", () => cuentasDeEstaMaquina());
   // Varias cuentas por proveedor (el CLI `cuentas`): lista, alta, renombre, baja y login. Después de un cambio el cupo se vuelve a pedir.
-  cuentasVarias(manejar, cuentasDeEstaMaquinaVarias(enTerminal), () => void refrescarCupos(true));
+  // Con una cuenta recién conectada o agregada, su uso se pide ya (sin esperar a la vuelta de cada 5 minutos): si no, queda en «sin dato».
+  cuentasVarias(manejar, cuentasDeEstaMaquinaVarias(enTerminal), (que) => {
+    void refrescarCupos(true);
+    if (que === "login" || que === "agregar") void lider.pedirUsoCuentas(true).then((nuevo) => { if (nuevo) void refrescarCupos(true); });
+  });
 
   // El tablero de pendientes (tablero.ts): se mira su vista desde la primera vez que se pide.
   // Si su carpeta todavía no existe no hay qué mirar: se prueba de nuevo la próxima vez que se pida.

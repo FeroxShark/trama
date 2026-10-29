@@ -1,7 +1,7 @@
 // El uso de las cuentas agregadas de Claude: qué cuentas hay, dónde se guarda y con qué forma (plataforma simulada, archivos falsos).
 import test from "node:test";
 import assert from "node:assert/strict";
-import { archivoCuentas, archivoUsoCuenta, cuentasClaude, entornoCuenta, usoParaReparto } from "../electron/uso-cuentas.ts";
+import { archivoCuentas, archivoUsoCuenta, cuentasClaude, entornoCuenta, preferidaClaude, usoParaReparto } from "../electron/uso-cuentas.ts";
 
 const HOME = "C:\\Users\\Ana";
 const json = (o: unknown) => () => JSON.stringify(o);
@@ -28,6 +28,16 @@ test("sólo las agregadas de Claude, con su carpeta por defecto junto a cuentas.
     { id: "max-curat", dir: "C:\\Users\\Ana\\.config\\trama\\cuentas\\max-curat" },
     { id: "otra", dir: "C:\\Users\\Ana\\mias\\otra" },
   ]);
+});
+
+test("preferidaClaude: la agregada que se dejó como la que se usa primero; sin elegir o que ya no existe, la de siempre (undefined)", () => {
+  const cuentas = [{ id: "trabajo", proveedor: "claude" }, { id: "g2", proveedor: "google" }];
+  assert.equal(preferidaClaude({}, HOME, "win32", json({ version: 1, cuentas, preferidas: { claude: "trabajo" } })), "trabajo");
+  assert.equal(preferidaClaude({}, HOME, "win32", json({ version: 1, cuentas })), undefined);
+  assert.equal(preferidaClaude({}, HOME, "win32", json({ version: 1, cuentas, preferidas: { claude: "borrada" } })), undefined);
+  assert.equal(preferidaClaude({}, HOME, "win32", json({ version: 1, cuentas, preferidas: { claude: "claude" } })), undefined);
+  assert.equal(preferidaClaude({}, HOME, "win32", json({ version: 1, cuentas, preferidas: { google: "g2" } })), undefined);
+  assert.equal(preferidaClaude({}, HOME, "win32", () => "{no"), undefined);
 });
 
 test("sin cuentas.json o roto: ninguna", () => {

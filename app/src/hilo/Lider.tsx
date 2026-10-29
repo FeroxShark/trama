@@ -40,6 +40,7 @@ import { ContextoLocal } from "./ContextoLocal";
 import { t as tr, textoMain } from "../i18n";
 import { useIdioma } from "../i18n/react";
 import { Selector } from "./Selector";
+import { CuentaLider } from "./CuentaLider";
 import { opcionesEnTurno, pendienteDe } from "./pendiente";
 import { DialogoCambio, type DatosCambio } from "./DialogoCambio";
 import { hayVarias, opcionesMaquina, useMaquinas } from "../maquinas";
@@ -192,6 +193,8 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
   // A qué máquina va un líder nuevo (el selector de la caja): siempre esta al empezar, y no se recuerda.
   const maquinas = useMaquinas();
   const [maquinaNueva, setMaquinaNueva] = useState<string | null>(null);
+  // La cuenta de Claude de un líder nuevo, si la persona eligió una (sin elegir, el main usa la que se usa primero).
+  const [cuentaNueva, setCuentaNueva] = useState<string | null>(null);
   // La carpeta donde arranca un líder nuevo (campo opcional de la caja): vacía = `~`, como siempre. Se escribe la ruta; en la ventana de la PC también se elige con el selector nativo.
   const [carpeta, setCarpeta] = useState(MODO.captura === "lider-nuevo-carpeta" ? "/srv/proyectos/mi-app" : "");
   const [carpetaAbierta, setCarpetaAbierta] = useState(MODO.captura === "lider-nuevo-carpeta");
@@ -700,6 +703,17 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
   // Un archivo nuevo de un mensaje que se edita sale por la misma máquina que el líder (como los de la caja).
   const guardarArchivo = useCallback((nombre: string, datos: Uint8Array) => fuente.liderArchivo(nombre, datos, maquinaDe), [maquinaDe]);
 
+  // La cuenta de Claude la elige la persona: en un líder nuevo queda para su primer mensaje; en uno que existe se la manda al main (vale desde el próximo mensaje).
+  const elegirCuenta = (id: string) => {
+    if (!l) return setCuentaNueva(id);
+    if (id === (l.cuenta ?? "claude")) return;
+    setErrorCaja(null);
+    fuente.liderCuenta(l.id, id === "claude" ? "" : id).then(
+      () => setNota(tr("cuenta.lider.nota")),
+      (err) => setErrorCaja(mensaje(err)),
+    );
+  };
+
   const enviar = (crudo = texto, modoNuevoYa?: Modo) => {
     const archivos = archivosDe(adjuntos);
     // Los archivos que no son imágenes van como rutas al final del texto: Claude los lee con Read.
@@ -745,7 +759,7 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
     };
     // El de la terminal: también si ya hay algo esperando (no se le adelanta a lo que está en la cola).
     if (l && (ocupado || (!app && encolados.length > 0))) return aLaCola(l.id, l.nombre);
-    const e: EnvioLider = { texto: t, modelo, effort, ...(imagenes ? { imagenes } : {}), ...(l ? {} : { modo: modoNuevoYa ?? modoNuevo, ...(maquinaDe ? { maquina: maquinaDe } : {}), ...(carpeta.trim() ? { carpeta: carpeta.trim() } : {}) }) };
+    const e: EnvioLider = { texto: t, modelo, effort, ...(imagenes ? { imagenes } : {}), ...(l ? {} : { modo: modoNuevoYa ?? modoNuevo, ...(maquinaDe ? { maquina: maquinaDe } : {}), ...(cuentaNueva && familiaDe(modelo) === "claude" && !esLocal(modelo) ? { cuenta: cuentaNueva } : {}), ...(carpeta.trim() ? { carpeta: carpeta.trim() } : {}) }) };
     setEnviando(true);
     setErrorCaja(null);
     ponerBorrador(clave, { texto: crudo, error: null });
@@ -772,6 +786,7 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
           enviado(nuevo, t, 0, imagenes);
           void bajada.then(() => {
             setMaquinaNueva(null);
+            setCuentaNueva(null);
             setCarpeta("");
             setCarpetaAbierta(false);
             ponerBorrador(clave, { texto: "", error: null });
@@ -1322,6 +1337,10 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
                   disabled={enviando}
                   abierto={MODO.captura?.startsWith("maquinas-selector")}
                 />
+              ) : null}
+              {/* Sólo Claude de esta máquina y con más de una cuenta de Claude; con un turno en curso no se cambia (vale desde el próximo mensaje). */}
+              {!maquinaDe && familiaDe(modelo) === "claude" && !esLocal(modelo) ? (
+                <CuentaLider valor={l ? (l.cuenta ?? "claude") : cuentaNueva} alElegir={elegirCuenta} disabled={enviando || (!!l && (ocupado || !app))} abierto={MODO.captura === "cuenta-lider"} />
               ) : null}
               {esLocal(modelo) ? <ContextoLocal modelo={modelo} abierto={MODO.captura === "local-ctx"} /> : null}
               <span className="esp" />

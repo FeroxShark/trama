@@ -218,6 +218,8 @@ export type Lider = {
   subagentes?: number;
   /** El modo de permisos de un líder de la app ("bypassPermissions", "plan"…; src/hilo/modos.ts). */
   modo?: string;
+  /** La cuenta agregada de Claude con que corre un líder de la app (id); sin ella, la de siempre (o la de su motor). */
+  cuenta?: string;
   /** El proyecto (slug) que nombra su primer mensaje: su carpeta mientras no tenga workers (B20). */
   inferido?: string | null;
   /** Es la sesión de Shark (su cwd es `$SHARK_HOME`): va a la carpeta `SHARK`. Sin venir, no. */

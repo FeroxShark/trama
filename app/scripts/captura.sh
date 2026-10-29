@@ -10,7 +10,7 @@
 #           aviso | ajustes | ramas | ramas-confirmar | ramas-conflicto | ramas-lanzar | ramas-lanzar-error | estadisticas |
 #           lider-trabajando | lider-avisos | settle-confirmar | worker-vista | worker-vista-vivo |
 #           estadisticas-30 | estadisticas-medido | estadisticas-vacia | claude | claude-abierto | solo-lideres | ocultos |
-#           lider-sistema | lider-cambio-motor[menu|confirmar] | sistema | herramientas | lider-compactando |
+#           lider-sistema | lider-cambio-motor[menu|confirmar] | cuenta-lider | sistema | herramientas | lider-compactando |
 #           trama|trama-abierto|trama-sucio|trama-ocupado|trama-instalada (el aviso de una Trama nueva, con una instalada vieja forzada) |
 #           lider-relevo | lider-imagenes | lider-editar | lider-tabla | lider-formato | lider-listas | lider-pensando | lider-gemini | herramientas-resultados | lider-hover | te-espera |
 #           tablero | tablero-detalle | tablero-proyectos | tablero-iniciar | tablero-pospuestos | tablero-maquinas | tablero-vacio | maquinas-selector[-caida] | tablero-nuevo[-proyecto|-chat|-avisar] | lider-muerto | lider-app-muerto |

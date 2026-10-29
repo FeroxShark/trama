@@ -809,6 +809,8 @@ export type Guardado = {
   rol?: "analista";
   /** Dónde corre, si no es el home: uno que nació en una terminal y se retomó desde la app. */
   cwd?: string;
+  /** La cuenta agregada de Claude con que corre (id de `cuentas.json`); sin ella, la de siempre. Se elige al crearlo (la preferida de ese momento) y sólo la cambia la persona. */
+  cuenta?: string;
   /** Epoch: cuándo se lo retomó desde la app sin proceso (vuelve a la barra un día más). */
   retomado?: number;
   /** Epoch: cuándo se vio morir a su proceso sin que la app lo cerrara (kill, OOM, se cayó). Hasta que se lo retome, la barra lo marca Murió. */

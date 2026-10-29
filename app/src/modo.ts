@@ -89,6 +89,7 @@ const CAPTURAS = [
   "lider-sistema",
   // Seguir la conversación con un modelo de otro motor: la raya en el historial; variante `menu` el selector con todas las columnas, `confirmar` la nota para confirmar.
   "lider-cambio-motor",
+  "cuenta-lider",
   "sistema",
   // Lo que hizo el modelo, herramienta por herramienta (Bash y Edit abiertos), compactar y el relevo del líder.
   "herramientas",

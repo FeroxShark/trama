@@ -198,7 +198,7 @@ async function consultarCupos(): Promise<CuposLeidos | null> {
   try {
     const env = entornoPa(process.env, homedir()) as NodeJS.ProcessEnv;
     const cmd = comandoPropio("reparto", process.env, homedir());
-    const stdout = await new Promise<string>((ok, mal) => lanzarCmd(cmd, ["--cupos", "--json"], { env, timeout: 6000, maxBuffer: 512 * 1024 }, (e, o) => (e ? mal(e) : ok(o))));
+    const stdout = await new Promise<string>((ok, mal) => lanzarCmd(cmd, ["--cupos", "--json"], { env, timeout: 20_000, maxBuffer: 512 * 1024 }, (e, o) => (e ? mal(e) : ok(o))));
     return parsearCuposReparto(stdout, Date.now());
   } catch {
     return null; // sin `reparto`: la cabecera queda con lo de Claude

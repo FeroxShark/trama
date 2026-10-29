@@ -146,6 +146,8 @@ export interface Fuente {
   liberarVram(id: string): Promise<ResultadoLiberar>;
   /** Cambiar el modo de permisos (B13): vivo, al toque; dormido, para cuando se retome. */
   liderModo(sid: string, modo: string): Promise<void>;
+  /** La cuenta de Claude de un líder de la app (`""`: la de siempre). La elige la persona; se aplica en el próximo mensaje y nada la cambia sola. */
+  liderCuenta(sid: string, cuenta: string): Promise<void>;
   /** Contestar un pedido de permiso (el plan de ExitPlanMode, o una herramienta fuera de bypass). */
   liderPermiso(sid: string, id: string, ok: boolean, mensaje?: string, respuestas?: Record<string, string>): Promise<void>;
   /** Los pedidos sin contestar de un líder de la app (para una vista recargada). */
@@ -496,7 +498,7 @@ function avisoCola(x: unknown): AvisoCola | null {
 
 /** `modo`: sólo para un líder nuevo (el chip de la caja); después se cambia con `liderModo`. */
 /** `maquina`: dónde nace un líder nuevo (el selector de la caja); sin él, esta máquina. */
-export type EnvioLider = { texto: string; imagenes?: Imagen[]; modelo: string; effort: string; modo?: string; rol?: "analista"; maquina?: string; carpeta?: string };
+export type EnvioLider = { texto: string; imagenes?: Imagen[]; modelo: string; effort: string; modo?: string; rol?: "analista"; maquina?: string; carpeta?: string; cuenta?: string };
 
 const espera = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -862,7 +864,7 @@ function cuentasFijas() {
   let lista: PerfilCuenta[] = [
     nueva("claude", "claude", "Claude", true, true),
     nueva("google", "google", "Google AI Pro", (MODO.variante ?? "").startsWith("cupos"), true),
-    ...(MODO.variante === "cupos-cuentas" ? [nueva("trabajo", "claude", "Trabajo", true)] : []),
+    ...(MODO.variante === "cupos-cuentas" || MODO.captura === "cuenta-lider" ? [nueva("trabajo", "claude", "Trabajo", true)] : []),
   ];
   const pausa = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
   const ok: ResultadoCuenta = { ok: true };
@@ -1504,6 +1506,7 @@ const fija: Fuente = {
   async liderModo(sid, modo) {
     emitir(sid, { tipo: "modo", modo });
   },
+  async liderCuenta() {},
   async liderPermiso(sid, id, ok) {
     emitir(sid, { tipo: "permisoFuera", id });
     if (id === "f-preguntas" || id === "f-preguntas-b") emitir(sid, { tipo: "estado", ocupado: false, vivo: true });
@@ -2152,6 +2155,11 @@ const conPa = (m: NonNullable<typeof main>): Fuente => ({
   },
   async liderModo(sid, modo) {
     await m.lider.modo({ sid, modo }).catch((e) => {
+      throw new Error(mensaje(e));
+    });
+  },
+  async liderCuenta(sid, cuenta) {
+    await m.lider.cuenta({ sid, cuenta }).catch((e) => {
       throw new Error(mensaje(e));
     });
   },

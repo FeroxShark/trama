@@ -132,7 +132,7 @@ type Main = {
   /** Los líderes: los de la app se manejan desde acá; los de la terminal se leen (electron/lider.ts). */
   lider: {
     /** Un líder nuevo con su primer mensaje; devuelve su session_id. */
-    nuevo(x: { modelo: string; effort: string; texto: string; imagenes?: Imagen[]; modo?: string; rol?: "analista"; carpeta?: string }): Promise<string>;
+    nuevo(x: { modelo: string; effort: string; texto: string; imagenes?: Imagen[]; modo?: string; rol?: "analista"; carpeta?: string; cuenta?: string }): Promise<string>;
     mandar(x: { sid: string; texto: string; imagenes?: Imagen[]; modelo: string; effort: string }): Promise<void>;
     mandarYa(x: { sid: string; texto: string; imagenes?: Imagen[]; modelo: string; effort: string }): Promise<void>;
     /** Guarda un archivo adjunto (no imagen) y devuelve su ruta absoluta. */
@@ -140,6 +140,7 @@ type Main = {
     parar(sid: string): Promise<void>;
     /** Cambiar el modo de permisos (vivo: `set_permission_mode`; dormido: para el próximo `--resume`). */
     modo(x: { sid: string; modo: string }): Promise<void>;
+    cuenta(x: { sid: string; cuenta: string }): Promise<void>;
     /** Contestar un pedido de permiso (`can_use_tool`): permitir, o negar con un mensaje para el modelo. */
     permiso(x: { sid: string; id: string; ok: boolean; mensaje?: string; respuestas?: Record<string, string> }): Promise<void>;
     /** Los pedidos sin contestar de un líder (una vista recargada no los vio llegar), sin validar. */

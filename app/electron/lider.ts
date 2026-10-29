@@ -71,7 +71,7 @@ import { convDe } from "./conv-cache.ts";
 import { guardada, igual, juntar, lecturaDe, oficialDe, type Lectura } from "./uso.ts";
 import { errorT } from "./errores.ts";
 import { ESTADO, escribirAtomico, PA_STATE } from "./pa.js";
-import { archivoUsoCuenta, cuentasClaude, entornoCuenta, usoParaReparto } from "./uso-cuentas.ts";
+import { archivoUsoCuenta, cuentasClaude, entornoCuenta, preferidaClaude, usoParaReparto } from "./uso-cuentas.ts";
 import { esElProceso, sesionesVivas, type Sesion } from "./sesiones.js";
 import { log, silencio } from "./log.js";
 import { temaDe, tituloLider } from "./tema.js";
@@ -162,6 +162,8 @@ type Proc = {
   clase: Clase;
   /** Un líder local: adónde le habla y con qué contexto arrancó (va en su entorno: cambiarlo es relanzarlo). */
   local?: Local;
+  /** El id de la cuenta agregada de Claude con que corre; sin él, la de siempre (su uso es el de `anotarUso`). */
+  cuenta?: string;
   ocupado: boolean;
   /** Los textos de "Mandar ya" que el CLI todavía no entregó (el eco con `isReplay` los saca de acá). */
   directos: string[];
@@ -466,6 +468,18 @@ function cortesParaPuente(g: Guardado, clase: Clase, relevo: string | undefined)
   };
 }
 
+/** La cuenta agregada de Claude con que corre ese líder (`g.cuenta`), si sigue existiendo; `undefined`: la de siempre. */
+function cuentaDeLider(g: Guardado): { id: string; dir: string } | undefined {
+  return g.cuenta ? cuentasClaude(process.env, HOME).find((c) => c.id === g.cuenta) : undefined;
+}
+
+/** Una cuenta de Claude que se pide a mano: la de siempre (vacío o `claude`) es `undefined`; una que no existe falla. */
+function cuentaPedida(v: unknown): string | undefined {
+  if (v === undefined || v === null || v === "" || v === "claude") return undefined;
+  if (typeof v !== "string" || !cuentasClaude(process.env, HOME).some((c) => c.id === v)) throw errorT("main.cuentasDato");
+  return v;
+}
+
 function lanzar(g: Guardado, resume: boolean, local?: Local, extra: Extra = {}): Proc {
   // Vuelve a tener proceso: ya no está muerto. Y queda `corriendo` hasta que `fin` vea que terminó (`marcarCortados`).
   if (g.murio) {
@@ -477,7 +491,9 @@ function lanzar(g: Guardado, resume: boolean, local?: Local, extra: Extra = {}):
   const clase = claseDeModelo(g.modelo);
   const base = opcionesLider(process.env, HOME, g.cwd, local && { modelo: g.modelo, effort: g.effort, local }, extra.ollama) as { cwd: string; env: NodeJS.ProcessEnv };
   // Su propio grupo (setsid): lo que el líder deja corriendo desde sus herramientas (un `qs`, un watcher) se barre al salir.
-  const opciones = { ...base, stdio: ["pipe", "pipe", "pipe"] as ["pipe", "pipe", "pipe"], detached: true, windowsHide: true };
+  // Un líder de Claude de una cuenta agregada corre con la carpeta de esa cuenta (CLAUDE_CONFIG_DIR); una que ya no existe cae a la de siempre.
+  const cuenta = clase === "claude" && !local && !extra.ollama ? cuentaDeLider(g) : undefined;
+  const opciones = { ...base, ...(cuenta ? { env: entornoCuenta(base.env, cuenta.dir) } : {}), stdio: ["pipe", "pipe", "pipe"] as ["pipe", "pipe", "pipe"], detached: true, windowsHide: true };
   // Si la conversación venía de otro motor, lo hablado va aparte de los mensajes (prompt de sistema o prefacio): no ensucia el transcript.
   // (También el de una rama hecha con relevo o una vuelta atrás en un motor sin `--resume-session-at`: el archivo sólo existe si hace falta.)
   const relevo = existsSync(archivoRelevo(g.sid)) ? archivoRelevo(g.sid) : undefined;
@@ -520,7 +536,7 @@ function lanzar(g: Guardado, resume: boolean, local?: Local, extra: Extra = {}):
           { ...opciones, env: { ...base.env, ...cortesPuente, ELECTRON_RUN_AS_NODE: "1", TRAMA_AGY_PREFACIO: extra.prefacio ?? "", ...(relevo ? { TRAMA_AGY_RELEVO: relevo } : {}) } },
         )
       : spawn(CLAUDE, argvLider({ modelo: g.modelo, effort: g.effort, sid: g.sid, nombre: g.nombre, resume, modo: g.modo, local, ollama: extra.ollama, desde: extra.desde, rama: g.rama, relevo, mcpConfig: mcpClaude }), opciones);
-  const x: Proc = { p, modelo: g.modelo, effort: g.effort, clase, local, ocupado: false, directos: [], pedido: 0, avisado: 0, resto: "", stderr: "", adrede: false, libre: [], pedidos: new Map(), controles: new Map(), estilo: null };
+  const x: Proc = { p, modelo: g.modelo, effort: g.effort, clase, local, ...(cuenta ? { cuenta: cuenta.id } : {}), ocupado: false, directos: [], pedido: 0, avisado: 0, resto: "", stderr: "", adrede: false, libre: [], pedidos: new Map(), controles: new Map(), estilo: null };
   procs.set(g.sid, x);
   p.stdout!.setEncoding("utf8");
   p.stdout!.on("data", (trozo: string) => {
@@ -538,8 +554,9 @@ function lanzar(g: Guardado, resume: boolean, local?: Local, extra: Extra = {}):
         }
       }
       // El uso del plan: cada turno lo dice, y un líder de la app no tiene statusline que lo escriba.
+      // (el de una cuenta agregada no es el de la de siempre: de ésas lo pide `pedirUsoCuentas`.)
       const lu = lecturaDe(l, Math.floor(Date.now() / 1000)) ?? oficialDe(l, Math.floor(Date.now() / 1000));
-      if (lu) anotarUso(lu);
+      if (lu && !x.cuenta) anotarUso(lu);
       for (const e of parsearLinea(l)) {
         if (e.tipo === "replay") {
           // El eco de todo mensaje del usuario: sólo importa el de un "Mandar ya" (el resto no es noticia).
@@ -714,7 +731,7 @@ function control(x: Proc, linea: (id: string) => string, ms = CONTROL_MS): Promi
 export function pedirUsoOficial(): Promise<boolean> {
   pidiendoUso ??= (async () => {
     const antes = oficiales;
-    const x = [...procs.values()].find((y) => y.clase === "claude" && y.p.exitCode === null && y.p.signalCode === null);
+    const x = [...procs.values()].find((y) => y.clase === "claude" && !y.cuenta && y.p.exitCode === null && y.p.signalCode === null);
     if (x && (await control(x, lineaUso, USO_VIVO_MS))?.ok && oficiales > antes) return true;
     await usoDeUnRato();
     return oficiales > antes;
@@ -917,12 +934,14 @@ export async function carpetaDe(v: unknown, home = HOME): Promise<string | undef
 }
 
 /** Un líder nuevo con su primer mensaje (en `carpeta` si viene, si no en `~`). Devuelve su session_id. */
-export async function nuevo(x: { modelo: string; effort: string; texto: string; imagenes?: unknown; modo?: string; rol?: string; carpeta?: unknown }): Promise<string> {
+export async function nuevo(x: { modelo: string; effort: string; texto: string; imagenes?: unknown; modo?: string; rol?: string; carpeta?: unknown; cuenta?: unknown }): Promise<string> {
   const imagenes = imagenesDe(x.imagenes);
   const texto = textoDe(x.texto, imagenes);
   const modo = modoDe(x.modo);
   const cwd = await carpetaDe(x.carpeta);
   const { modelo, effort } = normalizar(sueltoDe("modelo", x.modelo), sueltoDe("effort", x.effort));
+  // La cuenta: la que se eligió en la caja o, sin elegir, la preferida de ahora (`cuentas preferir`). Nunca se cambia sola después.
+  const cuenta = x.cuenta === undefined ? preferidaClaude(process.env, HOME) : cuentaPedida(x.cuenta);
   const extra = await extraDe(modelo, cwd);
   // Uno local, con su modelo ya servido antes de anotarlo: si no entra en la GPU, no queda un líder sin conversación.
   let local = await servirLocal(modelo);
@@ -938,6 +957,7 @@ export async function nuevo(x: { modelo: string; effort: string; texto: string; 
     cache_ttl_s: null,
     modo,
     ...(cwd ? { cwd } : {}),
+    ...(cuenta ? { cuenta } : {}),
     ...(x.rol === "analista" ? { rol: "analista" as const } : {}),
   };
   ls.push(g);
@@ -967,6 +987,29 @@ export async function mandar(x: { sid: string; texto: string; imagenes?: unknown
   } finally {
     mandando.delete(sid);
   }
+}
+
+/**
+ * Cambia la cuenta de Claude de un líder de la app (la elige la persona en el selector junto al modelo; nada la cambia sola). Con el turno
+ * en curso no se puede; si tiene proceso se lo cierra y el próximo mensaje lo relanza con `--resume` y la carpeta de la nueva cuenta
+ * (las sesiones son las mismas: `projects` es un enlace a `~/.claude`). `""` o `claude`: la de siempre.
+ */
+export async function cambiarCuenta(sid: string, cuenta: unknown): Promise<void> {
+  const g = (await lideresApp()).find((l) => l.sid === sid);
+  if (!g) throw errorT("main.noEsDeLaApp");
+  const nueva = cuentaPedida(cuenta);
+  const p = procs.get(sid);
+  if (p?.ocupado || mandando.has(sid)) throw errorT("main.respondiendo");
+  if (nueva === g.cuenta) return;
+  if (nueva) g.cuenta = nueva;
+  else delete g.cuenta;
+  await guardar();
+  if (p) {
+    p.adrede = true;
+    rastro(sid, "sin-motivo", "se cierra su proceso por el cambio de cuenta; el próximo mensaje lo relanza");
+    await terminar(p);
+  }
+  alCambio();
 }
 
 /** El modelo y el esfuerzo con los que corre el líder de la app (para un mensaje automático que no los cambia); `null`: no tiene proceso nuestro. */
@@ -1415,6 +1458,7 @@ export async function ramificar(x: { sid: string; uuid: string; modelo: string; 
     cache_ttl_s: null,
     modo: origen?.modo ?? MODO_DEFAULT,
     ...(cwd && cwd !== HOME ? { cwd } : {}),
+    ...(origen?.cuenta ? { cuenta: origen.cuenta } : {}),
     rama: { de, hasta: uuid },
     origen: { sid, titulo: tituloOrigen },
   };

@@ -37,6 +37,19 @@ export function cuentasClaude(env: Env = process.env, home = homeDe(env), plat: 
   return res;
 }
 
+/**
+ * La cuenta agregada de Claude que la persona dejó como la que se usa primero (`cuentas preferir`, `preferidas.claude` de cuentas.json), si
+ * existe; `undefined`: la de siempre. Los líderes de la app nuevos nacen con ésta; no cambia la de los que ya existen.
+ */
+export function preferidaClaude(env: Env = process.env, home = homeDe(env), plat: Plataforma = plataformaActual(), leer: (f: string) => string = (f) => readFileSync(f, "utf8")): string | undefined {
+  try {
+    const p = (JSON.parse(leer(archivoCuentas(env, home, plat))) as { preferidas?: { claude?: unknown } | null }).preferidas?.claude;
+    return typeof p === "string" && cuentasClaude(env, home, plat, leer).some((c) => c.id === p) ? p : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 /** Lo que `reparto` lee de `cuentas/<id>/uso.json` (`pct` 0..100, `resets_at` y `ts` en epoch s). */
 export function usoParaReparto(l: Lectura): { version: 1; five_hour?: { pct: number; resets_at: number | null; ts: number }; seven_day?: { pct: number; resets_at: number | null; ts: number } } {
   const v = (x: Lectura["five_hour"]) => (x ? { pct: x.pct, resets_at: x.resets_at, ts: x.ts } : undefined);

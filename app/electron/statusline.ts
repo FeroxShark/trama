@@ -61,6 +61,8 @@ type Lider = {
   subagentes?: number;
   /** El modo de permisos de un líder de la app (los de la terminal no lo dicen). */
   modo?: string;
+  /** La cuenta agregada de Claude con que corre un líder de la app (id de `cuentas.json`); sin ella, la de siempre. */
+  cuenta?: string;
   /** El proyecto (slug) que nombra su primer mensaje, si nombra uno (B20). */
   inferido: string | null;
   /** Lo mataron y nadie lo retomó: sin proceso y sin caja hasta que el usuario lo retome (`lider.retomar`). */
@@ -292,7 +294,7 @@ export async function leerStatusline(): Promise<Statusline> {
       pide: mia ? p.pide : s.pide,
       modelo,
       effort: mia ? g.effort : null,
-      ...(mia ? { modo: g.modo } : {}),
+      ...(mia ? { modo: g.modo, ...(g.cuenta ? { cuenta: g.cuenta } : {}) } : {}),
       inferido: t.inferido,
       ...(await sharkDe((g ? (g.cwd ?? null) : s.cwd))),
     });
@@ -320,6 +322,7 @@ export async function leerStatusline(): Promise<Statusline> {
       modelo: g.modelo,
       effort: g.effort,
       modo: g.modo,
+      ...(g.cuenta ? { cuenta: g.cuenta } : {}),
       inferido: t.inferido,
       ...(await sharkDe(g.cwd)),
       // Lo mataron (no lo cerró la app) y nadie lo retomó: Murió, con Retomar en vez de la caja.
