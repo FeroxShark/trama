@@ -173,6 +173,11 @@ function entorno(c: Contexto, extra: Record<string, string> = {}): NodeJS.Proces
     PROYECTOS_REGISTRY: path.join(c.home, ".config", "proyectos", "registry.json"),
     TRAMA_MODELOS: path.join(c.home, "no-hay.json"),
     TRAMA_CLAVES: path.join(c.home, "no-hay.env"),
+    // el lado A es el original (bash / python): el default ya es el TS, así que se pide explícito (y los pa que lance también)
+    TRAMA_PA: "bash",
+    TRAMA_REPARTO: "py",
+    TRAMA_TABLERO: "py",
+    TRAMA_CUENTAS_CLI: "py",
     REPARTO_STATE: path.join(c.raiz, "rep"),
     REPARTO_CLAUDE: "0",
     // sin el agy de la máquina: reparto lee `agy -p /quota` y, si el agy real tarda o se cuelga, la tubería queda abierta y el caso no termina
