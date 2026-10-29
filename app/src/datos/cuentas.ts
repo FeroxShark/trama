@@ -168,3 +168,14 @@ export function filasDeCupos(subs: readonly SuscripcionCupo[] | undefined, claud
 
 /** La de siempre: su cuenta (o, sin ese dato, su id) es el proveedor. */
 const esDefecto = (s: SuscripcionCupo): boolean => (s.cuenta ?? s.id) === proveedorDe(s);
+
+/**
+ * La cuenta de una fila de la barra que se puede elegir con «Usar primero» (o que está en uso). Sólo si su proveedor tiene más de una cuenta en la lista;
+ * no se ofrece una cuenta sin conectar (igual que en Ajustes). `cuenta`: la de la fila (la de siempre tiene el id del proveedor). `null`: la fila queda como hoy.
+ */
+export function cuentaParaElegir(l: ListaCuentas | null, proveedor: string, cuenta: string): PerfilCuenta | null {
+  const delProveedor = (l?.cuentas ?? []).filter((c) => c.proveedor === proveedor);
+  if (delProveedor.length < 2) return null;
+  const perfil = delProveedor.find((c) => c.id === cuenta);
+  return perfil && (perfil.preferida || perfil.logueado !== false) ? perfil : null;
+}

@@ -1,7 +1,7 @@
 // Varias cuentas por proveedor, la vista (src/datos/cuentas.ts): cómo se llama cada fila de la barra de cupos y en qué orden.
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { deProveedor, etiquetaCuenta, filasDeCupos, listaValida, parteCuenta, resultadoValido, sinRepetir } from "../src/datos/cuentas.ts";
+import { cuentaParaElegir, deProveedor, etiquetaCuenta, filasDeCupos, listaValida, parteCuenta, resultadoValido, sinRepetir } from "../src/datos/cuentas.ts";
 import type { SuscripcionCupo } from "../src/datos/contrato.ts";
 
 const sus = (id: string, nombre: string, extra: Partial<SuscripcionCupo> = {}): SuscripcionCupo => ({ id, nombre, ts: 0, ventanas: [{ id: "5h", pct: 10, vuelve: null }], ...extra });
@@ -110,5 +110,35 @@ describe("etiquetas y listas", () => {
     assert.deepEqual(resultadoValido({ ok: true, id: "a" }), { ok: true, id: "a" });
     assert.deepEqual(resultadoValido({ ok: true }), { ok: true });
     assert.deepEqual(resultadoValido({ ok: false }), { ok: false, error: "main.cuentasFallo" });
+  });
+});
+
+describe("cuentaParaElegir", () => {
+  const lista = listaValida({
+    version: 1,
+    cuentas: [
+      { id: "claude", proveedor: "claude", nombre: "Claude", preferida: false, logueado: true },
+      { id: "trabajo", proveedor: "claude", nombre: "Trabajo", preferida: true, logueado: true },
+      { id: "casa", proveedor: "claude", nombre: "Casa", preferida: false, logueado: false },
+      { id: "google", proveedor: "google", nombre: "Google AI Pro", preferida: true, logueado: true },
+    ],
+  });
+
+  it("con varias de un proveedor, cada cuenta conectada se puede elegir y la preferida sale como en uso", () => {
+    assert.deepEqual(cuentaParaElegir(lista, "claude", "claude")?.preferida, false);
+    assert.deepEqual(cuentaParaElegir(lista, "claude", "trabajo")?.preferida, true);
+  });
+
+  it("una cuenta sin conectar no se ofrece (igual que en Ajustes)", () => {
+    assert.equal(cuentaParaElegir(lista, "claude", "casa"), null);
+  });
+
+  it("con una sola cuenta del proveedor la fila queda como hoy", () => {
+    assert.equal(cuentaParaElegir(lista, "google", "google"), null);
+  });
+
+  it("sin lista, o con una cuenta que no está, no se ofrece nada", () => {
+    assert.equal(cuentaParaElegir(null, "claude", "claude"), null);
+    assert.equal(cuentaParaElegir(lista, "claude", "otra"), null);
   });
 });
