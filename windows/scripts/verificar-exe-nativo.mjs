@@ -22,6 +22,7 @@ const faltan = [
   "win-unpacked/resources/payload-nativo/app/dist-electron/motor.js",
   "win-unpacked/resources/payload-nativo/app/dist-electron/cli/instalar-nativo.js",
   "win-unpacked/resources/payload-nativo/app/hooks/destructive-guard.mjs",
+  "win-unpacked/resources/payload-nativo/app/scripts/asegurar-cli.mjs",
 ].filter((f) => !existsSync(path.join(dist, f)));
 if (faltan.length) {
   console.error(`el armado quedó incompleto, faltan:\n${faltan.map((f) => `  ${f}`).join("\n")}`);

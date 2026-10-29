@@ -32,6 +32,7 @@ function repoFalso(dir) {
   escribir(path.join(r, "app", "dist-electron", "cli", "workers.js"), "export {};\n");
   escribir(path.join(r, "app", "electron", "main.ts"), "fuente");
   escribir(path.join(r, "app", "scripts", "instalar.sh"), "#!/usr/bin/env bash\n");
+  escribir(path.join(r, "app", "scripts", "asegurar-cli.mjs"), "// helper\n");
   escribir(path.join(r, "motor", "hooks", "latido.mjs"), "// ok\n");
   escribir(path.join(r, "motor", "hooks", "latido.sh"), "#!/usr/bin/env bash\n");
   escribir(path.join(r, "motor", "hooks", "docker-guard.py"), "print()");
@@ -62,6 +63,7 @@ test("arma el payload por lista permitida: sólo la app compilada, hooks .mjs, s
       "app/hooks/latido.mjs",
       "app/package.json",
       "app/plantillas/home/CLAUDE.md",
+      "app/scripts/asegurar-cli.mjs",
       "app/skills/trama-orquestar/SKILL.md",
       "bin/trama-estado.cmd",
       "bin/workers.cmd",
@@ -92,9 +94,13 @@ test("sin la app compilada no arma nada", () =>
     assert.throws(() => p.armarPayload({ repo, destino: path.join(dir, "x"), nodeExe: node }), /falta app\/dist-electron\/motor\.js/);
   }));
 
-test("los .cmd de bin\\ corren la herramienta con el node.exe propio, por rutas relativas, en CRLF y sin bash", () => {
+test("los .cmd de bin\\ ponen al día dist-electron (asegurar-cli) y corren la herramienta con el node.exe propio, por rutas relativas, en CRLF y sin bash", () => {
   const c = p.shimCmd("trama-estado");
-  assert.equal(c, '@echo off\r\n"%~dp0..\\node\\node.exe" "%~dp0..\\app\\dist-electron\\cli\\trama-estado.js" %*\r\n');
+  assert.equal(
+    c,
+    '@echo off\r\n"%~dp0..\\node\\node.exe" "%~dp0..\\app\\scripts\\asegurar-cli.mjs" "%~dp0..\\app\\dist-electron\\cli\\trama-estado.js"\r\n' +
+      '"%~dp0..\\node\\node.exe" "%~dp0..\\app\\dist-electron\\cli\\trama-estado.js" %*\r\n',
+  );
   assert.ok(!/bash|wsl/i.test(c));
 });
 

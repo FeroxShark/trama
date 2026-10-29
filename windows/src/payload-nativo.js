@@ -9,8 +9,9 @@
 //     app/package.json              el de app/, reducido (versión, `type: module`, repo de las actualizaciones)
 //     app/dist/  app/dist-electron/ la app compilada (vite build + tsc -p tsconfig.electron.json)
 //     app/hooks/*.mjs               los hooks de Node (no los .sh)
+//     app/scripts/asegurar-cli.mjs  pone al día dist-electron antes de cada herramienta (no hace nada sin las fuentes)
 //     app/skills/  app/plantillas/home/  app/datos/
-//     bin/<herramienta>.cmd         `node.exe <app>\dist-electron\cli\<herramienta>.js %*`, sólo las que ya están portadas
+//     bin/<herramienta>.cmd         asegurar-cli.mjs y luego `node.exe <app>\dist-electron\cli\<herramienta>.js %*`, sólo las ya portadas
 //     .version                      huella del contenido (cambia ⇒ la carcasa reinstala)
 
 const crypto = require("node:crypto");
@@ -31,6 +32,7 @@ const COPIAS = [
   ["app/dist", "app/dist", () => true],
   ["app/dist-electron", "app/dist-electron", (f) => !f.endsWith(".map") && path.basename(f) !== ".listo"],
   ["motor/hooks", "app/hooks", (f) => f.endsWith(".mjs")],
+  ["app/scripts", "app/scripts", (f) => f === "asegurar-cli.mjs"],
   ["motor/skills", "app/skills", () => true],
   ["motor/plantillas/home", "app/plantillas/home", () => true],
   ["motor/datos", "app/datos", (f) => f.endsWith(".json")],
@@ -39,7 +41,13 @@ const COPIAS = [
 const CAMPOS_PAQUETE = ["name", "productName", "version", "type", "license", "repository", "engines"];
 
 /** El .cmd de una herramienta: rutas relativas a bin\ (%~dp0), así anda instalado en cualquier carpeta. CRLF, como cmd espera. */
-const shimCmd = (nombre) => ["@echo off", `"%~dp0..\\node\\node.exe" "%~dp0..\\app\\dist-electron\\cli\\${nombre}.js" %*`, ""].join("\r\n");
+const shimCmd = (nombre) =>
+  [
+    "@echo off",
+    `"%~dp0..\\node\\node.exe" "%~dp0..\\app\\scripts\\asegurar-cli.mjs" "%~dp0..\\app\\dist-electron\\cli\\${nombre}.js"`,
+    `"%~dp0..\\node\\node.exe" "%~dp0..\\app\\dist-electron\\cli\\${nombre}.js" %*`,
+    "",
+  ].join("\r\n");
 
 // ---------- la revisión: nada de bash ----------
 const EXT_PROHIBIDAS = /\.(sh|bash|zsh|py|pyc|service|timer|desktop|socket)$/i;
