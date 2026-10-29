@@ -5,7 +5,8 @@ import path from "node:path";
 import { ESTADO } from "./estado.js";
 import { identidadDe, type Identidad } from "./identidad.js";
 import { leerMaquinas, SOLA } from "./maquinas-config.js";
-import { aparienciaGuardada, avisarEsperaGuardado, avisarWorkersGuardado, avisoLiderGuardado, consumoGuardado, idiomaGuardado, tiernosGuardados, vistaGuardada } from "./preferencias.js";
+import { aparienciaGuardada, avisarEsperaGuardado, avisarWorkersGuardado, avisoLiderGuardado, consumoGuardado, idiomaGuardado, terminalAgentesGuardada, tiernosGuardados, vistaGuardada } from "./preferencias.js";
+import { plataformaActual } from "./rutas.ts";
 
 /** Lo fijo: si hay fixtures, y con datos de verdad el nombre de esta máquina (ficha de cada worker) y el usuario (la carpeta del home en la barra). */
 export function baseConsulta(fixtures: boolean): Record<string, string> {
@@ -37,6 +38,11 @@ export function crearConsulta(base: Record<string, string>, modo: boolean): () =
     if (avisarW ? avisarW === "0" : !modo && !avisarWorkersGuardado()) q.avisarw = "0";
     // El aviso al líder (por tanda o por worker), igual: sólo viaja cuando es por worker (el default es la tanda).
     if (!modo && avisoLiderGuardado() === "worker") q.avisolider = "worker";
+    // La terminal de los agentes (Ajustes > General, sólo en Windows): `plataforma` dice que el ajuste se muestra; `terminal=gitbash` sólo cuando es Git Bash.
+    if (plataformaActual() === "win32") {
+      q.plataforma = "win32";
+      if (!modo && terminalAgentesGuardada() === "gitbash") q.terminal = "gitbash";
+    }
 
     // El tamaño de letra y las fuentes, igual (el renderer valida: src/tipografia.ts).
     const guardada = modo ? {} : aparienciaGuardada();

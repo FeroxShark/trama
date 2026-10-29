@@ -32,6 +32,7 @@ import { cambiarTiernos } from "../hilo/tierno-logica";
 import { useTiernos } from "../hilo/Tierno";
 import { alCambiarAvisarEspera, avisarEspera, cambiarAvisarEspera } from "../espera";
 import { alCambiarAvisarWorkers, alCambiarAvisoLider, avisarWorkers, avisoLider, cambiarAvisarWorkers, cambiarAvisoLider, type ModoAvisoLider } from "../avisos-worker";
+import { alCambiarTerminalAgentes, cambiarTerminalAgentes, esWindowsTerminal, terminalAgentes } from "../terminal-agentes";
 import { mensaje } from "../puente";
 import { TEMAS } from "../temas";
 import { alCambiarApariencia, apariencia, FUENTES, LETRA_DEF, LETRA_MAX, LETRA_MIN, MONOS, type Fuente } from "../tipografia";
@@ -160,6 +161,13 @@ function elegirAvisoLider(id: string) {
   fuente.guardarAvisoLider(m);
 }
 
+/** La terminal de líderes y workers en Windows: igual, al toque y a preferencias.json. */
+function elegirTerminalAgentes(id: string) {
+  const t = id === "gitbash" ? "gitbash" : "powershell";
+  cambiarTerminalAgentes(t);
+  fuente.guardarTerminalAgentes(t);
+}
+
 /** Los mensajes tiernos (B17): igual, al toque y a preferencias.json. */
 function elegirTiernos(id: string) {
   const si = id === "si";
@@ -197,6 +205,7 @@ export function Ajustes() {
   const avisar = useSyncExternalStore(alCambiarAvisarEspera, avisarEspera);
   const avisarW = useSyncExternalStore(alCambiarAvisarWorkers, avisarWorkers);
   const modoLider = useSyncExternalStore(alCambiarAvisoLider, avisoLider);
+  const termAgentes = useSyncExternalStore(alCambiarTerminalAgentes, terminalAgentes);
   const aplicarSolo = useSyncExternalStore(alCambiarAplicarAuto, aplicarAuto);
   const [intento, setIntento] = useState(0);
 
@@ -280,6 +289,22 @@ export function Ajustes() {
           />
         </div>
       </Dato>
+      {esWindowsTerminal() ? (
+        <Dato nombre="ajustes.terminalAgentes" que="ajustes.terminalAgentesQue" icono={<IcCodigo {...ICONO} />}>
+          <div className="pn-sel">
+            <Selector
+              etiqueta={t("ajustes.terminalAgentes")}
+              opciones={[
+                { id: "powershell", nombre: t("ajustes.terminalPowershell"), desc: "" },
+                { id: "gitbash", nombre: t("ajustes.terminalGitBash"), desc: "" },
+              ]}
+              valor={termAgentes}
+              alElegir={elegirTerminalAgentes}
+              reserva={[...enOtros("ajustes.terminalPowershell"), ...enOtros("ajustes.terminalGitBash")]}
+            />
+          </div>
+        </Dato>
+      ) : null}
       <Dato nombre="ajustes.aplicarAuto" que="ajustes.aplicarAutoQue" icono={<IcAviso {...ICONO} />}>
         <div className="pn-sel">
           <Selector

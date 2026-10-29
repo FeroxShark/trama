@@ -81,6 +81,8 @@ export interface Fuente {
   /** La notificación de "te espera" (Ajustes), en el mismo archivo. */
   guardarAvisarEspera(si: boolean): void;
   guardarAvisarWorkers(si: boolean): void;
+  /** La terminal de los agentes en Windows (Ajustes > General): PowerShell o Git Bash. */
+  guardarTerminalAgentes(t: "powershell" | "gitbash"): void;
   /** Cómo se avisa al líder de un worker (Ajustes): al terminar la tanda o por cada worker. */
   guardarAvisoLider(v: "tanda" | "worker"): void;
   /** Un worker terminó, falló o se colgó (el main lo detecta: electron/avisos-worker.ts). Sin motor (navegador sin PC, fixtures) no llega nada. */
@@ -1385,6 +1387,7 @@ const fija: Fuente = {
   guardarTiernos() {},
   guardarAvisarEspera() {},
   guardarAvisarWorkers() {},
+  guardarTerminalAgentes() {},
   guardarAvisoLider() {},
   alAvisoWorker() {
     return () => {};
@@ -1998,6 +2001,9 @@ const conPa = (m: NonNullable<typeof main>): Fuente => ({
   },
   guardarAvisarWorkers(si) {
     void m.preferencias.avisarWorkers(si).catch(() => {});
+  },
+  guardarTerminalAgentes(t) {
+    void m.preferencias.terminalAgentes(t).catch(() => {});
   },
   guardarAvisoLider(v) {
     void m.preferencias.avisoLider(v).catch(() => {});

@@ -64,6 +64,7 @@ contextBridge.exposeInMainWorld("hilos", {
     tiernos: (si: boolean): Promise<void> => invocar("preferencias:tiernos", si),
     avisarEspera: (si: boolean): Promise<void> => invocar("preferencias:avisarEspera", si),
     avisarWorkers: (si: boolean): Promise<void> => invocar("preferencias:avisarWorkers", si),
+    terminalAgentes: (t: string): Promise<void> => invocar("preferencias:terminalAgentes", t),
     avisoLider: (v: string): Promise<void> => invocar("preferencias:avisoLider", v),
     vista: (vista: string): Promise<void> => invocar("preferencias:vista", vista),
     consumo: (si: boolean): Promise<void> => invocar("preferencias:consumo", si),
