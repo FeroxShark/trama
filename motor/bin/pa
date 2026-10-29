@@ -4148,7 +4148,7 @@ modelos_cargar() {   # 0 si hay un modelos.json válido (lo deja en MODELOS_TXT)
         . as $c |
         (if ($c | type) == "object" and ($c.locales | type) == "array" then $c.locales else [] end) as $L |
         [$L[] | objects | .id | strings] as $ids |
-        def modok: type == "string" and (test("^claude-[a-z0-9][a-z0-9.-]*$") or test("^(\($gem))$") or test("^(\($cod))$") or test("^(\($dsh))$") or test("^(\($oc))$")
+        def modok: type == "string" and (test("^claude-[a-z0-9][a-z0-9.-]*$") or test("^agy:[a-z0-9][a-z0-9.-]*$") or test("^(\($gem))$") or test("^(\($cod))$") or test("^(\($dsh))$") or test("^(\($oc))$")
                    or (startswith("ollama:") and (. as $m | $ids | index([$m]) != null)));
         [ (if ($c | type) != "object" then "no es un objeto JSON" else empty end),
           (if ($c | type) == "object" then (

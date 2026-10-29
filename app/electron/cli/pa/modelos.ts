@@ -52,6 +52,7 @@ export function problemaModelos(c: Json): string {
   const modok = (m: Json) =>
     typeof m === "string" &&
     (/^claude-[a-z0-9][a-z0-9.-]*$/.test(m) ||
+      /^agy:[a-z0-9][a-z0-9.-]*$/.test(m) || // un modelo que ofrece el agy de la cuenta (el catálogo cambia): si no existe, agy lo rechaza al lanzar y pa relanza
       calza(GEMINI_MODELOS, m) ||
       calza(CODEX_MODELOS, m) ||
       calza(DSH_MODELOS, m) ||
