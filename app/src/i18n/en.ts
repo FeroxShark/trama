@@ -2260,6 +2260,7 @@ export const en = {
   "cuenta.lider.sinLogin": "Not signed in yet",
   "cuenta.lider.nota": "This leader uses the account you picked from its next message.",
   "cu.usarPrimero": "Use first",
+  "cu.usarPrimeroDe": "Use first: {nombre}",
   "cu.usarPrimeroQue": "New leaders and workers use this account. What is already running does not change, and Trama never switches to another account on its own when the limit runs out.",
   "cu.enUso": "In use",
   "cu.enUsoQue": "New leaders and workers use this account",

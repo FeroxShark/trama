@@ -2246,6 +2246,7 @@ export const es: { [K in keyof typeof en]: string } = {
   "cuenta.lider.sinLogin": "Todavía sin iniciar sesión",
   "cuenta.lider.nota": "Este líder usa la cuenta que elegiste desde su próximo mensaje.",
   "cu.usarPrimero": "Usar primero",
+  "cu.usarPrimeroDe": "Usar primero: {nombre}",
   "cu.usarPrimeroQue": "Los líderes y workers nuevos usan esta cuenta. Lo que ya está corriendo no cambia, y Trama nunca pasa sola a otra cuenta cuando se agota el cupo.",
   "cu.enUso": "En uso",
   "cu.enUsoQue": "Los líderes y workers nuevos usan esta cuenta",
