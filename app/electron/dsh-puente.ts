@@ -9,7 +9,7 @@
 //   TRAMA_DSH_RELEVO=<archivo>      lo hablado con otro motor, si la conversación venía de uno (cambio de motor): va después del prefacio
 //   TRAMA_DSH_URL=<url>             otra baseURL para el proveedor (Ollama en otra máquina)
 //   TRAMA_DSH_IMAGENES=1            el modelo (de Ollama) acepta imágenes: se declara en el parche
-//   TRAMA_DSH_CONTEXTO=<n>          ventana de contexto del modelo de Ollama
+//   TRAMA_DSH_CONTEXTO=<n>          ventana de contexto del modelo de Ollama (sin él, un modelo local toma su LLAMA_CTX de ~/.config/trama/locales)
 //
 // Continuidad: la sesión ACP (`session/new` la primera vez) queda en `$HILOS_STATE/dsh/<sid>.json`; al volver (otro puente, otro
 // `dsh`) se retoma con `session/resume` —dsh guarda la sesión en su DSH_HOME, con los resultados de cada herramienta—. Si no se
@@ -27,7 +27,7 @@ import path from "node:path";
 import os from "node:os";
 import { ClienteAcp, ErrorAcp, describirError, type BloqueAcp } from "./acp.ts";
 import { entornoAgy } from "./binario.ts";
-import { entornoDsh, escribirParche, esErrorCuota, falta, mensajeCuotaOpencode, parsearModelo, resolverDsh, valorModeloAcp } from "./dsh.ts";
+import { contextoLocal, entornoDsh, escribirParche, esErrorCuota, falta, mensajeCuotaOpencode, parsearModelo, resolverDsh, valorModeloAcp } from "./dsh.ts";
 import { effortParaAcp, esModeloGo, politicaOpencode, entornoOpencode, conPermisoFuera, esErrorCuota as esCuotaOc, mensajeCuotaOpencode as mensajeCuotaOc, parsearModelo as parsearOpencode, resolverOpencode } from "./opencode.ts";
 import { esLimiteGratisOpencode, marcarModeloGoAgotado, marcarOpencodeAgotado } from "./opencode-agotado.ts";
 import { anotarPedidos, cuentaPedidos } from "./opencode-pedidos.ts";
@@ -503,7 +503,9 @@ async function levantar(): Promise<void> {
     if (falto) throw new Error(`falta ${falto} para usar ${modelo}`);
     claveLevantada = (claveDelProveedor() && process.env[claveDelProveedor()!]) || "";
     env = entornoDsh(prov!.proveedor, entornoAgy(env0, os.homedir()));
-    writeFileSync(PARCHE, escribirParche({ ...prov!, baseURL: process.env.TRAMA_DSH_URL || undefined, imagenes: process.env.TRAMA_DSH_IMAGENES === "1", contexto: Number(process.env.TRAMA_DSH_CONTEXTO) || undefined }));
+    // Un modelo local (ollama) lleva su `-c` real (LLAMA_CTX de ~/.config/trama/locales) si no viene TRAMA_DSH_CONTEXTO.
+    const contexto = Number(process.env.TRAMA_DSH_CONTEXTO) || (prov!.proveedor === "ollama" ? contextoLocal(prov!.modelo) : null) || undefined;
+    writeFileSync(PARCHE, escribirParche({ ...prov!, baseURL: process.env.TRAMA_DSH_URL || undefined, imagenes: process.env.TRAMA_DSH_IMAGENES === "1", contexto }));
     mkdirSync(env.DSH_HOME!, { recursive: true });
     comando = resolverDsh(process.env, os.homedir());
     args = ["--profile", "acp", "--patch", PARCHE];

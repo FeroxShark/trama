@@ -12,11 +12,13 @@
 //             OPENCODE_API_KEY; sin key, "public" para los gratis). No se usa el `opencode` del catálogo de pi-ai: hay
 //             instalaciones de dsh sin ese adaptador («no adapter registered for provider "opencode"»).
 //   deepseek  `deepseek-official` (el default de dsh), key en `DEEPSEEK_API_KEY`.
-import { accessSync, constants } from "node:fs";
+// Modelo LOCAL (ollama): además, `maxTokens` 8192 en el modelo y `compaction-basic` con headroom chico (1024). El default de
+// dsh (headroom 65536, maxTokens por modelo 32768) con una ventana de 32k da umbral negativo y nunca compacta.
+import { accessSync, constants, readFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { resolverNpm } from "./binario.ts";
-import { caminoDe, type Plataforma, plataformaActual } from "./rutas.ts";
+import { caminoDe, configTrama, type Plataforma, plataformaActual } from "./rutas.ts";
 
 export const PROVEEDORES = ["ollama", "opencode", "deepseek"] as const;
 export type ProveedorDsh = (typeof PROVEEDORES)[number];
@@ -57,14 +59,46 @@ export const esModeloDsh = (id: unknown) => parsearModelo(id) !== null;
 
 const q = (s: unknown) => JSON.stringify(String(s)); // un string JSON es un escalar YAML válido
 
+/** Lo que se le pone a un modelo local (ollama): tope de salida del modelo y autocompact para una ventana chica. */
+export const LOCAL = {
+  maxTokens: 8192,
+  compactacion: { thresholdRatio: 0.75, headroomTokens: 1024, maxTokens: 4096 },
+} as const;
+
+/**
+ * El `contextWindow` real de un modelo local: el `LLAMA_CTX` (el `-c` de la unit) de su env file `<carpeta locales>/<clave>.env`.
+ * La clave es la de la entrada de `locales.json` que sirve ese modelo (`alias`, o `id` si no lo tiene); sin entrada, el nombre del
+ * modelo. `null` si no hay dato. Igual que `contextoLocal` de motor/dsh/config.mjs (las rutas, como `configTrama` de rutas.ts).
+ */
+export function contextoLocal(modelo: string, env: Env = process.env, plat: Plataforma = plataformaActual()): number | null {
+  const c = caminoDe(plat);
+  let clave = modelo;
+  try {
+    const decl = JSON.parse(readFileSync(env.HILOS_LOCALES_JSON || c.join(configTrama(env, undefined, plat), "locales.json"), "utf8"));
+    const m = decl?.version === 1 && Array.isArray(decl.modelos) ? decl.modelos.find((x: any) => x && (x.alias ?? x.id) === modelo) : null;
+    if (m && typeof (m.clave ?? m.id) === "string") clave = m.clave ?? m.id;
+  } catch {
+    /* sin locales.json (o roto): el nombre del modelo */
+  }
+  if (!/^\w[\w.-]*$/.test(clave)) return null;
+  try {
+    const carpeta = env.HILOS_LOCALES_DIR || c.join(configTrama(env, undefined, plat), "locales");
+    const n = readFileSync(c.join(carpeta, `${clave}.env`), "utf8").match(/^LLAMA_CTX=(\d+)\s*$/m);
+    return n ? Number(n[1]) : null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * El contenido de `cordis.patch.yml` para `--patch`. `agent-default-model` es lo que usa headless; `acp` es la selección
- * inicial de `session/new` (y el respaldo de `session/resume`).
+ * inicial de `session/new` (y el respaldo de `session/resume`). Con `ollama` (local) va además el ajuste de autocompact de `LOCAL`.
  */
 export function escribirParche(c: ConfigDsh): string {
   if (!esProveedor(c.proveedor)) throw new Error(`dsh: proveedor desconocido «${String(c.proveedor)}» (${PROVEEDORES.join(", ")})`);
   if (!c.modelo || !String(c.modelo).trim()) throw new Error("dsh: falta el modelo");
   const ruta = RUTA[c.proveedor];
+  const local = c.proveedor === "ollama";
   const l: string[] = [];
   if (c.proveedor === "ollama" || c.proveedor === "opencode") {
     const [url, clave] = c.proveedor === "ollama" ? [OLLAMA_URL, "OLLAMA_API_KEY"] : [OPENCODE_URL, "OPENCODE_API_KEY"];
@@ -72,9 +106,14 @@ export function escribirParche(c: ConfigDsh): string {
     l.push(`        baseURL: ${q(c.baseURL || url)}`, `        apiKeyEnv: ${clave}`, "        models:");
     l.push(`          - id: ${q(c.modelo)}`, `            name: ${q(c.modelo)}`, `            input: [${c.imagenes ? "text, image" : "text"}]`);
     if (c.contexto) l.push(`            contextWindow: ${Math.trunc(c.contexto)}`);
+    if (local) l.push(`            maxTokens: ${LOCAL.maxTokens}`);
   } else if (c.baseURL) {
     // Un gateway propio para un proveedor del catálogo (sólo cambia la URL; la key sigue saliendo del entorno).
     l.push("- id: llm-pi-ai", "  config:", "    providers:", `      ${ruta}:`, `        baseURL: ${q(c.baseURL)}`);
+  }
+  if (local) {
+    const k = LOCAL.compactacion;
+    l.push("- id: compaction-basic", "  config:", `    thresholdRatio: ${k.thresholdRatio}`, `    headroomTokens: ${k.headroomTokens}`, `    maxTokens: ${k.maxTokens}`);
   }
   for (const id of ["agent-default-model", "acp"]) l.push(`- id: ${id}`, "  config:", `    provider: ${ruta}`, `    model: ${q(c.modelo)}`);
   return l.join("\n") + "\n";

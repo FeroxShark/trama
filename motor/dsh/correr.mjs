@@ -25,7 +25,7 @@ import { appendFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFile
 import os from "node:os";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
-import { entornoDsh, escribirParche, esErrorCuota, falta, lanzarDsh, mensajeCuotaOpencode, parsearModelo, resolverDsh } from "./config.mjs";
+import { contextoLocal, entornoDsh, escribirParche, esErrorCuota, falta, lanzarDsh, mensajeCuotaOpencode, parsearModelo, resolverDsh } from "./config.mjs";
 
 function argumentos(argv) {
   const o = { _: [] };
@@ -106,7 +106,9 @@ async function main() {
   mkdirSync(env.DSH_HOME, { recursive: true });
   const tmp = mkdtempSync(path.join(os.tmpdir(), "pa-dsh-"));
   const parche = path.join(tmp, "cordis.patch.yml");
-  writeFileSync(parche, escribirParche({ ...prov, baseURL: a.url || process.env.TRAMA_DSH_URL || undefined, imagenes: !!a.imagenes }));
+  // Un modelo local (ollama) lleva su `-c` real (LLAMA_CTX de ~/.config/trama/locales); los remotos no tienen ventana declarada acá.
+  const contexto = prov.proveedor === "ollama" ? (contextoLocal(prov.modelo) ?? undefined) : undefined;
+  writeFileSync(parche, escribirParche({ ...prov, baseURL: a.url || process.env.TRAMA_DSH_URL || undefined, imagenes: !!a.imagenes, contexto }));
   mkdirSync(path.dirname(a.stream), { recursive: true });
   writeFileSync(a.stream, "");
 
