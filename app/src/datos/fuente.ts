@@ -20,7 +20,7 @@ import { consumoDe, consumoFijo, type Consumo, type Pedido } from "./consumo";
 import { cambioDe, vistaDe, type CambioPasos, type VistaPasos } from "./pasos";
 import { pasosFijos, pasosSubFijos } from "./pasos-fixture";
 import { crearCola, type AvisoCola, type Encolado } from "../../electron/cola";
-import { ARRANCANDO, EN_COLA, HILOS_DELL, LIDER_DELL, PENSANDO_FIJO, charlaFormato, charlaLarga, charlaCambio, charlaListas, charlaLider, charlaPensando, charlaSistema, charlaTabla, conversacion, conversacionSistema, HILOS, HILOS_ACTIVAS, HILOS_EN_COLA, HILOS_TERMINADOS, ICONOS, LIDERES, LIDERES_ACTIVAS, LIDER_MUERTO, LIDER_TERMINADOS, FRENADO, TITULOS, USO, USO_CUENTAS, USO_NIM, USO_TODO, USO_TODO_DOS, USO_GOOGLE, USO_GOOGLE_MARCADO, USO_SIN_HORA, imagenFija, localesFalsos, vramFalsa, vramLiberarFalso } from "./fixtures";
+import { ARRANCANDO, EN_COLA, HILOS_DELL, LIDER_DELL, PENSANDO_FIJO, charlaFormato, charlaLarga, charlaCambio, charlaListas, charlaIntermedios, charlaLider, charlaPensando, charlaSistema, charlaTabla, conversacion, conversacionSistema, HILOS, HILOS_ACTIVAS, HILOS_EN_COLA, HILOS_TERMINADOS, ICONOS, LIDERES, LIDERES_ACTIVAS, LIDER_MUERTO, LIDER_TERMINADOS, FRENADO, TITULOS, USO, USO_CUENTAS, USO_NIM, USO_TODO, USO_TODO_DOS, USO_GOOGLE, USO_GOOGLE_MARCADO, USO_SIN_HORA, imagenFija, localesFalsos, vramFalsa, vramLiberarFalso } from "./fixtures";
 
 export interface Fuente {
   /** La última lista buena de una corrida anterior, para pintar algo mientras `pa` contesta. */
@@ -671,7 +671,7 @@ const charlas = new Map<string, Mensaje[]>();
 const uuidFijo = (sid: string, i: number) => `00000000-0000-4000-9000-${sid.slice(-8)}${String(i).padStart(4, "0")}`;
 const charla = (sid: string) => {
   let c = charlas.get(sid);
-  if (!c) charlas.set(sid, (c = MODO.captura === "lider-sistema" ? charlaSistema(sid) : MODO.captura === "lider-cambio-motor" ? charlaCambio(sid) : MODO.captura === "lider-imagenes" ? charlaImagenes(sid) : MODO.captura === "lider-editar" ? charlaEditar(sid) : MODO.captura === "lider-tabla" ? charlaTabla(sid) : MODO.captura === "lider-listas" ? charlaListas(sid) : MODO.captura === "lider-pensando" && MODO.variante !== "vivo" ? charlaPensando(sid) : MODO.captura === "lider-formato" ? (MODO.variante === "larga" ? charlaLarga(sid) : charlaFormato(sid, MODO.variante === "pegado")) : charlaLider(sid)));
+  if (!c) charlas.set(sid, (c = MODO.captura === "lider-sistema" ? charlaSistema(sid) : MODO.captura === "lider-cambio-motor" ? charlaCambio(sid) : MODO.captura === "lider-imagenes" ? charlaImagenes(sid) : MODO.captura === "lider-editar" ? charlaEditar(sid) : MODO.captura === "lider-tabla" ? charlaTabla(sid) : MODO.captura === "lider-listas" ? charlaListas(sid) : MODO.captura === "lider-pensando" && MODO.variante !== "vivo" ? charlaPensando(sid) : MODO.captura === "lider-intermedios" ? charlaIntermedios(sid) : MODO.captura === "lider-formato" ? (MODO.variante === "larga" ? charlaLarga(sid) : charlaFormato(sid, MODO.variante === "pegado")) : charlaLider(sid)));
   return c;
 };
 // La conversación larga de las pruebas (`scripts/prueba-scroll-lideres.mjs`) recibe mensajes nuevos mientras otra está abierta.

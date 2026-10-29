@@ -2315,6 +2315,11 @@ html[data-titulo-nativo] #root::after {
 .conv > .trabajo {
   contain-intrinsic-block-size: auto 1.25rem;
 }
+/* Un turno con textos entre las herramientas (src/hilo/Turno.tsx, Intercalado): el grupo de herramientas queda pegado al texto que lo
+   anunció ("Ahora miro X") y el texto que sigue se separa un poco más del grupo. */
+.conv > .el[data-intermedio] + .trabajo[data-grupo] {
+  margin-top: calc(var(--esp-2) - var(--gap-conv));
+}
 .yo {
   max-width: 80%;
   align-self: flex-end;

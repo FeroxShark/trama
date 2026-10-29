@@ -1115,7 +1115,7 @@ export function Barra() {
     const proyectos = grupos.map((g) => g.proyecto);
     // La caja (modelo, esfuerzo, aviso de cambiar de modelo), el indicador y los avisos: en el líder de la app.
     const app = lideres.find((l) => l.origen === "app" && l.vivo)?.id ?? lideres[0]?.id ?? "";
-    const enApp = ["lider", "modelo", "esfuerzo", "local-esfuerzo", "local-ctx", "aviso", "lider-trabajando", "lider-avisos", "lider-plan", "lider-permiso", "lider-preguntas", "lider-preguntas-dos", "lider-comandos", "lider-dictado", "lider-valores", "lider-sistema", "lider-cambio-motor", "cuenta-lider", "lider-compactando", "lider-relevo", "lider-imagenes", "lider-editar", "lider-tabla", "lider-formato", "lider-listas", "lider-hover", "lider-pensando", "lider-gemini", "te-espera", "tablero-nuevo-chat", "foco-caja", "consumo"].includes(c) || c.startsWith("contexto");
+    const enApp = ["lider", "modelo", "esfuerzo", "local-esfuerzo", "local-ctx", "aviso", "lider-trabajando", "lider-avisos", "lider-plan", "lider-permiso", "lider-preguntas", "lider-preguntas-dos", "lider-comandos", "lider-dictado", "lider-valores", "lider-sistema", "lider-cambio-motor", "cuenta-lider", "lider-compactando", "lider-relevo", "lider-imagenes", "lider-editar", "lider-tabla", "lider-formato", "lider-listas", "lider-hover", "lider-pensando", "lider-intermedios", "lider-gemini", "te-espera", "tablero-nuevo-chat", "foco-caja", "consumo"].includes(c) || c.startsWith("contexto");
     // Las guías del chat y de su caja piden el líder de la app abierto.
     const guiaLider = c === "guia-lider" || c === "guia-caja" || c === "guia-modelo";
     if (enApp || guiaLider) setActiva(LIDER + app);

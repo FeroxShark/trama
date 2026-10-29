@@ -601,6 +601,52 @@ export function charlaLider(sid: string): Mensaje[] {
   ];
 }
 
+/** El chat de un líder que va contando lo que encuentra entre herramienta y herramienta (captura `lider-intermedios`). */
+export function charlaIntermedios(sid: string): Mensaje[] {
+  const l = LIDERES.lideres.find((x) => x.id === sid);
+  if (!l) return [];
+  const ts = (s: number) => new Date((l.actividad - s) * 1000).toISOString();
+  const m = l.modelo;
+  const uso = (nombre: string, entrada: Record<string, unknown>, id: string, texto: string) => ({ nombre, entrada, id, resultado: { texto, error: false } });
+  return [
+    { i: 0, rol: "user", texto: "¿Por qué falla el índice de cauce?", herramientas: [], ts: ts(9 * MIN), modelo: null },
+    {
+      i: 1,
+      rol: "assistant",
+      texto: "Primero miro qué dice el último intento.",
+      herramientas: ["Bash: tail -n 40 cauce/log.txt"],
+      det: [uso("Bash", { command: "tail -n 40 cauce/log.txt", description: "El final del log" }, "toolu_int_1", "FAILED test_indice_migra")],
+      ts: ts(8 * MIN),
+      modelo: m,
+    },
+    {
+      i: 2,
+      rol: "assistant",
+      texto: "Se cae `test_indice_migra`. Ahora miro la migración que toca el índice.",
+      herramientas: ["Read: cauce/migraciones/0007_indice.sql", "Grep: version_esquema"],
+      det: [
+        uso("Read", { file_path: "/Users/ana/Proyectos/cauce/migraciones/0007_indice.sql" }, "toolu_int_2", "CREATE INDEX …"),
+        uso("Grep", { pattern: "version_esquema" }, "toolu_int_3", "3 coincidencias"),
+      ],
+      ts: ts(7 * MIN),
+      modelo: m,
+    },
+    {
+      i: 3,
+      rol: "assistant",
+      texto: "La migración sube la versión del esquema a 8 pero el test sigue esperando 7. Lo corrijo y vuelvo a correr los tests.",
+      herramientas: ["Edit: cauce/tests/test_indice.py", "Bash: pytest cauce -q"],
+      det: [
+        uso("Edit", { file_path: "/Users/ana/Proyectos/cauce/tests/test_indice.py", old_string: "== 7", new_string: "== 8" }, "toolu_int_4", "ok"),
+        uso("Bash", { command: "pytest cauce -q", description: "Los tests de cauce" }, "toolu_int_5", "42 passed"),
+      ],
+      ts: ts(6 * MIN),
+      modelo: m,
+    },
+    { i: 4, rol: "assistant", texto: "Arreglado: el test esperaba la versión 7 del esquema y la migración ya la subió a 8. Pasan los 42 tests.", herramientas: [], ts: ts(5 * MIN), modelo: m },
+  ];
+}
+
 /** El razonamiento de muestra (captura `lider-pensando`, y lo que llega en vivo con `HILOS_VARIANTE=vivo`). */
 export const PENSANDO_FIJO = [
   "Ana pide mirar por qué falla el índice de cauce. ",

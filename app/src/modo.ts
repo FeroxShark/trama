@@ -117,6 +117,8 @@ const CAPTURAS = [
   "lider-hover",
   // El razonamiento del líder en el chat: plegado en cada turno ("Pensó"); `HILOS_VARIANTE=abierto` abre uno y `=vivo` lo deja llegando, con "Pensando…" abierto.
   "lider-pensando",
+  // Un turno del líder con textos intermedios entre las herramientas: cada texto queda en la conversación, en orden (el modo celular se mira con TAM chico).
+  "lider-intermedios",
   // Un líder de Gemini a mitad de un turno: su último paso de razonamiento en la tarjeta y cada comando con su estado.
   "lider-gemini",
   // Te espera: un líder de terminal que terminó y el de la app (abierto) que pide un permiso; fila y cabecera con la marca en ámbar.

@@ -12,7 +12,7 @@
 #           estadisticas-30 | estadisticas-medido | estadisticas-vacia | claude | claude-abierto | solo-lideres | ocultos |
 #           lider-sistema | lider-cambio-motor[menu|confirmar] | cuenta-lider | sistema | herramientas | lider-compactando |
 #           trama|trama-abierto|trama-sucio|trama-ocupado|trama-instalada (el aviso de una Trama nueva, con una instalada vieja forzada) |
-#           lider-relevo | lider-imagenes | lider-editar | lider-tabla | lider-formato | lider-listas | lider-pensando | lider-gemini | herramientas-resultados | lider-hover | te-espera |
+#           lider-relevo | lider-imagenes | lider-editar | lider-tabla | lider-formato | lider-listas | lider-pensando | lider-intermedios | lider-gemini | herramientas-resultados | lider-hover | te-espera |
 #           tablero | tablero-detalle | tablero-proyectos | tablero-iniciar | tablero-pospuestos | tablero-maquinas | tablero-vacio | maquinas-selector[-caida] | tablero-nuevo[-proyecto|-chat|-avisar] | lider-muerto | lider-app-muerto |
 #           compactando | consumo | orden-arrastrando | orden-menu | orden-prioridad | activas[plegada|fijo] | mover-menu | pc-apagada | pc-prendiendo | pc-prendida   (ver `Captura` en src/modo.ts)
 #   DIR=prueba       subcarpeta de bench-resultados/captura/ donde va el PNG (default: la carpeta misma);

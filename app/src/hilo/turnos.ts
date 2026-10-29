@@ -19,6 +19,12 @@ export type Item =
       tipo: "turno";
       key: string;
       pasos: Paso[];
+      /**
+       * Todo lo que dijo y usó el modelo, en el orden en que pasó: cada texto con las herramientas que usó después (también el que
+       * contesta, con las que siguen si el turno todavía corre). Con más de un texto, la vista los deja a todos a la vista, intercalados con el
+       * trabajo. Falta en un turno armado a mano.
+       */
+      orden?: Paso[];
       /** Lo que contestó: el último texto del turno (`null` si todavía no dijo nada). */
       texto: string | null;
       /** Epoch (s): el pedido que lo disparó o, si no está en la página, el primer mensaje. */
@@ -89,8 +95,10 @@ export function turnos(mensajes: Mensaje[], transcript: string | null = null): I
       if (x.texto.trim()) ultimo = k;
     });
     const pasos: Paso[] = [];
+    // Las llamadas de cada mensaje se arman una sola vez; cada recorrido de abajo las junta en sus propios arreglos.
+    const todos = tanda.map((x) => usosDe(x.herramientas, x.det, transcript));
     tanda.forEach((x, k) => {
-      const usos = usosDe(x.herramientas, x.det, transcript);
+      const usos = [...todos[k]];
       if (k === ultimo) {
         // Las herramientas del mensaje que contesta también son trabajo.
         if (usos.length) pasos.push({ texto: "", usos });
@@ -100,12 +108,22 @@ export function turnos(mensajes: Mensaje[], transcript: string | null = null): I
       if (!x.texto.trim() && prev && !prev.texto && k - 1 !== ultimo) prev.usos.push(...usos);
       else if (x.texto.trim() || usos.length) pasos.push({ texto: x.texto.trim(), usos });
     });
+    // Lo mismo, sin apartar al que contesta: cada texto abre un paso y las herramientas siguientes (de su mensaje o de los que vienen sin texto) lo siguen.
+    const orden: Paso[] = [];
+    tanda.forEach((x, k) => {
+      const texto = x.texto.trim();
+      const usos = [...todos[k]];
+      const prev = orden[orden.length - 1];
+      if (!texto && prev) prev.usos.push(...usos);
+      else if (texto || usos.length) orden.push({ texto, usos });
+    });
     // Desde el pedido del usuario, o lo que lo despertó (una tarea de fondo, un mensaje de otra sesión).
     const antes = i > 0 && mensajes[i - 1].rol === "user" ? epoch(mensajes[i - 1].ts) : null;
     items.push({
       tipo: "turno",
       key: `m${tanda[0].i}`,
       pasos,
+      orden,
       texto: ultimo >= 0 ? tanda[ultimo].texto : null,
       desde: antes ?? epoch(tanda[0].ts),
       hasta: epoch(tanda[tanda.length - 1].ts),
