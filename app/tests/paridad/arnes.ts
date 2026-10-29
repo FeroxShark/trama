@@ -108,6 +108,33 @@ export function comandoB(env = process.env, h: Herramienta = "pa"): string[] | n
   return v.split(/\s+/);
 }
 
+/** Hora fija y cupos falsos para los casos que muestran el ritmo de cada suscripción (`pa --plan ver`). Sin esto reparto
+ *  lee `agy -p /quota` de la máquina, y ese % cambia entre la corrida de bash y la de TS. */
+const AHORA_FALSO = "2026-10-26T12:00:00Z";
+const ventana = (id: string, usado: number, vuelve: string) => ({ id, usado, vuelve });
+const CUPO_FALSO = {
+  version: 1,
+  leido: AHORA_FALSO,
+  suscripciones: [
+    { id: "claude", nombre: "Claude", proveedor: "claude", cuenta: "claude", ventanas: [ventana("5h", 0.2, "2026-10-26T14:00:00Z"), ventana("7d", 0.5, "2026-10-30T00:00:00Z")] },
+    {
+      id: "google",
+      nombre: "Google AI Pro",
+      grupos: [
+        { id: "gemini", nombre: "Gemini", ventanas: [ventana("5h", 0.1, "2026-10-26T15:00:00Z"), ventana("7d", 0.26, "2026-10-29T00:00:00Z")] },
+        { id: "claude-gpt", nombre: "Claude y GPT por Google", ventanas: [ventana("5h", 0, "2026-10-26T15:00:00Z"), ventana("7d", 0.6, "2026-10-29T00:00:00Z")] },
+        { id: "gemini-4-argon", nombre: "Gemini 4 Argon", ventanas: [ventana("7d", 0.9, "2026-10-28T00:00:00Z")] },
+      ],
+    },
+  ],
+};
+/** El `env` de un paso que lee el ritmo: el cupo falso va a `aux` del sandbox y reparto usa esa hora fija. */
+export function cupoFalso(c: Contexto): Record<string, string> {
+  const f = path.join(c.aux, "cupos-falsos.json");
+  writeFileSync(f, JSON.stringify(CUPO_FALSO));
+  return { REPARTO_CUPOS_FIJOS: f, REPARTO_AHORA: AHORA_FALSO };
+}
+
 function crearSandbox(): Contexto {
   const raiz = realpathSync(mkdtempSync(path.join(os.tmpdir(), "paridad-")));
   const c: Contexto = {

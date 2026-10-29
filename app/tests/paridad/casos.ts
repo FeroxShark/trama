@@ -4,7 +4,7 @@
 // para comparar argv, salida y archivos de estado.
 import { writeFileSync } from "node:fs";
 import path from "node:path";
-import type { Caso } from "./arnes.ts";
+import { cupoFalso, type Caso } from "./arnes.ts";
 import { casosHerramientas } from "./casos-herramientas.ts";
 import { casosHooks } from "./casos-hooks.ts";
 import { casosAsync } from "./casos-async.ts";
@@ -28,8 +28,8 @@ export const casosPa: Caso[] = [
   { nombre: "brief: --brief-archivo inexistente", args: ["demo", "--sin-jefe", "--brief-archivo", "/no/existe.md"], rc: 2 },
 
   // --- consulta sin lanzar nada ---
-  { nombre: "plan: ver", args: ["--plan", "ver"], rc: 0 },
-  { nombre: "plan: max y ver (escribe el estado)", pasos: [{ args: ["--plan", "max"] }, { args: ["--plan", "ver"] }] },
+  { nombre: "plan: ver", args: ["--plan", "ver"], rc: 0, env: cupoFalso },
+  { nombre: "plan: max y ver (escribe el estado)", pasos: [{ args: ["--plan", "max"], env: cupoFalso }, { args: ["--plan", "ver"], env: cupoFalso }] },
   { nombre: "plan: valor inválido", args: ["--plan", "ultra"] },
   { nombre: "modelos: tabla", args: ["--modelos"], rc: 0 },
   { nombre: "modelos: --json", args: ["--modelos", "--json"], rc: 0 },

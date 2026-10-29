@@ -3,7 +3,7 @@
 // etapa 6): en un error de uso, en una negativa de la política o en «falta la tarea».
 import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import type { Caso, Contexto } from "./arnes.ts";
+import { cupoFalso, type Caso, type Contexto } from "./arnes.ts";
 
 const M = "claude-sonnet-5-5";
 const RUB = "A=chico B=ejecutar C=completo D=bajo E=si";
@@ -33,7 +33,7 @@ export const casosPaCli: Caso[] = [
   { herramienta: "pa-cli", nombre: "pa-cli: plan max y vigente", pasos: [{ args: ["--plan", "MAX"], rc: 0 }, { args: ["--plan"], rc: 0 }] },
   cli("plan pro con PA_PLAN=max avisa", ["--plan", "pro"], 0, { env: { PA_PLAN: "max" } }),
   cli("plan inválido", ["--plan", "ultra"], 2),
-  cli("plan ver (lo contesta reparto)", ["--plan", "ver"], 0),
+  cli("plan ver (lo contesta reparto)", ["--plan", "ver"], 0, { env: cupoFalso }),
   cli("nota sin texto", ["--nota"], 2),
   cli("nota con texto", ["--nota", "SIGUE: algo\nen dos líneas  "], 0, { env: { PA_JEFE_ID: "jefe/uno" } }),
   cli("sin argumentos", [], 2),
