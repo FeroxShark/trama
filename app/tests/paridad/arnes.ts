@@ -175,6 +175,8 @@ function entorno(c: Contexto, extra: Record<string, string> = {}): NodeJS.Proces
     TRAMA_CLAVES: path.join(c.home, "no-hay.env"),
     REPARTO_STATE: path.join(c.raiz, "rep"),
     REPARTO_CLAUDE: "0",
+    // sin el agy de la máquina: reparto lee `agy -p /quota` y, si el agy real tarda o se cuelga, la tubería queda abierta y el caso no termina
+    REPARTO_AGY: "0",
     PA_REPARTO: "0",
     PA_CLAUDE_SETTINGS: path.join(c.home, "no-hay-settings.json"),
     TRAMA_FALSO_LOG: path.join(c.raiz, "claude-argv.jsonl"),
