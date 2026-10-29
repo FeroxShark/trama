@@ -2,7 +2,7 @@
 // sandbox (HOME, estado, registry y proyecto git en un tmp) con el claude falso headless (app/scripts/claude-falso.mjs),
 // y junta lo observable: stdout, stderr, código de salida, argv que recibió claude y archivos de estado escritos.
 import { spawnSync } from "node:child_process";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, statSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { normalizar, normalizarArgv, type Raices } from "./normalizar.ts";
@@ -135,25 +135,36 @@ export function cupoFalso(c: Contexto): Record<string, string> {
   return { REPARTO_CUPOS_FIJOS: f, REPARTO_AHORA: AHORA_FALSO };
 }
 
-function crearSandbox(): Contexto {
+/** Un sandbox nuevo en /tmp (`paridad-*`). Si falla a medio armar, borra lo que alcanzó a crear. */
+export function crearSandbox(): Contexto {
   const raiz = realpathSync(mkdtempSync(path.join(os.tmpdir(), "paridad-")));
-  const c: Contexto = {
-    raiz,
-    home: path.join(raiz, "home"),
-    proyecto: path.join(raiz, "proy"),
-    estado: path.join(raiz, "estado"),
-    aux: path.join(raiz, "aux"),
-  };
-  for (const d of [path.join(c.home, ".config", "proyectos"), c.proyecto, c.estado, c.aux, path.join(raiz, "shim")]) mkdirSync(d, { recursive: true });
-  const git = (...a: string[]) => spawnSync("git", ["-C", c.proyecto, "-c", "user.email=a@b", "-c", "user.name=x", ...a], { encoding: "utf8" });
-  git("init", "-q", "-b", "main");
-  git("commit", "-q", "--allow-empty", "-m", "init");
-  writeFileSync(path.join(c.home, ".config", "proyectos", "registry.json"), JSON.stringify({ projects: [{ name: "demo", path: c.proyecto }] }));
-  // `claude` en el PATH: el falso headless.
-  const shim = path.join(raiz, "shim", "claude");
-  writeFileSync(shim, `#!/bin/sh\nexec "${process.execPath}" "${FALSO}" "$@"\n`);
-  chmodSync(shim, 0o755);
-  return c;
+  try {
+    const c: Contexto = {
+      raiz,
+      home: path.join(raiz, "home"),
+      proyecto: path.join(raiz, "proy"),
+      estado: path.join(raiz, "estado"),
+      aux: path.join(raiz, "aux"),
+    };
+    for (const d of [path.join(c.home, ".config", "proyectos"), c.proyecto, c.estado, c.aux, path.join(raiz, "shim")]) mkdirSync(d, { recursive: true });
+    const git = (...a: string[]) => spawnSync("git", ["-C", c.proyecto, "-c", "user.email=a@b", "-c", "user.name=x", ...a], { encoding: "utf8" });
+    git("init", "-q", "-b", "main");
+    git("commit", "-q", "--allow-empty", "-m", "init");
+    writeFileSync(path.join(c.home, ".config", "proyectos", "registry.json"), JSON.stringify({ projects: [{ name: "demo", path: c.proyecto }] }));
+    // `claude` en el PATH: el falso headless.
+    const shim = path.join(raiz, "shim", "claude");
+    writeFileSync(shim, `#!/bin/sh\nexec "${process.execPath}" "${FALSO}" "$@"\n`);
+    chmodSync(shim, 0o755);
+    return c;
+  } catch (e) {
+    rmSync(raiz, { recursive: true, force: true });
+    throw e;
+  }
+}
+
+/** Borra el sandbox entero. Sólo toca la raíz que creó `crearSandbox`, nunca otra carpeta de /tmp. */
+export function borrarSandbox(c: Contexto): void {
+  rmSync(c.raiz, { recursive: true, force: true, maxRetries: 3 });
 }
 
 function entorno(c: Contexto, extra: Record<string, string> = {}): NodeJS.ProcessEnv {
@@ -222,9 +233,19 @@ function recolectarEstado(dir: string, ignorar: RegExp[], r: Raices): Record<str
 
 const IGNORAR_ESTADO = [/^lock(\/|$)/, /^worktrees(\/|$)/, /\.log$/, /\.lock$/];
 
-/** Corre el caso completo con el `pa` dado (comando + argumentos previos) y devuelve lo observable, ya normalizado. */
-export function correr(caso: Caso, pa: string[]): Resultado {
+/** Corre el caso completo con el `pa` dado (comando + argumentos previos) y devuelve lo observable, ya normalizado.
+ *  Sin `sandbox` crea uno propio y lo borra al terminar, también si el caso falla. Con `sandbox`, lo usa y lo deja: lo borra el llamador. */
+export function correr(caso: Caso, pa: string[], sandbox?: Contexto): Resultado {
+  if (sandbox) return ejecutar(caso, pa, sandbox);
   const c = crearSandbox();
+  try {
+    return ejecutar(caso, pa, c);
+  } finally {
+    borrarSandbox(c);
+  }
+}
+
+function ejecutar(caso: Caso, pa: string[], c: Contexto): Resultado {
   const r: Raices = { tmp: [c.raiz] };
   caso.preparar?.(c);
   const pasos = caso.pasos ?? [{ args: caso.args ?? [], env: caso.env, stdin: caso.stdin, rc: caso.rc }];

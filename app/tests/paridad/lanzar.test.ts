@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import { cpSync, existsSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { testPosix as test } from "../plataforma.ts";
-import { comandoOriginal, correr, diferencias, type Contexto, type Resultado } from "./arnes.ts";
+import { borrarSandbox, comandoOriginal, correr, crearSandbox, diferencias, type Contexto, type Resultado } from "./arnes.ts";
 import { casosLanzar, type CasoLanzar } from "./casos-lanzar.ts";
 import { normalizar, normalizarArgv, type Raices } from "./normalizar.ts";
 import { prologo, type Env } from "../../electron/cli/pa/entorno.ts";
@@ -125,13 +125,17 @@ async function correrB(caso: CasoLanzar, c: Contexto): Promise<Resultado> {
 for (const caso of casosLanzar) {
   if (filtro && !caso.nombre.includes(filtro)) continue;
   test(`paridad lanzar.ts: ${caso.nombre}`, { timeout: 300_000 }, async () => {
-    let ctx: Contexto | undefined;
-    const conCtx: CasoLanzar = { ...caso, preparar: (c) => ((ctx = c), caso.preparar?.(c)) };
-    const a = correr(conCtx, comandoOriginal());
-    if (caso.rc !== undefined) assert.equal(a.pasos[0]?.rc, caso.rc, `el bash dio otro código: ${a.pasos[0]?.stderr}`);
-    for (const k of Object.keys(a.estado)) if (SOLO_BASH.some((re) => re.test(k))) delete a.estado[k];
-    const b = await correrB(caso, ctx!);
-    const dif = diferencias(a, b);
-    assert.equal(dif, "", `bash y lanzar.ts difieren:\n${dif}`);
+    // B necesita el sandbox que dejó A: este test lo crea y lo borra, también si algo falla.
+    const c = crearSandbox();
+    try {
+      const a = correr(caso, comandoOriginal(), c);
+      if (caso.rc !== undefined) assert.equal(a.pasos[0]?.rc, caso.rc, `el bash dio otro código: ${a.pasos[0]?.stderr}`);
+      for (const k of Object.keys(a.estado)) if (SOLO_BASH.some((re) => re.test(k))) delete a.estado[k];
+      const b = await correrB(caso, c);
+      const dif = diferencias(a, b);
+      assert.equal(dif, "", `bash y lanzar.ts difieren:\n${dif}`);
+    } finally {
+      borrarSandbox(c);
+    }
   });
 }
