@@ -203,13 +203,17 @@ function entorno(c: Contexto, extra: Record<string, string> = {}): NodeJS.Proces
   };
 }
 
-/** medicion.tsv: `duration_s` es el tiempo real del caso (0 o 1 s según la carga de la máquina); se marca fijo para que no flaquee. */
+/** medicion.tsv: `duration_s` es el tiempo real del caso (0 o 1 s según la carga de la máquina) y `espera_s` lo que esperó un puesto (idem); se marcan fijos para que no flaqueen. */
 function sinDuracion(tsv: string): string {
   const [cab = "", ...filas] = tsv.split("\n");
-  const i = cab.split("\t").indexOf("duration_s");
-  if (i < 0) return tsv;
-  return [cab, ...filas.map((f) => (f ? f.split("\t").map((c, j) => (j === i ? "<N>" : c)).join("\t") : f))].join("\n");
+  const cols = cab.split("\t");
+  const idx = ["duration_s", "espera_s"].map((n) => cols.indexOf(n)).filter((i) => i >= 0);
+  if (!idx.length) return tsv;
+  return [cab, ...filas.map((f) => (f ? f.split("\t").map((c, j) => (idx.includes(j) ? "<N>" : c)).join("\t") : f))].join("\n");
 }
+
+/** `.hilo`: `espera=` son los segundos de cola de la corrida (un cruce de segundo, 0 o 1, según la carga): se marca fijo. */
+const sinEspera = (hilo: string) => hilo.replace(/^espera=\d+$/m, "espera=<N>");
 
 function recolectarEstado(dir: string, ignorar: RegExp[], r: Raices): Record<string, string> {
   const salida: Record<string, string> = {};
@@ -223,7 +227,7 @@ function recolectarEstado(dir: string, ignorar: RegExp[], r: Raices): Record<str
       else if (/\.pid$/.test(nombre)) salida[normalizar(rr, r)] = "<PID>";
       else if (st.size <= 256 * 1024) {
         const texto = normalizar(readFileSync(abs, "utf8"), r);
-        salida[normalizar(rr, r)] = rr === "medicion.tsv" ? sinDuracion(texto) : texto;
+        salida[normalizar(rr, r)] = rr === "medicion.tsv" ? sinDuracion(texto) : nombre.endsWith(".hilo") ? sinEspera(texto) : texto;
       }
     }
   };
