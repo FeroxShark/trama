@@ -3,7 +3,7 @@
 //
 // Cada archivo corre en su propio `node --test`, con un tope de tiempo: un archivo que se cuelga (un servidor que no
 // existe, un hijo que no muere) se corta y cuenta como falla en vez de dejar el job de CI esperando horas.
-// TRAMA_TEST_ARCHIVO_S cambia el tope por archivo (default 300 s); TRAMA_TEST_PARALELO, cuántos a la vez;
+// TRAMA_TEST_ARCHIVO_S cambia el tope por archivo (default 300 s; 900 s con --paridad); TRAMA_TEST_PARALELO, cuántos a la vez;
 // TRAMA_TEST_DIR, otra carpeta de archivos (lo usa tests/runner-tope.test.ts).
 //
 // Ningún proceso de un archivo queda vivo al terminar, ni cortado ni sano: se mata su grupo (POSIX) o su árbol
@@ -85,7 +85,8 @@ for (const [variable, nombre] of [
 }
 env.HILOS_AISLAR_PERMITE = [process.env.HILOS_AISLAR_PERMITE, path.dirname(raiz), ...usuario].filter(Boolean).join(":");
 
-const TOPE_MS = Math.max(1, Number(env.TRAMA_TEST_ARCHIVO_S) || 300) * 1000;
+// La paridad completa (~1100 casos, bash contra TS, en serie dentro de su archivo) tarda unos 8 min: no entra en los 300 s.
+const TOPE_MS = Math.max(1, Number(env.TRAMA_TEST_ARCHIVO_S) || (paridad ? 900 : 300)) * 1000;
 const PARALELO = Math.max(1, Number(env.TRAMA_TEST_PARALELO) || Math.max(1, (os.availableParallelism?.() ?? os.cpus().length) - 1));
 const extra = process.argv.slice(2).filter((a) => a !== "--paridad");
 
