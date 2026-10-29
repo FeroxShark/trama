@@ -131,6 +131,10 @@ type Main = {
   claudeCode: {
     listar(): Promise<unknown>;
   };
+  /** Una imagen local que nombra un líder en su texto (electron/imagen-local.ts): `{ tipo, datos }`, o `null` si no está. */
+  imagen: {
+    leer(ruta: string): Promise<unknown>;
+  };
   /** Los líderes: los de la app se manejan desde acá; los de la terminal se leen (electron/lider.ts). */
   lider: {
     /** Un líder nuevo con su primer mensaje; devuelve su session_id. */

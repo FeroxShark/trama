@@ -2,7 +2,7 @@
 // bench y capturas (o con HILOS_FIXTURES=1), de los fixtures. La UI no se entera.
 import type { Compactando } from "../../electron/compactando";
 import type { Subagente, Subagentes } from "../../electron/subagentes";
-import type { Imagen } from "../../electron/imagenes";
+import { imagenDe, type Imagen } from "../../electron/imagenes";
 import type { EstadoLocales, ResultadoProbar } from "../../electron/locales";
 import type { ModeloDetectado, ResultadoDeteccion, ServidorLocal } from "../../electron/locales-deteccion";
 import type { EstadoVram, ResultadoLiberar } from "../../electron/vram";
@@ -166,6 +166,8 @@ export interface Fuente {
   liderCerrar(sid: string, motivo?: string): Promise<void>;
   /** Las conversaciones de Claude Code que no son de Trama (de solo lectura), de la más reciente a la más vieja. */
   claudeCodeListar(): Promise<ConvClaudeCode[]>;
+  /** Una imagen local que nombra un líder en su texto (ruta absoluta); `null` si no está o no es una imagen. */
+  imagenLocal(ruta: string): Promise<Imagen | null>;
   /**
    * Retomar un líder sin proceso (`Lider.caido`): pasa a ser de la app y queda listo para
    * escribirle. No lanza nada ni le manda nada: sale con el primer mensaje del usuario.
@@ -1095,6 +1097,10 @@ const PLAN_FIJO = `# Settle en lote
 3. Tests: \`tests/settle.test.ts\`.`;
 
 /** Conversaciones de Claude Code inventadas (con fixtures): de atlas, de la carpeta personal y de carpetas sueltas (una ya borrada y una de otra cuenta). */
+/** Un PNG de 24×15 (un degradé) para las muestras. */
+const IMAGEN_MUESTRA =
+  "iVBORw0KGgoAAAANSUhEUgAAABgAAAAPCAIAAABxxpiMAAACfUlEQVR42g3MocquMACA4XM5fzKZbCaTyba0pEVWXJEFYSAsCAPDMAzLsLyWmXZ753su4Pn3J6gEtaARtIJO0AsGgRBIwSiYBYtgFWyCXXAITsEluAWP4BV8giL49yepJLWkkbSSTtJLBomQSMkomSWLZJVskl1ySE7JJbklj+SVfJIif9FENVFPNBPtRDfRTwwTYkJOjBPzxDKxTmwT+8QxcU5cE/fEM/FOfBNl+kWKSlErGkWr6BS9YlAIhVSMilmxKFbFptgVh+JUXIpb8Shexaco6hdpKk2taTStptP0mkEjNFIzambNolk1m2bXHJpTc2luzaN5NZ+m6F9kqAy1oTG0hs7QGwaDMEjDaJgNi2E1bIbdcBhOw2W4DY/hNXyGYn6RpbLUlsbSWjpLbxkswiIto2W2LJbVsll2y2E5LZfltjyW1/JZiv1FjspROxpH6+gcvWNwCId0jI7ZsThWx+bYHYfjdFyO2/E4XsfnKO4XeSpP7Wk8rafz9J7BIzzSM3pmz+JZPZtn9xye03N5bs/jeT2fp/hfFKgCdaAJtIEu0AeGgAjIwBiYA0tgDWyBPXAEzsAVuANP4A18gRJ+UaSK1JEm0ka6SB8ZIiIiI2NkjiyRNbJF9sgROSNX5I48kTfyRUr8RYkqUSeaRJvoEn1iSIiETIyJObEk1sSW2BNH4kxciTvxJN7ElyjpF0EFNTTQQgc9DCBAwggzLLDCBjsccMIFNzzwwgeFX5SpMnWmybSZLtNnhozIyMyYmTNLZs1smT1zZM7MlbkzT+bNfJmSf1GhKtSFptAWukJfGAqiIAtjYS4shbWwFfbCUTgLV+EuPIW38BVK4T/RtEuzVZSmRAAAAABJRU5ErkJggg==";
+
 const claudeCodeFijas = (): ConvClaudeCode[] => {
   const ahora = Date.now();
   const hace = (min: number) => ahora - min * 60_000;
@@ -1534,6 +1540,10 @@ const fija: Fuente = {
   async liderCerrar() {},
   async claudeCodeListar() {
     return claudeCodeFijas();
+  },
+  // Muestras: toda ruta existe menos las que dicen "falta" (para ver el "Imagen no disponible").
+  async imagenLocal(ruta) {
+    return /falta/i.test(ruta) ? null : { tipo: "image/png", datos: IMAGEN_MUESTRA };
   },
   async liderRetomar(sid, x) {
     // `HILOS_VARIANTE=no`: la conversación ya no está en disco.
@@ -2207,6 +2217,9 @@ const conPa = (m: NonNullable<typeof main>): Fuente => ({
   },
   async claudeCodeListar() {
     return convsClaudeCodeDe(await m.claudeCode.listar().catch(() => []));
+  },
+  async imagenLocal(ruta) {
+    return imagenDe(await m.imagen.leer(ruta).catch(() => null));
   },
   async liderRetomar(sid, x) {
     return retomadoDe(

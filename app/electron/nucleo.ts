@@ -4,6 +4,7 @@
 // inotify (nada de polling) y sale a quienes escuchan (`escuchar`): la ventana, el celular.
 // La ventana lo usa por ipc.ts, que le suma lo que es sólo de la pantalla de la PC.
 import { guardarArchivo, limpiarAdjuntos } from "./archivos.js";
+import { leerImagenLocal } from "./imagen-local.js";
 import { modelosDictado, transcribir } from "./dictado.ts";
 import { MODELO_TURBO } from "./dictado-modelos.ts";
 import { guardarLocal, leerLocales, probarLocal } from "./locales.ts";
@@ -1119,6 +1120,8 @@ export function armarNucleo() {
   // El usuario abrió la conversación de un líder que lo esperaba (o la tiene a la vista y volvió a la ventana).
   manejar("lider:visto", (_e, sid: string) => verEspera(String(sid)));
   // Un archivo que no es imagen: a `adjuntos/` del estado propio; el mensaje lleva su ruta.
+  // Una imagen local que nombra un líder en su texto (imagen-local.ts): ruta absoluta de una imagen, sólo lectura; `null` si no está.
+  manejar("imagen:leer", (_e, ruta: unknown) => leerImagenLocal(ruta));
   manejar("lider:archivo", (_e, x: unknown) => guardarArchivo(path.join(ESTADO, "adjuntos"), x));
   // Dictar: el WAV de la caja (16 kHz mono) → `handy --transcribe-file`; el texto vuelve al borrador, no se manda solo.
   // Con el modelo elegido en Ajustes (`--model`); sin elegir, Turbo si Handy lo tiene bajado (dictado-modelos.ts).

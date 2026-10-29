@@ -100,6 +100,8 @@ export const RUTAS: Readonly<Record<string, Ruta>> = {
   "contexto:umbral": "local",
   "medicion:leer": "local",
   "claudeCode:listar": "local",
+  // Una imagen local de un mensaje: se lee de esta máquina (el líder de otra se ve sin ella: "Imagen no disponible").
+  "imagen:leer": "local",
   "historial:consultar": "local",
   "historial:arranque": "local",
   "historial:medir": "local",

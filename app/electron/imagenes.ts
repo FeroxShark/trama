@@ -61,3 +61,10 @@ export function imagenesDeContenido(c: unknown): Imagen[] {
       r.push({ tipo: b.source.media_type, datos: b.source.data });
   return r;
 }
+
+/** Una imagen que llegó por IPC sin validar (la de un archivo local: `imagen:leer`); `null` si no tiene forma de imagen. */
+export function imagenDe(x: unknown): Imagen | null {
+  const o = x as { tipo?: unknown; datos?: unknown } | null;
+  if (typeof o?.tipo !== "string" || typeof o.datos !== "string" || !/^image\/[a-z0-9.+-]+$/.test(o.tipo) || !o.datos) return null;
+  return { tipo: o.tipo, datos: o.datos };
+}
