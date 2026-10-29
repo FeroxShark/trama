@@ -1,6 +1,6 @@
 // Las acciones de cada mensaje del chat de un líder: Copiar (todos), Editar (los del usuario), Volver acá y Ramificar.
 // La fila vive aparte de `Turno` y de `Yo` (un hermano más en `.conv`, sin alto: no mueve nada) y se muestra al pasar el mouse
-// por el mensaje o al tener el foco adentro; con el dedo, al tocar el mensaje.
+// por el mensaje o al tener el foco adentro; con el dedo, al tocar el mensaje, y ocupa su lugar debajo (no tapa el texto).
 import { memo, useEffect, useLayoutEffect, useRef, useState, type ClipboardEvent, type KeyboardEvent, type PointerEvent as EventoPuntero } from "react";
 import { Check, Copy, GitBranch, Paperclip, Pencil, Undo2 } from "lucide-react";
 import { copiar } from "../copiar";
