@@ -122,7 +122,8 @@
 #                          entregar el resultado más viejo no entregado (o el de la corrida ID);
 #                          si no hay ninguno, bloquear hasta que el worker termine
 #   pa --nota "<texto>"                  nota del jefe para el traspaso (también combinable: pa <p> --nota '…' '<tarea>')
-#   pa --limpiar [--si]                  build viejo (>7 días) de worktrees libres; dry-run sin --si
+#   pa --limpiar [--ver|--si] [--dias N] [--json]
+#                          worktrees y ramas viejos y ya integrados, y build viejo (>7 días); sin --si sólo muestra
 #   pa --traspaso                       armar el traspaso del jefe desde el estado (para retomar a mano)
 #   pa --bien <id> si|no|parcial         anotar si esa corrida salió bien (columna `bien` de medicion.tsv)
 #   pa --bien-auto                       completar solo `bien`, `integrada` y `retrabajo` desde integradas.tsv
@@ -2170,33 +2171,149 @@ cmd_hilo() {
        usage: ($ult.usage // null), modelo: ($ult.modelo // null)}' "${t:-/dev/null}"
 }
 
-# `pa --limpiar [--si]`: el build viejo de los worktrees de TODOS los proyectos. Sólo puestos
-# libres (se toma su flock, exclusivo y -n, mientras se borra: ningún worker arranca a la mitad) y
-# sólo dirs de build (dirs_de_build) sin ningún archivo tocado en PA_LIMPIAR_DIAS días (default 7;
-# el mtime del dir solo no dice nada). Dry-run por default.
+# `pa --limpiar [--ver|--si] [--dias N] [--json]`: lo viejo y seguro de borrar de los worktrees de TODOS los proyectos. Sólo puestos
+# libres (se toma su flock, exclusivo y -n, mientras se borra: ningún worker arranca a la mitad). Tres cosas, todas con N días
+# (--dias, o PA_LIMPIAR_DIAS, default 7):
+#  · el puesto entero (k >= 2; el 1 nunca) si está libre, en HEAD suelto sin commits que no estén en ninguna rama o tag, sin nada sin
+#    commitear (salvo los enlaces y dirs de build que puso pa) y con el HEAD sin moverse hace N días: pa lo vuelve a armar cuando lo necesita;
+#  · los dirs de build (dirs_de_build) de los demás puestos libres sin ningún archivo tocado en N días (el mtime del dir solo no dice nada);
+#  · las ramas pa/<slug>/<id> de una corrida con el id de hace N días o más que ya están enteras en el tree principal (`branch -d`, nunca
+#    -D) y no están checkouteadas en ningún worktree. Una rama con commits sin integrar no se toca jamás.
+# Sin --si es sólo ver (--ver es lo mismo, explícito). --json deja el plan (o lo hecho) en una línea para la app.
+# El tree principal de un repo, visto desde cualquiera de sus worktrees: el padre del .git común. Vacío si no se puede.
+arbol_principal() {   # $1 = un worktree o el tree principal
+  local c; c="$(git -C "$1" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" || return 0
+  [[ "$c" == */.git ]] && printf '%s' "${c%/.git}"
+  return 0
+}
+# ¿Se puede quitar entero este puesto? Deja los días desde que se movió su HEAD en $EDAD_PUESTO. 1 = no (o no se pudo comprobar).
+puesto_viejo() {   # $1 = nombre del puesto, $2 = su worktree, $3 = días
+  local nombre="$1" wt="$2" dias="$3" gd mt edad l p st; local -a bs=()
+  [[ "$nombre" == *@* && -e "$wt/.git" ]] || return 1
+  ! git -C "$wt" symbolic-ref -q HEAD >/dev/null 2>&1 || return 1
+  gd="$(git -C "$wt" rev-parse --absolute-git-dir 2>/dev/null)" || return 1
+  mt="$(stat -c %Y "$gd/HEAD" 2>/dev/null)" || return 1
+  edad=$(( $(date +%s) - mt ))
+  (( edad >= dias * 86400 )) || return 1
+  [[ -n "$(git -C "$wt" for-each-ref --contains HEAD --count=1 --format='%(refname)' refs/heads refs/remotes refs/tags 2>/dev/null)" ]] || return 1
+  st="$(git -C "$wt" status --porcelain 2>/dev/null)" || return 1
+  mapfile -t bs < <(dirs_de_build "$wt")
+  while IFS= read -r l; do
+    [[ -n "$l" ]] || continue
+    p="$(ruta_porcelain "$l")"; p="${p%/}"
+    if [[ "$l" == '??'* ]] && { [[ -L "$wt/$p" ]] || printf '%s\n' "${bs[@]}" | grep -qxF -- "$p"; }; then continue; fi
+    return 1
+  done <<<"$st"
+  EDAD_PUESTO=$(( edad / 86400 ))
+  return 0
+}
 cmd_limpiar() {
-  local aplicar=0 dias="${PA_LIMPIAR_DIAS:-7}" wt rel d n total=0 hay=0
-  [[ "${1:-}" == --si ]] && aplicar=1
+  local aplicar=0 ver=0 json=0 dias_txt="${PA_LIMPIAR_DIAS:-7}" wt rel d n total=0 nombre slug arbol hecho edad
+  local b_tsv="" w_tsv="" r_tsv="" uso_tsv="" nw=0 nr=0 nb=0 a
+  [[ "$dias_txt" =~ ^[1-9][0-9]*$ ]] || dias_txt=7
+  while (( $# )); do
+    a="$1"; shift
+    case "$a" in
+      --si) aplicar=1 ;;
+      --ver) ver=1 ;;
+      --json) json=1 ;;
+      --dias)
+        dias_txt="${1:-}"; shift || true
+        [[ "$dias_txt" =~ ^[1-9][0-9]*$ ]] || { echo "pa --limpiar: --dias necesita un número entero mayor que 0." >&2; return 2; } ;;
+      *) echo "pa --limpiar: no entiendo '$a'. Uso: pa --limpiar [--ver|--si] [--dias N] [--json]" >&2; return 2 ;;
+    esac
+  done
+  (( aplicar && ver )) && { echo "pa --limpiar: --ver y --si no van juntos." >&2; return 2; }
+  local dias="$dias_txt" ahora; ahora="$(date +%s)"
   mkdir -p "$LOCKDIR"
   for wt in "$STATE"/worktrees/*; do
     [[ -d "$wt" && ! -L "$wt" ]] || continue
-    exec 6>"$LOCKDIR/$(basename "$wt")"
-    if ! flock -n 6; then exec 6>&-; echo "  $(basename "$wt"): puesto en uso, no lo toco"; continue; fi
+    nombre="$(basename "$wt")"; slug="${nombre%%@*}"
+    exec 6>"$LOCKDIR/$nombre"
+    if ! flock -n 6; then
+      exec 6>&-; uso_tsv+="$nombre"$'\n'
+      (( json )) || echo "  $nombre: puesto en uso, no lo toco"
+      continue
+    fi
+    if puesto_viejo "$nombre" "$wt" "$dias"; then
+      edad="$EDAD_PUESTO"; arbol="$(arbol_principal "$wt")"
+      n="$(du -sb -- "$wt" 2>/dev/null | cut -f1)"; n="${n:-0}"
+      hecho=$(( ! aplicar ))
+      if (( aplicar )) && [[ -n "$arbol" ]] && tomar_git -n; then
+        git -C "$arbol" worktree remove --force "$wt" >/dev/null 2>&1 && hecho=1 \
+          || echo "pa: no pude quitar el worktree $nombre." >&2
+        soltar_git
+      fi
+      if (( hecho )) && [[ -n "$arbol" ]]; then
+        exec 6>&-
+        total=$(( total + n )); nw=$(( nw + 1 )); w_tsv+="$nombre"$'\t'"$edad"$'\t'"$n"$'\n'
+        (( json )) || printf '  %s  worktree sin uso hace %s días  %s\n' "$nombre" "$edad" "$(numfmt --to=iec "$n" 2>/dev/null || echo "$n")"
+        continue
+      fi
+    fi
     while IFS= read -r rel; do
       [[ -n "$rel" ]] || continue
       d="$wt/$rel"
       [[ -z "$(find "$d" -mtime "-$dias" -print -quit 2>/dev/null)" ]] || continue
       n="$(du -sb -- "$d" 2>/dev/null | cut -f1)"; n="${n:-0}"
-      total=$(( total + n )); hay=1
-      printf '  %s/%s  %s\n' "$(basename "$wt")" "$rel" "$(numfmt --to=iec "$n" 2>/dev/null || echo "$n")"
+      total=$(( total + n )); nb=$(( nb + 1 )); b_tsv+="$nombre"$'\t'"$rel"$'\t'"$n"$'\n'
+      (( json )) || printf '  %s/%s  %s\n' "$nombre" "$rel" "$(numfmt --to=iec "$n" 2>/dev/null || echo "$n")"
       (( aplicar )) && rm -rf -- "${d:?}"
     done < <(dirs_de_build "$wt" borrar)
     exec 6>&-
   done
+  # las ramas de corridas que ya están enteras en el tree principal
+  local c repo r base cm commits y mo dd hh mi ss nacio
+  local -A vistas=()
+  for c in "$STATE"/*/*.corrida; do
+    [[ -f "$c" ]] || continue
+    slug="$(basename "$(dirname "$c")")"
+    [[ "$slug" == worktrees || "$slug" == lock ]] && continue
+    [[ -z "$(leer_campo "$c" origen)" ]] || continue
+    r="$(leer_campo "$c" rama)"; base="$(leer_campo "$c" base)"
+    [[ "$r" =~ ^pa/[^/]+/([0-9]{4})([0-9]{2})([0-9]{2})-([0-9]{2})([0-9]{2})([0-9]{2})-[0-9]+$ ]] || continue
+    y="${BASH_REMATCH[1]}"; mo="${BASH_REMATCH[2]}"; dd="${BASH_REMATCH[3]}"; hh="${BASH_REMATCH[4]}"; mi="${BASH_REMATCH[5]}"; ss="${BASH_REMATCH[6]}"
+    nacio="$(date -d "$y-$mo-$dd $hh:$mi:$ss" +%s 2>/dev/null)" || continue
+    (( ahora - nacio >= dias * 86400 )) || continue
+    # el repo: el worktree de la corrida o, si ya se quitó, el puesto 1 del proyecto
+    repo="$(leer_campo "$c" ruta_trabajo)"
+    [[ -n "$repo" && -d "$repo" ]] || repo="$STATE/worktrees/$slug"
+    [[ -d "$repo" ]] || continue
+    arbol="$(arbol_principal "$repo")"
+    [[ -n "$arbol" && -z "${vistas["$arbol|$r"]:-}" ]] || continue
+    git -C "$arbol" rev-parse -q --verify "refs/heads/$r" >/dev/null 2>&1 || continue
+    git -C "$arbol" merge-base --is-ancestor "$r" HEAD >/dev/null 2>&1 || continue   # sin integrar: jamás
+    ! git -C "$arbol" worktree list --porcelain 2>/dev/null | grep -qxF "branch refs/heads/$r" || continue   # checkouteada: en curso
+    vistas["$arbol|$r"]=1
+    commits=0
+    if [[ -n "$base" ]] && cm="$(git -C "$arbol" rev-list --count "$base..$r" 2>/dev/null)"; then commits="${cm:-0}"; fi
+    [[ "$commits" =~ ^[0-9]+$ ]] || commits=0
+    if (( aplicar )); then
+      tomar_git -n || continue
+      if ! git -C "$arbol" branch -q -d "$r" >/dev/null 2>&1; then soltar_git; continue; fi
+      # como podar_integradas: con commits propios la .corrida ya no sirve; la de una rama vacía se queda (un --seguir vuelve por ella)
+      (( commits > 0 )) && rm -f "$c"
+      soltar_git
+    fi
+    d=$(( (ahora - nacio) / 86400 )); nr=$(( nr + 1 )); r_tsv+="$slug"$'\t'"$r"$'\t'"$d"$'\t'"$commits"$'\n'
+    (( json )) || printf '  rama %s  %s, de hace %s días\n' "$r" "$( (( commits > 0 )) && echo 'ya integrada' || echo 'sin commits')" "$d"
+  done
+  if (( json )); then
+    jq -cn --argjson dias "$dias" --argjson ap "$aplicar" --argjson bytes "$total" \
+      --arg uso "$uso_tsv" --arg b "$b_tsv" --arg w "$w_tsv" --arg r "$r_tsv" '
+      def filas($s): $s | split("\n") | map(select(. != "") | split("\t"));
+      {dias: $dias, aplicado: ($ap == 1),
+       enUso: ($uso | split("\n") | map(select(. != ""))),
+       builds: [filas($b)[] | {puesto: .[0], dir: .[1], bytes: (.[2] | tonumber)}],
+       worktrees: [filas($w)[] | {puesto: .[0], dias: (.[1] | tonumber), bytes: (.[2] | tonumber)}],
+       ramas: [filas($r)[] | {proyecto: .[0], rama: .[1], dias: (.[2] | tonumber), commits: (.[3] | tonumber)}],
+       bytes: $bytes}'
+    return 0
+  fi
   local gb; gb="$(awk -v b="$total" 'BEGIN{printf "%.2f", b/1073741824}')"
-  if (( ! hay )); then echo "pa --limpiar: nada de build con más de $dias días en worktrees libres."
-  elif (( aplicar )); then echo "pa --limpiar: liberados $gb GB."
-  else echo "pa --limpiar: se liberarían $gb GB (dry-run; con --si se borra)."; fi
+  if (( nb + nw + nr == 0 )); then echo "pa --limpiar: nada con más de $dias_txt días: ni build, ni worktrees, ni ramas ya integradas."
+  elif (( aplicar )); then echo "pa --limpiar: liberados $gb GB; quitados $nw worktree(s) y $nr rama(s)."
+  else echo "pa --limpiar: se liberarían $gb GB; se quitarían $nw worktree(s) y $nr rama(s) (dry-run; con --si se borra)."; fi
   return 0
 }
 

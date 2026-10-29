@@ -3,7 +3,7 @@
 // El bash (motor/bin/pa) contra electron/cli/pa.ts. Los ids son de hoy y de hace días (la ventana de --hilos es de 7), calculados una
 // vez al cargar el módulo para que los dos lados vean los mismos.
 import { spawnSync } from "node:child_process";
-import { mkdirSync, utimesSync, writeFileSync } from "node:fs";
+import { mkdirSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import type { Caso, Contexto, Paso } from "./arnes.ts";
 
@@ -268,6 +268,51 @@ function build(c: Contexto, puesto: string, dir: string, viejo: boolean, bytes =
   writeFileSync(path.join(wt, "codigo.ts"), "export {};\n");
   if (viejo) for (const p of [path.join(wt, dir, "x.bin"), path.join(wt, dir), wt]) utimesSync(p, dias(30), dias(30));
 }
+
+// puestos y ramas de verdad (git worktree add) para lo que quita --limpiar
+const GIT_ENV = { ...process.env, GIT_AUTHOR_NAME: "x", GIT_AUTHOR_EMAIL: "a@b", GIT_COMMITTER_NAME: "x", GIT_COMMITTER_EMAIL: "a@b", GIT_AUTHOR_DATE: FECHA, GIT_COMMITTER_DATE: FECHA };
+function gitEn(cwd: string, ...a: string[]): string {
+  const r = spawnSync("git", ["-C", cwd, ...a], { encoding: "utf8", env: GIT_ENV });
+  if (r.status !== 0) throw new Error(`git ${a.join(" ")}: ${r.stderr}`);
+  return r.stdout.trim();
+}
+/** Un puesto de pa con worktree real, en HEAD suelto, cuyo HEAD se movió hace `hace` días. `rama`: lo deja en esa rama nueva; `sucio`: un cambio sin commitear. */
+function puestoReal(c: Contexto, nombre: string, hace: number, o: { rama?: string; sucio?: boolean; huerfano?: boolean; link?: boolean } = {}) {
+  const wt = path.join(c.estado, "worktrees", nombre);
+  mkdirSync(path.dirname(wt), { recursive: true });
+  gitEn(c.proyecto, "worktree", "add", "-q", "--detach", wt, "HEAD");
+  if (o.rama) gitEn(wt, "checkout", "-q", "-b", o.rama);
+  if (o.huerfano) {
+    writeFileSync(path.join(wt, "h.txt"), "huérfano\n");
+    gitEn(wt, "add", "h.txt");
+    gitEn(wt, "commit", "-q", "-m", "suelto");
+  }
+  if (o.sucio) writeFileSync(path.join(wt, "suelto.txt"), "sin commitear\n");
+  if (o.link) symlinkSync(c.proyecto, path.join(wt, "cache"));
+  const f = path.join(gitEn(wt, "rev-parse", "--absolute-git-dir"), "HEAD");
+  utimesSync(f, dias(hace), dias(hace));
+}
+/** Una rama de corrida `pa/proy/<id>` con un commit, integrada (fast-forward en main) o no, y su `.corrida`. */
+function ramaReal(c: Contexto, id: string, o: { integrada: boolean; vacia?: boolean; nombre?: string }) {
+  const base = gitEn(c.proyecto, "rev-parse", "HEAD");
+  const rama = `pa/${SLUG}/${id}`;
+  gitEn(c.proyecto, "checkout", "-q", "-b", rama);
+  if (!o.vacia) {
+    writeFileSync(path.join(c.proyecto, `${id}.txt`), "x\n");
+    gitEn(c.proyecto, "add", `${id}.txt`);
+    gitEn(c.proyecto, "commit", "-q", "-m", `trabajo ${id}`);
+  }
+  gitEn(c.proyecto, "checkout", "-q", "main");
+  if (o.integrada) gitEn(c.proyecto, "merge", "-q", "--ff-only", rama);
+  const dir = path.join(c.estado, SLUG);
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(path.join(dir, `${id}.corrida`), `ruta_trabajo=${c.proyecto}\nrama=${rama}\nbase=${base}\nproyecto=demo\norigen=\nleer=0\npuesto=1\njefe=\njefe_id=\n`);
+}
+const ID_R_VIEJA = "20260101-101010-5001";
+const ID_R_VIEJA2 = "20260102-101010-5002";
+const ID_R_SIN_INTEGRAR = "20260103-101010-5003";
+const ID_R_VACIA = "20260104-101010-5004";
+const ID_R_RECIENTE = idDe(1, "101010", 5005);
 const lim = (nombre: string, args: string[], extra: Partial<Caso> = {}): Caso => ({ herramienta: "pa-cli", nombre: `globales: limpiar ${nombre}`, args, rc: 0, ...extra });
 
 export const casosGlobales: Caso[] = [
@@ -455,5 +500,51 @@ export const casosGlobales: Caso[] = [
   lim("borra con --si", ["--limpiar", "--si"], {
     preparar: (c) => (build(c, SLUG, "node_modules", true, 3000), build(c, "otro@3", "dist", true, 2_000_000), build(c, "reciente", ".venv", false)),
     pasos: [{ args: ["--limpiar", "--si"], rc: 0 }, { args: ["--limpiar"], rc: 0 }],
+  }),
+
+  // --- --limpiar: puestos enteros y ramas ya integradas ---
+  lim("--ver es el dry-run", ["--limpiar", "--ver"]),
+  lim("--ver y --si juntos", ["--limpiar", "--ver", "--si"], { rc: 2 }),
+  lim("opción que no va", ["--limpiar", "--xx"], { rc: 2 }),
+  lim("--dias sin número", ["--limpiar", "--dias", "x"], { rc: 2 }),
+  lim("puesto viejo y libre, ver", ["--limpiar", "--ver"], { preparar: (c) => (puestoReal(c, `${SLUG}@2`, 30), puestoReal(c, `${SLUG}@3`, 30, { link: true })) }),
+  lim("el puesto 1 nunca", ["--limpiar"], { preparar: (c) => puestoReal(c, SLUG, 30) }),
+  lim("puesto reciente no se quita", ["--limpiar"], { preparar: (c) => puestoReal(c, `${SLUG}@2`, 2) }),
+  lim("--dias 1 sí lo quita", ["--limpiar", "--dias", "1"], { preparar: (c) => puestoReal(c, `${SLUG}@2`, 2) }),
+  lim("puesto en una rama no se quita", ["--limpiar"], { preparar: (c) => puestoReal(c, `${SLUG}@2`, 30, { rama: "pa/proy/20260101-000000-1" }) }),
+  lim("puesto con commits sueltos no se quita", ["--limpiar"], { preparar: (c) => puestoReal(c, `${SLUG}@2`, 30, { huerfano: true }) }),
+  lim("puesto sucio no se quita", ["--limpiar"], { preparar: (c) => puestoReal(c, `${SLUG}@2`, 30, { sucio: true }) }),
+  lim("puesto con git roto no se quita", ["--limpiar"], { preparar: (c) => build(c, `${SLUG}@2`, "target", true) }),
+  lim("quita con --si", ["--limpiar", "--si"], {
+    preparar: (c) => (puestoReal(c, `${SLUG}@2`, 30), puestoReal(c, `${SLUG}@3`, 3), puestoReal(c, `${SLUG}@4`, 30, { sucio: true })),
+    pasos: [{ args: ["--limpiar", "--si"], rc: 0 }, { args: ["--limpiar", "--ver"], rc: 0 }],
+  }),
+  lim("json", ["--limpiar", "--ver", "--json"], {
+    preparar: (c) => (puestoReal(c, `${SLUG}@2`, 30), build(c, `${SLUG}@3`, "target", true, 3000), ramaReal(c, ID_R_VIEJA, { integrada: true })),
+  }),
+  lim("ramas integradas, ver", ["--limpiar", "--ver"], {
+    preparar: (c) => {
+      ramaReal(c, ID_R_VIEJA, { integrada: true });
+      ramaReal(c, ID_R_VIEJA2, { integrada: true });
+      ramaReal(c, ID_R_SIN_INTEGRAR, { integrada: false });
+      ramaReal(c, ID_R_VACIA, { integrada: true, vacia: true });
+      ramaReal(c, ID_R_RECIENTE, { integrada: true });
+    },
+  }),
+  lim("ramas integradas, --si", ["--limpiar", "--si"], {
+    preparar: (c) => {
+      ramaReal(c, ID_R_VIEJA, { integrada: true });
+      ramaReal(c, ID_R_SIN_INTEGRAR, { integrada: false });
+      ramaReal(c, ID_R_VACIA, { integrada: true, vacia: true });
+      ramaReal(c, ID_R_RECIENTE, { integrada: true });
+    },
+    pasos: [{ args: ["--limpiar", "--si"], rc: 0 }, { args: ["--limpiar", "--ver", "--json"], rc: 0 }],
+  }),
+  lim("una rama checkouteada no se borra", ["--limpiar", "--si"], {
+    preparar: (c) => {
+      ramaReal(c, ID_R_VIEJA, { integrada: true });
+      puestoReal(c, `${SLUG}@2`, 30);
+      gitEn(path.join(c.estado, "worktrees", `${SLUG}@2`), "checkout", "-q", `pa/${SLUG}/${ID_R_VIEJA}`);
+    },
   }),
 ];
