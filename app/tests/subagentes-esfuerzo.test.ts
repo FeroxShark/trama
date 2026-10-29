@@ -33,8 +33,8 @@ const DelLider = (ts: string, extra: { effort?: string; model?: string; sidechai
   });
 
 test("cwd: sale de la línea del subagente, con las barras de Windows escapadas", () => {
-  assert.equal(cwdDe(linea({ cwd: "C:\\Users\\ferox\\proy" })), "C:\\Users\\ferox\\proy");
-  assert.equal(cwdDe(linea({ cwd: "/home/ferox/proy" })), "/home/ferox/proy");
+  assert.equal(cwdDe(linea({ cwd: "C:\\Users\\prueba\\proy" })), "C:\\Users\\prueba\\proy");
+  assert.equal(cwdDe(linea({ cwd: "/home/prueba/proy" })), "/home/prueba/proy");
   assert.equal(cwdDe(linea({ type: "user" })), null);
 });
 
