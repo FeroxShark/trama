@@ -19,5 +19,5 @@ test("los modos del renderer y del main son los mismos; bypass por default", () 
   assert.equal(MODO_DEFAULT, "bypassPermissions");
   assert.equal(DEFAULT_MAIN, MODO_DEFAULT);
   assert.ok(esModo("plan") && !esModo("auto") && !esModo(undefined));
-  for (const m of MODOS) assert.ok(ASPECTO[m].simbolo && ASPECTO[m].color.startsWith("rgb("));
+  for (const m of MODOS) assert.ok(ASPECTO[m].icono && ASPECTO[m].color.startsWith("rgb("));
 });

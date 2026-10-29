@@ -27,10 +27,13 @@ export function siguienteModo(m: string | null | undefined): Modo {
   }
 }
 
-/** Cómo se ve: la clave de i18n del texto, el símbolo y el color del tema oscuro de Claude Code. */
-export const ASPECTO: Record<Modo, { clave: "modo.default" | "modo.acceptEdits" | "modo.plan" | "modo.bypass"; simbolo: string; color: string }> = {
-  default: { clave: "modo.default", simbolo: "⏸", color: "rgb(153,153,153)" },
-  acceptEdits: { clave: "modo.acceptEdits", simbolo: "⏵⏵", color: "rgb(175,135,255)" },
-  plan: { clave: "modo.plan", simbolo: "⏸", color: "rgb(72,150,140)" },
-  bypassPermissions: { clave: "modo.bypass", simbolo: "⏵⏵", color: "rgb(255,107,128)" },
+/**
+ * Cómo se ve: la clave de i18n del texto, el ícono y el color del tema oscuro de Claude Code. El ícono es un nombre (no el
+ * carácter): ⏸ y ⏵⏵ no están en la fuente de los celulares y se veían como cuadraditos. Lo dibuja Lider.tsx con lucide.
+ */
+export const ASPECTO: Record<Modo, { clave: "modo.default" | "modo.acceptEdits" | "modo.plan" | "modo.bypass"; icono: "pausa" | "avance"; color: string }> = {
+  default: { clave: "modo.default", icono: "pausa", color: "rgb(153,153,153)" },
+  acceptEdits: { clave: "modo.acceptEdits", icono: "avance", color: "rgb(175,135,255)" },
+  plan: { clave: "modo.plan", icono: "pausa", color: "rgb(72,150,140)" },
+  bypassPermissions: { clave: "modo.bypass", icono: "avance", color: "rgb(255,107,128)" },
 };

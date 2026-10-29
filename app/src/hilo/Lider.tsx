@@ -19,7 +19,7 @@
 // clip; miniaturas con × en la caja (src/hilo/adjuntos.ts) y en el globo.
 import { es } from "../atajos";
 import { Fragment, memo, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ClipboardEvent, type DragEvent, type KeyboardEvent, type ReactNode } from "react";
-import { ArrowUp, Check, Clock, Cpu, Folder, Paperclip, X } from "lucide-react";
+import { ArrowUp, Check, Clock, Cpu, FastForward, Folder, Paperclip, Pause, X } from "lucide-react";
 import { motion, useReducedMotion } from "motion/react";
 import { VERSION, type Lider, type Mensaje, type MotivoRetomar, type MotivoTraer, type Tokens, type Uso } from "../datos/contrato";
 import { fuente, type EnvioLider } from "../datos/fuente";
@@ -1274,7 +1274,7 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => cambiarModo(siguienteModo(modo))}
               >
-                <span aria-hidden>{ASPECTO[modo].simbolo}</span>
+                <span aria-hidden>{ASPECTO[modo].icono === "avance" ? <FastForward size={13} strokeWidth={2} /> : <Pause size={13} strokeWidth={2} />}</span>
                 <span className="modo-t">{tr(ASPECTO[modo].clave)}</span>
               </button>
               <Selector
