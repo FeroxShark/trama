@@ -32,6 +32,20 @@ export function agregarDispositivo(b: BorradorRemoto): { borrador: BorradorRemot
 
 export const quitarDispositivo = (b: BorradorRemoto, nombre: string): BorradorRemoto => ({ ...b, dispositivos: b.dispositivos.filter((d) => d !== nombre) });
 
+/** Quitar al instante: sin dispositivos no hay a quién dejar entrar, así que al quitar el último el acceso queda apagado. */
+export const quitarAplicando = (b: BorradorRemoto, nombre: string): BorradorRemoto => {
+  const sin = quitarDispositivo(b, nombre);
+  return { ...sin, activo: sin.activo && sin.dispositivos.length > 0 };
+};
+
+/** Prender o apagar al instante. Prender con un nombre escrito lo agrega antes; si ese nombre no vale, `error` y no se prende. */
+export function alternarAcceso(b: BorradorRemoto, on: boolean): { borrador: BorradorRemoto; error: string | null } {
+  if (!on || !b.nuevo.trim()) return { borrador: { ...b, activo: on }, error: null };
+  const a = agregarDispositivo(b);
+  if (a.error) return { borrador: b, error: a.error };
+  return { borrador: { ...a.borrador, activo: true }, error: null };
+}
+
 /** Lo que se manda a guardar (`null` si algo no vale) con los motivos por campo, y si hay algo distinto de lo guardado. */
 export function remotoPara(g: ConfigEditable, b: BorradorRemoto): { config: ConfigEditable | null; errores: { puerto?: string; nuevo?: string; general?: string }; sucio: boolean } {
   const errores: { puerto?: string; nuevo?: string; general?: string } = {};

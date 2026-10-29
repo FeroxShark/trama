@@ -18,7 +18,7 @@ registerHooks({
   },
 });
 
-const { agregarDispositivo, numDesde, numPara, quitarDispositivo, remotoDesde, remotoPara } = await import("../src/paneles/ajustes-borrador.ts");
+const { agregarDispositivo, alternarAcceso, numDesde, numPara, quitarAplicando, quitarDispositivo, remotoDesde, remotoPara } = await import("../src/paneles/ajustes-borrador.ts");
 const { validarDispositivo, validarPuerto, validarRed } = await import("../electron/valida-ajustes.ts");
 
 const G = { plan: "max", red_seguridad: 300_000 };
@@ -115,4 +115,23 @@ test("el borrador del celular no se puede guardar con un puerto malo, un nombre 
   assert.equal(vacio.errores.general, "ajustes.errSinDispositivos");
   // Apagado puede quedar sin dispositivos.
   assert.deepEqual(remotoPara(R, { ...b, activo: false, dispositivos: [] }).config, { activo: false, puerto: 8791, dispositivos: [] });
+});
+
+test("al instante: prender con un nombre escrito lo agrega antes; si no vale, no prende", () => {
+  const b = { ...remotoDesde(R), activo: false, nuevo: "Mi-Tablet" };
+  const on = alternarAcceso(b, true);
+  assert.equal(on.error, null);
+  assert.deepEqual(on.borrador, { activo: true, puerto: "8791", dispositivos: ["celu", "tablet", "mi-tablet"], nuevo: "" });
+  assert.deepEqual(remotoPara(R, on.borrador).config, { activo: true, puerto: 8791, dispositivos: ["celu", "tablet", "mi-tablet"] });
+  const malo = alternarAcceso({ ...b, nuevo: "192.168.0.7" }, true);
+  assert.equal(malo.error, "ajustes.errDispIp");
+  assert.equal(malo.borrador.activo, false);
+  // Apagar no mira el nombre escrito.
+  assert.equal(alternarAcceso({ ...b, activo: true, nuevo: "x y" }, false).borrador.activo, false);
+});
+
+test("al instante: quitar el último dispositivo deja el acceso apagado", () => {
+  const b = remotoDesde(R);
+  assert.deepEqual(quitarAplicando(b, "celu"), { activo: true, puerto: "8791", dispositivos: ["tablet"], nuevo: "" });
+  assert.deepEqual(quitarAplicando(quitarAplicando(b, "celu"), "tablet"), { activo: false, puerto: "8791", dispositivos: [], nuevo: "" });
 });
