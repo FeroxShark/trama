@@ -15,6 +15,7 @@ const CONTRATO_L = [
   "por qué. Sin esta sección la corrida queda marcada \"sin verificar\" y el jefe no la da por buena.",
   "DECISION: qué tiene que decidir @DUENO@, o \"nada\".",
   "SIGUE: una línea con el próximo paso del proyecto si el trabajo sigue, o \"nada\" si quedó cerrado.",
+  "FRENÓ: una línea con lo que te demoró o te frenó (un comando que se colgó, un error del entorno, algo que tuviste que rehacer), o \"nada\".",
   "",
   "Si la tarea viene como brief (secciones Objetivo / Archivos / Listo cuando / Cómo verificar / No tocar):",
   "\"Listo cuando\" es tu criterio de cierre (ni antes ni después), \"Cómo verificar\" es lo que corrés para",
@@ -72,7 +73,7 @@ const CONTRATO_L = [
 const CIERRE_TAREA_L = [
   "Te quedaste sin turnos. NO sigas con la tarea: cerrá.",
   "1) Commiteá, archivo por archivo, SOLO lo que tocaste vos (nada de `git add -A`, `-u` ni `.`).",
-  "2) Respondé con el bloque RESULTADO / ARCHIVOS / DECISION / SIGUE, y en DECISION decí explícitamente",
+  "2) Respondé con el bloque RESULTADO / ARCHIVOS / DECISION / SIGUE / FRENÓ, y en DECISION decí explícitamente",
   "   qué quedó sin terminar.",
   "Si no hay nada tuyo para commitear, decilo y reportá igual. Nada de empezar trabajo nuevo.",
 ];
