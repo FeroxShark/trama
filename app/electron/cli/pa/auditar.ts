@@ -7,7 +7,7 @@ import path from "node:path";
 import { existeRama, gs, leerCampo, type Proy } from "./ramas-base.ts";
 
 const ENCABEZADO_V = /^[*#> \t-]*VERIFICACI[^:*]{1,2}N[*]*:[*]*(.*)$/iu;
-const OTRO_ENCABEZADO = /^[*#> \t-]*(RESULTADO|ARCHIVOS|DECISI[^:*]{1,2}N|SIGUE|PROBAR|PREGUNTA)[*]*:/iu;
+const OTRO_ENCABEZADO = /^[*#> \t-]*(RESULTADO|ARCHIVOS|DECISI[^:*]{1,2}N|SIGUE|PROBAR|PREGUNTA|FREN(O|Ó))[*]*:/iu;
 
 /** `verificacion_de`: el texto de la sección VERIFICACION (hasta el próximo encabezado), sin los `\n` del final. "" si no está. */
 export function verificacionDe(texto: string): string {

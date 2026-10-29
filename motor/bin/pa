@@ -3093,7 +3093,7 @@ cmd_rinde_rubrica() {   # $1 = días, $2 = json 0|1
 # Con $2 = todo: el campo entero, con sus saltos de línea, hasta el próximo encabezado (tope 2000).
 campo_de() {   # $1 = regex del encabezado, $2 = "todo" (opcional)
   awk -v re="$1" -v todo="${2:-}" '
-    BEGIN { anc = "^[*#> \t-]*" re "[*]*:"; otro = "^[*#> \t-]*(RESULTADO|ARCHIVOS|DECISI(O|Ó)N|SIGUE)[*]*:" }
+    BEGIN { anc = "^[*#> \t-]*" re "[*]*:"; otro = "^[*#> \t-]*(RESULTADO|ARCHIVOS|DECISI(O|Ó)N|SIGUE|FREN(O|Ó))[*]*:" }
     { l[NR] = $0 }
     END {
       a = 0; t = ""
@@ -3143,7 +3143,7 @@ bloque_de() {
     {
       s = $0; sub(/^[*#> \t-]+/, "", s); h = toupper(s)
       if (s ~ /^[ \t]*$/) { cierra(); next }
-      if (h ~ /^(RESULTADO|ARCHIVOS|DECISI(O|Ó)N|SIGUE)[ \t*_]*:/) { q = 0; cierra(); next }
+      if (h ~ /^(RESULTADO|ARCHIVOS|DECISI(O|Ó)N|SIGUE|FREN(O|Ó))[ \t*_]*:/) { q = 0; cierra(); next }
       if (h ~ /^PROBAR[ \t*_]*:/) {
         q = 0; cierra(); v = valor(s); entest = 1
         if (v != "") { t[++nt] = v; entest = 1 } else entest = 2
@@ -3174,6 +3174,7 @@ bloque_de() {
 }
 decision_de() { campo_de 'DECISI(O|Ó)N' "$@"; }
 sigue_de()    { campo_de 'SIGUE' "$@"; }
+freno_de()    { campo_de 'FREN(O|Ó)' "$@"; }
 
 # "nada" estricto: sin asteriscos ni espacios, a lo sumo un punto final. "nada. Supuestos: …" o
 # "Ninguna" NO son nada (falla cerrado: la app la muestra como pendiente de leer).
@@ -3181,6 +3182,15 @@ decision_es_nada() {
   local d="${1//\*/}"
   d="${d#"${d%%[![:space:]]*}"}"; d="${d%"${d##*[![:space:]]}"}"; d="${d%.}"
   [[ "${d,,}" == nada ]]
+}
+
+# El FRENÓ del resultado de una corrida (una línea, sin tabs), o vacío si dice "nada" o no hay: es lo que
+# medicion.tsv guarda en la columna `freno` (`pa --rinde` agrupa los parecidos). $1 = json de salida.
+freno_de_corrida() {
+  local f=""
+  [[ -s "$1" ]] && f="$(jq -r '.result // empty' "$1" 2>/dev/null | freno_de | tr '\t' ' ')"
+  decision_es_nada "$f" && f=""
+  printf '%s' "$f"
 }
 
 # Al salir: DECISION, decision_nada y SIGUE en el `.hilo`. Nunca rompe a pa. Deja en
@@ -3825,7 +3835,8 @@ MEDICION_HEADER_VIEJO=$'fecha\tid\tproyecto\tmodelo\teffort\tleer\tseguir\tis_er
 # --tarea) agrupan `pa --rinde --por fase|tarea`; `rubrica` (las respuestas A=..B=..C=..D=..E=.., --rubrica) con la fila de
 # la tabla y el modelo/effort que daba (`rub_fila`, `rub_modelo`, `rub_effort`) permiten medir el acierto (`pa --rinde --rubrica`).
 # Al final, por lo mismo: las filas de antes quedan más cortas y se leen igual.
-MEDICION_HEADER="$MEDICION_HEADER_VIEJO"$'\tplan\tcompactaciones\tautocompact\torigen\tcache_read\tcache_creation\tephemeral_1h\tephemeral_5m\ttipo\tintegrada\tretrabajo\tcuenta\tfase\ttarea\trubrica\trub_fila\trub_modelo\trub_effort'
+# freno (2026-10-29, FRENÓ del worker): lo que lo demoró; vacío = dijo "nada" o no lo puso. `pa --rinde` agrupa los parecidos.
+MEDICION_HEADER="$MEDICION_HEADER_VIEJO"$'\tplan\tcompactaciones\tautocompact\torigen\tcache_read\tcache_creation\tephemeral_1h\tephemeral_5m\ttipo\tintegrada\tretrabajo\tcuenta\tfase\ttarea\trubrica\trub_fila\trub_modelo\trub_effort\tfreno'
 TIPOS_VALIDOS="mecanico|lectura|codigo-acotado|codigo-multi|frontend|diseno|debug|final"
 # Un header que es un prefijo del de hoy se actualiza solo. Se llama CON el flock 7 tomado, y
 # reescribe sobre el MISMO inodo (cat >, no sed -i ni mv): el fd 7 del flock apunta a este archivo,
@@ -4585,7 +4596,7 @@ medicion_header_al_dia() {
   rm -f "$tmp"
 }
 medir() {   # $1 = json de salida de la corrida (puede no existir)
-  local nums="" cache="" jsons=() f
+  local nums="" cache="" freno="" jsons=() f
   # Con auto-cierre la corrida son DOS llamadas: la que se quedó sin turnos (su JSON quedó en
   # `$json_previo`) y el cierre (`$1`). Una fila con los números sumados, no dos filas con el
   # mismo id (review 2026-09-30 #14). is_error es el de la última.
@@ -4605,6 +4616,7 @@ medir() {   # $1 = json de salida de la corrida (puede no existir)
                        suma(.usage.cache_creation.ephemeral_5m_input_tokens) ] | join("\t")' "${jsons[@]}" 2>/dev/null)" || cache=""
   fi
   [[ -n "$nums" ]] || nums=$'\t\t\t\t'
+  (( ${#jsons[@]} )) && freno="$(freno_de_corrida "${jsons[-1]}")"
   MED_USD="${nums##*$'\t'}"   # el costo (última columna de nums): lo toma anotar_estado (estado.tsv)
   [[ -n "$cache" ]] || cache=$'\t\t\t'
   # seguir = si la corrida RETOMÓ una sesión: un --seguir cuya sesión ya no existía arrancó limpia
@@ -4612,6 +4624,7 @@ medir() {   # $1 = json de salida de la corrida (puede no existir)
   local linea comp=""
   (( ${#jsons[@]} )) && comp="$(contar_compactaciones "$(transcript_de "${jsons[-1]}")")"
   linea="$(printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t\t%s\t%s\t%s\t%s\t%s\t%s\t\t\t%s\t%s\t%s\t%s\t%s\t%s\t%s' "$(date -Iseconds)" "${ts:-}" "$slug" "$modelo" "${esfuerzo:-${ef_vacio:-settings}}" "$leer" "${resume:-$seguir}" "$nums" "$PLAN" "$comp" "$([[ "$motor" == @(agy|codex|dsh) ]] && echo nativo || echo "${AUTOCOMPACT:-nativo}")" "${lanzo:-jefe}" "$cache" "${tipo:-}" "${cuenta:-}" "${fase:-}" "${tarea_id:-}" "${RUB_NORM:-}" "${RUB_FILA:-}" "${RUB_MODELO:-}" "${RUB_EFFORT:-}")"
+  linea="$linea"$'\t'"$freno"
   # flock sobre el mismo archivo: dos corridas que terminan a la vez no se pisan el header ni la línea
   (
     flock 7
@@ -4686,7 +4699,7 @@ verificacion_de() {
       if [[ "$l" =~ ^[\*\#\>\ $'\t'-]*VERIFICACI[^:*]{1,2}N[\*]*:[\*]*(.*)$ ]]; then en=1; t="${BASH_REMATCH[1]}"; fi
       continue
     fi
-    [[ "$l" =~ ^[\*\#\>\ $'\t'-]*(RESULTADO|ARCHIVOS|DECISI[^:*]{1,2}N|SIGUE|PROBAR|PREGUNTA)[\*]*: ]] && break
+    [[ "$l" =~ ^[\*\#\>\ $'\t'-]*(RESULTADO|ARCHIVOS|DECISI[^:*]{1,2}N|SIGUE|PROBAR|PREGUNTA|FREN(O|Ó))[\*]*: ]] && break
     t+=$'\n'"$l"
   done
   (( nc )) || shopt -u nocasematch

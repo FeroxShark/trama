@@ -54,6 +54,9 @@ export const casosLanzar: CasoLanzar[] = [
   caso("resultado completo en el tree principal", ["demo", "--sin-jefe", "--aca", "-m", M, BRIEF], 0, [ok(BLOQUE)]),
   caso("worktree, resultado sin verificar y con DECISION", ["demo", "--sin-jefe", "-m", M, BRIEF], 0, [ok(BLOQUE_SIN_VERIF)]),
   caso("sin RESULTADO y con un archivo nuevo del worker", ["demo", "--sin-jefe", "--aca", "-m", M, BRIEF], 78, [{ ...ok("terminé, te aviso por mensaje"), crear: ["nuevo.txt"] }]),
+  caso("FRENÓ con texto: queda en medicion.tsv", ["demo", "--sin-jefe", "--aca", "-m", M, BRIEF], 0, [ok(BLOQUE + "\nFRENÓ: el test de paridad se colgó dos veces.")]),
+  caso("FRENO en negrita, con el SIGUE vacío antes", ["demo", "--sin-jefe", "--aca", "-m", M, BRIEF], 0, [ok("RESULTADO: hice x.\nARCHIVOS: a.ts\nVERIFICACION: npm test\n  ok 3 tests\nDECISION: nada\nSIGUE:\n**FRENO:** el entorno tardó en levantarse.")]),
+  caso("FRENÓ: nada no se guarda", ["demo", "--sin-jefe", "--aca", "-m", M, BRIEF], 0, [ok(BLOQUE + "\nFRENÓ: nada")]),
   caso("--leer con resultado", ["demo", "--sin-jefe", "--leer", "-m", M, "¿qué hace esto?"], 0, [ok("RESULTADO: lee cosas.\nARCHIVOS: ninguno\nVERIFICACION: ninguna\nDECISION: nada\nSIGUE: nada")]),
   caso("límite de sesión", ["demo", "--sin-jefe", "--aca", "-m", M, BRIEF], 76, [
     { json: { type: "result", subtype: "success", is_error: true, result: "Claude AI usage limit reached. You've hit your session limit · resets 7pm (UTC)", session_id: "@SID@" }, rc: 1 },

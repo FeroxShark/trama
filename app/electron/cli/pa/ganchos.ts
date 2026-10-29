@@ -9,10 +9,10 @@ import type { Pa } from "./entorno.ts";
 import type { Ganchos, Lanzamiento } from "./lanzar.ts";
 import type { Llamada } from "./politica.ts";
 import { isoSegundos, tableroMudo } from "./ramas.ts";
-import { contarCompactaciones, decisionDe, decisionEsNada, leerSalida, sigueDe, textoResultado, transcriptDe } from "./resultado-lanzar.ts";
+import { contarCompactaciones, decisionDe, decisionEsNada, frenoDe, leerSalida, sigueDe, textoResultado, transcriptDe } from "./resultado-lanzar.ts";
 
 export const MEDICION_HEADER_VIEJO = "fecha\tid\tproyecto\tmodelo\teffort\tleer\tseguir\tis_error\tnum_turns\tduration_s\ttokens\tcosto_usd\tbien";
-export const MEDICION_HEADER = `${MEDICION_HEADER_VIEJO}\tplan\tcompactaciones\tautocompact\torigen\tcache_read\tcache_creation\tephemeral_1h\tephemeral_5m\ttipo\tintegrada\tretrabajo\tcuenta\tfase\ttarea\trubrica\trub_fila\trub_modelo\trub_effort`;
+export const MEDICION_HEADER = `${MEDICION_HEADER_VIEJO}\tplan\tcompactaciones\tautocompact\torigen\tcache_read\tcache_creation\tephemeral_1h\tephemeral_5m\ttipo\tintegrada\tretrabajo\tcuenta\tfase\ttarea\trubrica\trub_fila\trub_modelo\trub_effort\tfreno`;
 export const ESTADO_HEADER = "subtarea\tintento\tid\tmodelo\teffort\texit\tgate\tusd";
 
 type Obj = Record<string, unknown>;
@@ -92,6 +92,9 @@ export async function medir(pa: Pa, l: Lanzamiento, d: DatosFila = {}): Promise<
     ].join("\t");
   }
   const usd = nums.slice(nums.lastIndexOf("\t") + 1);
+  // El FRENÓ del último resultado (`freno_de_corrida` del bash): vacío si dice "nada" o no hay.
+  const fr = js.length ? frenoDe(textoResultado(js[js.length - 1]!)) : "";
+  const freno = decisionEsNada(fr) ? "" : fr;
   const comp = js.length ? contarCompactaciones(transcriptDe(js[js.length - 1]!, path.join(pa.env.PA_PROJ || path.join(pa.home, ".claude", "projects")))) : "";
   const linea = [
     isoSegundos(),
@@ -102,7 +105,7 @@ export async function medir(pa: Pa, l: Lanzamiento, d: DatosFila = {}): Promise<
     c.leer ? "1" : "0",
     c.resume ? "1" : "0",
   ].join("\t") +
-    `\t${nums}\t\t${pa.plan}\t${comp}\t${c.autocompact || "nativo"}\t${c.lanzo || "jefe"}\t${cache}\t${c.tipo ?? ""}\t\t\t${c.cuenta}\t${c.fase ?? ""}\t${c.tareaId ?? ""}\t${c.rubrica ?? ""}\t${d.rub?.fila ?? ""}\t${d.rub?.modelo ?? ""}\t${d.rub?.effort ?? ""}`;
+    `\t${nums}\t\t${pa.plan}\t${comp}\t${c.autocompact || "nativo"}\t${c.lanzo || "jefe"}\t${cache}\t${c.tipo ?? ""}\t\t\t${c.cuenta}\t${c.fase ?? ""}\t${c.tareaId ?? ""}\t${c.rubrica ?? ""}\t${d.rub?.fila ?? ""}\t${d.rub?.modelo ?? ""}\t${d.rub?.effort ?? ""}\t${freno}`;
   const f = path.join(pa.state, "medicion.tsv");
   mkdirSync(pa.state, { recursive: true });
   const lock = await tomar(f, { plat: pa.plat, env: pa.env, esperarMs: 30_000 });
@@ -178,7 +181,7 @@ export function bloqueDe(res: string): Bloque {
       cierra();
       continue;
     }
-    if (/^(RESULTADO|ARCHIVOS|DECISI(O|Ó)N|SIGUE)[ \t*_]*:/.test(h)) {
+    if (/^(RESULTADO|ARCHIVOS|DECISI(O|Ó)N|SIGUE|FREN(O|Ó))[ \t*_]*:/.test(h)) {
       q = null;
       cierra();
       continue;
