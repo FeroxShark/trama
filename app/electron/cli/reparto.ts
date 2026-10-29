@@ -934,6 +934,11 @@ function familiaDe(mid: unknown): string | null {
   return null;
 }
 
+/** Lo que `pa` sabe que ahora no sirve (REPARTO_NO_DISPONIBLE, lista por comas con la sintaxis de `excluir`): el plugin de agy sin cargar, un Claude con el límite de la cuenta a la vista. */
+export function noDisponibles(env: Record<string, string | undefined> = process.env): string[] {
+  return (env.REPARTO_NO_DISPONIBLE ?? "").split(",").map((x) => x.trim().toLowerCase()).filter(Boolean);
+}
+
 /** La regla de `excluir` que saca a ese id, o null. */
 export function excluidoPor(mid: unknown, excl: string[] | null | undefined, fam: string | null = null): string | null {
   const m = pyStr(mid || "").toLowerCase();
@@ -2244,6 +2249,11 @@ function armarCandidatos(tipo: string, cfg: Obj, cupos: Obj, now: Date, effort: 
       cand.descartado_por = `excluido en modelos.json (excluir: ${x})`;
       cand.duro = true;
     }
+    const nd = excluidoPor(modelo, noDisponibles(), fam);
+    if (nd && !cand.duro) {
+      cand.descartado_por = `no disponible ahora según pa (${nd})`;
+      cand.duro = true;
+    }
     if (sus === "google" && !cand.descartado_por && !verdad(get(grupos.get(gid) || {}, "agotado")) && tipoEn(tipo, cfg.agy_min_libre_tipos)) {
       const w5 = vents.find((w) => w.id === "5h" && get(w, "usado") !== null);
       if (w5 !== undefined && 1 - w5.usado < cfg.agy_min_libre_5h) {
@@ -2340,6 +2350,9 @@ function armarCandidatos(tipo: string, cfg: Obj, cupos: Obj, now: Date, effort: 
     } else if (excluidoPor(loc.id, cfg.excluir, "local")) {
       cand.descartado_por = `excluido en modelos.json (excluir: ${excluidoPor(loc.id, cfg.excluir, "local")})`;
       cand.duro = true;
+    } else if (excluidoPor(loc.id, noDisponibles(), "local")) {
+      cand.descartado_por = `no disponible ahora según pa (${excluidoPor(loc.id, noDisponibles(), "local")})`;
+      cand.duro = true;
     }
     cand.puntaje = pyRound(utilDe(Number(calidad), minimo) + 0.5 * cfg.peso_urgencia, 2);
     conFloat(cand, "cupo_libre", "urgencia", "puntaje");
@@ -2368,6 +2381,7 @@ function armarCandidatos(tipo: string, cfg: Obj, cupos: Obj, now: Date, effort: 
       cuenta: null, proveedor: "dsh", clave: gid, gratis, ...(esGo ? { plan_go: cfg.opencode_plan } : {}),
     };
     const x = excluidoPor(mid, cfg.excluir, mid.startsWith("opencode:") ? "opencode" : "dsh");
+    const nd = excluidoPor(mid, noDisponibles(), mid.startsWith("opencode:") ? "opencode" : "dsh");
     if (hayMapa && eDsh === null) {
       cand.descartado_por = `excluido en modelos.json (${notaEffort})`;
       cand.duro = true;
@@ -2376,6 +2390,9 @@ function armarCandidatos(tipo: string, cfg: Obj, cupos: Obj, now: Date, effort: 
       cand.duro = cand.duro_calidad = true;
     } else if (x) {
       cand.descartado_por = `excluido en modelos.json (excluir: ${x})`;
+      cand.duro = true;
+    } else if (nd) {
+      cand.descartado_por = `no disponible ahora según pa (${nd})`;
       cand.duro = true;
     } else if (mid.toLowerCase() in enfr) {
       cand.descartado_por = `cortó por límite de uso (pa salió 97): enfriándose hasta ${enfr[mid.toLowerCase()]}`;

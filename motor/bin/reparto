@@ -993,6 +993,12 @@ def excluido_por(mid, excl, fam=None):
     return None
 
 
+def no_disponibles():
+    """Lo que `pa` sabe que ahora no sirve (REPARTO_NO_DISPONIBLE, lista separada por comas con la sintaxis de `excluir`): el plugin de
+    agy sin cargar, un Claude con el límite de la cuenta a la vista. Sólo lo pone pa al pedirle el siguiente candidato; no es de modelos.json."""
+    return [x.strip().lower() for x in os.environ.get("REPARTO_NO_DISPONIBLE", "").split(",") if x.strip()]
+
+
 def efforts_de(cfg, mid, fam=None):
     """La lista de `efforts_permitidos` de ese modelo (clave = id exacto, si no la familia), o None si no hay regla."""
     ep = cfg.get("efforts_permitidos") or {}
@@ -2377,6 +2383,10 @@ def armar_candidatos(tipo, cfg, cupos, now, effort=None):
         if x and not cand.get("duro"):
             cand["descartado_por"] = "excluido en modelos.json (excluir: %s)" % x
             cand["duro"] = True
+        nd = excluido_por(modelo, no_disponibles(), fam)
+        if nd and not cand.get("duro"):
+            cand["descartado_por"] = "no disponible ahora según pa (%s)" % nd
+            cand["duro"] = True
         # Los cupos de agy son chicos: con poco libre en la ventana de 5 h no se arranca una tarea de código
         if sus == "google" and not cand["descartado_por"] and not (grupos.get(gid) or {}).get("agotado") and \
                 any(fnmatch.fnmatchcase(tipo, p) for p in cfg["agy_min_libre_tipos"]):
@@ -2479,6 +2489,9 @@ def armar_candidatos(tipo, cfg, cupos, now, effort=None):
         elif excluido_por(loc["id"], cfg["excluir"], "local"):
             cand["descartado_por"] = "excluido en modelos.json (excluir: %s)" % excluido_por(loc["id"], cfg["excluir"], "local")
             cand["duro"] = True
+        elif excluido_por(loc["id"], no_disponibles(), "local"):
+            cand["descartado_por"] = "no disponible ahora según pa (%s)" % excluido_por(loc["id"], no_disponibles(), "local")
+            cand["duro"] = True
         q = float(calidad)
         util = PTS_POR_AA * (q if q <= minimo + MARGEN else minimo + MARGEN - (q - minimo - MARGEN) * PESO_SOBRA)
         cand["puntaje"] = round(util + 0.5 * cfg["peso_urgencia"], 2)   # ocioso y gratis: medio punto de urgencia
@@ -2503,6 +2516,7 @@ def armar_candidatos(tipo, cfg, cupos, now, effort=None):
                 "aviso": None if gratis or es_go else "se paga con tu key de DeepSeek (no se sabe el precio)", "grupo": gid, "urgencia": 0.0,
                 "cuenta": None, "proveedor": "dsh", "clave": gid, "gratis": gratis, **({"plan_go": cfg["opencode_plan"]} if es_go else {})}
         x = excluido_por(mid, cfg["excluir"], "opencode" if mid.startswith("opencode:") else "dsh")
+        nd = excluido_por(mid, no_disponibles(), "opencode" if mid.startswith("opencode:") else "dsh")
         if mapa_ef and e_dsh is None:
             cand["descartado_por"] = "excluido en modelos.json (%s)" % nota_effort
             cand["duro"] = True
@@ -2511,6 +2525,9 @@ def armar_candidatos(tipo, cfg, cupos, now, effort=None):
             cand["duro"] = cand["duro_calidad"] = True
         elif x:
             cand["descartado_por"] = "excluido en modelos.json (excluir: %s)" % x
+            cand["duro"] = True
+        elif nd:
+            cand["descartado_por"] = "no disponible ahora según pa (%s)" % nd
             cand["duro"] = True
         elif mid.lower() in enfr:
             cand["descartado_por"] = "cortó por límite de uso (pa salió 97): enfriándose hasta %s" % enfr[mid.lower()]

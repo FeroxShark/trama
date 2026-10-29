@@ -227,6 +227,10 @@ export const casosReparto: Caso[] = [
   ...TIPOS.map((t) => rp(`--tipo ${t} --json`, ["--tipo", t, "--json"], 0)),
   ...TIPOS.map((t) => rp(`--tipo ${t} (texto)`, ["--tipo", t], 0, { cupos: CUPOS_RAROS })),
   rp("--tipo final --explicar", ["--tipo", "final", "--explicar"], 0),
+  // pa dice qué no sirve ahora (plugin de agy sin cargar, un Claude con el límite a la vista): reparto lo saltea y da el siguiente.
+  rp("REPARTO_NO_DISPONIBLE: agy y gemini fuera (--tipo codigo-acotado --json)", ["--tipo", "codigo-acotado", "--json"], 0, { env: { REPARTO_NO_DISPONIBLE: "agy:*, gemini-*" } }),
+  rp("REPARTO_NO_DISPONIBLE: claude oficial fuera (--tipo codigo-acotado --explicar)", ["--tipo", "codigo-acotado", "--explicar"], 0, { env: { REPARTO_NO_DISPONIBLE: "claude-*" } }),
+  rp("REPARTO_NO_DISPONIBLE: dsh y locales fuera (--tipo lectura --json)", ["--tipo", "lectura", "--json"], 0, { env: { REPARTO_NO_DISPONIBLE: "dsh:*,ollama:*,opencode:*" } }),
   rp("--tipo codigo-multi --explicar con cupos raros", ["--tipo", "codigo-multi", "--explicar"], 0, { cupos: CUPOS_RAROS }),
   rp("--tipo desconocido", ["--tipo", "raro", "--json"], 0),
   rp("--tipo con eñe y mayúsculas", ["--tipo", "Diseño"], 0),
