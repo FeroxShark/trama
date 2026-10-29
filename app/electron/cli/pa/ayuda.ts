@@ -131,6 +131,7 @@ export const AYUDA: readonly string[] = [
   "  pa --bien-auto                       completar solo `bien`, `integrada` y `retrabajo` desde integradas.tsv",
   "  pa --rinde [--dias N] [--json]       tipo × modelo × effort: n, % integrada sin retrabajo, mediana de turnos,",
   "                                       costo medio y % que compactó (default: últimos 30 días)",
+  "                                       + los FRENÓ de la ventana por proyecto (top 3; los parecidos van juntos); --json: `frenos`",
   "  pa --rinde --por fase|tarea          lo mismo agrupado por fase (--fase) o por tarea madre (--tarea) en vez de por tipo",
   "  pa --rinde --rubrica [--json]        acierto de la rúbrica por fila: corridas, cuántas corrieron con el modelo estimado y % que",
   "                                       se integró sin retrabajo con él",
