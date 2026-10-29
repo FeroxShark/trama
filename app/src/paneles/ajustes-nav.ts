@@ -72,6 +72,10 @@ export const ITEMS: readonly Item[] = [
   { cat: "proyectos", nombre: "pry.nombres", que: "pry.nombresQue", sin: "renombrar rename nombre name alias proyecto project mostrar display titulo title slug registro registry shark" },
   { cat: "proyectos", nombre: "pry.instrucciones", que: "pry.instruccionesQue", sin: "agents.md agents claude.md gemini.md unificar unify instrucciones instructions import stub modelos models fuente unica single source editar edit manual" },
 
+  { cat: "proyectos", nombre: "lmp.titulo", que: "lmp.intro", sin: "limpiar limpieza clean cleanup worktrees puestos ramas branches borrar delete viejas old integradas integrated disco disk espacio space build target node_modules pa" },
+  { cat: "proyectos", nombre: "lmp.auto", que: "lmp.autoQue", sin: "limpiar limpieza automatico automatic solo auto clean cleanup worktrees ramas branches apagado prendido off on" },
+  { cat: "proyectos", nombre: "lmp.dias", que: null, sin: "dias days antiguedad age viejo old limpiar limpieza clean cleanup worktrees ramas branches" },
+
   { cat: "general", nombre: "ajustes.idioma", que: "ajustes.idiomaQue", sin: "language english espanol ingles spanish traduccion idioma" },
   { cat: "general", nombre: "ajustes.tema", que: "ajustes.temaQue", sin: "theme tema color colores oscuro dark claro light sistema system modo apariencia appearance bosque forest atardecer sunset grafito graphite contraste contrast daltonismo" },
   { cat: "general", nombre: "ajustes.letra", que: "ajustes.letraQue", sin: "tamano size texto text zoom font fuente grande chico letra" },

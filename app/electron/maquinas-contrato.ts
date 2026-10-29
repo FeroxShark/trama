@@ -56,6 +56,10 @@ export const RUTAS: Readonly<Record<string, Ruta>> = {
   "ramas:brief": "maquina",
   // La orquestación de `pa`: las lecciones y AGENTS.md son de esta máquina; auditar va a la del worker.
   "orq:auditar": "maquina",
+  "limpieza:leer": "local",
+  "limpieza:guardar": "local",
+  "limpieza:ver": "local",
+  "limpieza:aplicar": "local",
   "orq:lecciones": "local",
   "orq:podaTexto": "local",
   "orq:leccionesLeer": "local",

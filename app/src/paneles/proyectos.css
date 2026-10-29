@@ -386,3 +386,31 @@
 .pry-todos-est {
   color: var(--oro);
 }
+
+/* Ajustes > Proyectos > Limpieza de worktrees y ramas viejos (AjustesLimpieza.tsx). */
+.lmp-fila {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--esp-2) var(--esp-4);
+  margin-top: var(--esp-2);
+}
+.lmp-fila .pn-chips {
+  margin-top: 0;
+}
+.lmp-etq {
+  min-width: 8em;
+  color: var(--texto-7);
+  font-size: var(--letra-4);
+}
+.lmp-plan {
+  margin-top: var(--esp-2);
+}
+.lmp-lista {
+  margin: var(--esp-1) 0 0;
+  padding-left: var(--esp-4);
+  color: var(--texto-8);
+  font-family: var(--font-mono);
+  font-size: var(--letra-3);
+  overflow-wrap: anywhere;
+}

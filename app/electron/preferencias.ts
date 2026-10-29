@@ -11,6 +11,7 @@ import { silencio } from "./log.ts";
 import { esModeloDictado } from "./dictado-modelos.ts";
 import { aplicarOpGuias, normalizarGuias, type EstadoGuias } from "./guias-estado.ts";
 import type { ModoAvisoLider } from "./avisos-worker.ts";
+import { CONFIG_LIMPIEZA_DEFAULT, configLimpieza, type ConfigLimpieza } from "./limpieza-pa.ts";
 import { esTerminalAgentes, TERMINAL_AGENTES_DEFAULT, type TerminalAgentes } from "./terminal-agentes.ts";
 
 const ARCHIVO = path.join(ESTADO, "preferencias.json");
@@ -49,6 +50,8 @@ export type Preferencias = {
   bienvenida?: boolean;
   /** `guias`: qué guías de pantalla ya se vieron (versión por id) y si están apagadas (src/guia); sin el campo, todas por ver. */
   guias?: EstadoGuias;
+  /** `limpieza`: la limpieza de worktrees y ramas viejos de `pa` (limpieza-pa.ts): pasada automática (por defecto APAGADA) y días de antigüedad (7). */
+  limpieza?: ConfigLimpieza;
 } & Apariencia;
 
 let prefs: Preferencias | null = null;
@@ -80,6 +83,7 @@ function desde(j: {
   dictadoModelo?: unknown;
   bienvenida?: unknown;
   guias?: unknown;
+  limpieza?: unknown;
 }): Preferencias {
   if (j.version !== VERSION) return { effort: {} };
   const p: Preferencias = { effort: texto(j.effort) ? j.effort : {} };
@@ -99,6 +103,7 @@ function desde(j: {
   if (esModeloDictado(j.dictadoModelo)) p.dictadoModelo = j.dictadoModelo;
   if (typeof j.bienvenida === "boolean") p.bienvenida = j.bienvenida;
   if (j.guias && typeof j.guias === "object") p.guias = normalizarGuias(j.guias);
+  if (j.limpieza && typeof j.limpieza === "object") p.limpieza = configLimpieza(CONFIG_LIMPIEZA_DEFAULT, j.limpieza);
   return p;
 }
 
@@ -254,6 +259,23 @@ export async function guardarAvisoLider(v: unknown) {
   if ((p.avisoLider ?? "tanda") === v) return;
   p.avisoLider = v;
   await guardar(p);
+}
+
+/** La limpieza de `pa` (Ajustes > Proyectos): sin nada guardado, apagada y a los 7 días. */
+export async function leerLimpieza(): Promise<ConfigLimpieza> {
+  return { ...CONFIG_LIMPIEZA_DEFAULT, ...(await leerPreferencias()).limpieza };
+}
+
+/** Guarda lo que cambió (`auto`, `dias`); lo que no vale se ignora. Devuelve lo que quedó. */
+export async function guardarLimpieza(cambio: unknown): Promise<ConfigLimpieza> {
+  const p = await leerPreferencias();
+  const actual = { ...CONFIG_LIMPIEZA_DEFAULT, ...p.limpieza };
+  const nueva = configLimpieza(actual, cambio);
+  if (nueva.auto !== actual.auto || nueva.dias !== actual.dias) {
+    p.limpieza = nueva;
+    await guardar(p);
+  }
+  return nueva;
 }
 
 /** "Integrar solo lo seguro" (B22): prendido o apagado. Devuelve si cambió. */

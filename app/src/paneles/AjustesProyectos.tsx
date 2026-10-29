@@ -15,6 +15,7 @@ import { Logo } from "../barra/Logo";
 import { Cat } from "./AjustesNav";
 import { abrirRamas } from "./ajustes-nav";
 import { FilaFusion } from "./FilaFusion";
+import { LimpiezaPa } from "./AjustesLimpieza";
 import { ArchivosMd, AvisoLargo, EditorAgents, EstadoLecturaMotores, textoAccion, UnificarPanel } from "./ProyectosMd";
 import { clasePlan } from "./unificar-clase";
 import "./proyectos.css";
@@ -94,6 +95,9 @@ export function Proyectos() {
             </div>
           ))}
         </div>
+      </section>
+      <section className="pn-sec" data-opc="lmp.titulo">
+        <LimpiezaPa />
       </section>
     </Cat>
   );

@@ -200,6 +200,11 @@ type Main = {
     /** Los proyectos con `lecciones.necesita-poda` (electron/orquestacion.ts), sin validar. */
     leccionesPendientes(): Promise<unknown>;
     /** La instrucción de `pa <proy> --lecciones-podar` para que un agente reescriba las lecciones. */
+    /** La limpieza de worktrees y ramas viejos de `pa`: la config, guardarla, lo que se quitaría y quitarlo (limpieza-pa.ts). */
+    limpieza(): Promise<unknown>;
+    guardarLimpieza(cambio: { auto?: boolean; dias?: number }): Promise<unknown>;
+    verLimpieza(dias: number): Promise<unknown>;
+    aplicarLimpieza(dias: number): Promise<unknown>;
     textoPoda(slug: string): Promise<string>;
     leerLecciones(slug: string): Promise<string>;
     /** Guarda lecciones.md; devuelve `{ necesitaPoda }`. */

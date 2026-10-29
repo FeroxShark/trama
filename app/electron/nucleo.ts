@@ -36,7 +36,8 @@ import { iconosDe } from "./iconos.js";
 import { guardarYa, leerLeidos, marcarLeido } from "./leidos.js";
 import { almacenNombres } from "./nombres.js";
 import { almacenPendientes } from "./pendientes.js";
-import { guardarApariencia, guardarAutoIntegrar, guardarAvisarEspera, guardarAvisarWorkers, guardarAvisoLider, avisoLiderGuardado, bienvenidaPendiente, guardarBienvenida, guardarConsumo, guardarDictadoModelo, guardarEffort, guardarGuias, guardarIdioma, guardarTerminalAgentes, guardarTiernos, guardarVista, guiasEstado, leerPreferencias } from "./preferencias.js";
+import { guardarApariencia, guardarAutoIntegrar, guardarAvisarEspera, guardarAvisarWorkers, guardarAvisoLider, avisoLiderGuardado, bienvenidaPendiente, guardarBienvenida, guardarConsumo, guardarDictadoModelo, guardarEffort, guardarGuias, guardarIdioma, guardarTerminalAgentes, guardarTiernos, guardarVista, guiasEstado, guardarLimpieza, leerLimpieza, leerPreferencias } from "./preferencias.js";
+import { aplicarLimpieza, pasadaAutomatica, programarPasadas, verLimpieza } from "./limpieza-pa.js";
 import { accionRama, arreglarDatos, briefRamas, enCola, ejecutar, lanzarRama, lanzarTareaMd, leerAjustes, leerMedicion, pasarALider, relanzarWorker, retomarDatos, tareaMdEnCurso, type AccionRama, type TipoTareaMd } from "./paneles.js";
 import { guardarRouting, type Cambio } from "./routing.js";
 import { argvAuditar, datosAgentsMd, guardarLecciones, leccionesPendientes, leerLecciones, textoPoda } from "./orquestacion.ts";
@@ -126,7 +127,7 @@ const manejadores = new Map<string, Manejador>();
  * Lo que cambia la máquina (reescribe `~/CLAUDE.md`, los ajustes, borra una cuenta, libera la GPU, actualiza `claude`): desde la
  * tailnet (el celular) no. Los `modelos:*` y `remoto:guardar` tienen su propio chequeo, con su mensaje, en el manejador.
  */
-export const SOLO_PC_TAILNET: ReadonlySet<string> = new Set(["routing:guardar", "ajustes:guardar", "orq:leccionesGuardar", "orq:mdAplicar", "orq:agentsGuardar", "orq:mdFusionar", "proyectos:renombrar", "proyectos:logo", "cuentas:quitar", "vram:liberar", "locales:prender", "locales:apagar", "claude:actualizar", "trama:actualizar", "trama:cancelarEspera", "trama:limpiar", "dsh:clave", "dsh:instalar", "dsh:probar", "aa:refrescar", "mcp:guardar", "mcp:quitar", "conectores:alternar", "plugins:agregarCatalogo", "plugins:instalar", "plugins:quitar", "opencode:planGuardar", "nvidia:modelos", "nvidia:probar"]);
+export const SOLO_PC_TAILNET: ReadonlySet<string> = new Set(["routing:guardar", "ajustes:guardar", "orq:leccionesGuardar", "limpieza:guardar", "limpieza:aplicar", "orq:mdAplicar", "orq:agentsGuardar", "orq:mdFusionar", "proyectos:renombrar", "proyectos:logo", "cuentas:quitar", "vram:liberar", "locales:prender", "locales:apagar", "claude:actualizar", "trama:actualizar", "trama:cancelarEspera", "trama:limpiar", "dsh:clave", "dsh:instalar", "dsh:probar", "aa:refrescar", "mcp:guardar", "mcp:quitar", "conectores:alternar", "plugins:agregarCatalogo", "plugins:instalar", "plugins:quitar", "opencode:planGuardar", "nvidia:modelos", "nvidia:probar"]);
 
 /** Anota (o reemplaza) el manejador de un canal. */
 export function manejar(canal: string, fn: Manejador) {
@@ -877,6 +878,12 @@ export function armarNucleo() {
     lanzarRama({ accion: x?.accion, id: x?.id, proyecto: x?.proyecto, modelo: x?.modelo, effort: x?.effort, texto: x?.texto }),
   );
   // La orquestación de `pa` (orquestacion.ts): lecciones que piden poda, auditar una rama y la plantilla de AGENTS.md.
+  // La limpieza de worktrees y ramas viejos de `pa` (limpieza-pa.ts): lo que se quitaría, quitarlo y la config (la pasada automática nace apagada).
+  manejar("limpieza:leer", () => leerLimpieza());
+  manejar("limpieza:guardar", (_e, cambio: unknown) => guardarLimpieza(cambio));
+  manejar("limpieza:ver", (_e, dias: unknown) => verLimpieza(ejecutar, dias));
+  manejar("limpieza:aplicar", (_e, dias: unknown) => aplicarLimpieza(ejecutar, dias));
+  if (!process.env.HILOS_BENCH && !process.env.HILOS_CAPTURA && !process.env.HILOS_CAPTURA_PNG) programarPasadas(() => pasadaAutomatica(leerLimpieza, ejecutar));
   manejar("orq:lecciones", () => leccionesPendientes(PA_STATE));
   manejar("orq:podaTexto", async (_e, slug: unknown) => textoPoda(await nombrePa(slug), ejecutar));
   manejar("orq:leccionesLeer", (_e, slug: unknown) => leerLecciones(PA_STATE, slug));
