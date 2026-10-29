@@ -15,7 +15,7 @@ import { locale, t, type ClaveSola } from "../i18n";
 import { useIdioma } from "../i18n/react";
 import { mensaje } from "../puente";
 import { Boton } from "../ui/componentes";
-import { pintorDura } from "../tiempo";
+import { esperaTexto, pintorDura } from "../tiempo";
 import "./worker-logica.css";
 import { Entero } from "./Entero";
 import { Filas } from "./Diff";
@@ -107,7 +107,13 @@ export function WorkerExtras({ h, vista, vive }: { h: Hilo; vista: VistaPasos; v
     [t("wk.infoTokens"), tokensInfo(e)],
     [t("wk.infoRama"), h.rama ?? t("comun.sinRama"), true],
   ];
-  return <Extras inicio={h.inicio} dur={dur} vive={vive} filas={filasInfo} />;
+  // Sólo si esperó un puesto o lugar: el texto va visible, no en el ⓘ.
+  return (
+    <>
+      {h.espera_s ? <span className="wk-espera">{t("wk.esperoEn", { d: esperaTexto(h.espera_s) })}</span> : null}
+      <Extras inicio={h.inicio} dur={dur} vive={vive} filas={filasInfo} />
+    </>
+  );
 }
 
 // ---- El detalle del paso elegido -----------------------------------------------------------------------------------------

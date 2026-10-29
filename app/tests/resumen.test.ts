@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { cuota, diario, etiquetas, familia, inicioSemana, resumir, semanas, tendencia } from "../src/paneles/resumen.ts";
+import { cuota, diario, esperaDe, etiquetas, familia, inicioSemana, resumir, semanas, tendencia } from "../src/paneles/resumen.ts";
 import type { Corrida, Muestra } from "../src/datos/paneles.ts";
 
 // Fechas locales (mes de 1 a 12): los tests andan en cualquier huso horario.
@@ -14,6 +14,7 @@ const c = (ts: number, o: Partial<Corrida> = {}): Corrida => ({
   bien: null,
   compactaciones: null,
   cache_read: null,
+  espera_s: null,
   ...o,
 });
 
@@ -146,4 +147,16 @@ test("la caché nunca pasa de 100 %: una corrida con más caché que tokens se t
   const rara = [c(t(10, 1, 9), { tokens: 100, cache_read: 190 }), c(t(10, 1, 10), { tokens: 100, cache_read: 50 })];
   const r = resumir(rara, 30, t(10, 2, 12), null);
   assert.equal(r.cache, 150 / 200);
+});
+
+test("la espera del día: promedio y máximo de las corridas que la anotaron; sin dato no cuenta", () => {
+  assert.deepEqual(esperaDe([c(0, { espera_s: 0 }), c(0, { espera_s: 120 }), c(0, { espera_s: 300 }), c(0)]), { n: 3, prom: 140, max: 300 });
+  assert.deepEqual(esperaDe([c(0)]), { n: 0, prom: 0, max: 0 });
+  const ahora = t(10, 7, 12);
+  const dia = diario([c(t(10, 7, 9), { espera_s: 60 }), c(t(10, 7, 10), { espera_s: 180 }), c(t(10, 6, 10), { espera_s: 5 })], 3, ahora);
+  assert.deepEqual(dia.map((d) => d.espera), [
+    { n: 0, prom: 0, max: 0 },
+    { n: 1, prom: 5, max: 5 },
+    { n: 2, prom: 120, max: 180 },
+  ]);
 });

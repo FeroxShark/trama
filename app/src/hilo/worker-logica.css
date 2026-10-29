@@ -42,6 +42,13 @@
   color: var(--texto-5);
   font-size: var(--letra-5);
 }
+/* Cuánto esperó para arrancar (sólo si esperó): va antes de la hora, con texto y no sólo con color. */
+.wk-espera {
+  flex: none;
+  color: var(--texto-5);
+  font-size: var(--letra-5);
+  white-space: nowrap;
+}
 .wk-info,
 .wk-sup {
   position: relative;

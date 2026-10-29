@@ -47,3 +47,26 @@
   padding-top: var(--esp-1-5);
   border-top: 1px solid var(--capa-div);
 }
+
+/* Tiempo en cola por día: una tabla chica, con la cabecera de cada columna y el texto entero (no depende del color). */
+.pn-espera {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--letra-5);
+  font-variant-numeric: tabular-nums;
+}
+.pn-espera th,
+.pn-espera td {
+  padding: var(--esp-1) var(--esp-2);
+  border-bottom: 1px solid var(--borde-1);
+  text-align: left;
+  white-space: nowrap;
+}
+.pn-espera thead th {
+  color: var(--texto-5);
+  font-weight: 500;
+}
+.pn-espera tbody th {
+  color: var(--texto-3);
+  font-weight: 400;
+}

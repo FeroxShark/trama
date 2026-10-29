@@ -8,7 +8,7 @@ import { VERSION } from "../datos/contrato";
 import { fuentePaneles, type Corrida, type Muestra } from "../datos/paneles";
 import { MODO } from "../modo";
 import { coma, diaSemana, locale, t } from "../i18n";
-import { duracion } from "../tiempo";
+import { duracion, esperaTexto } from "../tiempo";
 import { ErrorCarga } from "./ErrorCarga";
 import { Historial } from "./Historial";
 import { CostoPorModelo } from "./CostoPorModelo";
@@ -196,6 +196,11 @@ export function Estadisticas() {
         {desde !== null && inicioDia(desde) > fijo.sesenta[0].ts ? <div className="pn-nota">{t("est.hayDesde", { f: fecha(desde) })}</div> : null}
       </section>
 
+      <section className="pn-sec">
+        <h2 className="pn-h">{t("est.espera", { n: dias })}</h2>
+        <EsperaDias dias={r.porDia} />
+      </section>
+
       <PorModelo partes={r.porModelo} />
       <CostoPorModelo dias={dias} />
       <PorProyecto partes={r.porProyecto} />
@@ -270,6 +275,34 @@ function Semana({ nombre, a, b, entera, k }: { nombre: string; a: Suma; b: Suma;
  * Barras verticales finas a todo el ancho: el número arriba y el día abajo,
  * visibles sin hover cuando entran (`etiquetas`); el detalle, en el tip.
  */
+/** Por día, cuánto esperaron las corridas para arrancar (promedio y máximo). Sólo los días con corridas que lo anotaron. */
+function EsperaDias({ dias }: { dias: Dia[] }) {
+  const con = dias.filter((d) => d.espera.n > 0).reverse();
+  if (!con.length) return <div className="pn-nota">{t("est.esperaSin")}</div>;
+  return (
+    <table className="pn-espera">
+      <thead>
+        <tr>
+          <th scope="col">{t("est.esperaDia")}</th>
+          <th scope="col">{t("est.esperaProm")}</th>
+          <th scope="col">{t("est.esperaMax")}</th>
+          <th scope="col">{t("est.esperaN")}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {con.map((d) => (
+          <tr key={d.ts}>
+            <th scope="row">{fecha(d.ts)}</th>
+            <td>{esperaTexto(d.espera.prom)}</td>
+            <td>{esperaTexto(d.espera.max)}</td>
+            <td>{corridas(d.espera.n)}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
 function Barras({
   dias,
   valor,

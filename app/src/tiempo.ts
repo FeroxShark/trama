@@ -48,6 +48,11 @@ export function duracion(segundos: number) {
   return m < 60 ? `${m} m` : `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, "0")} m`;
 }
 
+/** Lo que esperó una corrida para arrancar: "40 s" o "3 min" (y "0 s" si no esperó). */
+export function esperaTexto(segundos: number) {
+  return segundos < 60 ? t("tiempo.esperaS", { n: Math.round(segundos) }) : t("tiempo.esperaMin", { n: Math.round(segundos / 60) });
+}
+
 /** "27 oct", y con el año si es de otro año. */
 function diaCorto(epoch: number, ahora: number): string {
   const f = new Date(epoch * 1000);
