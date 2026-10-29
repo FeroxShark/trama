@@ -4,7 +4,7 @@
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
-import { configTrama, homeDe, plataformaActual, type Plataforma } from "../../../rutas.ts";
+import { caminoDe, configTrama, homeDe, plataformaActual, type Plataforma } from "../../../rutas.ts";
 import { enPath, esEjecutable } from "../../base/buscar.ts";
 import { rutaReal, resolverProyecto } from "../../proyecto-ruta.ts";
 import type { Env } from "../entorno.ts";
@@ -52,13 +52,16 @@ function binario(nombre: string, fijo: string | undefined, extra: string[], env:
   if (fijo) return esEjecutable(fijo, plat) ? fijo : "";
   return enPath(nombre, extra, env, plat) ?? "";
 }
-const carpetasNpm = (env: Env, home: string) => [path.join(home, ".local", "bin"), ...(env.npm_config_prefix ? [path.join(env.npm_config_prefix, "bin")] : []), path.join(home, ".npm-global", "bin"), "/usr/local/bin"];
+const carpetasNpm = (env: Env, home: string, plat: Plataforma = plataformaActual()) => {
+  const c = caminoDe(plat);
+  return [c.join(home, ".local", "bin"), ...(env.npm_config_prefix ? [c.join(env.npm_config_prefix, "bin")] : []), c.join(home, ".npm-global", "bin"), "/usr/local/bin"];
+};
 /**
  * Las carpetas donde buscar dsh además del PATH. Linux: `~/.local/bin` y el prefijo global de npm. Windows: también la raíz del prefijo de
  * la instalación (`<casa>\.local\dsh.cmd`) y `%APPDATA%\npm`: npm no deja los `.cmd` en `bin\`.
  */
 export function dirsDsh(env: Env, home: string, plat: Plataforma = plataformaActual()): string[] {
-  if (plat !== "win32") return carpetasNpm(env, home);
+  if (plat !== "win32") return carpetasNpm(env, home, plat);
   const c = path.win32;
   return [c.join(home, ".local", "bin"), c.join(home, ".local"), ...(env.npm_config_prefix ? [env.npm_config_prefix] : []), c.join(env.APPDATA || c.join(home, "AppData", "Roaming"), "npm")];
 }
@@ -67,7 +70,7 @@ export const dshBin = (env: Env, plat: Plataforma = plataformaActual()) => binar
 /** El binario opencode: HILOS_OPENCODE, el PATH, ~/.opencode/bin (su instalador), y los de dsh. "" si no está. */
 export const opencodeBin = (env: Env, plat: Plataforma = plataformaActual()) => {
   const home = homeDe(env, plat);
-  return binario("opencode", env.HILOS_OPENCODE, [path.join(home, ".opencode", "bin"), ...carpetasNpm(env, home)], env, plat);
+  return binario("opencode", env.HILOS_OPENCODE, [path.join(home, ".opencode", "bin"), ...carpetasNpm(env, home, plat)], env, plat);
 };
 
 // ---------------------------------------------------------------- Ollama

@@ -276,6 +276,11 @@ test("Ahora no: oculta esa versión y avisa si sale otra más nueva", async () =
 // --- GitHub de mentira: cada respuesta la decide `responder(n)`; `ciclo()` y `reintento()` disparan lo que el proceso dejó armado ---
 type Resp = { status?: number; tag?: string; etag?: string; headers?: Record<string, string>; red?: boolean };
 const flush = () => new Promise((r) => setTimeout(r, 10));
+/** Espera a que se cumpla `cond` (el disco de Windows tarda más de un `flush`). */
+async function hasta(cond: () => boolean, ms = 5000) {
+  const t = Date.now();
+  while (!cond() && Date.now() - t < ms) await flush();
+}
 function armarGitHub(o: { instalada: string; responder: (n: number) => Resp }) {
   const pedidos: Array<Record<string, string>> = [];
   const esperas: number[] = [];
@@ -326,7 +331,7 @@ test("200 con una versión nueva: el aviso sube a la nueva aunque se haya descar
   await x.act.descartar();
   x.avanzar(2 * 60_000);
   x.ciclo();
-  await flush();
+  await hasta(() => vistos.length >= 2);
   assert.deepEqual(vistos, [null, "0.1.5"]);
   assert.equal(x.pedidos[1]["if-none-match"], 'W/"a"');
 });

@@ -6,6 +6,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { main } from "../electron/cli/cuentas.ts";
+import { soloPosix } from "./plataforma.ts";
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "trama-agregar-"));
 after(() => rmSync(tmp, { recursive: true, force: true }));
@@ -24,7 +25,8 @@ async function agregar(plataforma: NodeJS.Platform, nombre: string) {
   }
 }
 
-test("agregar: en Linux el aviso va por stderr y stdout es sólo el id", async () => {
+// Simular Linux sobre un Windows real no sirve: el candado de `cuentas` elige socket abstracto (\0…), que Windows no tiene.
+test("agregar: en Linux el aviso va por stderr y stdout es sólo el id", { skip: soloPosix("el candado usa un socket abstracto de Linux") }, async () => {
   const r = await agregar("linux", "l");
   assert.equal(r.rc, 0);
   assert.equal(r.out, "sonda\n");

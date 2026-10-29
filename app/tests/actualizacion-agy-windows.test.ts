@@ -79,14 +79,15 @@ test("agy en Windows: si el actualizador no contesta, null (no cae a AUR)", asyn
 
 test("process.platform simulado en win32: las decisiones por defecto son de Windows", async () => {
   const { traer, pedidos } = traerFalso("Stable Version: 1.4.8.", AUR);
+  const delSistema = actualizarDe();
   await comoPlataforma("win32", async () => {
     assert.deepEqual(actualizarDe(), { args: ["update"] });
     assert.equal(noSePuedeDe(), null);
     assert.equal(await ultimaAgy(traer), "1.4.8");
   });
   assert.ok(!pedidos.some((u) => u.includes("aur.archlinux.org")));
-  // Y vuelve a lo de Linux al terminar.
-  assert.deepEqual(actualizarDe(), { terminal: ["paru", "-S", "antigravity-cli"] });
+  // Y vuelve a lo del sistema real al terminar.
+  assert.deepEqual(actualizarDe(), delSistema);
 });
 
 test("PATH en Windows: se arma con `;` delante de ~/.local/bin, bajo la clave que ya trae el entorno (`Path`)", async () => {
