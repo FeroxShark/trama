@@ -215,7 +215,8 @@ function sinDuracion(tsv: string): string {
 /** `.hilo`: `espera=` son los segundos de cola de la corrida (un cruce de segundo, 0 o 1, según la carga): se marca fijo. */
 const sinEspera = (hilo: string) => hilo.replace(/^espera=\d+$/m, "espera=<N>");
 
-function recolectarEstado(dir: string, ignorar: RegExp[], r: Raices): Record<string, string> {
+/** Lo que quedó en la casa del `pa` (estado + proyectos), normalizado. Lo usan también lanzar.test.ts (lado B) para que A y B pasen por lo mismo. */
+export function recolectarEstado(dir: string, ignorar: RegExp[], r: Raices): Record<string, string> {
   const salida: Record<string, string> = {};
   const caminar = (d: string, rel: string) => {
     for (const nombre of readdirSync(d).sort()) {

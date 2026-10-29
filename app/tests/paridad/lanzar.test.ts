@@ -3,10 +3,10 @@
 // se restaura). Se compara lo que hace lanzar: stdout, stderr, código, argv de cada llamada a claude y el estado que queda
 // (.hilo, .corrida, .sid, .json, .ultimo, .session, eventos, limite.hasta…). medicion.tsv no: `medir` todavía no está portado.
 import assert from "node:assert/strict";
-import { cpSync, existsSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { testPosix as test } from "../plataforma.ts";
-import { borrarSandbox, comandoOriginal, correr, crearSandbox, diferencias, type Contexto, type Resultado } from "./arnes.ts";
+import { borrarSandbox, comandoOriginal, correr, crearSandbox, diferencias, recolectarEstado, type Contexto, type Resultado } from "./arnes.ts";
 import { casosLanzar, type CasoLanzar } from "./casos-lanzar.ts";
 import { normalizar, normalizarArgv, type Raices } from "./normalizar.ts";
 import { prologo, type Env } from "../../electron/cli/pa/entorno.ts";
@@ -16,23 +16,6 @@ import { suciosDe } from "../../electron/cli/pa/sucios.ts";
 const filtro = process.env.TRAMA_PARIDAD_SOLO;
 const SOLO_BASH = [/^medicion\.tsv$/];
 const IGNORAR = [/^lock(\/|$)/, /^worktrees(\/|$)/, /\.log$/, /\.lock$/];
-
-function recolectar(dir: string, r: Raices): Record<string, string> {
-  const salida: Record<string, string> = {};
-  const caminar = (d: string, rel: string) => {
-    for (const nombre of readdirSync(d).sort()) {
-      const abs = path.join(d, nombre);
-      const rr = rel ? `${rel}/${nombre}` : nombre;
-      if ([...IGNORAR, ...SOLO_BASH].some((re) => re.test(rr))) continue;
-      const st = statSync(abs);
-      if (st.isDirectory()) caminar(abs, rr);
-      else if (/\.pid$/.test(nombre)) salida[normalizar(rr, r)] = "<PID>";
-      else if (st.size <= 256 * 1024) salida[normalizar(rr, r)] = normalizar(readFileSync(abs, "utf8"), r);
-    }
-  };
-  if (existsSync(dir)) caminar(dir, "");
-  return salida;
-}
 
 const campos = (f: string): Record<string, string> => {
   const o: Record<string, string> = {};
@@ -118,7 +101,7 @@ async function correrB(caso: CasoLanzar, c: Contexto): Promise<Resultado> {
   const r: Raices = { tmp: [c.raiz] };
   const res: Resultado = { pasos: [{ rc, stdout: normalizar(out.join(""), r), stderr: normalizar(err.join(""), r) }], argvClaude: [], estado: {} };
   if (existsSync(logA)) for (const l of readFileSync(logA, "utf8").split("\n").filter(Boolean)) res.argvClaude.push(normalizarArgv((JSON.parse(l) as { args: string[] }).args, r));
-  res.estado = recolectar(c.estado, r);
+  res.estado = recolectarEstado(c.estado, [...IGNORAR, ...SOLO_BASH], r);
   return res;
 }
 
