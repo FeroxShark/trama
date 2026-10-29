@@ -1,5 +1,15 @@
 # Cambios
 
+## 0.2.26
+
+- Avisos de Trama (worker terminó/falló) se ven como fila de sistema, no como mensaje tuyo; el id abre el hilo del worker.
+- Panel de Conectores (/mcp) rediseñado: agrupado, con ícono y estado en palabra; los apagados en el proyecto se prenden con un interruptor y los que piden sesión llevan a claude.ai.
+- Barra de cupos: "2 d 17 h" en vez de "2 d", y la fecha y hora exactas del reinicio al pasar el mouse.
+- Estadísticas: costo equivalente en dólares por modelo (precios editables en Ajustes > Modelos) y tiempo en cola de los workers.
+- Limpieza de worktrees y ramas viejas ya integradas (Ajustes > Proyectos, con lista y confirmación; automática apagada).
+- pa: cada worker deja una línea FRENÓ y `pa --rinde` junta las más frecuentes; se recompila solo si su código cambió.
+- Windows: la carcasa quedó como adaptador fino y sin rastros de WSL.
+
 ## 0.2.25
 
 - Limpieza de worktrees y ramas viejos de pa: `pa --limpiar [--ver|--si] [--dias N] [--json]` quita los puestos libres y sin cambios, las ramas de corridas que ya entraron a main y el build sin usar, con N días de antigüedad (7 por defecto); nunca una rama con trabajo sin integrar ni algo en curso. En Ajustes > Proyectos: lista de lo que se borraría, confirmación y una pasada automática que viene apagada.
