@@ -3719,6 +3719,12 @@ REPARTO="${PA_REPARTO:-$_BIN/reparto}"
 [[ "$REPARTO" == 0 ]] && REPARTO="$_BIN/reparto"   # PA_REPARTO=0 apaga la elección automática, no el comando
 GEMINI_MODELOS='gemini-4-argon-(low|medium|high)|gemini-3\.8-flash-(low|medium|high)|agy:(claude-(opus|sonnet)-5-5-(low|medium|high)|gpt-oss-120b-medium)'
 es_gemini() { [[ "${1,,}" == gemini* || "${1,,}" == agy:* ]]; }
+# Los modelos que ofrece el agy de ESTA cuenta (`agy models`, por reparto con su caché de 6 h; --refrescar la vuelve a pedir): uno por línea, con
+# el id de pa. El catálogo cambia con la cuenta, la región y la versión de agy: GEMINI_MODELOS sólo lista lo que se conocía.
+agy_modelos_lista() {   # $@ = --refrescar o nada
+  local c=""; [[ -n "$cuenta" && "$cuenta" != @(claude|google|chatgpt) ]] && c="$cuenta"
+  REPARTO_STATE="${REPARTO_STATE:-$STATE/reparto}" PA_STATE="$STATE" timeout "${PA_REPARTO_TIMEOUT_S:-15}" "$REPARTO" --agy-modelos "$@" ${c:+--cuenta "$c"} 2>/dev/null </dev/null
+}
 gemini_equivalente() {   # $1 = modelo de agy -> "modelo effort" del Claude oficial
   case "$1" in
     gemini-4-argon-high)     echo "claude-opus-5-5 medium" ;;
@@ -3730,9 +3736,16 @@ gemini_equivalente() {   # $1 = modelo de agy -> "modelo effort" del Claude ofic
     agy:claude-opus-5-5-*)   echo "claude-opus-5-5 ${1##*-}" ;;
     agy:claude-sonnet-5-5-*) echo "claude-sonnet-5-5 ${1##*-}" ;;
     agy:gpt-oss-120b-*)      echo "claude-sonnet-5-5 medium" ;;
+    # modelos que sólo ofrece el agy de esa cuenta (p. ej. Claude 4.6 Thinking): la misma familia del Claude oficial
+    agy:claude-opus-*)       echo "claude-opus-5-5 medium" ;;
+    agy:claude-sonnet-*)     echo "claude-sonnet-5-5 medium" ;;
+    agy:gpt-*)               echo "claude-sonnet-5-5 medium" ;;
+    gemini-*flash*)          echo "claude-haiku-5-5 high" ;;
+    gemini-*)                echo "claude-sonnet-5-5 high" ;;
   esac
 }
-agy_hooks_json() { timeout "${PA_AGY_CHEQUEO_S:-40}" "${cuenta_env[@]}" agy -p /hooks --output-format json </dev/null 2>/dev/null; }
+# Sin las PA_AGY_* y PA_MAX_TURNS de un worker que ya corrió (armar_llamada las exporta): el chequeo de un relanzamiento ve el mismo entorno que el primero.
+agy_hooks_json() { timeout "${PA_AGY_CHEQUEO_S:-40}" env -u PA_AGY_HB -u PA_AGY_RAIZ -u PA_AGY_PPAL -u PA_AGY_RAMA -u PA_AGY_MAPA -u PA_AGY_MODO -u PA_AGY_REBASE -u PA_MAX_TURNS "${cuenta_env[@]}" agy -p /hooks --output-format json </dev/null 2>/dev/null; }
 # --- varias cuentas por proveedor -------------------------
 # Cada cuenta (bin/cuentas, ~/.config/trama/cuentas.json) tiene su carpeta de credenciales. El worker
 # corre con el entorno de SU cuenta sólo en su proceso (`env -u … CLAUDE_CONFIG_DIR=…`, o HOME para agy)
@@ -5452,8 +5465,13 @@ fi
 (( lanza )) && es_gemini "$modelo" && cuenta_resolver google
 if (( lanza )) && es_gemini "$modelo"; then
   if [[ ! "${modelo,,}" =~ ^($GEMINI_MODELOS)$ ]]; then
-    echo "pa: modelo '$modelo' no va. Modelos de agy en pa: gemini-{4-argon,3.8-flash}-{low,medium,high}, agy:claude-{opus,sonnet}-5-5-{low,medium,high} o agy:gpt-oss-120b-medium." >&2
-    exit 2
+    # el catálogo de agy cambia con la cuenta, la región y la versión: vale lo que el agy de esta cuenta ofrece (reparto --agy-modelos)
+    ofrecidos=""; [[ -x "$REPARTO" ]] && ofrecidos="$(agy_modelos_lista)" || true
+    if ! grep -qxF -- "${modelo,,}" <<<"$ofrecidos"; then
+      ofrecidos="${ofrecidos//$'\n'/ }"
+      echo "pa: modelo '$modelo' no va. Modelos de agy en pa: gemini-{4-argon,3.8-flash}-{low,medium,high}, agy:claude-{opus,sonnet}-5-5-{low,medium,high} o agy:gpt-oss-120b-medium${ofrecidos:+, y los que ofrece el agy de esta cuenta: $ofrecidos}." >&2
+      exit 2
+    fi
   fi
   modelo="${modelo,,}"
   if (( esfuerzo_flag )); then
@@ -6661,7 +6679,14 @@ dsh_sin_cupo() {
   local t; t="$(tail -c 4000 "$err" 2>/dev/null; res_texto)"
   grep -qiE 'rate.?limit|Too Many Requests|quota|FreeUsageLimit|Free usage (limit|exceeded)|cortó por límite de uso|(^|[^0-9])429([^0-9]|$)' <<<"$t"
 }
-sin_cupo_al_arrancar() { agy_sin_cupo || codex_sin_cupo || claude_sin_cupo || dsh_sin_cupo; }
+# agy no conoce el modelo (el catálogo depende de la cuenta, la región y la versión): "error: invalid model selection (--model …): model … is not
+# recognized … Available models: …". No es de cupo, pero se arregla igual: ese modelo deja de ofrecerse y se relanza con el siguiente candidato.
+agy_modelo_invalido() {
+  [[ "$motor" == agy ]] || return 1
+  local t; t="$(cat "$err" 2>/dev/null; res_texto)"
+  grep -qiE 'invalid model selection|model .* is not recognized' <<<"$t"
+}
+sin_cupo_al_arrancar() { agy_sin_cupo || agy_modelo_invalido || codex_sin_cupo || claude_sin_cupo || dsh_sin_cupo; }
 sin_trabajo_hecho() {
   [[ -z "$(git -C "$ruta_trabajo" status --porcelain 2>/dev/null)" ]] \
     && [[ "$(git -C "$ruta_trabajo" rev-list --count "${base:-HEAD}..HEAD" 2>/dev/null || echo 1)" == 0 ]]
@@ -6728,10 +6753,11 @@ cambiar_de_modelo() {   # $1 = modelo nuevo, $2 = su effort (sólo Claude)
   escribir_running
 }
 reintentos_cupo=0
-while (( reintentos_cupo < 3 )) && [[ "$SIN_CUPO" == otro && -n "$reparto_tipo_relanzable" && -x "$REPARTO" ]] \
+while (( reintentos_cupo < 3 )) && [[ -n "$reparto_tipo_relanzable" && -x "$REPARTO" ]] && { [[ "$SIN_CUPO" == otro ]] || agy_modelo_invalido; } \
       && { (( rc != 0 )) || es_error; } && sin_cupo_al_arrancar && sin_trabajo_hecho; do
   reintentos_cupo=$((reintentos_cupo+1))
-  m_ant="$modelo"; hasta_args=()
+  m_ant="$modelo"; hasta_args=(); rechazado=0
+  txt_sin="(sin cupo)"; txt_marcado="lo marqué como agotado"; txt_marco="lo marco agotado hasta que vuelva"
   if [[ "$motor" == claude ]]; then
     quien="Claude dijo límite"
     if hasta="$(epoch_reset "$(res_texto)")"; then
@@ -6742,12 +6768,21 @@ while (( reintentos_cupo < 3 )) && [[ "$SIN_CUPO" == otro && -n "$reparto_tipo_r
     quien="codex dijo sin cupo"
   elif [[ "$motor" == dsh ]]; then
     quien="$(es_opencode "$m_ant" && echo opencode || echo dsh) ($m_ant) dijo 429"
+  elif agy_modelo_invalido; then
+    quien="agy no reconoce $m_ant"; rechazado=1
+    txt_sin="(modelo que esta cuenta no ofrece)"; txt_marcado="lo dejé de ofrecer"; txt_marco="lo dejo de ofrecer ${PA_ENFRIAR_AGY_H:-24} h"
   else
     quien="agy dijo 429"
   fi
   # Se agota el grupo de ESA cuenta; el siguiente candidato es del mismo proveedor (en la misma cuenta) o de otro, nunca de otra cuenta.
   c_ant="$cuenta"; p_ant="$(proveedor_de_modelo "$m_ant")"
-  REPARTO_STATE="${REPARTO_STATE:-$STATE/reparto}" PA_STATE="$STATE" "$REPARTO" --agotar "$m_ant" "${hasta_args[@]}" ${c_ant:+--cuenta "$c_ant"} >/dev/null 2>&1 </dev/null || true
+  if (( rechazado )); then
+    # No es el cupo del grupo: ese modelo no existe en esta cuenta. Se vuelve a pedir la lista a agy y, si no contesta, queda enfriado.
+    agy_modelos_lista --refrescar >/dev/null || true
+    REPARTO_STATE="${REPARTO_STATE:-$STATE/reparto}" PA_STATE="$STATE" "$REPARTO" --enfriar "$m_ant" --horas "${PA_ENFRIAR_AGY_H:-24}" >/dev/null 2>&1 </dev/null || true
+  else
+    REPARTO_STATE="${REPARTO_STATE:-$STATE/reparto}" PA_STATE="$STATE" "$REPARTO" --agotar "$m_ant" "${hasta_args[@]}" ${c_ant:+--cuenta "$c_ant"} >/dev/null 2>&1 </dev/null || true
+  fi
   es_opencode "$m_ant" && enfriar_modelo "$m_ant"
   rep_json="$(REPARTO_STATE="${REPARTO_STATE:-$STATE/reparto}" PA_STATE="$STATE" \
     timeout "${PA_REPARTO_TIMEOUT_S:-15}" "$REPARTO" --tipo "$reparto_tipo_relanzable" ${p_ant:+--mismo-proveedor "$p_ant"} --json 2>/dev/null </dev/null)" || rep_json=""
@@ -6765,23 +6800,29 @@ while (( reintentos_cupo < 3 )) && [[ "$SIN_CUPO" == otro && -n "$reparto_tipo_r
   # Nunca de una cuenta a otra del mismo proveedor por falta de cupo: esa elección es de la persona (`cuentas preferir`, --cuenta).
   if [[ -z "$m_rep" || ( "$m_rep" == "$m_ant" && "$c_rep" == "${c_ant:-$p_ant}" ) || ( -n "$p_ant" && "$p_rep" == "$p_ant" && "$c_rep" != "${c_ant:-$p_ant}" ) ]] || es_local "$m_rep" || [[ "${m_rep,,}" != @(claude-*|gemini-*|agy:*|codex:*|dsh:*|opencode:*) ]] \
      || { ! es_dsh "$m_rep" && ! cuenta_preparar "$c_rep" "$p_rep" 2>/dev/null; }; then
-    echo "pa: $quien (sin cupo) con $m_ant, lo marqué como agotado, pero reparto no ofrece otro candidato con cupo; sigo como falló." >&2
+    echo "pa: $quien $txt_sin con $m_ant, $txt_marcado, pero reparto no ofrece otro candidato con cupo; sigo como falló." >&2
     cuenta_preparar "${c_ant:-$p_ant}" "$p_ant" 2>/dev/null || true
     break
   fi
   if es_gemini "$m_rep" || es_codex "$m_rep" || es_dsh "$m_rep"; then
     if es_codex "$m_rep"; then codex_chequear "$m_rep"; elif es_dsh "$m_rep"; then dsh_chequear "$m_rep"; else gemini_chequear "$m_rep"; fi
     if [[ -n "$motivo_cae" ]]; then
-      echo "pa: $quien (sin cupo) con $m_ant; reparto ofrece $m_rep pero no puede correr ($motivo_cae); sigo como falló." >&2
+      echo "pa: $quien $txt_sin con $m_ant; reparto ofrece $m_rep pero no puede correr ($motivo_cae); sigo como falló." >&2
       cuenta_preparar "${c_ant:-$p_ant}" "$p_ant" 2>/dev/null || true
       break
     fi
   fi
   c_txt=""; [[ "$cuenta" != "$c_ant" && "$cuenta" != claude && "$cuenta" != google && "$cuenta" != chatgpt ]] && c_txt=" (cuenta $cuenta)"
-  echo "pa: $quien (sin cupo) con $m_ant: lo marco agotado hasta que vuelva y relanzo con $m_rep${e_rep:+ effort $e_rep}$c_txt: $mot_rep" >&2
+  echo "pa: $quien $txt_sin con $m_ant: $txt_marco y relanzo con $m_rep${e_rep:+ effort $e_rep}$c_txt: $mot_rep" >&2
   cambiar_de_modelo "$m_rep" "$e_rep"
   rc=0; correr || rc=$?
 done
+
+# Un -m a mano (o sin otro candidato) que agy no reconoce: no hay a quién relanzar, pero se dice qué ofrece esta cuenta y la próxima vez ya se sabe.
+if [[ "$motor" == agy ]] && { (( rc != 0 )) || es_error; } && agy_modelo_invalido; then
+  ofrecidos="$(agy_modelos_lista --refrescar | paste -sd' ' -)"
+  echo "pa: agy no reconoce el modelo '$modelo' en esta cuenta${ofrecidos:+; ofrece: $ofrecidos}. Usá uno de ésos con -m, o sin -m para que reparto elija." >&2
+fi
 
 # --async con -m a,b,c: un corte de OpenCode (97) pasa al siguiente de la lista EN ESTA corrida: mismo id y mismo puesto, así que
 # el .listo (el trap de EXIT) trae el resultado del último intento y `--esperar` lo entrega. Sólo si el intento que cortó no dejó

@@ -4,7 +4,7 @@
 // Sólo corre Claude: si el candidato es de agy, codex o dsh, el pa de TypeScript lo dice y sigue como si reparto no hubiera ofrecido
 // otro (el bash cambia de motor; eso es de quien porte esos motores).
 import { randomUUID } from "node:crypto";
-import { existsSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { correr } from "../base/proc.ts";
 import { git } from "../base/git.ts";
@@ -16,6 +16,7 @@ import { Modelos, esCodex, esDsh, esGemini, esLocal } from "./modelos.ts";
 import { cuentaProveedor, modeloFlojo, proveedorDe, type DepsPolitica, type Llamada } from "./politica.ts";
 import type { Admision } from "./puestos.ts";
 import { cuentasProceso, prefijoDe, repartoProceso, topeReparto } from "./programas.ts";
+import { motoresDe } from "./otros-motores.ts";
 import { leerSalida, epochReset, textoResultado } from "./resultado-lanzar.ts";
 
 const dormirMs = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
@@ -117,12 +118,74 @@ async function prepararCuenta(pa: Pa, id: string, prov: string): Promise<{ cuent
 /** `claude_sin_cupo`: el texto del result habla de un límite de uso. */
 export const claudeSinCupo = (texto: string) => /session limit|usage limit|weekly limit|hit your limit|rate.?limit|(^|[^0-9])429([^0-9]|$)/i.test(texto);
 
+/** `agy_modelo_invalido`: agy no conoce el modelo (el catálogo depende de la cuenta, la región y la versión). */
+export const agyModeloInvalido = (texto: string) => /invalid model selection|model .* is not recognized/i.test(texto);
+
 /** `sin_trabajo_hecho`: el worktree está limpio y no hay commits sobre la base. */
 async function sinTrabajoHecho(pa: Pa, c: Corrida): Promise<boolean> {
   const s = await git(["-C", c.rutaTrabajo, "status", "--porcelain"], { env: pa.env });
   if (s.codigo !== 0 || s.salida.replace(/\n+$/, "") !== "") return false;
   const n = await git(["-C", c.rutaTrabajo, "rev-list", "--count", `${c.base || "HEAD"}..HEAD`], { env: pa.env });
   return (n.codigo === 0 ? n.salida.replace(/\n+$/, "") : "1") === "0";
+}
+
+/**
+ * El `elif agy_modelo_invalido` del `while` de motor/bin/pa: agy rechazó el modelo (no existe en esta cuenta). No es el cupo del grupo: se vuelve a
+ * pedir la lista a agy (`reparto --agy-modelos --refrescar`), ese modelo queda enfriado PA_ENFRIAR_AGY_H horas (24) y, si lo había elegido reparto
+ * y no se hizo trabajo, se relanza con el siguiente candidato de agy (el mismo motor y la misma cuenta). null = no es este caso.
+ */
+async function relanzarPorModeloAgy(pa: Pa, l: Llamada, lz: Lanzamiento): Promise<boolean | null> {
+  const c = lz.c;
+  if (c.motor !== "agy") return null;
+  let err = "";
+  try {
+    err = readFileSync(lz.err, "utf8");
+  } catch {
+    /* sin stderr */
+  }
+  if (!agyModeloInvalido(`${err}\n${textoResultado(leerSalida(lz.out))}`)) return null;
+  const { io } = pa;
+  const mAnt = c.modelo;
+  const quien = `agy no reconoce ${mAnt}`;
+  const cuentaAgy = c.cuenta && !["claude", "google", "chatgpt"].includes(c.cuenta) ? ["--cuenta", c.cuenta] : [];
+  const tipo = l.repartoTipoRelanzable;
+  const avisoOfrece = async () => {
+    const r = await reparto(pa, ["--agy-modelos", "--refrescar", ...cuentaAgy], true);
+    const ofrecidos = r.rc === 0 ? r.salida.split("\n").filter((x) => x !== "").join(" ") : "";
+    io.err(`pa: agy no reconoce el modelo '${mAnt}' en esta cuenta${ofrecidos ? `; ofrece: ${ofrecidos}` : ""}. Usá uno de ésos con -m, o sin -m para que reparto elija.\n`);
+    return false;
+  };
+  if (!tipo || !comandoReparto(pa) || !(await sinTrabajoHecho(pa, c))) return avisoOfrece();
+  await reparto(pa, ["--agy-modelos", "--refrescar", ...cuentaAgy], true);
+  await reparto(pa, ["--enfriar", mAnt, "--horas", pa.env.PA_ENFRIAR_AGY_H || "24"], true);
+  const pAnt = proveedorDe(mAnt);
+  const r = await reparto(pa, ["--tipo", tipo, ...(pAnt ? ["--mismo-proveedor", pAnt] : []), "--json"], true);
+  const cand = r.rc === 0 ? candidatoDe(r.salida) : candidatoDe("");
+  const mRep = cand.todoLleno ? "" : cand.modelo.toLowerCase();
+  if (!mRep || mRep === mAnt || !esGemini(mRep)) {
+    if (mRep && mRep !== mAnt)
+      io.err(`pa: ${quien} (modelo que esta cuenta no ofrece) con ${mAnt}; reparto ofrece ${mRep}, pero este pa de TypeScript sólo relanza dentro de agy; sigo como falló.\n`);
+    else io.err(`pa: ${quien} (modelo que esta cuenta no ofrece) con ${mAnt}, lo dejé de ofrecer, pero reparto no ofrece otro candidato con cupo; sigo como falló.\n`);
+    return avisoOfrece();
+  }
+  // el siguiente candidato pasa por los mismos candados que el primero (privacidad, agy en el PATH, el plugin pa-worker)
+  const motivo = (await motoresDe(pa).chequearGemini?.(mRep, l)) ?? "";
+  if (motivo) {
+    io.err(`pa: ${quien} (modelo que esta cuenta no ofrece) con ${mAnt}; reparto ofrece ${mRep} pero no puede correr (${motivo}); sigo como falló.\n`);
+    return avisoOfrece();
+  }
+  io.err(`pa: ${quien} (modelo que esta cuenta no ofrece) con ${mAnt}: lo dejo de ofrecer ${pa.env.PA_ENFRIAR_AGY_H || "24"} h y relanzo con ${mRep}: ${cand.motivo}\n`);
+  // cambiar_de_modelo (agy): el mismo motor y la misma cuenta; sólo cambia el modelo (el effort va en el nombre).
+  c.modelo = mRep;
+  c.esfuerzo = "";
+  if (!c.leer) c.modeloFlojo = (await modeloFlojo(pa, { reparto: repartoProceso(pa) } as DepsPolitica, mRep)) !== null;
+  lz.contrato = contratoClaude(pa, c);
+  if (existsSync(path.join(lz.dir, `${c.ts}.hilo`))) {
+    await hiloPoner(lz.dir, c.ts, "modelo", mRep);
+    await hiloPoner(lz.dir, c.ts, "effort", "-");
+    await hiloPoner(lz.dir, c.ts, "cuenta", c.cuenta);
+  }
+  return true;
 }
 
 const iso = (ep: number) => new Date(ep * 1000).toISOString().replace(/\.\d+Z$/, "Z");
@@ -134,6 +197,8 @@ const iso = (ep: number) => new Date(ep * 1000).toISOString().replace(/\.\d+Z$/,
  */
 export function relanzarPorCupo(pa: Pa, l: Llamada): NonNullable<Ganchos["relanzarPorCupo"]> {
   return async (lz: Lanzamiento) => {
+    const rechazo = await relanzarPorModeloAgy(pa, l, lz);
+    if (rechazo !== null) return rechazo;
     const tipo = l.repartoTipoRelanzable;
     if (l.politica.sinCupo !== "otro" || !tipo || !comandoReparto(pa)) return false;
     const c = lz.c;

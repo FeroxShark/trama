@@ -19,6 +19,8 @@ export interface Reparto {
   enfriar?(modelo: string, horas?: string): Promise<void>;
   /** `reparto --tipo T [--cuenta C] --json` (con REPARTO_RESERVAR=1 si `reservar`). rc 124/137 = venció el tope, 127 = no está. */
   elegir(tipo: string, o?: { reservar?: boolean; sinDsh?: boolean; cuenta?: string; noDisponible?: string[] }): Promise<{ rc: number; salida: string }>;
+  /** `reparto --agy-modelos [--refrescar] [--cuenta C]`: los modelos (con el id de pa) que ofrece el agy de esta cuenta, o null si no se sabe. Opcional: los falsos de los tests no lo tienen. */
+  agyModelos?(o?: { refrescar?: boolean; cuenta?: string }): Promise<string[] | null>;
   /** `reparto --tabla --json` ("" si falla). */
   tabla(): Promise<string>;
   /** `reparto --cuenta-para <m>` ("" si falla). */
@@ -74,6 +76,10 @@ export function repartoProceso(pa: Pa): Reparto {
       if (o.reservar) extra.REPARTO_NO_DISPONIBLE = (o.noDisponible ?? []).join(",");
       const r = await llamar(["--tipo", tipo, ...(o.cuenta ? ["--cuenta", o.cuenta] : []), "--json"], extra);
       return { rc: r.codigo, salida: recortar(r.salida) };
+    },
+    async agyModelos(o = {}) {
+      const r = await llamar(["--agy-modelos", ...(o.refrescar ? ["--refrescar"] : []), ...(o.cuenta ? ["--cuenta", o.cuenta] : [])]);
+      return r.codigo === 0 ? recortar(r.salida).split("\n").filter((x) => x !== "") : null;
     },
     async tabla() {
       const r = await llamar(["--tabla", "--json"]);

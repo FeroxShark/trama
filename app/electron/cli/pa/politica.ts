@@ -147,6 +147,12 @@ export function geminiEquivalente(m: string): [string, string] {
   if (m.startsWith("agy:claude-opus-5-5-")) return ["claude-opus-5-5", e];
   if (m.startsWith("agy:claude-sonnet-5-5-")) return ["claude-sonnet-5-5", e];
   if (m.startsWith("agy:gpt-oss-120b-")) return ["claude-sonnet-5-5", "medium"];
+  // modelos que sólo ofrece el agy de esa cuenta (p. ej. Claude 4.6 Thinking): la misma familia del Claude oficial
+  if (m.startsWith("agy:claude-opus-")) return ["claude-opus-5-5", "medium"];
+  if (m.startsWith("agy:claude-sonnet-")) return ["claude-sonnet-5-5", "medium"];
+  if (m.startsWith("agy:gpt-")) return ["claude-sonnet-5-5", "medium"];
+  if (m.startsWith("gemini-") && m.includes("flash")) return ["claude-haiku-5-5", "high"];
+  if (m.startsWith("gemini-")) return ["claude-sonnet-5-5", "high"];
   return ["", ""];
 }
 
@@ -545,12 +551,17 @@ export async function aplicarPolitica(l: Llamada, pa: Pa, deps: DepsPolitica): P
   }
   if (l.lanza && esGemini(l.modelo)) await cuentaResolver("google", l, pa, deps);
   if (l.lanza && esGemini(l.modelo)) {
-    if (!calza(GEMINI_MODELOS, l.modelo.toLowerCase()))
-      corta(
-        pa,
-        2,
-        `pa: modelo '${l.modelo}' no va. Modelos de agy en pa: gemini-{4-argon,3.8-flash}-{low,medium,high}, agy:claude-{opus,sonnet}-5-5-{low,medium,high} o agy:gpt-oss-120b-medium.`,
-      );
+    if (!calza(GEMINI_MODELOS, l.modelo.toLowerCase())) {
+      // el catálogo de agy cambia con la cuenta, la región y la versión: vale lo que el agy de esta cuenta ofrece (reparto --agy-modelos)
+      const cuentaAgy = l.cuentaUsada && !["claude", "google", "chatgpt"].includes(l.cuentaUsada) ? l.cuentaUsada : undefined;
+      const ofrecidos = (await deps.reparto.agyModelos?.({ cuenta: cuentaAgy })) ?? [];
+      if (!ofrecidos.includes(l.modelo.toLowerCase()))
+        corta(
+          pa,
+          2,
+          `pa: modelo '${l.modelo}' no va. Modelos de agy en pa: gemini-{4-argon,3.8-flash}-{low,medium,high}, agy:claude-{opus,sonnet}-5-5-{low,medium,high} o agy:gpt-oss-120b-medium${ofrecidos.length ? `, y los que ofrece el agy de esta cuenta: ${ofrecidos.join(" ")}` : ""}.`,
+        );
+    }
     l.modelo = l.modelo.toLowerCase();
     if (l.esfuerzoFlag) corta(pa, 2, `pa: --effort no va con '${l.modelo}': en agy el effort es parte del nombre (…-low, …-medium, …-high).`);
     sacarEffort();

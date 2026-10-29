@@ -2,7 +2,7 @@
 // agy, codex, opencode y dsh falsos para los casos de paridad de lanzar con otros motores (casos-motores-lanzar.ts). Se llama
 // `node otro-falso.mjs <programa> args…` desde un shim con el nombre del programa. Anota en TRAMA_FALSO_LOG (como claude-falso.mjs)
 // el argv, el cwd, el entorno que le interesa a pa y, de opencode y dsh, la tarea que reciben por stdin; y contesta según
-// FALSO_MODO: "ok" (default, un RESULTADO completo), "cupo" (429 / límite de uso), "sin-login" (codex sin sesión), "sin-hooks" (agy sin plugin).
+// FALSO_MODO: "ok" (default, un RESULTADO completo), "cupo" (429 / límite de uso), "sin-login" (codex sin sesión), "sin-hooks" (agy sin plugin), "modelo-malo" (agy rechaza los Claude 5.5).
 import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
@@ -40,6 +40,12 @@ if (prog === "agy") {
     if (modo === "sin-hooks") process.stdout.write(JSON.stringify({ command: { data: { hooks: [] } } }));
     else process.stdout.write(JSON.stringify({ command: { data: { hooks: [{ name: "pa-worker", enabled: true, actions: [{ event: "PreToolUse" }] }] } } }));
     process.exit(0);
+  }
+  // "modelo-malo": el agy de esta cuenta no ofrece los Claude 5.5 (una cuenta de otra región/versión) y rechaza el modelo antes de arrancar
+  const modeloPedido = val("--model") ?? "";
+  if (modo === "modelo-malo" && /^claude-(sonnet|opus)-5-5-/.test(modeloPedido)) {
+    process.stderr.write(`error: invalid model selection (--model "${modeloPedido}" --effort ""): model ${modeloPedido} is not recognized\nAvailable models: Gemini 3.8 Flash (High/Medium/Low), Claude Sonnet 4.6 (Thinking), Claude Opus 4.6 (Thinking), GPT-OSS 120B (Medium)\n`);
+    process.exit(1);
   }
   if (modo === "cupo") {
     process.stderr.write("RESOURCE_EXHAUSTED: Individual quota reached\n");

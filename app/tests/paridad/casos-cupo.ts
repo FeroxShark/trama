@@ -26,6 +26,8 @@ case "$1" in
 esac
 echo "$* [$REPARTO_NO_DISPONIBLE]" >> "$PA_STATE/reparto-llamadas.txt"
 case "$1" in
+  --agy-modelos) cat "$REPARTO_DIR/agy-modelos" 2>/dev/null || exit 1 ;;
+  --enfriar) exit 0 ;;
   --tipo)
     n=$(cat "$REPARTO_DIR/n" 2>/dev/null || echo 0); n=$((n+1)); echo "$n" > "$REPARTO_DIR/n"
     l=$(sed -n "\${n}p" "$REPARTO_DIR/respuestas")
@@ -54,6 +56,11 @@ const conAgyFalso = (c: Contexto) => {
   const shim = path.join(c.raiz, "shim", "agy");
   writeFileSync(shim, `#!/bin/sh\nexec "${process.execPath}" "${FALSO}" agy "$@"\n`);
   chmodSync(shim, 0o755);
+};
+/** agy falso que rechaza los Claude 5.5, y lo que lista `reparto --agy-modelos` para esa cuenta. */
+const conAgySinClaude55 = (c: Contexto) => {
+  conAgyFalso(c);
+  writeFileSync(path.join(c.aux, "agy-modelos"), "gemini-3.8-flash-high\nagy:claude-sonnet-4-6-thinking\nagy:claude-opus-4-6-thinking\nagy:gpt-oss-120b-medium\n");
 };
 /** El límite de sesión de la cuenta de siempre, ya conocido (hasta el año 2100). */
 const conLimiteConocido = (c: Contexto) => writeFileSync(path.join(c.estado, "limite.hasta"), "4102444800");
@@ -131,6 +138,36 @@ export const casosCupo: Caso[] = [
     env: { FALSO_MODO: "sin-hooks" },
     antes: conAgyFalso,
     pasos: [lanzar(0)],
+  }),
+  // agy no conoce el modelo que eligió reparto (el catálogo cambia con la cuenta): se pide la lista de nuevo, se enfría ese modelo y se relanza con el siguiente
+  caso("agy rechaza el modelo: reparto da el siguiente (uno que sólo ofrece esa cuenta) y se relanza", {
+    respuestas: [
+      { modelo: "agy:claude-sonnet-5-5-medium", effort: "", motivo: "el que alcanza" },
+      { modelo: "agy:claude-sonnet-4-6-thinking", effort: "", motivo: "el que queda" },
+    ],
+    guion: [ok(BLOQUE)],
+    env: { FALSO_MODO: "modelo-malo" },
+    antes: conAgySinClaude55,
+    pasos: [lanzar(0)],
+  }),
+  caso("agy rechaza el modelo y reparto no ofrece otro: sale 1 y dice qué ofrece la cuenta", {
+    respuestas: [{ modelo: "agy:claude-sonnet-5-5-medium", effort: "", motivo: "el que alcanza" }],
+    guion: [ok(BLOQUE)],
+    env: { FALSO_MODO: "modelo-malo" },
+    antes: conAgySinClaude55,
+    pasos: [lanzar(1)],
+  }),
+  caso("agy de otra cuenta: un -m que sólo ofrece esa cuenta se acepta", {
+    respuestas: [SONNET],
+    guion: [ok(BLOQUE)],
+    antes: conAgySinClaude55,
+    pasos: [{ args: ["demo", "--sin-jefe", "-m", "agy:claude-sonnet-4-6-thinking", BRIEF], rc: 0 }],
+  }),
+  caso("agy de otra cuenta: un -m que esa cuenta no ofrece sale 2 con la lista", {
+    respuestas: [SONNET],
+    guion: [ok(BLOQUE)],
+    antes: conAgySinClaude55,
+    pasos: [{ args: ["demo", "--sin-jefe", "-m", "agy:claude-sonnet-9-9-thinking", BRIEF], rc: 2 }],
   }),
   caso("límite de la cuenta ya conocido: reparto da el siguiente sin Claude; si no hay, sale 76 sin lanzar", {
     respuestas: [SONNET, HAIKU],
