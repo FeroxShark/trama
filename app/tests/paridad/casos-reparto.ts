@@ -109,6 +109,23 @@ const rpPasos = (nombre: string, pasos: [string[], number][], o: Opciones = {}):
   estadoIgnorar: o.estadoIgnorar,
 });
 
+/** `--opencode-limite`: la salida de OpenCode llega por stdin. */
+const rpStdin = (nombre: string, stdin: string, rc: number, o: Opciones = {}): Caso => ({
+  herramienta: "reparto",
+  nombre: `reparto: ${nombre}`,
+  pasos: [{ args: ["--opencode-limite"], stdin, rc }],
+  preparar: preparar(o),
+  env: entornoDe(o),
+  estadoIgnorar: o.estadoIgnorar,
+});
+
+/** Un `opencode` falso de shell para `--sondear-opencode`: `models` lista un gratis; `run` dice `respuesta` (por stderr si `error`). */
+const opencodeFalso = (respuesta: string, error: boolean) => (c: Contexto) => {
+  const salida = error ? `echo "${respuesta}" >&2` : `echo "${respuesta}"`;
+  escribir(path.join(c.aux, "opencode-falso"), `#!/bin/sh\nif [ "$1" = models ]; then echo opencode/big-pickle; exit 0; fi\n${salida}\nexit ${error ? 1 : 0}\n`, 0o755);
+};
+const conOpencodeFalso = (c: Contexto) => ({ HILOS_OPENCODE: path.join(c.aux, "opencode-falso") });
+
 /** Marcas de agotado, de enfriado y un plan ya guardados (con entradas vencidas que no cuentan). */
 const conMarcas = (c: Contexto) => {
   escribir(path.join(c.estado, "agotado.json"), {
@@ -306,6 +323,14 @@ export const casosReparto: Caso[] = [
   rp("--cuenta-para agy", ["--cuenta-para", "agy:claude-opus-5-5-high"], 0, { cupos: CUPOS_RAROS, preparar: conMarcas }),
   rp("--cuenta-para codex", ["--cuenta-para", "codex:gpt-6-luna-high", "--json"], 0),
   rp("--cuenta-para algo sin cuenta", ["--cuenta-para", "x"], 1),
+
+  // OpenCode cortó: el límite gratis por stdin, y el sondeo a mano
+  rpStdin("--opencode-limite con el límite gratis", "Error: Free usage limit reached. Connect a provider or subscribe to OpenCode Go.\n", 0),
+  rpStdin("--opencode-limite con retrying in N", "Free usage exceeded, retrying in 90m\n", 0),
+  rpStdin("--opencode-limite con un 429 no toca nada", "Too Many Requests: 429\n", 1),
+  rp("--sondear-opencode con el límite gratis", ["--sondear-opencode"], 0, { preparar: opencodeFalso("Error: Free usage limit reached.", true), env: conOpencodeFalso }),
+  rp("--sondear-opencode que contesta no toca el grupo", ["--sondear-opencode"], 1, { preparar: opencodeFalso("OK", false), env: conOpencodeFalso }),
+  rp("--sondear-opencode sin opencode", ["--sondear-opencode"], 2, { env: (c) => ({ HILOS_OPENCODE: path.join(c.aux, "no-hay-opencode") }) }),
 
   // umbrales de modelos.json
   ...casosModelos,
