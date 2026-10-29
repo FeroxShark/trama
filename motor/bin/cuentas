@@ -217,16 +217,77 @@ def asegurar_links(c):
         pass
     except OSError as e:
         err("no pude marcar %s: %s" % (c["dir"], e))
+    if c["proveedor"] == "claude":
+        os.makedirs(os.path.join(home_real(), ".claude", "projects"), exist_ok=True)  # los transcripts siempre en el de siempre
     for src, dst in LINKS[c["proveedor"]]:
         s = os.path.join(home_real(), src)
         t = os.path.join(c["dir"], dst)
-        if not os.path.lexists(s) or os.path.lexists(t):
+        if os.path.lexists(t):
+            if os.path.isdir(t) and not os.path.islink(t):
+                unir_carpeta_propia(c, s, t)
+            continue
+        if not os.path.lexists(s):
             continue
         os.makedirs(os.path.dirname(t), exist_ok=True)
         try:
             os.symlink(s, t)
         except OSError as e:
             err("no pude enlazar %s: %s" % (t, e))
+
+
+def _mismo_contenido(a, b):
+    try:
+        return os.path.isfile(a) and os.path.isfile(b) and os.path.getsize(a) == os.path.getsize(b) and open(a, "rb").read() == open(b, "rb").read()
+    except OSError:
+        return False
+
+
+def _unir_carpetas(a, b, rel=""):
+    """Pasa lo de la carpeta a a la b sólo donde b no lo tiene. Devuelve lo que no se pudo mover (rutas relativas)."""
+    pendientes = []
+    for n in os.listdir(a):
+        pa, pb = os.path.join(a, n), os.path.join(b, n)
+        r = rel + "/" + n if rel else n
+        try:
+            if not os.path.lexists(pb):
+                shutil.move(pa, pb)
+            elif os.path.isdir(pa) and not os.path.islink(pa) and os.path.isdir(pb) and not os.path.islink(pb):
+                pendientes += _unir_carpetas(pa, pb, r)
+                try:
+                    os.rmdir(pa)  # sólo si quedó vacía
+                except OSError:
+                    pass
+            elif _mismo_contenido(pa, pb):
+                os.unlink(pa)  # el mismo contenido ya está allá: no se pierde nada
+            else:
+                pendientes.append(r)
+        except OSError:
+            pendientes.append(r)
+    return pendientes
+
+
+def unir_carpeta_propia(c, s, t):
+    """La cuenta tiene carpeta propia donde debería haber un enlace (Claude la crea sola si no estaba): NO se borra nada. Lo que tiene
+    se mueve a la de ~/.claude sólo donde allá no existe y recién ahí la carpeta, ya vacía, pasa a ser el enlace. Lo que no se pueda
+    mover queda donde está y se avisa."""
+    try:
+        if not os.path.lexists(s):
+            os.makedirs(os.path.dirname(s), exist_ok=True)
+            shutil.move(t, s)
+            pendientes = []
+        elif os.path.isdir(s):
+            pendientes = _unir_carpetas(t, s)
+        else:
+            err("%s: %s no es una carpeta: dejo %s como está" % (c["id"], s, t))
+            return
+        if pendientes:
+            err("%s: %s sigue siendo propia: %d cosa(s) no se pudieron mover a %s (por ej. %s); no se borró nada" % (c["id"], t, len(pendientes), s, pendientes[0]))
+            return
+        if os.path.lexists(t):
+            os.rmdir(t)
+        os.symlink(s, t)
+    except OSError as e:
+        err("%s: no pude enlazar %s: %s" % (c["id"], t, e))
 
 
 def entorno(c):
