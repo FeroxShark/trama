@@ -287,6 +287,35 @@ try {
         ok(c.length === 0, `${ancho}: en el chat todo lo que se toca mide para el dedo${c.length ? `: ${c.join(" | ")}` : ""}`);
         await a.foto(`${ancho}-chat`);
 
+        // Las acciones de un mensaje, con el dedo: tocarlo abre su fila debajo (sin tapar el texto) y tocar fuera la cierra.
+        const ultimo = await a.en(() => {
+          // El último mensaje (el que sigue a la última fila de acciones): puede haber otros avisos debajo, sin fila.
+          const m = [...document.querySelectorAll(".conv > .am")].at(-1)?.previousElementSibling;
+          if (!m) return null;
+          m.scrollIntoView({ block: "center" });
+          const r = m.getBoundingClientRect();
+          return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
+        });
+        if (ultimo) {
+          await a.tocarEn(ultimo.x, ultimo.y);
+          ok(await a.hasta(() => !!document.querySelector(".conv > .am[data-sobre]"), "fila"), `${ancho}: tocar un mensaje abre su fila de acciones`);
+          // La fila se muestra con una transición de 120 ms (opacity).
+          await espera(250);
+          const fila = await a.en(() => {
+            const am = document.querySelector(".conv > .am[data-sobre]");
+            const m = am?.previousElementSibling;
+            if (!am || !m) return null;
+            const f = am.querySelector(".am-fila");
+            return { visible: getComputedStyle(f).opacity === "1", debajo: Math.round(f.getBoundingClientRect().top) >= Math.round(m.getBoundingClientRect().bottom) - 1 };
+          });
+          ok(fila?.visible && fila.debajo, `${ancho}: la fila se ve debajo del mensaje, sin tapar su texto (${JSON.stringify(fila)})`);
+          d = await a.en(desbordes);
+          ok(d.length === 0, `${ancho}: con la fila abierta nada se sale de la pantalla${d.length ? `: ${d.join(" | ")}` : ""}`);
+          await a.foto(`${ancho}-chat-fila`);
+          await a.en(() => document.querySelector(".cab").dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, pointerType: "touch" })));
+          ok(await a.en(() => !document.querySelector(".am[data-sobre]")), `${ancho}: tocar fuera de la conversación cierra la fila`);
+        }
+
         // Los menús de la caja entran en la pantalla.
         if (await a.tocar(".caja .pick > .pbtn")) {
           await a.hasta(() => !!document.querySelector(".caja .menu"), "menú del modelo");
