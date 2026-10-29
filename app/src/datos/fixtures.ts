@@ -104,6 +104,7 @@ export const HILOS: RespuestaHilos = {
       effort: "max",
       inicio: AHORA - 4 * MIN - 12,
       puesto: "2",
+      espera_s: 186,
       ...cache(HORA, 58 * MIN),
     }),
     hilo({
