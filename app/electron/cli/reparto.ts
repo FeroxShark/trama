@@ -2507,6 +2507,12 @@ function armarCandidatos(tipo: string, cfg: Obj, cupos: Obj, now: Date, effort: 
       cand.descartado_por = `dijo sin cupo (429): vuelve ${agot[gid]}`;
       cand.vuelve = agot[gid];
     }
+    if (prov === "opencode-prog" && gid in agot) {
+      // el límite gratis es de toda la cuenta: figura sin cupo aunque otra regla ya lo haya descartado
+      cand.cupo_libre = 0;
+      cand.vuelve = agot[gid];
+      cand.agotado_grupo = true;
+    }
     const util = utilDe(Number(calidad), minimo);
     cand.carga = get(carga, gid, 0);
     const costo = -cfg.peso_costo * (esGo ? get(cfg.costo, "opencode-go", COSTO_GO) : get(cfg.costo, "dsh-pago", COSTO_DSH_PAGO));
@@ -2877,7 +2883,7 @@ function tabla(cfg: Obj, cupos: Obj, now: Date): Obj[] {
       gratis, ...(verdad(get(c, "plan_go")) ? { plan: c.plan_go, go: goTopes(cfg, c.modelo) } : {}),
       cupo_libre: c.cupo_libre, vuelve: c.vuelve, ventanas: get(c, "ventanas", []),
       urgencia: get(c, "urgencia", 0.0), permitido: !x, excluido_por: x,
-      agotado: verdad(c.descartado_por) && ["dijo sin cupo", "Claude dijo", "ventana"].some((p) => c.descartado_por.startsWith(p)),
+      agotado: verdad(get(c, "agotado_grupo")) || (verdad(c.descartado_por) && ["dijo sin cupo", "Claude dijo", "ventana"].some((p) => c.descartado_por.startsWith(p))),
     };
     conFloat(fila, "urgencia");
     marcarSi(fila, "cupo_libre", esFloat(c, "cupo_libre"));
@@ -3202,7 +3208,10 @@ export async function main(argv: string[]): Promise<number> {
   if (a[0] === "--opencode-limite" && a.length === 1) return agotarGratisOpencode(await leerStdin(), cfg, now);
   if (a[0] === "--sondear-opencode" && a.length === 1) return sondearOpencode(cfg, now);
   if (a[0] === "--enfriado" && a.length === 2) {
-    const hasta = leerEnfriados(stateDir(), now)[a[1]!.trim().toLowerCase()];
+    const mid = a[1]!.trim().toLowerCase();
+    let hasta = leerEnfriados(stateDir(), now)[mid];
+    // el límite gratis es de toda la cuenta: un gratis de OpenCode figura enfriado por el grupo
+    if (!hasta && grupoDeModelo(mid) === "opencode-free") hasta = leerAgotados(stateDir(), now)["opencode-free"];
     if (hasta) console.log(hasta);
     return hasta ? 0 : 1;
   }
