@@ -217,7 +217,7 @@ export function deVariante(v: string | null | undefined): CatId | null {
   if (v === "celular") return "celular";
   if (v.startsWith("dsh")) return "dsh";
   if (v.startsWith("oc-") || v.startsWith("nim")) return "opencode";
-  if (v.startsWith("mcp")) return "conectores";
+  if (v.startsWith("mcp") || v.startsWith("plugins")) return "conectores";
   if (v.startsWith("mdl") || v === "sinmdl" || v === "modelo" || v === "dictado") return "modelos";
   if (v.startsWith("proyectos")) return "proyectos";
   if (v.startsWith("guia")) return "guia";
