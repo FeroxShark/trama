@@ -183,6 +183,14 @@ function entorno(c: Contexto, extra: Record<string, string> = {}): NodeJS.Proces
   };
 }
 
+/** medicion.tsv: `duration_s` es el tiempo real del caso (0 o 1 s según la carga de la máquina); se marca fijo para que no flaquee. */
+function sinDuracion(tsv: string): string {
+  const [cab = "", ...filas] = tsv.split("\n");
+  const i = cab.split("\t").indexOf("duration_s");
+  if (i < 0) return tsv;
+  return [cab, ...filas.map((f) => (f ? f.split("\t").map((c, j) => (j === i ? "<N>" : c)).join("\t") : f))].join("\n");
+}
+
 function recolectarEstado(dir: string, ignorar: RegExp[], r: Raices): Record<string, string> {
   const salida: Record<string, string> = {};
   const caminar = (d: string, rel: string) => {
@@ -193,7 +201,10 @@ function recolectarEstado(dir: string, ignorar: RegExp[], r: Raices): Record<str
       const st = statSync(abs);
       if (st.isDirectory()) caminar(abs, rr);
       else if (/\.pid$/.test(nombre)) salida[normalizar(rr, r)] = "<PID>";
-      else if (st.size <= 256 * 1024) salida[normalizar(rr, r)] = normalizar(readFileSync(abs, "utf8"), r);
+      else if (st.size <= 256 * 1024) {
+        const texto = normalizar(readFileSync(abs, "utf8"), r);
+        salida[normalizar(rr, r)] = rr === "medicion.tsv" ? sinDuracion(texto) : texto;
+      }
     }
   };
   if (existsSync(dir)) caminar(dir, "");
