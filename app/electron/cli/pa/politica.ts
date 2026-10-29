@@ -4,7 +4,9 @@
 // plugin, codex y su login, dsh, el servidor de Ollama) son de la etapa 10: entran por `Motores`.
 import { readFileSync, statSync } from "node:fs";
 import path from "node:path";
+import { ahoraS, leerTexto } from "./corridas.ts";
 import { salir, conDueno, type Pa } from "./entorno.ts";
+import { limiteDe } from "./lanzar.ts";
 import {
   CODEX_MODELOS, DSH_MODELOS, GEMINI_MODELOS, OC_MODELOS, TIPOS_VALIDOS, calza, esCodex, esDsh, esGemini, esLocal, esOpencode,
   type Modelos, type Politica,
@@ -45,6 +47,8 @@ export interface Llamada extends Opciones {
   /** "-" para medicion.tsv y el .hilo cuando el motor no tiene effort aparte. */
   efVacio: string;
   politica: Politica;
+  /** El modelo (en minúsculas) que el pre-chequeo de lo que eligió reparto ya dio por bueno: el bloque de su motor no lo chequea otra vez. */
+  chequeado: string;
   /** ¿El effort lo pidió alguien (flag, entorno, modelos.json, reparto, rúbrica) o lo puso el default de pa? */
   esfPedido: boolean;
   /** ¿Modelo de poca inteligencia? (lo calcula cli.ts antes de lanzar). */
@@ -73,6 +77,7 @@ export function llamadaDe(o: Opciones): Llamada {
     localModelo: "",
     efVacio: "",
     politica: { sinCupo: "otro", sinCupoDe: "default", permitirMax: false },
+    chequeado: "",
     esfPedido: false,
   };
 }
@@ -369,10 +374,56 @@ export async function aplicarPolitica(l: Llamada, pa: Pa, deps: DepsPolitica): P
   // Sin -m, si reparto está en auto, reparto elige modelo y effort según calidad y cupo libre. Con --seguir se conserva el modelo
   // de la corrida que se retoma. Si reparto falla o vence el tope, cae a modelos.json o al default.
   l.modeloPedido = l.modelo;
+  const esf0 = { esfuerzo: l.esfuerzo, flag: l.esfuerzoFlag, env: env.PA_EFFORT };
   l.repartoTipoRelanzable = env.PA_REPARTO_TIPO ?? "";
   delete env.PA_REPARTO_TIPO;
   l.repartoEsperar = !!env.PA_REPARTO_ESPERAR;
   delete env.PA_REPARTO_ESPERAR;
+  /** Pide a reparto el modelo y el effort y aplica lo que contesta; true si dio un modelo. `noDisp`: lo que pa sabe que ahora no sirve (REPARTO_NO_DISPONIBLE). */
+  const elegirConReparto = async (tipoRep: string, noDisp: string[]): Promise<boolean> => {
+    const r = reparto.ejecutable() ? await reparto.elegir(tipoRep, { reservar: true, sinDsh: l.leer, cuenta: l.cuenta, noDisponible: noDisp }) : { rc: 127, salida: "" };
+    l.repJson = r.salida;
+    const j = r.rc === 0 && r.salida ? json(r.salida) : null;
+    const mRep = j ? texto(j.modelo) : "";
+    const eRep = j ? texto(j.effort) : "";
+    const motRep = j ? texto(j.motivo).replace(/[\r\n\t|]+/g, " ") : "";
+    if (mRep) {
+      l.modelo = mRep;
+      l.vinoDeReparto = true;
+      l.repartoTipoRelanzable = tipoRep;
+      const m = l.modelo;
+      if (eRep && !esGemini(m) && !esCodex(m) && !esLocal(m) && !esDsh(m) && !l.esfuerzo) ponerEffort(eRep);
+      const suf = /^(.*)-(low|medium|high)$/.exec(l.modelo);
+      if (l.esfuerzoFlag && (esGemini(m) || esCodex(m)) && suf && /^(low|medium|high)$/.test(l.esfuerzo.toLowerCase())) {
+        const base = suf[1]!;
+        l.modelo = base === "agy:gpt-oss-120b" ? `${base}-medium` : `${base}-${l.esfuerzo.toLowerCase()}`;
+        l.esfuerzoFlag = false;
+        sacarEffort();
+      }
+      io.err(`pa: reparto (${tipoRep}) → ${l.modelo}${conEffort()}: ${motRep}\n`);
+      // Todo lleno: reparto dio el más barato que alcanza. sin_cupo dice qué hacer.
+      if (j!.todo_lleno === true) {
+        politica();
+        if (l.politica.sinCupo === "fallar")
+          corta(pa, 96, `pa: no hay cupo para ${tipoRep} (todo lleno o en reserva) y modelos.json dice sin_cupo=fallar (${l.politica.sinCupoDe}): no lanzo.`);
+        if (l.politica.sinCupo === "esperar") {
+          if (l.async) {
+            env.PA_REPARTO_ESPERAR = "1";
+            io.err(`pa: no hay cupo para ${tipoRep} y modelos.json dice sin_cupo=esperar: queda en cola hasta que haya.\n`);
+          } else
+            corta(
+              pa,
+              75,
+              `pa: no hay cupo para ${tipoRep} (todo lleno o en reserva) y modelos.json dice sin_cupo=esperar: lanzalo con --async (hace cola hasta que haya cupo).`,
+            );
+        }
+      }
+    } else if (noDisp.length) return false;
+    else if (r.rc === 124 || r.rc === 137) l.repartoFallo = `timeout tras ${topeReparto(env)}s`;
+    else if (r.rc === 127) l.repartoFallo = `no existe ${reparto.ruta}`;
+    else l.repartoFallo = `rc ${r.rc}`;
+    return Boolean(mRep);
+  };
   if (!l.modelo && l.lanza && modelos.reparto() === "auto") {
     if (l.seguir) {
       const s = l.runId || !l.tipo ? corridaSeguida(l, pa, deps) : null;
@@ -395,46 +446,7 @@ export async function aplicarPolitica(l: Llamada, pa: Pa, deps: DepsPolitica): P
       deps.proyectoRuta(l.proyecto) !== null
     ) {
       const tipoRep = l.tipo || (l.leer ? "lectura" : "codigo-acotado");
-      const r = reparto.ejecutable() ? await reparto.elegir(tipoRep, { reservar: true, sinDsh: l.leer, cuenta: l.cuenta }) : { rc: 127, salida: "" };
-      l.repJson = r.salida;
-      const j = r.rc === 0 && r.salida ? json(r.salida) : null;
-      const mRep = j ? texto(j.modelo) : "";
-      const eRep = j ? texto(j.effort) : "";
-      const motRep = j ? texto(j.motivo).replace(/[\r\n\t|]+/g, " ") : "";
-      if (mRep) {
-        l.modelo = mRep;
-        l.vinoDeReparto = true;
-        l.repartoTipoRelanzable = tipoRep;
-        const m = l.modelo;
-        if (eRep && !esGemini(m) && !esCodex(m) && !esLocal(m) && !esDsh(m) && !l.esfuerzo) ponerEffort(eRep);
-        const suf = /^(.*)-(low|medium|high)$/.exec(l.modelo);
-        if (l.esfuerzoFlag && (esGemini(m) || esCodex(m)) && suf && /^(low|medium|high)$/.test(l.esfuerzo.toLowerCase())) {
-          const base = suf[1]!;
-          l.modelo = base === "agy:gpt-oss-120b" ? `${base}-medium` : `${base}-${l.esfuerzo.toLowerCase()}`;
-          l.esfuerzoFlag = false;
-          sacarEffort();
-        }
-        io.err(`pa: reparto (${tipoRep}) → ${l.modelo}${conEffort()}: ${motRep}\n`);
-        // Todo lleno: reparto dio el más barato que alcanza. sin_cupo dice qué hacer.
-        if (j!.todo_lleno === true) {
-          politica();
-          if (l.politica.sinCupo === "fallar")
-            corta(pa, 96, `pa: no hay cupo para ${tipoRep} (todo lleno o en reserva) y modelos.json dice sin_cupo=fallar (${l.politica.sinCupoDe}): no lanzo.`);
-          if (l.politica.sinCupo === "esperar") {
-            if (l.async) {
-              env.PA_REPARTO_ESPERAR = "1";
-              io.err(`pa: no hay cupo para ${tipoRep} y modelos.json dice sin_cupo=esperar: queda en cola hasta que haya.\n`);
-            } else
-              corta(
-                pa,
-                75,
-                `pa: no hay cupo para ${tipoRep} (todo lleno o en reserva) y modelos.json dice sin_cupo=esperar: lanzalo con --async (hace cola hasta que haya cupo).`,
-              );
-          }
-        }
-      } else if (r.rc === 124 || r.rc === 137) l.repartoFallo = `timeout tras ${topeReparto(env)}s`;
-      else if (r.rc === 127) l.repartoFallo = `no existe ${reparto.ruta}`;
-      else l.repartoFallo = `rc ${r.rc}`;
+      await elegirConReparto(tipoRep, []);
     }
   }
   // modelos.json: con reparto=fijo o si reparto falló, el tipo (o `default`) elige modelo y effort.
@@ -472,6 +484,58 @@ export async function aplicarPolitica(l: Llamada, pa: Pa, deps: DepsPolitica): P
     }
   }
 
+  // --- Lo que reparto eligió y ahora no sirve (plugin de agy sin cargar, codex sin sesión, dsh sin instalar, un Claude con el límite de
+  // la cuenta a la vista) no se lanza ni cae a un Claude que tampoco va: se le pide a reparto el siguiente candidato sin ese (a lo sumo 4
+  // veces). Si reparto no da otro, sigue el camino de siempre (el equivalente Claude, o 95/96).
+  l.chequeado = "";
+  if (l.lanza && l.vinoDeReparto && !env.PA_ASYNC && l.repartoTipoRelanzable) {
+    const noDisp: string[] = [];
+    for (let vuelta = 0; vuelta < 4; vuelta++) {
+      const m = l.modelo.toLowerCase();
+      let motivo = "";
+      let patrones: string[] = [];
+      if (esGemini(m)) {
+        await cuentaResolver("google", l, pa, deps);
+        motivo = await deps.motores.chequearGemini(m, l);
+        patrones = ["agy:*", "gemini-*"];
+      } else if (esCodex(m)) {
+        motivo = await deps.motores.chequearCodex(m, l);
+        patrones = ["codex:*"];
+      } else if (esDsh(m)) {
+        motivo = await deps.motores.chequearDsh(l.modelo, l);
+        patrones = [m];
+      } else if (!esLocal(m)) {
+        await cuentaResolver(proveedorDe(l.modelo, true), l, pa, deps);
+        const hasta = leerTexto(limiteDe(pa, l.cuentaUsada));
+        if (/^[0-9]+$/.test(hasta) && Number(hasta) > ahoraS()) {
+          motivo = `la cuenta ${l.cuentaUsada || "claude"} tiene el límite de sesión de la suscripción`;
+          patrones = ["claude-*"];
+        }
+      }
+      if (!motivo) {
+        l.chequeado = m;
+        break;
+      }
+      const antes = { modelo: l.modelo, esfuerzo: l.esfuerzo, flag: l.esfuerzoFlag, env: env.PA_EFFORT };
+      for (const p of patrones) if (!noDisp.includes(p)) noDisp.push(p);
+      io.err(`pa: ${l.modelo} no sirve ahora (${motivo}): le pido a reparto el siguiente candidato.\n`);
+      l.esfuerzo = esf0.esfuerzo;
+      l.esfuerzoFlag = esf0.flag;
+      if (esf0.env === undefined) delete env.PA_EFFORT;
+      else env.PA_EFFORT = esf0.env;
+      l.vinoDeReparto = false;
+      const dio = await elegirConReparto(l.repartoTipoRelanzable, noDisp);
+      if (dio && l.modelo !== antes.modelo) continue;
+      l.modelo = antes.modelo;
+      l.esfuerzo = antes.esfuerzo;
+      l.esfuerzoFlag = antes.flag;
+      if (antes.env === undefined) delete env.PA_EFFORT;
+      else env.PA_EFFORT = antes.env;
+      l.vinoDeReparto = true;
+      break;
+    }
+  }
+
   // --- Gemini y Claude/GPT por agy, ChatGPT por codex, dsh/opencode y locales: validar, o caer al equivalente Claude ---
   l.motor = "claude";
   l.geminiPedido = "";
@@ -494,7 +558,7 @@ export async function aplicarPolitica(l: Llamada, pa: Pa, deps: DepsPolitica): P
     if (l.maxBudget) corta(pa, 2, `pa: --max-budget-usd no va con '${l.modelo}' (agy se paga con el cupo, no en US$).`);
     politica();
     if (!env.PA_ASYNC) {
-      const motivo = await deps.motores.chequearGemini(l.modelo, l);
+      const motivo = l.chequeado === l.modelo ? "" : await deps.motores.chequearGemini(l.modelo, l);
       if (!motivo) l.motor = "agy";
       else if (l.vinoDeReparto || l.politica.sinCupo === "otro") {
         const [m, e] = geminiEquivalente(l.modelo);
@@ -516,7 +580,7 @@ export async function aplicarPolitica(l: Llamada, pa: Pa, deps: DepsPolitica): P
     if (l.maxBudget) corta(pa, 2, `pa: --max-budget-usd no va con '${l.modelo}' (codex se paga con la suscripción de ChatGPT, no en US$).`);
     politica();
     if (!env.PA_ASYNC) {
-      const motivo = await deps.motores.chequearCodex(l.modelo, l);
+      const motivo = l.chequeado === l.modelo ? "" : await deps.motores.chequearCodex(l.modelo, l);
       if (!motivo) l.motor = "codex";
       else if (l.vinoDeReparto || l.politica.sinCupo === "otro") {
         const [m, e] = codexEquivalente(l.modelo);
@@ -560,7 +624,7 @@ export async function aplicarPolitica(l: Llamada, pa: Pa, deps: DepsPolitica): P
     if (l.maxBudget) corta(pa, 2, `pa: --max-budget-usd no va con '${l.modelo}' (${eng} no mide el gasto en US$).`);
     if (l.cuenta && !esOpencode(l.modelo)) corta(pa, 2, `pa: --cuenta no va con '${l.modelo}': ${eng} no usa ninguna suscripción de pa.`);
     if (!env.PA_ASYNC) {
-      const motivo = await deps.motores.chequearDsh(l.modelo, l);
+      const motivo = l.chequeado === l.modelo.toLowerCase() ? "" : await deps.motores.chequearDsh(l.modelo, l);
       if (!motivo) l.motor = "dsh";
       else if (l.vinoDeReparto && deps.claudeEnPath()) {
         io.err(`pa: ${l.modelo} → claude-sonnet-5-5 effort high: ${motivo}.\n`);

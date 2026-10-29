@@ -24,7 +24,7 @@ const STUB = `#!/bin/sh
 case "$1" in
   --tabla) exit 1 ;;
 esac
-echo "$*" >> "$PA_STATE/reparto-llamadas.txt"
+echo "$* [$REPARTO_NO_DISPONIBLE]" >> "$PA_STATE/reparto-llamadas.txt"
 case "$1" in
   --tipo)
     n=$(cat "$REPARTO_DIR/n" 2>/dev/null || echo 0); n=$((n+1)); echo "$n" > "$REPARTO_DIR/n"
@@ -48,10 +48,26 @@ const entorno =
   (extra: Record<string, string> = {}) =>
   (c: Contexto) => ({ PA_REPARTO: path.join(c.aux, "reparto-falso.sh"), REPARTO_DIR: c.aux, TRAMA_MODELOS: path.join(c.aux, "modelos.json"), ...extra });
 
-const caso = (nombre: string, o: { respuestas: object[]; guion: Respuesta[]; modelos?: object; env?: Record<string, string>; pasos: Paso[] }): Caso => ({
+const FALSO = path.join(import.meta.dirname, "otro-falso.mjs");
+/** agy falso en el PATH del sandbox (otro-falso.mjs; FALSO_MODO=sin-hooks: su /hooks no trae el plugin pa-worker). */
+const conAgyFalso = (c: Contexto) => {
+  const shim = path.join(c.raiz, "shim", "agy");
+  writeFileSync(shim, `#!/bin/sh\nexec "${process.execPath}" "${FALSO}" agy "$@"\n`);
+  chmodSync(shim, 0o755);
+};
+/** El límite de sesión de la cuenta de siempre, ya conocido (hasta el año 2100). */
+const conLimiteConocido = (c: Contexto) => writeFileSync(path.join(c.estado, "limite.hasta"), "4102444800");
+
+const caso = (
+  nombre: string,
+  o: { respuestas: object[]; guion: Respuesta[]; modelos?: object; env?: Record<string, string>; pasos: Paso[]; antes?: (c: Contexto) => void },
+): Caso => ({
   herramienta: "pa-cli",
   nombre: `pa-cli: cupo: ${nombre}`,
-  preparar: montar(o.respuestas, o.guion, o.modelos),
+  preparar: (c) => {
+    montar(o.respuestas, o.guion, o.modelos)(c);
+    o.antes?.(c);
+  },
   env: entorno(o.env),
   pasos: o.pasos,
 });
@@ -100,5 +116,26 @@ export const casosCupo: Caso[] = [
     modelos: { sin_cupo: "esperar" },
     env: { PA_GEMINI_ESPERA_S: "0.2", PA_GEMINI_ESPERA_MAX_MIN: "0" },
     pasos: [lanzar(1, "--async")], // el hijo sale 96 sin tomar puesto: el padre lo ve muerto
+  }),
+  // Lo que reparto eligió y ahora no sirve se saltea antes de lanzar: se le pide el siguiente con REPARTO_NO_DISPONIBLE (se ve en el registro de llamadas).
+  caso("agy sin el plugin pa-worker: reparto da el siguiente en vez de caer a un Claude", {
+    respuestas: [{ modelo: "gemini-4-argon-low", effort: "low", motivo: "el que alcanza" }, HAIKU],
+    guion: [ok(BLOQUE)],
+    env: { FALSO_MODO: "sin-hooks" },
+    antes: conAgyFalso,
+    pasos: [lanzar(0)],
+  }),
+  caso("agy sin el plugin y reparto no ofrece otro: cae al equivalente Claude como antes", {
+    respuestas: [{ modelo: "gemini-4-argon-low", effort: "low", motivo: "el que alcanza" }],
+    guion: [ok(BLOQUE)],
+    env: { FALSO_MODO: "sin-hooks" },
+    antes: conAgyFalso,
+    pasos: [lanzar(0)],
+  }),
+  caso("límite de la cuenta ya conocido: reparto da el siguiente sin Claude; si no hay, sale 76 sin lanzar", {
+    respuestas: [SONNET, HAIKU],
+    guion: [ok(BLOQUE)],
+    antes: conLimiteConocido,
+    pasos: [lanzar(76)],
   }),
 ];

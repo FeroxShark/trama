@@ -18,7 +18,7 @@ export interface Reparto {
   /** `reparto --enfriar <m> [--horas N]`: marca ese modelo de OpenCode como enfriado (nunca rompe). */
   enfriar?(modelo: string, horas?: string): Promise<void>;
   /** `reparto --tipo T [--cuenta C] --json` (con REPARTO_RESERVAR=1 si `reservar`). rc 124/137 = venció el tope, 127 = no está. */
-  elegir(tipo: string, o?: { reservar?: boolean; sinDsh?: boolean; cuenta?: string }): Promise<{ rc: number; salida: string }>;
+  elegir(tipo: string, o?: { reservar?: boolean; sinDsh?: boolean; cuenta?: string; noDisponible?: string[] }): Promise<{ rc: number; salida: string }>;
   /** `reparto --tabla --json` ("" si falla). */
   tabla(): Promise<string>;
   /** `reparto --cuenta-para <m>` ("" si falla). */
@@ -71,6 +71,7 @@ export function repartoProceso(pa: Pa): Reparto {
       const extra: Env = {};
       if (o.reservar) extra.REPARTO_RESERVAR = "1";
       if (o.reservar) extra.REPARTO_SIN_DSH = o.sinDsh ? "1" : "";
+      if (o.reservar) extra.REPARTO_NO_DISPONIBLE = (o.noDisponible ?? []).join(",");
       const r = await llamar(["--tipo", tipo, ...(o.cuenta ? ["--cuenta", o.cuenta] : []), "--json"], extra);
       return { rc: r.codigo, salida: recortar(r.salida) };
     },

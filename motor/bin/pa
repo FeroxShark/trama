@@ -5267,6 +5267,7 @@ fi
 # Sin -m, si reparto está en auto, `reparto --tipo <tipo> --json` elige modelo y effort según calidad
 # y cupo libre. Con --seguir se conserva el modelo de la corrida que se retoma (agy no retoma sesiones).
 # Si reparto falla o vence el tope (PA_REPARTO_TIMEOUT_S, default 15 s), cae a modelos.json o al default.
+esf0="$esfuerzo"; esf0_flag="$esfuerzo_flag"; esf0_set="${PA_EFFORT+x}"; esf0_env="${PA_EFFORT-}"   # para volver a pedirle a reparto con el effort de antes
 modelo_pedido="$modelo"   # el -m del jefe (vacío = no eligió: lo decide la tabla de reparto/modelos.json y se avisa)
 vino_de_reparto=0; reparto_fallo=""
 # El tipo con el que reparto eligió, para pedirle el siguiente candidato si agy contesta 429 (el hijo de
@@ -5274,6 +5275,64 @@ vino_de_reparto=0; reparto_fallo=""
 reparto_tipo_relanzable="${PA_REPARTO_TIPO:-}"; unset PA_REPARTO_TIPO
 # sin_cupo=esperar con todo lleno: el padre de --async lo marca y el hijo hace cola (más abajo, ya con su id).
 reparto_esperar="${PA_REPARTO_ESPERAR:-}"; unset PA_REPARTO_ESPERAR
+# Pide a reparto el modelo y el effort según calidad y cupo y aplica lo que contesta (rc 0 si dio un modelo).
+# $1 = tipo; $2 = lo que pa sabe que ahora no sirve (REPARTO_NO_DISPONIBLE: lista por comas con la sintaxis de `excluir`; vacío = nada).
+elegir_con_reparto() {
+  local tipo_rep="$1" no_disp="${2:-}" rep_rc rep_json m_rep e_rep mot_rep base_rep
+  rep_rc=0; rep_json=""
+  if [[ -x "$REPARTO" ]]; then
+    rep_json="$(REPARTO_RESERVAR=1 REPARTO_SIN_DSH="$( (( leer )) && echo 1)" REPARTO_NO_DISPONIBLE="$no_disp" REPARTO_STATE="${REPARTO_STATE:-$STATE/reparto}" PA_STATE="$STATE" \
+      timeout "${PA_REPARTO_TIMEOUT_S:-15}" "$REPARTO" --tipo "$tipo_rep" ${cuenta_flag:+--cuenta "$cuenta_flag"} --json 2>/dev/null </dev/null)" || rep_rc=$?
+  else
+    rep_rc=127
+  fi
+  m_rep=""; e_rep=""; mot_rep=""
+  if (( rep_rc == 0 )) && [[ -n "$rep_json" ]]; then
+    IFS='|' read -r m_rep e_rep mot_rep < <(
+      jq -r '[(.modelo // ""), (.effort // ""), ((.motivo // "") | gsub("[\\r\\n\\t|]+"; " "))] | join("|")' <<<"$rep_json" 2>/dev/null
+    ) || true
+  fi
+  if [[ -n "$m_rep" ]]; then
+    modelo="$m_rep"; vino_de_reparto=1; reparto_tipo_relanzable="$tipo_rep"
+    if [[ -n "$e_rep" ]] && ! es_gemini "$modelo" && ! es_codex "$modelo" && ! es_local "$modelo" && ! es_dsh "$modelo"; then
+      [[ -z "$esfuerzo" ]] && { esfuerzo="$e_rep"; export PA_EFFORT="$e_rep"; }
+    fi
+    if (( esfuerzo_flag )) && { es_gemini "$modelo" || es_codex "$modelo"; } && [[ "$modelo" =~ ^(.*)-(low|medium|high)$ ]]; then
+      base_rep="${BASH_REMATCH[1]}"
+      case "${esfuerzo,,}" in
+        low|medium|high)
+          [[ "$base_rep" == "agy:gpt-oss-120b" ]] && modelo="${base_rep}-medium" || modelo="${base_rep}-${esfuerzo,,}"
+          esfuerzo_flag=0; esfuerzo=""; unset PA_EFFORT ;;
+      esac
+    fi
+    echo "pa: reparto ($tipo_rep) → $modelo${esfuerzo:+ effort $esfuerzo}: $mot_rep" >&2
+    # Todo lleno (2026-10-24): reparto dio el más barato que alcanza, que va a chocar el límite.
+    # sin_cupo dice qué hacer: otro (default) lanza igual y, si choca al arrancar, relanza con el
+    # siguiente; esperar hace cola con --async; fallar sale 96.
+    if [[ "$(jq -r '.todo_lleno // false' <<<"$rep_json" 2>/dev/null)" == true ]]; then
+      gemini_politica
+      case "$SIN_CUPO" in
+        fallar)
+          echo "pa: no hay cupo para $tipo_rep (todo lleno o en reserva) y modelos.json dice sin_cupo=fallar ($SIN_CUPO_DE): no lanzo." >&2
+          exit 96 ;;
+        esperar)
+          if (( async )); then
+            export PA_REPARTO_ESPERAR=1
+            echo "pa: no hay cupo para $tipo_rep y modelos.json dice sin_cupo=esperar: queda en cola hasta que haya." >&2
+          else
+            echo "pa: no hay cupo para $tipo_rep (todo lleno o en reserva) y modelos.json dice sin_cupo=esperar: lanzalo con --async (hace cola hasta que haya cupo)." >&2
+            exit 75
+          fi ;;
+      esac
+    fi
+  elif [[ -z "$no_disp" ]]; then
+    if (( rep_rc == 124 || rep_rc == 137 )); then reparto_fallo="timeout tras ${PA_REPARTO_TIMEOUT_S:-15}s"
+    elif (( rep_rc == 127 )); then reparto_fallo="no existe $REPARTO"
+    else reparto_fallo="rc $rep_rc"; fi
+  fi
+  [[ -n "$m_rep" ]]
+}
+
 if [[ -z "$modelo" ]] && (( lanza )) && [[ "$(modelos_reparto)" == auto ]]; then
   if (( seguir )); then
     if [[ -n "$run_id" || -z "$tipo" ]]; then
@@ -5298,57 +5357,7 @@ if [[ -z "$modelo" ]] && (( lanza )) && [[ "$(modelos_reparto)" == auto ]]; then
        && proyecto-ruta "$proyecto" >/dev/null 2>&1; then
     tipo_rep="$tipo"
     [[ -n "$tipo_rep" ]] || { (( leer )) && tipo_rep=lectura || tipo_rep=codigo-acotado; }
-    rep_rc=0; rep_json=""
-    if [[ -x "$REPARTO" ]]; then
-      rep_json="$(REPARTO_RESERVAR=1 REPARTO_SIN_DSH="$( (( leer )) && echo 1)" REPARTO_STATE="${REPARTO_STATE:-$STATE/reparto}" PA_STATE="$STATE" \
-        timeout "${PA_REPARTO_TIMEOUT_S:-15}" "$REPARTO" --tipo "$tipo_rep" ${cuenta_flag:+--cuenta "$cuenta_flag"} --json 2>/dev/null </dev/null)" || rep_rc=$?
-    else
-      rep_rc=127
-    fi
-    m_rep=""; e_rep=""; mot_rep=""
-    if (( rep_rc == 0 )) && [[ -n "$rep_json" ]]; then
-      IFS='|' read -r m_rep e_rep mot_rep < <(
-        jq -r '[(.modelo // ""), (.effort // ""), ((.motivo // "") | gsub("[\\r\\n\\t|]+"; " "))] | join("|")' <<<"$rep_json" 2>/dev/null
-      ) || true
-    fi
-    if [[ -n "$m_rep" ]]; then
-      modelo="$m_rep"; vino_de_reparto=1; reparto_tipo_relanzable="$tipo_rep"
-      if [[ -n "$e_rep" ]] && ! es_gemini "$modelo" && ! es_codex "$modelo" && ! es_local "$modelo" && ! es_dsh "$modelo"; then
-        [[ -z "$esfuerzo" ]] && { esfuerzo="$e_rep"; export PA_EFFORT="$e_rep"; }
-      fi
-      if (( esfuerzo_flag )) && { es_gemini "$modelo" || es_codex "$modelo"; } && [[ "$modelo" =~ ^(.*)-(low|medium|high)$ ]]; then
-        base_rep="${BASH_REMATCH[1]}"
-        case "${esfuerzo,,}" in
-          low|medium|high)
-            [[ "$base_rep" == "agy:gpt-oss-120b" ]] && modelo="${base_rep}-medium" || modelo="${base_rep}-${esfuerzo,,}"
-            esfuerzo_flag=0; esfuerzo=""; unset PA_EFFORT ;;
-        esac
-      fi
-      echo "pa: reparto ($tipo_rep) → $modelo${esfuerzo:+ effort $esfuerzo}: $mot_rep" >&2
-      # Todo lleno (2026-10-24): reparto dio el más barato que alcanza, que va a chocar el límite.
-      # sin_cupo dice qué hacer: otro (default) lanza igual y, si choca al arrancar, relanza con el
-      # siguiente; esperar hace cola con --async; fallar sale 96.
-      if [[ "$(jq -r '.todo_lleno // false' <<<"$rep_json" 2>/dev/null)" == true ]]; then
-        gemini_politica
-        case "$SIN_CUPO" in
-          fallar)
-            echo "pa: no hay cupo para $tipo_rep (todo lleno o en reserva) y modelos.json dice sin_cupo=fallar ($SIN_CUPO_DE): no lanzo." >&2
-            exit 96 ;;
-          esperar)
-            if (( async )); then
-              export PA_REPARTO_ESPERAR=1
-              echo "pa: no hay cupo para $tipo_rep y modelos.json dice sin_cupo=esperar: queda en cola hasta que haya." >&2
-            else
-              echo "pa: no hay cupo para $tipo_rep (todo lleno o en reserva) y modelos.json dice sin_cupo=esperar: lanzalo con --async (hace cola hasta que haya cupo)." >&2
-              exit 75
-            fi ;;
-        esac
-      fi
-    else
-      if (( rep_rc == 124 || rep_rc == 137 )); then reparto_fallo="timeout tras ${PA_REPARTO_TIMEOUT_S:-15}s"
-      elif (( rep_rc == 127 )); then reparto_fallo="no existe $REPARTO"
-      else reparto_fallo="rc $rep_rc"; fi
-    fi
+    elegir_con_reparto "$tipo_rep" "" || true
   fi
 fi
 # modelos.json (si existe y es válido): con reparto=fijo o si reparto falló, el tipo (o `default`)
@@ -5392,6 +5401,43 @@ if (( lanza && ! seguir )) && [[ -z "${PA_ASYNC:-}" ]]; then
     fi
   fi
 fi
+# --- Lo que reparto eligió y ahora no sirve (plugin de agy sin cargar, codex sin sesión, dsh sin instalar, un Claude con el límite de
+# la cuenta a la vista) no se lanza ni cae a un Claude que tampoco va: se le pide a reparto el siguiente candidato sin ese (a lo sumo 4
+# veces). Si reparto no da otro, sigue el camino de siempre (el equivalente Claude, o 95/96).
+chequeado=""
+if (( lanza && vino_de_reparto )) && [[ -z "${PA_ASYNC:-}" && -n "$reparto_tipo_relanzable" ]]; then
+  no_disp=""
+  for (( vuelta = 0; vuelta < 4; vuelta++ )); do
+    m_pre="${modelo,,}"; motivo_pre=""; patrones_pre=""
+    if es_gemini "$modelo"; then
+      cuenta_resolver google
+      gemini_chequear "$m_pre"; motivo_pre="$motivo_cae"; patrones_pre="agy:*,gemini-*"
+    elif es_codex "$modelo"; then
+      codex_chequear "$m_pre"; motivo_pre="$motivo_cae"; patrones_pre="codex:*"
+    elif es_dsh "$modelo"; then
+      dsh_chequear "$modelo"; motivo_pre="$motivo_cae"; patrones_pre="$m_pre"
+    elif ! es_local "$modelo"; then
+      cuenta_resolver "$(proveedor_cuenta_de "$modelo")"
+      lim_pre="$(cat "$(limite_de "$cuenta")" 2>/dev/null || true)"
+      if [[ "$lim_pre" =~ ^[0-9]+$ ]] && (( lim_pre > $(date +%s) )); then
+        motivo_pre="la cuenta ${cuenta:-claude} tiene el límite de sesión de la suscripción"; patrones_pre="claude-*"
+      fi
+    fi
+    if [[ -z "$motivo_pre" ]]; then chequeado="$m_pre"; break; fi
+    antes_modelo="$modelo"; antes_esf="$esfuerzo"; antes_flag="$esfuerzo_flag"; antes_set="${PA_EFFORT+x}"; antes_env="${PA_EFFORT-}"
+    IFS=, read -ra pp_pre <<<"$patrones_pre"
+    for p_pre in "${pp_pre[@]}"; do [[ ",$no_disp," == *",$p_pre,"* ]] || no_disp="${no_disp:+$no_disp,}$p_pre"; done
+    echo "pa: $modelo no sirve ahora ($motivo_pre): le pido a reparto el siguiente candidato." >&2
+    esfuerzo="$esf0"; esfuerzo_flag="$esf0_flag"
+    if [[ -n "$esf0_set" ]]; then export PA_EFFORT="$esf0_env"; else unset PA_EFFORT; fi
+    vino_de_reparto=0
+    if elegir_con_reparto "$reparto_tipo_relanzable" "$no_disp" && [[ "$modelo" != "$antes_modelo" ]]; then continue; fi
+    modelo="$antes_modelo"; esfuerzo="$antes_esf"; esfuerzo_flag="$antes_flag"
+    if [[ -n "$antes_set" ]]; then export PA_EFFORT="$antes_env"; else unset PA_EFFORT; fi
+    vino_de_reparto=1
+    break
+  done
+fi
 # --- Gemini y Claude/GPT por agy: validar, mirar el plugin y privacidad, o caer al equivalente Claude ---
 # Lo que agy no tiene (retomar sesión, MCP de claude.ai, tope de gasto
 # en US$, el tree principal sin worktree) se niega acá en vez de lanzar algo que no es lo pedido.
@@ -5423,7 +5469,7 @@ if (( lanza )) && es_gemini "$modelo"; then
   # El chequeo lo hace el padre de --async (o el pa en primer plano): el hijo ya recibe el modelo final.
   gemini_politica
   if [[ -z "${PA_ASYNC:-}" ]]; then
-    gemini_chequear "$modelo"
+    if [[ "$chequeado" == "$modelo" ]]; then motivo_cae=""; else gemini_chequear "$modelo"; fi
     if [[ -z "$motivo_cae" ]]; then
       motor=agy
     elif (( vino_de_reparto )) || [[ "$SIN_CUPO" == otro ]]; then
@@ -5459,7 +5505,7 @@ if (( lanza )) && es_codex "$modelo"; then
   [[ -n "$max_budget" ]] && { echo "pa: --max-budget-usd no va con '$modelo' (codex se paga con la suscripción de ChatGPT, no en US\$)." >&2; exit 2; }
   gemini_politica
   if [[ -z "${PA_ASYNC:-}" ]]; then
-    codex_chequear "$modelo"
+    if [[ "$chequeado" == "$modelo" ]]; then motivo_cae=""; else codex_chequear "$modelo"; fi
     if [[ -z "$motivo_cae" ]]; then
       motor=codex
     elif (( vino_de_reparto )) || [[ "$SIN_CUPO" == otro ]]; then
@@ -5509,7 +5555,7 @@ if (( lanza )) && es_dsh "$modelo"; then
   [[ -n "$max_budget" ]] && { echo "pa: --max-budget-usd no va con '$modelo' ($eng_n no mide el gasto en US\$)." >&2; exit 2; }
   [[ -n "$cuenta_flag" ]] && ! es_opencode "$modelo" && { echo "pa: --cuenta no va con '$modelo': $eng_n no usa ninguna suscripción de pa." >&2; exit 2; }
   if [[ -z "${PA_ASYNC:-}" ]]; then
-    dsh_chequear "$modelo"
+    if [[ "$chequeado" == "${modelo,,}" ]]; then motivo_cae=""; else dsh_chequear "$modelo"; fi
     if [[ -z "$motivo_cae" ]]; then
       motor=dsh
     elif (( vino_de_reparto )) && command -v claude >/dev/null 2>&1; then
