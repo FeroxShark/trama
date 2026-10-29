@@ -133,7 +133,9 @@ let seq = 0;
 function correr(archivo) {
   return new Promise((resolve) => {
     const clave = `${process.pid}:${++seq}`;
-    const hijo = spawn(process.execPath, ["--test", `--test-timeout=${Math.floor(TOPE_MS * 0.8)}`, "--test-force-exit", ...extra, archivo], {
+    // Windows sin --test-timeout: node mata el proceso del archivo y deja huérfanos a sus nietos (taskkill /T ya no los alcanza);
+    // el vigía de abajo corta el árbol entero, con el archivo vivo.
+    const hijo = spawn(process.execPath, ["--test", ...(POSIX ? [`--test-timeout=${Math.floor(TOPE_MS * 0.8)}`] : []), "--test-force-exit", ...extra, archivo], {
       cwd: raiz,
       env: { ...env, [MARCA]: clave },
       stdio: ["ignore", "pipe", "pipe"],
