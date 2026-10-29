@@ -5001,13 +5001,15 @@ summary.sis-div-t:hover,
   align-items: center;
   gap: var(--esp-1-5);
 }
+.sis-aviso-l li {
+  min-height: var(--alto-boton);
+}
 .sis-aviso-h {
   color: var(--txt-3);
 }
 .sis-aviso-l {
   display: flex;
   flex-direction: column;
-  gap: var(--esp-0-5);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -5028,6 +5030,19 @@ summary.sis-div-t:hover,
 .sis-aviso-tarea {
   min-width: 0;
   overflow-wrap: anywhere;
+}
+/* Un aviso todavía en la cola: la misma fila con borde punteado, como un mensaje encolado, y su quitar. */
+.sis-encolado {
+  align-self: center;
+  max-width: 100%;
+  color: var(--texto-4);
+}
+.sis-encolado .sis-aviso {
+  border-style: dashed;
+  background: transparent;
+}
+.sis-encolado[data-error] .encolado-t > span {
+  color: var(--rojo);
 }
 /* El id es el botón que abre el hilo: la zona de click llega a un alto de chip (celular). */
 .sis-aviso-id {

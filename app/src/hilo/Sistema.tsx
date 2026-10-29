@@ -171,8 +171,8 @@ function Aviso({ a, alAbrirHilo }: { a: AvisoTexto; alAbrirHilo?: (id: string) =
       <div className="sis-aviso-h">
         <BellRing size={12} strokeWidth={2} aria-hidden="true" />
         <span>{t("sistema.avisoRotulo")}</span>
-        {a.tanda ? <span>{`· ${t("sistema.avisoTanda", { n: a.trabajos.length })}${fallas ? ` · ${t("sistema.avisoFallas", { k: fallas })}` : ""}`}</span> : null}
       </div>
+      {a.tanda ? <span>{`${t("sistema.avisoTanda", { n: a.trabajos.length })}${fallas ? ` · ${t("sistema.avisoFallas", { k: fallas })}` : ""}`}</span> : null}
       {a.trabajos.length ? (
         <ul className="sis-aviso-l">
           {a.trabajos.map((x) => (

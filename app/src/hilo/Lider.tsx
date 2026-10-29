@@ -51,6 +51,7 @@ import { Texto } from "./Texto";
 import { Hora, pintorAviso, tokens, Turno } from "./Turno";
 import { Marca } from "./Marca";
 import { Sistema } from "./Sistema";
+import { lineaAviso } from "./sistema-logica";
 import { EVENTO_CAMBIAR_MODELO, goAgotadosDe, marcarAgotadas, opencodeAgotadoDe, proveedorLibre } from "./agotados";
 import { Compactando, Pasando, relevoEn, Sigue } from "./Posta";
 import { juntar, repiteElPrimero, turnos, type Item, type Punto } from "./turnos";
@@ -1101,9 +1102,9 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
           ) : null}
           {l
             ? encolados.map((x, k) => (
-                <div key={x.id} className="yo encolado" data-error={k === 0 && errorCola ? "" : undefined}>
+                <div key={x.id} className={x.aviso ? "sis-encolado" : "yo encolado"} data-error={k === 0 && errorCola ? "" : undefined}>
                   <div className="encolado-t">
-                    <span>{k === 0 && errorCola ? textoMain(errorCola) : null}</span>
+                    <span>{k === 0 && errorCola ? textoMain(errorCola) : x.aviso ? tr("lider.enCola") : null}</span>
                     {k === 0 && errorCola ? (
                       <button type="button" className="encolado-re" data-reintentar-cola onClick={() => cola.ya(l.id, false)}>
                         {tr("lider.colaReintentar")}
@@ -1113,7 +1114,7 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
                       <X size={12} strokeWidth={2.2} />
                     </button>
                   </div>
-                  <Yo texto={x.texto} imagenes={x.imagenes} />
+                  {x.aviso ? <Sistema s={lineaAviso(x.texto)} alAbrirHilo={alAbrirHilo} /> : <Yo texto={x.texto} imagenes={x.imagenes} />}
                 </div>
               ))
             : null}

@@ -930,14 +930,6 @@ export function charlaSistema(sid: string): Mensaje[] {
     { rol: "assistant", texto: "", herramientas: ["Bash: pa atlas --async -- Revisar los tests del buscador"], modelo: m },
     { rol: "user", texto: TAREA("Esperar el worker de atlas"), herramientas: [], modelo: null, origen: "task-notification" },
     { rol: "assistant", texto: "El worker de atlas terminó con los tests verdes.", herramientas: [], modelo: m },
-    // Los avisos de Trama al líder (electron/avisos-worker.ts): uno de un worker que terminó, y una tanda con una falla.
-    { rol: "user", texto: "[Aviso automático de Trama] Worker «revisar atlas» terminó. Id: 7. Revisalo con `pa --hilo 7`.", herramientas: [], modelo: null },
-    {
-      rol: "user",
-      texto: "[Aviso automático de Trama] Terminaron los 2 workers que lanzaste, 1 con falla:\n- «migración del índice» (8): terminó.\n- «tests del cauce» (9): falló: el proceso se cortó sin dejar mensaje.\nRevisá cada uno con `pa --hilo <id>`.",
-      herramientas: [],
-      modelo: null,
-    },
     {
       rol: "user",
       texto: 'Another Claude session sent a message:\n<cross-session-message from="9c1e" from-name="pa/cauce">\nLa migración del índice pasa; falta integrar.\n</cross-session-message>',
@@ -955,6 +947,14 @@ export function charlaSistema(sid: string): Mensaje[] {
     { rol: "assistant", texto: "", herramientas: [], modelo: null, destrabo: { que: "Bash: curl -s localhost:9/progreso", agotado: true } },
     { rol: "assistant", texto: "API Error: Repeated 529 Overloaded errors", herramientas: [], modelo: "<synthetic>", error: "unknown" },
     { rol: "assistant", texto: LIMITE, herramientas: [], modelo: "<synthetic>", error: "rate_limit" },
+    // Los avisos de Trama al líder (electron/avisos-worker.ts): uno de un worker que terminó, y una tanda con una falla.
+    { rol: "user", texto: "[Aviso automático de Trama] Worker «revisar atlas» terminó. Id: 7. Revisalo con `pa --hilo 7`.", herramientas: [], modelo: null },
+    {
+      rol: "user",
+      texto: "[Aviso automático de Trama] Terminaron los 2 workers que lanzaste, 1 con falla:\n- «migración del índice» (8): terminó.\n- «tests del cauce» (9): falló: el proceso se cortó sin dejar mensaje.\nRevisá cada uno con `pa --hilo <id>`.",
+      herramientas: [],
+      modelo: null,
+    },
   ];
   return crudos.map((x, i) => ({ ...x, i, ts: ts((crudos.length - i) * MIN) }));
 }

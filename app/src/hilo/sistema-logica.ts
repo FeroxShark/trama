@@ -64,10 +64,12 @@ export function sistemaDe(m: Mensaje): Sistema | null {
   if (m.destrabo) return { tipo: "linea", clase: "destrabo", que: m.destrabo.que, agotado: m.destrabo.agotado };
   if (m.compacto) return { tipo: "linea", clase: "compacto", auto: m.compacto.auto, antes: m.compacto.antes };
   // Un aviso de Trama: la cola lo marca al salir (`aviso`); en el transcript y en `pa --hilo` sólo está la marca del texto.
-  if (m.rol === "user" && (m.aviso || esAvisoTrama(m.texto)))
-    return { tipo: "linea", clase: "aviso", aviso: avisoDeTexto(m.texto) ?? { tanda: false, falla: false, trabajos: [] } };
+  if (m.rol === "user" && (m.aviso || esAvisoTrama(m.texto))) return lineaAviso(m.texto);
   return m.rol === "user" ? deUsuario(m) : deModelo(m);
 }
+
+/** La fila de un aviso de Trama, con lo que dice su texto (`avisoDeTexto`); sin workers si no se entiende. */
+export const lineaAviso = (texto: string): Linea => ({ tipo: "linea", clase: "aviso", aviso: avisoDeTexto(texto) ?? { tanda: false, falla: false, trabajos: [] } });
 
 function deModelo(m: Mensaje): Linea | null {
   if (m.modelo !== SINTETICO && !m.error) return null;
