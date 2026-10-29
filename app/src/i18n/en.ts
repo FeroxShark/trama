@@ -1876,6 +1876,7 @@ export const en = {
   "modelo.agyOpus": "Claude Opus 5.5 through Google (agy) · uses Google AI quota",
   "modelo.agySonnet": "Claude Sonnet 5.5 through Google (agy) · uses Google AI quota",
   "modelo.agyGpt": "GPT-OSS 120B through Google (agy) · uses Google AI quota",
+  "modelo.agyOfrecido": "Model offered by your Google account (agy) · uses Google AI quota",
   "mdl.desc.agy": "Runs through Google (agy). Counts against your Google AI quota.",
   "uso.hasta": "until {m}/{d}",
   "tiempo.vuelveEn": "resets in {t}",

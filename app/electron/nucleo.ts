@@ -44,6 +44,7 @@ import { aplicarUnificar, estadoMd, guardarAgents, leerAgents, planUnificar } fr
 import { listarProyectos, logoProyecto, renombrarProyecto } from "./proyectos-alias.ts";
 import { guardarAjustes } from "./ajustes-editar.js";
 import { crearBajadas } from "./ollama-bajar.ts";
+import { agyOfrecidos } from "./agy-ofrecidos.ts";
 import { efectivoDePa, guardarModelos, leerModelos, modelosConfig, sondearOllama, vistaModelos } from "./modelos-config.ts";
 import { accesos } from "./celular-accesos.js";
 import { guardarConfig, leerEditable } from "./remoto-config.js";
@@ -821,7 +822,9 @@ export function armarNucleo() {
   manejar("hilos:guardados", () => hilosGuardados());
 
   // Los paneles del pie: Ajustes, Estadísticas y las acciones de Ramas.
-  manejar("modelos:config", () => vistaModelos(modelosConfig(), hayAgy(), vistaLocales(), hayDsh(), modelosOpencode(), effortsOpencode(), planOpencode()));
+  // Con agy, los modelos son los que ofrece SU cuenta (`reparto --agy-modelos`, con caché); se calienta al arrancar para que el primer pedido no espere.
+  if (hayAgy()) void agyOfrecidos();
+  manejar("modelos:config", async () => vistaModelos(modelosConfig(), hayAgy(), vistaLocales(), hayDsh(), modelosOpencode(), effortsOpencode(), planOpencode(), hayAgy() ? ((await agyOfrecidos()) ?? []) : []));
   manejar("dueno:nombre", () => nombreDueno());
   manejar("ajustes:leer", () => leerAjustes());
   // Ajustes editable: el plan y la red de seguridad (ajustes-editar.ts) y el acceso desde el celular (remoto-config.ts).

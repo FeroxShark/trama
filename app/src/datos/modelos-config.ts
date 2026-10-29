@@ -8,7 +8,7 @@ import type { ConfigModelos } from "../hilo/modelos";
 
 /** Lo que mandó el main, validado: lo que no se entiende no entra. */
 export function configValida(x: unknown): ConfigModelos | null {
-  const o = x as { version?: unknown; gemini?: unknown; dsh?: unknown; opencode?: unknown; opencodeEfforts?: unknown; opencodePlan?: unknown; locales?: unknown; llama?: unknown; lider?: unknown } | null;
+  const o = x as { version?: unknown; gemini?: unknown; dsh?: unknown; opencode?: unknown; opencodeEfforts?: unknown; opencodePlan?: unknown; agyModelos?: unknown; locales?: unknown; llama?: unknown; lider?: unknown } | null;
   if (!o || typeof o !== "object" || o.version !== 1) return null;
   const locales = (Array.isArray(o.locales) ? o.locales : [])
     .filter((l): l is { id: string; nombre: string; modelo?: unknown } => !!l && typeof l.id === "string" && l.id.startsWith("ollama:") && typeof l.nombre === "string")
@@ -26,9 +26,13 @@ export function configValida(x: unknown): ConfigModelos | null {
     }
   // El plan de OpenCode Go sólo cuenta si es uno de los dos pagos; cualquier otra cosa es «apagado».
   const opencodePlan = o.opencodePlan === "go" || o.opencodePlan === "go-plus" ? o.opencodePlan : null;
+  // Los modelos que ofrece el agy de esta cuenta (ids de pa); sin lista, el selector muestra los de siempre.
+  const agyModelos = (Array.isArray(o.agyModelos) ? o.agyModelos : [])
+    .filter((m): m is { id: string; nombre: string } => !!m && typeof m.id === "string" && /^(?:agy:)?[a-z0-9][\w.-]{0,80}$/i.test(m.id) && typeof m.nombre === "string")
+    .map((m) => ({ id: m.id, nombre: m.nombre.slice(0, 80) }));
   const l = o.lider as { modelo?: unknown; effort?: unknown } | null;
   const lider = l && typeof l.modelo === "string" ? { modelo: l.modelo, effort: typeof l.effort === "string" ? l.effort : null } : null;
-  return { gemini: o.gemini === true, ...(o.dsh === true ? { dsh: true } : {}), ...(opencode.length ? { opencode } : {}), ...(Object.keys(opencodeEfforts).length ? { opencodeEfforts } : {}), ...(opencode.length && opencodePlan ? { opencodePlan } : {}), locales, llama, lider };
+  return { gemini: o.gemini === true, ...(agyModelos.length ? { agyModelos } : {}), ...(o.dsh === true ? { dsh: true } : {}), ...(opencode.length ? { opencode } : {}), ...(Object.keys(opencodeEfforts).length ? { opencodeEfforts } : {}), ...(opencode.length && opencodePlan ? { opencodePlan } : {}), locales, llama, lider };
 }
 
 /** Pide la configuración al main; si tarda más de `tope` ms (el motor reconectando) se sigue sin ella. */

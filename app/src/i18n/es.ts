@@ -1862,6 +1862,7 @@ export const es: { [K in keyof typeof en]: string } = {
   "modelo.agyOpus": "Claude Opus 5.5 por Google (agy) · usa el cupo de Google AI",
   "modelo.agySonnet": "Claude Sonnet 5.5 por Google (agy) · usa el cupo de Google AI",
   "modelo.agyGpt": "GPT-OSS 120B por Google (agy) · usa el cupo de Google AI",
+  "modelo.agyOfrecido": "Modelo que ofrece tu cuenta de Google (agy) · usa el cupo de Google AI",
   "mdl.desc.agy": "Corre por Google (agy). Gasta de tu cupo de Google AI.",
   "uso.hasta": "hasta {d}/{m}",
   "tiempo.vuelveEn": "vuelve en {t}",

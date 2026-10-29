@@ -206,6 +206,15 @@ export const familiaDeModelo = (modelo: string): "claude" | "gemini" | "dsh" | "
 export const EFFORTS_GEMINI = ["low", "medium", "high"] as const;
 export const EFFORT_GEMINI_DEFECTO = "high";
 
+/**
+ * Los modelos de agy que esta cuenta ofrece SIN nivel en el nombre (`agy:claude-sonnet-4-6-thinking`): el catálogo de `agy models`
+ * depende de la cuenta, la región y la versión. Al lanzar se mandan tal cual; ponerles `-high` daría "modelo no reconocido".
+ */
+let SIN_NIVEL = new Set<string>();
+export function recordarAgySinNivel(ids: readonly string[]): void {
+  SIN_NIVEL = new Set(ids.filter((i) => !/-(low|medium|high)$/.test(i)));
+}
+
 /** `gemini-4-argon-high` → `{ modelo: "gemini-4-argon", effort: "high" }`; sin sufijo, el esfuerzo es el default. */
 export function partirGemini(id: string, effort?: string | null): { modelo: string; effort: string } {
   const m = /^((?:gemini-|agy:).+?)-(low|medium|high)$/.exec(id);
@@ -216,7 +225,7 @@ export function partirGemini(id: string, effort?: string | null): { modelo: stri
 
 /** Lo que se le pasa a `agy --model`: el modelo con su esfuerzo (`gemini-3.8-flash-low`). */
 export const idAgy = (modelo: string, effort: string) =>
-  /-(low|medium|high)$/.test(modelo) ? modelo : `${modelo}-${(EFFORTS_GEMINI as readonly string[]).includes(effort) ? effort : EFFORT_GEMINI_DEFECTO}`;
+  /-(low|medium|high)$/.test(modelo) || SIN_NIVEL.has(modelo) ? modelo : `${modelo}-${(EFFORTS_GEMINI as readonly string[]).includes(effort) ? effort : EFFORT_GEMINI_DEFECTO}`;
 
 const TABLA_AGY: Record<string, string> = {
   "gpt-oss-120b-low": "gpt-oss-120b-medium",
@@ -227,6 +236,7 @@ const TABLA_AGY: Record<string, string> = {
 /** El nombre real que acepta `agy --model` (`agy:claude-opus-5-5-high` → `claude-opus-5-5-high`). */
 export function modeloAgy(modelo: string): string {
   const sin = modelo.startsWith("agy:") ? modelo.slice("agy:".length) : modelo;
+  if (SIN_NIVEL.has(modelo)) return sin;
   const con = /-(low|medium|high)$/.test(sin) ? sin : `${sin}-${sin === "gpt-oss-120b" ? "medium" : EFFORT_GEMINI_DEFECTO}`;
   return TABLA_AGY[con] ?? con;
 }
@@ -278,9 +288,11 @@ export const localOllama = (id: string, cfg: ModelosConfig | null = modelosConfi
  * Lo que sabe el renderer: sin url ni nada que no sea para mostrar (`src/datos/modelos-config.ts`). Gemini está si el archivo
  * lo habilita o es el líder por defecto. `null`: no hay archivo y todo es como siempre (ni `agy`, ni `dsh`, ni modelos locales).
  */
-export function vistaModelos(cfg: ModelosConfig | null = modelosConfig(), agy = false, llama: { id: string; nombre: string; empresa: string }[] = [], dsh = false, opencode: string[] = [], opencodeEfforts: Record<string, string[]> = {}, opencodePlan: string = "gratis") {
+export function vistaModelos(cfg: ModelosConfig | null = modelosConfig(), agy = false, llama: { id: string; nombre: string; empresa: string }[] = [], dsh = false, opencode: string[] = [], opencodeEfforts: Record<string, string[]> = {}, opencodePlan: string = "gratis", agyModelos: { id: string; nombre: string }[] = []) {
   // El plan de OpenCode Go sólo viaja si está prendido (go / go-plus): el selector rotula así sus modelos. Sin plan Go, nada cambia.
-  const ef = { ...(opencode.length && Object.keys(opencodeEfforts).length ? { opencodeEfforts } : {}), ...(opencode.length && (opencodePlan === "go" || opencodePlan === "go-plus") ? { opencodePlan } : {}) };
+  // Los modelos que `agy models` ofrece en esta cuenta (ids de pa); sin la lista, el selector muestra los de siempre.
+  const ag = agy && agyModelos.length ? { agyModelos } : {};
+  const ef = { ...ag, ...(opencode.length && Object.keys(opencodeEfforts).length ? { opencodeEfforts } : {}), ...(opencode.length && (opencodePlan === "go" || opencodePlan === "go-plus") ? { opencodePlan } : {}) };
   if (!cfg) return agy || llama.length || dsh || opencode.length ? { version: 1, gemini: agy, dsh, ...(opencode.length ? { opencode } : {}), ...ef, locales: [], llama, lider: null } : null;
   return {
     version: 1,

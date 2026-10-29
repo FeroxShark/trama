@@ -122,6 +122,8 @@ export type ConfigModelos = {
   dsh?: boolean;
   /** Los modelos que lista `opencode models` (`<proveedor>/<modelo>`), si el programa `opencode` está instalado: los gratis primero. Sin él (o sin la clave), ninguno. */
   opencode?: string[];
+  /** Los modelos que ofrece el `agy` de esta cuenta (ids de pa: `gemini-3.8-flash-high`, `agy:claude-opus-4-6-thinking`). Sin la lista, los de Gemini son los de siempre. */
+  agyModelos?: { id: string; nombre: string }[];
   /** Los niveles de esfuerzo de esos modelos (`opencode/xxx` → `["low","medium","high"]`); el que no figura no razona. */
   opencodeEfforts?: Record<string, string[]>;
   /** El plan de OpenCode Go prendido en Ajustes (`go` o `go-plus`); ausente: apagado, los modelos de OpenCode se ven como siempre. */
@@ -139,6 +141,29 @@ export const partirGeminiId = (id: string): [string, string | null] => {
   const m = /^((?:gemini-|agy:).+?)-(low|medium|high)$/.exec(id);
   return m ? [m[1]!, m[2]!] : [id, null];
 };
+
+/**
+ * Los modelos de agy que ofrece ESTA cuenta, como filas del selector. Los que ya conocemos (`GEMINI`) conservan su texto y se
+ * quedan con los niveles que la cuenta tiene; los que no conocemos entran con el nombre que dice agy y sin texto propio. Los
+ * conocidos que la cuenta no ofrece no aparecen. Los ids con el nivel pegado (`…-medium`) se agrupan en un modelo con selector.
+ */
+export function agyDeCuenta(ofrecidos: readonly { id: string; nombre: string }[]): ModeloDef[] {
+  const grupos = new Map<string, { nombre: string; niveles: string[] }>();
+  for (const o of ofrecidos) {
+    const [base, nivel] = partirGeminiId(o.id);
+    const g = grupos.get(base) ?? { nombre: o.nombre.replace(/\s*\((?:low|medium|high)\)\s*$/i, ""), niveles: [] };
+    if (nivel && !g.niveles.includes(nivel)) g.niveles.push(nivel);
+    grupos.set(base, g);
+  }
+  return [...grupos].map(([id, g]) => {
+    const niveles = EFFORTS_GEMINI.filter((e) => g.niveles.includes(e));
+    const conocido = GEMINI.find((m) => m.id === id);
+    const effortDefecto = niveles.includes(conocido?.effortDefecto as never) ? conocido!.effortDefecto : niveles.includes("high") ? "high" : (niveles[0] ?? "high");
+    return conocido
+      ? { ...conocido, efforts: niveles, effortDefecto }
+      : { id, clave: id, empresa: "google" as const, nombre: `${g.nombre} · por Google`, desc: "modelo.agyOfrecido" as const, soloLider: true, efforts: niveles, effortDefecto };
+  });
+}
 
 /**
  * Deja la tabla como la piden `modelos.json` y `locales.json`: llama-server, Gemini y Ollama agregados (cada empresa contigua, los locales de GPU antes de Ollama) y,
@@ -184,7 +209,7 @@ export function ponerConfig(c: ConfigModelos | null): { modelo: string; effort: 
   const opencodeTodos = [...valores].sort((a, b) => ordenOc(a) - ordenOc(b)).map((v) => opencode(v, c?.opencodeEfforts?.[v] ?? [], planGo));
   const base = BASE.map((m) => ({ ...m }));
   tabla.length = 0;
-  tabla.push(...base, ...llama, ...(c?.gemini ? GEMINI.map((m) => ({ ...m })) : []), ...ollama, ...dshTodos, ...opencodeTodos);
+  tabla.push(...base, ...llama, ...(c?.gemini ? (c.agyModelos?.length ? agyDeCuenta(c.agyModelos) : GEMINI.map((m) => ({ ...m }))) : []), ...ollama, ...dshTodos, ...opencodeTodos);
   const lider = c?.lider ?? null;
   if (!lider) return null;
   const [id, nivel] = partirGeminiId(lider.modelo);
