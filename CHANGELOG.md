@@ -1,5 +1,12 @@
 # Cambios
 
+## 0.2.24
+
+- Windows: pasar un líder a Claude por Google ya no da "spawn ENAMETOOLONG" (el mensaje va por stdin).
+- Windows: el plugin pa-worker de agy se instala solo; si un modelo no se puede usar, pa pasa al siguiente con cupo en vez de cortar.
+- Subagentes de Claude Code: muestran modelo y esfuerzo, con de dónde salen.
+- Subagentes: "Ver informe completo" muestra su texto.
+
 ## 0.2.23
 
 - Proyectos: toda carpeta donde trabaja un líder se anota sola en Ajustes > Proyectos (también las de líderes que ya existían).
