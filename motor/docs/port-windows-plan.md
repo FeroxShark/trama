@@ -12,7 +12,7 @@
 - Etapa 8: hecha (`73da113` — `pa` en TS: `--estado`, `--esperar`, `--esperar-todos`, `--parar`, `--matar` y el fork de `--async`).
 - Etapa 9: hecha (`2f71772` — `pa` en TS: ramas, integrar, descartar, lecciones y auditar o actualizar).
 - Etapa 10: hecha (`a922184` — `pa` en TS: otros motores: agy, codex, dsh, opencode, ollama).
-- Etapa 11: a medias (en curso: motor TS listo y paridad completa; falta el despachador en `motor/bin/pa` para usar TS por defecto en Linux con `TRAMA_PA=bash`).
+- Etapa 11: hecha en Linux (`motor/bin/pa`, `reparto`, `tablero` y `cuentas` defaultean a TS; `TRAMA_PA=bash`, `TRAMA_REPARTO=py`, `TRAMA_TABLERO=py`, `TRAMA_CUENTAS_CLI=py` vuelven a los originales). Respaldo de una o dos versiones antes de borrar los originales.
 - Etapa 12: hecha (`3e390eb` — `tablero` y `cuentas` en TypeScript).
 - Etapa 13: hecha (`211f1f9` — `reparto` en TypeScript).
 - Etapa 14: hecha (`8dfd8d6` — Ramas win32 en la app: terminal con `wt` y `cmd start`, interrumpir sin SIGINT, binarios `.cmd`, capacidades, datos de opencode).
