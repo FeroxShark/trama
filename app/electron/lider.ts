@@ -75,6 +75,9 @@ import { archivoUsoCuenta, cuentasClaude, entornoCuenta, preferidaClaude, usoPar
 import { esElProceso, sesionesVivas, type Sesion } from "./sesiones.js";
 import { log, silencio } from "./log.js";
 import { temaDe, tituloLider } from "./tema.js";
+import { terminalAgentesGuardada } from "./preferencias.js";
+import { envTerminalAgentes, lineaTerminalAgentes } from "./terminal-agentes.ts";
+import { plataformaActual } from "./rutas.ts";
 
 const HOME = os.homedir();
 const ARCHIVO = path.join(ESTADO, "lideres.json");
@@ -489,6 +492,9 @@ function lanzar(g: Guardado, resume: boolean, local?: Local, extra: Extra = {}):
   if (!g.corriendo) g.corriendo = Math.floor(Date.now() / 1000);
   void guardar();
   const clase = claseDeModelo(g.modelo);
+  // La terminal de los agentes (Windows): PowerShell por defecto; en Linux no cambia nada (terminal-agentes.ts).
+  const plat = plataformaActual();
+  const terminal = terminalAgentesGuardada();
   const base = opcionesLider(process.env, HOME, g.cwd, local && { modelo: g.modelo, effort: g.effort, local }, extra.ollama) as { cwd: string; env: NodeJS.ProcessEnv };
   // Su propio grupo (setsid): lo que el líder deja corriendo desde sus herramientas (un `qs`, un watcher) se barre al salir.
   // Un líder de Claude de una cuenta agregada corre con la carpeta de esa cuenta (CLAUDE_CONFIG_DIR); una que ya no existe cae a la de siempre.
@@ -535,7 +541,7 @@ function lanzar(g: Guardado, resume: boolean, local?: Local, extra: Extra = {}):
           // El mismo Electron/Node que el motor, como Node pelado; el prefacio (agy no lee CLAUDE.md) va por el entorno.
           { ...opciones, env: { ...base.env, ...cortesPuente, ELECTRON_RUN_AS_NODE: "1", TRAMA_AGY_PREFACIO: extra.prefacio ?? "", ...(relevo ? { TRAMA_AGY_RELEVO: relevo } : {}) } },
         )
-      : spawn(CLAUDE, argvLider({ modelo: g.modelo, effort: g.effort, sid: g.sid, nombre: g.nombre, resume, modo: g.modo, local, ollama: extra.ollama, desde: extra.desde, rama: g.rama, relevo, mcpConfig: mcpClaude }), opciones);
+      : spawn(CLAUDE, argvLider({ modelo: g.modelo, effort: g.effort, sid: g.sid, nombre: g.nombre, resume, modo: g.modo, local, ollama: extra.ollama, desde: extra.desde, rama: g.rama, relevo, mcpConfig: mcpClaude, lineaSistema: lineaTerminalAgentes(plat, terminal) ?? undefined }), { ...opciones, env: { ...opciones.env, ...envTerminalAgentes(plat, terminal) } });
   const x: Proc = { p, modelo: g.modelo, effort: g.effort, clase, local, ...(cuenta ? { cuenta: cuenta.id } : {}), ocupado: false, directos: [], pedido: 0, avisado: 0, resto: "", stderr: "", adrede: false, libre: [], pedidos: new Map(), controles: new Map(), estilo: null };
   procs.set(g.sid, x);
   p.stdout!.setEncoding("utf8");

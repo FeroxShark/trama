@@ -6,12 +6,12 @@
 import { readFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { ESTADO, escribirAtomico } from "./pa.js";
-import { silencio } from "./log.js";
-import { esModeloDictado } from "./dictado-modelos.js";
-import { aplicarOpGuias, normalizarGuias, type EstadoGuias } from "./guias-estado.js";
-import type { ModoAvisoLider } from "./avisos-worker.js";
-import { esTerminalAgentes, TERMINAL_AGENTES_DEFAULT, type TerminalAgentes } from "./terminal-agentes.js";
+import { ESTADO, escribirAtomico } from "./pa.ts";
+import { silencio } from "./log.ts";
+import { esModeloDictado } from "./dictado-modelos.ts";
+import { aplicarOpGuias, normalizarGuias, type EstadoGuias } from "./guias-estado.ts";
+import type { ModoAvisoLider } from "./avisos-worker.ts";
+import { esTerminalAgentes, TERMINAL_AGENTES_DEFAULT, type TerminalAgentes } from "./terminal-agentes.ts";
 
 const ARCHIVO = path.join(ESTADO, "preferencias.json");
 const VERSION = 1;

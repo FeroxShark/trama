@@ -19,6 +19,8 @@ import { matarArbol } from "../base/proc.ts";
 import { comandoHook, entreComillas, type VarianteHook } from "../hooks.ts";
 import { CIERRE_TAREA, CIERRE_TURNOS } from "./contrato.ts";
 import { caminoDe } from "../../rutas.ts";
+import { terminalAgentesGuardada } from "../../preferencias.ts";
+import { envTerminalAgentes } from "../../terminal-agentes.ts";
 import { conDueno, type Env, type Pa } from "./entorno.ts";
 import {
   campoJson,
@@ -539,7 +541,8 @@ export function guardarSesion(l: Lanzamiento, sid: string): void {
 
 /** El env del claude: el de pa, más PA_WORKER y los editores de git apagados, más la cuenta (sólo en este proceso). */
 export function entornoClaude(l: Lanzamiento): Env {
-  const e: Env = { ...l.pa.env, ...l.envClaude, PA_WORKER: "1", GIT_EDITOR: "true", GIT_SEQUENCE_EDITOR: "true" };
+  // La terminal de los agentes (Ajustes > General, Windows): PowerShell por defecto; en Linux no suma nada (terminal-agentes.ts).
+  const e: Env = { ...l.pa.env, ...envTerminalAgentes(l.pa.plat, terminalAgentesGuardada()), ...l.envClaude, PA_WORKER: "1", GIT_EDITOR: "true", GIT_SEQUENCE_EDITOR: "true" };
   // un local: las ANTHROPIC_* del servidor van SÓLO en este proceso (regla de facturación)
   if (l.c.local) Object.assign(e, entornoOllama({}, l.c.local.url, l.c.local.modelo));
   for (const k of l.c.cuentaEnv?.quitar ?? []) delete e[k];
