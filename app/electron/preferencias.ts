@@ -11,6 +11,7 @@ import { silencio } from "./log.js";
 import { esModeloDictado } from "./dictado-modelos.js";
 import { aplicarOpGuias, normalizarGuias, type EstadoGuias } from "./guias-estado.js";
 import type { ModoAvisoLider } from "./avisos-worker.js";
+import { esTerminalAgentes, TERMINAL_AGENTES_DEFAULT, type TerminalAgentes } from "./terminal-agentes.js";
 
 const ARCHIVO = path.join(ESTADO, "preferencias.json");
 const VERSION = 1;
@@ -31,10 +32,12 @@ export type VistaBarra = "todo" | "lideres";
 /** `avisarEspera`: la notificación de escritorio cuando un líder te espera y la ventana no tiene el foco; sin el campo, prendida. */
 /** `bienvenida`: la pantalla de primer arranque ya se vio (o se cerró); sin el campo, se muestra. */
 /** `dictadoModelo`: el modelo de Handy con que se transcribe el dictado (dictado-modelos.ts); sin el campo, Whisper Large v3 Turbo. */
+/** `terminalAgentes`: en Windows, la terminal de líderes y workers (terminal-agentes.ts); sin el campo, PowerShell. */
 export type Preferencias = {
   effort: Record<string, string>;
   idioma?: Idioma;
   tiernos?: boolean;
+  terminalAgentes?: TerminalAgentes;
   avisarEspera?: boolean;
   avisarWorkers?: boolean;
   /** `avisoLider`: cómo se avisa al líder de un worker que termina (avisos-worker.ts); sin el campo, al terminar la tanda. */
@@ -67,6 +70,7 @@ function desde(j: {
   mono?: unknown;
   tema?: unknown;
   tiernos?: unknown;
+  terminalAgentes?: unknown;
   avisarEspera?: unknown;
   avisarWorkers?: unknown;
   avisoLider?: unknown;
@@ -85,6 +89,7 @@ function desde(j: {
   if (esFuente(j.mono)) p.mono = j.mono;
   if (esFuente(j.tema)) p.tema = j.tema;
   if (typeof j.tiernos === "boolean") p.tiernos = j.tiernos;
+  if (esTerminalAgentes(j.terminalAgentes)) p.terminalAgentes = j.terminalAgentes;
   if (typeof j.avisarEspera === "boolean") p.avisarEspera = j.avisarEspera;
   if (typeof j.avisarWorkers === "boolean") p.avisarWorkers = j.avisarWorkers;
   if (esAvisoLider(j.avisoLider)) p.avisoLider = j.avisoLider;
@@ -257,6 +262,29 @@ export async function guardarAutoIntegrar(si: unknown): Promise<boolean> {
   const p = await leerPreferencias();
   if ((p.autoIntegrar !== false) === si) return false;
   p.autoIntegrar = si;
+  await guardar(p);
+  return true;
+}
+
+/**
+ * La terminal de los agentes, síncrona: la leen el líder al arrancar y `pa` al lanzar un worker (cada uno en su proceso, sin
+ * esperar la app). Sin nada guardado, PowerShell.
+ */
+export function terminalAgentesGuardada(): TerminalAgentes {
+  if (prefs) return prefs.terminalAgentes ?? TERMINAL_AGENTES_DEFAULT;
+  try {
+    return desde(JSON.parse(readFileSync(ARCHIVO, "utf8"))).terminalAgentes ?? TERMINAL_AGENTES_DEFAULT;
+  } catch {
+    return TERMINAL_AGENTES_DEFAULT;
+  }
+}
+
+/** La terminal de los agentes (Ajustes > General, sólo en Windows): al toque y a preferencias.json. */
+export async function guardarTerminalAgentes(t: unknown): Promise<boolean> {
+  if (!esTerminalAgentes(t)) return false;
+  const p = await leerPreferencias();
+  if ((p.terminalAgentes ?? TERMINAL_AGENTES_DEFAULT) === t) return false;
+  p.terminalAgentes = t;
   await guardar(p);
   return true;
 }

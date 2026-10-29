@@ -57,6 +57,8 @@ export type ArmarLider = {
   rama?: Rama;
   /** Un archivo con lo hablado con otro motor antes del cambio (`relevo-motor.ts`): se le agrega al prompt de sistema (`--append-system-prompt-file`), no a la conversación. */
   relevo?: string;
+  /** Una línea para el prompt de sistema (`--append-system-prompt`): en Windows con PowerShell, la de terminal-agentes.ts. */
+  lineaSistema?: string;
   /** Un archivo con los servidores MCP propios de Trama (`mcp.ts`): `--mcp-config <archivo>`, SIN `--strict-mcp-config`, así los conectores de claude.ai y los de la config de Claude siguen. Un líder local u Ollama no lo lleva. */
   mcpConfig?: string;
 };
@@ -110,7 +112,7 @@ const argvLocal = (contexto?: string) => [
  * y los contesta la app. Sesión nueva: `--session-id` + `--name`; retomada:
  * `--resume` (el nombre ya está en el transcript).
  */
-export function argvLider({ modelo, effort, sid, nombre, resume, modo = MODO_DEFAULT, local, ollama, desde, rama, relevo, mcpConfig }: ArmarLider): string[] {
+export function argvLider({ modelo, effort, sid, nombre, resume, modo = MODO_DEFAULT, local, ollama, desde, rama, relevo, lineaSistema, mcpConfig }: ArmarLider): string[] {
   if (!SID.test(sid)) throw errorT("main.sesionRara", { v: sid });
   for (const u of [desde, rama?.de, rama?.hasta]) if (u !== undefined && !SID.test(u)) throw errorT("main.sesionRara", { v: u });
   if (!esModo(modo)) throw errorT("main.modoRaro", { v: String(modo) });
@@ -140,6 +142,7 @@ export function argvLider({ modelo, effort, sid, nombre, resume, modo = MODO_DEF
     ...(local ? argvLocal(local.contexto) : ollama ? [] : ["--effort", effort]),
     // Un archivo y no el texto: el relevo puede pesar decenas de miles de caracteres (el argv de Windows tiene tope).
     ...(relevo ? ["--append-system-prompt-file", relevo] : []),
+    ...(lineaSistema ? ["--append-system-prompt", lineaSistema] : []),
     ...(mcpConfig && !local && !ollama ? ["--mcp-config", mcpConfig] : []),
   ];
   // Volver atrás y ramificar son del `claude` mismo (`--resume-session-at`, `--fork-session`): nunca se reescribe un transcript
