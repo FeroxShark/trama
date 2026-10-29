@@ -4,6 +4,7 @@
 import { readFile, realpath, stat } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { claveRuta } from "./proyectos-auto.ts";
 import { registroProyectos } from "./rutas.ts";
 
 const rutaRegistry = () => registroProyectos();
@@ -67,7 +68,7 @@ export async function registro(): Promise<Proyecto[]> {
   for (const r of regs) {
     if (typeof r.path !== "string" || typeof r.name !== "string" || !r.name) continue;
     const ruta = await real(expandir(r.path));
-    if (ruta === casa || ruta === "/") continue;
+    if (claveRuta(ruta) === claveRuta(casa) || ruta === "/") continue;
     const icono = [r.icono, r.icon].find((x): x is string => typeof x === "string" && x !== "") ?? null;
     const logo = typeof r.logo === "string" && r.logo.startsWith("data:image/") ? r.logo : null;
     const tests = typeof r.tests === "string" && r.tests.trim() ? r.tests : null;
@@ -92,11 +93,12 @@ export async function registro(): Promise<Proyecto[]> {
       estado,
       alias: [...new Set([...aliasPropios, ...defecto])],
     };
-    const ya = porRuta.get(ruta);
+    const clave = claveRuta(ruta);
+    const ya = porRuta.get(clave);
     const peso = (x: Proyecto) => (x.nombre.toLowerCase() === x.slug ? 0 : 1000) + x.nombre.length;
     if (!ya || peso(p) < peso(ya)) {
       const aliasCombinados = [...new Set([...(ya?.alias ?? []), ...p.alias, ...(ya && ya.nombre !== p.nombre ? [ya.nombre] : [])])];
-      porRuta.set(ruta, {
+      porRuta.set(clave, {
         ...p,
         icono: p.icono ?? ya?.icono ?? null,
         logo: p.logo ?? ya?.logo ?? null,

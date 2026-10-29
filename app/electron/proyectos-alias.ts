@@ -8,6 +8,7 @@ import path from "node:path";
 import { errorT } from "./errores.ts";
 import { validarLogo } from "./iconos.ts";
 import { NOMBRE_MAX, validarNombre, type NombreUsado } from "./proyectos-nombre.ts";
+import { claveRuta } from "./proyectos-auto.ts";
 import { real, slug as slugDe } from "./registro.ts";
 
 const SLUG = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
@@ -68,11 +69,12 @@ export async function listarProyectos(archivo: string): Promise<ProyectoNombre[]
   const casa = await real(os.homedir());
   const porRuta = new Map<string, Cruda[]>();
   for (const e of lista) {
-    if (e.ruta === casa || e.ruta === "/") continue;
-    porRuta.set(e.ruta, [...(porRuta.get(e.ruta) ?? []), e]);
+    if (claveRuta(e.ruta) === claveRuta(casa) || e.ruta === "/") continue;
+    porRuta.set(claveRuta(e.ruta), [...(porRuta.get(claveRuta(e.ruta)) ?? []), e]);
   }
   const salida: ProyectoNombre[] = [];
-  for (const [ruta, es] of porRuta) {
+  for (const es of porRuta.values()) {
+    const ruta = es[0].ruta;
     // Como `registro()`: el nombre que coincide con el slug, si no el más corto.
     const peso = (e: Cruda) => (e.nombre.toLowerCase() === e.slug ? 0 : 1000) + e.nombre.length;
     const principal = [...es].sort((a, b) => peso(a) - peso(b))[0];

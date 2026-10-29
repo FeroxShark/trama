@@ -78,6 +78,7 @@ import { log, silencio } from "./log.js";
 import { temaDe, tituloLider } from "./tema.js";
 import { terminalAgentesGuardada } from "./preferencias.js";
 import { envTerminalAgentes, lineaTerminalAgentes } from "./terminal-agentes.ts";
+import { anotarCarpeta, anotarCarpetas } from "./proyectos-auto.ts";
 import { plataformaActual } from "./rutas.ts";
 
 const HOME = os.homedir();
@@ -256,6 +257,11 @@ export async function lideresApp(): Promise<Guardado[]> {
 }
 
 const guardar = () => escribirAtomico(ARCHIVO, escribirGuardados(guardados ?? [])).catch(silencio("lider"));
+
+/** Al abrir Trama: las carpetas de los líderes que ya existen quedan en el registry de proyectos (los del home y los sin carpeta, no). */
+export async function anotarProyectosDeLideres(): Promise<string[]> {
+  return anotarCarpetas((await lideresApp()).map((g) => g.cwd), silencio("proyectos"));
+}
 
 // Los slash commands de la última sesión que los dijo (todos los líderes corren en `~` con la
 // misma config): el menú de "/" de un líder nuevo, que todavía no tiene proceso, los ofrece igual.
@@ -978,6 +984,7 @@ export async function nuevo(x: { modelo: string; effort: string; texto: string; 
   };
   ls.push(g);
   await guardar();
+  anotarCarpeta(cwd, silencio("proyectos"));
   const p = lanzar(g, false, local, extra);
   p.ocupado = true;
   p.p.stdin!.write(lineaUsuario(texto, imagenes));
@@ -1609,6 +1616,7 @@ async function anotar(
     if (!procs.has(sid)) ya.retomado = ahora;
     delete ya.murio;
     delete ya.motivo;
+    anotarCarpeta(ya.cwd, silencio("proyectos"));
     return { ok: true, nuevo: false };
   }
   const t = await transcriptDe(sid);
@@ -1641,6 +1649,7 @@ async function anotar(
     ...(cwd !== HOME ? { cwd } : {}),
     retomado: ahora,
   });
+  anotarCarpeta(cwd, silencio("proyectos"));
   return { ok: true, nuevo: true };
 }
 

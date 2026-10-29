@@ -725,6 +725,8 @@ export function armarNucleo() {
   void lider.marcarCortados().catch(silencio("lider"));
   // Los líderes que tenían proceso cuando trama se cerró (reinicio, salida) vuelven a tenerlo, sin que nadie escriba.
   void lider.reanudarDormidos().catch(silencio("lider"));
+  // Las carpetas donde ya trabajan líderes (nuevos, retomados, traídos de Claude Code) quedan como proyectos, sin pasos manuales.
+  void lider.anotarProyectosDeLideres().catch(silencio("proyectos"));
   // Los adjuntos de hace más de una semana no sirven más.
   void limpiarAdjuntos(path.join(ESTADO, "adjuntos")).catch(silencio("adjuntos"));
   // Trama que arranca con algo en la cola (aunque nadie abra la ventana): lo que ya puede salir, sale.
