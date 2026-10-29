@@ -775,6 +775,22 @@ const porDefecto = (): Io => {
   return { out: (s) => void process.stdout.write(s), err: (s) => void process.stderr.write(s) };
 };
 
+/**
+ * Deja la carpeta de esa cuenta agregada compartiendo lo de ~/.claude (y migra lo propio que tuviera) antes de correr un `claude`
+ * con ella: lo mismo que hace `cuentas env`. Devuelve los avisos (vacío: todo bien). Nunca lanza.
+ */
+export function asegurarCuenta(id: string, env: Env = process.env): string[] {
+  const avisos: string[] = [];
+  try {
+    const c = new Cuentas(env, { out: () => {}, err: (s) => avisos.push(s.trim()) });
+    const cuenta = c.buscar(id);
+    if (cuenta) c.asegurarLinks(cuenta);
+  } catch (e) {
+    avisos.push(`cuentas: no pude revisar la carpeta de ${id}: ${e instanceof Error ? e.message : e}`);
+  }
+  return avisos;
+}
+
 /** `enlace`: sólo los tests (simulan Windows inyectando el junction y el hardlink). */
 export async function main(argv: string[], env: Env = process.env, io: Io = porDefecto(), enlace: OpcionesEnlace = {}): Promise<number> {
   const c = new Cuentas(env, io);

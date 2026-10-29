@@ -71,6 +71,7 @@ import { convDe } from "./conv-cache.ts";
 import { guardada, igual, juntar, lecturaDe, oficialDe, type Lectura } from "./uso.ts";
 import { errorT } from "./errores.ts";
 import { ESTADO, escribirAtomico, PA_STATE } from "./pa.js";
+import { asegurarCuenta } from "./cli/cuentas.ts";
 import { archivoUsoCuenta, cuentasClaude, entornoCuenta, preferidaClaude, usoParaReparto } from "./uso-cuentas.ts";
 import { esElProceso, sesionesVivas, type Sesion } from "./sesiones.js";
 import { log, silencio } from "./log.js";
@@ -499,6 +500,8 @@ function lanzar(g: Guardado, resume: boolean, local?: Local, extra: Extra = {}):
   // Su propio grupo (setsid): lo que el líder deja corriendo desde sus herramientas (un `qs`, un watcher) se barre al salir.
   // Un líder de Claude de una cuenta agregada corre con la carpeta de esa cuenta (CLAUDE_CONFIG_DIR); una que ya no existe cae a la de siempre.
   const cuenta = clase === "claude" && !local && !extra.ollama ? cuentaDeLider(g) : undefined;
+  // Antes de correrlo, que su carpeta comparta projects/plugins/skills… con ~/.claude (en Windows Claude las crea vacías y propias).
+  if (cuenta) for (const a of asegurarCuenta(cuenta.id)) rastro(g.sid, "sin-motivo", a);
   const opciones = { ...base, ...(cuenta ? { env: entornoCuenta(base.env, cuenta.dir) } : {}), stdio: ["pipe", "pipe", "pipe"] as ["pipe", "pipe", "pipe"], detached: true, windowsHide: true };
   // Si la conversación venía de otro motor, lo hablado va aparte de los mensajes (prompt de sistema o prefacio): no ensucia el transcript.
   // (También el de una rama hecha con relevo o una vuelta atrás en un motor sin `--resume-session-at`: el archivo sólo existe si hace falta.)
