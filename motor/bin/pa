@@ -188,17 +188,17 @@ set -euo pipefail
 _BIN="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 
 # --- el pa de TypeScript (etapa 11 del port: motor/docs/port-windows-plan.md) ---------------------------------
-# Con TRAMA_PA=ts este script es sólo un envoltorio: corre app/dist-electron/cli/pa.js (TRAMA_PA_JS lo cambia). El de TS sale 70,
+# Es el DEFAULT: este script es sólo un envoltorio que corre app/dist-electron/cli/pa.js (TRAMA_PA_JS lo cambia). El de TS sale 70,
 # sin haber hecho nada, con los modos que todavía no porta (otros motores, hilos, rinde, bien…): entonces sigue este bash, que
-# queda detrás hasta que el de TS lo reemplace. Hoy NO es el default; TRAMA_PA=bash (o sin TRAMA_PA) es este script de siempre.
-if [[ "${TRAMA_PA:-bash}" == ts ]]; then
+# queda detrás hasta que el de TS lo reemplace. TRAMA_PA=bash fuerza este script de siempre (el respaldo, una o dos versiones).
+if [[ "${TRAMA_PA:-ts}" == ts ]]; then
   _pa_js="${TRAMA_PA_JS:-$_BIN/../../app/dist-electron/cli/pa.js}"
   if command -v node >/dev/null 2>&1 && [[ -f "$_pa_js" ]]; then
     _pa_rc=0; node "$_pa_js" "$@" || _pa_rc=$?
     (( _pa_rc == 70 )) || exit "$_pa_rc"
     echo "pa: eso todavía no está en el pa de TypeScript; sigo con el de bash." >&2
   else
-    echo "pa: TRAMA_PA=ts pero no encuentro node o $_pa_js; sigo con el de bash." >&2
+    echo "pa: no encuentro node o $_pa_js (¿falta compilar app/?); sigo con el de bash." >&2
   fi
   export TRAMA_PA=bash   # los pa que este lance (el hijo de --async) ya no vuelven a probar el de TS
 fi
