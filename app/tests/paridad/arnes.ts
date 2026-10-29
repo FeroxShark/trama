@@ -177,6 +177,8 @@ function entorno(c: Contexto, extra: Record<string, string> = {}): NodeJS.Proces
     REPARTO_CLAUDE: "0",
     // sin el agy de la máquina: reparto lee `agy -p /quota` y, si el agy real tarda o se cuelga, la tubería queda abierta y el caso no termina
     REPARTO_AGY: "0",
+    // y sin el opencode de la máquina: `opencode models` con una casa vacía se cuelga hasta el tope de reparto (8 s) en cada invocación; lista vacía fija
+    REPARTO_OPENCODE_FIJO: "[]",
     PA_REPARTO: "0",
     PA_CLAUDE_SETTINGS: path.join(c.home, "no-hay-settings.json"),
     TRAMA_FALSO_LOG: path.join(c.raiz, "claude-argv.jsonl"),
