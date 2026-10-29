@@ -981,7 +981,7 @@ const esNumPy = (v: unknown) => typeof v === "number" || typeof v === "boolean";
 
 /** Los `uso.json` de donde sale el cupo de Claude: el del estado de `pa` y, para la cuenta de siempre, el de la app (lo que dijo el stream de los líderes). */
 export function fuentesUso(paState: string, cuenta: Obj | null, env: NodeJS.ProcessEnv = E, h: string = home(), plat: Plataforma = plataformaActual()): string[] {
-  const c = plat === "win32" ? path.win32 : path;
+  const c = plat === "win32" ? path.win32 : path.posix;
   if (cuenta && !cuenta.defecto) return [c.join(paState, "cuentas", cuenta.id, "uso.json")];
   const usos = [c.join(paState, "uso.json")];
   if (env.HILOS_STATE) usos.push(c.join(env.HILOS_STATE, "uso.json"));

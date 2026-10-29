@@ -37,7 +37,8 @@ test("un archivo que se cuelga se corta a su tope y no deja vivo ni uno de sus p
   const pids = pidsEn();
   const r = await runner("cuelga", { TRAMA_TEST_ARCHIVO_S: "2", TRAMA_TEST_PIDS: pids }).fin;
   assert.notEqual(r.codigo, 0);
-  assert.match(r.salida, /sin terminar tras 2 s; se cortó/);
+  // En Windows, `node --test` corta el archivo con su propio tope (80 %) antes que el vigía del runner; en Linux, el bucle que no cede sólo lo corta el runner.
+  assert.match(r.salida, process.platform === "win32" ? /sin terminar tras 2 s; se cortó|test timed out after/ : /sin terminar tras 2 s; se cortó/);
   const lista = leerPids(pids);
   assert.equal(lista.length, 2);
   await esperar(() => lista.every((p) => !vivo(p)));
