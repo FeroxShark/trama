@@ -155,7 +155,7 @@ try {
   await en(() => document.querySelector(".aj-it[data-cat='general']")?.click());
   ok(await hasta(() => !!document.querySelector(".aj-cat:not([hidden]) [data-opc='ajustes.compactar']"), 3), "la compactación está en General");
   ok(/300.000 tokens/.test(await tope()), "el selector muestra lo guardado (300 000, que no está en la lista fija)");
-  ok((await apagado(0, GUARDAR)) && (await apagado(0, CANCELAR)), "sin cambios, Guardar y Cancelar no se pueden apretar");
+  ok(await en(() => !document.querySelector(".pn-barra")), "sin cambios, la barra no se muestra");
   const opciones = await elegirTope("150");
   ok(["100", "150", "200", "300", "Sin tope"].every((x) => opciones.some((o) => o.includes(x))), "ofrece 100k, 150k, 200k, 300k y sin tope");
   ok(opciones.filter((o) => /default|por defecto/i.test(o)).length === 1 && /200.000/.test(opciones.find((o) => /default|por defecto/i.test(o)) ?? ""), "y marca el de 200 000 como default");
@@ -165,14 +165,14 @@ try {
   await foto("ajustes-compactar-editando");
   await boton(0, CANCELAR);
   await espera(150);
-  ok(/300.000 tokens/.test(await tope()) && (await apagado(0, GUARDAR)), "Cancelar vuelve a lo guardado");
+  ok(/300.000 tokens/.test(await tope()) && (await hasta(() => !document.querySelector(".pn-barra"), 3)), "Cancelar vuelve a lo guardado y la barra desaparece");
   await elegirTope("150");
   await reabrir();
   await en(() => document.querySelector(".aj-it[data-cat='general']")?.click());
   ok(/300.000 tokens/.test(await tope()), "lo elegido y no guardado no sobrevive: al reabrir sigue lo de antes");
   await elegirTope("Sin tope");
   await boton(0, GUARDAR);
-  ok(await hasta(() => /Guardado/.test(document.querySelector(".pn-barra-estado")?.textContent ?? ""), 5), "Guardar dice Guardado");
+  ok(await hasta(() => !document.querySelector(".pn-barra"), 5), "Guardar guarda y la barra desaparece");
   await reabrir();
   await en(() => document.querySelector(".aj-it[data-cat='general']")?.click());
   ok(/Sin tope/.test(await tope()), "y lo guardado vuelve al reabrir");

@@ -4,6 +4,7 @@
 // a validar con las mismas reglas (electron/valida-ajustes.ts) y, si algo falla, el borrador queda como estaba.
 // El acceso desde el celular no tiene Guardar: cada cambio se manda al tocarlo (`Celular`).
 import { useEffect, useRef, useState, useSyncExternalStore, type FormEvent, type ReactNode } from "react";
+import { AnimatePresence, motion } from "motion/react";
 import { Cat } from "./AjustesNav";
 import { PanelCargando } from "./PanelCargando";
 import { declarar } from "./ajustes-nav";
@@ -69,26 +70,40 @@ export function Acciones({
 /** La barra fija de abajo: dice si hay cambios sin guardar y guarda o cancela todos los bloques de una vez. */
 export function BarraGuardar() {
   const r = useSyncExternalStore(suscribir, resumen);
-  const estado = r.guardando ? t("ajustes.guardando") : r.sucio ? t("ajustes.sinGuardar") : r.ok ? t("ajustes.guardadoOk") : t("ajustes.sinCambios");
+  const visible = r.sucio || r.guardando;
   return (
-    <div className="pn-barra" data-sucio={r.sucio ? "" : undefined} role="group" aria-label={t("ajustes.barra")}>
-      {r.error ? (
-        <div className="pn-error pn-barra-error" role="alert">
-          {textoMain(r.error)}
-        </div>
+    <AnimatePresence initial={false}>
+      {visible ? (
+        <motion.div
+          key="pn-barra"
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: 10 }}
+          transition={{ duration: MODO.quieto ? 0 : 0.14, ease: "easeOut" }}
+          className="pn-barra"
+          data-sucio=""
+          role="group"
+          aria-label={t("ajustes.barra")}
+        >
+          {r.error ? (
+            <div className="pn-error pn-barra-error" role="alert">
+              {textoMain(r.error)}
+            </div>
+          ) : null}
+          <div className="pn-barra-fila">
+            <span className="pn-barra-estado" role="status">
+              {r.guardando ? t("ajustes.guardando") : t("ajustes.sinGuardar")}
+            </span>
+            <button type="button" className="btn2" disabled={r.guardando} onClick={cancelarTodo}>
+              {t("ajustes.cancelar")}
+            </button>
+            <button type="button" className="btn2" data-primario disabled={!r.puedeGuardar} onClick={() => void guardarTodo()}>
+              {r.guardando ? t("ajustes.guardando") : t("ajustes.guardar")}
+            </button>
+          </div>
+        </motion.div>
       ) : null}
-      <div className="pn-barra-fila">
-        <span className="pn-barra-estado" role="status">
-          {estado}
-        </span>
-        <button type="button" className="btn2" disabled={!r.sucio || r.guardando} onClick={cancelarTodo}>
-          {t("ajustes.cancelar")}
-        </button>
-        <button type="button" className="btn2" data-primario disabled={!r.puedeGuardar} onClick={() => void guardarTodo()}>
-          {r.guardando ? t("ajustes.guardando") : t("ajustes.guardar")}
-        </button>
-      </div>
-    </div>
+    </AnimatePresence>
   );
 }
 
