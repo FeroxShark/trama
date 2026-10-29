@@ -3764,19 +3764,14 @@ cuenta_preparar() {   # $1 = id, $2 = proveedor del modelo -> cuenta y cuenta_en
     | if length > 0 then ["env"] + . else . end | .[]' <<<"$j" 2>/dev/null)
   return 0
 }
-cuenta_elegir() {   # $1 = proveedor -> la cuenta con más cupo libre (la de siempre si es la única)
+cuenta_elegir() {   # $1 = proveedor -> la cuenta que eligió la persona (`cuentas preferir`; sin elegir, la de siempre)
   local prov="$1" c=""
-  # OpenCode: reparto no sabe el cupo de cada cuenta (lo cuenta la app): la de siempre, salvo --cuenta.
+  # Nunca por el cupo: pasar de una cuenta a otra es decisión de la persona. OpenCode: la de siempre, salvo --cuenta.
   [[ "$prov" == opencode ]] && { echo opencode; return 0; }
   [[ -f "$CUENTAS_JSON" ]] && jq -e --arg p "$prov" 'any(.cuentas[]?; .proveedor == $p and .id != $p)' "$CUENTAS_JSON" >/dev/null 2>&1 \
     || { echo "$prov"; return 0; }
-  # La que eligió reparto junto con el modelo (si sigue siendo de este proveedor: agy pudo caer a Claude).
-  (( vino_de_reparto )) && c="$(jq -r '.cuenta // ""' <<<"${rep_json:-}" 2>/dev/null || true)"
+  c="$(jq -r --arg p "$prov" '.preferidas[$p] // empty | strings' "$CUENTAS_JSON" 2>/dev/null || true)"
   [[ -n "$c" && "$(cuenta_proveedor "$c")" == "$prov" ]] || c=""
-  if [[ -z "$c" && -x "$REPARTO" ]]; then
-    c="$(REPARTO_STATE="${REPARTO_STATE:-$STATE/reparto}" PA_STATE="$STATE" \
-      timeout "${PA_REPARTO_TIMEOUT_S:-15}" "$REPARTO" --cuenta-para "$modelo" 2>/dev/null </dev/null)" || c=""
-  fi
   echo "${c:-$prov}"
 }
 cuenta_resolver() {   # $1 = proveedor del modelo. --cuenta que no va: sale 2
@@ -6704,7 +6699,7 @@ while (( reintentos_cupo < 3 )) && [[ "$SIN_CUPO" == otro && -n "$reparto_tipo_r
   else
     quien="agy dijo 429"
   fi
-  # Se agota el grupo de ESA cuenta; el siguiente candidato prefiere otra cuenta del mismo proveedor.
+  # Se agota el grupo de ESA cuenta; el siguiente candidato es del mismo proveedor (en la misma cuenta) o de otro, nunca de otra cuenta.
   c_ant="$cuenta"; p_ant="$(proveedor_de_modelo "$m_ant")"
   REPARTO_STATE="${REPARTO_STATE:-$STATE/reparto}" PA_STATE="$STATE" "$REPARTO" --agotar "$m_ant" "${hasta_args[@]}" ${c_ant:+--cuenta "$c_ant"} >/dev/null 2>&1 </dev/null || true
   es_opencode "$m_ant" && enfriar_modelo "$m_ant"
@@ -6721,7 +6716,8 @@ while (( reintentos_cupo < 3 )) && [[ "$SIN_CUPO" == otro && -n "$reparto_tipo_r
   p_rep="$(proveedor_de_modelo "$m_rep")"
   c_rep="$(jq -r '.cuenta // ""' <<<"$rep_json" 2>/dev/null)"
   [[ -n "$c_rep" && "$(cuenta_proveedor "$c_rep")" == "$p_rep" ]] || c_rep="$p_rep"
-  if [[ -z "$m_rep" || ( "$m_rep" == "$m_ant" && "$c_rep" == "${c_ant:-$p_ant}" ) ]] || es_local "$m_rep" || [[ "${m_rep,,}" != @(claude-*|gemini-*|agy:*|codex:*|dsh:*|opencode:*) ]] \
+  # Nunca de una cuenta a otra del mismo proveedor por falta de cupo: esa elección es de la persona (`cuentas preferir`, --cuenta).
+  if [[ -z "$m_rep" || ( "$m_rep" == "$m_ant" && "$c_rep" == "${c_ant:-$p_ant}" ) || ( -n "$p_ant" && "$p_rep" == "$p_ant" && "$c_rep" != "${c_ant:-$p_ant}" ) ]] || es_local "$m_rep" || [[ "${m_rep,,}" != @(claude-*|gemini-*|agy:*|codex:*|dsh:*|opencode:*) ]] \
      || { ! es_dsh "$m_rep" && ! cuenta_preparar "$c_rep" "$p_rep" 2>/dev/null; }; then
     echo "pa: $quien (sin cupo) con $m_ant, lo marqué como agotado, pero reparto no ofrece otro candidato con cupo; sigo como falló." >&2
     cuenta_preparar "${c_ant:-$p_ant}" "$p_ant" 2>/dev/null || true

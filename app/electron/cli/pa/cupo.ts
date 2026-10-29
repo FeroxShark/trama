@@ -152,7 +152,7 @@ export function relanzarPorCupo(pa: Pa, l: Llamada): NonNullable<Ganchos["relanz
       }
       hastaArgs.push("--hasta", iso(hasta));
     }
-    // Se agota el grupo de ESA cuenta; el siguiente candidato prefiere otra cuenta del mismo proveedor.
+    // Se agota el grupo de ESA cuenta; el siguiente candidato es del mismo proveedor (en la misma cuenta) o de otro, nunca de otra cuenta.
     const cAnt = c.cuenta;
     const pAnt = proveedorDe(mAnt);
     await reparto(pa, ["--agotar", mAnt, ...hastaArgs, ...(cAnt ? ["--cuenta", cAnt] : [])], false);
@@ -162,7 +162,8 @@ export function relanzarPorCupo(pa: Pa, l: Llamada): NonNullable<Ganchos["relanz
     const pRep = proveedorDe(mRep);
     const cRep = cand.cuenta && cuentaProveedor(cand.cuenta, pa) === pRep ? cand.cuenta : pRep;
     const sinOtro = () => io.err(`pa: ${quien} (sin cupo) con ${mAnt}, lo marqué como agotado, pero reparto no ofrece otro candidato con cupo; sigo como falló.\n`);
-    if (!mRep || (mRep === mAnt && cRep === (cAnt || pAnt)) || esLocal(mRep) || !/^(claude-|gemini-|agy:|codex:|dsh:|opencode:)/i.test(mRep)) {
+    // Nunca de una cuenta a otra del mismo proveedor por falta de cupo: esa elección es de la persona (`cuentas preferir`, --cuenta).
+    if (!mRep || (mRep === mAnt && cRep === (cAnt || pAnt)) || (pAnt && pRep === pAnt && cRep !== (cAnt || pAnt)) || esLocal(mRep) || !/^(claude-|gemini-|agy:|codex:|dsh:|opencode:)/i.test(mRep)) {
       sinOtro();
       return false;
     }

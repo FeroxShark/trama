@@ -240,22 +240,19 @@ async function cuentaPreparar(id: string, prov: string, l: Llamada, pa: Pa, deps
   return true;
 }
 
-/** `cuenta_elegir`: la cuenta con más cupo libre (la de siempre si es la única). */
-async function cuentaElegir(prov: string, l: Llamada, pa: Pa, deps: DepsPolitica): Promise<string> {
+/** `cuenta_elegir`: la cuenta que eligió la persona (`cuentas preferir`; sin elegir, la de siempre). Nunca por el cupo. */
+async function cuentaElegir(prov: string, _l: Llamada, pa: Pa, _deps: DepsPolitica): Promise<string> {
   if (prov === "opencode") return "opencode";
   const filas = filasCuentas(pa);
   if (!filas || !filas.some((c) => c && c.proveedor === prov && c.id !== prov)) return prov;
   let c = "";
-  if (l.vinoDeReparto) {
-    try {
-      const x = (JSON.parse(l.repJson) as { cuenta?: unknown }).cuenta;
-      c = typeof x === "string" ? x : "";
-    } catch {
-      c = "";
-    }
+  try {
+    const x = (JSON.parse(readFileSync(cuentasJson(pa), "utf8")) as { preferidas?: Record<string, unknown> | null }).preferidas?.[prov];
+    c = typeof x === "string" ? x : "";
+  } catch {
+    c = "";
   }
   if (!(c && cuentaProveedor(c, pa) === prov)) c = "";
-  if (!c && deps.reparto.ejecutable()) c = await deps.reparto.cuentaPara(l.modelo);
   return c || prov;
 }
 
