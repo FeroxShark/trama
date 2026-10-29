@@ -697,6 +697,65 @@ kbd {
 .vista button[aria-pressed="true"] {
   color: var(--texto-1);
 }
+/* Recientes | A-Z: la misma cápsula con pulgar que `.vista`, pero con texto y en un renglón propio, chico. Con algo
+   acomodado a mano (`data-modo="manual"`) el pulgar se apaga: ningún modo rige hasta que se elige uno. */
+.orden-barra {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  align-self: flex-start;
+  padding: var(--esp-0-5);
+  border: 0;
+  border-radius: var(--r-cap);
+  background: var(--capa-tile);
+}
+.orden-barra::before {
+  content: "";
+  position: absolute;
+  top: var(--esp-0-5);
+  bottom: var(--esp-0-5);
+  left: var(--esp-0-5);
+  width: calc(50% - var(--esp-0-5));
+  border-radius: var(--r-cap);
+  background: var(--capa-track);
+  transition:
+    transform 0.16s cubic-bezier(0.2, 0, 0, 1),
+    opacity 0.16s cubic-bezier(0.2, 0, 0, 1);
+}
+.orden-barra[data-modo="az"]::before {
+  transform: translateX(100%);
+}
+.orden-barra[data-modo="manual"]::before {
+  opacity: 0;
+}
+.orden-barra button {
+  position: relative;
+  min-height: 1.5rem;
+  padding: 0 var(--esp-3);
+  border: 0;
+  border-radius: var(--r-cap);
+  background: transparent;
+  color: var(--apagado);
+  font: inherit;
+  font-size: var(--letra-3);
+  white-space: nowrap;
+}
+.orden-barra button::after {
+  content: "";
+  position: absolute;
+  inset: -0.125rem 0;
+}
+.orden-barra button:hover {
+  color: var(--txt-1);
+}
+.orden-barra button[aria-pressed="true"] {
+  color: var(--texto-1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .orden-barra::before {
+    transition: none;
+  }
+}
 
 /* --- Lista ---------------------------------------------------------------- */
 .lista {
@@ -6267,6 +6326,9 @@ summary.sis-div-t:hover,
   .vista::before,
   .vista button {
     width: 2.5rem;
+  }
+  .orden-barra button {
+    min-height: 2.25rem;
   }
   .vista::before {
     top: var(--esp-0-5);

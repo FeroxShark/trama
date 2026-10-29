@@ -13,7 +13,10 @@ const DIA = 86400;
 export type Prefijo = string | (() => string);
 const pre = (p: Prefijo) => (typeof p === "string" ? p : p());
 
-/** "hace 6 m", "hace 2 h", "ayer", "hace 3 d". */
+/** Pasado esto, "hace N d" deja de decir algo útil: se muestra la fecha ("27 oct"). */
+const SEMANA = 7 * DIA;
+
+/** "hace 6 m", "hace 2 h", "ayer", "hace 3 d", y de más de una semana, la fecha corta ("27 oct"). */
 export const pintorHace =
   (desde: number, prefijo: Prefijo = ""): Pintor =>
   (a) => {
@@ -23,7 +26,8 @@ export const pintorHace =
     if (d < HORA) return { texto: p + t("tiempo.haceM", { n: Math.floor(d / MIN) }), en: MIN - (d % MIN) };
     if (d < DIA) return { texto: p + t("tiempo.haceH", { n: Math.floor(d / HORA) }), en: HORA - (d % HORA) };
     if (d < 2 * DIA) return { texto: p + t("tiempo.ayer"), en: 2 * DIA - d };
-    return { texto: p + t("tiempo.haceD", { n: Math.floor(d / DIA) }), en: DIA - (d % DIA) };
+    if (d < SEMANA) return { texto: p + t("tiempo.haceD", { n: Math.floor(d / DIA) }), en: DIA - (d % DIA) };
+    return { texto: p + diaCorto(desde, a), en: Infinity };
   };
 
 /** "38 s", "4 m", "1 h 05 m": cuánto lleva trabajando. Segundos sólo el primer minuto. */
@@ -42,6 +46,15 @@ export const pintorDura =
 export function duracion(segundos: number) {
   const m = Math.max(1, Math.round(segundos / MIN));
   return m < 60 ? `${m} m` : `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, "0")} m`;
+}
+
+/** "27 oct", y con el año si es de otro año. */
+function diaCorto(epoch: number, ahora: number): string {
+  const f = new Date(epoch * 1000);
+  return f
+    .toLocaleDateString(locale(), { day: "numeric", month: "short", ...(f.getFullYear() !== new Date(ahora * 1000).getFullYear() ? { year: "numeric" } : {}) })
+    .replace(/\./g, "")
+    .replace(/ de /g, " ");
 }
 
 const dos = (n: number) => String(n).padStart(2, "0");

@@ -5,7 +5,8 @@
 import { cerrable, cerrado, esShark, GENERAL, SHARK, type Caido, type Estado, type Hilo, type Lider, type Orden } from "../datos/contrato.ts";
 import { fraseConocida, t } from "../i18n/index.ts";
 import { compararActivas, flotar, repartir, type Foto } from "./activas.ts";
-import { porManual } from "./orden.ts";
+import { modoOrden, porManual, type ModoOrden } from "./orden.ts";
+import type { Recientes } from "./recientes.ts";
 
 /** Un líder sin workers a la vista, sin responder y sin actividad en esto, va plegado en "N líderes en espera". */
 export const ESPERA_S = 30 * 60;
@@ -54,6 +55,8 @@ export type Carpeta = {
   espera: Rama[];
   dormidos: Rama[];
   cuenta: number;
+  /** Lo último que se usó en esta carpeta (epoch s; en "Recientes" es lo que la ordena). */
+  reciente?: number;
   /** Los líderes de esta carpeta que hoy están en "Activas" (calientes): no se ven acá, pero conservan su lugar en el orden. */
   calientes?: Lider[];
 };
@@ -265,28 +268,61 @@ export function ordenCarpetas(a: string, b: string, titulos?: ReadonlyMap<string
   return x < y ? -1 : x > y ? 1 : a < b ? -1 : 1;
 }
 
+/** Cómo se ordena lo que el usuario no movió a mano: el modo y, en "Recientes", la foto congelada de la actividad (`recientes.ts`). */
+export type Criterio = { modo?: ModoOrden; recientes?: Recientes };
+
+type DeOrden = Pick<Lider, "id" | "creado" | "actividad" | "nombre">;
+
+/** La última actividad de un líder: la de la foto (congelada) o, si es nuevo y todavía no está, la de ahora. */
+export const recienteLider = (l: Pick<Lider, "id" | "actividad">, c?: Criterio): number => c?.recientes?.lideres.get(l.id) ?? l.actividad;
+
+/**
+ * El orden de lo que no se movió a mano. Sin criterio, el fijo de siempre (`ordenLideres`). "Recientes": el que se usó
+ * último arriba, y a igual, el fijo. "A-Z": por nombre, sin mayúsculas ni tildes.
+ */
+const porCriterioLideres = (c?: Criterio) => (a: DeOrden, b: DeOrden) => {
+  if (!c?.modo) return ordenLideres(a, b);
+  if (c.modo === "az") {
+    const x = normal(a.nombre);
+    const y = normal(b.nombre);
+    return x < y ? -1 : x > y ? 1 : ordenLideres(a, b);
+  }
+  return recienteLider(b, c) - recienteLider(a, c) || ordenLideres(a, b);
+};
+
 /**
  * Las carpetas como se ven: la del home primera siempre (no se mueve), después las que el usuario
- * acomodó arrastrando, en ese orden, y al final las que nunca movió, por nombre.
+ * acomodó arrastrando, en ese orden, y al final las que nunca movió: por nombre o, en "Recientes",
+ * la de lo más reciente primero (`reciente`: su última actividad, que sabe quien arma las carpetas).
  */
-export function compararCarpetas(orden: Orden | undefined, titulos?: ReadonlyMap<string, string>): (a: string, b: string) => number {
-  const manual = porManual<string>(orden?.carpetas, (p) => p, (a, b) => ordenCarpetas(a, b, titulos));
+export function compararCarpetas(
+  orden: Orden | undefined,
+  titulos?: ReadonlyMap<string, string>,
+  reciente?: (proyecto: string) => number,
+): (a: string, b: string) => number {
+  const porNombre = (a: string, b: string) => ordenCarpetas(a, b, titulos);
+  const defecto = reciente && modoOrden(orden) === "recientes" ? (a: string, b: string) => reciente(b) - reciente(a) || porNombre(a, b) : porNombre;
+  const manual = porManual<string>(orden?.carpetas, (p) => p, defecto);
   return (a, b) => (a === b ? 0 : a === GENERAL || b === GENERAL ? (a === GENERAL ? -1 : 1) : manual(a, b));
 }
 
-/** Los líderes de una carpeta como se ven: los que el usuario acomodó arrastrando y, después, el resto por creación. */
-export const compararLideres = (orden: Orden | undefined, proyecto: string) =>
-  porManual<Pick<Lider, "id" | "creado">>(orden?.lideres[proyecto], (l) => l.id, ordenLideres);
+/** Los líderes de una carpeta como se ven: los que el usuario acomodó arrastrando y, después, el resto (por creación, o por el modo si hay `recientes`). */
+export const compararLideres = (orden: Orden | undefined, proyecto: string, recientes?: Recientes) =>
+  porManual<DeOrden>(orden?.lideres[proyecto], (l) => l.id, porCriterioLideres(criterioDe(orden, recientes)));
+
+/** El criterio de un orden: sin `recientes` (nadie midió actividad) rige el fijo de siempre. */
+const criterioDe = (orden: Orden | undefined, recientes?: Recientes): Criterio | undefined =>
+  recientes ? { modo: modoOrden(orden), recientes } : undefined;
 
 /**
  * Todos los líderes de una carpeta en el orden que les toca, también los plegados en "N líderes
  * en espera": la lista entera sobre la que se mueve uno al arrastrarlo.
  */
-export const lideresEnOrden = (c: Carpeta, orden: Orden | undefined): string[] =>
+export const lideresEnOrden = (c: Carpeta, orden: Orden | undefined, recientes?: Recientes): string[] =>
   [...c.ramas, ...c.espera, ...c.dormidos]
     .flatMap((r) => (r.lider ? [r.lider] : []))
     .concat(c.calientes ?? [])
-    .sort(compararLideres(orden, c.proyecto))
+    .sort(compararLideres(orden, c.proyecto, recientes))
     .map((l) => l.id);
 
 /**
@@ -359,6 +395,8 @@ type Opciones = {
   orden?: Orden;
   /** Con "Activas" prendido (de fábrica), la foto de lo caliente (ya congelada por quien arma la barra); sin ella, cada líder en su carpeta. */
   prioridad?: Foto;
+  /** La foto de la actividad (congelada por quien arma la barra): con ella, "Recientes" y "A-Z" rigen lo que no se movió a mano. Sin ella, el orden fijo de siempre. */
+  recientes?: Recientes;
   /** Epoch en segundos. */
   ahora: number;
 };
@@ -373,7 +411,7 @@ type Opciones = {
  * coinciden. Lo que no trabaja se pliega igual que sin buscar, y lo cerrado
  * también (en su carpeta, no en "Cerrados").
  */
-export function armarArbol(hilos: Hilo[], { optimista, lideres: todos, settleados, busqueda = "", mover, ocultos, titulos, caidos, orden, prioridad, ahora }: Opciones): Arbol {
+export function armarArbol(hilos: Hilo[], { optimista, lideres: todos, settleados, busqueda = "", mover, ocultos, titulos, caidos, orden, prioridad, recientes, ahora }: Opciones): Arbol {
   const lideres = settleados?.size ? todos.filter((l) => !(l.actividad <= (settleados.get(l.id) ?? -1))) : todos;
   const q = normal(busqueda.trim());
   const buscando = q !== "";
@@ -475,7 +513,7 @@ export function armarArbol(hilos: Hilo[], { optimista, lideres: todos, settleado
   const activas: Rama[] = [];
   for (const [proyecto, a] of carpetas) {
     // Cada líder en su lugar de siempre: ni responder ni tener workers trabajando lo mueve.
-    const fijo = compararLideres(orden, proyecto);
+    const fijo = compararLideres(orden, proyecto, recientes);
     // Los calientes se van a "Activas" (sin repetirse acá); los fríos quedan en el orden del usuario, que no cambia nunca.
     const todosLs = [...a.lideres.values()].sort((x, y) => fijo(x.lider!, y.lider!));
     const { activas: arriba, frias: ls } = repartir(todosLs.map((r) => ({ id: r.lider!.id, r })), buscando ? undefined : prioridad);
@@ -517,14 +555,17 @@ export function armarArbol(hilos: Hilo[], { optimista, lideres: todos, settleado
     }
     // Un proyecto con algo caliente flota: un líder en "Activas" o workers vivos sin líder caliente.
     const caliente = !buscando && !!prioridad && (arriba.length > 0 || prioridad.carpetas.has(proyecto));
+    // Lo último que se usó en la carpeta: lo suyo en la foto y lo de sus líderes (con workers y todo).
+    const reciente = recientes ? Math.max(recientes.carpetas.get(proyecto) ?? 0, ...todosLs.map((r) => recienteLider(r.lider!, { recientes }))) : undefined;
     salida.push({
-      c: { proyecto, ramas, espera, dormidos, cuenta: items.length, ...(arriba.length ? { calientes: arriba.map((x) => x.r.lider!) } : null) },
+      c: { proyecto, ramas, espera, dormidos, cuenta: items.length, ...(reciente !== undefined ? { reciente } : null), ...(arriba.length ? { calientes: arriba.map((x) => x.r.lider!) } : null) },
       puntos: deCarpeta(proyecto),
       caliente,
     });
   }
   // Buscando, primero la carpeta que coincide por nombre o título; si no, el orden fijo (o el que puso el usuario).
-  const porCarpeta = compararCarpetas(orden, titulos);
+  const recienteDe = new Map(salida.map((x) => [x.c.proyecto, x.c.reciente ?? 0]));
+  const porCarpeta = compararCarpetas(orden, titulos, recientes ? (p) => recienteDe.get(p) ?? 0 : undefined);
   salida.sort((a, b) => b.puntos - a.puntos || porCarpeta(a.c.proyecto, b.c.proyecto));
   // Con "Activas": los proyectos calientes arriba (el home sigue primero: ahí vive Nuevo líder); entre sí y entre los fríos, el orden del usuario.
   const orden1 = prioridad && !buscando ? flotar(salida, (x) => x.caliente, (x) => x.c.proyecto === GENERAL) : salida;

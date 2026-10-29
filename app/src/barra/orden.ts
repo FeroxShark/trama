@@ -90,15 +90,19 @@ export function podar(orden: Orden, existe: { lideres: ReadonlySet<string> | nul
 /** Lo que llega del disco o del main, sin confiar: listas de textos sin repetir; lo raro se descarta. */
 export function ordenDe(x: unknown): Orden {
   const lista = (v: unknown): string[] => (Array.isArray(v) ? [...new Set(v.filter((s): s is string => typeof s === "string" && s !== ""))] : []);
-  const o = x && typeof x === "object" && !Array.isArray(x) ? (x as { carpetas?: unknown; lideres?: unknown; prioridad?: unknown }) : {};
+  const o = x && typeof x === "object" && !Array.isArray(x) ? (x as { carpetas?: unknown; lideres?: unknown; prioridad?: unknown; modo?: unknown }) : {};
   const lideres: Record<string, string[]> = {};
   if (o.lideres && typeof o.lideres === "object" && !Array.isArray(o.lideres))
     for (const [p, v] of Object.entries(o.lideres)) {
       const ids = lista(v);
       if (ids.length) lideres[p] = ids;
     }
-  return { carpetas: lista(o.carpetas), lideres, ...(typeof o.prioridad === "boolean" ? { prioridad: o.prioridad } : {}) };
+  return { carpetas: lista(o.carpetas), lideres, ...(typeof o.prioridad === "boolean" ? { prioridad: o.prioridad } : {}), ...(o.modo === "az" || o.modo === "recientes" ? { modo: o.modo } : {}) };
 }
 
 /** "Activas" y los proyectos que flotan (`activas.ts`) están prendidos de fábrica: sólo `false` (desde el menú) los apaga. El orden a mano rige igual. */
 export const prioridadPrendida = (orden: Orden | undefined): boolean => orden?.prioridad !== false;
+
+/** Cómo se ordena lo que el usuario no movió a mano: por lo último que se usó (de fábrica) o por nombre. */
+export type ModoOrden = "recientes" | "az";
+export const modoOrden = (orden: Orden | undefined): ModoOrden => (orden?.modo === "az" ? "az" : "recientes");

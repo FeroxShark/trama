@@ -397,7 +397,7 @@ export type Nombres = { titulos: Record<string, string>; proyectos: Record<strin
  * elegido; `lideres`, por carpeta, los session_id en el orden elegido. Lo que no está en una
  * lista va después, con el orden de siempre (`src/barra/orden.ts`).
  */
-export type Orden = { carpetas: string[]; lideres: Record<string, string[]>; /** Orden por prioridad (`prioridadDe`, arbol.ts): sin venir o `true`, prendido (de fábrica); `false`, el orden fijo a mano. */ prioridad?: boolean };
+export type Orden = { carpetas: string[]; lideres: Record<string, string[]>; /** Orden por prioridad (`prioridadDe`, arbol.ts): sin venir o `true`, prendido (de fábrica); `false`, el orden fijo a mano. */ prioridad?: boolean; /** Cómo se ordena lo que no se movió a mano: `recientes` (de fábrica, lo último que se usó arriba) o `az`. */ modo?: "recientes" | "az" };
 
 /** Un mensaje de `pa --hilo <id> --json` (src/datos/paHilo.ts) o del transcript de un líder. */
 export type Mensaje = {

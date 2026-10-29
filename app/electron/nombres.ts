@@ -28,14 +28,14 @@ const lista = (x: unknown): string[] => (Array.isArray(x) ? [...new Set(x.filter
 
 /** El orden como se guarda: listas de textos sin repetir; una carpeta sin líderes listados no queda. */
 export function limpiarOrden(x: unknown): Orden {
-  const o = x && typeof x === "object" && !Array.isArray(x) ? (x as { carpetas?: unknown; lideres?: unknown; prioridad?: unknown }) : {};
+  const o = x && typeof x === "object" && !Array.isArray(x) ? (x as { carpetas?: unknown; lideres?: unknown; prioridad?: unknown; modo?: unknown }) : {};
   const lideres: Record<string, string[]> = {};
   if (o.lideres && typeof o.lideres === "object" && !Array.isArray(o.lideres))
     for (const [p, v] of Object.entries(o.lideres).slice(0, ORDEN_MAX)) {
       const ids = lista(v);
       if (ids.length) lideres[p] = ids;
     }
-  return { carpetas: lista(o.carpetas), lideres, ...(typeof o.prioridad === "boolean" ? { prioridad: o.prioridad } : {}) };
+  return { carpetas: lista(o.carpetas), lideres, ...(typeof o.prioridad === "boolean" ? { prioridad: o.prioridad } : {}), ...(o.modo === "az" || o.modo === "recientes" ? { modo: o.modo } : {}) };
 }
 
 /** Un título como se guarda: una línea, sin espacios de más, corto. */

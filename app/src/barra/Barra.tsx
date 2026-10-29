@@ -95,7 +95,9 @@ import { archivarTodosSubs, claveSub, corriendo, deClaveSub, SubAbierto, useTicS
 import type { Subagente } from "../../electron/subagentes";
 import { correrGuion } from "./guion";
 import { Logo } from "./Logo";
-import { hayOrdenManual, ORDEN0, podar, prioridadPrendida, reordenar, reordenarPaso } from "./orden";
+import { hayOrdenManual, modoOrden, ORDEN0, podar, prioridadPrendida, reordenar, reordenarPaso, type ModoOrden } from "./orden";
+import { useRecientes } from "./useRecientes";
+import type { Recientes } from "./recientes";
 import { usePrioridad } from "./usePrioridad";
 import { useTitulos } from "./titulos";
 import { accionesCarpeta, accionesLider, accionesWorker, type LugarMenu, type Opcion } from "./menu-logica";
@@ -246,20 +248,25 @@ const VISTAS: [VistaBarra, LucideIcon, "vista.lideres" | "vista.todo", "vista.ti
   ["lideres", Crown, "vista.lideres", "vista.tipLideres"],
   ["todo", ListTree, "vista.todo", "vista.tipTodo"],
 ];
+/** Cómo se ordena lo que no se movió a mano: lo último que se usó arriba, o por nombre. */
+const MODOS: [ModoOrden, "orden.recientes" | "orden.az", "orden.tipRecientes" | "orden.tipAz"][] = [
+  ["recientes", "orden.recientes", "orden.tipRecientes"],
+  ["az", "orden.az", "orden.tipAz"],
+];
 const SIN_FILAS: Item[] = [];
 
 /**
  * Los que se reordenan entre sí, en el orden en que se ven: los líderes de una carpeta (también los plegados
  * en espera) o, con `null`, las carpetas menos la del home, que va primera siempre. Sin esa carpeta, `null`.
  */
-function visiblesDe(grupos: readonly DatosCarpeta[], orden: Orden, titulos: ReadonlyMap<string, string>, carpeta: string | null): string[] | null {
+function visiblesDe(grupos: readonly DatosCarpeta[], orden: Orden, titulos: ReadonlyMap<string, string>, carpeta: string | null, recientes?: Recientes): string[] | null {
   if (carpeta === null)
     return grupos
       .map((x) => x.proyecto)
       .filter((p) => p !== GENERAL)
-      .sort(compararCarpetas(orden, titulos));
+      .sort(compararCarpetas(orden, titulos, recientes ? (p) => grupos.find((x) => x.proyecto === p)?.reciente ?? 0 : undefined));
   const g = grupos.find((x) => x.proyecto === carpeta);
-  return g ? lideresEnOrden(g, orden) : null;
+  return g ? lideresEnOrden(g, orden, recientes) : null;
 }
 
 /** Siempre el último valor, para los manejadores que se registran una sola vez. */
@@ -497,11 +504,14 @@ export function Barra() {
     () => todos.map((h) => ({ jefe_id: h.jefe_id ?? null, proyecto: h.proyecto, vivo: workerVivo({ estado: estadoVisto(h, optimista.get(h.id)), en_cola: h.en_cola }) })).filter((w) => w.vivo),
     [todos, optimista],
   );
-  const prioridad = usePrioridad(porPrioridad, lideresVistos, trabajadores, diferir({ ...mirando, menu: menu !== null }));
+  const congelada = diferir({ ...mirando, menu: menu !== null });
+  const prioridad = usePrioridad(porPrioridad, lideresVistos, trabajadores, congelada);
+  // El orden por lo último que se usó (o por nombre): la actividad también se congela mientras se mira la lista.
+  const recientes = useRecientes(true, lideresVistos, todos, convsCC, congelada);
   // Sin polling: "en espera hace 30 min" se recalcula cuando cambia algo (datos, líderes, búsqueda).
   const arbolBruto = useMemo(
-    () => armarArbol(todos, { optimista, lideres: lideresVistos, settleados, busqueda, mover, ocultos, titulos, caidos, orden: nombres.orden, prioridad, ahora: Math.floor(Date.now() / 1000) }),
-    [todos, optimista, busqueda, lideresVistos, settleados, mover, ocultos, titulos, caidos, nombres.orden, prioridad],
+    () => armarArbol(todos, { optimista, lideres: lideresVistos, settleados, busqueda, mover, ocultos, titulos, caidos, orden: nombres.orden, prioridad, recientes, ahora: Math.floor(Date.now() / 1000) }),
+    [todos, optimista, busqueda, lideresVistos, settleados, mover, ocultos, titulos, caidos, nombres.orden, prioridad, recientes],
   );
   // "Líderes y workers" esconde debajo de cada líder lo que murió o terminó (`aVistaTodo`); "sólo líderes" usa el árbol tal cual.
   const arbol = useMemo(() => (vista === "lideres" ? arbolBruto : aVistaTodo(arbolBruto)), [arbolBruto, vista]);
@@ -532,7 +542,7 @@ export function Barra() {
   const visibles = filasVisibles(arbol, desplegada, verCerrados, soloLideres);
   const virtual = visibles.length > UMBRAL;
 
-  const ultimo = useUltimo({ hilos, optimista, visibles, grupos, cursor, activa, busqueda, panel, enCurso, arbol, vista, orden: nombres.orden, lideresVistos, carpetasReg, titulos });
+  const ultimo = useUltimo({ hilos, optimista, visibles, grupos, cursor, activa, busqueda, panel, enCurso, arbol, vista, orden: nombres.orden, lideresVistos, carpetasReg, titulos, recientes });
 
   // Integrar, Descartar y Deshacer del panel de Ramas: optimistas como Cerrar.
   const actuar = useCallback(
@@ -1459,6 +1469,13 @@ export function Barra() {
     fuente.guardarOrden(sin);
   };
 
+  /** Elige cómo se ordena (Recientes o A-Z): lo acomodado a mano se borra, así el modo se ve entero. */
+  const ponerModo = (modo: ModoOrden) => {
+    const nuevo: Orden = { ...ultimo.current.orden, carpetas: [], lideres: {}, modo };
+    setNombres((n) => ({ ...n, orden: nuevo }));
+    fuente.guardarOrden(nuevo);
+  };
+
   /** Prende o apaga "Activas" y los proyectos que flotan (de fábrica, prendido); el orden puesto a mano rige en los dos casos. */
   const alternarPrioridad = () => {
     const nuevo: Orden = { ...ultimo.current.orden, prioridad: !prioridadPrendida(ultimo.current.orden) };
@@ -1706,6 +1723,16 @@ export function Barra() {
                   <PencilLine size={15} strokeWidth={2} />
                 </button>
               </div>
+              {/* Recientes | A-Z: cómo se acomoda lo que no se movió a mano. Con algo a mano, ninguno marcado hasta elegir. */}
+              {!buscando ? (
+                <div className="orden-barra" role="group" aria-label={tr("orden.aria")} data-modo={hayOrdenManual(nombres.orden) ? "manual" : modoOrden(nombres.orden)}>
+                  {MODOS.map(([m, etq, tip]) => (
+                    <button key={m} type="button" data-tip={tr(tip)} aria-pressed={!hayOrdenManual(nombres.orden) && modoOrden(nombres.orden) === m} onClick={() => ponerModo(m)}>
+                      {tr(etq)}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
             </div>
 
             <motion.div
