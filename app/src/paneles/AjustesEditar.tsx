@@ -333,7 +333,7 @@ export function Celular({ Dato }: { Dato: FilaDato }) {
 
   return (
     <Cat id="celular">
-    <section className="pn-sec pn-edita" ref={sec} data-celular>
+    <section className="pn-sec pn-edita" ref={sec} data-celular aria-busy={aplicando ? true : undefined}>
       <EstadoEscucha activo={e.activo} url={escucha} aplicando={aplicando} />
       <div data-opc="ajustes.celGuia">
         <PasosCelular url={e.activo ? escucha : undefined} />
