@@ -186,6 +186,8 @@ contextBridge.exposeInMainWorld("hilos", {
     listaMcp: (): Promise<unknown> => invocar("mcp:lista"),
     guardarMcp: (entrada: unknown): Promise<unknown> => invocar("mcp:guardar", entrada),
     quitarMcp: (nombre: string): Promise<unknown> => invocar("mcp:quitar", nombre),
+    apagadosMcp: (): Promise<unknown> => invocar("mcp:apagados"),
+    fijarApagadoMcp: (nombre: string, apagado: boolean): Promise<unknown> => invocar("mcp:fijarApagado", nombre, apagado),
     inventarioConectores: (): Promise<unknown> => invocar("conectores:inventario"),
     alternarConector: (id: string, activo: boolean): Promise<unknown> => invocar("conectores:alternar", id, activo),
     catalogosPlugins: (): Promise<unknown> => invocar("plugins:catalogos"),

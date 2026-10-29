@@ -5,9 +5,12 @@ import { execFile } from "node:child_process";
 import { chmodSync, mkdirSync, renameSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { enmascarar } from "./conectores-claude.ts";
 import { entornoLider } from "./lider-arma.ts";
 import { jsonClaude, leerMcpSync, resueltos, type ServidorMcp, type ServidorResuelto } from "./mcp-config.ts";
 import { estadoHilos } from "./rutas.ts";
+import { entornoCuenta } from "./uso-cuentas.ts";
+import { configActiva } from "./mcp-apagados.ts";
 
 export type EstadoServidor = "ok" | "auth" | "falla" | "sin-configurar" | "desconocido";
 
@@ -77,7 +80,10 @@ const VIGENCIA_MS = 30_000;
 const listarDeVerdad = (): Promise<string> =>
   new Promise((ok, mal) => {
     const home = os.homedir();
-    execFile(process.env.HILOS_CLAUDE ?? "claude", ["mcp", "list"], { timeout: 40_000, cwd: home, env: entornoLider(process.env, home), maxBuffer: 1024 * 1024 }, (err, out) => {
+    // De la cuenta activa (la preferida), la misma de la que se leen los conectores apagados.
+    const activa = configActiva(process.env, home);
+    const env = activa.cuenta ? entornoCuenta(entornoLider(process.env, home), activa.dir) : entornoLider(process.env, home);
+    execFile(process.env.HILOS_CLAUDE ?? "claude", ["mcp", "list"], { timeout: 40_000, cwd: home, env, maxBuffer: 1024 * 1024 }, (err, out) => {
       // `claude mcp list` sale con 0 aunque haya servidores caídos; un error de verdad (no está claude, se pasó el tiempo) es otra cosa.
       if (err && !String(out).trim()) mal(err);
       else ok(String(out));
@@ -91,13 +97,13 @@ const listarDeVerdad = (): Promise<string> =>
 export async function estadoMcp(motor: unknown, local = false, fresco = false, d: Deps = { listar: listarDeVerdad, trama: () => leerMcpSync() }): Promise<EstadoMcp> {
   const m: Motor = (MOTORES as readonly unknown[]).includes(motor) ? (motor as Motor) : "claude";
   const sinTrama = m === "claude" && local ? "local" : m === "agy" ? "agy" : null;
-  const trama = d.trama().map((s) => ({ nombre: s.nombre, tipo: s.tipo, destino: destinoDe(s), pasa: sinTrama === null }));
+  const trama = d.trama().map((s) => ({ nombre: s.nombre, tipo: s.tipo, destino: enmascarar(destinoDe(s)), pasa: sinTrama === null }));
   let claude: EstadoMcp["claude"] = null;
   if (m === "claude" && !local) {
     if (!fresco && cache && Date.now() - cache.en < VIGENCIA_MS) claude = cache.r;
     else {
       try {
-        claude = { servidores: parsearMcpList(await d.listar()), error: null };
+        claude = { servidores: parsearMcpList(await d.listar()).map((s) => ({ ...s, destino: enmascarar(s.destino) })), error: null };
       } catch (e) {
         claude = { servidores: [], error: String((e as Error).message ?? e).split("\n")[0].slice(0, 200) };
       }

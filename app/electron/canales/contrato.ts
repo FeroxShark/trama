@@ -135,6 +135,8 @@ export const CANALES = [
   ["mcp:lista", "invoke"],
   ["mcp:guardar", "invoke"],
   ["mcp:quitar", "invoke"],
+  ["mcp:apagados", "invoke"],
+  ["mcp:fijarApagado", "invoke"],
   ["conectores:inventario", "invoke"],
   ["conectores:alternar", "invoke"],
   ["plugins:catalogos", "invoke"],

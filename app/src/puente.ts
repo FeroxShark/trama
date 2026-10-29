@@ -265,6 +265,10 @@ type Main = {
     /** Agrega o reemplaza uno; los valores secretos van a `claves.env`. Devuelve la lista. Sólo desde la PC. */
     guardarMcp(entrada: unknown): Promise<unknown>;
     quitarMcp(nombre: string): Promise<unknown>;
+    /** Los nombres de los conectores que Claude Code apagó para el proyecto del líder (`disabledMcpServers` de la cuenta activa). */
+    apagadosMcp(): Promise<unknown>;
+    /** Apaga (`true`) o prende uno de esos conectores; escribe sólo esa clave del proyecto. Devuelve la lista nueva. Sólo desde la PC. */
+    fijarApagadoMcp(nombre: string, apagado: boolean): Promise<unknown>;
     /** Todo lo que tiene conectado Claude Code (skills, plugins, MCP, hooks), sin secretos. */
     inventarioConectores(): Promise<unknown>;
     /** Prende o apaga un plugin o un servidor de `.mcp.json`; devuelve el inventario nuevo. */

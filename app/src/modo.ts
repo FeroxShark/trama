@@ -40,6 +40,8 @@ const CAPTURAS = [
   "lider-preguntas-dos",
   // El menú de "/" abierto; `HILOS_VARIANTE=agy`: el de un líder de agy (marcas "Anthropic only" / "Google only").
   "lider-comandos",
+  // El panel de /mcp (Conectores) abierto debajo de la caja; `HILOS_VARIANTE=mcp-vacio`: sin conectores apagados ni propios.
+  "lider-mcp",
   // Dictar: el botón del micrófono en la caja; `HILOS_VARIANTE=grabando` (contador), `transcribiendo`, `error` (Reintentar y Descartar) e `inseguro` (apagado, por http).
   "lider-dictado",
   "settle-confirmar",

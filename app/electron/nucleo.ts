@@ -68,6 +68,7 @@ import { plataformaActual, registroProyectos } from "./rutas.ts";
 import { capacidades, hayAgy, hayDsh } from "./capacidades.js";
 import { estadoDsh, instalarDsh, probarProveedor } from "./dsh-ajustes.ts";
 import { estadoMcp } from "./mcp.ts";
+import { configActiva, fijarApagado, leerApagados } from "./mcp-apagados.ts";
 import { alternar as alternarConector, inventario as inventarioConectores } from "./conectores-claude.ts";
 import { agregarCatalogo, estadoCatalogos, instalarPlugin, quitarPlugin, type DepsPlugins } from "./plugins-claude.ts";
 import { guardarServidor, quitarServidor, vistaMcp } from "./mcp-config.ts";
@@ -127,7 +128,7 @@ const manejadores = new Map<string, Manejador>();
  * Lo que cambia la máquina (reescribe `~/CLAUDE.md`, los ajustes, borra una cuenta, libera la GPU, actualiza `claude`): desde la
  * tailnet (el celular) no. Los `modelos:*` y `remoto:guardar` tienen su propio chequeo, con su mensaje, en el manejador.
  */
-export const SOLO_PC_TAILNET: ReadonlySet<string> = new Set(["routing:guardar", "ajustes:guardar", "orq:leccionesGuardar", "limpieza:guardar", "limpieza:aplicar", "orq:mdAplicar", "orq:agentsGuardar", "orq:mdFusionar", "proyectos:renombrar", "proyectos:logo", "cuentas:quitar", "vram:liberar", "locales:prender", "locales:apagar", "claude:actualizar", "trama:actualizar", "trama:cancelarEspera", "trama:limpiar", "dsh:clave", "dsh:instalar", "dsh:probar", "aa:refrescar", "mcp:guardar", "mcp:quitar", "conectores:alternar", "plugins:agregarCatalogo", "plugins:instalar", "plugins:quitar", "opencode:planGuardar", "nvidia:modelos", "nvidia:probar"]);
+export const SOLO_PC_TAILNET: ReadonlySet<string> = new Set(["routing:guardar", "ajustes:guardar", "orq:leccionesGuardar", "limpieza:guardar", "limpieza:aplicar", "orq:mdAplicar", "orq:agentsGuardar", "orq:mdFusionar", "proyectos:renombrar", "proyectos:logo", "cuentas:quitar", "vram:liberar", "locales:prender", "locales:apagar", "claude:actualizar", "trama:actualizar", "trama:cancelarEspera", "trama:limpiar", "dsh:clave", "dsh:instalar", "dsh:probar", "aa:refrescar", "mcp:guardar", "mcp:quitar", "mcp:fijarApagado", "conectores:alternar", "plugins:agregarCatalogo", "plugins:instalar", "plugins:quitar", "opencode:planGuardar", "nvidia:modelos", "nvidia:probar"]);
 
 /** Anota (o reemplaza) el manejador de un canal. */
 export function manejar(canal: string, fn: Manejador) {
@@ -974,6 +975,9 @@ export function armarNucleo() {
   // y lo que ve un líder de cada motor. Guardar y quitar son sólo de la PC: `SOLO_PC_TAILNET`.
   manejar("mcp:estado", (_e, x: { motor?: unknown; local?: unknown; fresco?: unknown } | undefined) => estadoMcp(x?.motor, x?.local === true, x?.fresco === true));
   manejar("mcp:lista", () => vistaMcp());
+  // Los conectores que Claude Code apagó para el proyecto del líder (`disabledMcpServers` de `.claude.json` de la cuenta activa): sólo nombres; prenderlos o apagarlos toca sólo esa clave.
+  manejar("mcp:apagados", () => leerApagados(configActiva()));
+  manejar("mcp:fijarApagado", (_e, nombre: unknown, apagado: unknown) => fijarApagado(configActiva(), nombre, apagado));
   manejar("mcp:guardar", (_e, entrada: unknown) => guardarServidor(entrada));
   manejar("mcp:quitar", (_e, nombre: unknown) => quitarServidor(nombre));
   // Lo que tiene conectado Claude Code (skills, plugins, MCP, hooks) y prender o apagar lo que deja: de esta máquina, nunca los secretos.

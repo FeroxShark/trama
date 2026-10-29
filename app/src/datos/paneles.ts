@@ -12,7 +12,7 @@ import { promptArreglar } from "./arreglar";
 import { salud as saludDe, type EstadoSalud } from "./salud";
 import type { Hilo } from "./contrato";
 import { claveCalidad } from "../paneles/modelos-workers";
-import { ACCESOS_FALSOS, AJUSTES, AUTO, ENTORNO_OLLAMA, ESTADO_DSH, ESTADO_NIM, CATALOGOS_FIJOS, CONECTORES_FIJOS, ESTADO_MCP, ESTADO_MCP_FIJOS, ESTADO_OPENCODE, MODELOS_FIJOS, PLAN_GO, TABLA_REPARTO, OLLAMA_FALSO, arranqueMedidoFalso, historialFalso, MEDICION, REMOTO, SALUD, URL_REMOTO_FALSA } from "./fixtures-paneles";
+import { ACCESOS_FALSOS, AJUSTES, AUTO, ENTORNO_OLLAMA, ESTADO_DSH, ESTADO_NIM, CATALOGOS_FIJOS, CONECTORES_FIJOS, ESTADO_MCP, ESTADO_MCP_APAGADOS, ESTADO_MCP_FIJOS, ESTADO_OPENCODE, MODELOS_FIJOS, PLAN_GO, TABLA_REPARTO, OLLAMA_FALSO, arranqueMedidoFalso, historialFalso, MEDICION, REMOTO, SALUD, URL_REMOTO_FALSA } from "./fixtures-paneles";
 import type { EstadoAuto } from "../../electron/autointegrar";
 import type { Consulta, PiezaConsulta } from "../../electron/historial";
 import type { Arranque, Medido } from "../../electron/arranque";
@@ -184,6 +184,10 @@ export interface FuentePaneles {
   /** Agrega o reemplaza uno por nombre (los valores nuevos van a `claves.env`); devuelve la lista o rechaza con el motivo. */
   guardarMcp(entrada: EntradaMcp): Promise<VistaServidorMcp[]>;
   quitarMcp(nombre: string): Promise<VistaServidorMcp[]>;
+  /** Los conectores que Claude Code apagó para el proyecto del líder (`disabledMcpServers` de la cuenta activa): sólo los nombres. */
+  apagadosMcp(): Promise<string[]>;
+  /** Apaga (`true`) o prende uno de esos conectores: escribe sólo esa clave del proyecto. Devuelve la lista nueva. */
+  fijarApagadoMcp(nombre: string, apagado: boolean): Promise<string[]>;
   /** Lo que tiene conectado Claude Code en esta máquina (skills, plugins, MCP, hooks); nunca un secreto. */
   inventarioConectores(): Promise<Inventario>;
   /** Prende o apaga un plugin o un servidor de `.mcp.json` (los demás no se pueden desde acá). */
@@ -284,6 +288,7 @@ let modelosFijos: EstadoModelos | undefined;
 /** DeepSeek Harness de los fixtures (instalado o no, con qué keys): vive mientras la página. */
 let dshFijo: EstadoDsh | undefined;
 let mcpFijo: VistaServidorMcp[] = ESTADO_MCP_FIJOS(MODO.variante);
+let mcpApagadosFijo: string[] = ESTADO_MCP_APAGADOS(MODO.variante);
 let conectoresFijos: Inventario = CONECTORES_FIJOS(MODO.variante);
 let catalogosFijos: EstadoCatalogos = CATALOGOS_FIJOS(MODO.variante);
 const cambiarPluginFijo = async (plugin: string, catalogo: string, instalado: boolean) => {
@@ -403,6 +408,15 @@ const fija: FuentePaneles = {
     };
     mcpFijo = previo ? mcpFijo.map((x) => (x === previo ? nuevo : x)) : [...mcpFijo, nuevo];
     return structuredClone(mcpFijo);
+  },
+  async apagadosMcp() {
+    await espera(60);
+    return [...mcpApagadosFijo];
+  },
+  async fijarApagadoMcp(nombre, apagado) {
+    await espera(60);
+    mcpApagadosFijo = apagado ? [...new Set([...mcpApagadosFijo, nombre])] : mcpApagadosFijo.filter((n) => n !== nombre);
+    return [...mcpApagadosFijo];
   },
   async quitarMcp(nombre) {
     await espera(60);
@@ -851,6 +865,12 @@ const conPa = (m: NonNullable<typeof main>): FuentePaneles => ({
   },
   async quitarPlugin(plugin, catalogo, cuenta) {
     return (await m.paneles.quitarPlugin(plugin, catalogo, cuenta).catch(fallar)) as EstadoCatalogos;
+  },
+  async apagadosMcp() {
+    return (await m.paneles.apagadosMcp().catch(fallar)) as string[];
+  },
+  async fijarApagadoMcp(nombre, apagado) {
+    return (await m.paneles.fijarApagadoMcp(nombre, apagado).catch(fallar)) as string[];
   },
   async quitarMcp(nombre) {
     return (await m.paneles.quitarMcp(nombre).catch(fallar)) as VistaServidorMcp[];

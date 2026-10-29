@@ -6843,63 +6843,232 @@ summary.sis-div-t:hover,
     padding-left: 0;
   }
 }
-/* /mcp: los servidores MCP que ve un líder (PanelMcp.tsx). Cada estado con ícono y palabra. */
+/* /mcp: los conectores que ve un líder (PanelMcp.tsx), con el estilo de Ajustes: filas con ícono sobre una capa, estado con punto y palabra,
+   grupos con su contador y el detalle (tipo y dirección) desplegable. Sólo tokens; el estado nunca va sólo con color. */
 .mcp-panel {
   display: flex;
   flex-direction: column;
-  gap: var(--esp-2);
+  gap: var(--esp-3);
   margin-top: var(--esp-2);
-  padding: var(--esp-3);
+  padding: var(--esp-3) var(--esp-4);
   border: 1px solid var(--borde-3);
-  border-radius: var(--radio-2);
+  border-radius: var(--r-lg);
+  font-size: var(--letra-5);
+}
+.mcx-cab {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--esp-3);
+}
+.mcx-ayuda {
+  margin: var(--esp-0-5) 0 0;
+  color: var(--apagado);
   font-size: var(--letra-4);
 }
-.mcp-cab {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--esp-2);
+.mcx-cerrar {
+  display: grid;
+  width: 2rem;
+  height: 2rem;
+  flex: none;
+  place-items: center;
+  border: 0;
+  border-radius: var(--r-cap);
+  background: transparent;
+  color: var(--apagado);
 }
-.mcp-cab-acc {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--esp-2);
+.mcx-cerrar:hover {
+  background: var(--capa-hover);
+  color: var(--texto);
 }
-.mcp-grupo h4 {
-  margin: 0 0 var(--esp-1);
-}
-.mcp-nota {
-  margin: 0 0 var(--esp-1);
-  color: var(--txt-3);
+.mcx-nota {
+  margin: 0;
+  color: var(--apagado);
+  font-size: var(--letra-4);
   line-height: 1.5;
 }
-.mcp-items {
+.mcx-cuerpo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-4);
+}
+.mcx-g-t {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-2);
+  margin: 0 0 var(--esp-2);
+  padding: 0 var(--esp-1);
+  color: var(--apagado);
+  font-size: var(--letra-4);
+  font-weight: 500;
+}
+.mcx-cuenta {
+  color: var(--inactivo);
+  font-variant-numeric: tabular-nums;
+}
+.mcx-lista {
+  overflow: hidden;
+  margin: 0;
+  padding: 0;
+  border-radius: var(--r-md);
+  background: var(--capa-card);
+  list-style: none;
+}
+.mcx-fila + .mcx-fila {
+  border-top: 1px solid var(--capa-div);
+}
+.mcx-fila-cab {
+  display: flex;
+  min-height: var(--alto-nav);
+  align-items: center;
+  gap: var(--esp-3);
+  padding-right: var(--esp-3);
+}
+.mcx-main {
+  display: flex;
+  min-width: 0;
+  min-height: var(--alto-nav);
+  flex: 1;
+  align-items: center;
+  gap: var(--esp-3);
+  padding: var(--esp-1-5) 0 var(--esp-1-5) var(--esp-3);
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+button.mcx-main {
+  cursor: pointer;
+  transition: background var(--t-snappy);
+}
+button.mcx-main:hover {
+  background: var(--capa-hover);
+}
+.mcx-ico {
+  display: grid;
+  width: 1.75rem;
+  height: 1.75rem;
+  flex: none;
+  place-items: center;
+  border-radius: var(--r-xs);
+  background: var(--capa-tile);
+  color: var(--apagado);
+  font-size: var(--letra-4);
+  font-weight: 600;
+}
+.mcx-txt {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--esp-0-5);
+}
+.mcx-nombre {
+  overflow: hidden;
+  color: var(--texto);
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mcx-origen {
+  color: var(--apagado);
+  font-size: var(--letra-4);
+}
+.mcx-estado {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--esp-2);
+  color: var(--apagado);
+  font-size: var(--letra-4);
+}
+.mcx-punto {
+  width: 0.5rem;
+  height: 0.5rem;
+  flex: none;
+  border-radius: var(--r-cap);
+  background: var(--inactivo);
+}
+.mcx-estado[data-estado="ok"] .mcx-punto,
+.mcx-estado[data-estado="prendido"] .mcx-punto {
+  background: var(--ok);
+}
+.mcx-estado[data-estado="auth"] .mcx-punto {
+  background: var(--aviso);
+}
+.mcx-estado[data-estado="falla"] .mcx-punto {
+  background: var(--critico);
+}
+.mcx-chev {
+  flex: none;
+  color: var(--inactivo);
+  transition: transform var(--t-snappy);
+}
+.mcx-main[aria-expanded="true"] .mcx-chev {
+  transform: rotate(180deg);
+}
+.mcx-login {
+  flex: none;
+  height: 2rem;
+  padding: 0 var(--esp-3);
+  font-size: var(--letra-4);
+  text-decoration: none;
+}
+.mcx-det {
   display: flex;
   flex-direction: column;
   gap: var(--esp-1);
   margin: 0;
-  padding: 0;
-  list-style: none;
+  padding: 0 var(--esp-3) var(--esp-3) calc(var(--esp-3) + 1.75rem + var(--esp-3));
+  font-size: var(--letra-4);
 }
-.mcp-items li {
+.mcx-det > div {
+  display: flex;
+  gap: var(--esp-3);
+}
+.mcx-det dt {
+  width: 4.5rem;
+  flex: none;
+  color: var(--inactivo);
+}
+.mcx-det dd {
+  min-width: 0;
+  margin: 0;
+  color: var(--apagado);
+  overflow-wrap: anywhere;
+}
+.mcx-pie {
   display: flex;
   flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--esp-2);
-}
-.mcp-nombre {
-  font-weight: 600;
-}
-.mcp-marca {
-  display: inline-flex;
-  align-items: center;
   gap: var(--esp-1);
+  margin-left: calc(-1 * var(--esp-2));
 }
-.mcp-destino {
-  flex-basis: 100%;
-  overflow-wrap: anywhere;
-  color: var(--txt-3);
+.mcx-link {
+  display: inline-flex;
+  min-height: 2rem;
+  align-items: center;
+  gap: var(--esp-2);
+  padding: 0 var(--esp-3);
+  border: 0;
+  border-radius: var(--r-cap);
+  background: transparent;
+  color: var(--apagado);
+  font-size: var(--letra-4);
+}
+.mcx-link:hover:not(:disabled) {
+  background: var(--capa-hover);
+  color: var(--texto);
+}
+.mcx-link:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.mcx-link:focus-visible,
+.mcx-main:focus-visible,
+.mcx-cerrar:focus-visible {
+  outline: 2px solid var(--acento);
+  outline-offset: -2px;
 }
 /* La vista grande de un subagente (src/hilo/Subagente.tsx): en las migas, que es un subagente y con qué modelo. */
 .subv-marca {

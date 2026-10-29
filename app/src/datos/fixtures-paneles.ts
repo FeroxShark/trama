@@ -537,6 +537,9 @@ export const CATALOGOS_FIJOS = (variante: string | null): EstadoCatalogos => {
   };
 };
 
+/** Los conectores apagados para el proyecto del líder en las capturas (`mcp-vacio`: ninguno). */
+export const ESTADO_MCP_APAGADOS = (variante: string | null): string[] => (variante === "mcp-vacio" ? [] : ["claude.ai Notion", "claude.ai Google Drive"]);
+
 /** Lo que ve `/mcp` en las capturas: los conectores de claude.ai (uno con login pendiente, uno caído) y los de Trama. */
 export const ESTADO_MCP = (motor: string, local: boolean, propios: VistaServidorMcp[]): EstadoMcp => {
   const m = motor === "agy" || motor === "dsh" || motor === "opencode" ? motor : "claude";
@@ -550,6 +553,7 @@ export const ESTADO_MCP = (motor: string, local: boolean, propios: VistaServidor
             error: null,
             servidores: [
               { nombre: "claude.ai Gmail", destino: "https://gmailmcp.googleapis.com/mcp/v1", tipo: "HTTP", estado: "ok", detalle: "Connected" },
+              { nombre: "claude.ai Slack", destino: "https://mcp.slack.com/mcp", tipo: "HTTP", estado: "ok", detalle: "Connected" },
               { nombre: "claude.ai Google Calendar", destino: "https://calendarmcp.googleapis.com/mcp/v1", tipo: "HTTP", estado: "auth", detalle: "Needs authentication" },
               { nombre: "plugin:design:figma", destino: "https://mcp.figma.com/mcp", tipo: "HTTP", estado: "falla", detalle: "Failed to connect" },
             ],

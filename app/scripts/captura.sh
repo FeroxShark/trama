@@ -8,7 +8,7 @@
 #   estado: normal | hover | colapsado | cerrados | modelo | esfuerzo |
 #           trabajando | oculta | vacio | buscar | lider | lider-terminal | lider-nuevo | lider-nuevo-carpeta | arbol |
 #           aviso | ajustes | ramas | ramas-confirmar | ramas-conflicto | ramas-lanzar | ramas-lanzar-error | estadisticas |
-#           lider-trabajando | lider-avisos | settle-confirmar | worker-vista | worker-vista-vivo |
+#           lider-trabajando | lider-mcp | lider-avisos | settle-confirmar | worker-vista | worker-vista-vivo |
 #           estadisticas-30 | estadisticas-medido | estadisticas-vacia | claude | claude-abierto | solo-lideres | ocultos |
 #           lider-sistema | lider-cambio-motor[menu|confirmar] | cuenta-lider | sistema | herramientas | lider-compactando |
 #           trama|trama-abierto|trama-sucio|trama-ocupado|trama-instalada (el aviso de una Trama nueva, con una instalada vieja forzada) |

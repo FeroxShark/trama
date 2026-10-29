@@ -318,7 +318,7 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
   const menu = mn?.filas ?? [];
   const [nota, setNota] = useState<string | null>(null);
   /** El panel de `/mcp` (PanelMcp.tsx). */
-  const [mcpAbierto, setMcpAbierto] = useState(false);
+  const [mcpAbierto, setMcpAbierto] = useState(MODO.captura === "lider-mcp");
   // Un modelo de otro motor para una conversación que ya empezó: el diálogo de confirmación (el chip no cambia hasta confirmar).
   /** Los datos del diálogo si elegir `m` sigue la conversación en otro motor; si no, `null`. */
   const datosCambio = (m: string): DatosCambio | null =>
