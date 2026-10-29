@@ -7,8 +7,8 @@
 //   sobre `<archivo>.lock`; el archivo de datos y su reemplazo atómico son los mismos.
 // - bin/cuentas no se importa: `listaCuentas` repite su `cargar()` (cuentas.json) y `entornoCuenta` su `entorno()`.
 // - Un float entero que el dueño escribe en modelos.json con "calidad_unidades": "aa" (p. ej. 50.0) sale como 50 en el JSON.
-import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, renameSync, statSync, unlinkSync, writeFileSync } from "node:fs";
+import { spawnSync, type SpawnSyncReturns } from "node:child_process";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { enPath, esEjecutable } from "./base/buscar.ts";
@@ -154,6 +154,7 @@ const PLANES_OPENCODE = ["gratis", "go", "go-plus"];
 const COSTO_GO = 0.02;
 const ENFRIAR_H = 5;
 const VENCE_GO_H = 5;
+const VENCE_FREE_H = 24;
 const OC_GO_PREFIJO = "opencode:opencode-go/";
 // NVIDIA NIM (integrate.api.nvidia.com/v1, ~40 req/min por modelo, sin tope diario): gratis por opencode (`opencode:nvidia/<modelo>`), sólo con
 // NVIDIA_API_KEY. La lista sale de `nvidia_modelos` de modelos.json (default NVIDIA_DEFECTO). Un 429 es por minuto: pa enfría a ESE modelo
@@ -250,8 +251,8 @@ function existePid(pid: number): boolean {
     return false;
   }
 }
-/** `subprocess.run(..., capture_output=True, text=True, timeout=s)`: la salida, o null si no se pudo o venció. */
-function correrSync(cmd: string, args: string[], o: { timeoutS: number; cwd?: string; env?: NodeJS.ProcessEnv }): string | null {
+/** `subprocess.run(..., capture_output=True, text=True, timeout=s)`: el resultado de spawnSync (`error` si no se pudo o venció). */
+function correrCapturado(cmd: string, args: string[], o: { timeoutS: number; cwd?: string; env?: NodeJS.ProcessEnv }): SpawnSyncReturns<string> {
   let ejecutable = cmd;
   let argv = args;
   let extra = {};
@@ -263,7 +264,12 @@ function correrSync(cmd: string, args: string[], o: { timeoutS: number; cwd?: st
       extra = { windowsVerbatimArguments: true };
     } else ejecutable = r;
   }
-  const r = spawnSync(ejecutable, argv, { encoding: "utf8", timeout: o.timeoutS * 1000, cwd: o.cwd, env: o.env ?? E, stdio: ["ignore", "pipe", "pipe"], windowsHide: true, maxBuffer: 64 * 1024 * 1024, ...extra });
+  return spawnSync(ejecutable, argv, { encoding: "utf8", timeout: o.timeoutS * 1000, cwd: o.cwd, env: o.env ?? E, stdio: ["ignore", "pipe", "pipe"], windowsHide: true, maxBuffer: 64 * 1024 * 1024, ...extra });
+}
+
+/** `subprocess.run(..., capture_output=True, text=True, timeout=s)`: la salida, o null si no se pudo o venció. */
+function correrSync(cmd: string, args: string[], o: { timeoutS: number; cwd?: string; env?: NodeJS.ProcessEnv }): string | null {
+  const r = correrCapturado(cmd, args, o);
   if (r.error) return null;
   return r.stdout ?? "";
 }
@@ -1755,6 +1761,61 @@ async function enfriar(mid0: string, horas: number, now: Date): Promise<number> 
   return 0;
 }
 
+// --- límite gratis de OpenCode -----------------------------------------------------------------------
+// "Free usage limit reached" es de TODA la cuenta: agota el grupo opencode-free entero (24 h, o el "retrying in N" del mensaje).
+const RE_LIMITE_GRATIS = /Free usage (?:limit|exceeded)|FreeUsageLimit/i;
+const RE_VUELTA = /retry(?:ing)?\s+in\s+(\d+(?:[.,]\d+)?)\s*(h|hours?|m|min|minutes?|s|secs?|seconds?)?/i;
+
+/** `sys.stdin.read()`: todo lo que llega por stdin, como texto. */
+async function leerStdin(): Promise<string> {
+  process.stdin.setEncoding("utf8");
+  let texto = "";
+  for await (const trozo of process.stdin) texto += trozo;
+  return texto;
+}
+
+/** Si la salida de OpenCode es el límite gratis de la cuenta: cuándo vuelve (con "retrying in N" ésos, si no VENCE_FREE_H horas). null si no es ese mensaje. */
+function limiteGratisOpencode(texto: string, now: Date): Date | null {
+  if (!RE_LIMITE_GRATIS.test(texto || "")) return null;
+  const m = RE_VUELTA.exec(texto);
+  if (m) {
+    const n = Number(m[1]!.replace(",", "."));
+    const u = (m[2] ?? "s").toLowerCase();
+    const seg = n * (u.startsWith("h") ? 3600 : u.startsWith("m") ? 60 : 1);
+    return new Date(now.getTime() + Math.max(seg, 60) * 1000);
+  }
+  return new Date(now.getTime() + VENCE_FREE_H * 3600_000);
+}
+
+/** Marca agotado el grupo `opencode-free` entero si `texto` es el límite gratis de OpenCode. 0 si lo marcó, 1 si el texto no lo era. */
+async function agotarGratisOpencode(texto: string, cfg: Obj, now: Date): Promise<number> {
+  const hasta = limiteGratisOpencode(texto, now);
+  if (!hasta) return 1;
+  return agotar("opencode-free", iso(hasta), cfg, now);
+}
+
+/** Pedido mínimo a un modelo gratis de OpenCode para enterarse del límite sin quemar una corrida de worker (gasta cupo: sólo a mano).
+ * Si dice "Free usage limit", marca el grupo (0); si contesta, lo deja como está (1). */
+async function sondearOpencode(cfg: Obj, now: Date): Promise<number> {
+  const exe = opencodeBin();
+  if (!exe) {
+    err("opencode no está instalado");
+    return 2;
+  }
+  const gratis = opencodeGratis(now);
+  const modelo = gratis.find((m) => m.endsWith("-free")) ?? gratis[0] ?? "big-pickle";
+  const cwd = mkdtempSync(path.join(os.tmpdir(), "reparto-sondeo-"));
+  const r = correrCapturado(exe, ["run", "-m", "opencode/" + modelo, "OK"], { timeoutS: 120, cwd });
+  rmSync(cwd, { recursive: true, force: true });
+  if (r.error) {
+    err(`no pude sondear opencode: ${textoError(r.error)}`);
+    return 2;
+  }
+  if ((await agotarGratisOpencode((r.stdout ?? "") + (r.stderr ?? ""), cfg, now)) === 0) return 0;
+  console.log("opencode contesta: el grupo opencode-free no se toca");
+  return 1;
+}
+
 async function agotar(mid: string, hastaArg: string | null, cfg: Obj, now: Date, cuenta: string | null = null): Promise<number> {
   let gid = grupoDeModelo(mid);
   if (!gid) {
@@ -1767,6 +1828,7 @@ async function agotar(mid: string, hastaArg: string | null, cfg: Obj, now: Date,
     err("--hasta quiere una fecha ISO (2026-10-23T15:00:00Z)");
     return 2;
   }
+  if (!hasta && gid === "opencode-free") hasta = new Date(now.getTime() + VENCE_FREE_H * 3600_000);
   if (!hasta && gid.startsWith(OC_GO_PREFIJO)) hasta = new Date(now.getTime() + VENCE_GO_H * 3600_000);
   if (!hasta) {
     try {
@@ -2976,6 +3038,8 @@ export async function main(argv: string[]): Promise<number> {
   }
   if (a[0] === "--agotar" && (a.length === 2 || a.length === 4) && (a.length === 2 || a[2] === "--hasta")) return agotar(a[1]!, a.length === 4 ? a[3]! : null, cfg, now, opt["--cuenta"] ?? null);
   if (a[0] === "--enfriar" && a.length === 2) return enfriar(a[1]!, horas, now);
+  if (a[0] === "--opencode-limite" && a.length === 1) return agotarGratisOpencode(await leerStdin(), cfg, now);
+  if (a[0] === "--sondear-opencode" && a.length === 1) return sondearOpencode(cfg, now);
   if (a[0] === "--enfriado" && a.length === 2) {
     const hasta = leerEnfriados(stateDir(), now)[a[1]!.trim().toLowerCase()];
     if (hasta) console.log(hasta);
