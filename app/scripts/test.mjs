@@ -4,7 +4,7 @@
 // Cada archivo corre en su propio `node --test`, con un tope de tiempo: un archivo que se cuelga (un servidor que no
 // existe, un hijo que no muere) se corta y cuenta como falla en vez de dejar el job de CI esperando horas.
 // TRAMA_TEST_ARCHIVO_S cambia el tope por archivo (default 300 s; 900 s con --paridad); TRAMA_TEST_PARALELO, cuántos a la vez;
-// TRAMA_TEST_DIR, otra carpeta de archivos (lo usa tests/runner-tope.test.ts).
+// TRAMA_TEST_DIR, otra carpeta de archivos (lo usa tests/runner-tope.test.ts). Antes de correr recompila dist-electron (TRAMA_TEST_SIN_BUILD=1 lo salta).
 //
 // Ningún proceso de un archivo queda vivo al terminar, ni cortado ni sano: se mata su grupo (POSIX) o su árbol
 // (taskkill /T /F). Lo que se desprendió con setsid no está en el grupo: en Linux se lo encuentra por una marca en el
@@ -35,6 +35,16 @@ const archivos = readdirSync(dir)
   .filter((f) => f.endsWith(".test.ts"))
   .sort()
   .map((f) => path.relative(raiz, path.join(dir, f)));
+
+// pa, reparto, tablero y cuentas corren por defecto el port de TS compilado (dist-electron/cli/*.js): un dist-electron viejo hace
+// fallar las pruebas con lo que el código ya tiene. Se recompila antes (≈3 s) salvo TRAMA_TEST_SIN_BUILD=1 o una TRAMA_TEST_DIR ajena.
+if (!process.env.TRAMA_TEST_SIN_BUILD && !process.env.TRAMA_TEST_DIR) {
+  const tsc = spawnSync(process.execPath, [path.join(raiz, "node_modules", "typescript", "bin", "tsc"), "-p", "tsconfig.electron.json"], { cwd: raiz, encoding: "utf8" });
+  if (tsc.status !== 0) {
+    process.stdout.write(`${tsc.stdout ?? ""}${tsc.stderr ?? ""}\nNo compila dist-electron (tsc -p tsconfig.electron.json): no se corre la suite.\n`);
+    process.exit(1);
+  }
+}
 
 const env = { ...process.env };
 for (const k of Object.keys(env)) {
