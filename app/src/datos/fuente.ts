@@ -571,12 +571,13 @@ const subagentesFijos = (): Subagentes => {
   const base = { sid: "s-fix-a3", tipo: "general-purpose" };
   return {
     "s-fix-a3": [
-      { ...base, id: "b1d2e3f4a5b6c7d8", descripcion: "Revisar los tests del módulo de cauce", modelo: "Sonnet 5.5", estado: "corriendo", inicio: ahora - 128, ultimo_en: ahora - 9, ultimo: "Bash: npm test -- cauce", tokens: 61200, resultado: null, hay_mas: false },
+      { ...base, id: "b1d2e3f4a5b6c7d8", descripcion: "Revisar los tests del módulo de cauce", modelo: "Sonnet 5.5", esfuerzo: "high", estado: "corriendo", inicio: ahora - 128, ultimo_en: ahora - 9, ultimo: "Bash: npm test -- cauce", tokens: 61200, resultado: null, hay_mas: false },
       {
         ...base,
         id: "c2e3f4a5b6c7d8e9",
         descripcion: "Listar los canales IPC que quedan sin prueba",
         modelo: "Haiku 5.5",
+        esfuerzo: "low",
         estado: "terminado",
         inicio: ahora - 400,
         ultimo_en: ahora - 310,
@@ -585,7 +586,7 @@ const subagentesFijos = (): Subagentes => {
         resultado: "Quedan 4 canales sin prueba:\n- pasos:mirar\n- pasos:soltar\n- subagentes:leer\n- subagentes:informe",
         hay_mas: true,
       },
-      { ...base, id: "d3f4a5b6c7d8e9f0", descripcion: "Medir el arranque en frío", modelo: "Haiku 5.5", estado: "terminado", inicio: ahora - 900, ultimo_en: ahora - 880, ultimo: "Arranque medido: 410 ms en frío.", tokens: 2100, resultado: "Arranque medido: 410 ms en frío.", hay_mas: false },
+      { ...base, id: "d3f4a5b6c7d8e9f0", descripcion: "Medir el arranque en frío", modelo: "Haiku 5.5", esfuerzo: "medium", esfuerzo_heredado: true, estado: "terminado", inicio: ahora - 900, ultimo_en: ahora - 880, ultimo: "Arranque medido: 410 ms en frío.", tokens: 2100, resultado: "Arranque medido: 410 ms en frío.", hay_mas: false },
     ],
   };
 };

@@ -23,12 +23,14 @@ const modeloDe = (u: Subagente | null, vista: VistaPasos | null) => {
 /** Lo de la cabecera después de las migas: que es un subagente y con qué modelo, su estado en palabras, el tiempo y el ⓘ. */
 export function SubagenteMigas({ u, lider, vista, vive }: { u: Subagente | null; lider: Lider | null; vista: VistaPasos | null; vive: boolean }) {
   useIdioma();
-  const modelo = modeloDe(u, vista);
+  const modeloSolo = modeloDe(u, vista);
+  const modelo = modeloSolo && u?.modelo_heredado ? t("sub.heredado", { v: modeloSolo }) : modeloSolo;
   const pinta = u ? pintaSub(u, vive) : null;
   const e = vista?.encabezado;
   const filas: [string, string, boolean?][] = [
     ...(lider ? [[t("subv.infoLider"), lider.nombre] as [string, string]] : []),
     ...(modelo ? [[t("wk.infoModelo"), modelo] as [string, string]] : []),
+    ...(u?.esfuerzo ? [[t("subv.infoEsfuerzo"), u.esfuerzo_heredado ? t("sub.heredado", { v: u.esfuerzo }) : u.esfuerzo] as [string, string]] : []),
     ...(u?.tipo ? [[t("subv.infoTipo"), u.tipo, true] as [string, string, boolean]] : []),
     ...(e ? [[t("wk.infoTurnos"), String(e.turnos)] as [string, string], [t("wk.infoTokens"), tokensInfo(e)] as [string, string]] : []),
   ];

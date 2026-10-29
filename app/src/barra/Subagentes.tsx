@@ -53,7 +53,8 @@ const Fila = memo(function Fila({ u, vivo, activa, alAbrir }: { u: Subagente; vi
           <span className="sub-txt">
             <span className="sub-t">
               <span className="sub-desc">{u.descripcion}</span>
-              {u.modelo ? <span className="sub-modelo">{u.modelo}</span> : null}
+              {u.modelo ? <span className="sub-modelo">{u.modelo_heredado ? tr("sub.heredado", { v: u.modelo }) : u.modelo}</span> : null}
+              {u.esfuerzo ? <span className="sub-modelo">{u.esfuerzo_heredado ? tr("sub.heredado", { v: u.esfuerzo }) : u.esfuerzo}</span> : null}
             </span>
             <span className="sub-s">
               <span className={`sub-estado c-${tipo}`}>{estado}</span>
