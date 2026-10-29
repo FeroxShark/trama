@@ -1,5 +1,13 @@
 # Cambios
 
+## 0.2.22
+
+- Windows: las cuentas agregadas de Claude comparten conversaciones, plugins, skills y ajustes con la principal (como en Linux). Las que ya existían se unen solas, sin borrar nada. Retomar una conversación con otra cuenta ya no da "No conversation found".
+- Windows: los agentes usan PowerShell en vez de Git Bash (Ajustes > General > Terminal de los agentes).
+- Imágenes que manda el líder (rutas locales o de herramientas) se ven en la conversación; si no existen, lo dice.
+- Una sola lista de canales para Linux y Windows.
+- Linux: AppImage en cada release.
+
 ## 0.2.21
 
 - Cuentas: botón "Usar primero" en cada cuenta y selector de cuenta en el líder. Trama nunca cambia de cuenta sola.
