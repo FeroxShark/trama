@@ -5,8 +5,10 @@ const { contextBridge, ipcRenderer } = require("electron");
 const invocar = (canal, ...a) => ipcRenderer.invoke(canal, ...a);
 
 // Lo que es de la pantalla de la PC (ventana.js): la página lo pide acá porque el motor lo rechaza por red. Tiene que ser
-// igual a las claves de crearCanalesVentana (lo verifica tests/ventana.test.js).
-const CANALES_VENTANA = ["app:salir", "app:pararTodo", "carpeta:elegir", "archivo:elegirLogo", "portapapeles:texto", "bandeja:textos", "espera:estado", "espera:notificar", "cuentas:login", "lider:ir", "lider:ubicable", "claude:changelog", "trama:notas", "volver:leer", "volver:guardar", "volver:anotar", "reinicio:marca", "app:recargar", "trama:reiniciarVentana"];
+// igual a las claves de crearCanalesVentana (lo verifica tests/ventana.test.js). Un preload con sandbox no puede cargar
+// otro archivo, así que las dos listas se copian de canales.json (generado desde app/electron/canales/contrato.ts) y
+// tests/ventana.test.js comprueba que coinciden.
+const CANALES_VENTANA = ["lider:ir", "lider:ubicable", "claude:changelog", "trama:reiniciarVentana", "trama:notas", "cuentas:login", "app:salir", "app:recargar", "app:pararTodo", "bandeja:textos", "espera:estado", "espera:notificar", "portapapeles:texto", "carpeta:elegir", "archivo:elegirLogo", "reinicio:marca", "volver:leer", "volver:guardar", "volver:anotar"];
 // Lo que la carcasa le avisa a la página (no viene del motor): la notificación de un líder tocada.
 const AVISOS_VENTANA = ["espera:abrir"];
 

@@ -342,7 +342,7 @@ test("rutas: la tabla cubre todos los canales (núcleo, ventana, preload) y nada
   const nucleoCanales = (await nucleo.llamarLocal(nucleo.CANALES, [], "prueba")) as string[];
   const fuente = (f: string) => readFileSync(path.join(raiz, "electron", f), "utf8");
   const deIpc = ["ventana-canales.ts", "ventana-cliente.ts", "bench.ts"].flatMap((f) => [...fuente(f).matchAll(/ipcMain\.handle\("([^"]+)"/g)].map((m) => m[1]));
-  const dePreload = [...fuente("preload.cts").matchAll(/ipcRenderer\.invoke\("([^"]+)"/g)].map((m) => m[1]);
+  const dePreload = [...fuente("preload.cts").matchAll(/\binvocar\("([^"]+)"/g)].map((m) => m[1]);
   const todos = new Set([...nucleoCanales, ...nucleo.SOLO_VENTANA, ...deIpc, ...dePreload].filter((c) => !c.startsWith("prueba:")));
   for (const c of todos) assert.ok(c in nucleo.RUTAS, `falta en RUTAS: ${c}`);
   for (const c of Object.keys(nucleo.RUTAS)) assert.ok(todos.has(c), `sobra en RUTAS: ${c}`);

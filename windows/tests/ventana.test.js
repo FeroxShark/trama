@@ -97,6 +97,14 @@ test("el preload expone exactamente los canales que atiende la carcasa", () => {
   assert.deepEqual([...cargarPreload().ventana.canales].sort(), Object.keys(manejadores).sort());
 });
 
+test("el preload tiene las mismas listas que canales.json (generado desde app/electron/canales/contrato.ts)", () => {
+  const json = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "src", "canales.json"), "utf8"));
+  const { ventana } = cargarPreload();
+  assert.deepEqual([...ventana.canales], json.ventana);
+  assert.deepEqual([...ventana.avisa], json.avisosVentana);
+  assert.deepEqual(Object.keys(carcasa().manejadores).sort(), [...json.ventana].sort());
+});
+
 test("el preload no deja pedir canales que no son de la ventana", async () => {
   await assert.rejects(cargarPreload().ventana.llamar("asistente:avanzar"), /no es de la ventana/);
 });
