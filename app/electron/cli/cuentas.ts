@@ -76,7 +76,7 @@ const esArchivo = (p: string) => {
 };
 const expandir = (p: string, home: string) => (p === "~" ? home : p.startsWith("~/") ? path.join(home, p.slice(2)) : p);
 
-type Cuenta = { id: string; proveedor: string; motor: string; nombre: string; dir: string | null; defecto: boolean; plan?: string; logueado?: boolean | null; plan_detectado?: string | null };
+type Cuenta = { id: string; proveedor: string; motor: string; nombre: string; dir: string | null; defecto: boolean; preferida?: boolean; plan?: string; logueado?: boolean | null; plan_detectado?: string | null };
 
 class Cuentas {
   readonly env: Env;
@@ -115,6 +115,18 @@ class Cuentas {
     return out;
   }
 
+  /** `{proveedor: id}` de cuentas.json ("preferidas"). Sin archivo o inválido: `{}` (la preferida es la de siempre). */
+  leerPreferidas(): Record<string, string> {
+    try {
+      const d: unknown = JSON.parse(readFileSync(this.ruta(), "utf8"));
+      const p = esObjeto(d) ? d.preferidas : null;
+      if (!esObjeto(p)) return {};
+      return Object.fromEntries(Object.entries(p).filter(([k, v]) => k in PROVEEDORES && typeof v === "string")) as Record<string, string>;
+    } catch {
+      return {};
+    }
+  }
+
   /** Todas las cuentas: la de siempre de claude y google (y las de chatgpt/opencode si hay o está instalado), más las agregadas. */
   cargar(): Cuenta[] {
     const ent = this.leerArchivo();
@@ -133,6 +145,10 @@ class Cuentas {
       if (c.proveedor === "opencode") cu.plan = PLANES_OPENCODE.includes(c.plan) ? c.plan : "gratis";
       out.push(cu);
     }
+    const pref = this.leerPreferidas();
+    const elegida: Record<string, string> = {};
+    for (const p of Object.keys(pref)) if (out.some((x) => x.id === pref[p] && x.proveedor === p)) elegida[p] = pref[p]!;
+    for (const c of out) c.preferida = c.id === (elegida[c.proveedor] ?? c.proveedor);
     return out;
   }
 
@@ -146,11 +162,14 @@ class Cuentas {
 
   buscar = (cid: string) => this.cargar().find((c) => c.id === cid) ?? null;
 
-  guardar(ent: Ent[]) {
+  /** Escribe cuentas.json con `ent`; las "preferidas" siguen como estaban (o `pref`), sin las que apuntan a una cuenta que ya no está. */
+  guardar(ent: Ent[], pref?: Record<string, string>) {
     const p = this.ruta();
     mkdirSync(path.dirname(path.resolve(p)), { recursive: true });
+    const ids = new Map(ent.map((e) => [e.id, e.proveedor] as const));
+    const vivas = Object.fromEntries(Object.entries(pref ?? this.leerPreferidas()).filter(([k, v]) => ids.get(v) === k));
     const tmp = `${p}.${process.pid}`;
-    writeFileSync(tmp, JSON.stringify({ version: VERSION, cuentas: ent }, null, 2) + "\n");
+    writeFileSync(tmp, JSON.stringify({ version: VERSION, cuentas: ent, ...(Object.keys(vivas).length ? { preferidas: vivas } : {}) }, null, 2) + "\n");
     renameSync(tmp, p);
   }
 
@@ -625,6 +644,23 @@ class Cuentas {
     return 0;
   }
 
+  async cmdPreferir(a: string[]): Promise<number> {
+    if (a.length !== 1) return this.err("uso: cuentas preferir ID"), 2;
+    const cid = a[0]!;
+    const r = await this.conCandado(() => {
+      const c = this.buscar(cid);
+      if (!c) return this.err(`no hay ninguna cuenta ${cid}`), 1;
+      const pref = this.leerPreferidas();
+      if (c.defecto) delete pref[c.proveedor]; // la de siempre es la preferida mientras no se elija otra
+      else pref[c.proveedor] = c.id;
+      this.guardar(this.leerArchivo(), pref);
+      return 0;
+    });
+    if (r) return r;
+    this.print(`${cid}: ahora es la que se usa primero`);
+    return 0;
+  }
+
   async cmdRenombrar(a: string[]): Promise<number> {
     if (a.length !== 2 || !a[1]!.trim()) return this.err('uso: cuentas renombrar ID "Nombre"'), 2;
     const [cid, nombre] = a as [string, string];
@@ -755,6 +791,7 @@ export async function main(argv: string[], env: Env = process.env, io: Io = porD
     case "agregar": return c.cmdAgregar(resto);
     case "quitar": return c.cmdQuitar(resto);
     case "renombrar": return c.cmdRenombrar(resto);
+    case "preferir": return c.cmdPreferir(resto);
     case "login": return c.cmdLogin(resto);
     case "env": return c.cmdEnv(resto);
     case "ver": return c.cmdVer(resto);

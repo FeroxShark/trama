@@ -5,6 +5,10 @@
   cuentas agregar PROVEEDOR "Nombre" [--id ID] crea la cuenta y su carpeta (no hace el login)
   cuentas quitar ID [--borrar-credenciales]    la saca de la lista; la carpeta queda salvo con el flag
   cuentas renombrar ID "Nombre"                cambia el nombre (también el de la cuenta de siempre)
+  cuentas preferir ID                          la cuenta que usan primero los líderes y workers NUEVOS de su proveedor (pa, reparto, el
+                                               líder de la app); la de siempre es la preferida mientras no se elija otra. Se guarda en
+                                               cuentas.json ("preferidas") y sale como `preferida` en `--json`. No toca lo que ya corre
+                                               y nunca cambia sola de cuenta cuando se agota el cupo: la elección es de la persona
   cuentas login ID [--imprimir]                lanza el login de esa cuenta (interactivo); --imprimir sólo lo muestra
   cuentas env ID [--json]                      el entorno con que se corre un worker de esa cuenta
   cuentas ver ID [--json]                      una cuenta
@@ -111,9 +115,21 @@ def leer_archivo():
     return out
 
 
+def leer_preferidas():
+    """{proveedor: id} de cuentas.json ("preferidas"). Sin archivo o inválido: {} (la preferida es la de siempre)."""
+    try:
+        with open(ruta()) as f:
+            d = json.load(f)
+    except Exception:
+        return {}
+    p = d.get("preferidas") if isinstance(d, dict) else None
+    return {k: v for k, v in p.items() if k in PROVEEDORES and isinstance(v, str)} if isinstance(p, dict) else {}
+
+
 def cargar():
     """Todas las cuentas: la de siempre de claude y google (y la de chatgpt si hay alguna de chatgpt), más las agregadas.
-    Cada una: id, proveedor, motor, nombre, dir (None = la de siempre), defecto."""
+    Cada una: id, proveedor, motor, nombre, dir (None = la de siempre), defecto, preferida (la que usan primero los workers nuevos:
+    una por proveedor, la elegida con `preferir` o, sin elegir o si ya no existe, la de siempre)."""
     ent = leer_archivo()
     por_id = {}
     for c in ent:
@@ -134,6 +150,10 @@ def cargar():
         if c["proveedor"] == "opencode":
             cu["plan"] = c.get("plan") if c.get("plan") in PLANES_OPENCODE else "gratis"
         out.append(cu)
+    pref = leer_preferidas()
+    elegida = {p: pref[p] for p in pref if any(x["id"] == pref[p] and x["proveedor"] == p for x in out)}
+    for c in out:
+        c["preferida"] = c["id"] == elegida.get(c["proveedor"], c["proveedor"])
     return out
 
 
@@ -150,12 +170,15 @@ def buscar(cid):
     return next((c for c in cargar() if c["id"] == cid), None)
 
 
-def guardar(ent):
+def guardar(ent, pref=None):
+    """Escribe cuentas.json con `ent`; las "preferidas" siguen como estaban (o `pref`), sin las que apuntan a una cuenta que ya no está."""
     p = ruta()
     os.makedirs(os.path.dirname(os.path.abspath(p)), exist_ok=True)
+    ids = {e["id"]: e["proveedor"] for e in ent}
+    pref = {k: v for k, v in (leer_preferidas() if pref is None else pref).items() if ids.get(v) == k}
     tmp = "%s.%d" % (p, os.getpid())
     with open(tmp, "w") as f:
-        json.dump({"version": VERSION, "cuentas": ent}, f, ensure_ascii=False, indent=2)
+        json.dump({"version": VERSION, "cuentas": ent, **({"preferidas": pref} if pref else {})}, f, ensure_ascii=False, indent=2)
         f.write("\n")
     os.replace(tmp, p)
 
@@ -480,6 +503,25 @@ def cmd_renombrar(a):
     return 0
 
 
+def cmd_preferir(a):
+    if len(a) != 1:
+        err("uso: cuentas preferir ID")
+        return 2
+    with Candado():
+        c = buscar(a[0])
+        if not c:
+            err("no hay ninguna cuenta %s" % a[0])
+            return 1
+        pref = leer_preferidas()
+        if c["defecto"]:
+            pref.pop(c["proveedor"], None)   # la de siempre es la preferida mientras no se elija otra
+        else:
+            pref[c["proveedor"]] = c["id"]
+        guardar(leer_archivo(), pref)
+    print("%s: ahora es la que se usa primero" % c["id"])
+    return 0
+
+
 def cmd_login(a):
     if not a or a[1:] not in ([], ["--imprimir"]):
         err("uso: cuentas login ID [--imprimir]")
@@ -798,7 +840,7 @@ def main(argv):
     if argv[0] in ("-h", "--help"):
         sys.stdout.write(__doc__)
         return 0
-    f = {"agregar": cmd_agregar, "quitar": cmd_quitar, "renombrar": cmd_renombrar, "login": cmd_login,
+    f = {"agregar": cmd_agregar, "quitar": cmd_quitar, "renombrar": cmd_renombrar, "preferir": cmd_preferir, "login": cmd_login,
          "env": cmd_env, "ver": cmd_ver, "listar": cmd_listar, "plan": cmd_plan,
          "importar-perfiles": cmd_importar_perfiles}.get(argv[0])
     if not f:
