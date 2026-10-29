@@ -2692,6 +2692,14 @@
   color: var(--apagado);
   font-size: var(--letra-3);
 }
+.cu-cta-uso {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--esp-1);
+  color: var(--texto);
+  font-size: var(--letra-3);
+  font-weight: 600;
+}
 .cu-cta-acc {
   display: inline-flex;
   gap: var(--esp-1-5);

@@ -3,6 +3,7 @@
 // (`AgregarCuenta`). Quien tiene una sola cuenta por proveedor sólo ve ese botón; sin el comando `cuentas` no se ve nada.
 // El login lo hace la persona en una terminal de la PC (el motor la abre y espera); después se vuelve a preguntar `--verificar`.
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { Check } from "lucide-react";
 import { Boton, Chip, Interruptor } from "../ui/componentes";
 import { ICONO, IcEditar, IcMas } from "../ui/iconos";
 import { fuente } from "../datos/fuente";
@@ -91,7 +92,10 @@ function Nombre({ perfil, alGuardar }: { perfil: PerfilCuenta; alGuardar: (nombr
   );
 }
 
-/** Una cuenta: nombre editable, conectada o no, Conectar y Quitar (la de siempre no se quita). `children`: su cupo, sus ventanas. */
+/**
+ * Una cuenta: nombre editable, conectada o no, «En uso» o «Usar primero» (la elegida es la que usan los líderes y workers nuevos de su
+ * proveedor; no toca lo que ya corre ni cambia sola cuando se agota el cupo), Conectar y Quitar (la de siempre no se quita). `children`: su cupo.
+ */
 export function CuentaFila({ perfil, alCambiar, children }: { perfil: PerfilCuenta; alCambiar: () => void; children?: ReactNode }) {
   useIdioma();
   const [ocupada, setOcupada] = useState<"login" | "guardar" | null>(null);
@@ -121,7 +125,18 @@ export function CuentaFila({ perfil, alCambiar, children }: { perfil: PerfilCuen
         <Nombre perfil={perfil} alGuardar={(n) => void correr("guardar", () => fuente.renombrarCuenta(perfil.id, n))} />
         {perfil.defecto ? <span className="cu-cta-def">{t("cu.cuentaPrincipal")}</span> : null}
         {perfil.logueado === null ? null : perfil.logueado ? <Chip tono="ok">{t("cu.conectado")}</Chip> : <Chip tono="aviso">{t("cu.noConectado")}</Chip>}
+        {perfil.preferida ? (
+          <span className="cu-cta-uso" data-tip={t("cu.enUsoQue")}>
+            <Check size={12} strokeWidth={2.4} aria-hidden="true" />
+            {t("cu.enUso")}
+          </span>
+        ) : null}
         <span className="cu-cta-acc">
+          {perfil.preferida || perfil.logueado === false ? null : (
+            <Boton disabled={ocupada !== null} data-tip={t("cu.usarPrimeroQue")} onClick={() => void correr("guardar", () => fuente.preferirCuenta(perfil.id))}>
+              {t("cu.usarPrimero")}
+            </Boton>
+          )}
           {perfil.logueado === false ? (
             <Boton disabled={ocupada !== null} onClick={() => void correr("login", () => fuente.loginCuenta(perfil.id))}>
               {t("cu.conectar")}

@@ -111,6 +111,15 @@ describe("alta, renombre, baja y login", () => {
     assert.equal(llamadas.length, 3);
   });
 
+  it("preferir llama a `cuentas preferir <id>` y rechaza un id raro; la lista trae `preferida`", async () => {
+    const { deps, llamadas } = falso();
+    await v.preferirCuenta(deps, "trabajo");
+    assert.deepEqual(llamadas.map((l) => l.args), [["preferir", "trabajo"]]);
+    await assert.rejects(v.preferirCuenta(deps, "../mal"));
+    const l = v.parsearCuentas(JSON.stringify({ ...LISTA, cuentas: [{ ...LISTA.cuentas[0], preferida: false }, { ...LISTA.cuentas[1], preferida: true }] }));
+    assert.deepEqual(l?.cuentas.map((c) => [c.id, c.preferida]), [["claude", false], ["trabajo", true]]);
+  });
+
   it("un código de salida distinto de 0 vuelve con lo que dijo el comando", async () => {
     const { deps } = falso({ renombrar: { code: 2, stdout: "", stderr: "no existe esa cuenta\n", tiempo: false, noExiste: false } });
     await assert.rejects(v.renombrarCuenta(deps, "trabajo", "x"), /no existe esa cuenta/);
@@ -134,9 +143,9 @@ describe("canales cuentas:*", () => {
     return { llamar, cambios: () => cambios, canales };
   }
 
-  it("registra los cinco canales", () => {
+  it("registra los canales de cuentas", () => {
     const { canales } = registrar(falso().deps);
-    assert.deepEqual([...canales.keys()].sort(), ["cuentas:agregar", "cuentas:lista", "cuentas:login", "cuentas:plan", "cuentas:quitar", "cuentas:renombrar"]);
+    assert.deepEqual([...canales.keys()].sort(), ["cuentas:agregar", "cuentas:lista", "cuentas:login", "cuentas:plan", "cuentas:preferir", "cuentas:quitar", "cuentas:renombrar"]);
   });
 
   it("devuelven { ok } y nunca tiran: un fallo vuelve como { ok: false, error }", async () => {

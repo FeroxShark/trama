@@ -19,8 +19,9 @@ export type PlanCuentaOc = (typeof PLANES_OC)[number];
  * Una cuenta tal como la lista `cuentas --json`. `defecto`: la de siempre (su id es el del proveedor). `logueado`: `null` = no se preguntó o no se sabe.
  * `plan`: el de OpenCode de una cuenta agregada de OpenCode (el de la de siempre está en modelos.json, `opencode_plan`).
  * `planDetectado`: el que dijo `opencode models` (`plan_detectado`, sólo con `--verificar`; no distingue Go de Go Plus).
+ * `preferida`: la que usan primero los líderes y workers nuevos de su proveedor (`cuentas preferir`; una por proveedor, sin elegir es la de siempre).
  */
-export type PerfilCuenta = { id: string; proveedor: ProveedorCuenta; nombre: string; defecto: boolean; logueado: boolean | null; plan?: PlanCuentaOc; planDetectado?: PlanCuentaOc };
+export type PerfilCuenta = { id: string; proveedor: ProveedorCuenta; nombre: string; defecto: boolean; preferida: boolean; logueado: boolean | null; plan?: PlanCuentaOc; planDetectado?: PlanCuentaOc };
 export type ListaCuentas = { version: 1; cuentas: PerfilCuenta[] };
 
 type Env = Record<string, string | undefined>;
@@ -92,6 +93,7 @@ export function parsearCuentas(salida: string): ListaCuentas | null {
       proveedor: x.proveedor,
       nombre: nombreValido(x.nombre) ?? x.id,
       defecto: x.defecto === true || x.id === x.proveedor,
+      preferida: x.preferida === true,
       logueado: typeof x.logueado === "boolean" ? x.logueado : null,
       ...(x.proveedor === "opencode" && x.id !== "opencode" ? { plan: (PLANES_OC as readonly unknown[]).includes(x.plan) ? (x.plan as PlanCuentaOc) : "gratis" } : {}),
       ...(x.proveedor === "opencode" && (PLANES_OC as readonly unknown[]).includes(x.plan_detectado) ? { planDetectado: x.plan_detectado as PlanCuentaOc } : {}),
@@ -128,6 +130,12 @@ export async function renombrarCuenta(d: DepsVarias, id: unknown, nombre: unknow
 export async function quitarCuenta(d: DepsVarias, id: unknown, borrarCredenciales: unknown): Promise<void> {
   if (!idValido(id) || proveedorValido(id)) throw new Error(marca("main.cuentasDato"));
   await cli(d, ["quitar", id, ...(borrarCredenciales === true ? ["--borrar-credenciales"] : [])], TOPE_RAPIDO);
+}
+
+/** Deja a esa cuenta como la que se usa primero en su proveedor (`cuentas preferir`): lo nuevo la usa, lo que ya corre no cambia. */
+export async function preferirCuenta(d: DepsVarias, id: unknown): Promise<void> {
+  if (!idValido(id)) throw new Error(marca("main.cuentasDato"));
+  await cli(d, ["preferir", id], TOPE_RAPIDO);
 }
 
 /** El plan de OpenCode de una cuenta agregada de OpenCode (`cuentas plan`). La de siempre no: su plan es `opencode_plan` de modelos.json. */

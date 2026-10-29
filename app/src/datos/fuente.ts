@@ -295,6 +295,8 @@ export interface Fuente {
   loginCuenta(id: string): Promise<ResultadoCuenta>;
   /** El plan de OpenCode (gratis / go / go-plus) de una cuenta agregada de OpenCode (`cuentas plan`). */
   planCuenta(id: string, plan: PlanCuentaOc): Promise<ResultadoCuenta>;
+  /** Deja a esa cuenta como la que se usa primero en su proveedor: los líderes y workers nuevos la usan, lo que ya corre no cambia. */
+  preferirCuenta(id: string): Promise<ResultadoCuenta>;
   /** Relanzar con la versión nueva los líderes que no están respondiendo. */
   reiniciarLideres(): Promise<{ reiniciados: number; ocupados: number }>;
 }
@@ -856,7 +858,7 @@ function deteccionLocalesFalsa(): ResultadoDeteccion {
  * (el login tarda un instante y deja la cuenta conectada), todo en memoria.
  */
 function cuentasFijas() {
-  const nueva = (id: string, proveedor: ProveedorCuenta, nombre: string, logueado: boolean | null, defecto = false): PerfilCuenta => ({ id, proveedor, nombre, defecto, logueado });
+  const nueva = (id: string, proveedor: ProveedorCuenta, nombre: string, logueado: boolean | null, defecto = false): PerfilCuenta => ({ id, proveedor, nombre, defecto, preferida: defecto, logueado });
   let lista: PerfilCuenta[] = [
     nueva("claude", "claude", "Claude", true, true),
     nueva("google", "google", "Google AI Pro", (MODO.variante ?? "").startsWith("cupos"), true),
@@ -895,6 +897,12 @@ function cuentasFijas() {
     async planCuenta(id: string, plan: PlanCuentaOc): Promise<ResultadoCuenta> {
       if (!lista.some((c) => c.id === id && c.proveedor === "opencode" && !c.defecto)) return falta();
       lista = lista.map((c) => (c.id === id ? { ...c, plan } : c));
+      return ok;
+    },
+    async preferirCuenta(id: string): Promise<ResultadoCuenta> {
+      const c = lista.find((x) => x.id === id);
+      if (!c) return falta();
+      lista = lista.map((x) => (x.proveedor === c.proveedor ? { ...x, preferida: x.id === id } : x));
       return ok;
     },
   };
@@ -1813,6 +1821,9 @@ const conPa = (m: NonNullable<typeof main>): Fuente => ({
   },
   async planCuenta(id, plan) {
     return resultadoValido(await m.cuentas.plan(id, plan).catch(() => null));
+  },
+  async preferirCuenta(id) {
+    return resultadoValido(await m.cuentas.preferir(id).catch(() => null));
   },
   alCambiarAvisoAgy(fn) {
     return m.agy.alCambiar((a) => fn(avisoValido(a)));

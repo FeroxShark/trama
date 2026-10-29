@@ -219,6 +219,7 @@ export const RUTAS: Readonly<Record<string, Ruta>> = {
   "cuentas:quitar": "local",
   "cuentas:login": "local",
   "cuentas:plan": "local",
+  "cuentas:preferir": "local",
   "setup:descartar": "local",
   // La pantalla de la PC (ventana-canales.ts, bench.ts): no existen en un motor sin ventana.
   "app:salir": "local",

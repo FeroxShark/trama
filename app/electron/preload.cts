@@ -283,6 +283,7 @@ contextBridge.exposeInMainWorld("hilos", {
     quitar: (id: string, borrarCredenciales: boolean): Promise<unknown> => ipcRenderer.invoke("cuentas:quitar", id, borrarCredenciales),
     login: (id: string): Promise<unknown> => ipcRenderer.invoke("cuentas:login", id),
     plan: (id: string, plan: string): Promise<unknown> => ipcRenderer.invoke("cuentas:plan", id, plan),
+    preferir: (id: string): Promise<unknown> => ipcRenderer.invoke("cuentas:preferir", id),
   },
   /** Sólo por la tailnet (lo arma electron/remoto-cliente.ts; en la ventana no llega nunca): `false` = se cayó la conexión con la PC. */
   conexion: {
