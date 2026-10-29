@@ -1,7 +1,7 @@
 // scripts/test.mjs: el tope por archivo mata el árbol entero (también lo que se desprendió) y ningún archivo deja procesos
 // vivos. Corre el runner sobre las carpetas de scripts/fixtures (TRAMA_TEST_DIR) y mira cada proceso por su pid.
 import assert from "node:assert/strict";
-import { spawn, spawnSync as spawnSync2 } from "node:child_process";
+import { spawn } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -37,12 +37,10 @@ test("un archivo que se cuelga se corta a su tope y no deja vivo ni uno de sus p
   const pids = pidsEn();
   const r = await runner("cuelga", { TRAMA_TEST_ARCHIVO_S: "2", TRAMA_TEST_PIDS: pids }).fin;
   assert.notEqual(r.codigo, 0);
-  // En Windows, `node --test` corta el archivo con su propio tope (80 %) antes que el vigía del runner; en Linux, el bucle que no cede sólo lo corta el runner.
-  assert.match(r.salida, process.platform === "win32" ? /sin terminar tras 2 s; se cortó|test timed out after/ : /sin terminar tras 2 s; se cortó/);
+  assert.match(r.salida, /sin terminar tras 2 s; se cortó/);
   const lista = leerPids(pids);
   assert.equal(lista.length, 2);
   await esperar(() => lista.every((p) => !vivo(p)));
-  if (process.platform === "win32") console.log("DEBUGWIN", JSON.stringify(lista), JSON.stringify(lista.map((p) => vivo(p))), spawnSync2("tasklist", ["/FO", "CSV", "/NH"], { encoding: "utf8" }).stdout.split("\n").filter((l: string) => lista.some((p) => l.includes(`"${p}"`))).join("|"));
   assert.deepEqual(lista.filter((p) => vivo(p)), []);
 });
 
