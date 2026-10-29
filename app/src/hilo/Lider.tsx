@@ -99,6 +99,8 @@ type Props = {
   /** Los líderes, para ir al que siguió después de un relevo (B19). */
   lideres?: ReadonlyMap<string, Lider>;
   alAbrirLider?: (id: string) => void;
+  /** Abre el hilo de un worker: los ids de un aviso de Trama en la conversación. */
+  alAbrirHilo?: (id: string) => void;
   /** Mirar su transcript (`fuente.liderMirar`): el analista de Ramas no, para no soltar el de la vista. */
   mirar?: boolean;
   /** El texto de su última respuesta entera, cada vez que cambia (el analista: sus veredictos). */
@@ -121,7 +123,7 @@ const NO_TRAE: Record<Exclude<MotivoTraer, "trabajando">, "lider.noTraer" | "lid
 /** El texto de la caja con que arranca una captura (`lider-comandos`: el menú de "/" abierto; `lider-valores`, el de /output-style). */
 const textoCaptura = () => (MODO.captura === "lider-comandos" ? "/" : MODO.captura === "lider-valores" ? "/output-style " : null);
 
-export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar = true, alRespuesta, mostrar, archivar }: Props) {
+export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrirHilo, mirar = true, alRespuesta, mostrar, archivar }: Props) {
   const sid = l?.id ?? "";
   const clave = l ? `lider:${l.id}` : BORRADOR_LIDER;
   const vivo = useSyncExternalStore(
@@ -1065,6 +1067,7 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
             sigue={sigue}
             nombre={l?.nombre}
             alAbrirLider={alAbrirLider}
+            alAbrirHilo={alAbrirHilo}
             acciones={acciones}
             editar={editar}
             guardar={guardarArchivo}
@@ -1450,6 +1453,7 @@ type PropsMensajes = {
   sigue: Lider | null;
   nombre: string | undefined;
   alAbrirLider: ((id: string) => void) | undefined;
+  alAbrirHilo: ((id: string) => void) | undefined;
   /** Las acciones por mensaje (Copiar, Editar, Volver acá, Ramificar); `null`: sólo Copiar. */
   acciones: Acciones | null;
   editar: (x: Extract<Item, { tipo: "yo" }>, texto: string, adjuntos: readonly Adjunto[]) => void;
@@ -1461,7 +1465,7 @@ type PropsMensajes = {
  * La conversación. Aparte de la caja para que cada tecla no la recorra entera: lo que se escribe es estado de `ChatLider`, y con
  * 3000 mensajes volver a armarlos en cada letra tardaba más de 50 ms. Sólo se repinta cuando cambian los mensajes o el turno.
  */
-const Mensajes = memo(function Mensajes({ items, ultimoTurno, app, ocupado, pasando, pensando, razon, relevo, sigue, nombre, alAbrirLider, acciones, editar, guardar }: PropsMensajes) {
+const Mensajes = memo(function Mensajes({ items, ultimoTurno, app, ocupado, pasando, pensando, razon, relevo, sigue, nombre, alAbrirLider, alAbrirHilo, acciones, editar, guardar }: PropsMensajes) {
   return (
     <>
       {items.map((x, i) =>
@@ -1470,7 +1474,7 @@ const Mensajes = memo(function Mensajes({ items, ultimoTurno, app, ocupado, pasa
         ) : x.tipo === "sistema" ? (
           <Fragment key={x.key}>
             <Marca k={x.key} />
-            <Sistema s={x.s} nombre={nombre} />
+            <Sistema s={x.s} nombre={nombre} alAbrirHilo={alAbrirHilo} />
           </Fragment>
         ) : (
           <Fragment key={x.key}>

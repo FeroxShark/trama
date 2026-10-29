@@ -75,6 +75,8 @@ type Props = {
   /** Los líderes y cómo abrir uno: el chat lleva al que siguió después de un relevo (B19). */
   lideres?: ReadonlyMap<string, Lider>;
   alAbrirLider?: (id: string) => void;
+  /** Abre el hilo de un worker: los ids de un aviso de Trama en la conversación. */
+  alAbrirHilo?: (id: string) => void;
   barraAbierta: boolean;
   alAlternarBarra: () => void;
   alCerrar: (id: string, como?: Como) => void;
@@ -98,6 +100,7 @@ export function Vista({
   alSettleLider,
   lideres,
   alAbrirLider,
+  alAbrirHilo,
   barraAbierta,
   alAlternarBarra,
   alCerrar,
@@ -178,7 +181,7 @@ export function Vista({
       ) : h && estado && conPasos ? (
         <VistaWorker key={h.id} h={h} estado={estado} vista={conPasos} settle={settle} alCerrar={alCerrar} alRetomar={alRetomar} alPasar={alPasar} />
       ) : h && estado ? (
-        <Cuerpo key={h.id} h={h} estado={estado} settle={settle} alCerrar={alCerrar} alRetomar={alRetomar} alPasar={alPasar} />
+        <Cuerpo key={h.id} h={h} estado={estado} settle={settle} alCerrar={alCerrar} alRetomar={alRetomar} alPasar={alPasar} alAbrirHilo={alAbrirHilo} />
       ) : sub && !lider && pasos === undefined ? (
         <Leyendo key={sub.clave} />
       ) : sub && !lider ? (
@@ -197,6 +200,7 @@ export function Vista({
           alNuevo={alLiderNuevo}
           lideres={lideres}
           alAbrirLider={alAbrirLider}
+          alAbrirHilo={alAbrirHilo}
           archivar={
             // Si no se puede retomar: Archivar; con algún worker todavía trabajando, al menos sacarlo de la barra.
             !lider?.caido ? null : settleLider !== null ? (
@@ -217,9 +221,9 @@ export function Vista({
 
 type Pagina = { mensajes: Mensaje[]; desde: number; hasta: number; usage: Tokens | null; sinTranscript: boolean; transcript: string | null };
 
-type PropsCuerpo = Pick<Props, "settle" | "alCerrar" | "alRetomar" | "alPasar"> & { h: Hilo; estado: Estado };
+type PropsCuerpo = Pick<Props, "settle" | "alCerrar" | "alRetomar" | "alPasar" | "alAbrirHilo"> & { h: Hilo; estado: Estado };
 
-function Cuerpo({ h, estado, settle, alCerrar, alRetomar, alPasar }: PropsCuerpo) {
+function Cuerpo({ h, estado, settle, alCerrar, alRetomar, alPasar, alAbrirHilo }: PropsCuerpo) {
   const [pag, setPag] = useState<Pagina | null>(null);
   const idioma = useIdioma();
   const [error, setError] = useState<string | null>(null);
@@ -401,7 +405,7 @@ function Cuerpo({ h, estado, settle, alCerrar, alRetomar, alPasar }: PropsCuerpo
             ) : x.tipo === "sistema" ? (
               <Fragment key={x.key}>
                 <Marca k={x.key} />
-                <Sistema s={x.s} />
+                <Sistema s={x.s} alAbrirHilo={alAbrirHilo} />
               </Fragment>
             ) : (
               <Fragment key={x.key}>

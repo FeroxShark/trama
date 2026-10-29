@@ -1959,6 +1959,7 @@ export function Barra() {
           alSettleLider={settleLiderYa}
           lideres={arbol.lideres}
           alAbrirLider={abrirLider}
+          alAbrirHilo={abrir}
           barraAbierta={abierta}
           alAlternarBarra={angosto ? volverALista : alternarBarra}
           alCerrar={cerrar}

@@ -3,11 +3,14 @@
 // con su ícono (rojo el límite y los errores, gris lo demás); lo que inyecta
 // como si fuera del usuario, una tarjeta centrada y plegada que al abrirse
 // muestra el texto crudo. Compactar y venir de un relevo (B19), un divisor gris
-// que se abre al resumen o al pedido del relevo.
+// que se abre al resumen o al pedido del relevo. Y un aviso de Trama (un worker
+// que terminó o falló): una fila con la campana, su estado con ícono y palabra, y
+// el id de cada worker, que abre su hilo.
 import { memo, useState } from "react";
 import {
   BellRing,
   ChevronRight,
+  CircleCheck,
   CircleSlash,
   FileText,
   FoldVertical,
@@ -33,6 +36,7 @@ import { useIdioma } from "../i18n/react";
 import { MODO } from "../modo";
 import { hora } from "./Hace";
 import { nombreModelo } from "./opciones";
+import type { AvisoTexto } from "../../electron/avisos-worker.ts";
 import type { ClaseTarjeta, Linea, Sistema as S, Tarjeta } from "./sistema-logica";
 
 const ICONO: Record<ClaseTarjeta, LucideIcon> = {
@@ -59,7 +63,7 @@ const ESTADO: Record<string, ClaveSola> = {
   cancelled: "sistema.tareaParada",
 };
 
-type LineaChica = Exclude<Linea, { clase: "compacto" | "viene" | "destrabo" | "cambio" }>;
+type LineaChica = Exclude<Linea, { clase: "compacto" | "viene" | "destrabo" | "cambio" | "aviso" }>;
 
 function textoLinea(s: LineaChica): { texto: string; grave: boolean; Icono: LucideIcon } {
   switch (s.clase) {
@@ -159,19 +163,56 @@ function Tarjeta_({ s }: { s: Tarjeta }) {
   );
 }
 
-/** `nombre`: el del líder, para "Viene de …" (los workers no tienen relevo). */
-type Props = { s: S; nombre?: string | null };
+/** Un aviso de Trama: la campana y "Trama · Aviso"; por cada worker, si terminó o falló (ícono y palabra), su tarea y su id, que abre su hilo. */
+function Aviso({ a, alAbrirHilo }: { a: AvisoTexto; alAbrirHilo?: (id: string) => void }) {
+  const fallas = a.trabajos.filter((x) => x.falla).length;
+  return (
+    <div className="sis-aviso" data-tono={a.falla ? "grave" : undefined}>
+      <div className="sis-aviso-h">
+        <BellRing size={12} strokeWidth={2} aria-hidden="true" />
+        <span>{t("sistema.avisoRotulo")}</span>
+        {a.tanda ? <span>{`· ${t("sistema.avisoTanda", { n: a.trabajos.length })}${fallas ? ` · ${t("sistema.avisoFallas", { k: fallas })}` : ""}`}</span> : null}
+      </div>
+      {a.trabajos.length ? (
+        <ul className="sis-aviso-l">
+          {a.trabajos.map((x) => (
+            <li key={x.id}>
+              <span className="sis-aviso-e">
+                {x.falla ? <TriangleAlert size={12} strokeWidth={2} aria-hidden="true" /> : <CircleCheck size={12} strokeWidth={2} aria-hidden="true" />}
+                <span>{t(x.falla ? "sistema.avisoFallo" : "sistema.avisoTermino")}</span>
+              </span>
+              <span className="sis-aviso-tarea">{`«${x.tarea}»`}</span>
+              {alAbrirHilo ? (
+                <button type="button" className="sis-aviso-id" onClick={() => alAbrirHilo(x.id)} aria-label={t("sistema.avisoAbrir", { id: x.id })}>
+                  {`#${x.id}`}
+                </button>
+              ) : (
+                <span className="sis-aviso-id">{`#${x.id}`}</span>
+              )}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <span className="sis-aviso-tarea">{t("sistema.avisoSin")}</span>
+      )}
+    </div>
+  );
+}
+
+/** `nombre`: el del líder, para "Viene de …" (los workers no tienen relevo). `alAbrirHilo`: abre el hilo de un worker (los ids de un aviso). */
+type Props = { s: S; nombre?: string | null; alAbrirHilo?: (id: string) => void };
 
 /** Cada pasada de `turnos()` arma objetos nuevos: lo de un mismo mensaje no cambia (el crudo, sin serializar: pesa). */
-const igual = ({ s: a, nombre: na }: Props, { s: b, nombre: nb }: Props) =>
+const igual = ({ s: a, nombre: na, alAbrirHilo: ha }: Props, { s: b, nombre: nb, alAbrirHilo: hb }: Props) =>
   na === nb &&
+  ha === hb &&
   (a === b ||
   (a.tipo === "tarjeta" && b.tipo === "tarjeta"
     ? a.clase === b.clase && a.dato === b.dato && a.estado === b.estado && a.crudo === b.crudo
     : a.tipo === "linea" && b.tipo === "linea" && JSON.stringify(a) === JSON.stringify(b)));
 
 /** Una línea o una tarjeta de sistema. */
-export const Sistema = memo(function Sistema({ s, nombre }: Props) {
+export const Sistema = memo(function Sistema({ s, nombre, alAbrirHilo }: Props) {
   useIdioma();
   if (s.tipo === "tarjeta") return <Tarjeta_ s={s} />;
   if (s.clase === "compacto") {
@@ -186,6 +227,7 @@ export const Sistema = memo(function Sistema({ s, nombre }: Props) {
     return <Divisor Icono={LifeBuoy} texto={t(s.agotado ? "hz.destraboTope" : "hz.destrabo", { que: s.que })} crudo={null} />;
   if (s.clase === "viene")
     return <Divisor Icono={Repeat} texto={nombre ? t("relevo.viene", { n: nombre }) : t("relevo.vieneSin")} crudo={s.texto} />;
+  if (s.clase === "aviso") return <Aviso a={s.aviso} alAbrirHilo={alAbrirHilo} />;
   const { texto, grave, Icono } = textoLinea(s);
   // El límite dice la hora en palabras de la app; el texto de `claude`, al pasar el mouse.
   const crudo = s.clase === "limite" && s.hasta !== null ? s.texto : undefined;

@@ -4976,6 +4976,77 @@ summary.sis-div-t:hover,
   overflow-wrap: anywhere;
   animation: entra 0.16s ease-out;
 }
+/* Un aviso de Trama (Sistema.tsx, `Aviso`): fila centrada con la campana; un worker por línea, con su estado (ícono y palabra) y su id, que abre su hilo. */
+.sis-aviso {
+  align-self: center;
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-1);
+  max-width: 100%;
+  padding: var(--esp-1-5) var(--esp-2-5);
+  border: 1px solid var(--borde-2);
+  border-radius: var(--r-md);
+  background: var(--capa-card);
+  color: var(--texto-6);
+  font-size: var(--letra-4);
+  line-height: 1.45;
+}
+.sis-aviso[data-tono="grave"] {
+  border-color: var(--rojo-borde);
+}
+.sis-aviso-h,
+.sis-aviso-l li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--esp-1-5);
+}
+.sis-aviso-h {
+  color: var(--txt-3);
+}
+.sis-aviso-l {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-0-5);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.sis-aviso-h svg,
+.sis-aviso-e svg {
+  flex: none;
+}
+.sis-aviso-e {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--esp-1);
+  font-weight: 500;
+}
+.sis-aviso[data-tono="grave"] .sis-aviso-e {
+  color: var(--rojo);
+}
+.sis-aviso-tarea {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+/* El id es el botón que abre el hilo: la zona de click llega a un alto de chip (celular). */
+.sis-aviso-id {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--alto-boton);
+  padding: 0 var(--esp-1);
+  border: 0;
+  background: none;
+  color: var(--txt-3);
+  font: inherit;
+  text-decoration: underline;
+  text-decoration-color: var(--enlace-subrayado);
+  cursor: pointer;
+  font-variant-numeric: tabular-nums;
+}
+.sis-aviso-id:hover {
+  color: var(--texto-6);
+}
 /* Compactando: tres hojas que se pliegan hacia la del medio (las mueve latido.ts). */
 .pliegue-f {
   display: flex;

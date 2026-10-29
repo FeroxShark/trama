@@ -2,7 +2,9 @@
 // que dice Claude Code (límite, error de la API, "interrumpido", compactó) va
 // como una línea de sistema; lo que inyecta como si fuera del usuario (el cuerpo
 // de una skill, una tarea de fondo que terminó, un mensaje de otra sesión, un
-// slash command, el resumen al compactar) va como una tarjeta plegada. Puro:
+// slash command, el resumen al compactar) va como una tarjeta plegada. Y lo que
+// manda Trama al líder cuando un worker termina o falla (un aviso, electron/avisos-worker.ts)
+// va como su propia fila: se reconoce por la marca, en el historial también. Puro:
 // lo prueba `tests/sistema.test.ts`.
 //
 // Primero los campos del transcript (`isMeta`, `isCompactSummary`, `origin.kind`,
@@ -13,6 +15,7 @@
 // empieza el texto, que son constantes de Claude Code. Una etiqueta a mitad de
 // un mensaje del usuario no cuenta: sigue siendo suyo.
 import type { Mensaje } from "../datos/contrato";
+import { avisoDeTexto, esAvisoTrama, type AvisoTexto } from "../../electron/avisos-worker.ts";
 import { vieneDeRelevo } from "./herramientas.ts";
 
 export type Linea =
@@ -30,7 +33,9 @@ export type Linea =
   /** La conversación siguió con un modelo de otro motor (una sesión nueva, con lo hablado como relevo); `ts`: cuándo, ISO. */
   | { tipo: "linea"; clase: "cambio"; modelo: string; ts: string | null }
   /** El primer mensaje de un líder que viene de un relevo (B19, `vieneDeRelevo`): el prompt fijo de `bin/relevo`. */
-  | { tipo: "linea"; clase: "viene"; texto: string; traspaso: string | null };
+  | { tipo: "linea"; clase: "viene"; texto: string; traspaso: string | null }
+  /** Un aviso automático de Trama: los workers que terminaron o fallaron (`avisoDeTexto`). */
+  | { tipo: "linea"; clase: "aviso"; aviso: AvisoTexto };
 
 export type ClaseTarjeta =
   | "skill"
@@ -58,6 +63,9 @@ export function sistemaDe(m: Mensaje): Sistema | null {
   if (m.cambio) return { tipo: "linea", clase: "cambio", modelo: m.cambio.modelo, ts: m.ts };
   if (m.destrabo) return { tipo: "linea", clase: "destrabo", que: m.destrabo.que, agotado: m.destrabo.agotado };
   if (m.compacto) return { tipo: "linea", clase: "compacto", auto: m.compacto.auto, antes: m.compacto.antes };
+  // Un aviso de Trama: la cola lo marca al salir (`aviso`); en el transcript y en `pa --hilo` sólo está la marca del texto.
+  if (m.rol === "user" && (m.aviso || esAvisoTrama(m.texto)))
+    return { tipo: "linea", clase: "aviso", aviso: avisoDeTexto(m.texto) ?? { tanda: false, falla: false, trabajos: [] } };
   return m.rol === "user" ? deUsuario(m) : deModelo(m);
 }
 

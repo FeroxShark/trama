@@ -427,6 +427,11 @@ export type Mensaje = {
   destrabo?: { que: string; agotado: boolean };
   /** Sólo en la vista (src/hilo/vivo.ts): lo que el usuario mandó a mitad de un turno y el modelo todavía no recibió (el eco `entregado` lo quita). Nunca lo trae el transcript. */
   enCola?: boolean;
+  /**
+   * Sólo en la vista: un aviso automático de Trama que salió de la cola (electron/avisos-worker.ts). El transcript no lo marca: se reconoce
+   * por su texto (`esAvisoTrama`, src/hilo/sistema-logica.ts). Va como fila de sistema, no como pedido del usuario.
+   */
+  aviso?: true;
   /** La conversación siguió desde acá con un modelo de otro motor (otro transcript): una raya "Siguió con <modelo> · <hora>". `modelo`: el nuevo. */
   cambio?: { modelo: string };
   /** Cada herramienta con su entrada (B19, src/hilo/herramientas.ts), en el orden de `herramientas`. */

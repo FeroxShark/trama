@@ -145,8 +145,8 @@ function alCola(a: AvisoCola) {
   // Venía de una terminal: ya es de la app, con el modo que tenía la caja.
   if (traido && item.modo) ponerModo(a.sid, item.modo);
   // A mitad de un turno (todo lo encolado, junto): entra al mismo turno en el próximo límite de herramienta, no empieza otro.
-  if (enTurno) enviadoDirecto(a.sid, item.texto, item.imagenes);
-  else enviado(a.sid, item.texto, total ?? enCurso(a.sid).base, item.imagenes);
+  if (enTurno) enviadoDirecto(a.sid, item.texto, item.imagenes, item.aviso);
+  else enviado(a.sid, item.texto, total ?? enCurso(a.sid).base, item.imagenes, item.aviso);
 }
 
 function cambiarPor(sid: string, ev: EventoLider) {
@@ -314,9 +314,9 @@ export const escuchar = () => suscribir("", () => {});
  * tiene la vista. Un líder nuevo lo recibe después de sus primeros eventos:
  * va primero.
  */
-export function enviado(sid: string, texto: string, base: number, imagenes?: Mensaje["imagenes"]) {
+export function enviado(sid: string, texto: string, base: number, imagenes?: Mensaje["imagenes"], aviso?: true) {
   cambiar(sid, (e) => {
-    const yo: Mensaje = { i: 0, rol: "user", texto, herramientas: [], ts: new Date().toISOString(), modelo: null, ...(imagenes?.length ? { imagenes } : {}) };
+    const yo: Mensaje = { i: 0, rol: "user", texto, herramientas: [], ts: new Date().toISOString(), modelo: null, ...(imagenes?.length ? { imagenes } : {}), ...(aviso ? { aviso } : {}) };
     const primero = e.tanda.length === 0 || !e.tanda.some((m) => m.rol === "user");
     const tanda = (primero ? [yo, ...e.tanda] : [...e.tanda, yo]).map((m, i) => ({ ...m, i }));
     const turno = primero ? 0 : tanda.length - 1;
@@ -331,9 +331,9 @@ export function enviado(sid: string, texto: string, base: number, imagenes?: Men
  * `turno`, los avisos ni los tokens): el CLI lo entrega en el próximo límite de herramienta y el modelo sigue desde ahí. `directos` cuenta
  * lo que todavía no entró, para el aviso de que espera a la herramienta en curso. Su burbuja dice "en cola" hasta el eco (`entregado`).
  */
-export function enviadoDirecto(sid: string, texto: string, imagenes?: Mensaje["imagenes"]) {
+export function enviadoDirecto(sid: string, texto: string, imagenes?: Mensaje["imagenes"], aviso?: true) {
   cambiar(sid, (e) => {
-    const yo: Mensaje = { i: e.tanda.length, rol: "user", texto, herramientas: [], ts: new Date().toISOString(), modelo: null, enCola: true, ...(imagenes?.length ? { imagenes } : {}) };
+    const yo: Mensaje = { i: e.tanda.length, rol: "user", texto, herramientas: [], ts: new Date().toISOString(), modelo: null, enCola: true, ...(imagenes?.length ? { imagenes } : {}), ...(aviso ? { aviso } : {}) };
     return { ...e, tanda: [...e.tanda, yo], directos: e.directos + 1 };
   });
 }
