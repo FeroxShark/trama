@@ -245,3 +245,16 @@ export function sobreMensaje(e: EventoPuntero<HTMLElement>): void {
     }
   }
 }
+
+/**
+ * Con el dedo no hay pointerleave: tocar fuera de la conversación (la caja, la cabecera, el fondo) cierra la fila abierta.
+ * Lo de adentro de `.conv` lo resuelve `sobreMensaje`. Devuelve el quitar del listener.
+ */
+export function cerrarSobreFuera(): () => void {
+  const fuera = (e: PointerEvent) => {
+    if (e.target instanceof Element && e.target.closest(".conv")) return;
+    document.querySelectorAll(".am[data-sobre]").forEach((n) => n.removeAttribute("data-sobre"));
+  };
+  document.addEventListener("pointerdown", fuera);
+  return () => document.removeEventListener("pointerdown", fuera);
+}

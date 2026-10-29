@@ -53,7 +53,7 @@ import { Sistema } from "./Sistema";
 import { EVENTO_CAMBIAR_MODELO, goAgotadosDe, marcarAgotadas, opencodeAgotadoDe, proveedorLibre } from "./agotados";
 import { Compactando, Pasando, relevoEn, Sigue } from "./Posta";
 import { juntar, repiteElPrimero, turnos, type Item, type Punto } from "./turnos";
-import { AccionesMensaje, EditorMensaje, sobreMensaje, type Acciones } from "./AccionesMensaje";
+import { AccionesMensaje, cerrarSobreFuera, EditorMensaje, sobreMensaje, type Acciones } from "./AccionesMensaje";
 import { anotar, bajar, seguir } from "./seguir";
 import { anotarScroll, faltaLlegar, guardarAncla, restaurarScroll, retomarScroll, soltarScroll } from "./scrollGuardado";
 import { useCompactando } from "./compactando";
@@ -606,6 +606,8 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
     );
   };
 
+  // La fila de acciones abierta con el dedo se cierra al tocar fuera de la conversación.
+  useEffect(() => cerrarSobreFuera(), []);
   // Volver acá no sobrevive a otro líder ni a un turno en curso.
   useEffect(() => setVolver(null), [sid]);
   useEffect(() => {

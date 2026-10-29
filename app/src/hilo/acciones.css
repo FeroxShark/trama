@@ -1,7 +1,7 @@
 /* Las acciones de cada mensaje (src/hilo/AccionesMensaje.tsx). La fila es un hermano más en `.conv`, sin alto: su margen negativo
    anula el `gap` de antes (`--gap-conv`, el de `.conv` en cada ancho), así que la conversación mide lo mismo con o sin ella. Flota debajo del mensaje (no más abajo que el relleno de
-   `.conv`, así no agranda el scroll) y sólo cambia `opacity`; con el dedo sube sobre el mensaje. Se ve con el mouse sobre el mensaje (`data-sobre`, lo marca `sobreMensaje`), con
-   el foco adentro y, con el dedo, al tocarlo. */
+   `.conv`, así no agranda el scroll) y sólo cambia `opacity`. Se ve con el mouse sobre el mensaje (`data-sobre`, lo marca `sobreMensaje`) o con el foco adentro. Con el dedo
+   (abajo) no flota: ocupa su lugar cuando se abre al tocar el mensaje. */
 .am {
   position: relative;
   z-index: 2;
@@ -150,10 +150,32 @@
     padding: 0 var(--esp-4);
   }
 }
-/* Angosto o con el dedo: el relleno de `.conv` es chico, así que la fila sube sobre el final del mensaje en vez de colgar debajo. */
-@media (pointer: coarse), (max-width: 35rem) {
+/* Angosto con mouse: el relleno de `.conv` es chico, así que la fila sube sobre el final del mensaje en vez de colgar debajo.
+   Con el dedo va el bloque de abajo (no flota: no puede tapar el texto). */
+@media (max-width: 35rem) and (pointer: fine) {
   .am-fila {
     top: auto;
     bottom: 0;
+  }
+}
+/* Con el dedo la fila no flota sobre el mensaje: abierta (`data-sobre`, al tocarlo) ocupa su lugar bajo el texto y empuja lo
+   que sigue; cerrada no ocupa alto. `overflow: hidden` la deja fuera de la vista y del scroll mientras está cerrada. */
+@media (pointer: coarse) {
+  .am {
+    overflow: hidden;
+  }
+  .am[data-sobre] {
+    height: auto;
+    margin-top: calc(var(--esp-1) - var(--gap-conv));
+  }
+  .am-fila {
+    position: static;
+    width: max-content;
+  }
+  .am[data-lado="der"] .am-fila {
+    margin: 0 var(--esp-2) 0 auto;
+  }
+  .am[data-lado="izq"] .am-fila {
+    margin: 0 auto 0 var(--esp-2);
   }
 }
