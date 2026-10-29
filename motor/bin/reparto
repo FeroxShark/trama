@@ -3449,6 +3449,10 @@ if __name__ == "__main__":
         _js = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "app", "dist-electron", "cli", "reparto.js")
         _node = shutil.which("node")
         if _node and os.path.isfile(_js):
+            # Si app/electron tiene fuentes más nuevas que el .js, lo recompila antes (en silencio; si no puede, avisa y sigue)
+            _asegurar = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "app", "scripts", "asegurar-cli.mjs")
+            if os.path.isfile(_asegurar):
+                subprocess.call([_node, _asegurar, _js])
             sys.exit(subprocess.call([_node, _js, *sys.argv[1:]]))
         sys.stderr.write("reparto: TRAMA_REPARTO=ts (el default) pero no encuentro node o el .js compilado; sigo con el de python.\n")
     sys.exit(main(sys.argv[1:]))

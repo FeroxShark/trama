@@ -196,6 +196,9 @@ _BIN="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 if [[ "${TRAMA_PA:-ts}" == ts ]]; then
   _pa_js="${TRAMA_PA_JS:-$_BIN/../../app/dist-electron/cli/pa.js}"
   if command -v node >/dev/null 2>&1 && [[ -f "$_pa_js" ]]; then
+    # Si app/electron tiene fuentes más nuevas que el .js, lo recompila antes (en silencio; si no puede, avisa y sigue con el que hay)
+    _asegurar="$_BIN/../../app/scripts/asegurar-cli.mjs"
+    if [[ -f "$_asegurar" ]]; then node "$_asegurar" "$_pa_js" || true; fi
     _pa_rc=0; node "$_pa_js" "$@" || _pa_rc=$?
     (( _pa_rc == 70 )) || exit "$_pa_rc"
     echo "pa: eso todavía no está en el pa de TypeScript; sigo con el de bash." >&2
