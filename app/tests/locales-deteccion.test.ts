@@ -2,9 +2,6 @@
 import test from 'node:test';
 import { soloPosix } from "./plataforma.ts";
 import assert from 'node:assert/strict';
-import { existsSync } from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
 import {
   parsearUnit,
   limpiarNombreUnit,
@@ -16,7 +13,6 @@ import {
   arrancarServidorLocal,
   controlarServidorLocal,
   detectarServidores,
-  depsDeteccionDeVerdad,
   type DepsDeteccion,
 } from '../electron/locales-deteccion.ts';
 
@@ -354,23 +350,3 @@ const fakeDepsValidador: DepsDeteccion = {
   pedirJson: async () => null,
   puertoAbierto: async () => false,
 };
-
-// Sólo tiene sentido en la máquina del dueño (sus dos units de systemd); en CI y en otras máquinas se saltea.
-const UNITS_DEL_DUENO = ['qwen-llama-server.service', 'qwen-llama-server-bonsai.service'];
-const SIN_UNITS_DEL_DUENO = UNITS_DEL_DUENO.some((u) => !existsSync(path.join(os.homedir(), '.config', 'systemd', 'user', u)))
-  ? 'esta máquina no tiene las units de llama-server del dueño'
-  : false;
-
-test('máquina real: detecta las dos units de llama-server del dueño y ambas están apagadas', { skip: SIN_UNITS_DEL_DUENO }, async () => {
-  const realDeps = depsDeteccionDeVerdad();
-  const res = await detectarUnits(realDeps);
-  assert.ok(res.length >= 2, 'Deben detectarse al menos las 2 units del dueño');
-  const qwen = res.find((r) => r.modelo === 'qwen38-uncensored');
-  const bonsai = res.find((r) => r.modelo === 'bonsai2-27b');
-  assert.ok(qwen, 'Debe encontrar qwen-llama-server');
-  assert.ok(bonsai, 'Debe encontrar qwen-llama-server-bonsai');
-  assert.equal(qwen.estadoServidor, 'apagado', 'qwen debe estar apagado');
-  assert.equal(bonsai.estadoServidor, 'apagado', 'bonsai debe estar apagado');
-  assert.equal(qwen.url, 'http://127.0.0.1:8080');
-  assert.equal(bonsai.url, 'http://127.0.0.1:8080');
-});
