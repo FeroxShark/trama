@@ -1,11 +1,13 @@
 // Antes de lanzar otro motor: ¿está el programa, la sesión, la key, el servidor local? Cada `chequear` devuelve el motivo de la
 // caída (vacío = va), como `motivo_cae` en motor/bin/pa (gemini_chequear, codex_chequear, dsh_chequear, opencode_chequear,
 // plugin_cargado, dsh_clave, dsh_bin, opencode_bin, local_de, local_estado). El cupo no se mira acá: lo elige reparto.
-import { spawnSync } from "node:child_process";
+import { spawnSync, type SpawnSyncOptions, type SpawnSyncReturns } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
-import { caminoDe, configTrama, homeDe, plataformaActual, type Plataforma } from "../../../rutas.ts";
+import { paraLanzar } from "../../../binario.ts";
+import { caminoDe, carpetaApp, configTrama, homeDe, plataformaActual, type Plataforma } from "../../../rutas.ts";
 import { enPath, esEjecutable } from "../../base/buscar.ts";
+import { instalarPluginAgy } from "../../plugin-agy.ts";
 import { rutaReal, resolverProyecto } from "../../proyecto-ruta.ts";
 import type { Env } from "../entorno.ts";
 import { carpetaMotor } from "../entorno.ts";
@@ -157,6 +159,31 @@ export interface DatosChequeo {
   /** El entorno del proceso del worker con la cuenta aplicada (default: `env`). */
   envCuenta?: Env;
   plat?: Plataforma;
+  /** `spawnSync` y `enPath` (los tests los reemplazan). */
+  spawn?: typeof spawnSync;
+  buscar?: (nombre: string) => string | null;
+  /** Windows: deja el plugin pa-worker de agy en su lugar (default: `instalarPluginAgy` con los hooks de la app instalada). */
+  repararPlugin?: () => void;
+}
+
+/**
+ * Corre un programa del PATH (agy, codex) sin el `shell` de Node (DEP0190: con args se pegan sin escapar). Un `.exe` va directo; el `.cmd`
+ * de npm en Windows va por `cmd.exe /d /s /c "…"` con los argumentos entre comillas (`paraLanzar`).
+ */
+function correr(bin: string, args: string[], opciones: SpawnSyncOptions, d: DatosChequeo, plat: Plataforma): SpawnSyncReturns<string | Buffer> {
+  const l = paraLanzar(bin, args, d.envCuenta ?? d.env, plat);
+  return (d.spawn ?? spawnSync)(l.file, l.args, { ...opciones, ...(l.verbatim ? { windowsVerbatimArguments: true } : {}), windowsHide: true });
+}
+
+/** Windows: al no estar el plugin se intenta dejarlo (agy pudo instalarse después de Trama); nunca tira. */
+function repararPluginAgy(d: DatosChequeo, plat: Plataforma): void {
+  try {
+    if (d.repararPlugin) return d.repararPlugin();
+    const home = homeDe(d.env, plat);
+    instalarPluginAgy({ hooks: path.join(carpetaApp(d.env, home, plat), "hooks"), home });
+  } catch {
+    /* si no se pudo, el chequeo sigue diciendo que falta */
+  }
 }
 
 /** Gemini (agy): privacidad, agy en el PATH y el plugin pa-worker cargado. */
@@ -164,10 +191,19 @@ export function chequearAgy(d: DatosChequeo): string {
   const plat = d.plat ?? plataformaActual();
   const m = privacidadDe(d.proyecto, d.tarea, "Google", d.env);
   if (m) return m;
-  if (!enPath("agy", [], d.env, plat)) return "agy no está en el PATH";
+  const bin = (d.buscar ?? ((n) => enPath(n, [], d.env, plat)))("agy");
+  if (!bin) return "agy no está en el PATH";
   const s = Number(d.env.PA_AGY_CHEQUEO_S) > 0 ? Number(d.env.PA_AGY_CHEQUEO_S) : 40;
-  const r = spawnSync("agy", ["-p", "/hooks", "--output-format", "json"], { env: d.envCuenta ?? d.env, encoding: "utf8", timeout: s * 1000, stdio: ["ignore", "pipe", "ignore"], shell: plat === "win32" });
-  if (!pluginCargado(r.stdout ?? "")) return "el plugin pa-worker de agy no está cargado (sin él no hay guardias: correr motor/scripts/instalar-producto.sh)";
+  const hooks = () => String(correr(bin, ["-p", "/hooks", "--output-format", "json"], { env: d.envCuenta ?? d.env, encoding: "utf8", timeout: s * 1000, stdio: ["ignore", "pipe", "ignore"] }, d, plat).stdout ?? "");
+  let json = hooks();
+  if (!pluginCargado(json) && plat === "win32") {
+    repararPluginAgy(d, plat);
+    json = hooks();
+  }
+  if (!pluginCargado(json))
+    return plat === "win32"
+      ? "el plugin pa-worker de agy no está cargado (sin él no hay guardias; reabrí o reinstalá Trama para que lo deje en su lugar)"
+      : "el plugin pa-worker de agy no está cargado (sin él no hay guardias: correr motor/scripts/instalar-producto.sh)";
   return "";
 }
 
@@ -176,9 +212,10 @@ export function chequearCodex(d: DatosChequeo): string {
   const plat = d.plat ?? plataformaActual();
   const m = privacidadDe(d.proyecto, d.tarea, "OpenAI", d.env);
   if (m) return m;
-  if (!enPath("codex", [], d.env, plat)) return "codex no está en el PATH (npm install -g @openai/codex)";
+  const bin = (d.buscar ?? ((n) => enPath(n, [], d.env, plat)))("codex");
+  if (!bin) return "codex no está en el PATH (npm install -g @openai/codex)";
   const s = Number(d.env.PA_CODEX_CHEQUEO_S) > 0 ? Number(d.env.PA_CODEX_CHEQUEO_S) : 20;
-  const r = spawnSync("codex", ["login", "status"], { env: d.envCuenta ?? d.env, timeout: s * 1000, stdio: "ignore", shell: plat === "win32" });
+  const r = correr(bin, ["login", "status"], { env: d.envCuenta ?? d.env, timeout: s * 1000, stdio: "ignore" }, d, plat);
   if (r.status !== 0) return "codex no tiene sesión iniciada (codex login)";
   return "";
 }

@@ -11,8 +11,10 @@
 import { cpSync, existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { carpetaApp, homeDe, nodeWindows, plataformaActual, registroProyectos } from "../rutas.ts";
+import { enPath } from "./base/buscar.ts";
 import { esPrincipal } from "./base/principal.ts";
 import { registrarEnArchivo } from "./hooks.ts";
+import { instalarPluginAgy } from "./plugin-agy.ts";
 
 type Env = Record<string, string | undefined>;
 export type Linea = { tipo: "ok" | "hecho" | "aviso"; texto: string };
@@ -26,6 +28,8 @@ export type OpcionesInstalar = {
   registro: string;
   /** Para armar los comandos de los hooks (en win32 van con `/`). */
   plataforma?: NodeJS.Platform;
+  /** ¿Hay agy (Antigravity CLI) en esta máquina? Si sí, se deja su plugin pa-worker (sin él pa no lanza workers de agy). */
+  agy?: boolean;
 };
 
 export const MARCA_SKILL = ".de-trama";
@@ -41,6 +45,7 @@ export function opcionesDe(env: Env = process.env): OpcionesInstalar {
     node: plat === "win32" ? nodeWindows(env, home) : process.execPath,
     registro: registroProyectos(env, home, plat),
     plataforma: plat,
+    agy: enPath("agy", [], env, plat) !== null || existsSync(path.join(home, ".gemini")),
   };
 }
 
@@ -83,6 +88,9 @@ export function instalar(o: OpcionesInstalar): { lineas: Linea[]; mal: boolean }
   const skills = path.join(o.app, "skills");
   for (const s of existsSync(skills) ? readdirSync(skills) : []) copiarNuestra(path.join(skills, s), path.join(claude, "skills", s), `la skill ${s}`, out);
   if (!existsSync(skills)) out.push({ tipo: "aviso", texto: `falta ${skills}` });
+
+  // --- plugin pa-worker de agy: sólo si agy está (como el `command -v agy` de instalar-producto.sh) ---
+  if (o.agy) out.push(...instalarPluginAgy({ hooks, home: o.home }));
 
   // --- home: líder genérico (sólo si no existen) ---
   for (const p of PLANTILLAS) {
