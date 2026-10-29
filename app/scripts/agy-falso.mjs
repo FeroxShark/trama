@@ -56,7 +56,21 @@ if (args[0] === "models") {
   process.exit(0);
 }
 
-const prompt = valor("-p") ?? "";
+// Como el de verdad: el turno llega por stdin (`--input-format stream-json`, un {event:"user",message:{content:[{type:"text",text}]}}
+// por línea); `-p <texto>` sigue valiendo para las pruebas viejas.
+let prompt = valor("-p") ?? "";
+if (valor("--input-format") === "stream-json") {
+  let crudo = "";
+  for await (const t of process.stdin) crudo += t;
+  prompt = crudo
+    .split("\n")
+    .filter((l) => l.trim())
+    .map((l) => JSON.parse(l))
+    .filter((m) => m.event === "user")
+    .flatMap((m) => m.message?.content ?? [])
+    .map((c) => c.text ?? "")
+    .join("\n");
+}
 const modelo = valor("--model") ?? "gemini-3.8-flash-low";
 const pedida = valor("--conversation");
 const dir = path.join(process.env.HILOS_STATE ?? "/tmp", "agy-falso");

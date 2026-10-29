@@ -23,6 +23,7 @@ import { createInterface } from "node:readline";
 import path from "node:path";
 import os from "node:os";
 import { resolverAgy, entornoAgy } from "./binario.ts";
+import { llamadaAgy } from "./agy-llamada.ts";
 import { comandosPluginAgy, Traductor } from "./agy-stream.ts";
 import { cortesDeEntorno, sinCortadas } from "./cortes.ts";
 import { deDueno, dueno } from "./dueno.ts";
@@ -312,11 +313,14 @@ let vigilante: Vigilante | null = null;
 
 function correrAgy(prompt: string, conversacion: string | null, tr: Traductor): Promise<Vuelta> {
   return new Promise((ok) => {
-    const args = ["-p", prompt, "--model", modeloAgy(modelo), "--output-format", "stream-json", "--dangerously-skip-permissions", "--print-timeout", TIMEOUT_TURNO];
-    if (conversacion) args.push("--conversation", conversacion);
+    // El prompt por stdin, no por argv: en Windows la línea de comandos tiene tope (ENAMETOOLONG con un relevo largo).
+    const { args, stdin } = llamadaAgy({ prompt, modelo: modeloAgy(modelo), conversacion, timeout: TIMEOUT_TURNO });
     // Su propio grupo: al interrumpir caen también los comandos que lanzó.
-    const p = spawn(AGY, args, { cwd, env: ENTORNO, stdio: ["ignore", "pipe", "pipe"], detached: true, windowsHide: true });
+    const p = spawn(AGY, args, { cwd, env: ENTORNO, stdio: ["pipe", "pipe", "pipe"], detached: true, windowsHide: true });
     hijo = p;
+    // Si agy muere antes de leer, el EPIPE no debe tirar la app: el cierre se entera por `close`/`error`.
+    p.stdin!.on("error", () => {});
+    p.stdin!.end(stdin);
     const v: Vuelta = { pasos: 0, sinConversacion: false, conversacion: !!conversacion, bucle: null, exito: null, corte: false, abiertos: new Set() };
     actual = { v, tr };
     let resto = "";
