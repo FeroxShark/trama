@@ -11,3 +11,4 @@ windows/payload-nativo/
 windows/.cache/
 windows/dist/
 windows/dist-nativo/
+app/dist-appimage/

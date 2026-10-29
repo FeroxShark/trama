@@ -1,0 +1,26 @@
+# Instalador de Linux (AppImage) de Trama.
+# Config hermana de electron-builder-nativo.yml: empaqueta app/.
+appId: app.trama
+productName: Trama
+executableName: trama
+copyright: MIT
+directories:
+  output: dist-appimage
+  buildResources: build
+files:
+  - package.json
+  - dist/**/*
+  - dist-electron/**/*
+  - public/icon.png
+asar: true
+linux:
+  target:
+    - target: AppImage
+      arch: [x64]
+  icon: build/icon.png
+  category: Utility
+  artifactName: Trama-${version}.${ext}
+publish:
+  provider: github
+  owner: ${env.TRAMA_GH_OWNER}
+  repo: ${env.TRAMA_GH_REPO}

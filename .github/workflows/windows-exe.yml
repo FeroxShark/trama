@@ -1,13 +1,14 @@
-name: Windows nativo (.exe)
+name: Windows nativo (.exe) + Linux (AppImage)
 
-# Arma el instalador de Trama nativo de Windows (sin WSL ni bash) en windows-latest, sin wine: compila la app, arma el payload
-# por lista permitida (windows/scripts/preparar-payload-nativo.mjs, que falla si lleva bash) y corre electron-builder con
-# windows/electron-builder-nativo.yml. El .exe queda como artefacto del job. En un tag v*, el job publicar-nativo sube a la
-# release del tag lo que la carcasa busca para actualizarse (nativo.yml, el .exe y su .blockmap).
+# Arma los instaladores de Trama:
+# 1. Windows nativo (.exe) en windows-latest con windows/electron-builder-nativo.yml.
+# 2. Linux (AppImage) en ubuntu-latest con app/electron-builder.yml.
+# En un tag v*, publicar-nativo sube a la release del tag los artefactos de Windows (.exe, .blockmap, nativo.yml)
+# y de Linux (.AppImage, latest-linux.yml).
 
 on:
   push:
-    branches: [main]
+    branches: [main, "pa/**"]
     tags: ["v*"]
   pull_request:
   workflow_dispatch:
@@ -63,11 +64,50 @@ jobs:
             windows/dist-nativo/*.blockmap
             windows/dist-nativo/nativo.yml
           if-no-files-found: error
+
+  appimage-linux:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: app - dependencias
+        working-directory: app
+        run: npm ci
+      - name: app - build (interfaz + electron)
+        working-directory: app
+        run: npm run build
+      - name: windows - dependencias (provee electron-builder)
+        working-directory: windows
+        run: npm ci
+      - name: electron-builder (AppImage x64)
+        working-directory: app
+        env:
+          TRAMA_GH_OWNER: ${{ github.repository_owner }}
+          TRAMA_GH_REPO: ${{ github.event.repository.name }}
+        run: ../windows/node_modules/.bin/electron-builder --config electron-builder.yml --linux AppImage --x64 --publish never
+      - name: el AppImage y latest-linux.yml
+        working-directory: app
+        run: node scripts/verificar-appimage.mjs
+      - name: verificar arranque del AppImage
+        working-directory: app
+        run: |
+          chmod +x dist-appimage/*.AppImage
+          ./dist-appimage/*.AppImage --appimage-extract-and-run --version || ./dist-appimage/*.AppImage --version
+          timeout 5 xvfb-run --auto-servernum ./dist-appimage/*.AppImage --appimage-extract-and-run --no-sandbox || [ $? -eq 124 ]
+      - uses: actions/upload-artifact@v4
+        with:
+          name: trama-appimage-linux
+          path: |
+            app/dist-appimage/*.AppImage
+            app/dist-appimage/latest-linux.yml
+          if-no-files-found: error
+
   publicar-nativo:
-    # Sólo en un tag v*: la carcasa busca actualizaciones en la última release (nativo.yml, con el .exe y su .blockmap por
-    # nombre), así que los tres van a la release del tag. Va aparte del armado: sólo este job tiene contents: write y no
-    # ejecuta código del repo. Supone que la release del tag ya existe (como la de WSL, que se crea a mano).
-    needs: exe-nativo
+    needs: [exe-nativo, appimage-linux]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:
@@ -76,14 +116,18 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: trama-nativo-windows
-      - name: nativo.yml es de la versión del tag
+      - uses: actions/download-artifact@v4
+        with:
+          name: trama-appimage-linux
+      - name: nativo.yml y latest-linux.yml son de la versión del tag
         env:
           TAG: ${{ github.ref_name }}
         run: |
           grep -qx "version: ${TAG#v}" nativo.yml || { echo "nativo.yml no es de $TAG:"; grep "^version:" nativo.yml; exit 1; }
+          grep -qx "version: ${TAG#v}" latest-linux.yml || { echo "latest-linux.yml no es de $TAG:"; grep "^version:" latest-linux.yml; exit 1; }
       - name: subir a la release del tag
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           TAG: ${{ github.ref_name }}
-        run: gh release upload "$TAG" nativo.yml Trama-Nativo-Setup-*.exe Trama-Nativo-Setup-*.exe.blockmap --clobber
+        run: gh release upload "$TAG" nativo.yml Trama-Nativo-Setup-*.exe Trama-Nativo-Setup-*.exe.blockmap latest-linux.yml Trama-*.AppImage --clobber

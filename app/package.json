@@ -15,7 +15,8 @@
     "prueba": "node scripts/prueba-todas.mjs",
     "visual": "node scripts/visual.mjs",
     "humo": "node scripts/humo-motor.mjs",
-    "test:paridad": "node --test tests/paridad/paridad.test.ts tests/paridad/normalizar.test.ts tests/paridad/ramas.test.ts tests/paridad/lanzar.test.ts"
+    "test:paridad": "node --test tests/paridad/paridad.test.ts tests/paridad/normalizar.test.ts tests/paridad/ramas.test.ts tests/paridad/lanzar.test.ts",
+    "dist:appimage": "node scripts/construir-appimage.mjs"
   },
   "dependencies": {
     "lucide-react": "^0.540.0",
