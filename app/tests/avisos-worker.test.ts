@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { COLGADO_MS, crearAvisosWorker, esDeCupo, motivoDe, proveedorDe, tareaCorta, textoParaLider, vuelveDe, type AvisoWorker, type FilaWorker } from "../electron/avisos-worker.ts";
+import { avisoDeTexto, COLGADO_MS, crearAvisosWorker, esAvisoTrama, esDeCupo, motivoDe, proveedorDe, tareaCorta, textoParaLider, vuelveDe, type AvisoWorker, type FilaWorker } from "../electron/avisos-worker.ts";
 
 const fila = (id: string, estado: string, extra: Partial<FilaWorker> = {}): FilaWorker => ({ id, proyecto: "trama", estado, tarea: `Objetivo: tarea de ${id}`, modelo: "claude-a", jefe_id: "jefe-1", jefe: "ana", ...extra });
 
@@ -204,4 +204,31 @@ test("utilidades: cupo, proveedor, motivo en una línea, tarea corta, cuándo vu
   assert.equal(tareaCorta("\n[x] Objetivo: " + "a".repeat(100)).length, 60);
   assert.equal(vuelveDe({ claude: { cincoH: 100, sieteD: 10, reseteaCincoH: 5_000_000 }, suscripciones: [] }, "claude", 1000), 5000);
   assert.equal(vuelveDe({ suscripciones: [{ proveedor: "google", ventanas: [{ pct: 100, vuelve: 900 }] }] }, "google", 1000), null, "ya pasó");
+});
+
+test("el aviso se reconoce por su marca y lo que dice sale de su texto (un worker, una tanda, una falla)", () => {
+  const uno = textoParaLider({ tipo: "fin", id: "2", tarea: "tests de atlas", jefe_id: "l1" } as AvisoWorker);
+  assert.deepEqual(avisoDeTexto(uno), { tanda: false, falla: false, trabajos: [{ tarea: "tests de atlas", id: "2", falla: false }] });
+  const falla = textoParaLider({ tipo: "colgado", id: "3", tarea: "migración", minutos: 15, jefe_id: "l1" } as AvisoWorker);
+  assert.deepEqual(avisoDeTexto(falla), { tanda: false, falla: true, trabajos: [{ tarea: "migración", id: "3", falla: true }] });
+  const tanda = textoParaLider({
+    tipo: "tanda",
+    lineas: [
+      { tipo: "fin", id: "4", tarea: "a", jefe_id: "l1" },
+      { tipo: "cupo", id: "5", tarea: "b", jefe_id: "l1", proveedor: "claude", vuelve: 0 },
+    ],
+  } as AvisoWorker);
+  assert.deepEqual(avisoDeTexto(tanda), {
+    tanda: true,
+    falla: true,
+    trabajos: [
+      { tarea: "a", id: "4", falla: false },
+      { tarea: "b", id: "5", falla: true },
+    ],
+  });
+  assert.equal(esAvisoTrama("  " + uno), true);
+  assert.equal(avisoDeTexto("Hola, ¿qué tal?"), null);
+  assert.equal(esAvisoTrama("Un aviso automático de Trama, pero escrito por mí"), false);
+  // Con la marca y sin lo que sigue: sigue siendo un aviso, sin workers.
+  assert.deepEqual(avisoDeTexto("[Aviso automático de Trama] algo nuevo"), { tanda: false, falla: false, trabajos: [] });
 });

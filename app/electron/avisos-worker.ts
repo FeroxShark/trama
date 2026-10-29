@@ -369,6 +369,12 @@ function comoTermino(a: AvisoWorker): string {
 }
 
 /**
+ * Cómo empieza todo aviso de Trama al líder. Es la marca que la vista reconoce (src/hilo/sistema-logica.ts) también en el
+ * historial, donde no hay metadato: el texto no cambia.
+ */
+export const MARCA_AVISO_TRAMA = "[Aviso automático de Trama]";
+
+/**
  * El mensaje para el líder que lanzó a los workers. Va en español y en un solo lugar (es una instrucción para un modelo, no texto
  * de la interfaz). Un worker: una línea con su id. Una tanda: una línea por worker, con su id, y cuántos fallaron. Vacío si no hay nada.
  */
@@ -378,8 +384,29 @@ export function textoParaLider(a: AvisoWorker): string {
     if (lineas.length === 1) return textoParaLider(lineas[0]);
     if (!lineas.length) return "";
     const fallas = lineas.filter((l) => l.tipo !== "fin").length;
-    const cabeza = `[Aviso automático de Trama] Terminaron los ${lineas.length} workers que lanzaste${fallas ? `, ${fallas} con falla` : ""}:`;
+    const cabeza = `${MARCA_AVISO_TRAMA} Terminaron los ${lineas.length} workers que lanzaste${fallas ? `, ${fallas} con falla` : ""}:`;
     return [cabeza, ...lineas.map((l) => `- «${l.tarea || l.id}» (${l.id}): ${comoTermino(l)}`), "Revisá cada uno con `pa --hilo <id>`."].join("\n");
   }
-  return `[Aviso automático de Trama] Worker «${a.tarea || a.id}» ${comoTermino(a)} Id: ${a.id}. Revisalo con \`pa --hilo ${a.id}\`.`;
+  return `${MARCA_AVISO_TRAMA} Worker «${a.tarea || a.id}» ${comoTermino(a)} Id: ${a.id}. Revisalo con \`pa --hilo ${a.id}\`.`;
+}
+
+/** Lo que la vista saca de un aviso ya escrito: qué workers, cuáles fallaron. Una tanda trae una entrada por worker. */
+export type AvisoTexto = { tanda: boolean; falla: boolean; trabajos: { id: string; tarea: string; falla: boolean }[] };
+
+/** ¿Es un aviso automático de Trama? Por la marca con que empieza (`MARCA_AVISO_TRAMA`). */
+export const esAvisoTrama = (texto: string): boolean => texto.trimStart().startsWith(MARCA_AVISO_TRAMA);
+
+/**
+ * Lo que dice un aviso ya escrito (el de `textoParaLider`): sus workers, con id y si fallaron. Un texto con la marca que no
+ * se entiende igual es un aviso, sin workers (la vista lo muestra genérico). `null` si no es un aviso.
+ */
+export function avisoDeTexto(texto: string): AvisoTexto | null {
+  if (!esAvisoTrama(texto)) return null;
+  const t = texto.trim();
+  const lineas = [...t.matchAll(/^- «(.*?)» \(([^)\s]+)\): (terminó|falló)/gm)].map((m) => ({ tarea: m[1], id: m[2], falla: m[3] === "falló" }));
+  if (lineas.length) return { tanda: true, falla: lineas.some((l) => l.falla), trabajos: lineas };
+  const uno = t.match(/^\[Aviso automático de Trama\] Worker «(.*?)» (terminó|falló)[\s\S]*? Id: ([^\s.]+)\./);
+  if (uno) return { tanda: false, falla: uno[2] === "falló", trabajos: [{ tarea: uno[1], id: uno[3], falla: uno[2] === "falló" }] };
+  // Un texto con la marca que no se entiende: si dice «falló» o «con falla», cuenta como falla.
+  return { tanda: false, falla: /falló|con falla/.test(t), trabajos: [] };
 }

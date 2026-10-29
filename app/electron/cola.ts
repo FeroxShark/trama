@@ -23,6 +23,8 @@ export type Encolado = {
   /** Para traer a uno de la terminal: el modo de permisos de la caja y su nombre. */
   modo?: string;
   nombre?: string;
+  /** Un aviso automático de Trama (electron/avisos-worker.ts), no algo que escribió el usuario: va a la conversación como fila de sistema. */
+  aviso?: true;
 };
 
 /**
@@ -111,6 +113,7 @@ export function loteDe(lista: readonly Encolado[]): Encolado[] {
 /**
  * Un mensaje con todo el lote, en orden y con cada uno bien separado ("Mensaje 2 de 3" y una raya); las imágenes van juntas y el
  * encabezado dice cuáles son de quién. Uno solo sale tal cual. Modelo y esfuerzo: los del último; modo y nombre: los del primero que los tenga.
+ * Es un aviso sólo si todo el lote lo es: un mensaje del usuario metido en el mismo lote sigue siendo suyo.
  */
 export function juntar(lote: readonly Encolado[]): Encolado {
   if (lote.length === 1) return lote[0];
@@ -132,6 +135,7 @@ export function juntar(lote: readonly Encolado[]): Encolado {
     ...(imagenes.length ? { imagenes } : {}),
     ...(modo !== undefined ? { modo } : {}),
     ...(nombre !== undefined ? { nombre } : {}),
+    ...(lote.every((e) => e.aviso) ? { aviso: true as const } : {}),
   };
 }
 

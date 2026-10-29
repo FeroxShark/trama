@@ -361,7 +361,7 @@ function avisarAlLider(a: AvisoWorker) {
   if (!texto || !sid || !sel) return;
   const soloFines = a.tipo === "tanda" ? (a.lineas ?? []).every((l) => l.tipo === "fin") : a.tipo === "fin";
   if (soloFines && !lider.puedeEnTurno(sid)) return;
-  void leerCola().then(() => cola.encolar(sid, { texto, modelo: sel.modelo, effort: sel.effort }), silencio("cola"));
+  void leerCola().then(() => cola.encolar(sid, { texto, modelo: sel.modelo, effort: sel.effort, aviso: true }), silencio("cola"));
 }
 let relojAvisosW: NodeJS.Timeout | null = null;
 /** Mientras haya un worker colgado a la vista, cada tanto se mira si ya cruzó el umbral. */

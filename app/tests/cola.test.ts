@@ -3,7 +3,7 @@
 // y si no, cuando el líder queda libre; se puede sacar; no se pierde en un reinicio.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { crearCola, juntar, loteDe, type AvisoCola, type Disponible, type Encolado } from "../electron/cola.ts";
+import { crearCola, juntar, loteDe, paraDisco, type AvisoCola, type Disponible, type Encolado } from "../electron/cola.ts";
 
 const SID = "5a1f0c1d-0000-4000-8000-00000000c01a";
 // La cola espera a que `mandar` conteste: acá no se la espera (queda en curso hasta `contestar`), se le da un tic.
@@ -388,4 +388,14 @@ test("elegir sin cola no guarda nada (no queda una selección vieja pisando a un
   const a = armar();
   a.cola.elegir(SID, { modelo: "claude-sonnet-5-5", effort: "low" });
   assert.equal(a.cola.seleccion(SID), null);
+});
+
+test("un aviso de Trama lo lleva su mensaje; juntado con algo del usuario deja de serlo", () => {
+  const av: Encolado = { id: 1, texto: "[Aviso automático de Trama] Worker «a» terminó. Id: 1.", modelo: "m", effort: "e", aviso: true };
+  const yo: Encolado = { id: 2, texto: "seguí", modelo: "m", effort: "e" };
+  assert.equal(juntar([av]).aviso, true, "uno solo sale tal cual, con su marca");
+  assert.equal(juntar([av, { ...av, id: 3 }]).aviso, true, "un lote sólo de avisos sigue siendo de avisos");
+  assert.equal(juntar([av, yo]).aviso, undefined, "con algo escrito por el usuario, es suyo");
+  // Se guarda en cola.json con la marca.
+  assert.equal(paraDisco(new Map([["s", [av]]])).s[0].aviso, true);
 });
