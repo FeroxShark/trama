@@ -185,6 +185,70 @@ function filasRubrica(texto: string, desde: string): FilaRub[] {
   return [...g.values()].sort((p, q) => cmpVersion(p.fila, q.fila));
 }
 
+/** Las funciones que no cuentan para agrupar un FRENÓ (las de 2 letras o menos ya no entran). Las mismas que `frenos_de` del bash. */
+const VACIAS = new Set("que los las del por para con una uno unos unas pero como sin sobre entre cuando muy hay fue ser son sus todo esta este estan esto eso ese".split(" "));
+/** Los acentos que cuentan como su letra base. */
+const ACENTOS: [RegExp, string][] = [
+  [/á|Á/g, "a"],
+  [/é|É/g, "e"],
+  [/í|Í/g, "i"],
+  [/ó|Ó/g, "o"],
+  [/ú|Ú|ü|Ü/g, "u"],
+  [/ñ|Ñ/g, "n"],
+];
+
+/** El FRENÓ normalizado: sin acentos ni signos, en minúsculas ASCII, con las palabras separadas por espacios. */
+export function normaFreno(s: string): string {
+  let t = s;
+  for (const [re, r] of ACENTOS) t = t.replace(re, r);
+  return t.replace(/[^a-zA-Z0-9]+/g, " ").replace(/[A-Z]/g, (c) => c.toLowerCase());
+}
+
+/** Dos grupos de FRENÓ son el mismo si comparten al menos la mitad de sus palabras (Jaccard >= 1/2). */
+function parecido(a: Set<string>, b: Set<string>): boolean {
+  if (!a.size || !b.size) return false;
+  let inter = 0;
+  for (const w of a) if (b.has(w)) inter++;
+  return 2 * inter >= a.size + b.size - inter;
+}
+
+export interface FrenoGrupo {
+  proyecto: string;
+  n: number;
+  freno: string;
+}
+
+/**
+ * `frenos_de` + el sort y el top 3 de cmd_rinde (bash): los FRENÓ de la ventana por proyecto. Un FRENÓ entra en el primer grupo de su
+ * proyecto con el mismo texto normalizado o con el que comparte la mitad de sus palabras; el texto del grupo es el primero que llegó.
+ * Sale, por proyecto (en C), los 3 grupos más frecuentes (por n, y después por texto).
+ */
+export function frenosPor(texto: string, desde: string): FrenoGrupo[] {
+  const grupos: { proyecto: string; texto: string; norm: string; pal: Set<string>; n: number }[] = [];
+  for (const v of filasDe(texto, desde)) {
+    const proyecto = v("proyecto");
+    const freno = v("freno");
+    if (proyecto === "" || freno === "") continue;
+    const norm = normaFreno(freno);
+    const pal = new Set(norm.split(" ").filter((w) => w.length >= 3 && !VACIAS.has(w)));
+    const g = grupos.find((x) => x.proyecto === proyecto && (x.norm === norm || parecido(pal, x.pal)));
+    if (g) g.n++;
+    else grupos.push({ proyecto, texto: freno, norm, pal, n: 1 });
+  }
+  const orden = [...grupos].sort((a, b) => cmpC(a.proyecto, b.proyecto) || b.n - a.n || cmpC(a.texto, b.texto));
+  const salida: FrenoGrupo[] = [];
+  let p: string | null = null;
+  let k = 0;
+  for (const g of orden) {
+    if (g.proyecto !== p) {
+      p = g.proyecto;
+      k = 0;
+    }
+    if (++k <= 3) salida.push({ proyecto: g.proyecto, n: g.n, freno: g.texto });
+  }
+  return salida;
+}
+
 /** `pa --rinde`. */
 export function cmdRinde(pa: Pa, args: string[]): number {
   let dias = "30";
@@ -225,10 +289,10 @@ export function cmdRinde(pa: Pa, args: string[]): number {
   const f = path.join(pa.state, "medicion.tsv");
   const texto = existsSync(f) && statSync(f).isFile() ? leerArchivo(f) ?? "" : "";
   const desde = haceDias(Number(dias));
-  return rub ? salidaRubrica(pa, dias, desde, json, filasRubrica(texto, desde)) : salidaPor(pa, dias, desde, json, por, celdasPor(texto, desde, por));
+  return rub ? salidaRubrica(pa, dias, desde, json, filasRubrica(texto, desde)) : salidaPor(pa, dias, desde, json, por, celdasPor(texto, desde, por), frenosPor(texto, desde));
 }
 
-function salidaPor(pa: Pa, dias: string, desde: string, json: boolean, por: string, celdas: Celda[]): number {
+function salidaPor(pa: Pa, dias: string, desde: string, json: boolean, por: string, celdas: Celda[], frenos: FrenoGrupo[]): number {
   if (json) {
     pa.io.out(
       `${jsonJq({
@@ -249,6 +313,7 @@ function salidaPor(pa: Pa, dias: string, desde: string, json: boolean, por: stri
           costo_medio_usd: n(c.costo),
           pct_compacto: n(c.comp),
         })),
+        frenos: frenos.map((f) => ({ proyecto: f.proyecto, n: f.n, freno: f.freno })),
       })}\n`,
     );
     return 0;
@@ -262,6 +327,13 @@ function salidaPor(pa: Pa, dias: string, desde: string, json: boolean, por: stri
   pa.io.out(fila([por, "modelo", "effort", "n", "dato", "ok%", "turnos", "US$", "comp%"]));
   for (const c of celdas) {
     pa.io.out(fila([c.tipo === "~" ? "?" : c.tipo, c.cuenta ? `${c.modelo}@${c.cuenta}` : c.modelo, c.effort, String(c.n), String(c.dato), c.pct || "-", c.med || "-", c.costo || "-", c.comp || "-"]));
+  }
+  if (frenos.length) {
+    pa.io.out(`frenos por proyecto · últimos ${dias} días · los parecidos van juntos; top 3 por proyecto\n`);
+    pa.io.out(`${rellenar("proyecto", 15)} ${izq("n", 4)}  freno\n`);
+    for (const f of frenos) pa.io.out(`${rellenar(f.proyecto, 15)} ${izq(String(f.n), 4)}  ${f.freno}\n`);
+  } else {
+    pa.io.out(`pa: ningún FRENÓ anotado en los últimos ${dias} días.\n`);
   }
   return 0;
 }

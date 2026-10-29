@@ -8,7 +8,7 @@ import path from "node:path";
 import type { Caso, Contexto } from "./arnes.ts";
 
 const HEADER =
-  "fecha\tid\tproyecto\tmodelo\teffort\tleer\tseguir\tis_error\tnum_turns\tduration_s\ttokens\tcosto_usd\tbien\tplan\tcompactaciones\tautocompact\torigen\tcache_read\tcache_creation\tephemeral_1h\tephemeral_5m\ttipo\tintegrada\tretrabajo\tcuenta\tfase\ttarea\trubrica\trub_fila\trub_modelo\trub_effort";
+  "fecha\tid\tproyecto\tmodelo\teffort\tleer\tseguir\tis_error\tnum_turns\tduration_s\ttokens\tcosto_usd\tbien\tplan\tcompactaciones\tautocompact\torigen\tcache_read\tcache_creation\tephemeral_1h\tephemeral_5m\ttipo\tintegrada\tretrabajo\tcuenta\tfase\ttarea\trubrica\trub_fila\trub_modelo\trub_effort\tfreno";
 const COLS = HEADER.split("\t");
 const HEADER_VIEJO = COLS.slice(0, 13).join("\t");
 
@@ -44,6 +44,21 @@ const todo = (...fs: ((c: Contexto) => void)[]) => (c: Contexto) => fs.forEach((
 const pcli = (nombre: string, args: Caso["args"], rc: number, extra: Partial<Caso> = {}): Caso => ({ herramienta: "pa-cli", nombre: `medicion: ${nombre}`, args, rc, ...extra });
 
 // ------------------------------------------------------------------------------------------- datos de --rinde
+
+/** Corridas con FRENÓ para `pa --rinde`: parecidos (la mitad de las palabras), iguales, sin texto, otro proyecto y una de hace 40 días. */
+const datosFrenos = (c: Contexto) =>
+  medicion(
+    fila({ fecha: iso(hace(2)), id: "f1", proyecto: "proy", modelo: M, effort: "high", tipo: "debug", freno: "El test de paridad se colgó al armar el sandbox." }),
+    fila({ fecha: iso(hace(3)), id: "f2", proyecto: "proy", modelo: M, effort: "high", tipo: "debug", freno: "el test de paridad se colgó dos veces" }),
+    fila({ fecha: iso(hace(4)), id: "f3", proyecto: "proy", modelo: M, effort: "high", tipo: "debug", freno: "El test de paridad se colgó al armar el sandbox." }),
+    fila({ fecha: iso(hace(5)), id: "f4", proyecto: "proy", modelo: H, effort: "low", tipo: "mecanico", freno: "Falta la cuenta de OpenCode para el modelo." }),
+    fila({ fecha: iso(hace(5)), id: "f4b", proyecto: "proy", modelo: H, effort: "low", tipo: "mecanico", freno: "Se cayó el servidor de pruebas." }),
+    fila({ fecha: iso(hace(6)), id: "f4c", proyecto: "proy", modelo: H, effort: "low", tipo: "mecanico", freno: "La ventana de Electron no abre." }),
+    fila({ fecha: iso(hace(6)), id: "f5", proyecto: "otro", modelo: M, effort: "high", tipo: "debug", freno: "Un error de permisos en el puerto 8080." }),
+    fila({ fecha: iso(hace(7)), id: "f7", proyecto: "otro", modelo: M, effort: "high", tipo: "debug" }),
+    fila({ fecha: iso(hace(8)), id: "f8", proyecto: "otro", modelo: M, effort: "high", tipo: "debug", freno: "Un error de permisos en el puerto 8080" }),
+    fila({ fecha: iso(hace(24 * 40)), id: "f9", proyecto: "viejo", modelo: M, effort: "high", tipo: "debug", freno: "Algo de hace mucho" }),
+  );
 
 /** Corridas de los últimos días para --rinde: tipos, modelos, efforts, cuentas, fases, tareas y la rúbrica. */
 const datosRinde = (c: Contexto) =>
@@ -203,6 +218,8 @@ export const casosMedicion: Caso[] = [
   pcli("rinde por fase", ["--rinde", "--por", "fase"], 0, { preparar: datosRinde }),
   pcli("rinde por tarea --json", ["--rinde", "--por", "tarea", "--json"], 0, { preparar: datosRinde }),
   pcli("rinde --por tipo explícito", ["--rinde", "--por", "tipo"], 0, { preparar: datosRinde }),
+  pcli("rinde con FRENÓ: los parecidos van juntos, top 3 por proyecto", ["--rinde"], 0, { preparar: datosFrenos }),
+  pcli("rinde --json con FRENÓ", ["--rinde", "--json"], 0, { preparar: datosFrenos }),
   pcli("rinde --rubrica", ["--rinde", "--rubrica"], 0, { preparar: datosRinde }),
   pcli("rinde --rubrica --json", ["--rinde", "--rubrica", "--json"], 0, { preparar: datosRinde }),
   pcli("rinde --rubrica sin datos", ["--rinde", "--rubrica"], 0),

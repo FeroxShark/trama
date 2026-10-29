@@ -2971,6 +2971,49 @@ cmd_rubrica() {
   return "$rc"
 }
 
+# `pa --rinde`: los FRENÓ de la ventana, agrupados por parecido (salen proyecto \t n \t texto, uno por grupo; el sort y el top 3
+# los pone cmd_rinde). Dos FRENÓ son del mismo grupo si su texto normalizado es igual, o si comparten al menos la mitad de sus
+# palabras (Jaccard >= 1/2, sobre las de 3+ letras que no son funciones). Texto = el primero del grupo, en orden de archivo.
+frenos_de() {   # $1 = medicion.tsv, $2 = desde (ISO)
+  awk -F'\t' -v OFS='\t' -v desde="$2" '
+    BEGIN {
+      split("que los las del por para con una uno unos unas pero como sin sobre entre cuando muy hay fue ser son sus todo esta este estan esto eso ese", vacias, " ")
+      for (i in vacias) vac[vacias[i]] = 1
+    }
+    function v(n) { return ((n in c) && c[n] <= NF) ? $c[n] : "" }
+    function norma(s) {
+      gsub(/á|Á/, "a", s); gsub(/é|É/, "e", s); gsub(/í|Í/, "i", s); gsub(/ó|Ó/, "o", s)
+      gsub(/ú|Ú|ü|Ü/, "u", s); gsub(/ñ|Ñ/, "n", s)
+      gsub(/[^a-zA-Z0-9]+/, " ", s)
+      return tolower(s)
+    }
+    FNR == 1 { for (i = 1; i <= NF; i++) c[$i] = i; next }
+    NF < 5 || $1 !~ /^[0-9][0-9][0-9][0-9]-/ || $1 < desde { next }
+    v("freno") == "" || v("proyecto") == "" { next }
+    {
+      p = v("proyecto"); t = v("freno"); nm = norma(t)
+      delete S; sz = 0
+      k = split(nm, w, " ")
+      for (i = 1; i <= k; i++) if (length(w[i]) >= 3 && !(w[i] in vac) && !(w[i] in S)) { S[w[i]] = 1; sz++ }
+      hit = 0
+      for (g = 1; g <= ng && !hit; g++) {
+        if (gp[g] != p) continue
+        if (nm == gn[g]) { hit = g; break }
+        if (sz == 0 || gs[g] == 0) continue
+        inter = 0
+        for (x in S) if ((g SUBSEP x) in rw) inter++
+        if (2 * inter >= sz + gs[g] - inter) hit = g
+      }
+      if (!hit) {
+        hit = ++ng; gp[hit] = p; gt[hit] = t; gn[hit] = nm; gs[hit] = sz; cn[hit] = 0
+        for (x in S) rw[hit, x] = 1
+      }
+      cn[hit]++
+    }
+    END { for (g = 1; g <= ng; g++) print gp[g], cn[g], gt[g] }
+  ' "$1"
+}
+
 # `pa --rinde [--dias N] [--json]`: qué rinde cada modelo × effort en cada tipo de tarea, desde
 # medicion.tsv. Una línea por celda (tipo × modelo × effort), ordenado por tipo; las corridas sin
 # `--tipo` van en la fila `?`. `ok%` = integradas sin retrabajo sobre las que ya tienen dato
@@ -3024,15 +3067,22 @@ cmd_rinde() {
           (nu[k] ? sprintf("%.2f", usd[k] / nu[k]) : ""), (nc[k] ? sprintf("%.0f", 100 * comp[k] / nc[k]) : "")
       }
     }' "$MEDICION" | LC_ALL=C sort -t$'\t' -k1,1 -k2,2 -k3,3 -k4,4)"
+  # Los FRENÓ de la ventana, por proyecto: los 3 grupos más frecuentes de cada uno (frenos_de). Van a la sección de abajo y al
+  # campo `frenos` del --json.
+  local frenos=""
+  [[ -f "$MEDICION" ]] && frenos="$(frenos_de "$MEDICION" "$desde" | LC_ALL=C sort -t$'\t' -k1,1 -k2,2nr -k3,3 | awk -F'\t' '$1 != p { p = $1; k = 0 } ++k <= 3')"
   if (( json )); then
-    jq -Rn --arg dias "$dias" --arg desde "$desde" --arg por "$por" '
+    local fr_json
+    fr_json="$(jq -Rn '[inputs | select(. != "") | split("\t") | {proyecto: .[0], n: (.[1] | tonumber), freno: .[2]}]' <<<"$frenos")"
+    jq -Rn --arg dias "$dias" --arg desde "$desde" --arg por "$por" --argjson frenos "$fr_json" '
       def n: if . == "" then null else tonumber end;
       {version: 1, dias: ($dias | tonumber), desde: $desde, por: $por,
        celdas: [inputs | select(. != "") | split("\t")
                 | {($por): (if .[0] == "~" then "?" else .[0] end), modelo: .[1], effort: .[2],
                    cuenta: (if .[3] == "" then null else .[3] end),
                    n: (.[4] | n), con_dato: (.[5] | n), ok: (.[6] | n), pct_ok: (.[7] | n),
-                   turnos_mediana: (.[8] | n), costo_medio_usd: (.[9] | n), pct_compacto: (.[10] | n)}]}' <<<"$celdas"
+                   turnos_mediana: (.[8] | n), costo_medio_usd: (.[9] | n), pct_compacto: (.[10] | n)}],
+       frenos: $frenos}' <<<"$celdas"
     return 0
   fi
   [[ -n "$celdas" ]] || { echo "pa: ninguna corrida en los últimos $dias días."; return 0; }
@@ -3044,6 +3094,14 @@ cmd_rinde() {
     [[ -n "$cu" ]] && mo="$mo@$cu"   # una cuenta que no es la de siempre
     printf '%-15s %-18s %-8s %4s %5s %5s %7s %8s %6s\n' "$t" "$mo" "$e" "$n" "$d" "${p:--}" "${tu:--}" "${us:--}" "${co:--}"
   done < <(tr '\t' '|' <<<"$celdas")
+  if [[ -n "$frenos" ]]; then
+    echo "frenos por proyecto · últimos $dias días · los parecidos van juntos; top 3 por proyecto"
+    printf '%-15s %4s  %s\n' proyecto n freno
+    local fp fn ft
+    while IFS=$'\t' read -r fp fn ft; do printf '%-15s %4s  %s\n' "$fp" "$fn" "$ft"; done <<<"$frenos"
+  else
+    echo "pa: ningún FRENÓ anotado en los últimos $dias días."
+  fi
 }
 
 # `pa --rinde --rubrica`: acierto de la rúbrica por fila de la tabla (columnas `rubrica`, `rub_fila` y `rub_modelo` de medicion.tsv; las
