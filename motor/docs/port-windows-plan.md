@@ -53,7 +53,10 @@ Relevamiento hecho (agente Plan, leyendo el repo):
   tocan `windows/`, electron-builder ni NSIS.
 - Windows: payload nuevo por **lista permitida** (`windows/scripts/preparar-payload-nativo.mjs`): app compilada, hooks
   `.mjs`, plantillas, `node.exe` fijado con sha256 — nada de `.sh`, `.service`, systemd ni WSL. `electron-builder-nativo.yml`
-  aparte del de WSL (mismo appId). La carcasa elige modo nativo por defecto; el modo WSL queda para quien lo use.
+  aparte. La carcasa corre siempre nativa: el modo WSL (`wsl.js`, `pasos.js`, su limpieza y manifiesto y `electron-builder.yml`) se sacó
+  en la tanda U paso 3 (#1784). `windows/src/main.js` sólo conecta ventana, instalador y actualizador; lo que la página le pide al
+  main sale del contrato único de canales (`app/electron/canales/contrato.ts` → `windows/src/canales.json`) y
+  `windows/tests/canales.test.js` lo compara con los handlers de la carcasa.
 - Arranque en Windows: clave `Run` de HKCU + la carcasa supervisa al motor como hijo (en lugar de systemd).
 
 ## Etapas (cada una, un agente; yo reviso cada diff)
