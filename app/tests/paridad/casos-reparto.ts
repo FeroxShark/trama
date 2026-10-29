@@ -200,6 +200,11 @@ const statusline = (c: Contexto) => {
   escribir(path.join(sl, "historial.jsonl"), '{"ts":1793001000,"h5":40,"h5_reset":1793021000,"sem":62.25,"sem_reset":1793300000}\n\n{"ts":1,"h5":99}\n');
   escribir(path.join(c.estado, "hilos", "uso.json"), { ts: 1793002000, five_hour: { pct: 12, resets_at: 1793019000 } });
 };
+/** Un cuentas.json con la cuenta "trabajo" de Claude como la preferida (la de siempre queda sin elegir). */
+const conPreferida: Pick<Opciones, "preparar" | "env"> = {
+  preparar: (c) => escribir(path.join(c.estado, "cuentas.json"), { version: 1, cuentas: [{ id: "trabajo", proveedor: "claude", nombre: "Trabajo" }], preferidas: { claude: "trabajo" } }),
+  env: (c) => ({ TRAMA_CUENTAS: path.join(c.estado, "cuentas.json"), TRAMA_CUENTAS_HOME: c.home }),
+};
 const vivo = { REPARTO_CUPOS_FIJOS: "", REPARTO_AGY: "0" };
 
 export const casosReparto: Caso[] = [
@@ -228,6 +233,13 @@ export const casosReparto: Caso[] = [
   rp("--tipo --mismo-proveedor google", ["--tipo", "lectura", "--mismo-proveedor", "google", "--json"], 0),
   rp("--tipo --mismo-proveedor claude --explicar", ["--tipo", "lectura", "--mismo-proveedor", "claude", "--explicar"], 0),
   rp("--tipo --cuenta trabajo", ["--tipo", "debug", "--cuenta", "trabajo", "--json"], 0, { cupos: CUPOS_RAROS }),
+  // la cuenta preferida (`cuentas preferir`): la única que se reparte; la otra sólo va con --cuenta
+  rp("preferida: --tipo con la cuenta de Claude elegida", ["--tipo", "debug", "--json"], 0, { cupos: CUPOS_RAROS, ...conPreferida }),
+  rp("preferida: --tipo --explicar", ["--tipo", "lectura", "--explicar"], 0, { cupos: CUPOS_RAROS, ...conPreferida }),
+  rp("preferida: --tipo --cuenta pisa la elegida", ["--tipo", "debug", "--cuenta", "claude", "--json"], 0, { cupos: CUPOS_RAROS, ...conPreferida }),
+  rp("preferida: --tipo --mismo-proveedor claude", ["--tipo", "lectura", "--mismo-proveedor", "claude", "--json"], 0, { cupos: CUPOS_RAROS, ...conPreferida }),
+  rp("preferida: --cuenta-para claude", ["--cuenta-para", "claude-haiku-5-5", "--json"], 0, { cupos: CUPOS_RAROS, ...conPreferida }),
+  rp("preferida: --cuenta-para sin elegir sigue siendo la de siempre", ["--cuenta-para", "claude-haiku-5-5", "--json"], 0, { cupos: CUPOS_RAROS }),
   rp("--tipo con agotados, enfriados y plan", ["--tipo", "lectura", "--json"], 0, { preparar: conMarcas }),
   rp("--tipo --explicar con agotados, enfriados y plan", ["--tipo", "debug", "--explicar"], 0, { preparar: conMarcas }),
   rp("--tipo con el plan en otra zona horaria (cambio de hora)", ["--tipo", "codigo-multi", "--json"], 0, { preparar: conMarcas, env: { TZ: "Europe/Madrid" } }),

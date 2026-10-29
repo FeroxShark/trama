@@ -21,13 +21,14 @@
                                                entre los demás días (antes de una ausencia + reinicio, hoy se gasta más)
   reparto --plan gastar-hoy | ahorrar-hoy      pisa el ritmo sólo por hoy (vence solo a medianoche)
   reparto --plan ver [--json] | borrar         lo que hay guardado (<estado>/plan.json) y el ritmo de cada ventana semanal | lo borra
-  reparto --cuenta-para ID [--json]            la cuenta de su proveedor con más cupo libre para ese modelo
+  reparto --cuenta-para ID [--json]            la cuenta de su proveedor que eligió la persona (`cuentas preferir`) para ese modelo
 
 Varias cuentas por proveedor (bin/cuentas, ~/.config/trama/cuentas.json): cada cuenta es una suscripción aparte
-en --cupos (campos proveedor y cuenta), los candidatos salen una vez por cuenta (campo cuenta) y --tipo dice la
-cuenta elegida. --agotar ID --cuenta C marca agotado el grupo de esa cuenta; --tipo T --cuenta C elige sólo entre los
-modelos de esa cuenta (pa --cuenta sin -m); --tipo T --mismo-proveedor P prefiere
-las cuentas de P (el relanzamiento por falta de cupo de pa: otra cuenta del mismo proveedor antes de cambiar).
+en --cupos (campos proveedor y cuenta), los candidatos salen de la cuenta preferida de cada proveedor (`cuentas preferir`; sin
+elegir, la de siempre) y --tipo dice la cuenta (campo cuenta). Nunca se pasa sola de una cuenta a otra, ni con el cupo agotado: eso
+lo decide la persona. --agotar ID --cuenta C marca agotado el grupo de esa cuenta; --tipo T --cuenta C elige sólo entre los
+modelos de esa cuenta (pa --cuenta sin -m, aunque no sea la preferida); --tipo T --mismo-proveedor P prefiere
+los modelos de P (el relanzamiento por falta de cupo de pa: el mismo proveedor, en la misma cuenta, antes de cambiar).
 
 Inteligencia (`calidad`): en UNIDADES REALES del ÍNDICE DE INTELIGENCIA de Artificial Analysis (el general, el que AA mide completo; sin calibrar a 100).
 Coding y agentic de AA quedan como datos extra (--tabla: coding_por_effort / agentic_por_effort), nunca como base.
@@ -332,6 +333,29 @@ def lista_cuentas():
             err("no pude leer las cuentas: %s" % e)
     return [{"id": "claude", "proveedor": "claude", "motor": "claude", "nombre": "Claude", "dir": None, "defecto": True},
             {"id": "google", "proveedor": "google", "motor": "agy", "nombre": "Google AI Pro", "dir": None, "defecto": True}]
+
+
+def preferidas():
+    """{proveedor: id de la cuenta que se usa primero} (bin/cuentas, `cuentas preferir`; sin elegir, la de siempre). Las demás cuentas del
+    proveedor sólo se usan con --cuenta: reparto nunca pasa solo de una a otra, ni con el cupo agotado (eso lo decide la persona)."""
+    return {c["proveedor"]: c["id"] for c in lista_cuentas() if c.get("preferida", c.get("defecto"))}
+
+
+def solo_la_preferida(cands, cupos):
+    """Saca de los candidatos las cuentas que no son la preferida de su proveedor (Claude y Google). Si la preferida no está entre los cupos
+    (agy sin leer, etc.) vale la de siempre; si tampoco, se deja todo como está."""
+    pref = preferidas()
+    subs = cupos.get("suscripciones", [])
+    out = []
+    for c in cands:
+        p = c.get("proveedor")
+        if p in ("claude", "google"):
+            ids = {cuenta_de(x) for x in subs if prov_de(x) == p}
+            meta = pref.get(p) if pref.get(p) in ids else p if p in ids else None
+            if meta is not None and c.get("cuenta") != meta:
+                continue
+        out.append(c)
+    return out
 
 
 def env_cuenta(c):
@@ -2537,6 +2561,8 @@ def elegir(tipo, cfg, cupos, now, mismo_proveedor=None, solo_cuenta=None, _contr
     if solo_cuenta:
         # pa --cuenta C sin -m: sólo los modelos de esa cuenta (con todo lleno, el más barato de ella)
         cands = [c for c in cands if c.get("cuenta") == solo_cuenta]
+    else:
+        cands = solo_la_preferida(cands, cupos)   # la cuenta la elige la persona (`cuentas preferir`), nunca el cupo
     vivos = [c for c in cands if not c["descartado_por"]]
     todo_lleno = False
     banda = None
@@ -2809,8 +2835,9 @@ def resolver(mid):
 
 
 def cuenta_para(mid, cupos, now):
-    """La cuenta del proveedor de ese modelo con más cupo libre (la ventana más llena de su grupo; sin dato = la
-    menos libre; agotada = afuera mientras haya otra). Empate: la de siempre. None si el modelo no es de una cuenta."""
+    """La cuenta del proveedor de ese modelo que eligió la persona (`cuentas preferir`; sin elegir, la de siempre), con su cupo libre (la
+    ventana más llena de su grupo; sin dato = nada) y si está agotada: aunque lo esté NO se pasa a otra, se avisa. Sin esa cuenta entre los
+    cupos, la que tenga más cupo libre (agotada = afuera mientras haya otra; empate: la de siempre). None si el modelo no es de una cuenta."""
     r = resolver(mid)
     if r and r["motor"] == "codex":   # el cupo de codex es de la cuenta de ChatGPT de siempre (cupos_openai)
         return {"cuenta": "chatgpt", "proveedor": "chatgpt", "cupo_libre": None, "agotada": False}
@@ -2819,6 +2846,7 @@ def cuenta_para(mid, cupos, now):
     prov = "claude" if r["motor"] == "claude" else "google"
     gid = None if prov == "claude" else grupo_de_modelo(mid)
     mejor = None
+    elegida = preferidas().get(prov)
     for s in cupos.get("suscripciones", []):
         if prov_de(s) != prov:
             continue
@@ -2829,7 +2857,7 @@ def cuenta_para(mid, cupos, now):
             vs, agot = g.get("ventanas", []) or [], bool(g.get("agotado"))
         us = [w["usado"] for w in vs if w.get("usado") is not None]
         libre = -1.0 if not us else 1 - max(us)
-        k = (not agot, libre, not suf(cuenta_de(s)))
+        k = (cuenta_de(s) == elegida, not agot, libre, not suf(cuenta_de(s)))
         if mejor is None or k > mejor[0]:
             mejor = (k, cuenta_de(s), libre, agot)
     if not mejor:
