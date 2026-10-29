@@ -2,7 +2,7 @@
 // Todo determinista: cupos fijos (REPARTO_CUPOS_FIJOS), hora fija (REPARTO_AHORA), dsh y opencode fijos, carga fija y la
 // caché de Artificial Analysis de tests/fixtures. El estado de reparto (REPARTO_STATE) va a la carpeta de estado del sandbox
 // para que se comparen agotado.json, enfriado.json, plan.json y asignaciones.json.
-import { chmodSync, mkdirSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Caso, Contexto } from "./arnes.ts";
@@ -55,6 +55,19 @@ const CUPOS_RAROS = {
     { id: "openai", nombre: "ChatGPT", grupos: [{ id: "codex", nombre: "Codex", ventanas: [w("5h", 0.5, "2026-10-26T13:00:00Z"), w("7d", 0.25, "2026-11-01T00:00:00Z")] }] },
   ],
 };
+
+/** Una cuenta de Google cuyo agy no ofrece lo de siempre (lista de `agy models` de tests/fixtures/agy-models-cuenta-b.txt): sin Argon ni los 5.5 de Claude. */
+const AGY_B = readFileSync(path.join(FIXTURES, "agy-models-cuenta-b.txt"), "utf8");
+const AGY_B_NOMBRES = readFileSync(path.join(FIXTURES, "agy-models-cuenta-b-nombres.txt"), "utf8");
+const agyModelosB = [
+  ["gemini-3.8-flash-high", "Gemini 3.8 Flash (High)"],
+  ["gemini-3.8-flash-medium", "Gemini 3.8 Flash (Medium)"],
+  ["gemini-3.8-flash-low", "Gemini 3.8 Flash (Low)"],
+  ["claude-sonnet-4-6-thinking", "Claude Sonnet 4.6 (Thinking)"],
+  ["claude-opus-4-6-thinking", "Claude Opus 4.6 (Thinking)"],
+  ["gpt-oss-120b-medium", "GPT-OSS 120B (Medium)"],
+].map(([id, nombre]) => ({ id, nombre }));
+const CUPOS_AGY_B = { ...CUPOS, suscripciones: CUPOS.suscripciones.map((s) => (s.id === "google" ? { ...s, agy_modelos: agyModelosB } : s)) };
 
 const cuposDe = (c: Contexto) => path.join(c.aux, "cupos.json");
 const modelosDe = (c: Contexto) => path.join(c.aux, "modelos.json");
@@ -215,6 +228,24 @@ export const casosReparto: Caso[] = [
   rp("--tipo sin tipo", ["--tipo"], 2),
   rp("--horas sin valor", ["--tipo", "lectura", "--horas"], 2),
   rp("--mismo-proveedor inválido", ["--mismo-proveedor", "x", "--tipo", "lectura"], 2),
+
+  // los modelos de agy dependen de la cuenta: sólo se elige entre los que la cuenta ofrece
+  rp("agy de otra cuenta: --tabla", ["--tabla"], 0, { cupos: CUPOS_AGY_B }),
+  rp("agy de otra cuenta: --tabla --json", ["--tabla", "--json"], 0, { cupos: CUPOS_AGY_B }),
+  ...["lectura", "codigo-acotado", "debug"].map((t) => rp(`agy de otra cuenta: --tipo ${t} --explicar`, ["--tipo", t, "--explicar"], 0, { cupos: CUPOS_AGY_B, env: { REPARTO_NO_DISPONIBLE: "claude-*" } })),
+  rp("agy de otra cuenta: --resumen", ["--resumen"], 0, { cupos: CUPOS_AGY_B }),
+  rp("agy de otra cuenta: --agotar de un modelo que la tabla no conoce", ["--agotar", "agy:claude-sonnet-4-6-thinking"], 0, { cupos: CUPOS_AGY_B }),
+  rp("agy de otra cuenta: --resolver", ["--resolver", "agy:claude-sonnet-4-6-thinking", "--json"], 0),
+  rpPasos("agy de otra cuenta: un modelo que agy rechazó se enfría y no se vuelve a elegir", [
+    [["--enfriar", "agy:claude-opus-4-6-thinking"], 0],
+    [["--tabla"], 0],
+  ], { cupos: CUPOS_AGY_B }),
+  rp("--agy-modelos", ["--agy-modelos"], 0, { env: { REPARTO_AGY_MODELOS_FIJO: AGY_B } }),
+  rp("--agy-modelos --json con ids", ["--agy-modelos", "--json"], 0, { env: { REPARTO_AGY_MODELOS_FIJO: AGY_B } }),
+  rp("--agy-modelos --json con sólo nombres", ["--agy-modelos", "--json"], 0, { env: { REPARTO_AGY_MODELOS_FIJO: AGY_B_NOMBRES } }),
+  rp("--agy-modelos --refrescar", ["--agy-modelos", "--refrescar"], 0, { env: { REPARTO_AGY_MODELOS_FIJO: AGY_B } }),
+  rp("--agy-modelos sin lista", ["--agy-modelos"], 1, { env: { REPARTO_AGY_MODELOS_FIJO: "Fetching available models...\n" } }),
+  rp("--agy-modelos --cuenta que no es de Google", ["--agy-modelos", "--cuenta", "nada"], 2, { env: { REPARTO_AGY_MODELOS_FIJO: AGY_B } }),
 
   // --resumen
   rp("--resumen", ["--resumen"], 0),

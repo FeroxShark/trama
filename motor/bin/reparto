@@ -16,6 +16,8 @@
   reparto --sondear-opencode                   un pedido mínimo a un modelo gratis de OpenCode; si dice "Free usage limit" agota el grupo (gasta cupo: sólo a mano, nunca solo)
   reparto --enfriado ID                        si ese modelo sigue enfriado: imprime hasta cuándo y sale 0; si no, sale 1
   reparto --excluido ID                        si modelos.json excluye ese id: imprime la regla y sale 0; si no, sale 1
+  reparto --agy-modelos [--refrescar] [--cuenta C] [--json]
+                                               los modelos que ofrece el agy de esta máquina y cuenta (`agy models`, se guarda 6 h; --refrescar la vuelve a pedir)
   reparto --olvidar-agotados                   borra las marcas de agotado y de enfriado
   reparto --plan ausente F[,F..] | presente F  días que no se trabaja (AAAA-MM-DD, hoy, manana, o A..B): el presupuesto semanal se reparte
                                                entre los demás días (antes de una ausencia + reinicio, hoy se gasta más)
@@ -60,6 +62,8 @@ nada real), REPARTO_AHORA=ISO (la hora de "ahora"), REPARTO_STATE (caché de agy
 si algún grupo tiene menos de la mitad de su ventana de 5 h), REPARTO_CARGA_FIJA='{"grupo": n}' (workers vivos por grupo,
 sin mirar el estado de pa), REPARTO_ASIGNACION_S (vida de esa anotación, 20; 0 la apaga), REPARTO_RESERVAR=1 (anota el grupo elegido: lo pone pa en su elección real),
 CODEX_HOME (credenciales y sesiones de codex; default ~/.codex), REPARTO_CODEX=0 (como si codex no estuviera).
+Modelos de agy (`agy models`, por cuenta; cambian con la cuenta, la región y la versión): reparto sólo elige entre los que agy lista (los que no conoce entran con la calidad
+estimada, esfuerzo low de su familia, y --tabla los marca ~). REPARTO_AGY_MODELOS_FIJO=<salida de agy models> (tests: no lee nada real), REPARTO_AGY_MODELOS_S (vida de la lista, 21600 s).
 dsh (DeepSeek Harness: modelos gratis de OpenCode u Ollama, o DeepSeek): sus modelos son candidatos sólo si `dsh` está instalado y,
 según el proveedor, hay key (OPENCODE_API_KEY / DEEPSEEK_API_KEY en el entorno o en ~/.config/trama/claves.env) o Ollama responde
 (OLLAMA_HOST, default http://localhost:11434; la lista de modelos se guarda 60 s). REPARTO_DSH=0 los apaga (REPARTO_SIN_DSH=1 también:
@@ -1211,6 +1215,92 @@ def quota_agy(state_dir, now, cuenta=None):
     return j
 
 
+AGY_MODELOS_S = 21600.0   # vida de la lista de modelos de `agy models` (la lista depende de la cuenta, la región y la versión de agy)
+RE_AGY_ID = re.compile(r"^[a-z0-9][a-z0-9._-]*$", re.I)
+RE_AGY_FAMILIA = re.compile(r"^(?:gemini|claude|gpt)", re.I)
+
+
+def agy_id_de_nombre(nombre):
+    """El id probable de un nombre de `agy models` que vino sin id ('Claude Sonnet 4.6 (Thinking)' -> claude-sonnet-4-6-thinking;
+    'Gemini 3.8 Flash (High)' -> gemini-3.8-flash-high): minúsculas, lo que no es letra ni número pasa a '-', y el punto de una versión
+    de Claude pasa a '-' (los ids de Claude llevan 5-5; los de Gemini, 3.8)."""
+    n = (nombre or "").lower().strip()
+    if n.startswith("claude"):
+        n = re.sub(r"(\d)\.(\d)", r"\1-\2", n)
+    return re.sub(r"[^a-z0-9.]+", "-", n).strip("-.")
+
+
+def agy_parsear_modelos(texto):
+    """Lo que imprime `agy models`: una línea por modelo, 'id<TAB>nombre', sólo el id, o sólo el nombre ('Claude Opus 4.6 (Thinking)').
+    Lo demás ('Fetching available models...') se ignora. [{id, nombre}] sin repetidos, en el orden de agy."""
+    out, vistos = [], set()
+    for ln in (texto or "").splitlines():
+        ln = ln.strip()
+        if not ln:
+            continue
+        if "\t" in ln:
+            i, n = [x.strip() for x in ln.split("\t", 1)]
+            i = i.lower()
+            if not RE_AGY_ID.match(i):
+                continue
+        elif RE_AGY_FAMILIA.match(ln) and RE_AGY_ID.match(ln):
+            i, n = ln.lower(), ln
+        elif RE_AGY_FAMILIA.match(ln) and ln.endswith(")"):
+            i, n = agy_id_de_nombre(ln), ln
+        else:
+            continue
+        if i not in vistos:
+            vistos.add(i)
+            out.append({"id": i, "nombre": n or i})
+    return out
+
+
+def agy_id_reparto(i):
+    """El id de reparto/pa de un modelo de agy: los de Gemini van solos, los demás con el prefijo agy:."""
+    return i if i.startswith("gemini-") else "agy:" + i
+
+
+def modelos_agy(state_dir, cuenta=None, refrescar=False):
+    """Los modelos que ofrece el agy de esta máquina y esta cuenta ([{id, nombre}]; caché AGY_MODELOS_S en <state>/agy-modelos[@cuenta].json;
+    con `refrescar` no se mira). None si no se sabe (sin agy, sin sesión, no contestó): reparto no filtra nada. Si agy no contesta pero hay
+    una lista vieja, vale la vieja. REPARTO_AGY_MODELOS_FIJO=<salida de agy models> (tests) no lee nada real."""
+    fijo = os.environ.get("REPARTO_AGY_MODELOS_FIJO")
+    if fijo is not None:
+        return agy_parsear_modelos(fijo) or None
+    if os.environ.get("REPARTO_CUPOS_FIJOS") or os.environ.get("REPARTO_AGY") == "0":
+        return None
+    cid = (cuenta or {}).get("id")
+    cache = os.path.join(state_dir, "agy-modelos%s.json" % suf(cid))
+    vieja = None
+    try:
+        with open(cache) as f:
+            c = json.load(f)
+        vieja = c["modelos"] if isinstance(c.get("modelos"), list) and c["modelos"] else None
+        ttl = float(os.environ.get("REPARTO_AGY_MODELOS_S", AGY_MODELOS_S))
+        if vieja and not refrescar and time.time() - c["leido"] <= ttl:
+            return vieja
+    except Exception:
+        pass
+    try:
+        r = subprocess.run(["agy", "models"], capture_output=True, text=True, stdin=subprocess.DEVNULL,
+                           timeout=float(os.environ.get("REPARTO_AGY_MODELOS_ESPERA", "20")),
+                           cwd=os.environ.get("TMPDIR", "/tmp"), env=env_cuenta(cuenta))
+        ms = agy_parsear_modelos(r.stdout)
+    except Exception:
+        ms = []
+    if not ms:
+        return vieja
+    try:
+        os.makedirs(state_dir, exist_ok=True)
+        tmp = cache + ".%d" % os.getpid()
+        with open(tmp, "w") as f:
+            json.dump({"leido": time.time(), "modelos": ms}, f)
+        os.replace(tmp, cache)
+    except OSError:
+        pass
+    return ms
+
+
 def id_grupo(nombre):
     n = (nombre or "").lower()
     if "argon" in n:
@@ -1246,9 +1336,11 @@ def cupos_google(cfg, state_dir, now, cuenta=None):
         if h:
             g["hasta"] = h
         grupos.append(g)
+    ms = modelos_agy(state_dir, cuenta)
+    extra = {"agy_modelos": ms} if ms is not None else {}   # sin la lista (agy no contestó) reparto no filtra: se prueba y agy dirá
     if not cuenta:
-        return {"id": "google", "nombre": "Google AI Pro", "grupos": grupos}
-    return {"id": cuenta["id"], "nombre": cuenta["nombre"], "proveedor": "google", "cuenta": cuenta["id"], "grupos": grupos}
+        return {"id": "google", "nombre": "Google AI Pro", "grupos": grupos, **extra}
+    return {"id": cuenta["id"], "nombre": cuenta["nombre"], "proveedor": "google", "cuenta": cuenta["id"], "grupos": grupos, **extra}
 
 
 def codex_home():
@@ -1873,6 +1965,8 @@ def grupo_de_modelo(mid):
     for gid, _n, _w, bases in GRUPOS_GOOGLE + GRUPOS_OPENAI:
         if m == gid or any(m == b or m.startswith(b + "-") for b in bases):
             return gid
+    if m.startswith("agy:"):   # un modelo que esta cuenta de agy ofrece y la tabla no conoce: su grupo sale del nombre
+        return id_grupo(m[4:])
     if m == CLAUDE_OFICIAL or m.startswith("claude-"):
         return CLAUDE_OFICIAL
     return None
@@ -2270,6 +2364,7 @@ def armar_candidatos(tipo, cfg, cupos, now, effort=None):
         claudes = []   # sin claude en la máquina el Claude oficial no es un candidato (la persona usa sólo dsh)
 
     carga = carga_por_grupo(now)
+    enfriados_agy = leer_enfriados(state_dir(), now) if googles else {}   # `pa` enfría el modelo que agy rechazó (--enfriar)
     e_tipo = effort or cfg["effort_por_tipo"].get(tipo, "high")
     if e_tipo == "max":   # reparto nunca elige max por su cuenta (eso es de -m/--effort, con permitir_max o --ok-dueno)
         e_tipo = "xhigh"
@@ -2323,10 +2418,22 @@ def armar_candidatos(tipo, cfg, cupos, now, effort=None):
         calidad_mejor = cfg["calidad"].get(fam, 0)
         mapa_ef = mapa_efforts(cfg, fam)
         nota_effort = None
+        fijo_agy = efs is not None and len(efs) == 0   # un modelo de agy que FAMILIAS no conoce: su id ya trae el esfuerzo (o no tiene)
+        if efs is not None and sus == "google" and not fijo_agy and cuenta_s.get("agy_modelos") is not None:
+            # el agy de esta cuenta ofrece otros modelos que los de siempre: sólo valen los esfuerzos que lista
+            ids = {m["id"] for m in cuenta_s["agy_modelos"]}
+            efs = tuple(e for e in efs if "%s-%s" % (agy_base, e) in ids)
+            if not efs:
+                return
         if efs is None:   # Claude oficial: el effort va aparte
             e_perm, nota_effort = effort_permitido(cfg, base, fam, e_tipo)
             modelo, effort = base, e_perm or e_tipo
             e_cal = effort
+        elif fijo_agy:
+            # Sin dato de calidad para este modelo (versión que esta cuenta tiene y la tabla no): se estima de forma conservadora con el
+            # esfuerzo más bajo de su familia (sin familia conocida, 0: no se elige solo) y --tabla lo marca estimado.
+            e_perm, nota_effort = None, "calidad estimada: la de %s al esfuerzo low (sin dato propio de este modelo)" % fam
+            modelo, effort, e_cal = base, None, "low"
         else:
             e = efectivo(base, efs, e_tipo)
             e_perm, nota_effort = effort_permitido(cfg, base, fam, e, [x for x in efs if x in EFFORTS_AA])
@@ -2339,8 +2446,9 @@ def armar_candidatos(tipo, cfg, cupos, now, effort=None):
                 "efforts_posibles": [x for x in EFFORTS_AA if efs is None or x in efs] if mapa_ef else [],
                 "cupo_libre": None, "vuelve": None, "puntaje": None, "descartado_por": None,
                 "aviso": None, "grupo": gid or "claude-oficial", "cuenta": cuenta, "proveedor": sus,
-                "estimada": fam not in cfg["calidad"], "origen": cfg["origen"].get(fam, "estimada"), "nota_effort": nota_effort}
-        if e_perm is None and nota_effort:
+                "estimada": fijo_agy or fam not in cfg["calidad"], "origen": "estimada" if fijo_agy else cfg["origen"].get(fam, "estimada"),
+                "nota_effort": nota_effort}
+        if e_perm is None and nota_effort and not fijo_agy:
             cand["descartado_por"] = "excluido en modelos.json (%s)" % nota_effort
             cand["duro"] = True
         cand["clave"] = cand["grupo"] + suf(cuenta)
@@ -2386,6 +2494,9 @@ def armar_candidatos(tipo, cfg, cupos, now, effort=None):
         nd = excluido_por(modelo, no_disponibles(), fam)
         if nd and not cand.get("duro"):
             cand["descartado_por"] = "no disponible ahora según pa (%s)" % nd
+            cand["duro"] = True
+        if sus == "google" and not cand.get("duro") and modelo.lower() in enfriados_agy:
+            cand["descartado_por"] = "agy lo rechazó (modelo que esta cuenta no ofrece): no es candidato hasta %s" % enfriados_agy[modelo.lower()]
             cand["duro"] = True
         # Los cupos de agy son chicos: con poco libre en la ventana de 5 h no se arranca una tarea de código
         if sus == "google" and not cand["descartado_por"] and not (grupos.get(gid) or {}).get("agotado") and \
@@ -2475,6 +2586,15 @@ def armar_candidatos(tipo, cfg, cupos, now, effort=None):
     for c in FAMILIAS:
         for cs in (claudes if c[3] == "claude" else openais if c[3] == "openai" else googles):
             hacer(c, cs)
+    # Los modelos que el agy de la cuenta ofrece y FAMILIAS no conoce (p. ej. 'Claude Sonnet 4.6 (Thinking)'): entran con calidad estimada
+    for cs in googles:
+        for m in cs.get("agy_modelos") or []:
+            if any(m["id"].startswith(f[5] + "-") and m["id"][len(f[5]) + 1:] in f[6] for f in FAMILIAS if f[3] == "google"):
+                continue
+            mid = agy_id_reparto(m["id"])
+            fam = familia_de(mid)
+            hacer((mid, fam or "agy", m["nombre"] if m["id"].startswith("gemini-") else "%s (por Google)" % m["nombre"],
+                   "google", id_grupo(m["nombre"] or m["id"]), m["id"], ()), cs)
     # Locales de modelos.json: cupo infinito, costo cero, calidad según modelos.json (default 35)
     for loc in cfg["locales"]:
         calidad, origen = calidad_origen(cfg, loc["id"], patrones=False)
@@ -3280,6 +3400,20 @@ def main(argv):
         if x:
             print(x)
         return 0 if x else 1
+    if a[0] == "--agy-modelos" and len(a) in (1, 2) and (len(a) == 1 or a[1] == "--refrescar"):
+        cuenta = None
+        if "--cuenta" in opt:
+            cuenta = next((c for c in lista_cuentas() if c["id"] == opt["--cuenta"] and c["proveedor"] == "google"), None)
+            if not cuenta:
+                err("%s no es una cuenta de Google (agy)" % opt["--cuenta"])
+                return 2
+        ms = modelos_agy(state_dir(), cuenta, refrescar=len(a) == 2)
+        if ms is None:
+            err("agy no listó sus modelos (¿sin sesión o sin agy?): no se sabe cuáles ofrece")
+            return 1
+        print(json.dumps({"modelos": [{**m, "reparto": agy_id_reparto(m["id"])} for m in ms]}, ensure_ascii=False) if json_out
+              else "\n".join(agy_id_reparto(m["id"]) for m in ms))
+        return 0
     if a[0] == "--olvidar-agotados" and len(a) == 1:
         for nombre in ("agotado.json", "enfriado.json"):
             try:
