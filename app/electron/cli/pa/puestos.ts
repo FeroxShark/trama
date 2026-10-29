@@ -243,8 +243,9 @@ export class Admision {
   puesto = "";
   motivoTope = "";
   ocupadosTope = 0;
-  /** Segundos desde que empezó a pedir lugar/puesto hasta que lo tomó (0 si no esperó): lo anotan el `.hilo` y `medicion.tsv`. */
+  /** Segundos desde el primer intento fallido de lugar/puesto hasta que lo tomó (0 si no esperó): lo anotan el `.hilo` y `medicion.tsv`. */
   espera = 0;
+  /** Cuándo falló el primer intento (0 mientras no falló ninguno: sin espera no hay segundos que contar). */
   private pedidoS = 0;
   private colaClase = "";
   private colaSeg = 0;
@@ -388,15 +389,20 @@ export class Admision {
     rmSync(path.join(this.x.dir, `${this.x.ts}.cola`), { force: true });
   }
 
+  /** Primer intento fallido: desde acá cuenta la espera (lo que pasa antes de la primera vuelta no es cola). */
+  private marcarEspera(): void {
+    if (!this.pedidoS) this.pedidoS = segundos();
+  }
+
   /** `esperar_lugar`: un --leer no toma puesto pero sí lugar. En primer plano sale 75; con --async hace cola. */
   async esperarLugar(): Promise<void> {
-    this.pedidoS = segundos();
     while (!(await this.tomarLugar())) {
       if (!this.async) this.topeLleno75();
+      this.marcarEspera();
       this.escribirCola(this.motivoTope);
       await dormir(jitterCola());
     }
-    this.espera = segundos() - this.pedidoS;
+    this.espera = this.pedidoS ? segundos() - this.pedidoS : 0;
     await this.soltarTope();
     this.sacarCola();
   }
@@ -413,7 +419,6 @@ export class Admision {
     else if (this.o.aca) pedido = "aca";
     else if (this.o.tsRetomada) pedido = await puestoParaRetomar(x, this.o.tsRetomada);
     const cands = pedido ? [pedido] : Array.from({ length: x.pa.puestos }, (_, i) => String(i + 1));
-    this.pedidoS = segundos();
     for (;;) {
       let motivo: string;
       if (await this.tomarLugar()) {
@@ -447,10 +452,11 @@ export class Admision {
         io.err(`pa: esperá uno con: pa --esperar '${x.proyecto}' --id <id>   o lanzalo con --async (hace cola y arranca solo).\n`);
         salir(75);
       }
+      this.marcarEspera();
       this.escribirCola(motivo);
       await dormir(jitterCola());
     }
-    this.espera = segundos() - this.pedidoS;
+    this.espera = this.pedidoS ? segundos() - this.pedidoS : 0;
     mkdirSync(x.dir, { recursive: true });
     writeFileSync(path.join(x.dir, `${x.ts}.puesto`), this.puesto);
     this.sacarCola();

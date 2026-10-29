@@ -1133,13 +1133,14 @@ escribir_cola() {   # $1 = motivo
 }
 # Un --leer no toma puesto, pero sí lugar: en primer plano sale 75; con --async hace cola.
 esperar_lugar() {
-  local t0; t0="$(date +%s)"
+  local t0=""
   while ! tomar_lugar; do
     [[ -n "${PA_ASYNC:-}" ]] || tope_lleno_75
+    [[ -n "$t0" ]] || t0="$(date +%s)"   # primer intento fallido: desde acá cuenta la espera
     escribir_cola "$motivo_tope"
     sleep "0.$(( 5 + RANDOM % 5 ))"
   done
-  espera=$(( $(date +%s) - t0 ))   # segundos que esperó el lugar: el `espera=` del .hilo y medicion.tsv
+  espera=0; [[ -z "$t0" ]] || espera=$(( $(date +%s) - t0 ))   # segundos que esperó el lugar: el `espera=` del .hilo y medicion.tsv
   soltar_tope
   rm -f "$dir/$ts.cola"
 }
@@ -1154,7 +1155,7 @@ esperar_lugar() {
 # Antes del puesto va el lugar global (tomar_lugar): con el tope lleno pasa lo mismo que sin
 # puesto libre (75, o cola con --async), y sin puesto libre el lugar se devuelve en el acto.
 tomar_puesto() {
-  local pedido="" k cands=() motivo t0; t0="$(date +%s)"
+  local pedido="" k cands=() motivo t0=""
   if ! git -C "$ruta" rev-parse -q --verify HEAD >/dev/null 2>&1; then pedido=1
   elif (( aca )); then pedido=aca
   elif [[ -n "$ts_retomada" ]]; then pedido="$(puesto_para_retomar "$ts_retomada")"
@@ -1187,10 +1188,11 @@ tomar_puesto() {
       exit 75
     fi
     # el motivo puede cambiar mientras espera (tope lleno -> sin RAM -> puestos ocupados)
+    [[ -n "$t0" ]] || t0="$(date +%s)"   # primer intento fallido: desde acá cuenta la espera
     escribir_cola "$motivo"
     sleep "0.$(( 5 + RANDOM % 5 ))"
   done
-  espera=$(( $(date +%s) - t0 ))   # segundos que esperó lugar y puesto: el `espera=` del .hilo y medicion.tsv
+  espera=0; [[ -z "$t0" ]] || espera=$(( $(date +%s) - t0 ))   # segundos que esperó lugar y puesto: el `espera=` del .hilo y medicion.tsv
   printf '%s' "$puesto" >"$dir/$ts.puesto"
   rm -f "$dir/$ts.cola"
   lock="$(lock_de_puesto "$puesto")"
