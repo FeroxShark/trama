@@ -98,9 +98,12 @@ jobs:
           chmod +x dist-appimage/*.AppImage
           # El runner no tiene FUSE (libfuse2): por eso --appimage-extract-and-run, en todos lados.
           VERSION=$(node -p "require('./package.json').version")
-          ./dist-appimage/*.AppImage --appimage-extract-and-run --version | grep -qx "$VERSION"
+          ./dist-appimage/*.AppImage --appimage-extract-and-run --version >/tmp/version.out 2>/tmp/version.err; echo "rc=$?"
+          echo "--- stdout:"; head -c 1500 /tmp/version.out; echo "--- stderr:"; head -c 1500 /tmp/version.err
+          grep -qx "$VERSION" /tmp/version.out
           timeout -k 5 20 xvfb-run --auto-servernum ./dist-appimage/*.AppImage --appimage-extract-and-run --no-sandbox || [ $? -eq 124 ]
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: trama-appimage-linux
           path: |
