@@ -246,7 +246,8 @@ export async function chequearDsh(modelo: string, d: DatosChequeo & { locales?: 
   }
   if (!enPath("node", [], d.env, plat)) return "node no está en el PATH (dsh lo necesita)";
   if (!existsSync(dshCorrer(d.env))) return `falta ${dshCorrer(d.env)}`;
-  if (!dshBin(d.env, plat)) return "dsh no está instalado (npm i -g --prefix ~/.local @deepseek-ai/dsh, o motor/scripts/instalar-producto.sh)";
+  if (!dshBin(d.env, plat))
+    return plat === "win32" ? "dsh no está instalado (npm i -g @deepseek-ai/dsh)" : "dsh no está instalado (npm i -g --prefix ~/.local @deepseek-ai/dsh, o motor/scripts/instalar-producto.sh)";
   if (prov === "ollama") {
     const l = localDe(`ollama:${mod}`, d.locales ?? null, d.env);
     const e = await localEstado(l.url, mod, d.env);
