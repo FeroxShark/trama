@@ -8,7 +8,8 @@ import { spawn } from "node:child_process";
 import { chmodSync, closeSync, copyFileSync, existsSync, lstatSync, mkdirSync, openSync, readdirSync, readFileSync, realpathSync, renameSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { homeDe, plataformaActual } from "../rutas.ts";
-import { borrarSinSeguir, enlazarArchivo, enlazarDir } from "./base/enlaces.ts";
+import { unirEnlace } from "./base/compartir.ts";
+import { borrarSinSeguir, type OpcionesEnlace } from "./base/enlaces.ts";
 import { enPath, esEjecutable } from "./base/buscar.ts";
 import { tomar } from "./base/lock.ts";
 import { esPrincipal } from "./base/principal.ts";
@@ -85,6 +86,9 @@ class Cuentas {
     this.env = env;
     this.io = io;
   }
+
+  /** Cómo se enlaza (los tests inyectan el symlink/hardlink para simular Windows). */
+  opcEnlace: OpcionesEnlace = {};
 
   err = (m: string) => this.io.err(`cuentas: ${m}\n`);
   print = (s: string) => this.io.out(s + "\n");
@@ -198,17 +202,9 @@ class Cuentas {
     } catch (e) {
       if ((e as NodeJS.ErrnoException).code !== "EEXIST") this.err(`no pude marcar ${c.dir}: ${(e as NodeJS.ErrnoException).message}`);
     }
+    if (c.proveedor === "claude") mkdirSync(path.join(this.homeReal(), ".claude", "projects"), { recursive: true }); // los transcripts siempre en el de siempre
     for (const [src, dst] of LINKS[c.proveedor]!) {
-      const s = path.join(this.homeReal(), src);
-      const t = path.join(c.dir!, dst);
-      if (!lexists(s) || lexists(t)) continue;
-      try {
-        mkdirSync(path.dirname(t), { recursive: true });
-        if (esDir(s)) enlazarDir(s, t);
-        else enlazarArchivo(s, t);
-      } catch (e) {
-        this.err(`no pude enlazar ${t}: ${(e as NodeJS.ErrnoException).message}`);
-      }
+      unirEnlace(path.join(this.homeReal(), src), path.join(c.dir!, dst), { plat: plataformaActual(), enlace: this.opcEnlace, avisar: (m) => this.err(`${c.id}: ${m}`) });
     }
   }
 
@@ -779,8 +775,10 @@ const porDefecto = (): Io => {
   return { out: (s) => void process.stdout.write(s), err: (s) => void process.stderr.write(s) };
 };
 
-export async function main(argv: string[], env: Env = process.env, io: Io = porDefecto()): Promise<number> {
+/** `enlace`: sólo los tests (simulan Windows inyectando el junction y el hardlink). */
+export async function main(argv: string[], env: Env = process.env, io: Io = porDefecto(), enlace: OpcionesEnlace = {}): Promise<number> {
   const c = new Cuentas(env, io);
+  c.opcEnlace = enlace;
   if (!argv.length || argv[0] === "--json" || argv[0] === "--verificar") return c.cmdListar(argv);
   if (argv[0] === "-h" || argv[0] === "--help") {
     io.out(AYUDA_CUENTAS);
