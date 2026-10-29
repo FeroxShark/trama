@@ -57,3 +57,28 @@ test("el claude de una cuenta lleva su CLAUDE_CONFIG_DIR y no la clave de API", 
   assert.equal(e.ANTHROPIC_API_KEY, undefined);
   assert.equal(e.PATH, "p");
 });
+
+test("cuentaConConversacion: encuentra la cuenta que tiene el transcript, sin contar la actual", async () => {
+  const { mkdtempSync, mkdirSync, writeFileSync, rmSync } = await import("node:fs");
+  const os = await import("node:os");
+  const path = await import("node:path");
+  const { cuentaConConversacion } = await import("../electron/uso-cuentas.ts");
+  const raiz = mkdtempSync(path.join(os.tmpdir(), "trama-conv-"));
+  try {
+    const sid = "11111111-2222-3333-4444-555555555555";
+    const agregada = path.join(raiz, "cuentas", "b");
+    mkdirSync(path.join(agregada, "projects", "-proy"), { recursive: true });
+    mkdirSync(path.join(raiz, ".claude", "projects"), { recursive: true });
+    writeFileSync(path.join(agregada, "projects", "-proy", `${sid}.jsonl`), "{}\n");
+    const cuentas = [{ id: "b", dir: agregada }];
+    assert.equal(cuentaConConversacion(sid, cuentas, raiz, "claude", "linux"), "b");
+    assert.equal(cuentaConConversacion(sid, cuentas, raiz, "b", "linux"), null);
+    writeFileSync(path.join(raiz, ".claude", "projects", `x.jsonl`), "{}\n");
+    mkdirSync(path.join(raiz, ".claude", "projects", "-otro"));
+    writeFileSync(path.join(raiz, ".claude", "projects", "-otro", `${sid}.jsonl`), "{}\n");
+    assert.equal(cuentaConConversacion(sid, cuentas, raiz, "b", "linux"), "claude");
+    assert.equal(cuentaConConversacion("no-esta", cuentas, raiz, "b", "linux"), null);
+  } finally {
+    rmSync(raiz, { recursive: true, force: true });
+  }
+});

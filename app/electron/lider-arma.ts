@@ -820,6 +820,8 @@ export type Guardado = {
   cwd?: string;
   /** La cuenta agregada de Claude con que corre (id de `cuentas.json`); sin ella, la de siempre. Se elige al crearlo (la preferida de ese momento) y sólo la cambia la persona. */
   cuenta?: string;
+  /** Al retomar con `--resume` salió «No conversation found» y la conversación está con otra cuenta: su id (`claude`, la de siempre). Lo borra el cambio de cuenta o un arranque bueno. */
+  otraCuenta?: string;
   /** Epoch: cuándo se lo retomó desde la app sin proceso (vuelve a la barra un día más). */
   retomado?: number;
   /** Epoch: cuándo se vio morir a su proceso sin que la app lo cerrara (kill, OOM, se cayó). Hasta que se lo retome, la barra lo marca Murió. */

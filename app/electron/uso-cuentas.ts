@@ -1,7 +1,7 @@
 // El uso de las cuentas agregadas de Claude (`~/.config/trama/cuentas.json`, proveedor `claude`): ninguna statusline lo deja si la
 // persona no abre una sesión interactiva con esa cuenta (en Windows casi nunca), así que la app lo pide por `get_usage` y lo guarda
 // donde `reparto --cupos` lo lee: `<PA_STATE>/cuentas/<id>/uso.json`. Node puro.
-import { readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { caminoDe, homeDe, plataformaActual, type Plataforma } from "./rutas.ts";
 import type { Lectura } from "./uso.ts";
 
@@ -66,4 +66,25 @@ export function entornoCuenta(env: NodeJS.ProcessEnv, dir: string): NodeJS.Proce
   const e: NodeJS.ProcessEnv = { ...env, CLAUDE_CONFIG_DIR: dir };
   for (const v of ["ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_BASE_URL"]) delete e[v];
   return e;
+}
+
+/**
+ * ¿Con qué cuenta de Claude está la conversación `sid`? Mira `projects/<carpeta>/<sid>.jsonl` en la de siempre (`<home>/.claude`) y en
+ * cada agregada. Devuelve `"claude"` (la de siempre) o el id de la agregada que la tiene; `null` si ninguna. Si la tienen varias, la
+ * primera de las que no son `excepto` (`undefined` o `""`: la de siempre). Sirve cuando `--resume` dice «No conversation found»: la conversación quedó en la carpeta propia
+ * de otra cuenta (en Windows, de antes de que `projects` se compartiera).
+ */
+export function cuentaConConversacion(sid: string, cuentas: CuentaClaude[], home: string, excepto: string, plat: Plataforma = plataformaActual()): string | null {
+  const c = caminoDe(plat);
+  const candidatas: [string, string][] = [["claude", c.join(home, ".claude")], ...cuentas.map((x): [string, string] => [x.id, x.dir])];
+  for (const [id, dir] of candidatas) {
+    if (id === excepto) continue;
+    try {
+      const proyectos = c.join(dir, "projects");
+      if (readdirSync(proyectos).some((p) => existsSync(c.join(proyectos, p, `${sid}.jsonl`)))) return id;
+    } catch {
+      /* sin projects */
+    }
+  }
+  return null;
 }

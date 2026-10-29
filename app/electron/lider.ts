@@ -72,7 +72,7 @@ import { guardada, igual, juntar, lecturaDe, oficialDe, type Lectura } from "./u
 import { errorT } from "./errores.ts";
 import { ESTADO, escribirAtomico, PA_STATE } from "./pa.js";
 import { asegurarCuenta } from "./cli/cuentas.ts";
-import { archivoUsoCuenta, cuentasClaude, entornoCuenta, preferidaClaude, usoParaReparto } from "./uso-cuentas.ts";
+import { archivoUsoCuenta, cuentaConConversacion, cuentasClaude, entornoCuenta, preferidaClaude, usoParaReparto } from "./uso-cuentas.ts";
 import { esElProceso, sesionesVivas, type Sesion } from "./sesiones.js";
 import { log, silencio } from "./log.js";
 import { temaDe, tituloLider } from "./tema.js";
@@ -489,6 +489,7 @@ function lanzar(g: Guardado, resume: boolean, local?: Local, extra: Extra = {}):
   if (g.murio) {
     delete g.murio;
     delete g.motivo;
+    delete g.otraCuenta;
   }
   if (!g.corriendo) g.corriendo = Math.floor(Date.now() / 1000);
   void guardar();
@@ -658,6 +659,12 @@ function lanzar(g: Guardado, resume: boolean, local?: Local, extra: Extra = {}):
     // Lo mataron o se cayó (no lo cerró la app): la barra lo marca Murió hasta que el usuario lo retome.
     if (seMurio) {
       g.murio = Math.floor(Date.now() / 1000);
+      // `--resume` no encuentra la conversación: si está en la carpeta de otra cuenta, la vista ofrece retomarla con esa.
+      if (/No conversation found with session ID/.test(dijo)) {
+        const otra = cuentaConConversacion(g.sid, cuentasClaude(process.env, HOME), HOME, g.cuenta ?? "claude");
+        if (otra) g.otraCuenta = otra;
+        else delete g.otraCuenta;
+      }
       const motivo = (dijo || error || (codigo === null ? "lo mataron (sin código de salida)" : `salió con el código ${codigo}`)).slice(0, 300);
       g.motivo = motivo;
     }
@@ -1012,6 +1019,7 @@ export async function cambiarCuenta(sid: string, cuenta: unknown): Promise<void>
   if (nueva === g.cuenta) return;
   if (nueva) g.cuenta = nueva;
   else delete g.cuenta;
+  delete g.otraCuenta;
   await guardar();
   if (p) {
     p.adrede = true;

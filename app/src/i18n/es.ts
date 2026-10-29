@@ -1050,6 +1050,8 @@ export const es: { [K in keyof typeof en]: string } = {
   "barra.sinLiderTip": "Lo lanzó {n}, que ya no está abierto",
   "lider.retomar": "Retomar",
   "lider.cerrado": "Cerrado",
+  "lider.otraCuenta": "Esta conversación es de otra cuenta de Claude. Retomala con la que empezó (no cambia tu cuenta preferida).",
+  "lider.retomarOtraCuenta": "Retomar con la cuenta con la que empezó",
   "lider.caidoMurio": "Este líder se detuvo. Retomalo para seguir escribiéndole desde acá, donde había quedado.",
   "lider.caidoCerro": "Este líder está cerrado.",
   "lider.noAbierto": "No se puede retomar: esta conversación está abierta en otro lado (una terminal). Cerrala ahí y volvé a tocar Retomar.",

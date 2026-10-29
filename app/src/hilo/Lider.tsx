@@ -989,11 +989,13 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
     [l],
   );
 
-  const retomar = () => {
+  // «No conversation found»: la conversación está con otra cuenta de Claude. Se cambia la cuenta de este líder (no la preferida) y se retoma.
+  const retomar = (conCuenta?: string) => {
     if (!l || retomando) return;
     setRetomando(true);
     setErrorCaja(null);
-    fuente.liderRetomar(l.id, { modelo, effort, nombre: l.nombre }).then(
+    const cambio = conCuenta ? fuente.liderCuenta(l.id, conCuenta === "claude" ? "" : conCuenta) : Promise.resolve();
+    cambio.then(() => fuente.liderRetomar(l.id, { modelo, effort, nombre: l.nombre })).then(
       (r) => {
         setNoRetoma(r.ok ? null : r.motivo);
         // Si salió bien queda "retomando" hasta que la lista lo traiga como líder de la app.
@@ -1373,15 +1375,15 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
           </div>
         ) : l?.caido ? (
           <div className="caja lider-ajeno" data-caido={l.caido}>
-            <span title={l.motivo}>{tr(noRetoma ? NO_RETOMA[noRetoma] : l.caido === "murio" ? "lider.caidoMurio" : "lider.caidoCerro")}</span>
+            <span title={l.motivo}>{tr(noRetoma ? NO_RETOMA[noRetoma] : l.caido === "murio" ? (l.otraCuenta ? "lider.otraCuenta" : "lider.caidoMurio") : "lider.caidoCerro")}</span>
             <span className="esp" />
             {/* Sólo se retoma lo que murió: lo que cerró normalmente no se ofrece. */}
             {l.caido === "murio" &&
               (sinVuelta ? (
                 archivar
               ) : (
-                <button type="button" className="prim" data-texto data-retomar-lider disabled={retomando} onClick={retomar}>
-                  {tr("lider.retomar")}
+                <button type="button" className="prim" data-texto data-retomar-lider disabled={retomando} onClick={() => retomar(l.otraCuenta)}>
+                  {tr(l.otraCuenta ? "lider.retomarOtraCuenta" : "lider.retomar")}
                 </button>
               ))}
           </div>

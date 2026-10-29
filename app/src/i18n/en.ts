@@ -1062,6 +1062,8 @@ export const en = {
   "barra.sinLiderTip": "Launched by {n}, which is no longer open",
   "lider.retomar": "Resume",
   "lider.cerrado": "Closed",
+  "lider.otraCuenta": "This conversation belongs to another Claude account. Resume it with the one it started with (your preferred account does not change).",
+  "lider.retomarOtraCuenta": "Resume with the account it started with",
   "lider.caidoMurio": "This lead stopped. Resume it to keep writing to it from here, right where it left off.",
   "lider.caidoCerro": "This lead is closed.",
   "lider.noAbierto": "Can't resume it: this conversation is open somewhere else (a terminal). Close it there and press Resume again.",

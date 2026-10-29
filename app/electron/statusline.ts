@@ -326,7 +326,7 @@ export async function leerStatusline(): Promise<Statusline> {
       inferido: t.inferido,
       ...(await sharkDe(g.cwd)),
       // Lo mataron (no lo cerró la app) y nadie lo retomó: Murió, con Retomar en vez de la caja.
-      ...(g.murio && !p ? { caido: "murio" as const, ...(g.motivo ? { motivo: g.motivo } : {}) } : {}),
+      ...(g.murio && !p ? { caido: "murio" as const, ...(g.motivo ? { motivo: g.motivo } : {}), ...(g.otraCuenta ? { otraCuenta: g.otraCuenta } : {}) } : {}),
     });
   }
   // Los de terminal que mataron (OOM, kill -9): siguen en la barra para retomarlos desde acá.

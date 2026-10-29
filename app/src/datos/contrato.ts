@@ -232,6 +232,8 @@ export type Lider = {
   caido?: "murio" | "cerro";
   /** Por qué murió, si se supo (lo que dijo su proceso o por qué no se pudo levantar): va en el tooltip de Murió. */
   motivo?: string;
+  /** Murió porque su conversación está con otra cuenta de Claude (id; `claude`, la de siempre): se ofrece retomarla con ésa. */
+  otraCuenta?: string;
   /**
    * La máquina donde corre (`maquinas.json`), como en `Hilo`: sin venir, la de esta trama. Con él, `id`
    * lleva el prefijo `maquina:` y también el `jefe_id` de sus workers de esa máquina.
