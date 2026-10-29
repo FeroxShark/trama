@@ -10,11 +10,11 @@
 // (taskkill /T /F). Lo que se desprendió con setsid no está en el grupo: en Linux se lo encuentra por una marca en el
 // entorno (TRAMA_TEST_MARCA=<pid del runner>:<n>) que heredan los hijos. Si el runner muere sin avisar (SIGKILL, como
 // cuando el tool corta el comando), un vigía desprendido barre lo que quedó con su marca.
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { spawn, spawnSync } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const MARCA = "TRAMA_TEST_MARCA";
 const POSIX = process.platform !== "win32";
@@ -28,7 +28,9 @@ if (process.argv[2] === "--vigilar") {
 }
 
 const raiz = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
-const dir = path.resolve(raiz, process.env.TRAMA_TEST_DIR || "tests");
+// `npm run test:paridad` = `node scripts/test.mjs --paridad`: los archivos de tests/paridad, con la misma casa y el mismo aislamiento.
+const paridad = process.argv.includes("--paridad");
+const dir = path.resolve(raiz, process.env.TRAMA_TEST_DIR || (paridad ? "tests/paridad" : "tests"));
 const archivos = readdirSync(dir)
   .filter((f) => f.endsWith(".test.ts"))
   .sort()
@@ -63,9 +65,29 @@ delete env.HILOS_STATE;
 delete env.HILOS_LOCAL;
 process.on("exit", () => rmSync(casa, { recursive: true, force: true }));
 
+// Cada archivo arranca con electron/aislar.ts armado (scripts/aislar-pruebas.mjs): un acceso al home de la persona queda anotado
+// y el archivo falla. Lo permitido es el checkout entero (el repo, no sólo app/).
+const precarga = pathToFileURL(path.join(raiz, "scripts", "aislar-pruebas.mjs")).href;
+// Herramientas del usuario que algunas pruebas usan (`tablero`, `dsh`): no son datos de la persona. Se buscan como en el shell
+// (PATH y ~/.local/bin), van por su variable y se declaran permitidas, porque el PATH de la prueba ya no tiene sus carpetas
+// del home. Si no están, las pruebas que las piden se saltean.
+const hallar = (nombre) =>
+  [...(process.env.PATH ?? "").split(path.delimiter), path.join(os.homedir(), ".local", "bin")].map((d) => path.join(d, nombre)).find((f) => existsSync(f));
+const usuario = [];
+for (const [variable, nombre] of [
+  ["HILOS_TABLERO", "tablero"],
+  ["TRAMA_DSH_BIN", "dsh"],
+]) {
+  const ruta = process.env[variable] || hallar(nombre);
+  if (!ruta) continue;
+  env[variable] = ruta;
+  usuario.push(ruta);
+}
+env.HILOS_AISLAR_PERMITE = [process.env.HILOS_AISLAR_PERMITE, path.dirname(raiz), ...usuario].filter(Boolean).join(":");
+
 const TOPE_MS = Math.max(1, Number(env.TRAMA_TEST_ARCHIVO_S) || 300) * 1000;
 const PARALELO = Math.max(1, Number(env.TRAMA_TEST_PARALELO) || Math.max(1, (os.availableParallelism?.() ?? os.cpus().length) - 1));
-const extra = process.argv.slice(2);
+const extra = process.argv.slice(2).filter((a) => a !== "--paridad");
 
 /** Linux: los pids cuyo entorno cumple `coincide` (los hijos heredan la marca; un zombie no tiene entorno). */
 function marcados(coincide) {
@@ -157,7 +179,7 @@ function correr(archivo) {
     const clave = `${process.pid}:${++seq}`;
     // Windows sin --test-timeout: node mata el proceso del archivo y deja huérfanos a sus nietos (taskkill /T ya no los alcanza);
     // el vigía de abajo corta el árbol entero, con el archivo vivo.
-    const hijo = spawn(process.execPath, ["--test", ...(POSIX ? [`--test-timeout=${Math.floor(TOPE_MS * 0.8)}`] : []), "--test-force-exit", ...extra, archivo], {
+    const hijo = spawn(process.execPath, ["--import", precarga, "--test", ...(POSIX ? [`--test-timeout=${Math.floor(TOPE_MS * 0.8)}`] : []), "--test-force-exit", ...extra, archivo], {
       cwd: raiz,
       env: { ...env, [MARCA]: clave },
       stdio: ["ignore", "pipe", "pipe"],
