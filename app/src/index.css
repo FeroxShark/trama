@@ -405,7 +405,7 @@ body,
   font-weight: 600;
 }
 .g-acc-btn {
-  min-height: 1.5rem;
+  height: 1.5rem;
   padding: 0 var(--esp-2);
   font-size: var(--letra-1);
 }
@@ -414,7 +414,7 @@ body,
 }
 @media (pointer: coarse) {
   .g-acc-btn {
-    min-height: 2.75rem;
+    height: 2.75rem;
   }
 }
 .grupo[data-hijo] .g-n {
