@@ -1,6 +1,9 @@
 // El aislamiento de las corridas de prueba (electron/aislar.ts): qué cuenta como dato de Ana.
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import path from "node:path";
 import test from "node:test";
+import { pathToFileURL } from "node:url";
 import { soloPosix } from "./plataforma.ts";
 
 const { crearAislamiento, codigoSalida } = await import("../electron/aislar.ts");
@@ -48,4 +51,14 @@ test("un nombre suelto cuenta sólo si el PATH tiene carpetas del home", { skip:
 test("sin violaciones el código de salida no cambia", () => {
   assert.equal(codigoSalida(0), 0);
   assert.equal(codigoSalida(3), 3);
+});
+
+// El cable de la suite: la precarga de `node --test` (scripts/aislar-pruebas.mjs) arma el aislamiento en cada archivo, y tocar el
+// home de la persona (aunque sea sólo mirar un archivo que no existe) sale con 97. Si se quita la precarga, esta prueba falla.
+test("la precarga de node --test arma el aislamiento: tocar el home de la persona sale con 97", () => {
+  const precarga = path.join(import.meta.dirname, "..", "scripts", "aislar-pruebas.mjs");
+  const sonda = `import fs from "node:fs"; import os from "node:os"; import path from "node:path"; fs.existsSync(path.join(os.userInfo().homedir, ".trama-aislar-sonda"));`;
+  const r = spawnSync(process.execPath, ["--import", pathToFileURL(precarga).href, "--input-type=module", "-e", sonda], { encoding: "utf8" });
+  assert.equal(r.status, 97, r.stderr);
+  assert.match(r.stderr, /\[aislar\] fs\.existsSync .*\.trama-aislar-sonda/);
 });
