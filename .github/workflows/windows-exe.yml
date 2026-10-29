@@ -8,7 +8,7 @@ name: Windows nativo (.exe) + Linux (AppImage)
 
 on:
   push:
-    branches: [main, "pa/**"]
+    branches: [main, "pa/**", "ci/**"]
     tags: ["v*"]
   pull_request:
   workflow_dispatch:
