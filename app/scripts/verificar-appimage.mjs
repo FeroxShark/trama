@@ -2,9 +2,9 @@
 // Lo corre el job appimage-linux de CI.
 import { existsSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
-import { fileURLtoPath } from "node:url";
+import { fileURLToPath } from "node:url";
 
-const aqui = path.dirname(path.dirname(fileURLtoPath(import.meta.url)));
+const aqui = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const dist = path.join(aqui, "dist-appimage");
 const version = JSON.parse(readFileSync(path.join(aqui, "package.json"), "utf8")).version;
 const appImage = `Trama-${version}.AppImage`;
@@ -23,9 +23,9 @@ if (st.size < 10 * 1024 * 1024) {
 }
 
 const contenidoYml = readFileSync(path.join(dist, yml), "utf8");
-if (!contenidoYml.includes(jversion: ${version}`)) {
+if (!contenidoYml.includes(`version: ${version}`)) {
   console.error(`latest-linux.yml no contiene version: ${version}:\n${contenidoYml}`);
   process.exit(1);
 }
 
-console.log(`listo: dist-appimage/${appImage} (${(st.size / (1024 * 1024)).toFixed(1i} MB) y ${yml} (versión ${version})`);
+console.log(`listo: dist-appimage/${appImage} (${(st.size / (1024 * 1024)).toFixed(1)} MB) y ${yml} (versión ${version})`);

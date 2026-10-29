@@ -1,5 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 
@@ -18,13 +19,11 @@ test("app/electron-builder.yml: appId, productName y AppImage para Linux", () =>
   assert.match(contenido, new RegExp("provider:\\s*github"));
 });
 
-test("windows/electron-builder-linux.yml: config hermana para Linux", () => {
-  const ruta = path.join(repo, "windows", "electron-builder-linux.yml");
-  assert.ok(existsSync(ruta), "falta windows/electron-builder-linux.yml");
-  const contenido = readFileSync(ruta, "utf8");
-  assert.match(contenido, new RegExp("^appId:\\s*app\\.trama$", "m"));
-  assert.match(contenido, new RegExp("^productName:\\s*Trama$", "m"));
-  assert.match(contenido, new RegExp("target:\\s*AppImage"));
+test("scripts del AppImage: sintaxis válida (verificar-appimage.mjs no se rompe)", () => {
+  for (const script of ["construir-appimage.mjs", "verificar-appimage.mjs"]) {
+    const r = spawnSync(process.execPath, ["--check", path.join(aqui, "scripts", script)], { encoding: "utf8" });
+    assert.equal(r.status, 0, r.stderr);
+  }
 });
 
 test("app/build/icon.png: icono de 512x512 valido", () => {

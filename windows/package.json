@@ -13,8 +13,7 @@
     "dist": "node scripts/sincronizar-version.mjs && bash scripts/construir.sh",
     "pantalla": "bash scripts/captura.sh",
     "payload:nativo": "node scripts/preparar-payload-nativo.mjs",
-    "dist:nativo": "node scripts/sincronizar-version.mjs && electron-builder --config electron-builder-nativo.yml --win nsis --x64 --publish never",
-    "dist:linux": "electron-builder --config electron-builder-linux.yml --linux AppImage --x64 --publish never"
+    "dist:nativo": "node scripts/sincronizar-version.mjs && electron-builder --config electron-builder-nativo.yml --win nsis --x64 --publish never"
   },
   "dependencies": {
     "electron-updater": "^6.8.0"
