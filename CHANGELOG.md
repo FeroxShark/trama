@@ -1,5 +1,13 @@
 # Cambios
 
+## 0.2.21
+
+- Cuentas: botón "Usar primero" en cada cuenta y selector de cuenta en el líder. Trama nunca cambia de cuenta sola.
+- Ajustes > Celular: prender, agregar o quitar un dispositivo se aplica al instante; el link y el QR aparecen solos.
+- Líder y workers: cada texto que escribe el modelo mientras trabaja queda en la conversación, en orden.
+- Celular: la barra de copiar, volver y hacer rama ya no tapa el texto; íconos del modo que se ven en todos lados.
+- CI de Windows en verde.
+
 ## 0.2.20
 
 - NVIDIA NIM: clave, ayuda, modelos y cupo en la app; un límite de NVIDIA enfría sólo ese modelo.
