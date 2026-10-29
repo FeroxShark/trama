@@ -214,7 +214,7 @@ export function deVariante(v: string | null | undefined): CatId | null {
   if (v.startsWith("carcasa") || v === "trama-al-dia" || v === "trama-nueva") return "actualizaciones";
   if (v === "mdl-agregar" || v === "mdl-bajando" || v === "mdl-sinollama" || v === "mdl-apagado" || v === "mdl-sugeridos" || v === "mdl-servidores" || v === "mdl-prender" || v === "mdl-win" || v === "mdl-guias") return "locales";
   if (v === "mdl-tope" || v.startsWith("cupos") || v === "editando" || v === "editando-mal") return "cupos";
-  if (v === "celular") return "celular";
+  if (v === "celular" || v === "prendiendo") return "celular";
   if (v.startsWith("dsh")) return "dsh";
   if (v.startsWith("oc-") || v.startsWith("nim")) return "opencode";
   if (v.startsWith("mcp") || v.startsWith("plugins")) return "conectores";

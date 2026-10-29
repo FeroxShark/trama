@@ -271,9 +271,10 @@ export function Celular({ Dato }: { Dato: FilaDato }) {
   /**
    * Manda `nuevo` al motor ya, sin Guardar, y se queda con lo que devuelve (dónde escucha y quién entró). El nombre a medio
    * escribir no va: se agrega con Agregar o al prender. Lo que no vale no se manda: queda en su campo, con su motivo.
-   * Si el motor falla, el borrador vuelve a lo guardado y el error se dice en palabras.
+   * Si el motor falla, el borrador vuelve a lo guardado y el error se dice en palabras; `escrito` (el nombre que se quiso
+   * agregar o prender) vuelve a su campo para reintentar.
    */
-  const aplicar = async (nuevo: BorradorRemoto, que: Aplicando) => {
+  const aplicar = async (nuevo: BorradorRemoto, que: Aplicando, escrito = "") => {
     const v = remotoPara(e, { ...nuevo, nuevo: "" });
     if (!v.config) {
       // Prender sin dispositivos no mueve el interruptor: el motivo va arriba. Lo demás (un puerto a medias) queda en su campo.
@@ -295,7 +296,7 @@ export function Celular({ Dato }: { Dato: FilaDato }) {
     } catch (x) {
       if (!vivo.current || mio !== ultimo.current) return;
       setError(t("ajustes.celNoAplico", { error: mensaje(x) }));
-      setB((antes) => ({ ...remotoDesde(e), nuevo: antes?.nuevo ?? "" }));
+      setB((antes) => ({ ...remotoDesde(e), nuevo: escrito || (antes?.nuevo ?? "") }));
     } finally {
       if (vivo.current && mio === ultimo.current) setAplicando(null);
     }
@@ -304,7 +305,7 @@ export function Celular({ Dato }: { Dato: FilaDato }) {
     // Prender con un nombre escrito lo agrega antes; si ese nombre no vale, su motivo queda en el campo y no se prende.
     const { borrador, error: mal } = alternarAcceso(b, on);
     if (mal) return;
-    void aplicar(borrador, on ? "prender" : "apagar");
+    void aplicar(borrador, on ? "prender" : "apagar", b.nuevo);
   };
   const quitar = (nombre: string) => void aplicar(quitarAplicando(b, nombre), "cambiar");
   const agregar = () => {
@@ -312,7 +313,7 @@ export function Celular({ Dato }: { Dato: FilaDato }) {
     const a = agregarDispositivo(b);
     // Si no vale, el motivo ya está en su campo.
     if (a.error) return;
-    void aplicar(a.borrador, "cambiar").then(() => nuevoRef.current?.focus());
+    void aplicar(a.borrador, "cambiar", b.nuevo).then(() => nuevoRef.current?.focus());
   };
   // El puerto se manda al salir de su campo o con Enter, no mientras se escribe (pasaría por puertos a medias).
   const aplicarPuerto = () => void aplicar(b, "cambiar");

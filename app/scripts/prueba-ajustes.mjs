@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 // Prueba de Ajustes editable (plan, red de seguridad y acceso desde el celular) con fixtures y `HILOS_FALLA=remoto-guardar`
-// (el primer Guardar del acceso del celular falla; después anda): lo escrito no se guarda hasta Guardar, lo que no vale se dice
-// en línea y no deja guardar (0.0.0.0 no entra como dispositivo, un puerto fuera de rango tampoco), Cancelar vuelve a lo
-// guardado, un Guardar que falla deja el error en línea y lo escrito intacto, y lo guardado vuelve al reabrir el panel.
+// (el primer cambio del acceso del celular falla; después anda). El plan y la red de seguridad siguen con Guardar: lo escrito
+// no se guarda hasta Guardar, lo que no vale se dice en línea y no deja guardar, Cancelar vuelve a lo guardado, y lo guardado
+// vuelve al reabrir el panel. El acceso del celular no tiene Guardar: prender, apagar, agregar, quitar y el puerto se mandan al
+// tocarlos (Enter o salir del campo, en el puerto), un error se dice en palabras y lo que vuelve del motor es lo que se muestra.
 // Nada toca `pa`, el settings ni `remoto.json` de verdad.
 //   npm run build && node scripts/prueba-ajustes.mjs        (FOTOS=<carpeta> deja capturas)
 import { spawn } from "node:child_process";
@@ -112,12 +113,19 @@ const boton = (_b, cual) => en((c) => document.querySelectorAll(".pn-barra .btn2
 const apagado = (_b, cual) => en((c) => document.querySelectorAll(".pn-barra .btn2")[c === 0 ? 1 : 0]?.disabled, cual);
 /** Lo que dice la barra (también los avisos de los bloques, como "Apretá Agregar"). */
 const aviso = () => en(() => document.querySelector(".pn-barra")?.textContent ?? "");
-const PUERTO = 'input[aria-label="Puerto"]';
-const NUEVO = ".pn-nuevo .pn-campo";
-const agregar = () => en(() => document.querySelector(".pn-nuevo button")?.click());
-const agregarApagado = () => en(() => document.querySelector(".pn-nuevo button")?.disabled);
-const lista = async () => (await en(() => [...document.querySelectorAll(".pn-disp:not(.mdl-instalados):not(.mdl-locales) .pn-disp-nom")].map((e) => e.textContent))).join(",");
-const errores = () => en(() => [...document.querySelectorAll(".pn-campo-error")].map((e) => e.textContent));
+const PUERTO = '[data-celular] input[aria-label="Puerto"]';
+const NUEVO = "[data-celular] .pn-nuevo .pn-campo";
+const agregar = () => en(() => document.querySelector("[data-celular] .pn-nuevo button")?.click());
+const agregarApagado = () => en(() => document.querySelector("[data-celular] .pn-nuevo button")?.disabled);
+const lista = async () => (await en(() => [...document.querySelectorAll("[data-celular] .pn-disp-nom")].map((e) => e.textContent))).join(",");
+const errores = () => en(() => [...document.querySelectorAll("[data-celular] .pn-campo-error")].map((e) => e.textContent));
+/** El interruptor del celular: abre su selector y elige la opción cuyo nombre empieza con `txt` ("Prendido" / "Apagado"). */
+const ACCESO = "[data-opc='ajustes.celAcceso']";
+const elegirAcceso = async (txt) => {
+  await en((c) => document.querySelector(`${c} button`)?.click(), ACCESO);
+  await hasta(() => document.querySelectorAll("[role=option]").length > 0, 3);
+  await en((txt) => [...document.querySelectorAll("[role=option]")].find((o) => o.textContent.trim().startsWith(txt))?.click(), txt);
+};
 
 async function abrir() {
   await alternar();
@@ -176,40 +184,75 @@ try {
   await escribir(NUEVO, "0.0.0.0");
   ok((await errores()).some((x) => /dirección/.test(x)), "0.0.0.0 como dispositivo se rechaza con el motivo en línea");
   ok(await agregarApagado(), "y Agregar no se puede apretar");
-  ok(await apagado(1, GUARDAR), "ni Guardar");
   await foto("ajustes-rechaza-direccion");
   await escribir(NUEVO, "");
   await escribir(PUERTO, "80");
-  ok((await errores()).some((x) => /entre/.test(x)) && (await apagado(1, GUARDAR)), "un puerto que no se puede abrir también se rechaza");
+  ok((await errores()).some((x) => /entre/.test(x)), "un puerto que no se puede abrir se rechaza en línea, sin mandarlo");
   await escribir(PUERTO, "8791");
   await escribir(NUEVO, "mi-tablet");
-  ok(/Apretá Agregar/.test(await aviso(1)) && (await apagado(1, GUARDAR)), "un nombre a medio escribir pide Agregar antes de guardar");
-  await agregar();
-  ok((await lista()) === "celu-de-prueba,tablet-sala,mi-tablet", "Agregar suma el dispositivo a la lista, sin guardar todavía");
-  await en(() => document.querySelectorAll(".pn-quitar")[0]?.click());
-  ok((await lista()) === "tablet-sala,mi-tablet", "× lo quita de la lista");
-  await boton(1, CANCELAR);
-  await espera(150);
-  ok((await lista()) === "celu-de-prueba,tablet-sala", "Cancelar deja la lista como estaba");
+  ok(/Sin cambios/.test(await aviso()), "el celular no pasa por la barra de Guardar: lo escrito no la ensucia");
+  await reabrir();
+  await en(() => document.querySelector(".aj-it[data-cat='celular']")?.click());
+  ok(await hasta(() => !!document.querySelector("[data-celular] .pn-nuevo"), 3), "la categoría Celular se abre");
+  ok((await lista()) === "celu-de-prueba,tablet-sala", "un nombre escrito y no agregado no se manda: al reabrir no está");
 
-  // El primer Guardar falla: el error queda en línea y lo escrito, intacto.
+  // Cada cambio se manda al tiro. El primero falla (HILOS_FALLA): el error va en palabras, la lista vuelve y el nombre escrito queda.
   await escribir(NUEVO, "mi-tablet");
   await agregar();
-  await boton(1, GUARDAR);
-  ok(await hasta(() => /EACCES/.test(document.querySelector(".pn-barra")?.textContent ?? ""), 5), "un Guardar que falla muestra el error en línea");
-  ok((await lista()) === "celu-de-prueba,tablet-sala,mi-tablet" && !(await apagado(1, GUARDAR)), "y lo escrito queda como estaba, para reintentar");
+  ok(await hasta(() => /No se pudo aplicar/.test(document.querySelector("[data-celular] [role=alert]")?.textContent ?? ""), 5), "un cambio que falla dice por qué, en palabras");
+  ok((await lista()) === "celu-de-prueba,tablet-sala" && (await valor(NUEVO)) === "mi-tablet", "y la lista vuelve a lo guardado, con el nombre escrito para reintentar");
   await foto("ajustes-guardar-falla");
-  await boton(1, GUARDAR);
-  ok(await hasta(() => /Guardado/.test(document.querySelector(".pn-barra")?.textContent ?? ""), 5), "al reintentar, guarda");
-  await reabrir();
-  ok((await lista()) === "celu-de-prueba,tablet-sala,mi-tablet", "y el dispositivo agregado vuelve al reabrir");
+  await agregar();
+  ok(await hasta(() => (document.querySelector("[data-celular] .pn-disp")?.textContent ?? "").includes("mi-tablet"), 5), "al reintentar, Agregar lo aplica sin tocar Guardar");
+  ok((await lista()) === "celu-de-prueba,tablet-sala,mi-tablet" && (await valor(NUEVO)) === "", "el dispositivo queda en la lista y el campo se vacía");
+  await en(() => document.querySelectorAll("[data-celular] .pn-quitar")[0]?.click());
+  ok(await hasta(() => !document.querySelector("[data-celular] [role=alert]"), 3) && (await lista()) === "tablet-sala,mi-tablet", "× lo quita y se aplica al momento");
 
-  // Apagar el acceso sin dispositivos no vale; apagado sí.
-  await en(() => document.querySelectorAll(".pn-quitar").forEach((b) => b.click()));
-  await en(() => document.querySelectorAll(".pn-quitar").forEach((b) => b.click()));
-  await en(() => document.querySelectorAll(".pn-quitar").forEach((b) => b.click()));
-  ok((await lista()) === "" && (await apagado(1, GUARDAR)), "prendido y sin dispositivos no se puede guardar");
+  // Enter también agrega (el teclado real, no un evento sintético).
+  await escribir(NUEVO, "mi-celu");
+  await en((s) => document.querySelector(s)?.focus(), NUEVO);
+  const enter = { key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13 };
+  await cdp("Input.dispatchKeyEvent", { type: "keyDown", ...enter, text: "\r" });
+  await cdp("Input.dispatchKeyEvent", { type: "keyUp", ...enter });
+  ok(await hasta(() => [...document.querySelectorAll("[data-celular] .pn-disp-nom")].map((e) => e.textContent).join(",") === "tablet-sala,mi-tablet,mi-celu", 5), "Enter en el nombre lo agrega y lo aplica");
+
+  // El puerto se manda al salir del campo: 8800, y se ve en la dirección cuando escucha.
+  await escribir(PUERTO, "8800");
+  await en((s) => {
+    const el = document.querySelector(s);
+    el?.focus();
+    el?.blur();
+  }, PUERTO);
+  ok(await hasta(() => /8800/.test(document.querySelector("[data-celular] code")?.textContent ?? ""), 5), "el puerto se aplica al salir del campo y la dirección lo muestra");
+
+  // Apagar y prender: 'Prendiendo…' mientras contesta; si había un nombre escrito, se agrega al prender.
+  await elegirAcceso("Apagado");
+  ok(await hasta(() => /Apagado/.test(document.querySelector("[data-celular] [role=status]")?.textContent ?? ""), 5), "apagar lo dice en el estado");
+  await escribir(NUEVO, "mi-reloj");
+  await elegirAcceso("Prendido");
+  ok(await hasta(() => /Prendiendo/.test(document.querySelector("[data-celular] [role=status]")?.textContent ?? ""), 1), "prender muestra 'Prendiendo…' mientras contesta");
+  ok(await hasta(() => /Escuchando/.test(document.querySelector("[data-celular] [role=status]")?.textContent ?? "") && /8800/.test(document.querySelector("[data-celular] code")?.textContent ?? ""), 5), "y después 'Escuchando' con la dirección y el código");
+  ok((await lista()) === "tablet-sala,mi-tablet,mi-celu,mi-reloj" && (await valor(NUEVO)) === "", "al prender, el nombre escrito se agregó");
   await foto("ajustes-celular");
+
+  // Quitar el último dispositivo deja el acceso apagado (uno por uno: cada quitar parte de lo que quedó).
+  for (let i = 0; i < 4; i++) {
+    await en(() => document.querySelector("[data-celular] .pn-quitar")?.click());
+    await espera(300);
+  }
+  ok((await lista()) === "" && /Apagado/.test(await texto("[data-celular] [role=status]")), "quitar todos deja el acceso apagado, sin dispositivos");
+  await elegirAcceso("Prendido");
+  ok(await hasta(() => /agregá al menos un dispositivo/.test(document.querySelector("[data-celular] [role=alert]")?.textContent ?? ""), 5), "prender sin dispositivos dice por qué");
+  ok(/Apagado/.test(await texto(`${ACCESO} button`)), "y el acceso sigue apagado");
+
+  // Lo aplicado vuelve al reabrir (el motor lo guardó), no lo que se quedó escrito.
+  await reabrir();
+  await en(() => document.querySelector(".aj-it[data-cat='celular']")?.click());
+  ok(await hasta(() => !!document.querySelector("[data-celular] .pn-nuevo"), 3), "la categoría Celular se abre de nuevo");
+  ok((await lista()) === "" && /8800/.test(await valor(PUERTO)), "lo aplicado vuelve al reabrir: sin dispositivos, con el puerto 8800");
+
+  // Vuelve a Modelos (la categoría con que arranca Ajustes): lo de abajo mira ese arranque.
+  await en(() => document.querySelector(".aj-it[data-cat='modelos']")?.click());
 
   // --- La estructura: categorías a la izquierda, buscador arriba, una categoría a la vez --------------------------------
   const cats = () => en(() => [...document.querySelectorAll(".aj-it")].map((b) => b.dataset.cat).join(","));
