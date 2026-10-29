@@ -79,6 +79,7 @@ export const CANALES = [
   ["vram:leer", "invoke"],
   ["vram:liberar", "invoke"],
   ["claudeCode:listar", "invoke"],
+  ["imagen:leer", "invoke"],
   ["lider:nuevo", "invoke"],
   ["lider:mandar", "invoke"],
   ["lider:mandarYa", "invoke"],

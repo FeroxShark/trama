@@ -125,7 +125,7 @@ contextBridge.exposeInMainWorld("hilos", {
     listar: (): Promise<unknown> => invocar("claudeCode:listar"),
   },
   /** Una imagen local que nombra un líder (electron/imagen-local.ts): `{ tipo, datos }` en base64, o `null` si no está. */
-  imagen: { leer: (ruta: string): Promise<unknown> => ipcRenderer.invoke("imagen:leer", ruta) },
+  imagen: { leer: (ruta: string): Promise<unknown> => invocar("imagen:leer", ruta) },
   lider: {
     nuevo: (x: unknown): Promise<string> => invocar("lider:nuevo", x),
     mandar: (x: unknown): Promise<void> => invocar("lider:mandar", x),
