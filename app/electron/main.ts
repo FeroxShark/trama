@@ -23,6 +23,12 @@ import { acomodar, crearGuardadoVolver, guardarVolver, leerVolver, lugarDeVentan
 import { silencio } from "./log.js";
 import { enMarcha, marcar, type Corrida } from "./reinicio-marcas.js";
 
+// `trama --version`: imprime la versión y sale antes de abrir nada (Electron no la maneja solo; el AppImage de CI lo usa).
+if (process.argv.includes("--version")) {
+  process.stdout.write(`${app.getVersion()}\n`);
+  app.exit(0);
+}
+
 // Wayland nativo siempre que haya sesión Wayland: un cliente XWayland colgado puede congelar Hyprland
 // entero (pasó con webkit + GDK_BACKEND=x11); uno Wayland nativo colgado sólo se cuelga a sí mismo.
 // Sin Wayland (X11, Xvfb de las pruebas) `auto` cae en X11 en vez de no abrir.
