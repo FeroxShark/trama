@@ -1,5 +1,9 @@
 # Cambios
 
+## Próxima
+
+- Gemini (agy): los modelos dependen de la cuenta, la región y la versión de agy. `reparto` elige sólo entre los que ese agy ofrece (los que no conoce entran con calidad estimada y marcada `~`), el selector de modelos los muestra, y si agy rechaza un modelo `pa` lo marca como no disponible y relanza con el siguiente candidato en vez de cortar.
+
 ## 0.2.24
 
 - Windows: pasar un líder a Claude por Google ya no da "spawn ENAMETOOLONG" (el mensaje va por stdin).

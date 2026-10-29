@@ -76,6 +76,13 @@ historia (force push); se puede subir directo y mergear sin esperar el CI.
   el cambio queda para el próximo turno (como antes). Si el envío falla, vuelve todo a la cola con el error y no se reintenta solo.
 - **Caja:** la cola se ve como "N en cola · salen en la próxima pausa" (`lider.cola1` / `lider.colaN`). "Mandar ya" desapareció.
 
+## Hecho: los modelos de agy salen de la cuenta
+
+- `reparto --agy-modelos [--refrescar] [--cuenta C] [--json]` lee `agy models` (caché 6 h, `REPARTO_AGY_MODELOS_S`; si agy falla usa la última lista). `reparto` elige sólo entre esos modelos; los que `FAMILIAS` no conoce entran como candidatos `agy:<id>` con la calidad de su familia en `low` (o 0 si no tiene familia) y origen `estimada`.
+- Un modelo que agy rechaza ("invalid model selection") se enfría 24 h (`reparto --enfriar`, `PA_ENFRIAR_AGY_H`) y `pa` relanza con el siguiente candidato (`agy_modelo_invalido` en `motor/bin/pa`, `relanzarPorModeloAgy` en `cli/pa/cupo.ts`). En TS sólo se pasa a otro modelo de agy, igual que el relanzado por 429.
+- La app: `modelos:config` suma `agyModelos` (`electron/agy-ofrecidos.ts`); `src/hilo/modelos.ts` (`agyDeCuenta`) arma la fila de Google con esos. Los ids sin nivel en el nombre (`…-thinking`) se lanzan tal cual (`recordarAgySinNivel`). Ajustes > Modelos ya sale de `reparto --tabla`.
+- Tests: fixtures `tests/fixtures/agy-models-cuenta-b*.txt`, casos "agy de otra cuenta" en `tests/paridad/casos-reparto.ts` y los de rechazo en `casos-cupo.ts`.
+
 ## Hecho: cambiar modelo o esfuerzo con el líder trabajando
 
 - **Los selectores de modelo y esfuerzo de la caja del líder ya no se bloquean durante un turno.** El cambio no toca el turno en
