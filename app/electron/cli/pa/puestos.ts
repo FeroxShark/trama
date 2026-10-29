@@ -136,9 +136,13 @@ export function workersSueltos(state: string): number {
 
 // ---------------------------------------------------------------- RAM
 
-/** `mem_disponible_mb`: MemAvailable en MB (PA_MEMINFO o /proc/meminfo; fuera de Linux, `os.freemem()`). -1 si no se puede leer. */
-export function memDisponibleMb(env: Record<string, string | undefined>, plat: string = process.platform): number {
-  if (!env.PA_MEMINFO && plat !== "linux") return Math.floor(os.freemem() / 1048576);
+/** `mem_disponible_mb`: MemAvailable en MB (PA_MEMINFO o /proc/meminfo; fuera de Linux, `libre()`, que por defecto es `os.freemem()`). -1 si no se puede leer. */
+export function memDisponibleMb(
+  env: Record<string, string | undefined>,
+  plat: string = process.platform,
+  libre: () => number = () => os.freemem(),
+): number {
+  if (!env.PA_MEMINFO && plat !== "linux") return Math.floor(libre() / 1048576);
   let t: string;
   try {
     t = readFileSync(env.PA_MEMINFO || "/proc/meminfo", "utf8");

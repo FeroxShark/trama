@@ -160,7 +160,7 @@ test("cola: se reescribe sólo al cambiar de clase o cada 5 s", () => {
   assert.equal(readFileSync(f, "utf8"), "los 3 puestos ocupados");
 });
 
-test("RAM: MemAvailable de PA_MEMINFO en MB, -1 sin dato; fuera de Linux sale de os.freemem()", () => {
+test("RAM: MemAvailable de PA_MEMINFO en MB, -1 sin dato; fuera de Linux sale de la memoria libre inyectada (por defecto os.freemem())", () => {
   const d = mkdtempSync(path.join(os.tmpdir(), "pa-meminfo-"));
   const f = path.join(d, "meminfo");
   writeFileSync(f, "MemTotal:       32000000 kB\nMemFree:          100000 kB\nMemAvailable:    4096000 kB\n");
@@ -168,7 +168,9 @@ test("RAM: MemAvailable de PA_MEMINFO en MB, -1 sin dato; fuera de Linux sale de
   assert.equal(memDisponibleMb({ PA_MEMINFO: path.join(d, "no") }), -1);
   writeFileSync(f, "MemTotal: 1 kB\n");
   assert.equal(memDisponibleMb({ PA_MEMINFO: f }), -1);
-  assert.equal(memDisponibleMb({}, "win32"), Math.floor(os.freemem() / 1048576));
+  // la memoria libre se inyecta: os.freemem() cambia entre dos llamadas y el test no puede depender de eso
+  assert.equal(memDisponibleMb({}, "win32", () => 3 * 1048576 + 5), 3);
+  assert.ok(memDisponibleMb({}, "win32") >= 0);
 });
 
 test("RAM: con 0 vivos entra siempre; con uno, hace falta costo + reserva por encima de lo reservado", async () => {
