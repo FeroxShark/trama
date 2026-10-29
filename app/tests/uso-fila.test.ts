@@ -59,12 +59,16 @@ test("en: cuántos segundos hasta que cambia el texto (en el último minuto, cad
   assert.equal(formatearFalta(6 * 86_400 + 14 * 3600 + 1800, U).en, 1800);
 });
 
-test("la falta abreviada para la celda: una unidad pasado el día, horas con minutos pegados", () => {
+test("la falta abreviada para la celda: horas con minutos pegados, y desde un día, días con horas", () => {
   const texto = (r: number) => formatearFaltaCorto(r, U).texto;
   assert.equal(texto(45), "45 s");
   assert.equal(texto(20 * 60), "20 min");
   assert.equal(texto(3600 + 20 * 60), "1 h20");
   assert.equal(texto(4 * 3600 + 5 * 60), "4 h05");
-  assert.equal(texto(4 * 86_400 + 3 * 3600), "4 d");
+  // Nunca "2 d" a secas: los días llevan sus horas, como en la falta larga.
+  assert.equal(texto(2 * 86_400 + 17 * 3600 + 900), "2 d 17 h");
+  assert.equal(texto(4 * 86_400 + 3 * 3600), "4 d 3 h");
+  assert.equal(texto(86_400), "1 d 0 h");
+  assert.equal(formatearFaltaCorto(2 * 86_400 + 17 * 3600 + 900, U).en, 900);
   assert.deepEqual(formatearFaltaCorto(0, U), { texto: "ya", en: Infinity });
 });

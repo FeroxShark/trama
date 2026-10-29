@@ -47,12 +47,11 @@ export function formatearHasta(iso: string | undefined): { d: number; m: number 
 }
 
 /**
- * Lo mismo, abreviado para la celda de la barra, donde tiene que entrar al lado del porcentaje: "45 s", "20 min", "1 h20", "4 d" (una sola
- * unidad cuando pasa de un día; las horas con los minutos pegados). Mismo `en` que `formatearFalta`.
+ * Lo mismo, abreviado para la celda de la barra, donde tiene que entrar al lado del porcentaje: "45 s", "20 min", "1 h20" (las horas con
+ * los minutos pegados) y, desde un día, "2 d 17 h" igual que `formatearFalta` (sin los minutos: "2 d" solo ya confundía). Mismo `en`.
  */
 export function formatearFaltaCorto(r: number, u: Unidades): { texto: string; en: number } {
   const largo = formatearFalta(r, u);
-  if (r < HORA) return largo;
-  if (r < DIA) return { texto: `${Math.floor(r / HORA)} ${u.h}${String(Math.floor((r % HORA) / MIN)).padStart(2, "0")}`, en: largo.en };
-  return { texto: `${Math.floor(r / DIA)} ${u.d}`, en: r % HORA || HORA };
+  if (r < HORA || r >= DIA) return largo;
+  return { texto: `${Math.floor(r / HORA)} ${u.h}${String(Math.floor((r % HORA) / MIN)).padStart(2, "0")}`, en: largo.en };
 }
