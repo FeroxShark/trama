@@ -404,7 +404,7 @@ body,
   color: var(--texto-1);
   font-weight: 600;
 }
-.g-acc-btn {
+.grupo > .g-acc > .g-acc-btn {
   height: 1.5rem;
   padding: 0 var(--esp-2);
   font-size: var(--letra-1);
@@ -413,7 +413,7 @@ body,
   color: var(--critico);
 }
 @media (pointer: coarse) {
-  .g-acc-btn {
+  .grupo > .g-acc > .g-acc-btn {
     height: 2.75rem;
   }
 }
