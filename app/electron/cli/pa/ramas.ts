@@ -405,6 +405,22 @@ function ultimasLineas(archivo: string, n: number): string[] {
 }
 
 /** `cmd_integrar`. */
+/**
+ * Un repo con app/ (Trama) recompila su dist-electron al integrar: así los pa de la línea de comandos (motor/bin/pa, reparto, tablero,
+ * cuentas) corren ya lo que entró. Sin app/tsconfig.electron.json no hace nada. Es silenciosa si anda; si tsc falla, scripts/
+ * asegurar-cli.mjs lo avisa por stderr y el --integrar sigue (lo integrado ya está en la rama principal).
+ */
+export function recompilarDistElectron(ruta: string): Promise<void> {
+  const helper = path.join(ruta, "app", "scripts", "asegurar-cli.mjs");
+  if (!existsSync(path.join(ruta, "app", "tsconfig.electron.json")) || !existsSync(helper)) return Promise.resolve();
+  return new Promise((resolver) => {
+    // process.execPath puede ser Electron (pa --integrar desde la app): ELECTRON_RUN_AS_NODE lo hace correr como node
+    const h = spawn(process.execPath, [helper, "--recompilar"], { cwd: ruta, env: { ...process.env, ELECTRON_RUN_AS_NODE: "1" }, stdio: ["ignore", "ignore", "inherit"], windowsHide: true });
+    h.once("error", () => resolver());
+    h.once("close", () => resolver());
+  });
+}
+
 export async function cmdIntegrar(x: Proy, t: string, o: { tests?: boolean } = {}): Promise<number> {
   const { pa } = x;
   const { io } = pa;
@@ -634,6 +650,7 @@ export async function cmdIntegrar(x: Proy, t: string, o: { tests?: boolean } = {
   const entraron = await gs(x, x.ruta, ["diff", "--name-only", b, headPpal]);
   await solapamiento(x, t, [entraron, tocados].join("\n"), "entró a main");
   await empujarMain(x, x.ruta);
+  await recompilarDistElectron(x.ruta);
   return 0;
 }
 

@@ -8,6 +8,7 @@ import os from "node:os";
 import path from "node:path";
 import { after } from "node:test";
 import { testPosix as test } from "./plataforma.ts";
+import { recompilarDistElectron } from "../electron/cli/pa/ramas.ts";
 
 const HELPER = path.resolve(import.meta.dirname, "../scripts/asegurar-cli.mjs");
 const NODE_MODULES = path.resolve(import.meta.dirname, "../node_modules");
@@ -130,4 +131,16 @@ test("dos recompilaciones a la vez: una compila, la otra espera y no vuelve a co
   assert.equal(a.err + b.err, "");
   assert.match(leer(dist(app)), /"v2"/);
   assert.equal(existsSync(path.join(app, "dist-electron", ".compilar.lock")), false);
+});
+
+test("pa --integrar (recompilarDistElectron) recompila el dist-electron del repo que tiene app/", async () => {
+  const ruta = path.dirname(armar("integrar"));
+  await recompilarDistElectron(ruta);
+  assert.match(leer(dist(path.join(ruta, "app"))), /"v2"/);
+});
+
+test("pa --integrar en un repo sin app/tsconfig.electron.json no compila nada", async () => {
+  const ruta = path.dirname(armar("sin-tsconfig", { fuentes: false }));
+  await recompilarDistElectron(ruta);
+  assert.equal(leer(dist(path.join(ruta, "app"))), "// v1\n");
 });
