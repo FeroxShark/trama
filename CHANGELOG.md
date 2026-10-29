@@ -2,6 +2,7 @@
 
 ## 0.2.25
 
+- Limpieza de worktrees y ramas viejos de pa: `pa --limpiar [--ver|--si] [--dias N] [--json]` quita los puestos libres y sin cambios, las ramas de corridas que ya entraron a main y el build sin usar, con N días de antigüedad (7 por defecto); nunca una rama con trabajo sin integrar ni algo en curso. En Ajustes > Proyectos: lista de lo que se borraría, confirmación y una pasada automática que viene apagada.
 - Gemini (agy): los modelos dependen de la cuenta, la región y la versión de agy. `reparto` elige sólo entre los que ese agy ofrece (los que no conoce entran con calidad estimada y marcada `~`), el selector de modelos los muestra, y si agy rechaza un modelo `pa` lo marca como no disponible y relanza con el siguiente candidato en vez de cortar.
 - Barra: proyectos y líderes ordenados por lo último que se usó, con control "Recientes | A-Z" que se recuerda.
 - Workers con modelos locales (dsh): compactan antes de llenar el contexto, que sale del `-c` real del modelo.

@@ -70,6 +70,22 @@ historia (force push); se puede subir directo y mergear sin esperar el CI.
   para lo que no porta y entonces sigue el bash (con `TRAMA_PA=bash` exportado para los hijos). El arnés de paridad fija esas
   variables en el lado A (el original), así que compara bash/python contra TS de verdad.
 
+## Hecho: limpieza de worktrees y ramas viejos de pa
+
+- **`pa --limpiar [--ver|--si] [--dias N] [--json]`** (bash en `motor/bin/pa`, TS en `app/electron/cli/pa/limpiar.ts`, con paridad en `casos-globales.ts`).
+  Sin `--si` sólo muestra (`--ver` es lo mismo, explícito). N: `--dias`, o `PA_LIMPIAR_DIAS`, o 7. Quita, siempre con el puesto tomado (flock) y el
+  candado de git del proyecto: (1) un puesto entero (k ≥ 2, nunca el 1) libre, en HEAD suelto cuyo commit está en alguna rama o tag, sin nada
+  sin commitear salvo los enlaces y dirs de build que puso pa, con el HEAD sin moverse hace N días (`git worktree remove`; pa lo rearma al
+  necesitarlo); (2) los dirs de build de los demás puestos libres sin archivos tocados en N días; (3) las ramas `pa/<slug>/<id>` de una `.corrida`
+  con id de hace N días o más que ya son ancestro de HEAD del tree principal y no están checkouteadas en ningún worktree (`git branch -d`,
+  nunca `-D`; con commits propios se borra también su `.corrida`). Una rama con commits sin integrar o un puesto en una rama no se tocan jamás;
+  si algo no se puede comprobar, no se quita. `--json` deja `{dias, aplicado, enUso, builds, worktrees, ramas, bytes}` en una línea.
+- **En la app:** Ajustes > Proyectos > «Limpieza de worktrees y ramas viejos» (`AjustesLimpieza.tsx`, canales `limpieza:leer|guardar|ver|aplicar`,
+  `electron/limpieza-pa.ts`): chips de días (3, 7, 14, 30), «Ver qué se borraría» muestra la lista exacta y «Borrar lo de la lista» la aplica.
+  La pasada automática (`limpieza.auto` en `preferencias.json`) viene APAGADA; prendida corre `pa --limpiar --si` a los 3 min de abrir la app y
+  cada 6 h. Los dos canales que escriben son sólo de la PC (`SOLO_PC_TAILNET`).
+- Windows: la misma lógica de TS (disposición `%LOCALAPPDATA%\trama\wt\<slug>\<k>`); falta probarla en un Windows real.
+
 ## Hecho: la cola entrega entre herramientas, todo junto
 
 - **Entrega por defecto a mitad de turno:** lo que el usuario encola con el líder trabajando ya no espera al fin del turno ni obliga
