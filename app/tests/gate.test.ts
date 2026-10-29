@@ -14,11 +14,9 @@ import path from "node:path";
 const MOTOR = path.join(import.meta.dirname, "..", "..", "motor");
 const GATE = path.join(MOTOR, "bin", "gate");
 const tmp = mkdtempSync(path.join(os.tmpdir(), "gate-"));
+// gate deja sus worktrees (base de rojos y desechables) en GATE_TMP: que sea este tmp, así no ensucia /tmp ni choca con otras corridas
+process.env.GATE_TMP = tmp;
 after(() => {
-  const sha = spawnSync("git", ["-C", repo, "rev-parse", "--short", "main"], { encoding: "utf8" }).stdout.trim();
-  if (sha) rmSync(path.join("/tmp", `base-${sha}`), { recursive: true, force: true });
-  const shaPlan = spawnSync("git", ["-C", repoPlan, "rev-parse", "--short", "main"], { encoding: "utf8" }).stdout.trim();
-  if (shaPlan) rmSync(path.join("/tmp", `base-${shaPlan}`), { recursive: true, force: true });
   rmSync(tmp, { recursive: true, force: true });
 });
 
@@ -427,7 +425,7 @@ test("acepta la rama entera como id y la deja sin worktrees desechables", () => 
   const id = rama({ "src/b.txt": "b\n" });
   const r = gate(`pa/mi-proyecto/${id}`);
   assert.equal(r.exit, 0, r.sal);
-  assert.equal(existsSync(path.join("/tmp", `gate-pa-mi-proyecto-${id}`)), false);
+  assert.equal(existsSync(path.join(tmp, `gate-pa-mi-proyecto-${id}`)), false);
 });
 
 test("node_modules: el worktree sin dependencias las enlaza durante el chequeo; el enlace no queda, ni con el chequeo rojo", () => {

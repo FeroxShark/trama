@@ -32,7 +32,7 @@
 #                     juzga el código, no la memoria del worker)
 #
 # <id> es el de la rama pa/<proyecto>/<id> (también vale la rama entera). Si la rama ya no tiene worktree, se saca uno
-# desechable en /tmp/gate-<id> y se borra al terminar.
+# desechable en $GATE_TMP/gate-<id> (/tmp por defecto) y se borra al terminar.
 #
 # Las dependencias no van a git: si el worktree tiene package.json (raíz o app/) y no su node_modules, pero el checkout
 # principal sí lo tiene, se enlaza (symlink) antes del chequeo y se quita al salir, también con error (unlink: sólo el enlace).
@@ -43,7 +43,7 @@
 # subtarea, calcula lo que no necesita juicio: A (chico/mediano/grande por wc -c de los "Leer" en main y cantidad de archivos
 # de "Modificar", sin tests ni archivos de T0), el piso de D (alto si toca nucleo.ts, puente.ts, preload, migrations/, .env o
 # permisos), los archivos calientes (en el "Modificar" de más de una subtarea), los KB de lectura y si el "Chequeo" da rojo
-# en un worktree limpio de main (/tmp/base-<sha>; --no-correr no lo corre). El líder sólo contesta B, C y E. Con --json sale
+# en un worktree limpio de main ($GATE_TMP/base-<sha>; --no-correr no lo corre). El líder sólo contesta B, C y E. Con --json sale
 # JSON. Formato de 20-plan.md: sección 4.1 del protocolo. Exits: 0 listo · 2 uso · 3 no resuelve proyecto/main/plan ·
 # 28 el plan tiene un problema (chequeo verde en main, "Leer" de más de 40 000 bytes, o más de 3 archivos a modificar)
 #
@@ -55,6 +55,8 @@ set -uo pipefail
 
 AQUI="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 STATE="${PA_STATE:-$HOME/.local/state/pa}"
+# dónde van los worktrees desechables y la base de rojos (<sha>): /tmp por defecto; el test lo apunta a su tmp
+GATE_TMP="${GATE_TMP:-/tmp}"
 
 uso() { sed -n '2,3p' "${BASH_SOURCE[0]}" | sed 's/^# *//' >&2; exit 2; }
 ayuda() { awk 'NR>1 && !/^#/{exit} NR>1{sub(/^# ?/,""); print}' "${BASH_SOURCE[0]}"; exit 0; }
@@ -149,7 +151,7 @@ if [[ -n "$plan" ]]; then
   sha="$(git -C "$repo" rev-parse --short "$main_ref")"
   bwt=""
   if ((!no_correr)); then
-    bwt="/tmp/base-$sha"
+    bwt="$GATE_TMP/base-$sha"
     if [[ ! -d "$bwt" ]]; then
       git -C "$repo" worktree add --detach "$bwt" "$main_ref" >/dev/null 2>&1 || fatal "no pude sacar $main_ref en $bwt"
     fi
@@ -278,7 +280,7 @@ git -C "$repo" rev-parse --verify -q "$main_ref" >/dev/null || fatal "no existe 
 # Worktree de la rama: el que ya la tiene, o uno desechable.
 wt="$(git -C "$repo" worktree list --porcelain | awk -v r="refs/heads/$rama" '/^worktree /{w=substr($0,10)} $0=="branch " r{print w; exit}')"
 if [[ -z "$wt" || ! -d "$wt" ]]; then
-  wt="/tmp/gate-${rama//\//-}"
+  wt="$GATE_TMP/gate-${rama//\//-}"
   git -C "$repo" worktree add --detach "$wt" "$rama" >/dev/null 2>&1 || fatal "no pude sacar un worktree de $rama en $wt"
   desechables+=("$wt")
 fi
@@ -430,7 +432,7 @@ else
   sha="$(git -C "$repo" rev-parse --short "$main_ref")"
   base="$STATE/$slug/base-$sha.txt"
   if [[ ! -f "$base" ]]; then
-    bwt="/tmp/base-$sha"
+    bwt="$GATE_TMP/base-$sha"
     if [[ ! -d "$bwt" ]]; then
       git -C "$repo" worktree add --detach "$bwt" "$main_ref" >/dev/null 2>&1 || fatal "no pude sacar $main_ref en $bwt"
     fi
