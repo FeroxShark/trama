@@ -704,7 +704,22 @@ function charlaImagenes(sid: string): Mensaje[] {
     modelo: null,
     imagenes: [imagenFija(1280, 800, 210), imagenFija(1280, 800, 30)],
   };
-  return [yo, ...c].map((m, i) => ({ ...m, i }));
+  // Lo que el modelo muestra: una ruta de Windows, una `ruta` suelta y un archivo que falta.
+  const veo: Mensaje = {
+    i: 0,
+    rol: "assistant",
+    texto: [
+      "Las veo. Así queda el panel con Ajustes abierto:",
+      "",
+      "![Panel corrido](C:\\Users\\ana\\Pictures\\captura 1.png)",
+      "",
+      "La otra está en `/tmp/trama/panel.png`, y de esta no encuentro el archivo: ![Antes](C:\\Users\\ana\\Pictures\\falta.png)",
+    ].join("\n"),
+    herramientas: [],
+    ts,
+    modelo: c[0]?.modelo ?? null,
+  };
+  return [yo, ...c, veo].map((m, i) => ({ ...m, i }));
 }
 
 /** Captura `lider-editar`: el pedido de siempre con dos capturas y un archivo (el de `lider-imagenes`, con ruta inventada). */
