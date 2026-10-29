@@ -1,7 +1,8 @@
 // Estadísticas de los WORKERS (`medicion.tsv`; los líderes no se anotan) y la
 // cuota de toda la cuenta (`statusline/historial.jsonl`). Barras finas sin
 // librerías de gráficos; cada sección nombra su ventana de tiempo, porque hay
-// cuatro (ver resumen.ts). La plata no se muestra: El usuario paga suscripción.
+// cuatro (ver resumen.ts). La plata no se muestra salvo el costo equivalente por modelo (precios de API, no lo que se paga:
+// la suscripción no cobra por token; ver CostoPorModelo.tsx).
 import { useEffect, useMemo, useState } from "react";
 import { VERSION } from "../datos/contrato";
 import { fuentePaneles, type Corrida, type Muestra } from "../datos/paneles";
@@ -10,6 +11,7 @@ import { coma, diaSemana, locale, t } from "../i18n";
 import { duracion } from "../tiempo";
 import { ErrorCarga } from "./ErrorCarga";
 import { Historial } from "./Historial";
+import { CostoPorModelo } from "./CostoPorModelo";
 import { Vacio } from "./Vacio";
 import "./estadisticas-vista.css";
 import { mensaje } from "../puente";
@@ -195,6 +197,7 @@ export function Estadisticas() {
       </section>
 
       <PorModelo partes={r.porModelo} />
+      <CostoPorModelo dias={dias} />
       <PorProyecto partes={r.porProyecto} />
 
       <Historial dias={dias} />

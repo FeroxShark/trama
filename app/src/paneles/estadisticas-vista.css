@@ -21,3 +21,29 @@
   outline: 1px solid var(--texto-3);
   outline-offset: 1px;
 }
+/* Costo equivalente por modelo: una fila por modelo y el total abajo. "sin precio" va en texto (no sólo en color). */
+.pn-costo {
+  display: grid;
+  gap: var(--esp-1-5);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.pn-costo-fila {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: baseline;
+  gap: var(--esp-3);
+}
+.pn-costo-fila .pn-tok {
+  text-align: right;
+}
+.pn-costo-fila [data-sin-precio] {
+  color: var(--texto-6);
+  font-style: italic;
+}
+.pn-costo-total {
+  margin-top: var(--esp-1);
+  padding-top: var(--esp-1-5);
+  border-top: 1px solid var(--capa-div);
+}
