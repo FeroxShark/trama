@@ -489,6 +489,7 @@ function armar(h: Hecho, mtimes: Map<string, number>, ahora: number, offs: numbe
     inicio: ini,
     duracion_s: duracion,
     puesto: esLeer ? null : (noVacio(H.puesto) ?? noVacio(C.puesto)),
+    espera_s: num(H.espera),
     rama: noVacio(C.rama) ?? noVacio(H.rama),
     commits: num(h.commits),
     decision: noVacio(dec),

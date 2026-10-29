@@ -456,6 +456,7 @@ async function orquestar(l: Llamada, pa: Pa, p: ProyectoCli, o: OpcionesOrquesta
       base: t.base,
       origen,
       puesto,
+      espera: adm.espera,
       leer,
       usaWorktree: t.usaWorktree,
       tengoLock,

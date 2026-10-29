@@ -59,6 +59,8 @@ export interface Corrida {
   origen: string;
   /** "" (--leer), "aca" o el número de puesto. */
   puesto: string;
+  /** Segundos que esperó lugar y puesto antes de arrancar (0 o sin dato: no esperó). Lo anotan el `.hilo` y `medicion.tsv`. */
+  espera?: number;
   leer: boolean;
   usaWorktree: boolean;
   /** ¿Tenemos el lock del puesto? (sin él no se escribe el .ultimo: es del que está corriendo). */
@@ -476,6 +478,7 @@ export function escribirHilo(l: Lanzamiento): void {
     ["origen", c.origen],
     ["leer", c.leer ? "1" : "0"],
     ["puesto", c.puesto],
+    ["espera", String(c.espera ?? 0)],
     ["lanzo", c.lanzo],
     ["jefe", c.jefe],
     ["jefe_id", c.jefeId],

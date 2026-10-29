@@ -36,6 +36,8 @@ export function runningVivo(run: string): boolean {
   return /^[0-9]+$/.test(p) && existe(Number(p));
 }
 
+/** Segundos enteros de ahora (`date +%s`). */
+const segundos = () => Math.floor(Date.now() / 1000);
 /** `${t:0:N}`: los primeros N caracteres. */
 const corte = (t: string, n: number) => Array.from(t).slice(0, n).join("");
 /** `printf %.Ns`: los primeros N BYTES (sin dejar un carácter partido a la mitad, que el bash sí deja). */
@@ -241,6 +243,9 @@ export class Admision {
   puesto = "";
   motivoTope = "";
   ocupadosTope = 0;
+  /** Segundos desde que empezó a pedir lugar/puesto hasta que lo tomó (0 si no esperó): lo anotan el `.hilo` y `medicion.tsv`. */
+  espera = 0;
+  private pedidoS = 0;
   private colaClase = "";
   private colaSeg = 0;
 
@@ -385,11 +390,13 @@ export class Admision {
 
   /** `esperar_lugar`: un --leer no toma puesto pero sí lugar. En primer plano sale 75; con --async hace cola. */
   async esperarLugar(): Promise<void> {
+    this.pedidoS = segundos();
     while (!(await this.tomarLugar())) {
       if (!this.async) this.topeLleno75();
       this.escribirCola(this.motivoTope);
       await dormir(jitterCola());
     }
+    this.espera = segundos() - this.pedidoS;
     await this.soltarTope();
     this.sacarCola();
   }
@@ -406,6 +413,7 @@ export class Admision {
     else if (this.o.aca) pedido = "aca";
     else if (this.o.tsRetomada) pedido = await puestoParaRetomar(x, this.o.tsRetomada);
     const cands = pedido ? [pedido] : Array.from({ length: x.pa.puestos }, (_, i) => String(i + 1));
+    this.pedidoS = segundos();
     for (;;) {
       let motivo: string;
       if (await this.tomarLugar()) {
@@ -442,6 +450,7 @@ export class Admision {
       this.escribirCola(motivo);
       await dormir(jitterCola());
     }
+    this.espera = segundos() - this.pedidoS;
     mkdirSync(x.dir, { recursive: true });
     writeFileSync(path.join(x.dir, `${x.ts}.puesto`), this.puesto);
     this.sacarCola();

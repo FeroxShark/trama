@@ -12,7 +12,7 @@ import { isoSegundos, tableroMudo } from "./ramas.ts";
 import { contarCompactaciones, decisionDe, decisionEsNada, frenoDe, leerSalida, sigueDe, textoResultado, transcriptDe } from "./resultado-lanzar.ts";
 
 export const MEDICION_HEADER_VIEJO = "fecha\tid\tproyecto\tmodelo\teffort\tleer\tseguir\tis_error\tnum_turns\tduration_s\ttokens\tcosto_usd\tbien";
-export const MEDICION_HEADER = `${MEDICION_HEADER_VIEJO}\tplan\tcompactaciones\tautocompact\torigen\tcache_read\tcache_creation\tephemeral_1h\tephemeral_5m\ttipo\tintegrada\tretrabajo\tcuenta\tfase\ttarea\trubrica\trub_fila\trub_modelo\trub_effort\tfreno`;
+export const MEDICION_HEADER = `${MEDICION_HEADER_VIEJO}\tplan\tcompactaciones\tautocompact\torigen\tcache_read\tcache_creation\tephemeral_1h\tephemeral_5m\ttipo\tintegrada\tretrabajo\tcuenta\tfase\ttarea\trubrica\trub_fila\trub_modelo\trub_effort\tfreno\tespera_s`;
 export const ESTADO_HEADER = "subtarea\tintento\tid\tmodelo\teffort\texit\tgate\tusd";
 
 type Obj = Record<string, unknown>;
@@ -105,7 +105,7 @@ export async function medir(pa: Pa, l: Lanzamiento, d: DatosFila = {}): Promise<
     c.leer ? "1" : "0",
     c.resume ? "1" : "0",
   ].join("\t") +
-    `\t${nums}\t\t${pa.plan}\t${comp}\t${c.autocompact || "nativo"}\t${c.lanzo || "jefe"}\t${cache}\t${c.tipo ?? ""}\t\t\t${c.cuenta}\t${c.fase ?? ""}\t${c.tareaId ?? ""}\t${c.rubrica ?? ""}\t${d.rub?.fila ?? ""}\t${d.rub?.modelo ?? ""}\t${d.rub?.effort ?? ""}\t${freno}`;
+    `\t${nums}\t\t${pa.plan}\t${comp}\t${c.autocompact || "nativo"}\t${c.lanzo || "jefe"}\t${cache}\t${c.tipo ?? ""}\t\t\t${c.cuenta}\t${c.fase ?? ""}\t${c.tareaId ?? ""}\t${c.rubrica ?? ""}\t${d.rub?.fila ?? ""}\t${d.rub?.modelo ?? ""}\t${d.rub?.effort ?? ""}\t${freno}\t${c.espera ?? 0}`;
   const f = path.join(pa.state, "medicion.tsv");
   mkdirSync(pa.state, { recursive: true });
   const lock = await tomar(f, { plat: pa.plat, env: pa.env, esperarMs: 30_000 });

@@ -41,6 +41,8 @@ export type Hilo = {
   inicio: number;
   duracion_s: number | null;
   puesto: Puesto | null;
+  /** Segundos que esperó un puesto (o lugar del tope) antes de arrancar; `null` o ausente en las corridas de antes de que se anotara. */
+  espera_s?: number | null;
   rama: string | null;
   commits: number;
   decision: string | null;
