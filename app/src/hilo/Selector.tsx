@@ -10,7 +10,7 @@ import { t } from "../i18n";
 import { Reserva } from "../i18n/Fijo";
 import { ChipLocal } from "./Logos";
 import { DialogoCambio, type DatosCambio } from "./DialogoCambio";
-import { filtrar, repartir } from "./selector-columnas";
+import { filtrar, moverEsfuerzo, repartir, type Flecha } from "./selector-columnas";
 
 export type Opcion = {
   id: string;
@@ -86,6 +86,11 @@ type Props = {
   /** Lo mismo para algo que este botón no muestra de entrada (el esfuerzo, cuando la barra lo fusiona en el chip del modelo): la marca sólo se ve con la barra compacta. */
   pendienteCompacto?: string;
   enteras?: boolean;
+  /**
+   * El esfuerzo del modelo, cuando la barra lo fusiona en el chip (`sufijo`): el menú del modelo lo trae al pie, para elegirlo ahí. Con esto,
+   * elegir un modelo no cierra el menú (el esfuerzo se elige en él); se cierra al elegir el esfuerzo, al tocar afuera o con Esc o Tab.
+   */
+  esfuerzo?: { etiqueta: string; opciones: Opcion[]; valor: string; alElegir: (id: string) => void };
 };
 
 /** El nombre de una opción, en su fuente si trae una. */
@@ -126,7 +131,7 @@ function colocar(boton: HTMLElement, menu: HTMLElement) {
 /** Desde cuántas opciones el menú en columnas trae la búsqueda. */
 const CON_BUSQUEDA = 8;
 
-export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, abierto: deEntrada = false, reserva, columnas = false, confirmar, sufijo, confirmando, senalAbrir = 0, pestana = null, pendiente, pendienteCompacto, enteras = false }: Props) {
+export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, abierto: deEntrada = false, reserva, columnas = false, confirmar, sufijo, confirmando, senalAbrir = 0, pestana = null, pendiente, pendienteCompacto, enteras = false, esfuerzo }: Props) {
   const [abierto, setAbierto] = useState(deEntrada || !!confirmando);
   const [pend, setPend] = useState<{ id: string; datos: DatosCambio } | null>(() => {
     const d = confirmando && confirmar ? confirmar(confirmando) : null;
@@ -200,7 +205,13 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
     if (conFoco) boton.current?.focus();
   };
 
-  const teclaBoton = (e: KeyboardEvent) => {
+  // Con el esfuerzo al pie del menú, elegir un modelo lo deja abierto: el esfuerzo se elige ahí.
+  const alElegirOpcion = (id: string) => {
+    alElegir(id);
+    if (!esfuerzo) cerrar();
+  };
+
+  const teclaBoton =(e: KeyboardEvent) => {
     if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
     e.preventDefault();
     setAbierto(true);
@@ -213,6 +224,35 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
     if (!buscando) return setTab(clave);
     // Buscando se ven todos los proveedores: la pestaña lleva al suyo.
     menu.current?.querySelector<HTMLElement>(`[data-grupo-clave="${CSS.escape(clave)}"]`)?.scrollIntoView({ block: "start" });
+  };
+
+  /** Los niveles de la fila de esfuerzo (al pie del menú). */
+  const niveles = () => [...(menu.current?.querySelectorAll<HTMLElement>('.mc-esf [role="radio"]') ?? [])];
+  /** Abajo de la última opción va a la fila de esfuerzo: al nivel elegido (o al primero). `false` si no hay fila. */
+  const irAEsfuerzo = () => {
+    const r = niveles();
+    (r.find((x) => x.getAttribute("aria-checked") === "true") ?? r[0])?.focus();
+    return r.length > 0;
+  };
+  /** Arriba de la fila de esfuerzo vuelve a la lista: a la opción elegida, o a la última si no está a la vista. */
+  const volverALista = () => {
+    const ops = items();
+    (ops.find((o) => o.getAttribute("aria-selected") === "true") ?? ops[ops.length - 1])?.focus();
+  };
+
+  /** Las teclas dentro de la fila de esfuerzo: flechas y Inicio/Fin recorren los niveles; Enter o Espacio (el clic) elige y cierra. */
+  const teclaEsfuerzo = (e: KeyboardEvent) => {
+    if (e.key === "Escape") {
+      e.stopPropagation();
+      return cerrar();
+    }
+    if (e.key === "Tab") return cerrar();
+    if (!["ArrowDown", "ArrowUp", "ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key)) return;
+    e.preventDefault();
+    const r = niveles();
+    const k = moverEsfuerzo(r.length, r.indexOf(document.activeElement as HTMLElement), e.key as Flecha);
+    if (k === null) return volverALista();
+    r[k]?.focus();
   };
 
   const teclaColumnas = (e: KeyboardEvent) => {
@@ -260,6 +300,7 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
     if (e.key === "ArrowDown" || e.key === "ArrowUp" || e.key === "Home" || e.key === "End") {
       e.preventDefault();
       if (i < 0) return op[0]?.focus();
+      if (e.key === "ArrowDown" && i === op.length - 1 && irAEsfuerzo()) return;
       if (e.key === "ArrowUp" && i === 0) return buscador.current?.focus() ?? tabs[0]?.focus();
       op[e.key === "Home" ? 0 : e.key === "End" ? op.length - 1 : Math.max(0, Math.min(op.length - 1, i + (e.key === "ArrowDown" ? 1 : -1)))]?.focus();
       return;
@@ -276,6 +317,7 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
   };
 
   const teclaMenu = (e: KeyboardEvent) => {
+    if (esfuerzo && niveles().includes(document.activeElement as HTMLElement)) return teclaEsfuerzo(e);
     if (enColumnas) return teclaColumnas(e);
     const ops = items();
     const i = ops.indexOf(document.activeElement as HTMLElement);
@@ -285,6 +327,7 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
     };
     switch (e.key) {
       case "ArrowDown":
+        if (i === ops.length - 1 && irAEsfuerzo()) return e.preventDefault();
         return ir(i + 1);
       case "ArrowUp":
         return ir(i - 1);
@@ -316,8 +359,7 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
         const datos = confirmar?.(o.id);
         // Otro motor: el menú sigue abierto y el chip como estaba hasta que se confirme.
         if (datos) return setPend({ id: o.id, datos });
-        alElegir(o.id);
-        cerrar();
+        alElegirOpcion(o.id);
       }}
     >
       <span className="on1">
@@ -348,8 +390,7 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
           const datos = confirmar?.(o.id);
           // Otro motor: el menú sigue abierto y el chip como estaba hasta que se confirme.
           if (datos) return setPend({ id: o.id, datos });
-          alElegir(o.id);
-          cerrar();
+          alElegirOpcion(o.id);
         }}
       >
         <span className="on1">
@@ -369,6 +410,37 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
       </button>
     );
   };
+
+  // La fila del esfuerzo al pie del menú del modelo: un nivel por botón, el elegido con tilde y en negrita (no sólo con el color).
+  const filaEsfuerzo = esfuerzo ? (
+    <div className="mc-esf" role="radiogroup" aria-label={esfuerzo.etiqueta}>
+      <span className="mh mc-esf-t" aria-hidden="true">
+        {esfuerzo.etiqueta}
+      </span>
+      {esfuerzo.opciones.map((o) => {
+        const elegida = o.id === esfuerzo.valor;
+        return (
+          <button
+            key={o.id}
+            type="button"
+            role="radio"
+            className="mc-esf-op"
+            tabIndex={-1}
+            aria-checked={elegida}
+            title={o.desc}
+            onClick={() => {
+              esfuerzo.alElegir(o.id);
+              cerrar();
+            }}
+          >
+            {o.marca}
+            <span className="mc-esf-n">{o.nombre}</span>
+            {elegida ? <Check size={13} strokeWidth={2.2} aria-hidden="true" /> : null}
+          </button>
+        );
+      })}
+    </div>
+  ) : null;
 
   return (
     <div className="pick">
@@ -411,8 +483,7 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
           alSi={() => {
             const id = pend.id;
             setPend(null);
-            alElegir(id);
-            cerrar();
+            alElegirOpcion(id);
           }}
           alNo={() => {
             setPend(null);
@@ -499,6 +570,7 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
                         {!visibles.length ? <div className="mc-nada">{t("selector.nada")}</div> : null}
                       </div>
                     </div>
+                    {filaEsfuerzo}
                   </>
                 ) : (
                   <>
@@ -516,6 +588,7 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
                         {opcion(o)}
                       </Fragment>
                     ))}
+                    {filaEsfuerzo}
                   </>
                 )}
               </div>

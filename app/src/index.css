@@ -6619,6 +6619,52 @@ summary.sis-div-t:hover,
 .menu[data-columnas] .op[aria-selected="true"] .on-n {
   font-weight: 600;
 }
+/* La fila del esfuerzo, al pie del menú del modelo (la barra lo fusionó en el chip): un nivel por botón; el elegido, con tilde y en negrita. */
+.mc-esf {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--esp-1);
+  margin-top: var(--esp-1);
+  padding: var(--esp-1-5) var(--esp-2-5) var(--esp-1);
+  border-top: 1px solid var(--borde-2);
+}
+.mc-esf-t {
+  width: 100%;
+  padding: 0 0 var(--esp-1);
+}
+.mc-esf-op {
+  display: inline-flex;
+  height: 2rem;
+  align-items: center;
+  gap: var(--esp-1-5);
+  padding: 0 var(--esp-2);
+  border: 1px solid var(--borde-3);
+  border-radius: var(--radio-2);
+  background: transparent;
+  color: var(--texto-3);
+  font: inherit;
+  font-size: var(--letra-4);
+  cursor: pointer;
+}
+.mc-esf-op:is(:hover, :focus-visible) {
+  background: var(--sup-2);
+  color: var(--texto-1);
+}
+.mc-esf-op[aria-checked="true"] {
+  border-color: var(--texto-6);
+  color: var(--texto-1);
+  font-weight: 600;
+}
+.mc-esf-op:focus-visible {
+  outline-offset: -2px;
+}
+@media (pointer: coarse) {
+  .mc-esf-op {
+    height: 2.5rem;
+  }
+}
 /* Celular: el riel pasa arriba, en horizontal (el nombre se va, queda el logo y la cuenta). */
 @media (max-width: 37.5rem) {
   .menu[data-columnas] {

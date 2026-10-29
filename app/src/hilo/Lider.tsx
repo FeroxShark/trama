@@ -1306,6 +1306,8 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, mirar =
                 confirmar={datosCambio}
                 confirmando={MODO.captura === "lider-cambio-motor" && MODO.variante === "confirmar" && l ? MODELOS.find((m) => familiaDe(m.id) !== familiaDe(l.modelo))?.id : undefined}
                 sufijo={effortsDe(modelo).length ? abreviar(effort) : undefined}
+                // Con el modelo y el esfuerzo en un solo chip (nivel 2 o 3 de la barra), el esfuerzo se elige al pie de este menú.
+                esfuerzo={nivel >= 2 && effortsDe(modelo).length ? { etiqueta: tr("comun.esfuerzo"), opciones: effortsOpciones(modelo), valor: effort, alElegir: elegirEffort } : undefined}
                 chip={<span className="chip" />}
                 columnas
                 pendiente={pend.modelo ? tr("selector.pendienteTip", { actual: nombreModelo(turnoModelo ?? modelo) }) : undefined}
