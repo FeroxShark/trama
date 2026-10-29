@@ -8,7 +8,7 @@ import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 import { testPosix } from "./plataforma.ts";
-import { comandoOriginal, correr, PA_BASH, type Contexto } from "./paridad/arnes.ts";
+import { borrarSandbox, comandoOriginal, correr, crearSandbox, PA_BASH, type Contexto } from "./paridad/arnes.ts";
 import { normalizar } from "./paridad/normalizar.ts";
 import { armarActualizar, contratoActualizar, prepararAuditar, validarCombinaciones, verificacionDe, verificadoDe } from "../electron/cli/pa/auditar.ts";
 import { prologo } from "../electron/cli/pa/entorno.ts";
@@ -124,42 +124,48 @@ testPosix("verificacionDe / verificadoDe: igual que verificacion_de / verificado
 });
 
 testPosix("--auditar: la tarea es la misma que arma el bash (con la del autor y --decisiones)", { timeout: 120_000 }, async () => {
-  let ctx: Contexto | undefined;
-  const preparar = (c: Contexto) => {
-    ctx = c;
-    corrida(c);
-    writeFileSync(path.join(c.estado, "proy", `${ID}.json`), JSON.stringify({ result: "RESULTADO: hecho\nVERIFICACION: npm test\n  ok 12\nDECISION: nada\n" }));
-    writeFileSync(path.join(c.aux, "dec.md"), "El nombre raro es a propósito.\n");
-  };
-  const a = correr({ nombre: "auditar", preparar, args: (c) => ["demo", "--sin-jefe", "-m", M, "--auditar", ID, "--decisiones", path.join(c.aux, "dec.md"), "fijate el borde"] }, comandoOriginal());
-  assert.equal(a.pasos[0]?.rc, 78, a.pasos[0]?.stderr);
-  const c = ctx!;
-  const x = fijarProyecto(paDe(c), "demo", c.proyecto);
-  const p = await prepararAuditar(x, ID, path.join(c.aux, "dec.md"), "fijate el borde");
-  assert.ok(p.ok);
-  assert.equal(normalizar(p.tarea, { tmp: [c.raiz] }), prompt(a.argvClaude[0]!));
+  // el test necesita el sandbox después de correr: lo crea y lo borra él (también si falla)
+  const c = crearSandbox();
+  try {
+    const preparar = () => {
+      corrida(c);
+      writeFileSync(path.join(c.estado, "proy", `${ID}.json`), JSON.stringify({ result: "RESULTADO: hecho\nVERIFICACION: npm test\n  ok 12\nDECISION: nada\n" }));
+      writeFileSync(path.join(c.aux, "dec.md"), "El nombre raro es a propósito.\n");
+    };
+    const a = correr({ nombre: "auditar", preparar, args: ["demo", "--sin-jefe", "-m", M, "--auditar", ID, "--decisiones", path.join(c.aux, "dec.md"), "fijate el borde"] }, comandoOriginal(), c);
+    assert.equal(a.pasos[0]?.rc, 78, a.pasos[0]?.stderr);
+    const x = fijarProyecto(paDe(c), "demo", c.proyecto);
+    const p = await prepararAuditar(x, ID, path.join(c.aux, "dec.md"), "fijate el borde");
+    assert.ok(p.ok);
+    assert.equal(normalizar(p.tarea, { tmp: [c.raiz] }), prompt(a.argvClaude[0]!));
+  } finally {
+    borrarSandbox(c);
+  }
 });
 
 testPosix("--actualizar: tarea, línea de contrato, lecciones y la base nueva de la corrida, como el bash", { timeout: 120_000 }, async () => {
-  let ctx: Contexto | undefined;
-  let base = "";
-  const preparar = (c: Contexto) => {
-    ctx = c;
-    base = corrida(c);
-    g(c, "commit", "-q", "--allow-empty", "-m", "main avanzó");
-    mkdirSync(path.join(c.estado, "proy"), { recursive: true });
-    writeFileSync(path.join(c.estado, "proy", "lecciones.md"), "- 2026-10-01 no tocar dist/\n");
-  };
-  const a = correr({ nombre: "actualizar", preparar, args: ["demo", "--sin-jefe", "-m", M, "--actualizar", ID, "ojo con a.txt"] }, comandoOriginal());
-  assert.equal(a.pasos[0]?.rc, 78, a.pasos[0]?.stderr);
-  const c = ctx!;
-  const n = (s: string) => normalizar(s, { tmp: [c.raiz] });
-  const shaBash = leerCampo(path.join(c.estado, "proy", `${ID}.corrida`), "base");
-  const x = fijarProyecto(paDe(c), "demo", c.proyecto);
-  const r = await armarActualizar(x, ID, { rama: `pa/proy/${ID}`, base, extra: "ojo con a.txt" });
-  assert.equal(r.shaMain, shaBash, "la base de la corrida pasa a ser el HEAD de main");
-  assert.equal(n(r.tarea), prompt(a.argvClaude[0]!));
-  const contrato = a.argvClaude[0]!.split("\n--append-system-prompt\n")[1] ?? "";
-  const wt = path.join(c.estado, "worktrees", "proy");
-  assert.ok(contrato.includes(n(leccionesBloque(x.dir) + contratoActualizar(`pa/proy/${ID}`, wt, r.shaMain))), contrato.slice(-1500));
+  // el test necesita el sandbox después de correr: lo crea y lo borra él (también si falla)
+  const c = crearSandbox();
+  try {
+    let base = "";
+    const preparar = () => {
+      base = corrida(c);
+      g(c, "commit", "-q", "--allow-empty", "-m", "main avanzó");
+      mkdirSync(path.join(c.estado, "proy"), { recursive: true });
+      writeFileSync(path.join(c.estado, "proy", "lecciones.md"), "- 2026-10-01 no tocar dist/\n");
+    };
+    const a = correr({ nombre: "actualizar", preparar, args: ["demo", "--sin-jefe", "-m", M, "--actualizar", ID, "ojo con a.txt"] }, comandoOriginal(), c);
+    assert.equal(a.pasos[0]?.rc, 78, a.pasos[0]?.stderr);
+    const n = (s: string) => normalizar(s, { tmp: [c.raiz] });
+    const shaBash = leerCampo(path.join(c.estado, "proy", `${ID}.corrida`), "base");
+    const x = fijarProyecto(paDe(c), "demo", c.proyecto);
+    const r = await armarActualizar(x, ID, { rama: `pa/proy/${ID}`, base, extra: "ojo con a.txt" });
+    assert.equal(r.shaMain, shaBash, "la base de la corrida pasa a ser el HEAD de main");
+    assert.equal(n(r.tarea), prompt(a.argvClaude[0]!));
+    const contrato = a.argvClaude[0]!.split("\n--append-system-prompt\n")[1] ?? "";
+    const wt = path.join(c.estado, "worktrees", "proy");
+    assert.ok(contrato.includes(n(leccionesBloque(x.dir) + contratoActualizar(`pa/proy/${ID}`, wt, r.shaMain))), contrato.slice(-1500));
+  } finally {
+    borrarSandbox(c);
+  }
 });
