@@ -88,6 +88,8 @@ export type Corrida = {
   /** `null` en las corridas de antes de que existiera la columna. */
   compactaciones: number | null;
   cache_read: number | null;
+  /** Segundos que esperó un puesto o lugar del tope antes de arrancar (0: no esperó); `null` en las corridas de antes. */
+  espera_s: number | null;
 };
 
 /**
@@ -184,6 +186,7 @@ export async function leerMedicion(ahora = Date.now() / 1000): Promise<Medicion>
       bien: clasificar(campo("bien")),
       compactaciones: numero(campo("compactaciones")),
       cache_read: numero(campo("cache_read")),
+      espera_s: numero(campo("espera_s")),
     });
   }
   return { version: 1, corridas, desde, cuota: await leerCuota(ahora) };

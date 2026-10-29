@@ -22,7 +22,9 @@ export function familia(id: string): Familia {
 }
 
 export type Suma = { n: number; tokens: number };
-export type Dia = Suma & { ts: number };
+/** Cuánto esperaron las corridas de un día para arrancar (segundos). `n`: las que tienen el dato. */
+export type Espera = { n: number; prom: number; max: number };
+export type Dia = Suma & { ts: number; espera: Espera };
 export type PorModelo = Suma & { familia: Familia };
 export type PorProyecto = Suma & { nombre: string; modelos: Record<Familia, number> };
 
@@ -74,12 +76,20 @@ function masDias(ts: number, n: number) {
   return f.getTime() / 1000;
 }
 
-/** Los últimos `dias` días de calendario (con hoy): corridas y tokens de cada uno. */
+/** Promedio y máximo de `espera_s` de las corridas que lo anotaron (sin dato: 0 y 0). */
+export function esperaDe(cs: Corrida[]): Espera {
+  const xs = cs.flatMap((c) => (c.espera_s === null ? [] : [c.espera_s]));
+  if (!xs.length) return { n: 0, prom: 0, max: 0 };
+  return { n: xs.length, prom: xs.reduce((s, x) => s + x, 0) / xs.length, max: Math.max(...xs) };
+}
+
+/** Los últimos `dias` días de calendario (con hoy): corridas, tokens y espera de cada uno. */
 export function diario(todas: Corrida[], dias: number, ahora: number): Dia[] {
   const hoy = inicioDia(ahora);
   return Array.from({ length: dias }, (_, i) => {
     const ts = masDias(hoy, i - dias + 1);
-    return { ts, ...sumar(entre(todas, ts, masDias(ts, 1))) };
+    const del = entre(todas, ts, masDias(ts, 1));
+    return { ts, ...sumar(del), espera: esperaDe(del) };
   });
 }
 

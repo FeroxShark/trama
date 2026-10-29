@@ -100,6 +100,8 @@ export type Corrida = {
   /** `null` en las corridas de antes de que existiera la columna. */
   compactaciones: number | null;
   cache_read: number | null;
+  /** Segundos que esperó un puesto o lugar del tope antes de arrancar (0: no esperó); `null` en las corridas de antes. */
+  espera_s: number | null;
 };
 
 /** Una línea de `statusline/historial.jsonl`: % real de la cuota de 5 h y semanal, y cuándo se renuevan. */

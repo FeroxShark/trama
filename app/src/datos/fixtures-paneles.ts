@@ -184,6 +184,8 @@ const corridas: Corrida[] = POR_DIA.slice(-DIAS).flatMap((n, i) =>
       ]),
       compactaciones: conCache ? (tokens > 5e6 ? 1 : 0) : null,
       cache_read: conCache ? Math.round(tokens * (0.86 + azar() * 0.12)) : null,
+      // La espera (`espera_s`) también es de hace 10 días; la mayoría de las corridas arranca sin esperar.
+      espera_s: conCache ? (azar() < 0.6 ? 0 : Math.round(azar() * azar() * 900)) : null,
     };
   }),
 );
