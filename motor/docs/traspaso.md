@@ -24,8 +24,9 @@ historia (force push); se puede subir directo y mergear sin esperar el CI.
 - `app/`: Electron + React 19 + Vite + TS. `app/electron/` es el proceso principal (IPC en `nucleo.ts`, `preload.cts`,
   `src/puente.ts`); `app/src/` es la interfaz (barra lateral en `src/barra/`, ajustes en `src/paneles/`, hilos en `src/hilo/`).
   Tests con `node --test` (`app/scripts/test.mjs`).
-- `motor/`: `bin/pa` (bash, delega tareas a workers en worktrees), `bin/reparto` (python, elige modelo según calidad y cupo),
-  `bin/tablero`, `bin/cuentas`, `bin/trama-estado`, hooks (`motor/hooks/*.mjs`), runner de OpenCode (`motor/opencode/`).
+- `motor/`: `bin/pa` (delega tareas a workers en worktrees; el default es el pa de TS, ver Hecho abajo), `bin/reparto` (elige
+  modelo según calidad y cupo), `bin/tablero`, `bin/cuentas` (estos tres también defaultean a TS), `bin/trama-estado`, hooks
+  (`motor/hooks/*.mjs`), runner de OpenCode (`motor/opencode/`).
 - CI: `.github/workflows/ci.yml`, trabajos `linux` y `windows`.
 
 ## Hecho (ya en `main`)
@@ -62,6 +63,12 @@ historia (force push); se puede subir directo y mergear sin esperar el CI.
   capturas: `scripts/captura.sh trama|trama-abierto|trama-sucio`.
 - **Port a Windows, etapas 0 a 4:** CI linux + windows, base TS (`app/electron/cli/base/`), arnés de paridad bash vs TS
   (`app/tests/paridad/`), `proyecto-ruta` / `trama-estado` / `workers` en TS, hooks en `.mjs`.
+- **Default en TS (etapa 11 del port, Linux).** `motor/bin/pa`, `reparto`, `tablero` y `cuentas` corren el port de TS
+  (`app/dist-electron/cli/<x>.js`, compilado con `npx tsc -p tsconfig.electron.json` en `app/`; `dist-electron/` no va al
+  repo). Escape hatch: `TRAMA_PA=bash` vuelve al `pa` de bash; `TRAMA_REPARTO=py`, `TRAMA_TABLERO=py` y `TRAMA_CUENTAS_CLI=py`
+  vuelven a los de python. Si falta node o el `.js`, cada uno avisa por stderr y sigue con el original. El `pa` de TS sale 70
+  para lo que no porta y entonces sigue el bash (con `TRAMA_PA=bash` exportado para los hijos). El arnés de paridad fija esas
+  variables en el lado A (el original), así que compara bash/python contra TS de verdad.
 
 ## Hecho: la cola entrega entre herramientas, todo junto
 
