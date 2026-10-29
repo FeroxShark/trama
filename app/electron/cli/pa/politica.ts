@@ -554,13 +554,16 @@ export async function aplicarPolitica(l: Llamada, pa: Pa, deps: DepsPolitica): P
     if (!calza(GEMINI_MODELOS, l.modelo.toLowerCase())) {
       // el catálogo de agy cambia con la cuenta, la región y la versión: vale lo que el agy de esta cuenta ofrece (reparto --agy-modelos)
       const cuentaAgy = l.cuentaUsada && !["claude", "google", "chatgpt"].includes(l.cuentaUsada) ? l.cuentaUsada : undefined;
-      const ofrecidos = (await deps.reparto.agyModelos?.({ cuenta: cuentaAgy })) ?? [];
-      if (!ofrecidos.includes(l.modelo.toLowerCase()))
+      let ofrecidos = (await deps.reparto.agyModelos?.({ cuenta: cuentaAgy })) ?? [];
+      if (!ofrecidos.includes(l.modelo.toLowerCase())) {
+        // sin ninguno fuera de los conocidos (sin agy o sin sesión, reparto devuelve los de siempre) la lista no dice nada nuevo
+        if (ofrecidos.every((m) => calza(GEMINI_MODELOS, m))) ofrecidos = [];
         corta(
           pa,
           2,
           `pa: modelo '${l.modelo}' no va. Modelos de agy en pa: gemini-{4-argon,3.8-flash}-{low,medium,high}, agy:claude-{opus,sonnet}-5-5-{low,medium,high} o agy:gpt-oss-120b-medium${ofrecidos.length ? `, y los que ofrece el agy de esta cuenta: ${ofrecidos.join(" ")}` : ""}.`,
         );
+      }
     }
     l.modelo = l.modelo.toLowerCase();
     if (l.esfuerzoFlag) corta(pa, 2, `pa: --effort no va con '${l.modelo}': en agy el effort es parte del nombre (…-low, …-medium, …-high).`);

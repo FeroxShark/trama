@@ -5468,6 +5468,8 @@ if (( lanza )) && es_gemini "$modelo"; then
     # el catálogo de agy cambia con la cuenta, la región y la versión: vale lo que el agy de esta cuenta ofrece (reparto --agy-modelos)
     ofrecidos=""; [[ -x "$REPARTO" ]] && ofrecidos="$(agy_modelos_lista)" || true
     if ! grep -qxF -- "${modelo,,}" <<<"$ofrecidos"; then
+      # sin ninguno fuera de los conocidos (sin agy o sin sesión, reparto devuelve los de siempre) la lista no dice nada nuevo
+      grep -vxE -- "$GEMINI_MODELOS" <<<"$ofrecidos" | grep -q . || ofrecidos=""
       ofrecidos="${ofrecidos//$'\n'/ }"
       echo "pa: modelo '$modelo' no va. Modelos de agy en pa: gemini-{4-argon,3.8-flash}-{low,medium,high}, agy:claude-{opus,sonnet}-5-5-{low,medium,high} o agy:gpt-oss-120b-medium${ofrecidos:+, y los que ofrece el agy de esta cuenta: $ofrecidos}." >&2
       exit 2
