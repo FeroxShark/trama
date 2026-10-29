@@ -31,7 +31,9 @@ export type Bloque =
 export type Trozo =
   | { tipo: "texto" | "code" | "b" | "i" | "s"; texto: string }
   /** `url` vacía: un enlace que todavía está llegando (`vivo`). */
-  | { tipo: "link"; texto: string; url: string };
+  | { tipo: "link"; texto: string; url: string }
+  /** `![texto](url)`: `texto` es el alt y `url`, lo que hay entre paréntesis (una ruta local, un data: o una URL; lo decide el que pinta). */
+  | { tipo: "img"; texto: string; url: string };
 
 export type Opciones = {
   /** El texto está llegando: lo que quedó a medias no cambia de forma al completarse. */
@@ -275,6 +277,8 @@ const EN_LINEA = new RegExp(
       "\\*\\*\\*[^*\\n]+\\*\\*\\*",
       "\\*\\*[^*\\n]+\\*\\*",
       "~~[^~\\n]+~~",
+      // Una imagen: `![alt](ruta)`; la ruta puede llevar espacios y un nivel de paréntesis (`Program Files (x86)`) o ir entre <>.
+      "!\\[[^\\]\\n]*\\]\\((?:<[^>\\n]+>|(?:[^()\\n]|\\([^()\\n]*\\))+)\\)",
       "\\[[^\\]\\n]+\\]\\((?:https?:\\/\\/|mailto:)[^)\\s]+\\)",
       "<https?:\\/\\/[^\\s<>]+>",
       URL_SUELTA.source,
@@ -284,6 +288,7 @@ const EN_LINEA = new RegExp(
     ].join("|") +
     ")",
 );
+const IMAGEN = /^!\[([^\]\n]*)\]\((?:<([^>\n]+)>|((?:[^()\n]|\([^()\n]*\))+))\)$/;
 const ENLACE = /^\[([^\]\n]+)\]\(((?:https?:\/\/|mailto:)[^)\s]+)\)$/;
 /** Un enlace a medio llegar, al final del texto: `[texto](https://exam`. */
 const ENLACE_A_MEDIAS = /\[([^\]\n]+)\]\([^)\s]*$/;
@@ -333,7 +338,9 @@ export function trozos(t: string, op: { vivo?: boolean; enlaces?: boolean } = {}
     if (n % 2 === 0) return texto(x);
     const c = x[0];
     const m = c === "[" ? ENLACE.exec(x) : null;
-    if (c === "`") out.push({ tipo: "code", texto: x.slice(1, -1) });
+    const im = c === "!" ? IMAGEN.exec(x) : null;
+    if (im) enlaces ? out.push({ tipo: "img", texto: im[1], url: (im[2] ?? im[3]).trim() }) : texto(im[1]);
+    else if (c === "`") out.push({ tipo: "code", texto: x.slice(1, -1) });
     else if (x.startsWith("***")) out.push({ tipo: "b", texto: x.slice(3, -3) });
     else if (x.startsWith("**")) out.push({ tipo: "b", texto: x.slice(2, -2) });
     else if (c === "~") out.push({ tipo: "s", texto: x.slice(2, -2) });

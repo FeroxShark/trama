@@ -2,12 +2,14 @@
 // (y en la caja, con × para sacarlas); un clic abre la imagen grande sobre la
 // vista (un clic, Esc o su botón la cierran; mientras llega dice que está cargando). Un archivo que no es imagen es un chip con su
 // nombre (en la caja, con ×; en el globo, sacado de la línea con su ruta).
-import { memo, useLayoutEffect, useRef, useState } from "react";
+import { memo, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { FileText, X } from "lucide-react";
+import { FileText, ImageIcon, ImageOff, X } from "lucide-react";
 import { motion, useReducedMotion } from "motion/react";
 import type { ArchivoAdjunto } from "../../electron/adjunto";
 import type { Imagen } from "../../electron/imagenes";
+import { nombreDe, rutaImagen } from "../../electron/imagen-ruta";
+import { fuente } from "../datos/fuente";
 import { useFoco } from "../foco";
 import { MODO } from "../modo";
 import { t } from "../i18n";
@@ -142,5 +144,96 @@ export const Adjuntos = memo(function Adjuntos({ lista, alQuitar }: { lista: rea
       ))}
       {abierta ? <Visor img={abierta} alCerrar={() => setAbierta(null)} /> : null}
     </div>
+  );
+});
+
+// --- Imágenes que el modelo nombra en su texto -------------------------------------------------------------------
+// `![](C:\ruta\x.png)`, un `/tmp/x.png` entre comillas invertidas o un data: de imagen. El archivo lo lee el main
+// (canal `imagen:leer`: sólo rutas absolutas de imágenes, sólo lectura), así se ve igual en Linux, en Windows y en el
+// celular; si no está, una línea con su nombre en vez de un ícono roto.
+
+/** Las ya leídas, para que repintar el mensaje no las vuelva a pedir (pocas: una captura pesa megas). */
+const LEIDAS_MAX = 12;
+const leidas = new Map<string, Imagen>();
+
+function pedir(ruta: string): Promise<Imagen | null> {
+  const ya = leidas.get(ruta);
+  if (ya) return Promise.resolve(ya);
+  return fuente.imagenLocal(ruta).then(
+    (img) => {
+      if (img) {
+        if (leidas.size >= LEIDAS_MAX) leidas.delete(leidas.keys().next().value!);
+        leidas.set(ruta, img);
+      }
+      return img;
+    },
+    () => null,
+  );
+}
+
+/** La imagen de `ruta`: `undefined` mientras se lee, `null` si no está (o la ruta no vale: una relativa no se puede ubicar). */
+function useImagenLocal(ruta: string): Imagen | null | undefined {
+  const [img, setImg] = useState<Imagen | null | undefined>(() => (rutaImagen(ruta) ? leidas.get(ruta) : null));
+  useEffect(() => {
+    if (!rutaImagen(ruta)) return void setImg(null);
+    let vigente = true;
+    setImg(leidas.get(ruta));
+    void pedir(ruta).then((i) => vigente && setImg(i));
+    return () => {
+      vigente = false;
+    };
+  }, [ruta]);
+  return img;
+}
+
+/** Una imagen ya lista, como miniatura grande que abre el visor; `img` en `undefined` es "cargando", en `null`, "no disponible". */
+function Figura({ img, nombre, ruta, alt }: { img: Imagen | null | undefined; nombre: string; ruta?: string; alt?: string }) {
+  useIdioma();
+  const [abierta, setAbierta] = useState(false);
+  if (img === undefined)
+    return (
+      <span className="img-local" data-estado="cargando" role="status">
+        {t("adjunto.cargando")}
+      </span>
+    );
+  if (img === null)
+    return (
+      <span className="img-local" data-estado="falta" data-tip={ruta}>
+        <ImageOff size={14} strokeWidth={2} aria-hidden="true" />
+        <span>{t("imagen.noDisponible", { nombre })}</span>
+      </span>
+    );
+  return (
+    <>
+      <button type="button" className="img-local" data-estado="lista" aria-label={t("adjunto.ver")} data-tip={t("adjunto.ver")} onClick={() => setAbierta(true)}>
+        <img src={urlDe(img)} alt={alt || nombre} loading="lazy" decoding="async" />
+      </button>
+      {abierta ? <Visor img={img} alCerrar={() => setAbierta(false)} /> : null}
+    </>
+  );
+}
+
+/** El `![alt](ruta)` de un mensaje cuando `ruta` es un archivo de esta máquina. */
+export const ImagenLocal = memo(function ImagenLocal({ ruta, alt }: { ruta: string; alt?: string }) {
+  const img = useImagenLocal(ruta);
+  return <Figura img={img} nombre={nombreDe(ruta)} ruta={ruta} alt={alt} />;
+});
+
+/** El `![alt](data:image/…;base64,…)` de un mensaje: ya trae los bytes. */
+export const ImagenInsertada = memo(function ImagenInsertada({ img, alt }: { img: Imagen; alt?: string }) {
+  return <Figura img={img} nombre={alt || t("adjunto.imagen")} alt={alt} />;
+});
+
+/** Al lado de un `código` que es la ruta de una imagen: un botón que la muestra abajo (no se lee nada hasta tocarlo). */
+export const VerImagenLocal = memo(function VerImagenLocal({ ruta }: { ruta: string }) {
+  useIdioma();
+  const [ver, setVer] = useState(false);
+  return (
+    <>
+      <button type="button" className="img-ver" aria-pressed={ver} aria-label={t("imagen.ver")} data-tip={t("imagen.ver")} onClick={() => setVer((v) => !v)}>
+        <ImageIcon size={12} strokeWidth={2} aria-hidden="true" />
+      </button>
+      {ver ? <ImagenLocal ruta={ruta} /> : null}
+    </>
   );
 });

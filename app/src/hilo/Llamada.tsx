@@ -9,6 +9,7 @@ import { useIdioma } from "../i18n/react";
 import { MODO } from "../modo";
 import { cambios, cuerpo, type Grupo, type LineaDiff, type Uso } from "./herramientas";
 import { HERRAMIENTA_PREGUNTAS, respondidas } from "./preguntas-logica";
+import { Miniaturas } from "./Imagenes";
 import { LlamadaPreguntas } from "./Preguntas";
 
 /** Las líneas de un Write largo que se muestran antes de "… N líneas más". */
@@ -59,12 +60,13 @@ function Cuerpo({ u }: { u: Uso }) {
           {r.texto.trimEnd()}
         </pre>
       ) : null}
+      {r?.imagenes?.length ? <Miniaturas imagenes={r.imagenes} /> : null}
     </div>
   );
 }
 
 /** Tiene algo para mostrar al abrirse. */
-const abre = (u: Uso) => cuerpo(u.det).tipo !== "nada" || !!u.det?.resultado?.texto.trim();
+const abre = (u: Uso) => cuerpo(u.det).tipo !== "nada" || !!u.det?.resultado?.texto.trim() || !!u.det?.resultado?.imagenes?.length;
 
 /**
  * Cómo va una llamada (un motor que deja ver su trabajo): sin resultado todavía y el turno corriendo es `corriendo`; con el resultado,

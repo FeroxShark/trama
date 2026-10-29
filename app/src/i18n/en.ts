@@ -1229,6 +1229,8 @@ export const en = {
   "adjunto.cargando": "Loading image…",
   "adjunto.cerrar": "Close",
   "adjunto.noAbre": "Couldn't open the image",
+  "imagen.noDisponible": "Image not available: {nombre}",
+  "imagen.ver": "Show image",
   "atajos.titulo": "Keyboard shortcuts",
   "atajos.cerrar": "Close shortcuts",
   "atajos.o": "or",

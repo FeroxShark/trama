@@ -1217,6 +1217,8 @@ export const es: { [K in keyof typeof en]: string } = {
   "adjunto.cargando": "Cargando imagen…",
   "adjunto.cerrar": "Cerrar",
   "adjunto.noAbre": "No se pudo abrir la imagen",
+  "imagen.noDisponible": "Imagen no disponible: {nombre}",
+  "imagen.ver": "Ver imagen",
   "atajos.titulo": "Atajos de teclado",
   "atajos.cerrar": "Cerrar los atajos",
   "atajos.o": "o",

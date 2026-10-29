@@ -330,7 +330,7 @@ export type EventoLider =
   | { tipo: "pensamiento"; texto: string }
   | { tipo: "mensaje"; mid: string | null; texto: string; herramientas: string[]; modelo: string | null; det?: Herramienta[]; pensado?: string }
   /** Lo que devolvió una herramienta (el final, recortado): se pega a su `det` por `id`. */
-  | { tipo: "resultado"; id: string; texto: string; error: boolean }
+  | { tipo: "resultado"; id: string; texto: string; error: boolean; imagenes?: { tipo: string; datos: string }[] }
   | { tipo: "fin"; error: string | null; ttl: number | null }
   | { tipo: "control"; id: string; ok: boolean; error?: string }
   | { tipo: "hace"; hace: HaceLider }
@@ -455,7 +455,7 @@ export type Herramienta = {
   cortado?: boolean;
   /** El `tool_use_id`, para pegarle el resultado cuando llega. */
   id?: string | null;
-  resultado?: { texto: string; error: boolean } | null;
+  resultado?: { texto: string; error: boolean; imagenes?: { tipo: string; datos: string }[] } | null;
 };
 
 /** Los tokens del último turno: lo que pesa la conversación si se relee entera. */

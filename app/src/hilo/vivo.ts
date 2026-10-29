@@ -181,7 +181,7 @@ function cambiarPor(sid: string, ev: EventoLider) {
         while (k >= 0 && !e.tanda[k].det?.some((d) => d.id === ev.id)) k--;
         if (k < 0) return e;
         const m = e.tanda[k];
-        const det = m.det!.map((d) => (d.id === ev.id ? { ...d, resultado: { texto: ev.texto, error: ev.error } } : d));
+        const det = m.det!.map((d) => (d.id === ev.id ? { ...d, resultado: { texto: ev.texto, error: ev.error, ...(ev.imagenes ? { imagenes: ev.imagenes } : {}) } } : d));
         return { ...e, tanda: e.tanda.map((x, j) => (j === k ? { ...m, det } : x)) };
       }
       case "hace":

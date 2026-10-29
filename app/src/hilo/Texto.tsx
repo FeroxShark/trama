@@ -7,6 +7,8 @@ import { Check, Copy } from "lucide-react";
 import { copiarConAviso } from "../copiar";
 import { t } from "../i18n";
 import { useIdioma } from "../i18n/react";
+import { rutaImagen } from "../../electron/imagen-ruta";
+import { ImagenInsertada, ImagenLocal, VerImagenLocal } from "./Imagenes";
 import { bloques, esRuta, sueltas, trozos, type Bloque, type Lista, type Trozo } from "./markdown";
 import { resaltar } from "./resaltar";
 
@@ -23,13 +25,30 @@ function Enlace({ x, children }: { x: Extract<Trozo, { tipo: "link" }>; children
   );
 }
 
+/** `![alt](src)`: un data: de imagen trae los bytes; una URL de la red no se baja (sale como enlace); lo demás es un archivo de esta máquina. */
+const DATA_IMAGEN = /^data:(image\/(?:png|jpeg|gif|webp));base64,([A-Za-z0-9+/]+={0,2})$/;
+function Imagen({ x }: { x: Extract<Trozo, { tipo: "img" }> }) {
+  const d = DATA_IMAGEN.exec(x.url);
+  if (d) return <ImagenInsertada img={{ tipo: d[1], datos: d[2] }} alt={x.texto} />;
+  if (/^https?:\/\//i.test(x.url))
+    return (
+      <Enlace x={{ tipo: "link", texto: x.texto || x.url, url: x.url }}>{x.texto || x.url}</Enlace>
+    );
+  // Lo que no apunta a una imagen (`vec![0](x)`) es texto, como antes.
+  if (!/\.(?:png|jpe?g|gif|webp|bmp)$/i.test(x.url)) return <>{`![${x.texto}](${x.url})`}</>;
+  return <ImagenLocal ruta={x.url} alt={x.texto} />;
+}
+
 function enLinea(texto: string, op: { vivo?: boolean; enlaces?: boolean } = {}): ReactNode[] {
   const adentro = (s: string) => enLinea(s, { enlaces: op.enlaces });
   return trozos(texto, op).map((x, i) =>
     x.tipo === "code" ? (
-      <code key={i} data-ruta={esRuta(x.texto) ? "" : undefined}>
-        {x.texto}
-      </code>
+      <Fragment key={i}>
+        <code data-ruta={esRuta(x.texto) ? "" : undefined}>{x.texto}</code>
+        {rutaImagen(x.texto) ? <VerImagenLocal ruta={x.texto} /> : null}
+      </Fragment>
+    ) : x.tipo === "img" ? (
+      <Imagen key={i} x={x} />
     ) : x.tipo === "b" ? (
       <b key={i}>{adentro(x.texto)}</b>
     ) : x.tipo === "i" ? (

@@ -7,7 +7,7 @@ import { ttlDeUso } from "./cache.ts";
 import { clavePath, pathConLocal } from "./binario.ts";
 import { errorT, textoT } from "./errores.ts";
 import { deDueno } from "./dueno.ts";
-import { contenidoUsuario, imagenesDeContenido, type Imagen } from "./imagenes.ts";
+import { BASE64_MAX, contenidoUsuario, imagenesDeContenido, type Imagen } from "./imagenes.ts";
 import { HERRAMIENTA_PREGUNTAS, preguntasDe, type Pregunta } from "./preguntas.ts";
 
 type Env = Record<string, string | undefined>;
@@ -421,7 +421,7 @@ export type Evento =
   | { tipo: "pensamiento"; texto: string }
   | { tipo: "mensaje"; mid: string | null; texto: string; herramientas: string[]; modelo: string | null; det: Det[]; pensado?: string }
   /** Lo que devolvió una herramienta (el final): va a su `det` por `id` (src/hilo/vivo.ts). */
-  | { tipo: "resultado"; id: string; texto: string; error: boolean }
+  | { tipo: "resultado"; id: string; texto: string; error: boolean; imagenes?: Imagen[] }
   | { tipo: "fin"; error: string | null; ttl: number | null }
   /** El eco de un mensaje del usuario (`--replay-user-messages`): el CLI lo entregó al modelo. Sólo el texto; lo cruza `lider.ts` con lo que mandó. */
   | { tipo: "replay"; texto: string }
@@ -636,7 +636,7 @@ export type Det = {
   entrada: Record<string, unknown>;
   cortado?: boolean;
   id: string | null;
-  resultado?: { texto: string; error: boolean } | null;
+  resultado?: { texto: string; error: boolean; imagenes?: Imagen[] } | null;
 };
 
 /** Un `tool_use` → nombre y entrada con los textos recortados (como `pa --hilo`). */
@@ -674,12 +674,18 @@ export function colaDe(content: unknown): string {
   return ls.length > COLA_LINEAS || cola.length < t.trimEnd().length ? `…\n${cola}` : cola;
 }
 
-/** Los `tool_result` de un mensaje del usuario. */
-function resultadosDe(c: unknown): { id: string; texto: string; error: boolean }[] {
+/** Cuántas imágenes de un `tool_result` (un Read de un .png, una captura de MCP) se guardan, y de qué peso: base64 de hasta BASE64_MAX. */
+const IMAGENES_RESULTADO = 4;
+
+/** Los `tool_result` de un mensaje del usuario, con las imágenes que traen (bloques `image` en base64). */
+function resultadosDe(c: unknown): { id: string; texto: string; error: boolean; imagenes?: Imagen[] }[] {
   if (!Array.isArray(c)) return [];
   return c
     .filter((b: any) => b?.type === "tool_result" && typeof b.tool_use_id === "string")
-    .map((b: any) => ({ id: b.tool_use_id, texto: colaDe(b.content), error: b.is_error === true }));
+    .map((b: any) => {
+      const imagenes = imagenesDeContenido(b.content).filter((i) => i.datos.length <= BASE64_MAX).slice(0, IMAGENES_RESULTADO);
+      return { id: b.tool_use_id, texto: colaDe(b.content), error: b.is_error === true, ...(imagenes.length ? { imagenes } : {}) };
+    });
 }
 
 /**
@@ -1108,7 +1114,7 @@ export function avanzarConv(est: EstadoConv, texto: string): void {
     if (o.type === "user") {
       for (const r of resultadosDe(c)) {
         const d = porId.get(r.id);
-        if (d) d.resultado = { texto: r.texto, error: r.error };
+        if (d) d.resultado = { texto: r.texto, error: r.error, ...(r.imagenes ? { imagenes: r.imagenes } : {}) };
       }
       const t = textoDeContenido(c);
       const imagenes = imagenesDeContenido(c);
