@@ -1,18 +1,17 @@
 "use strict";
-// El asistente de primer arranque del Trama nativo de Windows (sin WSL ni bash), sin Electron: igual que pasos.js, cada
+// El asistente de primer arranque del Trama nativo de Windows (sin WSL ni bash), sin Electron: cada
 // paso sabe `comprobar()` y `hacer()`, todo lo de afuera entra por `deps` y el asistente mira el sistema en vez de recordar
 // por dónde iba (retoma solo tras un cierre a la mitad o una actualización).
 //   instalar  el payload del instalador (node.exe, la app compilada, los hooks .mjs, bin\*.cmd) copiado a %LOCALAPPDATA%\trama,
 //             y `instalar-nativo` (los hooks en ~/.claude/settings.json, la skill, las plantillas, el registry)
 //   sistema   bin\ en el PATH del usuario y la clave Run (Trama arranca con la sesión, en segundo plano)
 //   login     Claude o Gemini con sesión (o «lo hago después»)
-//   ollama    opcional; en Windows nativo el localhost es el mismo, no hay red de WSL que arreglar
+//   ollama    opcional; en Windows el localhost es el mismo
 //   motor     el supervisor (nativo.js) lo lanza y espera a que conteste por /rpc
 
-const { ErrorPaso, parsearEstado, OLLAMA_URL } = require("./pasos");
+const { ErrorPaso, parsearEstado, ultimasLineas, OLLAMA_URL } = require("./pasos-comun");
 const { MOTOR_URL_NATIVO, comandoArranque } = require("./nativo");
 
-// `nativo`: la pantalla (ui/asistente.js) usa los textos sin WSL ni Ubuntu.
 const PASOS_NATIVO = [
   { id: "instalar", titulo: "Instalar Trama", nativo: true },
   { id: "sistema", titulo: "Comandos y arranque", nativo: true },
@@ -23,10 +22,6 @@ const PASOS_NATIVO = [
 
 // Lo que se copia del payload a la carpeta de Trama (cada una se reemplaza entera).
 const CARPETAS_PAYLOAD = ["node", "app", "bin"];
-
-function ultimasLineas(texto, n = 15) {
-  return String(texto || "").trim().split(/\r?\n/).slice(-n).join("\n");
-}
 
 function crearAsistenteNativo(deps) {
   const {
@@ -131,7 +126,7 @@ function crearAsistenteNativo(deps) {
     },
   };
 
-  // ---------- login (mismas reglas que el asistente de WSL) ----------
+  // ---------- login ----------
   const PROVEEDORES_LOGIN = { claude: "claude", gemini: "agy" };
   const pasoLogin = {
     async comprobar() {
@@ -187,7 +182,7 @@ function crearAsistenteNativo(deps) {
       const w = await ollamaWindows();
       if (w.responde) {
         guardar({ ollamaResuelto: true });
-        return { ok: true, detectado: true, modelos: w.modelos, visibleDesdeWsl: true };
+        return { ok: true, detectado: true, modelos: w.modelos };
       }
       return { ok: false, detectado: false, modelos: [] };
     },
@@ -255,7 +250,6 @@ function crearAsistenteNativo(deps) {
     saltarLogin,
     continuarLogin,
     cuentas,
-    habilitarEspejo: async () => ({ cambiado: false }),
     estadoTrama,
     urlMotor,
     arrancarSoloMotor,

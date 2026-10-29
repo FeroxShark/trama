@@ -112,7 +112,7 @@ function revisarSinBash(dir, excepciones = EXCEPCIONES) {
   return { problemas, sobran: excepciones.filter((x) => !usadas.has(x.archivo)).map((x) => x.archivo) };
 }
 
-/** Huella del contenido (rutas + bytes, ordenado), sin `.version`: 16 hex, como el payload de WSL. */
+/** Huella del contenido (rutas + bytes, ordenado), sin `.version`: 16 hex, como el payload del instalador. */
 function huella(dir) {
   const h = crypto.createHash("sha256");
   for (const rel of [...recorrer(dir)].filter((r) => r !== ".version").sort()) {

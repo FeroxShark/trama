@@ -147,13 +147,9 @@ test("node.exe fijado: versión LTS y sha256 de 64 hex, bajado de nodejs.org", (
   assert.equal(p.NODE.url, `https://nodejs.org/dist/${p.NODE.version}/win-x64/node.exe`);
 });
 
-test("electron-builder-nativo.yml lleva el payload nativo, el canal propio y el mismo appId que el de WSL", () => {
+test("electron-builder-nativo.yml lleva el payload nativo, y el canal propio", () => {
   const nativo = fs.readFileSync(path.join(__dirname, "..", "electron-builder-nativo.yml"), "utf8");
-  const wsl = fs.readFileSync(path.join(__dirname, "..", "electron-builder.yml"), "utf8");
-  const appId = (t) => /^appId:\s*(\S+)/m.exec(t)?.[1];
-  assert.equal(appId(nativo), appId(wsl));
   assert.match(nativo, /from: payload-nativo\n\s+to: payload-nativo/);
   assert.match(nativo, /channel: nativo/);
   assert.match(nativo, /output: dist-nativo/);
-  assert.ok(!/from: payload\n/.test(nativo), "no lleva el payload de WSL");
 });

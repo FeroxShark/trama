@@ -7,15 +7,16 @@ test("el manifiesto es válido: ids únicos, versiones bien formadas, sólo lo s
   assert.deepEqual(validar(), []);
 });
 
-test("validar encuentra un id repetido, un hasta anterior al desde y un automático que no es seguro", () => {
-  const base = { ambito: "wsl", grupo: "g", tipo: "enlace", ruta: "~/x", que: "x", desde: "0.2.0", hasta: null, quitar: "seguro", auto: false };
+test("validar encuentra un id repetido, un hasta anterior al desde, un automático que no es seguro y un ámbito que ya no existe", () => {
+  const base = { ambito: "windows", grupo: "g", tipo: "carpeta", ruta: "%X%\\x", que: "x", desde: "0.2.0", hasta: null, quitar: "seguro", auto: false };
   const errores = validar([
     { ...base, id: "a" },
     { ...base, id: "a" },
     { ...base, id: "b", hasta: "0.1.0" },
     { ...base, id: "c", quitar: "datos", auto: true },
+    { ...base, id: "d", ambito: "wsl" },
   ]);
-  assert.equal(errores.length, 3);
+  assert.equal(errores.length, 4);
 });
 
 test("comparar ordena por números, no por texto", () => {
@@ -40,14 +41,8 @@ test("lo del usuario y lo compartido nunca se quitan: ni siquiera pueden ser aut
     if (e.tipo === "gestionado" || e.tipo === "compartido" || e.quitar === "nunca") assert.notEqual(e.quitar, "seguro", e.id);
     if (e.auto) assert.equal(e.quitar, "seguro", e.id);
   }
-  for (const id of ["wsl-datos-trama", "wsl-datos-proyectos", "wsl-logins", "wsl-sistema"]) {
-    assert.equal(ENTRADAS.find((e) => e.id === id).quitar, "nunca", id);
-  }
 });
 
-test("la distro sólo es una entrada de «distro» con su aviso de qué se pierde", () => {
-  const d = ENTRADAS.find((e) => e.id === "wsl-distro");
-  assert.equal(d.quitar, "distro");
-  assert.ok(d.pierde && d.pierde.length > 20);
-  assert.ok(!d.auto);
+test("el manifiesto no menciona WSL: la carcasa ya no lo usa", () => {
+  assert.ok(ENTRADAS.every((e) => e.ambito === "windows" && !/wsl|Subsystem/i.test(e.ruta)));
 });

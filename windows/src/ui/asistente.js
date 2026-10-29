@@ -1,32 +1,17 @@
 "use strict";
 // El asistente en pantalla: una pantalla por paso. La lógica (qué falta, qué hacer) está en el main
-// (src/pasos.js); esto sólo pinta lo que ese devuelve y manda los clics. Todo texto entra por
+// (src/pasos-nativo.js); esto sólo pinta lo que ese devuelve y manda los clics. Todo texto entra por
 // textContent: nada de innerHTML.
 
 const TEXTOS = {
   abriendo: { t: "Abriendo Trama…", d: "Un momento." },
-  wsl: {
-    t: "Instalando WSL",
-    d: "Trama corre dentro de Ubuntu, que Windows trae con WSL2. Windows te va a pedir permiso de administrador una vez.",
-  },
-  sistema: { t: "Preparando Ubuntu", d: "Creamos tu usuario de Linux y activamos systemd. No tenés que elegir nada." },
-  instalar: {
-    t: "Instalando Trama",
-    d: "Copiamos el motor y sus herramientas a Ubuntu. La primera vez tarda unos minutos.",
-    n: "Trama corre adentro de Ubuntu (WSL), un Linux dentro de Windows; esta ventana es de Windows y sólo te la muestra.",
-  },
-  instalarAct: { t: "Actualizando el motor", d: "Hay una versión nueva. Queda lista en un momento." },
   login: { t: "Conectá tus cuentas", d: "Trama usa tu propio Claude Code y tu Gemini (agy). Con una alcanza: conectá la que tengas o las dos. Lo que dejes para después lo conectás desde Ajustes." },
   ollama: { t: "Modelos locales", d: "Opcional: con Ollama podés correr modelos en tu propia PC." },
   motor: { t: "Arrancando Trama", d: "Casi listo." },
-  reinicio: {
-    t: "Hay que reiniciar Windows",
-    d: "WSL quedó instalado, pero Windows necesita reiniciarse para terminar. Cuando vuelvas, abrí Trama otra vez: sigue desde acá.",
-  },
 };
 
-// Trama nativo de Windows (pasos-nativo.js): los mismos pasos sin WSL ni Ubuntu.
-const TEXTOS_NATIVO = {
+// Los pasos de instalación (pasos-nativo.js).
+const TEXTOS_INSTALACION = {
   instalar: {
     t: "Instalando Trama",
     d: "Copiamos el motor y sus herramientas a tu carpeta de usuario. Tarda un momento.",
@@ -35,8 +20,7 @@ const TEXTOS_NATIVO = {
   instalarAct: { t: "Actualizando el motor", d: "Hay una versión nueva. Queda lista en un momento." },
   sistema: { t: "Comandos y arranque", d: "Sumamos los comandos de Trama a tu PATH y la dejamos arrancando con Windows, en segundo plano. No pide permiso de administrador." },
 };
-const texto = (clave) => (ahora.nativo && TEXTOS_NATIVO[clave]) || TEXTOS[clave];
-const enUbuntu = () => (ahora.nativo ? "" : " en Ubuntu");
+const texto = (clave) => TEXTOS_INSTALACION[clave] || TEXTOS[clave];
 
 const ahora = { paso: "abriendo", pasos: [], hechos: new Set(), lineas: [], actualizando: false, conectado: null, sondeo: null, ocupado: false };
 const $ = (id) => document.getElementById(id);
@@ -74,7 +58,7 @@ function pantallaError(e) {
     h("div", { class: "error", role: "alert" }, nombre ? h("b", {}, `${nombre}: `) : null, e.mensaje),
     e.detalle ? h("details", {}, h("summary", {}, "Ver detalle"), h("pre", {}, e.detalle)) : null,
     h("div", { class: "acciones" }, h("button", { class: "primario", onclick: () => iniciar() }, "Reintentar")),
-    h("p", { class: "nota ancho" }, `Si se repite, el registro está en %APPDATA%\\${ahora.nativo ? "Trama-nativo" : "Trama"}\\carcasa.log.`),
+    h("p", { class: "nota ancho" }, `Si se repite, el registro está en %APPDATA%\\Trama-nativo\\carcasa.log.`),
   ];
 }
 
@@ -83,7 +67,7 @@ function chip(texto, ok) {
 }
 
 function estadoProveedor(p) {
-  return p.logueado ? "Conectado" : p.saltado ? "Lo hago después" : p.instalado ? "Sin conectar" : `No instalado${enUbuntu()}`;
+  return p.logueado ? "Conectado" : p.saltado ? "Lo hago después" : p.instalado ? "Sin conectar" : "No instalado";
 }
 
 function pantallaLogin(info) {
@@ -91,7 +75,7 @@ function pantallaLogin(info) {
     h(
       "div",
       { class: "tarjeta" },
-      h("div", { class: "quien" }, h("b", {}, nombre), h("span", { class: "sub" }, prov.instalado || prov.logueado ? "Con tu cuenta personal" : `Hay que instalarlo${enUbuntu()} primero`)),
+      h("div", { class: "quien" }, h("b", {}, nombre), h("span", { class: "sub" }, prov.instalado || prov.logueado ? "Con tu cuenta personal" : "Hay que instalarlo primero")),
       chip(estadoProveedor(prov), prov.logueado),
       prov.logueado ? null : h("button", { class: ahora.conectado || info.puedeContinuar ? "" : "primario", onclick: () => conectar(clave) }, boton),
       prov.logueado || prov.saltado ? null : h("button", { class: "suave salto", onclick: () => saltarLogin(clave) }, "Seguir sin iniciar sesión (lo hago después)"),
@@ -105,7 +89,7 @@ function pantallaLogin(info) {
       : null,
     ahora.conectado
       ? h("p", { class: "nota ancho" }, "Se abrió una consola. Iniciá sesión ahí y volvé: acá se detecta solo. Trama no se pone encima mientras escribís.")
-      : h("p", { class: "nota ancho" }, `Se abre una consola${ahora.nativo ? "" : " de Ubuntu"} para que inicies sesión; Trama nunca ve tu contraseña.`),
+      : h("p", { class: "nota ancho" }, "Se abre una consola para que inicies sesión; Trama nunca ve tu contraseña."),
     h("p", { class: "nota ancho" }, "Claude va a abrir tu navegador y pedir «autorizar acceso»: es normal, es el inicio de sesión de tu cuenta."),
     info.puedeContinuar
       ? null
@@ -125,28 +109,18 @@ function pantallaOllama(info) {
   let cuerpo;
   if (info.detectado) {
     cuerpo = h("p", { class: "ancho" }, `Detectamos Ollama en tu PC${info.modelos.length ? ` con ${info.modelos.length} modelo${info.modelos.length === 1 ? "" : "s"}` : ""}.`);
-    if (!info.visibleDesdeWsl) {
-      acciones.push(h("button", { class: "primario", onclick: () => espejo() }, "Habilitar acceso desde Ubuntu"));
-    }
   } else {
     cuerpo = h("p", { class: "ancho" }, "No encontramos Ollama. Instalalo si querés usar modelos en tu PC; si no, podés seguir sin él y sumarlo después.");
     acciones.push(h("button", { onclick: () => window.carcasa.abrir("https://ollama.com/download") }, "Abrir ollama.com"), h("button", { onclick: () => iniciar() }, "Ya lo instalé"));
   }
-  acciones.push(h("button", { class: info.detectado && !info.visibleDesdeWsl ? "suave" : "primario", onclick: () => saltar() }, info.detectado && !info.visibleDesdeWsl ? "Saltar" : "Continuar sin Ollama"));
+  acciones.push(h("button", { class: "primario", onclick: () => saltar() }, "Continuar sin Ollama"));
   return [
     h("h1", {}, TEXTOS.ollama.t),
     h("div", { class: "tarjeta" }, h("div", { class: "quien" }, h("b", {}, "Ollama"), h("span", { class: "sub" }, "http://localhost:11434")), chip(info.detectado ? "Detectado" : "No detectado", info.detectado)),
     cuerpo,
-    info.detectado && !info.visibleDesdeWsl
-      ? h("p", { class: "nota ancho" }, "Ubuntu no lo ve todavía. Habilitarlo cambia la red de WSL a «espejo» (Windows 11 22H2 o más) y reinicia WSL unos segundos.")
-      : null,
     aviso ? h("p", { class: "nota ancho" }, aviso) : null,
     h("div", { class: "acciones" }, acciones),
   ];
-}
-
-function pantallaReinicio() {
-  return [h("h1", {}, TEXTOS.reinicio.t), h("p", {}, TEXTOS.reinicio.d), h("div", { class: "acciones" }, h("button", { onclick: () => iniciar() }, "Ya reinicié, revisar"))];
 }
 
 function pintar(contenido) {
@@ -194,8 +168,7 @@ async function iniciar() {
     ahora.firma = null;
     return pintar(pantallaError(r.error));
   }
-  ahora.paso = r.espera === "reinicio" ? r.paso : r.espera;
-  if (r.espera === "reinicio") return pintar(pantallaReinicio());
+  ahora.paso = r.espera;
   const firma = JSON.stringify([r.espera, r.info, ahora.conectado, ahora.mensajeOllama]);
   const igual = firma === ahora.firma;
   ahora.firma = firma;
@@ -238,14 +211,6 @@ async function saltar() {
   iniciar();
 }
 
-async function espejo() {
-  ahora.mensajeOllama = "Reiniciando WSL…";
-  pintar(pantallaTrabajo("motor"));
-  const r = await window.carcasa.espejo();
-  ahora.mensajeOllama = r?.error ? `No pude cambiarlo: ${r.error}` : null;
-  iniciar();
-}
-
 function avisoActualizacion(a) {
   const cont = $("actualizacion");
   if (!a || a.fase !== "lista") return cont.replaceChildren(a?.fase === "descargando" ? `Descargando la versión ${a.version}…` : "");
@@ -254,19 +219,14 @@ function avisoActualizacion(a) {
 
 // ?demo=<pantalla> pinta una pantalla sin hablar con el main (capturas y diseño).
 function demo(nombre) {
-  const pasos = [
-    { id: "wsl", titulo: "Windows Subsystem for Linux" }, { id: "sistema", titulo: "Ubuntu listo para Trama" }, { id: "instalar", titulo: "Instalar el motor" },
-    { id: "login", titulo: "Conectar tu cuenta" }, { id: "ollama", titulo: "Modelos locales (Ollama)" }, { id: "motor", titulo: "Arrancar Trama" },
+  ahora.pasos = [
+    { id: "instalar", titulo: "Instalar Trama" }, { id: "sistema", titulo: "Comandos y arranque" }, { id: "login", titulo: "Conectar tu cuenta" },
+    { id: "ollama", titulo: "Modelos locales (Ollama)" }, { id: "motor", titulo: "Arrancar Trama" },
   ];
-  ahora.pasos = pasos;
   $("version").textContent = "Trama";
-  const previos = { wsl: [], sistema: ["wsl"], instalar: ["wsl", "sistema"], login: ["wsl", "sistema", "instalar"], "login-uno": ["wsl", "sistema", "instalar"], ollama: ["wsl", "sistema", "instalar", "login"], error: ["wsl"], reinicio: [] };
+  const previos = { instalar: [], login: ["instalar", "sistema"], "login-uno": ["instalar", "sistema"], ollama: ["instalar", "sistema", "login"], error: [] };
   ahora.hechos = new Set(previos[nombre] || []);
-  if (nombre === "instalar") {
-    ahora.paso = "instalar";
-    ahora.lineas = ["Copiando Trama a Ubuntu…", "Instalando paquetes del sistema…", "Leyendo lista de paquetes… Hecho", "Preparando para desempaquetar nodejs_22.14.0-1_amd64.deb"];
-    pintar(pantallaTrabajo("instalar"));
-  } else if (nombre === "login" || nombre === "login-uno") {
+  if (nombre === "login" || nombre === "login-uno") {
     ahora.paso = "login";
     pintar(
       pantallaLogin(
@@ -277,16 +237,14 @@ function demo(nombre) {
     );
   } else if (nombre === "ollama") {
     ahora.paso = "ollama";
-    pintar(pantallaOllama({ detectado: true, visibleDesdeWsl: true, modelos: ["qwen3-coder:30b"] }));
-  } else if (nombre === "reinicio") {
-    ahora.paso = "wsl";
-    pintar(pantallaReinicio());
+    pintar(pantallaOllama({ detectado: true, modelos: ["qwen3-coder:30b"] }));
   } else if (nombre === "error") {
     ahora.paso = "instalar";
-    pintar(pantallaError({ paso: "instalar", mensaje: "Falló la instalación de paquetes de Ubuntu.", detalle: "E: No se pudo obtener bloqueo /var/lib/dpkg/lock-frontend\nE: ¿Está otro proceso usándolo?" }));
+    pintar(pantallaError({ paso: "instalar", mensaje: "No pude correr el instalador de Trama.", detalle: "EPERM: operation not permitted, copyfile 'node.exe'" }));
   } else {
-    ahora.paso = "wsl";
-    pintar(pantallaTrabajo("wsl"));
+    ahora.paso = "instalar";
+    ahora.lineas = ["Copiando node.exe…", "Copiando la app de Trama…", "Copiando los comandos (pa, trama-estado)…"];
+    pintar(pantallaTrabajo("instalar"));
   }
   $("progreso").dataset.demo = nombre;
 }
@@ -295,7 +253,6 @@ async function arrancar() {
   const demoId = new URLSearchParams(location.search).get("demo");
   if (demoId) return demo(demoId);
   ahora.pasos = await window.carcasa.pasos();
-  ahora.nativo = ahora.pasos.some((p) => p.nativo);
   $("version").textContent = `Trama ${await window.carcasa.version()}`;
   window.carcasa.onEvento(alEvento);
   window.carcasa.onActualizacion(avisoActualizacion);

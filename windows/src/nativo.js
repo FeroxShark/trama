@@ -3,7 +3,7 @@
 // y el supervisor del motor. En Windows no hay systemd: la carcasa arranca con la sesión (clave Run, en segundo plano, sin
 // ventana) y tiene al motor (`node.exe dist-electron\motor.js`) de hijo; lo chequea por POST /rpc y lo relanza si se cae o
 // se cuelga. Lo puro (rutas, PATH, el supervisor con lanzar/chequear/matar inyectados) lo prueba tests/nativo.test.js; lo que
-// toca Windows de verdad (PowerShell, taskkill, el proceso del motor) va abajo, aparte, como en wsl.js.
+// toca Windows de verdad (PowerShell, taskkill, el proceso del motor) va abajo, aparte.
 
 const { spawn } = require("node:child_process");
 const crypto = require("node:crypto");

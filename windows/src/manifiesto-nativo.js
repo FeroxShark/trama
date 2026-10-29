@@ -1,8 +1,7 @@
 "use strict";
-// Lo que el Trama nativo de Windows (sin WSL) deja fuera de la carpeta de la app, con las mismas reglas y campos que
-// manifiesto.js (ver ahí): es la lista que usa el desinstalador (`--desinstalar`) en modo nativo. Todo es del lado de
-// Windows; de manifiesto.js se toman las entradas de la carcasa que valen igual (la instalación, el caché del actualizador,
-// los datos de la carcasa) y se dejan las de WSL (RunOnce, .wslconfig, el componente WSL, la distro).
+// Lo que el Trama de Windows deja fuera de la carpeta de la app, con las mismas reglas y campos que manifiesto.js (ver ahí):
+// es la lista que usa la limpieza y el desinstalador (`--desinstalar`). De manifiesto.js se toman las entradas de la carcasa que
+// valen igual (la instalación y el caché del actualizador); el resto es del motor nativo.
 //
 // Las rutas son las de app/electron/rutas.ts en win32 (%LOCALAPPDATA%\trama\…) y windows/src/nativo.js (rutasNativas).
 

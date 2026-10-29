@@ -6,7 +6,6 @@ app/bench-resultados/
 app/referencias/
 *.log
 __pycache__/
-windows/payload/
 windows/payload-nativo/
 windows/.cache/
 windows/dist/

@@ -62,7 +62,7 @@ function electronFalso({ carpeta = null, texto = "", notificaciones = [] } = {})
 
 function carcasa(over = {}, opts = {}) {
   const f = electronFalso(over);
-  const datos = { electron: f.electron, nativo: true, changelog: "https://ejemplo/cambios", ...opts };
+  const datos = { electron: f.electron, changelog: "https://ejemplo/cambios", ...opts };
   const manejadores = crearCanalesVentana({
     bandeja: { textos: (t) => f.llamadas.push(["textos", t]), espera: (e) => f.llamadas.push(["espera", e]) },
     abrirLogin: (id) => f.llamadas.push(["login", id]),
@@ -148,14 +148,11 @@ test("cuentas:login: sólo ids de cuenta (nada que cmd.exe interprete)", () => {
   assert.match("cuenta-2", ID_VALIDO);
 });
 
-test("app:salir: con la carcasa nativa, 'seguir' esconde la ventana y 'parar' sale; en WSL cualquiera sale", () => {
-  const nativa = carcasa();
-  nativa.manejadores["app:salir"](null, { modo: "seguir", forzar: false });
-  nativa.manejadores["app:salir"](null, { modo: "parar", forzar: true });
-  assert.deepEqual(nativa.llamadas, ["ocultar", "salir"]);
-  const wsl = carcasa({}, { nativo: false });
-  wsl.manejadores["app:salir"](null, { modo: "seguir", forzar: false });
-  assert.deepEqual(wsl.llamadas, ["salir"]);
+test("app:salir: 'seguir' esconde la ventana (el motor sigue en la bandeja) y 'parar' sale", () => {
+  const c = carcasa();
+  c.manejadores["app:salir"](null, { modo: "seguir", forzar: false });
+  c.manejadores["app:salir"](null, { modo: "parar", forzar: true });
+  assert.deepEqual(c.llamadas, ["ocultar", "salir"]);
 });
 
 test("app:pararTodo sale como el Salir de la bandeja", () => {

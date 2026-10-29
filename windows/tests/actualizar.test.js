@@ -2,7 +2,10 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const { EventEmitter } = require("node:events");
-const { crearActualizador, iniciarActualizador } = require("../src/actualizar");
+const fs = require("node:fs");
+const os = require("node:os");
+const path = require("node:path");
+const { crearActualizador, iniciarActualizador, esDeRelleno } = require("../src/actualizar");
 
 function falso({ alBuscar } = {}) {
   const au = new EventEmitter();
@@ -202,4 +205,19 @@ test("sin empaquetar (o con el instalador de relleno) el botón dice «inactiva�
   assert.deepEqual(eventos, [{ fase: "inactiva" }]);
   const v = iniciarActualizador({ app: { isPackaged: true }, recursos: "/no/existe", onEstado: (e) => eventos.push(e) });
   assert.equal(v.activo, false);
+});
+
+// La versión no se fija acá: se comprueba la FORMA. Un número exacto obliga a tocar el test en cada release.
+test("configuración de release: FeroxShark/trama activa electron-updater y los valores de relleno lo dejan inactivo", () => {
+  const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "package.json"), "utf8"));
+  assert.match(pkg.version, /^\d+\.\d+\.\d+$/, "la versión de la carcasa es x.y.z");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "trama-upd-yml-"));
+  try {
+    fs.writeFileSync(path.join(dir, "app-update.yml"), "provider: github\nowner: FeroxShark\nrepo: trama\n");
+    assert.equal(esDeRelleno(dir), false, "con FeroxShark/trama el actualizador queda activo");
+    fs.writeFileSync(path.join(dir, "app-update.yml"), "provider: github\nowner: TRAMA_GH_OWNER\nrepo: TRAMA_GH_REPO\n");
+    assert.equal(esDeRelleno(dir), true, "con los valores de relleno queda inactivo");
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });

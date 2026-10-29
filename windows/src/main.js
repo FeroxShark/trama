@@ -1,18 +1,16 @@
 "use strict";
-// La carcasa: una ventana que muestra Trama (http://localhost:8791, el motor). Dos modos:
-//   nativo  (por defecto si el instalador trae payload-nativo/) el motor corre en Windows, sin WSL ni bash: la carcasa lo
-//           supervisa como hijo (nativo.js) y queda en la bandeja al cerrar la ventana; arranca con la sesión por la clave Run
-//           (--segundo-plano: sin ventana). Los pasos viven en pasos-nativo.js.
-//   wsl     el motor corre en WSL2 (Ubuntu, systemd); los pasos viven en pasos.js.
-// TRAMA_MODO=nativo|wsl lo fuerza. Si el motor no está, el asistente de primer arranque (src/ui/) deja todo listo y sólo
-// entonces carga la página; acá sólo se conecta con Windows.
+// La carcasa: una ventana que muestra Trama (http://localhost:8791, el motor). El motor corre en Windows, sin WSL ni bash: la
+// carcasa lo supervisa como hijo (nativo.js) y queda en la bandeja al cerrar la ventana; arranca con la sesión por la clave Run
+// (--segundo-plano: sin ventana). Si el motor no está, el asistente de primer arranque (src/ui/, pasos en pasos-nativo.js) deja
+// todo listo y sólo entonces carga la página; acá sólo se conecta con Windows. Todo lo que la página le pide al main sale del
+// contrato único de canales (app/electron/canales/contrato.ts, vía canales.json): ver ventana.js.
 
 const { app, BrowserWindow, ipcMain, shell, Menu, Tray, dialog, clipboard, Notification, nativeImage, powerMonitor } = require("electron");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
-const { crearAsistente, ErrorPaso, DISTRO, MOTOR_URL } = require("./pasos");
-const wslReal = require("./wsl");
+const { ErrorPaso, MOTOR_URL } = require("./pasos-comun");
+const { entornoWindows } = require("./entorno-windows");
 const { crearGuardiaFoco } = require("./foco");
 const { iniciarActualizador } = require("./actualizar");
 const { crearLimpieza } = require("./limpieza");
@@ -39,20 +37,19 @@ const DESINSTALAR = process.argv.includes("--desinstalar");
 // El AppUserModelId es el appId de electron-builder*.yml (con ése crea el instalador el atajo de Inicio): así la barra de
 // tareas y las notificaciones son de Trama y no de Electron. Lo prueba tests/identidad.test.js.
 app.setAppUserModelId("app.trama.windows");
-// El árbol del Trama nativo que trae el instalador (node.exe, app compilada, bin\*.cmd); en desarrollo, windows/payload-nativo/.
+// El árbol del Trama que trae el instalador (node.exe, app compilada, bin\*.cmd); en desarrollo, windows/payload-nativo/.
 const dirPayloadNativo = () => (app.isPackaged ? path.join(process.resourcesPath, "payload-nativo") : path.join(__dirname, "..", "payload-nativo"));
-const NATIVO = process.env.TRAMA_MODO ? process.env.TRAMA_MODO === "nativo" : fs.existsSync(dirPayloadNativo());
-// La carpeta de verdad (antes de moverla): ahí viven estado.json y carcasa.log. En el Trama nativo es %APPDATA%\Trama-nativo y no la de
-// siempre de Electron (%APPDATA%\Trama): esa es de la Trama nativa vieja (su cuentas.json y sus cuentas, que `cuentas importar-perfiles`
-// sólo lee y copia) y ni el asistente, ni Electron (cachés), ni el desinstalador tienen que pisarla.
-const USERDATA = NATIVO ? path.join(app.getPath("appData"), "Trama-nativo") : app.getPath("userData");
+// La carpeta de verdad (antes de moverla): ahí viven estado.json y carcasa.log. Es %APPDATA%\Trama-nativo y no la de siempre de
+// Electron (%APPDATA%\Trama): esa es de la Trama vieja (su cuentas.json y sus cuentas, que `cuentas importar-perfiles` sólo lee y
+// copia) y ni el asistente, ni Electron (cachés), ni el desinstalador tienen que pisarla.
+const USERDATA = path.join(app.getPath("appData"), "Trama-nativo");
 if (DESINSTALAR) app.setPath("userData", fs.mkdtempSync(path.join(os.tmpdir(), "trama-desinstalar-")));
 else {
-  if (NATIVO) app.setPath("userData", USERDATA);
+  app.setPath("userData", USERDATA);
   if (!app.requestSingleInstanceLock()) app.quit();
 }
 
-const SEGUNDO_PLANO = NATIVO && process.argv.includes(nativo.SEGUNDO_PLANO);
+const SEGUNDO_PLANO = process.argv.includes(nativo.SEGUNDO_PLANO);
 
 let ventana = null;
 let bandeja = null;
@@ -95,38 +92,18 @@ function versionPayload(dir = dirPayload()) {
   }
 }
 
-const wslconfig = {
-  ruta: () => path.join(process.env.USERPROFILE || os.homedir(), ".wslconfig"),
-  leer() {
-    try {
-      return fs.readFileSync(this.ruta(), "utf8");
-    } catch {
-      return null;
-    }
-  },
-  escribir(t) {
-    fs.writeFileSync(this.ruta(), t);
-  },
-};
-
-const vivo = NATIVO ? { iniciar() {}, parar() {} } : wslReal.mantenerVivo(DISTRO);
 const guardiaFoco = crearGuardiaFoco();
 
 const rutasNativas = nativo.rutasNativas();
-const supervisor = NATIVO
-  ? nativo.crearSupervisor({
-      lanzar: nativo.lanzarMotor(rutasNativas),
-      chequear: nativo.chequearRpc({ token: () => nativo.leerToken(rutasNativas.token) }),
-      matar: nativo.matarArbol,
-      log: (m) => log(`motor: ${m}`),
-    })
-  : null;
+const supervisor = nativo.crearSupervisor({
+  lanzar: nativo.lanzarMotor(rutasNativas),
+  chequear: nativo.chequearRpc({ token: () => nativo.leerToken(rutasNativas.token) }),
+  matar: nativo.matarArbol,
+  log: (m) => log(`motor: ${m}`),
+});
 
-// En modo nativo no hay WSL que mirar: la limpieza sólo ve el lado de Windows (manifiesto-nativo.js), con el PATH de usuario.
-const sinWsl = async () => ({ code: -1, stdout: "", stderr: "", falta: true });
-const limpieza = NATIVO
-  ? crearLimpieza({ wsl: sinWsl, win: { ...wslReal.entornoWindows(), path: nativo.pathUsuario() }, estado: store, version: app.getVersion(), entradas: ENTRADAS_NATIVO })
-  : crearLimpieza({ wsl: wslReal.wsl, win: wslReal.entornoWindows(), estado: store, version: app.getVersion(), distro: DISTRO });
+// La limpieza sólo ve el lado de Windows (manifiesto-nativo.js), con el PATH de usuario.
+const limpieza = crearLimpieza({ win: { ...entornoWindows(), path: nativo.pathUsuario() }, estado: store, version: app.getVersion(), entradas: ENTRADAS_NATIVO });
 
 const disco = {
   existe: (r) => fs.existsSync(r),
@@ -143,37 +120,21 @@ const disco = {
   unir: (...p) => path.join(...p),
 };
 
-const asistente = NATIVO
-  ? crearAsistenteNativo({
-      rutas: rutasNativas,
-      payload: { get dir() { return dirPayloadNativo(); }, get version() { return versionPayload(dirPayloadNativo()); } },
-      disco,
-      correrCli: nativo.correrCli(rutasNativas),
-      pathUsuario: nativo.pathUsuario(),
-      arranque: nativo.arranqueSesion(),
-      supervisor,
-      abrirConsola: nativo.abrirConsolaNativa(rutasNativas),
-      fetch: (...a) => fetch(...a),
-      estado: store,
-      exe: process.platform === "win32" && app.isPackaged ? process.execPath : null,
-      version: app.getVersion(),
-      log,
-    })
-  : crearAsistente({
-      wsl: wslReal.wsl,
-      elevarWsl: wslReal.elevarWsl,
-      abrirConsola: wslReal.abrirConsola,
-      fetch: (...a) => fetch(...a),
-      estado: store,
-      payload: { get dir() { return dirPayload(); }, get version() { return versionPayload(); } },
-      wslconfig,
-      // Tras el reinicio de Windows, que Trama se reabra sola (RunOnce) y siga donde quedó: los pasos se
-      // calculan mirando el sistema, así que abrir el asistente basta.
-      reabrir: process.platform === "win32" && app.isPackaged ? wslReal.reabrirTrasReinicio(process.execPath) : undefined,
-      version: app.getVersion(),
-      inicioSistema: () => Date.now() - os.uptime() * 1000,
-      env: { USERNAME: process.env.USERNAME || os.userInfo().username },
-    });
+const asistente = crearAsistenteNativo({
+  rutas: rutasNativas,
+  payload: { get dir() { return dirPayloadNativo(); }, get version() { return versionPayload(dirPayloadNativo()); } },
+  disco,
+  correrCli: nativo.correrCli(rutasNativas),
+  pathUsuario: nativo.pathUsuario(),
+  arranque: nativo.arranqueSesion(),
+  supervisor,
+  abrirConsola: nativo.abrirConsolaNativa(rutasNativas),
+  fetch: (...a) => fetch(...a),
+  estado: store,
+  exe: process.platform === "win32" && app.isPackaged ? process.execPath : null,
+  version: app.getVersion(),
+  log,
+});
 
 function enviar(canal, dato) {
   if (ventana && !ventana.isDestroyed()) ventana.webContents.send(canal, dato);
@@ -187,7 +148,6 @@ function mostrarAsistente() {
 let limpiezaProgramada = false;
 function cargarMotor(url) {
   enMotor = true;
-  vivo.iniciar();
   // Una vez por arranque, con la ventana ya andando: lo que esta versión dejó de usar y es seguro de quitar solo.
   if (!limpiezaProgramada) {
     limpiezaProgramada = true;
@@ -200,7 +160,7 @@ function cargarMotor(url) {
 }
 
 // Windows no deja a una app robar el foco; subirla un instante «siempre encima» sí la trae al frente.
-// Sirve cuando «Welcome to WSL» o «Welcome to Ollama» (de Windows y de Ollama, no nuestras) la taparon.
+// Sirve cuando «Welcome to Ollama» (de Ollama, no nuestra) la tapó.
 function traerAlFrente() {
   if (!ventana || ventana.isDestroyed() || enMotor || !guardiaFoco.puedeTraer()) return;
   if (ventana.isMinimized()) ventana.restore();
@@ -213,11 +173,9 @@ function traerAlFrente() {
 // Un pedido a la vez: si la ventana pide dos veces, la segunda espera la misma respuesta.
 function correrAsistente() {
   if (!ocupado) {
-    vivo.iniciar();
     ocupado = asistente
       .avanzar((e) => {
         enviar("asistente:evento", e);
-        if (e.tipo === "ok" && e.paso === "wsl") traerAlFrente();
       })
       .then(
         (r) => {
@@ -271,7 +229,6 @@ const textoError = (e) => ({ error: e instanceof Error ? e.message : String(e), 
 // Lo de la pantalla de la PC (ventana.js): la página lo pide por window.carcasa.ventana (preload.js), no al motor, que lo rechaza por red.
 const canalesVentana = crearCanalesVentana({
   electron: { app, BrowserWindow, dialog, clipboard, shell, Notification, nativeImage },
-  nativo: NATIVO,
   changelog: CHANGELOG,
   bandeja: {
     textos(t) {
@@ -283,7 +240,6 @@ const canalesVentana = crearCanalesVentana({
     },
   },
   abrirLogin(id) {
-    if (!NATIVO) throw new Error("Agregar una cuenta todavía no anda con Trama en WSL: usá la versión nativa.");
     return nativo.abrirConsolaNativa(rutasNativas)(`cuentas login ${id}`);
   },
   // Tocó la notificación de un líder: la ventana se trae y la página abre esa conversación.
@@ -308,7 +264,7 @@ async function bajarMotorNativo() {
 }
 
 async function desinstalar() {
-  if (NATIVO) await bajarMotorNativo();
+  await bajarMotorNativo();
   const lista = (items) => items.map((i) => `• ${i.que}`).join("\n");
   const preguntar = (opts) => dialog.showMessageBox({ type: "question", noLink: true, defaultId: 0, cancelId: 0, title: "Quitar Trama", ...opts });
   let plan;
@@ -340,39 +296,22 @@ async function desinstalar() {
     });
     if (r.response === 1) borrarDatos.push(...datos.map((i) => i.id));
   }
-  let confirmarDistro = null;
-  if (plan.distro?.puede) {
-    const r = await preguntar({
-      type: "warning",
-      message: `¿Quitar también ${plan.distro.nombre}?`,
-      detail: `La instaló Trama y no encontré nada tuyo adentro, pero esto no se puede deshacer.\n\nSe pierde: ${plan.distro.pierde}\n\nSi la usás para otra cosa, dejala.`,
-      buttons: [`Dejar ${plan.distro.nombre}`, `Quitar ${plan.distro.nombre} y todo lo de adentro`],
-      cancelId: 0,
-    });
-    if (r.response === 1) {
-      ids.push(plan.distro.id);
-      confirmarDistro = plan.distro.nombre;
-    }
-  }
   if (ids.length || borrarDatos.length) {
     try {
-      const { resultados } = await limpieza.ejecutar({ modo: "desinstalar", ids, datos: borrarDatos, confirmarDistro });
+      const { resultados } = await limpieza.ejecutar({ modo: "desinstalar", ids, datos: borrarDatos });
       log(`desinstalar: ${JSON.stringify(resultados)}`);
     } catch (e) {
       log(`desinstalar: ${e.message}\n${e.detalle || ""}`);
     }
   }
   const quedan = plan.items.filter((i) => i.accion === "queda");
-  if (quedan.length || (plan.distro && !confirmarDistro)) {
+  if (quedan.length) {
     await dialog.showMessageBox({
       type: "info",
       noLink: true,
       title: "Quitar Trama",
       message: "Esto queda en tu máquina",
-      detail: [
-        ...(plan.distro && !confirmarDistro ? [`• ${plan.distro.nombre}${plan.distro.motivo ? `: ${plan.distro.motivo}` : " (la podés quitar con «wsl --unregister» si ya no la querés)"}`] : []),
-        ...quedan.map((i) => `• ${i.que}`),
-      ].join("\n"),
+      detail: lista(quedan),
     });
   }
 }
@@ -419,9 +358,9 @@ function arrancar() {
     guardiaFoco.volvio();
     void actualizador.refrescar();
   });
-  // Nativo: cerrar la ventana la esconde (el motor y sus líderes siguen; se sale desde la bandeja).
+  // Cerrar la ventana la esconde (el motor y sus líderes siguen; se sale desde la bandeja).
   ventana.on("close", (e) => {
-    if (NATIVO && !saliendo && !CAPTURA) {
+    if (!saliendo && !CAPTURA) {
       e.preventDefault();
       ventana.hide();
     }
@@ -449,7 +388,6 @@ ipcMain.handle("asistente:saltarLogin", (_e, proveedor) => void asistente.saltar
 ipcMain.handle("asistente:continuarLogin", () => asistente.continuarLogin().then(() => ({}), (e) => ({ error: e.message })));
 ipcMain.handle("asistente:cuentas", () => asistente.cuentas().then((c) => c, (e) => ({ error: e.message })));
 ipcMain.handle("asistente:saltarOllama", () => void asistente.saltarOllama());
-ipcMain.handle("asistente:espejo", () => asistente.habilitarEspejo().then((r) => r, (e) => ({ error: e.message })));
 ipcMain.handle("app:abrir", (_e, url) => (ENLACES_OK.has(url) ? shell.openExternal(url) : undefined));
 ipcMain.handle("app:version", () => app.getVersion());
 ipcMain.handle("actualizar:estado", () => ultimaActualizacion);
@@ -458,7 +396,6 @@ ipcMain.handle("actualizar:buscar", protegido(() => actualizador.buscar()));
 // Quitar restos de versiones anteriores (Ajustes > Acerca de): primero el plan, la persona confirma, después se quita.
 ipcMain.handle("restos:plan", protegido(() => limpieza.planificar({ modo: "restos" }).catch(textoError)));
 ipcMain.handle("restos:quitar", protegido((ids) => limpieza.ejecutar({ modo: "restos", ids: Array.isArray(ids) ? ids.map(String) : [] }).catch(textoError)));
-ipcMain.handle("restos:quitarDistro", protegido((nombre) => limpieza.ejecutar({ modo: "restos", ids: ["wsl-distro"], confirmarDistro: String(nombre) }).catch(textoError)));
 
 function mostrarVentana() {
   if (!ventana) return arrancar();
@@ -467,7 +404,7 @@ function mostrarVentana() {
   ventana.focus();
 }
 
-// Nativo: el ícono de la bandeja es lo que queda cuando la ventana está cerrada (o arrancó con la sesión, sin ventana).
+// El ícono de la bandeja es lo que queda cuando la ventana está cerrada (o arrancó con la sesión, sin ventana).
 function menuBandeja() {
   return Menu.buildFromTemplate([
     { label: textosBandeja.abrir, click: () => mostrarVentana() },
@@ -485,16 +422,15 @@ function crearBandeja() {
 
 app.on("second-instance", () => mostrarVentana());
 app.on("before-quit", (e) => {
-  vivo.parar();
-  if (!NATIVO || saliendo) return;
+  if (saliendo) return;
   // Se baja el motor antes de salir (sin systemd, nadie más lo haría): una sola vez, y después se sale de verdad.
   saliendo = true;
   e.preventDefault();
   supervisor.parar().finally(() => app.quit());
 });
-app.on("window-all-closed", () => {
-  if (!NATIVO) app.quit();
-});
+
+// Sin este oyente Electron saldría al cerrar la última ventana: acá cerrar la ventana la esconde y el motor sigue (se sale desde la bandeja).
+app.on("window-all-closed", () => {});
 
 app.whenReady().then(async () => {
   if (DESINSTALAR) {
@@ -505,16 +441,14 @@ app.whenReady().then(async () => {
     }
     return;
   }
-  if (NATIVO) {
-    crearBandeja();
-    // Con la sesión (clave Run): sin ventana, sólo el motor, y sólo si ya quedó instalado (si no, espera a que abran Trama).
-    if (SEGUNDO_PLANO) void asistente.arrancarSoloMotor().catch((e) => log(`segundo plano: ${e.message}`));
-    else arrancar();
-  } else arrancar();
+  crearBandeja();
+  // Con la sesión (clave Run): sin ventana, sólo el motor, y sólo si ya quedó instalado (si no, espera a que abran Trama).
+  if (SEGUNDO_PLANO) void asistente.arrancarSoloMotor().catch((e) => log(`segundo plano: ${e.message}`));
+  else arrancar();
   const u = iniciarActualizador({
     app,
     recursos: process.resourcesPath,
-    canal: NATIVO ? "nativo" : null,
+    canal: "nativo",
     onEstado: (e) => {
       ultimaActualizacion = e;
       enviar("actualizar:cambio", e);

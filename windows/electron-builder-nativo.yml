@@ -3,9 +3,8 @@
 #   (en app/) npm run build
 #   node scripts/preparar-payload-nativo.mjs
 #   npx electron-builder --config electron-builder-nativo.yml --win nsis --x64 --publish never
-# Mismo appId que el de WSL (electron-builder.yml): instalar uno reemplaza al otro. Lo que cambia es el payload (payload-nativo/,
-# por lista permitida, ver src/payload-nativo.js) y el canal de actualizaciones (nativo.yml en vez de latest.yml, para que los
-# dos instaladores convivan en la misma release de GitHub).
+# El payload (payload-nativo/) es por lista permitida (ver src/payload-nativo.js); el canal de actualizaciones es nativo.yml en
+# vez de latest.yml, para convivir con el AppImage en la misma release de GitHub.
 appId: app.trama.windows
 productName: Trama
 # El nombre del .exe (Trama.exe) y del atajo: Trama, no Electron. Igual que el productName, para que nada caiga al default.

@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Una pantalla del asistente a PNG, offscreen (sin WSL ni Windows): scripts/captura.sh <pantalla> [salida.png]
-# pantallas: wsl | instalar | login | login-uno | ollama | reinicio | error
+# Una pantalla del asistente a PNG, offscreen (sin Windows): scripts/captura.sh <pantalla> [salida.png]
+# pantallas: instalar | login | login-uno | ollama | error
 set -euo pipefail
 aqui="$(cd "$(dirname "$0")/.." && pwd)"
-demo="${1:-wsl}"
+demo="${1:-instalar}"
 salida="${2:-$aqui/docs/$demo.png}"
 bin="$aqui/node_modules/electron/dist/electron"
 [[ -x "$bin" ]] || bin="$aqui/../node_modules/electron/dist/electron"

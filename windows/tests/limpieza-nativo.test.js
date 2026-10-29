@@ -1,6 +1,6 @@
 "use strict";
 // La limpieza del desinstalador en modo nativo: el manifiesto nativo (src/manifiesto-nativo.js) con un Windows de mentira
-// (disco, registro y PATH de usuario en memoria) y sin WSL.
+// (disco, registro y PATH de usuario en memoria).
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const { crearLimpieza } = require("../src/limpieza");
@@ -18,7 +18,6 @@ function windowsFalso() {
     registro: new Set(["HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run|Trama"]),
     path: `C:\\Windows;${L}\\trama\\bin`,
     borrados: [],
-    wsl: 0,
   };
   w.win = {
     expandir: (r) => r.replace(/%([^%]+)%/g, (m, n) => ENV[n] ?? m),
@@ -32,7 +31,6 @@ function windowsFalso() {
 
 const crear = (w, estado = {}) =>
   crearLimpieza({
-    wsl: async () => (w.wsl++, { code: -1, stdout: "", stderr: "", falta: true }),
     win: w.win,
     estado: { cargar: () => estado, guardar: (o) => Object.assign(estado, o) },
     version: "0.2.0",
@@ -52,7 +50,7 @@ test("desinstalar: lista el arranque, el PATH y las carpetas del motor para quit
   assert.deepEqual(por("quitar"), ["win-nativo-app", "win-nativo-arranque", "win-nativo-bin", "win-nativo-node", "win-nativo-path"]);
   assert.deepEqual(por("datos"), ["win-nativo-carcasa", "win-nativo-config", "win-nativo-estado"]);
   assert.deepEqual(por("queda"), ["win-nativo-hooks", "win-nativo-wt"]);
-  assert.equal(plan.distro, null);
+  assert.equal(plan.distro, undefined);
 });
 
 test("ejecutar quita la entrada del PATH (y sólo ésa), la clave Run y las carpetas; los datos sólo si se aceptan", async () => {

@@ -31,7 +31,6 @@ contextBridge.exposeInMainWorld("carcasa", {
   continuarLogin: () => invocar("asistente:continuarLogin"),
   cuentas: () => invocar("asistente:cuentas"),
   saltarOllama: () => invocar("asistente:saltarOllama"),
-  espejo: () => invocar("asistente:espejo"),
   abrir: (url) => invocar("app:abrir", url),
   version: () => invocar("app:version"),
   actualizacion: () => invocar("actualizar:estado"),
@@ -39,7 +38,6 @@ contextBridge.exposeInMainWorld("carcasa", {
   buscarActualizacion: () => invocar("actualizar:buscar"),
   restosPlan: () => invocar("restos:plan"),
   restosQuitar: (ids) => invocar("restos:quitar", ids),
-  restosQuitarDistro: (nombre) => invocar("restos:quitarDistro", nombre),
   // La página lo lee al pintar: el sistema se sabe antes del primer cuadro (la franja no puede aparecer después).
   plataforma: process.platform,
   tituloTema: (t) => invocar("ventana:titulo", t),

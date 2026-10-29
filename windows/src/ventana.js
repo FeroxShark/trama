@@ -67,8 +67,6 @@ function logoDeBytes(crudo, ext, nativeImage) {
 /**
  * Un manejador por canal: `(evento, ...args) => valor`. `o`:
  *  - electron: { app, BrowserWindow, dialog, clipboard, shell, Notification, nativeImage }
- *  - nativo: si el motor es el de Windows (no WSL). Ahí "seguir" esconde la ventana (el motor y los líderes siguen con el
- *    ícono de la bandeja); en WSL no hay bandeja y cerrar la carcasa es lo que se pide.
  *  - changelog: la URL de "ver cambios" de Claude Code.
  *  - bandeja: { textos(t), espera(e) } para el menú y la descripción del ícono.
  *  - abrirLogin(id): abre la consola para `cuentas login <id>` (sólo la carcasa nativa sabe hacerlo).
@@ -96,9 +94,9 @@ function crearCanalesVentana(o) {
   }
 
   return {
-    // "Cerrar del todo" (la página): con "seguir" la carcasa nativa queda en la bandeja; si no, sale y el motor se apaga con ella.
+    // "Cerrar del todo" (la página): con "seguir" la carcasa queda en la bandeja; si no, sale y el motor se apaga con ella.
     "app:salir": (_e, x) => {
-      if (x?.modo === "seguir" && o.nativo) for (const v of BrowserWindow.getAllWindows()) v.hide();
+      if (x?.modo === "seguir") for (const v of BrowserWindow.getAllWindows()) v.hide();
       else app.quit();
       return 0;
     },

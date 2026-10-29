@@ -1,9 +1,9 @@
 "use strict";
-// Main mínimo de captura: pinta una pantalla del asistente (?demo=<nombre>) sin hablar con WSL.
+// Main mínimo de captura: pinta una pantalla del asistente (?demo=<nombre>) sin hablar con el main.
 const { app, BrowserWindow } = require("electron");
 const fs = require("node:fs");
 const path = require("node:path");
-const [demo, salida] = [process.env.TRAMA_DEMO || "wsl", process.env.TRAMA_PNG];
+const [demo, salida] = [process.env.TRAMA_DEMO || "instalar", process.env.TRAMA_PNG];
 app.disableHardwareAcceleration();
 app.whenReady().then(async () => {
   const w = new BrowserWindow({ width: 1180, height: 760, show: false, webPreferences: { offscreen: true } });

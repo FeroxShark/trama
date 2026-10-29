@@ -45,7 +45,7 @@ const esRed = (e) => /ENOTFOUND|ECONN|ETIMEDOUT|EAI_AGAIN|ERR_INTERNET|ERR_NAME|
 
 // La máquina de estados, sin Electron: `autoUpdater` es el de electron-updater (o un falso en los tests). `reloj` (`ahora`, `cada`,
 // `despues`) es el del tiempo: en los tests, uno falso.
-// `canal`: el del instalador nativo es «nativo» (nativo.yml en la release; electron-builder-nativo.yml), el de WSL el de siempre.
+// `canal`: el del instalador nativo es «nativo» (nativo.yml en la release; electron-builder-nativo.yml), sin canal es el de siempre (latest.yml).
 function crearActualizador({ autoUpdater, onEstado, log = () => {}, canal = null, reloj = RELOJ_REAL }) {
   let fase = "";
   let version = null;
