@@ -18,6 +18,7 @@ import glob
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import time
@@ -1536,4 +1537,12 @@ def main():
 
 
 if __name__ == "__main__":
+    # El port a TypeScript es el DEFAULT (app/electron/cli/tablero.ts, compilado en app/dist-electron/cli/tablero.js; igual que `pa`).
+    # TRAMA_TABLERO=py vuelve a este Python. Sin node o sin el .js compilado avisa y sigue acá.
+    if os.environ.get("TRAMA_TABLERO", "ts") == "ts":
+        _js = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "app", "dist-electron", "cli", "tablero.js")
+        _node = shutil.which("node")
+        if _node and os.path.isfile(_js):
+            sys.exit(subprocess.call([_node, _js, *sys.argv[1:]]))
+        sys.stderr.write("tablero: TRAMA_TABLERO=ts (el default) pero no encuentro node o el .js compilado; sigo con el de python.\n")
     main()
