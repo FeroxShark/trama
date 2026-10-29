@@ -3443,4 +3443,12 @@ def main(argv):
 
 
 if __name__ == "__main__":
+    # El port a TypeScript es el DEFAULT (app/electron/cli/reparto.ts, compilado en app/dist-electron/cli/reparto.js; igual que `pa`).
+    # TRAMA_REPARTO=py vuelve a este Python. Sin node o sin el .js compilado avisa y sigue acá.
+    if os.environ.get("TRAMA_REPARTO", "ts") == "ts":
+        _js = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "app", "dist-electron", "cli", "reparto.js")
+        _node = shutil.which("node")
+        if _node and os.path.isfile(_js):
+            sys.exit(subprocess.call([_node, _js, *sys.argv[1:]]))
+        sys.stderr.write("reparto: TRAMA_REPARTO=ts (el default) pero no encuentro node o el .js compilado; sigo con el de python.\n")
     sys.exit(main(sys.argv[1:]))
