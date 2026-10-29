@@ -270,3 +270,60 @@ export function relanzarPorCupo(pa: Pa, l: Llamada): NonNullable<Ganchos["relanz
     return true;
   };
 }
+
+/**
+ * El gancho `relanzarPorFallback` de `lanzarClaude` (`fb_siguiente` y el bloque 97 de motor/bin/pa, `-m a,b,c` con --async): OpenCode cortó
+ * por límite con el modelo lanzado y el intento no dejó nada. La MISMA corrida (mismo id y puesto) sigue con el próximo de `l.fbResto` que
+ * no esté apagado en modelos.json ni enfriado en reparto; lo que queda de la lista vuelve a `l.fbResto`. true si cambió.
+ * Sólo pasa a otro modelo de OpenCode (dsh): el motor de la corrida se elige al arrancar. Con un modelo de otro motor, para aquí con 97.
+ */
+export function relanzarPorFallback(pa: Pa, l: Llamada): NonNullable<Ganchos["relanzarPorFallback"]> {
+  return async (lz: Lanzamiento) => {
+    const c = lz.c;
+    if (!pa.env.PA_ASYNC || !l.fbResto || !(await sinTrabajoHecho(pa, c))) return false;
+    const { io } = pa;
+    const modelos = new Modelos(pa.env, io, pa.home, pa.plat);
+    const ef = l.esfPedido ? l.esfuerzo : "";
+    const items = l.fbResto.split(",");
+    for (let i = 0; i < items.length; i++) {
+      const x = items[i]!;
+      // los que el dueño apagó en modelos.json (excluir, o el effort pedido en efforts_permitidos) se saltean, salvo con --ok-dueno
+      if (!l.okDueno) {
+        const excl = modelos.excluidoPor(x);
+        if (excl !== null) {
+          io.err(`pa: -m: ${x} está excluido en modelos.json (excluir: ${excl}): lo salteo.\n`);
+          continue;
+        }
+        const ap = ef ? modelos.effortApagado(x, ef) : null;
+        if (ap !== null) {
+          io.err(`pa: -m: effort '${ef}' con ${x} está apagado en modelos.json (efforts_permitidos: ${ap.replace(/ /g, ", ")}): lo salteo.\n`);
+          continue;
+        }
+      }
+      if ((await repartoProceso(pa).enfriado(x)) !== null) {
+        io.err(`pa: -m: ${x} sigue enfriado (cortó por límite): lo salteo.\n`);
+        continue;
+      }
+      const mAnt = c.modelo;
+      if (!esDsh(x)) {
+        io.err(`pa: OpenCode cortó por límite con ${mAnt}; el siguiente de la lista (${x}) no es de OpenCode y esta corrida no cambia de motor: sigo como salió 97.\n`);
+        return false;
+      }
+      io.err(`pa: OpenCode cortó por límite con ${mAnt}: sigo con ${x} (lista de fallback, mismo id).\n`);
+      // cambiar_de_modelo (dsh): modelo y motor, sin effort ni cuenta de Claude
+      c.modelo = x;
+      c.esfuerzo = "";
+      c.efVacio = "-";
+      c.cuenta = "";
+      c.cuentaEnv = undefined;
+      if (existsSync(path.join(lz.dir, `${c.ts}.hilo`))) {
+        await hiloPoner(lz.dir, c.ts, "modelo", x);
+        await hiloPoner(lz.dir, c.ts, "effort", "-");
+        await hiloPoner(lz.dir, c.ts, "cuenta", "");
+      }
+      l.fbResto = items.slice(i + 1).join(",");
+      return true;
+    }
+    return false;
+  };
+}

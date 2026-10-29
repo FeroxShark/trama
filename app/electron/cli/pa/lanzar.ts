@@ -131,8 +131,10 @@ export interface Ganchos {
   anotarTablero?: (l: Lanzamiento) => Promise<void>;
   /** Soltar el puesto y el lugar del tope global (el `exec 9>&- 6>&-`). */
   soltar?: () => Promise<void>;
-  /** `enfriar_modelo`: marca ese modelo de OpenCode como enfriado en reparto (nunca rompe). */
-  enfriar?: (modelo: string) => Promise<void>;
+  /** `enfriar_modelo`: marca ese modelo de OpenCode como enfriado en reparto (nunca rompe). `salida`: lo que dijo OpenCode (con "Free usage limit" agota el grupo gratis entero). */
+  enfriar?: (modelo: string, salida?: string) => Promise<void>;
+  /** `-m a,b,c` con --async: tras un corte de OpenCode (97) sin trabajo hecho, cambia la corrida al siguiente de la lista (mismo id). true si cambió y hay que correr de nuevo. */
+  relanzarPorFallback?: (l: Lanzamiento) => Promise<boolean>;
   /** Relanzar con otro modelo por falta de cupo (reparto): true si cambió la corrida y hay que correr de nuevo (hasta 3 veces). */
   relanzarPorCupo?: (l: Lanzamiento, intento: number) => Promise<boolean>;
   /** Las ramas sin integrar que tocan lo mismo (la cola de `linea_rama`). */
@@ -553,14 +555,17 @@ export function entornoClaude(l: Lanzamiento): Env {
 
 /** `dsh_sin_cupo`: el proveedor contestó 429 / rate limit. Sólo el final de stderr y el result: el stream trae lo que el modelo dijo. */
 export function dshSinCupo(err: string, texto: string): boolean {
-  let cola = "";
+  return /rate.?limit|Too Many Requests|quota|FreeUsageLimit|cortó por límite de uso|(^|[^0-9])429([^0-9]|$)/i.test(colaDe(err) + texto);
+}
+
+/** Los últimos 4000 bytes de un archivo (`tail -c 4000`), o "" si no se puede leer. */
+export function colaDe(archivo: string): string {
   try {
-    const b = readFileSync(err);
-    cola = b.subarray(Math.max(0, b.length - 4000)).toString("utf8");
+    const b = readFileSync(archivo);
+    return b.subarray(Math.max(0, b.length - 4000)).toString("utf8");
   } catch {
-    cola = "";
+    return "";
   }
-  return /rate.?limit|Too Many Requests|quota|FreeUsageLimit|cortó por límite de uso|(^|[^0-9])429([^0-9]|$)/i.test(cola + texto);
 }
 
 const NUM_SENAL: Record<string, number> = { SIGHUP: 1, SIGINT: 2, SIGQUIT: 3, SIGKILL: 9, SIGTERM: 15 };
@@ -777,11 +782,19 @@ export async function lanzarClaude(pa: Pa, c: Corrida, o: OpcionesLanzar = {}): 
     rc = await correr();
   }
 
+  // -m a,b,c con --async: un corte de OpenCode (97) sin trabajo hecho pasa al siguiente de la lista EN ESTA corrida (mismo id y puesto)
+  while (g.relanzarPorFallback && fallo(rc) && c.motor === "dsh" && esOpencode(c.modelo) && dshSinCupo(l.err, res())) {
+    await g.enfriar?.(c.modelo, colaDe(l.err) + res()).catch(() => {});
+    if (!(await g.relanzarPorFallback(l))) break;
+    escribirRunning(l);
+    rc = await correr();
+  }
+
   if (fallo(rc)) {
     const texto = res();
     // 0. OpenCode cortó por límite de uso (los gratis lo hacen seguido): código propio, y ESE modelo queda enfriado en reparto.
     if (c.motor === "dsh" && esOpencode(c.modelo) && dshSinCupo(l.err, texto)) {
-      await g.enfriar?.(c.modelo).catch(() => {});
+      await g.enfriar?.(c.modelo, colaDe(l.err) + texto).catch(() => {});
       io.err(`pa: OpenCode cortó por límite de uso con ${c.modelo}: lo enfrío ${esNvidia(c.modelo) ? `${minutosEnfriarNvidia(pa.env)} min (NVIDIA NIM limita por minuto)` : `${pa.env.PA_ENFRIAR_HORAS || "5"} h`} en reparto. Probá con otro modelo (-m a,b,c pasa solo al siguiente).\n`);
       io.err(`${texto}\n`);
       return salir(97);

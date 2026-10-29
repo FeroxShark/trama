@@ -17,6 +17,8 @@ export interface Reparto {
   enfriado(modelo: string): Promise<string | null>;
   /** `reparto --enfriar <m> [--horas N]`: marca ese modelo de OpenCode como enfriado (nunca rompe). */
   enfriar?(modelo: string, horas?: string): Promise<void>;
+  /** `reparto --opencode-limite` con lo que dijo OpenCode por stdin: si era su límite gratis, agota el grupo opencode-free (nunca rompe). */
+  opencodeLimite?(salida: string): Promise<void>;
   /** `reparto --tipo T [--cuenta C] --json` (con REPARTO_RESERVAR=1 si `reservar`). rc 124/137 = venció el tope, 127 = no está. */
   elegir(tipo: string, o?: { reservar?: boolean; sinDsh?: boolean; cuenta?: string; noDisponible?: string[] }): Promise<{ rc: number; salida: string }>;
   /** `reparto --agy-modelos [--refrescar] [--cuenta C]`: los modelos (con el id de pa) que ofrece el agy de esta cuenta, o null si no se sabe. Opcional: los falsos de los tests no lo tienen. */
@@ -57,8 +59,8 @@ export function repartoProceso(pa: Pa): Reparto {
   const prefijo = prefijoDe(pa, "reparto", pa.env.PA_REPARTO, ruta);
   const entorno = (extra: Env = {}): Env => ({ ...pa.env, REPARTO_STATE: pa.env.REPARTO_STATE || path.join(pa.state, "reparto"), PA_STATE: pa.state, ...extra });
   const ms = () => Number(topeReparto(pa.env)) * 1000;
-  const llamar = (args: string[], extra: Env = {}, tope = true) =>
-    correr(prefijo[0]!, [...prefijo.slice(1), ...args], { env: entornoCmd(prefijo, entorno(extra)), timeoutMs: tope ? ms() : undefined, input: "" });
+  const llamar = (args: string[], extra: Env = {}, tope = true, entrada = "") =>
+    correr(prefijo[0]!, [...prefijo.slice(1), ...args], { env: entornoCmd(prefijo, entorno(extra)), timeoutMs: tope ? ms() : undefined, input: entrada });
   return {
     ruta: prefijo[prefijo.length - 1]!,
     ejecutable: () => esEjecutable(prefijo[prefijo.length - 1]!, pa.plat),
@@ -68,6 +70,9 @@ export function repartoProceso(pa: Pa): Reparto {
     },
     async enfriar(modelo, horas) {
       await llamar(["--enfriar", modelo, ...(horas ? ["--horas", horas] : [])]).catch(() => {});
+    },
+    async opencodeLimite(salida) {
+      await llamar(["--opencode-limite"], {}, true, salida).catch(() => {});
     },
     async elegir(tipo, o = {}) {
       const extra: Env = {};

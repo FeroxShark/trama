@@ -21,7 +21,7 @@ import { jefeId, jefeNombre, type Env, type Pa } from "./entorno.ts";
 import { carpetaProyectos, claudeFalla, claudeRc, escapar, limiteDe, lanzarClaude, type Corrida, type Ganchos, type OpcionesLanzar } from "./lanzar.ts";
 import { TIPOS_VALIDOS } from "./modelos.ts";
 import { Admision, avisarParalelo, otrosWriters, runningVivo } from "./puestos.ts";
-import { esperarCupo, relanzarPorCupo } from "./cupo.ts";
+import { esperarCupo, relanzarPorCupo, relanzarPorFallback } from "./cupo.ts";
 import { ganchosDe } from "./ganchos.ts";
 import { fijarProyecto as fijarProy } from "./ramas-base.ts";
 import { campoJson, contarCompactaciones, horaMinuto, leerSalida, textoResultado } from "./resultado-lanzar.ts";
@@ -30,7 +30,7 @@ import { prepararWorktree, type Proyecto as ProyectoWt } from "./worktrees.ts";
 import type { Llamada } from "./politica.ts";
 import { ORDEN_PARAR } from "./matar.ts";
 import { Modelos } from "./modelos.ts";
-import { dshProveedor, esOpencode, horasEnfriar } from "./motores/modelos.ts";
+import { dshProveedor, esNvidia, esOpencode, horasEnfriar } from "./motores/modelos.ts";
 import { cuentaEnvDe, ejecutarOtro, esMotorOtro, localesDe } from "./otros-motores.ts";
 
 export interface OpcionesOrquesta extends OpcionesLanzar {
@@ -495,8 +495,13 @@ async function orquestar(l: Llamada, pa: Pa, p: ProyectoCli, o: OpcionesOrquesta
     };
     const paRun: Pa = t.cargoTargetDir ? { ...pa, env: { ...env, CARGO_TARGET_DIR: t.cargoTargetDir } as Env } : pa;
     const g: Ganchos = ganchosDe(pa, l, {
-      enfriar: (m) => repartoProceso(pa).enfriar?.(m, horasEnfriar(m, env)) ?? Promise.resolve(),
+      enfriar: async (m, salida) => {
+        // enfriar_modelo: lo que dijo OpenCode va a --opencode-limite (agota el grupo gratis si era su límite); NVIDIA no comparte ese límite
+        if (salida !== undefined && !esNvidia(m)) await repartoProceso(pa).opencodeLimite?.(salida);
+        await repartoProceso(pa).enfriar?.(m, horasEnfriar(m, env));
+      },
       relanzarPorCupo: relanzarPorCupo(pa, l),
+      relanzarPorFallback: relanzarPorFallback(pa, l),
       ...o.ganchos,
       soltar: async () => {
         await adm.soltarTodo();
