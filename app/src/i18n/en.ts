@@ -1009,7 +1009,7 @@ export const en = {
   "turno.tardo": "took {d}",
   // B24: la cabecera (uso en su renglón) y los botones que dicen lo que hacen (antes "Settle").
   "tiempo.en": "in {t}",
-  "tiempo.reiniciaElDia": "resets {dia} at {hora}",
+  "tiempo.vuelveEl": "resets {dia} at {hora}",
   "accion.archivar": "Archive",
   "accion.integrarTip": "Merges this worker's changes into main, running the project's tests if it has any",
   "accion.archivarTip": "Takes it off the list; deletes nothing",
@@ -2293,8 +2293,6 @@ export const en = {
   "ajustes.umbralAtajos": "Common values",
   "ajustes.errUmbralRango": "It has to be between {min} and {max} (in thousands of tokens)",
   "bv.compNoQuedo": "It was not saved: the file does not hold {n} tokens. Try again.",
-  "tiempo.reiniciaHoy": "resets at {hora}",
-  "tiempo.reiniciaManana": "resets tomorrow at {hora}",
   "tiempo.unidadD": "d",
   "tiempo.unidadH": "h",
   "tiempo.unidadMin": "min",

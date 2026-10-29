@@ -997,7 +997,7 @@ export const es: { [K in keyof typeof en]: string } = {
   "turno.tardo": "tardó {d}",
   // B24: la cabecera (uso en su renglón) y los botones que dicen lo que hacen (antes "Settle").
   "tiempo.en": "en {t}",
-  "tiempo.reiniciaElDia": "se reinicia el {dia} {hora}",
+  "tiempo.vuelveEl": "vuelve el {dia} a las {hora}",
   "accion.archivar": "Archivar",
   "accion.integrarTip": "Sube los cambios de este worker a main, con los tests del proyecto si los tiene",
   "accion.archivarTip": "Lo saca de la lista; no borra nada",
@@ -2279,8 +2279,6 @@ export const es: { [K in keyof typeof en]: string } = {
   "ajustes.umbralAtajos": "Valores de uso común",
   "ajustes.errUmbralRango": "Tiene que estar entre {min} y {max} (en miles de tokens)",
   "bv.compNoQuedo": "No quedó guardado: el archivo no tiene {n} tokens. Probá de nuevo.",
-  "tiempo.reiniciaHoy": "se reinicia a las {hora}",
-  "tiempo.reiniciaManana": "se reinicia mañana {hora}",
   "tiempo.unidadD": "d",
   "tiempo.unidadH": "h",
   "tiempo.unidadMin": "min",

@@ -36,24 +36,29 @@ test("el reinicio se repinta cuando cambia el texto", () => {
   }
 });
 
-test("el tooltip del reinicio dice la hora local exacta: hoy, mañana, o qué día", () => {
+test("el tooltip del reinicio dice la fecha y hora exactas, con el mes y el año sólo si no son los de ahora", () => {
   const a = new Date(2026, 9, 3, 16, 34).getTime() / 1000;
   const hoy = pintorCuando(new Date(2026, 9, 3, 16, 50).getTime() / 1000);
   const manana = pintorCuando(new Date(2026, 9, 4, 9, 0).getTime() / 1000);
   const jueves = pintorCuando(new Date(2026, 9, 8, 9, 0).getTime() / 1000);
-  assert.equal(hoy(a).texto, "resets at 16:50");
+  const otroMes = pintorCuando(new Date(2026, 10, 2, 9, 0).getTime() / 1000);
+  const otroAnio = pintorCuando(new Date(2027, 0, 5, 9, 0).getTime() / 1000);
+  assert.equal(hoy(a).texto, "resets Sat 3 at 16:50");
   assert.equal(hoy(a).en, 16 * MIN);
   assert.equal(hoy(a + 17 * MIN).texto, "resets now");
-  assert.equal(manana(a).texto, "resets tomorrow at 09:00");
-  assert.equal(jueves(a).texto, "resets Thursday at 09:00");
-  // Hasta la medianoche: ahí "mañana" pasa a ser "hoy" y "jueves" a ser "mañana".
-  assert.equal(manana(a).en, 7 * HORA + 26 * MIN);
-  assert.equal(jueves(a).en, 7 * HORA + 26 * MIN);
+  assert.equal(manana(a).texto, "resets Sun 4 at 09:00");
+  assert.equal(jueves(a).texto, "resets Thu 8 at 09:00");
+  assert.equal(otroMes(a).texto, "resets Mon 2 Nov at 09:00");
+  assert.equal(otroAnio(a).texto, "resets Tue 5 Jan 2027 at 09:00");
+  // El texto no cambia hasta el reinicio: se repinta cuando llega.
+  assert.equal(jueves(a).en, 4 * DIA + 16 * HORA + 26 * MIN);
   cambiarIdioma("es");
   try {
-    assert.equal(hoy(a).texto, "se reinicia a las 16:50");
-    assert.equal(manana(a).texto, "se reinicia mañana 09:00");
-    assert.equal(jueves(a).texto, "se reinicia el jueves 09:00");
+    assert.equal(hoy(a).texto, "vuelve el sáb 3 a las 16:50");
+    assert.equal(manana(a).texto, "vuelve el dom 4 a las 09:00");
+    assert.equal(jueves(a).texto, "vuelve el jue 8 a las 09:00");
+    assert.equal(otroMes(a).texto, "vuelve el lun 2 nov a las 09:00");
+    assert.equal(otroAnio(a).texto, "vuelve el mar 5 ene 2027 a las 09:00");
   } finally {
     cambiarIdioma("en");
   }

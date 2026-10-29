@@ -128,7 +128,10 @@ export const pintorResta =
     return { texto: t("tiempo.en", { t: f.texto }), en: f.en };
   };
 
-/** La hora local exacta, para el tooltip: "se reinicia a las 16:50", "se reinicia mañana 09:00", "se reinicia el jueves 18:00". */
+/**
+ * La fecha y hora exactas del reinicio, para el tooltip: "vuelve el sáb 31 a las 14:20" (en inglés, "resets Sat 31 at 14:20").
+ * Con el mes si no es el de ahora ("sáb 2 nov"), y el año si es de otro año. Nada de "mañana": el texto no cambia hasta el reinicio.
+ */
 export const pintorCuando =
   (hasta: number): Pintor =>
   (a) => {
@@ -136,13 +139,17 @@ export const pintorCuando =
     if (r <= 0) return { texto: t("tiempo.reiniciaYa"), en: Infinity };
     const f = new Date(hasta * 1000);
     const hora = `${dos(f.getHours())}:${dos(f.getMinutes())}`;
-    const medianoche = new Date(a * 1000).setHours(24, 0, 0, 0) / 1000;
-    if (hasta < medianoche) return { texto: t("tiempo.reiniciaHoy", { hora }), en: r };
-    // "Mañana" dura hasta la medianoche, cuando pasa a ser "hoy": ahí se repinta.
-    const pasadoManana = new Date(a * 1000).setHours(48, 0, 0, 0) / 1000;
-    if (hasta < pasadoManana) return { texto: t("tiempo.reiniciaManana", { hora }), en: Math.min(r, medianoche - a) };
-    return { texto: t("tiempo.reiniciaElDia", { dia: diaSemana(f, true), hora }), en: Math.min(r, medianoche - a) };
+    return { texto: t("tiempo.vuelveEl", { dia: fechaExacta(f, a), hora }), en: r };
   };
+
+/** "sáb 31", o "sáb 2 nov" / "mar 5 ene 2027" si no es de este mes / año (`ahora`, en epoch s). */
+function fechaExacta(f: Date, ahora: number): string {
+  const h = new Date(ahora * 1000);
+  const dia = `${diaSemana(f)} ${f.getDate()}`;
+  if (f.getMonth() === h.getMonth() && f.getFullYear() === h.getFullYear()) return dia;
+  const mes = f.toLocaleDateString(locale(), { month: "short" }).replace(/\./g, "").replace(/ de /g, " ");
+  return f.getFullYear() === h.getFullYear() ? `${dia} ${mes}` : `${dia} ${mes} ${f.getFullYear()}`;
+}
 
 /** Desde esto (s) el uso del plan se muestra con cuándo se vio: puede estar atrasado. */
 export const VIEJO_S = 15 * MIN;
