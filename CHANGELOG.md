@@ -1,5 +1,17 @@
 # Cambios
 
+## 0.2.20
+
+- NVIDIA NIM: clave, ayuda, modelos y cupo en la app; un límite de NVIDIA enfría sólo ese modelo.
+- Ajustes > Locales: pantalla completa de modelos locales.
+- Pensamiento del líder en vivo mientras trabaja.
+- Líder caído: "Este líder se detuvo" con botón Retomar.
+- Panel derecho: por cada worker vivo, cuánto lleva, el último paso y un botón para abrirlo.
+- Conversaciones de Claude Code en cada proyecto ("De Claude Code"), para retomarlas en Trama.
+- Ajustes > Conectores: catálogo de plugins (anthropics/skills, oficiales u otro repo) y plugins sincronizados de claude.ai.
+- Windows: conectar una segunda cuenta ya no muestra "main.cuentasFallo".
+- Windows: DeepSeek Harness se detecta en `%USERPROFILE%\.local\dsh.cmd`.
+
 ## 0.2.19
 
 - Versiones nuevas casi al instante (Linux y Windows): Trama mira cada 2 minutos, al volver a la ventana y al volver la red; el aviso siempre muestra la última.
