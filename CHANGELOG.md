@@ -1,5 +1,12 @@
 # Cambios
 
+## 0.2.23
+
+- Proyectos: toda carpeta donde trabaja un líder se anota sola en Ajustes > Proyectos (también las de líderes que ya existían).
+- Barra de cupos: con varias cuentas de un proveedor, cada una muestra "En uso" o un botón "Usar primero".
+- Ajustes: la barra de Guardar aparece sólo cuando hay cambios.
+- Selector de modelo y esfuerzo unidos: el panel deja elegir también el esfuerzo.
+
 ## 0.2.22
 
 - Windows: las cuentas agregadas de Claude comparten conversaciones, plugins, skills y ajustes con la principal (como en Linux). Las que ya existían se unen solas, sin borrar nada. Retomar una conversación con otra cuenta ya no da "No conversation found".
