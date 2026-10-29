@@ -1,5 +1,5 @@
-// La barra de Guardar de Ajustes, una sola y siempre a la vista. Cada bloque editable (plan y compactación, modelos,
-// celular) conserva su borrador y publica acá cómo está; la barra suma los bloques y guarda o cancela todos a la vez.
+// La barra de Guardar de Ajustes, una sola y siempre a la vista. Cada bloque editable (plan y compactación, modelos)
+// conserva su borrador y publica acá cómo está; la barra suma los bloques y guarda o cancela todos a la vez.
 // Puro (sin React): lo prueba tests/ajustes-barra.test.ts.
 
 export type Bloque = {

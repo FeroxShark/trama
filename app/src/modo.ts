@@ -248,8 +248,9 @@ export const MODO = {
    * con el prompt del asistente de Ramas; `sin-uso`, los límites sin dato; `error` (con `ajustes` o
    * `estadisticas`), el panel que no cargó con su Reintentar (`error-historial`: sólo el registro histórico,
    * que queda debajo de lo que se ve sin scrollear: lo mira scripts/prueba-paneles.mjs).
-   * Con `ajustes`: `celular` deja a la vista el acceso desde el celular; `editando` lo que se cambió sin guardar
-   * (plan, red de seguridad y un dispositivo nuevo, con Guardar y Cancelar a mano) y `editando-mal` lo que no vale
+   * Con `ajustes`: `celular` deja a la vista el acceso desde el celular (prendido, con la dirección y el QR); `prendiendo` el mismo
+   * apagado con el motor contestando a un prender ("Prendiendo…"); `editando` lo que se cambió sin guardar
+   * (plan, red de seguridad, con Guardar y Cancelar a mano) y `editando-mal` lo que no vale
    * (red de 50 tokens, puerto 80, una dirección en vez de un dispositivo), con su motivo en línea.
    * Modelos y proveedores (`AjustesModelos.tsx`): `mdl` deja a la vista la sección con un archivo de muestra, `mdl-agregar` con el
    * panel de Ollama en otra dirección abierto, `mdl-lider` con el selector del líder abierto, `mdl-bajando` con un modelo bajándose a mitad,

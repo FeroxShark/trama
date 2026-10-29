@@ -54,11 +54,17 @@ function Direccion({ url }: { url: string }) {
   );
 }
 
-/** El estado de lo guardado y andando: escuchando (con la dirección), prendido sin escuchar, o apagado. */
-export function EstadoEscucha({ activo, url }: { activo: boolean; url: string | undefined }) {
-  const tono = activo ? (url ? "ok" : "aviso") : undefined;
-  const titulo = !activo ? t("ajustes.celEstApagado") : url ? t("ajustes.celEstEscucha") : t("ajustes.celEstEspera");
-  const detalle = !activo ? t("ajustes.celApagado") : url ? t("ajustes.celEstEscuchaDet") : t("ajustes.celSinEscuchar");
+/** Lo que hace la sección al tocar algo (sin Guardar): prender, apagar, o un cambio de dispositivos o de puerto. */
+export type Aplicando = "prender" | "apagar" | "cambiar";
+
+/**
+ * El estado de lo guardado y andando: escuchando (con la dirección), prendido sin escuchar, o apagado. Mientras el motor
+ * contesta a un cambio, dice lo que se está haciendo ("Prendiendo…") en vez de lo guardado.
+ */
+export function EstadoEscucha({ activo, url, aplicando }: { activo: boolean; url: string | undefined; aplicando?: Aplicando | null }) {
+  const tono = aplicando ? undefined : activo ? (url ? "ok" : "aviso") : undefined;
+  const titulo = aplicando === "prender" ? t("ajustes.celPrendiendo") : aplicando === "apagar" ? t("ajustes.celApagando") : aplicando ? t("ajustes.celAplicando") : !activo ? t("ajustes.celEstApagado") : url ? t("ajustes.celEstEscucha") : t("ajustes.celEstEspera");
+  const detalle = aplicando ? null : !activo ? t("ajustes.celApagado") : url ? t("ajustes.celEstEscuchaDet") : t("ajustes.celSinEscuchar");
   return (
     <div className="cel-estado" data-escucha={activo && url ? "" : undefined} role="status">
       <span className="cel-estado-ico" aria-hidden>

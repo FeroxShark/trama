@@ -544,7 +544,9 @@ const fija: FuentePaneles = {
   },
   async remoto() {
     if (MODO.variante === "cargando") return new Promise(() => {});
-    return { version: 1, editable: true, ...REMOTO, escuchando: REMOTO.activo ? [URL_REMOTO_FALSA(REMOTO.puerto)] : [], accesos: ACCESOS_FALSOS().filter((a) => REMOTO.dispositivos.includes(a.nombre)) };
+    // `prendiendo` (captura): apagado todavía, mientras el motor contesta al prender.
+    const apagado = MODO.variante === "prendiendo";
+    return { version: 1, editable: true, ...REMOTO, ...(apagado ? { activo: false } : {}), escuchando: REMOTO.activo && !apagado ? [URL_REMOTO_FALSA(REMOTO.puerto)] : [], accesos: ACCESOS_FALSOS().filter((a) => REMOTO.dispositivos.includes(a.nombre)) };
   },
   async guardarRemoto(config) {
     await espera(150);

@@ -1,13 +1,14 @@
-// Lo que Ajustes deja cambiar con Guardar (a diferencia del idioma o la letra, que se guardan al elegir): el plan, cuándo
-// compacta Claude y el acceso desde el celular. Cada bloque trabaja sobre un borrador (ajustes-borrador.ts): nada se escribe
-// hasta Guardar (una sola barra fija abajo, ajustes-barra.ts), Cancelar vuelve a lo guardado y lo que no vale se dice en línea antes de mandar. El main vuelve a
-// validar con las mismas reglas (electron/valida-ajustes.ts) y, si algo falla, el borrador queda como estaba.
+// Lo que Ajustes deja cambiar con Guardar (a diferencia del idioma o la letra, que se guardan al elegir): el plan y cuándo
+// compacta Claude. Cada bloque trabaja sobre un borrador (ajustes-borrador.ts): nada se escribe hasta Guardar (una sola barra
+// fija abajo, ajustes-barra.ts), Cancelar vuelve a lo guardado y lo que no vale se dice en línea antes de mandar. El main vuelve
+// a validar con las mismas reglas (electron/valida-ajustes.ts) y, si algo falla, el borrador queda como estaba.
+// El acceso desde el celular no tiene Guardar: cada cambio se manda al tocarlo (`Celular`).
 import { useEffect, useRef, useState, useSyncExternalStore, type FormEvent, type ReactNode } from "react";
 import { Cat } from "./AjustesNav";
 import { PanelCargando } from "./PanelCargando";
 import { declarar } from "./ajustes-nav";
 import { Plus, X } from "lucide-react";
-import { detalleAcceso, EstadoEscucha, PasosCelular } from "./CelularGuia";
+import { type Aplicando, detalleAcceso, EstadoEscucha, PasosCelular } from "./CelularGuia";
 import { PUERTO_MAX, PUERTO_MIN } from "../../electron/valida-ajustes";
 import { VERSION } from "../datos/contrato";
 import { fuentePaneles, type Ajustes as Datos, type EstadoRemoto } from "../datos/paneles";
@@ -17,7 +18,7 @@ import { enOtros, Fijo } from "../i18n/Fijo";
 import { MODO } from "../modo";
 import { mensaje } from "../puente";
 import { cancelarTodo, guardarTodo, publicar, resumen, suscribir } from "./ajustes-barra";
-import { agregarDispositivo, numDesde, numPara, quitarDispositivo, remotoDesde, remotoPara, type BorradorNum, type BorradorRemoto } from "./ajustes-borrador";
+import { agregarDispositivo, alternarAcceso, numDesde, numPara, quitarAplicando, remotoDesde, remotoPara, type BorradorNum, type BorradorRemoto } from "./ajustes-borrador";
 
 /** Las partes de una fila de Ajustes (la misma de Ajustes.tsx, que la pasa para no repetirla). */
 export type FilaDato = (p: { nombre: ClaveSola; que: ClaveSola; icono?: ReactNode; children: ReactNode }) => ReactNode;
@@ -32,6 +33,8 @@ export const motivo = (clave: string, min: number, max: number) =>
 /** Para las capturas: `editando` deja cambios sin guardar; `editando-mal` los deja sin que valgan. */
 const EDITANDO = MODO.variante === "editando";
 const EDITANDO_MAL = MODO.variante === "editando-mal";
+/** `prendiendo`: el acceso apagado y el motor todavía contestando a un prender (la captura de "Prendiendo…"). */
+const PRENDIENDO = MODO.variante === "prendiendo";
 
 /**
  * Un bloque editable le cuenta su estado a la barra de Guardar (ajustes-barra.ts); no pinta nada. Guardar y Cancelar son
@@ -180,15 +183,18 @@ const ESTADOS: Opcion[] = [
  * El acceso desde el celular: prendido o apagado, el puerto y los dispositivos que entran. Sólo en la PC (por la tailnet
  * `editable` viene en falso y la sección no se ve; sin Tailscale en la PC se explica cómo instalarlo). Dónde se escucha no se elige acá: siempre y sólo las direcciones de
  * Tailscale, y un nombre que parezca una dirección no se acepta como dispositivo.
+ * Sin Guardar: prender, apagar, agregar, quitar y el puerto (al salir de su campo o con Enter) se mandan al motor en el momento.
+ * Mientras contesta, el estado dice lo que se hace; lo que devuelve (dónde escucha y quién entró) es lo que se muestra.
  */
 export function Celular({ Dato }: { Dato: FilaDato }) {
   const [e, setE] = useState<EstadoRemoto | null>(null);
   const [falla, setFalla] = useState<string | null>(null);
   const [b, setB] = useState<BorradorRemoto | null>(null);
-  const [guardando, setGuardando] = useState(false);
+  const [aplicando, setAplicando] = useState<Aplicando | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [ok, setOk] = useState(false);
   const vivo = useRef(true);
+  // Cada cambio lleva su número: la respuesta de uno viejo no pisa lo que ya se cambió después.
+  const ultimo = useRef(0);
   const sec = useRef<HTMLElement>(null);
   const nuevoRef = useRef<HTMLInputElement>(null);
   useEffect(() => {
@@ -216,9 +222,11 @@ export function Celular({ Dato }: { Dato: FilaDato }) {
         setE(r);
         if (r.editable) {
           const base = remotoDesde(r);
-          if (EDITANDO) setB({ ...base, dispositivos: [...base.dispositivos, "mi-tablet"] });
-          else if (EDITANDO_MAL) setB({ ...base, puerto: "80", nuevo: "192.168.0.7" });
-          else setB(base);
+          if (EDITANDO_MAL) setB({ ...base, puerto: "80", nuevo: "192.168.0.7" });
+          else if (PRENDIENDO) {
+            setB({ ...base, activo: true });
+            setAplicando("prender");
+          } else setB(base);
         }
       },
       (x) => vivo.current && setFalla(mensaje(x)),
@@ -254,36 +262,60 @@ export function Celular({ Dato }: { Dato: FilaDato }) {
   }
   if (!e || !e.editable || !b) return null;
 
+  // Lo que se muestra: lo escrito en los campos (con el motivo de lo que no vale) sobre lo que ya está guardado.
   const r = remotoPara(e, b);
-  const valido = r.config !== null;
   const cambiar = (nuevo: BorradorRemoto) => {
     setB(nuevo);
     setError(null);
-    setOk(false);
   };
+  /**
+   * Manda `nuevo` al motor ya, sin Guardar, y se queda con lo que devuelve (dónde escucha y quién entró). El nombre a medio
+   * escribir no va: se agrega con Agregar o al prender. Lo que no vale no se manda: queda en su campo, con su motivo.
+   * Si el motor falla, el borrador vuelve a lo guardado y el error se dice en palabras.
+   */
+  const aplicar = async (nuevo: BorradorRemoto, que: Aplicando) => {
+    const v = remotoPara(e, { ...nuevo, nuevo: "" });
+    if (!v.config) {
+      // Prender sin dispositivos no mueve el interruptor: el motivo va arriba. Lo demás (un puerto a medias) queda en su campo.
+      if (v.errores.general) setError(motivo(v.errores.general, 0, 0));
+      else setB(nuevo);
+      return;
+    }
+    setB(nuevo);
+    setError(null);
+    if (!v.sucio) return;
+    const mio = ++ultimo.current;
+    setAplicando(que);
+    try {
+      const n = await fuentePaneles.guardarRemoto(v.config);
+      if (!vivo.current || mio !== ultimo.current) return;
+      if (n.version !== VERSION) throw new Error(t("error.version", { que: t("ajustes.celular"), v: n.version, conozco: VERSION }));
+      setE(n);
+      if (n.editable) setB((antes) => ({ ...remotoDesde(n), nuevo: antes?.nuevo ?? "" }));
+    } catch (x) {
+      if (!vivo.current || mio !== ultimo.current) return;
+      setError(t("ajustes.celNoAplico", { error: mensaje(x) }));
+      setB((antes) => ({ ...remotoDesde(e), nuevo: antes?.nuevo ?? "" }));
+    } finally {
+      if (vivo.current && mio === ultimo.current) setAplicando(null);
+    }
+  };
+  const alternar = (on: boolean) => {
+    // Prender con un nombre escrito lo agrega antes; si ese nombre no vale, su motivo queda en el campo y no se prende.
+    const { borrador, error: mal } = alternarAcceso(b, on);
+    if (mal) return;
+    void aplicar(borrador, on ? "prender" : "apagar");
+  };
+  const quitar = (nombre: string) => void aplicar(quitarAplicando(b, nombre), "cambiar");
   const agregar = () => {
     if (!b.nuevo.trim()) return;
     const a = agregarDispositivo(b);
-    cambiar(a.borrador);
-    if (!a.error) nuevoRef.current?.focus();
+    // Si no vale, el motivo ya está en su campo.
+    if (a.error) return;
+    void aplicar(a.borrador, "cambiar").then(() => nuevoRef.current?.focus());
   };
-  const guardar = async () => {
-    if (!r.config || !r.sucio) return;
-    setGuardando(true);
-    setError(null);
-    try {
-      const nuevo = await fuentePaneles.guardarRemoto(r.config);
-      if (!vivo.current) return;
-      if (nuevo.version !== VERSION) throw new Error(t("error.version", { que: t("ajustes.celular"), v: nuevo.version, conozco: VERSION }));
-      setE(nuevo);
-      if (nuevo.editable) setB(remotoDesde(nuevo));
-      setOk(true);
-    } catch (x) {
-      if (vivo.current) setError(mensaje(x));
-    } finally {
-      if (vivo.current) setGuardando(false);
-    }
-  };
+  // El puerto se manda al salir de su campo o con Enter, no mientras se escribe (pasaría por puertos a medias).
+  const aplicarPuerto = () => void aplicar(b, "cambiar");
   const enviar = (ev: FormEvent) => {
     ev.preventDefault();
     agregar();
@@ -301,7 +333,7 @@ export function Celular({ Dato }: { Dato: FilaDato }) {
   return (
     <Cat id="celular">
     <section className="pn-sec pn-edita" ref={sec} data-celular>
-      <EstadoEscucha activo={e.activo} url={escucha} />
+      <EstadoEscucha activo={e.activo} url={escucha} aplicando={aplicando} />
       <div data-opc="ajustes.celGuia">
         <PasosCelular url={e.activo ? escucha : undefined} />
       </div>
@@ -309,7 +341,7 @@ export function Celular({ Dato }: { Dato: FilaDato }) {
 
       <Dato nombre="ajustes.celAcceso" que="ajustes.celAccesoQue">
         <div className="pn-sel">
-          <Selector etiqueta={t("ajustes.celAcceso")} opciones={opciones} valor={b.activo ? "on" : "off"} alElegir={(id) => cambiar({ ...b, activo: id === "on" })} reserva={[...enOtros("ajustes.celOn"), ...enOtros("ajustes.celOff")]} />
+          <Selector etiqueta={t("ajustes.celAcceso")} opciones={opciones} valor={b.activo ? "on" : "off"} alElegir={(id) => alternar(id === "on")} reserva={[...enOtros("ajustes.celOn"), ...enOtros("ajustes.celOff")]} />
         </div>
       </Dato>
 
@@ -324,6 +356,10 @@ export function Celular({ Dato }: { Dato: FilaDato }) {
           aria-label={t("ajustes.celPuerto")}
           aria-invalid={errPuerto !== null}
           onChange={(ev) => cambiar({ ...b, puerto: ev.target.value })}
+          onBlur={aplicarPuerto}
+          onKeyDown={(ev) => {
+            if (ev.key === "Enter") aplicarPuerto();
+          }}
         />
         {errPuerto ? <div className="pn-error pn-campo-error">{motivo(errPuerto, PUERTO_MIN, PUERTO_MAX)}</div> : null}
       </Dato>
@@ -337,7 +373,7 @@ export function Celular({ Dato }: { Dato: FilaDato }) {
                   <div className="pn-disp-nom">{d}</div>
                   <div className="cel-disp-sub">{detalleAcceso(visto.get(d))}</div>
                 </div>
-                <button type="button" className="pn-quitar cel-quitar" aria-label={t("ajustes.celQuitar", { nombre: d })} data-tip={t("ajustes.celQuitar", { nombre: d })} onClick={() => cambiar(quitarDispositivo(b, d))}>
+                <button type="button" className="pn-quitar cel-quitar" aria-label={t("ajustes.celQuitar", { nombre: d })} data-tip={t("ajustes.celQuitar", { nombre: d })} onClick={() => quitar(d)}>
                   <X size={14} aria-hidden />
                   {t("ajustes.celQuitarAcceso")}
                 </button>
@@ -371,16 +407,7 @@ export function Celular({ Dato }: { Dato: FilaDato }) {
         {errNuevo ? <div className="pn-error pn-campo-error">{motivo(errNuevo, 0, 0)}</div> : null}
       </Dato>
 
-      <Acciones
-        id="celular"
-        sucio={r.sucio}
-        valido={valido}
-        guardando={guardando}
-        ok={ok}
-        error={error ?? (r.errores.general ? motivo(r.errores.general, 0, 0) : r.errores.nuevo === "ajustes.errDispPendiente" ? motivo(r.errores.nuevo, 0, 0) : null)}
-        alGuardar={guardar}
-        alCancelar={() => cambiar(remotoDesde(e))}
-      />
+      {error ? <div className="pn-error" role="alert">{error}</div> : null}
     </section>
     </Cat>
   );
