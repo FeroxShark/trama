@@ -102,3 +102,24 @@ export function mover(largos: readonly number[], p: Pos, tecla: Flecha): Pos {
       return { s: p.s, i: Math.max(0, largo - 1) };
   }
 }
+
+/**
+ * A dónde va el foco dentro de la fila de esfuerzo (el pie del menú del modelo, cuando la barra lo fusiona en el chip): `i` es la
+ * opción con foco y `n` cuántas hay. Derecha y abajo avanzan sin pasar de la última; izquierda vuelve a la anterior; Inicio y Fin van a
+ * los extremos. Arriba en la primera vuelve a la lista de modelos (`null`). Donde no hay a dónde ir, se queda.
+ */
+export function moverEsfuerzo(n: number, i: number, tecla: Flecha): number | null {
+  switch (tecla) {
+    case "ArrowRight":
+    case "ArrowDown":
+      return Math.min(n - 1, i + 1);
+    case "ArrowLeft":
+      return Math.max(0, i - 1);
+    case "ArrowUp":
+      return i > 0 ? i - 1 : null;
+    case "Home":
+      return 0;
+    case "End":
+      return Math.max(0, n - 1);
+  }
+}

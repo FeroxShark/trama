@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { filtrar, mover, repartir, type Repartible } from "../src/hilo/selector-columnas.ts";
+import { filtrar, mover, moverEsfuerzo, repartir, type Repartible } from "../src/hilo/selector-columnas.ts";
 
 const expect = <T,>(v: T) => ({
   toEqual: (e: unknown) => assert.deepEqual(v, e),
@@ -66,5 +66,24 @@ describe("mover", () => {
   it("Inicio y Fin van a la primera y a la última de la columna", () => {
     expect(mover(largos, { s: 4, i: 2 }, "Home")).toEqual({ s: 4, i: 0 });
     expect(mover(largos, { s: 4, i: 1 }, "End")).toEqual({ s: 4, i: 3 });
+  });
+});
+
+describe("moverEsfuerzo", () => {
+  it("derecha y abajo avanzan sin pasar de la última; izquierda vuelve a la anterior", () => {
+    expect(moverEsfuerzo(5, 0, "ArrowRight")).toEqual(1);
+    expect(moverEsfuerzo(5, 2, "ArrowDown")).toEqual(3);
+    expect(moverEsfuerzo(5, 4, "ArrowDown")).toEqual(4);
+    expect(moverEsfuerzo(5, 2, "ArrowLeft")).toEqual(1);
+    expect(moverEsfuerzo(5, 0, "ArrowLeft")).toEqual(0);
+  });
+  it("arriba en la primera vuelve a la lista de modelos (null); si no, sube una", () => {
+    expect(moverEsfuerzo(5, 0, "ArrowUp")).toEqual(null);
+    expect(moverEsfuerzo(5, 3, "ArrowUp")).toEqual(2);
+  });
+  it("Inicio y Fin van a la primera y a la última", () => {
+    expect(moverEsfuerzo(5, 3, "Home")).toEqual(0);
+    expect(moverEsfuerzo(5, 1, "End")).toEqual(4);
+    expect(moverEsfuerzo(3, 0, "End")).toEqual(2);
   });
 });
