@@ -1,8 +1,11 @@
 # Cambios
 
-## Próxima
+## 0.2.25
 
 - Gemini (agy): los modelos dependen de la cuenta, la región y la versión de agy. `reparto` elige sólo entre los que ese agy ofrece (los que no conoce entran con calidad estimada y marcada `~`), el selector de modelos los muestra, y si agy rechaza un modelo `pa` lo marca como no disponible y relanza con el siguiente candidato en vez de cortar.
+- Barra: proyectos y líderes ordenados por lo último que se usó, con control "Recientes | A-Z" que se recuerda.
+- Workers con modelos locales (dsh): compactan antes de llenar el contexto, que sale del `-c` real del modelo.
+- Tests: ya no crean líderes en el estado real ni dependen de la memoria libre o de la máquina.
 
 ## 0.2.24
 
