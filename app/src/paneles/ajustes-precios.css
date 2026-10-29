@@ -1,0 +1,54 @@
+/* Precios de API (Ajustes > Modelos): una tabla de modelos × 4 precios. Los inputs ocupan poco; el estado se dice con texto. */
+.ajp-tabla-caja {
+  overflow-x: auto;
+}
+.ajp-tabla {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--letra-4);
+}
+.ajp-tabla th,
+.ajp-tabla td {
+  padding: var(--esp-1) var(--esp-2);
+  text-align: left;
+  vertical-align: top;
+}
+.ajp-tabla thead th {
+  color: var(--texto-6);
+  font-weight: 400;
+}
+.ajp-modelo {
+  font-family: var(--font-mono);
+  font-weight: 400;
+  color: var(--texto-3);
+  white-space: nowrap;
+}
+.ajp-campo {
+  display: grid;
+  gap: var(--esp-0-5, 0.125rem);
+}
+.ajp-campo input {
+  width: 6.5rem;
+  font-family: var(--font-mono);
+  text-align: right;
+}
+.ajp-mal {
+  color: var(--rojo-texto);
+}
+.ajp-estado {
+  display: grid;
+  gap: var(--esp-1);
+  justify-items: start;
+  color: var(--texto-6);
+  white-space: nowrap;
+}
+.ajp-agregar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--esp-2);
+  margin-top: var(--esp-2);
+}
+.ajp-agregar input {
+  min-width: 16rem;
+}

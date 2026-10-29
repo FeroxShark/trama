@@ -25,6 +25,7 @@ import { PanelCargando } from "./PanelCargando";
 import { AjustesDsh } from "./AjustesDsh";
 import { AjustesOpencode } from "./AjustesOpencode";
 import { AjustesConectores } from "./AjustesConectores";
+import { AjustesPrecios } from "./AjustesPrecios";
 import { ModelosParaWorkers } from "./AjustesWorkers";
 import { AutocompactFilas } from "./AjustesAutocompact";
 import { GuiaOllama, SugeridosOllama, textoBajada } from "./AjustesLocales";
@@ -669,6 +670,8 @@ export function AjustesModelos({ Dato, plan = null }: { Dato: FilaDato; plan?: s
 
         </section>
       </Cat>
+
+      <AjustesPrecios />
 
       <AjustesOpencode Dato={Dato} />
 
