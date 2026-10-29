@@ -90,7 +90,7 @@ const Fila = memo(function Fila({ u, vivo, activa, alAbrir }: { u: Subagente; vi
           <div className="sub-pie-acciones">
             {u.estado === "terminado" && u.hay_mas && entero === null ? (
               <button type="button" className="sub-ver" onClick={verInforme} disabled={pidiendo}>
-                tr(pidiendo ? "sub.cargando" : "sub.verInforme")
+                {tr(pidiendo ? "sub.cargando" : "sub.verInforme")}
               </button>
             ) : null}
             {!vivo ? (
