@@ -29,7 +29,7 @@ contextBridge.exposeInMainWorld("carcasa", {
   conectar: (proveedor) => invocar("asistente:conectar", proveedor),
   saltarLogin: (proveedor) => invocar("asistente:saltarLogin", proveedor),
   continuarLogin: () => invocar("asistente:continuarLogin"),
-  cuentas: () => invocar("cuentas:estado"),
+  cuentas: () => invocar("asistente:cuentas"),
   saltarOllama: () => invocar("asistente:saltarOllama"),
   espejo: () => invocar("asistente:espejo"),
   abrir: (url) => invocar("app:abrir", url),

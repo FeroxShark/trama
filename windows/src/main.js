@@ -447,7 +447,7 @@ ipcMain.handle("asistente:avanzar", () => correrAsistente());
 ipcMain.handle("asistente:conectar", (_e, proveedor) => (guardiaFoco.consolaAbierta(), asistente.conectar(proveedor)).then(() => ({}), (e) => ({ error: e.message })));
 ipcMain.handle("asistente:saltarLogin", (_e, proveedor) => void asistente.saltarLogin(proveedor));
 ipcMain.handle("asistente:continuarLogin", () => asistente.continuarLogin().then(() => ({}), (e) => ({ error: e.message })));
-ipcMain.handle("cuentas:estado", () => asistente.cuentas().then((c) => c, (e) => ({ error: e.message })));
+ipcMain.handle("asistente:cuentas", () => asistente.cuentas().then((c) => c, (e) => ({ error: e.message })));
 ipcMain.handle("asistente:saltarOllama", () => void asistente.saltarOllama());
 ipcMain.handle("asistente:espejo", () => asistente.habilitarEspejo().then((r) => r, (e) => ({ error: e.message })));
 ipcMain.handle("app:abrir", (_e, url) => (ENLACES_OK.has(url) ? shell.openExternal(url) : undefined));
