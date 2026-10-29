@@ -10,7 +10,7 @@
 // (taskkill /T /F). Lo que se desprendió con setsid no está en el grupo: en Linux se lo encuentra por una marca en el
 // entorno (TRAMA_TEST_MARCA=<pid del runner>:<n>) que heredan los hijos. Si el runner muere sin avisar (SIGKILL, como
 // cuando el tool corta el comando), un vigía desprendido barre lo que quedó con su marca.
-import { readdirSync, readFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { spawn, spawnSync } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
@@ -40,6 +40,28 @@ for (const k of Object.keys(env)) {
   if (k.startsWith("PA_") || k === "TRAMA_LOCAL" || k === MARCA || k === "NODE_TEST_CONTEXT") delete env[k];
 }
 env.TRAMA_GO_SIN_RED = "1"; // las pruebas no leen opencode.ai/go (los topes de Go salen del caché de cada prueba o del respaldo)
+
+// Una casa vacía para toda la corrida: HOME, los XDG_*, el perfil de Windows y el socket del motor (XDG_RUNTIME_DIR) van a una
+// carpeta temporal. Así una prueba que no aísla su estado no escribe en lo de la persona (lideres.json, los transcripts de
+// ~/.claude, el motor real). HILOS_STATE y HILOS_LOCAL del shell se quitan por lo mismo: apuntarían al estado real.
+const casa = mkdtempSync(path.join(os.tmpdir(), "trama-test-casa-"));
+const en = (...p) => path.join(casa, ...p);
+mkdirSync(en("home"));
+mkdirSync(en("run"), { mode: 0o700 });
+Object.assign(env, {
+  HOME: en("home"),
+  USERPROFILE: en("home"),
+  LOCALAPPDATA: en("home", "AppData", "Local"),
+  APPDATA: en("home", "AppData", "Roaming"),
+  XDG_CONFIG_HOME: en("home", ".config"),
+  XDG_DATA_HOME: en("home", ".local", "share"),
+  XDG_CACHE_HOME: en("home", ".cache"),
+  XDG_STATE_HOME: en("home", ".local", "state"),
+  XDG_RUNTIME_DIR: en("run"),
+});
+delete env.HILOS_STATE;
+delete env.HILOS_LOCAL;
+process.on("exit", () => rmSync(casa, { recursive: true, force: true }));
 
 const TOPE_MS = Math.max(1, Number(env.TRAMA_TEST_ARCHIVO_S) || 300) * 1000;
 const PARALELO = Math.max(1, Number(env.TRAMA_TEST_PARALELO) || Math.max(1, (os.availableParallelism?.() ?? os.cpus().length) - 1));
