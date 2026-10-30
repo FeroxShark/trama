@@ -1,7 +1,7 @@
 // `pa --rinde [--dias N] [--json] [--por tipo|fase|tarea | --rubrica]` (cmd_rinde y cmd_rinde_rubrica de motor/bin/pa): qué rinde
 // cada modelo × effort en cada tipo de tarea (o fase, o tarea madre), y cuánto acierta cada fila de la rúbrica, desde medicion.tsv.
 // El awk, el sort y el jq del bash pasan a código; los números salen con el mismo formato (`%.0f`, `%.2f` de C y el `print` de awk).
-import { existsSync, statSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { type Pa } from "./entorno.ts";
 import { fijo, imprimirAwk, leerArchivo, registros } from "./medicion.ts";
@@ -289,10 +289,49 @@ export function cmdRinde(pa: Pa, args: string[]): number {
   const f = path.join(pa.state, "medicion.tsv");
   const texto = existsSync(f) && statSync(f).isFile() ? leerArchivo(f) ?? "" : "";
   const desde = haceDias(Number(dias));
-  return rub ? salidaRubrica(pa, dias, desde, json, filasRubrica(texto, desde)) : salidaPor(pa, dias, desde, json, por, celdasPor(texto, desde, por), frenosPor(texto, desde));
+  return rub
+    ? salidaRubrica(pa, dias, desde, json, filasRubrica(texto, desde))
+    : salidaPor(pa, dias, desde, json, por, celdasPor(texto, desde, por), frenosPor(texto, desde), sustitucionesDe(pa, Number(dias)));
 }
 
-function salidaPor(pa: Pa, dias: string, desde: string, json: boolean, por: string, celdas: Celda[], frenos: FrenoGrupo[]): number {
+interface Sustitucion {
+  de: string;
+  a: string;
+  n: number;
+}
+
+/** Las sustituciones de claude-* por agy de la ventana (`reparto --registrar` las anota en sustituciones.jsonl), contadas por de → a y ordenadas. */
+export function sustitucionesDe(pa: Pa, dias: number): Sustitucion[] {
+  const f = path.join(pa.env.REPARTO_STATE || path.join(pa.state, "reparto"), "sustituciones.jsonl");
+  let texto = "";
+  try {
+    texto = readFileSync(f, "utf8");
+  } catch {
+    return [];
+  }
+  const desde = Date.now() / 1000 - dias * 86400;
+  const cuenta = new Map<string, Sustitucion>();
+  for (const linea of texto.split("\n")) {
+    let j: { ts?: unknown; de?: unknown; a?: unknown };
+    try {
+      j = JSON.parse(linea) as typeof j;
+    } catch {
+      continue;
+    }
+    if (!j || typeof j !== "object" || Array.isArray(j)) continue;
+    const t = typeof j.ts === "string" ? Date.parse(j.ts) / 1000 : NaN;
+    if (!((Number.isFinite(t) ? t : 0) >= desde)) continue;
+    const de = typeof j.de === "string" ? j.de : "";
+    const a = typeof j.a === "string" ? j.a : "";
+    const k = `${de}\u0000${a}`;
+    const x = cuenta.get(k);
+    if (x) x.n++;
+    else cuenta.set(k, { de, a, n: 1 });
+  }
+  return [...cuenta.values()].sort((x, y) => (x.de < y.de ? -1 : x.de > y.de ? 1 : x.a < y.a ? -1 : x.a > y.a ? 1 : 0));
+}
+
+function salidaPor(pa: Pa, dias: string, desde: string, json: boolean, por: string, celdas: Celda[], frenos: FrenoGrupo[], sustituciones: Sustitucion[]): number {
   if (json) {
     pa.io.out(
       `${jsonJq({
@@ -314,6 +353,7 @@ function salidaPor(pa: Pa, dias: string, desde: string, json: boolean, por: stri
           pct_compacto: n(c.comp),
         })),
         frenos: frenos.map((f) => ({ proyecto: f.proyecto, n: f.n, freno: f.freno })),
+        ...(sustituciones.length ? { sustituciones: sustituciones.map((x) => ({ de: x.de, a: x.a, n: new Literal(String(x.n)) })) } : {}),
       })}\n`,
     );
     return 0;
@@ -334,6 +374,11 @@ function salidaPor(pa: Pa, dias: string, desde: string, json: boolean, por: stri
     for (const f of frenos) pa.io.out(`${rellenar(f.proyecto, 15)} ${izq(String(f.n), 4)}  ${f.freno}\n`);
   } else {
     pa.io.out(`pa: ningún FRENÓ anotado en los últimos ${dias} días.\n`);
+  }
+  if (sustituciones.length) {
+    pa.io.out(`sustituciones de claude-* por agy · últimos ${dias} días · había más cupo libre allá (pa --exacto las evita)\n`);
+    pa.io.out(`${rellenar("de", 30)} ${rellenar("a", 38)} ${izq("n", 4)}\n`);
+    for (const x of sustituciones) pa.io.out(`${rellenar(x.de, 30)} ${rellenar(x.a, 38)} ${izq(String(x.n), 4)}\n`);
   }
   return 0;
 }

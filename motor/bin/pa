@@ -3118,10 +3118,15 @@ cmd_rinde() {
   # campo `frenos` del --json.
   local frenos=""
   [[ -f "$MEDICION" ]] && frenos="$(frenos_de "$MEDICION" "$desde" | LC_ALL=C sort -t$'\t' -k1,1 -k2,2nr -k3,3 | awk -F'\t' '$1 != p { p = $1; k = 0 } ++k <= 3')"
+  # Las sustituciones de claude-* por agy de la ventana (reparto --registrar las anota en sustituciones.jsonl): de \t a \t cuántas.
+  local sus="" f_sus="${REPARTO_STATE:-$STATE/reparto}/sustituciones.jsonl"
+  [[ -f "$f_sus" ]] && sus="$(jq -rRn --argjson desde "$(date -d "-$dias days" +%s)" '[inputs | fromjson? | select(type == "object")
+    | select(((.ts // "") | (try fromdateiso8601 catch 0)) >= $desde)] | group_by([.de, .a])[] | [.[0].de, .[0].a, length] | @tsv' "$f_sus" 2>/dev/null)"
   if (( json )); then
-    local fr_json
+    local fr_json sus_json
     fr_json="$(jq -Rn '[inputs | select(. != "") | split("\t") | {proyecto: .[0], n: (.[1] | tonumber), freno: .[2]}]' <<<"$frenos")"
-    jq -Rn --arg dias "$dias" --arg desde "$desde" --arg por "$por" --argjson frenos "$fr_json" '
+    sus_json="$(jq -Rn '[inputs | select(. != "") | split("\t") | {de: .[0], a: .[1], n: (.[2] | tonumber)}]' <<<"$sus")"
+    jq -Rn --arg dias "$dias" --arg desde "$desde" --arg por "$por" --argjson frenos "$fr_json" --argjson sus "$sus_json" '
       def n: if . == "" then null else tonumber end;
       {version: 1, dias: ($dias | tonumber), desde: $desde, por: $por,
        celdas: [inputs | select(. != "") | split("\t")
@@ -3129,7 +3134,7 @@ cmd_rinde() {
                    cuenta: (if .[3] == "" then null else .[3] end),
                    n: (.[4] | n), con_dato: (.[5] | n), ok: (.[6] | n), pct_ok: (.[7] | n),
                    turnos_mediana: (.[8] | n), costo_medio_usd: (.[9] | n), pct_compacto: (.[10] | n)}],
-       frenos: $frenos}' <<<"$celdas"
+       frenos: $frenos} + (if ($sus | length) > 0 then {sustituciones: $sus} else {} end)' <<<"$celdas"
     return 0
   fi
   [[ -n "$celdas" ]] || { echo "pa: ninguna corrida en los últimos $dias días."; return 0; }
@@ -3148,6 +3153,12 @@ cmd_rinde() {
     while IFS=$'\t' read -r fp fn ft; do printf '%-15s %4s  %s\n' "$fp" "$fn" "$ft"; done <<<"$frenos"
   else
     echo "pa: ningún FRENÓ anotado en los últimos $dias días."
+  fi
+  if [[ -n "$sus" ]]; then
+    echo "sustituciones de claude-* por agy · últimos $dias días · había más cupo libre allá (pa --exacto las evita)"
+    printf '%-30s %-38s %4s\n' de a n
+    local sd sa sn
+    while IFS=$'\t' read -r sd sa sn; do printf '%-30s %-38s %4s\n' "$sd" "$sa" "$sn"; done <<<"$sus"
   fi
 }
 

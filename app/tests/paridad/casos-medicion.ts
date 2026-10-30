@@ -60,6 +60,28 @@ const datosFrenos = (c: Contexto) =>
     fila({ fecha: iso(hace(24 * 40)), id: "f9", proyecto: "viejo", modelo: M, effort: "high", tipo: "debug", freno: "Algo de hace mucho" }),
   );
 
+/** Datos de --rinde más las sustituciones que reparto anotó (REPARTO_STATE del sandbox: <raiz>/rep): dos de hoy, una de hace 40 días y una línea rota. */
+const archivoRaiz = (c: Contexto, rel: string, texto: string) => {
+  const f = path.join(c.raiz, rel);
+  mkdirSync(path.dirname(f), { recursive: true });
+  writeFileSync(f, texto);
+};
+const datosSustituciones = (c: Contexto) => {
+  datosRinde(c);
+  const linea = (d: Date, de: string, a: string) => JSON.stringify({ ts: d.toISOString().replace(/\.\d+Z$/, "Z"), de, a, tipo: "codigo-acotado", cupo_agy: 0.8, cupo_claude: 0.3 });
+  archivoRaiz(
+    c,
+    "rep/sustituciones.jsonl",
+    [
+      linea(hace(2), "claude-sonnet-5-5", "agy:claude-sonnet-5-5-high"),
+      linea(hace(3), "claude-sonnet-5-5", "agy:claude-sonnet-5-5-high"),
+      linea(hace(5), "claude-opus-5-5", "agy:claude-opus-5-5-medium"),
+      "no es json",
+      linea(hace(40 * 24), "claude-sonnet-5-5", "agy:claude-sonnet-5-5-low"),
+    ].join("\n") + "\n",
+  );
+};
+
 /** Corridas de los últimos días para --rinde: tipos, modelos, efforts, cuentas, fases, tareas y la rúbrica. */
 const datosRinde = (c: Contexto) =>
   medicion(
@@ -220,6 +242,9 @@ export const casosMedicion: Caso[] = [
   pcli("rinde --por tipo explícito", ["--rinde", "--por", "tipo"], 0, { preparar: datosRinde }),
   pcli("rinde con FRENÓ: los parecidos van juntos, top 3 por proyecto", ["--rinde"], 0, { preparar: datosFrenos }),
   pcli("rinde --json con FRENÓ", ["--rinde", "--json"], 0, { preparar: datosFrenos }),
+  pcli("rinde con sustituciones de claude-* por agy", ["--rinde"], 0, { preparar: datosSustituciones }),
+  pcli("rinde --json con sustituciones", ["--rinde", "--json"], 0, { preparar: datosSustituciones }),
+  pcli("rinde --dias 1 deja afuera las sustituciones viejas", ["--rinde", "--dias", "1", "--json"], 0, { preparar: datosSustituciones }),
   pcli("rinde --rubrica", ["--rinde", "--rubrica"], 0, { preparar: datosRinde }),
   pcli("rinde --rubrica --json", ["--rinde", "--rubrica", "--json"], 0, { preparar: datosRinde }),
   pcli("rinde --rubrica sin datos", ["--rinde", "--rubrica"], 0),
