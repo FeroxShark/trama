@@ -6,7 +6,7 @@ import { VERSION } from "../datos/contrato";
 import { fuentePaneles, type Consulta } from "../datos/paneles";
 import { locale, t } from "../i18n";
 import { tokens } from "./resumen";
-import { filasCosto, tablaEfectiva, type Tabla } from "./precios";
+import { costoPorRol, filasCosto, tablaEfectiva, type Tabla } from "./precios";
 import { leerCambios } from "./precios-guardados";
 
 const usd = (x: number) =>
@@ -32,6 +32,7 @@ export function CostoPorModelo({ dias }: { dias: 7 | 30 }) {
   }, [dias]);
 
   const cuenta = useMemo(() => (consulta ? filasCosto(consulta.modelos, tabla) : null), [consulta, tabla]);
+  const roles = useMemo(() => (consulta ? costoPorRol(consulta.roles, tabla) : null), [consulta, tabla]);
   if (!cuenta) return null;
 
   return (
@@ -59,6 +60,23 @@ export function CostoPorModelo({ dias }: { dias: 7 | 30 }) {
           </li>
         </ul>
       )}
+      {roles && cuenta.filas.length > 0 ? (
+        <>
+          <h3 className="pn-sub-h">{t("est.costoRoles")}</h3>
+          <ul className="pn-costo" aria-label={t("est.costoRoles")}>
+            {roles.map((r) => (
+              <li key={r.rol} className="pn-costo-fila" data-rol={r.rol}>
+                <span className="pn-t-n">{t(`hist.${r.rol}`)}</span>
+                <span className="pn-num pn-tok">{tokens(r.tokens)}</span>
+                <span className="pn-num" data-sin-precio={r.costo === 0 && r.sinPrecio ? "" : undefined}>
+                  {r.costo === 0 && r.sinPrecio ? t("est.costoSinPrecio") : usd(r.costo)}
+                </span>
+              </li>
+            ))}
+          </ul>
+          <div className="pn-nota">{t("est.costoRolesNota")}</div>
+        </>
+      ) : null}
       <div className="pn-nota">{t("est.costoNota")}</div>
     </section>
   );

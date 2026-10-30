@@ -4867,6 +4867,28 @@ html[data-titulo-nativo] #root::after {
 .ll-mas-n {
   color: var(--verde);
 }
+/* Lo que gastó el subagente de una llamada Agent y el enlace a su desglose en el panel de contexto. */
+.ll-gasto {
+  color: var(--texto-4);
+}
+.ll-desglose {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--esp-1);
+  padding: 0 var(--esp-1-5);
+  border: 1px solid var(--borde-2);
+  border-radius: var(--radio-pastilla);
+  background: none;
+  color: var(--texto-4);
+  font: inherit;
+  font-size: var(--letra-3);
+  cursor: pointer;
+}
+.ll-desglose:hover {
+  background: var(--capa-hover);
+  color: var(--texto-2);
+}
 /* Cómo va un comando de un motor que deja ver su trabajo: corriendo (acento) / ok / error. Estático: sin animación infinita. */
 .ll-e {
   display: inline-flex;

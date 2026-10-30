@@ -53,6 +53,7 @@ import { Panel, PANELES, type CualPanel } from "../paneles/Panel";
 import { alPedirAjustes, alPedirRamas } from "../paneles/ajustes-nav";
 import { panelDeCaptura } from "../guia/registro";
 import { PanelContexto } from "../paneles/PanelContexto";
+import { usePedidoSub } from "../paneles/contexto-pedido";
 import { ramas } from "../paneles/Ramas";
 import { pasoLider, pasoWorker } from "../paneles/PasoLanzar";
 import { conTexto, type Eleccion } from "../paneles/lanzar";
@@ -926,6 +927,11 @@ export function Barra() {
     // En el celular el panel ocupa la pantalla: la lista se va al abrirlo y vuelve al cerrarlo.
     if (esAngosto()) setAbierta(consumo);
   }, [consumo]);
+  // El enlace "Ver desglose" de la llamada Agent de la conversación: abre el panel de contexto (él despliega al subagente).
+  const pedidoSub = usePedidoSub();
+  useEffect(() => {
+    if (pedidoSub && !consumo) alternarConsumo();
+  }, [pedidoSub?.n]);
   const alternarBarra = useCallback(() => {
     const el = raiz.current;
     if (el && !matchMedia("(prefers-reduced-motion: reduce)").matches)

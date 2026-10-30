@@ -39,6 +39,7 @@ import { effortsDe, esAgy, esDsh, esOpencode, esLocal, familiaDe, motorNombre, r
 import { ContextoLocal } from "./ContextoLocal";
 import { t as tr, textoMain } from "../i18n";
 import { useIdioma } from "../i18n/react";
+import { contextoGasto, GastoSubagentesCtx, useGastoSubagentes } from "./gasto-sub";
 import { Selector, type Opcion } from "./Selector";
 import { carpetaPorDefecto, OTRA, opcionDe, PERSONAL } from "./carpeta-nueva";
 import { guardarUltima, leerUltima, useSeleccion } from "./carpeta-nueva-estado";
@@ -156,6 +157,9 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
   const [volver, setVolver] = useState<Punto | null>(null);
   const puede = ((app || ajeno) && !l?.caido) || (!!l && !!volver);
   const ocupado = app ? (vivo.ocupado ?? l?.ocupado ?? false) : !!l?.ocupado;
+  // Lo que gastó cada subagente que lanzó con la herramienta Agent: las burbujas de esas llamadas lo muestran. Se relee al terminar el turno.
+  const gastoSub = useGastoSubagentes(sid || null, ocupado);
+  const ctxGasto = useMemo(() => contextoGasto(sid || null, gastoSub), [sid, gastoSub]);
   const encolados = useSyncExternalStore(
     useCallback((fn: () => void) => cola.suscribir(sid, fn), [sid]),
     () => cola.lista(sid),
@@ -1144,23 +1148,25 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
         <div className="conv" data-desliza onPointerOver={sobreMensaje} onPointerLeave={sobreMensaje}>
           {pag && pag.desde > 0 ? <div className="conv-mas">{tr("vista.anteriores")}</div> : null}
           {sid && !pag && !error && !items.length ? <Leyendo /> : null}
-          <Mensajes
-            items={items}
-            ultimoTurno={ultimoTurno}
-            app={app}
-            ocupado={ocupado}
-            pasando={pasando}
-            pensando={app && ocupado && vivo.ind.hace?.que === "pensando"}
-            razon={app && piensa}
-            relevo={relevo}
-            sigue={sigue}
-            nombre={l?.nombre}
-            alAbrirLider={alAbrirLider}
-            alAbrirHilo={alAbrirHilo}
-            acciones={acciones}
-            editar={editar}
-            guardar={guardarArchivo}
-          />
+          <GastoSubagentesCtx.Provider value={ctxGasto}>
+            <Mensajes
+              items={items}
+              ultimoTurno={ultimoTurno}
+              app={app}
+              ocupado={ocupado}
+              pasando={pasando}
+              pensando={app && ocupado && vivo.ind.hace?.que === "pensando"}
+              razon={app && piensa}
+              relevo={relevo}
+              sigue={sigue}
+              nombre={l?.nombre}
+              alAbrirLider={alAbrirLider}
+              alAbrirHilo={alAbrirHilo}
+              acciones={acciones}
+              editar={editar}
+              guardar={guardarArchivo}
+            />
+          </GastoSubagentesCtx.Provider>
           {volver ? (
             <div className="am-volvio">
               <span>{tr("acciones.volvio")}</span>

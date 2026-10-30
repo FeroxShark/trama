@@ -80,6 +80,19 @@ export type UsoModelo = { entrada: number; salida: number; cacheLeido: number; c
 
 export type FilaCosto = { modelo: string; tokens: number; costo: number | null };
 
+export type FilaRol = { rol: "lider" | "worker" | "subagente"; sesiones: number; tokens: number; costo: number; sinPrecio: boolean };
+
+/**
+ * El costo equivalente por rol: líderes, workers y subagentes (los que lanzan las sesiones con la herramienta Agent) por separado, para
+ * que lo que gastan los subagentes se vea aparte de lo del líder que los lanzó. `sinPrecio`: algún modelo del rol no tiene precio y no suma.
+ */
+export function costoPorRol(roles: Record<FilaRol["rol"], { sesiones: number; modelos: Record<string, UsoModelo> }>, tabla: Tabla): FilaRol[] {
+  return (["lider", "worker", "subagente"] as const).map((rol) => {
+    const { filas, total } = filasCosto(roles[rol].modelos, tabla);
+    return { rol, sesiones: roles[rol].sesiones, tokens: filas.reduce((n, f) => n + f.tokens, 0), costo: total, sinPrecio: filas.some((f) => f.costo === null) };
+  });
+}
+
 /**
  * Una fila por modelo que usó tokens: primero los que tienen precio (de más a menos costo), después los sin precio (de más a
  * menos tokens). `total` suma sólo los que tienen precio. `tokens` es entrada + caché leído + salida, como en Estadísticas;

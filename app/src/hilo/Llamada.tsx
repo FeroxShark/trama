@@ -2,11 +2,14 @@
 // ("Bash  Corre los tests", "Edit  src/x.ts  +3 −1") que al abrirse muestra el
 // comando entero y el final de lo que devolvió, o el diff en rojo y verde como
 // la terminal de Claude Code. Lo de adentro se arma recién al abrir.
-import { memo, useState } from "react";
-import { ChevronRight } from "lucide-react";
-import { t } from "../i18n";
+import { memo, useContext, useState } from "react";
+import { ChevronRight, PanelRight } from "lucide-react";
+import { locale, t } from "../i18n";
 import { useIdioma } from "../i18n/react";
 import { MODO } from "../modo";
+import { pedirSubagenteEnPanel } from "../paneles/contexto-pedido";
+import { tokens as tokensCorto } from "../paneles/resumen";
+import { GastoSubagentesCtx } from "./gasto-sub";
 import { archivoDe, cambios, cuerpo, type Grupo, type LineaDiff, type Uso } from "./herramientas";
 import { HERRAMIENTA_PREGUNTAS, respondidas } from "./preguntas-logica";
 import { Miniaturas } from "./Imagenes";
@@ -81,6 +84,9 @@ export const Llamada = memo(function Llamada({ g, estado }: { g: Grupo; estado?:
   useIdioma();
   const { uso: u, todos } = g;
   const [abierta, setAbierta] = useState(() => abiertaAlMontar(u));
+  // Una llamada Agent de un líder: lo que gastó el subagente que lanzó (si ya se leyó su transcript), por el `tool_use_id`.
+  const gastos = useContext(GastoSubagentesCtx);
+  const gasto = (u.nombre === "Agent" || u.nombre === "Task") && todos.length === 1 && u.det?.id ? (gastos?.porLlamada.get(u.det.id) ?? null) : null;
   const se = todos.some(abre);
   const c = todos.map((x) => cambios(x.det)).reduce<{ mas: number; menos: number } | null>(
     (a, b) => (b ? { mas: (a?.mas ?? 0) + b.mas, menos: (a?.menos ?? 0) + b.menos } : a),
@@ -100,6 +106,11 @@ export const Llamada = memo(function Llamada({ g, estado }: { g: Grupo; estado?:
       </span>
       {u.resumen ? <span className="ll-r">{u.resumen}</span> : null}
       {todos.length > 1 ? <span className="ll-k">×{todos.length}</span> : null}
+      {gasto ? (
+        <span className="ll-k ll-gasto" data-tip={t("ctxp.subGasto", { tokens: gasto.tokens.total.toLocaleString(locale()) })}>
+          {gasto.modelo ? t("ll.subGasto", { tokens: tokensCorto(gasto.tokens.total), modelo: gasto.modelo }) : t("ll.subGastoSin", { tokens: tokensCorto(gasto.tokens.total) })}
+        </span>
+      ) : null}
       {c ? (
         <span className="ll-k">
           <span className="ll-mas-n">+{c.mas}</span> <span className="ll-menos-n">−{c.menos}</span>
@@ -114,7 +125,15 @@ export const Llamada = memo(function Llamada({ g, estado }: { g: Grupo; estado?:
   );
   // El archivo que toca (un Read, Write o Edit): su botón va aparte del que abre la línea (un botón no lleva otro adentro).
   const arch = archivoDe(u);
-  const enlace = arch ? <EnlaceArchivo a={arch} /> : null;
+  // Y la llamada Agent, el de su desglose en el panel de contexto.
+  const enlace = arch ? (
+    <EnlaceArchivo a={arch} />
+  ) : gasto ? (
+    <button type="button" className="ll-desglose" data-tip={t("ll.subDesgloseTip")} onClick={() => pedirSubagenteEnPanel(gasto.sid, gasto.id)}>
+      <PanelRight size={11} strokeWidth={1.9} aria-hidden />
+      {t("ll.subDesglose")}
+    </button>
+  ) : null;
   if (!se)
     return (
       <div className="ll">

@@ -2,7 +2,7 @@
 // el usuario edita. Import de src/ con la extensión .ts (node --test corre sin resolver de Vite).
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { PRECIOS_PUBLICOS, costoUsd, filasCosto, precioDe, precioDeGuardado, precioValido, tablaEfectiva } from "../src/paneles/precios.ts";
+import { PRECIOS_PUBLICOS, costoPorRol, costoUsd, filasCosto, precioDe, precioDeGuardado, precioValido, tablaEfectiva } from "../src/paneles/precios.ts";
 
 test("un id exacto trae su precio público; un id con fecha, el del prefijo más largo", () => {
   assert.deepEqual(precioDe("claude-opus-5-5", PRECIOS_PUBLICOS), { entrada: 4, salida: 20, cacheLeido: 0.2, cacheEscrito: 5 });
@@ -81,4 +81,25 @@ test("filasCosto: el caché escrito cobra pero no entra en los tokens", () => {
   const { filas } = filasCosto({ "claude-opus-5-5": { entrada: 0, salida: 0, cacheLeido: 0, cacheCreado: 1e6 } }, PRECIOS_PUBLICOS);
   assert.equal(filas[0].tokens, 0);
   assert.equal(filas[0].costo, 5);
+});
+
+test("costoPorRol: líderes, workers y subagentes por separado, y el que usó un modelo sin precio lo dice", () => {
+  const u = (entrada: number, salida = 0) => ({ entrada, salida, cacheLeido: 0, cacheCreado: 0 });
+  const roles = costoPorRol(
+    {
+      lider: { sesiones: 2, modelos: { "claude-opus-5-5": u(1e6) } },
+      worker: { sesiones: 1, modelos: {} },
+      subagente: { sesiones: 3, modelos: { "claude-haiku-5-5": u(1e6, 1e6), "modelo-raro": u(5e5) } },
+    },
+    PRECIOS_PUBLICOS,
+  );
+  assert.deepEqual(roles.map((r) => r.rol), ["lider", "worker", "subagente"]);
+  assert.equal(roles[0].costo, 4);
+  assert.equal(roles[1].tokens, 0);
+  assert.equal(roles[1].sinPrecio, false);
+  // Haiku: 0,10 + 0,50 $; el modelo raro no suma y se marca.
+  assert.ok(Math.abs(roles[2].costo - 0.6) < 1e-9);
+  assert.equal(roles[2].sinPrecio, true);
+  assert.equal(roles[2].sesiones, 3);
+  assert.equal(roles[2].tokens, 2.5e6);
 });

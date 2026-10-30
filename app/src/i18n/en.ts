@@ -558,6 +558,8 @@ export const en = {
   "est.costoVacio": "No tokens in this period.",
   "est.costoSinPrecio": "no price",
   "est.costoTotal": "Equivalent total",
+  "est.costoRoles": "By role",
+  "est.costoRolesNota": "Subagents (the ones a leader or worker launches with the Agent tool) are listed apart: their spend adds to the total above, not to their leader's row.",
   "est.costoNota": "Equivalent: tokens × each model's public price (edit it in Settings > Models). Your subscription doesn't bill per token, so this isn't what you pay. Includes cache writes.",
   "est.otro": "other",
   "est.otros": "others {n}",

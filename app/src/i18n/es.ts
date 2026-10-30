@@ -547,6 +547,8 @@ export const es: { [K in keyof typeof en]: string } = {
   "est.costoVacio": "Sin tokens en el período.",
   "est.costoSinPrecio": "sin precio",
   "est.costoTotal": "Total equivalente",
+  "est.costoRoles": "Por rol",
+  "est.costoRolesNota": "Los subagentes (los que un líder o un worker lanza con la herramienta Agent) van aparte: su gasto suma al total de arriba, no a la fila de su líder.",
   "est.costoNota": "Equivalente: tokens × precio público de cada modelo (se edita en Ajustes > Modelos). La suscripción no cobra por token: no es lo que se paga. Incluye el caché escrito.",
   "est.otro": "otro",
   "est.otros": "otros {n}",
