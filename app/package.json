@@ -16,6 +16,7 @@
     "visual": "node scripts/visual.mjs",
     "humo": "node scripts/humo-motor.mjs",
     "test:paridad": "node scripts/test.mjs --paridad",
+    "check:changed": "node scripts/check-changed.mjs",
     "dist:appimage": "node scripts/construir-appimage.mjs"
   },
   "dependencies": {
