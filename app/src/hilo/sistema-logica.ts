@@ -15,7 +15,7 @@
 // empieza el texto, que son constantes de Claude Code. Una etiqueta a mitad de
 // un mensaje del usuario no cuenta: sigue siendo suyo.
 import type { Mensaje } from "../datos/contrato";
-import { avisoDeTexto, esAvisoTrama, type AvisoTexto } from "../../electron/avisos-worker.ts";
+import { avisoDeTexto, esAvisoTrama, type AvisoTexto, type EstadoAviso } from "../../electron/avisos-worker.ts";
 import { vieneDeRelevo } from "./herramientas.ts";
 
 export type Linea =
@@ -67,6 +67,9 @@ export function sistemaDe(m: Mensaje): Sistema | null {
   if (m.rol === "user" && (m.aviso || esAvisoTrama(m.texto))) return lineaAviso(m.texto);
   return m.rol === "user" ? deUsuario(m) : deModelo(m);
 }
+
+/** El tono de la fila de un worker en un aviso: verde si terminó (o terminó sin resumen), ámbar si pide una decisión, rojo si falló. */
+export const tonoDeEstado = (e: EstadoAviso): "ok" | "aviso" | "critico" => (e === "falla" ? "critico" : e === "decision" ? "aviso" : "ok");
 
 /** La fila de un aviso de Trama, con lo que dice su texto (`avisoDeTexto`); sin workers si no se entiende. */
 export const lineaAviso = (texto: string): Linea => ({ tipo: "linea", clase: "aviso", aviso: avisoDeTexto(texto) ?? { tanda: false, falla: false, trabajos: [] } });

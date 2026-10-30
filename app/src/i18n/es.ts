@@ -865,6 +865,8 @@ export const es: { [K in keyof typeof en]: string } = {
   "sistema.avisoTanda": "Terminaron los {n} workers que lanzaste",
   "sistema.avisoFallas": "{k} con falla",
   "sistema.avisoTermino": "terminó",
+  "sistema.avisoDecision": "terminó pidiendo una decisión",
+  "sistema.avisoSinResumen": "terminó sin resumen",
   "sistema.avisoFallo": "falló",
   "sistema.avisoAbrir": "Abrir el hilo del worker {id}",
   "sistema.avisoSin": "Aviso automático",

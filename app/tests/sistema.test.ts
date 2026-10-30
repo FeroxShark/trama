@@ -2,7 +2,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { conversacionDe } from "../electron/lider-arma.ts";
-import { sistemaDe, vuelve } from "../src/hilo/sistema-logica.ts";
+import { sistemaDe, tonoDeEstado, vuelve } from "../src/hilo/sistema-logica.ts";
+import type { EstadoAviso } from "../electron/avisos-worker.ts";
 import { turnos, type Item } from "../src/hilo/turnos.ts";
 import type { Mensaje } from "../src/datos/contrato.ts";
 
@@ -151,4 +152,12 @@ test("un aviso de Trama es una fila de sistema, con o sin su marca en la cola; l
   assert.deepEqual(forma(turnos([usuario("texto raro", { aviso: true })])), ["linea:aviso"]);
   assert.equal(sistemaDe(usuario("¿Seguimos con el cauce?")), null, "lo que escribe el usuario sigue siendo un pedido");
   assert.deepEqual(forma(turnos([usuario(aviso)])), ["linea:aviso"]);
+});
+
+test("el tono de cada fila de un aviso: verde si terminó (o sin resumen), ámbar si pide una decisión, rojo si falló; la tarjeta no pinta a todas", () => {
+  const estados: EstadoAviso[] = ["termino", "sinResumen", "decision", "falla"];
+  assert.deepEqual(estados.map(tonoDeEstado), ["ok", "ok", "aviso", "critico"]);
+  const css = readFileSync(new URL("../src/index.css", import.meta.url), "utf8");
+  for (const tono of ["ok", "aviso", "critico"]) assert.match(css, new RegExp(`\\.sis-aviso-e\\[data-tono="${tono}"\\]\\s*\\{\\s*color:\\s*var\\(--${tono}\\)`));
+  assert.doesNotMatch(css, /\.sis-aviso\[data-tono="grave"\] \.sis-aviso-e/, "una fila terminada no se pinta de rojo por la tarjeta");
 });

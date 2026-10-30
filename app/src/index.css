@@ -5115,8 +5115,15 @@ summary.sis-div-t:hover,
   gap: var(--esp-1);
   font-weight: 500;
 }
-.sis-aviso[data-tono="grave"] .sis-aviso-e {
-  color: var(--rojo);
+/* Cada fila lleva el tono de su worker (no el de la tarjeta): verde si terminó, ámbar si pide una decisión, rojo si falló. */
+.sis-aviso-e[data-tono="ok"] {
+  color: var(--ok);
+}
+.sis-aviso-e[data-tono="aviso"] {
+  color: var(--aviso);
+}
+.sis-aviso-e[data-tono="critico"] {
+  color: var(--critico);
 }
 .sis-aviso-tarea {
   min-width: 0;
