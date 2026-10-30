@@ -139,6 +139,8 @@ export type Consulta = {
   piezas: PiezaConsulta[];
   herramientas: Record<string, number>;
   subagentes: Record<string, number>;
+  /** Los `/comandos` que escribió la persona en el rango (así se invoca una skill a mano). */
+  comandos: Record<string, number>;
   /** Lo que no se sabe: nunca un número inventado en su lugar. */
   sinDato: {
     /** Sesiones sin primer mensaje: no se sabe cuánto pesó su arranque. */
@@ -480,6 +482,7 @@ export function crearHistorial(o: {
       piezas: [],
       herramientas: {},
       subagentes: {},
+      comandos: {},
       sinDato: { sinArranque: 0, sinCalibrar: 0, lineas: 0, parserViejo: 0, meses: 0 },
     };
     type Junta = { clase: ClaseConsulta; nombre: string; sesiones: number; chars: number; peso: number; pesoPorTurnos: number; despues: number; ganchos: number };
@@ -516,6 +519,7 @@ export function crearHistorial(o: {
           sumar(rol.modelos, d.modelos);
           contar(c.herramientas, d.usos.herramientas);
           contar(c.subagentes, d.usos.subagentes);
+          contar(c.comandos, d.usos.comandos ?? {});
           contar(skills, d.usos.skills);
           contar(mcp, d.usos.mcp);
         }

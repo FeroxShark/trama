@@ -11,7 +11,7 @@
 import path from "node:path";
 import { sumaVacia, type Suma } from "./transcripts.ts";
 
-export const PARSER = 1;
+export const PARSER = 2;
 
 export type Rol = "lider" | "worker" | "subagente";
 
@@ -46,6 +46,8 @@ export type Usos = {
   mcp: Record<string, number>;
   subagentes: Record<string, number>;
   herramientas: Record<string, number>;
+  /** Los `/comandos` que escribió la persona (así se invoca una skill a mano). Ausente en lo indexado antes del parser 2. */
+  comandos?: Record<string, number>;
 };
 
 /** Lo de un día (local) de la sesión. */
@@ -101,7 +103,7 @@ export type Contexto = {
   plugins: Map<string, string>;
 };
 
-export const usosVacios = (): Usos => ({ skills: {}, mcp: {}, subagentes: {}, herramientas: {} });
+export const usosVacios = (): Usos => ({ skills: {}, mcp: {}, subagentes: {}, herramientas: {}, comandos: {} });
 
 export function sesionNueva(sid: string, agente: string | null = null): Sesion {
   return {
@@ -179,7 +181,7 @@ export function nombreHook(comando: string, evento: string, plugins: Map<string,
 }
 
 /** Lo que el modelo contestó o lo que se le cargó: lo único que se parsea. */
-const QUIERE = /"type":"(?:assistant|attachment)"|"compact_boundary"/;
+const QUIERE = /"type":"(?:assistant|attachment)"|"compact_boundary"|<command-name>/;
 /** Los adjuntos de los que sale una pieza. */
 const CON_PIEZA = new Set([
   "skill_listing", "instructions", "nested_memory", "hook_success", "hook_additional_context", "mcp_instructions_delta",
@@ -244,7 +246,7 @@ export function linea(s: Sesion, cruda: string, ctx: Contexto): boolean {
     return false;
   }
   // Un adjunto que no es de los que se guardan, pasado el arranque: ni se parsea.
-  if (s.arranque !== null && !cruda.includes('"type":"assistant"') && !cruda.includes('"compact_boundary"')) {
+  if (s.arranque !== null && !cruda.includes('"type":"assistant"') && !cruda.includes('"compact_boundary"') && !cruda.includes("<command-name>")) {
     const tipo = TIPO_ADJUNTO.exec(cruda)?.[1];
     if (tipo && !CON_PIEZA.has(tipo)) {
       if (!ADJUNTOS_SIN_PIEZA.has(tipo)) s.sinDato++;
@@ -271,8 +273,29 @@ export function linea(s: Sesion, cruda: string, ctx: Contexto): boolean {
   } else if (d.type === "user") {
     // Un mensaje del usuario que cita una de las marcas: no es nada de lo buscado.
     if (s.arranque === null) s.estado.mensaje += largo(objeto(d.message)?.content);
+    comandos(s, d);
   } else if (typeof d.type !== "string" || !CONOCIDA.test(`"type":"${d.type}"`)) s.sinDato++;
   return true;
+}
+
+const COMANDO = /<command-name>\/?([^<\s]{1,96})<\/command-name>/g;
+
+/** Los `/comandos` de un mensaje del usuario (sólo el nombre; nunca sus argumentos). */
+function comandos(s: Sesion, d: Record<string, unknown>): void {
+  const c = objeto(d.message)?.content;
+  const textos = typeof c === "string" ? [c] : lista(c).map((b) => texto(objeto(b)?.text));
+  const ms = hora(s, d) ?? s.fin;
+  for (const t of textos) {
+    if (!t.includes("<command-name>")) continue;
+    for (const m of t.matchAll(COMANDO)) {
+      if (ms === null) {
+        s.sinDato++;
+        continue;
+      }
+      const en = (dia(s, diaDe(ms)).usos.comandos ??= {});
+      en[m[1]] = (en[m[1]] ?? 0) + 1;
+    }
+  }
 }
 
 function previo(s: Sesion, cruda: string): boolean {

@@ -391,6 +391,7 @@ export function historialFalso(dias: 7 | 30, rol?: "lider" | "worker" | "subagen
     piezas,
     herramientas: { Bash: n(480), Read: n(350), Edit: n(190) },
     subagentes: { Explore: n(14) },
+    comandos: {},
     sinDato: { sinArranque: 0, sinCalibrar: dias === 7 ? 0 : 2, lineas: 0, parserViejo: 0, meses: 0 },
   };
 }

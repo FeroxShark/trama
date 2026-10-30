@@ -94,6 +94,8 @@ escribir(
     JSON.stringify({ type: "cosa-nueva", dato: 1 }) + "\n" +
     '{"type":"assistant", roto\n' +
     adjunto("invento_futuro", { content: "algo" }) +
+    // Una skill invocada a mano con /comando: cuenta el nombre, nunca los argumentos.
+    usuario("<command-name>/resumir</command-name>\n<command-args>ARGUMENTO-SECRETO</command-args>", D2) +
     asistente("m3", "claude-opus-5-5", [6, 0, 2100, 9], D2, [{ nombre: "Skill", entrada: { skill: "suelta" } }]),
 );
 
@@ -176,6 +178,13 @@ test("la consulta: qué se usó (skills, MCP, subagentes, herramientas)", async 
   // Su hook corrió una vez (con texto) en el rango: actúa por ganchos.
   assert.equal(pieza(c, "plugin", "brujula").ganchos, 1);
   assert.equal(pieza(c, "claudemd", "atlas/CLAUDE.md").usos, null);
+});
+
+test("la consulta: los /comandos que escribió la persona, sin sus argumentos", async () => {
+  const c = await historial.consultar(DIA1, DIA2);
+  assert.deepEqual(c.comandos, { resumir: 1 });
+  assert.ok(!guardado().includes("ARGUMENTO-SECRETO"));
+  assert.equal((await historial.consultar(DIA1, DIA1)).comandos.resumir, undefined);
 });
 
 test("la consulta: lo cargado, con su tamaño exacto y su peso estimado", async () => {
