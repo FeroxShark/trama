@@ -20,7 +20,13 @@ export interface Reparto {
   /** `reparto --opencode-limite` con lo que dijo OpenCode por stdin: si era su límite gratis, agota el grupo opencode-free (nunca rompe). */
   opencodeLimite?(salida: string): Promise<void>;
   /** `reparto --tipo T [--cuenta C] --json` (con REPARTO_RESERVAR=1 si `reservar`). rc 124/137 = venció el tope, 127 = no está. */
-  elegir(tipo: string, o?: { reservar?: boolean; sinDsh?: boolean; cuenta?: string; noDisponible?: string[] }): Promise<{ rc: number; salida: string }>;
+  elegir(tipo: string, o?: { reservar?: boolean; sinDsh?: boolean; cuenta?: string; noDisponible?: string[]; conChequeo?: boolean }): Promise<{ rc: number; salida: string }>;
+  /** `reparto --sustituir <claude-*> [--tipo T] [--effort E] --registrar --json`: ¿conviene correr ese modelo por agy? rc 0 = sí (`a` en el JSON). Opcional: los falsos de los tests no lo tienen. */
+  sustituir?(modelo: string, o?: { tipo?: string; effort?: string }): Promise<{ rc: number; salida: string }>;
+  /** `reparto --otro-camino <agy:claude-*> --json`: el mismo modelo por el Claude oficial, si está habilitado. rc 0 = hay. */
+  otroCamino?(modelo: string): Promise<{ rc: number; salida: string }>;
+  /** `reparto --agotar <m> [--hasta ISO] [--cuenta C]`: marca agotado el camino de ese modelo (nunca rompe). */
+  agotar?(modelo: string, o?: { hasta?: string; cuenta?: string }): Promise<void>;
   /** `reparto --agy-modelos [--refrescar] [--cuenta C]`: los modelos (con el id de pa) que ofrece el agy de esta cuenta, o null si no se sabe. Opcional: los falsos de los tests no lo tienen. */
   agyModelos?(o?: { refrescar?: boolean; cuenta?: string }): Promise<string[] | null>;
   /** `reparto --tabla --json` ("" si falla). */
@@ -79,8 +85,20 @@ export function repartoProceso(pa: Pa): Reparto {
       if (o.reservar) extra.REPARTO_RESERVAR = "1";
       if (o.reservar) extra.REPARTO_SIN_DSH = o.sinDsh ? "1" : "";
       if (o.reservar) extra.REPARTO_NO_DISPONIBLE = (o.noDisponible ?? []).join(",");
+      if (o.conChequeo) extra.REPARTO_CON_CHEQUEO = "1";
       const r = await llamar(["--tipo", tipo, ...(o.cuenta ? ["--cuenta", o.cuenta] : []), "--json"], extra);
       return { rc: r.codigo, salida: recortar(r.salida) };
+    },
+    async sustituir(modelo, o = {}) {
+      const r = await llamar(["--sustituir", modelo, ...(o.tipo ? ["--tipo", o.tipo] : []), ...(o.effort ? ["--effort", o.effort] : []), "--registrar", "--json"]);
+      return { rc: r.codigo, salida: recortar(r.salida) };
+    },
+    async otroCamino(modelo) {
+      const r = await llamar(["--otro-camino", modelo, "--json"]);
+      return { rc: r.codigo, salida: recortar(r.salida) };
+    },
+    async agotar(modelo, o = {}) {
+      await llamar(["--agotar", modelo, ...(o.hasta ? ["--hasta", o.hasta] : []), ...(o.cuenta ? ["--cuenta", o.cuenta] : [])], {}, false).catch(() => {});
     },
     async agyModelos(o = {}) {
       const r = await llamar(["--agy-modelos", ...(o.refrescar ? ["--refrescar"] : []), ...(o.cuenta ? ["--cuenta", o.cuenta] : [])]);

@@ -50,6 +50,8 @@ export interface Opciones {
   subtarea: string;
   rubrica: string;
   okDueno: boolean;
+  /** --exacto: el -m claude-* corre tal cual, sin pasarlo a agy aunque haya más cupo. */
+  exacto: boolean;
   cuenta: string;
   briefArchivo: string;
   agentsMd: boolean;
@@ -98,6 +100,7 @@ export function opcionesIniciales(proyecto: string, env: Env, plan: "pro" | "max
     subtarea: env.PA_SUBTAREA ?? "",
     rubrica: "",
     okDueno: false,
+    exacto: false,
     cuenta: "",
     briefArchivo: "",
     agentsMd: false,
@@ -332,6 +335,7 @@ export function parsearOpciones(args: string[], o: Opciones, ctx: CtxParseo): Op
       case "--subtarea": o.subtarea = valor; dos(); break;
       case "--rubrica": o.rubrica = valor; dos(); break;
       case "--ok-dueno": o.okDueno = true; i++; break;
+      case "--exacto": o.exacto = true; i++; break;
       case "--cuenta": o.cuenta = valor; dos(); break;
       case "--":
         o.tarea = args.slice(i + 1).join(" ");

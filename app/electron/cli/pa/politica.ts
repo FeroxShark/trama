@@ -30,6 +30,8 @@ export interface Llamada extends Opciones {
   repartoTipoRelanzable: string;
   /** El padre de --async marcó sin_cupo=esperar: el hijo hace cola. */
   repartoEsperar: boolean;
+  /** El claude-* que pidió el jefe cuando pa lo pasó a agy porque había más cupo (vacío = no se sustituyó nada). */
+  sustituidoDe: string;
   /** Lo que contestó reparto (`rep_json`). */
   repJson: string;
   /** Lo que le queda a una corrida --async de su lista -m a,b,c (PA_FALLBACK_RESTO). */
@@ -55,6 +57,9 @@ export interface Llamada extends Opciones {
   flojo?: boolean;
 }
 
+/** ¿La tarea trae su chequeo (un brief con «Cómo verificar» o «Listo cuando»)? Con chequeo, mecanico y lectura ofrecen primero los gratis de OpenCode. */
+export const traeChequeo = (tarea: string) => /C[oó]mo verificar|Listo cuando/i.test(tarea);
+
 export function llamadaDe(o: Opciones): Llamada {
   return {
     ...o,
@@ -65,6 +70,7 @@ export function llamadaDe(o: Opciones): Llamada {
     repartoFallo: "",
     repartoTipoRelanzable: "",
     repartoEsperar: false,
+    sustituidoDe: "",
     repJson: "",
     fbResto: "",
     motor: "claude",
@@ -387,7 +393,7 @@ export async function aplicarPolitica(l: Llamada, pa: Pa, deps: DepsPolitica): P
   delete env.PA_REPARTO_ESPERAR;
   /** Pide a reparto el modelo y el effort y aplica lo que contesta; true si dio un modelo. `noDisp`: lo que pa sabe que ahora no sirve (REPARTO_NO_DISPONIBLE). */
   const elegirConReparto = async (tipoRep: string, noDisp: string[]): Promise<boolean> => {
-    const r = reparto.ejecutable() ? await reparto.elegir(tipoRep, { reservar: true, sinDsh: l.leer, cuenta: l.cuenta, noDisponible: noDisp }) : { rc: 127, salida: "" };
+    const r = reparto.ejecutable() ? await reparto.elegir(tipoRep, { reservar: true, sinDsh: l.leer, cuenta: l.cuenta, noDisponible: noDisp, ...(traeChequeo(l.tarea) ? { conChequeo: true } : {}) }) : { rc: 127, salida: "" };
     l.repJson = r.salida;
     const j = r.rc === 0 && r.salida ? json(r.salida) : null;
     const mRep = j ? texto(j.modelo) : "";
@@ -490,6 +496,25 @@ export async function aplicarPolitica(l: Llamada, pa: Pa, deps: DepsPolitica): P
     }
   }
 
+  // --- Un -m claude-* (opus o sonnet) con el mismo modelo por agy y más cupo libre allá: corre por agy (el cupo de Claude es de la semana de la
+  // persona). --exacto lo evita; frontend y diseno (necesitan Skill), xhigh/max, --seguir, --aca, --mcp y --max-budget-usd quedan en Claude.
+  // El candado de siempre sigue: si agy no puede correr (plugin, privacidad), cae al equivalente Claude. Cada sustitución se anota (reparto --registrar).
+  l.sustituidoDe = "";
+  if (
+    l.lanza && !l.seguir && !env.PA_ASYNC && l.modeloPedido && !l.exacto && !l.aca && !l.conMcp && !l.maxBudget && (l.tarea || l.actualizar) &&
+    /^claude-(opus|sonnet)-/i.test(l.modelo) && reparto.sustituir && reparto.ejecutable() && modelos.reparto() === "auto" && !l.vinoDeReparto
+  ) {
+    const r = await reparto.sustituir(l.modelo, { tipo: l.tipo || (l.leer ? "lectura" : ""), effort: l.esfuerzo.toLowerCase() });
+    const j = r.rc === 0 && r.salida ? json(r.salida) : null;
+    if (j && j.sustituir === true && texto(j.a)) {
+      io.err(`pa: ${l.modelo} → ${texto(j.a)}: ${texto(j.motivo)}. Con --exacto corre tal cual.\n`);
+      l.sustituidoDe = l.modelo;
+      l.modelo = texto(j.a);
+      l.esfuerzoFlag = false;
+      sacarEffort();
+    }
+  }
+
   // --- Lo que reparto eligió y ahora no sirve (plugin de agy sin cargar, codex sin sesión, dsh sin instalar, un Claude con el límite de
   // la cuenta a la vista) no se lanza ni cae a un Claude que tampoco va: se le pide a reparto el siguiente candidato sin ese (a lo sumo 4
   // veces). Si reparto no da otro, sigue el camino de siempre (el equivalente Claude, o 95/96).
@@ -574,7 +599,7 @@ export async function aplicarPolitica(l: Llamada, pa: Pa, deps: DepsPolitica): P
     if (!env.PA_ASYNC) {
       const motivo = l.chequeado === l.modelo ? "" : await deps.motores.chequearGemini(l.modelo, l);
       if (!motivo) l.motor = "agy";
-      else if (l.vinoDeReparto || l.politica.sinCupo === "otro") {
+      else if (l.vinoDeReparto || l.sustituidoDe || l.politica.sinCupo === "otro") {
         const [m, e] = geminiEquivalente(l.modelo);
         io.err(`pa: ${l.modelo} → ${m} effort ${e}: ${motivo}.\n`);
         l.geminiPedido = l.modelo;
