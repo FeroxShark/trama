@@ -32,6 +32,8 @@ import { enOtros, Fijo } from "../i18n/Fijo";
 import { cambiarTiernos } from "../hilo/tierno-logica";
 import { useTiernos } from "../hilo/Tierno";
 import { alCambiarAvisarEspera, avisarEspera, cambiarAvisarEspera } from "../espera";
+import { alCambiarCacheEleccion, cacheEleccion, cambiarCacheEleccion } from "../hilo/cache-eleccion";
+import { esPrefCache } from "../../electron/cache-pregunta";
 import { alCambiarAvisarWorkers, alCambiarAvisoLider, avisarWorkers, avisoLider, cambiarAvisarWorkers, cambiarAvisoLider, type ModoAvisoLider } from "../avisos-worker";
 import { alCambiarTerminalAgentes, cambiarTerminalAgentes, esWindowsTerminal, terminalAgentes } from "../terminal-agentes";
 import { mensaje } from "../puente";
@@ -206,6 +208,7 @@ export function Ajustes() {
   const avisar = useSyncExternalStore(alCambiarAvisarEspera, avisarEspera);
   const avisarW = useSyncExternalStore(alCambiarAvisarWorkers, avisarWorkers);
   const modoLider = useSyncExternalStore(alCambiarAvisoLider, avisoLider);
+  const cacheVencida = useSyncExternalStore(alCambiarCacheEleccion, cacheEleccion);
   const termAgentes = useSyncExternalStore(alCambiarTerminalAgentes, terminalAgentes);
   const aplicarSolo = useSyncExternalStore(alCambiarAplicarAuto, aplicarAuto);
   const [intento, setIntento] = useState(0);
@@ -287,6 +290,21 @@ export function Ajustes() {
             valor={modoLider}
             alElegir={elegirAvisoLider}
             reserva={[...enOtros("ajustes.avisoLiderTanda"), ...enOtros("ajustes.avisoLiderWorker")]}
+          />
+        </div>
+      </Dato>
+      <Dato nombre="ajustes.cacheVencida" que="ajustes.cacheVencidaQue" icono={<IcAviso {...ICONO} />}>
+        <div className="pn-sel">
+          <Selector
+            etiqueta={t("ajustes.cacheVencida")}
+            opciones={[
+              { id: "preguntar", nombre: t("ajustes.cacheVencidaPreguntar"), desc: "" },
+              { id: "seguir", nombre: t("ajustes.cacheVencidaSeguir"), desc: "" },
+              { id: "resumen", nombre: t("ajustes.cacheVencidaResumen"), desc: "" },
+            ]}
+            valor={cacheVencida}
+            alElegir={(id) => esPrefCache(id) && cambiarCacheEleccion(id)}
+            reserva={[...enOtros("ajustes.cacheVencidaPreguntar"), ...enOtros("ajustes.cacheVencidaSeguir"), ...enOtros("ajustes.cacheVencidaResumen")]}
           />
         </div>
       </Dato>

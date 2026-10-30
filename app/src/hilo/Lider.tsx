@@ -46,6 +46,9 @@ import { useProyectos } from "../datos/proyectos";
 import { CuentaLider, nombreCuentaClaude, useCuentasClaude } from "./CuentaLider";
 import { opcionesEnTurno, pendienteDe } from "./pendiente";
 import { DialogoCambio, type DatosCambio } from "./DialogoCambio";
+import { DialogoCache } from "./DialogoCache";
+import { alCambiarCacheEleccion, cacheEleccion, cambiarCacheEleccion } from "./cache-eleccion";
+import { decidirCache, type EleccionCache, type VeredictoCache } from "../../electron/cache-pregunta";
 import { hayVarias, opcionesMaquina, useMaquinas } from "../maquinas";
 import { Contexto } from "./Contexto";
 import { transcriptLeido } from "./contextoVivo";
@@ -760,7 +763,31 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
     );
   };
 
-  const enviar = (crudo = texto, modoNuevoYa?: Modo) => {
+  // Con la caché vencida y un contexto grande, el primer mensaje espera a que la persona elija (cache-pregunta.ts, DialogoCache.tsx).
+  const eleccionCache = useSyncExternalStore(alCambiarCacheEleccion, cacheEleccion);
+  const [preguntaCache, setPreguntaCache] = useState<{ veredicto: VeredictoCache; crudo: string; modoNuevoYa?: Modo } | null>(null);
+  const veredictoCache = (): VeredictoCache =>
+    decidirCache({
+      modelo: l?.modelo ?? modelo,
+      local: esLocal(l?.modelo ?? modelo),
+      cruza: !!datosCambio(modelo),
+      vence: l?.cache_vence ?? null,
+      ttl: l?.cache_ttl_s ?? null,
+      actividad: l?.actividad ?? 0,
+      tokens: tokens(pag?.usage ?? null),
+      pref: eleccionCache,
+      ahoraMs: Date.now(),
+    });
+  /** La persona eligió: se manda el mensaje que esperaba; «recordar» lo deja guardado para la próxima. */
+  const elegirCache = (e: EleccionCache, recordar: boolean) => {
+    const q = preguntaCache;
+    setPreguntaCache(null);
+    if (!q) return;
+    if (recordar) cambiarCacheEleccion(e);
+    enviar(q.crudo, q.modoNuevoYa, e);
+  };
+
+  const enviar = (crudo = texto, modoNuevoYa?: Modo, eleccion?: EleccionCache) => {
     const archivos = archivosDe(adjuntos);
     // Los archivos que no son imágenes van como rutas al final del texto: Claude los lee con Read.
     const t = textoConArchivos(crudo.trim(), archivos, (ruta) => tr("adjunto.linea", { ruta }));
@@ -848,24 +875,41 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
       );
       return;
     }
-    const salir = (total: number) => {
+    // `empezar: "resumen"` (caché vencida, ver `veredictoCache`): Claude abre otra conversación, así que en ésta no se anota el mensaje.
+    const salir = (total: number, empezar?: "resumen") => {
       salieron = true;
       vaciarAdjuntos(clave);
-      enviado(l.id, t, total, imagenes);
-      scroll.current = { tipo: "fondo" };
+      const enOtra = empezar === "resumen" && familiaDe(l.modelo) === "claude";
+      if (!enOtra) {
+        enviado(l.id, t, total, imagenes);
+        scroll.current = { tipo: "fondo" };
+      }
       setTexto(""); setCaret(0);
-      fuente.liderMandar(l.id, e).then(
-        () => {
+      fuente.liderMandar(l.id, empezar ? { ...e, empezar } : e).then(
+        (nuevo) => {
           ponerBorrador(clave, { texto: "", error: null });
           setEnviando(false);
+          if (nuevo) {
+            enviado(nuevo, t, 0, imagenes);
+            alCreado(nuevo, e);
+            alAbrirLider?.(nuevo);
+          } else if (empezar) setNota(tr("cache.notaResumen"));
         },
         (err) => {
-          fallo(l.id);
+          if (!enOtra) fallo(l.id);
           mal(err);
         },
       );
     };
-    if (app) return salir(pag?.total ?? 0);
+    if (app) {
+      // La caché venció y el contexto es grande: lo recordado manda; si no, el mensaje espera en la caja hasta que se elija (DialogoCache).
+      const v = eleccion ? null : veredictoCache();
+      if (v?.accion === "preguntar") {
+        setEnviando(false);
+        return setPreguntaCache({ veredicto: v, crudo, modoNuevoYa });
+      }
+      return salir(pag?.total ?? 0, eleccion === "resumen" || v?.accion === "resumen" ? "resumen" : undefined);
+    }
     // Abierto en una terminal: primero se lo trae (cierra ese `claude`, por su pid) y recién
     // entonces sale el mensaje, con el `--resume` de siempre. Nunca dos procesos en el transcript.
     const modoAl = modoNuevoYa ?? modo;
@@ -1451,6 +1495,16 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
             }}
             alNo={() => {
               setCruce(null);
+              caja.current?.focus();
+            }}
+          />
+        ) : null}
+        {preguntaCache ? (
+          <DialogoCache
+            datos={{ veredicto: preguntaCache.veredicto, nueva: !!l && familiaDe(l.modelo) === "claude" }}
+            alElegir={elegirCache}
+            alCancelar={() => {
+              setPreguntaCache(null);
               caja.current?.focus();
             }}
           />

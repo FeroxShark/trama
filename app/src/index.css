@@ -3537,6 +3537,52 @@ html[data-titulo-nativo] #root::after {
   background: var(--acento);
   color: var(--acento-texto);
 }
+/* La caché venció: elegir entre seguir la misma sesión o empezar con resumen (DialogoCache.tsx, sobre el estilo de .cambio). */
+.cache-opciones {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-2);
+}
+.cache-op {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--esp-1);
+  padding: var(--esp-3);
+  border: 1px solid var(--borde-3);
+  border-radius: var(--radio-3);
+  background: var(--sup-2);
+  color: var(--texto);
+  text-align: left;
+  cursor: pointer;
+}
+.cache-op:hover {
+  background: var(--acento-tinte);
+}
+.cache-op:focus-visible {
+  outline: 2px solid var(--acento);
+  outline-offset: 2px;
+}
+.cache-op-prim {
+  border-color: var(--acento);
+}
+.cache-op-t {
+  font-size: var(--letra-5);
+  font-weight: 600;
+}
+.cache-op-d {
+  color: var(--texto-3);
+  font-size: var(--letra-4);
+  line-height: 1.5;
+}
+.cache-recordar {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-2);
+  color: var(--texto-3);
+  font-size: var(--letra-4);
+  cursor: pointer;
+}
 /* Líder con un modelo local: sin workers. Callado como .caja-aviso, con el chip delante. */
 .caja-local {
   display: flex;
