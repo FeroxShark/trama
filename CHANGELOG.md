@@ -1,5 +1,9 @@
 # Cambios
 
+## 0.2.31
+
+- Avisos de workers al líder: ya no se pierden si el líder o Trama se reinician mientras el worker corre. Quedan en una cola persistente y cuentan como entregados sólo cuando llegaron; al retomar un líder le llega un resumen de sus workers que terminaron mientras no estaba.
+
 ## 0.2.30
 
 - Panel derecho de contexto nuevo: sólo el líder que mirás y sus workers, con barra apilada, mapa de bloques y lista por categoría (mensajes, herramientas, MCP, skills, memoria, sistema). Cada skill, conector, herramienta o archivo de memoria muestra sus tokens, cuántas veces se usó ("nunca usada") y un interruptor para apagarlo en todo Trama.
