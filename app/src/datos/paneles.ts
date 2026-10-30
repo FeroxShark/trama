@@ -104,6 +104,9 @@ export type Corrida = {
   espera_s: number | null;
 };
 
+/** Un `-m claude-*` que pa pasó a agy porque allá había más cupo libre (`reparto/sustituciones.jsonl`). */
+export type Sustitucion = { ts: number; de: string; a: string };
+
 /** Una línea de `statusline/historial.jsonl`: % real de la cuota de 5 h y semanal, y cuándo se renuevan. */
 export type Muestra = { ts: number; h5: number; h5_reset: number; sem: number; sem_reset: number };
 
@@ -112,7 +115,7 @@ export type Muestra = { ts: number; h5: number; h5_reset: number; sem: number; s
  * archivo; `cuota`, el historial (`null` si todavía no existe).
  */
 export type Medicion =
-  | { version: number; corridas: Corrida[]; desde: number | null; cuota: Muestra[] | null }
+  | { version: number; corridas: Corrida[]; desde: number | null; cuota: Muestra[] | null; sustituciones?: Sustitucion[] }
   | { version: number; error: string }
   | { version: number; vacia: true };
 

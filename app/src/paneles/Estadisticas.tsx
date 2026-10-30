@@ -5,7 +5,7 @@
 // la suscripción no cobra por token; ver CostoPorModelo.tsx).
 import { useEffect, useMemo, useState } from "react";
 import { VERSION } from "../datos/contrato";
-import { fuentePaneles, type Corrida, type Muestra } from "../datos/paneles";
+import { fuentePaneles, type Corrida, type Muestra, type Sustitucion } from "../datos/paneles";
 import { MODO } from "../modo";
 import { coma, diaSemana, locale, t } from "../i18n";
 import { duracion, esperaTexto } from "../tiempo";
@@ -61,7 +61,7 @@ const corridas = (n: number) => t(n === 1 ? "est.corrida1" : "est.corridaN", { n
 /** "otro" es el nombre interno de la familia; se muestra traducido. */
 const familia = (f: Familia) => (f === "otro" ? t("est.otro") : f);
 
-type Datos = { corridas: Corrida[]; desde: number | null; cuota: Muestra[] | null; ahora: number };
+type Datos = { corridas: Corrida[]; desde: number | null; cuota: Muestra[] | null; sustituciones: Sustitucion[]; ahora: number };
 
 export function Estadisticas() {
   const [datos, setDatos] = useState<Datos | null>(null);
@@ -80,7 +80,7 @@ export function Estadisticas() {
         if (r.version !== VERSION) setError(t("error.version", { que: t("panel.estadisticas"), v: r.version, conozco: VERSION }));
         else if ("error" in r) setError(r.error);
         else if ("vacia" in r) setVacia(true);
-        else setDatos({ corridas: r.corridas, desde: r.desde, cuota: r.cuota, ahora: Date.now() / 1000 });
+        else setDatos({ corridas: r.corridas, desde: r.desde, cuota: r.cuota, sustituciones: r.sustituciones ?? [], ahora: Date.now() / 1000 });
       },
       (e) => vivo && setError(mensaje(e)),
     );
@@ -202,6 +202,7 @@ export function Estadisticas() {
       </section>
 
       <PorModelo partes={r.porModelo} />
+      <Sustituciones filas={datos.sustituciones.filter((s) => s.ts >= ahora - dias * 86400)} />
       <CostoPorModelo dias={dias} />
       <PorProyecto partes={r.porProyecto} />
 
@@ -437,6 +438,33 @@ function PorModelo({ partes }: { partes: { familia: Familia; n: number; tokens: 
           </span>
         ))}
       </div>
+    </section>
+  );
+}
+
+/** Los `-m claude-*` que pa pasó solo a agy porque allá había más cupo libre, contados por modelo de origen y de destino. */
+function Sustituciones({ filas }: { filas: Sustitucion[] }) {
+  if (!filas.length) return null;
+  const cuenta = new Map<string, { de: string; a: string; n: number }>();
+  for (const s of filas) {
+    const k = `${s.de}\u0000${s.a}`;
+    const x = cuenta.get(k);
+    if (x) x.n++;
+    else cuenta.set(k, { de: s.de, a: s.a, n: 1 });
+  }
+  const partes = [...cuenta.values()].sort((x, y) => y.n - x.n);
+  return (
+    <section className="pn-sec">
+      <h2 className="pn-h">
+        {t("est.sustituciones")} <span className="pn-h-sub">{t("est.sustitucionesSub")}</span>
+      </h2>
+      {partes.map((p) => (
+        <div key={`${p.de}→${p.a}`} className="pn-parte">
+          <span className="pn-parte-n">{t("est.sustitucion", { de: p.de, a: p.a })}</span>
+          <span className="pn-num">{p.n}</span>
+        </div>
+      ))}
+      <div className="pn-nota">{t("est.sustitucionesNota")}</div>
     </section>
   );
 }

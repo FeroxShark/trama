@@ -49,3 +49,20 @@ test("medicion.tsv: espera_s de cada corrida; las filas de antes de la columna d
     [0, 185, null],
   );
 });
+
+test("reparto/sustituciones.jsonl: las de los últimos 60 días, ordenadas; las rotas y las viejas se saltean", async () => {
+  const ahora = Date.now() / 1000;
+  const iso = (dias: number) => new Date((ahora - dias * 86400) * 1000).toISOString().replace(/\.\d+Z$/, "Z");
+  const linea = (dias: number) => JSON.stringify({ ts: iso(dias), de: "claude-sonnet-5-5", a: "agy:claude-sonnet-5-5-high", tipo: "codigo-acotado" });
+  mkdirSync(path.join(process.env.PA_STATE!, "reparto"), { recursive: true });
+  writeFileSync(path.join(process.env.PA_STATE!, "reparto", "sustituciones.jsonl"), [linea(1), "no es json", linea(70), linea(3), JSON.stringify({ ts: iso(1), de: 5 }), ""].join("\n"));
+  const r = await leerMedicion(ahora);
+  assert.ok("corridas" in r);
+  assert.deepEqual(
+    r.sustituciones?.map((s) => [Math.round((ahora - s.ts) / 86400), s.de, s.a]),
+    [
+      [3, "claude-sonnet-5-5", "agy:claude-sonnet-5-5-high"],
+      [1, "claude-sonnet-5-5", "agy:claude-sonnet-5-5-high"],
+    ],
+  );
+});

@@ -92,6 +92,9 @@ export type Corrida = {
   espera_s: number | null;
 };
 
+/** Un `-m claude-*` que pa pasó a agy porque allá había más cupo libre (una línea de `reparto/sustituciones.jsonl`). */
+export type Sustitucion = { ts: number; de: string; a: string };
+
 /**
  * Una línea de `statusline/historial.jsonl` (la escribe el espejo del statusline
  * cada vez que cambia algo): % real de la cuota de 5 h y de la semanal, y cuándo
@@ -107,6 +110,8 @@ export type Medicion =
       desde: number | null;
       /** `null` si todavía no existe `historial.jsonl`. */
       cuota: Muestra[] | null;
+      /** Las sustituciones de los últimos 60 días; falta si no hubo ninguna. */
+      sustituciones?: Sustitucion[];
     }
   | { version: 1; error: string }
   // Sin `medicion.tsv` todavía: ningún worker corrió. No es un error: Estadísticas lo muestra como estado vacío.
@@ -149,6 +154,30 @@ export async function leerCuota(ahora = Date.now() / 1000): Promise<Muestra[] | 
   return muestras.sort((a, b) => a.ts - b.ts);
 }
 
+/** `reparto/sustituciones.jsonl` de los últimos 60 días (reparto las anota con `--sustituir --registrar`); las líneas rotas se saltean. */
+export async function leerSustituciones(ahora = Date.now() / 1000): Promise<Sustitucion[]> {
+  let texto: string;
+  try {
+    texto = await readFile(path.join(process.env.REPARTO_STATE || path.join(PA_STATE, "reparto"), "sustituciones.jsonl"), "utf8");
+  } catch {
+    return [];
+  }
+  const filas: Sustitucion[] = [];
+  for (const l of texto.split("\n")) {
+    if (!l.trim()) continue;
+    let j: Record<string, unknown>;
+    try {
+      j = JSON.parse(l);
+    } catch {
+      continue;
+    }
+    const ts = typeof j?.ts === "string" ? Date.parse(j.ts) / 1000 : NaN;
+    if (!isFinite(ts) || ts < ahora - DIAS * 86400 || typeof j.de !== "string" || typeof j.a !== "string") continue;
+    filas.push({ ts, de: j.de, a: j.a });
+  }
+  return filas.sort((a, b) => a.ts - b.ts);
+}
+
 /**
  * `medicion.tsv` de los últimos 60 días, con el historial de la cuota. Las
  * columnas se buscan por el nombre del encabezado: las filas viejas son más
@@ -189,7 +218,8 @@ export async function leerMedicion(ahora = Date.now() / 1000): Promise<Medicion>
       espera_s: numero(campo("espera_s")),
     });
   }
-  return { version: 1, corridas, desde, cuota: await leerCuota(ahora) };
+  const sustituciones = await leerSustituciones(ahora);
+  return { version: 1, corridas, desde, cuota: await leerCuota(ahora), ...(sustituciones.length ? { sustituciones } : {}) };
 }
 
 // --- Ramas -----------------------------------------------------------------------

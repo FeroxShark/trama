@@ -209,7 +209,14 @@ for (const [semana, fin] of [
   }
 }
 
-export const MEDICION: Medicion = { version: 1, corridas, desde: corridas[0]?.ts ?? null, cuota };
+// Unos `-m claude-*` que pa pasó solo a agy (reparto --sustituir): de los últimos tres días.
+const sustituciones = [
+  { ts: AHORA - 0.2 * DIA, de: "claude-sonnet-5-5", a: "agy:claude-sonnet-5-5-high" },
+  { ts: AHORA - 0.9 * DIA, de: "claude-sonnet-5-5", a: "agy:claude-sonnet-5-5-high" },
+  { ts: AHORA - 2.1 * DIA, de: "claude-opus-5-5", a: "agy:claude-opus-5-5-medium" },
+];
+
+export const MEDICION: Medicion = { version: 1, corridas, desde: corridas[0]?.ts ?? null, cuota, sustituciones };
 
 /** Lo que mide "Medir exacto" (electron/arranque.ts), por sesión: la misma que arranca de ejemplo en el registro (32 k por sesión, estimado). */
 export const arranqueMedidoFalso: Medido = {

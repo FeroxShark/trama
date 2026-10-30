@@ -184,3 +184,11 @@ test("MCP: la búsqueda diferida de herramientas queda activa en el worker, salv
   assert.equal(envDeLaLlamada(pa, corrida(raiz)).ENABLE_TOOL_SEARCH, "true");
   assert.equal(envDeLaLlamada({ ...pa, env: { ...pa.env, ENABLE_TOOL_SEARCH: "false" } }, corrida(raiz)).ENABLE_TOOL_SEARCH, undefined);
 });
+
+test("agyResetHasta: «Resets in 149h» / «6d 5h 3m» y lo mismo que el agy_reset_epoch del bash", async () => {
+  const { agyResetHasta, agySinCupo } = await import("../electron/cli/pa/cupo.ts");
+  assert.equal(agyResetHasta("RESOURCE_EXHAUSTED. Resets in 149h", 1000), 1000 + 149 * 3600);
+  assert.equal(agyResetHasta("quota reached, resets after 6d 5h 3m.", 0), 6 * 86400 + 5 * 3600 + 3 * 60);
+  assert.equal(agyResetHasta("RESOURCE_EXHAUSTED sin hora", 0), null);
+  assert.ok(agySinCupo("Individual quota reached") && agySinCupo("HTTP 429 Too Many") && !agySinCupo("error 4290"));
+});
