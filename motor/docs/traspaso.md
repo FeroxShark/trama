@@ -86,6 +86,21 @@ historia (force push); se puede subir directo y mergear sin esperar el CI.
   cada 6 h. Los dos canales que escriben son sólo de la PC (`SOLO_PC_TAILNET`).
 - Windows: la misma lógica de TS (disposición `%LOCALAPPDATA%\trama\wt\<slug>\<k>`); falta probarla en un Windows real.
 
+## Hecho: los avisos de workers al líder no se pierden (cola persistente por `jefe_id`)
+
+- **Causa:** `avisarAlLider` (nucleo.ts) encolaba el aviso sólo si el líder tenía proceso en ese instante (`lider.seleccionDe`) y, si no
+  (líder o Trama reiniciados), lo tiraba en silencio; un "terminó" a un líder ocioso también se tiraba, y lo que esperaba el cierre de una
+  tanda vivía sólo en memoria. Lo que terminaba con Trama apagada nunca se detectaba.
+- **Ahora** (`app/electron/avisos-pendientes.ts`, `avisos-lider.json` en el estado de Trama): cada aviso se anota al detectarlo
+  (`registrar`), se libera cuando se le puede decir (`liberar`: al cerrar la tanda, o ya en modo por worker/cupo/colgado) y `entregar` lo
+  encola SÓLO con el líder con proceso: a mitad de turno, todo junto; ocioso, las fallas ya y un simple "terminó" en su próximo turno. Sin
+  proceso espera y, al volver el líder, sale UN resumen ("Mientras no estabas terminaron N workers…").
+- **Entregado = la cola confirmó el envío** (`Encolado.avisos` + `Deps.salida` de `cola.ts`). Si falla, sigue en la cola y anotado; al
+  arrancar, lo `encolado` que no está en `cola.json` vuelve a pendiente. Quitarlo de la cola lo descarta; cerrar el líder adrede lo devuelve.
+- **Rescate:** `descubrir` registra a los workers de un líder que terminaron (fin = `inicio + duracion_s`) después de la última lista
+  vista mientras Trama estaba apagada. No se avisa lo que alguien ya cerró (integrado, archivado, descartado) ni lo que volvió a andar.
+- Sin canales nuevos: vale igual en Linux y Windows. Lo prueba `tests/avisos-pendientes.test.ts`.
+
 ## Hecho: la cola entrega entre herramientas, todo junto
 
 - **Entrega por defecto a mitad de turno:** lo que el usuario encola con el líder trabajando ya no espera al fin del turno ni obliga
