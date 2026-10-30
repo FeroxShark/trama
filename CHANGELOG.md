@@ -2,7 +2,18 @@
 
 ## Sin publicar
 
-- Actualizar seguro: antes de instalar una versión nueva se guarda la anterior; si la nueva no arranca bien (no llega a abrir la ventana en 60 s, o se cierra sola 2 veces seguidas) Trama vuelve sola y lo cuenta al abrir. Botón "Volver a la versión anterior" en Ajustes > General. Linux (AppImage y app estable) y Windows (instalador nativo).
+## 0.2.28
+
+- Windows: ya no se abren ventanas de CMD sueltas (líderes, agy, MCP y chequeos corren con la consola oculta).
+- Líder de agy (Gemini/Flash): sus workers ya no mueren al terminar el turno; en Windows salen afuera del job.
+- Cupo de agy en la cabecera: se lee cada 10 min (antes 3 min, y cada lectura levantaba todos los MCP).
+- Retomar un líder de Claude usa la cuenta principal elegida.
+- Caché vencida: al retomar una conversación larga, Trama pregunta si seguir la misma sesión o empezar con un resumen, con el gasto estimado; se puede recordar la elección (Ajustes).
+- Relevo más compacto: menos tokens al pasar a un líder nuevo.
+- Títulos cortos: los chats se titulan con ≤6 palabras del tema (no el primer mensaje entero) y los workers por el Objetivo del brief; un título puesto a mano no se toca.
+- Actividad: cada archivo que el agente, un worker o un subagente lee, escribe o edita se abre en el visor (imagen con miniatura, PDF, texto, markdown, audio, video; si no, con la app del sistema).
+- Avisos de workers: el texto ya no queda aplastado; título en dos líneas, motivo debajo y el botón de relanzar en su fila.
+- agy: el conteo de tokens de entrada ya no da negativo.
 
 ## 0.2.27
 
