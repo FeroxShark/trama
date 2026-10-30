@@ -682,6 +682,38 @@ usa_worktree=0
 ruta_trabajo=""      # dónde corre el claude: el worktree o el tree principal
 rama=""; base=""     # rama de esta corrida y el commit del que salió
 
+# El node_modules del tree principal sólo sirve si el worktree tiene el MISMO package-lock.json (es lo
+# normal: el worktree sale del HEAD). Si difiere (el dueño tiene el lockfile sin commitear, o una rama
+# retomada lo cambió), compartirlo le daría al worker versiones que no son las suyas, así que se arma uno
+# propio con `npm ci` en el worktree (con el caché de npm, `--prefer-offline`). Éxito = 0 y el node_modules
+# queda en el worktree con una copia del lockfile adentro (`.pa-package-lock.json`, la marca de que es de
+# pa). Si npm falla, 1 y se cae al symlink de siempre, avisando. PA_NPM: el npm (los tests ponen uno falso).
+node_modules_propio() {   # $1 = tree principal, $2 = worktree, $3 = node_modules relativo
+  local dir="${3%/node_modules}" lp lw
+  [[ "$dir" == "$3" ]] && dir="."
+  lp="$1/$dir/package-lock.json"; lw="$2/$dir/package-lock.json"
+  [[ -f "$lp" && -f "$lw" && -f "$2/$dir/package.json" ]] || return 1
+  cmp -s "$lp" "$lw" && return 1
+  echo "pa: el package-lock.json de '$dir' difiere del del tree principal: armo su node_modules con 'npm ci' en el worktree." >&2
+  if (cd "$2/$dir" && timeout 600 "${PA_NPM:-npm}" ci --prefer-offline --no-audit --no-fund >/dev/null 2>&1) && [[ -d "$2/$3" ]]; then
+    cp -- "$lw" "$2/$3/.pa-package-lock.json" 2>/dev/null
+    return 0
+  fi
+  rm -rf -- "${2:?}/$3"
+  echo "pa: OJO: 'npm ci' falló en '$dir'; uso el node_modules del tree principal (puede no coincidir con el lockfile)." >&2
+  return 1
+}
+
+# Un node_modules propio de pa (con su marca) cuyo lockfile ya no es el del worktree (otra rama) se borra
+# para rehacerlo; uno sin marca, o con la marca al día, se deja.
+node_modules_viejo() {   # $1 = worktree, $2 = node_modules relativo
+  local dir="${2%/node_modules}"
+  [[ "$dir" == "$2" ]] && dir="."
+  [[ -d "$1/$2" && ! -L "$1/$2" && -f "$1/$2/.pa-package-lock.json" ]] || return 0
+  cmp -s "$1/$2/.pa-package-lock.json" "$1/$dir/package-lock.json" || rm -rf -- "${1:?}/$2"
+  return 0
+}
+
 # El build cache no se copia: se comparte. El target de cargo va por env (cargo toma un lock
 # de archivo sobre él, y el flock de pa ya serializa igual); node_modules, .venv y .env por
 # symlink. Lo demás que esté gitignoreado (data/, sqlite) NO está: si un worker lo necesita
@@ -690,7 +722,10 @@ enlazar_caches() {   # $1 = tree principal, $2 = worktree
   local d rel f
   while IFS= read -r d; do
     rel="${d#"$1"/}"
-    [[ -e "$2/$rel" ]] || { mkdir -p "$2/$(dirname "$rel")"; ln -s "$d" "$2/$rel"; }
+    node_modules_viejo "$2" "$rel"
+    [[ -e "$2/$rel" ]] && continue
+    node_modules_propio "$1" "$2" "$rel" && continue
+    mkdir -p "$2/$(dirname "$rel")"; ln -s "$d" "$2/$rel"
   done < <(find "$1" -maxdepth 3 -type d -name node_modules -prune 2>/dev/null)
   # .venv/.env son cache y config; CLAUDE.local.md y .claude/settings.local.json son las
   # instrucciones locales del proyecto (gitignoreadas): sin ellas el worker perdería lo que

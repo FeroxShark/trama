@@ -12,7 +12,8 @@
 // - los worktrees van en `%LOCALAPPDATA%\trama\wt\<slug>\<k>` (rutas cortas, MAX_PATH) salvo que PA_STATE mande; en Linux siguen
 //   en `$STATE/worktrees/<slug>[@k]`.
 // - el candado de git es un lock por socket (base/lock.ts) con la ruta de siempre como clave; no se ve con el `flock` del bash.
-import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync, statSync, unlinkSync, writeFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { copyFileSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { raizWindows } from "../../rutas.ts";
 import { enlazarArchivo, enlazarDir, borrarSinSeguir, esLink } from "../base/enlaces.ts";
@@ -222,6 +223,70 @@ const hayAlgo = (p: string) => {
   }
 };
 
+const MARCA_LOCK = ".pa-package-lock.json";
+
+/** El subproyecto npm de un `node_modules` relativo ("app/node_modules" -> "app", "node_modules" -> ""). */
+const dirDeNodeModules = (rel: string) => path.posix.dirname(rel.replaceAll("\\", "/")).replace(/^\.$/, "");
+
+/** ¿Los dos archivos existen y tienen distinto contenido? */
+function difieren(a: string, b: string): boolean {
+  try {
+    return !readFileSync(a).equals(readFileSync(b));
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * `node_modules_propio`: el node_modules del tree principal sólo sirve si el worktree tiene el MISMO package-lock.json (lo normal:
+ * sale del HEAD). Si difiere, compartirlo le daría al worker versiones que no son las suyas: se arma uno propio con `npm ci` en el
+ * worktree (`--prefer-offline`) y se le deja adentro una copia del lockfile (`.pa-package-lock.json`, la marca de que es de pa).
+ * true = quedó armado; false = se comparte con symlink/junction como siempre (lockfile igual, sin lockfile, o npm falló y se avisa).
+ * `PA_NPM` cambia el npm (los tests ponen uno falso).
+ */
+function nodeModulesPropio(x: Proyecto, ppal: string, wt: string, rel: string): boolean {
+  const dir = dirDeNodeModules(rel);
+  const lp = path.join(ppal, dir, "package-lock.json");
+  const lw = path.join(wt, dir, "package-lock.json");
+  if (!existsSync(path.join(wt, dir, "package.json")) || !difieren(lp, lw)) return false;
+  const nombre = dir || ".";
+  x.pa.io.err(`pa: el package-lock.json de '${nombre}' difiere del del tree principal: armo su node_modules con 'npm ci' en el worktree.\n`);
+  const win = x.pa.plat === "win32";
+  const r = spawnSync(x.pa.env.PA_NPM || "npm", ["ci", "--prefer-offline", "--no-audit", "--no-fund"], {
+    cwd: path.join(wt, dir),
+    env: x.pa.env,
+    stdio: "ignore",
+    timeout: 600_000,
+    shell: win, // npm es npm.cmd en Windows
+  });
+  const nm = path.join(wt, rel);
+  if (r.status === 0 && existsSync(nm)) {
+    try {
+      copyFileSync(lw, path.join(nm, MARCA_LOCK));
+    } catch {
+      /* sin marca: se deja estar */
+    }
+    return true;
+  }
+  borrarSinSeguir(nm);
+  x.pa.io.err(`pa: OJO: 'npm ci' falló en '${nombre}'; uso el node_modules del tree principal (puede no coincidir con el lockfile).\n`);
+  return false;
+}
+
+/** `node_modules_viejo`: un node_modules propio de pa (con su marca) cuyo lockfile ya no es el del worktree se borra para rehacerlo. */
+function nodeModulesViejo(wt: string, rel: string): void {
+  const nm = path.join(wt, rel);
+  try {
+    if (lstatSync(nm).isSymbolicLink() || !lstatSync(nm).isDirectory()) return;
+  } catch {
+    return;
+  }
+  const marca = path.join(nm, MARCA_LOCK);
+  if (!existsSync(marca)) return;
+  const lw = path.join(wt, dirDeNodeModules(rel), "package-lock.json");
+  if (!existsSync(lw) || difieren(marca, lw)) borrarSinSeguir(nm);
+}
+
 /**
  * `enlazar_caches`: los node_modules (hasta profundidad 3), `.venv` y, sólo para workers que corren el binario `claude` (claude u
  * ollama), `.env` y las instrucciones locales. Crea sólo lo que falta. Devuelve el `CARGO_TARGET_DIR` a exportar si es un
@@ -231,7 +296,9 @@ export function enlazarCaches(x: Proyecto, ppal: string, wt: string, motor = x.m
   const o = { plat: x.pa.plat };
   for (const rel of nodeModules(ppal, "dir")) {
     const dest = path.join(wt, rel);
+    nodeModulesViejo(wt, rel);
     if (hayAlgo(dest)) continue;
+    if (nodeModulesPropio(x, ppal, wt, rel)) continue;
     try {
       enlazarDir(path.join(ppal, rel), dest, o);
     } catch {

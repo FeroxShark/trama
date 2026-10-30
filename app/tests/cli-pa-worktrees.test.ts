@@ -235,6 +235,62 @@ testPosix("build: dirs por nombre o CACHEDIR.TAG (no trackeados, no enlaces); bo
   assert.equal(existsSync(path.join(shared, "pkg", "index.js")), true, "el node_modules compartido sigue entero");
 });
 
+/** Un repo con package.json + package-lock.json commiteados, el node_modules del tree principal y un `npm` falso (PA_NPM). */
+function conLockfile(npmFalla = false) {
+  const aux = realpathSync(mkdtempSync(path.join(os.tmpdir(), "pa-npm-")));
+  const log = path.join(aux, "npm.log");
+  const npm = path.join(aux, "npm-falso.sh");
+  writeFileSync(npm, `#!/bin/sh\necho "$PWD $*" >> "${log}"\n${npmFalla ? "exit 1" : "mkdir -p node_modules/pkg"}\n`, { mode: 0o755 });
+  const s = armar({ PA_NPM: npm });
+  for (const dir of ["", "web"]) {
+    mkdirSync(path.join(s.ruta, dir), { recursive: true });
+    writeFileSync(path.join(s.ruta, dir, "package.json"), "{}\n");
+    writeFileSync(path.join(s.ruta, dir, "package-lock.json"), '{"v":1}\n');
+    mkdirSync(path.join(s.ruta, dir, "node_modules", "pkg"), { recursive: true });
+  }
+  s.git(s.ruta, "add", "package.json", "package-lock.json", "web/package.json", "web/package-lock.json");
+  s.git(s.ruta, "commit", "-q", "-m", "lock");
+  return { ...s, log: () => (existsSync(log) ? readFileSync(log, "utf8") : "") };
+}
+
+testPosix("node_modules: con el mismo lockfile se comparte con symlink y no corre npm", async () => {
+  const s = conLockfile();
+  const t = await prepararWorktree(s.proy("t1"), "", "1");
+  assert.equal(readlinkSync(path.join(t.rutaTrabajo, "node_modules")), path.join(s.ruta, "node_modules"));
+  assert.equal(readlinkSync(path.join(t.rutaTrabajo, "web", "node_modules")), path.join(s.ruta, "web", "node_modules"));
+  assert.equal(s.log(), "");
+});
+
+testPosix("node_modules: si el lockfile del worktree difiere, se instala en ese subproyecto y el resto sigue compartido", async () => {
+  const s = conLockfile();
+  writeFileSync(path.join(s.ruta, "web", "package-lock.json"), '{"v":2}\n'); // sin commitear: el worktree sale del HEAD
+  const t = await prepararWorktree(s.proy("t1"), "", "1");
+  const nm = path.join(t.rutaTrabajo, "web", "node_modules");
+  assert.equal(lstatSync(nm).isSymbolicLink(), false);
+  assert.equal(existsSync(path.join(nm, "pkg")), true);
+  assert.equal(readFileSync(path.join(nm, ".pa-package-lock.json"), "utf8"), '{"v":1}\n');
+  assert.equal(readlinkSync(path.join(t.rutaTrabajo, "node_modules")), path.join(s.ruta, "node_modules"));
+  assert.equal(s.log(), `${path.join(t.rutaTrabajo, "web")} ci --prefer-offline --no-audit --no-fund\n`);
+  assert.match(s.err(), /package-lock\.json de 'web' difiere/);
+  // la próxima corrida del puesto: desenlazar no toca el propio y enlazar no lo rehace
+  await desenlazarCaches(s.proy("t2"), t.rutaTrabajo);
+  assert.equal(existsSync(path.join(nm, "pkg")), true);
+  enlazarCaches(s.proy("t2"), s.ruta, t.rutaTrabajo);
+  assert.equal(s.log().split("\n").filter(Boolean).length, 1);
+  // pero si el lockfile del worktree cambia (otra rama), el propio queda viejo y se vuelve a compartir
+  writeFileSync(path.join(t.rutaTrabajo, "web", "package-lock.json"), '{"v":2}\n');
+  enlazarCaches(s.proy("t3"), s.ruta, t.rutaTrabajo);
+  assert.equal(readlinkSync(nm), path.join(s.ruta, "web", "node_modules"));
+});
+
+testPosix("node_modules: si la instalación falla, avisa y cae al node_modules del tree principal", async () => {
+  const s = conLockfile(true);
+  writeFileSync(path.join(s.ruta, "package-lock.json"), '{"v":2}\n');
+  const t = await prepararWorktree(s.proy("t1"), "", "1");
+  assert.equal(readlinkSync(path.join(t.rutaTrabajo, "node_modules")), path.join(s.ruta, "node_modules"));
+  assert.match(s.err(), /OJO: 'npm ci' falló en '\.'/);
+});
+
 testPosix("desenlazar: saca los enlaces y, en Windows, el .env que quedó como hardlink si es igual al del tree principal", async () => {
   const s = armar();
   writeFileSync(path.join(s.ruta, ".env"), "CLAVE=1\n");

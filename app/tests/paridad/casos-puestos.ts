@@ -37,7 +37,42 @@ function conHuerfano(c: Contexto) {
   symlinkSync(c.aux, path.join(wt, "afuera"));
 }
 
+/** Un `npm` falso en el sandbox (PA_NPM): crea el node_modules y sale con `rc`. */
+const npmFalso = (c: Contexto) => path.join(c.aux, "npm-falso.sh");
+function conLockfile(c: Contexto, opts: { distinto: boolean; rc?: number }) {
+  writeFileSync(npmFalso(c), `#!/bin/sh\nmkdir -p node_modules/pkg\nexit ${opts.rc ?? 0}\n`);
+  chmodSync(npmFalso(c), 0o755);
+  writeFileSync(path.join(c.proyecto, "package.json"), "{}\n");
+  writeFileSync(path.join(c.proyecto, "package-lock.json"), '{"v":1}\n');
+  const id = { ...process.env, GIT_AUTHOR_NAME: "x", GIT_AUTHOR_EMAIL: "a@b", GIT_COMMITTER_NAME: "x", GIT_COMMITTER_EMAIL: "a@b" };
+  spawnSync("git", ["-C", c.proyecto, "add", "package.json", "package-lock.json"], { env: id });
+  spawnSync("git", ["-C", c.proyecto, "commit", "-q", "-m", "lock"], { env: id });
+  mkdirSync(path.join(c.proyecto, "node_modules", "pkg"), { recursive: true });
+  if (opts.distinto) writeFileSync(path.join(c.proyecto, "package-lock.json"), '{"v":2}\n'); // sin commitear: el worktree sale del HEAD
+}
+
 export const casosPuestos: Caso[] = [
+  {
+    nombre: "node_modules: con el mismo lockfile se comparte (no corre npm)",
+    preparar: (c) => conLockfile(c, { distinto: false }),
+    env: (c) => ({ PA_NPM: npmFalso(c) }),
+    args: ["demo", "--sin-jefe", "-m", M, "hacé algo"],
+    rc: 78,
+  },
+  {
+    nombre: "node_modules: con otro lockfile en el worktree se arma uno propio",
+    preparar: (c) => conLockfile(c, { distinto: true }),
+    env: (c) => ({ PA_NPM: npmFalso(c) }),
+    args: ["demo", "--sin-jefe", "-m", M, "hacé algo"],
+    rc: 78,
+  },
+  {
+    nombre: "node_modules: si la instalación falla avisa y comparte el del tree principal",
+    preparar: (c) => conLockfile(c, { distinto: true, rc: 1 }),
+    env: (c) => ({ PA_NPM: npmFalso(c) }),
+    args: ["demo", "--sin-jefe", "-m", M, "hacé algo"],
+    rc: 78,
+  },
   {
     nombre: "puestos: dos corridas seguidas reusan el worktree del puesto 1",
     pasos: [
