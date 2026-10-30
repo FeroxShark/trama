@@ -9,7 +9,7 @@ import path from "node:path";
 import { test } from "node:test";
 import { testPosix } from "./plataforma.ts";
 import type { Pa } from "../electron/cli/pa/entorno.ts";
-import { alSalir, armarLanzamiento, settingsWorker, type Corrida } from "../electron/cli/pa/lanzar.ts";
+import { alSalir, armarLanzamiento, contratoClaude, lineaSkillsDiseno, settingsWorker, skillsDisenoInstaladas, type Corrida } from "../electron/cli/pa/lanzar.ts";
 import { campoDe, decisionEsNada, epochReset, verificadoDe } from "../electron/cli/pa/resultado-lanzar.ts";
 
 const PA = path.join(import.meta.dirname, "..", "..", "motor", "bin", "pa");
@@ -87,6 +87,45 @@ const corrida = (raiz: string, o: Partial<Corrida> = {}): Corrida => ({
   puesto: "aca", leer: false, usaWorktree: false, tengoLock: true, modelo: "claude-sonnet-5-5", esfuerzo: "high", cuenta: "claude", tarea: "x", tareaJefe: "x",
   lanzo: "jefe", sid: "00000000-0000-4000-8000-000000000001", resume: false, conMcp: false, maxTurns: "100", maxBudget: "", autocompact: "", baseDelta: [],
   jefe: "", jefeId: "", async: false, ...o,
+});
+
+test("skills de diseño: frontend y diseño cargan las instaladas (en ~/.claude/skills o en un plugin habilitado); otro tipo, --leer u otro motor no", () => {
+  const raiz = mkdtempSync(path.join(os.tmpdir(), "lanzar-skills-"));
+  try {
+    const pa = paFalso(raiz);
+    const claude = path.join(pa.home, ".claude");
+    assert.deepEqual(skillsDisenoInstaladas(pa.home), []);
+    assert.doesNotMatch(contratoClaude(pa, corrida(raiz, { tipo: "frontend" })), /herramienta Skill/);
+    // taste-skill en ~/.claude/skills; frontend-design en un plugin habilitado (el otro plugin no está instalado)
+    mkdirSync(path.join(claude, "skills", "taste-skill"), { recursive: true });
+    writeFileSync(path.join(claude, "skills", "taste-skill", "SKILL.md"), "---\nname: taste-skill\n---\n");
+    const plug = path.join(raiz, "plugins", "frontend-design");
+    mkdirSync(path.join(plug, "skills", "frontend-design"), { recursive: true });
+    writeFileSync(path.join(plug, "skills", "frontend-design", "SKILL.md"), "---\nname: frontend-design\n---\n");
+    writeFileSync(path.join(claude, "settings.json"), JSON.stringify({ enabledPlugins: { "frontend-design@x": true, "otro@x": true } }));
+    mkdirSync(path.join(claude, "plugins"), { recursive: true });
+    writeFileSync(path.join(claude, "plugins", "installed_plugins.json"), JSON.stringify({ version: 2, plugins: { "frontend-design@x": [{ installPath: plug }] } }));
+    const instaladas = ["frontend-design:frontend-design", "taste-skill"];
+    assert.deepEqual(skillsDisenoInstaladas(pa.home), instaladas);
+    const linea = lineaSkillsDiseno(instaladas);
+    assert.match(linea, /instaladas en esta máquina: frontend-design:frontend-design, taste-skill\. Son parte/);
+    for (const tipo of ["frontend", "diseno"]) {
+      const lineas = contratoClaude(pa, corrida(raiz, { tipo })).split("\n");
+      assert.ok(lineas.includes(linea), tipo);
+      assert.ok(!lineas.some((l) => l.includes("ui-ux-pro-max")), "ui-ux-pro-max no está instalada: no se nombra");
+    }
+    // deshabilitado el plugin: frontend-design sale; sin nada que cargar, no hay línea
+    writeFileSync(path.join(claude, "settings.json"), JSON.stringify({ enabledPlugins: { "frontend-design@x": false } }));
+    assert.deepEqual(skillsDisenoInstaladas(pa.home), ["taste-skill"]);
+    writeFileSync(path.join(claude, "settings.json"), "{ roto");
+    assert.deepEqual(skillsDisenoInstaladas(pa.home), ["taste-skill"]);
+    // otros tipos, --leer y otro motor: nada
+    assert.doesNotMatch(contratoClaude(pa, corrida(raiz, { tipo: "codigo-acotado" })), /herramienta Skill/);
+    assert.doesNotMatch(contratoClaude(pa, corrida(raiz, { tipo: "frontend", leer: true })), /herramienta Skill/);
+    assert.doesNotMatch(contratoClaude(pa, corrida(raiz, { tipo: "frontend", motor: "agy" })), /herramienta Skill/);
+  } finally {
+    rmSync(raiz, { recursive: true, force: true });
+  }
 });
 
 test("settings en Windows: hooks .mjs con node y el deny del espejo", () => {
