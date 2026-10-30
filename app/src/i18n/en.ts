@@ -101,7 +101,7 @@ export const en = {
   "lider.cerrar": "Close lead",
   "lider.cortarCerrar": "Stop and close?",
   "lider.dormido": "asleep: writing to it resumes it",
-  "lider.nuevoSub": "Claude Code in ~, without asking for permissions",
+  "lider.nuevoSub": "Claude Code in the folder you pick, without asking for permissions",
   "lider.vacio": "Whatever you write is its first message.",
   "lider.label": "Message to the lead",
   "lider.phOcupado": "It's responding: what you send now goes when it finishes",

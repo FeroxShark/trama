@@ -97,7 +97,7 @@ export const es: { [K in keyof typeof en]: string } = {
   "lider.cerrar": "Cerrar líder",
   "lider.cortarCerrar": "¿Cortar y cerrar?",
   "lider.dormido": "dormido: escribirle lo retoma",
-  "lider.nuevoSub": "Claude Code en ~, sin pedir permisos",
+  "lider.nuevoSub": "Claude Code en la carpeta que elijas, sin pedir permisos",
   "lider.vacio": "Lo que le escribas es su primer mensaje.",
   "lider.label": "Mensaje al líder",
   "lider.phOcupado": "Está respondiendo: lo que mandes va cuando termine",
