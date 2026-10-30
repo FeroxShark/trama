@@ -194,6 +194,8 @@ contextBridge.exposeInMainWorld("hilos", {
     inventarioConectores: (): Promise<unknown> => invocar("conectores:inventario"),
     alternarConector: (id: string, activo: boolean): Promise<unknown> => invocar("conectores:alternar", id, activo),
     desgloseContexto: (x: { lider: string } | { worker: string }): Promise<unknown> => invocar("contexto:desglose", x),
+    previaContexto: (x: { tipo: "lider" | "worker"; proyecto?: string; modelo?: string }): Promise<unknown> => invocar("contexto:previa", x),
+    capturarBaseContexto: (x: { forzar?: boolean } = {}): Promise<unknown> => invocar("contexto:capturarBase", x),
     catalogoSkills: (x: { q?: string; sid?: string } = {}): Promise<unknown> => invocar("skills:catalogo", x),
     leerApagados: (): Promise<unknown> => invocar("apagados:leer"),
     fijarApagado: (tipo: string, nombre: string, apagado: boolean): Promise<unknown> => invocar("apagados:fijar", tipo, nombre, apagado),

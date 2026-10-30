@@ -137,6 +137,8 @@ export const RUTAS: Readonly<Record<string, Ruta>> = {
   "conectores:alternar": "local",
   // El panel de contexto: el desglose de un líder o worker y el apagado global son de esta máquina (sus procesos, su config).
   "contexto:desglose": "local",
+  "contexto:previa": "local",
+  "contexto:capturarBase": "local",
   "skills:catalogo": "local",
   "apagados:leer": "local",
   "apagados:fijar": "local",

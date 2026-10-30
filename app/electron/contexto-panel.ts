@@ -7,7 +7,8 @@ import os from "node:os";
 import path from "node:path";
 import { fijarApagadoTrama, HERRAMIENTAS_PROTEGIDAS, leerApagadosTrama, TIPOS_APAGADO, type Apagados } from "./apagados.ts";
 import { inventario, rutasClaude } from "./conectores-claude.ts";
-import { skillsDeSesion } from "./contexto-previa.ts";
+import { capturarBase } from "./contexto-base.ts";
+import { skillsDeSesion, vistaPrevia, type VistaPrevia } from "./contexto-previa.ts";
 import { sidDeWorker, transcriptDe as transcriptPorSid, TRANSCRIPTS } from "./consumo.ts";
 import { cwdDe, desdeClaude, desdeTranscript, medirConRespaldo, memoriaDeSesion, sinDesglose, usosDe, type Desglose, type Medicion } from "./contexto-desglose.ts";
 import { leerSesion } from "./contexto-sesion.ts";
@@ -61,6 +62,16 @@ export async function desgloseContexto(x: unknown): Promise<Desglose> {
     return desdeTranscript(ls, { tipo: "worker", id, motor: "claude", memoria, skills: await skillsDeSesion(cwd, apagados), excludes: [path.join(os.homedir(), "CLAUDE.md"), ...apagados.memoria] });
   }
   throw errorT("main.apagadoRaro", { v: "?" });
+}
+
+/** Qué cargaría un líder o worker nuevo (`{ tipo, proyecto?, modelo? }`), sin lanzar nada. */
+export const previaContexto = (x: unknown): Promise<VistaPrevia> => vistaPrevia(x);
+
+/** Captura el prompt base de la versión instalada de `claude` (una vez por versión; ver contexto-base.ts) y devuelve sólo de cuál fue. */
+export async function capturarBaseContexto(x: unknown): Promise<{ version: string; capturadoEn: number }> {
+  const forzar = !!x && typeof x === "object" && (x as Record<string, unknown>).forzar === true;
+  const b = await capturarBase({}, forzar);
+  return { version: b.version, capturadoEn: b.capturadoEn };
 }
 
 export type Catalogo = { version: 1; skills: SkillCatalogo[]; total: number; exactos: boolean; usos: UsosCatalogo | null };

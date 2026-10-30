@@ -72,7 +72,7 @@ import { estadoDsh, instalarDsh, probarProveedor } from "./dsh-ajustes.ts";
 import { estadoMcp } from "./mcp.ts";
 import { configActiva, fijarApagado, leerApagados } from "./mcp-apagados.ts";
 import { alternar as alternarConector, inventario as inventarioConectores } from "./conectores-claude.ts";
-import { catalogoContexto, desgloseContexto, fijarApagadoPanel, leerApagadosPanel } from "./contexto-panel.ts";
+import { capturarBaseContexto, catalogoContexto, desgloseContexto, previaContexto, fijarApagadoPanel, leerApagadosPanel } from "./contexto-panel.ts";
 import { agregarCatalogo, estadoCatalogos, instalarPlugin, quitarPlugin, type DepsPlugins } from "./plugins-claude.ts";
 import { guardarServidor, quitarServidor, vistaMcp } from "./mcp-config.ts";
 import { crearLectorTabla, leerTabla } from "./reparto-tabla.ts";
@@ -131,7 +131,7 @@ const manejadores = new Map<string, Manejador>();
  * Lo que cambia la máquina (reescribe `~/CLAUDE.md`, los ajustes, borra una cuenta, libera la GPU, actualiza `claude`): desde la
  * tailnet (el celular) no. Los `modelos:*` y `remoto:guardar` tienen su propio chequeo, con su mensaje, en el manejador.
  */
-export const SOLO_PC_TAILNET: ReadonlySet<string> = new Set(["routing:guardar", "ajustes:guardar", "orq:leccionesGuardar", "limpieza:guardar", "limpieza:aplicar", "orq:mdAplicar", "orq:agentsGuardar", "orq:mdFusionar", "proyectos:renombrar", "proyectos:logo", "cuentas:quitar", "vram:liberar", "locales:prender", "locales:apagar", "claude:actualizar", "trama:actualizar", "trama:cancelarEspera", "trama:limpiar", "dsh:clave", "dsh:instalar", "dsh:probar", "aa:refrescar", "mcp:guardar", "mcp:quitar", "mcp:fijarApagado", "conectores:alternar", "apagados:fijar", "plugins:agregarCatalogo", "plugins:instalar", "plugins:quitar", "opencode:planGuardar", "nvidia:modelos", "nvidia:probar"]);
+export const SOLO_PC_TAILNET: ReadonlySet<string> = new Set(["routing:guardar", "ajustes:guardar", "orq:leccionesGuardar", "limpieza:guardar", "limpieza:aplicar", "orq:mdAplicar", "orq:agentsGuardar", "orq:mdFusionar", "proyectos:renombrar", "proyectos:logo", "cuentas:quitar", "vram:liberar", "locales:prender", "locales:apagar", "claude:actualizar", "trama:actualizar", "trama:cancelarEspera", "trama:limpiar", "dsh:clave", "dsh:instalar", "dsh:probar", "aa:refrescar", "mcp:guardar", "mcp:quitar", "mcp:fijarApagado", "conectores:alternar", "apagados:fijar", "contexto:capturarBase", "plugins:agregarCatalogo", "plugins:instalar", "plugins:quitar", "opencode:planGuardar", "nvidia:modelos", "nvidia:probar"]);
 
 /** Anota (o reemplaza) el manejador de un canal. */
 export function manejar(canal: string, fn: Manejador) {
@@ -1020,6 +1020,9 @@ export function armarNucleo() {
   // El panel de contexto (motor/docs/traspaso.md): en qué se va el contexto de un líder o un worker, el catálogo de skills y el apagado
   // global de Trama (skills, MCP, herramientas y memoria). Leer anda también por la red (el celular); apagar es sólo de la PC (SOLO_PC_TAILNET).
   manejar("contexto:desglose", (_e, x: unknown) => desgloseContexto(x));
+  // La vista previa (qué cargaría un líder o worker nuevo) se lee desde cualquier lado; capturar el prompt base corre `claude -p ok` una vez por versión: sólo la PC.
+  manejar("contexto:previa", (_e, x: unknown) => previaContexto(x));
+  manejar("contexto:capturarBase", (_e, x: unknown) => capturarBaseContexto(x));
   manejar("skills:catalogo", (_e, x: unknown) => catalogoContexto(x, historial));
   manejar("apagados:leer", () => leerApagadosPanel());
   manejar("apagados:fijar", (_e, tipo: unknown, nombre: unknown, apagado: unknown) => fijarApagadoPanel(tipo, nombre, apagado));

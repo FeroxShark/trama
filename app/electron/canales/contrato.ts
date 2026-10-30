@@ -142,6 +142,8 @@ export const CANALES = [
   ["conectores:inventario", "invoke"],
   ["conectores:alternar", "invoke"],
   ["contexto:desglose", "invoke"],
+  ["contexto:previa", "invoke"],
+  ["contexto:capturarBase", "invoke"],
   ["skills:catalogo", "invoke"],
   ["apagados:leer", "invoke"],
   ["apagados:fijar", "invoke"],
