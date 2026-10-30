@@ -80,6 +80,8 @@ export function textoAviso(a: AvisoVisto): { texto: string; tono: "grave" | "ojo
       };
     case "nota":
       return { texto: a.texto, tono: a.grave ? "grave" : "ojo" };
+    case "cuenta":
+      return { texto: t("aviso.cuenta"), tono: "ojo" };
     case "modelo":
       return { texto: t("aviso.modelo", { de: nombreModelo(a.de), a: nombreModelo(a.a) }), tono: "ojo" };
     case "salio": {
@@ -89,8 +91,18 @@ export function textoAviso(a: AvisoVisto): { texto: string; tono: "grave" | "ojo
   }
 }
 
-/** Los avisos del turno, uno por línea. */
-export function Avisos({ avisos }: { avisos: AvisoVisto[] }) {
+/** Los avisos del turno, uno por línea. `volverA`: el nombre de una cuenta de Claude si sigue conectada (null si no); `alVolver` la elige (el aviso de otra cuenta ofrece «Volver a …»). */
+export function Avisos({
+  avisos,
+  volverA,
+  alVolver,
+  deshabilitado,
+}: {
+  avisos: AvisoVisto[];
+  volverA?: (id: string) => string | null;
+  alVolver?: (id: string) => void;
+  deshabilitado?: boolean;
+}) {
   useIdioma();
   const vis = avisos.filter((a) => !a.oculto);
   if (!vis.length) return null;
@@ -98,12 +110,20 @@ export function Avisos({ avisos }: { avisos: AvisoVisto[] }) {
     <div className="avisos" role="status">
       {vis.map((a, i) => {
         const { texto, tono } = textoAviso(a);
+        // La cuenta de antes (si Trama la cambió y sigue conectada): «Volver a …», apagado mientras el líder trabaja.
+        const anterior = a.clase === "cuenta" ? a.anterior : null;
+        const nombre = anterior && volverA ? volverA(anterior) : null;
         return (
           <div key={`${a.clase}:${i}`} className="aviso" data-tono={tono ?? undefined}>
             {texto}
             {a.clase === "error" && esAvisoSinCupoOpencode(a.texto) ? (
               <Boton type="button" className="aviso-accion" onClick={() => window.dispatchEvent(new Event(EVENTO_CAMBIAR_MODELO))}>
                 {t("aviso.cambiarModelo")}
+              </Boton>
+            ) : null}
+            {anterior && nombre && alVolver ? (
+              <Boton type="button" className="aviso-accion" disabled={deshabilitado} onClick={() => alVolver(anterior)}>
+                {t("aviso.cuentaVolver", { cuenta: nombre })}
               </Boton>
             ) : null}
           </div>

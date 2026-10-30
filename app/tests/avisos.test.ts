@@ -17,6 +17,12 @@ test("un reintento reemplaza al anterior y una respuesta lo saca", () => {
   assert.equal(sinReintento(sin), sin);
 });
 
+test("el aviso de razonamiento de otra cuenta sale una vez por turno, con la cuenta de antes", () => {
+  const cuenta = (anterior: string | null): AvisoLider => ({ clase: "cuenta", anterior });
+  const as = juntar([cuenta(null), reintento(1), cuenta("claude")]);
+  assert.deepEqual(as, [reintento(1), cuenta("claude")]);
+});
+
 test("límite rechazado + error rate_limit + result + fin con el mismo texto: un solo aviso visible", () => {
   const as = juntar([
     { clase: "limite", rechazado: true, ventana: "five_hour", hasta: 1_800_000_000, uso: null },

@@ -233,6 +233,20 @@ test("parser con eventos de error (forma sacada del binario de claude 2.1.287): 
   );
 });
 
+test("razonamiento de otra cuenta (Claude Code lo manda como warning): aviso propio, el resto de los warnings siguen como nota", () => {
+  const ev = (o: unknown) => parsearLinea(JSON.stringify(o));
+  const otra = "Claude can't use thinking from another organization\nClaude's earlier thinking was written while you were signed in to another organization.";
+  assert.deepEqual(ev({ type: "system", subtype: "informational", content: otra, level: "warning" }), [
+    { tipo: "aviso", aviso: { clase: "cuenta", anterior: null } },
+  ]);
+  assert.deepEqual(ev({ type: "system", subtype: "notification", text: otra, color: "warning" }), [
+    { tipo: "aviso", aviso: { clase: "cuenta", anterior: null } },
+  ]);
+  assert.deepEqual(ev({ type: "system", subtype: "informational", content: "Context low · run /compact", level: "warning" }), [
+    { tipo: "aviso", aviso: { clase: "nota", texto: "Context low · run /compact", grave: false } },
+  ]);
+});
+
 test("herramienta: lo que hizo, recortado", () => {
   assert.equal(herramienta("Read", { file_path: "/a/b.ts" }), "Read: /a/b.ts");
   assert.equal(herramienta("TodoWrite", { todos: [] }), "TodoWrite");

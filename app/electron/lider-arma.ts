@@ -409,6 +409,8 @@ export type Aviso =
   | { clase: "compacto"; auto: boolean; antes: number | null }
   /** `system/notification` (color error/warning) o `system/informational` warning: el texto de `claude`. */
   | { clase: "nota"; texto: string; grave: boolean }
+  /** Razonamiento de otra cuenta de Claude en la conversación (`esAvisoOtraCuenta`): `anterior` es la cuenta de antes, que pone lider.ts (id; `null`: no se sabe). */
+  | { clase: "cuenta"; anterior: string | null }
   /** `system/model_fallback`: pasó a otro modelo. */
   | { clase: "modelo"; de: string; a: string }
   /** El proceso salió con código ≠ 0 o murió (lo arma lider.ts con el stderr resumido). */
@@ -571,6 +573,9 @@ function deStream(e: any): Evento[] {
   return [];
 }
 
+/** El aviso que pone Claude Code cuando la conversación tiene razonamiento de otra cuenta (la app lo recibe en inglés, tal cual). */
+export const esAvisoOtraCuenta = (texto: string) => /^Claude can['’]t use thinking from another organization/.test(texto);
+
 function deSistema(o: any): Evento[] {
   switch (o.subtype) {
     case "status": {
@@ -606,11 +611,13 @@ function deSistema(o: any): Evento[] {
     case "notification": {
       const texto = str(o.text);
       if (!texto || (o.color !== "error" && o.color !== "warning")) return [];
+      if (esAvisoOtraCuenta(texto)) return [{ tipo: "aviso", aviso: { clase: "cuenta", anterior: null } }];
       return [{ tipo: "aviso", aviso: { clase: "nota", texto, grave: o.color === "error" } }];
     }
     case "informational": {
       const texto = str(o.content);
       if (!texto || o.level !== "warning") return [];
+      if (esAvisoOtraCuenta(texto)) return [{ tipo: "aviso", aviso: { clase: "cuenta", anterior: null } }];
       return [{ tipo: "aviso", aviso: { clase: "nota", texto, grave: false } }];
     }
     case "model_fallback": {
@@ -822,6 +829,8 @@ export type Guardado = {
   cuenta?: string;
   /** Al retomar con `--resume` salió «No conversation found» y la conversación está con otra cuenta: su id (`claude`, la de siempre). Lo borra el cambio de cuenta o un arranque bueno. */
   otraCuenta?: string;
+  /** La cuenta de Claude que tenía antes del último cambio que hizo la persona (id; `claude`, la de siempre): el aviso de razonamiento de otra cuenta ofrece volver a ella. */
+  cuentaAnterior?: string;
   /** Epoch: cuándo se lo retomó desde la app sin proceso (vuelve a la barra un día más). */
   retomado?: number;
   /** Epoch: cuándo se vio morir a su proceso sin que la app lo cerrara (kill, OOM, se cayó). Hasta que se lo retome, la barra lo marca Murió. */

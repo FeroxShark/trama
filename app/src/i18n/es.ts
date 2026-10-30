@@ -674,6 +674,8 @@ export const es: { [K in keyof typeof en]: string } = {
   "aviso.compactoAuto": "Contexto lleno: la conversación se compactó sola",
   "aviso.antes": " ({k}k tokens antes)",
   "aviso.modelo": "Pasó de {de} a {a}",
+  "aviso.cuenta": "Cambiaste de cuenta: Claude no puede usar el razonamiento anterior, así que las próximas respuestas pueden tardar más y gastar más cupo.",
+  "aviso.cuentaVolver": "Volver a {cuenta}",
   "aviso.salio": "El proceso salió con código {c}",
   "aviso.murio": "El proceso murió",
   // B13: modos de permisos, comandos con "/" y pedidos de permiso del líder.

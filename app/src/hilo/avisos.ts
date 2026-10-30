@@ -27,6 +27,9 @@ export function sumarAviso(avisos: AvisoVisto[], a: AvisoLider): AvisoVisto[] {
         .map((x) => (a.rechazado && deLimite(x) && !x.oculto ? { ...x, oculto: true } : x));
       return [...otros, a];
     }
+    case "cuenta":
+      // Una por turno: la de ahora (con la cuenta de antes) reemplaza a la que hubiera.
+      return [...avisos.filter((x) => x.clase !== "cuenta"), a];
     case "error":
       if (avisos.some((x) => textoDe(x) === a.texto)) return avisos;
       return [...avisos, deLimite(a) && avisos.some(rechazo) ? { ...a, oculto: true } : a];

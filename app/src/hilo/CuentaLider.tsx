@@ -13,8 +13,14 @@ export function cuentasDeClaude(l: ListaCuentas | null) {
   return c.length > 1 ? c : [];
 }
 
+/** El nombre de una cuenta de Claude para «Volver a …»; `null` si ya no está o no está conectada (`logueado: false`). */
+export function nombreCuentaClaude(l: ListaCuentas | null, id: string): string | null {
+  const c = deProveedor(l, "claude").find((x) => x.id === id);
+  return c && c.logueado !== false ? etiquetaCuenta("claude", c.nombre, c.defecto, tr("cuentas.principal")) : null;
+}
+
 /** La lista liviana (sin preguntar los logins), al montar y al volver a la ventana. */
-function useCuentasClaude(): ListaCuentas | null {
+export function useCuentasClaude(): ListaCuentas | null {
   const [lista, setLista] = useState<ListaCuentas | null>(null);
   const mirar = useCallback(() => {
     void fuente.listaCuentas(false).then(setLista, () => undefined);

@@ -315,6 +315,7 @@ export type AvisoLider =
   | { clase: "error"; texto: string; codigo: string | null }
   | { clase: "compacto"; auto: boolean; antes: number | null }
   | { clase: "nota"; texto: string; grave: boolean }
+  | { clase: "cuenta"; anterior: string | null }
   | { clase: "modelo"; de: string; a: string }
   | { clase: "salio"; codigo: number | null; texto: string | null };
 

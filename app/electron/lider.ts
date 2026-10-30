@@ -635,6 +635,8 @@ function lanzar(g: Guardado, resume: boolean, local?: Local, extra: Extra = {}):
             g.modo = e.modo;
             void guardar();
           }
+          // El parser no conoce al líder: la cuenta de antes (si Trama la cambió) la pone acá.
+          if (e.tipo === "aviso" && e.aviso.clase === "cuenta") e.aviso.anterior = g.cuentaAnterior ?? null;
           alEv(g.sid, e);
         }
       }
@@ -1024,6 +1026,8 @@ export async function cambiarCuenta(sid: string, cuenta: unknown): Promise<void>
   const p = procs.get(sid);
   if (p?.ocupado || mandando.has(sid)) throw errorT("main.respondiendo");
   if (nueva === g.cuenta) return;
+  // La de antes: el aviso de razonamiento de otra cuenta (el próximo mensaje) ofrece volver a ella.
+  g.cuentaAnterior = g.cuenta ?? "claude";
   if (nueva) g.cuenta = nueva;
   else delete g.cuenta;
   delete g.otraCuenta;

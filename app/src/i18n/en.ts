@@ -685,6 +685,8 @@ export const en = {
   "aviso.compactoAuto": "Context full: conversation compacted on its own",
   "aviso.antes": " ({k}k tokens before)",
   "aviso.modelo": "Switched from {de} to {a}",
+  "aviso.cuenta": "You switched accounts: Claude can't use the earlier reasoning, so the next replies may take longer and use more quota.",
+  "aviso.cuentaVolver": "Back to {cuenta}",
   "aviso.salio": "The process exited with code {c}",
   "aviso.murio": "The process died",
   // B13: modos de permisos, comandos con "/" y pedidos de permiso del líder.

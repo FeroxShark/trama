@@ -43,7 +43,7 @@ import { Selector, type Opcion } from "./Selector";
 import { carpetaPorDefecto, OTRA, opcionDe, PERSONAL } from "./carpeta-nueva";
 import { guardarUltima, leerUltima, useSeleccion } from "./carpeta-nueva-estado";
 import { useProyectos } from "../datos/proyectos";
-import { CuentaLider } from "./CuentaLider";
+import { CuentaLider, nombreCuentaClaude, useCuentasClaude } from "./CuentaLider";
 import { opcionesEnTurno, pendienteDe } from "./pendiente";
 import { DialogoCambio, type DatosCambio } from "./DialogoCambio";
 import { hayVarias, opcionesMaquina, useMaquinas } from "../maquinas";
@@ -206,6 +206,8 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
   // sólo si la persona la elige o no hay ninguna pista. Se puede escribir otra ruta; en la ventana de la PC también se elige con el selector nativo.
   const proyectos = useProyectos();
   const seleccionada = useSeleccion();
+  // Las cuentas de Claude (la liviana): el nombre de la cuenta de antes, si sigue conectada (aviso de otra cuenta).
+  const listaCuentas = useCuentasClaude();
   const [carpeta, setCarpeta] = useState(MODO.captura === "lider-nuevo-carpeta" ? "/srv/proyectos/mi-app" : "");
   const [carpetaAMano, setCarpetaAMano] = useState(MODO.captura === "lider-nuevo-carpeta");
   const idCarpeta = useId();
@@ -747,8 +749,13 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
     if (!l) return setCuentaNueva(id);
     if (id === (l.cuenta ?? "claude")) return;
     setErrorCaja(null);
+    // Con mensajes, el aviso de razonamiento de otra cuenta sale ya (una línea, sin frenar el cambio): el próximo mensaje lo usa.
+    const conMensajes = items.length > 0;
+    if (conMensajes) setNota(tr("aviso.cuenta"));
     fuente.liderCuenta(l.id, id === "claude" ? "" : id).then(
-      () => setNota(tr("cuenta.lider.nota")),
+      () => {
+        if (!conMensajes) setNota(tr("cuenta.lider.nota"));
+      },
       (err) => setErrorCaja(mensaje(err)),
     );
   };
@@ -1123,7 +1130,7 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
               {tr("lider.vacio")}
             </div>
           ) : null}
-          <Avisos avisos={avisos} />
+          <Avisos avisos={avisos} volverA={(id) => nombreCuentaClaude(listaCuentas, id)} alVolver={elegirCuenta} deshabilitado={ocupado || !app} />
           {pasando ? <Pasando /> : app && sid ? <HaceChat sid={sid} piensa={piensa} modelo={nombreModelo(modeloDe(l?.modelo) ?? modelo)} effort={effortsDe(l?.modelo ?? modelo).length ? (l?.effort ?? effort) : null} alParar={l ? parar : undefined} parando={vivo.parando} /> : compacta !== null ? <Compactando desde={compacta} /> : null}
           {vivo.directos > 0 ? (
             <div className="directo-espera" role="status" data-directo-espera>
