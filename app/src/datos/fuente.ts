@@ -1138,6 +1138,8 @@ const PLAN_FIJO = `# Settle en lote
 
 /** Conversaciones de Claude Code inventadas (con fixtures): de atlas, de la carpeta personal y de carpetas sueltas (una ya borrada y una de otra cuenta). */
 /** Un PNG de 24×15 (un degradé) para las muestras. */
+// Un PDF de una página con la palabra «Informe», inventado: para ver el visor de archivos en las capturas.
+const PDF_MUESTRA = "JVBERi0xLjQKMSAwIG9iajw8L1R5cGUvQ2F0YWxvZy9QYWdlcyAyIDAgUj4+ZW5kb2JqCjIgMCBvYmo8PC9UeXBlL1BhZ2VzL0tpZHNbMyAwIFJdL0NvdW50IDE+PmVuZG9iagozIDAgb2JqPDwvVHlwZS9QYWdlL1BhcmVudCAyIDAgUi9NZWRpYUJveFswIDAgMzAwIDIwMF0vQ29udGVudHMgNCAwIFIvUmVzb3VyY2VzPDwvRm9udDw8L0YxIDUgMCBSPj4+Pj4+ZW5kb2JqCjQgMCBvYmo8PC9MZW5ndGggNDQ+PnN0cmVhbQpCVCAvRjEgMjQgVGYgNDAgMTAwIFRkIChJbmZvcm1lKSBUaiBFVAplbmRzdHJlYW0KZW5kb2JqCjUgMCBvYmo8PC9UeXBlL0ZvbnQvU3VidHlwZS9UeXBlMS9CYXNlRm9udC9IZWx2ZXRpY2E+PmVuZG9iagp0cmFpbGVyPDwvUm9vdCAxIDAgUi9TaXplIDY+PgolJUVPRgo=";
 const IMAGEN_MUESTRA =
   "iVBORw0KGgoAAAANSUhEUgAAABgAAAAPCAIAAABxxpiMAAACfUlEQVR42g3MocquMACA4XM5fzKZbCaTyba0pEVWXJEFYSAsCAPDMAzLsLyWmXZ753su4Pn3J6gEtaARtIJO0AsGgRBIwSiYBYtgFWyCXXAITsEluAWP4BV8giL49yepJLWkkbSSTtJLBomQSMkomSWLZJVskl1ySE7JJbklj+SVfJIif9FENVFPNBPtRDfRTwwTYkJOjBPzxDKxTmwT+8QxcU5cE/fEM/FOfBNl+kWKSlErGkWr6BS9YlAIhVSMilmxKFbFptgVh+JUXIpb8Shexaco6hdpKk2taTStptP0mkEjNFIzambNolk1m2bXHJpTc2luzaN5NZ+m6F9kqAy1oTG0hs7QGwaDMEjDaJgNi2E1bIbdcBhOw2W4DY/hNXyGYn6RpbLUlsbSWjpLbxkswiIto2W2LJbVsll2y2E5LZfltjyW1/JZiv1FjspROxpH6+gcvWNwCId0jI7ZsThWx+bYHYfjdFyO2/E4XsfnKO4XeSpP7Wk8rafz9J7BIzzSM3pmz+JZPZtn9xye03N5bs/jeT2fp/hfFKgCdaAJtIEu0AeGgAjIwBiYA0tgDWyBPXAEzsAVuANP4A18gRJ+UaSK1JEm0ka6SB8ZIiIiI2NkjiyRNbJF9sgROSNX5I48kTfyRUr8RYkqUSeaRJvoEn1iSIiETIyJObEk1sSW2BNH4kxciTvxJN7ElyjpF0EFNTTQQgc9DCBAwggzLLDCBjsccMIFNzzwwgeFX5SpMnWmybSZLtNnhozIyMyYmTNLZs1smT1zZM7MlbkzT+bNfJmSf1GhKtSFptAWukJfGAqiIAtjYS4shbWwFfbCUTgLV+EuPIW38BVK4T/RtEuzVZSmRAAAAABJRU5ErkJggg==";
 
@@ -1608,7 +1610,7 @@ const fija: Fuente = {
     const { tipo, mime } = tipoDeArchivo(ruta);
     if (tipo === "imagen") return { tipo, mime: "image/png", datos: IMAGEN_MUESTRA };
     if (tipo === "texto" || tipo === "markdown") return { tipo, texto: tipo === "markdown" ? "# Notas\n\nUn **resumen** de lo hecho:\n\n- primero\n- segundo\n" : "export function usarCuenta() {\n  return 1;\n}\n", recortado: false };
-    return tipo === "otro" ? null : { tipo, mime, datos: "" };
+    return tipo === "otro" ? null : { tipo, mime, datos: tipo === "pdf" ? PDF_MUESTRA : "AAAA" };
   },
   async archivoAbrir() {
     return true;

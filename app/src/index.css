@@ -4809,7 +4809,7 @@ html[data-titulo-nativo] #root::after {
 }
 /* La línea: el botón (si se abre) o la fila misma. */
 .ll-b,
-.ll:not(:has(> .ll-b)) {
+.ll:not(:has(> .ll-b, > .ll-fila)) {
   display: flex;
   min-width: 0;
   flex-direction: row;

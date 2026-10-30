@@ -55,3 +55,20 @@ test("la última frase de un pensamiento que llega: la última línea, su últim
   assert.equal(ultimaFrasePensada("Primero esto.\n\n**Después** el log. Y luego\n  "), "Y luego");
   assert.equal(ultimaFrasePensada("  \n "), "");
 });
+
+test("cada llamada de archivo lleva su archivo (Claude y una ruta de Windows) para el visor; las demás no", async () => {
+  const { archivoDe, usosDe } = await import("../src/hilo/herramientas.ts");
+    const det = [
+    { nombre: "Read", entrada: { file_path: "/home/ana/proy/pantalla.png" } },
+    { nombre: "Write", entrada: { file_path: "C:\\Users\\ana\\proy\\informe.pdf", content: "x" } },
+    { nombre: "Edit", entrada: { file_path: "src/relativa.ts" } },
+    { nombre: "Bash", entrada: { command: "ls" } },
+  ];
+  const usos = usosDe(["Read", "Write", "Edit", "Bash"], det, null);
+  assert.deepEqual(usos.map((u) => archivoDe(u)?.tipo ?? null), ["imagen", "pdf", "texto", null]);
+  assert.equal(archivoDe(usos[2])?.absoluta, null);
+  const l = lineaDeTiempo([{ i: 1, rol: "assistant", texto: "", herramientas: ["Read", "Bash"], det: det.slice(0, 1).concat(det.slice(3)), modelo: null } as never]);
+  const hs = l.filter((x) => x.tipo === "herramienta") as { archivo?: { tipo: string } }[];
+  assert.equal(hs[0].archivo?.tipo, "imagen");
+  assert.equal("archivo" in hs[1], false);
+});

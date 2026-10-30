@@ -13,6 +13,7 @@ import { fuente } from "../datos/fuente";
 import { useFoco } from "../foco";
 import { t } from "../i18n";
 import { useIdioma } from "../i18n/react";
+import { MODO } from "../modo";
 import { esVentana } from "../puente";
 import { Filas } from "./Diff";
 import { Visor } from "./Imagenes";
@@ -84,6 +85,11 @@ function useUrlDe(v: ArchivoVisto | null | undefined): string | null {
   return url;
 }
 
+/** Captura `herramientas-resultados` con `HILOS_VARIANTE=archivo-<tipo>` (imagen, texto, md, pdf): el primer archivo de ese tipo sale abierto en el visor. */
+const ABRIR_EN_CAPTURA = MODO.captura === "herramientas-resultados" ? (MODO.variante ?? "").replace(/^archivo-(md)$/, "markdown").replace(/^archivo-/, "") : "";
+let abiertoEnCaptura = false;
+const abrirEnCaptura = (tipo: string) => (ABRIR_EN_CAPTURA === tipo && !abiertoEnCaptura ? (abiertoEnCaptura = true) : false);
+
 const ICONO = { imagen: ImageIcon, pdf: FileText, markdown: FileText, texto: FileText, audio: FileAudio, video: FileVideo, otro: SquareArrowOutUpRight } as const;
 
 /** Una vista del archivo sobre todo lo demás: un clic afuera, Esc o su botón la cierran. */
@@ -113,7 +119,7 @@ function Hoja({ a, v, alCerrar }: { a: ArchivoDeHerramienta; v: ArchivoVisto | n
   else if (v.tipo === "pdf") cuerpo = url ? <iframe className="arch-pdf" src={url} title={nombre} /> : null;
   else if (v.tipo === "audio") cuerpo = url ? <audio className="arch-audio" src={url} controls autoPlay={false} /> : null;
   else if (v.tipo === "video") cuerpo = url ? <video className="arch-video" src={url} controls /> : null;
-  else if (v.tipo === "markdown") cuerpo = <div className="arch-md"><Texto texto={v.texto} /></div>;
+  else if (v.tipo === "markdown") cuerpo = <div className="arch-md el"><Texto texto={v.texto} /></div>;
   else if (v.tipo === "texto")
     cuerpo = (
       <div className="arch-texto">
@@ -203,7 +209,7 @@ function Miniatura({ ruta, lado }: { ruta: string; lado: "chica" | "grande" }) {
  */
 export const EnlaceArchivo = memo(function EnlaceArchivo({ a, miniatura = true, etiqueta = false }: { a: ArchivoDeHerramienta; miniatura?: boolean; etiqueta?: boolean }) {
   useIdioma();
-  const [abierto, setAbierto] = useState(false);
+  const [abierto, setAbierto] = useState(() => !!a.absoluta && abrirEnCaptura(a.tipo));
   const [fallo, setFallo] = useState(false);
   if (!a.absoluta) return null;
   const nombre = nombreDe(a.ruta);
