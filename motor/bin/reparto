@@ -13,6 +13,8 @@
                                                ¿conviene correr ese claude-* por agy (el mismo modelo, effort equivalente low|medium|high)? Compara el cupo libre
                                                (el peor de 5 h y semanal) de agy con el del Claude oficial; sale 0 si conviene (`a` = id de agy), 1 si no. frontend y
                                                diseno (necesitan Skill), xhigh y max quedan en Claude. --registrar anota la sustitución (<estado>/sustituciones.jsonl)
+  reparto --otro-camino ID [--json]            un worker de agy falló por cupo con ese agy:claude-*: ¿el mismo modelo se puede correr por el Claude oficial (habilitado, sin agotar,
+                                               en la cuenta que eligió la persona)? Sale 0 y dice modelo y effort, o 1 y por qué no. Nunca otro modelo ni otra cuenta
   reparto --agotar ID [--hasta ISO]            marca agotado el grupo de agy o de codex de ese modelo (o grupo), o el
                                                Claude oficial (claude-*), hasta que vuelve
   reparto --enfriar ID [--horas N]             un modelo cortó por límite (pa sale 97): no es candidato N horas (default 5); es por modelo, no por grupo
@@ -3074,6 +3076,31 @@ def sustituir(mid, tipo, effort, cfg, cupos, now):
     return r
 
 
+def otro_camino(mid, cfg, cupos, now):
+    """Un worker falló por cupo con este modelo de agy (agy:claude-opus|sonnet-…-low|medium|high): ¿el MISMO modelo se puede correr por el Claude oficial?
+    {camino, de, modelo, effort, cuenta, motivo}. Sólo lo habilitado: modelos.json no lo excluye ni apaga el effort, no está agotado ni tiene el límite
+    puesto (la reserva del líder no cuenta: el pedido ya era de esta corrida) y es la cuenta que eligió la persona (`cuentas preferir`), nunca otra."""
+    mid = (mid or "").strip().lower()
+    r = {"version": VERSION, "camino": False, "de": mid, "modelo": None, "effort": None, "cuenta": None, "motivo": ""}
+    m = re.match(r"^agy:(claude-(?:opus|sonnet)-[a-z0-9.-]+?)-(low|medium|high)$", mid)
+    if not m:
+        r["motivo"] = "%s no tiene el mismo modelo por Claude" % mid
+        return r
+    base, e = m.group(1), m.group(2)
+    cands, _, _ = armar_candidatos("codigo-acotado", cfg, cupos, now, effort=e)
+    cl = next((c for c in solo_la_preferida(cands, cupos) if c["modelo"].lower() == base and c.get("proveedor") == "claude"), None)
+    if cl is None:
+        r["motivo"] = "el Claude oficial no ofrece %s" % base
+        return r
+    d = cl["descartado_por"]
+    if d and not d.startswith("reserva"):
+        r["motivo"] = "Claude: %s" % d
+        return r
+    r.update(camino=True, modelo=cl["modelo"], effort=cl.get("effort") or e, cuenta=cl.get("cuenta"),
+             motivo="el mismo modelo por el Claude oficial (%s libre)" % (pct(cl["cupo_libre"]) if cl["cupo_libre"] is not None else "sin dato"))
+    return r
+
+
 def ruta_sustituciones():
     return os.path.join(state_dir(), "sustituciones.jsonl")
 
@@ -3516,6 +3543,15 @@ def main(argv):
             registrar_sustitucion(r, now)
         print(json.dumps(r, ensure_ascii=False) if json_out else ("%s → %s: %s" % (r["de"], r["a"], r["motivo"]) if r["sustituir"] else "%s se queda en Claude: %s" % (r["de"], r["motivo"])))
         return 0 if r["sustituir"] else 1
+    if a[0] == "--otro-camino" and len(a) == 2:
+        try:
+            d = leer_cupos(cfg, now)
+        except Exception as e:
+            err("no pude leer los cupos: %s" % e)
+            return 1
+        r = otro_camino(a[1], cfg, d, now)
+        print(json.dumps(r, ensure_ascii=False) if json_out else ("%s → %s %s: %s" % (r["de"], r["modelo"], r["effort"], r["motivo"]) if r["camino"] else "%s sin otro camino: %s" % (r["de"], r["motivo"])))
+        return 0 if r["camino"] else 1
     if a[0] == "--agotar" and len(a) in (2, 4) and (len(a) == 2 or a[2] == "--hasta"):
         return agotar(a[1], a[3] if len(a) == 4 else None, cfg, now, opt.get("--cuenta"))
     if a[0] == "--enfriar" and len(a) == 2:
