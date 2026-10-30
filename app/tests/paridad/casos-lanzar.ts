@@ -2,7 +2,7 @@
 // del sandbox por claude-guion.mjs, que contesta lo que dice `guion` (resultado completo, sin RESULTADO, límite de sesión, sin
 // turnos, claude roto…) y saca una foto del estado justo antes de lanzar. Entran en `casos` (bash contra TRAMA_PA_B) y además
 // lanzar.test.ts los corre con la versión TS desde esa foto (bash contra lanzar.ts, sin necesitar el `pa` TS entero).
-import { chmodSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import type { Caso, Contexto } from "./arnes.ts";
 
@@ -72,5 +72,15 @@ export const casosLanzar: CasoLanzar[] = [
   caso("instalación de claude rota", ["demo", "--sin-jefe", "--aca", "-m", M, BRIEF], 81, [{ err: "Error: claude native binary not installed\n", rc: 1 }]),
   caso("plan max: abanico y sin tope de Agent", ["demo", "--sin-jefe", "--aca", "-m", M, BRIEF], 0, [ok(BLOQUE)], { maxTurns: "150" }, { PA_PLAN: "max" }),
   caso("--mcp, --max-budget-usd y --max-turns", ["demo", "--sin-jefe", "--aca", "--mcp", "--max-budget-usd", "2", "--max-turns", "9", "-m", M, BRIEF], 0, [ok(BLOQUE)], { maxTurns: "9", conMcp: true, maxBudget: "2" }),
+  {
+    ...caso("apagado global de Trama: skills, MCP, herramientas y memoria al --settings", ["demo", "--sin-jefe", "--aca", "--mcp", "-m", M, BRIEF], 0, [ok(BLOQUE)], { maxTurns: "100", conMcp: true }),
+    preparar: (c) => {
+      ponerGuion(c, [ok(BLOQUE)]);
+      const dir = path.join(c.home, ".config", "trama");
+      mkdirSync(dir, { recursive: true });
+      const f = { skillOverrides: { "skill-inventada": "off" }, permissions: { deny: ["mcp__servidor_falso", "WebFetch"] }, claudeMdExcludes: ["/ruta/inventada/CLAUDE.md"] };
+      writeFileSync(path.join(dir, "apagados-claude.json"), JSON.stringify(f) + "\n");
+    },
+  },
   caso("jefe por PA_JEFE (contrato con SendMessage)", ["demo", "--aca", "-m", M, BRIEF], 0, [ok(BLOQUE)], { maxTurns: "100" }, { PA_JEFE: "trama-jefe", PA_JEFE_ID: "1234" }),
 ];

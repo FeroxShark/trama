@@ -18,7 +18,8 @@ import { tomar } from "../base/lock.ts";
 import { matarArbol } from "../base/proc.ts";
 import { comandoHook, entreComillas, type VarianteHook } from "../hooks.ts";
 import { CIERRE_TAREA, CIERRE_TURNOS } from "./contrato.ts";
-import { caminoDe } from "../../rutas.ts";
+import { caminoDe, configTrama } from "../../rutas.ts";
+import { sumarFragmento } from "../../apagados.ts";
 import { terminalAgentesGuardada } from "../../preferencias.ts";
 import { envTerminalAgentes } from "../../terminal-agentes.ts";
 import { conDueno, type Env, type Pa } from "./entorno.ts";
@@ -242,6 +243,13 @@ export function settingsWorker(
     },
   };
   if (deny.length) s.permissions = { deny };
+  // El apagado global de Trama (apagados.ts): skills, MCP, herramientas y memoria que ningún worker carga. Ilegible o sin archivo: nada.
+  try {
+    const f = path.join(configTrama(pa.env, pa.home, pa.plat), "apagados-claude.json");
+    if (existsSync(f)) sumarFragmento(s, JSON.parse(readFileSync(f, "utf8")));
+  } catch {
+    /* como si no hubiera */
+  }
   return JSON.stringify(s);
 }
 

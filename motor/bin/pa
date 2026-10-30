@@ -6521,6 +6521,16 @@ settings_json="$(jq -cn --arg latido "$LATIDO" --arg guard "$GUARD" --arg hb "$h
                    {hooks: [ {type:"command", command:("bash " + ($latido|@sh) + " " + ($hb|@sh) + " pre" + $modo)} ]} ],
      PostToolUse: [ {hooks: [ {type:"command", command:("bash " + ($latido|@sh) + " " + ($hb|@sh) + " post")} ]} ]
    }} + (if ($deny | length) > 0 then {permissions: {deny: $deny}} else {} end)')"
+# El apagado global de Trama (app/electron/apagados.ts): skills, MCP, herramientas y memoria que ningún worker carga. Trama deja
+# el pedazo de settings ya armado; acá se suma (los excludes y los deny a los que ya hay, skillOverrides tal cual). Ilegible: nada.
+apagados_claude="${XDG_CONFIG_HOME:-$HOME/.config}/trama/apagados-claude.json"
+if [[ -s "$apagados_claude" ]] && _ap="$(jq -ce 'select(type == "object")' "$apagados_claude" 2>/dev/null)" && [[ -n "$_ap" ]]; then
+  _sj="$(jq -c --argjson a "$_ap" '
+    .claudeMdExcludes = ((.claudeMdExcludes // []) + [($a.claudeMdExcludes | arrays | .[] | strings)])
+    | if (($a.skillOverrides | type) == "object" and ($a.skillOverrides | length) > 0) then .skillOverrides = $a.skillOverrides else . end
+    | ((.permissions.deny // []) + [($a.permissions | objects | .deny | arrays | .[] | strings)]) as $d
+    | if ($d | length) > 0 then .permissions = {deny: $d} else . end' <<<"$settings_json" 2>/dev/null)" && [[ -n "$_sj" ]] && settings_json="$_sj"
+fi
 
 # --- --actualizar: la tarea es fija --------------------------------------------------------
 if [[ -n "$actualizar" ]]; then
