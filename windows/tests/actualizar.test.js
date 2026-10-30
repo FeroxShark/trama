@@ -221,3 +221,19 @@ test("configuración de release: FeroxShark/trama activa electron-updater y los 
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test("una versión que Actualizar seguro desechó no se baja ni se anuncia; una más nueva sí", async () => {
+  const fases = [];
+  let version = "0.2.26";
+  const au = falso({ alBuscar: (a) => { a.emit("checking-for-update"); a.emit("update-available", { version }); } });
+  const u = crearActualizador({ autoUpdater: au, onEstado: (e) => fases.push(e.fase), rechazada: () => "0.2.26" });
+  await u.buscar();
+  assert.equal(au.autoDownload, false, "electron-updater mira esto justo después del aviso: no baja");
+  assert.deepEqual(fases, ["buscando", "al-dia"]);
+  // La búsqueda siguiente vuelve a querer bajar (una más nueva sí se baja).
+  version = "0.2.27";
+  fases.length = 0;
+  await u.buscar();
+  assert.equal(au.autoDownload, true);
+  assert.deepEqual(fases, ["buscando", "descargando"]);
+});

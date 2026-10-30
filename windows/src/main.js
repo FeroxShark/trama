@@ -19,6 +19,8 @@ const nativo = require("./nativo");
 const { crearAsistenteNativo } = require("./pasos-nativo");
 const { ENTRADAS_NATIVO } = require("./manifiesto-nativo");
 const { crearCanalesVentana } = require("./ventana");
+const { crearAlmacen } = require("./arranque-seguro");
+const { crearVersionAnterior, instalacionDe, lanzarRestauracion } = require("./version-anterior");
 
 // TRAMA_CAPTURA=<png> (sólo para la prueba de arranque sin Windows): offscreen, foto a los 4 s y sale.
 const CAPTURA = process.env.TRAMA_CAPTURA || "";
@@ -34,6 +36,8 @@ let textosBandeja = { abrir: "Abrir Trama", cerrar: "Salir (apaga el motor y los
 // carpeta, sin ventana y sin candado de instancia única. Su userData va a una carpeta temporal para no recrear ni
 // trabar %APPDATA%\Trama, que es justo una de las cosas que se pregunta si borrar.
 const DESINSTALAR = process.argv.includes("--desinstalar");
+// ¿Esta es la Trama de verdad (la que tiene el candado de instancia única)? Una segunda que se cierra sola no cuenta como un arranque.
+let esLaPrimera = false;
 // El AppUserModelId es el appId de electron-builder*.yml (con ése crea el instalador el atajo de Inicio): así la barra de
 // tareas y las notificaciones son de Trama y no de Electron. Lo prueba tests/identidad.test.js.
 app.setAppUserModelId("app.trama.windows");
@@ -47,6 +51,7 @@ if (DESINSTALAR) app.setPath("userData", fs.mkdtempSync(path.join(os.tmpdir(), "
 else {
   app.setPath("userData", USERDATA);
   if (!app.requestSingleInstanceLock()) app.quit();
+  else esLaPrimera = true;
 }
 
 const SEGUNDO_PLANO = process.argv.includes(nativo.SEGUNDO_PLANO);
@@ -226,6 +231,23 @@ const deConfianza = (e) => {
 const protegido = (fn) => (e, ...a) => (deConfianza(e) ? fn(...a) : Promise.reject(new Error("No autorizado")));
 const textoError = (e) => ({ error: e instanceof Error ? e.message : String(e), detalle: e?.detalle || "" });
 
+// Actualizar seguro (arranque-seguro.js, version-anterior.js): cuenta si esta versión llega a «ventana lista» y, si una recién instalada
+// no arranca bien, vuelve a la carpeta que se guardó antes de instalarla. Sólo en el .exe instalado; en desarrollo no hace nada.
+const versionAnterior = crearVersionAnterior({
+  almacen: crearAlmacen(path.join(USERDATA, "arranque.json")),
+  version: app.getVersion(),
+  inst: DESINSTALAR || CAPTURA || !esLaPrimera ? null : instalacionDe({ empaquetada: app.isPackaged, execPath: process.execPath }),
+  base: path.join(process.env.LOCALAPPDATA || path.join(os.homedir(), "AppData", "Local"), "trama", "anterior"),
+  // La restauración la hace un guion suelto cuando esta Trama ya salió (el .exe que corre tiene sus archivos abiertos).
+  restaurar: (inst, c) => lanzarRestauracion({ origen: c.ruta, destino: inst.dir, exe: inst.exe, pid: process.pid, args: process.argv.slice(1) }),
+  // Se baja el motor y se sale sin esperar a nadie (before-quit pediría confirmaciones y no es un cierre del usuario).
+  salir: () => {
+    saliendo = true;
+    return supervisor.parar().finally(() => app.exit(0));
+  },
+  log,
+});
+
 // Lo de la pantalla de la PC (ventana.js): la página lo pide por window.carcasa.ventana (preload.js), no al motor, que lo rechaza por red.
 const canalesVentana = crearCanalesVentana({
   electron: { app, BrowserWindow, dialog, clipboard, shell, Notification, nativeImage },
@@ -242,6 +264,7 @@ const canalesVentana = crearCanalesVentana({
   abrirLogin(id) {
     return nativo.abrirConsolaNativa(rutasNativas)(`cuentas login ${id}`);
   },
+  versionAnterior,
   // Tocó la notificación de un líder: la ventana se trae y la página abre esa conversación.
   abrirAviso(sid) {
     mostrarVentana();
@@ -350,6 +373,8 @@ function arrancar() {
       mostrarAsistente();
     }
   });
+  // La primera página cargada (el asistente o Trama) es «ventana lista» para Actualizar seguro.
+  ventana.webContents.once("did-finish-load", () => void versionAnterior.alVentanaLista());
   ventana.webContents.on("did-finish-load", () => {
     if (enMotor && ultimaActualizacion?.fase === "lista") ventana.webContents.executeJavaScript(AVISO_JS(ultimaActualizacion.version)).catch(() => {});
   });
@@ -423,10 +448,13 @@ function crearBandeja() {
 app.on("second-instance", () => mostrarVentana());
 app.on("before-quit", (e) => {
   if (saliendo) return;
+  versionAnterior.alSalir();
   // Se baja el motor antes de salir (sin systemd, nadie más lo haría): una sola vez, y después se sale de verdad.
   saliendo = true;
   e.preventDefault();
-  supervisor.parar().finally(() => app.quit());
+  // Si hay una versión nueva bajada, electron-updater la instala al salir: antes se guarda la que corre (si no se guardó ya).
+  const guardar = ultimaActualizacion?.fase === "lista" ? versionAnterior.guardarAntes() : Promise.resolve();
+  Promise.all([supervisor.parar(), guardar]).finally(() => app.quit());
 });
 
 // Sin este oyente Electron saldría al cerrar la última ventana: acá cerrar la ventana la esconde y el motor sigue (se sale desde la bandeja).
@@ -441,10 +469,15 @@ app.whenReady().then(async () => {
     }
     return;
   }
+  // Una versión recién instalada que ya se cerró sola dos veces no abre nada: vuelve a la anterior y esta Trama se va.
+  if (await versionAnterior.alArrancar()) return;
   crearBandeja();
   // Con la sesión (clave Run): sin ventana, sólo el motor, y sólo si ya quedó instalado (si no, espera a que abran Trama).
-  if (SEGUNDO_PLANO) void asistente.arrancarSoloMotor().catch((e) => log(`segundo plano: ${e.message}`));
-  else arrancar();
+  if (SEGUNDO_PLANO) {
+    void asistente.arrancarSoloMotor().catch((e) => log(`segundo plano: ${e.message}`));
+    // Sin ventana que esperar: la carcasa en la bandeja es lo que hay.
+    void versionAnterior.alVentanaLista();
+  } else arrancar();
   const u = iniciarActualizador({
     app,
     recursos: process.resourcesPath,
@@ -453,10 +486,16 @@ app.whenReady().then(async () => {
       ultimaActualizacion = e;
       enviar("actualizar:cambio", e);
       if (enMotor && ventana && e.fase === "lista") ventana.webContents.executeJavaScript(AVISO_JS(e.version)).catch(() => {});
+      // Bajada la nueva y antes de instalarla: la que corre queda guardada (Actualizar seguro).
+      if (e.fase === "lista") void versionAnterior.guardarAntes();
     },
+    rechazada: () => versionAnterior.rechazada(),
     log,
   });
-  actualizador.instalar = u.instalar;
+  actualizador.instalar = async () => {
+    await versionAnterior.guardarAntes();
+    return u.instalar();
+  };
   actualizador.buscar = u.buscar;
   actualizador.refrescar = u.refrescar;
   // Al volver de la suspensión se pregunta de nuevo (el ciclo de 2 min y el reintento de la red cubren el resto).

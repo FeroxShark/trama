@@ -71,6 +71,7 @@ function logoDeBytes(crudo, ext, nativeImage) {
  *  - bandeja: { textos(t), espera(e) } para el menú y la descripción del ícono.
  *  - abrirLogin(id): abre la consola para `cuentas login <id>` (sólo la carcasa nativa sabe hacerlo).
  *  - abrirAviso(sid): el usuario tocó la notificación de un líder: la ventana se trae y la página abre ese líder.
+ *  - versionAnterior: el servicio de Actualizar seguro (version-anterior.js): qué versión anterior hay, volver a ella, el aviso de que se volvió.
  *  - log(texto): lo que no se puede mostrar al usuario.
  */
 function crearCanalesVentana(o) {
@@ -156,6 +157,10 @@ function crearCanalesVentana(o) {
       if (typeof url === "string" && url.startsWith("https://github.com/")) abrirExterno(url);
     },
     // "Volver como estaba": la carcasa no guarda lo abierto al reiniciar. Sin eso la página arranca como siempre.
+    // Actualizar seguro: la versión anterior guardada (o null), volver a ella (reinicia Trama) y el aviso de que se volvió sola (se gasta al leerlo).
+    "trama:anterior": async () => (await o.versionAnterior?.disponible()) ?? null,
+    "trama:volverAnterior": async () => (o.versionAnterior ? o.versionAnterior.volverManual() : { ok: false, error: "esta instalación no guarda versiones anteriores" }),
+    "trama:avisoVuelta": () => o.versionAnterior?.leerAviso() ?? null,
     "volver:leer": () => null,
     "volver:guardar": () => undefined,
     "volver:anotar": () => undefined,

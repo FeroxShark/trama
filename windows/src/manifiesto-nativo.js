@@ -37,6 +37,7 @@ const ENTRADAS_NATIVO = [
   nativa("win-nativo-app", { tipo: "carpeta", ruta: "%LOCALAPPDATA%\\trama\\app", que: "El motor de Trama y sus hooks", quitar: "seguro" }),
   nativa("win-nativo-node", { tipo: "carpeta", ruta: "%LOCALAPPDATA%\\trama\\node", que: "El Node.js propio de Trama (node.exe)", quitar: "seguro" }),
   nativa("win-nativo-bin", { tipo: "carpeta", ruta: "%LOCALAPPDATA%\\trama\\bin", que: "Los comandos de Trama (pa.cmd, trama-estado.cmd…)", quitar: "seguro" }),
+  nativa("win-nativo-anterior", { tipo: "carpeta", ruta: "%LOCALAPPDATA%\\trama\\anterior", que: "La copia de la versión anterior de Trama, para volver a ella si la nueva no arranca bien", quitar: "seguro" }),
   nativa("win-nativo-run", { tipo: "carpeta", ruta: "%LOCALAPPDATA%\\trama\\run", que: "Archivos de cuando el motor está andando", quitar: "seguro" }),
   nativa("win-nativo-skill", {
     tipo: "carpeta",

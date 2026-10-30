@@ -46,7 +46,8 @@ const esRed = (e) => /ENOTFOUND|ECONN|ETIMEDOUT|EAI_AGAIN|ERR_INTERNET|ERR_NAME|
 // La máquina de estados, sin Electron: `autoUpdater` es el de electron-updater (o un falso en los tests). `reloj` (`ahora`, `cada`,
 // `despues`) es el del tiempo: en los tests, uno falso.
 // `canal`: el del instalador nativo es «nativo» (nativo.yml en la release; electron-builder-nativo.yml), sin canal es el de siempre (latest.yml).
-function crearActualizador({ autoUpdater, onEstado, log = () => {}, canal = null, reloj = RELOJ_REAL }) {
+// `rechazada`: la versión que Actualizar seguro desechó por no arrancar bien (arranque-seguro.js): no se baja ni se instala otra vez; una más nueva sí.
+function crearActualizador({ autoUpdater, onEstado, log = () => {}, canal = null, reloj = RELOJ_REAL, rechazada = () => null }) {
   let fase = "";
   let version = null;
   let porcentaje = -1;
@@ -80,6 +81,13 @@ function crearActualizador({ autoUpdater, onEstado, log = () => {}, canal = null
     decir({ fase: "al-dia" });
   });
   autoUpdater.on("update-available", (i) => {
+    // La que se desechó no se baja: electron-updater decide la descarga justo después de este aviso, mirando `autoDownload`.
+    if (rechazada() && i.version === rechazada()) {
+      autoUpdater.autoDownload = false;
+      log(`actualizador: la ${i.version} se desechó por no arrancar bien; no se baja`);
+      if (fase !== "lista") decir({ fase: "al-dia" });
+      return;
+    }
     // La misma que ya está lista: nada que hacer. Una más nueva: se baja, y ésa es la que queda.
     if (fase === "lista" && i.version === version) return;
     version = i.version;
@@ -129,6 +137,7 @@ function crearActualizador({ autoUpdater, onEstado, log = () => {}, canal = null
     intentoEn = t;
     enFondo = fondo;
     emitido = false;
+    autoUpdater.autoDownload = true;
     try {
       await autoUpdater.checkForUpdates();
     } catch (e) {
@@ -147,7 +156,7 @@ function crearActualizador({ autoUpdater, onEstado, log = () => {}, canal = null
   };
 }
 
-function iniciarActualizador({ app, recursos, onEstado, log = () => {}, canal = null }) {
+function iniciarActualizador({ app, recursos, onEstado, log = () => {}, canal = null, rechazada = () => null }) {
   const nulo = {
     instalar() {},
     buscar: async () => onEstado({ fase: "inactiva" }),
@@ -162,7 +171,7 @@ function iniciarActualizador({ app, recursos, onEstado, log = () => {}, canal = 
     log(`electron-updater no está: ${e.message}`);
     return nulo;
   }
-  return crearActualizador({ autoUpdater, onEstado, log, canal });
+  return crearActualizador({ autoUpdater, onEstado, log, canal, rechazada });
 }
 
 module.exports = { iniciarActualizador, crearActualizador, esDeRelleno };

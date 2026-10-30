@@ -199,3 +199,19 @@ test("validadores: la forma de lo que llega por IPC", () => {
   assert.equal(estadoValido({ n: 1.5, texto: "x" }), null);
   assert.equal(avisoValido({ sid: "s", titulo: "t", cuerpo: 5 }), null);
 });
+
+test("Actualizar seguro: la versión anterior, volver y el aviso salen del servicio; sin servicio contestan que no hay", async () => {
+  const servicio = {
+    disponible: async () => "0.2.25",
+    volverManual: async () => ({ ok: true }),
+    leerAviso: () => ({ de: "0.2.26", a: "0.2.25", motivo: "lento" }),
+  };
+  const c = carcasa({}, { versionAnterior: servicio });
+  assert.equal(await c.manejadores["trama:anterior"](), "0.2.25");
+  assert.deepEqual(await c.manejadores["trama:volverAnterior"](), { ok: true });
+  assert.deepEqual(c.manejadores["trama:avisoVuelta"](), { de: "0.2.26", a: "0.2.25", motivo: "lento" });
+  const sin = carcasa();
+  assert.equal(await sin.manejadores["trama:anterior"](), null);
+  assert.equal((await sin.manejadores["trama:volverAnterior"]()).ok, false);
+  assert.equal(sin.manejadores["trama:avisoVuelta"](), null);
+});
