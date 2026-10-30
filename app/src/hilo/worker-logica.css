@@ -276,7 +276,7 @@
   overflow: hidden;
   border-radius: var(--r-md);
   background: var(--capa-card);
-  grid-template-columns: 19rem minmax(0, 1fr);
+  grid-template-columns: min(19rem, 40%) minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr);
 }
 .wk-lista {
