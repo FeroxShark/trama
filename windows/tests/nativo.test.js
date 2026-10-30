@@ -269,3 +269,29 @@ test("el actualizador del instalador nativo usa el canal «nativo» sin permitir
   crearActualizador({ autoUpdater: wsl, onEstado() {} });
   assert.equal(wsl.channel, undefined);
 });
+
+// ---------- la carpeta de trabajo de lo que lanza la carcasa ----------
+// Un servidor MCP de terceros (node) que escribe logs relativos a su cwd dejó archivos abiertos dentro de trama\app y la
+// actualización no pudo tocarla: nada que cuelgue del motor puede heredar la carpeta de instalación como cwd.
+test("el motor y el CLI (y la consola de login) corren con el home como carpeta de trabajo, nunca la de instalación", async () => {
+  const fs = require("node:fs");
+  const os = require("node:os");
+  const path = require("node:path");
+  const base = fs.mkdtempSync(path.join(os.tmpdir(), "trama-cwd-"));
+  const home = fs.mkdtempSync(path.join(base, "home-"));
+  const app = path.join(base, "trama", "app");
+  fs.mkdirSync(app, { recursive: true });
+  const script = path.join(app, "quien.js");
+  fs.writeFileSync(script, 'require("node:fs").writeFileSync(require("node:path").join(process.env.SALIDA_CWD), process.cwd());');
+  const salida = path.join(base, "cwd.txt");
+  const rutas = { home, raiz: path.join(base, "trama"), app, node: process.execPath, bin: path.join(base, "bin"), motor: script, cli: () => script, logMotor: path.join(base, "motor.log") };
+  const env = { ...process.env, SALIDA_CWD: salida };
+
+  const m = n.lanzarMotor(rutas, env)();
+  await new Promise((ok) => m.alSalir(ok));
+  assert.equal(fs.realpathSync(fs.readFileSync(salida, "utf8")), fs.realpathSync(home), "el motor");
+  fs.rmSync(salida);
+
+  await n.correrCli(rutas, env)("x");
+  assert.equal(fs.realpathSync(fs.readFileSync(salida, "utf8")), fs.realpathSync(home), "el CLI");
+});

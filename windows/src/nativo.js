@@ -328,6 +328,13 @@ function leerToken(ruta) {
   }
 }
 
+/**
+ * La carpeta de trabajo de todo lo que Trama lanza: el home. NUNCA la de instalación (%LOCALAPPDATA%\\trama\\app o node): lo que cuelga
+ * del motor (líderes, claude, agy, servidores MCP de terceros que escriben logs relativos a su cwd) la heredaría, la tendría abierta y
+ * frenaría la próxima actualización.
+ */
+const carpetaDeTrabajo = (rutas) => rutas.home || require("node:os").homedir();
+
 /** Lanza `node.exe motor.js` sin consola, con la salida a `motor.log`. */
 function lanzarMotor(rutas, env = process.env) {
   return () => {
@@ -335,7 +342,7 @@ function lanzarMotor(rutas, env = process.env) {
     const fd = fs.openSync(rutas.logMotor, "a");
     let p;
     try {
-      p = spawn(rutas.node, [rutas.motor], { cwd: rutas.app, env: entornoMotor(env, rutas), windowsHide: true, stdio: ["ignore", fd, fd] });
+      p = spawn(rutas.node, [rutas.motor], { cwd: carpetaDeTrabajo(rutas), env: entornoMotor(env, rutas), windowsHide: true, stdio: ["ignore", fd, fd] });
     } finally {
       fs.closeSync(fd);
     }
@@ -352,11 +359,11 @@ function lanzarMotor(rutas, env = process.env) {
   };
 }
 
-function correr(exe, args, { env, input, timeoutMs = 60000 } = {}) {
+function correr(exe, args, { env, input, timeoutMs = 60000, cwd } = {}) {
   return new Promise((resolver) => {
     let p;
     try {
-      p = spawn(exe, args, { windowsHide: true, env: env || process.env, stdio: ["pipe", "pipe", "pipe"] });
+      p = spawn(exe, args, { windowsHide: true, env: env || process.env, stdio: ["pipe", "pipe", "pipe"], ...(cwd ? { cwd } : {}) });
     } catch (e) {
       return resolver({ code: -1, stdout: "", stderr: String(e) });
     }
@@ -450,7 +457,7 @@ function arranqueSesion(nombre = VALOR_RUN) {
 
 /** `node.exe <cli>.js args…` con el node propio: las herramientas del motor (trama-estado, instalar-nativo). */
 function correrCli(rutas, env = process.env) {
-  return (nombre, args = [], o = {}) => correr(rutas.node, [rutas.cli(nombre), ...args], { env: entornoMotor(env, rutas), timeoutMs: o.timeoutMs ?? 60000 });
+  return (nombre, args = [], o = {}) => correr(rutas.node, [rutas.cli(nombre), ...args], { env: entornoMotor(env, rutas), timeoutMs: o.timeoutMs ?? 60000, cwd: carpetaDeTrabajo(rutas) });
 }
 
 /** Abre una consola de Windows (cmd) con un programa, para iniciar sesión en claude o agy. */
@@ -458,7 +465,7 @@ function abrirConsolaNativa(rutas, env = process.env) {
   return async (programa) => {
     // `start ""` (el título va vacío y entre comillas, si no lo toma como programa) abre una ventana nueva; `cmd /k` la deja
     // abierta si el programa sale con error.
-    const p = spawn("cmd.exe", ["/c", "start", "", "cmd.exe", "/k", programa], { env: entornoMotor(env, rutas), detached: true, stdio: "ignore", windowsHide: false });
+    const p = spawn("cmd.exe", ["/c", "start", "", "cmd.exe", "/k", programa], { cwd: carpetaDeTrabajo(rutas), env: entornoMotor(env, rutas), detached: true, stdio: "ignore", windowsHide: false });
     p.on("error", () => {});
     p.unref();
   };
