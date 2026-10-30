@@ -657,7 +657,7 @@
 }
 .cp-w-est small {
   overflow: hidden;
-  color: var(--txt-5);
+  color: var(--texto-5);
   font-size: inherit;
   text-overflow: ellipsis;
   white-space: nowrap;
