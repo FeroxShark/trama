@@ -4,7 +4,9 @@
 // motor (electron/ventana-cliente.ts), si el motor responde en el socket local y `dueno` lo confirma.
 import { codigoSalida } from "./aislar.js"; // primero: en una corrida de prueba, ningún módulo toca los datos del usuario sin que quede anotado
 import { app, BrowserWindow, ipcMain, Menu, nativeImage, shell, Tray } from "electron";
+import { execFile } from "node:child_process";
 import { readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { armarBench } from "./bench.js";
 import { armarBandeja, type Bandeja } from "./bandeja.js";
@@ -17,7 +19,9 @@ import { carpetaLocal, motorVivo, socketDe } from "./local.js";
 import { log, logAparte } from "./log.js";
 import { ESTADO } from "./estado.js";
 import { baseConsulta, crearConsulta } from "./consulta.js";
-import { pedirSalida, pedirVista, ponerAnotadorDeVista, ponerEstadoEspera, ponerRecarga, ponerRelanzo, ponerTextosBandeja, ponerVistas, ventanas } from "./ventana-canales.js";
+import { pedirSalida, pedirVista, ponerAnotadorDeVista, ponerEstadoEspera, ponerRecarga, ponerRelanzo, ponerTextosBandeja, ponerVersionAnterior, ponerVistas, ventanas } from "./ventana-canales.js";
+import { crearAlmacen } from "./arranque-seguro.js";
+import { carpetaCopias, crearVersionAnterior, instalacionDe, type VersionAnterior } from "./version-anterior.js";
 import type { Cliente } from "./ventana-cliente.js";
 import { acomodar, crearGuardadoVolver, guardarVolver, leerVolver, lugarDeVentana, type Ventana, type Volver } from "./volver.js";
 import { silencio } from "./log.js";
@@ -137,6 +141,27 @@ function pedida(): "foco" | "sin-foco" | null {
     return null;
   }
 }
+/**
+ * Actualizar seguro (electron/arranque-seguro.ts, version-anterior.ts): cuenta si esta versión llega a "ventana lista" y, si una
+ * recién instalada no arranca bien, vuelve a la anterior. Sólo en una instalación (AppImage o la carpeta de la app estable);
+ * en desarrollo y en pruebas no hace nada. Tras restaurar reinicia el motor (la unidad) y esta ventana con lo que quedó.
+ */
+let versionAnterior: VersionAnterior;
+const armarVersionAnterior = () => crearVersionAnterior({
+  almacen: crearAlmacen(path.join(ESTADO, "arranque.json")),
+  version: app.getVersion(),
+  inst: residente ? instalacionDe(process.env, path.join(aqui, ".."), os.homedir()) : null,
+  base: carpetaCopias(os.homedir()),
+  async reiniciar(inst) {
+    if (inst.tipo === "carpeta") await new Promise<void>((listo) => execFile("systemctl", ["--user", "restart", "trama-motor.service"], { timeout: 30_000 }, () => listo()));
+    if (inst.tipo === "appimage") app.relaunch({ execPath: inst.ruta, args: [] });
+    else if (!unidad) app.relaunch({ args: process.argv.slice(1).filter((a) => a !== "--escondida").concat("--escondida") });
+    // Se sale ya, sin dejar nada a medias: bajo la unidad, Restart=always la levanta con lo que quedó.
+    app.exit(0);
+  },
+  log: (m) => log.escribir("aviso", "arranque", m),
+});
+
 /** Cómo estaba la trama que se fue, sea cual sea la forma (electron/volver.ts): la ventana, y lo que cada vista tenía abierto. No se gasta al leerlo. */
 const VOLVER = path.join(ESTADO, "volver.json");
 let vuelta: Volver | null = null;
@@ -237,7 +262,10 @@ function crearVentana() {
   if (cliente) ventana.webContents.on("did-finish-load", () => void (cliente?.caida() && ventana.webContents.send("remoto:conexion", false)));
 
   marcar("ventana", "ventana-creada");
-  ventana.webContents.once("did-finish-load", () => void marcar("ventana", "pagina-cargada"));
+  ventana.webContents.once("did-finish-load", () => {
+    void marcar("ventana", "pagina-cargada");
+    void versionAnterior.alVentanaLista();
+  });
   cargar(ventana, llegaDeReinicio ? { actualizando: "1" } : {});
   llegaDeReinicio = false;
 
@@ -396,6 +424,10 @@ if (residente && !app.requestSingleInstanceLock()) {
 }
 
 async function arrancar() {
+  versionAnterior = armarVersionAnterior();
+  ponerVersionAnterior(versionAnterior);
+  // Una versión recién instalada que ya se cerró sola dos veces no abre nada: vuelve a la anterior y este proceso se va.
+  if (await versionAnterior.alArrancar()) return;
   if (residente) {
     vuelta = leerVolver(VOLVER);
     ponerVistas(vuelta?.vistas ?? {});
@@ -406,6 +438,7 @@ async function arrancar() {
   vigilarProceso(log);
   app.on("before-quit", () => {
     saliendo = true;
+    versionAnterior.alSalir();
     guardadoVolver?.ahora();
   });
   app.on("window-all-closed", () => app.quit());

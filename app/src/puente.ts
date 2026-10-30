@@ -399,6 +399,10 @@ type Main = {
     ocupacion(): Promise<unknown>;
     /** Reinicia el proceso de la ventana (sólo la ventana de la PC; en el navegador no existe). */
     reiniciarVentana?(): Promise<void>;
+    /** Actualizar seguro (sólo la ventana de la PC): la versión anterior guardada a la que se puede volver, o `null`; volver a ella; y el aviso de que se volvió sola, que se gasta al leerlo. Sin validar. */
+    anterior?(): Promise<unknown>;
+    volverAnterior?(): Promise<unknown>;
+    avisoVuelta?(): Promise<unknown>;
     alCambiar(fn: (a: unknown) => void): Soltar;
     alCambiarActualizacion(fn: (e: unknown) => void): Soltar;
   };

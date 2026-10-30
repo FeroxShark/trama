@@ -14,6 +14,7 @@ import { log, silencio } from "./log.js";
 import { textoDelPortapapeles } from "./portapapeles.js";
 import { marcar } from "./reinicio-marcas.js";
 import { registro } from "./registro.js";
+import type { VersionAnterior } from "./version-anterior.js";
 import { irA, ubicar } from "./terminal.js";
 import { textosValidos, type Textos } from "./bandeja.js";
 import { anunciar, avisoValido, estadoValido, type AvisoEspera, type EstadoEspera } from "./espera-aviso.js";
@@ -28,6 +29,12 @@ let relanzarVentana: () => void = () => {};
 /** Lo que hace "Reiniciar la ventana" tras instalar una Trama nueva (aviso del pie): main.ts relanza el proceso. */
 export function ponerRelanzo(fn: () => void) {
   relanzarVentana = fn;
+}
+
+let versionAnterior: VersionAnterior | null = null;
+/** Actualizar seguro (electron/version-anterior.ts): lo que contestan "Volver a la versión anterior" de Ajustes y el aviso de que se volvió sola. */
+export function ponerVersionAnterior(v: VersionAnterior | null) {
+  versionAnterior = v;
 }
 
 export const ventanas = () => BrowserWindow.getAllWindows();
@@ -183,6 +190,10 @@ export function armarCanalesVentana(salir: (x: { modo: "seguir" | "parar"; forza
   ipcMain.handle("lider:ubicable", async (_e, pid: number) => (await ubicar(Number(pid))) !== null);
   // La URL es fija: el frontend no elige qué se abre.
   ipcMain.handle("claude:changelog", () => shell.openExternal(CHANGELOG));
+  // Actualizar seguro: qué versión anterior hay para volver (o null), volver a ella, y el aviso de que se volvió sola (se gasta al leerlo).
+  ipcMain.handle("trama:anterior", async () => (await versionAnterior?.disponible()) ?? null);
+  ipcMain.handle("trama:volverAnterior", () => versionAnterior?.volverManual() ?? { ok: false, error: "esta instalación no guarda versiones anteriores" });
+  ipcMain.handle("trama:avisoVuelta", () => versionAnterior?.leerAviso() ?? null);
   // Las notas del aviso de "Trama nueva": la URL la pone el frontend, así que sólo sale si es de github.com (enlace.ts).
   ipcMain.handle("trama:notas", (_e, url: unknown) => {
     if (typeof url === "string" && notasDeGithub(url)) abrirEnlace(url, (u) => void shell.openExternal(u).catch(silencio("ventana")));

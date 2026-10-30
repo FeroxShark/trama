@@ -23,8 +23,12 @@
 import { execFile, spawn } from "node:child_process";
 import { closeSync, existsSync, openSync, readFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { ESTADO, escribirAtomico } from "./pa.js";
+import { crearAlmacen } from "./arranque-seguro.js";
+import { carpetaCopias, crearVersionAnterior, instalacionDe } from "./version-anterior.js";
 import { textoT } from "./errores.js";
 import { configTrama } from "./rutas.js";
 import { silencio } from "./log.js";
@@ -186,7 +190,22 @@ export type Deps = {
   /** Cada cuánto mira la espera (ms); tiene que ver `quietas` miradas seguidas sin nada ocupado. */
   esperaMs?: number;
   quietas?: number;
+  /** Actualizar seguro: guarda la versión que corre antes de correr el instalador (default: la copia de version-anterior.ts, que sólo existe en una instalación). */
+  antes?: () => Promise<void>;
+  /** La versión que arranque-seguro desechó: no se ofrece otra vez (default: la del archivo de arranque). */
+  rechazada?: () => string | null;
 };
+
+/** El respaldo de la versión instalada, antes de pisarla. Fuera de una instalación (desarrollo, pruebas) no hace nada. */
+const antesReal = () =>
+  crearVersionAnterior({
+    almacen: crearAlmacen(path.join(ESTADO, "arranque.json")),
+    version: versionInstalada() ?? "",
+    inst: instalacionDe(process.env, fileURLToPath(new URL("..", import.meta.url)), os.homedir()),
+    base: carpetaCopias(os.homedir()),
+    reiniciar: () => {},
+  }).guardarAntes();
+const rechazadaReal = () => crearAlmacen(path.join(ESTADO, "arranque.json")).leer().rechazada;
 
 const SIN_OCUPAR: Ocupacion = { lideres: 0, workers: 0, otras: 0, leyendo: false };
 const vivoReal = (pid: number) => {
@@ -265,6 +284,8 @@ export function crearActualizacionTrama(deps: Deps = {}) {
   const registro = deps.registro ?? path.join(path.dirname(archivo), "trama-actualizacion.log");
   const ocupacion = deps.ocupacion ?? (() => SIN_OCUPAR);
   const vivo = deps.vivo ?? vivoReal;
+  const antes = deps.antes ?? antesReal;
+  const rechazadaDe = deps.rechazada ?? rechazadaReal;
   const esperaMs = deps.esperaMs ?? 5000;
   const quietas = deps.quietas ?? 2;
   let act: (EstadoAct & { pid?: number }) | null = null;
@@ -296,6 +317,8 @@ export function crearActualizacionTrama(deps: Deps = {}) {
     const ultima = normal(c.ultima);
     if (!instalada || !ultima || comparar(ultima, instalada) <= 0) return null;
     if (c.descartada && comparar(ultima, c.descartada) <= 0) return null;
+    // La que arranque-seguro desechó por no arrancar bien no se ofrece de nuevo: se espera a una más nueva.
+    if (normal(rechazadaDe()) === ultima) return null;
     return { instalada, ultima, sucio: await sucioEn(checkout), notas: urlNotas(`v${ultima}`, repoDeAqui()) };
   }
 
@@ -528,6 +551,8 @@ export function crearActualizacionTrama(deps: Deps = {}) {
       }
       const { checkout, tag } = v;
       await poner({ fase: "instalando", version: versionDeTag(tag) });
+      // Actualizar seguro: la versión que corre queda guardada antes de pisarla (si algo sale mal, no frena la actualización).
+      await antes().catch(silencio("actualizacion-trama"));
       const fallo = async (error: string): Promise<Actualizado> => (await poner({ fase: "error", error }), { ok: false, error });
       for (const paso of pasosActualizar(tag, checkout, registro)) {
         // El instalador reinicia al motor: este proceso puede morir acá. El pid queda anotado para que el motor nuevo sepa si sigue.

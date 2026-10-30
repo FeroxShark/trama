@@ -147,7 +147,7 @@ test("leerCheckout: la ruta anotada si sigue siendo un checkout de Trama; si no,
 // --- el aviso entero, con GitHub y git de mentira ---
 
 type Llamada = { cmd: string; args: string[]; cwd: string; env?: Record<string, string> };
-type Opciones = { instalada: string; tag?: string | null; sucio?: boolean; sinRed?: boolean; falla?: string; avisoInstalador?: string; checkout?: string | null; archivo?: string; archivoAct?: string; ocupacion?: () => import("../electron/actualizacion-trama.ts").Ocupacion; vivo?: (pid: number) => boolean; esperaMs?: number; quietas?: number };
+type Opciones = { instalada: string; tag?: string | null; sucio?: boolean; sinRed?: boolean; falla?: string; avisoInstalador?: string; checkout?: string | null; archivo?: string; archivoAct?: string; ocupacion?: () => import("../electron/actualizacion-trama.ts").Ocupacion; vivo?: (pid: number) => boolean; esperaMs?: number; quietas?: number; antes?: () => Promise<void>; rechazada?: string | null };
 function armar(o: Opciones) {
   const llamadas: Llamada[] = [];
   let pedidos = 0;
@@ -160,6 +160,8 @@ function armar(o: Opciones) {
     registro: path.join(path.dirname(archivo), "trama-actualizacion.log"),
     ...(o.ocupacion ? { ocupacion: o.ocupacion } : {}),
     ...(o.vivo ? { vivo: o.vivo } : {}),
+    antes: o.antes ?? (async () => {}),
+    rechazada: () => o.rechazada ?? null,
     esperaMs: o.esperaMs ?? 5,
     quietas: o.quietas ?? 2,
     checkout: () => co,
@@ -417,6 +419,27 @@ test("Actualizar corre fetch, checkout del tag y el instalador, en ese orden y e
     ],
   );
   assert.ok(x.llamadas.every((l) => l.cwd === x.co));
+});
+
+test("Actualizar guarda la versión que corre ANTES de correr el instalador, y una falla de la copia no frena la actualización", async () => {
+  const orden: string[] = [];
+  const x = armar({ instalada: "0.1.0", tag: "v0.1.4", antes: async () => void orden.push("copia") });
+  await x.act.leerAviso();
+  x.llamadas.length = 0;
+  const original = x.llamadas.push.bind(x.llamadas);
+  x.llamadas.push = (...l) => (orden.push(l[0].args[0] ?? l[0].cmd), original(...l));
+  assert.equal((await x.act.actualizar()).ok, true);
+  assert.deepEqual(orden.slice(0, 3), ["status", "copia", "fetch"]);
+  const y = armar({ instalada: "0.1.0", tag: "v0.1.4", antes: async () => Promise.reject(new Error("disco lleno")) });
+  await y.act.leerAviso();
+  assert.equal((await y.act.actualizar()).ok, true);
+});
+
+test("la versión que arranque-seguro desechó no se ofrece de nuevo; una más nueva sí", async () => {
+  const x = armar({ instalada: "0.1.0", tag: "v0.1.4", rechazada: "0.1.4" });
+  assert.equal(await x.act.leerAviso(), null);
+  const y = armar({ instalada: "0.1.0", tag: "v0.1.5", rechazada: "0.1.4" });
+  assert.equal((await y.act.leerAviso())?.ultima, "0.1.5");
 });
 
 test("Actualizar con cambios sin commitear: no corre fetch ni checkout ni el instalador", async () => {

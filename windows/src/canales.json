@@ -1,7 +1,7 @@
 {
   "_": "Generado por app/scripts/generar-canales.mjs desde app/electron/canales/contrato.ts. No se edita a mano.",
-  "ventana": ["lider:ir", "lider:ubicable", "claude:changelog", "trama:reiniciarVentana", "trama:notas", "cuentas:login", "app:salir", "app:recargar", "app:pararTodo", "bandeja:textos", "espera:estado", "espera:notificar", "portapapeles:texto", "carpeta:elegir", "archivo:elegirLogo", "reinicio:marca", "volver:leer", "volver:guardar", "volver:anotar"],
-  "soloVentana": ["consumo:mirar", "consumo:soltar", "lider:ir", "lider:ubicable", "claude:changelog", "trama:reiniciarVentana", "trama:notas", "cuentas:login", "app:salir", "app:recargar", "app:pararTodo", "bandeja:textos", "espera:estado", "espera:notificar", "portapapeles:texto", "carpeta:elegir", "archivo:elegirLogo", "reinicio:marca", "volver:leer", "volver:guardar", "volver:anotar", "borradores:leer", "borradores:guardar"],
+  "ventana": ["lider:ir", "lider:ubicable", "claude:changelog", "trama:reiniciarVentana", "trama:notas", "trama:anterior", "trama:volverAnterior", "trama:avisoVuelta", "cuentas:login", "app:salir", "app:recargar", "app:pararTodo", "bandeja:textos", "espera:estado", "espera:notificar", "portapapeles:texto", "carpeta:elegir", "archivo:elegirLogo", "reinicio:marca", "volver:leer", "volver:guardar", "volver:anotar"],
+  "soloVentana": ["consumo:mirar", "consumo:soltar", "lider:ir", "lider:ubicable", "claude:changelog", "trama:reiniciarVentana", "trama:notas", "trama:anterior", "trama:volverAnterior", "trama:avisoVuelta", "cuentas:login", "app:salir", "app:recargar", "app:pararTodo", "bandeja:textos", "espera:estado", "espera:notificar", "portapapeles:texto", "carpeta:elegir", "archivo:elegirLogo", "reinicio:marca", "volver:leer", "volver:guardar", "volver:anotar", "borradores:leer", "borradores:guardar"],
   "avisosVentana": ["espera:abrir"],
   "canales": [
     ["bench:modo","invoke"],
@@ -196,6 +196,9 @@
     ["trama:ocupacion","invoke"],
     ["trama:reiniciarVentana","invoke","ventana"],
     ["trama:notas","invoke","ventana"],
+    ["trama:anterior","invoke","ventana"],
+    ["trama:volverAnterior","invoke","ventana"],
+    ["trama:avisoVuelta","invoke","ventana"],
     ["trama:version","on"],
     ["trama:actualizacion","on"],
     ["setup:estado","invoke"],

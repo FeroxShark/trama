@@ -6,8 +6,9 @@
 //   AppImage   (`$APPIMAGE`)                    la copia es el archivo .AppImage; al volver se pisa el archivo (por rename, atómico).
 //   carpeta    (~/.local/share/trama/app)       la copia son `dist/`, `dist-electron/` y `package.json` (lo que cambia entre versiones;
 //                                               `node_modules` no, pesa cientos de MB); al volver se cambian por rename uno a uno.
-// El AppImage no tiene instalador dentro de la app (lo reemplaza quien lo baja): se copia a sí mismo cuando llega a ventana lista.
-// La carpeta sí lo tiene (Actualizar, actualizacion-trama.ts): copia antes de correr el instalador.
+// El AppImage no tiene instalador dentro de la app (lo reemplaza quien lo baja): se copia a sí mismo cuando llega a ventana lista
+// (la carpeta también, así una actualización a mano deja a dónde volver). Y la carpeta tiene Actualizar (actualizacion-trama.ts), que
+// copia antes de correr el instalador.
 import { copyFile, chmod, cp, mkdir, readdir, rename, rm, stat } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import path from "node:path";
@@ -172,12 +173,12 @@ export function crearVersionAnterior(d: Deps) {
     return false;
   }
 
-  /** La ventana cargó: la versión anda. Un AppImage aprovecha para guardarse a sí mismo como respaldo de la próxima. */
+  /** La ventana cargó: la versión anda, y se guarda como respaldo de la próxima (así una actualización a mano también deja a dónde volver). */
   async function alVentanaListaProceso(): Promise<void> {
     if (!d.inst) return;
     reloj?.cancelar();
     d.almacen.cambiar(alVentanaLista);
-    if (d.inst.tipo === "appimage") await guardarAntes();
+    await guardarAntes();
   }
 
   /** Guarda la versión que corre como respaldo, si todavía no está (antes de instalar la siguiente). Nunca rechaza. */
