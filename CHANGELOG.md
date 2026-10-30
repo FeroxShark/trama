@@ -1,5 +1,10 @@
 # Cambios
 
+## 0.2.33
+
+- Windows: el instalador sólo toca sus propios archivos. Lo ajeno que quede dentro de la carpeta de Trama (por ejemplo logs de un servidor MCP) ya no traba la actualización, y si algo propio queda bloqueado se avisa qué archivo es.
+- Windows: Trama nunca lanza el motor, líderes, agy ni MCP con la carpeta de instalación como directorio de trabajo.
+
 ## 0.2.32
 
 - Panel de contexto: MCP y skills medidos por lo que de verdad está cargado (los MCP diferidos casi no cuentan), y el total cuadra con sus ítems y no cambia al refrescar.
