@@ -1210,6 +1210,7 @@ export const en = {
   "ctxp.catDesc.reserva": "Space kept free so the conversation can be compacted.",
   "ctxp.mapa": "Map of the heaviest items",
   "ctxp.mapaBloque": "{nombre}, {cat}: {tokens} tokens, {pct}%. Open its detail.",
+  "ctxp.resto": "Rest",
   "ctxp.mapaResto": "Smaller items, {tokens} tokens together",
   "ctxp.mapaCat": "{cat} (the rest)",
   "ctxp.verDetalle": "Show detail of {cat}",

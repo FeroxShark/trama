@@ -210,7 +210,7 @@ Verificado antes del commit final: los dos `tsc` sin errores, `vite build` bien,
 4. En la tarjeta: "Un agente lo está fusionando: revisalo en Ramas", con un botón al panel de Ramas.
 5. Tests del argv y del no relanzar.
 
-## Hecho: base del panel derecho de contexto (falta la interfaz)
+## Hecho: panel derecho de contexto (base e interfaz)
 
 Para el líder que se está mirando y sus workers: en qué se va el contexto y apagar cosas para TODO Trama. El main y los canales están;
 la interfaz la hace otro worker encima. Todo vale para Linux y Windows (el worker de Windows corre el port `electron/cli/pa`).
@@ -243,8 +243,16 @@ la interfaz la hace otro worker encima. Todo vale para Linux y Windows (el worke
   terminar el turno. Gemini, dsh, OpenCode, Ollama y los locales no lo toman (no cargan skills ni memoria de Claude Code).
   Nunca se toca `~/.claude.json` ni credenciales.
 - Tests: `tests/contexto-panel.test.ts` (fixtures inventados).
-- Pendiente: la interfaz (panel derecho, ui-ux-pro-max + taste-skill), y un aviso en vivo (`apagados:cambio`) si hace falta con dos
-  ventanas abiertas.
+- **Interfaz** (`src/paneles/PanelContexto.tsx`, `contexto-panel.css`, lógica pura en `contexto-vista.ts` con `tests/contexto-vista.test.ts`; datos en
+  `src/datos/contexto.ts` con fixtures en `fixtures-contexto.ts`): reemplaza al panel de consumo (borrado, con su prueba). Mira al líder abierto (o al de
+  lo abierto: un worker o un subagente) y a sus workers sin cerrar. Dos pestañas: "Sesiones" (el líder siempre abierto y cada worker en una fila plegable con
+  su mini barra; cada uno con barra apilada, mapa de bloques y categorías que se abren con sus ítems: tokens, usos, "nunca usada" y el interruptor) y
+  "Catálogo de skills" (buscar sin tildes, filtros todas / apagadas / nunca usadas, plugin). "Nunca usada" sólo se afirma con una sesión medida
+  (`sabeUsos`). Apagar vale global y el aviso va siempre a la vista y, tras cada cambio, en una región `role=status`. Sigue usando el botón del pie, la
+  tecla `t` y la preferencia `consumo` (sólo se guarda desde la ventana). En el celular ocupa la pantalla (se abre desde el botón del pie de la lista) y
+  sólo se mira: apagar es de la PC. Capturas: `contexto-panel`, `contexto-panel-cat`, `contexto-panel-skills`.
+- Pendiente: un aviso en vivo (`apagados:cambio`) si hace falta con dos ventanas abiertas; el nombre de un servidor MCP que Claude Code muestra con
+  espacios (`claude.ai Notion`) puede llegar del desglose ya normalizado (`claude_ai_Notion`): el panel lo apaga con lo que le llega.
 
 ## Pendiente (en orden sugerido)
 

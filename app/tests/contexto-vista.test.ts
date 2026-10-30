@@ -72,15 +72,15 @@ test("estaApagado: el MCP se compara normalizado", () => {
 test("mapa de bloques: suma lo mismo que los bloques, no se pisan y entran en el rectángulo", () => {
   const bl = bloques(lider);
   assert.ok(bl.length > 0 && bl.length <= 14);
-  const col = treemap(bl, 100, 46);
+  const col = treemap(bl, 100, 40);
   assert.equal(col.length, bl.length);
   const area = col.reduce((n, b) => n + b.w * b.h, 0);
-  assert.ok(Math.abs(area - 100 * 46) < 1e-6, `área ${area}`);
+  assert.ok(Math.abs(area - 100 * 40) < 1e-6, `área ${area}`);
   for (const b of col) {
-    assert.ok(b.x >= -1e-9 && b.y >= -1e-9 && b.x + b.w <= 100 + 1e-9 && b.y + b.h <= 46 + 1e-9, b.id);
+    assert.ok(b.x >= -1e-9 && b.y >= -1e-9 && b.x + b.w <= 100 + 1e-9 && b.y + b.h <= 40 + 1e-9, b.id);
     // El área es proporcional a los tokens.
     const total = bl.reduce((n, x) => n + x.tokens, 0);
-    assert.ok(Math.abs((b.w * b.h) / (100 * 46) - b.tokens / total) < 1e-9, b.id);
+    assert.ok(Math.abs((b.w * b.h) / (100 * 40) - b.tokens / total) < 1e-9, b.id);
   }
   for (let i = 0; i < col.length; i++)
     for (let j = i + 1; j < col.length; j++) {

@@ -42,7 +42,7 @@ import "./contexto-panel.css";
 const miles = (n: number) => n.toLocaleString(locale());
 const nombreCat = (c: Categoria) => t(`ctxp.cat.${c}` as "ctxp.cat.mensajes");
 /** El alto del mapa de bloques en las mismas unidades que su ancho (100): el CSS le da esa proporción. */
-const ALTO_MAPA = 46;
+const ALTO_MAPA = 40;
 /** Cuántas skills se pintan de entrada en el catálogo. */
 const PAGINA_SKILLS = 40;
 
@@ -92,7 +92,7 @@ function Interruptor({ x, nombre, protegida }: { x: { tipo: TipoApagado; nombre:
     <button
       type="button"
       role="switch"
-      className="cx-sw"
+      className="cp-sw"
       aria-checked={!apagado}
       aria-label={nombre}
       aria-busy={ocupado || undefined}
@@ -100,7 +100,7 @@ function Interruptor({ x, nombre, protegida }: { x: { tipo: TipoApagado; nombre:
       data-tip={tip}
       onClick={() => x && fijar(x, !apagado)}
     >
-      <span className="cx-sw-p">{protegida ? <Lock size={10} strokeWidth={2.4} /> : apagado ? <X size={10} strokeWidth={2.6} /> : <Check size={10} strokeWidth={2.6} />}</span>
+      <span className="cp-sw-p">{protegida ? <Lock size={10} strokeWidth={2.4} /> : apagado ? <X size={10} strokeWidth={2.6} /> : <Check size={10} strokeWidth={2.6} />}</span>
     </button>
   );
 }
@@ -111,7 +111,7 @@ function Barra({ cats, d, fina }: { cats: FilaCat[]; d: Desglose; fina?: boolean
   const libre = d.ventana ? Math.max(0, d.ventana - suma) : 0;
   const lista = cats.map((c) => `${nombreCat(c.id)} ${miles(c.tokens)}`).join(", ");
   return (
-    <div className="cx-barra" data-fina={fina ? "" : undefined} role="img" aria-label={t("ctxp.barra", { lista: lista || "—" })}>
+    <div className="cp-barra" data-fina={fina ? "" : undefined} role="img" aria-label={t("ctxp.barra", { lista: lista || "—" })}>
       {cats.map((c) => (
         <i key={c.id} data-cat={c.id} style={{ flexGrow: c.tokens }} />
       ))}
@@ -126,7 +126,7 @@ function Mapa({ d, alElegir }: { d: Desglose; alElegir: (cat: Categoria, clave: 
   const colocados = useMemo(() => treemap(bloques(d), 100, ALTO_MAPA), [d]);
   if (!colocados.length) return null;
   return (
-    <div className="cx-mapa" role="group" aria-label={t("ctxp.mapa")}>
+    <div className="cp-mapa" role="group" aria-label={t("ctxp.mapa")}>
       {colocados.map((b) => {
         const nombre = b.resto ? "" : b.nombre === "…" ? t("ctxp.mapaCat", { cat: nombreCat(b.cat) }) : b.nombre || nombreCat(b.cat);
         const caja = {
@@ -145,11 +145,14 @@ function Mapa({ d, alElegir }: { d: Desglose; alElegir: (cat: Categoria, clave: 
         );
         if (b.resto)
           return (
-            <div key={b.id} className="cx-bq" data-resto="" style={caja} role="img" aria-label={t("ctxp.mapaResto", { tokens: miles(b.tokens) })} data-tip={t("ctxp.mapaResto", { tokens: miles(b.tokens) })} />
+            <div key={b.id} className="cp-bq" data-resto="" style={caja} role="img" aria-label={t("ctxp.mapaResto", { tokens: miles(b.tokens) })} data-tip={t("ctxp.mapaResto", { tokens: miles(b.tokens) })}>
+              {lugar !== "nada" ? <b>{t("ctxp.resto")}</b> : null}
+              {lugar === "todo" ? <span>{miles(b.tokens)}</span> : null}
+            </div>
           );
         const dice = t("ctxp.mapaBloque", { nombre, cat: nombreCat(b.cat), tokens: miles(b.tokens), pct: porcentaje(b.tokens, total) });
         return (
-          <button key={b.id} type="button" className="cx-bq" data-cat={b.cat} style={caja} aria-label={dice} data-tip={dice} onClick={() => alElegir(b.cat, b.clave)}>
+          <button key={b.id} type="button" className="cp-bq" data-cat={b.cat} style={caja} aria-label={dice} data-tip={dice} onClick={() => alElegir(b.cat, b.clave)}>
             {txt}
           </button>
         );
@@ -163,12 +166,12 @@ function Uso({ it }: { it: Item }) {
   if (it.usos === null) return null;
   if (it.nunca)
     return (
-      <span className="cx-uso" data-nunca="">
+      <span className="cp-uso" data-nunca="">
         <CircleDashed size={11} strokeWidth={2.2} aria-hidden />
         {t("ctxp.usos0")}
       </span>
     );
-  return <span className="cx-uso">{it.usos === 0 ? t("ctxp.usos0") : it.usos === 1 ? t("ctxp.usos1") : t("ctxp.usosN", { n: it.usos })}</span>;
+  return <span className="cp-uso">{it.usos === 0 ? t("ctxp.usos0") : it.usos === 1 ? t("ctxp.usos1") : t("ctxp.usosN", { n: it.usos })}</span>;
 }
 
 function FilaItem({ it, uid, foco, estimado }: { it: Item; uid: string; foco: boolean; estimado: boolean }) {
@@ -177,38 +180,38 @@ function FilaItem({ it, uid, foco, estimado }: { it: Item; uid: string; foco: bo
   const apagado = it.apaga && apagados ? estaApagado(apagados, it.apaga) : false;
   const idHijos = useId();
   return (
-    <li id={`${uid}-${it.clave}`} className="cx-it" data-apagado={apagado ? "" : undefined} data-foco={foco ? "" : undefined}>
-      <div className="cx-it-nom">
+    <li id={`${uid}-${it.clave}`} className="cp-it" data-apagado={apagado ? "" : undefined} data-foco={foco ? "" : undefined}>
+      <div className="cp-it-nom">
         <b>{it.nombre}</b>
         {it.detalle ? <small title={it.detalle}>{it.detalle}</small> : null}
       </div>
-      <span className="cx-num" data-tip={estimado ? t("ctxp.estimado") : undefined}>
+      <span className="cp-num" data-tip={estimado ? t("ctxp.estimado") : undefined}>
         {it.tokens === null ? t("ctxp.sinTokens") : `${estimado ? "≈" : ""}${miles(it.tokens)}`}
       </span>
       <Interruptor x={it.apaga} nombre={it.nombre} protegida={it.protegida} />
-      <div className="cx-it-det">
+      <div className="cp-it-det">
         <Uso it={it} />
-        {it.diferida ? <span className="cx-etq">{t("ctxp.diferida")}</span> : null}
+        {it.diferida ? <span className="cp-etq">{t("ctxp.diferida")}</span> : null}
         {it.protegida ? (
-          <span className="cx-etq">
+          <span className="cp-etq">
             <Lock size={10} strokeWidth={2.2} aria-hidden />
             {t("ctxp.protegida")}
           </span>
         ) : null}
         {apagado ? (
-          <span className="cx-etq" data-apagada="">
+          <span className="cp-etq" data-apagada="">
             <X size={10} strokeWidth={2.6} aria-hidden />
             {t("ctxp.apagada")}
           </span>
         ) : null}
         {it.hijos.length ? (
-          <button type="button" className="cx-link" aria-expanded={hijos} aria-controls={idHijos} onClick={() => setHijos(!hijos)}>
+          <button type="button" className="cp-link" aria-expanded={hijos} aria-controls={idHijos} onClick={() => setHijos(!hijos)}>
             {hijos ? t("ctxp.ocultarHerramientas") : t("ctxp.verHerramientas", { n: it.hijos.length })}
           </button>
         ) : null}
       </div>
       {hijos ? (
-        <ul id={idHijos} className="cx-hijos" aria-label={t("ctxp.herramientasDe", { srv: it.nombre })}>
+        <ul id={idHijos} className="cp-hijos" aria-label={t("ctxp.herramientasDe", { srv: it.nombre })}>
           {it.hijos.map((h) => (
             <FilaItem key={h.clave} it={h} uid={`${uid}-${it.clave}`} foco={false} estimado={estimado} />
           ))}
@@ -238,13 +241,13 @@ function Detalle({ d, uid, inicial }: { d: Desglose; uid: string; inicial?: Cate
     if (foco) document.getElementById(`${uid}-${foco}`)?.scrollIntoView({ block: "nearest" });
   }, [foco, abierta, uid]);
   const vacio = motivoDe(d);
-  if (vacio && !cats.length) return <p className="cx-nada">{vacio}</p>;
+  if (vacio && !cats.length) return <p className="cp-nada">{vacio}</p>;
   return (
-    <div className="cx-det">
-      <p className="cx-uso-total">
+    <div className="cp-det">
+      <p className="cp-uso-total">
         {d.usado !== null && d.ventana ? (
           <>
-            <b className="cx-num">
+            <b className="cp-num">
               {d.estimado ? <span data-tip={t("ctxp.estimado")}>≈</span> : null}
               {t("ctxp.usadoDe", { usado: miles(d.usado), ventana: miles(d.ventana) })}
             </b>
@@ -252,40 +255,40 @@ function Detalle({ d, uid, inicial }: { d: Desglose; uid: string; inicial?: Cate
             {d.ventanaEstimada ? <span data-tip={t("ctxp.ventanaSupuesta")}>*</span> : null}
           </>
         ) : d.usado !== null ? (
-          <b className="cx-num">{t("ctxp.usado", { usado: miles(d.usado) })}</b>
+          <b className="cp-num">{t("ctxp.usado", { usado: miles(d.usado) })}</b>
         ) : null}
       </p>
       <Barra cats={cats} d={d} />
       <Mapa d={d} alElegir={elegir} />
-      <ul className="cx-cats">
+      <ul className="cp-cats">
         {cats.map((c) => {
           const items = CON_ITEMS.has(c.id) ? itemsDe(d, c.id, protegidas) : [];
           const abre = abierta === c.id;
           const idCuerpo = `${uid}-cat-${c.id}`;
           return (
-            <li key={c.id} className="cx-cat" data-cat={c.id} data-abierta={abre ? "" : undefined}>
+            <li key={c.id} className="cp-cat" data-cat={c.id} data-abierta={abre ? "" : undefined}>
               <h4>
                 <button type="button" aria-expanded={abre} aria-controls={idCuerpo} data-tip={t("ctxp.verDetalle", { cat: nombreCat(c.id) })} onClick={() => setAbierta(abre ? null : c.id)}>
-                  <i className="cx-color" aria-hidden />
-                  <span className="cx-cat-n">{nombreCat(c.id)}</span>
-                  <span className="cx-num" data-tip={c.estimado ? t("ctxp.estimado") : undefined}>
+                  <i className="cp-color" aria-hidden />
+                  <span className="cp-cat-n">{nombreCat(c.id)}</span>
+                  <span className="cp-num" data-tip={c.estimado ? t("ctxp.estimado") : undefined}>
                     {c.estimado ? "≈" : ""}
                     {miles(c.tokens)}
                   </span>
-                  <span className="cx-pct">{porcentaje(c.tokens, total)} %</span>
-                  <ChevronRight size={14} strokeWidth={2} className="cx-chev" aria-hidden />
+                  <span className="cp-pct">{porcentaje(c.tokens, total)} %</span>
+                  <ChevronRight size={14} strokeWidth={2} className="cp-chev" aria-hidden />
                 </button>
               </h4>
               {abre ? (
-                <div id={idCuerpo} className="cx-cuerpo">
+                <div id={idCuerpo} className="cp-cuerpo">
                   {items.length ? (
-                    <ul className="cx-items" aria-label={nombreCat(c.id)}>
+                    <ul className="cp-items" aria-label={nombreCat(c.id)}>
                       {items.map((it) => (
                         <FilaItem key={it.clave} it={it} uid={`${uid}-${c.id}`} foco={foco === it.clave} estimado={c.estimado || d.estimado} />
                       ))}
                     </ul>
                   ) : (
-                    <p className="cx-nada">{t(`ctxp.catDesc.${c.id}` as "ctxp.catDesc.sistema")}</p>
+                    <p className="cp-nada">{t(`ctxp.catDesc.${c.id}` as "ctxp.catDesc.sistema")}</p>
                   )}
                 </div>
               ) : null}
@@ -293,7 +296,7 @@ function Detalle({ d, uid, inicial }: { d: Desglose; uid: string; inicial?: Cate
           );
         })}
       </ul>
-      {vacio ? <p className="cx-nada">{vacio}</p> : null}
+      {vacio ? <p className="cp-nada">{vacio}</p> : null}
     </div>
   );
 }
@@ -301,9 +304,9 @@ function Detalle({ d, uid, inicial }: { d: Desglose; uid: string; inicial?: Cate
 // --- Líder y workers ------------------------------------------------------------------------------------------------------------------------
 
 function Cargando({ carga, alReintentar }: { carga: Carga | undefined; alReintentar: () => void }) {
-  if (!carga) return <p className="cx-nada">{t("ctxp.leyendo")}</p>;
+  if (!carga) return <p className="cp-nada">{t("ctxp.leyendo")}</p>;
   return (
-    <div className="cx-error" role="alert">
+    <div className="cp-error" role="alert">
       <p>{t("ctxp.error", { motivo: carga.error ?? "?" })}</p>
       <button type="button" className="btn2" onClick={alReintentar}>
         {t("ctxp.reintentar")}
@@ -320,37 +323,37 @@ function FilaWorker({ h, carga, abierto, alAlternar, alAbrir, alReintentar, inic
   const tipo = h.en_cola ? "cola" : (tipoDe(h, h.estado)?.tipo ?? "");
   const estado = h.en_cola ? t("ctxp.enCola") : (tipoDe(h, h.estado)?.texto ?? h.estado);
   return (
-    <li className="cx-w" data-abierto={abierto ? "" : undefined}>
-      <div className="cx-w-cab">
-        <button type="button" className="cx-w-btn" aria-expanded={abierto} aria-controls={id} onClick={alAlternar}>
-          <ChevronRight size={14} strokeWidth={2} className="cx-chev" aria-hidden />
-          <span className="cx-w-nom">
+    <li className="cp-w" data-abierto={abierto ? "" : undefined}>
+      <div className="cp-w-cab">
+        <button type="button" className="cp-w-btn" aria-expanded={abierto} aria-controls={id} onClick={alAlternar}>
+          <ChevronRight size={14} strokeWidth={2} className="cp-chev" aria-hidden />
+          <span className="cp-w-nom">
             <b>{tareaDe(h)}</b>
-            <span className="cx-w-est" data-tipo={tipo}>
+            <span className="cp-w-est" data-tipo={tipo}>
               <i aria-hidden />
               {estado}
             </span>
           </span>
           {d && d.fuente !== "sin-desglose" && d.ventana ? (
-            <span className="cx-w-mini">
-              <span className="cx-pct" data-tip={d.estimado ? t("ctxp.estimado") : undefined}>
+            <span className="cp-w-mini">
+              <span className="cp-pct" data-tip={d.estimado ? t("ctxp.estimado") : undefined}>
                 {d.estimado ? "≈" : ""}
                 {frac !== null ? Math.round(frac * 100) : 0} %
               </span>
               <Barra cats={cats} d={d} fina />
             </span>
           ) : (
-            <span className="cx-w-mini">
-              <span className="cx-pct">{carga ? t("comun.sinDato") : "…"}</span>
+            <span className="cp-w-mini">
+              <span className="cp-pct">{carga ? t("comun.sinDato") : "…"}</span>
             </span>
           )}
         </button>
-        <button type="button" className="cx-ico" aria-label={t("ctxp.abrirHilo", { n: tareaDe(h) })} data-tip={t("ctxp.abrirHilo", { n: tareaDe(h) })} onClick={alAbrir}>
+        <button type="button" className="cp-ico" aria-label={t("ctxp.abrirHilo", { n: tareaDe(h) })} data-tip={t("ctxp.abrirHilo", { n: tareaDe(h) })} onClick={alAbrir}>
           <ArrowUpRight size={14} strokeWidth={1.8} />
         </button>
       </div>
       {abierto ? (
-        <div id={id} className="cx-w-cuerpo">
+        <div id={id} className="cp-w-cuerpo">
           {d ? <Detalle d={d} uid={`w-${h.id}`} inicial={inicial} /> : <Cargando carga={carga} alReintentar={alReintentar} />}
         </div>
       ) : null}
@@ -366,31 +369,31 @@ function FilaSkill({ s, nunca }: { s: SkillCatalogo; nunca: boolean }) {
   const origen = s.origen === "plugin" || s.origen === "claudeai" ? pluginDeSkill(s) : s.origen === "proyecto" && s.de ? `${t("ctxp.origen.proyecto")}: ${s.de}` : t(`ctxp.origen.${s.origen}` as "ctxp.origen.usuario");
   const pluginOff = s.estado === "plugin-apagado";
   return (
-    <li className="cx-it cx-sk" data-apagado={apagada || pluginOff ? "" : undefined}>
-      <div className="cx-it-nom">
+    <li className="cp-it cp-sk" data-apagado={apagada || pluginOff ? "" : undefined}>
+      <div className="cp-it-nom">
         <b>{s.clave}</b>
         <small>{origen}</small>
       </div>
-      <span className="cx-num" data-tip={s.tokensEstimado ? t("ctxp.estimado") : undefined}>
+      <span className="cp-num" data-tip={s.tokensEstimado ? t("ctxp.estimado") : undefined}>
         {s.tokensEstimado ? "≈" : ""}
         {miles(s.tokens)}
       </span>
-      {pluginOff ? <span className="cx-sw-hueco" /> : <Interruptor x={{ tipo: "skills", nombre: s.clave }} nombre={s.clave} />}
-      <p className="cx-sk-desc">{s.descripcion}</p>
-      <div className="cx-it-det">
+      {pluginOff ? <span className="cp-sw-hueco" /> : <Interruptor x={{ tipo: "skills", nombre: s.clave }} nombre={s.clave} />}
+      <p className="cp-sk-desc">{s.descripcion}</p>
+      <div className="cp-it-det">
         {nunca && !apagada && !pluginOff ? (
-          <span className="cx-uso" data-nunca="">
+          <span className="cp-uso" data-nunca="">
             <CircleDashed size={11} strokeWidth={2.2} aria-hidden />
             {t("ctxp.usos0")}
           </span>
         ) : null}
         {apagada ? (
-          <span className="cx-etq" data-apagada="">
+          <span className="cp-etq" data-apagada="">
             <X size={10} strokeWidth={2.6} aria-hidden />
             {t("ctxp.apagada")}
           </span>
         ) : null}
-        {pluginOff ? <span className="cx-etq">{t("ctxp.pluginApagado")}</span> : null}
+        {pluginOff ? <span className="cp-etq">{t("ctxp.pluginApagado")}</span> : null}
       </div>
     </li>
   );
@@ -431,27 +434,27 @@ function CatalogoSkills({ sid, desgloses }: { sid: string | null; desgloses: Des
   const activas = lista.filter((s) => s.estado === "activa").length;
   useEffect(() => setLimite(PAGINA_SKILLS), [f]);
   if (error) return <Cargando carga={{ d: null, error }} alReintentar={() => setIntento(intento + 1)} />;
-  if (!cat) return <p className="cx-nada">{t("ctxp.leyendo")}</p>;
+  if (!cat) return <p className="cp-nada">{t("ctxp.leyendo")}</p>;
   const filtros: [FiltroSkills["solo"], string][] = [
     ["todas", "ctxp.f.todas"],
     ["apagadas", "ctxp.f.apagadas"],
     ["nunca", "ctxp.f.nunca"],
   ];
   return (
-    <div className="cx-cat-skills">
-      <label className="cx-buscar" htmlFor={entrada}>
+    <div className="cp-cat-skills">
+      <label className="cp-buscar" htmlFor={entrada}>
         <Search size={14} strokeWidth={1.8} aria-hidden />
         <input id={entrada} type="search" value={f.q} placeholder={t("ctxp.buscar")} aria-label={t("ctxp.buscarEtq")} spellCheck={false} autoComplete="off" onChange={(e) => setF({ ...f, q: e.target.value })} />
       </label>
-      <div className="cx-filtros" role="group" aria-label={t("ctxp.filtros")}>
+      <div className="cp-filtros" role="group" aria-label={t("ctxp.filtros")}>
         {filtros.map(([k, etq]) => (
-          <button key={k} type="button" className="cx-chip" aria-pressed={f.solo === k} onClick={() => setF({ ...f, solo: k })}>
+          <button key={k} type="button" className="cp-chip" aria-pressed={f.solo === k} onClick={() => setF({ ...f, solo: k })}>
             {t(etq as "ctxp.f.todas")}
           </button>
         ))}
         {plugins.length ? (
-          <label className="cx-plugin">
-            <span className="cx-sr">{t("ctxp.plugin")}</span>
+          <label className="cp-plugin">
+            <span className="cp-sr">{t("ctxp.plugin")}</span>
             <select value={f.plugin} onChange={(e) => setF({ ...f, plugin: e.target.value })}>
               <option value="">{t("ctxp.pluginTodos")}</option>
               {plugins.map((p) => (
@@ -463,19 +466,19 @@ function CatalogoSkills({ sid, desgloses }: { sid: string | null; desgloses: Des
           </label>
         ) : null}
       </div>
-      <p className="cx-cuenta" role="status">
+      <p className="cp-cuenta" role="status">
         {t("ctxp.cuenta", { n: mostradas.length, total: lista.length })}
         <span>{t("ctxp.activasPesan", { n: activas, tokens: miles(pesan) })}</span>
       </p>
-      {f.solo === "nunca" && !sabe ? <p className="cx-nada">{t("ctxp.nuncaSinDato")}</p> : null}
-      {mostradas.length === 0 && !(f.solo === "nunca" && !sabe) ? <p className="cx-nada">{t("ctxp.sinResultados")}</p> : null}
-      <ul className="cx-items">
+      {f.solo === "nunca" && !sabe ? <p className="cp-nada">{t("ctxp.nuncaSinDato")}</p> : null}
+      {mostradas.length === 0 && !(f.solo === "nunca" && !sabe) ? <p className="cp-nada">{t("ctxp.sinResultados")}</p> : null}
+      <ul className="cp-items">
         {mostradas.slice(0, limite).map((s) => (
           <FilaSkill key={s.id} s={s} nunca={sabe && !vistas.has(s.clave) && !vistas.has(s.nombre)} />
         ))}
       </ul>
       {mostradas.length > limite ? (
-        <button type="button" className="btn2 cx-mas" onClick={() => setLimite(limite + PAGINA_SKILLS)}>
+        <button type="button" className="btn2 cp-mas" onClick={() => setLimite(limite + PAGINA_SKILLS)}>
           {t("ctxp.masSkills", { n: mostradas.length - limite })}
         </button>
       ) : null}
@@ -576,51 +579,51 @@ export const PanelContexto = memo(function PanelContexto({ lider, workers, alCer
 
   return (
     <Acc.Provider value={acciones}>
-      <aside className="cs cx" aria-label={t("ctxp.titulo")}>
-        <header className="cx-cab">
+      <aside className="cs cp" aria-label={t("ctxp.titulo")}>
+        <header className="cp-cab">
           <button type="button" className="lado" aria-label={angosto ? t("comun.aLista") : t("ctxp.ocultar")} data-tip={angosto ? t("comun.aLista") : t("ctxp.ocultar")} onClick={alCerrar}>
             {angosto ? <ArrowLeft size={18} strokeWidth={1.8} /> : <PanelRightClose size={16} strokeWidth={1.8} />}
           </button>
           <b>{t("ctxp.titulo")}</b>
-          <button type="button" className="cx-ico" aria-label={t("ctxp.actualizar")} data-tip={t("ctxp.actualizar")} onClick={() => setRefresco((n) => n + 1)}>
+          <button type="button" className="cp-ico" aria-label={t("ctxp.actualizar")} data-tip={t("ctxp.actualizar")} onClick={() => setRefresco((n) => n + 1)}>
             <RefreshCw size={14} strokeWidth={1.8} />
           </button>
         </header>
-        <div className="cx-aviso">
+        <div className="cp-aviso">
           <p>{puede ? t("ctxp.aviso") : t("ctxp.soloPc")}</p>
-          <p className="cx-vivo" role={aviso && !aviso.ok ? "alert" : "status"} data-error={aviso && !aviso.ok ? "" : undefined}>
+          <p className="cp-vivo" role={aviso && !aviso.ok ? "alert" : "status"} data-error={aviso && !aviso.ok ? "" : undefined}>
             {aviso?.texto}
           </p>
         </div>
-        <div className="cx-pestanas" role="tablist" aria-label={t("ctxp.pestanas")}>
+        <div className="cp-pestanas" role="tablist" aria-label={t("ctxp.pestanas")}>
           {pestanas.map(([k, etq]) => (
-            <button key={k} type="button" role="tab" id={`cx-tab-${k}`} data-pestana={k} aria-selected={pestana === k} aria-controls={`cx-pan-${k}`} tabIndex={pestana === k ? 0 : -1} onClick={() => setPestana(k)} onKeyDown={tecla}>
+            <button key={k} type="button" role="tab" id={`cp-tab-${k}`} data-pestana={k} aria-selected={pestana === k} aria-controls={`cp-pan-${k}`} tabIndex={pestana === k ? 0 : -1} onClick={() => setPestana(k)} onKeyDown={tecla}>
               {t(etq as "ctxp.sesiones")}
             </button>
           ))}
         </div>
-        <div className="cx-cuerpo-panel" role="tabpanel" id={`cx-pan-${pestana}`} aria-labelledby={`cx-tab-${pestana}`}>
+        <div className="cp-cuerpo-panel" role="tabpanel" id={`cp-pan-${pestana}`} aria-labelledby={`cp-tab-${pestana}`}>
           {pestana === "sesiones" ? (
             !lider ? (
-              <p className="cx-nada">{t("ctxp.sinLider")}</p>
+              <p className="cp-nada">{t("ctxp.sinLider")}</p>
             ) : (
               <>
-                <section className="cx-sesion" aria-label={t("ctxp.lider")}>
-                  <h3 className="cx-h">
+                <section className="cp-sesion" aria-label={t("ctxp.lider")}>
+                  <h3 className="cp-h">
                     <span>{t("ctxp.lider")}</span>
                     <b>{lider.nombre || t("lider.sesionJefe")}</b>
                     {lider.modelo ? <small>{nombreModelo(modeloDe(lider.modelo) ?? lider.modelo)}</small> : null}
                   </h3>
                   {deLider?.d ? <Detalle key={lider.id} d={deLider.d} uid={`l-${lider.id}`} inicial={MODO.captura === "contexto-panel-cat" ? "skills" : null} /> : <Cargando carga={deLider} alReintentar={() => setRefresco((n) => n + 1)} />}
                 </section>
-                <section className="cx-sesion" aria-label={t("ctxp.workers", { n: workers.length })}>
-                  <h3 className="cx-h">
+                <section className="cp-sesion" aria-label={t("ctxp.workers", { n: workers.length })}>
+                  <h3 className="cp-h">
                     <span>{t("ctxp.workers", { n: workers.length })}</span>
                   </h3>
                   {workers.length === 0 ? (
-                    <p className="cx-nada">{t("ctxp.sinWorkers")}</p>
+                    <p className="cp-nada">{t("ctxp.sinWorkers")}</p>
                   ) : (
-                    <ul className="cx-ws">
+                    <ul className="cp-ws">
                       {topeWorkers.map((h) => (
                         <FilaWorker
                           key={h.id}

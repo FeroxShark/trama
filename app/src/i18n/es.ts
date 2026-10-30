@@ -1198,6 +1198,7 @@ export const es: { [K in keyof typeof en]: string } = {
   "ctxp.catDesc.reserva": "Lugar que queda libre para poder compactar la conversación.",
   "ctxp.mapa": "Mapa de lo más pesado",
   "ctxp.mapaBloque": "{nombre}, {cat}: {tokens} tokens, {pct} %. Abrir su detalle.",
+  "ctxp.resto": "Resto",
   "ctxp.mapaResto": "Cosas más chicas, {tokens} tokens juntas",
   "ctxp.mapaCat": "{cat} (el resto)",
   "ctxp.verDetalle": "Ver el detalle de {cat}",
