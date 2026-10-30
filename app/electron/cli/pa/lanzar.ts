@@ -287,6 +287,44 @@ const TXT_PRO =
 const TXT_ABANICO =
   'Abanico de Haikus: cuando muchos intentos verificables valen más que uno pensado (buscar algo que un grep no encuentra, revisar muchos archivos o candidatos, probar variantes contra un test o chequeo), repartilo en paralelo entre subagentes (Agent con model "haiku" y effort xhigh si se puede; hasta ~10, un pedazo cada uno, que devuelvan algo verificable) y verificá vos. No para diseño, decisiones ni código donde un intento malo cuesta caro. Esos subagentes no son delegar: siguen siendo tu trabajo.';
 
+/** Las skills de diseño que un worker de frontend o diseño carga al empezar, si están instaladas (la misma lista que `motor/bin/pa`). */
+export const SKILLS_DISENO = ["frontend-design:frontend-design", "ui-ux-pro-max", "taste-skill"];
+
+/** Lo que hay en `~/.claude/settings.json` (`enabledPlugins`) y en `plugins/installed_plugins.json` (`plugins`). */
+interface PluginsClaude {
+  enabledPlugins?: Record<string, unknown>;
+  plugins?: Record<string, { installPath?: string }[]>;
+}
+
+/** Un JSON de `~/.claude`; si falta o está roto, null. */
+function leerJsonClaude<T>(f: string): T | null {
+  try {
+    return JSON.parse(readFileSync(f, "utf8")) as T;
+  } catch {
+    return null;
+  }
+}
+
+/** Las de `SKILLS_DISENO` que están instaladas: `nombre` con su `SKILL.md` en `~/.claude/skills`, o `plugin:skill` con el plugin habilitado (`enabledPlugins`, true) y `skills/<skill>/SKILL.md` en su installPath. */
+export function skillsDisenoInstaladas(home: string): string[] {
+  const claude = path.join(home, ".claude");
+  const habilitados = leerJsonClaude<PluginsClaude>(path.join(claude, "settings.json"))?.enabledPlugins ?? {};
+  const instalados = leerJsonClaude<PluginsClaude>(path.join(claude, "plugins", "installed_plugins.json"))?.plugins ?? {};
+  return SKILLS_DISENO.filter((s) => {
+    if (!s.includes(":")) return existsSync(path.join(claude, "skills", s, "SKILL.md"));
+    const [plugin, skill] = s.split(":");
+    return Object.keys(habilitados).some(
+      (k) => habilitados[k] === true && k.split("@")[0] === plugin && (instalados[k] ?? []).some((e) => !!e.installPath && existsSync(path.join(e.installPath, "skills", skill!, "SKILL.md"))),
+    );
+  });
+}
+
+/** La línea del contrato que obliga a cargar esas skills al empezar ("" si no hay ninguna). */
+export function lineaSkillsDiseno(instaladas: string[]): string {
+  if (!instaladas.length) return "";
+  return `Al empezar, antes de tocar nada, cargá con la herramienta Skill estas skills de diseño, que están instaladas en esta máquina: ${instaladas.join(", ")}. Son parte del trabajo de interfaz, no opcionales.`;
+}
+
 /** El bloque del proyecto en el mapa de interconexiones (`mapa_proy`; PA_MAPA_DIR sólo para los tests). */
 export const mapaDe = (pa: Pa, slug: string) => path.join(pa.env.PA_MAPA_DIR || path.join(pa.env.XDG_CONFIG_HOME || path.join(pa.home, ".config"), "trama", "mapa"), `${slug}.md`);
 
@@ -295,6 +333,11 @@ export function contratoClaude(pa: Pa, c: Corrida): string {
   let k = contratoBase(c.motor ?? "claude", c.jefe);
   k = conDueno(k, pa.env, pa.home).replace(/\n+$/, "");
   if (!c.leer && c.modeloFlojo) k += `\n${TXT_FLOJO}`;
+  // Un worker de frontend o diseño carga las skills de diseño instaladas al empezar (la herramienta Skill sólo existe en claude).
+  if (!c.leer && (c.motor ?? "claude") === "claude" && (c.tipo === "frontend" || c.tipo === "diseno")) {
+    const linea = lineaSkillsDiseno(skillsDisenoInstaladas(pa.home));
+    if (linea) k += `\n${linea}`;
+  }
   if (!c.leer) k += leccionesBloque(path.join(pa.state, c.slug));
   if (c.actualizar) {
     const sha = c.actualizar.shaMain;
