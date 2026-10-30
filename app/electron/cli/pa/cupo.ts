@@ -121,6 +121,18 @@ export const claudeSinCupo = (texto: string) => /session limit|usage limit|weekl
 /** `agy_modelo_invalido`: agy no conoce el modelo (el catálogo depende de la cuenta, la región y la versión). */
 export const agyModeloInvalido = (texto: string) => /invalid model selection|model .* is not recognized/i.test(texto);
 
+/** `agy_sin_cupo`: agy contesta RESOURCE_EXHAUSTED / "Individual quota reached" (o un 429) cuando el grupo se quedó sin cupo. */
+export const agySinCupo = (texto: string) => /RESOURCE_EXHAUSTED|Individual quota reached|(^|[^0-9])429([^0-9]|$)/i.test(texto);
+
+/** Cuándo vuelve el cupo según agy ("Resets in 149h", "resets after 6d 5h 3m"): epoch en segundos, o null si el texto no lo dice. */
+export function agyResetHasta(texto: string, ahoraS: number): number | null {
+  const m = /resets?\s+(?:in|after)\s+((?:\d+\s*[dhm]\s*)+)/i.exec(texto);
+  if (!m) return null;
+  let s = 0;
+  for (const x of m[1]!.matchAll(/(\d+)\s*([dhm])/gi)) s += Number(x[1]) * { d: 86400, h: 3600, m: 60 }[x[2]!.toLowerCase() as "d" | "h" | "m"];
+  return s > 0 ? ahoraS + s : null;
+}
+
 /** `sin_trabajo_hecho`: el worktree está limpio y no hay commits sobre la base. */
 async function sinTrabajoHecho(pa: Pa, c: Corrida): Promise<boolean> {
   const s = await git(["-C", c.rutaTrabajo, "status", "--porcelain"], { env: pa.env });
@@ -190,6 +202,81 @@ async function relanzarPorModeloAgy(pa: Pa, l: Llamada, lz: Lanzamiento): Promis
 
 const iso = (ep: number) => new Date(ep * 1000).toISOString().replace(/\.\d+Z$/, "Z");
 
+/** cambiar_de_modelo (Claude): modelo, effort, cuenta y, si no se retoma una sesión, sesión nueva (la del intento que chocó el límite puede haber quedado creada). */
+async function pasarAClaude(pa: Pa, lz: Lanzamiento, mRep: string, effort: string, cuenta: { cuenta: string; env: NonNullable<Corrida["cuentaEnv"]> }): Promise<void> {
+  const c = lz.c;
+  c.motor = "claude";
+  c.modelo = mRep;
+  c.esfuerzo = effort;
+  c.efVacio = "";
+  c.cuenta = cuenta.cuenta;
+  c.cuentaEnv = cuenta.env;
+  if (!c.resume) {
+    c.sid = randomUUID();
+    try {
+      writeFileSync(path.join(lz.dir, `${c.ts}.sid`), c.sid);
+    } catch {
+      /* nada */
+    }
+  }
+  lz.transcript = path.join(carpetaProyectos(pa), escapar(c.rutaTrabajo), `${c.sid}.jsonl`);
+  c.autocompact = new Modelos(pa.env, pa.io, pa.home, pa.plat).autocompactDe(mRep, pa.autocompact);
+  if (!c.leer) c.modeloFlojo = (await modeloFlojo(pa, { reparto: repartoProceso(pa) } as DepsPolitica, mRep)) !== null;
+  lz.contrato = contratoClaude(pa, c);
+  if (existsSync(path.join(lz.dir, `${c.ts}.hilo`))) {
+    await hiloPoner(lz.dir, c.ts, "modelo", mRep);
+    await hiloPoner(lz.dir, c.ts, "effort", effort || "settings");
+    await hiloPoner(lz.dir, c.ts, "cuenta", cuenta.cuenta);
+  }
+}
+
+/**
+ * Un `-m` a mano (o sustituido por agy) que agy corta por cupo al arrancar, sin trabajo hecho y sin tipo de reparto para elegir otro: ese
+ * camino queda agotado hasta el reset que diga agy (`reparto --agotar`) y, con sin_cupo=otro, la corrida sigue con el MISMO modelo por el
+ * Claude oficial (`reparto --otro-camino`), sin tocar de cuenta de Claude. null = no es este caso; false = no se pudo relanzar; true = cambió.
+ */
+async function relanzarPorOtroCamino(pa: Pa, l: Llamada, lz: Lanzamiento): Promise<boolean | null> {
+  const c = lz.c;
+  if (c.motor !== "agy" || l.repartoTipoRelanzable || !comandoReparto(pa)) return null;
+  let err = "";
+  try {
+    err = readFileSync(lz.err, "utf8");
+  } catch {
+    /* sin stderr */
+  }
+  const texto = `${err}\n${textoResultado(leerSalida(lz.out))}`;
+  if (!agySinCupo(texto) || !(await sinTrabajoHecho(pa, c))) return null;
+  const { io } = pa;
+  const mAnt = c.modelo;
+  const hasta = agyResetHasta(texto, Math.floor(Date.now() / 1000));
+  await reparto(pa, ["--agotar", mAnt, ...(hasta !== null ? ["--hasta", iso(hasta)] : []), ...(c.cuenta ? ["--cuenta", c.cuenta] : [])], false);
+  if (l.politica.sinCupo !== "otro") return false;
+  const r = await reparto(pa, ["--otro-camino", mAnt, "--json"], true);
+  const cand = r.rc === 0 ? candidatoDe(r.salida) : candidatoDe("");
+  const camino = (() => {
+    try {
+      return (JSON.parse(r.salida) as { camino?: unknown }).camino === true;
+    } catch {
+      return false;
+    }
+  })();
+  const sinOtro = () => io.err(`pa: agy dijo sin cupo con ${mAnt}, lo marqué como agotado, pero no hay otro camino con cupo para el mismo modelo; sigo como falló.\n`);
+  if (!camino || !cand.modelo) {
+    sinOtro();
+    return false;
+  }
+  const pRep = proveedorDe(cand.modelo);
+  const cRep = cand.cuenta && cuentaProveedor(cand.cuenta, pa) === pRep ? cand.cuenta : pRep;
+  const cuenta = await prepararCuenta(pa, cRep, pRep);
+  if (!cuenta) {
+    sinOtro();
+    return false;
+  }
+  io.err(`pa: agy dijo sin cupo con ${mAnt}: lo marco agotado hasta que vuelva y relanzo con ${cand.modelo}${cand.effort ? ` effort ${cand.effort}` : ""}: ${cand.motivo}\n`);
+  await pasarAClaude(pa, lz, cand.modelo, cand.effort, cuenta);
+  return true;
+}
+
 /**
  * El gancho `relanzarPorCupo` de `lanzarClaude`: si el Claude oficial dijo límite al arrancar (sin trabajo hecho) y el modelo lo había
  * elegido reparto, marca agotado el grupo hasta su reset y cambia la corrida al candidato que reparto ofrece ahora, con la misma sesión
@@ -199,6 +286,8 @@ export function relanzarPorCupo(pa: Pa, l: Llamada): NonNullable<Ganchos["relanz
   return async (lz: Lanzamiento) => {
     const rechazo = await relanzarPorModeloAgy(pa, l, lz);
     if (rechazo !== null) return rechazo;
+    const otroCamino = await relanzarPorOtroCamino(pa, l, lz);
+    if (otroCamino !== null) return otroCamino;
     const tipo = l.repartoTipoRelanzable;
     if (l.politica.sinCupo !== "otro" || !tipo || !comandoReparto(pa)) return false;
     const c = lz.c;
@@ -244,29 +333,7 @@ export function relanzarPorCupo(pa: Pa, l: Llamada): NonNullable<Ganchos["relanz
     const cTxt = cuenta.cuenta !== cAnt && !["claude", "google", "chatgpt"].includes(cuenta.cuenta) ? ` (cuenta ${cuenta.cuenta})` : "";
     io.err(`pa: ${quien} (sin cupo) con ${mAnt}: lo marco agotado hasta que vuelva y relanzo con ${mRep}${cand.effort ? ` effort ${cand.effort}` : ""}${cTxt}: ${cand.motivo}\n`);
 
-    // cambiar_de_modelo (Claude): modelo, effort, cuenta y, si no se retoma una sesión, sesión nueva (la del intento que chocó el límite puede haber quedado creada).
-    c.modelo = mRep;
-    c.esfuerzo = cand.effort;
-    c.efVacio = "";
-    c.cuenta = cuenta.cuenta;
-    c.cuentaEnv = cuenta.env;
-    if (!c.resume) {
-      c.sid = randomUUID();
-      try {
-        writeFileSync(path.join(lz.dir, `${c.ts}.sid`), c.sid);
-      } catch {
-        /* nada */
-      }
-    }
-    lz.transcript = path.join(carpetaProyectos(pa), escapar(c.rutaTrabajo), `${c.sid}.jsonl`);
-    c.autocompact = new Modelos(pa.env, io, pa.home, pa.plat).autocompactDe(mRep, pa.autocompact);
-    if (!c.leer) c.modeloFlojo = (await modeloFlojo(pa, { reparto: repartoProceso(pa) } as DepsPolitica, mRep)) !== null;
-    lz.contrato = contratoClaude(pa, c);
-    if (existsSync(path.join(lz.dir, `${c.ts}.hilo`))) {
-      await hiloPoner(lz.dir, c.ts, "modelo", mRep);
-      await hiloPoner(lz.dir, c.ts, "effort", cand.effort || "settings");
-      await hiloPoner(lz.dir, c.ts, "cuenta", cuenta.cuenta);
-    }
+    await pasarAClaude(pa, lz, mRep, cand.effort, cuenta);
     return true;
   };
 }

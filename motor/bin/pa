@@ -88,6 +88,8 @@
 #                                        cualquier fable, salvo con --ok-dueno
 #   pa <proyecto> --ok-dueno ...         el dueño aprobó ESTA corrida: deja pasar opus max, sonnet max y fable.
 #                                        Sin variable de entorno; un --seguir no lo hereda (va de nuevo)
+#   pa <proyecto> --exacto -m claude-* ... el -m claude-opus/sonnet corre tal cual en Claude. Sin esto, si el mismo modelo por agy
+#                                        tiene más cupo libre (reparto --sustituir), pa lo pasa a agy y lo avisa. Se anota en sustituciones.jsonl
 #   pa <proyecto> --tipo <tipo> "<t>"    clasificar la corrida (o env PA_TIPO): mecanico | lectura | codigo-acotado |
 #                                        codigo-multi | frontend | diseno | debug | final. Va a medicion.tsv y al .hilo;
 #                                        es lo que agrupa `pa --rinde`. Un --seguir sin --tipo hereda el de la retomada
@@ -5291,6 +5293,8 @@ subtarea="${PA_SUBTAREA:-}"
 # --ok-dueno: el dueño aprobó esta corrida (opus max, sonnet max, fable). Sólo por flag, a propósito:
 # una variable de entorno se hereda de una llamada a la otra y la aprobación es por corrida.
 ok_dueno=0 modelo_de_m=0
+# --exacto: el -m claude-* corre tal cual, sin pasarlo a agy aunque allá haya más cupo libre.
+exacto=0 sustituido_de=""
 # Orquestación (2026-10-26): brief desde archivo, AGENTS.md, lecciones, auditoría de una rama.
 brief_archivo=""; agents_md=0; unificar_md=0; aplicar=0; lecciones=0; lecciones_podar=0; leccion=""; auditar=""; decisiones=""
 # Item 4 del protocolo de revisión (2026-10-27): el espejo y el test inline (ver el bloque de --espejo más abajo).
@@ -5425,6 +5429,7 @@ while [[ $# -gt 0 ]]; do
     --subtarea)        subtarea="$2"; shift 2 ;;
     --rubrica)         rubrica="$2"; shift 2 ;;
     --ok-dueno)        ok_dueno=1; shift ;;
+    --exacto)          exacto=1; shift ;;
     --cuenta)          cuenta_flag="$2"; shift 2 ;;
     --)                shift; tarea="$*"; break ;;
     -*)                # alias: --ok-<nombre del dueño en minúscula> (el nombre viejo del flag)
@@ -5529,7 +5534,7 @@ elegir_con_reparto() {
   local tipo_rep="$1" no_disp="${2:-}" rep_rc rep_json m_rep e_rep mot_rep base_rep
   rep_rc=0; rep_json=""
   if [[ -x "$REPARTO" ]]; then
-    rep_json="$(REPARTO_RESERVAR=1 REPARTO_SIN_DSH="$( (( leer )) && echo 1)" REPARTO_NO_DISPONIBLE="$no_disp" REPARTO_STATE="${REPARTO_STATE:-$STATE/reparto}" PA_STATE="$STATE" \
+    rep_json="$(REPARTO_RESERVAR=1 REPARTO_SIN_DSH="$( (( leer )) && echo 1)" REPARTO_NO_DISPONIBLE="$no_disp" REPARTO_CON_CHEQUEO="$(grep -qiE 'C[oó]mo verificar|Listo cuando' <<<"$tarea" && echo 1)" REPARTO_STATE="${REPARTO_STATE:-$STATE/reparto}" PA_STATE="$STATE" \
       timeout "${PA_REPARTO_TIMEOUT_S:-15}" "$REPARTO" --tipo "$tipo_rep" ${cuenta_flag:+--cuenta "$cuenta_flag"} --json 2>/dev/null </dev/null)" || rep_rc=$?
   else
     rep_rc=127
@@ -5649,6 +5654,22 @@ if (( lanza && ! seguir )) && [[ -z "${PA_ASYNC:-}" ]]; then
     fi
   fi
 fi
+# --- Un -m claude-* (opus o sonnet) con el mismo modelo por agy y más cupo libre allá: corre por agy (el cupo de Claude es de la semana de la
+# persona). --exacto lo evita; frontend y diseno (necesitan Skill), xhigh/max, --seguir, --aca, --mcp y --max-budget-usd quedan en Claude.
+# El candado de siempre sigue: si agy no puede correr (plugin, privacidad), cae al equivalente Claude. Cada sustitución se anota (reparto --registrar).
+sustituido_de=""
+if (( lanza && ! seguir && ! exacto && ! aca && ! con_mcp )) && [[ -z "${PA_ASYNC:-}" && -n "$modelo_pedido" && -z "$max_budget" && -n "$tarea$actualizar" \
+     && "${modelo,,}" == @(claude-opus-*|claude-sonnet-*) && -x "$REPARTO" && "$(modelos_reparto)" == auto ]] && (( ! vino_de_reparto )); then
+  sus_tipo="$tipo"
+  if [[ -z "$sus_tipo" ]] && (( leer )); then sus_tipo=lectura; fi
+  sus_json="$(REPARTO_STATE="${REPARTO_STATE:-$STATE/reparto}" PA_STATE="$STATE" timeout "${PA_REPARTO_TIMEOUT_S:-15}" "$REPARTO" --sustituir "$modelo" \
+    ${sus_tipo:+--tipo "$sus_tipo"} ${esfuerzo:+--effort "${esfuerzo,,}"} --registrar --json 2>/dev/null </dev/null)" || sus_json=""
+  if [[ "$(jq -r '.sustituir // false' <<<"$sus_json" 2>/dev/null)" == true && -n "$(jq -r '.a // ""' <<<"$sus_json" 2>/dev/null)" ]]; then
+    sus_a="$(jq -r '.a' <<<"$sus_json")"; sus_mot="$(jq -r '.motivo // ""' <<<"$sus_json")"
+    echo "pa: $modelo → $sus_a: $sus_mot. Con --exacto corre tal cual." >&2
+    sustituido_de="$modelo"; modelo="$sus_a"; esfuerzo_flag=0; esfuerzo=""; unset PA_EFFORT
+  fi
+fi
 # --- Lo que reparto eligió y ahora no sirve (plugin de agy sin cargar, codex sin sesión, dsh sin instalar, un Claude con el límite de
 # la cuenta a la vista) no se lanza ni cae a un Claude que tampoco va: se le pide a reparto el siguiente candidato sin ese (a lo sumo 4
 # veces). Si reparto no da otro, sigue el camino de siempre (el equivalente Claude, o 95/96).
@@ -5727,7 +5748,7 @@ if (( lanza )) && es_gemini "$modelo"; then
     if [[ "$chequeado" == "$modelo" ]]; then motivo_cae=""; else gemini_chequear "$modelo"; fi
     if [[ -z "$motivo_cae" ]]; then
       motor=agy
-    elif (( vino_de_reparto )) || [[ "$SIN_CUPO" == otro ]]; then
+    elif (( vino_de_reparto )) || [[ -n "$sustituido_de" || "$SIN_CUPO" == otro ]]; then
       read -r m_eq e_eq <<<"$(gemini_equivalente "$modelo")"
       echo "pa: $modelo → $m_eq effort $e_eq: $motivo_cae." >&2
       gemini_pedido="$modelo"; modelo="$m_eq"; esfuerzo="$e_eq"; export PA_EFFORT="$e_eq"

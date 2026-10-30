@@ -90,6 +90,8 @@ export const AYUDA: readonly string[] = [
   "                                       cualquier fable, salvo con --ok-dueno",
   "  pa <proyecto> --ok-dueno ...         el dueño aprobó ESTA corrida: deja pasar opus max, sonnet max y fable.",
   "                                       Sin variable de entorno; un --seguir no lo hereda (va de nuevo)",
+  "  pa <proyecto> --exacto -m claude-* ... el -m claude-opus/sonnet corre tal cual en Claude. Sin esto, si el mismo modelo por agy",
+  "                                       tiene más cupo libre (reparto --sustituir), pa lo pasa a agy y lo avisa. Se anota en sustituciones.jsonl",
   "  pa <proyecto> --tipo <tipo> \"<t>\"    clasificar la corrida (o env PA_TIPO): mecanico | lectura | codigo-acotado |",
   "                                       codigo-multi | frontend | diseno | debug | final. Va a medicion.tsv y al .hilo;",
   "                                       es lo que agrupa `pa --rinde`. Un --seguir sin --tipo hereda el de la retomada",

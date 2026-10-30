@@ -18,7 +18,7 @@ import { argsHijo, lanzarAsync } from "./async.ts";
 import { armarActualizar } from "./auditar.ts";
 import { esArchivo, idCorrida, leerCampo, leerTexto, listar } from "./corridas.ts";
 import { jefeId, jefeNombre, type Env, type Pa } from "./entorno.ts";
-import { carpetaProyectos, claudeFalla, claudeRc, escapar, limiteDe, lanzarClaude, type Corrida, type Ganchos, type OpcionesLanzar } from "./lanzar.ts";
+import { carpetaProyectos, claudeFalla, claudeRc, correrClaude, escapar, limiteDe, lanzarClaude, type Corrida, type Ganchos, type OpcionesLanzar } from "./lanzar.ts";
 import { TIPOS_VALIDOS } from "./modelos.ts";
 import { Admision, avisarParalelo, otrosWriters, runningVivo } from "./puestos.ts";
 import { esperarCupo, relanzarPorCupo, relanzarPorFallback } from "./cupo.ts";
@@ -32,6 +32,11 @@ import { ORDEN_PARAR } from "./matar.ts";
 import { Modelos } from "./modelos.ts";
 import { dshProveedor, esNvidia, esOpencode, horasEnfriar } from "./motores/modelos.ts";
 import { cuentaEnvDe, ejecutarOtro, esMotorOtro, localesDe } from "./otros-motores.ts";
+
+
+/** `ejecutar` de los motores de otro: decide por el motor DE AHORA, porque `relanzarPorCupo` puede pasar una corrida de agy a Claude (otro camino). */
+const ejecutarOtraVez = (claude?: string): NonNullable<OpcionesLanzar["ejecutar"]> => (lz, op) =>
+  esMotorOtro(lz.c.motor) ? ejecutarOtro(lz, op) : correrClaude(lz, { claude, alArrancar: op.alArrancar });
 
 export interface OpcionesOrquesta extends OpcionesLanzar {
   /** Ganchos que se suman a los propios (medir, tablero…). */
@@ -510,7 +515,7 @@ async function orquestar(l: Llamada, pa: Pa, p: ProyectoCli, o: OpcionesOrquesta
       },
     });
     // pa --parar / --matar: en Windows por el canal de control del lock; en Linux, SIGTERM
-    const rc = await lanzarClaude(paRun, c, { ...o, ganchos: g, senal: o.senal ?? parar.signal, ejecutar: o.ejecutar ?? (esMotorOtro(motor) ? ejecutarOtro : undefined) });
+    const rc = await lanzarClaude(paRun, c, { ...o, ganchos: g, senal: o.senal ?? parar.signal, ejecutar: o.ejecutar ?? (esMotorOtro(motor) ? ejecutarOtraVez(o.claude) : undefined) });
     return rc;
   } finally {
     await adm.soltarTodo();
