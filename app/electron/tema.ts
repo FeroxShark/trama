@@ -132,7 +132,8 @@ export function tituloCorto(s: string): string {
     const i = corte.lastIndexOf(" ");
     f = `${(i > 20 ? corte.slice(0, i) : corte).replace(/[\s,;:.-]+$/u, "")}…`;
   }
-  return f ? f[0].toLocaleUpperCase() + f.slice(1) : "";
+  // Mayúscula inicial sólo si se le sacó el saludo o la presentación: lo que la persona escribió tal cual se deja tal cual.
+  return f && t !== base ? f[0].toLocaleUpperCase() + f.slice(1) : f;
 }
 
 /**
