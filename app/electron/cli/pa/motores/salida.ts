@@ -63,7 +63,8 @@ const leerSinFinal = (f: string) => {
 
 /**
  * agy (stream-json) → el .json de pa: result, is_error, num_turns (respuestas del modelo), duration_ms, modelUsage (tokens de los
- * step_update.usage; input_tokens de agy ya incluye lo leído de caché) y total_cost_usd 0 (cupo de Google AI Pro). Sin session_id.
+ * step_update.usage; input_tokens de agy NO incluye lo leído de caché: va aparte en cache_read_tokens, y hay steps con más caché que
+ * input) y total_cost_usd 0 (cupo de Google AI Pro). Sin session_id.
  */
 export function agyAJson(stream: string, err: string, modelo: string, rc: number): Obj {
   const ev = eventos(stream);
@@ -93,7 +94,8 @@ export function agyAJson(stream: string, err: string, modelo: string, rc: number
         ? {}
         : {
             [modelo]: {
-              inputTokens: suma(u.map((x) => num(alt(de(x, "input_tokens"), 0)) - num(alt(de(x, "cache_read_tokens"), 0)))),
+              // Sin restar la caché (agy ya la trae aparte); la red de abajo evita negativos si el stream trae algo raro.
+              inputTokens: Math.max(0, suma(u.map((x) => num(alt(de(x, "input_tokens"), 0))))),
               cacheReadInputTokens: suma(u.map((x) => num(alt(de(x, "cache_read_tokens"), 0)))),
               cacheCreationInputTokens: 0,
               outputTokens: suma(u.map((x) => num(alt(de(x, "output_tokens"), 0)) + num(alt(de(x, "thinking_tokens"), 0)))),
