@@ -3,7 +3,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { clavePath, entornoCmd, entornoPa, pathConLocal, resolverBinario, resolverComando } from "../electron/binario.ts";
-import { matarArbol, shellDe } from "../electron/procesos.ts";
+import { readFileSync } from "node:fs";
+import { hijoEnGrupo, matarArbol, shellDe } from "../electron/procesos.ts";
 import { carpetaBin, carpetaMotor, configTrama, esPipe, estadoHilos, estadoPa, registroProyectos, socketMotor, vistaTablero } from "../electron/rutas.ts";
 
 const HOME = "/home/ana";
@@ -101,4 +102,16 @@ test("shellDe: Linux bash / sh de siempre; Windows cmd.exe verbatim, nunca bash"
   assert.deepEqual(shellDe("bash", 'node "a b.mjs"', {}, "win32"), { file: "cmd.exe", args: ["/d", "/s", "/c", '"node "a b.mjs""'], verbatim: true });
   assert.equal(shellDe("sh", "x", { ComSpec: "C:\\Windows\\System32\\cmd.exe" }, "win32").file, "C:\\Windows\\System32\\cmd.exe");
   assert.ok(!/bash/.test(JSON.stringify(shellDe("bash", "x", {}, "win32"))));
+});
+
+test("hijoEnGrupo: Linux sí (kill(-pid)); Windows no: `detached` le quitaría la consola y cada hijo de agy/Claude abriría una ventana", () => {
+  assert.equal(hijoEnGrupo("linux"), true);
+  assert.equal(hijoEnGrupo("darwin"), true);
+  assert.equal(hijoEnGrupo("win32"), false);
+  // Quien lanza líderes, agy o chequeos con pipes no puede volver a `detached: true` pelado (en Windows = DETACHED_PROCESS).
+  for (const f of ["agy-puente.ts", "lider.ts", "salud.ts"]) {
+    const src = readFileSync(new URL(`../electron/${f}`, import.meta.url), "utf8");
+    assert.doesNotMatch(src, /detached: true, windowsHide/, `${f}: detached: true + windowsHide`);
+    assert.match(src, /detached: hijoEnGrupo\(\), windowsHide: true/, `${f}: usa hijoEnGrupo()`);
+  }
 });

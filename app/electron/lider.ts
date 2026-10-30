@@ -62,7 +62,7 @@ import { conClaves } from "./claves.ts";
 import { archivoMcpClaudeSync } from "./mcp.ts";
 import { paraAcp, resueltos } from "./mcp-config.ts";
 import { resolverPa } from "./binario.ts";
-import { interrumpir, matarArbol } from "./procesos.ts";
+import { hijoEnGrupo, interrumpir, matarArbol } from "./procesos.ts";
 import { claseDeModelo, familiaDeModelo, idAgy, localDeModelo, localOllama, partirGemini, type Clase } from "./modelos-config.js";
 import { parsearModelo } from "./dsh.ts";
 import { parsearModelo as parsearOpencode } from "./opencode.ts";
@@ -509,7 +509,7 @@ function lanzar(g: Guardado, resume: boolean, local?: Local, extra: Extra = {}):
   const cuenta = clase === "claude" && !local && !extra.ollama ? cuentaDeLider(g) : undefined;
   // Antes de correrlo, que su carpeta comparta projects/plugins/skills… con ~/.claude (en Windows Claude las crea vacías y propias).
   if (cuenta) for (const a of asegurarCuenta(cuenta.id)) rastro(g.sid, "sin-motivo", a);
-  const opciones = { ...base, ...(cuenta ? { env: entornoCuenta(base.env, cuenta.dir) } : {}), stdio: ["pipe", "pipe", "pipe"] as ["pipe", "pipe", "pipe"], detached: true, windowsHide: true };
+  const opciones = { ...base, ...(cuenta ? { env: entornoCuenta(base.env, cuenta.dir) } : {}), stdio: ["pipe", "pipe", "pipe"] as ["pipe", "pipe", "pipe"], detached: hijoEnGrupo(), windowsHide: true };
   // Si la conversación venía de otro motor, lo hablado va aparte de los mensajes (prompt de sistema o prefacio): no ensucia el transcript.
   // (También el de una rama hecha con relevo o una vuelta atrás en un motor sin `--resume-session-at`: el archivo sólo existe si hace falta.)
   const relevo = existsSync(archivoRelevo(g.sid)) ? archivoRelevo(g.sid) : undefined;

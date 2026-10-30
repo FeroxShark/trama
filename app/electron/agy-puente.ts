@@ -31,7 +31,7 @@ import { avisoDestrabo, REINTENTOS_MAX, Vigilante, type Bucle, type Senal } from
 import { cerrarDestrabo, registrarDestrabo } from "./destrabar-registro.ts";
 import { destrabarModelo, modeloAgy } from "./modelos-config.ts";
 import { ESTADO } from "./estado.ts";
-import { matarArbol } from "./procesos.ts";
+import { hijoEnGrupo, matarArbol } from "./procesos.ts";
 import { SESIONES } from "./sesiones.ts";
 
 /** El `agy` de verdad: bajo la unidad de systemd el PATH no trae `~/.local/bin` y el binario pelado no se encuentra. */
@@ -315,8 +315,8 @@ function correrAgy(prompt: string, conversacion: string | null, tr: Traductor): 
   return new Promise((ok) => {
     // El prompt por stdin, no por argv: en Windows la línea de comandos tiene tope (ENAMETOOLONG con un relevo largo).
     const { args, stdin } = llamadaAgy({ prompt, modelo: modeloAgy(modelo), conversacion, timeout: TIMEOUT_TURNO });
-    // Su propio grupo: al interrumpir caen también los comandos que lanzó.
-    const p = spawn(AGY, args, { cwd, env: ENTORNO, stdio: ["pipe", "pipe", "pipe"], detached: true, windowsHide: true });
+    // Su propio grupo (Linux): al interrumpir caen también los comandos que lanzó. En Windows sin `detached` (ver hijoEnGrupo): consola oculta heredable.
+    const p = spawn(AGY, args, { cwd, env: ENTORNO, stdio: ["pipe", "pipe", "pipe"], detached: hijoEnGrupo(), windowsHide: true });
     hijo = p;
     // Si agy muere antes de leer, el EPIPE no debe tirar la app: el cierre se entera por `close`/`error`.
     p.stdin!.on("error", () => {});

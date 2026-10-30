@@ -40,6 +40,15 @@ export function matarArbol(pid: number | undefined, senal: NodeJS.Signals = "SIG
 }
 
 /**
+ * ¿El hijo sale en su propio grupo (`spawn({ detached })`) para poder matarlo entero con `kill(-pid)`? Sólo en Linux. En Windows NO:
+ * `detached` es DETACHED_PROCESS (el hijo no tiene consola) y, sin consola de la que heredar, cada hijo de consola que éste lance
+ * (los servidores MCP y los comandos de agy, los hooks de Claude, un `npm test`) abre la suya, VISIBLE; `windowsHide` no lo evita,
+ * porque CREATE_NO_WINDOW se ignora junto con DETACHED_PROCESS. Sin `detached` y con `windowsHide`, el hijo tiene una consola
+ * oculta y todos sus descendientes la heredan: ninguna ventana. El árbol se mata igual, con `taskkill /T /F` (`matarArbol`).
+ */
+export const hijoEnGrupo = (plat: Plataforma = plataformaActual()): boolean => !esWindows(plat);
+
+/**
  * Corta lo que corre `pid` cuando el interrupt amable no contestó (Parar). Linux: `SIGINT` al proceso (como siempre). Windows no tiene SIGINT para
  * un hijo (`kill("SIGINT")` lo termina sin avisarle y deja a sus hijos): se mata el árbol con `taskkill /T /F`.
  */
