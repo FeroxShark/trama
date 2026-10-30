@@ -2,7 +2,6 @@
 // `apagados:leer` y `apagados:fijar`). Lo puro está en contexto-desglose.ts, skills-catalogo.ts y apagados.ts; acá se leen los
 // transcripts, el inventario de Claude Code y el proceso del líder. Nunca lee ni devuelve credenciales (`~/.claude.json` no se toca: el
 // inventario sólo saca nombres, y enmascarados).
-import { readFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fijarApagadoTrama, HERRAMIENTAS_PROTEGIDAS, leerApagadosTrama, TIPOS_APAGADO, type Apagados } from "./apagados.ts";
@@ -11,6 +10,7 @@ import { capturarBase } from "./contexto-base.ts";
 import { skillsDeSesion, vistaPrevia, type VistaPrevia } from "./contexto-previa.ts";
 import { sidDeWorker, transcriptDe as transcriptPorSid, TRANSCRIPTS } from "./consumo.ts";
 import { cwdDe, desdeClaude, desdeTranscript, medirConRespaldo, memoriaDeSesion, sinDesglose, usosDe, type Desglose, type Medicion } from "./contexto-desglose.ts";
+import { leerTranscript, type Transcript } from "./contexto-jsonl.ts";
 import { leerSesion } from "./contexto-sesion.ts";
 import { errorT } from "./errores.ts";
 import { aplicarApagadosLideres, claseDeLider, contextoVivo, transcriptDe as transcriptDeLider } from "./lider.ts";
@@ -23,14 +23,51 @@ const ID_WORKER = /^[\w.@-]{1,120}$/;
 /** La última medición exacta de cada líder vivo: si al refrescar no contesta, se sigue mostrando esa (marcada) en vez de saltar a una estimada. */
 const ultimaMedicion = new Map<string, Medicion>();
 
-const lineas = async (f: string | null) => (f ? (await readFile(f, "utf8").catch(() => "")).split("\n").filter(Boolean) : []);
+/**
+ * El último desglose de cada líder o worker, con la firma del transcript con que se calculó (ruta, tamaño, fecha y apagados). Mientras la
+ * firma no cambie, el refresco automático no vuelve a analizar el transcript ni a preguntarle al líder: el panel se queda con lo mismo.
+ */
+const ultimoDesglose = new Map<string, { firma: string; d: Desglose }>();
+/** Dónde está el transcript de cada worker: no cambia mientras viva su sesión, así que no se vuelve a buscar en `projects/` en cada refresco. */
+const rutaWorker = new Map<string, string>();
+/** Un pedido por vez por líder o worker: si el refresco automático se cruza con otro, el segundo espera al primero. */
+const enVuelo = new Map<string, Promise<Desglose>>();
+const TOPE = 40;
+
+const firmaDe = (ruta: string, tr: Transcript, apagados: Apagados) => `${ruta}|${tr.tam}|${tr.mtime}|${JSON.stringify(apagados)}`;
+
+/** Lo último calculado si la firma sigue igual (y no se pidió fresco): `null` si hay que volver a calcular. */
+const guardado = (clave: string, firma: string | null, fresco: boolean): Desglose | null => {
+  const previo = ultimoDesglose.get(clave);
+  return !fresco && firma && previo?.firma === firma ? previo.d : null;
+};
+
+/** Guarda `d` con su firma (si la hay) y lo devuelve. */
+function recordar(clave: string, firma: string | null, d: Desglose): Desglose {
+  if (firma) {
+    ultimoDesglose.delete(clave);
+    ultimoDesglose.set(clave, { firma, d });
+    if (ultimoDesglose.size > TOPE) ultimoDesglose.delete(ultimoDesglose.keys().next().value as string);
+  }
+  return d;
+}
 
 /**
  * El desglose de un líder (`{ lider: sid }`) o de un worker de `pa` (`{ worker: id }`). Líder de Claude vivo: su `/context` (exacto). Si no:
- * su transcript (estimado). Gemini, dsh y OpenCode: sin desglose.
+ * su transcript (estimado). Gemini, dsh y OpenCode: sin desglose. `fresco` (el botón de refrescar) salta lo guardado.
  */
 export async function desgloseContexto(x: unknown): Promise<Desglose> {
   const o = x && typeof x === "object" ? (x as Record<string, unknown>) : {};
+  const clave = typeof o.lider === "string" ? `lider:${o.lider}` : typeof o.worker === "string" ? `worker:${o.worker}` : null;
+  if (!clave) throw errorT("main.apagadoRaro", { v: "?" });
+  const en = enVuelo.get(clave);
+  if (en) return en;
+  const pedido = calcularDesglose(o, clave, o.fresco === true).finally(() => enVuelo.delete(clave));
+  enVuelo.set(clave, pedido);
+  return pedido;
+}
+
+async function calcularDesglose(o: Record<string, unknown>, clave: string, fresco: boolean): Promise<Desglose> {
   const apagados = leerApagadosTrama();
   const claudeDir = process.env.CLAUDE_CONFIG_DIR ?? path.join(os.homedir(), ".claude");
   if (typeof o.lider === "string") {
@@ -40,26 +77,37 @@ export async function desgloseContexto(x: unknown): Promise<Desglose> {
     const motor = l ? (l.local ? "local" : l.clase) : "claude";
     if (l && l.clase !== "claude") return sinDesglose({ tipo: "lider", id: sid, motor, modelo: l.modelo });
     const t = await transcriptDeLider(sid, l?.cwd).catch(() => null);
-    const ls = await lineas(t);
+    const tr = await leerTranscript(t).catch(() => null);
+    const ls = tr?.lineas ?? [];
+    const firma = tr && t ? firmaDe(t, tr, apagados) : null;
+    const previo = guardado(clave, firma, fresco);
+    if (previo) return previo;
     const vivo = l && !l.local ? await medirConRespaldo(ultimaMedicion, sid, () => contextoVivo(sid)) : null;
-    if (vivo) return desdeClaude(vivo.resp, { id: sid, usos: usosDe(ls), info: leerSesion(ls), medidoEn: vivo.en, desactualizado: vivo.viejo });
+    if (vivo) return recordar(clave, firma, desdeClaude(vivo.resp, { id: sid, usos: usosDe(ls), info: leerSesion(ls), medidoEn: vivo.en, desactualizado: vivo.viejo }));
     if (!ls.length) return sinDesglose({ tipo: "lider", id: sid, motor, modelo: l?.modelo, motivo: "sin-transcript" });
     const cwd = cwdDe(ls) ?? l?.cwd ?? os.homedir();
     const memoria = await memoriaDeSesion({ cwd, claudeDir, excludes: apagados.memoria });
-    return desdeTranscript(ls, { tipo: "lider", id: sid, motor, memoria, skills: l?.local ? [] : await skillsDeSesion(cwd, apagados), excludes: apagados.memoria });
+    const skills = l?.local ? [] : await skillsDeSesion(cwd, apagados);
+    return recordar(clave, firma, desdeTranscript(ls, { tipo: "lider", id: sid, motor, memoria, skills, excludes: apagados.memoria }));
   }
   if (typeof o.worker === "string") {
     const id = o.worker;
     if (!ID_WORKER.test(id)) throw errorT("main.apagadoRaro", { v: id.slice(0, 80) });
     const sid = await sidDeWorker(PA_STATE, id);
-    const t = sid ? await transcriptPorSid(TRANSCRIPTS, sid) : null;
-    const ls = await lineas(t);
+    const t = sid ? await rutaDeWorker(sid) : null;
+    const tr = await leerTranscript(t).catch(() => null);
+    if (sid && t && !tr) rutaWorker.delete(sid);
+    const ls = tr?.lineas ?? [];
+    const firma = tr && t ? firmaDe(t, tr, apagados) : null;
+    const previo = guardado(clave, firma, fresco);
+    if (previo) return previo;
     // Sin transcript de Claude: un worker de otro motor (agy, dsh, OpenCode) o uno que todavía no arrancó.
     if (!ls.length) return sinDesglose({ tipo: "worker", id, motor: sid ? "claude" : "otro", motivo: sid ? "sin-transcript" : "motor-sin-desglose" });
     const cwd = cwdDe(ls) ?? os.homedir();
     // `pa` le saca al worker el CLAUDE.md del home (`claudeMdExcludes` de su --settings), además de lo que apagó Trama.
     const memoria = await memoriaDeSesion({ cwd, claudeDir, excludes: [path.join(os.homedir(), "CLAUDE.md"), ...apagados.memoria] });
-    return desdeTranscript(ls, { tipo: "worker", id, motor: "claude", memoria, skills: await skillsDeSesion(cwd, apagados), excludes: [path.join(os.homedir(), "CLAUDE.md"), ...apagados.memoria] });
+    const skills = await skillsDeSesion(cwd, apagados);
+    return recordar(clave, firma, desdeTranscript(ls, { tipo: "worker", id, motor: "claude", memoria, skills, excludes: [path.join(os.homedir(), "CLAUDE.md"), ...apagados.memoria] }));
   }
   throw errorT("main.apagadoRaro", { v: "?" });
 }
@@ -72,6 +120,14 @@ export async function capturarBaseContexto(x: unknown): Promise<{ version: strin
   const forzar = !!x && typeof x === "object" && (x as Record<string, unknown>).forzar === true;
   const b = await capturarBase({}, forzar);
   return { version: b.version, capturadoEn: b.capturadoEn };
+}
+
+async function rutaDeWorker(sid: string): Promise<string | null> {
+  const en = rutaWorker.get(sid);
+  if (en) return en;
+  const t = await transcriptPorSid(TRANSCRIPTS, sid);
+  if (t) rutaWorker.set(sid, t);
+  return t;
 }
 
 export type Catalogo = { version: 1; skills: SkillCatalogo[]; total: number; exactos: boolean; usos: UsosCatalogo | null };
