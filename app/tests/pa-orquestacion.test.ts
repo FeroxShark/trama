@@ -208,6 +208,32 @@ test("modelo de poca inteligencia (< 46 en unidades de AA): el contrato suma 'pa
   assert.doesNotMatch(bueno.err, /tiene inteligencia/);
 });
 
+test("skills de diseño: frontend y diseño cargan las instaladas (~/.claude/skills y plugins habilitados); otro tipo y un HOME sin ninguna, no", () => {
+  // HOME propio con las skills: no toca el de los otros tests.
+  const hs = path.join(tmp, "home-skills");
+  const c = path.join(hs, ".claude");
+  mkdirSync(path.join(c, "skills", "taste-skill"), { recursive: true });
+  writeFileSync(path.join(c, "skills", "taste-skill", "SKILL.md"), "---\nname: taste-skill\n---\n");
+  const plug = path.join(tmp, "plug-frontend");
+  mkdirSync(path.join(plug, "skills", "frontend-design"), { recursive: true });
+  writeFileSync(path.join(plug, "skills", "frontend-design", "SKILL.md"), "---\nname: frontend-design\n---\n");
+  writeFileSync(path.join(c, "settings.json"), JSON.stringify({ enabledPlugins: { "frontend-design@x": true } }));
+  mkdirSync(path.join(c, "plugins"), { recursive: true });
+  writeFileSync(path.join(c, "plugins", "installed_plugins.json"), JSON.stringify({ version: 2, plugins: { "frontend-design@x": [{ installPath: plug }] } }));
+  const dise = paClaude(["--tipo", "diseno"], BRIEF, { HOME: hs });
+  assert.equal(dise.rc, 0, dise.err);
+  assert.match(contratoClaude(), /que están instaladas en esta máquina: frontend-design:frontend-design, taste-skill\. Son parte/);
+  assert.doesNotMatch(contratoClaude(), /ui-ux-pro-max/);
+  const otro = paClaude(["--tipo", "codigo-acotado"], BRIEF, { HOME: hs });
+  assert.equal(otro.rc, 0, otro.err);
+  assert.doesNotMatch(contratoClaude(), /herramienta Skill/);
+  const vacio = path.join(tmp, "home-vacio");
+  mkdirSync(vacio, { recursive: true });
+  const sin = paClaude(["--tipo", "frontend"], BRIEF, { HOME: vacio });
+  assert.equal(sin.rc, 0, sin.err);
+  assert.doesNotMatch(contratoClaude(), /herramienta Skill/);
+});
+
 test("lecciones: --leccion anota, no repite; se inyectan al contrato; --lecciones las imprime; pasado el tope queda necesita-poda en --estado", () => {
   const vacio = pa(["demo", "--lecciones"]);
   assert.match(vacio.out, /no tiene lecciones/);
