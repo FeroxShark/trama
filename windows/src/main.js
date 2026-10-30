@@ -21,7 +21,7 @@ const { ENTRADAS_NATIVO } = require("./manifiesto-nativo");
 const { crearCanalesVentana } = require("./ventana");
 const { crearAlmacen } = require("./arranque-seguro");
 const discoInstalacion = require("./disco-instalacion");
-const { crearVersionAnterior, instalacionDe, lanzarRestauracion } = require("./version-anterior");
+const { crearVersionAnterior, fsCrudo, instalacionDe, lanzarRestauracion } = require("./version-anterior");
 
 // TRAMA_CAPTURA=<png> (sólo para la prueba de arranque sin Windows): offscreen, foto a los 4 s y sale.
 const CAPTURA = process.env.TRAMA_CAPTURA || "";
@@ -123,7 +123,7 @@ const disco = {
   escribir: (r, t) => (fs.mkdirSync(path.dirname(r), { recursive: true }), fs.writeFileSync(r, t)),
   unir: (...p) => path.join(...p),
   // Sólo se pisan los archivos del payload; lo ajeno y lo bloqueado no frenan nada: ver disco-instalacion.js.
-  instalarCarpeta: (de, a, marca) => discoInstalacion.instalarCarpeta(de, a, { marca }),
+  instalarCarpeta: (de, a, marca) => discoInstalacion.instalarCarpeta(de, a, { marca, fs: fsCrudo() }),
 };
 
 const asistente = crearAsistenteNativo({

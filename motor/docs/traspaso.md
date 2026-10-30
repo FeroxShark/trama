@@ -155,11 +155,23 @@ si no llega en 60 s (`TRAMA_ARRANQUE_MAX_MS`) o se cierra sola 2 veces seguidas,
   cuando el actualizador termina de bajar la nueva (y antes de «Reiniciar para actualizar»). Volver lo hace un guion de cmd suelto
   (espera al pid, `robocopy /MIR`, abre Trama). El actualizador no baja de nuevo la versión desechada (`rechazada`).
   La copia usa `original-fs` y archivo por archivo: el `fs` común de Electron trata `resources\app.asar` como carpeta virtual («Invalid package»).
-- Windows, instalar con un `node.exe` en uso (`windows/src/disco-instalacion.js`): servidores MCP de terceros lanzados con `node` a secas
-  pueden correr desde `%LOCALAPPDATA%\trama\node` y Windows bloquea esa carpeta. El paso «Instalar Trama» no copia `node` si el
-  `node.exe` es idéntico al del instalador; si algo está en uso lo aparta (`*.viejo-<marca>`, renombrar sí se puede) y copia lo nuevo;
-  lo apartado se borra en la próxima instalación. Nunca se mata un proceso ajeno. Y el `node` propio ya no va adelante en el PATH de los
-  hijos: va al final y sólo si el sistema no tiene uno (`entornoMotor`, `windows/src/nativo.js`). Linux no tiene `node` embebido ni asar.
+- Windows, instalar con archivos en uso (`windows/src/disco-instalacion.js`): la carpeta de Trama NO es sólo de Trama. Un servidor MCP de
+  terceros (`vrchat-mcp-osc`, `node` a secas) con cwd en `trama\app` creó `app\logs\*.log` y los tenía abiertos, y el instalador de
+  la 0.2.32 (que reemplazaba cada carpeta entera) fallaba con EPERM al renombrarlos. Ahora «Instalar Trama» sólo toca los archivos
+  que trae su payload: los copia encima uno por uno; nada ajeno se copia, renombra ni borra. Un archivo propio bloqueado se reintenta,
+  si es idéntico se deja, y si no se aparta (`<archivo>.viejo-<marca>`, renombrar un .exe en uso sí se puede) y se copia el nuevo; lo
+  apartado se borra en la próxima instalación. Lo que una versión instaló y la siguiente ya no trae se borra gracias a
+  `.trama-instalado.json` (lista de lo instalado, en cada carpeta); la primera vez no hay lista y no se borra nada (los restos de
+  la 0.2.31 quedan). Si un archivo propio no se pudo reemplazar, el paso falla con una línea clara (archivo y «otro programa lo tiene en
+  uso»), sin marcar la instalación como hecha. Nunca se mata un proceso ajeno.
+- Windows, cwd de lo que lanza Trama: nada se lanza con cwd en `trama\app`, `node` ni `bin` (esa carpeta se reemplaza al actualizar). El
+  motor, el CLI y la consola de login salen con el home (`windows/src/nativo.js`), el motor se mueve solo al home si arrancó dentro
+  (`salirDeLaInstalacion`, `app/electron/rutas.ts`) y `opcionesLider` pasa por `cwdSeguro` (líderes, agy, dsh, opencode, `get_usage`).
+  El `node` propio tampoco va adelante en el PATH de los hijos: va al final y sólo si el sistema no tiene uno (`entornoMotor`).
+  Linux no tiene `node` embebido ni asar.
+- Windows, «no pude guardar la versión que corre: Invalid package …\Trama-0.2.31.tmp\resources\app.asar»: lo produce la 0.2.31 que está
+  corriendo (su `guardarAntes` usa `fsp.cp`, que trata el .asar como carpeta); desde la 0.2.32 la copia usa `original-fs`, así que
+  desaparece en cuanto la que corre sea 0.2.32+ (cubierto en `arranque-seguro.test.js`).
 - Botón "Volver a la versión anterior": Ajustes > General (`AjustesVolver.tsx`), canales de la ventana `trama:anterior`,
   `trama:volverAnterior` y `trama:avisoVuelta`.
 - Sin probar en una máquina Windows de verdad: el guion de cmd, `robocopy` y el cierre del `.exe` sólo están probados con fakes.

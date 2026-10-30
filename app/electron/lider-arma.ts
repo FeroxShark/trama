@@ -7,6 +7,7 @@ import { ttlDeUso } from "./cache.ts";
 import { clavePath, pathConLocal } from "./binario.ts";
 import { errorT, textoT } from "./errores.ts";
 import { deDueno } from "./dueno.ts";
+import { cwdSeguro } from "./rutas.ts";
 import { BASE64_MAX, contenidoUsuario, imagenesDeContenido, type Imagen } from "./imagenes.ts";
 import { HERRAMIENTA_PREGUNTAS, preguntasDe, type Pregunta } from "./preguntas.ts";
 
@@ -240,7 +241,7 @@ export function entornoOllama(env: Env, home: string, x: Ollama): Env {
  * busca la sesión en la carpeta donde corre).
  */
 export const opcionesLider = (env: Env, home: string, cwd?: string, local?: { modelo: string; effort: string; local: Local }, ollama?: Ollama) => ({
-  cwd: cwd || home,
+  cwd: cwdSeguro(cwd, env, home),
   env: local ? entornoLocal(env, home, local) : ollama ? entornoOllama(env, home, ollama) : entornoLider(env, home),
 });
 

@@ -22,6 +22,11 @@ import { ESTADO, escribirAtomico } from "./pa.js";
 import { armarRelanzo } from "./reinicio.js";
 import { marcar } from "./reinicio-marcas.js";
 import { armarRemoto } from "./remoto-armar.js";
+import { salirDeLaInstalacion } from "./rutas.js";
+
+// Con la carpeta de instalación como cwd, todo lo que cuelga del motor (líderes, claude, servidores MCP de terceros) la heredaría y
+// la tendría abierta: Windows no dejaría actualizarla. El cwd del motor es el home.
+salirDeLaInstalacion();
 
 const aqui = import.meta.dirname;
 const DUENO = path.join(ESTADO, "dueno");

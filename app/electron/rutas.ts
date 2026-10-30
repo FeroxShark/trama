@@ -77,6 +77,52 @@ export function carpetaApp(env: Env = process.env, home?: string, plat: Platafor
   return plat === "win32" ? path.win32.join(raizWindows(env, h), "app") : path.posix.join(env.XDG_CONFIG_HOME || path.posix.join(h, ".config"), "trama", "app");
 }
 
+/**
+ * Las carpetas que el instalador reemplaza: la app (`pa.js`, el motor…) y, en Windows, el `node` propio y `bin\`. Lo que cuelga de
+ * ellas (no `wt\`, `estado\`, `config\`: ésas son datos) no puede ser el cwd de nada que lancemos.
+ */
+export function carpetasDeInstalacion(env: Env = process.env, home?: string, plat: Plataforma = plataformaActual()): string[] {
+  const h = home ?? homeDe(env, plat);
+  const l = [carpetaApp(env, h, plat)];
+  if (plat === "win32") l.push(path.win32.dirname(nodeWindows(env, h)), carpetaBin(env, h, plat));
+  return l;
+}
+
+/**
+ * ¿`ruta` está dentro de la carpeta de instalación? Un servidor MCP de terceros (o el CLI) que arranca con ese cwd crea ahí sus logs
+ * y los deja abiertos: Windows no deja reemplazar esa carpeta mientras tanto, y la actualización falla. Sin distinguir mayúsculas
+ * en Windows.
+ */
+export function dentroDeInstalacion(ruta: string, env: Env = process.env, home?: string, plat: Plataforma = plataformaActual()): boolean {
+  const c = caminoDe(plat);
+  const norm = (r: string) => {
+    const x = c.resolve(r).replace(/[\\/]+$/, "");
+    return plat === "win32" ? x.toLowerCase() : x;
+  };
+  const r = norm(ruta);
+  return carpetasDeInstalacion(env, home, plat).some((d) => {
+    const n = norm(d);
+    return r === n || r.startsWith(n + c.sep);
+  });
+}
+
+/** El cwd con el que lanzar algo: `cwd` (si viene) o el home, y el home si `cwd` cayera dentro de la carpeta de instalación. */
+export function cwdSeguro(cwd: string | undefined, env: Env = process.env, home?: string, plat: Plataforma = plataformaActual()): string {
+  const h = home ?? homeDe(env, plat);
+  return cwd && !dentroDeInstalacion(cwd, env, h, plat) ? cwd : h;
+}
+
+/** Saca al proceso de la carpeta de instalación (el motor lo lanza el servicio o el arranque con cwd allí: lo heredarían todos sus hijos). */
+export function salirDeLaInstalacion(env: Env = process.env, cwd: () => string = process.cwd, chdir: (d: string) => void = process.chdir): boolean {
+  try {
+    if (!dentroDeInstalacion(cwd(), env)) return false;
+    chdir(homeDe(env));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** El `node` propio de Windows (trama no depende del que haya en el PATH). */
 export function nodeWindows(env: Env = process.env, home?: string): string {
   return path.win32.join(raizWindows(env, home ?? homeDe(env, "win32")), "node", "node.exe");
