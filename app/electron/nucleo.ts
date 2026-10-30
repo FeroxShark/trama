@@ -568,7 +568,7 @@ function mirarSl() {
   setInterval(() => {
     if (hayClientes()) {
       void lider.pedirUsoCuentas().then((nuevo) => { if (nuevo) void refrescarCupos(true); });
-      void refrescarCupos(true);
+      void refrescarCupos(true, true);
       avisar(); // el uso gratis de OpenCode lo anota el puente (otro proceso) en agotado.json: se relee acá
     }
   }, 60_000).unref();

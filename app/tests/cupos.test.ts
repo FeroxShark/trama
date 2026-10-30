@@ -15,7 +15,7 @@ registerHooks({
   },
 });
 
-const { parsearCuposReparto } = await import("../electron/cupos.ts");
+const { CACHE_QUOTA_FONDO_S, entornoCupos, parsearCuposReparto } = await import("../electron/cupos.ts");
 
 const AHORA = Date.parse("2026-10-24T18:00:00Z");
 const s = (iso: string) => Math.round(Date.parse(iso) / 1000);
@@ -181,5 +181,18 @@ describe("parsearCuposReparto", () => {
     assert.equal(parsearCuposReparto("no es json", AHORA), null);
     assert.equal(parsearCuposReparto(JSON.stringify({ ...CONTRATO, version: 2 }), AHORA), null);
     assert.equal(parsearCuposReparto(JSON.stringify({ version: 1, suscripciones: [] }), AHORA), null);
+  });
+});
+
+describe("entornoCupos: la lectura de fondo no relanza `agy -p /quota` a cada rato", () => {
+  it("de fondo pone la caché larga de /quota; a pedido de la persona, no toca nada", () => {
+    assert.equal(entornoCupos({ A: "1" }, true).REPARTO_CACHE_S, String(CACHE_QUOTA_FONDO_S));
+    assert.ok(CACHE_QUOTA_FONDO_S >= 300);
+    const base = { A: "1" };
+    assert.equal(entornoCupos(base, false), base);
+    assert.equal("REPARTO_CACHE_S" in base, false);
+  });
+  it("si la persona ya fijó REPARTO_CACHE_S, gana la suya", () => {
+    assert.equal(entornoCupos({ REPARTO_CACHE_S: "5" }, true).REPARTO_CACHE_S, "5");
   });
 });

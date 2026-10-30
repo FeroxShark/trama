@@ -193,10 +193,23 @@ function modoAisladoSinCupos(): boolean {
   return process.env.HILOS_PRUEBA === "1" || process.env.HILOS_CAPTURA === "1" || process.env.HILOS_BENCH === "1";
 }
 
-async function consultarCupos(): Promise<CuposLeidos | null> {
+/**
+ * Vida de la caché de `agy -p /quota` para la lectura de FONDO (el minuto de la cabecera): 10 min. Cada `agy -p` levanta un language
+ * server y escribe un log nuevo; con la vida de siempre de `reparto` (120 s, y 30 s si algún grupo está bajo la mitad) eran uno cada
+ * 3 min (20 por hora, 1884 logs en una semana en una PC real) sólo para repintar un número. Lo que decide de verdad (`pa` al elegir
+ * modelo) y lo que pide la persona (abrir cupos, iniciar sesión) sigue leyendo con la vida corta.
+ */
+export const CACHE_QUOTA_FONDO_S = 600;
+
+/** El entorno de `reparto --cupos`; en la lectura de fondo, con la caché larga de /quota (salvo que la persona ya haya fijado la suya). */
+export function entornoCupos(env: NodeJS.ProcessEnv, fondo: boolean): NodeJS.ProcessEnv {
+  return fondo && !env.REPARTO_CACHE_S ? { ...env, REPARTO_CACHE_S: String(CACHE_QUOTA_FONDO_S) } : env;
+}
+
+async function consultarCupos(fondo = false): Promise<CuposLeidos | null> {
   if (modoAisladoSinCupos()) return null;
   try {
-    const env = entornoPa(process.env, homedir()) as NodeJS.ProcessEnv;
+    const env = entornoCupos(entornoPa(process.env, homedir()) as NodeJS.ProcessEnv, fondo);
     const cmd = comandoPropio("reparto", process.env, homedir());
     const stdout = await new Promise<string>((ok, mal) => lanzarCmd(cmd, ["--cupos", "--json"], { env, timeout: 20_000, maxBuffer: 512 * 1024 }, (e, o) => (e ? mal(e) : ok(o))));
     return parsearCuposReparto(stdout, Date.now());
@@ -208,14 +221,17 @@ async function consultarCupos(): Promise<CuposLeidos | null> {
 /** Las suscripciones sin la hora de la lectura: lo que decide si hay algo nuevo que avisar. */
 const huella = (c: CuposLeidos | null): string => JSON.stringify(c ? { claude: c.claude, n: c.claudeNombre, s: c.suscripciones.map((x) => ({ ...x, ts: 0 })) } : null);
 
-/** Relee `reparto` si venció el TTL (o `forzar`); avisa a los oyentes si algo cambió. Lo que falla deja la última lectura. */
-export function refrescarCupos(forzar = false): Promise<CuposLeidos | null> {
+/**
+ * Relee `reparto` si venció el TTL (o `forzar`); avisa a los oyentes si algo cambió. Lo que falla deja la última lectura.
+ * `fondo`: la lectura periódica, que no necesita el /quota de agy al día (ver CACHE_QUOTA_FONDO_S).
+ */
+export function refrescarCupos(forzar = false, fondo = false): Promise<CuposLeidos | null> {
   if (modoAisladoSinCupos()) return Promise.resolve(null);
   const ahora = Date.now();
   if (!forzar && ultimoIntentoMs > 0 && ahora - ultimoIntentoMs < TTL_CUPOS_MS) return Promise.resolve(cacheCupos);
   if (enVuelo) return enVuelo;
   ultimoIntentoMs = ahora;
-  enVuelo = consultarCupos()
+  enVuelo = consultarCupos(fondo)
     .then((res) => {
       enVuelo = null;
       if (res) {
