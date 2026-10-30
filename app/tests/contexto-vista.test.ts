@@ -2,7 +2,7 @@
 // Fixtures inventados (src/datos/fixtures-contexto.ts).
 import assert from "node:assert/strict";
 import test from "node:test";
-import { CATALOGO_FALSO, desgloseFalso } from "../src/datos/fixtures-contexto.ts";
+import { CATALOGO_FALSO, desgloseFalso, previaFalsa } from "../src/datos/fixtures-contexto.ts";
 import { bloques, categorias, claveSkill, estaApagado, filtrarSkills, fraccionUsada, itemsDe, ORDEN, pluginsDe, porcentaje, sabeUsos, treemap, usadas } from "../src/paneles/contexto-vista.ts";
 
 const lider = desgloseFalso({ lider: "s-1" });
@@ -213,4 +213,41 @@ test("ayuda: cada categoría y cada pieza del sistema tiene su explicación en e
   for (const k of claves) assert.ok((es as Record<string, string>)[k].length <= 190, `${k} es larga`);
   assert.match((es as Record<string, string>)["ctxp.ayuda.reserva"], /compactar/);
   assert.match((en as Record<string, string>)["ctxp.ayuda.reserva"], /compact/);
+});
+
+test("vista previa: el MCP sin tamaño figura, no se afirma 'nunca usada', y lo apagado sale de la cuenta pero se puede prender", async () => {
+  const l = previaFalsa({ tipo: "lider" }).desglose!;
+  assert.equal(l.fuente, "previa");
+  assert.equal(sabeUsos(l), false);
+  assert.ok(categorias(l).some((c) => c.id === "mcp" && c.tokens === 0));
+  assert.ok(itemsDe(l, "herramientas", []).every((x) => !x.nunca));
+  assert.ok(itemsDe(l, "mcp", []).every((x) => x.tokens === null && !x.nunca));
+  // Un worker nuevo va sin MCP y sin el CLAUDE.md del home.
+  const w = previaFalsa({ tipo: "worker" }).desglose!;
+  assert.equal(w.mcp.length, 0);
+  assert.ok(!categorias(w).some((c) => c.id === "mcp"));
+  assert.ok(!w.memoria.some((m) => m.tipo === "User"));
+  // Apagar una herramienta la saca de la cuenta; sigue en la lista.
+  const antes = categorias(l).find((c) => c.id === "herramientas")!.tokens;
+  const ap = { version: 1 as const, skills: [], mcp: [], herramientas: ["WebSearch"], memoria: [] };
+  assert.equal(categorias(l, ap).find((c) => c.id === "herramientas")!.tokens, antes - 900);
+  assert.ok(itemsDe(l, "herramientas", [], { apagados: ap }).some((x) => x.nombre === "WebSearch"));
+  // Sin la base del prompt no hay desglose, pero sí proyectos y hooks.
+  const falta = previaFalsa({ tipo: "lider" }, { estado: "falta", version: null, instalada: "2.1.314", capturadoEn: null });
+  assert.equal(falta.desglose, null);
+  assert.ok(falta.proyectos.length > 0 && falta.hooks.length > 0);
+});
+
+test("vista previa: cada texto del panel existe en español y en inglés con las mismas {variables}", async () => {
+  const { es } = await import("../src/i18n/es.ts");
+  const { en } = await import("../src/i18n/en.ts");
+  const claves = Object.keys(es).filter((k) => k.startsWith("ctxp.previa"));
+  assert.ok(claves.length >= 15);
+  const vars = (x: string) => (x.match(/\{\w+\}/g) ?? []).sort().join(",");
+  for (const k of claves) {
+    const a = (es as Record<string, string>)[k];
+    const b = (en as Record<string, string>)[k];
+    assert.ok(b, `en: falta ${k}`);
+    assert.equal(vars(a), vars(b), `${k}: las variables no coinciden`);
+  }
 });

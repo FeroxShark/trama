@@ -850,3 +850,105 @@
   font-size: var(--letra-3);
   font-weight: 500;
 }
+
+/* --- Vista previa: elegir qué lanzar y ver lo que cargaría --- */
+.cp-previa {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-4);
+}
+.cp-ay-fila {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 0 var(--esp-1);
+}
+.cp-ay-fila .cp-nota {
+  min-width: 0;
+  flex: 1;
+}
+.cp-previa-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--esp-3);
+}
+.cp-previa-tipos {
+  display: flex;
+  gap: var(--esp-1);
+}
+.cp-previa-campo {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 8rem;
+  flex-direction: column;
+  gap: var(--esp-1);
+  color: var(--txt-4);
+  font-size: var(--letra-3);
+}
+.cp-previa-campo select {
+  min-height: 2rem;
+  width: 100%;
+  padding: 0 var(--esp-2);
+  border: 1px solid var(--borde-3);
+  border-radius: var(--radio-2);
+  background: var(--sup-1);
+  color: var(--txt-2);
+  font-size: var(--letra-4);
+}
+.cp-previa-base {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--esp-2);
+  padding: var(--esp-2) var(--esp-3);
+  border-radius: var(--radio-2);
+  background: var(--capa-card);
+  color: var(--txt-3);
+  font-size: var(--letra-3);
+  line-height: 1.45;
+}
+.cp-previa-base[data-estado="falta"],
+.cp-previa-base[data-estado="vieja"] {
+  border-left: 2px solid var(--aviso);
+}
+.cp-previa-base p {
+  margin: 0;
+}
+.cp-previa-err {
+  color: var(--rojo-claro);
+}
+.cp-previa-hooks {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-2);
+}
+.cp-hooks {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.cp-hooks li {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--esp-2);
+  color: var(--txt-2);
+  font-size: var(--letra-4);
+}
+.cp-hooks code {
+  padding: 0 var(--esp-1-5);
+  border-radius: var(--radio-2);
+  background: var(--capa-tile);
+  color: var(--txt-3);
+  font-size: var(--letra-3);
+}
+.cp-hooks small {
+  margin-left: auto;
+  color: var(--txt-4);
+  font-size: var(--letra-3);
+}

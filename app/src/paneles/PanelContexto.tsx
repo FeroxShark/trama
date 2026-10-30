@@ -11,10 +11,11 @@ import type { Categoria, Desglose } from "../../electron/contexto-desglose";
 import type { UsosCatalogo } from "../../electron/skills-catalogo";
 import type { SkillCatalogo } from "../../electron/skills-catalogo";
 import type { Catalogo, VistaApagados } from "../../electron/contexto-panel";
+import type { VistaPrevia } from "../../electron/contexto-previa";
 import { fuenteContexto, type Quien } from "../datos/contexto";
 import { fuente } from "../datos/fuente";
 import { tareaDe, tipoDe } from "../barra/piezas";
-import { effortDe, MODELO_DEFAULT, modeloDe, nombreModelo } from "../hilo/opciones";
+import { effortDe, MODELO_DEFAULT, MODELOS, modeloDe, nombreModelo } from "../hilo/opciones";
 import { useCompactando } from "../hilo/compactando";
 import { useAngosto } from "../angosto";
 import { esVentana, mensaje } from "../puente";
@@ -748,12 +749,176 @@ type Props = {
   alAbrirHilo: (id: string) => void;
 };
 
-type Pestana = "sesiones" | "skills";
+type Pestana = "sesiones" | "skills" | "previa";
+
+// --- Vista previa: qué cargaría un líder o un worker nuevo -------------------------------------------------------------------------------
+
+const fechaCorta = (ms: number | null) => (ms ? new Date(ms).toLocaleDateString(locale(), { day: "numeric", month: "short" }) : "—");
+
+/**
+ * Elegir qué lanzar (líder o worker nuevo), en qué proyecto y con qué modelo, y ver lo que cargaría sin lanzar nada. Reusa el detalle de una
+ * sesión (barra, mapa, categorías, interruptores): apagar o prender vale para todo Trama y la cuenta se rehace sola. Si falta el prompt base de
+ * esta versión de Claude Code se captura una vez (contexto-base.ts); sin la PC sólo se mira.
+ */
+function VistaPreviaTab({ refresco }: { refresco: number }) {
+  const { apagados, puede } = useContext(Acc);
+  const [tipo, setTipo] = useState<"lider" | "worker">("lider");
+  const [proyecto, setProyecto] = useState(MODO.captura === "contexto-panel-previa" ? "/home/persona/proyectos/atlas" : "");
+  const [modelo, setModelo] = useState(MODELO_DEFAULT);
+  const [carga, setCarga] = useState<{ v: VistaPrevia | null; error: string | null } | null>(null);
+  const [capturando, setCapturando] = useState(false);
+  const [errCaptura, setErrCaptura] = useState<string | null>(null);
+  const [intento, setIntento] = useState(0);
+  const sola = useRef(false);
+  const uid = useId();
+  const llaveApagados = JSON.stringify(apagados);
+
+  // Se rehace al cambiar la elección, lo apagado o con Actualizar; mientras tanto se sigue viendo lo anterior.
+  useEffect(() => {
+    let vivo = true;
+    fuenteContexto.previa({ tipo, proyecto, modelo }).then(
+      (v) => vivo && setCarga({ v, error: null }),
+      (e) => vivo && setCarga((a) => ({ v: a?.v ?? null, error: mensaje(e) })),
+    );
+    return () => {
+      vivo = false;
+    };
+  }, [tipo, proyecto, modelo, llaveApagados, refresco, intento]);
+
+  const capturar = useCallback(async (forzar: boolean) => {
+    setCapturando(true);
+    setErrCaptura(null);
+    try {
+      await fuenteContexto.capturarBase(forzar);
+    } catch (e) {
+      setErrCaptura(mensaje(e));
+    } finally {
+      setCapturando(false);
+      setIntento((n) => n + 1);
+    }
+  }, []);
+
+  // Sin prompt base se captura solo, una vez; si falla queda el botón. (Las capturas de pantalla muestran el estado "falta" tal cual.)
+  const base = carga?.v?.base ?? null;
+  useEffect(() => {
+    if (base?.estado !== "falta" || !puede || sola.current || MODO.captura) return;
+    sola.current = true;
+    void capturar(false);
+  }, [base?.estado, puede, capturar]);
+
+  const v = carga?.v ?? null;
+  const proyectos = v?.proyectos ?? [];
+  const modelos = MODELOS.filter((m) => m.id.startsWith("claude-"));
+  const sinModelo = !modelos.some((m) => m.id === modelo);
+  const tipos: ["lider" | "worker", string][] = [
+    ["lider", "ctxp.previa.lider"],
+    ["worker", "ctxp.previa.worker"],
+  ];
+
+  return (
+    <div className="cp-previa">
+      <div className="cp-ay-fila">
+        <p className="cp-nota">{t("ctxp.previa.intro")}</p>
+        <Ayuda k="ctxp.previa.ayuda" nombre={t("ctxp.previa")} />
+      </div>
+      <div className="cp-previa-form">
+        <div className="cp-previa-tipos" role="group" aria-label={t("ctxp.previa.tipo")}>
+          {tipos.map(([k, etq]) => (
+            <button key={k} type="button" className="cp-chip" aria-pressed={tipo === k} onClick={() => setTipo(k)}>
+              {t(etq as "ctxp.previa.lider")}
+            </button>
+          ))}
+        </div>
+        <label className="cp-previa-campo" htmlFor={`${uid}-proy`}>
+          <span>{t("ctxp.previa.proyecto")}</span>
+          <select id={`${uid}-proy`} value={proyecto} onChange={(e) => setProyecto(e.target.value)}>
+            <option value="">{t("ctxp.previa.home")}</option>
+            {proyectos.map((p) => (
+              <option key={p.ruta} value={p.ruta}>
+                {p.nombre}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="cp-previa-campo" htmlFor={`${uid}-mod`}>
+          <span>{t("ctxp.previa.modelo")}</span>
+          <select id={`${uid}-mod`} value={modelo} onChange={(e) => setModelo(e.target.value)}>
+            {sinModelo ? <option value={modelo}>{nombreModelo(modelo)}</option> : null}
+            {modelos.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.nombre}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+      {base ? (
+        <div className="cp-previa-base" data-estado={base.estado} role="status">
+          <p>
+            {capturando
+              ? t("ctxp.previa.capturando")
+              : base.estado === "falta"
+                ? t("ctxp.previa.base.falta")
+                : base.estado === "lista"
+                  ? t("ctxp.previa.base.lista", { version: base.version ?? "?", fecha: fechaCorta(base.capturadoEn) })
+                  : t("ctxp.previa.base.vieja", { version: base.version ?? "?", fecha: fechaCorta(base.capturadoEn), instalada: base.instalada ?? "?" })}
+          </p>
+          {errCaptura ? <p className="cp-previa-err" role="alert">{t("ctxp.previa.capturaError", { motivo: errCaptura })}</p> : null}
+          {base.estado !== "lista" && !capturando ? (
+            puede ? (
+              <button type="button" className="btn2" onClick={() => void capturar(base.estado === "vieja")}>
+                {t(base.estado === "falta" ? "ctxp.previa.capturar" : "ctxp.previa.recapturar")}
+              </button>
+            ) : (
+              <p>{t("ctxp.soloPc")}</p>
+            )
+          ) : null}
+        </div>
+      ) : null}
+      {carga?.error ? (
+        <div className="cp-error" role="alert">
+          <p>{t("ctxp.error", { motivo: carga.error })}</p>
+          <button type="button" className="btn2" onClick={() => setIntento((n) => n + 1)}>
+            {t("ctxp.reintentar")}
+          </button>
+        </div>
+      ) : null}
+      {!carga ? <p className="cp-nada">{t("ctxp.leyendo")}</p> : null}
+      {v?.desglose ? (
+        <>
+          <Detalle key={`${tipo}:${proyecto}:${modelo}`} d={v.desglose} uid={`previa-${uid}`} alRefrescar={() => setIntento((n) => n + 1)} />
+          {tipo === "worker" ? <p className="cp-nota">{t("ctxp.previa.notaWorker")}</p> : v.desglose.mcp.length ? <p className="cp-nota">{t("ctxp.previa.mcp")}</p> : null}
+        </>
+      ) : null}
+      {v ? (
+        <section className="cp-previa-hooks" aria-label={t("ctxp.previa.hooks", { n: v.hooks.length })}>
+          <h4 className="cp-h">
+            <span>{t("ctxp.previa.hooks", { n: v.hooks.length })}</span>
+          </h4>
+          {v.hooks.length ? (
+            <ul className="cp-hooks">
+              {v.hooks.map((h, i) => (
+                <li key={`${h.evento}:${h.nombre}:${i}`}>
+                  <code>{h.evento}</code>
+                  <span>{h.nombre}</span>
+                  <small>{h.origen}</small>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="cp-nada">{t("ctxp.previa.sinHooks")}</p>
+          )}
+          <p className="cp-nota">{t("ctxp.previa.hooksNota")}</p>
+        </section>
+      ) : null}
+    </div>
+  );
+}
 
 export const PanelContexto = memo(function PanelContexto({ lider, workers, alCerrar, alAbrirHilo }: Props) {
   useIdioma();
   const angosto = useAngosto();
-  const [pestana, setPestana] = useState<Pestana>(MODO.captura === "contexto-panel-skills" ? "skills" : "sesiones");
+  const [pestana, setPestana] = useState<Pestana>(MODO.captura === "contexto-panel-skills" ? "skills" : MODO.captura === "contexto-panel-previa" ? "previa" : "sesiones");
   const [apagados, setApagados] = useState<VistaApagados | null>(null);
   const [pendientes, setPendientes] = useState<ReadonlySet<string>>(new Set());
   const [aviso, setAviso] = useState<{ ok: boolean; texto: string } | null>(null);
@@ -855,10 +1020,12 @@ export const PanelContexto = memo(function PanelContexto({ lider, workers, alCer
   const pestanas: [Pestana, string][] = [
     ["sesiones", "ctxp.sesiones"],
     ["skills", "ctxp.catalogo"],
+    ["previa", "ctxp.previa"],
   ];
   const tecla = (e: KeyboardEvent) => {
     if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
-    const sig: Pestana = pestana === "sesiones" ? "skills" : "sesiones";
+    const i = pestanas.findIndex(([k]) => k === pestana);
+    const sig: Pestana = pestanas[(i + (e.key === "ArrowRight" ? 1 : pestanas.length - 1)) % pestanas.length][0];
     setPestana(sig);
     (e.currentTarget.parentElement?.querySelector(`[data-pestana="${sig}"]`) as HTMLElement | null)?.focus();
   };
@@ -934,6 +1101,8 @@ export const PanelContexto = memo(function PanelContexto({ lider, workers, alCer
                 </section>
               </>
             )
+          ) : pestana === "previa" ? (
+            <VistaPreviaTab refresco={refresco} />
           ) : (
             <CatalogoSkills cat={cat} error={catError} alReintentar={() => setIntento((n) => n + 1)} desgloses={todos} />
           )}

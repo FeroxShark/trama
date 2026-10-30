@@ -179,6 +179,7 @@ const CAPTURAS = [
   "contexto-panel-cat",
   "contexto-panel-ayuda",
   "contexto-panel-skills",
+  "contexto-panel-previa",
   // "De Claude Code (N)": la sección plegable de atlas abierta, con el buscador y las conversaciones (con una de carpeta que ya no existe y una de otra cuenta).
   "claude-code",
   // El orden de la barra: a mitad de un arrastre (lo que se lleva apagado, la línea donde cae) y el menú de una carpeta con Subir / Bajar / Orden por defecto.

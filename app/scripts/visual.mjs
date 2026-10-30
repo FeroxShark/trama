@@ -43,7 +43,7 @@ const ANCHOS = {
   360: { tam: "360 780", escala: "1" },
 };
 /** Lo que se mira también a 800 px, donde el panel de contexto reemplaza a la conversación. */
-const SOLO_800 = ["contexto-panel", "contexto-panel-cat", "contexto-panel-skills"];
+const SOLO_800 = ["contexto-panel", "contexto-panel-cat", "contexto-panel-ayuda", "contexto-panel-skills", "contexto-panel-previa"];
 
 /** Estados sin sentido en una captura estática, y por qué. */
 const EXCLUIDOS = new Map([

@@ -52,7 +52,8 @@ export function ahorro(d: Desglose, apagados?: Apagados | null): Partial<Record<
 export function categorias(d: Desglose, apagados?: Apagados | null): FilaCat[] {
   const suma = new Map<Categoria, FilaCat>();
   for (const c of d.categorias) {
-    if (c.diferido || c.id === "libre" || c.tokens <= 0) continue;
+    // En la vista previa los MCP prendidos figuran aunque su peso no se sepa hasta conectar.
+    if (c.diferido || c.id === "libre" || (c.tokens <= 0 && !(d.fuente === "previa" && c.id === "mcp"))) continue;
     const ya = suma.get(c.id);
     if (ya) ya.tokens += c.tokens;
     else suma.set(c.id, { id: c.id, tokens: c.tokens, estimado: c.estimado, pct: 0 });
@@ -60,7 +61,7 @@ export function categorias(d: Desglose, apagados?: Apagados | null): FilaCat[] {
   const menos = ahorro(d, apagados);
   for (const f of suma.values()) f.tokens = Math.max(0, f.tokens - (menos[f.id] ?? 0));
   const total = d.ventana ?? [...suma.values()].reduce((n, c) => n + c.tokens, 0);
-  const filas = [...suma.values()].filter((f) => f.tokens > 0).sort((a, b) => ORDEN.indexOf(a.id) - ORDEN.indexOf(b.id));
+  const filas = [...suma.values()].filter((f) => f.tokens > 0 || (d.fuente === "previa" && f.id === "mcp")).sort((a, b) => ORDEN.indexOf(a.id) - ORDEN.indexOf(b.id));
   for (const f of filas) f.pct = total > 0 ? f.tokens / total : 0;
   return filas;
 }
@@ -111,7 +112,7 @@ export const servidorNormalizado = (n: string) => n.replace(/[^A-Za-z0-9_-]/g, "
 export const claveSkill = (s: { nombre: string; plugin: string | null }) => (s.plugin && !s.nombre.includes(":") ? `${s.plugin.split("@")[0]}:${s.nombre}` : s.nombre);
 
 /** ¿Se sabe lo que se usó? Sin desglose, o con el transcript todavía vacío, "nunca usada" sería inventar. */
-export const sabeUsos = (d: Desglose) => d.fuente !== "sin-desglose" && d.motivo === null;
+export const sabeUsos = (d: Desglose) => d.fuente !== "sin-desglose" && d.fuente !== "previa" && d.motivo === null;
 
 /** Lo que se necesita de afuera para armar los ítems: qué está apagado, qué se usó en las sesiones recientes y cuánto dice la categoría. */
 export type ContextoItems = {

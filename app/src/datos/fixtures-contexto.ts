@@ -1,6 +1,7 @@
 // Datos falsos del panel de contexto (bench y capturas): un líder y dos workers con ids y nombres inventados.
 import type { Desglose, FilaCategoria } from "../../electron/contexto-desglose";
 import type { Catalogo, VistaApagados } from "../../electron/contexto-panel";
+import type { VistaPrevia } from "../../electron/contexto-previa";
 import type { SkillCatalogo } from "../../electron/skills-catalogo";
 
 const cat = (id: FilaCategoria["id"], tokens: number, estimado = false): FilaCategoria => ({ id, nombre: null, tokens, estimado });
@@ -224,3 +225,63 @@ export const USOS_FALSOS: NonNullable<Catalogo["usos"]> = {
 };
 
 export const catalogoFalso = (): Catalogo => ({ version: 1, skills: structuredClone(CATALOGO_FALSO), total: CATALOGO_FALSO.length, exactos: true, usos: structuredClone(USOS_FALSOS) });
+
+// --- Vista previa: qué cargaría un líder o worker nuevo (sin lanzar nada) -----------------------------------------------------------------
+
+const PROYECTOS_PREVIA = [
+  { ruta: "/home/persona/proyectos/atlas", nombre: "atlas" },
+  { ruta: "/home/persona/proyectos/faro", nombre: "faro" },
+];
+
+/** Lo que dice `contexto:previa` para un líder o worker nuevo: el sistema y las herramientas de la base, sus archivos de memoria y sus skills; el peso de los MCP no se sabe hasta conectar. */
+export function previaFalsa(x: { tipo: "lider" | "worker"; proyecto?: string; modelo?: string }, base: VistaPrevia["base"] = { estado: "lista", version: "2.1.314", instalada: "2.1.314", capturadoEn: AHORA - 3_600_000 }): VistaPrevia {
+  const lider = x.tipo === "lider";
+  const modelo = x.modelo || "claude-opus-5-5";
+  const vista = { version: 1 as const, tipo: x.tipo, proyecto: x.proyecto ?? "", modelo, base, proyectos: PROYECTOS_PREVIA };
+  const hooks = [
+    { evento: "SessionStart", nombre: "caveman-activar", comando: "node ~/.claude/hooks/caveman-activar.js", origen: "caveman" },
+    { evento: "PreToolUse", nombre: "guarda-destructiva", comando: "node ~/.claude/hooks/guarda.mjs", origen: "usuario" },
+  ];
+  if (base.estado === "falta") return { ...vista, hooks, desglose: null };
+  const de = structuredClone(LIDER);
+  const sistema = de.sistema.filter((p) => p.tipo === "prompt");
+  const herramientas = de.herramientas.map((h) => ({ ...h, usos: 0 }));
+  const mcp = lider ? ["claude_ai_Notion", "claude_ai_Gmail", "repo-remoto"].map((servidor) => ({ servidor, tokens: null, usos: 0, instrucciones: 0, diferidos: null, resultados: null, herramientas: [] })) : [];
+  const skills = de.skills.map((s) => ({ ...s, estimado: true, usos: 0, hook: 0 }));
+  const memoria = de.memoria.filter((m) => lider || m.tipo !== "User").map((m) => ({ ...m, estimado: true }));
+  const suma = (xs: (number | null)[]) => xs.reduce<number>((n, v) => n + (v ?? 0), 0);
+  const categorias = [
+    cat("sistema", suma(sistema.map((s) => s.tokens)), true),
+    cat("herramientas", suma(herramientas.filter((h) => !h.diferida).map((h) => h.tokens)), true),
+    ...(mcp.length ? [cat("mcp", 0, true)] : []),
+    cat("skills", suma(skills.map((s) => s.tokens)), true),
+    cat("memoria", suma(memoria.map((m) => m.tokens)), true),
+  ];
+  return {
+    ...vista,
+    hooks,
+    desglose: {
+      version: 1,
+      quien: { tipo: x.tipo, id: "" },
+      motor: "claude",
+      fuente: "previa",
+      estimado: true,
+      modelo,
+      usado: suma(categorias.map((c) => c.tokens)),
+      ventana: 1_000_000,
+      ventanaEstimada: true,
+      categorias,
+      herramientas,
+      mcp,
+      skills,
+      memoria,
+      sistema,
+      promptVersion: base.version,
+      usos: { herramientas: {}, skills: {}, mcp: {}, hook: {} },
+      medidoEn: null,
+      desactualizado: false,
+      sinUso: { herramientas: [], mcp: [], skills: [] },
+      motivo: null,
+    },
+  };
+}
