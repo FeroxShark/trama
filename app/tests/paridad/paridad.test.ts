@@ -1,6 +1,7 @@
 // Paridad del `pa`: cada caso de casos.ts corre con el bash (A) y con el segundo `pa` (B, TRAMA_PA_B); deben dar lo
 // mismo (salida normalizada, código, argv de claude, archivos de estado). Sin TRAMA_PA_B compara bash contra bash:
-// comprueba que el caso es determinista y que la normalización alcanza. TRAMA_PARIDAD_SOLO=<texto> filtra por nombre.
+// comprueba que el caso es determinista y que la normalización alcanza. TRAMA_PARIDAD_SOLO=<texto> filtra por nombre;
+// TRAMA_PARIDAD_HERRAMIENTA=<h1,h2> filtra por herramienta (sin campo = "pa"; lo usa `npm run check:changed`).
 import assert from "node:assert/strict";
 import { testPosix as test } from "../plataforma.ts";
 import { casos } from "./casos.ts";
@@ -11,9 +12,11 @@ import { comandoB, comandoOriginal, correr, diferencias, tsDe } from "./arnes.ts
 const comandoA = (h: Herramienta = "pa") => comandoOriginal(h);
 const comandoBDe = (h: Herramienta = "pa") => comandoB(process.env, h) ?? (h === "pa" ? comandoOriginal(h) : tsDe(h));
 const filtro = process.env.TRAMA_PARIDAD_SOLO;
+const herramientas = process.env.TRAMA_PARIDAD_HERRAMIENTA?.split(",").map((h) => h.trim()).filter(Boolean);
 
 for (const caso of casos) {
   if (filtro && !caso.nombre.includes(filtro)) continue;
+  if (herramientas && !herramientas.includes(caso.herramienta ?? "pa")) continue;
   test(`paridad: ${caso.nombre}`, { timeout: 300_000 }, () => {
     const a = correr(caso, comandoA(caso.herramienta));
     const esperado = caso.pasos ? caso.pasos.map((p) => p.rc) : [caso.rc];
