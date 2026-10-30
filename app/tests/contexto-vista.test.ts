@@ -150,7 +150,12 @@ test("MCP: lo que suma nunca pasa de la categoría y el mapa no tiene un bloque 
 test("sistema: sus piezas, y lo que no se pudo separar queda como 'sin separar'", () => {
   const cat = categorias(lider).find((x) => x.id === "sistema")!;
   const it = itemsDe(lider, "sistema", [], { tokensCat: cat.tokens });
-  assert.deepEqual(it.map((i) => i.sis), ["prompt", "resto", "hook", "entorno", "diferidas"]);
+  // El prompt viene partido en sus secciones (cada una con su texto), más hook, entorno, diferidas y lo que no se separó.
+  assert.deepEqual([...new Set(it.map((i) => i.sis))].sort(), ["diferidas", "entorno", "hook", "prompt", "resto"]);
+  const secciones = it.filter((i) => i.sis === "prompt");
+  assert.deepEqual(secciones.map((i) => i.seccion).sort(), ["arnes", "contexto", "entorno", "intro", "memoria", "sesion", "suelta"]);
+  assert.ok(secciones.every((i) => i.texto && i.tokens));
+  assert.equal(secciones.find((i) => i.seccion === "arnes")!.nombre, "Harness");
   assert.equal(it.reduce((n, i) => n + (i.tokens ?? 0), 0), cat.tokens);
   assert.ok(it.find((i) => i.sis === "hook")!.texto?.startsWith("CAVEMAN"));
   // Sin la categoría no hay resto que calcular.

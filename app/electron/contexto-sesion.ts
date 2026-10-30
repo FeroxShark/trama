@@ -11,6 +11,8 @@ const tokensDe = (chars: number) => Math.ceil(chars / CHARS_POR_TOKEN);
 
 /** Cuánto texto de cada pieza viaja a la vista (para leerlo): el resto se corta y se avisa. */
 export const TEXTO_MAX = 4000;
+/** Lo mismo para las secciones del prompt de Claude Code: se muestran enteras (es lo que se quiere leer), con un tope por si una crece sin medida. */
+export const TEXTO_PROMPT_MAX = 16000;
 
 type J = Record<string, unknown>;
 const obj = (x: unknown): x is J => !!x && typeof x === "object" && !Array.isArray(x);
@@ -37,6 +39,8 @@ export type FilaSistema = {
   detalle: string | null;
   tokens: number;
   estimado: true;
+  /** Del prompt: de qué sección es (`intro`, `arnes`, `sesion`, `memoria`, `entorno`, `contexto`; `suelta`: un texto sin título; `null`: un título que no se conoce). Para las demás piezas, `null`. */
+  seccion: string | null;
   /** El texto (recortado a `TEXTO_MAX`), para leerlo; `null` si no se guardó. */
   texto: string | null;
   /** El texto estaba cortado. */
@@ -48,6 +52,10 @@ export type HookSesion = { nombre: string; evento: string; comando: string; text
 export type InfoSesion = {
   /** El prompt de sistema de Claude Code tal como se mandó (partes unidas); `null` si el transcript no lo trae. */
   prompt: string | null;
+  /** Las partes del prompt como las armó Claude Code (el `prompt_snapshot`, o los bloques del pedido si no hay), en orden; vacío si no se sabe. */
+  promptPartes: string[];
+  /** La versión de `claude` que armó el pedido (`api-request-shape`); `null` si no se anotó. */
+  version: string | null;
   /** Definiciones de herramientas del primer pedido (integradas y MCP ya cargadas), con su peso. `null`: este transcript no las trae. */
   herramientas: { nombre: string; tokens: number }[] | null;
   hooks: HookSesion[];
@@ -65,7 +73,7 @@ export type InfoSesion = {
   resultadosMcp: Record<string, number>;
 };
 
-const vacia = (): InfoSesion => ({ prompt: null, herramientas: null, hooks: [], diferidas: [], buscadas: [], instrucciones: null, mcpInstrucciones: {}, agentes: 0, entorno: 0, resultadosMcp: {} });
+const vacia = (): InfoSesion => ({ prompt: null, promptPartes: [], version: null, herramientas: null, hooks: [], diferidas: [], buscadas: [], instrucciones: null, mcpInstrucciones: {}, agentes: 0, entorno: 0, resultadosMcp: {} });
 
 const normalizarServidor = (s: string) => s.replace(/[^A-Za-z0-9_-]/g, "_");
 
@@ -79,6 +87,7 @@ export function leerSesion(lineas: string[]): InfoSesion {
   const buscadas = new Map<string, number>();
   const diferidas = new Set<string>();
   let arranco = false;
+  let snapshot = false;
   for (const l of lineas) {
     if (!l.startsWith("{")) continue;
     let o: J;
@@ -94,6 +103,8 @@ export function leerSesion(lineas: string[]): InfoSesion {
       const sh = o.shape;
       const partes = arr(sh.system).map((s) => (obj(s) ? str(s.text) : null)).filter((s): s is string => !!s);
       if (partes.length && r.prompt === null) r.prompt = partes.join("\n");
+      if (partes.length && !r.promptPartes.length) r.promptPartes = partes;
+      r.version = str(o.version);
       r.herramientas = arr(sh.tools)
         .filter(obj)
         .map((t) => ({ nombre: str(t.name) ?? "?", tokens: tokensDe(largo(t)) }));
@@ -128,6 +139,14 @@ export function leerSesion(lineas: string[]): InfoSesion {
         if (r.prompt === null) {
           const partes = arr(a.systemPrompt).filter((s): s is string => typeof s === "string" && s !== "__SYSTEM_PROMPT_DYNAMIC_BOUNDARY__");
           if (partes.length) r.prompt = partes.join("\n");
+        }
+        // El snapshot parte el prompt mejor que el pedido (que lo junta en tres bloques): si lo trae, manda.
+        if (!snapshot) {
+          const partes = arr(a.systemPrompt).filter((s): s is string => typeof s === "string" && s.trim() !== "" && s !== "__SYSTEM_PROMPT_DYNAMIC_BOUNDARY__");
+          if (partes.length) {
+            snapshot = true;
+            r.promptPartes = [...(str(a.cliPrefix) ? [a.cliPrefix as string] : []), ...partes];
+          }
         }
         break;
       }
@@ -196,7 +215,7 @@ export function leerSesion(lineas: string[]): InfoSesion {
   return r;
 }
 
-const recorte = (t: string): { texto: string; truncado: boolean } => (t.length > TEXTO_MAX ? { texto: t.slice(0, TEXTO_MAX), truncado: true } : { texto: t, truncado: false });
+const recorte = (t: string, max = TEXTO_MAX): { texto: string; truncado: boolean } => (t.length > max ? { texto: t.slice(0, max), truncado: true } : { texto: t, truncado: false });
 
 /** Los hooks que cargaron texto al empezar la sesión, sin repetir los de cada mensaje (esos van a los mensajes). */
 export const hooksDeInicio = (i: InfoSesion) => i.hooks.filter((h) => h.alInicio && h.evento !== "UserPromptSubmit");
@@ -207,19 +226,68 @@ export const hooksDeInicio = (i: InfoSesion) => i.hooks.filter((h) => h.alInicio
  */
 export function piezasSistema(i: InfoSesion): FilaSistema[] {
   const r: FilaSistema[] = [];
-  if (i.prompt) r.push({ clave: "prompt", tipo: "prompt", nombre: "prompt", detalle: null, tokens: tokensAprox(i.prompt), estimado: true, ...rec(i.prompt) });
+  const secciones = partirPrompt(i.promptPartes.length ? i.promptPartes : i.prompt ? [i.prompt] : []);
+  for (const p of secciones) r.push({ clave: p.clave, tipo: "prompt", nombre: p.titulo, detalle: p.detalle, seccion: p.seccion, tokens: tokensAprox(p.texto), estimado: true, ...rec(p.texto, TEXTO_PROMPT_MAX) });
   for (const h of hooksDeInicio(i)) {
-    r.push({ clave: `hook:${h.nombre}:${h.comando.slice(0, 40)}`, tipo: "hook", nombre: h.nombre, detalle: h.evento, tokens: tokensAprox(h.texto), estimado: true, ...rec(h.texto) });
+    r.push({ clave: `hook:${h.nombre}:${h.comando.slice(0, 40)}`, tipo: "hook", nombre: h.nombre, detalle: h.evento, seccion: null, tokens: tokensAprox(h.texto), estimado: true, ...rec(h.texto) });
   }
   if (i.diferidas.length) {
     const t = i.diferidas.join("\n");
-    r.push({ clave: "diferidas", tipo: "diferidas", nombre: "diferidas", detalle: String(i.diferidas.length), tokens: tokensAprox(t), estimado: true, ...rec(t) });
+    r.push({ clave: "diferidas", tipo: "diferidas", nombre: "diferidas", detalle: String(i.diferidas.length), seccion: null, tokens: tokensAprox(t), estimado: true, ...rec(t) });
   }
-  if (i.entorno > 0) r.push({ clave: "entorno", tipo: "entorno", nombre: "entorno", detalle: null, tokens: i.entorno, estimado: true, texto: null, truncado: false });
+  if (i.entorno > 0) r.push({ clave: "entorno", tipo: "entorno", nombre: "entorno", detalle: null, seccion: null, tokens: i.entorno, estimado: true, texto: null, truncado: false });
   return r.filter((x) => x.tokens > 0);
 }
-const rec = (t: string) => {
-  const c = recorte(t);
+
+// --- El prompt de Claude Code, partido en secciones ------------------------------------------------------------------------------------
+
+/** Una sección del prompt: con su título (el `# …` que trae, tal cual), de qué parte es y su texto entero. */
+export type PartePrompt = { clave: string; titulo: string; detalle: string | null; seccion: string | null; texto: string };
+
+/** Los títulos de sección de Claude Code que la vista sabe nombrar y explicar (minúsculas) → su clave. */
+const SECCIONES_CONOCIDAS: Record<string, string> = {
+  harness: "arnes",
+  "session-specific guidance": "sesion",
+  memory: "memoria",
+  environment: "entorno",
+  "context management": "contexto",
+};
+
+/** Un texto cortado en `# títulos` (los de primer nivel, fuera de los bloques de código): [lo de antes del primero, y cada título con lo suyo]. */
+function cortarPorTitulos(texto: string): { titulo: string | null; texto: string }[] {
+  const r: { titulo: string | null; lineas: string[] }[] = [{ titulo: null, lineas: [] }];
+  let cerca = false;
+  for (const l of texto.split("\n")) {
+    if (/^\s*(```|~~~)/.test(l)) cerca = !cerca;
+    const m = !cerca && /^# +(\S.*?)\s*$/.exec(l);
+    if (m) r.push({ titulo: m[1], lineas: [l] });
+    else r[r.length - 1].lineas.push(l);
+  }
+  return r.map((x) => ({ titulo: x.titulo, texto: x.lineas.join("\n").trim() })).filter((x) => x.texto);
+}
+
+/**
+ * El prompt de sistema partido en las secciones que él mismo trae (`# Harness`, `# Environment`…). Lo de antes del primer título es la
+ * introducción; cada parte sin título que viene después es una "instrucción suelta" (por ejemplo, lo que agrega `--append-system-prompt`).
+ * Es el texto real, nunca uno inventado.
+ */
+export function partirPrompt(partes: string[]): PartePrompt[] {
+  const r: PartePrompt[] = [];
+  const clave = (base: string) => (r.some((x) => x.clave === base) ? `${base}#${r.length}` : base);
+  for (const parte of partes) {
+    for (const c of cortarPorTitulos(parte)) {
+      const ultima = r[r.length - 1];
+      if (c.titulo !== null) {
+        r.push({ clave: clave(`seccion:${c.titulo.toLowerCase().slice(0, 40)}`), titulo: c.titulo, detalle: null, seccion: SECCIONES_CONOCIDAS[c.titulo.toLowerCase()] ?? null, texto: c.texto });
+      } else if (!ultima) r.push({ clave: "intro", titulo: "", detalle: null, seccion: "intro", texto: c.texto });
+      else if (ultima.seccion === "intro") ultima.texto += `\n\n${c.texto}`;
+      else r.push({ clave: clave("suelta"), titulo: "", detalle: c.texto.replace(/\s+/g, " ").slice(0, 70), seccion: "suelta", texto: c.texto });
+    }
+  }
+  return r;
+}
+const rec = (t: string, max = TEXTO_MAX) => {
+  const c = recorte(t, max);
   return { texto: c.texto, truncado: c.truncado };
 };
 

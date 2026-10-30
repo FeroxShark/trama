@@ -4,7 +4,7 @@
 // interruptor. Apagar vale para TODO Trama (`apagados:fijar`): se aplica a workers nuevos y al líder desde el próximo mensaje. La otra pestaña
 // es el catálogo de skills (buscar, filtrar, ver tokens, prender y apagar). Los datos: src/datos/contexto.ts; la cuenta y el mapa: contexto-vista.ts.
 // En el celular ocupa la pantalla y sólo se mira (apagar es de la PC).
-import { createContext, memo, useCallback, useContext, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent as ReactMouseEvent } from "react";
+import { createContext, Fragment, memo, useCallback, useContext, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent as ReactMouseEvent } from "react";
 import { ArrowLeft, ArrowUpRight, Check, ChevronRight, CircleDashed, Lock, Minimize2, PanelRightClose, RefreshCw, Search, X, Zap } from "lucide-react";
 import type { Hilo, Lider } from "../datos/contrato";
 import type { Categoria, Desglose } from "../../electron/contexto-desglose";
@@ -148,11 +148,14 @@ function Barra({ cats, d, fina }: { cats: FilaCat[]; d: Desglose; fina?: boolean
   );
 }
 
-/** El nombre de un bloque o de un ítem del sistema, en el idioma de la vista. */
-function nombreSis(sis: Item["sis"], nombre: string, detalle: string | null): string {
+/** Las secciones del prompt que la vista sabe nombrar y explicar (`electron/contexto-sesion.ts`, `SECCIONES_CONOCIDAS`). */
+const SECCIONES = new Set(["intro", "arnes", "sesion", "memoria", "entorno", "contexto"]);
+
+/** El nombre de un bloque o de un ítem del sistema, en el idioma de la vista. Del prompt: la sección conocida, o su título tal cual, o "instrucción suelta". */
+function nombreSis(sis: Item["sis"], nombre: string, detalle: string | null, seccion?: string | null): string {
   switch (sis) {
     case "prompt":
-      return t("ctxp.sis.prompt");
+      return seccion && SECCIONES.has(seccion) ? t(`ctxp.sis.sec.${seccion}` as "ctxp.sis.sec.intro") : nombre || t(seccion === "suelta" ? "ctxp.sis.suelta" : "ctxp.sis.prompt");
     case "hook":
       return t("ctxp.sis.hook", { nombre });
     case "diferidas":
@@ -166,6 +169,16 @@ function nombreSis(sis: Item["sis"], nombre: string, detalle: string | null): st
   }
 }
 
+/** La explicación de una pieza del sistema: la de su sección si es del prompt, o la de su tipo. */
+const ayudaSis = (it: Pick<Item, "sis" | "seccion">): string =>
+  it.sis === "prompt"
+    ? it.seccion && SECCIONES.has(it.seccion)
+      ? `ctxp.ayuda.sec.${it.seccion}`
+      : it.seccion === "suelta"
+        ? "ctxp.ayuda.suelta"
+        : "ctxp.ayuda.secOtra"
+    : `ctxp.ayuda.${it.sis}`;
+
 /** El mapa de bloques: lo más pesado de un vistazo. Cada bloque dice su nombre y lleva a su detalle; tocarlo abre la categoría. Clic derecho en Mensajes: compactar. */
 function Mapa({ d, apagados, alElegir, alMenu }: { d: Desglose; apagados: VistaApagados["apagados"] | null; alElegir: (cat: Categoria, clave: string | null) => void; alMenu?: (cat: Categoria) => void }) {
   const total = d.ventana ?? d.usado ?? 1;
@@ -174,7 +187,7 @@ function Mapa({ d, apagados, alElegir, alMenu }: { d: Desglose; apagados: VistaA
   return (
     <div className="cp-mapa" role="group" aria-label={t("ctxp.mapa")}>
       {colocados.map((b) => {
-        const nombre = b.resto ? "" : b.nombre === "…" ? t("ctxp.mapaCat", { cat: nombreCat(b.cat) }) : b.sis ? nombreSis(b.sis, b.nombre, null) : b.nombre || nombreCat(b.cat);
+        const nombre = b.resto ? "" : b.nombre === "…" ? t("ctxp.mapaCat", { cat: nombreCat(b.cat) }) : b.sis ? nombreSis(b.sis, b.nombre, null, b.seccion) : b.nombre || nombreCat(b.cat);
         const caja = {
           left: `${b.x}%`,
           top: `${(b.y / ALTO_MAPA) * 100}%`,
@@ -263,8 +276,9 @@ function FilaItem({ it, uid, foco, estimado }: { it: Item; uid: string; foco: bo
   const apagado = it.apaga && apagados ? estaApagado(apagados, it.apaga) : false;
   const idHijos = useId();
   const idTexto = useId();
-  const nombre = nombreSis(it.sis, it.nombre, it.detalle);
-  const detalle = it.sis === "diferidas" || it.sis === "resto" ? null : it.detalle;
+  const nombre = nombreSis(it.sis, it.nombre, it.detalle, it.seccion);
+  // De una sección conocida del prompt se ve también su título original; de la suelta, sus primeras palabras.
+  const detalle = it.sis === "diferidas" || it.sis === "resto" ? null : it.sis === "prompt" && it.seccion && SECCIONES.has(it.seccion) ? it.nombre || null : it.detalle;
   return (
     <li id={`${uid}-${it.clave}`} className="cp-it" data-apagado={apagado ? "" : undefined} data-foco={foco ? "" : undefined} data-fantasma={it.fantasma ? "" : undefined}>
       <div className="cp-it-nom">
@@ -272,12 +286,12 @@ function FilaItem({ it, uid, foco, estimado }: { it: Item; uid: string; foco: bo
         {detalle ? <small title={detalle}>{detalle}</small> : null}
       </div>
       <span className="cp-num" data-tip={apagado ? t("ctxp.noSuma") : estimado ? t("ctxp.estimado") : undefined}>
-        {it.tokens === null ? (it.fantasma ? "—" : t("ctxp.sinTokens")) : `${estimado ? "≈" : ""}${miles(it.tokens)}`}
+        {it.tokens === null ? (it.fantasma ? "—" : t(it.diferida ? "ctxp.soloNombre" : "ctxp.sinTokens")) : `${estimado ? "≈" : ""}${miles(it.tokens)}`}
       </span>
       {it.sis ? <span className="cp-sw-hueco" /> : <Interruptor x={it.apaga} nombre={nombre} protegida={it.protegida} />}
       <div className="cp-it-det">
         <Uso it={it} />
-        {it.sis ? <Ayuda k={`ctxp.ayuda.${it.sis}`} nombre={nombre} /> : null}
+        {it.sis ? <Ayuda k={ayudaSis(it)} nombre={nombre} /> : null}
         {it.nunca && !it.porHook ? <Ayuda k="ctxp.ayuda.nunca" nombre={t("ctxp.usos0")} /> : null}
         {it.diferida ? <span className="cp-etq">{t("ctxp.diferida")}</span> : null}
         {it.diferida ? <Ayuda k="ctxp.ayuda.diferida" nombre={t("ctxp.diferida")} /> : null}
@@ -507,10 +521,18 @@ function Detalle({ d, uid, inicial, lider, alRefrescar }: { d: Desglose; uid: st
               {c.id === "mensajes" ? <FilaCompactar c={compactar} sinLider={!lider} /> : null}
               {abre ? (
                 <div id={idCuerpo} className="cp-cuerpo">
+                  {c.id === "sistema" && d.sistema.some((p) => p.tipo === "prompt") ? <p className="cp-nota">{d.promptVersion ? t("ctxp.sis.notaVersion", { version: d.promptVersion }) : t("ctxp.sis.nota")}</p> : null}
                   {items.length ? (
                     <ul className="cp-items" aria-label={nombreCat(c.id)}>
-                      {items.map((it) => (
-                        <FilaItem key={it.clave} it={it} uid={`${uid}-${c.id}`} foco={foco === it.clave} estimado={c.estimado || d.estimado} />
+                      {items.map((it, k) => (
+                        <Fragment key={it.clave}>
+                          {c.id === "herramientas" && (k === 0 || items[k - 1].diferida !== it.diferida) ? (
+                            <li className="cp-sub" aria-hidden="true">
+                              {t(it.diferida ? "ctxp.herr.diferidas" : "ctxp.herr.cargadas", { n: items.filter((x) => x.diferida === it.diferida).length })}
+                            </li>
+                          ) : null}
+                          <FilaItem it={it} uid={`${uid}-${c.id}`} foco={foco === it.clave} estimado={c.estimado || d.estimado} />
+                        </Fragment>
                       ))}
                     </ul>
                   ) : (

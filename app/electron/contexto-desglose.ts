@@ -76,6 +76,8 @@ export type Desglose = {
   mcp: FilaMcp[];
   skills: FilaSkill[];
   memoria: FilaMemoria[];
+  /** La versión de `claude` que armó el prompt que se muestra en "sistema"; `null` si el transcript no la anotó. */
+  promptVersion?: string | null;
   /** De qué está hecho el "sistema" (prompt de Claude Code, hooks de inicio, lista de herramientas diferidas…); estimado. Lo que falta hasta la categoría es "sin separar". */
   sistema: FilaSistema[];
   /** Lo que se usó en la sesión aunque no figure arriba (por ejemplo, en un desglose estimado). */
@@ -220,6 +222,20 @@ function categoriasDe(r: J): FilaCategoria[] {
   return filas;
 }
 
+/**
+ * Las herramientas integradas cuando la respuesta no trae la lista (`get_context_usage` en modo `summary` la manda vacía): las del primer
+ * pedido del transcript, con su peso estimado (las cargadas), y los nombres que se anunciaron como diferidos (sin peso: no están en la ventana).
+ */
+function herramientasDeSesion(info: InfoSesion | null, usos: Usos): FilaHerramienta[] {
+  if (!info) return [];
+  const r: FilaHerramienta[] = (info.herramientas ?? [])
+    .filter((h) => !h.nombre.startsWith("mcp__"))
+    .map((h) => ({ nombre: h.nombre, tokens: h.tokens, diferida: false, usos: usos.herramientas[h.nombre] ?? 0 }));
+  for (const n of info.diferidas)
+    if (!n.startsWith("mcp__") && !r.some((h) => h.nombre === n)) r.push({ nombre: n, tokens: null, diferida: true, usos: usos.herramientas[n] ?? 0 });
+  return r;
+}
+
 /** Un número que se puede achicar (para que lo contado nunca pase de su categoría). */
 type Ref = { get: () => number; set: (n: number) => void };
 const ref = <T extends object>(o: T, k: keyof T): Ref => ({ get: () => (o[k] as number) ?? 0, set: (n) => void ((o[k] as number) = n) });
@@ -237,10 +253,12 @@ export function desdeClaude(resp: unknown, x: { id: string; usos?: Usos; info?: 
   /** Lo que dice la categoría (sin las diferidas); `Infinity` si la respuesta no trae categorías: no hay contra qué topar. */
   const tope = (id: Categoria) => (categorias.length ? categorias.filter((c) => c.id === id && !c.diferido).reduce((n, c) => n + c.tokens, 0) : Infinity);
   const usosBase = x.usos ?? vaciosUsos();
-  const herramientas: FilaHerramienta[] = [
+  const deLaRespuesta: FilaHerramienta[] = [
     ...arr(r.systemTools).filter(obj).map((t) => ({ nombre: str(t.name) ?? "?", tokens: num(t.tokens), diferida: false, usos: usosBase.herramientas[str(t.name) ?? ""] ?? 0 })),
     ...arr(r.deferredBuiltinTools).filter(obj).map((t) => ({ nombre: str(t.name) ?? "?", tokens: num(t.tokens), diferida: t.isLoaded !== true, usos: usosBase.herramientas[str(t.name) ?? ""] ?? 0 })),
   ];
+  // Sin lista en la respuesta (modo `summary`), la del transcript; los pesos se achican a lo que dice la categoría más abajo (`topar`).
+  const herramientas = deLaRespuesta.length ? deLaRespuesta : herramientasDeSesion(info, usosBase);
   const servidores = new Map<string, FilaMcp>();
   const servidor = (s: string) => {
     let f = servidores.get(s);
@@ -314,6 +332,7 @@ export function desdeClaude(resp: unknown, x: { id: string; usos?: Usos; info?: 
     ...d,
     memoria,
     sistema,
+    promptVersion: info?.version ?? null,
     usos,
     medidoEn: x.medidoEn ?? null,
     desactualizado: x.desactualizado ?? false,
@@ -455,6 +474,8 @@ export function desdeTranscript(
   const mcp = [...nombresMcp.values()];
 
   const herramientas: FilaHerramienta[] = integradas.map((h) => ({ nombre: h.nombre, tokens: h.tokens, diferida: false, usos: usos.herramientas[h.nombre] ?? 0 }));
+  // Las integradas que se anunciaron diferidas (sólo el nombre está en la ventana) van aparte y no suman.
+  for (const n of info.diferidas) if (!n.startsWith("mcp__") && !herramientas.some((h) => h.nombre === n)) herramientas.push({ nombre: n, tokens: null, diferida: true, usos: usos.herramientas[n] ?? 0 });
   for (const [nombre, n] of Object.entries(usos.herramientas).sort((a, b) => b[1] - a[1]))
     if (!herramientas.some((h) => h.nombre === nombre)) herramientas.push({ nombre, tokens: null, diferida: false, usos: n });
 
@@ -468,6 +489,7 @@ export function desdeTranscript(
     skills,
     memoria,
     sistema,
+    promptVersion: info.version,
     usos,
     medidoEn: null,
     desactualizado: false,

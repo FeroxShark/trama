@@ -842,3 +842,11 @@
   font-size: var(--letra-3);
   line-height: 1.45;
 }
+/* El título de un grupo dentro de una lista de ítems (Herramientas: cargadas y diferidas). */
+.cp-sub {
+  list-style: none;
+  padding: var(--esp-2) var(--esp-1) var(--esp-1);
+  color: var(--txt-4);
+  font-size: var(--letra-3);
+  font-weight: 500;
+}

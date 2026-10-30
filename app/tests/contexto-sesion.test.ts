@@ -11,7 +11,7 @@ import {
   type Desglose,
   type Medicion,
 } from "../electron/contexto-desglose.ts";
-import { hooksDeInicio, leerSesion, piezasSistema, skillsPorHook, topar } from "../electron/contexto-sesion.ts";
+import { hooksDeInicio, leerSesion, partirPrompt, piezasSistema, skillsPorHook, topar } from "../electron/contexto-sesion.ts";
 
 const L = (o: unknown) => JSON.stringify(o);
 const x = (n: number, c = "x") => c.repeat(n);
@@ -224,4 +224,60 @@ test("catálogo: usos de todas las sesiones recientes (Skill, /comando y plugin 
   assert.equal(usosDeHistorial({ ...consulta, sesiones: 0 }, lista), null);
   assert.equal(usosDeHistorial({ version: 1, error: "x" }, lista), null);
   assert.equal(usosDeHistorial(null, lista), null);
+});
+
+test("prompt: se parte en las secciones que trae, con su texto real; cada parte sin título es una instrucción suelta", () => {
+  const partes = [
+    "Sos un asistente de prueba.\n\n# Arnes\n - Una regla inventada.",
+    "Una línea corta suelta.",
+    "# Entorno\n - Datos inventados.\n```\n# esto es un comentario dentro de un bloque de código\n```",
+    "Sigue el entorno.",
+    "# Otro título\ncuerpo",
+    x(1500, "a"),
+  ];
+  const r = partirPrompt(partes);
+  assert.deepEqual(r.map((p) => p.seccion), ["intro", null, "suelta", null, "suelta", null, "suelta"]);
+  assert.deepEqual(r.map((p) => p.titulo), ["", "Arnes", "", "Entorno", "", "Otro título", ""]);
+  // Cada parte sin título es una instrucción suelta, con sus primeras palabras; un `#` dentro de un bloque de código no abre sección.
+  assert.equal(r[2].texto, "Una línea corta suelta.");
+  assert.match(r[3].texto, /# esto es un comentario dentro de un bloque de código/);
+  assert.equal(r[6].detalle?.length, 70);
+  // Los títulos conocidos de Claude Code llevan su clave.
+  const conocidas = partirPrompt(["# Harness\na", "# Session-specific guidance\nb", "# Memory\nc", "# Environment\nd", "# Context management\ne"]);
+  assert.deepEqual(conocidas.map((p) => p.seccion), ["arnes", "sesion", "memoria", "entorno", "contexto"]);
+  assert.deepEqual(partirPrompt([]), []);
+});
+
+test("prompt: el snapshot de la sesión manda sobre los bloques del pedido, y lleva la versión de claude", () => {
+  const info = leerSesion([
+    L({ type: "api-request-shape", version: "2.1.999", shape: { system: [{ type: "text", text: "uno" }], tools: [] } }),
+    adj({ type: "prompt_snapshot", cliPrefix: "Prefijo inventado.", systemPrompt: ["intro del snapshot", "__SYSTEM_PROMPT_DYNAMIC_BOUNDARY__", "# Memory\nrecuerdos"] }),
+  ]);
+  assert.equal(info.version, "2.1.999");
+  assert.deepEqual(info.promptPartes, ["Prefijo inventado.", "intro del snapshot", "# Memory\nrecuerdos"]);
+  const piezas = piezasSistema(info).filter((p) => p.tipo === "prompt");
+  assert.deepEqual(piezas.map((p) => p.seccion), ["intro", "memoria"]);
+  assert.match(piezas[0].texto ?? "", /Prefijo inventado\.\n\nintro del snapshot/);
+  // Sin snapshot, los bloques del pedido.
+  assert.deepEqual(leerSesion([L({ type: "api-request-shape", shape: { system: [{ type: "text", text: "# Harness\nx" }], tools: [] } })]).promptPartes, ["# Harness\nx"]);
+  // Las secciones se muestran enteras: más que el tope de las demás piezas.
+  const larga = piezasSistema(leerSesion([adj({ type: "prompt_snapshot", systemPrompt: [`# Harness\n${x(9000)}`] })]));
+  assert.equal(larga[0].truncado, false);
+  assert.ok((larga[0].texto ?? "").length > 4000);
+});
+
+test("herramientas: si la respuesta no trae la lista (modo summary), salen del pedido del transcript y las diferidas van aparte", () => {
+  const info = leerSesion(TRANSCRIPT);
+  const sinLista = { ...RESPUESTA, systemTools: [] };
+  const d = desdeClaude(sinLista, { id: "s", info });
+  const cargadas = d.herramientas.filter((h) => !h.diferida);
+  assert.deepEqual(cargadas.map((h) => h.nombre).sort(), ["Bash", "Skill"]);
+  // Las de MCP no son integradas; WebFetch se anunció diferida: sólo el nombre, sin peso.
+  assert.deepEqual(d.herramientas.filter((h) => h.diferida).map((h) => [h.nombre, h.tokens]), [["WebFetch", null]]);
+  assert.ok(suma(cargadas.map((h) => h.tokens ?? 0)) <= tope(d, "herramientas"));
+  // Con lista en la respuesta, manda la respuesta.
+  assert.deepEqual(desdeClaude(RESPUESTA, { id: "s", info }).herramientas.map((h) => h.nombre), ["Bash", "Skill"]);
+  // El desglose estimado también las lista.
+  const e = desdeTranscript(TRANSCRIPT, { tipo: "worker", id: "w", motor: "claude", memoria: [], skills: [] });
+  assert.ok(e.herramientas.some((h) => h.nombre === "WebFetch" && h.diferida && h.tokens === null));
 });

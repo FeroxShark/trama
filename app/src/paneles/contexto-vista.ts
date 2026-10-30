@@ -94,6 +94,8 @@ export type Item = {
   resultados: number | null;
   /** Una pieza del sistema: de qué es (la vista pone el nombre) y su texto, si se guardó. */
   sis: TipoSistema | "resto" | null;
+  /** Del prompt: la clave de la sección conocida (`arnes`, `memoria`…), `suelta` o `null` si el título no se conoce. */
+  seccion: string | null;
   texto: string | null;
   truncado: boolean;
   /** Está apagada y la medición ya no la trae (el líder la dejó afuera): se muestra para poder prenderla. */
@@ -136,6 +138,7 @@ const ITEM_BASE: Item = {
   diferidos: null,
   resultados: null,
   sis: null,
+  seccion: null,
   texto: null,
   truncado: false,
   fantasma: false,
@@ -152,7 +155,7 @@ export function itemsDe(d: Desglose, cat: Categoria, protegidas: readonly string
       .filter((n) => !hay(n))
       .map((n): Item => ({ ...ITEM_BASE, clave: `fantasma:${n}`, nombre: nombreDe(n), detalle: tipo === "memoria" ? n : null, apaga: { tipo, nombre: n }, fantasma: true }));
   if (cat === "sistema") {
-    const piezas = d.sistema.map((p): Item => ({ ...ITEM_BASE, clave: p.clave, nombre: p.nombre, detalle: p.detalle, tokens: p.tokens, sis: p.tipo, texto: p.texto, truncado: p.truncado }));
+    const piezas = d.sistema.map((p): Item => ({ ...ITEM_BASE, clave: p.clave, nombre: p.nombre, detalle: p.detalle, tokens: p.tokens, sis: p.tipo, seccion: p.seccion, texto: p.texto, truncado: p.truncado }));
     const resto = (ctx.tokensCat ?? 0) - piezas.reduce((n, p) => n + (p.tokens ?? 0), 0);
     // Lo que sobra de la categoría y no se pudo separar (por ejemplo, el primer mensaje).
     if (ctx.tokensCat !== undefined && resto > Math.max(1, ctx.tokensCat * 0.03)) piezas.push({ ...ITEM_BASE, clave: "sin-separar", nombre: "", tokens: resto, sis: "resto" });
@@ -269,6 +272,7 @@ export type Bloque = {
   resto?: true;
   /** Una pieza del sistema (la vista le pone el nombre en su idioma). */
   sis?: TipoSistema | "resto";
+  seccion?: string | null;
 };
 export type Colocado = Bloque & { x: number; y: number; w: number; h: number };
 
@@ -281,7 +285,7 @@ export function bloques(d: Desglose, tope = 14, apagados?: Apagados | null): Blo
     const items = CON_ITEMS.has(c.id) ? itemsDe(d, c.id).filter((i) => (i.tokens ?? 0) > 0 && !fuera(i)) : [];
     let cubierto = 0;
     for (const i of items) {
-      todos.push({ id: `${c.id}:${i.clave}`, cat: c.id, nombre: i.nombre, tokens: i.tokens ?? 0, clave: i.clave, ...(i.sis ? { sis: i.sis } : {}) });
+      todos.push({ id: `${c.id}:${i.clave}`, cat: c.id, nombre: i.nombre, tokens: i.tokens ?? 0, clave: i.clave, ...(i.sis ? { sis: i.sis, seccion: i.seccion } : {}) });
       cubierto += i.tokens ?? 0;
     }
     // Lo de la categoría que los ítems no explican (o toda ella, si no tiene ítems).
