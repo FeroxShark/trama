@@ -36,7 +36,7 @@ import { iconosDe } from "./iconos.js";
 import { guardarYa, leerLeidos, marcarLeido } from "./leidos.js";
 import { almacenNombres } from "./nombres.js";
 import { almacenPendientes } from "./pendientes.js";
-import { guardarApariencia, guardarAutoIntegrar, guardarAvisarEspera, guardarAvisarWorkers, guardarAvisoLider, avisoLiderGuardado, bienvenidaPendiente, guardarBienvenida, guardarConsumo, guardarDictadoModelo, guardarEffort, guardarGuias, guardarIdioma, guardarTerminalAgentes, guardarTiernos, guardarVista, guiasEstado, guardarLimpieza, leerLimpieza, leerPreferencias } from "./preferencias.js";
+import { guardarApariencia, guardarAutoIntegrar, guardarAvisarEspera, guardarAvisarWorkers, guardarAvisoLider, avisoLiderGuardado, guardarCacheVencida, bienvenidaPendiente, guardarBienvenida, guardarConsumo, guardarDictadoModelo, guardarEffort, guardarGuias, guardarIdioma, guardarTerminalAgentes, guardarTiernos, guardarVista, guiasEstado, guardarLimpieza, leerLimpieza, leerPreferencias } from "./preferencias.js";
 import { aplicarLimpieza, pasadaAutomatica, programarPasadas, verLimpieza } from "./limpieza-pa.js";
 import { accionRama, arreglarDatos, briefRamas, enCola, ejecutar, lanzarRama, lanzarTareaMd, leerAjustes, leerMedicion, pasarALider, relanzarWorker, retomarDatos, tareaMdEnCurso, type AccionRama, type TipoTareaMd } from "./paneles.js";
 import { guardarRouting, type Cambio } from "./routing.js";
@@ -323,7 +323,7 @@ const NO_TRAE: Record<string, string> = {
 const cola = crearCola({
   disponible: async (sid) => (saliendo ? "ocupado" : lider.disponible(sid)),
   traer: (sid, x, cortar) => lider.traer({ sid, modelo: x.modelo, effort: x.effort, nombre: x.nombre, modo: x.modo, cortar }),
-  mandar: (sid, x) => lider.mandar({ sid, texto: x.texto, imagenes: x.imagenes, modelo: x.modelo, effort: x.effort }),
+  mandar: async (sid, x) => void (await lider.mandar({ sid, texto: x.texto, imagenes: x.imagenes, modelo: x.modelo, effort: x.effort })),
   total: async (sid) => (await lider.conversacionLider({ sid, n: 1 })).total,
   // A mitad de un turno todo lo encolado entra junto en el próximo límite de herramienta (sin interrumpir); sin canal, al terminar el turno.
   puedeEnTurno: (sid) => !saliendo && lider.puedeEnTurno(sid),
@@ -1079,6 +1079,7 @@ export function armarNucleo() {
   manejar("preferencias:avisarWorkers", (_e, si: unknown) => guardarAvisarWorkers(si));
   manejar("preferencias:terminalAgentes", (_e, t: unknown) => guardarTerminalAgentes(t));
   manejar("preferencias:avisoLider", (_e, v: unknown) => guardarAvisoLider(v));
+  manejar("preferencias:cacheVencida", (_e, v: unknown) => guardarCacheVencida(v));
   manejar("preferencias:vista", (_e, vista: unknown) => guardarVista(vista));
   manejar("preferencias:consumo", (_e, si: unknown) => guardarConsumo(si));
   manejar("preferencias:bienvenidaPendiente", () => bienvenidaPendiente());
@@ -1117,9 +1118,9 @@ export function armarNucleo() {
   manejar("lider:nuevo", (_e, x: { modelo: string; effort: string; texto: string; imagenes?: unknown; modo?: string; rol?: string; carpeta?: unknown; cuenta?: unknown }) =>
     lider.nuevo({ modelo: x?.modelo, effort: x?.effort, texto: x?.texto, imagenes: x?.imagenes, modo: x?.modo, rol: x?.rol, carpeta: x?.carpeta, cuenta: x?.cuenta }),
   );
-  manejar("lider:mandar", (_e, x: { sid: string; texto: string; imagenes?: unknown; modelo: string; effort: string }) => {
+  manejar("lider:mandar", (_e, x: { sid: string; texto: string; imagenes?: unknown; modelo: string; effort: string; empezar?: unknown }) => {
     verEspera(String(x?.sid));
-    return lider.mandar({ sid: x?.sid, texto: x?.texto, imagenes: x?.imagenes, modelo: x?.modelo, effort: x?.effort });
+    return lider.mandar({ sid: x?.sid, texto: x?.texto, imagenes: x?.imagenes, modelo: x?.modelo, effort: x?.effort, empezar: x?.empezar });
   });
   // "Mandar ya" (lo que la cola hace por defecto, sin agrupar): a mitad de un turno (`lider.mandarDirecto`); sin turno en curso es un `mandar` normal.
   manejar("lider:mandarYa", (_e, x: { sid: string; texto: string; imagenes?: unknown; modelo: string; effort: string }) => {

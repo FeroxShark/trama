@@ -7,6 +7,7 @@ import type { EstadoLocales, ResultadoProbar } from "../../electron/locales";
 import type { ModeloDetectado, ResultadoDeteccion, ServidorLocal } from "../../electron/locales-deteccion";
 import type { EstadoVram, ResultadoLiberar } from "../../electron/vram";
 import { MODELO_LARGE_V3, MODELO_TURBO, type ModelosDictado } from "../../electron/dictado-modelos";
+import type { PrefCache } from "../../electron/cache-pregunta";
 import { aplicarOpGuias, GUIAS_VACIO, normalizarGuias, type EstadoGuias, type OpGuias } from "../../electron/guias-estado";
 import { main, mensaje, type Lectura } from "../puente";
 import { aplicarDif, esDif } from "./hilos-dif";
@@ -72,6 +73,9 @@ export interface Fuente {
   /** El último esfuerzo elegido para cada modelo en Nueva tarea (`~/.local/state/hilos/preferencias.json`). */
   effortsPorModelo(): Promise<Record<string, string>>;
   guardarEffort(modelo: string, effort: string): void;
+  /** Qué se recordó para el primer mensaje con la caché vencida (`preguntar` si nada); se guarda en el mismo archivo. */
+  cacheVencida(): Promise<PrefCache>;
+  guardarCacheVencida(v: PrefCache): void;
   /** El idioma de la interfaz (Ajustes), en el mismo archivo. */
   guardarIdioma(idioma: string): void;
   /** Tamaño de letra y fuentes (src/tipografia.ts): sólo lo que cambió. */
@@ -118,7 +122,8 @@ export interface Fuente {
   /** Un líder nuevo de la app con su primer mensaje; devuelve su session_id. */
   liderNuevo(x: EnvioLider): Promise<string>;
   /** Escribirle a un líder de la app (lo relanza con `--resume` si no corre). */
-  liderMandar(sid: string, x: EnvioLider): Promise<void>;
+  /** Devuelve el sid del líder nuevo cuando `empezar: "resumen"` tuvo que abrir uno (Claude); si no, `null`. */
+  liderMandar(sid: string, x: EnvioLider): Promise<string | null>;
   /** "Mandar ya": a mitad de un turno de un líder de Claude, sin pasar por la cola. Entra cuando termina el paso en curso. */
   liderMandarYa(sid: string, x: EnvioLider): Promise<void>;
   /** Guarda un archivo adjunto que no es imagen; devuelve la ruta absoluta que va en el mensaje. */
@@ -515,7 +520,7 @@ function avisoCola(x: unknown): AvisoCola | null {
 
 /** `modo`: sólo para un líder nuevo (el chip de la caja); después se cambia con `liderModo`. */
 /** `maquina`: dónde nace un líder nuevo (el selector de la caja); sin él, esta máquina. */
-export type EnvioLider = { texto: string; imagenes?: Imagen[]; modelo: string; effort: string; modo?: string; rol?: "analista"; maquina?: string; carpeta?: string; cuenta?: string };
+export type EnvioLider = { texto: string; imagenes?: Imagen[]; modelo: string; effort: string; modo?: string; rol?: "analista"; maquina?: string; carpeta?: string; cuenta?: string; /** Sesión nueva con el relevo compacto, por caché vencida (electron/cache-pregunta.ts). */ empezar?: "resumen" };
 
 const espera = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -805,6 +810,7 @@ function responderFijo(sid: string, texto: string, modelo: string, imagenes?: Im
   setTimeout(paso, 300);
 }
 const effortsFijos: Record<string, string> = {};
+let cacheFija: PrefCache = "preguntar";
 
 /** Las guías sin motor (el navegador): en el almacenamiento local, si hay; si no (ventana privada, bloqueado) valen sólo mientras la página siga abierta. Las capturas no recuerdan nada. */
 let guiasMemoria: EstadoGuias = GUIAS_VACIO;
@@ -1427,6 +1433,12 @@ const fija: Fuente = {
   guardarEffort(modelo, effort) {
     effortsFijos[modelo] = effort;
   },
+  async cacheVencida() {
+    return cacheFija;
+  },
+  guardarCacheVencida(v) {
+    cacheFija = v;
+  },
   guardarIdioma() {},
   guardarApariencia() {},
   guardarTiernos() {},
@@ -1481,6 +1493,7 @@ const fija: Fuente = {
   async liderMandar(sid, x) {
     if (fallaLanzar) throw new Error("claude: could not resume the session");
     responderFijo(sid, x.texto, x.modelo, x.imagenes);
+    return null;
   },
   async liderMandarYa(sid, x) {
     // Fixtures: el líder de muestra no tiene un turno real al que entrarle; el mensaje se contesta como cualquier otro.
@@ -2056,6 +2069,15 @@ const conPa = (m: NonNullable<typeof main>): Fuente => ({
   guardarEffort(modelo, effort) {
     void m.preferencias.effort(modelo, effort).catch(() => {});
   },
+  async cacheVencida() {
+    return m.preferencias
+      .leer()
+      .then((p) => p.cacheVencida ?? ("preguntar" as const))
+      .catch(() => "preguntar" as const);
+  },
+  guardarCacheVencida(v) {
+    void m.preferencias.cacheVencida(v).catch(() => {});
+  },
   guardarIdioma(idioma) {
     void m.preferencias.idioma(idioma).catch(() => {});
   },
@@ -2143,7 +2165,7 @@ const conPa = (m: NonNullable<typeof main>): Fuente => ({
     });
   },
   async liderMandar(sid, x) {
-    await m.lider.mandar({ sid, ...x }).catch((e) => {
+    return m.lider.mandar({ sid, ...x }).catch((e) => {
       throw new Error(mensaje(e));
     });
   },

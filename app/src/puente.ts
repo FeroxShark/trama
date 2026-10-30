@@ -58,7 +58,7 @@ type Main = {
   slugsPorNombre(): Promise<unknown>;
   /** Lo que la app recuerda (`~/.local/state/hilos/preferencias.json`): el esfuerzo por modelo, el idioma, la letra, las fuentes y la vista de la barra. */
   preferencias: {
-    leer(): Promise<{ effort: Record<string, string> }>;
+    leer(): Promise<{ effort: Record<string, string>; cacheVencida?: "seguir" | "resumen" }>;
     effort(modelo: string, effort: string): Promise<void>;
     idioma(idioma: string): Promise<void>;
     apariencia(a: { letra?: number; fuente?: string; mono?: string; tema?: string }): Promise<void>;
@@ -72,6 +72,8 @@ type Main = {
     terminalAgentes(t: "powershell" | "gitbash"): Promise<void>;
     /** Cómo se avisa al líder de un worker: al terminar la tanda (`tanda`) o por cada worker (`worker`). */
     avisoLider(v: "tanda" | "worker"): Promise<void>;
+    /** Qué hacer con el primer mensaje cuando la caché venció y el contexto es grande: `preguntar` (por defecto), `seguir` o `resumen`. */
+    cacheVencida(v: "preguntar" | "seguir" | "resumen"): Promise<void>;
     vista(vista: "todo" | "lideres"): Promise<void>;
     /** El panel de consumo, a la vista u oculto. */
     consumo(si: boolean): Promise<void>;
@@ -139,7 +141,8 @@ type Main = {
   lider: {
     /** Un líder nuevo con su primer mensaje; devuelve su session_id. */
     nuevo(x: { modelo: string; effort: string; texto: string; imagenes?: Imagen[]; modo?: string; rol?: "analista"; carpeta?: string; cuenta?: string }): Promise<string>;
-    mandar(x: { sid: string; texto: string; imagenes?: Imagen[]; modelo: string; effort: string }): Promise<void>;
+    /** `empezar: "resumen"`: sesión fresca con el relevo compacto (caché vencida); devuelve el sid del líder nuevo si lo hubo. */
+    mandar(x: { sid: string; texto: string; imagenes?: Imagen[]; modelo: string; effort: string; empezar?: "resumen" }): Promise<string | null>;
     mandarYa(x: { sid: string; texto: string; imagenes?: Imagen[]; modelo: string; effort: string }): Promise<void>;
     /** Guarda un archivo adjunto (no imagen) y devuelve su ruta absoluta. */
     archivo(x: { nombre: string; datos: Uint8Array }): Promise<string>;

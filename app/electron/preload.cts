@@ -66,6 +66,7 @@ contextBridge.exposeInMainWorld("hilos", {
     avisarWorkers: (si: boolean): Promise<void> => invocar("preferencias:avisarWorkers", si),
     terminalAgentes: (t: string): Promise<void> => invocar("preferencias:terminalAgentes", t),
     avisoLider: (v: string): Promise<void> => invocar("preferencias:avisoLider", v),
+    cacheVencida: (v: string): Promise<void> => invocar("preferencias:cacheVencida", v),
     vista: (vista: string): Promise<void> => invocar("preferencias:vista", vista),
     consumo: (si: boolean): Promise<void> => invocar("preferencias:consumo", si),
     bienvenidaPendiente: (): Promise<boolean> => invocar("preferencias:bienvenidaPendiente"),
@@ -128,7 +129,7 @@ contextBridge.exposeInMainWorld("hilos", {
   imagen: { leer: (ruta: string): Promise<unknown> => invocar("imagen:leer", ruta) },
   lider: {
     nuevo: (x: unknown): Promise<string> => invocar("lider:nuevo", x),
-    mandar: (x: unknown): Promise<void> => invocar("lider:mandar", x),
+    mandar: (x: unknown): Promise<string | null> => invocar("lider:mandar", x),
     mandarYa: (x: unknown): Promise<void> => invocar("lider:mandarYa", x),
     archivo: (x: unknown): Promise<string> => invocar("lider:archivo", x),
     parar: (sid: string): Promise<void> => invocar("lider:parar", sid),

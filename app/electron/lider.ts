@@ -1001,17 +1001,50 @@ export async function nuevo(x: { modelo: string; effort: string; texto: string; 
  * `apply_flag_settings`) y, si no contesta, se relanza con los nuevos.
  * Ocupado: rechaza (lo que el usuario manda mientras tanto va a la cola, electron/cola.ts).
  */
-export async function mandar(x: { sid: string; texto: string; imagenes?: unknown; modelo: string; effort: string }): Promise<void> {
+export async function mandar(x: { sid: string; texto: string; imagenes?: unknown; modelo: string; effort: string; empezar?: unknown }): Promise<string | null> {
   // Dos a la vez (doble Enter con el proceso muerto) relanzaban dos `claude --resume`
   // con la misma sesión: el segundo pisaba al primero en `procs` y el otro quedaba huérfano.
   const sid = String(x.sid);
   if (mandando.has(sid)) throw errorT("main.respondiendo");
   mandando.add(sid);
   try {
+    // La caché venció y la persona eligió empezar con resumen (cache-pregunta.ts): devuelve el sid del líder nuevo si lo hubo.
+    if (x.empezar === "resumen") return await mandarConResumen(x);
     await mandarYa(x);
+    return null;
   } finally {
     mandando.delete(sid);
   }
+}
+
+/**
+ * «Empezar con resumen»: en vez de releer toda la sesión con la caché vencida, el mensaje abre una sesión fresca que recibe el relevo
+ * compacto (relevo-motor.ts) de lo hablado hasta ahora. Gemini, dsh y opencode siguen en el mismo líder (como Volver acá en el último
+ * mensaje: se aparta su sesión y se anota un corte vacío). Claude no puede reabrir un `--session-id` ya usado: sigue en un líder nuevo
+ * (como una rama con relevo) y devuelve su sid. Sin nada hablado, con un cambio de motor de por medio o en un local, es un mandar normal.
+ */
+async function mandarConResumen(x: { sid: string; texto: string; imagenes?: unknown; modelo: string; effort: string }): Promise<string | null> {
+  const sid = String(x.sid);
+  const g = (await lideresApp()).find((l) => l.sid === sid);
+  if (!g) throw errorT("main.noEsDeLaApp");
+  const { modelo, effort } = normalizar(sueltoDe("modelo", x.modelo), sueltoDe("effort", x.effort));
+  const fam = familiaDeModelo(g.modelo);
+  const normal = async () => (await mandarYa(x), null);
+  if (!rebobinable(g.modelo) || !rebobinable(modelo) || familiaDeModelo(modelo) !== fam) return normal();
+  const p = procs.get(sid);
+  if (p?.ocupado) throw errorT("main.respondiendo");
+  if (await ajeno(sid)) throw errorT("main.otroProceso");
+  const conv = conVista(g) ? await convUnida(g) : await convDe(`${sid}#${fam}`, await transcriptFamilia(sid, fam, g.cwd));
+  const k = conv.todos.findLastIndex((m) => !!m.uuid);
+  if (k < 0) return normal();
+  const uuid = conv.todos[k].uuid!;
+  if (fam !== "claude") {
+    await rebobinarRelevo({ g, fam, conv, k }, { ...x, uuid, modelo, effort });
+    return null;
+  }
+  const nuevo = await ramificarRelevo(sid, uuid, modelo, effort, g, fam);
+  await mandar({ sid: nuevo, texto: x.texto, imagenes: x.imagenes, modelo, effort });
+  return nuevo;
 }
 
 /**
@@ -1063,14 +1096,14 @@ export async function mandarDirecto(x: { sid: string; texto: string; imagenes?: 
   const sid = String(x.sid);
   const p = procs.get(sid);
   if (p?.local) throw errorT("main.sinDirecto");
-  if (!p?.ocupado || mandando.has(sid)) return mandar(x);
+  if (!p?.ocupado || mandando.has(sid)) return void (await mandar(x));
   const g = (await lideresApp()).find((l) => l.sid === sid);
   if (!g) throw errorT("main.noEsDeLaApp");
   // Un modelo o esfuerzo distinto del que corre el turno no se cambia a mitad de turno: el mensaje entra con el del turno y lo elegido
   // queda para el próximo (la caja lo conserva, y la cola lo toma al desencolar). Sólo se valida que sea un valor sano.
   normalizar(sueltoDe("modelo", x.modelo), sueltoDe("effort", x.effort));
   // Pudo terminar el turno o salir el proceso mientras se leía la lista: entonces sí es un mensaje normal.
-  if (procs.get(sid) !== p || !p.ocupado) return mandar(x);
+  if (procs.get(sid) !== p || !p.ocupado) return void (await mandar(x));
   const imagenes = imagenesDe(x.imagenes);
   const texto = textoDe(x.texto, imagenes);
   p.directos.push(texto.trim());

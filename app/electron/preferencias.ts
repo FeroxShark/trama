@@ -12,6 +12,7 @@ import { esModeloDictado } from "./dictado-modelos.ts";
 import { aplicarOpGuias, normalizarGuias, type EstadoGuias } from "./guias-estado.ts";
 import type { ModoAvisoLider } from "./avisos-worker.ts";
 import { CONFIG_LIMPIEZA_DEFAULT, configLimpieza, type ConfigLimpieza } from "./limpieza-pa.ts";
+import { esPrefCache, type PrefCache } from "./cache-pregunta.ts";
 import { esTerminalAgentes, TERMINAL_AGENTES_DEFAULT, type TerminalAgentes } from "./terminal-agentes.ts";
 
 const ARCHIVO = path.join(ESTADO, "preferencias.json");
@@ -43,6 +44,8 @@ export type Preferencias = {
   avisarWorkers?: boolean;
   /** `avisoLider`: cómo se avisa al líder de un worker que termina (avisos-worker.ts); sin el campo, al terminar la tanda. */
   avisoLider?: ModoAvisoLider;
+  /** `cacheVencida`: qué hacer con el primer mensaje cuando la caché venció y el contexto es grande (cache-pregunta.ts); sin el campo, preguntar. */
+  cacheVencida?: PrefCache;
   vista?: VistaBarra;
   autoIntegrar?: boolean;
   consumo?: boolean;
@@ -77,6 +80,7 @@ function desde(j: {
   avisarEspera?: unknown;
   avisarWorkers?: unknown;
   avisoLider?: unknown;
+  cacheVencida?: unknown;
   vista?: unknown;
   autoIntegrar?: unknown;
   consumo?: unknown;
@@ -97,6 +101,7 @@ function desde(j: {
   if (typeof j.avisarEspera === "boolean") p.avisarEspera = j.avisarEspera;
   if (typeof j.avisarWorkers === "boolean") p.avisarWorkers = j.avisarWorkers;
   if (esAvisoLider(j.avisoLider)) p.avisoLider = j.avisoLider;
+  if (esPrefCache(j.cacheVencida) && j.cacheVencida !== "preguntar") p.cacheVencida = j.cacheVencida;
   if (esVista(j.vista)) p.vista = j.vista;
   if (typeof j.autoIntegrar === "boolean") p.autoIntegrar = j.autoIntegrar;
   if (typeof j.consumo === "boolean") p.consumo = j.consumo;
@@ -378,4 +383,14 @@ export async function guardarGuias(op: unknown): Promise<EstadoGuias> {
     await guardar(p);
   }
   return despues;
+}
+
+/** Lo que se recordó para el primer mensaje con la caché vencida (Ajustes > General); `preguntar` borra lo recordado. */
+export async function guardarCacheVencida(v: unknown) {
+  if (!esPrefCache(v)) return;
+  const p = await leerPreferencias();
+  if ((p.cacheVencida ?? "preguntar") === v) return;
+  if (v === "preguntar") delete p.cacheVencida;
+  else p.cacheVencida = v;
+  await guardar(p);
 }
