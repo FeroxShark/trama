@@ -115,6 +115,8 @@ const PRESENTACION = /^(?:[Ss]oy|[Mm]e\s+llamo|[Mm]i\s+nombre\s+es|I['’]?m|I\s
  */
 export function tituloCorto(s: string): string {
   const base = tituloDeTexto(s);
+  // Sólo traía archivos: sus nombres, tal cual.
+  if (!unaLinea(separarAdjuntos(s).texto)) return base;
   let t = base;
   for (const re of [SALUDO, PRESENTACION]) t = t.replace(re, "");
   // Sólo se cuenta como fin de frase un punto con espacio detrás ("Gemini 3.8 flash" sigue entera).
@@ -124,7 +126,7 @@ export function tituloCorto(s: string): string {
     f = f ? `${f} ${x}` : x;
     if (f.replace(/[.!?…]+$/u, "").length >= 15) break;
   }
-  f = f.replace(/[.!?…]+$/u, "").replace(/^[¿¡\s]+/u, "").trim() || base;
+  f = f.replace(/[.!?…]+$/u, "").trim() || base;
   if (f.length > TOPE_TITULO) {
     const corte = f.slice(0, TOPE_TITULO - 1);
     const i = corte.lastIndexOf(" ");
