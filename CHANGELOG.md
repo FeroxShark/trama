@@ -1,5 +1,15 @@
 # Cambios
 
+## 0.2.34
+
+- Panel de contexto: un `?` en cada categoría, lista de Herramientas, texto real del prompt de sistema, pestaña Vista previa (qué cargaría un líder o worker nuevo) y refresco solo cada 3 s.
+- Subagentes del líder en el panel: gasto por subagente y desglose.
+- Los avisos de workers despiertan al líder ocioso (~20 s, agrupados), sin esperar tu próximo mensaje.
+- Reparto por cupo: un worker `claude-*` pasa solo a agy si tiene más cupo libre (`--exacto` lo evita); si agy corta por cupo, se relanza por Claude. Estadísticas muestra las sustituciones.
+- Los workers heredan los MCP del usuario en modo diferido, respetando lo apagado.
+- Workers de frontend y diseño cargan las skills de diseño instaladas.
+- Vista de worker: la columna central ya no se corta con rutas largas.
+
 ## 0.2.33
 
 - Windows: el instalador sólo toca sus propios archivos. Lo ajeno que quede dentro de la carpeta de Trama (por ejemplo logs de un servidor MCP) ya no traba la actualización, y si algo propio queda bloqueado se avisa qué archivo es.
