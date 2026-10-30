@@ -5,7 +5,7 @@ import type { Cambio, Encabezado, Paso, TipoPaso } from "../datos/pasos";
 /** Un paso lento es el que pasa de esto (ms): la duración sólo se escribe entonces. */
 export const LENTO_MS = 10_000;
 
-const base = (ruta: string) => ruta.split("/").filter(Boolean).pop() ?? ruta;
+const base = (ruta: string) => ruta.split(/[\\/]/).filter(Boolean).pop() ?? ruta;
 export const nombreDeArchivo = base;
 
 const PALABRAS_COMANDO = 3;

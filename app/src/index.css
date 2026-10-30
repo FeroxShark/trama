@@ -2392,6 +2392,7 @@ html[data-titulo-nativo] #root::after {
   color: var(--texto);
 }
 .conv-zona {
+  min-width: 0;
   min-height: 0;
   flex: 1;
   overflow: hidden auto;
@@ -2670,6 +2671,7 @@ html[data-titulo-nativo] #root::after {
 }
 .caja-zona {
   width: 100%;
+  min-width: 0;
   max-width: 45rem;
   flex: none;
   margin: 0 auto;
@@ -3149,6 +3151,7 @@ html[data-titulo-nativo] #root::after {
 .el p,
 .pregunta p {
   white-space: pre-line;
+  overflow-wrap: anywhere;
 }
 .yo p {
   margin: 0 0 var(--esp-2);

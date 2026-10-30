@@ -9,8 +9,10 @@
 }
 .wk-in {
   display: grid;
+  min-width: 0;
   min-height: 0;
   flex: 1;
+  grid-template-columns: minmax(0, 1fr);
   grid-template-rows: auto auto minmax(0, 1fr);
   padding: var(--esp-5) var(--esp-6) var(--esp-6);
 }
@@ -143,6 +145,7 @@
 .wk-txt {
   max-width: 46rem;
   margin: 0;
+  overflow-wrap: anywhere;
   color: var(--texto);
   font-size: var(--letra-7);
   font-weight: 500;
@@ -174,9 +177,19 @@
 }
 .wk-chip {
   position: relative;
+  min-width: 0;
+  max-width: 100%;
   border: 0;
   font-family: var(--font-mono);
   white-space: nowrap;
+}
+/* El nombre del chip: si no entra, la elipsis va al principio (…\c4\t10.py); la ruta entera va en el tooltip. */
+.wk-nombre {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  direction: rtl;
+  text-align: left;
 }
 .wk-chip:hover {
   background: var(--capa-track);
@@ -267,6 +280,7 @@
   grid-template-rows: minmax(0, 1fr);
 }
 .wk-lista {
+  min-width: 0;
   min-height: 0;
   overflow: auto;
   border-right: 1px solid var(--capa-div);

@@ -420,7 +420,7 @@ export function Chips({ resultado, vista, pasos, vive, alElegir }: { resultado: 
       ) : null}
       {archivos.map((c) => (
         <button key={c.ruta} type="button" className="ui-chip wk-chip" data-tip={c.ruta} onClick={() => { const n = del(c.ruta); if (n !== undefined) alElegir(n); }}>
-          {c.nombre}
+          <span className="wk-nombre">{c.nombre}</span>
           {c.mas ? <b className="wk-mas">+{c.mas}</b> : null}
           {c.menos ? <b className="wk-menos">−{c.menos}</b> : null}
         </button>
