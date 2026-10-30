@@ -31,8 +31,10 @@ const raiz = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 // `npm run test:paridad` = `node scripts/test.mjs --paridad`: los archivos de tests/paridad, con la misma casa y el mismo aislamiento.
 const paridad = process.argv.includes("--paridad");
 const dir = path.resolve(raiz, process.env.TRAMA_TEST_DIR || (paridad ? "tests/paridad" : "tests"));
+// TRAMA_TEST_SOLO=<archivo.test.ts,...> corre sólo esos archivos (lo usa `npm run check:changed`).
+const solo = process.env.TRAMA_TEST_SOLO?.split(",").map((s) => s.trim()).filter(Boolean);
 const archivos = readdirSync(dir)
-  .filter((f) => f.endsWith(".test.ts"))
+  .filter((f) => f.endsWith(".test.ts") && (!solo || solo.includes(f)))
   .sort()
   .map((f) => path.relative(raiz, path.join(dir, f)));
 
