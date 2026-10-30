@@ -154,6 +154,12 @@ si no llega en 60 s (`TRAMA_ARRANQUE_MAX_MS`) o se cierra sola 2 veces seguidas,
 - Windows (`windows/src/version-anterior.js`): se copia la carpeta de la instalación a `%LOCALAPPDATA%\trama\anterior\Trama-<versión>`
   cuando el actualizador termina de bajar la nueva (y antes de «Reiniciar para actualizar»). Volver lo hace un guion de cmd suelto
   (espera al pid, `robocopy /MIR`, abre Trama). El actualizador no baja de nuevo la versión desechada (`rechazada`).
+  La copia usa `original-fs` y archivo por archivo: el `fs` común de Electron trata `resources\app.asar` como carpeta virtual («Invalid package»).
+- Windows, instalar con un `node.exe` en uso (`windows/src/disco-instalacion.js`): servidores MCP de terceros lanzados con `node` a secas
+  pueden correr desde `%LOCALAPPDATA%\trama\node` y Windows bloquea esa carpeta. El paso «Instalar Trama» no copia `node` si el
+  `node.exe` es idéntico al del instalador; si algo está en uso lo aparta (`*.viejo-<marca>`, renombrar sí se puede) y copia lo nuevo;
+  lo apartado se borra en la próxima instalación. Nunca se mata un proceso ajeno. Y el `node` propio ya no va adelante en el PATH de los
+  hijos: va al final y sólo si el sistema no tiene uno (`entornoMotor`, `windows/src/nativo.js`). Linux no tiene `node` embebido ni asar.
 - Botón "Volver a la versión anterior": Ajustes > General (`AjustesVolver.tsx`), canales de la ventana `trama:anterior`,
   `trama:volverAnterior` y `trama:avisoVuelta`.
 - Sin probar en una máquina Windows de verdad: el guion de cmd, `robocopy` y el cierre del `.exe` sólo están probados con fakes.
