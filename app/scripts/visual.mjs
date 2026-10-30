@@ -42,8 +42,8 @@ const ANCHOS = {
   800: { tam: "800 800", escala: "1" },
   360: { tam: "360 780", escala: "1" },
 };
-/** Lo que se mira también a 800 px, donde el panel de consumo reemplaza a la conversación. */
-const SOLO_800 = ["consumo"];
+/** Lo que se mira también a 800 px, donde el panel de contexto reemplaza a la conversación. */
+const SOLO_800 = ["contexto-panel", "contexto-panel-cat", "contexto-panel-skills"];
 
 /** Estados sin sentido en una captura estática, y por qué. */
 const EXCLUIDOS = new Map([
@@ -85,7 +85,6 @@ function casos() {
     for (const estado of leerEstados()) {
       if (EXCLUIDOS.has(estado)) continue;
       if (ancho === "800" && !SOLO_800.includes(estado)) continue;
-      if (ancho === "360" && estado === "consumo") continue; // en el celular el panel no existe
       lista.push({ nombre: `${estado}@${ancho}`, estado, ancho });
     }
     if (ancho === "800") continue;

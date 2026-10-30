@@ -1,4 +1,4 @@
-// El panel de consumo (src/paneles/Consumo.tsx): lo que manda el main (electron/consumo.ts), validado,
+// Los datos de consumo (hoy sin panel propio: el de la derecha pasó a ser el de contexto, src/paneles/PanelContexto.tsx): lo que manda el main (electron/consumo.ts), validado,
 // y las cuentas del panel. Puro: lo prueba `tests/consumo-panel.test.ts`. Todo número viene del
 // `usage` de un transcript; lo que no llegó es `null` ("sin dato"), nunca un cero puesto a mano.
 import type { Consumo, FilaConsumo, Pedido } from "../../electron/consumo";

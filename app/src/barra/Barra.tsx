@@ -52,7 +52,7 @@ import { correrGuionPaneles } from "../paneles/guion";
 import { Panel, PANELES, type CualPanel } from "../paneles/Panel";
 import { alPedirAjustes, alPedirRamas } from "../paneles/ajustes-nav";
 import { panelDeCaptura } from "../guia/registro";
-import { Consumo } from "../paneles/Consumo";
+import { PanelContexto } from "../paneles/PanelContexto";
 import { ramas } from "../paneles/Ramas";
 import { pasoLider, pasoWorker } from "../paneles/PasoLanzar";
 import { conTexto, type Eleccion } from "../paneles/lanzar";
@@ -311,17 +311,8 @@ export function Barra() {
   const [abiertasCC, setAbiertasCC] = useState(() => new Set<string>());
   const [vista, setVista] = useState<VistaBarra>(MODO.vista);
   // El panel de consumo (a la derecha): arranca oculto y se recuerda en preferencias.json.
-  const [consumo, setConsumo] = useState(MODO.consumo);
-  // ¿Este cliente puede usar el panel? La ventana, sí; por la tailnet el main rechaza `consumo:*` (se sondea una vez).
-  const [consumoOk, setConsumoOk] = useState(() => !main || esVentana());
-  useEffect(() => {
-    if (consumoOk) return;
-    let vivo = true;
-    void fuente.consumoDisponible().then((si) => vivo && setConsumoOk(si));
-    return () => {
-      vivo = false;
-    };
-  }, [consumoOk]);
+  // (Es el panel de contexto del líder que se mira y sus workers; la preferencia se sigue llamando "consumo".) En el celular nace cerrado.
+  const [consumo, setConsumo] = useState(MODO.consumo && (!esAngosto() || MODO.captura !== null));
   const [cerradosAbiertos, setCerradosAbiertos] = useState(false);
   const [busqueda, setBusqueda] = useState("");
   const [cursor, setCursor] = useState<string | null>(null);
@@ -378,7 +369,7 @@ export function Barra() {
   // Con ancho intermedio el panel de consumo no cabe al lado de la conversación: la reemplaza (CSS, `data-consumo`) y
   // abrir otra cosa lo suelta (sin tocar lo guardado: con la ventana ancha vuelve al costado).
   const medio = useMedio();
-  const tapa = consumo && consumoOk && medio && !angosto;
+  const tapa = consumo && medio;
   const abierto = useRef({ activa, panel });
   useEffect(() => {
     const a = abierto.current;
@@ -928,14 +919,13 @@ export function Barra() {
   // sale deslizando (CSS). Lo del panel derecho que cambió de lugar lo acompaña
   // con un FLIP a mano: sólo `transform`.
   const antes = useRef<Map<HTMLElement, number> | null>(null);
-  // Sin panel posible (celular, o la tailnet) no se alterna ni se guarda: sería cambiarle la preferencia a la PC.
-  const consumoPosible = consumoOk && !angosto;
+  // Desde el celular o la tailnet se abre y se cierra sin guardar: sería cambiarle la preferencia a la PC.
   const alternarConsumo = useCallback(() => {
-    if (!consumoPosible) return;
     setConsumo(!consumo);
-    fuente.guardarConsumo(!consumo);
-  }, [consumoPosible, consumo]);
-  const carpetaVista = useCallback((p: string) => titulos.get(p) ?? p, [titulos]);
+    if (esVentana()) fuente.guardarConsumo(!consumo);
+    // En el celular el panel ocupa la pantalla: la lista se va al abrirlo y vuelve al cerrarlo.
+    if (esAngosto()) setAbierta(consumo);
+  }, [consumo]);
   const alternarBarra = useCallback(() => {
     const el = raiz.current;
     if (el && !matchMedia("(prefers-reduced-motion: reduce)").matches)
@@ -1140,7 +1130,7 @@ export function Barra() {
     const proyectos = grupos.map((g) => g.proyecto);
     // La caja (modelo, esfuerzo, aviso de cambiar de modelo), el indicador y los avisos: en el líder de la app.
     const app = lideres.find((l) => l.origen === "app" && l.vivo)?.id ?? lideres[0]?.id ?? "";
-    const enApp = ["lider", "modelo", "esfuerzo", "local-esfuerzo", "local-ctx", "aviso", "lider-trabajando", "lider-avisos", "lider-plan", "lider-permiso", "lider-preguntas", "lider-preguntas-dos", "lider-comandos", "lider-mcp", "lider-dictado", "lider-valores", "lider-sistema", "lider-cambio-motor", "cuenta-lider", "lider-compactando", "lider-relevo", "lider-imagenes", "lider-editar", "lider-tabla", "lider-formato", "lider-listas", "lider-hover", "lider-pensando", "lider-intermedios", "lider-gemini", "te-espera", "tablero-nuevo-chat", "foco-caja", "consumo"].includes(c) || c.startsWith("contexto");
+    const enApp = ["lider", "modelo", "esfuerzo", "local-esfuerzo", "local-ctx", "aviso", "lider-trabajando", "lider-avisos", "lider-plan", "lider-permiso", "lider-preguntas", "lider-preguntas-dos", "lider-comandos", "lider-mcp", "lider-dictado", "lider-valores", "lider-sistema", "lider-cambio-motor", "cuenta-lider", "lider-compactando", "lider-relevo", "lider-imagenes", "lider-editar", "lider-tabla", "lider-formato", "lider-listas", "lider-hover", "lider-pensando", "lider-intermedios", "lider-gemini", "te-espera", "tablero-nuevo-chat", "foco-caja"].includes(c) || c.startsWith("contexto");
     // Las guías del chat y de su caja piden el líder de la app abierto.
     const guiaLider = c === "guia-lider" || c === "guia-caja" || c === "guia-modelo";
     if (enApp || guiaLider) setActiva(LIDER + app);
@@ -1322,6 +1312,15 @@ export function Barra() {
     [activa, uSub, arbol.lideres, fantasmas],
   );
   const subAbierto = useMemo(() => ({ abierta: deSub ? activa : null, abrir: abrirSub }), [activa, abrirSub]);
+  // El panel de contexto mira al líder abierto, o al de lo abierto (un worker o un subagente), y a sus workers sin cerrar: los vivos primero.
+  const liderContexto = liderActivo ?? subActivo?.lider ?? (hiloActivo?.jefe_id ? (arbol.lideres.get(hiloActivo.jefe_id) ?? fantasmas.get(hiloActivo.jefe_id) ?? null) : null);
+  const workersContexto = useMemo(() => {
+    if (!liderContexto) return [];
+    const vivo = (h: Hilo) => h.estado === "trabajando" || h.estado === "colgado";
+    return todos
+      .filter((h) => h.jefe_id === liderContexto.id && !["archivado", "integrado", "descartado", "revertido"].includes(h.estado))
+      .sort((a, b) => Number(vivo(b)) - Number(vivo(a)) || b.inicio - a.inicio);
+  }, [todos, liderContexto?.id]);
   // Lo abierto cambia: se guarda para volver (demorado, src/volver.ts).
   useEffect(huboCambio, [activa, panel, abierta]);
   // Lo que quedó abierto de la vez anterior y ya no existe (se archivó, se quitó, pasó más de un día): se abre normal, sin conversación.
@@ -1917,8 +1916,7 @@ export function Barra() {
                   }}
                 />
               ))}
-              {/* En el celular y por la tailnet no hay panel de consumo: tampoco su botón. */}
-              {!consumoPosible ? null : <BotonPie icono={PanelRight} etq={tr(consumo ? "consumo.ocultar" : "consumo.mostrar")} activo={consumo} alClic={alternarConsumo} />}
+              <BotonPie icono={PanelRight} etq={tr(consumo ? "ctxp.ocultar" : "ctxp.mostrar")} activo={consumo} alClic={alternarConsumo} />
             </footer>
           </div>
           <div
@@ -1997,10 +1995,8 @@ export function Barra() {
             tablero={{ carpetas: slugsReg, lideres: lideresTablero, alIniciar: iniciarTarea, alAbrirLider: abrirLider, alRedactar: redactarTablero, avisar: { lideres: lideresAviso, jefeDe, alAvisar: avisarLider } }}
           />
         ) : null}
-        {/* El panel de consumo, a la derecha de todo. En el celular y por la tailnet no existe. */}
-        {consumo && consumoPosible ? (
-          <Consumo lideres={lideresVistos} hilos={todos} carpeta={carpetaVista} alCerrar={alternarConsumo} alAbrirHilo={abrir} alAbrirLider={abrirLider} />
-        ) : null}
+        {/* El panel de contexto, a la derecha de todo: el líder que se mira (o el del worker que se mira) y sus workers. */}
+        {consumo ? <PanelContexto lider={liderContexto} workers={workersContexto} alCerrar={alternarConsumo} alAbrirHilo={abrir} /> : null}
       </div>
     </MotionConfig>
     </SubAbierto>

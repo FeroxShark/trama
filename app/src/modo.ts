@@ -7,7 +7,7 @@ const CAPTURAS = [
   "normal",
   "hover",
   // La cabecera con el uso del plan en sus tres casos: todo, el 5 h sin hora de reinicio y ningún límite sabido,
-  // con los dos tips abiertos (el panel de consumo no tiene captura fija, lo mira scripts/prueba-consumo.mjs).
+  // con los dos tips abiertos (el panel de contexto tiene las suyas: contexto-panel*).
   "uso",
   "uso-sin-hora",
   "uso-sin-dato",
@@ -173,8 +173,11 @@ const CAPTURAS = [
   // Cerrar del todo (Ctrl+Q, la bandeja): la pregunta con sus dos salidas y, con líderes respondiendo, la confirmación.
   "salir",
   "salir-ocupados",
-  // El panel de consumo a la derecha de un líder abierto; a 800 px (ancho intermedio) ocupa el lugar de la conversación.
-  "consumo",
+  // El panel de contexto a la derecha de un líder abierto, con sus 3 workers; a 800 px (ancho intermedio) ocupa el lugar de la conversación.
+  // `-cat`: una categoría del líder y del primer worker abiertas; `-skills`: el catálogo de skills (`HILOS_VARIANTE=buscar`: con una búsqueda).
+  "contexto-panel",
+  "contexto-panel-cat",
+  "contexto-panel-skills",
   // "De Claude Code (N)": la sección plegable de atlas abierta, con el buscador y las conversaciones (con una de carpeta que ya no existe y una de otra cuenta).
   "claude-code",
   // El orden de la barra: a mitad de un arrastre (lo que se lleva apagado, la línea donde cae) y el menú de una carpeta con Subir / Bajar / Orden por defecto.
@@ -278,8 +281,8 @@ export const MODO = {
   fixtures: q.has("fixtures") ? q.get("fixtures") !== "0" : true,
   /** La vista de la barra al abrir (preferencias.json): todo o sólo líderes. */
   vista: q.get("vista") === "lideres" ? ("lideres" as const) : ("todo" as const),
-  /** El panel de consumo (a la derecha) a la vista al abrir (preferencias.json); sin nada guardado, oculto. */
-  consumo: q.get("consumo") === "1" || captura === "consumo",
+  /** El panel de contexto (a la derecha) a la vista al abrir (preferencias.json); sin nada guardado, oculto. */
+  consumo: q.get("consumo") === "1" || (captura?.startsWith("contexto-panel") ?? false),
   /** Cómo se llama esta máquina (lo pasa el main con datos reales): va en la ficha de cada worker. */
   maquina: q.get("maquina"),
   /** La ventana es cliente del motor (electron/ventana-cliente.ts): lo que se cae es el motor, no la PC. */

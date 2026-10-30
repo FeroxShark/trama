@@ -32,7 +32,7 @@ test("los CSS ya pasados a tokens no tienen literales", () => {
     "src/paneles/tablero-logica.css",
     "src/paneles/paneles.css",
     "src/paneles/pendientes.css",
-    "src/paneles/consumo-logica.css",
+    "src/paneles/contexto-panel.css",
   ];
   const salida = execFileSync(process.execPath, [path.join(raiz, "scripts/tokens-faltan.mjs"), "--resumen", ...hechos], {
     cwd: raiz,

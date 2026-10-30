@@ -1,0 +1,703 @@
+/* El panel de contexto (src/paneles/PanelContexto.tsx): una columna a la derecha de la conversación, con el líder que se mira y sus workers.
+   Todo en rem y con los tokens de la barra y los paneles. Ningún estado depende sólo del color: cada uno lleva su palabra o su ícono. */
+.cs {
+  display: flex;
+  width: 25rem;
+  min-width: 0;
+  flex: none;
+  flex-direction: column;
+  border-left: 1px solid var(--borde-1);
+  background: var(--sup-0);
+  color: var(--txt-3);
+  font-size: var(--letra-4);
+}
+.cx {
+  /* Un color por categoría; el mismo en la barra, el mapa y la lista. Siempre acompañado de su nombre y su número. */
+  --c-mensajes: var(--acento);
+  --c-herramientas: var(--sint-kw);
+  --c-mcp: var(--rosa);
+  --c-skills: var(--aviso);
+  --c-memoria: var(--ok);
+  --c-agentes: var(--sint-menos);
+  --c-sistema: var(--txt-3);
+  --c-otro: var(--txt-5);
+}
+.cx [data-cat] {
+  --c: var(--c-otro);
+}
+.cx [data-cat="mensajes"] { --c: var(--c-mensajes); }
+.cx [data-cat="herramientas"] { --c: var(--c-herramientas); }
+.cx [data-cat="mcp"] { --c: var(--c-mcp); }
+.cx [data-cat="skills"] { --c: var(--c-skills); }
+.cx [data-cat="memoria"] { --c: var(--c-memoria); }
+.cx [data-cat="agentes"] { --c: var(--c-agentes); }
+.cx [data-cat="sistema"] { --c: var(--c-sistema); }
+
+.cx-cab {
+  display: flex;
+  height: 3rem;
+  flex: none;
+  align-items: center;
+  gap: var(--esp-2);
+  padding: 0 var(--esp-2-5);
+  border-bottom: 1px solid var(--borde-1);
+}
+.cx-cab b {
+  flex: 1;
+  color: var(--txt-1);
+  font-size: var(--letra-5);
+  font-weight: 500;
+}
+.cx-ico {
+  display: inline-grid;
+  width: 2rem;
+  height: 2rem;
+  flex: none;
+  place-items: center;
+  border-radius: var(--radio-2);
+  color: var(--txt-4);
+}
+.cx-ico:hover {
+  background: var(--capa-hover);
+  color: var(--txt-1);
+}
+
+/* El aviso de que apagar vale para todo, siempre a la vista; debajo, lo que pasó con el último cambio. */
+.cx-aviso {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: var(--esp-1);
+  padding: var(--esp-2-5) var(--esp-4);
+  border-bottom: 1px solid var(--borde-1);
+  background: var(--aviso-tinte);
+  color: var(--txt-2);
+  line-height: 1.4;
+}
+.cx-aviso p {
+  margin: 0;
+}
+.cx-vivo:empty {
+  display: none;
+}
+.cx-vivo {
+  color: var(--txt-1);
+  font-weight: 500;
+}
+.cx-vivo[data-error] {
+  color: var(--rojo-claro);
+}
+
+.cx-pestanas {
+  display: flex;
+  flex: none;
+  gap: var(--esp-1);
+  padding: var(--esp-2) var(--esp-3) 0;
+  border-bottom: 1px solid var(--borde-1);
+}
+.cx-pestanas button {
+  min-height: var(--alto-nav);
+  padding: 0 var(--esp-3);
+  border-bottom: 2px solid transparent;
+  color: var(--txt-4);
+  font-size: var(--letra-5);
+}
+.cx-pestanas button:hover {
+  color: var(--txt-1);
+}
+.cx-pestanas button[aria-selected="true"] {
+  border-bottom-color: var(--acento);
+  color: var(--txt-1);
+  font-weight: 500;
+}
+
+.cx-cuerpo-panel {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--esp-6);
+  overflow-y: auto;
+  padding: var(--esp-4);
+}
+.cx-nada {
+  margin: 0;
+  color: var(--txt-4);
+  line-height: 1.45;
+}
+.cx-error {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--esp-2);
+  color: var(--rojo-claro);
+}
+.cx-error p {
+  margin: 0;
+}
+.cx-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* --- Una sesión: el título y el desglose --- */
+.cx-sesion {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-3);
+}
+.cx-h {
+  display: flex;
+  align-items: baseline;
+  gap: var(--esp-2);
+  margin: 0;
+  color: var(--txt-4);
+  font-size: var(--letra-3);
+  font-weight: 400;
+  min-width: 0;
+}
+.cx-h b {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--txt-1);
+  font-size: var(--letra-5);
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cx-h small {
+  margin-left: auto;
+  flex: none;
+  color: var(--txt-4);
+  font-size: var(--letra-3);
+}
+.cx-det {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-3);
+}
+.cx-uso-total {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--esp-1) var(--esp-3);
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+.cx-uso-total b {
+  color: var(--txt-1);
+  font-weight: 500;
+}
+.cx-num {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* --- La barra apilada --- */
+.cx-barra {
+  display: flex;
+  height: 0.75rem;
+  gap: 1px;
+  overflow: hidden;
+  border-radius: var(--radio-pastilla);
+  background: var(--capa-track);
+}
+.cx-barra[data-fina] {
+  height: 0.375rem;
+}
+.cx-barra i {
+  min-width: 2px;
+  background: var(--c);
+}
+.cx-barra i[data-cat="libre"] {
+  background: transparent;
+}
+.cx-barra i[data-cat="reserva"],
+.cx-cat[data-cat="reserva"] .cx-color {
+  background: repeating-linear-gradient(135deg, var(--txt-5) 0 2px, transparent 2px 5px);
+}
+
+/* --- El mapa de bloques --- */
+.cx-mapa {
+  position: relative;
+  aspect-ratio: 100 / 46;
+  overflow: hidden;
+  border-radius: var(--radio-3);
+  background: var(--sup-1);
+}
+.cx-bq {
+  position: absolute;
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 0;
+  overflow: hidden;
+  padding: var(--esp-1) var(--esp-1-5);
+  border: 1px solid var(--sup-0);
+  border-radius: var(--radio-2);
+  background: color-mix(in srgb, var(--c) 24%, var(--sup-1));
+  box-shadow: inset 0 0.1875rem 0 var(--c);
+  color: var(--txt-1);
+  text-align: left;
+  line-height: 1.2;
+}
+.cx-bq:is(button):hover {
+  background: color-mix(in srgb, var(--c) 36%, var(--sup-1));
+}
+.cx-bq[data-resto] {
+  background: var(--sup-2);
+  box-shadow: none;
+}
+.cx-bq b {
+  overflow: hidden;
+  font-size: var(--letra-3);
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cx-bq span {
+  color: var(--txt-3);
+  font-size: var(--letra-2);
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- Las categorías --- */
+.cx-cats {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.cx-cat {
+  border-top: 1px solid var(--borde-1);
+}
+.cx-cat h4 {
+  margin: 0;
+  font-weight: 400;
+}
+.cx-cat h4 button {
+  display: grid;
+  width: 100%;
+  min-height: var(--alto-nav);
+  grid-template-columns: 0.625rem minmax(0, 1fr) auto 2.75rem 0.875rem;
+  align-items: center;
+  gap: var(--esp-2);
+  padding: 0 var(--esp-1);
+  border-radius: var(--radio-2);
+  color: var(--txt-2);
+  text-align: left;
+}
+.cx-cat h4 button:hover {
+  background: var(--capa-hover);
+}
+.cx-color {
+  width: 0.625rem;
+  height: 0.625rem;
+  border-radius: var(--radio-1);
+  background: var(--c);
+}
+.cx-cat-n {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cx-pct {
+  color: var(--txt-4);
+  font-size: var(--letra-3);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+.cx-chev {
+  color: var(--txt-4);
+  transition: transform var(--t-snappy);
+}
+[aria-expanded="true"] > .cx-chev {
+  transform: rotate(90deg);
+}
+.cx-cuerpo {
+  padding: var(--esp-1) 0 var(--esp-3) var(--esp-4);
+}
+
+/* --- Los ítems: skill, servidor MCP, herramienta, archivo de memoria --- */
+.cx-items,
+.cx-hijos {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.cx-it {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  column-gap: var(--esp-2-5);
+  row-gap: 0;
+  padding: var(--esp-1-5) var(--esp-1);
+  border-radius: var(--radio-2);
+}
+.cx-it + .cx-it {
+  border-top: 1px solid var(--borde-1);
+}
+.cx-it[data-foco] {
+  background: var(--acento-tinte);
+}
+.cx-it[data-apagado] .cx-it-nom b {
+  color: var(--txt-4);
+  text-decoration: line-through;
+  text-decoration-color: var(--txt-5);
+}
+.cx-it-nom {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+.cx-it-nom b {
+  overflow: hidden;
+  color: var(--txt-1);
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cx-it-nom small {
+  overflow: hidden;
+  color: var(--txt-4);
+  font-size: var(--letra-3);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cx-it-det {
+  display: flex;
+  grid-column: 1 / -1;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--esp-1) var(--esp-2);
+  min-height: 0;
+  color: var(--txt-4);
+  font-size: var(--letra-3);
+}
+.cx-it-det:empty {
+  display: none;
+}
+.cx-hijos {
+  grid-column: 1 / -1;
+  margin: var(--esp-1-5) 0 var(--esp-1) var(--esp-3);
+  padding-left: var(--esp-2);
+  border-left: 1px solid var(--borde-3);
+}
+.cx-uso,
+.cx-etq {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--esp-1);
+}
+/* "Nunca usada" se destaca con su palabra, su ícono y el tinte: el candidato a apagar. */
+.cx-uso[data-nunca] {
+  padding: 0 var(--esp-2);
+  border-radius: var(--radio-pastilla);
+  background: var(--aviso-tinte);
+  color: var(--aviso);
+  font-weight: 500;
+}
+.cx-etq {
+  padding: 0 var(--esp-2);
+  border-radius: var(--radio-pastilla);
+  background: var(--capa-tile);
+  color: var(--txt-3);
+}
+.cx-etq[data-apagada] {
+  color: var(--txt-1);
+}
+.cx-link {
+  color: var(--azul);
+  font-size: var(--letra-3);
+  text-decoration: underline;
+  text-decoration-color: var(--enlace-subrayado);
+  text-underline-offset: 0.2em;
+}
+
+/* --- El interruptor (40×24, como el del estándar; el blanco táctil se agranda sin cambiar lo que se ve) --- */
+.cx-sw {
+  position: relative;
+  width: 2.5rem;
+  height: 1.5rem;
+  flex: none;
+  border-radius: var(--radio-pastilla);
+  background: var(--acento);
+  transition: background var(--t-snappy);
+}
+.cx-sw::before {
+  content: "";
+  position: absolute;
+  inset: -0.5rem -0.25rem;
+}
+.cx-sw[aria-checked="false"] {
+  background: var(--capa-track);
+}
+.cx-sw:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+.cx-sw-p {
+  position: absolute;
+  top: 0.25rem;
+  left: 1.25rem;
+  display: grid;
+  width: 1rem;
+  height: 1rem;
+  place-items: center;
+  border-radius: var(--radio-pastilla);
+  background: var(--acento-texto);
+  color: var(--azul-palido);
+  transition: left var(--t-snappy);
+}
+.cx-sw[aria-checked="false"] .cx-sw-p {
+  left: 0.25rem;
+  background: var(--txt-1);
+  color: var(--sup-1);
+}
+.cx-sw-hueco {
+  width: 2.5rem;
+}
+
+/* --- Los workers: filas plegables --- */
+.cx-ws {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.cx-w {
+  border: 1px solid var(--borde-2);
+  border-radius: var(--radio-3);
+  background: var(--sup-1);
+}
+.cx-w-cab {
+  display: flex;
+  align-items: center;
+  padding-right: var(--esp-1);
+}
+.cx-w-btn {
+  display: grid;
+  min-width: 0;
+  min-height: 3.25rem;
+  flex: 1;
+  grid-template-columns: 0.875rem minmax(0, 1fr) 5.5rem;
+  align-items: center;
+  gap: var(--esp-2);
+  padding: var(--esp-2) var(--esp-2) var(--esp-2) var(--esp-3);
+  border-radius: var(--radio-3);
+  text-align: left;
+}
+.cx-w-btn:hover {
+  background: var(--capa-hover);
+}
+.cx-w-nom {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+.cx-w-nom b {
+  overflow: hidden;
+  color: var(--txt-1);
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cx-w-est {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--esp-1-5);
+  color: var(--txt-4);
+  font-size: var(--letra-3);
+}
+.cx-w-est i {
+  width: 0.375rem;
+  height: 0.375rem;
+  border-radius: var(--radio-pastilla);
+  background: var(--txt-5);
+}
+.cx-w-est[data-tipo="trab"] i {
+  background: var(--acento);
+}
+.cx-w-est[data-tipo="nec"] i {
+  background: var(--aviso);
+}
+.cx-w-est[data-tipo="fallo"] i {
+  background: var(--critico);
+}
+.cx-w-mini {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--esp-1);
+}
+.cx-w-cuerpo {
+  padding: var(--esp-1) var(--esp-3) var(--esp-3);
+  border-top: 1px solid var(--borde-1);
+}
+.cx-w-cuerpo .cx-det {
+  padding-top: var(--esp-3);
+}
+
+/* --- El catálogo de skills --- */
+.cx-cat-skills {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-3);
+}
+.cx-buscar {
+  display: flex;
+  min-height: var(--alto-boton);
+  align-items: center;
+  gap: var(--esp-2);
+  padding: 0 var(--esp-3);
+  border: 1px solid var(--borde-3);
+  border-radius: var(--radio-pastilla);
+  background: var(--capa-input);
+  color: var(--txt-4);
+}
+.cx-buscar:focus-within {
+  border-color: var(--acento);
+}
+.cx-buscar input {
+  min-width: 0;
+  flex: 1;
+  color: var(--txt-1);
+  font-size: var(--letra-5);
+}
+.cx-filtros {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--esp-2);
+}
+.cx-chip {
+  min-height: 2rem;
+  padding: 0 var(--esp-3);
+  border-radius: var(--radio-pastilla);
+  background: var(--capa-tile);
+  color: var(--txt-2);
+  font-size: var(--letra-4);
+}
+.cx-chip:hover {
+  background: var(--capa-hover);
+}
+.cx-chip[aria-pressed="true"] {
+  background: var(--acento);
+  color: var(--acento-texto);
+  font-weight: 500;
+}
+.cx-plugin select {
+  min-height: 2rem;
+  max-width: 10rem;
+  padding: 0 var(--esp-2);
+  border: 1px solid var(--borde-3);
+  border-radius: var(--radio-pastilla);
+  background: var(--sup-1);
+  color: var(--txt-2);
+  font-size: var(--letra-4);
+}
+.cx-cuenta {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-0-5);
+  margin: 0;
+  color: var(--txt-2);
+}
+.cx-cuenta span {
+  color: var(--txt-4);
+  font-size: var(--letra-3);
+}
+.cx-sk-desc {
+  display: -webkit-box;
+  grid-column: 1 / -1;
+  margin: var(--esp-1) 0;
+  overflow: hidden;
+  color: var(--txt-3);
+  line-height: 1.4;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+.cx-sk {
+  padding-block: var(--esp-2);
+}
+.cx-mas {
+  align-self: center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cx-sw,
+  .cx-sw-p,
+  .cx-chev {
+    transition: none;
+  }
+}
+
+/* --- Con el dedo: blancos de 2.75rem y los interruptores más separados --- */
+@media (pointer: coarse) {
+  .cx-ico {
+    width: 2.75rem;
+    height: 2.75rem;
+  }
+  .cx-chip,
+  .cx-plugin select {
+    min-height: 2.75rem;
+  }
+  .cx-buscar {
+    min-height: 2.75rem;
+  }
+  .cx-it {
+    padding-block: var(--esp-2-5);
+    row-gap: var(--esp-1);
+  }
+  .cx-cat h4 button {
+    min-height: 2.75rem;
+  }
+  .cx-link {
+    min-height: 2.75rem;
+    display: inline-flex;
+    align-items: center;
+  }
+}
+
+/* --- Celular: el panel ocupa la pantalla (lo abre el botón del pie de la lista) --- */
+@media (max-width: 35rem) {
+  .cs {
+    width: auto;
+    flex: 1;
+    border-left: 0;
+  }
+  .cx-cuerpo-panel {
+    padding: var(--esp-3);
+  }
+  .cx-w-btn {
+    grid-template-columns: 0.875rem minmax(0, 1fr) 4.5rem;
+  }
+}
+
+/* --- Ancho intermedio: hasta 67rem (la misma consulta que `useMedio`, src/angosto.ts) ---
+   Con la barra al lado no queda lugar para la conversación: el panel ocupa su lugar (`data-consumo`, lo pone
+   la barra) y abrir otra cosa lo suelta. */
+@media (max-width: 67rem) {
+  .app[data-consumo="solo"] > .hilo {
+    display: none;
+  }
+  .app[data-consumo="solo"] > .cs {
+    width: auto;
+    flex: 1;
+    border-left: 0;
+  }
+}
