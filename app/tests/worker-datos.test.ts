@@ -143,4 +143,6 @@ test("con el fixture: el resultado sale del mensaje final y los chips de los arc
   assert.deepEqual(D.chipsDe(v.encabezado).map((c) => c.nombre), ["cuenta.ts", "contar.ts"]);
   assert.ok(!D.visibles(v.pasos).some((p) => p.detalle.clase === "texto" && p.detalle.final));
   assert.equal(D.extension("src/a/B.tsx"), "tsx");
+  // Rutas de Windows: el nombre es lo último después de la barra invertida, no la ruta entera.
+  assert.equal(D.nombreDeArchivo("C:\\Users\\usuario\\Temp\\c4\\t10.py"), "t10.py");
 });
