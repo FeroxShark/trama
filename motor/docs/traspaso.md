@@ -210,6 +210,42 @@ Verificado antes del commit final: los dos `tsc` sin errores, `vite build` bien,
 4. En la tarjeta: "Un agente lo está fusionando: revisalo en Ramas", con un botón al panel de Ramas.
 5. Tests del argv y del no relanzar.
 
+## Hecho: base del panel derecho de contexto (falta la interfaz)
+
+Para el líder que se está mirando y sus workers: en qué se va el contexto y apagar cosas para TODO Trama. El main y los canales están;
+la interfaz la hace otro worker encima. Todo vale para Linux y Windows (el worker de Windows corre el port `electron/cli/pa`).
+
+- **Canales** (`electron/canales/contrato.ts`, `nucleo.ts`, `preload.cts` → `window.hilos.paneles.*`, tipos en `src/puente.ts`; ruta
+  `local` en `maquinas-contrato.ts`; `windows/src/canales.json` regenerado). Leer anda también por la red (celular); `apagados:fijar`
+  es sólo de la PC (`SOLO_PC_TAILNET`).
+  - `contexto:desglose` — `desgloseContexto({ lider: sid } | { worker: id })` → `Desglose` (`electron/contexto-desglose.ts`):
+    `usado`/`ventana` (+ `ventanaEstimada`), `categorias` (`sistema`, `herramientas`, `mcp`, `skills`, `memoria`, `agentes`, `mensajes`,
+    `reserva`, `libre`; las `diferido` no suman), `herramientas` (integradas, con tokens y `usos`), `mcp` (por servidor con sus
+    herramientas, tokens, `cargada` y `usos`), `skills` (tokens, origen, plugin, `usos`), `memoria` (por archivo), `usos` crudos y
+    `sinUso` (lo que pesa y no se usó en la sesión: el candidato a apagar). `fuente`: `claude` (líder de Claude vivo: el `/context` por
+    el canal de control, `get_context_usage` con `detail: "summary"`, sin turno ni interrupción; exacto), `transcript` (worker de `pa`, o
+    líder sin proceso: el total del último pedido del `.jsonl`, lo fijo del primero, memoria y skills medidas de los archivos; todo con
+    `estimado: true`) o `sin-desglose` (Gemini, dsh, OpenCode, o sin transcript; `motivo` dice por qué). Mostrar "≈" en lo estimado.
+  - `skills:catalogo` — `catalogoSkills({ q?, sid? })` → `{ skills, total, exactos }`: cada skill con `clave` (la del apagado:
+    `plugin:skill` si es de un plugin), descripción, `origen`/`de`, `tokens` (estimados; exactos si se pasa el `sid` de un líder de
+    Claude vivo) y `estado` (`activa`, `apagada` por Trama, `plugin-apagado`). `q` busca sin tildes ni mayúsculas, todas las palabras.
+  - `apagados:leer` — `leerApagados()` → `{ apagados: { skills, mcp, herramientas, memoria }, protegidas, motores }`.
+  - `apagados:fijar` — `fijarApagado(tipo, nombre, apagado)` → lo mismo más `lideres: { reiniciados, pendientes }` y
+    `aviso: "proximo-mensaje"`: la vista tiene que decir "se aplica al próximo mensaje". Nombres: skill = su `clave`; MCP = el nombre del
+    servidor como lo muestra `/mcp` (`claude.ai Notion`); herramienta = integrada (`WebFetch`) o `mcp__srv__herr`; memoria = ruta o glob
+    absolutos. `Bash`, `Read`, `Edit` y `Write` no se dejan apagar (`HERRAMIENTAS_PROTEGIDAS`).
+- **Cómo se aplica** (`electron/apagados.ts`): el registro vive en `<config de trama>/apagados.json` y de él sale
+  `apagados-claude.json`, un pedazo de settings de Claude Code (`skillOverrides: { x: "off" }`, `permissions.deny` con `mcp__<servidor>`
+  y las herramientas, `claudeMdExcludes`). Sin nada apagado no hay pedazo y todo queda como antes. Workers: `pa` (bash, con jq) y su port
+  (`settingsWorker`) lo suman a su `--settings` (excludes y deny agregados a los propios); caso de paridad en
+  `tests/paridad/casos-lanzar.ts`. Líderes de Claude: un `--settings <pedazo>` en `argvLider`; al cambiar algo, `aplicarApagadosLideres`
+  cierra los ociosos y el próximo mensaje los relanza con `--resume` (la conversación sigue entera); los que están respondiendo, al
+  terminar el turno. Gemini, dsh, OpenCode, Ollama y los locales no lo toman (no cargan skills ni memoria de Claude Code).
+  Nunca se toca `~/.claude.json` ni credenciales.
+- Tests: `tests/contexto-panel.test.ts` (fixtures inventados).
+- Pendiente: la interfaz (panel derecho, ui-ux-pro-max + taste-skill), y un aviso en vivo (`apagados:cambio`) si hace falta con dos
+  ventanas abiertas.
+
 ## Pendiente (en orden sugerido)
 
 1. **Mergear** la rama `claude/elegant-sagan-gvgbq5` a `main` e instalar.
