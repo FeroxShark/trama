@@ -86,13 +86,38 @@ function crearAsistenteNativo(deps) {
       for (const c of CARPETAS_PAYLOAD) {
         const de = disco.unir(payload.dir, c);
         if (!disco.existe(de)) throw new ErrorPaso("instalar", "Este instalador vino incompleto.", `falta ${de}`);
-        emit({ tipo: "linea", texto: `Copiando ${c}…` });
         const a = disco.unir(rutas.raiz, c);
+        // El node.exe instalado ya es el del instalador: no se copia (así no falla si otro programa lo tiene corriendo).
+        if (c === "node" && disco.igual?.(disco.unir(de, "node.exe"), disco.unir(a, "node.exe"))) {
+          emit({ tipo: "linea", texto: "El node de Trama ya está al día." });
+          continue;
+        }
+        emit({ tipo: "linea", texto: `Copiando ${c}…` });
         try {
           disco.borrar(a);
           disco.copiar(de, a);
         } catch (e) {
-          throw new ErrorPaso("instalar", "No pude copiar los archivos de Trama.", `${a}: ${e.message}`);
+          // Algo de ahí está en uso (Windows no deja borrar ni pisar un .exe que corre, y el node de Trama lo pueden estar usando
+          // servidores MCP de otras herramientas): se lo aparta a un lado, sin tocar ningún proceso, y se copia lo nuevo.
+          try {
+            if (!disco.apartar) throw e;
+            const apartados = disco.apartar(a);
+            disco.copiar(de, a);
+            if (apartados.length) {
+              log(`instalar: ${c} en uso (${e.message}); aparté ${apartados.length} archivo(s)`);
+              emit({ tipo: "linea", texto: `Había programas usando ${c}\\ (no son de Trama): lo dejé a un lado y puse el nuevo.` });
+            }
+          } catch (e2) {
+            throw new ErrorPaso("instalar", "No pude copiar los archivos de Trama.", `${a}: ${e2.message}`);
+          }
+        }
+      }
+      // Lo que una instalación anterior apartó, si ya nadie lo usa, se va.
+      for (const c of CARPETAS_PAYLOAD) {
+        try {
+          disco.limpiarViejos?.(disco.unir(rutas.raiz, c));
+        } catch (e) {
+          log(`instalar: no pude limpiar lo apartado de ${c}: ${e.message}`);
         }
       }
       emit({ tipo: "linea", texto: "Registrando los hooks de Claude Code…" });

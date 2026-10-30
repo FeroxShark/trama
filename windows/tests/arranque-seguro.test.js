@@ -109,6 +109,30 @@ test("guardarCopia deja la carpeta entera; podar deja sólo las vivas", async ()
   await assert.rejects(V.guardarCopia(inst, "../x", base, 1), /inválida/);
 });
 
+test("guardarCopia copia resources\\app.asar como un archivo, sin tratarlo como carpeta (Electron: «Invalid package»)", async () => {
+  const casa = nuevaCasa();
+  const inst = instalacionEn(casa, "0.2.28");
+  const asar = Buffer.from([0x04, 0, 0, 0, 0xde, 0xad, 0xbe, 0xef, 1, 2, 3]);
+  fs.writeFileSync(path.join(inst.dir, "resources", "app.asar"), asar);
+  // El `fs` común de Electron: cualquier stat/lstat/cp sobre un .asar lo trata como carpeta virtual y tira esto.
+  const invalido = (r) => Object.assign(new Error(`Invalid package ${r}`), { code: "ENOENT" });
+  const comoElectron = {
+    ...fs,
+    stat: (r, ...a) => (/\.asar$/.test(r) ? a.at(-1)(invalido(r)) : fs.stat(r, ...a)),
+    lstat: (r, ...a) => (/\.asar$/.test(r) ? a.at(-1)(invalido(r)) : fs.lstat(r, ...a)),
+    cp: (r, ...a) => a.at(-1)(invalido(r)),
+  };
+  const base = path.join(casa, "anterior");
+  const c = await V.guardarCopia(inst, "0.2.28", base, 1, comoElectron);
+  assert.deepEqual(fs.readFileSync(path.join(c.ruta, "resources", "app.asar")), asar);
+  assert.equal(fs.existsSync(`${c.ruta}.tmp`), false);
+  // Volver a guardar la misma versión (y podar lo que sobra) tampoco toca el .asar como carpeta.
+  await V.guardarCopia(inst, "0.2.28", base, 2, comoElectron);
+  await V.podar(base, [], comoElectron);
+  assert.deepEqual(fs.readdirSync(base), []);
+  assert.equal(typeof V.fsCrudo().copyFile, "function", "fuera de Electron cae al fs común");
+});
+
 test("el guion de cmd: espera al pid, copia con robocopy /MIR, abre Trama y se borra; lo que cmd leería como otra cosa se rechaza", () => {
   const g = V.guionDeRestauracion({ origen: "C:\\Users\\a\\AppData\\Local\\trama\\anterior\\Trama-0.2.25", destino: "C:\\Users\\a\\AppData\\Local\\Programs\\Trama", exe: "Trama.exe", pid: 4321, args: ["--segundo-plano", "--raro"] });
   assert.match(g, /Wait-Process -Id 4321 -Timeout 60/);

@@ -28,6 +28,8 @@ function banco(sobre = {}) {
     copias: [],
     borrados: [],
     lineas: [],
+    apartados: [],
+    limpiados: [],
     cli: [],
     pathUsuario: "C:\\Windows",
     run: null,
@@ -43,6 +45,7 @@ function banco(sobre = {}) {
     leer: (r) => (archivos.has(r) ? archivos.get(r) : null),
     escribir: (r, t) => archivos.set(r, t),
     copiar: (de, a) => {
+      if (b.falloCopia?.(a)) throw Object.assign(new Error("EPERM, Permission denied"), { code: "EPERM" });
       b.copias.push([de, a]);
       archivos.set(a, "dir");
       if (a.endsWith("\\node")) archivos.set(rutas.node, "exe");
@@ -53,6 +56,14 @@ function banco(sobre = {}) {
       for (const k of [...archivos.keys()]) if (k === r || k.startsWith(`${r}\\`)) archivos.delete(k);
     },
     unir: (...p) => path.win32.join(...p),
+    igual: (x, y) => !!b.nodeIgual && x.endsWith("\\node\\node.exe") && y.endsWith("\\node\\node.exe"),
+    apartar: (r) => {
+      b.apartados.push(r);
+      if (b.noSePuedeApartar) throw new Error("EPERM al renombrar");
+      b.falloCopia = null;
+      return [`${r}\\node.exe.viejo-k`];
+    },
+    limpiarViejos: (r) => b.limpiados.push(r),
   };
   b.asistente = crearAsistenteNativo({
     rutas,
@@ -148,6 +159,39 @@ test("ya instalado y al día no copia nada; una versión nueva del payload reins
   await b.asistente.avanzar((e) => ev.push(e));
   assert.equal(b.copias.length, copias + 3);
   assert.ok(ev.some((e) => e.tipo === "inicia" && e.paso === "instalar" && e.actualizacion));
+});
+
+test("el node.exe instalado ya es el del instalador: no se copia (ni falla si otro programa lo tiene corriendo)", async () => {
+  const b = banco();
+  b.nodeIgual = true;
+  b.archivos.set(b.rutas.node, "exe"); // ya estaba instalado
+  b.falloCopia = (a) => a.endsWith("\\node");
+  const ev = [];
+  await b.asistente.avanzar((e) => ev.push(e));
+  assert.deepEqual(b.copias.map(([, a]) => path.win32.basename(a)), ["app", "bin"]);
+  assert.ok(ev.some((e) => e.tipo === "linea" && /node de Trama ya está al día/.test(e.texto)));
+  assert.equal(b.archivos.get(b.rutas.marca), "v2", "la instalación termina");
+});
+
+test("node.exe en uso (EPERM al copiar): se lo aparta a un lado, se copia el nuevo y se sigue; nunca falla por eso", async () => {
+  const logs = [];
+  const b = banco({ log: (m) => logs.push(m) });
+  b.falloCopia = (a) => a.endsWith("\\node");
+  const ev = [];
+  await b.asistente.avanzar((e) => ev.push(e));
+  assert.deepEqual(b.apartados, ["C:\\Users\\Ana\\AppData\\Local\\trama\\node"]);
+  assert.deepEqual(b.copias.map(([, a]) => path.win32.basename(a)), ["node", "app", "bin"], "después de apartar, la copia sale");
+  assert.ok(ev.some((e) => e.tipo === "linea" && /Había programas usando node/.test(e.texto)));
+  assert.ok(logs.some((m) => /node en uso/.test(m)));
+  assert.deepEqual(b.limpiados.map((r) => path.win32.basename(r)), ["node", "app", "bin"], "lo apartado antes se intenta borrar");
+  assert.equal(b.archivos.get(b.rutas.marca), "v2");
+});
+
+test("si ni apartar se puede, el error del paso instalar dice qué ruta y por qué", async () => {
+  const b = banco();
+  b.falloCopia = (a) => a.endsWith("\\node");
+  b.noSePuedeApartar = true;
+  await assert.rejects(b.asistente.avanzar(), (e) => e.paso === "instalar" && /No pude copiar los archivos/.test(e.message) && /trama\\node: EPERM al renombrar/.test(e.detalle));
 });
 
 test("un instalador sin payload es un error del paso instalar", async () => {

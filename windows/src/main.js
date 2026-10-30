@@ -20,6 +20,7 @@ const { crearAsistenteNativo } = require("./pasos-nativo");
 const { ENTRADAS_NATIVO } = require("./manifiesto-nativo");
 const { crearCanalesVentana } = require("./ventana");
 const { crearAlmacen } = require("./arranque-seguro");
+const discoInstalacion = require("./disco-instalacion");
 const { crearVersionAnterior, instalacionDe, lanzarRestauracion } = require("./version-anterior");
 
 // TRAMA_CAPTURA=<png> (sólo para la prueba de arranque sin Windows): offscreen, foto a los 4 s y sale.
@@ -123,6 +124,10 @@ const disco = {
   copiar: (de, a) => fs.cpSync(de, a, { recursive: true, force: true }),
   borrar: (r) => fs.rmSync(r, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }),
   unir: (...p) => path.join(...p),
+  // Un node.exe en uso (los servidores MCP de otras herramientas lo lanzan con `node` a secas) no se puede borrar ni pisar: ver disco-instalacion.js.
+  igual: (a, b) => discoInstalacion.mismoArchivo(a, b),
+  apartar: (r) => discoInstalacion.apartarOcupados(r, Date.now().toString(36)),
+  limpiarViejos: (r) => discoInstalacion.limpiarViejos(r),
 };
 
 const asistente = crearAsistenteNativo({

@@ -11,6 +11,7 @@
 // Nada de bash ni WSL: cmd.exe, robocopy y powershell vienen con Windows.
 
 const fsp = require("node:fs/promises");
+const { promisify } = require("node:util");
 const path = require("node:path");
 const { alArrancar, alSalirAProposito, alTiempoAgotado, alVentanaLista, alVolver, ARRANQUE_MAX_MS, conRespaldo, sinAviso } = require("./arranque-seguro");
 
@@ -29,29 +30,65 @@ async function copiaExiste(c, exe) {
   }
 }
 
-/** Copia la instalación a `base`, atómicamente (se arma aparte y se renombra). */
-async function guardarCopia(inst, version, base, ahora) {
+/**
+ * El `fs` sin el soporte de .asar: dentro de Electron, `original-fs` (el `fs` común trata resources\\app.asar como una carpeta virtual y
+ * tira «Invalid package» al copiarlo o borrarlo); fuera de Electron (las pruebas) es el `fs` de siempre.
+ */
+function fsCrudo() {
+  try {
+    return require("original-fs");
+  } catch {
+    return require("node:fs");
+  }
+}
+
+/** Las operaciones de disco que usa la copia, con promesas, sobre `fs` (por callbacks: es lo que original-fs deja sin parchear). */
+function opsDe(fs) {
+  return {
+    rm: promisify(fs.rm),
+    mkdir: promisify(fs.mkdir),
+    readdir: promisify(fs.readdir),
+    copyFile: promisify(fs.copyFile),
+    rename: promisify(fs.rename),
+  };
+}
+
+/** Copia la carpeta `de` en `a` archivo por archivo (app.asar es un archivo más). */
+async function copiarSinAsar(ops, de, a) {
+  await ops.mkdir(a, { recursive: true });
+  for (const n of await ops.readdir(de, { withFileTypes: true })) {
+    const o = path.join(de, n.name);
+    const d = path.join(a, n.name);
+    if (n.isDirectory()) await copiarSinAsar(ops, o, d);
+    else await ops.copyFile(o, d);
+  }
+}
+
+/** Copia la instalación a `base`, atómicamente (se arma aparte y se renombra). `fs`: el que no entiende de .asar (en las pruebas, el común). */
+async function guardarCopia(inst, version, base, ahora, fs = fsCrudo()) {
   if (!/^\d+\.\d+\.\d+$/.test(version)) throw new Error(`versión inválida: ${version}`);
-  await fsp.mkdir(base, { recursive: true });
+  const ops = opsDe(fs);
+  await ops.mkdir(base, { recursive: true });
   const destino = path.join(base, `Trama-${version}`);
   const tmp = `${destino}.tmp`;
-  await fsp.rm(tmp, { recursive: true, force: true });
-  await fsp.cp(inst.dir, tmp, { recursive: true });
-  await fsp.rm(destino, { recursive: true, force: true });
-  await fsp.rename(tmp, destino);
+  await ops.rm(tmp, { recursive: true, force: true });
+  await copiarSinAsar(ops, inst.dir, tmp);
+  await ops.rm(destino, { recursive: true, force: true });
+  await ops.rename(tmp, destino);
   return { version, tipo: "carpeta", ruta: destino, cuando: ahora };
 }
 
 /** Borra de `base` lo que ninguna copia viva usa (queda a lo sumo la anterior y el respaldo). */
-async function podar(base, vivas) {
+async function podar(base, vivas, fs = fsCrudo()) {
+  const ops = opsDe(fs);
   const quedan = new Set(vivas.filter(Boolean).map((c) => path.resolve(c.ruta)));
   let nombres = [];
   try {
-    nombres = await fsp.readdir(base);
+    nombres = await ops.readdir(base);
   } catch {
     return;
   }
-  for (const n of nombres) if (!quedan.has(path.resolve(base, n))) await fsp.rm(path.join(base, n), { recursive: true, force: true }).catch(() => {});
+  for (const n of nombres) if (!quedan.has(path.resolve(base, n))) await ops.rm(path.join(base, n), { recursive: true, force: true }).catch(() => {});
 }
 
 // Las rutas y el nombre del .exe van dentro de un guion de cmd: nada que cmd.exe pueda leer como otra cosa.
@@ -193,4 +230,4 @@ function crearVersionAnterior(d) {
   };
 }
 
-module.exports = { instalacionDe, copiaExiste, guardarCopia, podar, guionDeRestauracion, lanzarRestauracion, crearVersionAnterior };
+module.exports = { instalacionDe, copiaExiste, fsCrudo, guardarCopia, podar, guionDeRestauracion, lanzarRestauracion, crearVersionAnterior };

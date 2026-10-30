@@ -67,12 +67,23 @@ function quitarDelPath(actual, carpeta, expandir = (s) => s) {
 const comandoArranque = (exe) => `"${exe}" ${SEGUNDO_PLANO}`;
 
 // ---------- el motor como hijo ----------
-/** El entorno del motor: lo mismo que `trama-motor run` en Linux, con el node.exe y bin\ propios primero en el PATH. */
-function entornoMotor(env, rutas) {
+/**
+ * El entorno del motor: lo mismo que `trama-motor run` en Linux, con bin\ propio primero en el PATH. El node.exe propio va AL FINAL y
+ * sólo si el sistema no tiene uno (`existe`): los hijos (claude, agy y los servidores MCP que lanzan con `node` a secas) deben
+ * encontrar el node del sistema, no el de Trama; el que corre desde la carpeta de Trama la bloquea al actualizar. El motor y las
+ * herramientas se lanzan siempre por la ruta absoluta (`rutas.node`), no por el PATH.
+ */
+function entornoMotor(env, rutas, existe = fs.existsSync) {
   const e = { ...env };
   // En Windows las variables no distinguen mayúsculas: se conserva el nombre que ya traía el PATH.
   const clave = Object.keys(e).find((k) => k.toLowerCase() === "path") || "Path";
-  e[clave] = [path.win32.dirname(rutas.node), rutas.bin, e[clave]].filter(Boolean).join(";");
+  const dirNode = path.win32.dirname(rutas.node);
+  const propia = normalizarEntrada(dirNode);
+  const delSistema = partesPath(e[clave]).some((d) => {
+    const dir = String(d).trim().replace(/^"(.*)"$/, "$1");
+    return normalizarEntrada(dir) !== propia && existe(path.win32.join(dir, "node.exe"));
+  });
+  e[clave] = [rutas.bin, e[clave], delSistema ? "" : dirNode].filter(Boolean).join(";");
   return { ...e, HILOS_MOTOR: "1", TRAMA_UNIDAD: "1", TRAMA_LOCAL: "1", TRAMA_APP: rutas.app };
 }
 

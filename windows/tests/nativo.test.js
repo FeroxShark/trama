@@ -38,16 +38,27 @@ test("la clave Run abre la carcasa en segundo plano", () => {
   assert.equal(n.comandoArranque("C:\\Users\\Ana López\\AppData\\Local\\Programs\\Trama\\Trama.exe"), '"C:\\Users\\Ana López\\AppData\\Local\\Programs\\Trama\\Trama.exe" --segundo-plano');
 });
 
-test("el entorno del motor: node.exe y bin\\ primero en el PATH (con el nombre que traía), modo local y TRAMA_APP", () => {
+test("el entorno del motor: bin\\ primero; sin node en el sistema el node propio va al final (modo local y TRAMA_APP)", () => {
   const r = n.rutasNativas({ LOCALAPPDATA: "C:\\L", USERPROFILE: "C:\\U" });
-  const e = n.entornoMotor({ Path: "C:\\Windows", USERNAME: "ana" }, r);
-  assert.equal(e.Path, "C:\\L\\trama\\node;C:\\L\\trama\\bin;C:\\Windows");
+  const e = n.entornoMotor({ Path: "C:\\Windows", USERNAME: "ana" }, r, () => false);
+  assert.equal(e.Path, "C:\\L\\trama\\bin;C:\\Windows;C:\\L\\trama\\node");
   assert.equal(e.PATH, undefined);
   assert.equal(e.TRAMA_LOCAL, "1");
   assert.equal(e.HILOS_MOTOR, "1");
   assert.equal(e.TRAMA_UNIDAD, "1");
   assert.equal(e.TRAMA_APP, "C:\\L\\trama\\app");
   assert.equal(e.USERNAME, "ana");
+});
+
+test("el entorno del motor: si el sistema ya tiene node, el de Trama no entra al PATH de los hijos (no le gana ni lo bloquea)", () => {
+  const r = n.rutasNativas({ LOCALAPPDATA: "C:\\L", USERPROFILE: "C:\\U" });
+  const hay = new Set(["C:\\Program Files\\nodejs\\node.exe", "C:\\L\\trama\\node\\node.exe"]);
+  const e = n.entornoMotor({ Path: 'C:\\Windows;"C:\\Program Files\\nodejs";C:\\L\\trama\\node' }, r, (f) => hay.has(f));
+  assert.equal(e.Path, 'C:\\L\\trama\\bin;C:\\Windows;"C:\\Program Files\\nodejs";C:\\L\\trama\\node', "el del sistema queda antes que el de Trama; no se agrega otra copia adelante");
+  assert.ok(!e.Path.startsWith("C:\\L\\trama\\node"));
+  // El único node que hay es el propio (ya estaba en el PATH del usuario): cuenta como "sin node del sistema".
+  const solo = n.entornoMotor({ Path: "C:\\Windows" }, r, (f) => f === "C:\\L\\trama\\node\\node.exe");
+  assert.equal(solo.Path, "C:\\L\\trama\\bin;C:\\Windows;C:\\L\\trama\\node");
 });
 
 test("respuestaRpc: 200 con ok, 401 (atiende aunque falte el token), y lo demás es falla", () => {
