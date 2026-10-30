@@ -45,12 +45,12 @@ export function DialogoCache({ datos, alElegir, alCancelar }: { datos: DatosCach
         <div className="cache-opciones">
           <button ref={resumen} type="button" className="cache-op cache-op-prim" data-cache-resumen onClick={() => alElegir("resumen", recordar)}>
             <span className="cache-op-t">{t("cache.resumen")}</span>
-            <span className="cache-op-d">{t("cache.resumenDet", { k: mil(v.tokensResumen), pct: v.pctResumen })}</span>
+            <span className="cache-op-d">{t("cache.resumenDet", { k: mil(v.tokensResumen) })}</span>
             {datos.nueva ? <span className="cache-op-d">{t("cache.resumenClaude")}</span> : null}
           </button>
           <button ref={seguir} type="button" className="cache-op" data-cache-seguir onClick={() => alElegir("seguir", recordar)}>
             <span className="cache-op-t">{t("cache.seguir")}</span>
-            <span className="cache-op-d">{t("cache.seguirDet", { k: mil(v.tokensSeguir), pct: v.pctSeguir })}</span>
+            <span className="cache-op-d">{t("cache.seguirDet", { k: mil(v.tokensSeguir) })}</span>
           </button>
         </div>
         <label className="cache-recordar">

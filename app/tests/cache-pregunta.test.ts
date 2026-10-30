@@ -13,13 +13,12 @@ const { guardarCacheVencida, leerPreferencias } = await import("../electron/pref
 const AHORA = 1_800_000_000_000;
 const base = { modelo: "claude-opus-5-5", local: false, cruza: false, vence: null as number | null, ttl: null as number | null, actividad: AHORA / 1000 - 1800, tokens: 120_000, pref: "preguntar" as const, ahoraMs: AHORA };
 
-test("caché vencida y contexto grande: pide elegir, con el estimado de cada camino", () => {
+test("caché vencida y contexto grande: pide elegir, con los tokens de cada camino", () => {
   const v = decidirCache(base);
   assert.equal(v.accion, "preguntar");
   assert.equal(v.tokensSeguir, 120_000);
   assert.equal(v.tokensResumen, TOKENS_RESUMEN);
-  assert.ok(v.pctSeguir >= 9 && v.pctSeguir <= 11, String(v.pctSeguir));
-  assert.ok(v.pctResumen >= 1 && v.pctResumen < v.pctSeguir);
+  assert.equal(Object.hasOwn(v, "pctSeguir"), false);
 });
 
 test("caché vigente: no pregunta (con el vencimiento que dice el statusline, o con el TTL por defecto)", () => {

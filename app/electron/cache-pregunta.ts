@@ -1,5 +1,5 @@
 // ¿Preguntar antes de mandar? Con la caché de prompt vencida, seguir la misma sesión obliga al motor a releer TODO el contexto
-// (agy: 98-135 mil tokens, ~10 % de la cuota de 5 h); empezar una sesión nueva con el relevo compacto (relevo-motor.ts) pesa ~26 mil.
+// (agy: 98-135 mil tokens); empezar una sesión nueva con el relevo compacto (relevo-motor.ts) pesa ~26 mil.
 // Si el contexto es grande, la persona elige. Puro (sin archivos ni React): lo prueba `tests/cache-pregunta.test.ts`.
 import { motorDeCache } from "./cache.ts";
 
@@ -16,8 +16,6 @@ export const UMBRAL_TOKENS = 40_000;
 export const TTL_DEFECTO_S = { claude: 300, gemini: 300 } as const;
 /** Lo que pesa empezar con el relevo: el prompt de sistema y las herramientas (~16 mil) más el relevo mismo (TOPE_RELEVO de 40 mil caracteres ≈ 10 mil). */
 export const TOKENS_RESUMEN = 26_000;
-/** Cuántos tokens releídos gastan un punto de la cuota de 5 h: lo medido con agy (≈ 115 mil tokens, ~10 %). Una aproximación, no una medida. */
-export const TOKENS_POR_PUNTO = 11_500;
 
 export type EntradaCache = {
   /** El modelo del líder (el motor de la caché que vale es el suyo). */
@@ -42,9 +40,6 @@ export type VeredictoCache = {
   accion: "enviar" | "preguntar" | "resumen";
   tokensSeguir: number;
   tokensResumen: number;
-  /** % aproximado de la cuota de 5 h que gasta cada camino, redondeado y nunca 0 si se gasta algo. */
-  pctSeguir: number;
-  pctResumen: number;
 };
 
 /** ¿Venció su caché? Sin ningún dato (nunca habló) no se sabe: no vencida. */
@@ -55,12 +50,8 @@ export function cacheVencida(e: Pick<EntradaCache, "modelo" | "vence" | "ttl" | 
   return venceS !== null && e.ahoraMs / 1000 >= venceS;
 }
 
-const puntos = (tokens: number) => (tokens > 0 ? Math.max(1, Math.round(tokens / TOKENS_POR_PUNTO)) : 0);
-
 export function decidirCache(e: EntradaCache): VeredictoCache {
-  const tokensSeguir = e.tokens;
-  const tokensResumen = Math.min(e.tokens, TOKENS_RESUMEN);
-  const base = { tokensSeguir, tokensResumen, pctSeguir: puntos(tokensSeguir), pctResumen: puntos(tokensResumen) };
+  const base = { tokensSeguir: e.tokens, tokensResumen: Math.min(e.tokens, TOKENS_RESUMEN) };
   const motor = motorDeCache(e.modelo);
   const aplica = !e.local && !e.cruza && (motor === "claude" || motor === "gemini");
   if (!aplica || e.tokens < UMBRAL_TOKENS || !cacheVencida(e)) return { ...base, accion: "enviar" };
