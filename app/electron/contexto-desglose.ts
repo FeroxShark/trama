@@ -62,7 +62,7 @@ export type Desglose = {
   quien: { tipo: "lider" | "worker"; id: string };
   /** `claude`, `gemini`, `dsh`, `opencode`, `ollama` o `local`. */
   motor: string;
-  fuente: "claude" | "transcript" | "sin-desglose";
+  fuente: "claude" | "transcript" | "sin-desglose" | "previa";
   /** Algo de lo que sigue es una estimación (siempre con fuente "transcript"). */
   estimado: boolean;
   modelo: string | null;

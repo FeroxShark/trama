@@ -88,6 +88,7 @@ export function leerSesion(lineas: string[]): InfoSesion {
   const diferidas = new Set<string>();
   let arranco = false;
   let snapshot = false;
+  let prefijo: string | null = null;
   for (const l of lineas) {
     if (!l.startsWith("{")) continue;
     let o: J;
@@ -104,6 +105,9 @@ export function leerSesion(lineas: string[]): InfoSesion {
       const partes = arr(sh.system).map((s) => (obj(s) ? str(s.text) : null)).filter((s): s is string => !!s);
       if (partes.length && r.prompt === null) r.prompt = partes.join("\n");
       if (partes.length && !r.promptPartes.length) r.promptPartes = partes;
+      // El primer bloque del pedido es la frase de identidad ("You are Claude Code…"): el snapshot no siempre la trae.
+      const ident = partes.find((x) => x.length < 300 && /^You are /.test(x));
+      if (ident) prefijo = ident;
       r.version = str(o.version);
       r.herramientas = arr(sh.tools)
         .filter(obj)
@@ -210,6 +214,8 @@ export function leerSesion(lineas: string[]): InfoSesion {
         break;
     }
   }
+  // Con el snapshot (que parte mejor) sin su frase de identidad, se la pone la del pedido.
+  if (snapshot && prefijo && !r.promptPartes.some((p) => p.includes(prefijo as string))) r.promptPartes.unshift(prefijo);
   r.diferidas = [...diferidas];
   r.buscadas = [...buscadas].map(([nombre, tokens]) => ({ nombre, tokens }));
   return r;

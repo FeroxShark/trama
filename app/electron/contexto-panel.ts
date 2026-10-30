@@ -7,6 +7,7 @@ import os from "node:os";
 import path from "node:path";
 import { fijarApagadoTrama, HERRAMIENTAS_PROTEGIDAS, leerApagadosTrama, TIPOS_APAGADO, type Apagados } from "./apagados.ts";
 import { inventario, rutasClaude } from "./conectores-claude.ts";
+import { skillsDeSesion } from "./contexto-previa.ts";
 import { sidDeWorker, transcriptDe as transcriptPorSid, TRANSCRIPTS } from "./consumo.ts";
 import { cwdDe, desdeClaude, desdeTranscript, medirConRespaldo, memoriaDeSesion, sinDesglose, usosDe, type Desglose, type Medicion } from "./contexto-desglose.ts";
 import { leerSesion } from "./contexto-sesion.ts";
@@ -22,15 +23,6 @@ const ID_WORKER = /^[\w.@-]{1,120}$/;
 const ultimaMedicion = new Map<string, Medicion>();
 
 const lineas = async (f: string | null) => (f ? (await readFile(f, "utf8").catch(() => "")).split("\n").filter(Boolean) : []);
-
-/** Las skills que carga una sesión en `cwd` (estimado): las prendidas del usuario, de plugins y de claude.ai, y las de ese proyecto. */
-async function skillsDeSesion(cwd: string | null, apagados: Apagados) {
-  const inv = await inventario(rutasClaude());
-  const dentro = (de: string) => !!cwd && (cwd === de || cwd.startsWith(de + path.sep));
-  return catalogoSkills(inv, apagados)
-    .filter((s) => s.estado === "activa" && (s.origen !== "proyecto" || dentro(s.de)))
-    .map((s) => ({ nombre: s.clave, origen: s.origen, plugin: s.origen === "plugin" || s.origen === "claudeai" ? s.de : null, tokens: s.tokens }));
-}
 
 /**
  * El desglose de un líder (`{ lider: sid }`) o de un worker de `pa` (`{ worker: id }`). Líder de Claude vivo: su `/context` (exacto). Si no:
