@@ -5,6 +5,20 @@ import type { SkillCatalogo } from "../../electron/skills-catalogo";
 
 const cat = (id: FilaCategoria["id"], tokens: number, estimado = false): FilaCategoria => ({ id, nombre: null, tokens, estimado });
 
+const AHORA = Date.now();
+
+/** Lo usado es la suma de las categorías que ocupan la ventana; lo libre, lo que queda tras la reserva. */
+const CATS_LIDER = [
+  cat("sistema", 9_800),
+  cat("herramientas", 15_500),
+  cat("mcp", 1_159),
+  cat("skills", 2_820),
+  cat("memoria", 4_940),
+  cat("agentes", 1_100),
+  cat("mensajes", 76_500),
+];
+const USADO_LIDER = CATS_LIDER.reduce((n, c) => n + c.tokens, 0);
+
 const LIDER: Desglose = {
   version: 1,
   quien: { tipo: "lider", id: "" },
@@ -12,19 +26,15 @@ const LIDER: Desglose = {
   fuente: "claude",
   estimado: false,
   modelo: "claude-opus-5-5",
-  usado: 126_400,
+  usado: USADO_LIDER,
   ventana: 200_000,
   ventanaEstimada: false,
   categorias: [
-    cat("sistema", 8_900),
-    cat("herramientas", 15_300),
-    cat("mcp", 13_200),
-    cat("skills", 7_100),
-    cat("memoria", 4_300),
-    cat("agentes", 1_100),
-    cat("mensajes", 76_500),
+    ...CATS_LIDER,
     cat("reserva", 33_000),
-    cat("libre", 40_600),
+    cat("libre", 200_000 - USADO_LIDER - 33_000),
+    // Los esquemas de las herramientas de MCP sin cargar: existen, pero no están en la ventana ni suman.
+    { id: "mcp", nombre: "MCP tools (deferred)", tokens: 160_153, estimado: false, diferido: true },
   ],
   herramientas: [
     { nombre: "Bash", tokens: 3_900, diferida: false, usos: 41 },
@@ -40,41 +50,69 @@ const LIDER: Desglose = {
   ],
   mcp: [
     {
-      servidor: "docs-internos",
-      tokens: 6_800,
-      usos: 0,
+      servidor: "claude_ai_Notion",
+      tokens: 482,
+      usos: 4,
+      instrucciones: 182,
+      diferidos: 124_566,
+      resultados: 6_200,
       herramientas: [
-        { nombre: "buscar", tokens: 2_900, cargada: true, usos: 0 },
-        { nombre: "crear_pagina", tokens: 2_300, cargada: true, usos: 0 },
-        { nombre: "mover_pagina", tokens: 1_600, cargada: true, usos: 0 },
+        { nombre: "notion-search", tokens: 300, cargada: true, usos: 4 },
+        { nombre: "notion-fetch", tokens: 70_000, cargada: false, usos: 0 },
+        { nombre: "notion-update-page", tokens: 54_566, cargada: false, usos: 0 },
+      ],
+    },
+    {
+      servidor: "claude_ai_Gmail",
+      tokens: 90,
+      usos: 0,
+      instrucciones: 90,
+      diferidos: 35_587,
+      resultados: 0,
+      herramientas: [
+        { nombre: "search_threads", tokens: 21_000, cargada: false, usos: 0 },
+        { nombre: "get_thread", tokens: 14_587, cargada: false, usos: 0 },
       ],
     },
     {
       servidor: "repo-remoto",
-      tokens: 6_400,
+      tokens: 587,
       usos: 9,
+      instrucciones: 0,
+      diferidos: 0,
+      resultados: 3_100,
       herramientas: [
-        { nombre: "abrir_issue", tokens: 2_200, cargada: true, usos: 6 },
-        { nombre: "listar_prs", tokens: 2_000, cargada: true, usos: 3 },
-        { nombre: "comentar", tokens: 2_200, cargada: true, usos: 0 },
+        { nombre: "abrir_issue", tokens: 250, cargada: true, usos: 6 },
+        { nombre: "listar_prs", tokens: 200, cargada: true, usos: 3 },
+        { nombre: "comentar", tokens: 137, cargada: true, usos: 0 },
       ],
     },
   ],
   skills: [
-    { nombre: "revisar-diseno", origen: "user", plugin: null, tokens: 1_400, estimado: false, usos: 0 },
-    { nombre: "ui-ux-pro-max", origen: "user", plugin: null, tokens: 1_300, estimado: false, usos: 2 },
-    { nombre: "informe-pdf", origen: "plugin", plugin: "oficina@mercado", tokens: 1_200, estimado: false, usos: 0 },
-    { nombre: "planilla", origen: "plugin", plugin: "oficina@mercado", tokens: 1_100, estimado: false, usos: 0 },
-    { nombre: "workers", origen: "user", plugin: null, tokens: 1_000, estimado: false, usos: 7 },
-    { nombre: "capturas", origen: "project", plugin: null, tokens: 1_100, estimado: false, usos: 1 },
+    { nombre: "revisar-diseno", origen: "user", plugin: null, tokens: 600, estimado: false, usos: 0, hook: 0 },
+    { nombre: "ui-ux-pro-max", origen: "user", plugin: null, tokens: 520, estimado: false, usos: 2, hook: 0 },
+    { nombre: "informe-pdf", origen: "plugin", plugin: "oficina@mercado", tokens: 480, estimado: false, usos: 0, hook: 0 },
+    { nombre: "planilla", origen: "plugin", plugin: "oficina@mercado", tokens: 440, estimado: false, usos: 0, hook: 0 },
+    { nombre: "workers", origen: "user", plugin: null, tokens: 400, estimado: false, usos: 7, hook: 0 },
+    { nombre: "capturas", origen: "project", plugin: null, tokens: 260, estimado: false, usos: 1, hook: 0 },
+    { nombre: "caveman:caveman", origen: "plugin", plugin: "caveman@mercado", tokens: 120, estimado: false, usos: 0, hook: 40 },
   ],
   memoria: [
     { ruta: "/home/persona/.claude/CLAUDE.md", tipo: "User", tokens: 1_600, estimado: false },
     { ruta: "/home/persona/proyectos/atlas/CLAUDE.md", tipo: "Project", tokens: 2_100, estimado: false },
     { ruta: "/home/persona/proyectos/atlas/AGENTS.md", tipo: "Project", tokens: 600, estimado: false },
+    { ruta: "/home/persona/.claude/projects/atlas/memory/MEMORY.md", tipo: "AutoMem", tokens: 640, estimado: false },
   ],
-  usos: { herramientas: {}, skills: { "ui-ux-pro-max": 2, workers: 7, capturas: 1 }, mcp: {} },
-  sinUso: { herramientas: ["WebFetch", "NotebookEdit", "WebSearch"], mcp: ["docs-internos"], skills: ["revisar-diseno", "informe-pdf", "planilla"] },
+  sistema: [
+    { clave: "prompt", tipo: "prompt", nombre: "prompt", detalle: null, tokens: 5_200, estimado: true, texto: "Sos un agente de ingeniería de software que trabaja dentro de una terminal.\nUsá las herramientas disponibles para leer, buscar y editar archivos…", truncado: true },
+    { clave: "hook:SessionStart:startup", tipo: "hook", nombre: "SessionStart:startup", detalle: "SessionStart", tokens: 612, estimado: true, texto: "CAVEMAN MODE ACTIVE — mode: ultracave\nRespond terse. All technical substance stay.", truncado: false },
+    { clave: "diferidas", tipo: "diferidas", nombre: "diferidas", detalle: "15", tokens: 410, estimado: true, texto: "CronCreate\nCronDelete\nWebFetch\nWebSearch\nmcp__claude_ai_Notion__notion-fetch", truncado: false },
+    { clave: "entorno", tipo: "entorno", nombre: "entorno", detalle: null, tokens: 438, estimado: true, texto: null, truncado: false },
+  ],
+  usos: { herramientas: {}, skills: { "ui-ux-pro-max": 2, workers: 7, capturas: 1 }, mcp: {}, hook: { "caveman:caveman": 40 } },
+  medidoEn: AHORA,
+  desactualizado: false,
+  sinUso: { herramientas: ["WebFetch", "NotebookEdit", "WebSearch"], mcp: ["claude_ai_Gmail"], skills: ["revisar-diseno", "informe-pdf", "planilla"] },
   motivo: null,
 };
 
@@ -96,17 +134,24 @@ const worker = (id: string, usado: number, sinUso: boolean): Desglose => ({
   ],
   mcp: [],
   skills: [
-    { nombre: "capturas", origen: "project", plugin: null, tokens: 1_100, estimado: true, usos: 3 },
-    { nombre: "revisar-diseno", origen: "user", plugin: null, tokens: 1_400, estimado: true, usos: 0 },
-    { nombre: "informe-pdf", origen: "plugin", plugin: "oficina@mercado", tokens: 1_200, estimado: true, usos: 0 },
-    { nombre: "planilla", origen: "plugin", plugin: "oficina@mercado", tokens: 1_100, estimado: true, usos: 0 },
+    { nombre: "capturas", origen: "project", plugin: null, tokens: 1_100, estimado: true, usos: 3, hook: 0 },
+    { nombre: "revisar-diseno", origen: "user", plugin: null, tokens: 1_400, estimado: true, usos: 0, hook: 0 },
+    { nombre: "informe-pdf", origen: "plugin", plugin: "oficina@mercado", tokens: 1_200, estimado: true, usos: 0, hook: 0 },
+    { nombre: "planilla", origen: "plugin", plugin: "oficina@mercado", tokens: 1_100, estimado: true, usos: 0, hook: 0 },
   ],
   memoria: [
     { ruta: "/home/persona/proyectos/atlas/CLAUDE.md", tipo: "Project", tokens: 2_100, estimado: true },
     { ruta: "/home/persona/proyectos/atlas/AGENTS.md", tipo: "Project", tokens: 600, estimado: true },
     { ruta: "/home/persona/.claude/CLAUDE.md", tipo: "User", tokens: 1_200, estimado: true },
   ],
-  usos: { herramientas: { Bash: 27, Edit: 14, Read: 22 }, skills: { capturas: 3 }, mcp: {} },
+  sistema: [
+    { clave: "prompt", tipo: "prompt", nombre: "prompt", detalle: null, tokens: 5_200, estimado: true, texto: "Sos un agente de ingeniería de software que trabaja dentro de una terminal.", truncado: false },
+    { clave: "diferidas", tipo: "diferidas", nombre: "diferidas", detalle: "15", tokens: 410, estimado: true, texto: "CronCreate\nCronDelete\nWebFetch", truncado: false },
+    { clave: "entorno", tipo: "entorno", nombre: "entorno", detalle: null, tokens: 430, estimado: true, texto: null, truncado: false },
+  ],
+  usos: { herramientas: { Bash: 27, Edit: 14, Read: 22 }, skills: { capturas: 3 }, mcp: {}, hook: {} },
+  medidoEn: null,
+  desactualizado: false,
   sinUso: { herramientas: [], mcp: [], skills: sinUso ? ["revisar-diseno", "informe-pdf", "planilla"] : [] },
   motivo: null,
 });
@@ -144,6 +189,7 @@ export const CATALOGO_FALSO: SkillCatalogo[] = [
   sk("migrar-esquema", "Escribe y revisa migraciones de esquema con vuelta atrás.", "proyecto", "atlas", 520, "apagada"),
   sk("traducir", "Traduce textos de la interfaz entre español e inglés manteniendo las variables.", "usuario", "", 430),
   sk("diagramas", "Dibuja diagramas de arquitectura y de flujo.", "plugin", "nube@mercado", 410, "plugin-apagado"),
+  sk("caveman", "Respuestas cortas y directas: activa el modo conciso en cada mensaje.", "plugin", "caveman@mercado", 120),
 ];
 
 export const APAGADOS_FALSOS: VistaApagados = {
@@ -154,4 +200,12 @@ export const APAGADOS_FALSOS: VistaApagados = {
   motores: { claude: true, gemini: false, dsh: false, opencode: false, ollama: false, local: false },
 };
 
-export const catalogoFalso = (): Catalogo => ({ version: 1, skills: structuredClone(CATALOGO_FALSO), total: CATALOGO_FALSO.length, exactos: true });
+/** Lo que se usó en las últimas semanas en todas las sesiones de la persona (la skill de un plugin con hook se carga sola). */
+export const USOS_FALSOS: NonNullable<Catalogo["usos"]> = {
+  dias: 30,
+  sesiones: 64,
+  skills: { "ui-ux-pro-max": 31, workers: 22, capturas: 9, investigar: 3, "informe-pdf": 2, traducir: 1 },
+  porHook: ["caveman:caveman"],
+};
+
+export const catalogoFalso = (): Catalogo => ({ version: 1, skills: structuredClone(CATALOGO_FALSO), total: CATALOGO_FALSO.length, exactos: true, usos: structuredClone(USOS_FALSOS) });

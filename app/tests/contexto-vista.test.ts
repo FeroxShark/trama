@@ -13,9 +13,9 @@ test("categorías: en orden, sin lo libre ni lo diferido, con su parte de la ven
   d.categorias.push({ id: "herramientas", nombre: null, tokens: 99_999, estimado: false, diferido: true });
   const c = categorias(d);
   assert.deepEqual(c.map((x) => x.id), ["mensajes", "herramientas", "mcp", "skills", "memoria", "agentes", "sistema", "reserva"]);
-  assert.equal(c.find((x) => x.id === "herramientas")!.tokens, 15_300);
+  assert.equal(c.find((x) => x.id === "herramientas")!.tokens, 15_500);
   assert.equal(c.find((x) => x.id === "mensajes")!.pct, 76_500 / 200_000);
-  assert.equal(fraccionUsada(d), 126_400 / 200_000);
+  assert.equal(fraccionUsada(d), d.usado! / 200_000);
   assert.equal(fraccionUsada({ ...d, usado: null }), null);
 });
 
@@ -33,11 +33,14 @@ test("ítems de herramientas: las protegidas no se apagan y lo que pesa y no se 
 
 test("ítems de MCP: el servidor y sus herramientas, con el nombre que entiende el apagado", () => {
   const it = itemsDe(lider, "mcp");
-  const docs = it.find((x) => x.nombre === "docs-internos")!;
-  assert.equal(docs.nunca, true);
-  assert.deepEqual(docs.apaga, { tipo: "mcp", nombre: "docs-internos" });
-  assert.equal(docs.hijos.length, 3);
-  assert.deepEqual(docs.hijos[0].apaga, { tipo: "herramientas", nombre: "mcp__docs-internos__buscar" });
+  const gmail = it.find((x) => x.nombre === "claude_ai_Gmail")!;
+  assert.equal(gmail.nunca, true);
+  assert.deepEqual(gmail.apaga, { tipo: "mcp", nombre: "claude_ai_Gmail" });
+  assert.equal(gmail.hijos.length, 2);
+  assert.deepEqual(gmail.hijos[0].apaga, { tipo: "herramientas", nombre: "mcp__claude_ai_Gmail__search_threads" });
+  // Sus herramientas diferidas se ven, pero su peso no es de la ventana.
+  assert.ok(gmail.hijos.every((h) => h.diferida));
+  assert.equal(gmail.diferidos, 35_587);
   const repo = it.find((x) => x.nombre === "repo-remoto")!;
   assert.equal(repo.nunca, false);
   assert.equal(repo.usos, 9);
@@ -119,7 +122,7 @@ test("catálogo: busca sin tildes en nombre y descripción, filtra apagadas, nun
   assert.ok(nunca.includes("informe-pdf") && nunca.includes("revisar-diseno"));
   // Una apagada no es "nunca usada": ya está apagada.
   assert.ok(!nunca.includes("presentacion"));
-  assert.deepEqual(pluginsDe(CATALOGO_FALSO), ["Investigación", "nube", "oficina"]);
+  assert.deepEqual(pluginsDe(CATALOGO_FALSO), ["caveman", "Investigación", "nube", "oficina"]);
   assert.deepEqual(f({ plugin: "nube" }).sort(), ["diagramas", "nube-base-datos", "nube-despliegue"]);
   assert.deepEqual(f({ plugin: "nube", q: "base" }), ["nube-base-datos"]);
   // Sin sesiones medidas no se inventa qué nunca se usó.
@@ -131,4 +134,62 @@ test("porcentaje: entero y nunca 0 si hay algo", () => {
   assert.equal(porcentaje(1, 100_000), 1);
   assert.equal(porcentaje(0, 100), 0);
   assert.equal(porcentaje(5, 0), 0);
+});
+
+test("MCP: lo que suma nunca pasa de la categoría y el mapa no tiene un bloque gordo por lo diferido", () => {
+  const mcp = categorias(lider).find((x) => x.id === "mcp")!;
+  const servidores = itemsDe(lider, "mcp");
+  assert.ok(servidores.reduce((n, i) => n + (i.tokens ?? 0), 0) <= mcp.tokens);
+  const grande = Math.max(...bloques(lider).filter((b) => b.cat === "mcp").map((b) => b.tokens));
+  assert.ok(grande < 1_000, `el bloque más grande de MCP pesa ${grande}`);
+  // Los diferidos se dicen aparte en el servidor.
+  assert.equal(servidores.find((i) => i.nombre === "claude_ai_Notion")!.diferidos, 124_566);
+  assert.equal(servidores.find((i) => i.nombre === "claude_ai_Notion")!.resultados, 6_200);
+});
+
+test("sistema: sus piezas, y lo que no se pudo separar queda como 'sin separar'", () => {
+  const cat = categorias(lider).find((x) => x.id === "sistema")!;
+  const it = itemsDe(lider, "sistema", [], { tokensCat: cat.tokens });
+  assert.deepEqual(it.map((i) => i.sis), ["prompt", "resto", "hook", "entorno", "diferidas"]);
+  assert.equal(it.reduce((n, i) => n + (i.tokens ?? 0), 0), cat.tokens);
+  assert.ok(it.find((i) => i.sis === "hook")!.texto?.startsWith("CAVEMAN"));
+  // Sin la categoría no hay resto que calcular.
+  assert.ok(!itemsDe(lider, "sistema").some((i) => i.sis === "resto"));
+  assert.ok(bloques(lider).some((b) => b.cat === "sistema" && b.sis === "prompt"));
+});
+
+test("skills: la de un hook no es 'nunca usada', y 'nunca' mira todas las sesiones recientes, no sólo la abierta", () => {
+  const recientes = { dias: 30, sesiones: 5, skills: { "informe-pdf": 3, "oficina:informe-pdf": 1 }, porHook: ["caveman:caveman"] };
+  const sin = itemsDe(lider, "skills");
+  const con = itemsDe(lider, "skills", [], { recientes });
+  const por = (xs: typeof sin, n: string) => xs.find((i) => i.nombre === n)!;
+  assert.equal(por(sin, "caveman:caveman").porHook, true);
+  assert.equal(por(sin, "caveman:caveman").nunca, false);
+  // En esta sesión no se usó, pero en otras sí.
+  assert.equal(por(sin, "informe-pdf").nunca, true);
+  assert.equal(por(con, "informe-pdf").nunca, false);
+  assert.equal(por(con, "informe-pdf").recientes, 4);
+  assert.equal(por(con, "planilla").nunca, true);
+  // Si se pidió el dato de las otras sesiones y no llegó, no se afirma nada.
+  assert.ok(itemsDe(lider, "skills", [], { recientes: null }).every((i) => !i.nunca));
+  assert.ok(usadas([lider], recientes).has("informe-pdf") && usadas([lider], recientes).has("caveman:caveman"));
+});
+
+test("apagados: salen de la cuenta y del mapa, siguen en la lista, y lo que la medición ya no trae se puede prender", () => {
+  const apagados = { skills: ["revisar-diseno", "ya-no-esta"], mcp: ["claude_ai_Notion"], herramientas: ["WebFetch"], memoria: [] };
+  const antes = categorias(lider);
+  const despues = categorias(lider, apagados);
+  const t = (cs: typeof antes, id: string) => cs.find((c) => c.id === id)!.tokens;
+  assert.equal(t(despues, "skills"), t(antes, "skills") - 600);
+  assert.equal(t(despues, "mcp"), t(antes, "mcp") - 482);
+  assert.equal(t(despues, "herramientas"), t(antes, "herramientas") - 1_300);
+  assert.equal(fraccionUsada(lider, apagados)! < fraccionUsada(lider)!, true);
+  assert.ok(!bloques(lider, 60, apagados).some((b) => ["revisar-diseno", "claude_ai_Notion", "WebFetch"].includes(b.nombre)));
+  assert.ok(bloques(lider, 60).some((b) => b.nombre === "revisar-diseno"));
+  const sk = itemsDe(lider, "skills", [], { apagados });
+  assert.ok(sk.some((i) => i.nombre === "revisar-diseno" && !i.fantasma));
+  const fantasma = sk.find((i) => i.fantasma)!;
+  assert.deepEqual([fantasma.nombre, fantasma.apaga, fantasma.tokens], ["ya-no-esta", { tipo: "skills", nombre: "ya-no-esta" }, null]);
+  // Sin apagados todo queda como estaba.
+  assert.deepEqual(categorias(lider, { skills: [], mcp: [], herramientas: [], memoria: [] }), antes);
 });

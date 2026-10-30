@@ -8,14 +8,18 @@ import path from "node:path";
 import { fijarApagadoTrama, HERRAMIENTAS_PROTEGIDAS, leerApagadosTrama, TIPOS_APAGADO, type Apagados } from "./apagados.ts";
 import { inventario, rutasClaude } from "./conectores-claude.ts";
 import { sidDeWorker, transcriptDe as transcriptPorSid, TRANSCRIPTS } from "./consumo.ts";
-import { cwdDe, desdeClaude, desdeTranscript, memoriaDeSesion, sinDesglose, usosDe, type Desglose } from "./contexto-desglose.ts";
+import { cwdDe, desdeClaude, desdeTranscript, medirConRespaldo, memoriaDeSesion, sinDesglose, usosDe, type Desglose, type Medicion } from "./contexto-desglose.ts";
+import { leerSesion } from "./contexto-sesion.ts";
 import { errorT } from "./errores.ts";
 import { aplicarApagadosLideres, claseDeLider, contextoVivo, transcriptDe as transcriptDeLider } from "./lider.ts";
 import { PA_STATE } from "./pa.ts";
-import { buscarSkills, catalogoSkills, type SkillCatalogo } from "./skills-catalogo.ts";
+import { buscarSkills, catalogoSkills, DIAS_USOS, usosDeHistorial, type SkillCatalogo, type UsosCatalogo } from "./skills-catalogo.ts";
 
 const SID = /^[0-9a-f-]{36}$/;
 const ID_WORKER = /^[\w.@-]{1,120}$/;
+
+/** La última medición exacta de cada líder vivo: si al refrescar no contesta, se sigue mostrando esa (marcada) en vez de saltar a una estimada. */
+const ultimaMedicion = new Map<string, Medicion>();
 
 const lineas = async (f: string | null) => (f ? (await readFile(f, "utf8").catch(() => "")).split("\n").filter(Boolean) : []);
 
@@ -44,12 +48,12 @@ export async function desgloseContexto(x: unknown): Promise<Desglose> {
     if (l && l.clase !== "claude") return sinDesglose({ tipo: "lider", id: sid, motor, modelo: l.modelo });
     const t = await transcriptDeLider(sid, l?.cwd).catch(() => null);
     const ls = await lineas(t);
-    const vivo = l && !l.local ? await contextoVivo(sid) : null;
-    if (vivo) return desdeClaude(vivo, { id: sid, usos: usosDe(ls) });
+    const vivo = l && !l.local ? await medirConRespaldo(ultimaMedicion, sid, () => contextoVivo(sid)) : null;
+    if (vivo) return desdeClaude(vivo.resp, { id: sid, usos: usosDe(ls), info: leerSesion(ls), medidoEn: vivo.en, desactualizado: vivo.viejo });
     if (!ls.length) return sinDesglose({ tipo: "lider", id: sid, motor, modelo: l?.modelo, motivo: "sin-transcript" });
     const cwd = cwdDe(ls) ?? l?.cwd ?? os.homedir();
     const memoria = await memoriaDeSesion({ cwd, claudeDir, excludes: apagados.memoria });
-    return desdeTranscript(ls, { tipo: "lider", id: sid, motor, memoria, skills: l?.local ? [] : await skillsDeSesion(cwd, apagados) });
+    return desdeTranscript(ls, { tipo: "lider", id: sid, motor, memoria, skills: l?.local ? [] : await skillsDeSesion(cwd, apagados), excludes: apagados.memoria });
   }
   if (typeof o.worker === "string") {
     const id = o.worker;
@@ -62,23 +66,29 @@ export async function desgloseContexto(x: unknown): Promise<Desglose> {
     const cwd = cwdDe(ls) ?? os.homedir();
     // `pa` le saca al worker el CLAUDE.md del home (`claudeMdExcludes` de su --settings), además de lo que apagó Trama.
     const memoria = await memoriaDeSesion({ cwd, claudeDir, excludes: [path.join(os.homedir(), "CLAUDE.md"), ...apagados.memoria] });
-    return desdeTranscript(ls, { tipo: "worker", id, motor: "claude", memoria, skills: await skillsDeSesion(cwd, apagados) });
+    return desdeTranscript(ls, { tipo: "worker", id, motor: "claude", memoria, skills: await skillsDeSesion(cwd, apagados), excludes: [path.join(os.homedir(), "CLAUDE.md"), ...apagados.memoria] });
   }
   throw errorT("main.apagadoRaro", { v: "?" });
 }
 
-export type Catalogo = { version: 1; skills: SkillCatalogo[]; total: number; exactos: boolean };
+export type Catalogo = { version: 1; skills: SkillCatalogo[]; total: number; exactos: boolean; usos: UsosCatalogo | null };
+
+const ESPERA_USOS_MS = 5000;
 
 /** El catálogo de skills, filtrado por `q`. Con `sid` de un líder de Claude vivo, los tokens de cada skill son los que dice él. */
-export async function catalogoContexto(x: unknown): Promise<Catalogo> {
+export async function catalogoContexto(x: unknown, historial?: { ultimos(dias: unknown, rol: unknown): Promise<unknown> }): Promise<Catalogo> {
   const o = x && typeof x === "object" ? (x as Record<string, unknown>) : {};
   const exactos = new Map<string, number>();
   if (typeof o.sid === "string" && SID.test(o.sid)) {
-    const r = (await contextoVivo(o.sid).catch(() => null)) as { skills?: { skillFrontmatter?: { name?: unknown; tokens?: unknown }[] } } | null;
+    const r = (await medirConRespaldo(ultimaMedicion, o.sid, () => contextoVivo(o.sid as string)).then((m) => m?.resp ?? null)) as { skills?: { skillFrontmatter?: { name?: unknown; tokens?: unknown }[] } } | null;
     for (const s of r?.skills?.skillFrontmatter ?? []) if (typeof s.name === "string" && typeof s.tokens === "number") exactos.set(s.name, s.tokens);
   }
   const todas = catalogoSkills(await inventario(rutasClaude()), leerApagadosTrama(), exactos);
-  return { version: 1, skills: buscarSkills(todas, o.q), total: todas.length, exactos: exactos.size > 0 };
+  // El historial se pone al día antes de contestar (la primera vez, con muchos transcripts, tarda): si no está a tiempo, el catálogo sale
+  // sin usos (`null`: no se sabe, nunca "no se usó") y la próxima vez ya está.
+  const espera = new Promise<null>((ok) => setTimeout(() => ok(null), ESPERA_USOS_MS).unref());
+  const usos = historial ? usosDeHistorial(await Promise.race([historial.ultimos(DIAS_USOS, undefined).catch(() => null), espera]), todas) : null;
+  return { version: 1, skills: buscarSkills(todas, o.q), total: todas.length, exactos: exactos.size > 0, usos };
 }
 
 export type VistaApagados = {

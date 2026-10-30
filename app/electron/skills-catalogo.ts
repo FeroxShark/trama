@@ -65,3 +65,31 @@ export function buscarSkills(lista: SkillCatalogo[], q: unknown): SkillCatalogo[
     return palabras.every((p) => t.includes(p));
   });
 }
+
+/** Qué skills se usaron en las sesiones recientes de Claude de la persona (todas, no sólo la abierta). */
+export type UsosCatalogo = {
+  dias: number;
+  /** Sesiones con actividad en esos días. */
+  sesiones: number;
+  /** skill (por su clave o su nombre, como la invocó la persona o el modelo) → veces: la herramienta Skill más los `/comandos`. */
+  skills: Record<string, number>;
+  /** Claves de skills que un hook mete al contexto solo (un plugin con hooks activos cuya skill lleva su nombre). */
+  porHook: string[];
+};
+
+/** Los días que miran los usos del catálogo. */
+export const DIAS_USOS = 30;
+
+/** De lo que indexó el historial a lo que usa el catálogo. Una consulta con error o vacía no dice nada: `null`, nunca "no se usó". */
+export function usosDeHistorial(c: unknown, lista: Pick<SkillCatalogo, "clave" | "nombre" | "origen" | "de">[]): UsosCatalogo | null {
+  const q = c as { sesiones?: unknown; piezas?: { clase: string; nombre: string; usos: number | null; ganchos: number }[]; comandos?: Record<string, number>; error?: unknown } | null;
+  if (!q || q.error || typeof q.sesiones !== "number" || !Array.isArray(q.piezas) || q.sesiones <= 0) return null;
+  const skills: Record<string, number> = {};
+  for (const p of q.piezas) if (p.clase === "skill" && (p.usos ?? 0) > 0) skills[p.nombre] = (skills[p.nombre] ?? 0) + (p.usos ?? 0);
+  for (const [n, v] of Object.entries(q.comandos ?? {})) skills[n] = (skills[n] ?? 0) + v;
+  const ganchos = new Set(q.piezas.filter((p) => p.clase === "plugin" && p.ganchos > 0).map((p) => p.nombre));
+  const porHook = lista
+    .filter((s) => (s.origen === "plugin" || s.origen === "claudeai") && ganchos.has(s.de.split("@")[0]) && s.nombre.split(":").pop() === s.de.split("@")[0])
+    .map((s) => s.clave);
+  return { dias: DIAS_USOS, sesiones: q.sesiones, skills, porHook };
+}

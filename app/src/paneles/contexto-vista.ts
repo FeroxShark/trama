@@ -1,8 +1,8 @@
 // La lógica del panel de contexto (src/paneles/PanelContexto.tsx), sin React: las categorías en orden y con su porcentaje, los ítems de
 // cada una (con tokens, usos y a qué apagado corresponden), el mapa de bloques (treemap) y el filtro del catálogo de skills.
 // Los datos son los de `contexto:desglose` y `skills:catalogo` (electron/contexto-desglose.ts, electron/contexto-panel.ts).
-import type { Categoria, Desglose } from "../../electron/contexto-desglose";
-import type { SkillCatalogo } from "../../electron/skills-catalogo";
+import type { Categoria, Desglose, TipoSistema } from "../../electron/contexto-desglose";
+import type { SkillCatalogo, UsosCatalogo } from "../../electron/skills-catalogo";
 
 export type TipoApagado = "skills" | "mcp" | "herramientas" | "memoria";
 export type Apagados = Record<TipoApagado, string[]>;
@@ -11,21 +11,45 @@ export type Apagados = Record<TipoApagado, string[]>;
 export const ORDEN: Categoria[] = ["mensajes", "herramientas", "mcp", "skills", "memoria", "agentes", "sistema", "otro", "reserva"];
 
 /** Qué categorías tienen ítems que se pueden mirar uno por uno. */
-export const CON_ITEMS: ReadonlySet<Categoria> = new Set(["herramientas", "mcp", "skills", "memoria"]);
+export const CON_ITEMS: ReadonlySet<Categoria> = new Set(["sistema", "herramientas", "mcp", "skills", "memoria"]);
 
 export type FilaCat = { id: Categoria; tokens: number; estimado: boolean; pct: number };
 
+/** Lo que queda de lo usado al sacar lo apagado (que se libera desde el próximo mensaje); sin apagados, lo medido. `null`: no se sabe. */
+export function usadoNeto(d: Desglose, apagados?: Apagados | null): number | null {
+  if (d.usado === null) return null;
+  const libre = Object.values(ahorro(d, apagados)).reduce((n, v) => n + v, 0);
+  return Math.max(0, d.usado - libre);
+}
+
 /** Cuánto ocupa lo usado respecto de la ventana (0 a 1); `null` si no se sabe. */
-export function fraccionUsada(d: Desglose): number | null {
-  if (d.usado === null || !d.ventana) return null;
-  return Math.min(1, d.usado / d.ventana);
+export function fraccionUsada(d: Desglose, apagados?: Apagados | null): number | null {
+  const u = usadoNeto(d, apagados);
+  if (u === null || !d.ventana) return null;
+  return Math.min(1, u / d.ventana);
+}
+
+/** Lo que pesa lo apagado en cada categoría: ya no entra en la cuenta ni en el mapa (los ítems se siguen viendo, grises y tachados). */
+export function ahorro(d: Desglose, apagados?: Apagados | null): Partial<Record<Categoria, number>> {
+  const r: Partial<Record<Categoria, number>> = {};
+  if (!apagados) return r;
+  for (const cat of ["herramientas", "mcp", "skills", "memoria"] as const) {
+    let n = 0;
+    for (const it of itemsDe(d, cat)) {
+      if (it.diferida) continue;
+      if (it.apaga && estaApagado(apagados, it.apaga)) n += it.tokens ?? 0;
+      else for (const h of it.hijos) if (!h.diferida && h.apaga && estaApagado(apagados, h.apaga)) n += h.tokens ?? 0;
+    }
+    if (n > 0) r[cat] = n;
+  }
+  return r;
 }
 
 /**
  * Las categorías con tokens, en `ORDEN`, con su parte de la ventana (o de lo usado, si no se sabe la ventana). Las diferidas no suman
- * (no están en la ventana) y `libre` es el hueco que queda: no es una categoría.
+ * (no están en la ventana), `libre` es el hueco que queda: no es una categoría, y lo apagado no cuenta.
  */
-export function categorias(d: Desglose): FilaCat[] {
+export function categorias(d: Desglose, apagados?: Apagados | null): FilaCat[] {
   const suma = new Map<Categoria, FilaCat>();
   for (const c of d.categorias) {
     if (c.diferido || c.id === "libre" || c.tokens <= 0) continue;
@@ -33,8 +57,10 @@ export function categorias(d: Desglose): FilaCat[] {
     if (ya) ya.tokens += c.tokens;
     else suma.set(c.id, { id: c.id, tokens: c.tokens, estimado: c.estimado, pct: 0 });
   }
+  const menos = ahorro(d, apagados);
+  for (const f of suma.values()) f.tokens = Math.max(0, f.tokens - (menos[f.id] ?? 0));
   const total = d.ventana ?? [...suma.values()].reduce((n, c) => n + c.tokens, 0);
-  const filas = [...suma.values()].sort((a, b) => ORDEN.indexOf(a.id) - ORDEN.indexOf(b.id));
+  const filas = [...suma.values()].filter((f) => f.tokens > 0).sort((a, b) => ORDEN.indexOf(a.id) - ORDEN.indexOf(b.id));
   for (const f of filas) f.pct = total > 0 ? f.tokens / total : 0;
   return filas;
 }
@@ -57,8 +83,21 @@ export type Item = {
   protegida: boolean;
   /** Herramientas de un servidor MCP. */
   hijos: Item[];
-  /** Su esquema todavía no está en la ventana (se carga al buscarla). */
+  /** Su esquema todavía no está en la ventana (se carga al buscarla): sus tokens no suman. */
   diferida: boolean;
+  /** Una skill que un hook mete al contexto solo (no hace falta usarla): no es "nunca usada". */
+  porHook: boolean;
+  /** Veces que se usó en las sesiones recientes de la persona (todas, no sólo esta); `null`: no se sabe. */
+  recientes: number | null;
+  /** MCP: definiciones que existen pero no están cargadas (no suman) y lo que pesan sus resultados en los mensajes (estimado). */
+  diferidos: number | null;
+  resultados: number | null;
+  /** Una pieza del sistema: de qué es (la vista pone el nombre) y su texto, si se guardó. */
+  sis: TipoSistema | "resto" | null;
+  texto: string | null;
+  truncado: boolean;
+  /** Está apagada y la medición ya no la trae (el líder la dejó afuera): se muestra para poder prenderla. */
+  fantasma: boolean;
 };
 
 const ultimo = (ruta: string) => ruta.split(/[\\/]/).filter(Boolean).pop() ?? ruta;
@@ -72,94 +111,140 @@ export const claveSkill = (s: { nombre: string; plugin: string | null }) => (s.p
 /** ¿Se sabe lo que se usó? Sin desglose, o con el transcript todavía vacío, "nunca usada" sería inventar. */
 export const sabeUsos = (d: Desglose) => d.fuente !== "sin-desglose" && d.motivo === null;
 
-export function itemsDe(d: Desglose, cat: Categoria, protegidas: readonly string[] = []): Item[] {
+/** Lo que se necesita de afuera para armar los ítems: qué está apagado, qué se usó en las sesiones recientes y cuánto dice la categoría. */
+export type ContextoItems = {
+  apagados?: Apagados | null;
+  /** `undefined`: sin dato de otras sesiones (sólo cuenta la abierta). `null`: se pidió y no hay dato: no se afirma "nunca usada" de una skill. */
+  recientes?: UsosCatalogo | null;
+  /** Lo que suma la categoría (para decir cuánto del sistema no se pudo separar). */
+  tokensCat?: number;
+};
+
+const ITEM_BASE: Item = {
+  clave: "",
+  nombre: "",
+  detalle: null,
+  tokens: null,
+  usos: null,
+  nunca: false,
+  apaga: null,
+  protegida: false,
+  hijos: [],
+  diferida: false,
+  porHook: false,
+  recientes: null,
+  diferidos: null,
+  resultados: null,
+  sis: null,
+  texto: null,
+  truncado: false,
+  fantasma: false,
+};
+
+export function itemsDe(d: Desglose, cat: Categoria, protegidas: readonly string[] = [], ctx: ContextoItems = {}): Item[] {
   const usos = sabeUsos(d);
   const nunca = (u: number, tokens: number | null) => usos && u === 0 && (tokens ?? 0) > 0;
   const orden = (a: Item, b: Item) => (b.tokens ?? -1) - (a.tokens ?? -1) || a.nombre.localeCompare(b.nombre);
+  const ap = ctx.apagados ?? null;
+  /** Lo apagado que la medición ya no trae, para poder prenderlo. */
+  const fantasmas = (tipo: TipoApagado, hay: (n: string) => boolean, nombreDe: (n: string) => string = (n) => n): Item[] =>
+    (ap?.[tipo] ?? [])
+      .filter((n) => !hay(n))
+      .map((n): Item => ({ ...ITEM_BASE, clave: `fantasma:${n}`, nombre: nombreDe(n), detalle: tipo === "memoria" ? n : null, apaga: { tipo, nombre: n }, fantasma: true }));
+  if (cat === "sistema") {
+    const piezas = d.sistema.map((p): Item => ({ ...ITEM_BASE, clave: p.clave, nombre: p.nombre, detalle: p.detalle, tokens: p.tokens, sis: p.tipo, texto: p.texto, truncado: p.truncado }));
+    const resto = (ctx.tokensCat ?? 0) - piezas.reduce((n, p) => n + (p.tokens ?? 0), 0);
+    // Lo que sobra de la categoría y no se pudo separar (por ejemplo, el primer mensaje).
+    if (ctx.tokensCat !== undefined && resto > Math.max(1, ctx.tokensCat * 0.03)) piezas.push({ ...ITEM_BASE, clave: "sin-separar", nombre: "", tokens: resto, sis: "resto" });
+    return piezas.sort(orden);
+  }
   if (cat === "herramientas")
     return d.herramientas
       .map((h): Item => {
         const protegida = protegidas.includes(h.nombre);
         return {
+          ...ITEM_BASE,
           clave: h.nombre,
           nombre: h.nombre,
-          detalle: null,
           tokens: h.tokens,
           usos: usos ? h.usos : null,
           nunca: !h.diferida && nunca(h.usos, h.tokens),
           apaga: protegida ? null : { tipo: "herramientas", nombre: h.nombre },
           protegida,
-          hijos: [],
           diferida: h.diferida,
         };
       })
+      .concat(fantasmas("herramientas", (n) => n.startsWith("mcp__") || d.herramientas.some((h) => h.nombre === n)))
       .sort(orden);
   if (cat === "mcp")
     return d.mcp
       .map((m): Item => {
         const srv = servidorNormalizado(m.servidor);
         return {
+          ...ITEM_BASE,
           clave: m.servidor,
           nombre: m.servidor,
-          detalle: null,
           tokens: m.tokens,
           usos: usos ? m.usos : null,
           nunca: nunca(m.usos, m.tokens),
           apaga: { tipo: "mcp", nombre: m.servidor },
-          protegida: false,
+          diferidos: m.diferidos ?? null,
+          resultados: m.resultados ?? null,
           hijos: m.herramientas
             .map(
               (h): Item => ({
+                ...ITEM_BASE,
                 clave: `${m.servidor}/${h.nombre}`,
                 nombre: h.nombre,
-                detalle: null,
                 tokens: h.tokens,
                 usos: usos ? h.usos : null,
                 nunca: h.cargada !== false && nunca(h.usos, h.tokens),
                 apaga: { tipo: "herramientas", nombre: `mcp__${srv}__${h.nombre}` },
-                protegida: false,
-                hijos: [],
                 diferida: h.cargada === false,
               }),
             )
             .sort(orden),
-          diferida: false,
         };
       })
+      .concat(fantasmas("mcp", (n) => d.mcp.some((m) => servidorNormalizado(m.servidor) === servidorNormalizado(n))))
       .sort(orden);
-  if (cat === "skills")
+  if (cat === "skills") {
+    const rec = ctx.recientes;
     return d.skills
       .map((s): Item => {
         const clave = claveSkill(s);
+        const vecesRec = rec ? (rec.skills[clave] ?? 0) + (clave === s.nombre ? 0 : (rec.skills[s.nombre] ?? 0)) : null;
+        const porHook = s.hook > 0 || !!rec?.porHook.includes(clave);
+        // Con el dato de las sesiones recientes ("nunca" es de todas, no de esta sola); sin él (se pidió y no llegó), no se afirma.
+        const sinUso = rec === null ? false : nunca(s.usos, s.tokens) && !porHook && (vecesRec ?? 0) === 0;
         return {
+          ...ITEM_BASE,
           clave,
           nombre: s.nombre,
           detalle: s.plugin ? s.plugin.split("@")[0] : s.origen,
           tokens: s.tokens,
           usos: usos ? s.usos : null,
-          nunca: nunca(s.usos, s.tokens),
+          nunca: sinUso,
           apaga: { tipo: "skills", nombre: clave },
-          protegida: false,
-          hijos: [],
-          diferida: false,
+          porHook,
+          recientes: vecesRec,
         };
       })
+      .concat(fantasmas("skills", (n) => d.skills.some((s) => claveSkill(s) === n || s.nombre === n)))
       .sort(orden);
+  }
   if (cat === "memoria")
     return d.memoria
       .map((m): Item => ({
+        ...ITEM_BASE,
         clave: m.ruta,
         nombre: ultimo(m.ruta),
         detalle: m.ruta,
         tokens: m.tokens,
-        usos: null,
-        nunca: false,
         // La memoria se apaga con una ruta absoluta o un glob (`claudeMdExcludes`).
         apaga: m.ruta.startsWith("/") || /^[A-Za-z]:[\\/]/.test(m.ruta) ? { tipo: "memoria", nombre: m.ruta } : null,
-        protegida: false,
-        hijos: [],
-        diferida: false,
       }))
+      .concat(fantasmas("memoria", (n) => d.memoria.some((m) => m.ruta === n), ultimo))
       .sort(orden);
   return [];
 }
@@ -182,18 +267,21 @@ export type Bloque = {
   clave: string | null;
   /** Lo que sobró de varias cosas chicas: no se toca. */
   resto?: true;
+  /** Una pieza del sistema (la vista le pone el nombre en su idioma). */
+  sis?: TipoSistema | "resto";
 };
 export type Colocado = Bloque & { x: number; y: number; w: number; h: number };
 
-/** Los bloques del mapa: los ítems más pesados de cada categoría con ítems (o la categoría entera), con tope; lo chico se junta en uno. */
-export function bloques(d: Desglose, tope = 14): Bloque[] {
+/** Los bloques del mapa: los ítems más pesados de cada categoría con ítems (o la categoría entera), con tope; lo chico se junta en uno. Lo apagado y lo que no está en la ventana (diferido) no tiene bloque. */
+export function bloques(d: Desglose, tope = 14, apagados?: Apagados | null): Bloque[] {
   const todos: Bloque[] = [];
-  for (const c of categorias(d)) {
+  const fuera = (i: Item) => i.diferida || i.fantasma || (!!apagados && !!i.apaga && estaApagado(apagados, i.apaga));
+  for (const c of categorias(d, apagados)) {
     if (c.id === "reserva") continue;
-    const items = CON_ITEMS.has(c.id) ? itemsDe(d, c.id).filter((i) => (i.tokens ?? 0) > 0) : [];
+    const items = CON_ITEMS.has(c.id) ? itemsDe(d, c.id).filter((i) => (i.tokens ?? 0) > 0 && !fuera(i)) : [];
     let cubierto = 0;
     for (const i of items) {
-      todos.push({ id: `${c.id}:${i.clave}`, cat: c.id, nombre: i.nombre, tokens: i.tokens ?? 0, clave: i.clave });
+      todos.push({ id: `${c.id}:${i.clave}`, cat: c.id, nombre: i.nombre, tokens: i.tokens ?? 0, clave: i.clave, ...(i.sis ? { sis: i.sis } : {}) });
       cubierto += i.tokens ?? 0;
     }
     // Lo de la categoría que los ítems no explican (o toda ella, si no tiene ítems).
@@ -271,9 +359,10 @@ export const pluginDeSkill = (s: SkillCatalogo): string => (s.origen === "plugin
 export const pluginsDe = (lista: SkillCatalogo[]): string[] => [...new Set(lista.map(pluginDeSkill).filter(Boolean))].sort((a, b) => a.localeCompare(b));
 
 /** Cuáles de las skills no se usaron en ninguna de las sesiones miradas: por su clave o por su nombre. */
-export function usadas(desgloses: Desglose[]): Set<string> {
+export function usadas(desgloses: Desglose[], recientes?: UsosCatalogo | null): Set<string> {
   const r = new Set<string>();
-  for (const d of desgloses) for (const k of Object.keys(d.usos?.skills ?? {})) r.add(k);
+  for (const d of desgloses) for (const k of [...Object.keys(d.usos?.skills ?? {}), ...Object.keys(d.usos?.hook ?? {})]) r.add(k);
+  if (recientes) for (const k of [...Object.keys(recientes.skills), ...recientes.porHook]) r.add(k);
   return r;
 }
 

@@ -436,6 +436,88 @@
   text-underline-offset: 0.2em;
 }
 
+/* Cargada por un hook: palabra, ícono y tinte de acento (no hace falta usarla, así que no es candidata a apagar por "nunca usada"). */
+.cp-uso[data-hook] {
+  padding: 0 var(--esp-2);
+  border-radius: var(--radio-pastilla);
+  background: var(--acento-tinte);
+  color: var(--azul);
+  font-weight: 500;
+}
+/* Lo apagado no suma: el número va gris y tachado, como el nombre. */
+.cp-it[data-apagado] > .cp-num {
+  color: var(--txt-4);
+  text-decoration: line-through;
+  text-decoration-color: var(--texto-5);
+}
+/* Apagado que la medición ya no trae: queda para poder prenderlo. */
+.cp-it[data-fantasma] {
+  opacity: 0.72;
+}
+.cp-nota {
+  margin: 0;
+  color: var(--txt-4);
+  font-size: var(--letra-3);
+  line-height: 1.45;
+}
+
+/* --- El texto de una pieza del sistema (tal cual se mandó, cortado si es muy largo) --- */
+.cp-texto {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-1);
+  margin: var(--esp-1-5) 0 var(--esp-1);
+}
+.cp-texto pre {
+  max-height: 16rem;
+  margin: 0;
+  overflow: auto;
+  padding: var(--esp-2) var(--esp-3);
+  border-radius: var(--radio-2);
+  background: var(--sup-0);
+  color: var(--txt-2);
+  font-family: var(--font-mono);
+  font-size: var(--letra-3);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.cp-texto small {
+  color: var(--txt-4);
+  font-size: var(--letra-3);
+}
+
+/* --- Compactar (bajo el título de Mensajes) --- */
+.cp-compactar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--esp-1-5) var(--esp-2-5);
+  padding: var(--esp-1) var(--esp-1) var(--esp-2);
+  font-size: var(--letra-3);
+}
+.cp-compactar-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--esp-1-5);
+}
+.cp-compactar small {
+  flex-basis: 100%;
+  color: var(--txt-4);
+}
+.cp-compactar .cp-vivo {
+  flex-basis: 100%;
+  margin: 0;
+}
+.cp-confirmar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--esp-1-5) var(--esp-2-5);
+  color: var(--txt-1);
+}
+
 /* --- El interruptor (40×24, como el del estándar; el blanco táctil se agranda sin cambiar lo que se ve) --- */
 .cp-sw {
   position: relative;

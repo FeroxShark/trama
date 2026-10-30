@@ -1020,7 +1020,7 @@ export function armarNucleo() {
   // El panel de contexto (motor/docs/traspaso.md): en qué se va el contexto de un líder o un worker, el catálogo de skills y el apagado
   // global de Trama (skills, MCP, herramientas y memoria). Leer anda también por la red (el celular); apagar es sólo de la PC (SOLO_PC_TAILNET).
   manejar("contexto:desglose", (_e, x: unknown) => desgloseContexto(x));
-  manejar("skills:catalogo", (_e, x: unknown) => catalogoContexto(x));
+  manejar("skills:catalogo", (_e, x: unknown) => catalogoContexto(x, historial));
   manejar("apagados:leer", () => leerApagadosPanel());
   manejar("apagados:fijar", (_e, tipo: unknown, nombre: unknown, apagado: unknown) => fijarApagadoPanel(tipo, nombre, apagado));
   // Catálogos de plugins (Ajustes > Conectores): leer los catálogos y agregar, instalar o quitar con el `claude plugin …` de la cuenta elegida.

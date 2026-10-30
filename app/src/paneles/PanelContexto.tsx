@@ -4,15 +4,18 @@
 // interruptor. Apagar vale para TODO Trama (`apagados:fijar`): se aplica a workers nuevos y al líder desde el próximo mensaje. La otra pestaña
 // es el catálogo de skills (buscar, filtrar, ver tokens, prender y apagar). Los datos: src/datos/contexto.ts; la cuenta y el mapa: contexto-vista.ts.
 // En el celular ocupa la pantalla y sólo se mira (apagar es de la PC).
-import { createContext, memo, useCallback, useContext, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
-import { ArrowLeft, ArrowUpRight, Check, ChevronRight, CircleDashed, Lock, PanelRightClose, RefreshCw, Search, X } from "lucide-react";
+import { createContext, memo, useCallback, useContext, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent as ReactMouseEvent } from "react";
+import { ArrowLeft, ArrowUpRight, Check, ChevronRight, CircleDashed, Lock, Minimize2, PanelRightClose, RefreshCw, Search, X, Zap } from "lucide-react";
 import type { Hilo, Lider } from "../datos/contrato";
 import type { Categoria, Desglose } from "../../electron/contexto-desglose";
+import type { UsosCatalogo } from "../../electron/skills-catalogo";
 import type { SkillCatalogo } from "../../electron/skills-catalogo";
 import type { Catalogo, VistaApagados } from "../../electron/contexto-panel";
 import { fuenteContexto, type Quien } from "../datos/contexto";
+import { fuente } from "../datos/fuente";
 import { tareaDe, tipoDe } from "../barra/piezas";
-import { modeloDe, nombreModelo } from "../hilo/opciones";
+import { effortDe, MODELO_DEFAULT, modeloDe, nombreModelo } from "../hilo/opciones";
+import { useCompactando } from "../hilo/compactando";
 import { useAngosto } from "../angosto";
 import { esVentana, mensaje } from "../puente";
 import { MODO } from "../modo";
@@ -26,10 +29,10 @@ import {
   filtrarSkills,
   fraccionUsada,
   itemsDe,
+  usadoNeto,
   pluginDeSkill,
   pluginsDe,
   porcentaje,
-  sabeUsos,
   treemap,
   usadas,
   type FiltroSkills,
@@ -55,8 +58,10 @@ type Acciones = {
   puede: boolean;
   pendientes: ReadonlySet<string>;
   fijar: (x: { tipo: TipoApagado; nombre: string }, apagar: boolean) => void;
+  /** Lo que se usó en las sesiones recientes de la persona (`null`: no se sabe todavía: no se afirma "nunca usada"). */
+  recientes: UsosCatalogo | null;
 };
-const Acc = createContext<Acciones>({ apagados: null, protegidas: [], puede: false, pendientes: new Set(), fijar: () => {} });
+const Acc = createContext<Acciones>({ apagados: null, protegidas: [], puede: false, pendientes: new Set(), fijar: () => {}, recientes: null });
 
 type Carga = { d: Desglose | null; error: string | null };
 
@@ -120,15 +125,33 @@ function Barra({ cats, d, fina }: { cats: FilaCat[]; d: Desglose; fina?: boolean
   );
 }
 
-/** El mapa de bloques: lo más pesado de un vistazo. Cada bloque dice su nombre y lleva a su detalle; tocarlo abre la categoría. */
-function Mapa({ d, alElegir }: { d: Desglose; alElegir: (cat: Categoria, clave: string | null) => void }) {
+/** El nombre de un bloque o de un ítem del sistema, en el idioma de la vista. */
+function nombreSis(sis: Item["sis"], nombre: string, detalle: string | null): string {
+  switch (sis) {
+    case "prompt":
+      return t("ctxp.sis.prompt");
+    case "hook":
+      return t("ctxp.sis.hook", { nombre });
+    case "diferidas":
+      return t("ctxp.sis.diferidas", { n: detalle ?? "0" });
+    case "entorno":
+      return t("ctxp.sis.entorno");
+    case "resto":
+      return t("ctxp.sis.resto");
+    default:
+      return nombre;
+  }
+}
+
+/** El mapa de bloques: lo más pesado de un vistazo. Cada bloque dice su nombre y lleva a su detalle; tocarlo abre la categoría. Clic derecho en Mensajes: compactar. */
+function Mapa({ d, apagados, alElegir, alMenu }: { d: Desglose; apagados: VistaApagados["apagados"] | null; alElegir: (cat: Categoria, clave: string | null) => void; alMenu?: (cat: Categoria) => void }) {
   const total = d.ventana ?? d.usado ?? 1;
-  const colocados = useMemo(() => treemap(bloques(d), 100, ALTO_MAPA), [d]);
+  const colocados = useMemo(() => treemap(bloques(d, 14, apagados), 100, ALTO_MAPA), [d, apagados]);
   if (!colocados.length) return null;
   return (
     <div className="cp-mapa" role="group" aria-label={t("ctxp.mapa")}>
       {colocados.map((b) => {
-        const nombre = b.resto ? "" : b.nombre === "…" ? t("ctxp.mapaCat", { cat: nombreCat(b.cat) }) : b.nombre || nombreCat(b.cat);
+        const nombre = b.resto ? "" : b.nombre === "…" ? t("ctxp.mapaCat", { cat: nombreCat(b.cat) }) : b.sis ? nombreSis(b.sis, b.nombre, null) : b.nombre || nombreCat(b.cat);
         const caja = {
           left: `${b.x}%`,
           top: `${(b.y / ALTO_MAPA) * 100}%`,
@@ -152,7 +175,24 @@ function Mapa({ d, alElegir }: { d: Desglose; alElegir: (cat: Categoria, clave: 
           );
         const dice = t("ctxp.mapaBloque", { nombre, cat: nombreCat(b.cat), tokens: miles(b.tokens), pct: porcentaje(b.tokens, total) });
         return (
-          <button key={b.id} type="button" className="cp-bq" data-cat={b.cat} style={caja} aria-label={dice} data-tip={dice} onClick={() => alElegir(b.cat, b.clave)}>
+          <button
+            key={b.id}
+            type="button"
+            className="cp-bq"
+            data-cat={b.cat}
+            style={caja}
+            aria-label={dice}
+            data-tip={dice}
+            onClick={() => alElegir(b.cat, b.clave)}
+            onContextMenu={
+              alMenu && b.cat === "mensajes"
+                ? (e) => {
+                    e.preventDefault();
+                    alMenu(b.cat);
+                  }
+                : undefined
+            }
+          >
             {txt}
           </button>
         );
@@ -161,9 +201,20 @@ function Mapa({ d, alElegir }: { d: Desglose; alElegir: (cat: Categoria, clave: 
   );
 }
 
-/** Cuántas veces se usó (o que nunca): la palabra va siempre, el ícono acompaña a "nunca usada". */
+/** Cuántas veces se usó (o que nunca) y si la mete un hook: la palabra va siempre, el ícono acompaña. */
 function Uso({ it }: { it: Item }) {
-  if (it.usos === null) return null;
+  const rec = it.recientes && it.recientes > 0 ? <span className="cp-uso">{it.recientes === 1 ? t("ctxp.recientes1", { dias: DIAS }) : t("ctxp.recientesN", { n: it.recientes, dias: DIAS })}</span> : null;
+  if (it.porHook)
+    return (
+      <>
+        <span className="cp-uso" data-hook="" data-tip={t("ctxp.porHookTip")}>
+          <Zap size={11} strokeWidth={2.2} aria-hidden />
+          {t("ctxp.porHook")}
+        </span>
+        {rec}
+      </>
+    );
+  if (it.usos === null) return rec;
   if (it.nunca)
     return (
       <span className="cp-uso" data-nunca="">
@@ -171,27 +222,41 @@ function Uso({ it }: { it: Item }) {
         {t("ctxp.usos0")}
       </span>
     );
-  return <span className="cp-uso">{it.usos === 0 ? t("ctxp.usos0") : it.usos === 1 ? t("ctxp.usos1") : t("ctxp.usosN", { n: it.usos })}</span>;
+  return (
+    <>
+      <span className="cp-uso">{it.usos === 0 ? t("ctxp.usos0") : it.usos === 1 ? t("ctxp.usos1") : t("ctxp.usosN", { n: it.usos })}</span>
+      {rec}
+    </>
+  );
 }
+
+/** Los días que mira el historial de usos (electron/skills-catalogo.ts, `DIAS_USOS`). */
+const DIAS = 30;
 
 function FilaItem({ it, uid, foco, estimado }: { it: Item; uid: string; foco: boolean; estimado: boolean }) {
   const { apagados } = useContext(Acc);
   const [hijos, setHijos] = useState(false);
+  const [texto, setTexto] = useState(false);
   const apagado = it.apaga && apagados ? estaApagado(apagados, it.apaga) : false;
   const idHijos = useId();
+  const idTexto = useId();
+  const nombre = nombreSis(it.sis, it.nombre, it.detalle);
+  const detalle = it.sis === "diferidas" || it.sis === "resto" ? null : it.detalle;
   return (
-    <li id={`${uid}-${it.clave}`} className="cp-it" data-apagado={apagado ? "" : undefined} data-foco={foco ? "" : undefined}>
+    <li id={`${uid}-${it.clave}`} className="cp-it" data-apagado={apagado ? "" : undefined} data-foco={foco ? "" : undefined} data-fantasma={it.fantasma ? "" : undefined}>
       <div className="cp-it-nom">
-        <b>{it.nombre}</b>
-        {it.detalle ? <small title={it.detalle}>{it.detalle}</small> : null}
+        <b>{nombre}</b>
+        {detalle ? <small title={detalle}>{detalle}</small> : null}
       </div>
-      <span className="cp-num" data-tip={estimado ? t("ctxp.estimado") : undefined}>
-        {it.tokens === null ? t("ctxp.sinTokens") : `${estimado ? "≈" : ""}${miles(it.tokens)}`}
+      <span className="cp-num" data-tip={apagado ? t("ctxp.noSuma") : estimado ? t("ctxp.estimado") : undefined}>
+        {it.tokens === null ? (it.fantasma ? "—" : t("ctxp.sinTokens")) : `${estimado ? "≈" : ""}${miles(it.tokens)}`}
       </span>
-      <Interruptor x={it.apaga} nombre={it.nombre} protegida={it.protegida} />
+      {it.sis ? <span className="cp-sw-hueco" /> : <Interruptor x={it.apaga} nombre={nombre} protegida={it.protegida} />}
       <div className="cp-it-det">
         <Uso it={it} />
         {it.diferida ? <span className="cp-etq">{t("ctxp.diferida")}</span> : null}
+        {it.diferidos ? <span className="cp-etq">{t("ctxp.diferidosDe", { tokens: miles(it.diferidos) })}</span> : null}
+        {it.resultados ? <span className="cp-etq">{t("ctxp.resultadosEn", { tokens: miles(it.resultados) })}</span> : null}
         {it.protegida ? (
           <span className="cp-etq">
             <Lock size={10} strokeWidth={2.2} aria-hidden />
@@ -201,7 +266,7 @@ function FilaItem({ it, uid, foco, estimado }: { it: Item; uid: string; foco: bo
         {apagado ? (
           <span className="cp-etq" data-apagada="">
             <X size={10} strokeWidth={2.6} aria-hidden />
-            {t("ctxp.apagada")}
+            {it.fantasma ? t("ctxp.fantasma") : t("ctxp.apagada")}
           </span>
         ) : null}
         {it.hijos.length ? (
@@ -209,7 +274,20 @@ function FilaItem({ it, uid, foco, estimado }: { it: Item; uid: string; foco: bo
             {hijos ? t("ctxp.ocultarHerramientas") : t("ctxp.verHerramientas", { n: it.hijos.length })}
           </button>
         ) : null}
+        {it.texto ? (
+          <button type="button" className="cp-link" aria-expanded={texto} aria-controls={idTexto} onClick={() => setTexto(!texto)}>
+            {texto ? t("ctxp.ocultarTexto") : t("ctxp.verTexto")}
+          </button>
+        ) : null}
       </div>
+      {texto && it.texto ? (
+        <div id={idTexto} className="cp-texto">
+          <pre tabIndex={0} aria-label={t("ctxp.textoDe", { nombre })}>
+            {it.texto}
+          </pre>
+          {it.truncado ? <small>{t("ctxp.textoCortado", { n: miles(it.texto.length) })}</small> : null}
+        </div>
+      ) : null}
       {hijos ? (
         <ul id={idHijos} className="cp-hijos" aria-label={t("ctxp.herramientasDe", { srv: it.nombre })}>
           {it.hijos.map((h) => (
@@ -224,14 +302,120 @@ function FilaItem({ it, uid, foco, estimado }: { it: Item; uid: string; foco: bo
 const motivoDe = (d: Desglose) =>
   d.fuente !== "sin-desglose" && d.motivo === null ? null : t(d.motivo === "sin-transcript" ? "ctxp.sinDesglose.sinTranscript" : d.motivo === "sin-uso" ? "ctxp.sinDesglose.sinUso" : "ctxp.sinDesglose.motor");
 
-/** El desglose entero de uno: resumen, barra, mapa y las categorías con sus ítems. */
-function Detalle({ d, uid, inicial }: { d: Desglose; uid: string; inicial?: Categoria | null }) {
-  const { protegidas } = useContext(Acc);
+/** Cuántos segundos se espera a que el líder empiece a compactar antes de decir que no lo hizo. */
+const ESPERA_COMPACTAR_S = 30;
+
+type FaseCompactar = "reposo" | "preguntando" | "enviando" | "esperando" | "compactando" | "midiendo";
+
+/**
+ * El flujo de Compactar del líder: pregunta en una línea, manda `/compact`, mira si empezó a compactar (`useCompactando`), y al terminar
+ * vuelve a medir y dice de cuántos a cuántos tokens quedó. Un worker no recibe comandos: ahí sólo se explica por qué no.
+ */
+function useCompactar(lider: Lider | null, d: Desglose, alRefrescar: () => void) {
+  const [fase, setFase] = useState<FaseCompactar>("reposo");
+  const [nota, setNota] = useState<{ ok: boolean; texto: string } | null>(null);
+  const antes = useRef<{ usado: number | null; d: Desglose } | null>(null);
+  const desde = useCompactando(lider?.id ?? null);
+  const compactando = desde !== null;
+  const vio = useRef(false);
+  const puede = !!lider && lider.origen === "app" && !lider.ocupado && fase === "reposo";
+  const porque = !lider ? t("ctxp.compactarWorker") : lider.origen !== "app" ? t("ctxp.compactarTerminal") : lider.ocupado && fase === "reposo" ? t("ctxp.compactarOcupado") : t("ctxp.compactarTip");
+
+  const pedir = useCallback(() => {
+    if (puede) {
+      setNota(null);
+      setFase("preguntando");
+    }
+  }, [puede]);
+  const cancelar = useCallback(() => setFase("reposo"), []);
+  const confirmar = useCallback(() => {
+    if (!lider) return;
+    const modelo = modeloDe(lider.modelo) ?? lider.modelo ?? MODELO_DEFAULT;
+    antes.current = { usado: d.usado, d };
+    vio.current = false;
+    setFase("enviando");
+    fuente.liderMandar(lider.id, { texto: "/compact", modelo, effort: effortDe(lider.effort, modelo) ?? lider.effort ?? "" }).then(
+      () => setFase("esperando"),
+      (e) => {
+        setFase("reposo");
+        setNota({ ok: false, texto: t("ctxp.compactarError", { motivo: mensaje(e) }) });
+      },
+    );
+  }, [lider, d]);
+
+  // Empezó a compactar → compactando; dejó de hacerlo → vuelve a medir.
+  useEffect(() => {
+    if (compactando) {
+      vio.current = true;
+      if (fase === "esperando") setFase("compactando");
+    } else if (vio.current && (fase === "compactando" || fase === "esperando")) {
+      vio.current = false;
+      setFase("midiendo");
+      alRefrescar();
+    }
+  }, [compactando, fase, alRefrescar]);
+  // Nunca arrancó: no se queda esperando para siempre.
+  useEffect(() => {
+    if (fase !== "esperando") return;
+    const x = setTimeout(() => {
+      if (vio.current) return;
+      setFase("reposo");
+      setNota({ ok: false, texto: t("ctxp.compactarNada") });
+    }, ESPERA_COMPACTAR_S * 1000);
+    return () => clearTimeout(x);
+  }, [fase]);
+  // La medición nueva llegó: se dice el antes y el después.
+  useEffect(() => {
+    if (fase !== "midiendo" || !antes.current || d === antes.current.d) return;
+    const a = antes.current.usado;
+    setNota({ ok: true, texto: a !== null && d.usado !== null ? t("ctxp.compactado", { antes: miles(a), despues: miles(d.usado) }) : t("ctxp.compactadoSin") });
+    antes.current = null;
+    setFase("reposo");
+  }, [fase, d]);
+
+  return { fase, nota, puede, porque, pedir, cancelar, confirmar };
+}
+
+/** La fila de Compactar bajo el título de Mensajes: botón, confirmación de una línea y el resultado. */
+function FilaCompactar({ c, sinLider }: { c: ReturnType<typeof useCompactar>; sinLider: boolean }) {
+  const { fase } = c;
+  const trabajando = fase === "enviando" || fase === "esperando" || fase === "compactando" || fase === "midiendo";
+  return (
+    <div className="cp-compactar">
+      {fase === "preguntando" ? (
+        <div className="cp-confirmar" role="alertdialog" aria-label={t("ctxp.compactarPregunta")}>
+          <span>{t("ctxp.compactarPregunta")}</span>
+          <button type="button" className="btn2" autoFocus onClick={c.confirmar}>
+            {t("ctxp.compactarSi")}
+          </button>
+          <button type="button" className="cp-link" onClick={c.cancelar}>
+            {t("ctxp.cancelar")}
+          </button>
+        </div>
+      ) : (
+        <button type="button" className="btn2 cp-compactar-btn" disabled={!c.puede} aria-busy={trabajando || undefined} data-tip={c.porque} onClick={c.pedir}>
+          <Minimize2 size={13} strokeWidth={1.9} aria-hidden />
+          {trabajando ? t("ctxp.compactandoAhora") : t("ctxp.compactar")}
+        </button>
+      )}
+      {sinLider ? <small>{t("ctxp.compactarWorker")}</small> : null}
+      <p className="cp-vivo" role={c.nota && !c.nota.ok ? "alert" : "status"} data-error={c.nota && !c.nota.ok ? "" : undefined}>
+        {c.nota?.texto}
+      </p>
+    </div>
+  );
+}
+
+/** El desglose entero de uno: resumen, barra, mapa y las categorías con sus ítems. `lider`: si es el de un líder, deja compactarlo. */
+function Detalle({ d, uid, inicial, lider, alRefrescar }: { d: Desglose; uid: string; inicial?: Categoria | null; lider?: Lider | null; alRefrescar: () => void }) {
+  const { protegidas, apagados, recientes } = useContext(Acc);
   const [abierta, setAbierta] = useState<Categoria | null>(inicial ?? null);
   const [foco, setFoco] = useState<string | null>(null);
-  const cats = useMemo(() => categorias(d), [d]);
-  const frac = fraccionUsada(d);
+  const cats = useMemo(() => categorias(d, apagados), [d, apagados]);
+  const frac = fraccionUsada(d, apagados);
+  const usado = usadoNeto(d, apagados);
   const total = d.ventana ?? d.usado ?? 0;
+  const compactar = useCompactar(lider ?? null, d, alRefrescar);
   const elegir = useCallback((c: Categoria, clave: string | null) => {
     setAbierta(c);
     setFoco(clave);
@@ -242,32 +426,44 @@ function Detalle({ d, uid, inicial }: { d: Desglose; uid: string; inicial?: Cate
   }, [foco, abierta, uid]);
   const vacio = motivoDe(d);
   if (vacio && !cats.length) return <p className="cp-nada">{vacio}</p>;
+  const baja = d.usado !== null && usado !== null && usado < d.usado;
+  const menuMensajes = () => {
+    elegir("mensajes", null);
+    compactar.pedir();
+  };
+  const menuTitulo = (e: ReactMouseEvent) => {
+    e.preventDefault();
+    menuMensajes();
+  };
   return (
     <div className="cp-det">
       <p className="cp-uso-total">
-        {d.usado !== null && d.ventana ? (
+        {usado !== null && d.ventana ? (
           <>
             <b className="cp-num">
               {d.estimado ? <span data-tip={t("ctxp.estimado")}>≈</span> : null}
-              {t("ctxp.usadoDe", { usado: miles(d.usado), ventana: miles(d.ventana) })}
+              {t("ctxp.usadoDe", { usado: miles(usado), ventana: miles(d.ventana) })}
             </b>
             {frac !== null ? <span>{t("ctxp.pctVentana", { pct: Math.round(frac * 100) })}</span> : null}
             {d.ventanaEstimada ? <span data-tip={t("ctxp.ventanaSupuesta")}>*</span> : null}
           </>
-        ) : d.usado !== null ? (
-          <b className="cp-num">{t("ctxp.usado", { usado: miles(d.usado) })}</b>
+        ) : usado !== null ? (
+          <b className="cp-num">{t("ctxp.usado", { usado: miles(usado) })}</b>
         ) : null}
       </p>
+      {baja && d.usado !== null && usado !== null ? <p className="cp-nota">{t("ctxp.sinLoApagado", { medido: miles(d.usado), neto: miles(usado) })}</p> : null}
+      {d.desactualizado && d.medidoEn ? <p className="cp-nota">{t("ctxp.medidoA", { hora: new Date(d.medidoEn).toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit" }) })}</p> : null}
       <Barra cats={cats} d={d} />
-      <Mapa d={d} alElegir={elegir} />
+      <Mapa d={d} apagados={apagados} alElegir={elegir} alMenu={lider ? menuMensajes : undefined} />
       <ul className="cp-cats">
         {cats.map((c) => {
-          const items = CON_ITEMS.has(c.id) ? itemsDe(d, c.id, protegidas) : [];
+          const crudo = d.categorias.filter((x) => x.id === c.id && !x.diferido).reduce((n, x) => n + x.tokens, 0);
+          const items = CON_ITEMS.has(c.id) ? itemsDe(d, c.id, protegidas, { apagados, recientes, tokensCat: crudo }) : [];
           const abre = abierta === c.id;
           const idCuerpo = `${uid}-cat-${c.id}`;
           return (
             <li key={c.id} className="cp-cat" data-cat={c.id} data-abierta={abre ? "" : undefined}>
-              <h4>
+              <h4 onContextMenu={c.id === "mensajes" && lider ? menuTitulo : undefined}>
                 <button type="button" aria-expanded={abre} aria-controls={idCuerpo} data-tip={t("ctxp.verDetalle", { cat: nombreCat(c.id) })} onClick={() => setAbierta(abre ? null : c.id)}>
                   <i className="cp-color" aria-hidden />
                   <span className="cp-cat-n">{nombreCat(c.id)}</span>
@@ -279,6 +475,7 @@ function Detalle({ d, uid, inicial }: { d: Desglose; uid: string; inicial?: Cate
                   <ChevronRight size={14} strokeWidth={2} className="cp-chev" aria-hidden />
                 </button>
               </h4>
+              {c.id === "mensajes" ? <FilaCompactar c={compactar} sinLider={!lider} /> : null}
               {abre ? (
                 <div id={idCuerpo} className="cp-cuerpo">
                   {items.length ? (
@@ -315,11 +512,12 @@ function Cargando({ carga, alReintentar }: { carga: Carga | undefined; alReinten
   );
 }
 
-function FilaWorker({ h, carga, abierto, alAlternar, alAbrir, alReintentar, inicial }: { h: Hilo; carga: Carga | undefined; abierto: boolean; alAlternar: () => void; alAbrir: () => void; alReintentar: () => void; inicial?: Categoria | null }) {
+function FilaWorker({ h, carga, abierto, alAlternar, alAbrir, alReintentar, alRefrescar, inicial }: { h: Hilo; carga: Carga | undefined; abierto: boolean; alAlternar: () => void; alAbrir: () => void; alReintentar: () => void; alRefrescar: () => void; inicial?: Categoria | null }) {
   const id = useId();
+  const { apagados } = useContext(Acc);
   const d = carga?.d ?? null;
-  const cats = useMemo(() => (d ? categorias(d) : []), [d]);
-  const frac = d ? fraccionUsada(d) : null;
+  const cats = useMemo(() => (d ? categorias(d, apagados) : []), [d, apagados]);
+  const frac = d ? fraccionUsada(d, apagados) : null;
   const tipo = h.en_cola ? "cola" : (tipoDe(h, h.estado)?.tipo ?? "");
   const estado = h.en_cola ? t("ctxp.enCola") : (tipoDe(h, h.estado)?.texto ?? h.estado);
   return (
@@ -354,7 +552,7 @@ function FilaWorker({ h, carga, abierto, alAlternar, alAbrir, alReintentar, inic
       </div>
       {abierto ? (
         <div id={id} className="cp-w-cuerpo">
-          {d ? <Detalle d={d} uid={`w-${h.id}`} inicial={inicial} /> : <Cargando carga={carga} alReintentar={alReintentar} />}
+          {d ? <Detalle d={d} uid={`w-${h.id}`} inicial={inicial} alRefrescar={alRefrescar} /> : <Cargando carga={carga} alReintentar={alReintentar} />}
         </div>
       ) : null}
     </li>
@@ -363,7 +561,7 @@ function FilaWorker({ h, carga, abierto, alAlternar, alAbrir, alReintentar, inic
 
 // --- Catálogo de skills ---------------------------------------------------------------------------------------------------------------------
 
-function FilaSkill({ s, nunca }: { s: SkillCatalogo; nunca: boolean }) {
+function FilaSkill({ s, nunca, porHook, veces }: { s: SkillCatalogo; nunca: boolean; porHook: boolean; veces: number }) {
   const { apagados } = useContext(Acc);
   const apagada = s.estado === "apagada" || (apagados ? estaApagado(apagados, { tipo: "skills", nombre: s.clave }) : false);
   const origen = s.origen === "plugin" || s.origen === "claudeai" ? pluginDeSkill(s) : s.origen === "proyecto" && s.de ? `${t("ctxp.origen.proyecto")}: ${s.de}` : t(`ctxp.origen.${s.origen}` as "ctxp.origen.usuario");
@@ -381,7 +579,14 @@ function FilaSkill({ s, nunca }: { s: SkillCatalogo; nunca: boolean }) {
       {pluginOff ? <span className="cp-sw-hueco" /> : <Interruptor x={{ tipo: "skills", nombre: s.clave }} nombre={s.clave} />}
       <p className="cp-sk-desc">{s.descripcion}</p>
       <div className="cp-it-det">
-        {nunca && !apagada && !pluginOff ? (
+        {porHook && !apagada && !pluginOff ? (
+          <span className="cp-uso" data-hook="" data-tip={t("ctxp.porHookTip")}>
+            <Zap size={11} strokeWidth={2.2} aria-hidden />
+            {t("ctxp.porHook")}
+          </span>
+        ) : null}
+        {veces > 0 ? <span className="cp-uso">{veces === 1 ? t("ctxp.recientes1", { dias: DIAS }) : t("ctxp.recientesN", { n: veces, dias: DIAS })}</span> : null}
+        {nunca && !porHook && !apagada && !pluginOff ? (
           <span className="cp-uso" data-nunca="">
             <CircleDashed size={11} strokeWidth={2.2} aria-hidden />
             {t("ctxp.usos0")}
@@ -399,27 +604,15 @@ function FilaSkill({ s, nunca }: { s: SkillCatalogo; nunca: boolean }) {
   );
 }
 
-function CatalogoSkills({ sid, desgloses }: { sid: string | null; desgloses: Desglose[] }) {
-  const [cat, setCat] = useState<Catalogo | null>(null);
-  const [error, setError] = useState<string | null>(null);
+function CatalogoSkills({ cat, error, alReintentar, desgloses }: { cat: Catalogo | null; error: string | null; alReintentar: () => void; desgloses: Desglose[] }) {
   const [f, setF] = useState<FiltroSkills>(() => ({ q: MODO.captura === "contexto-panel-skills" && MODO.variante === "buscar" ? "nube" : "", solo: MODO.captura === "contexto-panel-skills" && MODO.variante !== "buscar" ? "nunca" : "todas", plugin: "" }));
   const [limite, setLimite] = useState(PAGINA_SKILLS);
-  const [intento, setIntento] = useState(0);
   const { apagados } = useContext(Acc);
   const entrada = useId();
-  useEffect(() => {
-    let vivo = true;
-    setError(null);
-    fuenteContexto.catalogo(sid ?? undefined).then(
-      (c) => vivo && setCat(c),
-      (e) => vivo && setError(mensaje(e)),
-    );
-    return () => {
-      vivo = false;
-    };
-  }, [sid, intento]);
-  const sabe = desgloses.some(sabeUsos);
-  const vistas = useMemo(() => usadas(desgloses), [desgloses]);
+  const usos = cat?.usos ?? null;
+  // "Nunca usada" sólo se afirma con el historial de todas las sesiones recientes; sin él, no se sabe (nada de adivinar con la sesión abierta).
+  const sabe = !!usos;
+  const vistas = useMemo(() => usadas(desgloses, usos), [desgloses, usos]);
   // Lo que se muestra como apagado sale del registro (cambia al instante con un interruptor), no de lo leído.
   const lista = useMemo(
     () =>
@@ -433,7 +626,7 @@ function CatalogoSkills({ sid, desgloses }: { sid: string | null; desgloses: Des
   const pesan = useMemo(() => lista.filter((s) => s.estado === "activa").reduce((n, s) => n + s.tokens, 0), [lista]);
   const activas = lista.filter((s) => s.estado === "activa").length;
   useEffect(() => setLimite(PAGINA_SKILLS), [f]);
-  if (error) return <Cargando carga={{ d: null, error }} alReintentar={() => setIntento(intento + 1)} />;
+  if (error && !cat) return <Cargando carga={{ d: null, error }} alReintentar={alReintentar} />;
   if (!cat) return <p className="cp-nada">{t("ctxp.leyendo")}</p>;
   const filtros: [FiltroSkills["solo"], string][] = [
     ["todas", "ctxp.f.todas"],
@@ -470,11 +663,18 @@ function CatalogoSkills({ sid, desgloses }: { sid: string | null; desgloses: Des
         {t("ctxp.cuenta", { n: mostradas.length, total: lista.length })}
         <span>{t("ctxp.activasPesan", { n: activas, tokens: miles(pesan) })}</span>
       </p>
+      {usos ? <p className="cp-nota">{t("ctxp.usosRecientes", { dias: usos.dias, n: usos.sesiones })}</p> : <p className="cp-nota">{t("ctxp.sinUsosRecientes")}</p>}
       {f.solo === "nunca" && !sabe ? <p className="cp-nada">{t("ctxp.nuncaSinDato")}</p> : null}
       {mostradas.length === 0 && !(f.solo === "nunca" && !sabe) ? <p className="cp-nada">{t("ctxp.sinResultados")}</p> : null}
       <ul className="cp-items">
         {mostradas.slice(0, limite).map((s) => (
-          <FilaSkill key={s.id} s={s} nunca={sabe && !vistas.has(s.clave) && !vistas.has(s.nombre)} />
+          <FilaSkill
+            key={s.id}
+            s={s}
+            nunca={sabe && !vistas.has(s.clave) && !vistas.has(s.nombre)}
+            porHook={!!usos && (usos.porHook.includes(s.clave) || usos.porHook.includes(s.nombre))}
+            veces={usos ? (usos.skills[s.clave] ?? usos.skills[s.nombre] ?? 0) : 0}
+          />
         ))}
       </ul>
       {mostradas.length > limite ? (
@@ -539,9 +739,44 @@ export const PanelContexto = memo(function PanelContexto({ lider, workers, alCer
     }
   }, []);
 
+  const refrescar = useCallback(() => setRefresco((n) => n + 1), []);
+
+  // El catálogo se lee acá (no en la pestaña) porque lo que se usó en las sesiones recientes también lo necesitan los ítems de cada sesión.
+  // El historial puede estar indexando: si `usos` vino vacío se reintenta cada 15 s, hasta 6 veces.
+  const sid = lider?.id ?? null;
+  const [cat, setCat] = useState<Catalogo | null>(null);
+  const [catError, setCatError] = useState<string | null>(null);
+  const [intento, setIntento] = useState(0);
+  const reintentosUsos = useRef(0);
+  useEffect(() => {
+    let vivo = true;
+    fuenteContexto.catalogo(sid ?? undefined).then(
+      (c) => {
+        if (!vivo) return;
+        setCat(c);
+        setCatError(null);
+      },
+      (e) => vivo && setCatError(mensaje(e)),
+    );
+    return () => {
+      vivo = false;
+    };
+  }, [sid, intento, refresco]);
+  useEffect(() => {
+    reintentosUsos.current = 0;
+  }, [sid, refresco]);
+  useEffect(() => {
+    if (!cat || cat.usos || reintentosUsos.current >= 6) return;
+    const x = setTimeout(() => {
+      reintentosUsos.current += 1;
+      setIntento((n) => n + 1);
+    }, 15000);
+    return () => clearTimeout(x);
+  }, [cat]);
+
   const acciones = useMemo<Acciones>(
-    () => ({ apagados: apagados?.apagados ?? null, protegidas: apagados?.protegidas ?? ["Bash", "Read", "Edit", "Write"], puede, pendientes, fijar }),
-    [apagados, puede, pendientes, fijar],
+    () => ({ apagados: apagados?.apagados ?? null, protegidas: apagados?.protegidas ?? ["Bash", "Read", "Edit", "Write"], puede, pendientes, fijar, recientes: cat?.usos ?? null }),
+    [apagados, puede, pendientes, fijar, cat?.usos],
   );
 
   // El líder y sus workers, todos juntos: de nuevo al terminar el líder de responder, al cambiar quiénes son o con Actualizar.
@@ -585,7 +820,7 @@ export const PanelContexto = memo(function PanelContexto({ lider, workers, alCer
             {angosto ? <ArrowLeft size={18} strokeWidth={1.8} /> : <PanelRightClose size={16} strokeWidth={1.8} />}
           </button>
           <b>{t("ctxp.titulo")}</b>
-          <button type="button" className="cp-ico" aria-label={t("ctxp.actualizar")} data-tip={t("ctxp.actualizar")} onClick={() => setRefresco((n) => n + 1)}>
+          <button type="button" className="cp-ico" aria-label={t("ctxp.actualizar")} data-tip={t("ctxp.actualizar")} onClick={refrescar}>
             <RefreshCw size={14} strokeWidth={1.8} />
           </button>
         </header>
@@ -614,7 +849,7 @@ export const PanelContexto = memo(function PanelContexto({ lider, workers, alCer
                     <b>{lider.nombre || t("lider.sesionJefe")}</b>
                     {lider.modelo ? <small>{nombreModelo(modeloDe(lider.modelo) ?? lider.modelo)}</small> : null}
                   </h3>
-                  {deLider?.d ? <Detalle key={lider.id} d={deLider.d} uid={`l-${lider.id}`} inicial={MODO.captura === "contexto-panel-cat" ? "skills" : null} /> : <Cargando carga={deLider} alReintentar={() => setRefresco((n) => n + 1)} />}
+                  {deLider?.d ? <Detalle key={lider.id} d={deLider.d} uid={`l-${lider.id}`} lider={lider} alRefrescar={refrescar} inicial={MODO.captura === "contexto-panel-cat" ? "skills" : null} /> : <Cargando carga={deLider} alReintentar={refrescar} />}
                 </section>
                 <section className="cp-sesion" aria-label={t("ctxp.workers", { n: workers.length })}>
                   <h3 className="cp-h">
@@ -632,7 +867,8 @@ export const PanelContexto = memo(function PanelContexto({ lider, workers, alCer
                           abierto={abiertos.has(h.id)}
                           alAlternar={() => alternar(h.id)}
                           alAbrir={() => alAbrirHilo(h.id)}
-                          alReintentar={() => setRefresco((n) => n + 1)}
+                          alReintentar={refrescar}
+                          alRefrescar={refrescar}
                           inicial={MODO.captura === "contexto-panel-cat" ? "memoria" : null}
                         />
                       ))}
@@ -642,7 +878,7 @@ export const PanelContexto = memo(function PanelContexto({ lider, workers, alCer
               </>
             )
           ) : (
-            <CatalogoSkills sid={lider?.id ?? null} desgloses={todos} />
+            <CatalogoSkills cat={cat} error={catError} alReintentar={() => setIntento((n) => n + 1)} desgloses={todos} />
           )}
         </div>
       </aside>

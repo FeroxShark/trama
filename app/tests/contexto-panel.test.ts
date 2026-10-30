@@ -197,6 +197,9 @@ test("desglose de un líder vivo: categorías juntas, MCP por servidor y herrami
       servidor: "falso",
       tokens: 1000,
       usos: 1,
+      instrucciones: 100,
+      diferidos: 0,
+      resultados: null,
       herramientas: [
         { nombre: "buscar", tokens: 600, cargada: true, usos: 1 },
         { nombre: "borrar", tokens: 300, cargada: true, usos: 0 },
