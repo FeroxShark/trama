@@ -2,6 +2,10 @@
 
 ## Sin publicar
 
+## 0.2.29
+
+- Ajustes: la tabla "Precios de API" sale sólo en Ajustes > Modelos (aparecía arriba de todas las pestañas).
+
 ## 0.2.28
 
 - Windows: ya no se abren ventanas de CMD sueltas (líderes, agy, MCP y chequeos corren con la consola oculta).
