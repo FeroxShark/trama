@@ -313,6 +313,18 @@ la interfaz la hace otro worker encima. Todo vale para Linux y Windows (el worke
   ítem "fantasma" deja prenderlo). Compactar (Mensajes, botón y clic derecho; sólo líderes de la app y ociosos) manda `/compact` con
   `liderMandar`, mira `useCompactando` y, al terminar, vuelve a medir y dice "de A a B tokens"; a los 30 s sin empezar avisa. Los workers no
   reciben comandos. Captura de refresco: `contexto-panel` con `HILOS_VARIANTE=refrescado`.
+- **Subagentes del líder** (herramienta Agent de Claude Code; `electron/subagentes-gasto.ts` pura + `subagentes-gasto-disco.ts`,
+  `tests/subagentes-gasto.test.ts`, `gasto-sub-logica.test.ts`, `llamada-agent-gasto.test.ts`): cada uno escribe su `.jsonl` en
+  `<sesión>/subagents/agent-<id>.jsonl` (+ `.meta.json` con descripción, tipo, modelo pedido y `toolUseId`, el de la llamada Agent). Canal
+  `contexto:subagentes` (`{ lider: sid }` → `GastoSubagentes`): por subagente, tokens exactos (entrada, caché escrito, caché leído, salida: suma del
+  `usage` por mensaje, leída de a poco por archivo) y contexto final (el último pedido); el estado sale del seguimiento de `subagentes.ts`. Su desglose
+  es `contexto:desglose` con `{ subagente: { lider, id } }` (mismo `desdeTranscript`, quitando `isSidechain` con `sinLado`; sin memoria ni skills
+  inventadas; ventana 200 mil en Haiku, 1 millón en el resto, marcada como supuesta). El panel (`SeccionSubagentes` en `PanelContexto.tsx`) los lista
+  bajo los workers y al abrir uno muestra el gasto y el desglose en sólo lectura (`Acc.lectura`: interruptores quietos). La burbuja de una llamada
+  Agent (`Llamada.tsx`, por `det.id` = `toolUseId`) muestra "1,3 M tokens · Haiku 5.5" y "Ver desglose", que pide abrir el panel y desplegar ese
+  subagente (`paneles/contexto-pedido.ts`). Estadísticas: "Costo equivalente por modelo" suma una lista "Por rol" (líderes, workers y subagentes por
+  separado; el historial ya anotaba los subagentes como rol aparte). Linux y Windows usan el mismo main; el canal está en `windows/src/canales.json`.
+  Captura: `contexto-panel-sub`. Límite: sólo líderes (los subagentes que lanza un worker no se listan acá).
 - Pendiente: un aviso en vivo (`apagados:cambio`) si hace falta con dos ventanas abiertas; el nombre de un servidor MCP que Claude Code muestra con
   espacios (`claude.ai Notion`) puede llegar del desglose ya normalizado (`claude_ai_Notion`): el panel lo apaga con lo que le llega.
 
