@@ -648,6 +648,66 @@
   padding-top: var(--esp-3);
 }
 
+/* --- Subagentes: son filas como las de los workers; el estado se dice con palabra y con el punto --- */
+.cp-w-est[data-tipo="term"] i {
+  background: var(--ok);
+}
+.cp-w-est[data-tipo="frenado"] i {
+  background: var(--aviso);
+}
+.cp-w-est small {
+  overflow: hidden;
+  color: var(--txt-5);
+  font-size: inherit;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cp-w-est small::before {
+  content: "·";
+  margin-right: var(--esp-1-5);
+}
+.cp-sub[data-foco] {
+  border-color: var(--acento);
+}
+.cp-sub .cp-w-mini .cp-pct {
+  text-align: right;
+}
+.cp-sub .cp-w-btn {
+  grid-template-columns: 0.875rem minmax(0, 1fr) 6.5rem;
+}
+.cp-sub-t {
+  margin: var(--esp-3) 0 var(--esp-2);
+  color: var(--txt-3);
+  font-size: var(--letra-3);
+  font-weight: 500;
+}
+.cp-sub-t:first-child {
+  margin-top: var(--esp-2);
+}
+.cp-sub-gasto {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--esp-1) var(--esp-3);
+  margin: 0;
+  color: var(--txt-3);
+  font-size: var(--letra-3);
+}
+.cp-sub-gasto dt,
+.cp-sub-gasto dd {
+  margin: 0;
+}
+.cp-sub-gasto .cp-sub-total {
+  padding-top: var(--esp-1);
+  border-top: 1px solid var(--borde-1);
+  color: var(--txt-1);
+  font-weight: 500;
+}
+.cp-nota b {
+  margin-right: var(--esp-2);
+  color: var(--txt-1);
+  font-weight: 500;
+}
+
 /* --- El catálogo de skills --- */
 .cp-cat-skills {
   display: flex;

@@ -12,15 +12,20 @@ import type { UsosCatalogo } from "../../electron/skills-catalogo";
 import type { SkillCatalogo } from "../../electron/skills-catalogo";
 import type { Catalogo, VistaApagados } from "../../electron/contexto-panel";
 import type { VistaPrevia } from "../../electron/contexto-previa";
+import type { SubagenteGasto } from "../../electron/subagentes-gasto";
 import { fuenteContexto, type Quien } from "../datos/contexto";
 import { crearRefresco, mismoDesglose } from "./contexto-refresco";
 import { fuente } from "../datos/fuente";
 import { tareaDe, tipoDe } from "../barra/piezas";
 import { effortDe, MODELO_DEFAULT, MODELOS, modeloDe, nombreModelo } from "../hilo/opciones";
 import { useCompactando } from "../hilo/compactando";
+import { useGastoSubagentes } from "../hilo/gasto-sub";
+import { claveEstadoSub, ordenSubs, pctContexto, tipoEstadoSub } from "../hilo/gasto-sub-logica";
 import { useAngosto } from "../angosto";
 import { esVentana, mensaje } from "../puente";
 import { MODO } from "../modo";
+import { consumirPedidoSub, usePedidoSub } from "./contexto-pedido";
+import { tokens as tokensCorto } from "./resumen";
 import { locale, t } from "../i18n";
 import { useIdioma } from "../i18n/react";
 import {
@@ -58,6 +63,8 @@ type Acciones = {
   protegidas: readonly string[];
   /** Apagar y prender sólo se puede desde la PC. */
   puede: boolean;
+  /** Se está mirando un subagente: nada se apaga desde ahí (los interruptores quedan quietos). */
+  lectura?: boolean;
   pendientes: ReadonlySet<string>;
   fijar: (x: { tipo: TipoApagado; nombre: string }, apagar: boolean) => void;
   /** Lo que se usó en las sesiones recientes de la persona (`null`: no se sabe todavía: no se afirma "nunca usada"). */
@@ -118,11 +125,11 @@ function useDesgloses(pedidos: { clave: string; quien: Quien }[], refresco: numb
 
 /** Prendido / apagado para todo Trama. El estado va en `aria-checked` y en el ícono de la perilla, no sólo en el color. */
 function Interruptor({ x, nombre, protegida }: { x: { tipo: TipoApagado; nombre: string } | null; nombre: string; protegida?: boolean }) {
-  const { apagados, puede, pendientes, fijar } = useContext(Acc);
+  const { apagados, puede, pendientes, fijar, lectura } = useContext(Acc);
   const apagado = x && apagados ? estaApagado(apagados, x) : false;
   const ocupado = x ? pendientes.has(`${x.tipo}:${x.nombre}`) : false;
-  const sin = !x || !apagados || !puede || protegida;
-  const tip = protegida ? t("ctxp.protegida") : !x ? t("ctxp.sinRuta") : !puede ? t("ctxp.soloPc") : apagado ? t("ctxp.prenderItem", { nombre }) : t("ctxp.apagarItem", { nombre });
+  const sin = !x || !apagados || !puede || protegida || lectura;
+  const tip = lectura ? t("ctxp.subSoloLectura") : protegida ? t("ctxp.protegida") : !x ? t("ctxp.sinRuta") : !puede ? t("ctxp.soloPc") : apagado ? t("ctxp.prenderItem", { nombre }) : t("ctxp.apagarItem", { nombre });
   return (
     <button
       type="button"
@@ -476,8 +483,8 @@ function FilaCompactar({ c, sinLider }: { c: ReturnType<typeof useCompactar>; si
   );
 }
 
-/** El desglose entero de uno: resumen, barra, mapa y las categorías con sus ítems. `lider`: si es el de un líder, deja compactarlo. */
-function Detalle({ d, uid, inicial, lider, alRefrescar }: { d: Desglose; uid: string; inicial?: Categoria | null; lider?: Lider | null; alRefrescar: () => void }) {
+/** El desglose entero de uno: resumen, barra, mapa y las categorías con sus ítems. `lider`: si es el de un líder, deja compactarlo; `sub`: es el de un subagente (no se compacta). */
+function Detalle({ d, uid, inicial, lider, alRefrescar, sub }: { d: Desglose; uid: string; inicial?: Categoria | null; lider?: Lider | null; alRefrescar: () => void; sub?: boolean }) {
   const { protegidas, apagados, recientes } = useContext(Acc);
   const [abierta, setAbierta] = useState<Categoria | null>(inicial ?? null);
   const [foco, setFoco] = useState<string | null>(null);
@@ -557,7 +564,7 @@ function Detalle({ d, uid, inicial, lider, alRefrescar }: { d: Desglose; uid: st
                 </h4>
                 <Ayuda k={`ctxp.ayuda.${c.id}`} nombre={nombreCat(c.id)} />
               </div>
-              {c.id === "mensajes" ? <FilaCompactar c={compactar} sinLider={!lider} /> : null}
+              {c.id === "mensajes" && !sub ? <FilaCompactar c={compactar} sinLider={!lider} /> : null}
               {abre ? (
                 <div id={idCuerpo} className="cp-cuerpo">
                   {c.id === "sistema" && d.sistema.some((p) => p.tipo === "prompt") ? <p className="cp-nota">{d.promptVersion ? t("ctxp.sis.notaVersion", { version: d.promptVersion }) : t("ctxp.sis.nota")}</p> : null}
@@ -646,6 +653,124 @@ function FilaWorker({ h, carga, abierto, alAlternar, alAbrir, alReintentar, alRe
         </div>
       ) : null}
     </li>
+  );
+}
+
+// --- Subagentes ---------------------------------------------------------------------------------------------------------------------------
+
+/** El gasto de un subagente: entrada, caché escrito, caché leído y salida, en una línea (sin color solo: son palabras). */
+const gastoEnLinea = (g: SubagenteGasto["tokens"]) => t("consumo.desglose", { e: miles(g.entrada), c: miles(g.cacheCreado), l: miles(g.cacheLeido), s: miles(g.salida) });
+
+/** Un subagente que el líder lanzó con la herramienta Agent: su gasto y, al abrirlo, el desglose de su contexto (sólo lectura). */
+function FilaSubagente({ s, abierto, foco, refresco, alAlternar }: { s: SubagenteGasto; abierto: boolean; foco: boolean; refresco: number; alAlternar: () => void }) {
+  const id = useId();
+  const raiz = useRef<HTMLLIElement>(null);
+  const acc = useContext(Acc);
+  const [carga, setCarga] = useState<Carga | undefined>();
+  // Solo al abrirlo se lee su desglose; mientras corre y sigue creciendo (más pedidos) o con Actualizar, se vuelve a leer.
+  useEffect(() => {
+    if (!abierto) return;
+    let vivo = true;
+    fuenteContexto.desglose({ subagente: { lider: s.sid, id: s.id } }).then(
+      (d) => vivo && setCarga({ d, error: null }),
+      (e) => vivo && setCarga((a) => ({ d: a?.d ?? null, error: mensaje(e) })),
+    );
+    return () => {
+      vivo = false;
+    };
+  }, [abierto, s.sid, s.id, s.pedidos, refresco]);
+  useEffect(() => {
+    if (foco) raiz.current?.scrollIntoView({ block: "nearest" });
+  }, [foco]);
+  const pct = pctContexto(s);
+  const lectura = useMemo(() => ({ ...acc, lectura: true }), [acc]);
+  const etq = [s.tipo, s.modelo].filter(Boolean).join(" · ");
+  const ctx = s.contexto ?? 0;
+  return (
+    <li ref={raiz} id={`cp-sub-${s.id}`} className="cp-w cp-sub" data-abierto={abierto ? "" : undefined} data-foco={foco ? "" : undefined}>
+      <div className="cp-w-cab">
+        <button type="button" className="cp-w-btn" aria-expanded={abierto} aria-controls={id} onClick={alAlternar}>
+          <ChevronRight size={14} strokeWidth={2} className="cp-chev" aria-hidden />
+          <span className="cp-w-nom">
+            <b title={s.descripcion}>{s.descripcion}</b>
+            <span className="cp-w-est" data-tipo={tipoEstadoSub(s.estado)}>
+              <i aria-hidden />
+              {t(claveEstadoSub(s.estado))}
+              {etq ? <small>{etq}</small> : null}
+            </span>
+          </span>
+          <span className="cp-w-mini">
+            <span className="cp-pct cp-num" data-tip={`${t("ctxp.subGasto", { tokens: miles(s.tokens.total) })}: ${gastoEnLinea(s.tokens)}`}>
+              {t("sub.tokens", { n: tokensCorto(s.tokens.total) })}
+            </span>
+            {pct !== null ? (
+              <span className="cp-barra" data-fina="" role="img" aria-label={t("ctxp.subContexto", { pct })} data-tip={t("ctxp.subContexto", { pct })}>
+                <i data-cat="mensajes" style={{ flexGrow: ctx }} />
+                <i data-cat="libre" style={{ flexGrow: Math.max(0, s.ventana - ctx) }} />
+              </span>
+            ) : null}
+          </span>
+        </button>
+      </div>
+      {abierto ? (
+        <div id={id} className="cp-w-cuerpo">
+          <h4 className="cp-sub-t">{t("ctxp.subLo")}</h4>
+          <dl className="cp-sub-gasto">
+            <dt>{t("contexto.nuevos")}</dt>
+            <dd className="cp-num">{miles(s.tokens.entrada)}</dd>
+            <dt>{t("contexto.creada")}</dt>
+            <dd className="cp-num">{miles(s.tokens.cacheCreado)}</dd>
+            <dt>{t("contexto.leida")}</dt>
+            <dd className="cp-num">{miles(s.tokens.cacheLeido)}</dd>
+            <dt>{t("contexto.salida")}</dt>
+            <dd className="cp-num">{miles(s.tokens.salida)}</dd>
+            <dt className="cp-sub-total">{t("ctxp.subTotalFila")}</dt>
+            <dd className="cp-num cp-sub-total">{miles(s.tokens.total)}</dd>
+            <dt>{t("ctxp.subPedidos")}</dt>
+            <dd className="cp-num">{miles(s.pedidos)}</dd>
+            <dt>{t("ctxp.subHerramientas")}</dt>
+            <dd className="cp-num">{miles(s.herramientas)}</dd>
+          </dl>
+          <h4 className="cp-sub-t">{t("ctxp.subDesglose")}</h4>
+          <Acc.Provider value={lectura}>
+            {carga?.d ? <Detalle d={carga.d} uid={`sub-${s.id}`} sub alRefrescar={() => {}} /> : carga ? <Cargando carga={carga} alReintentar={() => setCarga(undefined)} /> : <p className="cp-nada">{t("ctxp.subLeyendo")}</p>}
+          </Acc.Provider>
+        </div>
+      ) : null}
+    </li>
+  );
+}
+
+/** La lista de subagentes del líder, con lo que gastaron entre todos. Sólo se pinta con alguno: sin ellos queda la frase de que no hubo. */
+function SeccionSubagentes({ lista, abiertos, foco, refresco, alAlternar }: { lista: readonly SubagenteGasto[] | null; abiertos: ReadonlySet<string>; foco: string | null; refresco: number; alAlternar: (id: string) => void }) {
+  const ordenados = useMemo(() => ordenSubs(lista ?? []), [lista]);
+  const total = useMemo(
+    () => ordenados.reduce((n, s) => ({ entrada: n.entrada + s.tokens.entrada, cacheCreado: n.cacheCreado + s.tokens.cacheCreado, cacheLeido: n.cacheLeido + s.tokens.cacheLeido, salida: n.salida + s.tokens.salida, total: n.total + s.tokens.total }), { entrada: 0, cacheCreado: 0, cacheLeido: 0, salida: 0, total: 0 }),
+    [ordenados],
+  );
+  return (
+    <section className="cp-sesion" aria-label={t("ctxp.subagentes", { n: ordenados.length })}>
+      <h3 className="cp-h">
+        <span>{t("ctxp.subagentes", { n: ordenados.length })}</span>
+      </h3>
+      {lista === null ? (
+        <p className="cp-nada">{t("ctxp.leyendo")}</p>
+      ) : ordenados.length === 0 ? (
+        <p className="cp-nada">{t("ctxp.sinSubagentes")}</p>
+      ) : (
+        <>
+          <p className="cp-nota" data-tip={t("ctxp.subTotalDesglose")}>
+            <b className="cp-num">{t("ctxp.subTotal", { tokens: miles(total.total) })}</b>
+            <span>{gastoEnLinea(total)}</span>
+          </p>
+          <ul className="cp-ws">
+            {ordenados.map((s) => (
+              <FilaSubagente key={s.id} s={s} abierto={abiertos.has(s.id)} foco={foco === s.id} refresco={refresco} alAlternar={() => alAlternar(s.id)} />
+            ))}
+          </ul>
+        </>
+      )}
+    </section>
   );
 }
 
@@ -964,6 +1089,9 @@ export const PanelContexto = memo(function PanelContexto({ lider, workers, alCer
   // En la captura "contexto-panel-cat" el primer worker viene abierto y el líder con una categoría a la vista.
   const [abiertos, setAbiertos] = useState<ReadonlySet<string>>(() => new Set(MODO.captura === "contexto-panel-cat" && workers[0] ? [workers[0].id] : []));
   const puede = esVentana() || MODO.fixtures;
+  // Los subagentes del líder (herramienta Agent): su gasto y cuáles están desplegados. En la captura "contexto-panel-sub" el primero viene abierto.
+  const [subAbiertos, setSubAbiertos] = useState<ReadonlySet<string>>(() => new Set(MODO.captura === "contexto-panel-sub" ? ["a1b2c3d4e5f60718"] : []));
+  const [subFoco, setSubFoco] = useState<string | null>(null);
 
   useEffect(() => {
     let vivo = true;
@@ -1052,6 +1180,17 @@ export const PanelContexto = memo(function PanelContexto({ lider, workers, alCer
     antes.current = ocupado;
   }, [ocupado]);
   const cargas = useDesgloses(pedidos, refresco);
+  const gasto = useGastoSubagentes(sid, refresco);
+  // El enlace de la burbuja de una llamada Agent: despliega al subagente en esta lista (y la lista se desplaza hasta él).
+  const pedido = usePedidoSub();
+  useEffect(() => {
+    if (!pedido) return;
+    consumirPedidoSub(pedido.n);
+    if (pedido.sid !== sid) return;
+    setPestana("sesiones");
+    setSubAbiertos((a) => new Set(a).add(pedido.id));
+    setSubFoco(pedido.id);
+  }, [pedido?.n]);
   const deLider = lider ? cargas.get(lider.id) : undefined;
   const todos = useMemo(() => [...cargas.values()].map((c) => c.d).filter((d): d is Desglose => !!d), [cargas]);
 
@@ -1066,6 +1205,14 @@ export const PanelContexto = memo(function PanelContexto({ lider, workers, alCer
     const sig: Pestana = pestanas[(i + (e.key === "ArrowRight" ? 1 : pestanas.length - 1)) % pestanas.length][0];
     setPestana(sig);
     (e.currentTarget.parentElement?.querySelector(`[data-pestana="${sig}"]`) as HTMLElement | null)?.focus();
+  };
+  const alternarSub = (id: string) => {
+    setSubFoco(null);
+    setSubAbiertos((a) => {
+      const n = new Set(a);
+      if (!n.delete(id)) n.add(id);
+      return n;
+    });
   };
   const alternar = (id: string) =>
     setAbiertos((a) => {
@@ -1137,6 +1284,7 @@ export const PanelContexto = memo(function PanelContexto({ lider, workers, alCer
                     </ul>
                   )}
                 </section>
+                <SeccionSubagentes lista={gasto?.subagentes ?? null} abiertos={subAbiertos} foco={subFoco} refresco={refresco} alAlternar={alternarSub} />
               </>
             )
           ) : pestana === "previa" ? (
