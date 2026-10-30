@@ -8,6 +8,9 @@
 import { open, readdir, readFile, realpath, rename, stat, writeFile, mkdir } from "node:fs/promises";
 import path from "node:path";
 import { silencio } from "./log.ts";
+import { claveRuta } from "./proyectos-auto.ts";
+import { caminoDe, plataformaActual, type Plataforma } from "./rutas.ts";
+import { esWorktreePa } from "./worktrees-pa.ts";
 
 const VERSION = 1;
 /** Cuánto se lee del principio y del final de cada transcript. */
@@ -239,17 +242,23 @@ export const GENERAL = "general";
 /** Una conversación como la ve la barra: de qué proyecto es (su `slug`, o `GENERAL`; `null`: una carpeta que no está registrada) y si su carpeta sigue existiendo. */
 export type VistaConv = { sid: string; titulo: string; ms: number; modelo: string | null; cwd: string; proyecto: string | null; existe: boolean; ajena: boolean };
 
-const dentro = (c: string, r: string) => c === r || c.startsWith(r + path.sep) || c.startsWith(r + "/");
-const WORKTREE_PA = /[\\/]pa[\\/]worktrees[\\/]/;
+/** ¿`c` es `r` o está adentro? En Windows sin distinguir mayúsculas ni `/` de `\`. */
+const dentro = (c: string, r: string, plat: Plataforma) => {
+  const a = claveRuta(c, plat);
+  const b = claveRuta(r, plat);
+  return a === b || a.startsWith(b.endsWith(caminoDe(plat).sep) ? b : b + caminoDe(plat).sep);
+};
 
 /**
- * Lo que la barra recibe: sin las que ya son de Trama (`excluidas`: líderes y workers) ni las de los worktrees de `pa`, cada una con su
+ * Lo que la barra recibe: sin las que ya son de Trama (`excluidas`: líderes y workers) ni las de los worktrees de `pa` (se ven desde el
+ * worker; `worktrees`: además la carpeta `worktrees` real del estado de `pa`, por si no está en una ruta `pa/worktrees`), cada una con su
  * proyecto (por la ruta más larga que la contiene; la carpeta personal es `casa`) y si su carpeta existe. `rutas`: [ruta real, slug].
  */
 export async function vistaConvs(
   convs: ConvListada[],
-  d: { excluidas: Set<string>; rutas: [string, string][]; casa: string; real: (p: string) => Promise<string>; existe: (p: string) => Promise<boolean> },
+  d: { excluidas: Set<string>; rutas: [string, string][]; casa: string; real: (p: string) => Promise<string>; existe: (p: string) => Promise<boolean>; worktrees?: string[]; plat?: Plataforma },
 ): Promise<VistaConv[]> {
+  const plat = d.plat ?? plataformaActual();
   const sale: VistaConv[] = [];
   const dirs = new Map<string, Promise<[string | null, boolean]>>();
   const de = (cwd: string) => {
@@ -257,15 +266,15 @@ export async function vistaConvs(
     if (!p) {
       p = (async (): Promise<[string | null, boolean]> => {
         const r = await d.real(cwd);
-        const hit = d.rutas.find(([ruta]) => dentro(r, ruta));
-        return [hit ? hit[1] : r === d.casa ? GENERAL : null, await d.existe(cwd)];
+        const hit = d.rutas.find(([ruta]) => dentro(r, ruta, plat));
+        return [hit ? hit[1] : claveRuta(r, plat) === claveRuta(d.casa, plat) ? GENERAL : null, await d.existe(cwd)];
       })();
       dirs.set(cwd, p);
     }
     return p;
   };
   for (const c of convs) {
-    if (d.excluidas.has(c.sid) || WORKTREE_PA.test(c.cwd)) continue;
+    if (d.excluidas.has(c.sid) || esWorktreePa(c.cwd, d.worktrees)) continue;
     const [proyecto, existe] = await de(c.cwd);
     sale.push({ sid: c.sid, titulo: c.titulo, ms: c.ms, modelo: c.modelo, cwd: c.cwd, proyecto, existe, ajena: c.ajena });
   }

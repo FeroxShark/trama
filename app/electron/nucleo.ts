@@ -860,6 +860,7 @@ export function armarNucleo() {
       casa: await real(os.homedir()),
       real,
       existe: (p) => statArchivo(p).then((s) => s.isDirectory(), () => false),
+      worktrees: [path.join(PA_STATE, "worktrees")],
     });
   });
   manejar("historial:consultar", (_e, dias: unknown, rol: unknown) => historial.ultimos(dias, rol));

@@ -6,6 +6,7 @@ import os from "node:os";
 import path from "node:path";
 import { claveRuta } from "./proyectos-auto.ts";
 import { registroProyectos } from "./rutas.ts";
+import { esWorktreePa, WORKTREE_PA } from "./worktrees-pa.ts";
 
 const rutaRegistry = () => registroProyectos();
 
@@ -68,7 +69,8 @@ export async function registro(): Promise<Proyecto[]> {
   for (const r of regs) {
     if (typeof r.path !== "string" || typeof r.name !== "string" || !r.name) continue;
     const ruta = await real(expandir(r.path));
-    if (claveRuta(ruta) === claveRuta(casa) || ruta === "/") continue;
+    // Un worktree de `pa` que un registry viejo trae anotado no es un proyecto.
+    if (claveRuta(ruta) === claveRuta(casa) || ruta === "/" || esWorktreePa(ruta)) continue;
     const icono = [r.icono, r.icon].find((x): x is string => typeof x === "string" && x !== "") ?? null;
     const logo = typeof r.logo === "string" && r.logo.startsWith("data:image/") ? r.logo : null;
     const tests = typeof r.tests === "string" && r.tests.trim() ? r.tests : null;
@@ -117,8 +119,6 @@ export async function registro(): Promise<Proyecto[]> {
   }
   return [...porRuta.values()].sort((a, b) => b.ruta.length - a.ruta.length);
 }
-
-const WORKTREE_PA = /[\\/]pa[\\/]worktrees[\\/]/;
 
 /**
  * A qué carpetas puede mandarse un líder desde "Mover a proyecto…": el slug de cada proyecto del registry

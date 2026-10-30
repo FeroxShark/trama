@@ -10,6 +10,7 @@ import { validarLogo } from "./iconos.ts";
 import { NOMBRE_MAX, validarNombre, type NombreUsado } from "./proyectos-nombre.ts";
 import { claveRuta } from "./proyectos-auto.ts";
 import { real, slug as slugDe } from "./registro.ts";
+import { esWorktreePa } from "./worktrees-pa.ts";
 
 const SLUG = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 
@@ -69,7 +70,7 @@ export async function listarProyectos(archivo: string): Promise<ProyectoNombre[]
   const casa = await real(os.homedir());
   const porRuta = new Map<string, Cruda[]>();
   for (const e of lista) {
-    if (claveRuta(e.ruta) === claveRuta(casa) || e.ruta === "/") continue;
+    if (claveRuta(e.ruta) === claveRuta(casa) || e.ruta === "/" || esWorktreePa(e.ruta)) continue;
     porRuta.set(claveRuta(e.ruta), [...(porRuta.get(claveRuta(e.ruta)) ?? []), e]);
   }
   const salida: ProyectoNombre[] = [];

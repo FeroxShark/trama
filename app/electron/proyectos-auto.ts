@@ -10,6 +10,7 @@
 import { copyFile, mkdir, readFile, realpath, rename, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { caminoDe, homeDe, plataformaActual, registroProyectos, type Plataforma } from "./rutas.ts";
+import { WORKTREE_PA } from "./worktrees-pa.ts";
 
 type Env = Record<string, string | undefined>;
 
@@ -26,8 +27,6 @@ const SISTEMA_POSIX = ["/bin", "/boot", "/dev", "/etc", "/lib", "/lib32", "/lib6
 const SISTEMA_DARWIN = ["/System", "/Library", "/Applications", "/private", "/cores"];
 /** Debajo de la letra de unidad: `\Windows`, `\Program Files`, `\Program Files (x86)`, `\ProgramData`, `\$Recycle.Bin`, `\System Volume Information`. */
 const SISTEMA_WIN = /^[a-z]:\\(?:windows|program files(?: \(x86\))?|programdata|\$recycle\.bin|system volume information|recovery)(?:\\|$)/i;
-/** Los worktrees de `pa` (`…/pa/worktrees/<proyecto>@N`): carpetas de los workers, no proyectos. */
-const WORKTREE_PA = /[\\/]pa[\\/]worktrees[\\/]/;
 
 /** La carpeta normalizada: absoluta, sin `..`, sin barra final y (Windows) con `\`, sin prefijo `\\?\`. Sin tocar mayúsculas. */
 export function normalizar(ruta: string, plat: Plataforma = plataformaActual()): string {
