@@ -680,7 +680,7 @@ function FilaSubagente({ s, abierto, foco, refresco, alAlternar }: { s: Subagent
     };
   }, [abierto, s.sid, s.id, s.pedidos, refresco]);
   useEffect(() => {
-    if (foco) raiz.current?.scrollIntoView({ block: "nearest" });
+    if (foco) raiz.current?.scrollIntoView({ block: "start" });
   }, [foco]);
   const pct = pctContexto(s);
   const lectura = useMemo(() => ({ ...acc, lectura: true }), [acc]);
@@ -1091,7 +1091,7 @@ export const PanelContexto = memo(function PanelContexto({ lider, workers, alCer
   const puede = esVentana() || MODO.fixtures;
   // Los subagentes del líder (herramienta Agent): su gasto y cuáles están desplegados. En la captura "contexto-panel-sub" el primero viene abierto.
   const [subAbiertos, setSubAbiertos] = useState<ReadonlySet<string>>(() => new Set(MODO.captura === "contexto-panel-sub" ? ["a1b2c3d4e5f60718"] : []));
-  const [subFoco, setSubFoco] = useState<string | null>(null);
+  const [subFoco, setSubFoco] = useState<string | null>(MODO.captura === "contexto-panel-sub" ? "a1b2c3d4e5f60718" : null);
 
   useEffect(() => {
     let vivo = true;
