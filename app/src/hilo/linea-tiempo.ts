@@ -3,7 +3,7 @@
 import type { Mensaje } from "../datos/contrato";
 import { iconoDe, type Icono } from "./actividad-logica";
 import { archivoDe, usosDe } from "./herramientas";
-import type { ArchivoDeHerramienta } from "../../electron/archivo-ruta";
+import type { ArchivoDeHerramienta } from "../../electron/archivo-ruta.ts";
 
 /** Cómo va una herramienta: sin resultado y la última del turno, corriendo; con resultado, ok o error; una anterior sin resultado, nada. */
 export type EstadoLinea = "corriendo" | "ok" | "error" | null;

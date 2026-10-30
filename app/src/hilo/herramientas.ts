@@ -2,7 +2,7 @@
 // terminal de Claude Code: una línea por llamada ("Bash · Corre los tests",
 // "Edit · src/x.ts +3 −1") y, al abrirla, el comando entero o el diff. Puro: lo
 // prueba `tests/herramientas.test.ts`.
-import { archivoDeHerramienta, type ArchivoDeHerramienta } from "../../electron/archivo-ruta";
+import { archivoDeHerramienta, type ArchivoDeHerramienta } from "../../electron/archivo-ruta.ts";
 import type { Herramienta } from "../datos/contrato";
 
 /** Lo que `pa --hilo` (y el transcript de un líder) deja de cada texto de la entrada. */
