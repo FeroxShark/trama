@@ -3,7 +3,7 @@ import type { Desglose, FilaCategoria } from "../../electron/contexto-desglose";
 import type { Catalogo, VistaApagados } from "../../electron/contexto-panel";
 import type { VistaPrevia } from "../../electron/contexto-previa";
 import type { SkillCatalogo } from "../../electron/skills-catalogo";
-import { juntar, type SubagenteGasto } from "../../electron/subagentes-gasto";
+import { juntar, type SubagenteGasto } from "../../electron/subagentes-gasto.ts";
 
 const cat = (id: FilaCategoria["id"], tokens: number, estimado = false): FilaCategoria => ({ id, nombre: null, tokens, estimado });
 
