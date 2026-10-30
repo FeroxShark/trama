@@ -177,19 +177,18 @@
 }
 .wk-chip {
   position: relative;
+  height: auto;
+  min-height: var(--alto-chip);
   min-width: 0;
   max-width: 100%;
   border: 0;
   font-family: var(--font-mono);
-  white-space: nowrap;
+  white-space: normal;
 }
-/* El nombre del chip: si no entra, la elipsis va al principio (…\c4\t10.py); la ruta entera va en el tooltip. */
+/* El nombre del chip se pliega si no entra (la vista de worker no corta con «…»); la ruta entera va en el tooltip. */
 .wk-nombre {
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  direction: rtl;
-  text-align: left;
+  overflow-wrap: anywhere;
 }
 .wk-chip:hover {
   background: var(--capa-track);
