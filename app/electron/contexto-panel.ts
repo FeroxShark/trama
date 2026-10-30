@@ -67,7 +67,9 @@ export async function gastoSubagentes(x: unknown, vivos?: { leer(): Promise<Suba
   const t = await transcriptDeLider(sid, l?.cwd).catch(() => null);
   if (!t) return { version: 1, sid, subagentes: [], total: { entrada: 0, cacheCreado: 0, cacheLeido: 0, salida: 0, total: 0 } };
   const base = (await vivos?.leer().catch(() => ({}) as Subagentes))?.[sid];
-  return gastos.listar(carpetaDeSubagentes(t), sid, base);
+  const g = await gastos.listar(carpetaDeSubagentes(t), sid, base);
+  // Una sesión sin proceso no sigue a nadie: lo que parece "corriendo" en su carpeta quedó a medias, no corre.
+  return base ? g : { ...g, subagentes: g.subagentes.map((s) => (s.estado === "corriendo" ? { ...s, estado: "parado" as const } : s)) };
 }
 
 /**
