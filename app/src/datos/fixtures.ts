@@ -948,11 +948,11 @@ export function charlaSistema(sid: string): Mensaje[] {
     { rol: "assistant", texto: "", herramientas: [], modelo: null, destrabo: { que: "Bash: curl -s localhost:9/progreso", agotado: true } },
     { rol: "assistant", texto: "API Error: Repeated 529 Overloaded errors", herramientas: [], modelo: "<synthetic>", error: "unknown" },
     { rol: "assistant", texto: LIMITE, herramientas: [], modelo: "<synthetic>", error: "rate_limit" },
-    // Los avisos de Trama al líder (electron/avisos-worker.ts): uno de un worker que terminó, y una tanda con una falla.
+    // Los avisos de Trama al líder (electron/avisos-worker.ts): uno de un worker que terminó, y una tanda con cada estado (una falla).
     { rol: "user", texto: "[Aviso automático de Trama] Worker «revisar atlas» terminó. Id: 7. Revisalo con `pa --hilo 7`.", herramientas: [], modelo: null },
     {
       rol: "user",
-      texto: "[Aviso automático de Trama] Terminaron los 2 workers que lanzaste, 1 con falla:\n- «migración del índice» (8): terminó.\n- «tests del cauce» (9): falló: el proceso se cortó sin dejar mensaje.\nRevisá cada uno con `pa --hilo <id>`.",
+      texto: "[Aviso automático de Trama] Terminaron los 4 workers que lanzaste, 1 con falla:\n- «migración del índice» (8): terminó.\n- «tests del cauce» (9): falló: el proceso se cortó sin dejar mensaje.\n- «revisar el contrato» (10): terminó pidiendo una decisión.\n- «docs del cauce» (11): terminó sin resumen.\nRevisá cada uno con `pa --hilo <id>`.",
       herramientas: [],
       modelo: null,
     },
