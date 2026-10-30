@@ -34,8 +34,8 @@ function deUrlArchivo(s: string): string | null {
   return /^\/[A-Za-z]:[\\/]/.test(r) ? r.slice(1) : r;
 }
 
-/** La ruta absoluta de una imagen local en `x` (con comillas, `<>` o `file://`), o `null` si no vale. */
-export function rutaImagen(x: unknown): RutaImagen | null {
+/** La ruta absoluta de un archivo local en `x` (con comillas, `<>` o `file://`), de Windows o de Linux; `null` si no vale (relativa, de red, con `..`). */
+export function rutaAbsoluta(x: unknown): RutaImagen | null {
   if (typeof x !== "string") return null;
   let s = x.trim();
   if (/^<.*>$/.test(s) || /^(["']).*\1$/.test(s)) s = s.slice(1, -1).trim();
@@ -49,9 +49,15 @@ export function rutaImagen(x: unknown): RutaImagen | null {
   if (!estilo) return null;
   // Sin `..`: la ruta dice a dónde va, no por dónde sube.
   if (s.split(/[\\/]/).includes("..")) return null;
-  const ext = /\.([A-Za-z0-9]+)$/.exec(s)?.[1].toLowerCase();
-  if (!ext || !(ext in TIPO_POR_EXT)) return null;
   return { estilo, ruta: s };
+}
+
+/** La ruta absoluta de una imagen local en `x`, o `null` si no vale o no tiene extensión de imagen. */
+export function rutaImagen(x: unknown): RutaImagen | null {
+  const r = rutaAbsoluta(x);
+  if (!r) return null;
+  const ext = /\.([A-Za-z0-9]+)$/.exec(r.ruta)?.[1].toLowerCase();
+  return ext && ext in TIPO_POR_EXT ? r : null;
 }
 
 /** El nombre del archivo de una ruta de Windows o de Linux. */
