@@ -4683,7 +4683,7 @@ agy_a_json() {   # $1 = stream-json de agy, $2 = stderr de agy, $3 = modelo, $4 
         agy_conversation_id: ($r.conversation_id // ([$ev[] | .conversation_id? // empty] | first)),
         agy_status: ($r.status // null),
         modelUsage: (if ($u | length) == 0 then {} else
-          {($m): { inputTokens: ([$u[] | ((.input_tokens // 0) - (.cache_read_tokens // 0))] | add),
+          {($m): { inputTokens: ([0, ([$u[] | (.input_tokens // 0)] | add)] | max),
                    cacheReadInputTokens: ([$u[] | .cache_read_tokens // 0] | add),
                    cacheCreationInputTokens: 0,
                    outputTokens: ([$u[] | (.output_tokens // 0) + (.thinking_tokens // 0)] | add) }} end) }' "$1"
