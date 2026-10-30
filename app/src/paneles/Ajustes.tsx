@@ -19,6 +19,7 @@ import { AjustesModelos } from "./AjustesModelos";
 import { Compactar } from "./AjustesCompactar";
 import { TramaActualizaciones } from "./AjustesTrama";
 import { Guia } from "./AjustesGuia";
+import { VolverVersion } from "./AjustesVolver";
 import { Proyectos } from "./AjustesProyectos";
 import { alCambiarAplicarAuto, aplicarAuto, cambiarAplicarAuto } from "./aplicar-auto";
 import { IcApariencia, IcAtajos, IcAviso, IcCodigo, ICONO, IcIdioma, IcLetra, IcTiernos, IcTipografia } from "../ui/iconos";
@@ -324,6 +325,7 @@ export function Ajustes() {
           <Fijo k="ajustes.atajosVer" />
         </button>
       </Dato>
+      <VolverVersion Dato={Dato} />
       <Dato nombre="ajustes.bienvenida" que="ajustes.bienvenidaQue">
         <button type="button" className="btn2" onClick={abrirBienvenida}>
           <Fijo k="bv.ajustesVer" />

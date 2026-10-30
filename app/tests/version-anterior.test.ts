@@ -15,7 +15,7 @@ function appEn(casa: string, v: string) {
   mkdirSync(path.join(app, "dist"), { recursive: true });
   mkdirSync(path.join(app, "dist-electron"), { recursive: true });
   writeFileSync(path.join(app, "dist", "index.html"), `web ${v}`);
-  writeFileSync(path.join(app, "dist-electron", "main.js"), `main ${v}`);
+  writeFileSync(path.join(app, "dist-electron", "motor.js"), `main ${v}`);
   writeFileSync(path.join(app, "package.json"), JSON.stringify({ version: v }));
   writeFileSync(path.join(app, ".build-huella"), `huella ${v}`);
   return app;
@@ -43,11 +43,11 @@ test("guardarCopia y restaurar de una carpeta: guarda lo que cambia, vuelve y bo
   assert.ok(await copiaExiste(c));
   assert.equal(existsSync(path.join(c.ruta, "node_modules")), false);
   // La app pasa a la 0.2.26 (lo que hace el instalador) y se vuelve.
-  writeFileSync(path.join(app, "dist-electron", "main.js"), "main 0.2.26");
+  writeFileSync(path.join(app, "dist-electron", "motor.js"), "main 0.2.26");
   writeFileSync(path.join(app, "dist-electron", "solo-nuevo.js"), "x");
   writeFileSync(path.join(app, "package.json"), JSON.stringify({ version: "0.2.26" }));
   await restaurar(inst, c);
-  assert.equal(leer(app, "dist-electron", "main.js"), "main 0.2.25");
+  assert.equal(leer(app, "dist-electron", "motor.js"), "main 0.2.25");
   assert.equal(existsSync(path.join(app, "dist-electron", "solo-nuevo.js")), false, "no queda nada de la versión mala");
   assert.equal(JSON.parse(leer(app, "package.json")).version, "0.2.25");
   assert.equal(existsSync(path.join(app, ".build-huella")), false);
@@ -59,7 +59,7 @@ test("restaurar sin copia entera falla sin tocar lo instalado", async () => {
   const app = appEn(casa, "0.2.26");
   const falsa = { version: "0.2.25", tipo: "carpeta" as const, ruta: path.join(casa, "no-hay"), cuando: 1 };
   await assert.rejects(restaurar({ tipo: "carpeta", app }, falsa), /ya no está/);
-  assert.equal(leer(app, "dist-electron", "main.js"), "main 0.2.26");
+  assert.equal(leer(app, "dist-electron", "motor.js"), "main 0.2.26");
 });
 
 test("restaurar a la mitad deja lo instalado como estaba", async () => {
@@ -67,12 +67,12 @@ test("restaurar a la mitad deja lo instalado como estaba", async () => {
   const app = appEn(casa, "0.2.26");
   const inst: Instalacion = { tipo: "carpeta", app };
   const c = await guardarCopia({ tipo: "carpeta", app: appEn(nuevaCasa(), "0.2.25") }, "0.2.25", carpetaCopias(casa), 1);
-  // A la copia le falta una parte (dist/): copiaExiste sigue dando que sí (mira main.js y package.json), cp de dist falla.
+  // A la copia le falta una parte (dist/): copiaExiste sigue dando que sí (mira motor.js y package.json), cp de dist falla.
   const { rmSync } = await import("node:fs");
   rmSync(path.join(c.ruta, "dist"), { recursive: true });
   await assert.rejects(restaurar(inst, c));
   assert.equal(leer(app, "dist", "index.html"), "web 0.2.26");
-  assert.equal(leer(app, "dist-electron", "main.js"), "main 0.2.26");
+  assert.equal(leer(app, "dist-electron", "motor.js"), "main 0.2.26");
   assert.equal(existsSync(path.join(app, "dist.malo")), false);
 });
 
@@ -124,7 +124,7 @@ async function escenario(topeMs = 1000) {
   await v1.alVentanaLista();
   await v1.guardarAntes();
   // El instalador deja la 0.2.26.
-  writeFileSync(path.join(app, "dist-electron", "main.js"), "main 0.2.26");
+  writeFileSync(path.join(app, "dist-electron", "motor.js"), "main 0.2.26");
   writeFileSync(path.join(app, "package.json"), JSON.stringify({ version: "0.2.26" }));
   return { casa, app, almacen, reinicios, pendientes, armar };
 }
@@ -138,7 +138,7 @@ test("la nueva no llega a ventana lista a tiempo: vuelve sola, reinicia y deja e
   pendientes[0]();
   await new Promise((r) => setTimeout(r, 50));
   assert.deepEqual(reinicios, ["0.2.26"]);
-  assert.equal(leer(app, "dist-electron", "main.js"), "main 0.2.25");
+  assert.equal(leer(app, "dist-electron", "motor.js"), "main 0.2.25");
   assert.equal(almacen.leer().actual, "0.2.25");
   const nueva = armar("0.2.25");
   assert.equal(await nueva.alArrancar(), false, "la que volvió arranca normal");
@@ -154,7 +154,7 @@ test("la nueva llega a ventana lista: el tope se cancela y no vuelve", async () 
   await v2.alVentanaLista();
   assert.equal(pendientes.length, 0);
   assert.deepEqual(reinicios, []);
-  assert.equal(leer(app, "dist-electron", "main.js"), "main 0.2.26");
+  assert.equal(leer(app, "dist-electron", "motor.js"), "main 0.2.26");
 });
 
 test("la nueva se cierra sola dos veces: al tercer arranque vuelve antes de abrir nada", async () => {
@@ -163,7 +163,7 @@ test("la nueva se cierra sola dos veces: al tercer arranque vuelve antes de abri
   assert.equal(await armar("0.2.26").alArrancar(), false); // se cae otra vez
   assert.equal(await armar("0.2.26").alArrancar(), true); // la tercera ya no abre: vuelve
   assert.deepEqual(reinicios, ["0.2.26"]);
-  assert.equal(leer(app, "dist-electron", "main.js"), "main 0.2.25");
+  assert.equal(leer(app, "dist-electron", "motor.js"), "main 0.2.25");
 });
 
 test("el botón vuelve a la anterior aunque la nueva ande; sin anterior dice que no hay", async () => {
@@ -174,7 +174,7 @@ test("el botón vuelve a la anterior aunque la nueva ande; sin anterior dice que
   assert.equal(await v2.disponible(), "0.2.25");
   assert.deepEqual(await v2.volverManual(), { ok: true });
   assert.deepEqual(reinicios, ["0.2.26"]);
-  assert.equal(leer(app, "dist-electron", "main.js"), "main 0.2.25");
+  assert.equal(leer(app, "dist-electron", "motor.js"), "main 0.2.25");
   const v1 = armar("0.2.25");
   await v1.alArrancar();
   assert.equal(await v1.disponible(), null);

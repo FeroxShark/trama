@@ -278,6 +278,12 @@ export interface Fuente {
   ocupacionTrama(): Promise<OcupacionTrama>;
   /** Reinicia la ventana de la PC (sin el main de la ventana, recarga la página). */
   reiniciarVentana(): void;
+  /** Actualizar seguro: la versión anterior guardada a la que se puede volver (`version: null` si no hay); `null` si esta ventana no maneja versiones (el navegador, el celular). */
+  versionAnterior(): Promise<{ version: string | null } | null>;
+  /** Vuelve a esa versión y reinicia Trama; el error (corto) si no se pudo. */
+  volverAVersionAnterior(): Promise<{ ok: true } | { ok: false; error: string }>;
+  /** Lo que pasó si Trama volvió sola a la anterior (o con el botón) y todavía no se avisó; se gasta al leerlo. */
+  avisoVuelta(): Promise<AvisoVuelta | null>;
   /** Lo mismo para Antigravity CLI (`agy`): `null` también si no está instalado. */
   avisoAgy(): Promise<AvisoClaude | null>;
   alCambiarAvisoAgy(fn: (a: AvisoClaude | null) => void): () => void;
@@ -324,6 +330,13 @@ export type Umbrales = { autoCompact: number | null };
 /** `sucio` (sólo el de Trama): el checkout de donde se instaló tiene cambios sin commitear y Actualizar no tocaría nada. */
 export type AvisoClaude = { instalada: string; ultima: string; sucio?: boolean; notas?: string };
 export type BuscadaTrama = { ultima: string | null; nueva: boolean };
+/** Trama volvió a una versión anterior: `de` es la que no sirvió, `a` la que quedó; `motivo`, por qué (electron/arranque-seguro.ts). */
+export type AvisoVuelta = { de: string; a: string; motivo: "lento" | "cierres" | "manual" };
+const avisoVueltaValido = (x: unknown): AvisoVuelta | null => {
+  const o = (x ?? {}) as Partial<AvisoVuelta>;
+  const v = (s: unknown): s is string => typeof s === "string" && /^\d+\.\d+\.\d+$/.test(s);
+  return v(o.de) && v(o.a) && (o.motivo === "lento" || o.motivo === "cierres" || o.motivo === "manual") ? { de: o.de, a: o.a, motivo: o.motivo } : null;
+};
 
 /** Una cuenta de un CLI: `cuenta` es con quién está conectada; `error`, por qué no se pudo saber. */
 export type CuentaEstado = { instalado: boolean; logueado: boolean; cuenta: string | null; error: string | null };
@@ -1277,6 +1290,16 @@ const fija: Fuente = {
     return ocupacionTramaFija;
   },
   reiniciarVentana() {},
+  // Las capturas (`HILOS_VARIANTE=volver|volver-aviso`) fingen una anterior guardada y el aviso de que se volvió sola.
+  async versionAnterior() {
+    return { version: (MODO.variante ?? "").startsWith("volver") ? "0.2.25" : null };
+  },
+  async volverAVersionAnterior() {
+    return { ok: true as const };
+  },
+  async avisoVuelta() {
+    return MODO.variante === "volver-aviso" ? { de: "0.2.26", a: "0.2.25", motivo: "cierres" as const } : null;
+  },
   // Con fixtures sólo sale en la captura `setup` (las demás quedan como estaban).
   async faltasSetup() {
     return MODO.captura === "setup" || MODO.captura === "setup-abierto" ? SETUP_FIJO : [];
@@ -1826,6 +1849,23 @@ const conPa = (m: NonNullable<typeof main>): Fuente => ({
   reiniciarVentana() {
     if (m.trama.reiniciarVentana) void m.trama.reiniciarVentana().catch(() => {});
     else location.reload();
+  },
+  async versionAnterior() {
+    if (!m.trama.anterior) return null;
+    try {
+      const v = await m.trama.anterior();
+      return { version: typeof v === "string" && /^\d+\.\d+\.\d+$/.test(v) ? v : null };
+    } catch {
+      return null;
+    }
+  },
+  async volverAVersionAnterior() {
+    if (!m.trama.volverAnterior) return { ok: false as const, error: "" };
+    const r = (await m.trama.volverAnterior().catch((e: unknown) => ({ ok: false, error: e instanceof Error ? e.message : String(e) }))) as { ok?: unknown; error?: unknown } | null;
+    return r?.ok === true ? { ok: true as const } : { ok: false as const, error: typeof r?.error === "string" ? r.error.slice(0, 200) : "" };
+  },
+  async avisoVuelta() {
+    return avisoVueltaValido(await m.trama.avisoVuelta?.().catch(() => null));
   },
   async faltasSetup() {
     return faltasValidas(await m.setup.estado().catch(() => null));

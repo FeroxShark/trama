@@ -88,6 +88,7 @@ export const ITEMS: readonly Item[] = [
   { cat: "general", nombre: "ajustes.compactar", que: "ajustes.compactarQue", sin: "compactacion compaction contexto context autocompact ventana window tokens" },
   { cat: "general", nombre: "ajustes.atajos", que: "ajustes.atajosQue", sin: "teclado keyboard shortcuts hotkeys teclas atajos" },
   { cat: "general", nombre: "ajustes.aplicarAuto", que: "ajustes.aplicarAutoQue", sin: "ramas branches veredictos verdicts analista analyst aplicar apply automatico automatic integrar descartar" },
+  { cat: "general", nombre: "ajustes.volverVersion", que: "ajustes.volverVersionQue", sin: "volver anterior version rollback revertir downgrade deshacer actualizacion update previous undo back restaurar restore" },
   { cat: "general", nombre: "ajustes.bienvenida", que: "ajustes.bienvenidaQue", sin: "welcome bienvenida primer arranque first start setup asistente configurar inicio" },
 
   { cat: "guia", nombre: "tour.mostrar", que: "tour.mostrarQue", sin: "guias tour recorrido tutorial ayuda onboarding coach marks globos pistas help guides show hide apagar desactivar disable" },

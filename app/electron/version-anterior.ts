@@ -34,7 +34,7 @@ export const carpetaCopias = (home: string) => path.join(home, ".local", "share"
 /** ¿La copia sigue entera en el disco? */
 export async function copiaExiste(c: Copia): Promise<boolean> {
   try {
-    if (c.tipo === "carpeta") return (await stat(path.join(c.ruta, "dist-electron", "main.js"))).isFile() && (await stat(path.join(c.ruta, "package.json"))).isFile();
+    if (c.tipo === "carpeta") return (await stat(path.join(c.ruta, "dist-electron", "motor.js"))).isFile() && (await stat(path.join(c.ruta, "package.json"))).isFile();
     return (await stat(c.ruta)).size > 0;
   } catch {
     return false;
