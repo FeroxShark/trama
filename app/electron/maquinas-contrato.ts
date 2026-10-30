@@ -135,6 +135,11 @@ export const RUTAS: Readonly<Record<string, Ruta>> = {
   "mcp:fijarApagado": "local",
   "conectores:inventario": "local",
   "conectores:alternar": "local",
+  // El panel de contexto: el desglose de un líder o worker y el apagado global son de esta máquina (sus procesos, su config).
+  "contexto:desglose": "local",
+  "skills:catalogo": "local",
+  "apagados:leer": "local",
+  "apagados:fijar": "local",
   "plugins:catalogos": "local",
   "plugins:agregarCatalogo": "local",
   "plugins:instalar": "local",

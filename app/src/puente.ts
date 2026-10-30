@@ -278,6 +278,14 @@ type Main = {
     inventarioConectores(): Promise<unknown>;
     /** Prende o apaga un plugin o un servidor de `.mcp.json`; devuelve el inventario nuevo. */
     alternarConector(id: string, activo: boolean): Promise<unknown>;
+    /** Panel de contexto: en qué se va el contexto de un líder o de un worker (`Desglose`, electron/contexto-desglose.ts). */
+    desgloseContexto(x: { lider: string } | { worker: string }): Promise<unknown>;
+    /** Las skills instaladas, buscables (`q`), con tokens y estado (`Catalogo`, electron/contexto-panel.ts). Con `sid` de un líder vivo, tokens exactos. */
+    catalogoSkills(x?: { q?: string; sid?: string }): Promise<unknown>;
+    /** El apagado global de Trama (`VistaApagados`). */
+    leerApagados(): Promise<unknown>;
+    /** Apaga o prende una skill, un servidor MCP, una herramienta o un archivo de memoria para todo Trama. Sólo desde la PC. */
+    fijarApagado(tipo: "skills" | "mcp" | "herramientas" | "memoria", nombre: string, apagado: boolean): Promise<unknown>;
     /** Los catálogos de plugins de Claude Code (los oficiales de Anthropic y los que se agregaron) con lo que traen. */
     catalogosPlugins(): Promise<unknown>;
     /** `claude plugin marketplace add <usuario/repo>` con la cuenta elegida (vacío: la de siempre); devuelve los catálogos. Sólo desde la PC. */

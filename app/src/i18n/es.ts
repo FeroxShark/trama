@@ -2795,6 +2795,7 @@ export const es: { [K in keyof typeof en]: string } = {
   "mcp.errorClaude": "No pude pedirle la lista a claude: {e}",
   "mcp.sinLocal": "Este líder corre en la GPU de esta máquina y arranca sin conectores a propósito (su contexto es chico).",
   "mcp.sinAgy": "Los conectores no están disponibles en Gemini (agy).",
+  "main.apagadoRaro": "No se puede apagar ni prender «{v}»: no es una skill, un servidor MCP, una herramienta o un archivo de memoria válido",
   "main.conectoresIlegible": "No se puede leer {f}: tiene un error, así que no se toca",
   "main.pluginsRepo": "El catálogo se escribe usuario/repo, el de un repositorio de GitHub",
   "main.pluginsNoExiste": "Ese plugin no está en un catálogo agregado, o ya no se puede quitar",

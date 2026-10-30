@@ -61,6 +61,8 @@ export type ArmarLider = {
   lineaSistema?: string;
   /** Un archivo con los servidores MCP propios de Trama (`mcp.ts`): `--mcp-config <archivo>`, SIN `--strict-mcp-config`, así los conectores de claude.ai y los de la config de Claude siguen. Un líder local u Ollama no lo lleva. */
   mcpConfig?: string;
+  /** El pedazo de settings del apagado global de Trama (`apagados.ts`): `--settings <archivo>`. Un líder local u Ollama no lo lleva (ya va con `--bare` o sin MCP). */
+  apagados?: string;
 };
 
 /**
@@ -112,7 +114,7 @@ const argvLocal = (contexto?: string) => [
  * y los contesta la app. Sesión nueva: `--session-id` + `--name`; retomada:
  * `--resume` (el nombre ya está en el transcript).
  */
-export function argvLider({ modelo, effort, sid, nombre, resume, modo = MODO_DEFAULT, local, ollama, desde, rama, relevo, lineaSistema, mcpConfig }: ArmarLider): string[] {
+export function argvLider({ modelo, effort, sid, nombre, resume, modo = MODO_DEFAULT, local, ollama, desde, rama, relevo, lineaSistema, mcpConfig, apagados }: ArmarLider): string[] {
   if (!SID.test(sid)) throw errorT("main.sesionRara", { v: sid });
   for (const u of [desde, rama?.de, rama?.hasta]) if (u !== undefined && !SID.test(u)) throw errorT("main.sesionRara", { v: u });
   if (!esModo(modo)) throw errorT("main.modoRaro", { v: String(modo) });
@@ -144,6 +146,7 @@ export function argvLider({ modelo, effort, sid, nombre, resume, modo = MODO_DEF
     ...(relevo ? ["--append-system-prompt-file", relevo] : []),
     ...(lineaSistema ? ["--append-system-prompt", lineaSistema] : []),
     ...(mcpConfig && !local && !ollama ? ["--mcp-config", mcpConfig] : []),
+    ...(apagados && !local && !ollama ? ["--settings", apagados] : []),
   ];
   // Volver atrás y ramificar son del `claude` mismo (`--resume-session-at`, `--fork-session`): nunca se reescribe un transcript
   // ni se pasa por una compactación; el modelo recibe sólo la cadena hasta ese mensaje.
@@ -282,6 +285,12 @@ export const lineaEffort = (id: string, effort: string) => pedido(id, { subtype:
  */
 export const lineaEstilo = (id: string, estilo: string) =>
   pedido(id, { subtype: "update_settings", source: "localSettings", settings: { outputStyle: estilo } });
+
+/**
+ * El desglose del contexto de la sesión viva (lo de `/context`), sin turno ni interrupción: `summary` sale del último `usage` y de
+ * estimaciones locales, sin las llamadas de conteo por categoría que haría `full`.
+ */
+export const lineaContexto = (id: string) => pedido(id, { subtype: "get_context_usage", detail: "summary" });
 
 /** Lo que manda el Agent SDK al arrancar: la respuesta trae `commands` (los slash commands con descripción). */
 export const lineaInicio = (id: string) => pedido(id, { subtype: "initialize" });
@@ -428,7 +437,7 @@ export type Evento =
   /** El eco de un mensaje del usuario (`--replay-user-messages`): el CLI lo entregó al modelo. Sólo el texto; lo cruza `lider.ts` con lo que mandó. */
   | { tipo: "replay"; texto: string }
   /** La respuesta a un `control_request` de la app; `error`: el motivo, si no salió. */
-  | { tipo: "control"; id: string; ok: boolean; error?: string }
+  | { tipo: "control"; id: string; ok: boolean; error?: string; contexto?: unknown }
   | { tipo: "hace"; hace: Hace }
   /** Tokens de salida del mensaje en curso; `nuevo` al empezar un mensaje (el anterior ya cuenta entero). */
   | { tipo: "tokens"; salida: number; nuevo: boolean }
@@ -764,6 +773,8 @@ export function parsearLinea(linea: string): Evento[] {
     const ok = o.response.subtype === "success";
     const out: Evento[] = [{ tipo: "control", id: o.response.request_id, ok, ...(ok ? {} : { error: String(o.response.error ?? "") }) }];
     const r = o.response.response ?? {};
+    // La respuesta a `get_context_usage` (`lineaContexto`): va entera a quien la pidió (contexto-desglose.ts la lee).
+    if (ok && Array.isArray(r.categories)) (out[0] as { contexto?: unknown }).contexto = r;
     // `set_permission_mode` contesta `mode`; `initialize`, `current_permission_mode`.
     const modo = esModo(r.mode) ? r.mode : esModo(r.current_permission_mode) ? r.current_permission_mode : null;
     if (ok && modo) out.push({ tipo: "modo", modo });

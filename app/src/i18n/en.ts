@@ -2809,6 +2809,7 @@ export const en = {
   "mcp.errorClaude": "I couldn't get the list from claude: {e}",
   "mcp.sinLocal": "This leader runs on this machine's GPU and starts without connectors on purpose (its context is small).",
   "mcp.sinAgy": "Connectors aren't available in Gemini (agy).",
+  "main.apagadoRaro": "Cannot turn «{v}» on or off: it is not a valid skill, MCP server, tool or memory file",
   "main.conectoresIlegible": "Cannot read {f}: it has an error, so it was left alone",
   "main.pluginsRepo": "The catalog is written user/repo, a GitHub repository",
   "main.pluginsNoExiste": "That plugin is not in an added catalog, or can no longer be removed",

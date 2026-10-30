@@ -40,6 +40,7 @@ import {
   autoaprueba,
   lineaUsuario,
   lineaUso,
+  lineaContexto,
   MODO_DEFAULT,
   nombreNuevo,
   nombreRetomado,
@@ -58,6 +59,7 @@ import {
 import { aplicarCortes, armarRelevo, hastaMensaje, MODELO_DE_FAMILIA, msDe, unirConvs, type Familia } from "./relevo-motor.ts";
 import { asegurarLocal, destinoLocal, localDe } from "./locales.js";
 import { armarContexto, prefacioDsh, prefacioGemini } from "./contexto-local.ts";
+import { fragmentoVigente } from "./apagados.ts";
 import { conClaves } from "./claves.ts";
 import { archivoMcpClaudeSync } from "./mcp.ts";
 import { paraAcp, resueltos } from "./mcp-config.ts";
@@ -188,7 +190,7 @@ type Proc = {
    */
   pedidos: Map<string, { input: unknown; tool_use_id: string | null; herramienta: string; preguntas: Pregunta[] | null; ev: EventoPedido }>;
   /** Los `control_request` de la app que esperan respuesta: request_id → quien la espera. */
-  controles: Map<string, (r: { ok: boolean; error?: string }) => void>;
+  controles: Map<string, (r: { ok: boolean; error?: string; contexto?: unknown }) => void>;
   /** El `/output-style` pendiente que se le mandó al arrancar: la respuesta al initialize (anterior) no lo pisa. */
   estilo: string | null;
   /** El SIGINT de `parar` si el interrupt no contesta: se cancela al terminar el turno (si no, mata al siguiente). */
@@ -385,6 +387,56 @@ export async function reiniciarOciosos(): Promise<{ reiniciados: number; ocupado
   return { reiniciados: quedan.length, ocupados: procs.size };
 }
 
+/**
+ * El apagado global de Trama cambió: cada líder de Claude tiene que relanzarse para tomarlo (va en su `--settings`). El que está ocioso
+ * se cierra ya y el próximo mensaje lo relanza con `--resume` (la conversación sigue entera); el que está respondiendo, al terminar el
+ * turno. Por eso la vista avisa "se aplica al próximo mensaje". Los de Gemini, dsh, OpenCode, Ollama y los locales no cambian.
+ */
+export async function aplicarApagadosLideres(): Promise<{ reiniciados: number; pendientes: number }> {
+  const deClaude = [...procs.entries()].filter(([, x]) => x.clase === "claude" && !x.local);
+  const cerrarlo = (sid: string, x: Proc) => {
+    if (procs.get(sid) !== x || x.ocupado || mandando.has(sid)) return null;
+    x.adrede = true;
+    rastro(sid, "sin-motivo", "se cierra su proceso para aplicar el apagado global de Trama; el próximo mensaje lo relanza");
+    return terminar(x);
+  };
+  const ya: Promise<void>[] = [];
+  let pendientes = 0;
+  for (const [sid, x] of deClaude) {
+    const t = cerrarlo(sid, x);
+    if (t) ya.push(t);
+    else {
+      pendientes++;
+      x.libre.push(() => void cerrarlo(sid, x));
+    }
+  }
+  await Promise.all(ya);
+  return { reiniciados: ya.length, pendientes };
+}
+
+/** Cuánto se espera el desglose del contexto de un líder vivo (con `summary` no hace llamadas: contesta enseguida, también a mitad de un turno). */
+const CONTEXTO_MS = 8000;
+
+/**
+ * El `/context` de un líder de Claude vivo (`get_context_usage`), sin turno ni interrupción. `null`: no hay proceso de Claude vivo
+ * para ese líder, o no contestó (uno lanzado con un `claude` viejo no lo conoce).
+ */
+export async function contextoVivo(sid: string): Promise<unknown | null> {
+  const x = procs.get(sid);
+  if (!x || x.clase !== "claude" || x.local || x.p.exitCode !== null || x.p.signalCode !== null) return null;
+  const r = await control(x, lineaContexto, CONTEXTO_MS);
+  return r?.ok ? (r.contexto ?? null) : null;
+}
+
+/** Con qué motor corre (o corrió) un líder: la clase de su proceso vivo o la de su modelo guardado; `null` si no es de la app. */
+export async function claseDeLider(sid: string): Promise<{ clase: Clase; modelo: string; cwd: string | undefined; local: boolean } | null> {
+  const x = procs.get(sid);
+  const g = (await lideresApp()).find((l) => l.sid === sid);
+  if (!x && !g) return null;
+  const modelo = x?.modelo ?? g!.modelo;
+  return { clase: x?.clase ?? claseDeModelo(modelo), modelo, cwd: g?.cwd, local: Boolean(x?.local ?? localDe(modelo)) };
+}
+
 let pedidosN = 0;
 const idPedido = () => `trama-${++pedidosN}`;
 
@@ -527,6 +579,13 @@ function lanzar(g: Guardado, resume: boolean, local?: Local, extra: Extra = {}):
   } catch (e) {
     silencio("mcp-lanzar")(e);
   }
+  // El apagado global de Trama (skills, MCP, herramientas y memoria que no se cargan): un `--settings` más, sólo a un líder de Claude de verdad.
+  let apagados: string | undefined;
+  try {
+    if (clase === "claude" && !local && !extra.ollama) apagados = fragmentoVigente();
+  } catch (e) {
+    silencio("apagados-lanzar")(e);
+  }
   const bin = clase === "gemini" ? "agy" : clase === "dsh" ? "dsh" : clase === "opencode" ? "opencode" : path.basename(CLAUDE);
   const p =
     clase === "opencode"
@@ -551,7 +610,7 @@ function lanzar(g: Guardado, resume: boolean, local?: Local, extra: Extra = {}):
           // El mismo Electron/Node que el motor, como Node pelado; el prefacio (agy no lee CLAUDE.md) va por el entorno.
           { ...opciones, env: { ...base.env, ...cortesPuente, ELECTRON_RUN_AS_NODE: "1", TRAMA_AGY_PREFACIO: extra.prefacio ?? "", ...(relevo ? { TRAMA_AGY_RELEVO: relevo } : {}) } },
         )
-      : spawn(CLAUDE, argvLider({ modelo: g.modelo, effort: g.effort, sid: g.sid, nombre: g.nombre, resume, modo: g.modo, local, ollama: extra.ollama, desde: extra.desde, rama: g.rama, relevo, mcpConfig: mcpClaude, lineaSistema: lineaTerminalAgentes(plat, terminal) ?? undefined }), { ...opciones, env: { ...opciones.env, ...envTerminalAgentes(plat, terminal) } });
+      : spawn(CLAUDE, argvLider({ modelo: g.modelo, effort: g.effort, sid: g.sid, nombre: g.nombre, resume, modo: g.modo, local, ollama: extra.ollama, desde: extra.desde, rama: g.rama, relevo, mcpConfig: mcpClaude, apagados, lineaSistema: lineaTerminalAgentes(plat, terminal) ?? undefined }), { ...opciones, env: { ...opciones.env, ...envTerminalAgentes(plat, terminal) } });
   const x: Proc = { p, modelo: g.modelo, effort: g.effort, clase, local, ...(cuenta ? { cuenta: cuenta.id } : {}), ocupado: false, directos: [], pedido: 0, avisado: 0, resto: "", stderr: "", adrede: false, libre: [], pedidos: new Map(), controles: new Map(), estilo: null };
   procs.set(g.sid, x);
   p.stdout!.setEncoding("utf8");
@@ -729,7 +788,7 @@ function terminar(x: Proc): Promise<void> {
 }
 
 /** Manda un `control_request` y espera su respuesta; `null` si no contesta a tiempo. */
-function control(x: Proc, linea: (id: string) => string, ms = CONTROL_MS): Promise<{ ok: boolean; error?: string } | null> {
+function control(x: Proc, linea: (id: string) => string, ms = CONTROL_MS): Promise<{ ok: boolean; error?: string; contexto?: unknown } | null> {
   const id = idPedido();
   return new Promise((ok) => {
     const t = setTimeout(() => {
