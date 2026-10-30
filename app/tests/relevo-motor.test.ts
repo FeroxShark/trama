@@ -70,3 +70,23 @@ test("aplicarCortes: quita lo que sigue al mensaje y es anterior al corte; lo po
   assert.deepEqual(hastaMensaje({ ...convNueva(), todos }, "u-cccc")!.todos.map((x) => x.texto), ["aaaa", "bbbb", "cccc"]);
   assert.equal(hastaMensaje({ ...convNueva(), todos }, "u-x"), null);
 });
+
+test("armarRelevo: los mensajes seguidos del modelo (una herramienta cada uno) van en un solo bloque, sin repetir el encabezado ni la misma línea; pasado el tope, contadas", () => {
+  const herr = (cmd: string) =>
+    m("assistant", "", null, { herramientas: ["Bash: " + cmd], det: [{ nombre: "Bash", entrada: { command: cmd }, id: cmd }] });
+  const todos = [
+    m("user", "arreglá esto", null),
+    herr("git status"),
+    herr("git status"),
+    ...Array.from({ length: 12 }, (_, k) => herr(`ls dir${k}`)),
+    m("assistant", "listo, quedó arreglado", null),
+    m("user", "gracias", null),
+  ];
+  const r = armarRelevo(todos, { de: "a", a: "b" });
+  assert.equal(r.texto.match(/Asistente \(claude-opus-5-5\)/g)?.length, 1, "un solo encabezado para todo el tramo del modelo");
+  assert.equal(r.texto.split("Ana: arreglá esto")[1].match(/\[corrió: git status\]/g)?.length, 1, "la misma herramienta seguida, una vez (sin contar el ejemplo de la nota)");
+  assert.match(r.texto, /\[… y 5 herramientas más\]/);
+  assert.ok(!r.texto.includes("ls dir11"), "las que pasan el tope no se listan una por una");
+  assert.match(r.texto, /\[corrió: ls dir6\]\n\[… y 5 herramientas más\]\nlisto, quedó arreglado/);
+  assert.equal(r.incluidos, todos.length, "se cuentan mensajes, no bloques");
+});

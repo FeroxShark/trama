@@ -13,7 +13,9 @@ export const TOPE_RELEVO = 40_000;
 /** Y cuánto de un mismo mensaje: uno enorme (un pegado, una novela) no se come el cupo de los demás. */
 const TOPE_MENSAJE = 6_000;
 /** Un comando o herramienta resumido en una línea. */
-const TOPE_LINEA = 120;
+const TOPE_LINEA = 90;
+/** Cuántas herramientas se listan por tramo de trabajo del modelo (lo que hizo entre dos mensajes de la persona): las demás, contadas. */
+const TOPE_HERRAMIENTAS = 8;
 
 /** Un modelo "genérico" de cada familia, para anotar de dónde venía una sesión cuando no se sabe el modelo exacto. */
 export const MODELO_DE_FAMILIA: Record<Familia, string> = { claude: "claude", gemini: "gemini", dsh: "dsh:", opencode: "opencode:" };
@@ -130,18 +132,62 @@ function hablado(m: Crudo): boolean {
   return true;
 }
 
-/** Un mensaje como lo ve el modelo nuevo; `""` si no hay nada que decir. */
-function bloqueDe(m: Crudo, quien: string): string {
+/** Lo que dijo un mensaje en limpio: el texto (recortado), las imágenes y, si es del modelo, una línea por herramienta. */
+type Dicho = { rol: "user" | "assistant"; modelo: string | null; texto: string; herr: string[] };
+
+function dichoDe(m: Crudo): Dicho {
   const imgs = (m.imagenes ?? []).map(() => "[imagen]").join(" ");
   let texto = m.texto.trim();
   if (texto.length > TOPE_MENSAJE) texto = `${texto.slice(0, TOPE_MENSAJE)}… [mensaje recortado]`;
-  if (m.rol === "user") {
-    const cuerpo = [texto, imgs].filter(Boolean).join(" ");
-    return cuerpo ? `${quien}: ${cuerpo}` : "";
+  if (m.rol === "user") return { rol: "user", modelo: null, texto: [texto, imgs].filter(Boolean).join(" "), herr: [] };
+  return { rol: "assistant", modelo: m.modelo && m.modelo !== "<synthetic>" ? m.modelo : null, texto, herr: m.herramientas.map((_, k) => lineaDeHerramienta(m, k)) };
+}
+
+/** Lo que dijo el modelo entre dos mensajes de la persona, en un solo bloque: un encabezado, sus textos y las herramientas (las repetidas seguidas, una; las que pasan el tope, contadas). */
+function bloqueAsistente(partes: Dicho[]): string {
+  const modelo = partes.find((d) => d.modelo)?.modelo ?? null;
+  const lineas: string[] = [];
+  let herr: string[] = [];
+  const volcar = () => {
+    const unicas = herr.filter((h, i) => h !== herr[i - 1]);
+    lineas.push(...unicas.slice(0, TOPE_HERRAMIENTAS));
+    if (unicas.length > TOPE_HERRAMIENTAS) lineas.push(`[… y ${unicas.length - TOPE_HERRAMIENTAS} herramientas más]`);
+    herr = [];
+  };
+  for (const d of partes) {
+    if (d.texto) {
+      volcar();
+      lineas.push(d.texto);
+    }
+    herr.push(...d.herr);
   }
-  const herr = m.herramientas.map((_, k) => lineaDeHerramienta(m, k));
-  const cuerpo = [texto, ...herr].filter(Boolean).join("\n");
-  return cuerpo ? `${m.modelo && m.modelo !== "<synthetic>" ? `Asistente (${m.modelo})` : "Asistente"}: ${cuerpo}` : "";
+  volcar();
+  return lineas.length ? `${modelo ? `Asistente (${modelo})` : "Asistente"}: ${lineas.join("\n")}` : "";
+}
+
+/**
+ * Los mensajes hablados como bloques para el modelo nuevo: uno por mensaje de la persona y uno por cada tramo de trabajo del modelo
+ * (los mensajes seguidos del modelo —una llamada a una herramienta cada uno— se juntan: antes cada uno repetía su encabezado).
+ */
+function bloquesDe(hablados: Crudo[], quien: string): { t: string; n: number }[] {
+  const bloques: { t: string; n: number }[] = [];
+  let tramo: Dicho[] = [];
+  const cerrar = () => {
+    const b = bloqueAsistente(tramo);
+    if (b) bloques.push({ t: b, n: tramo.length });
+    tramo = [];
+  };
+  for (const m of hablados) {
+    const d = dichoDe(m);
+    if (d.rol === "assistant") {
+      tramo.push(d);
+      continue;
+    }
+    cerrar();
+    if (d.texto) bloques.push({ t: `${quien}: ${d.texto}`, n: 1 });
+  }
+  cerrar();
+  return bloques;
 }
 
 export type Relevo = {
@@ -168,21 +214,24 @@ export function armarRelevo(todos: Crudo[], x: { de: string; a: string; tope?: n
     ultima = msDe(m) ?? ultima;
     horas.set(m, ultima);
   }
-  const bloques = todos
-    .filter((m) => hablado(m) && (x.desde === undefined || (horas.get(m) ?? -Infinity) > x.desde))
-    .map((m) => bloqueDe(m, quien))
-    .filter(Boolean);
+  const bloques = bloquesDe(
+    todos.filter((m) => hablado(m) && (x.desde === undefined || (horas.get(m) ?? -Infinity) > x.desde)),
+    quien,
+  );
   if (!bloques.length) return { texto: "", omitidos: 0, incluidos: 0 };
   // De lo último a lo primero, hasta llenar el cupo; el más nuevo siempre entra (recortado si hace falta).
   const entran: string[] = [];
   let usado = 0;
+  let incluidos = 0;
   for (let i = bloques.length - 1; i >= 0; i--) {
-    const costo = bloques[i].length + 2;
+    const b = bloques[i];
+    const costo = b.t.length + 2;
     if (usado + costo > tope && entran.length) break;
-    entran.unshift(bloques[i].length + 2 > tope ? `${bloques[i].slice(0, Math.max(0, tope - 40))}… [recortado]` : bloques[i]);
+    entran.unshift(costo > tope ? `${b.t.slice(0, Math.max(0, tope - 40))}… [recortado]` : b.t);
     usado += costo;
+    incluidos += b.n;
   }
-  const omitidos = bloques.length - entran.length;
+  const omitidos = bloques.reduce((a, b) => a + b.n, 0) - incluidos;
   const nota = [
     x.motivo === "volver"
       ? "# Historial de esta conversación (se volvió atrás)"
@@ -201,5 +250,5 @@ export function armarRelevo(todos: Crudo[], x: { de: string; a: string; tope?: n
     `Abajo está lo hablado: sólo los textos, sin lo que devolvieron las herramientas (cada una aparece resumida en un renglón, por ejemplo "[corrió: git status]"). Tomalo como contexto y seguí desde el último mensaje, sin repetir lo que ya está hecho.`,
     ...(omitidos ? [`(se omitieron ${omitidos} mensajes anteriores)`] : []),
   ].join("\n");
-  return { texto: `${nota}\n\n${entran.join("\n\n")}`, omitidos, incluidos: entran.length };
+  return { texto: `${nota}\n\n${entran.join("\n\n")}`, omitidos, incluidos };
 }
