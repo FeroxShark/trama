@@ -13,12 +13,15 @@ import { cwdDe, desdeClaude, desdeTranscript, medirConRespaldo, memoriaDeSesion,
 import { leerTranscript, type Transcript } from "./contexto-jsonl.ts";
 import { leerSesion } from "./contexto-sesion.ts";
 import { errorT } from "./errores.ts";
+import { carpetaDeSubagentes, crearGastos, sinLado, ventanaSub, type GastoSubagentes } from "./subagentes-gasto.ts";
+import type { Subagentes } from "./subagentes.ts";
 import { aplicarApagadosLideres, claseDeLider, contextoVivo, transcriptDe as transcriptDeLider } from "./lider.ts";
 import { PA_STATE } from "./pa.ts";
 import { buscarSkills, catalogoSkills, DIAS_USOS, usosDeHistorial, type SkillCatalogo, type UsosCatalogo } from "./skills-catalogo.ts";
 
 const SID = /^[0-9a-f-]{36}$/;
 const ID_WORKER = /^[\w.@-]{1,120}$/;
+const ID_SUB = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 
 /** La última medición exacta de cada líder vivo: si al refrescar no contesta, se sigue mostrando esa (marcada) en vez de saltar a una estimada. */
 const ultimaMedicion = new Map<string, Medicion>();
@@ -50,6 +53,20 @@ function recordar(clave: string, firma: string | null, d: Desglose): Desglose {
     if (ultimoDesglose.size > TOPE) ultimoDesglose.delete(ultimoDesglose.keys().next().value as string);
   }
   return d;
+}
+
+const gastos = crearGastos();
+
+/** Los subagentes de una sesión de Claude (`{ lider: sid }`) con lo que gastó cada uno. `vivos`: los que sigue el main (con su estado al día). */
+export async function gastoSubagentes(x: unknown, vivos?: { leer(): Promise<Subagentes> }): Promise<GastoSubagentes> {
+  const o = x && typeof x === "object" ? (x as Record<string, unknown>) : {};
+  const sid = typeof o.lider === "string" ? o.lider : "";
+  if (!SID.test(sid)) throw errorT("main.sesionRara", { v: sid.slice(0, 80) });
+  const l = await claseDeLider(sid);
+  const t = await transcriptDeLider(sid, l?.cwd).catch(() => null);
+  if (!t) return { version: 1, sid, subagentes: [], total: { entrada: 0, cacheCreado: 0, cacheLeido: 0, salida: 0, total: 0 } };
+  const base = (await vivos?.leer().catch(() => ({}) as Subagentes))?.[sid];
+  return gastos.listar(carpetaDeSubagentes(t), sid, base);
 }
 
 /**
@@ -89,6 +106,21 @@ async function calcularDesglose(o: Record<string, unknown>, clave: string, fresc
     const memoria = await memoriaDeSesion({ cwd, claudeDir, excludes: apagados.memoria });
     const skills = l?.local ? [] : await skillsDeSesion(cwd, apagados);
     return recordar(clave, firma, desdeTranscript(ls, { tipo: "lider", id: sid, motor, memoria, skills, excludes: apagados.memoria }));
+  }
+  if (o.subagente && typeof o.subagente === "object") {
+    const q = o.subagente as Record<string, unknown>;
+    const sid = typeof q.lider === "string" ? q.lider : "";
+    const id = typeof q.id === "string" ? q.id : "";
+    if (!SID.test(sid)) throw errorT("main.sesionRara", { v: sid.slice(0, 80) });
+    if (!ID_SUB.test(id)) throw errorT("main.apagadoRaro", { v: id.slice(0, 80) });
+    const l = await claseDeLider(sid);
+    const t = await transcriptDeLider(sid, l?.cwd).catch(() => null);
+    // Un subagente es de Claude Code aunque el líder haya cambiado de motor: su transcript manda.
+    const ls = t ? await lineas(path.join(carpetaDeSubagentes(t), `agent-${id}.jsonl`)) : [];
+    if (!ls.length) return sinDesglose({ tipo: "subagente", id, motor: "claude", motivo: "sin-transcript" });
+    // Sólo lectura: lo que cargó es lo que dice su transcript (el prompt, las herramientas, las instrucciones que le llegaron); nada se inventa de archivos ni se apaga desde acá.
+    const d = desdeTranscript(sinLado(ls), { tipo: "subagente", id, motor: "claude", memoria: [], skills: [], excludes: apagados.memoria });
+    return d.ventana === null || d.ventanaEstimada ? { ...d, ventana: ventanaSub(d.modelo), ventanaEstimada: true } : d;
   }
   if (typeof o.worker === "string") {
     const id = o.worker;

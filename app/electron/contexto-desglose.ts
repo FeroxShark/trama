@@ -59,7 +59,7 @@ export type FilaMemoria = { ruta: string; tipo: string | null; tokens: number; e
 
 export type Desglose = {
   version: 1;
-  quien: { tipo: "lider" | "worker"; id: string };
+  quien: { tipo: "lider" | "worker" | "subagente"; id: string };
   /** `claude`, `gemini`, `dsh`, `opencode`, `ollama` o `local`. */
   motor: string;
   fuente: "claude" | "transcript" | "sin-desglose" | "previa";
@@ -422,7 +422,7 @@ export function cwdDe(lineas: string[]): string | null {
 export function desdeTranscript(
   lineas: string[],
   x: {
-    tipo: "lider" | "worker";
+    tipo: "lider" | "worker" | "subagente";
     id: string;
     motor: string;
     memoria: FilaMemoria[];
@@ -546,7 +546,7 @@ export function desdeTranscript(
 }
 
 /** Un motor sin desglose (Gemini, dsh, OpenCode): sólo quién es y por qué no hay más. */
-export function sinDesglose(x: { tipo: "lider" | "worker"; id: string; motor: string; modelo?: string | null; motivo?: Desglose["motivo"] }): Desglose {
+export function sinDesglose(x: { tipo: "lider" | "worker" | "subagente"; id: string; motor: string; modelo?: string | null; motivo?: Desglose["motivo"] }): Desglose {
   return {
     version: 1,
     quien: { tipo: x.tipo, id: x.id },

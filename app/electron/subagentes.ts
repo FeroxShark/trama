@@ -46,6 +46,8 @@ export type Subagente = {
   modelo_heredado?: boolean;
   /** El esfuerzo no lo dijo la llamada, su definición ni su transcript: es el del líder que lo lanzó. */
   esfuerzo_heredado?: boolean;
+  /** El `tool_use_id` de la llamada Agent que lo lanzó (de su meta): une su burbuja en la conversación con su gasto. */
+  tool_use_id?: string;
 };
 
 /** Lo que una definición de agente (`.claude/agents/<tipo>.md`) fija: su modelo y su esfuerzo, si los pone. */
@@ -193,6 +195,7 @@ export function leerSubagente(sid: string, id: string, meta: any, cabeza: string
     hay_mas: r?.mas ?? false,
     en_vuelo: estado === "corriendo" && ultimoMsg?.tipo === "assistant" && Array.isArray(ultimoMsg.msg.content) && ultimoMsg.msg.content.some((b: any) => b?.type === "tool_use"),
     segundo_plano: !(typeof meta?.requestShape === "string" && meta.requestShape !== "background"),
+    ...(typeof meta?.toolUseId === "string" && meta.toolUseId ? { tool_use_id: meta.toolUseId } : {}),
   };
 }
 

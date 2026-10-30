@@ -72,7 +72,7 @@ import { estadoDsh, instalarDsh, probarProveedor } from "./dsh-ajustes.ts";
 import { estadoMcp } from "./mcp.ts";
 import { configActiva, fijarApagado, leerApagados } from "./mcp-apagados.ts";
 import { alternar as alternarConector, inventario as inventarioConectores } from "./conectores-claude.ts";
-import { capturarBaseContexto, catalogoContexto, desgloseContexto, previaContexto, fijarApagadoPanel, leerApagadosPanel } from "./contexto-panel.ts";
+import { capturarBaseContexto, catalogoContexto, desgloseContexto, previaContexto, fijarApagadoPanel, gastoSubagentes, leerApagadosPanel } from "./contexto-panel.ts";
 import { agregarCatalogo, estadoCatalogos, instalarPlugin, quitarPlugin, type DepsPlugins } from "./plugins-claude.ts";
 import { guardarServidor, quitarServidor, vistaMcp } from "./mcp-config.ts";
 import { crearLectorTabla, leerTabla } from "./reparto-tabla.ts";
@@ -1023,6 +1023,8 @@ export function armarNucleo() {
   // La vista previa (qué cargaría un líder o worker nuevo) se lee desde cualquier lado; capturar el prompt base corre `claude -p ok` una vez por versión: sólo la PC.
   manejar("contexto:previa", (_e, x: unknown) => previaContexto(x));
   manejar("contexto:capturarBase", (_e, x: unknown) => capturarBaseContexto(x));
+  // Los subagentes que un líder lanzó con la herramienta Agent y lo que gastó cada uno (su desglose es `contexto:desglose` con `{ subagente }`).
+  manejar("contexto:subagentes", (_e, x: unknown) => gastoSubagentes(x, subagentes));
   manejar("skills:catalogo", (_e, x: unknown) => catalogoContexto(x, historial));
   manejar("apagados:leer", () => leerApagadosPanel());
   manejar("apagados:fijar", (_e, tipo: unknown, nombre: unknown, apagado: unknown) => fijarApagadoPanel(tipo, nombre, apagado));

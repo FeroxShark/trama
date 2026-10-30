@@ -139,6 +139,7 @@ export const RUTAS: Readonly<Record<string, Ruta>> = {
   "contexto:desglose": "local",
   "contexto:previa": "local",
   "contexto:capturarBase": "local",
+  "contexto:subagentes": "local",
   "skills:catalogo": "local",
   "apagados:leer": "local",
   "apagados:fijar": "local",

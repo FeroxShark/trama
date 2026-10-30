@@ -144,6 +144,7 @@ export const CANALES = [
   ["contexto:desglose", "invoke"],
   ["contexto:previa", "invoke"],
   ["contexto:capturarBase", "invoke"],
+  ["contexto:subagentes", "invoke"],
   ["skills:catalogo", "invoke"],
   ["apagados:leer", "invoke"],
   ["apagados:fijar", "invoke"],
