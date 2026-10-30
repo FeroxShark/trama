@@ -1638,6 +1638,9 @@ async function anotar(
   }
   cwd ??= HOME;
   if (!(await stat(cwd).then((s) => s.isDirectory(), () => false))) return { ok: false, motivo: "sinCarpeta" };
+  // Uno de Claude que entra a la app (retomado o traído de una terminal) sale con la cuenta que la persona dejó como principal (`cuentas preferir`),
+  // igual que un líder nuevo; sin elegir, con la de siempre. Los que ya eran de la app conservan la suya (nada la cambia sola).
+  const cuentaPreferida = deLaFamilia === "claude" ? preferidaClaude(process.env, HOME) : undefined;
   // El transcript es de otro motor que el modelo que se eligió: se anota con el modelo de ese motor y el primer mensaje sigue con el elegido
   // (`mandar` → relevo), así la conversación no se pierde ni se pisa el transcript de uno con el otro.
   const modeloAnotado = deLaFamilia === familiaDeModelo(x.modelo) ? x.modelo : await modeloDeTranscript(sid, t, deLaFamilia);
@@ -1651,6 +1654,7 @@ async function anotar(
     cache_ttl_s: null,
     modo: x.modo,
     ...(cwd !== HOME ? { cwd } : {}),
+    ...(cuentaPreferida ? { cuenta: cuentaPreferida } : {}),
     retomado: ahora,
   });
   anotarCarpeta(cwd, silencio("proyectos"));
