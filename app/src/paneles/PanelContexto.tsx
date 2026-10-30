@@ -224,7 +224,7 @@ function Uso({ it }: { it: Item }) {
     );
   return (
     <>
-      <span className="cp-uso">{it.usos === 0 ? t("ctxp.usos0") : it.usos === 1 ? t("ctxp.usos1") : t("ctxp.usosN", { n: it.usos })}</span>
+      <span className="cp-uso">{it.usos === 0 ? (rec ? null : t("ctxp.usos0")) : it.usos === 1 ? t("ctxp.usos1") : t("ctxp.usosN", { n: it.usos })}</span>
       {rec}
     </>
   );
@@ -740,6 +740,12 @@ export const PanelContexto = memo(function PanelContexto({ lider, workers, alCer
   }, []);
 
   const refrescar = useCallback(() => setRefresco((n) => n + 1), []);
+  // Captura "contexto-panel" con HILOS_VARIANTE=refrescado: toca Actualizar solo, para comparar las cifras antes y después.
+  useEffect(() => {
+    if (MODO.captura !== "contexto-panel" || MODO.variante !== "refrescado") return;
+    const x = setTimeout(refrescar, 300);
+    return () => clearTimeout(x);
+  }, [refrescar]);
 
   // El catálogo se lee acá (no en la pestaña) porque lo que se usó en las sesiones recientes también lo necesitan los ítems de cada sesión.
   // El historial puede estar indexando: si `usos` vino vacío se reintenta cada 15 s, hasta 6 veces.

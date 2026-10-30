@@ -266,6 +266,22 @@ la interfaz la hace otro worker encima. Todo vale para Linux y Windows (el worke
   (`sabeUsos`). Apagar vale global y el aviso va siempre a la vista y, tras cada cambio, en una región `role=status`. Sigue usando el botón del pie, la
   tecla `t` y la preferencia `consumo` (sólo se guarda desde la ventana). En el celular ocupa la pantalla (se abre desde el botón del pie de la lista) y
   sólo se mira: apagar es de la PC. Capturas: `contexto-panel`, `contexto-panel-cat`, `contexto-panel-skills`.
+- **Medición de lo cargado** (v0.2.32; `electron/contexto-sesion.ts`, `contexto-desglose.ts`, `tests/contexto-sesion.test.ts`): en Claude Code las
+  herramientas de MCP son diferidas (sólo el nombre hasta `ToolSearch`), así que `desdeClaude` deja las `isLoaded === false` en `diferidos` (se
+  muestran aparte y NO suman) y los resultados de esas herramientas que quedaron en los mensajes en `resultados` (van dentro de Mensajes). Los
+  ítems de cada categoría se topan a su total (`topar`: nunca la superan). El líder vivo guarda su última medición exacta (`ultimaMedicion`,
+  `medirConRespaldo`): si al refrescar no contesta, se muestra esa, con el aviso `desactualizado`, y la cifra no cambia. **Sistema** se parte en
+  piezas del transcript (prompt, CLAUDE.md/AGENTS.md por archivo, memoria, hooks de inicio, lista de skills y de herramientas diferidas, entorno)
+  con su texto (cortado a 4000 caracteres, `truncado`); lo que no se pudo separar queda como "sin separar". Viaja dentro del desglose: no hay canal
+  nuevo (nada que tocar en `windows/src/canales.json`).
+- **Usos de skills** (`usosDeHistorial` en `skills-catalogo.ts`): el catálogo suma los usos de las sesiones de los últimos 30 días (herramienta
+  `Skill` más los `/comandos` que escribió la persona, que cuenta el parser 2 del historial: subir `PARSER` reindexa una vez en segundo plano) y las
+  skills que un hook mete solo (`porHook`: "cargada por hook", nunca "nunca usada"). Si el historial todavía indexa, `usos` es `null`, no se afirma
+  "nunca usada" y el panel reintenta cada 15 s (hasta 6 veces).
+- **Apagados y Compactar:** lo apagado sale del total, de la barra y del mapa (queda gris y tachado en su lista; si la medición ya no lo trae, un
+  ítem "fantasma" deja prenderlo). Compactar (Mensajes, botón y clic derecho; sólo líderes de la app y ociosos) manda `/compact` con
+  `liderMandar`, mira `useCompactando` y, al terminar, vuelve a medir y dice "de A a B tokens"; a los 30 s sin empezar avisa. Los workers no
+  reciben comandos. Captura de refresco: `contexto-panel` con `HILOS_VARIANTE=refrescado`.
 - Pendiente: un aviso en vivo (`apagados:cambio`) si hace falta con dos ventanas abiertas; el nombre de un servidor MCP que Claude Code muestra con
   espacios (`claude.ai Notion`) puede llegar del desglose ya normalizado (`claude_ai_Notion`): el panel lo apaga con lo que le llega.
 
