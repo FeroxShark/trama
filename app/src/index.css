@@ -1385,7 +1385,8 @@ img.logo {
   color: var(--aviso);
 }
 .cc-vacio,
-.cc-aviso {
+.cc-aviso,
+.cc-ayuda {
   padding: var(--esp-1-5) var(--esp-2);
   font-size: var(--letra-3);
   color: var(--txt-3);
@@ -5336,6 +5337,11 @@ summary.sis-div-t:hover,
 }
 .caja-carpeta svg {
   flex: none;
+}
+.caja-carpeta-t {
+  flex: none;
+  font-size: var(--letra-3);
+  color: var(--texto-6);
 }
 .caja-carpeta input {
   min-width: 0;

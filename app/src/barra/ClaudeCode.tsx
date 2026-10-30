@@ -19,6 +19,8 @@ type Props = {
   alAbrir: (c: ConvClaudeCode) => Promise<string | null>;
   /** En "Otras carpetas" cada una dice de qué carpeta es. */
   conCarpeta: boolean;
+  /** Es el grupo de la carpeta personal: una línea de ayuda dice por qué están ahí. */
+  personal?: boolean;
 };
 
 const modeloLindo = (m: string | null) => (m ? nombreModelo(modeloDe(m) ?? m) : null);
@@ -26,7 +28,7 @@ const modeloLindo = (m: string | null) => (m ? nombreModelo(modeloDe(m) ?? m) : 
 /** Lo que no deja retomarla sin tocar nada: la carpeta ya no existe, o es de otra cuenta de Claude. */
 const motivo = (c: ConvClaudeCode) => (!c.existe ? tr("barra.claudeNoCarpeta", { c: carpetaCorta(c.cwd) }) : c.ajena ? tr("barra.claudeAjena") : null);
 
-export function ClaudeCode({ ref, convs, abierta, alPlegar, alAbrir, conCarpeta }: Props) {
+export function ClaudeCode({ ref, convs, abierta, alPlegar, alAbrir, conCarpeta, personal = false }: Props) {
   const [q, setQ] = useState("");
   const [lote, setLote] = useState(LOTE);
   const [abriendo, setAbriendo] = useState<string | null>(null);
@@ -51,6 +53,7 @@ export function ClaudeCode({ ref, convs, abierta, alPlegar, alAbrir, conCarpeta 
       </button>
       {abierta ? (
         <div className="cc-cuerpo">
+          {personal ? <div className="cc-ayuda">{tr("barra.claudeAyudaPersonal")}</div> : null}
           {n > PARA_BUSCAR ? (
             <label className="buscar cc-buscar">
               <Search size={12} strokeWidth={2} aria-hidden />

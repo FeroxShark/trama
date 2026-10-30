@@ -28,6 +28,9 @@ import { t as tr } from "../i18n";
 import { useIdioma } from "../i18n/react";
 import { leerBorrador, llenarBorrador, soltarBorrador } from "../hilo/borradores";
 import { BORRADOR_LIDER } from "../hilo/Lider";
+import { llanaRuta } from "../hilo/carpeta-nueva";
+import { ponerSeleccion } from "../hilo/carpeta-nueva-estado";
+import { useProyectos } from "../datos/proyectos";
 import { fantasma, MODELO_DEFAULT, modeloDe, primeraLinea } from "../hilo/opciones";
 import { ClaudeCode } from "./ClaudeCode";
 import { carpetaCorta, carpetasExtra, claveClaude, OTRAS, repartirClaude } from "./claude-code";
@@ -892,16 +895,23 @@ export function Barra() {
         abrirLiderNuevo();
         // Después de abrir: abrir un líder nuevo suelta la carpeta que quedó pedida.
         nuevaEn.current = carpeta;
+        ponerSeleccion(carpeta);
       }
     },
     [abrirLider, abrirLiderNuevo],
   );
 
-  const liderCreado = useCallback((sid: string, e: { modelo: string; effort: string; modo?: string; texto?: string; maquina?: string }) => {
-    // Nació con "Nueva tarea aquí": va a esa carpeta (como un Mover a proyecto…).
-    const en = nuevaEn.current;
+  // Los proyectos del registry (ruta y slug): un líder nuevo que arranca en la carpeta de uno ya se ve en ese proyecto.
+  const proyectosReg = useProyectos();
+  const proyectosRef = useRef(proyectosReg);
+  proyectosRef.current = proyectosReg;
+
+  const liderCreado = useCallback((sid: string, e: { modelo: string; effort: string; modo?: string; texto?: string; maquina?: string; carpeta?: string }) => {
+    // Nació con "Nueva tarea aquí": va a esa carpeta (como un Mover a proyecto…), salvo que la caja lo haya mandado a la carpeta de otro proyecto.
+    const deCarpeta = e.carpeta && !e.maquina ? proyectosRef.current.find((p) => llanaRuta(p.ruta) === llanaRuta(e.carpeta!))?.slug : undefined;
+    const en = deCarpeta ?? nuevaEn.current;
     nuevaEn.current = null;
-    if (en) {
+    if (en && !deCarpeta) {
       setNombres((n) => ({ ...n, proyectos: { ...n.proyectos, [sid]: en } }));
       fuente.guardarProyecto(sid, en);
     }
@@ -1332,6 +1342,9 @@ export function Barra() {
       ? (arbol.lideres.get(hiloActivo.jefe_id ?? "")?.proyecto ?? hiloActivo.proyecto)
       : null;
 
+  // Lo que se mira en la barra es el proyecto donde arranca el próximo líder nuevo (hilo/carpeta-nueva.ts).
+  useEffect(() => ponerSeleccion(carpetaActiva), [carpetaActiva]);
+
   // El líder que se está viendo queda siempre a la vista: al elegirlo, o cuando cambia de carpeta
   // (uno nuevo arranca en el home y pasa a la de su proyecto), se abre la suya aunque estuviera
   // plegada. Sólo en ese cambio: si después el usuario la pliega a mano, se queda plegada.
@@ -1567,6 +1580,7 @@ export function Barra() {
       setMenu(null);
       abrirLiderNuevo();
       nuevaEn.current = p;
+      ponerSeleccion(p);
       return;
     }
     listo();
@@ -2210,6 +2224,7 @@ function Carpeta({
                   alPlegar={() => alPlegar(claveClaude(g.proyecto))}
                   alAbrir={alAbrirClaude}
                   conCarpeta={otras}
+                  personal={g.proyecto === GENERAL}
                 />
               ) : null}
             </AnimatePresence>

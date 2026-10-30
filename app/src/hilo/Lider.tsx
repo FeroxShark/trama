@@ -39,7 +39,10 @@ import { effortsDe, esAgy, esDsh, esOpencode, esLocal, familiaDe, motorNombre, r
 import { ContextoLocal } from "./ContextoLocal";
 import { t as tr, textoMain } from "../i18n";
 import { useIdioma } from "../i18n/react";
-import { Selector } from "./Selector";
+import { Selector, type Opcion } from "./Selector";
+import { carpetaPorDefecto, OTRA, opcionDe, PERSONAL } from "./carpeta-nueva";
+import { guardarUltima, leerUltima, useSeleccion } from "./carpeta-nueva-estado";
+import { useProyectos } from "../datos/proyectos";
 import { CuentaLider } from "./CuentaLider";
 import { opcionesEnTurno, pendienteDe } from "./pendiente";
 import { DialogoCambio, type DatosCambio } from "./DialogoCambio";
@@ -198,17 +201,50 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
   const [maquinaNueva, setMaquinaNueva] = useState<string | null>(null);
   // La cuenta de Claude de un líder nuevo, si la persona eligió una (sin elegir, el main usa la que se usa primero).
   const [cuentaNueva, setCuentaNueva] = useState<string | null>(null);
-  // La carpeta donde arranca un líder nuevo (campo opcional de la caja): vacía = `~`, como siempre. Se escribe la ruta; en la ventana de la PC también se elige con el selector nativo.
+  // La carpeta donde arranca un líder nuevo: siempre visible en la caja (el selector de proyecto). Sin tocarla arranca en el proyecto
+  // seleccionado en la barra o, si no, en el último donde se mandó un primer mensaje (`carpeta-nueva.ts`); la carpeta personal (`""`, `~`)
+  // sólo si la persona la elige o no hay ninguna pista. Se puede escribir otra ruta; en la ventana de la PC también se elige con el selector nativo.
+  const proyectos = useProyectos();
+  const seleccionada = useSeleccion();
   const [carpeta, setCarpeta] = useState(MODO.captura === "lider-nuevo-carpeta" ? "/srv/proyectos/mi-app" : "");
-  const [carpetaAbierta, setCarpetaAbierta] = useState(MODO.captura === "lider-nuevo-carpeta");
+  const [carpetaAMano, setCarpetaAMano] = useState(MODO.captura === "lider-nuevo-carpeta");
   const idCarpeta = useId();
   const elegirCarpeta = () => {
     void main?.carpeta?.elegir().then(
-      (c) => c && setCarpeta(c),
+      (c) => {
+        if (!c) return;
+        setCarpeta(c);
+        setCarpetaAMano(true);
+      },
       (err) => setErrorCaja(mensaje(err)),
     );
   };
   const maquinaDe = l ? l.maquina : maquinaNueva && maquinaNueva !== maquinas.esta.id ? maquinaNueva : undefined;
+  // Los proyectos son de esta PC: en otra máquina no se rellena nada y la carpeta se escribe a mano (vacía: su `~`).
+  useEffect(() => {
+    if (l || carpetaAMano || maquinaDe) return;
+    setCarpeta(carpetaPorDefecto({ seleccion: seleccionada, ultima: leerUltima(), proyectos }));
+  }, [l, carpetaAMano, maquinaDe, seleccionada, proyectos]);
+  const opcionesCarpeta = useMemo<Opcion[]>(
+    () => [
+      ...(maquinaDe ? [] : proyectos.filter((p) => p.existe).map((p) => ({ id: p.ruta, nombre: p.titulo ?? p.nombre, desc: p.ruta }))),
+      { id: PERSONAL, nombre: tr("lider.carpetaPersonal"), desc: tr("lider.carpetaPersonalDesc") },
+      { id: OTRA, nombre: tr("lider.carpetaOtra"), desc: tr("lider.carpetaOtraDesc") },
+    ],
+    [proyectos, maquinaDe],
+  );
+  const opcionCarpeta = opcionDe(carpeta, maquinaDe ? [] : proyectos);
+  const [otraAbierta, setOtraAbierta] = useState(MODO.captura === "lider-nuevo-carpeta");
+  const eligioCarpeta = (id: string) => {
+    setCarpetaAMano(true);
+    if (id === OTRA) {
+      setOtraAbierta(true);
+      if (opcionCarpeta !== OTRA) setCarpeta("");
+    } else {
+      setOtraAbierta(false);
+      setCarpeta(id === PERSONAL ? "" : id);
+    }
+  };
   const quieto = useReducedMotion();
   const bajo = useRef<(() => void) | null>(null);
   const adjuntos = useSyncExternalStore(
@@ -763,6 +799,7 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
     // El de la terminal: también si ya hay algo esperando (no se le adelanta a lo que está en la cola).
     if (l && (ocupado || (!app && encolados.length > 0))) return aLaCola(l.id, l.nombre);
     const e: EnvioLider = { texto: t, modelo, effort, ...(imagenes ? { imagenes } : {}), ...(l ? {} : { modo: modoNuevoYa ?? modoNuevo, ...(maquinaDe ? { maquina: maquinaDe } : {}), ...(cuentaNueva && familiaDe(modelo) === "claude" && !esLocal(modelo) ? { cuenta: cuentaNueva } : {}), ...(carpeta.trim() ? { carpeta: carpeta.trim() } : {}) }) };
+    if (!l) guardarUltima(carpeta, carpetaAMano);
     setEnviando(true);
     setErrorCaja(null);
     ponerBorrador(clave, { texto: crudo, error: null });
@@ -790,8 +827,8 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
           void bajada.then(() => {
             setMaquinaNueva(null);
             setCuentaNueva(null);
-            setCarpeta("");
-            setCarpetaAbierta(false);
+            setCarpetaAMano(false);
+            setOtraAbierta(false);
             ponerBorrador(clave, { texto: "", error: null });
             vaciarAdjuntos(clave);
             alCreado(nuevo, e);
@@ -1219,33 +1256,45 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
               onKeyDown={tecla}
               onPaste={pegar}
             />
-            {!l && carpetaAbierta ? (
-              <div className="caja-carpeta">
+            {!l ? (
+              <div className="caja-carpeta" data-carpeta>
                 <Folder size={13} strokeWidth={2} aria-hidden />
-                <label className="oculto" htmlFor={idCarpeta}>
-                  {tr("lider.carpeta")}
-                </label>
-                <input
-                  id={idCarpeta}
-                  type="text"
-                  value={carpeta}
-                  readOnly={enviando}
-                  spellCheck={false}
-                  autoComplete="off"
-                  placeholder={tr("lider.carpetaPh")}
-                  onChange={(e) => setCarpeta(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Escape") {
-                      e.stopPropagation();
-                      setCarpetaAbierta(false);
-                      caja.current?.focus();
-                    }
-                  }}
+                <span className="caja-carpeta-t">{tr("lider.carpeta")}</span>
+                <Selector
+                  etiqueta={tr("lider.carpeta")}
+                  opciones={opcionesCarpeta}
+                  valor={otraAbierta ? OTRA : opcionCarpeta}
+                  alElegir={eligioCarpeta}
+                  disabled={enviando}
+                  enteras
                 />
-                {main?.carpeta && esVentana() ? (
-                  <button type="button" className="btn2" disabled={enviando} onClick={elegirCarpeta}>
-                    {tr("lider.carpetaElegir")}
-                  </button>
+                {otraAbierta ? (
+                  <>
+                    <label className="oculto" htmlFor={idCarpeta}>
+                      {tr("lider.carpetaRuta")}
+                    </label>
+                    <input
+                      id={idCarpeta}
+                      type="text"
+                      value={carpeta}
+                      readOnly={enviando}
+                      spellCheck={false}
+                      autoComplete="off"
+                      placeholder={tr("lider.carpetaPh")}
+                      onChange={(e) => setCarpeta(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Escape") {
+                          e.stopPropagation();
+                          caja.current?.focus();
+                        }
+                      }}
+                    />
+                    {main?.carpeta && esVentana() ? (
+                      <button type="button" className="btn2" disabled={enviando} onClick={elegirCarpeta}>
+                        {tr("lider.carpetaElegir")}
+                      </button>
+                    ) : null}
+                  </>
                 ) : null}
               </div>
             ) : null}
@@ -1270,21 +1319,6 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
               >
                 <Paperclip size={13} strokeWidth={2} />
               </button>
-              {!l ? (
-                <button
-                  type="button"
-                  className="clip"
-                  data-carpeta
-                  data-on={carpeta.trim() ? "" : undefined}
-                  aria-label={tr("lider.carpeta")}
-                  aria-expanded={carpetaAbierta}
-                  data-tip={carpeta.trim() ? tr("lider.carpetaEn", { c: carpeta.trim() }) : tr("lider.carpetaTip")}
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => setCarpetaAbierta((a) => !a)}
-                >
-                  <Folder size={13} strokeWidth={2} />
-                </button>
-              ) : null}
               <button
                 type="button"
                 className="modo"
