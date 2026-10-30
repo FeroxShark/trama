@@ -3126,7 +3126,7 @@ def caminos_hoy(cfg, cupos, now):
     ids = []
     for fam in ("opus", "sonnet"):
         for c in cands:
-            if c.get("proveedor") == "claude" and c["familia"] == fam and c["modelo"] not in ids:
+            if c.get("proveedor") == "claude" and c["familia"] == fam and c["modelo"] not in ids and not excluido_por(c["modelo"], cfg["excluir"], fam):
                 ids.append(c["modelo"])
     for mid in ids:
         r = sustituir(mid, None, None, cfg, cupos, now)

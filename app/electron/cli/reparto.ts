@@ -2941,7 +2941,7 @@ function caminosHoy(cfg: Obj, cupos: Obj, now: Date): string {
   const [cands] = armarCandidatos("codigo-acotado", cfg, cupos, now);
   const ids: string[] = [];
   for (const fam of ["opus", "sonnet"]) {
-    for (const c of cands) if (get(c, "proveedor") === "claude" && c.familia === fam && !ids.includes(c.modelo)) ids.push(c.modelo);
+    for (const c of cands) if (get(c, "proveedor") === "claude" && c.familia === fam && !ids.includes(c.modelo) && !excluidoPor(c.modelo, cfg.excluir, fam)) ids.push(c.modelo);
   }
   for (const mid of ids) {
     const r = sustituir(mid, null, null, cfg, cupos, now);

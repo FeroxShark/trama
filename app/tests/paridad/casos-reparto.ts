@@ -279,6 +279,7 @@ const casosSustituir: Caso[] = [
   rs("--resumen con el camino de hoy: agy gana", ["--resumen"], 0, { cupos: CUPOS_AGY_LIBRE }),
   rs("--resumen con el camino de hoy: agy casi lleno", ["--resumen"], 0, { cupos: CUPOS_AGY_POCO }),
   rs("--resumen con los gratis de OpenCode agotados", ["--resumen"], 0, { cupos: CUPOS_AGY_LIBRE, preparar: (c) => escribir(path.join(c.estado, "agotado.json"), { "opencode-free": { hasta: "2026-10-27T00:00:00Z" } }) }),
+  rs("--resumen con opus excluido: el camino de hoy no lo nombra", ["--resumen"], 0, { cupos: CUPOS_AGY_LIBRE, modelos: { version: 1, excluir: ["opus"] } }),
   rs("--resumen sin OpenCode", ["--resumen"], 0, { cupos: CUPOS_AGY_LIBRE, env: { REPARTO_OPENCODE: "0" } }),
   ...["mecanico", "lectura", "codigo-acotado"].map((t) => rs(`--tipo ${t} con chequeo ofrece primero los gratis de OpenCode`, ["--tipo", t, "--json"], 0, { cupos: CUPOS_AGY_LIBRE, env: { REPARTO_CON_CHEQUEO: "1" } })),
   rs("--tipo mecanico con chequeo y el límite gratis agotado", ["--tipo", "mecanico"], 0, { env: { REPARTO_CON_CHEQUEO: "1" }, preparar: (c) => escribir(path.join(c.estado, "agotado.json"), { "opencode-free": { hasta: "2026-10-27T00:00:00Z" } }) }),
