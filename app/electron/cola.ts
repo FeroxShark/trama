@@ -25,6 +25,8 @@ export type Encolado = {
   nombre?: string;
   /** Un aviso automático de Trama (electron/avisos-worker.ts), no algo que escribió el usuario: va a la conversación como fila de sistema. */
   aviso?: true;
+  /** Las claves (`<id>:<tipo>`) de los avisos de workers que lleva (electron/avisos-pendientes.ts): se marcan entregados sólo cuando de verdad salió. */
+  avisos?: string[];
 };
 
 /**
@@ -91,6 +93,11 @@ export type Deps = {
   enTurno?: (sid: string, x: Encolado) => Promise<void>;
   /** Cuánto se espera (ms) antes de mandar a mitad de un turno, para que varios mensajes seguidos salgan juntos. */
   agrupar?: number;
+  /**
+   * Qué fue de los avisos de workers (`Encolado.avisos`) que llevaba lo encolado: `entregado` cuando `mandar` / `enTurno` contestó bien (nunca
+   * antes: si falla vuelven a la cola); `quitado` si el usuario lo sacó; `vaciado` si el líder se cerró adrede (lo suyo se retoma después).
+   */
+  salida?: (sid: string, claves: string[], que: "entregado" | "quitado" | "vaciado") => void;
 };
 
 /** Lo que tarda en salir lo encolado a mitad de un turno: lo que se escriba en este rato sale en el mismo mensaje. */
@@ -136,6 +143,7 @@ export function juntar(lote: readonly Encolado[]): Encolado {
     ...(modo !== undefined ? { modo } : {}),
     ...(nombre !== undefined ? { nombre } : {}),
     ...(lote.every((e) => e.aviso) ? { aviso: true as const } : {}),
+    ...(lote.some((e) => e.avisos?.length) ? { avisos: lote.flatMap((e) => e.avisos ?? []) } : {}),
   };
 }
 
@@ -170,6 +178,12 @@ export function crearCola(d: Deps) {
   const lista = (sid: string) => colas.get(sid) ?? VACIA;
   const error = (sid: string) => errores.get(sid) ?? null;
   const guardar = () => d.guardar(JSON.stringify({ version: 1, colas: paraDisco(colas) })).catch(() => {});
+  const clavesDe = (c: readonly Encolado[]) => c.flatMap((e) => e.avisos ?? []);
+  const salida = (sid: string, c: readonly Encolado[], que: "entregado" | "quitado" | "vaciado") => {
+    const claves = clavesDe(c);
+    if (claves.length) d.salida?.(sid, claves, que);
+  };
+  const entregado = (sid: string, lote: readonly Encolado[]) => salida(sid, lote, "entregado");
 
   function poner(sid: string, c: readonly Encolado[], extra: Pick<AvisoCola, "salio" | "volvio"> = {}) {
     if (c.length) colas.set(sid, c);
@@ -232,6 +246,7 @@ export function crearCola(d: Deps) {
       fallar(sid, d.textoError({ error: err }), true, true);
       return false;
     }
+    entregado(sid, lote);
     return true;
   }
 
@@ -265,6 +280,7 @@ export function crearCola(d: Deps) {
       fallar(sid, d.textoError({ error: err }), true);
       return false;
     }
+    entregado(sid, lote);
     return true;
   }
 
@@ -325,11 +341,15 @@ export function crearCola(d: Deps) {
     seleccion: (sid: string): Seleccion | null => selecciones.get(sid) ?? null,
     quitar(sid: string, id: number) {
       const c = lista(sid);
-      if (c.some((x) => x.id === id)) poner(sid, c.filter((x) => x.id !== id));
+      if (c.some((x) => x.id === id)) {
+        salida(sid, c.filter((x) => x.id === id), "quitado");
+        poner(sid, c.filter((x) => x.id !== id));
+      }
     },
     /** El líder se cerró adrede: lo suyo no sale más. */
     vaciar(sid: string) {
       soltarReloj(sid);
+      salida(sid, lista(sid), "vaciado");
       if (lista(sid).length) poner(sid, VACIA);
     },
     libre: (sid: string) => libre(sid),

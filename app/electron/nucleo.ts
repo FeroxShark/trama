@@ -61,7 +61,8 @@ import { nombreDueno } from "./dueno.ts";
 import { entornoLider } from "./lider-arma.js";
 import { crearCola } from "./cola.js";
 import { crearEspera } from "./espera.js";
-import { crearAvisosWorker, REVISAR_MS, textoParaLider, type AvisoWorker } from "./avisos-worker.js";
+import { crearAvisosWorker, REVISAR_MS } from "./avisos-worker.js";
+import { crearAvisosPendientes, type FilaHilo } from "./avisos-pendientes.js";
 import { procesoVivoDe, rastroDeWorker } from "./avisos-worker-disco.js";
 import { errorT, textoT } from "./errores.ts";
 import { destinos, real, registro, slugsPorNombre } from "./registro.js";
@@ -333,13 +334,35 @@ const cola = crearCola({
   textoError: (x) => ("motivo" in x ? (NO_TRAE[x.motivo] ?? NO_TRAE.abierto) : String((x.error as Error)?.message ?? x.error)),
   guardar: (json) => escribirAtomico(ARCHIVO_COLA, json).catch(silencio("cola")),
   avisar: (a) => (movio(a.sid), enviar("lider:cola", a)),
+  // Los avisos de workers que llevaba un mensaje: entregados sólo cuando de verdad salió (avisos-pendientes.ts).
+  salida: (sid, claves, que) => avisosL.salida(sid, claves, que),
 });
 /** La última lista buena de `pa --hilos` que pasó por acá. */
 let ultimosHilos: readonly { id?: unknown; estado?: unknown; en_cola?: unknown; jefe_id?: unknown }[] = [];
 
-// Los avisos de los workers (avisos-worker.ts): terminó, falló por cupo o por lo que sea, o se colgó. Al líder que lo lanzó le
-// llega por la cola (sale en su próxima pausa): al terminar su tanda, un mensaje con una línea por worker; o uno por worker si
-// lo eligió en Ajustes. La ventana y el celular reciben cada aviso para la notificación.
+// Los avisos de los workers (avisos-worker.ts): terminó, falló por cupo o por lo que sea, o se colgó. Cada uno se anota en disco al
+// detectarlo (avisos-pendientes.ts: cola persistente por líder, `avisos-lider.json`) y se le entrega al líder que lo lanzó cuando
+// tiene proceso: a mitad de un turno, todo junto en un mensaje; ocioso, una falla ya, y un simple "terminó" en su próximo turno.
+// Sin proceso (el líder o Trama se reiniciaron) espera, y al volver el líder recibe un resumen de lo que terminó mientras no estaba.
+// Entregado = la cola de mensajes confirmó que se mandó. La ventana y el celular reciben cada aviso para la notificación.
+const ARCHIVO_AVISOS = path.join(ESTADO, "avisos-lider.json");
+const avisosL = crearAvisosPendientes({
+  guardar: (json) => escribirAtomico(ARCHIVO_AVISOS, json).catch(silencio("avisos")),
+  proceso: (sid) => lider.seleccionDe(sid),
+  puedeEnTurno: (sid) => lider.puedeEnTurno(sid),
+  encolar: (sid, x) => void leerCola().then(() => cola.encolar(sid, x), silencio("cola")),
+  filas: () => ultimosHilos as readonly FilaHilo[],
+  procesoVivo: (h) => procesoVivoDe(PA_STATE, h),
+});
+/** Lo guardado de la vez anterior (avisos y cola de mensajes), leído una sola vez; lo encolado que ya no está en la cola vuelve a pendiente. */
+let avisosLeidos: Promise<void> | null = null;
+const leerAvisos = () =>
+  (avisosLeidos ??= Promise.all([leerCola(), readFile(ARCHIVO_AVISOS, "utf8").then(avisosL.cargar, () => {})]).then(() =>
+    avisosL.reconciliar(avisosL.clavesDe(cola.todas())),
+  ));
+/** Corre `f` sobre los avisos ya cargados, en el orden en que se pidió. */
+const conAvisos = (f: () => void) => void leerAvisos().then(f).catch(silencio("avisos"));
+/** Lo que pasó con los avisos: se anotan, se liberan y se mira a quién se le puede entregar (con proceso del líder). */
 const avisosW = crearAvisosWorker({
   leerRastro: async (h) => {
     // Un corte por cupo dice cuándo vuelve en los cupos de `reparto`: se los pone al día antes de armar el aviso.
@@ -349,22 +372,22 @@ const avisosW = crearAvisosWorker({
   procesoVivo: (h) => procesoVivoDe(PA_STATE, h),
   cupos: () => cuposActuales(),
   emitir: (a) => enviar("workers:aviso", a),
-  alLider: (a) => avisarAlLider(a),
+  registrar: (a) => conAvisos(() => avisosL.registrar(a)),
+  alLider: (a) =>
+    conAvisos(() => {
+      avisosL.liberar(a);
+      // Con Trama reiniciada a mitad de una tanda, lo que quedó retenido de ella sale junto con esto.
+      avisosL.soltarHuerfanos();
+      avisosL.entregar(a.jefe_id ?? "");
+    }),
   avisoLider: () => avisoLiderGuardado(),
 });
-/**
- * El aviso al líder de la app que lanzó al worker (o la tanda entera). Un fin, o una tanda que sólo tuvo fines, sólo entra a mitad
- * de un turno (a un líder ocioso no se lo despierta por eso: su `pa --esperar` lo cobra); una falla sí, aunque esté ocioso: nadie
- * más se entera. Los líderes de una terminal no reciben nada (no se los trae por un aviso): se enteran por la notificación del dueño.
- */
-function avisarAlLider(a: AvisoWorker) {
-  const texto = textoParaLider(a);
-  const sid = a.jefe_id;
-  const sel = sid ? lider.seleccionDe(sid) : null;
-  if (!texto || !sid || !sel) return;
-  const soloFines = a.tipo === "tanda" ? (a.lineas ?? []).every((l) => l.tipo === "fin") : a.tipo === "fin";
-  if (soloFines && !lider.puedeEnTurno(sid)) return;
-  void leerCola().then(() => cola.encolar(sid, { texto, modelo: sel.modelo, effort: sel.effort, aviso: true }), silencio("cola"));
+/** Después de cada lista de `pa`: se rescata lo que terminó sin que nadie lo viera, se suelta lo retenido sin tanda y se entrega lo que se pueda. */
+async function revisarAvisosLideres(lista: readonly FilaHilo[]) {
+  await leerAvisos();
+  await avisosL.descubrir(lista);
+  avisosL.soltarHuerfanos();
+  avisosL.entregar();
 }
 let relojAvisosW: NodeJS.Timeout | null = null;
 /** Mientras haya un worker colgado a la vista, cada tanto se mira si ya cruzó el umbral. */
@@ -736,6 +759,7 @@ export function armarNucleo() {
   void limpiarAdjuntos(path.join(ESTADO, "adjuntos")).catch(silencio("adjuntos"));
   // Trama que arranca con algo en la cola (aunque nadie abra la ventana): lo que ya puede salir, sale.
   void leerCola().then(cola.revisar);
+  conAvisos(() => avisosL.entregar());
   const leerSl = async () => {
     mirarSl();
     // Y al abrir una vista: lo que esperaba a un líder de terminal que ya terminó.
@@ -777,7 +801,14 @@ export function armarNucleo() {
       hayVivos = d.hilos.some(vivoEnPa);
       ultimosHilos = d.hilos;
     }
-    if (d?.version === 1 && Array.isArray(d.hilos)) void avisosW.hilos(d.hilos as Parameters<typeof avisosW.hilos>[0]).then(vigilarAvisosW, silencio("ipc"));
+    if (d?.version === 1 && Array.isArray(d.hilos)) {
+      const lista = d.hilos as Parameters<typeof avisosW.hilos>[0] & readonly FilaHilo[];
+      void avisosW
+        .hilos(lista)
+        .then(vigilarAvisosW, silencio("ipc"))
+        .then(() => revisarAvisosLideres(lista))
+        .catch(silencio("avisos"));
+    }
     consumo.repasar();
     if (!sinHistorial) historial.pedir();
     // Terminó un worker (o la lectura): main.ts mira si ya puede relanzarse.
@@ -1118,8 +1149,11 @@ export function armarNucleo() {
     enviar("lider:evento", { sid, e });
     // Quedó libre (fin del turno, Parar, el proceso salió): sale lo que esperaba en la cola.
     if (e.tipo === "estado" && !e.ocupado) void leerCola().then(() => cola.libre(sid));
+    // Empezó o terminó un turno: lo que esperaba a su próximo turno (o su vuelta) puede salir.
+    if (e.tipo === "estado") conAvisos(() => avisosL.entregar(sid));
   });
   lider.alCambiar(() => {
+    conAvisos(() => avisosL.entregar());
     void avisarSl();
     cambioLider();
   });

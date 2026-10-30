@@ -59,6 +59,8 @@ export type AvisoWorker = {
   n?: number;
   fallas?: number;
   lineas?: AvisoWorker[];
+  /** `tanda`: es el resumen de lo que terminó mientras el líder no estaba (electron/avisos-pendientes.ts). */
+  retomado?: boolean;
   /** epoch ms */
   ts: number;
 };
@@ -158,6 +160,11 @@ export type Deps = {
   /** Cómo se avisa al líder; sin esto, al terminar la tanda. Se mira en cada aviso (Ajustes lo cambia sin reiniciar). */
   avisoLider?: () => ModoAvisoLider;
   emitir: (a: AvisoWorker) => void;
+  /**
+   * Cada aviso de un worker (fin, falla, cupo, colgado) en el momento en que se detecta, sea cual sea el modo y esté o no el líder:
+   * se anota en disco (electron/avisos-pendientes.ts) antes de decidir cuándo se le dice. `alLider` sólo dice que ya se le puede decir.
+   */
+  registrar?: (a: AvisoWorker) => void;
   ahora?: () => number;
 };
 
@@ -208,6 +215,7 @@ export function crearAvisosWorker(d: Deps) {
   function avisarWorker(a: Omit<AvisoWorker, "clave" | "ts">) {
     const aviso = emitir(a);
     if (!aviso) return;
+    d.registrar?.(aviso);
     if (a.tipo === "cupo" || a.tipo === "colgado" || d.avisoLider?.() === "worker") d.alLider?.(aviso);
     tandaDe(a.jefe_id ?? "").lineas.set(a.id, aviso);
   }
@@ -377,10 +385,12 @@ export const MARCA_AVISO_TRAMA = "[Aviso automático de Trama]";
 export function textoParaLider(a: AvisoWorker): string {
   if (a.tipo === "tanda") {
     const lineas = a.lineas ?? [];
-    if (lineas.length === 1) return textoParaLider(lineas[0]);
     if (!lineas.length) return "";
+    if (lineas.length === 1 && !a.retomado) return textoParaLider(lineas[0]);
     const fallas = lineas.filter((l) => l.tipo !== "fin").length;
-    const cabeza = `${MARCA_AVISO_TRAMA} Terminaron los ${lineas.length} workers que lanzaste${fallas ? `, ${fallas} con falla` : ""}:`;
+    const cabeza = a.retomado
+      ? `${MARCA_AVISO_TRAMA} Mientras no estabas terminaron ${lineas.length} ${lineas.length === 1 ? "worker" : "workers"} de los que lanzaste y no se revisaron${fallas ? `, ${fallas} con falla` : ""}:`
+      : `${MARCA_AVISO_TRAMA} Terminaron los ${lineas.length} workers que lanzaste${fallas ? `, ${fallas} con falla` : ""}:`;
     return [cabeza, ...lineas.map((l) => `- «${l.tarea || l.id}» (${l.id}): ${comoTermino(l)}`), "Revisá cada uno con `pa --hilo <id>`."].join("\n");
   }
   return `${MARCA_AVISO_TRAMA} Worker «${a.tarea || a.id}» ${comoTermino(a)} Id: ${a.id}. Revisalo con \`pa --hilo ${a.id}\`.`;

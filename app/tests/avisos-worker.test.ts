@@ -232,3 +232,17 @@ test("el aviso se reconoce por su marca y lo que dice sale de su texto (un worke
   // Con la marca y sin lo que sigue: sigue siendo un aviso, sin workers.
   assert.deepEqual(avisoDeTexto("[Aviso automático de Trama] algo nuevo"), { tanda: false, falla: false, trabajos: [] });
 });
+
+test("registrar: cada aviso de un worker se anota al detectarlo, aunque su tanda siga abierta; el resumen al retomar lo dice", async () => {
+  const registrados: AvisoWorker[] = [];
+  const alLider: AvisoWorker[] = [];
+  const av = crearAvisosWorker({ leerRastro: async () => "", emitir: () => {}, registrar: (a) => registrados.push(a), alLider: (a) => alLider.push(a), ahora: () => 1_000_000_000_000 });
+  await av.hilos([fila("a", "trabajando"), fila("b", "trabajando")]);
+  await av.hilos([fila("a", "entregado"), fila("b", "trabajando")]);
+  assert.deepEqual(registrados.map((a) => a.clave), ["a:fin"], "anotado ya");
+  assert.deepEqual(alLider, [], "pero al líder todavía no: la tanda sigue abierta");
+  const [a] = registrados;
+  const texto = textoParaLider({ ...a, tipo: "tanda", lineas: [a], n: 1, fallas: 0, retomado: true });
+  assert.match(texto, /Mientras no estabas terminaron 1 worker de los que lanzaste y no se revisaron:/);
+  assert.deepEqual(avisoDeTexto(texto)?.trabajos.map((t) => t.id), ["a"]);
+});
