@@ -121,13 +121,9 @@ const disco = {
     }
   },
   escribir: (r, t) => (fs.mkdirSync(path.dirname(r), { recursive: true }), fs.writeFileSync(r, t)),
-  copiar: (de, a) => fs.cpSync(de, a, { recursive: true, force: true }),
-  borrar: (r) => fs.rmSync(r, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }),
   unir: (...p) => path.join(...p),
-  // Un node.exe en uso (los servidores MCP de otras herramientas lo lanzan con `node` a secas) no se puede borrar ni pisar: ver disco-instalacion.js.
-  igual: (a, b) => discoInstalacion.mismoArchivo(a, b),
-  apartar: (r) => discoInstalacion.apartarOcupados(r, Date.now().toString(36)),
-  limpiarViejos: (r) => discoInstalacion.limpiarViejos(r),
+  // Sólo se pisan los archivos del payload; lo ajeno y lo bloqueado no frenan nada: ver disco-instalacion.js.
+  instalarCarpeta: (de, a, marca) => discoInstalacion.instalarCarpeta(de, a, { marca }),
 };
 
 const asistente = crearAsistenteNativo({

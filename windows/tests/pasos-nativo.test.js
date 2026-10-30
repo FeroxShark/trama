@@ -26,10 +26,8 @@ function banco(sobre = {}) {
     rutas,
     archivos,
     copias: [],
-    borrados: [],
+    marcas: [],
     lineas: [],
-    apartados: [],
-    limpiados: [],
     cli: [],
     pathUsuario: "C:\\Windows",
     run: null,
@@ -44,26 +42,15 @@ function banco(sobre = {}) {
     existe: (r) => archivos.has(r),
     leer: (r) => (archivos.has(r) ? archivos.get(r) : null),
     escribir: (r, t) => archivos.set(r, t),
-    copiar: (de, a) => {
-      if (b.falloCopia?.(a)) throw Object.assign(new Error("EPERM, Permission denied"), { code: "EPERM" });
+    instalarCarpeta: (de, a, marca) => {
       b.copias.push([de, a]);
+      b.marcas.push(marca);
       archivos.set(a, "dir");
       if (a.endsWith("\\node")) archivos.set(rutas.node, "exe");
       if (a.endsWith("\\app")) archivos.set(rutas.motor, "js");
-    },
-    borrar: (r) => {
-      b.borrados.push(r);
-      for (const k of [...archivos.keys()]) if (k === r || k.startsWith(`${r}\\`)) archivos.delete(k);
+      return b.resultadoCarpeta?.(a) ?? { copiados: 1, apartados: [], sinReemplazar: [], quitados: 0 };
     },
     unir: (...p) => path.win32.join(...p),
-    igual: (x, y) => !!b.nodeIgual && x.endsWith("\\node\\node.exe") && y.endsWith("\\node\\node.exe"),
-    apartar: (r) => {
-      b.apartados.push(r);
-      if (b.noSePuedeApartar) throw new Error("EPERM al renombrar");
-      b.falloCopia = null;
-      return [`${r}\\node.exe.viejo-k`];
-    },
-    limpiarViejos: (r) => b.limpiados.push(r),
   };
   b.asistente = crearAsistenteNativo({
     rutas,
@@ -161,37 +148,40 @@ test("ya instalado y al día no copia nada; una versión nueva del payload reins
   assert.ok(ev.some((e) => e.tipo === "inicia" && e.paso === "instalar" && e.actualizacion));
 });
 
-test("el node.exe instalado ya es el del instalador: no se copia (ni falla si otro programa lo tiene corriendo)", async () => {
-  const b = banco();
-  b.nodeIgual = true;
-  b.archivos.set(b.rutas.node, "exe"); // ya estaba instalado
-  b.falloCopia = (a) => a.endsWith("\\node");
-  const ev = [];
-  await b.asistente.avanzar((e) => ev.push(e));
-  assert.deepEqual(b.copias.map(([, a]) => path.win32.basename(a)), ["app", "bin"]);
-  assert.ok(ev.some((e) => e.tipo === "linea" && /node de Trama ya está al día/.test(e.texto)));
-  assert.equal(b.archivos.get(b.rutas.marca), "v2", "la instalación termina");
-});
-
-test("node.exe en uso (EPERM al copiar): se lo aparta a un lado, se copia el nuevo y se sigue; nunca falla por eso", async () => {
+test("un archivo propio en uso se aparta (sin tocar a nadie): se avisa en una línea y la instalación termina", async () => {
   const logs = [];
   const b = banco({ log: (m) => logs.push(m) });
-  b.falloCopia = (a) => a.endsWith("\\node");
+  b.resultadoCarpeta = (a) => (a.endsWith("\\node") ? { copiados: 3, apartados: ["x\\node.exe.viejo-k"], sinReemplazar: [], quitados: 0 } : undefined);
   const ev = [];
   await b.asistente.avanzar((e) => ev.push(e));
-  assert.deepEqual(b.apartados, ["C:\\Users\\Ana\\AppData\\Local\\trama\\node"]);
-  assert.deepEqual(b.copias.map(([, a]) => path.win32.basename(a)), ["node", "app", "bin"], "después de apartar, la copia sale");
-  assert.ok(ev.some((e) => e.tipo === "linea" && /Había programas usando node/.test(e.texto)));
-  assert.ok(logs.some((m) => /node en uso/.test(m)));
-  assert.deepEqual(b.limpiados.map((r) => path.win32.basename(r)), ["node", "app", "bin"], "lo apartado antes se intenta borrar");
+  assert.deepEqual(b.copias.map(([, a]) => path.win32.basename(a)), ["node", "app", "bin"]);
+  assert.ok(ev.some((e) => e.tipo === "linea" && /Había programas usando 1 archivo\(s\) de node/.test(e.texto)));
+  assert.ok(logs.some((m) => /node: aparté 1/.test(m)));
   assert.equal(b.archivos.get(b.rutas.marca), "v2");
 });
 
-test("si ni apartar se puede, el error del paso instalar dice qué ruta y por qué", async () => {
+test("un archivo propio que ni se puede apartar: error claro del paso instalar con el archivo, no un EPERM crudo, y sin marcar como instalado", async () => {
   const b = banco();
-  b.falloCopia = (a) => a.endsWith("\\node");
-  b.noSePuedeApartar = true;
-  await assert.rejects(b.asistente.avanzar(), (e) => e.paso === "instalar" && /No pude copiar los archivos/.test(e.message) && /trama\\node: EPERM al renombrar/.test(e.detalle));
+  b.resultadoCarpeta = (a) =>
+    a.endsWith("\\app") ? { copiados: 1, apartados: [], quitados: 0, sinReemplazar: [{ ruta: "C:\\Users\\Ana\\AppData\\Local\\trama\\app\\dist-electron\\motor.js", motivo: "EPERM" }] } : undefined;
+  await assert.rejects(b.asistente.avanzar(), (e) => e.paso === "instalar" && /No pude reemplazar dist-electron\\motor\.js: otro programa/.test(e.message) && !/EPERM/.test(e.message) && /motor\.js: EPERM/.test(e.detalle));
+  assert.equal(b.archivos.has(b.rutas.marca), false);
+  assert.equal(b.cli.some(([n]) => n === "instalar-nativo"), false, "no sigue con una instalación a medias");
+});
+
+test("la marca de lo apartado es la misma en todas las carpetas, y una carpeta que no se puede copiar es un error del paso instalar con su ruta", async () => {
+  const b = banco();
+  await b.asistente.avanzar();
+  assert.equal(new Set(b.marcas).size, 1);
+  const c = banco();
+  c.asistente = banco({ disco: undefined }).asistente;
+  const d = banco();
+  const orig = d.resultadoCarpeta;
+  d.resultadoCarpeta = () => {
+    throw new Error("ENOSPC");
+  };
+  await assert.rejects(d.asistente.avanzar(), (e) => e.paso === "instalar" && /No pude copiar los archivos/.test(e.message) && /trama\\node: ENOSPC/.test(e.detalle));
+  void orig;
 });
 
 test("un instalador sin payload es un error del paso instalar", async () => {

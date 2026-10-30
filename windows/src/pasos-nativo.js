@@ -20,14 +20,14 @@ const PASOS_NATIVO = [
   { id: "motor", titulo: "Arrancar Trama", nativo: true },
 ];
 
-// Lo que se copia del payload a la carpeta de Trama (cada una se reemplaza entera).
+// Lo que se copia del payload a la carpeta de Trama (archivo por archivo: lo ajeno que haya adentro no se toca).
 const CARPETAS_PAYLOAD = ["node", "app", "bin"];
 
 function crearAsistenteNativo(deps) {
   const {
     rutas, // rutasNativas() de nativo.js
     payload, // {dir, version}: el payload-nativo que trae el instalador
-    disco, // {existe(r), leer(r) → string|null, escribir(r, t), copiar(de, a), borrar(r), unir(...partes)}
+    disco, // {existe(r), leer(r) → string|null, escribir(r, t), instalarCarpeta(de, a, marca) → {apartados, sinReemplazar}, unir(...partes)}
     correrCli, // (nombre, args) → {code, stdout, stderr}: node.exe <app>\dist-electron\cli\<nombre>.js
     pathUsuario, // {tiene(c), agregar(c)}
     arranque, // {leer() → string|null, registrar(cmd)}
@@ -83,42 +83,34 @@ function crearAsistenteNativo(deps) {
       if (!payload.version || !disco.existe(payload.dir)) throw new ErrorPaso("instalar", "Este instalador no trae los archivos de Trama.", `falta ${payload.dir}`);
       // Con el motor andando, node.exe y la app están en uso: se lo para antes de reemplazarlos (el paso motor lo relanza).
       await supervisor.parar();
+      // Sólo se toca lo que trae el payload (ver disco-instalacion.js): en esa carpeta hay archivos de otros programas, abiertos o no.
+      const marca = Date.now().toString(36);
+      const sinReemplazar = [];
       for (const c of CARPETAS_PAYLOAD) {
         const de = disco.unir(payload.dir, c);
         if (!disco.existe(de)) throw new ErrorPaso("instalar", "Este instalador vino incompleto.", `falta ${de}`);
         const a = disco.unir(rutas.raiz, c);
-        // El node.exe instalado ya es el del instalador: no se copia (así no falla si otro programa lo tiene corriendo).
-        if (c === "node" && disco.igual?.(disco.unir(de, "node.exe"), disco.unir(a, "node.exe"))) {
-          emit({ tipo: "linea", texto: "El node de Trama ya está al día." });
-          continue;
-        }
         emit({ tipo: "linea", texto: `Copiando ${c}…` });
+        let r;
         try {
-          disco.borrar(a);
-          disco.copiar(de, a);
+          r = disco.instalarCarpeta(de, a, marca);
         } catch (e) {
-          // Algo de ahí está en uso (Windows no deja borrar ni pisar un .exe que corre, y el node de Trama lo pueden estar usando
-          // servidores MCP de otras herramientas): se lo aparta a un lado, sin tocar ningún proceso, y se copia lo nuevo.
-          try {
-            if (!disco.apartar) throw e;
-            const apartados = disco.apartar(a);
-            disco.copiar(de, a);
-            if (apartados.length) {
-              log(`instalar: ${c} en uso (${e.message}); aparté ${apartados.length} archivo(s)`);
-              emit({ tipo: "linea", texto: `Había programas usando ${c}\\ (no son de Trama): lo dejé a un lado y puse el nuevo.` });
-            }
-          } catch (e2) {
-            throw new ErrorPaso("instalar", "No pude copiar los archivos de Trama.", `${a}: ${e2.message}`);
-          }
+          throw new ErrorPaso("instalar", "No pude copiar los archivos de Trama.", `${a}: ${e.message}`);
         }
+        if (r.apartados.length) {
+          log(`instalar: ${c}: aparté ${r.apartados.length} archivo(s) en uso`);
+          emit({ tipo: "linea", texto: `Había programas usando ${r.apartados.length} archivo(s) de ${c}\\: los dejé a un lado y puse los nuevos.` });
+        }
+        sinReemplazar.push(...r.sinReemplazar);
       }
-      // Lo que una instalación anterior apartó, si ya nadie lo usa, se va.
-      for (const c of CARPETAS_PAYLOAD) {
-        try {
-          disco.limpiarViejos?.(disco.unir(rutas.raiz, c));
-        } catch (e) {
-          log(`instalar: no pude limpiar lo apartado de ${c}: ${e.message}`);
-        }
+      if (sinReemplazar.length) {
+        const nombres = sinReemplazar.slice(0, 3).map((x) => x.ruta.split(/[\\/]/).slice(-2).join("\\"));
+        const mas = sinReemplazar.length > 3 ? ` y ${sinReemplazar.length - 3} más` : "";
+        throw new ErrorPaso(
+          "instalar",
+          `No pude reemplazar ${nombres.join(", ")}${mas}: otro programa los tiene abiertos o en uso. Cerralo (suele ser una terminal o un servidor MCP que corre desde la carpeta de Trama) y reintentá.`,
+          sinReemplazar.map((x) => `${x.ruta}: ${x.motivo}`).join("\n"),
+        );
       }
       emit({ tipo: "linea", texto: "Registrando los hooks de Claude Code…" });
       const r = await correrCli("instalar-nativo", [], { timeoutMs: 120000 });
