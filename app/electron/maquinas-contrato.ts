@@ -106,6 +106,8 @@ export const RUTAS: Readonly<Record<string, Ruta>> = {
   "claudeCode:listar": "local",
   // Una imagen local de un mensaje: se lee de esta máquina (el líder de otra se ve sin ella: "Imagen no disponible").
   "imagen:leer": "local",
+  // Un archivo de la actividad de un worker (archivo-ver.ts): también se lee de esta máquina.
+  "archivo:ver": "local",
   "historial:consultar": "local",
   "historial:arranque": "local",
   "historial:medir": "local",
@@ -244,6 +246,7 @@ export const RUTAS: Readonly<Record<string, Ruta>> = {
   "portapapeles:texto": "local",
   "carpeta:elegir": "local",
   "archivo:elegirLogo": "local",
+  "archivo:abrir": "local",
   "app:recargar": "local",
   "volver:leer": "local",
   "volver:guardar": "local",

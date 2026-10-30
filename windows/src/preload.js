@@ -8,7 +8,7 @@ const invocar = (canal, ...a) => ipcRenderer.invoke(canal, ...a);
 // igual a las claves de crearCanalesVentana (lo verifica tests/ventana.test.js). Un preload con sandbox no puede cargar
 // otro archivo, así que las dos listas se copian de canales.json (generado desde app/electron/canales/contrato.ts) y
 // tests/ventana.test.js comprueba que coinciden.
-const CANALES_VENTANA = ["lider:ir", "lider:ubicable", "claude:changelog", "trama:reiniciarVentana", "trama:notas", "trama:anterior", "trama:volverAnterior", "trama:avisoVuelta", "cuentas:login", "app:salir", "app:recargar", "app:pararTodo", "bandeja:textos", "espera:estado", "espera:notificar", "portapapeles:texto", "carpeta:elegir", "archivo:elegirLogo", "reinicio:marca", "volver:leer", "volver:guardar", "volver:anotar"];
+const CANALES_VENTANA = ["lider:ir", "lider:ubicable", "claude:changelog", "trama:reiniciarVentana", "trama:notas", "trama:anterior", "trama:volverAnterior", "trama:avisoVuelta", "cuentas:login", "app:salir", "app:recargar", "app:pararTodo", "bandeja:textos", "espera:estado", "espera:notificar", "portapapeles:texto", "carpeta:elegir", "archivo:elegirLogo", "archivo:abrir", "reinicio:marca", "volver:leer", "volver:guardar", "volver:anotar"];
 // Lo que la carcasa le avisa a la página (no viene del motor): la notificación de un líder tocada.
 const AVISOS_VENTANA = ["espera:abrir"];
 

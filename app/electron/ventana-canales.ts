@@ -6,6 +6,7 @@ import { BrowserWindow, clipboard, dialog, ipcMain, nativeImage, Notification, s
 import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { CHANGELOG } from "./actualizacion.js";
+import { abrirArchivo } from "./archivo-abrir.js";
 import { errorT } from "./errores.js";
 import { pedidoDeSalida } from "./cierre.js";
 import { iconosDe, LADO_MAX, logoDeBytes } from "./iconos.js";
@@ -148,6 +149,8 @@ export function pedirSalida() {
  */
 export function armarCanalesVentana(salir: (x: { modo: "seguir" | "parar"; forzar: boolean }) => Promise<number>) {
   ipcMain.handle("archivo:elegirLogo", (e) => elegirLogo(e));
+  // Un archivo de la actividad con la app del sistema (archivo-abrir.ts): sólo imágenes, PDF, medios y documentos, nunca un programa.
+  ipcMain.handle("archivo:abrir", (_e, ruta: unknown) => abrirArchivo(ruta, (r) => shell.openPath(r)));
   ipcMain.handle("app:salir", (_e, x: unknown) => salir(pedidoDeSalida(x)));
   ipcMain.handle("bandeja:textos", (_e, x: unknown) => {
     const t = textosValidos(x);

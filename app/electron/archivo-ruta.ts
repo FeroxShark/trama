@@ -85,7 +85,7 @@ const TEXTO = new Set(
 );
 
 /** Archivos de texto sin extensión que se conocen por el nombre. */
-const TEXTO_POR_NOMBRE = new Set(["dockerfile", "makefile", "license", "readme", "changelog", "procfile", "gemfile", "rakefile", ".gitignore", ".gitattributes", ".editorconfig", ".npmrc", ".prettierrc", ".eslintrc"]);
+const TEXTO_POR_NOMBRE = new Set(["dockerfile", "makefile", "license", "readme", "changelog", "procfile", "gemfile", "rakefile", ".gitignore", ".gitattributes", ".editorconfig", ".prettierrc", ".eslintrc"]);
 
 /** El nombre del archivo de una ruta de Windows o de Linux. */
 const base = (ruta: string) => ruta.split(/[\\/]/).filter(Boolean).pop() ?? ruta;
@@ -100,6 +100,20 @@ export function tipoDeArchivo(ruta: string): { tipo: TipoArchivo; mime: string }
   if (conocido) return { tipo: conocido[0], mime: conocido[1] };
   if (TEXTO.has(ext) || TEXTO_POR_NOMBRE.has(base(ruta).toLowerCase())) return { tipo: "texto", mime: "text/plain" };
   return { tipo: "otro", mime: "application/octet-stream" };
+}
+
+/** Formatos de documentos y de medios que el visor no muestra pero que la app del sistema sí abre (sin macros ni nada que se ejecute). */
+const ABRIBLES = new Set(
+  "doc docx dot dotx xls xlsx ppt pptx odt ods odp rtf epub zip 7z rar tar gz tgz bz2 xz psd ai heic heif tif tiff mkv avi wmv flv aac wma 3gp".split(" "),
+);
+
+/**
+ * Si se puede pedir que la app del sistema abra el archivo: sólo imágenes, PDF, audio, video, markdown y documentos conocidos.
+ * Nunca un programa o un script (.exe, .bat, .sh, .py…): abrirlos los ejecutaría. El texto y el código se ven en el visor, no se abren afuera.
+ */
+export function abribleConSistema(ruta: string): boolean {
+  const { tipo } = tipoDeArchivo(ruta);
+  return (tipo === "imagen" && extensionDe(ruta) !== "svg") || tipo === "pdf" || tipo === "audio" || tipo === "video" || tipo === "markdown" || ABRIBLES.has(extensionDe(ruta));
 }
 
 /** Un archivo de una herramienta, listo para la vista: la ruta tal cual, qué hizo la herramienta, el tipo y, si es absoluta y válida, la ruta limpia. */
@@ -124,4 +138,19 @@ export function archivoDeHerramienta(nombre: string, entrada: unknown): ArchivoD
 export function archivoDeRuta(ruta: string, accion: AccionArchivo): ArchivoDeHerramienta | null {
   if (!ruta || !ruta.trim()) return null;
   return { ruta, accion, ...tipoDeArchivo(ruta), absoluta: rutaAbsoluta(ruta) };
+}
+
+/** Lo que el visor sabe mostrar: los bytes en base64 (imagen, PDF, audio, video) o el texto. */
+export type ArchivoVisto =
+  | { tipo: "imagen" | "pdf" | "audio" | "video"; mime: string; datos: string }
+  | { tipo: "texto" | "markdown"; texto: string; recortado: boolean };
+
+/** Una respuesta del IPC sin validar → `ArchivoVisto`, o `null` si no tiene esa forma. */
+export function archivoVistoDe(x: unknown): ArchivoVisto | null {
+  const o = x as Record<string, unknown> | null;
+  if (!o || typeof o !== "object") return null;
+  if ((o.tipo === "texto" || o.tipo === "markdown") && typeof o.texto === "string") return { tipo: o.tipo, texto: o.texto, recortado: o.recortado === true };
+  if ((o.tipo === "imagen" || o.tipo === "pdf" || o.tipo === "audio" || o.tipo === "video") && typeof o.mime === "string" && /^[a-z]+\/[a-z0-9.+-]+$/.test(o.mime) && typeof o.datos === "string" && o.datos)
+    return { tipo: o.tipo, mime: o.mime, datos: o.datos };
+  return null;
 }

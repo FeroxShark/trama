@@ -2,6 +2,7 @@
 // bench y capturas (o con HILOS_FIXTURES=1), de los fixtures. La UI no se entera.
 import type { Compactando } from "../../electron/compactando";
 import type { Subagente, Subagentes } from "../../electron/subagentes";
+import { archivoVistoDe, tipoDeArchivo, type ArchivoVisto } from "../../electron/archivo-ruta";
 import { imagenDe, type Imagen } from "../../electron/imagenes";
 import type { EstadoLocales, ResultadoProbar } from "../../electron/locales";
 import type { ModeloDetectado, ResultadoDeteccion, ServidorLocal } from "../../electron/locales-deteccion";
@@ -173,6 +174,10 @@ export interface Fuente {
   claudeCodeListar(): Promise<ConvClaudeCode[]>;
   /** Una imagen local que nombra un líder en su texto (ruta absoluta); `null` si no está o no es una imagen. */
   imagenLocal(ruta: string): Promise<Imagen | null>;
+  /** Un archivo que leyó, escribió o editó un worker, un subagente o un líder (ruta absoluta), para el visor; `null` si ya no está o no se puede mostrar. */
+  archivoVisto(ruta: string): Promise<ArchivoVisto | null>;
+  /** Lo abre con la app del sistema (sólo la ventana de la PC); `false` si no se pudo. */
+  archivoAbrir(ruta: string): Promise<boolean>;
   /**
    * Retomar un líder sin proceso (`Lider.caido`): pasa a ser de la app y queda listo para
    * escribirle. No lanza nada ni le manda nada: sale con el primer mensaje del usuario.
@@ -1597,6 +1602,17 @@ const fija: Fuente = {
   async imagenLocal(ruta) {
     return /falta/i.test(ruta) ? null : { tipo: "image/png", datos: IMAGEN_MUESTRA };
   },
+  // Muestras: por tipo; las que dicen "falta" no están (el "Archivo ya no disponible").
+  async archivoVisto(ruta) {
+    if (/falta/i.test(ruta)) return null;
+    const { tipo, mime } = tipoDeArchivo(ruta);
+    if (tipo === "imagen") return { tipo, mime: "image/png", datos: IMAGEN_MUESTRA };
+    if (tipo === "texto" || tipo === "markdown") return { tipo, texto: tipo === "markdown" ? "# Notas\n\nUn **resumen** de lo hecho:\n\n- primero\n- segundo\n" : "export function usarCuenta() {\n  return 1;\n}\n", recortado: false };
+    return tipo === "otro" ? null : { tipo, mime, datos: "" };
+  },
+  async archivoAbrir() {
+    return true;
+  },
   async liderRetomar(sid, x) {
     // `HILOS_VARIANTE=no`: la conversación ya no está en disco.
     if (MODO.variante === "no") return { ok: false, motivo: "sinSesion" };
@@ -2298,6 +2314,12 @@ const conPa = (m: NonNullable<typeof main>): Fuente => ({
   },
   async imagenLocal(ruta) {
     return imagenDe(await m.imagen.leer(ruta).catch(() => null));
+  },
+  async archivoVisto(ruta) {
+    return archivoVistoDe(await m.archivoVer(ruta).catch(() => null));
+  },
+  async archivoAbrir(ruta) {
+    return (await m.archivo?.abrir(ruta).catch(() => false)) === true;
   },
   async liderRetomar(sid, x) {
     return retomadoDe(

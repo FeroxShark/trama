@@ -64,6 +64,22 @@ function logoDeBytes(crudo, ext, nativeImage) {
   return img.resize({ width: Math.max(1, Math.round(width * f)), height: Math.max(1, Math.round(height * f)), quality: "best" }).toDataURL();
 }
 
+// Lo que se abre con la app del sistema (archivo:abrir): igual que `abribleConSistema` de app/electron/archivo-ruta.ts. Imágenes
+// (menos SVG), PDF, audio, video, markdown y documentos conocidos; nunca un programa o un script, que abrirlo es ejecutarlo.
+const ABRIBLES = new Set(
+  ("png jpg jpeg gif webp bmp avif ico pdf md markdown mp3 wav ogg oga m4a flac opus mp4 webm mov m4v ogv " +
+    "doc docx dot dotx xls xlsx ppt pptx odt ods odp rtf epub zip 7z rar tar gz tgz bz2 xz psd ai heic heif tif tiff mkv avi wmv flv aac wma 3gp").split(" "),
+);
+
+/** La ruta de Windows (`C:\a\b.pdf`) que vale para abrir: absoluta, sin `..`, sin nulos ni saltos de línea y de un tipo que no se ejecuta; `null` si no. */
+function rutaAbrible(x) {
+  if (typeof x !== "string") return null;
+  const s = x.trim();
+  if (!s || s.length > 1024 || /[\u0000-\u001f]/.test(s) || !/^[A-Za-z]:[\\/]/.test(s) || s.split(/[\\/]/).includes("..")) return null;
+  const ext = /\.([A-Za-z0-9]+)$/.exec(s)?.[1].toLowerCase();
+  return ext && ABRIBLES.has(ext) ? s : null;
+}
+
 /**
  * Un manejador por canal: `(evento, ...args) => valor`. `o`:
  *  - electron: { app, BrowserWindow, dialog, clipboard, shell, Notification, nativeImage }
@@ -124,6 +140,18 @@ function crearCanalesVentana(o) {
       const url = logoDeBytes(await fs.readFile(archivo), path.extname(archivo), nativeImage);
       if (!url) throw new Error("Esa imagen no sirve como logo (PNG, JPG, WebP o ICO).");
       return url;
+    },
+    // Un archivo de la actividad de un worker con la app de Windows (app/electron/archivo-abrir.ts): sólo si existe, es un archivo y no es
+    // un programa. Una ruta de Linux (o de WSL) no es de esta máquina.
+    "archivo:abrir": async (_e, ruta) => {
+      const r = rutaAbrible(ruta);
+      if (!r) return false;
+      try {
+        if (!(await fs.stat(r)).isFile()) return false;
+        return (await shell.openPath(r)) === "";
+      } catch {
+        return false;
+      }
     },
     "portapapeles:texto": () => {
       try {

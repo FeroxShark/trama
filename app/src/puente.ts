@@ -137,6 +137,8 @@ type Main = {
   imagen: {
     leer(ruta: string): Promise<unknown>;
   };
+  /** Un archivo que nombra la actividad de un worker (electron/archivo-ver.ts), sin validar; `null` si ya no está. */
+  archivoVer(ruta: string): Promise<unknown>;
   /** Los líderes: los de la app se manejan desde acá; los de la terminal se leen (electron/lider.ts). */
   lider: {
     /** Un líder nuevo con su primer mensaje; devuelve su session_id. */
@@ -468,7 +470,7 @@ type Main = {
   /** El selector nativo de carpetas (campo "Carpeta" de un líder nuevo): la ruta o `null` si se canceló. El objeto existe también en el navegador, pero ahí el canal se rechaza: mostralo sólo si `esVentana()`. */
   carpeta?: { elegir(): Promise<string | null> };
   /** El selector nativo de una imagen para el logo de un proyecto: la imagen achicada a 64 px (data URL) o `null` si se canceló. Como `carpeta`: sólo con `esVentana()`. */
-  archivo?: { elegirLogo(): Promise<string | null> };
+  archivo?: { elegirLogo(): Promise<string | null>; /** Abre el archivo con la app del sistema; `false` si no se pudo. */ abrir(ruta: string): Promise<boolean> };
   /** Vuelve a cargar la ventana (el cartel de error); por la tailnet no existe. */
   recargar?(): Promise<void>;
   /** Un error del renderer, al log del main (src/errores.ts). */

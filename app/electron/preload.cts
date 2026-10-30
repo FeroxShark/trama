@@ -127,6 +127,8 @@ contextBridge.exposeInMainWorld("hilos", {
   },
   /** Una imagen local que nombra un líder (electron/imagen-local.ts): `{ tipo, datos }` en base64, o `null` si no está. */
   imagen: { leer: (ruta: string): Promise<unknown> => invocar("imagen:leer", ruta) },
+  /** Un archivo que nombra la actividad de un worker (electron/archivo-ver.ts), sin validar; `null` si ya no está. */
+  archivoVer: (ruta: string): Promise<unknown> => invocar("archivo:ver", ruta),
   lider: {
     nuevo: (x: unknown): Promise<string> => invocar("lider:nuevo", x),
     mandar: (x: unknown): Promise<string | null> => invocar("lider:mandar", x),
@@ -357,7 +359,7 @@ contextBridge.exposeInMainWorld("hilos", {
   /** El selector nativo de carpetas (el campo "Carpeta" de un líder nuevo); sólo la ventana de la PC. */
   carpeta: { elegir: (): Promise<string | null> => invocar("carpeta:elegir") },
   /** El selector nativo de una imagen para el logo de un proyecto: la imagen ya achicada a 64 px (data URL) o `null` si se canceló; sólo la ventana de la PC. */
-  archivo: { elegirLogo: (): Promise<string | null> => invocar("archivo:elegirLogo") },
+  archivo: { elegirLogo: (): Promise<string | null> => invocar("archivo:elegirLogo"), abrir: (ruta: string): Promise<boolean> => invocar("archivo:abrir", ruta) },
   /** Vuelve a cargar la ventana (el cartel de error); sólo en la ventana de la PC. */
   recargar: (): Promise<void> => invocar("app:recargar"),
   /** Un error del renderer, al log del main (electron/log.ts). */

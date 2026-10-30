@@ -40,7 +40,7 @@ function electronFalso({ carpeta = null, texto = "", notificaciones = [] } = {})
         return texto;
       },
     },
-    shell: { openExternal: async (u) => void llamadas.push(["abrir", u]) },
+    shell: { openExternal: async (u) => void llamadas.push(["abrir", u]), openPath: async (r) => (llamadas.push(["abrirArchivo", r]), r.includes("falla") ? "no hay app" : "") },
     Notification: class {
       static isSupported() {
         return true;
@@ -124,6 +124,29 @@ test("archivo:elegirLogo: la imagen elegida achicada a 64 px; null si se cancel�
   assert.equal(await manejar(null), null);
   assert.equal(await manejar(png), "redimensionada:64x32");
   await assert.rejects(manejar(basura), /no sirve como logo/);
+});
+
+test("archivo:abrir: abre con la app de Windows un archivo que existe y no es un programa", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "abrir-"));
+  const hacer = (n) => (fs.writeFileSync(path.join(dir, n), "x"), path.join(dir, n));
+  const c = carcasa();
+  const abrir = (r) => c.manejadores["archivo:abrir"]({ sender: {} }, r);
+  // Estas rutas son de esta máquina de pruebas (pueden ser de Linux): la carcasa sólo acepta unidad con letra, así que el test también cubre eso.
+  assert.equal(await abrir("/tmp/a.pdf"), false);
+  assert.equal(await abrir("relativa\\a.pdf"), false);
+  assert.equal(await abrir("C:\\proy\\..\\a.pdf"), false);
+  assert.equal(await abrir("C:\\Windows\\setup.exe"), false);
+  assert.equal(await abrir("C:\\proy\\run.bat"), false);
+  assert.equal(await abrir("C:\\proy\\ya-no-esta.pdf"), false);
+  assert.equal(await abrir(42), false);
+  assert.deepEqual(c.llamadas.filter((l) => l[0] === "abrirArchivo"), []);
+  // Con una unidad que sí existe (sólo en Windows el nombre del archivo del test tiene letra de unidad).
+  if (process.platform === "win32") {
+    const pdf = hacer("doc.pdf");
+    assert.equal(await abrir(pdf), true);
+    assert.deepEqual(c.llamadas.filter((l) => l[0] === "abrirArchivo"), [["abrirArchivo", pdf]]);
+    assert.equal(await abrir(hacer("falla.pdf")), false);
+  }
 });
 
 test("portapapeles:texto: el texto del sistema, o vacío si no se puede leer", () => {
