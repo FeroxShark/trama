@@ -5,6 +5,8 @@
 // `rc`). Sin Electron, sin disco ni reloj propio: lo de afuera (leer el `.err`, los cupos, entregar) se inyecta, y lo prueba
 // tests/avisos-worker.test.ts con workers falsos.
 
+import { tituloTarea } from "./titulo-tarea.ts";
+
 /** Lo que se usa de una fila de `pa --hilos`. */
 export type FilaWorker = {
   id: string;
@@ -131,14 +133,8 @@ const una = (s: string, tope: number) => {
   return l.length > tope ? `${l.slice(0, tope - 1)}…` : l;
 };
 
-/** La tarea en pocas palabras: su primera línea con contenido, sin el "Objetivo:" de los briefs. */
-export function tareaCorta(tarea: string | null | undefined, tope = 60): string {
-  for (const linea of (tarea ?? "").split("\n")) {
-    const l = linea.replace(/^\s*(\[[^\]]*\]\s*)?(objetivo|goal)\s*:\s*/i, "").trim();
-    if (l) return una(l, tope);
-  }
-  return "";
-}
+/** La tarea en pocas palabras: la línea «Objetivo:» del brief (sin el rótulo) o, sin ella, su primera línea que no sea «Contexto:» (`tituloTarea`). */
+export const tareaCorta = (tarea: string | null | undefined, tope = 60): string => tituloTarea(tarea, tope);
 
 /**
  * Por qué falló, en una línea, de lo que dejó (`texto`: el final de su `.err` y el resultado). Con un corte por cupo, el

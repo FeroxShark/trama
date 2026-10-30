@@ -14,7 +14,7 @@ import { ALIAS_DEFECTO } from "./registro.ts";
  * Lo que se sabe de un transcript leído hasta `bytes`. `resto`: la última línea, si quedó a medias.
  * `creado`: la hora (epoch) de su primera línea fechada, o sea cuándo empezó la conversación.
  */
-export type Tema = { custom: string | null; ai: string | null; primero: string | null; creado: number | null; bytes: number; resto: string };
+export type Tema = { custom: string | null; ai: string | null; primero: string | null; creado: number | null; bytes: number; resto: string; respondio?: boolean };
 
 export const TEMA0: Tema = { custom: null, ai: null, primero: null, creado: null, bytes: 0, resto: "" };
 
@@ -47,7 +47,10 @@ export function avanzarTema(t: Tema, pedazo: string, n: number = Buffer.byteLeng
   const lineas = (t.resto + pedazo).split("\n");
   const resto = lineas.pop() ?? "";
   let { custom, ai, primero, creado } = t;
+  let respondio = t.respondio ?? false;
   for (const l of lineas) {
+    // El primer intercambio ya pasó cuando hay una línea del modelo después del primer mensaje (el título generado espera a esto).
+    if (!respondio && primero !== null && l.includes('"type":"assistant"')) respondio = true;
     // Sin parsear lo que seguro no sirve: casi todo el transcript, una vez que se tiene el primer mensaje.
     const titulo = l.includes('"custom-title"') || l.includes('"ai-title"');
     const fechada = creado === null && l.includes('"timestamp"');
@@ -66,7 +69,7 @@ export function avanzarTema(t: Tema, pedazo: string, n: number = Buffer.byteLeng
     else if (o?.type === "ai-title" && typeof o.aiTitle === "string") ai = o.aiTitle.trim() || null;
     else if (o?.type === "user" && primero === null) primero = textoUsuario(o)?.slice(0, PRIMERO_MAX) ?? null;
   }
-  return { custom, ai, primero, creado, bytes: t.bytes + n, resto };
+  return { custom, ai, primero, creado, bytes: t.bytes + n, resto, respondio };
 }
 
 /**
@@ -93,9 +96,41 @@ export const unaLinea = (s: string) =>
  * mensaje en una línea. Nada: "" (la barra dice "Sesión jefe"). El rename de
  * trama gana sobre todo esto, pero vive en el renderer (`nombres.json`).
  */
-export function tituloLider(t: Pick<Tema, "custom" | "ai" | "primero">, sesion: string): string {
+export function tituloLider(t: Pick<Tema, "custom" | "ai" | "primero">, sesion: string, generado?: string | null): string {
   const util = (s: string | null | undefined) => (s && !nombreInterno(s) ? s : null);
-  return util(t.custom) ?? util(sesion) ?? t.ai ?? (t.primero ? tituloDeTexto(t.primero) : "");
+  return util(t.custom) ?? util(sesion) ?? t.ai ?? (generado || null) ?? (t.primero ? tituloCorto(t.primero) : "");
+}
+
+/** Hay un título puesto por Claude Code o por la persona (un /rename, el nombre de su sesión, el que generó solo): no hace falta generar uno. */
+export const tienePropio = (t: Pick<Tema, "custom" | "ai">, sesion: string) => !!(t.ai || (t.custom && !nombreInterno(t.custom)) || (sesion && !nombreInterno(sesion)));
+
+const TOPE_TITULO = 60;
+const SALUDO = /^(?:hola+|holi+|buen(?:os|as)(?:\s+(?:d[ií]as|tardes|noches))?|buen\s+d[ií]a|hey|ey|che|hi|hello|good\s+(?:morning|afternoon|evening))(?:\s+(?:a\s+todos|equipo|claude|gente))?[\s,!.:;¡-]*/iu;
+const PRESENTACION = /^(?:[Ss]oy|[Mm]e\s+llamo|[Mm]i\s+nombre\s+es|I['’]?m|I\s+am|[Mm]y\s+name\s+is)\s+\p{Lu}\p{L}*[\s,!.:;-]*(?:y\s+|and\s+)?/u;
+
+/**
+ * El título de un líder cuando nadie le puso otro: su primer mensaje en una frase corta (≤60 caracteres). Sin el saludo ni la
+ * presentación ("Hola, soy Ana y necesito…" → "Necesito…"), hasta el fin de la primera frase (si es muy corta, con la que sigue)
+ * y, si aun así pasa del tope, cortado en una palabra entera con "…". Sin archivos adjuntos (`tituloDeTexto`).
+ */
+export function tituloCorto(s: string): string {
+  const base = tituloDeTexto(s);
+  let t = base;
+  for (const re of [SALUDO, PRESENTACION]) t = t.replace(re, "");
+  // Sólo se cuenta como fin de frase un punto con espacio detrás ("Gemini 3.8 flash" sigue entera).
+  const frases = t.split(/(?<=[.!?…])\s+/u).filter((x) => x.trim());
+  let f = "";
+  for (const x of frases) {
+    f = f ? `${f} ${x}` : x;
+    if (f.replace(/[.!?…]+$/u, "").length >= 15) break;
+  }
+  f = f.replace(/[.!?…]+$/u, "").replace(/^[¿¡\s]+/u, "").trim() || base;
+  if (f.length > TOPE_TITULO) {
+    const corte = f.slice(0, TOPE_TITULO - 1);
+    const i = corte.lastIndexOf(" ");
+    f = `${(i > 20 ? corte.slice(0, i) : corte).replace(/[\s,;:.-]+$/u, "")}…`;
+  }
+  return f ? f[0].toLocaleUpperCase() + f.slice(1) : "";
 }
 
 /**

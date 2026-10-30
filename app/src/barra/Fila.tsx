@@ -107,7 +107,7 @@ export const Fila = memo(function Fila({ ref, h, estado, apagada, cursor, activa
         {duraCompacta ? <Hojas chica className="pt-hojas" /> : t ? <Punto tipo={t.tipo} clave={h.id} /> : null}
         <span className="l1">
           <span className="t" data-nuevo={nuevo ? "" : undefined}>
-            {tareaDe(h)}
+            {h.titulo || tareaDe(h)}
           </span>
           {cache && t && !corre ? <Reloj pintor={cache} className="cache" /> : null}
           {/* Con qué modelo (su nombre corto) y dónde corre; la ficha entera, en el tooltip. */}

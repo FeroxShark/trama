@@ -16,6 +16,7 @@ import { lideresApp, procDe, transcriptDe, transcriptDsh, transcriptFamilia, tra
 import { claseDeModelo, familiaDeModelo } from "./modelos-config.js";
 import { real, registro, type Proyecto } from "./registro.js";
 import { sesiones, type Sesion } from "./sesiones.js";
+import { cargarGenerados, generadoDe, generarSiHaceFalta } from "./titulo-chat.js";
 import { creadoEn, proyectoEnTexto, temaDe, tituloDeRama, tituloLider } from "./tema.js";
 import { hayClaves, leerClavesSync } from "./claves.ts";
 import { cuposActuales, type SuscripcionCupo } from "./cupos.js";
@@ -155,7 +156,10 @@ async function deQueTrata(sid: string, cwd: string | null, sesion: string, regs:
   const clase = modelo ? claseDeModelo(modelo) : "claude";
   const archivo = cwd === null ? (clase === "gemini" ? transcriptGemini(sid) : clase === "dsh" ? transcriptDsh(sid) : clase === "opencode" ? transcriptOpencode(sid) : transcriptPorDefecto(sid)) : (await transcriptFamilia(sid, familiaDeModelo(modelo ?? "claude"), cwd).catch(() => null)) ?? (await transcriptDe(sid, cwd).catch(() => null));
   const t = await temaDe(sid, archivo);
-  return { nombre: tituloDeRama(tituloLider(t, sesion), origen), inferido: t.primero ? proyectoEnTexto(t.primero, regs, home) : null, creado: t.creado };
+  // El título corto de Haiku, si ya llegó; mientras tanto (o sin modelo) vale el recorte del primer mensaje (`tituloCorto`).
+  await cargarGenerados();
+  generarSiHaceFalta(sid, t, sesion);
+  return { nombre: tituloDeRama(tituloLider(t, sesion, generadoDe(sid)), origen), inferido: t.primero ? proyectoEnTexto(t.primero, regs, home) : null, creado: t.creado };
 }
 
 

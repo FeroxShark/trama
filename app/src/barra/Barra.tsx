@@ -89,6 +89,7 @@ import {
   type Lugar,
   type Rama,
 } from "./arbol";
+import { tituloTarea } from "../../electron/titulo-tarea";
 import { armarArrastre, CARPETAS } from "./arrastre";
 import { diferir, workerVivo, type Trabajador } from "./activas";
 import { control } from "./control";
@@ -474,7 +475,10 @@ export function Barra() {
       // Frenar lo deja `murio` en la lista; hasta que llega, el evento ya lo dijo.
       if (t !== undefined && h.frenado_en == null && (h.estado === "trabajando" || h.estado === "colgado" || h.estado === "murio"))
         h = { ...h, estado: "murio", frenado_en: t, murio_en: h.murio_en ?? t, arrancando: false };
-      return nombres.titulos[h.id] ? { ...h, tarea: nombres.titulos[h.id] } : h;
+      if (nombres.titulos[h.id]) return { ...h, tarea: nombres.titulos[h.id] };
+      // Un brief largo se ve por su objetivo; la vista del worker sigue mostrando la tarea entera.
+      const titulo = tituloTarea(h.tarea);
+      return titulo && titulo !== h.tarea ? { ...h, titulo } : h;
     });
   }, [hilos, llegados, frenos, nombres.titulos]);
   const todos = useMemo(() => vistos ?? [], [vistos]);
