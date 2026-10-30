@@ -6550,6 +6550,23 @@ fi
 # --- armado de la llamada ---------------------------------------------------------------
 # armar_llamada: contrato, prompt y args según `modelo`/`motor`. Es función porque un 429 de agy relanza la corrida
 # con otro modelo (otro motor, a veces) y hay que rearmarlo todo.
+# Las skills de diseño instaladas, una por línea (la misma lista que SKILLS_DISENO en app/electron/cli/pa/lanzar.ts): `nombre` con su
+# SKILL.md en ~/.claude/skills, o `plugin:skill` con el plugin en enabledPlugins (true) y skills/<skill>/SKILL.md en su installPath.
+skills_diseno_instaladas() {
+  local s p n k ip c="$HOME/.claude"
+  for s in "frontend-design:frontend-design" "ui-ux-pro-max" "taste-skill"; do
+    if [[ "$s" != *:* ]]; then
+      [[ -f "$c/skills/$s/SKILL.md" ]] && echo "$s"
+      continue
+    fi
+    p="${s%%:*}"; n="${s#*:}"
+    while IFS= read -r k; do
+      while IFS= read -r ip; do
+        if [[ -n "$ip" && -f "$ip/skills/$n/SKILL.md" ]]; then echo "$s"; break 2; fi
+      done < <(jq -r --arg k "$k" '.plugins[$k][]?.installPath // empty' "$c/plugins/installed_plugins.json" 2>/dev/null)
+    done < <(jq -r --arg p "$p" '(.enabledPlugins // {}) | to_entries[] | select(.value == true and (.key | split("@")[0]) == $p) | .key' "$c/settings.json" 2>/dev/null)
+  done
+}
 armar_llamada() {
 jefe="$(jefe_nombre)"; jefe_ident="$(jefe_id)"
 # Un Gemini no tiene SendMessage: corre como sin jefe (pregunta en DECISION).
@@ -6561,6 +6578,11 @@ contrato="$(D "$contrato")"
 # constante: se lo pedimos en el contrato. Los que escriben nomás (un --leer no cambia nada que verificar).
 if (( ! leer )) && modelo_flojo "$modelo"; then
   contrato+=$'\n'"Trabajá en pasos chicos: un cambio por vez, corré la verificación después de CADA cambio y commiteá cuando pase antes de seguir con el próximo. Si algo falla, arreglalo antes de tocar otra cosa. Quedate en los archivos de la tarea: nada de refactors ni de \"ya que estoy\". Si la tarea es más grande de lo que pinta, hacé la parte que cierra, commiteala y decí en DECISION cómo partir el resto."
+fi
+# Un worker de frontend o diseño carga las skills de diseño instaladas al empezar (la herramienta Skill sólo existe en claude).
+if (( ! leer )) && [[ "${motor:-claude}" == claude && ( "$tipo" == frontend || "$tipo" == diseno ) ]]; then
+  skills_dis="$(skills_diseno_instaladas)"
+  [[ -n "$skills_dis" ]] && contrato+=$'\n'"Al empezar, antes de tocar nada, cargá con la herramienta Skill estas skills de diseño, que están instaladas en esta máquina: ${skills_dis//$'\n'/, }. Son parte del trabajo de interfaz, no opcionales."
 fi
 # Lo que el proyecto ya aprendió de corridas descartadas o retrabajadas (pa <proy> --leccion / --bien-auto).
 (( leer )) || contrato+="$(lecciones_bloque)"
