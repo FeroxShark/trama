@@ -1012,6 +1012,7 @@ const PASOS = (raiz: string, resultados = false): [string, Herramienta[]][] => {
       [
         h("Read", { file_path: `${raiz}/CLAUDE.md` }, "# Proyecto\n\nLa config vive en `src/config.ts`.\nTests: `npm test`."),
         h("Read", { file_path: `${raiz}/src/config.ts` }, "…\nexport function leerConfig(ruta: string) {\n  const texto = readFileSync(ruta, \"utf8\");\n  return parse(texto);\n}"),
+        h("Read", { file_path: `${raiz}/docs/pantalla-config.png` }, ""),
         h("Grep", { pattern: "leerConfig\\(", path: raiz }, "src/config.ts\nsrc/arranque.ts\ntests/config.test.ts"),
       ],
     ],

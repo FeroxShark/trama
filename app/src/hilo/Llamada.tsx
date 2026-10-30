@@ -7,10 +7,11 @@ import { ChevronRight } from "lucide-react";
 import { t } from "../i18n";
 import { useIdioma } from "../i18n/react";
 import { MODO } from "../modo";
-import { cambios, cuerpo, type Grupo, type LineaDiff, type Uso } from "./herramientas";
+import { archivoDe, cambios, cuerpo, type Grupo, type LineaDiff, type Uso } from "./herramientas";
 import { HERRAMIENTA_PREGUNTAS, respondidas } from "./preguntas-logica";
 import { Miniaturas } from "./Imagenes";
 import { LlamadaPreguntas } from "./Preguntas";
+import { EnlaceArchivo } from "./VerArchivo";
 
 /** Las líneas de un Write largo que se muestran antes de "… N líneas más". */
 const MAX_DIFF = 80;
@@ -111,12 +112,31 @@ export const Llamada = memo(function Llamada({ g, estado }: { g: Grupo; estado?:
       ) : null}
     </>
   );
-  if (!se) return <div className="ll">{linea}</div>;
+  // El archivo que toca (un Read, Write o Edit): su botón va aparte del que abre la línea (un botón no lleva otro adentro).
+  const arch = archivoDe(u);
+  const enlace = arch ? <EnlaceArchivo a={arch} /> : null;
+  if (!se)
+    return (
+      <div className="ll">
+        {linea}
+        {enlace}
+      </div>
+    );
+  const boton = (
+    <button type="button" className="ll-b" aria-expanded={abierta} onClick={() => setAbierta((a) => !a)}>
+      {linea}
+    </button>
+  );
   return (
     <div className="ll" data-abierta={abierta ? "" : undefined}>
-      <button type="button" className="ll-b" aria-expanded={abierta} onClick={() => setAbierta((a) => !a)}>
-        {linea}
-      </button>
+      {enlace ? (
+        <div className="ll-fila">
+          {boton}
+          {enlace}
+        </div>
+      ) : (
+        boton
+      )}
       {abierta ? todos.filter(abre).map((x, i) => <Cuerpo key={i} u={x} />) : null}
     </div>
   );

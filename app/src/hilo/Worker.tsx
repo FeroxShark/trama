@@ -18,7 +18,9 @@ import { Boton } from "../ui/componentes";
 import { esperaTexto, pintorDura } from "../tiempo";
 import "./worker-logica.css";
 import { Entero } from "./Entero";
+import { archivoDeRuta, type AccionArchivo } from "../../electron/archivo-ruta";
 import { Filas } from "./Diff";
+import { EnlaceArchivo, FotoArchivo } from "./VerArchivo";
 import { defDe } from "./modelos";
 import { Compactando } from "./Posta";
 import { Texto } from "./Texto";
@@ -132,14 +134,23 @@ function armar(p: Paso): { ru: ReactNode; cuerpo: ReactNode } {
   const d: Detalle = p.detalle;
   const Ico = ICONO[p.tipo];
   const ico = <Ico size={15} strokeWidth={1.8} />;
-  const ruta = (r: string) => <span data-tip={r}>{nombreDeArchivo(r)}</span>;
+  // El nombre del archivo y, al lado, el botón que lo abre en el visor (con la miniatura si es una imagen).
+  const ruta = (r: string, accion: AccionArchivo) => {
+    const a = archivoDeRuta(r, accion);
+    return (
+      <>
+        <span data-tip={r}>{nombreDeArchivo(r)}</span>
+        {a ? <EnlaceArchivo a={a} /> : null}
+      </>
+    );
+  };
   switch (d.clase) {
     case "editar":
       return {
         ru: (
           <>
             {ico}
-            {ruta(d.ruta)}
+            {ruta(d.ruta, "editar")}
             <Mas mas={d.mas} menos={d.menos} />
           </>
         ),
@@ -150,7 +161,7 @@ function armar(p: Paso): { ru: ReactNode; cuerpo: ReactNode } {
         ru: (
           <>
             {ico}
-            {ruta(d.ruta)}
+            {ruta(d.ruta, "escribir")}
             <Mas mas={d.mas} />
           </>
         ),
@@ -166,12 +177,13 @@ function armar(p: Paso): { ru: ReactNode; cuerpo: ReactNode } {
         ru: (
           <>
             {ico}
-            {ruta(d.ruta)}
+            {ruta(d.ruta, "leer")}
           </>
         ),
         cuerpo: d.imagen ? (
           <div className="wk-ag">
             <p className="wk-vacio">{t("wk.sinSalida")}</p>
+            {archivoDeRuta(d.ruta, "leer") ? <FotoArchivo a={archivoDeRuta(d.ruta, "leer")!} /> : null}
           </div>
         ) : (
           <>

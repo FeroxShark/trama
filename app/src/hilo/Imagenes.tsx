@@ -24,7 +24,7 @@ const VISOR_CARGANDO = MODO.captura === "lider-imagenes" && MODO.variante === "v
 /** Qué se ve en el visor mientras la imagen no está: nada que se mueva, una línea quieta. */
 type Carga = "cargando" | "lista" | "falla";
 
-function Visor({ img, alCerrar }: { img: Imagen; alCerrar: () => void }) {
+export function Visor({ img, alCerrar }: { img: Imagen; alCerrar: () => void }) {
   const quieto = useReducedMotion();
   useIdioma();
   const [carga, setCarga] = useState<Carga>("cargando");

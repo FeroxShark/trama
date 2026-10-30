@@ -14,6 +14,7 @@ import { estadoDe, iconoDe, muyLargo, PASOS, primeraLineaPensada, textoPaso, ult
 import type { LineaTiempo } from "./linea-tiempo";
 import { Escena } from "./Escenas";
 import { Tierno } from "./Tierno";
+import { EnlaceArchivo } from "./VerArchivo";
 
 /** Una clave de `actividad-logica.ts` (viaja como texto) ya traducida. */
 const tx = (clave: string, vars?: Record<string, string | number>) => (t as (k: Clave, v?: Record<string, string | number>) => string)(clave as Clave, vars);
@@ -187,6 +188,7 @@ function Progreso({ lineas, pensando }: { lineas: LineaTiempo[]; pensando: strin
             <I className="tv-ic" size={12} strokeWidth={1.9} aria-hidden="true" />
             <span className="tv-ln">{x.nombre}</span>
             <Entero texto={x.detalle} className="tv-pt" />
+            {x.archivo ? <EnlaceArchivo a={x.archivo} /> : null}
             <EstadoLinea estado={x.estado} />
           </li>
         );

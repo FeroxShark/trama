@@ -2,7 +2,8 @@
 // éste no importa nada de la vista (su test corre sin el hook de imports); `herramientas.ts` sí.
 import type { Mensaje } from "../datos/contrato";
 import { iconoDe, type Icono } from "./actividad-logica";
-import { usosDe } from "./herramientas";
+import { archivoDe, usosDe } from "./herramientas";
+import type { ArchivoDeHerramienta } from "../../electron/archivo-ruta";
 
 /** Cómo va una herramienta: sin resultado y la última del turno, corriendo; con resultado, ok o error; una anterior sin resultado, nada. */
 export type EstadoLinea = "corriendo" | "ok" | "error" | null;
@@ -15,7 +16,7 @@ export type EstadoLinea = "corriendo" | "ok" | "error" | null;
  */
 export type LineaTiempo =
   | { tipo: "pensamiento"; key: string; texto: string }
-  | { tipo: "herramienta"; key: string; icono: Icono; nombre: string; detalle: string; estado: EstadoLinea };
+  | { tipo: "herramienta"; key: string; icono: Icono; nombre: string; detalle: string; estado: EstadoLinea; /** El archivo que lee, escribe o edita (si es de archivo y trae la ruta). */ archivo?: ArchivoDeHerramienta };
 
 export function lineaDeTiempo(msgs: Mensaje[], transcript: string | null = null): LineaTiempo[] {
   const out: LineaTiempo[] = [];
@@ -27,7 +28,8 @@ export function lineaDeTiempo(msgs: Mensaje[], transcript: string | null = null)
       const r = u.det?.resultado;
       const estado: EstadoLinea = r ? (r.error ? "error" : "ok") : ultimo ? "corriendo" : null;
       const icono = iconoDe({ que: "herramienta", nombre: u.nombre, detalle: u.resumen || null });
-      out.push({ tipo: "herramienta", key: `h${m.i}.${j}`, icono, nombre: u.nombre, detalle: u.resumen, estado });
+      const archivo = archivoDe(u);
+      out.push({ tipo: "herramienta", key: `h${m.i}.${j}`, icono, nombre: u.nombre, detalle: u.resumen, estado, ...(archivo ? { archivo } : {}) });
     });
   });
   return out;

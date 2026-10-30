@@ -2,6 +2,7 @@
 // terminal de Claude Code: una línea por llamada ("Bash · Corre los tests",
 // "Edit · src/x.ts +3 −1") y, al abrirla, el comando entero o el diff. Puro: lo
 // prueba `tests/herramientas.test.ts`.
+import { archivoDeHerramienta, type ArchivoDeHerramienta } from "../../electron/archivo-ruta";
 import type { Herramienta } from "../datos/contrato";
 
 /** Lo que `pa --hilo` (y el transcript de un líder) deja de cada texto de la entrada. */
@@ -9,6 +10,9 @@ export const CORTE = 2000;
 
 /** Una llamada como se ve en la lista: el nombre y lo que hizo en un renglón. */
 export type Uso = { nombre: string; resumen: string; det: Herramienta | null };
+
+/** El archivo que lee, escribe o edita una llamada (si la herramienta es de archivo y trae la ruta); `null` si no. Sale de la entrada entera, no del resumen. */
+export const archivoDe = (u: Uso): ArchivoDeHerramienta | null => (u.det ? archivoDeHerramienta(u.nombre, u.det.entrada) : null);
 
 /** Varias llamadas seguidas con el mismo resumen van en una línea ("×3"). */
 export type Grupo = { uso: Uso; todos: Uso[] };

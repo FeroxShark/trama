@@ -7154,3 +7154,164 @@ button.mcx-main:hover {
   font-size: var(--letra-3);
   white-space: nowrap;
 }
+
+/* --- Los archivos de la actividad (src/hilo/VerArchivo.tsx) ------------------------------------------
+   El botón de la línea de una herramienta (con la miniatura de una imagen) y la hoja del visor para lo que no es imagen. */
+.arch-v {
+  display: inline-flex;
+  min-width: 0;
+  flex: none;
+  align-items: center;
+  gap: var(--esp-1-5);
+  padding: 0 var(--esp-1);
+  border: 0;
+  border-radius: var(--radio-2);
+  background: none;
+  color: var(--texto-7);
+  font: inherit;
+  cursor: pointer;
+}
+.arch-v:hover {
+  background: var(--sup-3);
+  color: var(--texto-2);
+}
+.arch-v[data-fallo] {
+  color: var(--rojo);
+}
+.arch-et {
+  min-width: 0;
+  overflow: hidden;
+  font-family: var(--font-mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.arch-mini {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid var(--borde-5);
+  border-radius: var(--radio-1);
+  background: var(--sup-1);
+}
+.arch-mini[data-lado="chica"] {
+  width: 1.5rem;
+  height: 1.125rem;
+}
+.arch-mini[data-lado="grande"] {
+  width: 9rem;
+  height: 6.75rem;
+  border-radius: var(--radio-2);
+}
+.arch-mini[data-estado="falta"] {
+  display: none;
+}
+.arch-mini img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.arch-foto {
+  margin-top: var(--esp-2);
+  padding: 0;
+  cursor: zoom-in;
+}
+.visor[data-archivo] {
+  cursor: default;
+}
+.arch-hoja {
+  display: flex;
+  width: min(60rem, 100%);
+  height: min(46rem, 100%);
+  grid-area: 1 / 1;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--borde-5);
+  border-radius: var(--radio-3);
+  background: var(--sup-1);
+}
+.arch-h {
+  display: flex;
+  min-width: 0;
+  flex: none;
+  align-items: center;
+  gap: var(--esp-2);
+  padding: var(--esp-2) var(--esp-4);
+  border-bottom: 1px solid var(--capa-div);
+  color: var(--texto-3);
+  font-size: var(--letra-5);
+}
+.arch-h > svg {
+  flex: none;
+}
+.arch-nombre {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  font-family: var(--font-mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.arch-sis {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--esp-1-5);
+  padding: var(--esp-1) var(--esp-2-5);
+  border: 1px solid var(--borde-5);
+  border-radius: var(--radio-2);
+  background: none;
+  color: var(--texto-4);
+  font: inherit;
+  font-size: var(--letra-4);
+  cursor: pointer;
+}
+.arch-sis:hover {
+  background: var(--sup-3);
+  color: var(--texto-1);
+}
+.arch-sis[data-fallo] {
+  color: var(--rojo);
+}
+.arch-c {
+  display: grid;
+  min-height: 0;
+  flex: 1;
+  place-items: center;
+  overflow: auto;
+}
+.arch-c > .visor-estado {
+  grid-area: auto;
+}
+.arch-pdf,
+.arch-video {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: var(--sup-0);
+}
+.arch-audio {
+  width: min(28rem, 90%);
+}
+.arch-texto,
+.arch-md {
+  width: 100%;
+  min-height: 0;
+  align-self: start;
+  overflow: auto;
+}
+.arch-md {
+  padding: var(--esp-4);
+  color: var(--texto-3);
+  font-size: var(--letra-5);
+}
+/* La línea de una herramienta de archivo: el botón que la abre y, al lado, el que muestra el archivo. */
+.ll-fila {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--esp-1-5);
+}
+.ll-fila > .ll-b {
+  min-width: 0;
+}
