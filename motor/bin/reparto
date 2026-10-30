@@ -9,6 +9,10 @@
   reparto --aa-diag [--json]                   por modelo local: con qué entrada de Artificial Analysis se emparejó, índice de inteligencia de AA (sin calibrar) por effort, medido o estimado
   reparto --tipo T [--json] [--explicar]       modelo y effort que conviene para el tipo T
   reparto --resolver ID [--json]               cómo se lanza un id de modelo (claude / agy / codex / ollama / dsh)
+  reparto --sustituir ID [--tipo T] [--effort E] [--registrar] [--json]
+                                               ¿conviene correr ese claude-* por agy (el mismo modelo, effort equivalente low|medium|high)? Compara el cupo libre
+                                               (el peor de 5 h y semanal) de agy con el del Claude oficial; sale 0 si conviene (`a` = id de agy), 1 si no. frontend y
+                                               diseno (necesitan Skill), xhigh y max quedan en Claude. --registrar anota la sustitución (<estado>/sustituciones.jsonl)
   reparto --agotar ID [--hasta ISO]            marca agotado el grupo de agy o de codex de ese modelo (o grupo), o el
                                                Claude oficial (claude-*), hasta que vuelve
   reparto --enfriar ID [--horas N]             un modelo cortó por límite (pa sale 97): no es candidato N horas (default 5); es por modelo, no por grupo
@@ -59,7 +63,7 @@ Entorno (para tests): REPARTO_CUPOS_FIJOS=archivo.json (mismo formato que `--cup
 nada real), REPARTO_AHORA=ISO (la hora de "ahora"), REPARTO_STATE (caché de agy y grupos agotados; default
 <PA_STATE o ~/.local/state/pa>/reparto: el MISMO lugar para `pa` y para quien lo llame a mano), PA_STATE
 (statusline de Claude; también dónde mira los workers vivos para repartir la carga), TRAMA_MODELOS (modelos.json), REPARTO_CACHE_S (vida de la caché de agy: 120 s, y 30 s
-si algún grupo tiene menos de la mitad de su ventana de 5 h), REPARTO_CARGA_FIJA='{"grupo": n}' (workers vivos por grupo,
+si algún grupo tiene menos de la mitad de su ventana de 5 h o semanal), REPARTO_CON_CHEQUEO=1 (la tarea trae su chequeo: mecanico y lectura ofrecen primero los gratis de OpenCode con todo el cupo; lo pone pa), REPARTO_CARGA_FIJA='{"grupo": n}' (workers vivos por grupo,
 sin mirar el estado de pa), REPARTO_ASIGNACION_S (vida de esa anotación, 20; 0 la apaga), REPARTO_RESERVAR=1 (anota el grupo elegido: lo pone pa en su elección real),
 CODEX_HOME (credenciales y sesiones de codex; default ~/.codex), REPARTO_CODEX=0 (como si codex no estuviera).
 Modelos de agy (`agy models`, por cuenta; cambian con la cuenta, la región y la versión): reparto sólo elige entre los que agy lista (los que no conoce entran con la calidad
@@ -232,7 +236,7 @@ HORIZONTE_H = 72.0        # un cupo que vuelve en menos de esto empieza a ser ur
 AGY_MIN_LIBRE_5H = 0.30
 AGY_MIN_LIBRE_TIPOS = ["codigo-*", "frontend", "debug", "diseno"]
 CACHE_S = 120.0           # vida de la caché de /quota de agy
-CACHE_CORTA_S = 30.0      # ... si algún grupo tiene menos de la mitad de su ventana de 5 h
+CACHE_CORTA_S = 30.0      # ... si algún grupo tiene menos de la mitad de su ventana de 5 h o semanal
 GRUPOS_HASTA = {"claude-gpt": "2026-11-02"}   # Claude por agy es por tiempo limitado
 
 GRUPOS_GOOGLE = [   # id, nombre, ventanas, modelos
@@ -1168,7 +1172,7 @@ def cupos_claude(estado, now, cuenta=None):
 
 def ttl_cache(j):
     """Vida de la caché de /quota: REPARTO_CACHE_S si está seteada; si no 120 s, y 30 s cuando algún grupo
-    tiene menos de la mitad de su ventana de 5 h (ahí el cupo se gasta en minutos)."""
+    tiene menos de la mitad de su ventana de 5 h o semanal (ahí el cupo se gasta en minutos)."""
     v = os.environ.get("REPARTO_CACHE_S")
     if v:
         return float(v)
@@ -1176,7 +1180,7 @@ def ttl_cache(j):
         for g in j["command"]["data"]["groups"]:
             for b in g.get("buckets", []):
                 rf = b.get("remaining_fraction")
-                if b.get("window") == "5h" and isinstance(rf, (int, float)) and rf < 0.5:
+                if b.get("window") in ("5h", "weekly") and isinstance(rf, (int, float)) and rf < 0.5:
                     return CACHE_CORTA_S
     except Exception:
         pass
@@ -2708,6 +2712,12 @@ def elegir(tipo, cfg, cupos, now, mismo_proveedor=None, solo_cuenta=None, _contr
         mp = [c for c in vivos if c.get("proveedor") == ("openai" if mismo_proveedor == "chatgpt" else mismo_proveedor)]
         if mp:
             vivos = mp
+    primero_gratis = False
+    if vivos and not mismo_proveedor and os.environ.get("REPARTO_CON_CHEQUEO") == "1" and tipo in TIPOS_CON_CHEQUEO:
+        # una tarea mecánica o de lectura que trae su chequeo aguanta un modelo flojo: los gratis de OpenCode con todo el cupo van primero
+        gr = [c for c in vivos if c.get("grupo") == "opencode-free" and (c.get("cupo_libre") or 0.0) >= 0.999]
+        if gr:
+            vivos, primero_gratis = gr, True
     if vivos:
         pool = vivos
         pref = next((v for p, v in cfg["preferido_por_tipo"].items() if fnmatch.fnmatchcase(tipo, p)), None)
@@ -2747,6 +2757,8 @@ def elegir(tipo, cfg, cupos, now, mismo_proveedor=None, solo_cuenta=None, _contr
         motivo += " Effort %s: %s (calidad %s)." % (gana.get("effort") or gana["modelo"].rsplit("-", 1)[-1], gana["nota_effort"], fn(gana["calidad"]))
     if relajado and gana.get("relajado"):
         motivo += " Ningún modelo llega a la calidad %s que pide %s: uso el mejor que hay (calidad %s, ajustable con \"calidad\" en modelos.json)." % (fn(minimo), tipo, fn(gana["calidad"]))
+    if primero_gratis:
+        motivo += " Con chequeo, %s ofrece primero los gratis de OpenCode (cupo entero, no gastan Claude ni agy)." % tipo
     if banda:
         motivo += " Para %s se prefiere la calidad de %s: los modelos más caros o menos parejos sólo entran si no queda cupo de esa banda." % (tipo, banda)
     ritmo_info = resumen_ritmo(cfg, cupos, now) if not _contra else []
@@ -3003,6 +3015,108 @@ def cuenta_para(mid, cupos, now):
             "agotada": mejor[3]}
 
 
+# --- sustituir un claude-* por el mismo modelo por agy --------------------------------------------------
+TIPOS_CON_CHEQUEO = ("mecanico", "lectura")   # con chequeo, reparto ofrece primero los gratis de OpenCode (REPARTO_CON_CHEQUEO=1, lo pone pa)
+SUST_SIN_TIPOS = ("frontend", "diseno")       # necesitan la herramienta Skill, que agy no tiene: quedan en Claude
+SUST_MARGEN = 0.10                            # agy tiene que estar al menos esto más libre que el Claude oficial
+SUST_MIN_LIBRE = 0.25                         # y a agy le tiene que quedar al menos esto (sus cupos son chicos y se acaban en minutos)
+
+
+def sustituir(mid, tipo, effort, cfg, cupos, now):
+    """¿Conviene correr este claude-* por agy (el MISMO modelo, con el effort equivalente)? Lo decide el cupo libre relativo: el peor de la ventana
+    de 5 h y la semanal de cada camino, el mismo dato que muestra la cabecera. {sustituir, de, a, motivo, cupo_agy, cupo_claude, vuelve_agy};
+    `a` es el id de agy cuando conviene. No sustituye si: el reparto está fijo, el tipo necesita Skill (frontend, diseno), agy no tiene el effort
+    pedido (xhigh y max), agy no ofrece ese modelo, modelos.json lo apagó, su grupo está agotado, enfriado o con poco cupo, o el Claude oficial
+    está igual o más libre."""
+    mid = (mid or "").strip().lower()
+    tipo = (tipo or "").lower().replace("ñ", "n")
+    r = {"version": VERSION, "sustituir": False, "de": mid, "a": None, "tipo": tipo or None, "effort": None, "motivo": "",
+         "cupo_agy": None, "cupo_claude": None, "vuelve_agy": None}
+    if not re.match(r"^claude-(?:opus|sonnet)-[a-z0-9.-]+$", mid):
+        r["motivo"] = "%s no tiene el mismo modelo por agy" % mid
+        return r
+    if cfg["reparto"] == "fijo":
+        r["motivo"] = "el reparto está fijo en modelos.json"
+        return r
+    if tipo in SUST_SIN_TIPOS:
+        r["motivo"] = "%s necesita la herramienta Skill y agy no la tiene" % tipo
+        return r
+    e = (effort or cfg["effort_por_tipo"].get(tipo or "codigo-acotado", "high")).lower()
+    if e not in EFFORTS_AGY:
+        r["motivo"] = "agy no tiene el effort %s" % e
+        return r
+    r["effort"] = e
+    cands, _, _ = armar_candidatos(tipo or "codigo-acotado", cfg, cupos, now, effort=e)
+    cands = solo_la_preferida(cands, cupos)
+    agy = next((c for c in cands if c["modelo"].lower() == "agy:%s-%s" % (mid, e)), None)
+    if agy is None:
+        r["motivo"] = "agy no ofrece %s en effort %s" % (mid, e)
+        return r
+    r["cupo_agy"], r["vuelve_agy"] = agy["cupo_libre"], agy["vuelve"]
+    if agy["descartado_por"]:
+        r["motivo"] = "agy: %s" % agy["descartado_por"]
+        return r
+    cl = next((c for c in cands if c["modelo"].lower() == mid and c.get("proveedor") == "claude"), None)
+    r["cupo_claude"] = cl["cupo_libre"] if cl else None
+    if agy["cupo_libre"] is None:
+        r["motivo"] = "agy sin dato de cupo"
+        return r
+    if agy["cupo_libre"] < SUST_MIN_LIBRE:
+        r["motivo"] = "a agy le queda %s libre (menos del %s)" % (pct(agy["cupo_libre"]), pct(SUST_MIN_LIBRE))
+        return r
+    if cl is not None and cl["cupo_libre"] is not None and agy["cupo_libre"] < cl["cupo_libre"] + SUST_MARGEN:
+        r["motivo"] = "el Claude oficial tiene %s libre y agy %s" % (pct(cl["cupo_libre"]), pct(agy["cupo_libre"]))
+        return r
+    r["sustituir"], r["a"] = True, agy["modelo"]
+    r["motivo"] = "agy tiene %s libre%s y el Claude oficial %s" % (
+        pct(agy["cupo_libre"]), " (vuelve en %s)" % humano(horas_hasta(agy["vuelve"], now)) if agy["vuelve"] else "",
+        pct(cl["cupo_libre"]) if cl and cl["cupo_libre"] is not None else "sin dato")
+    return r
+
+
+def ruta_sustituciones():
+    return os.path.join(state_dir(), "sustituciones.jsonl")
+
+
+def registrar_sustitucion(r, now):
+    """Anota una sustitución hecha (una línea JSON en <estado>/sustituciones.jsonl) para `pa --rinde` y las Estadísticas. Nunca rompe."""
+    fila = {"ts": iso(now), "de": r["de"], "a": r["a"], "tipo": r.get("tipo"), "cupo_agy": r.get("cupo_agy"), "cupo_claude": r.get("cupo_claude")}
+    try:
+        os.makedirs(state_dir(), exist_ok=True)
+        with open(ruta_sustituciones(), "a") as f:
+            f.write(json.dumps(fila, ensure_ascii=False) + "\n")
+    except OSError:
+        pass
+
+
+def caminos_hoy(cfg, cupos, now):
+    """Una línea con qué camino conviene hoy por familia (para arriba del resumen del líder): cada claude-* de Opus y Sonnet, por agy o por Claude, y si
+    los gratis de OpenCode están para mecanico/lectura con chequeo. "" si no hay nada que decir."""
+    if cfg["reparto"] == "fijo":
+        return ""
+    partes = []
+    cands, _, _ = armar_candidatos("codigo-acotado", cfg, cupos, now)
+    ids = []
+    for fam in ("opus", "sonnet"):
+        for c in cands:
+            if c.get("proveedor") == "claude" and c["familia"] == fam and c["modelo"] not in ids:
+                ids.append(c["modelo"])
+    for mid in ids:
+        r = sustituir(mid, None, None, cfg, cupos, now)
+        partes.append("%s → %s" % (mid, "agy (%s libre; Claude %s)" % (pct(r["cupo_agy"]), pct(r["cupo_claude"]) if r["cupo_claude"] is not None else "sin dato")
+                                   if r["sustituir"] else "Claude (%s)" % r["motivo"]))
+    gratis, _, _ = armar_candidatos("mecanico", cfg, cupos, now)
+    libres = [c for c in gratis if c.get("grupo") == "opencode-free" and not c["descartado_por"]]
+    if libres:
+        mejor = max(libres, key=lambda c: c["calidad"])
+        partes.append("mecanico/lectura con chequeo → OpenCode gratis (%s, %s libre)" % (mejor["modelo"], pct(mejor["cupo_libre"] if mejor["cupo_libre"] is not None else 1.0)))
+    elif any(c.get("grupo") == "opencode-free" for c in gratis):
+        partes.append("mecanico/lectura con chequeo → sin OpenCode gratis hoy")
+    if not partes:
+        return ""
+    return "Camino hoy (un -m claude-* pasa solo a agy si conviene; --exacto lo evita): " + " · ".join(partes) + "."
+
+
 # --- main --------------------------------------------------------------------------------------------
 def texto_cupos(d, now):
     L = ["Cupos leídos %s" % d.get("leido", "?")]
@@ -3146,8 +3260,8 @@ def resumen(cfg, cupos, now):
     return out
 
 
-def texto_resumen(filas, now):
-    L = ["Modelos habilitados hoy (reparto --resumen; se refresca con ese comando). Elegí vos con `-m <id>` y `--effort <e>` según el tamaño real de la tarea y lo que cuesta un error.",
+def texto_resumen(filas, now, caminos=""):
+    L = ([caminos] if caminos else []) + ["Modelos habilitados hoy (reparto --resumen; se refresca con ese comando). Elegí vos con `-m <id>` y `--effort <e>` según el tamaño real de la tarea y lo que cuesta un error.",
          "int. = índice de inteligencia de Artificial Analysis por effort (~ = estimado); costo relativo a Opus = 1,0; cupo = libre ahora (y cuándo vuelve)."]
     for r in filas[:RESUMEN_MAX]:
         if r["intel"]:
@@ -3352,7 +3466,7 @@ def main(argv):
             return 1
         filas = resumen(cfg, d, now)
         print(json.dumps({"version": VERSION, "leido": d.get("leido"), "modelos": [{**r, "intel": {e: {"valor": v, "estimada": est} for e, (v, est) in r["intel"].items()}} for r in filas]}, ensure_ascii=False)
-              if json_out else texto_resumen(filas, now))
+              if json_out else texto_resumen(filas, now, caminos_hoy(cfg, d, now)))
         return 0
     if a[0] == "--aa-diag" and len(a) == 1:
         try:
@@ -3379,6 +3493,29 @@ def main(argv):
         else:
             print("%s%s — %s" % (r["modelo"], " " + r["effort"] if r.get("effort") else "", r["motivo"]))
         return 0 if r.get("modelo") else 1
+    if a[0] == "--sustituir" and len(a) >= 2:
+        sub = {"--tipo": None, "--effort": None}
+        resto, i = a[2:], 0
+        registrar = False
+        while i < len(resto):
+            if resto[i] in sub and i + 1 < len(resto):
+                sub[resto[i]] = resto[i + 1]
+                i += 2
+            elif resto[i] == "--registrar":
+                registrar = True
+                i += 1
+            else:
+                return uso()
+        try:
+            d = leer_cupos(cfg, now)
+        except Exception as e:
+            err("no pude leer los cupos: %s" % e)
+            return 1
+        r = sustituir(a[1], sub["--tipo"], sub["--effort"], cfg, d, now)
+        if registrar and r["sustituir"]:
+            registrar_sustitucion(r, now)
+        print(json.dumps(r, ensure_ascii=False) if json_out else ("%s → %s: %s" % (r["de"], r["a"], r["motivo"]) if r["sustituir"] else "%s se queda en Claude: %s" % (r["de"], r["motivo"])))
+        return 0 if r["sustituir"] else 1
     if a[0] == "--agotar" and len(a) in (2, 4) and (len(a) == 2 or a[2] == "--hasta"):
         return agotar(a[1], a[3] if len(a) == 4 else None, cfg, now, opt.get("--cuenta"))
     if a[0] == "--enfriar" and len(a) == 2:

@@ -220,6 +220,62 @@ const conPreferida: Pick<Opciones, "preparar" | "env"> = {
 };
 const vivo = { REPARTO_CUPOS_FIJOS: "", REPARTO_AGY: "0" };
 
+/** Claude casi lleno y Claude por Google casi vacío (agy gana), y al revés (Claude gana). */
+const CUPOS_AGY_LIBRE = {
+  ...CUPOS,
+  suscripciones: [
+    { id: "claude", nombre: "Claude", proveedor: "claude", cuenta: "claude", ventanas: [w("5h", 0.2, "2026-10-26T14:00:00Z"), w("7d", 0.8, "2026-10-30T00:00:00Z")] },
+    {
+      ...CUPOS.suscripciones[1]!,
+      grupos: [
+        { id: "gemini", nombre: "Gemini", ventanas: [w("5h", 0.1, "2026-10-26T15:00:00Z"), w("7d", 0.3, "2026-10-29T00:00:00Z")] },
+        { id: "claude-gpt", nombre: "Claude y GPT por Google", ventanas: [w("5h", 0.05, "2026-10-26T15:00:00Z"), w("7d", 0.1, "2026-10-29T00:00:00Z")] },
+        { id: "gemini-4-argon", nombre: "Gemini 4 Argon", ventanas: [w("7d", 0.9, "2026-10-28T00:00:00Z")] },
+      ],
+    },
+  ],
+};
+const CUPOS_AGY_POCO = {
+  ...CUPOS_AGY_LIBRE,
+  suscripciones: [
+    CUPOS_AGY_LIBRE.suscripciones[0]!,
+    { ...CUPOS_AGY_LIBRE.suscripciones[1]!, grupos: [{ id: "claude-gpt", nombre: "Claude y GPT por Google", ventanas: [w("5h", 0.2, "2026-10-26T15:00:00Z"), w("7d", 0.93, "2026-10-29T00:00:00Z")] }] },
+  ],
+};
+/** Estos casos necesitan los modelos de agy como candidatos (el arnés los apaga por defecto con REPARTO_AGY=0). */
+const conAgy = (o: Opciones): Opciones => ({ ...o, env: { REPARTO_AGY: "1", ...((o.env as Record<string, string> | undefined) ?? {}) } });
+const rs = (nombre: string, args: string[], rc: number, o: Opciones = {}): Caso => rp(nombre, args, rc, conAgy(o));
+const rsPasos = (nombre: string, pasos: [string[], number][], o: Opciones = {}): Caso => rpPasos(nombre, pasos, conAgy(o));
+const casosSustituir: Caso[] = [
+  rs("--sustituir con agy más libre", ["--sustituir", "claude-sonnet-5-5", "--tipo", "codigo-acotado", "--effort", "high"], 0, { cupos: CUPOS_AGY_LIBRE }),
+  rs("--sustituir --json con agy más libre", ["--sustituir", "claude-opus-5-5", "--json"], 0, { cupos: CUPOS_AGY_LIBRE }),
+  rs("--sustituir sin tipo ni effort (el del tipo)", ["--sustituir", "claude-sonnet-5-5"], 0, { cupos: CUPOS_AGY_LIBRE }),
+  rs("--sustituir con Claude más libre", ["--sustituir", "claude-sonnet-5-5", "--effort", "medium"], 1, { cupos: CUPOS }),
+  rs("--sustituir con agy casi lleno (semanal 93 %)", ["--sustituir", "claude-sonnet-5-5", "--effort", "medium", "--json"], 1, { cupos: CUPOS_AGY_POCO }),
+  rs("--sustituir frontend queda en Claude (Skill)", ["--sustituir", "claude-sonnet-5-5", "--tipo", "frontend"], 1, { cupos: CUPOS_AGY_LIBRE }),
+  rs("--sustituir diseno --json", ["--sustituir", "claude-opus-5-5", "--tipo", "diseno", "--json"], 1, { cupos: CUPOS_AGY_LIBRE }),
+  rs("--sustituir xhigh no tiene effort equivalente", ["--sustituir", "claude-opus-5-5", "--effort", "xhigh"], 1, { cupos: CUPOS_AGY_LIBRE }),
+  rs("--sustituir haiku no está por agy", ["--sustituir", "claude-haiku-5-5"], 1, { cupos: CUPOS_AGY_LIBRE }),
+  rs("--sustituir un modelo que agy de esa cuenta no ofrece", ["--sustituir", "claude-sonnet-5-5", "--effort", "high"], 1, { cupos: { ...CUPOS_AGY_B, suscripciones: CUPOS_AGY_B.suscripciones.map((x, i) => (i === 0 ? CUPOS_AGY_LIBRE.suscripciones[0]! : x)) } }),
+  rs("--sustituir con el grupo de agy agotado", ["--sustituir", "claude-sonnet-5-5", "--effort", "high"], 1, { cupos: CUPOS_AGY_LIBRE, preparar: (c) => escribir(path.join(c.estado, "agotado.json"), { "claude-gpt": { hasta: "2026-10-30T00:00:00Z" } }) }),
+  rs("--sustituir con el reparto fijo", ["--sustituir", "claude-sonnet-5-5", "--effort", "high"], 1, { cupos: CUPOS_AGY_LIBRE, modelos: { version: 1, reparto: "fijo" } }),
+  rs("--sustituir con el modelo excluido", ["--sustituir", "claude-sonnet-5-5", "--effort", "high"], 1, { cupos: CUPOS_AGY_LIBRE, modelos: { version: 1, excluir: ["agy:*"] } }),
+  rs("--sustituir sin id", ["--sustituir"], 2),
+  rs("--sustituir con un argumento de más", ["--sustituir", "claude-sonnet-5-5", "--zzz"], 2),
+  rsPasos("--sustituir --registrar anota la sustitución", [
+    [["--sustituir", "claude-sonnet-5-5", "--effort", "high", "--registrar"], 0],
+    [["--sustituir", "claude-opus-5-5", "--tipo", "debug", "--registrar", "--json"], 0],
+    [["--sustituir", "claude-haiku-5-5", "--registrar"], 1],
+  ], { cupos: CUPOS_AGY_LIBRE }),
+  rs("--resumen con el camino de hoy: agy gana", ["--resumen"], 0, { cupos: CUPOS_AGY_LIBRE }),
+  rs("--resumen con el camino de hoy: agy casi lleno", ["--resumen"], 0, { cupos: CUPOS_AGY_POCO }),
+  rs("--resumen con los gratis de OpenCode agotados", ["--resumen"], 0, { cupos: CUPOS_AGY_LIBRE, preparar: (c) => escribir(path.join(c.estado, "agotado.json"), { "opencode-free": { hasta: "2026-10-27T00:00:00Z" } }) }),
+  rs("--resumen sin OpenCode", ["--resumen"], 0, { cupos: CUPOS_AGY_LIBRE, env: { REPARTO_OPENCODE: "0" } }),
+  ...["mecanico", "lectura", "codigo-acotado"].map((t) => rs(`--tipo ${t} con chequeo ofrece primero los gratis de OpenCode`, ["--tipo", t, "--json"], 0, { cupos: CUPOS_AGY_LIBRE, env: { REPARTO_CON_CHEQUEO: "1" } })),
+  rs("--tipo mecanico con chequeo y el límite gratis agotado", ["--tipo", "mecanico"], 0, { env: { REPARTO_CON_CHEQUEO: "1" }, preparar: (c) => escribir(path.join(c.estado, "agotado.json"), { "opencode-free": { hasta: "2026-10-27T00:00:00Z" } }) }),
+  rs("--tipo lectura con chequeo y --mismo-proveedor no cambia", ["--tipo", "lectura", "--mismo-proveedor", "claude"], 0, { env: { REPARTO_CON_CHEQUEO: "1" } }),
+];
+
 export const casosReparto: Caso[] = [
   // ayuda y errores de uso
   rp("sin argumentos", [], 2),
@@ -378,6 +434,9 @@ export const casosReparto: Caso[] = [
   rp("--sondear-opencode con el límite gratis", ["--sondear-opencode"], 0, { preparar: opencodeFalso("Error: Free usage limit reached.", true), env: conOpencodeFalso }),
   rp("--sondear-opencode que contesta no toca el grupo", ["--sondear-opencode"], 1, { preparar: opencodeFalso("OK", false), env: conOpencodeFalso }),
   rp("--sondear-opencode sin opencode", ["--sondear-opencode"], 2, { env: (c) => ({ HILOS_OPENCODE: path.join(c.aux, "no-hay-opencode") }) }),
+
+  // sustituir un claude-* por el mismo modelo por agy (y el camino de hoy arriba del resumen)
+  ...casosSustituir,
 
   // umbrales de modelos.json
   ...casosModelos,

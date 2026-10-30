@@ -8,7 +8,7 @@
 // - bin/cuentas no se importa: `listaCuentas` repite su `cargar()` (cuentas.json) y `entornoCuenta` su `entorno()`.
 // - Un float entero que el dueño escribe en modelos.json con "calidad_unidades": "aa" (p. ej. 50.0) sale como 50 en el JSON.
 import { spawnSync, type SpawnSyncReturns } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync, statSync, unlinkSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { enPath, esEjecutable } from "./base/buscar.ts";
@@ -1118,7 +1118,8 @@ function ttlCache(j: unknown): number {
     for (const g of (j as Obj).command.data.groups) {
       for (const b of get(g, "buckets", [])) {
         const rf = get(b, "remaining_fraction");
-        if (get(b, "window") === "5h" && esNumPy(rf) && Number(rf) < 0.5) return CACHE_CORTA_S;
+        const w = get(b, "window");
+        if ((w === "5h" || w === "weekly") && esNumPy(rf) && Number(rf) < 0.5) return CACHE_CORTA_S;
       }
     }
   } catch {
@@ -2570,6 +2571,12 @@ function elegir(tipo0: string, cfg: Obj, cupos: Obj, now: Date, mismoProveedor: 
     const mp = vivos.filter((c) => get(c, "proveedor") === (mismoProveedor === "chatgpt" ? "openai" : mismoProveedor));
     if (mp.length) vivos = mp;
   }
+  let primeroGratis = false;
+  if (vivos.length && !mismoProveedor && E.REPARTO_CON_CHEQUEO === "1" && TIPOS_CON_CHEQUEO.includes(tipo)) {
+    // una tarea mecánica o de lectura que trae su chequeo aguanta un modelo flojo: los gratis de OpenCode con todo el cupo van primero
+    const gr = vivos.filter((c) => get(c, "grupo") === "opencode-free" && (verdad(get(c, "cupo_libre")) ? c.cupo_libre : 0.0) >= 0.999);
+    if (gr.length) [vivos, primeroGratis] = [gr, true];
+  }
   if (vivos.length) {
     pool = vivos;
     let pref: string | null = null;
@@ -2608,6 +2615,7 @@ function elegir(tipo0: string, cfg: Obj, cupos: Obj, now: Date, mismoProveedor: 
   let motivo = motivoDe(gana, pool, tipo, minimo, minimoFam, todoLleno, now, cands);
   if (gana.nota_effort) motivo += ` Effort ${gana.effort || gana.modelo.split("-").pop()}: ${gana.nota_effort} (calidad ${fn(gana.calidad)}).`;
   if (relajado && gana.relajado) motivo += ` Ningún modelo llega a la calidad ${fn(minimo)} que pide ${tipo}: uso el mejor que hay (calidad ${fn(gana.calidad)}, ajustable con "calidad" en modelos.json).`;
+  if (primeroGratis) motivo += ` Con chequeo, ${tipo} ofrece primero los gratis de OpenCode (cupo entero, no gastan Claude ni agy).`;
   if (banda) motivo += ` Para ${tipo} se prefiere la calidad de ${banda}: los modelos más caros o menos parejos sólo entran si no queda cupo de esa banda.`;
   const ritmoInfo = !contra ? resumenRitmo(cfg, cupos, now) : [];
   if (!contra && !todoLleno) motivo += cambioPorRitmo(tipo, cfg, cupos, now, gana, cands, mismoProveedor, soloCuenta);
@@ -2820,6 +2828,106 @@ function cuentaPara(mid: string, cupos: Obj, _now: Date): Obj | null {
   return marcarSi(o, "cupo_libre", mejor[4]);
 }
 
+// --- sustituir un claude-* por el mismo modelo por agy --------------------------------------------------
+const TIPOS_CON_CHEQUEO = ["mecanico", "lectura"]; // con chequeo, reparto ofrece primero los gratis de OpenCode (REPARTO_CON_CHEQUEO=1, lo pone pa)
+const SUST_SIN_TIPOS = ["frontend", "diseno"]; // necesitan la herramienta Skill, que agy no tiene: quedan en Claude
+const SUST_MARGEN = 0.1; // agy tiene que estar al menos esto más libre que el Claude oficial
+const SUST_MIN_LIBRE = 0.25; // y a agy le tiene que quedar al menos esto (sus cupos son chicos y se acaban en minutos)
+
+/** `sustituir` de reparto: ¿conviene correr este claude-* por agy (el MISMO modelo, con el effort equivalente)? Ver la versión de python. */
+function sustituir(mid0: string, tipo0: string | null, effort: string | null, cfg: Obj, cupos: Obj, now: Date): Obj {
+  const mid = (mid0 || "").trim().toLowerCase();
+  const tipo = (tipo0 || "").toLowerCase().replace(/ñ/g, "n");
+  const r: Obj = { version: VERSION, sustituir: false, de: mid, a: null, tipo: tipo || null, effort: null, motivo: "", cupo_agy: null, cupo_claude: null, vuelve_agy: null };
+  const marcas = () => {
+    for (const k of ["cupo_agy", "cupo_claude"]) if (r[k] !== null) conFloat(r, k);
+    return r;
+  };
+  if (!/^claude-(?:opus|sonnet)-[a-z0-9.-]+$/.test(mid)) {
+    r.motivo = `${mid} no tiene el mismo modelo por agy`;
+    return r;
+  }
+  if (cfg.reparto === "fijo") {
+    r.motivo = "el reparto está fijo en modelos.json";
+    return r;
+  }
+  if (SUST_SIN_TIPOS.includes(tipo)) {
+    r.motivo = `${tipo} necesita la herramienta Skill y agy no la tiene`;
+    return r;
+  }
+  const e = (effort || get(cfg.effort_por_tipo, tipo || "codigo-acotado", "high")).toLowerCase();
+  if (!EFFORTS_AGY.includes(e)) {
+    r.motivo = `agy no tiene el effort ${e}`;
+    return r;
+  }
+  r.effort = e;
+  let [cands] = armarCandidatos(tipo || "codigo-acotado", cfg, cupos, now, e);
+  cands = soloLaPreferida(cands, cupos);
+  const agy = cands.find((c) => c.modelo.toLowerCase() === `agy:${mid}-${e}`);
+  if (!agy) {
+    r.motivo = `agy no ofrece ${mid} en effort ${e}`;
+    return r;
+  }
+  r.cupo_agy = agy.cupo_libre;
+  r.vuelve_agy = agy.vuelve;
+  if (agy.descartado_por) {
+    r.motivo = `agy: ${agy.descartado_por}`;
+    return marcas();
+  }
+  const cl = cands.find((c) => c.modelo.toLowerCase() === mid && get(c, "proveedor") === "claude");
+  r.cupo_claude = cl ? cl.cupo_libre : null;
+  if (agy.cupo_libre === null) {
+    r.motivo = "agy sin dato de cupo";
+    return marcas();
+  }
+  if (agy.cupo_libre < SUST_MIN_LIBRE) {
+    r.motivo = `a agy le queda ${pct(agy.cupo_libre)} libre (menos del ${pct(SUST_MIN_LIBRE)})`;
+    return marcas();
+  }
+  if (cl && cl.cupo_libre !== null && agy.cupo_libre < cl.cupo_libre + SUST_MARGEN) {
+    r.motivo = `el Claude oficial tiene ${pct(cl.cupo_libre)} libre y agy ${pct(agy.cupo_libre)}`;
+    return marcas();
+  }
+  r.sustituir = true;
+  r.a = agy.modelo;
+  r.motivo = `agy tiene ${pct(agy.cupo_libre)} libre${verdad(agy.vuelve) ? ` (vuelve en ${humano(horasHasta(agy.vuelve, now))})` : ""} y el Claude oficial ${cl && cl.cupo_libre !== null ? pct(cl.cupo_libre) : "sin dato"}`;
+  return marcas();
+}
+
+function registrarSustitucion(r: Obj, now: Date) {
+  const fila: Obj = { ts: iso(now), de: r.de, a: r.a, tipo: get(r, "tipo"), cupo_agy: get(r, "cupo_agy"), cupo_claude: get(r, "cupo_claude") };
+  for (const k of ["cupo_agy", "cupo_claude"]) if (fila[k] !== null) conFloat(fila, k);
+  try {
+    mkdirSync(stateDir(), { recursive: true });
+    appendFileSync(path.join(stateDir(), "sustituciones.jsonl"), jsonPy(fila) + "\n");
+  } catch {
+    /* nunca rompe */
+  }
+}
+
+/** `caminos_hoy`: una línea con qué camino conviene hoy por familia (para arriba del resumen del líder). "" si no hay nada que decir. */
+function caminosHoy(cfg: Obj, cupos: Obj, now: Date): string {
+  if (cfg.reparto === "fijo") return "";
+  const partes: string[] = [];
+  const [cands] = armarCandidatos("codigo-acotado", cfg, cupos, now);
+  const ids: string[] = [];
+  for (const fam of ["opus", "sonnet"]) {
+    for (const c of cands) if (get(c, "proveedor") === "claude" && c.familia === fam && !ids.includes(c.modelo)) ids.push(c.modelo);
+  }
+  for (const mid of ids) {
+    const r = sustituir(mid, null, null, cfg, cupos, now);
+    partes.push(`${mid} → ${r.sustituir ? `agy (${pct(r.cupo_agy)} libre; Claude ${r.cupo_claude !== null ? pct(r.cupo_claude) : "sin dato"})` : `Claude (${r.motivo})`}`);
+  }
+  const [gratis] = armarCandidatos("mecanico", cfg, cupos, now);
+  const libres = gratis.filter((c) => get(c, "grupo") === "opencode-free" && !c.descartado_por);
+  if (libres.length) {
+    const mejor = maxPor(libres, (c) => [c.calidad]);
+    partes.push(`mecanico/lectura con chequeo → OpenCode gratis (${mejor.modelo}, ${pct(mejor.cupo_libre !== null ? mejor.cupo_libre : 1.0)} libre)`);
+  } else if (gratis.some((c) => get(c, "grupo") === "opencode-free")) partes.push("mecanico/lectura con chequeo → sin OpenCode gratis hoy");
+  if (!partes.length) return "";
+  return `Camino hoy (un -m claude-* pasa solo a agy si conviene; --exacto lo evita): ${partes.join(" · ")}.`;
+}
+
 // --- main --------------------------------------------------------------------------------------------
 function textoCupos(d: Obj, now: Date): string {
   const L = [`Cupos leídos ${pyStr(get(d, "leido", "?"))}`];
@@ -2961,8 +3069,9 @@ function resumen(cfg: Obj, cupos: Obj, now: Date): Obj[] {
   return ordenarPor(out, (r) => [-r.calidad, r.id]);
 }
 
-function textoResumen(filas: Obj[], now: Date): string {
+function textoResumen(filas: Obj[], now: Date, caminos = ""): string {
   const L = [
+    ...(caminos ? [caminos] : []),
     "Modelos habilitados hoy (reparto --resumen; se refresca con ese comando). Elegí vos con `-m <id>` y `--effort <e>` según el tamaño real de la tarea y lo que cuesta un error.",
     "int. = índice de inteligencia de Artificial Analysis por effort (~ = estimado); costo relativo a Opus = 1,0; cupo = libre ahora (y cuándo vuelve).",
   ];
@@ -3182,7 +3291,7 @@ export async function main(argv: string[]): Promise<number> {
         return copiarMarcas(r, { ...r, intel });
       });
       salidaJson({ version: VERSION, leido: get(d, "leido"), modelos });
-    } else console.log(textoResumen(filas, now));
+    } else console.log(textoResumen(filas, now, caminosHoy(cfg, d, now)));
     return 0;
   }
   if (a[0] === "--aa-diag" && a.length === 1) {
@@ -3202,6 +3311,26 @@ export async function main(argv: string[]): Promise<number> {
     else if (expl) console.log(r.explicacion);
     else console.log(`${pyStr(r.modelo)}${verdad(get(r, "effort")) ? " " + r.effort : ""} — ${r.motivo}`);
     return verdad(get(r, "modelo")) ? 0 : 1;
+  }
+  if (a[0] === "--sustituir" && a.length >= 2) {
+    const sub: Record<string, string | null> = { "--tipo": null, "--effort": null };
+    const resto = a.slice(2);
+    let registrar = false;
+    for (let i = 0; i < resto.length; ) {
+      if (resto[i]! in sub && i + 1 < resto.length) {
+        sub[resto[i]!] = resto[i + 1]!;
+        i += 2;
+      } else if (resto[i] === "--registrar") {
+        registrar = true;
+        i += 1;
+      } else return uso();
+    }
+    const d = cupos();
+    if (!d) return 1;
+    const r = sustituir(a[1]!, sub["--tipo"] ?? null, sub["--effort"] ?? null, cfg, d, now);
+    if (registrar && r.sustituir) registrarSustitucion(r, now);
+    console.log(jsonOut ? jsonPy(r) : r.sustituir ? `${r.de} → ${r.a}: ${r.motivo}` : `${r.de} se queda en Claude: ${r.motivo}`);
+    return r.sustituir ? 0 : 1;
   }
   if (a[0] === "--agotar" && (a.length === 2 || a.length === 4) && (a.length === 2 || a[2] === "--hasta")) return agotar(a[1]!, a.length === 4 ? a[3]! : null, cfg, now, opt["--cuenta"] ?? null);
   if (a[0] === "--enfriar" && a.length === 2) return enfriar(a[1]!, horas, now);
@@ -3270,7 +3399,7 @@ export async function main(argv: string[]): Promise<number> {
   return uso();
 }
 
-const AYUDA = "reparto — qué modelo conviene para un tipo de tarea según la calidad que pide y el cupo que sobra.\n\n  reparto --cupos [--json]                     cupo de cada suscripción (Claude oficial, Google AI Pro/agy y ChatGPT/codex)\n  reparto --tabla [--json]                     todos los modelos que conoce: id, inteligencia (~ = estimada), gratis/pago,\n                                               cupo libre y cuándo vuelve, urgencia y si modelos.json los permite\n  reparto --resumen [--json]                   bloque corto (~30 líneas) para que el LÍDER elija modelo y effort: por modelo habilitado, id para `-m`,\n                                               inteligencia (AA) por effort, costo relativo, gratis/pago, cupo libre y cuándo vuelve, y para qué sirve\n  reparto --aa-diag [--json]                   por modelo local: con qué entrada de Artificial Analysis se emparejó, índice de inteligencia de AA (sin calibrar) por effort, medido o estimado\n  reparto --tipo T [--json] [--explicar]       modelo y effort que conviene para el tipo T\n  reparto --resolver ID [--json]               cómo se lanza un id de modelo (claude / agy / codex / ollama / dsh)\n  reparto --agotar ID [--hasta ISO]            marca agotado el grupo de agy o de codex de ese modelo (o grupo), o el\n                                               Claude oficial (claude-*), hasta que vuelve\n  reparto --enfriar ID [--horas N]             un modelo cortó por límite (pa sale 97): no es candidato N horas (default 5); es por modelo, no por grupo\n  reparto --opencode-limite                    lee por stdin la salida de OpenCode: si dice \"Free usage limit\", agota el grupo opencode-free (24 h, o el \"retrying in N\" del mensaje)\n  reparto --sondear-opencode                   un pedido mínimo a un modelo gratis de OpenCode; si dice \"Free usage limit\" agota el grupo (gasta cupo: sólo a mano, nunca solo)\n  reparto --enfriado ID                        si ese modelo sigue enfriado: imprime hasta cuándo y sale 0; si no, sale 1\n  reparto --excluido ID                        si modelos.json excluye ese id: imprime la regla y sale 0; si no, sale 1\n  reparto --agy-modelos [--refrescar] [--cuenta C] [--json]\n                                               los modelos que ofrece el agy de esta máquina y cuenta (`agy models`, se guarda 6 h; --refrescar la vuelve a pedir)\n  reparto --olvidar-agotados                   borra las marcas de agotado y de enfriado\n  reparto --plan ausente F[,F..] | presente F  días que no se trabaja (AAAA-MM-DD, hoy, manana, o A..B): el presupuesto semanal se reparte\n                                               entre los demás días (antes de una ausencia + reinicio, hoy se gasta más)\n  reparto --plan gastar-hoy | ahorrar-hoy      pisa el ritmo sólo por hoy (vence solo a medianoche)\n  reparto --plan ver [--json] | borrar         lo que hay guardado (<estado>/plan.json) y el ritmo de cada ventana semanal | lo borra\n  reparto --cuenta-para ID [--json]            la cuenta de su proveedor que eligió la persona (`cuentas preferir`) para ese modelo\n\nVarias cuentas por proveedor (bin/cuentas, ~/.config/trama/cuentas.json): cada cuenta es una suscripción aparte\nen --cupos (campos proveedor y cuenta), los candidatos salen de la cuenta preferida de cada proveedor (`cuentas preferir`; sin\nelegir, la de siempre) y --tipo dice la cuenta (campo cuenta). Nunca se pasa sola de una cuenta a otra, ni con el cupo agotado: eso\nlo decide la persona. --agotar ID --cuenta C marca agotado el grupo de esa cuenta; --tipo T --cuenta C elige sólo entre los\nmodelos de esa cuenta (pa --cuenta sin -m, aunque no sea la preferida); --tipo T --mismo-proveedor P prefiere\nlos modelos de P (el relanzamiento por falta de cupo de pa: el mismo proveedor, en la misma cuenta, antes de cambiar).\n\nInteligencia (`calidad`): en UNIDADES REALES del ÍNDICE DE INTELIGENCIA de Artificial Analysis (el general, el que AA mide completo; sin calibrar a 100).\nCoding y agentic de AA quedan como datos extra (--tabla: coding_por_effort / agentic_por_effort), nunca como base.\nSale de modelos.json (con \"calidad_unidades\": \"aa\"; sin eso son números de la escala vieja 0-100 y se migran al leer, ver vieja_a_aa);\nun modelo de opencode/dsh sin entrada se estima por el nombre (base 50, +10 con ultra/super/pro/max, -10 con flash/lightning/mini/nano,\nde la escala vieja, convertido a AA) y --tabla lo marca estimada. Los mínimos por tipo (\"sonnet\"...) valen el índice de inteligencia de esa familia\nal esfuerzo del tipo. `efforts_permitidos` {\"sonnet\": [\"low\",\"high\"]}: los esfuerzos que los workers pueden usar por familia o id. Cuenta igual en el puntaje.\nSi la app bajó los índices de Artificial Analysis (<estado>/aa-modelos.json; REPARTO_AA=<archivo> lo cambia, 0 lo apaga) valen antes que los\ndefaults y la estimación, pero después de lo que fija modelos.json. --tabla dice de dónde sale cada cifra en `origen`\n(usuario | artificial-analysis | defecto | estimada) y la fecha del dato en `aa_fecha`. Por esfuerzo, `calidad_por_effort` es lo MEDIDO (de la API o de\ndatos/aa-suplemento.json: REPARTO_AA_SUPLEMENTO=<archivo> lo cambia, 0 lo apaga; la API manda) y `efforts_estimados` + `calidad_estimada_por_effort`\nlo que se estima por interpolación (ver `fuente_por_effort`: api | suplemento | suplemento~ si la cifra es aproximada).\n\nRitmo y perfil (2026-10-26): cada ventana SEMANAL de una suscripción tiene un ritmo = usado / esperado; \"esperado\" = qué fracción de la\nsemana (ponderada por los días de trabajo del plan) ya pasó. Pasarse del ritmo resta puntos; ir por debajo y cerca del reinicio suma.\nmodelos.json `perfil` = equilibrado (default) | ahorro (workers a gratis/Google casi siempre, Claude sólo si nada más llega o si va\natrasado) | rendimiento (calidad primero); `reserva_lider` = fracción de la semana de Claude que queda para el líder (ver RITMO abajo).\n\nDónde deja de usarse cada proveedor (2026-10-27): `topes_uso` {\"google\": 90, \"google:claude-gpt\": 80, \"openai\": 95} = desde qué % USADO de una ventana no se elige\n(el del grupo gana al del proveedor; sin entrada, `llena`: 97 %). Claude se dice con `reserva` ({\"5h\": 0.2, \"7d\": 0.2} = lo que se guarda libre; sin ella, 97 %\nmás la reserva de `perfil`/`reserva_lider` en la semanal). `agy_min_libre_5h` (0,30 = desde 70 % usado) es el tope aparte de Google para trabajo de código en 5 h.\nOpenCode no informa % usado: se deja de usar cuando corta por límite (`--enfriar`, `--agotar`).\n\nSin dependencias (python3 estándar).\nEntorno (para tests): REPARTO_CUPOS_FIJOS=archivo.json (mismo formato que `--cupos --json`, no lee\nnada real), REPARTO_AHORA=ISO (la hora de \"ahora\"), REPARTO_STATE (caché de agy y grupos agotados; default\n<PA_STATE o ~/.local/state/pa>/reparto: el MISMO lugar para `pa` y para quien lo llame a mano), PA_STATE\n(statusline de Claude; también dónde mira los workers vivos para repartir la carga), TRAMA_MODELOS (modelos.json), REPARTO_CACHE_S (vida de la caché de agy: 120 s, y 30 s\nsi algún grupo tiene menos de la mitad de su ventana de 5 h), REPARTO_CARGA_FIJA='{\"grupo\": n}' (workers vivos por grupo,\nsin mirar el estado de pa), REPARTO_ASIGNACION_S (vida de esa anotación, 20; 0 la apaga), REPARTO_RESERVAR=1 (anota el grupo elegido: lo pone pa en su elección real),\nCODEX_HOME (credenciales y sesiones de codex; default ~/.codex), REPARTO_CODEX=0 (como si codex no estuviera).\nModelos de agy (`agy models`, por cuenta; cambian con la cuenta, la región y la versión): reparto sólo elige entre los que agy lista (los que no conoce entran con la calidad\nestimada, esfuerzo low de su familia, y --tabla los marca ~). REPARTO_AGY_MODELOS_FIJO=<salida de agy models> (tests: no lee nada real), REPARTO_AGY_MODELOS_S (vida de la lista, 21600 s).\ndsh (DeepSeek Harness: modelos gratis de OpenCode u Ollama, o DeepSeek): sus modelos son candidatos sólo si `dsh` está instalado y,\nsegún el proveedor, hay key (OPENCODE_API_KEY / DEEPSEEK_API_KEY en el entorno o en ~/.config/trama/claves.env) o Ollama responde\n(OLLAMA_HOST, default http://localhost:11434; la lista de modelos se guarda 60 s). REPARTO_DSH=0 los apaga (REPARTO_SIN_DSH=1 también:\nlo pone pa en --leer, donde dsh no va), REPARTO_CLAUDE=0 (como si claude no estuviera), REPARTO_DSH_FIJO='{\"ollama\":[\"m\"],\"opencode\":true,\n\"deepseek\":false}' (tests: no mira nada real). La calidad de cada modelo de dsh sale de `calidad` de modelos.json (\"dsh:opencode/glm-5.3-flash-free\": 55;\nadmite patrones con *); sin Claude, Gemini ni Codex y con la calidad por debajo de lo que pide el tipo, igual se elige el mejor gratis de dsh.\nopencode (el programa `opencode`: sus modelos gratis, `opencode:opencode/<modelo>`; grupo `opencode-free`): candidatos sólo si `opencode` está instalado;\nla lista sale de `opencode models` (los `*-free` y `big-pickle` de `opencode/`; se guarda 1 h), REPARTO_OPENCODE=0 los apaga (REPARTO_SIN_DSH=1 también),\nREPARTO_OPENCODE_FIJO='[\"opencode/beam-free\"]' (tests: no mira nada real). Los gratis de OpenCode por dsh (`dsh:opencode/*-free`) ya no se ofrecen solos:\nOpenCode los rechaza desde cualquier programa que no sea opencode (REPARTO_DSH_OPENCODE=1 los vuelve a ofrecer, con OPENCODE_API_KEY). La calidad sale de\n`calidad` (\"opencode:opencode/glm-5.3-flash-free\": 55; admite *), como la de dsh.\nOpenCode Go (plan pago de OpenCode, APAGADO por defecto): con `\"opencode_plan\": \"go\"` o `\"go-plus\"` en modelos.json los modelos de motor/opencode/go-topes.json\n(se leen de opencode.ai/go con motor/opencode/go-topes.mjs a un caché en ~/.local/state/hilos; go-topes.json es el respaldo sin red; REPARTO_GO_TABLA=<archivo> lo cambia) entran como candidatos `opencode:opencode-go/<modelo>` con costo marginal ~0\n(`costo[\"opencode-go\"]`, 0,02), por calidad de AA al esfuerzo que se usaría, como cualquier otro. Cada modelo de Go tiene su cupo: un 429 (`--agotar`) marca agotado SOLO\nese modelo (5 h), no el grupo `opencode-free`. Sin esa clave (o con \"gratis\") no cambia nada.\nNVIDIA NIM (build.nvidia.com, gratis, ~40 pedidos por minuto por modelo; por opencode, `opencode:nvidia/<modelo>`; grupo `nvidia-nim`): candidatos sólo con NVIDIA_API_KEY\n(entorno o ~/.config/trama/claves.env) y `opencode` instalado. Los modelos salen de `nvidia_modelos` de modelos.json (default [\"deepseek-ai/deepseek-v4.1-flash\"]; [] lo apaga),\nREPARTO_NVIDIA=0 los apaga. Un 429 es por minuto: pa enfría SÓLO ese modelo unos minutos (`--enfriar ID --horas`), no hay grupo que agotar. La calidad sale de `calidad`.\n";
+const AYUDA = "reparto — qué modelo conviene para un tipo de tarea según la calidad que pide y el cupo que sobra.\n\n  reparto --cupos [--json]                     cupo de cada suscripción (Claude oficial, Google AI Pro/agy y ChatGPT/codex)\n  reparto --tabla [--json]                     todos los modelos que conoce: id, inteligencia (~ = estimada), gratis/pago,\n                                               cupo libre y cuándo vuelve, urgencia y si modelos.json los permite\n  reparto --resumen [--json]                   bloque corto (~30 líneas) para que el LÍDER elija modelo y effort: por modelo habilitado, id para `-m`,\n                                               inteligencia (AA) por effort, costo relativo, gratis/pago, cupo libre y cuándo vuelve, y para qué sirve\n  reparto --aa-diag [--json]                   por modelo local: con qué entrada de Artificial Analysis se emparejó, índice de inteligencia de AA (sin calibrar) por effort, medido o estimado\n  reparto --tipo T [--json] [--explicar]       modelo y effort que conviene para el tipo T\n  reparto --resolver ID [--json]               cómo se lanza un id de modelo (claude / agy / codex / ollama / dsh)\n  reparto --sustituir ID [--tipo T] [--effort E] [--registrar] [--json]\n                                               ¿conviene correr ese claude-* por agy (el mismo modelo, effort equivalente low|medium|high)? Compara el cupo libre\n                                               (el peor de 5 h y semanal) de agy con el del Claude oficial; sale 0 si conviene (`a` = id de agy), 1 si no. frontend y\n                                               diseno (necesitan Skill), xhigh y max quedan en Claude. --registrar anota la sustitución (<estado>/sustituciones.jsonl)\n  reparto --agotar ID [--hasta ISO]            marca agotado el grupo de agy o de codex de ese modelo (o grupo), o el\n                                               Claude oficial (claude-*), hasta que vuelve\n  reparto --enfriar ID [--horas N]             un modelo cortó por límite (pa sale 97): no es candidato N horas (default 5); es por modelo, no por grupo\n  reparto --opencode-limite                    lee por stdin la salida de OpenCode: si dice \"Free usage limit\", agota el grupo opencode-free (24 h, o el \"retrying in N\" del mensaje)\n  reparto --sondear-opencode                   un pedido mínimo a un modelo gratis de OpenCode; si dice \"Free usage limit\" agota el grupo (gasta cupo: sólo a mano, nunca solo)\n  reparto --enfriado ID                        si ese modelo sigue enfriado: imprime hasta cuándo y sale 0; si no, sale 1\n  reparto --excluido ID                        si modelos.json excluye ese id: imprime la regla y sale 0; si no, sale 1\n  reparto --agy-modelos [--refrescar] [--cuenta C] [--json]\n                                               los modelos que ofrece el agy de esta máquina y cuenta (`agy models`, se guarda 6 h; --refrescar la vuelve a pedir)\n  reparto --olvidar-agotados                   borra las marcas de agotado y de enfriado\n  reparto --plan ausente F[,F..] | presente F  días que no se trabaja (AAAA-MM-DD, hoy, manana, o A..B): el presupuesto semanal se reparte\n                                               entre los demás días (antes de una ausencia + reinicio, hoy se gasta más)\n  reparto --plan gastar-hoy | ahorrar-hoy      pisa el ritmo sólo por hoy (vence solo a medianoche)\n  reparto --plan ver [--json] | borrar         lo que hay guardado (<estado>/plan.json) y el ritmo de cada ventana semanal | lo borra\n  reparto --cuenta-para ID [--json]            la cuenta de su proveedor que eligió la persona (`cuentas preferir`) para ese modelo\n\nVarias cuentas por proveedor (bin/cuentas, ~/.config/trama/cuentas.json): cada cuenta es una suscripción aparte\nen --cupos (campos proveedor y cuenta), los candidatos salen de la cuenta preferida de cada proveedor (`cuentas preferir`; sin\nelegir, la de siempre) y --tipo dice la cuenta (campo cuenta). Nunca se pasa sola de una cuenta a otra, ni con el cupo agotado: eso\nlo decide la persona. --agotar ID --cuenta C marca agotado el grupo de esa cuenta; --tipo T --cuenta C elige sólo entre los\nmodelos de esa cuenta (pa --cuenta sin -m, aunque no sea la preferida); --tipo T --mismo-proveedor P prefiere\nlos modelos de P (el relanzamiento por falta de cupo de pa: el mismo proveedor, en la misma cuenta, antes de cambiar).\n\nInteligencia (`calidad`): en UNIDADES REALES del ÍNDICE DE INTELIGENCIA de Artificial Analysis (el general, el que AA mide completo; sin calibrar a 100).\nCoding y agentic de AA quedan como datos extra (--tabla: coding_por_effort / agentic_por_effort), nunca como base.\nSale de modelos.json (con \"calidad_unidades\": \"aa\"; sin eso son números de la escala vieja 0-100 y se migran al leer, ver vieja_a_aa);\nun modelo de opencode/dsh sin entrada se estima por el nombre (base 50, +10 con ultra/super/pro/max, -10 con flash/lightning/mini/nano,\nde la escala vieja, convertido a AA) y --tabla lo marca estimada. Los mínimos por tipo (\"sonnet\"...) valen el índice de inteligencia de esa familia\nal esfuerzo del tipo. `efforts_permitidos` {\"sonnet\": [\"low\",\"high\"]}: los esfuerzos que los workers pueden usar por familia o id. Cuenta igual en el puntaje.\nSi la app bajó los índices de Artificial Analysis (<estado>/aa-modelos.json; REPARTO_AA=<archivo> lo cambia, 0 lo apaga) valen antes que los\ndefaults y la estimación, pero después de lo que fija modelos.json. --tabla dice de dónde sale cada cifra en `origen`\n(usuario | artificial-analysis | defecto | estimada) y la fecha del dato en `aa_fecha`. Por esfuerzo, `calidad_por_effort` es lo MEDIDO (de la API o de\ndatos/aa-suplemento.json: REPARTO_AA_SUPLEMENTO=<archivo> lo cambia, 0 lo apaga; la API manda) y `efforts_estimados` + `calidad_estimada_por_effort`\nlo que se estima por interpolación (ver `fuente_por_effort`: api | suplemento | suplemento~ si la cifra es aproximada).\n\nRitmo y perfil (2026-10-26): cada ventana SEMANAL de una suscripción tiene un ritmo = usado / esperado; \"esperado\" = qué fracción de la\nsemana (ponderada por los días de trabajo del plan) ya pasó. Pasarse del ritmo resta puntos; ir por debajo y cerca del reinicio suma.\nmodelos.json `perfil` = equilibrado (default) | ahorro (workers a gratis/Google casi siempre, Claude sólo si nada más llega o si va\natrasado) | rendimiento (calidad primero); `reserva_lider` = fracción de la semana de Claude que queda para el líder (ver RITMO abajo).\n\nDónde deja de usarse cada proveedor (2026-10-27): `topes_uso` {\"google\": 90, \"google:claude-gpt\": 80, \"openai\": 95} = desde qué % USADO de una ventana no se elige\n(el del grupo gana al del proveedor; sin entrada, `llena`: 97 %). Claude se dice con `reserva` ({\"5h\": 0.2, \"7d\": 0.2} = lo que se guarda libre; sin ella, 97 %\nmás la reserva de `perfil`/`reserva_lider` en la semanal). `agy_min_libre_5h` (0,30 = desde 70 % usado) es el tope aparte de Google para trabajo de código en 5 h.\nOpenCode no informa % usado: se deja de usar cuando corta por límite (`--enfriar`, `--agotar`).\n\nSin dependencias (python3 estándar).\nEntorno (para tests): REPARTO_CUPOS_FIJOS=archivo.json (mismo formato que `--cupos --json`, no lee\nnada real), REPARTO_AHORA=ISO (la hora de \"ahora\"), REPARTO_STATE (caché de agy y grupos agotados; default\n<PA_STATE o ~/.local/state/pa>/reparto: el MISMO lugar para `pa` y para quien lo llame a mano), PA_STATE\n(statusline de Claude; también dónde mira los workers vivos para repartir la carga), TRAMA_MODELOS (modelos.json), REPARTO_CACHE_S (vida de la caché de agy: 120 s, y 30 s\nsi algún grupo tiene menos de la mitad de su ventana de 5 h o semanal), REPARTO_CON_CHEQUEO=1 (la tarea trae su chequeo: mecanico y lectura ofrecen primero los gratis de OpenCode con todo el cupo; lo pone pa), REPARTO_CARGA_FIJA='{\"grupo\": n}' (workers vivos por grupo,\nsin mirar el estado de pa), REPARTO_ASIGNACION_S (vida de esa anotación, 20; 0 la apaga), REPARTO_RESERVAR=1 (anota el grupo elegido: lo pone pa en su elección real),\nCODEX_HOME (credenciales y sesiones de codex; default ~/.codex), REPARTO_CODEX=0 (como si codex no estuviera).\nModelos de agy (`agy models`, por cuenta; cambian con la cuenta, la región y la versión): reparto sólo elige entre los que agy lista (los que no conoce entran con la calidad\nestimada, esfuerzo low de su familia, y --tabla los marca ~). REPARTO_AGY_MODELOS_FIJO=<salida de agy models> (tests: no lee nada real), REPARTO_AGY_MODELOS_S (vida de la lista, 21600 s).\ndsh (DeepSeek Harness: modelos gratis de OpenCode u Ollama, o DeepSeek): sus modelos son candidatos sólo si `dsh` está instalado y,\nsegún el proveedor, hay key (OPENCODE_API_KEY / DEEPSEEK_API_KEY en el entorno o en ~/.config/trama/claves.env) o Ollama responde\n(OLLAMA_HOST, default http://localhost:11434; la lista de modelos se guarda 60 s). REPARTO_DSH=0 los apaga (REPARTO_SIN_DSH=1 también:\nlo pone pa en --leer, donde dsh no va), REPARTO_CLAUDE=0 (como si claude no estuviera), REPARTO_DSH_FIJO='{\"ollama\":[\"m\"],\"opencode\":true,\n\"deepseek\":false}' (tests: no mira nada real). La calidad de cada modelo de dsh sale de `calidad` de modelos.json (\"dsh:opencode/glm-5.3-flash-free\": 55;\nadmite patrones con *); sin Claude, Gemini ni Codex y con la calidad por debajo de lo que pide el tipo, igual se elige el mejor gratis de dsh.\nopencode (el programa `opencode`: sus modelos gratis, `opencode:opencode/<modelo>`; grupo `opencode-free`): candidatos sólo si `opencode` está instalado;\nla lista sale de `opencode models` (los `*-free` y `big-pickle` de `opencode/`; se guarda 1 h), REPARTO_OPENCODE=0 los apaga (REPARTO_SIN_DSH=1 también),\nREPARTO_OPENCODE_FIJO='[\"opencode/beam-free\"]' (tests: no mira nada real). Los gratis de OpenCode por dsh (`dsh:opencode/*-free`) ya no se ofrecen solos:\nOpenCode los rechaza desde cualquier programa que no sea opencode (REPARTO_DSH_OPENCODE=1 los vuelve a ofrecer, con OPENCODE_API_KEY). La calidad sale de\n`calidad` (\"opencode:opencode/glm-5.3-flash-free\": 55; admite *), como la de dsh.\nOpenCode Go (plan pago de OpenCode, APAGADO por defecto): con `\"opencode_plan\": \"go\"` o `\"go-plus\"` en modelos.json los modelos de motor/opencode/go-topes.json\n(se leen de opencode.ai/go con motor/opencode/go-topes.mjs a un caché en ~/.local/state/hilos; go-topes.json es el respaldo sin red; REPARTO_GO_TABLA=<archivo> lo cambia) entran como candidatos `opencode:opencode-go/<modelo>` con costo marginal ~0\n(`costo[\"opencode-go\"]`, 0,02), por calidad de AA al esfuerzo que se usaría, como cualquier otro. Cada modelo de Go tiene su cupo: un 429 (`--agotar`) marca agotado SOLO\nese modelo (5 h), no el grupo `opencode-free`. Sin esa clave (o con \"gratis\") no cambia nada.\nNVIDIA NIM (build.nvidia.com, gratis, ~40 pedidos por minuto por modelo; por opencode, `opencode:nvidia/<modelo>`; grupo `nvidia-nim`): candidatos sólo con NVIDIA_API_KEY\n(entorno o ~/.config/trama/claves.env) y `opencode` instalado. Los modelos salen de `nvidia_modelos` de modelos.json (default [\"deepseek-ai/deepseek-v4.1-flash\"]; [] lo apaga),\nREPARTO_NVIDIA=0 los apaga. Un 429 es por minuto: pa enfría SÓLO ese modelo unos minutos (`--enfriar ID --horas`), no hay grupo que agotar. La calidad sale de `calidad`.\n";
 
 if (esPrincipal(import.meta.url)) {
   main(process.argv.slice(2)).then(
