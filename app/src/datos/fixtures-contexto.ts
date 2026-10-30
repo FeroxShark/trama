@@ -237,8 +237,8 @@ const subagente = (id: string): Desglose => {
     skills: [],
     memoria: [],
     sistema: [
-      { clave: "prompt", tipo: "prompt", nombre: "prompt", detalle: null, tokens: 6_400, estimado: true, texto: "Sos un agente de uso general.\nTerminá la tarea que te dan y devolvé un informe corto.", truncado: false },
-      { clave: "entorno", tipo: "entorno", nombre: "entorno", detalle: null, tokens: 500, estimado: true, texto: null, truncado: false },
+      { clave: "prompt", tipo: "prompt", nombre: "prompt", detalle: null, seccion: "suelta", tokens: 6_400, estimado: true, texto: "Sos un agente de uso general.\nTerminá la tarea que te dan y devolvé un informe corto.", truncado: false },
+      { clave: "entorno", tipo: "entorno", nombre: "entorno", detalle: null, seccion: null, tokens: 500, estimado: true, texto: null, truncado: false },
     ],
     usos: { herramientas: { Bash: 17, Read: 9, Grep: 4 }, skills: {}, mcp: {}, hook: {} },
     medidoEn: null,

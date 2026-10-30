@@ -119,7 +119,7 @@ async function calcularDesglose(o: Record<string, unknown>, clave: string, fresc
     const l = await claseDeLider(sid);
     const t = await transcriptDeLider(sid, l?.cwd).catch(() => null);
     // Un subagente es de Claude Code aunque el líder haya cambiado de motor: su transcript manda.
-    const ls = t ? await lineas(path.join(carpetaDeSubagentes(t), `agent-${id}.jsonl`)) : [];
+    const ls = t ? ((await leerTranscript(path.join(carpetaDeSubagentes(t), `agent-${id}.jsonl`)).catch(() => null))?.lineas ?? []) : [];
     if (!ls.length) return sinDesglose({ tipo: "subagente", id, motor: "claude", motivo: "sin-transcript" });
     // Sólo lectura: lo que cargó es lo que dice su transcript (el prompt, las herramientas, las instrucciones que le llegaron); nada se inventa de archivos ni se apaga desde acá.
     const d = desdeTranscript(sinLado(ls), { tipo: "subagente", id, motor: "claude", memoria: [], skills: [], excludes: apagados.memoria });
