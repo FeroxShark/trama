@@ -18,6 +18,8 @@ export type FilaWorker = {
   jefe_id?: string | null;
   jefe?: string | null;
   resultado?: string | null;
+  /** Commits de la rama del worker por encima de su base (`pa --hilos`). */
+  commits?: number | null;
   /** Lo frenó a propósito `pa --parar` (lo pone el main): no es un fallo. */
   frenado_en?: number | null;
   sin_arrancar?: boolean;
@@ -47,6 +49,8 @@ export type AvisoWorker = {
   motivo: string;
   /** `fin`: terminó pidiendo una decisión. */
   decision?: boolean;
+  /** `fin`: terminó sin el bloque RESULTADO, pero con commits y el repo limpio (el trabajo está). */
+  sinResumen?: boolean;
   /** `cupo`: el proveedor y cuándo vuelve (epoch s; `null`: no se sabe). */
   proveedor?: string;
   vuelve?: number | null;
@@ -69,6 +73,10 @@ export type AvisoWorker = {
 export const COLGADO_PA_MS = 10 * 60_000;
 /** Sin eventos y sin nada en vuelo durante esto cuenta como falla. */
 export const COLGADO_MS = 15 * 60_000;
+/** Código con que `pa` sale cuando el worker terminó sin el bloque RESULTADO (motor/bin/pa, «78»). */
+const RC_SIN_RESUMEN = 78;
+/** Lo que `pa` escribe en el .err cuando, al cerrar, no quedó nada sin commitear por esa corrida (delta_sucios). */
+const REPO_LIMPIO = /quedó limpio/;
 /** Cada cuánto se mira si alguno cruzó el umbral. */
 export const REVISAR_MS = 60_000;
 const MAX_AVISADOS = 2000;
@@ -229,8 +237,8 @@ export function crearAvisosWorker(d: Deps) {
     jefe: h.jefe ?? null,
   });
 
-  async function falla(h: FilaWorker, rc: number | undefined) {
-    const rastro = await d.leerRastro(h).catch(() => "");
+  async function falla(h: FilaWorker, rc: number | undefined, rastro?: string) {
+    rastro ??= await d.leerRastro(h).catch(() => "");
     const texto = `${rastro}\n${h.resultado ?? ""}`;
     const detalle = motivoDe(texto);
     if (esDeCupo(texto)) {
@@ -249,11 +257,18 @@ export function crearAvisosWorker(d: Deps) {
       return true;
     }
     if (TERMINADOS.has(h.estado)) {
+      const extra = h.estado === "decision" ? { decision: true } : {};
       if (rc !== undefined && rc !== 0) {
-        await falla(h, rc);
+        // Sin el bloque RESULTADO pero con commits y el repo limpio: el trabajo está, no es una falla (se lo dice «terminó sin resumen»).
+        const rastro = await d.leerRastro(h).catch(() => "");
+        if (rc === RC_SIN_RESUMEN && (h.commits ?? 0) > 0 && REPO_LIMPIO.test(rastro)) {
+          avisarWorker({ ...base_(h), tipo: "fin", motivo: "", ...extra, sinResumen: true });
+          return false;
+        }
+        await falla(h, rc, rastro);
         return true;
       }
-      avisarWorker({ ...base_(h), tipo: "fin", motivo: "", ...(h.estado === "decision" ? { decision: true } : {}) });
+      avisarWorker({ ...base_(h), tipo: "fin", motivo: "", ...extra });
     }
     return false;
   }
@@ -362,7 +377,7 @@ const hora = (epochS: number, ahoraMs: number) => {
 
 /** Cómo terminó un worker, en una oración sin su nombre: «terminó…» o «falló: …». */
 function comoTermino(a: AvisoWorker): string {
-  if (a.tipo === "fin") return `terminó${a.decision ? " pidiendo una decisión" : ""}.`;
+  if (a.tipo === "fin") return `terminó${a.decision ? " pidiendo una decisión" : a.sinResumen ? " sin resumen" : ""}.`;
   if (a.tipo === "colgado") return `falló: parece colgado, sin actividad hace ${a.minutos ?? 15} min.`;
   if (a.tipo === "cupo") {
     const vuelve = a.vuelve ? `vuelve a las ${hora(a.vuelve, a.ts)}` : "no sé cuándo vuelve";
@@ -396,8 +411,16 @@ export function textoParaLider(a: AvisoWorker): string {
   return `${MARCA_AVISO_TRAMA} Worker «${a.tarea || a.id}» ${comoTermino(a)} Id: ${a.id}. Revisalo con \`pa --hilo ${a.id}\`.`;
 }
 
+/** Cómo quedó un worker en un aviso: terminó, terminó pidiendo una decisión, terminó sin resumen, o falló. */
+export type EstadoAviso = "termino" | "decision" | "sinResumen" | "falla";
+
 /** Lo que la vista saca de un aviso ya escrito: qué workers, cuáles fallaron. Una tanda trae una entrada por worker. */
-export type AvisoTexto = { tanda: boolean; falla: boolean; trabajos: { id: string; tarea: string; falla: boolean }[] };
+export type AvisoTexto = { tanda: boolean; falla: boolean; trabajos: { id: string; tarea: string; falla: boolean; estado: EstadoAviso }[] };
+
+/** El estado de un worker a partir de lo que dice su aviso («terminó», «terminó pidiendo una decisión», «terminó sin resumen», «falló»). */
+const estadoDe = (dicho: string): EstadoAviso => (dicho === "falló" ? "falla" : dicho.includes("decisión") ? "decision" : dicho.includes("sin resumen") ? "sinResumen" : "termino");
+/** Lo que se dice de un worker al principio de su línea o de su aviso solo: el verbo y lo que lo califica. */
+const DICHO = "(terminó(?: pidiendo una decisión| sin resumen)?|falló)";
 
 /** ¿Es un aviso automático de Trama? Por la marca con que empieza (`MARCA_AVISO_TRAMA`). */
 export const esAvisoTrama = (texto: string): boolean => texto.trimStart().startsWith(MARCA_AVISO_TRAMA);
@@ -409,10 +432,10 @@ export const esAvisoTrama = (texto: string): boolean => texto.trimStart().starts
 export function avisoDeTexto(texto: string): AvisoTexto | null {
   if (!esAvisoTrama(texto)) return null;
   const t = texto.trim();
-  const lineas = [...t.matchAll(/^- «(.*?)» \(([^)\s]+)\): (terminó|falló)/gm)].map((m) => ({ tarea: m[1], id: m[2], falla: m[3] === "falló" }));
+  const lineas = [...t.matchAll(new RegExp(`^- «(.*?)» \\(([^)\\s]+)\\): ${DICHO}`, "gm"))].map((m) => ({ tarea: m[1], id: m[2], falla: m[3] === "falló", estado: estadoDe(m[3]) }));
   if (lineas.length) return { tanda: true, falla: lineas.some((l) => l.falla), trabajos: lineas };
-  const uno = t.match(/^\[Aviso automático de Trama\] Worker «(.*?)» (terminó|falló)[\s\S]*? Id: ([^\s.]+)\./);
-  if (uno) return { tanda: false, falla: uno[2] === "falló", trabajos: [{ tarea: uno[1], id: uno[3], falla: uno[2] === "falló" }] };
+  const uno = t.match(new RegExp(`^\\[Aviso automático de Trama\\] Worker «(.*?)» ${DICHO}[\\s\\S]*? Id: ([^\\s.]+)\\.`));
+  if (uno) return { tanda: false, falla: uno[2] === "falló", trabajos: [{ tarea: uno[1], id: uno[3], falla: uno[2] === "falló", estado: estadoDe(uno[2]) }] };
   // Un texto con la marca que no se entiende: si dice «falló» o «con falla», cuenta como falla.
   return { tanda: false, falla: /falló|con falla/.test(t), trabajos: [] };
 }

@@ -146,7 +146,7 @@ test("trama_destrabo: una línea de sistema por cada destrabo, sin contar como m
 test("un aviso de Trama es una fila de sistema, con o sin su marca en la cola; lo demás del usuario no cambia", () => {
   const usuario = (texto: string, extra: Partial<Mensaje> = {}): Mensaje => ({ i: 0, rol: "user", texto, herramientas: [], ts: null, modelo: null, ...extra });
   const aviso = "[Aviso automático de Trama] Worker «a» terminó. Id: 1. Revisalo con `pa --hilo 1`.";
-  assert.deepEqual(sistemaDe(usuario(aviso)), { tipo: "linea", clase: "aviso", aviso: { tanda: false, falla: false, trabajos: [{ tarea: "a", id: "1", falla: false }] } });
+  assert.deepEqual(sistemaDe(usuario(aviso)), { tipo: "linea", clase: "aviso", aviso: { tanda: false, falla: false, trabajos: [{ tarea: "a", id: "1", falla: false, estado: "termino" }] } });
   // Lo que marcó la cola sin que el texto se entienda: fila igual, sin workers.
   assert.deepEqual(forma(turnos([usuario("texto raro", { aviso: true })])), ["linea:aviso"]);
   assert.equal(sistemaDe(usuario("¿Seguimos con el cauce?")), null, "lo que escribe el usuario sigue siendo un pedido");

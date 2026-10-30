@@ -208,9 +208,9 @@ test("utilidades: cupo, proveedor, motivo en una línea, tarea corta, cuándo vu
 
 test("el aviso se reconoce por su marca y lo que dice sale de su texto (un worker, una tanda, una falla)", () => {
   const uno = textoParaLider({ tipo: "fin", id: "2", tarea: "tests de atlas", jefe_id: "l1" } as AvisoWorker);
-  assert.deepEqual(avisoDeTexto(uno), { tanda: false, falla: false, trabajos: [{ tarea: "tests de atlas", id: "2", falla: false }] });
+  assert.deepEqual(avisoDeTexto(uno), { tanda: false, falla: false, trabajos: [{ tarea: "tests de atlas", id: "2", falla: false, estado: "termino" }] });
   const falla = textoParaLider({ tipo: "colgado", id: "3", tarea: "migración", minutos: 15, jefe_id: "l1" } as AvisoWorker);
-  assert.deepEqual(avisoDeTexto(falla), { tanda: false, falla: true, trabajos: [{ tarea: "migración", id: "3", falla: true }] });
+  assert.deepEqual(avisoDeTexto(falla), { tanda: false, falla: true, trabajos: [{ tarea: "migración", id: "3", falla: true, estado: "falla" }] });
   const tanda = textoParaLider({
     tipo: "tanda",
     lineas: [
@@ -222,8 +222,8 @@ test("el aviso se reconoce por su marca y lo que dice sale de su texto (un worke
     tanda: true,
     falla: true,
     trabajos: [
-      { tarea: "a", id: "4", falla: false },
-      { tarea: "b", id: "5", falla: true },
+      { tarea: "a", id: "4", falla: false, estado: "termino" },
+      { tarea: "b", id: "5", falla: true, estado: "falla" },
     ],
   });
   assert.equal(esAvisoTrama("  " + uno), true);
@@ -245,4 +245,37 @@ test("registrar: cada aviso de un worker se anota al detectarlo, aunque su tanda
   const texto = textoParaLider({ ...a, tipo: "tanda", lineas: [a], n: 1, fallas: 0, retomado: true });
   assert.match(texto, /Mientras no estabas terminaron 1 worker de los que lanzaste y no se revisaron:/);
   assert.deepEqual(avisoDeTexto(texto)?.trabajos.map((t) => t.id), ["a"]);
+});
+
+test("rc 78 (terminó sin el bloque RESULTADO) con commits y el repo limpio: terminó sin resumen, no falla, sin la última línea", async () => {
+  const { av, avisos } = armar({ a: "La respuesta anterior sigue valiendo\npa: El repo quedó limpio: no hay trabajo en riesgo. No hay nada que cerrar." });
+  await av.hilos([fila("a", "trabajando")]);
+  av.eventos([{ tipo: "fin", id: "a", rc: 78 }]);
+  await av.hilos([fila("a", "entregado", { commits: 2 })]);
+  assert.deepEqual(avisos.map((a) => [a.tipo, a.sinResumen]), [["fin", true]]);
+  assert.equal(textoParaLider(avisos[0]), "[Aviso automático de Trama] Worker «tarea de a» terminó sin resumen. Id: a. Revisalo con `pa --hilo a`.");
+});
+
+test("rc 78 sin commits, o con el repo sucio: sigue siendo falla, con su última línea", async () => {
+  const sinCommits = armar({ a: "trabajo a medias\nDejé cambios sin commitear" });
+  await sinCommits.av.hilos([fila("a", "trabajando", { commits: 0 })]);
+  sinCommits.av.eventos([{ tipo: "fin", id: "a", rc: 78 }]);
+  await sinCommits.av.hilos([fila("a", "entregado", { commits: 0 })]);
+  assert.equal(textoParaLider(sinCommits.avisos[0]), "[Aviso automático de Trama] Worker «tarea de a» falló: Dejé cambios sin commitear. Id: a. Revisalo con `pa --hilo a`.");
+
+  const sucio = armar({ a: "pa: Lo que quedó sucio por esta corrida: 3 archivos. Cerralo con: pa 'trama' --seguir" });
+  await sucio.av.hilos([fila("a", "trabajando", { commits: 2 })]);
+  sucio.av.eventos([{ tipo: "fin", id: "a", rc: 78 }]);
+  await sucio.av.hilos([fila("a", "entregado", { commits: 2 })]);
+  assert.deepEqual(sucio.avisos.map((a) => a.tipo), ["falla"]);
+});
+
+test("avisoDeTexto: cada trabajo de una tanda o un aviso solo trae su estado (terminó, pidió una decisión, sin resumen, falló)", () => {
+  const tanda = "[Aviso automático de Trama] Terminaron los 4 workers que lanzaste, 1 con falla:\n- «uno» (1): terminó.\n- «dos» (2): terminó pidiendo una decisión.\n- «tres» (3): terminó sin resumen.\n- «cuatro» (4): falló: se cortó.\nRevisá cada uno con `pa --hilo <id>`.";
+  assert.deepEqual(avisoDeTexto(tanda)?.trabajos.map((x) => [x.id, x.estado, x.falla]), [["1", "termino", false], ["2", "decision", false], ["3", "sinResumen", false], ["4", "falla", true]]);
+  assert.equal(avisoDeTexto(tanda)?.falla, true);
+  const uno = "[Aviso automático de Trama] Worker «dos» terminó pidiendo una decisión. Id: 2. Revisalo con `pa --hilo 2`.";
+  assert.deepEqual(avisoDeTexto(uno)?.trabajos, [{ tarea: "dos", id: "2", falla: false, estado: "decision" }]);
+  const sin = "[Aviso automático de Trama] Worker «tres» terminó sin resumen. Id: 3. Revisalo con `pa --hilo 3`.";
+  assert.deepEqual(avisoDeTexto(sin), { tanda: false, falla: false, trabajos: [{ tarea: "tres", id: "3", falla: false, estado: "sinResumen" }] });
 });
