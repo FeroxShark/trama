@@ -121,6 +121,16 @@ historia (force push); se puede subir directo y mergear sin esperar el CI.
 - La app: `modelos:config` suma `agyModelos` (`electron/agy-ofrecidos.ts`); `src/hilo/modelos.ts` (`agyDeCuenta`) arma la fila de Google con esos. Los ids sin nivel en el nombre (`…-thinking`) se lanzan tal cual (`recordarAgySinNivel`). Ajustes > Modelos ya sale de `reparto --tabla`.
 - Tests: fixtures `tests/fixtures/agy-models-cuenta-b*.txt`, casos "agy de otra cuenta" en `tests/paridad/casos-reparto.ts` y los de rechazo en `casos-cupo.ts`.
 
+## Hecho: sustitución por cupo (claude-* → agy)
+
+- **Regla (`reparto --sustituir ID [--tipo T] [--effort E] [--json] [--registrar]`, `sustituir` en `motor/bin/reparto` y su gemelo en `cli/reparto.ts`):** un `-m claude-opus-*` o `claude-sonnet-*` corre por agy (el MISMO modelo, con el effort equivalente) si agy tiene al menos 0,10 más cupo libre que el Claude oficial (`SUST_MARGEN`) y le quedan por lo menos 25 % libres (`SUST_MIN_LIBRE`). El cupo libre es el peor de la ventana de 5 h y la semanal de cada camino. Si no, queda en Claude y `motivo` dice por qué.
+- **Nunca sustituye:** reparto fijo en modelos.json, tipos `frontend` y `diseno` (necesitan Skill), efforts `xhigh` y `max` (agy no los tiene), modelos que agy no ofrece, modelos excluidos (`excluir`) o apagados, grupo de agy agotado o enfriado, y Haiku.
+- **`pa --exacto -m claude-*`:** corre tal cual en Claude, sin pasarlo a agy aunque haya más cupo. También quedan en Claude `--seguir`, `--aca`, `--mcp` y `--max-budget-usd`. Sin `--exacto`, `pa` avisa por stderr (`pa: <modelo> → agy…`).
+- **`sustituciones.jsonl`:** cada sustitución hecha se anota (`--registrar`) en `<estado de reparto>/sustituciones.jsonl`, una línea JSON por vez. Lo leen `pa --rinde` (clave y sección `sustituciones`) y las Estadísticas de la app (sección «Pasadas a agy por cupo», últimos 60 días, `leerSustituciones` en `electron/paneles.ts`).
+- **Si agy corta por cupo (`--agotar` y `--otro-camino`):** `pa` marca agotado ese camino con `reparto --agotar <agy:modelo> --hasta <ISO>` (la hora sale del texto de agy, `agyResetHasta`; sin hora, el tiempo por defecto). Con `sin_cupo: otro`, pregunta `reparto --otro-camino <agy:claude-*> --json` y, si el Claude oficial está habilitado, sin agotar y con ese effort permitido, relanza el MISMO modelo por Claude sin cambiar de cuenta (`relanzarPorOtroCamino` en `cli/pa/cupo.ts`, `agy_otro_camino` en bash). Lo mismo si el `-m` fue a mano: marca agotado agy y sigue el mismo modelo por Claude. Sólo si el worker no alcanzó a hacer trabajo.
+- **`REPARTO_CON_CHEQUEO=1`:** lo pone `pa` cuando la tarea trae su chequeo; con eso `mecanico` y `lectura` ofrecen primero los gratis de OpenCode con todo su cupo (`TIPOS_CON_CHEQUEO`).
+- **`reparto --resumen`:** arriba lleva la línea «Camino hoy», con qué camino conviene hoy para cada claude-opus/sonnet y si hay OpenCode gratis. No nombra lo que `excluir` saca (Python y TS igual; caso de paridad «--resumen con opus excluido»).
+
 ## Hecho: cambiar modelo o esfuerzo con el líder trabajando
 
 - **Los selectores de modelo y esfuerzo de la caja del líder ya no se bloquean durante un turno.** El cambio no toca el turno en
