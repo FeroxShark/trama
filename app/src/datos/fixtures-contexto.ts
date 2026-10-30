@@ -3,6 +3,7 @@ import type { Desglose, FilaCategoria } from "../../electron/contexto-desglose";
 import type { Catalogo, VistaApagados } from "../../electron/contexto-panel";
 import type { VistaPrevia } from "../../electron/contexto-previa";
 import type { SkillCatalogo } from "../../electron/skills-catalogo";
+import { juntar, type SubagenteGasto } from "../../electron/subagentes-gasto";
 
 const cat = (id: FilaCategoria["id"], tokens: number, estimado = false): FilaCategoria => ({ id, nombre: null, tokens, estimado });
 
@@ -172,9 +173,85 @@ const worker = (id: string, usado: number, sinUso: boolean): Desglose => ({
   motivo: null,
 });
 
-/** El desglose falso de un líder o de un worker (el de las capturas es el de "ana-c7" con sus workers). */
-export function desgloseFalso(x: { lider: string } | { worker: string }): Desglose {
+/** Los dos subagentes inventados de una sesión: uno de Haiku que terminó y uno de Sonnet que sigue corriendo (las llamadas son `toolu_auditar` y `toolu_mapear`). */
+const SUBAGENTES: Omit<SubagenteGasto, "sid">[] = [
+  {
+    id: "a1b2c3d4e5f60718",
+    llamada: "toolu_auditar",
+    descripcion: "Auditar los índices de la base de atlas",
+    tipo: "general-purpose",
+    modelo: "Haiku 5.5",
+    modeloId: "claude-haiku-5-5",
+    estado: "terminado",
+    inicio: Math.floor(AHORA / 1000) - 900,
+    ultimo_en: Math.floor(AHORA / 1000) - 610,
+    tokens: { entrada: 54, cacheCreado: 38_400, cacheLeido: 1_204_000, salida: 21_300, total: 1_263_754 },
+    pedidos: 31,
+    herramientas: 30,
+    contexto: 71_200,
+    ventana: 200_000,
+  },
+  {
+    id: "f9e8d7c6b5a40312",
+    llamada: "toolu_mapear",
+    descripcion: "Mapear dónde se usa la config vieja",
+    tipo: "Explore",
+    modelo: "Sonnet 5.5",
+    modeloId: "claude-sonnet-5-5",
+    estado: "corriendo",
+    inicio: Math.floor(AHORA / 1000) - 240,
+    ultimo_en: Math.floor(AHORA / 1000) - 5,
+    tokens: { entrada: 18, cacheCreado: 15_200, cacheLeido: 212_000, salida: 6_900, total: 234_118 },
+    pedidos: 12,
+    herramientas: 11,
+    contexto: 28_700,
+    ventana: 1_000_000,
+  },
+];
+
+/** Los subagentes falsos de un líder (el gasto de cada uno, para el panel y las capturas). */
+export const subagentesFalsos = (sid: string) => juntar(sid, structuredClone(SUBAGENTES).map((s) => ({ ...s, sid })));
+
+/** El desglose de un subagente (sólo lectura: del transcript, estimado): su sistema, sus herramientas y sus mensajes. */
+const subagente = (id: string): Desglose => {
+  const s = SUBAGENTES.find((x) => x.id === id) ?? SUBAGENTES[0];
+  const usado = s.contexto ?? 0;
+  return {
+    version: 1,
+    quien: { tipo: "subagente", id },
+    motor: "claude",
+    fuente: "transcript",
+    estimado: true,
+    modelo: s.modeloId,
+    usado,
+    ventana: s.ventana,
+    ventanaEstimada: true,
+    categorias: [cat("sistema", 6_900, true), cat("herramientas", 11_200, true), cat("mensajes", usado - 18_100, true)],
+    herramientas: [
+      { nombre: "Bash", tokens: 3_900, diferida: false, usos: 17 },
+      { nombre: "Read", tokens: 1_800, diferida: false, usos: 9 },
+      { nombre: "Grep", tokens: 800, diferida: false, usos: 4 },
+      { nombre: "WebFetch", tokens: 1_300, diferida: false, usos: 0 },
+    ],
+    mcp: [],
+    skills: [],
+    memoria: [],
+    sistema: [
+      { clave: "prompt", tipo: "prompt", nombre: "prompt", detalle: null, tokens: 6_400, estimado: true, texto: "Sos un agente de uso general.\nTerminá la tarea que te dan y devolvé un informe corto.", truncado: false },
+      { clave: "entorno", tipo: "entorno", nombre: "entorno", detalle: null, tokens: 500, estimado: true, texto: null, truncado: false },
+    ],
+    usos: { herramientas: { Bash: 17, Read: 9, Grep: 4 }, skills: {}, mcp: {}, hook: {} },
+    medidoEn: null,
+    desactualizado: false,
+    sinUso: { herramientas: ["WebFetch"], mcp: [], skills: [] },
+    motivo: null,
+  };
+};
+
+/** El desglose falso de un líder, de un worker o de un subagente (el de las capturas es el de "ana-c7" con sus workers). */
+export function desgloseFalso(x: { lider: string } | { worker: string } | { subagente: { lider: string; id: string } }): Desglose {
   if ("lider" in x) return { ...structuredClone(LIDER), quien: { tipo: "lider", id: x.lider } };
+  if ("subagente" in x) return subagente(x.subagente.id);
   return worker(x.worker, x.worker.endsWith("49377") ? 63_800 : 47_200, true);
 }
 

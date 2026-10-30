@@ -5,7 +5,8 @@ import assert from "node:assert/strict";
 import { appendFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { Acumulado, carpetaDeSubagentes, crearGastos, juntar, sinLado, ventanaSub } from "../electron/subagentes-gasto.ts";
+import { Acumulado, juntar, sinLado, ventanaSub } from "../electron/subagentes-gasto.ts";
+import { carpetaDeSubagentes, crearGastos } from "../electron/subagentes-gasto-disco.ts";
 import { desdeTranscript } from "../electron/contexto-desglose.ts";
 import { leerCarpeta } from "../electron/subagentes.ts";
 

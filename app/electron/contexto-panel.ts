@@ -13,7 +13,8 @@ import { cwdDe, desdeClaude, desdeTranscript, medirConRespaldo, memoriaDeSesion,
 import { leerTranscript, type Transcript } from "./contexto-jsonl.ts";
 import { leerSesion } from "./contexto-sesion.ts";
 import { errorT } from "./errores.ts";
-import { carpetaDeSubagentes, crearGastos, sinLado, ventanaSub, type GastoSubagentes } from "./subagentes-gasto.ts";
+import { sinLado, ventanaSub, type GastoSubagentes } from "./subagentes-gasto.ts";
+import { carpetaDeSubagentes, crearGastos } from "./subagentes-gasto-disco.ts";
 import type { Subagentes } from "./subagentes.ts";
 import { aplicarApagadosLideres, claseDeLider, contextoVivo, transcriptDe as transcriptDeLider } from "./lider.ts";
 import { PA_STATE } from "./pa.ts";

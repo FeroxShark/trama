@@ -5,10 +5,11 @@ import { main, mensaje } from "../puente";
 import type { Desglose } from "../../electron/contexto-desglose";
 import type { Catalogo, VistaApagados } from "../../electron/contexto-panel";
 import type { VistaPrevia } from "../../electron/contexto-previa";
-import { APAGADOS_FALSOS, catalogoFalso, desgloseFalso, previaFalsa } from "./fixtures-contexto";
+import type { GastoSubagentes } from "../../electron/subagentes-gasto";
+import { APAGADOS_FALSOS, catalogoFalso, desgloseFalso, previaFalsa, subagentesFalsos } from "./fixtures-contexto";
 import type { TipoApagado } from "../paneles/contexto-vista";
 
-export type Quien = { lider: string } | { worker: string };
+export type Quien = { lider: string } | { worker: string } | { subagente: { lider: string; id: string } };
 /** Lo que contesta apagar o prender algo: el registro nuevo y qué pasó con los líderes (el aviso es siempre "próximo mensaje"). */
 export type Fijado = VistaApagados & { lideres: { reiniciados: number; pendientes: number }; aviso: "proximo-mensaje" };
 
@@ -18,6 +19,8 @@ export type PedidoPrevia = { tipo: "lider" | "worker"; proyecto: string; modelo:
 export type FuenteContexto = {
   /** `fresco`: el botón de refrescar; sin él, el main devuelve lo guardado si el transcript no cambió. */
   desglose(q: Quien & { fresco?: boolean }): Promise<Desglose>;
+  /** Los subagentes que lanzó un líder (herramienta Agent) y lo que gastó cada uno. */
+  subagentes(sid: string): Promise<GastoSubagentes>;
   /** Con `sid` de un líder de Claude vivo, los tokens de cada skill son exactos. */
   catalogo(sid?: string): Promise<Catalogo>;
   apagados(): Promise<VistaApagados>;
@@ -38,6 +41,10 @@ const fija: FuenteContexto = {
   async desglose(q) {
     await espera(40);
     return desgloseFalso(q);
+  },
+  async subagentes(sid) {
+    await espera(40);
+    return subagentesFalsos(sid);
   },
   async catalogo() {
     await espera(40);
@@ -75,6 +82,9 @@ const fallar = (e: unknown): never => {
 const conMain = (m: NonNullable<typeof main>): FuenteContexto => ({
   async desglose(q) {
     return (await m.paneles.desgloseContexto(q).catch(fallar)) as Desglose;
+  },
+  async subagentes(sid) {
+    return (await m.paneles.subagentesContexto({ lider: sid }).catch(fallar)) as GastoSubagentes;
   },
   async catalogo(sid) {
     return (await m.paneles.catalogoSkills(sid ? { sid } : {}).catch(fallar)) as Catalogo;
