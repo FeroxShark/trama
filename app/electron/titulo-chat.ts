@@ -7,7 +7,7 @@ import { spawn } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { ESTADO, escribirAtomico } from "./pa.ts";
-import { type Tema, tienePropio } from "./tema.ts";
+import { type Tema, tienePropio, tituloCorto } from "./tema.ts";
 
 export const PALABRAS_MAX = 6;
 const TITULO_MAX = 60;
@@ -17,18 +17,26 @@ const INTENTOS_MAX = 2;
 /** Cuánto del primer mensaje se le muestra al modelo: el tema se ve en el principio. */
 const ENTRADA_MAX = 600;
 
-/** Lo que se le pide al modelo: sólo el título, en el idioma del mensaje. */
+/** Lo que se le pide al modelo: sólo el título, en el idioma del mensaje, sin herramientas. */
 export function pedidoTitulo(primero: string): string {
   return [
     `Escribí un título de ${PALABRAS_MAX} palabras o menos que diga de qué trata esta conversación, en el idioma del mensaje.`,
     "Contestá sólo con el título: sin comillas, sin punto final, sin saludo.",
+    "No uses herramientas ni etiquetas: es texto plano, sin llaves ni signos de menor.",
     "",
     "Mensaje:",
     primero.slice(0, ENTRADA_MAX),
   ].join("\n");
 }
 
-/** Lo que dijo el modelo como título, o `null` si no sirve (vacío, una frase larga, una disculpa en varias líneas). */
+/** Rastro de una llamada a herramienta o de una plantilla (`<invoke_tool name="Read">`): nunca es un título. */
+const RASTRO = /[<{}]|invoke|tool/i;
+export const esBasura = (t: string) => RASTRO.test(t);
+
+/** Un título que se puede mostrar: una frase corta de texto, sin rastro de herramienta. */
+export const tituloValido = (t: string) => t.length <= TITULO_MAX && t.split(/\s+/).length <= PALABRAS_MAX && !esBasura(t);
+
+/** Lo que dijo el modelo como título, o `null` si no sirve (vacío, una frase larga, una disculpa en varias líneas, una llamada a herramienta). */
 export function limpiarTitulo(salida: string): string | null {
   const l = salida
     .split("\n")
@@ -40,7 +48,7 @@ export function limpiarTitulo(salida: string): string | null {
     .replace(/^["'“”«`*#\s]+|["'“”»`*\s]+$/gu, "")
     .replace(/[.!…]+$/u, "")
     .trim();
-  if (!t || t.length > TITULO_MAX || t.split(/\s+/).length > PALABRAS_MAX + 2) return null;
+  if (!t || !tituloValido(t)) return null;
   return t[0].toLocaleUpperCase() + t.slice(1);
 }
 
@@ -84,8 +92,11 @@ const enCurso = new Set<string>();
 const intentos = new Map<string, number>();
 let guardados: TitulosAuto | null = null;
 
-/** El título generado de una sesión (`undefined` si todavía no hay). */
-export const generadoDe = (sid: string) => guardados?.[sid];
+/** El título generado de una sesión (`undefined` si todavía no hay, o si lo guardado tiene rastro de herramienta: no se muestra). */
+export const generadoDe = (sid: string) => {
+  const g = guardados?.[sid];
+  return g && !esBasura(g) ? g : undefined;
+};
 export const cargarGenerados = async () => (guardados ??= await leerTitulosAuto());
 
 type Opciones = { correr?: (prompt: string) => Promise<string>; guardar?: (t: TitulosAuto) => Promise<void> };
@@ -95,12 +106,14 @@ type Opciones = { correr?: (prompt: string) => Promise<string>; guardar?: (t: Ti
  * uno. Sin esperar: la barra muestra el recorte local hasta que llega. Devuelve la promesa sólo para los tests.
  */
 export function generarSiHaceFalta(sid: string, t: Pick<Tema, "custom" | "ai" | "primero" | "respondio">, sesion: string, o: Opciones = {}): Promise<void> | null {
+  const guardar = o.guardar ?? ((x: TitulosAuto) => escribirAtomico(RUTA, JSON.stringify(x)));
+  // Un título guardado con rastro de herramienta (de antes de validar la salida): vuelve al respaldo, sin llamar al modelo.
+  if (guardados?.[sid] !== undefined && esBasura(guardados[sid])) return corregirBasura(sid, t, sesion, guardar);
   if (!t.primero || !t.respondio || tienePropio(t, sesion) || guardados?.[sid] || enCurso.has(sid)) return null;
   if ((intentos.get(sid) ?? 0) >= INTENTOS_MAX) return null;
   intentos.set(sid, (intentos.get(sid) ?? 0) + 1);
   enCurso.add(sid);
   const correr = o.correr ?? correrBarato;
-  const guardar = o.guardar ?? ((x: TitulosAuto) => escribirAtomico(RUTA, JSON.stringify(x)));
   return correr(pedidoTitulo(t.primero))
     .then(async (salida) => {
       const titulo = limpiarTitulo(salida);
@@ -112,9 +125,21 @@ export function generarSiHaceFalta(sid: string, t: Pick<Tema, "custom" | "ai" | 
     .finally(() => enCurso.delete(sid));
 }
 
-/** Sólo para los tests: vuelve al estado inicial. */
-export function reiniciarTitulos(): void {
+/**
+ * El título guardado con rastro de herramienta se cambia por el respaldo (el recorte del primer mensaje, `tituloCorto`) y se guarda.
+ * Sin primer mensaje todavía no hay respaldo: queda como está (no se muestra, `generadoDe`). Lo que puso la persona (`tienePropio`)
+ * no se toca: ni lo reescribe ni lo pisa.
+ */
+function corregirBasura(sid: string, t: Pick<Tema, "custom" | "ai" | "primero">, sesion: string, guardar: (t: TitulosAuto) => Promise<void>): Promise<void> | null {
+  if (!t.primero || tienePropio(t, sesion)) return null;
+  const nuevos = { ...(guardados ?? {}), [sid]: tituloCorto(t.primero) };
+  guardados = nuevos;
+  return guardar(nuevos).catch(() => {});
+}
+
+/** Sólo para los tests: vuelve al estado inicial (o al que se le pasa, para probar lo ya guardado). */
+export function reiniciarTitulos(inicial: TitulosAuto | null = null): void {
   enCurso.clear();
   intentos.clear();
-  guardados = null;
+  guardados = inicial;
 }

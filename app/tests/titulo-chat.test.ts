@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { generarSiHaceFalta, generadoDe, limpiarTitulo, pedidoTitulo, reiniciarTitulos } from "../electron/titulo-chat.ts";
+import { esBasura, generarSiHaceFalta, generadoDe, limpiarTitulo, pedidoTitulo, reiniciarTitulos, tituloValido } from "../electron/titulo-chat.ts";
 import { tituloCorto, tituloLider, tienePropio } from "../electron/tema.ts";
 
 const LARGO =
@@ -27,15 +27,27 @@ test("tituloLider: lo de la persona o de Claude Code gana al generado, y éste a
 });
 
 test("limpiarTitulo: una línea corta sin comillas ni punto; lo que no sirve es null", () => {
-  assert.equal(limpiarTitulo('"Ventanas CMD y Flash en PC de Gonza."\n'), "Ventanas CMD y Flash en PC de Gonza");
+  assert.equal(limpiarTitulo('"Ventanas CMD y Flash en PC."\n'), "Ventanas CMD y Flash en PC");
   assert.equal(limpiarTitulo("Título: arreglar build"), "Arreglar build");
   assert.equal(limpiarTitulo(""), null);
   assert.equal(limpiarTitulo("Claro, te armo un título para esta conversación que sea bastante descriptivo del tema tratado"), null);
 });
 
-test("pedidoTitulo: lleva el mensaje y el tope de palabras", () => {
+test("limpiarTitulo: una llamada a herramienta, llaves o más de 6 palabras no es título (se usa el respaldo)", () => {
+  assert.equal(limpiarTitulo('<invoke_tool name="Read">'), null);
+  assert.equal(limpiarTitulo('<invoke name="Read">\n<parameter name="file_path">/x</parameter>'), null);
+  assert.equal(limpiarTitulo("Usar tool Read"), null);
+  assert.equal(limpiarTitulo("Arreglar {build} de omc"), null);
+  assert.equal(limpiarTitulo("Ventanas CMD y Flash en la PC"), null, "7 palabras");
+  assert.equal(limpiarTitulo("Ventanas CMD y Flash en PC"), "Ventanas CMD y Flash en PC", "6 palabras");
+  assert.ok(esBasura('<invoke_tool name="Read">') && esBasura("Invoke algo") && esBasura("Tool Read") && !esBasura("Retomá omc v2"));
+  assert.ok(tituloValido("Ventanas CMD en PC") && !tituloValido("x".repeat(61)));
+});
+
+test("pedidoTitulo: lleva el mensaje, el tope de palabras y pide texto sin herramientas", () => {
   const p = pedidoTitulo("hola mundo");
   assert.ok(p.includes("6 palabras") && p.endsWith("hola mundo"));
+  assert.ok(p.includes("No uses herramientas"));
 });
 
 test("generarSiHaceFalta: genera tras el primer intercambio y guarda; no pisa un título de la persona", async () => {
@@ -80,4 +92,42 @@ test("generarSiHaceFalta: si el modelo falla o contesta cualquier cosa, no hay t
   assert.equal(n, 2);
   assert.equal(generadoDe("f1"), undefined);
   assert.equal(tituloLider(t, "trama-aaaa", generadoDe("f1")), tituloCorto(LARGO));
+});
+
+test("generarSiHaceFalta: si el modelo contesta una llamada a herramienta, no se guarda: se muestra el respaldo", async () => {
+  reiniciarTitulos();
+  const guardados: Record<string, string>[] = [];
+  const o = {
+    correr: async () => '<invoke_tool name="Read">',
+    guardar: async (x: Record<string, string>) => void guardados.push(x),
+  };
+  const t = { custom: null, ai: null, primero: LARGO, respondio: true };
+  await generarSiHaceFalta("i1", t, "trama-aaaa", o);
+  assert.equal(guardados.length, 0);
+  assert.equal(generadoDe("i1"), undefined);
+  assert.equal(tituloLider(t, "trama-aaaa", generadoDe("i1")), tituloCorto(LARGO));
+});
+
+test("generarSiHaceFalta: un título guardado con rastro de herramienta vuelve al respaldo, sin llamar al modelo; lo bueno y lo de la persona no se tocan", async () => {
+  reiniciarTitulos({ b1: '<invoke_tool name="Read">', b2: "Ventanas CMD en PC", b3: '{"x": 1}' });
+  const llamadas: string[] = [];
+  const guardados: Record<string, string>[] = [];
+  const o = {
+    correr: async (p: string) => (llamadas.push(p), "Otro"),
+    guardar: async (x: Record<string, string>) => void guardados.push(x),
+  };
+  const t = { custom: null, ai: null, primero: LARGO, respondio: true };
+  assert.equal(generadoDe("b1"), undefined, "no se muestra el guardado con rastro");
+  await generarSiHaceFalta("b1", t, "trama-aaaa", o);
+  assert.equal(llamadas.length, 0);
+  assert.equal(generadoDe("b1"), tituloCorto(LARGO));
+  assert.equal(guardados.at(-1)?.b1, tituloCorto(LARGO));
+  // Un título bueno guardado no se reescribe ni se vuelve a pedir.
+  assert.equal(generarSiHaceFalta("b2", t, "trama-aaaa", o), null);
+  assert.equal(generadoDe("b2"), "Ventanas CMD en PC");
+  // Lo que puso la persona gana: no se reescribe.
+  const antes = guardados.length;
+  assert.equal(generarSiHaceFalta("b3", { ...t, custom: "Mi chat" }, "trama-aaaa", o), null);
+  assert.equal(guardados.length, antes);
+  assert.equal(llamadas.length, 0);
 });
