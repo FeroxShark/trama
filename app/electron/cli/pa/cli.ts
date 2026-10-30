@@ -365,6 +365,12 @@ async function correrPa(argv: string[], env: Env, io: Io, deps: Deps): Promise<n
     claudeEnPath: () => enPath("claude", [], env, plat) !== null,
   };
   await aplicarPolitica(l, pa, depsPol);
+  // Un líder de agy (Gemini) corta lo que sigue vivo al terminar la llamada de su herramienta de comandos o el turno: un worker en primer plano
+  // moría con `error: interrupted` a los 3 min. Desde ahí todo worker sale `--async` (el aviso de Trama le dice al líder cuándo terminó).
+  if (liderAgy(env) && l.lanza && !l.leer && !l.actualizar && !l.async && !env.PA_ASYNC) {
+    l.async = true;
+    io.err("pa: tu líder corre dentro de agy, que corta lo que sigue vivo al terminar la llamada o el turno: el worker sale en background (--async). Traé el resultado con pa --esperar.\n");
+  }
 
   const p = fijarProyecto(pa, rutaOSalir(pa, proyecto));
   const dp = (k: keyof DeProyectoTodos, que: string) => {
@@ -425,6 +431,9 @@ async function correrPa(argv: string[], env: Env, io: Io, deps: Deps): Promise<n
   }
   return dp("lanzar", "lanzar un worker");
 }
+
+/** ¿`pa` lo llamó el líder de Gemini (agy-puente.ts pone `TRAMA_LIDER_AGY=1` en el entorno de agy)? */
+export const liderAgy = (env: Env): boolean => env.TRAMA_LIDER_AGY === "1";
 
 /** `D` del bash, para los módulos de las otras etapas. */
 export const D = (pa: Pa, t: string) => conDueno(t, pa.env, pa.home);

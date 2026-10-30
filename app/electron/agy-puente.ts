@@ -38,7 +38,8 @@ import { SESIONES } from "./sesiones.ts";
 const AGY = resolverAgy(process.env, os.homedir());
 /** Con `~/.local/bin` y la carpeta del `pa` en el PATH: es donde el líder de Gemini lo llama para delegar. */
 // Sin CLAUDE_CONFIG_DIR: el líder lo hereda para que Claude escriba donde la app lee, pero agy no es Claude.
-const ENTORNO = entornoAgy(Object.fromEntries(Object.entries(process.env).filter(([k]) => k !== "CLAUDE_CONFIG_DIR")), os.homedir());
+// TRAMA_LIDER_AGY: `pa` lo ve y lanza sus workers en --async (la herramienta de comandos de agy mata lo que queda vivo al terminar la llamada o el turno).
+const ENTORNO = { ...entornoAgy(Object.fromEntries(Object.entries(process.env).filter(([k]) => k !== "CLAUDE_CONFIG_DIR")), os.homedir()), TRAMA_LIDER_AGY: "1" };
 /** Lo máximo que agy puede tardar en un turno (`--print-timeout`): un líder que delega espera a sus workers. */
 const TIMEOUT_TURNO = process.env.TRAMA_AGY_TIMEOUT ?? "6h";
 /** Cuánto de lo hablado se repite si hay que empezar una conversación nueva (caracteres). */

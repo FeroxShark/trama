@@ -7,8 +7,10 @@
 // Python (`os.kill(pid, 0)` en Windows manda CTRL_C_EVENT/termina). Aun así: (1) los pid se reciclan rápido en Windows, por eso
 // `vivo` acepta la hora de arranque; (2) un proceso que terminó con código 259 (STILL_ACTIVE) se ve vivo; (3) una verificación
 // real en Windows queda para la etapa 17 (CI windows-latest): acá sólo se probó la lógica con la plataforma inyectada.
-import { execFile, execFileSync, spawn, type ChildProcess, type SpawnOptions } from "node:child_process";
-import { closeSync, openSync, readFileSync, readdirSync } from "node:fs";
+import { execFile, execFileSync, spawn, spawnSync, type ChildProcess, type SpawnOptions } from "node:child_process";
+import { closeSync, existsSync, openSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { matarArbol } from "../../procesos.ts";
 import { plataformaActual, type Plataforma } from "../../rutas.ts";
 
@@ -275,6 +277,12 @@ export type OpcionesSuelto = {
  * Devuelve el pid (puede ser undefined si el spawn falló de forma asíncrona: ENOENT; el 'error' se traga para no tirar el proceso).
  */
 export function lanzarSuelto(cmd: string, args: string[], o: OpcionesSuelto = {}): number | undefined {
+  const plat = o.plat ?? plataformaActual();
+  // Windows de verdad: primero afuera del job de quien nos llama (ver `lanzarFueraDelJob`); si no se pudo, el spawn de siempre.
+  if (plat === "win32" && process.platform === "win32" && !o.spawn && process.env.TRAMA_SIN_FUERA_DEL_JOB !== "1") {
+    const pid = lanzarFueraDelJob(cmd, args, o);
+    if (pid) return pid;
+  }
   const lanzar = o.spawn ?? ((c, a, op) => spawn(c, a, op));
   const fd = o.log ? openSync(o.log, "a") : undefined;
   try {
@@ -290,6 +298,68 @@ export function lanzarSuelto(cmd: string, args: string[], o: OpcionesSuelto = {}
     return hijo.pid;
   } finally {
     if (fd !== undefined) closeSync(fd);
+  }
+}
+
+// ---------------------------------------------------------------- lanzar suelto, afuera del job (Windows)
+
+/** Lo que corre el lanzador: lee el pedido (JSON), lo borra, y suelta el proceso con su salida al log; deja el pid en un archivo. */
+export const LANZADOR_JS = [
+  "const fs=require('fs'),cp=require('child_process');",
+  "const f=process.argv[2];const j=JSON.parse(fs.readFileSync(f,'utf8'));try{fs.unlinkSync(f)}catch(e){}",
+  "const fd=j.log?fs.openSync(j.log,'a'):'ignore';",
+  "const h=cp.spawn(j.cmd,j.args,{cwd:j.cwd||undefined,env:j.env,detached:true,windowsHide:true,stdio:['ignore',fd,fd]});",
+  "h.on('error',function(){});fs.writeFileSync(j.pidf,String(h.pid||0));h.unref();",
+].join("");
+
+export type PedidoFuera = { cmd: string; args: string[]; cwd?: string; env: Env; log?: string; pidf: string };
+
+/**
+ * Los textos que arman el lanzado afuera del job: el pedido en JSON (con la tarea y todo el entorno: NUNCA en la línea de comandos, que pasaría
+ * por cmd.exe), el lanzador, la línea de comandos que ejecuta WMI y el script de PowerShell que la pide. Puro: lo prueba tests/base-proc.test.ts.
+ * WMI arranca con un entorno nuevo (no el nuestro): `ELECTRON_RUN_AS_NODE` va en la línea por si `node` es el Electron de la app.
+ */
+export function armarFueraDelJob(node: string, lanzador: string, pedido: string, cwd?: string): { linea: string; ps: string } {
+  const linea = `cmd.exe /d /s /c "set ELECTRON_RUN_AS_NODE=1&& "${node}" "${lanzador}" "${pedido}""`;
+  const q = (t: string) => `'${t.replaceAll("'", "''")}'`;
+  const ps = [
+    "$ErrorActionPreference='Stop'",
+    "$st=New-CimInstance -ClassName Win32_ProcessStartup -ClientOnly -Property @{ShowWindow=[uint16]0}",
+    `$a=@{CommandLine=${q(linea)};ProcessStartupInformation=$st${cwd ? `;CurrentDirectory=${q(cwd)}` : ""}}`,
+    "$r=Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments $a",
+    "if($r.ReturnValue -ne 0){exit 3}",
+  ].join("\n");
+  return { linea, ps };
+}
+
+/**
+ * Windows: suelta el proceso AFUERA del job y del árbol de quien lo lanza. La herramienta de comandos de agy (un líder de Gemini) corre cada
+ * llamada en un job que se cierra al terminar (o al terminar el turno) y mata TODO lo que quedó adentro, también lo que salió `detached` (que
+ * sólo se separa de la consola, no del job): los workers `--async` morían ~1 s después de que `pa` volvía. Lo creado por WMI
+ * (`Win32_Process.Create`) cuelga del servicio WMI, no de quien lo pidió. El lanzador (un Node chico) lo suelta con su salida al log.
+ * Devuelve el pid del proceso lanzado, o `undefined` si no se pudo (PowerShell/WMI no disponibles): quien llama vuelve al spawn de siempre.
+ */
+export function lanzarFueraDelJob(cmd: string, args: string[], o: OpcionesSuelto = {}): number | undefined {
+  const dir = o.log ? path.dirname(o.log) : os.tmpdir();
+  const base = path.join(dir, `.lanzar-${process.pid}-${Date.now().toString(36)}`);
+  const pedidoF = `${base}.json`;
+  const lanzadorF = `${base}.cjs`;
+  const pidF = `${base}.pid`;
+  try {
+    const pedido: PedidoFuera = { cmd, args, cwd: o.cwd, env: (o.env ?? process.env) as Env, log: o.log, pidf: pidF };
+    writeFileSync(pedidoF, JSON.stringify(pedido));
+    writeFileSync(lanzadorF, LANZADOR_JS);
+    const { ps } = armarFueraDelJob(process.execPath, lanzadorF, pedidoF, o.cwd);
+    const r = spawnSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-EncodedCommand", Buffer.from(ps, "utf16le").toString("base64")], { windowsHide: true, timeout: 20_000, stdio: "ignore" });
+    if (r.status !== 0) return undefined;
+    const fin = Date.now() + 10_000;
+    while (Date.now() < fin && !existsSync(pidF)) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 25);
+    const pid = Number(readFileSync(pidF, "utf8").trim());
+    return pid > 0 ? pid : undefined;
+  } catch {
+    return undefined;
+  } finally {
+    for (const f of [pedidoF, lanzadorF, pidF]) rmSync(f, { force: true });
   }
 }
 

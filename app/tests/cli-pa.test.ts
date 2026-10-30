@@ -213,6 +213,20 @@ test("modelos.json roto: avisa en cada consulta hasta la primera lectura del she
 
 // ------------------------------------------------------------------------------------------- la política entera
 
+test("desde un líder de agy (TRAMA_LIDER_AGY=1) el worker sale --async solo; --leer y un líder común no", async () => {
+  const d = sandbox({ PA_PLAN: "pro", PA_REPARTO: "0" });
+  const solo = await pa(["demo", "-m", "claude-opus-5-5", "hacé algo"], { ...d.env, TRAMA_LIDER_AGY: "1" });
+  assert.equal(solo.l?.async, true);
+  assert.match(solo.e, /tu líder corre dentro de agy.*--async/);
+  const leer = await pa(["demo", "--leer", "-m", "claude-opus-5-5", "mirá algo"], { ...d.env, TRAMA_LIDER_AGY: "1" });
+  assert.equal(leer.l?.async, false);
+  const comun = await pa(["demo", "-m", "claude-opus-5-5", "hacé algo"], d.env);
+  assert.equal(comun.l?.async, false);
+  assert.doesNotMatch(comun.e, /tu líder corre dentro de agy/);
+  const hijo = await pa(["demo", "-m", "claude-opus-5-5", "hacé algo"], { ...d.env, TRAMA_LIDER_AGY: "1", PA_ASYNC: "1" });
+  assert.equal(hijo.l?.async, false, "el hijo de --async ya es el background: no se relanza");
+});
+
 test("política: plan pro, opus sin --effort va medium y avisa el brief incompleto", async () => {
   const d = sandbox({ PA_PLAN: "pro", PA_REPARTO: "0" });
   const r = await pa(["demo", "-m", "claude-opus-5-5", "hacé algo"], d.env);

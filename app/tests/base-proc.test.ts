@@ -2,11 +2,11 @@
 import { EventEmitter } from "node:events";
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { spawn, type ChildProcess, type SpawnOptions } from "node:child_process";
-import { mkdtempSync, readFileSync } from "node:fs";
+import { spawn, spawnSync, type ChildProcess, type SpawnOptions } from "node:child_process";
+import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { arbol, campos, correr, inicioDe, lanzarSuelto, matarArbol, parsearPares, terminar, vivo } from "../electron/cli/base/proc.ts";
+import { LANZADOR_JS, arbol, armarFueraDelJob, campos, correr, inicioDe, lanzarSuelto, matarArbol, parsearPares, terminar, vivo } from "../electron/cli/base/proc.ts";
 
 const posix = process.platform !== "win32";
 const node = process.execPath;
@@ -167,3 +167,30 @@ test("lanzarSuelto: sigue vivo tras soltarlo, escribe al log en append; Windows 
 });
 
 
+
+test("lanzarFueraDelJob: la tarea y el entorno van en un JSON, nunca en la línea de comandos que pasa por cmd.exe; el lanzador es JS válido", () => {
+  const { linea, ps } = armarFueraDelJob("C:\\Users\\Ana\\trama\\node\\node.exe", "C:\\st ate\\.lanzar-1.cjs", "C:\\st ate\\.lanzar-1.json", "C:\\Max\\repo");
+  assert.equal(linea, 'cmd.exe /d /s /c "set ELECTRON_RUN_AS_NODE=1&& "C:\\Users\\Ana\\trama\\node\\node.exe" "C:\\st ate\\.lanzar-1.cjs" "C:\\st ate\\.lanzar-1.json""');
+  assert.match(ps, /Win32_Process -Arguments|-ClassName Win32_Process -MethodName Create/);
+  assert.match(ps, /ShowWindow=\[uint16\]0/);
+  assert.match(ps, /CurrentDirectory='C:\\Max\\repo'/);
+  assert.match(ps, /\$r\.ReturnValue -ne 0/);
+  // una comilla simple en una ruta no rompe el literal de PowerShell
+  assert.match(armarFueraDelJob("n", "l", "C:\\o'neil\\p.json").ps, /o''neil/);
+  assert.doesNotThrow(() => new Function("require", "process", LANZADOR_JS), "LANZADOR_JS no compila");
+});
+
+test("lanzarFueraDelJob: el lanzador suelta el proceso con su salida al log y deja el pid", { skip: !posix }, async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "fuera-job-"));
+  const log = path.join(dir, "salida.log");
+  const pidf = path.join(dir, "p.pid");
+  const pedidoF = path.join(dir, "pedido.json");
+  writeFileSync(pedidoF, JSON.stringify({ cmd: node, args: ["-e", "console.log('desde el hijo', process.env.PA_TS)"], env: { ...process.env, PA_TS: "T1" }, log, pidf }));
+  const lanzador = path.join(dir, "lanzador.cjs");
+  writeFileSync(lanzador, LANZADOR_JS);
+  const r = spawnSync(node, [lanzador, pedidoF]);
+  assert.equal(r.status, 0, String(r.stderr));
+  assert.ok(Number(readFileSync(pidf, "utf8")) > 0);
+  assert.equal(existsSync(pedidoF), false, "el pedido (con la tarea) se borra apenas se lee");
+  await esperar(() => existsSync(log) && readFileSync(log, "utf8").includes("desde el hijo T1"));
+});
