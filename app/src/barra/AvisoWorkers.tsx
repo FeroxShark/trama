@@ -62,18 +62,18 @@ export const AvisoWorkers = memo(function AvisoWorkers() {
               return (
                 <li key={a.clave} className="avs-f" data-id={a.id} data-tipo={a.tipo}>
                   <div className="avs-x">
-                    <div className="avs-n">{a.tarea || a.id}</div>
+                    <div className="avs-n" title={a.tarea || a.id}>{a.tarea || a.id}</div>
                     <div className="avc-n">{textoMotivo(a)}</div>
                     {r && typeof r === "object" ? <div className="avc-n avw-e">{t("avisoW.relanzarFallo", { e: r.error })}</div> : null}
                   </div>
+                  <button type="button" className="avs-d" aria-label={t("avisoW.descartar")} data-tip={t("avisoW.descartar")} onClick={() => descartarAviso(a.clave)}>
+                    <X size={12} aria-hidden="true" />
+                  </button>
                   {a.tipo === "cupo" ? (
                     <button type="button" className="avs-a" disabled={r === "relanzando" || r === "hecho"} data-tip={t("avisoW.relanzarTip")} onClick={() => relanzar(a)}>
                       {t(r === "relanzando" ? "avisoW.relanzando" : r === "hecho" ? "avisoW.relanzado" : "avisoW.relanzar")}
                     </button>
                   ) : null}
-                  <button type="button" className="avs-d" aria-label={t("avisoW.descartar")} data-tip={t("avisoW.descartar")} onClick={() => descartarAviso(a.clave)}>
-                    <X size={12} aria-hidden="true" />
-                  </button>
                 </li>
               );
             })}

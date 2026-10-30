@@ -2198,24 +2198,43 @@ img.logo {
   padding: 0;
   list-style: none;
 }
+/* El globito de workers es un poco más ancho que el de Claude Code: el título y el motivo se leen en horizontal. */
+.avs .avc-g {
+  width: min(20rem, calc(100% - 1.5rem));
+}
+/* Cada fila: texto (título + motivo) y la ✕ arriba; el botón de relanzar en su propia fila abajo, sin pisar el texto. */
 .avs-f {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--esp-2);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--esp-1-5) var(--esp-2);
 }
 .avs-x {
   min-width: 0;
-  flex: 1;
 }
+/* El título (la tarea) puede ser un párrafo: a lo sumo dos líneas, con elipsis. */
 .avs-n {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
   color: var(--txt-1);
   font-size: var(--letra-4);
+  line-height: 1.4;
+}
+.avs-x .avc-n {
+  overflow-wrap: anywhere;
 }
 .avs-a {
   display: flex;
+  grid-column: 1 / -1;
+  justify-self: start;
+  max-width: 100%;
   height: 1.625rem;
-  flex: none;
   align-items: center;
+  white-space: nowrap;
   padding: 0 var(--esp-2-5);
   border: 1px solid var(--borde-5);
   border-radius: var(--radio-2);
