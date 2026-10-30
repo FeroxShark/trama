@@ -116,7 +116,7 @@ export const AYUDA: readonly string[] = [
   "  pa --plan gastar-hoy | ahorrar-hoy   pisa el ritmo semanal sólo por hoy (más / menos Claude en los workers)",
   "  pa --plan ver | borrar               lo que hay guardado y el ritmo de cada ventana semanal | lo borra (todo es `reparto --plan`;",
   "                                       vence solo; el perfil y reserva_lider van en modelos.json)",
-  "  pa <proyecto> --mcp \"<tarea>\"        dejarle los MCP de claude.ai (default: apagados)",
+  "  pa <proyecto> --mcp \"<tarea>\"        dejarle los MCP a un --leer (un worker normal ya los hereda, diferidos)",
   "  pa <proyecto> --matar                matar el worker que escribe ahí (los --leer no)",
   "  pa <proyecto> --matar --leer|--id ID bajar todos los --leer vivos / una corrida puntual",
   "  pa <proyecto> --olvidar              descartar la sesión guardada",
