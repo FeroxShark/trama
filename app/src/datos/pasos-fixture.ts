@@ -116,3 +116,43 @@ export function pasosSubFijos(id: string, vivo: boolean): VistaPasos {
     },
   };
 }
+
+/**
+ * `worker-vista-rutas`: un worker de Windows con rutas largas (chips, pasos, la salida) y líneas de unos 200 caracteres, con el panel de
+ * contexto abierto al lado: que la columna central no se corte. Todo inventado (la ruta es de un usuario de mentira).
+ */
+export function pasosRutasFijos(id: string): VistaPasos {
+  n = 0;
+  const ruta = "C:\\Users\\usuario\\AppData\\Local\\Temp\\c4\\t10.py";
+  const otra = "C:\\Users\\usuario\\AppData\\Local\\Temp\\c4\\utilidades-de-la-carpeta-de-pruebas-con-nombre-largo.ts";
+  const linea = "resultado_de_la_prueba = calcular_todo(" + "argumento_de_prueba, ".repeat(9) + "ultimo_valor)";
+  const pasos: Paso[] = [
+    paso("leer", ruta, 4, 1, { clase: "leer", ruta, desde: 1, lineas: 3, total: 3, imagen: false, texto: corto(`${linea}\nprint(resultado_de_la_prueba)`) }),
+    paso("editar", ruta, 9, 2, {
+      clase: "editar", ruta, masCambios: 0, mas: 31, menos: 0,
+      cambios: [{ viejo: corto("  pass"), nuevo: corto(linea), todo: false, desde: 2 }],
+    }),
+    paso("editar", otra, 11, 2, {
+      clase: "editar", ruta: otra, masCambios: 0, mas: 4, menos: 2,
+      cambios: [{ viejo: corto("export const x = 1;"), nuevo: corto(`export const x = "${linea}";`), todo: false, desde: 1 }],
+    }),
+    paso("correr", `python ${ruta}`, 14, 3, {
+      clase: "correr", comando: corto(`python ${ruta} --verbose --salida ${otra}`), descripcion: "Corre el script de prueba", codigo: 0, interrumpido: false, fondo: false,
+      salida: corto(`${linea}\nlistos: ${"ruta_de_salida_muy_larga/".repeat(8)}t10.py`),
+    }),
+    paso("texto", "RESULTADO: arreglé el script.", 20, 1, {
+      clase: "texto", final: true,
+      texto: corto(`RESULTADO: arreglé el script en ${ruta} y guardé la salida en ${"carpeta_con_nombre_larguisimo_sin_espacios/".repeat(4)}fin.\nARCHIVOS: ${ruta}, ${otra}`),
+    }),
+  ];
+  return {
+    id, hay: true, gen: 1, v: n + 1, omitidos: 0, pasos,
+    encabezado: {
+      tarea: "Arreglá el script de Windows", modelo: "claude-sonnet-5-5", effort: "medium", turnos: 5,
+      tokens: { entrada: 120, cacheCreado: 8_400, cacheLeido: 96_000, salida: 2_300 }, total: 106_820, cache: 96_000 / 104_520,
+      inicio: T0, fin: T0 + 25_000, dur: 25_000, compactaciones: 0, pasos: pasos.length,
+      archivos: [{ ruta, mas: 31, menos: 0, ediciones: 1, nuevo: true }, { ruta: otra, mas: 4, menos: 2, ediciones: 1, nuevo: false }],
+      mas: 35, menos: 2,
+    },
+  };
+}

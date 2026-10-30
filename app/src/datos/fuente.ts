@@ -20,7 +20,7 @@ import { listaValida, resultadoValido, type ListaCuentas, type PerfilCuenta, typ
 import { ordenDe } from "../barra/orden";
 import { consumoDe, consumoFijo, type Consumo, type Pedido } from "./consumo";
 import { cambioDe, vistaDe, type CambioPasos, type VistaPasos } from "./pasos";
-import { pasosFijos, pasosSubFijos } from "./pasos-fixture";
+import { pasosFijos, pasosRutasFijos, pasosSubFijos } from "./pasos-fixture";
 import { crearCola, type AvisoCola, type Encolado } from "../../electron/cola";
 import { ARRANCANDO, EN_COLA, HILOS_DELL, LIDER_DELL, PENSANDO_FIJO, charlaFormato, charlaLarga, charlaCambio, charlaListas, charlaIntermedios, charlaLider, charlaPensando, charlaSistema, charlaTabla, conversacion, conversacionSistema, HILOS, HILOS_ACTIVAS, HILOS_EN_COLA, HILOS_TERMINADOS, ICONOS, LIDERES, LIDERES_ACTIVAS, LIDER_MUERTO, LIDER_TERMINADOS, FRENADO, TITULOS, USO, USO_CUENTAS, USO_NIM, USO_TODO, USO_TODO_DOS, USO_GOOGLE, USO_GOOGLE_MARCADO, USO_SIN_HORA, imagenFija, localesFalsos, vramFalsa, vramLiberarFalso } from "./fixtures";
 
@@ -1483,6 +1483,7 @@ const fija: Fuente = {
     // Sólo las capturas de la vista de worker traen pasos; las demás ven la conversación de siempre.
     if (MODO.captura === "worker-vista") return pasosFijos(id, false, MODO.variante === "largo");
     if (MODO.captura === "worker-vista-vivo") return pasosFijos(id, true);
+    if (MODO.captura === "worker-vista-rutas") return pasosRutasFijos(id);
     if (MODO.captura === "subagente-vista" && id.startsWith("sub:")) return pasosSubFijos(id, MODO.variante !== "terminado");
     return vistaDe({ id, hay: false });
   },

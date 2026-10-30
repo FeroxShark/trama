@@ -212,6 +212,8 @@ const CAPTURAS = [
   // La vista de un worker con pasos (src/hilo/Worker.tsx): uno que terminó y uno que sigue corriendo `npm test`.
   "worker-vista",
   "worker-vista-vivo",
+  // Un worker de Windows con rutas largas y líneas de 200 caracteres, con el panel de contexto abierto a la derecha (la columna central, sin cortarse).
+  "worker-vista-rutas",
   // La vista grande de un subagente (src/hilo/Subagente.tsx): el que corre `npm test`; `HILOS_VARIANTE=terminado`, el que terminó.
   "subagente-vista",
   // La bienvenida del primer arranque (src/paneles/Bienvenida.tsx); `HILOS_VARIANTE=<paso>` abre en ese paso.
@@ -284,7 +286,7 @@ export const MODO = {
   /** La vista de la barra al abrir (preferencias.json): todo o sólo líderes. */
   vista: q.get("vista") === "lideres" ? ("lideres" as const) : ("todo" as const),
   /** El panel de contexto (a la derecha) a la vista al abrir (preferencias.json); sin nada guardado, oculto. */
-  consumo: q.get("consumo") === "1" || (captura?.startsWith("contexto-panel") ?? false),
+  consumo: q.get("consumo") === "1" || (captura?.startsWith("contexto-panel") ?? false) || captura === "worker-vista-rutas",
   /** Cómo se llama esta máquina (lo pasa el main con datos reales): va en la ficha de cada worker. */
   maquina: q.get("maquina"),
   /** La ventana es cliente del motor (electron/ventana-cliente.ts): lo que se cae es el motor, no la PC. */

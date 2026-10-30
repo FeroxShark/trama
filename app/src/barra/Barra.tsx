@@ -1177,6 +1177,7 @@ export function Barra() {
     else if (c === "worker-en-cola") setActiva(EN_COLA.id);
     else if (c === "worker-vista") setActiva(primero("listo"));
     else if (c === "worker-vista-vivo") setActiva(primero("trabajando"));
+    else if (c === "worker-vista-rutas") setActiva(primero("listo"));
     else if (c === "subagente-vista") setActiva(claveSub("s-fix-a3", MODO.variante === "terminado" ? "c2e3f4a5b6c7d8e9" : "b1d2e3f4a5b6c7d8"));
     else if (c === "leyendo" && MODO.variante === "lider") setActiva(LIDER + app);
     else if (c === "leyendo") setActiva(primero("decision"));
