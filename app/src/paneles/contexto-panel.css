@@ -216,6 +216,8 @@
 .cp-barra i {
   min-width: 2px;
   background: var(--c);
+  /* Sólo se mueve cuando cambia la cifra (el refresco automático no re-pinta lo que no cambió). */
+  transition: flex-grow var(--t-snappy);
 }
 .cp-barra i[data-cat="libre"] {
   background: transparent;
@@ -237,6 +239,8 @@
   background: var(--sup-1);
 }
 .cp-bq {
+  /* Cuando cambia una cifra, el bloque se acomoda con suavidad (sin reanimar nada que no cambió). */
+  transition: left var(--t-snappy), top var(--t-snappy), width var(--t-snappy), height var(--t-snappy);
   position: absolute;
   display: flex;
   min-width: 0;
@@ -734,7 +738,9 @@
 @media (prefers-reduced-motion: reduce) {
   .cp-sw,
   .cp-sw-p,
-  .cp-chev {
+  .cp-chev,
+  .cp-bq,
+  .cp-barra i {
     transition: none;
   }
 }

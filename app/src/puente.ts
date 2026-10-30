@@ -279,7 +279,7 @@ type Main = {
     /** Prende o apaga un plugin o un servidor de `.mcp.json`; devuelve el inventario nuevo. */
     alternarConector(id: string, activo: boolean): Promise<unknown>;
     /** Panel de contexto: en qué se va el contexto de un líder o de un worker (`Desglose`, electron/contexto-desglose.ts). */
-    desgloseContexto(x: { lider: string } | { worker: string }): Promise<unknown>;
+    desgloseContexto(x: ({ lider: string } | { worker: string }) & { fresco?: boolean }): Promise<unknown>;
     /** Vista previa: qué cargaría un líder o worker nuevo en un proyecto con un modelo, sin lanzar nada (`VistaPrevia`, electron/contexto-previa.ts). */
     previaContexto(x: { tipo: "lider" | "worker"; proyecto?: string; modelo?: string }): Promise<unknown>;
     /** Captura el prompt base de la versión instalada de `claude` (una vez por versión). Sólo desde la PC. */

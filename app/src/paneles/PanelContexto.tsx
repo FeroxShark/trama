@@ -13,6 +13,7 @@ import type { SkillCatalogo } from "../../electron/skills-catalogo";
 import type { Catalogo, VistaApagados } from "../../electron/contexto-panel";
 import type { VistaPrevia } from "../../electron/contexto-previa";
 import { fuenteContexto, type Quien } from "../datos/contexto";
+import { crearRefresco, mismoDesglose, REFRESCO_MS } from "./contexto-refresco";
 import { fuente } from "../datos/fuente";
 import { tareaDe, tipoDe } from "../barra/piezas";
 import { effortDe, MODELO_DEFAULT, MODELOS, modeloDe, nombreModelo } from "../hilo/opciones";
@@ -66,22 +67,39 @@ const Acc = createContext<Acciones>({ apagados: null, protegidas: [], puede: fal
 
 type Carga = { d: Desglose | null; error: string | null };
 
-/** Los desgloses de un grupo de sesiones: todos juntos, de nuevo cuando cambia quiénes son o `refresco`. `undefined` = leyendo. */
-function useDesgloses(pedidos: { clave: string; quien: Quien }[], refresco: number): ReadonlyMap<string, Carga> {
+/**
+ * Los desgloses de un grupo de sesiones, todos juntos. Al cambiar quiénes son o con `refresco` (Actualizar, el fin de un turno, Compactar)
+ * se piden de nuevo sin lo guardado (`fresco`); con `tick` (el refresco automático) se piden con lo guardado del main. Si lo que llega es lo
+ * mismo que ya estaba, el mapa no cambia: no se re-pinta ni se mueve nada. `undefined` = leyendo.
+ */
+function useDesgloses(pedidos: { clave: string; quien: Quien }[], refresco: number, tick: number): ReadonlyMap<string, Carga> {
   const [mapa, setMapa] = useState<ReadonlyMap<string, Carga>>(new Map());
   const llave = JSON.stringify(pedidos);
+  const montado = useRef(false);
   useEffect(() => {
-    let vivo = true;
-    const poner = (clave: string, f: (antes: Carga | undefined) => Carga) => setMapa((m) => new Map(m).set(clave, f(m.get(clave))));
-    for (const p of JSON.parse(llave) as typeof pedidos)
-      fuenteContexto.desglose(p.quien).then(
-        (d) => vivo && poner(p.clave, () => ({ d, error: null })),
-        (e) => vivo && poner(p.clave, (a) => ({ d: a?.d ?? null, error: mensaje(e) })),
-      );
+    montado.current = true;
     return () => {
-      vivo = false;
+      montado.current = false;
     };
-  }, [llave, refresco]);
+  }, []);
+  const pedir = useCallback((lista: { clave: string; quien: Quien }[], fresco: boolean) => {
+    for (const p of lista)
+      fuenteContexto.desglose(fresco ? { ...p.quien, fresco } : p.quien).then(
+        (d) => {
+          if (montado.current) setMapa((m) => (mismoDesglose(m.get(p.clave)?.d, d) && !m.get(p.clave)?.error ? m : new Map(m).set(p.clave, { d, error: null })));
+        },
+        (e) => {
+          if (!montado.current) return;
+          const msg = mensaje(e);
+          setMapa((m) => (m.get(p.clave)?.error === msg ? m : new Map(m).set(p.clave, { d: m.get(p.clave)?.d ?? null, error: msg })));
+        },
+      );
+  }, []);
+  useEffect(() => pedir(JSON.parse(llave) as typeof pedidos, true), [llave, refresco, pedir]);
+  // El refresco automático: sólo con `tick` (el primer render no pide de nuevo lo que ya pidió el efecto de arriba).
+  useEffect(() => {
+    if (tick) pedir(JSON.parse(llave) as typeof pedidos, false);
+  }, [tick]);
   return mapa;
 }
 
@@ -965,6 +983,19 @@ export const PanelContexto = memo(function PanelContexto({ lider, workers, alCer
   }, []);
 
   const refrescar = useCallback(() => setRefresco((n) => n + 1), []);
+  // El refresco automático: cada REFRESCO_MS mientras el panel se ve (la pestaña o la ventana visible; oculta o minimizada, se para).
+  const [tick, setTick] = useState(0);
+  const [visible, setVisible] = useState(() => typeof document === "undefined" || document.visibilityState !== "hidden");
+  useEffect(() => {
+    const cambio = () => setVisible(document.visibilityState !== "hidden");
+    document.addEventListener("visibilitychange", cambio);
+    return () => document.removeEventListener("visibilitychange", cambio);
+  }, []);
+  useEffect(() => {
+    const r = crearRefresco({ cada: REFRESCO_MS, alTick: () => setTick((n) => n + 1) });
+    r.ver(visible);
+    return () => r.parar();
+  }, [visible]);
   // Captura "contexto-panel" con HILOS_VARIANTE=refrescado: toca Actualizar solo, para comparar las cifras antes y después.
   useEffect(() => {
     if (MODO.captura !== "contexto-panel" || MODO.variante !== "refrescado") return;
@@ -1022,7 +1053,7 @@ export const PanelContexto = memo(function PanelContexto({ lider, workers, alCer
     if (antes.current && !ocupado) setRefresco((n) => n + 1);
     antes.current = ocupado;
   }, [ocupado]);
-  const cargas = useDesgloses(pedidos, refresco);
+  const cargas = useDesgloses(pedidos, refresco, tick);
   const deLider = lider ? cargas.get(lider.id) : undefined;
   const todos = useMemo(() => [...cargas.values()].map((c) => c.d).filter((d): d is Desglose => !!d), [cargas]);
 

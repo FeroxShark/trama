@@ -16,7 +16,8 @@ export type Fijado = VistaApagados & { lideres: { reiniciados: number; pendiente
 export type PedidoPrevia = { tipo: "lider" | "worker"; proyecto: string; modelo: string };
 
 export type FuenteContexto = {
-  desglose(q: Quien): Promise<Desglose>;
+  /** `fresco`: el botón de refrescar; sin él, el main devuelve lo guardado si el transcript no cambió. */
+  desglose(q: Quien & { fresco?: boolean }): Promise<Desglose>;
   /** Con `sid` de un líder de Claude vivo, los tokens de cada skill son exactos. */
   catalogo(sid?: string): Promise<Catalogo>;
   apagados(): Promise<VistaApagados>;
