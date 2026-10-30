@@ -110,6 +110,29 @@ function Interruptor({ x, nombre, protegida }: { x: { tipo: TipoApagado; nombre:
   );
 }
 
+/**
+ * El "?" chico de una categoría o de una pieza: abre debajo una explicación de una o dos líneas en palabras simples. Es un botón (se llega
+ * con el teclado), dice qué explica y si está abierto (`aria-expanded`); el texto no se esconde con el color ni con el mouse encima.
+ * Va en una fila de flex que envuelve: el texto ocupa su propia línea.
+ */
+function Ayuda({ k, nombre }: { k: string; nombre: string }) {
+  const [abierta, setAbierta] = useState(MODO.captura === "contexto-panel-ayuda");
+  const id = useId();
+  const etq = t(abierta ? "ctxp.ayuda.cerrar" : "ctxp.ayuda.abrir", { nombre });
+  return (
+    <>
+      <button type="button" className="cp-ay" aria-expanded={abierta} aria-controls={id} aria-label={etq} data-tip={etq} onClick={() => setAbierta(!abierta)}>
+        <span aria-hidden>?</span>
+      </button>
+      {abierta ? (
+        <p id={id} className="cp-ay-txt" role="note">
+          {t(k as "ctxp.ayuda.mensajes")}
+        </p>
+      ) : null}
+    </>
+  );
+}
+
 /** La barra apilada: un tramo por categoría, tan ancho como lo que ocupa de la ventana; el hueco es lo libre. */
 function Barra({ cats, d, fina }: { cats: FilaCat[]; d: Desglose; fina?: boolean }) {
   const suma = cats.reduce((n, c) => n + c.tokens, 0);
@@ -254,7 +277,10 @@ function FilaItem({ it, uid, foco, estimado }: { it: Item; uid: string; foco: bo
       {it.sis ? <span className="cp-sw-hueco" /> : <Interruptor x={it.apaga} nombre={nombre} protegida={it.protegida} />}
       <div className="cp-it-det">
         <Uso it={it} />
+        {it.sis ? <Ayuda k={`ctxp.ayuda.${it.sis}`} nombre={nombre} /> : null}
+        {it.nunca && !it.porHook ? <Ayuda k="ctxp.ayuda.nunca" nombre={t("ctxp.usos0")} /> : null}
         {it.diferida ? <span className="cp-etq">{t("ctxp.diferida")}</span> : null}
+        {it.diferida ? <Ayuda k="ctxp.ayuda.diferida" nombre={t("ctxp.diferida")} /> : null}
         {it.diferidos ? <span className="cp-etq">{t("ctxp.diferidosDe", { tokens: miles(it.diferidos) })}</span> : null}
         {it.resultados ? <span className="cp-etq">{t("ctxp.resultadosEn", { tokens: miles(it.resultados) })}</span> : null}
         {it.protegida ? (
@@ -463,18 +489,21 @@ function Detalle({ d, uid, inicial, lider, alRefrescar }: { d: Desglose; uid: st
           const idCuerpo = `${uid}-cat-${c.id}`;
           return (
             <li key={c.id} className="cp-cat" data-cat={c.id} data-abierta={abre ? "" : undefined}>
-              <h4 onContextMenu={c.id === "mensajes" && lider ? menuTitulo : undefined}>
-                <button type="button" aria-expanded={abre} aria-controls={idCuerpo} data-tip={t("ctxp.verDetalle", { cat: nombreCat(c.id) })} onClick={() => setAbierta(abre ? null : c.id)}>
-                  <i className="cp-color" aria-hidden />
-                  <span className="cp-cat-n">{nombreCat(c.id)}</span>
-                  <span className="cp-num" data-tip={c.estimado ? t("ctxp.estimado") : undefined}>
-                    {c.estimado ? "≈" : ""}
-                    {miles(c.tokens)}
-                  </span>
-                  <span className="cp-pct">{porcentaje(c.tokens, total)} %</span>
-                  <ChevronRight size={14} strokeWidth={2} className="cp-chev" aria-hidden />
-                </button>
-              </h4>
+              <div className="cp-cat-cab">
+                <h4 onContextMenu={c.id === "mensajes" && lider ? menuTitulo : undefined}>
+                  <button type="button" aria-expanded={abre} aria-controls={idCuerpo} data-tip={t("ctxp.verDetalle", { cat: nombreCat(c.id) })} onClick={() => setAbierta(abre ? null : c.id)}>
+                    <i className="cp-color" aria-hidden />
+                    <span className="cp-cat-n">{nombreCat(c.id)}</span>
+                    <span className="cp-num" data-tip={c.estimado ? t("ctxp.estimado") : undefined}>
+                      {c.estimado ? "≈" : ""}
+                      {miles(c.tokens)}
+                    </span>
+                    <span className="cp-pct">{porcentaje(c.tokens, total)} %</span>
+                    <ChevronRight size={14} strokeWidth={2} className="cp-chev" aria-hidden />
+                  </button>
+                </h4>
+                <Ayuda k={`ctxp.ayuda.${c.id}`} nombre={nombreCat(c.id)} />
+              </div>
               {c.id === "mensajes" ? <FilaCompactar c={compactar} sinLider={!lider} /> : null}
               {abre ? (
                 <div id={idCuerpo} className="cp-cuerpo">

@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { CATALOGO_FALSO, desgloseFalso } from "../src/datos/fixtures-contexto.ts";
-import { bloques, categorias, claveSkill, estaApagado, filtrarSkills, fraccionUsada, itemsDe, pluginsDe, porcentaje, sabeUsos, treemap, usadas } from "../src/paneles/contexto-vista.ts";
+import { bloques, categorias, claveSkill, estaApagado, filtrarSkills, fraccionUsada, itemsDe, ORDEN, pluginsDe, porcentaje, sabeUsos, treemap, usadas } from "../src/paneles/contexto-vista.ts";
 
 const lider = desgloseFalso({ lider: "s-1" });
 const worker = desgloseFalso({ worker: "20261003-103620-49377" });
@@ -192,4 +192,20 @@ test("apagados: salen de la cuenta y del mapa, siguen en la lista, y lo que la m
   assert.deepEqual([fantasma.nombre, fantasma.apaga, fantasma.tokens], ["ya-no-esta", { tipo: "skills", nombre: "ya-no-esta" }, null]);
   // Sin apagados todo queda como estaba.
   assert.deepEqual(categorias(lider, { skills: [], mcp: [], herramientas: [], memoria: [] }), antes);
+});
+
+test("ayuda: cada categoría y cada pieza del sistema tiene su explicación en español y en inglés", async () => {
+  const { es } = await import("../src/i18n/es.ts");
+  const { en } = await import("../src/i18n/en.ts");
+  const claves = [...ORDEN, "prompt", "hook", "diferidas", "entorno", "resto", "nunca", "diferida"].map((k) => `ctxp.ayuda.${k}`);
+  for (const k of claves) {
+    for (const [idioma, tabla] of [["es", es], ["en", en]] as const) {
+      const v = (tabla as Record<string, string>)[k];
+      assert.ok(v && v.length > 20, `${idioma}: falta ${k}`);
+    }
+  }
+  // Dos líneas como mucho: nada de párrafos.
+  for (const k of claves) assert.ok((es as Record<string, string>)[k].length <= 190, `${k} es larga`);
+  assert.match((es as Record<string, string>)["ctxp.ayuda.reserva"], /compactar/);
+  assert.match((en as Record<string, string>)["ctxp.ayuda.reserva"], /compact/);
 });

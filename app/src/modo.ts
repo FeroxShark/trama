@@ -177,6 +177,7 @@ const CAPTURAS = [
   // `-cat`: una categoría del líder y del primer worker abiertas; `-skills`: el catálogo de skills (`HILOS_VARIANTE=buscar`: con una búsqueda).
   "contexto-panel",
   "contexto-panel-cat",
+  "contexto-panel-ayuda",
   "contexto-panel-skills",
   // "De Claude Code (N)": la sección plegable de atlas abierta, con el buscador y las conversaciones (con una de carpeta que ya no existe y una de otra cuenta).
   "claude-code",

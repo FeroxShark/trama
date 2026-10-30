@@ -795,3 +795,50 @@
     border-left: 0;
   }
 }
+
+/* El "?" de ayuda: una pastilla chica con la zona de toque agrandada; el texto se abre en su propia línea, bajo lo que explica. */
+.cp-cat-cab {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 var(--esp-1);
+}
+.cp-cat-cab h4 {
+  min-width: 0;
+  flex: 1;
+}
+.cp-ay {
+  position: relative;
+  display: inline-grid;
+  width: 1.125rem;
+  height: 1.125rem;
+  flex: none;
+  place-items: center;
+  border-radius: var(--radio-pastilla);
+  background: var(--capa-tile);
+  color: var(--txt-3);
+  font-size: var(--letra-3);
+  font-weight: 600;
+  line-height: 1;
+  transition: background var(--t-snappy), color var(--t-snappy);
+}
+.cp-ay::after {
+  position: absolute;
+  inset: -0.4375rem;
+  content: "";
+}
+.cp-ay:hover,
+.cp-ay[aria-expanded="true"] {
+  background: var(--acento-tinte);
+  color: var(--txt-1);
+}
+.cp-ay-txt {
+  flex-basis: 100%;
+  margin: var(--esp-1) 0 var(--esp-2);
+  padding: var(--esp-2) var(--esp-2-5);
+  border-radius: var(--radio-2);
+  background: var(--capa-card);
+  color: var(--txt-3);
+  font-size: var(--letra-3);
+  line-height: 1.45;
+}
