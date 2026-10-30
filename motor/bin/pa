@@ -114,7 +114,7 @@
 #   pa --plan gastar-hoy | ahorrar-hoy   pisa el ritmo semanal sólo por hoy (más / menos Claude en los workers)
 #   pa --plan ver | borrar               lo que hay guardado y el ritmo de cada ventana semanal | lo borra (todo es `reparto --plan`;
 #                                        vence solo; el perfil y reserva_lider van en modelos.json)
-#   pa <proyecto> --mcp "<tarea>"        dejarle los MCP de claude.ai (default: apagados)
+#   pa <proyecto> --mcp "<tarea>"        dejarle los MCP a un --leer (un worker normal ya los hereda, diferidos)
 #   pa <proyecto> --matar                matar el worker que escribe ahí (los --leer no)
 #   pa <proyecto> --matar --leer|--id ID bajar todos los --leer vivos / una corrida puntual
 #   pa <proyecto> --olvidar              descartar la sesión guardada
@@ -6648,12 +6648,12 @@ args=( -p "$prompt"
 # motivo de tope era el recargo long-context (input al doble arriba de 200k); desde los modelos 5.5 ese recargo no existe, y lo que
 # queda es el volumen: cada turno relee todo el contexto.
 
-# Los MCP de claude.ai (Gmail, Calendar, Drive, Notion, Spotify, IBKR, S&P: ~100 tools) van
-# apagados porque hacen que --leer NO sea de lectura: un worker "de sólo lectura" con Notion
-# y Gmail conectados puede mandar un mail o editar una página. Lo que pesan en contexto
-# varía (125k el 2026-09-07 a las 12:45, 3k a las 15:50) según si el CLI difiere los schemas
-# de las tools, y eso no lo manejamos nosotros: no es el motivo. --mcp los devuelve.
-if (( ! con_mcp )); then
+# Los MCP del usuario (claude.ai: Gmail, Calendar, Drive, Notion...; los de su config) los hereda el worker en modo diferido:
+# al contexto sólo entran los nombres hasta que busca una herramienta con ToolSearch (ENABLE_TOOL_SEARCH=true más abajo; medido
+# 2026-10-30: ~28 000 tokens de entrada con y sin MCP). Lo que el usuario apagó en Trama sigue fuera (apagados-claude.json).
+# Sólo un --leer va sin MCP: un worker "de sólo lectura" con Notion y Gmail conectados puede mandar un mail o editar una página.
+# --mcp se los devuelve.
+if (( leer && ! con_mcp )); then
   args+=( --strict-mcp-config --mcp-config '{"mcpServers":{}}' )
 fi
 
@@ -6667,6 +6667,9 @@ fi
 (( ! leer )) && [[ "$PLAN" == pro ]] && args+=( --disallowedTools "Agent" )
 # Plan pro: latido.sh recorta la salida de los tests a las últimas 150 líneas (ver el hook).
 if [[ "$PLAN" == pro ]]; then export PA_RECORTE="${PA_RECORTE:-150}"; else export PA_RECORTE=0; fi
+# Búsqueda diferida de herramientas siempre activa (el default "auto" la prende recién al pasar el 10% del contexto): con los MCP
+# heredados, sólo los nombres entran al contexto. Lo que el usuario fijó en su entorno manda.
+export ENABLE_TOOL_SEARCH="${ENABLE_TOOL_SEARCH:-true}"
 [[ -n "$max_turns" ]]  && { args+=( --max-turns "$max_turns" ); export PA_MAX_TURNS="$max_turns"; }
 [[ -n "$max_budget" ]] && args+=( --max-budget-usd "$max_budget" )
 (( resume )) && args+=( --resume "$sid" ) || args+=( --session-id "$sid" )
@@ -7199,7 +7202,7 @@ if [[ "$(jq -r '.subtype // ""' "$out" 2>/dev/null)" == "error_max_turns" ]]; th
            --name "$nombre_worker"
            --resume "$nuevo_sid"
            --max-turns "$CIERRE_TURNOS" )
-    (( con_mcp )) || args+=( --strict-mcp-config --mcp-config '{"mcpServers":{}}' )
+    (( leer && ! con_mcp )) && args+=( --strict-mcp-config --mcp-config '{"mcpServers":{}}' )
     # Las mismas tools que la corrida: el cache es prefijo (tools → system → mensajes) y una lista
     # distinta reescribiría TODO el contexto del resume a precio de escritura.
     [[ "$PLAN" == pro ]] && args+=( --disallowedTools "Agent" )

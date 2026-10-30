@@ -362,8 +362,13 @@ export function contratoClaude(pa: Pa, c: Corrida): string {
 /** El nombre con el que el jefe le escribe al worker: `pa/<slug>`, `pa/<slug>@k`, `pa/<slug>@aca`. */
 export const nombreWorker = (c: Pick<Corrida, "slug" | "leer" | "puesto">) => `pa/${c.slug}${c.leer ? "" : sufPuesto(c.puesto)}`;
 
-/** Lo que el plan agrega al final de los dos argv (corrida y cierre). */
+/**
+ * Sin MCP: `--strict-mcp-config` con una config vacía. Sólo para un `--leer` (un worker "de sólo lectura" con Notion o Gmail
+ * podría mandar un mail o editar una página; `--mcp` se lo devuelve). El resto hereda los MCP del usuario en modo diferido
+ * (ver `ENABLE_TOOL_SEARCH` en `envDeLaLlamada`): al contexto sólo entran los nombres hasta que el worker busca una herramienta.
+ */
 const mcpApagado = ["--strict-mcp-config", "--mcp-config", '{"mcpServers":{}}'];
+const sinMcp = (c: Pick<Corrida, "leer" | "conMcp">) => c.leer && !c.conMcp;
 
 /** El argv de `claude` para la corrida (el `args` de `armar_llamada`). */
 export function argsClaude(pa: Pa, c: Corrida, o: { contrato: string; settings: string; nombre: string }): string[] {
@@ -374,7 +379,7 @@ export function argsClaude(pa: Pa, c: Corrida, o: { contrato: string; settings: 
   a.push("--output-format", "json", "--append-system-prompt", o.contrato, "--permission-mode", "bypassPermissions");
   if (c.autocompact) a.push("--autocompact", c.autocompact);
   a.push("--settings", o.settings, "--name", o.nombre);
-  if (!c.conMcp) a.push(...mcpApagado);
+  if (sinMcp(c)) a.push(...mcpApagado);
   if (c.leer) a.push("--tools", "Read,Grep,Glob,Bash,ToolSearch,ListAgents,SendMessage");
   if (!c.leer && pa.plan === "pro") a.push("--disallowedTools", "Agent");
   if (c.maxTurns) a.push("--max-turns", c.maxTurns);
@@ -391,7 +396,7 @@ export function argsCierre(pa: Pa, c: Corrida, o: { contrato: string; settings: 
   a.push("--output-format", "json", "--append-system-prompt", o.contrato, "--permission-mode", "bypassPermissions");
   if (c.autocompact) a.push("--autocompact", c.autocompact);
   a.push("--settings", o.settings, "--name", o.nombre, "--resume", o.sid, "--max-turns", String(CIERRE_TURNOS));
-  if (!c.conMcp) a.push(...mcpApagado);
+  if (sinMcp(c)) a.push(...mcpApagado);
   if (pa.plan === "pro") a.push("--disallowedTools", "Agent");
   if (c.maxBudget) a.push("--max-budget-usd", c.maxBudget);
   return a;
@@ -400,6 +405,10 @@ export function argsCierre(pa: Pa, c: Corrida, o: { contrato: string; settings: 
 /** El env de más para el claude según el plan y el tope de turnos (los `export PA_RECORTE / PA_MAX_TURNS` del bash). */
 export function envDeLaLlamada(pa: Pa, c: Corrida): Env {
   const e: Env = { PA_RECORTE: pa.plan === "pro" ? pa.env.PA_RECORTE || "150" : "0" };
+  // Búsqueda diferida de herramientas siempre activa (el default "auto" la prende recién al pasar el 10% del contexto): con los MCP
+  // del usuario heredados, sólo los nombres entran al contexto hasta que el worker los busca con ToolSearch. Lo que el usuario
+  // fijó en su entorno manda.
+  if (!pa.env.ENABLE_TOOL_SEARCH) e.ENABLE_TOOL_SEARCH = "true";
   if (c.maxTurns) e.PA_MAX_TURNS = c.maxTurns;
   return e;
 }

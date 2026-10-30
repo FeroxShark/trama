@@ -9,7 +9,7 @@ import path from "node:path";
 import { test } from "node:test";
 import { testPosix } from "./plataforma.ts";
 import type { Pa } from "../electron/cli/pa/entorno.ts";
-import { alSalir, armarLanzamiento, contratoClaude, lineaSkillsDiseno, settingsWorker, skillsDisenoInstaladas, type Corrida } from "../electron/cli/pa/lanzar.ts";
+import { alSalir, argsCierre, armarLanzamiento, contratoClaude, envDeLaLlamada, lineaSkillsDiseno, settingsWorker, skillsDisenoInstaladas, type Corrida } from "../electron/cli/pa/lanzar.ts";
 import { campoDe, decisionEsNada, epochReset, verificadoDe } from "../electron/cli/pa/resultado-lanzar.ts";
 
 const PA = path.join(import.meta.dirname, "..", "..", "motor", "bin", "pa");
@@ -160,4 +160,27 @@ test("al_salir: .ultimo con el lock, .listo sólo en async, y el rastro vivo se 
     assert.equal(existsSync(l.run), false);
     rmSync(listoF, { force: true });
   }
+});
+
+test("MCP: un worker hereda los del usuario (sin --strict-mcp-config); sólo un --leer va sin ellos y --mcp se los devuelve", () => {
+  const raiz = mkdtempSync(path.join(os.tmpdir(), "lanzar-mcp-"));
+  const pa = paFalso(raiz);
+  const estricto = (a: string[]) => a.includes("--strict-mcp-config") && a.includes("--mcp-config");
+  for (const [o, sin] of [
+    [{}, false],
+    [{ conMcp: true }, false],
+    [{ leer: true }, true],
+    [{ leer: true, conMcp: true }, false],
+  ] as [Partial<Corrida>, boolean][]) {
+    const l = armarLanzamiento(pa, corrida(raiz, o));
+    assert.equal(estricto(l.args), sin, JSON.stringify(o));
+    assert.equal(estricto(argsCierre(pa, l.c, { contrato: "k", settings: "{}", nombre: "n", sid: l.c.sid })), sin, `cierre ${JSON.stringify(o)}`);
+  }
+});
+
+test("MCP: la búsqueda diferida de herramientas queda activa en el worker, salvo que el usuario fije la suya", () => {
+  const raiz = mkdtempSync(path.join(os.tmpdir(), "lanzar-tool-search-"));
+  const pa = paFalso(raiz);
+  assert.equal(envDeLaLlamada(pa, corrida(raiz)).ENABLE_TOOL_SEARCH, "true");
+  assert.equal(envDeLaLlamada({ ...pa, env: { ...pa.env, ENABLE_TOOL_SEARCH: "false" } }, corrida(raiz)).ENABLE_TOOL_SEARCH, undefined);
 });
