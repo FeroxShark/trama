@@ -4,6 +4,7 @@
 import { useEffect, useState } from "react";
 import { Boton } from "../ui/componentes";
 import { t } from "../i18n";
+import { Cat } from "./AjustesNav";
 import { PRECIOS_PUBLICOS, precioValido, tablaEfectiva, type Precio, type Tabla } from "./precios";
 import { cambiarPrecio, guardarCambios, leerCambios } from "./precios-guardados";
 import "./ajustes-precios.css";
@@ -35,83 +36,85 @@ export function AjustesPrecios() {
   };
 
   return (
-    <section className="pn-sec ajp" aria-labelledby="ajp-titulo">
-      <h2 className="pn-h" id="ajp-titulo">
-        {t("ajustes.precios")}
-      </h2>
-      <div className="pn-nota">{t("ajustes.preciosIntro")}</div>
+    <Cat id="modelos" orden={4}>
+      <section className="pn-sec ajp" aria-labelledby="ajp-titulo">
+        <h2 className="pn-h" id="ajp-titulo">
+          {t("ajustes.precios")}
+        </h2>
+        <div className="pn-nota">{t("ajustes.preciosIntro")}</div>
 
-      <div className="ajp-tabla-caja">
-        <table className="ajp-tabla">
-          <thead>
-            <tr>
-              <th scope="col">{t("ajustes.precioModelo")}</th>
-              {CAMPOS.map((c) => (
-                <th scope="col" key={c}>
-                  {t(ETIQUETA[c])}
-                </th>
-              ))}
-              <th scope="col">
-                <span className="pn-h-sub">{t("ajustes.precioEstado")}</span>
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {Object.keys(tabla).map((modelo) => {
-              const cambiado = Object.hasOwn(cambios, modelo);
-              const publico = Object.hasOwn(PRECIOS_PUBLICOS, modelo);
-              return (
-                <tr key={modelo} data-cambiado={cambiado ? "" : undefined}>
-                  <th scope="row" className="ajp-modelo">
-                    {modelo}
+        <div className="ajp-tabla-caja">
+          <table className="ajp-tabla">
+            <thead>
+              <tr>
+                <th scope="col">{t("ajustes.precioModelo")}</th>
+                {CAMPOS.map((c) => (
+                  <th scope="col" key={c}>
+                    {t(ETIQUETA[c])}
                   </th>
-                  {CAMPOS.map((c) => (
-                    <td key={c}>
-                      <CampoPrecio valor={tabla[modelo][c]} nombre={`${modelo} · ${t(ETIQUETA[c])}`} alCambiar={(x) => poner(modelo, c, x)} />
+                ))}
+                <th scope="col">
+                  <span className="pn-h-sub">{t("ajustes.precioEstado")}</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {Object.keys(tabla).map((modelo) => {
+                const cambiado = Object.hasOwn(cambios, modelo);
+                const publico = Object.hasOwn(PRECIOS_PUBLICOS, modelo);
+                return (
+                  <tr key={modelo} data-cambiado={cambiado ? "" : undefined}>
+                    <th scope="row" className="ajp-modelo">
+                      {modelo}
+                    </th>
+                    {CAMPOS.map((c) => (
+                      <td key={c}>
+                        <CampoPrecio valor={tabla[modelo][c]} nombre={`${modelo} · ${t(ETIQUETA[c])}`} alCambiar={(x) => poner(modelo, c, x)} />
+                      </td>
+                    ))}
+                    <td className="ajp-estado">
+                      <span>{cambiado ? t("ajustes.precioCambiado") : publico ? t("ajustes.precioPublico") : t("ajustes.precioAgregado")}</span>
+                      {cambiado ? (
+                        <Boton onClick={() => setCambios(cambiarPrecio(cambios, modelo, null))} aria-label={`${modelo}: ${publico ? t("ajustes.precioVolver") : t("ajustes.precioQuitar")}`}>
+                          {publico ? t("ajustes.precioVolver") : t("ajustes.precioQuitar")}
+                        </Boton>
+                      ) : null}
                     </td>
-                  ))}
-                  <td className="ajp-estado">
-                    <span>{cambiado ? t("ajustes.precioCambiado") : publico ? t("ajustes.precioPublico") : t("ajustes.precioAgregado")}</span>
-                    {cambiado ? (
-                      <Boton onClick={() => setCambios(cambiarPrecio(cambios, modelo, null))} aria-label={`${modelo}: ${publico ? t("ajustes.precioVolver") : t("ajustes.precioQuitar")}`}>
-                        {publico ? t("ajustes.precioVolver") : t("ajustes.precioQuitar")}
-                      </Boton>
-                    ) : null}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
 
-      <form
-        className="ajp-agregar"
-        onSubmit={(ev) => {
-          ev.preventDefault();
-          agregar();
-        }}
-      >
-        <input
-          className="pn-campo"
-          type="text"
-          autoComplete="off"
-          autoCapitalize="none"
-          spellCheck={false}
-          placeholder={t("ajustes.precioIdEjemplo")}
-          aria-label={t("ajustes.precioIdAgregar")}
-          value={nuevo}
-          aria-invalid={nuevo.trim() !== "" && !ID_VALIDO.test(nuevo.trim()) ? true : undefined}
-          onChange={(ev) => setNuevo(ev.target.value)}
-        />
-        <Boton type="submit" disabled={!ID_VALIDO.test(nuevo.trim())}>
-          {t("ajustes.precioAgregar")}
-        </Boton>
-        {Object.keys(cambios).length ? (
-          <Boton onClick={restaurarTodos}>{t("ajustes.precioRestaurar")}</Boton>
-        ) : null}
-      </form>
-    </section>
+        <form
+          className="ajp-agregar"
+          onSubmit={(ev) => {
+            ev.preventDefault();
+            agregar();
+          }}
+        >
+          <input
+            className="pn-campo"
+            type="text"
+            autoComplete="off"
+            autoCapitalize="none"
+            spellCheck={false}
+            placeholder={t("ajustes.precioIdEjemplo")}
+            aria-label={t("ajustes.precioIdAgregar")}
+            value={nuevo}
+            aria-invalid={nuevo.trim() !== "" && !ID_VALIDO.test(nuevo.trim()) ? true : undefined}
+            onChange={(ev) => setNuevo(ev.target.value)}
+          />
+          <Boton type="submit" disabled={!ID_VALIDO.test(nuevo.trim())}>
+            {t("ajustes.precioAgregar")}
+          </Boton>
+          {Object.keys(cambios).length ? (
+            <Boton onClick={restaurarTodos}>{t("ajustes.precioRestaurar")}</Boton>
+          ) : null}
+        </form>
+      </section>
+    </Cat>
   );
 }
 
