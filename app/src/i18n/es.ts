@@ -1303,6 +1303,7 @@ export const es: { [K in keyof typeof en]: string } = {
   "ctxp.previa.recapturar": "Capturar de nuevo",
   "ctxp.previa.capturando": "Capturando el prompt base… tarda unos segundos.",
   "ctxp.previa.capturaError": "No se pudo capturar: {motivo}",
+  "ctxp.previa.sinDato": "sin dato",
   "ctxp.previa.mcp": "Los servidores MCP se conectan al arrancar: su tamaño real se sabe recién ahí, por eso figuran sin número.",
   "ctxp.previa.notaWorker": "Un worker de pa arranca sin servidores MCP y sin tu CLAUDE.md personal.",
   "ctxp.previa.hooks": "Hooks que correrían ({n})",

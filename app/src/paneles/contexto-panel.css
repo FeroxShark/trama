@@ -875,12 +875,13 @@
 }
 .cp-previa-tipos {
   display: flex;
+  flex-basis: 100%;
   gap: var(--esp-1);
 }
 .cp-previa-campo {
   display: flex;
   min-width: 0;
-  flex: 1 1 8rem;
+  flex: 1 1 10rem;
   flex-direction: column;
   gap: var(--esp-1);
   color: var(--txt-4);

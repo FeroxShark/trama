@@ -1315,6 +1315,7 @@ export const en = {
   "ctxp.previa.recapturar": "Capture again",
   "ctxp.previa.capturando": "Capturing the base prompt… it takes a few seconds.",
   "ctxp.previa.capturaError": "Could not capture it: {motivo}",
+  "ctxp.previa.sinDato": "no data",
   "ctxp.previa.mcp": "MCP servers connect on startup: their real size is only known then, so they show without a number.",
   "ctxp.previa.notaWorker": "A pa worker starts without MCP servers and without your personal CLAUDE.md.",
   "ctxp.previa.hooks": "Hooks that would run ({n})",

@@ -283,7 +283,20 @@ la interfaz la hace otro worker encima. Todo vale para Linux y Windows (el worke
   "Catálogo de skills" (buscar sin tildes, filtros todas / apagadas / nunca usadas, plugin). "Nunca usada" sólo se afirma con una sesión medida
   (`sabeUsos`). Apagar vale global y el aviso va siempre a la vista y, tras cada cambio, en una región `role=status`. Sigue usando el botón del pie, la
   tecla `t` y la preferencia `consumo` (sólo se guarda desde la ventana). En el celular ocupa la pantalla (se abre desde el botón del pie de la lista) y
-  sólo se mira: apagar es de la PC. Capturas: `contexto-panel`, `contexto-panel-cat`, `contexto-panel-skills`.
+  sólo se mira: apagar es de la PC. Capturas: `contexto-panel`, `contexto-panel-cat`, `contexto-panel-skills`, `contexto-panel-ayuda` (el "?" abierto) y `contexto-panel-previa` (con `HILOS_VARIANTE=sin-base`, sin el prompt base).
+  - **"?" en cada categoría y pieza** (`Ayuda` en `PanelContexto.tsx`, textos `ctxp.ayuda.*`): una o dos líneas en palabras simples; "Compact reserve" (Reserva)
+    explica que es lo que Claude Code deja libre para poder compactar.
+  - **Sistema y Herramientas**: Sistema muestra el texto real del prompt de Claude Code partido en secciones (`partirPrompt` en `contexto-sesion.ts`, de
+    `prompt_snapshot` del transcript; lo que no tiene título figura como "Instrucción suelta"). Herramientas lista cada una con sus tokens, las cargadas y las
+    diferidas aparte (también con `/context` en `summary`, que no trae `systemTools`: se completa con el transcript). No hizo falta ningún proxy: Claude Code
+    anota en el transcript el pedido que armó (`api-request-shape` y `prompt_snapshot`), así que no se toca ningún header ni token.
+  - **Vista previa** (tercera pestaña; `electron/contexto-previa.ts`, `contexto-base.ts`; canales `contexto:previa` y `contexto:capturarBase`, este último sólo
+    desde la PC y también en `windows/src/canales.json`): elegís Líder nuevo o Worker nuevo, proyecto y modelo, y calcula sin lanzar nada lo que cargaría
+    (sistema, herramientas, CLAUDE.md por archivo, memoria, skills, MCP y hooks) con los apagados de Trama aplicados; los interruptores son los mismos
+    (`apagados:fijar`). El prompt base y las herramientas se capturan UNA vez por versión de `claude` con `claude -p ok` (modelo más chico, carpeta vacía,
+    sin `ANTHROPIC_*`: siempre la suscripción), se leen de su transcript y se guardan sólo el prompt y las herramientas en `<config de trama>/prompt-base.json`
+    (se guardan las 6 versiones más nuevas); el transcript de esa corrida se borra. Un worker de `pa` va sin MCP y sin el `CLAUDE.md` del home. Los MCP
+    figuran "sin dato": su peso se sabe recién al conectar. Todo estimado (caracteres / 3,5).
 - **Medición de lo cargado** (v0.2.32; `electron/contexto-sesion.ts`, `contexto-desglose.ts`, `tests/contexto-sesion.test.ts`): en Claude Code las
   herramientas de MCP son diferidas (sólo el nombre hasta `ToolSearch`), así que `desdeClaude` deja las `isLoaded === false` en `diferidos` (se
   muestran aparte y NO suman) y los resultados de esas herramientas que quedaron en los mensajes en `resultados` (van dentro de Mensajes). Los

@@ -1,8 +1,8 @@
 // La vista previa del panel de contexto: qué cargaría un líder o un worker NUEVO en un proyecto con un modelo, calculado sin lanzar nada. Sale
 // de lo que ya se sabe: el prompt base y las herramientas de Claude Code (capturados una vez por versión, contexto-base.ts), los CLAUDE.md y la
 // memoria que cargaría esa carpeta (`memoriaDeSesion`), las skills de ese proyecto, los servidores MCP prendidos (sólo un líder: un worker de
-// `pa` va sin MCP) y los hooks. Todo estimado (caracteres / 3,5). Respeta los apagados de Trama (`apagados.json`): lo apagado figura en la lista,
-// tachado, y no suma. Devuelve un `Desglose` (fuente "previa") para que el panel dibuje lo mismo que con una sesión de verdad.
+// `pa` va sin MCP) y los hooks. Todo estimado (caracteres / 3,5). Respeta los apagados de Trama (`apagados.json`): lo apagado no se carga (la memoria y las skills apagadas no figuran; las herramientas y MCP apagados figuran,
+// tachados, y la vista no los suma). Devuelve un `Desglose` (fuente "previa") para que el panel dibuje lo mismo que con una sesión de verdad.
 import { readFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";

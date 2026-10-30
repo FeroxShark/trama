@@ -509,11 +509,20 @@ function Detalle({ d, uid, inicial, lider, alRefrescar }: { d: Desglose; uid: st
                   <button type="button" aria-expanded={abre} aria-controls={idCuerpo} data-tip={t("ctxp.verDetalle", { cat: nombreCat(c.id) })} onClick={() => setAbierta(abre ? null : c.id)}>
                     <i className="cp-color" aria-hidden />
                     <span className="cp-cat-n">{nombreCat(c.id)}</span>
-                    <span className="cp-num" data-tip={c.estimado ? t("ctxp.estimado") : undefined}>
-                      {c.estimado ? "≈" : ""}
-                      {miles(c.tokens)}
-                    </span>
-                    <span className="cp-pct">{porcentaje(c.tokens, total)} %</span>
+                    {d.fuente === "previa" && c.id === "mcp" ? (
+                      // Los MCP se conectan al arrancar: en la vista previa no tienen número (no es un cero).
+                      <span className="cp-num" data-tip={t("ctxp.previa.mcp")}>
+                        {t("ctxp.previa.sinDato")}
+                      </span>
+                    ) : (
+                      <>
+                        <span className="cp-num" data-tip={c.estimado ? t("ctxp.estimado") : undefined}>
+                          {c.estimado ? "≈" : ""}
+                          {miles(c.tokens)}
+                        </span>
+                        <span className="cp-pct">{porcentaje(c.tokens, total)} %</span>
+                      </>
+                    )}
                     <ChevronRight size={14} strokeWidth={2} className="cp-chev" aria-hidden />
                   </button>
                 </h4>
