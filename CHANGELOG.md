@@ -1,5 +1,14 @@
 # Cambios
 
+## 0.2.32
+
+- Panel de contexto: MCP y skills medidos por lo que de verdad está cargado (los MCP diferidos casi no cuentan), y el total cuadra con sus ítems y no cambia al refrescar.
+- Panel de contexto: «Sistema» partido en piezas (prompt base, cada CLAUDE.md, memoria, hooks de inicio, skills) con sus tokens y su texto.
+- Catálogo de skills: cuenta los usos de todas las sesiones, incluidas las que carga un hook (por ejemplo caveman).
+- Panel de contexto: lo apagado se ve gris y no suma; botón Compactar (y clic derecho) en Mensajes.
+- Título corto del líder: ya no puede quedar texto de una herramienta como `<invoke_tool …>`; los títulos así se corrigen solos.
+- Windows: actualizar ya no falla si un `node.exe` de Trama está en uso, el node de Trama va al final del PATH de los procesos hijos y la copia para volver atrás guarda bien `app.asar`.
+
 ## 0.2.31
 
 - Avisos de workers al líder: ya no se pierden si el líder o Trama se reinician mientras el worker corre. Quedan en una cola persistente y cuentan como entregados sólo cuando llegaron; al retomar un líder le llega un resumen de sus workers que terminaron mientras no estaba.
