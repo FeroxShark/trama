@@ -126,6 +126,23 @@ historia (force push); se puede subir directo y mergear sin esperar el CI.
 - **Supuesto:** el aviso de pendiente sólo existe con un turno en curso; en reposo, lo elegido simplemente sale con el próximo mensaje.
 - Capturas: `HILOS_VARIANTE=pendiente|pendiente-modelo scripts/captura.sh lider-trabajando`.
 
+## Hecho: actualizar seguro (volver a la versión anterior)
+
+Antes de instalar una versión nueva se guarda la que corre; si la nueva no arranca bien, Trama vuelve sola a la anterior y avisa al abrir
+(pastilla "Volvió a la vX" al pie de la barra). Reglas en `app/electron/arranque-seguro.ts` (y `windows/src/arranque-seguro.js`, mismo
+archivo `arranque.json`): una versión recién instalada se cuenta como a prueba hasta que carga la primera página ("ventana lista");
+si no llega en 60 s (`TRAMA_ARRANQUE_MAX_MS`) o se cierra sola 2 veces seguidas, vuelve. Una versión que ya llegó a ventana lista no se deshace.
+- Linux (`app/electron/version-anterior.ts`): AppImage (`$APPIMAGE`) o la app estable `~/.local/share/trama/app`. Las copias van a
+  `~/.local/share/trama/anterior/` (AppImage entero, o `dist/`, `dist-electron/` y `package.json`; `node_modules` no). La carpeta se copia
+  antes de correr el instalador de Actualizar y también al llegar a ventana lista (así una actualización a mano deja a dónde volver); el
+  AppImage se copia a sí mismo al llegar a ventana lista. Al volver se reinicia `trama-motor.service` y la ventana.
+- Windows (`windows/src/version-anterior.js`): se copia la carpeta de la instalación a `%LOCALAPPDATA%\trama\anterior\Trama-<versión>`
+  cuando el actualizador termina de bajar la nueva (y antes de «Reiniciar para actualizar»). Volver lo hace un guion de cmd suelto
+  (espera al pid, `robocopy /MIR`, abre Trama). El actualizador no baja de nuevo la versión desechada (`rechazada`).
+- Botón "Volver a la versión anterior": Ajustes > General (`AjustesVolver.tsx`), canales de la ventana `trama:anterior`,
+  `trama:volverAnterior` y `trama:avisoVuelta`.
+- Sin probar en una máquina Windows de verdad: el guion de cmd, `robocopy` y el cierre del `.exe` sólo están probados con fakes.
+
 ## Hecho en esta última pasada (commit final de la rama `claude/elegant-sagan-gvgbq5`, falta mergear)
 
 > Ver el resultado de cada parte más abajo en "Estado de la última pasada".

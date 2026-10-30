@@ -1,5 +1,9 @@
 # Cambios
 
+## Sin publicar
+
+- Actualizar seguro: antes de instalar una versión nueva se guarda la anterior; si la nueva no arranca bien (no llega a abrir la ventana en 60 s, o se cierra sola 2 veces seguidas) Trama vuelve sola y lo cuenta al abrir. Botón "Volver a la versión anterior" en Ajustes > General. Linux (AppImage y app estable) y Windows (instalador nativo).
+
 ## 0.2.26
 
 - Avisos de Trama (worker terminó/falló) se ven como fila de sistema, no como mensaje tuyo; el id abre el hilo del worker.
