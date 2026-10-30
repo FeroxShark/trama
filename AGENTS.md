@@ -19,6 +19,13 @@ falta, está en `motor/docs/traspaso.md`.
 - **PR:** no se abren salvo que el dueño lo pida. Sin nombres de modelos de IA en commits ni en PR.
 - **Antes de cada commit**, desde `app/`: `npx tsc -p tsconfig.json --noEmit`, `npx tsc -p tsconfig.electron.json --noEmit`,
   `npx vite build`, `npm test`. Si se toca el motor que se está portando: `npm run test:paridad`.
+- **Chequeo rápido para workers:** desde `app/`, `npm run check:changed` (`app/scripts/check-changed.mjs`). Compara contra main
+  (o contra `HEAD~1` si la rama es main) y corre sólo lo afectado: tsc de la interfaz y de electron; los tests que importan
+  lo cambiado (directo o por cadena de imports), lo nombran o escriben su ruta; la paridad de las herramientas del motor
+  (o de su port en `electron/cli`) que cambiaron (`TRAMA_PARIDAD_HERRAMIENTA`); y `windows/` si tocó algo ahí. Corre todo si
+  cambia `scripts/test.mjs`, `package.json`, los tsconfig o `vite.config.ts`, si toca `tests/paridad/`, o si cambia algo de
+  `motor/` o `electron/cli/` que no está en su tabla. No reemplaza el chequeo completo de arriba antes de un commit a main:
+  no corre `vite build` ni el smoke de `humo-motor.mjs`.
 - **Cola de mensajes del líder (`app/electron/cola.ts`):** lo encolado con el líder trabajando sale TODO JUNTO en un solo mensaje
   (`juntar`), nunca uno por turno. Por defecto se entrega a mitad del turno, sin interrumpir, en el próximo límite de
   herramienta (`lider.mandarDirecto`, tras `AGRUPAR_MS` de agrupación); los motores sin ese canal (locales) lo entregan al
