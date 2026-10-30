@@ -342,7 +342,7 @@ let ultimosHilos: readonly { id?: unknown; estado?: unknown; en_cola?: unknown; 
 
 // Los avisos de los workers (avisos-worker.ts): terminó, falló por cupo o por lo que sea, o se colgó. Cada uno se anota en disco al
 // detectarlo (avisos-pendientes.ts: cola persistente por líder, `avisos-lider.json`) y se le entrega al líder que lo lanzó cuando
-// tiene proceso: a mitad de un turno, todo junto en un mensaje; ocioso, una falla ya, y un simple "terminó" en su próximo turno.
+// tiene proceso: a mitad de un turno, todo junto en un mensaje; ocioso, una falla ya, y un simple "terminó" a los ~20 s (agrupando los que terminen en ese rato) con un turno nuevo.
 // Sin proceso (el líder o Trama se reiniciaron) espera, y al volver el líder recibe un resumen de lo que terminó mientras no estaba.
 // Entregado = la cola de mensajes confirmó que se mandó. La ventana y el celular reciben cada aviso para la notificación.
 const ARCHIVO_AVISOS = path.join(ESTADO, "avisos-lider.json");

@@ -93,7 +93,7 @@ historia (force push); se puede subir directo y mergear sin esperar el CI.
   tanda vivía sólo en memoria. Lo que terminaba con Trama apagada nunca se detectaba.
 - **Ahora** (`app/electron/avisos-pendientes.ts`, `avisos-lider.json` en el estado de Trama): cada aviso se anota al detectarlo
   (`registrar`), se libera cuando se le puede decir (`liberar`: al cerrar la tanda, o ya en modo por worker/cupo/colgado) y `entregar` lo
-  encola SÓLO con el líder con proceso: a mitad de turno, todo junto; ocioso, las fallas ya y un simple "terminó" en su próximo turno. Sin
+  encola SÓLO con el líder con proceso: a mitad de turno, todo junto; ocioso, las fallas ya y un simple "terminó" a los ~20 s (`GRUPO_MS`: los que terminen en ese rato salen juntos, y despiertan al líder con un turno nuevo sin esperar al usuario; si el líder empieza un turno antes, sale a mitad de ese). Sin
   proceso espera y, al volver el líder, sale UN resumen ("Mientras no estabas terminaron N workers…").
 - **Entregado = la cola confirmó el envío** (`Encolado.avisos` + `Deps.salida` de `cola.ts`). Si falla, sigue en la cola y anotado; al
   arrancar, lo `encolado` que no está en `cola.json` vuelve a pendiente. Quitarlo de la cola lo descarta; cerrar el líder adrede lo devuelve.

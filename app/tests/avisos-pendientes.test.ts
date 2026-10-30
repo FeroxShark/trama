@@ -31,6 +31,8 @@ const lista = (id: string, estado: string, ini: number, dur = 60, extra: Partial
 function arrancar(disco: Disco, lider: Lider, reloj: { ms: number }, modo: "tanda" | "worker" = "tanda") {
   const e = { filas: [] as FilaHilo[] };
   const mandados: string[] = [];
+  // Reloj falso: los temporizadores sólo corren cuando el test hace `pasar`.
+  const timers: { en: number; f: () => void; vivo: boolean }[] = [];
   const enTurnos: string[] = [];
   const avisos = crearAvisosPendientes({
     guardar: async (j) => void (disco.avisos = j),
@@ -39,6 +41,11 @@ function arrancar(disco: Disco, lider: Lider, reloj: { ms: number }, modo: "tand
     encolar: (sid, x) => void cola.encolar(sid, x),
     filas: () => e.filas,
     ahora: () => reloj.ms,
+    temporizar: (f, ms) => {
+      const x = { en: reloj.ms + ms, f, vivo: true };
+      timers.push(x);
+      return () => void (x.vivo = false);
+    },
   });
   const cola = crearCola({
     disponible: async () => (!lider.proc ? "nadie" : lider.enTurno ? "ocupado" : "app"),
@@ -91,6 +98,14 @@ function arrancar(disco: Disco, lider: Lider, reloj: { ms: number }, modo: "tand
       avisos.entregar();
       await asentar();
     },
+    /** Corre el reloj `ms` y dispara los temporizadores que se cumplen. */
+    async pasar(ms: number) {
+      reloj.ms += ms;
+      for (const x of timers) if (x.vivo && x.en <= reloj.ms) ((x.vivo = false), x.f());
+      await asentar();
+    },
+    /** Temporizadores de agrupación todavía esperando. */
+    esperando: () => timers.filter((x) => x.vivo).length,
     /** El líder cambió (volvió, empezó un turno…): se mira a quién se le puede entregar. */
     async cambio(sid?: string) {
       avisos.entregar(sid);
@@ -246,19 +261,95 @@ test("dos workers terminando juntos con el líder ocioso: una falla sale ya y ll
   assert.match(t.llegado()[0], /\(b\): falló/);
 });
 
-test("un simple 'terminó' con el líder ocioso no lo despierta: espera a su próximo turno y entonces llega", async () => {
+test("un simple 'terminó' con el líder ocioso lo despierta a los 20 s con un turno nuevo, sin esperar al usuario", async () => {
   const disco = nuevoDisco();
   const lider: Lider = { proc: true, enTurno: false, mandarFalla: false };
   const reloj = { ms: (T0 + 100) * 1000 };
   const t = arrancar(disco, lider, reloj);
   await t.leer([fila("a", "trabajando")]);
   await t.leer([lista("a", "entregado", T0)]);
+  assert.deepEqual(t.llegado(), [], "todavía se espera por si terminan más");
+  assert.equal(t.estados()["a:fin"], "pendiente");
+  await t.pasar(19_000);
+  assert.deepEqual(t.llegado(), []);
+  await t.pasar(1_500);
+  assert.equal(t.mandados.length, 1, "turno nuevo (mandar), no a mitad de uno");
+  assert.match(t.llegado()[0], /Worker «tarea de a» terminó/);
+  assert.equal(t.estados()["a:fin"], "entregado");
+  await t.pasar(60_000);
+  assert.equal(t.llegado().length, 1, "no se repite");
+});
+
+test("ráfaga de 8 workers que terminan con el líder ocioso: un solo mensaje, 20 s después del primero", async () => {
+  const disco = nuevoDisco();
+  const lider: Lider = { proc: true, enTurno: false, mandarFalla: false };
+  const reloj = { ms: (T0 + 100) * 1000 };
+  const t = arrancar(disco, lider, reloj);
+  const ids = Array.from({ length: 8 }, (_, i) => `w${i}`);
+  await t.leer(ids.map((i) => fila(i, "trabajando")));
+  // Terminan de a uno, con la tanda abierta hasta el último; el modo "worker" los suelta ni bien terminan.
+  const t2 = arrancar(nuevoDisco(), { ...lider }, { ms: reloj.ms }, "worker");
+  await t2.leer(ids.map((i) => fila(i, "trabajando")));
+  for (let k = 1; k <= 8; k++) {
+    await t2.leer(ids.map((i, j) => (j < k ? lista(i, "entregado", T0) : fila(i, "trabajando"))));
+    await t2.pasar(2_000);
+  }
+  assert.deepEqual(t2.llegado(), [], "a los 16 s de terminar el primero todavía se agrupa");
+  assert.equal(t2.esperando(), 1, "un solo reloj para el líder");
+  await t2.pasar(5_000);
+  assert.equal(t2.llegado().length, 1, "uno solo, con los 8");
+  assert.match(t2.llegado()[0], /Terminaron los 8 workers/);
+  assert.deepEqual(new Set(Object.values(t2.estados())), new Set(["entregado"]));
+  // Lo mismo con la tanda: se cierra con el último y también espera sus 20 s.
+  for (let k = 1; k <= 8; k++) await t.leer(ids.map((i, j) => (j < k ? lista(i, "entregado", T0) : fila(i, "trabajando"))));
+  assert.deepEqual(t.llegado(), []);
+  await t.pasar(21_000);
+  assert.equal(t.llegado().length, 1);
+  assert.match(t.llegado()[0], /Terminaron los 8 workers/);
+});
+
+test("el líder empieza un turno antes de los 20 s: sale a mitad de ese turno, una sola vez (sin duplicar con el reloj)", async () => {
+  const disco = nuevoDisco();
+  const lider: Lider = { proc: true, enTurno: false, mandarFalla: false };
+  const reloj = { ms: (T0 + 100) * 1000 };
+  const t = arrancar(disco, lider, reloj);
+  await t.leer([fila("a", "trabajando")]);
+  await t.leer([lista("a", "entregado", T0)]);
+  lider.enTurno = true; // el usuario escribió
+  await t.cambio(JEFE);
+  assert.equal(t.enTurnos.length, 1);
+  assert.equal(t.estados()["a:fin"], "entregado");
+  assert.equal(t.esperando(), 0, "el reloj se cancela");
+  await t.pasar(60_000);
+  assert.equal(t.llegado().length, 1);
+});
+
+test("worker que termina con el líder en un turno: sale apenas la cola puede, sin esperar los 20 s ni al usuario", async () => {
+  const disco = nuevoDisco();
+  const lider: Lider = { proc: true, enTurno: true, mandarFalla: false };
+  const reloj = { ms: (T0 + 100) * 1000 };
+  const t = arrancar(disco, lider, reloj);
+  await t.leer([fila("a", "trabajando")]);
+  await t.leer([lista("a", "entregado", T0)]);
+  assert.equal(t.llegado().length, 1);
+  assert.equal(t.esperando(), 0);
+});
+
+test("líder muerto a los 20 s: no se manda nada y queda en cola; al retomarlo llega un resumen", async () => {
+  const disco = nuevoDisco();
+  const lider: Lider = { proc: true, enTurno: false, mandarFalla: false };
+  const reloj = { ms: (T0 + 100) * 1000 };
+  const t = arrancar(disco, lider, reloj);
+  await t.leer([fila("a", "trabajando")]);
+  await t.leer([lista("a", "entregado", T0)]);
+  lider.proc = false; // lo cerraron mientras esperaba el rato
+  await t.pasar(21_000);
   assert.deepEqual(t.llegado(), []);
   assert.equal(t.estados()["a:fin"], "pendiente");
-  lider.enTurno = true;
-  await t.cambio(JEFE);
+  lider.proc = true;
+  await t.cambio();
   assert.equal(t.llegado().length, 1);
-  assert.match(t.llegado()[0], /Worker «tarea de a» terminó/);
+  assert.match(t.llegado()[0], /Mientras no estabas terminaron 1 worker/);
   assert.equal(t.estados()["a:fin"], "entregado");
 });
 

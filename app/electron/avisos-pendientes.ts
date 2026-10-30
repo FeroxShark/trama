@@ -5,8 +5,9 @@
 //    Trama se reinició en el medio, hasta que el líder no tenga más workers vivos (`soltarHuerfanos`);
 //  - el que ya se le puede decir (`liberar`) queda `pendiente`; `entregar` lo encola SÓLO si el líder tiene proceso. Sin proceso espera
 //    (y se anota que estuvo ausente): cuando el líder vuelve, un único aviso de resumen con todo lo que terminó mientras no estaba;
-//  - un `fin` (o una decisión) para un líder ocioso con proceso espera a su próximo turno; una falla, un corte por cupo o un colgado
-//    salen ya, aunque esté ocioso (nadie más se entera);
+//  - un `fin` (o una decisión) para un líder ocioso con proceso espera `GRUPO_MS` (los que terminen en ese rato salen juntos) y
+//    entonces lo despierta con un turno nuevo, sin esperar a que el usuario escriba; una falla, un corte por cupo o un colgado
+//    salen ya, aunque esté ocioso (nadie más se entera). Si el líder empieza un turno antes, sale a mitad de ese turno;
 //  - es `entregado` sólo cuando la cola confirma que se mandó (`salida`); si no salió vuelve a pendiente, y al arrancar lo `encolado`
 //    que no está en la cola vuelve a pendiente (`reconciliar`);
 //  - `descubrir` rescata a los workers de un líder que terminaron mientras Trama estaba apagada (nadie los vio terminar).
@@ -48,7 +49,12 @@ export type Deps = {
   /** `descubrir`: ¿un worker listado `murio` sigue corriendo? Sin esto, no. */
   procesoVivo?: (h: FilaWorker) => Promise<boolean>;
   ahora?: () => number;
+  /** Pone `f` a correr dentro de `ms`; devuelve cómo cancelarlo. Por defecto `setTimeout` (sin atar el proceso). */
+  temporizar?: (f: () => void, ms: number) => () => void;
 };
+
+/** Cuánto se espera, con el líder ocioso, antes de despertarlo por workers que terminaron (los que terminen en ese rato salen juntos). */
+export const GRUPO_MS = 20_000;
 
 /** Lo ya entregado se guarda este tiempo (evita repetir y deja descubrir lo nuevo). */
 const GUARDAR_ENTREGADOS_MS = 3 * 24 * 3600_000;
@@ -70,6 +76,19 @@ export function crearAvisosPendientes(d: Deps) {
   let entradas: Entrada[] = [];
   /** epoch s de la última lista que se miró: los workers que terminaron después y nadie anotó se descubren. `null`: primera vez. */
   let ultimaVez: number | null = null;
+  const temporizar =
+    d.temporizar ??
+    ((f: () => void, ms: number) => {
+      const r = setTimeout(f, ms);
+      r.unref?.();
+      return () => clearTimeout(r);
+    });
+  /** El rato de agrupación de cada líder ocioso con avisos esperando. */
+  const relojes = new Map<string, () => void>();
+  const soltarReloj = (jefe: string) => {
+    relojes.get(jefe)?.();
+    relojes.delete(jefe);
+  };
 
   const guardar = () => {
     const t = ahora();
@@ -124,7 +143,7 @@ export function crearAvisosPendientes(d: Deps) {
     if (cambiar(claves, "retenido", "pendiente")) guardar();
   }
 
-  return {
+  const api = {
     registrar,
     liberar,
     /** Lo que quedó guardado de la vez anterior. Lo que no se entiende se ignora. */
@@ -176,29 +195,41 @@ export function crearAvisosPendientes(d: Deps) {
     /**
      * Mira (sin esperar) a qué líderes se les puede decir algo: uno, o todos los que tienen pendientes. Sin proceso del líder se
      * espera (y se anota la ausencia); con proceso a mitad de un turno sale todo junto; ocioso, sólo si hay una falla (o si estuvo
-     * ausente: es el resumen al retomarlo), y un simple "terminó" espera a su próximo turno.
+     * ausente: es el resumen al retomarlo), y un simple "terminó" espera `GRUPO_MS` y lo despierta (`ya`: ese rato se cumplió).
      */
-    entregar(sid?: string) {
+    entregar(sid?: string, ya = false) {
       const jefes = sid !== undefined ? [sid] : [...new Set(entradas.filter((e) => e.estado === "pendiente").map((e) => e.jefe_id))];
       let cambio = false;
       for (const jefe of jefes) {
         const todos = entradas.filter((e) => e.jefe_id === jefe && e.estado === "pendiente");
-        if (!todos.length) continue;
+        if (!todos.length) {
+          soltarReloj(jefe);
+          continue;
+        }
         for (const e of todos)
           if (revisado(e)) {
             e.estado = "descartado";
             cambio = true;
           }
         const pend = todos.filter((e) => e.estado === "pendiente");
-        if (!pend.length) continue;
+        if (!pend.length) {
+          soltarReloj(jefe);
+          continue;
+        }
         const proc = d.proceso(jefe);
         if (!proc) {
+          soltarReloj(jefe);
           for (const e of pend) if (!e.ausente) ((e.ausente = true), (cambio = true));
           continue;
         }
         const retomado = pend.some((e) => e.ausente);
         const urgente = pend.some((e) => e.aviso.tipo !== "fin");
-        if (!retomado && !urgente && !d.puedeEnTurno(jefe)) continue;
+        if (!retomado && !urgente && !ya && !d.puedeEnTurno(jefe)) {
+          // Ocioso: se junta lo que termine en este rato y después se lo despierta con todo.
+          if (!relojes.has(jefe)) relojes.set(jefe, temporizar(() => (relojes.delete(jefe), api.entregar(jefe, true)), GRUPO_MS));
+          continue;
+        }
+        soltarReloj(jefe);
         // El último aviso de cada worker: un cupo y después su fin dicen lo mismo con lo último.
         const ultimos = new Map<string, Entrada>();
         for (const e of [...pend].sort((a, b) => a.ts - b.ts)) ultimos.set(e.worker, e);
@@ -271,6 +302,7 @@ export function crearAvisosPendientes(d: Deps) {
     /** Las claves de los avisos que lleva lo encolado en la cola de mensajes (para `reconciliar`). */
     clavesDe: (colas: readonly { lista: readonly { avisos?: readonly string[] }[] }[]): Set<string> => new Set(colas.flatMap((c) => c.lista.flatMap((x) => x.avisos ?? []))),
   };
+  return api;
 }
 
 export type AvisosPendientes = ReturnType<typeof crearAvisosPendientes>;
