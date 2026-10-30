@@ -28,6 +28,7 @@ echo "$* [$REPARTO_NO_DISPONIBLE]" >> "$PA_STATE/reparto-llamadas.txt"
 case "$1" in
   --agy-modelos) cat "$REPARTO_DIR/agy-modelos" 2>/dev/null || exit 1 ;;
   --enfriar) exit 0 ;;
+  --otro-camino) cat "$REPARTO_DIR/otro-camino" 2>/dev/null || exit 1 ;;
   --tipo)
     n=$(cat "$REPARTO_DIR/n" 2>/dev/null || echo 0); n=$((n+1)); echo "$n" > "$REPARTO_DIR/n"
     l=$(sed -n "\${n}p" "$REPARTO_DIR/respuestas")
@@ -62,6 +63,13 @@ const conAgySinClaude55 = (c: Contexto) => {
   conAgyFalso(c);
   writeFileSync(path.join(c.aux, "agy-modelos"), "gemini-3.8-flash-high\nagy:claude-sonnet-4-6-thinking\nagy:claude-opus-4-6-thinking\nagy:gpt-oss-120b-medium\n");
 };
+/** Lo que contesta `reparto --otro-camino` (el mismo modelo por el Claude oficial, o que no hay). */
+const conOtroCamino = (j: object) => (c: Contexto) => {
+  conAgyFalso(c);
+  writeFileSync(path.join(c.aux, "otro-camino"), JSON.stringify(j));
+};
+const CAMINO = { camino: true, de: "agy:claude-sonnet-5-5-high", modelo: "claude-sonnet-5-5", effort: "high", cuenta: "claude", motivo: "el mismo modelo por el Claude oficial (80 % libre)" };
+const SIN_CAMINO = { camino: false, de: "agy:claude-sonnet-5-5-high", modelo: null, effort: null, cuenta: null, motivo: "Claude: reserva del Claude oficial" };
 /** El límite de sesión de la cuenta de siempre, ya conocido (hasta el año 2100). */
 const conLimiteConocido = (c: Contexto) => writeFileSync(path.join(c.estado, "limite.hasta"), "4102444800");
 
@@ -85,6 +93,37 @@ const asincrono: Paso = { ...lanzar(0, "--async"), pausaMs: 3000 };
 const esperar = (rc: number): Paso => ({ args: ["--esperar", "demo", "--timeout", "60"], rc });
 
 export const casosCupo: Caso[] = [
+  // Un -m a mano (o sustituido) por agy que choca el cupo al arrancar: ese camino queda agotado y sigue el MISMO modelo por el Claude oficial.
+  caso("agy sin cupo con un -m a mano: se agota ese camino y sigue el mismo modelo por Claude", {
+    respuestas: [SONNET],
+    guion: [ok(BLOQUE)],
+    env: { FALSO_MODO: "cupo", FALSO_RESETS: "2h 30m" },
+    antes: conOtroCamino(CAMINO),
+    pasos: [{ args: ["demo", "--sin-jefe", "-m", "agy:claude-sonnet-5-5-high", BRIEF], rc: 0 }],
+  }),
+  caso("agy sin cupo sin la hora de reset: se agota igual y sigue por Claude", {
+    respuestas: [SONNET],
+    guion: [ok(BLOQUE)],
+    env: { FALSO_MODO: "cupo" },
+    antes: conOtroCamino(CAMINO),
+    pasos: [{ args: ["demo", "--sin-jefe", "-m", "agy:claude-sonnet-5-5-high", BRIEF], rc: 0 }],
+  }),
+  caso("agy sin cupo y Claude tampoco tiene camino: se agota y sale como falló", {
+    respuestas: [SONNET],
+    guion: [ok(BLOQUE)],
+    env: { FALSO_MODO: "cupo", FALSO_RESETS: "6d 5h 3m" },
+    antes: conOtroCamino(SIN_CAMINO),
+    pasos: [{ args: ["demo", "--sin-jefe", "-m", "agy:claude-sonnet-5-5-high", BRIEF], rc: 1 }],
+  }),
+  caso("agy sin cupo con sin_cupo=fallar: se agota pero no cambia de camino", {
+    respuestas: [SONNET],
+    guion: [ok(BLOQUE)],
+    modelos: { sin_cupo: "fallar" },
+    env: { FALSO_MODO: "cupo" },
+    antes: conOtroCamino(CAMINO),
+    pasos: [{ args: ["demo", "--sin-jefe", "-m", "agy:claude-sonnet-5-5-high", BRIEF], rc: 1 }],
+  }),
+
   caso("el Claude oficial dice límite y reparto ofrece otro Claude", { respuestas: [SONNET, HAIKU], guion: [limite(), ok(BLOQUE)], pasos: [lanzar(0)] }),
   caso("dice límite y reparto no ofrece otro: sale 76", { respuestas: [SONNET, SONNET], guion: [limite()], pasos: [lanzar(76)] }),
   caso("dice límite y reparto está todo lleno: sale 76", { respuestas: [SONNET, LLENO], guion: [limite()], pasos: [lanzar(76)] }),

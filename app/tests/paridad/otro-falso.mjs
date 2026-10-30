@@ -48,7 +48,7 @@ if (prog === "agy") {
     process.exit(1);
   }
   if (modo === "cupo") {
-    process.stderr.write("RESOURCE_EXHAUSTED: Individual quota reached\n");
+    process.stderr.write(`RESOURCE_EXHAUSTED: Individual quota reached${process.env.FALSO_RESETS ? `. Resets in ${process.env.FALSO_RESETS}` : ""}\n`);
     process.stdout.write(nd({ conversation_id: "c-1" }, { event: "result", result: { status: "ERROR", conversation_id: "c-1", duration_seconds: 1 } }));
     process.exit(1);
   }

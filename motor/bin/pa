@@ -6979,6 +6979,18 @@ agy_modelo_invalido() {
   local t; t="$(cat "$err" 2>/dev/null; res_texto)"
   grep -qiE 'invalid model selection|model .* is not recognized' <<<"$t"
 }
+# Cuándo vuelve el cupo según agy ("Resets in 149h", "resets after 6d 5h 3m"): epoch en segundos; rc 1 si el texto no lo dice.
+agy_reset_epoch() {
+  local m x s=0 n u
+  m="$(grep -oiE 'resets?[[:space:]]+(in|after)[[:space:]]+([0-9]+[[:space:]]*[dhm][[:space:]]*)+' <<<"$1" | head -n1)"
+  [[ -n "$m" ]] || return 1
+  while IFS= read -r x; do
+    n="${x%%[!0-9]*}"; u="${x: -1}"
+    case "${u,,}" in d) s=$((s + n * 86400)) ;; h) s=$((s + n * 3600)) ;; m) s=$((s + n * 60)) ;; esac
+  done < <(grep -oiE '[0-9]+[[:space:]]*[dhm]' <<<"$m")
+  (( s > 0 )) || return 1
+  echo $(( $(date +%s) + s ))
+}
 sin_cupo_al_arrancar() { agy_sin_cupo || agy_modelo_invalido || codex_sin_cupo || claude_sin_cupo || dsh_sin_cupo; }
 sin_trabajo_hecho() {
   [[ -z "$(git -C "$ruta_trabajo" status --porcelain 2>/dev/null)" ]] \
@@ -7045,6 +7057,35 @@ cambiar_de_modelo() {   # $1 = modelo nuevo, $2 = su effort (sólo Claude)
   fi
   escribir_running
 }
+# Un -m a mano (o sustituido por agy) que agy corta por cupo al arrancar, sin trabajo hecho y sin tipo de reparto para elegir otro: ese camino queda
+# agotado hasta el reset que diga agy (`reparto --agotar`) y, con sin_cupo=otro, la corrida sigue con el MISMO modelo por el Claude oficial
+# (`reparto --otro-camino`), sin tocar de cuenta de Claude. Una sola vez.
+if [[ "$motor" == agy && -z "$reparto_tipo_relanzable" && -x "$REPARTO" ]] && { (( rc != 0 )) || es_error; } && agy_sin_cupo && sin_trabajo_hecho; then
+  m_ant="$modelo"; hasta_args=()
+  if hasta="$(agy_reset_epoch "$(cat "$err" 2>/dev/null; res_texto)")"; then hasta_args=( --hasta "$(date -u -d "@$hasta" +%Y-%m-%dT%H:%M:%SZ)" ); fi
+  REPARTO_STATE="${REPARTO_STATE:-$STATE/reparto}" PA_STATE="$STATE" "$REPARTO" --agotar "$m_ant" "${hasta_args[@]}" ${cuenta:+--cuenta "$cuenta"} >/dev/null 2>&1 </dev/null || true
+  if [[ "$SIN_CUPO" == otro ]]; then
+    oc_json="$(REPARTO_STATE="${REPARTO_STATE:-$STATE/reparto}" PA_STATE="$STATE" timeout "${PA_REPARTO_TIMEOUT_S:-15}" "$REPARTO" --otro-camino "$m_ant" --json 2>/dev/null </dev/null)" || oc_json=""
+    m_rep=""; e_rep=""; mot_rep=""
+    if [[ "$(jq -r '.camino // false' <<<"$oc_json" 2>/dev/null)" == true ]]; then
+      IFS='|' read -r m_rep e_rep mot_rep < <(
+        jq -r '[(.modelo // ""), (.effort // ""), ((.motivo // "") | gsub("[\\r\\n\\t|]+"; " "))] | join("|")' <<<"$oc_json" 2>/dev/null
+      ) || true
+    fi
+    p_rep="$(proveedor_de_modelo "$m_rep")"
+    c_rep="$(jq -r '.cuenta // ""' <<<"$oc_json" 2>/dev/null)"
+    [[ -n "$c_rep" && "$(cuenta_proveedor "$c_rep")" == "$p_rep" ]] || c_rep="$p_rep"
+    c_ant="$cuenta"
+    if [[ -z "$m_rep" ]] || ! cuenta_preparar "$c_rep" "$p_rep" 2>/dev/null; then
+      echo "pa: agy dijo sin cupo con $m_ant, lo marqué como agotado, pero no hay otro camino con cupo para el mismo modelo; sigo como falló." >&2
+      cuenta_preparar "${c_ant:-google}" "$(proveedor_de_modelo "$m_ant")" 2>/dev/null || true
+    else
+      echo "pa: agy dijo sin cupo con $m_ant: lo marco agotado hasta que vuelva y relanzo con $m_rep${e_rep:+ effort $e_rep}: $mot_rep" >&2
+      cambiar_de_modelo "$m_rep" "$e_rep"
+      rc=0; correr || rc=$?
+    fi
+  fi
+fi
 reintentos_cupo=0
 while (( reintentos_cupo < 3 )) && [[ -n "$reparto_tipo_relanzable" && -x "$REPARTO" ]] && { [[ "$SIN_CUPO" == otro ]] || agy_modelo_invalido; } \
       && { (( rc != 0 )) || es_error; } && sin_cupo_al_arrancar && sin_trabajo_hecho; do
