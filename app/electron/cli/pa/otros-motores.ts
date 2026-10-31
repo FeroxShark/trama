@@ -11,9 +11,10 @@ import type { Env, Pa } from "./entorno.ts";
 import { mapaDe, type Corrida, type Lanzamiento, type OpcionesLanzar } from "./lanzar.ts";
 import { chequearAgy, chequearCodex, chequearDsh, localEstado, type Local } from "./motores/chequeo.ts";
 import { armarLlamada, conCuenta, type EntornoCuenta, type Llamada } from "./motores/llamada.ts";
-import { Modelos } from "./modelos.ts";
+import { esOpencode, Modelos } from "./modelos.ts";
 import type { Llamada as LlamadaPa, Motores } from "./politica.ts";
 import { escribirAgyJson, escribirCodexJson, latir } from "./motores/salida.ts";
+import { type MotorSkills, sincronizarSkillsParaMotor } from "./skills-motores.ts";
 
 /** Los motores que corren por acá (ollama es el claude de siempre contra el servidor local; ver lanzar.ts). */
 export type MotorOtro = "agy" | "codex" | "dsh";
@@ -109,6 +110,10 @@ const aErr = (f: string, t: string) => {
   }
 };
 
+/** El motor que no carga las skills de Claude solo (agy, codex, y opencode por el dsh); null para los demás. */
+const motorSkillsDe = (motor: string | undefined, modelo: string): MotorSkills | null =>
+  motor === "agy" || motor === "codex" ? motor : motor === "dsh" && esOpencode(modelo) ? "opencode" : null;
+
 /** `OpcionesLanzar.ejecutar` para agy, codex y dsh/opencode. */
 export const ejecutarOtro: NonNullable<OpcionesLanzar["ejecutar"]> = (l, o) => {
   const ll = llamadaDe(l);
@@ -119,6 +124,17 @@ export const ejecutarOtro: NonNullable<OpcionesLanzar["ejecutar"]> = (l, o) => {
   // agy y codex: el stream crudo es el «transcript» de la corrida; dsh/opencode lo escribe su runner (stdout a la nada)
   const fo = ll.stdout ? openSync(ll.stdout, "w") : null;
   const fe = openSync(ll.stderr, "w");
+  // Las skills de Claude que el motor no carga solo: se enlazan (sin las apagadas en Trama) antes de lanzarlo. Si falla, no frena la corrida.
+  const motor = motorSkillsDe(c.motor, c.modelo);
+  if (motor) {
+    try {
+      for (const f of sincronizarSkillsParaMotor(motor, pa.env, pa.home, pa.plat).fallidas) aErr(ll.stderr, `pa: no pude enlazar la skill ${f.nombre} para ${motor}: ${f.error}\n`);
+    } catch (e) {
+      aErr(ll.stderr, `pa: no pude sincronizar las skills para ${motor}: ${(e as Error).message}\n`);
+    }
+  }
+  // opencode lee ~/.claude/skills por su cuenta (sin el apagado de Trama y con las de plugins repetidas): que sólo cuente lo enlazado acá
+  const entorno = motor === "opencode" ? { ...ll.env, OPENCODE_DISABLE_CLAUDE_CODE_SKILLS: "1" } : ll.env;
   return new Promise<number>((resolve) => {
     let timer: NodeJS.Timeout | undefined;
     let listo = false;
@@ -141,7 +157,7 @@ export const ejecutarOtro: NonNullable<OpcionesLanzar["ejecutar"]> = (l, o) => {
     };
     try {
       const { cmd, args } = programaDe(ll, pa.plat);
-      const h = spawn(cmd, args, { cwd: ll.cwd, env: limpio(ll.env), stdio: ["ignore", fo ?? "ignore", fe], windowsHide: true });
+      const h = spawn(cmd, args, { cwd: ll.cwd, env: limpio(entorno), stdio: ["ignore", fo ?? "ignore", fe], windowsHide: true });
       h.on("error", (e) => {
         aErr(ll.stderr, `pa: no pude lanzar ${ll.cmd}: ${e.message}\n`);
         fin(127);
