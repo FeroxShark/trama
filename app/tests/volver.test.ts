@@ -7,6 +7,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { after } from "node:test";
 import { testPosix as test } from "./plataforma.ts";
+import { esperarHasta } from "./esperar.ts";
 import { acomodar, crearGuardadoVolver, guardarVolver, leerVolver, lugarDeVentana, pasos, type Lugar } from "../electron/volver.ts";
 
 const tmp = mkdtempSync(path.join(tmpdir(), "trama-volver-"));
@@ -59,7 +60,7 @@ test("el guardado: varios avisos seguidos hacen una sola escritura, y 'ahora' es
   g.vista({ activa: "b" });
   g.tocar();
   assert.equal(existsSync(f), false, "no escribe antes de la demora");
-  await new Promise((r) => setTimeout(r, 90));
+  await esperarHasta(() => existsSync(f), { tope: 2000, cada: 10 });
   assert.deepEqual(leerVolver(f)?.vistas, { ventana: { activa: "b" } }, "lo último");
   assert.equal(leerVolver(f)?.ventana?.ancho, 900);
   g.vista({ activa: "c" });
@@ -68,6 +69,7 @@ test("el guardado: varios avisos seguidos hacen una sola escritura, y 'ahora' es
   g.congelar();
   g.vista({ activa: "d" });
   g.ahora();
+  // espera-justificada: comprueba que tras congelar y transcurrir la demora no se sobrescriba el archivo
   await new Promise((r) => setTimeout(r, 60));
   assert.deepEqual(leerVolver(f)?.vistas, { ventana: { activa: "c" } }, "congelado no pisa lo escrito");
 });
