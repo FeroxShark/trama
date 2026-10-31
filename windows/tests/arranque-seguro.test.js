@@ -11,6 +11,19 @@ const path = require("node:path");
 const R = require("../src/arranque-seguro");
 const V = require("../src/version-anterior");
 
+async function esperarHasta(cond, opc = {}) {
+  const tope = opc.tope || 2000;
+  const cada = opc.cada || 10;
+  const inicio = Date.now();
+  while (Date.now() - inicio < tope) {
+    if (await cond()) return;
+    await new Promise((r) => setTimeout(r, cada));
+  }
+  if (await cond()) return;
+  throw new Error(`esperarHasta: se supero el tope de $wtope} ms`);
+}
+
+
 const nuevaCasa = () => fs.mkdtempSync(path.join(os.tmpdir(), "trama-wva-"));
 const copia = (version) => ({ version, tipo: "carpeta", ruta: path.join(os.tmpdir(), `trama-copia-${version}`), cuando: 1 });
 const recienActualizada = () => {
@@ -191,7 +204,7 @@ test("servicio: la nueva no llega a ventana lista a tiempo, restaura, sale y dej
   assert.equal(await v2.disponible(), "0.2.25");
   assert.equal(pendientes.length, 1);
   pendientes[0]();
-  await new Promise((r) => setTimeout(r, 50));
+  await esperarHasta(() => restauradas.length > 0);
   assert.deepEqual(restauradas, ["0.2.25"]);
   assert.deepEqual(salidas, ["0.2.26"]);
   assert.equal(almacen.leer().actual, "0.2.25");
