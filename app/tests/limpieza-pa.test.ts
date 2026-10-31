@@ -1,6 +1,7 @@
 // La limpieza de worktrees y ramas viejos de `pa` en la app (electron/limpieza-pa.ts): lo que se le pide a `pa`, cómo se lee lo que
 // contesta, la config (apagada de entrada) y la pasada automática. `pa` va falso: nunca se borra nada de verdad.
 import test from "node:test";
+import { esperarHasta } from "./esperar.ts";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
@@ -95,7 +96,7 @@ test("limpieza: la pasada automática sólo corre si el usuario la prendió", as
 test("limpieza: el reloj repite las pasadas y se puede parar", async () => {
   let n = 0;
   const parar = programarPasadas(async () => void n++, { primera: 5, cada: 10 });
-  await new Promise((r) => setTimeout(r, 80));
+  await esperarHasta(() => n >= 2);
   parar();
   const visto = n;
   assert.ok(visto >= 2, `corrió ${visto} veces`);
@@ -104,7 +105,7 @@ test("limpieza: el reloj repite las pasadas y se puede parar", async () => {
   // una pasada que rechaza no corta el reloj
   let m = 0;
   const parar2 = programarPasadas(async () => { m++; throw new Error("x"); }, { primera: 5, cada: 10 });
-  await new Promise((r) => setTimeout(r, 60));
+  await esperarHasta(() => m >= 2);
   parar2();
   assert.ok(m >= 2);
 });
