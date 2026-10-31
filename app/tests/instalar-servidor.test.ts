@@ -1,3 +1,4 @@
+import { esperarHasta } from "./esperar.ts";
 // scripts/instalar-servidor.sh y systemd/trama-motor-servidor.service, todo en un tmp y sin tocar nada de
 // verdad: un checkout falso con tsc y vite de mentira (escriben en el --outDir que se les pide y anotan qué
 // había en el dist/ vivo mientras compilaban), el script en modo prueba (sin systemd, HOME y config en el
@@ -219,10 +220,13 @@ test("el motor compilado corre con el node pelado, sin node_modules ni Electron"
   let err = "";
   p.stderr!.on("data", (d) => (err += d));
   const salida = new Promise<number | null>((ok) => p.once("exit", (c) => (vivos.delete(p), ok(c))));
-  const fin = Date.now() + 20_000;
-  while (!existsSync(path.join(estado, "dueno")) || !existsSync(path.join(run, "trama", "motor.sock"))) {
-    if (Date.now() > fin) throw new Error("el motor no arrancó: " + err);
-    await new Promise((r) => setTimeout(r, 50));
+  try {
+    await esperarHasta(
+      () => existsSync(path.join(estado, "dueno")) && existsSync(path.join(run, "trama", "motor.sock")),
+      { tope: 20_000 }
+    );
+  } catch {
+    throw new Error("el motor no arrancó: " + err);
   }
   p.kill("SIGTERM");
   assert.equal(await salida, 0, err);
