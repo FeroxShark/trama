@@ -4,6 +4,7 @@
 // Corre como Node (con el hook que lleva los `.js` al `.ts`), igual que con ELECTRON_RUN_AS_NODE.
 import { after } from "node:test";
 import { testPosix as test } from "./plataforma.ts";
+import { esperarHasta } from "./esperar.ts";
 import assert from "node:assert/strict";
 import { spawn, type ChildProcess } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -70,11 +71,7 @@ function lanzar(): { p: ChildProcess; salida: Promise<number | null>; err: () =>
 }
 
 async function hasta(cond: () => boolean, ms = 15_000) {
-  const fin = Date.now() + ms;
-  while (!cond()) {
-    if (Date.now() > fin) throw new Error("no llegó");
-    await new Promise((r) => setTimeout(r, 50));
-  }
+  await esperarHasta(cond, { tope: ms, cada: 10 });
 }
 
 function rpc(canal: string, args: unknown[]): Promise<{ ok: boolean; valor?: unknown; error?: string }> {
