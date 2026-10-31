@@ -1,3 +1,4 @@
+import { esperarHasta } from "./esperar.ts";
 // Dictar: el WAV del cliente (src/hilo/dictado.ts) y la transcripción del motor
 // (electron/dictado.ts) con un `handy` falso (`ejecutar`): nunca el de verdad.
 import { test, after } from "node:test";
@@ -103,11 +104,15 @@ test("transcribir: handy que falta, que falla, que tarda o que no dice nada → 
 test("transcribir: de a una, en el orden en que llegan", async () => {
   const orden: string[] = [];
   let libre!: () => void;
-  const primera: Ejecutar = () => new Promise((ok) => (libre = () => (orden.push("a-fin"), ok("a"))));
+  let primeraArranco = false;
+  const primera: Ejecutar = () => {
+    primeraArranco = true;
+    return new Promise((ok) => (libre = () => (orden.push("a-fin"), ok("a"))));
+  };
   const segunda: Ejecutar = async () => (orden.push("b"), "b");
   const a = transcribir({ datos: wav() }, { dir, bin: "handy", ejecutar: primera });
   const b = transcribir({ datos: wav() }, { dir, bin: "handy", ejecutar: segunda });
-  await new Promise((r) => setTimeout(r, 50));
+  await esperarHasta(() => primeraArranco);
   assert.deepEqual(orden, []);
   libre();
   assert.deepEqual(await Promise.all([a, b]), ["a", "b"]);
