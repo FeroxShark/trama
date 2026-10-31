@@ -5,6 +5,7 @@
 // terminar. El tablero real no se toca nunca. El entorno va antes de los `await import`:
 // electron/tablero.ts resuelve el binario y la vista al cargar.
 import { after, test } from "node:test";
+import { esperarHasta } from "./esperar.ts";
 import { POSIX } from "./plataforma.ts";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
@@ -325,7 +326,7 @@ test("mirarTablero: sin carpeta del tablero, avisa cuando el primer pendiente la
   const parar = cli.mirarTablero(() => avisos++);
   try {
     await cli.agregar("Primero, desde la carpeta vacía", null);
-    for (let i = 0; i < 60 && avisos === 0; i++) await new Promise((r) => setTimeout(r, 50));
+    await esperarHasta(() => avisos > 0, { tope: 3000, cada: 10 });
     assert.ok(avisos > 0, "avisó al aparecer la carpeta");
   } finally {
     parar();
@@ -431,13 +432,10 @@ test("lo que el CLI rechaza llega con lo que dijo; lo mal pedido ni sale", { ski
 });
 
 test("un item cargado por afuera (la voz) avisa solo: sin polling", { skip: !hayCli }, async () => {
-  let soltar = () => {};
-  const aviso = new Promise<boolean>((ok) => {
-    soltar = fuenteTablero.alCambiar(() => ok(true));
-    setTimeout(() => ok(false), 5000).unref();
-  });
+  let avisos = 0;
+  const soltar = fuenteTablero.alCambiar(() => avisos++);
   tablero("agregar", "Cargado por voz");
-  assert.equal(await aviso, true);
+  await esperarHasta(() => avisos > 0, { tope: 5000, cada: 10 });
   soltar();
   const v = await fuenteTablero.leer();
   assert.ok(v.columnas.bandeja.some((i) => i.titulo === "Cargado por voz"));
