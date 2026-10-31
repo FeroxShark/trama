@@ -10,7 +10,8 @@ import { anotarPedidos, archivoPedidos, cuentaPedidos, leerPedidos, suscripcionO
 import { cargarTablaGo } from "../electron/opencode-go.ts";
 import { GRUPO_OPENCODE_GRATIS } from "../electron/opencode-agotado.ts";
 import { anotarPedidos as anotarMotor } from "../../motor/opencode/correr.mjs";
-import { goAgotadosDe, opencodeAgotadoDe } from "../src/hilo/agotados.ts";
+import { goAgotadosHasta } from "../src/hilo/agotados.ts";
+import { estadoCupoModelo } from "../src/hilo/cupo-modelos.ts";
 import { resumenGrupo, resumenSusc } from "../src/barra/cuposVista.ts";
 import { textoEstado } from "../src/barra/cuposTextos.ts";
 import { nombreGrupoCorto } from "../src/barra/cuposNombres.ts";
@@ -92,7 +93,7 @@ test("sin Go: un solo grupo, el de los gratis, sin % (no hay tope publicado) y c
   const agotado = suscripcionOpencode({ ...base, plan: "gratis", gratisHasta: AHORA + 3600_000 });
   assert.equal(agotado.grupos![0]!.agotado, S + 3600);
   assert.equal(resumenGrupo(agotado.grupos![0]!, S).estado, "marcado");
-  assert.equal(opencodeAgotadoDe({ version: 1, ts: S, five_hour: null, seven_day: null, suscripciones: [agotado] } as Uso, S), S + 3600, "el selector lo sigue encontrando");
+  assert.equal(estadoCupoModelo("opencode:opencode/big-pickle", { version: 1, ts: S, five_hour: null, seven_day: null, suscripciones: [agotado] } as Uso, S)?.vuelve, S + 3600, "el selector lo sigue encontrando");
 });
 
 test("con Go: cada modelo usado en su ventana contra su tope de go-topes.json; los que no se usaron no llenan la fila", () => {
@@ -122,7 +123,7 @@ test("un modelo de Go marcado por un 429 se ve aunque no se haya usado (o con ot
   assert.equal(resumenGrupo(glm, S).estado, "marcado");
   assert.ok(!s.grupos!.some((g) => g.id.endsWith("/viejo")), "una marca vencida no cuenta");
   const uso = { version: 1, ts: S, five_hour: null, seven_day: null, suscripciones: [s] } as Uso;
-  assert.deepEqual([...goAgotadosDe(uso, S)], ["opencode:opencode-go/glm-5.3-flash"]);
+  assert.deepEqual([...goAgotadosHasta(uso, S).keys()], ["opencode:opencode-go/glm-5.3-flash"]);
   // Sin plan Go (lo apagaron), la marca de antes igual se dice.
   const sin = suscripcionOpencode({ ...base, plan: "gratis", goAgotados: { "opencode:opencode-go/glm-5.3-flash": AHORA + 60_000 } });
   assert.deepEqual(sin.grupos!.map((g) => g.id), [GRUPO_OPENCODE_GRATIS, "opencode:opencode-go/glm-5.3-flash"]);

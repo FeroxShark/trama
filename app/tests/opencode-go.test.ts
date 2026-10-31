@@ -12,7 +12,8 @@ import { elegibles } from "../electron/opencode-ajustes.ts";
 import { GRUPO_OPENCODE_GRATIS, grupoModeloGo, marcarModeloGoAgotado, marcarOpencodeAgotado, modelosGoAgotados, opencodeAgotadoHasta } from "../electron/opencode-agotado.ts";
 import * as motor from "../../motor/opencode/config.mjs";
 import { aResultado } from "../../motor/opencode/correr.mjs";
-import { esAvisoSinCupoOpencode, goAgotadosDe, goAgotadosHasta, marcarAgotadas } from "../src/hilo/agotados.ts";
+import { esAvisoSinCupoOpencode, goAgotadosHasta } from "../src/hilo/agotados.ts";
+import { estadosCupoModelos } from "../src/hilo/cupo-modelos.ts";
 import { esGoOpencode, ponerConfig, TABLA } from "../src/hilo/modelos.ts";
 import { vistaModelos } from "../electron/modelos-config.ts";
 
@@ -153,19 +154,17 @@ test("cupo por modelo: un 429 de un modelo de Go marca SÓLO a ese modelo (5 h);
 });
 
 test("el selector: sólo el modelo de Go agotado lleva el rótulo; los gratis agotados no arrastran a los de Go", () => {
-  const ops = [
-    { id: "opencode:opencode/big-pickle", nombre: "BP", desc: "", grupo: "OpenCode" },
-    { id: "opencode:opencode-go/deepseek-v4.1-flash", nombre: "DS", desc: "", grupo: "OpenCode" },
-    { id: "opencode:opencode-go/kimi-k3.1-pro", nombre: "Kimi", desc: "", grupo: "OpenCode" },
-  ];
+  const ids = ["opencode:opencode/big-pickle", "opencode:opencode-go/deepseek-v4.1-flash", "opencode:opencode-go/kimi-k3.1-pro"];
   const uso: any = { version: 1, suscripciones: [{ id: "opencode", nombre: "OpenCode", ts: 0, grupos: [{ id: "opencode:opencode-go/deepseek-v4.1-flash", nombre: "x", ventanas: [], agotado: 5000 }] }] };
   assert.deepEqual([...goAgotadosHasta(uso, 1000)], [["opencode:opencode-go/deepseek-v4.1-flash", 5000]]);
-  assert.equal(goAgotadosDe(uso, 6000).size, 0);
-  const r = marcarAgotadas(ops, null, 1000, goAgotadosDe(uso, 1000));
-  assert.deepEqual(r.map((o) => !!(o as any).agotada), [false, true, false]);
-  const ambos = marcarAgotadas(ops, 9000, 1000, goAgotadosDe(uso, 1000));
-  assert.deepEqual(ambos.map((o) => !!(o as any).agotada), [true, true, false]);
-  assert.equal(marcarAgotadas(ops, null, 1000), ops, "nada que marcar: la misma lista");
+  assert.equal(goAgotadosHasta(uso, 6000).size, 0);
+  const r = estadosCupoModelos(ids, uso, 1000);
+  assert.deepEqual([...r.keys()], [ids[1]]);
+  assert.equal(r.get(ids[1])?.sin, true);
+  // Con el gratis agotado también: los dos sin cupo; el de Go que no tiene marca, no.
+  const gratis: any = { ...uso, suscripciones: [{ ...uso.suscripciones[0], grupos: [...uso.suscripciones[0].grupos, { id: "opencode-free", nombre: "Gratis", ventanas: [], agotado: 9000 }] }] };
+  assert.deepEqual([...estadosCupoModelos(ids, gratis, 1000).keys()], [ids[0], ids[1]]);
+  assert.equal(estadosCupoModelos(ids, gratis, 9001).size, 0, "vencido el gratis, no queda nada");
   assert.ok(esAvisoSinCupoOpencode("\u0001i18n:main.opencodeGoSinCupo\u0001{}\u0001"));
 });
 
