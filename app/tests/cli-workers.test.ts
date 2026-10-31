@@ -137,6 +137,7 @@ test("ver: sigue el transcript hasta que muere el worker y cierra con «terminó
   const tr = path.join(s.raiz, "t.jsonl");
   s.escribir(tr, [{ type: "user", timestamp: "2024-01-01T12:00:01Z", message: { content: "hola" } }, { type: "assistant", timestamp: "2024-01-01T12:00:09Z", message: { content: [{ type: "text", text: "chau" }] } }].map((e) => JSON.stringify(e)).join("\n") + "\n");
   // vivo para elegirlo, muerto enseguida: anotamos nuestro pid y lo damos por terminado con un pid_vivo falso no es posible; usamos un hijo corto
+  // espera-justificada: hijo temporal que vive lo suficiente para que ver() lo detecte y luego termine solo
   const dormilon = (await import("node:child_process")).spawn(process.execPath, ["-e", "setTimeout(()=>{}, 600)"], { stdio: "ignore" });
   running(s, "demo.running", { proyecto: "demo", pid: dormilon.pid, tarea: "una", transcript: tr, inicio: 1704110405 });
   assert.ok(hijo.status === 0);
