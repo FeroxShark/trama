@@ -9,6 +9,7 @@ import os from "node:os";
 import path from "node:path";
 import vm from "node:vm";
 import { conPuente, crearRemoto, leerConfig } from "../electron/remoto.ts";
+import { esperarHasta } from "./esperar.ts";
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "hilos-remoto-"));
 after(() => rmSync(tmp, { recursive: true, force: true }));
@@ -98,14 +99,7 @@ function oir(ruta: string, cabeceras: Record<string, string> = {}) {
   return {
     /** Espera hasta que lo recibido cumpla. */
     async hasta(f: (t: string) => boolean) {
-      const tope = Date.now() + 3000;
-      while (!f(texto)) {
-        if (Date.now() > tope) throw new Error(`no llegó: ${JSON.stringify(texto)}`);
-        await new Promise<void>((r) => {
-          avisar = r;
-          setTimeout(r, 50);
-        });
-      }
+      await esperarHasta(() => f(texto), { tope: 3000, cada: 10 });
       return texto;
     },
     cerrar: () => req.destroy(),
@@ -212,7 +206,7 @@ test("remoto: al que se fue y no vuelve se le suelta lo suyo", async () => {
   const a = oir(`/eventos?c=${c}`);
   await a.hasta((t) => t.includes("event: hola"));
   a.cerrar();
-  await new Promise((r) => setTimeout(r, 400));
+  await esperarHasta(() => idos.includes(c), { tope: 2000, cada: 10 });
   assert.ok(idos.includes(c));
 });
 
