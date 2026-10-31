@@ -32,6 +32,7 @@ const nuevo = (o: ConstructorParameters<typeof ClienteAcp>[0]) => {
 const OK_INIT = `if (m.method === "initialize") return salir({ jsonrpc: "2.0", id: m.id, result: { protocolVersion: 1, agentCapabilities: { promptCapabilities: { image: true }, sessionCapabilities: { resume: {} } } } });`;
 
 test("initialize anota las capacidades; un pedido sin respuesta falla por tiempo; session/prompt no tiene tiempo máximo", async () => {
+  // espera-justificada: el agente demora mas que tiempoMs (300 ms) para verificar que prompt no tiene tiempo maximo
   const f = agente(`${OK_INIT} if (m.method === "session/new") return; if (m.method === "session/prompt") setTimeout(() => salir({ jsonrpc: "2.0", id: m.id, result: { stopReason: "end_turn" } }), 700);`);
   const c = nuevo({ comando: process.execPath, args: [f], tiempoMs: 300 });
   const r = await c.iniciar();
