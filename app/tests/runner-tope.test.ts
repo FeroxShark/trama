@@ -6,6 +6,7 @@ import { existsSync, mkdtempSync, readFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
+import { esperarHasta } from "./esperar.ts";
 import { vivo } from "../electron/cli/base/proc.ts";
 
 const raiz = path.resolve(import.meta.dirname, "..");
@@ -24,11 +25,7 @@ function runner(carpeta: string, env: Record<string, string>) {
   return { hijo, fin };
 }
 
-async function esperar(cond: () => boolean, ms = 10_000) {
-  const t = Date.now();
-  while (!cond() && Date.now() - t < ms) await new Promise((r) => setTimeout(r, 100));
-  return cond();
-}
+const esperar = (cond: () => boolean, ms = 10_000) => esperarHasta(cond, { tope: ms, cada: 10 });
 
 const pidsEn = () => path.join(mkdtempSync(path.join(os.tmpdir(), "trama-tope-")), "pids.json");
 const leerPids = (archivo: string) => JSON.parse(readFileSync(archivo, "utf8")) as number[];
