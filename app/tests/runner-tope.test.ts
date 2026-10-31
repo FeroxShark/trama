@@ -25,7 +25,10 @@ function runner(carpeta: string, env: Record<string, string>) {
   return { hijo, fin };
 }
 
-const esperar = (cond: () => boolean, ms = 10_000) => esperarHasta(cond, { tope: ms, cada: 10 });
+async function esperar(cond: () => boolean, ms = 10_000): Promise<boolean> {
+  await esperarHasta(cond, { tope: ms, cada: 10 });
+  return true;
+}
 
 const pidsEn = () => path.join(mkdtempSync(path.join(os.tmpdir(), "trama-tope-")), "pids.json");
 const leerPids = (archivo: string) => JSON.parse(readFileSync(archivo, "utf8")) as number[];
