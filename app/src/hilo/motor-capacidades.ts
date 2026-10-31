@@ -1,6 +1,6 @@
 // Qué trae cada motor del selector de modelo (la línea de debajo de la lista): skills, MCP, subagentes e imágenes. Una tabla por
-// motor, sin React; la pinta el selector y la prueba tests/motor-capacidades.test.ts. Las filas marcadas «supuesto» no se pudieron
-// confirmar en el código: son el default razonable y hay que corregirlas si el motor dice otra cosa.
+// motor, sin React; la pinta el selector y la prueba tests/motor-capacidades.test.ts. Confirmadas contra los binarios y protocolos
+// de esta máquina (agy, dsh, opencode, claude).
 import type { Empresa } from "./modelos.ts";
 
 export type Motor = "claude" | "agy" | "dsh" | "opencode" | "local";
@@ -13,12 +13,14 @@ export const MOTORES: Readonly<Record<Motor, Readonly<Record<Capacidad, boolean>
   // Claude Code: las skills, los conectores MCP (Ajustes > Conectores) y la herramienta Agent; las imágenes van como bloques nativos.
   claude: { skills: true, mcp: true, subagentes: true, imagenes: true },
   // agy (Gemini): expone las skills de sus plugins (electron/agy-puente.ts); sin MCP («no disponible», AGENTS.md);
-  // las imágenes se guardan y las lee con view_file (agy-puente.ts). Subagentes: supuesto.
-  agy: { skills: true, mcp: false, subagentes: false, imagenes: true },
-  // DeepSeek Harness: los conectores MCP le llegan (dsh-puente.ts, mcpServers). Skills, subagentes e imágenes: supuesto, la API de DeepSeek es de texto.
-  dsh: { skills: false, mcp: true, subagentes: false, imagenes: false },
-  // OpenCode (su programa, por el mismo puente ACP que dsh): MCP según AGENTS.md. Subagentes sí; skills e imágenes: supuesto (dependen del modelo).
-  opencode: { skills: false, mcp: true, subagentes: true, imagenes: false },
+  // subagentes nativos en agy (invoke_subagent en el binario); las imágenes se guardan y las lee con view_file (agy-puente.ts).
+  agy: { skills: true, mcp: false, subagentes: true, imagenes: true },
+  // DeepSeek Harness: skills nativas (@deepseek-ai/dsh-skill-filesystem); conectores MCP por ACP (dsh-puente.ts);
+  // subagentes nativos (@deepseek-ai/dsh-tool-subagent); sin imágenes (la API de DeepSeek es de texto y ACP declara image: false).
+  dsh: { skills: true, mcp: true, subagentes: true, imagenes: false },
+  // OpenCode (su programa, por el mismo puente ACP que dsh): skills nativas en su config; MCP según ACP;
+  // subagentes nativos (Explore, fork en ACP); imágenes nativas (promptCapabilities.image: true en ACP).
+  opencode: { skills: true, mcp: true, subagentes: true, imagenes: true },
   // Lo local (llama-server y Ollama) corre con Claude Code contra otro destino: las mismas herramientas, pero la imagen depende de cada modelo.
   local: { skills: true, mcp: true, subagentes: true, imagenes: false },
 };

@@ -18,6 +18,9 @@ test("Claude Code trae todo; Gemini (agy) no tiene MCP, lo que AGENTS.md dice qu
   assert.deepEqual(capacidadesDe("claude"), [["skills", true], ["mcp", true], ["subagentes", true], ["imagenes", true]]);
   assert.equal(MOTORES.agy.mcp, false);
   assert.equal(MOTORES.agy.skills, true, "agy expone las skills de sus plugins (agy-puente.ts)");
+  assert.equal(MOTORES.agy.subagentes, true, "agy trae subagentes nativos en su binario");
+  assert.deepEqual(capacidadesDe("dsh"), [["skills", true], ["mcp", true], ["subagentes", true], ["imagenes", false]]);
+  assert.deepEqual(capacidadesDe("opencode"), [["skills", true], ["mcp", true], ["subagentes", true], ["imagenes", true]]);
 });
 
 test("cada columna del selector cae en un motor; una empresa desconocida no cae en ninguno", () => {
