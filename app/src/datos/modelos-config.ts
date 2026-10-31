@@ -38,15 +38,19 @@ export function configValida(x: unknown): ConfigModelos | null {
 /** Pide la configuración al main; si tarda más de `tope` ms (el motor reconectando) se sigue sin ella. */
 export async function pedirModelos(tope = 1500): Promise<ConfigModelos | null> {
   // Con fixtures (capturas, bench, navegador sin main) los locales son los de muestra: el archivo del usuario no entra.
-  if (MODO.fixtures) return {
-      gemini: (MODO.captura === "lider-comandos" && MODO.variante === "agy") || MODO.captura === "lider-cambio-motor",
+  if (MODO.fixtures) {
+    // `modelo` con `sin-cupo`: las cinco columnas a la vista (Google con modelos agotados, OpenCode gratis agotado) para ver el cupo de cada uno.
+    const todas = MODO.captura === "modelo" && MODO.variante === "sin-cupo";
+    return {
+      gemini: (MODO.captura === "lider-comandos" && MODO.variante === "agy") || MODO.captura === "lider-cambio-motor" || todas,
       // `lider-cambio-motor`: todos los motores a la vista (el selector de una conversación que ya empezó muestra todas las columnas).
-      ...(MODO.variante === "dsh-menu" || MODO.captura === "lider-cambio-motor" ? { dsh: true } : {}),
-      ...(MODO.captura === "lider-cambio-motor" ? { opencode: ["opencode/big-pickle"] } : {}),
-      locales: MODO.variante === "dsh-menu" || MODO.captura === "lider-cambio-motor" ? [{ id: "ollama:qwen3-coder:30b", nombre: "Qwen3 Coder 30B", modelo: "qwen3-coder:30b" }] : [],
+      ...(MODO.variante === "dsh-menu" || MODO.captura === "lider-cambio-motor" || todas ? { dsh: true } : {}),
+      ...(MODO.captura === "lider-cambio-motor" || todas ? { opencode: ["opencode/big-pickle"] } : {}),
+      locales: MODO.variante === "dsh-menu" || MODO.captura === "lider-cambio-motor" || todas ? [{ id: "ollama:qwen3-coder:30b", nombre: "Qwen3 Coder 30B", modelo: "qwen3-coder:30b" }] : [],
       llama: LLAMA_FIJOS,
       lider: null,
     };
+  }
   const m = main?.modelos;
   if (!m) return null;
   const espera = new Promise<null>((ok) => setTimeout(() => ok(null), tope));

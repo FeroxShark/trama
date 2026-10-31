@@ -28,6 +28,7 @@
 #                    con `lider-trabajando`, HILOS_VARIANTE=pendiente|pendiente-modelo: otro esfuerzo / otro modelo elegido con el turno en curso (la marca "próx.")
 #                    con `herramientas-resultados`, HILOS_VARIANTE=archivo-imagen|archivo-texto|archivo-md|archivo-pdf deja abierto el visor con el primer archivo de ese tipo
 #                    con `lider-formato`, HILOS_VARIANTE=larga la conversación de 3000 mensajes; con `lider-imagenes`, =visor el visor con la imagen sin llegar
+#                    con `modelo`, HILOS_VARIANTE=sin-cupo: el selector con las cinco columnas, Google con Claude/GPT y Argon sin cupo, Gemini Flash con poco cupo, OpenCode gratis agotado, y Argon elegido (la marca del chip)
 #   ej: scripts/captura.sh hover
 #
 # Deja bench-resultados/captura/[<DIR>/]<estado>.png (esa carpeta no va al repo). Requiere el build: `npm run build`

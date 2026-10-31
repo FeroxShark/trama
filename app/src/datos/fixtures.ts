@@ -1287,6 +1287,36 @@ export const USO_GOOGLE_MARCADO: Uso = {
 };
 
 /**
+ * La variante `sin-cupo` de la captura `modelo`: Google con «Claude y GPT» y «Argon» llenos (vuelven en un par de días), Gemini Flash
+ * con poco cupo (12 % libre), Claude con su 5 h a la mitad y OpenCode gratis agotado. Todo inventado; las horas salen de `AHORA`.
+ */
+export const USO_SIN_CUPO: Uso = {
+  ...USO,
+  five_hour: { pct: 55, resets_at: AHORA + 1 * HORA + 20 * MIN },
+  seven_day: { pct: 31, resets_at: AHORA + 4 * DIA },
+  suscripciones: [
+    {
+      id: "google",
+      nombre: "Google AI Pro",
+      proveedor: "google",
+      ts: AHORA - 20,
+      grupos: [
+        { id: "gemini", nombre: "Gemini", ventanas: [{ id: "5h", pct: 88, vuelve: AHORA + 3 * HORA + 5 * MIN }] },
+        { id: "claude-gpt", nombre: "Claude y GPT por Google", ventanas: [{ id: "7d", pct: 100, vuelve: AHORA + 3 * DIA + 10 * HORA }] },
+        { id: "gemini-4-argon", nombre: "Gemini 4 Argon", ventanas: [{ id: "7d", pct: 100, vuelve: AHORA + 5 * DIA + 6 * HORA }] },
+      ],
+    },
+    {
+      id: "opencode",
+      nombre: "OpenCode",
+      proveedor: "opencode",
+      ts: AHORA - 20,
+      grupos: [{ id: "opencode-free", nombre: "Gratis", ventanas: [], agotado: AHORA + 40 * MIN }],
+    },
+  ],
+};
+
+/**
  * Una "captura de pantalla" inventada para la captura `lider-imagenes` (B26): se
  * dibuja en un canvas (sólo en el renderer; nada de archivos ni datos reales).
  */

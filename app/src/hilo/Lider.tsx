@@ -292,7 +292,10 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
   const elegir = useRef<HTMLInputElement>(null);
   // Captura `aviso`: otro modelo elegido con el caché vivo.
   const [modelo, setModelo] = useState(() =>
-    // Captura `lider-trabajando` con `HILOS_VARIANTE=pendiente-modelo`: otro modelo del mismo motor elegido con el turno en curso.
+    // Captura `modelo` con `HILOS_VARIANTE=sin-cupo`: Argon elegido, sin cupo, para ver la marca del chip.
+    MODO.captura === "modelo" && MODO.variante === "sin-cupo"
+      ? (MODELOS.find((m) => m.id === "gemini-4-argon")?.id ?? MODELO_DEFAULT)
+      : // Captura `lider-trabajando` con `HILOS_VARIANTE=pendiente-modelo`: otro modelo del mismo motor elegido con el turno en curso.
     MODO.captura === "lider-trabajando" && MODO.variante === "pendiente-modelo" && l
       ? (MODELOS.find((m) => m.id !== modeloDe(l.modelo) && familiaDe(m.id) === familiaDe(l.modelo))?.id ?? MODELO_DEFAULT)
       : MODO.captura === "aviso" && l
