@@ -76,6 +76,7 @@ test("apagado no escucha; Ajustes lo prende y lo apaga sin reiniciar", { timeout
   const guardar = new Map(nucleo.manejadoresAnotados()).get("remoto:guardar")!;
   const ventana = { sender: {} };
   armarRemoto({ dist: path.join(tmp, "dist"), preload: path.join(tmp, "preload.cjs"), consulta: () => ({}) });
+  // espera-justificada: comprueba que con remoto apagado no empiece a escuchar
   await new Promise((r) => setTimeout(r, 500));
   assert.equal(await contesta(), false, "apagado: nada escucha");
 
@@ -87,5 +88,6 @@ test("apagado no escucha; Ajustes lo prende y lo apaga sin reiniciar", { timeout
   assert.equal(await contesta(), false, "apagado desde Ajustes: deja de escuchar");
   assert.deepEqual([apagado.activo, apagado.escuchando], [false, []]);
   // Sin nada más: el proceso de prueba sale.
+  // espera-justificada: da tiempo al runner antes de forzar salida del proceso
   setTimeout(() => process.exit(0), 50).unref();
 });
