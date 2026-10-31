@@ -314,6 +314,7 @@ test("claude falso: un turno por stdin sale como deltas, mensaje y fin; el inter
   const eventos: Evento[] = [];
   let resto = "";
   let alFin: () => void = () => {};
+  let alParcial: () => void = () => {};
   p.stdout.setEncoding("utf8");
   p.stdout.on("data", (d: string) => {
     const c = cortar(resto, d);
@@ -321,6 +322,7 @@ test("claude falso: un turno por stdin sale como deltas, mensaje y fin; el inter
     for (const x of c.lineas) {
       for (const e of parsearLinea(x)) {
         eventos.push(e);
+        if (e.tipo === "parcial") alParcial();
         if (e.tipo === "fin") alFin();
       }
     }
@@ -338,8 +340,10 @@ test("claude falso: un turno por stdin sale como deltas, mensaje y fin; el inter
 
   eventos.length = 0;
   f = fin();
+  const parcial = new Promise<void>((ok) => (alParcial = ok));
   p.stdin.write(lineaUsuario("una respuesta larga que se corta"));
-  setTimeout(() => p.stdin.write(lineaParar("r1")), 60);
+  await parcial;
+  p.stdin.write(lineaParar("r1"));
   await f;
   assert.ok(eventos.some((e) => e.tipo === "control" && e.ok));
   assert.notEqual(eventos.filter((e) => e.tipo === "parcial").length, 3);
