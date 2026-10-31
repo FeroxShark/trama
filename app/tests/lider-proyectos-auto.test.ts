@@ -2,6 +2,7 @@
 // líderes que ya existen. Mismo armado que tests/lider-carpeta.test.ts (claude falso, estado y registry en un tmp).
 import { after } from "node:test";
 import { testPosix as test } from "./plataforma.ts";
+import { esperarHasta } from "./esperar.ts";
 import assert from "node:assert/strict";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { registerHooks } from "node:module";
@@ -39,7 +40,7 @@ test("un líder nuevo en una carpeta la deja anotada como proyecto, una sola vez
   await lider.nuevo({ ...base, carpeta: mi });
   await lider.nuevo({ ...base, carpeta: mi + "/" });
   await lider.nuevo(base); // en el home: nada
-  await new Promise((r) => setTimeout(r, 300));
+  await esperarHasta(() => proyectos().length === 1);
   assert.deepEqual(proyectos(), [{ name: "mi-app", path: mi }]);
 });
 
