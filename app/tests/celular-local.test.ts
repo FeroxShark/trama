@@ -1,3 +1,4 @@
+import { esperarHasta } from "./esperar.ts";
 // El acceso del celular con el motor en modo local (TRAMA_LOCAL=1, lo que instala el producto): el servidor de 127.0.0.1
 // sigue siendo el de siempre y, si Ajustes prende el acceso, se suma el de la tailnet (sólo las IPs de Tailscale, las reglas de
 // remoto.json) sin reiniciar. Con un `tailscale` falso (la "IP de Tailscale" es 127.0.0.1: nada sale de esta máquina) y
@@ -83,13 +84,7 @@ const codigo = (puerto: number, host: string) =>
     r.on("error", () => ok(0));
     r.on("timeout", () => (r.destroy(), ok(0)));
   });
-async function hasta(cond: () => Promise<boolean>, ms = 10_000) {
-  const fin = Date.now() + ms;
-  while (!(await cond())) {
-    if (Date.now() > fin) throw new Error("no llegó");
-    await new Promise((r) => setTimeout(r, 100));
-  }
-}
+const hasta = (cond: () => Promise<boolean>, ms = 10_000) => esperarHasta(cond, { tope: ms });
 const conPlataforma = async <T>(plataforma: string, cuerpo: () => Promise<T>): Promise<T> => {
   const antes = Object.getOwnPropertyDescriptor(process, "platform")!;
   Object.defineProperty(process, "platform", { value: plataforma });
@@ -160,4 +155,5 @@ test("sin Tailscale: la PC recibe cómo instalarlo (según la plataforma); el ce
 });
 
 // Sin nada más: el proceso de prueba sale (los servidores y el `ip` falso siguen vivos).
+// espera-justificada: da tiempo al reporter de node:test antes de forzar la salida del proceso
 test("fin", () => void setTimeout(() => process.exit(0), 100).unref());
