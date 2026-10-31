@@ -3,6 +3,7 @@
 // frena), y por ahí andan los mismos /rpc y /eventos que por red, sin Origin ni Tailscale.
 import { after } from "node:test";
 import { testPosix as test } from "./plataforma.ts";
+import { esperarHasta } from "./esperar.ts";
 import assert from "node:assert/strict";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { registerHooks } from "node:module";
@@ -133,7 +134,7 @@ test("/eventos: lo difundido llega, y quien vuelve con `desde` recibe lo que se 
     const uno = await oir(l.ruta, "/eventos?c=abcdef12", (t) => t.includes("event: hola"));
     const id = /id: (\S+)/.exec(uno.texto.slice(uno.texto.indexOf("event: hola")))![1];
     uno.cortar();
-    await new Promise((r) => setTimeout(r, 50));
+    await esperarHasta(() => l.conectados() === 0);
     l.difundir("lider:texto", { n: 1 });
     l.difundir("lider:texto", { n: 2 });
     const dos = await oir(l.ruta, `/eventos?c=abcdef12&desde=${id}`, (t) => t.includes("event: hola"));
@@ -188,7 +189,7 @@ test("cerrar: lo último que se difundió le llega a quien oía, aunque se cierr
     });
     r.on("error", () => ok("error"));
   });
-  await new Promise((r) => setTimeout(r, 100));
+  await esperarHasta(() => l.conectados() === 2);
   l.difundir("reinicio:cambio", { saliendo: true });
   await l.cerrar();
   todo = await fin;
