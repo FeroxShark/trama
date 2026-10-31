@@ -44,6 +44,7 @@ test("lanzarAsync: deja .jefe/.log/.pid antes de volver, el hijo recibe PA_TS y 
   const dir = path.join(pa.state, "demo");
   mkdirSync(dir, { recursive: true });
   // el hijo: anota lo que recibió, toma "puesto 2" y se queda un rato (como el pa real corriendo)
+  // espera-justificada: proceso hijo se mantiene vivo en segundo plano hasta recibir SIGKILL
   const cuerpo = `const fs=require("fs"),p=require("path");const d=${JSON.stringify(dir)};fs.writeFileSync(p.join(d,process.env.PA_TS+".args"),JSON.stringify({argv:process.argv.slice(1),async:process.env.PA_ASYNC,jefe:process.env.PA_JEFE_ID}));fs.writeFileSync(p.join(d,process.env.PA_TS+".puesto"),"2");setTimeout(()=>{},3000);`;
   let avisado = "";
   const ts = await lanzarAsync(pa, { proyecto: "Demo", slug: "demo", dir, leer: false, hijoArgs: ["demo", "--", "tarea"], comando: hijoFalso(cuerpo), avisarParalelo: (t, p) => void (avisado = `${t} ${p}`) });
@@ -63,6 +64,7 @@ test("lanzarAsync: --leer en cola (sin .jefe) y uno que muere antes de tomar pue
   const { pa, out, err } = armar();
   const dir = path.join(pa.state, "demo");
   mkdirSync(dir, { recursive: true });
+  // espera-justificada: proceso hijo se mantiene vivo en segundo plano hasta recibir SIGKILL
   const cola = `require("fs").writeFileSync(require("path").join(${JSON.stringify(dir)},process.env.PA_TS+".cola"),"tope global: 10 workers vivos");setTimeout(()=>{},3000);`;
   const ts = await lanzarAsync(pa, { proyecto: "demo", slug: "demo", dir, leer: true, hijoArgs: [], comando: hijoFalso(cola) });
   assert.ok(existsSync(path.join(dir, `${ts}.leer`)));
@@ -211,6 +213,7 @@ test("esperar --id debajo de --esperar-todos: la que ya cobró otra espera sale 
   writeFileSync(path.join(dir, "T4.pid"), "999999999");
   writeFileSync(path.join(dir, "T4.log"), "");
   writeFileSync(path.join(dir, "T4.listo"), "rc=0\n");
+  // espera-justificada: simula entrega concurrente de otra espera mientras cmdEsperarTodos sondea
   const t = setTimeout(() => {
     renameSync(path.join(dir, "T4.listo"), path.join(dir, "T4.entregado"));
     writeFileSync(path.join(dir, "T3.listo"), "rc=4\n");
