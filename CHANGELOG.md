@@ -1,5 +1,13 @@
 # Cambios
 
+## 0.2.35
+
+- Selector de modelo: los modelos sin cupo se ven atenuados con «sin cupo hasta <fecha>» (punto ámbar si queda poco), y una línea con qué trae cada motor (skills, MCP, subagentes, imágenes).
+- Líder nuevo: si el pedido nombra un proyecto, la carpeta se elige sola; el selector de carpeta tiene buscador (nombre y ruta, flechas, Enter, Esc).
+- Tarjeta de aviso de workers: cada fila con su color (verde terminó, ámbar pide decisión, rojo falló); un worker con commits pero sin resumen sale «terminó sin resumen», no como falla.
+- Las skills de Claude se enlazan solas para los workers de agy, codex y opencode (respetando lo apagado).
+- Reparto: «Camino hoy» ya no nombra modelos apagados.
+
 ## 0.2.34
 
 - Panel de contexto: un `?` en cada categoría, lista de Herramientas, texto real del prompt de sistema, pestaña Vista previa (qué cargaría un líder o worker nuevo) y refresco solo cada 3 s.
