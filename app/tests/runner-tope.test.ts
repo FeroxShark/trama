@@ -15,7 +15,7 @@ const raiz = path.resolve(import.meta.dirname, "..");
 function runner(carpeta: string, env: Record<string, string>) {
   const hijo = spawn(process.execPath, [path.join(raiz, "scripts", "test.mjs")], {
     cwd: raiz,
-    env: { ...process.env, TRAMA_TEST_DIR: path.join(raiz, "scripts", "fixtures", carpeta), ...env },
+    env: (() => { const e = { ...process.env, TRAMA_TEST_DIR: path.join(raiz, "scripts", "fixtures", carpeta), ...env }; delete e.TRAMA_TEST_SOLO; return e; })(),
     stdio: ["ignore", "pipe", "pipe"],
   });
   let salida = "";
