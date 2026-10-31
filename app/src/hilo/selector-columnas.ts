@@ -47,7 +47,7 @@ export function repartir<T extends Repartible>(opciones: readonly T[]): Reparto<
 }
 
 /** Sin mayúsculas ni tildes: "gemini" encuentra "Géminis". */
-const llano = (s: string) => s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
+export const llano = (s: string) => s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
 
 /** Las opciones que tienen todas las palabras de la búsqueda (en su nombre, su empresa o su descripción). Sin búsqueda, todas. */
 export function filtrar<T extends Repartible>(opciones: readonly T[], busqueda: string): T[] {
