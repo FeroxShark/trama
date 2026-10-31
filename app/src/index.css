@@ -5459,6 +5459,13 @@ summary.sis-div-t:hover,
 .caja-carpeta input::placeholder {
   color: var(--texto-7);
 }
+/* La carpeta que nombró el pedido (#1877): el texto "automático" junto al chip, en una sola línea. Es texto, no sólo un color. */
+.caja-carpeta-auto {
+  flex: none;
+  white-space: nowrap;
+  font-size: var(--letra-3);
+  color: var(--texto-5);
+}
 /* Dictar: el micrófono al lado de Mandar. Grabando es una píldora roja con el punto que late, el contador y parar;
    Transcribiendo… y Reintentar llevan su texto. Apagado (por http) se ve opaco y su tooltip dice por qué. */
 .dic {

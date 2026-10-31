@@ -1187,7 +1187,7 @@ export function Barra() {
     else if (c === "subagente-vista") setActiva(claveSub("s-fix-a3", MODO.variante === "terminado" ? "c2e3f4a5b6c7d8e9" : "b1d2e3f4a5b6c7d8"));
     else if (c === "leyendo" && MODO.variante === "lider") setActiva(LIDER + app);
     else if (c === "leyendo") setActiva(primero("decision"));
-    if (c === "lider-nuevo" || c === "lider-nuevo-carpeta" || c === "local-esfuerzo" || c === "local-ctx" || c.startsWith("maquinas-selector")) setActiva(LIDER_NUEVO);
+    if (c === "lider-nuevo" || c === "lider-nuevo-carpeta" || c === "lider-nuevo-proyecto" || c === "local-esfuerzo" || c === "local-ctx" || c.startsWith("maquinas-selector")) setActiva(LIDER_NUEVO);
     else if (c === "compactando" && MODO.variante === "lider") setActiva(LIDER + (terminal ?? ""));
     else if (c !== "vacio" && !enApp && !guiaLider && !c.startsWith("lider") && c !== "settle-confirmar" && c !== "arrancando" && c !== "frenado" && c !== "worker-en-cola" && !c.startsWith("worker-vista") && c !== "subagente-vista" && c !== "leyendo" && c !== "maquinas-lider" && !c.startsWith("maquinas-selector")) setActiva(primero(c === "trabajando" || c === "compactando" ? "trabajando" : "decision"));
     if (c === "buscar") {

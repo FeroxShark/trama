@@ -6,7 +6,7 @@
 #
 # uso: scripts/captura.sh <estado> [VAR=valor ...]
 #   estado: normal | hover | colapsado | cerrados | modelo | esfuerzo |
-#           trabajando | oculta | vacio | buscar | lider | lider-terminal | lider-nuevo | lider-nuevo-carpeta | arbol |
+#           trabajando | oculta | vacio | buscar | lider | lider-terminal | lider-nuevo | lider-nuevo-carpeta | lider-nuevo-proyecto | arbol |
 #           aviso | ajustes | ramas | ramas-confirmar | ramas-conflicto | ramas-lanzar | ramas-lanzar-error | estadisticas |
 #           lider-trabajando | lider-mcp | lider-avisos | settle-confirmar | worker-vista | worker-vista-vivo |
 #           estadisticas-30 | estadisticas-medido | estadisticas-vacia | claude | claude-abierto | solo-lideres | ocultos |

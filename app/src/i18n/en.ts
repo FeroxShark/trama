@@ -2172,6 +2172,7 @@ export const en = {
   "lider.carpetaOtra": "Other folder…",
   "lider.carpetaOtraDesc": "Type a path or pick one",
   "lider.carpetaElegir": "Choose…",
+  "lider.carpetaAuto": "automatic",
   "main.carpetaNoExiste": "The folder does not exist: {v}",
   "main.carpetaNoEsCarpeta": "That path is not a folder: {v}",
   "main.carpetaRelativa": "The folder path must be absolute (or start with ~): {v}",

@@ -206,6 +206,8 @@ const CAPTURAS = [
   "maquinas-selector-caida",
   // La caja de un líder nuevo con el campo "Carpeta" abierto y una ruta puesta.
   "lider-nuevo-carpeta",
+  // La caja de un líder nuevo con un pedido que nombra un proyecto: la carpeta de ese proyecto arranca sola, con el "automático" (#1877).
+  "lider-nuevo-proyecto",
   // El cartel "Actualizando Trama…" en cada paso: 1 y 2 son de la ventana que se va (con velo, se ve la app detrás), 3 y 4 de la que llega.
   "actualizando-1",
   "actualizando-2",

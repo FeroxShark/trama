@@ -43,6 +43,7 @@ import { contextoGasto, GastoSubagentesCtx, useGastoSubagentes } from "./gasto-s
 import { Selector, type Opcion } from "./Selector";
 import { carpetaPorDefecto, OTRA, opcionDe, PERSONAL } from "./carpeta-nueva";
 import { guardarUltima, leerUltima, useSeleccion } from "./carpeta-nueva-estado";
+import { detectarProyecto } from "./detectar-proyecto";
 import { useProyectos } from "../datos/proyectos";
 import { CuentaLider, nombreCuentaClaude, useCuentasClaude } from "./CuentaLider";
 import { opcionesEnTurno, pendienteDe } from "./pendiente";
@@ -129,7 +130,8 @@ const NO_TRAE: Record<Exclude<MotivoTraer, "trabajando">, "lider.noTraer" | "lid
 };
 
 /** El texto de la caja con que arranca una captura (`lider-comandos`: el menú de "/" abierto; `lider-valores`, el de /output-style). */
-const textoCaptura = () => (MODO.captura === "lider-comandos" ? "/" : MODO.captura === "lider-valores" ? "/output-style " : null);
+const textoCaptura = () =>
+  MODO.captura === "lider-comandos" ? "/" : MODO.captura === "lider-valores" ? "/output-style " : MODO.captura === "lider-nuevo-proyecto" ? "Revisá el build de atlas" : null;
 
 export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrirHilo, mirar = true, alRespuesta, mostrar, archivar }: Props) {
   const sid = l?.id ?? "";
@@ -229,11 +231,14 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
     );
   };
   const maquinaDe = l ? l.maquina : maquinaNueva && maquinaNueva !== maquinas.esta.id ? maquinaNueva : undefined;
+  // Lo que nombra el pedido manda sobre la carpeta de siempre (#1877): si nombra un proyecto (por nombre o título, `detectar-proyecto.ts`),
+  // su carpeta arranca sola y el chip dice "automático". Hasta que la persona elige una a mano; sin nombre, la de siempre.
   // Los proyectos son de esta PC: en otra máquina no se rellena nada y la carpeta se escribe a mano (vacía: su `~`).
+  const rutaNombrada = !l && !carpetaAMano && !maquinaDe ? (detectarProyecto(texto, proyectos.filter((p) => p.existe))?.ruta ?? null) : null;
   useEffect(() => {
     if (l || carpetaAMano || maquinaDe) return;
-    setCarpeta(carpetaPorDefecto({ seleccion: seleccionada, ultima: leerUltima(), proyectos }));
-  }, [l, carpetaAMano, maquinaDe, seleccionada, proyectos]);
+    setCarpeta(rutaNombrada ?? carpetaPorDefecto({ seleccion: seleccionada, ultima: leerUltima(), proyectos }));
+  }, [l, carpetaAMano, maquinaDe, seleccionada, proyectos, rutaNombrada]);
   const opcionesCarpeta = useMemo<Opcion[]>(
     () => [
       ...(maquinaDe ? [] : proyectos.filter((p) => p.existe).map((p) => ({ id: p.ruta, nombre: p.titulo ?? p.nombre, desc: p.ruta }))),
@@ -1325,6 +1330,7 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
                   disabled={enviando}
                   enteras
                 />
+                {rutaNombrada && opcionCarpeta === rutaNombrada ? <span className="caja-carpeta-auto">{tr("lider.carpetaAuto")}</span> : null}
                 {otraAbierta ? (
                   <>
                     <label className="oculto" htmlFor={idCarpeta}>

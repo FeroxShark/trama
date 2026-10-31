@@ -2157,6 +2157,7 @@ export const es: { [K in keyof typeof en]: string } = {
   "lider.carpetaPersonalDesc": "Fuera de un proyecto: la conversación queda suelta",
   "lider.carpetaOtra": "Otra carpeta…",
   "lider.carpetaOtraDesc": "Escribir una ruta o elegirla",
+  "lider.carpetaAuto": "automático",
   "lider.carpetaElegir": "Elegir…",
   "main.carpetaNoExiste": "La carpeta no existe: {v}",
   "main.carpetaNoEsCarpeta": "Esa ruta no es una carpeta: {v}",
