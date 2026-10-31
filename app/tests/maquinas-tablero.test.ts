@@ -171,4 +171,4 @@ test("dos tableros: items de ambos con el mismo número, cada acción al tablero
 });
 
 // El núcleo de acá deja sus watchers armados (como en la app): el proceso de prueba sale solo.
-after(() => void setTimeout(() => process.exit(0), 50).unref());
+after(() => void setImmediate(() => process.exit(0)));
