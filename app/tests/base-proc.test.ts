@@ -7,14 +7,11 @@ import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { LANZADOR_JS, arbol, armarFueraDelJob, campos, correr, inicioDe, lanzarSuelto, matarArbol, parsearPares, terminar, vivo } from "../electron/cli/base/proc.ts";
+import { esperarHasta } from "./esperar.ts";
 
 const posix = process.platform !== "win32";
 const node = process.execPath;
-const esperar = async (cond: () => boolean, ms = 5000) => {
-  const fin = Date.now() + ms;
-  while (!cond() && Date.now() < fin) await new Promise((r) => setTimeout(r, 25));
-  assert.ok(cond(), "condición no cumplida a tiempo");
-};
+const esperar = (cond: () => boolean | Promise<boolean>, ms = 5000) => esperarHasta(cond, { tope: ms });
 
 test("correr: captura salida y código; input por stdin; comando inexistente = 127 sin tirar", async () => {
   const r = await correr(node, ["-e", "process.stdout.write('hola\\n'); process.stderr.write('e'); process.exit(3)"]);
@@ -142,6 +139,7 @@ test("vivo en win32 (inyectado): kill(pid,0) y comparar la hora de arranque sól
 test("lanzarSuelto: sigue vivo tras soltarlo, escribe al log en append; Windows = detached + windowsHide", { skip: !posix }, async () => {
   const dir = mkdtempSync(path.join(os.tmpdir(), "base-proc-"));
   const log = path.join(dir, "salida.log");
+  // espera-justificada: hijo escribe diferido para probar que lanzarSuelto no bloquea y sigue en segundo plano
   const pid = lanzarSuelto(node, ["-e", "console.log('uno'); setTimeout(()=>console.log('dos'), 150)"], { log });
   assert.ok(pid);
   await esperar(() => readFileSync(log, "utf8").includes("dos"));

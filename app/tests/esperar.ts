@@ -1,6 +1,6 @@
 // Helper para esperar que se cumpla una condición en tests (#1793).
 
-export async function esperar Hasta(
+export async function esperarHasta(
   cond: () => boolean | Promise<boolean>,
   opc: { tope?: number; cada?: number } = {}
 ): Promise<void> {
@@ -14,6 +14,6 @@ export async function esperar Hasta(
     if (Date.now() - inicio >= tope) {
       throw new Error(`esperarHasta: se superó el tope de ${tope} ms`);
     }
-    await new Promise((resolver) => setTimeout(resolverk cada));
+    await new Promise((resolver) => setTimeout(resolver, cada));
   }
 }
