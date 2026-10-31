@@ -3,6 +3,7 @@
 // falso que avisa un cambio a los 2 s: escucha en la primera IP, y tras el aviso en la nueva y no en la vieja.
 import { after } from "node:test";
 import { testPosix as test } from "./plataforma.ts";
+import { esperarHasta } from "./esperar.ts";
 import assert from "node:assert/strict";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { registerHooks } from "node:module";
@@ -72,13 +73,7 @@ const contesta = (host: string) =>
     r.on("timeout", () => (r.destroy(), ok(false)));
   });
 
-async function hasta(cond: () => Promise<boolean>, ms = 15_000) {
-  const fin = Date.now() + ms;
-  while (!(await cond())) {
-    if (Date.now() > fin) throw new Error("no llegó");
-    await new Promise((r) => setTimeout(r, 100));
-  }
-}
+const hasta = (cond: () => Promise<boolean>, ms = 15_000) => esperarHasta(cond, { tope: ms, cada: 10 });
 
 test("cambia la IP de Tailscale: se deja la vieja y se escucha en la nueva", { timeout: 30_000 }, async () => {
   armarRemoto({ dist: path.join(tmp, "dist"), preload: path.join(tmp, "preload.cjs"), consulta: () => ({}) });
@@ -88,5 +83,6 @@ test("cambia la IP de Tailscale: se deja la vieja y se escucha en la nueva", { t
   await hasta(() => contesta("127.0.0.2"));
   assert.equal(await contesta("127.0.0.1"), false);
   // Sin nada más: el proceso de prueba sale (el hijo `ip` se mata al salir).
+  // espera-justificada: el proceso hijo ip monitor mantiene vivo el event loop
   setTimeout(() => process.exit(0), 50).unref();
 });
