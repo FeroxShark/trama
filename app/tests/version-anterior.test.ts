@@ -1,6 +1,7 @@
 // Actualizar seguro en Linux (electron/version-anterior.ts): guardar la versión que corre, volver a ella sola o con el botón,
 // con carpetas temporales de verdad (una "app" y un "AppImage" de mentira) y un reinicio falso. Nunca toca la instalación real.
 import test from "node:test";
+import { esperarHasta } from "./esperar.ts";
 import assert from "node:assert/strict";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import os from "node:os";
@@ -136,7 +137,7 @@ test("la nueva no llega a ventana lista a tiempo: vuelve sola, reinicia y deja e
   assert.equal(await v2.disponible(), "0.2.25");
   assert.equal(pendientes.length, 1, "arma el tope de arranque");
   pendientes[0]();
-  await new Promise((r) => setTimeout(r, 50));
+  await esperarHasta(() => reinicios.length > 0, { tope: 2000, cada: 10 });
   assert.deepEqual(reinicios, ["0.2.26"]);
   assert.equal(leer(app, "dist-electron", "motor.js"), "main 0.2.25");
   assert.equal(almacen.leer().actual, "0.2.25");
