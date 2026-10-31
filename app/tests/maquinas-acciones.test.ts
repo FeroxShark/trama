@@ -206,4 +206,4 @@ test("otro build: lo que se lee pasa, toda acción se rechaza con aviso y no se 
 });
 
 // El núcleo de acá deja sus watchers armados (como en la app): el proceso de prueba sale solo.
-after(() => void setTimeout(() => process.exit(0), 50).unref());
+after(() => void setImmediate(() => process.exit(0)));
