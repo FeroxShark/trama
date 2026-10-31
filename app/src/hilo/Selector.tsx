@@ -245,7 +245,8 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
   useLayoutEffect(() => {
     if (!abierto) return;
     if (buscable) {
-      setResaltada(Math.max(0, lista.findIndex((o) => o.id === actual.id)));
+      // Con una búsqueda ya escrita, la primera que queda (igual que al escribir); sin búsqueda, la elegida.
+      setResaltada(busqueda.trim() ? 0 : Math.max(0, lista.findIndex((o) => o.id === actual.id)));
       return buscador.current?.focus();
     }
     const ops = items();
