@@ -157,4 +157,4 @@ test("dos motores: filas de ambos, eventos de allá, su conversación se lee, su
 });
 
 // El núcleo de acá deja sus watchers armados (como en la app): el proceso de prueba sale solo.
-after(() => void setTimeout(() => process.exit(0), 50).unref());
+after(() => void setImmediate(() => process.exit(0)));
