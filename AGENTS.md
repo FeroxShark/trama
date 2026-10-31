@@ -26,6 +26,7 @@ falta, está en `motor/docs/traspaso.md`.
   cambia `scripts/test.mjs`, `package.json`, los tsconfig o `vite.config.ts`, si toca `tests/paridad/`, o si cambia algo de
   `motor/` o `electron/cli/` que no está en su tabla. No reemplaza el chequeo completo de arriba antes de un commit a main:
   no corre `vite build` ni el smoke de `humo-motor.mjs`.
+- **Tests:** los tests no esperan por reloj; usá `esperarHasta` de `app/tests/esperar.ts` o `mock.timers`; una espera legítima lleva `// espera-justificada: <motivo>`.
 - **Cola de mensajes del líder (`app/electron/cola.ts`):** lo encolado con el líder trabajando sale TODO JUNTO en un solo mensaje
   (`juntar`), nunca uno por turno. Por defecto se entrega a mitad del turno, sin interrumpir, en el próximo límite de
   herramienta (`lider.mandarDirecto`, tras `AGRUPAR_MS` de agrupación); los motores sin ese canal (locales) lo entregan al
