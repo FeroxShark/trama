@@ -13,6 +13,7 @@ import { ChipLocal } from "./Logos";
 import { DialogoCambio, type DatosCambio } from "./DialogoCambio";
 import type { EstadoCupo } from "./cupo-modelos.ts";
 import { filtrar, moverEsfuerzo, repartir, type Flecha } from "./selector-columnas";
+import { filtrarLista, moverResaltada } from "./selector-lista.ts";
 
 export type Opcion = {
   id: string;
@@ -45,6 +46,8 @@ export type Opcion = {
   colMarca?: ReactNode;
   /** En columnas: el lugar de la columna (menor, antes); sin esto, el orden en que aparecen. */
   colOrden?: number;
+  /** Con `buscar`: se ve siempre, aunque la búsqueda no la deje (la salida "Otra carpeta…"). */
+  fija?: boolean;
 };
 
 type Props = {
@@ -97,6 +100,13 @@ type Props = {
    * elegir un modelo no cierra el menú (el esfuerzo se elige en él); se cierra al elegir el esfuerzo, al tocar afuera o con Esc o Tab.
    */
   esfuerzo?: { etiqueta: string; opciones: Opcion[]; valor: string; alElegir: (id: string) => void };
+  /**
+   * Con esto el menú de una sola lista trae un buscador arriba: el texto es su placeholder y su nombre accesible. Filtra por nombre y
+   * descripción (sin mayúsculas ni tildes); las flechas mueven la resaltada, Enter elige y Esc cierra. No aplica en columnas.
+   */
+  buscar?: string;
+  /** Para las capturas: nace con esta búsqueda escrita (junto con `abierto`). */
+  busquedaInicial?: string;
 };
 
 /** El nombre de una opción, en su fuente si trae una. */
@@ -143,13 +153,15 @@ function colocar(boton: HTMLElement, menu: HTMLElement) {
 /** Desde cuántas opciones el menú en columnas trae la búsqueda. */
 const CON_BUSQUEDA = 8;
 
-export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, abierto: deEntrada = false, reserva, columnas = false, confirmar, sufijo, cupos, cuposColumnas, pie, confirmando, senalAbrir = 0, pestana = null, pendiente, pendienteCompacto, enteras = false, esfuerzo }: Props) {
+export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, abierto: deEntrada = false, reserva, columnas = false, confirmar, sufijo, cupos, cuposColumnas, pie, confirmando, senalAbrir = 0, pestana = null, pendiente, pendienteCompacto, enteras = false, esfuerzo, buscar, busquedaInicial }: Props) {
   const [abierto, setAbierto] = useState(deEntrada || !!confirmando);
   const [pend, setPend] = useState<{ id: string; datos: DatosCambio } | null>(() => {
     const d = confirmando && confirmar ? confirmar(confirmando) : null;
     return d ? { id: confirmando!, datos: d } : null;
   });
-  const [busqueda, setBusqueda] = useState("");
+  const [busqueda, setBusqueda] = useState(busquedaInicial ?? "");
+  // Con `buscar`: la fila resaltada por las flechas, como índice en lo que queda con la búsqueda.
+  const [resaltada, setResaltada] = useState(0);
   const [tab, setTab] = useState<string | null>(null);
   useEffect(() => {
     if (!senalAbrir || disabled) return;
@@ -189,6 +201,11 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
   // En columnas sólo si hay más de un grupo: con uno solo (los modelos de un worker, todos de Anthropic) una columna angosta no aporta.
   const enColumnas = columnas && variosGrupos;
   const conBusqueda = enColumnas && opciones.length >= CON_BUSQUEDA;
+  // El menú de una sola lista con buscador (`buscar`): lo que queda con lo escrito, y la resaltada dentro de eso.
+  const buscable = !!buscar && !enColumnas;
+  const lista = useMemo(() => (buscable ? filtrarLista(opciones, busqueda) : opciones), [buscable, opciones, busqueda]);
+  const res = Math.max(0, Math.min(resaltada, lista.length - 1));
+  const idOpcion = (i: number) => `${id}-${i}`;
   const visibles = useMemo(() => (enColumnas ? filtrar(opciones, busqueda) : opciones), [enColumnas, opciones, busqueda]);
   const reparto = useMemo(() => repartir(visibles), [visibles]);
   // El riel: una pestaña por proveedor (todos, aunque la búsqueda deje a alguno sin coincidencias; entonces va con un 0).
@@ -224,12 +241,21 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
 
   const items = () => [...(menu.current?.querySelectorAll<HTMLElement>('[role="option"]:not(:disabled)') ?? [])];
 
-  // Al abrir, el foco va a la opción elegida.
+  // Al abrir, el foco va a la opción elegida (con buscador, a la búsqueda, con la elegida resaltada o la primera que queda).
   useLayoutEffect(() => {
     if (!abierto) return;
+    if (buscable) {
+      setResaltada(Math.max(0, lista.findIndex((o) => o.id === actual.id)));
+      return buscador.current?.focus();
+    }
     const ops = items();
     (ops.find((o) => o.getAttribute("aria-selected") === "true") ?? ops[0])?.focus();
   }, [abierto]);
+
+  // Con buscador, la resaltada queda a la vista al bajar o subir con las flechas.
+  useLayoutEffect(() => {
+    if (buscable) menu.current?.querySelector<HTMLElement>("[data-resaltada]")?.scrollIntoView({ block: "nearest" });
+  }, [res]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const cerrar = (conFoco = true) => {
     setAbierto(false);
@@ -349,9 +375,32 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
     if (conBusqueda && e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey && e.key !== " ") buscador.current?.focus();
   };
 
+  // Con buscador el foco se queda en la búsqueda: las flechas mueven la resaltada, Enter elige la resaltada, Esc y Tab cierran.
+  const teclaBuscar = (e: KeyboardEvent) => {
+    if (e.key === "Escape") {
+      e.stopPropagation();
+      return cerrar();
+    }
+    if (e.key === "Tab") return cerrar();
+    if (e.key === "Enter") {
+      e.preventDefault();
+      const o = lista[res];
+      if (!o || o.deshabilitada) return;
+      const datos = confirmar?.(o.id);
+      // Otro motor: el menú sigue abierto y el chip como estaba hasta que se confirme.
+      if (datos) return setPend({ id: o.id, datos });
+      return alElegirOpcion(o.id);
+    }
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      setResaltada(moverResaltada(lista.length, res, e.key));
+    }
+  };
+
   const teclaMenu = (e: KeyboardEvent) => {
     if (esfuerzo && niveles().includes(document.activeElement as HTMLElement)) return teclaEsfuerzo(e);
     if (enColumnas) return teclaColumnas(e);
+    if (buscable) return teclaBuscar(e);
     const ops = items();
     const i = ops.indexOf(document.activeElement as HTMLElement);
     const ir = (k: number) => {
@@ -378,15 +427,19 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
     }
   };
 
-  const opcion = (o: Opcion) => (
+  // `i` (solo con buscador) es el lugar en la lista filtrada: la resaltada se marca y el puntero la pasa a ella.
+  const opcion = (o: Opcion, i?: number) => (
     <button
       key={o.id}
+      id={i === undefined ? undefined : idOpcion(i)}
       type="button"
       role="option"
       className="op"
       tabIndex={-1}
       disabled={o.deshabilitada}
       aria-selected={o.id === actual.id}
+      data-resaltada={i !== undefined && i === res ? "" : undefined}
+      onMouseEnter={i === undefined ? undefined : () => setResaltada(i)}
       title={enColumnas ? `${o.nombre}${o.desc ? ` · ${o.desc}` : ""}` : undefined}
       onClick={() => {
         const datos = confirmar?.(o.id);
@@ -542,12 +595,13 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
               <button type="button" className="fondo" tabIndex={-1} aria-label={t("comun.cerrarMenu")} onClick={() => cerrar(false)} />
               <div
                 ref={menu}
-                id={enColumnas ? undefined : id}
+                id={enColumnas || buscable ? undefined : id}
                 className="menu"
                 data-columnas={enColumnas ? reparto.columnas.length : undefined}
                 data-enteras={enteras ? "" : undefined}
-                role={enColumnas ? undefined : "listbox"}
-                aria-label={enColumnas ? undefined : etiqueta}
+                data-buscar={buscable ? "" : undefined}
+                role={enColumnas || buscable ? undefined : "listbox"}
+                aria-label={enColumnas || buscable ? undefined : etiqueta}
                 onKeyDown={teclaMenu}
               >
                 {enColumnas ? (
@@ -619,6 +673,39 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
                     </div>
                     {pie ? <div className="mc-pie">{pie(tabActiva)}</div> : null}
                     {filaEsfuerzo}
+                  </>
+                ) : buscable ? (
+                  <>
+                    <div className="mc-cab">
+                      <span className="mh" aria-hidden="true">
+                        {etiqueta}
+                      </span>
+                      <label className="mc-busca">
+                        <Search size={13} strokeWidth={2} aria-hidden="true" />
+                        <input
+                          ref={buscador}
+                          type="search"
+                          role="combobox"
+                          aria-expanded="true"
+                          aria-controls={id}
+                          aria-autocomplete="list"
+                          aria-activedescendant={lista.length ? idOpcion(res) : undefined}
+                          value={busqueda}
+                          placeholder={buscar}
+                          aria-label={buscar}
+                          autoComplete="off"
+                          spellCheck={false}
+                          onChange={(e) => {
+                            setBusqueda(e.target.value);
+                            setResaltada(0);
+                          }}
+                        />
+                      </label>
+                    </div>
+                    <div id={id} className="mc-lista-f" role="listbox" aria-label={etiqueta}>
+                      {buscando && !lista.some((o) => !o.fija) ? <div className="mc-nada">{t("selector.sinCoincidencias")}</div> : null}
+                      {lista.map((o, i) => opcion(o, i))}
+                    </div>
                   </>
                 ) : (
                   <>

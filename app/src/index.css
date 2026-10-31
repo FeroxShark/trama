@@ -2944,7 +2944,8 @@ html[data-titulo-nativo] #root::after {
     background-color 0.12s,
     color 0.12s;
 }
-.op:is(:hover, :focus-visible) {
+.op:is(:hover, :focus-visible),
+.op[data-resaltada] {
   background: var(--sup-2);
   color: var(--texto-1);
 }
@@ -6800,6 +6801,20 @@ summary.sis-div-t:hover,
   color: var(--texto-7);
   font-size: var(--letra-4);
   text-align: center;
+}
+/* El menú de una sola lista con buscador (`buscar`): la búsqueda queda arriba y sólo la lista baja con su barra. */
+.menu[data-buscar] {
+  overflow: hidden;
+}
+.mc-lista-f {
+  display: flex;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 1px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--borde-3) transparent;
 }
 /* Un renglón por modelo: el nombre a la izquierda, lo chico (Gratis, De pago, por defecto) y el tilde a la derecha. La descripción entra sólo en el resaltado. */
 .menu[data-columnas] .op {
