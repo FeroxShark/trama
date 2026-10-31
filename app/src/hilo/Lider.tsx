@@ -60,7 +60,9 @@ import { Hora, pintorAviso, tokens, Turno } from "./Turno";
 import { Marca } from "./Marca";
 import { Sistema } from "./Sistema";
 import { lineaAviso } from "./sistema-logica";
-import { EVENTO_CAMBIAR_MODELO, goAgotadosDe, marcarAgotadas, opencodeAgotadoDe, proveedorLibre } from "./agotados";
+import { EVENTO_CAMBIAR_MODELO, proveedorLibre } from "./agotados";
+import { estadosCupoModelos, estadosCupoProveedores } from "./cupo-modelos.ts";
+import { MotorCapacidades } from "./MotorCapacidades";
 import { Compactando, Pasando, relevoEn, Sigue } from "./Posta";
 import { juntar, repiteElPrimero, turnos, type Item, type Punto } from "./turnos";
 import { AccionesMensaje, cerrarSobreFuera, EditorMensaje, sobreMensaje, type Acciones } from "./AccionesMensaje";
@@ -266,7 +268,7 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
     () => leerAdjuntos(clave),
   );
   const [arrastra, setArrastra] = useState(false);
-  // El uso gratis de OpenCode es uno solo: acabado, todos sus modelos gratis llevan «sin cupo gratis» en el selector, y el aviso de error
+  // El uso gratis de OpenCode es uno solo: acabado, todos sus modelos gratis llevan «sin cupo hasta…» en el selector, y el aviso de error
   // trae «Cambiar de modelo», que abre el selector en un proveedor que no sea OpenCode.
   const [uso, setUso] = useState<Uso | null>(null);
   useEffect(() => {
@@ -278,7 +280,9 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
       soltar();
     };
   }, []);
-  const modelosVistos = useMemo(() => marcarAgotadas(MODELOS, opencodeAgotadoDe(uso), Date.now() / 1000, goAgotadosDe(uso)), [uso]);
+  // El cupo de cada modelo y de cada proveedor: el mismo dato que la tarjeta de cupos (sin cupo, con su hora; poco cupo, el punto ámbar).
+  const cupos = useMemo(() => estadosCupoModelos(MODELOS.map((m) => m.id), uso, Date.now() / 1000), [uso]);
+  const cuposColumnas = useMemo(() => estadosCupoProveedores(uso, Date.now() / 1000), [uso]);
   const [senalModelo, setSenalModelo] = useState(0);
   useEffect(() => {
     const abrir = () => setSenalModelo((n) => n + 1);
@@ -322,7 +326,7 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
   const turnoModelo = modeloDe(l?.modelo);
   const enTurno = app && ocupado;
   const pend = pendienteDe({ ocupado: enTurno, modelo, effort, turno: l ? { modelo: turnoModelo ?? undefined, effort: effortDe(l.effort, turnoModelo) } : null });
-  const modelosEnTurno = useMemo(() => opcionesEnTurno(modelosVistos, enTurno, l?.modelo, tr("lider.cruceEnTurno")), [modelosVistos, enTurno, l?.modelo]);
+  const modelosEnTurno = useMemo(() => opcionesEnTurno(MODELOS, enTurno, l?.modelo, tr("lider.cruceEnTurno")), [enTurno, l?.modelo]);
   // Con mensajes en la cola, cada cambio de la caja se avisa al main: el que sale lleva lo vigente al desencolarse, no lo de cuando se encoló.
   const selVista = useRef<string | null>(null);
   useEffect(() => {
@@ -1401,7 +1405,10 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
                 etiqueta={tr("comun.modelo")}
                 opciones={modelosEnTurno}
                 senalAbrir={senalModelo}
-                pestana={proveedorLibre(modelosVistos)}
+                pestana={proveedorLibre(MODELOS, cupos)}
+                cupos={cupos}
+                cuposColumnas={cuposColumnas}
+                pie={(clave) => <MotorCapacidades empresa={clave} />}
                 valor={modelo}
                 alElegir={elegirModelo}
                 confirmar={datosCambio}

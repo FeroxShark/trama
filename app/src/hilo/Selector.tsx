@@ -8,8 +8,10 @@ import { createPortal } from "react-dom";
 import { Ban, Check, ChevronUp, Clock, Search } from "lucide-react";
 import { t } from "../i18n";
 import { Reserva } from "../i18n/Fijo";
+import { cuandoFuturo } from "../tiempo";
 import { ChipLocal } from "./Logos";
 import { DialogoCambio, type DatosCambio } from "./DialogoCambio";
+import type { EstadoCupo } from "./cupo-modelos.ts";
 import { filtrar, moverEsfuerzo, repartir, type Flecha } from "./selector-columnas";
 
 export type Opcion = {
@@ -23,8 +25,6 @@ export type Opcion = {
   rec?: boolean;
   /** `font-family` con que se escribe el nombre (el selector de fuentes: cada una en la suya). */
   fuente?: string;
-  /** Sin cupo ahora (el uso gratis de OpenCode): lleva «sin cupo gratis» con icono (no sólo color); se puede elegir, avisa al usar. */
-  agotada?: boolean;
   /** Se ve, con su `desc` diciendo por qué, pero no se elige (una máquina caída). */
   deshabilitada?: boolean;
   /** El rótulo de un grupo (la empresa de un modelo): se pinta antes de la primera opción de ese grupo, si la lista tiene más de uno. */
@@ -73,6 +73,12 @@ type Props = {
   confirmar?: (id: string) => DatosCambio | null;
   /** Lo que se suma al nombre cuando la barra se compacta ("· med": el esfuerzo fusionado en el chip); lo muestra el CSS. */
   sufijo?: string;
+  /** El cupo de cada modelo, por id (`cupo-modelos.ts`): sin cupo se ve atenuado con su hora; poco cupo lleva un punto ámbar. Sin esto, ninguno lleva marca. */
+  cupos?: ReadonlyMap<string, EstadoCupo>;
+  /** Lo mismo por proveedor (la clave de su pestaña): sin cupo lleva el ícono en el riel. */
+  cuposColumnas?: ReadonlyMap<string, EstadoCupo>;
+  /** Lo que va debajo de la lista, según la pestaña abierta (con `clave` null, nada): p. ej. lo que trae el motor de ese proveedor. */
+  pie?: (clave: string | null) => ReactNode;
   /** Para las capturas: nace con el diálogo de esta opción. */
   confirmando?: string;
   /** Cada vez que cambia (y no es 0) el menú se abre; con `pestana`, en el riel de ese proveedor (el “Cambiar de modelo” de un error). */
@@ -95,6 +101,12 @@ type Props = {
 
 /** El nombre de una opción, en su fuente si trae una. */
 const nombreDe = (o: Opcion) => (o.fuente ? <span style={{ fontFamily: o.fuente }}>{o.nombre}</span> : o.nombre);
+
+/** «sin cupo hasta <cuándo>», o sólo «sin cupo» si no se sabe cuándo vuelve. */
+const textoSinCupo = (c: EstadoCupo) => (c.vuelve !== null ? t("selector.sinCupoHasta", { cuando: cuandoFuturo(c.vuelve) }) : t("selector.sinCupo"));
+
+/** «poco cupo: N % libre», con el número del dato. */
+const textoPocoCupo = (c: EstadoCupo) => t("selector.pocoCupoTip", { n: Math.round(c.libre ?? 0) });
 
 /** Aire que el menú le deja al borde de la ventana y al botón. */
 const MARGEN = 8;
@@ -131,7 +143,7 @@ function colocar(boton: HTMLElement, menu: HTMLElement) {
 /** Desde cuántas opciones el menú en columnas trae la búsqueda. */
 const CON_BUSQUEDA = 8;
 
-export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, abierto: deEntrada = false, reserva, columnas = false, confirmar, sufijo, confirmando, senalAbrir = 0, pestana = null, pendiente, pendienteCompacto, enteras = false, esfuerzo }: Props) {
+export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, abierto: deEntrada = false, reserva, columnas = false, confirmar, sufijo, cupos, cuposColumnas, pie, confirmando, senalAbrir = 0, pestana = null, pendiente, pendienteCompacto, enteras = false, esfuerzo }: Props) {
   const [abierto, setAbierto] = useState(deEntrada || !!confirmando);
   const [pend, setPend] = useState<{ id: string; datos: DatosCambio } | null>(() => {
     const d = confirmando && confirmar ? confirmar(confirmando) : null;
@@ -150,6 +162,27 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
   const id = useId();
   // Sin opciones (los proyectos todavía no llegaron) el botón dice "…".
   const actual = opciones.find((o) => o.id === valor) ?? opciones[0] ?? { id: "", nombre: "…", desc: "" };
+  const cupoActual = cupos?.get(actual.id);
+  /** La marca de cupo de una fila o una pestaña: prohibido con su hora si está sin cupo, punto ámbar si queda poco. Siempre con texto (oculto para el lector). */
+  const marcaCupo = (c: EstadoCupo | undefined) => {
+    if (c?.sin) {
+      return (
+        <>
+          <Ban size={11} strokeWidth={2.2} aria-hidden="true" />
+          <span className="oculto">{textoSinCupo(c)}</span>
+        </>
+      );
+    }
+    if (c?.poco) {
+      return (
+        <>
+          <span className="oc-punto" aria-hidden="true" />
+          <span className="oculto">{textoPocoCupo(c)}</span>
+        </>
+      );
+    }
+    return null;
+  };
 
   // Con un solo grupo (los modelos de un worker: todos de Anthropic) el divisor no dice nada.
   const variosGrupos = new Set(opciones.map((o) => o.grupo ?? o.col).filter(Boolean)).size > 1;
@@ -385,7 +418,8 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
         tabIndex={-1}
         disabled={o.deshabilitada}
         aria-selected={o.id === actual.id}
-        title={`${o.nombre}${o.desc ? ` · ${o.desc}` : ""}`}
+        data-agotada={cupos?.get(o.id)?.sin ? "" : undefined}
+        title={`${o.nombre}${o.desc ? ` · ${o.desc}` : ""}${cupos?.get(o.id)?.sin ? ` · ${textoSinCupo(cupos.get(o.id)!)}` : ""}`}
         onClick={() => {
           const datos = confirmar?.(o.id);
           // Otro motor: el menú sigue abierto y el chip como estaba hasta que se confirme.
@@ -401,7 +435,16 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
         <span className="oc-meta">
           {o.gratis ? <span className="oc-tag" data-tag="gratis">{t("selector.gratis")}</span> : null}
           {o.go ? <span className="oc-tag" data-tag="go">{t("selector.planGo")}</span> : null}
-          {o.agotada ? <span className="oc-tag" data-tag="agotado"><Ban size={11} strokeWidth={2.2} aria-hidden="true" /> {o.go ? t("selector.sinCupoGo") : t("selector.sinCupo")}</span> : null}
+          {cupos?.get(o.id)?.sin ? (
+            <span className="oc-tag" data-tag="agotado">
+              <Ban size={11} strokeWidth={2.2} aria-hidden="true" /> {textoSinCupo(cupos.get(o.id)!)}
+            </span>
+          ) : null}
+          {cupos?.get(o.id)?.poco ? (
+            <span className="oc-tag" data-tag="poco" title={textoPocoCupo(cupos.get(o.id)!)}>
+              <span className="oc-punto" aria-hidden="true" /> {t("selector.pocoCupo")}
+            </span>
+          ) : null}
           {o.pago ? <span className="oc-tag" data-tag="pago">{t("selector.pago")}</span> : null}
           {o.rec ? <span className="rec">{t("selector.default")}</span> : null}
         </span>
@@ -452,8 +495,9 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
         aria-haspopup="listbox"
         aria-expanded={abierto}
         aria-controls={abierto ? id : undefined}
-        aria-label={`${etiqueta}: ${actual.nombre}${pendiente || pendienteCompacto ? `, ${t("selector.pendienteEtiqueta")}` : ""}`}
-        data-tip={pendiente ?? pendienteCompacto}
+        aria-label={`${etiqueta}: ${actual.nombre}${cupoActual?.sin ? `, ${textoSinCupo(cupoActual)}` : ""}${pendiente || pendienteCompacto ? `, ${t("selector.pendienteEtiqueta")}` : ""}`}
+        data-tip={[cupoActual?.sin ? textoSinCupo(cupoActual) : null, pendiente ?? pendienteCompacto].filter(Boolean).join(" · ") || undefined}
+        data-agotada={cupoActual?.sin ? "" : undefined}
         data-pendiente={pendiente ? "" : undefined}
         onClick={() => setAbierto((a) => !a)}
         onKeyDown={teclaBoton}
@@ -464,6 +508,7 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
         ) : (
           nombreDe(actual)
         )}
+        {cupoActual?.sin ? <Ban className="pbtn-cupo" size={12} strokeWidth={2.2} aria-hidden="true" /> : null}
         {sufijo ? (
           <span className="pbtn-suf" aria-hidden="true">
             · {sufijo}
@@ -539,11 +584,13 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
                             data-clave={c.clave}
                             aria-selected={!buscando && c.clave === tabActiva}
                             data-vacia={buscando && cuenta(c.clave) === 0 ? "" : undefined}
+                            data-agotada={cuposColumnas?.get(c.clave)?.sin ? "" : undefined}
                             onClick={() => hojear(c.clave)}
                           >
                             {c.ops[0]?.colMarca ?? c.ops[0]?.marca}
                             <span className="mc-tn">{c.nombre}</span>
                             <span className="mc-cnt">{buscando ? cuenta(c.clave) : c.ops.length}</span>
+                            {marcaCupo(cuposColumnas?.get(c.clave))}
                           </button>
                         ))}
                       </div>
@@ -570,6 +617,7 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
                         {!visibles.length ? <div className="mc-nada">{t("selector.nada")}</div> : null}
                       </div>
                     </div>
+                    {pie ? <div className="mc-pie">{pie(tabActiva)}</div> : null}
                     {filaEsfuerzo}
                   </>
                 ) : (

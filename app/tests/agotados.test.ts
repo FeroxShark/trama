@@ -1,40 +1,47 @@
-// El rótulo «sin cupo gratis» del selector y el «Cambiar de modelo» del aviso (src/hilo/agotados.ts), y la marca de electron/opencode-agotado.ts
-// (el mismo agotado.json que lee motor/bin/reparto).
+// El rótulo «sin cupo» del selector y el «Cambiar de modelo» del aviso (src/hilo/agotados.ts), y la marca de electron/opencode-agotado.ts
+// (el mismo agotado.json que lee motor/bin/reparto). El cupo de cada modelo sale de src/hilo/cupo-modelos.ts (lo prueba cupo-modelos.test.ts).
 import test from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { esAvisoSinCupoOpencode, esGratisOpencode, marcarAgotadas, opencodeAgotadoDe, proveedorLibre } from "../src/hilo/agotados.ts";
+import { esAvisoSinCupoOpencode, esGratisOpencode, goAgotadosHasta, proveedorLibre } from "../src/hilo/agotados.ts";
+import { estadosCupoModelos } from "../src/hilo/cupo-modelos.ts";
 import { dirEstadoReparto, esLimiteGratisOpencode, marcarOpencodeAgotado, opencodeAgotadoHasta, VENCE_SIN_HORA_MS } from "../electron/opencode-agotado.ts";
 
 const ops = [
-  { id: "claude-opus-5-5", nombre: "Opus", desc: "", grupo: "Anthropic" },
-  { id: "opencode:opencode/deepseek-v4.1-flash-free", nombre: "DS", desc: "", grupo: "OpenCode" },
-  { id: "opencode:opencode/big-pickle", nombre: "BP", desc: "", grupo: "OpenCode" },
-  { id: "opencode:anthropic/claude-x", nombre: "Pago", desc: "", grupo: "OpenCode" },
+  { id: "claude-opus-5-5", nombre: "Opus", desc: "", grupo: "Anthropic", col: "anthropic" },
+  { id: "opencode:opencode/deepseek-v4.1-flash-free", nombre: "DS", desc: "", grupo: "OpenCode", col: "opencode" },
+  { id: "opencode:opencode/big-pickle", nombre: "BP", desc: "", grupo: "OpenCode", col: "opencode" },
+  { id: "opencode:anthropic/claude-x", nombre: "Pago", desc: "", grupo: "OpenCode", col: "opencode" },
 ];
+const AHORA = 1000;
 
-test("el rótulo agota a todos los gratis de OpenCode, no a los de pago ni a otros proveedores", () => {
+test("el OpenCode gratis es uno solo: sus modelos gratis se marcan, los de pago no", () => {
   assert.ok(esGratisOpencode(ops[1].id) && esGratisOpencode(ops[2].id));
   assert.ok(!esGratisOpencode(ops[3].id) && !esGratisOpencode(ops[0].id));
-  const r = marcarAgotadas(ops, 2000, 1000);
-  assert.deepEqual(r.map((o) => !!(o as any).agotada), [false, true, true, false]);
-  assert.equal(marcarAgotadas(ops, null, 1000), ops);
-  assert.equal(marcarAgotadas(ops, 500, 1000), ops, "vencida: sin rótulo");
+  const uso: any = { version: 1, five_hour: null, seven_day: null, suscripciones: [{ id: "opencode", nombre: "OpenCode", ts: 0, grupos: [{ id: "opencode-free", nombre: "x", ventanas: [], agotado: 2000 }] }] };
+  const m = estadosCupoModelos(ops.map((o) => o.id), uso, AHORA);
+  assert.deepEqual([...m.keys()], [ops[1].id, ops[2].id]);
+  assert.equal(m.get(ops[1].id)?.vuelve, 2000);
+  assert.equal(m.get(ops[1].id)?.sin, true);
+  assert.equal(estadosCupoModelos(ops.map((o) => o.id), uso, 3000).size, 0, "vencida: sin rótulo");
 });
 
-test("el Uso trae la marca como suscripción opencode; sin ella o vencida, nada", () => {
-  const uso: any = { version: 1, suscripciones: [{ id: "opencode", nombre: "OpenCode", ts: 0, grupos: [{ id: "opencode-free", nombre: "x", ventanas: [], agotado: 2000 }] }] };
-  assert.equal(opencodeAgotadoDe(uso, 1000), 2000);
-  assert.equal(opencodeAgotadoDe(uso, 3000), null);
-  assert.equal(opencodeAgotadoDe(null), null);
-  assert.equal(opencodeAgotadoDe({ version: 9, error: "x" } as any), null);
+test("los de Go agotados se leen por su id en minúsculas", () => {
+  const uso: any = { version: 1, five_hour: null, seven_day: null, suscripciones: [{ id: "opencode", nombre: "OpenCode", ts: 0, grupos: [{ id: "opencode:opencode-go/GLM-5", nombre: "Go", ventanas: [], agotado: 2000 }] }] };
+  assert.deepEqual([...goAgotadosHasta(uso, 1000)], [["opencode:opencode-go/glm-5", 2000]]);
+  assert.equal(goAgotadosHasta(uso, 3000).size, 0);
+  assert.equal(goAgotadosHasta(null).size, 0);
+  assert.equal(goAgotadosHasta({ version: 9, error: "x" } as any).size, 0);
 });
 
-test("«Cambiar de modelo» abre en un proveedor que no es OpenCode gratis", () => {
-  assert.equal(proveedorLibre(marcarAgotadas(ops, 2000, 1000)), "Anthropic");
-  assert.equal(proveedorLibre(marcarAgotadas(ops.slice(1, 3), 2000, 1000)), null);
+test("«Cambiar de modelo» abre en un proveedor que no es OpenCode gratis ni está sin cupo", () => {
+  assert.equal(proveedorLibre(ops, new Map()), "anthropic");
+  const sinOpus = new Map([[ops[0].id, { sin: true, vuelve: null, poco: false, libre: 0 }]]);
+  assert.equal(proveedorLibre(ops, sinOpus), "opencode", "el primero que queda es el de pago de OpenCode");
+  assert.equal(proveedorLibre(ops.slice(0, 1), sinOpus), null);
+  assert.equal(proveedorLibre(ops.slice(1, 3), new Map()), null, "sólo gratis de OpenCode");
   assert.ok(esAvisoSinCupoOpencode("\u0001i18n:main.opencodeSinCupo\u0001{}\u0001"));
   assert.ok(!esAvisoSinCupoOpencode("boom"));
 });
