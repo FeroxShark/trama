@@ -48,6 +48,7 @@ test("tomar con esperarMs: espera a que lo suelten, y se rinde si no", async () 
   const t0 = Date.now();
   assert.equal(await tomar(r, { esperarMs: 300 }), null);
   assert.ok(Date.now() - t0 >= 280);
+  // espera-justificada: libera el lock diferido para probar que tomar() con esperarMs espera y lo adquiere al soltarse
   setTimeout(() => void a.liberar(), 200);
   const b = await tomar(r, { esperarMs: 3000 });
   assert.ok(b);
@@ -94,6 +95,7 @@ test("dos procesos: uno lo tiene, el otro falla; muere por SIGKILL y se libera s
 
   // el tercero espera hasta 10 s: tiene que entrar apenas el dueño muera
   const espera = lanzar(codigo("{ esperarMs: 10000 }"));
+  // espera-justificada: da tiempo al proceso hijo a entrar en la espera de tomar() antes de matar al dueno
   await new Promise((r2) => setTimeout(r2, 300));
   dueno.kill("SIGKILL");
   await salida(dueno);
