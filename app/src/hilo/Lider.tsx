@@ -241,8 +241,8 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
     if (l || carpetaAMano || maquinaDe) return;
     setCarpeta(rutaNombrada ?? carpetaPorDefecto({ seleccion: seleccionada, ultima: leerUltima(), proyectos }));
   }, [l, carpetaAMano, maquinaDe, seleccionada, proyectos, rutaNombrada]);
-  // Captura `lider-nuevo-carpeta` con `HILOS_VARIANTE=buscar`: el selector de carpeta abierto y filtrado con "trama".
-  const capturaBuscar = MODO.captura === "lider-nuevo-carpeta" && MODO.variante === "buscar";
+  // Captura `lider-nuevo-carpeta` con `HILOS_VARIANTE=buscar` (filtrado con "trama") o `buscar-nada` (sin coincidencias): el selector abierto con la búsqueda.
+  const capturaBuscar = MODO.captura === "lider-nuevo-carpeta" && (MODO.variante === "buscar" || MODO.variante === "buscar-nada");
   const opcionesCarpeta = useMemo<Opcion[]>(
     () => [
       ...(maquinaDe ? [] : proyectos.filter((p) => p.existe).map((p) => ({ id: p.ruta, nombre: p.titulo ?? p.nombre, desc: p.ruta }))),
@@ -1341,7 +1341,7 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
                   enteras
                   buscar={tr("lider.carpetaBuscar")}
                   abierto={capturaBuscar}
-                  busquedaInicial={capturaBuscar ? "trama" : undefined}
+                  busquedaInicial={capturaBuscar ? (MODO.variante === "buscar-nada" ? "zzz" : "trama") : undefined}
                 />
                 {rutaNombrada && opcionCarpeta === rutaNombrada ? <span className="caja-carpeta-auto">{tr("lider.carpetaAuto")}</span> : null}
                 {otraAbierta ? (
