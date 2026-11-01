@@ -79,11 +79,11 @@ test("--opencode-limite con otra cosa (un 429 de un modelo, texto cualquiera) no
   for (const l of resumenOpencode()) assert.doesNotMatch(l, /SIN CUPO/);
 });
 
-// Un worker `-m opencode:*` que corta deja en el stderr el mensaje de pa, sin el "Free usage limit" de opencode: es el mismo
-// cupo de toda la cuenta y tiene que agotar el grupo igual (si no, --resumen sigue diciendo "cupo 100 %" y pa lo vuelve a elegir).
-test("el corte contado por pa ('OpenCode cortó por límite de uso') también agota el grupo 5 h, y --resumen lo muestra SIN CUPO", () => {
+// Un worker `-m opencode:*` que corta deja en el resultado el mensaje de pa y debajo el error crudo de opencode ("usage limit"):
+// es el mismo cupo de toda la cuenta y tiene que agotar el grupo igual (si no, --resumen sigue diciendo "cupo 100 %" y pa lo vuelve a elegir).
+test("el corte de un worker de opencode ('usage limit') agota el grupo 5 h, y --resumen lo muestra SIN CUPO", () => {
   rmSync(rep, { recursive: true, force: true });
-  const r = run(["--opencode-limite"], "OpenCode cortó por límite de uso (opencode:opencode/glm-5.3-flash-free). Esperá un rato, probá con otro modelo, o conectá tu cuenta.\n");
+  const r = run(["--opencode-limite"], "OpenCode cortó por límite de uso (opencode:opencode/glm-5.3-flash-free). Esperá un rato, probá con otro modelo, o conectá tu cuenta.\n429: Usage limit reached\n");
   assert.equal(r.status, 0, r.stderr);
   const h = horasDeVuelta();
   assert.ok(h > 4.9 && h < 5.1, `5 h, no ${h}`);
@@ -95,14 +95,13 @@ test("el corte contado por pa ('OpenCode cortó por límite de uso') también ag
   }
 });
 
-test("el 'usage limit' de opencode también cuenta, y el 'retrying in N' del mensaje manda sobre las 5 h", () => {
+test("un 429 de UN modelo (pa también dice 'cortó por límite de uso') no agota el grupo; 'usage limit' con 'retrying in N' vuelve a esa hora", () => {
   rmSync(rep, { recursive: true, force: true });
-  assert.equal(run(["--opencode-limite"], "APIError: 429 usage limit reached\n").status, 0);
+  assert.equal(run(["--opencode-limite"], "OpenCode cortó por límite de uso (opencode:opencode/beam-free).\n429: Rate limit exceeded\n").status, 1);
+  for (const l of resumenOpencode()) assert.doesNotMatch(l, /SIN CUPO/);
+  assert.equal(run(["--opencode-limite"], "429: usage limit reached, retrying in 30m\n").status, 0);
   const h = horasDeVuelta();
-  assert.ok(h > 4.9 && h < 5.1, `5 h, no ${h}`);
-  assert.equal(run(["--opencode-limite"], "usage limit reached, retrying in 30m\n").status, 0);
-  const h2 = horasDeVuelta();
-  assert.ok(h2 > 0.4 && h2 < 0.6, `0,5 h, no ${h2}`);
+  assert.ok(h > 0.4 && h < 0.6, `0,5 h, no ${h}`);
 });
 
 test("--sondear-opencode: si opencode dice el límite gratis marca el grupo; no corre solo en --resumen", () => {

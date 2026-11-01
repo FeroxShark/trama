@@ -441,19 +441,20 @@ export const casosReparto: Caso[] = [
   rpStdin("--opencode-limite con el límite gratis", "Error: Free usage limit reached. Connect a provider or subscribe to OpenCode Go.\n", 0),
   rpStdin("--opencode-limite con retrying in N", "Free usage exceeded, retrying in 90m\n", 0),
   rpStdin("--opencode-limite con un 429 no toca nada", "Too Many Requests: 429\n", 1),
-  // el mismo corte contado por pa (sin el "Free usage limit" de opencode): agota el grupo 5 h y --resumen deja de ofrecerlo
+  // el mismo corte contado por opencode en el worker ("usage limit"): agota el grupo 5 h y --resumen deja de ofrecerlo
   {
     herramienta: "reparto",
-    nombre: "reparto: el corte de pa (OpenCode cortó por límite de uso) agota el grupo y --resumen lo muestra SIN CUPO",
+    nombre: "reparto: el corte de un worker de opencode (usage limit) agota el grupo y --resumen lo muestra SIN CUPO",
     pasos: [
-      { args: ["--opencode-limite"], stdin: "OpenCode cortó por límite de uso (opencode:opencode/glm-5.3-flash-free). Esperá un rato, probá con otro modelo, o conectá tu cuenta.\n", rc: 0 },
+      { args: ["--opencode-limite"], stdin: "OpenCode cortó por límite de uso (opencode:opencode/glm-5.3-flash-free). Esperá un rato, probá con otro modelo, o conectá tu cuenta.\n429: Usage limit reached\n", rc: 0 },
       { args: ["--resumen"], rc: 0 },
       { args: ["--tabla"], rc: 0 },
     ],
     preparar: preparar({}),
     env: entornoDe({}),
   },
-  rpStdin("--opencode-limite con el usage limit de opencode", "APIError: 429 usage limit reached\n", 0),
+  // un 429 de UN solo modelo (pa también dice "cortó por límite de uso") no agota el grupo: `-m a,b` sigue con el siguiente
+  rpStdin("--opencode-limite con un 429 de un modelo no agota el grupo", "OpenCode cortó por límite de uso (opencode:opencode/beam-free).\n429: Rate limit exceeded\n", 1),
   rp("--sondear-opencode con el límite gratis", ["--sondear-opencode"], 0, { preparar: opencodeFalso("Error: Free usage limit reached.", true), env: conOpencodeFalso }),
   rp("--sondear-opencode que contesta no toca el grupo", ["--sondear-opencode"], 1, { preparar: opencodeFalso("OK", false), env: conOpencodeFalso }),
   rp("--sondear-opencode sin opencode", ["--sondear-opencode"], 2, { env: (c) => ({ HILOS_OPENCODE: path.join(c.aux, "no-hay-opencode") }) }),

@@ -68,10 +68,10 @@ test("--opencode-limite: otra cosa (un 429 de un modelo) sale 1 y no marca nada"
   assert.equal(existsSync(agotado), false);
 });
 
-// Un worker `-m opencode:*` que corta deja el mensaje de pa (sin el "Free usage limit" de opencode): es el mismo cupo de toda
-// la cuenta, así que agota el grupo 5 h y --resumen deja de ofrecerlo (antes seguía diciendo "cupo 100 %").
-test("--opencode-limite: el corte de pa ('OpenCode cortó por límite de uso') agota el grupo 5 h y --resumen lo muestra SIN CUPO", () => {
-  const r = run(["--opencode-limite"], { stdin: "OpenCode cortó por límite de uso (opencode:opencode/glm-5.3-flash-free). Esperá un rato, probá con otro modelo, o conectá tu cuenta.\n" });
+// Un worker `-m opencode:*` que corta deja el mensaje de pa y, debajo, el error crudo de opencode: es el mismo cupo de toda la
+// cuenta, así que agota el grupo 5 h y --resumen deja de ofrecerlo (antes seguía diciendo "cupo 100 %").
+test("--opencode-limite: el corte de un worker de opencode ('usage limit') agota el grupo 5 h y --resumen lo muestra SIN CUPO", () => {
+  const r = run(["--opencode-limite"], { stdin: "OpenCode cortó por límite de uso (opencode:opencode/glm-5.3-flash-free). Esperá un rato, probá con otro modelo, o conectá tu cuenta.\n429: Usage limit reached\n" });
   assert.equal(r.status, 0, r.stderr);
   assert.equal(horasDeVuelta(), 5);
   const res = run(["--resumen"], { conservar: true });
@@ -83,10 +83,14 @@ test("--opencode-limite: el corte de pa ('OpenCode cortó por límite de uso') a
   }
 });
 
-test("--opencode-limite: 'usage limit' también cuenta y el 'retrying in N' del mensaje manda", () => {
-  assert.equal(run(["--opencode-limite"], { stdin: "APIError: 429 usage limit reached\n" }).status, 0);
-  assert.equal(horasDeVuelta(), 5);
-  assert.equal(run(["--opencode-limite"], { stdin: "usage limit reached, retrying in 30m\n" }).status, 0);
+test("--opencode-limite: un 429 de UN modelo (pa también dice 'cortó por límite de uso') no agota el grupo", () => {
+  const r = run(["--opencode-limite"], { stdin: "OpenCode cortó por límite de uso (opencode:opencode/beam-free). Esperá un rato, probá con otro modelo.\n429: Rate limit exceeded\n" });
+  assert.equal(r.status, 1, r.stderr);
+  assert.equal(existsSync(agotado), false);
+});
+
+test("--opencode-limite: 'usage limit' con 'retrying in N' vuelve a esa hora, no a las 5 h", () => {
+  assert.equal(run(["--opencode-limite"], { stdin: "429: usage limit reached, retrying in 30m\n" }).status, 0);
   assert.equal(horasDeVuelta(), 0.5);
 });
 

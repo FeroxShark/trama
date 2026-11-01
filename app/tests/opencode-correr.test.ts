@@ -117,6 +117,8 @@ test("aResultado: un 429 de OpenCode dice qué hacer; un error cualquiera trae s
   const r = aResultado({ eventos: cuota, modelo: "opencode:opencode/beam-free", rc: 1, stderr: "", segundos: 1, gratis: true });
   assert.equal(r.is_error, true);
   assert.match(r.result, /\/connect/);
+  // el error crudo va debajo del mensaje: reparto necesita ver el "Free usage limit" para agotar el grupo gratis entero
+  assert.match(r.result, /Free usage limit reached/);
   assert.equal(r.total_cost_usd, 0);
   const otro = aResultado({ eventos: [{ type: "error", error: { name: "APIError", data: { message: "boom", statusCode: 500 } } }], modelo: "x", rc: 1, stderr: "", segundos: 1, gratis: false });
   assert.match(otro.result, /500: boom/);

@@ -90,7 +90,12 @@ export function aResultado({ eventos, modelo, rc, stderr, segundos, gratis, trun
   const cortado = !cerrado && truncado === 0 && !error && rc === 0 && eventos.length > 0 && razon !== undefined && razon !== "stop";
   const malo = truncado > 0 || rc !== 0 || !!error || (!ultimoFin && !cerrado) || cortado;
   let motivo = truncado > 0 ? `se llegó al tope de ${truncado} pasos del modelo (--max-pasos)` : error ? textoDeError(error) : cortado ? `opencode terminó sin cerrar el turno (razón: ${razon})` : stderr.trim() ? stderr.trim().split("\n").slice(-3).join(" · ") : rc !== 0 ? `opencode salió con el código ${rc}` : "opencode no devolvió respuesta";
-  if (malo && !truncado && esErrorCuota(`${error ? JSON.stringify(error) : ""}\n${stderr}`)) motivo = esModeloGo(modelo) ? mensajeCuotaGo(modelo) : mensajeCuotaOpencode(modelo);
+  // El corte por cupo dice qué hacer, y debajo va el texto crudo del error: pa lo pasa a `reparto --opencode-limite`, que necesita
+  // distinguir el cupo gratis de TODA la cuenta ("Free usage limit" / "usage limit") de un 429 de un solo modelo. En los modelos de
+  // Go el crudo no va: su cupo es por modelo y un "usage limit" ahí no agota el grupo gratis.
+  if (malo && !truncado && esErrorCuota(`${error ? JSON.stringify(error) : ""}\n${stderr}`)) {
+    motivo = esModeloGo(modelo) ? mensajeCuotaGo(modelo) : [mensajeCuotaOpencode(modelo), motivo].filter(Boolean).join("\n");
+  }
   const suma = (f) => pasos.reduce((n, e) => n + (Number(f(e.part)) || 0), 0);
   const sesion = eventos.find((e) => typeof e.sessionID === "string")?.sessionID ?? null;
   const costo = suma((p) => p?.cost);
