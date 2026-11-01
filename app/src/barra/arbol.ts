@@ -164,16 +164,18 @@ export type Atencion = "fallo" | "decision";
 
 export const esFallo = (it: Item) => it.estado === "murio" && !frenado(it);
 
-export const atencionItem = (it: Item): Atencion | null => (esFallo(it) ? "fallo" : it.estado === "decision" ? "decision" : null);
+/** `resueltos` (`atencion-vigente.ts`): los workers que ya no piden atención (fallo relanzado, visto, decisión contestada). */
+export const atencionItem = (it: Item, resueltos?: ReadonlySet<string>): Atencion | null =>
+  resueltos?.has(it.h.id) ? null : esFallo(it) ? "fallo" : it.estado === "decision" ? "decision" : null;
 
 /** El líder espera tu respuesta: terminó su turno o pide algo (no cuenta si responde ni si no tiene proceso). */
 export const liderEspera = (l: Lider) => !!l.espera && !l.ocupado && !l.caido;
 
 /** El ícono de estado de un líder: el peor de sus workers (falló antes que pide decisión) o, si él mismo espera, decisión. */
-export function atencionRama(r: Rama): Atencion | null {
+export function atencionRama(r: Rama, resueltos?: ReadonlySet<string>): Atencion | null {
   let decide = !!r.lider && liderEspera(r.lider);
   for (const it of [...r.vivas, ...r.viejas]) {
-    const a = atencionItem(it);
+    const a = atencionItem(it, resueltos);
     if (a === "fallo") return "fallo";
     if (a === "decision") decide = true;
   }
@@ -194,7 +196,7 @@ export type Destino = {
 export type Pendientes = { fallos: Destino[]; esperan: Destino[] };
 
 /** Lo que pide atención, en el orden en que se ve la lista (Activas, y cada carpeta con sus ramas, en espera y dormidos). */
-export function pendientes(a: Arbol): Pendientes {
+export function pendientes(a: Arbol, resueltos?: ReadonlySet<string>): Pendientes {
   const out: Pendientes = { fallos: [], esperan: [] };
   const vistos = new Set<string>();
   const ver = (r: Rama, abrir: string[]) => {
@@ -205,7 +207,7 @@ export function pendientes(a: Arbol): Pendientes {
     }
     for (const [lista, viva] of [[r.vivas, true], [r.viejas, false]] as const)
       for (const it of lista) {
-        const t = atencionItem(it);
+        const t = atencionItem(it, resueltos);
         if (!t || vistos.has(it.h.id)) continue;
         vistos.add(it.h.id);
         (t === "fallo" ? out.fallos : out.esperan).push({ id: it.h.id, lider: false, rama: r.clave, viva, abrir });
