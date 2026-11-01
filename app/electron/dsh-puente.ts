@@ -238,6 +238,11 @@ class Traductor {
   private herramientas = new Map<string, { name: string; input: Obj; emitida: boolean; resultado: boolean }>();
   private n = 0;
   private cerrado = false;
+  /** ¿Hay una herramienta anunciada que todavía no devolvió su resultado? (una herramienta larga calla; no es un cuelgue) */
+  get herramientaAbierta(): boolean {
+    for (const h of this.herramientas.values()) if (!h.resultado) return true;
+    return false;
+  }
   private readonly base = () => ({ parent_tool_use_id: null, session_id: sid });
 
   private ev(event: Obj): Obj {
@@ -478,6 +483,38 @@ function mcpDeEntorno(): unknown[] {
   }
 }
 
+// --- opencode colgado: el error del servidor que nunca cierra el turno -----------------------------------------------------------
+
+/** Cuánto aguanta un turno de opencode sin NINGÚN evento (y sin herramienta corriendo) antes de darlo por colgado. */
+const MS_SIN_EVENTOS = Number(process.env.TRAMA_OPENCODE_SIN_EVENTOS_MS ?? 180_000);
+/** Cuándo llegó el último `session/update` del turno en curso. */
+let ultimaActividad = Date.now();
+/** Por qué se cortó el turno a la fuerza: el texto del error del servidor, o `"sin-eventos"` si opencode se colgó callado. */
+let causaCorte: string | null = null;
+let vigilante: NodeJS.Timeout | null = null;
+
+/** ¿Es el error crudo del proveedor de opencode (límite gratis, llamada fallida, reintentos agotados)? Sólo estos cortan el turno. */
+const esErrorDeServidorOpencode = (t: string): boolean => esLimiteGratisOpencode(t) || /AI_RetryError|AI_APICallError.*(?:429|quota|limit)/i.test(t);
+
+/** opencode (1.19) no cierra el `session/prompt` cuando el servidor le contesta el límite gratis: se anota la causa y se lo mata para que el turno termine con el aviso. */
+function cortarPorErrorDelServidor(c: ClienteAcp, t: string) {
+  if (causaCorte) return;
+  causaCorte = t;
+  c.matar();
+}
+
+/** Mientras haya un turno de opencode en curso, vigila que lleguen eventos. Sin ellos (ni herramienta corriendo) lo corta y el turno dice por qué. */
+function vigilarSilencio() {
+  if (!oc || vigilante) return;
+  vigilante = setInterval(() => {
+    if (!ocupado || !actual || causaCorte || interrumpido || !cliente?.activo || actual.herramientaAbierta) return;
+    if (Date.now() - ultimaActividad < MS_SIN_EVENTOS) return;
+    causaCorte = "sin-eventos";
+    cliente.matar();
+  }, Math.max(50, Math.min(5000, Math.floor(MS_SIN_EVENTOS / 4))));
+  vigilante.unref();
+}
+
 /** El `dsh` vivo con su sesión lista (lanzándolo y retomando o abriendo la sesión si hace falta). */
 function asegurar(): Promise<void> {
   if (cliente?.activo && acpSid) return Promise.resolve();
@@ -521,9 +558,16 @@ async function levantar(): Promise<void> {
     mcpServers: mcpDeEntorno(),
     alActualizar: (s, u) => {
       if (s !== acpSid || !actual) return;
+      ultimaActividad = Date.now();
+      // opencode a veces cuenta el error del servidor como si fuera lo que dijo el modelo: si es lo PRIMERO del turno, es el error.
+      const dicho = u.sessionUpdate === "agent_message_chunk" && typeof u.content?.text === "string" ? u.content.text : "";
+      if (oc && dicho && !actual.hablo && esErrorDeServidorOpencode(dicho)) return cortarPorErrorDelServidor(c, dicho);
       for (const o of actual.actualizacion(u)) salida(o);
     },
-    alStderr: (t) => process.stderr.write(`${MOTOR}: ${t}`),
+    alStderr: (t) => {
+      process.stderr.write(`${MOTOR}: ${t}`);
+      if (oc && ocupado && !causaCorte && esErrorDeServidorOpencode(t)) cortarPorErrorDelServidor(c, t);
+    },
   });
   cliente = c;
   acpSid = null;
@@ -574,7 +618,7 @@ async function levantar(): Promise<void> {
  */
 function textoDeError(e: unknown): string {
   const secretos = [process.env.OPENCODE_API_KEY, process.env.DEEPSEEK_API_KEY, ...secretosMcp()];
-  const err = cliente?.stderr || stderrPerdido;
+  const err = [cliente?.stderr || stderrPerdido, causaCorte && causaCorte !== "sin-eventos" ? causaCorte : ""].filter(Boolean).join("\n");
   // OpenCode Go: el cupo es por modelo. Un 429 marca agotado SOLO este modelo (~5 h); los demás de Go y el límite de los gratis no se tocan.
   if (oc && esModeloGo(oc.valor) && esCuotaOc(`${String((e as Error)?.message ?? e)}\n${err}`)) {
     marcarModeloGoAgotado(modelo, undefined, process.env, Date.now(), cuentaAgregadaDe(process.env));
@@ -586,6 +630,8 @@ function textoDeError(e: unknown): string {
     return textoT("main.opencodeSinCupo", { modelo: oc.valor });
   }
   if (oc && esCuotaOc(`${String((e as Error)?.message ?? e)}\n${err}`)) return mensajeCuotaOc(oc.valor);
+  // Colgado sin decir nada (ni error ni eventos): no se sabe la causa, pero la persona tiene que enterarse y poder cambiar de modelo.
+  if (oc && causaCorte === "sin-eventos") return textoT("main.opencodeSinRespuesta", { modelo: oc.valor, seg: Math.round(MS_SIN_EVENTOS / 1000) });
   if (prov?.proveedor === "opencode" && esErrorCuota(`${String((e as Error)?.message ?? e)}\n${err}`)) return mensajeCuotaOpencode(!!process.env.OPENCODE_API_KEY);
   return describirError(e, err, secretos, 400);
 }
@@ -671,6 +717,9 @@ async function turno(m: Mensaje) {
   ocupado = true;
   interrumpido = false;
   corte = false;
+  causaCorte = null;
+  ultimaActividad = Date.now();
+  vigilarSilencio();
   anotarSesion("busy");
   if (m.directo) eco(m.texto); // llegó sin turno en curso: es un mensaje normal, pero lider.ts espera su eco
   const t0 = Date.now();

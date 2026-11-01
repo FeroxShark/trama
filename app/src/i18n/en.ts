@@ -3134,6 +3134,7 @@ export const en = {
   "cu.opencodeGo.sinTabla": "The Go limits table wasn't found (motor/opencode/go-topes.json).",
   "selector.planGo": "Go plan",
   "modelo.opencodeGo": "Go plan · through the opencode program (own quota per model, requests every 5 h)",
+  "main.opencodeSinRespuesta": "{modelo} stopped answering: OpenCode sent nothing for {seg} s and the turn was cut. This usually means the free quota ran out or the service is not responding. Switch to another model (you keep this conversation and its history) or try again later.",
   "main.opencodeGoSinCupo": "{modelo} ran out of its 5 h quota on OpenCode Go (the other Go models keep working). Switch to another model (you keep this conversation and its history) or wait for it to renew.",
   "main.opencodePlan": "That OpenCode plan is not valid: {v}",
   "cu.opencodeGo.estado": "Status",

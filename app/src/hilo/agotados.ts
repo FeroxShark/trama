@@ -23,8 +23,8 @@ export function proveedorLibre(opciones: readonly Opcion[], cupos: ReadonlyMap<s
   return o ? (o.col ?? o.grupo ?? null) : null;
 }
 
-/** El aviso de error de un turno es el de «se acabó el uso gratis de OpenCode» o «se acabó el cupo de este modelo de Go» (el texto codificado del main, `main.opencodeSinCupo` / `main.opencodeGoSinCupo`). */
-export const esAvisoSinCupoOpencode = (texto: string): boolean => texto.includes("i18n:main.opencodeSinCupo") || texto.includes("i18n:main.opencodeGoSinCupo");
+/** El aviso de error de un turno es el de «se acabó el uso gratis de OpenCode» o «se acabó el cupo de este modelo de Go» o «opencode dejó de contestar» (el texto codificado del main, `main.opencodeSinCupo` / `main.opencodeGoSinCupo`). */
+export const esAvisoSinCupoOpencode = (texto: string): boolean => texto.includes("i18n:main.opencodeSinCupo") || texto.includes("i18n:main.opencodeGoSinCupo") || texto.includes("i18n:main.opencodeSinRespuesta");
 
 /** El evento (en `window`) con que el aviso pide abrir el selector de modelo del chat. */
 export const EVENTO_CAMBIAR_MODELO = "trama:cambiar-modelo";

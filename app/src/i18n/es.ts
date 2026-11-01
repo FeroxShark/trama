@@ -3120,6 +3120,7 @@ export const es: { [K in keyof typeof en]: string } = {
   "cu.opencodeGo.sinTabla": "No se encontró la tabla de topes de Go (motor/opencode/go-topes.json).",
   "selector.planGo": "Plan Go",
   "modelo.opencodeGo": "Plan Go · por el programa opencode (cupo propio por modelo, pedidos cada 5 h)",
+  "main.opencodeSinRespuesta": "{modelo} dejó de contestar: pasaron {seg} s sin que OpenCode mande nada y se cortó el turno. Suele pasar cuando se acabó el cupo gratis o el servicio no responde. Cambiá a otro modelo (seguís esta conversación con su historial) o probá de nuevo más tarde.",
   "main.opencodeGoSinCupo": "Se acabó el cupo de 5 h de {modelo} en OpenCode Go (los demás modelos de Go siguen). Cambiá a otro modelo (seguís esta conversación con su historial) o esperá a que se renueve.",
   "main.opencodePlan": "Ese plan de OpenCode no es válido: {v}",
   "cu.opencodeGo.estado": "Estado",
