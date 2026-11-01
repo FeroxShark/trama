@@ -220,7 +220,7 @@ const escribir = (sel, texto) =>
 const clic = (sel, texto = null) =>
   en(
     (sel, texto) => {
-      const el = [...document.querySelectorAll(sel)].find((e) => texto === null || e.textContent.includes(texto));
+      const el = [...document.querySelectorAll(sel)].find((e) => texto === null || `${e.textContent} ${e.getAttribute("aria-label") ?? ""}`.includes(texto));
       if (!el || el.disabled) return false;
       el.click();
       return true;
@@ -325,8 +325,8 @@ try {
   ok(await derecho('[data-carpeta="cauce"]'), "clic derecho en la carpeta");
   await hasta(() => !!document.querySelector('[role="menu"] [data-accion]'), "menú de carpeta");
   const opsC = (await opciones()).join(" ");
-  // De fábrica el orden de la barra es por prioridad: la carpeta ofrece "Orden fijo" y no Subir / Bajar.
-  ok(opsC === "nueva ocultar prioridad", `la carpeta ofrece Nueva tarea aquí, Ocultar terminados y Orden fijo (de fábrica, por prioridad): ${opsC}`);
+  // De fábrica el orden de la barra es por prioridad: la carpeta ofrece "Orden fijo"; Subir / Bajar siguen (lo caliente sale de su carpeta, el resto se acomoda igual).
+  ok(opsC === "nueva ocultar subir prioridad", `la carpeta ofrece Nueva tarea aquí, Ocultar terminados, Subir y Orden fijo (de fábrica, por prioridad): ${opsC}`);
   await tecla("Escape");
   ok(await hasta(() => !document.querySelector('[role="menu"]'), "cerrado"), "Esc cierra el menú");
   // --- Claude Code nuevo: el falso dice 2.1.287, el npm falso 2.1.300 -------------------
@@ -346,12 +346,14 @@ try {
   ok(cv.instalada === "2.1.300" && cv.chequeado > 0, `claude-version.json: ${JSON.stringify(cv)}`);
   ok(readFileSync(logNpm, "utf8").trim().split("\n").length === 1, "a npm se le preguntó una sola vez");
   // --- Idioma: arranca en inglés (no hay nada guardado); Ajustes lo pasa a español al toque ---
-  const fila55 = () => document.querySelector('[data-fila="20261003-100400-55555"]')?.textContent ?? "";
-  const relojes = () => [...document.querySelectorAll("[data-fila]")].map((f) => f.textContent).join("|");
-  ok(await en(fila55).then((t) => t.includes("Needs you")), "sin idioma guardado arranca en inglés (Needs you)");
-  ok(/ ago/.test(await en(relojes)), "el reloj de las filas habla en inglés");
+  const fila55 = () => document.querySelector('[data-fila="20261003-100400-55555"] .chip-at')?.textContent ?? "";
+  const relojes = () => [...document.querySelectorAll("[data-fila] .cuando")].map((f) => f.textContent).join("|");
+  ok((await en(fila55)) === "decide", "sin idioma guardado arranca en inglés (chip decide)");
+  ok(/\bnow\b/.test(await en(relojes)), "el reloj de las filas habla en inglés (now)");
   ok(await clic(".pie button", "Settings"), "el pie abre Settings");
-  ok(await hasta(() => !!document.querySelector(".pn .pick > .pbtn"), "selector de idioma"), "Settings tiene el selector de idioma");
+  // Ajustes tiene categorías a la izquierda: idioma, letra, fuentes y mensajes viven en General.
+  ok(await clic('.aj-it[data-cat="general"]'), "Ajustes > General");
+  ok(await hasta(() => !!document.querySelector('[data-opc="ajustes.idioma"] .pick > .pbtn'), "selector de idioma"), "Settings tiene el selector de idioma");
   // B21: cambiar de idioma no mueve nada. Con los datos ya llegados (la nota), la geometría de Ajustes, del uso y del pie.
   ok(await hasta(() => !!document.querySelector(".pn-nota") && document.querySelectorAll(".pn-dato").length >= 8, "datos de Ajustes"), "Settings trae sus datos");
   const geometria = () =>
@@ -363,14 +365,14 @@ try {
       .join("\n");
   await espera(300); // que termine la entrada del panel (transform)
   const geoEn = await en(geometria);
-  ok(await elegir(".pn", 0, "Español"), "se elige Español");
-  ok(await hasta(() => document.querySelector(".migas .ruta b")?.textContent === "Ajustes", "título en español"), "el panel cambia a Ajustes sin reiniciar");
+  ok(await elegir('[data-opc="ajustes.idioma"]', 0, "Español"), "se elige Español");
+  ok(await hasta(() => document.querySelector('.aj-it[data-cat="modelos"] .aj-it-n')?.textContent === "Modelos", "categorías en español"), "el panel cambia a español sin reiniciar");
   await espera(100);
   const geoEs = await en(geometria);
   const distintas = geoEn.split("\n").flatMap((l, i) => (l === geoEs.split("\n")[i] ? [] : [`${l} → ${geoEs.split("\n")[i]}`]));
   ok(geoEn.split("\n").length > 30 && distintas.length === 0, `ES ↔ EN no mueve nada (${geoEn.split("\n").length} cajas): ${distintas.slice(0, 3).join(" | ")}`);
-  ok(await en(fila55).then((t) => t.includes("Te necesita")), "la barra cambia al toque (Te necesita)");
-  ok(!/ ago/.test(await en(relojes)), "el reloj repinta en español");
+  ok((await en(fila55)) === "decidir", "la barra cambia al toque (chip decidir)");
+  ok(/\bahora\b/.test(await en(relojes)) && !/\bnow\b/.test(await en(relojes)), "el reloj repinta en español (ahora)");
   let prefsIdioma = null;
   for (let i = 0; i < 30 && prefsIdioma !== "es"; i++) {
     try {
@@ -416,34 +418,37 @@ try {
   for (let i = 0; i < 4; i++) await tecla("=", CTRL);
   ok((await en(letraDe)).letra === "18", "Ctrl+= no pasa de 18");
   ok((await prefsCon((p) => p.letra === 18))?.letra === 18, "preferencias.json guarda 18");
-  // B24: la cabecera (marca, uso en su renglón) entra con la letra más grande, y también con la barra en su mínimo.
+  // B24: el riel (marca arriba, cupos en dos anillos abajo) entra con la letra más grande, y también con la barra en su mínimo.
+  // Los anillos son un solo botón que abre el detalle (`.vuelo`) con cuándo vuelve cada ventana.
   const cabecera = () => {
     const entra = (e) => e.scrollWidth <= e.clientWidth;
-    const cajas = [...document.querySelectorAll(".top, .cab, .usos, .grupo, .uso .r")];
-    const nombres = [...document.querySelectorAll(".g-n")];
+    const cajas = [...document.querySelectorAll(".top, .riel, .cupos-riel, .anillos, .vuelo, .v-ventana, .v-nota")];
     return {
-      usos: document.querySelectorAll(".uso").length,
-      logo: !!document.querySelector(".cab svg.logo"),
-      botones: document.querySelectorAll(".cab .lado, .cab .releer").length,
+      usos: document.querySelectorAll(".cupos-riel .an").length,
+      logo: !!document.querySelector(".riel-logo svg"),
+      botones: document.querySelectorAll(".cupos-riel .anillos").length,
       desborda: cajas.filter((e) => !entra(e)).map((e) => e.className),
-      nombre: nombres.map((e) => e.textContent).join(","),
-      texto: [...document.querySelectorAll(".uso .tip-l")].map((e) => e.textContent).join(" | "),
-      niveles: [...document.querySelectorAll(".uso")].map((e) => e.dataset.nivel).join(","),
+      texto: [...document.querySelectorAll(".v-nota")].map((e) => e.textContent).join(" | "),
+      niveles: [...document.querySelectorAll(".cupos-riel .an")].map((e) => e.dataset.nivel).join(","),
     };
   };
   const teclaTirador = (key, n = 1) =>
     en((key, n) => {
       for (let i = 0; i < n; i++) document.querySelector(".tirador").dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true }));
     }, key, n);
+  ok(await clic(".cupos-riel .anillos"), "el botón de los anillos abre el detalle de cupos");
+  ok(await hasta(() => document.querySelectorAll(".vuelo .v-nota").length >= 2, "detalle de cupos"), "el detalle trae las dos ventanas");
   let cab = await en(cabecera);
-  ok(cab.logo && cab.usos === 2 && cab.botones === 2, `la cabecera trae la marca, los dos usos y sus dos botones: ${JSON.stringify(cab)}`);
+  ok(cab.logo && cab.usos === 2 && cab.botones === 1, `el riel trae la marca y los dos anillos de uso en un botón: ${JSON.stringify(cab)}`);
   ok(cab.niveles === "ambar,rojo", `74 % va en ámbar y 93 % en rojo: ${cab.niveles}`);
-  ok(!cab.desborda.length && /reinicia/.test(cab.texto), `a 18 px el uso entra entero: ${JSON.stringify(cab)}`);
+  ok(!cab.desborda.length && /23 h (49|50) min/.test(cab.texto), `a 18 px el uso entra entero: ${JSON.stringify(cab)}`);
   await teclaTirador("Home");
   await espera(100);
   cab = await en(cabecera);
   ok(!cab.desborda.length && cab.usos === 2, `con la barra en su mínimo no desborda: ${JSON.stringify(cab)}`);
   await teclaTirador("ArrowRight", 5);
+  await tecla("Escape");
+  ok(await hasta(() => !document.querySelector(".vuelo"), "detalle cerrado"), "Esc cierra el detalle de cupos");
   await tecla("0", CTRL);
   const l0 = await en(letraDe);
   ok(l0.letra === "13" && l0.rem === 16, `Ctrl+0 vuelve al default: ${JSON.stringify(l0)}`);
@@ -451,33 +456,33 @@ try {
   ok((await en(letraDe)).letra === "13", "Ctrl+- no baja de 13");
   const familias = () => ({
     sans: getComputedStyle(document.querySelector(".app")).fontFamily,
-    mono: getComputedStyle(document.querySelector(".pn-val")).fontFamily,
-    botones: [...document.querySelectorAll(".pn .pick > .pbtn")].slice(1, 3).map((b) => b.innerText.trim()),
+    mono: getComputedStyle(document.documentElement).getPropertyValue("--font-mono"),
+    botones: ["ajustes.fuente", "ajustes.mono"].map((o) => document.querySelector(`[data-opc="${o}"] .pick > .pbtn`).innerText.trim()),
   });
   const f0 = await en(familias);
-  ok(/^"?Geist"?,/.test(f0.sans) && /^"?Geist Mono"?,/.test(f0.mono), `default: Geist y Geist Mono: ${JSON.stringify(f0)}`);
-  await en(() => document.querySelectorAll(".pn .pick > .pbtn")[1]?.click());
+  ok(/^"?Inter"?,/.test(f0.sans) && /^"?JetBrains Mono"?,/.test(f0.mono), `default: Inter y JetBrains Mono: ${JSON.stringify(f0)}`);
+  await en(() => document.querySelector('[data-opc="ajustes.fuente"] .pick > .pbtn')?.click());
   await hasta(() => !!document.querySelector('[role="option"]'), "menú de fuentes");
   const ops = await en(() => [...document.querySelectorAll('[role="option"] .on1 span[style]')].map((o) => [o.textContent, o.style.fontFamily.split(",")[0].replaceAll('"', "")]));
   ok(ops.length === 6 && ops.slice(0, 5).every(([nombre, fam]) => nombre === fam), `cada fuente del menú va escrita en ella misma: ${JSON.stringify(ops)}`);
-  ok(await clic('[role="option"]', "Inter"), "se elige Inter");
-  ok(await elegir(".pn", 2, "JetBrains Mono"), "código: se elige JetBrains Mono");
+  ok(await clic('[role="option"]', "Geist"), "se elige Geist");
+  ok(await elegir('[data-opc="ajustes.mono"]', 0, "Geist Mono"), "código: se elige Geist Mono");
   const f1 = await en(familias);
-  ok(/^"?Inter"?,/.test(f1.sans), `la interfaz pasa a Inter al toque: ${f1.sans}`);
-  ok(/^"?JetBrains Mono"?,/.test(f1.mono), `lo mono pasa a JetBrains Mono al toque: ${f1.mono}`);
-  ok(f1.botones.join("|") === "Inter|JetBrains Mono", `los selectores muestran lo elegido: ${f1.botones}`);
-  ok(await en(() => document.fonts.load('13px "Inter"').then((f) => f.length > 0)), "Inter carga del paquete (sin red)");
-  const pApar = await prefsCon((p) => p.fuente === "inter" && p.mono === "jetbrains");
-  ok(pApar?.fuente === "inter" && pApar?.mono === "jetbrains" && pApar?.letra === 13, `preferencias.json guarda letra y fuentes: ${JSON.stringify(pApar)}`);
+  ok(/^"?Geist"?,/.test(f1.sans), `la interfaz pasa a Geist al toque: ${f1.sans}`);
+  ok(/^"?Geist Mono"?,/.test(f1.mono), `lo mono pasa a Geist Mono al toque: ${f1.mono}`);
+  ok(f1.botones.join("|") === "Geist|Geist Mono", `los selectores muestran lo elegido: ${f1.botones}`);
+  ok(await en(() => document.fonts.load('13px "Geist"').then((f) => f.length > 0)), "Geist carga del paquete (sin red)");
+  const pApar = await prefsCon((p) => p.fuente === "geist" && p.mono === "geist-mono");
+  ok(pApar?.fuente === "geist" && pApar?.mono === "geist-mono" && pApar?.letra === 13, `preferencias.json guarda letra y fuentes: ${JSON.stringify(pApar)}`);
   ok(pApar?.idioma === "es", "guardar la letra y las fuentes no pisa el idioma");
-  // De vuelta a las de la maqueta: lo que sigue de la prueba corre con el default.
-  ok(await elegir(".pn", 1, "Geist"), "vuelve Geist");
-  ok(await elegir(".pn", 2, "Geist Mono"), "vuelve Geist Mono");
-  ok((await prefsCon((p) => p.fuente === "geist" && p.mono === "geist-mono"))?.mono === "geist-mono", "preferencias.json vuelve al default");
+  // De vuelta al default (Inter y JetBrains Mono): lo que sigue de la prueba corre con él.
+  ok(await elegir('[data-opc="ajustes.fuente"]', 0, "Inter"), "vuelve Inter");
+  ok(await elegir('[data-opc="ajustes.mono"]', 0, "JetBrains Mono"), "vuelve JetBrains Mono");
+  ok((await prefsCon((p) => p.fuente === "inter" && p.mono === "jetbrains"))?.mono === "jetbrains", "preferencias.json vuelve al default");
   // --- Mensajes tiernos (B17): prendidos por default; Ajustes los apaga al toque -------
   const tierna = () => document.querySelector('[data-fila="20261003-100300-44444"] .tierno')?.textContent ?? "";
   ok(await en(tierna).then((t) => t.length > 0 && t.length <= 28 && t !== "Trabajando"), "el worker que trabaja dice una frase tierna");
-  ok(await elegir(".pn", 3, "Apagados"), "se apagan los mensajes tiernos");
+  ok(await elegir('[data-opc="ajustes.tiernos"]', 0, "Apagados"), "se apagan los mensajes tiernos");
   ok(
     await hasta(() => document.querySelector('[data-fila="20261003-100300-44444"]')?.textContent.includes("Trabajando"), "Trabajando"),
     "la fila vuelve a decir Trabajando",
@@ -491,14 +496,14 @@ try {
     if (prefsTiernos !== false) await espera(100);
   }
   ok(prefsTiernos === false, `preferencias.json guarda tiernos: ${prefsTiernos}`);
-  ok(await elegir(".pn", 3, "Prendidos"), "se vuelven a prender");
+  ok(await elegir('[data-opc="ajustes.tiernos"]', 0, "Prendidos"), "se vuelven a prender");
   ok(await hasta(tierna, "frase tierna"), "la frase vuelve al toque");
   await tecla("Escape");
   ok(await hasta(() => !document.querySelector(".pn"), "sin panel"), "Esc cierra Ajustes");
 
   ok(
-    await en(() => document.querySelector('[data-fila="20261003-100400-55555"]')?.textContent.includes("Te necesita")),
-    "lo de la app que pregunta dice Te necesita",
+    await en(() => document.querySelector('[data-fila="20261003-100400-55555"] .chip-at')?.textContent === "decidir"),
+    "lo de la app que pregunta lleva el chip decidir",
   );
 
   // --- Ctrl+N abre un LÍDER (los workers los lanza él); Opus/high por default ---------
