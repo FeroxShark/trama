@@ -47,6 +47,18 @@ historia (force push); se puede subir directo y mergear sin esperar el CI.
 - **Conectores MCP:** `/mcp` en la app, Ajustes > Conectores (`mcp.json` + secretos en `claves.env`), se pasan a Claude, DeepSeek
   Harness y OpenCode; en Gemini figura "no disponible".
 - **Menú de comandos por motor**, guías rápidas que no mueven la pantalla.
+- **Mensajes programados y conversaciones pospuestas (#1792).** Un botón (reloj con calendario) junto a Dictar en la caja del líder abre un
+  globo: «Mandar este mensaje más tarde» (lo escrito en la caja sale solo a una hora: «en 30 min», «18:30», «mañana 9:00», «2026-11-05 09:00»; sin
+  adjuntos) y «Posponer esta conversación» (se va de la barra y vuelve sola a su hora, con una notificación de escritorio). Al pie de la barra, la
+  pastilla «N programados · M pospuestas» abre la lista para quitar un mensaje o traer una conversación ya (`AvisoProgramados.tsx`). Todo vive en
+  el main: `app/electron/programados.ts` (sin Electron, inyectable) guarda `programados.json` en el estado y usa UN timer dentro del proceso que
+  nunca espera más de 30 s seguidos (cubre suspensión y cambios de hora); al arrancar, lo vencido sale ya y lo demás se reprograma. Sin cron, sin
+  Task Scheduler ni servicios: igual en Linux y Windows (la carcasa de Windows corre el mismo núcleo; canales en `contrato.ts` y `canales.json`).
+  Al llegar la hora el mensaje entra por la cola del líder (`cola.ts`): espera su turno si está trabajando y retoma al líder si no tiene proceso.
+  Si no puede salir queda con su error y «Reintentar en 1 min» (no se reintenta solo). La hora en lenguaje natural es `programados-hora.ts`
+  (puro, el «ahora» entra por argumento). Límites: 200 mensajes y 200 pospuestas, hasta un año adelante; sólo líderes de esta máquina
+  (`programados:*` es «local» en `maquinas-contrato.ts`); las imágenes pegadas no se programan. Tests: `programados.test.ts` (reloj y timer de mentira),
+  `programados-logica.test.ts`. Captura: `scripts/captura.sh programar`.
 - **Aviso de "hay una Trama nueva" (Linux).** `app/electron/actualizacion-trama.ts` consulta `releases/latest` de GitHub
   (sin token) al abrir la app, al enfocarla, al volver la red y cada 2 min (con ETag: un 304 no gasta el límite; un 403/429
   espera sin mostrar nada), sin bloquear y en silencio si no hay red; compara por semver contra la `version`
