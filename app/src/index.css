@@ -334,10 +334,11 @@ body,
   line-height: 1.3;
 }
 .cq-nom > svg:not(.cq-ico) {
-  width: 0.75rem;
-  height: 0.75rem;
+  width: 0.875rem;
+  height: 0.875rem;
   flex: none;
   overflow: visible;
+  color: var(--txt-2);
 }
 .cq-nom-t {
   min-width: 0;

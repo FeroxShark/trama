@@ -29,6 +29,7 @@
 #                    con `lider-nuevo-carpeta`, HILOS_VARIANTE=buscar: el selector de carpeta abierto y filtrado con "trama" (el buscador y la lista; Otra carpeta… sigue abajo); =buscar-nada: sin coincidencias ("zzz"), con Otra carpeta… sola
 #                    con `herramientas-resultados`, HILOS_VARIANTE=archivo-imagen|archivo-texto|archivo-md|archivo-pdf deja abierto el visor con el primer archivo de ese tipo
 #                    con `lider-formato`, HILOS_VARIANTE=larga la conversación de 3000 mensajes; con `lider-imagenes`, =visor el visor con la imagen sin llegar
+#                    con `normal`, HILOS_VARIANTE=cupos-todo|cupos-google|cupos-sin-cupo (la tarjeta de cupos de la barra: todo normal / un grupo con poco cupo / varios agotados) y el sufijo -angosta abre la barra en su ancho mínimo; HILOS_TEMA=claro el tema claro
 #                    con `modelo`, HILOS_VARIANTE=sin-cupo: el selector con las cinco columnas, Google con Claude/GPT y Argon sin cupo, Gemini Flash con poco cupo, OpenCode gratis agotado, y Argon elegido (la marca del chip)
 #   ej: scripts/captura.sh hover
 #
