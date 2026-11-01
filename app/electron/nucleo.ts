@@ -19,6 +19,7 @@ import { readFile, stat as statArchivo } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { almacenBorradores } from "./borradores.js";
+import { crearProgramados } from "./programados.js";
 import { alCambiarAuto, barrer, cambioPrendido, estadoAuto } from "./autointegrar.js";
 import { alCambiarSalud, barrerSalud, cortarChequeos, estadoSalud, integrando, integrandoDesde, mientrasIntegra } from "./salud.js";
 import { actualizar, alCambiarAviso, descartar, leerAviso } from "./actualizacion.js";
@@ -490,6 +491,21 @@ const borradores = almacenBorradores(
   () => readFile(path.join(ESTADO, "borradores.json"), "utf8").catch(() => null),
   (json) => escribirAtomico(path.join(ESTADO, "borradores.json"), json),
 );
+// Mensajes programados y conversaciones pospuestas (programados.ts): un timer en este proceso, guardado en `programados.json`.
+// Al llegar la hora el mensaje entra por la cola del líder (sale cuando el líder pueda recibirlo, o lo retoma si no tiene proceso).
+const programados = crearProgramados({
+  leer: () => readFile(path.join(ESTADO, "programados.json"), "utf8").catch(() => null),
+  escribir: (json) => escribirAtomico(path.join(ESTADO, "programados.json"), json),
+  ahora: Date.now,
+  poner: (ms, fn) => setTimeout(fn, ms).unref(),
+  cancelar: (t) => clearTimeout(t as ReturnType<typeof setTimeout>),
+  encolar: async (m) => {
+    const { sid, item } = lider.paraCola(m);
+    await leerCola();
+    cola.encolar(sid, item);
+  },
+  avisar: (a) => enviar("programados:cambio", a),
+});
 /** Lo que quedó de la vez anterior, leído una sola vez. */
 let colaLeida: Promise<void> | null = null;
 let enviarEventos: Promise<unknown> = Promise.resolve();
@@ -759,6 +775,9 @@ export function armarNucleo() {
   void limpiarAdjuntos(path.join(ESTADO, "adjuntos")).catch(silencio("adjuntos"));
   // Trama que arranca con algo en la cola (aunque nadie abra la ventana): lo que ya puede salir, sale.
   void leerCola().then(cola.revisar);
+  // Lo programado que venció con trama cerrada sale ya; lo que falta se vuelve a programar.
+  alSalir(() => programados.parar());
+  void programados.arrancar().catch(silencio("programados"));
   conAvisos(() => avisosL.entregar());
   const leerSl = async () => {
     mirarSl();
@@ -1289,6 +1308,13 @@ export function armarNucleo() {
     return cola.todas();
   });
   manejar("lider:colaYa", (_e, x: { sid: string; cortar?: boolean }) => void cola.ya(String(x?.sid), x?.cortar === true));
+  // Mensajes programados y conversaciones pospuestas (programados.ts).
+  manejar("programados:leer", () => programados.estado());
+  manejar("programados:programar", (_e, x: Parameters<typeof programados.programar>[0]) => programados.programar(x ?? ({} as never)).then(() => undefined));
+  manejar("programados:quitar", (_e, id: unknown) => programados.quitar(id));
+  manejar("programados:reprogramar", (_e, x: { id: unknown; cuando: unknown }) => programados.reprogramar(x?.id, x?.cuando));
+  manejar("programados:posponer", (_e, x: { sid: unknown; hasta: unknown; nombre?: unknown }) => programados.posponer(x?.sid, x?.hasta, x?.nombre));
+  manejar("programados:despertar", (_e, sid: unknown) => programados.despertar(sid));
 
   // El aviso de Claude Code nuevo (pie): se chequea al pedirlo la primera vez y cada 6 h.
   alCambiarAviso((a) => enviar("claude:version", a));

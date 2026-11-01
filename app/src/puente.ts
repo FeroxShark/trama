@@ -207,6 +207,17 @@ type Main = {
     alEvento(fn: (x: { sid: string; e: EventoLider }) => void): Soltar;
     alTranscript(fn: (sid: string) => void): Soltar;
   };
+  /** Mensajes programados y conversaciones pospuestas (electron/programados.ts); lo que llega va sin validar. */
+  programados: {
+    leer(): Promise<unknown>;
+    programar(x: { sid: string; texto: string; cuando: number; modelo: string; effort: string; modo?: string; nombre?: string }): Promise<void>;
+    quitar(id: number): Promise<void>;
+    reprogramar(x: { id: number; cuando: number }): Promise<void>;
+    posponer(x: { sid: string; hasta: number; nombre?: string }): Promise<void>;
+    despertar(sid: string): Promise<void>;
+    /** Cambió algo (`Aviso`). */
+    alCambio(fn: (x: unknown) => void): Soltar;
+  };
   /** Los paneles del pie (Ajustes, Estadísticas, acciones de Ramas): ver src/datos/paneles.ts. */
   paneles: {
     ajustes(): Promise<unknown>;

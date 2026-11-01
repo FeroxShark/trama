@@ -167,6 +167,16 @@ contextBridge.exposeInMainWorld("hilos", {
     /** Cambió el transcript del líder mirado (su sid). */
     alTranscript: oir("lider:transcript"),
   },
+  /** Mensajes programados y conversaciones pospuestas (electron/programados.ts). */
+  programados: {
+    leer: (): Promise<unknown> => invocar("programados:leer"),
+    programar: (x: unknown): Promise<void> => invocar("programados:programar", x),
+    quitar: (id: number): Promise<void> => invocar("programados:quitar", id),
+    reprogramar: (x: unknown): Promise<void> => invocar("programados:reprogramar", x),
+    posponer: (x: unknown): Promise<void> => invocar("programados:posponer", x),
+    despertar: (sid: string): Promise<void> => invocar("programados:despertar", sid),
+    alCambio: oir("programados:cambio"),
+  },
   paneles: {
     ajustes: (): Promise<unknown> => invocar("ajustes:leer"),
     umbralContexto: (): Promise<unknown> => invocar("contexto:umbral"),
