@@ -12,3 +12,11 @@ un worker en curso, composer con carpeta y modelo, y panel de contexto. En todas
 
 Las fuentes (todas ya incluidas en `app/src/fuentes`) van embebidas en cada HTML: se abren sin red y sin el resto del repo.
 No tocan la app: son sólo para elegir dirección.
+
+## Cupos con varias cuentas de Claude
+
+`cupos-varias-cuentas.html` + `.png` (1800×1000: tres bandas de 600×1000, sólo la barra izquierda y una nota al costado). Mismo dato en las tres: Personal en uso (5 h 23 %, semana 92 %) y Trabajo (5 % y 40 %). La cuenta en uso lleva «En uso» con tilde, no sólo color. Con la activa por agotarse y otra con cupo, un aviso calmo sugiere cambiar con «Usar Trabajo»: la cuenta la elige la persona, Trama no rota sola.
+
+- **A, la activa en grande** (`cupos-varias-cuentas.html`, banda izquierda): la tarjeta de hoy con el nombre de la cuenta y «En uso»; las otras cuentas en una fila compacta (nombre, dos mini barras 5 h y semana, «Usar»). Lo más parecido a hoy; crece una fila por cuenta.
+- **B, selector en cápsulas** (banda del medio): dos cápsulas arriba de las tarjetas grandes (la que se mira, la que está «en uso» y un resumen de la otra). Altura casi fija; mirar una cuenta y usarla son dos cosas que hay que distinguir.
+- **C, tarjetas medianas apiladas** (banda derecha): una tarjeta por cuenta con sus dos cifras, «En uso» o «Usar», y el aviso entre ellas. Es lo que mejor compara, y lo más alto.
