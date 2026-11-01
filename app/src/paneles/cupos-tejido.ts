@@ -1,7 +1,7 @@
 // Ajustes > Plan y cupos, la tela: qué dice cada renglón de cuenta (cuántos hilos prende cada carril, el estado en palabras) y el aviso de arriba
 // cuando a la cuenta en uso se le acaba el cupo y otra tiene lugar. Puro, sin React ni textos: lo prueba tests/cupos-tejido.test.ts.
 import type { GrupoCupo, SuscripcionCupo, VentanaCupo } from "../datos/contrato";
-import { masUsado } from "../barra/cuposVista";
+import { masUsado } from "../barra/cuposVista.ts";
 
 /** Cuántos hilos tiene un carril. */
 export const HILOS = 37;

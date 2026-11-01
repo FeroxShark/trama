@@ -316,29 +316,6 @@
   font-size: var(--letra-5);
   line-height: 1.45;
 }
-.aj-raiz .cu-aviso {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: start;
-  gap: var(--esp-0-5) var(--esp-2-5);
-  padding: var(--esp-3) var(--esp-4);
-  border-radius: var(--r-lg);
-  background: var(--decision-fondo);
-  box-shadow: inset 0 0 0 1px var(--decision-luz), var(--decision-brillo);
-  color: var(--decision-texto);
-  font-size: var(--letra-5);
-  font-weight: 500;
-}
-.aj-raiz .cu-aviso-i {
-  margin-top: 0.125rem;
-  color: var(--decision-relleno);
-}
-.aj-raiz .cu-aviso .cu-aviso-q {
-  grid-column: 2;
-  color: var(--apagado);
-  font-weight: 400;
-}
-
 /* --- Plan y cupos: las tarjetas por suscripción en vidrio; «Poner clave» (#1881) en NVIDIA NIM sin clave --- */
 .aj-raiz .ui-card {
   border-radius: var(--r-lg);

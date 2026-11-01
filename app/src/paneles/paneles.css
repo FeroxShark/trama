@@ -2356,9 +2356,6 @@
   color: var(--critico);
   font-weight: 500;
 }
-.cu-vent[data-estado="lleno"] .ui-bar i {
-  background-image: repeating-linear-gradient(135deg, transparent 0 0.25rem, var(--capa-div) 0.25rem 0.375rem);
-}
 .cu-vuelve {
   grid-area: vuelve;
   color: var(--apagado);
@@ -2367,9 +2364,6 @@
 }
 .cu-vent[data-estado="lleno"] .cu-vuelve {
   color: var(--texto);
-}
-.cu-aviso .cu-vuelve {
-  color: inherit;
 }
 /* No rige ahora: texto apagado en cursiva y una barra hueca rayada, nada de un 0 %. */
 .cu-off {
@@ -2558,10 +2552,6 @@
   flex-direction: column;
   align-items: flex-start;
   gap: var(--esp-2);
-  color: var(--apagado);
-  font-size: var(--letra-4);
-}
-.cu-aviso-q {
   color: var(--apagado);
   font-size: var(--letra-4);
 }

@@ -830,7 +830,7 @@ function TarjetaNvidia({ uso }: { uso: Uso | null }) {
   const s = conDatos(uso) ? uso.suscripciones?.find((x) => x.id === "nvidia-nim") : undefined;
   const estado: EstadoProv | null = e ? (e.hayClave ? { texto: t("cu.nvidia.conClave"), tono: "ok" } : { texto: t("cu.nvidia.sinClave") }) : null;
   return (
-    <Chica id="nvidia" opc="cu.nvidia" nombre={t("cu.nvidia")} estado={estado} resumen={e && !e.hayClave ? t("cu.tj.sinClaveCorto") : <ResumenChica s={s} sinDatos={t("cu.nvidia.sinUso")} />}>
+    <Chica id="nvidia" opc="cu.nvidia" nombre={t("cu.nvidia")} estado={estado} resumen={e && !e.hayClave ? t("cu.tj.sinClaveCorto") : <ResumenChica s={s} sinDatos={t("cu.tj.sinUsoCorto")} />}>
       {s?.grupos?.length ? s.grupos.map((g) => <Grupo key={g.id} g={g} />) : <div className="cu-sin">{t(e && !e.hayClave ? "cu.nvidia.sinClaveQue" : "cu.nvidia.sinUso")}</div>}
       {e && !e.hayClave ? (
         <Boton className="cu-poner-clave" primario onClick={() => irA("opencode", "ajustes.nimClave", true)}>

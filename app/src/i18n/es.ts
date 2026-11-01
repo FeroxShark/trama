@@ -2889,6 +2889,7 @@ export const es: { [K in keyof typeof en]: string } = {
   "cu.tj.7d": "Semana",
   "cu.tj.1m": "Mes",
   "cu.tj.pedidos": "{n} pedidos",
+  "cu.tj.sinUsoCorto": "Todavía no hay uso para mostrar.",
   "cu.tj.cuentas": "{n} cuentas",
   "cu.tj.tuCuenta": "Tu cuenta",
   "cu.tj.conLugar": "Con lugar",

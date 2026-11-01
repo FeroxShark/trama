@@ -2,8 +2,12 @@
 .cu-sec {
   container: cupos / inline-size;
 }
-.aj-raiz .aj-cat[data-cat="cupos"] {
-  gap: var(--esp-3);
+/* El plan arriba de todo, más cerca de la frase; entre el plan y las cuentas, el hueco de la tela. */
+.aj-raiz .aj-cat[data-cat="cupos"]:has(> .cu-plan) {
+  margin-top: calc(var(--esp-1) * -1 - 0.0625rem);
+}
+.aj-raiz .aj-cat[data-cat="cupos"]:has(> .cu-sec) {
+  margin-top: calc(var(--esp-2) * -1);
 }
 
 /* El plan de suscripción: una tarjeta de una línea (el título de la sección se le queda al lector de pantalla). */
@@ -19,10 +23,16 @@
 .aj-raiz .aj-cat .pn-sec.cu-plan > .pn-dato {
   min-height: 0;
   margin: 0;
-  padding: var(--esp-3) var(--esp-4) var(--esp-3) var(--esp-5);
+  padding: 0.65625rem var(--esp-4) 0.65625rem var(--esp-5);
 }
 .aj-raiz .aj-cat .pn-sec.cu-plan > :last-child {
   margin-bottom: 0;
+}
+.cu-plan .pbtn .chev {
+  transform: rotate(180deg);
+}
+.cu-plan .pbtn[aria-expanded="true"] .chev {
+  transform: none;
 }
 
 .cu-tarjetas {
@@ -57,6 +67,14 @@
 .cu-prov .ui-logo svg {
   width: 0.9375rem;
   height: 0.9375rem;
+}
+.cu-prov .ui-logo .logo,
+.cu-chica-cab .ui-logo .logo {
+  color: var(--apagado);
+  opacity: 1;
+}
+.cu-prov .ui-logo .logo {
+  color: var(--texto);
 }
 .cu-prov-n {
   margin: 0;

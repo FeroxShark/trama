@@ -2903,6 +2903,7 @@ export const en = {
   "cu.tj.7d": "Week",
   "cu.tj.1m": "Month",
   "cu.tj.pedidos": "{n} requests",
+  "cu.tj.sinUsoCorto": "No usage to show yet.",
   "cu.tj.cuentas": "{n} accounts",
   "cu.tj.tuCuenta": "Your account",
   "cu.tj.conLugar": "Has room",
