@@ -156,8 +156,8 @@
 }
 /* En el tema claro el tono del proyecto va más oscuro para que se lea el monograma y el encabezado. */
 [data-tema="claro"] .pr:not(.todos),
-[data-tema="claro"] .proy-nom {
-  color: color-mix(in srgb, var(--h, var(--apagado)) 45%, var(--negro));
+[data-tema="claro"] .barra-col .proy-nom {
+  color: color-mix(in srgb, var(--h, var(--apagado)) 45%, var(--texto));
 }
 
 /* Cupos: dos anillos con la cifra; al tocarlos se abre el detalle. */
@@ -873,6 +873,10 @@
 }
 .lista .lw[data-mas] > .acc {
   right: 2rem;
+}
+.lista .lw[data-mas]:has(> .acc):hover .fila.lider,
+.lista .lw[data-mas]:has(> .acc:focus-within) .fila.lider {
+  padding-right: calc(var(--acc-w, 0px) + 2.25rem);
 }
 /* Un hilo por cada worker vivo, a la derecha del líder resumido. */
 .trama {
