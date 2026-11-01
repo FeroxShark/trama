@@ -16,7 +16,7 @@ import { cuandoFuturo } from "../tiempo";
 import { Boton } from "../ui/componentes";
 import { estadosCupoModelos } from "./cupo-modelos.ts";
 import { filasSeguir, listaSeguir, moverSeguir, resaltadaInicial, type OpcionSeguir } from "./seguir-con.ts";
-import "./seguir-con.css";
+import "./seguir-dialogo.css";
 
 type Props = {
   /** Qué se sigue: cambia lo que el diálogo dice que va a pasar. */
