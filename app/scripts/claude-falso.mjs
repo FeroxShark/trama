@@ -134,6 +134,8 @@ let cola = Promise.resolve();
 // Como el CLI real con --replay-user-messages: un mensaje que llega con una herramienta en vuelo se absorbe en
 // el próximo límite de tool_result (un `user` con isReplay y el mismo turno); sin herramienta corre como turno propio.
 const replay = process.argv.includes("--replay-user-messages");
+/** Turnos en curso o esperando (para saber si un mensaje llega a mitad de uno). */
+let enTurnos = 0;
 let herramientaEnVuelo = false;
 const absorbidos = [];
 // Los can_use_tool sin contestar: request_id → resolver (con la respuesta o null si se cortó).
@@ -409,7 +411,17 @@ rl.on("line", (l) => {
         : [n ? `[${n} ${n === 1 ? "imagen" : "imágenes"}]` : "", ...bs.filter((b) => b?.type === "text").map((b) => b.text)].filter(Boolean).join(" ");
     if (process.env.TRAMA_FALSO_DICHO) appendFileSync(process.env.TRAMA_FALSO_DICHO, JSON.stringify({ sid, texto }) + "\n");
     if (replay && herramientaEnVuelo) absorbidos.push(texto);
-    else cola = cola.then(() => turno(texto));
+    else {
+      // Como el CLI real: con --replay-user-messages también el que llegó a mitad de un turno y corre como el siguiente se devuelve
+      // (`isReplay`), si no la app lo dejaría marcado "en cola" para siempre.
+      const aMitad = enTurnos > 0;
+      enTurnos++;
+      cola = cola.then(async () => {
+        if (replay && aMitad) out({ type: "user", isReplay: true, parent_tool_use_id: null, message: { role: "user", content: [{ type: "text", text: texto }] } });
+        await turno(texto);
+        enTurnos--;
+      });
+    }
   }
 });
 rl.on("close", () => void cola.then(() => process.exit(0)));

@@ -809,8 +809,9 @@ try {
   ok(await en(sacar), "sacar uno de la cola");
   ok((await en(enCola)).length === 2, "quedan dos");
   ok(await hasta(eco, "eco lento", "despacio, pensalo"), "contesta lo lento");
-  ok(await hasta(eco, "eco primero", "primero en cola"), "al terminar sale el primero de la cola");
-  ok(await hasta(eco, "eco tercero", "tercero en cola"), "y después el otro");
+  // Lo que quedó en la cola sale JUNTO, en un solo mensaje (juntar, electron/cola.ts), no uno por turno.
+  const ecoJunto = () => [...document.querySelectorAll(".conv .el")].some((e) => /Mensaje 1 de 2:\s*primero en cola[\s\S]*Mensaje 2 de 2:\s*tercero en cola/.test(e.textContent));
+  ok(await hasta(ecoJunto, "eco junto"), "al terminar sale lo de la cola junto, en un solo mensaje");
   const yoN = (t) => [...document.querySelectorAll(".conv .yo:not(.encolado)")].filter((e) => e.textContent.includes(t)).length;
   // Antes de SOLTAR_MS (el falso no escribe transcript: después la tanda se suelta y no queda nada).
   const yos = await en(() => [...document.querySelectorAll(".conv .yo")].map((e) => e.textContent).slice(-6));
