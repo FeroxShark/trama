@@ -32,6 +32,8 @@ export type PedidoLanzar = {
   tipo?: string;
   /** Sólo se elige el modelo (Auditar: `pa --auditar -m` no lleva effort ni texto): el esfuerzo y el texto no se muestran. */
   soloModelo?: boolean;
+  /** Muestra el campo opcional "Comando que verifica" (modo Objetivo de `pa`): sólo las acciones que lanzan un worker. */
+  conVerificar?: boolean;
   /** Lanza de verdad. Si rechaza, el paso sigue abierto con el error. */
   lanzar: (e: Eleccion) => Promise<void>;
 };
@@ -64,7 +66,7 @@ export function pasoLider(clave: ClaveLanzar, lanzar: PedidoLanzar["lanzar"], ba
 /** El paso de una acción que lanza un worker de `pa` (Actualizar): arranca con lo que `pa --tipo mecanico` elige solo. */
 export function pasoWorker(clave: ClaveLanzar, lanzar: PedidoLanzar["lanzar"]) {
   const esfuerzoDe = (m: string) => esfuerzoWorker(m, effortsLeidos() ?? {});
-  pedirPaso({ clave, modelos: MODELOS_WORKER, modelo: ACTUALIZAR.modelo, effort: ACTUALIZAR.effort, esfuerzoDe, tipo: ACTUALIZAR.tipo, lanzar });
+  pedirPaso({ clave, modelos: MODELOS_WORKER, modelo: ACTUALIZAR.modelo, effort: ACTUALIZAR.effort, esfuerzoDe, tipo: ACTUALIZAR.tipo, conVerificar: true, lanzar });
 }
 
 /**
@@ -96,6 +98,7 @@ function Dialogo({ p }: { p: PedidoLanzar }) {
   // Si el usuario ya eligió el esfuerzo, cambiar de modelo no se lo pisa.
   const [tocado, setTocado] = useState(false);
   const [texto, setTexto] = useState("");
+  const [verificar, setVerificar] = useState("");
   const [yendo, setYendo] = useState(false);
   const [error, setError] = useState<string | null>(null);
   useFoco(caja, { alCerrar: cerrarPaso, ignorar: '[role="listbox"]', enfocar: false });
@@ -118,7 +121,8 @@ function Dialogo({ p }: { p: PedidoLanzar }) {
     setYendo(true);
     setError(null);
     try {
-      await p.lanzar({ modelo, effort, texto });
+      const cmd = verificar.trim();
+      await p.lanzar({ modelo, effort, texto, ...(p.conVerificar && cmd ? { verificar: cmd } : {}) });
       cerrarPaso();
     } catch (e) {
       setError(mensaje(e));
@@ -173,6 +177,28 @@ function Dialogo({ p }: { p: PedidoLanzar }) {
           }}
         />
         )}
+        {p.conVerificar && !p.soloModelo ? (
+          <label className="lz-verificar">
+            <span className="lz-verificar-et">{t("lanzar.verificar")}</span>
+            <input
+              type="text"
+              className="lz-texto lz-verificar-campo"
+              value={verificar}
+              disabled={yendo}
+              spellCheck={false}
+              autoComplete="off"
+              placeholder={t("lanzar.verificarEj")}
+              onChange={(e) => setVerificar(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  void lanzar();
+                }
+              }}
+            />
+            <span className="lz-verificar-ayuda">{t("lanzar.verificarAyuda")}</span>
+          </label>
+        ) : null}
         {error ? (
           <p className="lz-error" role="alert">
             {error}

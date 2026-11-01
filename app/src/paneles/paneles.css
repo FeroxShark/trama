@@ -1491,6 +1491,23 @@
 .lz-texto::placeholder {
   color: var(--texto-7);
 }
+.lz-verificar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-1);
+}
+.lz-verificar-et {
+  color: var(--texto-4);
+  font-size: var(--letra-4);
+}
+.lz-verificar-campo {
+  min-height: 0;
+  font-family: var(--fuente-mono, monospace);
+}
+.lz-verificar-ayuda {
+  color: var(--texto-5);
+  font-size: var(--letra-3);
+}
 .lz-error {
   margin: 0;
   color: var(--rojo);

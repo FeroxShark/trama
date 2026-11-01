@@ -916,7 +916,7 @@ export function armarNucleo() {
     return seguirConWorker(h, String(x?.modelo ?? ""));
   });
   manejar("pa:lanzar", (_e, x: Parameters<typeof lanzarRama>[0]) =>
-    lanzarRama({ accion: x?.accion, id: x?.id, proyecto: x?.proyecto, modelo: x?.modelo, effort: x?.effort, texto: x?.texto }),
+    lanzarRama({ accion: x?.accion, id: x?.id, proyecto: x?.proyecto, modelo: x?.modelo, effort: x?.effort, texto: x?.texto, verificar: x?.verificar }),
   );
   // La orquestación de `pa` (orquestacion.ts): lecciones que piden poda, auditar una rama y la plantilla de AGENTS.md.
   // La limpieza de worktrees y ramas viejos de `pa` (limpieza-pa.ts): lo que se quitaría, quitarlo y la config (la pasada automática nace apagada).

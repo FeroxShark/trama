@@ -34,7 +34,7 @@ process.env.HILOS_STATE = path.join(tmp, "estado");
 process.env.PROYECTOS_REGISTRY = path.join(tmp, "sin-registry.json");
 process.env.HILOS_PA = path.join(import.meta.dirname, "..", "scripts", "pa-falso.sh");
 
-const { argvLanzarRama, lanzarRama, TIPO_DE } = await import("../electron/paneles.ts");
+const { argvLanzarRama, lanzarRama, OBJETIVO_ACTUALIZAR, TIPO_DE } = await import("../electron/paneles.ts");
 const { ACTUALIZAR, HAIKU_PA, conTexto, esfuerzoWorker } = await import("../src/paneles/lanzar.ts");
 const { ErrorPa, RC_CONFLICTO, rcDe } = await import("../src/datos/errorpa.ts");
 
@@ -100,4 +100,16 @@ test("un error de pa se acuerda del código: el 80 es el choque con main", () =>
   assert.equal(rcDe(new ErrorPa("choque", RC_CONFLICTO)), 80);
   assert.equal(rcDe(new Error("otro")), null);
   assert.equal(rcDe("texto"), null);
+});
+
+test("con un comando que verifica, Actualizar lanza en modo Objetivo (antes del texto); vacío o de varias líneas no", async () => {
+  const base = { accion: "actualizar" as const, id: ID, proyecto: "atlas", modelo: HAIKU_PA, effort: "xhigh" };
+  const args = await argvLanzarRama({ ...base, verificar: "  npm test  ", texto: "ojo" });
+  const i = args.indexOf("--objetivo");
+  assert.ok(i > args.indexOf("--tipo"), "los flags de objetivo van antes del --");
+  assert.deepEqual(args.slice(i, i + 4), ["--objetivo", OBJETIVO_ACTUALIZAR, "--verificar", "npm test"]);
+  assert.deepEqual(args.slice(-2), ["--", "ojo"]);
+  assert.ok(!(await argvLanzarRama({ ...base, verificar: "   " })).includes("--objetivo"));
+  await assert.rejects(argvLanzarRama({ ...base, verificar: "a\nb" }));
+  await assert.rejects(argvLanzarRama({ ...base, verificar: "x".repeat(501) }));
 });

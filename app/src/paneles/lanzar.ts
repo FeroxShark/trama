@@ -2,8 +2,11 @@
 // con qué modelo y esfuerzo arranca cada acción y cómo se arma lo que sale.
 import { effortPara } from "../hilo/elegir";
 
-/** Lo que el usuario puede elegir en el paso: el modelo, el esfuerzo y un texto opcional. */
-export type Eleccion = { modelo: string; effort: string; texto: string };
+/**
+ * Lo que el usuario puede elegir en el paso: el modelo, el esfuerzo y un texto opcional. Con `verificar` (el comando que
+ * comprueba el trabajo; sólo en las acciones de worker) `pa` corre en modo Objetivo: lo ejecuta y relanza al worker si falla.
+ */
+export type Eleccion = { modelo: string; effort: string; texto: string; verificar?: string };
 
 /** Los id de modelo con que se llama a `pa -m` (el de la lista de los líderes es el de la API; `pa` usa los suyos). */
 export const HAIKU_PA = "claude-haiku-5-5";

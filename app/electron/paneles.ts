@@ -273,7 +273,15 @@ export type LanzarRama = {
   effort: string;
   /** Contexto opcional para el worker (`pa` lo agrega como "Contexto del jefe"). */
   texto?: string;
+  /** Comando que verifica el trabajo (opcional): activa el modo Objetivo de `pa` (`--objetivo … --verificar …`, hasta 3 intentos). */
+  verificar?: string;
 };
+
+/** La meta que se le da a `pa --objetivo` al actualizar una rama (el worker ya sabe el detalle por `--actualizar`). */
+export const OBJETIVO_ACTUALIZAR = "Dejar la rama rebaseada sobre main, sin conflictos.";
+
+/** El comando verificador va como un solo argumento a `pa` (que lo corre con el intérprete de la plataforma): una línea, sin NUL. */
+const VERIFICAR_PA = /^[^\0\r\n]{1,500}$/;
 
 /** Clase de tarea de cada acción, para `pa --tipo` (agrupa `pa --rinde`). Rebasear es mecánico. */
 export const TIPO_DE: Record<LanzarRama["accion"], string> = { actualizar: "mecanico" };
@@ -289,6 +297,8 @@ export async function argvLanzarRama(x: LanzarRama): Promise<string[]> {
   if (!MODELO_PA.test(String(x.modelo))) throw errorT("main.modeloRaro", { v: String(x.modelo) });
   if (!EFFORT_PA.test(String(x.effort))) throw errorT("main.effortRaro", { v: String(x.effort) });
   const texto = typeof x.texto === "string" ? x.texto.trim() : "";
+  const verificar = typeof x.verificar === "string" ? x.verificar.trim() : "";
+  if (verificar && !VERIFICAR_PA.test(verificar)) throw errorT("main.verificarRaro");
   const nombre = await nombrePa(x.proyecto);
   return [
     nombre,
@@ -301,6 +311,7 @@ export async function argvLanzarRama(x: LanzarRama): Promise<string[]> {
     x.effort,
     "--tipo",
     TIPO_DE[x.accion],
+    ...(verificar ? ["--objetivo", OBJETIVO_ACTUALIZAR, "--verificar", verificar] : []),
     ...(texto ? ["--", texto] : []),
   ];
 }

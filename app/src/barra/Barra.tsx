@@ -843,7 +843,7 @@ export function Barra() {
    * con el modelo y el esfuerzo del paso previo. Rechaza con lo que dijo `pa`; si sale, la fila deja de ofrecerlo.
    */
   const actualizarRama = useCallback(async (h: Hilo, el: Eleccion) => {
-    await fuentePaneles.lanzar({ accion: "actualizar", id: h.id, proyecto: h.proyecto, modelo: el.modelo, effort: el.effort, ...(el.texto.trim() ? { texto: el.texto.trim() } : {}) });
+    await fuentePaneles.lanzar({ accion: "actualizar", id: h.id, proyecto: h.proyecto, modelo: el.modelo, effort: el.effort, ...(el.texto.trim() ? { texto: el.texto.trim() } : {}), ...(el.verificar?.trim() ? { verificar: el.verificar.trim() } : {}) });
     setConflictos((s) => new Set([...s].filter((k) => k !== h.id)));
     setErrores((m) => (m.has(h.id) ? new Map([...m].filter(([k]) => k !== h.id)) : m));
   }, []);

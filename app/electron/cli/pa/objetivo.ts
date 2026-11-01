@@ -190,7 +190,8 @@ export async function correrObjetivo(l: Llamada, pa: Pa, p: Proyecto, d: DepsObj
   for (let n = 1; n <= l.intentos; n++) {
     const argv =
       n === 1
-        ? [...banderas(l), "--", tareaDelObjetivo(l)]
+        ? // --actualizar tiene su tarea fija (rebasear): la meta sólo guía los reintentos y lo del jefe va de contexto
+          [...banderas(l), ...(l.actualizar ? (l.tarea ? ["--", l.tarea] : []) : ["--", tareaDelObjetivo(l)])]
         : argvSeguir(l, intentos[n - 2]!.ts, modelo, effort, mensajeDeFalla(l, ultimo!.rc, ultimaSalida(ultimo!.salida)));
     decir(`— objetivo: intento ${n} de ${l.intentos} (corrida ${ts})\n`);
     // PA_ASYNC vacío: el intento corre en primer plano dentro de este bucle (el .listo de este id lo deja el bucle, no el intento).

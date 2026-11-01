@@ -122,7 +122,7 @@ export type Medicion =
 export type AccionRama = "integrar" | "descartar" | "revertir";
 
 /** Un worker de rama lanzado con el modelo y el effort que eligió el usuario (el paso previo de Ramas); el tipo lo pone el main. */
-export type LanzarRama = { accion: "actualizar"; id: string; proyecto: string; modelo: string; effort: string; texto?: string };
+export type LanzarRama = { accion: "actualizar"; id: string; proyecto: string; modelo: string; effort: string; texto?: string; verificar?: string };
 
 /** Con este código `pa <proy> --integrar <id> --tests` avisa que los tests dieron rojo y no tocó main. */
 const RC_TESTS_ROJOS = 93;
