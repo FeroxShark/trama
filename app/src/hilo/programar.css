@@ -1,0 +1,234 @@
+/* Programar y posponer (Programar.tsx) y el globo del pie (barra/AvisoProgramados.tsx), en el lenguaje de vidrio quieto v2
+   (app/maquetas/rediseno-0.4/vidrio-quieto-v2.html): vidrio con desenfoque (la receta `.cmenu` de popovers-vidrio.css), cápsulas
+   para los atajos, celeste para lo elegido y el botón principal relleno. Sólo tokens; cada estado lleva su palabra. */
+
+/* El botón junto a Dictar: el mismo gesto, con el número de lo que hay programado en esa conversación. */
+.pr-boton[data-n] {
+  color: var(--acento);
+}
+.pr-n {
+  min-width: 1rem;
+  padding: 0 var(--esp-1);
+  border-radius: var(--radio-pastilla);
+  background: var(--acento-tinte);
+  font-size: var(--letra-3);
+  font-weight: 600;
+  line-height: 1rem;
+  text-align: center;
+}
+
+.pr-globo {
+  z-index: 70;
+  width: min(21rem, calc(100vw - 1rem));
+  max-width: none;
+  gap: var(--esp-3);
+  padding: var(--esp-3);
+}
+.pr-sec {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-2);
+}
+.pr-sec + .pr-sec {
+  padding-top: var(--esp-3);
+  border-top: 1px solid var(--borde-2);
+}
+.pr-t {
+  margin: 0;
+  color: var(--texto-1);
+  font-size: var(--letra-5);
+  font-weight: 600;
+}
+.pr-n-txt {
+  margin: 0;
+  color: var(--txt-3);
+  font-size: var(--letra-4);
+  line-height: 1.4;
+}
+/* Lo que se va a mandar, entre comillas de sangría: una línea. */
+.pr-cita {
+  margin: 0;
+  padding: var(--esp-1-5) var(--esp-2-5);
+  border-left: 2px solid var(--acento);
+  border-radius: var(--radio-2);
+  background: var(--capa-card);
+  color: var(--txt-2);
+  font-size: var(--letra-4);
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.pr-atajos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--esp-1-5);
+}
+.pr-atajo {
+  height: 1.625rem;
+  padding: 0 var(--esp-2-5);
+  border: 1px solid var(--borde-3);
+  border-radius: var(--radio-pastilla);
+  background: transparent;
+  color: var(--txt-2);
+  font-size: var(--letra-4);
+  transition:
+    background-color 0.15s,
+    color 0.15s;
+}
+.pr-atajo:hover {
+  background: var(--capa-hover);
+  color: var(--texto-1);
+}
+/* Lo elegido: celeste y tilde de «pulsado» para el lector (aria-pressed); a la vista, el relleno y el borde. */
+.pr-atajo[data-activo] {
+  border-color: var(--acento);
+  background: var(--acento-tinte);
+  color: var(--acento);
+}
+.pr-campo {
+  height: 1.875rem;
+  padding: 0 var(--esp-2-5);
+  border: 1px solid var(--borde-3);
+  border-radius: var(--radio-2);
+  background: var(--capa-input);
+  color: var(--texto-1);
+  font: inherit;
+  font-size: var(--letra-5);
+}
+.pr-campo::placeholder {
+  color: var(--txt-3);
+}
+.pr-campo:focus-visible,
+.pr-atajo:focus-visible,
+.pr-ok:focus-visible,
+.pr-re:focus-visible {
+  outline: 2px solid var(--acento);
+  outline-offset: 1px;
+}
+.pr-pie {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--esp-2);
+}
+.pr-previa {
+  min-width: 0;
+  color: var(--acento);
+  font-size: var(--letra-4);
+  font-variant-numeric: tabular-nums;
+}
+/* El botón principal: relleno. Sin hora entendida, apagado (y la vista previa vacía lo explica). */
+.pr-ok {
+  height: 1.75rem;
+  flex: none;
+  padding: 0 var(--esp-3-5);
+  border: 0;
+  border-radius: var(--radio-pastilla);
+  background: var(--acento);
+  color: var(--acento-texto);
+  font-size: var(--letra-4);
+  font-weight: 600;
+}
+.pr-ok:disabled {
+  background: var(--capa-card);
+  color: var(--txt-3);
+  cursor: not-allowed;
+}
+.pr-error {
+  margin: 0;
+  color: var(--rojo-texto);
+  font-size: var(--letra-4);
+  line-height: 1.4;
+}
+.pr-nota {
+  margin: 0;
+  color: var(--acento);
+  font-size: var(--letra-4);
+}
+
+.pr-lista {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.pr-fila {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--esp-2);
+}
+.pr-fila-x {
+  min-width: 0;
+}
+.pr-fila-t {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  color: var(--txt-1);
+  font-size: var(--letra-4);
+  line-height: 1.4;
+}
+.pr-fila-c {
+  color: var(--txt-3);
+  font-size: var(--letra-3);
+  font-variant-numeric: tabular-nums;
+}
+/* Lo que no salió: la palabra «No salió» va en el texto; acá sólo el tono. */
+.pr-fila[data-error] .pr-fila-c {
+  color: var(--rojo-texto);
+}
+.pr-re {
+  height: 1.5rem;
+  margin-top: var(--esp-1);
+  padding: 0 var(--esp-2-5);
+  border: 1px solid var(--borde-5);
+  border-radius: var(--radio-pastilla);
+  background: transparent;
+  color: var(--txt-1);
+  font-size: var(--letra-3);
+}
+.pr-re:hover {
+  background: var(--capa-hover);
+}
+
+@media (pointer: coarse) {
+  .pr-atajo,
+  .pr-campo,
+  .pr-ok,
+  .pr-re {
+    min-height: 2.75rem;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pr-atajo {
+    transition: none;
+  }
+}
+
+/* El globito del pie (barra/AvisoProgramados.tsx): reusa la pastilla y las filas de los avisos de workers (index.css, `.avc` y `.avs-*`). */
+.apr .avc-b {
+  gap: var(--esp-1-5);
+}
+.apr .avc-g {
+  width: min(20rem, calc(100% - 1.5rem));
+  max-height: min(24rem, 70vh);
+  overflow-y: auto;
+}
+.apr-sec {
+  margin-bottom: var(--esp-1-5);
+  color: var(--txt-3);
+  font-size: var(--letra-3);
+  font-weight: 600;
+}
+.apr-cuando {
+  font-variant-numeric: tabular-nums;
+}
+.apr-cuando[data-error] {
+  color: var(--rojo-texto);
+}

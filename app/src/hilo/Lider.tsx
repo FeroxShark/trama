@@ -27,6 +27,7 @@ import { ChipSubagentes } from "../barra/Fila";
 import { Reloj } from "../barra/piezas";
 import { Leyendo } from "./Leyendo";
 import { PanelMcp } from "./PanelMcp";
+import { Programar } from "./Programar";
 import { MODO } from "../modo";
 import { esTactil } from "../angosto";
 import { pintorCache } from "../tiempo";
@@ -1492,6 +1493,20 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
                 <button type="button" className="btn2" disabled={vivo.parando} onClick={parar}>
                   {vivo.parando ? tr("accion.parando") : tr("accion.parar")}
                 </button>
+              ) : null}
+              {/* Programar un mensaje o posponer la conversación (electron/programados.ts): sólo con un líder de esta máquina. */}
+              {l && !maquinaDe ? (
+                <Programar
+                  sid={l.id}
+                  nombre={l.nombre}
+                  texto={texto}
+                  conAdjuntos={adjuntos.length > 0}
+                  modelo={modelo}
+                  effort={effort}
+                  modo={modo}
+                  alProgramado={() => escribir("")}
+                  abierto={MODO.captura === "programar"}
+                />
               ) : null}
               <Dictar
                 clave={clave}

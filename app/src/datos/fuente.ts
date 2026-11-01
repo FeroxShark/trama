@@ -22,6 +22,7 @@ import { consumoDe, consumoFijo, type Consumo, type Pedido } from "./consumo";
 import { cambioDe, vistaDe, type CambioPasos, type VistaPasos } from "./pasos";
 import { pasosFijos, pasosRutasFijos, pasosSubFijos } from "./pasos-fixture";
 import { crearCola, type AvisoCola, type Encolado } from "../../electron/cola";
+import type { Aviso as AvisoProgramados, Estado as EstadoProgramados } from "../../electron/programados";
 import { ARRANCANDO, EN_COLA, HILOS_DELL, LIDER_DELL, PENSANDO_FIJO, charlaFormato, charlaLarga, charlaLimite, charlaCambio, charlaListas, charlaIntermedios, charlaLider, charlaPensando, charlaSistema, charlaTabla, conversacion, conversacionSistema, HILOS, HILOS_ACTIVAS, HILOS_ATENCION, HILOS_ATENCION_RESUELTO, HILOS_EN_COLA, HILOS_TERMINADOS, ICONOS, LIDERES, LIDERES_ACTIVAS, LIDERES_ATENCION, LIDERES_ATENCION_RESUELTO, LIDER_MUERTO, LIDER_TERMINADOS, FRENADO, TITULOS, USO, USO_CUENTAS, USO_NIM, USO_TODO, USO_TODO_DOS, USO_GOOGLE, USO_GOOGLE_MARCADO, USO_SIN_CUPO, USO_SIN_HORA, imagenFija, localesFalsos, vramFalsa, vramLiberarFalso } from "./fixtures";
 
 export interface Fuente {
@@ -236,6 +237,17 @@ export interface Fuente {
   /** Las colas con algo (al abrir la vista). */
   liderColas(): Promise<AvisoCola[]>;
   alColaLider(fn: (a: AvisoCola) => void): () => void;
+  /**
+   * Mensajes programados y conversaciones pospuestas (electron/programados.ts): un mensaje que sale solo a una hora y una conversación
+   * que se va de la barra hasta una hora. Viven en el main (guardados: un reinicio no los pierde). Rechazan si el pedido no sirve.
+   */
+  programados(): Promise<EstadoProgramados>;
+  programar(x: { sid: string; texto: string; cuando: number; modelo: string; effort: string; modo?: string; nombre?: string }): Promise<void>;
+  programadoQuitar(id: number): Promise<void>;
+  programadoReprogramar(id: number, cuando: number): Promise<void>;
+  posponerLider(sid: string, hasta: number, nombre?: string): Promise<void>;
+  despertarLider(sid: string): Promise<void>;
+  alProgramados(fn: (a: AvisoProgramados) => void): () => void;
   alEventoLider(fn: (sid: string, e: EventoLider) => void): () => void;
   /** Cambió el transcript del líder mirado. */
   alTranscript(fn: (sid: string) => void): () => void;
@@ -533,6 +545,16 @@ function avisoCola(x: unknown): AvisoCola | null {
   return { ...a, error: typeof a.error === "string" ? a.error : null };
 }
 
+/** Lo que avisa el main de lo programado (`Aviso`); `null` si no tiene esa forma. */
+function avisoProgramados(x: unknown): AvisoProgramados | null {
+  const a = x as AvisoProgramados | null;
+  if (!a || !Array.isArray(a.mensajes) || !Array.isArray(a.pospuestos)) return null;
+  const m = (e: unknown) => !!e && typeof (e as { id?: unknown }).id === "number" && typeof (e as { sid?: unknown }).sid === "string" && typeof (e as { texto?: unknown }).texto === "string" && typeof (e as { cuando?: unknown }).cuando === "number";
+  const p = (e: unknown) => !!e && typeof (e as { sid?: unknown }).sid === "string" && typeof (e as { hasta?: unknown }).hasta === "number";
+  if (!a.mensajes.every(m) || !a.pospuestos.every(p)) return null;
+  return a;
+}
+
 /** `modo`: sólo para un líder nuevo (el chip de la caja); después se cambia con `liderModo`. */
 /** `maquina`: dónde nace un líder nuevo (el selector de la caja); sin él, esta máquina. */
 export type EnvioLider = { texto: string; imagenes?: Imagen[]; modelo: string; effort: string; modo?: string; rol?: "analista"; maquina?: string; carpeta?: string; cuenta?: string; /** Sesión nueva con el relevo compacto, por caché vencida (electron/cache-pregunta.ts). */ empezar?: "resumen" };
@@ -542,6 +564,15 @@ const espera = (ms: number) => new Promise((r) => setTimeout(r, ms));
 /** Para probar el camino del error: `?falla=cerrar` hace fallar todos los Cerrar; `?falla=lanzar`, retomar un líder. */
 const fallaCerrar = MODO.falla === "cerrar" || MODO.falla === "settle";
 const fallaLanzar = MODO.falla === "lanzar";
+
+// Lo programado de los fixtures (sin motor): en memoria.
+const oyentesProgramados = new Set<(a: AvisoProgramados) => void>();
+let programadosFijos: EstadoProgramados = { mensajes: [], pospuestos: [] };
+const fijosProgramados = (): EstadoProgramados => programadosFijos;
+const ponerProgramados = (e: EstadoProgramados) => {
+  programadosFijos = e;
+  oyentesProgramados.forEach((f) => f(e));
+};
 
 const leidosFijos: Leidos = {};
 const nombresFijos: Nombres = { titulos: {}, proyectos: {}, ocultos: [], orden: { carpetas: [], lideres: {} } };
@@ -1734,6 +1765,35 @@ const fija: Fuente = {
   async liderColas() {
     return colaFija().todas();
   },
+  // Sin motor (fixtures, capturas, navegador de prueba): lo programado vive en memoria y no sale solo.
+  async programados() {
+    return fijosProgramados();
+  },
+  async programar(x) {
+    const e = fijosProgramados();
+    const mensajes = [...e.mensajes, { ...x, id: e.mensajes.reduce((n, m) => Math.max(n, m.id), 0) + 1, creado: Date.now() }].sort((a, b) => a.cuando - b.cuando);
+    ponerProgramados({ mensajes, pospuestos: e.pospuestos });
+  },
+  async programadoQuitar(id) {
+    const e = fijosProgramados();
+    ponerProgramados({ mensajes: e.mensajes.filter((m) => m.id !== id), pospuestos: e.pospuestos });
+  },
+  async programadoReprogramar(id, cuando) {
+    const e = fijosProgramados();
+    ponerProgramados({ mensajes: e.mensajes.map(({ error: _, ...m }) => (m.id === id ? { ...m, cuando } : m)), pospuestos: e.pospuestos });
+  },
+  async posponerLider(sid, hasta, nombre) {
+    const e = fijosProgramados();
+    ponerProgramados({ mensajes: e.mensajes, pospuestos: [...e.pospuestos.filter((p) => p.sid !== sid), { sid, hasta, desde: Date.now(), ...(nombre ? { nombre } : {}) }] });
+  },
+  async despertarLider(sid) {
+    const e = fijosProgramados();
+    ponerProgramados({ mensajes: e.mensajes, pospuestos: e.pospuestos.filter((p) => p.sid !== sid) });
+  },
+  alProgramados(fn) {
+    oyentesProgramados.add(fn);
+    return () => void oyentesProgramados.delete(fn);
+  },
   alColaLider(fn) {
     oyentesCola.add(fn);
     return () => void oyentesCola.delete(fn);
@@ -2461,6 +2521,37 @@ const conPa = (m: NonNullable<typeof main>): Fuente => ({
   async liderColas() {
     const r = await m.lider.colas().catch(() => []);
     return (Array.isArray(r) ? r : []).flatMap((x) => avisoCola(x) ?? []);
+  },
+  async programados() {
+    const a = avisoProgramados(await m.programados.leer().catch(() => null));
+    return a ? { mensajes: a.mensajes, pospuestos: a.pospuestos } : { mensajes: [], pospuestos: [] };
+  },
+  async programar(x) {
+    await m.programados.programar(x).catch((e) => {
+      throw new Error(mensaje(e));
+    });
+  },
+  async programadoQuitar(id) {
+    await m.programados.quitar(id).catch(() => {});
+  },
+  async programadoReprogramar(id, cuando) {
+    await m.programados.reprogramar({ id, cuando }).catch((e) => {
+      throw new Error(mensaje(e));
+    });
+  },
+  async posponerLider(sid, hasta, nombre) {
+    await m.programados.posponer({ sid, hasta, ...(nombre ? { nombre } : {}) }).catch((e) => {
+      throw new Error(mensaje(e));
+    });
+  },
+  async despertarLider(sid) {
+    await m.programados.despertar(sid).catch(() => {});
+  },
+  alProgramados(fn) {
+    return m.programados.alCambio((x) => {
+      const a = avisoProgramados(x);
+      if (a) fn(a);
+    });
   },
   alColaLider(fn) {
     return m.lider.alCola((x) => {

@@ -120,6 +120,9 @@ import { AvisoWorkers } from "./AvisoWorkers";
 import { useAvisosWorkers } from "./useAvisosWorkers";
 import { Pc } from "./Pc";
 import { useAlAbrirEspera, useEspera } from "./useEspera";
+import { AvisoProgramados } from "./AvisoProgramados";
+import { useProgramados } from "../programados";
+import { sinPospuestas } from "../programados-logica";
 import { Reinicio } from "./Reinicio";
 import { AvisoMaquinas } from "./Maquina";
 import { es } from "../atajos";
@@ -485,14 +488,17 @@ export function Barra() {
   // Los subagentes que corren de cada sesión: con alguno, el líder está activo (no enfriándose).
   const subagentes = useTodosSubagentes();
   const ticSub = useTicSubagentes(subagentes);
+  // Las conversaciones pospuestas (electron/programados.ts) no se ven hasta su hora: ni en la barra, ni en "te espera".
+  const { pospuestos } = useProgramados();
   const lideresVistos = useMemo(() => {
     const ahora = Math.floor(Date.now() / 1000);
-    return [...lideres, ...lideresSinProceso(todos, { lideres, caidos, optimista, ahora })].map((l) => {
+    const todosLideres = [...lideres, ...lideresSinProceso(todos, { lideres, caidos, optimista, ahora })].map((l) => {
       const n = corriendo(subagentes[l.id] ?? [], ahora).length;
       const nombre = nombres.titulos[l.id];
       return nombre || n ? { ...l, ...(nombre ? { nombre } : null), ...(n ? { subagentes: n } : null) } : l;
     });
-  }, [lideres, todos, caidos, optimista, nombres.titulos, subagentes, ticSub]);
+    return sinPospuestas(todosLideres, pospuestos);
+  }, [lideres, todos, caidos, optimista, nombres.titulos, subagentes, ticSub, pospuestos]);
   const mover = useMemo(() => new Map(Object.entries(nombres.proyectos)), [nombres.proyectos]);
   const ocultos = useMemo(() => new Set(nombres.ocultos), [nombres.ocultos]);
   // El `titulo` del registry de cada carpeta: se ve y se busca por él.
@@ -1353,6 +1359,10 @@ export function Barra() {
   const hiloActivo = activa ? (todos.find((h) => h.id === activa) ?? null) : null;
   const sidActivo = activa?.startsWith(LIDER) && activa !== LIDER_NUEVO ? activa.slice(LIDER.length) : null;
   const liderActivo = sidActivo ? (arbol.lideres.get(sidActivo) ?? fantasmas.get(sidActivo) ?? null) : null;
+  // Posponer la conversación que está abierta la saca de la barra: la vista se suelta (vuelve a su hora, con un aviso).
+  useEffect(() => {
+    if (sidActivo && pospuestos.some((p) => p.sid === sidActivo)) setActiva(null);
+  }, [sidActivo, pospuestos]);
   // El subagente abierto: lo último que se supo de él queda aunque su sesión deje de seguirse (se cerró el líder).
   const deSub = deClaveSub(activa);
   const ultimoSub = useRef<Subagente | null>(null);
@@ -1982,6 +1992,7 @@ export function Barra() {
             {/* En la carcasa de Windows el .exe se actualiza con lo suyo (Ajustes > Trama para Windows): acá no. */}
             {carcasa() || carcasaActualiza ? null : <AvisoClaude cual="trama" />}
             <AvisoWorkers />
+            <AvisoProgramados />
             <AvisoVuelta />
             <AvisoSetup />
             <footer className="pie" data-guia="pie">

@@ -44,6 +44,7 @@ const CAPTURAS = [
   "lider-mcp",
   // Dictar: el botón del micrófono en la caja; `HILOS_VARIANTE=grabando` (contador), `transcribiendo`, `error` (Reintentar y Descartar) e `inseguro` (apagado, por http).
   "lider-dictado",
+  "programar",
   "settle-confirmar",
   // El árbol líder → workers con los pliegues abiertos.
   "arbol",
