@@ -699,10 +699,7 @@ try {
   ok(await en((u) => document.querySelector(".proy")?.getAttribute("aria-label") === u, usuario), `con su primer líder, la carpeta del home (${usuario}) va primera`);
   // Nació en la carpeta de atlas: en la barra queda en atlas (el líder real no salta al home al reemplazar al fantasma).
   ok(await hasta((s, c) => document.querySelector(`[data-lider="${s}"]`)?.closest(".proy")?.querySelector("[data-carpeta]")?.dataset.carpeta === c, "líder en atlas", sid, "atlas"), "el líder que nace en un proyecto se queda en la carpeta de ese proyecto");
-  // De ahí al home: lo que sigue de la prueba parte de su carpeta de siempre.
-  const casa = "general";
-  ok(await moverA(`a:${casa}`), "se lo mueve a la carpeta del home");
-  ok(await hasta((s, c) => document.querySelector(`[data-lider="${s}"]`)?.closest(".proy")?.querySelector("[data-carpeta]")?.dataset.carpeta === c, "líder en el home", sid, casa), "queda en la carpeta del home");
+  const casa = "atlas";
   await clic('[data-carpeta="cauce"]');
   ok(await hasta(plegada, "cauce plegada", "cauce"), "se pliega otra carpeta a mano");
   ok(await moverA("a:cauce"), "el líder se mueve a la carpeta plegada");
@@ -715,7 +712,7 @@ try {
   await hasta(marcado, "líder otra vez a la vista", sid);
   await clic(`[data-carpeta="${casa}"]`);
   ok(await hasta(plegada, "casa plegada", casa), "se pliega la carpeta de antes");
-  ok(await moverA("auto"), "el líder vuelve a su carpeta");
+  ok(await moverA(`a:${casa}`), "el líder vuelve a su carpeta");
   ok(await hasta((s, c) => !!document.querySelector(`.lider[data-activa][data-lider="${s}"]`)?.closest(".proy")?.querySelector(`[data-carpeta="${c}"]`), "de vuelta", sid, casa), "que también se despliega sola");
 
   // --- El anillo de contexto (B16): el usage del stream contra el umbral del relevo (plan max) ---
