@@ -39,6 +39,8 @@ type Props = {
   apagada?: boolean;
   /** Trae algo que el usuario todavía no abrió: el título va en negrita. */
   nuevo: boolean;
+  /** Falló o pidió una decisión, pero ya no la pide (relanzado, visto, contestado: `atencion-vigente.ts`): no se resalta. */
+  resuelto?: boolean;
   error: string | null;
   /** Su Settle propio (`salidaWorker`): terminó y no cuelga de un líder a la vista. `null`, sin botones. */
   settle: Salida | null;
@@ -50,7 +52,7 @@ type Props = {
   quieta?: boolean;
 };
 
-export const Fila = memo(function Fila({ ref, h, estado, apagada, cursor, activa, nuevo, error, settle, alAbrir, alCerrar, alRetomar, quieta }: Props) {
+export const Fila = memo(function Fila({ ref, h, estado, apagada, cursor, activa, nuevo, resuelto, error, settle, alAbrir, alCerrar, alRetomar, quieta }: Props) {
   renders.filas++;
   useIdioma();
   const t = tipoDe(h, estado);
@@ -84,7 +86,7 @@ export const Fila = memo(function Fila({ ref, h, estado, apagada, cursor, activa
   const esf = esfuerzoDe(h.modelo, h.effort);
   const Lugar = lugarDe(h) === "nube" ? Cloud : Laptop;
   // Falló o pide una decisión: la fila resalta (tinte, borde luminoso, ícono en recuadro y la palabra en una píldora).
-  const at = atencionItem({ h, estado });
+  const at = resuelto ? null : atencionItem({ h, estado });
 
   return (
     <motion.li

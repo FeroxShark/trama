@@ -44,6 +44,7 @@ import { tableroFijo } from "../datos/fixtures-tablero";
 import { validar } from "../datos/tablero";
 import { muestraTocada } from "../datos/tocado";
 import { useEsperan } from "./esperan";
+import { resueltosDe } from "./atencion-vigente";
 import { Vista } from "../hilo/Vista";
 import { MODO } from "../modo";
 import { apariencia, LETRA_DEF } from "../tipografia";
@@ -519,8 +520,10 @@ export function Barra() {
   // "Líderes y workers" esconde debajo de cada líder lo que murió o terminó (`aVistaTodo`); "sólo líderes" usa el árbol tal cual.
   const arbol = useMemo(() => (vista === "lideres" ? arbolBruto : aVistaTodo(arbolBruto)), [arbolBruto, vista]);
   const { carpetas: hayGrupos, cerrados } = arbol;
-  // Lo que pide atención (falló, pide decisión, un líder que espera): los chips de arriba de la lista.
-  const pend = useMemo(() => pendientes(arbol), [arbol]);
+  // Lo que pide atención (falló, pide decisión, un líder que espera): los chips de arriba de la lista. Lo ya resuelto
+  // (relanzado, integrado, descartado, visto, contestado) no cuenta: `atencion-vigente.ts`.
+  const resueltos = useMemo(() => resueltosDe(todos.map((h) => ({ h, estado: estadoVisto(h, optimista.get(h.id)) })), leidos), [todos, optimista, leidos]);
+  const pend = useMemo(() => pendientes(arbol, resueltos), [arbol, resueltos]);
   // General siempre está (sin buscar): ahí vive el botón Nuevo líder.
   const grupos = useMemo(
     () =>
@@ -1729,6 +1732,7 @@ export function Barra() {
       cursor={cursor === it.h.id}
       activa={activa === it.h.id}
       nuevo={novedad(it.h, it.estado, leidos)}
+      resuelto={resueltos.has(it.h.id)}
       error={errores.get(it.h.id) ?? null}
       settle={salidaWorker(it.h, it.estado, arbol.aCargo)}
       alAbrir={abrir}
@@ -1836,7 +1840,7 @@ export function Barra() {
                       alPlegar={plegar}
                       fila={fila}
                       virtual={virtual}
-                      soloLideres={soloLideres}
+                      soloLideres={soloLideres} resueltos={resueltos}
                     />
                   ) : null}
                   {grupos.map((g) => (
@@ -1855,7 +1859,7 @@ export function Barra() {
                       alPlegar={plegar}
                       fila={fila}
                       virtual={virtual}
-                      soloLideres={soloLideres}
+                      soloLideres={soloLideres} resueltos={resueltos}
                       mueve={!buscando && !MODO.captura}
                       claude={porCarpetaCC.get(g.proyecto) ?? SIN_CONVS}
                       alAbrirClaude={abrirClaude}
@@ -1877,7 +1881,7 @@ export function Barra() {
                       alPlegar={plegar}
                       fila={fila}
                       virtual={virtual}
-                      soloLideres={soloLideres}
+                      soloLideres={soloLideres} resueltos={resueltos}
                       mueve={false}
                       claude={porCarpetaCC.get(k) ?? SIN_CONVS}
                       alAbrirClaude={abrirClaude}
@@ -2062,6 +2066,8 @@ type PropsActivas = {
   fila: PropsCarpeta["fila"];
   virtual: boolean;
   soloLideres: boolean;
+  /** Los workers que pidieron atención y ya no (`atencion-vigente.ts`): ni el ícono del líder ni su fila los cuentan. */
+  resueltos: ReadonlySet<string>;
 };
 
 /**
@@ -2069,7 +2075,7 @@ type PropsActivas = {
  * (`activas.ts`), de cualquier proyecto; cada fila lleva el suyo como prefijo. No se arrastran: cuando se enfrían
  * vuelven a su lugar en su proyecto. Plegable (se recuerda como una carpeta) y con la cuenta.
  */
-function Activas({ ref, ramas, abierta, alAlternar, liderActivo, alAbrirLider, alCerrarLider, alSettleLider, desplegada, alPlegar, fila, virtual, soloLideres }: PropsActivas & { ref?: Ref<HTMLElement> }) {
+function Activas({ ref, ramas, abierta, alAlternar, liderActivo, alAbrirLider, alCerrarLider, alSettleLider, desplegada, alPlegar, fila, virtual, soloLideres, resueltos }: PropsActivas & { ref?: Ref<HTMLElement> }) {
   useIdioma();
   const titulos = useTitulos();
   return (
@@ -2113,7 +2119,7 @@ function Activas({ ref, ramas, abierta, alAlternar, liderActivo, alAbrirLider, a
                   alPlegar={alPlegar}
                   fila={fila}
                   virtual={virtual}
-                  soloLideres={soloLideres}
+                  soloLideres={soloLideres} resueltos={resueltos}
                 />
               ))}
             </AnimatePresence>
@@ -2145,6 +2151,8 @@ type PropsCarpeta = {
   virtual: boolean;
   /** La barra muestra sólo líderes: sus workers no tienen fila salvo con el pliegue abierto. */
   soloLideres: boolean;
+  /** Los workers que pidieron atención y ya no (`atencion-vigente.ts`): ni el ícono del líder ni su fila los cuentan. */
+  resueltos: ReadonlySet<string>;
   /** Se puede reordenar arrastrando (buscando, no): la carpeta y sus líderes llevan `data-mueve`. */
   mueve: boolean;
   /** Sus conversaciones de Claude Code (las que no son de Trama), de la más reciente a la más vieja. */
@@ -2175,6 +2183,7 @@ function Carpeta({
   fila,
   virtual,
   soloLideres,
+  resueltos,
   mueve,
   claude,
   alAbrirClaude,
@@ -2253,7 +2262,7 @@ function Carpeta({
                   alPlegar={alPlegar}
                   fila={fila}
                   virtual={virtual}
-                  soloLideres={soloLideres}
+                  soloLideres={soloLideres} resueltos={resueltos}
                 />
               ))}
               {g.espera.length ? (
@@ -2344,6 +2353,8 @@ type PropsArbol = {
   fila: PropsCarpeta["fila"];
   virtual: boolean;
   soloLideres: boolean;
+  /** Los workers que pidieron atención y ya no (`atencion-vigente.ts`): ni el ícono del líder ni su fila los cuentan. */
+  resueltos: ReadonlySet<string>;
 };
 
 /**
@@ -2355,7 +2366,7 @@ type PropsArbol = {
  * líderes", lo vivo de un líder tampoco tiene fila: va resumido en la suya, y el
  * "+N" lo despliega.
  */
-function Arbol({ ref, r, grupo, proyecto, activo, alAbrirLider, alCerrarLider, alSettleLider, plegada, alPlegar, fila, virtual, soloLideres }: PropsArbol) {
+function Arbol({ ref, r, grupo, proyecto, activo, alAbrirLider, alCerrarLider, alSettleLider, plegada, alPlegar, fila, virtual, soloLideres, resueltos }: PropsArbol) {
   const n = r.viejas.length;
   const resumida = soloLideres && r.tipo === "lider" && plegada;
   const res = useMemo(() => (resumida ? resumen(r.vivas) : null), [resumida, r.vivas]);
@@ -2383,7 +2394,7 @@ function Arbol({ ref, r, grupo, proyecto, activo, alAbrirLider, alCerrarLider, a
           proyecto={proyecto}
           activa={activo}
           settle={settleDe(r)}
-          atencion={atencionRama(r)}
+          atencion={atencionRama(r, resueltos)}
           alAbrir={alAbrirLider}
           alCerrar={alCerrarLider}
           alSettle={alSettleLider}
