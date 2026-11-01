@@ -5,7 +5,7 @@
 // es el catálogo de skills (buscar, filtrar, ver tokens, prender y apagar). Los datos: src/datos/contexto.ts; la cuenta y el mapa: contexto-vista.ts.
 // En el celular ocupa la pantalla y sólo se mira (apagar es de la PC).
 import { createContext, Fragment, memo, useCallback, useContext, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent as ReactMouseEvent } from "react";
-import { ArrowLeft, ArrowUpRight, Check, ChevronRight, CircleDashed, Lock, Minimize2, PanelRightClose, RefreshCw, Search, X, Zap } from "lucide-react";
+import { ArrowLeft, ArrowUpRight, Check, ChevronRight, CircleDashed, Info, Lock, Minimize2, PanelRightClose, RefreshCw, Search, X, Zap } from "lucide-react";
 import type { Hilo, Lider } from "../datos/contrato";
 import type { Categoria, Desglose } from "../../electron/contexto-desglose";
 import type { UsosCatalogo } from "../../electron/skills-catalogo";
@@ -514,20 +514,36 @@ function Detalle({ d, uid, inicial, lider, alRefrescar, sub }: { d: Desglose; ui
   };
   return (
     <div className="cp-det">
-      <p className="cp-uso-total">
-        {usado !== null && d.ventana ? (
-          <>
-            <b className="cp-num">
+      {usado !== null && d.ventana ? (
+        <div className="cp-ventana" data-nivel={frac !== null && frac >= 0.95 ? "lleno" : frac !== null && frac >= 0.85 ? "casi" : undefined}>
+          {frac !== null ? (
+            <svg className="cp-anillo" viewBox="0 0 36 36" aria-hidden>
+              <circle className="cp-anillo-pista" cx="18" cy="18" r="15" pathLength="100" />
+              <circle className="cp-anillo-arco" cx="18" cy="18" r="15" pathLength="100" strokeDasharray={`${Math.min(100, Math.round(frac * 100))} 100`} />
+            </svg>
+          ) : null}
+          <p className="cp-uso-total">
+            {frac !== null ? (
+              <>
+                <span className="cp-sr">{t("ctxp.pctVentana", { pct: Math.round(frac * 100) })}</span>
+                <b className="cp-pct-grande" aria-hidden>
+                  {Math.round(frac * 100)} %
+                </b>
+              </>
+            ) : null}
+            <span className="cp-num">
               {d.estimado ? <span data-tip={t("ctxp.estimado")}>≈</span> : null}
               {t("ctxp.usadoDe", { usado: miles(usado), ventana: miles(d.ventana) })}
-            </b>
-            {frac !== null ? <span>{t("ctxp.pctVentana", { pct: Math.round(frac * 100) })}</span> : null}
-            {d.ventanaEstimada ? <span data-tip={t("ctxp.ventanaSupuesta")}>*</span> : null}
-          </>
-        ) : usado !== null ? (
+              {d.ventanaEstimada ? <span data-tip={t("ctxp.ventanaSupuesta")}>*</span> : null}
+            </span>
+            {frac !== null && frac >= 0.85 ? <span className="cp-nivel">{t(frac >= 0.95 ? "ctxp.ventanaLlena" : "ctxp.ventanaCasi")}</span> : null}
+          </p>
+        </div>
+      ) : usado !== null ? (
+        <p className="cp-uso-total">
           <b className="cp-num">{t("ctxp.usado", { usado: miles(usado) })}</b>
-        ) : null}
-      </p>
+        </p>
+      ) : null}
       {baja && d.usado !== null && usado !== null ? <p className="cp-nota">{t("ctxp.sinLoApagado", { medido: miles(d.usado), neto: miles(usado) })}</p> : null}
       {d.desactualizado && d.medidoEn ? <p className="cp-nota">{t("ctxp.medidoA", { hora: new Date(d.medidoEn).toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit" }) })}</p> : null}
       <Barra cats={cats} d={d} />
@@ -618,7 +634,7 @@ function FilaWorker({ h, carga, abierto, alAlternar, alAbrir, alReintentar, alRe
   const tipo = h.en_cola ? "cola" : (tipoDe(h, h.estado)?.tipo ?? "");
   const estado = h.en_cola ? t("ctxp.enCola") : (tipoDe(h, h.estado)?.texto ?? h.estado);
   return (
-    <li className="cp-w" data-abierto={abierto ? "" : undefined}>
+    <li className="cp-w" data-abierto={abierto ? "" : undefined} data-tipo={tipo || undefined}>
       <div className="cp-w-cab">
         <button type="button" className="cp-w-btn" aria-expanded={abierto} aria-controls={id} onClick={alAlternar}>
           <ChevronRight size={14} strokeWidth={2} className="cp-chev" aria-hidden />
@@ -1234,6 +1250,7 @@ export const PanelContexto = memo(function PanelContexto({ lider, workers, alCer
           </button>
         </header>
         <div className="cp-aviso">
+          <Info size={15} strokeWidth={1.8} aria-hidden />
           <p>{puede ? t("ctxp.aviso") : t("ctxp.soloPc")}</p>
           <p className="cp-vivo" role={aviso && !aviso.ok ? "alert" : "status"} data-error={aviso && !aviso.ok ? "" : undefined}>
             {aviso?.texto}

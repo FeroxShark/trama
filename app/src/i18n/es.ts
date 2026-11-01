@@ -1234,6 +1234,8 @@ export const es: { [K in keyof typeof en]: string } = {
   "ctxp.usadoDe": "{usado} de {ventana} tokens",
   "ctxp.usado": "{usado} tokens usados",
   "ctxp.pctVentana": "{pct} % de la ventana",
+  "ctxp.ventanaCasi": "Casi llena: conviene compactar pronto.",
+  "ctxp.ventanaLlena": "Llena casi del todo: compactá ya.",
   "ctxp.estimado": "Estimado a partir de la conversación, no es el conteo exacto",
   "ctxp.ventanaSupuesta": "El tamaño de la ventana se supone según el modelo",
   "ctxp.libre": "Libre",
