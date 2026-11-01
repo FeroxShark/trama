@@ -503,7 +503,7 @@ try {
 
   // --- Ctrl+N abre un LÍDER (los workers los lanza él); Opus/high por default ---------
   await tecla("n", CTRL);
-  ok(await hasta(() => document.querySelector(".lider-linea")?.textContent.includes("Nuevo líder"), "Nuevo líder"), "Ctrl+N abre un líder nuevo");
+  ok(await hasta(() => document.querySelector(".migas .ruta b")?.textContent.includes("Nuevo líder"), "Nuevo líder"), "Ctrl+N abre un líder nuevo");
   ok(await en(() => !document.querySelector(".nueva-zona") && !document.querySelector(".combo")), "no hay Nueva tarea de worker ni elegir proyecto");
   const zonaLider = ".caja-zona .barra-c";
   ok(await hasta((z) => document.querySelectorAll(`${z} .pick > .pbtn`).length === 2, "selectores", zonaLider), "la caja del líder tiene modelo y esfuerzo");
@@ -569,7 +569,7 @@ try {
     ),
     "abre Nuevo líder con la caja llena (id, DECISION, pedido)",
   );
-  ok(await en(() => document.querySelector(".lider-linea")?.textContent.includes("Nuevo líder")), "es un líder nuevo");
+  ok(await en(() => document.querySelector(".migas .ruta b")?.textContent.includes("Nuevo líder")), "es un líder nuevo");
   ok(lineas().some((l) => l.endsWith(" --hilo 20261003-100400-55555 --json -n 6")), "el main leyó el final entero con pa --hilo -n 6");
 
   // --- Integrar / Archivar: sólo lo que no cuelga de un líder; con rama integra -----------------------
@@ -612,12 +612,13 @@ try {
   // --- Nuevo líder (claude falso: contesta "eco: …") ------------------------------------
   // La carpeta del home: primera, con el usuario del sistema por nombre.
   const usuario = os.userInfo().username;
+  console.log("DBGP", JSON.stringify(await en(() => [...document.querySelectorAll(".proy")].map((p) => p.getAttribute("aria-label")))));
   ok(
-    await en((u) => document.querySelector(".proy")?.getAttribute("aria-label") === u && !!document.querySelector(".proy button[aria-label='Nuevo líder']"), usuario),
-    `la carpeta del home (${usuario}) va primera y tiene Nuevo líder`,
+    await en((u) => document.querySelector(".proy")?.getAttribute("aria-label") === u, usuario),
+    `la carpeta del home (${usuario}) va primera (el líder nuevo se abre con Ctrl+N o con el + de arriba)`,
   );
   await tecla("N", CTRL | SHIFT);
-  ok(await hasta(() => document.querySelector(".lider-linea")?.textContent.includes("Nuevo líder"), "chat nuevo"), "Ctrl+Shift+N también abre un líder nuevo");
+  ok(await hasta(() => document.querySelector(".migas .ruta b")?.textContent.includes("Nuevo líder"), "chat nuevo"), "Ctrl+Shift+N también abre un líder nuevo");
   // Lo que pasa por los avisos (el de reintento se va apenas llega la respuesta).
   await en(() => {
     window.__avisos = [];
@@ -640,7 +641,7 @@ try {
   await escribir(".caja-zona textarea", "usá una herramienta");
   await tecla("Enter", SHIFT);
   await espera(200);
-  ok(await en(() => document.querySelector(".lider-linea")?.textContent.includes("Nuevo líder")), "Shift+Enter no manda");
+  ok(await en(() => document.querySelector(".migas .ruta b")?.textContent.includes("Nuevo líder")), "Shift+Enter no manda");
   await tecla("Enter");
   const eco = (t) => [...document.querySelectorAll(".conv .el")].some((e) => e.textContent.includes(`eco: ${t}`));
   ok(await hasta(eco, "eco", "usá una herramienta"), "la respuesta llega por el stream");
@@ -665,7 +666,8 @@ try {
   ok(await mandar("otra cosa"), "Mandar 2");
   ok(await hasta(eco, "eco 2", "otra cosa"), "el segundo mensaje va al mismo proceso");
   const delLog = () => readFileSync(logClaude, "utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l));
-  const arranques = () => delLog().filter((l) => l.args);
+  // `claude auth status` lo corre la app sola (cuentas de los cupos): no es el arranque de un líder.
+  const arranques = () => delLog().filter((l) => l.args && l.args[0] !== "auth");
   const controles = () => delLog().filter((l) => l.control);
   let arr = arranques();
   ok(arr.length === 1, `un solo arranque (${arr.length})`);
@@ -915,7 +917,7 @@ try {
   ok(await libre(), "libre para /clear");
   await escribir(".caja-zona textarea", "/clear");
   await tecla("Enter");
-  ok(await hasta(() => document.querySelector(".lider-linea")?.textContent.includes("Nuevo líder"), "nuevo"), "/clear abre un líder nuevo, limpio");
+  ok(await hasta(() => document.querySelector(".migas .ruta b")?.textContent.includes("Nuevo líder"), "nuevo"), "/clear abre un líder nuevo, limpio");
 
   // --- Archivar el líder de la app: quieto y sin workers, lo cierra y lo saca ------------
   ok(await libre(), "quieto");
