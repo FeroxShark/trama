@@ -502,6 +502,20 @@ export const HILOS_ATENCION: RespuestaHilos = {
   ],
 };
 
+/**
+ * La captura `atencion` con todo ya resuelto (`HILOS_VARIANTE=resuelto`): el fallo de t1 lo relanzó otra corrida (`--seguir`), la
+ * decisión la contestó la que sigue y t3 ya no espera. La barra no tiene chips arriba ni ícono rojo ni en ámbar.
+ */
+export const LIDERES_ATENCION_RESUELTO: Lider[] = LIDERES_ATENCION.map((l) => (l.id === "s-act-t3" ? { ...l, pide: false, espera: undefined } : l));
+export const HILOS_ATENCION_RESUELTO: RespuestaHilos = {
+  version: 1,
+  hilos: [
+    ...HILOS_ATENCION.hilos,
+    hilo({ id: "20261101-100707-81007", ...deT("t1"), tarea: "Migración 0012", estado: "listo", inicio: AHORA - 15 * MIN, duracion_s: 4 * MIN, sigue_de: "20261101-100303-81003", rama: "pa/cauce/20261101-100707-81007", commits: 1, resultado: "Migración 0012 corrida con el número libre." }),
+    hilo({ id: "20261101-100808-81008", origen: "app", proyecto: "cauce", tarea: "Texto del botón de pago", estado: "trabajando", inicio: AHORA - 10 * MIN, puesto: "4", sigue_de: "20261101-100606-81006", rama: "pa/cauce/20261101-100606-81006", ...cache(HORA, 40 * MIN) }),
+  ],
+};
+
 /** El líder de `MUERTO` como lo manda el main cuando lo mataron (captura `lider-muerto`): sin proceso, con Retomar. */
 export const LIDER_MUERTO: Lider = {
   ...MUERTO,

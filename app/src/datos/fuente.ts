@@ -22,7 +22,7 @@ import { consumoDe, consumoFijo, type Consumo, type Pedido } from "./consumo";
 import { cambioDe, vistaDe, type CambioPasos, type VistaPasos } from "./pasos";
 import { pasosFijos, pasosRutasFijos, pasosSubFijos } from "./pasos-fixture";
 import { crearCola, type AvisoCola, type Encolado } from "../../electron/cola";
-import { ARRANCANDO, EN_COLA, HILOS_DELL, LIDER_DELL, PENSANDO_FIJO, charlaFormato, charlaLarga, charlaCambio, charlaListas, charlaIntermedios, charlaLider, charlaPensando, charlaSistema, charlaTabla, conversacion, conversacionSistema, HILOS, HILOS_ACTIVAS, HILOS_ATENCION, HILOS_EN_COLA, HILOS_TERMINADOS, ICONOS, LIDERES, LIDERES_ACTIVAS, LIDERES_ATENCION, LIDER_MUERTO, LIDER_TERMINADOS, FRENADO, TITULOS, USO, USO_CUENTAS, USO_NIM, USO_TODO, USO_TODO_DOS, USO_GOOGLE, USO_GOOGLE_MARCADO, USO_SIN_CUPO, USO_SIN_HORA, imagenFija, localesFalsos, vramFalsa, vramLiberarFalso } from "./fixtures";
+import { ARRANCANDO, EN_COLA, HILOS_DELL, LIDER_DELL, PENSANDO_FIJO, charlaFormato, charlaLarga, charlaCambio, charlaListas, charlaIntermedios, charlaLider, charlaPensando, charlaSistema, charlaTabla, conversacion, conversacionSistema, HILOS, HILOS_ACTIVAS, HILOS_ATENCION, HILOS_ATENCION_RESUELTO, HILOS_EN_COLA, HILOS_TERMINADOS, ICONOS, LIDERES, LIDERES_ACTIVAS, LIDERES_ATENCION, LIDERES_ATENCION_RESUELTO, LIDER_MUERTO, LIDER_TERMINADOS, FRENADO, TITULOS, USO, USO_CUENTAS, USO_NIM, USO_TODO, USO_TODO_DOS, USO_GOOGLE, USO_GOOGLE_MARCADO, USO_SIN_CUPO, USO_SIN_HORA, imagenFija, localesFalsos, vramFalsa, vramLiberarFalso } from "./fixtures";
 
 export interface Fuente {
   /** La última lista buena de una corrida anterior, para pintar algo mientras `pa` contesta. */
@@ -637,7 +637,7 @@ const lideresBase = (): RespuestaLideres =>
   MODO.captura === "activas"
     ? { ...LIDERES, lideres: LIDERES_ACTIVAS }
     : MODO.captura === "atencion"
-    ? { ...LIDERES, lideres: LIDERES_ATENCION }
+    ? { ...LIDERES, lideres: MODO.variante === "resuelto" ? LIDERES_ATENCION_RESUELTO : LIDERES_ATENCION }
     : filasDelDell()
     ? { ...LIDERES, lideres: [...LIDERES.lideres, LIDER_DELL] }
     : MODO.captura === "terminados"
@@ -1346,7 +1346,7 @@ const fija: Fuente = {
     return MODO.captura === "activas"
       ? HILOS_ACTIVAS
       : MODO.captura === "atencion"
-      ? HILOS_ATENCION
+      ? MODO.variante === "resuelto" ? HILOS_ATENCION_RESUELTO : HILOS_ATENCION
       : MODO.captura === "terminados"
       ? HILOS_TERMINADOS
       : MODO.captura === "worker-en-cola"

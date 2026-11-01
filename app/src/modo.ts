@@ -125,7 +125,7 @@ const CAPTURAS = [
   "lider-gemini",
   // Te espera: un líder de terminal que terminó y el de la app (abierto) que pide un permiso; fila y cabecera con la marca en ámbar.
   "te-espera",
-  // La lista de líderes con lo que pide atención: un worker que falló, una decisión, un líder que espera y workers corriendo (rediseño 0.4); `-300` abre la barra a 300 px.
+  // La lista de líderes con lo que pide atención: un worker que falló, una decisión, un líder que espera y workers corriendo (rediseño 0.4); `-300` abre la barra a 300 px; `HILOS_VARIANTE=resuelto`, todo ya resuelto (sin chips).
   "atencion",
   // El tablero de pendientes: el kanban, el detalle de una tarjeta y la vista Proyectos.
   "tablero",
