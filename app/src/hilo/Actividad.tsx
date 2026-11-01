@@ -244,6 +244,7 @@ export function Actividad({ act, pasos, pasosN, desde, tokens, tierno, razon, mo
   // El chip de arriba: trabajando, esperando (al modelo o a una respuesta de la persona) o terminado.
   const chip = fin ? (fin === "listo" ? { tono: "ok" as const, texto: t("hz.t.listo") } : { tono: "critico" as const, texto: t("hz.t.error") }) : estado === "permiso" || estado === "espera" ? { tono: "aviso" as const, texto: t("hz.c.esperando") } : { tono: undefined, texto: t("estado.trabajando") };
   const Det = ICONO[act.icono];
+  const verDet = !!detalle && !fin && !(conRazon && estado !== "permiso");
   return (
     // El `key` hace que el cambio de tipo entre con su fundido (`tv-entra`); dentro de un tipo sólo cambia el texto.
     <div className="tv" key={fin ?? act.tipo} data-t={fin ? "fin" : act.tipo} data-e={estado} role="status">
@@ -257,43 +258,54 @@ export function Actividad({ act, pasos, pasosN, desde, tokens, tierno, razon, mo
         )}
         <div className="tv-cu">
           <div className="tv-t1">
-            <Chip tono={chip.tono}>{chip.texto}</Chip>
             {tierno && !fin ? <Tierno semilla={tierno} className="tv-v" limpia /> : <span className="tv-v">{verbo}</span>}
-            {modelo ? (
-              <span className="tv-modelo" aria-label={t("hz.modelo")}>
-                {modelo}
-                {effort ? <span className="tv-ef">{effort}</span> : null}
-              </span>
-            ) : null}
-            <span className="tv-meta">
-              {dura ? <Reloj pintor={dura} className="tv-x" /> : null}
-              {tokens ? <span className="tv-x">{tokens}</span> : null}
-              {pasosN ? <span className="tv-x">{t("hz.pasos", { n: pasosN })}</span> : null}
-            </span>
+            <Chip tono={chip.tono}>
+              {chip.texto}
+              {dura ? (
+                <>
+                  {" · "}
+                  <Reloj pintor={dura} className="tv-x" />
+                </>
+              ) : null}
+            </Chip>
           </div>
-          {detalle && !fin && !(conRazon && estado !== "permiso") ? (
-            <div className="tv-det" data-fija={act.detalleClave ? "" : undefined}>
-              {act.detalleClave ? null : <Det className="tv-ic" size={13} strokeWidth={1.9} aria-hidden="true" />}
-              <Entero texto={detalle} className="tv-dt" />
-              <span className="tv-vivo">{t("hz.enCurso")}</span>
+          {verDet || vis.length ? (
+            <div className="tv-log">
+              {verDet ? (
+                <div className="tv-det" data-fija={act.detalleClave ? "" : undefined}>
+                  {act.detalleClave ? null : <Det className="tv-ic" size={13} strokeWidth={1.9} aria-hidden="true" />}
+                  <Entero texto={detalle} className="tv-dt" />
+                  <span className="tv-vivo">{t("hz.enCurso")}</span>
+                </div>
+              ) : null}
+              {vis.length ? (
+                <ul className="tv-pasos">
+                  {vis.map((p, i) => {
+                    const I = ICONO[p.i];
+                    return (
+                      <li key={i}>
+                        <I className="tv-ic" size={12} strokeWidth={1.9} aria-hidden="true" />
+                        <Entero texto={p.l} className="tv-pt" />
+                      </li>
+                    );
+                  })}
+                </ul>
+              ) : null}
             </div>
           ) : null}
           {conRazon ? <Progreso lineas={razon.lineas} pensando={razon.pensando} /> : null}
-          {vis.length ? (
-            <ul className="tv-pasos">
-              {vis.map((p, i) => {
-                const I = ICONO[p.i];
-                return (
-                  <li key={i}>
-                    <I className="tv-ic" size={12} strokeWidth={1.9} aria-hidden="true" />
-                    <Entero texto={p.l} className="tv-pt" />
-                  </li>
-                );
-              })}
-            </ul>
-          ) : null}
-          {ocultos > 0 || alParar ? (
+          {modelo || tokens || pasosN || ocultos > 0 || (alParar && !fin) ? (
             <div className="tv-pie">
+              <span className="tv-meta">
+                {modelo ? (
+                  <span className="tv-modelo" aria-label={t("hz.modelo")}>
+                    {modelo}
+                    {effort ? <span className="tv-ef">{effort}</span> : null}
+                  </span>
+                ) : null}
+                {tokens ? <span className="tv-x">{tokens}</span> : null}
+                {pasosN ? <span className="tv-x">{t("hz.pasos", { n: pasosN })}</span> : null}
+              </span>
               {ocultos > 0 ? (
                 <button type="button" className="tv-mas" aria-expanded={todos} onClick={() => setTodos((x) => !x)}>
                   {todos ? t("hz.menos") : t("hz.mas", { n: ocultos })}

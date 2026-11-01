@@ -4146,11 +4146,11 @@ html[data-titulo-nativo] #root::after {
 }
 .tv-tar {
   display: grid;
-  grid-template-columns: 2.75rem minmax(0, 1fr);
+  grid-template-columns: 2.25rem minmax(0, 1fr);
   align-items: start;
   gap: var(--esp-3);
-  padding: var(--esp-3) var(--esp-4);
-  border-radius: var(--r-md);
+  padding: var(--esp-4) var(--esp-5);
+  border-radius: var(--r-lg);
   background: var(--capa-card);
   box-shadow: inset 0 0 0 1px var(--capa-div);
 }
@@ -4158,8 +4158,8 @@ html[data-titulo-nativo] #root::after {
   box-shadow: inset 0 0 0 1px var(--c-borde);
 }
 .esc {
-  width: 2.75rem;
-  height: 2.75rem;
+  width: 2.25rem;
+  height: 2.25rem;
   border-radius: var(--r-sm);
   background: var(--capa-tile);
   color: var(--c);
@@ -4218,7 +4218,7 @@ html[data-titulo-nativo] #root::after {
   display: flex;
   min-width: 0;
   flex-direction: column;
-  gap: var(--esp-1-5);
+  gap: var(--esp-3);
 }
 .tv {
   --e: var(--texto-4);
@@ -4249,44 +4249,48 @@ html[data-titulo-nativo] #root::after {
   flex: none;
   place-items: center;
 }
+/* El título (qué hace) a la izquierda y, a la derecha, la píldora con el estado en palabras y el tiempo ("Trabajando · 2 s"):
+   rediseño 0.4 (vidrio quieto v2), la tarjeta "Refactor del carrito". Calma: la píldora va apagada, sin relleno. */
 .tv-t1 {
   display: flex;
+  min-height: 2.25rem;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--esp-1) var(--esp-2);
-  font-size: var(--letra-5);
+  justify-content: space-between;
+  gap: var(--esp-1) var(--esp-3);
+  font-size: var(--letra-6);
+}
+.tv-t1 > .ui-chip:not([data-tono]) {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--capa-div);
+  color: var(--apagado);
+  font-variant-numeric: tabular-nums;
 }
 .tv-v {
   min-width: 0;
   overflow: hidden;
   color: var(--texto-1);
-  font-weight: 500;
+  font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* El pie de la tarjeta: modelo, esfuerzo, tokens y pasos en texto quieto; Parar queda a la derecha. */
 .tv-modelo {
   flex: none;
-  padding: 0 var(--esp-3);
-  border-radius: var(--r-cap);
-  background: var(--capa-tile);
   color: var(--apagado);
   font-size: var(--letra-4);
-  font-weight: 500;
-  line-height: var(--alto-chip);
   white-space: nowrap;
 }
-.tv-ef {
-  color: var(--sint-kw);
-}
 .tv-ef::before {
-  color: var(--texto-5);
+  color: var(--texto-6);
   content: " · ";
 }
 .tv-meta {
   display: flex;
-  flex: none;
-  gap: var(--esp-1-5);
-  margin-left: auto;
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: var(--esp-1) var(--esp-4);
+  margin-right: auto;
 }
 .tv-x {
   color: var(--texto-4);
@@ -4294,21 +4298,33 @@ html[data-titulo-nativo] #root::after {
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
-.tv-meta > .tv-x + .tv-x::before {
-  color: var(--texto-6);
-  content: "· ";
+.tv-t1 .tv-x {
+  color: inherit;
+  font-size: inherit;
+}
+/* El bloque de actividad: monoespaciado, sobre una tira más oscura que la tarjeta; lo que hace ahora y los pasos de atrás. */
+.tv-log {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-1);
+  padding: var(--esp-3) var(--esp-4);
+  border-radius: var(--r-md);
+  background: var(--sup-0);
+  box-shadow: inset 0 0 0 1px var(--capa-div);
+  color: var(--texto-3);
+  font-family: var(--font-mono);
+  font-size: var(--letra-4);
+}
+.tv-log .tv-pasos {
+  margin: 0;
 }
 .tv-det {
   display: flex;
   max-width: 100%;
   min-width: 0;
   align-items: flex-start;
-  align-self: flex-start;
   gap: var(--esp-1-5);
-  padding: var(--esp-1) var(--esp-3);
-  border-radius: var(--r-sm);
-  background: color-mix(in srgb, var(--c) 10%, var(--capa-tile));
-  color: var(--texto);
+  color: var(--texto-1);
   font-family: var(--font-mono);
   font-size: var(--letra-4);
 }
@@ -4368,7 +4384,7 @@ html[data-titulo-nativo] #root::after {
   max-height: 12rem;
   flex-direction: column;
   gap: var(--esp-1);
-  margin: var(--esp-0-5) 0 0;
+  margin: 0;
   padding: 0;
   overflow-y: auto;
   color: var(--texto-4);
@@ -4399,7 +4415,6 @@ html[data-titulo-nativo] #root::after {
   align-items: center;
   justify-content: space-between;
   gap: var(--esp-2);
-  margin-top: var(--esp-0-5);
 }
 .tv-mas {
   display: inline-flex;
@@ -4430,8 +4445,11 @@ html[data-titulo-nativo] #root::after {
   max-height: 14rem;
   flex-direction: column;
   gap: var(--esp-1);
-  margin: var(--esp-0-5) 0 0;
-  padding: 0;
+  margin: 0;
+  padding: var(--esp-3) var(--esp-4);
+  border-radius: var(--r-md);
+  background: var(--sup-0);
+  box-shadow: inset 0 0 0 1px var(--capa-div);
   overflow-y: auto;
   color: var(--texto-4);
   font-size: var(--letra-4);
