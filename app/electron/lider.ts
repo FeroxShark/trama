@@ -583,7 +583,8 @@ function lanzar(g: Guardado, resume: boolean, local?: Local, extra: Extra = {}):
       if (x.length) mcpAcp = JSON.stringify(x);
     } else if (clase === "claude" && !local && !extra.ollama) {
       mcpClaude = archivoMcpClaudeSync({ trama }) ?? undefined;
-      if (trama) void anotarTramaEnClaude(trama, CLAUDE).catch(silencio("mcp-trama-claude"));
+      // Con un `claude` de mentira (HILOS_CLAUDE, las pruebas) no: sería otro proceso más y no hay config de usuario que tocar.
+      if (trama && !process.env.HILOS_CLAUDE) void anotarTramaEnClaude(trama, CLAUDE).catch(silencio("mcp-trama-claude"));
     } else if (clase === "gemini" && trama) anotarTramaEnAgy(trama, HOME);
   } catch (e) {
     silencio("mcp-lanzar")(e);

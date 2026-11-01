@@ -51,6 +51,8 @@ export const RUTAS: Readonly<Record<string, Ruta>> = {
   "lider:colaSeleccion": "maquina",
   "lider:colaQuitar": "maquina",
   "lider:colaYa": "maquina",
+  // El MCP de Trama de esta máquina (cli/mcp-trama.ts) le deja un mensaje a un líder de esta máquina.
+  "lider:encolarAgente": "local",
   // Lo programado y lo pospuesto es de esta máquina (sus líderes): no se junta con el de la otra.
   "programados:leer": "local",
   "programados:programar": "local",
