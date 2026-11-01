@@ -1,5 +1,10 @@
 # Cambios
 
+## 0.2.42
+
+- Barra lateral nueva («Riel»): una línea por conversación, agrupada por proyecto, con riel de proyectos a la izquierda y buscador; entran muchas más conversaciones a la vista. Los cupos pasan a dos anillos chicos que se abren al tocarlos.
+- Ajustes > Plan y cupos nuevo («tejido»): un renglón por cuenta con 5 h y semana juntos, estado en palabras, «En uso» y «Usar» (la cuenta la cambiás vos).
+
 ## 0.2.41
 
 - MCP de Trama: líderes y workers de cualquier motor pueden lanzar workers, ver su estado, buscar en los hilos y mandarle un mensaje a otro líder. Se registra solo en cada motor.
