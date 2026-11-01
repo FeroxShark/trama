@@ -608,6 +608,7 @@ export const en = {
   "cu.nvidiaQue": "Free NVIDIA models for your workers: with a key, how many requests went out in the last minute against each model's cap.",
   "cu.nvidia.conClave": "Key saved",
   "cu.nvidia.sinClave": "No key",
+  "cu.nvidia.ponerClave": "Add key",
   "cu.nvidia.sinClaveQue": "Without a key no NVIDIA NIM model is offered. Get one free at build.nvidia.com and save it in Settings > OpenCode.",
   "cu.nvidia.sinUso": "No usage to show yet: no NVIDIA NIM model is on.",
   "cu.nvidia.libreQue": "NVIDIA gives about 40 requests per minute per model, with no daily cap. It is for development and prototyping.",

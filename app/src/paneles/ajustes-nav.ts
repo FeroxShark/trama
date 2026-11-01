@@ -142,7 +142,8 @@ export function buscar(consulta: string, traducir: (k: ClaveSola) => string, nom
 
 // --- Qué categoría está abierta, qué se pidió mostrar y las marcas ---
 
-export type Salto = { opc: string; n: number };
+/** `foco`: además de traer la fila a la vista, el cursor queda en su primer campo (el «Poner clave» de la tarjeta de NVIDIA). */
+export type Salto = { opc: string; n: number; foco?: boolean };
 
 const oyentes = new Set<() => void>();
 let abierta: CatId | null = null;
@@ -174,12 +175,12 @@ function aHash(c: CatId) {
 /** La categoría que se recuerda (la del hash, o la última a la que se fue), o `null` si nunca se eligió una. */
 export const categoria = (): CatId | null => abierta ?? (abierta = deHash());
 
-/** Va a una categoría y, con `opc`, a esa fila (que se resalta cuando está a la vista). */
-export function irA(cat: CatId, opc?: string) {
+/** Va a una categoría y, con `opc`, a esa fila (que se resalta cuando está a la vista); con `foco`, deja el cursor en su campo. */
+export function irA(cat: CatId, opc?: string, foco = false) {
   const cambia = abierta !== cat;
   abierta = cat;
   aHash(cat);
-  if (opc) salto = { opc, n: ++nSalto };
+  if (opc) salto = { opc, n: ++nSalto, foco: foco || undefined };
   if (cambia || opc) avisar();
 }
 

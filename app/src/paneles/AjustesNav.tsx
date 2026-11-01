@@ -164,7 +164,7 @@ function Buscador({ presentes }: { presentes: ReturnType<typeof presentesDe> }) 
   );
 }
 
-/** Al saltar desde el buscador: la fila (`data-opc`) se trae a la vista y se resalta un instante (opacidad, una vez). */
+/** Al saltar desde el buscador (o desde un botón de otra categoría): la fila (`data-opc`) se trae a la vista y se resalta un instante (opacidad, una vez). */
 function useResaltar(activa: CatId, salto: { opc: string; n: number } | null, cont: RefObject<HTMLDivElement | null>) {
   useEffect(() => {
     if (!salto) return;
@@ -173,6 +173,8 @@ function useResaltar(activa: CatId, salto: { opc: string; n: number } | null, co
     const el = [...raiz.querySelectorAll<HTMLElement>("[data-opc]")].find((x) => x.dataset.opc === salto.opc && x.offsetParent !== null);
     if (!el) return;
     el.scrollIntoView({ block: "center" });
+    // Con `foco` (p. ej. «Poner clave»): el cursor queda en el primer campo de la fila, listo para pegar.
+    if (salto.foco) el.querySelector<HTMLElement>("input:not([disabled]), textarea:not([disabled])")?.focus({ preventScroll: true });
     el.setAttribute("data-resalta", "");
     const id = setTimeout(() => el.removeAttribute("data-resalta"), 1400);
     return () => {

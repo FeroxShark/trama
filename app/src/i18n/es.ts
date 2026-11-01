@@ -597,6 +597,7 @@ export const es: { [K in keyof typeof en]: string } = {
   "cu.nvidiaQue": "Los modelos gratis de NVIDIA para tus workers: si hay clave, cuántos pedidos van en el último minuto contra el tope de cada modelo.",
   "cu.nvidia.conClave": "Clave guardada",
   "cu.nvidia.sinClave": "Sin clave",
+  "cu.nvidia.ponerClave": "Poner clave",
   "cu.nvidia.sinClaveQue": "Sin clave no se ofrece ningún modelo de NVIDIA NIM. La sacás gratis en build.nvidia.com y se guarda en Ajustes > OpenCode.",
   "cu.nvidia.sinUso": "Todavía no hay uso para mostrar: ningún modelo de NVIDIA NIM prendido.",
   "cu.nvidia.libreQue": "NVIDIA da unos 40 pedidos por minuto por modelo, sin tope por día. Es para desarrollo y prototipos.",

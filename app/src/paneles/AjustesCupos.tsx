@@ -30,6 +30,7 @@ import type { FilaDato } from "./AjustesEditar";
 import { avisosTope } from "./cupos-aviso";
 import { cambiado, fabricaDe, poner, restaurar, topeDe, TOPE_MAX, TOPE_MIN, type IdTope } from "./cupos-topes";
 import { GrupoAjustes, FilaAjuste } from "./AjustesPiezas";
+import { irA } from "./ajustes-nav";
 import { PERFILES, SIN_CUPO, type Borrador, type Perfil, type SinCupo } from "./modelos-borrador";
 import { reservaDePerfil, ritmoSemanal, type Ritmo } from "./cupos-ritmo";
 
@@ -651,6 +652,11 @@ function TarjetaNvidia({ uso }: { uso: Uso | null }) {
       </div>
       <div className="cu-cuerpo">
         {s?.grupos?.length ? s.grupos.map((g) => <Grupo key={g.id} g={g} />) : <div className="cu-sin">{t(e && !e.hayClave ? "cu.nvidia.sinClaveQue" : "cu.nvidia.sinUso")}</div>}
+        {e && !e.hayClave ? (
+          <Boton className="cu-poner-clave" primario onClick={() => irA("opencode", "ajustes.nimClave", true)}>
+            {t("cu.nvidia.ponerClave")}
+          </Boton>
+        ) : null}
         <Ayuda lineas={["cu.nvidia.libreQue", "cu.nvidia.contados", "cu.nvidia.mas"]} />
       </div>
     </Tarjeta>
