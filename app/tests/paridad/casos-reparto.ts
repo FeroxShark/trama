@@ -440,6 +440,7 @@ export const casosReparto: Caso[] = [
   // OpenCode cortó: el límite gratis por stdin, y el sondeo a mano
   rpStdin("--opencode-limite con el límite gratis", "Error: Free usage limit reached. Connect a provider or subscribe to OpenCode Go.\n", 0),
   rpStdin("--opencode-limite con retrying in N", "Free usage exceeded, retrying in 90m\n", 0),
+  rpStdin("--opencode-limite con provider.free-limit de la cuenta", "Internal error: {\"service\":\"session\",\"errorName\":\"provider.free-limit\"}\n", 0),
   rpStdin("--opencode-limite con un 429 no toca nada", "Too Many Requests: 429\n", 1),
   // el mismo corte contado por opencode en el worker ("usage limit"): agota el grupo 5 h y --resumen deja de ofrecerlo
   {
