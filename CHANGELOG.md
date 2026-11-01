@@ -1,5 +1,9 @@
 # Cambios
 
+## 0.2.43
+
+- Barra lateral pulida: vuelven las coronas de los líderes con sus workers colgando debajo; los terminados se pliegan en «N terminados». Cada proyecto tiene su color, lo que corre muestra «N en marcha» y lo que pide atención resalta con ícono y palabra. Se fue el filtro «sólo líderes».
+
 ## 0.2.42
 
 - Barra lateral nueva («Riel»): una línea por conversación, agrupada por proyecto, con riel de proyectos a la izquierda y buscador; entran muchas más conversaciones a la vista. Los cupos pasan a dos anillos chicos que se abren al tocarlos.
