@@ -249,16 +249,18 @@ export function Actividad({ act, pasos, pasosN, desde, tokens, tierno, razon, mo
     // El `key` hace que el cambio de tipo entre con su fundido (`tv-entra`); dentro de un tipo sólo cambia el texto.
     <div className="tv" key={fin ?? act.tipo} data-t={fin ? "fin" : act.tipo} data-e={estado} role="status">
       <div className="tv-tar">
-        {fin ? (
-          <span className="esc tv-fin" aria-hidden="true">
-            {fin === "listo" ? <Check size={22} strokeWidth={2} /> : <X size={22} strokeWidth={2} />}
-          </span>
-        ) : (
-          <Escena tipo={act.tipo} />
-        )}
         <div className="tv-cu">
           <div className="tv-t1">
-            {tierno && !fin ? <Tierno semilla={tierno} className="tv-v" limpia /> : <span className="tv-v">{verbo}</span>}
+            <span className="tv-tit">
+              {fin ? (
+                <span className="esc tv-fin" aria-hidden="true">
+                  {fin === "listo" ? <Check size={22} strokeWidth={2} /> : <X size={22} strokeWidth={2} />}
+                </span>
+              ) : (
+                <Escena tipo={act.tipo} />
+              )}
+              {tierno && !fin ? <Tierno semilla={tierno} className="tv-v" limpia /> : <span className="tv-v">{verbo}</span>}
+            </span>
             <Chip tono={chip.tono}>
               {chip.texto}
               {dura ? (
