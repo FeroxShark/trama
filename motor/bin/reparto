@@ -3615,15 +3615,34 @@ def main(argv):
     return uso()
 
 
+def app_compilada(nombre):
+    """Dónde está la app compilada (dist-electron/cli/<nombre>.js): $TRAMA_APP, el checkout al lado de motor/ (repo y
+    worktree) o la que dejó instalar-producto.sh en ~/.config/trama/app. El árbol exportado (la fuente) no trae
+    dist-electron: se compila en otra carpeta, y el lanzador tiene que buscarlo ahí. Devuelve None si no está."""
+    aqui = os.path.dirname(os.path.realpath(__file__))
+    conf = os.path.join(os.environ.get("XDG_CONFIG_HOME") or os.path.expanduser("~/.config"), "trama", "app")
+    candidatas = [os.environ.get("TRAMA_APP"), os.path.join(aqui, "..", "..", "app")]
+    try:
+        with open(conf, encoding="utf-8") as f:
+            candidatas.append(f.read().strip())
+    except OSError:
+        pass
+    for c in candidatas:
+        if c and os.path.isfile(os.path.join(c, "dist-electron", "cli", nombre + ".js")):
+            return c
+    return None
+
+
 if __name__ == "__main__":
     # El port a TypeScript es el DEFAULT (app/electron/cli/reparto.ts, compilado en app/dist-electron/cli/reparto.js; igual que `pa`).
     # TRAMA_REPARTO=py vuelve a este Python. Sin node o sin el .js compilado avisa y sigue acá.
     if os.environ.get("TRAMA_REPARTO", "ts") == "ts":
-        _js = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "app", "dist-electron", "cli", "reparto.js")
+        _app = app_compilada("reparto")
         _node = shutil.which("node")
-        if _node and os.path.isfile(_js):
+        if _node and _app:
+            _js = os.path.join(_app, "dist-electron", "cli", "reparto.js")
             # Si app/electron tiene fuentes más nuevas que el .js, lo recompila antes (en silencio; si no puede, avisa y sigue)
-            _asegurar = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "app", "scripts", "asegurar-cli.mjs")
+            _asegurar = os.path.join(_app, "scripts", "asegurar-cli.mjs")
             if os.path.isfile(_asegurar):
                 subprocess.call([_node, _asegurar, _js])
             sys.exit(subprocess.call([_node, _js, *sys.argv[1:]]))

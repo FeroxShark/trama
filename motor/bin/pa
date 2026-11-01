@@ -196,10 +196,20 @@ _BIN="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 # sin haber hecho nada, con los modos que todavía no porta (otros motores, hilos, rinde, bien…): entonces sigue este bash, que
 # queda detrás hasta que el de TS lo reemplace. TRAMA_PA=bash fuerza este script de siempre (el respaldo, una o dos versiones).
 if [[ "${TRAMA_PA:-ts}" == ts ]]; then
-  _pa_js="${TRAMA_PA_JS:-$_BIN/../../app/dist-electron/cli/pa.js}"
-  if command -v node >/dev/null 2>&1 && [[ -f "$_pa_js" ]]; then
+  # Dónde está la app compilada (dist-electron/cli/pa.js): TRAMA_PA_JS, $TRAMA_APP, el checkout al lado de motor/ (repo y
+  # worktree) o la que dejó instalar-producto.sh en ~/.config/trama/app. El árbol exportado (la fuente) no trae dist-electron:
+  # se compila en otra carpeta y hay que buscarlo ahí.
+  _pa_js="${TRAMA_PA_JS:-}"
+  if [[ -z "$_pa_js" ]]; then
+    _app_conf=""
+    [[ -r "${XDG_CONFIG_HOME:-$HOME/.config}/trama/app" ]] && _app_conf="$(<"${XDG_CONFIG_HOME:-$HOME/.config}/trama/app")"
+    for _app in "${TRAMA_APP:-}" "$_BIN/../../app" "$_app_conf"; do
+      if [[ -n "$_app" && -f "$_app/dist-electron/cli/pa.js" ]]; then _pa_js="$_app/dist-electron/cli/pa.js"; break; fi
+    done
+  fi
+  if command -v node >/dev/null 2>&1 && [[ -n "$_pa_js" && -f "$_pa_js" ]]; then
     # Si app/electron tiene fuentes más nuevas que el .js, lo recompila antes (en silencio; si no puede, avisa y sigue con el que hay)
-    _asegurar="$_BIN/../../app/scripts/asegurar-cli.mjs"
+    _asegurar="${_pa_js%/dist-electron/cli/pa.js}/scripts/asegurar-cli.mjs"
     if [[ -f "$_asegurar" ]]; then node "$_asegurar" "$_pa_js" || true; fi
     _pa_rc=0; node "$_pa_js" "$@" || _pa_rc=$?
     (( _pa_rc == 70 )) || exit "$_pa_rc"

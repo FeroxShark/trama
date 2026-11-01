@@ -66,6 +66,31 @@ test("si tsc no compila, pa avisa por stderr y corre el .js que había", () => {
   assert.match(res.stderr, /no pude recompilar app\/dist-electron/);
 });
 
+test("el árbol exportado (sin app al lado del motor) encuentra el .js por ~/.config/trama/app", () => {
+  // La fuente exportada (~/.local/share/trama/fuente) no trae dist-electron: instalar-producto.sh compila en otra carpeta
+  // y deja su ruta en ~/.config/trama/app. Antes los lanzadores sólo miraban <motor>/../../app y avisaban que no había .js.
+  const fuente = path.join(raiz, "fuente");
+  const instalada = path.join(raiz, "app-instalada");
+  mkdirSync(path.join(fuente, "motor", "bin"), { recursive: true });
+  mkdirSync(path.join(instalada, "dist-electron", "cli"), { recursive: true });
+  for (const h of HERRAMIENTAS) {
+    copyFileSync(path.join(REPO, "motor", "bin", h), path.join(fuente, "motor", "bin", h));
+    writeFileSync(path.join(instalada, "dist-electron", "cli", `${h}.js`), `process.stdout.write("${h}-instalada\\n");\n`);
+  }
+  const casa2 = mkdtempSync(path.join(os.tmpdir(), "envoltorios-casa-conf-"));
+  after(() => rmSync(casa2, { recursive: true, force: true }));
+  mkdirSync(path.join(casa2, ".config", "trama"), { recursive: true });
+  writeFileSync(path.join(casa2, ".config", "trama", "app"), `${instalada}\n`);
+  const env = { PATH: process.env.PATH ?? "", HOME: casa2, PA_STATE: path.join(casa2, "st") };
+  const casos: Array<[string, string]> = [["bash", "pa"], ["python3", "reparto"], ["python3", "tablero"], ["python3", "cuentas"]];
+  for (const [cmd, h] of casos) {
+    const res = spawnSync(cmd, [path.join(fuente, "motor", "bin", h), "--version"], { encoding: "utf8", env });
+    assert.equal(res.status, 0, h);
+    assert.equal(res.stdout, `${h}-instalada\n`, h);
+    assert.equal(res.stderr, "", h);
+  }
+});
+
 test("sin asegurar-cli.mjs (un checkout viejo) corre el .js que hay, sin error", () => {
   const r = armar("sin-helper");
   rmSync(path.join(r, "app", "scripts"), { recursive: true, force: true });
