@@ -6996,7 +6996,7 @@ codex_sin_cupo() {
 dsh_sin_cupo() {
   [[ "$motor" == dsh ]] || return 1
   local t; t="$(tail -c 4000 "$err" 2>/dev/null; res_texto)"
-  grep -qiE 'rate.?limit|Too Many Requests|quota|FreeUsageLimit|Free usage (limit|exceeded)|cortó por límite de uso|(^|[^0-9])429([^0-9]|$)' <<<"$t"
+  grep -qiE 'rate.?limit|Too Many Requests|quota|usage limit|FreeUsageLimit|Free usage (limit|exceeded)|cortó por límite de uso|(^|[^0-9])429([^0-9]|$)' <<<"$t"
 }
 # agy no conoce el modelo (el catálogo depende de la cuenta, la región y la versión): "error: invalid model selection (--model …): model … is not
 # recognized … Available models: …". No es de cupo, pero se arregla igual: ese modelo deja de ofrecerse y se relanza con el siguiente candidato.

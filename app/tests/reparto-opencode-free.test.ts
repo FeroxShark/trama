@@ -79,6 +79,32 @@ test("--opencode-limite con otra cosa (un 429 de un modelo, texto cualquiera) no
   for (const l of resumenOpencode()) assert.doesNotMatch(l, /SIN CUPO/);
 });
 
+// Un worker `-m opencode:*` que corta deja en el stderr el mensaje de pa, sin el "Free usage limit" de opencode: es el mismo
+// cupo de toda la cuenta y tiene que agotar el grupo igual (si no, --resumen sigue diciendo "cupo 100 %" y pa lo vuelve a elegir).
+test("el corte contado por pa ('OpenCode cortó por límite de uso') también agota el grupo 5 h, y --resumen lo muestra SIN CUPO", () => {
+  rmSync(rep, { recursive: true, force: true });
+  const r = run(["--opencode-limite"], "OpenCode cortó por límite de uso (opencode:opencode/glm-5.3-flash-free). Esperá un rato, probá con otro modelo, o conectá tu cuenta.\n");
+  assert.equal(r.status, 0, r.stderr);
+  const h = horasDeVuelta();
+  assert.ok(h > 4.9 && h < 5.1, `5 h, no ${h}`);
+  const filas = resumenOpencode();
+  assert.equal(filas.length, 3, filas.join("\n"));
+  for (const l of filas) {
+    assert.match(l, /SIN CUPO \(vuelve en 4 h 5\d min\)|SIN CUPO \(vuelve en 5 h/, l);
+    assert.doesNotMatch(l, /cupo 100 ?%/);
+  }
+});
+
+test("el 'usage limit' de opencode también cuenta, y el 'retrying in N' del mensaje manda sobre las 5 h", () => {
+  rmSync(rep, { recursive: true, force: true });
+  assert.equal(run(["--opencode-limite"], "APIError: 429 usage limit reached\n").status, 0);
+  const h = horasDeVuelta();
+  assert.ok(h > 4.9 && h < 5.1, `5 h, no ${h}`);
+  assert.equal(run(["--opencode-limite"], "usage limit reached, retrying in 30m\n").status, 0);
+  const h2 = horasDeVuelta();
+  assert.ok(h2 > 0.4 && h2 < 0.6, `0,5 h, no ${h2}`);
+});
+
 test("--sondear-opencode: si opencode dice el límite gratis marca el grupo; no corre solo en --resumen", () => {
   rmSync(rep, { recursive: true, force: true });
   resumenOpencode();

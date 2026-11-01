@@ -441,6 +441,19 @@ export const casosReparto: Caso[] = [
   rpStdin("--opencode-limite con el límite gratis", "Error: Free usage limit reached. Connect a provider or subscribe to OpenCode Go.\n", 0),
   rpStdin("--opencode-limite con retrying in N", "Free usage exceeded, retrying in 90m\n", 0),
   rpStdin("--opencode-limite con un 429 no toca nada", "Too Many Requests: 429\n", 1),
+  // el mismo corte contado por pa (sin el "Free usage limit" de opencode): agota el grupo 5 h y --resumen deja de ofrecerlo
+  {
+    herramienta: "reparto",
+    nombre: "reparto: el corte de pa (OpenCode cortó por límite de uso) agota el grupo y --resumen lo muestra SIN CUPO",
+    pasos: [
+      { args: ["--opencode-limite"], stdin: "OpenCode cortó por límite de uso (opencode:opencode/glm-5.3-flash-free). Esperá un rato, probá con otro modelo, o conectá tu cuenta.\n", rc: 0 },
+      { args: ["--resumen"], rc: 0 },
+      { args: ["--tabla"], rc: 0 },
+    ],
+    preparar: preparar({}),
+    env: entornoDe({}),
+  },
+  rpStdin("--opencode-limite con el usage limit de opencode", "APIError: 429 usage limit reached\n", 0),
   rp("--sondear-opencode con el límite gratis", ["--sondear-opencode"], 0, { preparar: opencodeFalso("Error: Free usage limit reached.", true), env: conOpencodeFalso }),
   rp("--sondear-opencode que contesta no toca el grupo", ["--sondear-opencode"], 1, { preparar: opencodeFalso("OK", false), env: conOpencodeFalso }),
   rp("--sondear-opencode sin opencode", ["--sondear-opencode"], 2, { env: (c) => ({ HILOS_OPENCODE: path.join(c.aux, "no-hay-opencode") }) }),

@@ -134,7 +134,8 @@ export interface Ganchos {
   anotarTablero?: (l: Lanzamiento) => Promise<void>;
   /** Soltar el puesto y el lugar del tope global (el `exec 9>&- 6>&-`). */
   soltar?: () => Promise<void>;
-  /** `enfriar_modelo`: marca ese modelo de OpenCode como enfriado en reparto (nunca rompe). `salida`: lo que dijo OpenCode (con "Free usage limit" agota el grupo gratis entero). */
+  /** `enfriar_modelo`: marca ese modelo de OpenCode como enfriado en reparto (nunca rompe). `salida`: lo que dijo OpenCode
+   * (si es el límite gratis de la cuenta — "Free usage limit" o "OpenCode cortó por límite de uso" — agota el grupo entero). */
   enfriar?: (modelo: string, salida?: string) => Promise<void>;
   /** `-m a,b,c` con --async: tras un corte de OpenCode (97) sin trabajo hecho, cambia la corrida al siguiente de la lista (mismo id). true si cambió y hay que correr de nuevo. */
   relanzarPorFallback?: (l: Lanzamiento) => Promise<boolean>;
@@ -618,7 +619,7 @@ export function entornoClaude(l: Lanzamiento): Env {
 
 /** `dsh_sin_cupo`: el proveedor contestó 429 / rate limit. Sólo el final de stderr y el result: el stream trae lo que el modelo dijo. */
 export function dshSinCupo(err: string, texto: string): boolean {
-  return /rate.?limit|Too Many Requests|quota|FreeUsageLimit|cortó por límite de uso|(^|[^0-9])429([^0-9]|$)/i.test(colaDe(err) + texto);
+  return /rate.?limit|Too Many Requests|quota|usage limit|Free usage (?:limit|exceeded)|FreeUsageLimit|cortó por límite de uso|(^|[^0-9])429([^0-9]|$)/i.test(colaDe(err) + texto);
 }
 
 /** Los últimos 4000 bytes de un archivo (`tail -c 4000`), o "" si no se puede leer. */

@@ -18,8 +18,10 @@
   reparto --agotar ID [--hasta ISO]            marca agotado el grupo de agy o de codex de ese modelo (o grupo), o el
                                                Claude oficial (claude-*), hasta que vuelve
   reparto --enfriar ID [--horas N]             un modelo cortó por límite (pa sale 97): no es candidato N horas (default 5); es por modelo, no por grupo
-  reparto --opencode-limite                    lee por stdin la salida de OpenCode: si dice "Free usage limit", agota el grupo opencode-free (24 h, o el "retrying in N" del mensaje)
-  reparto --sondear-opencode                   un pedido mínimo a un modelo gratis de OpenCode; si dice "Free usage limit" agota el grupo (gasta cupo: sólo a mano, nunca solo)
+  reparto --opencode-limite                    lee por stdin la salida de OpenCode: si dice "Free usage limit", agota el grupo opencode-free (24 h, o el "retrying in N" del mensaje);
+                                               si es el mismo corte contado como "OpenCode cortó por límite de uso" o "usage limit", también (5 h, o el "retrying in N")
+  reparto --sondear-opencode                   un pedido mínimo a un modelo gratis de OpenCode; si dice el límite gratis ("Free usage limit", "OpenCode cortó por
+                                               límite de uso", "usage limit") agota el grupo (gasta cupo: sólo a mano, nunca solo)
   reparto --enfriado ID                        si ese modelo sigue enfriado: imprime hasta cuándo y sale 0; si no, sale 1
   reparto --excluido ID                        si modelos.json excluye ese id: imprime la regla y sale 0; si no, sale 1
   reparto --agy-modelos [--refrescar] [--cuenta C] [--json]
@@ -58,7 +60,8 @@ atrasado) | rendimiento (calidad primero); `reserva_lider` = fracción de la sem
 Dónde deja de usarse cada proveedor (2026-10-27): `topes_uso` {"google": 90, "google:claude-gpt": 80, "openai": 95} = desde qué % USADO de una ventana no se elige
 (el del grupo gana al del proveedor; sin entrada, `llena`: 97 %). Claude se dice con `reserva` ({"5h": 0.2, "7d": 0.2} = lo que se guarda libre; sin ella, 97 %
 más la reserva de `perfil`/`reserva_lider` en la semanal). `agy_min_libre_5h` (0,30 = desde 70 % usado) es el tope aparte de Google para trabajo de código en 5 h.
-OpenCode no informa % usado: se deja de usar cuando corta por límite (`--enfriar`, `--agotar`).
+OpenCode no informa % usado: se deja de usar cuando corta por límite (`--enfriar` ese modelo, y `--opencode-limite`/`--agotar` el grupo `opencode-free` entero,
+que es de toda la cuenta: "Free usage limit" 24 h, "OpenCode cortó por límite de uso" / "usage limit" 5 h, o el "retrying in N" del mensaje).
 
 Sin dependencias (python3 estándar).
 Entorno (para tests): REPARTO_CUPOS_FIJOS=archivo.json (mismo formato que `--cupos --json`, no lee
@@ -264,6 +267,7 @@ PLANES_OPENCODE = ("gratis", "go", "go-plus")
 COSTO_GO = 0.02           # costo marginal ~0 de un modelo de Go (plan fijo con cupo): casi como un gratis, pero un gratis sin gastar nada gana el empate
 ENFRIAR_H = 5             # un modelo de OpenCode que cortó por límite (pa sale 97) no es candidato esta cantidad de horas (`--enfriar ID [--horas N]`)
 VENCE_FREE_H = 24         # "Free usage limit reached" de OpenCode: el límite gratis es de TODA la cuenta, no de un modelo; el grupo `opencode-free` vuelve en un día salvo que el mensaje diga cuándo
+VENCE_CORTE_H = 5         # el mismo corte contado con otras palabras ("OpenCode cortó por límite de uso", "usage limit"): como pa enfría al modelo (PA_ENFRIAR_HORAS), el grupo vuelve en 5 h si el mensaje no dice cuándo
 VENCE_GO_H = 5            # un 429 de un modelo de Go lo marca agotado esta cantidad de horas (la ventana del plan)
 OC_GO_PREFIJO = "opencode:opencode-go/"
 # NVIDIA NIM (https://integrate.api.nvidia.com/v1, ~40 req/min por modelo, sin tope diario): los modelos gratis van por opencode (`opencode:nvidia/<modelo>`)
@@ -2019,13 +2023,19 @@ def enfriar(mid, horas, now):
 
 
 RE_LIMITE_GRATIS = re.compile(r"Free usage (?:limit|exceeded)|FreeUsageLimit", re.I)
+# El mismo corte del cupo gratis contado de otra forma: lo que dice pa cuando un worker de `-m opencode:*` corta ("OpenCode cortó por límite de
+# uso"), o el "usage limit" que devuelve opencode. Es el cupo de TODA la cuenta igual que el "Free usage limit reached".
+RE_LIMITE_CUENTA = re.compile(r"cort[oó] por l[ií]mite de uso|usage limit", re.I)
 RE_VUELTA = re.compile(r"retry(?:ing)?\s+in\s+(\d+(?:[.,]\d+)?)\s*(h|hours?|m|min|minutes?|s|secs?|seconds?)?", re.I)
 
 
 def limite_gratis_opencode(texto, now):
-    """Si la salida de OpenCode es el límite gratis de la cuenta ("Free usage limit reached"): cuándo vuelve (datetime; con
-    "retrying in N s/m/h" ésos, si no VENCE_FREE_H horas). None si no es ese mensaje."""
-    if not RE_LIMITE_GRATIS.search(texto or ""):
+    """Si la salida de OpenCode es el límite gratis de la cuenta ("Free usage limit reached", o el mismo corte contado como
+    "OpenCode cortó por límite de uso" / "usage limit"): cuándo vuelve (datetime; con "retrying in N s/m/h" ésos, si no
+    VENCE_FREE_H horas para el mensaje explícito y VENCE_CORTE_H para los demás). None si no es ese mensaje."""
+    texto = texto or ""
+    gratis = RE_LIMITE_GRATIS.search(texto)
+    if not gratis and not RE_LIMITE_CUENTA.search(texto):
         return None
     m = RE_VUELTA.search(texto)
     if m:
@@ -2033,7 +2043,8 @@ def limite_gratis_opencode(texto, now):
         u = (m.group(2) or "s").lower()
         seg = n * (3600 if u.startswith("h") else 60 if u.startswith("m") else 1)
         return now + timedelta(seconds=max(seg, 60))
-    return now + timedelta(hours=VENCE_FREE_H)
+    return now + timedelta(hours=VENCE_FREE_H if gratis else VENCE_CORTE_H)
+
 
 
 def agotar_gratis_opencode(texto, cfg, now):

@@ -27,8 +27,8 @@ function opencodeFalso(respuesta: string, error: boolean) {
   chmodSync(oc, 0o755);
 }
 
-const run = (args: string[], o: { stdin?: string; oc?: string } = {}) => {
-  rmSync(rep, { recursive: true, force: true });
+const run = (args: string[], o: { stdin?: string; oc?: string; conservar?: boolean } = {}) => {
+  if (!o.conservar) rmSync(rep, { recursive: true, force: true });
   return spawnSync(process.execPath, [REPARTO, ...args], {
     encoding: "utf8",
     input: o.stdin ?? "",
@@ -66,6 +66,28 @@ test("--opencode-limite: otra cosa (un 429 de un modelo) sale 1 y no marca nada"
   const r = run(["--opencode-limite"], { stdin: "Too Many Requests: 429\n" });
   assert.equal(r.status, 1, r.stderr);
   assert.equal(existsSync(agotado), false);
+});
+
+// Un worker `-m opencode:*` que corta deja el mensaje de pa (sin el "Free usage limit" de opencode): es el mismo cupo de toda
+// la cuenta, así que agota el grupo 5 h y --resumen deja de ofrecerlo (antes seguía diciendo "cupo 100 %").
+test("--opencode-limite: el corte de pa ('OpenCode cortó por límite de uso') agota el grupo 5 h y --resumen lo muestra SIN CUPO", () => {
+  const r = run(["--opencode-limite"], { stdin: "OpenCode cortó por límite de uso (opencode:opencode/glm-5.3-flash-free). Esperá un rato, probá con otro modelo, o conectá tu cuenta.\n" });
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(horasDeVuelta(), 5);
+  const res = run(["--resumen"], { conservar: true });
+  const filas = res.stdout.split("\n").filter((l) => l.includes("-m opencode:opencode/"));
+  assert.equal(filas.length, 2, res.stdout);
+  for (const l of filas) {
+    assert.match(l, /SIN CUPO \(vuelve en 5 h\)/, l);
+    assert.doesNotMatch(l, /cupo 100 ?%/);
+  }
+});
+
+test("--opencode-limite: 'usage limit' también cuenta y el 'retrying in N' del mensaje manda", () => {
+  assert.equal(run(["--opencode-limite"], { stdin: "APIError: 429 usage limit reached\n" }).status, 0);
+  assert.equal(horasDeVuelta(), 5);
+  assert.equal(run(["--opencode-limite"], { stdin: "usage limit reached, retrying in 30m\n" }).status, 0);
+  assert.equal(horasDeVuelta(), 0.5);
 });
 
 test("--sondear-opencode: si opencode dice el límite gratis marca el grupo (0), con un pedido `run … OK` al modelo gratis", { skip: soloPosix("el opencode falso es un script de shell") }, () => {
