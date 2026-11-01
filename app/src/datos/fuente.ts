@@ -954,7 +954,7 @@ function deteccionLocalesFalsa(): ResultadoDeteccion {
 
 /**
  * Las cuentas con fixtures: sin variante, el `cuentas` instalado con una cuenta por proveedor; `cuentas-sin` = sin el comando
- * (la lista es `null`); `cupos-cuentas` = Claude con la de siempre y «Trabajo». Se puede agregar, renombrar, quitar y conectar
+ * (la lista es `null`); `cupos-cuentas` = Claude con la de siempre y «Trabajo»; `cupos-tres` = Claude con tres; `cupos-todo-dos` = OpenCode con dos. Se puede agregar, renombrar, quitar y conectar
  * (el login tarda un instante y deja la cuenta conectada), todo en memoria.
  */
 function cuentasFijas() {
@@ -964,6 +964,7 @@ function cuentasFijas() {
     nueva("google", "google", "Google AI Pro", (MODO.variante ?? "").startsWith("cupos"), true),
     ...(MODO.variante === "cupos-cuentas" || MODO.captura === "cuenta-lider" ? [nueva("trabajo", "claude", "Trabajo", true)] : []),
     ...(MODO.variante === "cupos-tres" ? [nueva("trabajo", "claude", "Trabajo", true), nueva("estudio", "claude", "Estudio", true)] : []),
+    ...(MODO.variante?.startsWith("cupos-todo-dos") ? [nueva("opencode", "opencode", "OpenCode", true, true), nueva("casa", "opencode", "Casa", true)] : []),
   ];
   const pausa = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
   const ok: ResultadoCuenta = { ok: true };
