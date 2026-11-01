@@ -23,6 +23,7 @@ import {
   varsDe,
   type CatId,
   type Resultado,
+  type Salto,
 } from "./ajustes-nav";
 
 const TEXTOS: Record<CatId, { nombre: ClaveSola; que: ClaveSola; icono: LucideIcon }> = {
@@ -165,7 +166,7 @@ function Buscador({ presentes }: { presentes: ReturnType<typeof presentesDe> }) 
 }
 
 /** Al saltar desde el buscador (o desde un botón de otra categoría): la fila (`data-opc`) se trae a la vista y se resalta un instante (opacidad, una vez). */
-function useResaltar(activa: CatId, salto: { opc: string; n: number } | null, cont: RefObject<HTMLDivElement | null>) {
+function useResaltar(activa: CatId, salto: Salto | null, cont: RefObject<HTMLDivElement | null>) {
   useEffect(() => {
     if (!salto) return;
     const raiz = cont.current;
