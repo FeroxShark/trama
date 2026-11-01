@@ -234,7 +234,7 @@
   --popover-desenfoque: blur(1.25rem) saturate(1.5);
   --popover-luz: inset 0 0 0 1px var(--luz), inset 0 1px 0 var(--luz-arriba);
   --popover-sombra: 0 0.75rem 2.5rem color-mix(in srgb, var(--sombra) 60%, transparent), var(--sombra-vidrio);
-  --popover-fila: color-mix(in srgb, var(--acento) 11%, transparent); /* fila resaltada */
+  --popover-fila: color-mix(in srgb, var(--acento) 14%, transparent); /* fila resaltada */
   --popover-fila-activa: var(--acento-tinte); /* fila elegida */
   --popover-fila-activa-borde: var(--ajustes-acento-borde);
   --popover-divisor: var(--capa-div);

@@ -437,3 +437,34 @@
   color: var(--texto);
   padding: var(--esp-1-5) var(--esp-2-5);
 }
+/* Los tooltips que cuelgan de su elemento (el uso del plan en la cabecera, la ficha de un worker): la misma burbuja de vidrio. */
+.tip,
+.wk-pop {
+  border: 0;
+  background: var(--popover-tip-fondo);
+  backdrop-filter: var(--popover-desenfoque);
+  box-shadow:
+    var(--popover-luz),
+    var(--popover-sombra);
+}
+.tip {
+  padding: var(--esp-1-5) var(--esp-2-5);
+  border-radius: var(--r-md);
+  color: var(--texto);
+}
+.tip-l {
+  color: var(--apagado);
+}
+@supports not (backdrop-filter: blur(1px)) {
+  .tip,
+  .wk-pop {
+    background: var(--vidrio-opaco);
+  }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .tip,
+  .wk-pop {
+    background: var(--vidrio-opaco);
+    backdrop-filter: none;
+  }
+}
