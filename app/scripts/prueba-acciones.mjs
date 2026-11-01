@@ -991,15 +991,15 @@ try {
   await espera(400);
   ok(arranques().length === antesAn, "sin Lanzar no se lanzó ningún líder");
   ok(await clic(".lz-caja .btn2[data-primario]"), "Lanzar");
-  ok(await hasta(() => document.querySelectorAll(".pn-juicio").length > 0, "veredictos"), "los veredictos del analista aparecen al lado de las ramas");
+  ok(await hasta(() => document.querySelectorAll(".pn-veredicto").length > 0, "veredictos"), "los veredictos del analista aparecen al lado de las ramas");
   const anArr = arranques();
   ok(anArr.length === antesAn + 1 && anArr.at(-1).cwd === os.homedir(), `el analista es un líder nuevo en ~ (${anArr.length - antesAn})`);
   ok(
-    await en(() => [...document.querySelectorAll(".pn-rama:has(.pn-juicio)")].every((r) => r.querySelectorAll(".pn-juicio + * button, .pn-acc .pn-primario, .pn-acc .mini").length >= 1)),
+    await en(() => [...document.querySelectorAll(".pn-rama:has(.pn-veredicto)")].every((r) => r.querySelectorAll(".pn-acc .pn-primario, .pn-acc .mini").length >= 1)),
     "cada veredicto trae su botón",
   );
   ok(
-    await en(() => !!document.querySelector('.pn-rama:has(.pn-tarea[data-id="20261003-101000-14141"]) .pn-juicio')),
+    await en(() => !!document.querySelector('.pn-rama:has(.pn-tarea[data-id="20261003-101000-14141"]) .pn-veredicto')),
     "el brief lleva las ramas sin integrar (también la que falló sola)",
   );
 
@@ -1012,7 +1012,7 @@ try {
   );
   ok(await en(() => ![...document.querySelectorAll(".pn-analista-chat .conv")].some((c) => c.textContent.includes("Sos el analista") || c.textContent.includes('"veredicto"'))), "en el chat no se ven el brief ni el json");
   // Retomar desde el veredicto: abre un líder con el prompt de retomar (el falso lo devuelve con "eco: ").
-  const idR = await en(() => document.querySelector('.pn-rama:has(.pn-juicio[data-veredicto="retomar"]) .pn-tarea')?.dataset.id);
+  const idR = await en(() => document.querySelector('.pn-rama:has(.pn-veredicto[data-veredicto="retomar"]) .pn-tarea')?.dataset.id);
   ok(!!idR, `algún veredicto dice retomar: ${idR}`);
   const antesR = arranques().length;
   ok(await clic(`.pn-rama:has(.pn-tarea[data-id="${idR}"]) .pn-primario`, "Retomar"), "el veredicto retomar trae Retomar");
