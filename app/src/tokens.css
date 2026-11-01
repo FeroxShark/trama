@@ -214,3 +214,11 @@
   --esp-6: 1.5rem;
   --esp-8: 2rem;
 }
+
+/* --- Ajustes (rediseño 0.4, área Ajustes: src/paneles/ajustes-vidrio.css). Sólo lo que no había: el título de la categoría, el borde
+   celeste del activo y el borde turquesa de lo que está bien. Salen de los colores de estado con color-mix, así cada tema los hereda. --- */
+:root {
+  --ajustes-titulo: 1.375rem;
+  --ajustes-acento-borde: color-mix(in srgb, var(--acento) 42%, transparent);
+  --ajustes-ok-borde: color-mix(in srgb, var(--ok) 34%, transparent);
+}

@@ -1,0 +1,461 @@
+/* Ajustes en el lenguaje de la maqueta del rediseño 0.4 (app/maquetas/rediseno-0.4/vidrio-quieto-v2): navegación en cápsulas, secciones
+   en tarjetas de vidrio, filas con etiqueta y valor, interruptores y chips consistentes, avisos con los tokens de atención.
+   Sólo presentación: va después de paneles.css (se importa en Panel.tsx) y todo cuelga de `.aj-raiz`, así gana sin !important.
+   Lo calmo queda bajo (capas translúcidas, sin sombra); lo que pide mirar (falla, decisión, cupo) usa --fallo-*, --decision-*.
+   Nada depende sólo del color: cada estado lleva ícono o palabra. */
+
+/* --- El marco: la barra lateral de cápsulas a la izquierda, la categoría a la derecha --- */
+.aj-raiz .aj {
+  grid-template-columns: 14rem minmax(0, 1fr);
+  gap: var(--esp-5) var(--esp-8);
+}
+.aj-raiz .aj-nav {
+  gap: var(--esp-1);
+}
+.aj-raiz .aj-it {
+  min-height: var(--alto-nav);
+  padding: var(--esp-1-5) var(--esp-4);
+  border-radius: var(--r-xl);
+  color: var(--apagado);
+  transition: background-color var(--t-snappy), color var(--t-snappy);
+}
+.aj-raiz .aj-it:hover {
+  background: var(--capa-hover);
+  color: var(--texto);
+}
+.aj-raiz .aj-it[aria-current="page"] {
+  background: var(--acento-tinte);
+  box-shadow: inset 0 0 0 1px var(--ajustes-acento-borde);
+  color: var(--texto);
+  font-weight: 600;
+}
+.aj-raiz .aj-it[aria-current="page"] svg {
+  color: var(--acento);
+}
+/* Lo que falta en una categoría: una píldora con la palabra, en el ámbar de «pide decisión». */
+.aj-raiz .aj-it-m {
+  width: fit-content;
+  padding: 0 var(--esp-2);
+  border-radius: var(--r-cap);
+  background: var(--decision-fondo-fuerte);
+  box-shadow: inset 0 0 0 1px var(--decision-borde);
+  color: var(--decision-texto);
+  font-weight: 600;
+}
+.aj-raiz .aj-punto {
+  background: var(--decision-relleno);
+  box-shadow: var(--decision-halo);
+}
+
+/* El título de la categoría y su frase. */
+.aj-raiz .aj-t {
+  font-size: var(--ajustes-titulo);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.aj-raiz .aj-sub {
+  max-width: 36rem;
+  color: var(--apagado);
+  font-size: var(--letra-5);
+}
+.aj-raiz .aj-cont {
+  gap: var(--esp-5);
+}
+.aj-raiz .aj-cat {
+  gap: var(--esp-4);
+}
+
+/* --- El buscador y su lista de resultados (flota: es lo único con sombra) --- */
+.aj-raiz .aj-busca-c {
+  height: var(--alto-boton);
+  background: var(--capa-card);
+  box-shadow: var(--vidrio-borde);
+  transition: background-color var(--t-snappy), box-shadow var(--t-snappy);
+}
+.aj-raiz .aj-busca-c:hover {
+  background: var(--capa-hover);
+}
+.aj-raiz .aj-busca-c:focus-visible {
+  outline: 0;
+  box-shadow: inset 0 0 0 1.5px var(--acento);
+}
+.aj-raiz .aj-busca-i {
+  color: var(--apagado);
+}
+.aj-raiz .aj-res {
+  padding: var(--esp-1-5);
+  border: 0;
+  border-radius: var(--r-lg);
+  background: var(--vidrio-opaco);
+  box-shadow: var(--vidrio-borde), var(--sombra-vidrio);
+}
+.aj-raiz .aj-res-f {
+  border-radius: var(--r-md);
+}
+.aj-raiz .aj-res-f[aria-selected="true"] {
+  background: var(--acento-tinte);
+  box-shadow: inset 0 0 0 1px var(--ajustes-acento-borde);
+}
+.aj-raiz .aj-res-c {
+  padding: 0 var(--esp-2);
+  border-radius: var(--r-cap);
+  background: var(--capa-tile);
+  color: var(--apagado);
+}
+
+/* --- Las secciones: tarjetas de vidrio --- */
+.aj-raiz .aj-cat .pn-sec,
+.aj-raiz .aj-grupo-card {
+  overflow: hidden;
+  border: 0;
+  border-radius: var(--r-lg);
+  background: var(--capa-card);
+  box-shadow: var(--vidrio-borde);
+}
+.aj-raiz .aj-cat .pn-sec > .pn-h {
+  padding: var(--esp-4) var(--esp-5) var(--esp-1);
+  color: var(--texto);
+  font-size: var(--letra-7);
+  font-weight: 600;
+}
+.aj-raiz .aj-cat .pn-sec > :not(.pn-h) {
+  margin-right: var(--esp-5);
+  margin-left: var(--esp-5);
+}
+.aj-raiz .aj-cat .pn-sec > :last-child {
+  margin-bottom: var(--esp-4);
+}
+.aj-raiz .aj-cat .pn-sec > :is(.ol-guia, .cel-estado):first-child {
+  margin-top: var(--esp-5);
+}
+/* GrupoAjustes (Plan y cupos, Cupos, Modelos…): el título en frase, no en mayúsculas chicas. */
+.aj-raiz .aj-grupo {
+  gap: var(--esp-2-5);
+}
+.aj-raiz .aj-grupo-cab {
+  padding: 0 var(--esp-1);
+}
+.aj-raiz .aj-grupo-tit {
+  color: var(--texto);
+  font-size: var(--letra-7);
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.aj-raiz .aj-grupo-sub {
+  color: var(--apagado);
+  font-size: var(--letra-4);
+}
+.aj-raiz .aj-fila {
+  padding: var(--esp-3-5) var(--esp-5);
+}
+.aj-raiz .aj-fila + .aj-fila {
+  border-top-color: var(--capa-div);
+}
+.aj-raiz .aj-fila-ico {
+  border-radius: var(--r-sm);
+  background: var(--capa-tile);
+}
+.aj-raiz .aj-fila-detalle {
+  border: 0;
+  border-radius: var(--r-md);
+  background: var(--capa-div);
+}
+
+/* --- Filas con etiqueta y valor --- */
+.aj-raiz .aj-cat .pn-dato {
+  min-height: 3.25rem;
+  padding: var(--esp-3-5) 0;
+}
+.aj-raiz .pn-nom {
+  color: var(--texto);
+  font-size: var(--letra-6);
+  font-weight: 600;
+}
+.aj-raiz .pn-que {
+  max-width: 32rem;
+  color: var(--apagado);
+}
+/* El valor va en la letra de la interfaz con cifras tabulares; la mono queda para lo que es código (rutas, ids, comandos). */
+.aj-raiz .pn-val {
+  color: var(--texto);
+  font-family: var(--font-sans);
+  font-size: var(--letra-5);
+  font-variant-numeric: tabular-nums;
+}
+.aj-raiz .pn-val :is(code, .pn-mono, .nim-id) {
+  font-family: var(--font-mono);
+  font-size: var(--letra-4);
+}
+.aj-raiz .pn-falta {
+  color: var(--apagado);
+}
+.aj-raiz .ol-nota {
+  max-width: 44rem;
+}
+
+/* --- Campos --- */
+.aj-raiz .pn-campo {
+  height: var(--alto-boton);
+  padding: 0 var(--esp-4);
+  background: var(--capa-input);
+  box-shadow: inset 0 0 0 1px transparent;
+  font-size: var(--letra-5);
+  transition: background-color var(--t-snappy), box-shadow var(--t-snappy);
+}
+.aj-raiz .pn-campo:hover {
+  background: var(--capa-hover);
+}
+.aj-raiz .pn-campo:focus-visible {
+  outline: 0;
+  box-shadow: inset 0 0 0 1.5px var(--acento);
+}
+.aj-raiz .pn-campo[aria-invalid="true"] {
+  box-shadow: inset 0 0 0 1.5px var(--fallo-relleno);
+}
+.aj-raiz .pn-campo-error {
+  color: var(--fallo-texto);
+}
+
+/* --- Interruptores: 44 × 26, con borde de luz apagado y el celeste encendido (la perilla además cambia de lado) --- */
+.aj-raiz .ui-sw {
+  width: 2.75rem;
+  height: 1.625rem;
+  background: var(--capa-track);
+  box-shadow: var(--vidrio-borde);
+  transition: background-color var(--t-smooth);
+}
+.aj-raiz .ui-sw::after {
+  top: 0.25rem;
+  left: 0.25rem;
+  width: 1.125rem;
+  height: 1.125rem;
+}
+.aj-raiz .ui-sw[aria-checked="true"] {
+  background: var(--acento);
+  box-shadow: none;
+}
+.aj-raiz .ui-sw[aria-checked="true"]::after {
+  transform: translateX(1.125rem);
+}
+.aj-raiz .ui-sw:focus-visible,
+.aj-raiz .ui-btn:focus-visible {
+  outline: 2px solid var(--acento);
+  outline-offset: 2px;
+}
+
+/* --- Botones y chips: cápsulas; el primario relleno de celeste --- */
+.aj-raiz .ui-btn {
+  transition: background-color var(--t-snappy), filter var(--t-snappy);
+}
+.aj-raiz .ui-chip {
+  box-shadow: var(--vidrio-borde);
+}
+.aj-raiz .ui-chip[data-tono="ok"] {
+  background: var(--ok-tinte);
+  box-shadow: inset 0 0 0 1px var(--ajustes-ok-borde);
+}
+.aj-raiz .ui-chip[data-tono="aviso"] {
+  background: var(--decision-fondo);
+  box-shadow: inset 0 0 0 1px var(--decision-borde);
+  color: var(--decision-texto);
+}
+.aj-raiz .ui-chip[data-tono="critico"] {
+  background: var(--fallo-fondo);
+  box-shadow: inset 0 0 0 1px var(--fallo-borde);
+  color: var(--fallo-texto);
+}
+
+/* Estado con ícono y palabra (✓ guardada · ✗ sin clave): una cápsula, calma si está bien y tintada de coral si no. */
+.aj-raiz .mdl-estado {
+  display: inline-flex;
+  height: var(--alto-chip);
+  align-items: center;
+  gap: var(--esp-1);
+  padding: 0 var(--esp-2-5);
+  border-radius: var(--r-cap);
+  background: var(--capa-tile);
+  color: var(--apagado);
+  font-size: var(--letra-4);
+  font-weight: 500;
+  white-space: nowrap;
+}
+.aj-raiz .mdl-estado[data-estado="ok"] {
+  background: var(--ok-tinte);
+  box-shadow: inset 0 0 0 1px var(--ajustes-ok-borde);
+  color: var(--ok);
+}
+.aj-raiz .mdl-estado[data-estado="no"] {
+  background: var(--fallo-fondo);
+  box-shadow: inset 0 0 0 1px var(--fallo-borde);
+  color: var(--fallo-texto);
+}
+.aj-raiz .nim-fila {
+  min-height: 2.5rem;
+  padding: var(--esp-1-5) var(--esp-3);
+  border-radius: var(--r-md);
+  background: var(--capa-div);
+}
+.aj-raiz .nim-marca {
+  border: 0;
+  border-radius: var(--r-cap);
+  background: var(--acento-tinte);
+  box-shadow: inset 0 0 0 1px var(--ajustes-acento-borde);
+  color: var(--acento);
+  font-weight: 500;
+}
+
+/* --- Avisos: un fallo en coral, un tope cruzado o algo que pide decidir en ámbar, con su ícono y su palabra --- */
+.aj-raiz .pn-aviso[data-error],
+.aj-raiz .pn-error {
+  padding: var(--esp-2-5) var(--esp-4);
+  border-radius: var(--r-md);
+  background: var(--fallo-fondo);
+  box-shadow: inset 0 0 0 1px var(--fallo-borde);
+  color: var(--fallo-texto);
+  font-size: var(--letra-5);
+  line-height: 1.45;
+}
+.aj-raiz .cu-aviso {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: var(--esp-0-5) var(--esp-2-5);
+  padding: var(--esp-3) var(--esp-4);
+  border-radius: var(--r-lg);
+  background: var(--decision-fondo);
+  box-shadow: inset 0 0 0 1px var(--decision-luz), var(--decision-brillo);
+  color: var(--decision-texto);
+  font-size: var(--letra-5);
+  font-weight: 500;
+}
+.aj-raiz .cu-aviso-i {
+  margin-top: 0.125rem;
+  color: var(--decision-relleno);
+}
+.aj-raiz .cu-aviso .cu-aviso-q {
+  grid-column: 2;
+  color: var(--apagado);
+  font-weight: 400;
+}
+
+/* --- Plan y cupos: las tarjetas por suscripción en vidrio; «Poner clave» (#1881) en NVIDIA NIM sin clave --- */
+.aj-raiz .ui-card {
+  border-radius: var(--r-lg);
+  box-shadow: var(--vidrio-borde);
+}
+.aj-raiz .cu-nombre {
+  font-weight: 600;
+}
+.aj-raiz .cu-pildora {
+  height: var(--alto-chip);
+  align-items: center;
+  box-shadow: var(--vidrio-borde);
+}
+.aj-raiz .cu-pildora[data-nivel="ok"] {
+  background: var(--ok-tinte);
+  box-shadow: inset 0 0 0 1px var(--ajustes-ok-borde);
+}
+.aj-raiz .cu-pildora[data-nivel="bajo"],
+.aj-raiz .cu-pildora[data-nivel="parcial"] {
+  background: var(--decision-fondo);
+  box-shadow: inset 0 0 0 1px var(--decision-borde);
+  color: var(--decision-texto);
+}
+.aj-raiz .cu-pildora[data-nivel="lleno"] {
+  background: var(--cupo-agotado-fondo);
+  box-shadow: inset 0 0 0 1px var(--cupo-agotado-borde);
+  color: var(--cupo-agotado-texto);
+}
+.aj-raiz .cu-pildora[data-nivel="marcado"] {
+  box-shadow: inset 0 0 0 1px var(--cupo-agotado-borde);
+  color: var(--cupo-agotado-texto);
+}
+.aj-raiz .cu-insignia {
+  background: var(--cupo-agotado-fondo);
+  box-shadow: inset 0 0 0 1px var(--cupo-agotado-borde);
+  color: var(--cupo-agotado-texto);
+}
+.aj-raiz .cu-pct[data-estado="bajo"] {
+  color: var(--cupo-poco-texto);
+}
+.aj-raiz .cu-grupo {
+  border-radius: var(--r-md);
+}
+.aj-raiz .cu-poner-clave {
+  align-self: flex-start;
+}
+
+/* --- Angosto (el panel, no la ventana): la barra lateral ya es un selector; el título baja un escalón --- */
+@container (max-width: 40rem) {
+  .aj-raiz .aj {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .aj-raiz .aj-t {
+    font-size: var(--letra-8);
+  }
+  .aj-raiz .aj-fila {
+    padding: var(--esp-3) var(--esp-4);
+  }
+  .aj-raiz .aj-cat .pn-sec > .pn-h {
+    padding-right: var(--esp-4);
+    padding-left: var(--esp-4);
+  }
+  .aj-raiz .aj-cat .pn-sec > :not(.pn-h) {
+    margin-right: var(--esp-4);
+    margin-left: var(--esp-4);
+  }
+}
+@media (pointer: coarse) {
+  .aj-raiz .aj-it {
+    min-height: 2.75rem;
+  }
+  .aj-raiz .ui-sw {
+    min-height: 1.625rem;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .aj-raiz .aj-it,
+  .aj-raiz .aj-busca-c,
+  .aj-raiz .pn-campo,
+  .aj-raiz .ui-sw,
+  .aj-raiz .ui-btn {
+    transition: none;
+  }
+}
+
+/* Modelos y OpenCode, en escritorio: la explicación pide 18 rem antes de ceder lugar; si el control (chips, botones, un campo con su botón)
+   no entra a su lado, baja debajo, a la derecha. Con el relleno de las tarjetas, 12 rem dejaba la frase en una columna de 100 px. */
+@container (min-width: 40rem) {
+  .aj-raiz .aj-cat:is([data-cat="modelos"], [data-cat="opencode"]) .pn-dato {
+    gap: var(--esp-2-5) var(--esp-6);
+  }
+  .aj-raiz .aj-cat:is([data-cat="modelos"], [data-cat="opencode"]) .pn-dato-id {
+    flex: 1 1 18rem;
+  }
+}
+
+/* La barra de abajo (Guardar / Cancelar): vidrio que flota; con cambios sin guardar pide mirar, con el borde ámbar de «decisión» y la palabra. */
+.pn-ajustes .pn-barra {
+  border-radius: var(--r-lg);
+  background: var(--vidrio-opaco);
+}
+.pn-ajustes .pn-barra[data-sucio] {
+  box-shadow: inset 0 0 0 1px var(--decision-luz), var(--sombra-vidrio), var(--decision-brillo);
+}
+.pn-ajustes .pn-barra[data-sucio] .pn-barra-estado {
+  color: var(--decision-texto);
+  font-size: var(--letra-5);
+  font-weight: 600;
+}
+.pn-ajustes .pn-barra[data-sucio] .pn-barra-estado::before {
+  display: inline-block;
+  width: 0.375rem;
+  height: 0.375rem;
+  margin-right: var(--esp-2);
+  border-radius: var(--r-cap);
+  background: var(--decision-relleno);
+  box-shadow: var(--decision-halo);
+  content: "";
+  vertical-align: 0.125rem;
+}

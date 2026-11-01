@@ -336,6 +336,7 @@ export function CuposTarjetas({ b, uso, plan }: { b: Borrador; uso: Uso | null; 
     <section className="cu-sec">
       {avisos.map((a) => (
         <div key={a.ventana} className="pn-aviso mdl-cruce cu-aviso" role="status">
+          <TriangleAlert size={16} aria-hidden="true" className="cu-aviso-i" />
           <div>
             {t("cu.avisoTope", { quien: t("cu.claude"), ventana: t(a.ventana === "5h" ? "cu.ventana5h" : "cu.ventanaSem"), pct: a.pct })}
             {a.vuelve !== null ? ", " : ""}

@@ -94,6 +94,15 @@ test("sin elegir, no hay categoría; irA la fija, la pide mostrar y avisa una ve
   baja();
 });
 
+test("irA con foco (el «Poner clave» de NVIDIA NIM) lleva a la fila de la clave en OpenCode y pide el cursor en su campo", () => {
+  irA("opencode", "ajustes.nimClave", true);
+  assert.equal(categoria(), "opencode");
+  assert.deepEqual({ opc: pendienteDeMostrar()?.opc, foco: pendienteDeMostrar()?.foco }, { opc: "ajustes.nimClave", foco: true });
+  irA("opencode", "ajustes.nimClave");
+  assert.equal(pendienteDeMostrar()?.foco, undefined);
+  assert.ok(ITEMS.some((i) => i.cat === "opencode" && i.nombre === "ajustes.nimClave"));
+});
+
 test("efectiva: la recordada si existe en esta máquina; si no, la primera que haya", () => {
   irA("cuentas");
   assert.equal(

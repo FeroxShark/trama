@@ -14,6 +14,7 @@ import { Fijo } from "../i18n/Fijo";
 import { Lado } from "../hilo/Lado";
 import "./paneles.css";
 import "./lavado.css";
+import "./ajustes-vidrio.css";
 
 export type CualPanel = "ajustes" | "ramas" | "estadisticas" | "tablero";
 
