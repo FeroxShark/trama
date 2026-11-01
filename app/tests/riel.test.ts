@@ -6,6 +6,7 @@ import { aRiel, atencionCarpeta, carpetaViva, filtrarArbol, hilosArbol, hilosCar
 import { cuentasClaude, lineasCuentas, lineasMotores } from "../src/barra/cuposRiel.ts";
 import { PALETA_RIEL, tonoRiel } from "../src/barra/logo-logica.ts";
 import { pintorCorto } from "../src/tiempo.ts";
+import { cambiarIdioma } from "../src/i18n/index.ts";
 import type { Estado, Hilo, Lider } from "../src/datos/contrato.ts";
 import type { FilaSusc } from "../src/datos/cuentas.ts";
 
@@ -162,18 +163,21 @@ test("partirResalte: sin mayúsculas ni tildes, y varias veces", () => {
 
 test("armarArbol sinActivas: los líderes calientes se quedan en su carpeta, sin grupo aparte", () => {
   const l = lider("l", "atlas", { ocupado: true });
-  const a = armarArbol([], { lideres: [l], prioridad: { lideres: new Set(["l"]), proyectos: new Set(["atlas"]) }, sinActivas: true, ahora: AHORA } as unknown as Parameters<typeof armarArbol>[1]);
+  const a = armarArbol([], { lideres: [l], prioridad: { lideres: new Map([["l", 0]]), carpetas: new Set(["atlas"]) }, sinActivas: true, ahora: AHORA } as unknown as Parameters<typeof armarArbol>[1]);
   assert.equal(a.activas.length, 0);
   assert.ok(a.carpetas.some((c) => c.ramas.some((r) => r.lider?.id === "l")));
 });
 
 test("pintorCorto: la columna del tiempo", () => {
+  cambiarIdioma("es");
   const t = (d: number) => pintorCorto(AHORA - d)(AHORA).texto;
   assert.equal(t(10), "ahora");
   assert.equal(t(4 * 60), "4 m");
   assert.equal(t(3 * 3600), "3 h");
   assert.equal(t(30 * 3600), "ayer");
   assert.equal(t(4 * 86400), "4 d");
+  cambiarIdioma("en");
+  assert.equal(t(10), "now");
 });
 
 test("tonoRiel: siempre el mismo tono para un nombre, de la paleta", () => {
