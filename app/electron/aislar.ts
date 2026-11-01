@@ -72,7 +72,7 @@ export function armarAislamiento(raiz: string) {
   armado = true;
   const real = (p: string) => {
     try {
-      return fs.realpathSync(p);
+      return fs.realpathSync.native(p); // .native: en Windows expande los nombres cortos 8.3 (RUNNER~1)
     } catch {
       return p;
     }

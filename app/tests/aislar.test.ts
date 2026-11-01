@@ -19,35 +19,43 @@ const armar = () => {
 
 test("lo de Ana: bajo el home y fuera del checkout", () => {
   const { a } = armar();
-  assert.equal(a.ajeno("/home/ana/.claude/projects/x.jsonl"), true);
-  assert.equal(a.ajeno("/home/ana/.local/state/hilos/nombres.json"), true);
-  assert.equal(a.ajeno("/home/ana/CLAUDE.md"), true);
-  assert.equal(a.ajeno("/home/ana/.claude/../.config/proyectos/registry.json"), true);
+  assert.equal(a.ajeno(R("home", "ana", ".claude", "projects", "x.jsonl")), true);
+  assert.equal(a.ajeno(R("home", "ana", ".local", "state", "hilos", "nombres.json")), true);
+  assert.equal(a.ajeno(R("home", "ana", "CLAUDE.md")), true);
+  assert.equal(a.ajeno(R("home", "ana", ".claude", "..", ".config", "proyectos", "registry.json")), true);
 });
 
 test("no es de Ana: el checkout, /tmp, el home mismo y lo de otro lado", () => {
   const { a } = armar();
-  assert.equal(a.ajeno("/home/ana/proy/hilos/dist/index.html"), false);
-  assert.equal(a.ajeno("/home/ana/proy/hilos"), false);
-  assert.equal(a.ajeno("/tmp/trama-captura-1/estado"), false);
-  assert.equal(a.ajeno("/home/ana"), false);
-  assert.equal(a.ajeno("/home/ana.bak/x"), false);
-  assert.equal(a.ajeno("/usr/lib/x"), false);
+  assert.equal(a.ajeno(R("home", "ana", "proy", "hilos", "dist", "index.html")), false);
+  assert.equal(a.ajeno(R("home", "ana", "proy", "hilos")), false);
+  assert.equal(a.ajeno(R("tmp", "trama-captura-1", "estado")), false);
+  assert.equal(a.ajeno(ANA), false);
+  assert.equal(a.ajeno(`${ANA}.bak${path.sep}x`), false);
+  assert.equal(a.ajeno(R("usr", "lib", "x")), false);
+});
+
+test("el tmp que cuelga del home no es de Ana (en Windows %TEMP% está bajo el perfil)", () => {
+  const tmp = R("home", "ana", "AppData", "Local", "Temp");
+  const a = crearAislamiento({ home: [ANA], permitidas: [], temporales: [tmp], anotar: () => {} });
+  assert.equal(a.ajeno(path.join(tmp, "trama-test-casa-1", "home", ".config")), false);
+  assert.equal(a.ajeno(R("home", "ana", "AppData", "Local", "Otro", "x")), true);
+  assert.equal(a.binarioAjeno(path.join(tmp, "falso", "pa")), false);
 });
 
 test("un binario: el nombre suelto cuenta, /tmp y el checkout no", () => {
   const { a } = armar();
   assert.equal(a.binarioAjeno("claude"), true);
-  assert.equal(a.binarioAjeno("/home/ana/.local/bin/pa"), true);
-  assert.equal(a.binarioAjeno("/tmp/falso/pa"), false);
-  assert.equal(a.binarioAjeno("/home/ana/proy/hilos/scripts/pa-falso.sh"), false);
-  assert.equal(a.binarioAjeno("/usr/bin/env"), false);
+  assert.equal(a.binarioAjeno(R("home", "ana", ".local", "bin", "pa")), true);
+  assert.equal(a.binarioAjeno(R("tmp", "falso", "pa")), false);
+  assert.equal(a.binarioAjeno(R("home", "ana", "proy", "hilos", "scripts", "pa-falso.sh")), false);
+  assert.equal(a.binarioAjeno(R("usr", "bin", "env")), false);
 });
 
 test("un nombre suelto cuenta sólo si el PATH tiene carpetas del home", () => {
-  const limpio = crearAislamiento({ home: ["/home/ana"], permitidas: [], temporales: ["/tmp"], camino: () => "/usr/bin:/bin", anotar: () => {} });
+  const limpio = crearAislamiento({ home: [ANA], permitidas: [], temporales: [TMP], camino: () => [R("usr", "bin"), R("bin")].join(path.delimiter), anotar: () => {} });
   assert.equal(limpio.binarioAjeno("git"), false);
-  const sucio = crearAislamiento({ home: ["/home/ana"], permitidas: [], temporales: ["/tmp"], camino: () => "/usr/bin:/home/ana/.local/bin", anotar: () => {} });
+  const sucio = crearAislamiento({ home: [ANA], permitidas: [], temporales: [TMP], camino: () => [R("usr", "bin"), R("home", "ana", ".local", "bin")].join(path.delimiter), anotar: () => {} });
   assert.equal(sucio.binarioAjeno("git"), true);
 });
 
