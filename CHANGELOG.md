@@ -1,5 +1,11 @@
 # Cambios
 
+## 0.2.37
+
+- Rediseño (vidrio): la tarjeta de cupos pasa a tarjetas con la cifra grande (Claude 5 h y semana, Google en tres chicas, OpenCode en cápsula); lo que está sin cupo va tintado con «sin cupo» y la hora en que vuelve.
+- Lo que pide tu atención se nota a simple vista: un worker que falló va en coral con borde luminoso y «Relanzar» relleno; una decisión pendiente, en ámbar; lo que corre o terminó queda calmo.
+- Lista de líderes: chips «N falló» y «N esperan» arriba (llevan al primero), y sólo resaltan las filas que necesitan algo de vos.
+
 ## 0.2.36
 
 - Reparto: cuando OpenCode gratis corta por límite de uso, ese camino queda agotado (antes seguía mostrando «cupo 100 %» y el worker moría).
