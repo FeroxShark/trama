@@ -11,7 +11,7 @@
     "start": "electron .",
     "bench": "bash scripts/dev/bench.sh",
     "postinstall": "node node_modules/electron/install.js",
-    "test": "node scripts/chequeo-esperas.mjs && node scripts/test.mjs",
+    "test": "node scripts/chequeo-esperas.mjs && node scripts/chequeo-colores.mjs && node scripts/test.mjs",
     "prueba": "node scripts/prueba-todas.mjs",
     "visual": "node scripts/visual.mjs",
     "humo": "node scripts/humo-motor.mjs",

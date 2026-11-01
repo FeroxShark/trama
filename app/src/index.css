@@ -76,9 +76,9 @@
   --font-mono: "JetBrains Mono", "Geist Mono", "Adwaita Mono", ui-monospace, monospace;
   --text-2xs: 0.6875rem;
 
-  --color-background: #07080b;
-  --color-foreground: #f4f5f7;
-  --color-secondary-label: #7d8087;
+  --color-background: var(--fondo);
+  --color-foreground: var(--texto-1);
+  --color-secondary-label: var(--texto-6);
 }
 
 /* El tamaño de letra (Ajustes, Ctrl+= / Ctrl+- / Ctrl+0): `--letra` son los px
@@ -3218,8 +3218,8 @@ html[data-titulo-nativo] #root::after {
    Nada se sale de su mensaje: lo que no tiene espacios (una URL pegada) se parte
    adentro; sólo los bloques de código y las tablas se deslizan de costado, en su caja. */
 :is(.yo, .el, .pregunta) {
-  --enlace: #8fb5f0;
-  --ruta: #7fd1c7;
+  --enlace: var(--acento);
+  --ruta: var(--sint-var);
   min-width: 0;
   overflow-wrap: anywhere;
 }

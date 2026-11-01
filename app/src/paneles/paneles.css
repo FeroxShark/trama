@@ -1072,16 +1072,16 @@
 }
 /* Los modelos, en tres grises (y uno más para lo que no se reconoce). */
 [data-m="Opus"] {
-  --m: #e5e5e5;
+  --m: var(--texto-2);
 }
 [data-m="Sonnet"] {
-  --m: #8a8a8a;
+  --m: var(--texto-5);
 }
 [data-m="Fable"] {
-  --m: #4f4f4f;
+  --m: var(--texto-8);
 }
 [data-m="otro"] {
-  --m: #2e2e2e;
+  --m: var(--borde-4);
 }
 .pn-pila-m i {
   background: var(--m);
