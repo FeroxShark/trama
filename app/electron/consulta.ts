@@ -5,7 +5,7 @@ import path from "node:path";
 import { ESTADO } from "./estado.js";
 import { identidadDe, type Identidad } from "./identidad.js";
 import { leerMaquinas, SOLA } from "./maquinas-config.js";
-import { aparienciaGuardada, avisarEsperaGuardado, avisarWorkersGuardado, avisoLiderGuardado, consumoGuardado, idiomaGuardado, terminalAgentesGuardada, tiernosGuardados, vistaGuardada } from "./preferencias.js";
+import { aparienciaGuardada, avisarEsperaGuardado, avisarWorkersGuardado, avisoLiderGuardado, consumoGuardado, idiomaGuardado, terminalAgentesGuardada, tiernosGuardados } from "./preferencias.js";
 import { plataformaActual } from "./rutas.ts";
 
 /** Lo fijo: si hay fixtures, y con datos de verdad el nombre de esta máquina (ficha de cada worker) y el usuario (la carpeta del home en la barra). */
@@ -54,9 +54,6 @@ export function crearConsulta(base: Record<string, string>, modo: boolean): () =
     if (letra) q.letra = String(letra);
     if (fuente) q.fuente = fuente;
     if (mono) q.mono = mono;
-    // La vista de la barra (todo o sólo líderes), igual: sin salto al abrir.
-    const vista = process.env.HILOS_VISTA ?? (modo ? null : vistaGuardada());
-    if (vista) q.vista = vista;
     // El panel de consumo, igual: sólo viaja cuando está a la vista.
     const consumo = process.env.HILOS_CONSUMO;
     if (consumo ? consumo === "1" : !modo && consumoGuardado()) q.consumo = "1";

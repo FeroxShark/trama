@@ -1,7 +1,7 @@
 // Lo que la app recuerda entre aperturas: `~/.local/state/hilos/preferencias.json`.
 // El último esfuerzo que el usuario eligió para cada modelo en Nueva tarea (id de
 // modelo → effort), el idioma de la interfaz, el tamaño de letra, las fuentes y
-// los mensajes tiernos (Ajustes), la vista de la barra (todo o sólo líderes) y si el panel de consumo está a la vista.
+// los mensajes tiernos (Ajustes) y si el panel de consumo está a la vista.
 // Se escribe sólo cuando cambia algo (pocas veces): sin debounce.
 import { readFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
@@ -26,7 +26,6 @@ export type Idioma = "en" | "es";
  */
 export type Apariencia = { letra?: number; fuente?: string; mono?: string; tema?: string };
 /** Qué muestra la barra: los líderes con sus workers colgando (`todo`) o sólo los líderes. */
-export type VistaBarra = "todo" | "lideres";
 /** `tiernos`: los mensajes tiernos (B17); sin el campo, prendidos. */
 /** `autoIntegrar`: "Integrar solo lo seguro" de Ramas (B22); sin el campo, prendido. */
 /** `consumo`: el panel de consumo (a la derecha) está a la vista; sin el campo, oculto. */
@@ -46,7 +45,6 @@ export type Preferencias = {
   avisoLider?: ModoAvisoLider;
   /** `cacheVencida`: qué hacer con el primer mensaje cuando la caché venció y el contexto es grande (cache-pregunta.ts); sin el campo, preguntar. */
   cacheVencida?: PrefCache;
-  vista?: VistaBarra;
   autoIntegrar?: boolean;
   consumo?: boolean;
   dictadoModelo?: string;
@@ -62,7 +60,6 @@ let prefs: Preferencias | null = null;
 const texto = (r: unknown): r is Record<string, string> =>
   !!r && typeof r === "object" && Object.values(r).every((v) => typeof v === "string");
 const esIdioma = (x: unknown): x is Idioma => x === "en" || x === "es";
-const esVista = (x: unknown): x is VistaBarra => x === "todo" || x === "lideres";
 const esAvisoLider = (x: unknown): x is ModoAvisoLider => x === "tanda" || x === "worker";
 const esLetra = (x: unknown): x is number => typeof x === "number" && Number.isInteger(x) && x >= 8 && x <= 40;
 const esFuente = (x: unknown): x is string => typeof x === "string" && /^[a-z0-9-]{1,32}$/.test(x);
@@ -102,7 +99,6 @@ function desde(j: {
   if (typeof j.avisarWorkers === "boolean") p.avisarWorkers = j.avisarWorkers;
   if (esAvisoLider(j.avisoLider)) p.avisoLider = j.avisoLider;
   if (esPrefCache(j.cacheVencida) && j.cacheVencida !== "preguntar") p.cacheVencida = j.cacheVencida;
-  if (esVista(j.vista)) p.vista = j.vista;
   if (typeof j.autoIntegrar === "boolean") p.autoIntegrar = j.autoIntegrar;
   if (typeof j.consumo === "boolean") p.consumo = j.consumo;
   if (esModeloDictado(j.dictadoModelo)) p.dictadoModelo = j.dictadoModelo;
@@ -145,16 +141,6 @@ export function aparienciaGuardada(): Apariencia {
   return { letra: p.letra, fuente: p.fuente, mono: p.mono, tema: p.tema };
 }
 
-/** La vista de la barra guardada, síncrona: va en la query como el idioma. */
-export function vistaGuardada(): VistaBarra | null {
-  if (prefs) return prefs.vista ?? null;
-  try {
-    return desde(JSON.parse(readFileSync(ARCHIVO, "utf8"))).vista ?? null;
-  } catch {
-    return null;
-  }
-}
-
 const guardar = (p: Preferencias) => escribirAtomico(ARCHIVO, JSON.stringify({ version: VERSION, ...p })).catch(silencio("preferencias"));
 
 export async function guardarEffort(modelo: string, effort: string) {
@@ -170,14 +156,6 @@ export async function guardarIdioma(idioma: unknown) {
   const p = await leerPreferencias();
   if (p.idioma === idioma) return;
   p.idioma = idioma;
-  await guardar(p);
-}
-
-export async function guardarVista(vista: unknown) {
-  if (!esVista(vista)) return;
-  const p = await leerPreferencias();
-  if ((p.vista ?? "todo") === vista) return;
-  p.vista = vista;
   await guardar(p);
 }
 

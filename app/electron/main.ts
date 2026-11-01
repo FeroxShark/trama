@@ -87,8 +87,6 @@ const aqui = import.meta.dirname;
 //   HILOS_TIERNOS=1|0        los mensajes tiernos (B17). Sin la variable: lo de preferencias.json
 //   HILOS_CONSUMO=1|0        el panel de consumo a la vista. Sin la variable: lo de preferencias.json
 //                            (Ajustes); en bench y captura, prendidos (y sin rotar).
-//   HILOS_VISTA=todo|lideres la vista de la barra. Sin la variable: la de preferencias.json; en
-//                            bench y captura, todo.
 //   --escondida              (argumento) arranca sin mostrar la ventana: así la levanta la unidad de
 //                            systemd al iniciar la sesión (systemd/trama.service). Abrirla desde el
 //                            lanzador la muestra.

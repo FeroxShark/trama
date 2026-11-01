@@ -23,7 +23,7 @@ import { cambioDe, vistaDe, type CambioPasos, type VistaPasos } from "./pasos";
 import { pasosFijos, pasosRutasFijos, pasosSubFijos } from "./pasos-fixture";
 import { crearCola, type AvisoCola, type Encolado } from "../../electron/cola";
 import type { Aviso as AvisoProgramados, Estado as EstadoProgramados } from "../../electron/programados";
-import { ARRANCANDO, EN_COLA, HILOS_DELL, LIDER_DELL, PENSANDO_FIJO, charlaFormato, charlaLarga, charlaLimite, charlaCambio, charlaListas, charlaIntermedios, charlaLider, charlaPensando, charlaSistema, charlaTabla, conversacion, conversacionSistema, HILOS, HILOS_ACTIVAS, HILOS_ATENCION, HILOS_ATENCION_RESUELTO, HILOS_EN_COLA, HILOS_TERMINADOS, ICONOS, LIDERES, LIDERES_ACTIVAS, LIDERES_ATENCION, LIDERES_ATENCION_RESUELTO, LIDER_MUERTO, LIDER_TERMINADOS, FRENADO, TITULOS, USO, USO_CUENTAS, USO_TRES, USO_NIM, USO_TODO, USO_TODO_DOS, USO_GOOGLE, USO_GOOGLE_MARCADO, USO_SIN_CUPO, USO_SIN_HORA, imagenFija, localesFalsos, vramFalsa, vramLiberarFalso } from "./fixtures";
+import { ARRANCANDO, EN_COLA, HILOS_DELL, LIDER_DELL, PENSANDO_FIJO, charlaFormato, charlaLarga, charlaLimite, charlaCambio, charlaListas, charlaIntermedios, charlaLider, charlaPensando, charlaSistema, charlaTabla, conversacion, conversacionSistema, HILOS, HILOS_ACTIVAS, HILOS_ATENCION, HILOS_ATENCION_RESUELTO, HILOS_EN_COLA, HILOS_RIEL, HILOS_TERMINADOS, ICONOS, LIDERES, LIDERES_ACTIVAS, LIDERES_ATENCION, LIDERES_ATENCION_RESUELTO, LIDERES_RIEL, LIDER_MUERTO, LIDER_TERMINADOS, FRENADO, TITULOS, USO, USO_CUENTAS, USO_TRES, USO_NIM, USO_TODO, USO_TODO_DOS, USO_GOOGLE, USO_GOOGLE_MARCADO, USO_SIN_CUPO, USO_SIN_HORA, imagenFija, localesFalsos, vramFalsa, vramLiberarFalso } from "./fixtures";
 
 export interface Fuente {
   /** La última lista buena de una corrida anterior, para pintar algo mientras `pa` contesta. */
@@ -97,8 +97,6 @@ export interface Fuente {
   relanzarWorker(id: string): Promise<void>;
   /** «Seguir con otro modelo» (#1791): lanza `pa --seguir-con <modelo> --id <id>`, que sigue la conversación del worker en su mismo puesto y rama con un resumen de traspaso; tira el error del main si no se pudo. */
   seguirConWorker(id: string, modelo: string): Promise<void>;
-  /** La vista de la barra (B15): todo o sólo líderes. */
-  guardarVista(vista: "todo" | "lideres"): void;
   /** El panel de consumo (a la derecha), a la vista u oculto: se recuerda en el mismo archivo. */
   guardarConsumo(si: boolean): void;
   /** ¿Hay que abrir la bienvenida sola? (nunca se vio; una prueba dice que no). */
@@ -688,6 +686,8 @@ const conGemini = (r: RespuestaLideres): RespuestaLideres => {
 const lideresBase = (): RespuestaLideres =>
   MODO.captura === "activas"
     ? { ...LIDERES, lideres: LIDERES_ACTIVAS }
+    : MODO.captura === "riel-pulido"
+    ? { ...LIDERES, lideres: LIDERES_RIEL }
     : MODO.captura === "atencion"
     ? { ...LIDERES, lideres: MODO.variante === "resuelto" ? LIDERES_ATENCION_RESUELTO : LIDERES_ATENCION }
     : filasDelDell()
@@ -1400,6 +1400,8 @@ const fija: Fuente = {
   async hilos() {
     return MODO.captura === "activas"
       ? HILOS_ACTIVAS
+      : MODO.captura === "riel-pulido"
+      ? HILOS_RIEL
       : MODO.captura === "atencion"
       ? MODO.variante === "resuelto" ? HILOS_ATENCION_RESUELTO : HILOS_ATENCION
       : MODO.captura === "terminados"
@@ -1518,7 +1520,6 @@ const fija: Fuente = {
   },
   async relanzarWorker() {},
   async seguirConWorker() {},
-  guardarVista() {},
   guardarConsumo() {},
   async bienvenidaPendiente() {
     return false;
@@ -2262,9 +2263,6 @@ const conPa = (m: NonNullable<typeof main>): Fuente => ({
   },
   guardarAvisarEspera(si) {
     void m.preferencias.avisarEspera(si).catch(() => {});
-  },
-  guardarVista(vista) {
-    void m.preferencias.vista(vista).catch(() => {});
   },
   guardarConsumo(si) {
     void m.preferencias.consumo(si).catch(() => {});

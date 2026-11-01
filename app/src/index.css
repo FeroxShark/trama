@@ -556,7 +556,7 @@ img.logo {
   filter: drop-shadow(0 0 0.1875rem color-mix(in srgb, var(--oro) 55%, transparent));
 }
 /* Caché vencido: corona apagada y título atenuado. El atributo lo pone el reloj. */
-.lider:has(.cache[data-frio]) .corona:not([data-ocupado]) {
+.lider:has(.cache[data-frio]) .corona[data-estado="quieto"] {
   color: var(--texto-7);
 }
 .lider .txt {
@@ -641,26 +641,6 @@ img.logo {
 .migas .te-espera {
   font-size: var(--letra-4);
 }
-/* Sólo líderes: lo vivo del líder resumido al lado de su nombre ("2 trabajando"). El punto es el
-   de las filas (lo mueve latido.ts), acá en línea. */
-.res {
-  display: inline-flex;
-  /* Si no entra con el nombre, se corta el resumen (el tooltip lo dice entero), no el nombre. */
-  flex: 0 100 auto;
-  min-width: 0;
-  overflow: hidden;
-  white-space: nowrap;
-  align-items: center;
-  gap: var(--esp-1-5);
-  margin-left: var(--esp-1);
-  font-size: var(--letra-3);
-  font-weight: 400;
-}
-.res > span {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--esp-2);
-}
 .res-pt {
   position: relative;
   width: 0.4375rem;
@@ -670,34 +650,6 @@ img.logo {
 .res-pt :is(.pt, .onda, .halo) {
   top: 0;
   left: 0;
-}
-/* "+N": los workers escondidos de este líder; un clic los despliega acá. Hermano del botón del
-   líder (no anida), a la derecha; el Settle del hover se corre para no taparlo. */
-.mas {
-  position: absolute;
-  top: 50%;
-  right: 0.375rem;
-  width: 1.875rem;
-  height: 1.25rem;
-  margin-top: -0.625rem;
-  padding: 0;
-  border: 0;
-  border-radius: var(--radio-2);
-  background: var(--sup-2);
-  font-family: var(--font-mono);
-  font-size: var(--letra-3);
-  color: var(--txt-2);
-}
-.mas:hover,
-.mas[aria-expanded="true"] {
-  background: var(--sup-3);
-  color: var(--texto-1);
-}
-.lw[data-mas] > .lider {
-  padding-right: 2.625rem;
-}
-.lw[data-mas] > .acc {
-  right: 2.5rem;
 }
 /* Una rama dentro de la carpeta: líder (o "sin líder") y sus workers. */
 .arbol {
@@ -5959,14 +5911,6 @@ summary.sis-div-t:hover,
   }
   .avs-d {
     width: 2.75rem;
-  }
-  .mas {
-    width: 2.75rem;
-    height: 2.75rem;
-    margin-top: -1.375rem;
-  }
-  .lw[data-mas] > .lider {
-    padding-right: 3.5rem;
   }
   /* Los chiquitos (quitar un adjunto, sacar de la cola) no crecen: crece dónde se los toca. */
   .mini-x::after,

@@ -62,7 +62,6 @@ const env = {
   HILOS_PERFIL: perfil,
   HILOS_FIXTURES: "0",
   HILOS_IDIOMA: "en",
-  HILOS_VISTA: "todo",
   HILOS_PA: path.join(raiz, "scripts/pa-falso.sh"),
   PA_FALSO_N: "0",
   PA_FALSO_LOG: path.join(tmp, "pa-falso.log"),

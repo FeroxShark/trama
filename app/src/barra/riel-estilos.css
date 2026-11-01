@@ -1,7 +1,25 @@
 /* La barra lateral densa (rediseño 0.4, dirección B «Riel»; maqueta: maquetas/rediseno-0.4/barra-densa-b.html).
    Un riel de monogramas a la izquierda con cupos y navegación; a su derecha, buscador, filtros y una línea por hilo agrupada por proyecto.
    Las medidas de la maqueta (en px a la letra de 13) van en rem: crecen con la letra elegida. Se importa después de index.css y le gana
-   por orden; lo que pelea con `.lista …` de barra-atencion.css va con el mismo prefijo. */
+   por orden; lo que pelea con `.lista …` de barra-atencion.css va con el mismo prefijo.
+
+   La idea de la barra: cada proyecto es un hilo de su color. Sale del riel (la pestaña del cuadrado), le da el tinte a su encabezado y baja
+   de la corona del líder pasando por sus workers; lo que corre enciende su tramo y una lanzadera lo recorre (`latido.ts`, nunca una animación
+   CSS infinita: con una corriendo Chromium compone en cada vblank). */
+
+/* El color de un proyecto: `--h` lo pone `estiloProyecto`; en el tema claro va más oscuro para que se lea. */
+.pr,
+.proy {
+  --hilo: var(--h, var(--apagado));
+  --proy-fondo: color-mix(in srgb, var(--h, var(--apagado)) 11%, var(--sup-1));
+  --proy-fondo-viendo: color-mix(in srgb, var(--h, var(--apagado)) 20%, var(--sup-1));
+}
+[data-tema="claro"] .pr,
+[data-tema="claro"] .proy {
+  --hilo: color-mix(in oklab, var(--h, var(--apagado)) 50%, var(--negro));
+  --proy-fondo: color-mix(in srgb, var(--h, var(--apagado)) 22%, var(--sup-0));
+  --proy-fondo-viendo: color-mix(in srgb, var(--h, var(--apagado)) 40%, var(--sup-0));
+}
 
 .barra-cuerpo {
   flex-direction: row;
@@ -89,14 +107,43 @@
   font-weight: 650;
   letter-spacing: -0.01em;
   transition:
-    background-color 0.12s,
-    opacity 0.12s;
+    background-color var(--t-snappy),
+    color var(--t-snappy),
+    opacity var(--t-snappy),
+    transform var(--t-smooth) cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 .pr:hover {
   background: color-mix(in srgb, var(--h, var(--apagado)) 28%, transparent);
+  transform: scale(1.06);
 }
-.pr[aria-pressed="true"] {
-  box-shadow: 0 0 0 2px var(--h, var(--apagado));
+.pr:active {
+  transform: scale(0.96);
+}
+.pr[aria-pressed="true"]:not(.todos) {
+  background: color-mix(in srgb, var(--h, var(--apagado)) 38%, transparent);
+  color: var(--texto);
+}
+/* La pestaña: el hilo del proyecto saliendo del riel hacia la lista. Asoma con el hover, media si lo abierto es de este proyecto y entera si filtra. */
+.pr::before {
+  position: absolute;
+  top: calc(50% - 0.625rem);
+  left: -0.375rem;
+  width: 0.1875rem;
+  height: 1.25rem;
+  border-radius: 0 var(--r-cap) var(--r-cap) 0;
+  background: var(--hilo);
+  content: "";
+  transform: scaleY(0);
+  transition: transform var(--t-smooth) cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.pr:hover::before {
+  transform: scaleY(0.3);
+}
+.pr[data-viendo]::before {
+  transform: scaleY(0.55);
+}
+.pr[aria-pressed="true"]::before {
+  transform: scaleY(1);
 }
 .pr[data-apagado] {
   opacity: 0.32;
@@ -144,20 +191,38 @@
   background: var(--decision-relleno);
   color: var(--decision-sobre);
 }
+/* Algo corre en el proyecto: un punto de su color con una onda que sale (la mueve `latido.ts`). */
+.pr .vivo,
+.pulso {
+  position: relative;
+  display: block;
+  width: 0.4375rem;
+  height: 0.4375rem;
+  flex: none;
+  border-radius: 50%;
+  background: var(--hilo);
+}
 .pr .vivo {
   position: absolute;
   right: -0.0625rem;
   bottom: -0.0625rem;
-  width: 0.4375rem;
-  height: 0.4375rem;
-  border-radius: 50%;
-  background: var(--acento);
   box-shadow: 0 0 0 2px var(--sup-1);
 }
+.pr .vivo .onda,
+.pulso .onda {
+  inset: 0;
+  top: 0;
+  left: 0;
+  width: auto;
+  height: auto;
+  border-color: var(--hilo);
+}
 /* En el tema claro el tono del proyecto va más oscuro para que se lea el monograma y el encabezado. */
-[data-tema="claro"] .pr:not(.todos),
-[data-tema="claro"] .barra-col .proy-nom {
-  color: color-mix(in srgb, var(--h, var(--apagado)) 45%, var(--texto));
+[data-tema="claro"] .pr:not(.todos) {
+  color: var(--hilo);
+}
+[data-tema="claro"] .pr[aria-pressed="true"]:not(.todos) {
+  color: var(--texto);
 }
 
 /* Cupos: dos anillos con la cifra; al tocarlos se abre el detalle. */
@@ -509,13 +574,13 @@
   scrollbar-width: thin;
 }
 .barra-col .proy {
-  margin: 0 0 var(--esp-0-5);
+  margin: 0 0 var(--esp-2);
   padding: 0;
   border: 0;
   background: none;
 }
 .barra-col .proy-cuerpo {
-  padding: 0;
+  padding: var(--esp-0-5) 0 0;
 }
 .barra-col .arbol + .arbol {
   margin-top: 0;
@@ -529,9 +594,12 @@
   height: 1.75rem;
   align-items: center;
   border-radius: var(--r-xs);
-  background: color-mix(in srgb, var(--sup-0) 42%, transparent);
-  -webkit-backdrop-filter: blur(0.875rem);
-  backdrop-filter: blur(0.875rem);
+  background: var(--proy-fondo);
+  transition: background-color var(--t-smooth);
+}
+/* Lo que está abierto a la derecha vive en este proyecto. */
+.proy[data-viendo] > .proy-cab {
+  background: var(--proy-fondo-viendo);
 }
 .barra-col .proy-nom {
   display: flex;
@@ -545,19 +613,32 @@
   border: 0;
   border-radius: var(--r-xs);
   background: transparent;
-  color: var(--h, var(--apagado));
+  color: var(--hilo);
   font-size: var(--letra-4);
   font-weight: 650;
   letter-spacing: -0.003em;
+  transition: background-color var(--t-snappy);
 }
 .barra-col .proy-nom:hover {
   background: var(--capa-hover);
+}
+.proy-nom .g {
+  display: grid;
+  width: 0.875rem;
+  height: 0.875rem;
+  flex: none;
+  place-items: center;
+}
+.proy-nom .g svg {
+  width: 0.5625rem;
+  height: 0.5625rem;
 }
 .barra-col .proy-nom .chevron {
   flex: none;
   order: -1;
   margin: 0;
   color: var(--apagado);
+  transition: transform var(--t-smooth);
 }
 .barra-col .proy-nom[aria-expanded="false"] .chevron {
   transform: rotate(-90deg);
@@ -579,8 +660,20 @@
   font-weight: 400;
   white-space: nowrap;
 }
-.proy-cab > .cuenta {
-  padding-right: var(--esp-1-5);
+/* "2 en marcha": lo vivo del proyecto, en su color y con palabra. */
+.en-marcha {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--esp-1-5);
+  padding: 0 var(--esp-2);
+  color: var(--hilo);
+  font-size: 0.71875rem;
+  font-weight: 550;
+  white-space: nowrap;
+}
+.en-marcha + .proy-mas {
+  margin-left: 0;
 }
 .proy-mas {
   height: 1.375rem;
@@ -608,6 +701,15 @@
   padding: 0 var(--esp-1-5) 0 var(--esp-1);
   border-radius: var(--r-xs);
   font-size: var(--letra-5);
+  transition:
+    background-color var(--t-snappy),
+    box-shadow var(--t-snappy);
+}
+.lista .fila:is(.lider, .wbtn):hover {
+  background: var(--capa-hover);
+}
+.lista .fila:is(.lider, .wbtn):active {
+  background: var(--capa-tile);
 }
 .lista .fila .g,
 .lista .fila .pt-hojas {
@@ -623,8 +725,9 @@
   width: 0.6875rem;
   height: 0.6875rem;
 }
+/* Lo que corre va en el color de su proyecto: el mismo del hilo que recorre. */
 .g[data-g="corre"] {
-  color: var(--acento);
+  color: var(--hilo, var(--acento));
 }
 .g[data-g="termino"] {
   color: var(--ok);
@@ -668,6 +771,11 @@
   letter-spacing: -0.003em;
   text-overflow: ellipsis;
   white-space: nowrap;
+  transition: color var(--t-snappy);
+}
+/* El líder manda: su nombre pesa más que el de cualquier worker. */
+.lista .fila.lider .t {
+  font-weight: 600;
 }
 .lista .fila.lider .nom {
   min-width: 0;
@@ -724,7 +832,10 @@
 /* Quieto y sin nada que decir: más apagado. */
 .lista .fila.lider[data-calmo] .t {
   color: var(--txt-2);
-  font-weight: 400;
+  font-weight: 500;
+}
+.lista .fila.lider[data-calmo]:hover .t {
+  color: var(--texto);
 }
 .lista .fila.lider[data-caido] .t {
   color: var(--apagado);
@@ -733,7 +844,9 @@
 .lista .fila[data-activa],
 .lista .w > .fila.wbtn[data-activa] {
   background: var(--capa-tile);
-  box-shadow: inset 0 0 0 1px var(--capa-hover);
+  box-shadow:
+    inset 0.125rem 0 0 var(--hilo, var(--texto)),
+    inset 0 0 0 1px var(--capa-hover);
 }
 .lista .fila[data-activa] .t {
   color: var(--texto);
@@ -766,11 +879,134 @@
   background: color-mix(in srgb, var(--aviso) 22%, transparent);
 }
 
-/* Los workers: colgados de una sola línea a la izquierda, sin el riel de árbol de antes. */
+/* La corona del líder: gris quieto, dorada si corre algo suyo y con el fulgor que respira si responde él. */
+.lista .corona {
+  position: relative;
+  top: auto;
+  left: auto;
+  display: grid;
+  width: 1rem;
+  height: 1rem;
+  flex: none;
+  margin: 0;
+  place-items: center;
+  color: var(--inactivo);
+}
+.lista .corona svg {
+  position: relative;
+  z-index: 1;
+  width: 0.8125rem;
+  height: 0.8125rem;
+  transition: transform var(--t-smooth) cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.lista .fila.lider:hover .corona:not([data-at]) svg {
+  transform: translateY(-0.0625rem) rotate(-8deg);
+}
+.lista .corona:is([data-estado="responde"], [data-estado="dirige"]) {
+  color: var(--oro);
+}
+.lista .corona[data-estado="responde"] svg {
+  fill: color-mix(in srgb, var(--oro) 35%, transparent);
+}
+.lista .corona .fulgor {
+  position: absolute;
+  inset: -0.125rem;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--oro) 30%, transparent);
+  opacity: 0.45;
+}
+.lista .corona[data-estado="murio"] {
+  color: var(--fallo-texto);
+}
+.lista .corona[data-estado="cerrado"] {
+  opacity: 0.7;
+}
+.lista .corona[data-at] {
+  border-radius: 50%;
+}
+.lista .corona[data-at="decision"] {
+  background: var(--decision-relleno);
+  color: var(--decision-sobre);
+}
+.lista .corona[data-at="fallo"] {
+  background: var(--fallo-relleno);
+  color: var(--fallo-sobre);
+}
+.lista .corona[data-at] svg {
+  width: 0.625rem;
+  height: 0.625rem;
+  fill: currentColor;
+}
+/* Lo que espera llama desde lejos: un halo detrás del glifo (lo respira `latido.ts`). */
+.llamado {
+  position: relative;
+  display: grid;
+  width: 1rem;
+  height: 1rem;
+  flex: none;
+  place-items: center;
+}
+.lista .fila .llamado .g {
+  position: relative;
+  z-index: 1;
+}
+.lista .fila :is(.llamado, .corona) .halo {
+  position: absolute;
+  inset: 0.125rem;
+  top: 0.125rem;
+  left: 0.125rem;
+  width: auto;
+  height: auto;
+  background: var(--decision-luz);
+}
+.lista .fila .llamado[data-at="fallo"] .halo {
+  background: var(--fallo-luz);
+}
+
+/* El hilo: baja de la corona del líder pasando por sus workers, en el color del proyecto. */
 .lista .ramas {
+  position: relative;
   margin: 0 0 0 0.6875rem;
-  padding: 0 0 0 var(--esp-0-5);
-  box-shadow: inset 1px 0 0 var(--luz);
+  padding: 0 0 0 var(--esp-1);
+}
+.lista .ramas::before {
+  position: absolute;
+  top: 0;
+  bottom: 0.75rem;
+  left: 0;
+  width: 0.125rem;
+  border-radius: var(--r-cap);
+  background: color-mix(in srgb, var(--hilo) 34%, transparent);
+  content: "";
+}
+.lista .arbol[data-tipo="sueltas"] .ramas::before {
+  display: none;
+}
+/* El tramo de lo que corre, encendido; la lanzadera lo recorre. Quieto (`prefers-reduced-motion`), el tramo solo ya dice que está vivo. */
+.hilo-vivo {
+  position: absolute;
+  top: 0.125rem;
+  bottom: 0.125rem;
+  left: calc(-1 * var(--esp-1));
+  z-index: 1;
+  display: block;
+  width: 0.125rem;
+  overflow: hidden;
+  border-radius: var(--r-cap);
+  background: var(--hilo);
+}
+.arbol[data-tipo="sueltas"] .hilo-vivo {
+  left: 0;
+}
+.lanzadera {
+  display: block;
+  width: 100%;
+  height: 33%;
+  background: var(--blanco);
+  opacity: 0;
+}
+[data-tema="claro"] .lanzadera {
+  background: var(--sup-0);
 }
 .lista .ramas:empty {
   display: none;
@@ -787,6 +1023,10 @@
 .lista .ramas .fila.wbtn .t {
   color: var(--apagado);
   font-weight: 400;
+}
+.lista .ramas .w:has(> .hilo-vivo) .fila.wbtn .t,
+.lista .ramas .fila.wbtn:hover .t {
+  color: var(--texto);
 }
 .lista .ramas .fila.wbtn .t[data-nuevo],
 .lista .ramas .fila.wbtn:is([data-atencion], [data-activa]) .t {
@@ -815,10 +1055,6 @@
   gap: var(--esp-1-5);
   padding: 0 var(--esp-1-5) 0 var(--esp-1);
   font-size: var(--letra-3);
-}
-.lista .sin-lider .corona {
-  position: static;
-  margin: 0;
 }
 
 /* Las acciones del hover: a la derecha de la fila, en su lugar el tiempo se va y el título cede. */
@@ -857,51 +1093,6 @@
 .lista .w:has(> .acc):hover .l2 {
   padding-right: 0;
 }
-/* "+N" abre los workers de un líder en "sólo líderes". */
-.lista .mas {
-  right: var(--esp-1);
-  width: 1.625rem;
-  height: 1.125rem;
-  margin-top: -0.5625rem;
-  background: var(--capa-tile);
-  color: var(--apagado);
-  font-family: inherit;
-  font-size: var(--letra-3);
-}
-.lista .lw[data-mas] > .lider {
-  padding-right: 1.875rem;
-}
-.lista .lw[data-mas] > .acc {
-  right: 2rem;
-}
-.lista .lw[data-mas]:has(> .acc):hover .fila.lider,
-.lista .lw[data-mas]:has(> .acc:focus-within) .fila.lider {
-  padding-right: calc(var(--acc-w, 0px) + 2.25rem);
-}
-/* Un hilo por cada worker vivo, a la derecha del líder resumido. */
-.trama {
-  display: inline-flex;
-  height: 0.75rem;
-  flex: none;
-  align-items: center;
-  gap: var(--esp-0-5);
-}
-.trama > i {
-  width: 0.1875rem;
-  height: 0.75rem;
-  border-radius: 0.09375rem;
-  background: var(--acento);
-}
-.trama > i[data-g="falla"] {
-  background: var(--critico);
-}
-.trama > i[data-g="trabado"] {
-  background: var(--aviso);
-}
-.trama > i[data-g="frenado"] {
-  height: 0.5rem;
-  background: var(--apagado);
-}
 .lista .subs-chip {
   flex: none;
   gap: var(--esp-1);
@@ -909,12 +1100,37 @@
   font-size: var(--letra-3);
 }
 
-/* Pliegues: "N terminados" y las conversaciones de Claude Code, en una línea. */
+/* Pliegues: "N terminados" y las conversaciones de Claude Code, en una línea. Lo terminado es lo que menos pesa de la barra. */
 .lista .mini-pliegue {
+  gap: var(--esp-1);
   height: 1.5rem;
   margin-left: 0;
   padding: 0 var(--esp-1-5) 0 var(--esp-1);
+  border-radius: var(--r-xs);
+  color: var(--inactivo);
   font-size: var(--letra-3);
+  transition:
+    background-color var(--t-snappy),
+    color var(--t-snappy);
+}
+.lista .mini-pliegue:hover {
+  background: var(--capa-hover);
+  color: var(--texto);
+}
+.lista .mini-pliegue .g {
+  display: grid;
+  width: 0.75rem;
+  height: 0.75rem;
+  flex: none;
+  place-items: center;
+  color: inherit;
+}
+.lista .mini-pliegue .g svg {
+  width: 0.625rem;
+  height: 0.625rem;
+}
+.lista .mini-pliegue .chevron {
+  transition: transform var(--t-smooth);
 }
 .lista .pliegue {
   height: auto;
@@ -1035,7 +1251,22 @@
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .pr {
+  .pr,
+  .pr::before,
+  .proy-cab,
+  .barra-col .proy-nom,
+  .barra-col .proy-nom .chevron,
+  .lista .fila.lider,
+  .lista .fila.wbtn,
+  .lista .fila .t,
+  .lista .corona svg,
+  .lista .mini-pliegue,
+  .lista .mini-pliegue .chevron {
     transition: none;
+  }
+  .pr:hover,
+  .pr:active,
+  .lista .fila.lider:hover .corona:not([data-at]) svg {
+    transform: none;
   }
 }

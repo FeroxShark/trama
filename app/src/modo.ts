@@ -78,10 +78,9 @@ const CAPTURAS = [
   // "Falta configurar" en el pie (Handy y Ollama por instalar), cerrada y abierta.
   "setup",
   "setup-abierto",
-  // Lo terminado escondido: la barra en "sólo líderes" y un líder con su "N terminados" desplegado.
-  "solo-lideres",
+  // Lo terminado escondido: un líder con su "N terminados" desplegado.
   "ocultos",
-  // La vista de todo con un líder de terminal de tres vivos y ocho terminados: la línea "N terminados" plegada.
+  // Un líder de terminal de tres vivos y ocho terminados: la línea "N terminados" plegada.
   "terminados",
   // El anillo de contexto de la caja del líder: 30, 75 y 95 %, y su detalle abierto.
   "contexto-30",
@@ -130,6 +129,8 @@ const CAPTURAS = [
   "te-espera",
   // La lista de líderes con lo que pide atención: un worker que falló, una decisión, un líder que espera y workers corriendo (rediseño 0.4); `-300` abre la barra a 300 px; `HILOS_VARIANTE=resuelto`, todo ya resuelto (sin chips).
   "atencion",
+  // La barra con mucho encima: varios líderes, trabajo en curso, lo que pide atención y 37 terminados plegados; `HILOS_VARIANTE=calma`, sin nada corriendo.
+  "riel-pulido",
   // El tablero de pendientes: el kanban, el detalle de una tarjeta y la vista Proyectos.
   "tablero",
   "tablero-detalle",
@@ -157,7 +158,7 @@ const CAPTURAS = [
   // El cartel de un error al pintar, en vez de la ventana en blanco (src/ErrorBoundary.ts).
   "error",
   // Nada miente mientras carga: un worker recién lanzado ("Arrancando…"), la conversación mientras se lee
-  // (`HILOS_VARIANTE=lider`: la de un líder) y uno frenado a propósito, sin rojo (`HILOS_VARIANTE=lideres`: el resumen de su líder).
+  // (`HILOS_VARIANTE=lider`: la de un líder) y uno frenado a propósito, sin rojo.
   "arrancando",
   "leyendo",
   // Un worker en cola (con su tarea, bajo su líder, "En cola · motivo", sin spinner) y otro que murió sin arrancar.
@@ -295,7 +296,6 @@ export const MODO = {
    */
   fixtures: q.has("fixtures") ? q.get("fixtures") !== "0" : true,
   /** La vista de la barra al abrir (preferencias.json): todo o sólo líderes. */
-  vista: q.get("vista") === "lideres" ? ("lideres" as const) : ("todo" as const),
   /** El panel de contexto (a la derecha) a la vista al abrir (preferencias.json); sin nada guardado, oculto. */
   consumo: q.get("consumo") === "1" || (captura?.startsWith("contexto-panel") ?? false) || captura === "worker-vista-rutas",
   /** Cómo se llama esta máquina (lo pasa el main con datos reales): va en la ficha de cada worker. */

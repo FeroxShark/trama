@@ -192,7 +192,6 @@ export const RUTAS: Readonly<Record<string, Ruta>> = {
   "preferencias:terminalAgentes": "local",
   "preferencias:avisoLider": "local",
   "preferencias:cacheVencida": "local",
-  "preferencias:vista": "local",
   "preferencias:consumo": "local",
   "preferencias:bienvenidaPendiente": "local",
   "preferencias:bienvenida": "local",

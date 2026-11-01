@@ -250,9 +250,7 @@ try {
   const cuelgan = (ids) => ids.every((id) => !!document.querySelector(`[data-fila="${id}"]`)?.closest(".arbol")?.querySelector(".lider"));
   const sinFila = (ids) => ids.every((id) => !document.querySelector(`[data-fila="${id}"]`));
   const TERMINADOS = ["20261003-100200-33333", "20261003-100500-77777"];
-  // "Sólo líderes": el "+N" de su fila. La vista de todo: "N terminados" (en inglés "N done", la app arranca en inglés)
-  // al final de sus workers, en `.pliegue`.
-  const mas = '.mas[data-mas-lider="s-falso-lider"]';
+  // "N terminados" (en inglés "N done", la app arranca en inglés) al final de sus workers, en `.pliegue`.
   const pliegue = '.arbol:has([data-lider="s-falso-lider"]) .pliegue .mini-pliegue';
   // Con `hasta`: al aparecer el líder, las filas que estaban como huérfanas salen animadas y un rato hay dos.
   ok(await hasta(cuelgan, "worker bajo el líder", ["20261003-100300-44444"]), "su worker vivo cuelga de él");
@@ -263,9 +261,13 @@ try {
   await clic(pliegue);
   ok(await hasta(sinFila, "plegados", TERMINADOS), "otro clic los vuelve a esconder");
   ok(await en(sinFila, ["20261003-100100-22222"]), "lo terminado sin rama y sin líder también se esconde");
+  // Una rama con commits sin integrar y sin líder vivo también se pliega ("N terminadas"): las ramas viven en el panel Ramas.
+  // Lo que sigue la usa abierta.
+  const plegueSueltas = '.arbol[data-tipo="sueltas"] .mini-pliegue';
+  ok(await clic(plegueSueltas), "las terminadas de la app se abren con un clic");
   ok(
-    await en(() => !!document.querySelector('[data-fila="20261003-100400-66666"]') && !!document.querySelector('[data-fila="20261003-100000-11111"]')),
-    "una rama con commits sin integrar y sin líder vivo queda a la vista",
+    await hasta(() => !!document.querySelector('[data-fila="20261003-100400-66666"]') && !!document.querySelector('[data-fila="20261003-100000-11111"]'), "ramas a la vista"),
+    "y entre ellas están las ramas con commits sin integrar",
   );
   // --- Clic derecho (B20): el menú de la fila, renombrar en línea y el de la carpeta ---
   const F6 = '[data-fila="20261003-100400-66666"]';
@@ -487,24 +489,6 @@ try {
   ok(await hasta(tierna, "frase tierna"), "la frase vuelve al toque");
   await tecla("Escape");
   ok(await hasta(() => !document.querySelector(".pn"), "sin panel"), "Esc cierra Ajustes");
-
-  // --- Sólo líderes (B15): la tecla W y el control de arriba; se guarda en preferencias.json ---
-  await tecla("w");
-  ok(await hasta(sinFila, "sólo líderes", ["20261003-100300-44444"]), "W pasa a sólo líderes: el worker vivo pierde su fila");
-  ok(
-    await en(() => document.querySelector('.lw:has([data-lider="s-falso-lider"]) [data-resumen]')?.textContent.includes("1 trabajando")),
-    'el líder lo resume en su fila ("1 trabajando")',
-  );
-  ok(await en((s) => document.querySelector(s)?.textContent === "+3", mas), 'y cuenta todo lo que esconde: "+3"');
-  ok(await en(() => !!document.querySelector('[data-fila="20261003-100400-55555"]')), "lo que no tiene líder sigue a la vista");
-  ok(await en(() => document.querySelector('.vista [data-ver="lideres"]')?.getAttribute("aria-pressed") === "true"), "el control de arriba marca Sólo líderes");
-  ok((await prefsCon((p) => p.vista === "lideres"))?.vista === "lideres", "preferencias.json guarda la vista");
-  await clic(mas);
-  ok(await hasta(cuelgan, "desplegados", ["20261003-100300-44444", ...TERMINADOS]), "el +3 despliega todos sus workers ahí mismo");
-  ok(await clic('.vista [data-ver="todo"]'), "el control vuelve a Todo");
-  ok(await hasta(cuelgan, "todo", ["20261003-100300-44444"]), "vuelve la fila del worker vivo");
-  ok(await hasta(sinFila, "plegados", TERMINADOS), "y lo terminado vuelve a quedar escondido");
-  ok((await prefsCon((p) => p.vista === "todo"))?.vista === "todo", "preferencias.json guarda la vuelta a Todo");
 
   ok(
     await en(() => document.querySelector('[data-fila="20261003-100400-55555"]')?.textContent.includes("Te necesita")),

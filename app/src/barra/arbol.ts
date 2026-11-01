@@ -24,8 +24,8 @@ export type Item = { h: Hilo; estado: Estado };
  * Lo que cuelga dentro de una carpeta: un líder con sus workers, los huérfanos
  * ("sin líder") o lo que lanzó el usuario sin líder (la app). `vivas` se ve siempre:
  * lo que trabaja y lo que pide algo. `viejas` es lo que terminó y se esconde
- * solo (`seOculta`): va plegado en el "+N" del líder o en "N terminadas". Bajo
- * un líder, en la vista de todo (`aVistaTodo`), también lo que murió o frenó
+ * solo (`seOculta`): va plegado en "N terminados" o en "N terminadas". Bajo
+ * un líder, en la barra (`plegarTerminados`), también lo que murió o frenó
  * `pa`, en "N terminados". Lo que `pa` ya cerró (integrado, archivado, …) se va
  * a "Cerrados".
  */
@@ -133,27 +133,12 @@ export function seOculta(it: Item, conLider: boolean): boolean {
 }
 
 /**
- * Lo que se lista debajo de un líder en la vista "Líderes y workers" (`aVistaTodo`): lo que trabaja (o
- * está trabado o en cola) y lo que espera al usuario ("te necesita"). Murió, terminó o `pa --parar` frenó
- * se pliega en "N terminados". Sólo de un líder sin proceso queda también lo que dejó una rama con
- * commits sin integrar: nadie se hace cargo de su Settle más que el usuario.
+ * Lo que se lista debajo de un líder (`plegarTerminados`): lo que trabaja (o está trabado o en cola) y lo que
+ * espera al usuario ("te necesita"). Murió, terminó o `pa --parar` frenó se pliega en "N terminados"; lo que
+ * falló y sigue pidiendo atención lo vuelve a subir `aRiel`. Una rama con commits sin integrar no ocupa la
+ * barra: la lista el panel de Ramas.
  */
-export const aLaVista = (it: Item, conLider: boolean): boolean =>
-  activo(it) || it.estado === "decision" || (!conLider && it.estado !== "murio" && !seOculta(it, false));
-
-/** Lo vivo de un líder, en números: para su fila cuando la barra muestra sólo líderes. */
-export type Resumen = { trabajando: number; trabados: number; fallaron: number; frenados: number };
-
-export function resumen(vivas: Item[]): Resumen {
-  const r = { trabajando: 0, trabados: 0, fallaron: 0, frenados: 0 };
-  for (const it of vivas) {
-    if (it.estado === "colgado") r.trabados++;
-    else if (frenado(it)) r.frenados++;
-    else if (it.estado === "murio") r.fallaron++;
-    else if (activo(it)) r.trabajando++;
-  }
-  return r;
-}
+export const aLaVista = (it: Item, conLider: boolean): boolean => activo(it) || it.estado === "decision" || (!conLider && it.h.estado === "decision");
 
 /**
  * Lo que pide atención en la lista (rediseño 0.4): un worker que falló (no lo frenó a propósito `pa --parar`) o que pide una
@@ -170,17 +155,6 @@ export const atencionItem = (it: Item, resueltos?: ReadonlySet<string>): Atencio
 
 /** El líder espera tu respuesta: terminó su turno o pide algo (no cuenta si responde ni si no tiene proceso). */
 export const liderEspera = (l: Lider) => !!l.espera && !l.ocupado && !l.caido;
-
-/** El ícono de estado de un líder: el peor de sus workers (falló antes que pide decisión) o, si él mismo espera, decisión. */
-export function atencionRama(r: Rama, resueltos?: ReadonlySet<string>): Atencion | null {
-  let decide = !!r.lider && liderEspera(r.lider);
-  for (const it of [...r.vivas, ...r.viejas]) {
-    const a = atencionItem(it, resueltos);
-    if (a === "fallo") return "fallo";
-    if (a === "decision") decide = true;
-  }
-  return decide ? "decision" : null;
-}
 
 /** Adónde lleva tocar un chip de resumen: el líder o worker, y qué hay que abrir para verlo (carpetas y pliegues). */
 export type Destino = {
@@ -654,37 +628,33 @@ export function armarArbol(hilos: Hilo[], { optimista, lideres: todos, settleado
 }
 
 /**
- * La vista "Líderes y workers" sobre el árbol de `armarArbol` (que es el de "sólo líderes"): debajo de cada
- * líder y en "sin líder" (huérfanos), lo que no se ve (`aLaVista`) pasa de `vivas` a `viejas` y se pliega en
- * "N terminados" / "N terminadas". Lo del usuario sin líder (sueltas) no cambia. Pura: no toca los totales,
- * sólo dónde cae cada worker.
+ * El único modo de la barra, sobre el árbol de `armarArbol`: en toda rama (de un líder, "sin líder" y lo del
+ * usuario), lo que no se lista (`aLaVista`) pasa de `vivas` a `viejas` y se pliega en "N terminados" / "N
+ * terminadas". Pura: no toca los totales, sólo dónde cae cada worker.
  */
-export function aVistaTodo(a: Arbol): Arbol {
-  const enTodo = (r: Rama): Rama => {
-    if (r.tipo === "sueltas" || (r.tipo === "lider" && !r.lider)) return r;
-    // Sin líder no hay quien se haga cargo: como un líder sin proceso, lo que dejó una rama con commits se queda.
-    const conLider = r.tipo === "lider" && !r.lider!.caido;
+export function plegarTerminados(a: Arbol): Arbol {
+  const plegar = (r: Rama): Rama => {
+    // Sin un líder vivo, lo que pregunta un worker lo contesta el usuario.
+    const conLider = !!r.lider && !r.lider.caido;
     const escondidas = r.vivas.filter((it) => !aLaVista(it, conLider));
     if (!escondidas.length) return r;
     return { ...r, vivas: r.vivas.filter((it) => aLaVista(it, conLider)), viejas: [...escondidas, ...r.viejas].sort(porInicio) };
   };
-  return { ...a, activas: a.activas.map(enTodo), carpetas: a.carpetas.map((c) => ({ ...c, ramas: c.ramas.map(enTodo) })) };
+  return { ...a, activas: a.activas.map(plegar), carpetas: a.carpetas.map((c) => ({ ...c, ramas: c.ramas.map(plegar) })) };
 }
 
 /**
  * Las filas que se ven, en orden (para el teclado y para decidir si se
  * virtualiza). `abierta(clave)` dice si una carpeta (clave = proyecto) o el
- * pliegue de una rama (clave de la rama) está abierto. `soloLideres`: los
- * workers de un líder no tienen fila propia (van resumidos en la del líder)
- * salvo que su pliegue esté abierto; lo que no cuelga de un líder sigue igual.
+ * pliegue de una rama (clave de la rama) está abierto.
  */
-export function filasVisibles(a: Arbol, abierta: (clave: string) => boolean, verCerrados: boolean, soloLideres = false): Item[] {
+export function filasVisibles(a: Arbol, abierta: (clave: string) => boolean, verCerrados: boolean): Item[] {
   const out: Item[] = [];
   // "Activas" va primero, como en la pantalla: el teclado recorre las filas en el orden en que se ven.
   if (a.activas.length && abierta(ACTIVAS)) {
     for (const r of a.activas) {
       const abre = abierta(r.clave);
-      if (abre || !soloLideres) out.push(...r.vivas);
+      out.push(...r.vivas);
       if (abre) out.push(...r.viejas);
     }
   }
@@ -692,7 +662,7 @@ export function filasVisibles(a: Arbol, abierta: (clave: string) => boolean, ver
     if (!abierta(c.proyecto)) continue;
     for (const r of c.ramas) {
       const abre = abierta(r.clave);
-      if (abre || !(soloLideres && r.tipo === "lider")) out.push(...r.vivas);
+      out.push(...r.vivas);
       if (abre) out.push(...r.viejas);
     }
     // Los líderes en espera no tienen workers colgando (si no, no estarían en espera).

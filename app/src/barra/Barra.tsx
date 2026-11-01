@@ -66,7 +66,7 @@ import {
   activo,
   aDesplegar,
   armarArbol,
-  aVistaTodo,
+  plegarTerminados,
   claveDormidos,
   claveEspera,
   compararCarpetas,
@@ -78,7 +78,6 @@ import {
   lugarLider,
   nombreCarpeta,
   pendientes,
-  resumen,
   comoQuitar,
   salidaDe,
   lideresSinProceso,
@@ -86,7 +85,6 @@ import {
   settleLider,
   settleWorker,
   liderEspera,
-  atencionRama,
   ACTIVAS,
   type Atencion,
   type Arbol as DatosArbol,
@@ -135,8 +133,10 @@ import { huboCambio } from "../hilo/cambios";
 import { alLeerVista, vueltaInicial } from "../volver";
 import { copiarConAviso } from "../copiar";
 import { CuposRiel } from "./CuposRiel";
+import { Glifo } from "./Glifo";
+import { latir } from "./latido";
 import { estiloProyecto, Riel } from "./Riel";
-import { aRiel, filtrarArbol, hilosArbol, hilosCarpeta, itemsRiel, ordenAtencion, QUIETOS_VISTA, quietosDe, segunLista } from "./riel-logica";
+import { aRiel, atencionCarpeta, enMarcha, filtrarArbol, hilosArbol, hilosCarpeta, itemsRiel, ordenAtencion, QUIETOS_VISTA, quietosDe, segunLista } from "./riel-logica";
 import { LoBuscado, Resalte } from "./Resalte";
 import { pintorCorto } from "../tiempo";
 import { Reloj } from "./piezas";
@@ -261,12 +261,6 @@ const BOTONES_PIE: [CualPanel, LucideIcon][] = [
   ["tablero", SquareKanban],
 ];
 
-/** Qué muestra la barra (B15): los líderes con sus workers colgando, o sólo los líderes (con lo vivo resumido en su fila). */
-type VistaBarra = "todo" | "lideres";
-const VISTAS: [VistaBarra, "vista.lideres" | "vista.todo"][] = [
-  ["lideres", "vista.lideres"],
-  ["todo", "vista.todo"],
-];
 /** Cómo se ordena lo que no se movió a mano: lo último que se usó arriba, o por nombre. */
 const MODOS: [ModoOrden, "orden.recientes" | "orden.az"][] = [
   ["recientes", "orden.recientes"],
@@ -323,7 +317,6 @@ export function Barra() {
   // Las conversaciones de Claude Code que no son de Trama ("De Claude Code (N)" al final de cada carpeta) y las que se retomaron desde acá.
   const [convsCC, setConvsCC] = useState<ConvClaudeCode[]>([]);
   const [abiertasCC, setAbiertasCC] = useState(() => new Set<string>());
-  const [vista, setVista] = useState<VistaBarra>(MODO.vista);
   // El panel de consumo (a la derecha): arranca oculto y se recuerda en preferencias.json.
   // (Es el panel de contexto del líder que se mira y sus workers; la preferencia se sigue llamando "consumo".) En el celular nace cerrado.
   const [consumo, setConsumo] = useState(MODO.consumo && (!esAngosto() || MODO.captura !== null));
@@ -538,23 +531,23 @@ export function Barra() {
   // Lo ya resuelto (relanzado, integrado, descartado, visto, contestado) no pide atención: `atencion-vigente.ts`.
   const resueltos = useMemo(() => resueltosDe(todos.map((h) => ({ h, estado: estadoVisto(h, optimista.get(h.id)) })), leidos), [todos, optimista, leidos]);
   const buscando = busqueda.trim() !== "";
-  // "Líderes y workers" esconde debajo de cada líder lo que murió o terminó (`aVistaTodo`); "sólo líderes" usa el árbol tal cual.
-  // Lo que falló o pide algo queda a la vista igual (`aRiel`). Los proyectos que piden atención van primero, salvo mirando la lista: la foto se congela.
+  // Un solo modo: debajo de cada líder, lo que trabaja o pide algo; lo terminado, plegado en "N terminados" (`plegarTerminados`).
+  // Lo que falló queda a la vista igual (`aRiel`). Los proyectos que piden atención van primero, salvo mirando la lista: la foto se congela.
   const ordenProyectos = useRef<string[]>([]);
   const arbol = useMemo(() => {
-    const a = aRiel(vista === "lideres" ? arbolBruto : aVistaTodo(arbolBruto), resueltos);
+    const a = aRiel(plegarTerminados(arbolBruto), resueltos);
     if (!porPrioridad || buscando) return a;
     if (!congelada) ordenProyectos.current = ordenAtencion(a.carpetas, resueltos);
     return { ...a, carpetas: segunLista(a.carpetas, ordenProyectos.current) };
-  }, [arbolBruto, vista, resueltos, porPrioridad, buscando, congelada]);
+  }, [arbolBruto, resueltos, porPrioridad, buscando, congelada]);
   // El riel se arma sin buscar: buscando se apagan los proyectos sin resultados, no se van.
   const arbolSinBuscar = useMemo(() => {
     if (!buscando) return arbol;
     const a = armarArbol(todos, { optimista, lideres: lideresVistos, settleados, mover, ocultos, titulos, caidos, orden: nombres.orden, prioridad, recientes, sinActivas: true, ahora: Math.floor(Date.now() / 1000) });
-    const b = aRiel(vista === "lideres" ? a : aVistaTodo(a), resueltos);
+    const b = aRiel(plegarTerminados(a), resueltos);
     // Buscando, el riel conserva el orden que traía: los proyectos no saltan de lugar al escribir.
     return porPrioridad ? { ...b, carpetas: segunLista(b.carpetas, ordenProyectos.current) } : b;
-  }, [buscando, arbol, porPrioridad, vista, todos, optimista, lideresVistos, settleados, mover, ocultos, titulos, caidos, nombres.orden, prioridad, recientes, resueltos]);
+  }, [buscando, arbol, porPrioridad, todos, optimista, lideresVistos, settleados, mover, ocultos, titulos, caidos, nombres.orden, prioridad, recientes, resueltos]);
   // Lo que pide atención (falló, pide decisión, un líder que espera): las píldoras de arriba de la lista. Buscando no cambian: siguen diciendo lo que hay.
   const pend = useMemo(() => pendientes(arbolSinBuscar, resueltos), [arbolSinBuscar, resueltos]);
   // Un filtro por algo que ya no existe no filtra (se integró el último, ya no falla nada).
@@ -583,11 +576,10 @@ export function Barra() {
   // Buscando, las carpetas se abren pero los pliegues no: lo inactivo sigue en su "+N" / "N terminadas". Filtrando por un proyecto, el suyo se ve abierto.
   const desplegada = (k: string) => (k.includes(":") ? pliegues.has(k) : buscando || k === filtroVigente || !colapsados.has(k));
   const verCerrados = cerradosAbiertos;
-  const soloLideres = vista === "lideres";
-  const visibles = filasVisibles(arbolVisto, desplegada, verCerrados, soloLideres);
+  const visibles = filasVisibles(arbolVisto, desplegada, verCerrados);
   const virtual = visibles.length > UMBRAL;
 
-  const ultimo = useUltimo({ hilos, optimista, visibles, grupos, cursor, activa, busqueda, panel, enCurso, arbol, vista, orden: nombres.orden, lideresVistos, carpetasReg, titulos, recientes });
+  const ultimo = useUltimo({ hilos, optimista, visibles, grupos, cursor, activa, busqueda, panel, enCurso, arbol, orden: nombres.orden, lideresVistos, carpetasReg, titulos, recientes });
 
   // Integrar, Descartar y Deshacer del panel de Ramas: optimistas como Cerrar.
   const actuar = useCallback(
@@ -656,22 +648,6 @@ export function Barra() {
     });
   }, []);
 
-  // Cambiar de vista: lo que se desplegó a mano en un líder se vuelve a plegar (cada vista arranca limpia).
-  const ponerVista = useCallback(
-    (v: VistaBarra) => {
-      if (v === ultimo.current.vista) return;
-      setVista(v);
-      // El cursor del teclado puede quedar en una fila que se fue: se suelta.
-      setCursor(null);
-      setPliegues((s) => {
-        const n = new Set([...s].filter((k) => !k.startsWith(LIDER)));
-        return n.size === s.size ? s : n;
-      });
-      fuente.guardarVista(v);
-    },
-    [ultimo],
-  );
-
   // Angosto: abrir algo saca la lista de adelante (también si ya era lo abierto).
   const alFrente = useCallback(() => {
     if (esAngosto()) setAbierta(false);
@@ -696,10 +672,10 @@ export function Barra() {
   const irAPendiente = useCallback(
     (ds: Destino[]) => {
       if (!ds.length) return;
-      const { activa, vista } = ultimo.current;
+      const { activa } = ultimo.current;
       const i = ds.findIndex((d) => (d.lider ? LIDER + d.id : d.id) === activa);
       const d = ds[(i + 1) % ds.length];
-      const claves = [...d.abrir, ...(!d.lider && (!d.viva || vista === "lideres") ? [d.rama] : [])];
+      const claves = [...d.abrir, ...(!d.lider && !d.viva ? [d.rama] : [])];
       const carpetas = claves.filter((k) => !k.includes(":"));
       const pliegues = claves.filter((k) => k.includes(":"));
       if (carpetas.length)
@@ -1120,7 +1096,7 @@ export function Barra() {
         });
     };
     const tecla = (e: KeyboardEvent) => {
-      const { visibles, cursor, activa, busqueda, panel, arbol, vista } = ultimo.current;
+      const { visibles, cursor, activa, busqueda, panel, arbol } = ultimo.current;
       const ids = visibles.map((f) => f.h.id);
       const donde = e.target as HTMLElement;
       const enCampo = donde === campo.current;
@@ -1177,9 +1153,6 @@ export function Barra() {
         if (!cursor || i < 0 || (salidaWorker(visibles[i].h, visibles[i].estado, arbol.aCargo) ?? "elegir") === "elegir") return;
         cerrar(cursor);
         mover(ids[i + 1] ?? ids[i - 1] ?? null);
-      } else if (es("vista", e)) {
-        // Sólo líderes ↔ todo.
-        ponerVista(vista === "lideres" ? "todo" : "lideres");
       } else if (es("consumo", e)) {
         // El panel de consumo (tokens), a la derecha.
         alternarConsumo();
@@ -1188,7 +1161,7 @@ export function Barra() {
     };
     window.addEventListener("keydown", tecla);
     return () => window.removeEventListener("keydown", tecla);
-  }, [ultimo, cerrar, abrir, abrirLiderNuevo, ponerVista, alternarConsumo]);
+  }, [ultimo, cerrar, abrir, abrirLiderNuevo, alternarConsumo]);
 
   useEffect(() => {
     // En captura el mouse real no cuenta: el estado es el forzado.
@@ -1360,7 +1333,6 @@ export function Barra() {
       setColapsados(new Set(proyectos.slice(0, 2)));
       setPliegues(new Set(grupos.flatMap((g) => g.ramas.map((r) => r.clave))));
     }
-    if (c === "solo-lideres" || (c === "frenado" && MODO.variante === "lideres")) setVista("lideres");
     if (c === "ocultos") {
       // El líder con más terminados escondidos, con su "N terminados" desplegado.
       const r = grupos
@@ -1837,6 +1809,7 @@ export function Barra() {
             <Riel
               items={itemsDelRiel}
               filtro={filtroVigente}
+              viendo={carpetaActiva ?? null}
               alFiltrar={setFiltroProy}
               alOcultar={alternarBarra}
               cupos={<CuposRiel />}
@@ -1898,14 +1871,14 @@ export function Barra() {
               </div>
               <div className="resumen">
                 <Pendientes p={pend} ver={verVigente} alVer={alternarVer} />
-                {/* Cómo se acomoda lo que no se movió a mano y qué muestra la barra (la tecla W sigue andando). */}
+                {/* Cómo se acomoda lo que no se movió a mano. */}
                 <button
                   type="button"
                   className="orden"
                   aria-haspopup="menu"
                   aria-expanded={menuOrden !== null}
-                  aria-label={tr("orden.menu")}
-                  data-tip={tr("orden.menu")}
+                  aria-label={tr("orden.aria")}
+                  data-tip={tr("orden.aria")}
                   onClick={(e) => {
                     const c = e.currentTarget.getBoundingClientRect();
                     setMenuOrden({ x: c.left, y: c.bottom + 4, origen: e.currentTarget });
@@ -1955,7 +1928,7 @@ export function Barra() {
                       alPlegar={plegar}
                       fila={fila}
                       virtual={virtual}
-                      soloLideres={soloLideres} resueltos={resueltos}
+                      resueltos={resueltos}
                       mueve={!buscando && !filtroVigente && !verVigente && !MODO.captura}
                       claude={buscando ? SIN_CONVS : (porCarpetaCC.get(g.proyecto) ?? SIN_CONVS)}
                       alAbrirClaude={abrirClaude}
@@ -1975,7 +1948,7 @@ export function Barra() {
                       alPlegar={plegar}
                       fila={fila}
                       virtual={virtual}
-                      soloLideres={soloLideres} resueltos={resueltos}
+                      resueltos={resueltos}
                       mueve={false}
                       claude={porCarpetaCC.get(k) ?? SIN_CONVS}
                       alAbrirClaude={abrirClaude}
@@ -2085,10 +2058,7 @@ export function Barra() {
               menuOrden.origen.focus();
               setMenuOrden(null);
             }}
-            items={[
-              ...MODOS.map(([m, etq]) => ({ clave: m, fijo: true, texto: tr(etq), marcado: !hayOrdenManual(nombres.orden) && modoOrden(nombres.orden) === m, alElegir: () => { ponerModo(m); setMenuOrden(null); } })),
-              ...VISTAS.map(([v, etq]) => ({ clave: v, texto: tr(etq), marcado: vista === v, alElegir: () => { ponerVista(v); setMenuOrden(null); } })),
-            ]}
+            items={MODOS.map(([m, etq]) => ({ clave: m, fijo: true, texto: tr(etq), marcado: !hayOrdenManual(nombres.orden) && modoOrden(nombres.orden) === m, alElegir: () => { ponerModo(m); setMenuOrden(null); } }))}
           />
         ) : null}
         {menu ? (
@@ -2173,8 +2143,6 @@ type PropsCarpeta = {
   alPlegar: (clave: string) => void;
   fila: (item: Item, quieta?: boolean) => ReactNode;
   virtual: boolean;
-  /** La barra muestra sólo líderes: sus workers no tienen fila salvo con el pliegue abierto. */
-  soloLideres: boolean;
   /** Los workers que pidieron atención y ya no (`atencion-vigente.ts`): ni el ícono del líder ni su fila los cuentan. */
   resueltos: ReadonlySet<string>;
   /** Se puede reordenar arrastrando (buscando, no): la carpeta y sus líderes llevan `data-mueve`. */
@@ -2203,7 +2171,6 @@ function Carpeta({
   alPlegar,
   fila,
   virtual,
-  soloLideres,
   resueltos,
   mueve,
   claude,
@@ -2219,6 +2186,9 @@ function Carpeta({
   const { ver: quietos, resto } = quietosDe(g, verQuietos);
   const hayMas = g.espera.length + g.dormidos.length > QUIETOS_VISTA;
   const hilos = hilosCarpeta(g);
+  const corriendo = enMarcha(g);
+  // Plegado no se ven sus filas: el encabezado dice que hay algo que mirar.
+  const marca = abierto ? null : atencionCarpeta(g, resueltos);
   const reciente = useMemo(() => (g.reciente ? pintorCorto(g.reciente) : null), [g.reciente]);
   const alternarQuietos = () => {
     if (!verQuietos) return alPlegar(claveE);
@@ -2246,6 +2216,7 @@ function Carpeta({
           <span className="n">
             <Resalte texto={nombre} />
           </span>
+          {marca ? <Glifo g={marca === "fallo" ? "falla" : "pide"} /> : null}
           {!abierto && hilos > 0 ? (
             <span className="cuenta">
               {tr(hilos === 1 ? "barra.nHilos1" : "barra.nHilosN", { n: hilos })}
@@ -2258,12 +2229,11 @@ function Carpeta({
             </span>
           ) : null}
         </button>
-        {!abierto ? null : resto > 0 || (verQuietos && hayMas) ? (
+        {corriendo > 0 ? <EnMarcha n={corriendo} /> : null}
+        {abierto && (resto > 0 || (verQuietos && hayMas)) ? (
           <button type="button" className="proy-mas" aria-expanded={verQuietos} onClick={alternarQuietos}>
             {verQuietos ? tr("barra.verMenos") : tr("barra.verMas", { n: resto })}
           </button>
-        ) : hilos > 0 ? (
-          <span className="cuenta">{hilos}</span>
         ) : null}
       </div>
       <AnimatePresence mode="popLayout" initial={false}>
@@ -2290,7 +2260,6 @@ function Carpeta({
                   alPlegar={alPlegar}
                   fila={fila}
                   virtual={virtual}
-                  soloLideres={soloLideres} resueltos={resueltos}
                 />
               ))}
               {claude.length ? (
@@ -2309,6 +2278,19 @@ function Carpeta({
         ) : null}
       </AnimatePresence>
     </motion.section>
+  );
+}
+
+/** "2 en marcha" en el encabezado de un proyecto, con un punto de su color que late: lo que está vivo se ve desde arriba. */
+function EnMarcha({ n }: { n: number }) {
+  useEffect(latir, []);
+  return (
+    <span className="en-marcha">
+      <span className="pulso" aria-hidden="true">
+        <span className="onda" />
+      </span>
+      {tr("barra.enMarcha", { n })}
+    </span>
   );
 }
 
@@ -2348,27 +2330,17 @@ type PropsArbol = {
   alPlegar: (clave: string) => void;
   fila: PropsCarpeta["fila"];
   virtual: boolean;
-  soloLideres: boolean;
-  /** Los workers que pidieron atención y ya no (`atencion-vigente.ts`): ni el ícono del líder ni su fila los cuentan. */
-  resueltos: ReadonlySet<string>;
 };
 
 /**
- * Una rama de la carpeta: el líder (o "sin líder") y sus workers colgando en
- * árbol. Lo que terminó se esconde solo (`r.viejas`): bajo un líder, en "N
- * terminados" al final de sus workers (la vista de todo; `aVistaTodo` deja ahí
- * también lo que murió o frenó); sin líder, en "N terminadas" al final. Lo que
- * lanzó el usuario sin líder cuelga directo de la carpeta. Con la barra en "sólo
- * líderes", lo vivo de un líder tampoco tiene fila: va resumido en la suya, y el
- * "+N" lo despliega.
+ * Una rama de la carpeta: el líder con su corona (o "sin líder") y sus workers colgando del hilo del proyecto. Lo que
+ * terminó se esconde solo (`r.viejas`, `plegarTerminados`) en "N terminados"; a la vista, lo que trabaja o pide algo.
+ * Lo que lanzó el usuario sin líder cuelga directo de la carpeta.
  */
-function Arbol({ ref, r, grupo, activo, alAbrirLider, alCerrarLider, alSettleLider, plegada, alPlegar, fila, virtual, soloLideres, resueltos }: PropsArbol) {
+function Arbol({ ref, r, grupo, activo, alAbrirLider, alCerrarLider, alSettleLider, plegada, alPlegar, fila, virtual }: PropsArbol) {
   const n = r.viejas.length;
-  const resumida = soloLideres && r.tipo === "lider" && plegada;
-  const res = useMemo(() => (resumida ? resumen(r.vivas) : null), [resumida, r.vivas]);
   const vivos = useMemo(() => r.vivas.filter((it) => workerVivo({ estado: it.estado, en_cola: it.h.en_cola })).length, [r.vivas]);
-  // El pliegue al final: de un líder sólo en la vista de todo (en "sólo líderes" está el "+N" de su fila).
-  const pliegue = n > 0 && (r.tipo !== "lider" || !soloLideres);
+  const pliegue = n > 0;
   const lider = r.tipo === "lider";
   const cuantos = lider ? (n === 1 ? "barra.terminado1" : "barra.terminadosN") : n === 1 ? "barra.terminada1" : "barra.terminadaN";
   const ocultar = lider ? "barra.ocultarTerminados" : "barra.ocultarTerminadas";
@@ -2390,31 +2362,25 @@ function Arbol({ ref, r, grupo, activo, alAbrirLider, alCerrarLider, alSettleLid
           l={r.lider}
           activa={activo}
           settle={settleDe(r)}
-          // Con los workers a la vista cada uno dice lo suyo y el líder queda calmo; resumidos, él avisa por ellos.
-          atencion={resumida ? atencionRama(r, resueltos) : liderEspera(r.lider) ? "decision" : null}
+          // Sus workers a la vista dicen lo suyo: el líder sólo resalta si te espera él.
+          atencion={liderEspera(r.lider) ? "decision" : null}
           vivos={vivos}
           alAbrir={alAbrirLider}
           alCerrar={alCerrarLider}
           alSettle={alSettleLider}
-          ocultos={soloLideres ? r.vivas.length + n : 0}
-          abierto={!plegada}
-          trabajando={res?.trabajando ?? 0}
-          trabados={res?.trabados ?? 0}
-          fallaron={res?.fallaron ?? 0}
-          frenados={res?.frenados ?? 0}
-          alPlegar={alPlegar}
         />
       ) : r.tipo === "huerfanos" ? (
         <SinLider muertos={r.muertos ?? SIN_NOMBRES} idos={r.idos ?? SIN_NOMBRES} />
       ) : null}
-      {r.lider && !resumida ? <Subagentes sid={r.lider.id} /> : null}
+      {r.lider ? <Subagentes sid={r.lider.id} /> : null}
       <ul className="ramas">
-        <Filas items={resumida ? SIN_FILAS : r.vivas} virtual={virtual} fila={fila} />
+        <Filas items={r.vivas} virtual={virtual} fila={fila} />
         {/* El "N terminados" va antes de lo terminado, no al final: es el mismo botón que lo despliega y el que lo
             oculta, y con una lista larga no hay que bajar hasta el fondo. Abierto se queda pegado arriba al scrollear. */}
         {pliegue ? (
           <li key="pliegue" className="w pliegue" data-abierto={plegada ? undefined : ""}>
             <button type="button" className="mini-pliegue" aria-expanded={!plegada} onClick={() => alPlegar(r.clave)}>
+              {plegada ? <Glifo g="termino" /> : null}
               {plegada ? tr(cuantos, { n }) : tr(ocultar)}
               <ChevronDown className="chevron" size={11} strokeWidth={2} />
             </button>

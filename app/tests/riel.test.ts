@@ -2,7 +2,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { armarArbol, type Arbol, type Carpeta, type Item, type Rama } from "../src/barra/arbol.ts";
-import { aRiel, atencionCarpeta, carpetaViva, filtrarArbol, hilosArbol, hilosCarpeta, itemsRiel, ordenAtencion, partirResalte, QUIETOS_VISTA, quietosDe, segunLista } from "../src/barra/riel-logica.ts";
+import { aRiel, atencionCarpeta, carpetaViva, enMarcha, filtrarArbol, hilosArbol, hilosCarpeta, itemsRiel, ordenAtencion, partirResalte, QUIETOS_VISTA, quietosDe, segunLista } from "../src/barra/riel-logica.ts";
 import { cuentasClaude, lineasCuentas, lineasMotores } from "../src/barra/cupos-riel-logica.ts";
 import { PALETA_RIEL, tonoRiel } from "../src/barra/logo-logica.ts";
 import { pintorCorto } from "../src/tiempo.ts";
@@ -214,4 +214,15 @@ test("lineasMotores: sin Claude, una línea por suscripción sin grupos", () => 
   const ls = lineasMotores([fila("trabajo", "claude"), fila("sub-x", "chatgpt", { ventanas: [] }, "ChatGPT")], AHORA);
   assert.deepEqual(ls.map((l) => l.nombre), ["ChatGPT"]);
   assert.deepEqual(ls[0].cuenta, { proveedor: "chatgpt", id: "sub-x" });
+});
+
+test("enMarcha: cuenta líderes que responden y workers corriendo; lo que está en cola, trabado o terminado, no", () => {
+  const trab = item(hilo({ proyecto: "atlas", estado: "trabajando" }));
+  const cola = item(hilo({ proyecto: "atlas", estado: "trabajando", en_cola: true }));
+  const trabado = item(hilo({ proyecto: "atlas", estado: "colgado" }));
+  const listo = item(hilo({ proyecto: "atlas", estado: "listo" }));
+  const responde = { ...lider("l", "atlas"), ocupado: true };
+  assert.equal(enMarcha(carpeta("atlas", [rama("l", responde, [trab, cola, trabado], [listo])])), 2);
+  assert.equal(enMarcha(carpeta("atlas", [rama("l", lider("l", "atlas"), [cola], [listo])])), 0);
+  assert.equal(enMarcha(carpeta("atlas", [rama("l", { ...responde, caido: "murio" }, [])])), 0);
 });

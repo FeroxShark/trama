@@ -34,7 +34,6 @@ export const ATAJOS = {
   anterior: { grupo: "barra", teclas: [["K"], ["↑"]], desc: "atajos.anterior", coincide: (e) => letra("k")(e) || (sola(e) && e.key === "ArrowUp") },
   abrir: { grupo: "barra", teclas: [["Enter"]], desc: "atajos.abrir", coincide: (e) => e.key === "Enter" },
   cerrar: { grupo: "barra", teclas: [["C"]], desc: "atajos.cerrarFila", coincide: letra("c") },
-  vista: { grupo: "barra", teclas: [["W"]], desc: "atajos.vista", coincide: letra("w") },
   consumo: { grupo: "barra", teclas: [["T"]], desc: "atajos.consumo", coincide: letra("t") },
   enviar: { grupo: "caja", teclas: [["Enter"]], desc: "atajos.enviar", coincide: (e) => e.key === "Enter" && !e.shiftKey },
   renglon: { grupo: "caja", teclas: [["Shift", "Enter"]], desc: "atajos.renglon", coincide: (e) => e.key === "Enter" && e.shiftKey },

@@ -3,7 +3,7 @@
 // proyectos suben, que el teclado recorre las filas como se ven y cuándo hay que diferir el reacomodo.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { ACTIVAS, armarArbol, aVistaTodo, filasVisibles, lugarLider, type Arbol } from "../src/barra/arbol.ts";
+import { ACTIVAS, armarArbol, plegarTerminados, filasVisibles, lugarLider, type Arbol } from "../src/barra/arbol.ts";
 import { calorLider, compararActivas, diferir, flotar, fotoCalor, igualFoto, proximoVencimiento, repartir, workerVivo, type Trabajador } from "../src/barra/activas.ts";
 import type { Hilo, Lider, Orden } from "../src/datos/contrato.ts";
 
@@ -199,14 +199,12 @@ test("buscando, sin Activas ni proyectos que floten: manda la búsqueda; sin fot
 test("el teclado recorre las filas como se ven: Activas primero (si está abierta), después los proyectos", () => {
   const lideres = [L("a", "atlas"), L("b", "brote", caliente), L("c", "cauce", { ocupado: true })];
   const hilos = [worker("a", "atlas", { tarea: "de a" }), worker("b", "brote", { tarea: "de b" }), worker("c", "cauce", { tarea: "de c" })];
-  const ar = aVistaTodo(arbol(lideres, { hilos }));
+  const ar = plegarTerminados(arbol(lideres, { hilos }));
   assert.deepEqual(enActivas(ar), ["c", "a", "b"]); // c responde (1), a tiene un worker vivo (2), b sólo el caché (3)
   const tareas = (abierta: (k: string) => boolean) => filasVisibles(ar, abierta, false).map((it) => it.h.tarea);
   const visual = ar.activas.flatMap((r) => r.vivas.map((it) => it.h.tarea));
   assert.deepEqual(tareas(() => true), visual);
   assert.deepEqual(tareas((k) => k !== ACTIVAS), [], "Activas plegada: sus filas no se recorren y no están repetidas abajo");
-  // En "sólo líderes" los workers de un líder plegado no tienen fila.
-  assert.deepEqual(filasVisibles(ar, (k) => !k.includes(":"), false, true), []);
 });
 
 test("lugarLider: un líder de Activas cae en Activas (para abrirla al seleccionarlo)", () => {

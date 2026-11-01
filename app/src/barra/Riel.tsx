@@ -1,7 +1,8 @@
 // El riel de la barra (rediseño 0.4, maquetas/rediseno-0.4/barra-densa-b.html): 44 px a la izquierda con la marca, un monograma por
-// proyecto que filtra la lista (× si algo falló, ? si algo te espera y un punto si algo corre: siempre con su nombre en el tooltip y su
-// frase en el aria-label), los dos anillos de cupos y los íconos de los paneles.
-import type { CSSProperties, ReactNode } from "react";
+// proyecto que filtra la lista (× si algo falló, ? si algo te espera y un punto que late si algo corre: siempre con su nombre en el tooltip
+// y su frase en el aria-label), los dos anillos de cupos y los íconos de los paneles. Una pestaña del color del proyecto, del lado del
+// borde, dice cuál se está filtrando y cuál se está mirando: el hilo que sale del riel hacia la lista.
+import { useEffect, type CSSProperties, type ReactNode } from "react";
 import { Folders, Home, PanelLeft } from "lucide-react";
 import { GENERAL } from "../datos/contrato";
 import { MODO } from "../modo";
@@ -13,6 +14,7 @@ import { monograma, tonoRiel } from "./logo-logica";
 import { Marca } from "./Marca";
 import { nombreCarpeta } from "./arbol";
 import { Glifo } from "./Glifo";
+import { latir } from "./latido";
 import { useTitulos } from "./titulos";
 import type { ItemRiel } from "./riel-logica";
 
@@ -20,6 +22,8 @@ type Props = {
   items: readonly ItemRiel[];
   /** El proyecto que filtra la lista; `null`: todos. */
   filtro: string | null;
+  /** El proyecto de lo que está abierto a la derecha. */
+  viendo: string | null;
   alFiltrar: (proyecto: string | null) => void;
   alOcultar: () => void;
   /** Los anillos de cupos. */
@@ -31,10 +35,14 @@ type Props = {
 /** El color de un proyecto, el mismo en su cuadrado del riel y en su encabezado de la lista. */
 export const estiloProyecto = (proyecto: string): CSSProperties => ({ "--h": tonoRiel(proyecto) }) as CSSProperties;
 
-export function Riel({ items, filtro, alFiltrar, alOcultar, cupos, pie }: Props) {
+export function Riel({ items, filtro, viendo, alFiltrar, alOcultar, cupos, pie }: Props) {
   useIdioma();
   const titulos = useTitulos();
   const iconos = useIconos();
+  const hayVivo = items.some((it) => it.vivo && !it.marca);
+  useEffect(() => {
+    if (hayVivo) latir();
+  }, [hayVivo]);
   return (
     <div className="riel">
       <button type="button" className="riel-logo" aria-label={t("riel.ocultar")} data-tip={t("riel.ocultar")} onClick={alOcultar}>
@@ -58,6 +66,7 @@ export function Riel({ items, filtro, alFiltrar, alOcultar, cupos, pie }: Props)
               style={estiloProyecto(it.proyecto)}
               data-proy={it.proyecto}
               data-apagado={it.apagado ? "" : undefined}
+              data-viendo={viendo === it.proyecto ? "" : undefined}
               aria-pressed={filtro === it.proyecto}
               aria-label={aria}
               data-tip={nombre}
@@ -77,7 +86,9 @@ export function Riel({ items, filtro, alFiltrar, alOcultar, cupos, pie }: Props)
                   <Glifo g={it.marca === "fallo" ? "falla" : "pide"} />
                 </span>
               ) : it.vivo ? (
-                <span className="vivo" />
+                <span className="vivo">
+                  <span className="onda" />
+                </span>
               ) : null}
             </button>
           );

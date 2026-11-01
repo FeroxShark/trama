@@ -37,7 +37,6 @@ const env = {
   ...process.env,
   HILOS_FIXTURES: "0",
   HILOS_IDIOMA: "en",
-  HILOS_VISTA: "todo",
   HILOS_PERFIL: perfil,
   HILOS_BUILD: path.join(tmp, "build"),
   HILOS_PA: path.join(raiz, "scripts/pa-falso.sh"),

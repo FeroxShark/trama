@@ -9,7 +9,7 @@
 #           trabajando | oculta | vacio | buscar | lider | lider-terminal | lider-nuevo | lider-nuevo-carpeta | lider-nuevo-proyecto | arbol |
 #           aviso | ajustes | ramas | ramas-confirmar | ramas-conflicto | ramas-lanzar | ramas-lanzar-error | estadisticas |
 #           lider-trabajando | lider-mcp | lider-avisos | settle-confirmar | worker-vista | worker-vista-vivo |
-#           estadisticas-30 | estadisticas-medido | estadisticas-vacia | claude | claude-abierto | solo-lideres | ocultos |
+#           estadisticas-30 | estadisticas-medido | estadisticas-vacia | claude | claude-abierto | ocultos |
 #           lider-sistema | lider-cambio-motor[menu|confirmar] | cuenta-lider | sistema | herramientas | lider-compactando |
 #           trama|trama-abierto|trama-sucio|trama-ocupado|trama-instalada (el aviso de una Trama nueva, con una instalada vieja forzada) |
 #           lider-relevo | lider-imagenes | lider-editar | lider-puntos[HILOS_VARIANTE=abierto|confirmar] | lider-tabla | lider-formato | lider-listas | lider-pensando | lider-intermedios | lider-gemini | herramientas-resultados | lider-hover | te-espera | atencion[-300] |

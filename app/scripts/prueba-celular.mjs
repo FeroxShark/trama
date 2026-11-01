@@ -390,7 +390,7 @@ try {
 
       // Lo del hover y del clic derecho, con el dedo: mantener apretado.
       await a.pantalla(400);
-      ok(await a.tocar(".vista button", null, 700), "mantener apretado un botón con tooltip");
+      ok(await a.tocar(".orden", null, 700), "mantener apretado un botón con tooltip");
       ok(await a.en(() => document.querySelector("#tip")?.hasAttribute("data-visible") && document.querySelector("#tip").getBoundingClientRect().right <= innerWidth), "muestra el tooltip, dentro de la pantalla");
       await a.foto("400-tooltip");
       await espera(2300);

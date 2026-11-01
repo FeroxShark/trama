@@ -51,7 +51,6 @@ export const CANALES = [
   ["preferencias:terminalAgentes", "invoke"],
   ["preferencias:avisoLider", "invoke"],
   ["preferencias:cacheVencida", "invoke"],
-  ["preferencias:vista", "invoke"],
   ["preferencias:consumo", "invoke"],
   ["preferencias:bienvenidaPendiente", "invoke"],
   ["preferencias:bienvenida", "invoke"],

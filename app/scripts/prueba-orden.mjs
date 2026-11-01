@@ -88,7 +88,6 @@ async function abrir() {
       HILOS_PRUEBA: "90",
       HILOS_FIXTURES: "0",
       HILOS_IDIOMA: "es",
-      HILOS_VISTA: "todo",
       HILOS_TAM: "900 760",
       HILOS_PA: path.join(raiz, "scripts/pa-falso.sh"),
       PA_FALSO_LOG: path.join(tmp, "pa-falso.log"),

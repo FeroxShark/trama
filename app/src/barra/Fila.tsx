@@ -1,7 +1,8 @@
 // Las filas de la barra (rediseño 0.4, maquetas/rediseno-0.4/barra-densa-b.html): una línea por hilo. El worker colgado de su líder, el
-// líder y lo ya cerrado. A la izquierda el glifo del estado, el título, y a la derecha la palabra si pide algo y el tiempo.
+// líder con su corona y lo ya cerrado. A la izquierda el glifo del estado (la corona, en el líder), el título, y a la derecha la palabra si
+// pide algo y el tiempo. Lo que corre se mueve con `latido.ts`, no con una animación CSS infinita.
 import { memo, useEffect, useMemo, useRef, useState, type ReactNode, type Ref } from "react";
-import { CircleQuestionMark, X } from "lucide-react";
+import { CircleQuestionMark, Crown, X } from "lucide-react";
 import { comoSettle, type Estado, type Hilo, type Lider } from "../datos/contrato";
 import { MODO } from "../modo";
 import { pintorCache, pintorCorto, pintorDura } from "../tiempo";
@@ -9,6 +10,7 @@ import { cacheAplica } from "../../electron/cache";
 import { atencionItem, errorCorto, fin, liderEspera, type Atencion, type Como, type Salida } from "./arbol";
 import { ficha } from "./ficha";
 import { Glifo, glifoDe } from "./Glifo";
+import { latir } from "./latido";
 import { cierre as cierreDe, Punto, Reloj, tareaDe, textoEstado, tipoDe } from "./piezas";
 import { Resalte } from "./Resalte";
 import { t as tr } from "../i18n";
@@ -82,6 +84,7 @@ export const Fila = memo(function Fila({ ref, h, estado, apagada, cursor, activa
       data-apagada={apagada ? "" : undefined}
       className="w"
     >
+      {corre && !at ? <HiloVivo /> : null}
       <button
         type="button"
         className="fila wbtn"
@@ -91,7 +94,7 @@ export const Fila = memo(function Fila({ ref, h, estado, apagada, cursor, activa
         aria-current={activa ? "true" : undefined}
         onClick={() => alAbrir(h.id)}
       >
-        {duraCompacta && !at ? <Hojas chica className="pt-hojas" /> : <Glifo g={at === "fallo" ? "falla" : at === "decision" ? "pide" : glifoDe(t?.tipo)} />}
+        {duraCompacta && !at ? <Hojas chica className="pt-hojas" /> : at ? <Llamado at={at} /> : <Glifo g={glifoDe(t?.tipo)} />}
         <span className="l1">
           <span className="t" data-nuevo={nuevo ? "" : undefined}>
             <Resalte texto={h.titulo || tareaDe(h)} />
@@ -125,6 +128,30 @@ export const Fila = memo(function Fila({ ref, h, estado, apagada, cursor, activa
     </motion.li>
   );
 });
+
+/**
+ * El tramo del hilo del proyecto al lado de un worker que corre: se enciende en el color del proyecto y una lanzadera lo recorre (el
+ * telar del nombre). Decora: lo que dice que corre es el glifo y, sin movimiento (`prefers-reduced-motion`), el tramo encendido quieto.
+ */
+function HiloVivo() {
+  useEffect(latir, []);
+  return (
+    <span className="hilo-vivo" aria-hidden="true">
+      <i className="lanzadera" />
+    </span>
+  );
+}
+
+/** El glifo de lo que pide atención, con un halo que respira: lo que está esperando es lo único que llama desde lejos. */
+function Llamado({ at }: { at: Atencion }) {
+  useEffect(latir, []);
+  return (
+    <span className="llamado" data-at={at}>
+      <span className="halo" />
+      <Glifo g={at === "fallo" ? "falla" : "pide"} />
+    </span>
+  );
+}
 
 /** El ícono de estado en un recuadro de color: coral con una X (falló) o ámbar con un ? (pide una decisión). Va con su palabra al lado. */
 export function IconoAtencion({ at, className }: { at: Atencion; className?: string }) {
@@ -223,9 +250,10 @@ export function AccionesWorker({ id, salida, como, alCerrar, alRetomar, classNam
 }
 
 /**
- * El líder: una sesión de Claude Code con la que habla el usuario, arriba de sus workers, en una línea. El glifo dice qué hace: el triángulo si
- * responde o tiene workers vivos, el tilde si está quieto. Uno sin proceso (`caido`) sigue acá con sus workers: × y "Murió" si lo mataron, una
- * raya y "Cerrado" si cerró; se retoma desde su vista.
+ * El líder: una sesión de Claude Code con la que habla el usuario, arriba de sus workers, en una línea. Lo marca la corona: dorada y con un
+ * fulgor que respira si responde, dorada sin fulgor si sólo corren sus workers, gris si está quieto. Si te espera, en un círculo ámbar con su
+ * palabra al lado. Uno sin proceso (`caido`) sigue acá con sus workers: corona roja y "Murió" si lo mataron, apagada y "Cerrado" si cerró; se
+ * retoma desde su vista.
  */
 type PropsLider = {
   l: Lider;
@@ -239,17 +267,6 @@ type PropsLider = {
   alAbrir: (id: string) => void;
   alCerrar: (id: string) => void;
   alSettle: (id: string) => void;
-  /** Cuántas filas de workers tiene escondidas (B15): el "+N" que las despliega. 0, sin botón. */
-  ocultos: number;
-  /** Su pliegue está abierto: el "+N" pasa a "−N". */
-  abierto: boolean;
-  /** Lo vivo que no tiene fila propia (barra en "sólo líderes"): va resumido al lado del nombre. */
-  trabajando: number;
-  trabados: number;
-  fallaron: number;
-  /** Los que frenó `pa --parar`: no cuentan como caídos. */
-  frenados: number;
-  alPlegar: (clave: string) => void;
 };
 
 /**
@@ -325,9 +342,6 @@ export function SettleLider({ l, ramas, alSettle, className, armado = false }: P
   );
 }
 
-/** Más de esto no entra en el botón; el número justo lo dice el tooltip. */
-const TOPE_OCULTOS = 99;
-
 /** "N subagentes": corren y la sesión está activa. */
 export function ChipSubagentes({ n, clave, corto }: { n: number; clave: string; /** En la fila de la barra: sólo el número (la frase, en el tooltip). */ corto?: boolean }) {
   useIdioma();
@@ -342,31 +356,17 @@ export function ChipSubagentes({ n, clave, corto }: { n: number; clave: string; 
   );
 }
 
-/** Cuántas marquitas entran en el resumen de una fila de líder: el número justo lo dice el tooltip. */
-const TOPE_TRAMA = 6;
-
-/** Sólo líderes: lo vivo de sus workers en marquitas (un hilo de la trama por worker), con la frase entera en el tooltip. */
-function Trama({ trabajando, trabados, fallaron, frenados }: { trabajando: number; trabados: number; fallaron: number; frenados: number }) {
-  const hilos = [
-    ...Array<string>(fallaron).fill("falla"),
-    ...Array<string>(trabados).fill("trabado"),
-    ...Array<string>(trabajando).fill("corre"),
-    ...Array<string>(frenados).fill("frenado"),
-  ].slice(0, TOPE_TRAMA);
-  const partes = [
-    trabajando > 0 && tr("resumen.trabajando", { n: trabajando }),
-    trabados > 0 && tr(trabados === 1 ? "resumen.trabado1" : "resumen.trabadoN", { n: trabados }),
-    fallaron > 0 && tr(fallaron === 1 ? "resumen.fallo1" : "resumen.falloN", { n: fallaron }),
-    frenados > 0 && tr(frenados === 1 ? "resumen.frenado1" : "resumen.frenadoN", { n: frenados }),
-  ]
-    .filter(Boolean)
-    .join(" · ");
-  const texto = tr("resumen.tip", { que: partes });
+/** La corona del líder. `estado` lo dice el CSS con su color; la palabra (si pide algo, murió o cerró) va en la fila: nunca sólo el color. */
+function Corona({ estado, at }: { estado: "responde" | "dirige" | "quieto" | "murio" | "cerrado"; at: Atencion | null }) {
+  const fulgor = estado === "responde" && !at;
+  useEffect(() => {
+    if (fulgor || at) latir();
+  }, [fulgor, at]);
   return (
-    <span className="trama" data-resumen role="img" aria-label={texto} data-tip={texto}>
-      {hilos.map((g, i) => (
-        <i key={i} data-g={g} />
-      ))}
+    <span className="corona" data-estado={estado} data-at={at ?? undefined} aria-hidden="true">
+      {fulgor ? <span className="fulgor" /> : null}
+      {at ? <span className="halo" /> : null}
+      <Crown size={13} strokeWidth={2} />
     </span>
   );
 }
@@ -380,13 +380,6 @@ export const FilaLider = memo(function FilaLider({
   alAbrir,
   alCerrar,
   alSettle,
-  ocultos,
-  abierto,
-  trabajando,
-  trabados,
-  fallaron,
-  frenados,
-  alPlegar,
 }: PropsLider) {
   useIdioma();
   const cuando = useMemo(() => pintorCorto(l.actividad), [l.actividad]);
@@ -399,13 +392,12 @@ export const FilaLider = memo(function FilaLider({
   );
   // Uno de terminal no cuenta qué hace: que compacta lo dice la marca del hook (uno de la app, su stream).
   const compacta = useCompactando(l.caido ? null : l.id);
-  const queHace = abierto ? tr("barra.ocultarWorkers") : tr(ocultos === 1 ? "barra.oculto1" : "barra.ocultoN", { n: ocultos });
   const corre = !l.caido && (l.ocupado || vivos > 0 || (l.subagentes ?? 0) > 0);
-  const glifo = l.caido === "murio" ? "murio" : l.caido ? "cerrado" : corre ? "corre" : "termino";
+  const estado = l.caido === "murio" ? "murio" : l.caido ? "cerrado" : l.ocupado || (l.subagentes ?? 0) > 0 ? "responde" : vivos > 0 ? "dirige" : "quieto";
   const espera = liderEspera(l) ? l.espera : null;
 
   return (
-    <div className="lw" data-mas={ocultos > 0 ? "" : undefined}>
+    <div className="lw">
       <button
         type="button"
         className="fila lider"
@@ -419,7 +411,7 @@ export const FilaLider = memo(function FilaLider({
         data-atencion={atencion ?? undefined}
         onClick={() => alAbrir(l.id)}
       >
-        {compacta !== null && !atencion ? <Hojas chica className="pt-hojas" /> : <Glifo g={atencion === "fallo" ? "falla" : atencion === "decision" ? "pide" : glifo} />}
+        {compacta !== null && !atencion ? <Hojas chica className="pt-hojas" /> : <Corona estado={estado} at={atencion} />}
         <span className="txt">
           <span className="t">
             <span className="nom">
@@ -430,7 +422,6 @@ export const FilaLider = memo(function FilaLider({
         </span>
         {cache ? <Reloj pintor={cache} className="cache" /> : null}
         {l.subagentes ? <ChipSubagentes n={l.subagentes} clave={l.id} corto /> : null}
-        {trabajando + trabados + fallaron + frenados > 0 ? <Trama trabajando={trabajando} trabados={trabados} fallaron={fallaron} frenados={frenados} /> : null}
         {espera ? (
           <span className="chip-at" data-at="decision" data-tip={tr(espera.motivo === "pide" ? "espera.pide" : "espera.listo")}>
             {tr(espera.motivo === "pide" ? "barra.chipDecidir" : "barra.chipEspera")}
@@ -453,21 +444,6 @@ export const FilaLider = memo(function FilaLider({
         {/* El modelo, en el tooltip del tiempo: ya no hay segunda línea. */}
         <Reloj pintor={cuando} className="cuando" data-tip={l.titulo || undefined} />
       </button>
-      {/* Lo que terminó se esconde solo: el "+N" lo despliega acá, bajo este líder. */}
-      {ocultos > 0 ? (
-        <button
-          type="button"
-          className="mas"
-          data-mas-lider={l.id}
-          aria-expanded={abierto}
-          aria-label={queHace}
-          data-tip={queHace}
-          onClick={() => alPlegar(`lider:${l.id}`)}
-        >
-          {abierto ? "−" : "+"}
-          {Math.min(ocultos, TOPE_OCULTOS)}
-        </button>
-      ) : null}
       {/* Quieto, Settle (a uno de la app también lo cierra); respondiendo, Cerrar líder (sólo los de la app). */}
       {settle !== null ? (
         <Acciones>

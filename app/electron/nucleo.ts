@@ -38,7 +38,7 @@ import { iconosDe } from "./iconos.js";
 import { guardarYa, leerLeidos, marcarLeido } from "./leidos.js";
 import { almacenNombres } from "./nombres.js";
 import { almacenPendientes } from "./pendientes.js";
-import { guardarApariencia, guardarAutoIntegrar, guardarAvisarEspera, guardarAvisarWorkers, guardarAvisoLider, avisoLiderGuardado, guardarCacheVencida, bienvenidaPendiente, guardarBienvenida, guardarConsumo, guardarDictadoModelo, guardarEffort, guardarGuias, guardarIdioma, guardarTerminalAgentes, guardarTiernos, guardarVista, guiasEstado, guardarLimpieza, leerLimpieza, leerPreferencias } from "./preferencias.js";
+import { guardarApariencia, guardarAutoIntegrar, guardarAvisarEspera, guardarAvisarWorkers, guardarAvisoLider, avisoLiderGuardado, guardarCacheVencida, bienvenidaPendiente, guardarBienvenida, guardarConsumo, guardarDictadoModelo, guardarEffort, guardarGuias, guardarIdioma, guardarTerminalAgentes, guardarTiernos, guiasEstado, guardarLimpieza, leerLimpieza, leerPreferencias } from "./preferencias.js";
 import { aplicarLimpieza, pasadaAutomatica, programarPasadas, verLimpieza } from "./limpieza-pa.js";
 import { accionRama, arreglarDatos, briefRamas, enCola, ejecutar, lanzarRama, lanzarTareaMd, leerAjustes, leerMedicion, pasarALider, relanzarWorker, retomarDatos, seguirConWorker, tareaMdEnCurso, type AccionRama, type TipoTareaMd } from "./paneles.js";
 import { guardarRouting, type Cambio } from "./routing.js";
@@ -1149,7 +1149,6 @@ export function armarNucleo() {
   manejar("preferencias:terminalAgentes", (_e, t: unknown) => guardarTerminalAgentes(t));
   manejar("preferencias:avisoLider", (_e, v: unknown) => guardarAvisoLider(v));
   manejar("preferencias:cacheVencida", (_e, v: unknown) => guardarCacheVencida(v));
-  manejar("preferencias:vista", (_e, vista: unknown) => guardarVista(vista));
   manejar("preferencias:consumo", (_e, si: unknown) => guardarConsumo(si));
   manejar("preferencias:bienvenidaPendiente", () => bienvenidaPendiente());
   manejar("preferencias:bienvenida", (_e, si: unknown) => guardarBienvenida(si));

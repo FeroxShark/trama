@@ -503,6 +503,49 @@ export const HILOS_ATENCION: RespuestaHilos = {
 };
 
 /**
+ * La captura `riel-pulido`: la barra con mucho encima. Varios líderes en varios proyectos, trabajo en curso, lo que pide atención y una
+ * montaña de terminados (37 "Actualizá tu rama" lanzados sin líder) que tienen que quedar plegados. `HILOS_VARIANTE=calma`: nada corre.
+ */
+const CALMA = MODO.variante === "calma";
+export const LIDERES_RIEL: Lider[] = [
+  deActivas("r1", "checkout-tienda", "cauce", { actividad: AHORA - 20, cache_vence: AHORA + 58 * MIN + COLCHON, ocupado: !CALMA, origen: "app" }),
+  deActivas("r2", "api-pagos", "cauce", { actividad: AHORA - 2 * MIN, cache_vence: AHORA + 57 * MIN + COLCHON }),
+  deActivas("r3", "indices-stock", "atlas", { actividad: AHORA - 9 * MIN, cache_vence: AHORA + 50 * MIN + COLCHON }),
+  deActivas("r4", "migrar-envios", "atlas", { actividad: AHORA - 90 * MIN }),
+  deActivas("r5", "panel-metricas", "brote", { actividad: AHORA - 4 * MIN, cache_vence: AHORA + 55 * MIN + COLCHON, pide: true, espera: { motivo: "pide", desde: 3 } }),
+  deActivas("r6", "calendario-riego", "brote", { actividad: AHORA - 3 * HORA }),
+  deActivas("r7", "arranque-frio", "eco", { actividad: AHORA - 6 * HORA, vivo: false, pid: null, caido: "murio" }),
+];
+const deR = (id: string, nombre: string, proyecto: string) => ({ jefe: nombre, jefe_id: `s-act-${id}`, proyecto });
+/** Los terminados de un líder: `n` tareas con commits ya entregadas, cada una más vieja que la anterior. */
+const terminadosRiel = (id: string, nombre: string, proyecto: string, tareas: readonly string[], base: number) =>
+  tareas.map((tarea, i) =>
+    hilo({ id: `20261101-09${String(base).padStart(2, "0")}${String(i).padStart(2, "0")}-${80000 + base * 100 + i}`, ...deR(id, nombre, proyecto), tarea, estado: "listo", inicio: AHORA - (70 + i * 12) * MIN, duracion_s: 9 * MIN, rama: `pa/${proyecto}/r${base}-${i}`, commits: 1 + (i % 3) }),
+  );
+const corriendoRiel = (p: Parcial): Hilo => (CALMA ? hilo({ ...p, estado: "listo", duracion_s: 4 * MIN }) : hilo(p));
+export const HILOS_RIEL: RespuestaHilos = {
+  version: 1,
+  hilos: [
+    corriendoRiel({ id: "20261101-110101-82001", ...deR("r1", "checkout-tienda", "cauce"), tarea: "Refactor del carrito", estado: "trabajando", inicio: AHORA - 9 * MIN, puesto: "1", ...cache(HORA, 50 * MIN) }),
+    corriendoRiel({ id: "20261101-110202-82002", ...deR("r1", "checkout-tienda", "cauce"), tarea: "Tests de los cupones de descuento", estado: "trabajando", modelo: "claude-sonnet-5-5", inicio: AHORA - 4 * MIN, puesto: "2", ...cache(HORA, 54 * MIN) }),
+    hilo({ id: "20261101-110303-82003", ...deR("r1", "checkout-tienda", "cauce"), tarea: "Migración 0012", estado: "murio", inicio: AHORA - 25 * MIN, duracion_s: 6 * MIN, murio_en: AHORA - 19 * MIN, resultado: "El número 0012 ya lo usó otra rama." }),
+    ...terminadosRiel("r1", "checkout-tienda", "cauce", ["Tests de envío", "Totales con impuestos", "Selector de cuotas", "Mensajes de error del pago", "Limpiar el carrito viejo", "Validar el código postal", "Pantalla de confirmación", "Mails de la compra"], 11),
+    corriendoRiel({ id: "20261101-110404-82004", ...deR("r2", "api-pagos", "cauce"), tarea: "Endpoint de reembolsos", estado: "trabajando", inicio: AHORA - 5 * MIN, puesto: "3", ...cache(HORA, 54 * MIN) }),
+    ...terminadosRiel("r2", "api-pagos", "cauce", ["Reintentos del webhook", "Firma de los pedidos", "Tope por cliente", "Logs del proveedor"], 12),
+    ...terminadosRiel("r3", "indices-stock", "atlas", ["Medir el plan de las consultas", "Índice por depósito", "Sacar el índice duplicado"], 13),
+    // Lanzado desde la app: la decisión es del usuario.
+    hilo({ id: "20261101-110606-82006", origen: "app", proyecto: "atlas", tarea: "Texto del botón de pago", estado: "decision", inicio: AHORA - 30 * MIN, duracion_s: 12 * MIN, puesto: "4", rama: "pa/atlas/20261101-110606-82006", commits: 1, decision: "Cómo se llama el botón final:\n1. Pagar ahora\n2. Confirmar compra", resultado: "Falta elegir el texto del botón.", ...cache(HORA, 20 * MIN) }),
+    // La montaña: 37 ramas puestas al día desde Ramas, ya terminadas y sin líder.
+    ...Array.from({ length: 37 }, (_, i) =>
+      hilo({ id: `20261101-08${String(i).padStart(4, "0")}-${83000 + i}`, origen: "app", proyecto: "atlas", tarea: `Actualizá tu rama pa/atlas/20261030-${String(140000 + i * 137)} con main`, estado: "listo", inicio: AHORA - (2 * HORA + i * 7 * MIN), duracion_s: 3 * MIN, rama: `pa/atlas/20261030-${String(140000 + i * 137)}`, commits: 1 }),
+    ),
+    ...terminadosRiel("r6", "calendario-riego", "brote", ["Exportar el calendario", "Zonas horarias del riego"], 14),
+    corriendoRiel({ id: "20261101-110707-82007", ...deR("r6", "calendario-riego", "brote"), tarea: "Avisos de helada", estado: "trabajando", inicio: AHORA - 12 * MIN, puesto: "5", ...cache(HORA, 44 * MIN) }),
+    hilo({ id: "20261101-110808-82008", ...deR("r7", "arranque-frio", "eco"), tarea: "Medir el arranque en frío", estado: "murio", inicio: AHORA - 7 * HORA, duracion_s: 20 * MIN, frenado_en: AHORA - 6 * HORA, murio_en: AHORA - 6 * HORA }),
+  ],
+};
+
+/**
  * La captura `atencion` con todo ya resuelto (`HILOS_VARIANTE=resuelto`): el fallo de t1 lo relanzó otra corrida (`--seguir`), la
  * decisión la contestó la que sigue y t3 ya no espera. La barra no tiene chips arriba ni ícono rojo ni en ámbar.
  */

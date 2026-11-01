@@ -3,9 +3,7 @@ import assert from "node:assert/strict";
 import {
   aDesplegar,
   aLaVista,
-  aVistaTodo,
   armarArbol,
-  atencionRama,
   arrancando,
   ARRANQUE_S,
   claveError,
@@ -16,6 +14,7 @@ import {
   ESPERA_S,
   estadoVisto,
   filasVisibles,
+  plegarTerminados,
   fin,
   HUERFANO_S,
   lideresSinProceso,
@@ -25,7 +24,6 @@ import {
   normal,
   pendientes,
   puntaje,
-  resumen,
   salidaDe,
   salidaWorker,
   seOculta,
@@ -482,7 +480,7 @@ test("líder settleado no se ve hasta que tenga actividad nueva; sus workers sin
   assert.ok(b.lideres.has("a"));
 });
 
-// --- B15: lo terminado se esconde solo; "sólo líderes" ---------------------------
+// --- B15: lo terminado se esconde solo -------------------------------------------
 
 test("qué se esconde solo: tabla de estados × con líder vivo, huérfano y de Ana", () => {
   const RAMA = { rama: "pa/atlas/x", commits: 2 };
@@ -559,7 +557,7 @@ test("una carpeta sin líder se ve si un huérfano pide algo (rama sin integrar,
   assert.deepEqual(nombres(a).sort(), ["fallo", "rama"]);
 });
 
-test("toggle sólo líderes: los workers de un líder no tienen fila salvo con su pliegue abierto; lo sin líder sigue", () => {
+test("filas visibles: lo vivo de cada líder; lo terminado, sólo con su pliegue abierto", () => {
   const trab = hilo({ proyecto: "atlas", estado: "trabajando", inicio: AHORA - MIN, ...deL("a") });
   const listo = hilo({ proyecto: "atlas", estado: "listo", inicio: AHORA - 2 * MIN, ...deL("a") });
   const deB = hilo({ proyecto: "atlas", estado: "colgado", inicio: AHORA - 3 * MIN, ...deL("b") });
@@ -567,47 +565,29 @@ test("toggle sólo líderes: los workers de un líder no tienen fila salvo con s
   const huerfano = hilo({ proyecto: "atlas", estado: "trabajando", inicio: AHORA - 5 * MIN, ...deL("muerto") });
   const cerrado = hilo({ proyecto: "atlas", estado: "archivado", origen: "app" });
   const a = armarArbol([trab, listo, deB, deAna, huerfano, cerrado], { lideres: [lider("a"), lider("b", AHORA - 5 * MIN)], ahora: AHORA });
-  const ver = (abiertas: string[], solo: boolean, cerrados = false) =>
-    ids(filasVisibles(a, (k) => !k.includes(":") || abiertas.includes(k), cerrados, solo));
-  // Todo: lo vivo de cada líder; lo terminado, sólo con el "+N" abierto.
-  assert.deepEqual(ver([], false), [trab.id, deB.id, deAna.id, huerfano.id]);
-  assert.deepEqual(ver(["lider:a"], false), [trab.id, listo.id, deB.id, deAna.id, huerfano.id]);
-  // Sólo líderes: ni lo vivo; lo que no cuelga de un líder sigue a la vista.
-  assert.deepEqual(ver([], true), [deAna.id, huerfano.id]);
-  // Desplegar un líder muestra todo lo suyo, y sólo lo suyo.
-  assert.deepEqual(ver(["lider:a"], true), [trab.id, listo.id, deAna.id, huerfano.id]);
-  // Buscando (todo abierto) y con Cerrados, igual que siempre.
-  assert.deepEqual(ids(filasVisibles(a, () => true, true, true)), [trab.id, listo.id, deB.id, deAna.id, huerfano.id, cerrado.id]);
-  // El default es "todo": el tercer parámetro de antes sigue valiendo.
-  assert.deepEqual(ids(filasVisibles(a, (k) => !k.includes(":"), false)), ver([], false));
+  const ver = (abiertas: string[]) => ids(filasVisibles(a, (k) => !k.includes(":") || abiertas.includes(k), false));
+  assert.deepEqual(ver([]), [trab.id, deB.id, deAna.id, huerfano.id]);
+  assert.deepEqual(ver(["lider:a"]), [trab.id, listo.id, deB.id, deAna.id, huerfano.id]);
+  // Buscando (todo abierto) y con Cerrados.
+  assert.deepEqual(ids(filasVisibles(a, () => true, true)), [trab.id, listo.id, deB.id, deAna.id, huerfano.id, cerrado.id]);
 });
 
-test("vista de todo: debajo de un líder vivo se listan lo que trabaja, está en cola o te necesita; murió, terminó y frenado no", () => {
+test("plegar terminados: sin un líder vivo, una rama con commits también se pliega (la lista Ramas); lo que pregunta un worker se queda", () => {
   const it = (estado: Estado, extra: Partial<Hilo> = {}) => ({ h: hilo({ proyecto: "atlas", estado, ...extra }), estado });
-  assert.equal(aLaVista(it("trabajando"), true), true);
-  assert.equal(aLaVista(it("colgado"), true), true);
-  assert.equal(aLaVista(it("trabajando", { en_cola: true }), true), true);
-  assert.equal(aLaVista(it("decision"), true), true);
-  assert.equal(aLaVista(it("murio"), true), false);
-  assert.equal(aLaVista(it("murio", { frenado_en: AHORA - MIN }), true), false);
-  assert.equal(aLaVista(it("listo"), true), false);
-  assert.equal(aLaVista(it("entregado"), true), false);
-  assert.equal(aLaVista(it("listo", { rama: "pa/atlas/x", commits: 2 }), true), false);
-  assert.equal(aLaVista(it("archivado"), true), false);
-});
-
-test("vista de todo: de un líder sin proceso queda a la vista lo que dejó una rama con commits; lo demás se pliega", () => {
-  const it = (estado: Estado, extra: Partial<Hilo> = {}) => ({ h: hilo({ proyecto: "atlas", estado, ...extra }), estado });
-  assert.equal(aLaVista(it("listo", { rama: "pa/atlas/x", commits: 2 }), false), true);
+  assert.equal(aLaVista(it("listo", { rama: "pa/atlas/x", commits: 2 }), false), false);
   assert.equal(aLaVista(it("listo"), false), false);
   assert.equal(aLaVista(it("murio"), false), false);
   assert.equal(aLaVista(it("murio", { frenado_en: AHORA - MIN }), false), false);
   assert.equal(aLaVista(it("archivado", { rama: "pa/atlas/x", commits: 2 }), false), false);
   assert.equal(aLaVista(it("trabajando"), false), true);
   assert.equal(aLaVista(it("decision"), false), true);
+  // Un worker le pregunta a su líder (`estadoVisto` lo muestra como terminado): con el líder vivo no ocupa la barra; sin él, sí.
+  const pregunta = { h: hilo({ proyecto: "atlas", estado: "decision", ...deL("a") }), estado: "listo" as Estado };
+  assert.equal(aLaVista(pregunta, true), false);
+  assert.equal(aLaVista(pregunta, false), true);
 });
 
-test("vista de todo: bajo el líder, lo que no se ve pasa a viejas (N terminados) y el de sólo líderes no cambia", () => {
+test("plegar terminados: bajo el líder, lo que no se ve pasa a viejas (N terminados)", () => {
   const trab = hilo({ proyecto: "atlas", estado: "trabajando", inicio: AHORA - MIN, ...deL("a") });
   const cola = hilo({ proyecto: "atlas", estado: "trabajando", en_cola: true, inicio: AHORA - 2 * MIN, ...deL("a") });
   const fallo = hilo({ proyecto: "atlas", estado: "murio", inicio: AHORA - 3 * MIN, ...deL("a") });
@@ -615,14 +595,11 @@ test("vista de todo: bajo el líder, lo que no se ve pasa a viejas (N terminados
   const listo = hilo({ proyecto: "atlas", estado: "listo", inicio: AHORA - 5 * MIN, ...deL("a") });
   const huerfano = hilo({ proyecto: "atlas", estado: "murio", inicio: AHORA - 6 * MIN, ...deL("muerto") });
   const a = armarArbol([trab, cola, fallo, frenado, listo, huerfano], { lideres: [lider("a")], ahora: AHORA });
-  const v = aVistaTodo(a);
+  const v = plegarTerminados(a);
   const r = ramaDe(v, "a");
   assert.deepEqual(ids(r.vivas), [trab.id, cola.id]);
   assert.deepEqual(ids(r.viejas), [fallo.id, frenado.id, listo.id]);
-  // Sólo líderes: el árbol de siempre (lo muerto en vivas: su resumen cuenta los fallos y los frenados).
-  assert.deepEqual(ids(ramaDe(a, "a").vivas), [trab.id, cola.id, fallo.id, frenado.id]);
-  assert.deepEqual(ids(ramaDe(a, "a").viejas), [listo.id]);
-  // Sin líder, lo muerto se pliega igual (B15 + "sin líder" de la vista de todo); el total de la carpeta tampoco cambia.
+  // Sin líder, lo muerto se pliega igual; el total de la carpeta tampoco cambia.
   const sinLider = v.carpetas[0].ramas.find((x) => x.tipo === "huerfanos")!;
   assert.deepEqual(ids(sinLider.vivas), []);
   assert.deepEqual(ids(sinLider.viejas), [huerfano.id]);
@@ -630,58 +607,37 @@ test("vista de todo: bajo el líder, lo que no se ve pasa a viejas (N terminados
   assert.equal(r.vivas.length + r.viejas.length, 5);
 });
 
-test("vista de todo: en 'sin líder' se pliega lo muerto y lo terminado; lo que trabaja, pide algo o dejó una rama con commits se queda", () => {
+test("plegar terminados: en 'sin líder' y en lo del usuario queda sólo lo que trabaja o pide algo; 37 ramas terminadas no ocupan la barra", () => {
   const trab = hilo({ proyecto: "atlas", estado: "trabajando", inicio: AHORA - MIN, ...deL("muerto") });
   const decide = hilo({ proyecto: "atlas", estado: "decision", inicio: AHORA - 2 * MIN, ...deL("muerto") });
   const conRama = hilo({ proyecto: "atlas", estado: "listo", rama: "pa/atlas/x", commits: 1, inicio: AHORA - 3 * MIN, ...deL("muerto") });
   const muerto = hilo({ proyecto: "atlas", estado: "murio", inicio: AHORA - 4 * MIN, ...deL("muerto") });
   const frenado = hilo({ proyecto: "atlas", estado: "murio", inicio: AHORA - 5 * MIN, frenado_en: AHORA - 5 * MIN, ...deL("muerto") });
   const listo = hilo({ proyecto: "atlas", estado: "listo", inicio: AHORA - 6 * MIN, ...deL("muerto") });
-  const sueltaMuerta = hilo({ proyecto: "atlas", estado: "murio", origen: "app", inicio: AHORA - 7 * MIN });
-  const a = armarArbol([trab, decide, conRama, muerto, frenado, listo, sueltaMuerta], { lideres: [], caidos: [{ id: deL("muerto").jefe_id, nombre: "muerto", ts: AHORA }], ahora: AHORA });
-  const v = aVistaTodo(a);
+  const sueltaViva = hilo({ proyecto: "atlas", estado: "trabajando", origen: "app", inicio: AHORA - 7 * MIN });
+  const ramas = Array.from({ length: 37 }, (_, i) => hilo({ proyecto: "atlas", estado: "listo", origen: "app", tarea: "Actualizá tu rama", rama: `pa/atlas/r${i}`, commits: 1, inicio: AHORA - (8 + i) * MIN }));
+  const a = armarArbol([trab, decide, conRama, muerto, frenado, listo, sueltaViva, ...ramas], { lideres: [], caidos: [{ id: deL("muerto").jefe_id, nombre: "muerto", ts: AHORA }], ahora: AHORA });
+  const v = plegarTerminados(a);
   const sinLider = v.carpetas[0].ramas.find((x) => x.tipo === "huerfanos")!;
-  assert.deepEqual(ids(sinLider.vivas), [trab.id, decide.id, conRama.id]);
-  assert.deepEqual(ids(sinLider.viejas), [muerto.id, frenado.id, listo.id]);
+  assert.deepEqual(ids(sinLider.vivas), [trab.id, decide.id]);
+  assert.deepEqual(ids(sinLider.viejas), [conRama.id, muerto.id, frenado.id, listo.id]);
   assert.deepEqual(sinLider.muertos, ["muerto"], "el nombre del líder muerto sigue en la cabecera");
-  // Lo de Ana sin líder (sin cabecera) no se pliega en la vista de todo.
   const sueltas = v.carpetas[0].ramas.find((x) => x.tipo === "sueltas")!;
-  assert.deepEqual(ids(sueltas.vivas), [sueltaMuerta.id]);
+  assert.deepEqual(ids(sueltas.vivas), [sueltaViva.id]);
+  assert.equal(sueltas.viejas.length, 37);
   assert.equal(v.carpetas[0].cuenta, a.carpetas[0].cuenta);
 });
 
-test("vista de todo: un líder sin proceso deja a la vista lo que dejó una rama con commits (Ana lo integra)", () => {
+test("plegar terminados: un líder sin proceso sólo deja a la vista lo que trabaja o pide algo", () => {
   const conRama = hilo({ proyecto: "atlas", estado: "listo", rama: "pa/atlas/x", commits: 1, inicio: AHORA - MIN, ...deL("c") });
   const sinRama = hilo({ proyecto: "atlas", estado: "listo", inicio: AHORA - 2 * MIN, ...deL("c") });
   const muerto = hilo({ proyecto: "atlas", estado: "murio", inicio: AHORA - 3 * MIN, ...deL("c") });
+  const corre = hilo({ proyecto: "atlas", estado: "trabajando", inicio: AHORA - 4 * MIN, ...deL("c") });
   const sinProceso: Lider = { ...lider("c"), caido: "murio" };
-  const v = aVistaTodo(armarArbol([conRama, sinRama, muerto], { lideres: [sinProceso], ahora: AHORA }));
+  const v = plegarTerminados(armarArbol([conRama, sinRama, muerto, corre], { lideres: [sinProceso], ahora: AHORA }));
   const r = ramaDe(v, "c");
-  assert.deepEqual(ids(r.vivas), [conRama.id]);
-  assert.deepEqual(ids(r.viejas), [sinRama.id, muerto.id]);
-});
-
-test("resumen del líder: cuántos trabajan (o esperan en cola), cuántos están trabados y cuántos fallaron", () => {
-  const it = (h: Hilo) => ({ h, estado: estadoVisto(h) });
-  const vivas = [
-    hilo({ proyecto: "atlas", estado: "trabajando" }),
-    hilo({ proyecto: "atlas", estado: "trabajando" }),
-    hilo({ proyecto: "atlas", estado: "listo", en_cola: true }),
-    hilo({ proyecto: "atlas", estado: "colgado" }),
-    hilo({ proyecto: "atlas", estado: "murio" }),
-  ].map(it);
-  assert.deepEqual(resumen(vivas), { trabajando: 3, trabados: 1, fallaron: 1, frenados: 0 });
-  assert.deepEqual(resumen([]), { trabajando: 0, trabados: 0, fallaron: 0, frenados: 0 });
-});
-
-test("resumen del líder: el que frenó `pa --parar` cuenta aparte de los que fallaron", () => {
-  const it = (h: Hilo) => ({ h, estado: estadoVisto(h) });
-  const vivas = [
-    hilo({ proyecto: "atlas", estado: "murio", frenado_en: AHORA - MIN }),
-    hilo({ proyecto: "atlas", estado: "murio", murio_en: AHORA - MIN }),
-    hilo({ proyecto: "atlas", estado: "trabajando" }),
-  ].map(it);
-  assert.deepEqual(resumen(vivas), { trabajando: 1, trabados: 0, fallaron: 1, frenados: 1 });
+  assert.deepEqual(ids(r.vivas), [corre.id]);
+  assert.deepEqual(ids(r.viejas), [conRama.id, sinRama.id, muerto.id]);
 });
 
 test("recién lanzado: sin tarea ni rama, y poco después de arrancar, es 'Arrancando…'; pasado el rato, es un worker sin datos", () => {
@@ -906,7 +862,6 @@ test("en cola: con su tarea y su líder cuelga de él, y no es 'Arrancando…' a
   assert.ok(!arrancando({ ...cola, tarea: "" }, AHORA), "en cola sin tarea tampoco miente 'Arrancando…'");
   const a = armarArbol([cola], { lideres, ahora: AHORA });
   assert.deepEqual(ids(a.carpetas[0].ramas.find((r) => r.clave === "lider:a")!.vivas), [cola.id]);
-  assert.equal(resumen([{ h: cola, estado: estadoVisto(cola) }]).trabajando, 1);
 });
 
 test("Dormidos: el líder sin proceso con más de un día quieto no se esconde, se pliega al final de su carpeta", () => {
@@ -931,25 +886,18 @@ test("Dormidos: el líder sin proceso con más de un día quieto no se esconde, 
 });
 
 
-test("atención: falló (no frenado) y pide decisión resaltan; el líder muestra el peor de sus workers o que él mismo espera", () => {
+test("atención: falló (no frenado) y pide decisión resaltan; un líder que responde no espera", () => {
   const trab = hilo({ proyecto: "atlas", estado: "trabajando", inicio: AHORA - MIN, ...deL("a") });
   const fallo = hilo({ proyecto: "atlas", estado: "murio", inicio: AHORA - 3 * MIN, ...deL("a") });
   const frenado = hilo({ proyecto: "atlas", estado: "murio", inicio: AHORA - 4 * MIN, frenado_en: AHORA - 4 * MIN, ...deL("b") });
   const decide = hilo({ proyecto: "atlas", estado: "decision", origen: "app", inicio: AHORA - 5 * MIN });
   const espera = { ...lider("c"), espera: { motivo: "pide" as const, desde: AHORA - 20 } };
   const a = armarArbol([trab, fallo, frenado, decide], { lideres: [lider("a"), lider("b"), espera], ahora: AHORA });
-  assert.equal(atencionRama(ramaDe(a, "a")), "fallo");
-  // Frenado a propósito (`pa --parar`): no es un fallo.
-  assert.equal(atencionRama(ramaDe(a, "b")), null);
-  // Un líder que espera tu respuesta: ámbar, sin importar sus workers.
-  assert.equal(atencionRama(ramaDe(a, "c")), "decision");
-  // Lo que ocupa a un líder que responde no cuenta como espera.
-  assert.equal(atencionRama(ramaDe(armarArbol([], { lideres: [{ ...espera, ocupado: true }], ahora: AHORA }), "c")), null);
   const p = pendientes(a);
   assert.deepEqual(p.fallos.map((d) => d.id), [fallo.id]);
   assert.deepEqual(p.esperan.map((d) => d.id).sort(), ["c", decide.id].sort());
-  // En la vista de todo el fallo queda plegado en "N terminados": para verlo hay que abrir el pliegue de su rama.
-  const todo = pendientes(aVistaTodo(a));
+  // Plegado en "N terminados" (antes de que `aRiel` lo suba): para verlo hay que abrir el pliegue de su rama.
+  const todo = pendientes(plegarTerminados(a));
   assert.equal(todo.fallos[0].viva, false);
   assert.equal(todo.fallos[0].rama, "lider:a");
   assert.equal(pendientes(a).fallos[0].viva, true);

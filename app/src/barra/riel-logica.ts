@@ -40,6 +40,10 @@ export function atencionCarpeta(c: Carpeta, resueltos?: ReadonlySet<string>): At
 export const carpetaViva = (c: Carpeta): boolean =>
   ramasDe(c).some((r) => !!r.lider && (r.lider.ocupado || (r.lider.subagentes ?? 0) > 0)) || ramasDe(c).some((r) => [...r.vivas, ...r.viejas].some(activo));
 
+/** Cuántos trabajan ahora en el proyecto: líderes respondiendo y workers corriendo (lo que está en cola o trabado, no). */
+export const enMarcha = (c: Carpeta): number =>
+  ramasDe(c).reduce((n, r) => n + (r.lider && !r.lider.caido && (r.lider.ocupado || (r.lider.subagentes ?? 0) > 0) ? 1 : 0) + [...r.vivas, ...r.viejas].filter((it) => it.estado === "trabajando" && !it.h.en_cola).length, 0);
+
 export type ItemRiel = { proyecto: string; marca: Atencion | null; vivo: boolean; apagado: boolean };
 
 /**

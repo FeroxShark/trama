@@ -74,7 +74,6 @@ type Main = {
     avisoLider(v: "tanda" | "worker"): Promise<void>;
     /** Qué hacer con el primer mensaje cuando la caché venció y el contexto es grande: `preguntar` (por defecto), `seguir` o `resumen`. */
     cacheVencida(v: "preguntar" | "seguir" | "resumen"): Promise<void>;
-    vista(vista: "todo" | "lideres"): Promise<void>;
     /** El panel de consumo, a la vista u oculto. */
     consumo(si: boolean): Promise<void>;
     /** ¿Abrir la bienvenida sola? Nunca se vio y no es una corrida de prueba. */

@@ -32,9 +32,11 @@ const fulgores = de("fulgor");
 const pliegan = de("pliega");
 /** El testimonio que va de un líder al otro mientras pasa la posta (B19). */
 const postas = de("posta");
+/** La lanzadera que recorre el tramo del hilo de un worker que corre (la barra). */
+const lanzaderas = de("lanzadera");
 /** El cursor de la salida de un comando que todavía corre (la vista de worker): prende y apaga. */
 const parpadean = de("parpadea");
-const todas = [ondas, laten, halos, giran, brillos, fulgores, pliegan, postas, parpadean];
+const todas = [ondas, laten, halos, giran, brillos, fulgores, pliegan, postas, parpadean, lanzaderas];
 
 const quieto = matchMedia("(prefers-reduced-motion: reduce)");
 
@@ -46,6 +48,7 @@ const FULGOR_MS = 2200;
 const PLIEGUE_MS = 1600;
 const POSTA_MS = 1400;
 const PARPADEO_MS = 1000;
+const LANZADERA_MS = 2000;
 
 const fase = (t: number, periodo: number, corrida = 0) => (t / periodo + corrida) % 1;
 /** Parecida a cubic-bezier(0,0,.2,1): sale rápido y frena. */
@@ -65,6 +68,7 @@ function limpiar() {
   for (const n of pliegan) n.style.transform = "";
   for (const n of postas) n.style.cssText = "";
   for (const n of parpadean) n.style.opacity = "";
+  for (const n of lanzaderas) n.style.cssText = "";
   limpiarEscenas();
 }
 
@@ -115,6 +119,12 @@ function tic() {
   }
   const pa = fase(t, PARPADEO_MS) < 0.5 ? "1" : "0";
   for (const n of parpadean) n.style.opacity = pa;
+  // Baja por su tramo (un tramo mide unas tres lanzaderas) en el 70 % del ciclo y descansa el resto: se ve pasar, no vibrar.
+  const la = Math.min(1, fase(t, LANZADERA_MS) / 0.7);
+  for (const n of lanzaderas) {
+    n.style.transform = `translateY(${(-100 + 400 * suave(la)).toFixed(1)}%)`;
+    n.style.opacity = la < 1 ? "1" : "0";
+  }
 
   timer = window.setTimeout(tic, PASO_MS);
 }
