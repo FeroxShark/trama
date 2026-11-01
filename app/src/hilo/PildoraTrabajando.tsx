@@ -20,8 +20,10 @@ export function PildoraTrabajando({ l }: { l: Lider }) {
   return (
     <span className="estado c-trab" role="status" data-pildora-trabajando>
       <i />
-      {t("estado.trabajando")}
-      {dura ? <Reloj pintor={dura} /> : null}
+      <span className="estado-t">
+        {t("estado.trabajando")}
+        {dura ? <Reloj pintor={dura} /> : null}
+      </span>
     </span>
   );
 }

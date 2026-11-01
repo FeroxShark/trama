@@ -43,9 +43,12 @@
   border-radius: var(--r-cap);
   background: color-mix(in srgb, currentColor 13%, transparent);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, currentColor 28%, transparent);
-  color: color-mix(in srgb, currentColor 70%, var(--texto-1));
   font-weight: 500;
   font-variant-numeric: tabular-nums;
+}
+/* El punto lleva el tono del estado; la palabra, ese tono llevado hacia el color del texto (se lee en claro y en oscuro). */
+.migas:has(.ruta-sub) .estado-t {
+  color: color-mix(in srgb, currentColor 65%, var(--texto-1));
 }
 .migas:has(.ruta-sub) .estado i {
   width: 0.4375rem;
@@ -118,6 +121,13 @@
   box-shadow: var(--vidrio-borde);
   font-size: var(--letra-5);
 }
+/* Con la fila apretada (la compacta Lider.tsx por pasos) los chips vuelven a su letra de siempre: así entran donde antes entraban. */
+.hilo .caja .barra-c:not([data-nivel="0"]) :is(.pbtn, .modo) {
+  font-size: var(--letra-4);
+}
+.hilo .caja .barra-c:not([data-nivel="0"]) .pbtn {
+  padding-inline: var(--esp-2-5);
+}
 .hilo .caja .pbtn:is(:hover, [aria-expanded="true"]) {
   background: var(--capa-tile);
 }
@@ -183,4 +193,9 @@
   color: var(--texto-5);
   font-size: var(--letra-7);
   font-weight: 500;
+}
+
+/* Con la fila al límite (paso 3) el nombre del modelo cede: se recorta en vez de montarse sobre lo que tiene al lado. */
+.hilo .caja .barra-c[data-nivel="3"] .pbtn {
+  overflow: hidden;
 }

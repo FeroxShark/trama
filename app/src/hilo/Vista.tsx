@@ -134,7 +134,7 @@ export function Vista({
             <MaquinaMigas maquina={h.maquina} />
             <span className={`estado c-${t?.tipo ?? "cerrado"}`}>
               <i>{t?.tipo === "nec" ? <span className="halo" /> : null}</i>
-              {textoEstado(h, estado) ?? cierre(estado)}
+              <span className="estado-t">{textoEstado(h, estado) ?? cierre(estado)}</span>
             </span>
             {conPasos ? <WorkerExtras h={h} vista={conPasos} vive={vive} /> : null}
           </>
