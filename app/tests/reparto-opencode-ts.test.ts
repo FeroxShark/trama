@@ -55,6 +55,12 @@ test("--opencode-limite: 'Free usage limit' por stdin agota el grupo opencode-fr
   assert.equal(horasDeVuelta(), 24);
 });
 
+test("--opencode-limite: 'provider.free-limit' (el errorName del cupo gratis de la cuenta) agota el grupo 24 h", () => {
+  const r = run(["--opencode-limite"], { stdin: 'Internal error: {"service":"session","errorName":"provider.free-limit"}\n' });
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(horasDeVuelta(), 24);
+});
+
 test("--opencode-limite: con 'retrying in N' vuelve a esa hora; 'Free usage exceeded' también cuenta", () => {
   assert.equal(run(["--opencode-limite"], { stdin: "Free usage exceeded, retrying in 90m\n" }).status, 0);
   assert.equal(horasDeVuelta(), 1.5);
