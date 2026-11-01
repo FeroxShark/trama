@@ -5166,9 +5166,6 @@ summary.sis-div-t:hover,
   font-size: var(--letra-4);
   line-height: 1.45;
 }
-.sis-aviso[data-tono="grave"] {
-  border-color: var(--rojo-borde);
-}
 .sis-aviso-h,
 .sis-aviso-l li {
   display: flex;

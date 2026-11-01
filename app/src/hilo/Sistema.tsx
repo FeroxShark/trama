@@ -33,6 +33,8 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { locale, t, type ClaveSola } from "../i18n";
+import { fuente } from "../datos/fuente";
+import { mensaje } from "../puente";
 import { useIdioma } from "../i18n/react";
 import { MODO } from "../modo";
 import { hora } from "./Hace";
@@ -40,6 +42,7 @@ import { nombreModelo } from "./opciones";
 import type { AvisoTexto, EstadoAviso } from "../../electron/avisos-worker.ts";
 import type { ClaseTarjeta, Linea, Sistema as S, Tarjeta } from "./sistema-logica";
 import { tonoDeEstado } from "./sistema-logica";
+import "./atencion.css";
 
 const ICONO: Record<ClaseTarjeta, LucideIcon> = {
   skill: Puzzle,
@@ -173,11 +176,67 @@ const ESTADO_AVISO: Record<EstadoAviso, { Icono: typeof CircleCheck; rotulo: Cla
   falla: { Icono: TriangleAlert, rotulo: "sistema.avisoFallo" },
 };
 
-/** Un aviso de Trama: la campana y "Trama · Aviso"; por cada worker, cómo terminó (ícono, palabra y color propios), su tarea y su id, que abre su hilo. */
+/**
+ * Una fila que pide atención (un worker que falló o que pide una decisión): ícono en recuadro, la tarea, la palabra en un chip y
+ * el botón principal relleno (falló: Relanzar; decisión: abrir su hilo); el otro, más quieto, abre el hilo.
+ */
+function FilaAtencion({ x, alAbrirHilo }: { x: AvisoTexto["trabajos"][number]; alAbrirHilo?: (id: string) => void }) {
+  const falla = x.estado === "falla";
+  const Icono = falla ? TriangleAlert : MessageCircleQuestion;
+  const [relanzo, setRelanzo] = useState<"relanzando" | "hecho" | { error: string } | null>(null);
+  const relanzar = () => {
+    setRelanzo("relanzando");
+    fuente.relanzarWorker(x.id).then(
+      () => setRelanzo("hecho"),
+      (e) => setRelanzo({ error: mensaje(e) }),
+    );
+  };
+  const abrir = alAbrirHilo ? (
+    <button type="button" className="sis-aviso-b" data-primario={falla ? undefined : ""} aria-label={t("sistema.avisoAbrir", { id: x.id })} onClick={() => alAbrirHilo(x.id)}>
+      {t("sistema.avisoVer", { id: x.id })}
+    </button>
+  ) : null;
+  return (
+    <li className="sis-aviso-f" data-atencion={falla ? "falla" : "decision"}>
+      <span className="sis-aviso-ico" aria-hidden="true">
+        <Icono size={16} strokeWidth={2.2} />
+      </span>
+      <div className="sis-aviso-cuerpo">
+        <div className="sis-aviso-tit">
+          <span className="sis-aviso-tarea">{`«${x.tarea}»`}</span>
+          <span className="sis-aviso-chip">
+            <Icono size={11} strokeWidth={2.4} aria-hidden="true" />
+            {t(falla ? "sistema.avisoFallo" : "sistema.avisoChipDecision")}
+          </span>
+        </div>
+        <div className="sis-aviso-acc">
+          {falla ? (
+            <button type="button" className="sis-aviso-b" data-primario="" disabled={relanzo === "relanzando" || relanzo === "hecho"} data-tip={t("avisoW.relanzarTip")} onClick={relanzar}>
+              <RotateCw size={13} strokeWidth={2.2} aria-hidden="true" />
+              {t(relanzo === "relanzando" ? "avisoW.relanzando" : relanzo === "hecho" ? "avisoW.relanzado" : "sistema.avisoRelanzar")}
+            </button>
+          ) : null}
+          {abrir}
+        </div>
+        {relanzo && typeof relanzo === "object" ? (
+          <div className="caja-error" role="alert">
+            {t("avisoW.relanzarFallo", { e: relanzo.error })}
+          </div>
+        ) : null}
+      </div>
+    </li>
+  );
+}
+
+/**
+ * Un aviso de Trama: la campana y "Trama · Aviso"; por cada worker, cómo terminó. La tarjeta queda calma: sólo se destacan las
+ * filas con falla (coral) o que piden una decisión (ámbar), con ícono, palabra y botón; los que terminaron bien, una línea baja
+ * con su ícono y su palabra. Con `alAbrirHilo`, el id abre el hilo del worker.
+ */
 function Aviso({ a, alAbrirHilo }: { a: AvisoTexto; alAbrirHilo?: (id: string) => void }) {
   const fallas = a.trabajos.filter((x) => x.falla).length;
   return (
-    <div className="sis-aviso" data-tono={a.falla ? "grave" : undefined}>
+    <div className="sis-aviso">
       <div className="sis-aviso-h">
         <BellRing size={12} strokeWidth={2} aria-hidden="true" />
         <span>{t("sistema.avisoRotulo")}</span>
@@ -186,9 +245,10 @@ function Aviso({ a, alAbrirHilo }: { a: AvisoTexto; alAbrirHilo?: (id: string) =
       {a.trabajos.length ? (
         <ul className="sis-aviso-l">
           {a.trabajos.map((x) => {
+            if (x.estado === "falla" || x.estado === "decision") return <FilaAtencion key={x.id} x={x} alAbrirHilo={alAbrirHilo} />;
             const { Icono, rotulo } = ESTADO_AVISO[x.estado];
             return (
-              <li key={x.id}>
+              <li key={x.id} className="sis-aviso-ok">
                 <span className="sis-aviso-e" data-tono={tonoDeEstado(x.estado)}>
                   <Icono size={12} strokeWidth={2} aria-hidden="true" />
                   <span>{t(rotulo)}</span>

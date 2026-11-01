@@ -2,7 +2,7 @@
 // del elegido. Los pasos los arma el main de su transcript (src/hilo/usePasos.ts); lo que se saca de ellos
 // (nombre corto, grupos, resumen, chip de tests, diff) es de worker-datos.ts. A un worker no se le escribe: acá sólo se mira, y se lo para.
 import { memo, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { Bot, Brain, Check, ChevronRight, FilePlus, FileText, Info, MessageSquare, Pencil, Search, Square, Terminal, Wrench, type LucideIcon } from "lucide-react";
+import { Bot, Brain, Check, ChevronRight, FilePlus, FileText, Info, MessageCircleQuestion, MessageSquare, Pencil, Search, Square, Terminal, TriangleAlert, Wrench, type LucideIcon } from "lucide-react";
 import { comoSettle, type Estado, type Hilo } from "../datos/contrato";
 import { fuente } from "../datos/fuente";
 import type { Detalle, Paso, TipoPaso, VistaPasos } from "../datos/pasos";
@@ -17,6 +17,7 @@ import { mensaje } from "../puente";
 import { Boton } from "../ui/componentes";
 import { esperaTexto, pintorDura } from "../tiempo";
 import "./worker-logica.css";
+import "./atencion.css";
 import { Entero } from "./Entero";
 import { archivoDeRuta, type AccionArchivo } from "../../electron/archivo-ruta";
 import { Filas } from "./Diff";
@@ -537,6 +538,7 @@ export function VistaWorker({ h, estado, vista, settle, alCerrar, alRetomar, alP
   useIdioma();
   const vive = estado === "trabajando" || estado === "colgado";
   const decide = estado === "decision";
+  const falla = estado === "murio";
   const compacta = useCompactando(vive ? h.id : null);
   const r = useRecorrido(vista, vive);
 
@@ -571,7 +573,16 @@ export function VistaWorker({ h, estado, vista, settle, alCerrar, alRetomar, alP
   return (
     <div className="wk" ref={r.raiz}>
       <div className="wk-in">
-        <section className="wk-fin" aria-label={t("wk.resultado")}>
+        <section className="wk-fin" aria-label={t("wk.resultado")} data-atencion={falla ? "falla" : decide ? "decision" : undefined}>
+          {falla || decide ? (
+            <div className="wk-aten">
+              <span className="wk-aten-ico" aria-hidden="true">
+                {falla ? <TriangleAlert size={18} strokeWidth={2.2} /> : <MessageCircleQuestion size={18} strokeWidth={2.2} />}
+              </span>
+              <span className="wk-aten-tit">{t(falla ? "wk.tituloFalla" : "wk.tituloDecision")}</span>
+              <span className="wk-aten-chip">{t(falla ? "wk.chipFalla" : "wk.chipDecision")}</span>
+            </div>
+          ) : null}
           <div className="wk-fila">
             {resultado ? <Entero texto={resultado} className="wk-txt" /> : <p className="wk-txt espera">{vive ? t("wk.espera") : t("wk.sinResultado")}</p>}
             <div className="wk-acc">
