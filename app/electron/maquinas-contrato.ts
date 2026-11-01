@@ -39,6 +39,7 @@ export const RUTAS: Readonly<Record<string, Ruta>> = {
   "lider:retomar": "maquina",
   "lider:rebobinar": "maquina",
   "lider:ramificar": "maquina",
+  "lider:seguirCon": "maquina",
   "lider:conversacion": "maquina",
   "lider:mirar": "maquina",
   "lider:visto": "maquina",
@@ -53,6 +54,7 @@ export const RUTAS: Readonly<Record<string, Ruta>> = {
   "pa:rama": "maquina",
   "pa:lanzar": "maquina",
   "workers:relanzar": "local",
+  "workers:seguirCon": "local",
   "ramas:brief": "maquina",
   // La orquestación de `pa`: las lecciones y AGENTS.md son de esta máquina; auditar va a la del worker.
   "orq:auditar": "maquina",

@@ -1,12 +1,14 @@
 // Qué ofrece el menú del clic derecho de la barra (B20) según la fila y su
 // estado. Puro: lo prueba `tests/menu.test.ts`; lo dibuja `Menu.tsx`.
 import { cerrable, cerrado, type Estado, type Hilo, type Lider } from "../datos/contrato.ts";
+import { seguibleLider, seguibleWorker } from "../hilo/seguir-con.ts";
 
 export type Accion =
   | "renombrar"
   | "mover"
   | "settle"
   | "parar"
+  | "seguir"
   | "copiar"
   | "borrar"
   | "descartar"
@@ -37,7 +39,7 @@ const delOrden = (l?: LugarMenu): Opcion[] => [
 
 /**
  * Un worker: renombrar y copiar el id siempre; Settle si tiene uno propio
- * (`settleWorker`); Parar si corre; Borrar (`pa --archivar`) si terminó; y
+ * (`settleWorker`); Parar si corre; Seguir con otro modelo si ya terminó (#1791); Borrar (`pa --archivar`) si terminó; y
  * Descartar si además dejó una rama con commits (confirma, como en Ramas).
  */
 export function accionesWorker(h: Pick<Hilo, "rama" | "commits">, estado: Estado, settle: boolean): Opcion[] {
@@ -46,6 +48,7 @@ export function accionesWorker(h: Pick<Hilo, "rama" | "commits">, estado: Estado
     { a: "renombrar" },
     ...(settle ? [{ a: "settle" } as const] : []),
     ...(estado === "trabajando" || estado === "colgado" ? [{ a: "parar" } as const] : []),
+    ...(seguibleWorker(estado) ? [{ a: "seguir" } as const] : []),
     { a: "copiar" },
     ...(fin ? [{ a: "borrar" } as const] : []),
     ...(fin && h.rama && h.commits > 0 ? [{ a: "descartar", confirmar: true, peligro: true } as const] : []),
@@ -54,8 +57,8 @@ export function accionesWorker(h: Pick<Hilo, "rama" | "commits">, estado: Estado
 
 /**
  * Un líder: renombrar, moverlo de carpeta y copiar el id siempre; Settle si
- * está quieto (`settleDe`: confirma si deja ramas sin integrar o si es de la app, que además se cierra). Parar y
- * Borrar sólo a uno de la app: a uno de la terminal no se le escribe. Borrar
+ * está quieto (`settleDe`: confirma si deja ramas sin integrar o si es de la app, que además se cierra). Seguir con otro modelo si no
+ * está respondiendo (#1791). Parar y Borrar sólo a uno de la app: a uno de la terminal no se le escribe. Borrar
  * lo corta si responde y lo saca de la lista: siempre confirma.
  */
 export function accionesLider(l: Pick<Lider, "origen" | "ocupado">, settle: number | null, lugar?: LugarMenu): Opcion[] {
@@ -66,6 +69,7 @@ export function accionesLider(l: Pick<Lider, "origen" | "ocupado">, settle: numb
     ...delOrden(lugar),
     ...(settle !== null ? [{ a: "settle", confirmar: settle > 0 || app } as const] : []),
     ...(app && l.ocupado ? [{ a: "parar" } as const] : []),
+    ...(seguibleLider(l) ? [{ a: "seguir" } as const] : []),
     { a: "copiar" },
     ...(app ? [{ a: "borrar", confirmar: true, peligro: true } as const] : []),
   ];

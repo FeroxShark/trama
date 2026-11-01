@@ -2,7 +2,7 @@
 // del elegido. Los pasos los arma el main de su transcript (src/hilo/usePasos.ts); lo que se saca de ellos
 // (nombre corto, grupos, resumen, chip de tests, diff) es de worker-datos.ts. A un worker no se le escribe: acá sólo se mira, y se lo para.
 import { memo, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { Bot, Brain, Check, ChevronRight, FilePlus, FileText, Info, MessageCircleQuestion, MessageSquare, Pencil, Search, Square, Terminal, TriangleAlert, Wrench, type LucideIcon } from "lucide-react";
+import { ArrowRightLeft, Bot, Brain, Check, ChevronRight, FilePlus, FileText, Info, MessageCircleQuestion, MessageSquare, Pencil, Search, Square, Terminal, TriangleAlert, Wrench, type LucideIcon } from "lucide-react";
 import { comoSettle, type Estado, type Hilo } from "../datos/contrato";
 import { fuente } from "../datos/fuente";
 import type { Detalle, Paso, TipoPaso, VistaPasos } from "../datos/pasos";
@@ -23,6 +23,8 @@ import { archivoDeRuta, type AccionArchivo } from "../../electron/archivo-ruta";
 import { Filas } from "./Diff";
 import { EnlaceArchivo, FotoArchivo } from "./VerArchivo";
 import { defDe } from "./modelos";
+import { MODELOS_WORKER, modeloDe } from "./opciones";
+import { SeguirCon } from "./SeguirCon";
 import { Compactando } from "./Posta";
 import { Texto } from "./Texto";
 import { useCompactando } from "./compactando";
@@ -545,6 +547,8 @@ export function VistaWorker({ h, estado, vista, settle, alCerrar, alRetomar, alP
   const [parando, setParando] = useState(false);
   const [pasando, setPasando] = useState(false);
   const [errorPie, setErrorPie] = useState<string | null>(null);
+  // «Seguir con otro modelo» (#1791): un worker que murió (por cupo o por lo que sea) sigue con un resumen de lo hecho, en su puesto y su rama.
+  const [seguir, setSeguir] = useState(false);
   const parar = () => {
     if (parando) return;
     setParando(true);
@@ -595,6 +599,11 @@ export function VistaWorker({ h, estado, vista, settle, alCerrar, alRetomar, alP
                 <Boton className="wk-parar" data-pasar data-tip={t("vista.pasarTip")} disabled={pasando} onClick={pasar}>
                   {pasando ? t("vista.pasando") : t("vista.pasar")}
                 </Boton>
+              ) : falla ? (
+                <Boton className="wk-parar wk-seguir" data-seguir-con onClick={() => setSeguir(true)}>
+                  <ArrowRightLeft size={13} strokeWidth={2.2} aria-hidden="true" />
+                  {t("aviso.seguir")}
+                </Boton>
               ) : null}
               {settle && !vive ? <AccionesWorker key={h.id} id={h.id} salida={settle} como={comoSettle(h)} alCerrar={alCerrar} alRetomar={alRetomar} className="btn2" /> : null}
             </div>
@@ -615,6 +624,18 @@ export function VistaWorker({ h, estado, vista, settle, alCerrar, alRetomar, alP
 
         <Recorrido r={r} vista={vista} vive={vive} compacta={compacta} />
       </div>
+      {seguir ? (
+        <SeguirCon
+          de="worker"
+          opciones={MODELOS_WORKER}
+          actual={modeloDe(h.modelo)}
+          alElegir={async (modelo) => {
+            await fuente.seguirConWorker(h.id, modelo);
+            setSeguir(false);
+          }}
+          alCerrar={() => setSeguir(false)}
+        />
+      ) : null}
     </div>
   );
 }

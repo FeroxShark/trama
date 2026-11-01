@@ -31,7 +31,8 @@ import { BORRADOR_LIDER } from "../hilo/Lider";
 import { llanaRuta } from "../hilo/carpeta-nueva";
 import { ponerSeleccion } from "../hilo/carpeta-nueva-estado";
 import { useProyectos } from "../datos/proyectos";
-import { fantasma, MODELO_DEFAULT, modeloDe, primeraLinea } from "../hilo/opciones";
+import { fantasma, MODELO_DEFAULT, MODELOS, MODELOS_WORKER, modeloDe, primeraLinea } from "../hilo/opciones";
+import { SeguirCon } from "../hilo/SeguirCon";
 import { ClaudeCode } from "./ClaudeCode";
 import { carpetaCorta, carpetasExtra, claveClaude, OTRAS, repartirClaude } from "./claude-code";
 import { effortPara } from "../hilo/elegir";
@@ -341,6 +342,8 @@ export function Barra() {
   const [slugsReg, setSlugsReg] = useState<Record<string, string>>({});
   const [menu, setMenu] = useState<MenuAbierto | null>(null);
   const [renombrando, setRenombrando] = useState<Renombrando | null>(null);
+  // «Seguir con otro modelo» (#1791), desde el menú de un hilo: de quién y con qué modelo venía; el selector se abre sobre la ventana.
+  const [seguirDe, setSeguirDe] = useState<{ de: "worker"; id: string; modelo: string } | { de: "lider"; sid: string; modelo: string; proyecto: string } | null>(null);
   // "Nueva tarea aquí": la carpeta del líder que está por nacer.
   const nuevaEn = useRef<string | null>(null);
   // Las capturas `HILOS_VARIANTE=<x>-angosta` abren la barra en su ancho mínimo y `<x>-300`, a 300 px.
@@ -1603,6 +1606,7 @@ export function Barra() {
       listo();
       if (o.a === "settle") cerrar(id);
       else if (o.a === "parar") fuente.parar(h).catch((e) => setErrores((x) => new Map(x).set(id, mensaje(e))));
+      else if (o.a === "seguir") setSeguirDe({ de: "worker", id, modelo: h.modelo });
       else if (o.a === "copiar") copiar(id);
       else if (o.a === "borrar" && cerrable(estadoVisto(h, optimista.get(id)))) borrarWorker(h);
       else if (o.a === "descartar") actuar(id, "descartar");
@@ -1622,7 +1626,10 @@ export function Barra() {
       else if (o.a === "prioridad") alternarPrioridad();
       else if (o.a === "settle") settleLiderYa(sid);
       else if (o.a === "parar") void fuente.liderParar(sid).catch(() => {});
-      else if (o.a === "copiar") copiar(sid);
+      else if (o.a === "seguir") {
+        const l = arbol.lideres.get(sid);
+        setSeguirDe({ de: "lider", sid, modelo: l?.modelo ?? "", proyecto: nombres.proyectos[sid] ?? l?.proyecto ?? GENERAL });
+      } else if (o.a === "copiar") copiar(sid);
       else if (o.a === "borrar") cerrarLider(sid, "borrar");
       return;
     }
@@ -1644,6 +1651,31 @@ export function Barra() {
   /** Qué puede hacer una fila con el orden a mano: sin buscar (ahí el orden es el de la búsqueda) y sólo líderes y carpetas. */
   const lugarMenu = (de: MenuAbierto["de"]): LugarMenu | undefined =>
     buscando || de.tipo === "worker" ? undefined : { sube: pasoOrden(de, -1) !== null, baja: pasoOrden(de, 1) !== null, defecto: hayOrdenManual(nombres.orden), prioridad: porPrioridad };
+
+  /**
+   * Elegido el modelo de «Seguir con otro modelo»: un worker sigue con `pa --seguir-con` (en su puesto y rama; aparece solo en la barra); un
+   * líder abre uno nuevo en su misma carpeta con el resumen como primer mensaje y se va a él. Rechaza con el motivo (el selector lo muestra).
+   */
+  const seguirElegido = async (modelo: string) => {
+    const s = seguirDe;
+    if (!s) return;
+    if (s.de === "worker") {
+      await fuente.seguirConWorker(s.id, modelo);
+      return setSeguirDe(null);
+    }
+    const effort = effortPara(modelo, effortsLeidos() ?? {});
+    const sid = await fuente.liderSeguirCon(s.sid, { modelo, effort });
+    // Queda en la misma carpeta de la barra que el original (si ésa se la había elegido a mano, se recuerda también para el nuevo).
+    if (s.proyecto !== GENERAL) {
+      setNombres((n) => ({ ...n, proyectos: { ...n.proyectos, [sid]: s.proyecto } }));
+      fuente.guardarProyecto(sid, s.proyecto);
+    }
+    setFantasmas((m) => new Map(m).set(sid, fantasma(sid, { texto: "", modelo, effort }, s.proyecto)));
+    alFrente();
+    setPanel(null);
+    setActiva(LIDER + sid);
+    setSeguirDe(null);
+  };
 
   /** Lo que se ve en el menú abierto, en el idioma de ahora. */
   const itemsMenu = (m: MenuAbierto): ItemMenu[] => {
@@ -1696,6 +1728,7 @@ export function Barra() {
       mover: tr("menu.mover"),
       settle: tr(como === "integrar" ? "accion.integrar" : "accion.archivar"),
       parar: tr("accion.parar"),
+      seguir: tr("menu.seguir"),
       copiar: tr("menu.copiar"),
       borrar: tr("menu.borrar"),
       descartar: tr("menu.descartar"),
@@ -1987,6 +2020,15 @@ export function Barra() {
           />
         </aside>
 
+        {seguirDe ? (
+          <SeguirCon
+            de={seguirDe.de}
+            opciones={seguirDe.de === "worker" ? MODELOS_WORKER : MODELOS}
+            actual={modeloDe(seguirDe.modelo)}
+            alElegir={seguirElegido}
+            alCerrar={() => setSeguirDe(null)}
+          />
+        ) : null}
         {menu ? (
           <Menu
             x={menu.x}

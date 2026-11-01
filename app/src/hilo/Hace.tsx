@@ -3,6 +3,7 @@
 // errores, compactar, el proceso que se muere). Cada pieza se suscribe sólo a
 // lo suyo de src/hilo/vivo.ts: el texto que llega no las repinta.
 import { useCallback, useMemo, useSyncExternalStore, type ReactNode } from "react";
+import { ArrowRightLeft } from "lucide-react";
 import type { HaceLider } from "../datos/contrato";
 import { Reloj } from "../barra/piezas";
 import { pintorDura } from "../tiempo";
@@ -13,6 +14,7 @@ import { useIdioma } from "../i18n/react";
 import type { AvisoVisto } from "./avisos";
 import { MODO } from "../modo";
 import { nombreModelo } from "./opciones";
+import { ofreceSeguir } from "./seguir-con";
 import { Tierno, useTiernos } from "./Tierno";
 import { Compactando, Hojas } from "./Posta";
 import { Actividad } from "./Actividad";
@@ -91,16 +93,21 @@ export function textoAviso(a: AvisoVisto): { texto: string; tono: "grave" | "ojo
   }
 }
 
-/** Los avisos del turno, uno por línea. `volverA`: el nombre de una cuenta de Claude si sigue conectada (null si no); `alVolver` la elige (el aviso de otra cuenta ofrece «Volver a …»). */
+/**
+ * Los avisos del turno, uno por línea. `volverA`: el nombre de una cuenta de Claude si sigue conectada (null si no); `alVolver` la elige (el aviso de otra
+ * cuenta ofrece «Volver a …»). `alSeguir`: abre «Seguir con otro modelo» (#1791); lo ofrecen los avisos que cortan por límite o por falta de cupo.
+ */
 export function Avisos({
   avisos,
   volverA,
   alVolver,
+  alSeguir,
   deshabilitado,
 }: {
   avisos: AvisoVisto[];
   volverA?: (id: string) => string | null;
   alVolver?: (id: string) => void;
+  alSeguir?: () => void;
   deshabilitado?: boolean;
 }) {
   useIdioma();
@@ -119,6 +126,12 @@ export function Avisos({
             {a.clase === "error" && esAvisoSinCupoOpencode(a.texto) ? (
               <Boton type="button" className="aviso-accion" onClick={() => window.dispatchEvent(new Event(EVENTO_CAMBIAR_MODELO))}>
                 {t("aviso.cambiarModelo")}
+              </Boton>
+            ) : null}
+            {alSeguir && ofreceSeguir(a) ? (
+              <Boton type="button" className="aviso-accion aviso-seguir" data-seguir-con onClick={alSeguir}>
+                <ArrowRightLeft size={13} strokeWidth={2.2} aria-hidden="true" />
+                {t("aviso.seguir")}
               </Boton>
             ) : null}
             {anterior && nombre && alVolver ? (

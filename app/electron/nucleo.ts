@@ -39,7 +39,7 @@ import { almacenNombres } from "./nombres.js";
 import { almacenPendientes } from "./pendientes.js";
 import { guardarApariencia, guardarAutoIntegrar, guardarAvisarEspera, guardarAvisarWorkers, guardarAvisoLider, avisoLiderGuardado, guardarCacheVencida, bienvenidaPendiente, guardarBienvenida, guardarConsumo, guardarDictadoModelo, guardarEffort, guardarGuias, guardarIdioma, guardarTerminalAgentes, guardarTiernos, guardarVista, guiasEstado, guardarLimpieza, leerLimpieza, leerPreferencias } from "./preferencias.js";
 import { aplicarLimpieza, pasadaAutomatica, programarPasadas, verLimpieza } from "./limpieza-pa.js";
-import { accionRama, arreglarDatos, briefRamas, enCola, ejecutar, lanzarRama, lanzarTareaMd, leerAjustes, leerMedicion, pasarALider, relanzarWorker, retomarDatos, tareaMdEnCurso, type AccionRama, type TipoTareaMd } from "./paneles.js";
+import { accionRama, arreglarDatos, briefRamas, enCola, ejecutar, lanzarRama, lanzarTareaMd, leerAjustes, leerMedicion, pasarALider, relanzarWorker, retomarDatos, seguirConWorker, tareaMdEnCurso, type AccionRama, type TipoTareaMd } from "./paneles.js";
 import { guardarRouting, type Cambio } from "./routing.js";
 import { argvAuditar, datosAgentsMd, guardarLecciones, leccionesPendientes, leerLecciones, textoPoda } from "./orquestacion.ts";
 import { aplicarUnificar, estadoMd, guardarAgents, leerAgents, planUnificar } from "./unificar-md.ts";
@@ -909,6 +909,12 @@ export function armarNucleo() {
     if (!h) throw errorT("main.idRaro", { v: String(x?.id) });
     return relanzarWorker(h);
   });
+  // «Seguir con otro modelo» de un worker (#1791): `pa --seguir-con <modelo> --id <id>`, en su mismo puesto y rama. Tampoco confía en el renderer: el proyecto sale de la lista.
+  manejar("workers:seguirCon", (_e, x: { id?: unknown; modelo?: unknown }) => {
+    const h = (ultimosHilos as readonly unknown[]).find((f) => (f as { id?: unknown }).id === x?.id) as Parameters<typeof seguirConWorker>[0] | undefined;
+    if (!h) throw errorT("main.idRaro", { v: String(x?.id) });
+    return seguirConWorker(h, String(x?.modelo ?? ""));
+  });
   manejar("pa:lanzar", (_e, x: Parameters<typeof lanzarRama>[0]) =>
     lanzarRama({ accion: x?.accion, id: x?.id, proyecto: x?.proyecto, modelo: x?.modelo, effort: x?.effort, texto: x?.texto }),
   );
@@ -1182,6 +1188,8 @@ export function armarNucleo() {
   manejar("lider:ramificar", (_e, x: { sid: string; uuid: string; modelo: string; effort: string }) =>
     lider.ramificar({ sid: x?.sid, uuid: x?.uuid, modelo: x?.modelo, effort: x?.effort }),
   );
+  // «Seguir con otro modelo» (#1791): un líder nuevo, en la misma carpeta, que arranca con el resumen de traspaso de éste. Devuelve su sid.
+  manejar("lider:seguirCon", (_e, x: { sid: string; modelo: string; effort: string }) => lider.seguirCon({ sid: x?.sid, modelo: x?.modelo, effort: x?.effort }));
   // El usuario abrió la conversación de un líder que lo esperaba (o la tiene a la vista y volvió a la ventana).
   manejar("lider:visto", (_e, sid: string) => verEspera(String(sid)));
   // Un archivo que no es imagen: a `adjuntos/` del estado propio; el mensaje lleva su ruta.

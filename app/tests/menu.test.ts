@@ -12,12 +12,13 @@ test("worker: según su estado", () => {
   const tabla: [Estado, typeof sinRama | typeof conRama, boolean, string[]][] = [
     ["trabajando", conRama, false, ["renombrar", "parar", "copiar"]],
     ["colgado", sinRama, false, ["renombrar", "parar", "copiar"]],
-    ["listo", sinRama, true, ["renombrar", "settle", "copiar", "borrar"]],
-    ["listo", conRama, true, ["renombrar", "settle", "copiar", "borrar", "descartar?"]],
+    // Terminado, caído o esperando una decisión: se puede seguir con otro modelo (#1791). Corriendo o ya cerrado por `pa`, no.
+    ["listo", sinRama, true, ["renombrar", "settle", "seguir", "copiar", "borrar"]],
+    ["listo", conRama, true, ["renombrar", "settle", "seguir", "copiar", "borrar", "descartar?"]],
     // Bajo un líder vivo no tiene Settle propio, pero se puede borrar igual.
-    ["listo", conRama, false, ["renombrar", "copiar", "borrar", "descartar?"]],
-    ["murio", sinRama, true, ["renombrar", "settle", "copiar", "borrar"]],
-    ["decision", { rama: "pa/x", commits: 0 }, true, ["renombrar", "settle", "copiar", "borrar"]],
+    ["listo", conRama, false, ["renombrar", "seguir", "copiar", "borrar", "descartar?"]],
+    ["murio", sinRama, true, ["renombrar", "settle", "seguir", "copiar", "borrar"]],
+    ["decision", { rama: "pa/x", commits: 0 }, true, ["renombrar", "settle", "seguir", "copiar", "borrar"]],
     // Lo que `pa` ya cerró: sólo nombre e id.
     ["integrado", conRama, false, ["renombrar", "copiar"]],
     ["archivado", sinRama, false, ["renombrar", "copiar"]],
@@ -28,10 +29,10 @@ test("worker: según su estado", () => {
 
 test("líder: los de la app se paran y se borran; los de la terminal no se tocan", () => {
   assert.deepEqual(as(accionesLider({ origen: "app", ocupado: true }, null)), ["renombrar", "mover", "parar", "copiar", "borrar?"]);
-  assert.deepEqual(as(accionesLider({ origen: "app", ocupado: false }, 0)), ["renombrar", "mover", "settle?", "copiar", "borrar?"]);
-  assert.deepEqual(as(accionesLider({ origen: "app", ocupado: false }, 2)), ["renombrar", "mover", "settle?", "copiar", "borrar?"]);
+  assert.deepEqual(as(accionesLider({ origen: "app", ocupado: false }, 0)), ["renombrar", "mover", "settle?", "seguir", "copiar", "borrar?"]);
+  assert.deepEqual(as(accionesLider({ origen: "app", ocupado: false }, 2)), ["renombrar", "mover", "settle?", "seguir", "copiar", "borrar?"]);
   assert.deepEqual(as(accionesLider({ origen: "terminal", ocupado: true }, null)), ["renombrar", "mover", "copiar"]);
-  assert.deepEqual(as(accionesLider({ origen: "terminal", ocupado: false }, 0)), ["renombrar", "mover", "settle", "copiar"]);
+  assert.deepEqual(as(accionesLider({ origen: "terminal", ocupado: false }, 0)), ["renombrar", "mover", "settle", "seguir", "copiar"]);
 });
 
 test("carpeta: nueva tarea aquí y ocultar/mostrar terminados", () => {
@@ -42,8 +43,8 @@ test("carpeta: nueva tarea aquí y ocultar/mostrar terminados", () => {
 test("orden a mano: Subir y Bajar sólo si hay adónde, Orden por defecto sólo si hay algo puesto; los workers no", () => {
   const todo = { sube: true, baja: true, defecto: true };
   const l = { origen: "app", ocupado: false } as const;
-  assert.deepEqual(as(accionesLider(l, 0, todo)), ["renombrar", "mover", "subir", "bajar", "defecto", "prioridad", "settle?", "copiar", "borrar?"]);
-  assert.deepEqual(as(accionesLider(l, 0, { sube: false, baja: true, defecto: false })), ["renombrar", "mover", "bajar", "prioridad", "settle?", "copiar", "borrar?"]);
+  assert.deepEqual(as(accionesLider(l, 0, todo)), ["renombrar", "mover", "subir", "bajar", "defecto", "prioridad", "settle?", "seguir", "copiar", "borrar?"]);
+  assert.deepEqual(as(accionesLider(l, 0, { sube: false, baja: true, defecto: false })), ["renombrar", "mover", "bajar", "prioridad", "settle?", "seguir", "copiar", "borrar?"]);
   assert.deepEqual(as(accionesLider(l, 0, { sube: false, baja: false, defecto: false })), [...as(accionesLider(l, 0)).slice(0, 2), "prioridad", ...as(accionesLider(l, 0)).slice(2)]);
   assert.deepEqual(as(accionesCarpeta(false, { sube: true, baja: false, defecto: true })), ["nueva", "ocultar", "subir", "defecto", "prioridad"]);
   // Con "Activas" prendido el orden a mano sigue (arrastrar, Subir y Bajar): la opción de prioridad no lo esconde.

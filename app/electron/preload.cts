@@ -146,6 +146,7 @@ contextBridge.exposeInMainWorld("hilos", {
     retomar: (x: unknown): Promise<unknown> => invocar("lider:retomar", x),
     rebobinar: (x: unknown): Promise<string | null> => invocar("lider:rebobinar", x),
     ramificar: (x: unknown): Promise<string> => invocar("lider:ramificar", x),
+    seguirCon: (x: unknown): Promise<string> => invocar("lider:seguirCon", x),
     conversacion: (x: unknown): Promise<unknown> => invocar("lider:conversacion", x),
     mirar: (sid: string | null): Promise<void> => invocar("lider:mirar", sid),
     visto: (sid: string): Promise<void> => invocar("lider:visto", sid),
@@ -377,6 +378,7 @@ contextBridge.exposeInMainWorld("hilos", {
     /** Un worker terminó, falló o se colgó (electron/avisos-worker.ts). */
     alAviso: oir("workers:aviso"),
     relanzar: (id: string): Promise<unknown> => invocar("workers:relanzar", { id }),
+    seguirCon: (id: string, modelo: string): Promise<unknown> => invocar("workers:seguirCon", { id, modelo }),
   },
   pc: {
     leer: (): Promise<unknown> => invocar("pc:leer"),

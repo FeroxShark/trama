@@ -339,6 +339,30 @@ export async function relanzarWorker(h: Relanzable) {
   return { rc, dijo };
 }
 
+/** El modelo de `--seguir-con`: uno solo (sin coma ni espacios) y de cualquier motor (`opencode:<proveedor>/<modelo>`, `dsh:…`); no empieza con `-`. */
+export const MODELO_SEGUIR = /^[A-Za-z0-9][\w.:/\[\]-]*$/;
+
+/**
+ * «Seguir con otro modelo» (#1791, parte 3) de un worker: `pa <proy> --seguir-con <modelo> --id <id> --async`. La corrida nueva sigue la
+ * misma conversación (resumen de traspaso del transcript de la anterior) en su mismo puesto y rama; la anterior tiene que haber terminado
+ * (`pa` sale 75 si sigue viva y su mensaje vuelve tal cual). Colgada del mismo líder, como un relanzo. Validado: va como argumentos.
+ */
+export async function argvSeguirCon(h: Relanzable, modelo: string): Promise<{ args: string[]; env: NodeJS.ProcessEnv }> {
+  if (!ID.test(String(h.id))) throw errorT("main.idRaro", { v: String(h.id) });
+  if (!PROYECTO.test(String(h.proyecto))) throw errorT("main.proyectoRaro", { v: String(h.proyecto) });
+  if (!MODELO_SEGUIR.test(String(modelo))) throw errorT("main.modeloRaro", { v: String(modelo) });
+  const nombre = await nombrePa(h.proyecto);
+  const env: NodeJS.ProcessEnv = { ...ENV };
+  if (h.jefe_id) (env.PA_JEFE_ID = String(h.jefe_id)), (env.PA_JEFE = String(h.jefe ?? ""));
+  return { args: [nombre, "--seguir-con", modelo, "--id", h.id, "--async"], env };
+}
+
+export async function seguirConWorker(h: Relanzable, modelo: string) {
+  const { args, env } = await argvSeguirCon(h, modelo);
+  const { rc, dijo } = await enCola(String(h.proyecto), () => ejecutar(args, env));
+  return { rc, dijo };
+}
+
 // Tareas de instrucciones (AGENTS.md, CLAUDE.md, GEMINI.md)
 
 export type TipoTareaMd = "acortar" | "fusionar";

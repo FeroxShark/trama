@@ -78,6 +78,7 @@ import { archivoUsoCuenta, cuentaConConversacion, cuentasClaude, entornoCuenta, 
 import { esElProceso, sesionesVivas, type Sesion } from "./sesiones.js";
 import { log, silencio } from "./log.js";
 import { temaDe, tituloLider } from "./tema.js";
+import { resumenDeTranscript } from "./resumen-traspaso.ts";
 import { terminalAgentesGuardada } from "./preferencias.js";
 import { envTerminalAgentes, lineaTerminalAgentes } from "./terminal-agentes.ts";
 import { anotarCarpeta, anotarCarpetas } from "./proyectos-auto.ts";
@@ -1588,6 +1589,22 @@ export async function ramificar(x: { sid: string; uuid: string; modelo: string; 
   alEv(g.sid, { tipo: "estado", ocupado: false, vivo: true });
   alCambio();
   return g.sid;
+}
+
+/**
+ * «Seguir con otro modelo» (#1791, parte 3): un líder NUEVO, en la misma carpeta y con el mismo modo y cuenta, cuyo primer mensaje es el
+ * resumen de traspaso de la conversación de `sid` (electron/resumen-traspaso.ts). La anterior no se toca. Sin nada hablado que resumir
+ * (sin transcript, o vacío) tira `main.traspasoVacio`. Devuelve el sid del nuevo.
+ */
+export async function seguirCon(x: { sid: string; modelo: string; effort: string; pedido?: string }): Promise<string> {
+  const sid = String(x?.sid);
+  if (!SID.test(sid)) throw errorT("main.sesionRara", { v: sid });
+  const origen = (await lideresApp()).find((l) => l.sid === sid);
+  const t = await transcriptDe(sid, origen?.cwd);
+  const resumen = t ? await resumenDeTranscript(t, { modeloAnterior: origen?.modelo, motivo: "seguís con otro modelo", pedido: x.pedido }) : null;
+  if (!resumen) throw errorT("main.traspasoVacio");
+  const cwd = origen?.cwd ?? (t ? await cwdDe(t) : undefined);
+  return nuevo({ modelo: x.modelo, effort: x.effort, texto: resumen, modo: origen?.modo, carpeta: cwd, ...(origen?.cuenta ? { cuenta: origen.cuenta } : {}) });
 }
 
 /** El `cwd` de un transcript, de su principio. */

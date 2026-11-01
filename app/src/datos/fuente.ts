@@ -94,6 +94,8 @@ export interface Fuente {
   alAvisoWorker(fn: (a: AvisoWorker) => void): () => void;
   /** Relanza la tarea de un worker caído por cupo, sin modelo fijo; tira el error del main si no se pudo. */
   relanzarWorker(id: string): Promise<void>;
+  /** «Seguir con otro modelo» (#1791): lanza `pa --seguir-con <modelo> --id <id>`, que sigue la conversación del worker en su mismo puesto y rama con un resumen de traspaso; tira el error del main si no se pudo. */
+  seguirConWorker(id: string, modelo: string): Promise<void>;
   /** La vista de la barra (B15): todo o sólo líderes. */
   guardarVista(vista: "todo" | "lideres"): void;
   /** El panel de consumo (a la derecha), a la vista u oculto: se recuerda en el mismo archivo. */
@@ -191,6 +193,8 @@ export interface Fuente {
   liderRebobinar(sid: string, uuid: string, x: EnvioLider, previa?: boolean): Promise<string | null>;
   /** Un líder nuevo con la conversación de `sid` hasta el mensaje `uuid`; el original no se toca. Devuelve el sid del nuevo. */
   liderRamificar(sid: string, uuid: string, x: { modelo: string; effort: string }): Promise<string>;
+  /** «Seguir con otro modelo» (#1791): un líder nuevo, en la misma carpeta, con el resumen de traspaso de `sid` como primer mensaje; el original no se toca. Devuelve el sid del nuevo. */
+  liderSeguirCon(sid: string, x: { modelo: string; effort: string }): Promise<string>;
   /** Su transcript, con la forma de `pa --hilo --json`. */
   liderConversacion(sid: string, antes: number | null): Promise<RespuestaHilo>;
   /** Mirar el transcript del líder abierto (`null`: ninguno). */
@@ -1462,6 +1466,7 @@ const fija: Fuente = {
     return () => {};
   },
   async relanzarWorker() {},
+  async seguirConWorker() {},
   guardarVista() {},
   guardarConsumo() {},
   async bienvenidaPendiente() {
@@ -1525,6 +1530,12 @@ const fija: Fuente = {
     const lista = charlas.get(sid) ?? [];
     const k = lista.findIndex((_, i) => uuidFijo(sid, i) === uuid);
     charlas.set(nuevo, lista.slice(0, k + 1));
+    return nuevo;
+  },
+  async liderSeguirCon(sid) {
+    // Fixtures: un líder nuevo con lo hablado hasta ahora (el resumen de verdad lo arma el main).
+    const nuevo = `00000000-0000-4000-8000-${String(++creados).padStart(12, "0")}`;
+    charlas.set(nuevo, [...(charlas.get(sid) ?? [])]);
     return nuevo;
   },
   async liderArchivo(nombre) {
@@ -2132,6 +2143,12 @@ const conPa = (m: NonNullable<typeof main>): Fuente => ({
     })) as { rc?: number; dijo?: string } | undefined;
     if (r && r.rc !== 0) throw new Error(r.dijo || `pa: ${r.rc}`);
   },
+  async seguirConWorker(id, modelo) {
+    const r = (await m.workers?.seguirCon(id, modelo).catch((e) => {
+      throw new Error(mensaje(e));
+    })) as { rc?: number; dijo?: string } | undefined;
+    if (r && r.rc !== 0) throw new Error(r.dijo || `pa: ${r.rc}`);
+  },
   guardarAvisarEspera(si) {
     void m.preferencias.avisarEspera(si).catch(() => {});
   },
@@ -2205,6 +2222,11 @@ const conPa = (m: NonNullable<typeof main>): Fuente => ({
   },
   async liderRamificar(sid, uuid, x) {
     return m.lider.ramificar({ sid, uuid, ...x }).catch((e) => {
+      throw new Error(mensaje(e));
+    });
+  },
+  async liderSeguirCon(sid, x) {
+    return m.lider.seguirCon({ sid, modelo: x.modelo, effort: x.effort }).catch((e) => {
       throw new Error(mensaje(e));
     });
   },

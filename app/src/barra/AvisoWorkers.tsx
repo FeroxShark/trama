@@ -1,9 +1,10 @@
 // Los avisos de workers al pie de la barra, junto a "falta configurar": una pastilla con un puntito rojo y cuántos hay (fallas y
 // colgados que el dueño no descartó). El clic abre un globito con cada uno: quién, por qué (el cupo dice el proveedor y cuándo vuelve)
-// y, si fue por cupo, "Relanzar con otro modelo" (la misma tarea, sin modelo fijo: `reparto` elige entre lo que tiene cupo). La ✕ lo
+// y, si fue por cupo, "Relanzar con otro modelo" (la misma tarea, sin modelo fijo: `reparto` elige entre lo que tiene cupo) y "Seguir con otro
+// modelo" (abre el selector de modelo y sigue la misma conversación con un resumen de lo hecho, #1791). La ✕ lo
 // descarta. Sin avisos no se ve nada. Lo anota src/avisos-worker.ts; lo detecta el main (electron/avisos-worker.ts).
 import { memo, useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { X } from "lucide-react";
+import { ArrowRightLeft, X } from "lucide-react";
 import { avisosPendientes, descartarAviso, suscribirAvisos, textoMotivo } from "../avisos-worker";
 import type { AvisoWorker } from "../datos/contrato";
 import { fuente } from "../datos/fuente";
@@ -11,6 +12,8 @@ import { mensaje } from "../puente";
 import { useFoco } from "../foco";
 import { t } from "../i18n";
 import { useIdioma } from "../i18n/react";
+import { MODELOS_WORKER, modeloDe, nombreModelo } from "../hilo/opciones";
+import { SeguirCon } from "../hilo/SeguirCon";
 
 type Relanzo = "relanzando" | "hecho" | { error: string };
 
@@ -19,6 +22,9 @@ export const AvisoWorkers = memo(function AvisoWorkers() {
   const avisos = useSyncExternalStore(suscribirAvisos, avisosPendientes);
   const [abierto, setAbierto] = useState(false);
   const [relanzos, setRelanzos] = useState<Record<string, Relanzo>>({});
+  // «Seguir con otro modelo»: el aviso cuyo selector está abierto y, por aviso, con qué modelo se siguió.
+  const [seguirA, setSeguirA] = useState<AvisoWorker | null>(null);
+  const [seguidos, setSeguidos] = useState<Record<string, string>>({});
   const caja = useRef<HTMLDivElement>(null);
   const globo = useRef<HTMLDivElement>(null);
   const boton = useRef<HTMLButtonElement>(null);
@@ -70,15 +76,43 @@ export const AvisoWorkers = memo(function AvisoWorkers() {
                     <X size={12} aria-hidden="true" />
                   </button>
                   {a.tipo === "cupo" ? (
-                    <button type="button" className="avs-a" disabled={r === "relanzando" || r === "hecho"} data-tip={t("avisoW.relanzarTip")} onClick={() => relanzar(a)}>
-                      {t(r === "relanzando" ? "avisoW.relanzando" : r === "hecho" ? "avisoW.relanzado" : "avisoW.relanzar")}
-                    </button>
+                    <div className="avs-acciones">
+                      <button type="button" className="avs-a" disabled={r === "relanzando" || r === "hecho"} data-tip={t("avisoW.relanzarTip")} onClick={() => relanzar(a)}>
+                        {t(r === "relanzando" ? "avisoW.relanzando" : r === "hecho" ? "avisoW.relanzado" : "avisoW.relanzar")}
+                      </button>
+                      <button
+                        type="button"
+                        className="avs-a avs-seguir"
+                        data-seguir-con
+                        disabled={!!seguidos[a.clave]}
+                        onClick={() => {
+                          setAbierto(false);
+                          setSeguirA(a);
+                        }}
+                      >
+                        <ArrowRightLeft size={12} strokeWidth={2.2} aria-hidden="true" />
+                        {seguidos[a.clave] ? t("avisoW.seguido", { modelo: nombreModelo(seguidos[a.clave]) }) : t("aviso.seguir")}
+                      </button>
+                    </div>
                   ) : null}
                 </li>
               );
             })}
           </ul>
         </div>
+      ) : null}
+      {seguirA ? (
+        <SeguirCon
+          de="worker"
+          opciones={MODELOS_WORKER}
+          actual={modeloDe(seguirA.modelo)}
+          alElegir={async (modelo) => {
+            await fuente.seguirConWorker(seguirA.id, modelo);
+            setSeguidos((s) => ({ ...s, [seguirA.clave]: modelo }));
+            setSeguirA(null);
+          }}
+          alCerrar={() => setSeguirA(null)}
+        />
       ) : null}
     </div>
   );

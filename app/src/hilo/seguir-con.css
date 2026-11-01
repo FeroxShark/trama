@@ -1,0 +1,225 @@
+/* «Seguir con otro modelo» (SeguirCon.tsx; rediseño 0.4: vidrio quieto, cápsulas, borde de luz). Un diálogo con el selector de modelo
+   por proveedor. Lo sin cupo lleva el tinte de cupo agotado, su ícono y su palabra; lo que queda poco, el ámbar con reloj y palabra; el
+   modelo actual, un tilde y «el actual»: ningún estado se dice sólo con el color. Sólo tokens de tokens.css. */
+.seg-fondo {
+  position: fixed;
+  inset: 0;
+  z-index: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--esp-4);
+  background: var(--fondo-modal);
+}
+.seg {
+  display: flex;
+  width: min(34rem, 100%);
+  max-height: min(40rem, 100%);
+  flex-direction: column;
+  gap: var(--esp-3);
+  padding: var(--esp-4);
+  border-radius: var(--r-lg);
+  background: var(--vidrio-opaco);
+  box-shadow:
+    var(--vidrio-borde),
+    var(--sombra-vidrio);
+  animation: abre var(--t-smooth) cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.seg:focus-visible {
+  outline: none;
+}
+
+/* La cabecera: el ícono en un recuadro celeste, el título y lo que va a pasar. */
+.seg-cab {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--esp-3);
+}
+.seg-ico {
+  display: grid;
+  flex: none;
+  width: 2rem;
+  height: 2rem;
+  place-items: center;
+  border-radius: var(--r-sm);
+  background: var(--acento-tinte);
+  color: var(--acento);
+}
+.seg-txt {
+  min-width: 0;
+}
+.seg-t {
+  margin: 0;
+  color: var(--texto);
+  font-size: var(--letra-7);
+  font-weight: 600;
+  line-height: 1.3;
+}
+.seg-d {
+  margin: var(--esp-1) 0 0;
+  color: var(--apagado);
+  font-size: var(--letra-4);
+  line-height: 1.5;
+}
+
+/* El buscador: una cápsula, como el de la barra. */
+.seg-buscar {
+  display: flex;
+  height: var(--alto-boton);
+  flex: none;
+  align-items: center;
+  gap: var(--esp-2);
+  padding: 0 var(--esp-3);
+  border-radius: var(--r-cap);
+  background: var(--capa-input);
+  color: var(--apagado);
+}
+.seg-buscar:focus-within {
+  box-shadow: inset 0 0 0 1.5px var(--ajustes-acento-borde);
+}
+.seg-buscar input {
+  min-width: 0;
+  flex: 1;
+  border: 0;
+  background: none;
+  color: var(--texto);
+  font: inherit;
+  font-size: var(--letra-5);
+  outline: none;
+}
+.seg-buscar input::placeholder {
+  color: var(--inactivo);
+}
+
+/* La lista: un proveedor tras otro, un renglón por modelo. */
+.seg-lista {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--esp-0-5);
+  overflow: hidden auto;
+  scrollbar-width: thin;
+}
+.seg-grupo {
+  padding: var(--esp-3) var(--esp-2-5) var(--esp-1);
+  color: var(--apagado);
+  font-size: var(--letra-4);
+  font-weight: 600;
+}
+.seg-grupo:first-child {
+  padding-top: var(--esp-1);
+}
+.seg-vacio {
+  margin: 0;
+  padding: var(--esp-4) var(--esp-2-5);
+  color: var(--apagado);
+  font-size: var(--letra-5);
+}
+.seg-op {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0 var(--esp-3);
+  padding: var(--esp-2) var(--esp-2-5);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+}
+.seg-op[aria-selected="true"] {
+  background: var(--acento-tinte);
+  box-shadow: inset 0 0 0 1.5px var(--ajustes-acento-borde);
+}
+.seg-op[data-actual],
+.seg-op[data-enviando] {
+  cursor: default;
+}
+.seg-op[data-actual] {
+  opacity: 0.7;
+}
+.seg-n {
+  grid-column: 1;
+  overflow: hidden;
+  color: var(--texto);
+  font-size: var(--letra-5);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.seg-m {
+  grid-column: 1;
+  overflow: hidden;
+  color: var(--apagado);
+  font-size: var(--letra-4);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.seg-op[data-cupo="sin"] .seg-n,
+.seg-op[data-cupo="sin"] .seg-m {
+  opacity: 0.72;
+}
+
+/* Lo que dice el cupo (o el estado) de cada modelo, a la derecha: cápsula con ícono y palabra. */
+.seg-e {
+  display: inline-flex;
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  align-items: center;
+  gap: var(--esp-1);
+  height: var(--alto-chip);
+  padding: 0 var(--esp-2-5);
+  border-radius: var(--r-cap);
+  font-size: var(--letra-4);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.seg-e[data-e="sin"] {
+  background: var(--cupo-agotado-fondo);
+  box-shadow: inset 0 0 0 1px var(--cupo-agotado-borde);
+  color: var(--cupo-agotado-texto);
+}
+.seg-e[data-e="poco"] {
+  background: var(--decision-fondo);
+  color: var(--cupo-poco-texto);
+}
+.seg-e[data-e="actual"],
+.seg-e[data-e="envio"] {
+  background: var(--capa-tile);
+  color: var(--apagado);
+}
+.seg-e[data-e="envio"] {
+  background: var(--acento-tinte);
+  color: var(--acento);
+}
+
+.seg-pie {
+  display: flex;
+  flex: none;
+  justify-content: flex-end;
+}
+.seg-cancelar {
+  height: var(--alto-chip);
+  padding: 0 var(--esp-4);
+  font-size: var(--letra-4);
+}
+.seg .caja-error {
+  flex: none;
+}
+
+/* Los botones «Seguir con otro modelo» de los avisos: el mismo gesto en la línea de límite, en el globo de workers y en la tarjeta del worker. */
+.aviso-seguir,
+.avs-seguir,
+.wk-seguir {
+  gap: var(--esp-1-5);
+}
+.avs-acciones {
+  display: flex;
+  flex-wrap: wrap;
+  grid-column: 1 / -1;
+  gap: var(--esp-1-5);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .seg {
+    animation: none;
+  }
+}

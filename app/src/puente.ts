@@ -173,6 +173,8 @@ type Main = {
     rebobinar(x: { sid: string; uuid: string; texto: string; imagenes?: unknown; modelo: string; effort: string; previa?: boolean }): Promise<string | null>;
     /** Ramificar: un líder nuevo con la conversación hasta el mensaje `uuid`; devuelve su sid. */
     ramificar(x: { sid: string; uuid: string; modelo: string; effort: string }): Promise<string>;
+    /** «Seguir con otro modelo»: un líder nuevo con el resumen de traspaso de éste como primer mensaje; devuelve su sid. */
+    seguirCon(x: { sid: string; modelo: string; effort: string }): Promise<string>;
     /** Su transcript con la forma de `pa --hilo --json`, sin validar. */
     conversacion(x: { sid: string; antes?: number | null }): Promise<unknown>;
     /** Mirar el transcript de uno (el abierto) o de ninguno. */
@@ -499,7 +501,7 @@ type Main = {
   reinicio: { leer(): Promise<unknown>; pedir(igual?: boolean): Promise<void>; cancelar(): Promise<void>; marca(paso: string): Promise<void>; alCambiar(fn: (r: unknown) => void): Soltar };
   /** La PC que la otra máquina sabe prender (electron/pc-estado.ts): su estado y Prender; sin PC configurada, `leer` da null. */
   /** Avisos de los workers (electron/avisos-worker.ts): terminó, falló o se colgó (sin validar), y relanzar uno caído por cupo. */
-  workers?: { alAviso(fn: (a: unknown) => void): Soltar; relanzar(id: string): Promise<unknown> };
+  workers?: { alAviso(fn: (a: unknown) => void): Soltar; relanzar(id: string): Promise<unknown>; seguirCon(id: string, modelo: string): Promise<unknown> };
   pc: { leer(): Promise<unknown>; prender(): Promise<unknown>; alCambiar(fn: (e: unknown) => void): Soltar };
   /** Volver como estaba tras ese reinicio (sólo la ventana): lo que tenía abierto y escrito (src/volver.ts). */
   volver: { leer(): Promise<unknown>; guardar(vista: unknown): Promise<void>; alPedir(fn: () => void): Soltar; anotar(vista: unknown): Promise<void> };

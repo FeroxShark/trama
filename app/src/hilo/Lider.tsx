@@ -55,6 +55,7 @@ import { hayVarias, opcionesMaquina, useMaquinas } from "../maquinas";
 import { Contexto } from "./Contexto";
 import { transcriptLeido } from "./contextoVivo";
 import { Avisos, HaceChat } from "./Hace";
+import { SeguirCon } from "./SeguirCon";
 import { Texto } from "./Texto";
 import { Hora, pintorAviso, tokens, Turno } from "./Turno";
 import { Marca } from "./Marca";
@@ -287,6 +288,8 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
   const cupos = useMemo(() => estadosCupoModelos(MODELOS.map((m) => m.id), uso, Date.now() / 1000), [uso]);
   const cuposColumnas = useMemo(() => estadosCupoProveedores(uso, Date.now() / 1000), [uso]);
   const [senalModelo, setSenalModelo] = useState(0);
+  // «Seguir con otro modelo» (#1791): el selector que abre el aviso de límite o de sin cupo. Captura `lider-avisos` con `HILOS_VARIANTE=seguir-con`: ya abierto.
+  const [seguirCon, setSeguirCon] = useState(MODO.captura === "lider-avisos" && MODO.variante === "seguir-con");
   useEffect(() => {
     const abrir = () => setSenalModelo((n) => n + 1);
     window.addEventListener(EVENTO_CAMBIAR_MODELO, abrir);
@@ -1186,7 +1189,7 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
               {tr("lider.vacio")}
             </div>
           ) : null}
-          <Avisos avisos={avisos} volverA={(id) => nombreCuentaClaude(listaCuentas, id)} alVolver={elegirCuenta} deshabilitado={ocupado || !app} />
+          <Avisos avisos={avisos} volverA={(id) => nombreCuentaClaude(listaCuentas, id)} alVolver={elegirCuenta} alSeguir={l && !ocupado ? () => setSeguirCon(true) : undefined} deshabilitado={ocupado || !app} />
           {pasando ? <Pasando /> : app && sid ? <HaceChat sid={sid} piensa={piensa} modelo={nombreModelo(modeloDe(l?.modelo) ?? modelo)} effort={effortsDe(l?.modelo ?? modelo).length ? (l?.effort ?? effort) : null} alParar={l ? parar : undefined} parando={vivo.parando} /> : compacta !== null ? <Compactando desde={compacta} /> : null}
           {vivo.directos > 0 ? (
             <div className="directo-espera" role="status" data-directo-espera>
@@ -1524,6 +1527,25 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
             alElegir={elegirCache}
             alCancelar={() => {
               setPreguntaCache(null);
+              caja.current?.focus();
+            }}
+          />
+        ) : null}
+        {seguirCon && l ? (
+          <SeguirCon
+            de="lider"
+            opciones={MODELOS}
+            actual={modeloDe(l.modelo)}
+            alElegir={async (elegido) => {
+              // Un líder nuevo con el resumen de éste como primer mensaje (lo arma el main); éste queda como está.
+              const e = { texto: "", modelo: elegido, effort: effortPara(elegido, effortsLeidos() ?? {}) };
+              const nuevo = await fuente.liderSeguirCon(l.id, { modelo: e.modelo, effort: e.effort });
+              setSeguirCon(false);
+              alCreado(nuevo, e);
+              alAbrirLider?.(nuevo);
+            }}
+            alCerrar={() => {
+              setSeguirCon(false);
               caja.current?.focus();
             }}
           />
