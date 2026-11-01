@@ -114,7 +114,9 @@ test("la carrera: el mensaje llega sin herramienta; el CLI lo corre como turno p
   assert.ok(estados.lastIndexOf(true) > estados.indexOf(false), "ocupado: true, false (primer result) y true de nuevo");
   await hasta(() => cuantos(sid, "fin") === 2);
   assert.equal(lider.procDe(sid)?.ocupado, false);
-  assert.equal(cuantos(sid, "entregado"), 0, "sin absorber no hay entrega dentro del turno");
+  // Como el CLI real (--replay-user-messages), el que corre como turno propio también se devuelve con su eco al empezar: queda entregado una sola vez.
+  assert.equal(cuantos(sid, "entregado"), 1, "el eco del turno propio lo da por entregado, sin dejarlo en cola");
+  assert.equal(lider.procDe(sid)?.directos, 0);
 });
 
 test("la cola con un líder respondiendo: dos encolados entran juntos, en un solo mensaje, dentro del turno en curso (sin interrumpir ni segundo turno)", { timeout: 20_000 }, async () => {
