@@ -464,6 +464,11 @@ type Opciones = {
   prioridad?: Foto;
   /** La foto de la actividad (congelada por quien arma la barra): con ella, "Recientes" y "A-Z" rigen lo que no se movió a mano. Sin ella, el orden fijo de siempre. */
   recientes?: Recientes;
+  /**
+   * La barra con riel (rediseño 0.4): no hay sección "Activas". Cada líder se queda en su proyecto y `prioridad` sólo hace
+   * flotar los proyectos con algo caliente (el home también) y no deja plegar a un líder caliente entre los quietos.
+   */
+  sinActivas?: boolean;
   /** Epoch en segundos. */
   ahora: number;
 };
@@ -478,7 +483,7 @@ type Opciones = {
  * coinciden. Lo que no trabaja se pliega igual que sin buscar, y lo cerrado
  * también (en su carpeta, no en "Cerrados").
  */
-export function armarArbol(hilos: Hilo[], { optimista, lideres: todos, settleados, busqueda = "", mover, ocultos, titulos, caidos, orden, prioridad, recientes, ahora }: Opciones): Arbol {
+export function armarArbol(hilos: Hilo[], { optimista, lideres: todos, settleados, busqueda = "", mover, ocultos, titulos, caidos, orden, prioridad, recientes, sinActivas, ahora }: Opciones): Arbol {
   const lideres = settleados?.size ? todos.filter((l) => !(l.actividad <= (settleados.get(l.id) ?? -1))) : todos;
   const q = normal(busqueda.trim());
   const buscando = q !== "";
@@ -583,16 +588,18 @@ export function armarArbol(hilos: Hilo[], { optimista, lideres: todos, settleado
     const fijo = compararLideres(orden, proyecto, recientes);
     // Los calientes se van a "Activas" (sin repetirse acá); los fríos quedan en el orden del usuario, que no cambia nunca.
     const todosLs = [...a.lideres.values()].sort((x, y) => fijo(x.lider!, y.lider!));
-    const { activas: arriba, frias: ls } = repartir(todosLs.map((r) => ({ id: r.lider!.id, r })), buscando ? undefined : prioridad);
+    const { activas: arriba, frias: ls } = repartir(todosLs.map((r) => ({ id: r.lider!.id, r })), buscando || sinActivas ? undefined : prioridad);
     for (const x of arriba) activas.push(x.r);
     const frios = ls.map((x) => x.r);
+    // Sin "Activas", lo caliente se queda a la vista en su proyecto: no se pliega entre los quietos.
+    const enCalor = (r: Rama) => !!sinActivas && !!prioridad?.lideres.has(r.lider!.id);
     // Ocioso: nada colgando (ni escondido en su "+N"), sin responder y sin actividad en 30 min (buscando no se pliega nada).
     // Uno sin proceso no espera nada: queda a la vista hasta que el usuario lo retome o lo archive.
     const ocioso = (r: Rama) =>
-      !buscando && !r.lider!.ocupado && !r.lider!.caido && r.vivas.length + r.viejas.length === 0 && r.lider!.actividad < ahora - ESPERA_S;
+      !buscando && !enCalor(r) && !r.lider!.ocupado && !r.lider!.caido && r.vivas.length + r.viejas.length === 0 && r.lider!.actividad < ahora - ESPERA_S;
     // Dormido: sin proceso, nada colgando y más de un día quieto (también el Murió): no se esconde, se pliega al final.
     const dormido = (r: Rama) =>
-      !buscando && !r.lider!.vivo && !r.lider!.ocupado && r.vivas.length + r.viejas.length === 0 && r.lider!.actividad < ahora - DORMIDO_S;
+      !buscando && !enCalor(r) && !r.lider!.vivo && !r.lider!.ocupado && r.vivas.length + r.viejas.length === 0 && r.lider!.actividad < ahora - DORMIDO_S;
     const dormidos = frios.filter(dormido);
     const espera = frios.filter((r) => !dormido(r) && ocioso(r));
     const ramas = [...frios.filter((r) => !dormido(r) && !ocioso(r)), a.sueltas, a.huerfanos].filter(
@@ -621,7 +628,7 @@ export function armarArbol(hilos: Hilo[], { optimista, lideres: todos, settleado
       continue;
     }
     // Un proyecto con algo caliente flota: un líder en "Activas" o workers vivos sin líder caliente.
-    const caliente = !buscando && !!prioridad && (arriba.length > 0 || prioridad.carpetas.has(proyecto));
+    const caliente = !buscando && !!prioridad && (arriba.length > 0 || prioridad.carpetas.has(proyecto) || frios.some(enCalor));
     // Lo último que se usó en la carpeta: lo suyo en la foto y lo de sus líderes (con workers y todo).
     const reciente = recientes ? Math.max(recientes.carpetas.get(proyecto) ?? 0, ...todosLs.map((r) => recienteLider(r.lider!, { recientes }))) : undefined;
     salida.push({
@@ -635,7 +642,7 @@ export function armarArbol(hilos: Hilo[], { optimista, lideres: todos, settleado
   const porCarpeta = compararCarpetas(orden, titulos, recientes ? (p) => recienteDe.get(p) ?? 0 : undefined);
   salida.sort((a, b) => b.puntos - a.puntos || porCarpeta(a.c.proyecto, b.c.proyecto));
   // Con "Activas": los proyectos calientes arriba (el home sigue primero: ahí vive Nuevo líder); entre sí y entre los fríos, el orden del usuario.
-  const orden1 = prioridad && !buscando ? flotar(salida, (x) => x.caliente, (x) => x.c.proyecto === GENERAL) : salida;
+  const orden1 = prioridad && !buscando ? flotar(salida, (x) => x.caliente, sinActivas ? undefined : (x) => x.c.proyecto === GENERAL) : salida;
   if (prioridad && !buscando) {
     const cmp = compararActivas(prioridad);
     activas.sort((x, y) => cmp(x.lider!, y.lider!));

@@ -52,12 +52,12 @@ function guia(id: string, version: number, pasos: Paso[], requiere?: string): Gu
 
 export const GUIAS: readonly Guia[] = [
   // La pantalla de siempre: la barra de la izquierda.
-  guia("principal", 1, [
+  guia("principal", 2, [
     paso("principal", "uso", dg("uso"), { lado: "derecha" }),
-    paso("principal", "activas", dg("activas"), { lado: "derecha" }),
-    paso("principal", "proyectos", ".lista .proy:not(.activas)", { lado: "derecha" }),
+    paso("principal", "riel", dg("riel"), { lado: "derecha", desde: 2 }),
+    paso("principal", "proyectos", ".lista .proy", { lado: "derecha" }),
     paso("principal", "nueva", dg("nueva"), { lado: "abajo" }),
-    paso("principal", "pie", dg("pie"), { lado: "arriba" }),
+    paso("principal", "pie", dg("pie"), { lado: "derecha" }),
   ]),
   // El primer chat con un líder.
   guia(

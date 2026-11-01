@@ -39,9 +39,12 @@ function descartar(proyecto: string) {
   poner(resto);
 }
 
+/** Los íconos de los proyectos (slug → data URL); `null`, todavía no llegaron. */
+export const useIconos = () => useSyncExternalStore(suscribir, () => iconos);
+
 /** `titulo`: el del registry, si tiene; el monograma sale de él, el tono del slug (no cambia de color) y es el texto alternativo del ícono. */
 export function Logo({ proyecto, titulo }: { proyecto: string; titulo?: string | null }) {
-  const todos = useSyncExternalStore(suscribir, () => iconos);
+  const todos = useIconos();
   // General no es un proyecto: son las sesiones que corren en el home.
   if (proyecto === GENERAL)
     return (

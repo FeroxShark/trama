@@ -1,0 +1,1039 @@
+/* La barra lateral densa (rediseño 0.4, dirección B «Riel»; maqueta: maquetas/rediseno-0.4/barra-densa-b.html).
+   Un riel de monogramas a la izquierda con cupos y navegación; a su derecha, buscador, filtros y una línea por hilo agrupada por proyecto.
+   Las medidas de la maqueta (en px a la letra de 13) van en rem: crecen con la letra elegida. Se importa después de index.css y le gana
+   por orden; lo que pelea con `.lista …` de barra-atencion.css va con el mismo prefijo. */
+
+.barra-cuerpo {
+  flex-direction: row;
+}
+.barra-col {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+}
+
+/* --- Riel ---------------------------------------------------------------- */
+.riel {
+  display: flex;
+  width: 2.75rem;
+  flex: none;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--esp-1-5);
+  padding: var(--esp-2-5) 0;
+  box-shadow: inset -1px 0 0 var(--capa-div);
+}
+.riel-logo {
+  position: relative;
+  display: grid;
+  width: 2rem;
+  height: 2rem;
+  flex: none;
+  margin-bottom: var(--esp-1-5);
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--texto);
+}
+.riel-logo > * {
+  grid-area: 1 / 1;
+}
+.riel-marca {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+.riel-ocultar {
+  opacity: 0;
+  color: var(--apagado);
+}
+.riel-logo:is(:hover, :focus-visible) {
+  background: var(--capa-hover);
+}
+.riel-logo:is(:hover, :focus-visible) .riel-marca {
+  opacity: 0;
+}
+.riel-logo:is(:hover, :focus-visible) .riel-ocultar {
+  opacity: 1;
+}
+.riel-proys {
+  display: flex;
+  width: 100%;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--esp-1-5);
+  padding-top: 0.3125rem;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+.riel-proys::-webkit-scrollbar {
+  display: none;
+}
+.pr {
+  position: relative;
+  display: grid;
+  width: 2rem;
+  height: 2rem;
+  flex: none;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: color-mix(in srgb, var(--h, var(--apagado)) 15%, transparent);
+  color: var(--h, var(--apagado));
+  font-size: var(--letra-4);
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  transition:
+    background-color 0.12s,
+    opacity 0.12s;
+}
+.pr:hover {
+  background: color-mix(in srgb, var(--h, var(--apagado)) 28%, transparent);
+}
+.pr[aria-pressed="true"] {
+  box-shadow: 0 0 0 2px var(--h, var(--apagado));
+}
+.pr[data-apagado] {
+  opacity: 0.32;
+}
+.pr.todos {
+  background: var(--capa-tile);
+  color: var(--apagado);
+  font-size: var(--letra-3);
+  font-weight: 600;
+}
+.pr.todos:hover {
+  background: var(--capa-track);
+}
+.pr.todos[aria-pressed="true"] {
+  background: var(--capa-track);
+  color: var(--texto);
+  box-shadow: none;
+}
+.pr-img {
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: var(--r-xs);
+  object-fit: cover;
+}
+.pr .marca {
+  position: absolute;
+  top: -0.3125rem;
+  right: -0.3125rem;
+  display: grid;
+  width: 0.9375rem;
+  height: 0.9375rem;
+  place-items: center;
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px var(--sup-1);
+}
+.pr .marca svg {
+  width: 0.625rem;
+  height: 0.625rem;
+}
+.pr .marca[data-at="fallo"] {
+  background: var(--fallo-relleno);
+  color: var(--fallo-sobre);
+}
+.pr .marca[data-at="decision"] {
+  background: var(--decision-relleno);
+  color: var(--decision-sobre);
+}
+.pr .vivo {
+  position: absolute;
+  right: -0.0625rem;
+  bottom: -0.0625rem;
+  width: 0.4375rem;
+  height: 0.4375rem;
+  border-radius: 50%;
+  background: var(--acento);
+  box-shadow: 0 0 0 2px var(--sup-1);
+}
+/* En el tema claro el tono del proyecto va más oscuro para que se lea el monograma y el encabezado. */
+[data-tema="claro"] .pr:not(.todos),
+[data-tema="claro"] .proy-nom {
+  color: color-mix(in srgb, var(--h, var(--apagado)) 45%, var(--negro));
+}
+
+/* Cupos: dos anillos con la cifra; al tocarlos se abre el detalle. */
+.anillos {
+  display: flex;
+  width: 2.5rem;
+  flex: none;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--esp-1-5);
+  padding: var(--esp-1-5) 0;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: inherit;
+}
+.anillos:hover,
+.anillos[aria-expanded="true"] {
+  background: var(--capa-hover);
+}
+.an {
+  display: grid;
+  gap: 1px;
+  justify-items: center;
+  color: var(--apagado);
+  font-size: var(--letra-3);
+  line-height: 0.8125rem;
+  text-align: center;
+}
+.an[data-viejo] {
+  opacity: 0.6;
+}
+.an-c {
+  position: relative;
+  display: grid;
+  width: 2rem;
+  height: 2rem;
+  place-items: center;
+  color: var(--texto);
+  font-size: var(--letra-4);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+.an-c svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke-width: 3;
+  transform: rotate(-90deg);
+}
+.an-pista {
+  stroke: var(--capa-track);
+}
+.an-uso {
+  stroke: var(--acento);
+  stroke-linecap: round;
+}
+.an[data-nivel="ambar"] .an-uso {
+  stroke: var(--aviso);
+}
+.an[data-nivel="ambar"] .an-n {
+  color: var(--cupo-poco-texto);
+}
+.an[data-nivel="rojo"] .an-uso {
+  stroke: var(--critico);
+}
+.an[data-nivel="rojo"] .an-n {
+  color: var(--fallo-texto);
+}
+
+/* La navegación, abajo del riel. */
+.riel .pie {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--esp-1-5);
+  padding: 0;
+  border-top: 0;
+  background: none;
+}
+.riel .pie button {
+  position: relative;
+  display: grid;
+  width: 2rem;
+  height: 1.875rem;
+  flex: none;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--apagado);
+}
+.riel .pie button:hover {
+  background: var(--capa-hover);
+  color: var(--texto);
+}
+.riel .pie button[aria-pressed="true"] {
+  background: var(--capa-tile);
+  color: var(--texto);
+}
+
+/* El detalle de los cupos: sale del riel hacia la derecha, sobre la lista. */
+.vuelo {
+  position: absolute;
+  right: var(--esp-2);
+  bottom: 7.5rem;
+  left: 3rem;
+  z-index: 6;
+  display: flex;
+  max-height: calc(100% - 8.5rem);
+  flex-direction: column;
+  gap: var(--esp-3);
+  padding: var(--esp-3-5);
+  overflow-y: auto;
+  border-radius: var(--r-lg);
+  background: var(--sup-2);
+  box-shadow: inset 0 0 0 1px var(--luz), var(--sombra-vidrio);
+}
+.v-cab {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--esp-2);
+}
+.v-cab h2 {
+  margin: 0;
+  font-size: var(--letra-5);
+  font-weight: 600;
+}
+.v-cab h2 span {
+  display: block;
+  color: var(--apagado);
+  font-size: var(--letra-4);
+  font-weight: 400;
+}
+.v-par {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--esp-3);
+}
+.v-nom {
+  color: var(--apagado);
+  font-size: var(--letra-4);
+}
+.v-num {
+  color: var(--texto);
+  font-size: 1.875rem;
+  line-height: 1.15;
+}
+.v-cifra {
+  font-weight: 600;
+  letter-spacing: -0.03em;
+}
+.v-num small {
+  margin-left: 1px;
+  color: var(--apagado);
+  font-size: var(--letra-6);
+  font-weight: 500;
+}
+.medidor {
+  display: block;
+  height: 0.25rem;
+  margin: var(--esp-1) 0;
+  overflow: hidden;
+  border-radius: var(--r-cap);
+  background: var(--capa-track);
+}
+.medidor > i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--acento);
+  transform-origin: left;
+}
+.v-nota {
+  color: var(--apagado);
+  font-size: 0.71875rem;
+  line-height: 1.3;
+}
+.v-ventana[data-nivel="ambar"] :is(.v-num, .v-num small, .v-nota) {
+  color: var(--cupo-poco-texto);
+}
+.v-ventana[data-nivel="ambar"] .medidor > i,
+.v-lin[data-nivel="ambar"] .medidor > i {
+  background: var(--aviso);
+}
+.v-ventana[data-nivel="rojo"] :is(.v-num, .v-num small, .v-nota) {
+  color: var(--fallo-texto);
+}
+.v-ventana[data-nivel="rojo"] .medidor > i,
+.v-lin[data-nivel="rojo"] .medidor > i {
+  background: var(--critico);
+}
+.v-bloque {
+  padding-top: var(--esp-2);
+  box-shadow: inset 0 1px 0 var(--capa-div);
+}
+.v-bloque h3 {
+  margin: 0 0 var(--esp-1);
+  color: var(--apagado);
+  font-size: var(--letra-4);
+  font-weight: 500;
+}
+.v-lin {
+  display: grid;
+  min-height: 1.5rem;
+  grid-template-columns: minmax(0, 1fr) 2.75rem 2.125rem;
+  align-items: center;
+  gap: var(--esp-2);
+  font-size: 0.78125rem;
+}
+.v-lin > span:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.v-lin .medidor {
+  margin: 0;
+}
+.v-lin b {
+  font-weight: 500;
+  text-align: right;
+}
+.v-lin[data-palabra] {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+.v-lin[data-lleno] {
+  display: block;
+  padding: var(--esp-1) 0;
+  color: var(--fallo-texto);
+  font-weight: 500;
+}
+.v-lin[data-lleno] em {
+  display: block;
+  font-size: 0.71875rem;
+  font-style: normal;
+  font-weight: 400;
+}
+.v-pie {
+  margin: 0;
+  color: var(--apagado);
+  font-size: 0.71875rem;
+}
+.vuelo .g-acc {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-2);
+  font-size: var(--letra-3);
+}
+
+/* --- Arriba: buscador, nuevo líder y filtros ------------------------------ */
+.barra-col .top {
+  gap: 0;
+  padding: 0;
+}
+.barra-col .fila-top {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-1-5);
+  padding: var(--esp-3) var(--esp-3) var(--esp-1-5) var(--esp-2);
+}
+.barra-col .buscar {
+  height: 2rem;
+  min-width: 0;
+  flex: 1;
+  gap: var(--esp-2);
+  padding: 0 var(--esp-3) 0 var(--esp-2-5);
+  border-radius: var(--r-cap);
+  background: var(--capa-tile);
+}
+.barra-col .buscar input {
+  font-size: var(--letra-5);
+}
+.barra-col .buscar kbd {
+  flex: none;
+  color: var(--apagado);
+  font-family: inherit;
+  font-size: var(--letra-3);
+  font-weight: 500;
+}
+.barra-col .nueva {
+  width: 2rem;
+  height: 2rem;
+  flex: none;
+  border-radius: 50%;
+  background: var(--acento);
+  color: var(--acento-texto);
+}
+.barra-col .nueva:hover,
+.barra-col .nueva[aria-pressed="true"] {
+  background: var(--acento);
+  color: var(--acento-texto);
+  filter: brightness(1.08);
+}
+.resumen {
+  display: flex;
+  min-height: 1.875rem;
+  align-items: center;
+  gap: var(--esp-1);
+  padding: 0 var(--esp-3) var(--esp-1) var(--esp-2-5);
+}
+.barra-col .pend {
+  flex-wrap: nowrap;
+  gap: var(--esp-1);
+  padding: 0;
+}
+.chip-at.pil {
+  height: 1.375rem;
+  gap: var(--esp-1);
+  padding: 0 0.5625rem;
+  font-size: 0.71875rem;
+  font-weight: 650;
+}
+.chip-at.pil[aria-pressed="true"] {
+  box-shadow:
+    0 0 0 2px var(--sup-1),
+    0 0 0 0.21875rem currentColor;
+}
+.orden {
+  display: inline-flex;
+  height: 1.375rem;
+  flex: none;
+  align-items: center;
+  gap: 0.1875rem;
+  margin-left: auto;
+  padding: 0 var(--esp-0-5) 0 var(--esp-1-5);
+  border: 0;
+  border-radius: var(--r-xs);
+  background: transparent;
+  color: var(--apagado);
+  font-size: var(--letra-4);
+  font-weight: 500;
+}
+.orden:hover,
+.orden[aria-expanded="true"] {
+  background: var(--capa-hover);
+  color: var(--texto);
+}
+
+/* --- La lista -------------------------------------------------------------- */
+.barra-col .lista {
+  gap: 0;
+  padding: 0 var(--esp-1-5) var(--esp-2);
+  scrollbar-width: thin;
+}
+.barra-col .proy {
+  margin: 0 0 var(--esp-0-5);
+  padding: 0;
+  border: 0;
+  background: none;
+}
+.barra-col .proy-cuerpo {
+  padding: 0;
+}
+.barra-col .arbol + .arbol {
+  margin-top: 0;
+}
+/* El encabezado queda fijo al scrollear y tapa lo que pasa por debajo. */
+.proy-cab {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  height: 1.75rem;
+  align-items: center;
+  border-radius: var(--r-xs);
+  background: var(--sup-0);
+}
+.barra-col .proy-nom {
+  display: flex;
+  width: auto;
+  height: 1.75rem;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  gap: var(--esp-1-5);
+  padding: 0 var(--esp-1-5);
+  border: 0;
+  border-radius: var(--r-xs);
+  background: transparent;
+  color: var(--h, var(--apagado));
+  font-size: var(--letra-4);
+  font-weight: 650;
+  letter-spacing: -0.003em;
+}
+.barra-col .proy-nom:hover {
+  background: var(--capa-hover);
+}
+.barra-col .proy-nom .chevron {
+  flex: none;
+  order: -1;
+  margin: 0;
+  color: var(--apagado);
+}
+.barra-col .proy-nom[aria-expanded="false"] .chevron {
+  transform: rotate(-90deg);
+}
+.barra-col .proy-nom .n {
+  min-width: 0;
+  flex: 0 1 auto;
+  overflow: hidden;
+  color: inherit;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.proy-cab .cuenta,
+.proy-mas {
+  flex: none;
+  margin-left: auto;
+  color: var(--apagado);
+  font-size: 0.71875rem;
+  font-weight: 400;
+  white-space: nowrap;
+}
+.proy-cab > .cuenta {
+  padding-right: var(--esp-1-5);
+}
+.proy-mas {
+  height: 1.375rem;
+  padding: 0 var(--esp-1-5);
+  border: 0;
+  border-radius: var(--r-xs);
+  background: transparent;
+}
+.proy-mas:hover {
+  background: var(--capa-hover);
+  color: var(--texto);
+}
+
+/* --- Una línea por hilo: 28 px el líder, 26 px el worker -------------------- */
+.lista .fila.lider,
+.lista .fila.wbtn {
+  display: flex;
+  width: 100%;
+  min-height: 0;
+  height: 1.75rem;
+  flex-direction: row;
+  align-items: center;
+  gap: var(--esp-1-5);
+  margin: 0;
+  padding: 0 var(--esp-1-5) 0 var(--esp-1);
+  border-radius: var(--r-xs);
+  font-size: var(--letra-5);
+}
+.lista .fila .g,
+.lista .fila .pt-hojas {
+  position: static;
+  display: grid;
+  width: 1rem;
+  height: 1rem;
+  flex: none;
+  margin: 0;
+  place-items: center;
+}
+.g svg {
+  width: 0.6875rem;
+  height: 0.6875rem;
+}
+.g[data-g="corre"] {
+  color: var(--acento);
+}
+.g[data-g="termino"] {
+  color: var(--ok);
+}
+.g[data-g="cola"],
+.g[data-g="frenado"],
+.g[data-g="cerrado"] {
+  color: var(--apagado);
+}
+.g[data-g="murio"] {
+  color: var(--fallo-texto);
+}
+.g[data-g="falla"],
+.g[data-g="pide"] {
+  border-radius: 50%;
+}
+.g[data-g="falla"] {
+  background: var(--fallo-relleno);
+  color: var(--fallo-sobre);
+}
+.g[data-g="pide"] {
+  background: var(--decision-relleno);
+  color: var(--decision-sobre);
+}
+.lista .fila .l1,
+.lista .fila .txt {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: row;
+  align-items: center;
+  gap: var(--esp-1-5);
+}
+.lista .fila .t {
+  min-width: 0;
+  overflow: hidden;
+  gap: var(--esp-1-5);
+  color: var(--texto);
+  font-size: inherit;
+  font-weight: 500;
+  letter-spacing: -0.003em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lista .fila.lider .nom {
+  min-width: 0;
+  color: inherit;
+  font-weight: inherit;
+}
+.lista .fila .l2 {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--esp-1-5);
+  overflow: visible;
+}
+.lista .fila .cuando {
+  min-width: 1.75rem;
+  flex: none;
+  color: var(--apagado);
+  font-size: 0.71875rem;
+  text-align: right;
+}
+.lista .fila .pal {
+  flex: none;
+  max-width: 6rem;
+  overflow: hidden;
+  color: var(--apagado);
+  font-size: 0.71875rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lista .fila .pal.error,
+.lista .fila .pal[data-caido="murio"] {
+  color: var(--fallo-texto);
+}
+.lista .fila .chip-at {
+  height: 1rem;
+  padding: 0 var(--esp-1-5);
+  font-size: var(--letra-3);
+}
+/* El caché: sólo con el mouse encima (la fila ya no le tiene lugar). */
+.lista .fila .cache {
+  display: none;
+}
+.lista .lw:hover .fila .cache,
+.lista .w:hover .fila .cache {
+  display: inline-flex;
+}
+.lista .lw:has(> .acc):hover .fila .cache,
+.lista .w:has(> .acc):hover .fila .cache {
+  display: none;
+}
+.lista .lw {
+  margin-bottom: 0;
+}
+/* Quieto y sin nada que decir: más apagado. */
+.lista .fila.lider[data-calmo] .t {
+  color: var(--txt-2);
+  font-weight: 400;
+}
+.lista .fila.lider[data-caido] .t {
+  color: var(--apagado);
+}
+/* El que se está viendo. */
+.lista .fila[data-activa],
+.lista .w > .fila.wbtn[data-activa] {
+  background: var(--capa-tile);
+  box-shadow: inset 0 0 0 1px var(--capa-hover);
+}
+.lista .fila[data-activa] .t {
+  color: var(--texto);
+  font-weight: 600;
+}
+/* Lo que pide atención: tinte y borde, sin brillo. La palabra va en la píldora y el ícono en el glifo: nunca sólo el color. */
+.lista .fila[data-atencion="fallo"],
+.lista .w > .fila.wbtn[data-atencion="fallo"] {
+  background: color-mix(in srgb, var(--critico) 18%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--critico) 50%, transparent);
+}
+.lista .fila[data-atencion="decision"],
+.lista .w > .fila.wbtn[data-atencion="decision"],
+.lista .fila.lider[data-espera-tu] {
+  background: color-mix(in srgb, var(--aviso) 15%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--aviso) 45%, transparent);
+}
+.lista .fila[data-atencion] .t {
+  color: var(--texto);
+  font-weight: 600;
+}
+.lista .w > .fila.wbtn[data-atencion] {
+  padding-left: var(--esp-1);
+}
+.lista .fila[data-atencion="fallo"]:is(:hover, [data-cursor]) {
+  background: color-mix(in srgb, var(--critico) 26%, transparent);
+}
+.lista .fila[data-atencion="decision"]:is(:hover, [data-cursor]),
+.lista .fila.lider[data-espera-tu]:is(:hover, [data-cursor]) {
+  background: color-mix(in srgb, var(--aviso) 22%, transparent);
+}
+
+/* Los workers: colgados de una sola línea a la izquierda, sin el riel de árbol de antes. */
+.lista .ramas {
+  margin: 0 0 0 0.6875rem;
+  padding: 0 0 0 var(--esp-0-5);
+  box-shadow: inset 1px 0 0 var(--luz);
+}
+.lista .ramas:empty {
+  display: none;
+}
+.lista .ramas > .w {
+  padding: 0;
+}
+.lista .ramas > .w::before,
+.lista .ramas > .w::after {
+  content: none;
+}
+.lista .ramas .fila.wbtn {
+  height: 1.625rem;
+  margin: 1px 0;
+  color: var(--apagado);
+  font-size: 0.78125rem;
+}
+.lista .ramas .fila.wbtn .t {
+  color: var(--apagado);
+  font-weight: 400;
+}
+.lista .ramas .fila.wbtn .t[data-nuevo],
+.lista .ramas .fila.wbtn:is([data-atencion], [data-activa]) .t {
+  color: var(--texto);
+  font-weight: 500;
+}
+/* Lo que no tiene líder cuelga derecho de la carpeta y mide como un líder. */
+.lista .arbol[data-tipo="sueltas"] .ramas {
+  margin: 0;
+  padding: 0;
+  box-shadow: none;
+}
+.lista .arbol[data-tipo="sueltas"] .fila.wbtn {
+  height: 1.75rem;
+  margin: 0;
+  font-size: var(--letra-5);
+}
+.lista .arbol[data-tipo="sueltas"] .fila.wbtn .t {
+  color: var(--texto);
+  font-weight: 500;
+}
+.lista .sin-lider {
+  display: flex;
+  height: 1.5rem;
+  align-items: center;
+  gap: var(--esp-1-5);
+  padding: 0 var(--esp-1-5) 0 var(--esp-1);
+  font-size: var(--letra-3);
+}
+.lista .sin-lider .corona {
+  position: static;
+  margin: 0;
+}
+
+/* Las acciones del hover: a la derecha de la fila, en su lugar el tiempo se va y el título cede. */
+.lista .acc {
+  top: 0;
+  right: var(--esp-1);
+  bottom: 0;
+  left: auto;
+  height: auto;
+  gap: var(--esp-1);
+  font-size: var(--letra-3);
+}
+.lista .lw > .acc {
+  bottom: 0;
+  left: auto;
+}
+.lista .acc .mini {
+  height: 1.25rem;
+  padding: 0 var(--esp-2);
+  font-size: var(--letra-3);
+}
+.lista .lw:has(> .acc):hover .cuando,
+.lista .lw:has(> .acc:focus-within) .cuando,
+.lista .w:has(> .acc):hover .cuando,
+.lista .w:has(> .acc:focus-within) .cuando {
+  display: none;
+}
+.lista .lw:has(> .acc):hover .fila.lider,
+.lista .lw:has(> .acc:focus-within) .fila.lider,
+.lista .w:has(> .acc):hover .fila.wbtn,
+.lista .w:has(> .acc:focus-within) .fila.wbtn {
+  padding-right: calc(var(--acc-w, 0px) + var(--esp-2));
+}
+.lista .lw:has(> .acc):hover .txt > :last-child,
+.lista .lw:has(> .acc:focus-within) .txt > :last-child,
+.lista .w:has(> .acc):hover .l2 {
+  padding-right: 0;
+}
+/* "+N" abre los workers de un líder en "sólo líderes". */
+.lista .mas {
+  right: var(--esp-1);
+  width: 1.625rem;
+  height: 1.125rem;
+  margin-top: -0.5625rem;
+  background: var(--capa-tile);
+  color: var(--apagado);
+  font-family: inherit;
+  font-size: var(--letra-3);
+}
+.lista .lw[data-mas] > .lider {
+  padding-right: 1.875rem;
+}
+.lista .lw[data-mas] > .acc {
+  right: 2rem;
+}
+/* Un hilo por cada worker vivo, a la derecha del líder resumido. */
+.trama {
+  display: inline-flex;
+  height: 0.75rem;
+  flex: none;
+  align-items: center;
+  gap: var(--esp-0-5);
+}
+.trama > i {
+  width: 0.1875rem;
+  height: 0.75rem;
+  border-radius: 0.09375rem;
+  background: var(--acento);
+}
+.trama > i[data-g="falla"] {
+  background: var(--critico);
+}
+.trama > i[data-g="trabado"] {
+  background: var(--aviso);
+}
+.trama > i[data-g="frenado"] {
+  height: 0.5rem;
+  background: var(--apagado);
+}
+.lista .subs-chip {
+  flex: none;
+  gap: var(--esp-1);
+  color: var(--apagado);
+  font-size: var(--letra-3);
+}
+
+/* Pliegues: "N terminados" y las conversaciones de Claude Code, en una línea. */
+.lista .mini-pliegue {
+  height: 1.5rem;
+  margin-left: 0;
+  padding: 0 var(--esp-1-5) 0 var(--esp-1);
+  font-size: var(--letra-3);
+}
+.lista .pliegue {
+  height: auto;
+}
+.lista .pliegue[data-abierto] {
+  top: 1.75rem;
+  background: var(--sup-0);
+}
+.lista .espera.cc {
+  padding: 0;
+}
+.lista .cc-fila {
+  flex-direction: row;
+  height: 1.625rem;
+  align-items: center;
+  gap: var(--esp-1-5);
+  padding: 0 var(--esp-1-5);
+  border-radius: var(--r-xs);
+}
+.lista .cc-fila .t {
+  min-width: 0;
+  flex: 1;
+  color: var(--apagado);
+  font-size: 0.78125rem;
+}
+.lista .cc-fila .m {
+  flex: none;
+  max-width: 45%;
+}
+.lista .cc-cuerpo {
+  padding: 0 0 var(--esp-1) var(--esp-1);
+}
+
+/* Subagentes: una línea, como un worker. */
+.lista .sub-cab {
+  min-height: 1.625rem;
+  border-radius: var(--r-xs);
+}
+.lista .sub-fila {
+  display: flex;
+  min-height: 1.625rem;
+  align-items: center;
+  gap: var(--esp-1-5);
+  padding: 0 var(--esp-1-5) 0 var(--esp-1);
+}
+.lista .sub-txt {
+  flex-direction: row;
+  align-items: center;
+  gap: var(--esp-1-5);
+}
+.lista .sub-t {
+  min-width: 0;
+  flex: 1;
+  font-size: 0.78125rem;
+}
+.lista .sub-desc {
+  color: var(--apagado);
+}
+.lista .sub-modelo,
+.lista .sub-ultimo,
+.lista .sub-tok {
+  display: none;
+}
+.lista .sub-s {
+  flex: none;
+  font-size: 0.71875rem;
+}
+.lista .sub[data-activa] .sub-desc {
+  color: var(--texto);
+}
+
+/* Cerrados, al final. */
+.barra-col .bloque-cerrados .cerrados {
+  height: 1.75rem;
+  padding: 0 var(--esp-1-5);
+  font-size: var(--letra-3);
+}
+.lista .cerradas .fila.wbtn {
+  padding-left: var(--esp-1);
+}
+
+/* Lo buscado. */
+.lista mark {
+  margin: 0 -1px;
+  padding: 0 1px;
+  border-radius: 0.1875rem;
+  background: color-mix(in srgb, var(--acento) 30%, transparent);
+  color: inherit;
+}
+
+/* Con los dedos, las zonas de toque crecen. */
+@media (pointer: coarse) {
+  .pr,
+  .riel .pie button {
+    width: 2.5rem;
+    height: 2.5rem;
+  }
+  .riel {
+    width: 3.25rem;
+  }
+  .lista .fila.lider,
+  .lista .fila.wbtn,
+  .lista .ramas .fila.wbtn {
+    height: 2.5rem;
+  }
+  .proy-cab,
+  .barra-col .proy-nom {
+    height: 2.25rem;
+  }
+  .chip-at.pil {
+    height: 2rem;
+  }
+  .orden {
+    height: 2rem;
+  }
+  .vuelo {
+    left: 3.5rem;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pr {
+    transition: none;
+  }
+}

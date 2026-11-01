@@ -1,7 +1,7 @@
 // Virtualización de la lista: arriba de 200 filas, cada lista de filas (los
 // workers de una carpeta, los cerrados) pinta sólo las que caen cerca de lo
 // visible y el resto es relleno (padding). Así Motion mide decenas de nodos y
-// no cientos. Las filas miden todas lo mismo (dos líneas): se mide una y listo.
+// no cientos. Las filas miden todas lo mismo (una línea): se mide una y listo.
 //
 // Las posiciones salen de `offsetTop` y no de getBoundingClientRect: los FLIP
 // de Motion ponen transforms y el rect mentiría mientras animan.
@@ -14,7 +14,7 @@ const MARGEN = 600;
 /** El rango se redondea a múltiplos de esto: scrollear no re-renderiza en cada fila. */
 const PASO = 8;
 /** Alto de fila hasta que haya una para medir. */
-const ALTO_DEF = 44;
+const ALTO_DEF = 26;
 
 let lista: HTMLElement | null = null;
 let alto = 0;

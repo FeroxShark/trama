@@ -28,6 +28,11 @@ function hash(s: string): number {
 
 export const tono = (nombre: string): string => PALETA[hash(nombre.toLowerCase()) % PALETA.length];
 
+/** Los tonos del riel (rediseño 0.4): pasteles para el monograma y el encabezado del proyecto, sobre su mismo tono al 15 %. */
+export const PALETA_RIEL = ["#8fb5f0", "#7fd1c7", "#eaa0c8", "#b9a3f0", "#9ad48a", "#a9bdd6", "#d7a6e0", "#8fd6e8", "#c3cf8d"] as const;
+
+export const tonoRiel = (nombre: string): string => PALETA_RIEL[hash(nombre.toLowerCase()) % PALETA_RIEL.length];
+
 /**
  * "atlas" → "At", "atlas-web" → "AW", "SpaceLens" → "SL", "x" → "X". Dos
  * palabras (separadas por guion, punto, espacio o mayúscula) dan sus iniciales;

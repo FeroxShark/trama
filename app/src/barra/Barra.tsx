@@ -18,7 +18,7 @@ import {
   type Ref,
 } from "react";
 import { AnimatePresence, motion, MotionConfig } from "motion/react";
-import { BarChart3, ChevronDown, CircleQuestionMark, Crown, Folders, GitBranch, ListTree, PanelRight, PencilLine, Plus, Search, Settings, SquareKanban, X, Zap, type LucideIcon } from "lucide-react";
+import { BarChart3, ChevronDown, Crown, GitBranch, PanelRight, Plus, Search, Settings, SquareKanban, X, CircleQuestionMark, type LucideIcon } from "lucide-react";
 import { cerrable, cerrado, comoSettle, GENERAL, VERSION, type Caido, type ConvClaudeCode, type Estado, type EventoPa, type Hilo, type Leidos, type Lider, type Nombres, type Orden, type RespuestaLideres } from "../datos/contrato";
 import { compactarFijo, escenaFija, fuente } from "../datos/fuente";
 import { ARRANCANDO, EN_COLA, FRENADO, imagenFija } from "../datos/fixtures";
@@ -63,11 +63,9 @@ import { rcDe, RC_CONFLICTO } from "../datos/errorpa";
 import { carcasa, carcasaActualiza } from "../carcasa";
 import { esVentana, main, mensaje } from "../puente";
 import {
-  ACTIVAS,
   activo,
   aDesplegar,
   armarArbol,
-  atencionRama,
   aVistaTodo,
   claveDormidos,
   claveEspera,
@@ -87,6 +85,10 @@ import {
   salidaWorker,
   settleLider,
   settleWorker,
+  liderEspera,
+  atencionRama,
+  ACTIVAS,
+  type Atencion,
   type Arbol as DatosArbol,
   type Carpeta as DatosCarpeta,
   type Como,
@@ -104,7 +106,6 @@ import { Subagentes } from "./Subagentes";
 import { archivarTodosSubs, claveSub, corriendo, deClaveSub, SubAbierto, useTicSubagentes, useTodosSubagentes } from "./subagentes-logica";
 import type { Subagente } from "../../electron/subagentes";
 import { correrGuion } from "./guion";
-import { Logo } from "./Logo";
 import { hayOrdenManual, modoOrden, ORDEN0, podar, prioridadPrendida, reordenar, reordenarPaso, type ModoOrden } from "./orden";
 import { useRecientes } from "./useRecientes";
 import type { Recientes } from "./recientes";
@@ -133,7 +134,12 @@ import { useReinicio } from "../reinicio";
 import { huboCambio } from "../hilo/cambios";
 import { alLeerVista, vueltaInicial } from "../volver";
 import { copiarConAviso } from "../copiar";
-import { Cabecera } from "./Cabecera";
+import { CuposRiel } from "./CuposRiel";
+import { estiloProyecto, Riel } from "./Riel";
+import { aRiel, filtrarArbol, hilosArbol, hilosCarpeta, itemsRiel, ordenAtencion, QUIETOS_VISTA, quietosDe, segunLista } from "./riel";
+import { LoBuscado, Resalte } from "./Resalte";
+import { pintorCorto } from "../tiempo";
+import { Reloj } from "./piezas";
 import { avisarVentana, irA, ponerLista, UMBRAL, useVentana } from "./ventana";
 
 const CLAVE_COLAPSADOS = "hilos:barra:colapsados";
@@ -250,7 +256,6 @@ const llegado = (e: EventoPa): Hilo => ({
 const TRAS: Record<AccionRama, Estado> = { integrar: "integrado", descartar: "descartado", revertir: "revertido" };
 
 const BOTONES_PIE: [CualPanel, LucideIcon][] = [
-  ["ajustes", Settings],
   ["ramas", GitBranch],
   ["estadisticas", BarChart3],
   ["tablero", SquareKanban],
@@ -258,14 +263,14 @@ const BOTONES_PIE: [CualPanel, LucideIcon][] = [
 
 /** Qué muestra la barra (B15): los líderes con sus workers colgando, o sólo los líderes (con lo vivo resumido en su fila). */
 type VistaBarra = "todo" | "lideres";
-const VISTAS: [VistaBarra, LucideIcon, "vista.lideres" | "vista.todo", "vista.tipLideres" | "vista.tipTodo"][] = [
-  ["lideres", Crown, "vista.lideres", "vista.tipLideres"],
-  ["todo", ListTree, "vista.todo", "vista.tipTodo"],
+const VISTAS: [VistaBarra, "vista.lideres" | "vista.todo"][] = [
+  ["lideres", "vista.lideres"],
+  ["todo", "vista.todo"],
 ];
 /** Cómo se ordena lo que no se movió a mano: lo último que se usó arriba, o por nombre. */
-const MODOS: [ModoOrden, "orden.recientes" | "orden.az", "orden.tipRecientes" | "orden.tipAz"][] = [
-  ["recientes", "orden.recientes", "orden.tipRecientes"],
-  ["az", "orden.az", "orden.tipAz"],
+const MODOS: [ModoOrden, "orden.recientes" | "orden.az"][] = [
+  ["recientes", "orden.recientes"],
+  ["az", "orden.az"],
 ];
 const SIN_FILAS: Item[] = [];
 
@@ -344,6 +349,10 @@ export function Barra() {
   // Con qué nombre anota el tablero cada carpeta (nombre del registry → slug): se lee al abrir el Tablero.
   const [slugsReg, setSlugsReg] = useState<Record<string, string>>({});
   const [menu, setMenu] = useState<MenuAbierto | null>(null);
+  // El menú de "Recientes" (cómo se ordena y qué muestra la barra), y los filtros: un proyecto del riel y las píldoras de arriba.
+  const [menuOrden, setMenuOrden] = useState<{ x: number; y: number; origen: HTMLElement } | null>(null);
+  const [filtroProy, setFiltroProy] = useState<string | null>(null);
+  const [filtroVer, setFiltroVer] = useState<Atencion | null>(null);
   const [renombrando, setRenombrando] = useState<Renombrando | null>(null);
   // «Seguir con otro modelo» (#1791), desde el menú de un hilo: de quién y con qué modelo venía; el selector se abre sobre la ventana.
   const [seguirDe, setSeguirDe] = useState<{ de: "worker"; id: string; modelo: string } | { de: "lider"; sid: string; modelo: string; proyecto: string } | null>(null);
@@ -523,40 +532,56 @@ export function Barra() {
   const recientes = useRecientes(true, lideresVistos, todos, convsCC, congelada);
   // Sin polling: "en espera hace 30 min" se recalcula cuando cambia algo (datos, líderes, búsqueda).
   const arbolBruto = useMemo(
-    () => armarArbol(todos, { optimista, lideres: lideresVistos, settleados, busqueda, mover, ocultos, titulos, caidos, orden: nombres.orden, prioridad, recientes, ahora: Math.floor(Date.now() / 1000) }),
+    () => armarArbol(todos, { optimista, lideres: lideresVistos, settleados, busqueda, mover, ocultos, titulos, caidos, orden: nombres.orden, prioridad, recientes, sinActivas: true, ahora: Math.floor(Date.now() / 1000) }),
     [todos, optimista, busqueda, lideresVistos, settleados, mover, ocultos, titulos, caidos, nombres.orden, prioridad, recientes],
   );
-  // "Líderes y workers" esconde debajo de cada líder lo que murió o terminó (`aVistaTodo`); "sólo líderes" usa el árbol tal cual.
-  const arbol = useMemo(() => (vista === "lideres" ? arbolBruto : aVistaTodo(arbolBruto)), [arbolBruto, vista]);
-  const { carpetas: hayGrupos, cerrados } = arbol;
-  // Lo que pide atención (falló, pide decisión, un líder que espera): los chips de arriba de la lista. Lo ya resuelto
-  // (relanzado, integrado, descartado, visto, contestado) no cuenta: `atencion-vigente.ts`.
+  // Lo ya resuelto (relanzado, integrado, descartado, visto, contestado) no pide atención: `atencion-vigente.ts`.
   const resueltos = useMemo(() => resueltosDe(todos.map((h) => ({ h, estado: estadoVisto(h, optimista.get(h.id)) })), leidos), [todos, optimista, leidos]);
+  const buscando = busqueda.trim() !== "";
+  // "Líderes y workers" esconde debajo de cada líder lo que murió o terminó (`aVistaTodo`); "sólo líderes" usa el árbol tal cual.
+  // Lo que falló o pide algo queda a la vista igual (`aRiel`). Los proyectos que piden atención van primero, salvo mirando la lista: la foto se congela.
+  const ordenProyectos = useRef<string[]>([]);
+  const arbol = useMemo(() => {
+    const a = aRiel(vista === "lideres" ? arbolBruto : aVistaTodo(arbolBruto), resueltos);
+    if (!porPrioridad || buscando) return a;
+    if (!congelada) ordenProyectos.current = ordenAtencion(a.carpetas, resueltos);
+    return { ...a, carpetas: segunLista(a.carpetas, ordenProyectos.current) };
+  }, [arbolBruto, vista, resueltos, porPrioridad, buscando, congelada]);
+  // Lo que pide atención (falló, pide decisión, un líder que espera): las píldoras de arriba de la lista.
   const pend = useMemo(() => pendientes(arbol, resueltos), [arbol, resueltos]);
-  // General siempre está (sin buscar): ahí vive el botón Nuevo líder.
-  const grupos = useMemo(
-    () =>
-      busqueda.trim() || !hilos || hayGrupos.some((g) => g.proyecto === GENERAL)
-        ? hayGrupos
-        : [{ proyecto: GENERAL, ramas: [], espera: [], dormidos: [], cuenta: 0 }, ...hayGrupos],
-    [hayGrupos, busqueda, hilos],
+  // El riel se arma sin buscar: buscando se apagan los proyectos sin resultados, no se van.
+  const arbolSinBuscar = useMemo(
+    () => (buscando ? aRiel(armarArbol(todos, { optimista, lideres: lideresVistos, settleados, mover, ocultos, titulos, caidos, orden: nombres.orden, prioridad, recientes, sinActivas: true, ahora: Math.floor(Date.now() / 1000) }), resueltos) : arbol),
+    [buscando, arbol, todos, optimista, lideresVistos, settleados, mover, ocultos, titulos, caidos, nombres.orden, prioridad, recientes, resueltos],
   );
+  // Un filtro por algo que ya no existe no filtra (se integró el último, ya no falla nada).
+  const verVigente: Atencion | null = (filtroVer === "fallo" && pend.fallos.length > 0) || (filtroVer === "decision" && pend.esperan.length > 0) ? filtroVer : null;
   // Las de Claude Code, cada una en su carpeta, sin las que ya son líderes de la barra; y las carpetas con conversaciones que todavía no tienen sección.
   const porCarpetaCC = useMemo(() => {
     const ocultas = new Set([...arbol.lideres.keys(), ...fantasmas.keys(), ...abiertasCC]);
     return repartirClaude(convsCC, ocultas);
   }, [convsCC, arbol.lideres, fantasmas, abiertasCC]);
-  const extrasCC = useMemo(
-    () => (busqueda.trim() ? [] : carpetasExtra(porCarpetaCC, new Set(grupos.map((g) => g.proyecto)))),
-    [porCarpetaCC, grupos, busqueda],
+  // Las carpetas que sólo tienen conversaciones de Claude Code: tienen su lugar en el riel aunque se esté buscando.
+  const extrasRiel = useMemo(() => carpetasExtra(porCarpetaCC, new Set(arbolSinBuscar.carpetas.map((g) => g.proyecto))), [porCarpetaCC, arbolSinBuscar]);
+  const itemsDelRiel = useMemo(
+    () => itemsRiel(arbolSinBuscar.carpetas, buscando ? new Set(arbol.carpetas.map((g) => g.proyecto)) : null, resueltos, extrasRiel),
+    [arbolSinBuscar, buscando, arbol, resueltos, extrasRiel],
   );
-  const buscando = busqueda.trim() !== "";
+  // Un proyecto que ya no está (se archivó lo último que tenía) deja de filtrar.
+  const filtroVigente = filtroProy !== null && itemsDelRiel.some((x) => x.proyecto === filtroProy) ? filtroProy : null;
+  // Lo que se ve con los filtros. `arbol` sigue siendo el de todo: dice quién es quién, y lo abierto no depende de lo que se filtra.
+  const arbolVisto = useMemo(() => filtrarArbol(arbol, { proyecto: filtroVigente, ver: verVigente, resueltos }), [arbol, filtroVigente, verVigente, resueltos]);
+  const { carpetas: grupos, cerrados } = arbolVisto;
+  const extrasCC = useMemo(
+    () => (buscando || verVigente ? [] : extrasRiel.filter((k) => !filtroVigente || k === filtroVigente)),
+    [extrasRiel, buscando, verVigente, filtroVigente],
+  );
   // Clave con ":" = el pliegue de una rama; sin ":" = una carpeta (el nombre del proyecto).
-  // Buscando, las carpetas se abren pero los pliegues no: lo inactivo sigue en su "+N" / "N terminadas".
-  const desplegada = (k: string) => (k.includes(":") ? pliegues.has(k) : buscando || !colapsados.has(k));
+  // Buscando, las carpetas se abren pero los pliegues no: lo inactivo sigue en su "+N" / "N terminadas". Filtrando por un proyecto, el suyo se ve abierto.
+  const desplegada = (k: string) => (k.includes(":") ? pliegues.has(k) : buscando || k === filtroVigente || !colapsados.has(k));
   const verCerrados = cerradosAbiertos;
   const soloLideres = vista === "lideres";
-  const visibles = filasVisibles(arbol, desplegada, verCerrados, soloLideres);
+  const visibles = filasVisibles(arbolVisto, desplegada, verCerrados, soloLideres);
   const virtual = visibles.length > UMBRAL;
 
   const ultimo = useUltimo({ hilos, optimista, visibles, grupos, cursor, activa, busqueda, panel, enCurso, arbol, vista, orden: nombres.orden, lideresVistos, carpetasReg, titulos, recientes });
@@ -694,6 +719,14 @@ export function Barra() {
     },
     [abrir, abrirLider, ultimo],
   );
+
+  // Una píldora: filtra por lo suyo y abre el primero; otra vez, quita el filtro.
+  const alternarVer = (at: Atencion, ds: Destino[]) => {
+    if (verVigente === at) return setFiltroVer(null);
+    setFiltroVer(at);
+    setFiltroProy(null);
+    irAPendiente(ds);
+  };
 
   // "De Claude Code": la lista se lee de fondo (el main la cachea por mtime) cuando ya llegaron los líderes y de nuevo al volver a la ventana.
   useEffect(() => {
@@ -1798,8 +1831,43 @@ export function Barra() {
       >
         <aside className="barra" aria-label={tr("barra.aria")} inert={!abierta}>
           <div className="barra-cuerpo">
+            <Riel
+              items={itemsDelRiel}
+              filtro={filtroVigente}
+              alFiltrar={setFiltroProy}
+              alOcultar={alternarBarra}
+              cupos={<CuposRiel />}
+              pie={
+                <footer className="pie" data-guia="pie">
+                  {/* Cada botón abre su panel a la derecha; otro clic (o Esc) lo cierra. */}
+                  {BOTONES_PIE.map(([cual, icono]) => (
+                    <BotonPie
+                      key={cual}
+                      icono={icono}
+                      etq={tr(PANELES[cual])}
+                      activo={panel === cual}
+                      n={cual === "tablero" ? esperan : 0}
+                      alClic={() => {
+                        alFrente();
+                        setPanel((p) => (p === cual ? null : cual));
+                      }}
+                    />
+                  ))}
+                  <BotonPie icono={PanelRight} etq={tr(consumo ? "ctxp.ocultar" : "ctxp.mostrar")} activo={consumo} alClic={alternarConsumo} />
+                  <BotonPie
+                    icono={Settings}
+                    etq={tr(PANELES.ajustes)}
+                    activo={panel === "ajustes"}
+                    alClic={() => {
+                      alFrente();
+                      setPanel((p) => (p === "ajustes" ? null : "ajustes"));
+                    }}
+                  />
+                </footer>
+              }
+            />
+            <div className="barra-col">
             <div className="top">
-              <Cabecera alOcultar={alternarBarra} />
               <div className="fila-top">
                 <label className="buscar">
                   <Search size={14} strokeWidth={2} />
@@ -1807,20 +1875,12 @@ export function Barra() {
                     ref={campo}
                     value={busqueda}
                     onChange={(e) => setBusqueda(e.target.value)}
-                    placeholder={tr("barra.buscar")}
+                    placeholder={tr("barra.buscarHilos")}
                     aria-label={tr("barra.buscarAria")}
                     spellCheck={false}
                   />
-                  <kbd>Ctrl K</kbd>
+                  <kbd>{buscando ? tr("barra.nDeTotal", { n: hilosArbol(arbolVisto), total: hilosArbol(arbolSinBuscar) }) : "Ctrl K"}</kbd>
                 </label>
-                {/* Sólo líderes | todo: siempre a mano (y con la tecla W). */}
-                <div className="vista" role="group" aria-label={tr("vista.aria")} data-vista={vista}>
-                  {VISTAS.map(([v, Icono, etq, tip]) => (
-                    <button key={v} type="button" aria-label={tr(etq)} data-tip={tr(tip)} data-ver={v} aria-pressed={vista === v} onClick={() => ponerVista(v)}>
-                      <Icono size={14} strokeWidth={2} />
-                    </button>
-                  ))}
-                </div>
                 <button
                   type="button"
                   className="nueva"
@@ -1830,20 +1890,28 @@ export function Barra() {
                   aria-pressed={activa === LIDER_NUEVO}
                   onClick={abrirLiderNuevo}
                 >
-                  <PencilLine size={15} strokeWidth={2} />
+                  <Plus size={16} strokeWidth={2.2} />
                 </button>
               </div>
-              {/* Recientes | A-Z: cómo se acomoda lo que no se movió a mano. Con algo a mano, ninguno marcado hasta elegir. */}
-              {!buscando ? (
-                <div className="orden-barra" role="group" aria-label={tr("orden.aria")} data-modo={hayOrdenManual(nombres.orden) ? "manual" : modoOrden(nombres.orden)}>
-                  {MODOS.map(([m, etq, tip]) => (
-                    <button key={m} type="button" data-tip={tr(tip)} aria-pressed={!hayOrdenManual(nombres.orden) && modoOrden(nombres.orden) === m} onClick={() => ponerModo(m)}>
-                      {tr(etq)}
-                    </button>
-                  ))}
-                </div>
-              ) : null}
-              <Pendientes p={pend} alIr={irAPendiente} />
+              <div className="resumen">
+                <Pendientes p={pend} ver={verVigente} alVer={alternarVer} />
+                {/* Cómo se acomoda lo que no se movió a mano y qué muestra la barra (la tecla W sigue andando). */}
+                <button
+                  type="button"
+                  className="orden"
+                  aria-haspopup="menu"
+                  aria-expanded={menuOrden !== null}
+                  aria-label={tr("orden.menu")}
+                  data-tip={tr("orden.menu")}
+                  onClick={(e) => {
+                    const c = e.currentTarget.getBoundingClientRect();
+                    setMenuOrden({ x: c.right, y: c.bottom + 4, origen: e.currentTarget });
+                  }}
+                >
+                  {hayOrdenManual(nombres.orden) ? tr("orden.manual") : tr(modoOrden(nombres.orden) === "az" ? "orden.az" : "orden.recientes")}
+                  <ChevronDown size={12} strokeWidth={2} />
+                </button>
+              </div>
             </div>
 
             <motion.div
@@ -1868,24 +1936,8 @@ export function Barra() {
               )}
               {hilos ? (
                 // Recién con los datos: si no, la primera carga entraría animada.
+                <LoBuscado.Provider value={busqueda}>
                 <AnimatePresence mode="popLayout" initial={false}>
-                  {arbol.activas.length > 0 ? (
-                    <Activas
-                      key="activas"
-                      ramas={arbol.activas}
-                      abierta={desplegada(ACTIVAS)}
-                      alAlternar={() => alternar(ACTIVAS)}
-                      liderActivo={activa}
-                      alAbrirLider={abrirLider}
-                      alCerrarLider={cerrarLider}
-                      alSettleLider={settleLiderYa}
-                      desplegada={desplegada}
-                      alPlegar={plegar}
-                      fila={fila}
-                      virtual={virtual}
-                      soloLideres={soloLideres} resueltos={resueltos}
-                    />
-                  ) : null}
                   {grupos.map((g) => (
                     <Carpeta
                       key={g.proyecto}
@@ -1895,15 +1947,13 @@ export function Barra() {
                       alAbrirLider={abrirLider}
                       alCerrarLider={cerrarLider}
                       alSettleLider={settleLiderYa}
-                      alLiderNuevo={g.proyecto === GENERAL ? abrirLiderNuevo : null}
-                      liderNuevo={activa === LIDER_NUEVO}
                       desplegada={desplegada}
                       alAlternar={alternar}
                       alPlegar={plegar}
                       fila={fila}
                       virtual={virtual}
                       soloLideres={soloLideres} resueltos={resueltos}
-                      mueve={!buscando && !MODO.captura}
+                      mueve={!buscando && !filtroVigente && !verVigente && !MODO.captura}
                       claude={porCarpetaCC.get(g.proyecto) ?? SIN_CONVS}
                       alAbrirClaude={abrirClaude}
                     />
@@ -1917,8 +1967,6 @@ export function Barra() {
                       alAbrirLider={abrirLider}
                       alCerrarLider={cerrarLider}
                       alSettleLider={settleLiderYa}
-                      alLiderNuevo={null}
-                      liderNuevo={false}
                       desplegada={desplegada}
                       alAlternar={alternar}
                       alPlegar={plegar}
@@ -1930,7 +1978,7 @@ export function Barra() {
                       alAbrirClaude={abrirClaude}
                     />
                   ))}
-                  {hayGrupos.length === 0 && extrasCC.length === 0 ? (
+                  {grupos.length === 0 && extrasCC.length === 0 ? (
                     <motion.div
                       key="vacio"
                       layout="position"
@@ -1978,12 +2026,12 @@ export function Barra() {
                     </motion.div>
                   ) : null}
                 </AnimatePresence>
+                </LoBuscado.Provider>
               ) : null}
               {/* Dónde cae lo que se arrastra: la ubica `arrastre.ts`, sin render. */}
               <div ref={linea} className="cae" aria-hidden="true" />
             </motion.div>
 
-            {/* Cada botón abre su panel a la derecha; otro clic (o Esc) lo cierra. */}
             <AvisoMaquinas />
             <Pc />
             <Reinicio />
@@ -1995,23 +2043,7 @@ export function Barra() {
             <AvisoProgramados />
             <AvisoVuelta />
             <AvisoSetup />
-            <footer className="pie" data-guia="pie">
-              {BOTONES_PIE.map(([cual, icono]) => (
-                <BotonPie
-                  key={cual}
-                  icono={icono}
-                  etq={tr(PANELES[cual])}
-                  ver={cual === "ramas" && MODO.captura === "hover"}
-                  activo={panel === cual}
-                  n={cual === "tablero" ? esperan : 0}
-                  alClic={() => {
-                    alFrente();
-                    setPanel((p) => (p === cual ? null : cual));
-                  }}
-                />
-              ))}
-              <BotonPie icono={PanelRight} etq={tr(consumo ? "ctxp.ocultar" : "ctxp.mostrar")} activo={consumo} alClic={alternarConsumo} />
-            </footer>
+            </div>
           </div>
           <div
             role="separator"
@@ -2038,6 +2070,19 @@ export function Barra() {
             actual={modeloDe(seguirDe.modelo)}
             alElegir={seguirElegido}
             alCerrar={() => setSeguirDe(null)}
+          />
+        ) : null}
+        {menuOrden ? (
+          <Menu
+            x={menuOrden.x}
+            y={menuOrden.y}
+            nivel="orden"
+            ancla={menuOrden.origen}
+            alCerrar={() => setMenuOrden(null)}
+            items={[
+              ...MODOS.map(([m, etq]) => ({ clave: m, texto: tr(etq), marcado: !hayOrdenManual(nombres.orden) && modoOrden(nombres.orden) === m, alElegir: () => ponerModo(m) })),
+              ...VISTAS.map(([v, etq]) => ({ clave: v, texto: tr(etq), marcado: vista === v, alElegir: () => ponerVista(v) })),
+            ]}
           />
         ) : null}
         {menu ? (
@@ -2106,97 +2151,17 @@ export function Barra() {
   );
 }
 
-type PropsActivas = {
-  ramas: Rama[];
-  abierta: boolean;
-  alAlternar: () => void;
-  liderActivo: string | null;
-  alAbrirLider: (id: string) => void;
-  alCerrarLider: (id: string, motivo?: string) => void;
-  alSettleLider: (id: string) => void;
-  desplegada: (clave: string) => boolean;
-  alPlegar: (clave: string) => void;
-  fila: PropsCarpeta["fila"];
-  virtual: boolean;
-  soloLideres: boolean;
-  /** Los workers que pidieron atención y ya no (`atencion-vigente.ts`): ni el ícono del líder ni su fila los cuentan. */
-  resueltos: ReadonlySet<string>;
-};
-
-/**
- * "Activas": arriba de todo, los líderes que piden algo, responden, tienen workers vivos o el caché caliente
- * (`activas.ts`), de cualquier proyecto; cada fila lleva el suyo como prefijo. No se arrastran: cuando se enfrían
- * vuelven a su lugar en su proyecto. Plegable (se recuerda como una carpeta) y con la cuenta.
- */
-function Activas({ ref, ramas, abierta, alAlternar, liderActivo, alAbrirLider, alCerrarLider, alSettleLider, desplegada, alPlegar, fila, virtual, soloLideres, resueltos }: PropsActivas & { ref?: Ref<HTMLElement> }) {
-  useIdioma();
-  const titulos = useTitulos();
-  return (
-    <motion.section
-      ref={ref}
-      layout="position"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      transition={RESORTE}
-      className="proy activas"
-      data-activas=""
-      data-guia="activas"
-      aria-label={tr("barra.activas")}
-    >
-      <div className="marco marco-arriba" />
-      <motion.div layout transition={RESORTE} className="marco marco-lado" />
-      <motion.div layout transition={RESORTE} className="marco marco-lado" data-der="" />
-      <motion.div layout="position" transition={RESORTE} className="marco marco-abajo" />
-      <button type="button" className="proy-nom" data-tip={tr("barra.activasTip")} aria-expanded={abierta} onClick={alAlternar}>
-        <Zap className="activas-icono" size={13} strokeWidth={2} />
-        <span className="n">{tr("barra.activas")}</span>
-        <span className="cuenta">{ramas.length}</span>
-        <ChevronDown className="chevron" size={12} strokeWidth={2} />
-      </button>
-      <AnimatePresence mode="popLayout" initial={false}>
-        {abierta ? (
-          <motion.div key="cuerpo" className="proy-cuerpo" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.12 }}>
-            <AnimatePresence mode="popLayout" initial={false}>
-              {ramas.map((r) => (
-                <Arbol
-                  key={r.clave}
-                  r={r}
-                  grupo={null}
-                  proyecto={nombreCarpeta(r.lider!.proyecto, MODO.usuario, tr("barra.home"), titulos[r.lider!.proyecto])}
-                  activo={liderActivo === r.clave}
-                  alAbrirLider={alAbrirLider}
-                  alCerrarLider={alCerrarLider}
-                  alSettleLider={alSettleLider}
-                  plegada={!desplegada(r.clave)}
-                  alPlegar={alPlegar}
-                  fila={fila}
-                  virtual={virtual}
-                  soloLideres={soloLideres} resueltos={resueltos}
-                />
-              ))}
-            </AnimatePresence>
-          </motion.div>
-        ) : null}
-      </AnimatePresence>
-    </motion.section>
-  );
-}
-
 type PropsCarpeta = {
   /** Lo pone AnimatePresence (popLayout). */
   ref?: Ref<HTMLElement>;
   g: DatosCarpeta;
-  /** Lo que está abierto a la derecha vive en esta carpeta: su marco se marca. */
+  /** Lo que está abierto a la derecha vive en esta carpeta. */
   viendo: boolean;
   /** Lo que está abierto a la derecha (`lider:<id>` si es un líder). */
   liderActivo: string | null;
   alAbrirLider: (id: string) => void;
   alCerrarLider: (id: string, motivo?: string) => void;
   alSettleLider: (id: string) => void;
-  /** Sólo en General: el botón Nuevo líder. */
-  alLiderNuevo: (() => void) | null;
-  liderNuevo: boolean;
   desplegada: (clave: string) => boolean;
   alAlternar: (proyecto: string) => void;
   alPlegar: (clave: string) => void;
@@ -2216,9 +2181,8 @@ type PropsCarpeta = {
 const SIN_CONVS: ConvClaudeCode[] = [];
 
 /**
- * Un proyecto. El marco va aparte y en piezas (ver `.marco` en index.css) para
- * que al colapsar acompañe con FLIP sin deformarse; el cuerpo (líderes y sus
- * workers) se desvanece entero.
+ * Un proyecto: el encabezado (fijo al scrollear, con el color de su monograma), sus líderes y workers. Lo quieto (en espera o dormido) se ve de a
+ * dos y el resto va detrás de "Ver N más", a la derecha del encabezado. Plegado, dice cuántos hilos tiene y cuándo pasó lo último.
  */
 function Carpeta({
   ref,
@@ -2228,8 +2192,6 @@ function Carpeta({
   alAbrirLider,
   alCerrarLider,
   alSettleLider,
-  alLiderNuevo,
-  liderNuevo,
   desplegada,
   alAlternar,
   alPlegar,
@@ -2245,6 +2207,18 @@ function Carpeta({
   const titulo = useTitulos()[g.proyecto];
   const otras = g.proyecto === OTRAS;
   const nombre = otras ? tr("barra.otrasCarpetas") : nombreCarpeta(g.proyecto, MODO.usuario, tr("barra.home"), titulo);
+  const claveE = claveEspera(g.proyecto);
+  const claveD = claveDormidos(g.proyecto);
+  const verQuietos = desplegada(claveE) || desplegada(claveD);
+  const { ver: quietos, resto } = quietosDe(g, verQuietos);
+  const hayMas = g.espera.length + g.dormidos.length > QUIETOS_VISTA;
+  const hilos = hilosCarpeta(g);
+  const reciente = useMemo(() => (g.reciente ? pintorCorto(g.reciente) : null), [g.reciente]);
+  const alternarQuietos = () => {
+    if (!verQuietos) return alPlegar(claveE);
+    if (desplegada(claveE)) alPlegar(claveE);
+    if (desplegada(claveD)) alPlegar(claveD);
+  };
   return (
     <motion.section
       ref={ref}
@@ -2254,39 +2228,38 @@ function Carpeta({
       exit={{ opacity: 0 }}
       transition={RESORTE}
       className="proy"
+      style={estiloProyecto(g.proyecto)}
       data-viendo={viendo ? "" : undefined}
       data-mueve={mueve && g.proyecto !== GENERAL ? g.proyecto : undefined}
       data-grupo={mueve && g.proyecto !== GENERAL ? CARPETAS : undefined}
       aria-label={nombre}
     >
-      <div className="marco marco-arriba" />
-      <motion.div layout transition={RESORTE} className="marco marco-lado" />
-      <motion.div layout transition={RESORTE} className="marco marco-lado" data-der="" />
-      <motion.div layout="position" transition={RESORTE} className="marco marco-abajo" />
-      <button type="button" className="proy-nom" data-carpeta={g.proyecto} aria-expanded={abierto} onClick={() => alAlternar(g.proyecto)}>
-        {otras ? (
-          <span className="logo" data-neutro="">
-            <Folders size={10} strokeWidth={2.2} />
+      <div className="proy-cab">
+        <button type="button" className="proy-nom" data-carpeta={g.proyecto} aria-expanded={abierto} onClick={() => alAlternar(g.proyecto)}>
+          <ChevronDown className="chevron" size={12} strokeWidth={2} />
+          <span className="n">
+            <Resalte texto={nombre} />
           </span>
-        ) : (
-          <Logo proyecto={g.proyecto} titulo={titulo} />
-        )}
-        <span className="n">{nombre}</span>
-        <span className="cuenta">{g.cuenta || null}</span>
-        <ChevronDown className="chevron" size={12} strokeWidth={2} />
-      </button>
-      {alLiderNuevo ? (
-        <button
-          type="button"
-          className="lider-nuevo"
-          aria-label={tr("lider.nuevo")}
-          data-tip={tr("lider.nuevoTip")}
-          aria-pressed={liderNuevo}
-          onClick={alLiderNuevo}
-        >
-          <Plus size={13} strokeWidth={2} />
+          {!abierto && hilos > 0 ? (
+            <span className="cuenta">
+              {tr(hilos === 1 ? "barra.nHilos1" : "barra.nHilosN", { n: hilos })}
+              {reciente ? (
+                <>
+                  {", "}
+                  <Reloj pintor={reciente} />
+                </>
+              ) : null}
+            </span>
+          ) : null}
         </button>
-      ) : null}
+        {!abierto ? null : resto > 0 || (verQuietos && hayMas) ? (
+          <button type="button" className="proy-mas" aria-expanded={verQuietos} onClick={alternarQuietos}>
+            {verQuietos ? tr("barra.verMenos") : tr("barra.verMas", { n: resto })}
+          </button>
+        ) : hilos > 0 ? (
+          <span className="cuenta">{hilos}</span>
+        ) : null}
+      </div>
       <AnimatePresence mode="popLayout" initial={false}>
         {abierto ? (
           <motion.div
@@ -2298,11 +2271,7 @@ function Carpeta({
             transition={{ duration: 0.12 }}
           >
             <AnimatePresence mode="popLayout" initial={false}>
-              {[
-                ...g.ramas.map((r) => [r, "lider"] as const),
-                ...(g.espera.length && desplegada(claveEspera(g.proyecto)) ? g.espera.map((r) => [r, "espera"] as const) : []),
-                ...(g.dormidos.length && desplegada(claveDormidos(g.proyecto)) ? g.dormidos.map((r) => [r, "dormidos"] as const) : []),
-              ].map(([r, tipo]) => (
+              {[...g.ramas.map((r) => ({ r, tipo: "lider" as const })), ...quietos].map(({ r, tipo }) => (
                 <Arbol
                   key={r.clave}
                   r={r}
@@ -2318,12 +2287,6 @@ function Carpeta({
                   soloLideres={soloLideres} resueltos={resueltos}
                 />
               ))}
-              {g.espera.length ? (
-                <Espera key="espera" n={g.espera.length} abierta={desplegada(claveEspera(g.proyecto))} alPlegar={() => alPlegar(claveEspera(g.proyecto))} />
-              ) : null}
-              {g.dormidos.length ? (
-                <Dormidos key="dormidos" n={g.dormidos.length} abierta={desplegada(claveDormidos(g.proyecto))} alPlegar={() => alPlegar(claveDormidos(g.proyecto))} />
-              ) : null}
               {claude.length ? (
                 <ClaudeCode
                   key="claude-code"
@@ -2340,30 +2303,6 @@ function Carpeta({
         ) : null}
       </AnimatePresence>
     </motion.section>
-  );
-}
-
-/** El pliegue de los líderes ociosos de una carpeta, al final: "N líderes en espera". */
-function Espera({ ref, n, abierta, alPlegar }: { ref?: Ref<HTMLDivElement>; n: number; abierta: boolean; alPlegar: () => void }) {
-  return (
-    <motion.div ref={ref} layout="position" transition={RESORTE} className="espera">
-      <button type="button" className="mini-pliegue" aria-expanded={abierta} onClick={alPlegar}>
-        {abierta ? tr("barra.ocultarEspera") : tr(n === 1 ? "barra.espera1" : "barra.esperaN", { n })}
-        <ChevronDown className="chevron" size={11} strokeWidth={2} />
-      </button>
-    </motion.div>
-  );
-}
-
-/** El pliegue de los líderes dormidos (sin proceso y de más de un día), al final de la carpeta: "N dormidos". */
-function Dormidos({ ref, n, abierta, alPlegar }: { ref?: Ref<HTMLDivElement>; n: number; abierta: boolean; alPlegar: () => void }) {
-  return (
-    <motion.div ref={ref} layout="position" transition={RESORTE} className="espera" data-dormidos="">
-      <button type="button" className="mini-pliegue" aria-expanded={abierta} data-tip={tr("barra.dormidosTip")} onClick={alPlegar}>
-        {abierta ? tr("barra.ocultarDormidos") : tr(n === 1 ? "barra.dormidos1" : "barra.dormidosN", { n })}
-        <ChevronDown className="chevron" size={11} strokeWidth={2} />
-      </button>
-    </motion.div>
   );
 }
 
@@ -2393,8 +2332,6 @@ function SinLider({ muertos, idos }: { muertos: string[]; idos: string[] }) {
 type PropsArbol = {
   ref?: Ref<HTMLDivElement>;
   r: Rama;
-  /** En "Activas": el nombre del proyecto del líder, como prefijo de su fila. */
-  proyecto?: string;
   /** Entre quiénes se mueve al arrastrarlo (`arrastre.ts`); `null`, no se arrastra. */
   grupo: string | null;
   activo: boolean;
@@ -2419,10 +2356,11 @@ type PropsArbol = {
  * líderes", lo vivo de un líder tampoco tiene fila: va resumido en la suya, y el
  * "+N" lo despliega.
  */
-function Arbol({ ref, r, grupo, proyecto, activo, alAbrirLider, alCerrarLider, alSettleLider, plegada, alPlegar, fila, virtual, soloLideres, resueltos }: PropsArbol) {
+function Arbol({ ref, r, grupo, activo, alAbrirLider, alCerrarLider, alSettleLider, plegada, alPlegar, fila, virtual, soloLideres, resueltos }: PropsArbol) {
   const n = r.viejas.length;
   const resumida = soloLideres && r.tipo === "lider" && plegada;
   const res = useMemo(() => (resumida ? resumen(r.vivas) : null), [resumida, r.vivas]);
+  const vivos = useMemo(() => r.vivas.filter((it) => workerVivo({ estado: it.estado, en_cola: it.h.en_cola })).length, [r.vivas]);
   // El pliegue al final: de un líder sólo en la vista de todo (en "sólo líderes" está el "+N" de su fila).
   const pliegue = n > 0 && (r.tipo !== "lider" || !soloLideres);
   const lider = r.tipo === "lider";
@@ -2444,10 +2382,11 @@ function Arbol({ ref, r, grupo, proyecto, activo, alAbrirLider, alCerrarLider, a
       {r.lider ? (
         <FilaLider
           l={r.lider}
-          proyecto={proyecto}
           activa={activo}
           settle={settleDe(r)}
-          atencion={atencionRama(r, resueltos)}
+          // Con los workers a la vista cada uno dice lo suyo y el líder queda calmo; resumidos, él avisa por ellos.
+          atencion={resumida ? atencionRama(r, resueltos) : liderEspera(r.lider) ? "decision" : null}
+          vivos={vivos}
           alAbrir={alAbrirLider}
           alCerrar={alCerrarLider}
           alSettle={alSettleLider}
@@ -2507,26 +2446,25 @@ function Filas({ items, virtual, fila }: { items: Item[]; virtual: boolean; fila
 }
 
 /**
- * Arriba de la lista, al lado del título: "N falló" (coral) y "N esperan" (ámbar), sólo si hay alguno. Cada uno es un botón que lleva al
- * primero. Con ícono y palabra: el color no es lo único que lo dice.
+ * Arriba de la lista: "N falló" (coral) y "N esperan" (ámbar), sólo si hay alguno. Cada uno filtra la lista y abre el primero; otro clic quita el
+ * filtro. Con ícono y palabra: el color no es lo único que lo dice.
  */
-function Pendientes({ p, alIr }: { p: ReturnType<typeof pendientes>; alIr: (ds: Destino[]) => void }) {
+function Pendientes({ p, ver, alVer }: { p: ReturnType<typeof pendientes>; ver: Atencion | null; alVer: (at: Atencion, ds: Destino[]) => void }) {
   useIdioma();
   const f = p.fallos.length;
   const e = p.esperan.length;
   if (f + e === 0) return null;
   return (
     <div className="pend" role="group" aria-label={tr("pend.aria")}>
-      <span className="pend-t">{tr("pend.titulo")}</span>
       {f > 0 ? (
-        <button type="button" className="chip-at" data-at="fallo" data-pend="fallo" data-tip={tr("pend.falloTip")} onClick={() => alIr(p.fallos)}>
-          <X size={10} strokeWidth={3} aria-hidden="true" />
+        <button type="button" className="chip-at pil" data-at="fallo" data-pend="fallo" aria-pressed={ver === "fallo"} data-tip={tr("pend.filtroFallo")} onClick={() => alVer("fallo", p.fallos)}>
+          <X size={11} strokeWidth={3} aria-hidden="true" />
           {tr(f === 1 ? "pend.fallo1" : "pend.falloN", { n: f })}
         </button>
       ) : null}
       {e > 0 ? (
-        <button type="button" className="chip-at" data-at="decision" data-pend="esperan" data-tip={tr("pend.esperanTip")} onClick={() => alIr(p.esperan)}>
-          <CircleQuestionMark size={10} strokeWidth={3} aria-hidden="true" />
+        <button type="button" className="chip-at pil" data-at="decision" data-pend="esperan" aria-pressed={ver === "decision"} data-tip={tr("pend.filtroEspera")} onClick={() => alVer("decision", p.esperan)}>
+          <CircleQuestionMark size={11} strokeWidth={3} aria-hidden="true" />
           {tr(e === 1 ? "pend.esperan1" : "pend.esperanN", { n: e })}
         </button>
       ) : null}
@@ -2534,20 +2472,17 @@ function Pendientes({ p, alIr }: { p: ReturnType<typeof pendientes>; alIr: (ds: 
   );
 }
 
-type PropsBotonPie = { icono: LucideIcon; etq: string; ver?: boolean; activo: boolean; alClic: () => void; n?: number };
+type PropsBotonPie = { icono: LucideIcon; etq: string; activo: boolean; alClic: () => void; n?: number };
 
-function BotonPie({ icono: I, etq, ver, activo, alClic, n = 0 }: PropsBotonPie) {
+function BotonPie({ icono: I, etq, activo, alClic, n = 0 }: PropsBotonPie) {
   return (
-    <button type="button" aria-label={n > 0 ? `${etq}: ${tr("pd.pieEsperan", { n })}` : etq} aria-pressed={activo} data-ver={ver ? "" : undefined} onClick={alClic}>
+    <button type="button" aria-label={n > 0 ? `${etq}: ${tr("pd.pieEsperan", { n })}` : etq} data-tip={etq} aria-pressed={activo} onClick={alClic}>
       <I size={16} strokeWidth={1.8} />
       {n > 0 ? (
         <span className="pie-n" aria-hidden="true">
           {n > 99 ? "99+" : n}
         </span>
       ) : null}
-      <span className="etq" aria-hidden="true">
-        {etq}
-      </span>
     </button>
   );
 }

@@ -1,4 +1,4 @@
-// La nota de una tarjeta de cupo (barra, src/barra/Cabecera.tsx), sin React: cuándo vuelve su ventana. Si la fuente no trae la hora,
+// La nota de una tarjeta de cupo (barra, src/barra/CuposRiel.tsx), sin React: cuándo vuelve su ventana. Si la fuente no trae la hora,
 // la nota dice el nombre de la ventana traducido (la tarjeta chica; la grande ya lo lleva en el título) o "sin hora de vuelta".
 // Nunca queda vacía. Puro: lo prueba `tests/cupos-nota.test.ts`.
 import { t } from "../i18n/index.ts";

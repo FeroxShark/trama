@@ -139,7 +139,7 @@ test("el registro: ids únicos, versiones coherentes y cada paso con su texto en
 });
 
 test("las anclas data-guia del registro existen en el código", () => {
-  const src = ["src/barra/Barra.tsx", "src/barra/Cabecera.tsx"].map((f) => readFileSync(path.join(import.meta.dirname, "..", f), "utf8")).join("\n");
+  const src = ["src/barra/Barra.tsx", "src/barra/Riel.tsx", "src/barra/CuposRiel.tsx"].map((f) => readFileSync(path.join(import.meta.dirname, "..", f), "utf8")).join("\n");
   const usadas = reg.GUIAS.flatMap((g) => g.pasos.map((p) => /^\[data-guia="([\w-]+)"\]$/.exec(p.ancla)?.[1])).filter(Boolean);
   assert.ok(usadas.length >= 4);
   for (const a of usadas) assert.match(src, new RegExp(`data-guia="${a}"`), a);
