@@ -135,12 +135,26 @@
 .wk-fin {
   margin-bottom: var(--esp-4);
 }
-.wk-fila {
+/* Rediseño 0.4 (vidrio quieto v2): lo que corre o terminó es una tarjeta de vidrio calma, a la altura de la tarjeta de actividad del hilo.
+   La que falla o pide una decisión lleva su propio tinte (atencion.css). */
+.wk-fin:not([data-atencion]) {
+  padding: var(--esp-4) var(--esp-5);
+  border-radius: var(--r-lg);
+  background: var(--capa-card);
+  box-shadow: var(--vidrio-borde);
+}
+/* Con `.wk-fin`/`.wk-paneles` delante: Ajustes (paneles.css) usa los mismos nombres `.wk-fila` y `.wk-lista` y le metía sangría y columnas a esta vista. */
+.wk-fin .wk-fila {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: var(--esp-4);
   margin-bottom: var(--esp-3);
+  padding: 0;
+}
+.wk-paneles .wk-lista {
+  display: block;
+  margin: 0;
 }
 .wk-txt {
   max-width: 46rem;
@@ -153,6 +167,7 @@
   text-wrap: pretty;
 }
 .wk-txt.espera {
+  padding: 0; /* `.espera` (index.css) es otra cosa y le pone sangría */
   color: var(--apagado);
   font-weight: 400;
 }
@@ -219,9 +234,9 @@
 /* ---- El mapa: una barra fina; el color es el tipo, el nombre sale al pasar el mouse ---- */
 .wk-mapa {
   display: flex;
-  height: 0.5rem;
-  gap: var(--esp-1);
-  margin-bottom: var(--esp-4);
+  height: 0.375rem;
+  gap: var(--esp-0-5);
+  margin: var(--esp-1) var(--esp-1) var(--esp-4);
 }
 .wk-seg {
   position: relative;
@@ -230,7 +245,7 @@
   padding: 0;
   border: 0;
   border-radius: var(--r-cap);
-  background: color-mix(in srgb, var(--c) 55%, var(--sup-0));
+  background: color-mix(in srgb, var(--c) 42%, var(--sup-0));
 }
 .wk-seg:hover {
   background: var(--c);
@@ -245,7 +260,7 @@
   background: color-mix(in srgb, var(--menos) 70%, var(--sup-0));
 }
 .wk-seg[data-vivo] {
-  background: repeating-linear-gradient(135deg, var(--azul) 0 0.25rem, color-mix(in srgb, var(--azul) 45%, transparent) 0.25rem 0.5rem);
+  background: color-mix(in srgb, var(--azul) 70%, transparent);
 }
 .wk-seg::after {
   content: attr(data-n);
@@ -273,8 +288,9 @@
   display: grid;
   min-height: 0;
   overflow: hidden;
-  border-radius: var(--r-md);
+  border-radius: var(--r-lg);
   background: var(--capa-card);
+  box-shadow: var(--vidrio-borde);
   grid-template-columns: min(19rem, 40%) minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr);
 }
@@ -309,7 +325,7 @@
   gap: var(--esp-2-5);
   padding: 0 var(--esp-3);
   border: 0;
-  border-radius: var(--r-sm);
+  border-radius: var(--r-md);
   background: transparent;
   color: var(--apagado);
   font-size: var(--letra-6);
@@ -566,7 +582,7 @@
     flex: none;
     padding: var(--esp-4) var(--esp-3) var(--esp-8);
   }
-  .wk-fila {
+  .wk-fin .wk-fila {
     flex-direction: column;
   }
   .wk-txt {
