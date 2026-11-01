@@ -1,5 +1,9 @@
 # Cambios
 
+## 0.2.41
+
+- MCP de Trama: líderes y workers de cualquier motor pueden lanzar workers, ver su estado, buscar en los hilos y mandarle un mensaje a otro líder. Se registra solo en cada motor.
+
 ## 0.2.40
 
 - Checkpoints por turno: debajo de cada turno del líder que tocó archivos, el diff y «Volver a antes de este turno» con confirmación.
