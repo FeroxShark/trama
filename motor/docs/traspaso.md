@@ -70,6 +70,17 @@ historia (force push); se puede subir directo y mergear sin esperar el CI.
   para lo que no porta y entonces sigue el bash (con `TRAMA_PA=bash` exportado para los hijos). El arnés de paridad fija esas
   variables en el lado A (el original), así que compara bash/python contra TS de verdad.
 
+## Hecho: control de pantalla para workers de frontend (#1869)
+
+- **`pantalla`** (`motor/bin/pantalla` → `app/electron/cli/pantalla.ts`; lado de la ventana en `app/electron/pantalla.ts`; test `tests/pantalla.test.ts`).
+  `pantalla abrir [estado]` lanza Electron offscreen con `HILOS_PANTALLA=<carpeta>` (como `scripts/captura.sh`: HOME/XDG/perfil temporales, fixtures,
+  `electron/aislar.ts` vigilando) pero sin cerrarse; publica `sesion.json` (puerto en 127.0.0.1 + token, 0600) y obedece `captura`, `clic`, `escribir`,
+  `tecla`, `rueda`, `donde`, `leer`, `js`, `cerrar` por HTTP. La entrada va por DevTools (`webContents.debugger`, `Input.dispatch*` + foco emulado), porque
+  `sendInputEvent` no llegaba a la página en offscreen. La app se pone interactiva con `?interactivo=1` (`MODO.interactivo`): las capturas comunes siguen con
+  `pointer-events: none`. Una sesión por carpeta de trabajo (`--sesion`), se cierra sola a los 10 min sin pedidos (`HILOS_PANTALLA_MS`). Cómo lo usa un
+  worker: `AGENTS.md`. Windows: el `.cmd` sale de `HERRAMIENTAS` en `windows/src/payload-nativo.js`; **sin probar en Windows**, y el payload instalado no lleva
+  `node_modules/electron`, así que ahí sólo anda contra un checkout con `npm install`.
+
 ## Hecho (partes 1 y 2): seguir con otro modelo (#1791)
 
 - **Resumen de traspaso:** `app/electron/resumen-traspaso.ts` (`resumenTraspaso(lineas, {tope, modeloAnterior, motivo, pedido})`, pura; `resumenDeTranscript(ruta)` lo lee con el

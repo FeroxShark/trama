@@ -28,6 +28,7 @@ const PARIDAD = [
   [/^motor\/bin\/trama-estado$/, ["trama-estado"]],
   [/^motor\/bin\/workers$/, ["workers"]],
   [/^motor\/bin\/proyecto-ruta$/, ["proyecto-ruta"]],
+  [/^motor\/bin\/pantalla$/, []], // sin original en bash que comparar: es sólo el lanzador de cli/pantalla.ts
   [/^motor\/hooks\/latido\.(sh|mjs)$/, ["latido"]],
   [/^motor\/hooks\/destructive-guard\.(sh|mjs)$/, ["destructive-guard"]],
   [/^motor\/hooks\/statusline-espejo\.(sh|mjs)$/, ["statusline-espejo"]],
@@ -38,6 +39,7 @@ const PARIDAD = [
   [/^app\/electron\/cli\/tablero(-args|-ayuda)?\.ts$/, ["tablero"]],
   [/^app\/electron\/cli\/cuentas(-ayuda)?\.ts$/, ["cuentas"]],
   [/^app\/electron\/cli\/trama-estado\.ts$/, ["trama-estado"]],
+  [/^app\/electron\/cli\/pantalla\.ts$/, []],
   [/^app\/electron\/cli\/workers(-formato)?\.ts$/, ["workers"]],
   [/^app\/electron\/cli\/proyecto-ruta\.ts$/, ["proyecto-ruta"]],
   [/^app\/electron\/cli\/hooks\.ts$/, ["latido", "destructive-guard", "statusline-espejo", "agy-pa"]],
