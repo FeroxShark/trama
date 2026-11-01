@@ -547,13 +547,14 @@ export function Barra() {
     if (!congelada) ordenProyectos.current = ordenAtencion(a.carpetas, resueltos);
     return { ...a, carpetas: segunLista(a.carpetas, ordenProyectos.current) };
   }, [arbolBruto, vista, resueltos, porPrioridad, buscando, congelada]);
-  // Lo que pide atención (falló, pide decisión, un líder que espera): las píldoras de arriba de la lista.
-  const pend = useMemo(() => pendientes(arbol, resueltos), [arbol, resueltos]);
   // El riel se arma sin buscar: buscando se apagan los proyectos sin resultados, no se van.
-  const arbolSinBuscar = useMemo(
-    () => (buscando ? aRiel(armarArbol(todos, { optimista, lideres: lideresVistos, settleados, mover, ocultos, titulos, caidos, orden: nombres.orden, prioridad, recientes, sinActivas: true, ahora: Math.floor(Date.now() / 1000) }), resueltos) : arbol),
-    [buscando, arbol, todos, optimista, lideresVistos, settleados, mover, ocultos, titulos, caidos, nombres.orden, prioridad, recientes, resueltos],
-  );
+  const arbolSinBuscar = useMemo(() => {
+    if (!buscando) return arbol;
+    const a = armarArbol(todos, { optimista, lideres: lideresVistos, settleados, mover, ocultos, titulos, caidos, orden: nombres.orden, prioridad, recientes, sinActivas: true, ahora: Math.floor(Date.now() / 1000) });
+    return aRiel(vista === "lideres" ? a : aVistaTodo(a), resueltos);
+  }, [buscando, arbol, vista, todos, optimista, lideresVistos, settleados, mover, ocultos, titulos, caidos, nombres.orden, prioridad, recientes, resueltos]);
+  // Lo que pide atención (falló, pide decisión, un líder que espera): las píldoras de arriba de la lista. Buscando no cambian: siguen diciendo lo que hay.
+  const pend = useMemo(() => pendientes(arbolSinBuscar, resueltos), [arbolSinBuscar, resueltos]);
   // Un filtro por algo que ya no existe no filtra (se integró el último, ya no falla nada).
   const verVigente: Atencion | null = (filtroVer === "fallo" && pend.fallos.length > 0) || (filtroVer === "decision" && pend.esperan.length > 0) ? filtroVer : null;
   // Las de Claude Code, cada una en su carpeta, sin las que ya son líderes de la barra; y las carpetas con conversaciones que todavía no tienen sección.
@@ -1905,7 +1906,7 @@ export function Barra() {
                   data-tip={tr("orden.menu")}
                   onClick={(e) => {
                     const c = e.currentTarget.getBoundingClientRect();
-                    setMenuOrden({ x: c.right, y: c.bottom + 4, origen: e.currentTarget });
+                    setMenuOrden({ x: c.left, y: c.bottom + 4, origen: e.currentTarget });
                   }}
                 >
                   {hayOrdenManual(nombres.orden) ? tr("orden.manual") : tr(modoOrden(nombres.orden) === "az" ? "orden.az" : "orden.recientes")}
@@ -1954,7 +1955,7 @@ export function Barra() {
                       virtual={virtual}
                       soloLideres={soloLideres} resueltos={resueltos}
                       mueve={!buscando && !filtroVigente && !verVigente && !MODO.captura}
-                      claude={porCarpetaCC.get(g.proyecto) ?? SIN_CONVS}
+                      claude={buscando ? SIN_CONVS : (porCarpetaCC.get(g.proyecto) ?? SIN_CONVS)}
                       alAbrirClaude={abrirClaude}
                     />
                   ))}
@@ -2078,10 +2079,13 @@ export function Barra() {
             y={menuOrden.y}
             nivel="orden"
             ancla={menuOrden.origen}
-            alCerrar={() => setMenuOrden(null)}
+            alCerrar={() => {
+              menuOrden.origen.focus();
+              setMenuOrden(null);
+            }}
             items={[
-              ...MODOS.map(([m, etq]) => ({ clave: m, texto: tr(etq), marcado: !hayOrdenManual(nombres.orden) && modoOrden(nombres.orden) === m, alElegir: () => ponerModo(m) })),
-              ...VISTAS.map(([v, etq]) => ({ clave: v, texto: tr(etq), marcado: vista === v, alElegir: () => ponerVista(v) })),
+              ...MODOS.map(([m, etq]) => ({ clave: m, fijo: true, texto: tr(etq), marcado: !hayOrdenManual(nombres.orden) && modoOrden(nombres.orden) === m, alElegir: () => { ponerModo(m); setMenuOrden(null); } })),
+              ...VISTAS.map(([v, etq]) => ({ clave: v, texto: tr(etq), marcado: vista === v, alElegir: () => { ponerVista(v); setMenuOrden(null); } })),
             ]}
           />
         ) : null}

@@ -529,7 +529,9 @@
   height: 1.75rem;
   align-items: center;
   border-radius: var(--r-xs);
-  background: var(--sup-0);
+  background: color-mix(in srgb, var(--sup-0) 42%, transparent);
+  -webkit-backdrop-filter: blur(0.875rem);
+  backdrop-filter: blur(0.875rem);
 }
 .barra-col .proy-nom {
   display: flex;
@@ -775,10 +777,6 @@
 }
 .lista .ramas > .w {
   padding: 0;
-}
-.lista .ramas > .w::before,
-.lista .ramas > .w::after {
-  content: none;
 }
 .lista .ramas .fila.wbtn {
   height: 1.625rem;

@@ -227,23 +227,6 @@ body,
   padding: var(--esp-4) var(--esp-4) var(--esp-3);
   background: transparent;
 }
-.cab {
-  display: flex;
-  align-items: center;
-  gap: var(--esp-0-5);
-  padding: 0 var(--esp-1);
-}
-/* La marca: sólo los hilos tejidos (src/barra/Marca.tsx); el nombre queda para el lector de pantalla. */
-.cab .logo {
-  width: 1.125rem;
-  height: 1.125rem;
-  flex: none;
-  margin-right: auto;
-  color: var(--txt-1);
-}
-.cab .lado {
-  margin-right: -0.25rem;
-}
 /* Con la barra abierta el botón de ocultarla vive en su encabezado. */
 .app:not([data-oculta]) .lado[data-desliza] {
   display: none;
@@ -251,328 +234,8 @@ body,
 .espera {
   padding: var(--esp-0-5) 0 var(--esp-1) var(--esp-3);
 }
-/* Los cupos de cada proveedor (rediseño 0.4): tarjetas con la cifra protagonista. Claude y toda suscripción con ventanas propias: dos
-   tarjetas grandes (5 h y semana). Una suscripción con varios grupos (Google): una tarjeta chica por grupo. Un solo grupo o los pedidos
-   que cuenta Trama (OpenCode): una cápsula ancha. Lo agotado va tintado, con ícono y "vuelve <hora>" (tokens `--cupo-agotado-*`).
-   Lo largo (ventana entera, hora exacta, de cuándo es el dato) va al tooltip, que cuelga de `.susc`. */
-.usos {
-  position: relative;
-  z-index: 1;
-  margin: 0 var(--esp-1);
-}
-.usos-l {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: var(--esp-3);
-  /* Angosta, la cifra y las rejillas se achican (container queries de abajo). */
-  container-type: inline-size;
-}
-.usos[data-espera] {
-  visibility: hidden;
-}
-.susc {
-  position: relative;
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: var(--esp-1-5);
-}
-.cq-rejilla {
-  display: grid;
-  gap: var(--esp-2);
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-.susc[data-forma="chicas"] > .cq-rejilla {
-  grid-template-columns: repeat(auto-fit, minmax(4.5rem, 1fr));
-}
-/* El renglón del proveedor sobre sus tarjetas chicas (las grandes llevan el nombre adentro). */
-.cq-cab {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  gap: var(--esp-1-5);
-  padding: 0 var(--esp-1);
-  color: var(--txt-2);
-  font-size: var(--letra-4);
-  font-weight: 500;
-}
-.cq-cab > svg {
-  width: 0.875rem;
-  height: 0.875rem;
-  flex: none;
-  overflow: visible;
-  color: var(--txt-3);
-}
-.cq-cab-n {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-/* La tarjeta. Foco visible por el anillo del acento (se navega con Tab para abrir el tooltip). */
-.cq {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  padding: var(--esp-2-5) var(--esp-3) var(--esp-3);
-  border-radius: var(--r-md);
-  background: var(--capa-card);
-  box-shadow: inset 0 0 0 1px var(--capa-div);
-  cursor: default;
-  outline: none;
-}
-.cq:focus-visible {
-  box-shadow: inset 0 0 0 1.5px var(--acento);
-}
-.cq-nom {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  gap: var(--esp-1-5);
-  color: var(--txt-3);
-  font-size: var(--letra-3);
-  font-weight: 500;
-  line-height: 1.3;
-}
-.cq-nom > svg:not(.cq-ico) {
-  width: 0.875rem;
-  height: 0.875rem;
-  flex: none;
-  overflow: visible;
-  color: var(--txt-2);
-}
-.cq-nom-t {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.cq-ico {
-  flex: none;
-}
-.cq-nom > .cq-ico {
-  margin-left: auto;
-}
-/* La cifra: lo primero que se lee. El «%» es más chico y apagado; los textos (sin cupo, sin dato, 37 ped.) van más chicos que un número. */
-.cq-h {
-  margin-top: var(--esp-0-5);
-  color: var(--txt-1);
-  font-size: var(--cifra-1);
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  letter-spacing: -0.035em;
-  line-height: 1.12;
-  white-space: nowrap;
-}
-.cq-n::after {
-  content: "%";
-  margin-left: 1px;
-  color: var(--txt-3);
-  font-size: 0.44em;
-  font-variant-numeric: normal;
-  font-weight: 500;
-  letter-spacing: 0;
-}
-.cq-h[data-viejo] {
-  color: var(--txt-3);
-}
-.cq-txt {
-  overflow: hidden;
-  font-size: var(--letra-8);
-  font-weight: 650;
-  letter-spacing: -0.015em;
-  line-height: 1.65;
-  text-overflow: ellipsis;
-}
-.cq-txt[data-apagado] {
-  color: var(--txt-3);
-}
-.cq-pista {
-  height: 0.3125rem;
-  margin: var(--esp-1-5) 0;
-  overflow: hidden;
-  border-radius: var(--radio-pastilla);
-  background: var(--capa-div);
-}
-.cq-pista > i {
-  display: block;
-  height: 100%;
-  border-radius: inherit;
-  background: var(--acento);
-  transform-origin: left;
-}
-/* Una ventana que no rige o sin límite: la barra va rayada y vacía. */
-.cq-pista[data-hueco] {
-  background: repeating-linear-gradient(135deg, var(--capa-track) 0 0.25rem, var(--capa-div) 0.25rem 0.5rem);
-}
-.cq-nota {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  gap: var(--esp-1);
-  color: var(--txt-3);
-  font-size: var(--letra-3);
-  line-height: 1.25;
-  text-wrap: balance;
-}
-/* Ámbar desde 70 %, rojo desde 90 % (`nivel`, src/hilo/contexto-logica.ts). Además, desde `USO_BAJO`, el ícono y «queda poco cupo». */
-.cq[data-nivel="ambar"] .cq-h,
-.cq[data-nivel="ambar"] .cq-nota,
-.cq[data-nivel="rojo"] .cq-nota,
-.cq-seg[data-nivel="ambar"] .cq-seg-v,
-.cq-seg[data-nivel="ambar"] .cq-ico {
-  color: var(--cupo-poco-texto);
-}
-.cq[data-nivel="rojo"] .cq-h,
-.cq-seg[data-nivel="rojo"] .cq-seg-v,
-.cq-seg[data-nivel="rojo"] .cq-ico {
-  color: var(--fallo-texto);
-}
-.cq[data-nivel="ambar"] .cq-pista > i {
-  background: var(--aviso);
-}
-.cq[data-nivel="rojo"] .cq-pista > i {
-  background: var(--critico);
-}
-.cq[data-nivel] .cq-n::after {
-  color: inherit;
-  opacity: 0.7;
-}
-/* Sin cupo: tinte rojo suave, borde, ícono, la palabra y cuándo vuelve. */
-.cq[data-agotado] {
-  background: var(--cupo-agotado-fondo);
-  box-shadow: inset 0 0 0 1px var(--cupo-agotado-borde);
-}
-.cq[data-agotado]:focus-visible {
-  box-shadow: inset 0 0 0 1.5px var(--fallo-luz);
-}
-.cq[data-agotado] .cq-nom,
-.cq[data-agotado] .cq-h,
-.cq[data-agotado] .cq-nota,
-.cq-seg[data-agotado] {
-  color: var(--cupo-agotado-texto);
-}
-.cq[data-agotado] .cq-pista {
-  background: var(--cupo-agotado-borde);
-}
-.cq[data-agotado] .cq-pista > i {
-  background: var(--critico);
-}
-/* La chica: tres entran en la barra (dos, en la angosta). */
-.cq[data-chica] {
-  padding: var(--esp-2) var(--esp-2-5) var(--esp-2-5);
-}
-.cq[data-chica] .cq-h {
-  font-size: var(--cifra-3);
-  letter-spacing: -0.03em;
-}
-.cq[data-chica] .cq-txt {
-  font-size: var(--letra-4);
-  line-height: 1.5;
-  text-wrap: balance;
-  white-space: normal;
-}
-/* El nombre del grupo pasa a dos líneas antes de cortarse, y la barra y la nota quedan al pie: tres tarjetas, tres bases iguales. */
-.cq[data-chica] .cq-nom-t {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  white-space: normal;
-}
-.cq[data-chica] .cq-pista {
-  height: 0.25rem;
-  margin: auto 0 var(--esp-1);
-  padding-top: 0;
-}
-.cq[data-chica] .cq-h {
-  margin-bottom: var(--esp-1);
-}
-.cq[data-chica] .cq-nota {
-  font-size: var(--letra-2);
-}
-/* La cápsula: logo y nombre a la izquierda, cada ventana en línea a la derecha; si no entra, las ventanas pasan abajo. */
-.cq-capsula {
-  flex-flow: row wrap;
-  align-items: center;
-  gap: var(--esp-1) var(--esp-3);
-  min-height: 2.125rem;
-  padding: var(--esp-1-5) var(--esp-3-5);
-  border-radius: var(--radio-pastilla);
-}
-.cq-capsula .cq-nom {
-  flex: 0 1 auto;
-  color: var(--txt-2);
-  font-size: var(--letra-4);
-  font-weight: 600;
-}
-.cq-segs {
-  display: flex;
-  min-width: 0;
-  flex: 1 1 auto;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: flex-end;
-  gap: var(--esp-0-5) var(--esp-3);
-  font-size: var(--letra-3);
-}
-.cq-seg {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--esp-1);
-  white-space: nowrap;
-}
-.cq-seg-n {
-  color: var(--txt-3);
-}
-.cq-seg-v {
-  color: var(--txt-1);
-  font-variant-numeric: tabular-nums;
-  font-weight: 600;
-}
-.cq-seg-v[data-viejo],
-.cq-seg-v[data-apagado] {
-  color: var(--txt-3);
-}
-.cq-seg[data-agotado] .cq-seg-v {
-  color: var(--cupo-agotado-texto);
-}
-/* Barra angosta: la cifra grande baja un escalón y las chicas pasan a dos columnas. */
-@container (max-width: 17rem) {
-  .cq-h {
-    font-size: var(--cifra-2);
-  }
-  .cq-txt {
-    font-size: var(--letra-7);
-  }
-  .cq[data-chica] .cq-h {
-    font-size: var(--cifra-4);
-  }
-  .cq[data-chica] .cq-txt {
-    font-size: var(--letra-4);
-  }
-}
-@container (max-width: 15rem) {
-  .cq {
-    padding: var(--esp-2) var(--esp-2-5) var(--esp-2-5);
-  }
-  .susc[data-forma="chicas"] > .cq-rejilla {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-  .cq-capsula {
-    border-radius: var(--r-md);
-  }
-  /* Grandes: el nombre y la ventana pasan a dos líneas antes de cortarse con «…» (el tooltip dice entero). */
-  .susc:not([data-forma="chicas"]) .cq-nom-t {
-    white-space: normal;
-    line-height: 1.2;
-  }
-  .cq-segs {
-    justify-content: flex-start;
-  }
-}
-/* Una cuenta agregada (la 2.ª de Google, las de Claude…): cuelga de su proveedor, con el nombre de la cuenta en sus tarjetas. */
 /* El control de una cuenta («En uso» / «Usar primero»): una línea a todo lo ancho debajo de sus tarjetas. */
-.susc > .g-acc {
+.g-acc {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -587,7 +250,7 @@ body,
   color: var(--texto-1);
   font-weight: 600;
 }
-.susc > .g-acc > .g-acc-btn {
+.g-acc > .g-acc-btn {
   height: 1.5rem;
   padding: 0 var(--esp-2);
   font-size: var(--letra-3);
@@ -596,7 +259,7 @@ body,
   color: var(--critico);
 }
 @media (pointer: coarse) {
-  .susc > .g-acc > .g-acc-btn {
+  .g-acc > .g-acc-btn {
     height: 2.75rem;
   }
 }
@@ -629,39 +292,6 @@ body,
   to {
     transform: rotate(360deg);
   }
-}
-/* El tooltip cuelga del bloque de la suscripción (`.susc`, no de su tarjeta): sale siempre debajo, a todo lo ancho que necesita. */
-.tip {
-  position: absolute;
-  top: calc(100% + 0.375rem);
-  left: 0;
-  z-index: 5;
-  display: flex;
-  width: max-content;
-  max-width: 100%;
-  flex-direction: column;
-  gap: var(--esp-0-5);
-  padding: var(--esp-1) var(--esp-2);
-  border: 1px solid var(--borde-3);
-  border-radius: var(--radio-2);
-  background: var(--sup-2);
-  color: var(--txt-1);
-  font-size: var(--letra-4);
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.15s;
-}
-.tip-t {
-  font-weight: 500;
-}
-.tip-l {
-  color: var(--txt-3);
-}
-.tip-l::first-letter {
-  text-transform: uppercase;
-}
-.cq:is(:hover, :focus-visible, [data-ver]) .tip {
-  opacity: 1;
 }
 .uso-error {
   overflow: hidden;
@@ -740,106 +370,6 @@ kbd {
 .nueva:hover {
   background: var(--capa-track);
 }
-/* Sólo líderes | todo (B15): dos íconos en una cápsula; el pulgar marca la vista y se desliza. */
-.vista {
-  position: relative;
-  display: flex;
-  height: var(--alto-boton);
-  flex: none;
-  padding: var(--esp-1);
-  border: 0;
-  border-radius: var(--r-cap);
-  background: var(--capa-tile);
-}
-.vista::before {
-  content: "";
-  position: absolute;
-  top: 0.25rem;
-  bottom: 0.25rem;
-  left: 0.25rem;
-  width: 1.625rem;
-  border-radius: var(--r-cap);
-  background: var(--capa-track);
-  transition: transform 0.16s cubic-bezier(0.2, 0, 0, 1);
-}
-.vista[data-vista="todo"]::before {
-  transform: translateX(1.625rem);
-}
-.vista button {
-  position: relative;
-  display: grid;
-  width: 1.625rem;
-  place-items: center;
-  border: 0;
-  border-radius: var(--r-cap);
-  background: transparent;
-  color: var(--apagado);
-}
-.vista button:hover {
-  color: var(--txt-1);
-}
-.vista button[aria-pressed="true"] {
-  color: var(--texto-1);
-}
-/* Recientes | A-Z: la misma cápsula con pulgar que `.vista`, pero con texto y en un renglón propio, chico. Con algo
-   acomodado a mano (`data-modo="manual"`) el pulgar se apaga: ningún modo rige hasta que se elige uno. */
-.orden-barra {
-  position: relative;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  align-self: flex-start;
-  padding: var(--esp-0-5);
-  border: 0;
-  border-radius: var(--r-cap);
-  background: var(--capa-tile);
-}
-.orden-barra::before {
-  content: "";
-  position: absolute;
-  top: var(--esp-0-5);
-  bottom: var(--esp-0-5);
-  left: var(--esp-0-5);
-  width: calc(50% - var(--esp-0-5));
-  border-radius: var(--r-cap);
-  background: var(--capa-track);
-  transition:
-    transform 0.16s cubic-bezier(0.2, 0, 0, 1),
-    opacity 0.16s cubic-bezier(0.2, 0, 0, 1);
-}
-.orden-barra[data-modo="az"]::before {
-  transform: translateX(100%);
-}
-.orden-barra[data-modo="manual"]::before {
-  opacity: 0;
-}
-.orden-barra button {
-  position: relative;
-  min-height: 1.5rem;
-  padding: 0 var(--esp-3);
-  border: 0;
-  border-radius: var(--r-cap);
-  background: transparent;
-  color: var(--apagado);
-  font: inherit;
-  font-size: var(--letra-3);
-  white-space: nowrap;
-}
-.orden-barra button::after {
-  content: "";
-  position: absolute;
-  inset: -0.125rem 0;
-}
-.orden-barra button:hover {
-  color: var(--txt-1);
-}
-.orden-barra button[aria-pressed="true"] {
-  color: var(--texto-1);
-}
-@media (prefers-reduced-motion: reduce) {
-  .orden-barra::before {
-    transition: none;
-  }
-}
 
 /* --- Lista ---------------------------------------------------------------- */
 .lista {
@@ -904,52 +434,6 @@ kbd {
   flex: none;
   padding: var(--esp-2);
 }
-.marco {
-  position: absolute;
-  visibility: hidden;
-  pointer-events: none;
-}
-/* En tres piezas para que el FLIP no deforme nada: las tapas (con las
-   esquinas) sólo se trasladan; lo único que se estira son los lados, que son
-   una línea lisa de 1px. */
-.marco-arriba,
-.marco-abajo {
-  inset-inline: 0;
-  height: 0.625rem;
-  border: 1px solid var(--borde-1);
-}
-.marco-arriba {
-  top: 0;
-  border-bottom: 0;
-  border-radius: var(--radio-4) var(--radio-4) 0 0;
-}
-.marco-abajo {
-  bottom: 0;
-  border-top: 0;
-  border-radius: 0 0 var(--radio-4) var(--radio-4);
-}
-.marco-lado {
-  top: 0.625rem;
-  bottom: 0.625rem;
-  left: 0;
-  width: 1px;
-  background: var(--sup-2);
-}
-.marco-lado[data-der] {
-  right: 0;
-  left: auto;
-}
-/* La carpeta de lo que se está viendo: el marco y su nombre más claros, también plegada. */
-.proy[data-viendo] > .marco-arriba,
-.proy[data-viendo] > .marco-abajo {
-  border-color: var(--borde-5);
-}
-.proy[data-viendo] > .marco-lado {
-  background: var(--borde-5);
-}
-.proy[data-viendo] > .proy-nom {
-  color: var(--texto-1);
-}
 .proy-nom {
   position: relative;
   display: flex;
@@ -1003,11 +487,6 @@ img.logo {
   background: var(--sup-3);
   color: var(--txt-2);
 }
-/* La sección "Activas": su cabecera lleva el rayo del caché caliente, con el texto al lado (el color no es la única señal). */
-.activas-icono {
-  flex: none;
-  color: var(--texto-1);
-}
 .cuenta {
   font-family: var(--font-mono);
   font-size: var(--letra-3);
@@ -1026,28 +505,6 @@ img.logo {
 .proy-cuerpo {
   position: relative;
   padding-top: var(--esp-1);
-}
-/* Nuevo líder: en la cabecera de General, a la derecha (el chevron le deja lugar). */
-.proy:has(> .lider-nuevo) > .proy-nom {
-  padding-right: 2.125rem;
-}
-.lider-nuevo {
-  position: absolute;
-  top: 0.625rem;
-  right: 0.6875rem;
-  display: grid;
-  width: 1.375rem;
-  height: 1.375rem;
-  place-items: center;
-  border: 0;
-  border-radius: var(--radio-2);
-  background: transparent;
-  color: var(--txt-3);
-}
-.lider-nuevo:hover,
-.lider-nuevo[aria-pressed="true"] {
-  background: var(--sup-2);
-  color: var(--texto-1);
 }
 .lider {
   position: relative;
@@ -1098,14 +555,6 @@ img.logo {
   fill: color-mix(in srgb, var(--oro) 22%, transparent);
   filter: drop-shadow(0 0 0.1875rem color-mix(in srgb, var(--oro) 55%, transparent));
 }
-.fulgor {
-  position: absolute;
-  inset: -0.375rem;
-  border-radius: 50%;
-  background: radial-gradient(closest-side, color-mix(in srgb, var(--oro) 50%, transparent), color-mix(in srgb, var(--oro) 0%, transparent));
-  opacity: 0.55;
-  pointer-events: none;
-}
 /* Caché vencido: corona apagada y título atenuado. El atributo lo pone el reloj. */
 .lider:has(.cache[data-frio]) .corona:not([data-ocupado]) {
   color: var(--texto-7);
@@ -1123,27 +572,6 @@ img.logo {
   align-items: center;
   gap: var(--esp-1-5);
   font-weight: 500;
-}
-/* En "Activas" cada fila lleva su proyecto delante de la segunda línea, en una pastilla que se acorta antes que el resto. */
-.lider .con-proy {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  gap: var(--esp-1-5);
-}
-.lider .etq-proy {
-  flex: 0 0 auto;
-  min-width: 0;
-  max-width: 60%;
-  overflow: hidden;
-  padding: 0 var(--esp-1-5);
-  border-radius: var(--r-cap);
-  background: var(--capa-tile);
-  color: var(--txt-3);
-  font-size: var(--letra-3);
-  font-weight: 500;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 /* El nombre: apagado salvo en el que se está viendo (blanco y más grueso). */
 .lider .nom {
@@ -1233,11 +661,6 @@ img.logo {
   align-items: center;
   gap: var(--esp-2);
 }
-/* El robotito que dice de quién son los números: de los workers del líder, no del líder. */
-.res-w {
-  flex: none;
-  color: var(--txt-3);
-}
 .res-pt {
   position: relative;
   width: 0.4375rem;
@@ -1314,49 +737,15 @@ img.logo {
 .ramas > .w {
   padding-bottom: var(--esp-0-5);
 }
-.ramas > .w::before {
-  content: "";
-  position: absolute;
-  top: 1rem;
-  left: 0;
-  width: 0.625rem;
-  height: 1px;
-  background: var(--sup-4);
-}
-.ramas > .w::after {
-  content: "";
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: -1px;
-  border-left: 1px solid var(--borde-3);
-}
-.ramas > .w:first-child::after {
-  top: -0.125rem;
-}
-.ramas > .w:not(:has(~ .w))::after {
-  bottom: auto;
-  height: 1.0625rem;
-}
-.ramas > .w:first-child:not(:has(~ .w))::after {
-  height: 1.1875rem;
-}
-.ramas > .pliegue:first-child:not(:has(~ .w))::after {
-  height: 1rem;
-}
 /* Lo que lanzó el usuario sin líder cuelga derecho de la carpeta, sin riel. */
 .arbol[data-tipo="sueltas"] .ramas {
   padding-left: 0;
-}
-.arbol[data-tipo="sueltas"] .w::before,
-.arbol[data-tipo="sueltas"] .w::after {
-  display: none;
 }
 /* Terminada y de un líder: no compite con lo que trabaja. */
 .w[data-apagada] .l1 .t {
   color: var(--txt-3);
 }
-.w[data-apagada] .l2 > span:first-child {
+.w[data-apagada] .l2 > span:first-child:not(.chip-at) {
   color: var(--txt-3);
 }
 .w[data-apagada] .pt {
@@ -1373,12 +762,6 @@ img.logo {
   z-index: 2;
   top: 0;
   background: var(--negro);
-}
-.ramas > .pliegue::before {
-  top: 0.8125rem;
-}
-.ramas > .pliegue:not(:has(~ .w))::after {
-  height: 0.875rem;
 }
 .mini-pliegue {
   display: inline-flex;
@@ -1539,40 +922,6 @@ img.logo {
 }
 .cerradas .l1 .t {
   color: var(--txt-3);
-}
-/* A la derecha del título: el glifo del modelo y dónde corre (src/barra/ficha.ts). */
-.donde {
-  display: inline-flex;
-  flex: none;
-  align-items: center;
-  gap: var(--esp-1);
-  color: var(--txt-3);
-}
-.w[data-apagada] .donde,
-.cerradas .donde {
-  color: var(--txt-4);
-}
-/* El modelo, con su nombre corto ("Opus", "Sonnet"…), en una cápsula de la insignia del estándar. */
-.glifo {
-  display: inline-flex;
-  height: 1rem;
-  box-sizing: border-box;
-  align-items: center;
-  justify-content: center;
-  padding: 0 var(--esp-2);
-  border-radius: var(--r-cap);
-  background: var(--capa-tile);
-  color: var(--apagado);
-  font-size: var(--letra-2);
-  font-weight: 500;
-  line-height: 1;
-  white-space: nowrap;
-  user-select: none;
-}
-/* La insignia del modelo es una cápsula para todos; la familia se lee por el texto, no por la forma. */
-.glifo[data-fam="opus"],
-.glifo[data-fam="fable"] {
-  color: var(--texto);
 }
 .l2 {
   display: flex;
@@ -2351,7 +1700,6 @@ img.logo {
    el frame siguiente: barrerlas con el mouse no tiene que dejar nada animando. */
 .buscar,
 .nueva,
-.vista button,
 .pie button,
 .btn2,
 .lado {
@@ -6187,7 +5535,6 @@ summary.sis-div-t:hover,
   }
   /* No hay borde que arrastrar ni barra que ocultar, y los atajos no se anuncian donde no hay teclado. */
   .tirador,
-  .cab .lado,
   .pn-volver,
   kbd {
     display: none;
@@ -6558,10 +5905,6 @@ summary.sis-div-t:hover,
   }
 }
 @media (pointer: coarse) {
-  /* Sin hover: el toque en una celda del uso abre su tip. */
-  .cq:focus .tip {
-    opacity: 1;
-  }
   /* Para el dedo: 2.75rem (44 px). */
   .lado,
   .nueva,
@@ -6580,7 +5923,6 @@ summary.sis-div-t:hover,
   .dic-b,
   .modo,
   .buscar,
-  .vista,
   .mini,
   .proy-nom,
   .mini-pliegue,
@@ -6617,33 +5959,6 @@ summary.sis-div-t:hover,
   }
   .avs-d {
     width: 2.75rem;
-  }
-  .vista {
-    padding: var(--esp-0-5);
-  }
-  .vista::before,
-  .vista button {
-    width: 2.5rem;
-  }
-  .orden-barra button {
-    min-height: 2.25rem;
-  }
-  .vista::before {
-    top: var(--esp-0-5);
-    bottom: var(--esp-0-5);
-    left: var(--esp-0-5);
-  }
-  .vista[data-vista="todo"]::before {
-    transform: translateX(2.5rem);
-  }
-  .lider-nuevo {
-    top: 0.4375rem;
-    right: 0.4375rem;
-    width: 2.75rem;
-    height: 2.75rem;
-  }
-  .proy:has(> .lider-nuevo) > .proy-nom {
-    padding-right: 3.25rem;
   }
   .mas {
     width: 2.75rem;
@@ -6682,11 +5997,6 @@ summary.sis-div-t:hover,
   }
   .meta .ctx::after {
     inset: -0.875rem;
-  }
-  .vista button::after {
-    content: "";
-    position: absolute;
-    inset: -0.1875rem 0;
   }
   .sis-t summary,
   summary.sis-div-t {

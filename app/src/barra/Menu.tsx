@@ -91,7 +91,7 @@ export function Menu({ x, y, items, nivel, alCerrar, alVolver, ancla, buscable }
     });
     // Con el dedo el campo no se enfoca solo (levantaría el teclado).
     if (conBuscador && !matchMedia("(pointer: coarse)").matches) campo.current?.focus();
-    else el.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
+    else el.querySelector<HTMLElement>('[role^="menuitem"]')?.focus();
     // La carpeta marcada a la vista aunque la lista sea larga.
     el.querySelector<HTMLElement>('[aria-checked="true"]')?.scrollIntoView({ block: "nearest" });
     setArmado(null);
@@ -116,7 +116,7 @@ export function Menu({ x, y, items, nivel, alCerrar, alVolver, ancla, buscable }
   }, []);
 
   const tecla = (e: KeyboardEvent) => {
-    const ops = [...(caja.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [])];
+    const ops = [...(caja.current?.querySelectorAll<HTMLElement>('[role^="menuitem"]') ?? [])];
     const i = ops.indexOf(document.activeElement as HTMLElement);
     // En el buscador: ↓ baja a la lista, Enter elige la primera coincidencia, Esc borra lo escrito (y, vacío, vuelve); lo demás es escribir.
     if (e.target === campo.current) {
