@@ -2305,7 +2305,7 @@
   }
 }
 
-/* --- Ajustes > Plan y cupos (AjustesCupos.tsx): el detalle de cada suscripción, con sus ventanas y su "vuelve en" (la tela y las tarjetas: cupos-tejido.css) --- */
+/* --- Ajustes > Plan y cupos (AjustesCupos.tsx): el detalle de cada suscripción, con sus ventanas y su "vuelve en" (la tela y las tarjetas: cupos-tela.css) --- */
 .cu-sec {
   display: flex;
   flex-direction: column;
