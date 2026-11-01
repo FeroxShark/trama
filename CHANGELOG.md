@@ -1,5 +1,10 @@
 # Cambios
 
+## 0.2.39
+
+- Modo Objetivo: un worker se relanza solo hasta que pase el comando que lo verifica (`pa --objetivo --verificar`), y en Actualizar rama hay un campo opcional «Comando que verifica».
+- Los colores sueltos pasaron a tokens del tema, y el chequeo de colores corre con los tests.
+
 ## 0.2.38
 
 - Rediseño completo en vidrio: panel de contexto, cabecera del hilo y composer, vista de worker, Ajustes, Tablero, Estadísticas, Ramas, Bienvenida, popovers y menús.
