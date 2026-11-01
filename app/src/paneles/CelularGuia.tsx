@@ -10,6 +10,7 @@ import { pintorHace } from "../tiempo";
 import { Chip } from "../ui/componentes";
 import { IcCelular, IcOk } from "../ui/iconos";
 import "./celular.css";
+import "./bienvenida-vidrio.css";
 
 /** Margen blanco del QR, en módulos: la norma pide 4 y sin él varias cámaras no lo encuentran. */
 const MARGEN = 4;

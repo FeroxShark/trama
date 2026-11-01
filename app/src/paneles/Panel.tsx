@@ -15,6 +15,7 @@ import { Lado } from "../hilo/Lado";
 import "./paneles.css";
 import "./lavado.css";
 import "./ajustes-vidrio.css";
+import "./paneles-vidrio.css";
 
 export type CualPanel = "ajustes" | "ramas" | "estadisticas" | "tablero";
 

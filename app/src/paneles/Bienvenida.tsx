@@ -32,6 +32,7 @@ import {
   type SituacionLocales,
 } from "./bienvenida-pasos";
 import "./bienvenida-logica.css";
+import "./bienvenida-vidrio.css";
 
 /** Sólo la ventana de la PC abre la bienvenida sola: el celular y el navegador la ven si la piden desde Ajustes. */
 const enVentana = esVentana();

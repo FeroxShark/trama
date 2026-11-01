@@ -733,6 +733,7 @@ function FilaRama({ ref, h, estado, error, enCurso, auto, sola, salud, alArregla
       transition={RESORTE}
       className="pn-rama"
       data-salud={salud ? (rojo ? "mal" : "bien") : undefined}
+      data-atencion={t?.tipo === "fallo" || murio || rojo ? "fallo" : t?.tipo === "nec" ? "decision" : undefined}
     >
       <div className="pn-rama-txt">
         <button type="button" className="pn-tarea" data-id={h.id} data-tip={tr("ramas.abrir")} onClick={() => alAbrir(h.id)}>

@@ -1,0 +1,355 @@
+/* Rediseño 0.4, paso 4: los paneles del pie (Estadísticas, Ramas y Tablero) en el lenguaje de la maqueta vidrio-quieto-v2:
+   tarjetas de vidrio con borde de luz, cifras grandes tabulares, filas calmas y, lo que pide atención, con los tokens de
+   atención (--fallo-*, --decision-*). Va después de lavado.css y de cada hoja de su panel. Ajustes no se toca (`:not(.pn-ajustes)`).
+   Ningún estado va sólo por color: cada uno sigue con su palabra o su ícono. Todo con tokens. */
+
+/* ============================== Estadísticas y Ramas ============================== */
+.pn:not(.pn-ajustes, .pn-tablero) {
+  max-width: 60rem;
+  gap: var(--esp-4);
+  padding-top: var(--esp-6);
+}
+.pn:not(.pn-ajustes, .pn-tablero) .pn-sec {
+  border-radius: var(--r-lg);
+  box-shadow: var(--vidrio-borde);
+}
+.pn:not(.pn-ajustes, .pn-tablero) .pn-sec > .pn-h {
+  padding-top: var(--esp-4);
+  color: var(--texto);
+  font-size: var(--letra-5);
+  font-weight: 600;
+}
+.pn:not(.pn-ajustes, .pn-tablero) .pn-h-sub {
+  color: var(--inactivo);
+  font-weight: 400;
+}
+/* Los números, en la misma Inter con cifras tabulares del resto (no mono). */
+.pn:not(.pn-ajustes, .pn-tablero) :is(.pn-num, .pn-b-num, .pn-b-dia, .pn-leyenda b, .pn-semanas b, .pn-mix, .pn-costo-fila, .pn-espera) {
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
+}
+
+/* El período: una cápsula; la activa, con el relleno de acento. */
+.pn:not(.pn-ajustes, .pn-tablero) .pn-seg {
+  box-shadow: var(--vidrio-borde);
+}
+.pn:not(.pn-ajustes, .pn-tablero) .pn-seg button[aria-pressed="true"] {
+  background: var(--acento-tinte);
+  color: var(--texto);
+  font-weight: 600;
+}
+.pn:not(.pn-ajustes, .pn-tablero) .pn-periodo {
+  color: var(--apagado);
+}
+
+/* Las cifras de arriba: una tarjeta de vidrio por total, con la cifra protagonista (como los cupos de la barra). */
+.pn:not(.pn-ajustes, .pn-tablero) .pn-cifras {
+  grid-template-columns: repeat(auto-fit, minmax(9.75rem, 1fr));
+  gap: var(--esp-3);
+  padding: 0;
+  background: none;
+}
+.pn:not(.pn-ajustes, .pn-tablero) .pn-cifra {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--esp-1);
+  padding: var(--esp-3-5) var(--esp-4);
+  border-radius: var(--r-lg);
+  background: var(--capa-card);
+  box-shadow: var(--vidrio-borde);
+}
+.pn:not(.pn-ajustes, .pn-tablero) .pn-cifra .pn-h {
+  margin: 0;
+  font-size: var(--letra-4);
+  font-weight: 500;
+}
+.pn:not(.pn-ajustes, .pn-tablero) .pn-cifra b {
+  color: var(--texto);
+  font-family: var(--font-sans);
+  font-size: var(--cifra-2);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+.pn:not(.pn-ajustes, .pn-tablero) .pn-cifra-sub {
+  color: var(--apagado);
+  font-size: var(--letra-3);
+}
+
+/* Corridas por día: barras con el acento a media luz; hoy, entera y con la palabra "hoy". Una sola serie, un solo tono. */
+.pn:not(.pn-ajustes, .pn-tablero) .pn-barras {
+  margin-top: var(--esp-2);
+}
+.pn:not(.pn-ajustes, .pn-tablero) .pn-b-riel {
+  width: 0.625rem;
+  height: 5rem;
+  border-radius: var(--r-cap);
+  background: var(--capa-track);
+}
+.pn:not(.pn-ajustes, .pn-tablero) .pn-b-riel i {
+  border-radius: var(--r-cap);
+  background: color-mix(in srgb, var(--acento) 55%, transparent);
+}
+.pn:not(.pn-ajustes, .pn-tablero) .pn-b[data-hoy] .pn-b-riel i {
+  background: var(--acento);
+}
+.pn:not(.pn-ajustes, .pn-tablero) .pn-b-num {
+  color: var(--texto-3);
+  font-size: var(--letra-3);
+}
+.pn:not(.pn-ajustes, .pn-tablero) .pn-b-num[data-cero] {
+  color: var(--inactivo);
+}
+.pn:not(.pn-ajustes, .pn-tablero) .pn-b-dia {
+  font-size: var(--letra-3);
+}
+.pn:not(.pn-ajustes, .pn-tablero) .pn-b[data-hoy] .pn-b-dia {
+  color: var(--acento);
+  font-weight: 600;
+}
+.pn:not(.pn-ajustes, .pn-tablero) .pn-b[data-hoy] .pn-b-riel i {
+  outline: 0;
+}
+.pn:not(.pn-ajustes, .pn-tablero) .pn-barras[data-denso] .pn-b-riel {
+  width: 0.25rem;
+}
+
+/* Tendencia, cuota, por modelo y por proyecto: filas calmas, con el separador suave. */
+.pn:not(.pn-ajustes, .pn-tablero) .pn-tabla {
+  row-gap: var(--esp-2);
+}
+.pn:not(.pn-ajustes, .pn-tablero) .pn-cambio {
+  font-weight: 600;
+}
+.pn:not(.pn-ajustes, .pn-tablero) .pn-parte,
+.pn:not(.pn-ajustes, .pn-tablero) .pn-medidor {
+  padding: var(--esp-1-5) 0;
+}
+.pn:not(.pn-ajustes, .pn-tablero) .pn-parte + .pn-parte {
+  border-top: 1px solid var(--capa-div);
+}
+.pn:not(.pn-ajustes, .pn-tablero) .pn-espera th,
+.pn:not(.pn-ajustes, .pn-tablero) .pn-espera td {
+  border-bottom-color: var(--capa-div);
+}
+.pn:not(.pn-ajustes, .pn-tablero) .pn-espera thead th {
+  color: var(--apagado);
+}
+.pn:not(.pn-ajustes, .pn-tablero) .pn-costo-total {
+  border-top-color: var(--capa-div);
+}
+
+/* Las pilas (modelo, proyecto, "salió bien"): cápsulas más gruesas. Los modelos, en una escala del acento (la leyenda los nombra). */
+.pn:not(.pn-ajustes, .pn-tablero) .pn-pila {
+  height: 0.5rem;
+  border-radius: var(--r-cap);
+}
+.pn:not(.pn-ajustes, .pn-tablero) .pn-pila i {
+  border-radius: var(--r-cap);
+}
+.pn:not(.pn-ajustes, .pn-tablero) [data-m="Opus"] {
+  --m: var(--acento);
+}
+.pn:not(.pn-ajustes, .pn-tablero) [data-m="Sonnet"] {
+  --m: color-mix(in srgb, var(--acento) 60%, transparent);
+}
+.pn:not(.pn-ajustes, .pn-tablero) [data-m="Fable"] {
+  --m: color-mix(in srgb, var(--acento) 34%, transparent);
+}
+.pn:not(.pn-ajustes, .pn-tablero) [data-m="otro"] {
+  --m: var(--capa-track);
+}
+.pn:not(.pn-ajustes, .pn-tablero) .pn-leyenda {
+  color: var(--apagado);
+}
+.pn:not(.pn-ajustes, .pn-tablero) .pn-leyenda > [data-b]::before,
+.pn:not(.pn-ajustes, .pn-tablero) .pn-leyenda > [data-m]::before {
+  width: 0.5rem;
+  height: 0.5rem;
+}
+/* Lo que nunca se usó va marcado con el tinte de atención (y con su cifra en texto), no sólo en rojo. */
+.pn:not(.pn-ajustes, .pn-tablero) .pn-parte[data-sin-uso] .pn-num:not(.pn-tok) {
+  color: var(--fallo-texto);
+}
+
+/* ===================================== Ramas ===================================== */
+.pn:not(.pn-ajustes, .pn-tablero) .pn-ramas-cab {
+  padding: 0 var(--esp-1);
+}
+.pn:not(.pn-ajustes, .pn-tablero) .pn-llave[aria-pressed="true"] {
+  color: var(--texto);
+}
+.pn:not(.pn-ajustes, .pn-tablero) .pn-chip-f {
+  border: 0;
+  background: var(--capa-card);
+  box-shadow: var(--vidrio-borde);
+}
+.pn:not(.pn-ajustes, .pn-tablero) .pn-chip-f[aria-pressed="true"] {
+  background: var(--acento-tinte);
+  box-shadow: inset 0 0 0 1px var(--acento);
+}
+.pn:not(.pn-ajustes, .pn-tablero) .pn-chip-f b {
+  font-variant-numeric: tabular-nums;
+}
+/* Cada rama, una fila calma; el estado, en una píldora con ícono y palabra. */
+.pn:not(.pn-ajustes, .pn-tablero) .pn-rama {
+  padding-block: var(--esp-3);
+  border-radius: var(--r-md);
+}
+.pn:not(.pn-ajustes, .pn-tablero) .pn-rama .pn-tarea {
+  color: var(--texto);
+}
+.pn:not(.pn-ajustes, .pn-tablero) .pn-rama .pn-estado {
+  margin: 0;
+  padding: 0 var(--esp-2-5);
+  border: 0;
+  background: var(--capa-div);
+  color: var(--apagado);
+}
+.pn:not(.pn-ajustes, .pn-tablero) .pn-rama .pn-estado.c-term {
+  background: var(--ok-tinte);
+  color: var(--ok);
+}
+.pn:not(.pn-ajustes, .pn-tablero) .pn-rama .pn-estado.c-trab {
+  background: var(--acento-tinte);
+  color: var(--acento);
+}
+.pn:not(.pn-ajustes, .pn-tablero) .pn-rama .pn-sub {
+  color: var(--apagado);
+}
+.pn:not(.pn-ajustes, .pn-tablero) .pn-rama .pn-sub .pn-mono {
+  color: var(--inactivo);
+  font-family: var(--font-sans);
+}
+.pn:not(.pn-ajustes, .pn-tablero) .pn-acc .mini {
+  height: var(--alto-chip);
+  padding-inline: var(--esp-3-5);
+}
+/* Lo que pide atención: "Te necesita" en ámbar y lo que falló en coral, con el tinte, el borde y el brillo de la maqueta. */
+.pn:not(.pn-ajustes, .pn-tablero) .pn-rama[data-atencion] {
+  margin: var(--esp-1) calc(var(--esp-3) * -1);
+  padding-inline: var(--esp-3);
+  border-top-color: transparent;
+}
+.pn:not(.pn-ajustes, .pn-tablero) .pn-rama[data-atencion] + .pn-rama {
+  border-top-color: transparent;
+}
+.pn:not(.pn-ajustes, .pn-tablero) .pn-rama[data-atencion="decision"] {
+  background: var(--decision-fondo);
+  box-shadow:
+    inset 0 0 0 1px var(--decision-borde),
+    var(--decision-brillo);
+}
+.pn:not(.pn-ajustes, .pn-tablero) .pn-rama[data-atencion="decision"] .pn-estado {
+  background: var(--decision-relleno);
+  color: var(--decision-sobre);
+  font-weight: 600;
+}
+.pn:not(.pn-ajustes, .pn-tablero) .pn-rama[data-atencion="fallo"] {
+  background: var(--fallo-fondo);
+  box-shadow:
+    inset 0 0 0 1px var(--fallo-borde),
+    var(--fallo-brillo);
+}
+.pn:not(.pn-ajustes, .pn-tablero) .pn-rama[data-atencion="fallo"] .pn-estado {
+  background: var(--fallo-relleno);
+  color: var(--fallo-sobre);
+  font-weight: 600;
+}
+.pn:not(.pn-ajustes, .pn-tablero) .pn-rama[data-atencion="fallo"] .pn-tarea {
+  color: var(--fallo-texto);
+}
+.pn:not(.pn-ajustes, .pn-tablero) .pn-rama[data-atencion] .pn-sub {
+  color: var(--texto-3);
+}
+.pn:not(.pn-ajustes, .pn-tablero) .pn-rama[data-atencion] .pn-acc .mini {
+  background: var(--capa-tile);
+}
+
+/* ===================================== Tablero ===================================== */
+.pn-tablero .tb-col {
+  border-radius: var(--r-lg);
+  box-shadow: var(--vidrio-borde);
+}
+.pn-tablero .tb-col-h {
+  height: 2.5rem;
+  padding-inline: var(--esp-3) var(--esp-2);
+}
+.pn-tablero .tb-col-h b {
+  font-weight: 600;
+}
+/* El total de la columna, en una cápsula con la cifra tabular. */
+.pn-tablero .tb-n {
+  min-width: 1.5rem;
+  padding: 0 var(--esp-1-5);
+  border-radius: var(--r-cap);
+  background: var(--capa-div);
+  color: var(--apagado);
+  font-family: var(--font-sans);
+  font-weight: 600;
+  line-height: 1.25rem;
+  text-align: center;
+}
+.pn-tablero .tb-card {
+  border-radius: var(--r-md);
+  box-shadow: var(--vidrio-borde);
+}
+.pn-tablero .tb-card[data-activa] {
+  box-shadow: inset 0 0 0 1px var(--acento);
+}
+.pn-tablero .tb-chip {
+  border-radius: var(--r-cap);
+  padding-inline: var(--esp-2);
+}
+.pn-tablero .tb-id,
+.pn-tablero .tb-edad {
+  font-family: var(--font-sans);
+}
+.pn-tablero .tb-plegada {
+  border-color: transparent;
+  border-radius: var(--r-lg);
+  background: var(--sup-1);
+  box-shadow: var(--vidrio-borde);
+}
+/* "Te esperan": lo que le toca al dueño. La columna entera en ámbar (tinte, borde y brillo), el nombre en ámbar y el total relleno. */
+.pn-tablero .tb-col[data-columna="espera-dueno"] {
+  background: var(--decision-fondo);
+  box-shadow:
+    inset 0 0 0 1px var(--decision-borde),
+    var(--decision-brillo);
+}
+.pn-tablero .tb-col[data-columna="espera-dueno"] .tb-col-h {
+  border-bottom-color: var(--decision-borde);
+}
+.pn-tablero .tb-col[data-columna="espera-dueno"] .tb-col-h b {
+  color: var(--decision-texto);
+}
+.pn-tablero .tb-col[data-columna="espera-dueno"] .tb-n {
+  background: var(--decision-relleno);
+  color: var(--decision-sobre);
+}
+.pn-tablero .tb-col[data-columna="espera-dueno"] .tb-card {
+  box-shadow: inset 0 0 0 1px var(--decision-borde);
+}
+
+/* El medidor de cuota de Estadísticas: el riel (la regla `.riel` quedó sin estilo al rehacer los cupos de la barra): cápsula con el acento. */
+.pn-medidor .pn-riel {
+  height: 0.5rem;
+  overflow: hidden;
+  border-radius: var(--r-cap);
+  background: var(--capa-track);
+}
+.pn-medidor .pn-riel i {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: var(--r-cap);
+  background: var(--acento);
+  transform-origin: left;
+}
+.pn-medidor .pn-num:not(.pn-tok) {
+  color: var(--texto);
+  font-weight: 600;
+}

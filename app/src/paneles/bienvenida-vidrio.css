@@ -1,0 +1,78 @@
+/* Rediseño 0.4, paso 4: la bienvenida del primer arranque y la guía del celular, en el lenguaje de la maqueta vidrio-quieto-v2:
+   la caja de vidrio con borde de luz y sombra suave, el avance en cápsulas, los pasos y las opciones como tarjetas de vidrio y los
+   botones cápsula. Sólo tokens. Ningún estado va sólo por color: la opción elegida lleva además una marca (✓) y aria-checked. */
+.bv-caja {
+  border: 0;
+  border-radius: var(--r-xl);
+  background: var(--vidrio-opaco);
+  box-shadow:
+    var(--vidrio-borde),
+    var(--sombra-vidrio);
+}
+.bv-n {
+  padding: 0 var(--esp-2-5);
+  border-radius: var(--r-cap);
+  background: var(--capa-div);
+  line-height: var(--alto-chip);
+}
+.bv-prog li {
+  height: 0.375rem;
+}
+.bv-h {
+  font-size: var(--letra-8);
+}
+/* Idioma: dos tarjetas de elegir; la elegida con el tinte del acento, su borde y una marca. */
+.bv-op {
+  position: relative;
+  border: 0;
+  border-radius: var(--r-lg);
+  box-shadow: var(--vidrio-borde);
+}
+.bv-op[aria-checked="true"] {
+  background: var(--acento-tinte);
+  box-shadow: inset 0 0 0 1px var(--acento);
+}
+.bv-op[aria-checked="true"]::after {
+  position: absolute;
+  top: 50%;
+  right: var(--esp-4);
+  color: var(--acento);
+  content: "✓";
+  font-size: var(--letra-7);
+  transform: translateY(-50%);
+}
+/* Casillas: las filas viven en una tarjeta de vidrio, la marcada con su casilla de acento. */
+.bv-fila[aria-checked="true"] .bv-cb {
+  box-shadow: 0 0 0 0.1875rem var(--acento-tinte);
+}
+.bv-cb {
+  border-radius: var(--r-xs);
+}
+.bv-cuentas {
+  border-radius: var(--r-lg);
+  background: var(--capa-card);
+}
+
+/* Celular: el estado y los pasos, tarjetas de vidrio con borde de luz; el número de cada paso, una cápsula. */
+.cel-estado,
+.cel-pasos {
+  border-radius: var(--r-lg);
+  box-shadow: var(--vidrio-borde);
+}
+.cel-estado-ico {
+  border-radius: var(--r-md);
+}
+.cel-estado[data-escucha] {
+  background: var(--ok-tinte);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ok) 35%, transparent);
+}
+.cel-paso + .cel-paso {
+  border-top-color: var(--capa-div);
+}
+.cel-url-txt {
+  border-radius: var(--r-cap);
+  padding-inline: var(--esp-4);
+}
+.cel-qr {
+  border-radius: var(--r-md);
+}
