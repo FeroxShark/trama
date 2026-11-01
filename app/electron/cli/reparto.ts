@@ -155,8 +155,8 @@ const COSTO_GO = 0.02;
 const ENFRIAR_H = 5;
 const VENCE_GO_H = 5;
 const VENCE_FREE_H = 24;
-/** El mismo corte contado con otras palabras ("OpenCode cortó por límite de uso", "usage limit"): como pa enfría al modelo
- * (PA_ENFRIAR_HORAS), el grupo vuelve en 5 h si el mensaje no dice cuándo. */
+/** El "usage limit" crudo de OpenCode (el corte de un worker `-m opencode:*`): como pa enfría al modelo (PA_ENFRIAR_HORAS),
+ * el grupo vuelve en 5 h si el mensaje no dice cuándo. */
 const VENCE_CORTE_H = 5;
 const OC_GO_PREFIJO = "opencode:opencode-go/";
 // NVIDIA NIM (integrate.api.nvidia.com/v1, ~40 req/min por modelo, sin tope diario): gratis por opencode (`opencode:nvidia/<modelo>`), sólo con

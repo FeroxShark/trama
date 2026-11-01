@@ -267,7 +267,7 @@ PLANES_OPENCODE = ("gratis", "go", "go-plus")
 COSTO_GO = 0.02           # costo marginal ~0 de un modelo de Go (plan fijo con cupo): casi como un gratis, pero un gratis sin gastar nada gana el empate
 ENFRIAR_H = 5             # un modelo de OpenCode que cortó por límite (pa sale 97) no es candidato esta cantidad de horas (`--enfriar ID [--horas N]`)
 VENCE_FREE_H = 24         # "Free usage limit reached" de OpenCode: el límite gratis es de TODA la cuenta, no de un modelo; el grupo `opencode-free` vuelve en un día salvo que el mensaje diga cuándo
-VENCE_CORTE_H = 5         # el mismo corte contado con otras palabras ("OpenCode cortó por límite de uso", "usage limit"): como pa enfría al modelo (PA_ENFRIAR_HORAS), el grupo vuelve en 5 h si el mensaje no dice cuándo
+VENCE_CORTE_H = 5         # el "usage limit" crudo de OpenCode (el corte de un worker -m opencode:*): como pa enfría al modelo (PA_ENFRIAR_HORAS), el grupo vuelve en 5 h si el mensaje no dice cuándo
 VENCE_GO_H = 5            # un 429 de un modelo de Go lo marca agotado esta cantidad de horas (la ventana del plan)
 OC_GO_PREFIJO = "opencode:opencode-go/"
 # NVIDIA NIM (https://integrate.api.nvidia.com/v1, ~40 req/min por modelo, sin tope diario): los modelos gratis van por opencode (`opencode:nvidia/<modelo>`)

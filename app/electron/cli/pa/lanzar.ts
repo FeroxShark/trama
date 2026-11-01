@@ -135,7 +135,8 @@ export interface Ganchos {
   /** Soltar el puesto y el lugar del tope global (el `exec 9>&- 6>&-`). */
   soltar?: () => Promise<void>;
   /** `enfriar_modelo`: marca ese modelo de OpenCode como enfriado en reparto (nunca rompe). `salida`: lo que dijo OpenCode
-   * (si es el límite gratis de la cuenta — "Free usage limit" o "OpenCode cortó por límite de uso" — agota el grupo entero). */
+   * (si es el límite gratis de la cuenta — "Free usage limit" o el "usage limit" crudo de OpenCode — agota el grupo entero; el
+   * mensaje de pa solo no alcanza: también sale por un 429 de un modelo). */
   enfriar?: (modelo: string, salida?: string) => Promise<void>;
   /** `-m a,b,c` con --async: tras un corte de OpenCode (97) sin trabajo hecho, cambia la corrida al siguiente de la lista (mismo id). true si cambió y hay que correr de nuevo. */
   relanzarPorFallback?: (l: Lanzamiento) => Promise<boolean>;
