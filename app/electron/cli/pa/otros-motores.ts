@@ -6,6 +6,7 @@
 import { spawn } from "node:child_process";
 import { closeSync, existsSync, openSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { enPath } from "../base/buscar.ts";
 import type { Env, Pa } from "./entorno.ts";
 import { mapaDe, type Corrida, type Lanzamiento, type OpcionesLanzar } from "./lanzar.ts";
@@ -15,6 +16,7 @@ import { esOpencode, Modelos } from "./modelos.ts";
 import type { Llamada as LlamadaPa, Motores } from "./politica.ts";
 import { escribirAgyJson, escribirCodexJson, latir } from "./motores/salida.ts";
 import { type MotorSkills, sincronizarSkillsParaMotor } from "./skills-motores.ts";
+import { registrarParaMotor, scriptMcpTrama } from "../../mcp-trama-registro.ts";
 
 /** Los motores que corren por acá (ollama es el claude de siempre contra el servidor local; ver lanzar.ts). */
 export type MotorOtro = "agy" | "codex" | "dsh";
@@ -131,6 +133,15 @@ export const ejecutarOtro: NonNullable<OpcionesLanzar["ejecutar"]> = (l, o) => {
       for (const f of sincronizarSkillsParaMotor(motor, pa.env, pa.home, pa.plat).fallidas) aErr(ll.stderr, `pa: no pude enlazar la skill ${f.nombre} para ${motor}: ${f.error}\n`);
     } catch (e) {
       aErr(ll.stderr, `pa: no pude sincronizar las skills para ${motor}: ${(e as Error).message}\n`);
+    }
+  }
+  // El MCP de Trama (cli/mcp-trama.ts) en la config MCP del motor, con este mismo node. Si falla, tampoco frena la corrida.
+  if (motor) {
+    try {
+      const script = scriptMcpTrama(path.join(path.dirname(fileURLToPath(import.meta.url)), ".."));
+      if (script) registrarParaMotor(motor, { comando: process.execPath, args: [script] }, pa.env, pa.home, pa.plat);
+    } catch (e) {
+      aErr(ll.stderr, `pa: no pude anotar el MCP de Trama para ${motor}: ${(e as Error).message}\n`);
     }
   }
   // opencode lee ~/.claude/skills por su cuenta (sin el apagado de Trama y con las de plugins repetidas): que sólo cuente lo enlazado acá

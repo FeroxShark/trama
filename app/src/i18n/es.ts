@@ -645,6 +645,7 @@ export const es: { [K in keyof typeof en]: string } = {
   "main.auditarModelo": "Auditar sólo anda con modelos de Claude, no con {v}",
   "main.effortRaro": "effort raro: {v}",
   "main.nombreRaro": "nombre raro: {v}",
+  "main.mcpLiderDesconocido": "no hay un líder con esa sesión: {v}",
   "main.sesionRara": "sesión rara: {v}",
   "main.traspasoVacio": "No hay nada hablado todavía para resumir: falta el transcript de esta conversación o está vacío",
   "main.accionRara": "acción rara: {v}",

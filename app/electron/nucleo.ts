@@ -1302,6 +1302,18 @@ export function armarNucleo() {
     const { sid, seleccion } = lider.paraSeleccion(x ?? {});
     cola.elegir(sid, seleccion);
   });
+  // El MCP de Trama (cli/mcp-trama.ts): otro líder o un worker le deja un mensaje a un líder. Entra por la misma cola que lo del usuario,
+  // con el modelo y el esfuerzo del líder (los de su proceso, o los guardados si no tiene).
+  manejar("lider:encolarAgente", async (_e, x: { sid?: unknown; texto?: unknown }) => {
+    const sid = String(x?.sid);
+    const sel = await lider.seleccionGuardadaDe(sid);
+    if (!sel) throw errorT("main.mcpLiderDesconocido", { v: sid.slice(0, 40) });
+    const { item } = lider.paraCola({ sid, texto: x?.texto, modelo: sel.modelo, effort: sel.effort || "medium" });
+    verEspera(sid);
+    await leerCola();
+    cola.encolar(sid, item);
+    return { sid, nombre: lider.nombreDe(sid) };
+  });
   manejar("lider:colaQuitar", (_e, x: { sid: string; id: number }) => cola.quitar(String(x?.sid), Number(x?.id)));
   manejar("lider:colas", async () => {
     await leerCola();

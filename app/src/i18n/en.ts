@@ -656,6 +656,7 @@ export const en = {
   "main.auditarModelo": "Audit only works with Claude models, not {v}",
   "main.effortRaro": "Invalid effort: {v}",
   "main.nombreRaro": "Invalid name: {v}",
+  "main.mcpLiderDesconocido": "No leader with that session: {v}",
   "main.sesionRara": "Invalid session: {v}",
   "main.traspasoVacio": "Nothing has been said yet to summarize: this conversation's transcript is missing or empty",
   "main.accionRara": "Invalid action: {v}",

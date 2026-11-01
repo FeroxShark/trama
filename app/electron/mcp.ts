@@ -2,13 +2,16 @@
 // de su config, los de sus plugins y los conectores de claude.ai), que tarda porque prueba cada uno; más los propios de Trama
 // (`mcp-config.ts`), que le llegan al líder de cada motor que los soporta. Node puro: los tests inyectan el ejecutable y las rutas.
 import { execFile } from "node:child_process";
-import { chmodSync, mkdirSync, renameSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, renameSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { enPath } from "./cli/base/buscar.ts";
 import { enmascarar } from "./conectores-claude.ts";
 import { entornoLider } from "./lider-arma.ts";
 import { jsonClaude, leerMcpSync, resueltos, type ServidorMcp, type ServidorResuelto } from "./mcp-config.ts";
-import { estadoHilos } from "./rutas.ts";
+import { archivoClaudeJson, archivoMcpAgy, entradaAcp, entradaClaude, registrarEnAgy, registrarEnClaude, scriptMcpTrama, type ServidorTrama as LanzarTrama } from "./mcp-trama-registro.ts";
+import { estadoHilos, homeDe, nodeWindows, plataformaActual } from "./rutas.ts";
 import { entornoCuenta } from "./uso-cuentas.ts";
 import { configActiva } from "./mcp-apagados.ts";
 
@@ -124,15 +127,52 @@ export const olvidarCache = () => {
  * El archivo de `--mcp-config` de un líder de Claude: los servidores de Trama con sus valores. En un archivo 0600 y no en el argv, que
  * cualquiera ve con `ps`. `null` si no hay ninguno. Se reescribe en cada lanzamiento (atómico: dos líderes a la vez no se pisan).
  */
-export function archivoMcpClaudeSync(x: { servidores?: ServidorResuelto[]; dir?: string } = {}): string | null {
+export function archivoMcpClaudeSync(x: { servidores?: ServidorResuelto[]; dir?: string; trama?: LanzarTrama | null } = {}): string | null {
   const servidores = x.servidores ?? resueltos();
-  if (!servidores.length) return null;
+  if (!servidores.length && !x.trama) return null;
   const dir = x.dir ?? path.join(estadoHilos(), "mcp");
   const ruta = path.join(dir, "claude.json");
   mkdirSync(dir, { recursive: true, mode: 0o700 });
   const tmp = `${ruta}.${process.pid}.tmp`;
-  writeFileSync(tmp, jsonClaude(servidores), { mode: 0o600 });
+  const json = JSON.parse(jsonClaude(servidores)) as { mcpServers: Record<string, unknown> };
+  // El MCP de Trama primero: uno propio con el mismo nombre lo pisa (lo eligió la persona).
+  if (x.trama) json.mcpServers = { trama: entradaClaude(x.trama), ...json.mcpServers };
+  writeFileSync(tmp, JSON.stringify(json), { mode: 0o600 });
   chmodSync(tmp, 0o600);
   renameSync(tmp, ruta);
   return ruta;
+}
+
+// --- El MCP de Trama (cli/mcp-trama.ts) -----------------------------------------------------------------------------------------------
+
+/**
+ * Cómo lanza un motor el servidor MCP de Trama desde la app: el node de la instalación (Windows) o el del PATH, y si no hay, el de
+ * Electron como node (`ELECTRON_RUN_AS_NODE`). El script es el compilado al lado de éste; dentro de un asar no se puede: `null`.
+ */
+export function servidorTramaApp(env: NodeJS.ProcessEnv = process.env): LanzarTrama | null {
+  const script = scriptMcpTrama(path.join(path.dirname(fileURLToPath(import.meta.url)), "cli"));
+  if (!script) return null;
+  const plat = plataformaActual();
+  const win = plat === "win32" ? nodeWindows(env) : null;
+  const node = win && existsSync(win) ? win : enPath("node", [], env, plat);
+  return node ? { comando: node, args: [script] } : { comando: process.execPath, args: [script], env: { ELECTRON_RUN_AS_NODE: "1" } };
+}
+
+/** El de ACP (líderes de dsh y opencode): sólo con un node de verdad (los valores del `env` de ACP se tratan como secretos y se tapan en los logs). */
+export const tramaParaAcp = (s: LanzarTrama | null) => (s && !s.env ? [entradaAcp(s)] : []);
+
+/** agy (sus líderes y workers leen `~/.gemini/config/mcp_config.json`). */
+export const anotarTramaEnAgy = (s: LanzarTrama, home = homeDe()) => registrarEnAgy(archivoMcpAgy(home, plataformaActual()), s);
+
+let claudeAnotado: Promise<unknown> | null = null;
+/**
+ * En la config de usuario de Claude (para sus workers y lo que corra en una terminal), una vez por proceso. `claude` es el binario.
+ * Los líderes de la app ya lo reciben por `--mcp-config`. Sin esperar: no frena el lanzamiento.
+ */
+export function anotarTramaEnClaude(s: LanzarTrama, claude: string, env: NodeJS.ProcessEnv = process.env): Promise<unknown> {
+  return (claudeAnotado ??= registrarEnClaude(
+    archivoClaudeJson(env, homeDe(env), plataformaActual()),
+    s,
+    (args) => new Promise((resolve) => execFile(claude, args, { env, timeout: 30_000, windowsHide: true }, (e) => resolve(e ? (typeof e.code === "number" ? e.code : 1) : 0))),
+  ));
 }

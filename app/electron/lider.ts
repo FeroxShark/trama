@@ -62,7 +62,7 @@ import { asegurarLocal, destinoLocal, localDe } from "./locales.js";
 import { armarContexto, prefacioDsh, prefacioGemini } from "./contexto-local.ts";
 import { fragmentoVigente } from "./apagados.ts";
 import { conClaves } from "./claves.ts";
-import { archivoMcpClaudeSync } from "./mcp.ts";
+import { anotarTramaEnAgy, anotarTramaEnClaude, archivoMcpClaudeSync, servidorTramaApp, tramaParaAcp } from "./mcp.ts";
 import { paraAcp, resueltos } from "./mcp-config.ts";
 import { resolverPa } from "./binario.ts";
 import { hijoEnGrupo, interrumpir, matarArbol } from "./procesos.ts";
@@ -575,11 +575,16 @@ function lanzar(g: Guardado, resume: boolean, local?: Local, extra: Extra = {}):
   // Los servidores MCP propios de Trama (Ajustes > Conectores), sólo a líderes. Un archivo 0600 / el entorno del puente, nunca el argv; un fallo no impide lanzar.
   let mcpClaude: string | undefined;
   let mcpAcp = "";
+  // Con el MCP de Trama (cli/mcp-trama.ts): lanzar workers, su estado, el historial de hilos y mensajes a otro líder.
   try {
+    const trama = local || extra.ollama ? null : servidorTramaApp();
     if (clase === "dsh" || clase === "opencode") {
-      const x = resueltos();
-      if (x.length) mcpAcp = JSON.stringify(paraAcp(x));
-    } else if (clase === "claude" && !local && !extra.ollama) mcpClaude = archivoMcpClaudeSync() ?? undefined;
+      const x = [...paraAcp(resueltos()), ...tramaParaAcp(trama)];
+      if (x.length) mcpAcp = JSON.stringify(x);
+    } else if (clase === "claude" && !local && !extra.ollama) {
+      mcpClaude = archivoMcpClaudeSync({ trama }) ?? undefined;
+      if (trama) void anotarTramaEnClaude(trama, CLAUDE).catch(silencio("mcp-trama-claude"));
+    } else if (clase === "gemini" && trama) anotarTramaEnAgy(trama, HOME);
   } catch (e) {
     silencio("mcp-lanzar")(e);
   }
@@ -1142,6 +1147,12 @@ export async function cambiarCuenta(sid: string, cuenta: unknown): Promise<void>
 export function seleccionDe(sid: string): { modelo: string; effort: string } | null {
   const p = procs.get(sid);
   return p ? { modelo: p.modelo, effort: p.effort } : null;
+}
+
+/** Con qué modelo y esfuerzo le sale a un líder un mensaje que no escribió el usuario (el MCP de Trama): los de su proceso, o los guardados. */
+export async function seleccionGuardadaDe(sid: string): Promise<{ modelo: string; effort: string } | null> {
+  const g = (await lideresApp()).find((l) => l.sid === sid);
+  return seleccionDe(sid) ?? (g ? { modelo: g.modelo, effort: g.effort } : null);
 }
 
 /** ¿Se le puede mandar algo a mitad de su turno? Un proceso de la app ocupado y con canal (los modelos locales no lo tienen). Lo usa la cola (electron/cola.ts). */
