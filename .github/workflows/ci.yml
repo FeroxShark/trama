@@ -36,6 +36,12 @@ jobs:
         working-directory: app
         timeout-minutes: 5
         run: node scripts/humo-motor.mjs
+      - name: app - prueba de acciones (la app offscreen manejada por CDP)
+        working-directory: app
+        timeout-minutes: 5
+        env:
+          ELECTRON_DISABLE_SANDBOX: "1"
+        run: xvfb-run -a node scripts/prueba-acciones.mjs
       - name: windows - dependencias
         working-directory: windows
         run: npm ci
