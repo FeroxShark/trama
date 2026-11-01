@@ -479,15 +479,10 @@ try {
   ok(await elegir('[data-opc="ajustes.fuente"]', 0, "Inter"), "vuelve Inter");
   ok(await elegir('[data-opc="ajustes.mono"]', 0, "JetBrains Mono"), "vuelve JetBrains Mono");
   ok((await prefsCon((p) => p.fuente === "inter" && p.mono === "jetbrains"))?.mono === "jetbrains", "preferencias.json vuelve al default");
-  // --- Mensajes tiernos (B17): prendidos por default; Ajustes los apaga al toque -------
-  const tierna = () => document.querySelector('[data-fila="20261003-100300-44444"] .tierno')?.textContent ?? "";
-  ok(await en(tierna).then((t) => t.length > 0 && t.length <= 28 && t !== "Trabajando"), "el worker que trabaja dice una frase tierna");
+  // --- Mensajes tiernos (B17): prendidos por default; Ajustes los apaga al toque y a preferencias.json ---
+  // La fila de la barra (una línea por hilo) ya no lleva la frase: sólo el turno del hilo, que cubre tests/tierno*.
+  ok(await en(() => !document.querySelector("[data-fila] .tierno")), "la fila de la barra no lleva frase tierna (una línea por hilo)");
   ok(await elegir('[data-opc="ajustes.tiernos"]', 0, "Apagados"), "se apagan los mensajes tiernos");
-  ok(
-    await hasta(() => document.querySelector('[data-fila="20261003-100300-44444"]')?.textContent.includes("Trabajando"), "Trabajando"),
-    "la fila vuelve a decir Trabajando",
-  );
-  ok(await en(() => !document.querySelector(".tierno")), "no queda ninguna frase tierna");
   let prefsTiernos;
   for (let i = 0; i < 30 && prefsTiernos !== false; i++) {
     try {
@@ -497,7 +492,7 @@ try {
   }
   ok(prefsTiernos === false, `preferencias.json guarda tiernos: ${prefsTiernos}`);
   ok(await elegir('[data-opc="ajustes.tiernos"]', 0, "Prendidos"), "se vuelven a prender");
-  ok(await hasta(tierna, "frase tierna"), "la frase vuelve al toque");
+  ok((await prefsCon((p) => p.tiernos !== false))?.tiernos !== false, "preferencias.json los vuelve a prender");
   await tecla("Escape");
   ok(await hasta(() => !document.querySelector(".pn"), "sin panel"), "Esc cierra Ajustes");
 
