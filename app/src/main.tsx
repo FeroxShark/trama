@@ -14,7 +14,7 @@ import { t } from "./i18n";
 import "./index.css";
 import "./popovers-vidrio.css";
 import "./ui/ui.css";
-import "./barra/riel.css";
+import "./barra/riel-estilos.css";
 import { MODO } from "./modo";
 import { traerVuelta } from "./volver";
 

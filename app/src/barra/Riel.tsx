@@ -14,7 +14,7 @@ import { Marca } from "./Marca";
 import { nombreCarpeta } from "./arbol";
 import { Glifo } from "./Glifo";
 import { useTitulos } from "./titulos";
-import type { ItemRiel } from "./riel";
+import type { ItemRiel } from "./riel-logica";
 
 type Props = {
   items: readonly ItemRiel[];

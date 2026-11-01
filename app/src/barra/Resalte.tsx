@@ -1,7 +1,7 @@
 // Lo que se está buscando, marcado en las filas y los encabezados de la barra. El texto buscado va por contexto para no pasarlo fila por
 // fila: sólo se repintan las filas cuando cambia lo que se busca.
 import { createContext, useContext, useMemo } from "react";
-import { partirResalte } from "./riel";
+import { partirResalte } from "./riel-logica";
 
 export const LoBuscado = createContext("");
 

@@ -13,7 +13,7 @@ import { useIdioma } from "../i18n/react";
 import { MODO } from "../modo";
 import type { Pintor } from "../reloj";
 import { VIEJO_S, cuandoFuturo, pintorVisto } from "../tiempo";
-import { cuentasClaude, lineasCuentas, lineasMotores, type LineaRiel, type VentanaRiel } from "./cuposRiel";
+import { cuentasClaude, lineasCuentas, lineasMotores, type LineaRiel, type VentanaRiel } from "./cupos-riel-logica";
 import { textoVuelve } from "./cuposNota";
 import { ElegirCuenta, useCuentasBarra } from "./ElegirCuenta";
 import { Reloj } from "./piezas";

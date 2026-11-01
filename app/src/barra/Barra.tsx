@@ -136,7 +136,7 @@ import { alLeerVista, vueltaInicial } from "../volver";
 import { copiarConAviso } from "../copiar";
 import { CuposRiel } from "./CuposRiel";
 import { estiloProyecto, Riel } from "./Riel";
-import { aRiel, filtrarArbol, hilosArbol, hilosCarpeta, itemsRiel, ordenAtencion, QUIETOS_VISTA, quietosDe, segunLista } from "./riel";
+import { aRiel, filtrarArbol, hilosArbol, hilosCarpeta, itemsRiel, ordenAtencion, QUIETOS_VISTA, quietosDe, segunLista } from "./riel-logica";
 import { LoBuscado, Resalte } from "./Resalte";
 import { pintorCorto } from "../tiempo";
 import { Reloj } from "./piezas";

@@ -51,7 +51,7 @@ button.chip-at:hover {
   background: var(--decision-relleno);
   color: var(--decision-sobre);
 }
-/* El tinte de las filas que piden atención va con la barra densa, en barra/riel.css. Lo que dicen al lado del título toma el color de su estado. */
+/* El tinte de las filas que piden atención va con la barra densa, en barra/riel-estilos.css. Lo que dicen al lado del título toma el color de su estado. */
 .lista .fila[data-atencion="fallo"] .pal {
   color: var(--fallo-texto);
 }

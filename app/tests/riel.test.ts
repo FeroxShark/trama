@@ -2,8 +2,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { armarArbol, type Arbol, type Carpeta, type Item, type Rama } from "../src/barra/arbol.ts";
-import { aRiel, atencionCarpeta, carpetaViva, filtrarArbol, hilosArbol, hilosCarpeta, itemsRiel, ordenAtencion, partirResalte, QUIETOS_VISTA, quietosDe, segunLista } from "../src/barra/riel.ts";
-import { cuentasClaude, lineasCuentas, lineasMotores } from "../src/barra/cuposRiel.ts";
+import { aRiel, atencionCarpeta, carpetaViva, filtrarArbol, hilosArbol, hilosCarpeta, itemsRiel, ordenAtencion, partirResalte, QUIETOS_VISTA, quietosDe, segunLista } from "../src/barra/riel-logica.ts";
+import { cuentasClaude, lineasCuentas, lineasMotores } from "../src/barra/cupos-riel-logica.ts";
 import { PALETA_RIEL, tonoRiel } from "../src/barra/logo-logica.ts";
 import { pintorCorto } from "../src/tiempo.ts";
 import { cambiarIdioma } from "../src/i18n/index.ts";
