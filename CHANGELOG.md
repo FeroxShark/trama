@@ -1,5 +1,11 @@
 # Cambios
 
+## 0.2.40
+
+- Checkpoints por turno: debajo de cada turno del líder que tocó archivos, el diff y «Volver a antes de este turno» con confirmación.
+- Tareas programadas: mandar un mensaje a un líder más tarde («en 30 min», «18:30», «mañana 9:00») y posponer una conversación; sobreviven a un reinicio.
+- Comando `pantalla` para que los workers prueben la interfaz en una Trama propia oculta (probado en Linux).
+
 ## 0.2.39
 
 - Modo Objetivo: un worker se relanza solo hasta que pase el comando que lo verifica (`pa --objetivo --verificar`), y en Actualizar rama hay un campo opcional «Comando que verifica».
