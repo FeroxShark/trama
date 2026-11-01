@@ -38,6 +38,8 @@
 .cu-tarjetas {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  /* Una tela a todo el ancho no deja un hueco al lado de una tarjeta chica sola. */
+  grid-auto-flow: dense;
   align-items: start;
   gap: var(--esp-3);
 }
@@ -218,6 +220,14 @@
 .cu-nom .cu-cta-nom {
   margin-left: calc(var(--esp-1) * -1);
   padding: 0 var(--esp-1);
+  text-align: left;
+}
+/* Un nombre largo (o «Cuenta de siempre» en otro idioma) pasa a otra línea: nunca se corta. */
+.cu-nom .cu-cta-txt {
+  overflow: visible;
+  overflow-wrap: anywhere;
+  text-overflow: clip;
+  white-space: normal;
 }
 .cu-quitar {
   display: inline-grid;
@@ -401,9 +411,12 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: var(--esp-2) var(--esp-3);
   padding: 0 var(--esp-0-5);
+}
+.cu-pie > :first-child {
+  margin-right: auto;
 }
 .cu-pie > .cu-ayuda[data-abierta],
 .cu-pie > .cu-otra-form,
