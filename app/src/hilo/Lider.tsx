@@ -137,7 +137,7 @@ const NO_TRAE: Record<Exclude<MotivoTraer, "trabajando">, "lider.noTraer" | "lid
 
 /** El texto de la caja con que arranca una captura (`lider-comandos`: el menú de "/" abierto; `lider-valores`, el de /output-style). */
 const textoCaptura = () =>
-  MODO.captura === "lider-comandos" ? "/" : MODO.captura === "lider-valores" ? "/output-style " : MODO.captura === "lider-nuevo-proyecto" ? "Revisá el build de atlas" : null;
+  MODO.captura === "lider-comandos" ? "/" : MODO.captura === "programar" ? "Seguí con el paso 2 y avisame cuando termine" : MODO.captura === "lider-valores" ? "/output-style " : MODO.captura === "lider-nuevo-proyecto" ? "Revisá el build de atlas" : null;
 
 export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrirHilo, mirar = true, alRespuesta, mostrar, archivar }: Props) {
   const sid = l?.id ?? "";

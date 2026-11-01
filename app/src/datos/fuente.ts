@@ -567,8 +567,19 @@ const fallaLanzar = MODO.falla === "lanzar";
 
 // Lo programado de los fixtures (sin motor): en memoria.
 const oyentesProgramados = new Set<(a: AvisoProgramados) => void>();
-let programadosFijos: EstadoProgramados = { mensajes: [], pospuestos: [] };
-const fijosProgramados = (): EstadoProgramados => programadosFijos;
+let programadosFijos: EstadoProgramados | null = null;
+/** La captura `programar` arranca con un mensaje programado en el líder de la app y otro líder pospuesto (para ver la lista y la pastilla del pie). */
+const fijosProgramados = (): EstadoProgramados => {
+  if (programadosFijos) return programadosFijos;
+  const ls = MODO.captura === "programar" ? lideresFijos().lideres : [];
+  const ahora = Date.now();
+  const app = ls.find((l) => l.origen === "app" && l.vivo) ?? ls[0];
+  const otro = ls.find((l) => l.id !== app?.id);
+  return (programadosFijos = {
+    mensajes: app ? [{ id: 1, sid: app.id, texto: "Corré la suite completa y contame qué falla", modelo: app.modelo ?? "claude-fable-5-1", effort: app.effort ?? "med", nombre: app.nombre, cuando: ahora + 90 * 60_000, creado: ahora }] : [],
+    pospuestos: otro ? [{ sid: otro.id, hasta: ahora + 26 * 3600_000, desde: ahora, nombre: otro.nombre }] : [],
+  });
+};
 const ponerProgramados = (e: EstadoProgramados) => {
   programadosFijos = e;
   oyentesProgramados.forEach((f) => f(e));
