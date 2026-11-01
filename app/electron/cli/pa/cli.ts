@@ -16,6 +16,7 @@ import { AYUDA } from "./ayuda.ts";
 import { Salida, conDueno, jefeId, nombreDueno, paqueteApp, prologo, salir, type Env, type Io, type Pa } from "./entorno.ts";
 import { Modelos } from "./modelos.ts";
 import { correrLista, escanear, legible, opcionesIniciales, parsearOpciones } from "./opciones.ts";
+import { correrObjetivo, type DepsObjetivo } from "./objetivo.ts";
 import { armarSeguirCon } from "./seguir-con.ts";
 import { aplicarPolitica, leerCampo, llamadaDe, modeloFlojo, slugDe, type DepsPolitica, type Llamada, type Motores } from "./politica.ts";
 import { cuentasProceso, repartoProceso, type Cuentas, type Reparto } from "./programas.ts";
@@ -93,6 +94,8 @@ export interface Deps {
   /** Corre otro `pa` con esos argumentos y variables extra (los intentos de -m a,b,c); devuelve su código. */
   relanzar?: (argv: string[], extra: Env) => number | Promise<number>;
   plat?: Plataforma;
+  /** El modo Objetivo (`--objetivo`): con qué se relanza `pa` para --async y cuánto esperar a que tome puesto (los tests lo ajustan). */
+  objetivo?: Partial<Pick<DepsObjetivo, "comando" | "vueltasAsync" | "pausaAsyncMs">>;
 }
 
 /** Lo que dice un subcomando que todavía vive sólo en el bash. */
@@ -340,6 +343,8 @@ async function correrPa(argv: string[], env: Env, io: Io, deps: Deps): Promise<n
   const o = parsearOpciones(args, opcionesIniciales(proyecto, env, pa.plan), { env, io, dueno, anotar: (t) => anotar(pa, t) });
   const l = llamadaDe(o);
   l.fbResto = fbResto;
+  // Modo Objetivo: un bucle de intentos (cada uno es un `pa` entero) con su verificador; no pasa por la política de este proceso.
+  if (l.objetivo) return correrObjetivo(l, pa, fijarProyecto(pa, rutaOSalir(pa, proyecto)), { relanzar: deps.relanzar, reparto, ...deps.objetivo });
   const motores = (typeof deps.motores === "function" ? deps.motores(pa) : deps.motores) ?? {};
   const sinMotor = (que: string) => async () => {
     salir(noPortado(pa, que));

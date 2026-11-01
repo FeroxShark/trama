@@ -10,7 +10,7 @@ import type { Modelos } from "./modelos.ts";
 export const FLAGS_CON_VALOR = [
   "--max-turns", "--id", "--integrar", "--descartar", "--actualizar", "--nota", "--max-budget-usd", "-m", "--model", "--effort", "--tipo",
   "--fase", "--tarea", "--subtarea", "--rubrica", "--cuenta", "--brief-archivo", "--leccion", "--auditar", "--decisiones", "--espejo",
-  "--test-inline", "--seguir-con", "--retoma-de",
+  "--test-inline", "--seguir-con", "--retoma-de", "--objetivo", "--verificar", "--intentos", "--tope-cupo",
 ];
 export const EFFORTS_VALIDOS = /^(low|medium|high|xhigh|max)$/;
 
@@ -69,7 +69,16 @@ export interface Opciones {
   espejo: string;
   testInline: string;
   sinJefe: boolean;
+  /** Modo Objetivo: la meta (--objetivo), el comando que la verifica (--verificar), los intentos (default 3) y el cupo libre mínimo en % (default 10). */
+  objetivo: string;
+  verificar: string;
+  intentos: number;
+  topeCupo: number;
 }
+
+/** Los intentos y el cupo mínimo del modo Objetivo cuando no se piden. */
+export const OBJETIVO_INTENTOS = 3;
+export const OBJETIVO_TOPE_CUPO = 10;
 
 /** Los valores antes de mirar las opciones (lo que el bash toma del entorno y del plan). */
 export function opcionesIniciales(proyecto: string, env: Env, plan: "pro" | "max"): Opciones {
@@ -120,6 +129,10 @@ export function opcionesIniciales(proyecto: string, env: Env, plan: "pro" | "max
     espejo: "",
     testInline: "",
     sinJefe: false,
+    objetivo: "",
+    verificar: "",
+    intentos: OBJETIVO_INTENTOS,
+    topeCupo: OBJETIVO_TOPE_CUPO,
   };
 }
 
@@ -320,6 +333,18 @@ export function parsearOpciones(args: string[], o: Opciones, ctx: CtxParseo): Op
         dos();
         break;
       case "--retoma-de": o.retomaDe = valor; dos(); break;
+      case "--objetivo": o.objetivo = valor; dos(); break;
+      case "--verificar": o.verificar = valor; dos(); break;
+      case "--intentos":
+        if (!/^[1-9][0-9]{0,2}$/.test(valor)) error(`pa: --intentos quiere un entero de 1 a 999, no '${valor}'.`);
+        o.intentos = Number(valor);
+        dos();
+        break;
+      case "--tope-cupo":
+        if (!/^[0-9]{1,3}([.][0-9]+)?$/.test(valor) || Number(valor) > 100) error(`pa: --tope-cupo quiere un porcentaje de 0 a 100, no '${valor}'.`);
+        o.topeCupo = Number(valor);
+        dos();
+        break;
       case "--ramas": o.ramas = true; i++; break;
       case "--force": o.force = true; i++; break;
       case "--nota": ctx.anotar(valor); dos(); break; // la nota del jefe va pegada a esta llamada
@@ -396,6 +421,11 @@ export function parsearOpciones(args: string[], o: Opciones, ctx: CtxParseo): Op
     if (!o.runId) error("pa: --seguir-con va con --id: pa <proy> --seguir-con <modelo> --id <corrida> [\"<pedido extra>\"]");
     if (o.seguir || o.leer || o.aca || o.actualizar || o.auditar || o.integrar || o.descartar || o.retomaDe)
       error("pa: --seguir-con no va con --seguir, --leer, --aca, --actualizar, --auditar, --integrar ni --descartar: es una corrida nueva, con otro modelo, sobre la rama de esa corrida.");
+  }
+  if (o.objetivo || o.verificar) {
+    if (!o.objetivo.trim() || !o.verificar.trim()) error('pa: el modo Objetivo quiere los dos: pa <proy> --objetivo "<meta>" --verificar "<comando>" [--intentos N] [--tope-cupo P]');
+    if (o.leer || o.seguir || o.seguirCon || o.auditar || o.retomaDe || o.integrar || o.descartar || o.matar || o.olvidar || o.ramas)
+      error("pa: --objetivo no va con --leer, --seguir, --seguir-con, --auditar, --integrar, --descartar, --matar, --olvidar ni --ramas: lanza un worker que escribe y lo relanza solo.");
   }
   if (o.decisiones && !o.auditar) error("pa: --decisiones sólo va con --auditar (lo lee el auditor).");
   return o;

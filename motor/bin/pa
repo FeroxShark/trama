@@ -52,6 +52,13 @@
 #                                        seguir esa corrida con OTRO modelo o motor (ej. si se quedó sin cupo): corrida
 #                                        nueva, en su puesto y su rama, que recibe un resumen de la anterior (objetivo,
 #                                        archivos tocados, estado, qué sigue). Sólo en el pa de TypeScript
+#   pa <proyecto> --objetivo "<meta>" --verificar "<comando>" [--intentos N] [--tope-cupo P]
+#                                        modo Objetivo: lanza un worker con la meta; al terminar corre el comando en SU worktree y,
+#                                        si falla, lo relanza con --seguir pasándole las últimas ~80 líneas de la salida ('el
+#                                        verificador falló, arreglalo'). Repite hasta que pase, N intentos (default 3) o hasta que
+#                                        el cupo libre de su modelo baje de P % (default 10). Sale 0 si pasó, 94 si agotó los
+#                                        intentos, 99 por cupo. Deja en el RESULTADO los intentos y la salida del último verificador;
+#                                        cada intento queda en el log del mismo id. Sólo en el pa de TypeScript
 #   pa <proyecto> --ramas                ramas de workers sin integrar
 #   pa <proyecto> --descartar <id>       tirar la rama de esa corrida (borra sus commits: confirmarlo antes)
 #   pa <proyecto> --async "<tarea>"      lanzar desacoplado y volver enseguida
@@ -5326,7 +5333,7 @@ brief_archivo=""; agents_md=0; unificar_md=0; aplicar=0; lecciones=0; lecciones_
 espejo=""; test_inline=""
 
 # Los flags que llevan valor: sin él, `$2` reventaba con "unbound variable" (set -u) sin decir qué faltaba.
-flags_con_valor=" --max-turns --id --integrar --descartar --actualizar --nota --max-budget-usd -m --model --effort --tipo --fase --tarea --subtarea --rubrica --cuenta --brief-archivo --leccion --auditar --decisiones --espejo --test-inline --seguir-con --retoma-de "
+flags_con_valor=" --max-turns --id --integrar --descartar --actualizar --nota --max-budget-usd -m --model --effort --tipo --fase --tarea --subtarea --rubrica --cuenta --brief-archivo --leccion --auditar --decisiones --espejo --test-inline --seguir-con --retoma-de --objetivo --verificar --intentos --tope-cupo "
 # -m a,b,c (2026-10-27, protocolo por fases): lista de fallback. Se prueba cada modelo, en orden, como una corrida entera con ese solo -m
 # (`pa <proyecto> … -m a …`); si sale 76/77 (límite de sesión, API sobrecargada), 95/96 (no puede correr / sin cupo) o 97 (OpenCode cortó por
 # límite) se pasa al siguiente, y cualquier otro código (0, 1, 78…) es el final: ése es el modelo que trabajó. Los que reparto tiene
@@ -5440,7 +5447,7 @@ while [[ $# -gt 0 ]]; do
     --tests)           integrar_tests=1; shift ;;
     --descartar)       descartar="$2"; shift 2 ;;
     --actualizar)      actualizar="$2"; shift 2 ;;
-    --seguir-con|--retoma-de) echo "pa: $1 sólo está en el pa de TypeScript (compilá app/ con npx tsc -p tsconfig.electron.json y sacá TRAMA_PA=bash)." >&2; exit 2 ;;
+    --seguir-con|--retoma-de|--objetivo|--verificar|--intentos|--tope-cupo) echo "pa: $1 sólo está en el pa de TypeScript (compilá app/ con npx tsc -p tsconfig.electron.json y sacá TRAMA_PA=bash)." >&2; exit 2 ;;
     --ramas)           ramas=1; shift ;;
     --force)           force=1; shift ;;
     --nota)            anotar "$2"; shift 2 ;;   # la nota del jefe va pegada a esta llamada (ver anotar)

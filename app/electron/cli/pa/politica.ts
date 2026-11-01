@@ -789,6 +789,12 @@ export function sinCupoHasta(tabla: string, id: string): string | null {
   return (v as string[]).sort()[0] ?? "";
 }
 
+/** El cupo libre (0-100 %) del modelo según la tabla: el de su cuenta con más; null si no está en la tabla o no se sabe. */
+export function cupoLibreDe(tabla: string, id: string): number | null {
+  const v = filasDe(tabla, id).map((f) => f.cupo_libre).filter((x): x is number => typeof x === "number" && Number.isFinite(x));
+  return v.length ? Math.max(...v) * 100 : null;
+}
+
 /** `calidad_de_modelo`: la inteligencia del modelo según la tabla ("" si no se sabe). */
 export async function calidadDeModelo(deps: DepsPolitica, id: string): Promise<string> {
   if (!id) return "";
