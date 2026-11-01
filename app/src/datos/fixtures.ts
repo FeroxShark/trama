@@ -1211,6 +1211,38 @@ export const USO_CUENTAS: Uso = {
   ],
 };
 
+/** La variante `cupos-tres`: tres cuentas de Claude, una con poco cupo y otra sin cupo, más lo de `cupos-todo` para las demás tarjetas. */
+export const USO_TRES: Uso = {
+  ...USO,
+  claudeNombre: "Claude",
+  five_hour: { pct: 23, resets_at: AHORA + 2 * HORA + 40 * MIN },
+  seven_day: { pct: 92, resets_at: AHORA + 4 * DIA + 3 * HORA },
+  suscripciones: [
+    {
+      id: "trabajo",
+      nombre: "Trabajo",
+      proveedor: "claude",
+      cuenta: "trabajo",
+      ts: AHORA - 20,
+      ventanas: [
+        { id: "5h", pct: 5, vuelve: AHORA + 4 * HORA + 15 * MIN },
+        { id: "7d", pct: 40, vuelve: AHORA + 6 * DIA + 1 * HORA },
+      ],
+    },
+    {
+      id: "estudio",
+      nombre: "Estudio",
+      proveedor: "claude",
+      cuenta: "estudio",
+      ts: AHORA - 20,
+      ventanas: [
+        { id: "5h", pct: 100, vuelve: AHORA + 3 * HORA + 40 * MIN },
+        { id: "7d", pct: 58, vuelve: AHORA + 5 * DIA + 2 * HORA },
+      ],
+    },
+  ],
+};
+
 /**
  * La variante `cupos-google`: los datos reales de una máquina (Claude + Google AI Pro con sus 3 grupos, `reparto --cupos`).
  * «Claude y GPT» con la semana agotada y su 5 h que no aplica (agy: `disabled`), con la promo vigente hasta el 2 de noviembre;
@@ -1298,6 +1330,8 @@ export const USO_TODO: Uso = {
     },
   ],
 };
+
+USO_TRES.suscripciones!.push(...USO_TODO.suscripciones!.filter((x) => x.id !== "chatgpt"));
 
 export const USO_TODO_DOS: Uso = {
   ...USO_TODO,

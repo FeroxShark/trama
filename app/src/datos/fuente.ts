@@ -23,7 +23,7 @@ import { cambioDe, vistaDe, type CambioPasos, type VistaPasos } from "./pasos";
 import { pasosFijos, pasosRutasFijos, pasosSubFijos } from "./pasos-fixture";
 import { crearCola, type AvisoCola, type Encolado } from "../../electron/cola";
 import type { Aviso as AvisoProgramados, Estado as EstadoProgramados } from "../../electron/programados";
-import { ARRANCANDO, EN_COLA, HILOS_DELL, LIDER_DELL, PENSANDO_FIJO, charlaFormato, charlaLarga, charlaLimite, charlaCambio, charlaListas, charlaIntermedios, charlaLider, charlaPensando, charlaSistema, charlaTabla, conversacion, conversacionSistema, HILOS, HILOS_ACTIVAS, HILOS_ATENCION, HILOS_ATENCION_RESUELTO, HILOS_EN_COLA, HILOS_TERMINADOS, ICONOS, LIDERES, LIDERES_ACTIVAS, LIDERES_ATENCION, LIDERES_ATENCION_RESUELTO, LIDER_MUERTO, LIDER_TERMINADOS, FRENADO, TITULOS, USO, USO_CUENTAS, USO_NIM, USO_TODO, USO_TODO_DOS, USO_GOOGLE, USO_GOOGLE_MARCADO, USO_SIN_CUPO, USO_SIN_HORA, imagenFija, localesFalsos, vramFalsa, vramLiberarFalso } from "./fixtures";
+import { ARRANCANDO, EN_COLA, HILOS_DELL, LIDER_DELL, PENSANDO_FIJO, charlaFormato, charlaLarga, charlaLimite, charlaCambio, charlaListas, charlaIntermedios, charlaLider, charlaPensando, charlaSistema, charlaTabla, conversacion, conversacionSistema, HILOS, HILOS_ACTIVAS, HILOS_ATENCION, HILOS_ATENCION_RESUELTO, HILOS_EN_COLA, HILOS_TERMINADOS, ICONOS, LIDERES, LIDERES_ACTIVAS, LIDERES_ATENCION, LIDERES_ATENCION_RESUELTO, LIDER_MUERTO, LIDER_TERMINADOS, FRENADO, TITULOS, USO, USO_CUENTAS, USO_TRES, USO_NIM, USO_TODO, USO_TODO_DOS, USO_GOOGLE, USO_GOOGLE_MARCADO, USO_SIN_CUPO, USO_SIN_HORA, imagenFija, localesFalsos, vramFalsa, vramLiberarFalso } from "./fixtures";
 
 export interface Fuente {
   /** La última lista buena de una corrida anterior, para pintar algo mientras `pa` contesta. */
@@ -960,9 +960,10 @@ function deteccionLocalesFalsa(): ResultadoDeteccion {
 function cuentasFijas() {
   const nueva = (id: string, proveedor: ProveedorCuenta, nombre: string, logueado: boolean | null, defecto = false): PerfilCuenta => ({ id, proveedor, nombre, defecto, preferida: defecto, logueado });
   let lista: PerfilCuenta[] = [
-    nueva("claude", "claude", "Claude", true, true),
+    nueva("claude", "claude", MODO.variante === "cupos-tres" ? "Personal" : "Claude", true, true),
     nueva("google", "google", "Google AI Pro", (MODO.variante ?? "").startsWith("cupos"), true),
     ...(MODO.variante === "cupos-cuentas" || MODO.captura === "cuenta-lider" ? [nueva("trabajo", "claude", "Trabajo", true)] : []),
+    ...(MODO.variante === "cupos-tres" ? [nueva("trabajo", "claude", "Trabajo", true), nueva("estudio", "claude", "Estudio", true)] : []),
   ];
   const pausa = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
   const ok: ResultadoCuenta = { ok: true };
@@ -1025,6 +1026,7 @@ const usoFixture = (): Uso => {
   if (MODO.variante === "cupos-marcado") return USO_GOOGLE_MARCADO;
   if ((MODO.captura === "modelo" && MODO.variante === "sin-cupo") || MODO.variante?.startsWith("cupos-sin-cupo")) return USO_SIN_CUPO;
   if (MODO.variante === "cupos-cuentas") return USO_CUENTAS;
+  if (MODO.variante === "cupos-tres") return USO_TRES;
   if (MODO.variante === "cupos-nim") return USO_NIM;
   if (MODO.variante?.startsWith("cupos-todo-dos")) return USO_TODO_DOS;
   if (MODO.variante?.startsWith("cupos-todo")) return USO_TODO;

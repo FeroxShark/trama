@@ -1,10 +1,11 @@
-// Ajustes > Plan y cupos: una tarjeta por suscripción (Claude, Google AI Pro, ChatGPT, OpenCode) con su logo, si está conectada, el plan y
-// cada ventana con su barra y cuándo vuelve; abajo, lo que se escribe en `modelos.json` (guardar un % para mis sesiones y qué hace
-// `pa` si un proveedor se queda sin cupo). Trabaja sobre el borrador de AjustesModelos (nada se escribe hasta Guardar). Los textos que
-// cambian con el tiempo ("vuelve en 20 h") los escribe el reloj, no React.
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+// Ajustes > Plan y cupos: Claude en una sola tarjeta con un renglón por cuenta (CuposTejido.tsx); las demás suscripciones (Google AI Pro, OpenCode, ChatGPT,
+// NVIDIA NIM) en una tarjeta chica con su estado y su cupo en una línea, que se abre para ver cada ventana, el plan y conectarla, y que con varias cuentas
+// pasa a ser una tela como la de Claude. Abajo, lo que se escribe en `modelos.json` (guardar un % para mis sesiones y qué hace `pa` si un proveedor se
+// queda sin cupo). Trabaja sobre el borrador de AjustesModelos (nada se escribe hasta Guardar). Los textos que cambian con el tiempo ("vuelve en 20 h") los
+// escribe el reloj, no React.
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { Ban, CalendarClock, Check, ChevronDown, Clock, Info, Minus, TrendingDown, TrendingUp, TriangleAlert } from "lucide-react";
-import { Boton, Chip, Tarjeta } from "../ui/componentes";
+import { Boton, Chip } from "../ui/componentes";
 import { LogoCaja, type Proveedor } from "../ui/logos";
 import type { GrupoCupo, SuscripcionCupo, Uso, VentanaCupo } from "../datos/contrato";
 import { fuente, type CuentaEstado, type EstadoCuentas } from "../datos/fuente";
@@ -21,16 +22,18 @@ import { useIdioma } from "../i18n/react";
 import { Reloj } from "../barra/piezas";
 import { cuandoFuturo, fechaCorta, pintorVuelve } from "../tiempo";
 import { estadoVentana, resumenGrupo, resumenSusc } from "../barra/cuposVista";
-import { nombreGrupo, queGrupo } from "../barra/cuposNombres";
+import { nombreGrupo, nombreGrupoCorto, queGrupo } from "../barra/cuposNombres";
 import { textoEstado, textoSusc } from "../barra/cuposTextos";
 import { carcasa } from "../carcasa";
-import { cuentasDe, AgregarCuenta, CuentaFila, useCuentas } from "./CuentasVarias";
-import { suscripcionDe, type PerfilCuenta, type ProveedorCuenta } from "../datos/cuentas";
+import { cuentasDe, AgregarCuenta, useCuentas } from "./CuentasVarias";
+import { parteCuenta, suscripcionDe, type PerfilCuenta, type ProveedorCuenta } from "../datos/cuentas";
 import type { FilaDato } from "./AjustesEditar";
 import { avisosTope } from "./cupos-aviso";
 import { cambiado, fabricaDe, poner, restaurar, topeDe, TOPE_MAX, TOPE_MIN, type IdTope } from "./cupos-topes";
 import { GrupoAjustes, FilaAjuste } from "./AjustesPiezas";
-import { irA } from "./ajustes-nav";
+import { irA, pendienteDeMostrar, suscribir } from "./ajustes-nav";
+import { FilaCuenta, FilaFija, Hilos, LineaHallazgo, LineaNota, nombreVentanaMin } from "./CuposTejido";
+import { esEnUso, estadoCuenta, hallazgo, nivelCarril, ventanasDeSusc, type FilaResumen } from "./cupos-tejido";
 import { PERFILES, SIN_CUPO, type Borrador, type Perfil, type SinCupo } from "./modelos-borrador";
 import { reservaDePerfil, ritmoSemanal, type Ritmo } from "./cupos-ritmo";
 
@@ -80,9 +83,7 @@ function Ventana({ v }: { v: VentanaCupo }) {
         <span className="cu-sin">{v.pedidos !== undefined ? t("cu.w.pedidosSin", { n: v.pedidos.toLocaleString() }) : t("uso.sinDatoCupo")}</span>
       ) : (
         <>
-          <div className="ui-bar" data-tono={est === "lleno" ? "critico" : est === "bajo" ? "aviso" : undefined}>
-            <i style={{ transform: `scaleX(${Math.min(1, Math.max(0, (v.pct ?? 0) / 100))})` }} />
-          </div>
+          <Hilos pct={v.pct} nivel={nivelCarril(v)} />
           {est === "lleno" ? (
             <span className="cu-insignia" data-tono="critico">
               <Ban size={12} strokeWidth={2.4} aria-hidden="true" />
@@ -176,7 +177,7 @@ function Resumen({ s }: { s: { ventanas?: VentanaCupo[]; grupos?: GrupoCupo[]; a
 }
 
 /** «Cómo funcionan estos límites»: un botón que despliega las particularidades del proveedor (se toca; no depende de pasar el mouse). */
-function Ayuda({ lineas }: { lineas: ClaveSola[] }) {
+function Ayuda({ lineas, antes }: { lineas: ClaveSola[]; antes?: ReactNode }) {
   const [abierta, setAbierta] = useState(false);
   return (
     <div className="cu-ayuda" data-abierta={abierta ? "" : undefined}>
@@ -187,6 +188,7 @@ function Ayuda({ lineas }: { lineas: ClaveSola[] }) {
       </button>
       {abierta ? (
         <ul className="cu-ayuda-l">
+          {antes ? <li>{antes}</li> : null}
           {lineas.map((k) => (
             <li key={k}>{t(k)}</li>
           ))}
@@ -202,20 +204,56 @@ const ventanasClaude = (uso: UsoClaude): VentanaCupo[] => [
   { id: "7d", pct: uso.seven_day?.pct ?? null, vuelve: uso.seven_day?.resets_at ?? null },
 ];
 
-/** El chip de arriba de una tarjeta: conectada, sin conectar, sin instalar, o sin saber. */
-function Estado({ c }: { c: CuentaEstado | undefined }) {
-  if (!c) return <Chip>{t("comun.sinDato")}</Chip>;
-  if (c.logueado) return <Chip tono="ok">{t("cu.conectado")}</Chip>;
-  return <Chip tono="aviso">{t(c.instalado ? "cu.noConectado" : "cu.noInstalado")}</Chip>;
+type EstadoProv = { texto: string; tono?: "ok" | "aviso" };
+
+/** Qué dice una suscripción de sí misma: conectada, sin conectar, sin instalar, o sin saber. */
+function estadoProv(c: CuentaEstado | undefined): EstadoProv {
+  if (!c) return { texto: t("comun.sinDato") };
+  if (c.logueado) return { texto: t("cu.conectado"), tono: "ok" };
+  return { texto: t(c.instalado ? "cu.noConectado" : "cu.noInstalado"), tono: "aviso" };
 }
 
-/** `estado` `null`: hay varias cuentas y cada una dice el suyo. */
-function Cabecera({ id, nombre, estado }: { id: Proveedor; nombre: string; estado: CuentaEstado | undefined | null }) {
+/** Arriba de una tarjeta chica: logo, nombre y estado; debajo, su cupo en una línea. Toda ella es el botón que abre el detalle. */
+function Cabecera({ id, nombre, estado, resumen, abierta, alTocar }: { id: Proveedor; nombre: string; estado: EstadoProv | null; resumen: ReactNode; abierta: boolean; alTocar: () => void }) {
   return (
-    <div className="cu-cab">
-      <LogoCaja id={id} />
-      <h4 className="cu-nombre">{nombre}</h4>
-      {estado === null ? null : <Estado c={estado} />}
+    <h4 className="cu-chica-t">
+      <button type="button" className="cu-chica-b" aria-expanded={abierta} onClick={alTocar}>
+        <span className="cu-chica-cab">
+          <LogoCaja id={id} />
+          <span className="cu-chica-n">{nombre}</span>
+          {estado ? (
+            <span className="cu-chica-est" data-tono={estado.tono}>
+              {estado.texto}
+            </span>
+          ) : null}
+        </span>
+        <span className="cu-chica-res">
+          <span>{resumen}</span>
+          <ChevronDown className="cu-chica-f" size={14} strokeWidth={2} aria-hidden="true" />
+        </span>
+      </button>
+    </h4>
+  );
+}
+
+/**
+ * Una suscripción en chico: nombre, estado y su cupo en una línea; al tocarla se abre a todo el ancho con el detalle (ventanas, plan, conectar). `abreCon`: las
+ * filas de adentro que busca el buscador de Ajustes: con ese salto se abre sola, en el mismo render, para que el salto las encuentre a la vista.
+ */
+function Chica({ id, opc, nombre, estado, resumen, abreCon = [], children }: { id: Proveedor; opc: string; nombre: string; estado: EstadoProv | null; resumen: ReactNode; abreCon?: string[]; children: ReactNode }) {
+  const salto = useSyncExternalStore(suscribir, pendienteDeMostrar);
+  const [tocada, setTocada] = useState(false);
+  const [saltoCerrado, setSaltoCerrado] = useState<number | null>(null);
+  const pedida = !!salto && abreCon.includes(salto.opc) && salto.n !== saltoCerrado;
+  const abierta = tocada || pedida;
+  const alTocar = () => {
+    if (abierta && salto) setSaltoCerrado(salto.n);
+    setTocada(!abierta);
+  };
+  return (
+    <div className="cu-chica" data-opc={opc} data-abierta={abierta ? "" : undefined}>
+      <Cabecera id={id} nombre={nombre} estado={estado} resumen={resumen} abierta={abierta} alTocar={alTocar} />
+      {abierta ? <div className="cu-cuerpo">{children}</div> : null}
     </div>
   );
 }
@@ -254,48 +292,127 @@ function CupoDe({ uso, proveedor, perfil }: { uso: Uso | null; proveedor: Provee
   return <div className="cu-sin">{t("uso.sinDatoCupo")}</div>;
 }
 
+const suscDeCuenta = (uso: Uso | null, proveedor: ProveedorCuenta, perfil: PerfilCuenta) => (conDatos(uso) ? uso.suscripciones?.find((x) => (x.proveedor ?? x.id) === proveedor && (x.cuenta ?? x.id) === perfil.id) : undefined);
+
+/** Lo que dice el renglón de cada cuenta (`deCuenta`: de dónde salen sus ventanas). */
+function filasDeProveedor(perfiles: PerfilCuenta[], deCuenta: (p: PerfilCuenta) => { ventanas: VentanaCupo[]; agotado: number | undefined }): (FilaResumen & { perfil: PerfilCuenta; ventanas: VentanaCupo[] })[] {
+  const ahora = Date.now() / 1000;
+  const fabrica = [t("cu.claude"), t("cu.google"), t("cu.chatgpt"), t("cu.opencode")];
+  const solo = perfiles.length === 1;
+  return perfiles.map((p) => {
+    const { ventanas, agotado } = deCuenta(p);
+    return {
+      perfil: p,
+      id: p.id,
+      nombre: parteCuenta(p.proveedor, p.nombre, p.defecto, solo ? t("cu.tj.tuCuenta") : t("cu.cuentaPrincipal"), fabrica),
+      enUso: esEnUso(p, perfiles),
+      estado: estadoCuenta(ventanas, agotado, p.logueado, ahora),
+      ventanas,
+    };
+  });
+}
+
 /**
- * Las cuentas de un proveedor cuando hay más de una: una fila por cuenta con su nombre, su estado y su cupo (`deSiempre`: lo de
- * siempre para la principal). Con una sola, `null` y la tarjeta se ve como siempre.
+ * Una suscripción en una sola tarjeta con un renglón por cuenta: cabecera (logo, nombre, cuántas cuentas, estado), el aviso si a la de uso se le acaba, la tela y
+ * el pie (`pie`: ayuda y conectar otra). `sinLista`: el comando `cuentas` no está y hay una sola cuenta, que no se puede tocar. `detalle`: lo que no entra en un
+ * renglón (cada grupo, el plan), plegado.
  */
-function ListaCuentas({
-  proveedor,
-  perfiles,
-  uso,
-  deSiempre,
-  alCambiar,
-  extra,
-}: {
-  proveedor: ProveedorCuenta;
+function Tela({ id, nombre, estado, perfiles, deCuenta, sinLista, notas, pie, detalle, alCambiar }: {
+  id: Proveedor;
+  nombre: string;
+  estado: EstadoProv | null;
   perfiles: PerfilCuenta[];
-  uso: Uso | null;
-  deSiempre: ReactNode;
+  deCuenta: (p: PerfilCuenta) => { ventanas: VentanaCupo[]; agotado: number | undefined };
+  sinLista?: { ventanas: VentanaCupo[] };
+  notas?: ReactNode;
+  pie: ReactNode;
+  detalle?: ReactNode;
   alCambiar: () => void;
-  /** Lo propio de una cuenta agregada debajo de su cupo (OpenCode: su plan). */
-  extra?: (p: PerfilCuenta) => ReactNode;
 }) {
-  if (perfiles.length < 2) return null;
+  const filas = filasDeProveedor(perfiles, deCuenta);
+  const varias = filas.length > 1;
+  const h = hallazgo(filas);
+  const [abierto, setAbierto] = useState(false);
   return (
-    <div className="cu-cuentas">
-      {perfiles.map((p) => (
-        <CuentaFila key={p.id} perfil={p} alCambiar={alCambiar}>
-          {p.defecto ? (
-            deSiempre
-          ) : (
-            <>
-              <CupoDe uso={uso} proveedor={proveedor} perfil={p} />
-              {extra?.(p)}
-            </>
-          )}
-        </CuentaFila>
-      ))}
+    <div className="cu-prov-sec">
+      <div className="cu-prov">
+        <LogoCaja id={id} />
+        <h4 className="cu-prov-n">{nombre}</h4>
+        {varias ? <small>{t("cu.tj.cuentas", { n: filas.length })}</small> : null}
+        {estado ? (
+          <span className="cu-conec" data-tono={estado.tono}>
+            {estado.texto}
+          </span>
+        ) : null}
+      </div>
+      {notas}
+      {h ? <LineaHallazgo h={h} /> : null}
+      <ul className="cu-tela">
+        {sinLista && !filas.length ? (
+          <FilaFija nombre={t("cu.tj.tuCuenta")} estado={estadoCuenta(sinLista.ventanas, undefined, null, Date.now() / 1000)} ventanas={sinLista.ventanas} />
+        ) : (
+          filas.map((f) => <FilaCuenta key={f.id} perfil={f.perfil} nombre={f.nombre} enUso={f.enUso} solo={!varias} estado={f.estado} ventanas={f.ventanas} alCambiar={alCambiar} />)
+        )}
+      </ul>
+      <div className="cu-pie">
+        {pie}
+        {detalle ? (
+          <div className="cu-ayuda" data-abierta={abierto ? "" : undefined}>
+            <button type="button" className="cu-ayuda-b" aria-expanded={abierto} onClick={() => setAbierto((a) => !a)}>
+              <span>{t("cu.tj.verDetalle")}</span>
+              <ChevronDown className="cu-ayuda-f" size={12} strokeWidth={2} aria-hidden="true" />
+            </button>
+            {abierto ? <div className="cu-cuerpo cu-detalle">{detalle}</div> : null}
+          </div>
+        ) : null}
+      </div>
     </div>
+  );
+}
+
+/** Si alguna cuenta está conectada, la suscripción lo está (cada renglón dice lo suyo); si no, lo que diga el proveedor. */
+const estadoVarias = (perfiles: PerfilCuenta[], c: CuentaEstado | undefined): EstadoProv => (perfiles.length > 1 && perfiles.some((p) => p.logueado) ? { texto: t("cu.conectado"), tono: "ok" } : estadoProv(c));
+
+/** Una suscripción en una línea: "Gemini 6 %, Flash 88 %." o "5 h 24 %, semana 9 %."; sin nada que decir, `null`. */
+function cupoEnUnaLinea(s: SuscripcionCupo | undefined): string | null {
+  if (!s) return null;
+  const ahora = Date.now() / 1000;
+  const partes = s.grupos?.length
+    ? s.grupos.flatMap((g) => {
+        const r = resumenGrupo(g, ahora);
+        const n = nombreGrupoCorto(g);
+        if (r.estado === "lleno" || r.estado === "marcado") return [t("cu.tj.resGrupoSin", { nombre: n })];
+        if (r.pct !== null) return [t("cu.tj.resVentana", { ventana: n, pct: Math.round(r.pct) })];
+        return r.pedidos !== undefined ? [`${n}: ${t("cu.tj.pedidos", { n: r.pedidos.toLocaleString() })}`] : [];
+      })
+    : (s.ventanas ?? []).flatMap((v) => {
+        if (v.pct !== null) return [t("cu.tj.resVentana", { ventana: nombreVentanaMin(v.id), pct: Math.round(v.pct) })];
+        return v.pedidos !== undefined ? [t("cu.tj.pedidos", { n: v.pedidos.toLocaleString() })] : [];
+      });
+  return partes.length ? `${partes.join(", ")}.` : null;
+}
+
+/** Lo que va en la línea de una tarjeta chica: lo agotado primero, con ícono y en palabras, y después el cupo. */
+function ResumenChica({ s, plan, sinDatos }: { s: SuscripcionCupo | undefined; plan?: string; sinDatos: string }) {
+  const r = s ? resumenSusc(s, Date.now() / 1000) : null;
+  const linea = cupoEnUnaLinea(s);
+  return (
+    <>
+      {r && (r.nivel === "lleno" || r.nivel === "parcial") ? (
+        <span className="cu-chica-sin">
+          <Ban size={12} strokeWidth={2.2} aria-hidden="true" />
+          {textoSusc(r, s?.grupos)}{" "}
+        </span>
+      ) : null}
+      {linea ?? (plan ? null : sinDatos)}
+      {plan ? ` ${t("cu.tj.resPlan", { plan })}` : null}
+    </>
   );
 }
 
 const planClaude = (plan: string | null) => (plan === "max" ? t("cu.planMax") : plan === "pro" ? t("cu.planPro") : "Claude");
 
-/** Arriba de la categoría: el aviso de tope cruzado y las tres tarjetas de suscripción. */
+/** Arriba de la categoría: el aviso de tope cruzado y las tarjetas de suscripción. */
 export function CuposTarjetas({ b, uso, plan }: { b: Borrador; uso: Uso | null; plan: string | null }) {
   useIdioma();
   const [cuentas, setCuentas] = useState<EstadoCuentas | null>(null);
@@ -325,89 +442,134 @@ export function CuposTarjetas({ b, uso, plan }: { b: Borrador; uso: Uso | null; 
   const pChatgpt = cuentasDe(lista, "chatgpt");
 
   const google: SuscripcionCupo | undefined = uso && !("error" in uso) ? suscripcionDe(uso.suscripciones, "google") : undefined;
+  const chatgpt: SuscripcionCupo | undefined = uso && !("error" in uso) ? suscripcionDe(uso.suscripciones, "chatgpt") : undefined;
   const avisos = avisosTope(b, uso);
-  const vClaude = conDatos(uso) ? ventanasClaude(uso) : null;
-  const cupoClaude = vClaude ? <Ventanas vs={vClaude} reserva={reservaDePerfil(b.perfil)} /> : (
-    <div className="cu-sin">{t("uso.sinDatoCupo")}</div>
-  );
+  const vClaude = conDatos(uso) ? ventanasClaude(uso) : [];
   const cupoGoogle = google?.grupos?.length ? google.grupos.map((g) => <Grupo key={g.id} g={g} />) : google?.ventanas?.length ? <Ventanas vs={google.ventanas} /> : <div className="cu-sin">{t("uso.sinDatoCupo")}</div>;
+
+  // El ritmo de la semana es de la cuenta en uso: va en la ayuda, junto a cómo funcionan los límites.
+  const enUsoClaude = pClaude.find((p) => esEnUso(p, pClaude));
+  const claudeDe = (p: PerfilCuenta) => (p.defecto ? { ventanas: vClaude, agotado: undefined } : ventanasDeSusc(suscDeCuenta(uso, "claude", p)));
+  const semanaUso = (enUsoClaude ? claudeDe(enUsoClaude).ventanas : vClaude).find((v) => v.id === "7d");
+  const ritmo = semanaUso ? ritmoSemanal(semanaUso.pct, semanaUso.vuelve, Date.now() / 1000, reservaDePerfil(b.perfil)) : null;
+
+  const detalleDe = (proveedor: ProveedorCuenta, perfiles: PerfilCuenta[], deSiempre: ReactNode, extra?: (p: PerfilCuenta) => ReactNode) => (
+    <>
+      {perfiles.map((p) => (
+        <div key={p.id} className="cu-det-cuenta">
+          <div className="cu-det-n">{p.nombre}</div>
+          {p.defecto ? (
+            deSiempre
+          ) : (
+            <>
+              <CupoDe uso={uso} proveedor={proveedor} perfil={p} />
+              {extra?.(p)}
+            </>
+          )}
+        </div>
+      ))}
+    </>
+  );
 
   return (
     <section className="cu-sec">
-      {avisos.map((a) => (
-        <div key={a.ventana} className="pn-aviso mdl-cruce cu-aviso" role="status">
-          <TriangleAlert size={16} aria-hidden="true" className="cu-aviso-i" />
-          <div>
-            {t("cu.avisoTope", { quien: t("cu.claude"), ventana: t(a.ventana === "5h" ? "cu.ventana5h" : "cu.ventanaSem"), pct: a.pct })}
-            {a.vuelve !== null ? ", " : ""}
-            <Vuelve epoch={a.vuelve} />
-          </div>
-          <div className="cu-aviso-q">{t("cu.avisoTopeQue", { tope: a.tope })}</div>
-        </div>
-      ))}
-
       <div className="cu-tarjetas">
-        <div data-opc="cu.claude">
-          <Tarjeta>
-            <Cabecera id="claude" nombre={planClaude(plan)} estado={pClaude.length > 1 ? null : cuentas?.claude} />
-            <div className="cu-cuerpo">
-              {pClaude.length > 1 ? (
-                <ListaCuentas proveedor="claude" perfiles={pClaude} uso={uso} deSiempre={cupoClaude} alCambiar={alCambiarCuentas} />
-              ) : (
+        <div data-opc="cu.claude" data-ancho="">
+          <Tela
+            id="claude"
+            nombre={planClaude(plan)}
+            estado={estadoVarias(pClaude, cuentas?.claude)}
+            perfiles={pClaude}
+            deCuenta={claudeDe}
+            sinLista={{ ventanas: vClaude }}
+            alCambiar={alCambiarCuentas}
+            notas={avisos.map((a) => (
+              <LineaNota key={a.ventana} nivel="poco" icono={<TriangleAlert size={15} strokeWidth={2} aria-hidden="true" />}>
+                <b>{t("cu.avisoTope", { quien: t("cu.claude"), ventana: t(a.ventana === "5h" ? "cu.ventana5h" : "cu.ventanaSem"), pct: a.pct })}</b>
+                {a.vuelve !== null ? ", " : ". "}
+                <Vuelve epoch={a.vuelve} />
+                {a.vuelve !== null ? ". " : ""}
+                {t("cu.avisoTopeQue", { tope: a.tope })}
+              </LineaNota>
+            ))}
+            pie={
+              <>
+                <Ayuda lineas={["cu.ayuda.claude1"]} antes={ritmo ? <RitmoSemanal r={ritmo} /> : null} />
+                {pClaude.length > 1 ? null : <Conectar id="claude" c={cuentas?.claude} como={t("cu.comoClaude")} alMirar={mirar} />}
+                {lista ? <AgregarCuenta proveedor="claude" alCambiar={alCambiarCuentas} /> : null}
+              </>
+            }
+          />
+        </div>
+
+        {pGoogle.length > 1 ? (
+          <div data-opc="cu.google" data-ancho="">
+            <Tela
+              id="google"
+              nombre={t("cu.google")}
+              estado={estadoVarias(pGoogle, cuentas?.agy)}
+              perfiles={pGoogle}
+              deCuenta={(p) => ventanasDeSusc(suscDeCuenta(uso, "google", p))}
+              alCambiar={alCambiarCuentas}
+              pie={
                 <>
-                  {vClaude ? <Resumen s={{ ventanas: vClaude }} /> : null}
-                  {cupoClaude}
-                  <Ayuda lineas={["cu.ayuda.claude1"]} />
-                  <Conectar id="claude" c={cuentas?.claude} como={t("cu.comoClaude")} alMirar={mirar} />
+                  <Ayuda lineas={AYUDA_GOOGLE} />
+                  {lista ? <AgregarCuenta proveedor="google" alCambiar={alCambiarCuentas} /> : null}
                 </>
-              )}
-              {lista ? <AgregarCuenta proveedor="claude" alCambiar={alCambiarCuentas} /> : null}
-            </div>
-          </Tarjeta>
-        </div>
+              }
+              detalle={detalleDe("google", pGoogle, cupoGoogle)}
+            />
+          </div>
+        ) : (
+          <Chica id="google" opc="cu.google" nombre={t("cu.google")} estado={estadoProv(cuentas?.agy)} resumen={<ResumenChica s={google} sinDatos={t("cu.tj.sinDatos")} />}>
+            {cupoGoogle}
+            <Ayuda lineas={AYUDA_GOOGLE} />
+            <Conectar id="google" c={cuentas?.agy} como={t("cu.comoGoogle")} alMirar={mirar} />
+            {lista ? <AgregarCuenta proveedor="google" alCambiar={alCambiarCuentas} /> : null}
+          </Chica>
+        )}
 
-        <div data-opc="cu.google">
-          <Tarjeta>
-            <Cabecera id="google" nombre={t("cu.google")} estado={pGoogle.length > 1 ? null : cuentas?.agy} />
-            <div className="cu-cuerpo">
-              {pGoogle.length > 1 ? null : google ? <Resumen s={google} /> : null}
-              {pGoogle.length > 1 ? <ListaCuentas proveedor="google" perfiles={pGoogle} uso={uso} deSiempre={cupoGoogle} alCambiar={alCambiarCuentas} /> : cupoGoogle}
-              <Ayuda lineas={["cu.ayuda.google1", "cu.ayuda.google2", "cu.ayuda.google3", "cu.ayuda.google4", "cu.ayuda.google5", "cu.ayuda.google6"]} />
-              {pGoogle.length > 1 ? null : <Conectar id="google" c={cuentas?.agy} como={t("cu.comoGoogle")} alMirar={mirar} />}
-              {lista ? <AgregarCuenta proveedor="google" alCambiar={alCambiarCuentas} /> : null}
-            </div>
-          </Tarjeta>
-        </div>
+        <TarjetaOpencode uso={uso} perfiles={cuentasDe(lista, "opencode")} lista={!!lista} alCambiar={alCambiarCuentas} detalleDe={detalleDe} />
 
-        <div data-opc="cu.chatgpt">
-          <Tarjeta>
-            <Cabecera id="chatgpt" nombre={t("cu.chatgpt")} estado={pChatgpt.length > 1 ? null : (cuentas?.codex ?? (cuentas ? { instalado: false, logueado: false, cuenta: null, error: null } : undefined))} />
-            <div className="cu-cuerpo">
-              {pChatgpt.length > 1 ? (
-                <ListaCuentas proveedor="chatgpt" perfiles={pChatgpt} uso={uso} deSiempre={<div className="cu-sin">{t("cu.chatgptSinCupo")}</div>} alCambiar={alCambiarCuentas} />
-              ) : (
+        {pChatgpt.length > 1 ? (
+          <div data-opc="cu.chatgpt" data-ancho="">
+            <Tela
+              id="chatgpt"
+              nombre={t("cu.chatgpt")}
+              estado={estadoVarias(pChatgpt, cuentas?.codex)}
+              perfiles={pChatgpt}
+              deCuenta={(p) => ventanasDeSusc(suscDeCuenta(uso, "chatgpt", p))}
+              alCambiar={alCambiarCuentas}
+              pie={
                 <>
-                  <div className="cu-sin">{t("cu.chatgptSinCupo")}</div>
                   <Ayuda lineas={["cu.ayuda.chatgpt1"]} />
-                  <Conectar id="chatgpt" c={cuentas?.codex} como={t(cuentas?.codex?.instalado ? "cu.comoCodex" : "cu.comoCodexInstalar")} alMirar={mirar} />
+                  {lista ? <AgregarCuenta proveedor="chatgpt" alCambiar={alCambiarCuentas} /> : null}
                 </>
-              )}
-              {lista && pChatgpt.length > 0 ? <AgregarCuenta proveedor="chatgpt" alCambiar={alCambiarCuentas} /> : null}
-            </div>
-          </Tarjeta>
-        </div>
+              }
+            />
+          </div>
+        ) : (
+          <Chica
+            id="chatgpt"
+            opc="cu.chatgpt"
+            nombre={t("cu.chatgpt")}
+            estado={estadoProv(cuentas?.codex ?? (cuentas ? { instalado: false, logueado: false, cuenta: null, error: null } : undefined))}
+            resumen={<ResumenChica s={chatgpt} sinDatos={t("cu.tj.sinDatos")} />}
+          >
+            {chatgpt?.ventanas?.length ? <Ventanas vs={chatgpt.ventanas} /> : <div className="cu-sin">{t("cu.chatgptSinCupo")}</div>}
+            <Ayuda lineas={["cu.ayuda.chatgpt1"]} />
+            <Conectar id="chatgpt" c={cuentas?.codex} como={t(cuentas?.codex?.instalado ? "cu.comoCodex" : "cu.comoCodexInstalar")} alMirar={mirar} />
+            {lista && pChatgpt.length > 0 ? <AgregarCuenta proveedor="chatgpt" alCambiar={alCambiarCuentas} /> : null}
+          </Chica>
+        )}
 
-        <div data-opc="cu.opencode">
-          <TarjetaOpencode uso={uso} perfiles={cuentasDe(lista, "opencode")} lista={!!lista} alCambiar={alCambiarCuentas} />
-        </div>
-
-        <div data-opc="cu.nvidia">
-          <TarjetaNvidia uso={uso} />
-        </div>
+        <TarjetaNvidia uso={uso} />
       </div>
     </section>
   );
 }
+
+const AYUDA_GOOGLE: ClaveSola[] = ["cu.ayuda.google1", "cu.ayuda.google2", "cu.ayuda.google3", "cu.ayuda.google4", "cu.ayuda.google5", "cu.ayuda.google6"];
 
 type PlanOc = VistaPlanGo["plan"];
 const PLANES_OC: readonly { id: PlanOc; nombre: ClaveSola }[] = [
@@ -499,7 +661,7 @@ function PlanCuentaOpencode({ perfil, alCambiar }: { perfil: PerfilCuenta; alCam
  * `cuentas`, proveedor opencode: cada una con su carpeta de login), una fila por cuenta con su plan y su uso, como Claude o Google. El programa y la
  * clave de API siguen en Ajustes > OpenCode.
  */
-function TarjetaOpencode({ uso, perfiles, lista, alCambiar }: { uso: Uso | null; perfiles: PerfilCuenta[]; lista: boolean; alCambiar: () => void }) {
+function TarjetaOpencode({ uso, perfiles, lista, alCambiar, detalleDe }: { uso: Uso | null; perfiles: PerfilCuenta[]; lista: boolean; alCambiar: () => void; detalleDe: (proveedor: ProveedorCuenta, perfiles: PerfilCuenta[], deSiempre: ReactNode, extra?: (p: PerfilCuenta) => ReactNode) => ReactNode }) {
   useIdioma();
   const [e, setE] = useState<EstadoOpencodeUi | null>(null);
   const [v, setV] = useState<VistaPlanGo | null>(null);
@@ -565,68 +727,90 @@ function TarjetaOpencode({ uso, perfiles, lista, alCambiar }: { uso: Uso | null;
       {go && v?.precio != null ? <div className="cu-nota">{t("cu.opencodeGo.precio", { usd: v.precio })}</div> : null}
     </>
   );
-  return (
-    <Tarjeta>
-      <Cabecera id="opencode" nombre={go && !varias ? `${t("cu.opencode")} ${nombrePlanOc(plan)}` : t("cu.opencode")} estado={varias ? null : estado} />
-      <div className="cu-cuerpo">
-        {varias ? (
-          <ListaCuentas
-            proveedor="opencode"
-            perfiles={perfiles}
-            uso={uso}
-            deSiempre={deSiempre}
-            alCambiar={alCambiar}
-            extra={(p) => <PlanCuentaOpencode perfil={p} alCambiar={alCambiar} />}
-          />
-        ) : (
-          deSiempre
-        )}
-
-        {algunGo && v ? (
-          <div data-opc="cu.opencodeGo">
-            {v.modelos.length ? (
-              <table className="cu-go" aria-label={t("cu.opencodeGo.topes")}>
-                <thead>
-                  <tr>
-                    <th scope="col">{t("cu.opencodeGo.modelo")}</th>
-                    <th scope="col">{t("cu.opencodeGo.pedidos")}</th>
-                    <th scope="col">{t("cu.opencodeGo.usd")}</th>
-                    <th scope="col">{t("cu.opencodeGo.estado")}</th>
+  const tablaGo =
+    algunGo && v ? (
+      <div data-opc="cu.opencodeGo">
+        {v.modelos.length ? (
+          <table className="cu-go" aria-label={t("cu.opencodeGo.topes")}>
+            <thead>
+              <tr>
+                <th scope="col">{t("cu.opencodeGo.modelo")}</th>
+                <th scope="col">{t("cu.opencodeGo.pedidos")}</th>
+                <th scope="col">{t("cu.opencodeGo.usd")}</th>
+                <th scope="col">{t("cu.opencodeGo.estado")}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {v.modelos.map((m) => {
+                const hasta = agotados.get(`opencode:${m.id}`.toLowerCase()) ?? null;
+                return (
+                  <tr key={m.id} data-agotado={hasta ? "" : undefined}>
+                    <th scope="row">{m.nombre || nombreOpencode(m.id)}</th>
+                    <td>{m.pedidos5h === null ? "—" : t("cu.opencodeGo.pedidosN", { n: m.pedidos5h.toLocaleString() })}</td>
+                    <td>{m.usdMes === null ? "—" : t("cu.opencodeGo.usdN", { n: m.usdMes.toLocaleString() })}</td>
+                    <td>
+                      <Pildora nivel={hasta ? "lleno" : "ok"}>{hasta ? t("cu.opencodeGo.agotado", { cuando: cuandoFuturo(hasta) }) : t("cu.opencodeGo.libre")}</Pildora>
+                    </td>
                   </tr>
-                </thead>
-                <tbody>
-                  {v.modelos.map((m) => {
-                    const hasta = agotados.get(`opencode:${m.id}`.toLowerCase()) ?? null;
-                    return (
-                      <tr key={m.id} data-agotado={hasta ? "" : undefined}>
-                        <th scope="row">{m.nombre || nombreOpencode(m.id)}</th>
-                        <td>{m.pedidos5h === null ? "—" : t("cu.opencodeGo.pedidosN", { n: m.pedidos5h.toLocaleString() })}</td>
-                        <td>{m.usdMes === null ? "—" : t("cu.opencodeGo.usdN", { n: m.usdMes.toLocaleString() })}</td>
-                        <td>
-                          <Pildora nivel={hasta ? "lleno" : "ok"}>{hasta ? t("cu.opencodeGo.agotado", { cuando: cuandoFuturo(hasta) }) : t("cu.opencodeGo.libre")}</Pildora>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            ) : (
-              <div className="cu-sin">{t("cu.opencodeGo.sinTabla")}</div>
-            )}
-            {varias ? <div className="cu-nota">{t("cu.opencodeGo.topesDe", { plan: nombrePlanOc(go ? plan : "go") })}</div> : null}
-            {v.fuente ? (
-              <div className="cu-nota">
-                {v.origen === "cache" ? t("cu.opencodeGo.fuente", { fuente: v.fuente, fecha: v.fecha ?? "—" }) : t("cu.opencodeGo.respaldo", { fecha: v.fecha ?? "—" })}
-              </div>
-            ) : null}
+                );
+              })}
+            </tbody>
+          </table>
+        ) : (
+          <div className="cu-sin">{t("cu.opencodeGo.sinTabla")}</div>
+        )}
+        {varias ? <div className="cu-nota">{t("cu.opencodeGo.topesDe", { plan: nombrePlanOc(go ? plan : "go") })}</div> : null}
+        {v.fuente ? (
+          <div className="cu-nota">
+            {v.origen === "cache" ? t("cu.opencodeGo.fuente", { fuente: v.fuente, fecha: v.fecha ?? "—" }) : t("cu.opencodeGo.respaldo", { fecha: v.fecha ?? "—" })}
           </div>
         ) : null}
-
-        <Ayuda lineas={["cu.opencode.libreQue", "cu.opencode.contados", "cu.opencode.pagos", "cu.opencode.cuentas", "cu.opencode.mas"]} />
-        {varias ? null : <Conectar id="opencode" c={estado} como={t(e && !e.instalado ? "cu.comoOpencodeInstalar" : "cu.comoOpencode")} alMirar={mirar} />}
-        {lista ? <AgregarCuenta proveedor="opencode" alCambiar={alCambiar} /> : null}
       </div>
-    </Tarjeta>
+    ) : null;
+  const ayuda = <Ayuda lineas={["cu.opencode.libreQue", "cu.opencode.contados", "cu.opencode.pagos", "cu.opencode.cuentas", "cu.opencode.mas"]} />;
+  const otra = lista ? <AgregarCuenta proveedor="opencode" alCambiar={alCambiar} /> : null;
+  if (varias)
+    return (
+      <div data-opc="cu.opencode" data-ancho="">
+        <Tela
+          id="opencode"
+          nombre={t("cu.opencode")}
+          estado={estadoVarias(perfiles, estado)}
+          perfiles={perfiles}
+          deCuenta={(p) => ventanasDeSusc(suscDeCuenta(uso, "opencode", p))}
+          alCambiar={alCambiar}
+          pie={
+            <>
+              {ayuda}
+              {otra}
+            </>
+          }
+          detalle={
+            <>
+              {detalleDe("opencode", perfiles, deSiempre, (p) => (
+                <PlanCuentaOpencode perfil={p} alCambiar={alCambiar} />
+              ))}
+              {tablaGo}
+            </>
+          }
+        />
+      </div>
+    );
+  return (
+    <Chica
+      id="opencode"
+      opc="cu.opencode"
+      nombre={go ? `${t("cu.opencode")} ${nombrePlanOc(plan)}` : t("cu.opencode")}
+      estado={estado ? estadoProv(estado) : null}
+      abreCon={["ajustes.ocPlan", "cu.opencodeGo"]}
+      resumen={<ResumenChica s={s} plan={nombrePlanOc(plan)} sinDatos={t("cu.tj.sinDatos")} />}
+    >
+      {deSiempre}
+      {tablaGo}
+      {ayuda}
+      <Conectar id="opencode" c={estado} como={t(e && !e.instalado ? "cu.comoOpencodeInstalar" : "cu.comoOpencode")} alMirar={mirar} />
+      {otra}
+    </Chica>
   );
 }
 
@@ -644,23 +828,17 @@ function TarjetaNvidia({ uso }: { uso: Uso | null }) {
     return () => void (vivo = false);
   }, []);
   const s = conDatos(uso) ? uso.suscripciones?.find((x) => x.id === "nvidia-nim") : undefined;
+  const estado: EstadoProv | null = e ? (e.hayClave ? { texto: t("cu.nvidia.conClave"), tono: "ok" } : { texto: t("cu.nvidia.sinClave") }) : null;
   return (
-    <Tarjeta>
-      <div className="cu-cab">
-        <LogoCaja id="nvidia" />
-        <h4 className="cu-nombre">{t("cu.nvidia")}</h4>
-        {e ? <Pildora nivel={e.hayClave ? "ok" : "sin"}>{e.hayClave ? t("cu.nvidia.conClave") : t("cu.nvidia.sinClave")}</Pildora> : null}
-      </div>
-      <div className="cu-cuerpo">
-        {s?.grupos?.length ? s.grupos.map((g) => <Grupo key={g.id} g={g} />) : <div className="cu-sin">{t(e && !e.hayClave ? "cu.nvidia.sinClaveQue" : "cu.nvidia.sinUso")}</div>}
-        {e && !e.hayClave ? (
-          <Boton className="cu-poner-clave" primario onClick={() => irA("opencode", "ajustes.nimClave", true)}>
-            {t("cu.nvidia.ponerClave")}
-          </Boton>
-        ) : null}
-        <Ayuda lineas={["cu.nvidia.libreQue", "cu.nvidia.contados", "cu.nvidia.mas"]} />
-      </div>
-    </Tarjeta>
+    <Chica id="nvidia" opc="cu.nvidia" nombre={t("cu.nvidia")} estado={estado} resumen={e && !e.hayClave ? t("cu.tj.sinClaveCorto") : <ResumenChica s={s} sinDatos={t("cu.nvidia.sinUso")} />}>
+      {s?.grupos?.length ? s.grupos.map((g) => <Grupo key={g.id} g={g} />) : <div className="cu-sin">{t(e && !e.hayClave ? "cu.nvidia.sinClaveQue" : "cu.nvidia.sinUso")}</div>}
+      {e && !e.hayClave ? (
+        <Boton className="cu-poner-clave" primario onClick={() => irA("opencode", "ajustes.nimClave", true)}>
+          {t("cu.nvidia.ponerClave")}
+        </Boton>
+      ) : null}
+      <Ayuda lineas={["cu.nvidia.libreQue", "cu.nvidia.contados", "cu.nvidia.mas"]} />
+    </Chica>
   );
 }
 

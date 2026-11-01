@@ -344,9 +344,6 @@
   border-radius: var(--r-lg);
   box-shadow: var(--vidrio-borde);
 }
-.aj-raiz .cu-nombre {
-  font-weight: 600;
-}
 .aj-raiz .cu-pildora {
   height: var(--alto-chip);
   align-items: center;

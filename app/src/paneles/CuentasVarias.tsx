@@ -41,7 +41,7 @@ export const cuentasDe = deProveedor;
 const textoError = (r: Extract<ResultadoCuenta, { ok: false }>) => textoMain(r.error);
 
 /** El nombre de la cuenta: un botón que al tocarlo se vuelve campo; Enter o salir del campo guarda, Esc deja el que estaba. */
-function Nombre({ perfil, alGuardar }: { perfil: PerfilCuenta; alGuardar: (nombre: string) => void }) {
+export function Nombre({ perfil, texto, alGuardar }: { perfil: PerfilCuenta; texto?: string; alGuardar: (nombre: string) => void }) {
   const [editando, setEditando] = useState(false);
   const [valor, setValor] = useState(perfil.nombre);
   const cancelado = useRef(false);
@@ -63,7 +63,7 @@ function Nombre({ perfil, alGuardar }: { perfil: PerfilCuenta; alGuardar: (nombr
           setEditando(true);
         }}
       >
-        <span className="cu-cta-txt">{perfil.nombre}</span>
+        <span className="cu-cta-txt">{texto ?? perfil.nombre}</span>
         <IcEditar {...ICONO} size={12} aria-hidden="true" className="cu-cta-lapiz" />
       </button>
     );
@@ -92,15 +92,10 @@ function Nombre({ perfil, alGuardar }: { perfil: PerfilCuenta; alGuardar: (nombr
   );
 }
 
-/**
- * Una cuenta: nombre editable, conectada o no, «En uso» o «Usar primero» (la elegida es la que usan los líderes y workers nuevos de su
- * proveedor; no toca lo que ya corre ni cambia sola cuando se agota el cupo), Conectar y Quitar (la de siempre no se quita). `children`: su cupo.
- */
-export function CuentaFila({ perfil, alCambiar, children }: { perfil: PerfilCuenta; alCambiar: () => void; children?: ReactNode }) {
-  useIdioma();
+/** Lo que se le puede hacer a una cuenta (renombrar, conectar, elegirla, quitarla), con su espera y su error: lo comparten `CuentaFila` y el renglón de Plan y cupos. */
+export function useAccionesCuenta(perfil: PerfilCuenta, alCambiar: () => void) {
   const [ocupada, setOcupada] = useState<"login" | "guardar" | null>(null);
   const [quitando, setQuitando] = useState(false);
-  const [borrar, setBorrar] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const vivo = useRef(true);
   useEffect(() => {
@@ -119,42 +114,29 @@ export function CuentaFila({ perfil, alCambiar, children }: { perfil: PerfilCuen
     alCambiar();
   };
 
+  return {
+    ocupada,
+    error,
+    quitando,
+    setQuitando,
+    renombrar: (n: string) => void correr("guardar", () => fuente.renombrarCuenta(perfil.id, n)),
+    conectar: () => void correr("login", () => fuente.loginCuenta(perfil.id)),
+    usar: () => void correr("guardar", () => fuente.preferirCuenta(perfil.id)),
+    quitar: (borrar: boolean) => void correr("guardar", () => fuente.quitarCuenta(perfil.id, borrar)),
+  };
+}
+
+/** Lo que aparece debajo de una cuenta mientras se hace algo: la espera del login, la confirmación de quitar y el error. */
+export function AvisosCuenta({ perfil, acc }: { perfil: PerfilCuenta; acc: ReturnType<typeof useAccionesCuenta> }) {
+  const [borrar, setBorrar] = useState(false);
   return (
-    <div className="cu-cta" data-cuenta={perfil.id}>
-      <div className="cu-cta-cab">
-        <Nombre perfil={perfil} alGuardar={(n) => void correr("guardar", () => fuente.renombrarCuenta(perfil.id, n))} />
-        {perfil.defecto ? <span className="cu-cta-def">{t("cu.cuentaPrincipal")}</span> : null}
-        {perfil.logueado === null ? null : perfil.logueado ? <Chip tono="ok">{t("cu.conectado")}</Chip> : <Chip tono="aviso">{t("cu.noConectado")}</Chip>}
-        {perfil.preferida ? (
-          <span className="cu-cta-uso" data-tip={t("cu.enUsoQue")}>
-            <Check size={12} strokeWidth={2.4} aria-hidden="true" />
-            {t("cu.enUso")}
-          </span>
-        ) : null}
-        <span className="cu-cta-acc">
-          {perfil.preferida || perfil.logueado === false ? null : (
-            <Boton disabled={ocupada !== null} data-tip={t("cu.usarPrimeroQue")} onClick={() => void correr("guardar", () => fuente.preferirCuenta(perfil.id))}>
-              {t("cu.usarPrimero")}
-            </Boton>
-          )}
-          {perfil.logueado === false ? (
-            <Boton disabled={ocupada !== null} onClick={() => void correr("login", () => fuente.loginCuenta(perfil.id))}>
-              {t("cu.conectar")}
-            </Boton>
-          ) : null}
-          {perfil.defecto ? null : (
-            <Boton disabled={ocupada !== null} aria-expanded={quitando} onClick={() => setQuitando((q) => !q)}>
-              {t("cu.quitar")}
-            </Boton>
-          )}
-        </span>
-      </div>
-      {ocupada === "login" ? (
+    <>
+      {acc.ocupada === "login" ? (
         <div className="cu-cta-nota" role="status">
           {t("cu.esperandoLogin")}
         </div>
       ) : null}
-      {quitando ? (
+      {acc.quitando ? (
         <div className="cu-cta-quitar" role="group" aria-label={t("cu.quitarPregunta", { nombre: perfil.nombre })}>
           <div className="cu-cta-q">{t("cu.quitarPregunta", { nombre: perfil.nombre })}</div>
           <label className="cu-cta-borrar">
@@ -165,18 +147,61 @@ export function CuentaFila({ perfil, alCambiar, children }: { perfil: PerfilCuen
             </span>
           </label>
           <div className="cu-cta-botones">
-            <Boton primario disabled={ocupada !== null} onClick={() => void correr("guardar", () => fuente.quitarCuenta(perfil.id, borrar))}>
+            <Boton primario disabled={acc.ocupada !== null} onClick={() => acc.quitar(borrar)}>
               {t("cu.quitar")}
             </Boton>
-            <Boton onClick={() => setQuitando(false)}>{t("cu.cancelar")}</Boton>
+            <Boton onClick={() => acc.setQuitando(false)}>{t("cu.cancelar")}</Boton>
           </div>
         </div>
       ) : null}
-      {error ? (
+      {acc.error ? (
         <div className="pn-error cu-cta-error" role="alert">
-          {error}
+          {acc.error}
         </div>
       ) : null}
+    </>
+  );
+}
+
+/**
+ * Una cuenta en la bienvenida: nombre editable, conectada o no, «En uso» o «Usar» (la elegida es la que usan los líderes y workers nuevos de su
+ * proveedor; no toca lo que ya corre ni cambia sola cuando se agota el cupo), Conectar y Quitar (la de siempre no se quita). `children`: su cupo.
+ * En Ajustes > Plan y cupos la misma cuenta es un renglón de la tela (`CuposTejido.tsx`).
+ */
+export function CuentaFila({ perfil, alCambiar, children }: { perfil: PerfilCuenta; alCambiar: () => void; children?: ReactNode }) {
+  useIdioma();
+  const acc = useAccionesCuenta(perfil, alCambiar);
+  return (
+    <div className="cu-cta" data-cuenta={perfil.id}>
+      <div className="cu-cta-cab">
+        <Nombre perfil={perfil} alGuardar={acc.renombrar} />
+        {perfil.defecto ? <span className="cu-cta-def">{t("cu.cuentaPrincipal")}</span> : null}
+        {perfil.logueado === null ? null : perfil.logueado ? <Chip tono="ok">{t("cu.conectado")}</Chip> : <Chip tono="aviso">{t("cu.noConectado")}</Chip>}
+        {perfil.preferida ? (
+          <span className="cu-cta-uso" data-tip={t("cu.enUsoQue")}>
+            <Check size={12} strokeWidth={2.4} aria-hidden="true" />
+            {t("cu.enUso")}
+          </span>
+        ) : null}
+        <span className="cu-cta-acc">
+          {perfil.preferida || perfil.logueado === false ? null : (
+            <Boton disabled={acc.ocupada !== null} data-tip={t("cu.usarPrimeroQue")} onClick={acc.usar}>
+              {t("cu.usarPrimero")}
+            </Boton>
+          )}
+          {perfil.logueado === false ? (
+            <Boton disabled={acc.ocupada !== null} onClick={acc.conectar}>
+              {t("cu.conectar")}
+            </Boton>
+          ) : null}
+          {perfil.defecto ? null : (
+            <Boton disabled={acc.ocupada !== null} aria-expanded={acc.quitando} onClick={() => acc.setQuitando((q) => !q)}>
+              {t("cu.quitar")}
+            </Boton>
+          )}
+        </span>
+      </div>
+      <AvisosCuenta perfil={perfil} acc={acc} />
       {children}
     </div>
   );

@@ -2305,60 +2305,11 @@
   }
 }
 
-/* --- Ajustes > Plan y cupos (AjustesCupos.tsx): una tarjeta por suscripción, con sus ventanas y su "vuelve en" --- */
+/* --- Ajustes > Plan y cupos (AjustesCupos.tsx): el detalle de cada suscripción, con sus ventanas y su "vuelve en" (la tela y las tarjetas: cupos-tejido.css) --- */
 .cu-sec {
   display: flex;
   flex-direction: column;
   gap: var(--esp-3);
-}
-.cu-tarjetas {
-  display: grid;
-  gap: var(--esp-3);
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  /* Las dos chicas (Claude y ChatGPT) de la misma altura, una al lado de la otra; la de Google, que es alta (un renglón por grupo),
-     va debajo a todo el ancho y reparte sus grupos en columnas: nunca queda un hueco al costado de una tarjeta alta. */
-  align-items: stretch;
-}
-.cu-tarjetas > [data-opc] {
-  display: flex;
-  min-width: 0;
-}
-.cu-tarjetas > [data-opc] > * {
-  flex: 1;
-  min-width: 0;
-}
-.cu-tarjetas > [data-opc="cu.claude"] {
-  order: 1;
-}
-.cu-tarjetas > [data-opc="cu.chatgpt"] {
-  order: 2;
-}
-.cu-tarjetas > [data-opc="cu.google"] {
-  order: 3;
-  grid-column: 1 / -1;
-}
-.cu-tarjetas > [data-opc="cu.google"] .cu-cuerpo {
-  display: grid;
-  align-items: stretch;
-  gap: var(--esp-3) var(--esp-3);
-  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
-}
-.cu-tarjetas > [data-opc="cu.google"] .cu-cuerpo > :not(.cu-grupo) {
-  grid-column: 1 / -1;
-}
-.cu-cab {
-  display: flex;
-  align-items: center;
-  gap: var(--esp-2-5);
-  padding: var(--esp-3) var(--esp-4);
-}
-.cu-nombre {
-  min-width: 0;
-  flex: 1;
-  margin: 0;
-  color: var(--texto);
-  font-size: var(--letra-6);
-  font-weight: 500;
 }
 .cu-cuerpo {
   display: flex;
@@ -2381,10 +2332,6 @@
   grid-area: n;
   color: var(--texto);
   font-size: var(--letra-4);
-}
-.cu-vent > .ui-bar {
-  grid-area: bar;
-  height: 0.375rem;
 }
 .cu-pct,
 .cu-insignia {
@@ -2618,20 +2565,8 @@
   color: var(--apagado);
   font-size: var(--letra-4);
 }
-@media (max-width: 48rem) {
-  .cu-tarjetas {
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .cu-tarjetas > [data-opc] {
-    grid-column: 1;
-  }
-}
 
 /* --- Varias cuentas por proveedor (CuentasVarias.tsx): una fila por cuenta dentro de su tarjeta, y "Conectar otra cuenta" --- */
-.cu-cuentas {
-  display: flex;
-  flex-direction: column;
-}
 .cu-cta {
   display: flex;
   flex-direction: column;

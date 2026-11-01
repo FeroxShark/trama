@@ -231,6 +231,16 @@ export function cuandoFuturo(epoch: number, ahora = Date.now() / 1000): string {
   return `${fecha} ${hora}`;
 }
 
+/** Lo mismo, para un renglón angosto: "17:40" (hoy), "vie 09:00" (dentro de la semana, mañana también), "2 nov 01:01". */
+export function cuandoFuturoCorto(epoch: number, ahora = Date.now() / 1000): string {
+  const f = new Date(epoch * 1000);
+  const dias = Math.round((diaDe(f) - diaDe(new Date(ahora * 1000))) / (DIA * 1000));
+  const hora = `${dos(f.getHours())}:${dos(f.getMinutes())}`;
+  if (dias <= 0) return hora;
+  if (dias < 7) return `${diaSemana(f)} ${hora}`;
+  return cuandoFuturo(epoch, ahora);
+}
+
 /** "2 nov": una fecha ISO corta (YYYY-MM-DD) en local y sin año; si no es una fecha, el texto tal cual. */
 export function fechaCorta(iso: string): string {
   const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);

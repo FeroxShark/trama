@@ -108,8 +108,8 @@ export function BarraGuardar() {
 }
 
 const PLANES: Opcion[] = [
-  { id: "pro", nombre: "pro", desc: "" },
-  { id: "max", nombre: "max", desc: "" },
+  { id: "pro", nombre: "Pro", desc: "" },
+  { id: "max", nombre: "Max", desc: "" },
 ];
 
 /**
@@ -166,7 +166,7 @@ export function PlanYRed({
 
   return (
     <>
-      <section className="pn-sec">
+      <section className="pn-sec cu-plan">
         <h2 className="pn-h">{t("ajustes.plan")}</h2>
         <Dato nombre="ajustes.planSus" que="ajustes.planQue">
           {g.plan && b.plan ? (

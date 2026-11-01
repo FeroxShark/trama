@@ -1,0 +1,548 @@
+/* Ajustes > Plan y cupos, la tela (CuposTejido.tsx): medidas en rem a partir de una letra de 16 px. */
+.cu-sec {
+  container: cupos / inline-size;
+}
+.aj-raiz .aj-cat[data-cat="cupos"] {
+  gap: var(--esp-3);
+}
+
+/* El plan de suscripción: una tarjeta de una línea (el título de la sección se le queda al lector de pantalla). */
+.aj-raiz .aj-cat .pn-sec.cu-plan > .pn-h {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  padding: 0;
+  margin: 0;
+}
+.aj-raiz .aj-cat .pn-sec.cu-plan > .pn-dato {
+  min-height: 0;
+  margin: 0;
+  padding: var(--esp-3) var(--esp-4) var(--esp-3) var(--esp-5);
+}
+.aj-raiz .aj-cat .pn-sec.cu-plan > :last-child {
+  margin-bottom: 0;
+}
+
+.cu-tarjetas {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: var(--esp-3);
+}
+.cu-tarjetas > [data-ancho],
+.cu-tarjetas > [data-abierta] {
+  grid-column: 1 / -1;
+}
+
+/* --- La cabecera de un proveedor --- */
+.cu-prov-sec {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--esp-3);
+}
+.cu-prov {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-2-5);
+  padding-top: var(--esp-1-5);
+}
+.cu-prov .ui-logo {
+  width: 1.625rem;
+  height: 1.625rem;
+  border-radius: var(--r-xs);
+}
+.cu-prov .ui-logo svg {
+  width: 0.9375rem;
+  height: 0.9375rem;
+}
+.cu-prov-n {
+  margin: 0;
+  color: var(--texto);
+  font-size: var(--letra-7);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.cu-prov small {
+  color: var(--apagado);
+  font-size: var(--letra-5);
+}
+.cu-conec {
+  display: inline-flex;
+  height: 1.625rem;
+  flex: none;
+  align-items: center;
+  margin-left: auto;
+  padding: 0 var(--esp-2-5);
+  border-radius: var(--r-cap);
+  background: var(--capa-tile);
+  color: var(--apagado);
+  font-size: 0.78125rem;
+  font-weight: 500;
+}
+.cu-conec[data-tono="ok"] {
+  background: color-mix(in srgb, var(--ok) 10%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ok) 50%, transparent);
+  color: var(--ok);
+}
+.cu-conec[data-tono="aviso"] {
+  background: var(--decision-fondo);
+  box-shadow: inset 0 0 0 1px var(--decision-borde);
+  color: var(--decision-texto);
+}
+
+/* --- El aviso: la cuenta en uso se queda sin cupo y otra tiene lugar --- */
+.cu-hallazgo {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--esp-2);
+  margin: 0;
+  padding: 0 var(--esp-0-5);
+  color: var(--apagado);
+  font-size: var(--letra-5);
+  line-height: 1.4;
+}
+.cu-hallazgo > svg {
+  flex: none;
+  margin-top: 0.0625rem;
+}
+.cu-hallazgo strong {
+  color: var(--texto);
+  font-weight: 600;
+}
+.cu-hallazgo b {
+  font-weight: 600;
+}
+.cu-hallazgo[data-nivel="poco"] > svg {
+  color: var(--aviso);
+}
+.cu-hallazgo[data-nivel="poco"] b {
+  color: var(--decision-texto);
+}
+.cu-hallazgo[data-nivel="sin"] > svg {
+  color: var(--critico);
+}
+.cu-hallazgo[data-nivel="sin"] b {
+  color: var(--fallo-texto);
+}
+
+/* --- La tela: una tarjeta, un renglón por cuenta --- */
+.cu-tela {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: var(--esp-2);
+  border-radius: var(--r-lg);
+  background: var(--capa-card);
+  box-shadow: inset 0 0 0 1px var(--capa-div);
+  list-style: none;
+}
+.cu-renglon {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--esp-2);
+}
+.cu-renglon > :not(.cu-fila) {
+  margin: 0 var(--esp-2-5) var(--esp-2) var(--esp-3);
+}
+.cu-fila {
+  position: relative;
+  display: grid;
+  min-height: 4.25rem;
+  grid-template-columns: 8.75rem minmax(0, 1fr) 5rem;
+  align-items: center;
+  gap: var(--esp-3);
+  padding: var(--esp-1-5) var(--esp-2-5) var(--esp-1-5) var(--esp-3);
+  border-radius: calc(var(--r-lg) - var(--esp-2));
+}
+.cu-fila[data-solo] {
+  grid-template-columns: 8.75rem minmax(0, 1fr);
+}
+.cu-renglon + .cu-renglon > .cu-fila::before {
+  position: absolute;
+  top: -0.03125rem;
+  right: var(--esp-3);
+  left: var(--esp-3);
+  height: 1px;
+  background: var(--capa-div);
+  content: "";
+}
+.cu-fila[data-uso] {
+  background: color-mix(in srgb, var(--acento) 10%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--acento) 55%, transparent);
+}
+.cu-renglon + .cu-renglon > .cu-fila[data-uso]::before,
+.cu-renglon:has(> .cu-fila[data-uso]) + .cu-renglon > .cu-fila::before {
+  display: none;
+}
+
+/* El nombre y su estado en palabras. */
+.cu-nom {
+  min-width: 0;
+}
+.cu-nom-fila {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--esp-0-5);
+}
+.cu-nom-t,
+.cu-nom .cu-cta-nom {
+  color: var(--texto);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.25;
+}
+.cu-nom .cu-cta-nom {
+  margin-left: calc(var(--esp-1) * -1);
+  padding: 0 var(--esp-1);
+}
+.cu-quitar {
+  display: inline-grid;
+  width: 1.125rem;
+  height: 1.125rem;
+  flex: none;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-xs);
+  background: none;
+  color: var(--apagado);
+  cursor: pointer;
+  opacity: 0;
+}
+.cu-quitar:hover {
+  background: var(--capa-hover);
+  color: var(--texto);
+}
+.cu-fila:hover .cu-quitar,
+.cu-quitar:focus-visible,
+.cu-quitar[aria-expanded="true"] {
+  opacity: 1;
+}
+.cu-est {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-1);
+  margin-top: 0.0625rem;
+  overflow: hidden;
+  color: var(--apagado);
+  font-size: var(--letra-4);
+  line-height: 1rem;
+  white-space: nowrap;
+}
+.cu-est svg {
+  flex: none;
+}
+.cu-est[data-nivel="poco"] {
+  color: var(--decision-texto);
+  font-weight: 550;
+}
+.cu-est[data-nivel="sin"] {
+  color: var(--fallo-texto);
+  font-weight: 550;
+}
+
+/* El par: dos carriles de hilos, pegados, con las columnas alineadas entre cuentas. */
+.cu-par {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: 3.375rem minmax(0, 11.5625rem) 3.25rem minmax(0, 1fr);
+  align-items: center;
+  gap: var(--esp-0-5) 0;
+  font-size: var(--letra-4);
+}
+.cu-fila[data-solo] .cu-par {
+  grid-template-columns: 3.375rem minmax(0, 1fr) 3.25rem 7.1875rem;
+}
+.cu-par-sin {
+  color: var(--apagado);
+  font-size: var(--letra-4);
+}
+.cu-l,
+.cu-v {
+  color: var(--apagado);
+}
+.cu-v {
+  overflow: hidden;
+  padding-left: var(--esp-2-5);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cu-n {
+  color: var(--texto);
+  font-size: var(--letra-7);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.25rem;
+  text-align: right;
+  white-space: nowrap;
+}
+.cu-n small {
+  margin-left: 0.0625rem;
+  color: var(--apagado);
+  font-size: 0.71875rem;
+  font-weight: 500;
+  letter-spacing: 0;
+}
+.cu-n[data-nivel="poco"],
+.cu-n[data-nivel="poco"] small {
+  color: var(--decision-texto);
+}
+.cu-n[data-nivel="sin"],
+.cu-n[data-nivel="sin"] small {
+  color: var(--fallo-texto);
+}
+.cu-n[data-nivel="off"],
+.cu-n[data-nivel="nada"] {
+  color: var(--apagado);
+}
+
+/* Los hilos: cada uno prendido es uso. El último prendido brilla cuando pide atención (además de la cifra, el ícono y la palabra). */
+.cu-hilos {
+  display: flex;
+  width: 11.4375rem;
+  max-width: 100%;
+  height: 0.875rem;
+  gap: var(--esp-0-5);
+  color: var(--acento);
+}
+.cu-fila[data-solo] .cu-hilos {
+  width: calc(100% - var(--esp-0-5));
+  max-width: none;
+}
+.cu-hilos i {
+  min-width: 0;
+  flex: 1 1 0;
+  border-radius: 0.09375rem;
+  background: color-mix(in srgb, var(--blanco) 14%, transparent);
+}
+.cu-hilos i[data-on] {
+  background: currentColor;
+}
+.cu-hilos[data-nivel="poco"] {
+  color: var(--aviso);
+}
+.cu-hilos[data-nivel="sin"] {
+  color: var(--critico);
+}
+.cu-hilos:is([data-nivel="poco"], [data-nivel="sin"]) i[data-tope] {
+  box-shadow: 0 0 0.3125rem color-mix(in srgb, currentColor 75%, transparent);
+}
+
+/* «En uso» siempre con tilde; las demás, «Usar». */
+.cu-accion {
+  display: flex;
+  justify-content: flex-end;
+}
+.cu-en-uso,
+.cu-usar {
+  display: inline-flex;
+  height: 2rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--r-cap);
+  font: inherit;
+  font-size: 0.78125rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.cu-en-uso {
+  gap: 0.3125rem;
+  padding: 0 var(--esp-3) 0 0.5625rem;
+  background: var(--acento);
+  color: var(--acento-texto);
+  font-weight: 650;
+}
+.cu-usar {
+  padding: 0 1.125rem;
+  border: 0;
+  background: var(--capa-tile);
+  box-shadow: var(--vidrio-borde);
+  color: var(--texto);
+  cursor: pointer;
+}
+.cu-usar[data-angosto] {
+  padding: 0 var(--esp-2-5);
+}
+.cu-usar:hover:not(:disabled) {
+  background: var(--capa-track);
+}
+.cu-usar:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* --- El pie: cómo funcionan los límites y conectar otra cuenta --- */
+.cu-pie {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--esp-2) var(--esp-3);
+  padding: 0 var(--esp-0-5);
+}
+.cu-pie > .cu-ayuda[data-abierta],
+.cu-pie > .cu-otra-form,
+.cu-pie > .cu-conectar {
+  flex-basis: 100%;
+}
+.cu-pie .cu-ayuda-b {
+  font-size: var(--letra-5);
+}
+.cu-pie .ui-btn {
+  height: 2rem;
+  padding: 0 var(--esp-3-5);
+  background: var(--capa-tile);
+  font-size: 0.78125rem;
+  font-weight: 600;
+}
+.cu-det-cuenta {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-2);
+}
+.cu-det-n {
+  color: var(--texto);
+  font-size: var(--letra-6);
+  font-weight: 600;
+}
+.cu-detalle {
+  padding: var(--esp-3) 0 0;
+}
+
+/* --- Una suscripción en chico: nombre, estado y su cupo en una línea; se abre con el detalle --- */
+.cu-chica {
+  min-width: 0;
+  border-radius: var(--r-lg);
+  background: var(--capa-card);
+  box-shadow: inset 0 0 0 1px var(--capa-div);
+}
+.cu-chica-t {
+  margin: 0;
+  font: inherit;
+}
+.cu-chica-b {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  gap: var(--esp-1);
+  padding: var(--esp-3) var(--esp-4);
+  border: 0;
+  border-radius: var(--r-lg);
+  background: none;
+  color: var(--apagado);
+  font: inherit;
+  font-size: var(--letra-5);
+  line-height: 1.4;
+  text-align: left;
+  cursor: pointer;
+}
+.cu-chica-b:hover {
+  background: var(--resalte-1);
+}
+.cu-chica-cab {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--esp-2);
+}
+.cu-chica-cab .ui-logo {
+  width: 1rem;
+  height: 1rem;
+  background: none;
+  color: var(--apagado);
+}
+.cu-chica-cab .ui-logo svg {
+  width: 1rem;
+  height: 1rem;
+}
+.cu-chica-n {
+  min-width: 0;
+  flex: 1;
+  color: var(--texto);
+  font-size: var(--letra-6);
+  font-weight: 600;
+}
+.cu-chica-est {
+  flex: none;
+  color: var(--apagado);
+  font-size: 0.78125rem;
+  font-weight: 500;
+}
+.cu-chica-est[data-tono="ok"] {
+  color: var(--ok);
+}
+.cu-chica-est[data-tono="aviso"] {
+  color: var(--decision-texto);
+}
+.cu-chica-res {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--esp-2);
+}
+.cu-chica-f {
+  flex: none;
+  margin-top: 0.1875rem;
+  color: var(--inactivo);
+}
+.cu-chica-b[aria-expanded="true"] .cu-chica-f {
+  transform: rotate(180deg);
+}
+.cu-chica-sin {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--esp-1);
+  color: var(--fallo-texto);
+  font-weight: 550;
+}
+.cu-chica .cu-cuerpo {
+  padding-top: var(--esp-1);
+}
+.cu-vent > .cu-hilos {
+  grid-area: bar;
+  width: 100%;
+}
+
+/* --- Angosto (el contenido, no la ventana): el nombre y la acción arriba, los carriles a todo el ancho debajo --- */
+@container cupos (max-width: 36rem) {
+  .cu-tarjetas {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .cu-fila {
+    grid-template-columns: minmax(0, 1fr) auto;
+    padding-block: var(--esp-3);
+  }
+  .cu-fila .cu-par,
+  .cu-fila .cu-par-sin {
+    grid-row: 2;
+    grid-column: 1 / -1;
+  }
+  .cu-fila .cu-accion {
+    grid-row: 1;
+    grid-column: 2;
+  }
+  .cu-par,
+  .cu-fila[data-solo] .cu-par {
+    grid-template-columns: 3.375rem minmax(0, 1fr) 3.25rem minmax(0, 7.1875rem);
+  }
+  .cu-hilos {
+    width: 100%;
+  }
+}
+@media (pointer: coarse) {
+  .cu-quitar {
+    width: 2.75rem;
+    height: 2.75rem;
+    opacity: 1;
+  }
+  .cu-usar {
+    min-height: 2.75rem;
+  }
+}
