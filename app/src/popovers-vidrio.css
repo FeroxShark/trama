@@ -1,0 +1,439 @@
+/* Popovers y menús en el lenguaje de la maqueta del rediseño 0.4 (app/maquetas/rediseno-0.4/vidrio-quieto-v2): vidrio con desenfoque, cápsulas,
+   la fila resaltada en celeste y lo que no tiene cupo con los tokens de atención. Cubre el selector de modelo (riel de proveedores, lista,
+   buscador, línea de capacidades, fila del esfuerzo), el de carpeta y los demás selectores (`.menu`), los menús del clic derecho (`.cmenu`),
+   el menú de comandos (`.menu-cmd`) y el tooltip (`#tip`). Sólo presentación: no cambia ninguna función ni ningún texto.
+   Se importa en main.tsx DESPUÉS de index.css, así gana sin !important. Sólo tokens (el bloque «Popovers» de tokens.css).
+   Nada depende sólo del color: la fila elegida lleva tilde y negrita además del celeste, un cupo agotado lleva el ícono y la palabra,
+   «poco cupo» el punto y la palabra. */
+
+/* --- El vidrio: una sola receta para todo lo que flota --- */
+.menu,
+.cmenu,
+.menu-cmd {
+  border: 0;
+  border-radius: var(--r-lg);
+  background: var(--popover-fondo);
+  backdrop-filter: var(--popover-desenfoque);
+  box-shadow:
+    var(--popover-luz),
+    var(--popover-sombra);
+  scrollbar-color: var(--capa-track) transparent;
+}
+.menu {
+  gap: var(--esp-0-5);
+  padding: var(--esp-1-5);
+}
+.menu[data-columnas] {
+  padding: var(--esp-2) var(--esp-2) var(--esp-1-5);
+}
+.cmenu {
+  gap: var(--esp-0-5);
+  padding: var(--esp-1-5);
+}
+.menu-cmd {
+  padding: var(--esp-1-5);
+}
+/* Sin desenfoque disponible, o con «reducir transparencia» en el sistema: el vidrio opaco (que se lee igual). */
+@supports not (backdrop-filter: blur(1px)) {
+  .menu,
+  .cmenu,
+  .menu-cmd,
+  #tip {
+    background: var(--vidrio-opaco);
+  }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .menu,
+  .cmenu,
+  .menu-cmd,
+  #tip,
+  .mc-tit,
+  .cmenu-buscar {
+    background: var(--vidrio-opaco);
+    backdrop-filter: none;
+  }
+}
+
+/* --- Títulos: en oraciones, un poco más grandes que antes y sin mayúsculas ni tracking --- */
+.menu .mh,
+.mc-sub {
+  color: var(--apagado);
+  font-size: var(--letra-4);
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.menu .mh {
+  padding: var(--esp-1-5) var(--esp-3) var(--esp-1);
+}
+.menu .mc-cab .mh {
+  padding: 0 var(--esp-1);
+}
+.mc-sub {
+  padding: var(--esp-2) var(--esp-3) var(--esp-1);
+  color: var(--inactivo);
+  font-weight: 500;
+}
+.menu .mh-grupo {
+  border-top: 0;
+  margin-top: var(--esp-2);
+  padding-top: var(--esp-2);
+  box-shadow: 0 -1px 0 var(--popover-divisor);
+}
+.menu .mh-grupo[data-primero] {
+  margin-top: 0;
+  padding-top: var(--esp-1);
+  box-shadow: none;
+}
+
+/* --- Las filas: cápsulas suaves; resaltada = celeste suave, elegida = celeste con borde, tilde y negrita --- */
+.menu .op,
+.menu[data-columnas] .op {
+  border-radius: var(--r-md);
+  color: var(--apagado);
+  transition:
+    background-color var(--t-snappy),
+    box-shadow var(--t-snappy),
+    color var(--t-snappy);
+}
+.menu .op:is(:hover, :focus-visible),
+.menu .op[data-resaltada],
+.menu[data-columnas] .op:is(:hover, :focus-visible),
+.cmenu .cmenu-op:is(:hover, :focus-visible, :focus),
+.menu-cmd .cmd:is(:hover, :focus-visible) {
+  background: var(--popover-fila);
+  color: var(--texto);
+}
+.menu .op[aria-selected="true"],
+.menu[data-columnas] .op[aria-selected="true"],
+.menu-cmd .cmd[aria-selected="true"],
+.cmenu .cmenu-op[aria-checked="true"] {
+  background: var(--popover-fila-activa);
+  box-shadow: inset 0 0 0 1px var(--popover-fila-activa-borde);
+  color: var(--texto);
+}
+.menu .op[aria-selected="true"] .on1,
+.menu[data-columnas] .op[aria-selected="true"] .on-n {
+  font-weight: 600;
+}
+.menu .op .ok,
+.cmenu .cmenu-ok,
+.menu-cmd .cmd-ya {
+  color: var(--acento);
+}
+.menu .op .logo {
+  color: var(--apagado);
+}
+.menu .op:is(:hover, :focus-visible, [aria-selected="true"]) .logo,
+.menu[data-enteras] .op:is(:hover, :focus-visible, [aria-selected="true"]) .on-ico {
+  color: var(--acento);
+}
+.menu[data-enteras] .op {
+  padding: var(--esp-2-5) var(--esp-3);
+}
+.menu .op .md,
+.menu[data-enteras] .op .md {
+  color: var(--inactivo);
+}
+.menu .op:is(:hover, :focus-visible, [aria-selected="true"]) .md,
+.menu[data-enteras] .op:is(:hover, :focus-visible, [aria-selected="true"]) .md {
+  color: var(--apagado);
+}
+.menu .op:disabled {
+  color: var(--inactivo);
+}
+.menu .op:disabled:hover {
+  background: transparent;
+}
+.menu .op:focus-visible,
+.cmenu .cmenu-op:focus-visible,
+.menu-cmd .cmd:focus-visible,
+.mc-tab:focus-visible,
+.mc-esf-op:focus-visible {
+  outline: 2px solid var(--acento);
+  outline-offset: -2px;
+}
+/* Lo marcado como «por defecto»: una cápsula calma, sin la línea de código. */
+.menu .rec {
+  padding: 0 var(--esp-2);
+  border: 0;
+  border-radius: var(--r-cap);
+  background: var(--capa-card);
+  box-shadow: var(--vidrio-borde);
+  color: var(--apagado);
+  font-family: inherit;
+  font-size: var(--letra-3);
+  line-height: 1.5;
+}
+
+/* --- El buscador: una cápsula de vidrio; con el foco, el borde celeste --- */
+.menu .mc-busca {
+  gap: var(--esp-2);
+  padding: 0 var(--esp-3);
+  border: 0;
+  border-radius: var(--r-cap);
+  background: var(--capa-input);
+  box-shadow: var(--vidrio-borde);
+  color: var(--apagado);
+  transition:
+    background-color var(--t-snappy),
+    box-shadow var(--t-snappy);
+}
+.menu .mc-busca:focus-within {
+  background: var(--capa-hover);
+  box-shadow: inset 0 0 0 1px var(--popover-fila-activa-borde);
+  color: var(--acento);
+}
+.menu .mc-busca input {
+  height: 2rem;
+  color: var(--texto);
+}
+.menu .mc-busca input::placeholder {
+  color: var(--inactivo);
+}
+.menu .mc-nada {
+  color: var(--apagado);
+}
+
+/* --- El selector de modelo: el riel de proveedores en cápsulas y la lista con su pie --- */
+.menu .mc-riel {
+  gap: var(--esp-0-5);
+  padding-right: var(--esp-2);
+  border-right: 0;
+  box-shadow: 1px 0 0 var(--popover-divisor);
+}
+.menu .mc-tab {
+  border-radius: var(--r-cap);
+  color: var(--apagado);
+  transition:
+    background-color var(--t-snappy),
+    box-shadow var(--t-snappy),
+    color var(--t-snappy);
+}
+.menu .mc-tab .logo {
+  color: var(--apagado);
+}
+.menu .mc-tab:is(:hover, :focus-visible) {
+  background: var(--popover-fila);
+  color: var(--texto);
+}
+/* La pestaña elegida: celeste con borde, negrita y el logo en acento (ya no la barra pegada al borde). */
+.menu .mc-tab[aria-selected="true"] {
+  background: var(--popover-fila-activa);
+  box-shadow: inset 0 0 0 1px var(--popover-fila-activa-borde);
+  color: var(--texto);
+}
+.menu .mc-tab[aria-selected="true"] .logo {
+  color: var(--acento);
+}
+.menu .mc-cnt {
+  color: var(--inactivo);
+  font-family: inherit;
+  font-variant-numeric: tabular-nums;
+}
+.menu .mc-lista {
+  padding-left: var(--esp-2);
+}
+.menu .mc-arriba {
+  border-bottom: 0;
+  box-shadow: 0 1px 0 var(--popover-divisor);
+  padding-bottom: var(--esp-1-5);
+  margin-bottom: var(--esp-1-5);
+}
+.menu .mc-tit {
+  border-bottom: 0;
+  border-radius: var(--r-md);
+  background: var(--popover-fondo-tit);
+  backdrop-filter: var(--popover-desenfoque);
+  box-shadow: 0 1px 0 var(--popover-divisor);
+  color: var(--texto);
+}
+.menu .mc-tit .logo {
+  color: var(--acento);
+}
+/* Las etiquetas de una fila (Gratis, Plan Go, De pago…): cápsulas calmas con su palabra. */
+.menu .oc-tag {
+  border: 0;
+  background: var(--capa-card);
+  box-shadow: var(--vidrio-borde);
+  color: var(--apagado);
+}
+.menu .oc-tag[data-tag="pago"] {
+  box-shadow: inset 0 0 0 1px var(--borde-4);
+  color: var(--texto);
+}
+.menu .oc-tag[data-tag="go"] {
+  box-shadow: inset 0 0 0 1px var(--ajustes-acento-borde);
+  background: var(--acento-tinte);
+  color: var(--texto);
+}
+/* Sin cupo: el tinte rojo suave y el borde que lo recorta, con el ícono y «sin cupo hasta…» (pide esperar, no actuar). */
+.menu .oc-tag[data-tag="agotado"] {
+  border: 1px solid var(--cupo-agotado-borde);
+  background: var(--cupo-agotado-fondo);
+  box-shadow: none;
+  color: var(--cupo-agotado-texto);
+  font-weight: 500;
+}
+/* Poco cupo: el punto ámbar con su palabra. */
+.menu .oc-tag[data-tag="poco"] {
+  border: 1px solid var(--decision-borde);
+  background: var(--decision-fondo);
+  box-shadow: none;
+  color: var(--cupo-poco-texto);
+  font-weight: 500;
+}
+.menu .oc-punto {
+  background: var(--decision-relleno);
+  box-shadow: var(--decision-halo);
+}
+.menu .mc-tab .oc-punto {
+  box-shadow: none;
+}
+.menu .mc-tab > svg:not(.logo) {
+  color: var(--cupo-agotado-texto);
+}
+/* El nombre de un modelo sin cupo se atenúa, pero se lee y se puede elegir. */
+.menu[data-columnas] .op-c[data-agotada] .on1 {
+  opacity: 0.6;
+}
+.menu[data-columnas] .op-c[data-agotada]:is(:hover, :focus-visible, [aria-selected="true"]) .on1 {
+  opacity: 0.85;
+}
+.pbtn-cupo {
+  color: var(--cupo-agotado-texto);
+}
+.menu .mc-pie {
+  padding: var(--esp-2) var(--esp-3) var(--esp-0-5);
+  border-top: 0;
+  margin-top: var(--esp-1);
+  box-shadow: 0 -1px 0 var(--popover-divisor);
+}
+.menu .mc-caps {
+  color: var(--apagado);
+  gap: var(--esp-0-5) var(--esp-3);
+}
+.menu .mc-cap[data-si] {
+  color: var(--texto);
+  font-weight: 500;
+}
+
+/* --- La fila del esfuerzo: cápsulas con la elegida en celeste --- */
+.menu .mc-esf {
+  gap: var(--esp-1-5);
+  padding: var(--esp-2) var(--esp-3) var(--esp-1);
+  border-top: 0;
+  margin-top: var(--esp-1);
+  box-shadow: 0 -1px 0 var(--popover-divisor);
+}
+.menu .mc-esf-op {
+  height: 2rem;
+  padding: 0 var(--esp-3);
+  border: 0;
+  border-radius: var(--r-cap);
+  background: var(--capa-card);
+  box-shadow: var(--vidrio-borde);
+  color: var(--apagado);
+  transition:
+    background-color var(--t-snappy),
+    box-shadow var(--t-snappy),
+    color var(--t-snappy);
+}
+.menu .mc-esf-op:is(:hover, :focus-visible) {
+  background: var(--popover-fila);
+  color: var(--texto);
+}
+.menu .mc-esf-op[aria-checked="true"] {
+  background: var(--popover-fila-activa);
+  box-shadow: inset 0 0 0 1px var(--popover-fila-activa-borde);
+  color: var(--texto);
+}
+.menu .mc-esf-op[aria-checked="true"] svg {
+  color: var(--acento);
+}
+
+/* --- Menús del clic derecho --- */
+.cmenu .cmenu-op {
+  min-height: 2.25rem;
+  border-radius: var(--r-md);
+  color: var(--apagado);
+  transition:
+    background-color var(--t-snappy),
+    color var(--t-snappy);
+}
+.cmenu .cmenu-volver {
+  color: var(--inactivo);
+}
+/* Una acción que no se deshace: al apuntarla o armarla, el coral de fallo con su texto («¿Seguro?» lo dice la palabra). */
+.cmenu .cmenu-op[data-peligro]:is(:hover, :focus-visible, :focus, [data-armado]) {
+  background: var(--fallo-fondo);
+  box-shadow: inset 0 0 0 1px var(--fallo-borde);
+  color: var(--fallo-texto);
+}
+.cmenu .cmenu-op[data-armado] {
+  background: var(--fallo-fondo-fuerte);
+}
+.cmenu .cmenu-nota {
+  color: var(--inactivo);
+}
+.cmenu .cmenu-sep {
+  height: 1px;
+  margin: var(--esp-1) var(--esp-2);
+  background: var(--popover-divisor);
+}
+.cmenu .cmenu-vacio {
+  color: var(--apagado);
+}
+/* El filtro de «Mover a proyecto…»: la cápsula de vidrio pegada arriba. */
+.cmenu .cmenu-buscar {
+  top: calc(-1 * var(--esp-1-5));
+  margin: calc(-1 * var(--esp-1-5)) calc(-1 * var(--esp-1-5)) var(--esp-1-5);
+  padding: var(--esp-2-5) var(--esp-4);
+  border-bottom: 0;
+  border-radius: var(--r-lg) var(--r-lg) 0 0;
+  background: var(--popover-fondo-tit);
+  backdrop-filter: var(--popover-desenfoque);
+  box-shadow: 0 1px 0 var(--popover-divisor);
+  color: var(--texto);
+}
+.cmenu .cmenu-buscar::placeholder {
+  color: var(--inactivo);
+}
+.cmenu .cmenu-buscar:focus-visible {
+  box-shadow: inset 0 -1px 0 var(--acento);
+}
+
+/* --- El menú de comandos de la caja (/) --- */
+.menu-cmd .cmd {
+  border-radius: var(--r-md);
+  transition: background-color var(--t-snappy);
+}
+.menu-cmd .cmd-n {
+  color: var(--texto);
+}
+.menu-cmd .cmd-n i,
+.menu-cmd .cmd-s {
+  color: var(--inactivo);
+}
+.menu-cmd .cmd-d {
+  color: var(--apagado);
+}
+.menu-cmd .cmd .logo {
+  color: var(--apagado);
+}
+.menu-cmd .cmd[aria-selected="true"] .logo {
+  color: var(--acento);
+}
+
+/* --- El tooltip: una burbuja chica de vidrio, calma (no es un panel, no pide nada) --- */
+#tip {
+  border: 0;
+  border-radius: var(--r-md);
+  background: var(--popover-tip-fondo);
+  backdrop-filter: var(--popover-desenfoque);
+  box-shadow:
+    var(--popover-luz),
+    var(--popover-sombra);
+  color: var(--texto);
+  padding: var(--esp-1-5) var(--esp-2-5);
+}

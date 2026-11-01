@@ -222,3 +222,21 @@
   --ajustes-acento-borde: color-mix(in srgb, var(--acento) 42%, transparent);
   --ajustes-ok-borde: color-mix(in srgb, var(--ok) 34%, transparent);
 }
+
+/* --- Popovers y menús (rediseño 0.4, área popovers: src/popovers-vidrio.css). Lo que flota sobre la app (selector de modelo, de carpeta y de
+   esfuerzo, menús del clic derecho, comandos, tooltips) es vidrio con desenfoque: el tinte del vidrio, el borde de luz y una sombra suave.
+   Sólo flotan, así que son lo único con blur (un área chica); sin soporte, o con «reducir transparencia», cae al vidrio opaco. La fila resaltada
+   (mouse o teclado) va en celeste suave y la elegida en celeste más fuerte con borde: no se distinguen sólo por el color (la elegida lleva también
+   tilde y negrita). Salen de los colores del tema con color-mix, así cada tema los hereda. --- */
+:root {
+  --popover-fondo: color-mix(in srgb, var(--vidrio) 80%, transparent);
+  --popover-fondo-tit: color-mix(in srgb, var(--vidrio) 90%, transparent); /* el título pegado arriba de una lista que se desplaza */
+  --popover-desenfoque: blur(1.25rem) saturate(1.5);
+  --popover-luz: inset 0 0 0 1px var(--luz), inset 0 1px 0 var(--luz-arriba);
+  --popover-sombra: 0 0.75rem 2.5rem color-mix(in srgb, var(--sombra) 60%, transparent), var(--sombra-vidrio);
+  --popover-fila: color-mix(in srgb, var(--acento) 11%, transparent); /* fila resaltada */
+  --popover-fila-activa: var(--acento-tinte); /* fila elegida */
+  --popover-fila-activa-borde: var(--ajustes-acento-borde);
+  --popover-divisor: var(--capa-div);
+  --popover-tip-fondo: color-mix(in srgb, var(--vidrio) 86%, transparent);
+}
