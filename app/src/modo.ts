@@ -257,6 +257,8 @@ export const MODO = {
   guion: guion === "b0" || guion === "barra" || guion === "paneles" ? guion : null,
   /** Estado forzado para las capturas (sin mouse ni teclado). */
   captura: (CAPTURAS as readonly string[]).includes(captura ?? "") ? (captura as Captura) : null,
+  /** La captura se puede manejar (clic, teclas): la ventana de `pantalla` (#1869). Una captura común es sólo una foto y no deja tocar nada. */
+  interactivo: q.has("interactivo"),
   /** El reloj quieto de las capturas comparadas (`?ahora=`, src/reloj-fijo.ts): sin fase en lo que late. */
   quieto: q.has("ahora"),
   falla: q.get("falla"),

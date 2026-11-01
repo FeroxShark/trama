@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# pantalla — control de pantalla para workers de frontend/diseño: abre una Trama propia (offscreen, con datos de ejemplo),
+# le saca capturas, hace clic y escribe, sin tocar el escritorio del dueño. Es el port a TypeScript directo
+# (app/electron/cli/pantalla.ts, compilado en app/dist-electron/cli/pantalla.js); este archivo sólo lo lanza con node.
+# Uso: `pantalla --help`. Dónde está la app: $TRAMA_APP, el checkout al lado de motor/ (repo y worktree) o ~/.config/trama/app.
+set -euo pipefail
+
+aqui="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
+conf="${XDG_CONFIG_HOME:-$HOME/.config}/trama/app"
+app=""
+for c in "${TRAMA_APP:-}" "$aqui/../../app" "$([[ -f "$conf" ]] && cat "$conf" || true)"; do
+  [[ -n "$c" && -f "$c/dist-electron/cli/pantalla.js" ]] && { app="$(cd "$c" && pwd)"; break; }
+done
+command -v node >/dev/null 2>&1 || { echo "pantalla: falta node" >&2; exit 2; }
+[[ -n "$app" ]] || { echo "pantalla: no encuentro app/dist-electron/cli/pantalla.js (compilá con 'npx tsc -p tsconfig.electron.json' en app/, o TRAMA_APP)" >&2; exit 2; }
+[[ -f "$app/scripts/asegurar-cli.mjs" ]] && node "$app/scripts/asegurar-cli.mjs" "$app/dist-electron/cli/pantalla.js" || true
+exec node "$app/dist-electron/cli/pantalla.js" "$@"

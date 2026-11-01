@@ -25,7 +25,7 @@ const NODE = {
 };
 
 // Las herramientas de la línea de comandos que van a bin\ (cuando su .js está en dist-electron\cli\).
-const HERRAMIENTAS = ["pa", "trama-estado", "proyecto-ruta", "workers", "tablero", "reparto", "cuentas"];
+const HERRAMIENTAS = ["pa", "trama-estado", "proyecto-ruta", "workers", "tablero", "reparto", "cuentas", "pantalla"];
 
 // [origen relativo al repo, destino relativo al payload, filtro de archivos]
 const COPIAS = [

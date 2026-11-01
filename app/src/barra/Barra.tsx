@@ -1779,7 +1779,7 @@ export function Barra() {
     <MotionConfig reducedMotion="user">
       <div
         ref={raiz}
-        className={`app ${MODO.captura ? "pointer-events-none" : ""}`}
+        className={`app ${MODO.captura && !MODO.interactivo ? "pointer-events-none" : ""}`}
         style={{ "--ancho-barra": `${ancho}px` } as CSSProperties}
         data-oculta={abierta ? undefined : ""}
         data-panel={panel ?? undefined}

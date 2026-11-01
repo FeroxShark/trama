@@ -15,6 +15,7 @@ import { crearTope } from "./bitacora.js";
 import { CODIGO_CERRADO, esconderAlCerrar, preguntarSalida } from "./cierre.js";
 import { vigilarPagina, vigilarProceso } from "./contencion.js";
 import { abrirEnlace } from "./enlace.js";
+import { contenidoDe, servirPantalla } from "./pantalla.js";
 import { carpetaLocal, motorVivo, socketDe } from "./local.js";
 import { log, logAparte } from "./log.js";
 import { ESTADO } from "./estado.js";
@@ -58,6 +59,8 @@ const aqui = import.meta.dirname;
 //   HILOS_CAPTURA=<estado>   la app con fixtures y un estado forzado (los de `Captura` en
 //                            src/modo.ts); se cierra sola (scripts/captura.sh).
 //   HILOS_CAPTURA_PNG=<png>  igual, pero sin ventana: render offscreen a un PNG y cierra.
+//   HILOS_PANTALLA=<carpeta> igual que HILOS_CAPTURA_PNG pero sin cerrar: la ventana offscreen queda viva y obedece a `pantalla`
+//                            (electron/pantalla.ts, cli/pantalla.ts): captura, clic y escribir por HTTP en 127.0.0.1. Con HILOS_CAPTURA=<estado>.
 //   HILOS_ESCALA=1.5         zoom del render offscreen.
 //   HILOS_FALLA=cerrar       hace fallar el Cerrar (la fila vuelve con el error en línea).
 //   HILOS_POCOS=1            fixtures de Estadísticas con pocos datos (3 días, la cuota de hoy).
@@ -98,8 +101,10 @@ const aqui = import.meta.dirname;
 //   HILOS_BUILD=<carpeta>    el checkout cuyo build se mira para avisar que hay uno nuevo (default: éste). La prueba
 //                            pone uno de mentira: no toca el build de verdad, que mira la trama del usuario.
 const guion = process.env.HILOS_GUION ?? (process.env.HILOS_BENCH ? "barra" : "");
-const captura = process.env.HILOS_CAPTURA ?? "";
+const captura = process.env.HILOS_CAPTURA ?? (process.env.HILOS_PANTALLA ? "normal" : "");
 const png = process.env.HILOS_CAPTURA_PNG ?? "";
+/** Carpeta de la sesión de `pantalla`: la ventana offscreen que un worker maneja desde afuera (no se cierra sola tras la foto). */
+const pantalla = process.env.HILOS_PANTALLA ?? "";
 const escala = Number(process.env.HILOS_ESCALA ?? 1);
 const prueba = Number(process.env.HILOS_PRUEBA ?? 0);
 // Perfil aparte: que la prueba no comparta localStorage con la app que el usuario tiene abierta.
@@ -111,7 +116,7 @@ if (prueba) {
 }
 else if (process.env.HILOS_PERFIL) app.setPath("userData", process.env.HILOS_PERFIL);
 // Bench y captura sin perfil propio: uno temporal, no el de la Trama del usuario (~/.config/hilos).
-else if (guion || captura || png) {
+else if (guion || captura || png || pantalla) {
   const perfil = path.join(app.getPath("temp"), `hilos-captura-${process.pid}`);
   app.setPath("userData", perfil);
   process.on("exit", () => rmSync(perfil, { recursive: true, force: true }));
@@ -171,6 +176,7 @@ let guardadoVolver: ReturnType<typeof crearGuardadoVolver> | null = null;
 const query: Record<string, string> = {};
 if (guion) query.guion = guion;
 if (captura || png) query.captura = captura || "normal";
+if (pantalla) query.interactivo = "1";
 if (process.env.HILOS_FALLA) query.falla = process.env.HILOS_FALLA;
 if (process.env.HILOS_POCOS) query.pocos = "1";
 if (process.env.HILOS_AHORA && (captura || png)) query.ahora = process.env.HILOS_AHORA;
@@ -217,7 +223,7 @@ function crearVentana() {
   const [ancho, alto] = vuelta?.ventana ? [vuelta.ventana.ancho, vuelta.ventana.alto] : (process.env.HILOS_TAM ?? "900 640").split(/\s+/).map(Number);
   // Residente y escondida (la unidad): sin ventana a la vista, salvo que la hayan dejado pedida.
   const mostrar = residente ? pedida() : null;
-  const visible = !png && !prueba && (!(residente && escondida) || mostrar !== null);
+  const visible = !png && !pantalla && !prueba && (!(residente && escondida) || mostrar !== null);
   const ventana = new BrowserWindow({
     title: "trama",
     // La marca (public/favicon.svg, en PNG: Electron no abre SVG). En Wayland el ícono de la
@@ -233,7 +239,7 @@ function crearVentana() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
-      offscreen: !!png || prueba > 0,
+      offscreen: !!png || !!pantalla || prueba > 0,
     },
   });
 
@@ -295,6 +301,13 @@ function crearVentana() {
       // Con datos de `pa`: la foto cuando el frontend pintó los hilos frescos.
       ipcMain.once("captura:pintado", foto);
       setTimeout(() => app.exit(1), CAPTURA_REAL_MS).unref();
+    });
+  } else if (pantalla) {
+    ventana.setContentSize(ancho, alto);
+    ventana.webContents.once("did-finish-load", () => {
+      ventana.webContents.setZoomFactor(escala);
+      // Con la página pintada se publica la sesión; sin pedidos por HILOS_PANTALLA_MS (10 min) se cierra sola.
+      void servirPantalla(contenidoDe(ventana.webContents), pantalla, { ociosoMs: Number(process.env.HILOS_PANTALLA_MS ?? 600_000), salir: () => app.exit(codigoSalida(0)) }).catch(() => app.exit(1));
     });
   } else if (captura) {
     setTimeout(() => app.exit(codigoSalida(0)), CAPTURA_MS).unref();

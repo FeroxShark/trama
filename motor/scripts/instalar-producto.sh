@@ -224,7 +224,7 @@ for b in pa tablero trama-estado trama-motor; do enlazar "$MOTOR/bin/$b" "$BIN";
 # Los que un payload viejo puede no traer (se enlazan sólo si están). reparto es el que más duele:
 # sin él `pa` no puede elegir modelo por cupo, cae a los defaults y manda todo a Claude, así que un
 # líder Gemini no logra lanzar workers (lo encontró un tercero con la 0.1.2).
-for b in proyecto-ruta workers reparto cuentas gate; do [[ -e "$MOTOR/bin/$b" ]] && enlazar "$MOTOR/bin/$b" "$BIN"; done
+for b in proyecto-ruta workers reparto cuentas gate pantalla; do [[ -e "$MOTOR/bin/$b" ]] && enlazar "$MOTOR/bin/$b" "$BIN"; done
 for h in latido.sh destructive-guard.sh statusline-espejo.sh resumen-modelos.sh; do [[ -e "$MOTOR/hooks/$h" ]] && enlazar "$MOTOR/hooks/$h" "$HOOKS"; done
 enlazar "$MOTOR/skills/trama-orquestar" "$SKILLS"
 
