@@ -681,6 +681,13 @@ try {
   ok(c?.cwd === path.join(tmp, "proy", "atlas"), `el líder corre en la carpeta del proyecto que se miraba (${c?.cwd})`);
   ok(!c?.env.some((k) => /^(CLAUDE|ANTHROPIC_)/.test(k)), "sin variables CLAUDE*/ANTHROPIC_*");
   const sid = ar[ar.indexOf("--session-id") + 1];
+  // El claude de verdad deja el transcript de la sesión en ~/.claude/projects/<carpeta>/<sid>.jsonl; el falso no. Sin él, Retomar
+  // (que relanza ya al líder, ocioso) arrancaría de cero con `--session-id` en vez de retomar con `--resume`.
+  {
+    const dir = path.join(process.env.HOME, ".claude", "projects", c.cwd.replace(/[^A-Za-z0-9]/g, "-"));
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(path.join(dir, `${sid}.jsonl`), "");
+  }
   const guardados = JSON.parse(readFileSync(path.join(tmp, "hilos", "lideres.json"), "utf8"));
   ok(JSON.stringify(guardados).includes(sid), "lideres.json lo guarda");
 
@@ -732,13 +739,13 @@ try {
   ok(
     !!det &&
       det.includes("Contexto") &&
-      /\d+ k de 200 k — faltan \d+ k para el relevo \(líder nuevo con contexto limpio\)/.test(det) &&
-      det.includes("Compacta solo a los200.000") &&
+      /Usado\d+(\.\d{3})* \/ 200\.000/.test(det) &&
+      det.includes("Para que compacte solo") &&
       det.includes("Ventana de Opus") &&
       det.includes("1.000.000") &&
       det.includes("Caché leída") &&
       det.includes("Compactaciones"),
-    `el detalle dice cuánto falta para el relevo, el autocompact, la ventana y el desglose: ${det}`,
+    `el detalle dice lo usado contra el umbral, cuánto falta para que compacte solo, la ventana y el desglose: ${det}`,
   );
   await tecla("Escape");
   ok(await hasta(() => !document.querySelector(".ctx-det"), "detalle cerrado"), "Esc cierra el detalle");
