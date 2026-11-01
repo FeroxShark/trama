@@ -1,11 +1,14 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { armarArbol, atencionRama, pendientes, type Item } from "../src/barra/arbol.ts";
+import { armarArbol, atencionItem, pendientes, type Item, type Rama } from "../src/barra/arbol.ts";
 import { resueltosDe } from "../src/barra/atencion-vigente.ts";
 import type { Estado, Hilo, Lider } from "../src/datos/contrato.ts";
 
 const AHORA = 1_800_000_000;
 const MIN = 60;
+
+// Lo que pide atención de los workers de una rama: el primero que falla o pregunta.
+const atencionRama = (r: Rama, resueltos?: ReadonlySet<string>) => [...r.vivas, ...r.viejas].map((it) => atencionItem(it, resueltos)).find(Boolean) ?? null;
 
 // Un worker de `pa` con lo mínimo; cada test pisa lo suyo.
 const hilo = (o: Partial<Hilo> & { id: string; estado: Estado }): Hilo => ({
@@ -117,7 +120,7 @@ test("en la barra: el chip y el ícono del líder cuentan sólo lo vigente", () 
 
   const resueltos = resueltosDe(hilos.map(it), {});
   assert.deepEqual(pendientes(a, resueltos).fallos.map((d) => d.id), ["b3"]);
-  assert.equal(atencionRama(ramaDe("ana-s"), resueltos), null, "el líder ya no se pinta en rojo");
+  assert.equal(atencionRama(ramaDe("ana-s"), resueltos), null, "su fallo ya no pide atención");
   assert.equal(atencionRama(ramaDe("bea-s"), resueltos), "fallo", "el fallo vigente de otro líder sigue");
 });
 

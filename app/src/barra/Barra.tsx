@@ -2217,7 +2217,7 @@ function Carpeta({
             <Resalte texto={nombre} />
           </span>
           {marca ? <Glifo g={marca === "fallo" ? "falla" : "pide"} /> : null}
-          {!abierto && hilos > 0 ? (
+          {!abierto && hilos > 0 && !corriendo ? (
             <span className="cuenta">
               {tr(hilos === 1 ? "barra.nHilos1" : "barra.nHilosN", { n: hilos })}
               {reciente ? (
