@@ -23,7 +23,7 @@ export function ventanaCorta(id: string): string {
 }
 
 /** "vuelve en 1 d 17 h" (o "vuelve en 3 h58"): lo que falta para `hasta`, con el mismo formato en todas las tarjetas. `en`: cuándo repintar. */
-export function textoVuelve(hasta: number, ahoraS: number, u: Unidades): { texto: string; en: number } {
-  const f = formatearFaltaCorto(hasta - ahoraS, u);
+export function textoVuelve(hasta: number, ahoraS: number, u: Unidades, formato: typeof formatearFaltaCorto = formatearFaltaCorto): { texto: string; en: number } {
+  const f = formato(hasta - ahoraS, u);
   return { texto: t("cupos.vuelveEn", { falta: f.texto }), en: f.en };
 }

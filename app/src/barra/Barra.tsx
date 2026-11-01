@@ -551,8 +551,10 @@ export function Barra() {
   const arbolSinBuscar = useMemo(() => {
     if (!buscando) return arbol;
     const a = armarArbol(todos, { optimista, lideres: lideresVistos, settleados, mover, ocultos, titulos, caidos, orden: nombres.orden, prioridad, recientes, sinActivas: true, ahora: Math.floor(Date.now() / 1000) });
-    return aRiel(vista === "lideres" ? a : aVistaTodo(a), resueltos);
-  }, [buscando, arbol, vista, todos, optimista, lideresVistos, settleados, mover, ocultos, titulos, caidos, nombres.orden, prioridad, recientes, resueltos]);
+    const b = aRiel(vista === "lideres" ? a : aVistaTodo(a), resueltos);
+    // Buscando, el riel conserva el orden que traía: los proyectos no saltan de lugar al escribir.
+    return porPrioridad ? { ...b, carpetas: segunLista(b.carpetas, ordenProyectos.current) } : b;
+  }, [buscando, arbol, porPrioridad, vista, todos, optimista, lideresVistos, settleados, mover, ocultos, titulos, caidos, nombres.orden, prioridad, recientes, resueltos]);
   // Lo que pide atención (falló, pide decisión, un líder que espera): las píldoras de arriba de la lista. Buscando no cambian: siguen diciendo lo que hay.
   const pend = useMemo(() => pendientes(arbolSinBuscar, resueltos), [arbolSinBuscar, resueltos]);
   // Un filtro por algo que ya no existe no filtra (se integró el último, ya no falla nada).

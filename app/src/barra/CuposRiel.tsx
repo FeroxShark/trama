@@ -17,7 +17,7 @@ import { cuentasClaude, lineasCuentas, lineasMotores, type LineaRiel, type Venta
 import { textoVuelve } from "./cuposNota";
 import { ElegirCuenta, useCuentasBarra } from "./ElegirCuenta";
 import { Reloj } from "./piezas";
-import type { Unidades } from "./usoFila";
+import { formatearFalta, type Unidades } from "./usoFila";
 
 /** Después de un clic el botón de releer descansa esto. */
 const PAUSA_MS = 5000;
@@ -48,7 +48,7 @@ const pintorNota = (v: VentanaRiel, ts: number): Pintor =>
     (a) => {
       if (v.pct === null) return { texto: t("riel.sinDato"), en: Infinity };
       if (!v.hasta) return { texto: v.pct >= 100 ? t("cupos.sinCupo") : v.pct >= 70 ? t("cupos.pocoCupo") : t("cupos.sinHora"), en: Infinity };
-      const f = textoVuelve(v.hasta, a, unidades());
+      const f = textoVuelve(v.hasta, a, unidades(), formatearFalta);
       return { texto: v.pct >= 100 ? t("riel.sinCupoVuelve", { vuelve: f.texto }) : v.pct >= 70 ? t("riel.quedaPoco", { vuelve: f.texto }) : f.texto, en: f.en };
     },
     true,

@@ -3,6 +3,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { cambiarIdioma } from "../src/i18n/index.ts";
+import { formatearFalta } from "../src/barra/usoFila.ts";
 import { notaDeCelda, textoVuelve, ventanaCorta } from "../src/barra/cuposNota.ts";
 
 const AHORA = Date.parse("2026-11-01T12:00:00Z") / 1000;
@@ -68,6 +69,10 @@ describe("texto de la vuelta", () => {
 
   it("de horas: «vuelve en 3 h58» (el minuto va pegado a la hora)", () => {
     en("es", () => assert.equal(textoVuelve(AHORA + 3 * 3600 + 58 * 60, AHORA, U).texto, "vuelve en 3 h58"));
+  });
+
+  it("con el formato largo, en el detalle del riel: «vuelve en 3 h 58 min»", () => {
+    en("es", () => assert.equal(textoVuelve(AHORA + 3 * 3600 + 58 * 60, AHORA, U, formatearFalta).texto, "vuelve en 3 h 58 min"));
   });
 
   it("en inglés, la misma forma con «back in»", () => {
