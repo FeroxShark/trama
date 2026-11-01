@@ -1,5 +1,14 @@
 # Cambios
 
+## 0.2.38
+
+- Rediseño completo en vidrio: panel de contexto, cabecera del hilo y composer, vista de worker, Ajustes, Tablero, Estadísticas, Ramas, Bienvenida, popovers y menús.
+- «Seguir con otro modelo»: desde el menú del hilo o un aviso de límite, la conversación sigue con otro modelo a partir de un resumen.
+- El chip «N falló» y el rojo del líder cuentan sólo los fallos sin resolver.
+- Cada tarjeta de cupo dice cuándo vuelve su ventana (Gemini ya no dice «week»).
+- Ajustes > Cupos: la tarjeta NVIDIA NIM sin clave tiene botón «Poner clave».
+- Accesibilidad: texto tenue con contraste AA en todos los temas, foco visible y etiquetas en botones de ícono.
+
 ## 0.2.37
 
 - Rediseño (vidrio): la tarjeta de cupos pasa a tarjetas con la cifra grande (Claude 5 h y semana, Google en tres chicas, OpenCode en cápsula); lo que está sin cupo va tintado con «sin cupo» y la hora en que vuelve.
