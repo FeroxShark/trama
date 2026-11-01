@@ -109,6 +109,8 @@ const CAPTURAS = [
   "lider-imagenes",
   // Un pedido propio abierto para editar: el campo con sus capturas y su archivo.
   "lider-editar",
+  // El punto de control de un turno del líder (HILOS_VARIANTE=abierto: la lista con el primer diff; =confirmar: el diálogo de volver atrás).
+  "lider-puntos",
   // Tablas del markdown en la respuesta de un líder.
   "lider-tabla",
   // Cada forma del texto de un mensaje, y lo que no tiene espacios (`HILOS_VARIANTE=pegado`).

@@ -21,7 +21,7 @@ import { es } from "../atajos";
 import { Fragment, memo, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ClipboardEvent, type DragEvent, type KeyboardEvent, type ReactNode } from "react";
 import { ArrowUp, Check, Clock, Cpu, FastForward, Folder, Paperclip, Pause, X } from "lucide-react";
 import { motion, useReducedMotion } from "motion/react";
-import { VERSION, type Lider, type Mensaje, type MotivoRetomar, type MotivoTraer, type Tokens, type Uso } from "../datos/contrato";
+import { VERSION, type Lider, type Mensaje, type MotivoRetomar, type MotivoTraer, type PuntoControl, type Tokens, type Uso } from "../datos/contrato";
 import { fuente, type EnvioLider } from "../datos/fuente";
 import { ChipSubagentes } from "../barra/Fila";
 import { Reloj } from "../barra/piezas";
@@ -58,6 +58,8 @@ import { Avisos, HaceChat } from "./Hace";
 import { SeguirCon } from "./SeguirCon";
 import { Texto } from "./Texto";
 import { Hora, pintorAviso, tokens, Turno } from "./Turno";
+import { PuntoTurno } from "./Punto";
+import { puntoDeTurno } from "./punto-logica";
 import { Marca } from "./Marca";
 import { Sistema } from "./Sistema";
 import { lineaAviso } from "./sistema-logica";
@@ -512,6 +514,20 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
   const ocupadoApp = useRef(false);
   ocupadoApp.current = app && ocupado;
   useEffect(() => fuente.alTranscript((s) => s === sid && !ocupadoApp.current && recargar()), [sid, recargar]);
+  // Puntos de control por turno (electron/puntos.ts): se piden al abrir la conversación, al quedar lista la foto de «después» de un
+  // turno y tras volver atrás. Sin git en la carpeta del líder, vienen vacíos y no se ve nada.
+  const [puntos, setPuntos] = useState<PuntoControl[]>([]);
+  const [recargaPuntos, setRecargaPuntos] = useState(0);
+  useEffect(() => {
+    setPuntos([]);
+    if (!sid || !deApp) return;
+    let vigente = true;
+    void fuente.liderPuntos(sid).then((p) => vigente && setPuntos(p));
+    return () => {
+      vigente = false;
+    };
+  }, [sid, deApp, vivo.puntos, recargaPuntos]);
+  const alVolverPunto = useCallback(() => setRecargaPuntos((n) => n + 1), []);
   useEffect(() => {
     if (!vivo.fines) return;
     recargar();
@@ -1181,6 +1197,9 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
               acciones={acciones}
               editar={editar}
               guardar={guardarArchivo}
+              sid={sid}
+              puntos={puntos}
+              alVolverPunto={alVolverPunto}
             />
           </GastoSubagentesCtx.Provider>
           {volver ? (
@@ -1606,13 +1625,17 @@ type PropsMensajes = {
   editar: (x: Extract<Item, { tipo: "yo" }>, texto: string, adjuntos: readonly Adjunto[]) => void;
   /** Guarda un archivo nuevo de un mensaje que se edita (el de la caja, con la máquina del líder). */
   guardar: (nombre: string, datos: Uint8Array) => Promise<string>;
+  /** Puntos de control por turno (src/hilo/Punto.tsx): los de la conversación `sid`, y qué hacer tras volver atrás. */
+  sid: string;
+  puntos: PuntoControl[];
+  alVolverPunto: () => void;
 };
 
 /**
  * La conversación. Aparte de la caja para que cada tecla no la recorra entera: lo que se escribe es estado de `ChatLider`, y con
  * 3000 mensajes volver a armarlos en cada letra tardaba más de 50 ms. Sólo se repinta cuando cambian los mensajes o el turno.
  */
-const Mensajes = memo(function Mensajes({ items, ultimoTurno, ultimoLimite, alSeguir, app, ocupado, pasando, pensando, razon, relevo, sigue, nombre, alAbrirLider, alAbrirHilo, acciones, editar, guardar }: PropsMensajes) {
+const Mensajes = memo(function Mensajes({ items, ultimoTurno, ultimoLimite, alSeguir, app, ocupado, pasando, pensando, razon, relevo, sigue, nombre, alAbrirLider, alAbrirHilo, acciones, editar, guardar, sid, puntos, alVolverPunto }: PropsMensajes) {
   return (
     <>
       {items.map((x, i) =>
@@ -1628,6 +1651,7 @@ const Mensajes = memo(function Mensajes({ items, ultimoTurno, ultimoLimite, alSe
             <Marca k={x.key} />
             {/* Uno de la app dice qué hace abajo (HaceChat); uno de terminal, "Trabajando X s" en su turno. */}
             <Turno t={x} vivo={!app && ocupado && i === ultimoTurno && !pasando} enCurso={ocupado && i === ultimoTurno} pensando={pensando && i === ultimoTurno} razon={razon} />
+            {app && !(ocupado && i === ultimoTurno) ? <PuntoDelTurno sid={sid} puntos={puntos} desde={x.desde} ocupado={ocupado} alVolver={alVolverPunto} /> : null}
             {x.texto && !(ocupado && i === ultimoTurno) ? <AccionesMensaje texto={x.texto} punto={x.punto} propio={false} acciones={acciones} /> : null}
             {relevo?.hecho && relevo.k === i ? (
               <Sigue nombre={sigue?.nombre ?? nombre ?? null} alAbrir={sigue && alAbrirLider ? () => alAbrirLider(sigue.id) : null} />
@@ -1638,6 +1662,12 @@ const Mensajes = memo(function Mensajes({ items, ultimoTurno, ultimoLimite, alSe
     </>
   );
 });
+
+/** El punto de control del turno que empezó en `desde`, si lo hay y tocó algo (si no, no se ve nada). */
+function PuntoDelTurno({ sid, puntos, desde, ocupado, alVolver }: { sid: string; puntos: PuntoControl[]; desde: number | null; ocupado: boolean; alVolver: () => void }) {
+  const p = puntoDeTurno(puntos, desde);
+  return p && p.terminado && p.archivos.length ? <PuntoTurno sid={sid} punto={p} puntos={puntos} ocupado={ocupado} alVolver={alVolver} /> : null;
+}
 
 /** La captura `lider-editar`: el pedido ya abierto para editar (ver `charlaEditar` en datos/fuente.ts). */
 const EDITANDO_CAPTURA = MODO.captura === "lider-editar";

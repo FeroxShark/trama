@@ -14,7 +14,7 @@ import { main, mensaje, type Lectura } from "../puente";
 import { aplicarDif, esDif } from "./hilos-dif";
 import { MODO } from "../modo";
 import { t, textoMain } from "../i18n";
-import { comoSettle, convsClaudeCodeDe, GENERAL, type AvisoWorker, type ConvClaudeCode, type ComandoClaude, type Estilos, type EventoLider, type EventoPa, type Hilo, type Leidos, type Mensaje, type Nombres, type Orden, type RespuestaHilo, type RespuestaHilos, type RespuestaLideres, type Retomado, retomadoDe, type Statusline, type Traido, traidoDe, type Tokens, type Uso } from "./contrato";
+import { comoSettle, convsClaudeCodeDe, GENERAL, type AvisoWorker, type ConvClaudeCode, type ComandoClaude, type Estilos, type EventoLider, type EventoPa, type Hilo, type Leidos, type Mensaje, type Nombres, type Orden, type PuntoControl, puntosValidos, type RespuestaHilo, type RespuestaHilos, type RespuestaLideres, type Retomado, retomadoDe, type Statusline, type Traido, traidoDe, type Tokens, type Uso } from "./contrato";
 import { hiloDePa } from "./paHilo";
 import { listaValida, resultadoValido, type ListaCuentas, type PerfilCuenta, type PlanCuentaOc, type ProveedorCuenta, type ResultadoCuenta } from "./cuentas";
 import { ordenDe } from "../barra/orden";
@@ -195,6 +195,12 @@ export interface Fuente {
   liderRamificar(sid: string, uuid: string, x: { modelo: string; effort: string }): Promise<string>;
   /** «Seguir con otro modelo» (#1791): un líder nuevo, en la misma carpeta, con el resumen de traspaso de `sid` como primer mensaje; el original no se toca. Devuelve el sid del nuevo. */
   liderSeguirCon(sid: string, x: { modelo: string; effort: string }): Promise<string>;
+  /** Los puntos de control de la conversación (uno por turno: qué archivos tocó). Sin git en su carpeta, vacío. */
+  liderPuntos(sid: string): Promise<PuntoControl[]>;
+  /** El diff (unificado) de un turno, de uno de sus archivos o de todos. */
+  liderPuntoDif(sid: string, id: string, ruta?: string): Promise<{ texto: string; cortado: boolean }>;
+  /** «Volver a antes de este turno»: deja los archivos como estaban. Falla si el líder está trabajando. */
+  liderPuntoVolver(sid: string, id: string): Promise<{ restaurados: number; borrados: number }>;
   /** Su transcript, con la forma de `pa --hilo --json`. */
   liderConversacion(sid: string, antes: number | null): Promise<RespuestaHilo>;
   /** Mirar el transcript del líder abierto (`null`: ninguno). */
@@ -1532,6 +1538,37 @@ const fija: Fuente = {
     charlas.set(nuevo, lista.slice(0, k + 1));
     return nuevo;
   },
+  async liderPuntos(sid) {
+    if (MODO.captura !== "lider-puntos") return [];
+    // Captura: el primer turno de la charla tocó tres archivos.
+    const lista = charlas.get(sid) ?? charlaLider(sid);
+    const desde = Date.parse(lista.find((m) => m.rol === "user")?.ts ?? "");
+    // Termina justo antes del segundo pedido: ése es otro turno, sin punto.
+    const hasta = Date.parse(lista.filter((m) => m.rol === "user")[1]?.ts ?? "") - 10_000;
+    if (!Number.isFinite(desde) || !Number.isFinite(hasta)) return [];
+    return [
+      {
+        id: "fixture",
+        ts: desde - 1000,
+        fin: hasta,
+        terminado: true,
+        archivos: [
+          { ruta: "src/indice/migra.ts", estado: "M", mas: 6, menos: 2 },
+          { ruta: "tests/indice-migra.test.ts", estado: "A", mas: 18, menos: 0 },
+          { ruta: "docs/viejo.md", estado: "D", mas: 0, menos: 7 },
+        ],
+      },
+    ];
+  },
+  async liderPuntoDif() {
+    return {
+      texto: "diff --git a/src/indice/migra.ts b/src/indice/migra.ts\n--- a/src/indice/migra.ts\n+++ b/src/indice/migra.ts\n@@ -12,6 +12,10 @@ export function migrar(db: Base) {\n   const filas = db.leer(\"indice\");\n-  for (const f of filas) {\n-    db.escribir(f.id, f.valor);\n+  for (const f of filas) {\n+    if (f.valor == null) continue;\n+    db.escribir(f.id, f.valor);\n+    contador++;\n+    registro.push(f.id);\n   }\n+  return contador;\n }\n",
+      cortado: false,
+    };
+  },
+  async liderPuntoVolver() {
+    return { restaurados: 0, borrados: 0 };
+  },
   async liderSeguirCon(sid) {
     // Fixtures: un líder nuevo con lo hablado hasta ahora (el resumen de verdad lo arma el main).
     const nuevo = `00000000-0000-4000-8000-${String(++creados).padStart(12, "0")}`;
@@ -2224,6 +2261,22 @@ const conPa = (m: NonNullable<typeof main>): Fuente => ({
     return m.lider.ramificar({ sid, uuid, ...x }).catch((e) => {
       throw new Error(mensaje(e));
     });
+  },
+  async liderPuntos(sid) {
+    const r = await m.lider.puntos(sid).catch(() => []);
+    return puntosValidos(r);
+  },
+  async liderPuntoDif(sid, id, ruta) {
+    const r = (await m.lider.puntoDif({ sid, id, ...(ruta ? { ruta } : {}) }).catch((e) => {
+      throw new Error(mensaje(e));
+    })) as { texto?: unknown; cortado?: unknown } | null;
+    return { texto: typeof r?.texto === "string" ? r.texto : "", cortado: r?.cortado === true };
+  },
+  async liderPuntoVolver(sid, id) {
+    const r = (await m.lider.puntoVolver({ sid, id }).catch((e) => {
+      throw new Error(mensaje(e));
+    })) as { restaurados?: unknown; borrados?: unknown } | null;
+    return { restaurados: Number(r?.restaurados) || 0, borrados: Number(r?.borrados) || 0 };
   },
   async liderSeguirCon(sid, x) {
     return m.lider.seguirCon({ sid, modelo: x.modelo, effort: x.effort }).catch((e) => {

@@ -346,6 +346,8 @@ export type EventoLider =
   | { tipo: "estado"; ocupado: boolean; vivo: boolean }
   /** El `claude` entregó al modelo un mensaje de "Mandar ya" (antes esperaba a que terminara el paso en curso). */
   | { tipo: "entregado"; texto: string }
+  /** Quedó lista la foto de «después» de un turno (puntos de control): se releen. */
+  | { tipo: "puntos" }
   /** El modo de permisos de la sesión (B13). */
   | { tipo: "modo"; modo: string }
   /**
@@ -363,6 +365,34 @@ export type EventoLider =
   | { tipo: "contexto"; usage?: Tokens; ventanas?: Record<string, number> }
   /** `error`: salió mal (stderr resumido, o "" si no dijo nada); `null`, bien o cerrado adrede. */
   | { tipo: "salio"; codigo: number | null; error: string | null };
+
+/** Un archivo que tocó un turno del líder (puntos de control, electron/puntos.ts): `A` nuevo, `M` cambiado, `D` borrado. */
+export type ArchivoPunto = { ruta: string; estado: "A" | "M" | "D"; mas: number; menos: number };
+/** El punto de control de un turno: cuándo salió el mensaje y cuándo terminó (epoch ms) y los archivos que tocó. */
+export type PuntoControl = { id: string; ts: number; fin: number | null; terminado: boolean; archivos: ArchivoPunto[]; vuelto?: number };
+
+/** Los puntos de control como llegan del main (sin validar): sólo lo que la vista usa; lo que no cierra se descarta. */
+export function puntosValidos(x: unknown): PuntoControl[] {
+  if (!Array.isArray(x)) return [];
+  const out: PuntoControl[] = [];
+  for (const p of x as Record<string, unknown>[]) {
+    if (!p || typeof p.id !== "string" || typeof p.ts !== "number" || !Number.isFinite(p.ts)) continue;
+    const archivos: ArchivoPunto[] = [];
+    for (const a of Array.isArray(p.archivos) ? (p.archivos as Record<string, unknown>[]) : []) {
+      if (!a || typeof a.ruta !== "string" || (a.estado !== "A" && a.estado !== "M" && a.estado !== "D")) continue;
+      archivos.push({ ruta: a.ruta, estado: a.estado, mas: Number(a.mas) || 0, menos: Number(a.menos) || 0 });
+    }
+    out.push({
+      id: p.id,
+      ts: p.ts,
+      fin: typeof p.fin === "number" ? p.fin : null,
+      terminado: typeof p.despues === "string",
+      archivos,
+      ...(typeof p.vuelto === "number" ? { vuelto: p.vuelto } : {}),
+    });
+  }
+  return out;
+}
 
 /** `analista`: el chat de Ramas (B22), que no va en la barra. */
 /** Un líder de terminal que murió sin cerrar: su sesión quedó en `~/.claude/sessions` sin proceso (electron/vigia.ts). */

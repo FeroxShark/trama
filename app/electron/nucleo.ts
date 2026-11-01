@@ -1190,6 +1190,10 @@ export function armarNucleo() {
   );
   // «Seguir con otro modelo» (#1791): un líder nuevo, en la misma carpeta, que arranca con el resumen de traspaso de éste. Devuelve su sid.
   manejar("lider:seguirCon", (_e, x: { sid: string; modelo: string; effort: string }) => lider.seguirCon({ sid: x?.sid, modelo: x?.modelo, effort: x?.effort }));
+  // Puntos de control por turno (#1787): los de una conversación, el diff de uno y volver a antes de él (puntos.ts).
+  manejar("lider:puntos", (_e, sid: string) => lider.puntosDe(String(sid)));
+  manejar("lider:puntoDif", (_e, x: { sid: string; id: string; ruta?: string }) => lider.puntoDif({ sid: String(x?.sid), id: String(x?.id), ruta: typeof x?.ruta === "string" ? x.ruta : undefined }));
+  manejar("lider:puntoVolver", (_e, x: { sid: string; id: string }) => lider.puntoVolver({ sid: String(x?.sid), id: String(x?.id) }));
   // El usuario abrió la conversación de un líder que lo esperaba (o la tiene a la vista y volvió a la ventana).
   manejar("lider:visto", (_e, sid: string) => verEspera(String(sid)));
   // Un archivo que no es imagen: a `adjuntos/` del estado propio; el mensaje lleva su ruta.

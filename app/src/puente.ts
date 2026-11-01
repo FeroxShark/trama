@@ -175,6 +175,12 @@ type Main = {
     ramificar(x: { sid: string; uuid: string; modelo: string; effort: string }): Promise<string>;
     /** «Seguir con otro modelo»: un líder nuevo con el resumen de traspaso de éste como primer mensaje; devuelve su sid. */
     seguirCon(x: { sid: string; modelo: string; effort: string }): Promise<string>;
+    /** Puntos de control por turno (electron/puntos.ts): los de una conversación, sin validar. */
+    puntos(sid: string): Promise<unknown>;
+    /** El diff de un turno (`id`), de un archivo (`ruta`) o de todos; sin validar. */
+    puntoDif(x: { sid: string; id: string; ruta?: string }): Promise<unknown>;
+    /** «Volver a antes de este turno»: `{ restaurados, borrados }`, sin validar. Falla si el líder está trabajando. */
+    puntoVolver(x: { sid: string; id: string }): Promise<unknown>;
     /** Su transcript con la forma de `pa --hilo --json`, sin validar. */
     conversacion(x: { sid: string; antes?: number | null }): Promise<unknown>;
     /** Mirar el transcript de uno (el abierto) o de ninguno. */

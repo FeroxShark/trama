@@ -63,6 +63,8 @@ export type EnCurso = {
   parando: boolean;
   /** Sube con cada `fin`: la vista relee el transcript. */
   fines: number;
+  /** Sube con cada `puntos`: la foto de «después» de un turno quedó lista y la vista relee los puntos de control. */
+  puntos: number;
   /** El modo de permisos que dijo el stream (o el que se pidió, mientras llega); `null`: el de la lista. */
   modo: string | null;
   /** Los pedidos de permiso sin contestar, en orden. */
@@ -88,6 +90,7 @@ const VACIO: EnCurso = {
   avisos: [],
   parando: false,
   fines: 0,
+  puntos: 0,
   modo: null,
   pide: [],
   directos: 0,
@@ -214,6 +217,8 @@ function cambiarPor(sid: string, ev: EventoLider) {
         const tanda = k < 0 ? e.tanda : e.tanda.map((m, j) => (j === k ? { ...m, enCola: undefined } : m));
         return { ...e, tanda, directos: Math.max(0, e.directos - 1) };
       }
+      case "puntos":
+        return { ...e, puntos: e.puntos + 1 };
       case "fin": {
         // Parar termina el turno con un error que no es error.
         let avisos = sinReintento(e.avisos);

@@ -1,0 +1,127 @@
+/* El punto de control de un turno (src/hilo/Punto.tsx), debajo de la respuesta: una fila calma de cápsulas (vidrio quieto) y, abierta,
+   la lista de archivos con su diff. Sólo tokens; el estado va siempre con palabra o signo, no sólo con color. */
+.cp {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-2);
+  align-self: stretch;
+}
+.cp-fila {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--esp-2);
+}
+.cp-resumen,
+.cp-volver,
+.cp-arch-b {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--esp-1-5);
+  color: var(--texto-6);
+  font-size: var(--letra-4);
+  cursor: pointer;
+}
+.cp-resumen {
+  height: var(--alto-chip);
+  padding: 0 var(--esp-2);
+  border-radius: var(--r-cap);
+}
+.cp-resumen svg:first-child,
+.cp-arch-b svg:first-child {
+  transition: transform 0.15s ease-out;
+}
+.cp-resumen[aria-expanded="true"] svg:first-child,
+.cp-arch-b[aria-expanded="true"] svg:first-child {
+  transform: rotate(90deg);
+}
+.cp-volver {
+  height: var(--alto-chip);
+  margin-left: auto;
+  padding: 0 var(--esp-3);
+  border: 1px solid var(--borde-3);
+  border-radius: var(--r-cap);
+  background: var(--sup-2);
+}
+.cp-resumen:hover,
+.cp-arch-b:hover {
+  color: var(--texto-2);
+}
+.cp-volver:hover:not(:disabled) {
+  background: var(--acento-tinte);
+  color: var(--texto-1);
+}
+.cp-volver:disabled {
+  color: var(--texto-8);
+  cursor: default;
+}
+:is(.cp-resumen, .cp-volver, .cp-arch-b):focus-visible {
+  outline: 2px solid var(--acento);
+  outline-offset: 2px;
+}
+.cp-cuentas {
+  display: inline-flex;
+  gap: var(--esp-1-5);
+  font-variant-numeric: tabular-nums;
+}
+.cp-mas {
+  color: var(--mas);
+}
+.cp-menos {
+  color: var(--menos);
+}
+.cp-nota-v {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--esp-1);
+  color: var(--texto-4);
+  font-size: var(--letra-4);
+}
+.cp-lista {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-1);
+  margin: 0 0 0 var(--esp-1);
+  padding: 0 0 0 var(--esp-3);
+  border-left: 1px solid var(--borde-3);
+  list-style: none;
+}
+.cp-arch-b {
+  width: 100%;
+  min-width: 0;
+  padding: var(--esp-0-5) 0;
+  text-align: left;
+}
+.cp-ruta {
+  min-width: 0;
+  overflow: hidden;
+  font-family: var(--font-mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cp-estado {
+  flex: none;
+  padding: 0 var(--esp-1-5);
+  border: 1px solid var(--borde-3);
+  border-radius: var(--r-cap);
+  color: var(--texto-5);
+}
+.cp-dif {
+  overflow-x: auto;
+  margin: var(--esp-1) 0 var(--esp-2);
+  border: 1px solid var(--borde-2);
+  border-radius: var(--radio-3);
+}
+.cp-nota {
+  padding: var(--esp-2) var(--esp-3);
+  color: var(--texto-5);
+  font-size: var(--letra-4);
+}
+.cp-error {
+  color: var(--rojo-texto);
+}
+@media (prefers-reduced-motion: reduce) {
+  :is(.cp-resumen, .cp-arch-b) svg:first-child {
+    transition: none;
+  }
+}

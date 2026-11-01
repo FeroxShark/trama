@@ -56,6 +56,7 @@ import {
   type Modo,
   type Rama,
 } from "./lider-arma.js";
+import * as puntos from "./puntos.ts";
 import { aplicarCortes, armarRelevo, hastaMensaje, MODELO_DE_FAMILIA, msDe, unirConvs, type Familia } from "./relevo-motor.ts";
 import { asegurarLocal, destinoLocal, localDe } from "./locales.js";
 import { armarContexto, prefacioDsh, prefacioGemini } from "./contexto-local.ts";
@@ -156,6 +157,8 @@ export type EventoLider =
   | { tipo: "estado"; ocupado: boolean; vivo: boolean }
   /** El `claude` entregó al modelo un mensaje de "Mandar ya" (el eco de `--replay-user-messages` que coincide con uno mandado a mitad de turno). */
   | { tipo: "entregado"; texto: string }
+  /** Quedó lista la foto de «después» de un turno (puntos de control, electron/puntos.ts): la vista los relee. */
+  | { tipo: "puntos" }
   /**
    * El proceso terminó. `error` si salió mal (código ≠ 0, o a mitad de un turno) y no porque se lo
    * cerró: las últimas líneas del stderr, o "" si no dijo nada. `null`: salió bien.
@@ -650,6 +653,8 @@ function lanzar(g: Guardado, resume: boolean, local?: Local, extra: Extra = {}):
           // Una rama ya tiene su transcript: de acá en más se retoma como cualquier otro.
           delete g.rama;
           void guardar();
+          // Punto de control: lo que tocó el turno. Los eventos del fin salen cuando está lista la foto, para que la vista ya lo encuentre.
+          void puntos.despues(ESTADO, g.sid).finally(() => alEv(g.sid, { tipo: "puntos" }));
           alEv(g.sid, e);
           alEv(g.sid, { tipo: "estado", ocupado: false, vivo: true });
           alCambio();
@@ -1239,6 +1244,8 @@ async function mandarYa(x: { sid: string; texto: string; imagenes?: unknown; mod
     g.effort = effort;
     await guardar();
   }
+  // Punto de control (#1787): cómo está la carpeta antes de que el turno la toque. Nunca frena el mensaje (sin git, `null`).
+  await puntos.antes(ESTADO, g.sid, g.cwd);
   p ??= lanzar(g, await haySesionClaude(g), local, extraCruce ?? (await extraDe(modelo, g.cwd)));
   p.ocupado = true;
   p.directos.length = 0;
@@ -1249,6 +1256,26 @@ async function mandarYa(x: { sid: string; texto: string; imagenes?: unknown; mod
   p.p.stdin!.write(lineaUsuario(aviso + texto, imagenes));
   alEv(g.sid, { tipo: "estado", ocupado: true, vivo: true });
   alCambio();
+}
+
+/** Los puntos de control de una conversación (uno por turno: qué archivos tocó; electron/puntos.ts). */
+export async function puntosDe(sid: string): Promise<puntos.Punto[]> {
+  return puntos.lista(ESTADO, sid);
+}
+
+/** El diff de un turno (de un archivo, o de todos). */
+export async function puntoDif(x: { sid: string; id: string; ruta?: string }): Promise<{ texto: string; cortado: boolean }> {
+  const r = await puntos.dif(ESTADO, x.sid, x.id, x.ruta);
+  if (!r.ok) throw errorT(r.motivo === "ocupado" ? "main.puntoOcupado" : r.motivo === "sinPunto" ? "main.puntoSinPunto" : "main.puntoFallo", { v: r.detalle ?? "" });
+  return r.valor;
+}
+
+/** «Volver a antes de este turno»: deja la carpeta como estaba. Nunca con el líder trabajando (el turno la está tocando). */
+export async function puntoVolver(x: { sid: string; id: string }): Promise<{ restaurados: number; borrados: number }> {
+  if (mandando.has(x.sid) || procs.get(x.sid)?.ocupado) throw errorT("main.puntoOcupado");
+  const r = await puntos.volver(ESTADO, x.sid, x.id);
+  if (!r.ok) throw errorT(r.motivo === "sinPunto" ? "main.puntoSinPunto" : "main.puntoFallo", { v: r.detalle ?? "" });
+  return r.valor;
 }
 
 /** ¿Hay una sesión de Claude que retomar con `--resume`? Siempre, salvo que la conversación venga de otro motor y Claude todavía no haya hablado en ella. */
