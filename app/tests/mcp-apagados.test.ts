@@ -3,6 +3,7 @@ import { mkdirSync, mkdtempSync, readFileSync, readdirSync, statSync, writeFileS
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
+import { POSIX } from "./plataforma.ts";
 import { configActiva, fijarApagado, leerApagados, nombreConectorValido } from "../electron/mcp-apagados.ts";
 
 /** Un `.claude.json` inventado (con una credencial falsa, que nunca tiene que salir) para un home inventado. */
@@ -22,7 +23,7 @@ function armar(extra: Record<string, unknown> = {}) {
     ...extra,
   };
   writeFileSync(archivo, JSON.stringify(base, null, 2) + "\n", { mode: 0o600 });
-  return { raiz, home, archivo, base, cfg: configActiva({}, home, "linux") };
+  return { raiz, home, archivo, base, cfg: configActiva({}, home, process.platform) };
 }
 
 const leerJson = (f: string) => JSON.parse(readFileSync(f, "utf8"));
@@ -52,7 +53,7 @@ test("prender saca sólo ese nombre y deja todo lo demás del archivo igual (ord
   assert.deepEqual(despues, esperado);
   assert.deepEqual(Object.keys(despues), Object.keys(base));
   assert.deepEqual(Object.keys(despues.projects[cfg.proyecto]), ["allowedTools", "disabledMcpServers", "hasTrustDialogAccepted"]);
-  assert.equal(statSync(archivo).mode & 0o777, 0o600);
+  if (POSIX) assert.equal(statSync(archivo).mode & 0o777, 0o600); // Windows no tiene modos
   assert.ok(readFileSync(archivo, "utf8").endsWith("}\n"));
 });
 
@@ -115,7 +116,7 @@ test("con varias cuentas: la preferida usa su carpeta y su .claude.json, no el d
   writeFileSync(propio, JSON.stringify({ projects: { [home]: { disabledMcpServers: ["claude.ai Linear"] } } }));
   const cuentas = path.join(raiz, "cuentas.json");
   writeFileSync(cuentas, JSON.stringify({ cuentas: [{ id: "trabajo", proveedor: "claude", nombre: "Trabajo", dir: carpeta }], preferidas: { claude: "trabajo" } }));
-  const cfg = configActiva({ TRAMA_CUENTAS: cuentas }, home, "linux");
+  const cfg = configActiva({ TRAMA_CUENTAS: cuentas }, home, process.platform);
   assert.deepEqual([cfg.cuenta, cfg.archivo, cfg.proyecto], ["trabajo", propio, home]);
   assert.deepEqual(await leerApagados(cfg), ["claude.ai Linear"]);
   const del = readFileSync(archivo, "utf8");
@@ -124,7 +125,7 @@ test("con varias cuentas: la preferida usa su carpeta y su .claude.json, no el d
   assert.equal(readFileSync(archivo, "utf8"), del, "el .claude.json de la cuenta de siempre no se toca");
   // Si la preferida ya no existe, vuelve a la de siempre.
   writeFileSync(cuentas, JSON.stringify({ cuentas: [], preferidas: { claude: "trabajo" } }));
-  assert.equal(configActiva({ TRAMA_CUENTAS: cuentas }, home, "linux").archivo, siempre.archivo);
+  assert.equal(configActiva({ TRAMA_CUENTAS: cuentas }, home, process.platform).archivo, siempre.archivo);
   // CLAUDE_CONFIG_DIR de la propia Trama manda sobre ~/.claude.json.
   assert.equal(configActiva({ CLAUDE_CONFIG_DIR: "/cfg/x", TRAMA_CUENTAS: path.join(raiz, "no.json") }, home, "linux").archivo, "/cfg/x/.claude.json");
 });

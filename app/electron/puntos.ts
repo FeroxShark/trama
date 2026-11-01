@@ -77,7 +77,9 @@ export async function raizDe(cwd: string | undefined, home = os.homedir()): Prom
   if (!cwd || path.resolve(cwd) === path.resolve(home)) return null;
   const r = await git(["rev-parse", "--show-toplevel"], { cwd, timeoutMs: 10_000 });
   if (r.codigo !== 0) return null;
-  const raiz = r.salida.trim();
+  // git devuelve la ruta con `/` aun en Windows: se pasa a la forma del sistema, que es la que usa el resto.
+  const salida = r.salida.trim();
+  const raiz = salida && path.normalize(salida);
   // Un repo que es el home o más arriba (el de los dotfiles) sería fotografiar medio disco.
   if (!raiz || path.resolve(raiz) === path.resolve(home) || path.resolve(home).startsWith(path.resolve(raiz) + path.sep)) return null;
   return raiz;

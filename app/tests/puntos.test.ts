@@ -7,7 +7,8 @@ import os from "node:os";
 import path from "node:path";
 import { antes, cambios, despues, dif, lista, raizDe, volver } from "../electron/puntos.ts";
 
-const tmp = () => realpathSync(mkdtempSync(path.join(os.tmpdir(), "trama-test-puntos-")));
+// `.native`: en Windows da el nombre largo (git lo devuelve así), no el corto 8.3 del tmp del runner.
+const tmp = () => realpathSync.native(mkdtempSync(path.join(os.tmpdir(), "trama-test-puntos-")));
 const g = (cwd: string, ...a: string[]) => execFileSync("git", ["-c", "user.name=t", "-c", "user.email=t@t", ...a], { cwd, encoding: "utf8" });
 
 function repo() {

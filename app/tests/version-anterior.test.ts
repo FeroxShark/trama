@@ -2,6 +2,7 @@
 // con carpetas temporales de verdad (una "app" y un "AppImage" de mentira) y un reinicio falso. Nunca toca la instalación real.
 import test from "node:test";
 import { esperarHasta } from "./esperar.ts";
+import { POSIX } from "./plataforma.ts";
 import assert from "node:assert/strict";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import os from "node:os";
@@ -87,7 +88,7 @@ test("guardarCopia y restaurar de un AppImage: pisa el archivo y lo deja ejecuta
   writeFileSync(ai, "imagen 0.2.26");
   await restaurar(inst, c);
   assert.equal(readFileSync(ai, "utf8"), "imagen 0.2.25");
-  assert.ok(statSync(ai).mode & 0o100, "ejecutable");
+  if (POSIX) assert.ok(statSync(ai).mode & 0o100, "ejecutable"); // Windows no tiene bit de ejecución
   await assert.rejects(guardarCopia(inst, "../0.2", carpetaCopias(casa), 1), /inválida/);
 });
 

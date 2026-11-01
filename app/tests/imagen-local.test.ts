@@ -11,6 +11,7 @@ import { imagenDe } from "../electron/imagenes.ts";
 import { conversacionDe, parsearLinea } from "../electron/lider-arma.ts";
 import { trozos } from "../src/hilo/markdown.ts";
 import { turnos } from "../src/hilo/turnos.ts";
+import { POSIX } from "./plataforma.ts";
 import type { Mensaje } from "../src/datos/contrato.ts";
 
 // Un PNG de 1×1 (inventado, público).
@@ -75,35 +76,37 @@ test("candidatas: una ruta de Windows sólo se lee en Windows (o por /mnt en WSL
 });
 
 test("leerImagenLocal: una imagen de verdad se lee; lo demás es null y nunca lanza", async () => {
+  // La plataforma de verdad: en Windows las rutas del tmp son de Windows y se leen como tales (con "linux" irían por /mnt/c).
+  const AQUI = process.platform;
   const tmp = mkdtempSync(path.join(os.tmpdir(), "trama-imagen-local-"));
   try {
     const ok = path.join(tmp, "captura 1.png");
     writeFileSync(ok, Buffer.from(PNG, "base64"));
-    assert.deepEqual(await leerImagenLocal(ok, "linux"), { tipo: "image/png", datos: PNG });
+    assert.deepEqual(await leerImagenLocal(ok, AQUI), { tipo: "image/png", datos: PNG });
     // El tipo sale de los bytes, no de la extensión.
     const jpg = path.join(tmp, "foto.png");
     writeFileSync(jpg, Uint8Array.from([0xff, 0xd8, 0xff, 0xe0, 0, 0x10]));
-    assert.equal((await leerImagenLocal(jpg, "linux"))?.tipo, "image/jpeg");
+    assert.equal((await leerImagenLocal(jpg, AQUI))?.tipo, "image/jpeg");
     // Con extensión de imagen pero no es una imagen (un secreto, un SVG con script).
     const falsa = path.join(tmp, "falsa.png");
     writeFileSync(falsa, "API_KEY=inventada\n");
-    assert.equal(await leerImagenLocal(falsa, "linux"), null);
+    assert.equal(await leerImagenLocal(falsa, AQUI), null);
     const enlace = path.join(tmp, "enlace.png");
     writeFileSync(path.join(tmp, "secreto.txt"), "inventado");
     symlinkSync(path.join(tmp, "secreto.txt"), enlace);
-    assert.equal(await leerImagenLocal(enlace, "linux"), null);
+    assert.equal(await leerImagenLocal(enlace, AQUI), null);
     // No existe, es una carpeta, pesa de más, no es absoluta, es de Windows en un Linux sin /mnt/c.
-    assert.equal(await leerImagenLocal(path.join(tmp, "falta.png"), "linux"), null);
+    assert.equal(await leerImagenLocal(path.join(tmp, "falta.png"), AQUI), null);
     mkdirSync(path.join(tmp, "carpeta.png"));
-    assert.equal(await leerImagenLocal(path.join(tmp, "carpeta.png"), "linux"), null);
+    assert.equal(await leerImagenLocal(path.join(tmp, "carpeta.png"), AQUI), null);
     const grande = path.join(tmp, "grande.png");
     writeFileSync(grande, Buffer.from(PNG, "base64"));
     truncateSync(grande, IMAGEN_LOCAL_MAX + 1);
-    assert.equal(await leerImagenLocal(grande, "linux"), null);
-    assert.equal(await leerImagenLocal("captura.png", "linux"), null);
-    assert.equal(await leerImagenLocal("Z:\\no\\esta\\x.png", "linux"), null);
-    assert.equal(await leerImagenLocal(ok, "win32"), null); // una ruta de Linux no se lee en Windows
-    assert.equal(await leerImagenLocal(42, "linux"), null);
+    assert.equal(await leerImagenLocal(grande, AQUI), null);
+    assert.equal(await leerImagenLocal("captura.png", AQUI), null);
+    assert.equal(await leerImagenLocal("Z:\\no\\esta\\x.png", AQUI), null);
+    if (POSIX) assert.equal(await leerImagenLocal(ok, "win32"), null); // una ruta de Linux no se lee en Windows
+    assert.equal(await leerImagenLocal(42, AQUI), null);
   } finally {
     rmSync(tmp, { recursive: true, force: true });
   }

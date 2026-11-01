@@ -242,6 +242,9 @@ test("desglose estimado desde el transcript: el primer pedido es lo fijo y lo qu
   assert.equal(sinDesglose({ tipo: "lider", id: "s", motor: "gemini" }).fuente, "sin-desglose");
 });
 
+/** Las rutas relativas se comparan con `/` (en Windows `path.relative` las devuelve con `\\`). */
+const aBarras = (p: string) => p.replaceAll("\\", "/");
+
 test("memoria de una sesión: usuario y de cwd hacia arriba, con imports de la misma carpeta, sin comentarios y sin los excluidos", async () => {
   const r = tmp();
   const proy = path.join(r, "proy");
@@ -254,11 +257,11 @@ test("memoria de una sesión: usuario y de cwd hacia arriba, con imports de la m
   writeFileSync(path.join(proy, "sub", "CLAUDE.local.md"), "z".repeat(35));
   const m = await memoriaDeSesion({ cwd: path.join(proy, "sub"), claudeDir: claude, excludes: [] });
   assert.deepEqual(
-    m.map((f) => [path.relative(r, f.ruta), f.tokens]),
+    m.map((f) => [aBarras(path.relative(r, f.ruta)), f.tokens]),
     [["claude/CLAUDE.md", 100], ["proy/sub/CLAUDE.local.md", 10], ["proy/CLAUDE.md", 200]],
   );
   const sin = await memoriaDeSesion({ cwd: path.join(proy, "sub"), claudeDir: claude, excludes: [`**/proy/CLAUDE.md`, path.join(claude, "CLAUDE.md")] });
-  assert.deepEqual(sin.map((f) => path.relative(r, f.ruta)), ["proy/sub/CLAUDE.local.md"]);
+  assert.deepEqual(sin.map((f) => aBarras(path.relative(r, f.ruta))), ["proy/sub/CLAUDE.local.md"]);
   assert.ok(excluida("/a/b/CLAUDE.md", ["/a/*/CLAUDE.md"]));
   assert.ok(!excluida("/a/b/c/CLAUDE.md", ["/a/*/CLAUDE.md"]));
 });
