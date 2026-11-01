@@ -28,6 +28,7 @@
 #                    con `lider-trabajando`, HILOS_VARIANTE=pendiente|pendiente-modelo: otro esfuerzo / otro modelo elegido con el turno en curso (la marca "próx.")
 #                    con `lider-nuevo-carpeta`, HILOS_VARIANTE=buscar: el selector de carpeta abierto y filtrado con "trama" (el buscador y la lista; Otra carpeta… sigue abajo); =buscar-nada: sin coincidencias ("zzz"), con Otra carpeta… sola
 #                    con `herramientas-resultados`, HILOS_VARIANTE=archivo-imagen|archivo-texto|archivo-md|archivo-pdf deja abierto el visor con el primer archivo de ese tipo
+#                    con `contexto-panel`, HILOS_VARIANTE=lleno: el líder con la ventana casi llena (la tarjeta del anillo en ámbar, con "Casi llena"); HILOS_TEMA=claro el tema claro
 #                    con `worker-vista`, HILOS_VARIANTE=falla|decision: la vista de un worker que murió / que pide una decisión (tarjeta coral / ámbar); sin variante, uno que terminó (calmo). Con `lider-sistema`: el aviso automático con filas de falla y decisión resaltadas. HILOS_TEMA=claro el tema claro
 #                    con `lider-formato`, HILOS_VARIANTE=larga la conversación de 3000 mensajes; con `lider-imagenes`, =visor el visor con la imagen sin llegar
 #                    con `normal`, HILOS_VARIANTE=cupos-todo|cupos-google|cupos-sin-cupo (la tarjeta de cupos de la barra: todo normal / un grupo con poco cupo / varios agotados) y el sufijo -angosta abre la barra en su ancho mínimo; HILOS_TEMA=claro el tema claro

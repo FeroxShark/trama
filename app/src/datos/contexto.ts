@@ -40,7 +40,13 @@ let baseFija = !(MODO.captura === "contexto-panel-previa" && MODO.variante === "
 const fija: FuenteContexto = {
   async desglose(q) {
     await espera(40);
-    return desgloseFalso(q);
+    const d = desgloseFalso(q);
+    // Captura `contexto-panel` con HILOS_VARIANTE=lleno: el líder con la ventana casi llena (el anillo y la tarjeta en ámbar, con su palabra).
+    if (MODO.captura === "contexto-panel" && MODO.variante === "lleno" && d.quien.tipo === "lider" && d.usado !== null) {
+      const extra = 70_000;
+      return { ...d, usado: d.usado + extra, categorias: d.categorias.map((c) => (c.id === "mensajes" && !c.diferido ? { ...c, tokens: c.tokens + extra } : c.id === "libre" ? { ...c, tokens: Math.max(0, c.tokens - extra) } : c)) };
+    }
+    return d;
   },
   async subagentes(sid) {
     await espera(40);

@@ -81,7 +81,7 @@
   line-height: 1.45;
 }
 .cp-aviso > svg {
-  margin-top: 0.125rem;
+  margin-top: var(--esp-0-5);
   color: var(--acento);
 }
 .cp-aviso p {
@@ -113,10 +113,12 @@
   min-height: 2rem;
   min-width: 0;
   flex: 1 1 auto;
-  padding: 0 var(--esp-3);
+  padding: 0 var(--esp-2);
   border-radius: var(--r-cap);
   color: var(--txt-4);
   font-size: var(--letra-5);
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 .cp-pestanas button:hover {
@@ -410,7 +412,7 @@
   white-space: nowrap;
 }
 .cp-cat h4 .cp-pct {
-  padding: 0.0625rem var(--esp-1-5);
+  padding: 0 var(--esp-1-5);
   border-radius: var(--r-cap);
   background: var(--capa-tile);
   color: var(--txt-3);
