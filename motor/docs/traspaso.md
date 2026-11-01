@@ -93,6 +93,19 @@ historia (force push); se puede subir directo y mergear sin esperar el CI.
   worker: `AGENTS.md`. Windows: el `.cmd` sale de `HERRAMIENTAS` en `windows/src/payload-nativo.js`; **sin probar en Windows**, y el payload instalado no lleva
   `node_modules/electron`, así que ahí sólo anda contra un checkout con `npm install`.
 
+## Hecho: MCP de Trama para líderes y workers (#1871)
+
+- **Servidor:** `app/electron/cli/mcp-trama.ts` (stdio, JSON-RPC por línea, sin dependencias ni bash). Herramientas: `lanzar_worker`
+  (`pa <proyecto> --async [-m] [--effort] [--tipo] -- <tarea>`), `estado_workers` y `buscar_hilos` (`pa --hilos --json [--todo]`) y
+  `mandar_mensaje` (POST `/rpc` al socket local del motor, canal `lider:encolarAgente` de `nucleo.ts`: entra por la cola del líder
+  con su modelo y esfuerzo). `pa` se resuelve con `resolverComando` (en Windows, node + `pa.js`).
+- **Registro** (`app/electron/mcp-trama-registro.ts`): agy (`~/.gemini/config/mcp_config.json`), codex (`config.toml`, tabla
+  `[mcp_servers.trama]`) y opencode (`opencode.json` global) antes de lanzar un worker de esos motores (`cli/pa/otros-motores.ts`,
+  junto a las skills) y al lanzar un líder de agy; los líderes de Claude lo reciben en su `--mcp-config` y los de dsh/opencode en la
+  lista ACP; los workers de Claude, por `claude mcp add-json --scope user` (una vez por proceso del motor, desde `lider.ts`).
+- **Sin probar de verdad:** contra cada motor real (sólo con `pa` y motor de mentira en `tests/mcp-trama.test.ts`); `mandar_mensaje`
+  necesita el motor aparte (sin motor, la ventana sola no abre el socket); en un AppImage (script dentro del asar) no se registra.
+
 ## Hecho (partes 1 y 2): seguir con otro modelo (#1791)
 
 - **Resumen de traspaso:** `app/electron/resumen-traspaso.ts` (`resumenTraspaso(lineas, {tope, modeloAnterior, motivo, pedido})`, pura; `resumenDeTranscript(ruta)` lo lee con el
