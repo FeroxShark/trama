@@ -95,7 +95,7 @@ for (const [variable, nombre] of [
   env[variable] = ruta;
   usuario.push(ruta);
 }
-env.HILOS_AISLAR_PERMITE = [process.env.HILOS_AISLAR_PERMITE, path.dirname(raiz), ...usuario].filter(Boolean).join(":");
+env.HILOS_AISLAR_PERMITE = [process.env.HILOS_AISLAR_PERMITE, path.dirname(raiz), ...usuario].filter(Boolean).join(path.delimiter);
 
 // La paridad completa (~1100 casos, bash contra TS, en serie dentro de su archivo) tarda unos 8 min: no entra en los 300 s.
 const TOPE_MS = Math.max(1, Number(env.TRAMA_TEST_ARCHIVO_S) || (paridad ? 900 : 300)) * 1000;

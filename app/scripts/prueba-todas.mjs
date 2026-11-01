@@ -55,7 +55,7 @@ function correr(nombre) {
         XDG_STATE_HOME: `${casa}/.local/state`,
         PATH: camino,
         HILOS_AISLAR_LOG: aislar,
-        ...(tablero ? { HILOS_TABLERO: tablero, HILOS_AISLAR_PERMITE: [process.env.HILOS_AISLAR_PERMITE, tablero].filter(Boolean).join(":") } : {}),
+        ...(tablero ? { HILOS_TABLERO: tablero, HILOS_AISLAR_PERMITE: [process.env.HILOS_AISLAR_PERMITE, tablero].filter(Boolean).join(path.delimiter) } : {}),
       },
     });
     let salida = "";

@@ -1,8 +1,8 @@
 // Aislamiento de las corridas de prueba: bench, captura, pruebas (`HILOS_PRUEBA`) y fixtures (`HILOS_FIXTURES=1`)
 // nunca tocan los datos del usuario. Con ese modo prendido, cada acceso de Node al sistema de archivos (fs, fs/promises)
 // que caiga bajo el HOME de verdad (el de /etc/passwd, no `$HOME`), fuera del checkout y de lo que la prueba
-// declara suyo (`HILOS_AISLAR_PERMITE`, carpetas separadas por ":"), y cada proceso hijo que se lance fuera del checkout
-// o de /tmp, se anota (`HILOS_AISLAR_LOG`, y stderr) y la app sale con 97. No corta nada: el dato igual se vería,
+// declara suyo (`HILOS_AISLAR_PERMITE`, carpetas separadas por `path.delimiter`: ":" o ";"), y cada proceso hijo que se lance fuera del checkout
+// o de /tmp (el tmp del sistema, aunque cuelgue del home, como %TEMP% en Windows), se anota (`HILOS_AISLAR_LOG`, y stderr) y la app sale con 97. No corta nada: el dato igual se vería,
 // pero la corrida no puede dar verde. Lo que lee Chromium por su cuenta (fuentes, perfil) no pasa por acá: eso lo
 // aíslan los scripts con `HOME`/`XDG_*` propios (scripts/visual.mjs) y `userData` (main.ts).
 //
@@ -23,20 +23,29 @@ const violaciones: string[] = [];
 /** Las que se anotaron hasta ahora (tests). */
 export const anotadas = () => violaciones.slice();
 
-/** `permitidas`: lo que vale bajo el home (el checkout y su node_modules, lo que la prueba declare). */
+const WIN = process.platform === "win32";
+/** Para comparar rutas: ya resueltas, y sin distinguir mayúsculas en Windows. */
+const norm = (p: string) => (WIN ? path.resolve(p).toLowerCase() : path.resolve(p));
+/** ¿`p` es `raiz` o cuelga de ella? Con el separador de la plataforma. */
+const dentro = (p: string, raiz: string) => {
+  const a = norm(p);
+  const r = norm(raiz);
+  return a === r || a.startsWith(r.endsWith(path.sep) ? r : r + path.sep);
+};
+
+/** `permitidas`: lo que vale bajo el home (el checkout y su node_modules, lo que la prueba declare). `temporales`: los tmp, que valen aunque cuelguen del home. */
 export function crearAislamiento(opts: { home: string[]; permitidas: string[]; temporales: string[]; camino?: () => string; anotar: (linea: string) => void }) {
-  const dentro = (p: string, raiz: string) => p === raiz || p.startsWith(raiz.endsWith("/") ? raiz : `${raiz}/`);
   return {
-    /** ¿`p` es un dato del usuario? Bajo el home de verdad y fuera de lo permitido. */
+    /** ¿`p` es un dato del usuario? Bajo el home de verdad y fuera de lo permitido y de los tmp. */
     ajeno(p: string): boolean {
-      const abs = path.resolve(p);
-      if (!opts.home.some((h) => abs !== h && dentro(abs, h))) return false;
-      return !opts.permitidas.some((x) => dentro(abs, x));
+      if (!opts.home.some((h) => norm(p) !== norm(h) && dentro(p, h))) return false;
+      return !opts.permitidas.some((x) => dentro(p, x)) && !opts.temporales.some((x) => dentro(p, x));
     },
     /** ¿`bin` (un comando) sale del checkout o de /tmp? Un nombre suelto se resuelve por el PATH: cuenta sólo si alguna de sus carpetas es del home. */
     binarioAjeno(bin: string): boolean {
-      if (!path.isAbsolute(bin)) return !bin.includes("/") ? (opts.camino?.() ?? "").split(":").some((d) => !!d && this.ajeno(d)) || !opts.camino : this.ajeno(bin);
-      return !opts.permitidas.some((x) => dentro(bin, x)) && !opts.temporales.some((x) => dentro(bin, x)) && this.ajeno(bin);
+      const suelto = !bin.includes("/") && !(WIN && bin.includes("\\"));
+      if (!path.isAbsolute(bin)) return suelto ? (opts.camino?.() ?? "").split(path.delimiter).some((d) => !!d && this.ajeno(d)) || !opts.camino : this.ajeno(bin);
+      return this.ajeno(bin);
     },
     anotar: opts.anotar,
   };
@@ -74,16 +83,21 @@ export function armarAislamiento(raiz: string) {
   } catch {}
   for (const h of [...homes]) homes.add(real(h));
   const permitidas = new Set<string>([raiz, real(raiz), real(path.join(raiz, "node_modules")), path.dirname(process.execPath), real(path.dirname(process.execPath))]);
-  for (const p of (e.HILOS_AISLAR_PERMITE ?? "").split(":").filter(Boolean)) permitidas.add(path.resolve(p));
+  for (const p of (e.HILOS_AISLAR_PERMITE ?? "").split(path.delimiter).filter(Boolean)) permitidas.add(path.resolve(p));
   // Lo ambiental, de entrada: sin directorios del home en el PATH (ahí viven el `pa`, el `tablero` y el `claude` del usuario: el
   // resolvedor de binarios los buscaría) y, si `HOME` es el de verdad, uno vacío y temporal (`os.homedir()` y los XDG).
-  const bajoHome = (p: string) => [...homes].some((h) => p === h || p.startsWith(`${h}/`));
-  if (e.PATH) e.PATH = e.PATH.split(":").filter((d) => d && !bajoHome(path.resolve(d))).join(":");
-  if (e.HOME && bajoHome(path.resolve(e.HOME)) && !permitidas.has(path.resolve(e.HOME))) {
+  const temporales = [os.tmpdir(), real(os.tmpdir())];
+  const bajoHome = (p: string) => [...homes].some((h) => dentro(p, h));
+  // Del usuario de verdad: bajo su home y fuera de lo permitido y de los tmp (en Windows %TEMP% cuelga del perfil).
+  const delUsuario = (p: string) => bajoHome(p) && ![...permitidas, ...temporales].some((x) => dentro(p, x));
+  if (e.PATH) e.PATH = e.PATH.split(path.delimiter).filter((d) => d && !delUsuario(d)).join(path.delimiter);
+  const casaVacia = (e.HOME && delUsuario(e.HOME)) || (WIN && e.USERPROFILE && delUsuario(e.USERPROFILE));
+  if (casaVacia) {
     const casa = fs.mkdtempSync(path.join(os.tmpdir(), "hilos-casa-"));
     e.HOME = casa;
+    if (WIN) e.USERPROFILE = casa;
     for (const [k, sub] of [["XDG_CONFIG_HOME", ".config"], ["XDG_DATA_HOME", ".local/share"], ["XDG_CACHE_HOME", ".cache"], ["XDG_STATE_HOME", ".local/state"]] as const)
-      if (!e[k] || bajoHome(path.resolve(e[k]))) e[k] = path.join(casa, sub);
+      if (!e[k] || delUsuario(e[k])) e[k] = path.join(casa, sub);
     process.on("exit", () => fs.rmSync(casa, { recursive: true, force: true }));
   }
   const archivo = e.HILOS_AISLAR_LOG;
@@ -91,7 +105,7 @@ export function armarAislamiento(raiz: string) {
   const a = crearAislamiento({
     home: [...homes],
     permitidas: [...permitidas],
-    temporales: [os.tmpdir(), real(os.tmpdir())],
+    temporales,
     camino: () => e.PATH ?? "",
     anotar: (linea) => {
       if (violaciones.includes(linea)) return;
