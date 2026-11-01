@@ -70,6 +70,21 @@ historia (force push); se puede subir directo y mergear sin esperar el CI.
   para lo que no porta y entonces sigue el bash (con `TRAMA_PA=bash` exportado para los hijos). El arnés de paridad fija esas
   variables en el lado A (el original), así que compara bash/python contra TS de verdad.
 
+## Hecho (partes 1 y 2): seguir con otro modelo (#1791)
+
+- **Resumen de traspaso:** `app/electron/resumen-traspaso.ts` (`resumenTraspaso(lineas, {tope, modeloAnterior, motivo, pedido})`, pura; `resumenDeTranscript(ruta)` lo lee con el
+  lector incremental de `contexto-jsonl.ts`). Del transcript de Claude saca objetivo, pedidos posteriores, qué sigue (la última lista de pasos, o las líneas
+  «Falta/Pendiente» del último mensaje), estado, decisiones, archivos tocados y verificaciones; ignora subagentes y `system-reminder`. Tope 6000 caracteres
+  (achica cada sección y, al final, corta). Test: `tests/resumen-traspaso.test.ts`.
+- **`pa <proyecto> --seguir-con <modelo> --id <id> ["<pedido>"]`** (sólo en el `pa` de TS: `electron/cli/pa/seguir-con.ts`; el bash lo rechaza con 2 y lo dice).
+  Corrida NUEVA con sesión limpia, en el puesto y la rama de la corrida `<id>` (como `--actualizar`: `retomaDe` en `orquesta.ts`), con el modelo pedido
+  (`--exacto` implícito: reparto no lo cambia) y el resumen como tarea. Sin transcript usa el pedido de la `.hilo` y el RESULTADO de la `.json`. No va con
+  `--seguir/--leer/--aca/--actualizar`; si la corrida sigue viva sale 75. El hijo de `--async` recibe `--retoma-de <id>` (interno) y no rearma el resumen.
+  Test: `tests/cli-pa-seguir-con.test.ts` (parseo, errores y un recorrido con el `claude` con guion).
+- **Falta (parte 3, la app):** la acción «Seguir con otro modelo» en el hilo de un líder o de un worker (abre el selector de modelo, que ya marca los sin cupo,
+  y lanza `pa … --seguir-con … --id … --async` por un IPC nuevo, también en la carcasa de Windows), el aviso de «sin cupo» de un worker que la ofrece, textos
+  es/en y la captura. Para un líder (no es una corrida de `pa`) hay que arrancar un líder nuevo con `resumenDeTranscript` de su transcript como primer mensaje.
+
 ## Hecho: limpieza de worktrees y ramas viejos de pa
 
 - **`pa --limpiar [--ver|--si] [--dias N] [--json]`** (bash en `motor/bin/pa`, TS en `app/electron/cli/pa/limpiar.ts`, con paridad en `casos-globales.ts`).
