@@ -1,5 +1,12 @@
 # Cambios
 
+## 0.2.36
+
+- Reparto: cuando OpenCode gratis corta por límite de uso, ese camino queda agotado (antes seguía mostrando «cupo 100 %» y el worker moría).
+- `tablero` encuentra su versión compilada también en la instalación (antes caía a la de python).
+- Seguir con otro modelo (base): resumen de traspaso desde el transcript y `pa <proyecto> --seguir-con <modelo> --id <id>`. La acción en el hilo llega en la próxima.
+- Tests sin esperas por reloj: un chequeo corre antes de `npm test`.
+
 ## 0.2.35
 
 - Selector de modelo: los modelos sin cupo se ven atenuados con «sin cupo hasta <fecha>» (punto ámbar si queda poco), y una línea con qué trae cada motor (skills, MCP, subagentes, imágenes).
