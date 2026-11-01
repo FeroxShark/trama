@@ -1,5 +1,11 @@
 # Cambios
 
+## 0.2.44
+
+- OpenCode gratis sin cupo: el líder ya no queda «Pensando» para siempre; corta el turno, lo dice en palabras y ofrece cambiar de modelo. El selector lo marca sin cupo.
+- Windows: arreglada la ruta de la carpeta del proyecto en los checkpoints por turno.
+- CI de GitHub en verde en Linux y Windows, con la prueba de la interfaz incluida.
+
 ## 0.2.43
 
 - Barra lateral pulida: vuelven las coronas de los líderes con sus workers colgando debajo; los terminados se pliegan en «N terminados». Cada proyecto tiene su color, lo que corre muestra «N en marcha» y lo que pide atención resalta con ícono y palabra. Se fue el filtro «sólo líderes».
