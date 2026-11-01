@@ -10,7 +10,7 @@ import type { Modelos } from "./modelos.ts";
 export const FLAGS_CON_VALOR = [
   "--max-turns", "--id", "--integrar", "--descartar", "--actualizar", "--nota", "--max-budget-usd", "-m", "--model", "--effort", "--tipo",
   "--fase", "--tarea", "--subtarea", "--rubrica", "--cuenta", "--brief-archivo", "--leccion", "--auditar", "--decisiones", "--espejo",
-  "--test-inline",
+  "--test-inline", "--seguir-con", "--retoma-de",
 ];
 export const EFFORTS_VALIDOS = /^(low|medium|high|xhigh|max)$/;
 
@@ -42,6 +42,10 @@ export interface Opciones {
   descartar: string;
   ramas: boolean;
   actualizar: string;
+  /** --seguir-con <modelo> --id <id>: la misma conversación en otro modelo (el modelo pedido; el id va en `runId`). */
+  seguirCon: string;
+  /** Interno (lo pasa el padre de --async): la corrida de la que sale el puesto y la rama, sin armar el resumen de nuevo. */
+  retomaDe: string;
   force: boolean;
   tarea: string;
   tipo: string;
@@ -92,6 +96,8 @@ export function opcionesIniciales(proyecto: string, env: Env, plan: "pro" | "max
     descartar: "",
     ramas: false,
     actualizar: "",
+    seguirCon: "",
+    retomaDe: "",
     force: false,
     tarea: "",
     tipo: env.PA_TIPO ?? "",
@@ -305,6 +311,15 @@ export function parsearOpciones(args: string[], o: Opciones, ctx: CtxParseo): Op
       case "--tests": o.integrarTests = true; i++; break;
       case "--descartar": o.descartar = valor; dos(); break;
       case "--actualizar": o.actualizar = valor; dos(); break;
+      case "--seguir-con":
+        if (valor.includes(",")) error("pa: --seguir-con quiere UN modelo (sin lista a,b,c): es la elección de la persona.");
+        o.seguirCon = valor;
+        o.modelo = valor;
+        o.modeloDeM = true;
+        o.exacto = true; // lo eligió la persona: reparto no lo cambia por otro
+        dos();
+        break;
+      case "--retoma-de": o.retomaDe = valor; dos(); break;
       case "--ramas": o.ramas = true; i++; break;
       case "--force": o.force = true; i++; break;
       case "--nota": ctx.anotar(valor); dos(); break; // la nota del jefe va pegada a esta llamada
@@ -377,6 +392,11 @@ export function parsearOpciones(args: string[], o: Opciones, ctx: CtxParseo): Op
   if (o.auditar && !o.tipo) o.tipo = "lectura";
   if (o.auditar && (o.seguir || o.aca || o.actualizar || o.integrar || o.descartar))
     error("pa: --auditar no va con --seguir, --aca, --actualizar, --integrar ni --descartar: es una corrida --leer nueva.");
+  if (o.seguirCon) {
+    if (!o.runId) error("pa: --seguir-con va con --id: pa <proy> --seguir-con <modelo> --id <corrida> [\"<pedido extra>\"]");
+    if (o.seguir || o.leer || o.aca || o.actualizar || o.auditar || o.integrar || o.descartar || o.retomaDe)
+      error("pa: --seguir-con no va con --seguir, --leer, --aca, --actualizar, --auditar, --integrar ni --descartar: es una corrida nueva, con otro modelo, sobre la rama de esa corrida.");
+  }
   if (o.decisiones && !o.auditar) error("pa: --decisiones sólo va con --auditar (lo lee el auditor).");
   return o;
 }

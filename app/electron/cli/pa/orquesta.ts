@@ -272,6 +272,7 @@ async function orquestar(l: Llamada, pa: Pa, p: ProyectoCli, o: OpcionesOrquesta
     if (!tsRetomada) tsRetomada = "-";
   }
   if (l.actualizar) tsRetomada = l.actualizar;
+  if (l.retomaDe) tsRetomada = l.retomaDe; // --seguir-con: el puesto y la rama de esa corrida, con sesión limpia
 
   // --- claude instalado y sano (el hijo de --async no lo repite)
   if (!env.PA_ASYNC && conClaude) {
@@ -302,6 +303,7 @@ async function orquestar(l: Llamada, pa: Pa, p: ProyectoCli, o: OpcionesOrquesta
         maxBudget: l.maxBudget,
         runId: l.runId,
         actualizar: l.actualizar,
+        retomaDe: l.retomaDe,
         sucioMio: l.sucioMio,
         aca: l.aca,
         force: l.force,

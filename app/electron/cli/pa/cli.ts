@@ -16,6 +16,7 @@ import { AYUDA } from "./ayuda.ts";
 import { Salida, conDueno, jefeId, nombreDueno, paqueteApp, prologo, salir, type Env, type Io, type Pa } from "./entorno.ts";
 import { Modelos } from "./modelos.ts";
 import { correrLista, escanear, legible, opcionesIniciales, parsearOpciones } from "./opciones.ts";
+import { armarSeguirCon } from "./seguir-con.ts";
 import { aplicarPolitica, leerCampo, llamadaDe, modeloFlojo, slugDe, type DepsPolitica, type Llamada, type Motores } from "./politica.ts";
 import { cuentasProceso, repartoProceso, type Cuentas, type Reparto } from "./programas.ts";
 import { cmdRubrica } from "./rubrica.ts";
@@ -411,6 +412,15 @@ async function correrPa(argv: string[], env: Env, io: Io, deps: Deps): Promise<n
       io.err(`pa: la rama ${rama} ya no existe (¿integrada o descartada?).\n`);
       return 2;
     }
+  } else if (l.seguirCon) {
+    // --seguir-con <modelo> --id <id>: el resumen de esa corrida es la tarea (el pedido extra va al final); el puesto y la rama, los suyos
+    const r = await armarSeguirCon(pa, p, l.runId, l.seguirCon, l.tarea);
+    if (!r.ok) {
+      io.err(r.mensaje);
+      return r.codigo;
+    }
+    l.tarea = r.tarea;
+    l.retomaDe = l.runId;
   } else if (l.auditar) {
     if (!deps.auditar) return noPortado(pa, "pa <proyecto> --auditar");
     l.tarea = await deps.auditar(l, pa, p);
@@ -423,7 +433,7 @@ async function correrPa(argv: string[], env: Env, io: Io, deps: Deps): Promise<n
   const calidad = l.lanza && !l.leer ? await modeloFlojo(pa, depsPol, l.modelo) : null;
   l.flojo = calidad !== null;
   if (l.lanza && !l.leer && !l.actualizar && !env.PA_ASYNC) {
-    if (!l.seguir) avisarBrief(io, l.tarea);
+    if (!l.seguir && !l.retomaDe) avisarBrief(io, l.tarea);
     if (calidad !== null)
       io.err(
         `pa: aviso: '${l.modelo}' tiene inteligencia ${calidad} (< ${env.PA_CALIDAD_BAJA || "46"}, reparto --tabla): dale pasos numerados, comandos explícitos, un solo archivo o área, y partí lo grande en varias tareas. El worker recibe además la consigna de trabajar en pasos chicos y verificar tras cada cambio.\n`,

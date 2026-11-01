@@ -490,6 +490,7 @@ export interface OpcionesHijo {
   maxBudget?: string;
   runId?: string;
   actualizar?: string;
+  retomaDe?: string;
   sucioMio?: boolean;
   aca?: boolean;
   force?: boolean;
@@ -516,6 +517,7 @@ export function argsHijo(o: OpcionesHijo): string[] {
   if (o.maxBudget) a.push("--max-budget-usd", o.maxBudget);
   if (o.runId) a.push("--id", o.runId);
   if (o.actualizar) a.push("--actualizar", o.actualizar);
+  if (o.retomaDe) a.push("--retoma-de", o.retomaDe);
   if (o.sucioMio) a.push("--sucio-mio");
   if (o.aca) a.push("--aca");
   if (o.force) a.push("--force");
