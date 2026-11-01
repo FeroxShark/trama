@@ -40,3 +40,12 @@ Cada PNG (1800×1000) muestra la ventana a la izquierda y, a la derecha, la mism
 
 En las dos, el orden Recientes/A-Z y el cambio entre líderes y árbol de hoy pasarían a un solo control (el menú Proyecto en A, Recientes en B); en la maqueta ese menú todavía no ordena. Las alturas están en píxeles a la letra de 13: en la app irían en `rem`, para que crezcan con la letra elegida. Filas de 28 px quedan debajo de los 32 px de zona de click del estándar, igual que sus filas de menú; a cambio, son las que permiten ver más hilos.
 
+
+## Cupos en filas: dos direcciones nuevas
+
+Parten de la idea «filas» y se muestran en contexto: la app entera a 1440×900 con los anchos reales (barra de 320 px, contenido de Ajustes de 688 px), y abajo la línea de la barra en sus cuatro estados, a tamaño real. La barra es la de hoy; sólo cambia la línea de cupos. Mismo dato inventado en las dos: Personal en uso (5 h 23 %, semana 92 %), Trabajo (5 % y 40 %) y Estudio (5 h 100 %, semana 58 %). En las dos, 5 h y semana son una sola pieza y sólo se separan las cuentas; todas las filas miden lo mismo; la activa lleva «En uso» con tilde y las otras «Usar»; poco cupo empieza en 70 %, como en la app, y nada avisa sólo con color.
+
+- **A, dos vasos** (`cupos-filas-a.html`): cada límite es un vaso que se llena de luz y los dos van pegados en una sola cápsula. Filas de 80 px con cifras de 26 px. Lo casi agotado se ve solo: el vaso casi lleno se vuelve ámbar y el lleno, coral, con el aviso en palabras adentro. En la barra, la misma cápsula en chico. La que mejor avisa de lejos y la más parecida a las cifras grandes de v2; ocupa más alto.
+- **B, tejido** (`cupos-filas-b.html`): una sola tarjeta con las cuentas en renglones de 68 px, dos carriles de hilos alineados por cuenta (cada hilo prendido es uso, y sale de la «trama» del nombre y del logo) y un estado en palabras bajo el nombre («Queda poco: semana»). Cifras de 16 px. La más compacta, la que mejor compara entre cuentas y la que más aguanta si hay cinco o seis; las cifras son chicas y hay que acercarse más para leerlas.
+
+La línea de la barra reemplaza a las tarjetas de cupos: muestra la cuenta en uso del motor del líder abierto y un toque abre Plan y cupos. Si esa cuenta se queda sin cupo y otra tiene lugar, ofrece «Usar Trabajo»: Trama sigue sin cambiar de cuenta sola.
