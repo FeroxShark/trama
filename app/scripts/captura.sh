@@ -12,7 +12,7 @@
 #           estadisticas-30 | estadisticas-medido | estadisticas-vacia | claude | claude-abierto | solo-lideres | ocultos |
 #           lider-sistema | lider-cambio-motor[menu|confirmar] | cuenta-lider | sistema | herramientas | lider-compactando |
 #           trama|trama-abierto|trama-sucio|trama-ocupado|trama-instalada (el aviso de una Trama nueva, con una instalada vieja forzada) |
-#           lider-relevo | lider-imagenes | lider-editar | lider-tabla | lider-formato | lider-listas | lider-pensando | lider-intermedios | lider-gemini | herramientas-resultados | lider-hover | te-espera |
+#           lider-relevo | lider-imagenes | lider-editar | lider-tabla | lider-formato | lider-listas | lider-pensando | lider-intermedios | lider-gemini | herramientas-resultados | lider-hover | te-espera | atencion[-300] |
 #           tablero | tablero-detalle | tablero-proyectos | tablero-iniciar | tablero-pospuestos | tablero-maquinas | tablero-vacio | maquinas-selector[-caida] | tablero-nuevo[-proyecto|-chat|-avisar] | lider-muerto | lider-app-muerto |
 #           compactando | contexto-panel[HILOS_VARIANTE=refrescado] | contexto-panel-cat | contexto-panel-ayuda | contexto-panel-skills[HILOS_VARIANTE=buscar] | contexto-panel-previa[HILOS_VARIANTE=sin-base] | contexto-panel-sub | orden-arrastrando | orden-menu | orden-prioridad | activas[plegada|fijo] | mover-menu | pc-apagada | pc-prendiendo | pc-prendida   (ver `Captura` en src/modo.ts)
 #   DIR=prueba       subcarpeta de bench-resultados/captura/ donde va el PNG (default: la carpeta misma);
@@ -31,6 +31,7 @@
 #                    con `worker-vista`, HILOS_VARIANTE=falla|decision: la vista de un worker que murió / que pide una decisión (tarjeta coral / ámbar); sin variante, uno que terminó (calmo). Con `lider-sistema`: el aviso automático con filas de falla y decisión resaltadas. HILOS_TEMA=claro el tema claro
 #                    con `lider-formato`, HILOS_VARIANTE=larga la conversación de 3000 mensajes; con `lider-imagenes`, =visor el visor con la imagen sin llegar
 #                    con `normal`, HILOS_VARIANTE=cupos-todo|cupos-google|cupos-sin-cupo (la tarjeta de cupos de la barra: todo normal / un grupo con poco cupo / varios agotados) y el sufijo -angosta abre la barra en su ancho mínimo; HILOS_TEMA=claro el tema claro
+#                    con `atencion` (la lista con un fallo, una decisión, un líder que espera y workers corriendo), HILOS_VARIANTE=atencion-300 la barra a 300 px; HILOS_TEMA=claro el tema claro
 #                    con `modelo`, HILOS_VARIANTE=sin-cupo: el selector con las cinco columnas, Google con Claude/GPT y Argon sin cupo, Gemini Flash con poco cupo, OpenCode gratis agotado, y Argon elegido (la marca del chip)
 #   ej: scripts/captura.sh hover
 #

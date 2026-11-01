@@ -5,6 +5,7 @@ import {
   aLaVista,
   aVistaTodo,
   armarArbol,
+  atencionRama,
   arrancando,
   ARRANQUE_S,
   claveError,
@@ -22,6 +23,7 @@ import {
   lugarLider,
   nombreCarpeta,
   normal,
+  pendientes,
   puntaje,
   resumen,
   salidaDe,
@@ -928,3 +930,28 @@ test("Dormidos: el líder sin proceso con más de un día quieto no se esconde, 
   assert.equal(reciente.carpetas.flatMap((x) => x.dormidos).length, 0);
 });
 
+
+test("atención: falló (no frenado) y pide decisión resaltan; el líder muestra el peor de sus workers o que él mismo espera", () => {
+  const trab = hilo({ proyecto: "atlas", estado: "trabajando", inicio: AHORA - MIN, ...deL("a") });
+  const fallo = hilo({ proyecto: "atlas", estado: "murio", inicio: AHORA - 3 * MIN, ...deL("a") });
+  const frenado = hilo({ proyecto: "atlas", estado: "murio", inicio: AHORA - 4 * MIN, frenado_en: AHORA - 4 * MIN, ...deL("b") });
+  const decide = hilo({ proyecto: "atlas", estado: "decision", origen: "app", inicio: AHORA - 5 * MIN });
+  const espera = { ...lider("c"), espera: { motivo: "pide" as const, desde: AHORA - 20 } };
+  const a = armarArbol([trab, fallo, frenado, decide], { lideres: [lider("a"), lider("b"), espera], ahora: AHORA });
+  assert.equal(atencionRama(ramaDe(a, "a")), "fallo");
+  // Frenado a propósito (`pa --parar`): no es un fallo.
+  assert.equal(atencionRama(ramaDe(a, "b")), null);
+  // Un líder que espera tu respuesta: ámbar, sin importar sus workers.
+  assert.equal(atencionRama(ramaDe(a, "c")), "decision");
+  // Lo que ocupa a un líder que responde no cuenta como espera.
+  assert.equal(atencionRama(ramaDe(armarArbol([], { lideres: [{ ...espera, ocupado: true }], ahora: AHORA }), "c")), null);
+  const p = pendientes(a);
+  assert.deepEqual(p.fallos.map((d) => d.id), [fallo.id]);
+  assert.deepEqual(p.esperan.map((d) => d.id).sort(), ["c", decide.id].sort());
+  // En la vista de todo el fallo queda plegado en "N terminados": para verlo hay que abrir el pliegue de su rama.
+  const todo = pendientes(aVistaTodo(a));
+  assert.equal(todo.fallos[0].viva, false);
+  assert.equal(todo.fallos[0].rama, "lider:a");
+  assert.equal(pendientes(a).fallos[0].viva, true);
+  assert.ok(todo.fallos[0].abrir.includes("atlas"));
+});

@@ -1,0 +1,173 @@
+/* Rediseño 0.4 (3/3): la lista de líderes dice de un vistazo qué pide atención.
+   Falló (coral) y pide decisión (ámbar) resaltan: tinte, borde luminoso, ícono en recuadro y la palabra en una píldora
+   (nunca sólo el color). Lo que corre o terminó queda en gris, sin tinte. Sólo tokens `--fallo-*` y `--decision-*`
+   (tokens.css). Se importa desde index.css; los selectores van con `.lista` delante para ganarle a las reglas de las filas. */
+
+/* La píldora con la palabra: la de cada fila y los chips de resumen de arriba de la lista. */
+.chip-at {
+  display: inline-flex;
+  height: 1.125rem;
+  flex: none;
+  align-items: center;
+  gap: var(--esp-1);
+  padding: 0 var(--esp-2);
+  border: 0;
+  border-radius: var(--r-cap);
+  font: inherit;
+  font-size: var(--letra-3);
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+}
+.chip-at[data-at="fallo"] {
+  background: var(--fallo-relleno);
+  color: var(--fallo-sobre);
+}
+.chip-at[data-at="decision"] {
+  background: var(--decision-relleno);
+  color: var(--decision-sobre);
+}
+button.chip-at {
+  cursor: pointer;
+}
+button.chip-at:hover {
+  filter: brightness(1.08);
+}
+
+/* El ícono de estado en un recuadro de color: una X (falló) o un ? (pide decisión). */
+.ico-at {
+  display: grid;
+  width: 1.125rem;
+  height: 1.125rem;
+  flex: none;
+  place-items: center;
+  border-radius: 0.375rem;
+}
+.ico-at[data-at="fallo"] {
+  background: var(--fallo-relleno);
+  color: var(--fallo-sobre);
+}
+.ico-at[data-at="decision"] {
+  background: var(--decision-relleno);
+  color: var(--decision-sobre);
+}
+/* En la fila de un worker, donde iba el punto. */
+.lista .wbtn > .ico-at {
+  position: absolute;
+  top: 0.4375rem;
+  left: 0.375rem;
+}
+/* La fila resaltada deja lugar al recuadro (más ancho que el punto). */
+.lista .w > .wbtn[data-atencion] {
+  padding-left: 1.875rem;
+}
+/* En la de un líder, donde iba la corona. */
+.lista .lider > .corona-at {
+  position: absolute;
+  top: 50%;
+  left: 0.3125rem;
+  margin-top: -0.5625rem;
+}
+
+/* Un worker que falló o pide decisión: fondo tintado, borde luminoso y brillo. */
+.lista .w > .wbtn[data-atencion="fallo"] {
+  background: var(--fallo-fondo);
+  box-shadow: inset 0 0 0 1px var(--fallo-luz), var(--fallo-brillo);
+}
+.lista .w > .wbtn[data-atencion="decision"] {
+  background: var(--decision-fondo);
+  box-shadow: inset 0 0 0 1px var(--decision-luz), var(--decision-brillo);
+}
+.lista .w:hover > .wbtn[data-atencion="fallo"],
+.lista .w > .wbtn[data-atencion="fallo"][data-cursor] {
+  background: var(--fallo-fondo-fuerte);
+}
+.lista .w:hover > .wbtn[data-atencion="decision"],
+.lista .w > .wbtn[data-atencion="decision"][data-cursor] {
+  background: var(--decision-fondo-fuerte);
+}
+/* El que se está viendo: el halo (más grueso que el borde) lo distingue de los demás tintados. */
+.lista .w > .wbtn[data-atencion="fallo"][data-activa] {
+  box-shadow: var(--fallo-halo);
+}
+.lista .w > .wbtn[data-atencion="decision"][data-activa] {
+  box-shadow: var(--decision-halo);
+}
+/* Con la píldora ya dice qué es: el modelo y dónde corre ceden el lugar al título. */
+.lista .wbtn[data-atencion] .donde {
+  display: none;
+}
+.lista .w > .wbtn[data-atencion="fallo"] .l2 > span:not(.m) {
+  color: var(--fallo-texto);
+}
+.lista .w > .wbtn[data-atencion="decision"] .l2 > span:not(.m) {
+  color: var(--decision-texto);
+}
+/* Aunque sea de un líder y esté terminado: lo que pide atención no se apaga. */
+.lista .w[data-apagada] > .wbtn[data-atencion] .l1 .t {
+  color: var(--texto-1);
+}
+
+/* Un líder que espera tu respuesta resalta igual, en ámbar: la palabra "Te espera" va en píldora. */
+.lista .lider[data-espera-tu] {
+  background: var(--decision-fondo);
+  box-shadow: inset 0 0 0 1px var(--decision-luz), var(--decision-brillo);
+}
+.lista .lider[data-espera-tu]:hover,
+.lista .lider[data-espera-tu][data-cursor] {
+  background: var(--decision-fondo-fuerte);
+}
+.lista .lider[data-espera-tu][data-activa] {
+  box-shadow: var(--decision-halo);
+}
+.lista .lider[data-espera-tu] .s {
+  color: var(--decision-texto);
+}
+.lista .lider .te-espera {
+  height: 1.125rem;
+  padding: 0 var(--esp-2);
+  border-radius: var(--r-cap);
+  background: var(--decision-relleno);
+  color: var(--decision-sobre);
+  font-weight: 600;
+  line-height: 1;
+}
+.lista .lider .te-espera i {
+  background: var(--decision-sobre);
+}
+
+/* Calmo: corriendo y terminó, en gris y sin tinte. El único color que queda es el puntito azul que late (está vivo). */
+.lista .wbtn:not([data-atencion]) .c-trab,
+.lista .wbtn:not([data-atencion]) .c-term {
+  background: none;
+  color: var(--txt-3);
+}
+.lista .wbtn:not([data-atencion]) .pt-term {
+  background: var(--txt-4);
+}
+
+/* Los chips de resumen: el título "Líderes" y, a su lado, "N falló" y "N esperan". */
+.pend {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--esp-1-5);
+  padding: 0 var(--esp-2);
+}
+.pend-t {
+  margin-right: auto;
+  color: var(--txt-3);
+  font-size: var(--letra-4);
+  font-weight: 500;
+}
+@media (pointer: coarse) {
+  .pend .chip-at {
+    height: 2rem;
+    padding: 0 var(--esp-3);
+  }
+}
+/* Con la barra angosta el nombre del líder cede antes que la píldora: "Te espera" no se corta. */
+.lista .lider .te-espera {
+  flex: none;
+}

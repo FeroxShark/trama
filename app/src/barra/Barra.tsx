@@ -18,7 +18,7 @@ import {
   type Ref,
 } from "react";
 import { AnimatePresence, motion, MotionConfig } from "motion/react";
-import { BarChart3, ChevronDown, Crown, Folders, GitBranch, ListTree, PanelRight, PencilLine, Plus, Search, Settings, SquareKanban, Zap, type LucideIcon } from "lucide-react";
+import { BarChart3, ChevronDown, CircleQuestionMark, Crown, Folders, GitBranch, ListTree, PanelRight, PencilLine, Plus, Search, Settings, SquareKanban, X, Zap, type LucideIcon } from "lucide-react";
 import { cerrable, cerrado, comoSettle, GENERAL, VERSION, type Caido, type ConvClaudeCode, type Estado, type EventoPa, type Hilo, type Leidos, type Lider, type Nombres, type Orden, type RespuestaLideres } from "../datos/contrato";
 import { compactarFijo, escenaFija, fuente } from "../datos/fuente";
 import { ARRANCANDO, EN_COLA, FRENADO, imagenFija } from "../datos/fixtures";
@@ -65,6 +65,7 @@ import {
   activo,
   aDesplegar,
   armarArbol,
+  atencionRama,
   aVistaTodo,
   claveDormidos,
   claveEspera,
@@ -76,6 +77,7 @@ import {
   lideresEnOrden,
   lugarLider,
   nombreCarpeta,
+  pendientes,
   resumen,
   comoQuitar,
   salidaDe,
@@ -86,6 +88,7 @@ import {
   type Arbol as DatosArbol,
   type Carpeta as DatosCarpeta,
   type Como,
+  type Destino,
   type Item,
   type Lugar,
   type Rama,
@@ -339,8 +342,8 @@ export function Barra() {
   const [renombrando, setRenombrando] = useState<Renombrando | null>(null);
   // "Nueva tarea aquí": la carpeta del líder que está por nacer.
   const nuevaEn = useRef<string | null>(null);
-  // Las capturas `HILOS_VARIANTE=<x>-angosta` abren la barra en su ancho mínimo.
-  const [ancho, setAncho] = useState(() => guardado(CLAVE_ANCHO, (c) => acotar(Number(c) || ANCHO), MODO.variante?.endsWith("-angosta") ? ANCHO_MIN : ANCHO));
+  // Las capturas `HILOS_VARIANTE=<x>-angosta` abren la barra en su ancho mínimo y `<x>-300`, a 300 px.
+  const [ancho, setAncho] = useState(() => guardado(CLAVE_ANCHO, (c) => acotar(Number(c) || ANCHO), MODO.variante?.endsWith("-angosta") ? ANCHO_MIN : MODO.variante?.endsWith("-300") ? 300 : ANCHO));
   const [abierta, setAbierta] = useState(() => vueltaInicial()?.abierta ?? guardado(CLAVE_ABIERTA, (c) => c !== "0", true));
   const reinicio = useReinicio();
   // Cuántos items esperan al usuario (el número del botón del Tablero, en el pie).
@@ -516,6 +519,8 @@ export function Barra() {
   // "Líderes y workers" esconde debajo de cada líder lo que murió o terminó (`aVistaTodo`); "sólo líderes" usa el árbol tal cual.
   const arbol = useMemo(() => (vista === "lideres" ? arbolBruto : aVistaTodo(arbolBruto)), [arbolBruto, vista]);
   const { carpetas: hayGrupos, cerrados } = arbol;
+  // Lo que pide atención (falló, pide decisión, un líder que espera): los chips de arriba de la lista.
+  const pend = useMemo(() => pendientes(arbol), [arbol]);
   // General siempre está (sin buscar): ahí vive el botón Nuevo líder.
   const grupos = useMemo(
     () =>
@@ -646,6 +651,37 @@ export function Barra() {
     setPanel(null);
     setActiva(LIDER + id);
   }, []);
+
+  // Tocar un chip de resumen: lleva al primero (si ya se está viendo, al siguiente), abriendo la carpeta y los pliegues que lo esconden.
+  const irAPendiente = useCallback(
+    (ds: Destino[]) => {
+      if (!ds.length) return;
+      const { activa, vista } = ultimo.current;
+      const i = ds.findIndex((d) => (d.lider ? LIDER + d.id : d.id) === activa);
+      const d = ds[(i + 1) % ds.length];
+      const claves = [...d.abrir, ...(!d.lider && (!d.viva || vista === "lideres") ? [d.rama] : [])];
+      const carpetas = claves.filter((k) => !k.includes(":"));
+      const pliegues = claves.filter((k) => k.includes(":"));
+      if (carpetas.length)
+        setColapsados((s) => {
+          if (!carpetas.some((k) => s.has(k))) return s;
+          const n = new Set(s);
+          carpetas.forEach((k) => n.delete(k));
+          guardar(CLAVE_COLAPSADOS, JSON.stringify([...n]));
+          return n;
+        });
+      if (pliegues.length) setPliegues((s) => (pliegues.every((k) => s.has(k)) ? s : new Set([...s, ...pliegues])));
+      if (d.lider) abrirLider(d.id);
+      else abrir(d.id);
+      const ver = () => {
+        const el = lista.current?.querySelector(d.lider ? `[data-lider="${CSS.escape(d.id)}"]` : `[data-fila="${CSS.escape(d.id)}"]`);
+        if (el) el.scrollIntoView({ block: "center" });
+        else irA(d.id);
+      };
+      requestAnimationFrame(() => requestAnimationFrame(ver));
+    },
+    [abrir, abrirLider, ultimo],
+  );
 
   // "De Claude Code": la lista se lee de fondo (el main la cachea por mtime) cuando ya llegaron los líderes y de nuevo al volver a la ventana.
   useEffect(() => {
@@ -1195,6 +1231,8 @@ export function Barra() {
       campo.current?.focus();
     }
     if (c === "hover") setCursor(primero("listo"));
+    // `atencion`: el líder que tiene el fallo, con sus workers desplegados (lo que murió va plegado en "N terminados").
+    if (c === "atencion") setPliegues(new Set([`${LIDER}s-act-t1`]));
     // El anillo de foco, como lo deja el teclado (`data-anillo`: una ventana de captura sin foco no dibuja `:focus-visible`).
     if (c === "foco-barra") setTimeout(() => lista.current?.querySelector<HTMLElement>("[data-fila] button")?.setAttribute("data-anillo", ""), 400);
     if (c === "foco-caja") setTimeout(() => document.querySelector<HTMLElement>(".caja button")?.setAttribute("data-anillo", ""), 600);
@@ -1758,6 +1796,7 @@ export function Barra() {
                   ))}
                 </div>
               ) : null}
+              <Pendientes p={pend} alIr={irAPendiente} />
             </div>
 
             <motion.div
@@ -2344,6 +2383,7 @@ function Arbol({ ref, r, grupo, proyecto, activo, alAbrirLider, alCerrarLider, a
           proyecto={proyecto}
           activa={activo}
           settle={settleDe(r)}
+          atencion={atencionRama(r)}
           alAbrir={alAbrirLider}
           alCerrar={alCerrarLider}
           alSettle={alSettleLider}
@@ -2399,6 +2439,34 @@ function Filas({ items, virtual, fila }: { items: Item[]; virtual: boolean; fila
       {items.slice(r.desde, r.hasta).map((f) => fila(f, true))}
       <li className="relleno" aria-hidden="true" style={{ height: r.despues }} />
     </>
+  );
+}
+
+/**
+ * Arriba de la lista, al lado del título: "N falló" (coral) y "N esperan" (ámbar), sólo si hay alguno. Cada uno es un botón que lleva al
+ * primero. Con ícono y palabra: el color no es lo único que lo dice.
+ */
+function Pendientes({ p, alIr }: { p: ReturnType<typeof pendientes>; alIr: (ds: Destino[]) => void }) {
+  useIdioma();
+  const f = p.fallos.length;
+  const e = p.esperan.length;
+  if (f + e === 0) return null;
+  return (
+    <div className="pend" role="group" aria-label={tr("pend.aria")}>
+      <span className="pend-t">{tr("pend.titulo")}</span>
+      {f > 0 ? (
+        <button type="button" className="chip-at" data-at="fallo" data-pend="fallo" data-tip={tr("pend.falloTip")} onClick={() => alIr(p.fallos)}>
+          <X size={10} strokeWidth={3} aria-hidden="true" />
+          {tr(f === 1 ? "pend.fallo1" : "pend.falloN", { n: f })}
+        </button>
+      ) : null}
+      {e > 0 ? (
+        <button type="button" className="chip-at" data-at="decision" data-pend="esperan" data-tip={tr("pend.esperanTip")} onClick={() => alIr(p.esperan)}>
+          <CircleQuestionMark size={10} strokeWidth={3} aria-hidden="true" />
+          {tr(e === 1 ? "pend.esperan1" : "pend.esperanN", { n: e })}
+        </button>
+      ) : null}
+    </div>
   );
 }
 

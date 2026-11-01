@@ -2,13 +2,13 @@
 // líder), el líder y lo ya cerrado.
 import { ChipEspera } from "./Espera";
 import { memo, useEffect, useMemo, useRef, useState, type ReactNode, type Ref } from "react";
-import { Bot, Cloud, Crown, Laptop } from "lucide-react";
+import { Bot, CircleQuestionMark, Cloud, Crown, Laptop, X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { comoSettle, type Estado, type Hilo, type Lider } from "../datos/contrato";
 import { MODO } from "../modo";
 import { pintorCache, pintorDura, pintorHace } from "../tiempo";
 import { cacheAplica } from "../../electron/cache";
-import { errorCorto, fin, type Como, type Salida } from "./arbol";
+import { atencionItem, errorCorto, fin, liderEspera, type Atencion, type Como, type Salida } from "./arbol";
 import { Esfuerzo } from "../ui/componentes";
 import { esfuerzoDe } from "./esfuerzo";
 import { familiaDe, ficha, lugarDe, modeloCorto } from "./ficha";
@@ -83,6 +83,8 @@ export const Fila = memo(function Fila({ ref, h, estado, apagada, cursor, activa
   // El esfuerzo sale del id (Gemini/agy) o del campo `effort`, en la escala de su motor; si no se sabe, no se dibuja nada.
   const esf = esfuerzoDe(h.modelo, h.effort);
   const Lugar = lugarDe(h) === "nube" ? Cloud : Laptop;
+  // Falló o pide una decisión: la fila resalta (tinte, borde luminoso, ícono en recuadro y la palabra en una píldora).
+  const at = atencionItem({ h, estado });
 
   return (
     <motion.li
@@ -101,15 +103,17 @@ export const Fila = memo(function Fila({ ref, h, estado, apagada, cursor, activa
         className="fila wbtn"
         data-cursor={cursor ? "" : undefined}
         data-activa={activa ? "" : undefined}
+        data-atencion={at ?? undefined}
         aria-current={activa ? "true" : undefined}
         onClick={() => alAbrir(h.id)}
       >
-        {duraCompacta ? <Hojas chica className="pt-hojas" /> : t ? <Punto tipo={t.tipo} clave={h.id} /> : null}
+        {at ? <IconoAtencion at={at} /> : duraCompacta ? <Hojas chica className="pt-hojas" /> : t ? <Punto tipo={t.tipo} clave={h.id} /> : null}
         <span className="l1">
           <span className="t" data-nuevo={nuevo ? "" : undefined}>
             {h.titulo || tareaDe(h)}
           </span>
-          {cache && t && !corre ? <Reloj pintor={cache} className="cache" /> : null}
+          {cache && t && !corre && !at ? <Reloj pintor={cache} className="cache" /> : null}
+          {at ? <span className="chip-at" data-at={at}>{tr(at === "fallo" ? "fila.chipFallo" : "fila.chipDecision")}</span> : null}
           {/* Con qué modelo (su nombre corto) y dónde corre; la ficha entera, en el tooltip. */}
           <span className="donde" data-tip={ficha(h, MODO.maquina)}>
             {corto ? (
@@ -165,6 +169,16 @@ export const Fila = memo(function Fila({ ref, h, estado, apagada, cursor, activa
     </motion.li>
   );
 });
+
+/** El ícono de estado en un recuadro de color: coral con una X (falló) o ámbar con un ? (pide una decisión). Va con su palabra al lado. */
+export function IconoAtencion({ at, className }: { at: Atencion; className?: string }) {
+  const I = at === "fallo" ? X : CircleQuestionMark;
+  return (
+    <span className={className ? `ico-at ${className}` : "ico-at"} data-at={at} aria-hidden="true">
+      <I size={11} strokeWidth={3} />
+    </span>
+  );
+}
 
 /** El error en la fila: corto y entero (sin cortar a mitad de palabra); lo que dijo `pa`, en el tooltip. */
 const textoError = errorCorto;
@@ -267,6 +281,8 @@ type PropsLider = {
   activa: boolean;
   /** Quieto (`settleLider`): cuántas ramas con commits quedan sin integrar; `null`, sin Settle. */
   settle: number | null;
+  /** El ícono de estado en recuadro: un worker suyo falló o pide una decisión, o el líder mismo espera tu respuesta. */
+  atencion?: Atencion | null;
   alAbrir: (id: string) => void;
   alCerrar: (id: string) => void;
   alSettle: (id: string) => void;
@@ -377,6 +393,7 @@ export const FilaLider = memo(function FilaLider({
   proyecto,
   activa,
   settle,
+  atencion = null,
   alAbrir,
   alCerrar,
   alSettle,
@@ -432,12 +449,17 @@ export const FilaLider = memo(function FilaLider({
         aria-current={activa ? "true" : undefined}
         data-lider={l.id}
         data-caido={l.caido}
+        data-espera-tu={liderEspera(l) ? "" : undefined}
         onClick={() => alAbrir(l.id)}
       >
-        <span className="corona" data-ocupado={l.ocupado ? "" : undefined} data-espera={l.espera && !l.ocupado ? l.espera.motivo : undefined}>
-          {l.ocupado && compacta === null ? <span className="fulgor" /> : null}
-          <Crown size={13} strokeWidth={2} />
-        </span>
+        {atencion ? (
+          <IconoAtencion at={atencion} className="corona-at" />
+        ) : (
+          <span className="corona" data-ocupado={l.ocupado ? "" : undefined} data-espera={l.espera && !l.ocupado ? l.espera.motivo : undefined}>
+            {l.ocupado && compacta === null ? <span className="fulgor" /> : null}
+            <Crown size={13} strokeWidth={2} />
+          </span>
+        )}
         <span className="txt">
           <span className="t">
             <span className="nom">{l.nombre || tr("lider.sesionJefe")}</span>

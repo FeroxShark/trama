@@ -156,6 +156,71 @@ export function resumen(vivas: Item[]): Resumen {
 }
 
 /**
+ * Lo que pide atención en la lista (rediseño 0.4): un worker que falló (no lo frenó a propósito `pa --parar`) o que pide una
+ * decisión, y un líder que terminó su turno o pide un permiso y espera la respuesta (`Lider.espera`). El resto (corriendo, terminó)
+ * queda calmo.
+ */
+export type Atencion = "fallo" | "decision";
+
+export const esFallo = (it: Item) => it.estado === "murio" && !frenado(it);
+
+export const atencionItem = (it: Item): Atencion | null => (esFallo(it) ? "fallo" : it.estado === "decision" ? "decision" : null);
+
+/** El líder espera tu respuesta: terminó su turno o pide algo (no cuenta si responde ni si no tiene proceso). */
+export const liderEspera = (l: Lider) => !!l.espera && !l.ocupado && !l.caido;
+
+/** El ícono de estado de un líder: el peor de sus workers (falló antes que pide decisión) o, si él mismo espera, decisión. */
+export function atencionRama(r: Rama): Atencion | null {
+  let decide = !!r.lider && liderEspera(r.lider);
+  for (const it of [...r.vivas, ...r.viejas]) {
+    const a = atencionItem(it);
+    if (a === "fallo") return "fallo";
+    if (a === "decision") decide = true;
+  }
+  return decide ? "decision" : null;
+}
+
+/** Adónde lleva tocar un chip de resumen: el líder o worker, y qué hay que abrir para verlo (carpetas y pliegues). */
+export type Destino = {
+  id: string;
+  lider: boolean;
+  /** La rama del worker (la clave de su pliegue): abierta, sus filas se ven. */
+  rama: string;
+  /** Está entre lo que se ve siempre (`vivas`), no entre lo plegado en "N terminados". */
+  viva: boolean;
+  /** Carpeta (o "Activas") y pliegues de líderes en espera o dormidos que hay que abrir. */
+  abrir: string[];
+};
+export type Pendientes = { fallos: Destino[]; esperan: Destino[] };
+
+/** Lo que pide atención, en el orden en que se ve la lista (Activas, y cada carpeta con sus ramas, en espera y dormidos). */
+export function pendientes(a: Arbol): Pendientes {
+  const out: Pendientes = { fallos: [], esperan: [] };
+  const vistos = new Set<string>();
+  const ver = (r: Rama, abrir: string[]) => {
+    const conLider = r.tipo === "lider" && r.lider;
+    if (conLider && liderEspera(r.lider!) && !vistos.has(r.lider!.id)) {
+      vistos.add(r.lider!.id);
+      out.esperan.push({ id: r.lider!.id, lider: true, rama: r.clave, viva: true, abrir });
+    }
+    for (const [lista, viva] of [[r.vivas, true], [r.viejas, false]] as const)
+      for (const it of lista) {
+        const t = atencionItem(it);
+        if (!t || vistos.has(it.h.id)) continue;
+        vistos.add(it.h.id);
+        (t === "fallo" ? out.fallos : out.esperan).push({ id: it.h.id, lider: false, rama: r.clave, viva, abrir });
+      }
+  };
+  for (const r of a.activas) ver(r, [ACTIVAS]);
+  for (const c of a.carpetas) {
+    for (const r of c.ramas) ver(r, [c.proyecto]);
+    for (const r of c.espera) ver(r, [c.proyecto, claveEspera(c.proyecto)]);
+    for (const r of c.dormidos) ver(r, [c.proyecto, claveDormidos(c.proyecto)]);
+  }
+  return out;
+}
+
+/**
  * ¿El worker tiene Settle propio? Sólo si terminó y no tiene un líder que se haga cargo
  * (viejo, lanzado desde la app, huérfano o de un líder sin proceso): los de un líder se van
  * con el Settle del líder. `lideres`: los que se hacen cargo (`Arbol.aCargo`).

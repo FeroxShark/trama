@@ -465,6 +465,43 @@ export const HILOS_ACTIVAS: RespuestaHilos = {
   ],
 };
 
+/**
+ * La captura `atencion` (rediseño 0.4): un líder con workers corriendo y uno que falló, otro con workers que terminaron, y un líder que
+ * pide un permiso (espera tu respuesta). La decisión de un worker sólo se pide si no lo lanzó un líder: va uno de la app.
+ */
+export const LIDERES_ATENCION: Lider[] = [
+  deActivas("t1", "checkout-tienda", "cauce", { actividad: AHORA - 20, cache_vence: AHORA + 58 * MIN + COLCHON, ocupado: true, origen: "app" }),
+  deActivas("t2", "api-pagos", "cauce", { actividad: AHORA - 2 * MIN, cache_vence: AHORA + 57 * MIN + COLCHON }),
+  deActivas("t3", "panel-metricas", "cauce", { actividad: AHORA - 4 * MIN, cache_vence: AHORA + 55 * MIN + COLCHON, pide: true, espera: { motivo: "pide", desde: 3 } }),
+];
+const deT = (id: string) => ({ jefe: id === "t1" ? "checkout-tienda" : "api-pagos", jefe_id: `s-act-${id}`, proyecto: "cauce" });
+export const HILOS_ATENCION: RespuestaHilos = {
+  version: 1,
+  hilos: [
+    hilo({ id: "20261101-100101-81001", ...deT("t1"), tarea: "Refactor del carrito", estado: "trabajando", inicio: AHORA - 9 * MIN, puesto: "1", ...cache(HORA, 50 * MIN) }),
+    hilo({ id: "20261101-100202-81002", ...deT("t1"), tarea: "Tests de envío", estado: "listo", inicio: AHORA - 40 * MIN, duracion_s: 11 * MIN, rama: "pa/cauce/20261101-100202-81002", commits: 2, resultado: "Tests de envío verdes." }),
+    hilo({ id: "20261101-100303-81003", ...deT("t1"), tarea: "Migración 0012", estado: "murio", inicio: AHORA - 25 * MIN, duracion_s: 6 * MIN, murio_en: AHORA - 19 * MIN, resultado: "El número 0012 ya lo usó otra rama." }),
+    hilo({ id: "20261101-100404-81004", ...deT("t2"), tarea: "Endpoint de reembolsos", estado: "trabajando", inicio: AHORA - 5 * MIN, puesto: "2", ...cache(HORA, 54 * MIN) }),
+    hilo({ id: "20261101-100505-81005", ...deT("t2"), tarea: "Cliente del proveedor de cobros", estado: "trabajando", modelo: "claude-sonnet-5-5", inicio: AHORA - 3 * MIN, puesto: "3", ...cache(HORA, 56 * MIN) }),
+    // Lanzado desde la app, sin líder: la decisión es del usuario.
+    hilo({
+      id: "20261101-100606-81006",
+      origen: "app",
+      proyecto: "cauce",
+      tarea: "Texto del botón de pago",
+      estado: "decision",
+      inicio: AHORA - 30 * MIN,
+      duracion_s: 12 * MIN,
+      puesto: "4",
+      rama: "pa/cauce/20261101-100606-81006",
+      commits: 1,
+      decision: "Cómo se llama el botón final:\n1. Pagar ahora\n2. Confirmar compra",
+      resultado: "Falta elegir el texto del botón.",
+      ...cache(HORA, 20 * MIN),
+    }),
+  ],
+};
+
 /** El líder de `MUERTO` como lo manda el main cuando lo mataron (captura `lider-muerto`): sin proceso, con Retomar. */
 export const LIDER_MUERTO: Lider = {
   ...MUERTO,
