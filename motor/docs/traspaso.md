@@ -81,9 +81,12 @@ historia (force push); se puede subir directo y mergear sin esperar el CI.
   (`--exacto` implícito: reparto no lo cambia) y el resumen como tarea. Sin transcript usa el pedido de la `.hilo` y el RESULTADO de la `.json`. No va con
   `--seguir/--leer/--aca/--actualizar`; si la corrida sigue viva sale 75. El hijo de `--async` recibe `--retoma-de <id>` (interno) y no rearma el resumen.
   Test: `tests/cli-pa-seguir-con.test.ts` (parseo, errores y un recorrido con el `claude` con guion).
-- **Falta (parte 3, la app):** la acción «Seguir con otro modelo» en el hilo de un líder o de un worker (abre el selector de modelo, que ya marca los sin cupo,
-  y lanza `pa … --seguir-con … --id … --async` por un IPC nuevo, también en la carcasa de Windows), el aviso de «sin cupo» de un worker que la ofrece, textos
-  es/en y la captura. Para un líder (no es una corrida de `pa`) hay que arrancar un líder nuevo con `resumenDeTranscript` de su transcript como primer mensaje.
+- **Hecho (parte 3, la app):** «Seguir con otro modelo» (`src/hilo/SeguirCon.tsx`, lógica en `src/hilo/seguir-con.ts`) en el menú del hilo de un líder y
+  de un worker, en la línea del último límite de uso del líder, en el aviso de límite en vivo, en el globo de workers sin cupo y en la tarjeta de falla de un
+  worker. Abre un diálogo con los modelos por proveedor (los sin cupo, con su hora, al final de su sección). Worker: canal `workers:seguirCon` →
+  `pa <proyecto> --seguir-con <modelo> --id <id> --async` (`seguirConWorker`, cuelga del mismo líder). Líder: canal `lider:seguirCon` → líder nuevo con
+  `resumenDeTranscript` de su transcript como primer mensaje, misma carpeta y proyecto (`seguirCon` en `electron/lider.ts`). Los dos canales están en la
+  carcasa de Windows (`windows/src/canales.json`). Límite conocido: `workers:seguirCon` va "local" (como `workers:relanzar`); un worker de otra máquina no pasa por él.
 
 ## Hecho: limpieza de worktrees y ramas viejos de pa
 

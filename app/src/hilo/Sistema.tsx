@@ -38,6 +38,7 @@ import { mensaje } from "../puente";
 import { useIdioma } from "../i18n/react";
 import { MODO } from "../modo";
 import { hora } from "./Hace";
+import { Boton } from "../ui/componentes";
 import { nombreModelo } from "./opciones";
 import type { AvisoTexto, EstadoAviso } from "../../electron/avisos-worker.ts";
 import type { ClaseTarjeta, Linea, Sistema as S, Tarjeta } from "./sistema-logica";
@@ -273,19 +274,26 @@ function Aviso({ a, alAbrirHilo }: { a: AvisoTexto; alAbrirHilo?: (id: string) =
 }
 
 /** `nombre`: el del líder, para "Viene de …" (los workers no tienen relevo). `alAbrirHilo`: abre el hilo de un worker (los ids de un aviso). */
-type Props = { s: S; nombre?: string | null; alAbrirHilo?: (id: string) => void };
+type Props = {
+  s: S;
+  nombre?: string | null;
+  alAbrirHilo?: (id: string) => void;
+  /** «Seguir con otro modelo» (#1791): lo ofrece la línea del último límite de uso, mientras el líder no trabaja. */
+  alSeguir?: () => void;
+};
 
 /** Cada pasada de `turnos()` arma objetos nuevos: lo de un mismo mensaje no cambia (el crudo, sin serializar: pesa). */
-const igual = ({ s: a, nombre: na, alAbrirHilo: ha }: Props, { s: b, nombre: nb, alAbrirHilo: hb }: Props) =>
+const igual = ({ s: a, nombre: na, alAbrirHilo: ha, alSeguir: sa }: Props, { s: b, nombre: nb, alAbrirHilo: hb, alSeguir: sb }: Props) =>
   na === nb &&
   ha === hb &&
+  !sa === !sb &&
   (a === b ||
   (a.tipo === "tarjeta" && b.tipo === "tarjeta"
     ? a.clase === b.clase && a.dato === b.dato && a.estado === b.estado && a.crudo === b.crudo
     : a.tipo === "linea" && b.tipo === "linea" && JSON.stringify(a) === JSON.stringify(b)));
 
 /** Una línea o una tarjeta de sistema. */
-export const Sistema = memo(function Sistema({ s, nombre, alAbrirHilo }: Props) {
+export const Sistema = memo(function Sistema({ s, nombre, alAbrirHilo, alSeguir }: Props) {
   useIdioma();
   if (s.tipo === "tarjeta") return <Tarjeta_ s={s} />;
   if (s.clase === "compacto") {
@@ -308,6 +316,12 @@ export const Sistema = memo(function Sistema({ s, nombre, alAbrirHilo }: Props) 
     <div className="sis" data-tono={grave ? "grave" : undefined} data-tip={crudo}>
       <Icono size={12} strokeWidth={2} />
       <span>{texto}</span>
+      {alSeguir && s.clase === "limite" ? (
+        <Boton type="button" className="aviso-accion aviso-seguir" data-seguir-con onClick={alSeguir}>
+          <ArrowRightLeft size={12} strokeWidth={2} aria-hidden="true" />
+          {t("aviso.seguir")}
+        </Boton>
+      ) : null}
     </div>
   );
 }, igual);

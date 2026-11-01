@@ -290,6 +290,7 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
   const [senalModelo, setSenalModelo] = useState(0);
   // «Seguir con otro modelo» (#1791): el selector que abre el aviso de límite o de sin cupo. Captura `lider-avisos` con `HILOS_VARIANTE=seguir-con`: ya abierto.
   const [seguirCon, setSeguirCon] = useState(MODO.captura === "lider-avisos" && MODO.variante === "seguir-con");
+  const abrirSeguir = useCallback(() => setSeguirCon(true), []);
   useEffect(() => {
     const abrir = () => setSenalModelo((n) => n + 1);
     window.addEventListener(EVENTO_CAMBIAR_MODELO, abrir);
@@ -574,6 +575,10 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
   }, [enTranscript, vivo.avisos, mensajes]);
   let ultimoTurno = items.length - 1;
   while (ultimoTurno >= 0 && items[ultimoTurno].tipo !== "turno") ultimoTurno--;
+  // «Seguir con otro modelo» (#1791) en la línea del último límite de uso que ya quedó en la conversación (con el líder quieto).
+  let ultimoLimite = items.length - 1;
+  const esLimite = (x: Item) => x.tipo === "sistema" && x.s.tipo === "linea" && x.s.clase === "limite";
+  while (ultimoLimite >= 0 && !esLimite(items[ultimoLimite])) ultimoLimite--;
   // El relevo (B19): mientras corre, el testimonio; al salir, "Sigue en …" con el líder nuevo
   // (hereda el nombre de la sesión: el más nuevo con el mismo nombre y otro id).
   const relevo = useMemo(() => relevoEn(items), [items]);
@@ -1161,6 +1166,8 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
             <Mensajes
               items={items}
               ultimoTurno={ultimoTurno}
+              ultimoLimite={ultimoLimite}
+              alSeguir={l && !ocupado ? abrirSeguir : undefined}
               app={app}
               ocupado={ocupado}
               pasando={pasando}
@@ -1579,6 +1586,9 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
 type PropsMensajes = {
   items: Item[];
   ultimoTurno: number;
+  /** El índice de la línea del último límite de uso (-1: ninguna), y qué hace «Seguir con otro modelo» ahí (`undefined`: no se ofrece). */
+  ultimoLimite: number;
+  alSeguir: (() => void) | undefined;
   app: boolean;
   ocupado: boolean;
   pasando: boolean;
@@ -1602,7 +1612,7 @@ type PropsMensajes = {
  * La conversación. Aparte de la caja para que cada tecla no la recorra entera: lo que se escribe es estado de `ChatLider`, y con
  * 3000 mensajes volver a armarlos en cada letra tardaba más de 50 ms. Sólo se repinta cuando cambian los mensajes o el turno.
  */
-const Mensajes = memo(function Mensajes({ items, ultimoTurno, app, ocupado, pasando, pensando, razon, relevo, sigue, nombre, alAbrirLider, alAbrirHilo, acciones, editar, guardar }: PropsMensajes) {
+const Mensajes = memo(function Mensajes({ items, ultimoTurno, ultimoLimite, alSeguir, app, ocupado, pasando, pensando, razon, relevo, sigue, nombre, alAbrirLider, alAbrirHilo, acciones, editar, guardar }: PropsMensajes) {
   return (
     <>
       {items.map((x, i) =>
@@ -1611,7 +1621,7 @@ const Mensajes = memo(function Mensajes({ items, ultimoTurno, app, ocupado, pasa
         ) : x.tipo === "sistema" ? (
           <Fragment key={x.key}>
             <Marca k={x.key} />
-            <Sistema s={x.s} nombre={nombre} alAbrirHilo={alAbrirHilo} />
+            <Sistema s={x.s} nombre={nombre} alAbrirHilo={alAbrirHilo} alSeguir={i === ultimoLimite ? alSeguir : undefined} />
           </Fragment>
         ) : (
           <Fragment key={x.key}>

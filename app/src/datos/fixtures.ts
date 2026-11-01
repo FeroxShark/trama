@@ -614,6 +614,14 @@ export const HILOS_EN_COLA: RespuestaHilos = {
 };
 
 /** La charla de un líder con fixtures: un pedido, el trabajo y la respuesta. */
+/** La charla de un líder que se quedó sin cupo (captura `lider-avisos`): lo de siempre y, al final, el límite de uso de `claude`. */
+export function charlaLimite(sid: string): Mensaje[] {
+  const l = charlaLider(sid);
+  const ultimo = l[l.length - 1];
+  if (!ultimo) return l;
+  return [...l, { i: ultimo.i + 1, rol: "assistant", texto: LIMITE, herramientas: [], modelo: "<synthetic>", error: "rate_limit", ts: ultimo.ts ? new Date(Date.parse(ultimo.ts) + MIN * 1000).toISOString() : null }];
+}
+
 export function charlaLider(sid: string): Mensaje[] {
   const l = [...LIDERES.lideres, LIDER_MUERTO, LIDER_DELL].find((x) => x.id === sid);
   if (!l) return [];

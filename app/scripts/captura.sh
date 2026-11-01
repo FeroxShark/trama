@@ -34,6 +34,7 @@
 #                    con `normal`, HILOS_VARIANTE=cupos-todo|cupos-google|cupos-sin-cupo (la tarjeta de cupos de la barra: todo normal / un grupo con poco cupo / varios agotados) y el sufijo -angosta abre la barra en su ancho mínimo; HILOS_TEMA=claro el tema claro
 #                    con `atencion` (la lista con un fallo, una decisión, un líder que espera y workers corriendo), HILOS_VARIANTE=atencion-300 la barra a 300 px; HILOS_VARIANTE=resuelto lo mismo con todo ya resuelto (sin chips ni ámbar); HILOS_TEMA=claro el tema claro
 #                    con `modelo`, HILOS_VARIANTE=sin-cupo: el selector con las cinco columnas, Google con Claude/GPT y Argon sin cupo, Gemini Flash con poco cupo, OpenCode gratis agotado, y Argon elegido (la marca del chip)
+#                    con `lider-avisos`, HILOS_VARIANTE=seguir-con: «Seguir con otro modelo» (#1791) abierto; sin variante, el botón en la línea del límite de uso
 #   ej: scripts/captura.sh hover
 #
 # Deja bench-resultados/captura/[<DIR>/]<estado>.png (esa carpeta no va al repo). Requiere el build: `npm run build`
