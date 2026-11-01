@@ -967,7 +967,9 @@ export function Barra() {
     const deCarpeta = e.carpeta && !e.maquina ? proyectosRef.current.find((p) => llanaRuta(p.ruta) === llanaRuta(e.carpeta!))?.slug : undefined;
     const en = deCarpeta ?? nuevaEn.current;
     nuevaEn.current = null;
-    if (en && !deCarpeta) {
+    // También si nació en la carpeta de un proyecto: el líder real (que reemplaza al fantasma) se agrupa por sus workers o por lo que nombra
+    // su primer mensaje, no por su cwd, y sin esto saltaba de su proyecto a la carpeta del home apenas llegaba.
+    if (en) {
       setNombres((n) => ({ ...n, proyectos: { ...n.proyectos, [sid]: en } }));
       fuente.guardarProyecto(sid, en);
     }

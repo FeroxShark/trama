@@ -612,11 +612,8 @@ try {
   // --- Nuevo líder (claude falso: contesta "eco: …") ------------------------------------
   // La carpeta del home: primera, con el usuario del sistema por nombre.
   const usuario = os.userInfo().username;
-  console.log("DBGP", JSON.stringify(await en(() => [...document.querySelectorAll(".proy")].map((p) => p.getAttribute("aria-label")))));
-  ok(
-    await en((u) => document.querySelector(".proy")?.getAttribute("aria-label") === u, usuario),
-    `la carpeta del home (${usuario}) va primera (el líder nuevo se abre con Ctrl+N o con el + de arriba)`,
-  );
+  // Sin líderes en el home la carpeta no se pinta (el líder nuevo se abre con Ctrl+N o el + de arriba): aparece, primera, con el primero.
+  ok(await en((u) => ![...document.querySelectorAll(".proy")].some((p) => p.getAttribute("aria-label") === u), usuario), "sin líderes en el home, su carpeta no se pinta");
   await tecla("N", CTRL | SHIFT);
   ok(await hasta(() => document.querySelector(".migas .ruta b")?.textContent.includes("Nuevo líder"), "chat nuevo"), "Ctrl+Shift+N también abre un líder nuevo");
   // Lo que pasa por los avisos (el de reintento se va apenas llega la respuesta).
@@ -680,7 +677,8 @@ try {
       /^trama-[0-9a-f]{4}$/.test(ar[ar.indexOf("--name") + 1]),
     `argv del líder: ${ar.join(" ")}`,
   );
-  ok(c?.cwd === os.homedir(), "el líder corre en ~");
+  // Un líder nuevo arranca en el proyecto que se miraba en la barra (carpeta-nueva.ts): acá el worker de atlas de más arriba.
+  ok(c?.cwd === path.join(tmp, "proy", "atlas"), `el líder corre en la carpeta del proyecto que se miraba (${c?.cwd})`);
   ok(!c?.env.some((k) => /^(CLAUDE|ANTHROPIC_)/.test(k)), "sin variables CLAUDE*/ANTHROPIC_*");
   const sid = ar[ar.indexOf("--session-id") + 1];
   const guardados = JSON.parse(readFileSync(path.join(tmp, "hilos", "lideres.json"), "utf8"));
@@ -698,7 +696,13 @@ try {
     return clic(`[role="menu"] [data-accion="${clave}"]`);
   };
   ok(await hasta(marcado, "líder marcado", sid), "el líder abierto está marcado en la barra");
-  const casa = await en(carpetaDe, sid);
+  ok(await en((u) => document.querySelector(".proy")?.getAttribute("aria-label") === u, usuario), `con su primer líder, la carpeta del home (${usuario}) va primera`);
+  // Nació en la carpeta de atlas: en la barra queda en atlas (el líder real no salta al home al reemplazar al fantasma).
+  ok(await hasta((s, c) => document.querySelector(`[data-lider="${s}"]`)?.closest(".proy")?.querySelector("[data-carpeta]")?.dataset.carpeta === c, "líder en atlas", sid, "atlas"), "el líder que nace en un proyecto se queda en la carpeta de ese proyecto");
+  // De ahí al home: lo que sigue de la prueba parte de su carpeta de siempre.
+  const casa = "general";
+  ok(await moverA(`a:${casa}`), "se lo mueve a la carpeta del home");
+  ok(await hasta((s, c) => document.querySelector(`[data-lider="${s}"]`)?.closest(".proy")?.querySelector("[data-carpeta]")?.dataset.carpeta === c, "líder en el home", sid, casa), "queda en la carpeta del home");
   await clic('[data-carpeta="cauce"]');
   ok(await hasta(plegada, "cauce plegada", "cauce"), "se pliega otra carpeta a mano");
   ok(await moverA("a:cauce"), "el líder se mueve a la carpeta plegada");
