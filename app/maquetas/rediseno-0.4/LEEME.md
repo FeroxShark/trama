@@ -50,3 +50,10 @@ Parten de la idea «filas» y se muestran en contexto: la app entera a 1440×900
 - **B, tejido** (`cupos-filas-b.html`): una sola tarjeta con las cuentas en renglones de 68 px, dos carriles de hilos alineados por cuenta (cada hilo prendido es uso, y sale de la «trama» del nombre y del logo) y un estado en palabras bajo el nombre («Queda poco: semana»). Cifras de 16 px. La más compacta, la que mejor compara entre cuentas y la que más aguanta si hay cinco o seis; las cifras son chicas y hay que acercarse más para leerlas.
 
 La línea de la barra reemplaza a las tarjetas de cupos: muestra la cuenta en uso del motor del líder abierto y un toque abre Plan y cupos. Si esa cuenta se queda sin cupo y otra tiene lugar, ofrece «Usar Trabajo»: Trama sigue sin cambiar de cuenta sola.
+
+## Riel pulido (ya implementado)
+
+Capturas de la barra de verdad, con datos inventados (`pantalla abrir riel-pulido`): siete líderes y 37 ramas terminadas sueltas. Vuelven las coronas y los workers colgando de su líder, y se va el filtro de «sólo líderes». La idea: cada proyecto es un hilo de su color, que sale de la pestaña del riel, tiñe el encabezado y baja por sus workers.
+
+- `riel-pulido-oscuro.png`: sin nada corriendo; lo que falla o pregunta es lo único que resalta.
+- `riel-pulido-claro.png` y `riel-pulido-trabajando.png`: con trabajo en curso. Lo que corre enciende su tramo del hilo y una lanzadera lo recorre, y el encabezado dice «N en marcha».

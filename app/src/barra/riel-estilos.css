@@ -16,7 +16,7 @@
 }
 [data-tema="claro"] .pr,
 [data-tema="claro"] .proy {
-  --hilo: color-mix(in oklab, var(--h, var(--apagado)) 50%, var(--negro));
+  --hilo: color-mix(in oklab, var(--h, var(--apagado)) 50%, var(--texto-1));
   --proy-fondo: color-mix(in srgb, var(--h, var(--apagado)) 22%, var(--sup-0));
   --proy-fondo-viendo: color-mix(in srgb, var(--h, var(--apagado)) 40%, var(--sup-0));
 }
