@@ -142,5 +142,8 @@ test("Ajustes: el plan de OpenCode se busca en Plan y cupos (es parte de la cuen
   const fuente = readFileSync(path.join(import.meta.dirname, "..", "src", "paneles", "AjustesOpencode.tsx"), "utf8");
   assert.ok(!fuente.includes("radiogroup"), "el selector del plan ya no está duplicado en Ajustes > OpenCode");
   const cupos = readFileSync(path.join(import.meta.dirname, "..", "src", "paneles", "AjustesCupos.tsx"), "utf8");
-  assert.ok(cupos.includes('opc="ajustes.ocPlan"') && cupos.includes('<Cabecera id="opencode"'), "la tarjeta de OpenCode lleva el plan y el logo como las demás");
+  assert.ok(cupos.includes('opc="ajustes.ocPlan"'), "la tarjeta de OpenCode lleva el plan");
+  // Con una cuenta va en la tarjeta chica y con varias en la tela: las dos ponen el logo por su `id`, como las demás.
+  assert.match(cupos, /<Chica\s+id="opencode"/);
+  assert.match(cupos, /<Tela\s+id="opencode"/);
 });
