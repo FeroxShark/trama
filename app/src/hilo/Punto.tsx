@@ -13,7 +13,7 @@ import { Filas } from "./Diff";
 import { archivosAlVolver, parsearDif, sumaDe } from "./punto-logica";
 import { extension } from "./worker-datos";
 import "./worker-logica.css";
-import "./punto.css";
+import "./punto-hilo.css";
 
 /** Las capturas `lider-puntos`: la lista abierta con su primer diff (`abierto`) o el diálogo de volver atrás (`confirmar`). */
 const CAPTURA = MODO.captura === "lider-puntos" ? MODO.variante : null;
