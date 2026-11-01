@@ -969,7 +969,7 @@ const usoFixture = (): Uso => {
   if (MODO.captura === "uso-sin-dato" || MODO.variante === "sin-uso") return { version: 1, ts: 0, five_hour: null, seven_day: null };
   if (MODO.variante === "cupos-google") return USO_GOOGLE;
   if (MODO.variante === "cupos-marcado") return USO_GOOGLE_MARCADO;
-  if (MODO.captura === "modelo" && MODO.variante === "sin-cupo") return USO_SIN_CUPO;
+  if ((MODO.captura === "modelo" && MODO.variante === "sin-cupo") || MODO.variante?.startsWith("cupos-sin-cupo")) return USO_SIN_CUPO;
   if (MODO.variante === "cupos-cuentas") return USO_CUENTAS;
   if (MODO.variante === "cupos-nim") return USO_NIM;
   if (MODO.variante?.startsWith("cupos-todo-dos")) return USO_TODO_DOS;

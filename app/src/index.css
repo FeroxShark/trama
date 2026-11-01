@@ -250,152 +250,333 @@ body,
 .espera {
   padding: var(--esp-0-5) 0 var(--esp-1) var(--esp-3);
 }
-/* El uso de cada proveedor: un renglón por grupo, logo y nombre corto a la izquierda y una celda por ventana (5 h, semana)
-   en dos columnas fijas. Lo largo (reinicio, hora exacta, de cuándo es el dato) va al tooltip de la celda, debajo del renglón. */
+/* Los cupos de cada proveedor (rediseño 0.4): tarjetas con la cifra protagonista. Claude y toda suscripción con ventanas propias: dos
+   tarjetas grandes (5 h y semana). Una suscripción con varios grupos (Google): una tarjeta chica por grupo. Un solo grupo o los pedidos
+   que cuenta Trama (OpenCode): una cápsula ancha. Lo agotado va tintado, con ícono y "vuelve <hora>" (tokens `--cupo-agotado-*`).
+   Lo largo (ventana entera, hora exacta, de cuándo es el dato) va al tooltip, que cuelga de `.susc`. */
 .usos {
   position: relative;
   z-index: 1;
   margin: 0 var(--esp-1);
-  padding: var(--esp-3);
-  border-radius: var(--r-md);
-  background: var(--capa-card);
 }
 .usos-l {
   display: flex;
   min-width: 0;
   flex-direction: column;
-  gap: var(--esp-2);
-  /* Angosta, el nombre del grupo se achica y su "hasta" desaparece (queda en el tooltip). */
+  gap: var(--esp-3);
+  /* Angosta, la cifra y las rejillas se achican (container queries de abajo). */
   container-type: inline-size;
 }
 .usos[data-espera] {
   visibility: hidden;
 }
-.grupo {
-  --g-nombre: 6.25rem;
-  position: relative;
-  display: grid;
-  grid-template-columns: var(--g-nombre) minmax(0, 1fr) minmax(0, 1fr);
-  align-items: center;
-  column-gap: var(--esp-3);
-}
-@container (max-width: 17rem) {
-  .grupo {
-    --g-nombre: 5.5rem;
-  }
-  /* El logo no se esconde nunca: se achican el nombre y las barras, no la marca. */
-  .g-hasta,
-  .g-sub {
-    display: none;
-  }
-}
-@container (max-width: 15rem) {
-  /* Más angosta: el nombre pasa arriba, a lo ancho, y las dos celdas debajo, así entran el nombre entero, el porcentaje y lo que falta para el reinicio. */
-  .grupo {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    row-gap: var(--esp-1);
-  }
-  .grupo > .g-id {
-    grid-column: 1 / -1;
-  }
-}
-.g-id {
-  display: grid;
-  min-width: 0;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: center;
-  column-gap: var(--esp-1-5);
-  color: var(--txt-2);
-  font-size: var(--letra-4);
-  font-weight: 500;
-  line-height: 1.3;
-  cursor: default;
-}
-.g-id .logo {
-  width: 0.875rem;
-  height: 0.875rem;
-  flex: none;
-  overflow: visible;
-  border-radius: 0;
-  color: var(--txt-3);
-}
-.g-n {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.g-hasta,
-.g-sub {
-  grid-column: 2 / -1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-size: var(--letra-1);
-  font-weight: 400;
-  line-height: 1.1;
-  color: var(--txt-4);
-  white-space: nowrap;
-}
-/* Una suscripción con grupos (Google): su renglón y, debajo, uno por grupo, alineados con las columnas de Claude. */
 .susc {
+  position: relative;
   display: flex;
   min-width: 0;
   flex-direction: column;
   gap: var(--esp-1-5);
 }
-/* Una ventana que no rige, o un grupo marcado: sin porcentaje; la barra va rayada y vacía. */
-.uso[data-aparte] .sd {
-  margin-left: 0;
-  color: var(--txt-4);
+.cq-rejilla {
+  display: grid;
+  gap: var(--esp-2);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
-.uso[data-aparte="marcado"] .sd {
-  color: var(--critico);
-  font-style: normal;
+.susc[data-forma="chicas"] > .cq-rejilla {
+  grid-template-columns: repeat(auto-fit, minmax(4.5rem, 1fr));
 }
-.riel[data-hueco] {
-  background: repeating-linear-gradient(135deg, var(--capa-track) 0 0.25rem, var(--capa-div) 0.25rem 0.5rem);
+/* El renglón del proveedor sobre sus tarjetas chicas (las grandes llevan el nombre adentro). */
+.cq-cab {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--esp-1-5);
+  padding: 0 var(--esp-1);
+  color: var(--txt-2);
+  font-size: var(--letra-4);
+  font-weight: 500;
 }
-.uso-lleno {
-  align-self: center;
+.cq-cab > svg {
+  width: 0.875rem;
+  height: 0.875rem;
   flex: none;
-  color: var(--critico);
-}
-.uso-bajo {
-  align-self: center;
-  flex: none;
-  color: var(--aviso);
-}
-.uso[data-aparte="sin-limite"] .sd {
-  margin-left: 0;
+  overflow: visible;
   color: var(--txt-3);
 }
-.grupo[data-hijo] .g-id {
-  grid-template-columns: minmax(0, 1fr);
-  padding-left: var(--esp-3);
+.cq-cab-n {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-.grupo[data-hijo] .g-n,
-.grupo[data-hijo] .g-hasta {
-  grid-column: 1;
+/* La tarjeta. Foco visible por el anillo del acento (se navega con Tab para abrir el tooltip). */
+.cq {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  padding: var(--esp-2-5) var(--esp-3) var(--esp-3);
+  border-radius: var(--r-md);
+  background: var(--capa-card);
+  box-shadow: inset 0 0 0 1px var(--capa-div);
+  cursor: default;
+  outline: none;
 }
-/* Una cuenta agregada (la 2.ª de Google, las de Claude…): cuelga de la fila de su proveedor, sangrada y sin logo; lleva el nombre de la cuenta. */
-.grupo[data-cuenta] .g-id {
-  grid-template-columns: minmax(0, 1fr) auto;
-  padding-left: var(--esp-3);
+.cq:focus-visible {
+  box-shadow: inset 0 0 0 1.5px var(--acento);
 }
-.grupo[data-cuenta] .g-n,
-.grupo[data-cuenta] .g-hasta {
-  grid-column: 1;
+.cq-nom {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--esp-1-5);
+  color: var(--txt-3);
+  font-size: var(--letra-3);
+  font-weight: 500;
+  line-height: 1.3;
 }
-/* El control de una cuenta («En uso» / «Usar primero»): una línea a todo lo ancho debajo de sus barras; en una cuenta agregada, sangrada como su nombre. */
-.grupo > .g-acc {
-  grid-column: 1 / -1;
+.cq-nom > svg:not(.cq-ico) {
+  width: 0.75rem;
+  height: 0.75rem;
+  flex: none;
+  overflow: visible;
+}
+.cq-nom-t {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cq-ico {
+  flex: none;
+}
+.cq-nom > .cq-ico {
+  margin-left: auto;
+}
+/* La cifra: lo primero que se lee. El «%» es más chico y apagado; los textos (sin cupo, sin dato, 37 ped.) van más chicos que un número. */
+.cq-h {
+  margin-top: var(--esp-0-5);
+  color: var(--txt-1);
+  font-size: var(--cifra-1);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.035em;
+  line-height: 1.12;
+  white-space: nowrap;
+}
+.cq-n::after {
+  content: "%";
+  margin-left: 1px;
+  color: var(--txt-3);
+  font-size: 0.44em;
+  font-variant-numeric: normal;
+  font-weight: 500;
+  letter-spacing: 0;
+}
+.cq-h[data-viejo] {
+  color: var(--txt-3);
+}
+.cq-txt {
+  overflow: hidden;
+  font-size: var(--letra-8);
+  font-weight: 650;
+  letter-spacing: -0.015em;
+  line-height: 1.65;
+  text-overflow: ellipsis;
+}
+.cq-txt[data-apagado] {
+  color: var(--txt-3);
+}
+.cq-pista {
+  height: 0.3125rem;
+  margin: var(--esp-1-5) 0;
+  overflow: hidden;
+  border-radius: var(--radio-pastilla);
+  background: var(--capa-div);
+}
+.cq-pista > i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--acento);
+  transform-origin: left;
+}
+/* Una ventana que no rige o sin límite: la barra va rayada y vacía. */
+.cq-pista[data-hueco] {
+  background: repeating-linear-gradient(135deg, var(--capa-track) 0 0.25rem, var(--capa-div) 0.25rem 0.5rem);
+}
+.cq-nota {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--esp-1);
+  color: var(--txt-3);
+  font-size: var(--letra-3);
+  line-height: 1.25;
+  text-wrap: balance;
+}
+/* Ámbar desde 70 %, rojo desde 90 % (`nivel`, src/hilo/contexto-logica.ts). Además, desde `USO_BAJO`, el ícono y «queda poco cupo». */
+.cq[data-nivel="ambar"] .cq-h,
+.cq[data-nivel="ambar"] .cq-nota,
+.cq[data-nivel="rojo"] .cq-nota,
+.cq-seg[data-nivel="ambar"] .cq-seg-v,
+.cq-seg[data-nivel="ambar"] .cq-ico {
+  color: var(--cupo-poco-texto);
+}
+.cq[data-nivel="rojo"] .cq-h,
+.cq-seg[data-nivel="rojo"] .cq-seg-v,
+.cq-seg[data-nivel="rojo"] .cq-ico {
+  color: var(--fallo-texto);
+}
+.cq[data-nivel="ambar"] .cq-pista > i {
+  background: var(--aviso);
+}
+.cq[data-nivel="rojo"] .cq-pista > i {
+  background: var(--critico);
+}
+.cq[data-nivel] .cq-n::after {
+  color: inherit;
+  opacity: 0.7;
+}
+/* Sin cupo: tinte rojo suave, borde, ícono, la palabra y cuándo vuelve. */
+.cq[data-agotado] {
+  background: var(--cupo-agotado-fondo);
+  box-shadow: inset 0 0 0 1px var(--cupo-agotado-borde);
+}
+.cq[data-agotado]:focus-visible {
+  box-shadow: inset 0 0 0 1.5px var(--fallo-luz);
+}
+.cq[data-agotado] .cq-nom,
+.cq[data-agotado] .cq-h,
+.cq[data-agotado] .cq-nota,
+.cq-seg[data-agotado] {
+  color: var(--cupo-agotado-texto);
+}
+.cq[data-agotado] .cq-pista {
+  background: var(--cupo-agotado-borde);
+}
+.cq[data-agotado] .cq-pista > i {
+  background: var(--critico);
+}
+/* La chica: tres entran en la barra (dos, en la angosta). */
+.cq[data-chica] {
+  padding: var(--esp-2) var(--esp-2-5) var(--esp-2-5);
+}
+.cq[data-chica] .cq-h {
+  font-size: var(--cifra-3);
+  letter-spacing: -0.03em;
+}
+.cq[data-chica] .cq-txt {
+  font-size: var(--letra-4);
+  line-height: 1.5;
+  text-wrap: balance;
+  white-space: normal;
+}
+/* El nombre del grupo pasa a dos líneas antes de cortarse, y la barra y la nota quedan al pie: tres tarjetas, tres bases iguales. */
+.cq[data-chica] .cq-nom-t {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  white-space: normal;
+}
+.cq[data-chica] .cq-pista {
+  height: 0.25rem;
+  margin: auto 0 var(--esp-1);
+  padding-top: 0;
+}
+.cq[data-chica] .cq-h {
+  margin-bottom: var(--esp-1);
+}
+.cq[data-chica] .cq-nota {
+  font-size: var(--letra-2);
+}
+/* La cápsula: logo y nombre a la izquierda, cada ventana en línea a la derecha; si no entra, las ventanas pasan abajo. */
+.cq-capsula {
+  flex-flow: row wrap;
+  align-items: center;
+  gap: var(--esp-1) var(--esp-3);
+  min-height: 2.125rem;
+  padding: var(--esp-1-5) var(--esp-3-5);
+  border-radius: var(--radio-pastilla);
+}
+.cq-capsula .cq-nom {
+  flex: 0 1 auto;
+  color: var(--txt-2);
+  font-size: var(--letra-4);
+  font-weight: 600;
+}
+.cq-segs {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--esp-0-5) var(--esp-3);
+  font-size: var(--letra-3);
+}
+.cq-seg {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--esp-1);
+  white-space: nowrap;
+}
+.cq-seg-n {
+  color: var(--txt-3);
+}
+.cq-seg-v {
+  color: var(--txt-1);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+.cq-seg-v[data-viejo],
+.cq-seg-v[data-apagado] {
+  color: var(--txt-3);
+}
+.cq-seg[data-agotado] .cq-seg-v {
+  color: var(--cupo-agotado-texto);
+}
+/* Barra angosta: la cifra grande baja un escalón y las chicas pasan a dos columnas. */
+@container (max-width: 17rem) {
+  .cq-h {
+    font-size: var(--cifra-2);
+  }
+  .cq-txt {
+    font-size: var(--letra-7);
+  }
+  .cq[data-chica] .cq-h {
+    font-size: var(--cifra-4);
+  }
+  .cq[data-chica] .cq-txt {
+    font-size: var(--letra-4);
+  }
+}
+@container (max-width: 15rem) {
+  .cq {
+    padding: var(--esp-2) var(--esp-2-5) var(--esp-2-5);
+  }
+  .susc[data-forma="chicas"] > .cq-rejilla {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .cq-capsula {
+    border-radius: var(--r-md);
+  }
+  /* Grandes: el nombre y la ventana pasan a dos líneas antes de cortarse con «…» (el tooltip dice entero). */
+  .susc:not([data-forma="chicas"]) .cq-nom-t {
+    white-space: normal;
+    line-height: 1.2;
+  }
+  .cq-segs {
+    justify-content: flex-start;
+  }
+}
+/* Una cuenta agregada (la 2.ª de Google, las de Claude…): cuelga de su proveedor, con el nombre de la cuenta en sus tarjetas. */
+/* El control de una cuenta («En uso» / «Usar primero»): una línea a todo lo ancho debajo de sus tarjetas. */
+.susc > .g-acc {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--esp-1) var(--esp-2);
+  padding: 0 var(--esp-1);
   font-size: var(--letra-1);
-}
-.grupo[data-cuenta] > .g-acc {
-  padding-left: var(--esp-3);
 }
 .g-acc-uso {
   display: inline-flex;
@@ -404,7 +585,7 @@ body,
   color: var(--texto-1);
   font-weight: 600;
 }
-.grupo > .g-acc > .g-acc-btn {
+.susc > .g-acc > .g-acc-btn {
   height: 1.5rem;
   padding: 0 var(--esp-2);
   font-size: var(--letra-1);
@@ -413,78 +594,9 @@ body,
   color: var(--critico);
 }
 @media (pointer: coarse) {
-  .grupo > .g-acc > .g-acc-btn {
+  .susc > .g-acc > .g-acc-btn {
     height: 2.75rem;
   }
-}
-.grupo[data-hijo] .g-n {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  white-space: normal;
-}
-/* En una celda angosta la ventana ("2 h 9 min") cede: queda el porcentaje y la barra (el tooltip dice el resto), nunca un "2 h 1…" cortado. */
-.uso {
-  container-type: inline-size;
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: var(--esp-1);
-  cursor: default;
-}
-.uso .r {
-  display: flex;
-  align-items: baseline;
-  gap: var(--esp-1-5);
-  font-size: var(--letra-3);
-  line-height: 1.3;
-  white-space: nowrap;
-}
-.uso .n {
-  min-width: 0;
-  flex: 0 1 auto;
-  overflow: hidden;
-  color: var(--txt-3);
-  text-overflow: ellipsis;
-}
-/* Lo que falta para el reinicio se ve siempre, al lado del porcentaje: en una celda angosta se achica la letra (y, al final, se recorta con «…»), no se esconde. */
-@container (max-width: 5.5rem) {
-  .uso .r {
-    gap: var(--esp-1);
-    font-size: var(--letra-2);
-  }
-}
-/* Agotada y la celda no da para "Sat 00:29": queda el ícono de agotado (nunca sólo color) y la hora de vuelta en el tooltip. */
-@container (max-width: 4.5rem) {
-  .uso .r > .uso-hora {
-    display: none;
-  }
-  .uso .r > .uso-lleno {
-    margin-left: auto;
-  }
-}
-/* En una celda angosta el texto cede (se recorta con «…», el tooltip dice entero), nunca el ícono de estado ni se sale de la tarjeta. */
-.uso .r {
-  min-width: 0;
-}
-.uso .pct {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin-left: auto;
-  font-family: var(--font-mono);
-  color: var(--txt-1);
-}
-/* Un dato de hace más de 15 min (el tooltip dice de cuándo): el número se apaga. */
-.uso .pct[data-viejo] {
-  color: var(--txt-3);
-}
-.uso .sd {
-  min-width: 0;
-  overflow: hidden;
-  margin-left: auto;
-  color: var(--txt-4);
-  text-overflow: ellipsis;
 }
 .releer {
   display: grid;
@@ -516,33 +628,7 @@ body,
     transform: rotate(360deg);
   }
 }
-.riel {
-  height: 0.25rem;
-  overflow: hidden;
-  border-radius: var(--radio-1);
-  background: var(--capa-track);
-}
-.riel i {
-  display: block;
-  height: 100%;
-  border-radius: inherit;
-  transform-origin: left;
-  background: var(--acento);
-}
-/* Cerca del tope: ámbar desde 70 %, rojo desde 90 % (`nivel`, src/hilo/contexto-logica.ts). */
-.uso[data-nivel="ambar"] .riel i {
-  background: var(--aviso);
-}
-.uso[data-nivel="rojo"] .riel i {
-  background: var(--critico);
-}
-.uso[data-nivel="ambar"] .pct {
-  color: var(--ambar);
-}
-.uso[data-nivel="rojo"] .pct {
-  color: var(--rojo);
-}
-/* El tooltip cuelga del renglón del grupo (no de su celda): sale siempre debajo, a todo lo ancho que necesita. */
+/* El tooltip cuelga del bloque de la suscripción (`.susc`, no de su tarjeta): sale siempre debajo, a todo lo ancho que necesita. */
 .tip {
   position: absolute;
   top: calc(100% + 0.375rem);
@@ -572,12 +658,8 @@ body,
 .tip-l::first-letter {
   text-transform: uppercase;
 }
-.uso:is(:hover, :focus-visible, [data-ver]) .tip {
+.cq:is(:hover, :focus-visible, [data-ver]) .tip {
   opacity: 1;
-}
-.usos-sep {
-  height: 1px;
-  background: var(--borde-2);
 }
 .uso-error {
   overflow: hidden;
@@ -6458,7 +6540,7 @@ summary.sis-div-t:hover,
 }
 @media (pointer: coarse) {
   /* Sin hover: el toque en una celda del uso abre su tip. */
-  .uso:focus .tip {
+  .cq:focus .tip {
     opacity: 1;
   }
   /* Para el dedo: 2.75rem (44 px). */

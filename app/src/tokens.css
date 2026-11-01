@@ -37,6 +37,35 @@
   --critico-tinte: rgb(242 109 109 / 0.12);
   --ok-tinte: rgb(85 208 200 / 0.12);
 
+  /* --- Atención: lo que pide mirar (rediseño 0.4). Fallo = coral (--critico), decisión = ámbar (--aviso). Cada uno trae el
+     fondo tintado (suave y fuerte), el borde, el borde luminoso, el brillo (sombra de color que despega la pieza), el halo del
+     punto, el relleno de las píldoras y botones con el texto que va encima, y el texto sobre el tinte. Salen de los colores de
+     estado con color-mix, así cada tema los hereda; el claro afina los textos. Nunca solos: siempre con palabra o ícono. --- */
+  --fallo-relleno: var(--critico);
+  --fallo-sobre: #2a0707; /* texto sobre el relleno */
+  --fallo-texto: #ffaaa3; /* texto sobre el tinte */
+  --fallo-fondo: color-mix(in srgb, var(--critico) 14%, transparent);
+  --fallo-fondo-fuerte: color-mix(in srgb, var(--critico) 30%, transparent);
+  --fallo-borde: color-mix(in srgb, var(--critico) 38%, transparent);
+  --fallo-luz: color-mix(in srgb, var(--critico) 60%, transparent); /* borde luminoso */
+  --fallo-brillo: 0 0.25rem 1rem color-mix(in srgb, var(--critico) 20%, transparent);
+  --fallo-halo: 0 0 0 0.1875rem color-mix(in srgb, var(--critico) 28%, transparent), 0 0 0.875rem color-mix(in srgb, var(--critico) 55%, transparent);
+  --decision-relleno: var(--aviso);
+  --decision-sobre: #2b1d02;
+  --decision-texto: #f8d78a;
+  --decision-fondo: color-mix(in srgb, var(--aviso) 14%, transparent);
+  --decision-fondo-fuerte: color-mix(in srgb, var(--aviso) 28%, transparent);
+  --decision-borde: color-mix(in srgb, var(--aviso) 38%, transparent);
+  --decision-luz: color-mix(in srgb, var(--aviso) 55%, transparent);
+  --decision-brillo: 0 0.25rem 1rem color-mix(in srgb, var(--aviso) 16%, transparent);
+  --decision-halo: 0 0 0 0.1875rem color-mix(in srgb, var(--aviso) 26%, transparent), 0 0 0.875rem color-mix(in srgb, var(--aviso) 50%, transparent);
+  /* Un cupo agotado: tinte rojo suave y el borde que lo recorta; más quieto que un fallo (no pide actuar, pide esperar). */
+  --cupo-agotado-fondo: color-mix(in srgb, var(--critico) 14%, transparent);
+  --cupo-agotado-borde: color-mix(in srgb, var(--critico) 38%, transparent);
+  --cupo-agotado-texto: var(--fallo-texto);
+  /* Poco cupo (desde 70 %, ámbar): la cifra y la barra; el tinte sólo aparece al agotarse. */
+  --cupo-poco-texto: var(--decision-texto);
+
   /* --- Forma --- */
   --r-xs: 0.375rem;
   --r-sm: 0.625rem;
@@ -159,6 +188,11 @@
   --letra-6: 0.875rem;
   --letra-7: 1rem;
   --letra-8: 1.125rem;
+  /* La cifra de un cupo (tarjetas de la barra): grande, para la barra angosta, y chica, con su escalón angosto. */
+  --cifra-1: 2.125rem;
+  --cifra-2: 1.75rem;
+  --cifra-3: 1.375rem;
+  --cifra-4: 1.25rem;
 
   /* Radios: los del estándar (6, 10, 14, 20, 28); `radio-1` queda en 2 px para las barritas de 3-4 px. */
   --radio-1: 0.125rem;

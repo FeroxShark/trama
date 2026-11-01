@@ -232,6 +232,15 @@
   --aviso-tinte: rgb(138 92 0 / 0.12);
   --critico-tinte: rgb(165 14 72 / 0.1);
   --ok-tinte: rgb(0 106 142 / 0.12);
+  /* Atención sobre claro: el texto se oscurece (los tintes salen de --critico / --aviso, ya oscuros) y lo relleno lleva texto blanco. */
+  --fallo-sobre: #ffffff;
+  --fallo-texto: #8c0c3c;
+  --decision-sobre: #ffffff;
+  --decision-texto: #6b4600;
+  --fallo-fondo: color-mix(in srgb, var(--critico) 10%, transparent);
+  --decision-fondo: color-mix(in srgb, var(--aviso) 12%, transparent);
+  --cupo-agotado-fondo: color-mix(in srgb, var(--critico) 9%, transparent);
+  --cupo-agotado-borde: color-mix(in srgb, var(--critico) 34%, transparent);
   --sombra-vidrio: 0 0.5rem 2rem rgb(30 40 70 / 0.12);
   --fondo-ventana: radial-gradient(56rem 37.5rem at 15% 10%, #cfe0fb 0, transparent 60%),
     radial-gradient(50rem 43.75rem at 90% 100%, #e6d9f3 0, transparent 60%), #eef1f6;

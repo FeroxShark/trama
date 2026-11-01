@@ -1,16 +1,16 @@
 // La cabecera de la barra. Arriba, sólo el logo de trama (sin la palabra: gana lugar), releer y
-// ocultar la barra; abajo, el uso de cada suscripción conectada, un renglón cada una: su logo y nombre
-// (Claude, las que dice `reparto --cupos`: Google AI Pro, y las que vengan, sin tocar esto, y OpenCode con los pedidos que cuenta
-// Trama: electron/opencode-pedidos.ts) y, en columnas
-// alineadas, una celda por ventana: a la izquierda, cuánto falta para que se reinicie ("4 h 23 min", exacto y
-// corto; se repinta solo, una vez por minuto) y a la derecha el porcentaje, con un riel finito (ámbar desde
-// 70 %, rojo desde 90 %). El tooltip de cada celda (CSS, con el mouse o con foco; no el title nativo) dice a
-// qué proveedor y ventana pertenece, el porcentaje y cuándo se reinicia ("Claude · ventana de 5 horas · 62 % usado ·
-// se reinicia hoy 23:40"); si el dato es viejo, cuándo se vio; el número de un dato de hace más de 15 min se apaga
-// (`data-viejo`). Una suscripción con varios grupos (Google) lleva su renglón (logo y nombre) y debajo uno por grupo, siempre a la vista. Un límite del que no se sabe ni el porcentaje lo dice: "sin dato" (Claude) o "—"
-// (las demás), nunca una celda vacía. El botón de releer le pide a `claude` el uso como lo dice claude.ai
+// ocultar la barra; abajo, los cupos de cada suscripción conectada como tarjetas (rediseño 0.4): Claude (y toda
+// suscripción con ventanas propias) en dos tarjetas grandes, 5 h y semana, con la cifra protagonista, su barra y
+// "vuelve en 2 h 10 min"; una suscripción con varios grupos (Google: Gemini, Claude/GPT, Argon…) en una tarjeta chica por
+// grupo (la cifra es la ventana más llena; el tooltip lista todas); una con un solo grupo, o los pedidos que cuenta Trama
+// (OpenCode: electron/opencode-pedidos.ts), en una cápsula ancha con sus ventanas en línea. Lo agotado (o marcado sin cupo
+// por un 429) va tintado, con el ícono de agotado y "vuelve <hora>": nunca sólo color. Ámbar desde 70 %, rojo desde 90 %,
+// y desde `USO_BAJO` el ícono y "queda poco cupo". El tooltip (CSS, con el mouse o con foco; no el title nativo) dice a qué
+// proveedor y ventana pertenece, cuánto lleva y cuándo se reinicia; si el dato es viejo, cuándo se vio; el número de un
+// dato de hace más de 15 min se apaga (`data-viejo`). Un límite del que no se sabe ni el porcentaje lo dice: "sin dato"
+// (Claude) o "—" (las demás), nunca una tarjeta vacía. El botón de releer le pide a `claude` el uso como lo dice claude.ai
 // (`get_usage`) y relee todo.
-import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Ban, PanelLeft, RotateCw, TriangleAlert } from "lucide-react";
 import type { GrupoCupo, Uso, Ventana, VentanaCupo } from "../datos/contrato";
 import { fuente } from "../datos/fuente";
@@ -115,7 +115,11 @@ export function Cabecera({ alOcultar }: { alOcultar: () => void }) {
       {uso === undefined ? (
         <div className="usos" data-espera="" aria-hidden="true">
           <div className="usos-l">
-            <Grupo logo={<LogoSuscripcion id="claude" nombre="Claude" />} id="claude" nombre={t("uso.claude")} celdas={[celdaDe("5h", ESPERA), celdaDe("7d", ESPERA)]} ts={0} />
+            <Cupos id="claude" forma="grandes">
+              {([celdaDe("5h", ESPERA), celdaDe("7d", ESPERA)] as Celda[]).map((c) => (
+                <Tarjeta key={c.clave} nombre={t("uso.claude")} quien={t("uso.claude")} celdas={[c]} ts={0} />
+              ))}
+            </Cupos>
           </div>
         </div>
       ) : uso && "error" in uso ? (
@@ -127,18 +131,20 @@ export function Cabecera({ alOcultar }: { alOcultar: () => void }) {
           </div>
         </div>
       ) : (
-        <div className="usos" data-guia="uso">
+        <div className="usos" data-guia="uso" role="group" aria-label={t("cupos.titulo")}>
           <div className="usos-l">
-            <Grupo
-              logo={<LogoSuscripcion id="claude" nombre="Claude" />}
-              id="claude"
-              nombre={cupos.claudeCorto ?? t("uso.claude")}
-              quien={cupos.claude ?? undefined}
-              celdas={[celdaDe("5h", uso?.five_hour ?? null), celdaDe("7d", uso?.seven_day ?? null)]}
-              ts={uso?.ts ?? 0}
-              ver={VER_TIP}
-              accion={controlDe(cuentas, "claude", "claude", releerCuentas)}
-            />
+            <Cupos id="claude" forma="grandes" accion={controlDe(cuentas, "claude", "claude", releerCuentas)}>
+              {([celdaDe("5h", uso?.five_hour ?? null), celdaDe("7d", uso?.seven_day ?? null)] as Celda[]).map((c, i) => (
+                <Tarjeta
+                  key={c.clave}
+                  nombre={cupos.claudeCorto ?? t("uso.claude")}
+                  quien={cupos.claude ?? cupos.claudeCorto ?? t("uso.claude")}
+                  celdas={[c]}
+                  ts={uso?.ts ?? 0}
+                  ver={VER_TIP && i === 0}
+                />
+              ))}
+            </Cupos>
             {cupos.filas.map((f) => (
               <Suscripcion key={f.s.id} f={f} cuentas={cuentas} releerCuentas={releerCuentas} />
             ))}
@@ -183,114 +189,111 @@ const celdasGrupo = (g: GrupoCupo, r: ResumenCupo): (Celda | null)[] =>
       ? [{ clave: "sin-limite", ventana: t("cu.w.sinLimite"), pct: null, hasta: 0, cupo: true, sinLimite: true }, null]
       : celdasCupo(g.ventanas);
 
-/**
- * Una suscripción de `reparto` (todas menos Claude): con ventanas propias o con un solo grupo, un renglón con sus celdas; con varios grupos
- * (Google: Gemini, Claude/GPT, Argon…), el renglón del proveedor (logo y nombre) y debajo, siempre a la vista, un renglón por grupo con SUS
- * celdas en las mismas dos columnas que Claude (con "hasta d/m" si el cupo vence). Qué grupos hay y qué ventanas trae cada uno lo dice `reparto`
- * (`renglonesDeGrupos`): un grupo nuevo, sin ventanas o con una sola se dibuja igual, sin tocar esto.
- */
+/** Cómo se llama una ventana en la tarjeta ("5 horas", "semana"). */
+function ventanaCorta(id: string): string {
+  if (id === "5h") return t("cupos.w5h");
+  if (id === "7d" || id === "sem") return t("cupos.wSem");
+  if (id === "1m") return t("cupos.w1m");
+  return id;
+}
+
+/** Agotada: el 100 % medido o la marca de un 429. */
+const agotada = (c: Celda): boolean => !c.off && (c.marcado !== undefined || (c.pct !== null && c.pct >= 100));
+
+/** La ventana de una celda para la nota de la tarjeta ("" si es la marca de un grupo o «sin límite»). */
+const ventanaDe2 = (c: Celda): string => (c.clave === "marca" || c.clave === "sin-limite" ? "" : ventanaCorta(c.clave));
+
+/** La celda que manda en una tarjeta con varias ventanas: lo marcado, lo agotado (la que vuelve más tarde), lo más usado. */
+function principal(cs: Celda[]): Celda {
+  const marcada = cs.find((c) => c.marcado !== undefined);
+  if (marcada) return marcada;
+  const llenas = cs.filter(agotada);
+  if (llenas.length) return llenas.reduce((a, c) => (c.hasta > a.hasta ? c : a));
+  const conPct = cs.filter((c) => !c.off && c.pct !== null);
+  if (conPct.length) return conPct.reduce((a, c) => ((c.pct ?? 0) > (a.pct ?? 0) ? c : a));
+  return cs.find((c) => !c.off && !c.sinLimite) ?? cs[0];
+}
+
+/** Una suscripción de `reparto` (todas menos Claude), en la forma que le toca: ver arriba. */
 function Suscripcion({ f, cuentas, releerCuentas }: { f: FilaSusc; cuentas: ListaCuentas | null; releerCuentas: () => void }) {
   const { s } = f;
-  // Una cuenta agregada cuelga de la fila de su proveedor: sin logo (ya lo dice la de arriba), sangrada y con el nombre de la cuenta.
+  // Una cuenta agregada cuelga de la de su proveedor: sin logo (ya lo dice la de arriba) y con el nombre de la cuenta.
   const logo = f.cuenta ? undefined : <LogoSuscripcion id={f.proveedor} nombre={s.nombre} />;
   const grupos = s.grupos ?? [];
   const ahora = Date.now() / 1000;
-  const varios = grupos.length > 1;
   const unico = grupos.length === 1 ? grupos[0] : null;
-  // "Google AI Pro" no entra en la columna del nombre: el renglón dice la marca ("Google") y el nombre entero va al tooltip (`quien`).
+  // "Google AI Pro" no entra en la tarjeta: se dice la marca ("Google") y el nombre entero va al tooltip (`quien`).
   const marca = (MARCA as Record<string, string>)[f.proveedor];
   const visible = marca && f.corto === f.nombre && f.corto.startsWith(marca) ? marca : f.corto;
+  const accion = controlDe(cuentas, f.proveedor, s.cuenta ?? s.id, releerCuentas);
+  if (grupos.length > 1) {
+    return (
+      <Cupos id={s.id} cuenta={f.cuenta} accion={accion} forma="chicas" nombre={visible} logo={logo}>
+        {renglonesDeGrupos(grupos, ahora).map(({ g, r }) => {
+          const h = formatearHasta(g.hasta);
+          return (
+            <Tarjeta
+              key={g.id}
+              chica
+              nombre={nombreGrupoCorto(g)}
+              quien={`${f.nombre} · ${nombreGrupo(g)}${h ? ` · ${t("uso.hasta", h)}` : ""}`}
+              celdas={celdasGrupo(g, r)}
+              ts={s.ts}
+            />
+          );
+        })}
+      </Cupos>
+    );
+  }
+  // Un solo grupo, o los pedidos que cuenta Trama (OpenCode): una cápsula ancha con sus ventanas en línea.
+  if (unico || f.proveedor === "opencode") {
+    const celdas = unico ? celdasGrupo(unico, resumenGrupo(unico, ahora)) : celdasCupo(s.ventanas ?? []);
+    const corto = unico ? nombreGrupoCorto(unico) : "";
+    const repetido = !corto || corto.toLowerCase().includes(visible.toLowerCase()) || visible.toLowerCase().includes(corto.toLowerCase());
+    return (
+      <Cupos id={s.id} cuenta={f.cuenta} accion={accion} forma="capsula">
+        <Capsula logo={logo} nombre={repetido ? visible : `${visible} · ${corto}`} quien={unico ? `${f.nombre} · ${nombreGrupo(unico)}` : f.nombre} celdas={celdas} ts={s.ts} />
+      </Cupos>
+    );
+  }
   return (
-    <>
-      {f.primera && <div className="usos-sep" aria-hidden="true" />}
-      <div className="susc" data-susc={s.id}>
-        <Grupo
-          logo={logo}
-          id={s.id}
-          nombre={visible}
-          quien={unico ? `${f.nombre} · ${nombreGrupo(unico)}` : f.nombre}
-          celdas={varios ? [] : unico ? celdasGrupo(unico, resumenGrupo(unico, ahora)) : celdasCupo(s.ventanas ?? [])}
-          ts={s.ts}
-          cuenta={f.cuenta}
-          accion={controlDe(cuentas, f.proveedor, s.cuenta ?? s.id, releerCuentas)}
-        />
-        {varios &&
-          renglonesDeGrupos(grupos, ahora).map(({ g, r }) => {
-            const h = formatearHasta(g.hasta);
-            return (
-              <Grupo
-                key={g.id}
-                id={`${s.id}:${g.id}`}
-                nombre={nombreGrupoCorto(g)}
-                quien={`${f.nombre} · ${nombreGrupo(g)}`}
-                hasta={h ? t("uso.hasta", h) : undefined}
-                celdas={celdasGrupo(g, r)}
-                ts={s.ts}
-                hijo
-              />
-            );
-          })}
-      </div>
-    </>
+    <Cupos id={s.id} cuenta={f.cuenta} accion={accion} forma="grandes">
+      {celdasCupo(s.ventanas ?? []).map((c) => (c ? <Tarjeta key={c.clave} nombre={visible} quien={f.nombre} celdas={[c]} ts={s.ts} /> : null))}
+    </Cupos>
   );
 }
 
 /**
- * Un renglón: logo y nombre, y las celdas en dos columnas fijas (5 h, semana). Un grupo sin 5 h deja la primera
- * columna vacía: las semanas quedan alineadas. El logo NUNCA se esconde, por angosta que esté la barra (se achica el texto y se pliegan las
- * barras, no la marca). `hijo`: un grupo de una suscripción (Gemini, Claude/GPT, Argon), sin logo, sangrado y con el nombre en hasta dos líneas.
+ * El bloque de una suscripción: sus tarjetas en la rejilla de su forma y, debajo, el control de la cuenta («En uso» / «Usar primero»),
+ * sólo si el proveedor tiene varias. Es el ancla de los tooltips (cuelgan de acá, debajo de todo el bloque, a todo el ancho que necesitan).
+ * `chicas`: arriba el renglón del proveedor (logo y nombre) porque las tarjetas sólo llevan el nombre del grupo.
  */
-function Grupo({
-  logo,
+function Cupos({
   id,
-  nombre,
-  sub,
-  quien,
-  hasta,
-  celdas,
-  ts,
-  ver,
-  hijo,
+  forma,
   cuenta,
   accion,
+  nombre,
+  logo,
+  children,
 }: {
-  logo?: ReactNode;
   id: string;
-  nombre: string;
-  sub?: string;
-  /** A quién pertenecen las celdas (tooltips); por defecto, el nombre. */
-  quien?: string;
-  hasta?: string;
-  celdas: (Celda | null)[];
-  ts: number;
-  ver?: boolean;
-  hijo?: boolean;
-  /** Una cuenta agregada que cuelga de la fila de su proveedor (sangrada, sin logo). */
+  forma: "grandes" | "chicas" | "capsula";
   cuenta?: boolean;
-  /** El control de la cuenta («En uso» / «Usar primero»), a todo lo ancho debajo de las barras; sólo si el proveedor tiene varias. */
   accion?: ReactNode;
+  nombre?: string;
+  logo?: ReactNode;
+  children: ReactNode;
 }) {
-  const dueno = quien ?? nombre;
   return (
-    <div className="grupo" data-grupo={id} data-hijo={hijo ? "" : undefined} data-cuenta={cuenta ? "" : undefined}>
-      <span className="g-id" data-tip={hasta ? `${dueno} · ${hasta}` : dueno}>
-        {logo}
-        <span className="g-n">
-          {/* "Claude/GPT" es una sola palabra: se deja partir después de la barra en vez de cortarla con "…". */}
-          {nombre.split("/").map((p, i) => (
-            <Fragment key={i}>
-              {i > 0 && "/"}
-              {i > 0 && <wbr />}
-              {p}
-            </Fragment>
-          ))}
-        </span>
-        {sub && <span className="g-sub">{sub}</span>}
-        {hasta && <span className="g-hasta">{hasta}</span>}
-      </span>
-      {celdas.map((c, i) =>
-        c ? <UsoCelda key={c.clave} c={c} quien={dueno} ts={ts} ver={ver && i === 0} /> : <span key={`v${i}`} className="uso-vacio" aria-hidden="true" />,
+    <div className="susc" data-susc={id} data-forma={forma} data-cuenta={cuenta ? "" : undefined}>
+      {forma === "chicas" && (
+        <div className="cq-cab">
+          {logo}
+          <span className="cq-cab-n">{nombre}</span>
+        </div>
       )}
+      {forma === "capsula" ? children : <div className="cq-rejilla">{children}</div>}
       {accion ? <div className="g-acc">{accion}</div> : null}
     </div>
   );
@@ -305,103 +308,235 @@ const unidades = (): Unidades => ({
   ya: t("tiempo.ya"),
 });
 
-/** Lo que falta para el reinicio, en el renglón: `formatearFalta`, repintado por el reloj solo cuando cambia. */
-const pintorFalta =
+/** "vuelve en 2 h 10 min", repintado por el reloj solo cuando cambia. */
+const pintorVuelve =
   (hasta: number): Pintor =>
-  (a) =>
-    formatearFaltaCorto(hasta - a, unidades());
+  (a) => {
+    const f = formatearFaltaCorto(hasta - a, unidades());
+    return { texto: t("cupos.vuelveEn", { falta: f.texto }), en: f.en };
+  };
 
-/** El número de la celda: se apaga (`data-viejo`) cuando el dato tiene más de 15 min (en el tip dice de cuándo es). */
-const pintorPct =
-  (pct: number, ts: number): Pintor =>
+/** El dato viejo (más de 15 min, el tooltip dice de cuándo es) se apaga: `data-viejo` en el elemento que lo pinta. */
+const pintorViejo =
+  (ts: number, texto: (pct: number) => string, pct: number): Pintor =>
   (a) => {
     const d = a - ts;
     const viejo = !!ts && d >= VIEJO_S;
-    return { texto: `${pct}%`, en: ts && !viejo ? VIEJO_S - d : Infinity, attrs: { "data-viejo": viejo ? "" : null } };
+    return { texto: texto(pct), en: ts && !viejo ? VIEJO_S - d : Infinity, attrs: { "data-viejo": viejo ? "" : null } };
   };
 
-/** `ts`: cuándo se vio el dato (0: no se sabe). */
-function UsoCelda({ c, quien, ts, ver }: { c: Celda; quien: string; ts: number; ver?: boolean }) {
-  const largo = `${quien} · ${c.ventana}`;
+/** El número de la tarjeta (el «%» lo pone el CSS, más chico) y, para la cápsula, el número con su «%». */
+const pintorNumero = (pct: number, ts: number): Pintor => pintorViejo(ts, (p) => String(p), pct);
+const pintorPct = (pct: number, ts: number): Pintor => pintorViejo(ts, (p) => `${p}%`, pct);
+
+/** Una línea del tooltip: la ventana y su porcentaje, y cuándo se reinicia ("visto hace…" si el dato es viejo). */
+function TipLinea({ c, quien, ts }: { c: Celda; quien: string; ts: number }) {
   const hasta = c.hasta;
-  const pct = c.pct;
-  const falta = useMemo(() => pintorFalta(hasta), [hasta]);
   const cuando = useMemo(() => pintorCuando(hasta), [hasta]);
-  // El tooltip, chico: la ventana y cuándo se reinicia (el porcentaje, la falta y de quién es ya se ven en la barra); "visto hace…" si el dato es viejo.
   const explica = useMemo(() => pintorVisto(ts, (a) => (hasta > 0 ? cuando(a) : { texto: t("uso.sinHoraLinea"), en: Infinity }), true), [ts, hasta, cuando]);
-  const numero = useMemo(() => pintorPct(pct ?? 0, ts), [pct, ts]);
-  const n = pct === null ? "normal" : nivel(pct);
-  // Una ventana que no rige ahora, o un grupo marcado sin cupo: ni barra ni porcentaje, una frase corta y la explicación en el tip.
-  if (c.sinLimite) {
+  if (c.sinLimite)
     return (
-      <div className="uso" tabIndex={0} data-aparte="sin-limite" aria-label={`${largo}`}>
-        <div className="r">
-          <span className="sd">{t("cu.w.sinLimite")}</span>
-        </div>
-        <div className="riel" data-hueco="" />
-        <span className="tip" role="tooltip">
-          <span className="tip-t">{largo}</span>
-          <span className="tip-l">{t("cu.w.sinLimiteQue")}</span>
-        </span>
-      </div>
+      <>
+        <span className="tip-t">{`${quien} · ${c.ventana}`}</span>
+        <span className="tip-l">{t("cu.w.sinLimiteQue")}</span>
+      </>
     );
-  }
-  if (c.off || c.marcado !== undefined) {
-    const marcado = c.marcado !== undefined;
+  if (c.marcado !== undefined)
     return (
-      <div className="uso" tabIndex={0} data-aparte={marcado ? "marcado" : "off"} aria-label={`${largo}: ${marcado ? t("cu.w.marcadoCorto") : t("cu.w.noAplicaCorto")}`} data-ver={ver ? "" : undefined}>
-        <div className="r">
-          <span className="sd">{marcado ? t("cu.w.marcadoCorto") : t("cu.w.noAplicaCorto")}</span>
-        </div>
-        <div className="riel" data-hueco="" />
-        <span className="tip" role="tooltip">
-          <span className="tip-t">{marcado ? `${t("cu.st.marcado", { cuando: cuandoFuturo(hasta) })}` : largo}</span>
-          <span className="tip-l">{marcado ? t("cu.w.marcaQue") : t("cu.w.noAplicaQue")}</span>
-        </span>
-      </div>
+      <>
+        <span className="tip-t">{t("cu.st.marcado", { cuando: cuandoFuturo(hasta) })}</span>
+        <span className="tip-l">{t("cu.w.marcaQue")}</span>
+      </>
     );
-  }
+  if (c.off)
+    return (
+      <>
+        <span className="tip-t">{`${quien} · ${c.ventana}`}</span>
+        <span className="tip-l">{t("cu.w.noAplicaQue")}</span>
+      </>
+    );
+  if (c.pct === null)
+    return (
+      <>
+        <span className="tip-t">{`${quien} · ${c.ventana}`}</span>
+        <span className="tip-l">{c.pedidos !== undefined ? t("uso.pedidosTip") : c.cupo ? t("uso.sinDatoCupo") : t("uso.sinDatoTip")}</span>
+      </>
+    );
+  return (
+    <>
+      <span className="tip-t">{`${c.ventana} · ${t("cu.w.usado", { pct: c.pct })}`}</span>
+      <Reloj pintor={explica} className="tip-l" />
+    </>
+  );
+}
+
+function Tip({ celdas, quien, ts }: { celdas: Celda[]; quien: string; ts: number }) {
+  return (
+    <span className="tip" role="tooltip">
+      {celdas.length > 1 || celdas[0]?.marcado !== undefined ? <span className="tip-t">{quien}</span> : null}
+      {celdas.map((c) => (
+        <TipLinea key={c.clave} c={c} quien={quien} ts={ts} />
+      ))}
+    </span>
+  );
+}
+
+/** Lo que dice la tarjeta de una celda sin porcentaje que mostrar. */
+function textoAparte(c: Celda): string {
+  if (c.sinLimite) return t("cu.w.sinLimite");
+  if (c.off) return t("cu.w.noAplicaCorto");
+  if (c.pedidos !== undefined) return t("uso.pedidosCorto", { n: c.pedidos.toLocaleString() });
+  return c.cupo ? "—" : t("uso.sinDato");
+}
+
+/**
+ * Una tarjeta de cupo. `celdas`: las ventanas que resume (una en las grandes; en las chicas, las del grupo: manda la más llena y el
+ * tooltip las lista todas). Grande: nombre y ventana, la cifra, la barra y "vuelve en…". Chica: lo mismo más compacto, con la ventana
+ * como nota. Agotada: tinte, ícono, "sin cupo" y "vuelve <hora>". `ts`: cuándo se vio el dato (0: no se sabe).
+ */
+function Tarjeta({
+  nombre,
+  quien,
+  celdas,
+  ts,
+  chica,
+  ver,
+}: {
+  nombre: string;
+  quien: string;
+  celdas: (Celda | null)[];
+  ts: number;
+  chica?: boolean;
+  ver?: boolean;
+}) {
+  const cs = celdas.filter((c): c is Celda => !!c);
+  const c = principal(cs);
+  const hasta = c.hasta;
+  const vuelve = useMemo(() => pintorVuelve(hasta), [hasta]);
+  const pct = c.pct;
+  const numero = useMemo(() => pintorNumero(pct ?? 0, ts), [pct, ts]);
+  const sin = agotada(c);
+  const aparte = !sin && (c.off || c.sinLimite || pct === null);
+  const bajo = !sin && !aparte && pct !== null && pct >= USO_BAJO;
+  const n = pct === null || sin ? "normal" : nivel(pct);
+  const ventana = ventanaDe2(c);
+  const etiqueta = chica || !ventana ? nombre : `${nombre} · ${ventana}`;
+  const largo = `${quien} · ${c.ventana}`;
+  const aria = sin
+    ? hasta > 0
+      ? t("cupos.ariaSinCupo", { largo, cuando: cuandoFuturo(hasta) })
+      : t("cupos.ariaSinCupoHora", { largo })
+    : pct === null || c.off || c.sinLimite
+      ? t("uso.ariaSinDato", { largo })
+      : t("uso.aria", { largo, pct });
   return (
     <div
-      className="uso"
+      className="cq"
       tabIndex={0}
-      aria-label={pct === null ? (c.pedidos !== undefined ? largo : t("uso.ariaSinDato", { largo })) : t("uso.aria", { largo, pct })}
+      aria-label={aria}
+      data-chica={chica ? "" : undefined}
+      data-agotado={sin ? "" : undefined}
       data-nivel={n === "normal" ? undefined : n}
-      data-sin={pct === null ? "" : undefined}
+      data-aparte={aparte ? "" : undefined}
       data-ver={ver ? "" : undefined}
     >
-      <div className="r">
-        {/* Agotada: cuándo vuelve ("vie 01:01") y el ícono, sin el "100%" que no entra junto a la cuenta regresiva. */}
-        {/* En el lugar del número (la cuenta regresiva se esconde en la barra angosta; esto no). */}
-        {pct !== null && pct >= 100 && hasta > 0 ? (
-          <span className="pct uso-hora">{cuandoFuturo(hasta)}</span>
-        ) : hasta > 0 ? (
-          <Reloj pintor={falta} className="n" />
-        ) : (
-          <span className="n">—</span>
-        )}
-        {pct === null ? (
-          <span className="sd">{c.pedidos !== undefined ? t("uso.pedidosCorto", { n: c.pedidos.toLocaleString() }) : c.cupo ? "—" : t("uso.sinDato")}</span>
-        ) : pct >= 100 && hasta > 0 ? null : (
-          <Reloj pintor={numero} className="pct" />
-        )}
-        {pct !== null && pct >= 100 && <Ban className="uso-lleno" size={10} strokeWidth={2.4} aria-hidden="true" />}
-        {pct !== null && pct >= USO_BAJO && pct < 100 && <TriangleAlert className="uso-bajo" size={10} strokeWidth={2.4} aria-hidden="true" />}
+      <span className="cq-nom">
+        <span className="cq-nom-t">
+          {/* "Claude/GPT" es una sola palabra: se deja partir después de la barra en vez de cortarla con "…". */}
+          {etiqueta.split("/").map((p, i) => (
+            <span key={i}>
+              {i > 0 && "/"}
+              {i > 0 && <wbr />}
+              {p}
+            </span>
+          ))}
+        </span>
+        {sin && <Ban className="cq-ico" size={12} strokeWidth={2.4} aria-hidden="true" />}
+      </span>
+      {sin ? (
+        <span className="cq-h cq-txt">{t("cupos.sinCupo")}</span>
+      ) : aparte ? (
+        <span className="cq-h cq-txt" data-apagado="">
+          {textoAparte(c)}
+        </span>
+      ) : (
+        <Reloj pintor={numero} className="cq-h cq-n" />
+      )}
+      <div className="cq-pista" data-hueco={aparte ? "" : undefined}>
+        {!aparte && <i style={{ transform: `scaleX(${sin ? 1 : (pct ?? 0) / 100})` }} />}
       </div>
-      <div className="riel">{pct !== null && <i style={{ transform: `scaleX(${pct / 100})` }} />}</div>
-      <span className="tip" role="tooltip">
-        {pct === null ? (
-          <>
-            <span className="tip-t">{largo}</span>
-            <span className="tip-l">{c.pedidos !== undefined ? t("uso.pedidosTip") : c.cupo ? t("uso.sinDatoCupo") : t("uso.sinDatoTip")}</span>
-          </>
+      <span className="cq-nota">
+        {bajo && <TriangleAlert className="cq-ico" size={11} strokeWidth={2.4} aria-hidden="true" />}
+        {sin ? (
+          hasta > 0 ? (
+            t("cu.w.vuelve", { cuando: cuandoFuturo(hasta) })
+          ) : (
+            t("cupos.agotado")
+          )
+        ) : bajo ? (
+          t("cupos.pocoCupo")
+        ) : chica ? (
+          ventana
+        ) : aparte ? null : hasta > 0 ? (
+          <Reloj pintor={vuelve} />
         ) : (
-          <>
-            <span className="tip-t">{c.ventana}</span>
-            <Reloj pintor={explica} className="tip-l" />
-          </>
+          t("cupos.sinHora")
         )}
       </span>
+      {bajo && !chica && hasta > 0 && <Reloj pintor={vuelve} className="cq-nota" />}
+      <Tip celdas={cs} quien={quien} ts={ts} />
     </div>
+  );
+}
+
+/**
+ * Una suscripción de una sola fila (un solo grupo, o los pedidos que cuenta Trama): logo y nombre a la izquierda y, en línea, cada ventana
+ * con su valor. Agotada (todas las que rigen): tinte, ícono y "agotado · vuelve <hora>".
+ */
+function Capsula({ logo, nombre, quien, celdas, ts }: { logo?: ReactNode; nombre: string; quien: string; celdas: (Celda | null)[]; ts: number }) {
+  const cs = celdas.filter((c): c is Celda => !!c);
+  const rigen = cs.filter((c) => !c.off);
+  const todoAgotado = rigen.length > 0 && rigen.every(agotada);
+  const aria = todoAgotado ? t("cupos.ariaSinCupoHora", { largo: quien }) : quien;
+  return (
+    <div className="cq cq-capsula" tabIndex={0} aria-label={aria} data-agotado={todoAgotado ? "" : undefined}>
+      <span className="cq-nom">
+        {logo}
+        <span className="cq-nom-t">{nombre}</span>
+      </span>
+      <span className="cq-segs">
+        {cs.map((c) => (
+          <Segmento key={c.clave} c={c} ts={ts} />
+        ))}
+      </span>
+      <Tip celdas={cs} quien={quien} ts={ts} />
+    </div>
+  );
+}
+
+/** Una ventana de la cápsula: su nombre y su valor ("24%", "37 ped.", "agotado · vuelve jue 01:01"), con el ícono de poco cupo o de agotado. */
+function Segmento({ c, ts }: { c: Celda; ts: number }) {
+  const pct = c.pct;
+  const numero = useMemo(() => pintorPct(pct ?? 0, ts), [pct, ts]);
+  const sin = agotada(c);
+  const aparte = c.off || c.sinLimite || pct === null;
+  const bajo = !sin && !aparte && pct !== null && pct >= USO_BAJO;
+  const ventana = ventanaDe2(c);
+  const n = pct === null || sin ? "normal" : nivel(pct);
+  return (
+    <span className="cq-seg" data-agotado={sin ? "" : undefined} data-nivel={n === "normal" ? undefined : n}>
+      {ventana && <span className="cq-seg-n">{ventana}</span>}
+      {sin && <Ban className="cq-ico" size={11} strokeWidth={2.4} aria-hidden="true" />}
+      {bajo && <TriangleAlert className="cq-ico" size={11} strokeWidth={2.4} aria-hidden="true" />}
+      {sin ? (
+        <span className="cq-seg-v">{c.hasta > 0 ? `${t("cupos.agotado")} · ${t("cu.w.vuelve", { cuando: cuandoFuturo(c.hasta) })}` : t("cupos.agotado")}</span>
+      ) : aparte ? (
+        <span className="cq-seg-v" data-apagado="">
+          {textoAparte(c)}
+        </span>
+      ) : (
+        <Reloj pintor={numero} className="cq-seg-v" />
+      )}
+    </span>
   );
 }
