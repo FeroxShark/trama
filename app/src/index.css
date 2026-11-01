@@ -3144,16 +3144,7 @@ html[data-titulo-nativo] #root::after {
   color: var(--texto-6);
   font-size: var(--letra-4);
 }
-/* El nombre es una sola línea con elipsis (un primer mensaje sin saltos no tapa la conversación); lo de al lado no se parte. */
-.lider-linea b {
-  min-width: 0;
-  overflow: hidden;
-  color: var(--texto-3);
-  font-family: var(--font-mono);
-  font-weight: 500;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
+/* Lo que va en la línea (caché, subagentes, dormido): no se parte ni se achica. */
 .lider-linea > :not(b) {
   flex: none;
   white-space: nowrap;

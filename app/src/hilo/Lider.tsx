@@ -64,7 +64,7 @@ import { EVENTO_CAMBIAR_MODELO, proveedorLibre } from "./agotados";
 import { estadosCupoModelos, estadosCupoProveedores } from "./cupo-modelos.ts";
 import { MotorCapacidades } from "./MotorCapacidades";
 import { Compactando, Pasando, relevoEn, Sigue } from "./Posta";
-import { juntar, repiteElPrimero, turnos, type Item, type Punto } from "./turnos";
+import { juntar, turnos, type Item, type Punto } from "./turnos";
 import { AccionesMensaje, cerrarSobreFuera, EditorMensaje, sobreMensaje, type Acciones } from "./AccionesMensaje";
 import { anotar, bajar, seguir } from "./seguir";
 import { anotarScroll, faltaLlegar, guardarAncla, restaurarScroll, retomarScroll, soltarScroll } from "./scrollGuardado";
@@ -1129,24 +1129,15 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
 
   return (
     <>
-      <div className="lider-linea" data-desliza>
-        {l ? (
-          <>
-            <b>{l.nombre && !repiteElPrimero(l.nombre, items) ? l.nombre : tr("lider.sesionJefe")}</b>
-            <span>{l.titulo || nombreModelo(modelo)}</span>
-            {l.effort && effortsDe(l.modelo).length ? <span>{l.effort}</span> : null}
-            {!ocupado && cache ? <Reloj pintor={cache} className="cache" /> : null}
-            {l.subagentes ? <ChipSubagentes n={l.subagentes} clave={l.id} /> : null}
-            {app && !l.vivo && !l.caido ? <span className="tenue">{tr("lider.dormido")}</span> : null}
-            {l.caido ? <span className={l.caido === "murio" ? "c-fallo" : "tenue"} title={l.motivo}>{tr(l.caido === "murio" ? "estado.fallo" : "lider.cerrado")}</span> : null}
-          </>
-        ) : (
-          <>
-            <b>{tr("lider.nuevo")}</b>
-            <span>{tr("lider.nuevoSub")}</span>
-          </>
-        )}
-      </div>
+      {/* El nombre, el modelo y el esfuerzo ya van en la cabecera; acá sólo lo que cambia (caché, subagentes, si duerme o cayó). Un líder nuevo no tiene nada. */}
+      {l ? (
+        <div className="lider-linea" data-desliza>
+          {!ocupado && cache ? <Reloj pintor={cache} className="cache" /> : null}
+          {l.subagentes ? <ChipSubagentes n={l.subagentes} clave={l.id} /> : null}
+          {app && !l.vivo && !l.caido ? <span className="tenue">{tr("lider.dormido")}</span> : null}
+          {l.caido ? <span className={l.caido === "murio" ? "c-fallo" : "tenue"} title={l.motivo}>{tr(l.caido === "murio" ? "estado.fallo" : "lider.cerrado")}</span> : null}
+        </div>
+      ) : null}
       <div
         className="conv-zona"
         ref={zona}

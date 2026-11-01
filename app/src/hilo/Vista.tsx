@@ -7,9 +7,12 @@
 import { ChipEspera } from "../barra/Espera";
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Square } from "lucide-react";
-import { comoSettle, GENERAL, VERSION, type Estado, type Hilo, type Lider, type Mensaje, type Tokens } from "../datos/contrato";
+import { comoSettle, VERSION, type Estado, type Hilo, type Lider, type Mensaje, type Tokens } from "../datos/contrato";
 import { fuente } from "../datos/fuente";
 import { Lado } from "./Lado";
+import { effortsDe } from "./modelos";
+import { PildoraTrabajando } from "./PildoraTrabajando";
+import "./cabecera-composer.css";
 import { MaquinaMigas } from "../barra/Maquina";
 import { arrancando, nombreCarpeta } from "../barra/arbol";
 import { useTitulos } from "../barra/titulos";
@@ -125,9 +128,8 @@ export function Vista({
         {h && estado ? (
           <>
             <div className="ruta" data-desliza>
-              <span>{nombreCarpeta(h.proyecto, MODO.usuario, tr("barra.home"), titulos[h.proyecto])}</span>
-              <span>/</span>
               <b>{tareaDe(h)}</b>
+              <span className="ruta-sub">{nombreCarpeta(h.proyecto, MODO.usuario, tr("barra.home"), titulos[h.proyecto])}</span>
             </div>
             <MaquinaMigas maquina={h.maquina} />
             <span className={`estado c-${t?.tipo ?? "cerrado"}`}>
@@ -139,27 +141,28 @@ export function Vista({
         ) : sub && !lider ? (
           <>
             <div className="ruta" data-desliza>
-              {sub.lider ? (
-                <>
-                  <span>{nombreCarpeta(sub.lider.proyecto, MODO.usuario, tr("barra.home"), titulos[sub.lider.proyecto])}</span>
-                  <span>/</span>
-                  <span>{sub.lider.nombre}</span>
-                  <span>/</span>
-                </>
-              ) : null}
               <b>{sub.u?.descripcion ?? tr("subv.marca")}</b>
+              {sub.lider ? (
+                <span className="ruta-sub">
+                  {nombreCarpeta(sub.lider.proyecto, MODO.usuario, tr("barra.home"), titulos[sub.lider.proyecto])} / {sub.lider.nombre}
+                </span>
+              ) : null}
             </div>
             <SubagenteMigas u={sub.u} lider={sub.lider} vista={conPasos} vive={vive} />
           </>
         ) : lider || liderNuevo ? (
           <>
             <div className="ruta" data-desliza>
-              <span>{nombreCarpeta(lider?.proyecto ?? GENERAL, MODO.usuario, tr("barra.home"), titulos[lider?.proyecto ?? GENERAL])}</span>
-              <span>/</span>
-              <b>{lider?.nombre ?? tr("lider.nuevo")}</b>
+              <b>{lider ? lider.nombre || tr("lider.sesionJefe") : tr("lider.nuevo")}</b>
+              <span className="ruta-sub">
+                {lider
+                  ? [nombreCarpeta(lider.proyecto, MODO.usuario, tr("barra.home"), titulos[lider.proyecto]), lider.titulo, lider.effort && effortsDe(lider.modelo).length ? lider.effort : ""].filter(Boolean).join(" · ")
+                  : tr("lider.nuevoSub")}
+              </span>
             </div>
             <MaquinaMigas maquina={lider?.maquina} />
             {lider?.espera && !lider.ocupado && !lider.caido ? <ChipEspera espera={lider.espera} /> : null}
+            {lider ? <PildoraTrabajando l={lider} /> : null}
           </>
         ) : null}
         {/* Quieto, Settle (a uno de la app también lo cierra); respondiendo, Cerrar líder (sólo los de la app). */}

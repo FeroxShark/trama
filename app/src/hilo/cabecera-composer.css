@@ -1,0 +1,186 @@
+/* Cabecera del hilo y composer (rediseño 0.4, paso 4). Maqueta: maquetas/rediseno-0.4/vidrio-quieto-v2.html.
+   Cabecera: título con subtítulo de ruta a la izquierda, píldoras a la derecha. Composer: caja de vidrio con chips cápsula,
+   el enviar celeste redondo. Sólo tokens de tokens.css. Cada estado lleva palabra o ícono además del color.
+   Los selectores llevan `:has(.ruta-sub)` o `.hilo` delante para ganarle a index.css sin depender del orden de carga, y sin
+   tocar la cabecera de los paneles de ajustes (que comparten `.migas`). */
+
+/* ---- Cabecera: título + subtítulo, píldoras a la derecha ---- */
+.migas:has(.ruta-sub) {
+  height: auto;
+  min-height: 4rem;
+  gap: var(--esp-2-5);
+  padding-block: var(--esp-3);
+  border-bottom: 0;
+}
+.migas:has(.ruta-sub) .ruta {
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: var(--esp-0-5);
+}
+.migas:has(.ruta-sub) .ruta > * {
+  max-width: 100%;
+  min-width: 0;
+}
+.migas:has(.ruta-sub) .ruta b {
+  color: var(--texto-1);
+  font-size: var(--letra-7);
+  font-weight: 600;
+  line-height: 1.25;
+}
+.ruta-sub {
+  overflow: hidden;
+  color: var(--texto-6);
+  font-size: var(--letra-4);
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* El estado, en cápsula: el punto y la palabra (y, en un líder, cuánto lleva) en el tono del estado. */
+.migas:has(.ruta-sub) .estado {
+  height: 1.875rem;
+  padding: 0 var(--esp-3);
+  border-radius: var(--r-cap);
+  background: color-mix(in srgb, currentColor 13%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, currentColor 28%, transparent);
+  color: color-mix(in srgb, currentColor 70%, var(--texto-1));
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+.migas:has(.ruta-sub) .estado i {
+  width: 0.4375rem;
+  height: 0.4375rem;
+}
+/* Cerrar líder / Terminar: el botón de la cabecera, en cápsula con borde de luz. */
+.migas:has(.ruta-sub) .btn2 {
+  height: 1.875rem;
+  background: var(--capa-card);
+  box-shadow: var(--vidrio-borde);
+}
+.migas:has(.ruta-sub) .btn2:hover {
+  background: var(--capa-tile);
+}
+
+/* ---- La línea de lo que cambia del líder (caché, subagentes, dormido): chips calmos ---- */
+.hilo .lider-linea {
+  align-items: center;
+  gap: var(--esp-1-5);
+}
+.hilo .lider-linea:empty {
+  display: none;
+}
+.hilo .lider-linea > span:not(.cache, .subs-chip) {
+  display: inline-flex;
+  height: 1.375rem;
+  align-items: center;
+  padding: 0 var(--esp-2-5);
+  border-radius: var(--r-cap);
+  background: var(--capa-card);
+  box-shadow: var(--vidrio-borde);
+  font-variant-numeric: tabular-nums;
+}
+.hilo .lider-linea > .c-fallo {
+  background: var(--fallo-fondo);
+  box-shadow: inset 0 0 0 1px var(--fallo-borde);
+  color: var(--fallo-texto);
+}
+
+/* ---- Composer: caja de vidrio con chips cápsula ---- */
+.hilo .caja {
+  gap: var(--esp-2);
+  padding: var(--esp-3-5) var(--esp-3) var(--esp-3) var(--esp-5);
+  border-radius: var(--r-xl);
+  background: var(--capa-input);
+  box-shadow: var(--vidrio-borde), var(--sombra-vidrio);
+}
+/* El foco: aro celeste y un halo suave (reemplaza el contorno de index.css, que quedaba doble con la caja redonda). */
+.hilo .caja:has(:is(textarea, input):focus-visible) {
+  outline: none;
+  box-shadow:
+    inset 0 0 0 1.5px var(--acento),
+    0 0 0 0.25rem var(--acento-tinte);
+}
+.hilo .caja textarea {
+  min-height: 2.5rem;
+  font-size: var(--letra-7);
+  line-height: 1.5;
+}
+.hilo .caja textarea::placeholder {
+  color: var(--texto-6);
+}
+.hilo .caja .barra-c {
+  gap: var(--esp-1-5);
+}
+/* Chips: modelo, esfuerzo, máquina, cuenta, carpeta. */
+.hilo .caja .pbtn {
+  height: 2rem;
+  background: var(--capa-card);
+  box-shadow: var(--vidrio-borde);
+  font-size: var(--letra-5);
+}
+.hilo .caja .pbtn:is(:hover, [aria-expanded="true"]) {
+  background: var(--capa-tile);
+}
+.hilo .caja .pbtn:disabled {
+  background: transparent;
+}
+/* Adjuntar: un círculo del mismo alto que los chips. */
+.hilo .caja .clip {
+  width: 2rem;
+  height: 2rem;
+  border-radius: var(--r-cap);
+  background: var(--capa-card);
+  box-shadow: var(--vidrio-borde);
+}
+.hilo .caja .clip:hover {
+  background: var(--capa-tile);
+}
+/* El modo de permisos ("bypass permissions on"): cápsula en el color del modo, con su ícono y su palabra. */
+.hilo .caja .modo {
+  height: 2rem;
+  padding: 0 var(--esp-3);
+  border-radius: var(--r-cap);
+  background: color-mix(in srgb, currentColor 13%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, currentColor 30%, transparent);
+  font-family: inherit;
+  font-size: var(--letra-5);
+  font-weight: 500;
+}
+.hilo .caja .modo .modo-t {
+  color: color-mix(in srgb, currentColor 65%, var(--texto-1));
+}
+.hilo .caja .modo:hover {
+  background: color-mix(in srgb, currentColor 22%, transparent);
+}
+.hilo .caja .modo[data-fijo]:hover {
+  background: color-mix(in srgb, currentColor 13%, transparent);
+}
+/* Enviar: el círculo celeste, el protagonista de la fila. Con el texto ("Responder") sigue siendo la cápsula de siempre. */
+.hilo .caja .barra-der {
+  gap: var(--esp-1-5);
+}
+.hilo .caja .prim:not([data-texto]) {
+  width: 2.25rem;
+  height: 2.25rem;
+  box-shadow: 0 0.25rem 1rem color-mix(in srgb, var(--acento) 32%, transparent);
+}
+/* Sin nada para mandar sigue siendo celeste, pero apagado. */
+.hilo .caja .prim:not([data-texto]):disabled {
+  background: color-mix(in srgb, var(--acento) 22%, transparent);
+  box-shadow: none;
+  color: var(--acento);
+}
+/* La carpeta de un líder nuevo: su chip en la misma familia, con la palabra al lado. */
+.hilo .caja .caja-carpeta {
+  padding: 0;
+}
+.hilo .caja .caja-carpeta-t {
+  font-size: var(--letra-4);
+}
+
+/* ---- La pantalla vacía de "Nuevo líder": la frase a la vista y la caja al medio ---- */
+.conv-vacia {
+  color: var(--texto-5);
+  font-size: var(--letra-7);
+  font-weight: 500;
+}

@@ -5,7 +5,7 @@ import path from "node:path";
 
 // La cabecera de un chat de líder (src/hilo/Lider.tsx, `.lider-linea`, y la ruta de la barra de arriba):
 // su nombre es la primera línea del primer mensaje, que puede ser un párrafo entero sin saltos. Tiene
-// que quedar en una sola línea con elipsis y no partir ni correr lo de al lado (el modelo, el caché).
+// que quedar en una sola línea con elipsis (la ruta) y no partir lo de al lado (esfuerzo, caché).
 // Este test sólo fija las reglas del CSS; el efecto se midió en la app con un primer mensaje largo.
 const css = readFileSync(path.resolve(import.meta.dirname, "..", "src/index.css"), "utf8");
 
@@ -16,15 +16,7 @@ function bloque(sel: string): string {
   return css.slice(i, css.indexOf("}", i));
 }
 
-test("el nombre del líder es una sola línea con elipsis", () => {
-  const b = bloque(".lider-linea b");
-  assert.match(b, /white-space: nowrap;/);
-  assert.match(b, /text-overflow: ellipsis;/);
-  assert.match(b, /overflow: hidden;/);
-  assert.match(b, /min-width: 0;/);
-});
-
-test("lo de al lado del nombre (modelo, esfuerzo, caché) no se parte ni se achica", () => {
+test("lo de la línea del líder (esfuerzo, caché, subagentes) no se parte ni se achica", () => {
   const b = bloque(".lider-linea > :not(b)");
   assert.match(b, /flex: none;/);
   assert.match(b, /white-space: nowrap;/);
