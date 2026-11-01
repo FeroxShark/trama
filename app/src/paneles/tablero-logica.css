@@ -780,7 +780,7 @@ button.tb-pr:hover {
   text-align: right;
 }
 .tb-num[data-cero] {
-  color: var(--texto-8);
+  color: var(--texto-7);
 }
 .tb-pr-e {
   min-width: 0;

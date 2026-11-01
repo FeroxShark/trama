@@ -216,7 +216,7 @@
   --luz-arriba: rgb(255 255 255 / 0.8);
   --texto: rgb(14 17 24 / 0.95);
   --apagado: rgb(14 17 24 / 0.68);
-  --inactivo: rgb(14 17 24 / 0.45);
+  --inactivo: rgb(14 17 24 / 0.62);
   --acento: #1f5fc4;
   --acento-texto: #ffffff;
   --ok: #006a8e;
@@ -259,14 +259,14 @@
   --texto-2: #1c2029;
   --texto-3: #2c313c;
   --texto-4: #464c59;
-  --texto-5: #586070;
-  --texto-6: #646b7a;
-  --texto-7: #8a91a0;
-  --texto-8: #aab0bd;
+  --texto-5: #454c5f;
+  --texto-6: #50586b;
+  --texto-7: #596073;
+  --texto-8: #8a91a0;
   --txt-1: #0e1118;
   --txt-2: #2c313c;
   --txt-3: #464c59;
-  --txt-4: #646b7a;
+  --txt-4: #50586b;
   --negro: #ffffff;
   --blanco: #000000;
   --azul-palido: #12388a;

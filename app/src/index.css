@@ -1757,7 +1757,7 @@ img.logo {
     center / contain no-repeat;
 }
 .cache[data-frio] {
-  color: var(--texto-8);
+  color: var(--texto-7);
 }
 .cache[data-frio]::before {
   display: none;

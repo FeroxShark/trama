@@ -17,7 +17,7 @@
 
   --texto: rgb(255 255 255 / 0.95);
   --apagado: rgb(255 255 255 / 0.64);
-  --inactivo: rgb(255 255 255 / 0.36);
+  --inactivo: rgb(255 255 255 / 0.56); /* texto terciario: ≥ 4,5 sobre el vidrio (antes 0,36 = 3,3) */
 
   --acento: #8fb5f0;
   --acento-texto: #0d1a2e; /* texto sobre el acento */
@@ -106,7 +106,7 @@
   --txt-1: #f4f5f7;
   --txt-2: #d2d5db;
   --txt-3: #a9abb1;
-  --txt-4: #7d8087;
+  --txt-4: #96999f;
 
   --negro: #07080b;
   --blanco: #fff;
@@ -131,9 +131,9 @@
   --texto-2: #e3e5e9;
   --texto-3: #cfd2d8;
   --texto-4: #a9abb1;
-  --texto-5: #8f9298;
-  --texto-6: #7d8087;
-  --texto-7: #5f626a;
+  --texto-5: #a0a3a9;
+  --texto-6: #96999f;
+  --texto-7: #8f9299; /* el escalón más tenue que aún es texto: ≥ 4,5 sobre sup-0…sup-3 y el vidrio (antes #5f626a = 3,0) */
   --texto-8: #464951;
 
   --azul-palido: #dbe8fb;

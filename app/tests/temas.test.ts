@@ -49,14 +49,15 @@ const contraste = (a: number[], b: number[]) => {
 };
 
 const SUPERFICIES = ["--sup-0", "--sup-1", "--sup-2"];
-// Cuerpo: lo que se lee corrido. Apagado: lo secundario (metadatos, placeholders). El resto de la escala (texto-7/8) es decorativo.
+// Cuerpo: lo que se lee corrido. Apagado: lo secundario y terciario (metadatos, placeholders, ayudas): también AA, porque es texto chico
+// (auditoría de accesibilidad 0.4). Sólo texto-8 queda fuera: es para lo deshabilitado y lo decorativo, nunca para texto que haya que leer.
 const CUERPO = ["--texto-1", "--texto-2", "--texto-3", "--texto-4", "--txt-1", "--txt-2", "--txt-3"];
-const APAGADO = ["--texto-5", "--texto-6", "--txt-4"];
+const APAGADO = ["--texto-5", "--texto-6", "--texto-7", "--txt-4", "--inactivo"];
 // Colores que se usan como texto (estados, acento, enlaces).
 const COLOR_TEXTO = ["--acento", "--ok", "--aviso", "--critico", "--rojo-texto"];
 
 for (const id of PINTADOS) {
-  test(`tema ${id}: el texto cumple WCAG AA sobre las superficies (cuerpo ≥ 4,5, apagado ≥ 3, estados ≥ 4,5)`, () => {
+  test(`tema ${id}: el texto cumple WCAG AA sobre las superficies (cuerpo, apagado y estados ≥ 4,5)`, () => {
     const t = tema(id);
     const fallas: string[] = [];
     for (const s of SUPERFICIES) {
@@ -66,7 +67,7 @@ for (const id of PINTADOS) {
         if (c < min) fallas.push(`${tk} sobre ${s}: ${c.toFixed(2)} < ${min}`);
       };
       CUERPO.forEach((k) => mira(k, 4.5));
-      APAGADO.forEach((k) => mira(k, 3));
+      APAGADO.forEach((k) => mira(k, 4.5));
       COLOR_TEXTO.forEach((k) => mira(k, 4.5));
     }
     // El texto sobre el acento (botón primario) también se lee.

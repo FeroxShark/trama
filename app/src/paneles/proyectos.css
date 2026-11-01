@@ -409,7 +409,7 @@
 .lmp-lista {
   margin: var(--esp-1) 0 0;
   padding-left: var(--esp-4);
-  color: var(--texto-8);
+  color: var(--texto-7);
   font-family: var(--font-mono);
   font-size: var(--letra-3);
   overflow-wrap: anywhere;
