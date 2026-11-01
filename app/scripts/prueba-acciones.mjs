@@ -263,8 +263,14 @@ try {
   ok(await en(sinFila, ["20261003-100100-22222"]), "lo terminado sin rama y sin líder también se esconde");
   // Una rama con commits sin integrar y sin líder vivo también se pliega ("N terminadas"): las ramas viven en el panel Ramas.
   // Lo que sigue la usa abierta.
-  const plegueSueltas = '.arbol[data-tipo="sueltas"] .mini-pliegue';
-  ok(await clic(plegueSueltas), "las terminadas de la app se abren con un clic");
+  ok(
+    await en(() => {
+      const pliegues = [...document.querySelectorAll('.arbol:is([data-tipo="sueltas"], [data-tipo="huerfanos"]) .mini-pliegue')];
+      for (const b of pliegues) b.click();
+      return pliegues.length > 0;
+    }),
+    "las terminadas sin líder se abren con un clic",
+  );
   ok(
     await hasta(() => !!document.querySelector('[data-fila="20261003-100400-66666"]') && !!document.querySelector('[data-fila="20261003-100000-11111"]'), "ramas a la vista"),
     "y entre ellas están las ramas con commits sin integrar",
