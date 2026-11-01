@@ -23,8 +23,9 @@ import { VIEJO_S, cuandoFuturo, pintorCuando, pintorVisto } from "../tiempo";
 import type { Pintor } from "../reloj";
 import { USO_BAJO, columnas, renglonesDeGrupos, resumenGrupo, type ResumenCupo } from "./cuposVista";
 import { nombreGrupo, nombreGrupoCorto } from "./cuposNombres";
+import { notaDeCelda, textoVuelve, ventanaCorta } from "./cuposNota";
 import { Marca } from "./Marca";
-import { filaDe, formatearFaltaCorto, formatearHasta, type Unidades } from "./usoFila";
+import { filaDe, formatearHasta, type Unidades } from "./usoFila";
 import { Reloj } from "./piezas";
 import { t, textoMain } from "../i18n";
 import { useIdioma } from "../i18n/react";
@@ -189,14 +190,6 @@ const celdasGrupo = (g: GrupoCupo, r: ResumenCupo): (Celda | null)[] =>
       ? [{ clave: "sin-limite", ventana: t("cu.w.sinLimite"), pct: null, hasta: 0, cupo: true, sinLimite: true }, null]
       : celdasCupo(g.ventanas);
 
-/** Cómo se llama una ventana en la tarjeta ("5 horas", "semana"). */
-function ventanaCorta(id: string): string {
-  if (id === "5h") return t("cupos.w5h");
-  if (id === "7d" || id === "sem") return t("cupos.wSem");
-  if (id === "1m") return t("cupos.w1m");
-  return id;
-}
-
 /** Agotada: el 100 % medido o la marca de un 429. */
 const agotada = (c: Celda): boolean => !c.off && (c.marcado !== undefined || (c.pct !== null && c.pct >= 100));
 
@@ -311,10 +304,8 @@ const unidades = (): Unidades => ({
 /** "vuelve en 2 h 10 min", repintado por el reloj solo cuando cambia. */
 const pintorVuelve =
   (hasta: number): Pintor =>
-  (a) => {
-    const f = formatearFaltaCorto(hasta - a, unidades());
-    return { texto: t("cupos.vuelveEn", { falta: f.texto }), en: f.en };
-  };
+  (a) =>
+    textoVuelve(hasta, a, unidades());
 
 /** El dato viejo (más de 15 min, el tooltip dice de cuándo es) se apaga: `data-viejo` en el elemento que lo pinta. */
 const pintorViejo =
@@ -420,6 +411,8 @@ function Tarjeta({
   const bajo = !sin && !aparte && pct !== null && pct >= USO_BAJO;
   const n = pct === null || sin ? "normal" : nivel(pct);
   const ventana = ventanaDe2(c);
+  // La nota: cuándo vuelve la ventana; sin esa hora, el nombre de la ventana (chica) o «sin hora de vuelta».
+  const nota = notaDeCelda({ chica: !!chica, hasta, ventana });
   const etiqueta = chica || !ventana ? nombre : `${nombre} · ${ventana}`;
   const largo = `${quien} · ${c.ventana}`;
   const aria = sin
@@ -467,23 +460,22 @@ function Tarjeta({
       </div>
       <span className="cq-nota">
         {bajo && <TriangleAlert className="cq-ico" size={11} strokeWidth={2.4} aria-hidden="true" />}
-        {sin ? (
-          hasta > 0 ? (
-            t("cu.w.vuelve", { cuando: cuandoFuturo(hasta) })
-          ) : (
-            t("cupos.agotado")
-          )
+        {sin && hasta > 0 ? (
+          t("cu.w.vuelve", { cuando: cuandoFuturo(hasta) })
+        ) : sin ? (
+          nota.tipo === "ventana" ? nota.texto : t("cupos.agotado")
         ) : bajo ? (
           t("cupos.pocoCupo")
-        ) : chica ? (
-          ventana
-        ) : aparte ? null : hasta > 0 ? (
+        ) : nota.tipo === "vuelve" ? (
           <Reloj pintor={vuelve} />
+        ) : nota.tipo === "ventana" ? (
+          nota.texto
         ) : (
           t("cupos.sinHora")
         )}
       </span>
-      {bajo && !chica && hasta > 0 && <Reloj pintor={vuelve} className="cq-nota" />}
+      {/* Con poco cupo, el texto va arriba y la hora de vuelta abajo (como la grande): la chica no se queda sin ella. */}
+      {bajo && hasta > 0 && <Reloj pintor={vuelve} className="cq-nota" />}
       <Tip celdas={cs} quien={quien} ts={ts} />
     </div>
   );
@@ -518,6 +510,7 @@ function Capsula({ logo, nombre, quien, celdas, ts }: { logo?: ReactNode; nombre
 function Segmento({ c, ts }: { c: Celda; ts: number }) {
   const pct = c.pct;
   const numero = useMemo(() => pintorPct(pct ?? 0, ts), [pct, ts]);
+  const vuelve = useMemo(() => pintorVuelve(c.hasta), [c.hasta]);
   const sin = agotada(c);
   const aparte = c.off || c.sinLimite || pct === null;
   const bajo = !sin && !aparte && pct !== null && pct >= USO_BAJO;
@@ -537,6 +530,8 @@ function Segmento({ c, ts }: { c: Celda; ts: number }) {
       ) : (
         <Reloj pintor={numero} className="cq-seg-v" />
       )}
+      {/* Cuándo vuelve esa ventana, como en las tarjetas (agotada ya lo dice arriba). */}
+      {!sin && c.hasta > 0 && <Reloj pintor={vuelve} className="cq-seg-n" />}
     </span>
   );
 }
