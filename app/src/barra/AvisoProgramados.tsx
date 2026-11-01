@@ -10,7 +10,7 @@ import { useIdioma } from "../i18n/react";
 import { resumen } from "../programados-logica";
 import { useProgramados } from "../programados";
 import { cuandoFuturo } from "../tiempo";
-import "../hilo/programar.css";
+import "../hilo/programar-globo.css";
 
 const hora = (ms: number) => cuandoFuturo(ms / 1000);
 

@@ -15,7 +15,7 @@ import { mensaje } from "../puente";
 import { cuandoFuturo } from "../tiempo";
 import { deLider, leerHora, resumen } from "../programados-logica";
 import { useProgramados } from "../programados";
-import "./programar.css";
+import "./programar-globo.css";
 
 type Props = {
   sid: string;
