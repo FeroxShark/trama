@@ -578,7 +578,7 @@ body,
   align-items: center;
   gap: var(--esp-1) var(--esp-2);
   padding: 0 var(--esp-1);
-  font-size: var(--letra-1);
+  font-size: var(--letra-3);
 }
 .g-acc-uso {
   display: inline-flex;
@@ -590,7 +590,7 @@ body,
 .susc > .g-acc > .g-acc-btn {
   height: 1.5rem;
   padding: 0 var(--esp-2);
-  font-size: var(--letra-1);
+  font-size: var(--letra-3);
 }
 .g-acc-err {
   color: var(--critico);

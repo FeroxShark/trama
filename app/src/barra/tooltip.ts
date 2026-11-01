@@ -60,6 +60,10 @@ export function armarTips() {
     if (el.matches?.("[data-tip]:focus-visible")) mostrarTip((actual = el));
   });
   document.addEventListener("focusout", ocultarTip);
+  // Esc lo esconde sin mover el foco ni cerrar nada (WCAG 1.4.13: lo que aparece al enfocar o pasar se puede descartar).
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && tip && "visible" in tip.dataset) ocultarTip();
+  });
   document.addEventListener("pointerdown", ocultarTip);
   document.addEventListener("scroll", ocultarTip, true);
   // Levantar el dedo también es "irse" de todo: ése no lo esconde (lo esconde su reloj).
