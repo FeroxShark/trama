@@ -257,7 +257,9 @@
     0 0 0 3px var(--c);
 }
 .wk-seg[data-fallo] {
-  background: color-mix(in srgb, var(--menos) 70%, var(--sup-0));
+  background:
+    repeating-linear-gradient(135deg, transparent 0 0.125rem, color-mix(in srgb, var(--sup-0) 70%, transparent) 0.125rem 0.25rem),
+    color-mix(in srgb, var(--menos) 70%, var(--sup-0));
 }
 .wk-seg[data-vivo] {
   background: color-mix(in srgb, var(--azul) 70%, transparent);
@@ -279,7 +281,8 @@
   transform: translateX(-50%);
   white-space: nowrap;
 }
-.wk-seg:hover::after {
+.wk-seg:hover::after,
+.wk-seg:focus-visible::after {
   display: block;
 }
 

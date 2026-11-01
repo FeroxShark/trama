@@ -5399,6 +5399,9 @@ summary.sis-div-t:hover,
   font-size: var(--letra-5);
   outline: none;
 }
+.cmenu-buscar:focus-visible {
+  box-shadow: inset 0 0 0 1.5px var(--acento);
+}
 .cmenu-buscar::placeholder {
   color: var(--texto-6);
 }
@@ -5552,7 +5555,8 @@ summary.sis-div-t:hover,
   outline: none;
 }
 .caja-carpeta input:focus-visible {
-  border-color: var(--borde-5);
+  border-color: var(--acento);
+  box-shadow: inset 0 0 0 1px var(--acento);
 }
 .caja-carpeta input::placeholder {
   color: var(--texto-7);
@@ -6765,7 +6769,8 @@ summary.sis-div-t:hover,
   color: var(--texto-7);
 }
 .mc-busca:focus-within {
-  border-color: var(--texto-6);
+  border-color: var(--acento);
+  box-shadow: inset 0 0 0 1px var(--acento);
   color: var(--texto-3);
 }
 .mc-busca input {

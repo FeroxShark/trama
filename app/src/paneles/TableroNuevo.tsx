@@ -170,7 +170,7 @@ export function TableroNuevo({ todo, carpetas, lideres, alRedactar, avisar }: Pr
   return (
     <div className="pd" data-todo={pestana === "todo" ? "" : undefined}>
       <div className="pd-barra">
-        <div className="tb-vistas" role="tablist">
+        <div className="tb-vistas" role="tablist" aria-label={t("pd.pestanas")}>
           {(["esperan", "todo"] as const).map((v) => (
             <button key={v} type="button" role="tab" aria-selected={pestana === v} onClick={() => setPestana(v)}>
               {t(v === "esperan" ? "pd.tabEsperan" : "pd.tabTodo")}

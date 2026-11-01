@@ -468,7 +468,7 @@ export function Tablero({ carpetas, lideres, alIniciar, alAbrirLider }: Omit<Pro
     <div className="tb">
       <Alta proyectos={lista} alAgregar={alAgregar} alFallar={setFalla} />
       <div className="tb-barra">
-        <div className="tb-vistas" role="tablist">
+        <div className="tb-vistas" role="tablist" aria-label={t("tablero.vistas")}>
           {(["tablero", "proyectos"] as const).map((v) => (
             <button key={v} type="button" role="tab" aria-selected={vista === v} onClick={() => setVista(v)}>
               {t(v === "tablero" ? "tablero.vistaTablero" : "tablero.vistaProyectos")}
@@ -569,7 +569,7 @@ export function Tablero({ carpetas, lideres, alIniciar, alAbrirLider }: Omit<Pro
             )}
           </div>
         ) : (
-          <div className="tb-proy" role="table">
+          <div className="tb-proy" role="table" aria-label={t("tablero.vistaProyectos")}>
             <div className="tb-pr tb-pr-h" role="row">
               <span role="columnheader">{t("tablero.proy.proyecto")}</span>
               <span role="columnheader">{t("tablero.proy.etapa")}</span>

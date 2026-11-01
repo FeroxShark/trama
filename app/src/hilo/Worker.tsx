@@ -327,7 +327,9 @@ function Mapa({ pasos, fin, sel, alElegir }: { pasos: readonly Paso[]; fin: numb
   return (
     <div className="wk-mapa" role="group" aria-label={t("wk.mapa")}>
       {pasos.map((p, i) => {
-        const n = p.estado === "corriendo" ? `${verbo(p)} ${corto(p)}`.trim() : nombreLargo(p);
+        // Un paso que falló lo dice con la palabra (tooltip y nombre accesible) y con rayas en la barra: el color solo no alcanza.
+        const base = p.estado === "corriendo" ? `${verbo(p)} ${corto(p)}`.trim() : nombreLargo(p);
+        const n = p.estado === "fallo" ? `${base} · ${t("wk.chipFalla")}` : base;
         return (
           <button
             key={p.n}
