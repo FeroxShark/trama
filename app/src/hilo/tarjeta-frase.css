@@ -349,6 +349,36 @@
   transform: none;
 }
 
+/* Los íconos de acción de la pastilla (src/hilo/accion-tipo.ts): neutros y chicos, hasta tres; el estado lo dice la marca de la derecha. */
+.acc-g {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--esp-1);
+}
+.acc-i {
+  flex: none;
+  color: var(--texto-5);
+}
+.trabajo summary .acc-i,
+.trabajo[open] summary .acc-i {
+  transform: none;
+}
+.trabajo[data-fin] > summary {
+  padding-left: var(--esp-3);
+}
+.trabajo[data-fin] > summary .trabajo-marca {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+.trabajo[data-fin] > summary:hover .acc-i {
+  color: var(--texto-3);
+}
+/* La fila de una llamada: su ícono va entre la flecha y el nombre. */
+.ll .acc-i {
+  color: var(--texto-6);
+}
+
 /* Parar vive sólo en la caja: siempre a la vista. Sin novedades pide atención ahí, como la tarjeta. */
 .caja-parar[data-quieto] {
   background: var(--decision-relleno);

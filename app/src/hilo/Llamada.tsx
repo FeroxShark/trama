@@ -12,6 +12,7 @@ import { tokens as tokensCorto } from "../paneles/resumen";
 import { GastoSubagentesCtx } from "./gasto-sub";
 import { archivoDe, cambios, cuerpo, type Grupo, type LineaDiff, type Uso } from "./herramientas";
 import { HERRAMIENTA_PREGUNTAS, respondidas } from "./preguntas-logica";
+import { IconoLlamada } from "./IconoAccion";
 import { Miniaturas } from "./Imagenes";
 import { LlamadaPreguntas } from "./Preguntas";
 import { EnlaceArchivo } from "./VerArchivo";
@@ -101,6 +102,7 @@ export const Llamada = memo(function Llamada({ g, estado }: { g: Grupo; estado?:
   const linea = (
     <>
       {se ? <ChevronRight className="ll-f" size={10} strokeWidth={2} /> : <span className="ll-f" />}
+      <IconoLlamada u={u} />
       <span className="ll-n" data-error={error ? "" : undefined}>
         {u.nombre}
       </span>

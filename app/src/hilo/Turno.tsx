@@ -14,6 +14,7 @@ import { Texto } from "./Texto";
 import { t } from "../i18n";
 import { agrupar, type Uso } from "./herramientas";
 import { Llamada } from "./Llamada";
+import { IconosAccion } from "./IconoAccion";
 import { MODO } from "../modo";
 import { pasoActual, type Item, type Paso } from "./turnos";
 import { alScroll, bajar, seguidor, seguir } from "./seguir";
@@ -190,7 +191,8 @@ function Lineal({ t: turno, vivo, enCurso = false, semilla, pensando = false, ra
       {hayTrabajo ? (
         <details className="trabajo" data-fin={fin?.estado} open={abierto} onToggle={(e) => setAbierto(e.currentTarget.open)}>
           <summary>
-            {fin ? <MarcaFin fin={fin} /> : <ChevronRight size={11} strokeWidth={2} />}
+            {fin ? null : <ChevronRight size={11} strokeWidth={2} />}
+            <IconosAccion usos={volvieron} />
             {corre && tierno ? <Tierno semilla={semilla ?? turno.key} /> : null}
             {corre ? (
               <Reloj pintor={corre} />
@@ -203,6 +205,7 @@ function Lineal({ t: turno, vivo, enCurso = false, semilla, pensando = false, ra
             ) : (
               t("turno.trabajoSolo")
             )}
+            {fin ? <MarcaFin fin={fin} /> : null}
             {fin ? <ChevronRight className="trabajo-fl" size={12} strokeWidth={2} /> : null}
           </summary>
           {/* La lista se arma recién al abrir: una página puede traer cientos de pasos. */}
@@ -303,9 +306,11 @@ const Grupo = memo(function Grupo({ usos, reloj, semilla, tierno, fin, enCurso =
     <>
       <details className="trabajo" data-grupo="" data-fin={fin?.estado} open={abierto} onToggle={(e) => setAbierto(e.currentTarget.open)}>
         <summary>
-          {fin ? <MarcaFin fin={fin} /> : <ChevronRight size={11} strokeWidth={2} />}
+          {fin ? null : <ChevronRight size={11} strokeWidth={2} />}
+          <IconosAccion usos={volvieron} />
           {reloj && tierno ? <Tierno semilla={semilla} /> : null}
           {reloj ? <Reloj pintor={reloj} /> : fin && resumen ? textoFin(fin, resumen, null) : resumen || t("turno.trabajoSolo")}
+          {fin ? <MarcaFin fin={fin} /> : null}
           {fin ? <ChevronRight className="trabajo-fl" size={12} strokeWidth={2} /> : null}
         </summary>
         {/* La lista se arma recién al abrir: un grupo puede traer cientos de llamadas. */}
