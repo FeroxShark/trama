@@ -120,7 +120,7 @@ const vista = () =>
     const zr = z?.getBoundingClientRect();
     return {
       hay: !!tv,
-      chip: tv?.querySelector(".ui-chip")?.textContent ?? null,
+      reloj: tv?.querySelector(".tv-est .tv-x")?.textContent ?? null,
       // El progreso de la tarjeta: cada línea con su clase (pensamiento / herramienta / vivo) y su texto.
       lineas: [...(tv?.querySelectorAll(".tv-lt .tv-li") ?? [])].map((li) => ({ k: li.getAttribute("data-k"), t: li.textContent })),
       plegados: [...(tv?.querySelectorAll(".tv-lt .tv-pb[aria-expanded=false]") ?? [])].map((b) => b.textContent),
@@ -160,12 +160,14 @@ try {
   const a = await esperar((v) => v.hay && v.lineas.some((l) => l.k === "pensamiento"), 20);
   ok(!!a && /Primero miro/.test(a.lineas.find((l) => l.k === "pensamiento")?.t ?? ""), `el primer pensamiento queda como línea terminada: «${a?.lineas.find((l) => l.k === "pensamiento")?.t.slice(0, 60)}»`);
   ok(a?.tierno === false, "con razonamiento visible no hay frase tierna");
-  ok(/Trabajando|Working/.test(a?.chip ?? ""), `el chip de arriba dice cómo va: «${a?.chip}»`);
+  ok(/^\d+ s$/.test(a?.reloj ?? ""), `un solo estado, el tiempo: «${a?.reloj}»`);
   ok((a?.plegados.length ?? 0) >= 1 && a?.entero === null, "los pensamientos terminados están plegados");
   ok(a?.abierto === false, "el trabajo del turno sigue cerrado: las herramientas están en el progreso");
   await foto("razonando");
 
-  // Un comando corriendo y después ok; el que falla, error; todos en el progreso, en orden y sin que un pensamiento borre al anterior.
+  // El progreso va en «Ver todo», que sigue abierto hasta que se cierra.
+  await en(() => document.querySelector(".conv-zona .tv .tv-ver")?.click());
+    // Un comando corriendo y después ok; el que falla, error; todos en el progreso, en orden y sin que un pensamiento borre al anterior.
   const c = await esperar((v) => v.herr.some(([n, e]) => n === "Bash" && e === "corriendo"), 20);
   ok(!!c, `un comando se ve «corriendo»: ${JSON.stringify(c?.herr)}`);
   const f = await esperar((v) => v.herr.some(([, e]) => e === "error"), 30);
