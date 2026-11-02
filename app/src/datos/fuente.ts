@@ -13,7 +13,7 @@ import { aplicarOpGuias, GUIAS_VACIO, normalizarGuias, type EstadoGuias, type Op
 import { main, mensaje, type Lectura } from "../puente";
 import { aplicarDif, esDif } from "./hilos-dif";
 import { MODO } from "../modo";
-import { t, textoMain } from "../i18n";
+import { idioma, t, textoMain } from "../i18n";
 import { comoSettle, convsClaudeCodeDe, GENERAL, type AvisoWorker, type ConvClaudeCode, type ComandoClaude, type Estilos, type EventoLider, type EventoPa, type Hilo, type Leidos, type Mensaje, type Nombres, type Orden, type PuntoControl, puntosValidos, type RespuestaHilo, type RespuestaHilos, type RespuestaLideres, type Retomado, retomadoDe, type Statusline, type Traido, traidoDe, type Tokens, type Uso } from "./contrato";
 import { hiloDePa } from "./paHilo";
 import { listaValida, resultadoValido, type ListaCuentas, type PerfilCuenta, type PlanCuentaOc, type ProveedorCuenta, type ResultadoCuenta } from "./cuentas";
@@ -743,6 +743,8 @@ function colaFija() {
       responderFijo(sid, x.texto, x.modelo, x.imagenes);
     },
     total: async (sid) => charla(sid).length,
+    // Parar el turno: queda libre y la cola sigue (Cortar y enviar).
+    cortar: async (sid) => emitir(sid, { tipo: "estado", ocupado: false, vivo: true }),
     textoError: (x) => ("motivo" in x ? x.motivo : String((x.error as Error)?.message ?? x.error)),
     guardar: async () => {},
     avisar: (a) => oyentesCola.forEach((f) => f(a)),
@@ -1050,10 +1052,52 @@ function usoFijo(sid: string): Tokens {
  * que terminó mal (compactó, cerca del límite semanal, tope de 5 h y el
  * proceso que sale con código 1). Sólo con fixtures.
  */
-export function escenaFija(sid: string, escena: "trabajando" | "avisos" | "plan" | "permiso" | "preguntas" | "preguntas-dos" | "compactando" | "relevo" | "relevado" | "pensando" | "gemini") {
+/** Captura `lider-cola`: un comando corriendo y la solapa, en el estado de `HILOS_VARIANTE`. */
+function escenaCola(sid: string, ev: (e: EventoLider) => void) {
+  const v = MODO.variante ?? "tres";
+  const largo = v === "largo" || v === "largo-tres";
+  const en = idioma() === "en";
+  ev({ tipo: "mensaje", mid: "cola-1", texto: en ? "Sure. I fixed the broken import in the sidebar first, and now I'm running the whole suite to see what's still red." : "Dale. Primero arreglé el import roto de la barra y ahora corro la suite completa para ver qué queda en rojo.", herramientas: [], modelo: "claude-opus-5-5" });
+  ev({ tipo: "tokens", salida: 1280, nuevo: true });
+  for (const [nombre, detalle] of [["Edit", "src/barra/cauce.ts"], ["Edit", "tests/cauce.test.ts"], ["WebFetch", "https://developer.mozilla.org/es/docs/Web/API"]] as const) ev({ tipo: "hace", hace: { que: "herramienta", nombre, detalle } });
+  const real = Date.now;
+  // Un paso que arrancó hace 3 minutos: la hora de arranque la anota el store al llegar el evento.
+  if (largo) Date.now = () => real() - 3 * 60_000;
+  ev({ tipo: "hace", hace: { que: "herramienta", nombre: "Bash", detalle: "npm test -- --reporter dot" } });
+  Date.now = real;
+  const base = { modelo: "claude-opus-5-5", effort: "high" };
+  const t1 = en ? "When it's done, check whether the cauce test also fails with the clock in UTC" : "Cuando termine, fijate si el test de cauce falla también con el reloj en UTC";
+  const t2 = en ? "Look at this screenshot: the sidebar gets cut at 300 px, is it the same thing?" : "Mirá esta captura: la barra se corta a 300 px, ¿es lo mismo?";
+  const t3 = en ? "And before touching anything, show me the diff of src/barra/cauce.ts" : "Y antes de tocar nada, mostrame el diff de src/barra/cauce.ts";
+  const m1 = { id: 1, texto: t1, ...base };
+  const m2 = { id: 2, texto: t2, imagenes: [imagenFija(1280, 800, 210)], ...base };
+  const m3 = { id: 3, texto: t3, ...base };
+  const tres = [m1, m2, m3];
+  const c = colaFija();
+  const contar = () => c.todas().forEach((a) => oyentesCola.forEach((f) => f(a)));
+  if (v === "camino") {
+    oyentesCola.forEach((f) => f({ sid, lista: [m3], error: null, camino: [m1, m2] }));
+    return;
+  }
+  const lista =
+    v === "uno" || v === "largo"
+      ? [m2]
+      : v === "aviso"
+        ? [{ id: 4, texto: "[Aviso automático de Trama] Worker «Medir el plan de las consultas» terminó bien. Id: w-9f3. Revisalo con `pa --hilo w-9f3`.", aviso: true as const, ...base }, m1]
+        : v === "muchos"
+          ? [...tres, { id: 4, texto: t1, ...base }, { id: 5, texto: t3, imagenes: [imagenFija(1280, 800, 30), imagenFija(1280, 800, 120), imagenFija(1280, 800, 300), imagenFija(1280, 800, 60)], ...base }, { id: 6, texto: t1, ...base }]
+          : v === "visor"
+            ? [m2, m1]
+            : tres;
+  const errores = v === "fallo" ? { [sid]: { texto: en ? "Not sent: the engine didn't start." : "No salió: el motor no arrancó.", id: 1 } } : undefined;
+  void Promise.resolve(c.cargar(JSON.stringify({ version: 1, colas: { [sid]: lista }, ...(errores ? { errores } : {}) }))).then(contar);
+}
+
+export function escenaFija(sid: string, escena: "trabajando" | "avisos" | "plan" | "permiso" | "preguntas" | "preguntas-dos" | "compactando" | "relevo" | "relevado" | "pensando" | "gemini" | "cola") {
   const ev = (e: EventoLider) => emitir(sid, e);
   const ahora = Math.floor(Date.now() / 1000);
   ev({ tipo: "estado", ocupado: true, vivo: true });
+  if (escena === "cola") return escenaCola(sid, ev);
   if (escena === "compactando") {
     // B19: compacta y no termina nunca (la captura lo agarra a mitad).
     ev({ tipo: "hace", hace: { que: "compactando", nombre: null, detalle: null } });

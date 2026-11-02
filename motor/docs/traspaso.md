@@ -158,7 +158,7 @@ historia (force push); se puede subir directo y mergear sin esperar el CI.
 ## Hecho: la cola entrega entre herramientas, todo junto
 
 - **Entrega por defecto a mitad de turno:** lo que el usuario encola con el líder trabajando ya no espera al fin del turno ni obliga
-  a interrumpir. Pasado un ratito (`AGRUPAR_MS`, 1,5 s, para juntar lo que se escribe enseguida), `cola.ts` manda TODO lo encolado
+  a interrumpir. Pasado un ratito (`AGRUPAR_MS`, 8 s, para juntar lo que se escribe enseguida y dejar editarlo antes de que salga; cualquier cambio lo reinicia y `retener` lo frena mientras se edita, se arrastra o se confirma), `cola.ts` manda TODO lo encolado
   por `lider.mandarDirecto`: el CLI lo guarda y lo entrega en el próximo `tool_result` (`queued_command`), sin cortar la herramienta.
   Sin canal (modelos locales, o `trama` cerrándose) se entrega al terminar el turno. Gemini, DeepSeek Harness y OpenCode usan su
   puente (corta en el próximo límite de paso).
@@ -166,7 +166,13 @@ historia (force push); se puede subir directo y mergear sin esperar el CI.
   indicadas); uno solo sale tal cual. `loteDe` parte el lote si pasa de 20 imágenes. Nunca uno por turno.
 - **Modelo y esfuerzo:** el lote sale con la selección vigente (`lider:colaSeleccion`); a mitad de turno no se cambia el modelo,
   el cambio queda para el próximo turno (como antes). Si el envío falla, vuelve todo a la cola con el error y no se reintenta solo.
-- **Caja:** la cola se ve como "N en cola · salen en la próxima pausa" (`lider.cola1` / `lider.colaN`). "Mandar ya" desapareció.
+- **Solapa (`src/hilo/Bandeja.tsx`):** la cola no está en la conversación: vive en una solapa pegada arriba de la caja, y el mensaje salta al chat
+  recién cuando entra. Dice en palabras qué pasa ("3 en cola · entran juntos tras este paso"; con un paso de más de 2 min, "Esperando un comando largo · 3 m" y Parar).
+  Editar y ordenar (arrastrando o con las flechas sobre el agarre) sólo mientras no salió; «Enviar ahora» corta el paso, siempre preguntando, y manda TODA la cola (`cola.ya(sid, true)`: en un
+  líder de la app para el turno y la cola sigue). "Mandar ya" desapareció.
+- **Nunca se pierde un mensaje:** en disco está lo que espera, su error y lo que ya se le pasó al motor sin entrar (`camino`); cada imagen va en su archivo (`cola-imagenes/`), sin tope.
+  Lo que estaba en camino al cerrarse la app se verifica contra el transcript: si entró no se repite, si no vuelve al frente, y si no se puede saber queda con error y Reintentar.
+  Lo ya pasado al stdin no se puede retirar: queda en la solapa como «En camino», sin Editar ni Borrar.
 
 ## Hecho: los modelos de agy salen de la cuenta
 

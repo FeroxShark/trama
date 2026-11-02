@@ -174,7 +174,7 @@ try {
   await en(() => document.querySelector(".caja textarea")?.focus());
   await cdp("Input.insertText", { text: "seguimos" });
   await enter();
-  ok(await hasta(() => [...document.querySelectorAll(".yo.encolado")].some((x) => /seguimos/.test(x.innerText)), 5), "está a mitad de algo: el mensaje queda en cola, a la vista");
+  ok(await hasta(() => [...document.querySelectorAll("[data-fila-cola]")].some((x) => /seguimos/.test(x.innerText)), 5), "está a mitad de algo: el mensaje queda en cola, a la vista");
   await espera(300);
   ok(lider.fin() === null && !resumes().length, "el de la terminal sigue vivo y no salió ningún claude");
   ok((await en(() => document.querySelector(".caja textarea")?.value)) === "", "la caja quedó vacía");
@@ -183,9 +183,9 @@ try {
   // Otro más: se puede sacar de la cola.
   await cdp("Input.insertText", { text: "esto no" });
   await enter();
-  ok(await hasta(() => document.querySelectorAll(".yo.encolado").length === 2, 5), "un segundo mensaje también espera");
-  await en(() => [...document.querySelectorAll(".yo.encolado")].at(-1)?.querySelector(".encolado-x")?.click());
-  ok(await hasta(() => document.querySelectorAll(".yo.encolado").length === 1, 5), "y se lo puede sacar de la cola");
+  ok(await hasta(() => document.querySelectorAll("[data-fila-cola]").length === 2, 5), "un segundo mensaje también espera");
+  await en(() => [...document.querySelectorAll("[data-fila-cola]")].at(-1)?.querySelector("[data-borrar-cola]")?.click());
+  ok(await hasta(() => document.querySelectorAll("[data-fila-cola]").length === 1, 5), "y se lo puede sacar de la cola");
 
   // Termina su turno allá: se cierra ese proceso (sólo ese) y recién entonces sale el --resume.
   lider.estado("idle");
@@ -200,7 +200,7 @@ try {
   ok(lanzado?.args?.[lanzado.args.indexOf("--resume") + 1] === SID && lanzado.cwd === carpeta, `claude --resume en su carpeta: ${lanzado?.cwd}`);
   ok(resumesDe(SID).length === 1, "un solo proceso con esa sesión");
   ok(
-    await hasta(() => !document.querySelector(".caja-ajeno") && !!document.querySelector(".caja textarea") && !document.querySelector(".yo.encolado") && [...document.querySelectorAll(".yo")].some((x) => /seguimos/.test(x.innerText)), 8),
+    await hasta(() => !document.querySelector(".caja-ajeno") && !!document.querySelector(".caja textarea") && !document.querySelector("[data-fila-cola]") && [...document.querySelectorAll(".yo")].some((x) => /seguimos/.test(x.innerText)), 8),
     "ya es un líder de la app: su mensaje está en la conversación (no en la cola) y no hay más nota de terminal",
   );
   ok(!(await en(() => document.querySelector(".conv")?.innerText ?? "")).includes("esto no"), "lo que se sacó de la cola no salió");
@@ -216,18 +216,18 @@ try {
 
   // El otro: en cola igual, y "Cut and send now" lo corta sin esperar.
   await en((sid) => document.querySelector(`[data-lider="${sid}"]`)?.click(), SID2);
-  ok(await hasta(() => !!document.querySelector(".caja-ajeno") && !document.querySelector(".yo.encolado"), 5), "el otro líder, abierto: sigue en su terminal");
+  ok(await hasta(() => !!document.querySelector(".caja-ajeno") && !document.querySelector("[data-fila-cola]"), 5), "el otro líder, abierto: sigue en su terminal");
   await en(() => document.querySelector(".caja textarea")?.focus());
   await cdp("Input.insertText", { text: "urgente" });
   await enter();
-  ok(await hasta(() => !!document.querySelector(".yo.encolado") && !!document.querySelector("[data-cortar-lider]"), 5), "su mensaje queda en cola");
+  ok(await hasta(() => !!document.querySelector("[data-fila-cola]") && !!document.querySelector("[data-cortar-lider]"), 5), "su mensaje queda en cola");
   await espera(300);
   ok(apurado.fin() === null && !resumesDe(SID2).length, "sin pedirlo no se lo corta");
   await en(() => document.querySelector("[data-cortar-lider]")?.click());
   for (let i = 0; i < 100 && !resumesDe(SID2).length; i++) await espera(100);
   ok(apurado.fin() === "SIGTERM" && resumesDe(SID2).length === 1, `Cut and send now: SIGTERM a ese y un --resume: ${apurado.fin()}`);
   ok(otra.fin() === null, "la tercera terminal sigue como estaba");
-  ok(await hasta(() => !document.querySelector(".yo.encolado") && [...document.querySelectorAll(".yo")].some((x) => /urgente/.test(x.innerText)), 8), "y su mensaje pasó a la conversación");
+  ok(await hasta(() => !document.querySelector("[data-fila-cola]") && [...document.querySelectorAll(".yo")].some((x) => /urgente/.test(x.innerText)), 8), "y su mensaje pasó a la conversación");
 } finally {
   lider.p.kill("SIGKILL");
   apurado.p.kill("SIGKILL");

@@ -39,12 +39,11 @@ falta, está en `motor/docs/traspaso.md`.
   o `value` de un campo) · `pantalla js "<expresión>"` · `pantalla cerrar`. Hay que cerrarla al terminar (sola se cierra a los 10 min sin
   pedidos). Cada carpeta de trabajo tiene su ventana (`--sesion <nombre>` para tener dos). Sirve para ver y operar la interfaz con
   datos falsos; no prueba nada contra `pa` ni contra el motor. Una captura común (`scripts/captura.sh`) sigue siendo sólo una foto: sin clics.
-- **Cola de mensajes del líder (`app/electron/cola.ts`):** lo encolado con el líder trabajando sale TODO JUNTO en un solo mensaje
-  (`juntar`), nunca uno por turno. Por defecto se entrega a mitad del turno, sin interrumpir, en el próximo límite de
-  herramienta (`lider.mandarDirecto`, tras `AGRUPAR_MS` de agrupación); los motores sin ese canal (locales) lo entregan al
-  terminar el turno. Ya no hay "Mandar ya" aparte: Ctrl+Enter es un Enter más. Detalle en `motor/docs/traspaso.md`.
-- **Repo público:** nada de datos personales, de la red ni de la máquina del dueño en código, tests, fixtures ni docs.
-  Los fixtures llevan ids, rutas y tareas inventados.
+- **Cola de mensajes del líder (`app/electron/cola.ts`, se ve en `app/src/hilo/Bandeja.tsx`):** lo encolado con el líder trabajando sale TODO JUNTO en un solo
+  mensaje (`juntar`), nunca uno por turno. Por defecto se entrega a mitad del turno, sin interrumpir, en el próximo límite de
+  herramienta (`lider.mandarDirecto`, tras `AGRUPAR_MS`, 8 s, que deja editar antes de que salga y se reinicia con cada cambio); los motores sin ese canal (locales) lo entregan al
+  terminar el turno. Ya no hay "Mandar ya" aparte: Ctrl+Enter es un Enter más. El mensaje no está en el chat hasta que entra: vive en la solapa de arriba de la caja, con Editar, Borrar y «Enviar ahora» (corta el paso, siempre preguntando).
+  Nunca se pierde: en disco está todo lo que no entró, con su error e imágenes (`camino`, cada imagen en su archivo). Lo ya pasado al stdin no se puede retirar: queda en la solapa como «En camino». Detalle en `motor/docs/traspaso.md`.
 
 ## Mapa rápido
 

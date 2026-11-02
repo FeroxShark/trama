@@ -19,7 +19,7 @@
 // clip; miniaturas con × en la caja (src/hilo/adjuntos.ts) y en el globo.
 import { es } from "../atajos";
 import { Fragment, memo, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ClipboardEvent, type DragEvent, type KeyboardEvent, type ReactNode } from "react";
-import { ArrowUp, Check, Clock, Cpu, FastForward, Folder, Paperclip, Pause, X } from "lucide-react";
+import { ArrowUp, Check, Clock, Cpu, FastForward, Folder, Paperclip, Pause } from "lucide-react";
 import { motion, useReducedMotion } from "motion/react";
 import { VERSION, type Lider, type Mensaje, type MotivoRetomar, type MotivoTraer, type PuntoControl, type Tokens, type Uso } from "../datos/contrato";
 import { fuente, type EnvioLider } from "../datos/fuente";
@@ -38,7 +38,7 @@ import { effortsLeidos, leerEfforts, recordarEffort } from "./efforts";
 import { effortDe, effortsOpciones, MODELO_DEFAULT, MODELOS, modeloDe, nombreModelo } from "./opciones";
 import { effortsDe, esAgy, esDsh, esOpencode, esLocal, familiaDe, motorNombre, reajustarEffort, sinWorkers } from "./modelos";
 import { ContextoLocal } from "./ContextoLocal";
-import { t as tr, textoMain } from "../i18n";
+import { t as tr } from "../i18n";
 import { useIdioma } from "../i18n/react";
 import { contextoGasto, GastoSubagentesCtx, useGastoSubagentes } from "./gasto-sub";
 import { Selector, type Opcion } from "./Selector";
@@ -64,7 +64,6 @@ import { PuntoTurno } from "./Punto";
 import { puntoDeTurno } from "./punto-logica";
 import { Marca } from "./Marca";
 import { Sistema } from "./Sistema";
-import { lineaAviso } from "./sistema-logica";
 import { EVENTO_CAMBIAR_MODELO, proveedorLibre } from "./agotados";
 import { estadosCupoModelos, estadosCupoProveedores } from "./cupo-modelos.ts";
 import { MotorCapacidades } from "./MotorCapacidades";
@@ -80,6 +79,7 @@ import { ASPECTO, esModo, MODO_DEFAULT, siguienteModo, type Modo } from "./modos
 import { directo, ESTILOS_FABRICA, menuEn, moverSel, parsearComando, reemplazar, type Sugerencia, type Valores } from "./comandos";
 import { esVentana, main, mensaje } from "../puente";
 import { agregarAdjuntos, archivosDe, archivosDeDatos, type Adjunto, ErrorAdjunto, escucharAdjuntos, imagenesDe, leerAdjuntos, pegadoSinTexto, prepararAdjunto, quitarAdjunto, textoConArchivos, vaciarAdjuntos } from "./adjuntos";
+import { Bandeja } from "./Bandeja";
 import { Adjuntos, Miniaturas } from "./Imagenes";
 import { Dictar } from "./Dictar";
 import { Logo } from "./Logos";
@@ -640,6 +640,17 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
     if (pag && sid && !seg.pegado) anotarScroll(clave, z);
     if (pag && pag.desde > 0 && (z.scrollHeight <= z.clientHeight + MARGEN_PAGINA || faltaLlegar(clave))) anterior();
   }, [pag, mensajes.length, vivo.parcial, vivo.pensando, anterior, seg]);
+
+  // La solapa de la cola (o la caja) crece, se pliega o se va: la zona cambia de alto. Pegado al fondo, sigue pegado.
+  useEffect(() => {
+    const z = zona.current;
+    if (!z || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(() => {
+      if (seg.pegado && z.clientHeight) bajar(z, seg);
+    });
+    ro.observe(z);
+    return () => ro.disconnect();
+  }, [seg]);
 
   // --- La caja ---
 
@@ -1225,30 +1236,6 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
           ) : null}
           <Avisos avisos={errorEnTarjeta ? avisos.filter((a) => !cuentaFallo(a)) : avisos} {...propsAvisos} />
           {pasando ? <Pasando /> : app && sid ? <HaceChat sid={sid} piensa={piensa} modelo={nombreModelo(modeloDe(l?.modelo) ?? modelo)} effort={effortsDe(l?.modelo ?? modelo).length ? (l?.effort ?? effort) : null} error={errorEnTarjeta ? <Avisos avisos={avisos.filter(cuentaFallo)} {...propsAvisos} /> : null} /> : compacta !== null ? <Compactando desde={compacta} /> : null}
-          {l && encolados.length ? (
-            <div className="directo-espera" role="status" data-cola-resumen>
-              <Clock size={12} strokeWidth={2} aria-hidden="true" />
-              {encolados.length === 1 ? tr("lider.cola1") : tr("lider.colaN", { n: encolados.length })}
-            </div>
-          ) : null}
-          {l
-            ? encolados.map((x, k) => (
-                <div key={x.id} className={x.aviso ? "sis-encolado" : "yo encolado"} data-error={k === 0 && errorCola ? "" : undefined}>
-                  <div className="encolado-t">
-                    <span>{k === 0 && errorCola ? textoMain(errorCola) : x.aviso ? tr("lider.enCola") : null}</span>
-                    {k === 0 && errorCola ? (
-                      <button type="button" className="encolado-re" data-reintentar-cola onClick={() => cola.ya(l.id, false)}>
-                        {tr("lider.colaReintentar")}
-                      </button>
-                    ) : null}
-                    <button type="button" className="encolado-x" aria-label={tr("lider.quitarCola")} data-tip={tr("lider.quitarCola")} onClick={() => cola.quitar(l.id, x.id)}>
-                      <X size={12} strokeWidth={2.2} />
-                    </button>
-                  </div>
-                  {x.aviso ? <Sistema s={lineaAviso(x.texto)} alAbrirHilo={alAbrirHilo} /> : <Yo texto={x.texto} imagenes={x.imagenes} />}
-                </div>
-              ))
-            : null}
           {error ? (
             <div className="lista-aviso" data-error="" role="alert">
               {error}
@@ -1267,44 +1254,6 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
       >
         {app && sid ? vivo.pide.filter((p) => !p.preguntas?.length).map((p) => <PedidoPermiso key={p.id} sid={sid} p={p} />) : null}
         {app && sid && tandas[0] ? <PedidoPreguntas key={tandas[0].id} sid={sid} p={tandas[0]} preguntas={tandas[0].preguntas} n={1} total={tandas.length} /> : null}
-        {puede && menu.length ? (
-          <div className="menu-cmd" ref={menuCmd} role="listbox" aria-label={tr("comando.menu")}>
-            {menu.map((s, k) => (
-              <button
-                key={s.valor ?? s.nombre}
-                type="button"
-                role="option"
-                aria-selected={k === sel}
-                aria-disabled={s.ajeno ? true : undefined}
-                aria-current={s.actual || undefined}
-                className="cmd"
-                onMouseDown={(e) => e.preventDefault()}
-                onMouseEnter={() => setSel(k)}
-                onClick={() => elegirComando(s, true)}
-              >
-                <span className="cmd-m" aria-hidden="true">
-                  {s.ajeno ? <Logo empresa={s.ajeno} /> : null}
-                </span>
-                {s.valor !== undefined ? (
-                  <span className="cmd-n">
-                    <i>/{s.nombre} </i>
-                    {s.valor}
-                    {s.actual ? <Check className="cmd-ya" size={12} strokeWidth={2.4} aria-label={tr("comando.actual")} /> : null}
-                  </span>
-                ) : (
-                  <span className="cmd-n">
-                    /{s.nombre}
-                    {s.args ? <i> {s.args}</i> : null}
-                  </span>
-                )}
-                <span className="cmd-d">
-                  {s.ajeno ? tr("comando.cambiaModelo", { empresa: s.ajeno === "google" ? "Google" : "Anthropic" }) : s.clave ? tr(s.clave) : (s.descripcion ?? "")}
-                </span>
-                {s.ajeno ? <span className="cmd-s">{tr(s.ajeno === "google" ? "comando.soloGoogle" : "comando.soloAnthropic")}</span> : null}
-              </button>
-            ))}
-          </div>
-        ) : null}
         {ajeno ? (
           <div className="caja-ajeno" data-espera={enEspera ? "" : undefined}>
             <span>{tr(enEspera ? "lider.ajenoEspera" : ocupado ? "lider.ajenoOcupado" : "lider.ajenoNota")}</span>
@@ -1320,8 +1269,47 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
             ) : null}
           </div>
         ) : null}
+        {l ? <Bandeja key={l.id} sid={l.id} ajeno={ajeno} directo={puedeDirecto} ocupado={ocupado} ind={vivo.ind} parando={vivo.parando} alParar={app ? parar : null} alAbrirHilo={alAbrirHilo} alError={setError} /> : null}
         {puede ? (
           <div className="caja" data-arrastra={arrastra ? "" : undefined}>
+            {menu.length ? (
+              <div className="menu-cmd" ref={menuCmd} role="listbox" aria-label={tr("comando.menu")}>
+                {menu.map((s, k) => (
+                  <button
+                    key={s.valor ?? s.nombre}
+                    type="button"
+                    role="option"
+                    aria-selected={k === sel}
+                    aria-disabled={s.ajeno ? true : undefined}
+                    aria-current={s.actual || undefined}
+                    className="cmd"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onMouseEnter={() => setSel(k)}
+                    onClick={() => elegirComando(s, true)}
+                  >
+                    <span className="cmd-m" aria-hidden="true">
+                      {s.ajeno ? <Logo empresa={s.ajeno} /> : null}
+                    </span>
+                    {s.valor !== undefined ? (
+                      <span className="cmd-n">
+                        <i>/{s.nombre} </i>
+                        {s.valor}
+                        {s.actual ? <Check className="cmd-ya" size={12} strokeWidth={2.4} aria-label={tr("comando.actual")} /> : null}
+                      </span>
+                    ) : (
+                      <span className="cmd-n">
+                        /{s.nombre}
+                        {s.args ? <i> {s.args}</i> : null}
+                      </span>
+                    )}
+                    <span className="cmd-d">
+                      {s.ajeno ? tr("comando.cambiaModelo", { empresa: s.ajeno === "google" ? "Google" : "Anthropic" }) : s.clave ? tr(s.clave) : (s.descripcion ?? "")}
+                    </span>
+                    {s.ajeno ? <span className="cmd-s">{tr(s.ajeno === "google" ? "comando.soloGoogle" : "comando.soloAnthropic")}</span> : null}
+                  </button>
+                ))}
+              </div>
+            ) : null}
             {adjuntos.length ? <Adjuntos lista={adjuntos} alQuitar={(k) => quitarAdjunto(clave, k)} /> : null}
             <label className="oculto" htmlFor={id}>
               {tr("lider.label")}

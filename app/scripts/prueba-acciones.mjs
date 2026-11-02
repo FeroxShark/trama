@@ -812,12 +812,12 @@ try {
   ok(await mandar("segundo en cola"), "Mandar mientras responde");
   await escribir(".caja-zona textarea", "tercero en cola");
   await tecla("Enter");
-  const enCola = () => [...document.querySelectorAll(".conv .encolado")].map((e) => e.textContent);
+  const enCola = () => [...document.querySelectorAll("[data-bandeja] [data-fila-cola]")].map((e) => e.textContent);
   const c1 = await en(enCola);
   ok(c1.length === 3 && ["primero", "segundo", "tercero"].every((t, i) => c1[i].includes(`${t} en cola`)), `los tres quedan en cola, en orden: ${JSON.stringify(c1)}`);
   ok(await en(() => document.querySelector(".caja-zona textarea").value === ""), "y la caja queda vacía");
   const sacar = () => {
-    const b = [...document.querySelectorAll(".conv .encolado")].find((e) => e.textContent.includes("segundo"))?.querySelector("button");
+    const b = [...document.querySelectorAll("[data-bandeja] [data-fila-cola]")].find((e) => e.textContent.includes("segundo"))?.querySelector("[data-borrar-cola]");
     b?.click();
     return !!b;
   };
@@ -827,12 +827,12 @@ try {
   // Lo que quedó en la cola sale JUNTO, en un solo mensaje (juntar, electron/cola.ts), no uno por turno.
   const ecoJunto = () => [...document.querySelectorAll(".conv .el")].some((e) => /Mensaje 1 de 2:\s*primero en cola[\s\S]*Mensaje 2 de 2:\s*tercero en cola/.test(e.textContent));
   ok(await hasta(ecoJunto, "eco junto"), "al terminar sale lo de la cola junto, en un solo mensaje");
-  const yoN = (t) => [...document.querySelectorAll(".conv .yo:not(.encolado)")].filter((e) => e.textContent.includes(t)).length;
+  const yoN = (t) => [...document.querySelectorAll(".conv .yo")].filter((e) => e.textContent.includes(t)).length;
   // Antes de SOLTAR_MS (el falso no escribe transcript: después la tanda se suelta y no queda nada).
   const yos = await en(() => [...document.querySelectorAll(".conv .yo")].map((e) => e.textContent).slice(-6));
   ok((await en(yoN, "primero en cola")) === 1 && (await en(yoN, "tercero en cola")) === 1, `cada mensaje de la cola se ve una vez: ${JSON.stringify(yos)}`);
   ok(await libre(), "libre después de la cola");
-  ok(await hasta(() => !document.querySelector(".conv .encolado"), "cola vacía"), "la cola queda vacía");
+  ok(await hasta(() => !document.querySelector("[data-bandeja]"), "cola vacía"), "la cola queda vacía");
   ok(!(await en(eco, "segundo en cola")), "lo que se sacó no sale");
   ok(arranques().length === 2, "todo por el mismo proceso");
 

@@ -513,13 +513,13 @@ try {
       await a.tocar(".caja textarea");
       await a.cdp("Input.insertText", { text: OTRO });
       ok(await a.tocar(".caja .prim"), "toque en mandar mientras responde");
-      ok(await a.hasta((t) => document.querySelector(".conv .yo.encolado")?.textContent.includes(t), "en cola", OTRO), "queda en cola, debajo de la conversación");
+      ok(await a.hasta((t) => document.querySelector("[data-fila-cola]")?.textContent.includes(t), "en cola", OTRO), "queda en cola, debajo de la conversación");
       const cc = await a.en(chicos, DEDO);
       ok(cc.length === 0, `y sacarlo de la cola mide para el dedo${cc.length ? `: ${cc.join(" | ")}` : ""}`);
       await a.foto("400-respondiendo");
       ok(await a.hasta((t) => document.querySelector(".conv")?.textContent.includes(`eco: ${t}`), "eco", TEXTO), "y el líder contesta");
       // Terminó el turno: lo de la cola sale solo.
-      ok(await a.hasta((t) => !document.querySelector(".conv .yo.encolado") && [...document.querySelectorAll(".conv .yo")].some((e) => e.textContent.includes(t)), "sale de la cola", OTRO), "al terminar el turno, lo de la cola sale solo");
+      ok(await a.hasta((t) => !document.querySelector("[data-fila-cola]") && [...document.querySelectorAll(".conv .yo")].some((e) => e.textContent.includes(t)), "sale de la cola", OTRO), "al terminar el turno, lo de la cola sale solo");
       await a.pantalla(360, ALTO_TECLADO);
       f = await a.en(filaCaja);
       ok(f.ok && f.que.includes("btn2"), `360: respondiendo (con Parar), una sola fila y el enviar a la derecha (${f.que})`);

@@ -228,7 +228,7 @@ const hastaRecibidos = (sid, n) => hastaDisco(() => recibidos(sid).length >= n, 
 const propios = () =>
   en(() => {
     const z = [...document.querySelectorAll(".conv-zona")].find((z) => z.clientHeight > 0);
-    return z ? z.querySelectorAll(".conv .yo:not(.encolado)").length : 0;
+    return z ? z.querySelectorAll(".conv .yo").length : 0;
   });
 const liderAbierto = () => en(() => document.querySelector(".lider[data-activa]")?.dataset.lider ?? null);
 /** El mensaje que tiene que haber recibido un líder por esas tareas (lo arma `promptIniciar` con lo que dice el CLI). */
@@ -328,7 +328,7 @@ try {
   await enviar();
   ok(await hastaDisco(() => item(B).columna === "en-curso", "mover B"), "la tarea pasó a en-curso");
   ok(await hasta((sid) => !document.querySelector(".tb") && document.querySelector(".lider[data-activa]")?.dataset.lider === sid, "el mismo líder", L1), "y se abre el líder que ya estaba");
-  ok(await hasta(() => [...document.querySelectorAll(".conv-zona")].some((z) => z.clientHeight > 0 && z.querySelectorAll(".conv .yo:not(.encolado)").length === 2), "el segundo mensaje"), "que recibe un segundo mensaje");
+  ok(await hasta(() => [...document.querySelectorAll(".conv-zona")].some((z) => z.clientHeight > 0 && z.querySelectorAll(".conv .yo").length === 2), "el segundo mensaje"), "que recibe un segundo mensaje");
   await hastaRecibidos(L1, 2);
   d = recibidos(L1);
   ok(d.length === 2 && d[0] === mensajeA && d[1] === mensajeB, "con la tarea nueva, después de la primera");

@@ -12,7 +12,7 @@
 #           estadisticas-30 | estadisticas-medido | estadisticas-vacia | claude | claude-abierto | ocultos |
 #           lider-sistema | lider-cambio-motor[menu|confirmar] | cuenta-lider | sistema | herramientas | lider-compactando |
 #           trama|trama-abierto|trama-sucio|trama-ocupado|trama-instalada (el aviso de una Trama nueva, con una instalada vieja forzada) |
-#           lider-relevo | lider-imagenes | lider-editar | lider-puntos[HILOS_VARIANTE=abierto|confirmar] | lider-tabla | lider-formato | lider-listas | lider-pensando | lider-intermedios | lider-gemini | herramientas-resultados | lider-hover | te-espera | atencion[-300] |
+#           lider-relevo | lider-imagenes | lider-editar | lider-puntos[HILOS_VARIANTE=abierto|confirmar] | lider-tabla | lider-formato | lider-listas | lider-pensando | lider-intermedios | lider-cola[HILOS_VARIANTE=uno|largo|largo-tres|fallo|camino|aviso|visor|muchos] | lider-gemini | herramientas-resultados | lider-hover | te-espera | atencion[-300] |
 #           tablero | tablero-detalle | tablero-proyectos | tablero-iniciar | tablero-pospuestos | tablero-maquinas | tablero-vacio | maquinas-selector[-caida] | tablero-nuevo[-proyecto|-chat|-avisar] | lider-muerto | lider-app-muerto |
 #           compactando | contexto-panel[HILOS_VARIANTE=refrescado] | contexto-panel-cat | contexto-panel-ayuda | contexto-panel-skills[HILOS_VARIANTE=buscar] | contexto-panel-previa[HILOS_VARIANTE=sin-base] | contexto-panel-sub | orden-arrastrando | orden-menu | orden-prioridad | activas[plegada|fijo] | mover-menu | pc-apagada | pc-prendiendo | pc-prendida   (ver `Captura` en src/modo.ts)
 #   DIR=prueba       subcarpeta de bench-resultados/captura/ donde va el PNG (default: la carpeta misma);

@@ -123,6 +123,8 @@ const CAPTURAS = [
   "lider-pensando",
   // Un turno del líder con textos intermedios entre las herramientas: cada texto queda en la conversación, en orden (el modo celular se mira con TAM chico).
   "lider-intermedios",
+  // Mensajes en cola: la solapa arriba de la caja. `HILOS_VARIANTE=`: tres (default) | uno | largo (un mensaje, comando de 3 m) | largo-tres | fallo | camino | aviso | visor (la imagen ampliada) | muchos.
+  "lider-cola",
   // Un líder de Gemini a mitad de un turno: su último paso de razonamiento en la tarjeta y cada comando con su estado.
   "lider-gemini",
   // Te espera: un líder de terminal que terminó y el de la app (abierto) que pide un permiso; fila y cabecera con la marca en ámbar.

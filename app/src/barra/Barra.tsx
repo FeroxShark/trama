@@ -24,7 +24,7 @@ import { compactarFijo, escenaFija, fuente } from "../datos/fuente";
 import { ARRANCANDO, EN_COLA, FRENADO, imagenFija } from "../datos/fixtures";
 import { agregarAdjuntos } from "../hilo/adjuntos";
 import { fuentePaneles, type AccionRama } from "../datos/paneles";
-import { t as tr } from "../i18n";
+import { idioma, t as tr } from "../i18n";
 import { useIdioma } from "../i18n/react";
 import { leerBorrador, llenarBorrador, soltarBorrador } from "../hilo/borradores";
 import { BORRADOR_LIDER } from "../hilo/Lider";
@@ -1198,7 +1198,7 @@ export function Barra() {
     const proyectos = grupos.map((g) => g.proyecto);
     // La caja (modelo, esfuerzo, aviso de cambiar de modelo), el indicador y los avisos: en el líder de la app.
     const app = lideres.find((l) => l.origen === "app" && l.vivo)?.id ?? lideres[0]?.id ?? "";
-    const enApp = ["lider", "modelo", "esfuerzo", "local-esfuerzo", "local-ctx", "aviso", "lider-trabajando", "lider-avisos", "lider-plan", "lider-permiso", "lider-preguntas", "lider-preguntas-dos", "lider-comandos", "lider-mcp", "lider-dictado", "programar", "lider-valores", "lider-sistema", "lider-cambio-motor", "cuenta-lider", "lider-compactando", "lider-relevo", "lider-imagenes", "lider-editar", "lider-puntos", "lider-tabla", "lider-formato", "lider-listas", "lider-hover", "lider-pensando", "lider-intermedios", "lider-gemini", "te-espera", "tablero-nuevo-chat", "foco-caja"].includes(c) || c.startsWith("contexto");
+    const enApp = ["lider", "modelo", "esfuerzo", "local-esfuerzo", "local-ctx", "aviso", "lider-trabajando", "lider-avisos", "lider-plan", "lider-permiso", "lider-preguntas", "lider-preguntas-dos", "lider-comandos", "lider-mcp", "lider-dictado", "programar", "lider-valores", "lider-sistema", "lider-cambio-motor", "cuenta-lider", "lider-compactando", "lider-relevo", "lider-imagenes", "lider-editar", "lider-puntos", "lider-tabla", "lider-formato", "lider-listas", "lider-hover", "lider-pensando", "lider-intermedios", "lider-cola", "lider-gemini", "te-espera", "tablero-nuevo-chat", "foco-caja"].includes(c) || c.startsWith("contexto");
     // Las guías del chat y de su caja piden el líder de la app abierto.
     const guiaLider = c === "guia-lider" || c === "guia-caja" || c === "guia-modelo";
     if (enApp || guiaLider) setActiva(LIDER + app);
@@ -1210,6 +1210,10 @@ export function Barra() {
     }
     if (c === "lider-trabajando" || c === "lider-hover") escenaFija(app, "trabajando");
     if (c === "lider-avisos") escenaFija(app, "avisos");
+    if (c === "lider-cola") {
+      enviado(app, idioma() === "en" ? "Run the cauce suite and tell me what fails before you touch anything." : "Corré la suite de cauce y decime qué falla antes de tocar nada.", 6);
+      escenaFija(app, "cola");
+    }
     if (c === "lider-pensando" && MODO.variante === "vivo") {
       // El usuario acaba de pedir algo y el líder razona: el pedido, "Pensando…" y el texto que va llegando (la charla de siempre tiene 6 mensajes).
       enviado(app, "Mirá por qué falla el índice de cauce y arreglalo.", 6);

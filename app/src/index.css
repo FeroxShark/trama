@@ -1870,30 +1870,6 @@ html[data-titulo-nativo] #root::after {
   min-width: 0;
   flex: 1;
 }
-.encolado-x {
-  display: grid;
-  flex: none;
-  place-items: center;
-  width: 1.125rem;
-  height: 1.125rem;
-  border-radius: var(--radio-2);
-  color: var(--texto-6);
-}
-/* No pudo salir: por qué, y Reintentar (no se reintenta solo). */
-.yo.encolado[data-error] .encolado-t > span {
-  color: var(--rojo);
-}
-.encolado-re {
-  flex: none;
-  height: 1.125rem;
-  padding: 0 var(--esp-1-5);
-  border-radius: var(--radio-2);
-  color: var(--texto-3);
-}
-:is(.encolado-x, .encolado-re):hover {
-  background: var(--sup-4);
-  color: var(--texto-2);
-}
 .trabajo summary {
   display: inline-flex;
   align-items: center;
@@ -3022,18 +2998,6 @@ html[data-titulo-nativo] #root::after {
   flex: none;
 }
 /* El aviso de que lo escrito a mitad de un turno espera la próxima pausa (callado, como .caja-local). */
-.directo-espera {
-  display: flex;
-  align-items: center;
-  gap: var(--esp-1-5);
-  padding: var(--esp-1) var(--esp-1);
-  color: var(--texto-4);
-  font-size: var(--letra-4);
-  line-height: 1.5;
-}
-.directo-espera svg {
-  flex: none;
-}
 /* "Te necesita": el enviar dice Responder. */
 .prim[data-texto] {
   display: inline-flex;
@@ -3222,11 +3186,14 @@ html[data-titulo-nativo] #root::after {
 .caja-zona {
   position: relative;
 }
+.caja:has(> .menu-cmd) {
+  position: relative;
+}
 .menu-cmd {
   position: absolute;
-  right: 1.5rem;
+  right: 0;
   bottom: calc(100% - 0.75rem);
-  left: 1.5rem;
+  left: 0;
   z-index: 20;
   display: flex;
   max-height: min(20rem, 50vh);
@@ -4515,19 +4482,6 @@ summary.sis-div-t:hover,
 .sis-aviso-pliegue > .sis-aviso-l {
   margin-top: var(--esp-1);
 }
-/* Un aviso todavía en la cola: la misma fila con borde punteado, como un mensaje encolado, y su quitar. */
-.sis-encolado {
-  align-self: center;
-  max-width: 100%;
-  color: var(--texto-4);
-}
-.sis-encolado .sis-aviso {
-  border-style: dashed;
-  background: transparent;
-}
-.sis-encolado[data-error] .encolado-t > span {
-  color: var(--rojo);
-}
 /* Compactando: tres hojas que se pliegan hacia la del medio (las mueve latido.ts). */
 .pliegue-f {
   display: flex;
@@ -5483,10 +5437,6 @@ summary.sis-div-t:hover,
   .caja-zona {
     padding: 0 0.625rem calc(0.625rem + env(safe-area-inset-bottom, 0rem));
   }
-  .menu-cmd {
-    right: 0.625rem;
-    left: 0.625rem;
-  }
   .cmd {
     grid-template-columns: 1.0625rem minmax(0, 1fr) auto;
     grid-template-areas: "m n s" ". d d";
@@ -5890,23 +5840,12 @@ summary.sis-div-t:hover,
   .avs-d {
     width: 2.75rem;
   }
-  /* Los chiquitos (quitar un adjunto, sacar de la cola) no crecen: crece dónde se los toca. */
-  .mini-x::after,
-  .encolado-x::after {
+  /* Los chiquitos (quitar un adjunto) no crecen: crece dónde se los toca. */
+  .mini-x::after {
     content: "";
     position: absolute;
     inset: -0.8125rem;
   }
-  .encolado-re::after {
-    content: "";
-    position: absolute;
-    inset: -0.8125rem 0;
-  }
-  .encolado-re {
-    margin-right: var(--esp-3-5);
-  }
-  .encolado-x,
-  .encolado-re,
   .trabajo summary,
   .meta .ctx {
     position: relative;
