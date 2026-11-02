@@ -6,6 +6,7 @@ import { spawnSync } from "node:child_process";
 import { mkdirSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import type { Caso, Contexto, Paso } from "./arnes.ts";
+import { AGY, AGY_ERROR, AGY_VIVO, CODEX, CODEX_VIVO, OPENCODE, OPENCODE_ERROR, hiloDe } from "../streams-hilo.ts";
 
 const SLUG = "proy"; // basename de c.proyecto
 const FECHA = "2026-10-01T12:00:00+00:00";
@@ -211,6 +212,20 @@ function conTranscript(c: Contexto) {
     asistente("m6", [{ type: "text", text: "última" }, { type: "tool_use", id: "t2", name: "Read", input: { file: "a.ts" } }], c.proyecto, "claude-opus-5-5", iso(10_000), { output_tokens: 7 }),
   ]);
 }
+/** Un worker que no es de Claude: sólo su `<id>.stream.jsonl` (y el `.hilo` con el pedido), sin transcript. */
+const conStream = (id: string, stream: string, modelo: string) => (c: Contexto) => {
+  fijo(c);
+  hilo(c, id, hiloDe("hacé tal cosa ñandú", modelo));
+  escribir(c, `${SLUG}/${id}.stream.jsonl`, stream);
+};
+const ID_AGY = idDe(0, "000121", 4321);
+const ID_AGY_VIVO = idDe(0, "000122", 4322);
+const ID_CODEX = idDe(0, "000123", 4323);
+const ID_CODEX_VIVO = idDe(0, "000124", 4324);
+const ID_OC = idDe(0, "000125", 4325);
+const ID_OC_ERROR = idDe(0, "000126", 4326);
+const ID_AGY_ERROR = idDe(0, "000127", 4327);
+const ID_STREAM_VACIO = idDe(0, "000128", 4328);
 const hilo1 = (nombre: string, args: string[], rc = 0, extra: Partial<Caso> = {}): Caso => ({ herramienta: "pa-cli", nombre: `globales: hilo ${nombre}`, args, rc, ...extra });
 
 // ---------------------------------------------------------------- revertir
@@ -356,6 +371,17 @@ export const casosGlobales: Caso[] = [
       salida(c, ID_TRANS, jsonOk(RESULT(), { session_id: SID_TRANS }));
     },
   }),
+
+  // --- workers que no son de Claude: el stream hace de transcript ---
+  hilo1("agy: stream", ["--hilo", ID_AGY, "--json"], 0, { preparar: conStream(ID_AGY, AGY, "agy:gemini-3.8-flash-high") }),
+  hilo1("agy: los 2 últimos", ["--hilo", ID_AGY, "--json", "-n", "2"], 0, { preparar: conStream(ID_AGY, AGY, "agy:gemini-3.8-flash-high") }),
+  hilo1("agy: corriendo (herramienta abierta y línea cortada)", ["--hilo", ID_AGY_VIVO, "--json"], 0, { preparar: conStream(ID_AGY_VIVO, AGY_VIVO, "gemini-3.8-flash-high") }),
+  hilo1("agy: cortado por la cuenta", ["--hilo", ID_AGY_ERROR, "--json"], 0, { preparar: conStream(ID_AGY_ERROR, AGY_ERROR, "gemini-4-argon-high") }),
+  hilo1("codex: stream", ["--hilo", ID_CODEX, "--json"], 0, { preparar: conStream(ID_CODEX, CODEX, "codex:gpt-5.5") }),
+  hilo1("codex: corriendo", ["--hilo", ID_CODEX_VIVO, "--json"], 0, { preparar: conStream(ID_CODEX_VIVO, CODEX_VIVO, "codex:gpt-5.5") }),
+  hilo1("opencode: stream", ["--hilo", ID_OC, "--json"], 0, { preparar: conStream(ID_OC, OPENCODE, "opencode:opencode/x-free") }),
+  hilo1("opencode: cortado por el cupo", ["--hilo", ID_OC_ERROR, "--json"], 0, { preparar: conStream(ID_OC_ERROR, OPENCODE_ERROR, "opencode:opencode/x-free") }),
+  hilo1("stream vacío: sólo el pedido", ["--hilo", ID_STREAM_VACIO, "--json"], 0, { preparar: conStream(ID_STREAM_VACIO, "", "agy:gemini-3.8-flash-high") }),
 
   // --- --archivar ---
   { herramienta: "pa-cli", nombre: "globales: archivar sin id", args: ["--archivar"], rc: 2 },
