@@ -900,7 +900,6 @@ export const en = {
   "sistema.avisoTanda": "Your {n} workers finished",
   "sistema.avisoFallas": "{k} failed",
   "sistema.avisoTermino": "finished",
-  "sistema.avisoDecision": "finished, asking for a decision",
   "sistema.avisoSinResumen": "finished without a summary",
   "sistema.avisoFallo": "failed",
   "sistema.avisoAbrir": "Open worker {id}'s thread",
