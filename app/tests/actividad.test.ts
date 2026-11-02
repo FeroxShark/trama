@@ -3,7 +3,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { detalleHace, parsearLinea } from "../electron/lider-arma.ts";
-import { avanzar, clasificar, clasificarPedido, delegaPa, dominio, estadoDe, iconoDe, limpiarComando, muyLargo, PLIEGUE, rutaLegible, sinPasos, textoPaso, unaLinea, MAX_PASOS, PASOS, type Actividad } from "../src/hilo/actividad-logica.ts";
+import { avanzar, clasificar, clasificarPedido, cuentaMas, cuentaPasos, cuentaTokens, delegaPa, dominio, estadoDe, iconoDe, limpiarComando, muyLargo, PLIEGUE, rutaLegible, sinPasos, textoPaso, unaLinea, MAX_PASOS, PASOS, type Actividad } from "../src/hilo/actividad-logica.ts";
 import { cambiarIdioma } from "../src/i18n/index.ts";
 import { en } from "../src/i18n/en.ts";
 import { es } from "../src/i18n/es.ts";
@@ -160,5 +160,32 @@ test("toda clave que usa la clasificación existe en los dos idiomas", () => {
   for (const k of claves) {
     assert.ok(k in en, `en: ${k}`);
     assert.ok(k in es, `es: ${k}`);
+  }
+});
+
+test("los contadores del pie de la tarjeta: 1 va en singular, el resto en plural (no \"1 steps\")", () => {
+  cambiarIdioma("en");
+  try {
+    assert.equal(cuentaPasos(1), "1 step");
+    assert.equal(cuentaPasos(2), "2 steps");
+    assert.equal(cuentaMas(1), "+1 step");
+    assert.equal(cuentaMas(3), "+3 steps");
+    assert.equal(cuentaTokens(1, "1"), "1 token");
+    assert.equal(cuentaTokens(12, "12"), "12 tokens");
+    assert.equal(cuentaTokens(1200, "1,2k"), "1,2k tokens");
+  } finally {
+    cambiarIdioma("en");
+  }
+  cambiarIdioma("es");
+  try {
+    assert.equal(cuentaPasos(1), "1 paso");
+    assert.equal(cuentaPasos(2), "2 pasos");
+    assert.equal(cuentaMas(1), "+1 paso");
+    assert.equal(cuentaMas(3), "+3 pasos");
+    assert.equal(cuentaTokens(1, "1"), "1 token");
+    assert.equal(cuentaTokens(12, "12"), "12 tokens");
+    assert.equal(cuentaTokens(1200, "1,2k"), "1,2k tokens");
+  } finally {
+    cambiarIdioma("en");
   }
 });

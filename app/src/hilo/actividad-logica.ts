@@ -5,6 +5,12 @@
 import type { HaceLider } from "../datos/contrato";
 import { t } from "../i18n/index.ts";
 
+// Los contadores del pie de la tarjeta, con el plural bien: una clave para el 1 y otra para el resto (como directo.espera / directo.esperaN).
+export const cuentaPasos = (n: number) => (n === 1 ? t("hz.paso1") : t("hz.pasos", { n }));
+export const cuentaMas = (n: number) => (n === 1 ? t("hz.mas1") : t("hz.mas", { n }));
+/** `escrito`: el número ya como se muestra ("1,2k"); sólo exactamente 1 usa el singular. */
+export const cuentaTokens = (n: number, escrito: string) => (n === 1 ? t("hace.token1") : t("hace.tokens", { n: escrito }));
+
 export type Tipo = "pensando" | "web" | "codigo" | "editando" | "comando" | "delegando" | "permiso" | "escribiendo";
 
 export type Actividad = {

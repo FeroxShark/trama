@@ -18,7 +18,7 @@ import { ofreceSeguir } from "./seguir-con";
 import { Tierno, useTiernos } from "./Tierno";
 import { Compactando } from "./Posta";
 import { Actividad } from "./Actividad";
-import { clasificar, clasificarPedido } from "./actividad-logica";
+import { clasificar, clasificarPedido, cuentaTokens } from "./actividad-logica";
 import { enCurso, indicador, lineasDelTurno, pensandoAhora, razona, suscribir, type Indicador } from "./vivo";
 
 const LEER = new Set(["Read", "WebFetch", "NotebookRead"]);
@@ -194,7 +194,7 @@ export function HaceChat({ sid, modelo, effort, alParar, parando, piensa = false
   const pensando = usePensando(sid);
   // Captura `lider-trabajando` con `HILOS_VARIANTE=listo`: la tarjeta de un turno que terminó (en vivo se va con el turno).
   if (MODO.captura === "lider-trabajando" && MODO.variante === "listo")
-    return <Actividad act={clasificar({ que: "herramienta", nombre: "Bash", detalle: "npm test -- --reporter dot" })} pasos={ind.pasos} pasosN={ind.pasosN} desde={ind.desde} tokens={ind.salida > 0 ? t("hace.tokens", { n: miles(ind.salida) }) : null} modelo={modelo} effort={effort} fin="listo" />;
+    return <Actividad act={clasificar({ que: "herramienta", nombre: "Bash", detalle: "npm test -- --reporter dot" })} pasos={ind.pasos} pasosN={ind.pasosN} desde={ind.desde} tokens={ind.salida > 0 ? cuentaTokens(ind.salida, miles(ind.salida)) : null} modelo={modelo} effort={effort} fin="listo" />;
   if (!ind.hace) return null;
   // Compactar (B19): su figurita, no la tarjeta.
   if (ind.hace.que === "compactando") return <Compactando />;
@@ -207,7 +207,7 @@ export function HaceChat({ sid, modelo, effort, alParar, parando, piensa = false
       pasos={ind.pasos}
       pasosN={ind.pasosN}
       desde={ind.desde}
-      tokens={ind.salida > 0 ? t("hace.tokens", { n: miles(ind.salida) }) : null}
+      tokens={ind.salida > 0 ? cuentaTokens(ind.salida, miles(ind.salida)) : null}
       tierno={tierno && generico && !veRazon ? sid : undefined}
       razon={veRazon ? { lineas, pensando } : undefined}
       modelo={modelo}

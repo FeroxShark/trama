@@ -10,7 +10,7 @@ import { Chip } from "../ui/componentes";
 import { t, type Clave } from "../i18n";
 import { pintorDura } from "../tiempo";
 import { alScroll, bajar, seguidor, seguir } from "./seguir";
-import { estadoDe, iconoDe, muyLargo, PASOS, primeraLineaPensada, textoPaso, ultimaFrasePensada, type Actividad as Act, type Icono, type Paso } from "./actividad-logica";
+import { cuentaMas, cuentaPasos, estadoDe, iconoDe, muyLargo, PASOS, primeraLineaPensada, textoPaso, ultimaFrasePensada, type Actividad as Act, type Icono, type Paso } from "./actividad-logica";
 import type { LineaTiempo } from "./linea-tiempo";
 import { Escena } from "./Escenas";
 import { Tierno } from "./Tierno";
@@ -306,11 +306,11 @@ export function Actividad({ act, pasos, pasosN, desde, tokens, tierno, razon, mo
                   </span>
                 ) : null}
                 {tokens ? <span className="tv-x">{tokens}</span> : null}
-                {pasosN ? <span className="tv-x">{t("hz.pasos", { n: pasosN })}</span> : null}
+                {pasosN ? <span className="tv-x">{cuentaPasos(pasosN)}</span> : null}
               </span>
               {ocultos > 0 ? (
                 <button type="button" className="tv-mas" aria-expanded={todos} onClick={() => setTodos((x) => !x)}>
-                  {todos ? t("hz.menos") : t("hz.mas", { n: ocultos })}
+                  {todos ? t("hz.menos") : cuentaMas(ocultos)}
                   <ChevronDown className="tv-fl" size={12} strokeWidth={2} aria-hidden="true" />
                 </button>
               ) : null}
