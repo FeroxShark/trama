@@ -4494,7 +4494,9 @@ summary.sis-div-t:hover,
   overflow-wrap: anywhere;
   animation: entra 0.16s ease-out;
 }
-/* Un aviso de Trama (Sistema.tsx, `Aviso`): fila centrada con la campana; un worker por línea, con su estado (ícono y palabra) y su id, que abre su hilo. */
+/* Un aviso de Trama (Sistema.tsx, `Aviso`): tarjeta calma con la campana. Cada worker es UNA fila, de la misma altura para todas:
+   ícono y palabra de su estado, la tarea y «Abrir» (el id va en su tooltip). Sin fondo ni borde por fila: lo que pide decisión
+   (ámbar) o falló (coral) se distingue sólo por su ícono, su palabra y su color. */
 .sis-aviso {
   align-self: center;
   display: flex;
@@ -4509,18 +4511,17 @@ summary.sis-div-t:hover,
   font-size: var(--letra-4);
   line-height: 1.45;
 }
-.sis-aviso-h,
-.sis-aviso-l li {
+.sis-aviso-h {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
   gap: var(--esp-1-5);
-}
-.sis-aviso-l li {
-  min-height: var(--alto-boton);
-}
-.sis-aviso-h {
   color: var(--txt-3);
+}
+.sis-aviso-h svg,
+.sis-aviso-e svg,
+.sis-aviso-r svg,
+.sis-aviso-flecha {
+  flex: none;
 }
 .sis-aviso-l {
   display: flex;
@@ -4529,15 +4530,24 @@ summary.sis-div-t:hover,
   padding: 0;
   list-style: none;
 }
-.sis-aviso-h svg,
-.sis-aviso-e svg {
-  flex: none;
+.sis-aviso-fila {
+  min-height: var(--alto-boton);
+}
+/* La línea de una fila: una sola, sin partirse; el título se corta con elipsis y lo entero va en su tooltip. */
+.sis-aviso-linea {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: var(--esp-2);
+  min-height: var(--alto-boton);
 }
 .sis-aviso-e {
   display: inline-flex;
+  flex: none;
   align-items: center;
   gap: var(--esp-1);
-  font-weight: 500;
+  font-weight: 600;
+  white-space: nowrap;
 }
 /* Cada fila lleva el tono de su worker (no el de la tarjeta): verde si terminó, ámbar si pide una decisión, rojo si falló. */
 .sis-aviso-e[data-tono="ok"] {
@@ -4550,8 +4560,80 @@ summary.sis-div-t:hover,
   color: var(--critico);
 }
 .sis-aviso-tarea {
+  flex: 1 1 0;
   min-width: 0;
-  overflow-wrap: anywhere;
+  overflow: hidden;
+  color: var(--texto-5);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sis-aviso-fila[data-estado="decision"] .sis-aviso-tarea,
+.sis-aviso-fila[data-estado="falla"] .sis-aviso-tarea {
+  color: var(--texto);
+}
+/* Relanzar (sólo un worker que falló): contorno del tono de su estado, sin relleno. */
+.sis-aviso-r {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--esp-1);
+  min-height: var(--alto-boton);
+  padding: 0 var(--esp-2);
+  border: 1px solid var(--fallo-borde);
+  border-radius: var(--r-cap);
+  background: none;
+  color: var(--fallo-texto);
+  font: inherit;
+  font-size: var(--letra-5);
+  cursor: pointer;
+}
+.sis-aviso-r:hover {
+  color: var(--texto);
+}
+.sis-aviso-r:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+/* «Abrir»: un link de texto subrayado, sin relleno. */
+.sis-aviso-ver {
+  flex: none;
+  min-height: var(--alto-boton);
+  padding: 0 var(--esp-1);
+  border: 0;
+  background: none;
+  color: var(--txt-3);
+  font: inherit;
+  text-decoration: underline;
+  text-decoration-color: var(--enlace-subrayado);
+  cursor: pointer;
+}
+.sis-aviso-ver:hover {
+  color: var(--texto-6);
+}
+.sis-aviso-r:focus-visible,
+.sis-aviso-ver:focus-visible,
+.sis-aviso-pliegue > summary:focus-visible {
+  outline: 2px solid var(--txt-3);
+  outline-offset: 2px;
+}
+/* Las terminadas plegadas (más de cinco filas): un desplegable cerrado. */
+.sis-aviso-pliegue > summary {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-1);
+  min-height: var(--alto-boton);
+  color: var(--txt-3);
+  cursor: pointer;
+  list-style: none;
+}
+.sis-aviso-pliegue > summary::-webkit-details-marker {
+  display: none;
+}
+.sis-aviso-pliegue[open] > summary .sis-aviso-flecha {
+  transform: rotate(90deg);
+}
+.sis-aviso-pliegue > .sis-aviso-l {
+  margin-top: var(--esp-1);
 }
 /* Un aviso todavía en la cola: la misma fila con borde punteado, como un mensaje encolado, y su quitar. */
 .sis-encolado {
@@ -4565,24 +4647,6 @@ summary.sis-div-t:hover,
 }
 .sis-encolado[data-error] .encolado-t > span {
   color: var(--rojo);
-}
-/* El id es el botón que abre el hilo: la zona de click llega a un alto de chip (celular). */
-.sis-aviso-id {
-  display: inline-flex;
-  align-items: center;
-  min-height: var(--alto-boton);
-  padding: 0 var(--esp-1);
-  border: 0;
-  background: none;
-  color: var(--txt-3);
-  font: inherit;
-  text-decoration: underline;
-  text-decoration-color: var(--enlace-subrayado);
-  cursor: pointer;
-  font-variant-numeric: tabular-nums;
-}
-.sis-aviso-id:hover {
-  color: var(--texto-6);
 }
 /* Compactando: tres hojas que se pliegan hacia la del medio (las mueve latido.ts). */
 .pliegue-f {
