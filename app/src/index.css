@@ -4502,6 +4502,7 @@ summary.sis-div-t:hover,
   display: flex;
   flex-direction: column;
   gap: var(--esp-1);
+  min-width: min(100%, 22rem);
   max-width: 100%;
   padding: var(--esp-1-5) var(--esp-2-5);
   border: 1px solid var(--borde-2);
