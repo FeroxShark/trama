@@ -1,0 +1,20 @@
+<!doctype html>
+<!-- Dos propuestas para los mensajes en cola. El encabezado, la tarjeta de trabajo y la caja son el HTML real de la app (recursos/real.js) y la barra es
+     una captura real; lo único nuevo es la bandeja. Parámetros: ?p=a|b&e=uno|tres|colapsada|comando-largo|fallo|confirmar|arrastrando|miniatura&tema=oscuro|claro&idioma=es|en&css=<css compilado de la app>. -->
+<html lang="es" data-tema="oscuro" style="--letra:13;--font-sans:'Inter','Geist',ui-sans-serif,system-ui,sans-serif;--font-mono:'JetBrains Mono','Geist Mono',ui-monospace,monospace">
+<head>
+<meta charset="utf-8">
+<title>Mensajes en cola</title>
+<script src="cola-mensajes-recursos/real.js"></script>
+<script>
+  const Q = new URLSearchParams(location.search);
+  document.documentElement.dataset.tema = Q.get("tema") || "oscuro";
+  document.documentElement.lang = Q.get("idioma") || "es";
+  document.write(`<link rel="stylesheet" href="${Q.get("css") || "../../dist/assets/index.css"}">`);
+</script>
+<link rel="stylesheet" href="cola-mensajes-recursos/bandejas.css">
+</head>
+<body><div id="root"></div>
+<script src="cola-mensajes-recursos/escena.js"></script>
+</body>
+</html>
