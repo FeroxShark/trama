@@ -18,7 +18,7 @@ import { Resalte } from "./Resalte";
 import { t as tr } from "../i18n";
 import { useIdioma } from "../i18n/react";
 import { useCompactando } from "../hilo/compactando";
-import { TiempoFila } from "../hilo/Hace";
+import { FraseFila, TiempoFila } from "../hilo/Hace";
 import { Hojas } from "../hilo/Posta";
 import { Tierno, useTiernos } from "../hilo/Tierno";
 import { motion } from "motion/react";
@@ -121,10 +121,10 @@ export const Fila = memo(function Fila({ ref, h, estado, apagada, cursor, activa
           <span className="t" data-nuevo={nuevo ? "" : undefined}>
             <Resalte texto={titulo} />
           </span>
+          {corre && !at && !duraCompacta && tierno ? <Tierno semilla={h.id} limpia className="tierno-fila" /> : null}
         </span>
         {/* Con qué modelo, dónde corre y lo demás: en el tooltip (`ficha`). */}
         <span className="l2" data-tip={[titulo, estadoTip, ficha(h, MODO.maquina)].filter(Boolean).join("\n")}>
-          {corre && !at && !duraCompacta && tierno ? <Tierno semilla={h.id} limpia className="tierno-fila" /> : null}
           {cache && t && !corre && !at ? <Reloj pintor={cache} className="cache" /> : null}
           {at ? (
             <span className="chip-at" data-at={at} data-tip={at === "fallo" ? textoEstado(h, estado) : tr("fila.chipDecision")}>
@@ -464,6 +464,7 @@ export const FilaLider = memo(function FilaLider({
             </span>
             <IconoMaquina maquina={l.maquina} />
           </span>
+          {espera || duraCompacta ? null : <FraseFila sid={l.id} />}
         </span>
         {cache ? <Reloj pintor={cache} className="cache" /> : null}
         {l.subagentes ? <ChipSubagentes n={l.subagentes} clave={l.id} corto /> : null}

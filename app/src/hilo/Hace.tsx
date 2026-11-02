@@ -218,20 +218,19 @@ export function HaceChat({ sid, modelo, effort, alParar, parando, piensa = false
   );
 }
 
-/**
- * La columna del tiempo de un líder de la app en la barra (una línea): mientras responde, cuánto lleva el turno, con la frase tierna delante si
- * no hay nada concreto que decir y lo que hace en el tooltip; si no, `quieto` (el "hace X" de siempre).
- */
+/** La frase tierna de un líder de la app en la barra, mientras responde y si no hay nada concreto que decir. Va con el nombre: cede antes que él. */
+export function FraseFila({ sid }: { sid: string }) {
+  const ind: Indicador = useIndicador(sid);
+  const tierno = useTiernos();
+  if (!tierno || !ind.hace || !GENERICO.has(ind.hace.que)) return null;
+  return <Tierno semilla={sid} limpia className="tierno-fila" />;
+}
+
+/** La columna del tiempo de un líder de la app en la barra (una línea): mientras responde, cuánto lleva el turno, con lo que hace en el tooltip; si no, `quieto` (el "hace X" de siempre). */
 export function TiempoFila({ sid, quieto }: { sid: string; quieto: ReactNode }) {
   useIdioma();
   const ind: Indicador = useIndicador(sid);
-  const tierno = useTiernos();
   const dura = useMemo(() => (ind.desde !== null ? pintorDura(ind.desde) : null), [ind.desde]);
-  if (!ind.hace || ind.hace.que === "compactando") return <>{quieto}</>;
-  return (
-    <>
-      {tierno && GENERICO.has(ind.hace.que) ? <Tierno semilla={sid} limpia className="tierno-fila" /> : null}
-      {dura ? <Reloj pintor={dura} className="cuando" data-tip={textoHace(ind.hace)} /> : null}
-    </>
-  );
+  if (!ind.hace || ind.hace.que === "compactando" || !dura) return <>{quieto}</>;
+  return <Reloj pintor={dura} className="cuando" data-tip={textoHace(ind.hace)} />;
 }

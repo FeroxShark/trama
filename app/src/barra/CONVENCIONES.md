@@ -67,7 +67,7 @@ Cuelga de su líder por el hilo del proyecto. Se abre tocando cualquier parte de
 | --- | --- | --- | --- |
 | **Punto que late con doble onda**, en el color del proyecto | Está corriendo. Con movimiento reducido, quieto. | El movimiento es «vivo». Lo mueve `latido.ts`, nunca una animación CSS infinita (Chromium compondría en cada vblank). | **recuperada**: el Riel usó un `▸` que parecía una flecha de desplegar. |
 | Tramo del hilo encendido y lanzadera | Corre (decora; dice lo mismo que el punto). | Idea del Riel: el telar. | igual (es del Riel) |
-| Frase tierna (`se esponja`) antes del tiempo | Corre. Se apaga en Ajustes y rota sola. | B17, pedido del dueño; reemplaza a «Trabajando». | recuperada: cede antes que el título y se corta si no entra; sin asteriscos y sin el brillo (el movimiento ya lo hace el punto). |
+| Frase tierna (`se esponja`) antes del tiempo | Corre. Se apaga en Ajustes y rota sola. | B17, pedido del dueño; reemplaza a «Trabajando». | recuperada: va pegada al título y cede antes que él: entra entera o no se ve (con un título largo no se ve); sin asteriscos y sin el brillo (el movimiento ya lo hace el punto). |
 | Anillo punteado que gira + `Trabado` | Sin avance hace rato: puede que haya que mirarlo. | No confundirlo con lo frenado a propósito. | recuperada (el Riel usaba las mismas dos barras que para frenado) |
 | Dos barras + `Frenado` | Lo paró `pa --parar` a propósito. Nunca en rojo: no es un fallo. | | igual |
 | Reloj + `En cola` | Espera puesto o lugar: no trabaja todavía. El motivo, en el tooltip. | | igual |

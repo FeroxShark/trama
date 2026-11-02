@@ -804,8 +804,7 @@
 }
 .lista .fila .l2 {
   display: flex;
-  min-width: 0;
-  flex: 0 100 auto;
+  flex: none;
   align-items: center;
   gap: var(--esp-1-5);
   overflow: visible;
@@ -852,15 +851,23 @@
 .lista .w:has(> .acc):hover .fila .cache {
   display: none;
 }
-/* La frase tierna de lo que corre: cede antes que el título y se corta si no entra. */
-.lista .fila .tierno-fila {
-  min-width: 0;
-  max-width: 6rem;
-  flex: 0 100 auto;
+/* La frase tierna de lo que corre: va con el título y cede antes que él. Entra entera o no se ve: si no cabe, baja a una segunda línea que el alto recorta (cortarla a la mitad dejaría dos textos sin leer). */
+.lista .fila .l1:has(> .tierno-fila),
+.lista .fila .txt:has(> .tierno-fila) {
+  height: 1lh;
+  flex-wrap: wrap;
+  align-items: baseline;
   overflow: hidden;
+}
+.lista .fila .l1:has(> .tierno-fila) > .t,
+.lista .fila .txt:has(> .tierno-fila) > .t {
+  max-width: 100%;
+  flex: 0 1 auto;
+}
+.lista .fila .tierno-fila {
+  flex: none;
   color: var(--hilo, var(--azul));
   font-size: 0.71875rem;
-  text-overflow: ellipsis;
   white-space: nowrap;
 }
 .lista .lw {
