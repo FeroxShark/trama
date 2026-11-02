@@ -1,6 +1,6 @@
 // Saca los PNG de la maqueta con el Electron de la app, sin abrir ventanas. Pide el build de la interfaz (`npx vite build`), porque
 // usa su CSS compilado: así los tokens y las fuentes son los de verdad.
-//   node_modules/electron/dist/electron --no-sandbox maquetas/rediseno-0.4/worker-vista-fuente/generar.cjs [filtro]
+//   node_modules/electron/dist/electron --user-data-dir=/tmp/wv maquetas/rediseno-0.4/worker-vista-fuente/generar.cjs [filtro]
 const { app, BrowserWindow } = require("electron");
 const fs = require("fs");
 const path = require("path");
@@ -12,7 +12,7 @@ const CSS = path.join(ASSETS, fs.readdirSync(ASSETS).find((f) => f.endsWith(".cs
 
 // Qué muestra cada estado además del estado en sí: entre todos se ven los 7 puntos en cada propuesta.
 const COMUN = [
-  ["trabajando", { s: "trabajando", consigna: 1, tip: "midio" }],
+  ["trabajando", { s: "trabajando", consigna: 1, tip: "corrio" }],
   ["trabado", { s: "trabado", tip: "colgado" }],
   ["termino", { s: "termino", grupo: 1, sel: "grep" }],
   ["fallo", { s: "fallo", tip: "error" }],

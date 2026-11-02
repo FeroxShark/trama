@@ -24,7 +24,7 @@
         fallo: () => "Último paso: corrió todos los tests y salió con exit 1. Lo hecho quedó en su rama.",
       },
       seTrabo: (t) => `Se trabó acá: sin salida hace ${t}`, seTraboCorto: "Se trabó acá", corriendo: "corriendo",
-      sinSalida: (t) => `Sin salida nueva hace ${t}`, sigue: "Sigue corriendo", ultima: (t) => `última línea hace ${t}`,
+      abierto: "El comando sigue abierto", lleva: (t) => `lleva ${t}`, sinSalida: (t) => `Sin salida nueva hace ${t}`, sigue: "Sigue corriendo", ultima: (t) => `última línea hace ${t}`,
       exit: (n) => `exit ${n}`, coincidencias: (n) => `${n} coincidencias`, archivos: (n) => `en ${n} archivos`, abrir: "Abrir en el editor", masFilas: (n) => `${n} líneas más`,
       tests: (n) => `${n} tests`, fallan: (n) => `${n} tests fallan`, aLos: (t) => `a los ${t}`,
     },
@@ -43,7 +43,7 @@
         fallo: () => "Last step: ran the full suite, which exited with 1. The work so far is on its branch.",
       },
       seTrabo: (t) => `Stuck here: no output for ${t}`, seTraboCorto: "Stuck here", corriendo: "running",
-      sinSalida: (t) => `No new output for ${t}`, sigue: "Still running", ultima: (t) => `last line ${t} ago`,
+      abierto: "The command is still open", lleva: (t) => `running for ${t}`, sinSalida: (t) => `No new output for ${t}`, sigue: "Still running", ultima: (t) => `last line ${t} ago`,
       exit: (n) => `exit ${n}`, coincidencias: (n) => `${n} matches`, archivos: (n) => `in ${n} files`, abrir: "Open in the editor", masFilas: (n) => `${n} more lines`,
       tests: (n) => `${n} tests`, fallan: (n) => `${n} tests failing`, aLos: (t) => `at ${t}`,
     },
@@ -173,7 +173,8 @@
     if (tipSeg === "midio") return p.cmd?.startsWith("psql");
     if (tipSeg === "pienso") return p.tipo === "pensar" && p.seg === 48;
     if (tipSeg === "colgado") return parte === "colgada";
-    if (tipSeg === "error") return p.error && p === planos.filter((x) => x.error).at(-1);
+    if (tipSeg === "corrio") return p.tests === 22;
+    if (tipSeg === "error") return p.error && p === planos.find((x) => x.error);
     if (tipSeg === "tests") return p.tests === 214;
     return false;
   };
@@ -265,7 +266,7 @@
     for (const [r, n, c] of lineas) pa.set(r, [...(pa.get(r) ?? []), [n, c]]);
     return [...pa].map(([r, ls]) => `<div class="wv-ga"><a class="wv-ruta wv-ruta-tit">${ico("leer", 13, 2)}<span>${r}</span></a><em>${ls.length}</em></div>${ls.map(([n, c]) => `<div class="wv-gb"><a class="wv-ruta">${n}</a><span>${esc(c)}</span></div>`).join("")}`).join("");
   };
-  const salidaDiff = (ls, resto) => `${ls.map(([s, n, c]) => `<div class="wv-d"><span>${n}</span><span>${s}</span><span>${esc(c) || "&nbsp;"}</span></div>`).join("")}<div class="wv-d-mas">${T.masFilas(resto)}</div>`;
+  const salidaDiff = (ls, resto) => `${ls.map(([s, n, c]) => `<div class="wv-d"><span>${n}</span><span>${s}</span><span>${esc(c) || "&nbsp;"}</span></div>`).join("")}${resto ? `<div class="wv-d-mas">${T.masFilas(resto)}</div>` : ""}`;
 
   const panel = () => {
     const p = elegido;
@@ -273,7 +274,7 @@
     const cuerpo = s.grep ? salidaGrep(s.grep) : s.diff ? salidaDiff(s.diff, Math.max(p.mas - s.diff.length, 0)) : s.texto.map(lineaTexto).join("");
     const nArch = s.grep ? new Set(s.grep.map((x) => x[0])).size : 0;
     const estado =
-      p.trabado ? `<span class="wv-pie-e" data-e="trabado">${ico("alerta", 13, 2.2)}${T.sinSalida(d.silencio)}</span>`
+      p.trabado ? `<span class="wv-pie-e" data-e="trabado">${ico("alerta", 13, 2.2)}${T.abierto}</span><span>${T.lleva(dura(p.seg))}</span>`
       : p.vivo ? `<span class="wv-pie-e" data-e="vivo"><span class="wv-giro"></span>${T.sigue}</span><span>${T.ultima("2 s")}</span>`
       : p.error ? `<span class="wv-pie-e" data-e="error">${ico("x", 13, 2.4)}${T.exit(p.error)}</span><span>${dura(p.seg)}</span>`
       : s.grep ? `<span class="wv-pie-e">${T.coincidencias(s.grep.length)}</span><span>${T.archivos(nArch)}</span><span>${dura(p.seg)}</span>`
@@ -405,11 +406,27 @@
   // En inglés, los títulos que el dueño escribió en el volcado también van en inglés (son datos, no interfaz).
   if (L === "en") {
     const dic = window.TITULOS_EN;
-    for (const el of document.querySelectorAll(".barra .t")) if (dic[el.textContent]) el.textContent = dic[el.textContent];
+    const textos = document.createTreeWalker(document.querySelector(".barra"), NodeFilter.SHOW_TEXT);
+    for (let n; (n = textos.nextNode()); ) {
+      const clave = Object.keys(dic).find((k) => n.textContent.trim() === k);
+      if (clave) n.textContent = dic[clave];
+    }
   }
 
   await document.fonts.ready;
   document.querySelector(".wv [data-sel]:is(li)")?.scrollIntoView({ block: "nearest" });
   await Promise.all([...document.fonts].filter((f) => f.family.includes("Inter") || f.family.includes("JetBrains")).map((f) => f.load().catch(() => {})));
+  // El tooltip no tapa «Sólo cambios» ni la leyenda (B los tiene justo abajo de la tira), y en la regla no asoman marcas a medio tapar.
+  const tip = document.querySelector(".wv-tip");
+  if (tip) {
+    const tog = document.querySelector(".wv-tog")?.getBoundingClientRect();
+    const sobra = tog ? tip.getBoundingClientRect().right - (tog.left - 12) : 0;
+    if (sobra > 0) tip.style.translate = `${-sobra}px 0`;
+    const r = tip.getBoundingClientRect();
+    for (const m of document.querySelectorAll(".wv-regla span")) {
+      const b = m.getBoundingClientRect();
+      if (b.right > r.left - 4 && b.left < r.right + 4 && b.bottom > r.top && b.top < r.bottom) m.style.visibility = "hidden";
+    }
+  }
   document.body.dataset.listo = "1";
 })();

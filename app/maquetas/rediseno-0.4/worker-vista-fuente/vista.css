@@ -73,7 +73,7 @@
 .wv-seg[data-error] { background: repeating-linear-gradient(135deg, var(--fallo-fondo-fuerte) 0 0.25rem, color-mix(in srgb, var(--critico) 72%, transparent) 0.25rem 0.5rem); color: var(--texto); box-shadow: inset 0 0 0 1px var(--fallo-luz); }
 .wv-seg[data-sel]:not([data-vivo]) { outline: 2px solid var(--texto); outline-offset: 1px; z-index: 2; }
 .wv-seg[data-colgado][data-sel]:not([data-vivo]) { outline-color: var(--aviso); }
-.wv-tip { position: absolute; z-index: 30; top: calc(100% + 0.5rem); left: 50%; display: flex; width: max-content; max-width: 22rem; flex-direction: column; gap: 0.0625rem; padding: var(--esp-2) var(--esp-3); border-radius: var(--r-sm); background: var(--popover-fondo); box-shadow: var(--popover-luz), var(--popover-sombra); color: var(--texto); font-size: var(--letra-4); font-weight: 400; line-height: 1.35; transform: translateX(-50%); backdrop-filter: var(--popover-desenfoque); }
+.wv-tip { position: absolute; z-index: 30; text-align: left; top: calc(100% + 0.5rem); left: 50%; display: flex; width: max-content; max-width: 22rem; flex-direction: column; gap: 0.0625rem; padding: var(--esp-2) var(--esp-3); border-radius: var(--r-sm); background: var(--popover-fondo); box-shadow: var(--popover-luz), var(--popover-sombra); color: var(--texto); font-size: var(--letra-4); font-weight: 400; line-height: 1.35; transform: translateX(-50%); backdrop-filter: var(--popover-desenfoque); }
 .wv-tip b { font-weight: 600; }
 .wv-tip span { color: var(--apagado); font-feature-settings: "tnum" 1; }
 .wv-tip-der { right: 0; left: auto; transform: none; }
@@ -98,7 +98,7 @@
 .wv-p-pr { flex: none; color: var(--ok); }
 .wv-p-pr .wv-i { margin-top: 0.1875rem; color: var(--apagado); }
 .wv-copiar { flex: none; padding: 0; border: 0; background: none; color: var(--inactivo); }
-.wv-p-sal { min-height: 0; flex: 1; overflow: hidden; padding: var(--esp-3) var(--esp-4); color: var(--texto-3); font-family: var(--font-mono); font-size: var(--letra-4); line-height: 1.55; }
+.wv-p-sal { min-height: 0; flex: 1; overflow: hidden; padding: var(--esp-3) var(--esp-4); color: var(--texto-3); font-family: var(--font-mono); font-size: var(--letra-4); font-variant-ligatures: none; line-height: 1.55; }
 .wv-p-pie { display: flex; flex: none; align-items: center; gap: var(--esp-3); min-height: 2.25rem; padding: 0 var(--esp-4); border-top: 1px solid var(--capa-div); color: var(--inactivo); font-size: var(--letra-4); font-feature-settings: "tnum" 1; }
 .wv-pie-e { display: inline-flex; align-items: center; gap: var(--esp-1-5); color: var(--apagado); font-weight: 500; }
 .wv-pie-e[data-e="vivo"] { color: var(--acento); }
@@ -117,7 +117,7 @@
 .wv-d { display: grid; grid-template-columns: 2.5ch 1.5ch minmax(0, 1fr); gap: 0 1ch; margin: 0 calc(var(--esp-4) * -1); padding: 0 var(--esp-4); background: var(--mas-fondo); }
 .wv-d span:first-child { color: var(--inactivo); text-align: right; }
 .wv-d span:nth-child(2) { color: var(--mas); }
-.wv-d span:last-child { overflow-wrap: anywhere; }
+.wv-d span:last-child { overflow-wrap: anywhere; white-space: pre-wrap; }
 .wv-d-mas { margin-top: var(--esp-2); color: var(--inactivo); font-family: var(--font-sans); }
 
 /* ================ A, la Cinta: la tira es la protagonista, gruesa, rotulada y pegada a la caja ================ */
@@ -134,7 +134,7 @@
 .wv-a .wv-seg:first-child { border-radius: var(--r-xs) 0 0 var(--r-xs); }
 .wv-a .wv-seg:last-child { border-radius: 0 var(--r-xs) var(--r-xs) 0; }
 .wv-a .wv-seg[data-colgado] { justify-content: flex-start; padding: 0 var(--esp-3); font-size: var(--letra-5); color: var(--decision-texto); }
-.wv-a .wv-seg[data-colgado] span { padding: 0.0625rem var(--esp-2); border-radius: var(--r-xs); background: var(--sup-0); }
+.wv-a .wv-seg[data-colgado] > span:not(.wv-tip) { padding: 0.0625rem var(--esp-2); border-radius: var(--r-xs); background: var(--sup-0); }
 
 .wv-a .wv-cuerpo { display: grid; min-height: 0; overflow: hidden; border-radius: var(--r-lg); background: var(--capa-card); box-shadow: var(--vidrio-borde); grid-template-columns: minmax(0, 28rem) minmax(0, 1fr); }
 .wv-a .wv-lista { display: flex; min-height: 0; flex-direction: column; overflow: hidden; border-right: 1px solid var(--capa-div); }
@@ -207,8 +207,8 @@
 .wv-r { position: relative; display: flex; min-height: 2.375rem; align-items: center; gap: var(--esp-2-5); padding: 0.25rem var(--esp-2) 0.3125rem 0; color: var(--texto-3); font-size: var(--letra-6); line-height: 1.3; }
 /* La urdimbre: el hilo vertical, del color del paso */
 .wv-r::before { content: ""; position: absolute; top: 0; bottom: 0; left: 0.75rem; width: 2px; background: color-mix(in srgb, var(--c) 50%, transparent); }
-/* La trama: la hebra de cada paso, a la misma altura y del mismo largo que su segmento en la tira */
-.wv-r::after { content: ""; position: absolute; bottom: 0; left: var(--x0); width: var(--xw); min-width: 3px; height: 2px; border-radius: var(--r-cap); background: color-mix(in srgb, var(--c) 70%, transparent); }
+/* La trama: la hebra de cada paso, a la misma altura y del mismo largo que su segmento en la tira; no cruza la urdimbre */
+.wv-r::after { content: ""; position: absolute; bottom: 0; left: max(var(--x0), 3.125rem); width: var(--xw); min-width: 3px; height: 2px; border-radius: var(--r-cap); background: color-mix(in srgb, var(--c) 70%, transparent); }
 .wv-r:has(> .wv-nudo) { padding-top: 0.5625rem; }
 .wv-r:first-child::before { top: 50%; }
 .wv-r:last-child::before { bottom: 50%; }
