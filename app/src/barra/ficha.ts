@@ -3,7 +3,7 @@
 // entera en el tooltip. Sin React: lo prueban los tests.
 import type { Hilo } from "../datos/contrato.ts";
 import { t } from "../i18n/index.ts";
-import { esfuerzoDe } from "./esfuerzo.ts";
+import { esfuerzoDe, nivelDe } from "./esfuerzo.ts";
 
 export type Familia = "opus" | "sonnet" | "fable" | "haiku" | "otro";
 
@@ -60,3 +60,24 @@ export function ficha(h: Hilo, maquina: string | null): string {
     ...(esf ? [t("ficha.esfuerzo", { v: esf.nivel, n: esf.lleno, total: esf.niveles.length })] : []),
   ].join("\n");
 }
+
+/** El chip gris de la fila: la familia y el esfuerzo («Sonnet high»), y en la barra angosta la inicial («S high»). */
+export type ChipModelo = { largo: string; corto: string; nombre: string; nivel: string | null; modelo: string };
+
+/**
+ * Qué dice el chip de modelo y esfuerzo de un worker o de un líder. `null` sin modelo (no se inventa). Claude: la familia
+ * («Sonnet», «Opus»); otro motor: la primera palabra de su nombre corto («Flash», «Deepseek»). El esfuerzo sale de `nivelDe`
+ * (el id manda); `off` de los locales no se muestra. Sin esfuerzo no hay inicial suelta: el nombre entero. La versión completa va en el tooltip (`modelo`).
+ */
+export function chipModelo(modelo: string | null | undefined, effort: string | null | undefined): ChipModelo | null {
+  const m = modeloCorto(modelo);
+  if (!m) return null;
+  const f = familiaDe(modelo);
+  const nombre = f !== "otro" ? CORTO[f] : m.split(" ")[0];
+  const n = nivelDe(modelo, effort);
+  const nivel = n && n !== "off" ? n : null;
+  return { largo: nivel ? `${nombre} ${nivel}` : nombre, corto: nivel ? `${nombre[0].toUpperCase()} ${nivel}` : nombre, nombre, nivel, modelo: m };
+}
+
+/** El tooltip del chip: el modelo con su versión y el esfuerzo en palabras. */
+export const chipModeloTip = (c: ChipModelo): string => (c.nivel ? t("fila.modeloTip", { m: c.modelo, e: c.nivel }) : t("fila.modeloTipSolo", { m: c.modelo }));

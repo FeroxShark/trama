@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { cambiarIdioma } from "../src/i18n/index.ts";
-import { CORTO, familiaDe, ficha, lugarDe, modeloCorto } from "../src/barra/ficha.ts";
+import { CORTO, chipModelo, chipModeloTip, familiaDe, ficha, lugarDe, modeloCorto } from "../src/barra/ficha.ts";
 import type { Hilo } from "../src/datos/contrato.ts";
 
 const h = (p: Partial<Hilo>) => ({ proyecto: "atlas", modelo: "claude-opus-5-5", effort: "high", rama: null, ...p }) as Hilo;
@@ -54,4 +54,22 @@ test("la ficha en español", () => {
 
 test("por ahora todo corre en esta máquina", () => {
   assert.equal(lugarDe(h({})), "local");
+});
+
+test("el chip gris dice familia y esfuerzo («Sonnet high»); angosto, la inicial («S high»); sin esfuerzo, el nombre entero", () => {
+  cambiarIdioma("es");
+  const c = chipModelo("claude-sonnet-5-5[1m]", "high")!;
+  assert.equal(c.largo, "Sonnet high");
+  assert.equal(c.corto, "S high");
+  assert.equal(chipModeloTip(c), "Modelo: Sonnet 5.5. Esfuerzo: high.");
+  assert.equal(chipModelo("claude-opus-5-5", "xhigh")!.largo, "Opus xhigh");
+  // Sin esfuerzo no hay inicial suelta: la «O» sola no dice nada.
+  const sin = chipModelo("claude-opus-5-5", "-")!;
+  assert.deepEqual([sin.largo, sin.corto], ["Opus", "Opus"]);
+  assert.equal(chipModeloTip(sin), "Modelo: Opus 5.5.");
+  // Otros motores: el esfuerzo del id manda; `off` de un local no se muestra.
+  assert.equal(chipModelo("gemini-3.8-flash-low", null)!.largo, "Flash low");
+  assert.equal(chipModelo("modelo-local-ejemplo", "off")!.largo, "Modelo");
+  assert.equal(chipModelo("", "high"), null);
+  assert.equal(chipModelo(null, null), null);
 });

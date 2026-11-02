@@ -6,10 +6,10 @@ import { memo, useEffect, useMemo, useRef, useState, type CSSProperties, type Re
 import { ChevronDown, CircleQuestionMark, Crown, X } from "lucide-react";
 import { comoSettle, type Estado, type Hilo, type Lider } from "../datos/contrato";
 import { MODO } from "../modo";
-import { pintorCache, pintorDura, pintorHace } from "../tiempo";
+import { cuando as cuandoEpoch, pintorCache, pintorDura, pintorHace } from "../tiempo";
 import { cacheAplica } from "../../electron/cache";
 import { atencionItem, errorCorto, fin, liderEspera, type Atencion, type Como, type Salida } from "./arbol";
-import { ficha } from "./ficha";
+import { chipModelo, chipModeloTip, ficha, type ChipModelo } from "./ficha";
 import { Glifo, glifoDe } from "./Glifo";
 import { latir } from "./latido";
 import { tonoRiel } from "./logo-logica";
@@ -63,7 +63,9 @@ export const Fila = memo(function Fila({ ref, h, estado, apagada, cursor, activa
   const compacta = useCompactando(corre ? h.id : null);
   const duraCompacta = useMemo(() => (compacta !== null ? pintorDura(compacta) : null), [compacta]);
   // Lo que corre dice cuánto lleva ("38 s", "1 h 05 m"); lo demás, hace cuánto terminó ("hace 3 h", "ayer", "27 oct").
-  const cuando = useMemo(() => (corre ? pintorDura(h.inicio) : pintorHace(fin(h))), [h, corre]);
+  // Corriendo, con la palabra: «corre hace 4 m» (sin ella, «4 m» se confundía con lo que terminó); cuándo empezó, en el tooltip.
+  const cuando = useMemo(() => (corre ? pintorDura(h.inicio, () => tr("tiempo.correPre")) : pintorHace(fin(h))), [h, corre]);
+  const chip = useMemo(() => chipModelo(h.modelo, h.effort), [h.modelo, h.effort]);
   const tierno = useTiernos();
   const cache = useMemo(
     () =>
@@ -125,6 +127,7 @@ export const Fila = memo(function Fila({ ref, h, estado, apagada, cursor, activa
         </span>
         {/* Con qué modelo, dónde corre y lo demás: en el tooltip (`ficha`). */}
         <span className="l2" data-tip={[titulo, estadoTip, ficha(h, MODO.maquina)].filter(Boolean).join("\n")}>
+          <ChipMod c={chip} />
           {cache && t && !corre && !at ? <Reloj pintor={cache} className="cache" /> : null}
           {at ? (
             <span className="chip-at" data-at={at} data-tip={at === "fallo" ? textoEstado(h, estado) : tr("fila.chipDecision")}>
@@ -144,7 +147,7 @@ export const Fila = memo(function Fila({ ref, h, estado, apagada, cursor, activa
               {palabra}
             </span>
           ) : null}
-          {sinTiempo ? null : <Reloj pintor={duraCompacta ?? cuando} className="cuando" />}
+          {sinTiempo ? null : <Reloj pintor={duraCompacta ?? cuando} className="cuando" data-tip={corre && !duraCompacta ? tr("fila.correTip", { cuando: cuandoEpoch(h.inicio) }) : undefined} />}
         </span>
       </button>
       {settle ? (
@@ -165,6 +168,20 @@ function HiloVivo() {
   return (
     <span className="hilo-vivo" aria-hidden="true">
       <i className="lanzadera" />
+    </span>
+  );
+}
+
+/**
+ * El chip gris de modelo y esfuerzo («Sonnet high»; en la barra angosta «S high», lo decide el CSS con las dos formas). El título se
+ * corta antes que él. La versión del modelo, en el tooltip.
+ */
+function ChipMod({ c }: { c: ChipModelo | null }) {
+  if (!c) return null;
+  return (
+    <span className="chip-mod" data-chip-mod data-tip={chipModeloTip(c)}>
+      <span className="mc-l">{c.largo}</span>
+      <span className="mc-c" aria-hidden="true">{c.corto}</span>
     </span>
   );
 }
@@ -440,6 +457,7 @@ export const FilaLider = memo(function FilaLider({
   const corre = !l.caido && (l.ocupado || vivos > 0 || (l.subagentes ?? 0) > 0);
   const estado = l.caido === "murio" ? "murio" : l.caido ? "cerrado" : l.ocupado || (l.subagentes ?? 0) > 0 ? "responde" : vivos > 0 ? "dirige" : "quieto";
   const espera = liderEspera(l) ? l.espera : null;
+  const chip = useMemo(() => chipModelo(l.modelo, l.effort), [l.modelo, l.effort]);
 
   return (
     <div className="lw">
@@ -466,6 +484,7 @@ export const FilaLider = memo(function FilaLider({
           </span>
           {espera || duraCompacta ? null : <FraseFila sid={l.id} />}
         </span>
+        {l.caido ? null : <ChipMod c={chip} />}
         {cache ? <Reloj pintor={cache} className="cache" /> : null}
         {l.subagentes ? <ChipSubagentes n={l.subagentes} clave={l.id} corto /> : null}
         {espera ? (

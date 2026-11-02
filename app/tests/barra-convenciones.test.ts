@@ -133,6 +133,31 @@ test("el rayito: vencido dice Uncached y apaga, sin rayo; sin caché (otro motor
   assert.doesNotMatch(pintaLider(lider({ ...CALIENTE, modelo: "gemini-3.8-flash" })), /class="cache"/);
 });
 
+test("el chip de modelo y esfuerzo va en cada worker y en el líder, con la forma larga y la corta", () => {
+  const w = pintaFila(hilo("trabajando", { modelo: "claude-sonnet-5-5", effort: "high" }));
+  assert.match(w, /data-chip-mod[^>]*data-tip="Modelo: Sonnet 5\.5\. Esfuerzo: high\."/);
+  assert.match(w, /<span class="mc-l">Sonnet high<\/span><span class="mc-c" aria-hidden="true">S high<\/span>/);
+  assert.match(pintaFila(hilo("listo")), /data-chip-mod/);
+  assert.match(pintaLider(lider()), /<span class="mc-l">Opus high<\/span>/);
+  assert.doesNotMatch(pintaLider(lider({ modelo: null })), /data-chip-mod/);
+  assert.doesNotMatch(pintaLider(lider({ caido: "murio" })), /data-chip-mod/, "un líder sin proceso ya dice Murió");
+  // La barra angosta abrevia con el CSS: la larga queda para el lector de pantalla, no se saca con display:none.
+  const riel = leer("../src/barra/riel-estilos.css");
+  assert.match(riel, /\.lista\[data-estrecha\] \.fila \.chip-mod \.mc-l \{[^}]*clip-path/);
+  assert.match(leer("../src/barra/CONVENCIONES.md"), /Sonnet high/);
+});
+
+test("lo que corre dice «corre hace 4 m» y desde cuándo en el tooltip; Uncached pasa al tooltip y a la vista queda un anillo", () => {
+  const corre = pintaFila(hilo("trabajando", { inicio: AHORA - 240 }));
+  assert.match(corre, /class="cuando" data-tip="Empezó \d/);
+  assert.equal(pintorDura(AHORA - 240, () => "corre hace ")(AHORA).texto, "corre hace 4 m");
+  assert.doesNotMatch(pintaFila(hilo("listo")), /Empezó/);
+  const frio = pintorCache("f2", AHORA - 60, 3600, false)(AHORA);
+  assert.match(String(frio.attrs?.["data-tip"]), /próximo mensaje.*más cupo/);
+  const riel = leer("../src/barra/riel-estilos.css");
+  assert.match(riel, /\.lista \.fila \.cache\[data-frio\] \{\s*font-size: 0;/, "la palabra no se ve (queda para el lector de pantalla)");
+});
+
 test("las coronas: cada estado del líder la lleva, con el suyo", () => {
   const casos: [string, string][] = [
     [pintaLider(lider()), "quieto"],

@@ -20,7 +20,7 @@ Estado de cada señal en la barra actual («Riel», desde `0c98b24`): **igual**,
 | Corona dorada con fulgor que respira | Está respondiendo o tiene subagentes corriendo. | Ver de lejos qué está vivo. | igual |
 | Corona dorada sin fulgor | Él está quieto, pero corren workers suyos. | Distinguir «me está contestando» de «está dirigiendo». Sólo Riel. | igual |
 | Corona gris | Quieto. | Calma. | igual |
-| Corona más apagada y nombre apagado | Quieto y con el caché vencido: retomarlo sale caro. | Se ve qué conversaciones ya se enfriaron. Va con la palabra `Uncached`. | recuperada (la regla del nombre no ganaba en la lista) |
+| Corona más apagada y nombre apagado | Quieto y con el caché vencido: retomarlo sale caro. | Se ve qué conversaciones ya se enfriaron. Va con el anillo vacío del caché (`Uncached` en su tooltip). | recuperada (la regla del nombre no ganaba en la lista) |
 | Corona roja + `Murió` | El proceso se cayó o lo mataron **con Trama andando** (OOM, `kill -9`, error del motor). Se retoma desde su vista. | No confundirlo con uno que cerró bien. | igual, con una regla: **cerrar, reiniciar o cortar la app (en Windows el cierre mata el árbol del motor) nunca lo deja `Murió`**: queda dormido (sin señal), vuelve solo con `--resume` y, si no puede, escribirle lo retoma. La vejez tampoco: ningún corte por antigüedad marca muerto antes de `MUERTO_S` (7 días, `arbol.ts`). |
 | Corona apagada + `Cerrado` | Sin proceso, cerrado bien. | Sigue a la vista con sus workers. | igual |
 | Corona en círculo ámbar, halo + `te espera` | Terminó su turno o pide un permiso, y espera tu respuesta. | Lo que espera es lo único que llama desde lejos. | cambió: antes era un `?` en recuadro en lugar de la corona; la corona se queda porque sigue siendo un líder. `te espera` **recuperada** para los dos motivos (el Riel decía `decidir` si pedía permiso); el motivo, en el tooltip. |
@@ -28,7 +28,7 @@ Estado de cada señal en la barra actual («Riel», desde `0c98b24`): **igual**,
 | **Nunca ✓ en un líder** | | Un líder no «termina» nada: la conversación sigue. Una palomita al lado de la corona no le dice nada al dueño. | recuperada: el Riel puso un ✓ en «N terminados», pegado a la corona |
 | `2 sub.` con punto que late | Corren N subagentes: la sesión trabaja, no se enfría. Con eso no se muestra el caché. | `sub.chipTip`. | recuperada la palabra (el Riel dejaba un número suelto) |
 | Ícono de máquina | El líder corre en otra máquina (la cuenta del escritorio remoto). | Saber dónde está. | igual |
-| Modelo (`Opus 5.5`) | Con qué modelo habla. | | cambió: de segunda línea al tooltip del tiempo; la fila es de una línea. |
+| **Chip gris `Opus high`** (angosta: `O high`), junto al ⚡ | Con qué modelo y esfuerzo habla. La versión (`Opus 5.5`), en su tooltip. Un líder sin proceso no lo lleva: ya dice `Murió`/`Cerrado`. | Saber con qué gasta cupo sin abrirlo (#1919). | cambió: antes sólo en el tooltip del tiempo; el chip vuelve, sin segunda línea. |
 | Lo que hace ahora (`Corriendo Bash`) + cuánto lleva | Sólo líderes de la app, que cuentan lo que hacen. | B12. | recuperada: el tiempo del turno (`12 s`) en la columna del tiempo, lo que hace en su tooltip; la frase entera no entra en una línea. |
 | `Archivar` / `Cerrar líder` al pasar el mouse | Quieto se archiva; respondiendo se cierra. Con ramas sin integrar o siendo de la app, pregunta en el mismo botón (otro clic confirma, Esc o irse cancela). | No perder nada de un clic. | igual |
 
@@ -38,9 +38,9 @@ Estado de cada señal en la barra actual («Riel», desde `0c98b24`): **igual**,
 | --- | --- | --- | --- |
 | **`⚡ 21m`** | La conversación está caliente: el caché dura 21 min más; retomarla ahora sale barato. El tooltip lo dice en palabras. | Decide si conviene seguir ahora o dejarla. Es el dato que el dueño mira para no gastar. | **recuperada**: el Riel lo escondió hasta pasar el mouse, y sin mouse no había ninguna señal. Va siempre a la vista, en su píldora y antes del tiempo. |
 | Texto blanco con un pulso | Quedan menos de 10 min (o 1/6 de un TTL corto): el pulso una sola vez. | Avisar sin molestar. | igual |
-| `Uncached`, sin rayo | Venció o no va a pegar: retomarla relee todo. | Va sin píldora y apagada: no pide nada. | recuperada |
+| Anillo vacío (el rayo sin carga), sin píldora | `Uncached`: venció o no va a pegar; el próximo mensaje relee todo y gasta más cupo. La palabra vive en el tooltip y el lector de pantalla la sigue leyendo. | Va apagado: no pide nada, y la fila gana ancho para el título (#1919, pedido del dueño). | cambió: antes la palabra `Uncached` a la vista. Sigue sin depender del color: tiene forma (anillo vacío ≠ rayo), el nombre se apaga y el tooltip lo dice con palabras. |
 | Nada | Otro motor (el caché medido es sólo de Claude, con el TTL real: 1 h o 5 min) o sin dato. | `41ec09f`. | igual |
-| Nada en un líder sin proceso y frío | `Murió`/`Cerrado` ya lo dice: `Uncached` al lado no suma. | Falta de lugar en una línea. | cambió |
+| Nada en un líder sin proceso y frío | `Murió`/`Cerrado` ya lo dice: el anillo al lado no suma. | Falta de lugar en una línea. | cambió |
 | Con `te espera` | Se ve igual: es cuando más importa el caché. | | igual |
 | En un worker | Sólo si terminó (no corriendo ni pidiendo atención). | Retomarlo también sale barato o caro. | recuperada |
 
@@ -52,7 +52,7 @@ La sección `⚡ Activas` de arriba ya no existe (cambió en `0c98b24`: un solo 
 | --- | --- | --- | --- |
 | `hace <1 m`, `hace 6 m`, `hace 6 h`, `ayer`, `hace 3 d` | Hace cuánto pasó lo último. `ayer` sólo de 24 a 48 h: menos de 24 h siempre dice `hace N h`, aunque haya cruzado la medianoche (el día calendario no cuenta). | Con la palabra `hace` no se confunde con una duración ni con los `21m` del rayito, que van justo al lado. | **recuperada**: el Riel la achicó a `6 m`, `3 d`, `ahora`. |
 | `27 oct` (y el año si es de otro) | De más de una semana: la fecha. | `279e281`: «hace 23 d» ya no dice nada. | igual |
-| `38 s`, `4 m`, `1 h 05 m` | Lo que corre: cuánto lleva. Segundos sólo el primer minuto. | Una corrida larga no puede decir `ayer`. | **recuperada**: el Riel usaba el mismo formato que lo terminado. |
+| `corre hace 38 s`, `corre hace 4 m`, `corre hace 1 h 05 m` | Lo que corre: el tiempo total que lleva corriendo. Segundos sólo el primer minuto. El tooltip dice desde cuándo (`Empezó 04:31`). | Una corrida larga no puede decir `ayer`; sin la palabra, `4 m` se leía como lo que terminó (#1919). | **recuperada**: el Riel usaba el mismo formato que lo terminado; la palabra `corre` es nueva. |
 | Sin tiempo | Lo que pide una decisión y lo que está en cola. | Importa que espera; ahorra ancho al título. | recuperada |
 | `te espera` sin tiempo al lado | La palabra y el rayito mandan; no entran los tres con un título que se lea. | | cambió |
 | `12 hilos, hace 3 h` | Encabezado de un proyecto plegado. | Lo mismo: la misma unidad en toda la barra. | recuperada |
@@ -78,7 +78,9 @@ Cuelga de su líder por el hilo del proyecto. Se abre tocando cualquier parte de
 | Título en negrita (`data-nuevo`) | Trajo algo que todavía no abriste. | | igual |
 | Apagado (`data-apagada`) | Es de un líder y ya terminó: no compite con lo que trabaja. | | igual |
 | Hojas + `compactando` + duración | Está compactando su contexto. | B19. | igual |
-| Modelo con versión, esfuerzo, rama, máquina, commits | En el tooltip de la derecha, con el título entero y el estado. | | cambió: de chip y segunda línea al tooltip, por la línea única. El laptop se fue: siempre decía lo mismo. |
+| **Chip gris `Sonnet high`** (angosta, hasta 340 px: `S high`; sin esfuerzo, el nombre entero) | Con qué modelo y esfuerzo corre. Va a la derecha, antes del rayito y del tiempo, y **no cede: se corta el título primero**. | Pedido del dueño (#1919). | **recuperada**: el Riel lo mandó al tooltip. |
+| Título real: `pa --titulo`; sin él, el objetivo del brief | Cómo se llama el worker. Sin `--titulo` ni «Objetivo:», la primera línea con la tarea: se saltean las de reglas (`Seguí AGENTS.md…`, `Usá <skill>…`, `Reglas:`). | Casi todos los briefs empiezan con las reglas: los títulos eran iguales (#1919). | cambió |
+| Rama, máquina y commits | En el tooltip de la derecha, con el título entero y el estado. | | cambió: de segunda línea al tooltip, por la línea única. El laptop se fue: siempre decía lo mismo. |
 | `Integrar`, `Archivar`, `Retomar`, `Quitar` al pasar el mouse | Lo que le toca (`comoSettle`). `Quitar` con commits pide un segundo clic. | Lo que borra una rama confirma. | igual |
 
 ## Agrupado, orden y plegado
@@ -128,5 +130,5 @@ Cuelga de su líder por el hilo del proyecto. Se abre tocando cualquier parte de
 ## Forma
 
 - Una línea por hilo (28 px), elegida por el dueño contra dos líneas (`maquetas/rediseno-0.4/barra-densa-b.html`): entran 26 hilos en vez de 6. A cambio, lo que no entra va al tooltip.
-- A la derecha, siempre en este orden: frase tierna, rayito, palabra o píldora, tiempo. Si falta lugar cede primero la frase, después el título.
+- A la derecha, siempre en este orden: frase tierna, chip de modelo y esfuerzo, rayito, palabra o píldora, tiempo. Si falta lugar cede primero la frase, después el título; el chip no cede.
 - CSS sólo con tokens; textos en `es.ts` y `en.ts`; movimiento por `latido.ts` y con `prefers-reduced-motion` respetado.

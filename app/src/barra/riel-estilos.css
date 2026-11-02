@@ -829,6 +829,36 @@
 .lista .fila .pal[data-caido="murio"] {
   color: var(--fallo-texto);
 }
+/* Modelo y esfuerzo («Sonnet high»): gris, no pide nada. No cede: el título se corta antes. En la barra angosta, la inicial («S high»); la
+   forma larga queda para el lector de pantalla. */
+.lista .fila .chip-mod {
+  display: inline-flex;
+  height: 1rem;
+  flex: none;
+  align-items: center;
+  padding: 0 var(--esp-1-5);
+  border-radius: var(--r-cap);
+  background: var(--capa-card);
+  color: var(--apagado);
+  font-size: var(--letra-2);
+  white-space: nowrap;
+}
+.lista .fila .chip-mod .mc-c {
+  display: none;
+}
+.lista[data-estrecha] .fila .chip-mod {
+  position: relative;
+}
+.lista[data-estrecha] .fila .chip-mod .mc-c {
+  display: inline;
+}
+.lista[data-estrecha] .fila .chip-mod .mc-l {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
 .lista .fila .chip-at {
   height: 1rem;
   padding: 0 var(--esp-1-5);
@@ -842,6 +872,19 @@
 .lista .fila .cache[data-frio] {
   padding: 0;
   background: none;
+}
+/* Vencido: la palabra «Uncached» pasa al tooltip (queda para el lector de pantalla); a la vista, un anillo vacío, el rayo sin carga. */
+.lista .fila .cache[data-frio] {
+  font-size: 0;
+}
+.lista .fila .cache[data-frio]::before {
+  display: block;
+  width: 0.4375rem;
+  height: 0.4375rem;
+  border: 1.5px solid var(--apagado);
+  border-radius: 50%;
+  background: none;
+  mask: none;
 }
 /* Uno sin proceso ya dice "Murió" o "Cerrado": "Uncached" al lado no suma. */
 .lista .fila.lider[data-caido] .cache[data-frio] {

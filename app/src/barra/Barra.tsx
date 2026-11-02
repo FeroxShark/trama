@@ -148,6 +148,8 @@ const CLAVE_ABIERTA = "hilos:barra:abierta";
 
 const ANCHO = 320;
 const ANCHO_MIN = 240;
+/** Hasta este ancho (la barra de siempre mide 320) es «estrecha»: los chips de modelo van abreviados. */
+const ESTRECHA = 340;
 const ANCHO_MAX = 520;
 /** Soltar el borde más acá de esto esconde la barra. */
 const ANCHO_OCULTAR = 170;
@@ -1896,6 +1898,8 @@ export function Barra() {
               ref={lista}
               layoutScroll
               className="lista"
+              // Barra angosta (≤ 340 px de la letra 13): el chip de modelo dice «S high» en vez de «Sonnet high».
+              data-estrecha={ancho <= ESTRECHA ? "" : undefined}
               onScroll={virtual ? avisarVentana : undefined}
               onPointerMove={() => !MODO.datosFijos && ultimo.current.cursor && setCursor(null)}
               onPointerEnter={() => setMirando((m) => (m.mouse ? m : { ...m, mouse: true }))}
