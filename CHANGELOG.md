@@ -1,5 +1,9 @@
 # Cambios
 
+## 0.2.45
+
+- Barra lateral: vuelven las señales de siempre. El ⚡ con el tiempo en la conversación caliente a la vista, el tiempo en palabras («hace 2 m», «ayer», «hace 3 d»), las frases tiernas, «2 sub.» y los tooltips. Lo que corre late y lo trabado gira. La palomita queda sólo en el worker que terminó, nunca en un líder.
+
 ## 0.2.44
 
 - OpenCode gratis sin cupo: el líder ya no queda «Pensando» para siempre; corta el turno, lo dice en palabras y ofrece cambiar de modelo. El selector lo marca sin cupo.
