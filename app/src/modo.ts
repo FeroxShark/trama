@@ -222,6 +222,8 @@ const CAPTURAS = [
   // La vista de un worker con pasos (src/hilo/Worker.tsx): uno que terminó y uno que sigue corriendo `npm test`.
   "worker-vista",
   "worker-vista-vivo",
+  // La vista de un worker con una corrida entera (pensamientos, grupos, ediciones, un commit); `HILOS_VARIANTE=trabajando` (default), `trabado`, `termino` o `fallo`.
+  "worker-vista-hilo",
   // Un worker de Windows con rutas largas y líneas de 200 caracteres, con el panel de contexto abierto a la derecha (la columna central, sin cortarse).
   "worker-vista-rutas",
   // La vista grande de un subagente (src/hilo/Subagente.tsx): el que corre `npm test`; `HILOS_VARIANTE=terminado`, el que terminó.

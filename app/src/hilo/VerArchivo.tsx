@@ -3,11 +3,11 @@
 // Imagen, PDF, audio y video se ven con el navegador; el texto y el código, con su numeración y resaltado (./Diff.tsx); el markdown,
 // renderizado. Lo que no se puede mostrar se abre con la app del sistema; lo que ya no está (el worktree de un worker se borra al
 // integrar) dice "Archivo ya no disponible". Los bytes los lee el main por `archivo:ver` (electron/archivo-ver.ts), nunca `file://`.
-import { memo, useEffect, useRef, useState } from "react";
+import { memo, useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { Eye, FileAudio, FileText, FileVideo, ImageIcon, SquareArrowOutUpRight, X } from "lucide-react";
 import { motion, useReducedMotion } from "motion/react";
-import { abribleConSistema, extensionDe, type ArchivoDeHerramienta, type ArchivoVisto } from "../../electron/archivo-ruta";
+import { abribleConSistema, archivoDeRuta, extensionDe, type ArchivoDeHerramienta, type ArchivoVisto } from "../../electron/archivo-ruta";
 import { nombreDe } from "../../electron/imagen-ruta";
 import { fuente } from "../datos/fuente";
 import { useFoco } from "../foco";
@@ -93,7 +93,7 @@ const abrirEnCaptura = (tipo: string) => (ABRIR_EN_CAPTURA === tipo && !abiertoE
 const ICONO = { imagen: ImageIcon, pdf: FileText, markdown: FileText, texto: FileText, audio: FileAudio, video: FileVideo, otro: SquareArrowOutUpRight } as const;
 
 /** Una vista del archivo sobre todo lo demás: un clic afuera, Esc o su botón la cierran. */
-function Hoja({ a, v, alCerrar }: { a: ArchivoDeHerramienta; v: ArchivoVisto | null | undefined; alCerrar: () => void }) {
+function Hoja({ a, v, linea, alCerrar }: { a: ArchivoDeHerramienta; v: ArchivoVisto | null | undefined; linea?: number | null; alCerrar: () => void }) {
   const quieto = useReducedMotion();
   useIdioma();
   const caja = useRef<HTMLDivElement>(null);
@@ -103,6 +103,11 @@ function Hoja({ a, v, alCerrar }: { a: ArchivoDeHerramienta; v: ArchivoVisto | n
   const [fallo, setFallo] = useState(false);
   const Ico = ICONO[a.tipo];
   const sistema = esVentana() && abribleConSistema(a.ruta);
+  // Abierto desde un resultado (`ruta:línea`): baja hasta esa línea, resaltada.
+  const hayTexto = v?.tipo === "texto";
+  useEffect(() => {
+    if (hayTexto && linea != null) caja.current?.querySelector("[data-marca]")?.scrollIntoView({ block: "center" });
+  }, [hayTexto, linea]);
   let cuerpo;
   if (v === undefined)
     cuerpo = (
@@ -123,7 +128,7 @@ function Hoja({ a, v, alCerrar }: { a: ArchivoDeHerramienta; v: ArchivoVisto | n
   else if (v.tipo === "texto")
     cuerpo = (
       <div className="arch-texto">
-        <Filas filas={filasLeidas(v.texto, 1)} lang={extensionDe(a.ruta)} />
+        <Filas filas={filasLeidas(v.texto, 1)} lang={extensionDe(a.ruta)} marca={linea} />
         {v.recortado ? <div className="wk-nota">{t("archivo.recortado", { n: Math.round(v.texto.length / 1024) })}</div> : null}
       </div>
     );
@@ -184,10 +189,31 @@ function Hoja({ a, v, alCerrar }: { a: ArchivoDeHerramienta; v: ArchivoVisto | n
 }
 
 /** El archivo abierto: una imagen, en el visor de las imágenes; lo demás, en la hoja. Lo que no se muestra, con la app del sistema. */
-function VerArchivo({ a, alCerrar }: { a: ArchivoDeHerramienta; alCerrar: () => void }) {
+function VerArchivo({ a, linea, alCerrar }: { a: ArchivoDeHerramienta; linea?: number | null; alCerrar: () => void }) {
   const v = useArchivoVisto(a.ruta, true);
   if (v?.tipo === "imagen") return <Visor img={{ tipo: v.mime, datos: v.datos }} alCerrar={alCerrar} />;
-  return <Hoja a={a} v={v} alCerrar={alCerrar} />;
+  return <Hoja a={a} v={v} linea={linea} alCerrar={alCerrar} />;
+}
+
+/**
+ * Una ruta dentro de un texto (la salida de un grep, un error con `ruta:línea`) que abre el archivo en el visor, en esa línea. Lo que no se
+ * puede ubicar (una ruta relativa sin carpeta) o no se puede abrir queda como texto: nunca un enlace que no hace nada.
+ */
+export function EnlaceTexto({ ruta, linea = null, className, tip, children }: { ruta: string; linea?: number | null; className?: string; tip?: string; children: ReactNode }) {
+  useIdioma();
+  const a = archivoDeRuta(ruta, "leer");
+  const [abierto, setAbierto] = useState(false);
+  const [fallo, setFallo] = useState(false);
+  const otro = a?.tipo === "otro";
+  if (!a?.absoluta || (otro && !(esVentana() && abribleConSistema(ruta)))) return <span className={className} data-sin-enlace="">{children}</span>;
+  return (
+    <>
+      <button type="button" className={className} data-fallo={fallo ? "" : undefined} data-tip={fallo ? t("archivo.noAbrio") : tip} onClick={() => (otro ? void fuente.archivoAbrir(ruta).then((ok) => setFallo(!ok)) : setAbierto(true))}>
+        {children}
+      </button>
+      {abierto ? <VerArchivo a={a} linea={linea} alCerrar={() => setAbierto(false)} /> : null}
+    </>
+  );
 }
 
 /** Una imagen chica en la línea: se pide cuando entra en pantalla y sólo si pesa poco. */

@@ -11,8 +11,8 @@ import { t } from "../i18n";
 import { useIdioma } from "../i18n/react";
 import { Entero } from "./Entero";
 import { defDe } from "./modelos";
-import { resumenDe, textoFinal } from "./worker-datos";
-import { Chips, Extras, Recorrido, tokensInfo, useRecorrido } from "./Worker";
+import { frasePaso, pensarConFila, resumenDe, textoFinal } from "./worker-datos";
+import { Chips, Consigna, Extras, Portada, Recorrido, subVivo, tokensInfo, ultimoPaso, useRecorrido } from "./Worker";
 
 /** El modelo que se muestra: el del subagente, o el que dice su transcript. */
 const modeloDe = (u: Subagente | null, vista: VistaPasos | null) => {
@@ -58,14 +58,35 @@ export function VistaSubagente({ u, vista, vive }: { u: Subagente | null; vista:
   const final = textoFinal(vista.pasos) ?? (u?.estado === "terminado" ? u.resultado : null);
   const { resultado } = useMemo(() => resumenDe(final), [final]);
   const espera = vive ? t("wk.espera") : u?.estado === "error" ? t("subv.fallo") : t("wk.sinResultado");
+  const conFila = r.pasos.filter((p) => p.detalle.clase !== "pensar" || pensarConFila(p));
+  const q = conFila[conFila.length - 1] ?? null;
+  const e = vista.encabezado;
   return (
     <div className="wk" ref={r.raiz} data-subagente="">
       <div className="wk-in">
-        <section className="wk-fin" aria-label={t("wk.resultado")}>
-          <div className="wk-fila">{resultado ? <Entero texto={resultado} className="wk-txt" /> : <p className="wk-txt espera">{espera}</p>}</div>
-          <Chips resultado={null} vista={vista} pasos={r.pasos} vive={vive} alElegir={r.alElegir} />
-        </section>
-        <Recorrido r={r} vista={vista} vive={vive} compacta={null} />
+        <Recorrido
+          r={r}
+          vista={vista}
+          vive={vive}
+          compacta={null}
+          arriba={
+            <section className="wk-fin" aria-label={t("wk.resultado")} data-tono={vive ? "vivo" : u?.estado === "error" ? "frenado" : "listo"}>
+              <Portada
+                tono={vive ? "vivo" : "listo"}
+                r={r}
+                inicio={u?.inicio ?? (e.inicio ?? Date.now()) / 1000}
+                dur={e.dur}
+                corte={null}
+                titulo={vive && q ? <h2 className="wk-tit">{frasePaso(q)}</h2> : resultado ? <h2 className="wk-tit"><Entero texto={resultado} className="wk-txt" /></h2> : <p className="wk-txt espera">{espera}</p>}
+                sub={vive ? subVivo(r.pasos) : ultimoPaso(r.pasos, false)}
+              />
+              {e.tarea ? <Consigna texto={e.tarea} deEntrada={false} /> : null}
+              <div className="wk-pie-caja">
+                <Chips resultado={null} vista={vista} pasos={r.pasos} vive={vive} alElegir={r.alElegir} />
+              </div>
+            </section>
+          }
+        />
       </div>
     </div>
   );

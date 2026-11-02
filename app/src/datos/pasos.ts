@@ -58,7 +58,7 @@ export function aplicar(vista: VistaPasos, c: CambioPasos): Aplicado | null {
 
 function vacio(): Encabezado {
   return {
-    tarea: null, modelo: null, effort: null, turnos: 0, tokens: { entrada: 0, cacheCreado: 0, cacheLeido: 0, salida: 0 }, total: 0, cache: null,
+    tarea: null, cwd: null, modelo: null, effort: null, turnos: 0, tokens: { entrada: 0, cacheCreado: 0, cacheLeido: 0, salida: 0 }, total: 0, cache: null,
     inicio: null, fin: null, dur: null, compactaciones: 0, pasos: 0, archivos: [], mas: 0, menos: 0,
   };
 }

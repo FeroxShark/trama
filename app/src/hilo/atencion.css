@@ -14,7 +14,8 @@
   --at-brillo: var(--fallo-brillo);
   --at-halo: var(--fallo-halo);
 }
-.wk-fin[data-atencion="decision"] {
+.wk-fin[data-atencion="decision"],
+.wk-fin[data-atencion="trabado"] {
   --at-relleno: var(--decision-relleno);
   --at-sobre: var(--decision-sobre);
   --at-texto: var(--decision-texto);
@@ -34,18 +35,6 @@
     var(--at-brillo);
 }
 
-/* El ícono va en un recuadro relleno del color del estado. */
-.wk-aten-ico {
-  display: grid;
-  flex: none;
-  width: 2rem;
-  height: 2rem;
-  place-items: center;
-  border-radius: var(--r-sm);
-  background: var(--at-relleno);
-  color: var(--at-sobre);
-}
-
 /* El chip con la palabra (con ícono propio: no depende del color). */
 .wk-aten-chip {
   display: inline-flex;
@@ -63,7 +52,7 @@
 }
 
 /* Los botones de la tarjeta del worker: relleno, de alto contraste contra el tinte. */
-.wk-fin[data-atencion] :is([data-retomar], [data-pasar]) {
+.wk-fin[data-atencion] :is([data-retomar], [data-pasar], [data-parar], [data-seguir-con]) {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -77,39 +66,23 @@
   font-size: var(--letra-5);
   font-weight: 500;
 }
-.wk-fin[data-atencion] :is([data-retomar], [data-pasar]):hover {
+.wk-fin[data-atencion] :is([data-retomar], [data-pasar], [data-parar], [data-seguir-con]):hover {
   background: var(--capa-track);
 }
-.wk-fin[data-atencion] :is([data-retomar], [data-pasar]) {
+.wk-fin[data-atencion] :is([data-retomar], [data-pasar], [data-parar], [data-seguir-con]) {
   background: var(--at-relleno);
   color: var(--at-sobre);
   font-weight: 600;
 }
-.wk-fin[data-atencion] :is([data-retomar], [data-pasar]):hover {
+.wk-fin[data-atencion] :is([data-retomar], [data-pasar], [data-parar], [data-seguir-con]):hover {
   background: var(--at-relleno);
   filter: brightness(1.08);
 }
-.wk-fin[data-atencion] :is([data-retomar], [data-pasar]):focus-visible {
+.wk-fin[data-atencion] :is([data-retomar], [data-pasar], [data-parar], [data-seguir-con]):focus-visible {
   outline: 0;
   box-shadow: var(--at-halo, var(--vidrio-borde));
 }
 
-.wk-aten {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--esp-3);
-  margin-bottom: var(--esp-3);
-}
-.wk-aten-tit {
-  min-width: 0;
-  color: var(--texto);
-  font-size: var(--letra-7);
-  font-weight: 600;
-}
-.wk-fin[data-atencion] {
-  padding: var(--esp-4);
-}
 .wk-fin[data-atencion] .pregunta {
   padding: 0;
   border: 0;
@@ -122,13 +95,8 @@
   color: var(--texto);
 }
 
-/* El texto de lo que corre o terminó baja un escalón: la atención se la lleva lo que falla o espera. */
-.wk-fin:not([data-atencion]) .wk-txt:not(.espera) {
-  color: var(--texto-3);
-}
-
 @media (prefers-reduced-motion: no-preference) {
-  .wk-fin[data-atencion] :is([data-retomar], [data-pasar]) {
+  .wk-fin[data-atencion] :is([data-retomar], [data-pasar], [data-parar], [data-seguir-con]) {
     transition:
       background-color 0.12s ease-out,
       filter 0.12s ease-out;

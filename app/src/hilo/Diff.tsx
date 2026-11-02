@@ -7,17 +7,18 @@ import type { FilaDiff } from "./worker-datos";
 /** Más filas que esto no se pintan: un archivo de miles de líneas trabaría la vista (el resto se dice en una línea). */
 const TOPE_FILAS = 1500;
 
-export const Filas = memo(function Filas({ filas, lang }: { filas: readonly FilaDiff[]; lang: string }) {
+/** `marca`: la línea que se abrió desde un resultado (se resalta). */
+export const Filas = memo(function Filas({ filas, lang, marca }: { filas: readonly FilaDiff[]; lang: string; marca?: number | null }) {
   const filasVistas = useMemo(
     () =>
       filas.slice(0, TOPE_FILAS).map((f, i) => (
-        <div className="df-f" data-t={f.t === " " ? undefined : f.t} key={i}>
+        <div className="df-f" data-t={f.t === " " ? undefined : f.t} data-marca={marca != null && f.b === marca ? "" : undefined} key={i}>
           <span className="df-n">{(f.t === "-" ? f.a : f.b) ?? ""}</span>
           <span className="df-s" aria-hidden="true">{f.t === " " ? "" : f.t}</span>
           <span className="df-x">{resaltar(f.x, lang).map((k, j) => (k.c ? <span key={j} data-c={k.c}>{k.t}</span> : k.t))}</span>
         </div>
       )),
-    [filas, lang],
+    [filas, lang, marca],
   );
   return (
     <div className="df codigo">

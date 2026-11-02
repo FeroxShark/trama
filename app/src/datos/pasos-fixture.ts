@@ -59,7 +59,7 @@ export function pasosFijos(id: string, vivo = false, grandes = false): VistaPaso
     return {
       id, hay: true, gen: 1, v: 9, omitidos: 0, pasos: hasta,
       encabezado: {
-        tarea: "Arreglá usarCuenta para que cuente bien", modelo: "claude-sonnet-5-5", effort: "medium", turnos: 7,
+        tarea: "Arreglá usarCuenta para que cuente bien", cwd: "/home/usuario/proy/cuentas", modelo: "claude-sonnet-5-5", effort: "medium", turnos: 7,
         tokens: { entrada: 90, cacheCreado: 6_100, cacheLeido: 61_000, salida: 1_500 }, total: 68_690, cache: 61_000 / 67_100,
         inicio: T0 + delta, fin: null, dur: null, compactaciones: 0, pasos: hasta.length,
         archivos: [{ ruta: "src/cuenta.ts", mas: 2, menos: 1, ediciones: 1, nuevo: false }, { ruta: "src/contar.ts", mas: 1, menos: 0, ediciones: 1, nuevo: true }],
@@ -70,7 +70,7 @@ export function pasosFijos(id: string, vivo = false, grandes = false): VistaPaso
   return {
     id, hay: true, gen: 1, v: n + 1, omitidos: 0, pasos,
     encabezado: {
-      tarea: "Arreglá usarCuenta para que cuente bien", modelo: "claude-sonnet-5-5", effort: "medium", turnos: 9,
+      tarea: "Arreglá usarCuenta para que cuente bien", cwd: "/home/usuario/proy/cuentas", modelo: "claude-sonnet-5-5", effort: "medium", turnos: 9,
       tokens: { entrada: 120, cacheCreado: 8_400, cacheLeido: 96_000, salida: 2_300 }, total: 106_820, cache: 96_000 / 104_520,
       inicio: T0, fin: T0 + 71_000, dur: 71_000, compactaciones: 0, pasos: pasos.length,
       archivos: [{ ruta: "src/cuenta.ts", mas: 2, menos: 1, ediciones: 1, nuevo: false }, { ruta: "src/contar.ts", mas: 1, menos: 0, ediciones: 1, nuevo: true }],
@@ -109,7 +109,7 @@ export function pasosSubFijos(id: string, vivo: boolean): VistaPasos {
   return {
     id, hay: true, gen: 1, v: n + 1, omitidos: 0, pasos,
     encabezado: {
-      tarea: null, modelo: vivo ? "claude-sonnet-5-5" : "claude-haiku-5-5", effort: null, turnos: pasos.length,
+      tarea: null, cwd: null, modelo: vivo ? "claude-sonnet-5-5" : "claude-haiku-5-5", effort: null, turnos: pasos.length,
       tokens, total, cache: tokens.cacheLeido / (total - tokens.salida),
       inicio: desde, fin: vivo ? null : en(90), dur: vivo ? null : 90_000, compactaciones: 0, pasos: pasos.length,
       archivos: [], mas: 0, menos: 0,
@@ -148,11 +148,175 @@ export function pasosRutasFijos(id: string): VistaPasos {
   return {
     id, hay: true, gen: 1, v: n + 1, omitidos: 0, pasos,
     encabezado: {
-      tarea: "Arreglá el script de Windows", modelo: "claude-sonnet-5-5", effort: "medium", turnos: 5,
+      tarea: "Arreglá el script de Windows", cwd: "C:\\Users\\usuario\\proy", modelo: "claude-sonnet-5-5", effort: "medium", turnos: 5,
       tokens: { entrada: 120, cacheCreado: 8_400, cacheLeido: 96_000, salida: 2_300 }, total: 106_820, cache: 96_000 / 104_520,
       inicio: T0, fin: T0 + 25_000, dur: 25_000, compactaciones: 0, pasos: pasos.length,
       archivos: [{ ruta, mas: 31, menos: 0, ediciones: 1, nuevo: true }, { ruta: otra, mas: 4, menos: 2, ediciones: 1, nuevo: false }],
       mas: 35, menos: 2,
+    },
+  };
+}
+
+// ---- La captura `worker-vista-hilo`: una corrida entera, contada en segundos reales (todo inventado) --------------------------------
+
+const GREP_RUTAS = [
+  'src/db/rutas-repo.ts:48:const filas = await db.query("SELECT * FROM rutas WHERE zona_id = $1 ORDER BY creada_en DESC LIMIT $2", [zona, limite]);',
+  'src/db/rutas-repo.ts:71:return db.query("SELECT count(*) FROM rutas WHERE zona_id = $1 AND estado = $2", [zona, "activa"]);',
+  "src/db/rutas-repo.ts:103:await db.query(\"DELETE FROM rutas WHERE vence_en < now() - interval '90 days' RETURNING id\");",
+  "src/api/rutas/listar.ts:22:// antes: SELECT * FROM rutas sin filtro; se dejó de usar cuando entraron las zonas",
+  'src/informes/por-zona.ts:37:const sql = "SELECT zona_id, count(*) AS total, avg(distancia_km) AS media FROM rutas GROUP BY zona_id ORDER BY total DESC";',
+  'src/informes/por-zona.ts:64:const vacias = await db.query("SELECT z.id FROM zonas z LEFT JOIN (SELECT zona_id FROM rutas) r ON r.zona_id = z.id WHERE r.zona_id IS NULL");',
+  'src/tareas/purgar.ts:15:await db.query("SELECT id FROM rutas WHERE vence_en < now() FOR UPDATE SKIP LOCKED");',
+].join("\n");
+
+const MIGRACION = `-- Las consultas por zona ordenan por fecha: sin esto, un seq scan sobre 2,1 M de filas.
+CREATE INDEX CONCURRENTLY rutas_zona_fecha_idx
+  ON rutas (zona_id, creada_en DESC);
+
+-- El conteo de rutas activas filtra por zona y estado; las purgadas no cuentan.
+CREATE INDEX CONCURRENTLY rutas_zona_activas_idx
+  ON rutas (zona_id)
+  WHERE estado = 'activa';
+
+-- El de fecha sola no lo usa ninguna consulta.
+DROP INDEX CONCURRENTLY IF EXISTS rutas_creada_en_idx;
+
+ANALYZE rutas;
+`;
+
+const TESTS_OK = `> atlas@2.8.1 test
+> node scripts/test.mjs
+
+▶ rutas-repo
+  ✔ listarRutas filtra por zona (38 ms)
+  ✔ listarRutas ordena por fecha dentro de la zona (41 ms)
+  ✔ el plan de la consulta usa rutas_zona_fecha_idx y no hace seq scan sobre la tabla entera (112 ms)
+▶ rutas-migracion
+  ✔ aplica 0042 sobre una base vacía (640 ms)
+  ✔ revierte 0042 sin perder filas (702 ms)
+▶ rutas-integracion
+  ✔ lista rutas contra la base de prueba (1,2 s)
+  ✔ reintenta cuando la base corta la conexión (3,1 s)
+
+ℹ tests 214
+ℹ pass 214
+ℹ fail 0`;
+
+const TESTS_MAL = `▶ rutas-integracion
+  ✔ lista rutas contra la base de prueba (1,2 s)
+  ✖ reintenta cuando la base corta la conexión (3,1 s)
+    tests/rutas-integracion.test.ts:88:14
+    AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal: 49 !== 50, faltó la última fila de la página porque el cursor ya estaba cerrado cuando volvió la conexión
+      at listarRutas (src/db/rutas-repo.ts:52:11)
+      at reintentar (src/db/conexion.ts:31:9)
+  ✖ el informe por zona no cambia con el índice nuevo (88 ms)
+    tests/informes/por-zona.test.ts:41:5
+    AssertionError [ERR_ASSERTION]: el orden de las zonas con el mismo total cambió: esperaba [12, 7, 31] y recibió [7, 12, 31]
+
+ℹ tests 214
+ℹ pass 212
+ℹ fail 2
+exit 1`;
+
+const CONSIGNA_ATLAS = "Auditá los índices de la tabla rutas en la base de atlas. Buscá las consultas que hacen seq scan, proponé los índices que faltan en una migración nueva y corré todos los tests. No toques el esquema de envíos. Si un índice nuevo pide reescribir una consulta, reescribila vos y dejalo dicho en el resultado.";
+const CWD_ATLAS = "/home/usuario/proy/atlas";
+
+export type VarianteHilo = "trabajando" | "trabado" | "termino" | "fallo";
+
+/** Una corrida con cada cosa que la vista sabe contar: pensamientos cortos y largos, búsquedas y lecturas seguidas, ediciones, un commit y, según `variante`, cómo termina. */
+export function pasosHiloFijos(id: string, variante: VarianteHilo): VistaPasos {
+  n = 0;
+  const pasos: Paso[] = [];
+  let reloj = 0;
+  /** Una herramienta: arranca ahora y tarda `seg`. */
+  const hacer = (tipo: TipoPaso, titulo: string, seg: number | null, detalle: Detalle, mas: Partial<Paso> = {}) => {
+    pasos.push(paso(tipo, titulo, reloj, seg, detalle, mas));
+    reloj += seg ?? 0;
+  };
+  /** Un pensamiento: su hora es la de cuando terminó. */
+  const pensar = (seg: number, texto?: string) => {
+    reloj += seg;
+    pasos.push(paso("pensar", "", reloj, seg, texto ? { clase: "pensar", texto: corto(texto) } : { clase: "pensar" }));
+  };
+  const leer = (ruta: string, seg: number, texto = "// …") => hacer("leer", ruta, seg, { clase: "leer", ruta: `${CWD_ATLAS}/${ruta}`, desde: 1, lineas: texto.split("\n").length, total: 120, imagen: false, texto: corto(texto) });
+  const grep = (patron: string, seg: number, texto: string, resultados: number) => hacer("buscar", patron, seg, { clase: "buscar", herramienta: "Grep", patron, ruta: "src", resultados, texto: corto(texto) });
+  const bash = (comando: string, descripcion: string | null, seg: number | null, salida: string, codigo: number | null = 0, mas: Partial<Paso> = {}) =>
+    hacer("correr", comando, seg, { clase: "correr", comando: corto(comando), descripcion, salida: salida ? corto(salida) : null, codigo, interrumpido: false, fondo: false }, mas);
+
+  leer("AGENTS.md", 5, "# atlas\n\n- Las migraciones van numeradas y se prueban en la base de prueba.\n- Nada de SELECT * en código nuevo.");
+  pensar(9);
+  grep("FROM rutas", 7, GREP_RUTAS, 7);
+  grep("zona_id", 4, "src/db/rutas-repo.ts:48:WHERE zona_id = $1", 1);
+  grep("listarRutas\\(", 6, "src/api/rutas/listar.ts:30:await listarRutas(zona)", 1);
+  grep("CREATE INDEX", 5, "migraciones/0038_rutas.sql:12:CREATE INDEX rutas_creada_en_idx ON rutas (creada_en);", 1);
+  grep("ORDER BY creada_en", 5, "src/db/rutas-repo.ts:48:ORDER BY creada_en DESC", 1);
+  grep("rutas", 4, "tests/rutas.test.ts\ntests/rutas-integracion.test.ts", 2);
+  leer("src/db/rutas-repo.ts", 5);
+  leer("migraciones/0038_rutas.sql", 3);
+  leer("src/db/zonas.ts", 3);
+  leer("tests/rutas.test.ts", 3);
+  pensar(48);
+  bash(`psql "$DB_PRUEBA" -c 'EXPLAIN ANALYZE SELECT * FROM rutas WHERE zona_id = 12 ORDER BY creada_en DESC LIMIT 50'`, "Mide el plan de la consulta por zona", 23, "Seq Scan on rutas  (cost=0.00..48211.40 rows=1842 width=212) (actual time=0.041..812.330 rows=1790 loops=1)\n  Filter: (zona_id = 12)\n  Rows Removed by Filter: 2098210\nExecution Time: 814.902 ms");
+  pensar(6, "conviene un índice en (zona_id, creada_en); el de fecha sola no lo usa nadie.");
+  hacer("escribir", "migraciones/0042_indices_rutas.sql", 4, { clase: "escribir", ruta: `${CWD_ATLAS}/migraciones/0042_indices_rutas.sql`, contenido: corto(MIGRACION), lineas: 13, nuevo: true, mas: 13, menos: 0 });
+  hacer("editar", "src/db/rutas-repo.ts", 6, {
+    clase: "editar", ruta: `${CWD_ATLAS}/src/db/rutas-repo.ts`, masCambios: 0, mas: 2, menos: 1,
+    cambios: [{ viejo: corto('const filas = await db.query("SELECT * FROM rutas WHERE zona_id = $1", [zona]);'), nuevo: corto('const filas = await db.query(\n  "SELECT id, zona_id, creada_en FROM rutas WHERE zona_id = $1 ORDER BY creada_en DESC LIMIT $2", [zona, limite]);'), todo: false, desde: 48 }],
+  });
+  pensar(7);
+  bash("npm run migrar -- --base prueba", "Aplica la migración en la base de prueba", 19, "0042_indices_rutas ... ok (17,4 s)");
+  bash("npm test -- rutas", "Corre los tests de rutas", 18, "▶ rutas-repo\n  ✔ listarRutas filtra por zona (38 ms)\n\nℹ tests 22\nℹ pass 22\nℹ fail 0");
+  bash('git add migraciones src/db && git commit -m "rutas: índice compuesto por zona y fecha"', null, 3, "[pa/atlas/rutas a41f9c2] rutas: índice compuesto por zona y fecha\n 2 files changed, 15 insertions(+), 1 deletion(-)");
+  pensar(5);
+
+  const archivos = [
+    { ruta: `${CWD_ATLAS}/migraciones/0042_indices_rutas.sql`, mas: 13, menos: 0, ediciones: 1, nuevo: true },
+    { ruta: `${CWD_ATLAS}/src/db/rutas-repo.ts`, mas: 2, menos: 1, ediciones: 1, nuevo: false },
+  ];
+  let fin: number | null = null;
+  let dur: number | null = null;
+  // Los que siguen corriendo se corren al ahora: el paso en curso lleva lo que dice la captura (con el reloj quieto, siempre lo mismo).
+  let correrA: number | null = null;
+
+  if (variante === "trabajando") {
+    correrA = 38;
+    bash("npm test", "Corre todos los tests", null, "", null, { estado: "corriendo" });
+  } else if (variante === "trabado") {
+    // La última novedad del transcript fue a los 48 s del comando; hace rato que no llega nada.
+    correrA = 760;
+    bash("npm test", "Corre todos los tests", null, "", null, { estado: "corriendo" });
+  } else if (variante === "termino") {
+    bash("npm test", "Corre todos los tests", 41, TESTS_OK);
+    pensar(4);
+    hacer("texto", "RESULTADO", 3, { clase: "texto", final: true, texto: corto("RESULTADO: Agregó el índice de rutas y los tests pasan.\nARCHIVOS: migraciones/0042_indices_rutas.sql, src/db/rutas-repo.ts") });
+    fin = T0 + reloj * 1000;
+    dur = reloj * 1000;
+  } else {
+    bash("npm test", "Corre todos los tests", 61, TESTS_MAL, 1, { estado: "fallo", error: "2 tests fallan" });
+    pensar(12);
+    hacer("editar", "src/db/rutas-repo.ts", 8, {
+      clase: "editar", ruta: `${CWD_ATLAS}/src/db/rutas-repo.ts`, masCambios: 0, mas: 2, menos: 1,
+      cambios: [{ viejo: corto("ORDER BY creada_en DESC"), nuevo: corto("ORDER BY creada_en DESC, id DESC\n-- desempata las filas de la misma fecha"), todo: false, desde: 49 }],
+    });
+    bash("npm test", "Vuelve a correr los tests", 44, TESTS_MAL, 1, { estado: "fallo", error: "2 tests fallan" });
+    hacer("texto", "RESULTADO", 1, { clase: "texto", final: true, texto: corto("RESULTADO: Se quedó sin cupo con 2 tests en rojo.") });
+    archivos[1] = { ...archivos[1], mas: 4, menos: 2, ediciones: 2 };
+    fin = T0 + reloj * 1000;
+    dur = reloj * 1000;
+  }
+
+  const ajustados = correrA === null ? pasos : pasos.map((p) => ({ ...p, t: p.t === null ? null : p.t + (Date.now() - correrA! * 1000 - (T0 + reloj * 1000)) }));
+  const inicio = correrA === null ? T0 : T0 + (Date.now() - correrA * 1000 - (T0 + reloj * 1000));
+  return {
+    id, hay: true, gen: 1, v: n + 1, omitidos: 0, pasos: ajustados,
+    encabezado: {
+      tarea: CONSIGNA_ATLAS, cwd: CWD_ATLAS, modelo: "claude-sonnet-5-5", effort: "medium", turnos: 22,
+      tokens: { entrada: 300, cacheCreado: 9_100, cacheLeido: 96_000, salida: 2_800 }, total: 108_200, cache: 96_000 / 105_400,
+      inicio,
+      // Trabado: lo último que se supo fue a los 48 s del comando.
+      fin: variante === "trabado" ? inicio + (reloj + 48) * 1000 : fin,
+      dur, compactaciones: 0, pasos: ajustados.length, archivos,
+      mas: archivos.reduce((a, x) => a + x.mas, 0), menos: archivos.reduce((a, x) => a + x.menos, 0),
     },
   };
 }

@@ -1,66 +1,155 @@
-// La vista de worker, lo que no es pintar: nombre corto de un paso, cómo se juntan los chicos, el resumen que sale del
-// último mensaje, el chip de tests, los pesos del mapa y el diff de una edición. Puro: lo prueba `tests/worker-datos.test.ts`.
+// La vista de worker, lo que no es pintar: la frase de un paso, qué filas salen de los pasos (pensamientos, grupos), la tira en
+// tiempo real, lo que es un cambio, el resumen que sale del último mensaje, el chip de tests, las rutas de una salida y el diff de
+// una edición. Puro: lo prueba `tests/worker-datos.test.ts`.
+import { t } from "../i18n/index.ts";
 import type { Cambio, Encabezado, Paso, TipoPaso } from "../datos/pasos";
-
-/** Un paso lento es el que pasa de esto (ms): la duración sólo se escribe entonces. */
-export const LENTO_MS = 10_000;
 
 const base = (ruta: string) => ruta.split(/[\\/]/).filter(Boolean).pop() ?? ruta;
 export const nombreDeArchivo = base;
-
-const PALABRAS_COMANDO = 3;
-const MAX_CORTO = 32;
 
 /** Un texto entero que pasa de esto se pliega con "Ver todo" (nunca se corta con «…»): la vista de worker y la tarjeta de actividad. */
 export const PLIEGUE = 200;
 export const muyLargo = (s: string): boolean => s.length > PLIEGUE;
 
-/** Un comando en dos o tres palabras: sin el `cd … &&` de adelante, sin variables de entorno y hasta el primer `&&`, `|` o `;`. Sin recortar palabras: lo largo se parte en la línea. */
-export function comandoCorto(cmd: string): string {
-  let c = cmd.trim();
-  c = c.replace(/^(?:cd\s+\S+\s*(?:&&|;)\s*)+/, "");
-  c = c.split(/&&|\|\||[|;\n]/)[0].trim();
-  const ps = c.split(/\s+/).filter((p) => p && !/^[A-Za-z_][A-Za-z0-9_]*=/.test(p));
-  return ps.slice(0, PALABRAS_COMANDO).join(" ");
-}
+const mayus = (s: string) => (s ? s[0].toLocaleUpperCase() + s.slice(1) : s);
 
-/** El nombre corto de un paso, a la derecha del verbo: el archivo, el patrón buscado o dos palabras del comando. Vacío si no hay. */
-export function corto(p: Paso): string {
+/** ¿Este paso sigue en curso? Un paso sin resultado en un worker que ya no corre no terminó: no se lo dice en gerundio. */
+const enCurso = (p: Paso, vive: boolean) => p.estado === "corriendo" && vive;
+
+/** El verbo en pasado o en gerundio de una frase con forma `wk.f.<clave>.v` / `.e`. */
+const f = (p: Paso, vive: boolean, clave: string, vars?: Record<string, string>) => (t as (c: string, v?: Record<string, string>) => string)(`wk.f.${clave}.${enCurso(p, vive) ? "e" : "v"}`, vars);
+
+/**
+ * La frase de un paso: lo que hizo, en palabras. De un comando, su descripción tal cual; sin descripción, una frase genérica de su
+ * tipo (nunca el comando cortado: el crudo va sólo en el panel). `vive`: si el worker sigue corriendo.
+ */
+export function frasePaso(p: Paso, vive = true): string {
   const d = p.detalle;
   switch (d.clase) {
+    case "correr": {
+      const desc = d.descripcion?.trim().split("\n")[0];
+      if (desc) return mayus(desc);
+      if (esCommit(d.comando.t)) return f(p, vive, "commit");
+      if (CORREDORES.test(d.comando.t)) return f(p, vive, "tests");
+      return f(p, vive, "comando");
+    }
     case "leer":
+      return f(p, vive, "leer", { q: base(d.ruta) || t("wk.unArchivo") });
     case "editar":
+      return f(p, vive, "editar", { q: base(d.ruta) || t("wk.unArchivo") });
     case "escribir":
-      return base(d.ruta);
-    case "buscar":
-      return d.patron;
-    case "correr":
-      return d.descripcion && d.descripcion.length <= MAX_CORTO ? d.descripcion : comandoCorto(d.comando.t);
-    case "delegar":
-      return d.descripcion ?? "";
-    case "pensar":
+      return f(p, vive, "escribir", { q: base(d.ruta) || t("wk.unArchivo") });
+    case "buscar": {
+      const q = d.patron.trim();
+      if (!q) return f(p, vive, "codigo");
+      if (d.herramienta === "Glob") return f(p, vive, "glob", { q });
+      if (d.herramienta === "WebSearch") return f(p, vive, "web", { q });
+      if (d.herramienta === "WebFetch") return f(p, vive, "url", { q });
+      return f(p, vive, "buscar", { q });
+    }
+    case "delegar": {
+      const q = d.descripcion?.trim() || d.agente;
+      return q ? f(p, vive, "delegar", { q }) : f(p, vive, "delegarSolo");
+    }
+    case "pensar": {
+      const texto = d.texto?.t.trim();
+      if (texto) return t("wk.f.pensarTexto", { q: texto });
+      return p.dur !== null && p.dur >= 1000 ? t("wk.f.pensarDur", { d: durCorta(p.dur) }) : t("wk.v.pensar");
+    }
     case "texto":
-      return "";
+      return f(p, vive, "texto");
     default:
-      return p.titulo;
+      return f(p, vive, "otro", { q: p.titulo });
   }
 }
 
 /** Un paso que se junta con los de al lado: leer y buscar que salieron bien. */
 export const esChico = (p: Paso) => (p.tipo === "leer" || p.tipo === "buscar") && p.estado === "ok";
 
-export type Fila = { grupo: false; p: Paso } | { grupo: true; ps: Paso[] };
+/** Por arriba de esto (ms), un pensamiento sin texto también lleva su fila. */
+export const PENSAR_LARGO_MS = 30_000;
 
-/** Las filas de la lista: los chicos seguidos van en un grupo (de dos para arriba; uno solo queda suelto). */
+/** Un pensamiento lleva fila propia si trae texto o si pasó de 30 s; los demás son un nudito en el hilo. */
+export function pensarConFila(p: Paso): boolean {
+  if (p.detalle.clase !== "pensar") return false;
+  return !!p.detalle.texto?.t.trim() || (p.dur ?? 0) > PENSAR_LARGO_MS;
+}
+
+/** Los pensamientos sin fila que hubo antes de una fila: cuánto duraron y cuáles fueron (la tira los puede elegir). */
+export type Nudo = { ms: number; ns: number[] };
+
+export type ClaseGrupo = "buscar" | "leer" | "mezcla" | "repetido";
+
+export type Fila = { grupo: false; p: Paso; nudo: Nudo | null } | { grupo: true; ps: Paso[]; clase: ClaseGrupo; nudo: Nudo | null; nudos: Record<number, Nudo> };
+
+/** Dos pasos que son el mismo: el mismo comando (bien las dos veces) o la misma herramienta sin más detalle. */
+function mismoPaso(a: Paso, b: Paso): boolean {
+  if (a.estado !== "ok" || b.estado !== "ok") return false;
+  if (a.detalle.clase === "correr" && b.detalle.clase === "correr") return !falla(a) && !falla(b) && !esCommit(a.detalle.comando.t) && a.detalle.comando.t.trim() === b.detalle.comando.t.trim();
+  if (a.detalle.clase === "otro" && b.detalle.clase === "otro") return a.titulo === b.titulo;
+  return false;
+}
+
+/**
+ * Las filas de la lista. Un pensamiento sin texto y corto no lleva fila: se vuelve el nudo de la fila que sigue, y no corta un grupo.
+ * Las búsquedas y lecturas seguidas se juntan: por tipo si hay dos o más seguidas; si se alternan de a una, en un grupo mezclado. Los
+ * comandos idénticos seguidos, también. Lo que falló nunca entra en un grupo.
+ */
 export function filas(pasos: readonly Paso[]): Fila[] {
-  const out: Fila[] = [];
+  // Primero, los pasos con fila y el nudo de cada uno.
+  const con: { p: Paso; nudo: Nudo | null }[] = [];
+  let nudo = null as Nudo | null;
   for (const p of pasos) {
-    const ult = out[out.length - 1];
-    if (esChico(p) && ult?.grupo) ult.ps.push(p);
-    else if (esChico(p)) out.push({ grupo: true, ps: [p] });
-    else out.push({ grupo: false, p });
+    if (p.detalle.clase === "pensar" && !pensarConFila(p)) {
+      nudo = { ms: (nudo?.ms ?? 0) + (p.dur ?? 0), ns: [...(nudo?.ns ?? []), p.n] };
+      continue;
+    }
+    con.push({ p, nudo });
+    nudo = null;
   }
-  return out.map((f) => (f.grupo && f.ps.length === 1 ? { grupo: false as const, p: f.ps[0] } : f));
+  const out: Fila[] = [];
+  const suelta = (x: (typeof con)[number]) => out.push({ grupo: false, p: x.p, nudo: x.nudo });
+  const grupo = (xs: typeof con, clase: ClaseGrupo) => {
+    const nudos: Record<number, Nudo> = {};
+    xs.slice(1).forEach((x) => {
+      if (x.nudo) nudos[x.p.n] = x.nudo;
+    });
+    out.push({ grupo: true, ps: xs.map((x) => x.p), clase, nudo: xs[0].nudo, nudos });
+  };
+  for (let i = 0; i < con.length; ) {
+    let j = i + 1;
+    if (esChico(con[i].p)) {
+      while (j < con.length && esChico(con[j].p)) j++;
+      const tramo = con.slice(i, j);
+      const partes: (typeof con)[] = [];
+      for (const x of tramo) {
+        const ult = partes[partes.length - 1];
+        if (ult && ult[0].p.tipo === x.p.tipo) ult.push(x);
+        else partes.push([x]);
+      }
+      // Los de un mismo tipo, de dos para arriba, van juntos; los que quedan de a uno y seguidos se mezclan; uno solo queda suelto.
+      let sueltos: typeof con = [];
+      const vaciar = () => {
+        if (sueltos.length === 1) suelta(sueltos[0]);
+        else if (sueltos.length > 1) grupo(sueltos, "mezcla");
+        sueltos = [];
+      };
+      for (const q of partes) {
+        if (q.length === 1) sueltos.push(q[0]);
+        else {
+          vaciar();
+          grupo(q, q[0].p.tipo as "buscar" | "leer");
+        }
+      }
+      vaciar();
+    } else {
+      while (j < con.length && mismoPaso(con[i].p, con[j].p)) j++;
+      if (j - i >= 2) grupo(con.slice(i, j), "repetido");
+      else suelta(con[i]);
+    }
+    i = j;
+  }
+  return out;
 }
 
 /** Cuántos archivos leyó y cuántas veces buscó un grupo: lo que dice su rótulo. */
@@ -68,7 +157,46 @@ export function cuenta(ps: readonly Paso[]): { leer: number; buscar: number } {
   return { leer: ps.filter((p) => p.tipo === "leer").length, buscar: ps.filter((p) => p.tipo === "buscar").length };
 }
 
-/** Los pasos que van en la lista y el mapa: el último mensaje del turno es el resultado, que se ve arriba. */
+/** El rótulo de un grupo, en palabras. */
+export function fraseGrupo(ps: readonly Paso[], clase: ClaseGrupo, vive = true): string {
+  const c = cuenta(ps);
+  const a = c.leer === 1 ? t("wk.arch1") : t("wk.archN", { n: c.leer });
+  const v = c.buscar === 1 ? t("wk.vez1") : t("wk.vezN", { n: c.buscar });
+  if (clase === "repetido") return t("wk.gVeces", { q: frasePaso(ps[0], vive), n: ps.length });
+  if (clase === "buscar") return t("wk.gBuscoCodigo", { v });
+  if (clase === "leer") return t("wk.gLeyo", { a });
+  return t("wk.gBuscoLeyo", { v, a });
+}
+
+/** Lo que tardó un grupo: la suma de lo que tardó cada paso (sin lo que pensó entre medio). */
+export const durGrupo = (ps: readonly Paso[]): number => ps.reduce((a, p) => a + (p.dur ?? 0), 0);
+
+// ---- Lo que es un cambio ------------------------------------------------------------------------------------------
+
+/** `git commit` como comando (no un `echo "git commit"`), con o sin `git -C ruta`, solo o después de otro comando. */
+const COMMIT = /(?:^|&&|\|\||;|\n)\s*(?:[A-Za-z_][A-Za-z0-9_]*=\S*\s+)*git\s+(?:-\S+(?:\s+\S+)?\s+)*commit\b/;
+export const esCommit = (comando: string): boolean => COMMIT.test(comando);
+
+/** ¿Falló? Un comando que salió con algo distinto de 0 también. */
+export function falla(p: Paso): boolean {
+  if (p.estado === "fallo") return true;
+  return p.detalle.clase === "correr" && p.estado !== "corriendo" && p.detalle.codigo !== null && p.detalle.codigo !== 0;
+}
+
+/** El commit de un paso: `{ hash }` (el que imprimió git, si lo imprimió) o `null` si no es un commit o no se hizo. */
+export function commitDe(p: Paso): { hash: string | null } | null {
+  const d = p.detalle;
+  if (d.clase !== "correr" || !esCommit(d.comando.t) || falla(p)) return null;
+  return { hash: /^\[[^\]\n]*\s([0-9a-f]{7,40})\]/m.exec(d.salida?.t ?? "")?.[1] ?? null };
+}
+
+/** Lo que cambió algo o salió mal: lo que se resalta en la lista y lo único que queda con «Sólo cambios». */
+export const esCambio = (p: Paso): boolean => p.tipo === "editar" || p.tipo === "escribir" || falla(p) || commitDe(p) !== null;
+
+/** Las filas con «Sólo cambios»: cada cambio suelto, sin grupos ni nudos. */
+export const filasCambios = (pasos: readonly Paso[]): Fila[] => pasos.filter(esCambio).map((p) => ({ grupo: false, p, nudo: null }));
+
+/** Los pasos que van en la lista y la tira: el último mensaje del turno es el resultado, que se ve arriba. */
 export const visibles = (pasos: readonly Paso[]): Paso[] => pasos.filter((p) => !(p.detalle.clase === "texto" && p.detalle.final));
 
 /** "38 s", "4 m 11 s", "1 h 05 m". */
@@ -80,20 +208,93 @@ export function durCorta(ms: number): string {
   return `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, "0")} m`;
 }
 
-/** La duración de la fila, sólo si el paso es lento. */
-export const durLenta = (p: Paso): string | null => (p.dur !== null && p.dur > LENTO_MS ? durCorta(p.dur) : null);
+/** Un reloj: "0:38", "13:12", "1:05:00". */
+export function relojDe(ms: number): string {
+  const s = Math.max(0, Math.floor(ms / 1000));
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const ss = String(s % 60).padStart(2, "0");
+  return h ? `${h}:${String(m).padStart(2, "0")}:${ss}` : `${m}:${ss}`;
+}
 
-/** El peso de cada paso en el mapa: lo que pasó hasta el siguiente (el último, hasta el fin o `ahora`). Nunca cero ni menos del 1 % del total. */
-export function pesos(pasos: readonly Paso[], fin: number | null): number[] {
-  if (!pasos.length) return [];
-  const brutos = pasos.map((p, i) => {
-    const t = p.t ?? 0;
-    const sig = pasos[i + 1]?.t ?? fin ?? t + (p.dur ?? 1000);
-    return Math.max(0, sig - t);
-  });
-  const total = brutos.reduce((a, b) => a + b, 0) || pasos.length;
-  const piso = total * 0.01;
-  return brutos.map((b) => Math.max(b, piso));
+// ---- La tira: cada paso donde pasó, con su tiempo real ------------------------------------------------------------
+
+/** Un paso en la tira: desde cuándo (ms desde el arranque) y cuánto duró. `abierto`: sigue corriendo; su ancho llega hasta el ahora. */
+export type Tramo = { p: Paso; t0: number; seg: number; abierto: boolean };
+
+/**
+ * Dónde empieza un paso. La hora de un pensamiento es la de cuando terminó (su `dur` es lo que tardó hasta ahí);
+ * la de una herramienta, la de cuando se lanzó. `null` si el transcript no trae hora.
+ */
+function arranca(p: Paso): number | null {
+  if (p.t === null) return null;
+  return p.tipo === "pensar" ? p.t - (p.dur ?? 0) : p.t;
+}
+
+/** El cero de la tira: el arranque del worker o, si hay pasos anteriores que no se muestran, el primero que se ve. */
+export function baseTira(pasos: readonly Paso[], inicio: number | null, omitidos: number): number | null {
+  const primero = pasos.map(arranca).find((x) => x !== null) ?? null;
+  if (inicio !== null && !omitidos && (primero === null || inicio <= primero)) return inicio;
+  return primero ?? inicio;
+}
+
+/**
+ * Los tramos de la tira, en tiempo real: lo que no fue ningún paso (el modelo escribiendo) queda como un hueco, sin inventar a quién darle
+ * ese tiempo. Un paso sin duración llega hasta el que sigue o hasta `fin`; uno sin hora, se apoya en el anterior. `fin`: `null` si sigue corriendo.
+ */
+export function tramos(pasos: readonly Paso[], cero: number, fin: number | null): Tramo[] {
+  const out: Tramo[] = [];
+  let previo = 0;
+  for (let i = 0; i < pasos.length; i++) {
+    const p = pasos[i];
+    const a = arranca(p);
+    const t0 = a === null ? previo : Math.max(0, a - cero);
+    let seg: number;
+    let abierto = false;
+    if (p.dur !== null) seg = p.dur;
+    else {
+      const sig = pasos.slice(i + 1).map(arranca).find((x) => x !== null);
+      if (sig !== undefined && sig !== null) seg = Math.max(0, sig - cero - t0);
+      else if (fin !== null) seg = Math.max(0, fin - cero - t0);
+      else {
+        seg = 0;
+        abierto = p.estado === "corriendo";
+      }
+    }
+    out.push({ p, t0, seg, abierto });
+    previo = Math.max(previo, t0 + seg);
+  }
+  return out;
+}
+
+const PASOS_REGLA_S = [30, 60, 120, 180, 300, 600, 900, 1800, 3600, 7200, 10800, 21600, 43200, 86400];
+
+/** Cada cuánto va una marca en la regla (ms): lo justo para que queden de 2 a 5 marcas. */
+export function pasoDeRegla(total: number): number {
+  for (const s of PASOS_REGLA_S) if (total / (s * 1000) <= 5) return s * 1000;
+  return PASOS_REGLA_S[PASOS_REGLA_S.length - 1] * 1000;
+}
+
+/** Las marcas intermedias de la regla (el 0 y el total van aparte): no se pegan al total. */
+export function marcasRegla(total: number, paso = pasoDeRegla(total)): number[] {
+  const out: number[] = [];
+  for (let m = paso; m < total * 0.9; m += paso) out.push(m);
+  return out;
+}
+
+/** "1 m", "2 h", "1 h 30 m", "30 s": una marca de la regla. */
+export function marcaCorta(ms: number): string {
+  const s = Math.round(ms / 1000);
+  if (s < 60) return `${s} s`;
+  const m = Math.round(s / 60);
+  if (m < 60) return `${m} m`;
+  return m % 60 ? `${Math.floor(m / 60)} h ${m % 60} m` : `${m / 60} h`;
+}
+
+/** La leyenda de la tira: sólo los tipos que hay, en este orden; leer y buscar son un color, editar y escribir otro. */
+export function leyendaDe(pasos: readonly Paso[]): ("leer" | "editar" | "correr" | "pensar" | "delegar" | "texto" | "otro")[] {
+  const hay = new Set(pasos.map((p) => (p.tipo === "buscar" ? "leer" : p.tipo === "escribir" ? "editar" : p.tipo)));
+  return (["leer", "editar", "correr", "pensar", "delegar", "texto", "otro"] as const).filter((x) => hay.has(x));
 }
 
 // ---- El resultado -------------------------------------------------------------------------------------------------
@@ -115,8 +316,6 @@ export function seccionResultado(texto: string): string {
   }
   return out.join(" ").replace(/\s+/g, " ").trim();
 }
-
-const mayus = (s: string) => (s ? s[0].toLocaleUpperCase() + s.slice(1) : s);
 
 /** Las frases de un texto (cortan en . ! ? seguido de espacio). */
 const frases = (s: string) => s.split(/(?<=[.!?])\s+/).map((f) => f.trim()).filter(Boolean);
@@ -175,6 +374,101 @@ export function testsDe(pasos: readonly Paso[]): Tests | null {
     const ok = p.estado === "ok" && (d.codigo === null || d.codigo === 0);
     return { ok, n: ok ? cuantosTests(d.salida?.t ?? "") : null, paso: p };
   }
+  return null;
+}
+
+// ---- Las salidas: rutas clicables y el tono de cada línea ---------------------------------------------------------
+
+const RE_WIN = /^[A-Za-z]:[\\/]/;
+
+/** La ruta de una salida, absoluta si se puede: lo relativo, desde la carpeta donde corría el worker. `null` si no se la puede ubicar. */
+export function rutaEnCwd(ruta: string, cwd: string | null): string | null {
+  if (ruta.startsWith("/") || RE_WIN.test(ruta) || ruta.startsWith("\\\\")) return ruta;
+  if (!cwd) return null;
+  const sep = cwd.includes("\\") && !cwd.includes("/") ? "\\" : "/";
+  const limpia = ruta.replace(/^\.[\\/]/, "");
+  return `${cwd.replace(/[\\/]+$/, "")}${sep}${sep === "\\" ? limpia.replace(/\//g, "\\") : limpia}`;
+}
+
+/** Una ruta para leer: sin la carpeta del worker si está adentro (`src/a.ts`, no `/home/…/proy/src/a.ts`). */
+export function rutaRelativa(ruta: string, cwd: string | null): string {
+  if (!cwd) return ruta;
+  const raiz = cwd.replace(/[\\/]+$/, "");
+  if (ruta.length > raiz.length + 1 && ruta.startsWith(raiz) && /[\\/]/.test(ruta[raiz.length])) return ruta.slice(raiz.length + 1);
+  return ruta;
+}
+
+export type LineaGrep = { n: number | null; texto: string };
+export type GrupoGrep = { ruta: string; cuenta: number | null; lineas: LineaGrep[] };
+
+/** La ruta de Windows o Unix de adelante de una línea de grep y lo que sigue: `ruta:12:contenido`, `ruta:contenido`, `ruta:3` o `ruta`. */
+const LINEA_GREP = /^((?:[A-Za-z]:[\\/])?[^:\n]*?[^:\s])(?::(\d+))?(?::(.*))?$/;
+const PARECE_RUTA = /[\\/]|\.[A-Za-z0-9]{1,8}$/;
+
+/**
+ * Los resultados de un grep, por archivo. Entiende `ruta:12:contenido`, `ruta:contenido`, `ruta:3` (la cuenta) y `ruta` sola, con rutas de
+ * Linux y de Windows. Devuelve `null` si más de la mitad de las líneas no son de grep: entonces esa salida se muestra como texto.
+ */
+export function partirGrep(texto: string): GrupoGrep[] | null {
+  const ls = texto.split("\n").filter((l) => l.trim() && l !== "--" && !/^Found \d+ (?:files?|lines?)/.test(l) && !/^No (?:files|matches) found/.test(l) && !/^\[Showing results with pagination/.test(l));
+  if (!ls.length) return null;
+  const grupos: GrupoGrep[] = [];
+  let malas = 0;
+  for (const l of ls) {
+    const m = LINEA_GREP.exec(l);
+    const ruta = m?.[1];
+    if (!m || !ruta || !PARECE_RUTA.test(ruta) || /\s{2,}/.test(ruta) || /^\s/.test(ruta)) {
+      malas++;
+      continue;
+    }
+    let g = grupos[grupos.length - 1];
+    if (!g || g.ruta !== ruta) {
+      g = { ruta, cuenta: null, lineas: [] };
+      grupos.push(g);
+    }
+    if (m[2] !== undefined && m[3] !== undefined) g.lineas.push({ n: Number(m[2]), texto: m[3] });
+    else if (m[2] !== undefined) g.cuenta = Number(m[2]);
+    else if (m[3] !== undefined) g.lineas.push({ n: null, texto: m[3] });
+  }
+  return malas * 2 > ls.length || !grupos.length ? null : grupos;
+}
+
+/** ¿Este comando es un grep cuya salida se puede partir? Sin tuberías: después de un `|` ya no se sabe qué salió. */
+export function comandoEsGrep(comando: string): boolean {
+  const c = comando.trim().replace(/^(?:cd\s+\S+\s*(?:&&|;)\s*)+/, "");
+  return /^(?:grep|rg|ag|ack)\s/.test(c) && !/[|;&\n]/.test(c.replace(/"[^"]*"|'[^']*'/g, ""));
+}
+
+export type Trozo = { t: string } | { t: string; ruta: string; linea: number | null };
+
+const EN_LINEA = /(?:[A-Za-z]:[\\/]|\.{0,2}\/|[\w@.-]+[\\/])[\w@.\\/-]*\.[A-Za-z0-9]{1,8}(?::(\d+)(?::\d+)?)?/g;
+
+/** Una línea de salida partida en texto y rutas con línea (`src/a.ts:52:11`): sólo se vuelve enlace lo que trae su número de línea. */
+export function trozosConRutas(linea: string): Trozo[] {
+  const out: Trozo[] = [];
+  let i = 0;
+  for (const m of linea.matchAll(EN_LINEA)) {
+    if (m[1] === undefined) continue;
+    const ini = m.index;
+    if (ini > 0 && /[\w@.:/\\-]/.test(linea[ini - 1])) continue;
+    if (ini > i) out.push({ t: linea.slice(i, ini) });
+    out.push({ t: m[0], ruta: m[0].replace(/(?::\d+){1,2}$/, ""), linea: Number(m[1]) });
+    i = ini + m[0].length;
+  }
+  if (i < linea.length || !out.length) out.push({ t: linea.slice(i) });
+  return out;
+}
+
+export type Tono = "ok" | "mal" | "grupo" | "tenue" | "espera" | null;
+
+/** Cómo se pinta una línea de salida de tests o de un comando. Cada tono lo dice también su propio signo (✔ ✖ ▶): el color acompaña. */
+export function tonoDeLinea(linea: string): Tono {
+  const l = linea.trimStart();
+  if (/^(?:✖|✗|not ok\b|AssertionError\b|exit [1-9]|\w*Error\b:?|FAIL\b)/.test(l)) return "mal";
+  if (/^(?:✔|✓|ok \d|PASS\b)/.test(l)) return "ok";
+  if (/^(?:▶|# Subtest)/.test(l)) return "grupo";
+  if (/^⏵/.test(l)) return "espera";
+  if (/^(?:> |ℹ|#)/.test(l)) return "tenue";
   return null;
 }
 

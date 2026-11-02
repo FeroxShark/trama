@@ -6,7 +6,7 @@
 // cambió de inodo o ya no empieza igual se arma de nuevo (`gen` sube). Cada paso lleva `v`, la revisión en
 // que se tocó por última vez: quien mira pide "lo que cambió desde v", nunca la lista entera.
 //
-// Del razonamiento no hay texto (el transcript lo trae vacío: "contenido oculto"): sólo que pensó y cuánto.
+// Del razonamiento casi nunca hay texto (el transcript lo trae vacío: "contenido oculto"): sólo que pensó y cuánto; si lo trae, se guarda.
 // Todo lo largo se corta con su marca (`Cortado`: lo que queda, el tamaño original y si se recortó).
 // Sin Electron: lo prueba `tests/pasos.test.ts` con transcripts falsos.
 import { open } from "node:fs/promises";
@@ -32,7 +32,8 @@ export type Cambio = {
 };
 
 export type Detalle =
-  | { clase: "pensar" }
+  /** `texto`: lo que pensó, si el transcript lo trae (casi siempre viene vacío: "contenido oculto"). */
+  | { clase: "pensar"; texto?: Cortado | null }
   | { clase: "leer"; ruta: string; desde: number | null; lineas: number | null; total: number | null; imagen: boolean; texto: Cortado | null }
   | { clase: "buscar"; herramienta: string; patron: string; ruta: string | null; resultados: number | null; texto: Cortado | null }
   | { clase: "editar"; ruta: string; cambios: Cambio[]; /** Cambios que no entraron (tope). */ masCambios: number; mas: number; menos: number }
@@ -83,6 +84,8 @@ export type ArchivoTocado = { ruta: string; mas: number; menos: number; edicione
 export type Encabezado = {
   /** El primer mensaje que recibió (la tarea), recortado. */
   tarea: string | null;
+  /** La carpeta donde corría (la última que dice el transcript): lo relativo de un grep se abre desde acá. */
+  cwd: string | null;
   modelo: string | null;
   effort: string | null;
   /** Mensajes distintos del modelo (cada llamada a la API). */
@@ -357,6 +360,7 @@ export type OpcionesArmador = {
 
 const vacio = (): Encabezado => ({
   tarea: null,
+  cwd: null,
   modelo: null,
   effort: null,
   turnos: 0,
@@ -388,6 +392,7 @@ export class ArmadorPasos {
   private usos = new Map<string, Suma>();
   private suma = sumaVacia();
   private tarea: string | null = null;
+  private cwd: string | null = null;
   private modelo: string | null = null;
   private effort: string | null = null;
   private inicio: number | null = null;
@@ -412,7 +417,7 @@ export class ArmadorPasos {
     this.porUso.clear();
     this.usos.clear();
     this.suma = sumaVacia();
-    this.tarea = this.modelo = this.effort = this.inicio = this.fin = this.ultimoT = null;
+    this.tarea = this.cwd = this.modelo = this.effort = this.inicio = this.fin = this.ultimoT = null;
     this.compactaciones = 0;
     this.archivos.clear();
     this.nietos.clear();
@@ -462,6 +467,7 @@ export class ArmadorPasos {
     const archivos = [...this.archivos.values()];
     return {
       tarea: this.tarea,
+      cwd: this.cwd,
       modelo: this.modelo,
       effort: this.effort,
       turnos: this.usos.size,
@@ -497,6 +503,7 @@ export class ArmadorPasos {
     const t = typeof d.timestamp === "string" ? Date.parse(d.timestamp) : NaN;
     const hora = Number.isFinite(t) ? t : null;
     this.v++;
+    if (typeof d.cwd === "string" && d.cwd) this.cwd = d.cwd;
     if (hora !== null) {
       this.inicio = this.inicio === null ? hora : Math.min(this.inicio, hora);
       this.fin = this.fin === null ? hora : Math.max(this.fin, hora);
@@ -543,7 +550,8 @@ export class ArmadorPasos {
       if (!b) return;
       const dur = hora !== null && this.ultimoT !== null ? Math.max(0, hora - this.ultimoT) : null;
       if (b.type === "thinking") {
-        this.agregar({ id: `${base}:${i}`, tipo: "pensar", titulo: "", t: hora, dur, estado: "ok", error: null, detalle: { clase: "pensar" } });
+        const pensado = str(b.thinking).trim();
+        this.agregar({ id: `${base}:${i}`, tipo: "pensar", titulo: "", t: hora, dur, estado: "ok", error: null, detalle: pensado ? { clase: "pensar", texto: cortar(pensado, TOPES.texto) } : { clase: "pensar" } });
       } else if (b.type === "text") {
         const texto = str(b.text);
         if (!texto.trim()) return;
