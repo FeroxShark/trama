@@ -1021,8 +1021,12 @@ const TAREA = (que: string) =>
   `<task-notification>\n<task-id>b7x2k9q</task-id>\n<status>completed</status>\n<summary>Agent "${que}" completed</summary>\n<result>RESULTADO: tests verdes.</result>\n</task-notification>`;
 const LIMITE = "You've hit your session limit · resets 4:50pm (America/Argentina/Buenos_Aires)";
 
+/** `ocho` (captura `lider-sistema` con `HILOS_VARIANTE=ocho`): la tanda de ocho workers, dos decisiones, una falla y cinco terminados. */
+const AVISO_OCHO =
+  "[Aviso automático de Trama] Terminaron los 8 workers que lanzaste, 1 con falla:\n- «migración del índice» (8): terminó.\n- «tests del cauce» (9): falló: el proceso se cortó sin dejar mensaje.\n- «revisar el contrato» (10): terminó pidiendo una decisión.\n- «docs del cauce» (11): terminó sin resumen.\n- «integrar atlas» (12): terminó.\n- «decidir la cuota» (13): terminó pidiendo una decisión.\n- «humo del cauce» (14): terminó.\n- «limpiar ramas viejas» (15): terminó.\nRevisá cada uno con `pa --hilo <id>`.";
+
 /** El chat de un líder con una muestra de cada cosa de sistema (captura `lider-sistema`): con los campos del transcript. */
-export function charlaSistema(sid: string): Mensaje[] {
+export function charlaSistema(sid: string, ocho = false): Mensaje[] {
   const l = LIDERES.lideres.find((x) => x.id === sid);
   if (!l) return [];
   const ts = (s: number) => new Date((l.actividad - s) * 1000).toISOString();
@@ -1054,7 +1058,7 @@ export function charlaSistema(sid: string): Mensaje[] {
     { rol: "user", texto: "[Aviso automático de Trama] Worker «revisar atlas» terminó. Id: 7. Revisalo con `pa --hilo 7`.", herramientas: [], modelo: null },
     {
       rol: "user",
-      texto: "[Aviso automático de Trama] Terminaron los 4 workers que lanzaste, 1 con falla:\n- «migración del índice» (8): terminó.\n- «tests del cauce» (9): falló: el proceso se cortó sin dejar mensaje.\n- «revisar el contrato» (10): terminó pidiendo una decisión.\n- «docs del cauce» (11): terminó sin resumen.\nRevisá cada uno con `pa --hilo <id>`.",
+      texto: ocho ? AVISO_OCHO : "[Aviso automático de Trama] Terminaron los 4 workers que lanzaste, 1 con falla:\n- «migración del índice» (8): terminó.\n- «tests del cauce» (9): falló: el proceso se cortó sin dejar mensaje.\n- «revisar el contrato» (10): terminó pidiendo una decisión.\n- «docs del cauce» (11): terminó sin resumen.\nRevisá cada uno con `pa --hilo <id>`.",
       herramientas: [],
       modelo: null,
     },

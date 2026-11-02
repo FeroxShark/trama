@@ -87,7 +87,7 @@ const CAPTURAS = [
   "contexto-75",
   "contexto-95",
   "contexto-abierto",
-  // Lo de sistema en la conversación, en un líder y en un worker.
+  // Lo de sistema en la conversación, en un líder y en un worker; `HILOS_VARIANTE=ocho`: la tanda de avisos con ocho workers (dos decisiones, una falla, cinco terminados).
   "lider-sistema",
   // Seguir la conversación con un modelo de otro motor: la raya en el historial; variante `menu` el selector con todas las columnas, `confirmar` la nota para confirmar.
   "lider-cambio-motor",
