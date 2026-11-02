@@ -259,6 +259,15 @@ const SECCIONES_CONOCIDAS: Record<string, string> = {
   "context management": "contexto",
 };
 
+/**
+ * El título que pone Trama (electron/relevo-motor.ts) cuando una conversación sigue de otra: "Historial de esta conversación" más el motivo
+ * entre paréntesis (cambio de motor, rama, se volvió atrás). No es de Claude Code, pero viaja en el mismo prompt: se reconoce por el prefijo.
+ */
+const HISTORIAL_TRAMA = /^historial de esta conversación(?: \(|$)/i;
+
+/** La clave de sección de un título del prompt (`null`: un título que no se conoce). */
+const seccionDe = (titulo: string): string | null => SECCIONES_CONOCIDAS[titulo.toLowerCase()] ?? (HISTORIAL_TRAMA.test(titulo) ? "historial" : null);
+
 /** Un texto cortado en `# títulos` (los de primer nivel, fuera de los bloques de código): [lo de antes del primero, y cada título con lo suyo]. */
 function cortarPorTitulos(texto: string): { titulo: string | null; texto: string }[] {
   const r: { titulo: string | null; lineas: string[] }[] = [{ titulo: null, lineas: [] }];
@@ -284,7 +293,7 @@ export function partirPrompt(partes: string[]): PartePrompt[] {
     for (const c of cortarPorTitulos(parte)) {
       const ultima = r[r.length - 1];
       if (c.titulo !== null) {
-        r.push({ clave: clave(`seccion:${c.titulo.toLowerCase().slice(0, 40)}`), titulo: c.titulo, detalle: null, seccion: SECCIONES_CONOCIDAS[c.titulo.toLowerCase()] ?? null, texto: c.texto });
+        r.push({ clave: clave(`seccion:${c.titulo.toLowerCase().slice(0, 40)}`), titulo: c.titulo, detalle: null, seccion: seccionDe(c.titulo), texto: c.texto });
       } else if (!ultima) r.push({ clave: "intro", titulo: "", detalle: null, seccion: "intro", texto: c.texto });
       else if (ultima.seccion === "intro") ultima.texto += `\n\n${c.texto}`;
       else r.push({ clave: clave("suelta"), titulo: "", detalle: c.texto.replace(/\s+/g, " ").slice(0, 70), seccion: "suelta", texto: c.texto });

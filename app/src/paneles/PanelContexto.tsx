@@ -186,7 +186,9 @@ function Barra({ cats, d, fina }: { cats: FilaCat[]; d: Desglose; fina?: boolean
 }
 
 /** Las secciones del prompt que la vista sabe nombrar y explicar (`electron/contexto-sesion.ts`, `SECCIONES_CONOCIDAS`). */
-const SECCIONES = new Set(["intro", "arnes", "sesion", "memoria", "entorno", "contexto"]);
+const SECCIONES = new Set(["intro", "arnes", "sesion", "memoria", "entorno", "contexto", "historial"]);
+/** Las que escribe Trama, en español: su título ya se nombra traducido, así que la vista no repite el original. */
+const TITULO_PROPIO = new Set(["historial"]);
 
 /** El nombre de un bloque o de un ítem del sistema, en el idioma de la vista. Del prompt: la sección conocida, o su título tal cual, o "instrucción suelta". */
 function nombreSis(sis: Item["sis"], nombre: string, detalle: string | null, seccion?: string | null): string {
@@ -314,8 +316,15 @@ function FilaItem({ it, uid, foco, estimado }: { it: Item; uid: string; foco: bo
   const idHijos = useId();
   const idTexto = useId();
   const nombre = nombreSis(it.sis, it.nombre, it.detalle, it.seccion);
-  // De una sección conocida del prompt se ve también su título original; de la suelta, sus primeras palabras.
-  const detalle = it.sis === "diferidas" || it.sis === "resto" ? null : it.sis === "prompt" && it.seccion && SECCIONES.has(it.seccion) ? it.nombre || null : it.detalle;
+  // De una sección conocida del prompt se ve también su título original (salvo los que escribe Trama); de la suelta, sus primeras palabras.
+  const detalle =
+    it.sis === "diferidas" || it.sis === "resto"
+      ? null
+      : it.sis === "prompt" && it.seccion && SECCIONES.has(it.seccion)
+        ? TITULO_PROPIO.has(it.seccion)
+          ? null
+          : it.nombre || null
+        : it.detalle;
   return (
     <li id={`${uid}-${it.clave}`} className="cp-it" data-apagado={apagado ? "" : undefined} data-foco={foco ? "" : undefined} data-fantasma={it.fantasma ? "" : undefined}>
       <div className="cp-it-nom">

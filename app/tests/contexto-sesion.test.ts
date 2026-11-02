@@ -245,6 +245,9 @@ test("prompt: se parte en las secciones que trae, con su texto real; cada parte 
   // Los títulos conocidos de Claude Code llevan su clave.
   const conocidas = partirPrompt(["# Harness\na", "# Session-specific guidance\nb", "# Memory\nc", "# Environment\nd", "# Context management\ne"]);
   assert.deepEqual(conocidas.map((p) => p.seccion), ["arnes", "sesion", "memoria", "entorno", "contexto"]);
+  // El historial que pone Trama al cambiar de motor, al ramificar o al volver atrás: sección conocida, con cualquiera de sus motivos.
+  const relevos = partirPrompt(["# Historial de esta conversación (cambio de motor)\na", "# Historial de esta conversación (rama)\nb", "# Historial de esta conversación (se volvió atrás)\nc", "# Historial de otra cosa\nd"]);
+  assert.deepEqual(relevos.map((p) => p.seccion), ["historial", "historial", "historial", null]);
   assert.deepEqual(partirPrompt([]), []);
 });
 
