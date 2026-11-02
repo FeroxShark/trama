@@ -456,16 +456,15 @@
 .v-lin {
   display: grid;
   min-height: 1.5rem;
-  grid-template-columns: minmax(0, 1fr) 5.25rem 2.25rem;
+  grid-template-columns: minmax(0, 1fr) 4.5rem 2.875rem;
   align-items: center;
   column-gap: var(--esp-2);
   font-size: 0.78125rem;
 }
+/* El nombre se parte en dos líneas antes que cortarse: «Claude y GPT por Google» tiene que leerse entero. */
 .v-ln {
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 .v-lin[data-titulo] .v-ln {
   font-weight: 600;
@@ -477,6 +476,7 @@
 .v-lin b {
   font-weight: 500;
   text-align: right;
+  white-space: nowrap;
 }
 .v-lin[data-palabra] {
   grid-template-columns: minmax(0, 1fr) auto;
