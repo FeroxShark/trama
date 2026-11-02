@@ -177,7 +177,7 @@
   min-width: 4.25rem;
 }
 .wk-reloj-n {
-  color: var(--acento-texto);
+  color: var(--acento);
   font-size: var(--cifra-1);
   font-variant-numeric: tabular-nums;
   font-weight: 400;
@@ -397,7 +397,7 @@
   padding: 0;
   border: 0;
   border-radius: 1px;
-  background: color-mix(in srgb, var(--c) 62%, var(--sup-0));
+  background: color-mix(in srgb, var(--c) 72%, var(--sup-0));
   transition:
     background-color 120ms ease-out,
     box-shadow 120ms ease-out;
@@ -430,13 +430,13 @@
   width: 0.3125rem;
   height: 0.3125rem;
   border-radius: 50%;
-  background: var(--acento-texto);
+  background: var(--acento);
   transform: translateX(-50%);
 }
 .wk-seg[data-abierto] {
   width: calc((var(--total) - var(--t0)) / var(--total) * 100%);
-  background: color-mix(in srgb, var(--acento) 22%, var(--sup-0));
-  box-shadow: inset 0 0 0 1.5px var(--acento-texto);
+  background: var(--acento-tinte);
+  box-shadow: inset 0 0 0 1.5px var(--acento);
   border-radius: 0 var(--r-cap) var(--r-cap) 0;
 }
 .wk-seg-colgado {
@@ -549,7 +549,7 @@
   width: 0.5625rem;
   height: 0.5625rem;
   border-radius: 2px;
-  background: color-mix(in srgb, var(--c) 62%, var(--sup-0));
+  background: color-mix(in srgb, var(--c) 72%, var(--sup-0));
 }
 /* «Sólo cambios»: un interruptor, con su palabra y la cuenta. */
 .wk-solo {
@@ -689,7 +689,7 @@
   background: var(--capa-hover);
 }
 .wk-it:focus-visible {
-  outline: 2px solid var(--acento-texto);
+  outline: 2px solid var(--acento);
   outline-offset: -2px;
 }
 .wk-it[data-sel] {
@@ -771,7 +771,7 @@
 }
 .wk-nodo[data-marca="commit"] {
   --relleno: var(--acento);
-  --sobre: var(--texto);
+  --sobre: var(--acento-texto);
 }
 .wk-nodo[data-marca="error"] {
   --relleno: var(--fallo-relleno);
@@ -784,8 +784,8 @@
 .wk-nodo[data-marca="vivo"] i {
   width: 0.6875rem;
   height: 0.6875rem;
-  background: var(--acento-texto);
-  box-shadow: 0 0 0 0.25rem color-mix(in srgb, var(--acento-texto) 22%, transparent);
+  background: var(--acento);
+  box-shadow: 0 0 0 0.25rem color-mix(in srgb, var(--acento) 22%, transparent);
 }
 .wk-tx {
   display: flex;
@@ -832,7 +832,7 @@
 }
 .wk-hash {
   background: var(--acento-tinte);
-  color: var(--acento-texto);
+  color: var(--acento);
 }
 .wk-trab {
   background: var(--decision-relleno);
@@ -850,6 +850,7 @@
   transition: transform 150ms cubic-bezier(0.2, 0, 0, 1);
 }
 .wk-fr .wk-caret {
+  display: inline-block;
   margin-left: var(--esp-1);
   vertical-align: -0.125rem;
 }
@@ -878,7 +879,7 @@
 }
 .wk-hebra[data-abierto] {
   width: calc((var(--total) - var(--t0)) / var(--total) * 100%);
-  background: var(--acento-texto);
+  background: var(--acento);
 }
 .wk-hebra[data-colgado] {
   width: calc((var(--total) - var(--t0)) / var(--total) * 100%);
@@ -1022,7 +1023,7 @@
   font-weight: 500;
 }
 .wk-pie[data-tono="vivo"] b {
-  color: var(--acento-texto);
+  color: var(--acento);
 }
 .wk-pie[data-tono="trabado"] b {
   color: var(--decision-texto);
@@ -1089,7 +1090,7 @@
   padding: 0;
   border: 0;
   background: transparent;
-  color: var(--acento-texto);
+  color: var(--acento);
   font: inherit;
   overflow-wrap: anywhere;
   text-align: left;

@@ -2055,6 +2055,8 @@ export const es: { [K in keyof typeof en]: string } = {
   "wk.tests": "tests",
   "wk.testsN": "{n} tests",
   "wk.testsFallan": "tests fallan",
+  "wk.testsFallan1": "1 test falla",
+  "wk.testsFallanN": "{n} tests fallan",
   "wk.testsTip": "Última corrida de tests: {que}",
   "wk.supuestos1": "1 supuesto",
   "wk.supuestosN": "{n} supuestos",

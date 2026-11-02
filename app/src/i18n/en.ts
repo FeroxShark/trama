@@ -2069,6 +2069,8 @@ export const en = {
   "wk.tests": "tests",
   "wk.testsN": "{n} tests",
   "wk.testsFallan": "tests failing",
+  "wk.testsFallan1": "1 test failing",
+  "wk.testsFallanN": "{n} tests failing",
   "wk.testsTip": "Last test run: {que}",
   "wk.supuestos1": "1 assumption",
   "wk.supuestosN": "{n} assumptions",

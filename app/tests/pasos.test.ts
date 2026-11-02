@@ -44,6 +44,24 @@ test("pensó: un paso sin texto, con cuánto tardó", async () => {
   assert.equal(a.pasos[0].estado, "ok");
 });
 
+test("pensó: si el transcript trae lo que pensó, se guarda; si viene vacío, no", async () => {
+  const a = await leer(
+    tarea("t") +
+      asist("m1", { type: "thinking", thinking: "conviene un índice", signature: "x" }, 3) +
+      asist("m2", { type: "thinking", thinking: "", signature: "x" }, 5) +
+      asist("m3", uso("tu1", "Read", { file_path: "/x/a.ts" }), 6),
+  );
+  assert.equal(det(a.pasos[0], "pensar").texto?.t, "conviene un índice");
+  assert.ok(!det(a.pasos[1], "pensar").texto);
+});
+
+test("encabezado: la carpeta donde corrió sale del transcript; sin el dato, null", async () => {
+  const conCwd = await leer(linea({ type: "user", cwd: "/x/proyecto", timestamp: hora(0), message: { role: "user", content: "t" } }));
+  assert.equal(conCwd.encabezado().cwd, "/x/proyecto");
+  const sinCwd = await leer(tarea("t"));
+  assert.equal(sinCwd.encabezado().cwd, null);
+});
+
 test("leyó: ruta, desde qué línea, cuántas y de cuántas", async () => {
   const a = await leer(
     tarea("t") +

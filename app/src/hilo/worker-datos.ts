@@ -75,6 +75,14 @@ export function pensarConFila(p: Paso): boolean {
   return !!p.detalle.texto?.t.trim() || (p.dur ?? 0) > PENSAR_LARGO_MS;
 }
 
+/** El último paso que tiene fila propia: un pensamiento sin fila no cuenta como «último paso». */
+export function ultimoConFila(ps: readonly Paso[]): Paso | null {
+  for (let i = ps.length - 1; i >= 0; i--) {
+    if (ps[i].detalle.clase !== "pensar" || pensarConFila(ps[i])) return ps[i];
+  }
+  return null;
+}
+
 /** Los pensamientos sin fila que hubo antes de una fila: cuánto duraron y cuáles fueron (la tira los puede elegir). */
 export type Nudo = { ms: number; ns: number[] };
 
@@ -353,12 +361,22 @@ export function textoFinal(pasos: readonly Paso[]): string | null {
 
 const CORREDORES = /(?:^|[\s;&|(])(?:npm\s+(?:run\s+)?test|pnpm\s+(?:run\s+)?test|yarn\s+test|node\s+(?:\S+\s+)*--test|pytest|py\.test|cargo\s+test|vitest|jest|go\s+test|bun\s+test|deno\s+test)\b/;
 
-export type Tests = { ok: boolean; n: number | null; paso: Paso };
+export type Tests = { ok: boolean; n: number | null; fallan: number | null; paso: Paso };
 
-/** Cuántos tests pasaron según lo que imprimió el corredor (`# pass 9`, `22 pass`, `Tests: 5 passed`); el último que aparezca. */
+/** Cuántos tests pasaron según lo que imprimió el corredor (`# pass 9`, `ℹ pass 9`, `22 pass`, `Tests: 5 passed`); el último que aparezca. */
 export function cuantosTests(salida: string): number | null {
   let n: number | null = null;
-  for (const re of [/^#\s*pass\s+(\d+)/gim, /\b(\d+)\s+(?:pass(?:ed|ing)?)\b/gi, /\bTests?:\s+(?:\d+\s+failed,\s+)?(\d+)\s+passed/gi]) {
+  for (const re of [/^[#ℹ]\s*pass\s+(\d+)/gim, /\b(\d+)\s+(?:pass(?:ed|ing)?)\b/gi, /\bTests?:\s+(?:\d+\s+failed,\s+)?(\d+)\s+passed/gi]) {
+    for (const m of salida.matchAll(re)) n = Number(m[1]);
+    if (n !== null) return n;
+  }
+  return null;
+}
+
+/** Cuántos tests fallaron según lo que imprimió el corredor (`# fail 2`, `ℹ fail 2`, `2 failed`, `2 failing`); `null` si no lo dice. */
+export function cuantosFallan(salida: string): number | null {
+  for (const re of [/^[#ℹ]\s*fail\s+(\d+)/gim, /\b(\d+)\s+(?:fail(?:ed|ing|ures?)?)\b/gi]) {
+    let n: number | null = null;
     for (const m of salida.matchAll(re)) n = Number(m[1]);
     if (n !== null) return n;
   }
@@ -372,7 +390,8 @@ export function testsDe(pasos: readonly Paso[]): Tests | null {
     const d = p.detalle;
     if (d.clase !== "correr" || p.estado === "corriendo" || !CORREDORES.test(d.comando.t)) continue;
     const ok = p.estado === "ok" && (d.codigo === null || d.codigo === 0);
-    return { ok, n: ok ? cuantosTests(d.salida?.t ?? "") : null, paso: p };
+    const salida = d.salida?.t ?? "";
+    return { ok, n: ok ? cuantosTests(salida) : null, fallan: ok ? null : cuantosFallan(salida), paso: p };
   }
   return null;
 }

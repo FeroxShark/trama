@@ -374,3 +374,18 @@ test("con el fixture: el resultado sale del mensaje final y los chips de los arc
   // Rutas de Windows: el nombre es lo último después de la barra invertida, no la ruta entera.
   assert.equal(D.nombreDeArchivo("C:\\Users\\usuario\\Temp\\c4\\t10.py"), "t10.py");
 });
+
+test("la caja: el último paso es el último con fila; un pensamiento corto y sin texto no cuenta", () => {
+  const c = conDesc("npm test", "corre todos los tests");
+  assert.equal(D.ultimoConFila([c, pensar(4000)]), c);
+  const largo = pensar(40_000);
+  assert.equal(D.ultimoConFila([c, largo]), largo);
+  assert.equal(D.ultimoConFila([pensar(4000)]), null);
+});
+
+test("la caja: el chip dice cuántos tests fallan si el corredor lo imprimió; si no, sin número", () => {
+  assert.equal(D.testsDe([correr("npm test", 1, "ℹ tests 214\nℹ pass 212\nℹ fail 2\nexit 1")])?.fallan, 2);
+  assert.equal(D.testsDe([correr("npx vitest", 1, "Tests  3 failed | 9 passed")])?.fallan, 3);
+  assert.equal(D.testsDe([correr("npm test", 1, "se cayó")])?.fallan, null);
+  assert.equal(D.testsDe([correr("npm test", 0, "ℹ pass 9\nℹ fail 0")])?.fallan, null);
+});

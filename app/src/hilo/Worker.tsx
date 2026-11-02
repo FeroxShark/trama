@@ -57,6 +57,7 @@ import {
   partirGrep,
   pasoDeRegla,
   pensarConFila,
+  ultimoConFila,
   relojDe,
   resumenDe,
   rutaEnCwd,
@@ -740,6 +741,8 @@ const FilaPaso = memo(function FilaPaso({ p, nudo, tr, selN, sel, angosto, vive,
   const carpeta = ruta ? ruta.slice(0, Math.max(0, ruta.length - nombreDeArchivo(ruta).length)).replace(/[\\/]$/, "") : "";
   const frase = frasePaso(p, vive);
   const pensado = d.clase === "pensar" && d.texto?.t ? frase.slice(0, frase.length - d.texto.t.trim().length) : null;
+  // «Pensó 48 s»: la duración ya está en la frase.
+  const sinTexto = d.clase === "pensar" && !d.texto?.t;
   const atras = d.clase === "pensar" || p.tipo === "leer" || p.tipo === "buscar";
   return (
     <li className="wk-li" data-t={p.tipo} data-nudo={nudo ? "" : undefined} data-trabado={corre && colgado ? "" : undefined}>
@@ -755,7 +758,7 @@ const FilaPaso = memo(function FilaPaso({ p, nudo, tr, selN, sel, angosto, vive,
         {mal ? <span className="wk-ex">{d.clase === "correr" ? t("wk.exit", { n: d.codigo ?? 1 }) : t("wk.chipFalla")}</span> : null}
         {corre && colgado ? <span className="wk-trab">{t("wk.chipTrabado")}</span> : null}
         {sinTerminar ? <span className="wk-sinfin">{t("wk.sinTerminar")}</span> : null}
-        {pintor ? <Reloj pintor={pintor} className="wk-dur" /> : p.dur !== null && p.dur >= 1000 ? <span className="wk-dur">{durCorta(p.dur)}</span> : null}
+        {pintor ? <Reloj pintor={pintor} className="wk-dur" /> : !sinTexto && p.dur !== null && p.dur >= 1000 ? <span className="wk-dur">{durCorta(p.dur)}</span> : null}
       </button>
       <Hebra tr={tr} abierto={tr?.abierto && !colgado} colgado={corre && colgado} />
       {sel && angosto ? (
@@ -817,7 +820,7 @@ export function Chips({ resultado, vista, pasos, vive, alElegir }: { resultado: 
       {tests ? (
         <button type="button" className="ui-chip wk-chip" data-ok={tests.ok ? "" : undefined} data-mal={tests.ok ? undefined : ""} data-tip={t("wk.testsTip", { que: frasePaso(tests.paso, vive) })} onClick={() => alElegir(tests.paso.n)}>
           {tests.ok ? <Check size={13} strokeWidth={2.4} /> : <X size={13} strokeWidth={2.4} />}
-          {!tests.ok ? t("wk.testsFallan") : tests.n !== null ? t("wk.testsN", { n: tests.n }) : t("wk.tests")}
+          {!tests.ok ? (tests.fallan === 1 ? t("wk.testsFallan1") : tests.fallan ? t("wk.testsFallanN", { n: tests.fallan }) : t("wk.testsFallan")) : tests.n !== null ? t("wk.testsN", { n: tests.n }) : t("wk.tests")}
         </button>
       ) : null}
       {archivos.map((c) => (
@@ -897,7 +900,7 @@ function Portada({ tono, r, inicio, dur, corte, titulo, sub, aparte }: { tono: T
 
 /** La frase del último paso para el renglón de abajo de la caja: en minúscula y con su exit si salió mal. */
 function ultimoPaso(ps: readonly Paso[], vive: boolean): string | null {
-  const u = ps[ps.length - 1];
+  const u = ultimoConFila(ps);
   if (!u) return null;
   const frase = minuscula(frasePaso(u, vive));
   return u.detalle.clase === "correr" && fallo(u) && u.detalle.codigo ? t("wk.ultimoPasoExit", { q: frase, n: u.detalle.codigo }) : t("wk.ultimoPaso", { q: frase });
