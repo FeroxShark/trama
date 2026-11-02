@@ -1831,7 +1831,6 @@ export function Barra() {
                       }}
                     />
                   ))}
-                  <BotonPie icono={PanelRight} etq={tr(consumo ? "ctxp.ocultar" : "ctxp.mostrar")} activo={consumo} alClic={alternarConsumo} />
                   <BotonPie
                     icono={Settings}
                     etq={tr(PANELES.ajustes)}
@@ -2121,6 +2120,18 @@ export function Barra() {
             tablero={{ carpetas: slugsReg, lideres: lideresTablero, alIniciar: iniciarTarea, alAbrirLider: abrirLider, alRedactar: redactarTablero, avisar: { lideres: lideresAviso, jefeDe, alAvisar: avisarLider } }}
           />
         ) : null}
+        {/* El botón del panel de contexto vive arriba a la derecha de la ventana, fijo (CSS `.ctx-boton`): así se ve y cierra el panel
+            también cuando el panel tapa la conversación (ancho medio). No va en el pie: lo que abre cae sobre su costado. */}
+        <button
+          type="button"
+          className="ctx-boton"
+          aria-label={tr(consumo ? "ctxp.ocultar" : "ctxp.mostrar")}
+          data-tip={tr(consumo ? "ctxp.ocultar" : "ctxp.mostrar")}
+          aria-pressed={consumo}
+          onClick={alternarConsumo}
+        >
+          <PanelRight size={16} strokeWidth={1.8} />
+        </button>
         {/* El panel de contexto, a la derecha de todo: el líder que se mira (o el del worker que se mira) y sus workers. */}
         {consumo ? <PanelContexto lider={liderContexto} workers={workersContexto} alCerrar={alternarConsumo} alAbrirHilo={abrir} /> : null}
       </div>

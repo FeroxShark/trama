@@ -35,13 +35,15 @@
 .cp [data-cat="agentes"] { --c: var(--c-agentes); }
 .cp [data-cat="sistema"] { --c: var(--c-sistema); }
 
+/* Misma altura que la fila de la conversación (`.migas`, 4 rem): el botón del contexto (`.ctx-boton`) cae centrado en las dos.
+   Su borde derecho le deja lugar a ese botón, que queda sobre esta cabecera cuando el panel está abierto. */
 .cp-cab {
   display: flex;
-  height: 3.5rem;
+  height: 4rem;
   flex: none;
   align-items: center;
   gap: var(--esp-2);
-  padding: 0 var(--esp-3) 0 var(--esp-2-5);
+  padding: 0 calc(var(--esp-3) + 2rem + var(--esp-2)) 0 var(--esp-2-5);
 }
 .cp-cab b {
   flex: 1;

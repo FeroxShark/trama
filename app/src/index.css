@@ -1678,8 +1678,34 @@ img.logo {
   flex: none;
   align-items: center;
   gap: var(--esp-3);
-  padding: 0 var(--esp-6) 0 var(--esp-4);
+  /* El borde derecho le deja lugar al botón del contexto (`.ctx-boton`), que cae sobre esta fila. */
+  padding: 0 calc(var(--esp-3) + 2rem + var(--esp-2)) 0 var(--esp-4);
   border-bottom: 1px solid var(--capa-div);
+}
+/* El botón del panel de contexto: fijo arriba a la derecha de la ventana y siempre a la vista. Cae sobre la fila de arriba
+   (la de la conversación, la de un panel del pie o la del panel de contexto), que le deja su lugar. Por arriba sólo queda la
+   franja de los botones de ventana de Windows (`--franja-titulo`), así que nunca los tapa. Centrado en la fila de 4 rem. */
+.ctx-boton {
+  position: fixed;
+  z-index: 6;
+  top: calc(var(--franja-titulo, 0px) + var(--gap-paneles) + 1rem);
+  right: calc(var(--gap-paneles) + var(--esp-3));
+  display: grid;
+  width: 2rem;
+  height: 2rem;
+  place-items: center;
+  border: 0;
+  border-radius: var(--r-cap);
+  background: transparent;
+  color: var(--apagado);
+}
+.ctx-boton:hover {
+  background: var(--capa-hover);
+  color: var(--texto);
+}
+.ctx-boton[aria-pressed="true"] {
+  background: var(--sup-2);
+  color: var(--texto-1);
 }
 /* Ventana de Windows sin barra de título (la carcasa: src/titulo.ts pone `data-titulo-nativo`): la app empieza debajo de
    la franja, que es el fondo y arrastra la ventana salvo donde están los tres botones nativos. Son medidas de Windows
@@ -5493,7 +5519,15 @@ summary.sis-div-t:hover,
   }
   .migas {
     gap: var(--esp-1-5);
-    padding: 0 var(--esp-3) 0 var(--esp-1);
+    padding: 0 calc(var(--esp-3) + 2rem + var(--esp-2)) 0 var(--esp-1);
+  }
+  /* Sin marco el botón va al borde de la pantalla (`.app` no tiene margen); con la lista a la vista no está: la lista lo tapa. */
+  .ctx-boton {
+    top: calc(var(--franja-titulo, 0px) + 1rem);
+    right: var(--esp-3);
+  }
+  .app:not([data-oculta]) > .ctx-boton {
+    display: none;
   }
   .conv {
     --gap-conv: var(--esp-4);
