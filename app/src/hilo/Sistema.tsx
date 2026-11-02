@@ -4,8 +4,8 @@
 // como si fuera del usuario, una tarjeta centrada y plegada que al abrirse
 // muestra el texto crudo. Compactar y venir de un relevo (B19), un divisor gris
 // que se abre al resumen o al pedido del relevo. Y un aviso de Trama (un worker
-// que terminó o falló): una fila con la campana, su estado con ícono y palabra, y
-// el id de cada worker, que abre su hilo.
+// que terminó o falló): una tarjeta con la campana y una fila por worker (estado con
+// ícono y palabra, la tarea y Abrir, que abre su hilo; el id va en el tooltip).
 import { memo, useState } from "react";
 import {
   BellRing,
@@ -42,7 +42,7 @@ import { Boton } from "../ui/componentes";
 import { nombreModelo } from "./opciones";
 import type { AvisoTexto, EstadoAviso } from "../../electron/avisos-worker.ts";
 import type { ClaseTarjeta, Linea, Sistema as S, Tarjeta } from "./sistema-logica";
-import { tonoDeEstado } from "./sistema-logica";
+import { filasDeAviso, tonoDeEstado } from "./sistema-logica";
 import "./atencion.css";
 
 const ICONO: Record<ClaseTarjeta, LucideIcon> = {
@@ -169,21 +169,21 @@ function Tarjeta_({ s }: { s: Tarjeta }) {
   );
 }
 
-/** Ícono y palabra de cada estado de un worker en un aviso (el color lo pone su tono, `tonoDeEstado`). */
-const ESTADO_AVISO: Record<EstadoAviso, { Icono: typeof CircleCheck; rotulo: ClaveSola }> = {
+/** Ícono y palabra de cada estado de un worker en un aviso: la palabra va siempre, el color (`tonoDeEstado`) sólo la acompaña. */
+const ESTADO_AVISO: Record<EstadoAviso, { Icono: LucideIcon; rotulo: ClaveSola }> = {
   termino: { Icono: CircleCheck, rotulo: "sistema.avisoTermino" },
   sinResumen: { Icono: FileText, rotulo: "sistema.avisoSinResumen" },
-  decision: { Icono: MessageCircleQuestion, rotulo: "sistema.avisoDecision" },
+  decision: { Icono: MessageCircleQuestion, rotulo: "sistema.avisoChipDecision" },
   falla: { Icono: TriangleAlert, rotulo: "sistema.avisoFallo" },
 };
 
 /**
- * Una fila que pide atención (un worker que falló o que pide una decisión): ícono en recuadro, la tarea, la palabra en un chip y
- * el botón principal relleno (falló: Relanzar; decisión: abrir su hilo); el otro, más quieto, abre el hilo.
+ * Una fila por worker, de la misma altura para todos: ícono y palabra de su estado, la tarea (entera al pasar el mouse) y, en la
+ * misma línea, Relanzar si falló y «Abrir», que abre su hilo (el id va en su tooltip). No tiene fondo ni borde propios.
  */
-function FilaAtencion({ x, alAbrirHilo }: { x: AvisoTexto["trabajos"][number]; alAbrirHilo?: (id: string) => void }) {
+function FilaAviso({ x, alAbrirHilo }: { x: AvisoTexto["trabajos"][number]; alAbrirHilo?: (id: string) => void }) {
+  const { Icono, rotulo } = ESTADO_AVISO[x.estado];
   const falla = x.estado === "falla";
-  const Icono = falla ? TriangleAlert : MessageCircleQuestion;
   const [relanzo, setRelanzo] = useState<"relanzando" | "hecho" | { error: string } | null>(null);
   const relanzar = () => {
     setRelanzo("relanzando");
@@ -192,50 +192,45 @@ function FilaAtencion({ x, alAbrirHilo }: { x: AvisoTexto["trabajos"][number]; a
       (e) => setRelanzo({ error: mensaje(e) }),
     );
   };
-  const abrir = alAbrirHilo ? (
-    <button type="button" className="sis-aviso-b" data-primario={falla ? undefined : ""} aria-label={t("sistema.avisoAbrir", { id: x.id })} onClick={() => alAbrirHilo(x.id)}>
-      {t("sistema.avisoVer", { id: x.id })}
-    </button>
-  ) : null;
+  const tarea = `«${x.tarea}»`;
   return (
-    <li className="sis-aviso-f" data-atencion={falla ? "falla" : "decision"}>
-      <span className="sis-aviso-ico" aria-hidden="true">
-        <Icono size={16} strokeWidth={2.2} />
-      </span>
-      <div className="sis-aviso-cuerpo">
-        <div className="sis-aviso-tit">
-          <span className="sis-aviso-tarea">{`«${x.tarea}»`}</span>
-          <span className="sis-aviso-chip">
-            <Icono size={11} strokeWidth={2.4} aria-hidden="true" />
-            {t(falla ? "sistema.avisoFallo" : "sistema.avisoChipDecision")}
-          </span>
-        </div>
-        <div className="sis-aviso-acc">
-          {falla ? (
-            <button type="button" className="sis-aviso-b" data-primario="" disabled={relanzo === "relanzando" || relanzo === "hecho"} data-tip={t("avisoW.relanzarTip")} onClick={relanzar}>
-              <RotateCw size={13} strokeWidth={2.2} aria-hidden="true" />
-              {t(relanzo === "relanzando" ? "avisoW.relanzando" : relanzo === "hecho" ? "avisoW.relanzado" : "sistema.avisoRelanzar")}
-            </button>
-          ) : null}
-          {abrir}
-        </div>
-        {relanzo && typeof relanzo === "object" ? (
-          <div className="caja-error" role="alert">
-            {t("avisoW.relanzarFallo", { e: relanzo.error })}
-          </div>
+    <li className="sis-aviso-fila" data-estado={x.estado}>
+      <div className="sis-aviso-linea">
+        <span className="sis-aviso-e" data-tono={tonoDeEstado(x.estado)}>
+          <Icono size={13} strokeWidth={2.2} aria-hidden="true" />
+          <span>{t(rotulo)}</span>
+        </span>
+        <span className="sis-aviso-tarea" title={tarea}>
+          {tarea}
+        </span>
+        {falla ? (
+          <button type="button" className="sis-aviso-r" disabled={relanzo === "relanzando" || relanzo === "hecho"} data-tip={t("avisoW.relanzarTip")} onClick={relanzar}>
+            <RotateCw size={12} strokeWidth={2.2} aria-hidden="true" />
+            {t(relanzo === "relanzando" ? "avisoW.relanzando" : relanzo === "hecho" ? "avisoW.relanzado" : "sistema.avisoRelanzar")}
+          </button>
+        ) : null}
+        {alAbrirHilo ? (
+          <button type="button" className="sis-aviso-ver" data-tip={t("sistema.avisoVer", { id: x.id })} aria-label={t("sistema.avisoAbrir", { id: x.id })} onClick={() => alAbrirHilo(x.id)}>
+            {t("sistema.avisoAbrirCorto")}
+          </button>
         ) : null}
       </div>
+      {relanzo && typeof relanzo === "object" ? (
+        <div className="caja-error" role="alert">
+          {t("avisoW.relanzarFallo", { e: relanzo.error })}
+        </div>
+      ) : null}
     </li>
   );
 }
 
 /**
- * Un aviso de Trama: la campana y "Trama · Aviso"; por cada worker, cómo terminó. La tarjeta queda calma: sólo se destacan las
- * filas con falla (coral) o que piden una decisión (ámbar), con ícono, palabra y botón; los que terminaron bien, una línea baja
- * con su ícono y su palabra. Con `alAbrirHilo`, el id abre el hilo del worker.
+ * Un aviso de Trama: la campana y "Trama · Aviso"; después, una fila por worker. Primero las que piden decisión, después las que
+ * fallaron y las terminadas. Con más de cinco filas, las terminadas se pliegan en «N terminados» (desplegable, cerrado).
  */
 function Aviso({ a, alAbrirHilo }: { a: AvisoTexto; alAbrirHilo?: (id: string) => void }) {
   const fallas = a.trabajos.filter((x) => x.falla).length;
+  const { visibles, plegadas } = filasDeAviso(a.trabajos);
   return (
     <div className="sis-aviso">
       <div className="sis-aviso-h">
@@ -244,28 +239,28 @@ function Aviso({ a, alAbrirHilo }: { a: AvisoTexto; alAbrirHilo?: (id: string) =
       </div>
       {a.tanda ? <span>{`${t("sistema.avisoTanda", { n: a.trabajos.length })}${fallas ? ` · ${t("sistema.avisoFallas", { k: fallas })}` : ""}`}</span> : null}
       {a.trabajos.length ? (
-        <ul className="sis-aviso-l">
-          {a.trabajos.map((x) => {
-            if (x.estado === "falla" || x.estado === "decision") return <FilaAtencion key={x.id} x={x} alAbrirHilo={alAbrirHilo} />;
-            const { Icono, rotulo } = ESTADO_AVISO[x.estado];
-            return (
-              <li key={x.id} className="sis-aviso-ok">
-                <span className="sis-aviso-e" data-tono={tonoDeEstado(x.estado)}>
-                  <Icono size={12} strokeWidth={2} aria-hidden="true" />
-                  <span>{t(rotulo)}</span>
-                </span>
-                <span className="sis-aviso-tarea">{`«${x.tarea}»`}</span>
-                {alAbrirHilo ? (
-                  <button type="button" className="sis-aviso-id" onClick={() => alAbrirHilo(x.id)} aria-label={t("sistema.avisoAbrir", { id: x.id })}>
-                    {`#${x.id}`}
-                  </button>
-                ) : (
-                  <span className="sis-aviso-id">{`#${x.id}`}</span>
-                )}
-              </li>
-            );
-          })}
-        </ul>
+        <>
+          {visibles.length ? (
+            <ul className="sis-aviso-l">
+              {visibles.map((x) => (
+                <FilaAviso key={x.id} x={x} alAbrirHilo={alAbrirHilo} />
+              ))}
+            </ul>
+          ) : null}
+          {plegadas.length ? (
+            <details className="sis-aviso-pliegue">
+              <summary>
+                <ChevronRight className="sis-aviso-flecha" size={11} strokeWidth={2} aria-hidden="true" />
+                <span>{plegadas.length === 1 ? t("sistema.avisoPliegueUno") : t("sistema.avisoPliegue", { n: plegadas.length })}</span>
+              </summary>
+              <ul className="sis-aviso-l">
+                {plegadas.map((x) => (
+                  <FilaAviso key={x.id} x={x} alAbrirHilo={alAbrirHilo} />
+                ))}
+              </ul>
+            </details>
+          ) : null}
+        </>
       ) : (
         <span className="sis-aviso-tarea">{t("sistema.avisoSin")}</span>
       )}
