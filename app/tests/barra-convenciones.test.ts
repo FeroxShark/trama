@@ -255,3 +255,16 @@ test("la regla está escrita: AGENTS.md manda leer las convenciones antes de red
   assert.match(leer("../../AGENTS.md"), /Antes de rediseñar la barra, leer app\/src\/barra\/CONVENCIONES\.md/);
   assert.ok(existsSync(fileURLToPath(new URL("../src/barra/CONVENCIONES.md", import.meta.url))));
 });
+
+test("el detalle de cupos (#1924): anillos con tooltip, ámbar a los 80, rojo sólo sin cupo, un bloque por suscripción y el enlace a Plan y cupos", () => {
+  const riel = leer("../src/barra/CuposRiel.tsx");
+  assert.match(riel, /pintorAnilloTip/, "cada anillo dice su ventana, el % usado y cuándo vuelve");
+  assert.match(riel, /bloquesMotores/, "agrupado por suscripción");
+  assert.match(riel, /abrirAjustes\("cupos"\)/, "el pie lleva a Plan y cupos");
+  assert.match(riel, /hayCuentas \? <p className="v-pie">/, "«no cambia de cuenta sola» sólo con varias cuentas");
+  assert.match(leer("../src/barra/cupos-riel-logica.ts"), /AMBAR_DESDE = 80/);
+  const es = leer("../src/i18n/es.ts");
+  for (const clave of ["riel.actualizado", "riel.noActualizo", "riel.sinLimiteConocido", "riel.verPlan", "cu.gp.claude-gpt"]) assert.match(es, new RegExp(`"${clave}"`));
+  const conv = leer("../src/barra/CONVENCIONES.md");
+  for (const frase of ["5 horas: 5 % usado", "Gratis · sin límite conocido", "Actualizado hace 2 m", "Ver Plan y cupos"]) assert.ok(conv.includes(frase), frase);
+});

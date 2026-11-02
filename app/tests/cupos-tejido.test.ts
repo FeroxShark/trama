@@ -15,6 +15,10 @@ test("los hilos: redondea para arriba, nunca cero con uso y sólo se llena con e
   assert.equal(hilosPrendidos(99.6), HILOS - 1);
   assert.equal(hilosPrendidos(100), HILOS);
   assert.equal(hilosPrendidos(130), HILOS);
+  // La barra, que es angosta, usa menos hilos: las mismas reglas con otro total.
+  assert.equal(hilosPrendidos(5, 14), 1);
+  assert.equal(hilosPrendidos(99.6, 14), 13);
+  assert.equal(hilosPrendidos(100, 14), 14);
 });
 
 test("el nivel de un carril: poco desde 70 %, sin cupo con 100 %", () => {

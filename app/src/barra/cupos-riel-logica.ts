@@ -2,9 +2,9 @@
 // al tocarlos: las otras cuentas de Claude y los otros motores. Nada de acá supone qué grupos hay: salen como vienen de `reparto`.
 // Puro: lo prueba `tests/riel.test.ts`.
 import type { Uso, VentanaCupo } from "../datos/contrato";
-import type { FilaSusc, ListaCuentas } from "../datos/cuentas";
-import { columnas, renglonesDeGrupos, resumenVentanas, type EstadoGrupo } from "./cuposVista.ts";
-import { nombreGrupo, nombreGrupoCorto } from "./cuposNombres.ts";
+import { MARCA, type FilaSusc, type ListaCuentas } from "../datos/cuentas.ts";
+import { columnas, estadoVentana, renglonesDeGrupos, resumenVentanas, type EstadoGrupo } from "./cuposVista.ts";
+import { nombreGrupo, nombreGrupoCorto, nombreGrupoDetalle } from "./cuposNombres.ts";
 import { filaDe } from "./usoFila.ts";
 
 /** Una ventana de los anillos: `pct` null = sin dato; `hasta` en epoch s (0: no se sabe cuándo vuelve). */
@@ -19,6 +19,20 @@ export type CuentaRiel = {
   sem: VentanaRiel;
   ts: number;
 };
+
+/** Desde este % usado el anillo y la barrita pasan a ámbar; el rojo es sólo cuando se acabó (100 %). */
+export const AMBAR_DESDE = 80;
+
+/** El color de un cupo: nada hasta el ámbar, `ambar` desde `AMBAR_DESDE` y `rojo` sólo sin cupo. Nunca solo: el texto lo dice igual. */
+export const nivelCupo = (pct: number | null): "ambar" | "rojo" | undefined => (pct === null ? undefined : pct >= 100 ? "rojo" : pct >= AMBAR_DESDE ? "ambar" : undefined);
+
+/** Cuándo vuelve lo más usado de las ventanas que rigen (epoch s); `null` si no se sabe o no se usó nada (con 0 % no hay nada que esperar). */
+export function vueltaDe(ventanas: readonly VentanaCupo[]): number | null {
+  const usadas = ventanas.filter((v) => estadoVentana(v) !== "off" && (v.pct ?? 0) > 0);
+  if (!usadas.length) return null;
+  const peor = usadas.reduce((m, v) => ((v.pct ?? 0) > (m.pct ?? 0) ? v : m));
+  return peor.vuelve ?? null;
+}
 
 const SIN: VentanaRiel = { pct: null, hasta: 0 };
 
@@ -61,10 +75,14 @@ export type LineaRiel = {
   estado: EstadoGrupo;
   /** Cuándo vuelve lo agotado (epoch s); `null`: no se sabe. */
   vuelve: number | null;
+  /** Cuándo vuelve la ventana más usada aunque no esté agotada (epoch s); `null`: no se sabe o no se usó nada. */
+  cuando: number | null;
   /** Pedidos contados por Trama (OpenCode), sin porcentaje. */
   pedidos?: number;
   /** El grupo no trae ventanas: sin límite medido. */
   sinLimite?: boolean;
+  /** Sin porcentaje, con pedidos contados y sin tope: los gratis de OpenCode («Gratis · sin límite conocido»). */
+  gratis?: boolean;
   /** La cuenta del control «En uso» / «Usar primero», sólo en el primer renglón de cada una. */
   cuenta?: { proveedor: string; id: string };
 };
@@ -84,32 +102,65 @@ export function lineasCuentas(cuentas: readonly CuentaRiel[]): LineaRiel[] {
         pct: peor?.pct ?? null,
         estado: lleno ? "lleno" : peor ? "ok" : "sin",
         vuelve: lleno && peor?.hasta ? peor.hasta : null,
+        cuando: (peor?.pct ?? 0) > 0 && peor?.hasta ? peor.hasta : null,
         cuenta: { proveedor: "claude", id: c.id },
       };
     });
 }
 
-/** Los otros motores, un renglón por grupo (Google: Gemini, Claude/GPT, Argon…) o por suscripción si no trae grupos. */
-export function lineasMotores(filas: readonly FilaSusc[], ahoraS: number): LineaRiel[] {
+/** Una suscripción de otro motor con sus renglones: Google (Gemini, Argon, «Claude y GPT por Google»), ChatGPT, OpenCode… */
+export type BloqueRiel = { clave: string; proveedor: string; titulo: string; lineas: LineaRiel[] };
+
+const sinTope = (v: VentanaCupo) => v.pedidos !== undefined && !v.tope;
+
+/** Los otros motores agrupados por suscripción, un renglón por grupo (o por cuenta si no trae grupos), en el orden de `reparto`. */
+export function bloquesMotores(filas: readonly FilaSusc[], ahoraS: number): BloqueRiel[] {
   const otras = filas.filter((f) => f.proveedor !== "claude");
-  const varias = (p: string) => otras.filter((f) => f.proveedor === p).length > 1;
-  return otras.flatMap((f) => {
+  const cuantas = (p: string) => otras.filter((f) => f.proveedor === p).length;
+  const bloques: BloqueRiel[] = [];
+  for (const f of otras) {
+    let b = bloques.find((x) => x.proveedor === f.proveedor);
+    if (!b) {
+      // Con varias cuentas del mismo proveedor el bloque lleva la marca («OpenCode») y cada renglón su cuenta; con una, el nombre de la suscripción.
+      b = { clave: f.proveedor, proveedor: f.proveedor, titulo: cuantas(f.proveedor) > 1 ? ((MARCA as Record<string, string>)[f.proveedor] ?? f.nombre) : f.nombre, lineas: [] };
+      bloques.push(b);
+    }
     const cuenta = { proveedor: f.proveedor, id: f.s.cuenta ?? f.s.id };
     const grupos = f.s.grupos ?? [];
     if (!grupos.length) {
-      const r = resumenVentanas(f.s.ventanas ?? [], f.s.agotado, ahoraS);
-      return [{ clave: f.s.id, nombre: f.corto, quien: f.nombre, pct: r.pct, estado: r.estado, vuelve: r.vuelve, ...(r.pedidos !== undefined ? { pedidos: r.pedidos } : null), cuenta }];
+      const ventanas = f.s.ventanas ?? [];
+      const r = resumenVentanas(ventanas, f.s.agotado, ahoraS);
+      const gratis = r.pct === null && r.pedidos !== undefined && ventanas.some(sinTope);
+      b.lineas.push({
+        clave: f.s.id,
+        nombre: f.corto,
+        quien: f.nombre,
+        pct: r.pct,
+        estado: r.estado,
+        vuelve: r.vuelve,
+        cuando: vueltaDe(ventanas),
+        ...(r.pedidos !== undefined ? { pedidos: r.pedidos } : null),
+        ...(gratis ? { gratis } : null),
+        cuenta,
+      });
+      continue;
     }
-    return renglonesDeGrupos(grupos, ahoraS).map(({ g, r, sinLimite }, i) => ({
-      clave: `${f.s.id}:${g.id}`,
-      nombre: varias(f.proveedor) ? `${f.corto} · ${nombreGrupoCorto(g)}` : nombreGrupoCorto(g),
-      quien: `${f.nombre} · ${nombreGrupo(g)}`,
-      pct: r.pct,
-      estado: r.estado,
-      vuelve: r.vuelve,
-      ...(r.pedidos !== undefined ? { pedidos: r.pedidos } : null),
-      ...(sinLimite ? { sinLimite } : null),
-      ...(i === 0 ? { cuenta } : null),
-    }));
-  });
+    renglonesDeGrupos(grupos, ahoraS).forEach(({ g, r, sinLimite }, i) => {
+      const gratis = r.pct === null && r.pedidos !== undefined && g.ventanas.some(sinTope);
+      b!.lineas.push({
+        clave: `${f.s.id}:${g.id}`,
+        nombre: cuantas(f.proveedor) > 1 ? `${f.corto} · ${nombreGrupoCorto(g)}` : nombreGrupoDetalle(g),
+        quien: `${f.nombre} · ${nombreGrupo(g)}`,
+        pct: r.pct,
+        estado: r.estado,
+        vuelve: r.vuelve,
+        cuando: vueltaDe(g.ventanas),
+        ...(r.pedidos !== undefined ? { pedidos: r.pedidos } : null),
+        ...(sinLimite ? { sinLimite } : null),
+        ...(gratis ? { gratis } : null),
+        ...(i === 0 ? { cuenta } : null),
+      });
+    });
+  }
+  return bloques;
 }

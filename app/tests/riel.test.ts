@@ -3,7 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { armarArbol, type Arbol, type Carpeta, type Item, type Rama } from "../src/barra/arbol.ts";
 import { aRiel, atencionCarpeta, carpetaViva, enMarcha, filtrarArbol, hilosArbol, hilosCarpeta, itemsRiel, ordenAtencion, partirResalte, QUIETOS_VISTA, quietosDe, segunLista } from "../src/barra/riel-logica.ts";
-import { cuentasClaude, lineasCuentas, lineasMotores } from "../src/barra/cupos-riel-logica.ts";
+import { bloquesMotores, cuentasClaude, lineasCuentas, nivelCupo, vueltaDe } from "../src/barra/cupos-riel-logica.ts";
 import { PALETA_RIEL, tonoRiel } from "../src/barra/logo-logica.ts";
 import { pintorHace } from "../src/tiempo.ts";
 import { cambiarIdioma } from "../src/i18n/index.ts";
@@ -212,10 +212,51 @@ test("lineasCuentas: las otras, con lo más lleno; lo agotado dice cuándo vuelv
   assert.deepEqual(ls[0].cuenta, { proveedor: "claude", id: "b" });
 });
 
-test("lineasMotores: sin Claude, una línea por suscripción sin grupos", () => {
-  const ls = lineasMotores([fila("trabajo", "claude"), fila("sub-x", "chatgpt", { ventanas: [] }, "ChatGPT")], AHORA);
-  assert.deepEqual(ls.map((l) => l.nombre), ["ChatGPT"]);
-  assert.deepEqual(ls[0].cuenta, { proveedor: "chatgpt", id: "sub-x" });
+test("bloquesMotores: sin Claude, un bloque por suscripción y una línea por cuenta sin grupos", () => {
+  const bs = bloquesMotores([fila("trabajo", "claude"), fila("sub-x", "chatgpt", { ventanas: [] }, "ChatGPT")], AHORA);
+  assert.deepEqual(bs.map((b) => [b.proveedor, b.titulo, b.lineas.map((l) => l.nombre)]), [["chatgpt", "sub-x", ["ChatGPT"]]]);
+  assert.deepEqual(bs[0].lineas[0].cuenta, { proveedor: "chatgpt", id: "sub-x" });
+});
+
+test("bloquesMotores: Google agrupa sus modelos; «Claude y GPT por Google» agotado vuelve y los demás dicen cuándo vuelven", () => {
+  cambiarIdioma("es");
+  const google = fila("google", "google", {
+    grupos: [
+      { id: "gemini", nombre: "Gemini", ventanas: [{ id: "5h", pct: 6, vuelve: AHORA + 600 }, { id: "7d", pct: 5, vuelve: AHORA + 9000 }] },
+      { id: "claude-gpt", nombre: "x", ventanas: [{ id: "5h", pct: 0, vuelve: null, deshabilitada: true }, { id: "7d", pct: 100, vuelve: AHORA + 7200 }] },
+      { id: "gemini-4-argon", nombre: "x", ventanas: [{ id: "7d", pct: 0, vuelve: AHORA + 9000 }] },
+    ],
+  });
+  const [b] = bloquesMotores([{ ...google, nombre: "Google AI Pro" }], AHORA);
+  assert.equal(b.titulo, "Google AI Pro");
+  assert.deepEqual(b.lineas.map((l) => l.nombre), ["Gemini", "Claude y GPT por Google", "Argon"]);
+  assert.deepEqual(b.lineas.map((l) => l.estado), ["ok", "lleno", "ok"]);
+  assert.equal(b.lineas[1].vuelve, AHORA + 7200);
+  // Cuándo vuelve: lo de la ventana más usada; con 0 % usado no se dice nada.
+  assert.equal(b.lineas[0].cuando, AHORA + 600);
+  assert.equal(b.lineas[2].cuando, null);
+});
+
+test("bloquesMotores: los gratis de OpenCode (pedidos sin tope) son «gratis, sin límite conocido»; con tope, un porcentaje", () => {
+  const libre = fila("casa", "opencode", { ventanas: [{ id: "5h", pct: null, vuelve: null, pedidos: 37 }] }, "Casa");
+  const go = fila("go", "opencode", { ventanas: [{ id: "5h", pct: 24, vuelve: AHORA + 600, pedidos: 290, tope: 1200 }] }, "Go");
+  const [b] = bloquesMotores([libre, go], AHORA);
+  assert.equal(b.titulo, "OpenCode");
+  assert.equal(b.lineas[0].gratis, true);
+  assert.equal(b.lineas[0].pedidos, 37);
+  assert.equal(b.lineas[1].gratis, undefined);
+  assert.equal(b.lineas[1].pct, 24);
+});
+
+test("nivelCupo: ámbar desde 80 %, rojo sólo sin cupo", () => {
+  assert.deepEqual([null, 0, 79, 80, 99, 100].map(nivelCupo), [undefined, undefined, undefined, "ambar", "ambar", "rojo"]);
+});
+
+test("vueltaDe: la ventana más usada; sin uso o sin hora, nada", () => {
+  assert.equal(vueltaDe([{ id: "5h", pct: 10, vuelve: 100 }, { id: "7d", pct: 40, vuelve: 900 }]), 900);
+  assert.equal(vueltaDe([{ id: "5h", pct: 0, vuelve: 100 }]), null);
+  assert.equal(vueltaDe([{ id: "5h", pct: 30, vuelve: null }]), null);
+  assert.equal(vueltaDe([{ id: "5h", pct: 90, vuelve: 100, deshabilitada: true }, { id: "7d", pct: 5, vuelve: 700 }]), 700);
 });
 
 test("enMarcha: cuenta líderes que responden y workers corriendo; lo que está en cola, trabado o terminado, no", () => {

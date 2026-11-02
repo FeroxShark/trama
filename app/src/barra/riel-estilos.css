@@ -246,6 +246,7 @@
   background: var(--capa-hover);
 }
 .an {
+  position: relative;
   display: grid;
   gap: 1px;
   justify-items: center;
@@ -283,6 +284,11 @@
 .an-uso {
   stroke: var(--acento);
   stroke-linecap: round;
+}
+/* El tooltip del anillo («5 horas: 5 % usado, vuelve en…») cubre todo el anillo; el clic pasa al botón. */
+.an-tip {
+  position: absolute;
+  inset: 0;
 }
 .an[data-nivel="ambar"] .an-uso {
   stroke: var(--aviso);
@@ -353,16 +359,30 @@
   justify-content: space-between;
   gap: var(--esp-2);
 }
+.v-tit {
+  min-width: 0;
+}
 .v-cab h2 {
   margin: 0;
   font-size: var(--letra-5);
   font-weight: 600;
 }
-.v-cab h2 span {
+.v-act {
   display: block;
   color: var(--apagado);
-  font-size: var(--letra-4);
-  font-weight: 400;
+  font-size: 0.71875rem;
+  line-height: 1.3;
+}
+.v-act:empty {
+  display: none;
+}
+/* La última lectura falló: se dice con palabras y con el ámbar, y lo que se ve queda apagado (nunca un número viejo como si fuera de ahora). */
+.v-act[data-fallo] {
+  color: var(--cupo-poco-texto);
+  font-weight: 500;
+}
+.cupos-riel[data-fallo] :is(.an, .v-ventana, .v-lin) {
+  opacity: 0.55;
 }
 .v-par {
   display: grid;
@@ -388,20 +408,10 @@
   font-size: var(--letra-6);
   font-weight: 500;
 }
-.medidor {
-  display: block;
-  height: 0.25rem;
+.v-ventana .cu-hilos {
+  width: 100%;
+  height: 0.5rem;
   margin: var(--esp-1) 0;
-  overflow: hidden;
-  border-radius: var(--r-cap);
-  background: var(--capa-track);
-}
-.medidor > i {
-  display: block;
-  height: 100%;
-  border-radius: inherit;
-  background: var(--acento);
-  transform-origin: left;
 }
 .v-nota {
   color: var(--apagado);
@@ -411,43 +421,58 @@
 .v-ventana[data-nivel="ambar"] :is(.v-num, .v-num small, .v-nota) {
   color: var(--cupo-poco-texto);
 }
-.v-ventana[data-nivel="ambar"] .medidor > i,
-.v-lin[data-nivel="ambar"] .medidor > i {
-  background: var(--aviso);
-}
 .v-ventana[data-nivel="rojo"] :is(.v-num, .v-num small, .v-nota) {
   color: var(--fallo-texto);
-}
-.v-ventana[data-nivel="rojo"] .medidor > i,
-.v-lin[data-nivel="rojo"] .medidor > i {
-  background: var(--critico);
 }
 .v-bloque {
   padding-top: var(--esp-2);
   box-shadow: inset 0 1px 0 var(--capa-div);
 }
+.v-bloque[data-claude] {
+  padding-top: 0;
+  box-shadow: none;
+}
 .v-bloque h3 {
   margin: 0 0 var(--esp-1);
-  color: var(--apagado);
+  color: var(--texto);
   font-size: var(--letra-4);
+  font-weight: 600;
+}
+.v-bloque h3 span {
+  margin-left: var(--esp-1-5);
+  color: var(--apagado);
+  font-weight: 400;
+}
+.v-bloque[data-claude] h3 {
+  margin-bottom: var(--esp-2);
+}
+.v-bloque h4 {
+  margin: var(--esp-2) 0 var(--esp-1);
+  color: var(--apagado);
+  font-size: var(--letra-3);
   font-weight: 500;
 }
+/* Un renglón: nombre, hilos y cifra; debajo, cuándo vuelve. */
 .v-lin {
   display: grid;
   min-height: 1.5rem;
-  grid-template-columns: minmax(0, 1fr) 2.75rem 2.125rem;
+  grid-template-columns: minmax(0, 1fr) 5.25rem 2.25rem;
   align-items: center;
-  gap: var(--esp-2);
+  column-gap: var(--esp-2);
   font-size: 0.78125rem;
 }
-.v-lin > span:first-child {
+.v-ln {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.v-lin .medidor {
-  margin: 0;
+.v-lin[data-titulo] .v-ln {
+  font-weight: 600;
+}
+.v-lin .cu-hilos {
+  width: 100%;
+  height: 0.5rem;
 }
 .v-lin b {
   font-weight: 500;
@@ -456,22 +481,48 @@
 .v-lin[data-palabra] {
   grid-template-columns: minmax(0, 1fr) auto;
 }
-.v-lin[data-lleno] {
-  display: block;
-  padding: var(--esp-1) 0;
+.v-sub {
+  grid-column: 1 / -1;
+  padding-bottom: var(--esp-1);
+  color: var(--apagado);
+  font-size: 0.71875rem;
+  line-height: 1.3;
+}
+.v-lin[data-nivel="ambar"] :is(b, .v-sub) {
+  color: var(--cupo-poco-texto);
+}
+/* Sin cupo: rojo sólo en su renglón, y con la palabra. */
+.v-lin[data-nivel="rojo"] :is(.v-ln, b, .v-sub) {
   color: var(--fallo-texto);
+}
+.v-lin[data-lleno] .v-ln {
   font-weight: 500;
 }
-.v-lin[data-lleno] em {
-  display: block;
-  font-size: 0.71875rem;
-  font-style: normal;
-  font-weight: 400;
+.v-pie-caja {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--esp-1-5);
+  padding-top: var(--esp-2);
+  box-shadow: inset 0 1px 0 var(--capa-div);
 }
 .v-pie {
   margin: 0;
   color: var(--apagado);
   font-size: 0.71875rem;
+}
+.v-ver {
+  min-height: 1.75rem;
+  padding: 0 var(--esp-1);
+  margin-left: calc(var(--esp-1) * -1);
+  border-radius: var(--r-sm);
+  color: var(--acento);
+  font-size: var(--letra-4);
+  font-weight: 500;
+  cursor: pointer;
+}
+.v-ver:hover {
+  background: var(--capa-hover);
 }
 .vuelo .g-acc {
   display: flex;

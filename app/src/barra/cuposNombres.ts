@@ -17,6 +17,8 @@ const NOMBRES: Record<string, { largo: ClaveSola; corto: ClaveSola; que?: ClaveS
 export const nombreGrupo = (g: Pick<GrupoCupo, "id" | "nombre">): string => (NOMBRES[g.id] ? t(NOMBRES[g.id].largo) : g.nombre);
 /** El nombre cortito para la barra angosta ("Claude/GPT"). */
 export const nombreGrupoCorto = (g: Pick<GrupoCupo, "id" | "nombre">): string => (NOMBRES[g.id] ? t(NOMBRES[g.id].corto) : g.nombre);
+/** El nombre del grupo en el detalle de los cupos: el del proveedor ya lo dice el bloque, así que acá sólo lo que distingue («Claude y GPT por Google»). */
+export const nombreGrupoDetalle = (g: Pick<GrupoCupo, "id" | "nombre">): string => (g.id === "claude-gpt" ? t("cu.gp.claude-gpt") : nombreGrupoCorto(g));
 /** Qué modelos trae, si lo sabemos. */
 export const queGrupo = (g: Pick<GrupoCupo, "id">): string | null => {
   const c = NOMBRES[g.id]?.que;

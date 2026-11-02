@@ -15,11 +15,11 @@ import "./cupos-tela.css";
 const nombreCarril = (id: string) => (id === "5h" ? t("cu.tj.5h") : id === "7d" ? t("cu.tj.7d") : id === "1m" ? t("cu.tj.1m") : id);
 
 /** Los hilos de un carril (el número lo dice el renglón: esto es sólo para el ojo). */
-export function Hilos({ pct, nivel }: { pct: number | null; nivel: string }) {
-  const on = hilosPrendidos(pct);
+export function Hilos({ pct, nivel, total = HILOS }: { pct: number | null; nivel: string; /** Cuántos hilos: la barra, que es angosta, usa menos. */ total?: number }) {
+  const on = hilosPrendidos(pct, total);
   return (
     <span className="cu-hilos" data-nivel={nivel} aria-hidden="true">
-      {Array.from({ length: HILOS }, (_, i) => (
+      {Array.from({ length: total }, (_, i) => (
         <i key={i} data-on={i < on ? "" : undefined} data-tope={i === on - 1 ? "" : undefined} />
       ))}
     </span>

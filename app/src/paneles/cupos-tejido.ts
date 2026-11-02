@@ -18,10 +18,10 @@ export function nivelCarril(v: Pick<VentanaCupo, "pct" | "deshabilitada">): Nive
 }
 
 /** Los hilos prendidos: nunca cero con algo de uso y el carril sólo se llena con el 100 %. */
-export function hilosPrendidos(pct: number | null): number {
+export function hilosPrendidos(pct: number | null, total = HILOS): number {
   if (pct === null || pct <= 0) return 0;
-  if (pct >= 100) return HILOS;
-  return Math.min(HILOS - 1, Math.ceil((pct / 100) * HILOS));
+  if (pct >= 100) return total;
+  return Math.min(total - 1, Math.ceil((pct / 100) * total));
 }
 
 export type EstadoCuenta =
