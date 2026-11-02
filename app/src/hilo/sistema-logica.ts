@@ -71,6 +71,23 @@ export function sistemaDe(m: Mensaje): Sistema | null {
 /** El tono de la fila de un worker en un aviso: verde si terminó (o terminó sin resumen), ámbar si pide una decisión, rojo si falló. */
 export const tonoDeEstado = (e: EstadoAviso): "ok" | "aviso" | "critico" => (e === "falla" ? "critico" : e === "decision" ? "aviso" : "ok");
 
+/** Con más filas que esto en un aviso, las terminadas se pliegan en «N terminados». */
+export const PLIEGUE_AVISO = 5;
+
+/** Primero las que piden decisión, después las que fallaron, después las terminadas (ese orden de atención). */
+const PESO_AVISO: Record<EstadoAviso, number> = { decision: 0, falla: 1, termino: 2, sinResumen: 2 };
+
+/**
+ * Las filas de un aviso en el orden de la vista. Con más de `PLIEGUE_AVISO`, las terminadas van en `plegadas`
+ * (su desplegable) y `visibles` trae sólo lo que pide atención. Con pocas, todas van en `visibles`.
+ */
+export function filasDeAviso<T extends AvisoTexto["trabajos"][number]>(trabajos: T[]): { visibles: T[]; plegadas: T[] } {
+  const ordenadas = [...trabajos].sort((a, b) => PESO_AVISO[a.estado] - PESO_AVISO[b.estado]);
+  if (trabajos.length <= PLIEGUE_AVISO) return { visibles: ordenadas, plegadas: [] };
+  const terminados = (x: T) => tonoDeEstado(x.estado) === "ok";
+  return { visibles: ordenadas.filter((x) => !terminados(x)), plegadas: ordenadas.filter(terminados) };
+}
+
 /** La fila de un aviso de Trama, con lo que dice su texto (`avisoDeTexto`); sin workers si no se entiende. */
 export const lineaAviso = (texto: string): Linea => ({ tipo: "linea", clase: "aviso", aviso: avisoDeTexto(texto) ?? { tanda: false, falla: false, trabajos: [] } });
 
