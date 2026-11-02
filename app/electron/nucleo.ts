@@ -293,7 +293,13 @@ const consumo = crearConsumo({ proyectos: TRANSCRIPTS, paState: PA_STATE, alCamb
 /** Los pasos del worker abierto (ventana y celular): sólo trabaja mientras alguien lo mira (pasos-worker.ts). */
 // Las bajadas de modelos de Ollama (Ajustes > Modelos): el progreso va a la ventana como `modelos:bajando`.
 const bajadas = crearBajadas((b) => enviar("modelos:bajando", b));
-const pasos = crearPasos({ proyectos: TRANSCRIPTS, paState: PA_STATE, alCambiar: (c) => enviar("pasos:cambio", c) });
+const pasos = crearPasos({
+  proyectos: TRANSCRIPTS,
+  paState: PA_STATE,
+  alCambiar: (c) => enviar("pasos:cambio", c),
+  // Un worker de otro motor (sin transcript) escribió líneas en su stream: la vista relee su hilo, como con un evento de `pa`.
+  alStream: (id) => enviar("eventos:ids", [id]),
+});
 /**
  * El registro histórico de en qué se van los tokens (historial.ts): se indexa solo, de fondo,
  * como mucho una vez por hora. Con fixtures, bench o captura no corre (`HILOS_HISTORIAL=0` lo apaga).
