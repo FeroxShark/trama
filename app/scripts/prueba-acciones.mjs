@@ -349,7 +349,9 @@ try {
   const fila55 = () => document.querySelector('[data-fila="20261003-100400-55555"] .chip-at')?.textContent ?? "";
   const relojes = () => [...document.querySelectorAll("[data-fila] .cuando")].map((f) => f.textContent).join("|");
   ok((await en(fila55)) === "decide", "sin idioma guardado arranca en inglés (chip decide)");
-  ok(/\bnow\b/.test(await en(relojes)), "el reloj de las filas habla en inglés (now)");
+  // El reloj de la fila dice «N m ago» / «yesterday» (no «now»: ese fue el achique del Riel, que CONVENCIONES.md recuperó).
+  const relojesEn = await en(relojes);
+  ok(/\bago\b|\byesterday\b/.test(relojesEn) && !/\bhace\b/.test(relojesEn), `el reloj de las filas habla en inglés (ago): ${relojesEn}`);
   ok(await clic(".pie button", "Settings"), "el pie abre Settings");
   // Ajustes tiene categorías a la izquierda: idioma, letra, fuentes y mensajes viven en General.
   ok(await clic('.aj-it[data-cat="general"]'), "Ajustes > General");
@@ -372,7 +374,12 @@ try {
   const distintas = geoEn.split("\n").flatMap((l, i) => (l === geoEs.split("\n")[i] ? [] : [`${l} → ${geoEs.split("\n")[i]}`]));
   ok(geoEn.split("\n").length > 30 && distintas.length === 0, `ES ↔ EN no mueve nada (${geoEn.split("\n").length} cajas): ${distintas.slice(0, 3).join(" | ")}`);
   ok((await en(fila55)) === "decidir", "la barra cambia al toque (chip decidir)");
-  ok(/\bahora\b/.test(await en(relojes)) && !/\bnow\b/.test(await en(relojes)), "el reloj repinta en español (ahora)");
+  // Repinta en español: «hace N m» / «ayer» (no «ahora», que es el achique del Riel, ver CONVENCIONES.md).
+  const relojesEs = await hasta(() => {
+    const r = [...document.querySelectorAll("[data-fila] .cuando")].map((f) => f.textContent).join("|");
+    return /\bhace\b|\bayer\b/.test(r) && !/\bago\b|\byesterday\b/.test(r) ? r : null;
+  }, "el reloj repinta en español");
+  ok(!!relojesEs, `el reloj repinta en español (hace): ${relojesEs}`);
   let prefsIdioma = null;
   for (let i = 0; i < 30 && prefsIdioma !== "es"; i++) {
     try {
@@ -480,8 +487,16 @@ try {
   ok(await elegir('[data-opc="ajustes.mono"]', 0, "JetBrains Mono"), "vuelve JetBrains Mono");
   ok((await prefsCon((p) => p.fuente === "inter" && p.mono === "jetbrains"))?.mono === "jetbrains", "preferencias.json vuelve al default");
   // --- Mensajes tiernos (B17): prendidos por default; Ajustes los apaga al toque y a preferencias.json ---
-  // La fila de la barra (una línea por hilo) ya no lleva la frase: sólo el turno del hilo, que cubre tests/tierno*.
-  ok(await en(() => !document.querySelector("[data-fila] .tierno")), "la fila de la barra no lleva frase tierna (una línea por hilo)");
+  // B17 (CONVENCIONES.md, «Frase tierna»): el worker que corre lleva su frase en la fila, antes del tiempo y en una sola línea (28 px).
+  ok(
+    await hasta(() => {
+      const f = document.querySelector("[data-fila] .tierno-fila");
+      const fila = f?.closest("[data-fila]");
+      const c = fila?.querySelector(".cuando");
+      return !!f && !!c && f.textContent.trim() !== "" && !f.textContent.includes("*") && !!(f.compareDocumentPosition(c) & Node.DOCUMENT_POSITION_FOLLOWING) && fila.querySelector(".fila").getBoundingClientRect().height <= 30;
+    }, "la fila de un worker que corre lleva su frase tierna"),
+    "la fila de un worker que corre lleva su frase tierna, antes del tiempo y en una línea (B17)",
+  );
   ok(await elegir('[data-opc="ajustes.tiernos"]', 0, "Apagados"), "se apagan los mensajes tiernos");
   let prefsTiernos;
   for (let i = 0; i < 30 && prefsTiernos !== false; i++) {
