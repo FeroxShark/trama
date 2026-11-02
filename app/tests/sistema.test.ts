@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { conversacionDe } from "../electron/lider-arma.ts";
-import { sistemaDe, tonoDeEstado, vuelve } from "../src/hilo/sistema-logica.ts";
+import { filasDeAviso, sistemaDe, tonoDeEstado, vuelve } from "../src/hilo/sistema-logica.ts";
 import type { EstadoAviso } from "../electron/avisos-worker.ts";
 import { turnos, type Item } from "../src/hilo/turnos.ts";
 import type { Mensaje } from "../src/datos/contrato.ts";
@@ -160,4 +160,14 @@ test("el tono de cada fila de un aviso: verde si terminó (o sin resumen), ámba
   const css = readFileSync(new URL("../src/index.css", import.meta.url), "utf8");
   for (const tono of ["ok", "aviso", "critico"]) assert.match(css, new RegExp(`\\.sis-aviso-e\\[data-tono="${tono}"\\]\\s*\\{\\s*color:\\s*var\\(--${tono}\\)`));
   assert.doesNotMatch(css, /\.sis-aviso\[data-tono="grave"\] \.sis-aviso-e/, "una fila terminada no se pinta de rojo por la tarjeta");
+});
+
+test("las filas de un aviso: las que piden decisión primero; con más de 5, las terminadas se pliegan", () => {
+  const f = (id: string, estado: EstadoAviso) => ({ id, tarea: `t${id}`, falla: estado === "falla", estado });
+  const pocas = [f("1", "termino"), f("2", "decision"), f("3", "falla")];
+  assert.deepEqual(filasDeAviso(pocas), { visibles: [f("2", "decision"), f("3", "falla"), f("1", "termino")], plegadas: [] }, "con 5 o menos, todas se ven");
+  const ocho = [f("1", "termino"), f("2", "decision"), f("3", "sinResumen"), f("4", "termino"), f("5", "falla"), f("6", "decision"), f("7", "termino"), f("8", "termino")];
+  const r = filasDeAviso(ocho);
+  assert.deepEqual(r.visibles.map((x) => x.id), ["2", "6", "5"], "piden decisión, después la falla");
+  assert.deepEqual(r.plegadas.map((x) => x.id), ["1", "3", "4", "7", "8"], "las terminadas (con o sin resumen) van plegadas, en su orden");
 });
