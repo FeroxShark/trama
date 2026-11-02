@@ -1161,6 +1161,13 @@
     background-color var(--t-snappy),
     color var(--t-snappy);
 }
+/* Abierto, se queda pegado bajo el encabezado del proyecto, no detrás; tapa sólo lo que ocupa: la barra es translúcida y una franja opaca de lado a lado se vería. */
+.lista .pliegue[data-abierto] {
+  top: 1.75rem;
+  width: fit-content;
+  border-radius: var(--r-xs);
+  background: var(--proy-fondo, var(--negro));
+}
 .lista .mini-pliegue:hover {
   background: var(--capa-hover);
   color: var(--texto);

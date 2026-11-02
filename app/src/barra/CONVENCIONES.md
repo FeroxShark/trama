@@ -92,7 +92,7 @@ Cuelga de su líder por el hilo del proyecto. Se abre tocando cualquier parte de
 | Encabezado resaltado (`data-viendo`) | Lo que tenés abierto a la derecha es de acá. | | igual |
 | `4 en marcha` | Cuántos trabajan ahora en el proyecto. | Se ve aunque esté plegado. | igual (del Riel) |
 | Glifo `✕`/`?` en el encabezado plegado | Adentro hay algo que mirar. | Plegar no esconde lo urgente. | igual |
-| `N terminados` / `N terminadas` | Lo terminado se pliega solo, bajo su líder o sin líder. Sólo la palabra y la flecha. | La montaña de terminados no ocupa la barra; el botón va antes de la lista y queda pegado arriba para no bajar hasta el fondo. | recuperada sin el ✓ |
+| `N terminados` / `N terminadas` | Lo terminado se pliega solo, bajo su líder o sin líder. Sólo la palabra y la flecha. | La montaña de terminados no ocupa la barra; el botón va antes de la lista y, abierto, queda pegado bajo el encabezado del proyecto para no bajar hasta el fondo. | recuperada sin el ✓ |
 | Lo que falló no se pliega | Queda a la vista aunque terminó (`aRiel`). | | igual |
 | `Ver N más` | Los líderes quietos: en espera (30 min sin nada) y dormidos (sin proceso, más de un día). Se ven de a dos. El tooltip dice cuántos de cada uno y que un dormido no se borra. | | cambió: reemplaza los pliegues «N en espera» y «N dormidos»; recuperadas las palabras en el tooltip. |
 | `Recientes` / `A-Z` / `Manual` | Cómo se acomoda; se recuerda. Lo movido a mano no cambia solo. | `279e281`. | igual |
