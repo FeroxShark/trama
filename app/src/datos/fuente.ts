@@ -1125,13 +1125,13 @@ export function escenaFija(sid: string, escena: "trabajando" | "avisos" | "plan"
   }
   // Los estados de la tarjeta (`lider-trabajando` con `HILOS_VARIANTE=…`): un comando con descripción, sin ella, ya devuelto, callado, y el turno que termina.
   const vt = MODO.captura === "lider-trabajando" ? MODO.variante : undefined;
-  if (escena === "trabajando" && (vt === "uno" || vt === "sin-desc" || vt === "corrio" || vt === "quieto" || vt === "listo" || vt === "fallo")) {
+  if (escena === "trabajando" && (vt === "uno" || vt === "sin-desc" || vt === "corrio" || vt === "quieto" || vt === "listo" || vt === "fallo" || vt === "parado")) {
     const command = "pa estado --workers --json | jq -r '.[] | select(.vivo) | .id' \\\n  && tablero lista --abiertas --proyecto atlas";
     const desc = vt === "sin-desc" ? undefined : "Revisando workers y tablero";
     ev({ tipo: "mensaje", mid: "f-tar", texto: "", herramientas: [`Bash: ${command.split("\n")[0]}`], modelo: "claude-opus-5-5", det: [{ nombre: "Bash", entrada: { command, ...(desc ? { description: desc } : {}) }, id: "toolu_tar" }] });
     ev({ tipo: "hace", hace: { que: "herramienta", nombre: "Bash", detalle: command.replace(/\s+/g, " "), ...(desc ? { desc } : {}) } });
     ev({ tipo: "tokens", salida: 1280, nuevo: true });
-    if (vt === "uno" || vt === "sin-desc" || vt === "quieto") return;
+    if (vt === "uno" || vt === "sin-desc" || vt === "quieto" || vt === "parado") return;
     const corrio = (error: boolean) => ev({ tipo: "resultado", id: "toolu_tar", texto: error ? "tablero: no se pudo abrir la base de tareas\nsalió con código 1" : "cauce-e9  corriendo  21 m  pa/cauce/0312\ncauce-f2  corriendo  4 m  pa/cauce/0313", error });
     if (vt === "corrio") return corrio(false);
     // Un rato después, así la captura muestra lo que tardó y el pliegue de verdad.
@@ -1646,7 +1646,12 @@ const fija: Fuente = {
   async liderArchivo(nombre) {
     return `/tmp/trama-adjuntos/${nombre}`;
   },
-  async liderParar() {},
+  async liderParar(sid) {
+    // `lider-trabajando` con `HILOS_VARIANTE=parado`: el Parar de la caja hace lo mismo que con `claude` de verdad.
+    if (MODO.captura !== "lider-trabajando" || MODO.variante !== "parado") return;
+    emitir(sid, { tipo: "fin", error: "interrumpido", ttl: null });
+    emitir(sid, { tipo: "estado", ocupado: false, vivo: true });
+  },
   async dictar() {
     return "texto dictado de muestra";
   },

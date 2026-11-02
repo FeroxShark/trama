@@ -248,6 +248,8 @@ export function Actividad({ act, hace, pasos, pasosN, desde, tokens, tierno, raz
   const hayCuerpo = !!entero || lineas.length > 0 || hayProgreso;
   const cuenta = [tokens, pasosN ? cuentaPasos(pasosN) : null].filter(Boolean).join(" · ");
   const Det = ICONO[act.icono];
+  // Abierta, el comando ya se lee entero abajo: no va dos veces (la salida sí, que es otra cosa).
+  const linea = abierto && frase.mono && !salida?.linea ? "" : frase.linea;
   return (
     <div className="tv" data-t={act.tipo} data-e={estado} data-estado={estadoVisible(quieto !== null, !!fallo)} data-abierto={abierto ? "" : undefined} data-error={fallo ? "" : undefined} data-saliendo={saliendo ? "" : undefined} role="status">
       <div className="tv-tar">
@@ -286,8 +288,8 @@ export function Actividad({ act, hace, pasos, pasosN, desde, tokens, tierno, raz
           <div className="tv-2">
             {frase.verbo ? <span className="tv-verbo" data-error={salida?.error ? "" : undefined}>{frase.verbo}</span> : null}
             {/* `aria-live` apagado: la salida cambia sola y no se anuncia de a pedazos. */}
-            <span className="tv-out" key={frase.linea} data-mono={frase.mono ? "" : undefined} aria-live="off">
-              {frase.linea}
+            <span className="tv-out" key={linea} data-mono={frase.mono ? "" : undefined} aria-live="off">
+              {linea}
             </span>
             {hayCuerpo ? (
               <button type="button" className="tv-ver" aria-expanded={abierto} onClick={() => alAbrir(!abierto)}>

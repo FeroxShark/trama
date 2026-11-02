@@ -220,6 +220,15 @@
   font-size: var(--letra-4);
   white-space: nowrap;
 }
+/* Lo que falló se lee entero: acá la tarjeta ya no tiene que ser baja. */
+.tv[data-error] .tv-v {
+  overflow: visible;
+  text-wrap: balance;
+  white-space: normal;
+}
+.tv-err:empty {
+  display: none;
+}
 .tv-err {
   padding: var(--esp-1) 0 var(--esp-1-5);
 }

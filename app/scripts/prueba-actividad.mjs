@@ -137,7 +137,7 @@ const tarjeta = () =>
       parar: [...tv.querySelectorAll("button")].filter((b) => /^(Parar|Stop)$/.test(b.textContent.trim())).length,
       paradas: [...document.querySelectorAll("button")].filter((b) => /^(Parar|Stop)$/.test(b.textContent.trim()) && b.offsetParent).length,
       escritos: /En curso|In progress|Working|Trabajando/.test(tv.textContent),
-      pastilla: !!document.querySelector(".pastilla-trabajando"),
+      pastilla: !!document.querySelector("[data-pildora-trabajando]"),
       escena: esc ? { w: esc.getBoundingClientRect().width, h: esc.getBoundingClientRect().height } : null,
       piezas: [...tv.querySelectorAll("svg [class^='e-']")].filter((e) => e.style.transform || e.style.opacity).length,
       infinitas: animadas.filter((a) => a.effect?.getComputedTiming().iterations === Infinity).length,

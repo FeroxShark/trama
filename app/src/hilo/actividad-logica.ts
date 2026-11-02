@@ -323,7 +323,8 @@ export type Frase = { titulo: string; verbo: string | null; linea: string; mono:
 export function fraseDe({ act, hace, pasos, salida = null, pensando = "", fallo = false }: { act: Actividad; hace: HaceLider | null; pasos: Paso[]; salida?: Salida | null; pensando?: string; fallo?: boolean }): Frase {
   const antes = fallo ? [] : pasos.slice(0, MIGA).map(pasoCorto).filter((x): x is string => x !== null).reverse();
   const conSalida = salida?.linea ? salida : null;
-  const verboSalida = salida?.error ? t("hz.t.error") : t("hz.corrio");
+  // En un turno fallado el estado ya dice "Falló": abajo no se repite.
+  const verboSalida = salida?.error && !fallo ? t("hz.t.error") : t("hz.corrio");
   if (act.tipo === "permiso") return { titulo: tx(act.verbo), verbo: null, linea: textoDetalle(act), mono: false, antes };
   if (hace?.que === "herramienta") {
     const comando = hace.nombre === "Bash" && act.tipo === "comando";
