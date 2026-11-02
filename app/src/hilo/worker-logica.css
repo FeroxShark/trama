@@ -865,6 +865,9 @@
 .wk-gr > ul .wk-nudo {
   left: 0.4375rem;
 }
+.wk-fi {
+  position: relative;
+}
 /* El tiempo debajo de cada fila, alineado con la tira. */
 .wk-hebra {
   position: absolute;
@@ -877,19 +880,19 @@
   background: color-mix(in srgb, var(--c, var(--texto-5)) 65%, transparent);
   pointer-events: none;
 }
-.wk-hebra[data-abierto] {
-  width: calc((var(--total) - var(--t0)) / var(--total) * 100%);
-  background: var(--acento);
-}
-.wk-hebra[data-colgado] {
-  width: calc((var(--total) - var(--t0)) / var(--total) * 100%);
-  background: var(--decision-relleno);
-}
 .wk-it[data-sel] ~ .wk-hebra {
   background: var(--c, var(--texto-3));
 }
 .wk-it[data-mal] ~ .wk-hebra {
   background: var(--fallo-relleno);
+}
+.wk-it ~ .wk-hebra[data-abierto] {
+  width: calc((var(--total) - var(--t0)) / var(--total) * 100%);
+  background: var(--acento);
+}
+.wk-it ~ .wk-hebra[data-colgado] {
+  width: calc((var(--total) - var(--t0)) / var(--total) * 100%);
+  background: var(--decision-relleno);
 }
 .wk-nota {
   padding: var(--esp-2) var(--esp-3);
@@ -1259,7 +1262,7 @@ button.wk-ruta:hover {
 @container wk (max-width: 42rem) {
   .wk-paneles {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: minmax(0, 1.25fr) minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1.7fr) minmax(0, 1fr);
   }
 }
 
@@ -1318,6 +1321,8 @@ button.wk-ruta:hover {
     background: var(--sup-2);
   }
   .wk-dentro {
+    position: relative;
+    z-index: 1;
     margin: var(--esp-1) calc(var(--esp-2) * -1) var(--esp-2);
     border-top: 1px solid var(--borde-3);
     border-bottom: 1px solid var(--borde-3);

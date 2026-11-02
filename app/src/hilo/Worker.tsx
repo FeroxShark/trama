@@ -469,7 +469,7 @@ function PieDe({ p, vive, colgado }: { p: Paso; vive: boolean; colgado: boolean 
       const grupos = d.herramienta === "Grep" || d.herramienta === "Glob" ? partirGrep(d.texto?.t ?? "") : null;
       return (
         <footer className="wk-pie">
-          <b>{d.resultados ? t("wk.coincidencias", { n: d.resultados }) : t("wk.sinCoincidencias")}</b>
+          <b>{d.resultados === 1 ? t("wk.coincidencia1") : d.resultados ? t("wk.coincidencias", { n: d.resultados }) : t("wk.sinCoincidencias")}</b>
           {grupos && d.resultados ? <span>{grupos.length === 1 ? t("wk.enArchivo1") : t("wk.enArchivos", { n: grupos.length })}</span> : null}
           {dur}
         </footer>
@@ -486,7 +486,7 @@ function PieDe({ p, vive, colgado }: { p: Paso; vive: boolean; colgado: boolean 
     case "leer":
       return (
         <footer className="wk-pie">
-          {d.lineas ? <span>{t("wk.lineasN", { n: d.lineas })}</span> : null}
+          {d.lineas ? <span>{d.lineas === 1 ? t("wk.linea1") : t("wk.lineasN", { n: d.lineas })}</span> : null}
           {dur}
         </footer>
       );
@@ -747,7 +747,8 @@ const FilaPaso = memo(function FilaPaso({ p, nudo, tr, selN, sel, angosto, vive,
   return (
     <li className="wk-li" data-t={p.tipo} data-nudo={nudo ? "" : undefined} data-trabado={corre && colgado ? "" : undefined}>
       {nudo ? <NudoHilo nudo={nudo} sel={selN} /> : null}
-      <button type="button" className="wk-it" data-t={p.tipo} data-sel={sel ? "" : undefined} data-mal={mal ? "" : undefined} data-cambio={esCambio(p) ? "" : undefined} data-vivo={corre ? "" : undefined} data-tenue={atras ? "" : undefined} aria-pressed={sel} onClick={() => alElegir(p.n)}>
+      <div className="wk-fi">
+        <button type="button" className="wk-it" data-t={p.tipo} data-sel={sel ? "" : undefined} data-mal={mal ? "" : undefined} data-cambio={esCambio(p) ? "" : undefined} data-vivo={corre ? "" : undefined} data-tenue={atras ? "" : undefined} aria-pressed={sel} onClick={() => alElegir(p.n)}>
         <Nodo p={p} vive={vive} colgado={colgado} />
         <span className="wk-tx">
           <span className="wk-fr">{pensado ? <><b>{pensado.trim()}</b> {d.clase === "pensar" ? d.texto?.t.trim() : null}</> : frase}</span>
@@ -760,7 +761,8 @@ const FilaPaso = memo(function FilaPaso({ p, nudo, tr, selN, sel, angosto, vive,
         {sinTerminar ? <span className="wk-sinfin">{t("wk.sinTerminar")}</span> : null}
         {pintor ? <Reloj pintor={pintor} className="wk-dur" /> : !sinTexto && p.dur !== null && p.dur >= 1000 ? <span className="wk-dur">{durCorta(p.dur)}</span> : null}
       </button>
-      <Hebra tr={tr} abierto={tr?.abierto && !colgado} colgado={corre && colgado} />
+        <Hebra tr={tr} abierto={tr?.abierto && !colgado} colgado={corre && colgado} />
+      </div>
       {sel && angosto ? (
         <div className="wk-dentro" data-t={p.tipo}>
           <DetallePaso p={p} cwd={cwd} vive={vive} colgado={colgado} corte={corte} dentro />
@@ -781,7 +783,8 @@ const GrupoFila = memo(function GrupoFila({ ps, clase, nudo, nudos, abierto, alA
   return (
     <li className="wk-li wk-gr" data-t={tipo} data-abierto={abierto ? "" : undefined} data-nudo={nudo ? "" : undefined}>
       {nudo ? <NudoHilo nudo={nudo} sel={selN} /> : null}
-      <button type="button" className="wk-it" data-t={tipo} data-tenue="" data-sel-dentro={adentro ? "" : undefined} aria-expanded={abierto} onClick={() => alAlternar(ps[0].n)}>
+      <div className="wk-fi">
+        <button type="button" className="wk-it" data-t={tipo} data-tenue="" data-sel-dentro={adentro ? "" : undefined} aria-expanded={abierto} onClick={() => alAlternar(ps[0].n)}>
         <span className="wk-nodo" data-marca="varios">
           <i />
           <i />
@@ -795,7 +798,8 @@ const GrupoFila = memo(function GrupoFila({ ps, clase, nudo, nudos, abierto, alA
         </span>
         {dur >= 1000 ? <span className="wk-dur">{durCorta(dur)}</span> : null}
       </button>
-      {!abierto ? <Hebra tr={primero && ultimo ? { t0: primero.t0, seg: ultimo.t0 + ultimo.seg - primero.t0 } : undefined} /> : null}
+        <Hebra tr={primero && ultimo ? { t0: primero.t0, seg: ultimo.t0 + ultimo.seg - primero.t0 } : undefined} />
+      </div>
       {abierto ? (
         <ul>
           {ps.map((p) => (
