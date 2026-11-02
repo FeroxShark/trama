@@ -21,6 +21,7 @@ import { latir } from "../barra/latido";
 import type { Como, Salida } from "../barra/arbol";
 import { AccionesWorker, CerrarLider, SettleLider } from "../barra/Fila";
 import { cierre, Reloj, tareaDe, textoEstado, tipoDe } from "../barra/piezas";
+import { lineaCabeceraWorker } from "./cabecera-worker";
 import { Leyendo } from "./Leyendo";
 import { t as tr } from "../i18n";
 import { useIdioma } from "../i18n/react";
@@ -129,7 +130,15 @@ export function Vista({
           <>
             <div className="ruta" data-desliza>
               <b>{tareaDe(h)}</b>
-              <span className="ruta-sub">{nombreCarpeta(h.proyecto, MODO.usuario, tr("barra.home"), titulos[h.proyecto])}</span>
+              <span className="ruta-sub">
+                {lineaCabeceraWorker({
+                  proyecto: nombreCarpeta(h.proyecto, MODO.usuario, tr("barra.home"), titulos[h.proyecto]),
+                  modelo: conPasos?.encabezado.modelo ?? h.modelo,
+                  effort: conPasos?.encabezado.effort ?? h.effort,
+                  commits: h.commits,
+                  archivos: conPasos?.encabezado.archivos.length ?? 0,
+                })}
+              </span>
             </div>
             <MaquinaMigas maquina={h.maquina} />
             <span className={`estado c-${t?.tipo ?? "cerrado"}`}>
