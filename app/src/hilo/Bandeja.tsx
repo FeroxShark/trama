@@ -18,7 +18,7 @@ import { Visor } from "./Imagenes";
 import { Sistema } from "./Sistema";
 import { lineaAviso } from "./sistema-logica";
 import { cola, parando as marcarParando, type EnCurso } from "./vivo";
-import "./bandeja.css";
+import "./solapa-cola.css";
 
 /** Plegada se queda plegada al volver a ese líder (en esta sesión). */
 const PLEGADAS = new Set<string>();

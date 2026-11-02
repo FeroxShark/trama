@@ -86,11 +86,11 @@
 }
 .band-tab::after {
   left: 100%;
-  mask: radial-gradient(circle at 100% 0, transparent calc(var(--r-md) - 0.5px), #000 var(--r-md));
+  mask: radial-gradient(circle at 100% 0, transparent calc(var(--r-md) - 0.5px), var(--sup-0) var(--r-md));
 }
 .band-tab::before {
   right: 100%;
-  mask: radial-gradient(circle at 0 0, transparent calc(var(--r-md) - 0.5px), #000 var(--r-md));
+  mask: radial-gradient(circle at 0 0, transparent calc(var(--r-md) - 0.5px), var(--sup-0) var(--r-md));
 }
 .band-der {
   display: flex;

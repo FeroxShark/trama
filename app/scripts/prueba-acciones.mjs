@@ -822,7 +822,14 @@ try {
     return !!b;
   };
   ok(await en(sacar), "sacar uno de la cola");
-  ok((await en(enCola)).length === 2, "quedan dos");
+  ok(await hasta(() => [...document.querySelectorAll("[data-bandeja] [data-fila-cola]")].length === 2, "quedan dos"), "quedan dos");
+  // Editar en su lugar: mientras el editor está abierto no sale, y lo que sale es lo editado.
+  const filaDe = (t) => [...document.querySelectorAll("[data-bandeja] [data-fila-cola]")].find((e) => e.textContent.includes(t));
+  ok(await en((t) => { const b = filaDe(t)?.querySelector("[data-editar-cola]"); b?.click(); return !!b; }, "tercero en cola"), "editar uno de la cola");
+  ok(await hasta(() => !!document.querySelector("[data-bandeja] .band-campo"), "editor de la cola"), "se edita en su lugar");
+  await escribir("[data-bandeja] .band-campo", "tercero en cola, editado");
+  await tecla("Enter");
+  ok(await hasta((t) => !!filaDe(t) && !document.querySelector("[data-bandeja] .band-campo"), "editado", "tercero en cola, editado"), "queda editado en la bandeja");
   ok(await hasta(eco, "eco lento", "despacio, pensalo"), "contesta lo lento");
   // Lo que quedó en la cola sale JUNTO, en un solo mensaje (juntar, electron/cola.ts), no uno por turno.
   const ecoJunto = () => [...document.querySelectorAll(".conv .el")].some((e) => /Mensaje 1 de 2:\s*primero en cola[\s\S]*Mensaje 2 de 2:\s*tercero en cola/.test(e.textContent));

@@ -28,7 +28,7 @@ test("punto 2: la bandeja va pegada sobre la caja; en la conversación ya no hay
   assert.ok(zona > 0 && band > zona && caja > band, "la bandeja está en la zona de la caja, justo antes");
   assert.equal(v.slice(band, caja).includes('className="caja-ajeno"'), false, "entre la bandeja y la caja no hay nada más");
   assert.doesNotMatch(v, /data-cola-resumen|encolado-x|encolado-re/);
-  assert.match(leer("hilo/bandeja.css"), /\.band-marco \+ \.caja/);
+  assert.match(leer("hilo/solapa-cola.css"), /\.band-marco \+ \.caja/);
 });
 
 test("punto 5: el estado en palabras, según por dónde entra", () => {
@@ -155,7 +155,7 @@ test("punto 7: el texto va primero y la miniatura, chica, después; un clic la a
   const minis = v.indexOf("<Minis ");
   assert.ok(cuerpo > 0 && minis > cuerpo, "texto antes que imagen");
   assert.match(v, /<Visor img=\{abierta\}/);
-  assert.match(leer("hilo/bandeja.css"), /\.band-mini \{[^}]*width: 2\.25rem/);
+  assert.match(leer("hilo/solapa-cola.css"), /\.band-mini \{[^}]*width: 2\.25rem/);
 });
 
 test("el marcador de la caja sigue diciendo cuándo se suma", () => {
