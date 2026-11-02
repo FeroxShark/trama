@@ -187,7 +187,7 @@ function useImagenLocal(ruta: string): Imagen | null | undefined {
 }
 
 /** Una imagen ya lista, como miniatura grande que abre el visor; `img` en `undefined` es "cargando", en `null`, "no disponible". */
-function Figura({ img, nombre, ruta, alt }: { img: Imagen | null | undefined; nombre: string; ruta?: string; alt?: string }) {
+export function Figura({ img, nombre, ruta, alt }: { img: Imagen | null | undefined; nombre: string; ruta?: string; alt?: string }) {
   useIdioma();
   const [abierta, setAbierta] = useState(false);
   if (img === undefined)

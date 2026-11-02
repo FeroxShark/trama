@@ -7,7 +7,7 @@ import { Check, Copy } from "lucide-react";
 import { copiarConAviso } from "../copiar";
 import { t } from "../i18n";
 import { useIdioma } from "../i18n/react";
-import { rutaImagen } from "../../electron/imagen-ruta";
+import { esComodin, rutaImagen } from "../../electron/imagen-ruta";
 import { ImagenInsertada, ImagenLocal, VerImagenLocal } from "./Imagenes";
 import { bloques, esRuta, sueltas, trozos, type Bloque, type Lista, type Trozo } from "./markdown";
 import { resaltar } from "./resaltar";
@@ -34,8 +34,8 @@ function Imagen({ x }: { x: Extract<Trozo, { tipo: "img" }> }) {
     return (
       <Enlace x={{ tipo: "link", texto: x.texto || x.url, url: x.url }}>{x.texto || x.url}</Enlace>
     );
-  // Lo que no apunta a una imagen (`vec![0](x)`) es texto, como antes.
-  if (!/\.(?:png|jpe?g|gif|webp|bmp)$/i.test(x.url)) return <>{`![${x.texto}](${x.url})`}</>;
+  // Lo que no apunta a una imagen (`vec![0](x)`) o es un patrón (`ciclo_*.png`) es texto, como antes: sin aviso de "no disponible".
+  if (esComodin(x.url) || !/\.(?:png|jpe?g|gif|webp|bmp)$/i.test(x.url)) return <>{`![${x.texto}](${x.url})`}</>;
   return <ImagenLocal ruta={x.url} alt={x.texto} />;
 }
 
