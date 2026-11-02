@@ -20,7 +20,7 @@ test("cada herramienta cae en su tipo", () => {
     [u("Grep"), "buscar"],
     [u("Glob"), "buscar"],
     [u("ToolSearch"), "buscar"],
-    [u("Skill", { skill: "ferox-orquestar" }), "skill"],
+    [u("Skill", { skill: "orquestar-workers" }), "skill"],
     [u("Agent"), "agente"],
     [u("Task"), "agente"],
     [u("Bash", { command: 'pa trama "arreglar el índice"' }), "agente"],

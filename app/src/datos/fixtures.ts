@@ -750,9 +750,9 @@ export function charlaIntermedios(sid: string): Mensaje[] {
       i: 4,
       rol: "assistant",
       texto: "Antes de cerrar reviso la guía, un par de páginas y lanzo a un worker a revisar el resto en paralelo.",
-      herramientas: ["Skill: ferox-orquestar", "WebFetch: https://sqlite.org/lang_createindex.html", "mcp__trama__estado_workers", "Agent: Revisar las demás migraciones", "Write: cauce/docs/notas.md", "Bash: pa cauce --esperar"],
+      herramientas: ["Skill: orquestar-workers", "WebFetch: https://sqlite.org/lang_createindex.html", "mcp__trama__estado_workers", "Agent: Revisar las demás migraciones", "Write: cauce/docs/notas.md", "Bash: pa cauce --esperar"],
       det: [
-        uso("Skill", { skill: "ferox-orquestar" }, "toolu_int_6", "ok"),
+        uso("Skill", { skill: "orquestar-workers" }, "toolu_int_6", "ok"),
         uso("WebFetch", { url: "https://sqlite.org/lang_createindex.html" }, "toolu_int_7", "CREATE INDEX"),
         uso("mcp__trama__estado_workers", {}, "toolu_int_8", "2 corriendo"),
         uso("Agent", { description: "Revisar las demás migraciones", prompt: "Revisá las migraciones 0001 a 0006" }, "toolu_int_9", "Sin hallazgos"),
