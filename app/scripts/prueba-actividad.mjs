@@ -182,6 +182,10 @@ try {
   ok(c?.escena?.w === 44 && c.escena.h === 44, `la escena mide 44 px: ${JSON.stringify(c?.escena)}`);
   ok(!!c && c.ancho <= c.zona, `la tarjeta cabe en la conversación: ${c?.ancho} ≤ ${c?.zona}`);
   await foto("comando");
+  // Tokens y pasos, en el tooltip del pie.
+  await en(() => document.querySelector(".conv-zona .tv-modelo")?.dispatchEvent(new PointerEvent("pointerover", { bubbles: true })));
+  ok(await hasta(() => /paso/.test(document.querySelector("#tip[data-visible]")?.textContent ?? ""), 2), "el pie dice tokens y pasos en el tooltip");
+  await foto("comando-tooltip");
   // La escena se mueve: latido.ts escribe transform/opacity en sus piezas, y ninguna animación CSS corre sin fin.
   const antes = await huellaEscena();
   await espera(500);

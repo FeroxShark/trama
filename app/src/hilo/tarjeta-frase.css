@@ -305,6 +305,14 @@
   }
 }
 
+/* Muy angosta (la barra abierta en una ventana chica): la frase baja de renglón antes que cortarse. */
+@container (max-width: 22rem) {
+  .tv-v {
+    overflow: visible;
+    white-space: normal;
+  }
+}
+
 /* La tarjeta plegada: la línea del trabajo de ese turno, ya con tilde y hecha chip. */
 .trabajo[data-fin] {
   animation: tv-entra 200ms ease-out;

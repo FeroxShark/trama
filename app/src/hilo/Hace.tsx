@@ -11,6 +11,7 @@ import { Boton } from "../ui/componentes";
 import { EVENTO_CAMBIAR_MODELO, esAvisoSinCupoOpencode } from "./agotados";
 import { coma, diaSemana, locale, t, textoError } from "../i18n";
 import { useIdioma } from "../i18n/react";
+import { mostrarTip } from "../barra/tooltip";
 import type { AvisoVisto } from "./avisos";
 import { MODO } from "../modo";
 import { nombreModelo } from "./opciones";
@@ -230,6 +231,15 @@ export function HaceChat({ sid, modelo, effort, piensa = false, error }: { sid: 
   const [saliendo, setSaliendo] = useState(false);
   const trabaja = !!ind.hace && ind.hace.que !== "compactando";
   const falla = fin?.estado === "error";
+  // Captura `detalle`: abierta y con el tooltip del pie (en captura el mouse no cuenta y los tooltips no se arman).
+  useEffect(() => {
+    if (MODO.captura !== "lider-trabajando" || MODO.variante !== "detalle") return;
+    const id = setTimeout(() => {
+      const pie = document.querySelector(".tv-modelo");
+      if (pie) mostrarTip(pie);
+    }, 400);
+    return () => clearTimeout(id);
+  }, []);
   useLayoutEffect(() => {
     if (trabaja) return void setSaliendo(false);
     if (!ultima.current || falla || reducido()) return void (ultima.current = null);
