@@ -746,7 +746,23 @@ export function charlaIntermedios(sid: string): Mensaje[] {
       ts: ts(6 * MIN),
       modelo: m,
     },
-    { i: 4, rol: "assistant", texto: "Arreglado: el test esperaba la versión 7 del esquema y la migración ya la subió a 8. Pasan los 42 tests.", herramientas: [], ts: ts(5 * MIN), modelo: m },
+    {
+      i: 4,
+      rol: "assistant",
+      texto: "Antes de cerrar reviso la guía, un par de páginas y lanzo a un worker a revisar el resto en paralelo.",
+      herramientas: ["Skill: ferox-orquestar", "WebFetch: https://sqlite.org/lang_createindex.html", "mcp__trama__estado_workers", "Agent: Revisar las demás migraciones", "Write: cauce/docs/notas.md", "Bash: pa cauce --esperar"],
+      det: [
+        uso("Skill", { skill: "ferox-orquestar" }, "toolu_int_6", "ok"),
+        uso("WebFetch", { url: "https://sqlite.org/lang_createindex.html" }, "toolu_int_7", "CREATE INDEX"),
+        uso("mcp__trama__estado_workers", {}, "toolu_int_8", "2 corriendo"),
+        uso("Agent", { description: "Revisar las demás migraciones", prompt: "Revisá las migraciones 0001 a 0006" }, "toolu_int_9", "Sin hallazgos"),
+        uso("Write", { file_path: "/Users/ana/Proyectos/cauce/docs/notas.md", content: "# Notas\n\nLa migración 0007 sube la versión a 8.\n" }, "toolu_int_10", "ok"),
+        uso("Bash", { command: "pa cauce --esperar", description: "Espera al worker" }, "toolu_int_11", "terminó"),
+      ],
+      ts: ts(5 * MIN + 30),
+      modelo: m,
+    },
+    { i: 5, rol: "assistant", texto: "Arreglado: el test esperaba la versión 7 del esquema y la migración ya la subió a 8. Pasan los 42 tests.", herramientas: [], ts: ts(5 * MIN), modelo: m },
   ];
 }
 
