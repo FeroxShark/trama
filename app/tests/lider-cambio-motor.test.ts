@@ -44,7 +44,7 @@ const eventos: Ev[] = [];
 lider.alEvento((sid, e) => eventos.push({ sid, e }));
 after(async () => {
   await lider.cerrarTodos(true);
-  rmSync(tmp, { recursive: true, force: true });
+  rmSync(tmp, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
 });
 
 const espera = (ms: number) => new Promise((r) => setTimeout(r, ms));
