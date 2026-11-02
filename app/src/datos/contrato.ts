@@ -307,8 +307,8 @@ export function traidoDe(x: unknown): Traido {
 /** Qué está haciendo un líder de la app (espejo de `Hace` en electron/lider-arma.ts). */
 export type HaceLider =
   | { que: "pidiendo" | "pensando" | "escribiendo" | "compactando"; nombre: null; detalle: null }
-  /** `extra`: dónde busca Grep/Glob (su carpeta) o a quién delega Agent (su tipo de subagente). */
-  | { que: "herramienta"; nombre: string; detalle: string | null; extra?: string };
+  /** `extra`: dónde busca Grep/Glob (su carpeta) o a quién delega Agent (su tipo de subagente). `desc`: lo que el modelo dijo que hace (la descripción de un Bash), el título de la tarjeta. */
+  | { que: "herramienta"; nombre: string; detalle: string | null; extra?: string; desc?: string };
 
 /** Un aviso en línea del chat de un líder (espejo de `Aviso` en electron/lider-arma.ts). */
 export type AvisoLider =

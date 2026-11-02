@@ -1,0 +1,346 @@
+/* La tarjeta de un líder trabajando, propuesta Frase (maquetas/rediseno-0.4/status-trabajando-b-*.png): una cápsula de vidrio hermana de la caja.
+   Sólo tokens de src/tokens.css. Sin animaciones infinitas: el punto y la escena los mueve src/barra/latido.ts. */
+.tv {
+  container-type: inline-size;
+  animation: tv-entra 200ms ease-out;
+}
+.tv-tar {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  column-gap: var(--esp-3);
+  padding: var(--esp-2-5) var(--esp-4) var(--esp-2-5) var(--esp-2-5);
+  border-radius: var(--r-xl);
+  background: var(--capa-tile);
+  box-shadow: var(--popover-luz), var(--sombra-vidrio);
+  transition: background-color 240ms ease-out, box-shadow 240ms ease-out, border-radius 180ms ease-out;
+}
+/* Abierta o con el error a la vista ya no es una cápsula: el radio de una hoja y el círculo arriba. */
+.tv:is([data-abierto], [data-error]) .tv-tar {
+  align-items: start;
+  border-radius: var(--r-lg);
+}
+.tv[data-t="permiso"] .tv-tar,
+.tv[data-estado="quieto"] .tv-tar {
+  background: var(--decision-fondo);
+  box-shadow: inset 0 0 0 1px var(--decision-luz), var(--decision-brillo);
+}
+.tv[data-error] .tv-tar {
+  background: var(--fallo-fondo);
+  box-shadow: inset 0 0 0 1px var(--fallo-luz), var(--fallo-brillo);
+}
+/* Con `data-t`, para ganarle al color de cada tipo (src/index.css) sea cual sea el orden en que se cargan. */
+.tv[data-t][data-estado="quieto"] {
+  --c: var(--aviso);
+}
+.tv[data-t][data-error] {
+  --c: var(--critico);
+}
+.tv[data-saliendo] {
+  animation: tv-pliega 200ms ease-in forwards;
+}
+@keyframes tv-pliega {
+  to {
+    opacity: 0;
+    transform: translateY(-0.25rem) scale(0.98);
+  }
+}
+
+/* El círculo: la escena del tipo de herramienta; sin novedades, la pausa; con el error, la ×. */
+.tv-tile {
+  display: grid;
+  width: 2.75rem;
+  height: 2.75rem;
+  place-items: center;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--c) 18%, transparent);
+  color: var(--c);
+  transition: background-color 240ms ease-out, color 240ms ease-out;
+}
+.tv-tile .esc {
+  width: 2.75rem;
+  height: 2.75rem;
+  background: transparent;
+  animation: tv-escena 200ms ease-out;
+}
+@keyframes tv-escena {
+  from {
+    opacity: 0;
+  }
+}
+.tv-cu {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+.tv-1,
+.tv-2 {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--esp-2-5);
+}
+.tv-1 {
+  min-height: 1.5rem;
+}
+.tv-2 {
+  min-height: 1.75rem;
+}
+
+/* La frase, a 16 px; lo recién hecho se funde a su izquierda y cede primero cuando falta ancho. */
+.tv-frase {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 0;
+  align-items: baseline;
+  gap: var(--esp-2);
+}
+.tv-v {
+  min-width: 0;
+  flex: 0 1 auto;
+  overflow: hidden;
+  color: var(--texto-1);
+  font-size: var(--letra-7);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  animation: tv-cambia 200ms ease-out;
+}
+@keyframes tv-cambia {
+  from {
+    opacity: 0;
+    transform: translateX(0.375rem);
+  }
+}
+.tv-ant {
+  display: flex;
+  min-width: 0;
+  flex: 0 100000 auto;
+  justify-content: flex-end;
+  overflow: hidden;
+  color: var(--texto-6);
+  font-size: var(--letra-4);
+  white-space: pre;
+  mask-image: linear-gradient(to right, transparent, var(--texto-1) 2.5rem);
+}
+.tv-ant > span {
+  flex: none;
+}
+
+/* Un solo estado: el punto que late y el tiempo. */
+.tv-est {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--esp-2);
+  color: var(--texto-3);
+  font-size: var(--letra-4);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.tv-est .tv-x {
+  color: inherit;
+  font-size: inherit;
+}
+.tv-punto {
+  flex: none;
+  width: 0.4375rem;
+  height: 0.4375rem;
+  border-radius: 50%;
+  background: var(--acento);
+  box-shadow: 0 0 0 0.125rem color-mix(in srgb, var(--acento) 22%, transparent), 0 0 0.625rem color-mix(in srgb, var(--acento) 55%, transparent);
+}
+.tv[data-estado="quieto"] .tv-est {
+  color: var(--decision-texto);
+  font-weight: 500;
+}
+.tv:is([data-estado="quieto"], [data-t="permiso"]) .tv-punto {
+  background: var(--aviso);
+  box-shadow: none;
+}
+.tv[data-error] .tv-est {
+  color: var(--fallo-texto);
+  font-weight: 500;
+}
+
+/* Abajo: «Corriendo», la salida que se funde, «Ver todo» y el modelo. */
+.tv-verbo {
+  flex: none;
+  color: var(--texto-3);
+  font-size: var(--letra-4);
+  font-weight: 500;
+}
+.tv-verbo[data-error],
+.tv[data-error] .tv-verbo {
+  color: var(--fallo-texto);
+}
+.tv-out {
+  min-width: 0;
+  flex: 1 1 0;
+  overflow: hidden;
+  color: var(--texto-5);
+  font-size: var(--letra-4);
+  white-space: pre;
+  mask-image: linear-gradient(to left, transparent, var(--texto-1) 1.5rem);
+  animation: tv-escena 160ms ease-out;
+}
+.tv-out[data-mono] {
+  font-family: var(--font-mono);
+  font-size: var(--letra-3);
+}
+.tv:is([data-estado="quieto"], [data-error]) .tv-out {
+  color: var(--texto-4);
+}
+.tv-ver {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--esp-0-5);
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-xs);
+  background: none;
+  color: var(--texto-5);
+  font-size: var(--letra-4);
+  white-space: nowrap;
+  transition: color 120ms ease-out;
+}
+.tv-ver:hover {
+  color: var(--texto-1);
+}
+.tv-ver[aria-expanded="true"] .tv-fl {
+  transform: rotate(180deg);
+}
+.tv-modelo {
+  position: relative;
+  flex: none;
+  border-radius: var(--r-xs);
+  color: var(--apagado);
+  font-size: var(--letra-4);
+  white-space: nowrap;
+}
+.tv-err {
+  padding: var(--esp-1) 0 var(--esp-1-5);
+}
+.tv-err .aviso[data-tono="grave"] {
+  color: var(--fallo-texto);
+  font-family: var(--font-mono);
+  font-size: var(--letra-3);
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+/* "Ver todo": se abre empujando la cápsula; cerrado no ocupa nada ni se llega con el teclado. */
+.tv-plieg {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 180ms ease-out;
+}
+.tv[data-abierto] .tv-plieg {
+  grid-template-rows: 1fr;
+}
+.tv-cuerpo {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  gap: var(--esp-2);
+  overflow: hidden;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 120ms ease-out, visibility 0s linear 180ms;
+}
+.tv[data-abierto] .tv-cuerpo {
+  padding: var(--esp-1) 0 var(--esp-1-5);
+  opacity: 1;
+  visibility: visible;
+  transition: opacity 160ms ease-out 40ms, visibility 0s;
+}
+.tv-cuerpo .tv-det {
+  color: var(--texto-3);
+  font-size: var(--letra-3);
+  line-height: 1.6;
+}
+.tv-cuerpo .tv-dt {
+  white-space: pre-wrap;
+}
+.tv-cuerpo .tv-det > .tv-ic {
+  display: none;
+}
+.tv-cuerpo .tv-mas {
+  align-self: flex-start;
+}
+.tv-cuerpo .tv-lt {
+  padding: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+}
+.tv-cuenta {
+  color: var(--apagado);
+  font-size: var(--letra-3);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Angosta: la miga se va y el modelo baja a su renglón; la salida queda entera en el suyo. */
+@container (max-width: 38rem) {
+  .tv-ant {
+    display: none;
+  }
+  .tv-2 {
+    flex-wrap: wrap;
+  }
+  .tv-out {
+    flex-basis: 8rem;
+  }
+}
+
+/* La tarjeta plegada: la línea del trabajo de ese turno, ya con tilde y hecha chip. */
+.trabajo[data-fin] {
+  animation: tv-entra 200ms ease-out;
+}
+.trabajo[data-fin] > summary {
+  gap: var(--esp-2);
+  min-height: 2rem;
+  padding: 0 var(--esp-3) 0 var(--esp-1);
+  border-radius: var(--r-cap);
+  background: var(--capa-card);
+  box-shadow: inset 0 0 0 1px var(--capa-div);
+  color: var(--texto-3);
+  font-size: var(--letra-5);
+  font-variant-numeric: tabular-nums;
+}
+.trabajo[data-fin] > summary:hover {
+  color: var(--texto-1);
+}
+.trabajo-marca {
+  display: grid;
+  width: 1.5rem;
+  height: 1.5rem;
+  flex: none;
+  place-items: center;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--ok) 18%, transparent);
+  color: var(--ok);
+}
+.trabajo[data-fin="parado"] .trabajo-marca {
+  background: var(--capa-tile);
+  color: var(--texto-3);
+}
+.trabajo[data-fin][open] > summary .trabajo-marca svg {
+  transform: none;
+}
+
+/* Parar vive sólo en la caja: siempre a la vista. Sin novedades pide atención ahí, como la tarjeta. */
+.caja-parar[data-quieto] {
+  background: var(--decision-relleno);
+  color: var(--decision-sobre);
+  font-weight: 600;
+  transition: background-color 240ms ease-out, color 240ms ease-out;
+}
+.caja-parar[data-quieto]:hover {
+  background: var(--decision-relleno);
+  color: var(--decision-sobre);
+  filter: brightness(1.08);
+}

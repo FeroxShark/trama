@@ -2,7 +2,7 @@
 // del chat (src/hilo/Actividad.tsx) y el de su fila en la barra, y los avisos en línea del turno (reintentos, límite,
 // errores, compactar, el proceso que se muere). Cada pieza se suscribe sólo a
 // lo suyo de src/hilo/vivo.ts: el texto que llega no las repinta.
-import { useCallback, useMemo, useSyncExternalStore, type ReactNode } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState, useSyncExternalStore, type ComponentProps, type ReactNode } from "react";
 import { ArrowRightLeft } from "lucide-react";
 import type { HaceLider } from "../datos/contrato";
 import { Reloj } from "../barra/piezas";
@@ -18,8 +18,8 @@ import { ofreceSeguir } from "./seguir-con";
 import { Tierno, useTiernos } from "./Tierno";
 import { Compactando } from "./Posta";
 import { Actividad } from "./Actividad";
-import { clasificar, clasificarPedido, cuentaTokens } from "./actividad-logica";
-import { enCurso, indicador, lineasDelTurno, pensandoAhora, razona, suscribir, type Indicador } from "./vivo";
+import { clasificar, clasificarPedido, cuentaTokens, SIN_NOVEDADES_MS } from "./actividad-logica";
+import { comandoCrudo, enCurso, indicador, lineasDelTurno, pensandoAhora, quietoDesde, razona, suscribir, type Indicador } from "./vivo";
 
 const LEER = new Set(["Read", "WebFetch", "NotebookRead"]);
 const EDITAR = new Set(["Edit", "Write", "MultiEdit", "NotebookEdit"]);
@@ -180,42 +180,111 @@ const usePensando = (sid: string) =>
     () => pensandoAhora(sid),
   );
 
-/** Debajo de la conversación, mientras responde: la tarjeta viva (src/hilo/Actividad.tsx) con qué hace, el tiempo y los pasos de atrás. */
-export function HaceChat({ sid, modelo, effort, alParar, parando, piensa = false }: { sid: string; modelo?: string | null; effort?: string | null; alParar?: () => void; parando?: boolean; piensa?: boolean }) {
+/** La captura `lider-trabajando` con `HILOS_VARIANTE=quieto`: un comando callado hace 2 min. */
+const QUIETO_FIJO = Date.now() - SIN_NOVEDADES_MS - 5000;
+
+/**
+ * Hace 2 min que no llega salida ni tokens: desde cuándo (ms); si no, `null`. No repinta con cada delta (el valor no cambia mientras hay
+ * novedades); un timer lo vuelve a mirar cuando vence el plazo, porque justamente no va a llegar ningún evento que avise.
+ */
+export function useQuietoDesde(sid: string): number | null {
+  const [, mirar] = useReducer((n: number) => n + 1, 0);
+  const desde = useSyncExternalStore(
+    useCallback((fn: () => void) => suscribir(sid, fn), [sid]),
+    () => quietoDesde(sid),
+  );
+  useEffect(() => {
+    const e = enCurso(sid);
+    if (desde !== null || !e.ind.hace) return;
+    const id = setTimeout(mirar, Math.max(250, e.novedad + SIN_NOVEDADES_MS - Date.now()));
+    return () => clearTimeout(id);
+  });
+  if (MODO.captura === "lider-trabajando" && MODO.variante === "quieto") return QUIETO_FIJO;
+  return desde;
+}
+
+const MS_PLIEGUE = 200;
+const reducido = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+/** Debajo de la conversación, mientras responde: la tarjeta viva (src/hilo/Actividad.tsx). Al terminar se pliega; si el turno falló, queda abierta con el error (`error`: los avisos que lo cuentan). */
+export function HaceChat({ sid, modelo, effort, piensa = false, error }: { sid: string; modelo?: string | null; effort?: string | null; piensa?: boolean; error?: ReactNode }) {
   useIdioma();
   const ind = useIndicador(sid);
   const pide = usePide(sid);
   const tierno = useTiernos();
+  const sub = useCallback((fn: () => void) => suscribir(sid, fn), [sid]);
+  const salida = useSyncExternalStore(sub, () => enCurso(sid).salida);
+  const crudo = useSyncExternalStore(sub, () => comandoCrudo(sid));
+  const fin = useSyncExternalStore(sub, () => enCurso(sid).fin);
+  const quieto = useQuietoDesde(sid);
   // Un motor que deja ver su razonamiento (Gemini, o Claude con el suyo; se sabe por el modelo o porque ya llegó uno): el progreso
-  // del turno en la tarjeta (pensamientos plegados y herramientas, en orden), en vez de la frase tierna. Los que no lo traen siguen como siempre.
+  // del turno en "Ver todo" (pensamientos plegados y herramientas, en orden), en vez de la frase tierna. Los que no lo traen siguen como siempre.
   const razonaYa = useRazona(sid);
   const veRazon = piensa || razonaYa;
   const lineas = useLineas(sid);
   const pensando = usePensando(sid);
-  // Captura `lider-trabajando` con `HILOS_VARIANTE=listo`: la tarjeta de un turno que terminó (en vivo se va con el turno).
-  if (MODO.captura === "lider-trabajando" && MODO.variante === "listo")
-    return <Actividad act={clasificar({ que: "herramienta", nombre: "Bash", detalle: "npm test -- --reporter dot" })} pasos={ind.pasos} pasosN={ind.pasosN} desde={ind.desde} tokens={ind.salida > 0 ? cuentaTokens(ind.salida, miles(ind.salida)) : null} modelo={modelo} effort={effort} fin="listo" />;
-  if (!ind.hace) return null;
+  // Vive acá, no en la tarjeta: quien lo abrió lo sigue viendo abierto en el próximo turno.
+  const [abierto, setAbierto] = useState(MODO.captura === "lider-trabajando" && MODO.variante === "detalle");
+  // Lo último que se pintó, para que la tarjeta se pliegue al terminar el turno en vez de desaparecer de golpe.
+  const ultima = useRef<ComponentProps<typeof Actividad> | null>(null);
+  const [saliendo, setSaliendo] = useState(false);
+  const trabaja = !!ind.hace && ind.hace.que !== "compactando";
+  const falla = fin?.estado === "error";
+  useLayoutEffect(() => {
+    if (trabaja) return void setSaliendo(false);
+    if (!ultima.current || falla || reducido()) return void (ultima.current = null);
+    setSaliendo(true);
+    const id = setTimeout(() => {
+      ultima.current = null;
+      setSaliendo(false);
+    }, MS_PLIEGUE);
+    return () => clearTimeout(id);
+  }, [trabaja, falla]);
+  if (falla && !ind.hace) {
+    const hizo = fin.hace ?? { que: "pidiendo" as const, nombre: null, detalle: null };
+    return (
+      <Actividad
+        act={clasificar(hizo)}
+        hace={fin.hace}
+        pasos={fin.pasos}
+        pasosN={fin.pasosN}
+        desde={null}
+        tokens={fin.tokens > 0 ? cuentaTokens(fin.tokens, miles(fin.tokens)) : null}
+        modelo={modelo}
+        effort={effort}
+        salida={fin.salida}
+        crudo={crudo}
+        abierto={abierto}
+        alAbrir={setAbierto}
+        fallo={{ dura: fin.dura, error }}
+      />
+    );
+  }
+  if (!ind.hace) return saliendo && ultima.current ? <Actividad {...ultima.current} saliendo /> : null;
   // Compactar (B19): su figurita, no la tarjeta.
   if (ind.hace.que === "compactando") return <Compactando />;
   // Un permiso sin contestar manda: el líder está parado esperando al usuario.
   const act = pide.length ? clasificarPedido(pide[0]) : clasificar(ind.hace);
   const generico = !pide.length && GENERICO.has(ind.hace.que);
-  return (
-    <Actividad
-      act={act}
-      pasos={ind.pasos}
-      pasosN={ind.pasosN}
-      desde={ind.desde}
-      tokens={ind.salida > 0 ? cuentaTokens(ind.salida, miles(ind.salida)) : null}
-      tierno={tierno && generico && !veRazon ? sid : undefined}
-      razon={veRazon ? { lineas, pensando } : undefined}
-      modelo={modelo}
-      effort={effort}
-      alParar={alParar}
-      parando={parando}
-    />
-  );
+  const props = {
+    act,
+    hace: ind.hace,
+    pasos: ind.pasos,
+    pasosN: ind.pasosN,
+    desde: ind.desde,
+    tokens: ind.salida > 0 ? cuentaTokens(ind.salida, miles(ind.salida)) : null,
+    tierno: tierno && generico && !veRazon ? sid : undefined,
+    razon: veRazon ? { lineas, pensando } : undefined,
+    modelo,
+    effort,
+    salida,
+    crudo,
+    quieto: pide.length ? null : quieto,
+    abierto,
+    alAbrir: setAbierto,
+  };
+  ultima.current = props;
+  return <Actividad {...props} />;
 }
 
 /** La frase tierna de un líder de la app en la barra, mientras responde y si no hay nada concreto que decir. Va con el nombre: cede antes que él. */

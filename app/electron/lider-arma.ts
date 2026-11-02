@@ -371,7 +371,7 @@ export function detalle(input: unknown, completo = false): string | null {
  * Grep y Glob dicen el patrón (no la carpeta) y, aparte (`extra`), dónde buscan o a quién delega Agent.
  * Todo entero (sin "…"): la tarjeta lo pliega si es muy largo.
  */
-export function detalleHace(nombre: string, input: unknown): { detalle: string | null; extra?: string } {
+export function detalleHace(nombre: string, input: unknown): { detalle: string | null; extra?: string; desc?: string } {
   const i = (input ?? {}) as Record<string, unknown>;
   const corto = (x: unknown) => (typeof x === "string" && x.trim() ? entero(x) : null);
   if (nombre === "Grep" || nombre === "Glob") {
@@ -382,7 +382,10 @@ export function detalleHace(nombre: string, input: unknown): { detalle: string |
     const extra = corto(i.subagent_type);
     return { detalle: detalle(input, true), ...(extra ? { extra } : {}) };
   }
-  return { detalle: detalle(input, true) };
+  // La descripción del comando (`description` del Bash, que el modelo escribe para quien mira): el título de la tarjeta.
+  const d = detalle(input, true);
+  const desc = corto(i.description);
+  return { detalle: d, ...(desc && desc !== d ? { desc } : {}) };
 }
 
 /** "Bash: git status", "Read: /x/y.ts": la herramienta con lo que hizo, en un renglón corto. */
@@ -402,7 +405,7 @@ export function herramienta(nombre: string, input: unknown): string {
  */
 export type Hace =
   | { que: "pidiendo" | "pensando" | "escribiendo" | "compactando"; nombre: null; detalle: null }
-  | { que: "herramienta"; nombre: string; detalle: string | null; extra?: string };
+  | { que: "herramienta"; nombre: string; detalle: string | null; extra?: string; desc?: string };
 
 /**
  * Un aviso en línea del chat. Viene con datos, no con

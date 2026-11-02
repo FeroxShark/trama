@@ -1,23 +1,20 @@
-// La tarjeta de actividad del chat (dirección C, referencias/maquetas/actividad): mientras un líder de la app responde, una
-// escena de 2.75rem que actúa lo que hace, el estado (punto de color + verbo), qué modelo y esfuerzo corre, lo concreto, el tiempo,
-// los tokens y los pasos de atrás con su icono (los últimos tres; el resto, tras "+N pasos"), y Parar.
-// Qué evento da cada tipo y cómo se limpia el detalle: src/hilo/actividad-logica.ts. El movimiento: src/barra/latido-escenas.ts.
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Bot, Brain, Check, ChevronDown, ChevronRight, FilePlus, FileText, Globe, Hand, MessageSquare, Pencil, Search, Terminal, Wrench, X, type LucideIcon } from "lucide-react";
+// La tarjeta de un líder de la app mientras responde (propuesta Frase, maquetas/rediseno-0.4/status-trabajando-b-*.png): la frase de lo que
+// hace, la salida en una línea, "Ver todo" con el comando entero, los pasos y el progreso, y el pie con modelo y esfuerzo.
+// Qué evento da cada tipo y qué dice cada línea: src/hilo/actividad-logica.ts. El movimiento: src/barra/latido-escenas.ts.
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Bot, Brain, ChevronDown, ChevronRight, FilePlus, FileText, Globe, Hand, MessageSquare, Pause, Pencil, Search, Terminal, Wrench, X, type LucideIcon } from "lucide-react";
+import type { HaceLider } from "../datos/contrato";
 import { latir } from "../barra/latido";
 import { Reloj } from "../barra/piezas";
-import { Chip } from "../ui/componentes";
-import { t, type Clave } from "../i18n";
-import { pintorDura } from "../tiempo";
+import { t } from "../i18n";
+import { duracionFina, pintorDura } from "../tiempo";
 import { alScroll, bajar, seguidor, seguir } from "./seguir";
-import { cuentaMas, cuentaPasos, estadoDe, iconoDe, muyLargo, PASOS, primeraLineaPensada, textoPaso, ultimaFrasePensada, type Actividad as Act, type Icono, type Paso } from "./actividad-logica";
+import { cuentaMas, cuentaPasos, estadoDe, fraseDe, iconoDe, lineaPaso, muyLargo, PASOS, primeraLineaPensada, textoDetalle, ultimaFrasePensada, type Actividad as Act, type Icono, type Paso, type Salida } from "./actividad-logica";
 import type { LineaTiempo } from "./linea-tiempo";
 import { Escena } from "./Escenas";
 import { Tierno } from "./Tierno";
 import { EnlaceArchivo } from "./VerArchivo";
-
-/** Una clave de `actividad-logica.ts` (viaja como texto) ya traducida. */
-const tx = (clave: string, vars?: Record<string, string | number>) => (t as (k: Clave, v?: Record<string, string | number>) => string)(clave as Clave, vars);
+import "./tarjeta-frase.css";
 
 const ICONO: Record<Icono, LucideIcon> = {
   pensar: Brain,
@@ -32,19 +29,6 @@ const ICONO: Record<Icono, LucideIcon> = {
   permiso: Hand,
   otro: Wrench,
 };
-
-/** Lo concreto: una frase fija (con su variable, si la lleva, y con mayúscula) o el comando / archivo / patrón tal cual. */
-export const textoDetalle = (a: Act) => {
-  if (!a.detalleClave) return a.detalle;
-  const x = tx(a.detalleClave, { d: a.detalle });
-  return x.charAt(0).toUpperCase() + x.slice(1);
-};
-
-/** Un paso ya pasado en palabras, o `null` si no vale la pena mostrarlo. */
-export function lineaPaso(p: Paso): string | null {
-  const x = textoPaso(p);
-  return x ? tx(x.clave, { d: x.d, s: x.s ?? 0 }) : null;
-}
 
 /** Un texto entero: lo muy largo se pliega (con fundido abajo) y "Ver todo" lo despliega. Nunca se corta con "…". */
 function Entero({ texto, className }: { texto: string; className: string }) {
@@ -204,6 +188,8 @@ function Progreso({ lineas, pensando }: { lineas: LineaTiempo[]; pensando: strin
 
 type Props = {
   act: Act;
+  /** Lo que hace (o lo último que hizo, si el turno falló): de acá sale el título. */
+  hace: HaceLider | null;
   pasos: Paso[];
   /** Cuántos pasos lleva el turno (`pasos` guarda los últimos). */
   pasosN?: number;
@@ -221,104 +207,136 @@ type Props = {
   /** Qué modelo y esfuerzo corre ("Sonnet 5.5", "high"), cuando se saben. */
   modelo?: string | null;
   effort?: string | null;
-  /** Parar el turno (la misma acción que el botón de la caja). */
-  alParar?: () => void;
-  parando?: boolean;
-  /** El turno ya terminó (`listo`) o falló (`error`): sin escena que se mueva ni Parar. */
-  fin?: "listo" | "error";
+  /** La última línea de lo que devolvió el comando. */
+  salida?: Salida | null;
+  /** El comando entero, con sus renglones ("Ver todo"). */
+  crudo?: string | null;
+  /** Hace 2 min que no llega nada: desde cuándo (ms). */
+  quieto?: number | null;
+  /** "Ver todo" abierto (lo guarda quien la monta: sigue abierto en el próximo turno). */
+  abierto: boolean;
+  alAbrir: (abierto: boolean) => void;
+  /** El turno terminó mal: cuánto duró y el error, a la vista. */
+  fallo?: { dura: number | null; error: ReactNode };
+  /** Se está yendo: el turno terminó bien y la tarjeta se pliega. */
+  saliendo?: boolean;
 };
 
-export function Actividad({ act, pasos, pasosN, desde, tokens, tierno, razon, modelo, effort, alParar, parando, fin }: Props) {
-  // La tarjeta existe sólo mientras hay actividad: el latido de las escenas corre mientras está montada.
-  useEffect(() => (fin ? undefined : latir()), [fin]);
+const estadoVisible = (quieto: boolean, fallo: boolean) => (fallo ? "fallo" : quieto ? "quieto" : "corre");
+
+/**
+ * La tarjeta de un líder trabajando (propuesta Frase): una cápsula baja hermana de la caja, con un círculo por tipo de herramienta y la frase de lo
+ * que hace; abajo, la salida (o el comando) en una línea que se funde, "Ver todo" y el modelo. Un solo estado: el punto que late y el tiempo.
+ * Parar queda sólo en la caja: siempre a la vista, aunque se suba por la conversación.
+ */
+export function Actividad({ act, hace, pasos, pasosN, desde, tokens, tierno, razon, modelo, effort, salida, crudo, quieto = null, abierto, alAbrir, fallo, saliendo }: Props) {
+  // El latido (el punto y la escena) corre mientras la tarjeta está viva.
+  const viva = !fallo && !saliendo;
+  useEffect(() => (viva ? latir() : undefined), [viva]);
   const [todos, setTodos] = useState(false);
   const dura = useMemo(() => (desde !== null ? pintorDura(desde) : null), [desde]);
-  const detalle = textoDetalle(act);
-  const conRazon = !!razon && !fin;
+  const sinNovedad = useMemo(() => (quieto !== null ? pintorDura(quieto / 1000, () => `${t("hz.quieto")} `) : null), [quieto]);
+  const conRazon = !!razon && !fallo;
+  const frase = fraseDe({ act, hace, pasos, salida, pensando: razon?.pensando, fallo: !!fallo });
   const lineas = pasos.map((p) => ({ l: lineaPaso(p), i: iconoDe(p.hace) })).filter((x): x is { l: string; i: Icono } => x.l !== null);
   // Con el progreso a la vista (pensamientos y herramientas en orden) los pasos de atrás sobran: serían lo mismo dos veces.
   const vis = conRazon ? [] : todos ? lineas : lineas.slice(0, PASOS);
   const ocultos = conRazon ? 0 : lineas.length - PASOS;
-  const estado = fin ?? estadoDe(act);
-  const verbo = fin ? t(fin === "listo" ? "hz.t.listo" : "hz.t.error") : tx(act.verbo);
-  // El chip de arriba: trabajando, esperando (al modelo o a una respuesta de la persona) o terminado.
-  const chip = fin ? (fin === "listo" ? { tono: "ok" as const, texto: t("hz.t.listo") } : { tono: "critico" as const, texto: t("hz.t.error") }) : estado === "permiso" || estado === "espera" ? { tono: "aviso" as const, texto: t("hz.c.esperando") } : { tono: undefined, texto: t("estado.trabajando") };
+  const estado = estadoDe(act);
+  // Lo entero de lo que abajo se ve en una línea: el comando con sus renglones, la pregunta o el permiso.
+  const entero = act.tipo === "permiso" ? textoDetalle(act) : hace?.que === "herramienta" ? (crudo ?? (act.detalle !== hace.nombre ? act.detalle : "")) : "";
+  const hayProgreso = conRazon && (razon.lineas.length > 0 || !!razon.pensando.trim());
+  const hayCuerpo = !!entero || lineas.length > 0 || hayProgreso;
+  const cuenta = [tokens, pasosN ? cuentaPasos(pasosN) : null].filter(Boolean).join(" · ");
   const Det = ICONO[act.icono];
-  const verDet = !!detalle && !fin && !(conRazon && estado !== "permiso");
   return (
-    // El `key` hace que el cambio de tipo entre con su fundido (`tv-entra`); dentro de un tipo sólo cambia el texto.
-    <div className="tv" key={fin ?? act.tipo} data-t={fin ? "fin" : act.tipo} data-e={estado} role="status">
+    <div className="tv" data-t={act.tipo} data-e={estado} data-estado={estadoVisible(quieto !== null, !!fallo)} data-abierto={abierto ? "" : undefined} data-error={fallo ? "" : undefined} data-saliendo={saliendo ? "" : undefined} role="status">
       <div className="tv-tar">
+        <span className="tv-tile" aria-hidden="true">
+          {fallo ? <X size={20} strokeWidth={2} /> : quieto !== null ? <Pause size={20} strokeWidth={2} /> : <Escena key={act.tipo} tipo={act.tipo} />}
+        </span>
         <div className="tv-cu">
-          <div className="tv-t1">
-            <span className="tv-tit">
-              {fin ? (
-                <span className="esc tv-fin" aria-hidden="true">
-                  {fin === "listo" ? <Check size={22} strokeWidth={2} /> : <X size={22} strokeWidth={2} />}
+          <div className="tv-1">
+            <span className="tv-frase">
+              {frase.antes.length ? (
+                <span className="tv-ant">
+                  <span>{frase.antes.join("  ›  ")}  ›</span>
                 </span>
-              ) : (
-                <Escena tipo={act.tipo} />
-              )}
-              {tierno && !fin ? <Tierno semilla={tierno} className="tv-v" limpia /> : <span className="tv-v">{verbo}</span>}
+              ) : null}
+              {/* La clave cambia con el paso: la frase nueva entra y la de antes ya quedó en la miga. */}
+              {tierno ? <Tierno semilla={tierno} className="tv-v" limpia /> : <span className="tv-v" key={frase.titulo} data-tip={frase.titulo}>{frase.titulo}</span>}
             </span>
-            <Chip tono={chip.tono}>
-              {chip.texto}
-              {dura ? (
-                <>
-                  {" · "}
-                  <Reloj pintor={dura} className="tv-x" />
-                </>
-              ) : null}
-            </Chip>
-          </div>
-          {verDet || vis.length ? (
-            <div className="tv-log">
-              {verDet ? (
-                <div className="tv-det" data-fija={act.detalleClave ? "" : undefined}>
-                  {act.detalleClave ? null : <Det className="tv-ic" size={13} strokeWidth={1.9} aria-hidden="true" />}
-                  <Entero texto={detalle} className="tv-dt" />
-                  <span className="tv-vivo">{t("hz.enCurso")}</span>
-                </div>
-              ) : null}
-              {vis.length ? (
-                <ul className="tv-pasos">
-                  {vis.map((p, i) => {
-                    const I = ICONO[p.i];
-                    return (
-                      <li key={i}>
-                        <I className="tv-ic" size={12} strokeWidth={1.9} aria-hidden="true" />
-                        <Entero texto={p.l} className="tv-pt" />
-                      </li>
-                    );
-                  })}
-                </ul>
-              ) : null}
-            </div>
-          ) : null}
-          {conRazon ? <Progreso lineas={razon.lineas} pensando={razon.pensando} /> : null}
-          {modelo || tokens || pasosN || ocultos > 0 || (alParar && !fin) ? (
-            <div className="tv-pie">
-              <span className="tv-meta">
-                {modelo ? (
-                  <span className="tv-modelo" aria-label={t("hz.modelo")}>
-                    {modelo}
-                    {effort ? <span className="tv-ef">{effort}</span> : null}
-                  </span>
-                ) : null}
-                {tokens ? <span className="tv-x">{tokens}</span> : null}
-                {pasosN ? <span className="tv-x">{cuentaPasos(pasosN)}</span> : null}
+            {fallo ? (
+              <span className="tv-est">
+                <X size={14} strokeWidth={2.4} aria-hidden="true" />
+                {t("hz.t.error")}
+                {fallo.dura !== null ? ` · ${duracionFina(fallo.dura)}` : ""}
               </span>
-              {ocultos > 0 ? (
-                <button type="button" className="tv-mas" aria-expanded={todos} onClick={() => setTodos((x) => !x)}>
-                  {todos ? t("hz.menos") : cuentaMas(ocultos)}
-                  <ChevronDown className="tv-fl" size={12} strokeWidth={2} aria-hidden="true" />
-                </button>
-              ) : null}
-              {alParar && !fin ? (
-                <button type="button" className="btn2 tv-parar" disabled={parando} onClick={alParar}>
-                  {parando ? t("accion.parando") : t("accion.parar")}
-                </button>
-              ) : null}
+            ) : sinNovedad ? (
+              <span className="tv-est">
+                <i className="tv-punto" />
+                <Reloj pintor={sinNovedad} className="tv-x" />
+              </span>
+            ) : dura ? (
+              <span className="tv-est" aria-label={t("estado.trabajando")}>
+                <i className={saliendo ? "tv-punto" : "tv-punto late"} />
+                <Reloj pintor={dura} className="tv-x" />
+              </span>
+            ) : null}
+          </div>
+          <div className="tv-2">
+            {frase.verbo ? <span className="tv-verbo" data-error={salida?.error ? "" : undefined}>{frase.verbo}</span> : null}
+            {/* `aria-live` apagado: la salida cambia sola y no se anuncia de a pedazos. */}
+            <span className="tv-out" key={frase.linea} data-mono={frase.mono ? "" : undefined} aria-live="off">
+              {frase.linea}
+            </span>
+            {hayCuerpo ? (
+              <button type="button" className="tv-ver" aria-expanded={abierto} onClick={() => alAbrir(!abierto)}>
+                {abierto ? t("hz.menos") : t("hz.todo")}
+                <ChevronDown className="tv-fl" size={12} strokeWidth={2} aria-hidden="true" />
+              </button>
+            ) : null}
+            {modelo ? (
+              <span className="tv-modelo" aria-label={[t("hz.modelo"), modelo, effort, cuenta].filter(Boolean).join(" · ")} data-tip={cuenta || undefined} tabIndex={cuenta ? 0 : undefined}>
+                {modelo}
+                {effort ? <span className="tv-ef">{effort}</span> : null}
+              </span>
+            ) : null}
+          </div>
+          {fallo ? <div className="tv-err">{fallo.error}</div> : null}
+          {hayCuerpo ? (
+            // Siempre armado, para plegarse con su transición; cerrado no se llega con el teclado.
+            <div className="tv-plieg">
+              <div className="tv-cuerpo" inert={!abierto}>
+                {entero ? (
+                  <div className="tv-det" data-fija={act.tipo === "permiso" ? "" : undefined}>
+                    {act.tipo === "permiso" ? null : <Det className="tv-ic" size={13} strokeWidth={1.9} aria-hidden="true" />}
+                    <span className="tv-dt">{entero}</span>
+                  </div>
+                ) : null}
+                {vis.length ? (
+                  <ul className="tv-pasos">
+                    {vis.map((p, i) => {
+                      const I = ICONO[p.i];
+                      return (
+                        <li key={i}>
+                          <I className="tv-ic" size={12} strokeWidth={1.9} aria-hidden="true" />
+                          <Entero texto={p.l} className="tv-pt" />
+                        </li>
+                      );
+                    })}
+                  </ul>
+                ) : null}
+                {ocultos > 0 ? (
+                  <button type="button" className="tv-mas" aria-expanded={todos} onClick={() => setTodos((x) => !x)}>
+                    {todos ? t("hz.menos") : cuentaMas(ocultos)}
+                    <ChevronDown className="tv-fl" size={12} strokeWidth={2} aria-hidden="true" />
+                  </button>
+                ) : null}
+                {conRazon ? <Progreso lineas={razon.lineas} pensando={razon.pensando} /> : null}
+                {/* Lo mismo que el tooltip del modelo, para quien no tiene mouse (el celular). */}
+                {cuenta ? <span className="tv-cuenta">{cuenta}</span> : null}
+              </div>
             </div>
           ) : null}
         </div>

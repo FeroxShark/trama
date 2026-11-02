@@ -42,6 +42,9 @@ export const pintorDura =
     return { texto: `${p}${Math.floor(d / HORA)} h ${String(m).padStart(2, "0")} m`, en: MIN - (d % MIN) };
   };
 
+/** "12 s", "3 m", "1 h 05 m": lo que tardó un turno corto, con sus segundos. */
+export const duracionFina = (segundos: number) => (segundos < MIN ? `${Math.max(0, Math.round(segundos))} s` : duracion(segundos));
+
 /** "12 m", "1 h 05 m": una duración que ya no cambia. */
 export function duracion(segundos: number) {
   const m = Math.max(1, Math.round(segundos / MIN));

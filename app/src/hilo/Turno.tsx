@@ -2,11 +2,11 @@
 // líder: el turno (trabajo colapsado + respuesta) y el aviso de cambiar de
 // modelo con el caché vivo.
 import { Fragment, memo, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { ChevronRight } from "lucide-react";
+import { Check, ChevronRight, Square } from "lucide-react";
 import type { Tokens } from "../datos/contrato";
 import { Reloj } from "../barra/piezas";
 import type { Pintor } from "../reloj";
-import { cuando, cuandoLargo, duracion, pintorDura } from "../tiempo";
+import { cuando, cuandoLargo, duracion, duracionFina, pintorDura } from "../tiempo";
 import { useIdioma } from "../i18n/react";
 import { nombreModelo } from "./opciones";
 import { Tierno, useTiernos } from "./Tierno";
@@ -69,14 +69,30 @@ type PropsTurno = {
    * sus pensamientos y herramientas, en orden, los muestra la tarjeta de abajo y no un bloque acá (el trabajo sigue ahí, cerrado).
    */
   razon?: boolean;
+  /** Acaba de terminar (un líder de la app): la tarjeta de actividad se plegó a esta línea, con cómo terminó y cuánto tardó. */
+  fin?: FinVisto;
 };
+
+/** Cómo terminó el último turno, para que su línea de trabajo sea la tarjeta plegada. */
+export type FinVisto = { estado: "listo" | "parado"; dura: number | null };
+
+/** La marca de la línea plegada: la tilde o, si se paró a mano, el cuadrado con la palabra (nunca sólo el color). */
+function MarcaFin({ fin }: { fin: FinVisto }) {
+  return (
+    <span className="trabajo-marca" role="img" aria-label={fin.estado === "listo" ? t("hz.t.listo") : t("hz.f.parado")}>
+      {fin.estado === "listo" ? <Check size={13} strokeWidth={2.6} /> : <Square size={11} strokeWidth={2.6} />}
+    </span>
+  );
+}
 
 /**
  * `turnos()` arma objetos nuevos en cada pasada (con el stream, una por frame):
  * se compara lo que se pinta para que sólo se repinte el turno que cambió.
  */
-const igual = ({ t: a, vivo: va, enCurso: ca, pensando: pa, razon: ra }: PropsTurno, { t: b, vivo: vb, enCurso: cb, pensando: pb, razon: rb }: PropsTurno) =>
+const igual = ({ t: a, vivo: va, enCurso: ca, pensando: pa, razon: ra, fin: fa }: PropsTurno, { t: b, vivo: vb, enCurso: cb, pensando: pb, razon: rb, fin: fb }: PropsTurno) =>
   va === vb &&
+  fa?.estado === fb?.estado &&
+  fa?.dura === fb?.dura &&
   ca === cb &&
   !pa === !pb &&
   !ra === !rb &&
@@ -128,7 +144,10 @@ export const Turno = memo(function Turno(p: PropsTurno) {
 }, igual);
 
 /** Un turno con un solo texto: el trabajo colapsado ("Trabajó 12 m") y lo que contestó. */
-function Lineal({ t: turno, vivo, enCurso = false, semilla, pensando = false, razon = false }: PropsTurno) {
+/** Lo que está en vuelo lo cuenta la tarjeta («Corriendo»): mientras el turno corre, la línea del trabajo resume sólo lo que ya volvió. */
+const yaVolvio = (u: Uso) => !u.det || !!u.det.resultado;
+
+function Lineal({ t: turno, vivo, enCurso = false, semilla, pensando = false, razon = false, fin }: PropsTurno) {
   // Captura `herramientas`: el trabajo, abierto. Un motor que deja ver su razonamiento muestra sus comandos en el progreso de la tarjeta, no acá.
   const [abierto, setAbierto] = useState(MODO.captura === "herramientas" || MODO.captura === "herramientas-resultados");
   useIdioma();
@@ -137,10 +156,13 @@ function Lineal({ t: turno, vivo, enCurso = false, semilla, pensando = false, ra
     () => (vivo && turno.desde !== null ? pintorDura(turno.desde, tierno ? "" : () => `${t("estado.trabajando")} `) : null),
     [vivo, turno.desde, tierno],
   );
-  const dura = turno.desde !== null && turno.hasta !== null ? turno.hasta - turno.desde : null;
-  const hayTrabajo = turno.pasos.length > 0 || corre;
+  const usos = turno.pasos.flatMap((p) => p.usos);
+  const volvieron = enCurso && !corre ? usos.filter(yaVolvio) : usos;
+  // Con el turno corriendo el tiempo es el de la tarjeta, no el del último mensaje.
+  const dura = !enCurso && turno.desde !== null && turno.hasta !== null ? turno.hasta - turno.desde : null;
+  const hayTrabajo = (turno.pasos.length > 0 && (volvieron.length > 0 || !usos.length)) || corre;
   // "Corrió 5 comandos, leyó 3 archivos…": lo que dice la línea del trabajo ya cerrado; sin herramientas, el "Trabajó 12 m" de siempre.
-  const resumen = useMemo(() => (corre ? "" : resumenPasos(turno.pasos.flatMap((p) => p.usos))), [corre, turno.pasos]);
+  const resumen = useMemo(() => (corre ? "" : resumenPasos(volvieron)), [corre, turno.pasos, volvieron.length]); // eslint-disable-line react-hooks/exhaustive-deps
   const pens = pensamientosDe(turno);
   const hayPens = pens.length > 0 && !(razon && enCurso);
   // Varios pensamientos de un turno que ya terminó y tuvo trabajo: su fila va adentro del trabajo, para que el turno sea una sola línea.
@@ -166,12 +188,14 @@ function Lineal({ t: turno, vivo, enCurso = false, semilla, pensando = false, ra
     <>
       {hayPens && !pensDentro ? <Pensado items={pens} vivo={pensando} /> : null}
       {hayTrabajo ? (
-        <details className="trabajo" open={abierto} onToggle={(e) => setAbierto(e.currentTarget.open)}>
+        <details className="trabajo" data-fin={fin?.estado} open={abierto} onToggle={(e) => setAbierto(e.currentTarget.open)}>
           <summary>
-            <ChevronRight size={11} strokeWidth={2} />
+            {fin ? <MarcaFin fin={fin} /> : <ChevronRight size={11} strokeWidth={2} />}
             {corre && tierno ? <Tierno semilla={semilla ?? turno.key} /> : null}
             {corre ? (
               <Reloj pintor={corre} />
+            ) : fin && resumen ? (
+              textoFin(fin, resumen, dura)
             ) : resumen ? (
               dura !== null ? t("turno.resumenDura", { r: resumen, d: duracion(dura) }) : resumen
             ) : dura !== null ? (
@@ -179,6 +203,7 @@ function Lineal({ t: turno, vivo, enCurso = false, semilla, pensando = false, ra
             ) : (
               t("turno.trabajoSolo")
             )}
+            {fin ? <ChevronRight className="trabajo-fl" size={12} strokeWidth={2} /> : null}
           </summary>
           {/* La lista se arma recién al abrir: una página puede traer cientos de pasos. */}
           {abierto ? (
@@ -222,9 +247,19 @@ function Lineal({ t: turno, vivo, enCurso = false, semilla, pensando = false, ra
   );
 }
 
+/** Lo que dice la línea plegada: "Corrió 2 comandos · 12 s" (con "Parado" delante si se paró a mano). */
+function textoFin(fin: FinVisto, resumen: string, dura: number | null) {
+  const d = fin.dura ?? dura;
+  const r = d !== null ? t("turno.resumenDura", { r: resumen, d: duracionFina(d) }) : resumen;
+  return fin.estado === "parado" ? `${t("hz.f.parado")} · ${r}` : r;
+}
+
 /** Dos grupos de herramientas son el mismo si tienen las mismas llamadas con los mismos resultados (llegan después que la llamada). */
 const igualGrupo = (a: PropsGrupo, b: PropsGrupo) =>
   a.reloj === b.reloj &&
+  a.enCurso === b.enCurso &&
+  a.fin?.estado === b.fin?.estado &&
+  a.fin?.dura === b.fin?.dura &&
   a.semilla === b.semilla &&
   a.tierno === b.tierno &&
   a.usos.length === b.usos.length &&
@@ -238,13 +273,17 @@ type PropsGrupo = {
   semilla: string;
   /** Con la frase tierna delante del reloj (`useTiernos`). */
   tierno: boolean;
+  /** Es el último trabajo de un turno que acaba de terminar: la tarjeta se plegó acá. */
+  fin?: FinVisto;
+  enCurso?: boolean;
 };
 
 /** Las herramientas que usó el modelo entre dos textos: una línea plegada ("Corrió 2 comandos, leyó un archivo") que se abre a la lista. */
-const Grupo = memo(function Grupo({ usos, reloj, semilla, tierno }: PropsGrupo) {
+const Grupo = memo(function Grupo({ usos, reloj, semilla, tierno, fin, enCurso = false }: PropsGrupo) {
   const [abierto, setAbierto] = useState(MODO.captura === "herramientas" || MODO.captura === "herramientas-resultados");
   useIdioma();
-  const resumen = useMemo(() => (reloj ? "" : resumenPasos(usos)), [reloj, usos]);
+  const volvieron = enCurso && !reloj ? usos.filter(yaVolvio) : usos;
+  const resumen = useMemo(() => (reloj ? "" : resumenPasos(volvieron)), [reloj, usos, volvieron.length]); // eslint-disable-line react-hooks/exhaustive-deps
   const actual = reloj && !abierto && usos.length ? pasoActual([{ texto: "", usos }]) : null;
   // Abierto y trabajando: la lista sigue su último paso; si el usuario sube, se suelta (src/hilo/seguir.ts).
   const lista = useRef<HTMLUListElement>(null);
@@ -259,13 +298,15 @@ const Grupo = memo(function Grupo({ usos, reloj, semilla, tierno }: PropsGrupo) 
       else seg.pegado = false;
     } else if (reloj) seguir(u, seg);
   });
+  if (enCurso && !reloj && usos.length && !volvieron.length) return null;
   return (
     <>
-      <details className="trabajo" data-grupo="" open={abierto} onToggle={(e) => setAbierto(e.currentTarget.open)}>
+      <details className="trabajo" data-grupo="" data-fin={fin?.estado} open={abierto} onToggle={(e) => setAbierto(e.currentTarget.open)}>
         <summary>
-          <ChevronRight size={11} strokeWidth={2} />
+          {fin ? <MarcaFin fin={fin} /> : <ChevronRight size={11} strokeWidth={2} />}
           {reloj && tierno ? <Tierno semilla={semilla} /> : null}
-          {reloj ? <Reloj pintor={reloj} /> : resumen || t("turno.trabajoSolo")}
+          {reloj ? <Reloj pintor={reloj} /> : fin && resumen ? textoFin(fin, resumen, null) : resumen || t("turno.trabajoSolo")}
+          {fin ? <ChevronRight className="trabajo-fl" size={12} strokeWidth={2} /> : null}
         </summary>
         {/* La lista se arma recién al abrir: un grupo puede traer cientos de llamadas. */}
         {abierto ? (
@@ -297,7 +338,7 @@ const Grupo = memo(function Grupo({ usos, reloj, semilla, tierno }: PropsGrupo) 
  * después), en orden, y las herramientas de entre uno y otro, plegadas en su grupo. Cada texto y cada grupo es hijo directo de la
  * conversación: la lista larga no pinta ni mide lo que no se ve (`content-visibility`, src/index.css).
  */
-function Intercalado({ t: turno, vivo, enCurso = false, semilla, pensando = false }: PropsTurno) {
+function Intercalado({ t: turno, vivo, enCurso = false, semilla, pensando = false, fin }: PropsTurno) {
   useIdioma();
   const orden = turno.orden as Paso[];
   const tierno = useTiernos();
@@ -309,6 +350,8 @@ function Intercalado({ t: turno, vivo, enCurso = false, semilla, pensando = fals
   const pens = pensamientosDe(turno);
   const sem = semilla ?? turno.key;
   const ultimo = orden.length - 1;
+  // La tarjeta se pliega sobre el último grupo de herramientas del turno.
+  const ultimoGrupo = orden.map((p) => p.usos.length > 0).lastIndexOf(true);
   return (
     <>
       {pens.length ? <Pensado items={pens} vivo={pensando} /> : null}
@@ -320,7 +363,7 @@ function Intercalado({ t: turno, vivo, enCurso = false, semilla, pensando = fals
               <Texto texto={p.texto} vivo={enCurso && i === ultimo && !p.usos.length} />
             </div>
           ) : null}
-          {p.usos.length ? <Grupo usos={p.usos} reloj={i === ultimo ? corre : null} semilla={sem} tierno={tierno} /> : null}
+          {p.usos.length ? <Grupo usos={p.usos} reloj={i === ultimo ? corre : null} semilla={sem} tierno={tierno} fin={i === ultimoGrupo ? fin : undefined} enCurso={enCurso && i === ultimo} /> : null}
         </Fragment>
       ))}
       {/* Terminó de escribir y todavía no usó nada: igual se ve que sigue trabajando. */}

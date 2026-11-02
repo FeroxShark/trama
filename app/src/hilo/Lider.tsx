@@ -55,7 +55,8 @@ import { decidirCache, type EleccionCache, type VeredictoCache } from "../../ele
 import { hayVarias, opcionesMaquina, useMaquinas } from "../maquinas";
 import { Contexto } from "./Contexto";
 import { transcriptLeido } from "./contextoVivo";
-import { Avisos, HaceChat } from "./Hace";
+import { Avisos, HaceChat, useQuietoDesde } from "./Hace";
+import type { AvisoVisto } from "./avisos";
 import { SeguirCon } from "./SeguirCon";
 import { Texto } from "./Texto";
 import { Hora, pintorAviso, tokens, Turno } from "./Turno";
@@ -74,7 +75,7 @@ import { anotar, bajar, seguir } from "./seguir";
 import { anotarScroll, faltaLlegar, guardarAncla, restaurarScroll, retomarScroll, soltarScroll } from "./scrollGuardado";
 import { useCompactando } from "./compactando";
 import { useSeguir } from "./useSeguir";
-import { cola, comandosAgy, comandosClaude, confirmar, contestado, enCurso, enviado, escuchar, estilosClaude, fallo, mensajesVistos, parando, ponerEstilos, ponerModo, suscribir, suscribirComandos, suscribirEstilos, type Pedido } from "./vivo";
+import { cola, comandosAgy, comandosClaude, confirmar, contestado, enCurso, enviado, escuchar, estilosClaude, fallo, mensajesVistos, parando, ponerEstilos, ponerModo, suscribir, suscribirComandos, suscribirEstilos, type FinTurno, type Pedido } from "./vivo";
 import { ASPECTO, esModo, MODO_DEFAULT, siguienteModo, type Modo } from "./modos";
 import { directo, ESTILOS_FABRICA, menuEn, moverSel, parsearComando, reemplazar, type Sugerencia, type Valores } from "./comandos";
 import { esVentana, main, mensaje } from "../puente";
@@ -146,6 +147,8 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
     useCallback((fn: () => void) => suscribir(sid, fn), [sid]),
     () => enCurso(sid),
   );
+  // Hace 2 min que no llega nada: el Parar de la caja lo marca, como la tarjeta.
+  const sinNovedad = useQuietoDesde(sid);
   // Varias tandas de preguntas a la vez: de a una, la más vieja primero.
   const tandas = tandasPendientes(vivo.pide);
   // Recién traído de la terminal: es de la app aunque la lista todavía no lo diga.
@@ -600,6 +603,8 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
   // (hereda el nombre de la sesión: el más nuevo con el mismo nombre y otro id).
   const relevo = useMemo(() => relevoEn(items), [items]);
   const pasando = !!relevo && !relevo.hecho && ocupado && relevo.k === ultimoTurno;
+  // Un turno que terminó mal: la tarjeta queda abierta y su error va adentro, con las mismas acciones que tenía el aviso (Seguir con otro modelo…).
+  const errorEnTarjeta = app && !!sid && !pasando && !vivo.ind.hace && vivo.fin?.estado === "error";
   const sigue = useMemo(() => {
     if (!relevo?.hecho || !l || !lideres) return null;
     let n: Lider | null = null;
@@ -806,6 +811,7 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
       (err) => setErrorCaja(mensaje(err)),
     );
   };
+  const propsAvisos = { volverA: (id: string) => nombreCuentaClaude(listaCuentas, id), alVolver: elegirCuenta, alSeguir: l && !ocupado ? () => setSeguirCon(true) : undefined, deshabilitado: ocupado || !app };
 
   // Con la caché vencida y un contexto grande, el primer mensaje espera a que la persona elija (cache-pregunta.ts, DialogoCache.tsx).
   const eleccionCache = useSyncExternalStore(alCambiarCacheEleccion, cacheEleccion);
@@ -1189,6 +1195,7 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
               ocupado={ocupado}
               pasando={pasando}
               pensando={app && ocupado && vivo.ind.hace?.que === "pensando"}
+              fin={app && !ocupado ? vivo.fin : null}
               razon={app && piensa}
               relevo={relevo}
               sigue={sigue}
@@ -1216,8 +1223,8 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
               {tr("lider.vacio")}
             </div>
           ) : null}
-          <Avisos avisos={avisos} volverA={(id) => nombreCuentaClaude(listaCuentas, id)} alVolver={elegirCuenta} alSeguir={l && !ocupado ? () => setSeguirCon(true) : undefined} deshabilitado={ocupado || !app} />
-          {pasando ? <Pasando /> : app && sid ? <HaceChat sid={sid} piensa={piensa} modelo={nombreModelo(modeloDe(l?.modelo) ?? modelo)} effort={effortsDe(l?.modelo ?? modelo).length ? (l?.effort ?? effort) : null} alParar={l ? parar : undefined} parando={vivo.parando} /> : compacta !== null ? <Compactando desde={compacta} /> : null}
+          <Avisos avisos={errorEnTarjeta ? avisos.filter((a) => !cuentaFallo(a)) : avisos} {...propsAvisos} />
+          {pasando ? <Pasando /> : app && sid ? <HaceChat sid={sid} piensa={piensa} modelo={nombreModelo(modeloDe(l?.modelo) ?? modelo)} effort={effortsDe(l?.modelo ?? modelo).length ? (l?.effort ?? effort) : null} error={errorEnTarjeta ? <Avisos avisos={avisos.filter(cuentaFallo)} {...propsAvisos} /> : null} /> : compacta !== null ? <Compactando desde={compacta} /> : null}
           {l && encolados.length ? (
             <div className="directo-espera" role="status" data-cola-resumen>
               <Clock size={12} strokeWidth={2} aria-hidden="true" />
@@ -1484,7 +1491,7 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
               <div className="barra-der">
               <Contexto sid={sid} modelo={modelo} vence={l?.cache_vence ?? null} abierto={MODO.captura === "contexto-abierto"} />
               {app && ocupado ? (
-                <button type="button" className="btn2" disabled={vivo.parando} onClick={parar}>
+                <button type="button" className="btn2 caja-parar" data-quieto={sinNovedad !== null ? "" : undefined} disabled={vivo.parando} onClick={parar}>
                   {vivo.parando ? tr("accion.parando") : tr("accion.parar")}
                 </button>
               ) : null}
@@ -1624,6 +1631,8 @@ type PropsMensajes = {
   pensando: boolean;
   /** Un motor que deja ver su razonamiento y sus comandos (Gemini). */
   razon: boolean;
+  /** Cómo cerró el último turno: si terminó bien, su línea de trabajo es la tarjeta plegada. */
+  fin: FinTurno | null;
   relevo: ReturnType<typeof relevoEn>;
   sigue: Lider | null;
   nombre: string | undefined;
@@ -1640,11 +1649,14 @@ type PropsMensajes = {
   alVolverPunto: () => void;
 };
 
+/** Los avisos que cuentan por qué falló el turno: van adentro de la tarjeta, no sueltos arriba. */
+const cuentaFallo = (a: AvisoVisto) => a.clase === "error" || a.clase === "salio";
+
 /**
  * La conversación. Aparte de la caja para que cada tecla no la recorra entera: lo que se escribe es estado de `ChatLider`, y con
  * 3000 mensajes volver a armarlos en cada letra tardaba más de 50 ms. Sólo se repinta cuando cambian los mensajes o el turno.
  */
-const Mensajes = memo(function Mensajes({ items, ultimoTurno, ultimoLimite, alSeguir, app, ocupado, pasando, pensando, razon, relevo, sigue, nombre, alAbrirLider, alAbrirHilo, acciones, editar, guardar, sid, puntos, alVolverPunto }: PropsMensajes) {
+const Mensajes = memo(function Mensajes({ items, ultimoTurno, ultimoLimite, alSeguir, app, ocupado, pasando, pensando, razon, fin, relevo, sigue, nombre, alAbrirLider, alAbrirHilo, acciones, editar, guardar, sid, puntos, alVolverPunto }: PropsMensajes) {
   return (
     <>
       {items.map((x, i) =>
@@ -1659,7 +1671,7 @@ const Mensajes = memo(function Mensajes({ items, ultimoTurno, ultimoLimite, alSe
           <Fragment key={x.key}>
             <Marca k={x.key} />
             {/* Uno de la app dice qué hace abajo (HaceChat); uno de terminal, "Trabajando X s" en su turno. */}
-            <Turno t={x} vivo={!app && ocupado && i === ultimoTurno && !pasando} enCurso={ocupado && i === ultimoTurno} pensando={pensando && i === ultimoTurno} razon={razon} />
+            <Turno t={x} vivo={!app && ocupado && i === ultimoTurno && !pasando} enCurso={ocupado && i === ultimoTurno} pensando={pensando && i === ultimoTurno} razon={razon} fin={i === ultimoTurno && fin && fin.estado !== "error" ? { estado: fin.estado, dura: fin.dura } : undefined} />
             {app && !(ocupado && i === ultimoTurno) ? <PuntoDelTurno sid={sid} puntos={puntos} desde={x.desde} ocupado={ocupado} alVolver={alVolverPunto} /> : null}
             {x.texto && !(ocupado && i === ultimoTurno) ? <AccionesMensaje texto={x.texto} punto={x.punto} propio={false} acciones={acciones} /> : null}
             {relevo?.hecho && relevo.k === i ? (

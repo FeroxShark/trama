@@ -1123,8 +1123,28 @@ export function escenaFija(sid: string, escena: "trabajando" | "avisos" | "plan"
     ev({ tipo: "permiso", id: "f-preguntas-b", herramienta: "AskUserQuestion", detalle: null, plan: null, preguntas: tanda("Qué se prueba antes de integrar"), tool_use_id: "toolu_f5" });
     return;
   }
+  // Los estados de la tarjeta (`lider-trabajando` con `HILOS_VARIANTE=…`): un comando con descripción, sin ella, ya devuelto, callado, y el turno que termina.
+  const vt = MODO.captura === "lider-trabajando" ? MODO.variante : undefined;
+  if (escena === "trabajando" && (vt === "uno" || vt === "sin-desc" || vt === "corrio" || vt === "quieto" || vt === "listo" || vt === "fallo")) {
+    const command = "pa estado --workers --json | jq -r '.[] | select(.vivo) | .id' \\\n  && tablero lista --abiertas --proyecto atlas";
+    const desc = vt === "sin-desc" ? undefined : "Revisando workers y tablero";
+    ev({ tipo: "mensaje", mid: "f-tar", texto: "", herramientas: [`Bash: ${command.split("\n")[0]}`], modelo: "claude-opus-5-5", det: [{ nombre: "Bash", entrada: { command, ...(desc ? { description: desc } : {}) }, id: "toolu_tar" }] });
+    ev({ tipo: "hace", hace: { que: "herramienta", nombre: "Bash", detalle: command.replace(/\s+/g, " "), ...(desc ? { desc } : {}) } });
+    ev({ tipo: "tokens", salida: 1280, nuevo: true });
+    if (vt === "uno" || vt === "sin-desc" || vt === "quieto") return;
+    const corrio = (error: boolean) => ev({ tipo: "resultado", id: "toolu_tar", texto: error ? "tablero: no se pudo abrir la base de tareas\nsalió con código 1" : "cauce-e9  corriendo  21 m  pa/cauce/0312\ncauce-f2  corriendo  4 m  pa/cauce/0313", error });
+    if (vt === "corrio") return corrio(false);
+    // Un rato después, así la captura muestra lo que tardó y el pliegue de verdad.
+    setTimeout(() => {
+      corrio(vt === "fallo");
+      if (vt === "listo") ev({ tipo: "mensaje", mid: "f-tar2", texto: "Hay dos workers en marcha en cauce y ninguno trabado. En el tablero quedan tres pendientes.", herramientas: [], modelo: "claude-opus-5-5" });
+      ev({ tipo: "fin", error: vt === "fallo" ? "tablero: no se pudo abrir la base de tareas\ndatabase is locked (hay otra sesión escribiendo)" : null, ttl: 3600 });
+      ev({ tipo: "estado", ocupado: false, vivo: true });
+    }, 2000);
+    return;
+  }
   if (escena === "trabajando") {
-    ev({ tipo: "aviso", aviso: { clase: "reintento", intento: 2, max: 10, espera_ms: 4000, estado: 529, error: "overloaded" } });
+    if (vt !== "varias" && vt !== "detalle") ev({ tipo: "aviso", aviso: { clase: "reintento", intento: 2, max: 10, espera_ms: 4000, estado: 529, error: "overloaded" } });
     ev({ tipo: "tokens", salida: 1280, nuevo: true });
     // Los pasos de atrás de la tarjeta (src/hilo/Actividad.tsx): cinco, así se ve el "+N pasos".
     for (const [nombre, detalle, extra] of [
@@ -1135,7 +1155,9 @@ export function escenaFija(sid: string, escena: "trabajando" | "avisos" | "plan"
       ["WebFetch", "https://developer.mozilla.org/es/docs/Web/API", undefined],
     ] as const)
       ev({ tipo: "hace", hace: { que: "herramienta", nombre, detalle, ...(extra ? { extra } : {}) } });
-    ev({ tipo: "hace", hace: { que: "herramienta", nombre: "Bash", detalle: "npm test -- --reporter dot" } });
+    const pruebas = "npm test -- --reporter dot riel-logica";
+    ev({ tipo: "mensaje", mid: "f-var", texto: "", herramientas: [`Bash: ${pruebas}`], modelo: "claude-opus-5-5", det: [{ nombre: "Bash", entrada: { command: pruebas, description: "Probando la barra" }, id: "toolu_var" }] });
+    ev({ tipo: "hace", hace: { que: "herramienta", nombre: "Bash", detalle: pruebas, desc: "Probando la barra" } });
     return;
   }
   const limite = "You've hit your session limit · resets 7pm";

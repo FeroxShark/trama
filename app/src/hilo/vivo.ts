@@ -12,7 +12,7 @@
 import type { ComandoClaude, Estilos, EventoLider, HaceLider, Mensaje } from "../datos/contrato";
 import { fuente } from "../datos/fuente";
 import { sinReintento, sumarAviso, type AvisoVisto } from "./avisos";
-import { avanzar, type Paso } from "./actividad-logica";
+import { avanzar, mismo, sinNovedades, ultimaLinea, type Paso, type Salida } from "./actividad-logica";
 import { lineaDeTiempo, type LineaTiempo } from "./linea-tiempo";
 import { crearEspejo, type AvisoCola, type Encolado } from "./cola";
 
@@ -30,6 +30,22 @@ export type Indicador = {
   pasos: Paso[];
   /** Cuántos pasos lleva el turno (`pasos` guarda los últimos). */
   pasosN: number;
+};
+
+/**
+ * Cómo cerró el último turno, para que la tarjeta se pliegue (`listo`, `parado`) o quede abierta con el error (`error`): lo último que hizo,
+ * cuánto tardó y lo que contó. Vive hasta que empieza otro turno; un reinicio de la vista lo olvida, como los avisos.
+ */
+export type FinTurno = {
+  estado: "listo" | "parado" | "error";
+  /** La última herramienta del turno (si usó alguna). */
+  hace: HaceLider | null;
+  /** Cuánto duró (s), si se sabe. */
+  dura: number | null;
+  pasos: Paso[];
+  pasosN: number;
+  tokens: number;
+  salida: Salida | null;
 };
 
 export type EnCurso = {
@@ -71,6 +87,12 @@ export type EnCurso = {
   pide: Pedido[];
   /** Mensajes de "Mandar ya" que el `claude` todavía no entregó al modelo (esperan a que termine el paso en curso). */
   directos: number;
+  /** Cuándo (ms) llegó lo último del turno: salida, tokens, texto o un paso nuevo. De acá sale "Sin novedades". */
+  novedad: number;
+  /** La última línea de lo que devolvió el último comando (`null`: todavía no volvió; se borra al empezar otra herramienta). */
+  salida: Salida | null;
+  /** Cómo cerró el último turno (`null`: está en curso o todavía no hubo). */
+  fin: FinTurno | null;
 };
 
 export type Pedido = Omit<Extract<EventoLider, { tipo: "permiso" }>, "tipo">;
@@ -94,6 +116,9 @@ const VACIO: EnCurso = {
   modo: null,
   pide: [],
   directos: 0,
+  novedad: 0,
+  salida: null,
+  fin: null,
 };
 
 const estados = new Map<string, EnCurso>();
@@ -152,8 +177,29 @@ function alCola(a: AvisoCola) {
   else enviado(a.sid, item.texto, total ?? enCurso(a.sid).base, item.imagenes, item.aviso);
 }
 
+/** Lo que hace el turno "vivo" a la vista: si nada de esto llega en 2 min, la tarjeta dice "Sin novedades" (`sinNovedades`). */
+const hayNovedad = (e: EnCurso, ev: EventoLider) => {
+  if (ev.tipo === "tokens") return (ev.nuevo ? e.tok.previos + e.tok.actual + ev.salida : e.tok.previos + ev.salida) !== e.ind.salida;
+  return ev.tipo === "parcial" || ev.tipo === "pensamiento" || ev.tipo === "mensaje" || ev.tipo === "resultado" || (ev.tipo === "hace" && ev.hace !== e.ind.hace);
+};
+
+/**
+ * Cierra el turno: guarda lo que la tarjeta necesita para plegarse o quedar abierta con el error (`ind` se borra enseguida). Si no había
+ * turno (el proceso se cae con el líder quieto) sólo cuenta el error; un cierre repetido (`salio` después de `fin`) no pisa lo que ya guardó.
+ */
+function cierre(e: EnCurso, error: boolean): FinTurno | null {
+  const estado = error && !e.parando ? "error" : e.parando ? "parado" : "listo";
+  if (!e.ind.hace) {
+    if (e.fin) return estado === "error" ? { ...e.fin, estado } : e.fin;
+    return estado === "error" ? { estado, hace: null, dura: null, pasos: [], pasosN: 0, tokens: 0, salida: null } : null;
+  }
+  const ultima = e.ind.hace.que === "herramienta" ? e.ind.hace : (e.ind.pasos.find((p) => p.hace.que === "herramienta")?.hace ?? null);
+  return { estado, hace: ultima, dura: e.desde !== null ? Math.max(0, ahora() - e.desde) : null, pasos: e.ind.pasos, pasosN: e.ind.pasosN, tokens: e.ind.salida, salida: e.salida };
+}
+
 function cambiarPor(sid: string, ev: EventoLider) {
-  cambiar(sid, (e) => {
+  cambiar(sid, (antes) => {
+    const e = hayNovedad(antes, ev) ? { ...antes, novedad: Date.now() } : antes;
     switch (ev.tipo) {
       case "parcial":
         return { ...e, parcial: e.parcial + ev.texto };
@@ -185,10 +231,15 @@ function cambiarPor(sid: string, ev: EventoLider) {
         if (k < 0) return e;
         const m = e.tanda[k];
         const det = m.det!.map((d) => (d.id === ev.id ? { ...d, resultado: { texto: ev.texto, error: ev.error, ...(ev.imagenes ? { imagenes: ev.imagenes } : {}) } } : d));
-        return { ...e, tanda: e.tanda.map((x, j) => (j === k ? { ...m, det } : x)) };
+        // La salida de un comando es lo que la tarjeta muestra en una línea; lo que devuelve un Read o un Grep no dice nada ahí.
+        const esComando = m.det!.some((d) => d.id === ev.id && d.nombre === "Bash");
+        return { ...e, tanda: e.tanda.map((x, j) => (j === k ? { ...m, det } : x)), salida: esComando ? { linea: ultimaLinea(ev.texto), error: ev.error } : e.salida };
       }
-      case "hace":
-        return conInd(e, { hace: ev.hace });
+      case "hace": {
+        // Otra herramienta: lo que devolvió la anterior ya no es de ésta (la misma que se completa, sí sigue).
+        const otra = ev.hace?.que === "herramienta" && !(e.ind.hace && mismo(e.ind.hace, ev.hace));
+        return conInd({ ...e, salida: otra ? null : e.salida, fin: ev.hace ? null : e.fin }, { hace: ev.hace });
+      }
       case "tokens": {
         // `nuevo`: empezó otro mensaje; si no, es el total (acumulado) del que corre.
         const tok = ev.nuevo ? { previos: e.tok.previos + e.tok.actual, actual: ev.salida } : { ...e.tok, actual: ev.salida };
@@ -223,17 +274,18 @@ function cambiarPor(sid: string, ev: EventoLider) {
         // Parar termina el turno con un error que no es error.
         let avisos = sinReintento(e.avisos);
         if (ev.error && !e.parando) avisos = sumarAviso(avisos, { clase: "error", texto: ev.error, codigo: null });
-        return conInd({ ...e, parcial: "", pensando: "", avisos, parando: false, fines: e.fines + 1, pide: [], directos: 0 }, { hace: null });
+        return conInd({ ...e, parcial: "", pensando: "", avisos, parando: false, fines: e.fines + 1, pide: [], directos: 0, fin: cierre(e, !!ev.error), salida: null }, { hace: null });
       }
       case "estado": {
         const desde = ev.ocupado ? (e.desde ?? ahora()) : null;
-        const x = { ...e, ocupado: ev.ocupado, desde, parando: ev.ocupado && e.parando };
+        // Un turno que arranca (también el que sale solo de la cola) deja atrás cómo cerró el anterior.
+        const x = { ...e, ocupado: ev.ocupado, desde, parando: ev.ocupado && e.parando, ...(ev.ocupado && !e.ocupado ? { fin: null, novedad: Date.now() } : {}) };
         return conInd(x, ev.ocupado ? { desde } : { hace: null, desde: null });
       }
       case "salio": {
         let avisos = sinReintento(e.avisos);
         if (ev.error !== null) avisos = sumarAviso(avisos, { clase: "salio", codigo: ev.codigo, texto: ev.error || null });
-        return conInd({ ...e, ocupado: false, desde: null, parcial: "", pensando: "", avisos, fines: e.fines + 1, pide: [], directos: 0 }, { hace: null, desde: null });
+        return conInd({ ...e, ocupado: false, desde: null, parcial: "", pensando: "", avisos, fines: e.fines + 1, pide: [], directos: 0, fin: cierre(e, ev.error !== null), salida: null }, { hace: null, desde: null });
       }
       default:
         return e;
@@ -290,6 +342,23 @@ export function lineasDelTurno(sid: string): LineaTiempo[] {
 /** El pensamiento que todavía llega (sin mensaje entero): la tarjeta lo escribe abajo de los terminados. */
 export const pensandoAhora = (sid: string): string => enCurso(sid).pensando;
 
+/** El comando entero, con sus renglones, de la última herramienta del turno (`hace` lo trae en una línea): el "Ver todo" de la tarjeta. */
+export function comandoCrudo(sid: string): string | null {
+  const e = enCurso(sid);
+  for (let k = e.tanda.length - 1; k >= e.turno; k--) {
+    const d = e.tanda[k].det?.at(-1);
+    if (d) return typeof d.entrada?.command === "string" ? d.entrada.command : null;
+  }
+  return null;
+}
+
+/** Desde cuándo (ms) no llega nada de un turno en curso, si ya pasaron los 2 min; `null` si hay novedades, espera al usuario o compacta. */
+export function quietoDesde(sid: string): number | null {
+  const e = enCurso(sid);
+  if (!e.ind.hace || e.ind.hace.que === "compactando" || e.pide.length) return null;
+  return sinNovedades(e.novedad, Date.now()) ? e.novedad : null;
+}
+
 /** Sólo el indicador (para la fila: no repinta con cada delta del texto). */
 export const indicador = (sid: string): Indicador => enCurso(sid).ind;
 
@@ -326,7 +395,7 @@ export function enviado(sid: string, texto: string, base: number, imagenes?: Men
     const tanda = (primero ? [yo, ...e.tanda] : [...e.tanda, yo]).map((m, i) => ({ ...m, i }));
     const turno = primero ? 0 : tanda.length - 1;
     const desde = e.desde ?? ahora();
-    const x = { ...e, base: primero ? base : e.base, tanda, turno, avisos: [], tok: { previos: 0, actual: 0 }, ocupado: true, desde };
+    const x = { ...e, base: primero ? base : e.base, tanda, turno, avisos: [], tok: { previos: 0, actual: 0 }, ocupado: true, desde, novedad: Date.now(), salida: null, fin: null };
     return conInd(x, { hace: { que: "pidiendo", nombre: null, detalle: null }, desde, salida: 0 });
   });
 }

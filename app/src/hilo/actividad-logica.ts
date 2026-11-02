@@ -3,7 +3,7 @@
 // escribiendo), el verbo, lo concreto en una pastilla y los pasos que ya pasaron. Sin React: devuelve claves
 // (`hz.*`) y textos ya limpios; los traduce la vista.
 import type { HaceLider } from "../datos/contrato";
-import { t } from "../i18n/index.ts";
+import { t, type Clave } from "../i18n/index.ts";
 
 // Los contadores del pie de la tarjeta, con el plural bien: una clave para el 1 y otra para el resto (como directo.espera / directo.esperaN).
 export const cuentaPasos = (n: number) => (n === 1 ? t("hz.paso1") : t("hz.pasos", { n }));
@@ -204,7 +204,7 @@ const SIN: Seguimiento = { hace: null, inicio: 0, pasos: [], n: 0 };
 export const sinPasos = SIN;
 
 /** Es la misma cosa que ya corría: igual, o la misma herramienta cuando todavía no se sabía su detalle (el stream la anuncia y después la completa). */
-function mismo(a: HaceLider, b: HaceLider): boolean {
+export function mismo(a: HaceLider, b: HaceLider): boolean {
   if (a.que !== b.que) return false;
   if (a.que !== "herramienta" || b.que !== "herramienta") return true;
   return a.nombre === b.nombre && (a.detalle === null || (a.detalle === b.detalle && a.extra === b.extra));
@@ -246,3 +246,103 @@ export const ultimaFrasePensada = (texto: string): string => {
     .at(-1);
   return linea?.split(/(?<=[.!?:;])\s+/).filter(Boolean).at(-1) ?? "";
 };
+
+// --- La tarjeta del líder trabajando (src/hilo/Actividad.tsx, propuesta Frase de maquetas/rediseno-0.4) ---------------------------------
+
+/** Una clave de este módulo (viaja como texto) ya traducida. */
+const tx = (clave: string, vars?: Record<string, string | number>) => (t as (k: Clave, v?: Record<string, string | number>) => string)(clave as Clave, vars);
+
+/** Sin salida ni tokens durante este rato (ms), la tarjeta se tiñe y dice "Sin novedades hace 2 m". */
+export const SIN_NOVEDADES_MS = 2 * 60_000;
+
+/** ¿Hace `SIN_NOVEDADES_MS` que no llega nada? `novedad` 0: todavía no empezó. */
+export const sinNovedades = (novedad: number, ahora: number): boolean => novedad > 0 && ahora - novedad >= SIN_NOVEDADES_MS;
+
+/** Lo que devolvió un comando: su última línea y si dio error. */
+export type Salida = { linea: string; error: boolean };
+
+const TOPE_LINEA = 400;
+const ANSI = new RegExp("\\u001b\\[[0-9;?]*[ -/]*[@-~]|\\u001b\\][^\\u0007]*\\u0007", "g");
+
+/** La última línea con texto de una salida, sin colores de terminal; un `\\r` (una barra de progreso) cuenta como renglón. */
+export function ultimaLinea(texto: string): string {
+  const l =
+    texto
+      .replace(ANSI, "")
+      .split(/\r\n|\n|\r/)
+      .map((x) => x.trim())
+      .filter(Boolean)
+      .at(-1) ?? "";
+  return l.length > TOPE_LINEA ? l.slice(0, TOPE_LINEA) : l;
+}
+
+/** Lo concreto: una frase fija (con su variable, si la lleva, y con mayúscula) o el comando / archivo / patrón tal cual. */
+export const textoDetalle = (a: Actividad) => {
+  if (!a.detalleClave) return a.detalle;
+  const x = tx(a.detalleClave, { d: a.detalle });
+  return x.charAt(0).toUpperCase() + x.slice(1);
+};
+
+/** Un paso ya pasado en palabras, o `null` si no vale la pena mostrarlo. */
+export function lineaPaso(p: Paso): string | null {
+  const x = textoPaso(p);
+  return x ? tx(x.clave, { d: x.d, s: x.s ?? 0 }) : null;
+}
+
+const conMayuscula = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+const nombreArchivo = (r: string) => r.split(/[\\/]/).filter(Boolean).at(-1) ?? r;
+
+/** De qué va una herramienta en pocas palabras: el archivo sin su carpeta, el patrón o el sitio. `null`: no hay nada corto que decir. */
+function sujetoDe(h: Extract<HaceLider, { que: "herramienta" }>): string | null {
+  if (!h.detalle) return null;
+  if (LEER.has(h.nombre) || EDITAR.has(h.nombre) || h.nombre === "Write") return nombreArchivo(h.detalle);
+  if (h.nombre === "Grep" || h.nombre === "Glob" || h.nombre === "WebSearch") return `«${unaLinea(h.detalle)}»`;
+  if (h.nombre === "WebFetch") return dominio(h.detalle);
+  return null;
+}
+
+/** Lo recién hecho, corto, para la miga de al lado de la frase ("Leyó Actividad.tsx"); un comando con descripción, la descripción. `null`: pensar no va. */
+export function pasoCorto(p: Paso): string | null {
+  if (p.hace.que !== "herramienta") return null;
+  if (p.hace.desc) return conMayuscula(p.hace.desc);
+  const x = textoPaso(p);
+  return x ? tx(x.clave, { d: sujetoDe(p.hace) ?? x.d, s: x.s ?? 0 }) : null;
+}
+
+/** Cuántos pasos de atrás entran en la miga. */
+export const MIGA = 3;
+
+/** Lo que dice la tarjeta en palabras. `verbo`: "Corriendo" o "Corrió", si hace falta decirlo; `linea`: la salida, el comando o la frase de abajo. */
+export type Frase = { titulo: string; verbo: string | null; linea: string; mono: boolean; antes: string[] };
+
+/**
+ * El título y la línea de abajo. El título es lo que el modelo dijo que hace (la descripción del comando); sin descripción, "Corriendo Bash".
+ * Abajo: la última línea que devolvió el comando con "Corrió" y, mientras corre (`claude` no manda la salida hasta terminar), el comando con
+ * "Corriendo", salvo que el título ya lo diga. `fallo`: el turno terminó mal, y el título lo cuenta con lo último que hacía.
+ */
+export function fraseDe({ act, hace, pasos, salida = null, pensando = "", fallo = false }: { act: Actividad; hace: HaceLider | null; pasos: Paso[]; salida?: Salida | null; pensando?: string; fallo?: boolean }): Frase {
+  const antes = fallo ? [] : pasos.slice(0, MIGA).map(pasoCorto).filter((x): x is string => x !== null).reverse();
+  const conSalida = salida?.linea ? salida : null;
+  const verboSalida = salida?.error ? t("hz.t.error") : t("hz.corrio");
+  if (act.tipo === "permiso") return { titulo: tx(act.verbo), verbo: null, linea: textoDetalle(act), mono: false, antes };
+  if (hace?.que === "herramienta") {
+    const comando = hace.nombre === "Bash" && act.tipo === "comando";
+    const sujeto = sujetoDe(hace);
+    const desc = hace.desc ? conMayuscula(hace.desc) : null;
+    const base = desc ?? (comando ? t("hace.correr", { h: "Bash" }) : act.tipo === "comando" ? t("hace.usar", { h: hace.nombre }) : sujeto ? `${tx(act.verbo)} ${sujeto}` : tx(act.verbo));
+    const titulo = fallo ? t("hz.f.noTermino", { d: base }) : base;
+    const hizo = fallo ? lineaPaso({ hace, seg: 0 }) : null;
+    if (comando && salida && conSalida) return { titulo, verbo: verboSalida, linea: conSalida.linea, mono: true, antes };
+    if (hizo && !comando) return { titulo, verbo: null, linea: hizo, mono: false, antes };
+    const crudo = act.detalle === hace.nombre || act.detalle === sujeto ? "" : act.detalle;
+    if (crudo) return { titulo, verbo: comando && salida ? verboSalida : fallo && comando ? t("hz.corrio") : desc ? tx(act.verbo) : null, linea: crudo, mono: true, antes };
+    return { titulo, verbo: null, linea: pasos.length ? (lineaPaso(pasos[0]) ?? "") : "", mono: false, antes };
+  }
+  const titulo = fallo ? t("hz.f.noTerminoSolo") : tx(act.verbo);
+  const frase = pensando.trim() ? ultimaFrasePensada(pensando) : "";
+  if (frase) return { titulo, verbo: null, linea: frase, mono: false, antes };
+  if (conSalida) return { titulo, verbo: verboSalida, linea: conSalida.linea, mono: true, antes };
+  const ultimo = pasos.length ? lineaPaso(pasos[0]) : null;
+  if (ultimo) return { titulo, verbo: null, linea: ultimo, mono: false, antes };
+  return { titulo, verbo: null, linea: fallo ? "" : textoDetalle(act), mono: false, antes };
+}

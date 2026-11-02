@@ -3432,11 +3432,10 @@ html[data-titulo-nativo] #root::after {
   white-space: nowrap;
 }
 
-/* --- La tarjeta de actividad del chat (src/hilo/Actividad.tsx; dirección C de referencias/maquetas/actividad) ----
-   Una tarjeta hairline donde iba la línea de "qué hace": a la izquierda una escena de 2.75rem que actúa la actividad, a la
-   derecha el verbo, lo concreto en una pastilla mono, el tiempo y, apagados, los dos pasos de atrás. Sólo se mueve la escena:
-   la mueve src/barra/latido-escenas.ts (sin animaciones CSS infinitas); acá quedan las poses quietas, que son lo que se ve
-   con movimiento reducido y con la ventana oculta. */
+/* --- La tarjeta de actividad del chat (src/hilo/Actividad.tsx; la cápsula, en src/hilo/tarjeta-frase.css) ----
+   Acá quedan los colores por tipo, las escenas y lo que se abre con "Ver todo". Sólo se mueve la escena y el punto: los mueve
+   src/barra/latido-escenas.ts (sin animaciones CSS infinitas); acá quedan las poses quietas, que son lo que se ve con
+   movimiento reducido y con la ventana oculta. */
 .tv {
   --c: var(--azul);
   --c-borde: color-mix(in srgb, var(--c) 32%, transparent);
@@ -3453,7 +3452,7 @@ html[data-titulo-nativo] #root::after {
   --c: var(--verde);
 }
 .tv[data-t="comando"] {
-  --c: var(--texto-3);
+  --c: var(--acento);
 }
 .tv[data-t="delegando"] {
   --c: var(--rosa);
@@ -3469,17 +3468,6 @@ html[data-titulo-nativo] #root::after {
     opacity: 0;
     transform: translateY(0.25rem);
   }
-}
-.tv-tar {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  padding: var(--esp-4) var(--esp-5);
-  border-radius: var(--r-lg);
-  background: var(--capa-card);
-  box-shadow: inset 0 0 0 1px var(--capa-div);
-}
-.tv[data-t="permiso"] .tv-tar {
-  box-shadow: inset 0 0 0 1px var(--c-borde);
 }
 .esc {
   flex: none;
@@ -3539,12 +3527,6 @@ html[data-titulo-nativo] #root::after {
 .esc .e-banda {
   transform: translateY(10px);
 }
-.tv-cu {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: var(--esp-3);
-}
 .tv {
   --e: var(--texto-4);
 }
@@ -3566,88 +3548,15 @@ html[data-titulo-nativo] #root::after {
 .tv[data-e="error"] {
   --e: var(--rojo-texto);
 }
-.tv[data-t="fin"] {
-  --c: var(--e);
-}
-.tv-fin {
-  display: grid;
-  flex: none;
-  place-items: center;
-}
-/* El título (qué hace) a la izquierda y, a la derecha, la píldora con el estado en palabras y el tiempo ("Trabajando · 2 s"):
-   rediseño 0.4 (vidrio quieto v2), la tarjeta "Refactor del carrito". Calma: la píldora va apagada, sin relleno. */
-.tv-t1 {
-  display: flex;
-  min-height: 2.25rem;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--esp-1) var(--esp-3);
-  font-size: var(--letra-6);
-}
-.tv-t1 > .ui-chip:not([data-tono]) {
-  background: transparent;
-  box-shadow: inset 0 0 0 1px var(--capa-div);
-  color: var(--apagado);
-  font-variant-numeric: tabular-nums;
-}
-.tv-tit {
-  display: flex;
-  min-width: 0;
-  flex: 1 1 auto;
-  align-items: center;
-  gap: var(--esp-3);
-}
-.tv-v {
-  min-width: 0;
-  overflow: hidden;
-  color: var(--texto-1);
-  font-weight: 600;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-/* El pie de la tarjeta: modelo, esfuerzo, tokens y pasos en texto quieto; Parar queda a la derecha. */
-.tv-modelo {
-  flex: none;
-  color: var(--apagado);
-  font-size: var(--letra-4);
-  white-space: nowrap;
-}
 .tv-ef::before {
   color: var(--texto-6);
   content: " · ";
-}
-.tv-meta {
-  display: flex;
-  min-width: 0;
-  flex-wrap: wrap;
-  gap: var(--esp-1) var(--esp-4);
 }
 .tv-x {
   color: var(--texto-4);
   font-size: var(--letra-4);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
-}
-.tv-t1 .tv-x {
-  color: inherit;
-  font-size: inherit;
-}
-/* El bloque de actividad: monoespaciado, sobre una tira más oscura que la tarjeta; lo que hace ahora y los pasos de atrás. */
-.tv-log {
-  display: flex;
-  flex-direction: column;
-  gap: var(--esp-1);
-  padding: var(--esp-3) var(--esp-4);
-  border-radius: var(--r-md);
-  background: var(--sup-0);
-  box-shadow: inset 0 0 0 1px var(--capa-div);
-  color: var(--texto-3);
-  font-family: var(--font-mono);
-  font-size: var(--letra-4);
-}
-.tv-log .tv-pasos {
-  margin: 0;
 }
 .tv-det {
   display: flex;
@@ -3685,27 +3594,6 @@ html[data-titulo-nativo] #root::after {
   overflow: hidden;
   mask-image: linear-gradient(to bottom, var(--texto-1) 55%, transparent);
 }
-/* Lo que hace ahora: "En curso" con el acento. Estático: lo continuo va por latido.ts, no una animación infinita. */
-.tv-vivo {
-  display: inline-flex;
-  flex: none;
-  align-items: center;
-  gap: var(--esp-1);
-  margin-left: auto;
-  color: var(--c);
-  font-family: inherit;
-  font-size: var(--letra-3);
-  line-height: 1.5;
-  white-space: nowrap;
-}
-.tv-vivo::before {
-  display: block;
-  width: 0.375rem;
-  height: 0.375rem;
-  border-radius: var(--radio-pastilla);
-  background: currentColor;
-  content: "";
-}
 .tv-ic {
   flex: none;
   color: var(--c);
@@ -3741,13 +3629,6 @@ html[data-titulo-nativo] #root::after {
 .tv-pasos .tv-ic {
   color: var(--texto-5);
 }
-.tv-pie {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--esp-2);
-}
 .tv-mas {
   display: inline-flex;
   align-items: center;
@@ -3767,9 +3648,6 @@ html[data-titulo-nativo] #root::after {
 }
 .tv-mas[aria-expanded="true"] .tv-fl {
   transform: rotate(180deg);
-}
-.tv-parar {
-  margin-left: auto;
 }
 /* El progreso del turno de un motor que deja ver su razonamiento (src/hilo/Actividad.tsx, Progreso): pensamientos plegados y herramientas, en el
    orden en que pasaron, en una ventana que sigue lo último. Cada línea nueva entra con un fundido corto (una vez, no infinito). */
