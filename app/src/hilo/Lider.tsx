@@ -1218,12 +1218,6 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
           ) : null}
           <Avisos avisos={avisos} volverA={(id) => nombreCuentaClaude(listaCuentas, id)} alVolver={elegirCuenta} alSeguir={l && !ocupado ? () => setSeguirCon(true) : undefined} deshabilitado={ocupado || !app} />
           {pasando ? <Pasando /> : app && sid ? <HaceChat sid={sid} piensa={piensa} modelo={nombreModelo(modeloDe(l?.modelo) ?? modelo)} effort={effortsDe(l?.modelo ?? modelo).length ? (l?.effort ?? effort) : null} alParar={l ? parar : undefined} parando={vivo.parando} /> : compacta !== null ? <Compactando desde={compacta} /> : null}
-          {vivo.directos > 0 ? (
-            <div className="directo-espera" role="status" data-directo-espera>
-              <Clock size={12} strokeWidth={2} aria-hidden="true" />
-              {tr(vivo.directos === 1 ? "directo.espera" : "directo.esperaN", { n: vivo.directos })}
-            </div>
-          ) : null}
           {l && encolados.length ? (
             <div className="directo-espera" role="status" data-cola-resumen>
               <Clock size={12} strokeWidth={2} aria-hidden="true" />
