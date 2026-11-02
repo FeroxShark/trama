@@ -1,12 +1,13 @@
 // `pa --hilo <id> [--json] [-n N] [--antes N]` (cmd_hilo de motor/bin/pa): los mensajes del transcript de una corrida (user y asistente,
 // sin sidechain ni tool_result; los tool_use de un mismo mensaje van juntos), los N últimos (default 50) antes del índice --antes.
 // `usage`/`modelo` = los del último mensaje del asistente. Lectura pura; el jq del bash está acá en TypeScript.
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
-import { proyectoDeId } from "./corridas.ts";
+import { leerCampo, proyectoDeId } from "./corridas.ts";
 import type { Pa } from "./entorno.ts";
 import { leerLineaSid } from "./hilo-sid.ts";
 import { comoString, cortar, ruta, transcriptDe, type J } from "./hilos.ts";
+import { mensajesDeStream } from "./hilo-stream.ts";
 
 const USO = "uso: pa --hilo <id> [--json] [-n N] [--antes N]\n";
 const esObj = (v: unknown): v is J => v !== null && typeof v === "object" && !Array.isArray(v);
@@ -153,15 +154,23 @@ export function cmdHilo(pa: Pa, args: string[]): number {
   }
   const d = path.join(pa.state, s);
   const t = transcriptDe(pa, leerLineaSid(d, id));
+  // Sin transcript de Claude (agy, codex, opencode): el stream de la corrida, también mientras corre (hilo-stream.ts).
+  const stream = !t && existsSync(path.join(d, `${id}.stream.jsonl`)) ? path.join(d, `${id}.stream.jsonl`) : "";
+  const fuente = t || stream;
   let texto = "";
-  if (t) {
+  if (fuente) {
     try {
-      texto = readFileSync(t, "utf8");
+      texto = readFileSync(fuente, "utf8");
     } catch {
       texto = "";
     }
   }
-  const todos = t ? mensajes(texto) : [];
+  const hilo = path.join(d, `${id}.hilo`);
+  const todos = t
+    ? mensajes(texto)
+    : stream
+      ? (mensajesDeStream(texto, leerCampo(hilo, "tarea"), leerCampo(hilo, "inicio"), leerCampo(hilo, "modelo")) as unknown as Msg[])
+      : [];
   const total = todos.length;
   const hasta = Math.min(total, antes === "" ? total : Number(antes));
   const desde = Math.max(0, hasta - Number(n));
@@ -172,6 +181,7 @@ export function cmdHilo(pa: Pa, args: string[]): number {
     id,
     proyecto: s,
     transcript: t || null,
+    ...(stream ? { stream } : {}),
     total,
     desde,
     hasta,

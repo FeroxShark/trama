@@ -2169,11 +2169,127 @@ cmd_hilos() {
   return 0
 }
 
+# Los workers que no son de Claude (agy, codex, opencode) no tienen transcript de Claude: pa guarda su stream en `<id>.stream.jsonl`.
+# JQ_HILO_STREAM lo convierte al mismo contrato de mensajes que el transcript de Claude (lo lee con `jq -R -s`: un stream a medio
+# escribir, con la última línea cortada, no rompe: esa línea no parsea y se salta). Primero cada línea da "ops", después las ops arman
+# "items" (texto, herramienta, corte, uso) y al final los items se agrupan en mensajes del asistente: texto primero, sus herramientas
+# después; un texto que llega tras herramientas abre otro mensaje. Sin timestamps por línea (agy, codex) el `ts` queda null, no se
+# inventa; opencode sí trae `timestamp` (ms). El pedido (`tarea` y `inicio` de `<id>.hilo`) es el primer mensaje, con la hora de inicio.
+# Lo mismo está en app/electron/cli/pa/hilo-stream.ts: si tocás uno, tocá el otro (lo controla tests/paridad).
+JQ_HILO_STREAM='
+def iso: (. / 1000 | floor | todate);
+def hora: if type == "number" then iso else null end;
+def aliasClave: {CommandLine:"command", Command:"command", AbsolutePath:"file_path", TargetFile:"file_path", FilePath:"file_path", File:"file_path",
+                 filePath:"file_path", Path:"file_path", Query:"query", Pattern:"pattern", Url:"url", URL:"url"};
+def aliasNombre: {run_command:"Bash", read_file:"Read", edit_file:"Edit", write_file:"Write", shell:"Bash", edit:"Edit", write:"Write", read:"Read", grep:"Grep"};
+def ent: (aliasClave) as $al
+  | if type == "object" then with_entries(.key |= ($al[.] // .) | .value |= (if type == "string" then .[0:2000] else . end)) else {} end;
+def nom: . as $n | (aliasNombre[$n] // $n);
+def cola15: (if type == "string" then . else tojson end) | gsub("\r";"") | sub("\n+\\z";"") | split("\n") | .[-15:] | join("\n") | if length > 1500 then .[-1500:] else . end;
+def uso($i; $o; $l; $e): {input_tokens: ($i // 0), output_tokens: ($o // 0), cache_read_input_tokens: ($l // 0), cache_creation_input_tokens: ($e // 0)};
+def err300: (. // "?") | (if type == "string" then . else tojson end) | .[0:300];
+def ops:
+  if .event != null then
+    if .event == "init" then [{op: "m", modelo: (.init.model // null)}]
+    elif .event == "step_update" then
+      (.step_update // {}) as $s
+      | if $s.step_type == "agent_response" then
+          (if ($s.text_delta // "") != "" then [{op: "t", step: $s.step_index, txt: $s.text_delta, ts: null}] else [] end)
+          + (if ($s.usage | type) == "object" then [{op: "u", u: uso($s.usage.input_tokens; $s.usage.output_tokens; $s.usage.cache_read_tokens; 0)}] else [] end)
+        elif $s.step_type == "tool" then
+          ($s.tool_name // $s.tool_info.name // "?") as $n
+          | [{op: "h", id: $s.step_index, nombre: ($n | nom), entrada: (($s.tool_info.parameters // {}) | ent), ts: null}]
+            + (if $s.state == "ACTIVE" or ($s.tool_info.output == null) then []
+               else [{op: "r", id: $s.step_index, out: $s.tool_info.output,
+                      error: (($s.tool_info.output | type) == "string" and ($s.tool_info.output | test("^Command exited with code [1-9]")))}] end)
+        else [] end
+    elif .event == "result" then
+      (.result // {}) as $r
+      | if ($r.status // "") != "SUCCESS" then [{op: "t", step: null, txt: ("✗ agy: " + (($r.error // $r.status) | err300)), ts: null}] else [] end
+    else [] end
+  elif (.type | type) == "string" then
+    if .type == "step_start" then [{op: "c"}]
+    elif .type == "text" then [{op: "t", step: null, txt: (.part.text // ""), ts: (.timestamp | hora)}]
+    elif .type == "tool_use" then
+      (.part.state // {}) as $e
+      | [{op: "h", id: null, nombre: ((.part.tool // "?") | nom), entrada: (($e.input // {}) | ent), ts: (.timestamp | hora)}]
+        + (if ($e.output // $e.error) == null then []
+           else [{op: "r", id: null, out: ($e.output // $e.error), error: (($e.status // "completed") != "completed")}] end)
+    elif .type == "step_finish" then
+      (.part.tokens // {}) as $k | [{op: "u", u: uso($k.input; $k.output; $k.cache.read; $k.cache.write)}]
+    elif .type == "error" and (.error | type) == "object" then
+      [{op: "t", step: null, txt: ("✗ " + ((.error.data.message // .error.name // "error") | err300)), ts: (.timestamp | hora)}]
+    elif (.type | startswith("item.")) then
+      (.item // {}) as $i
+      | if .type == "item.started" and $i.type == "command_execution" then
+          [{op: "h", id: $i.id, nombre: "Bash", entrada: ({command: $i.command} | ent), ts: null}]
+        elif .type == "item.completed" then
+          if $i.type == "agent_message" then [{op: "t", step: null, txt: ($i.text // ""), ts: null}]
+          elif $i.type == "command_execution" then
+            [{op: "h", id: $i.id, nombre: "Bash", entrada: ({command: $i.command} | ent), ts: null},
+             {op: "r", id: $i.id, out: ($i.aggregated_output // ""), error: ((($i.exit_code // 0) != 0) or ($i.status == "failed"))}]
+          elif $i.type == "file_change" then
+            [{op: "h", id: $i.id, nombre: "Edit", entrada: ({file_path: ([$i.changes[]? | .path] | join(", "))} | ent), ts: null}]
+          elif $i.type == "mcp_tool_call" then
+            [{op: "h", id: $i.id, nombre: "\($i.server // "mcp")/\($i.tool // "?")", entrada: (($i.arguments // {}) | ent), ts: null}]
+          elif $i.type == "web_search" then
+            [{op: "h", id: $i.id, nombre: "WebSearch", entrada: ({query: $i.query} | ent), ts: null}]
+          elif $i.type == "error" then [{op: "t", step: null, txt: ("✗ " + ($i.message | err300)), ts: null}]
+          else [] end
+        else [] end
+    elif .type == "turn.completed" then
+      (.usage // {}) as $k
+      | [{op: "u", u: uso((($k.input_tokens // 0) - ($k.cached_input_tokens // 0)); $k.output_tokens; $k.cached_input_tokens; 0)}]
+    elif .type == "turn.failed" then [{op: "t", step: null, txt: ("✗ " + (.error.message | err300)), ts: null}]
+    elif .type == "error" then [{op: "t", step: null, txt: ("✗ " + (.message | err300)), ts: null}]
+    else [] end
+  else [] end;
+def idx($id): . as $it | ($it | length) as $n
+  | first(range($n - 1; ([-1, $n - 31] | max); -1) | select($it[.].k == "h" and $it[.].id == $id)) // null;
+def itemsDe($lineas):
+  reduce ($lineas[] | ops[]) as $o ({items: [], modelo: null};
+    if $o.op == "m" then .modelo = $o.modelo
+    elif $o.op == "c" then .items += [{k: "c"}]
+    elif $o.op == "u" then .items += [{k: "u", u: $o.u}]
+    elif $o.op == "t" then
+      if ($o.txt // "") == "" then .
+      elif $o.step != null and (.items | length) > 0 and .items[-1].k == "t" and .items[-1].step == $o.step then .items[-1].txt += $o.txt
+      else .items += [{k: "t", step: $o.step, txt: $o.txt, ts: $o.ts}] end
+    elif $o.op == "h" then
+      if $o.id != null and (.items | idx($o.id)) != null then .
+      else .items += [{k: "h", id: $o.id, nombre: $o.nombre, entrada: $o.entrada, ts: $o.ts}] end
+    elif $o.op == "r" then
+      (.items | idx($o.id)) as $j
+      | if $j == null then . else .items[$j].resultado = {texto: ($o.out | cola15), error: $o.error} end
+    else . end);
+def nuevo($ts): .m += [{textos: [], det: [], ts: $ts, usage: .u}] | .cur = true;
+def mensajesDe($it; $modelo; $tarea; $inicio):
+  ([$it.items[]] | reduce .[] as $x ({m: [], u: null, cur: false};
+      if $x.k == "c" then .cur = false
+      elif $x.k == "u" then .u = $x.u | if .cur then .m[-1].usage = $x.u else . end
+      elif $x.k == "t" then
+        (if .cur and (.m[-1].det | length) == 0 then . else nuevo($x.ts) end) | .m[-1].textos += [$x.txt]
+      else
+        (if .cur then . else nuevo($x.ts) end)
+        | .m[-1].det += [{nombre: $x.nombre, entrada: $x.entrada} + (if $x.resultado then {resultado: $x.resultado} else {} end)]
+      end)
+   | .m) as $ms
+  | ([$ms[] | {rol: "assistant", ts: .ts, modelo: ($it.modelo // ($modelo | if . == "" then null else . end)), mid: null, usage: .usage, imagenes: 0,
+               herramientas: [.det[].nombre], herramientas_det: .det,
+               texto: ([.textos[] | sub("\\A[ \t\r\n]+"; "") | sub("[ \t\r\n]+\\z"; "") | select(. != "")] | join("\n")),
+               meta: false, resumen_compact: false, origen: null, error_api: false, error: null}
+     | select(.texto != "" or (.herramientas | length) > 0)]) as $as
+  | (if $tarea == "" then [] else
+       [{rol: "user", ts: (if ($inicio | test("^[0-9]+$")) then ($inicio | tonumber * 1000 | iso) else null end), modelo: null, mid: null, usage: null,
+         imagenes: 0, herramientas: [], herramientas_det: [], texto: $tarea,
+         meta: false, resumen_compact: false, origen: null, error_api: false, error: null}] end) + $as;
+'
+
 # `pa --hilo <id> --json [-n N] [--antes N]`: los mensajes del transcript de una corrida (user y
 # asistente, sin sidechain ni tool_result; los tool_use de un mismo mensaje van juntos), los N
 # últimos (default 50) antes del índice --antes. `usage`/`modelo` = los del último mensaje del asistente.
 cmd_hilo() {
-  local id="${1:-}" n=50 antes="" s d sid t="" a
+  local id="${1:-}" n=50 antes="" s d sid t="" a st="" tarea="" inicio="" modelo=""
   [[ -n "$id" && "$id" != -* ]] || { echo "uso: pa --hilo <id> [--json] [-n N] [--antes N]" >&2; return 2; }
   shift
   while (( $# )); do
@@ -2195,8 +2311,17 @@ cmd_hilo() {
   if [[ -n "$sid" && "$sid" =~ ^[A-Za-z0-9._-]+$ ]]; then
     for a in "$PROJ"/*/"$sid.jsonl"; do [[ -f "$a" ]] && { t="$a"; break; }; done
   fi
-  jq -R -s --arg id "$id" --arg slug "$s" --arg t "$t" --argjson n "$n" --arg antes "$antes" '
-    (if $t == "" then [] else
+  # Sin transcript de Claude (agy, codex, opencode): el stream de la corrida, también mientras corre (JQ_HILO_STREAM).
+  if [[ -z "$t" && -f "$d/$id.stream.jsonl" ]]; then
+    st="$d/$id.stream.jsonl"
+    tarea="$(leer_campo "$d/$id.hilo" tarea)"; inicio="$(leer_campo "$d/$id.hilo" inicio)"; modelo="$(leer_campo "$d/$id.hilo" modelo)"
+  fi
+  jq -R -s --arg id "$id" --arg slug "$s" --arg t "$t" --arg st "$st" --arg tarea "$tarea" --arg inicio "$inicio" --arg modelo "$modelo" \
+    --argjson n "$n" --arg antes "$antes" "$JQ_HILO_STREAM"'
+    (if $t == "" and $st != "" then
+      itemsDe([split("\n")[] | select(length > 0) | (try fromjson catch empty) | select(type == "object")]) as $it
+      | mensajesDe($it; $modelo; $tarea; $inicio)
+    elif $t == "" then [] else
       [split("\n")[] | select(length > 0) | (try fromjson catch empty)
        | select(type == "object" and (.isSidechain != true)
                 and (.type == "user" or .type == "assistant" or (.type == "system" and .subtype == "compact_boundary")))
@@ -2232,14 +2357,15 @@ cmd_hilo() {
     | ([$total, (if $antes == "" then $total else ($antes | tonumber) end)] | min) as $hasta
     | ([0, $hasta - $n] | max) as $desde
     | ([$todos[] | select(.rol == "assistant")] | last) as $ult
-    | {version: 1, id: $id, proyecto: $slug, transcript: (if $t == "" then null else $t end),
-       total: $total, desde: $desde, hasta: $hasta,
+    | {version: 1, id: $id, proyecto: $slug, transcript: (if $t == "" then null else $t end)}
+       + (if $t == "" and $st != "" then {stream: $st} else {} end)
+       + {total: $total, desde: $desde, hasta: $hasta,
        mensajes: [$todos | to_entries[] | select(.key >= $desde and .key < $hasta)
                   | {i: .key, rol: .value.rol, texto: .value.texto, herramientas: .value.herramientas,
                      ts: .value.ts, modelo: .value.modelo}
                     + (.value | {herramientas_det, imagenes, meta, resumen_compact, origen, error_api, error}
                        + (if .rol == "system" then {subtipo} else {} end))],
-       usage: ($ult.usage // null), modelo: ($ult.modelo // null)}' "${t:-/dev/null}"
+       usage: ($ult.usage // null), modelo: ($ult.modelo // null)}' "${t:-${st:-/dev/null}}"
 }
 
 # `pa --limpiar [--ver|--si] [--dias N] [--json]`: lo viejo y seguro de borrar de los worktrees de TODOS los proyectos. Sólo puestos
