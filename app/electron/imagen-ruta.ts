@@ -52,10 +52,13 @@ export function rutaAbsoluta(x: unknown): RutaImagen | null {
   return { estilo, ruta: s };
 }
 
-/** La ruta absoluta de una imagen local en `x`, o `null` si no vale o no tiene extensión de imagen. */
+/** Un `*` o un `?` es un patrón (`ciclo_*.png`), no un nombre de archivo: Windows no los deja en un nombre. */
+export const esComodin = (x: string): boolean => /[*?]/.test(x);
+
+/** La ruta absoluta de una imagen local en `x`, o `null` si no vale, no tiene extensión de imagen o es un patrón con comodines. */
 export function rutaImagen(x: unknown): RutaImagen | null {
   const r = rutaAbsoluta(x);
-  if (!r) return null;
+  if (!r || esComodin(r.ruta)) return null;
   const ext = /\.([A-Za-z0-9]+)$/.exec(r.ruta)?.[1].toLowerCase();
   return ext && ext in TIPO_POR_EXT ? r : null;
 }

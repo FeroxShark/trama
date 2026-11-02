@@ -54,6 +54,19 @@ test("rutaImagen: nada que no sea la ruta absoluta de una imagen", () => {
     assert.equal(rutaImagen(x), null, String(x).slice(0, 40));
 });
 
+test("rutaImagen: una ruta real con espacios y barras de Windows sigue valiendo; un patrón con * o ? no", () => {
+  const real = "D:\\Vr Proyects\\Tienda Rexouium\\Pruebas\\Outfit Offline\\ciclo11f1b 1.png";
+  assert.deepEqual(rutaImagen(real), { estilo: "win32", ruta: real });
+  for (const x of [
+    "D:\\Vr Proyects\\Tienda Rexouium\\Pruebas\\Outfit Offline\\ciclo11f1b_*.png", // el comodín que escribió el líder
+    "D:\\Vr Proyects\\Outfit Offline\\ciclo?.png",
+    "/tmp/capturas/*.png",
+    "file:///C:/capturas/ciclo%2A.png", // el * decodificado sigue siendo un patrón
+    "file:///C:/capturas/ciclo.png?v=2",
+  ])
+    assert.equal(rutaImagen(x), null, x);
+});
+
 test("nombreDe, rutaWsl y tipoPorBytes", () => {
   assert.equal(nombreDe("C:\\Users\\ana\\Pictures\\captura 1.png"), "captura 1.png");
   assert.equal(nombreDe("/tmp/trama/x.png"), "x.png");
