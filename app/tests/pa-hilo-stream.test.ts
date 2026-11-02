@@ -4,7 +4,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { mensajesDeStream } from "../electron/cli/pa/hilo-stream.ts";
 import { hiloDePa } from "../src/datos/paHilo.ts";
-import { AGY, AGY_ERROR, AGY_VIVO, CODEX, CODEX_VIVO, OPENCODE, OPENCODE_ERROR } from "./streams-hilo.ts";
+import { AGY, AGY_ERROR, AGY_VIVO, CODEX, CODEX_VIVO, DSH, DSH_ERROR, OPENCODE, OPENCODE_ERROR } from "./streams-hilo.ts";
 
 const INICIO = "1793507270";
 const msgs = (s: string, modelo = "") => mensajesDeStream(s, "hacé tal cosa", INICIO, modelo) as any[];
@@ -88,6 +88,22 @@ test("opencode: un mensaje por paso, con la hora de la línea y sin el razonamie
 
 test("opencode cortado por el cupo: el error queda a la vista", () => {
   assert.equal(msgs(OPENCODE_ERROR)[1].texto, "✗ Free usage limit reached");
+});
+
+test("dsh: un mensaje por paso, sin razonamiento ni el final repetido", () => {
+  const m = msgs(DSH, "dsh:opencode/x");
+  assert.deepEqual(m.map((x) => x.rol), ["user", "assistant", "assistant"]);
+  assert.equal(m[1].texto, "Miro el repo.");
+  assert.deepEqual(m[1].herramientas, ["Bash", "Read"]);
+  assert.deepEqual(m[1].herramientas_det[0], { nombre: "Bash", entrada: { command: "ls app" }, resultado: { texto: "a\nb", error: false } });
+  assert.deepEqual(m[1].herramientas_det[1].resultado, { texto: "no existe", error: true });
+  assert.equal(m[1].usage?.input_tokens, 1000);
+  assert.equal(m[2].texto, "Listo.");
+  assert.equal(m[2].usage?.output_tokens, 20);
+});
+
+test("dsh cortado: el error del turno queda a la vista", () => {
+  assert.equal(msgs(DSH_ERROR)[1].texto, "✗ 429 sin cupo");
 });
 
 test("la vista entiende estos mensajes (hiloDePa)", () => {

@@ -1,4 +1,4 @@
-// El stream de un worker que no es de Claude (`<id>.stream.jsonl` de agy, codex y opencode) convertido a los mensajes de
+// El stream de un worker que no es de Claude (`<id>.stream.jsonl` de agy, codex, opencode y dsh) convertido a los mensajes de
 // `pa --hilo` (el mismo contrato que el transcript de Claude). Es el port de JQ_HILO_STREAM de motor/bin/pa: si tocás uno, tocá
 // el otro (lo controla tests/paridad). Primero cada línea da "ops", después las ops arman "items" (texto, herramienta, corte,
 // uso) y al final los items se agrupan en mensajes del asistente: el texto primero, sus herramientas después; un texto que llega
@@ -114,7 +114,20 @@ function ops(o: J): Op[] {
   if (typeof tipo !== "string") return [];
   const part = esObj(o.part) ? o.part : {};
   if (tipo === "step_start") return [{ op: "c" }];
-  if (tipo === "text") return [tx(alt(part.text, ""), hora(o.timestamp))];
+  // opencode trae el texto en `part`; dsh, arriba (`{type:"text", text}`).
+  if (tipo === "text") return [tx(alt(esObj(o.part) ? part.text : o.text, ""), hora(o.timestamp))];
+  // dsh (DeepSeek Harness): status {phase, usage, reason}, tool_call {callId, tool, input}, tool_result {callId, status, result}.
+  if (tipo === "status") {
+    if (o.phase === "step_start") return [{ op: "c" }];
+    const us = esObj(o.usage) ? o.usage : null;
+    if (o.phase === "step_end" && us) return [{ op: "u", u: uso(us.inputTokens, us.outputTokens, us.cacheReadInputTokens, 0) }];
+    const rz = esObj(o.reason) ? o.reason : {};
+    if (o.phase === "turn_end" && alt(rz.kind, "completed") !== "completed")
+      return [tx(`✗ ${err300(alt(esObj(rz.error) ? rz.error.message : undefined, rz.kind))}`)];
+    return [];
+  }
+  if (tipo === "tool_call") return [he(o.callId, nom(alt(o.tool, "?")), ent(alt(o.input, {})))];
+  if (tipo === "tool_result") return [{ op: "r", id: nul(o.callId), out: alt(o.result, ""), error: alt(o.status, "completed") !== "completed" }];
   if (tipo === "tool_use") {
     const e = esObj(part.state) ? part.state : {};
     const r: Op[] = [he(null, nom(alt(part.tool, "?")), ent(alt(e.input, {})), hora(o.timestamp))];

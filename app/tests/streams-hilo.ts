@@ -83,5 +83,30 @@ export const OPENCODE_ERROR = jl(
   { type: "error", timestamp: T0 + 1000, sessionID: "ses_1", error: { name: "APIError", data: { message: "Free usage limit reached" } } },
 );
 
+/** dsh (`dsh --json`): dos pasos (una herramienta que sale bien y otra que falla), un razonamiento que no se muestra y el texto final repetido en `final`. */
+export const DSH = jl(
+  { type: "session", sessionId: "s-1" },
+  { type: "status", phase: "turn_start" },
+  { type: "status", phase: "step_start" },
+  { type: "thinking", text: "no se ve" },
+  { type: "text", text: "Miro el repo.\n" },
+  { type: "tool_call", callId: "c1", tool: "run_command", input: { CommandLine: "ls app" } },
+  { type: "tool_result", callId: "c1", status: "completed", result: "a\nb\n" },
+  { type: "tool_call", callId: "c2", tool: "read", input: { filePath: "/x/no.ts" } },
+  { type: "tool_result", callId: "c2", status: "error", result: "no existe" },
+  { type: "status", phase: "step_end", usage: { inputTokens: 1000, outputTokens: 50 } },
+  { type: "status", phase: "step_start" },
+  { type: "text", text: "Listo.\n" },
+  { type: "status", phase: "step_end", usage: { inputTokens: 800, outputTokens: 20 } },
+  { type: "status", phase: "turn_end", reason: { kind: "completed" } },
+  { type: "final", text: "Listo.\n" },
+);
+
+/** dsh cortado: el turno terminó con error. */
+export const DSH_ERROR = jl(
+  { type: "status", phase: "step_start" },
+  { type: "status", phase: "turn_end", reason: { kind: "error", error: { message: "429 sin cupo" } } },
+);
+
 /** El `.hilo` de una corrida de otro motor: el pedido (en una línea), la hora de inicio y el modelo. */
 export const hiloDe = (tarea: string, modelo: string, inicio = 1793507270) => `tarea=${tarea}\nmodelo=${modelo}\ninicio=${inicio}\nlanzo=jefe\n`;

@@ -2169,7 +2169,7 @@ cmd_hilos() {
   return 0
 }
 
-# Los workers que no son de Claude (agy, codex, opencode) no tienen transcript de Claude: pa guarda su stream en `<id>.stream.jsonl`.
+# Los workers que no son de Claude (agy, codex, opencode, dsh) no tienen transcript de Claude: pa guarda su stream en `<id>.stream.jsonl`.
 # JQ_HILO_STREAM lo convierte al mismo contrato de mensajes que el transcript de Claude (lo lee con `jq -R -s`: un stream a medio
 # escribir, con la última línea cortada, no rompe: esa línea no parsea y se salta). Primero cada línea da "ops", después las ops arman
 # "items" (texto, herramienta, corte, uso) y al final los items se agrupan en mensajes del asistente: texto primero, sus herramientas
@@ -2209,7 +2209,15 @@ def ops:
     else [] end
   elif (.type | type) == "string" then
     if .type == "step_start" then [{op: "c"}]
-    elif .type == "text" then [{op: "t", step: null, txt: (.part.text // ""), ts: (.timestamp | hora)}]
+    elif .type == "text" then [{op: "t", step: null, txt: ((if (.part | type) == "object" then .part.text else .text end) // ""), ts: (.timestamp | hora)}]
+    elif .type == "status" then
+      if .phase == "step_start" then [{op: "c"}]
+      elif .phase == "step_end" and (.usage | type) == "object" then [{op: "u", u: uso(.usage.inputTokens; .usage.outputTokens; .usage.cacheReadInputTokens; 0)}]
+      elif .phase == "turn_end" and ((.reason.kind // "completed") != "completed") then
+        [{op: "t", step: null, txt: ("✗ " + ((.reason.error.message // .reason.kind) | err300)), ts: null}]
+      else [] end
+    elif .type == "tool_call" then [{op: "h", id: .callId, nombre: ((.tool // "?") | nom), entrada: ((.input // {}) | ent), ts: null}]
+    elif .type == "tool_result" then [{op: "r", id: .callId, out: (.result // ""), error: ((.status // "completed") != "completed")}]
     elif .type == "tool_use" then
       (.part.state // {}) as $e
       | [{op: "h", id: null, nombre: ((.part.tool // "?") | nom), entrada: (($e.input // {}) | ent), ts: (.timestamp | hora)}]
@@ -2311,7 +2319,7 @@ cmd_hilo() {
   if [[ -n "$sid" && "$sid" =~ ^[A-Za-z0-9._-]+$ ]]; then
     for a in "$PROJ"/*/"$sid.jsonl"; do [[ -f "$a" ]] && { t="$a"; break; }; done
   fi
-  # Sin transcript de Claude (agy, codex, opencode): el stream de la corrida, también mientras corre (JQ_HILO_STREAM).
+  # Sin transcript de Claude (agy, codex, opencode, dsh): el stream de la corrida, también mientras corre (JQ_HILO_STREAM).
   if [[ -z "$t" && -f "$d/$id.stream.jsonl" ]]; then
     st="$d/$id.stream.jsonl"
     tarea="$(leer_campo "$d/$id.hilo" tarea)"; inicio="$(leer_campo "$d/$id.hilo" inicio)"; modelo="$(leer_campo "$d/$id.hilo" modelo)"

@@ -6,7 +6,7 @@ import { spawnSync } from "node:child_process";
 import { mkdirSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import type { Caso, Contexto, Paso } from "./arnes.ts";
-import { AGY, AGY_ERROR, AGY_VIVO, CODEX, CODEX_VIVO, OPENCODE, OPENCODE_ERROR, hiloDe } from "../streams-hilo.ts";
+import { AGY, AGY_ERROR, AGY_VIVO, CODEX, CODEX_VIVO, DSH, DSH_ERROR, OPENCODE, OPENCODE_ERROR, hiloDe } from "../streams-hilo.ts";
 
 const SLUG = "proy"; // basename de c.proyecto
 const FECHA = "2026-10-01T12:00:00+00:00";
@@ -226,6 +226,8 @@ const ID_OC = idDe(0, "000125", 4325);
 const ID_OC_ERROR = idDe(0, "000126", 4326);
 const ID_AGY_ERROR = idDe(0, "000127", 4327);
 const ID_STREAM_VACIO = idDe(0, "000128", 4328);
+const ID_DSH = idDe(0, "000129", 4329);
+const ID_DSH_ERROR = idDe(0, "000130", 4330);
 const hilo1 = (nombre: string, args: string[], rc = 0, extra: Partial<Caso> = {}): Caso => ({ herramienta: "pa-cli", nombre: `globales: hilo ${nombre}`, args, rc, ...extra });
 
 // ---------------------------------------------------------------- revertir
@@ -381,6 +383,8 @@ export const casosGlobales: Caso[] = [
   hilo1("codex: corriendo", ["--hilo", ID_CODEX_VIVO, "--json"], 0, { preparar: conStream(ID_CODEX_VIVO, CODEX_VIVO, "codex:gpt-5.5") }),
   hilo1("opencode: stream", ["--hilo", ID_OC, "--json"], 0, { preparar: conStream(ID_OC, OPENCODE, "opencode:opencode/x-free") }),
   hilo1("opencode: cortado por el cupo", ["--hilo", ID_OC_ERROR, "--json"], 0, { preparar: conStream(ID_OC_ERROR, OPENCODE_ERROR, "opencode:opencode/x-free") }),
+  hilo1("dsh: stream", ["--hilo", ID_DSH, "--json"], 0, { preparar: conStream(ID_DSH, DSH, "dsh:opencode/x-free") }),
+  hilo1("dsh: turno con error", ["--hilo", ID_DSH_ERROR, "--json"], 0, { preparar: conStream(ID_DSH_ERROR, DSH_ERROR, "dsh:opencode/x-free") }),
   hilo1("stream vacío: sólo el pedido", ["--hilo", ID_STREAM_VACIO, "--json"], 0, { preparar: conStream(ID_STREAM_VACIO, "", "agy:gemini-3.8-flash-high") }),
 
   // --- --archivar ---
