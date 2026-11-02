@@ -1,5 +1,10 @@
 # Cambios
 
+## 0.2.48
+
+- Avisos de que murió un worker: ya no se acumulan ni quedan fijos. Sale un cartel gris que junta varios («Murieron 3 workers»), se va solo a los 7 s y no vuelve a aparecer. El estado sigue en la fila de cada worker.
+- Las pastillas de trabajo del hilo llevan un ícono según la acción: comando, leer, editar, buscar, web, skill, MCP, delegar y esperar, entre otros.
+
 ## 0.2.47
 
 - Los workers de agy, codex, opencode y dsh ya no se ven vacíos: su hilo muestra el pedido, los comandos y la respuesta, y se actualiza mientras corren.
