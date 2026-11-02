@@ -1,5 +1,10 @@
 # Cambios
 
+## 0.2.47
+
+- Los workers de agy, codex, opencode y dsh ya no se ven vacíos: su hilo muestra el pedido, los comandos y la respuesta, y se actualiza mientras corren.
+- `pa --hilo` lee también el stream de esos motores, con el mismo formato que los de Claude.
+
 ## 0.2.46
 
 - Reiniciar Trama ya no marca a los líderes como muertos: quedan retomables. Un líder sólo figura como muerto tras 7 días sin actividad. Un fallo real se sigue mostrando.
