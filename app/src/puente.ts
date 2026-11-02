@@ -197,6 +197,9 @@ type Main = {
     /** Lo elegido en la caja mientras hay cola: el mensaje que sale lleva lo vigente en ese momento. */
     colaSeleccion(x: { sid: string; modelo: string; effort: string }): Promise<void>;
     colaQuitar(x: { sid: string; id: number }): Promise<void>;
+    colaEditar(x: { sid: string; id: number; texto: string; sinImagenes?: number[] }): Promise<void>;
+    colaOrden(x: { sid: string; ids: number[] }): Promise<void>;
+    colaRetener(x: { sid: string; si: boolean }): Promise<void>;
     /** Todas las colas con algo, sin validar. */
     colas(): Promise<unknown>;
     /** Ahora: reintenta lo que había fallado y, con `cortar`, corta al de la terminal. */

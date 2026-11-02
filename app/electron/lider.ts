@@ -1180,18 +1180,25 @@ export function puedeEnTurno(sid: string): boolean {
  * Sólo con un proceso de `claude` ocupado de la app; el modelo y el esfuerzo del turno no cambian (lo que el usuario eligió de otro se aplica en el próximo turno); sin turno en curso es un
  * `mandar` normal (ahí sí se cambian). Gemini y dsh: el puente (agy-puente.ts, dsh-puente.ts) corta a agy / dsh en el próximo límite de paso y retoma su conversación con el mensaje; los modelos locales no tienen canal: error claro.
  */
-export async function mandarDirecto(x: { sid: string; texto: string; imagenes?: unknown; modelo: string; effort: string }): Promise<void> {
+export async function mandarDirecto(x: { sid: string; texto: string; imagenes?: unknown; modelo: string; effort: string }): Promise<void | "normal"> {
   const sid = String(x.sid);
   const p = procs.get(sid);
   if (p?.local) throw errorT("main.sinDirecto");
-  if (!p?.ocupado || mandando.has(sid)) return void (await mandar(x));
+  // Ya no hay turno: salió como uno propio (`"normal"`, la cola no espera su eco a mitad de turno).
+  if (!p?.ocupado || mandando.has(sid)) {
+    await mandar(x);
+    return "normal";
+  }
   const g = (await lideresApp()).find((l) => l.sid === sid);
   if (!g) throw errorT("main.noEsDeLaApp");
   // Un modelo o esfuerzo distinto del que corre el turno no se cambia a mitad de turno: el mensaje entra con el del turno y lo elegido
   // queda para el próximo (la caja lo conserva, y la cola lo toma al desencolar). Sólo se valida que sea un valor sano.
   normalizar(sueltoDe("modelo", x.modelo), sueltoDe("effort", x.effort));
   // Pudo terminar el turno o salir el proceso mientras se leía la lista: entonces sí es un mensaje normal.
-  if (procs.get(sid) !== p || !p.ocupado) return void (await mandar(x));
+  if (procs.get(sid) !== p || !p.ocupado) {
+    await mandar(x);
+    return "normal";
+  }
   const imagenes = imagenesDe(x.imagenes);
   const texto = textoDe(x.texto, imagenes);
   p.directos.push(texto.trim());

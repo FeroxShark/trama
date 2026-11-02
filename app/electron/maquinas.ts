@@ -191,7 +191,8 @@ export function crearMaquinas(o: OpcionesMaquinas) {
       case "lider:cola": {
         const a = d as Cola;
         if (typeof a?.sid !== "string") return;
-        x.colas = [...(x.colas ?? []).filter((c) => c.sid !== a.sid), ...(a.lista && (a.lista as unknown[]).length ? [{ sid: a.sid, lista: a.lista, error: a.error ?? null }] : [])];
+        // Lo que ya salió y espera entrar también está en la bandeja: se pasa tal cual, con el error y de quién es.
+        x.colas = [...(x.colas ?? []).filter((c) => c.sid !== a.sid), ...((a.lista && (a.lista as unknown[]).length) || (a.camino && (a.camino as unknown[]).length) ? [{ sid: a.sid, lista: a.lista, error: a.error ?? null, ...(a.errorId !== undefined ? { errorId: a.errorId } : {}), ...(a.camino ? { camino: a.camino } : {}) }] : [])];
         return o.alEvento(canal, { ...a, sid: pre(m, a.sid) });
       }
       case "eventos:ids":

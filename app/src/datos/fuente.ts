@@ -230,6 +230,11 @@ export interface Fuente {
   /** Lo elegido en la caja (modelo y esfuerzo) con cola: lo que lleva el mensaje cuando sale de la cola. */
   liderColaSeleccion(sid: string, modelo: string, effort: string): void;
   liderColaQuitar(sid: string, id: number): void;
+  /** Cambia un mensaje que todavía espera; rechaza si ya salió. */
+  liderColaEditar(sid: string, id: number, texto: string, sinImagenes?: number[]): Promise<void>;
+  liderColaOrden(sid: string, ids: number[]): void;
+  /** Mientras se edita, arrastra o confirma, lo de ese líder no sale (se renueva repitiéndolo). */
+  liderColaRetener(sid: string, si: boolean): void;
   /** Ahora: reintenta lo que no había salido y, con `cortar`, corta lo que hace el de la terminal. */
   liderColaYa(sid: string, cortar: boolean): void;
   /** Las colas con algo (al abrir la vista). */
@@ -1802,6 +1807,15 @@ const fija: Fuente = {
   liderColaQuitar(sid, id) {
     colaFija().quitar(sid, id);
   },
+  async liderColaEditar(sid, id, texto, sinImagenes) {
+    if (!colaFija().editar(sid, id, texto, sinImagenes)) throw new Error(t("main.colaYaSalio"));
+  },
+  liderColaOrden(sid, ids) {
+    colaFija().ordenar(sid, ids);
+  },
+  liderColaRetener(sid, si) {
+    colaFija().retener(sid, si);
+  },
   liderColaYa(sid, cortar) {
     void colaFija().ya(sid, cortar);
   },
@@ -2554,6 +2568,17 @@ const conPa = (m: NonNullable<typeof main>): Fuente => ({
   },
   liderColaQuitar(sid, id) {
     void m.lider.colaQuitar({ sid, id }).catch(() => {});
+  },
+  async liderColaEditar(sid, id, texto, sinImagenes) {
+    await m.lider.colaEditar({ sid, id, texto, ...(sinImagenes?.length ? { sinImagenes } : {}) }).catch((e) => {
+      throw new Error(mensaje(e));
+    });
+  },
+  liderColaOrden(sid, ids) {
+    void m.lider.colaOrden({ sid, ids }).catch(() => {});
+  },
+  liderColaRetener(sid, si) {
+    void m.lider.colaRetener({ sid, si }).catch(() => {});
   },
   liderColaYa(sid, cortar) {
     void m.lider.colaYa({ sid, cortar }).catch(() => {});

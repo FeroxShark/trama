@@ -164,17 +164,17 @@ function alEvento(sid: string, ev: EventoLider) {
   cambiarPor(sid, ev);
 }
 
-/** Cambió la cola de un líder: lo que salió va a la tanda (como lo que se manda a mano); lo que no llegó, vuelve. */
+/** Cambió la cola de un líder: lo que salió o entró va a la tanda (como lo que se manda a mano); lo que no llegó, vuelve. */
 function alCola(a: AvisoCola) {
-  if (a.volvio) (a.enTurno ? falloDirecto : fallo)(a.sid);
+  if (a.volvio) fallo(a.sid);
   espejo.poner(a);
+  // A mitad de un turno: el CLI acaba de tomarlo en un límite de herramienta. Recién ahora deja la bandeja y aparece en la conversación.
+  if (a.entro) entroEnTurno(a.sid, a.entro.item.texto, a.entro.item.imagenes, a.entro.item.aviso);
   if (!a.salio) return;
-  const { item, total, traido, enTurno } = a.salio;
+  const { item, total, traido } = a.salio;
   // Venía de una terminal: ya es de la app, con el modo que tenía la caja.
   if (traido && item.modo) ponerModo(a.sid, item.modo);
-  // A mitad de un turno (todo lo encolado, junto): entra al mismo turno en el próximo límite de herramienta, no empieza otro.
-  if (enTurno) enviadoDirecto(a.sid, item.texto, item.imagenes, item.aviso);
-  else enviado(a.sid, item.texto, total ?? enCurso(a.sid).base, item.imagenes, item.aviso);
+  enviado(a.sid, item.texto, total ?? enCurso(a.sid).base, item.imagenes, item.aviso);
 }
 
 /** Lo que hace el turno "vivo" a la vista: si nada de esto llega en 2 min, la tarjeta dice "Sin novedades" (`sinNovedades`). */
@@ -412,6 +412,14 @@ export function enviadoDirecto(sid: string, texto: string, imagenes?: Mensaje["i
   });
 }
 
+/** Lo de la cola que acaba de entrar a mitad del turno: va al final de la tanda, ya entregado. El turno sigue siendo el mismo. */
+export function entroEnTurno(sid: string, texto: string, imagenes?: Mensaje["imagenes"], aviso?: true) {
+  cambiar(sid, (e) => {
+    const yo: Mensaje = { i: e.tanda.length, rol: "user", texto, herramientas: [], ts: new Date().toISOString(), modelo: null, ...(imagenes?.length ? { imagenes } : {}), ...(aviso ? { aviso } : {}) };
+    return { ...e, tanda: [...e.tanda, yo] };
+  });
+}
+
 /** La entrega a mitad de turno no salió: se saca ese mensaje y el turno sigue como estaba. */
 export function falloDirecto(sid: string) {
   cambiar(sid, (e) => {
@@ -454,13 +462,18 @@ const espejo = crearEspejo();
  * pierde); acá se la lee y se le pide. Rechaza si el envío no sirve.
  */
 export const cola = {
+  estado: espejo.estado,
   lista: espejo.lista,
   error: espejo.error,
   suscribir: espejo.suscribir,
   encolar: (sid: string, x: Omit<Encolado, "id">) => fuente.liderEncolar(sid, x),
   elegir: (sid: string, modelo: string, effort: string) => fuente.liderColaSeleccion(sid, modelo, effort),
   quitar: (sid: string, id: number) => fuente.liderColaQuitar(sid, id),
-  /** Ahora: reintenta lo que no salió y, con `cortar`, corta lo que hace el de la terminal. */
+  /** Rechaza si ya salió. */
+  editar: (sid: string, id: number, texto: string, sinImagenes?: number[]) => fuente.liderColaEditar(sid, id, texto, sinImagenes),
+  ordenar: (sid: string, ids: number[]) => fuente.liderColaOrden(sid, ids),
+  retener: (sid: string, si: boolean) => fuente.liderColaRetener(sid, si),
+  /** Ahora: reintenta lo que no salió y, con `cortar`, corta lo que está haciendo (el de la app para su turno; el de la terminal se cierra). */
   ya: (sid: string, cortar: boolean) => fuente.liderColaYa(sid, cortar),
 };
 

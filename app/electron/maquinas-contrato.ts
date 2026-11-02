@@ -50,6 +50,9 @@ export const RUTAS: Readonly<Record<string, Ruta>> = {
   "lider:encolar": "maquina",
   "lider:colaSeleccion": "maquina",
   "lider:colaQuitar": "maquina",
+  "lider:colaEditar": "maquina",
+  "lider:colaOrden": "maquina",
+  "lider:colaRetener": "maquina",
   "lider:colaYa": "maquina",
   // El MCP de Trama de esta máquina (cli/mcp-trama.ts) le deja un mensaje a un líder de esta máquina.
   "lider:encolarAgente": "local",

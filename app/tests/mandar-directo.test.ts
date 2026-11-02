@@ -129,7 +129,7 @@ test("la cola con un líder respondiendo: dos encolados entran juntos, en un sol
     total: async () => null,
     textoError: (x) => ("motivo" in x ? x.motivo : String(x.error)),
     guardar: async () => {},
-    avisar: (a) => void (a.salio && enviados.push(a.salio.item.texto)),
+    avisar: (a) => void (a.entro && enviados.push(a.entro.item.texto)),
     puedeEnTurno: (sid) => lider.puedeEnTurno(sid),
     enTurno: (sid, x) => lider.mandarDirecto({ sid, texto: x.texto, imagenes: x.imagenes, modelo: x.modelo, effort: x.effort }),
     agrupar: 50,
@@ -139,6 +139,11 @@ test("la cola con un líder respondiendo: dos encolados entran juntos, en un sol
   cola.encolar(sid, { ...M, texto: "COLA-1" });
   cola.encolar(sid, { ...M, texto: "COLA-2" });
   await hasta(() => cola.lista(sid).length === 0);
+  assert.equal(enviados.length, 0, "salió, pero hasta el eco no va a la conversación");
+  assert.equal(cola.camino(sid).length, 2, "y mientras sigue en la bandeja");
+  await hasta(() => eventos.some((x) => x.sid === sid && x.e.tipo === "entregado"));
+  cola.entro(sid, (eventos.find((x) => x.sid === sid && x.e.tipo === "entregado")!.e as { texto: string }).texto);
+  assert.equal(cola.camino(sid).length, 0, "el eco de verdad lo da por entrado");
   assert.equal(enviados.length, 1, "un solo mensaje");
   assert.equal(enviados[0], "Mensaje 1 de 2:\nCOLA-1\n\n---\n\nMensaje 2 de 2:\nCOLA-2");
   await hasta(() => cuantos(sid, "fin") === 1);

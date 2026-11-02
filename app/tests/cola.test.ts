@@ -3,7 +3,7 @@
 // y si no, cuando el líder queda libre; se puede sacar; no se pierde en un reinicio.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { crearCola, juntar, loteDe, paraDisco, type AvisoCola, type Disponible, type Encolado } from "../electron/cola.ts";
+import { crearCola, juntar, loteDe, type AvisoCola, type Disponible, type Encolado } from "../electron/cola.ts";
 
 const SID = "5a1f0c1d-0000-4000-8000-00000000c01a";
 // La cola espera a que `mandar` conteste: acá no se la espera (queda en curso hasta `contestar`), se le da un tic.
@@ -83,7 +83,7 @@ test("ocupado + enviar = en cola; sin canal a mitad de turno, todo sale junto al
   assert.deepEqual(a.mandados, [JUNTOS("uno", "dos")], "un solo mensaje con los dos, no uno por turno");
   assert.deepEqual(a.cola.lista(SID), []);
   const salio = a.avisos.find((v) => v.salio)!.salio!;
-  assert.deepEqual([salio.item.texto, salio.total, salio.traido, salio.enTurno], [JUNTOS("uno", "dos"), 7, false, undefined], "avisa qué salió y con qué base");
+  assert.deepEqual([salio.item.texto, salio.total, salio.traido], [JUNTOS("uno", "dos"), 7, false], "avisa qué salió y con qué base");
 
   // El turno sigue: otro fin de turno falso (un aviso de las sesiones) no manda nada de nuevo.
   void a.cola.revisar();
@@ -104,8 +104,11 @@ test("con canal a mitad de turno: dos encolados salen en UN solo mensaje, sin in
   assert.deepEqual(a.enTurnos.map((y) => y.texto), [JUNTOS("uno", "dos")], "entran juntos");
   assert.deepEqual(a.mandados, [], "no es un turno nuevo ni se interrumpe: no pasa por `mandar`");
   assert.deepEqual(a.cola.lista(SID), []);
-  const v = a.avisos.find((z) => z.salio)!.salio!;
-  assert.deepEqual([v.enTurno, v.item.texto], [true, JUNTOS("uno", "dos")], "la vista lo suma al turno en curso");
+  assert.deepEqual(textos(a.cola.camino(SID)), ["uno", "dos"], "sigue en la bandeja hasta que entra");
+  assert.ok(!a.avisos.some((z) => z.salio || z.entro), "todavía no va a la conversación");
+  a.cola.entro(SID, JUNTOS("uno", "dos"));
+  assert.deepEqual(a.cola.camino(SID), [], "con el eco deja la bandeja");
+  assert.equal(a.avisos.at(-1)!.entro!.item.texto, JUNTOS("uno", "dos"), "y recién ahí la vista lo suma al turno en curso");
 
   // Otro mensaje, más tarde, en la misma herramienta larga: sale solo (uno).
   a.cola.encolar(SID, x("tres"));
@@ -113,15 +116,14 @@ test("con canal a mitad de turno: dos encolados salen en UN solo mensaje, sin in
   assert.deepEqual(a.enTurnos.map((y) => y.texto), [JUNTOS("uno", "dos"), "tres"], "uno solo sale tal cual");
 });
 
-test("a mitad de turno falla el envío: vuelve a la cola, se saca de la conversación y espera al fin del turno", async () => {
+test("a mitad de turno falla el envío: vuelve a la cola y espera al fin del turno", async () => {
   const a = armar({ canal: true, fallaTurno: true });
   a.cola.encolar(SID, x("uno"));
   a.cola.encolar(SID, x("dos"));
   await a.pausa();
   assert.deepEqual(textos(a.cola.lista(SID)), ["uno", "dos"], "los dos vuelven, en orden");
   assert.equal(a.cola.error(SID), "sin canal");
-  const v = a.avisos.at(-1)!;
-  assert.deepEqual([v.volvio, v.enTurno], [true, true]);
+  assert.equal(a.avisos.at(-1)!.volvio, undefined, "nunca estuvo en la conversación: no hay nada que sacar");
   await a.pausa();
   assert.deepEqual(a.enTurnos, [], "no se reintenta solo");
   // Reintentar al terminar el turno: sale por el camino de siempre, junto.
@@ -324,24 +326,6 @@ test("mientras uno sale, la cola lo dice: trama no se relanza en el medio", asyn
   assert.equal(a.cola.enCamino(), 0);
 });
 
-test("a disco: las imágenes pasan de un tope y los mensajes siguientes se guardan sin ellas (el texto sí)", async () => {
-  const { paraDisco, COLA_IMAGENES_MAX } = await import("../electron/cola.ts");
-  assert.equal(COLA_IMAGENES_MAX, 20 * 1024 * 1024);
-  const img = (n: number) => [{ tipo: "image/png", datos: "A".repeat(n) }];
-  const e = (id: number, n?: number) => ({ id, texto: `m${id}`, modelo: "m", effort: "e", ...(n ? { imagenes: img(n) } : {}) });
-  const colas = new Map([
-    ["s1", [e(1, 60), e(2), e(3, 60)]],
-    ["s2", [e(4, 30)]],
-  ]);
-  const r = paraDisco(colas, 100);
-  assert.equal(r.s1[0].imagenes?.length, 1, "entra entera");
-  assert.equal(r.s1[2].imagenes, undefined, "la que ya no entra se guarda sin imágenes");
-  assert.equal(r.s1[2].texto, "m3", "pero con su texto");
-  assert.equal(r.s2[0].imagenes?.length, 1, "una más chica que sí entra en lo que queda");
-  assert.equal(colas.get("s1")![2].imagenes?.length, 1, "en memoria siguen completas");
-  assert.equal(Object.keys(paraDisco(new Map())).length, 0);
-});
-
 test("mensaje encolado + cambio de modelo o esfuerzo: sale con lo elegido al desencolarse, no con lo que había al encolar", async () => {
   const a = armar();
   const vistos: { modelo: string; effort: string }[] = [];
@@ -390,12 +374,15 @@ test("elegir sin cola no guarda nada (no queda una selección vieja pisando a un
   assert.equal(a.cola.seleccion(SID), null);
 });
 
-test("un aviso de Trama lo lleva su mensaje; juntado con algo del usuario deja de serlo", () => {
+test("un aviso de Trama lo lleva su mensaje; juntado con algo del usuario deja de serlo", async () => {
   const av: Encolado = { id: 1, texto: "[Aviso automático de Trama] Worker «a» terminó. Id: 1.", modelo: "m", effort: "e", aviso: true };
   const yo: Encolado = { id: 2, texto: "seguí", modelo: "m", effort: "e" };
   assert.equal(juntar([av]).aviso, true, "uno solo sale tal cual, con su marca");
   assert.equal(juntar([av, { ...av, id: 3 }]).aviso, true, "un lote sólo de avisos sigue siendo de avisos");
   assert.equal(juntar([av, yo]).aviso, undefined, "con algo escrito por el usuario, es suyo");
   // Se guarda en cola.json con la marca.
-  assert.equal(paraDisco(new Map([["s", [av]]])).s[0].aviso, true);
+  const dc = armar();
+  dc.cola.encolar(SID, av);
+  await tic();
+  assert.equal(JSON.parse(dc.guardado()!).colas[SID][0].aviso, true);
 });

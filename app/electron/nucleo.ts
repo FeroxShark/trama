@@ -15,7 +15,7 @@ import { leerVram, liberarVram } from "./vram.ts";
 import { leerEntornoOllama } from "./ollama-entorno.ts";
 import { carpetaLocal } from "./local.ts";
 import { existsSync } from "node:fs";
-import { readFile, stat as statArchivo } from "node:fs/promises";
+import { mkdir, readdir, readFile, rm, stat as statArchivo } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { almacenBorradores } from "./borradores.js";
@@ -60,7 +60,7 @@ import { esperandoWorkers, lideresConWorkers, workersEsperados, workersVivosDe }
 import * as lider from "./lider.js";
 import { nombreDueno } from "./dueno.ts";
 import { entornoLider } from "./lider-arma.js";
-import { crearCola } from "./cola.js";
+import { crearCola, entroEn } from "./cola.js";
 import { crearEspera } from "./espera.js";
 import { crearAvisosWorker, REVISAR_MS } from "./avisos-worker.js";
 import { crearAvisosPendientes, type FilaHilo } from "./avisos-pendientes.js";
@@ -323,6 +323,16 @@ const NO_TRAE: Record<string, string> = {
   abierto: textoT("lider.noTraer"),
   sinSesion: textoT("lider.noSesion"),
   sinCarpeta: textoT("lider.noCarpeta"),
+  noEntro: textoT("lider.colaNoEntro"),
+  cortado: textoT("lider.colaCortado"),
+  sinImagen: textoT("lider.colaSinImagen"),
+};
+/** Cada imagen de la cola, en su archivo (cola.ts): `cola.json` queda chico. El nombre lo arma la cola; uno raro (un archivo tocado a mano) no se lee ni se borra. */
+const DIR_COLA_IMAGENES = path.join(ESTADO, "cola-imagenes");
+const ARCHIVO_COLA_IMAGEN = /^\d+-\d+$/;
+const rutaColaImagen = (a: string) => {
+  if (!ARCHIVO_COLA_IMAGEN.test(a)) throw new Error("archivo raro");
+  return path.join(DIR_COLA_IMAGENES, a);
 };
 const cola = crearCola({
   disponible: async (sid) => (saliendo ? "ocupado" : lider.disponible(sid)),
@@ -334,6 +344,22 @@ const cola = crearCola({
   enTurno: (sid, x) => lider.mandarDirecto({ sid, texto: x.texto, imagenes: x.imagenes, modelo: x.modelo, effort: x.effort }),
   textoError: (x) => ("motivo" in x ? (NO_TRAE[x.motivo] ?? NO_TRAE.abierto) : String((x.error as Error)?.message ?? x.error)),
   guardar: (json) => escribirAtomico(ARCHIVO_COLA, json).catch(silencio("cola")),
+  adjuntos: {
+    guardar: async (a, datos) => {
+      await mkdir(DIR_COLA_IMAGENES, { recursive: true });
+      await escribirAtomico(rutaColaImagen(a), datos);
+    },
+    leer: (a) => readFile(rutaColaImagen(a), "utf8").catch(() => null),
+    borrar: (a) => rm(rutaColaImagen(a), { force: true }),
+    listar: async () => (await readdir(DIR_COLA_IMAGENES).catch(() => [] as string[])).filter((a) => ARCHIVO_COLA_IMAGEN.test(a)),
+  },
+  // ¿Entró lo que el motor tomó? Lo dice el transcript (cola.ts: nunca se pierde ni se manda dos veces).
+  verificar: async (sid, texto, desde) => {
+    const c = await lider.conversacionLider({ sid, n: 60 });
+    return entroEn(c.mensajes as { rol?: string; texto?: string }[], c.total, texto, desde);
+  },
+  // «Cortar y enviar ahora» con un líder de la app: se para el turno; al terminar (el evento `estado`) la cola sigue sola.
+  cortar: (sid) => lider.parar(sid),
   avisar: (a) => (movio(a.sid), enviar("lider:cola", a)),
   // Los avisos de workers que llevaba un mensaje: entregados sólo cuando de verdad salió (avisos-pendientes.ts).
   salida: (sid, claves, que) => avisosL.salida(sid, claves, que),
@@ -509,7 +535,7 @@ const programados = crearProgramados({
 /** Lo que quedó de la vez anterior, leído una sola vez. */
 let colaLeida: Promise<void> | null = null;
 let enviarEventos: Promise<unknown> = Promise.resolve();
-const leerCola = () => (colaLeida ??= readFile(ARCHIVO_COLA, "utf8").then(cola.cargar, () => {}));
+const leerCola = () => (colaLeida ??= readFile(ARCHIVO_COLA, "utf8").then(cola.cargar, () => cola.cargar(null)));
 
 // --- Statusline -----------------------------------------------------------------
 
@@ -1181,6 +1207,9 @@ export function armarNucleo() {
     enviar("lider:evento", { sid, e });
     // Quedó libre (fin del turno, Parar, el proceso salió): sale lo que esperaba en la cola.
     if (e.tipo === "estado" && !e.ocupado) void leerCola().then(() => cola.libre(sid));
+    // El eco del CLI: lo que estaba en camino a mitad del turno entró (recién ahora va al chat y deja el disco). El fin del turno, lo que salió como uno propio.
+    if (e.tipo === "entregado") void leerCola().then(() => cola.entro(sid, e.texto));
+    if (e.tipo === "fin") void leerCola().then(() => cola.finTurno(sid));
     // Empezó o terminó un turno: lo que esperaba a su próximo turno (o su vuelta) puede salir.
     if (e.tipo === "estado") conAvisos(() => avisosL.entregar(sid));
   });
@@ -1292,7 +1321,7 @@ export function armarNucleo() {
     verEspera(String(x?.sid));
     return lider.traer({ sid: x?.sid, modelo: x?.modelo, effort: x?.effort, nombre: x?.nombre, modo: x?.modo, cortar: x?.cortar === true });
   });
-  // La cola: encolar, sacar, lo que hay (una vista que recién abre) y "ahora" (reintentar, o cortar al de la terminal).
+  // La cola: encolar, sacar, editar, ordenar, frenar su salida un rato, lo que hay (una vista que recién abre) y "ahora" (reintentar, o cortar el turno y que siga).
   manejar("lider:encolar", async (_e, x: { sid: string; texto: string; imagenes?: unknown; modelo: string; effort: string; modo?: string; nombre?: string }) => {
     const { sid, item } = lider.paraCola(x ?? {});
     verEspera(sid);
@@ -1317,6 +1346,12 @@ export function armarNucleo() {
     return { sid, nombre: lider.nombreDe(sid) };
   });
   manejar("lider:colaQuitar", (_e, x: { sid: string; id: number }) => cola.quitar(String(x?.sid), Number(x?.id)));
+  manejar("lider:colaEditar", (_e, x: { sid: string; id: number; texto: string; sinImagenes?: unknown }) => {
+    const sin = Array.isArray(x?.sinImagenes) ? x.sinImagenes.filter((k): k is number => Number.isInteger(k)) : [];
+    if (!cola.editar(String(x?.sid), Number(x?.id), String(x?.texto ?? ""), sin)) throw errorT("main.colaYaSalio");
+  });
+  manejar("lider:colaOrden", (_e, x: { sid: string; ids: unknown }) => cola.ordenar(String(x?.sid), Array.isArray(x?.ids) ? x.ids.map(Number).filter(Number.isInteger) : []));
+  manejar("lider:colaRetener", (_e, x: { sid: string; si: unknown }) => cola.retener(String(x?.sid), x?.si === true));
   manejar("lider:colas", async () => {
     await leerCola();
     return cola.todas();
