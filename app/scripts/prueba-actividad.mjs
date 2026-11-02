@@ -125,13 +125,19 @@ const tarjeta = () =>
     const animadas = [tv, ...tv.querySelectorAll("*")].flatMap((e) => e.getAnimations());
     return {
       tipo: tv.dataset.t,
-      verbo: tv.querySelector(".tv-v")?.textContent ?? "",
+      titulo: tv.querySelector(".tv-v")?.textContent ?? "",
+      verbo: tv.querySelector(".tv-verbo")?.textContent ?? "",
+      linea: tv.querySelector(".tv-out")?.textContent ?? "",
       detalle: tv.querySelector(".tv-dt")?.textContent ?? "",
-      vivo: tv.querySelector(".tv-vivo")?.textContent ?? "",
-      pliegue: !!tv.querySelector(".tv-pliega"),
-      boton: tv.querySelector(".tv-ent .tv-mas")?.textContent ?? "",
+      abierto: tv.dataset.abierto !== undefined,
+      alto: tv.getBoundingClientRect().height,
+      boton: tv.querySelector(".tv-ver")?.textContent ?? "",
       pasos: [...tv.querySelectorAll(".tv-pasos li")].map((l) => l.textContent),
-      reloj: tv.querySelector(".tv-t1 .tv-x")?.textContent ?? "",
+      reloj: tv.querySelector(".tv-est .tv-x")?.textContent ?? "",
+      parar: [...tv.querySelectorAll("button")].filter((b) => /^(Parar|Stop)$/.test(b.textContent.trim())).length,
+      paradas: [...document.querySelectorAll("button")].filter((b) => /^(Parar|Stop)$/.test(b.textContent.trim()) && b.offsetParent).length,
+      escritos: /En curso|In progress|Working|Trabajando/.test(tv.textContent),
+      pastilla: !!document.querySelector(".pastilla-trabajando"),
       escena: esc ? { w: esc.getBoundingClientRect().width, h: esc.getBoundingClientRect().height } : null,
       piezas: [...tv.querySelectorAll("svg [class^='e-']")].filter((e) => e.style.transform || e.style.opacity).length,
       infinitas: animadas.filter((a) => a.effect?.getComputedTiming().iterations === Infinity).length,
@@ -164,11 +170,15 @@ try {
   ok(!!(await esperar(() => true, 15)), "al responder aparece la tarjeta");
   const c = await esperar((x) => x.tipo === "comando" && x.pasos.length >= 2, 15);
   ok(c?.tipo === "comando", `tipo comando mientras corre el Bash: ${c?.tipo}`);
-  ok(c?.verbo === "Corriendo", `el verbo: «${c?.verbo}»`);
-  ok(/paso/i.test(c?.detalle ?? ""), `la pastilla dice lo concreto: «${c?.detalle}»`);
+  ok(/^Paso \d+ de \d+$/.test(c?.titulo ?? ""), `el título es la descripción del comando: «${c?.titulo}»`);
+  ok(c?.verbo === "Corriendo" || c?.verbo === "Corrió", `abajo dice qué pasa con el comando: «${c?.verbo}»`);
+  ok(/paso/i.test(c?.detalle ?? ""), `«Ver todo» tiene lo concreto: «${c?.detalle}»`);
   ok(c?.pasos.length === 2 && c.pasos.every((p) => p.startsWith("Corrió")), `los dos pasos de atrás: ${JSON.stringify(c?.pasos)}`);
   ok(/^\d+ s$/.test(c?.reloj ?? ""), `el tiempo corre: «${c?.reloj}»`);
-  ok(c?.vivo === "En curso", `el paso que hace ahora dice «En curso» mientras vive: «${c?.vivo}»`);
+  ok(c?.escritos === false, "un solo estado: ni «En curso» ni «Trabajando» escritos");
+  ok(c?.parar === 0 && c?.paradas === 1, `un solo Parar a la vista, el de la caja: ${c?.parar} en la tarjeta, ${c?.paradas} en pantalla`);
+  ok(c?.pastilla === false, "la cabecera no repite la pastilla de trabajando");
+  ok(!!c && c.alto < 110, `la tarjeta es baja: ${c?.alto} px`);
   ok(c?.escena?.w === 44 && c.escena.h === 44, `la escena mide 44 px: ${JSON.stringify(c?.escena)}`);
   ok(!!c && c.ancho <= c.zona, `la tarjeta cabe en la conversación: ${c?.ancho} ≤ ${c?.zona}`);
   await foto("comando");
@@ -180,6 +190,8 @@ try {
   const c2 = await tarjeta();
   ok(!!c2 && c2.piezas > 0 && c2.infinitas === 0, `${c2?.piezas} piezas con estilo del latido y ${c2?.infinitas} animaciones CSS infinitas`);
   ok(await libre(), "terminó el turno y la tarjeta se fue");
+  const chip = await en(() => document.querySelector(".conv-zona .trabajo[data-fin=listo]")?.textContent ?? "");
+  ok(/Corrió/.test(chip), `se pliega a una línea: «${chip}»`);
   // Sin tarjeta no queda ninguna escena (el latido deja de pintarlas y limpia sus piezas).
   ok(await en(() => document.getElementsByClassName("esc").length === 0), "sin tarjeta no queda ninguna escena en pantalla");
 
@@ -187,26 +199,26 @@ try {
   await mandar("comando largo");
   const l = await esperar((x) => x.tipo === "comando" && /--tope 120/.test(x.detalle), 15);
   ok(!!l && l.detalle.length > 200 && !l.detalle.includes("…"), `el comando largo entero, sin «…»: ${l?.detalle.length ?? 0} caracteres`);
-  ok(l?.pliegue === true && /Ver todo/.test(l.boton), `lo muy largo se pliega con «${l?.boton}»`);
-  ok(l?.vivo === "En curso", `el comando largo también dice «${l?.vivo}»`);
+  ok(l?.abierto === false && /Ver todo/.test(l.boton), `lo muy largo se pliega con «${l?.boton}»`);
+  ok(l?.titulo === "Prueba larga de la tarjeta", `el comando largo con su descripción: «${l?.titulo}»`);
   await foto("comando-largo");
-  await en(() => document.querySelector(".conv-zona .tv .tv-ent .tv-mas")?.click());
-  const abierto = await esperar((x) => x.tipo === "comando" && !x.pliegue, 3);
-  ok(!!abierto, `«Ver todo» despliega el comando: «${abierto?.boton}»`);
+  await en(() => document.querySelector(".conv-zona .tv .tv-ver")?.click());
+  const abierto = await esperar((x) => x.tipo === "comando" && x.abierto && x.alto > (l?.alto ?? 0) + 40, 3);
+  ok(!!abierto && /Ver menos/.test(abierto.boton), `«Ver todo» despliega el comando: «${abierto?.boton}»`);
   await foto("comando-largo-abierto");
   ok(await libre(), "terminó el comando largo y la tarjeta se fue");
 
   // --- Escribiendo: la respuesta larga ---------------------------------------------------
   await mandar("novela");
   const e = await esperar((x) => x.tipo === "escribiendo", 15);
-  ok(e?.verbo === "Escribiendo" && /respuesta/.test(e.detalle), `escribiendo la respuesta: «${e?.verbo}» «${e?.detalle}»`);
+  ok(e?.titulo === "Escribiendo" && /respuesta/.test(e.linea), `escribiendo la respuesta: «${e?.titulo}» «${e?.linea}»`);
   await foto("escribiendo");
   ok(await libre(), "terminó la novela y la tarjeta se fue");
 
   // --- Te necesita: una pregunta sin contestar ------------------------------------------
   await mandar("preguntame");
   const p = await esperar((x) => x.tipo === "permiso", 15);
-  ok(p?.verbo === "Te necesita" && /pregunta/.test(p.detalle), `la pregunta sin contestar manda: «${p?.verbo}» «${p?.detalle}»`);
+  ok(p?.titulo === "Te necesita" && /pregunta/.test(p.linea), `la pregunta sin contestar manda: «${p?.titulo}» «${p?.linea}»`);
 } finally {
   app.kill();
 }

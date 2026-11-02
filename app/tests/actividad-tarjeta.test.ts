@@ -152,7 +152,7 @@ test("sin novedades: ámbar con la palabra, sin punto que late", () => {
   assert.match(html, /data-estado="quieto"/);
   assert.doesNotMatch(html, /tv-punto late/);
   // El texto lo pinta el reloj (el render estático no lo trae): lo mismo que le pasa la tarjeta.
-  const texto = () => pintorDura(Math.floor(Date.now() / 1000) - 125, () => `${t("hz.quieto")} `)();
+  const texto = () => pintorDura(AHORA - 125, () => `${t("hz.quieto")} `)(AHORA).texto;
   assert.equal(texto(), "Sin novedades hace 2 m");
   cambiarIdioma("en");
   assert.equal(texto(), "No updates for 2 m");
