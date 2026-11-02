@@ -86,6 +86,7 @@ export interface Corrida {
   /** La rúbrica normalizada (`RUB_NORM`). */
   rubrica?: string;
   subtarea?: string;
+  titulo?: string;
   /** El session id: el nuevo (uuid) o el que se retoma. */
   sid: string;
   resume: boolean;
@@ -550,6 +551,7 @@ export function escribirHilo(l: Lanzamiento): void {
     ["tarea_id", c.tareaId ?? ""],
     ["rubrica", c.rubrica ?? ""],
     ["subtarea", c.subtarea ?? ""],
+    ["titulo", plano(c.titulo ?? "")],
   ];
   try {
     writeFileSync(f, campos.map(([k, v]) => `${k}=${v}\n`).join(""));

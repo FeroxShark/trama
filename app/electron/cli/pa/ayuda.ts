@@ -108,6 +108,7 @@ export const AYUDA: readonly string[] = [
   "                                       es lo que agrupa `pa --rinde`. Un --seguir sin --tipo hereda el de la retomada",
   "  pa <proyecto> --fase F1..F7 --tarea <slug> \"<t>\"  fase del protocolo y tarea madre de la corrida (o env PA_FASE / PA_TAREA): van a medicion.tsv",
   "                                       y al .hilo; `pa --rinde --por fase|tarea` las agrupa. Un --seguir las hereda",
+  "  pa <proyecto> --titulo \"<texto>\"     cómo se llama el worker en la barra de Trama (una línea corta); sin él sale del objetivo del brief",
   "  pa <proyecto> --subtarea <Tn> --tarea <slug> \"<t>\"  subtarea de la tarea madre (o env PA_SUBTAREA; sin ella, '-'). Con --tarea, al",
   "                                       terminar la corrida anota una fila en tareas/<slug>/estado.tsv (intento = filas previas de esa",
   "                                       subtarea + 1; modelo, effort, exit y usd de la corrida). Un --seguir la hereda",

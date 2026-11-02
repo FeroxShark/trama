@@ -480,7 +480,8 @@ export function Barra() {
       if (t !== undefined && h.frenado_en == null && (h.estado === "trabajando" || h.estado === "colgado" || h.estado === "murio"))
         h = { ...h, estado: "murio", frenado_en: t, murio_en: h.murio_en ?? t, arrancando: false };
       if (nombres.titulos[h.id]) return { ...h, tarea: nombres.titulos[h.id] };
-      // Un brief largo se ve por su objetivo; la vista del worker sigue mostrando la tarea entera.
+      // El que puso `pa --titulo` manda; sin él, un brief largo se ve por su objetivo (sin las líneas de reglas). La vista del worker sigue mostrando la tarea entera.
+      if (h.titulo) return h;
       const titulo = tituloTarea(h.tarea);
       return titulo && titulo !== h.tarea ? { ...h, titulo } : h;
     });

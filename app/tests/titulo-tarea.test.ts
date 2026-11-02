@@ -29,3 +29,11 @@ test("tituloTarea: recorta a ~60 caracteres en una palabra entera", () => {
   assert.ok(!t.includes("palabr…"));
   assert.equal(tituloTarea("[x] Objetivo: " + "a".repeat(100)).length, 60);
 });
+
+test("tituloTarea: salta el encabezado de reglas («Seguí AGENTS.md…») y toma la primera línea con la tarea", () => {
+  const brief = "Seguí AGENTS.md (Linux y Windows juntos, tokens.css, i18n es+en). Usá ui-ux-pro-max y taste-skill. Respetá app/src/barra/CONVENCIONES.md.\nHacé DOS cosas aprobadas por el dueño.\nPasos: primero una.";
+  assert.equal(tituloTarea(brief), "Hacé DOS cosas aprobadas por el dueño.");
+  assert.equal(tituloTarea("Reglas: lo de siempre\nArreglar el instalador"), "Arreglar el instalador");
+  // Sólo reglas: mejor eso que nada.
+  assert.equal(tituloTarea("Seguí AGENTS.md."), "Seguí AGENTS.md.");
+});

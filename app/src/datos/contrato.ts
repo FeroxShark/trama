@@ -28,7 +28,7 @@ export type Hilo = {
   id: string;
   proyecto: string;
   tarea: string;
-  /** Cómo se llama en la barra (el objetivo del brief, corto); sólo si difiere de `tarea`. Un título puesto a mano va en `tarea`. */
+  /** Cómo se llama en la barra: el de `pa --titulo` o, sin él, el objetivo del brief (corto, lo arma la barra); sólo si difiere de `tarea`. Un título puesto a mano va en `tarea`. */
   titulo?: string;
   modelo: string;
   effort: string;

@@ -475,6 +475,7 @@ function armar(h: Hecho, mtimes: Map<string, number>, ahora: number, offs: numbe
     id: h.id,
     proyecto: h.slug,
     tarea: noVacio(H.tarea) ?? noVacio(h.tareaRun) ?? tareaT,
+    titulo: noVacio(H.titulo),
     modelo,
     effort: noVacio(H.effort),
     cuenta: noVacio(H.cuenta),

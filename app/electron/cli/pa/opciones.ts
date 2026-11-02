@@ -8,7 +8,7 @@ import type { Modelos } from "./modelos.ts";
 
 /** Los flags que llevan valor (`flags_con_valor` del bash). */
 export const FLAGS_CON_VALOR = [
-  "--max-turns", "--id", "--integrar", "--descartar", "--actualizar", "--nota", "--max-budget-usd", "-m", "--model", "--effort", "--tipo",
+  "--max-turns", "--id", "--integrar", "--descartar", "--actualizar", "--nota", "--max-budget-usd", "-m", "--model", "--effort", "--tipo", "--titulo",
   "--fase", "--tarea", "--subtarea", "--rubrica", "--cuenta", "--brief-archivo", "--leccion", "--auditar", "--decisiones", "--espejo",
   "--test-inline", "--seguir-con", "--retoma-de", "--objetivo", "--verificar", "--intentos", "--tope-cupo",
 ];
@@ -52,6 +52,7 @@ export interface Opciones {
   fase: string;
   tareaId: string;
   subtarea: string;
+  titulo: string;
   rubrica: string;
   okDueno: boolean;
   /** --exacto: el -m claude-* corre tal cual, sin pasarlo a agy aunque haya más cupo. */
@@ -113,6 +114,7 @@ export function opcionesIniciales(proyecto: string, env: Env, plan: "pro" | "max
     fase: env.PA_FASE ?? "",
     tareaId: env.PA_TAREA ?? "",
     subtarea: env.PA_SUBTAREA ?? "",
+    titulo: "",
     rubrica: "",
     okDueno: false,
     exacto: false,
@@ -373,6 +375,7 @@ export function parsearOpciones(args: string[], o: Opciones, ctx: CtxParseo): Op
       case "--fase": o.fase = valor; dos(); break;
       case "--tarea": o.tareaId = valor; dos(); break;
       case "--subtarea": o.subtarea = valor; dos(); break;
+      case "--titulo": o.titulo = valor; dos(); break;
       case "--rubrica": o.rubrica = valor; dos(); break;
       case "--ok-dueno": o.okDueno = true; i++; break;
       case "--exacto": o.exacto = true; i++; break;

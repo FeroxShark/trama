@@ -14,6 +14,8 @@ export type FilaWorker = {
   estado: string;
   en_cola?: boolean;
   tarea?: string | null;
+  /** El título que puso `pa --titulo`; gana sobre el objetivo del brief. */
+  titulo?: string | null;
   modelo?: string | null;
   jefe_id?: string | null;
   jefe?: string | null;
@@ -231,7 +233,7 @@ export function crearAvisosWorker(d: Deps) {
   const base_ = (h: FilaWorker) => ({
     id: h.id,
     proyecto: h.proyecto,
-    tarea: tareaCorta(h.tarea),
+    tarea: h.titulo || tareaCorta(h.tarea),
     modelo: h.modelo ?? "",
     jefe_id: h.jefe_id || null,
     jefe: h.jefe ?? null,

@@ -282,7 +282,7 @@ export function crearAvisosPendientes(d: Deps) {
           clave: `${h.id}:${h.estado === "murio" ? "falla" : "fin"}`,
           id: h.id,
           proyecto: h.proyecto,
-          tarea: tareaCorta(h.tarea),
+          tarea: h.titulo || tareaCorta(h.tarea),
           modelo: h.modelo ?? "",
           jefe_id: jefe,
           jefe: h.jefe ?? null,
