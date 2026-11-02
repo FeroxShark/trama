@@ -1,5 +1,5 @@
 // Un líder de la app con su proceso vivo cuando trama se corta sin cerrarlo (se reinicia la PC, se cae la app): al
-// arrancar queda Murió con su motivo y Retomar lo levanta con su sesión. Lo que `cerrarTodos` cerró bien queda dormido,
+// arrancar queda dormido (nunca Murió: cerrar o reiniciar la app no mata a un líder) y vuelve a tener proceso con su sesión. Lo que `cerrarTodos` cerró bien queda dormido,
 // no cortado (electron/lider.ts: `corriendo`, `marcarCortados`). Armado como tests/lider-reinicio.test.ts: la trama nueva
 // es otra copia del módulo leyendo el mismo lideres.json.
 import { after } from "node:test";
@@ -34,6 +34,7 @@ process.env.TRAMA_FALSO_MS = "20";
 mkdirSync(process.env.HILOS_SESIONES);
 writeFileSync(process.env.PROYECTOS_REGISTRY, "{}");
 
+const { leerStatusline } = await import("../electron/statusline.ts");
 const antes = await import("../electron/lider.ts");
 let despues: typeof antes | undefined;
 after(async () => {
@@ -73,7 +74,7 @@ test("cerrar la trama bien: lo que tenía proceso queda dormido y ya no figura c
   }
 });
 
-test("un proceso que se corta con la trama andando: al arrancar queda Murió con motivo; Retomar lo levanta; el dormido no", { timeout: 30_000 }, async () => {
+test("un proceso que se corta con la trama andando: al arrancar queda dormido (no Murió) y vuelve con su sesión; el dormido no se toca", { timeout: 30_000 }, async () => {
   const [sid, dormido] = (await antes.lideresApp()).filter((g) => g.dormido).map((g) => g.sid);
   // Como lo deja una caída: el proceso no llegó a cerrarse (sin `fin`), así que `corriendo` quedó en disco y sin `dormido`.
   const ls = JSON.parse(readFileSync(path.join(tmp, "estado", "lideres.json"), "utf8"));
@@ -86,16 +87,18 @@ test("un proceso que se corta con la trama andando: al arrancar queda Murió con
   // La trama nueva: otra copia del módulo, sin procesos.
   despues = (await import("../electron/lider.ts?arranque=2")) as typeof antes;
   assert.deepEqual(await despues.marcarCortados(), [sid], "sólo el que se cortó; el dormido sigue como estaba");
-  assert.ok((fila(sid).murio ?? 0) > 0, "queda Murió");
-  assert.match(fila(sid).motivo ?? "", /se cortó/);
+  assert.equal(fila(sid).murio, undefined, "reiniciar la app (o que Windows la mate) no vuelve muerto a un líder");
+  assert.equal(fila(sid).motivo, undefined);
+  assert.ok((fila(sid).dormido ?? 0) > 0, "queda dormido: se retoma solo");
   assert.equal(fila(sid).corriendo, undefined);
   assert.ok(fila(dormido).dormido, "el dormido no se toca");
   assert.equal(despues.procDe(sid), null);
+  const l = (await leerStatusline()).lideres.lideres.find((x) => x.id === sid)!;
+  assert.equal(l.caido, undefined, "la barra no le pone señal de muerte");
 
-  // Retomar lo relanza ya con su sesión (`--resume`), y ya no es Murió.
-  assert.deepEqual(await despues.retomar({ sid, ...M }), { ok: true });
+  // Vuelve a tener proceso con su sesión, sin que nadie escriba, y sin ser Murió.
+  assert.deepEqual([...(await despues.reanudarDormidos(0))].sort(), [sid, dormido].sort());
   await hasta(() => despues!.procDe(sid) !== null);
   assert.equal(fila(sid).murio, undefined);
-  assert.equal(fila(sid).motivo, undefined);
-  assert.ok(existsSync(arranques) && readFileSync(arranques, "utf8").includes(sid), "se lanzó con su id");
+  await hasta(() => existsSync(arranques) && readFileSync(arranques, "utf8").includes(sid));
 });

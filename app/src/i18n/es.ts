@@ -1879,7 +1879,7 @@ export const es: { [K in keyof typeof en]: string } = {
   "barra.dormidos1": "{n} dormido",
   "barra.dormidosN": "{n} dormidos",
   "barra.ocultarDormidos": "Ocultar dormidos",
-  "barra.dormidosTip": "Sin proceso hace más de un día. No se borran: abrilos para retomarlos, archivarlos o borrarlos",
+  "barra.dormidosTip": "Sin proceso hace más de una semana. No se borran: abrilos para retomarlos, archivarlos o borrarlos",
   "barra.claudeCode": "De Claude Code ({n})",
   "barra.claudeCodeTip": "Conversaciones de Claude Code que no se abrieron desde Trama. Tocá una para retomarla acá, en su carpeta; sus archivos no se modifican",
   "barra.claudeBuscar": "Buscar conversaciones",

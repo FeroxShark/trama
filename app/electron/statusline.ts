@@ -308,7 +308,7 @@ export async function leerStatusline(): Promise<Statusline> {
   for (const g of deApp.values()) {
     const p = procDe(g.sid);
     const ultimo = Math.max(g.ultimo, g.creado);
-    // Ninguno se esconde por viejo: la barra pliega los de más de un día sin proceso en "Dormidos" (`DORMIDO_S`, arbol.ts).
+    // Ninguno se esconde por viejo: la barra pliega los de más de una semana sin proceso en "Dormidos" (`MUERTO_S`, arbol.ts).
     const t = await deQueTrata(g.sid, g.cwd ?? null, g.nombre, regs, home, g.origen, g.modelo);
     lideres.push({
       id: g.sid,

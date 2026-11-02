@@ -11,12 +11,12 @@ import type { Recientes } from "./recientes.ts";
 /** Un líder sin workers a la vista, sin responder y sin actividad en esto, va plegado en "N líderes en espera". */
 export const ESPERA_S = 30 * 60;
 /**
- * Un líder sin proceso (cerrado, o muerto) y sin workers a la vista, con más de esto sin actividad, está dormido:
- * va plegado al final de su carpeta en "N dormidos". Nada se esconde por tiempo, sólo se pliega.
+ * El único corte por antigüedad de la barra: pasada una semana sin actividad algo se da por muerto, y recién ahí cambia de lugar.
+ * Un líder sin proceso (cerrado, dormido o muerto) y sin workers a la vista, con más de esto sin actividad, va plegado al final de su
+ * carpeta en "N dormidos"; un worker cuyo líder ya no vive se muestra (bajo su líder sin proceso, o en "sin líder") hasta esto.
+ * Nada se esconde por tiempo, sólo se pliega, y ninguna otra constante de antigüedad corta antes (ni 6 h, ni "ayer"): un día calendario no cuenta.
  */
-export const DORMIDO_S = 24 * 3600;
-/** Un worker cuyo líder ya no vive se muestra (bajo su líder sin proceso, o en "sin líder") hasta esto. */
-export const HUERFANO_S = 24 * 3600;
+export const MUERTO_S = 7 * 24 * 3600;
 
 export type Item = { h: Hilo; estado: Estado };
 
@@ -46,7 +46,7 @@ export type Rama = {
 /**
  * `ramas`: los líderes en su orden fijo (`ordenLideres`) y, al final, lo suelto y lo huérfano.
  * `espera`: los líderes ociosos, plegados al final en "N líderes en espera"
- * (pliegue de clave `espera:<proyecto>`). `dormidos`: los sin proceso de más de un día, plegados
+ * (pliegue de clave `espera:<proyecto>`). `dormidos`: los sin proceso de más de una semana, plegados
  * después de ésos en "N dormidos" (`dormidos:<proyecto>`).
  */
 export type Carpeta = {
@@ -385,7 +385,7 @@ export function lideresSinProceso(
     if (!h.jefe_id || !deLider(h) || estan.has(h.jefe_id)) continue;
     creado.set(h.jefe_id, Math.min(creado.get(h.jefe_id) ?? Infinity, h.inicio));
     const it: Item = { h, estado: estadoVisto(h, optimista?.get(h.id)) };
-    if (!activo(it) && fin(h) < ahora - HUERFANO_S) continue;
+    if (!activo(it) && fin(h) < ahora - MUERTO_S) continue;
     let x = por.get(h.jefe_id);
     if (!x) por.set(h.jefe_id, (x = { nombre: "", actividad: 0, pide: false }));
     x.nombre ||= h.jefe ?? "";
@@ -534,14 +534,14 @@ export function armarArbol(hilos: Hilo[], { optimista, lideres: todos, settleado
     if (l) {
       // Lo que `pa` ya cerró no queda colgando: va a "Cerrados" (buscando, plegado en su carpeta).
       // Lo viejo de un líder sin proceso tampoco, como lo de un huérfano.
-      if (!buscando && (cerrado(it.estado) || (l.caido && !activo(it) && fin(h) < ahora - HUERFANO_S))) sueltos.push(it);
+      if (!buscando && (cerrado(it.estado) || (l.caido && !activo(it) && fin(h) < ahora - MUERTO_S))) sueltos.push(it);
       else {
         const r = ramaLider(l);
         (plegar(it, l.proyecto, !l.caido) ? r.viejas : r.vivas).push(it);
       }
     } else if (deLider(h) && !arrancando(h, ahora)) {
       // Huérfano: su líder ya no vive. (Uno recién lanzado todavía no dice quién es su líder: va suelto.)
-      if (!buscando && !activo(it) && fin(h) < ahora - HUERFANO_S) {
+      if (!buscando && !activo(it) && fin(h) < ahora - MUERTO_S) {
         sueltos.push(it);
         continue;
       }
@@ -571,9 +571,9 @@ export function armarArbol(hilos: Hilo[], { optimista, lideres: todos, settleado
     // Uno sin proceso no espera nada: queda a la vista hasta que el usuario lo retome o lo archive.
     const ocioso = (r: Rama) =>
       !buscando && !enCalor(r) && !r.lider!.ocupado && !r.lider!.caido && r.vivas.length + r.viejas.length === 0 && r.lider!.actividad < ahora - ESPERA_S;
-    // Dormido: sin proceso, nada colgando y más de un día quieto (también el Murió): no se esconde, se pliega al final.
+    // Dormido: sin proceso, nada colgando y más de una semana quieto (`MUERTO_S`) (también el Murió): no se esconde, se pliega al final.
     const dormido = (r: Rama) =>
-      !buscando && !enCalor(r) && !r.lider!.vivo && !r.lider!.ocupado && r.vivas.length + r.viejas.length === 0 && r.lider!.actividad < ahora - DORMIDO_S;
+      !buscando && !enCalor(r) && !r.lider!.vivo && !r.lider!.ocupado && r.vivas.length + r.viejas.length === 0 && r.lider!.actividad < ahora - MUERTO_S;
     const dormidos = frios.filter(dormido);
     const espera = frios.filter((r) => !dormido(r) && ocioso(r));
     const ramas = [...frios.filter((r) => !dormido(r) && !ocioso(r)), a.sueltas, a.huerfanos].filter(

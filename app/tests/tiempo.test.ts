@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { cambiarIdioma } from "../src/i18n/index.ts";
-import { cuando, cuandoLargo, pintorCuando, pintorReinicio, pintorResta } from "../src/tiempo.ts";
+import { cuando, cuandoLargo, pintorCuando, pintorHace, pintorReinicio, pintorResta } from "../src/tiempo.ts";
 
 const MIN = 60;
 const HORA = 3600;
@@ -78,4 +78,23 @@ test("la hora de un mensaje: hoy sólo la hora, ayer, otro día con la fecha, ot
   assert.equal(cuando(en(2026, 9, 1, 9, 5), ahora), "1 oct 09:05");
   assert.match(cuandoLargo(en(2026, 9, 2, 22, 41)), /2 de octubre de 2026.*22:41/);
   cambiarIdioma("en");
+});
+
+test("hace cuánto: menos de 24 h nunca dice «ayer» (hace 6 h, hace 23 h); «ayer» es de 24 a 48 h; recién desde una semana, la fecha", () => {
+  const AHORA = Date.parse("2026-11-02T03:00:00") / 1000; // de madrugada: lo de las 22 h de «ayer» (calendario) tiene 5 h
+  cambiarIdioma("es");
+  try {
+    const hace = (seg: number) => pintorHace(AHORA - seg)(AHORA).texto;
+    assert.equal(hace(30 * MIN), "hace 30 m");
+    assert.equal(hace(5 * HORA), "hace 5 h", "las 22 h del día anterior no son «ayer»: pasaron 5 h");
+    assert.equal(hace(6 * HORA), "hace 6 h");
+    assert.equal(hace(23 * HORA + 59 * MIN), "hace 23 h");
+    assert.equal(hace(24 * HORA), "ayer");
+    assert.equal(hace(47 * HORA), "ayer");
+    assert.equal(hace(6 * DIA), "hace 6 d");
+    assert.match(hace(8 * DIA), /\d/, "pasada la semana es una fecha corta");
+    assert.doesNotMatch(hace(8 * DIA), /hace/);
+  } finally {
+    cambiarIdioma("en");
+  }
 });

@@ -56,7 +56,7 @@ antes.alEvento((sid, e) => eventosAntes.push({ sid, tipo: e.tipo }));
 const lanzamientos = (sid: string) =>
   (existsSync(arranques) ? readFileSync(arranques, "utf8").trim().split("\n").map((l) => JSON.parse(l) as { args: string[] }) : []).filter((x) => x.args.includes(sid));
 
-test("reiniciar con un líder ocupado, uno quieto y uno sin turnos: los tres vuelven, y el que no puede queda Murió con motivo", { timeout: 60_000 }, async () => {
+test("reiniciar con un líder ocupado, uno quieto y uno sin turnos: los tres vuelven, y el que no puede levantarse queda retomable (no Murió)", { timeout: 60_000 }, async () => {
   const quieto = await antes.nuevo({ ...M, texto: "hola" });
   await hasta(() => eventosAntes.some((x) => x.sid === quieto && x.tipo === "fin"));
   const ocupado = await antes.nuevo({ ...M, texto: "despacio" });
@@ -106,11 +106,16 @@ test("reiniciar con un líder ocupado, uno quieto y uno sin turnos: los tres vue
   assert.equal(lanzamientos(sinTurnos).at(-1)!.args.includes("--resume"), false);
   assert.equal(enDisco().some((g) => g.dormido), false, "ya no quedan dormidos");
 
-  // El que no se pudo levantar: Murió con motivo, en la lista.
-  await hasta(() => enDisco().find((g) => g.sid === roto)?.murio !== undefined);
+  // El que no se pudo levantar al arrancar Trama: nadie le pidió nada, así que NO es un líder que murió. Queda sin proceso pero retomable (con el motivo
+  // en el log) y sigue en la lista; su próximo mensaje lo relanza y, si sigue fallando, ahí sí queda Murió con el motivo.
+  await hasta(() => despues!.procDe(roto) === null && enDisco().find((g) => g.sid === roto)?.corriendo === undefined);
   const g = enDisco().find((x) => x.sid === roto)!;
-  assert.ok(g.motivo && /ENOENT|no-existe/.test(g.motivo), `motivo: ${g.motivo}`);
-  assert.equal(despues.procDe(roto), null);
+  assert.equal(g.murio, undefined, "reiniciar la app no lo vuelve muerto");
+  assert.ok((await ids()).includes(roto), "sigue en la barra");
+  assert.equal((await leerStatusline()).lideres.lideres.find((l) => l.id === roto)!.caido, undefined, "sin señal de muerte");
+  await despues.mandar({ sid: roto, texto: "hola", ...M }).catch(() => {});
+  await hasta(() => enDisco().find((x) => x.sid === roto)?.murio !== undefined);
+  assert.ok(enDisco().find((x) => x.sid === roto)!.motivo && /ENOENT|no-existe/.test(enDisco().find((x) => x.sid === roto)!.motivo!), "pedido a mano, el fallo real se muestra");
 
   // Y un mensaje a uno que volvió anda como siempre.
   await despues.mandar({ sid: quieto, texto: "seguimos", ...M });

@@ -199,6 +199,11 @@ type Proc = {
   estilo: string | null;
   /** El SIGINT de `parar` si el interrupt no contesta: se cancela al terminar el turno (si no, mata al siguiente). */
   parando?: ReturnType<typeof setTimeout>;
+  /**
+   * Lo levantó Trama sola al arrancar (`reanudarDormidos`) y todavía no contestó nada: si se cae así, no es un líder que murió
+   * (nadie le pidió nada): queda dormido, y su próximo mensaje lo relanza y muestra el error si sigue fallando.
+   */
+  arranque?: boolean;
 };
 
 const procs = new Map<string, Proc>();
@@ -625,6 +630,7 @@ function lanzar(g: Guardado, resume: boolean, local?: Local, extra: Extra = {}):
   procs.set(g.sid, x);
   p.stdout!.setEncoding("utf8");
   p.stdout!.on("data", (trozo: string) => {
+    x.arranque = false;
     const c = cortar(x.resto, trozo);
     x.resto = c.resto;
     for (const l of c.lineas) {
@@ -735,6 +741,11 @@ function lanzar(g: Guardado, resume: boolean, local?: Local, extra: Extra = {}):
     // Ya no tiene proceso: no es uno que trama se haya cortado con él vivo (`marcarCortados`).
     delete g.corriendo;
     const dijo = x.stderr.trim().split("\n").filter(Boolean).slice(-2).join(" · ");
+    // Lo levantó Trama sola al arrancar y se cayó sin contestar: no es un fallo del líder, queda sin proceso pero retomable (escribirle lo relanza).
+    if (seMurio && x.arranque) {
+      seMurio = false;
+      rastro(g.sid, "sin-motivo", `no pudo levantarse al arrancar Trama; sigue retomable (${(dijo || error || `código ${codigo}`).slice(0, 200)})`);
+    }
     // Lo mataron o se cayó (no lo cerró la app): la barra lo marca Murió hasta que el usuario lo retome.
     if (seMurio) {
       g.murio = Math.floor(Date.now() / 1000);
@@ -2071,6 +2082,9 @@ export async function reanudarDormidos(escalonMs = 150): Promise<string[]> {
   for (const g of ls) {
     delete g.dormido;
     if (!(await levantar(g))) continue;
+    // Hasta que conteste algo, si se cae no es un líder que murió (`Proc.arranque`).
+    const x = procs.get(g.sid);
+    if (x) x.arranque = true;
     hechos.push(g.sid);
     if (escalonMs > 0) await new Promise((ok) => setTimeout(ok, escalonMs));
   }
@@ -2082,9 +2096,10 @@ export async function reanudarDormidos(escalonMs = 150): Promise<string[]> {
 }
 
 /**
- * Al arrancar: los líderes que tenían proceso (`corriendo`) cuando trama se cortó sin cerrarlos (la PC se reinició, se cayó la app)
- * murieron: quedan Murió con su motivo y Retomar (`retomar`) los levanta. Los `dormido` no entran: son los que cerró `cerrarTodos`
- * (`reanudarDormidos`). Devuelve los sids que quedaron Murió.
+ * Al arrancar: los líderes que tenían proceso (`corriendo`) cuando trama se cortó sin cerrarlos (la PC se reinició, se cayó la app,
+ * Windows mató el árbol de procesos) quedan `dormido`, igual que si Trama los hubiera cerrado bien: cerrar o reiniciar la app nunca
+ * vuelve muerto a un líder. `reanudarDormidos` los levanta (`--resume`) y, si no, escribirles los retoma. Murió queda sólo para
+ * el que se cae con Trama andando (`lanzar`: `fin`). Devuelve los sids que se cortaron.
  */
 export async function marcarCortados(): Promise<string[]> {
   const ahora = Math.floor(Date.now() / 1000);
@@ -2096,9 +2111,9 @@ export async function marcarCortados(): Promise<string[]> {
     const cortado = !g.dormido && g.rol !== "analista" && !procs.has(g.sid);
     delete g.corriendo;
     if (!cortado) continue;
-    g.murio = ahora;
-    g.motivo = "trama se cerró con el líder en marcha (se cortó la PC o la app)";
+    g.dormido = ahora;
     cortados.push(g.sid);
+    rastro(g.sid, "sin-motivo", "Trama se cortó con el líder en marcha (se cortó la PC o la app): queda dormido y vuelve al arrancar");
   }
   if (cambio) {
     await guardar();

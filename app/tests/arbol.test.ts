@@ -9,14 +9,13 @@ import {
   claveError,
   claveEspera,
   claveDormidos,
-  DORMIDO_S,
+  MUERTO_S,
   comoQuitar,
   ESPERA_S,
   estadoVisto,
   filasVisibles,
   plegarTerminados,
   fin,
-  HUERFANO_S,
   lideresSinProceso,
   ordenCarpetas,
   lugarLider,
@@ -373,8 +372,8 @@ test("carpetas activas: líder vivo, trabajando o en cola, o algo de Ana esperan
 test("huérfanos de las últimas 24 h van plegados en 'sin líder'; los viejos no se ven", () => {
   const trab = hilo({ proyecto: "atlas", estado: "trabajando", ...deL("muerto") });
   const reciente = hilo({ proyecto: "atlas", estado: "listo", inicio: AHORA - 3 * 3600, ...deL("muerto") });
-  const viejo = hilo({ proyecto: "atlas", estado: "listo", inicio: AHORA - HUERFANO_S - 3600 });
-  const viejoCerrado = hilo({ proyecto: "atlas", estado: "integrado", inicio: AHORA - HUERFANO_S - 3600 });
+  const viejo = hilo({ proyecto: "atlas", estado: "listo", inicio: AHORA - MUERTO_S - 3600 });
+  const viejoCerrado = hilo({ proyecto: "atlas", estado: "integrado", inicio: AHORA - MUERTO_S - 3600 });
   const a = armarArbol([trab, reciente, viejo, viejoCerrado], { lideres: [], ahora: AHORA });
   const r = a.carpetas[0].ramas;
   assert.deepEqual(r.map((x) => x.clave), ["huerfanos:atlas"]);
@@ -552,7 +551,7 @@ test("una carpeta sin líder se ve si un huérfano pide algo (rama sin integrar,
   const conRama = hilo({ proyecto: "rama", estado: "listo", rama: "pa/rama/x", commits: 1, ...deL("muerto") });
   const fallo = hilo({ proyecto: "fallo", estado: "murio", ...deL("muerto") });
   const quieto = hilo({ proyecto: "quieto", estado: "listo", ...deL("muerto") });
-  const viejo = hilo({ proyecto: "viejo", estado: "listo", rama: "pa/viejo/x", commits: 1, inicio: AHORA - HUERFANO_S - 3600 });
+  const viejo = hilo({ proyecto: "viejo", estado: "listo", rama: "pa/viejo/x", commits: 1, inicio: AHORA - MUERTO_S - 3600 });
   const a = armarArbol([conRama, fallo, quieto, viejo], { lideres: [], ahora: AHORA });
   assert.deepEqual(nombres(a).sort(), ["fallo", "rama"]);
 });
@@ -796,7 +795,7 @@ test("líder sin proceso: sigue en la barra con sus workers colgando mientras al
   const listo = hilo({ proyecto: "atlas", estado: "listo", inicio: AHORA - 900, ...deL("caido") });
   const conRama = hilo({ proyecto: "brote", estado: "listo", rama: "pa/brote/x", commits: 2, ...deL("ido") });
   const nada = hilo({ proyecto: "brote", estado: "listo", ...deL("sin-nada") });
-  const viejo = hilo({ proyecto: "brote", estado: "murio", inicio: AHORA - 2 * HUERFANO_S, ...deL("viejo") });
+  const viejo = hilo({ proyecto: "brote", estado: "murio", inicio: AHORA - 2 * MUERTO_S, ...deL("viejo") });
   const deVivo = hilo({ proyecto: "atlas", estado: "murio", ...deL("a") });
   const hilos = [murio, listo, conRama, nada, viejo, deVivo];
   const caidos = [{ id: "caido", nombre: "jefe-caido", ts: AHORA - 300 }];
@@ -849,7 +848,7 @@ test("líder que cerró con workers muertos en varios proyectos: una sola carpet
 });
 
 test("lo que murió cuenta desde que la app lo vio morir (`murio_en`); sin verlo, desde que arrancó", () => {
-  const visto = hilo({ proyecto: "atlas", estado: "murio", inicio: AHORA - 3 * HUERFANO_S, murio_en: AHORA - 60 });
+  const visto = hilo({ proyecto: "atlas", estado: "murio", inicio: AHORA - 3 * MUERTO_S, murio_en: AHORA - 60 });
   const sinVer = hilo({ proyecto: "atlas", estado: "murio", inicio: AHORA - 900, duracion_s: null });
   assert.equal(fin(visto), AHORA - 60);
   assert.equal(fin(sinVer), AHORA - 900);
@@ -864,8 +863,8 @@ test("en cola: con su tarea y su líder cuelga de él, y no es 'Arrancando…' a
   assert.deepEqual(ids(a.carpetas[0].ramas.find((r) => r.clave === "lider:a")!.vivas), [cola.id]);
 });
 
-test("Dormidos: el líder sin proceso con más de un día quieto no se esconde, se pliega al final de su carpeta", () => {
-  const viejo = (id: string, extra: Partial<Lider> = {}) => ({ ...lider(id, AHORA - DORMIDO_S - MIN), vivo: false, pid: null, ...extra }) as Lider;
+test("Dormidos: el líder sin proceso con más de una semana quieto no se esconde, se pliega al final de su carpeta", () => {
+  const viejo = (id: string, extra: Partial<Lider> = {}) => ({ ...lider(id, AHORA - MUERTO_S - MIN), vivo: false, pid: null, ...extra }) as Lider;
   const lideres = [lider("vivo"), viejo("durmio"), viejo("murio", { caido: "murio" })];
   const a = armarArbol([], { lideres, ahora: AHORA });
   const c = a.carpetas.find((x) => x.proyecto === "general")!;
@@ -880,11 +879,34 @@ test("Dormidos: el líder sin proceso con más de un día quieto no se esconde, 
   const w = hilo({ proyecto: "atlas", estado: "trabajando", ...deL("durmio") });
   const d = armarArbol([w], { lideres, ahora: AHORA });
   assert.equal(d.carpetas.flatMap((x) => x.dormidos).some((r) => r.lider!.id === "durmio"), false);
-  // Menos de un día: sigue donde estaba.
+  // Menos de una semana: sigue donde estaba.
   const reciente = armarArbol([], { lideres: [{ ...viejo("hoy"), actividad: AHORA - 3 * 3600 } as Lider], ahora: AHORA });
   assert.equal(reciente.carpetas.flatMap((x) => x.dormidos).length, 0);
 });
 
+
+test("la vejez no marca nada antes de 7 días: a las 6 h y a los 6 d el líder sin proceso sigue a la vista; a los 8 d se pliega; un fallo real no se esconde", () => {
+  assert.equal(MUERTO_S, 7 * 24 * 3600, "el único corte por antigüedad es de una semana");
+  const sinProceso = (id: string, quieto: number, extra: Partial<Lider> = {}) => ({ ...lider(id, AHORA - quieto), vivo: false, pid: null, ...extra }) as Lider;
+  const dormidos = (ls: Lider[], hilos: Hilo[] = []) => armarArbol(hilos, { lideres: ls, ahora: AHORA }).carpetas.flatMap((c) => c.dormidos.map((r) => r.lider!.id));
+  const horas = 3600;
+  const dia = 24 * horas;
+  // Sin proceso (cerrado, o el reinicio de la app): ni a las 6 h, ni al día, ni a los 6 d pasa a «dormidos».
+  assert.deepEqual(dormidos([sinProceso("seis-horas", 6 * horas), sinProceso("ayer", 30 * horas), sinProceso("seis-dias", 6 * dia)]), []);
+  // A los 8 d sí se pliega: sigue en la lista, no se esconde.
+  assert.deepEqual(dormidos([sinProceso("ocho-dias", 8 * dia)]), ["ocho-dias"]);
+  // Un fallo real (lo mataron) sigue siendo «Murió» con su señal, también a las 6 h; y a los 8 d no pierde esa señal al plegarse.
+  const l6 = sinProceso("real", 6 * horas, { caido: "murio" });
+  const a6 = armarArbol([], { lideres: [l6], ahora: AHORA });
+  assert.equal(a6.carpetas.flatMap((c) => c.ramas).find((r) => r.lider?.id === "real")!.lider!.caido, "murio");
+  assert.deepEqual(dormidos([sinProceso("real8", 8 * dia, { caido: "murio" })]), ["real8"]);
+  // Los workers de un líder que ya no está: a la vista hasta la misma semana (6 d sí, 8 d no).
+  const w = (quieto: number) => hilo({ proyecto: "atlas", estado: "listo", inicio: AHORA - quieto, ...deL("fuera") });
+  assert.equal(lideresSinProceso([w(6 * dia)], { lideres: [], ahora: AHORA }).length, 0, "listo y viejo no pide nada");
+  const falla = (quieto: number) => hilo({ proyecto: "atlas", estado: "murio", inicio: AHORA - quieto, murio_en: AHORA - quieto, ...deL("fuera") });
+  assert.equal(lideresSinProceso([falla(6 * dia)], { lideres: [], ahora: AHORA }).length, 1, "su worker falló hace 6 d: el líder sin proceso sigue");
+  assert.equal(lideresSinProceso([falla(8 * dia)], { lideres: [], ahora: AHORA }).length, 0, "a los 8 d ya no");
+});
 
 test("atención: falló (no frenado) y pide decisión resaltan; un líder que responde no espera", () => {
   const trab = hilo({ proyecto: "atlas", estado: "trabajando", inicio: AHORA - MIN, ...deL("a") });

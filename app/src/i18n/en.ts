@@ -1893,7 +1893,7 @@ export const en = {
   "barra.dormidos1": "{n} sleeping",
   "barra.dormidosN": "{n} sleeping",
   "barra.ocultarDormidos": "Hide sleeping",
-  "barra.dormidosTip": "No process for over a day. Nothing is deleted: open them to resume, archive or delete",
+  "barra.dormidosTip": "No process for over a week. Nothing is deleted: open them to resume, archive or delete",
   "barra.claudeCode": "From Claude Code ({n})",
   "barra.claudeCodeTip": "Claude Code conversations that weren't opened from Trama. Click one to resume it here, in its folder; its files are never modified",
   "barra.claudeBuscar": "Search conversations",

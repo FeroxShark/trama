@@ -765,10 +765,13 @@ export function armarNucleo() {
     if (maquinas) alSalir(() => maquinas?.cerrar());
   }
   alSalir(() => subagentes.cerrar());
-  // Los que tenían proceso cuando trama se cortó sin cerrarlos (la PC, la app) murieron: Retomar los levanta.
-  void lider.marcarCortados().catch(silencio("lider"));
-  // Los líderes que tenían proceso cuando trama se cerró (reinicio, salida) vuelven a tenerlo, sin que nadie escriba.
-  void lider.reanudarDormidos().catch(silencio("lider"));
+  // Los que tenían proceso cuando trama se cortó sin cerrarlos (la PC, la app) quedan dormidos, no muertos; después, los dormidos vuelven a tener
+  // proceso (reinicio, salida o corte), sin que nadie escriba. En ese orden: lo cortado también vuelve.
+  void lider
+    .marcarCortados()
+    .catch(silencio("lider"))
+    .then(() => lider.reanudarDormidos())
+    .catch(silencio("lider"));
   // Las carpetas donde ya trabajan líderes (nuevos, retomados, traídos de Claude Code) quedan como proyectos, sin pasos manuales.
   void lider.anotarProyectosDeLideres().catch(silencio("proyectos"));
   // Los adjuntos de hace más de una semana no sirven más.

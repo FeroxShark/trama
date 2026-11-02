@@ -21,7 +21,7 @@ Estado de cada señal en la barra actual («Riel», desde `0c98b24`): **igual**,
 | Corona dorada sin fulgor | Él está quieto, pero corren workers suyos. | Distinguir «me está contestando» de «está dirigiendo». Sólo Riel. | igual |
 | Corona gris | Quieto. | Calma. | igual |
 | Corona más apagada y nombre apagado | Quieto y con el caché vencido: retomarlo sale caro. | Se ve qué conversaciones ya se enfriaron. Va con la palabra `Uncached`. | recuperada (la regla del nombre no ganaba en la lista) |
-| Corona roja + `Murió` | El proceso desapareció sin cerrar la sesión. Se retoma desde su vista. | No confundirlo con uno que cerró bien. | igual |
+| Corona roja + `Murió` | El proceso se cayó o lo mataron **con Trama andando** (OOM, `kill -9`, error del motor). Se retoma desde su vista. | No confundirlo con uno que cerró bien. | igual, con una regla: **cerrar, reiniciar o cortar la app (en Windows el cierre mata el árbol del motor) nunca lo deja `Murió`**: queda dormido (sin señal), vuelve solo con `--resume` y, si no puede, escribirle lo retoma. La vejez tampoco: ningún corte por antigüedad marca muerto antes de `MUERTO_S` (7 días, `arbol.ts`). |
 | Corona apagada + `Cerrado` | Sin proceso, cerrado bien. | Sigue a la vista con sus workers. | igual |
 | Corona en círculo ámbar, halo + `te espera` | Terminó su turno o pide un permiso, y espera tu respuesta. | Lo que espera es lo único que llama desde lejos. | cambió: antes era un `?` en recuadro en lugar de la corona; la corona se queda porque sigue siendo un líder. `te espera` **recuperada** para los dos motivos (el Riel decía `decidir` si pedía permiso); el motivo, en el tooltip. |
 | Rojo en el líder por un worker suyo | (Ya no.) Antes el `✕` reemplazaba la corona. | | cambió en `a48526d`: el worker que falló está a la vista justo debajo y resalta él; el líder no lo repite. |
@@ -50,7 +50,7 @@ La sección `⚡ Activas` de arriba ya no existe (cambió en `0c98b24`: un solo 
 
 | Señal | Qué dice | Por qué existe | Estado |
 | --- | --- | --- | --- |
-| `hace <1 m`, `hace 6 m`, `hace 2 h`, `ayer`, `hace 3 d` | Hace cuánto pasó lo último. | Con la palabra `hace` no se confunde con una duración ni con los `21m` del rayito, que van justo al lado. | **recuperada**: el Riel la achicó a `6 m`, `3 d`, `ahora`. |
+| `hace <1 m`, `hace 6 m`, `hace 6 h`, `ayer`, `hace 3 d` | Hace cuánto pasó lo último. `ayer` sólo de 24 a 48 h: menos de 24 h siempre dice `hace N h`, aunque haya cruzado la medianoche (el día calendario no cuenta). | Con la palabra `hace` no se confunde con una duración ni con los `21m` del rayito, que van justo al lado. | **recuperada**: el Riel la achicó a `6 m`, `3 d`, `ahora`. |
 | `27 oct` (y el año si es de otro) | De más de una semana: la fecha. | `279e281`: «hace 23 d» ya no dice nada. | igual |
 | `38 s`, `4 m`, `1 h 05 m` | Lo que corre: cuánto lleva. Segundos sólo el primer minuto. | Una corrida larga no puede decir `ayer`. | **recuperada**: el Riel usaba el mismo formato que lo terminado. |
 | Sin tiempo | Lo que pide una decisión y lo que está en cola. | Importa que espera; ahorra ancho al título. | recuperada |
@@ -94,7 +94,7 @@ Cuelga de su líder por el hilo del proyecto. Se abre tocando cualquier parte de
 | Glifo `✕`/`?` en el encabezado plegado | Adentro hay algo que mirar. | Plegar no esconde lo urgente. | igual |
 | `N terminados` / `N terminadas` | Lo terminado se pliega solo, bajo su líder o sin líder. Sólo la palabra y la flecha. | La montaña de terminados no ocupa la barra; el botón va antes de la lista y, abierto, queda pegado bajo el encabezado del proyecto para no bajar hasta el fondo. | recuperada sin el ✓ |
 | Lo que falló no se pliega | Queda a la vista aunque terminó (`aRiel`). | | igual |
-| `Ver N más` | Los líderes quietos: en espera (30 min sin nada) y dormidos (sin proceso, más de un día). Se ven de a dos. El tooltip dice cuántos de cada uno y que un dormido no se borra. | | cambió: reemplaza los pliegues «N en espera» y «N dormidos»; recuperadas las palabras en el tooltip. |
+| `Ver N más` | Los líderes quietos: en espera (30 min sin nada) y dormidos (sin proceso, más de una semana). Se ven de a dos. El tooltip dice cuántos de cada uno y que un dormido no se borra. | | cambió: reemplaza los pliegues «N en espera» y «N dormidos»; recuperadas las palabras en el tooltip. |
 | `Recientes` / `A-Z` / `Manual` | Cómo se acomoda; se recuerda. Lo movido a mano no cambia solo. | `279e281`. | igual |
 | La lista no se mueve mientras la mirás | Mouse, foco, arrastre o menú abierto congelan la foto. | Que no salte lo que estás por tocar. | igual |
 | Lo caliente flota | Sube su proyecto y no se pliega entre los quietos. | Reemplaza a `Activas`. | cambió |
