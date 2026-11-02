@@ -153,7 +153,7 @@ test("sistema: sus piezas, y lo que no se pudo separar queda como 'sin separar'"
   // El prompt viene partido en sus secciones (cada una con su texto), más hook, entorno, diferidas y lo que no se separó.
   assert.deepEqual([...new Set(it.map((i) => i.sis))].sort(), ["diferidas", "entorno", "hook", "prompt", "resto"]);
   const secciones = it.filter((i) => i.sis === "prompt");
-  assert.deepEqual(secciones.map((i) => i.seccion).sort(), ["arnes", "contexto", "entorno", "intro", "memoria", "sesion", "suelta"]);
+  assert.deepEqual(secciones.map((i) => i.seccion).sort(), ["arnes", "contexto", "entorno", "historial", "intro", "memoria", "sesion", "suelta"]);
   assert.ok(secciones.every((i) => i.texto && i.tokens));
   assert.equal(secciones.find((i) => i.seccion === "arnes")!.nombre, "Harness");
   assert.equal(it.reduce((n, i) => n + (i.tokens ?? 0), 0), cat.tokens);
