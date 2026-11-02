@@ -602,11 +602,9 @@ button.band-mini:hover img {
   .band-fila[data-fallo] {
     flex-wrap: wrap;
   }
-  .band-fila[data-fallo] .band-cuerpo {
-    flex-basis: calc(100% - 3rem);
-  }
   .band-fila[data-fallo] .band-acc {
-    margin-left: auto;
+    flex-basis: 100%;
+    justify-content: flex-end;
   }
   .band-tab {
     margin-left: var(--esp-3);
