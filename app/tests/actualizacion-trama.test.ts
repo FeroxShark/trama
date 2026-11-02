@@ -340,7 +340,7 @@ test("200 con una versión nueva mientras el aviso sigue abierto: la barra recib
   x.act.alCambiarAviso((a) => vistos.push(a?.ultima ?? null));
   x.avanzar(2 * 60_000);
   x.ciclo();
-  await flush();
+  await hasta(() => vistos.length >= 1);
   assert.deepEqual(vistos, ["0.1.5"]);
   assert.equal((await x.act.leerAviso())?.ultima, "0.1.5");
 });
