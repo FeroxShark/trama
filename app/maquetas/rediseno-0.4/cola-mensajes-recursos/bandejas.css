@@ -68,7 +68,7 @@ html, body { height: 100%; margin: 0; overflow: hidden; }
 .a-alzada { position: absolute; left: 1.5rem; right: -0.75rem; top: 3.875rem; z-index: 3; }
 .a-fila[data-alza] { background: var(--sup-3); box-shadow: var(--popover-luz), var(--popover-sombra); transform: rotate(-0.5deg); }
 .a-visor { position: absolute; inset: 0; z-index: 9; display: grid; place-items: center; background: var(--velo); }
-.a-visor img { max-width: 44rem; max-height: 44rem; width: 28rem; border-radius: var(--r-md); box-shadow: var(--popover-luz), var(--popover-sombra); }
+.a-visor img { width: 20rem; border-radius: var(--r-md); box-shadow: var(--popover-luz), var(--popover-sombra); }
 .a-visor .cm-ic { position: absolute; top: 1.25rem; right: 1.25rem; width: 2.25rem; height: 2.25rem; background: var(--capa-tile); color: var(--blanco); }
 
 /* ========== B, Hilván ========== */
@@ -125,7 +125,7 @@ html, body { height: 100%; margin: 0; overflow: hidden; }
 .b-mazo > .b-nudo { bottom: var(--esp-2); }
 .b-hueco { position: relative; width: 26rem; height: 3.25rem; border-radius: var(--r-lg) var(--r-lg) var(--r-xs) var(--r-lg); box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--acento) 55%, transparent); background: color-mix(in srgb, var(--acento) 8%, transparent); }
 .b-nudo[data-fantasma] { background: var(--sup-0); color: var(--acento); box-shadow: inset 0 0 0 2px var(--acento); bottom: 0.875rem; }
-.b-alzada { position: absolute; right: calc(var(--b-x) + 6.5rem); top: 7.75rem; z-index: 4; width: 27rem; }
+.b-alzada { position: absolute; right: calc(var(--b-x) + 5.5rem); top: 7.75rem; z-index: 4; width: 30rem; }
 .b-ficha[data-alza] { max-width: none; transform: rotate(-1.1deg); }
 .b-ficha[data-alza] .b-burbuja { background: var(--sup-3); box-shadow: var(--popover-luz), var(--popover-sombra); }
 .b-ficha[data-alza] .b-nudo { right: auto; left: -0.5rem; bottom: auto; top: -0.5rem; }
@@ -135,9 +135,9 @@ html, body { height: 100%; margin: 0; overflow: hidden; }
 .b-pop .a-conf-acc { justify-content: flex-end; margin-top: var(--esp-3); }
 .b .tv-vivo[data-corta] { color: var(--decision-texto); }
 .tv-vivo[data-corta]::before { background: var(--aviso) !important; }
-.b-lamina { position: absolute; z-index: 5; right: calc(var(--b-x) + 1.375rem); bottom: 8.25rem; width: 16.5rem; padding: var(--esp-1-5); border-radius: var(--r-lg); background: var(--popover-fondo); box-shadow: var(--popover-luz), var(--popover-sombra); backdrop-filter: var(--popover-desenfoque); }
+.b-lamina { position: absolute; z-index: 5; right: calc(var(--b-x) + 5rem); bottom: 9.5rem; width: 16.5rem; padding: var(--esp-1-5); border-radius: var(--r-lg); background: var(--popover-fondo); box-shadow: var(--popover-luz), var(--popover-sombra); backdrop-filter: var(--popover-desenfoque); }
 .b-lamina img { display: block; width: 100%; border-radius: var(--r-md); }
-.b-lamina .cm-ic { position: absolute; top: var(--esp-3); right: var(--esp-3); background: var(--vidrio-opaco); color: var(--texto); }
+.b-lamina .cm-ic { position: absolute; top: -0.625rem; right: -0.625rem; background: var(--sup-3); color: var(--texto); box-shadow: var(--popover-luz); }
 
 /* El tiempo de la fila en la captura de la barra, puesto al día con el del estado. */
 .cm-tiempo-barra { position: absolute; left: 17.75rem; top: 7.9375rem; width: 1.8125rem; white-space: nowrap; height: 1.125rem; display: grid; place-items: center end; font-size: var(--letra-4); color: var(--txt-3); font-variant-numeric: tabular-nums; background: var(--cm-fila); }
