@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><title>Trama · Vista de un worker (maqueta)</title>
+<link rel="stylesheet" id="css-app">
+<link rel="stylesheet" href="vista.css">
+<script>
+  // El CSS de la app ya compilado (tokens y fuentes de verdad): lo pasa generar.cjs.
+  document.getElementById("css-app").href = new URLSearchParams(location.search).get("css") || "";
+</script>
+</head><body><div id="root"></div>
+<script src="iconos.js"></script>
+<script src="datos.js"></script>
+<script>
+  window.TITULOS_EN = {
+    "Medir el plan de las consultas de envíos": "Measure the plan of the shipment queries",
+  };
+</script>
+<script src="vista.js"></script>
+</body></html>

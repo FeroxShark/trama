@@ -1,0 +1,256 @@
+/* La maqueta de la vista de un worker: dos propuestas sobre los tokens de la app (src/tokens.css). Sólo tokens: los colores por
+   tipo son --paso-*; el trabado es el ámbar de «decisión» y el error, el coral de «fallo». */
+
+/* Lo que comparten */
+#root > div { height: 100vh; }
+.migas .estado.c-trabado { color: var(--decision-texto); }
+.wv-nb { white-space: nowrap; }
+.wv-palomita { display: grid; width: 1.125rem; flex: none; place-items: center; color: var(--ok); grid-row: 1 / span 2; }
+.wv { height: 100%; min-height: 0; }
+.wv * { box-sizing: border-box; }
+.wv ol { margin: 0; padding: 0; list-style: none; }
+.wv h2, .wv p { margin: 0; }
+.wv-i { display: block; flex: none; }
+.wv [data-t="leer"] { --c: var(--paso-leer); }
+.wv [data-t="editar"] { --c: var(--paso-editar); }
+.wv [data-t="correr"] { --c: var(--paso-correr); }
+.wv [data-t="pensar"] { --c: var(--paso-pensar); }
+.wv-tit { min-width: 0; flex: 1; }
+.wv-tit h2 { color: var(--texto); font-weight: 600; letter-spacing: -0.012em; text-wrap: balance; }
+.wv-tit p { color: var(--apagado); font-size: var(--letra-5); line-height: 1.45; }
+.wv-acc { display: flex; flex: none; gap: var(--esp-2); align-items: center; }
+.wv-btn { display: inline-flex; height: var(--alto-boton); align-items: center; gap: var(--esp-2); padding: 0 var(--esp-4); border: 0; border-radius: var(--r-cap); background: var(--capa-tile); color: var(--texto); font-size: var(--letra-5); font-weight: 500; white-space: nowrap; }
+.wv-btn[data-tono="decision"] { background: var(--decision-relleno); color: var(--decision-sobre); box-shadow: var(--decision-brillo); }
+.wv-btn[data-tono="fallo"] { background: var(--fallo-relleno); color: var(--fallo-sobre); box-shadow: var(--fallo-brillo); }
+.wv-btn[data-tono="acento"] { background: var(--acento); color: var(--acento-texto); }
+
+.wv-glifo { display: grid; width: 2.25rem; height: 2.25rem; flex: none; place-items: center; border-radius: var(--r-cap); }
+.wv-glifo[data-e="trabajando"] { background: var(--acento-tinte); }
+.wv-glifo[data-e="trabado"] { background: var(--decision-relleno); color: var(--decision-sobre); box-shadow: var(--decision-halo); }
+.wv-glifo[data-e="termino"] { background: var(--ok-tinte); color: var(--ok); }
+.wv-glifo[data-e="fallo"] { background: var(--fallo-relleno); color: var(--fallo-sobre); box-shadow: var(--fallo-halo); }
+.wv-pulso { display: block; width: 0.625rem; height: 0.625rem; border-radius: 50%; background: var(--acento); box-shadow: 0 0 0 0.25rem color-mix(in srgb, var(--acento) 28%, transparent); }
+
+.wv .wv-caja[data-e="trabado"] { background: var(--decision-fondo); box-shadow: inset 0 0 0 1px var(--decision-borde), var(--decision-brillo); }
+.wv .wv-caja[data-e="fallo"] { background: var(--fallo-fondo); box-shadow: inset 0 0 0 1px var(--fallo-borde), var(--fallo-brillo); }
+.wv-caja[data-e="trabado"] .wv-tit p { color: var(--decision-texto); }
+.wv-caja[data-e="fallo"] .wv-tit p { color: var(--fallo-texto); }
+
+/* La consigna plegable */
+.wv-consigna { display: flex; min-width: 0; flex: 1; align-items: baseline; gap: var(--esp-1-5); color: var(--apagado); font-size: var(--letra-5); line-height: 1.5; }
+.wv-consigna b { flex: none; color: var(--texto); font-weight: 500; }
+.wv-consigna .wv-caret { align-self: center; }
+.wv-consigna-t { min-width: 0; overflow: hidden; flex: 1; text-overflow: ellipsis; white-space: nowrap; }
+.wv-consigna[data-abierta="1"] .wv-consigna-t { white-space: normal; }
+.wv-consigna[data-abierta="1"] .wv-caret { align-self: flex-start; margin-top: 0.1875rem; transform: rotate(90deg); }
+.wv-caret { display: block; flex: none; color: var(--inactivo); }
+.wv-caret[data-abierta="1"] { transform: rotate(90deg); }
+.wv-f-s .wv-caret, .wv-r-s .wv-caret { display: inline-block; margin-left: var(--esp-1-5); vertical-align: -0.0625rem; }
+.wv-chips { flex: none; flex-wrap: nowrap; }
+.wv-chips .wk-chip { font-size: var(--letra-4); white-space: nowrap; }
+
+/* Leyenda y regla */
+.wv-leyenda { display: flex; gap: var(--esp-3); align-items: center; color: var(--apagado); font-size: var(--letra-4); }
+.wv-leyenda span { display: inline-flex; gap: var(--esp-1-5); align-items: center; white-space: nowrap; }
+.wv-leyenda i { display: block; width: 0.625rem; height: 0.625rem; border-radius: 0.1875rem; background: color-mix(in srgb, var(--c) 78%, transparent); }
+.wv-a .wv-leyenda span[data-t="pensar"] i { background: radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--c) 42%, transparent) 0 0.0625rem, transparent 0.0781rem) 0 0 / 0.25rem 0.25rem, color-mix(in srgb, var(--c) 38%, var(--sup-0)); }
+.wv-b .wv-leyenda i { background: color-mix(in srgb, var(--c) 62%, var(--sup-0)); }
+.wv-leyenda em { color: var(--texto); font-style: normal; font-feature-settings: "tnum" 1; }
+.wv-regla { position: relative; height: 1rem; margin-top: var(--esp-1); color: var(--inactivo); font-size: var(--letra-3); font-feature-settings: "tnum" 1; }
+.wv-regla span { position: absolute; top: 0; white-space: nowrap; }
+.wv-regla .wv-fin { color: var(--apagado); }
+
+/* La tira: un segmento por paso, de ancho proporcional al tiempo */
+.wv-cinta { display: flex; gap: 1px; }
+.wv-seg { position: relative; display: flex; min-width: 3px; align-items: center; gap: var(--esp-1-5); overflow: visible; background: color-mix(in srgb, var(--c) 62%, var(--sup-0)); color: var(--sup-0); font-size: var(--letra-4); font-weight: 600; white-space: nowrap; }
+.wv-seg[data-t="pensar"] { background: radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--c) 42%, transparent) 0 0.0781rem, transparent 0.0938rem) 0 0 / 0.375rem 0.375rem, color-mix(in srgb, var(--c) 38%, var(--sup-0)); color: var(--texto); }
+.wv-seg[data-t="correr"] { background: color-mix(in srgb, var(--c) 42%, var(--sup-0)); color: var(--texto); }
+/* El commit es un comando: mismo color, con una marca arriba para encontrarlo. */
+.wv-seg[data-commit]::before { content: ""; position: absolute; top: -0.4375rem; left: 50%; width: 0.3125rem; height: 0.3125rem; border-radius: 50%; background: var(--acento); transform: translateX(-50%); }
+/* Lo que corre ahora: sigue siendo un comando, con el anillo celeste de lo vivo. */
+.wv-seg[data-vivo] { color: var(--texto); box-shadow: 0 0 0 1.5px var(--acento), 0 0 0.75rem color-mix(in srgb, var(--acento) 40%, transparent); z-index: 1; }
+.wv-seg[data-colgado] { background: repeating-linear-gradient(135deg, var(--decision-fondo-fuerte) 0 0.375rem, color-mix(in srgb, var(--aviso) 58%, transparent) 0.375rem 0.75rem); color: var(--texto); box-shadow: inset 0 0 0 1px var(--decision-luz); }
+.wv-seg[data-error] { background: repeating-linear-gradient(135deg, var(--fallo-fondo-fuerte) 0 0.25rem, color-mix(in srgb, var(--critico) 72%, transparent) 0.25rem 0.5rem); color: var(--texto); box-shadow: inset 0 0 0 1px var(--fallo-luz); }
+.wv-seg[data-sel]:not([data-vivo]) { outline: 2px solid var(--texto); outline-offset: 1px; z-index: 2; }
+.wv-seg[data-colgado][data-sel]:not([data-vivo]) { outline-color: var(--aviso); }
+.wv-tip { position: absolute; z-index: 30; top: calc(100% + 0.5rem); left: 50%; display: flex; width: max-content; max-width: 22rem; flex-direction: column; gap: 0.0625rem; padding: var(--esp-2) var(--esp-3); border-radius: var(--r-sm); background: var(--popover-fondo); box-shadow: var(--popover-luz), var(--popover-sombra); color: var(--texto); font-size: var(--letra-4); font-weight: 400; line-height: 1.35; transform: translateX(-50%); backdrop-filter: var(--popover-desenfoque); }
+.wv-tip b { font-weight: 600; }
+.wv-tip span { color: var(--apagado); font-feature-settings: "tnum" 1; }
+.wv-tip-der { right: 0; left: auto; transform: none; }
+.wv-tip-izq { left: 0; transform: none; }
+
+/* Filas: lo común */
+.wv-t { flex: none; color: var(--inactivo); font-size: var(--letra-4); font-feature-settings: "tnum" 1; text-align: right; white-space: nowrap; }
+.wv-t-mal { color: var(--decision-texto); font-weight: 600; }
+.wv-dif { display: inline-flex; flex: none; gap: var(--esp-1); font-family: var(--font-mono); font-size: var(--letra-4); }
+.wv-dif b { font-weight: 500; }
+.wv-hash { flex: none; padding: 0.0625rem var(--esp-1-5); border-radius: var(--r-xs); background: var(--acento-tinte); color: var(--acento); font-family: var(--font-mono); font-size: var(--letra-3); }
+.wv-chip-err { flex: none; padding: 0.0625rem var(--esp-2); border-radius: var(--r-cap); background: var(--fallo-relleno); color: var(--fallo-sobre); font-family: var(--font-mono); font-size: var(--letra-3); font-weight: 600; }
+.wv-chip-tra { flex: none; padding: 0.0625rem var(--esp-2); border-radius: var(--r-cap); background: var(--decision-relleno); color: var(--decision-sobre); font-size: var(--letra-3); font-weight: 600; }
+.wv-giro { display: block; width: 0.875rem; height: 0.875rem; flex: none; border: 2px solid color-mix(in srgb, var(--acento) 28%, transparent); border-top-color: var(--acento); border-radius: 50%; }
+
+/* El panel derecho: el único lugar con el comando crudo */
+.wv-panel { display: flex; min-width: 0; min-height: 0; flex-direction: column; overflow: hidden; }
+.wv-p-cab { display: flex; flex-direction: column; gap: var(--esp-1-5); padding: var(--esp-3) var(--esp-4); border-bottom: 1px solid var(--capa-div); }
+.wv-p-pal { color: var(--apagado); font-size: var(--letra-4); }
+.wv-p-cmd { display: flex; align-items: flex-start; gap: var(--esp-2); font-family: var(--font-mono); font-size: var(--letra-4); line-height: 1.5; }
+.wv-p-cmd code { min-width: 0; flex: 1; color: var(--texto); font: inherit; overflow-wrap: anywhere; }
+.wv-p-pr { flex: none; color: var(--ok); }
+.wv-p-pr .wv-i { margin-top: 0.1875rem; color: var(--apagado); }
+.wv-copiar { flex: none; padding: 0; border: 0; background: none; color: var(--inactivo); }
+.wv-p-sal { min-height: 0; flex: 1; overflow: hidden; padding: var(--esp-3) var(--esp-4); color: var(--texto-3); font-family: var(--font-mono); font-size: var(--letra-4); line-height: 1.55; }
+.wv-p-pie { display: flex; flex: none; align-items: center; gap: var(--esp-3); min-height: 2.25rem; padding: 0 var(--esp-4); border-top: 1px solid var(--capa-div); color: var(--inactivo); font-size: var(--letra-4); font-feature-settings: "tnum" 1; }
+.wv-pie-e { display: inline-flex; align-items: center; gap: var(--esp-1-5); color: var(--apagado); font-weight: 500; }
+.wv-pie-e[data-e="vivo"] { color: var(--acento); }
+.wv-pie-e[data-e="ok"] { color: var(--ok); }
+.wv-pie-e[data-e="trabado"] { color: var(--decision-texto); }
+.wv-pie-e[data-e="error"] { color: var(--fallo-texto); }
+.wv-l { padding-left: calc(var(--sang, 0ch) + 2ch); text-indent: -2ch; overflow-wrap: anywhere; }
+.wv-l[data-tono="ok"] { color: var(--texto-4); }
+.wv-l[data-tono="mal"] { color: var(--fallo-texto); }
+.wv-l[data-tono="espera"] { color: var(--decision-texto); }
+.wv-l[data-tono="grupo"] { color: var(--texto); font-weight: 500; }
+.wv-l[data-tono="tenue"] { color: var(--inactivo); }
+.wv-ruta { color: var(--acento); text-decoration: underline; text-decoration-color: var(--enlace-subrayado); text-underline-offset: 0.1875rem; }
+.wv-cursor { display: inline-block; width: 0.5rem; height: 1em; margin-top: var(--esp-1); background: var(--acento); }
+.wv-silencio { display: flex; align-items: center; gap: var(--esp-2); margin-top: var(--esp-3); padding: var(--esp-2) var(--esp-3); border-radius: var(--r-sm); background: var(--decision-fondo); box-shadow: inset 0 0 0 1px var(--decision-borde); color: var(--decision-texto); font-family: var(--font-sans); font-size: var(--letra-4); font-weight: 500; }
+.wv-d { display: grid; grid-template-columns: 2.5ch 1.5ch minmax(0, 1fr); gap: 0 1ch; margin: 0 calc(var(--esp-4) * -1); padding: 0 var(--esp-4); background: var(--mas-fondo); }
+.wv-d span:first-child { color: var(--inactivo); text-align: right; }
+.wv-d span:nth-child(2) { color: var(--mas); }
+.wv-d span:last-child { overflow-wrap: anywhere; }
+.wv-d-mas { margin-top: var(--esp-2); color: var(--inactivo); font-family: var(--font-sans); }
+
+/* ================ A, la Cinta: la tira es la protagonista, gruesa, rotulada y pegada a la caja ================ */
+.wv-a { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); gap: var(--esp-3); padding: var(--esp-4) var(--esp-6) var(--esp-5); }
+.wv-a .wv-caja { border-radius: var(--r-lg); background: var(--capa-card); box-shadow: var(--vidrio-borde); }
+.wv-a .wv-sup { display: flex; align-items: center; gap: var(--esp-3); padding: var(--esp-4) var(--esp-4) var(--esp-2) var(--esp-4); }
+.wv-a .wv-tit h2 { font-size: var(--cifra-4); line-height: 1.25; }
+.wv-a .wv-med { display: flex; align-items: flex-start; gap: var(--esp-4); padding: var(--esp-1) var(--esp-4) var(--esp-3) var(--esp-4); }
+.wv-a .wv-med .wv-consigna { padding-top: 0.125rem; }
+.wv-a .wv-tira { padding: 0 var(--esp-4) var(--esp-3); }
+.wv-a .wv-leyenda { justify-content: flex-end; margin-bottom: var(--esp-2); }
+.wv-a .wv-cinta { height: 2.25rem; }
+.wv-a .wv-seg { padding: 0 var(--esp-1-5); justify-content: center; }
+.wv-a .wv-seg:first-child { border-radius: var(--r-xs) 0 0 var(--r-xs); }
+.wv-a .wv-seg:last-child { border-radius: 0 var(--r-xs) var(--r-xs) 0; }
+.wv-a .wv-seg[data-colgado] { justify-content: flex-start; padding: 0 var(--esp-3); font-size: var(--letra-5); color: var(--decision-texto); }
+.wv-a .wv-seg[data-colgado] span { padding: 0.0625rem var(--esp-2); border-radius: var(--r-xs); background: var(--sup-0); }
+
+.wv-a .wv-cuerpo { display: grid; min-height: 0; overflow: hidden; border-radius: var(--r-lg); background: var(--capa-card); box-shadow: var(--vidrio-borde); grid-template-columns: minmax(0, 28rem) minmax(0, 1fr); }
+.wv-a .wv-lista { display: flex; min-height: 0; flex-direction: column; overflow: hidden; border-right: 1px solid var(--capa-div); }
+.wv-a .wv-l-cab { display: flex; flex: none; align-items: center; gap: var(--esp-2); padding: var(--esp-2) var(--esp-3) var(--esp-2) var(--esp-4); }
+.wv-a .wv-l-cab b { font-size: var(--letra-5); font-weight: 600; }
+.wv-cuenta { color: var(--inactivo); font-size: var(--letra-4); font-feature-settings: "tnum" 1; }
+.wv-seg-ctl { display: flex; margin-left: auto; padding: 0.125rem; border-radius: var(--r-cap); background: var(--capa-card); box-shadow: var(--vidrio-borde); }
+.wv-seg-ctl button { display: inline-flex; height: 1.5rem; align-items: center; gap: var(--esp-1-5); padding: 0 var(--esp-2-5); border: 0; border-radius: var(--r-cap); background: none; color: var(--apagado); font-size: var(--letra-4); }
+.wv-seg-ctl button[data-on] { background: var(--capa-tile); color: var(--texto); font-weight: 500; }
+.wv-seg-ctl em { color: var(--inactivo); font-style: normal; font-feature-settings: "tnum" 1; }
+.wv-a .wv-lista ol { min-height: 0; flex: 1; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--capa-track) transparent; padding: 0 var(--esp-2) var(--esp-2); }
+.wv-f { display: flex; min-height: 2.25rem; align-items: center; gap: var(--esp-2); padding: 0.3125rem var(--esp-2); border-radius: var(--r-sm); color: var(--texto-3); font-size: var(--letra-6); line-height: 1.3; }
+.wv-f + .wv-f { margin-top: 0.0625rem; }
+.wv-f-i { display: grid; width: 1.25rem; flex: none; place-items: center; color: var(--c); }
+.wv-f-s { min-width: 0; flex: 1; }
+.wv-f-s em { color: var(--apagado); font-style: normal; }
+.wv-f-s b { color: var(--paso-pensar); font-weight: 500; }
+.wv-f .wv-t { min-width: 3.25rem; }
+.wv-f-hijo { min-height: 1.875rem; padding-left: var(--esp-6); color: var(--apagado); font-size: var(--letra-5); }
+.wv-f-pensar { color: var(--apagado); font-size: var(--letra-5); }
+.wv-marca { display: inline-flex; flex: none; align-items: center; gap: 0.1875rem; color: var(--paso-pensar); font-size: var(--letra-3); font-feature-settings: "tnum" 1; }
+.wv-f[data-cambio="edit"] { background: var(--ok-tinte); color: var(--texto); font-weight: 500; }
+.wv-f[data-cambio="commit"] { background: var(--acento-tinte); color: var(--texto); font-weight: 500; }
+.wv-f[data-cambio="commit"] .wv-f-i { color: var(--acento); }
+.wv-f[data-cambio="error"] { background: var(--fallo-fondo); color: var(--fallo-texto); font-weight: 500; }
+.wv-f[data-cambio="error"] .wv-f-i { color: var(--critico); }
+.wv-f[data-trabado] { background: var(--decision-fondo); color: var(--decision-texto); font-weight: 500; }
+.wv-f[data-trabado] .wv-f-i { color: var(--aviso); }
+.wv-f[data-vivo] { color: var(--texto); font-weight: 500; }
+.wv-f[data-sel] { box-shadow: inset 0 0 0 1px var(--borde-6); }
+.wv-f[data-sel]:not([data-cambio], [data-trabado]) { background: var(--capa-tile); color: var(--texto); }
+.wv-a .wv-g { padding: var(--esp-1) 0; overflow-wrap: anywhere; }
+.wv-a .wv-g + .wv-g { border-top: 1px solid var(--capa-div); }
+.wv-a .wv-g-c { display: block; color: var(--texto-3); }
+
+/* ================ B, el Hilo: la lista es el relato; cada paso es una hebra a la misma altura de la tira ================ */
+.wv-b { display: grid; grid-template-rows: minmax(0, 1fr); gap: var(--esp-3); padding: var(--esp-4) var(--esp-6) var(--esp-5) var(--esp-6); grid-template-columns: minmax(0, 1fr) 26.5rem; }
+.wv-izq { display: flex; min-width: 0; min-height: 0; flex-direction: column; }
+.wv-b .wv-caja { padding: var(--esp-3) var(--esp-4); border-radius: var(--r-lg); background: var(--capa-card); box-shadow: var(--vidrio-borde); }
+.wv-b .wv-sup { display: flex; align-items: flex-start; gap: var(--esp-4); }
+.wv-reloj { display: flex; flex: none; flex-direction: column; min-width: 5rem; }
+.wv-reloj b { color: var(--texto); font-size: var(--cifra-1); font-weight: 500; font-feature-settings: "tnum" 1; letter-spacing: -0.03em; line-height: 1.05; }
+.wv-reloj span { color: var(--inactivo); font-size: var(--letra-3); }
+.wv-caja[data-e="trabado"] .wv-reloj b { color: var(--decision-texto); }
+.wv-caja[data-e="fallo"] .wv-reloj b { color: var(--fallo-texto); }
+.wv-caja[data-e="termino"] .wv-reloj b { color: var(--ok); }
+.wv-caja[data-e="trabajando"] .wv-reloj b { color: var(--acento); }
+.wv-b .wv-tit { padding-top: 0.1875rem; }
+.wv-b .wv-tit h2 { font-size: var(--letra-8); line-height: 1.25; }
+.wv-b .wv-consigna { margin-top: var(--esp-2); }
+.wv-b .wv-med { display: flex; align-items: center; justify-content: space-between; gap: var(--esp-2); margin-top: var(--esp-2); }
+.wv-b .wv-chips { flex-wrap: wrap; min-width: 0; flex: 1; }
+.wv-b .wv-tira { flex: none; margin-top: var(--esp-2); }
+.wv-tira-sobre { position: relative; height: 1.125rem; }
+.wv-bandera { position: absolute; bottom: 0.1875rem; display: inline-flex; align-items: center; gap: var(--esp-1); color: var(--decision-texto); font-size: var(--letra-3); font-weight: 600; white-space: nowrap; }
+.wv-b .wv-cinta { height: 0.625rem; }
+.wv-b .wv-seg:first-child { border-radius: var(--r-cap) 0 0 var(--r-cap); }
+.wv-b .wv-seg:last-child { border-radius: 0 var(--r-cap) var(--r-cap) 0; }
+.wv-b .wv-seg[data-t="pensar"] { background: color-mix(in srgb, var(--c) 58%, var(--sup-0)); }
+.wv-b .wv-l-cab { display: flex; flex: none; align-items: center; justify-content: space-between; margin-top: var(--esp-1); padding-bottom: var(--esp-1); }
+.wv-tog { display: inline-flex; height: 1.625rem; align-items: center; gap: var(--esp-2); padding: 0; border: 0; background: none; color: var(--apagado); font-size: var(--letra-4); }
+.wv-tog i { position: relative; display: block; width: 1.5rem; height: 0.875rem; border-radius: var(--r-cap); background: var(--capa-track); }
+.wv-tog i::after { content: ""; position: absolute; top: 0.125rem; left: 0.125rem; width: 0.625rem; height: 0.625rem; border-radius: 50%; background: var(--texto); }
+.wv-tog[data-on] { color: var(--texto); font-weight: 500; }
+.wv-tog[data-on] i { background: var(--acento); }
+.wv-tog[data-on] i::after { left: 0.75rem; background: var(--acento-texto); }
+.wv-tog em { color: var(--inactivo); font-style: normal; font-feature-settings: "tnum" 1; }
+
+.wv-hilo { min-height: 0; flex: 1; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--capa-track) transparent; }
+.wv-r { position: relative; display: flex; min-height: 2.375rem; align-items: center; gap: var(--esp-2-5); padding: 0.25rem var(--esp-2) 0.3125rem 0; color: var(--texto-3); font-size: var(--letra-6); line-height: 1.3; }
+/* La urdimbre: el hilo vertical, del color del paso */
+.wv-r::before { content: ""; position: absolute; top: 0; bottom: 0; left: 0.75rem; width: 2px; background: color-mix(in srgb, var(--c) 50%, transparent); }
+/* La trama: la hebra de cada paso, a la misma altura y del mismo largo que su segmento en la tira */
+.wv-r::after { content: ""; position: absolute; bottom: 0; left: var(--x0); width: var(--xw); min-width: 3px; height: 2px; border-radius: var(--r-cap); background: color-mix(in srgb, var(--c) 70%, transparent); }
+.wv-r:has(> .wv-nudo) { padding-top: 0.5625rem; }
+.wv-r:first-child::before { top: 50%; }
+.wv-r:last-child::before { bottom: 50%; }
+.wv-nodo { position: relative; z-index: 1; display: grid; width: 1.625rem; height: 1.625rem; flex: none; place-items: center; color: var(--c); }
+.wv-nodo > i { display: block; width: 0.5rem; height: 0.5rem; border-radius: 50%; background: var(--c); box-shadow: 0 0 0 0.1875rem var(--sup-0); }
+.wv-nodo-grupo { grid-auto-flow: row; gap: 0.125rem; align-content: center; }
+.wv-nodo-grupo > i { width: 0.3125rem; height: 0.3125rem; box-shadow: 0 0 0 0.0625rem var(--sup-0); }
+.wv-nodo-lleno { border-radius: 50%; }
+.wv-nodo-lleno[data-c="edit"] { background: var(--paso-editar); color: var(--sup-0); }
+.wv-nodo-lleno[data-c="commit"] { background: var(--acento); color: var(--acento-texto); }
+.wv-nodo-lleno[data-c="error"] { background: var(--fallo-relleno); color: var(--fallo-sobre); box-shadow: var(--fallo-halo); }
+.wv-nodo-lleno[data-c="trabado"] { background: var(--decision-relleno); color: var(--decision-sobre); box-shadow: var(--decision-halo); }
+.wv-nodo-vivo { background: transparent; }
+.wv-r-pensar .wv-nodo { color: var(--paso-pensar); }
+.wv-r-pensar .wv-nodo .wv-i { padding: 0.0625rem; border-radius: 50%; background: var(--sup-0); box-sizing: content-box; }
+.wv-r-s { display: flex; min-width: 0; flex: 1; flex-direction: column; }
+.wv-r-s em { color: var(--apagado); font-style: normal; }
+.wv-r-s b { color: var(--paso-pensar); font-weight: 500; }
+.wv-r-pensar .wv-r-s { display: block; color: var(--apagado); font-size: var(--letra-5); }
+.wv-r-ruta { color: var(--inactivo); font-family: var(--font-mono); font-size: var(--letra-3); font-weight: 400; }
+.wv-r .wv-t { min-width: 3rem; }
+.wv-r-hijo { min-height: 1.875rem; padding-left: var(--esp-5); color: var(--apagado); font-size: var(--letra-5); }
+.wv-r-hijo::before { left: 0.75rem; }
+.wv-r-hijo .wv-nodo { width: 0.875rem; height: 0.875rem; }
+.wv-r-hijo .wv-nodo > i { width: 0.3125rem; height: 0.3125rem; box-shadow: none; }
+.wv-r[data-cambio] { color: var(--texto); font-weight: 500; }
+.wv-r[data-cambio="error"] { color: var(--fallo-texto); }
+.wv-r[data-trabado] { color: var(--decision-texto); font-weight: 500; }
+.wv-r[data-trabado]::after { height: 3px; background: color-mix(in srgb, var(--aviso) 85%, transparent); }
+.wv-r[data-cambio="error"]::after { height: 3px; background: var(--critico); }
+.wv-r[data-vivo] { color: var(--texto); font-weight: 500; }
+.wv-r[data-vivo]::after { height: 3px; background: var(--acento); }
+.wv-r[data-sel] { background: var(--capa-tile); border-radius: var(--r-xs); }
+/* El nudo: un pensamiento corto, atado al hilo arriba del paso siguiente */
+.wv-nudo { position: absolute; z-index: 2; top: -0.3125rem; left: 0.4375rem; display: block; width: 0.625rem; height: 0.625rem; border: 2px solid var(--paso-pensar); border-radius: 50%; background: var(--sup-0); }
+.wv-nudo span { position: absolute; left: 1rem; top: -0.1875rem; color: var(--paso-pensar); font-size: var(--letra-3); font-feature-settings: "tnum" 1; white-space: nowrap; }
+
+.wv-b .wv-panel { border-radius: var(--r-lg); background: var(--sup-0); box-shadow: var(--vidrio-borde); }
+.wv-b .wv-p-cmd { font-size: var(--letra-5); }
+.wv-ga { display: flex; align-items: center; justify-content: space-between; gap: var(--esp-2); margin-top: var(--esp-3); padding-bottom: var(--esp-1); }
+.wv-ga:first-child { margin-top: 0; }
+.wv-ruta-tit { display: inline-flex; min-width: 0; align-items: center; gap: var(--esp-1-5); font-weight: 500; }
+.wv-ga em { flex: none; color: var(--inactivo); font-style: normal; font-family: var(--font-sans); }
+.wv-gb { display: grid; gap: 0 var(--esp-2); grid-template-columns: 3ch minmax(0, 1fr); padding: 0.125rem 0; overflow-wrap: anywhere; }
+.wv-gb .wv-ruta { text-align: right; }
