@@ -57,3 +57,10 @@ Capturas de la barra de verdad, con datos inventados (`pantalla abrir riel-pulid
 
 - `riel-pulido-oscuro.png`: sin nada corriendo; lo que falla o pregunta es lo único que resalta.
 - `riel-pulido-claro.png` y `riel-pulido-trabajando.png`: con trabajo en curso. Lo que corre enciende su tramo del hilo y una lanzadera lo recorre, y el encabezado dice «N en marcha».
+
+## Riel con sus convenciones
+
+Capturas de la barra de verdad (`pantalla abrir riel-pulido`), después de recuperar lo que el Riel había perdido. La lista completa, en `app/src/barra/CONVENCIONES.md`.
+
+- `riel-convenciones-oscuro.png` y `riel-convenciones-claro.png`: con trabajo en curso. El rayito con su tiempo a la vista, «hace N» en la columna del tiempo, el punto que late en lo que corre, las coronas, y sin palomita en «N terminados».
+- `riel-convenciones-calma-oscuro.png` y `riel-convenciones-calma-claro.png`: sin nada corriendo, con los terminados de un líder desplegados: ahí sí va la palomita, en cada worker que terminó.

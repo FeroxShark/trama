@@ -30,19 +30,6 @@ export const pintorHace =
     return { texto: p + diaCorto(desde, a), en: Infinity };
   };
 
-/** Lo mismo que `pintorHace`, sin el "hace": lo que entra a la derecha de una fila de la barra ("1 m", "3 h", "ayer", "2 d", "27 oct"). */
-export const pintorCorto =
-  (desde: number): Pintor =>
-  (a) => {
-    const d = Math.max(0, a - desde);
-    if (d < MIN) return { texto: t("tiempo.cortoAhora"), en: MIN - d };
-    if (d < HORA) return { texto: t("tiempo.cortoM", { n: Math.floor(d / MIN) }), en: MIN - (d % MIN) };
-    if (d < DIA) return { texto: t("tiempo.cortoH", { n: Math.floor(d / HORA) }), en: HORA - (d % HORA) };
-    if (d < 2 * DIA) return { texto: t("tiempo.cortoAyer"), en: 2 * DIA - d };
-    if (d < SEMANA) return { texto: t("tiempo.cortoD", { n: Math.floor(d / DIA) }), en: DIA - (d % DIA) };
-    return { texto: diaCorto(desde, a), en: Infinity };
-  };
-
 /** "38 s", "4 m", "1 h 05 m": cuánto lleva trabajando. Segundos sólo el primer minuto. */
 export const pintorDura =
   (desde: number, prefijo: Prefijo = ""): Pintor =>

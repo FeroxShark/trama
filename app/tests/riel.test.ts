@@ -1,11 +1,11 @@
-// La barra con riel (rediseño 0.4, dirección B): marcas del riel, filtros, "Ver N más", resaltado, tiempos cortos y cupos. Datos inventados.
+// La barra con riel (rediseño 0.4, dirección B): marcas del riel, filtros, "Ver N más", resaltado, tiempos y cupos. Datos inventados.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { armarArbol, type Arbol, type Carpeta, type Item, type Rama } from "../src/barra/arbol.ts";
 import { aRiel, atencionCarpeta, carpetaViva, enMarcha, filtrarArbol, hilosArbol, hilosCarpeta, itemsRiel, ordenAtencion, partirResalte, QUIETOS_VISTA, quietosDe, segunLista } from "../src/barra/riel-logica.ts";
 import { cuentasClaude, lineasCuentas, lineasMotores } from "../src/barra/cupos-riel-logica.ts";
 import { PALETA_RIEL, tonoRiel } from "../src/barra/logo-logica.ts";
-import { pintorCorto } from "../src/tiempo.ts";
+import { pintorHace } from "../src/tiempo.ts";
 import { cambiarIdioma } from "../src/i18n/index.ts";
 import type { Estado, Hilo, Lider } from "../src/datos/contrato.ts";
 import type { FilaSusc } from "../src/datos/cuentas.ts";
@@ -168,16 +168,18 @@ test("armarArbol sinActivas: los líderes calientes se quedan en su carpeta, sin
   assert.ok(a.carpetas.some((c) => c.ramas.some((r) => r.lider?.id === "l")));
 });
 
-test("pintorCorto: la columna del tiempo", () => {
+test("pintorHace: la columna del tiempo dice hace cuánto, y desde la semana la fecha", () => {
   cambiarIdioma("es");
-  const t = (d: number) => pintorCorto(AHORA - d)(AHORA).texto;
-  assert.equal(t(10), "ahora");
-  assert.equal(t(4 * 60), "4 m");
-  assert.equal(t(3 * 3600), "3 h");
+  const t = (d: number) => pintorHace(AHORA - d)(AHORA).texto;
+  assert.equal(t(10), "hace <1 m");
+  assert.equal(t(4 * 60), "hace 4 m");
+  assert.equal(t(3 * 3600), "hace 3 h");
   assert.equal(t(30 * 3600), "ayer");
-  assert.equal(t(4 * 86400), "4 d");
+  assert.equal(t(4 * 86400), "hace 4 d");
+  assert.doesNotMatch(t(9 * 86400), /hace/);
   cambiarIdioma("en");
-  assert.equal(t(10), "now");
+  assert.equal(t(30 * 3600), "yesterday");
+  cambiarIdioma("es");
 });
 
 test("tonoRiel: siempre el mismo tono para un nombre, de la paleta", () => {

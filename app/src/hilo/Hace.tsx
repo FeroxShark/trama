@@ -16,7 +16,7 @@ import { MODO } from "../modo";
 import { nombreModelo } from "./opciones";
 import { ofreceSeguir } from "./seguir-con";
 import { Tierno, useTiernos } from "./Tierno";
-import { Compactando, Hojas } from "./Posta";
+import { Compactando } from "./Posta";
 import { Actividad } from "./Actividad";
 import { clasificar, clasificarPedido } from "./actividad-logica";
 import { enCurso, indicador, lineasDelTurno, pensandoAhora, razona, suscribir, type Indicador } from "./vivo";
@@ -218,33 +218,20 @@ export function HaceChat({ sid, modelo, effort, alParar, parando, piensa = false
   );
 }
 
-/** La segunda línea de la fila de un líder mientras compacta: las hojas, "Compactando" y, si se sabe, hace cuánto. */
-export function CompactaFila({ desde }: { desde: number | null }) {
-  useIdioma();
-  const dura = useMemo(() => (desde !== null ? pintorDura(desde, " · ") : null), [desde]);
-  return (
-    <span className="s hace-s" data-compactando>
-      <Hojas chica className="hojas-s" />
-      <span className="hace-v">{t("hace.compactando")}</span>
-      {dura ? <Reloj pintor={dura} /> : null}
-    </span>
-  );
-}
-
-/** La segunda línea de la fila de un líder de la app: qué hace, o `quieto` (el "hace X" de siempre). */
-export function HaceFila({ sid, quieto }: { sid: string; quieto: ReactNode }) {
+/**
+ * La columna del tiempo de un líder de la app en la barra (una línea): mientras responde, cuánto lleva el turno, con la frase tierna delante si
+ * no hay nada concreto que decir y lo que hace en el tooltip; si no, `quieto` (el "hace X" de siempre).
+ */
+export function TiempoFila({ sid, quieto }: { sid: string; quieto: ReactNode }) {
   useIdioma();
   const ind: Indicador = useIndicador(sid);
   const tierno = useTiernos();
-  const dura = useMemo(() => (ind.desde !== null ? pintorDura(ind.desde, " · ") : null), [ind.desde]);
-  if (!ind.hace) return <>{quieto}</>;
-  // Compactar: las hojas, no el verbo de siempre.
-  if (ind.hace.que === "compactando") return <CompactaFila desde={null} />;
+  const dura = useMemo(() => (ind.desde !== null ? pintorDura(ind.desde) : null), [ind.desde]);
+  if (!ind.hace || ind.hace.que === "compactando") return <>{quieto}</>;
   return (
-    <span className="s hace-s">
-      {/* Una sola línea: la frase cuando no hay nada concreto que decir; con herramienta, la herramienta. */}
-      {tierno && GENERICO.has(ind.hace.que) ? <Tierno semilla={sid} className="hace-v" /> : <span className="hace-v">{textoHace(ind.hace)}</span>}
-      {dura ? <Reloj pintor={dura} /> : null}
-    </span>
+    <>
+      {tierno && GENERICO.has(ind.hace.que) ? <Tierno semilla={sid} limpia className="tierno-fila" /> : null}
+      {dura ? <Reloj pintor={dura} className="cuando" data-tip={textoHace(ind.hace)} /> : null}
+    </>
   );
 }

@@ -9,13 +9,15 @@
 
 /* El color de un proyecto: `--h` lo pone `estiloProyecto`; en el tema claro va más oscuro para que se lea. */
 .pr,
-.proy {
+.proy,
+.lista .cerradas .w {
   --hilo: var(--h, var(--apagado));
   --proy-fondo: color-mix(in srgb, var(--h, var(--apagado)) 11%, var(--sup-1));
   --proy-fondo-viendo: color-mix(in srgb, var(--h, var(--apagado)) 20%, var(--sup-1));
 }
 [data-tema="claro"] .pr,
-[data-tema="claro"] .proy {
+[data-tema="claro"] .proy,
+[data-tema="claro"] .lista .cerradas .w {
   --hilo: color-mix(in oklab, var(--h, var(--apagado)) 50%, var(--texto-1));
   --proy-fondo: color-mix(in srgb, var(--h, var(--apagado)) 22%, var(--sup-0));
   --proy-fondo-viendo: color-mix(in srgb, var(--h, var(--apagado)) 40%, var(--sup-0));
@@ -725,9 +727,23 @@
   width: 0.6875rem;
   height: 0.6875rem;
 }
-/* Lo que corre va en el color de su proyecto: el mismo del hilo que recorre. */
-.g[data-g="corre"] {
-  color: var(--hilo, var(--acento));
+/* Lo que corre o se trabó lleva el punto que se mueve (doble onda / anillo que gira, `Punto` y `latido.ts`), en el color de su proyecto. */
+.lista .fila .g-punto {
+  position: relative;
+  display: block;
+  width: 1rem;
+  height: 1rem;
+  flex: none;
+}
+.lista .fila .g-punto :is(.pt, .onda) {
+  top: 0.28125rem;
+  left: 0.28125rem;
+}
+.lista .fila .g-punto .pt-trab {
+  background: var(--hilo, var(--azul));
+}
+.lista .fila .g-punto .onda {
+  border-color: var(--hilo, var(--azul));
 }
 .g[data-g="termino"] {
   color: var(--ok);
@@ -736,6 +752,10 @@
 .g[data-g="frenado"],
 .g[data-g="cerrado"] {
   color: var(--apagado);
+}
+/* Lo cerrado queda fuera de su proyecto: la raya lleva su color. */
+.lista .cerradas .g[data-g="cerrado"] {
+  color: var(--hilo);
 }
 .g[data-g="murio"] {
   color: var(--fallo-texto);
@@ -784,7 +804,8 @@
 }
 .lista .fila .l2 {
   display: flex;
-  flex: none;
+  min-width: 0;
+  flex: 0 100 auto;
   align-items: center;
   gap: var(--esp-1-5);
   overflow: visible;
@@ -814,17 +835,33 @@
   padding: 0 var(--esp-1-5);
   font-size: var(--letra-3);
 }
-/* El caché: sólo con el mouse encima (la fila ya no le tiene lugar). */
+/* El rayito con lo que le queda al caché: siempre a la vista (es lo que dice que retomarla sale barato). Vencido, "Uncached" y nada de píldora: sólo cede el lugar a los botones del hover. */
 .lista .fila .cache {
-  display: none;
+  height: 1rem;
+  padding: 0 var(--esp-1-5);
 }
-.lista .lw:hover .fila .cache,
-.lista .w:hover .fila .cache {
-  display: inline-flex;
+.lista .fila .cache[data-frio] {
+  padding: 0;
+  background: none;
+}
+/* Uno sin proceso ya dice "Murió" o "Cerrado": "Uncached" al lado no suma. */
+.lista .fila.lider[data-caido] .cache[data-frio] {
+  display: none;
 }
 .lista .lw:has(> .acc):hover .fila .cache,
 .lista .w:has(> .acc):hover .fila .cache {
   display: none;
+}
+/* La frase tierna de lo que corre: cede antes que el título y se corta si no entra. */
+.lista .fila .tierno-fila {
+  min-width: 0;
+  max-width: 6rem;
+  flex: 0 100 auto;
+  overflow: hidden;
+  color: var(--hilo, var(--azul));
+  font-size: 0.71875rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .lista .lw {
   margin-bottom: 0;
@@ -833,6 +870,10 @@
 .lista .fila.lider[data-calmo] .t {
   color: var(--txt-2);
   font-weight: 500;
+}
+/* Caché vencido: el nombre se apaga con la corona (la palabra "Uncached" va al lado: nunca sólo el color). */
+.lista .fila.lider[data-calmo]:has(.cache[data-frio]) .t {
+  color: var(--txt-3);
 }
 .lista .fila.lider[data-calmo]:hover .t {
   color: var(--texto);
@@ -1116,18 +1157,6 @@
 .lista .mini-pliegue:hover {
   background: var(--capa-hover);
   color: var(--texto);
-}
-.lista .mini-pliegue .g {
-  display: grid;
-  width: 0.75rem;
-  height: 0.75rem;
-  flex: none;
-  place-items: center;
-  color: inherit;
-}
-.lista .mini-pliegue .g svg {
-  width: 0.625rem;
-  height: 0.625rem;
 }
 .lista .mini-pliegue .chevron {
   transition: transform var(--t-smooth);

@@ -26,6 +26,7 @@ falta, está en `motor/docs/traspaso.md`.
   cambia `scripts/test.mjs`, `package.json`, los tsconfig o `vite.config.ts`, si toca `tests/paridad/`, o si cambia algo de
   `motor/` o `electron/cli/` que no está en su tabla. No reemplaza el chequeo completo de arriba antes de un commit a main:
   no corre `vite build` ni el smoke de `humo-motor.mjs`.
+- **Barra lateral:** Antes de rediseñar la barra, leer app/src/barra/CONVENCIONES.md y conservar cada señal o justificar el cambio en el RESULTADO. Lo controla `tests/barra-convenciones.test.ts`.
 - **Tests:** los tests no esperan por reloj; usá `esperarHasta` de `app/tests/esperar.ts` o `mock.timers`; una espera legítima lleva `// espera-justificada: <motivo>`.
 - **Probar la interfaz solo (workers de frontend/diseño): `pantalla`** (`motor/bin/pantalla`, port directo en `app/electron/cli/pantalla.ts`;
   Linux y Windows, el .cmd lo arma `windows/src/payload-nativo.js`). Abre una Trama PROPIA offscreen con datos de ejemplo, en un HOME y un

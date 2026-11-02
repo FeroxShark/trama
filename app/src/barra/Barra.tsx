@@ -99,7 +99,7 @@ import { tituloTarea } from "../../electron/titulo-tarea";
 import { armarArrastre, CARPETAS } from "./arrastre";
 import { diferir, workerVivo, type Trabajador } from "./activas";
 import { control } from "./control";
-import { Fila, FilaLider, RESORTE } from "./Fila";
+import { Fila, FilaLider, PliegueTerminados, RESORTE } from "./Fila";
 import { Subagentes } from "./Subagentes";
 import { archivarTodosSubs, claveSub, corriendo, deClaveSub, SubAbierto, useTicSubagentes, useTodosSubagentes } from "./subagentes-logica";
 import type { Subagente } from "../../electron/subagentes";
@@ -138,7 +138,7 @@ import { latir } from "./latido";
 import { estiloProyecto, Riel } from "./Riel";
 import { aRiel, atencionCarpeta, enMarcha, filtrarArbol, hilosArbol, hilosCarpeta, itemsRiel, ordenAtencion, QUIETOS_VISTA, quietosDe, segunLista } from "./riel-logica";
 import { LoBuscado, Resalte } from "./Resalte";
-import { pintorCorto } from "../tiempo";
+import { pintorHace } from "../tiempo";
 import { Reloj } from "./piezas";
 import { avisarVentana, irA, ponerLista, UMBRAL, useVentana } from "./ventana";
 
@@ -2191,7 +2191,7 @@ function Carpeta({
   const corriendo = enMarcha(g);
   // Plegado no se ven sus filas: el encabezado dice que hay algo que mirar.
   const marca = abierto ? null : atencionCarpeta(g, resueltos);
-  const reciente = useMemo(() => (g.reciente ? pintorCorto(g.reciente) : null), [g.reciente]);
+  const reciente = useMemo(() => (g.reciente ? pintorHace(g.reciente) : null), [g.reciente]);
   const alternarQuietos = () => {
     if (!verQuietos) return alPlegar(claveE);
     if (desplegada(claveE)) alPlegar(claveE);
@@ -2233,7 +2233,7 @@ function Carpeta({
         </button>
         {corriendo > 0 ? <EnMarcha n={corriendo} /> : null}
         {abierto && (resto > 0 || (verQuietos && hayMas)) ? (
-          <button type="button" className="proy-mas" aria-expanded={verQuietos} onClick={alternarQuietos}>
+          <button type="button" className="proy-mas" aria-expanded={verQuietos} data-tip={tipQuietos(g)} onClick={alternarQuietos}>
             {verQuietos ? tr("barra.verMenos") : tr("barra.verMas", { n: resto })}
           </button>
         ) : null}
@@ -2296,6 +2296,19 @@ function EnMarcha({ n }: { n: number }) {
   );
 }
 
+/** Lo que hay detrás de "Ver N más": cuántos en espera y cuántos dormidos, y por qué un dormido no se borra. */
+const tipQuietos = (g: DatosCarpeta) => {
+  const e = g.espera.length;
+  const d = g.dormidos.length;
+  return [
+    e ? tr(e === 1 ? "barra.espera1" : "barra.esperaN", { n: e }) : null,
+    d ? tr(d === 1 ? "barra.dormidos1" : "barra.dormidosN", { n: d }) : null,
+    d ? tr("barra.dormidosTip") : null,
+  ]
+    .filter(Boolean)
+    .join("\n");
+};
+
 const SIN_NOMBRES: string[] = [];
 
 /**
@@ -2344,8 +2357,6 @@ function Arbol({ ref, r, grupo, activo, alAbrirLider, alCerrarLider, alSettleLid
   const vivos = useMemo(() => r.vivas.filter((it) => workerVivo({ estado: it.estado, en_cola: it.h.en_cola })).length, [r.vivas]);
   const pliegue = n > 0;
   const lider = r.tipo === "lider";
-  const cuantos = lider ? (n === 1 ? "barra.terminado1" : "barra.terminadosN") : n === 1 ? "barra.terminada1" : "barra.terminadaN";
-  const ocultar = lider ? "barra.ocultarTerminados" : "barra.ocultarTerminadas";
   return (
     <motion.div
       ref={ref}
@@ -2379,15 +2390,7 @@ function Arbol({ ref, r, grupo, activo, alAbrirLider, alCerrarLider, alSettleLid
         <Filas items={r.vivas} virtual={virtual} fila={fila} />
         {/* El "N terminados" va antes de lo terminado, no al final: es el mismo botón que lo despliega y el que lo
             oculta, y con una lista larga no hay que bajar hasta el fondo. Abierto se queda pegado arriba al scrollear. */}
-        {pliegue ? (
-          <li key="pliegue" className="w pliegue" data-abierto={plegada ? undefined : ""}>
-            <button type="button" className="mini-pliegue" aria-expanded={!plegada} onClick={() => alPlegar(r.clave)}>
-              {plegada ? <Glifo g="termino" /> : null}
-              {plegada ? tr(cuantos, { n }) : tr(ocultar)}
-              <ChevronDown className="chevron" size={11} strokeWidth={2} />
-            </button>
-          </li>
-        ) : null}
+        {pliegue ? <PliegueTerminados key="pliegue" n={n} lider={lider} plegada={plegada} alPlegar={() => alPlegar(r.clave)} /> : null}
         {/* Siempre montada (salvo virtualizada): las filas entran y salen animadas al plegar. */}
         {plegada && virtual ? null : <Filas items={plegada ? SIN_FILAS : r.viejas} virtual={virtual} fila={fila} />}
       </ul>
