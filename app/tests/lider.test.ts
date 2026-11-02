@@ -187,7 +187,7 @@ test("parser con una corrida real (sanitizada): pide, herramienta, tokens, texto
   assert.deepEqual(hace, [
     { que: "pidiendo", nombre: null, detalle: null },
     { que: "herramienta", nombre: "Bash", detalle: null },
-    { que: "herramienta", nombre: "Bash", detalle: "echo hola" },
+    { que: "herramienta", nombre: "Bash", detalle: "echo hola", desc: "Print hola" },
     { que: "pidiendo", nombre: null, detalle: null },
     { que: "escribiendo", nombre: null, detalle: null },
   ]);

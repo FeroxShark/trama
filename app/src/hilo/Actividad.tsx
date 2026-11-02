@@ -14,7 +14,6 @@ import type { LineaTiempo } from "./linea-tiempo";
 import { Escena } from "./Escenas";
 import { Tierno } from "./Tierno";
 import { EnlaceArchivo } from "./VerArchivo";
-import "./tarjeta-frase.css";
 
 const ICONO: Record<Icono, LucideIcon> = {
   pensar: Brain,

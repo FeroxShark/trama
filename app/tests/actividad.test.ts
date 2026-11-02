@@ -3,7 +3,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { detalleHace, parsearLinea } from "../electron/lider-arma.ts";
-import { avanzar, clasificar, clasificarPedido, cuentaMas, cuentaPasos, cuentaTokens, delegaPa, dominio, estadoDe, iconoDe, limpiarComando, muyLargo, PLIEGUE, rutaLegible, sinPasos, textoPaso, unaLinea, MAX_PASOS, PASOS, type Actividad } from "../src/hilo/actividad-logica.ts";
+import { avanzar, clasificar, clasificarPedido, cuentaMas, cuentaPasos, cuentaTokens, delegaPa, dominio, estadoDe, fraseDe, iconoDe, limpiarComando, muyLargo, PLIEGUE, rutaLegible, sinNovedades, SIN_NOVEDADES_MS, sinPasos, textoPaso, ultimaLinea, unaLinea, MAX_PASOS, PASOS, type Actividad } from "../src/hilo/actividad-logica.ts";
 import { cambiarIdioma } from "../src/i18n/index.ts";
 import { en } from "../src/i18n/en.ts";
 import { es } from "../src/i18n/es.ts";
@@ -188,4 +188,88 @@ test("los contadores del pie de la tarjeta: 1 va en singular, el resto en plural
   } finally {
     cambiarIdioma("en");
   }
+});
+
+const bash = (detalle: string, desc?: string): HaceLider => ({ que: "herramienta", nombre: "Bash", detalle, ...(desc ? { desc } : {}) });
+const fraseBash = (detalle: string, desc?: string, salida: { linea: string; error: boolean } | null = null) => {
+  const hace = bash(detalle, desc);
+  return fraseDe({ act: clasificar(hace), hace, pasos: [], salida });
+};
+
+test("frase: el título es la descripción del comando, y abajo Corriendo con el comando", () => {
+  cambiarIdioma("es");
+  const f = fraseBash("tablero lista --abiertas", "Revisando workers y tablero");
+  assert.equal(f.titulo, "Revisando workers y tablero");
+  assert.equal(f.verbo, "Corriendo");
+  assert.equal(f.linea, "tablero lista --abiertas");
+  assert.equal(f.mono, true);
+});
+
+test("frase: sin descripción el título es «Corriendo Bash» y no repite el verbo", () => {
+  cambiarIdioma("es");
+  const f = fraseBash("npm test");
+  assert.equal(f.titulo, "Corriendo Bash");
+  assert.equal(f.verbo, null);
+  assert.equal(f.linea, "npm test");
+  cambiarIdioma("en");
+  assert.equal(fraseBash("npm test").titulo, "Running Bash");
+  cambiarIdioma("es");
+});
+
+test("frase: con lo que devolvió el comando, Corrió y su última línea; con error, lo dice en palabras", () => {
+  cambiarIdioma("es");
+  const f = fraseBash("npm test", "Probando", { linea: "12 passing", error: false });
+  assert.equal(f.verbo, "Corrió");
+  assert.equal(f.linea, "12 passing");
+  assert.equal(fraseBash("npm test", "Probando", { linea: "1 failing", error: true }).verbo, es["hz.t.error"]);
+  cambiarIdioma("en");
+  assert.equal(fraseBash("npm test", "Testing", { linea: "12 passing", error: false }).verbo, "Ran");
+  cambiarIdioma("es");
+});
+
+test("frase: un permiso sin contestar manda; un turno fallado lo dice en el título", () => {
+  cambiarIdioma("es");
+  const pedido = clasificarPedido({ id: "p1", nombre: "Bash", detalle: "git push origin main", tipo: "permiso" } as never);
+  assert.equal(fraseDe({ act: pedido, hace: bash("git push origin main"), pasos: [] }).titulo, "Te necesita");
+  const hace = bash("tablero lista", "Revisando el tablero");
+  assert.equal(fraseDe({ act: clasificar(hace), hace, pasos: [], fallo: true }).titulo, "No pudo terminar: Revisando el tablero");
+});
+
+test("frase: lo de antes queda como miga, de lo más viejo a lo más nuevo y sólo tres", () => {
+  cambiarIdioma("es");
+  const hace = bash("npm test", "Probando");
+  const pasos = ["d.ts", "c.ts", "b.ts", "a.ts"].map((f, i) => ({ hace: herr("Read", f), seg: i }));
+  const { antes } = fraseDe({ act: clasificar(hace), hace, pasos });
+  assert.equal(antes.length, 3);
+  assert.ok(antes[2].includes("d.ts"), antes.join(" | "));
+});
+
+test("la última línea: sin colores, con barras de progreso y salteando los renglones vacíos", () => {
+  assert.equal(ultimaLinea("uno\ndos\n\n"), "dos");
+  assert.equal(ultimaLinea("\u001b[32m12 passing\u001b[0m\n"), "12 passing");
+  assert.equal(ultimaLinea("10%\r50%\r100%"), "100%");
+  assert.equal(ultimaLinea("  \n"), "");
+  assert.equal(ultimaLinea("x".repeat(1000)).length, 400);
+});
+
+test("sin novedades: recién a los 2 minutos, y sin dato no avisa", () => {
+  assert.equal(SIN_NOVEDADES_MS, 120_000);
+  assert.equal(sinNovedades(1000, 1000 + SIN_NOVEDADES_MS - 1), false);
+  assert.equal(sinNovedades(1000, 1000 + SIN_NOVEDADES_MS), true);
+  assert.equal(sinNovedades(0, 10 * SIN_NOVEDADES_MS), false);
+});
+
+test("el main pasa la descripción del comando, salvo que sea lo mismo que el detalle", () => {
+  assert.deepEqual(detalleHace("Bash", { command: "ls", description: "Mirar la carpeta" }), { detalle: "ls", desc: "Mirar la carpeta" });
+  assert.deepEqual(detalleHace("Bash", { command: "ls" }), { detalle: "ls" });
+  assert.deepEqual(detalleHace("Bash", { description: "Mirar" }), { detalle: "Mirar" });
+});
+
+test("los textos de la tarjeta están en los dos idiomas", () => {
+  for (const k of ["hz.corrio", "hz.quieto", "hz.f.noTermino", "hz.f.noTerminoSolo", "hz.f.parado", "hz.todo", "hz.menos"] as const) {
+    assert.ok(es[k], `falta ${k} en es`);
+    assert.ok(en[k], `falta ${k} en en`);
+  }
+  assert.equal(es["hz.quieto"], "Sin novedades hace");
+  assert.equal(en["hz.corrio"], "Ran");
 });

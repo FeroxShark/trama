@@ -47,7 +47,7 @@ Object.assign(globalThis, {
   },
 });
 
-const { confirmar, contestado, enCurso, enviado, enviadoDirecto, falloDirecto, lineasDelTurno, mensajesVistos, pensandoAhora, suscribir } = await import("../src/hilo/vivo.ts");
+const { comandoCrudo, confirmar, contestado, enCurso, enviado, enviadoDirecto, falloDirecto, lineasDelTurno, mensajesVistos, parando, pensandoAhora, quietoDesde, suscribir } = await import("../src/hilo/vivo.ts");
 const { turnos } = await import("../src/hilo/turnos.ts");
 const { tandasPendientes } = await import("../src/hilo/preguntas-logica.ts");
 
@@ -353,4 +353,97 @@ test("progreso: tres pensamientos quedan en orden, sin que uno reemplace al otro
   const t = items(sid).at(-1)!;
   assert.equal(t.tipo, "turno");
   if (t.tipo === "turno") assert.deepEqual(t.pensamientos?.slice(0, 3), ["Primero miro el log.", "Ahora el índice", "Por último, concluyo."]);
+});
+
+const comando = (id: string, command: string, description?: string): EventoLider[] => [
+  { tipo: "mensaje", mid: `m-${id}`, texto: "", herramientas: [`Bash: ${command}`], modelo: "claude-opus-5-5", det: [{ nombre: "Bash", entrada: { command, ...(description ? { description } : {}) }, id }] },
+  { tipo: "hace", hace: { que: "herramienta", nombre: "Bash", detalle: command, ...(description ? { desc: description } : {}) } },
+];
+const mandar = (sid: string, ...ev: EventoLider[]) => ev.forEach((e) => emitir({ sid, e }));
+
+test("tarjeta: lo último que devolvió el comando queda en `salida`; otra herramienta lo limpia", () => {
+  const sid = "tar-salida";
+  empezar(sid);
+  mandar(sid, ...comando("t1", "npm test\n  --reporter dot", "Probando"));
+  assert.equal(enCurso(sid).salida, null);
+  assert.equal(comandoCrudo(sid), "npm test\n  --reporter dot");
+  mandar(sid, { tipo: "resultado", id: "t1", texto: "ok\n12 passing\n", error: false });
+  assert.deepEqual(enCurso(sid).salida, { linea: "12 passing", error: false });
+  mandar(sid, { tipo: "hace", hace: { que: "herramienta", nombre: "Read", detalle: "src/a.ts" } });
+  assert.equal(enCurso(sid).salida, null);
+});
+
+test("tarjeta: el silencio se mide desde lo último que llegó, y no cuenta con un permiso abierto", (t) => {
+  t.mock.timers.enable({ apis: ["Date"], now: 1_000_000 });
+  const sid = "tar-quieto";
+  empezar(sid);
+  mandar(sid, ...comando("q1", "sleep 900"));
+  assert.equal(quietoDesde(sid), null);
+  t.mock.timers.tick(119_000);
+  assert.equal(quietoDesde(sid), null);
+  mandar(sid, { tipo: "tokens", salida: 40, nuevo: true });
+  t.mock.timers.tick(119_000);
+  assert.equal(quietoDesde(sid), null, "los tokens son novedad");
+  t.mock.timers.tick(2_000);
+  assert.equal(quietoDesde(sid), 1_119_000);
+  mandar(sid, { tipo: "resultado", id: "q1", texto: "hecho", error: false });
+  assert.equal(quietoDesde(sid), null, "la salida también");
+});
+
+test("tarjeta: el turno cierra listo, con lo que duró y sus pasos; el próximo lo deja atrás", () => {
+  const sid = "tar-listo";
+  empezar(sid);
+  mandar(sid, { tipo: "hace", hace: { que: "herramienta", nombre: "Read", detalle: "a.ts" } }, ...comando("l1", "npm test", "Probando"));
+  terminar(sid);
+  const f = enCurso(sid).fin;
+  assert.equal(f?.estado, "listo");
+  assert.equal(f?.hace?.nombre, "Bash");
+  assert.equal(f?.pasosN, 1);
+  assert.equal(enCurso(sid).salida, null);
+  assert.equal(enCurso(sid).ind.hace, null);
+  empezar(sid);
+  assert.equal(enCurso(sid).fin, null);
+});
+
+test("tarjeta: si falla queda el error y lo último que hacía; se limpia al mandar otro mensaje", () => {
+  const sid = "tar-fallo";
+  empezar(sid);
+  mandar(sid, ...comando("f1", "tablero lista", "Revisando el tablero"), { tipo: "resultado", id: "f1", texto: "database is locked", error: true });
+  mandar(sid, { tipo: "fin", error: "database is locked", ttl: null }, { tipo: "estado", ocupado: false, vivo: true });
+  const e = enCurso(sid);
+  assert.equal(e.fin?.estado, "error");
+  assert.equal(e.fin?.hace?.que === "herramienta" ? e.fin.hace.desc : null, "Revisando el tablero");
+  assert.deepEqual(e.fin?.salida, { linea: "database is locked", error: true });
+  assert.ok(e.avisos.some((a) => a.clase === "error" && a.texto === "database is locked"));
+  enviado(sid, "otra vez", PAG.total);
+  assert.equal(enCurso(sid).fin, null);
+});
+
+test("tarjeta: Parar no es una falla", () => {
+  const sid = "tar-parado";
+  empezar(sid);
+  mandar(sid, ...comando("p1", "sleep 900"));
+  parando(sid);
+  mandar(sid, { tipo: "fin", error: "interrumpido", ttl: null }, { tipo: "estado", ocupado: false, vivo: true });
+  assert.equal(enCurso(sid).fin?.estado, "parado");
+  assert.equal(enCurso(sid).avisos.length, 0);
+});
+
+test("tarjeta: el proceso que muere a mitad de turno es una falla", () => {
+  const sid = "tar-salio";
+  empezar(sid);
+  mandar(sid, ...comando("s1", "sleep 900"));
+  mandar(sid, { tipo: "salio", codigo: 1, error: "se cortó" });
+  assert.equal(enCurso(sid).fin?.estado, "error");
+  assert.equal(enCurso(sid).fin?.hace?.nombre, "Bash");
+});
+
+test("tarjeta: que el proceso cierre después de un turno bueno no le cambia el cierre", () => {
+  const sid = "tar-salio-bien";
+  empezar(sid);
+  mandar(sid, ...comando("b1", "ls"));
+  terminar(sid);
+  const f = enCurso(sid).fin;
+  mandar(sid, { tipo: "salio", codigo: 0, error: null });
+  assert.equal(enCurso(sid).fin, f);
 });
