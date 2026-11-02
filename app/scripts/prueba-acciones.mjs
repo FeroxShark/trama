@@ -35,8 +35,8 @@ const puerto = 9300 + Math.floor(Math.random() * 600);
 for (const d of ["atlas", "brote"]) mkdirSync(path.join(tmp, "proy", d), { recursive: true });
 // El PA_STATE de mentira existe desde antes: la app mira su eventos.jsonl desde que arranca.
 mkdirSync(path.join(tmp, "pa"));
-// Un statusline de mentira (de una sesión que no vive: sólo da el uso del plan). 5 h en ámbar y la
-// semana en rojo, con el reinicio más largo de escribir ("se reinicia en 23 h 50 min").
+// Un statusline de mentira (de una sesión que no vive: sólo da el uso del plan). 5 h sin color (74 %) y la
+// semana en ámbar (93 %, desde 80), con el reinicio más largo de escribir ("se reinicia en 23 h 50 min").
 mkdirSync(path.join(tmp, "pa", "statusline"));
 {
   const ahora = Math.floor(Date.now() / 1000);
@@ -447,12 +447,26 @@ try {
   ok(await hasta(() => document.querySelectorAll(".vuelo .v-nota").length >= 2, "detalle de cupos"), "el detalle trae las dos ventanas");
   let cab = await en(cabecera);
   ok(cab.logo && cab.usos === 2 && cab.botones === 1, `el riel trae la marca y los dos anillos de uso en un botón: ${JSON.stringify(cab)}`);
-  ok(cab.niveles === "ambar,rojo", `74 % va en ámbar y 93 % en rojo: ${cab.niveles}`);
+  // La regla: ámbar desde 80 %, rojo sólo sin cupo. 74 % no lleva color; 93 % va en ámbar.
+  ok(cab.niveles === ",ambar", `74 % sin color y 93 % en ámbar: ${cab.niveles}`);
   ok(!cab.desborda.length && /23 h (49|50) min/.test(cab.texto), `a 18 px el uso entra entero: ${JSON.stringify(cab)}`);
   await teclaTirador("Home");
   await espera(100);
   cab = await en(cabecera);
   ok(!cab.desborda.length && cab.usos === 2, `con la barra en su mínimo no desborda: ${JSON.stringify(cab)}`);
+  // Sin cupo (100 %): rojo, con la palabra «sin cupo». Un statusline más nuevo gana (el ts más alto); el de 5 h sigue sin color.
+  {
+    const ahora = Math.floor(Date.now() / 1000);
+    const limite = (pct, reinicia) => ({ used_percentage: pct, resets_at: ahora + reinicia });
+    writeFileSync(
+      path.join(tmp, "pa", "statusline", "s-uso-agotado.json"),
+      JSON.stringify({ version: 1, ts: ahora, rate_limits: { five_hour: limite(74, 4 * 3600), seven_day: limite(100, 23 * 3600 + 50 * 60) } }),
+    );
+    ok(await hasta(() => document.querySelectorAll('.cupos-riel .an[data-nivel="rojo"]').length === 1, "semana sin cupo"), "100 % sin cupo va en rojo");
+    cab = await en(cabecera);
+    ok(cab.niveles === ",rojo" && /sin cupo, vuelve en 23 h (49|50) min/.test(cab.texto), `sin cupo: rojo y con la palabra: ${cab.niveles} · ${cab.texto}`);
+    ok(!cab.desborda.length, `sin cupo tampoco desborda con la barra en su mínimo: ${JSON.stringify(cab.desborda)}`);
+  }
   await teclaTirador("ArrowRight", 5);
   await tecla("Escape");
   ok(await hasta(() => !document.querySelector(".vuelo"), "detalle cerrado"), "Esc cierra el detalle de cupos");
