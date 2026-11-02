@@ -1,5 +1,17 @@
 # Cambios
 
+## 0.2.46
+
+- Reiniciar Trama ya no marca a los líderes como muertos: quedan retomables. Un líder sólo figura como muerto tras 7 días sin actividad. Un fallo real se sigue mostrando.
+- Tarjeta de un líder trabajando: nuevo diseño Frase, más bajo. Dice qué está haciendo en palabras, con un solo estado, aviso en ámbar a los 2 minutos sin novedades, y se pliega al terminar.
+- Vista de un worker: nuevo diseño Hilo. Pasos en palabras, repetidos agrupados, tira de tiempo por tipo, filtro «Sólo cambios» y rutas clicables.
+- Mensajes en cola: bandeja Solapa sobre la caja, con Editar, Borrar, reordenar y «Enviar ahora». Cerrados cuatro casos en los que un mensaje se podía perder.
+- Barra: chip de modelo y esfuerzo, títulos reales de los workers, «corre hace 4 m» y «Uncached» en tooltip.
+- Cupos: agrupados por suscripción, «% usado», ámbar desde 80 %, rojo sólo sin cupo, y aviso si no se pudieron actualizar.
+- Avisos de workers más chicos: una fila por worker, primero los que piden una decisión.
+- «Show context» pasa arriba a la derecha.
+- Una ruta con * o ? ya no se trata como imagen ni muestra «Imagen no disponible».
+
 ## 0.2.45
 
 - Barra lateral: vuelven las señales de siempre. El ⚡ con el tiempo en la conversación caliente a la vista, el tiempo en palabras («hace 2 m», «ayer», «hace 3 d»), las frases tiernas, «2 sub.» y los tooltips. Lo que corre late y lo trabado gira. La palomita queda sólo en el worker que terminó, nunca en un líder.
