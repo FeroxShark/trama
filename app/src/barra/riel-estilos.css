@@ -481,6 +481,11 @@
 .v-lin[data-palabra] {
   grid-template-columns: minmax(0, 1fr) auto;
 }
+/* La palabra (gratis, sin límite, pedidos) se parte antes que salirse del detalle con la barra en su mínimo (con nowrap se salía del renglón). */
+.v-lin[data-palabra] b {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
 .v-sub {
   grid-column: 1 / -1;
   padding-bottom: var(--esp-1);
