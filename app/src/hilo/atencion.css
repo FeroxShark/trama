@@ -1,10 +1,9 @@
-/* Lo que pide atención en el hilo (rediseño 0.4, paso 2): un worker que falló (coral) o que pide una decisión (ámbar) se
-   entiende de un vistazo; lo que corre o terminó queda calmo. Lo usan el aviso automático de workers (Sistema.tsx, `Aviso`) y la
-   vista de un worker (Worker.tsx, `.wk-fin`). Maqueta: maquetas/rediseno-0.4/vidrio-quieto-v2.html. Sólo tokens
-   (`--fallo-*`, `--decision-*` de tokens.css): cada estado lleva además ícono y palabra, nunca sólo el color. */
+/* Lo que pide atención en la vista de un worker (rediseño 0.4, paso 2): un worker que falló (coral) o que pide una decisión (ámbar)
+   se entiende de un vistazo; lo que corre o terminó queda calmo. Lo usa la vista de un worker (Worker.tsx, `.wk-fin`). Las filas del
+   aviso automático del chat (Sistema.tsx, `Aviso`) están en index.css: sin fondo ni borde, sólo ícono y palabra.
+   Maqueta: maquetas/rediseno-0.4/vidrio-quieto-v2.html. Sólo tokens (`--fallo-*`, `--decision-*` de tokens.css): cada estado lleva además ícono y palabra, nunca sólo el color. */
 
 /* ---- El tono de cada estado: la tarjeta lo pone una vez y lo heredan sus piezas ---- */
-.sis-aviso-f[data-atencion="falla"],
 .wk-fin[data-atencion="falla"] {
   --at-relleno: var(--fallo-relleno);
   --at-sobre: var(--fallo-sobre);
@@ -15,7 +14,6 @@
   --at-brillo: var(--fallo-brillo);
   --at-halo: var(--fallo-halo);
 }
-.sis-aviso-f[data-atencion="decision"],
 .wk-fin[data-atencion="decision"] {
   --at-relleno: var(--decision-relleno);
   --at-sobre: var(--decision-sobre);
@@ -27,8 +25,7 @@
   --at-halo: var(--decision-halo);
 }
 
-/* ---- La tarjeta que pide atención: fondo tintado, borde luminoso y brillo que la despega ---- */
-.sis-aviso-f,
+/* ---- La tarjeta del worker que pide atención: fondo tintado, borde luminoso y brillo que la despega ---- */
 .wk-fin[data-atencion] {
   border-radius: var(--r-md);
   background: var(--at-fondo);
@@ -38,7 +35,6 @@
 }
 
 /* El ícono va en un recuadro relleno del color del estado. */
-.sis-aviso-ico,
 .wk-aten-ico {
   display: grid;
   flex: none;
@@ -51,7 +47,6 @@
 }
 
 /* El chip con la palabra (con ícono propio: no depende del color). */
-.sis-aviso-chip,
 .wk-aten-chip {
   display: inline-flex;
   flex: none;
@@ -67,8 +62,7 @@
   white-space: nowrap;
 }
 
-/* El botón principal: relleno, de alto contraste contra el tinte. */
-.sis-aviso-b,
+/* Los botones de la tarjeta del worker: relleno, de alto contraste contra el tinte. */
 .wk-fin[data-atencion] :is([data-retomar], [data-pasar]) {
   display: inline-flex;
   align-items: center;
@@ -83,87 +77,23 @@
   font-size: var(--letra-5);
   font-weight: 500;
 }
-.sis-aviso-b:hover,
 .wk-fin[data-atencion] :is([data-retomar], [data-pasar]):hover {
   background: var(--capa-track);
 }
-.sis-aviso-b[data-primario],
 .wk-fin[data-atencion] :is([data-retomar], [data-pasar]) {
   background: var(--at-relleno);
   color: var(--at-sobre);
   font-weight: 600;
 }
-.sis-aviso-b[data-primario]:hover,
 .wk-fin[data-atencion] :is([data-retomar], [data-pasar]):hover {
   background: var(--at-relleno);
   filter: brightness(1.08);
 }
-.sis-aviso-b:focus-visible,
 .wk-fin[data-atencion] :is([data-retomar], [data-pasar]):focus-visible {
   outline: 0;
   box-shadow: var(--at-halo, var(--vidrio-borde));
 }
-.sis-aviso-b:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
 
-/* ---- El aviso automático: la tarjeta queda calma, sólo se destacan sus filas ---- */
-.sis-aviso {
-  min-width: min(100%, 22rem);
-}
-.sis-aviso-l {
-  gap: var(--esp-1-5);
-}
-.sis-aviso-ok {
-  color: var(--texto-5);
-}
-.sis-aviso-ok .sis-aviso-e {
-  font-weight: 400;
-}
-.sis-aviso-ok .sis-aviso-e[data-tono] {
-  color: var(--texto-5);
-}
-.sis-aviso .sis-aviso-f {
-  display: flex;
-  min-height: 0;
-  align-items: flex-start;
-  gap: var(--esp-3);
-  padding: var(--esp-3);
-  color: var(--texto);
-}
-.sis-aviso-cuerpo {
-  display: flex;
-  min-width: 0;
-  flex: 1;
-  flex-direction: column;
-  gap: var(--esp-2);
-}
-.sis-aviso-tit {
-  display: flex;
-  min-width: 0;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--esp-2);
-}
-.sis-aviso-f .sis-aviso-tarea {
-  flex: 0 1 auto;
-  font-size: var(--letra-7);
-  font-weight: 600;
-}
-.sis-aviso-acc {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--esp-2);
-}
-.sis-aviso-f .caja-error {
-  margin: 0;
-}
-
-/* ---- La vista de un worker: el resultado se vuelve la tarjeta de atención ---- */
-.wk-fin[data-atencion] {
-  padding: var(--esp-4);
-}
 .wk-aten {
   display: flex;
   flex-wrap: wrap;
@@ -176,6 +106,9 @@
   color: var(--texto);
   font-size: var(--letra-7);
   font-weight: 600;
+}
+.wk-fin[data-atencion] {
+  padding: var(--esp-4);
 }
 .wk-fin[data-atencion] .pregunta {
   padding: 0;
@@ -195,7 +128,6 @@
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .sis-aviso-b,
   .wk-fin[data-atencion] :is([data-retomar], [data-pasar]) {
     transition:
       background-color 0.12s ease-out,
