@@ -1576,6 +1576,41 @@ img.logo {
 .avw-e {
   color: var(--rojo-texto, var(--txt-3));
 }
+/* El cartelito de muertes: la misma fila que las pastillas, en gris (sin color de alarma ni movimiento); la palabra «Murió» lleva el estado. */
+.avm-c {
+  display: flex;
+  width: 100%;
+  min-height: 1.5rem;
+  align-items: center;
+  gap: var(--esp-2);
+  padding: 0 var(--esp-1) 0 var(--esp-3);
+  border-radius: var(--r-sm);
+  background: var(--capa-card);
+  color: var(--txt-3);
+  font-size: var(--letra-4);
+}
+.avm-t {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.avm-x {
+  display: grid;
+  width: 1.25rem;
+  height: 1.25rem;
+  flex: none;
+  place-items: center;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--txt-3);
+}
+.avm-x:hover {
+  background: var(--capa-hover);
+  color: var(--texto-1);
+}
 .avs-l {
   display: flex;
   flex-direction: column;
@@ -5834,10 +5869,12 @@ summary.sis-div-t:hover,
     min-height: 2.75rem;
   }
   .avs-a,
-  .avs-d {
+  .avs-d,
+  .avm-x {
     min-height: 2.75rem;
   }
-  .avs-d {
+  .avs-d,
+  .avm-x {
     width: 2.75rem;
   }
   /* Los chiquitos (quitar un adjunto) no crecen: crece dónde se los toca. */

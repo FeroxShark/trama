@@ -1,11 +1,11 @@
-// Los avisos de workers al pie de la barra, junto a "falta configurar": una pastilla con un puntito rojo y cuántos hay (fallas y
-// colgados que el dueño no descartó). El clic abre un globito con cada uno: quién, por qué (el cupo dice el proveedor y cuándo vuelve)
+// Los avisos de workers al pie de la barra, junto a "falta configurar": una pastilla con un puntito rojo y cuántos hay (cupos y
+// colgados que el dueño no descartó; las muertes no: salen en un cartelito que se va solo, ver CartelMuertes). El clic abre un globito con cada uno: quién, por qué (el cupo dice el proveedor y cuándo vuelve)
 // y, si fue por cupo, "Relanzar con otro modelo" (la misma tarea, sin modelo fijo: `reparto` elige entre lo que tiene cupo) y "Seguir con otro
 // modelo" (abre el selector de modelo y sigue la misma conversación con un resumen de lo hecho, #1791). La ✕ lo
 // descarta. Sin avisos no se ve nada. Lo anota src/avisos-worker.ts; lo detecta el main (electron/avisos-worker.ts).
 import { memo, useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { ArrowRightLeft, X } from "lucide-react";
-import { avisosPendientes, descartarAviso, suscribirAvisos, textoMotivo } from "../avisos-worker";
+import { avisosPendientes, cartelMuertes, cerrarCartelMuertes, descartarAviso, pausarCartelMuertes, suscribirAvisos, textoCartelMuertes, textoMotivo } from "../avisos-worker";
 import type { AvisoWorker } from "../datos/contrato";
 import { fuente } from "../datos/fuente";
 import { mensaje } from "../puente";
@@ -17,7 +17,44 @@ import { SeguirCon } from "../hilo/SeguirCon";
 
 type Relanzo = "relanzando" | "hecho" | { error: string };
 
+/**
+ * «Murió un worker» / «Murieron 3 workers»: se dice una vez y se va solo a los pocos segundos (sin color de alarma ni movimiento);
+ * con el puntero o el foco encima no se va. Lo que murió sigue a la vista en su fila; esto sólo avisa.
+ */
+const CartelMuertes = memo(function CartelMuertes() {
+  useIdioma();
+  const c = useSyncExternalStore(suscribirAvisos, cartelMuertes);
+  if (!c) return null;
+  const texto = textoCartelMuertes(c);
+  return (
+    <div
+      className="avc avm"
+      role="status"
+      onPointerEnter={() => pausarCartelMuertes(true)}
+      onPointerLeave={() => pausarCartelMuertes(false)}
+      onFocus={() => pausarCartelMuertes(true)}
+      onBlur={() => pausarCartelMuertes(false)}
+    >
+      <div className="avm-c" title={c.motivo ? `${texto}. ${c.motivo}` : texto}>
+        <span className="avm-t">{texto}</span>
+        <button type="button" className="avm-x" aria-label={t("avisoW.cerrarMuerte")} onClick={cerrarCartelMuertes}>
+          <X size={12} aria-hidden="true" />
+        </button>
+      </div>
+    </div>
+  );
+});
+
 export const AvisoWorkers = memo(function AvisoWorkers() {
+  return (
+    <>
+      <CartelMuertes />
+      <PastillaWorkers />
+    </>
+  );
+});
+
+const PastillaWorkers = memo(function PastillaWorkers() {
   useIdioma();
   const avisos = useSyncExternalStore(suscribirAvisos, avisosPendientes);
   const [abierto, setAbierto] = useState(false);

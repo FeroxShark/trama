@@ -1859,6 +1859,9 @@ export const es: { [K in keyof typeof en]: string } = {
   "avisoW.seguirFallo": "No se pudo seguir con otro modelo: {e}",
   "avisoW.terminado1": "1 worker terminó",
   "avisoW.terminados": "{n} workers terminaron",
+  "avisoW.muerte1": "Murió un worker: {tarea}",
+  "avisoW.muertes": "Murieron {n} workers",
+  "avisoW.cerrarMuerte": "Cerrar el aviso",
   // Dictar en la caja (src/hilo/Dictar.tsx).
   "dictado.dictar": "Dictar",
   "dictado.parar": "Parar y transcribir",

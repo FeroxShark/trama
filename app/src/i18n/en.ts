@@ -1872,6 +1872,9 @@ export const en = {
   "avisoW.seguirFallo": "Couldn't continue with another model: {e}",
   "avisoW.terminado1": "1 worker finished",
   "avisoW.terminados": "{n} workers finished",
+  "avisoW.muerte1": "A worker died: {tarea}",
+  "avisoW.muertes": "{n} workers died",
+  "avisoW.cerrarMuerte": "Close the notice",
   // Dictating into the box (src/hilo/Dictar.tsx).
   "dictado.dictar": "Dictate",
   "dictado.parar": "Stop and transcribe",

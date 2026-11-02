@@ -1586,8 +1586,15 @@ const fija: Fuente = {
   guardarAvisarWorkers() {},
   guardarTerminalAgentes() {},
   guardarAvisoLider() {},
-  alAvisoWorker() {
-    return () => {};
+  alAvisoWorker(fn) {
+    // Captura `avisos-muerte`: workers que mueren al abrir (uno, o tres con `varias`) para ver el cartelito.
+    if (MODO.captura !== "avisos-muerte") return () => {};
+    const n = MODO.variante === "varias" ? 3 : 1;
+    const t0 = Date.now();
+    const id = setTimeout(() => {
+      for (let i = 0; i < n; i++) fn({ tipo: "falla", clave: `fx${i}:falla`, id: `fx${i}`, proyecto: "trama", tarea: ["Pulir la barra lateral", "Probar el instalador", "Revisar los avisos"][i]!, modelo: "sonnet", jefe_id: null, jefe: null, motivo: "", ts: t0 + 400 });
+    }, 400);
+    return () => clearTimeout(id);
   },
   async relanzarWorker() {},
   async seguirConWorker() {},

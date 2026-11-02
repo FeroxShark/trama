@@ -64,12 +64,93 @@ const vistas = new Set<string>();
 /** Anota un aviso del main. `true`: es nuevo (no se había visto esa clave y no es un reenvío viejo). */
 export function recibirAviso(a: AvisoWorker, ahora = Date.now()): boolean {
   if (vistas.has(a.clave) || ahora - a.ts > VIEJO_MS) return false;
+  // Una muerte ya avisada (aunque sea de antes de recargar la ventana o de reiniciar la app) no vuelve a salir.
+  if (a.tipo === "falla" && muertesAvisadas().has(a.clave)) return false;
   vistas.add(a.clave);
   if (vistas.size > 500) vistas.delete(vistas.values().next().value as string);
   if (a.tipo === "fin") terminados++;
+  // La muerte no pide nada al dueño: se dice una vez, en un cartelito que se va solo. Su estado queda en la fila del worker.
+  else if (a.tipo === "falla") anotarMuerte(a);
   else if (a.tipo !== "tanda") pendientes = [a, ...pendientes].slice(0, TOPE);
   cambio();
   return true;
+}
+
+// --- El cartelito de las muertes: una vez, juntas y se va solo ---
+
+/** Cuánto dura a la vista un cartelito de muerte (cada muerte que se suma lo vuelve a contar). */
+export const VIDA_MUERTE_MS = 7_000;
+const CLAVE_MUERTES = "trama.muertesAvisadas";
+const TOPE_MUERTES = 300;
+
+/** Lo que dice el cartelito: cuántas muertes junta y, si es una sola, de qué worker. */
+export type CartelMuertes = { readonly n: number; readonly tarea: string; readonly motivo: string };
+
+let cartel: CartelMuertes | null = null;
+let temporizador: ReturnType<typeof setTimeout> | null = null;
+let pausado = false;
+let avisadas: Set<string> | null = null;
+let almacen: Pick<Storage, "getItem" | "setItem"> | null = typeof localStorage === "undefined" ? null : localStorage;
+
+/** Las claves de muerte ya avisadas, guardadas en el almacén local de la ventana (sobreviven a un reinicio o a recargar). */
+function muertesAvisadas(): Set<string> {
+  if (avisadas) return avisadas;
+  avisadas = new Set();
+  try {
+    const crudo = almacen?.getItem(CLAVE_MUERTES);
+    const lista: unknown = crudo ? JSON.parse(crudo) : [];
+    if (Array.isArray(lista)) for (const c of lista) if (typeof c === "string") avisadas.add(c);
+  } catch {
+    // Sin almacén o con algo ilegible: se parte de cero; a lo sumo se repite un aviso, nunca se pierde el estado de la fila.
+  }
+  return avisadas;
+}
+function guardarMuertes(a: Set<string>) {
+  if (a.size > TOPE_MUERTES) for (const k of [...a].slice(0, a.size - TOPE_MUERTES)) a.delete(k);
+  try {
+    almacen?.setItem(CLAVE_MUERTES, JSON.stringify([...a]));
+  } catch {
+    // Almacén lleno o bloqueado: igual que arriba.
+  }
+}
+function programarCartel() {
+  if (temporizador) clearTimeout(temporizador);
+  temporizador = null;
+  if (!cartel || pausado) return;
+  temporizador = setTimeout(cerrarCartelMuertes, VIDA_MUERTE_MS);
+  (temporizador as { unref?: () => void }).unref?.();
+}
+/** Suma una muerte al cartelito que esté a la vista (así varias seguidas son un solo cartel) o abre uno. */
+function anotarMuerte(a: AvisoWorker) {
+  const m = muertesAvisadas();
+  m.add(a.clave);
+  guardarMuertes(m);
+  cartel = cartel ? { n: cartel.n + 1, tarea: "", motivo: "" } : { n: 1, tarea: a.tarea || a.id, motivo: textoMotivo(a) };
+  programarCartel();
+}
+/** El cartelito de muertes que está a la vista, o `null`. */
+export const cartelMuertes = (): CartelMuertes | null => cartel;
+export function cerrarCartelMuertes() {
+  if (temporizador) clearTimeout(temporizador);
+  temporizador = null;
+  // El cartel que se va ya no tiene puntero encima: el próximo arranca sin pausa.
+  pausado = false;
+  if (!cartel) return;
+  cartel = null;
+  cambio();
+}
+/** El puntero (o el foco) está encima: no se va mientras tanto. Al soltarlo cuenta de nuevo su tiempo entero. */
+export function pausarCartelMuertes(si: boolean) {
+  if (si === pausado) return;
+  pausado = si;
+  programarCartel();
+}
+/** Las palabras del cartelito. */
+export const textoCartelMuertes = (c: CartelMuertes): string => (c.n === 1 ? t("avisoW.muerte1", { tarea: c.tarea }) : t("avisoW.muertes", { n: c.n }));
+/** Para las pruebas: otro almacén (o ninguno) y desde cero. */
+export function usarAlmacenMuertes(a: Pick<Storage, "getItem" | "setItem"> | null) {
+  almacen = a;
+  avisadas = null;
 }
 export function descartarAviso(clave: string) {
   if (!pendientes.some((p) => p.clave === clave)) return;
@@ -87,6 +168,11 @@ export function reiniciarAvisos() {
   vistas.clear();
   pendientes = [];
   terminados = 0;
+  if (temporizador) clearTimeout(temporizador);
+  temporizador = null;
+  cartel = null;
+  pausado = false;
+  avisadas = null;
 }
 
 /** ¿Se le hace una notificación de escritorio? Los terminados normales no: sólo el punto. */

@@ -27,7 +27,7 @@ process.env.PROYECTOS_REGISTRY = path.join(tmp, "sin-registry.json");
 process.env.HILOS_PA = path.join(import.meta.dirname, "..", "scripts", "pa-falso.sh");
 
 const { argvRelanzar } = await import("../electron/paneles.ts");
-const { debeNotificar, descartarAviso, avisosPendientes, recibirAviso, reiniciarAvisos, terminadosSinVer, textoAviso, textoMotivo, verTerminados } = await import("../src/avisos-worker.ts");
+const { debeNotificar, descartarAviso, avisosPendientes, cartelMuertes, cerrarCartelMuertes, pausarCartelMuertes, recibirAviso, reiniciarAvisos, terminadosSinVer, textoAviso, textoCartelMuertes, textoMotivo, usarAlmacenMuertes, verTerminados, VIDA_MUERTE_MS } = await import("../src/avisos-worker.ts");
 const { cambiarIdioma } = await import("../src/i18n/index.ts");
 const { rastroDeWorker } = await import("../electron/avisos-worker-disco.ts");
 
@@ -35,7 +35,7 @@ const AHORA = 1_900_000_000_000;
 const aviso = (tipo: string, extra: object = {}) =>
   ({ tipo, clave: `x:${tipo}`, id: "20261027-232930-2191095", proyecto: "trama", tarea: "arreglar la barra", modelo: "m", jefe_id: "j1", jefe: "ana", motivo: "", ts: AHORA, ...extra }) as never;
 
-test("lo que se guarda: fallas y colgados quedan hasta el ✕; los terminados bien sólo cuentan hasta mirar la ventana", () => {
+test("lo que se guarda: cupos y colgados quedan hasta el ✕; los terminados bien sólo cuentan hasta mirar la ventana", () => {
   reiniciarAvisos();
   assert.ok(recibirAviso(aviso("fin", { clave: "a:fin" }), AHORA));
   assert.ok(recibirAviso(aviso("cupo", { clave: "b:cupo", proveedor: "Google", vuelve: null }), AHORA));
@@ -104,4 +104,91 @@ test("el rastro de un worker caído sale del final de su .err y del result de su
   assert.ok(r.length < 5000, "acotado");
   assert.equal(await rastroDeWorker(path.join(tmp, "pa"), { id: "20261027-222222-2", proyecto: "trama" }), "");
   assert.equal(await rastroDeWorker(path.join(tmp, "pa"), { id: "../../etc", proyecto: "trama" }), "");
+});
+
+// --- El cartelito de muertes: una vez, juntas, se va solo y no vuelve ---
+
+const muerte = (id: string, extra: object = {}) => aviso("falla", { clave: `${id}:falla`, id, tarea: `tarea ${id}`, ...extra });
+/** Un almacén de mentira (lo que sería el localStorage de la ventana); `mem` es lo que sobrevive a un reinicio. */
+const almacenFalso = (mem: Map<string, string> = new Map()) => ({ mem, getItem: (k: string) => mem.get(k) ?? null, setItem: (k: string, v: string) => void mem.set(k, v) });
+
+test("una muerte sale en un cartelito y no queda pendiente: se va sola a los segundos", (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  reiniciarAvisos();
+  usarAlmacenMuertes(almacenFalso());
+  assert.ok(recibirAviso(muerte("a"), AHORA));
+  assert.deepEqual(avisosPendientes(), [], "la muerte no se acumula en la pastilla");
+  assert.equal(textoCartelMuertes(cartelMuertes()!), "Murió un worker: tarea a");
+  t.mock.timers.tick(VIDA_MUERTE_MS - 1);
+  assert.ok(cartelMuertes(), "todavía a la vista");
+  t.mock.timers.tick(1);
+  assert.equal(cartelMuertes(), null, "vencido");
+  assert.ok(VIDA_MUERTE_MS >= 6_000 && VIDA_MUERTE_MS <= 8_000);
+});
+
+test("con el puntero encima el cartelito no se va; al soltarlo cuenta de nuevo", (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  reiniciarAvisos();
+  usarAlmacenMuertes(almacenFalso());
+  recibirAviso(muerte("a"), AHORA);
+  pausarCartelMuertes(true);
+  t.mock.timers.tick(VIDA_MUERTE_MS * 3);
+  assert.ok(cartelMuertes(), "pausado");
+  pausarCartelMuertes(false);
+  t.mock.timers.tick(VIDA_MUERTE_MS - 1);
+  assert.ok(cartelMuertes());
+  t.mock.timers.tick(1);
+  assert.equal(cartelMuertes(), null);
+});
+
+test("varias muertes cercanas se juntan en un solo cartelito y cada una renueva el tiempo", (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  reiniciarAvisos();
+  usarAlmacenMuertes(almacenFalso());
+  recibirAviso(muerte("a"), AHORA);
+  t.mock.timers.tick(VIDA_MUERTE_MS - 1000);
+  recibirAviso(muerte("b"), AHORA);
+  recibirAviso(muerte("c"), AHORA);
+  assert.equal(cartelMuertes()!.n, 3);
+  assert.equal(textoCartelMuertes(cartelMuertes()!), "Murieron 3 workers");
+  t.mock.timers.tick(VIDA_MUERTE_MS - 1);
+  assert.ok(cartelMuertes(), "la última muerte volvió a contar el tiempo");
+  t.mock.timers.tick(1);
+  assert.equal(cartelMuertes(), null);
+  // Ya cerrado, una muerte nueva abre otro cartel desde uno.
+  recibirAviso(muerte("d"), AHORA);
+  assert.equal(cartelMuertes()!.n, 1);
+  cerrarCartelMuertes();
+  assert.equal(cartelMuertes(), null, "la ✕ lo cierra antes");
+});
+
+test("una muerte ya avisada no vuelve: ni recargando la ventana ni reiniciando la app", (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const disco = new Map<string, string>();
+  reiniciarAvisos();
+  usarAlmacenMuertes(almacenFalso(disco));
+  assert.ok(recibirAviso(muerte("a"), AHORA));
+  t.mock.timers.tick(VIDA_MUERTE_MS);
+  // La ventana se recarga: la memoria del renderer parte de cero, el almacén local queda.
+  reiniciarAvisos();
+  usarAlmacenMuertes(almacenFalso(disco));
+  assert.ok(!recibirAviso(muerte("a"), AHORA), "el mismo aviso reenviado no sale otra vez");
+  assert.equal(cartelMuertes(), null);
+  assert.ok(recibirAviso(muerte("b"), AHORA), "otra muerte sí");
+  // Un almacén ilegible no rompe nada.
+  reiniciarAvisos();
+  usarAlmacenMuertes(almacenFalso(new Map([["trama.muertesAvisadas", "{no es json"]])));
+  assert.ok(recibirAviso(muerte("z"), AHORA));
+  cerrarCartelMuertes();
+});
+
+test("el cupo y el colgado siguen en la pastilla (tienen acción); sólo la muerte se va sola", (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  reiniciarAvisos();
+  usarAlmacenMuertes(almacenFalso());
+  recibirAviso(aviso("cupo", { clave: "c:cupo", proveedor: "Google", vuelve: null }), AHORA);
+  recibirAviso(aviso("colgado", { clave: "d:colgado", minutos: 15 }), AHORA);
+  assert.equal(cartelMuertes(), null);
+  t.mock.timers.tick(VIDA_MUERTE_MS * 10);
+  assert.deepEqual(avisosPendientes().map((a) => a.clave).sort(), ["c:cupo", "d:colgado"]);
 });

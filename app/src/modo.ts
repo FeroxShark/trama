@@ -64,6 +64,8 @@ const CAPTURAS = [
   "estadisticas-medido",
   // Estadísticas sin ninguna corrida todavía (no hay medicion.tsv): el estado vacío, sin error ni botón.
   "estadisticas-vacia",
+  // El cartelito de muertes de workers en el pie (se va solo a los pocos segundos); `HILOS_VARIANTE=varias`: tres juntas, un solo cartel.
+  "avisos-muerte",
   // El aviso de Claude Code nuevo en el pie, cerrado y abierto.
   "claude",
   "claude-abierto",
