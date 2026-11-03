@@ -151,7 +151,7 @@ export function lanzarCmd(
   opciones: ExecFileOptions,
   fin: (err: ExecFileException | null, stdout: string, stderr: string) => void,
 ) {
-  return execFile(prefijo[0], [...prefijo.slice(1), ...args], { ...opciones, env: entornoCmd(prefijo, (opciones.env ?? process.env) as Env) as NodeJS.ProcessEnv, encoding: "utf8" }, (e, o, r) => fin(e, String(o), String(r)));
+  return execFile(prefijo[0], [...prefijo.slice(1), ...args], { windowsHide: true, ...opciones, env: entornoCmd(prefijo, (opciones.env ?? process.env) as Env) as NodeJS.ProcessEnv, encoding: "utf8" }, (e, o, r) => fin(e, String(o), String(r)));
 }
 
 /**
@@ -238,12 +238,12 @@ export function lanzarPropio(
 export function lanzarPropioSync(nombre: string, args: string[], opciones: ExecFileSyncOptions = {}, home?: string): string {
   const env = (opciones.env ?? process.env) as Env;
   const p = comandoPropio(nombre, env, home);
-  return String(execFileSync(p[0], [...p.slice(1), ...args], { ...opciones, env: entornoCmd(p, env) as NodeJS.ProcessEnv, encoding: "utf8" }));
+  return String(execFileSync(p[0], [...p.slice(1), ...args], { windowsHide: true, ...opciones, env: entornoCmd(p, env) as NodeJS.ProcessEnv, encoding: "utf8" }));
 }
 
 /** `spawn` de una herramienta propia. */
 export function spawnPropio(nombre: string, args: string[], opciones: SpawnOptions = {}): ChildProcess {
   const env = (opciones.env ?? process.env) as Env;
   const p = comandoPropio(nombre, env);
-  return spawn(p[0], [...p.slice(1), ...args], { ...opciones, env: entornoCmd(p, env) as NodeJS.ProcessEnv });
+  return spawn(p[0], [...p.slice(1), ...args], { windowsHide: true, ...opciones, env: entornoCmd(p, env) as NodeJS.ProcessEnv });
 }

@@ -854,7 +854,7 @@ function usoDeUnRato(dir?: string, alLeer: (l: Lectura) => void = anotarUso): Pr
     let p: ChildProcess;
     try {
       const op = opcionesLider(process.env, HOME) as { cwd: string; env: NodeJS.ProcessEnv };
-      p = spawn(CLAUDE, argvUso(), { ...op, ...(dir ? { env: entornoCuenta(op.env, dir) } : {}), stdio: ["pipe", "pipe", "ignore"] });
+      p = spawn(CLAUDE, argvUso(), { ...op, ...(dir ? { env: entornoCuenta(op.env, dir) } : {}), stdio: ["pipe", "pipe", "ignore"], windowsHide: true });
     } catch (e) {
       log.escribir("aviso", "lider", `get_usage: ${(e as Error).message}`);
       return listo();

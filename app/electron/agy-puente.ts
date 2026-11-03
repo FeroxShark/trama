@@ -622,7 +622,7 @@ let comandosCache: ReturnType<typeof comandosPluginAgy> | null = null;
 function comandosDeAgy() {
   if (comandosCache) return comandosCache;
   try {
-    const out = execFileSync(AGY, ["plugin", "list", "--json"], { env: ENTORNO, encoding: "utf8", timeout: 3000, stdio: ["ignore", "pipe", "ignore"] });
+    const out = execFileSync(AGY, ["plugin", "list", "--json"], { env: ENTORNO, encoding: "utf8", timeout: 3000, stdio: ["ignore", "pipe", "ignore"], windowsHide: true });
     comandosCache = comandosPluginAgy(out);
   } catch {
     comandosCache = [];

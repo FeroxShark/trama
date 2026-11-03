@@ -3,7 +3,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { clavePath, entornoCmd, entornoPa, pathConLocal, resolverBinario, resolverComando } from "../electron/binario.ts";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { hijoEnGrupo, matarArbol, shellDe } from "../electron/procesos.ts";
 import { carpetaBin, carpetaMotor, configTrama, esPipe, estadoHilos, estadoPa, registroProyectos, socketMotor, vistaTablero } from "../electron/rutas.ts";
 
@@ -114,4 +114,38 @@ test("hijoEnGrupo: Linux sí (kill(-pid)); Windows no: `detached` le quitaría l
     assert.doesNotMatch(src, /detached: true, windowsHide/, `${f}: detached: true + windowsHide`);
     assert.match(src, /detached: hijoEnGrupo\(\), windowsHide: true/, `${f}: usa hijoEnGrupo()`);
   }
+});
+
+test("Windows: ningún proceso de fondo abre una consola visible (sin `windowsHide`, cada `claude` o `git` de fondo muestra un CMD un instante)", () => {
+  // Sólo Linux: nunca corren en Windows.
+  const soloLinux = new Set(["bench.ts", "dictado.ts", "pc-estado.ts", "remoto-armar.ts", "terminal.ts", "volver.ts"]);
+  // El principio de la llamada de las que no se ocultan a propósito: terminal a la vista, salida heredada o rama que no es de Windows.
+  const aPropósito = [
+    'execFile("systemctl"', // main: el servicio del motor en Linux
+    "spawn(process.execPath, process.argv.slice(1), { detached: true", // motor: se relanza suelto; `detached` ya no tiene consola
+    "spawn(term,", // actualizador: la terminal donde corre la actualización
+    "spawn(term[0]!", // workers: `ver` en una terminal
+    "spawn(prog,", // cuentas: el comando de la persona, con stdio heredado
+    "spawnSync(prefijo[0]!", // pa: subcomando con stdio heredado
+    "spawnSync(process.execPath, [...process.execArgv", // pa: relanzarse con stdio heredado
+    'execFileSync("ps"', // la rama no Windows de la lista de procesos
+    "spawn(c, a, op)", // envoltorios: quien los llama pasa `windowsHide`
+    "spawn({ detached })", // un comentario
+    "spawn(p.cmd, p.args, { cwd: p.cwd, detached: true", // `detached` ya no tiene consola: `windowsHide` no cambia nada
+  ];
+  const raiz = new URL("../electron/", import.meta.url);
+  const faltan: string[] = [];
+  for (const f of readdirSync(raiz, { recursive: true, encoding: "utf8" })) {
+    if (!f.endsWith(".ts") || soloLinux.has(f)) continue;
+    const src = readFileSync(new URL(f, raiz), "utf8");
+    for (const m of src.matchAll(/(?<![.\w])(?:spawn|spawnSync|execFile|execFileSync)\(/g)) {
+      let i = m.index + m[0].length;
+      for (let abiertos = 1; abiertos > 0 && i < src.length; i++) abiertos += src[i] === "(" ? 1 : src[i] === ")" ? -1 : 0;
+      const llamada = src.slice(m.index, i);
+      // `...opciones` en lider.ts ya trae `windowsHide: true`.
+      if (llamada.includes("windowsHide") || /\.\.\.opciones\b/.test(llamada) || aPropósito.some((p) => llamada.startsWith(p))) continue;
+      faltan.push(`${f}: ${llamada.slice(0, 80)}`);
+    }
+  }
+  assert.deepEqual(faltan, []);
 });

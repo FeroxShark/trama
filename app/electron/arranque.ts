@@ -93,7 +93,7 @@ export function crearArranque(o: OpcionesArranque) {
       execFile(
         o.claude,
         ["-p", MENSAJE, "--output-format", "json", "--no-session-persistence", ...extra],
-        { cwd: o.cwd, env: o.env, timeout: TOPE_MS, maxBuffer: 16 * 1024 * 1024 },
+        { cwd: o.cwd, env: o.env, timeout: TOPE_MS, maxBuffer: 16 * 1024 * 1024, windowsHide: true },
         (err, stdout, stderr) => (err ? falla(new Error(String(stderr || err.message).trim().split("\n").pop())) : listo(String(stdout))),
       );
     });

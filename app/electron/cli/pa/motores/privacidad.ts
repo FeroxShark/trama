@@ -33,7 +33,7 @@ export function esArchivoSecreto(nombre: string): boolean {
 
 /** El primer archivo de secretos trackeado en el HEAD del repo (de ahí sale el worktree), o "". */
 export function secretoTrackeado(repo: string): string {
-  const r = spawnSync("git", ["-C", repo, "ls-tree", "-r", "--name-only", "HEAD"], { encoding: "utf8", maxBuffer: 256 * 1024 * 1024 });
+  const r = spawnSync("git", ["-C", repo, "ls-tree", "-r", "--name-only", "HEAD"], { encoding: "utf8", maxBuffer: 256 * 1024 * 1024, windowsHide: true });
   if (r.error) return "";
   for (const f of (r.stdout ?? "").split("\n")) {
     if (!f) continue;

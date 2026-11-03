@@ -163,7 +163,7 @@ const emitir = () => void estadoSalud().then(avisar, () => {});
 /** El HEAD de la carpeta del proyecto, o `null` (no es git, o git no pudo). */
 function head(ruta: string): Promise<string | null> {
   return new Promise((ok) =>
-    execFile("git", ["-C", ruta, "rev-parse", "HEAD"], (err, out) => ok(err ? null : String(out).trim() || null)),
+    execFile("git", ["-C", ruta, "rev-parse", "HEAD"], { windowsHide: true }, (err, out) => ok(err ? null : String(out).trim() || null)),
   );
 }
 

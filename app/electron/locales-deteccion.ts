@@ -112,7 +112,7 @@ export function depsDeteccionDeVerdad(env: NodeJS.ProcessEnv = process.env): Dep
       new Promise((ok, mal) => {
         // `paraLanzar`: un `.cmd` de npm (dsh en Windows) no se lanza directo (EINVAL); el resto queda igual.
         const l = paraLanzar(bin, args);
-        execFile(l.file, l.args, { timeout: o.timeout, killSignal: 'SIGKILL', maxBuffer: 4 * 1024 * 1024, windowsVerbatimArguments: l.verbatim }, (e, stdout) =>
+        execFile(l.file, l.args, { timeout: o.timeout, killSignal: 'SIGKILL', maxBuffer: 4 * 1024 * 1024, windowsHide: true, windowsVerbatimArguments: l.verbatim }, (e, stdout) =>
           e ? mal(e) : ok(String(stdout)),
         );
       }),

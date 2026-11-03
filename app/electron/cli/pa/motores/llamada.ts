@@ -90,7 +90,7 @@ export interface Llamada {
 const BASE_WORKER: Env = { PA_WORKER: "1", GIT_EDITOR: "true", GIT_SEQUENCE_EDITOR: "true" };
 
 function gitComunReal(rutaTrabajo: string): string {
-  const r = spawnSync("git", ["-C", rutaTrabajo, "rev-parse", "--path-format=absolute", "--git-common-dir"], { encoding: "utf8" });
+  const r = spawnSync("git", ["-C", rutaTrabajo, "rev-parse", "--path-format=absolute", "--git-common-dir"], { encoding: "utf8", windowsHide: true });
   return r.status === 0 ? (r.stdout ?? "").replace(/\n+$/, "") : "";
 }
 const segundos = (x: string | undefined, d: number) => (x && /^[0-9]+$/.test(x) && Number(x) > 0 ? Number(x) : d);

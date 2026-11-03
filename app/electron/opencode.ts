@@ -299,7 +299,7 @@ const depsDeVerdad = (): Deps => ({
   correr: (bin, args, timeout) =>
     new Promise((ok, mal) => {
       const l = paraLanzar(bin, args);
-      execFile(l.file, l.args, { timeout, env: entornoOpencode(process.env) as NodeJS.ProcessEnv, maxBuffer: 64 * 1024 * 1024, windowsVerbatimArguments: l.verbatim }, (err, out) => (err ? mal(err) : ok(String(out))));
+      execFile(l.file, l.args, { timeout, env: entornoOpencode(process.env) as NodeJS.ProcessEnv, maxBuffer: 64 * 1024 * 1024, windowsHide: true, windowsVerbatimArguments: l.verbatim }, (err, out) => (err ? mal(err) : ok(String(out))));
     }),
 });
 

@@ -34,7 +34,7 @@ export function entorno(): NodeJS.ProcessEnv {
 /** Lo que imprime el comando, normalizado a "x.y.z"; null si falló o no se entiende. */
 export const versionDe = (bin: string, args: string[], timeout: number) =>
   new Promise<string | null>((listo) => {
-    execFile(bin, args, { timeout, env: entorno(), maxBuffer: 64 * 1024 }, (err, stdout) => listo(err ? null : normal(String(stdout))));
+    execFile(bin, args, { timeout, env: entorno(), maxBuffer: 64 * 1024, windowsHide: true }, (err, stdout) => listo(err ? null : normal(String(stdout))));
   });
 
 /** Lo que pasó al apretar Actualizar: la versión que quedó, o el error (corto y entero). */
@@ -201,7 +201,7 @@ export function crearActualizador(cfg: Config) {
     const a = cfg.actualizar;
     if ("terminal" in a) return enTerminal(a.terminal, cfg.entornoActualizar());
     return new Promise((listo) =>
-      execFile(cfg.bin, a.args, { timeout: 5 * 60_000, env: cfg.entornoActualizar(), maxBuffer: 1024 * 1024 }, (err, stdout, stderr) =>
+      execFile(cfg.bin, a.args, { timeout: 5 * 60_000, env: cfg.entornoActualizar(), maxBuffer: 1024 * 1024, windowsHide: true }, (err, stdout, stderr) =>
         listo({ err: err ? err.message : null, dijo: ultimas(`${String(stderr ?? "")}\n${String(stdout ?? "")}`) }),
       ),
     );

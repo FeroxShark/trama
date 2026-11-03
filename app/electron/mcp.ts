@@ -86,7 +86,7 @@ const listarDeVerdad = (): Promise<string> =>
     // De la cuenta activa (la preferida), la misma de la que se leen los conectores apagados.
     const activa = configActiva(process.env, home);
     const env = activa.cuenta ? entornoCuenta(entornoLider(process.env, home), activa.dir) : entornoLider(process.env, home);
-    execFile(process.env.HILOS_CLAUDE ?? "claude", ["mcp", "list"], { timeout: 40_000, cwd: home, env, maxBuffer: 1024 * 1024 }, (err, out) => {
+    execFile(process.env.HILOS_CLAUDE ?? "claude", ["mcp", "list"], { timeout: 40_000, cwd: home, env, maxBuffer: 1024 * 1024, windowsHide: true }, (err, out) => {
       // `claude mcp list` sale con 0 aunque haya servidores caídos; un error de verdad (no está claude, se pasó el tiempo) es otra cosa.
       if (err && !String(out).trim()) mal(err);
       else ok(String(out));

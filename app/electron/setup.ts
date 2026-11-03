@@ -96,7 +96,7 @@ const sondasReales = (): Sondas => ({
 });
 
 function correrTexto(bin: string, args: string[], timeout: number): Promise<string> {
-  return new Promise((ok, mal) => execFile(bin, args, { timeout, maxBuffer: 1 << 20 }, (e, stdout) => (e ? mal(Object.assign(e, { stdout: String(stdout) })) : ok(String(stdout)))));
+  return new Promise((ok, mal) => execFile(bin, args, { timeout, maxBuffer: 1 << 20, windowsHide: true }, (e, stdout) => (e ? mal(Object.assign(e, { stdout: String(stdout) })) : ok(String(stdout)))));
 }
 
 export const setupDeEstaMaquina = () => estadoSetup(sondasReales());

@@ -257,6 +257,7 @@ function nodeModulesPropio(x: Proyecto, ppal: string, wt: string, rel: string): 
     env: x.pa.env,
     stdio: "ignore",
     timeout: 600_000,
+    windowsHide: true,
     shell: win, // npm es npm.cmd en Windows
   });
   const nm = path.join(wt, rel);

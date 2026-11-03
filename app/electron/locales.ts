@@ -104,7 +104,7 @@ export function depsDeVerdad(env: NodeJS.ProcessEnv = process.env): Deps {
     env,
     ejecutar: (bin, args, o) =>
       new Promise((ok, mal) => {
-        execFile(bin, args, { timeout: o.timeout, killSignal: "SIGKILL", maxBuffer: 4 * 1024 * 1024 }, (e, stdout) => (e ? mal(e) : ok(String(stdout))));
+        execFile(bin, args, { timeout: o.timeout, killSignal: "SIGKILL", maxBuffer: 4 * 1024 * 1024, windowsHide: true }, (e, stdout) => (e ? mal(e) : ok(String(stdout))));
       }),
     leer: (f) => readFile(f, "utf8").catch(() => null),
     tamano: (f) => stat(f).then((s) => s.size, () => null),

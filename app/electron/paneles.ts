@@ -462,7 +462,7 @@ function commitsDe(ruta: string, rama: string): Promise<string[] | null> {
     execFile(
       "git",
       ["-C", ruta, "log", "--oneline", "--no-decorate", `-${COMMITS + 1}`, `HEAD..${rama}`, "--"],
-      { maxBuffer: 1024 * 1024 },
+      { maxBuffer: 1024 * 1024, windowsHide: true },
       (err, out) => ok(err ? null : String(out).split("\n").filter(Boolean)),
     );
   });
@@ -521,7 +521,7 @@ export async function retomarDatos(h: Parameters<typeof pasarALider>[0] & { esta
 /** Los archivos que toca la rama (`git diff --name-only HEAD...rama`); `null` si git no pudo. */
 function archivosDe(ruta: string, rama: string): Promise<string[] | null> {
   return new Promise((ok) => {
-    execFile("git", ["-C", ruta, "diff", "--name-only", `HEAD...${rama}`, "--"], { maxBuffer: 1024 * 1024 }, (err, out) =>
+    execFile("git", ["-C", ruta, "diff", "--name-only", `HEAD...${rama}`, "--"], { maxBuffer: 1024 * 1024, windowsHide: true }, (err, out) =>
       ok(err ? null : String(out).split("\n").filter(Boolean)),
     );
   });
@@ -588,7 +588,7 @@ function commitsEntre(ruta: string, antes: string, despues: string): Promise<str
     execFile(
       "git",
       ["-C", ruta, "log", "--oneline", "--no-decorate", `-${COMMITS_ARREGLAR + 1}`, `${antes}..${despues}`, "--"],
-      { maxBuffer: 1024 * 1024 },
+      { maxBuffer: 1024 * 1024, windowsHide: true },
       (err, out) => ok(err ? null : String(out).split("\n").filter(Boolean)),
     );
   });

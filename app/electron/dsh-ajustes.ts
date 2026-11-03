@@ -82,7 +82,7 @@ const depsDeVerdad = (): Deps => ({
     new Promise((ok, mal) => {
       // Windows: `npm` es `npm.cmd`, que execFile no encuentra por el nombre pelado.
       const l = paraLanzar(bin === "npm" && esWindows() ? resolverNpm("npm", process.env, os.homedir(), []) : bin, args);
-      execFile(l.file, l.args, { timeout, env: entornoNpm(), maxBuffer: 1024 * 1024, windowsVerbatimArguments: l.verbatim }, (err, out, errout) => (err ? mal(Object.assign(err, { stderr: String(errout) })) : ok(String(out))));
+      execFile(l.file, l.args, { timeout, env: entornoNpm(), maxBuffer: 1024 * 1024, windowsHide: true, windowsVerbatimArguments: l.verbatim }, (err, out, errout) => (err ? mal(Object.assign(err, { stderr: String(errout) })) : ok(String(out))));
     }),
 });
 

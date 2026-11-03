@@ -110,7 +110,7 @@ export type Correr = (paso: Pick<Paso, "cmd" | "args" | "cwd" | "timeoutMs" | "r
 /** execFile (argv, sin shell) con el PATH de siempre; nunca rechaza. */
 export const correrReal: Correr = (p) =>
   p.registro ? correrSuelto(p) : new Promise((listo) =>
-    execFile(p.cmd, p.args, { cwd: p.cwd, timeout: p.timeoutMs, maxBuffer: 8 * 1024 * 1024, env: { ...process.env, ...p.env, GIT_TERMINAL_PROMPT: "0" } }, (err, stdout, stderr) => {
+    execFile(p.cmd, p.args, { cwd: p.cwd, windowsHide: true, timeout: p.timeoutMs, maxBuffer: 8 * 1024 * 1024, env: { ...process.env, ...p.env, GIT_TERMINAL_PROMPT: "0" } }, (err, stdout, stderr) => {
       const code = err ? (typeof (err as { code?: unknown }).code === "number" ? ((err as { code: number }).code) : null) : 0;
       listo({ code, salida: `${String(stderr ?? "")}\n${String(stdout ?? "")}${err && code === null ? `\n${err.message}` : ""}` });
     }),

@@ -88,7 +88,7 @@ export async function estadoCuentas(d: Deps): Promise<EstadoCuentas> {
 
 export const correrReal: Deps["correr"] = (bin, args, env, timeout) =>
   new Promise((ok) => {
-    const hijo = execFile(bin, args, { env, timeout, maxBuffer: 1 << 20 }, (e, stdout, stderr) => {
+    const hijo = execFile(bin, args, { env, timeout, maxBuffer: 1 << 20, windowsHide: true }, (e, stdout, stderr) => {
       const err = e as (NodeJS.ErrnoException & { killed?: boolean; code?: number | string }) | null;
       ok({
         code: err ? (typeof err.code === "number" ? err.code : null) : 0,
