@@ -1,5 +1,9 @@
 # Cambios
 
+## 0.2.49
+
+- Windows: ya no se abre un CMD un instante al actualizar los usos ni con otras tareas de fondo.
+
 ## 0.2.48
 
 - Avisos de que murió un worker: ya no se acumulan ni quedan fijos. Sale un cartel gris que junta varios («Murieron 3 workers»), se va solo a los 7 s y no vuelve a aparecer. El estado sigue en la fila de cada worker.
