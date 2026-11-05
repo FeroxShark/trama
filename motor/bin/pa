@@ -6822,7 +6822,12 @@ $paralelos
 Comparten con vos el target de cargo, node_modules/.venv y lo que corra en la máquina (puertos, bases locales). No mates procesos que no lanzaste vos. Un puerto ocupado o un \"Blocking waiting for file lock\" de cargo puede ser el otro: esperá y reintentá, no lo 'arregles'. No instales ni saques dependencias (un hook lo bloquea): si hace falta, decilo en DECISION. No coordines con ellos ni toques sus ramas: si tocan lo mismo, se resuelve al integrar."
   fi
 fi
-(( leer )) && contrato+=$'\n'"Modo LECTURA: no escribís nada. Bash existe SOLO para git de lectura (log, diff, show, status, rev-list, rev-parse, merge-base, ls-files, ls-tree, blame, shortlog, describe, cat-file, grep, branch --list, worktree list, stash list/show), con -C <ruta> en vez de cd, y a lo sumo un pipe a head/tail/grep/wc/cut. Nada de ;, &&, redirecciones ni \$(...): un hook bloquea todo lo demás. Para buscar en internet tenés WebSearch y WebFetch (no Bash: nada de curl)."
+if (( leer )); then
+  # Espejo de txtLeer (app/electron/cli/pa/lanzar.ts): la terminal y la búsqueda se llaman distinto en agy.
+  t_term=Bash; t_web="WebSearch y WebFetch"
+  if [[ "$motor" == agy ]]; then t_term=run_command; t_web="search_web y read_url_content"; fi
+  contrato+=$'\n'"Modo LECTURA: no escribís nada. $t_term existe SOLO para git de lectura (log, diff, show, status, rev-list, rev-parse, merge-base, ls-files, ls-tree, blame, shortlog, describe, cat-file, grep, branch --list, worktree list, stash list/show), con -C <ruta> en vez de cd, y a lo sumo un pipe a head/tail/grep/wc/cut. Nada de ;, &&, redirecciones ni \$(...): un hook bloquea todo lo demás. Para buscar en internet tenés $t_web (nada de curl ni wget). Si una herramienta te la bloquea un hook, decilo en DECISION: no afirmes que abriste, leíste o comprobaste lo que no pudiste abrir (nada de «URLs comprobadas» sin haberlas leído)."
+fi
 # Plan pro: el worker gasta lo mínimo. Lo que más pesa en una corrida no es lo que escribe sino lo
 # que RELEE: cada turno reenvía todo el contexto, así que cada archivo leído de más y cada salida
 # de comando sin filtrar se paga una vez por cada turno que queda.
