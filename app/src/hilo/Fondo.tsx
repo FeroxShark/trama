@@ -7,7 +7,7 @@ import { t } from "../i18n";
 import { useIdioma } from "../i18n/react";
 import { duracion } from "../tiempo";
 import { tareasDeFondo, type TareaFondo } from "./fondo-logica";
-import "./fondo.css";
+import "./fondo-pastilla.css";
 
 const MIRAR_MS = 15_000;
 
