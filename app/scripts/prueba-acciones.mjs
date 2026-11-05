@@ -330,6 +330,12 @@ try {
   // De fábrica el orden de la barra es por prioridad: la carpeta ofrece "Orden fijo"; Subir / Bajar siguen (lo caliente sale de su carpeta, el resto se acomoda igual).
   ok(opsC === "nueva ocultar limpiar subir prioridad renombrar logo", `la carpeta ofrece Nueva tarea aquí, Ocultar terminados, Limpiar chats, Subir, Orden fijo (de fábrica, por prioridad), Renombrar y Logo: ${opsC}`);
   await tecla("Escape");
+  // Un proyecto del registry sí se puede borrar (cauce no está en el registry: arriba no se ofrece).
+  ok(await derecho('[data-carpeta="atlas"]'), "clic derecho en una carpeta del registry");
+  await hasta(() => !!document.querySelector('[role="menu"] [data-accion]'), "menú de carpeta del registry");
+  const opsReg = await opciones();
+  ok(opsReg.at(-1) === "borrarProyecto", `una carpeta del registry ofrece Borrar proyecto al final: ${opsReg.join(" ")}`);
+  await tecla("Escape");
   ok(await hasta(() => !document.querySelector('[role="menu"]'), "cerrado"), "Esc cierra el menú");
   // --- Claude Code nuevo: el falso dice 2.1.287, el npm falso 2.1.300 -------------------
   ok(await hasta(() => document.querySelector(".avc-b")?.textContent === "Claude Code 2.1.300 available", "aviso"), "el pie avisa Claude Code 2.1.300");

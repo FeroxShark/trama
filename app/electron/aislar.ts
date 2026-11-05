@@ -82,7 +82,9 @@ export function armarAislamiento(raiz: string) {
     homes.add(path.resolve(os.userInfo().homedir));
   } catch {}
   for (const h of [...homes]) homes.add(real(h));
-  const permitidas = new Set<string>([raiz, real(raiz), real(path.join(raiz, "node_modules")), path.dirname(process.execPath), real(path.dirname(process.execPath))]);
+  // `raiz` es `app/`; `motor/` es del mismo checkout (el respaldo y el lector de topes de OpenCode Go, por ejemplo).
+  const motorRepo = path.join(raiz, "..", "motor");
+  const permitidas = new Set<string>([raiz, real(raiz), real(path.join(raiz, "node_modules")), motorRepo, real(motorRepo), path.dirname(process.execPath), real(path.dirname(process.execPath))]);
   for (const p of (e.HILOS_AISLAR_PERMITE ?? "").split(path.delimiter).filter(Boolean)) permitidas.add(path.resolve(p));
   // Lo ambiental, de entrada: sin directorios del home en el PATH (ahí viven el `pa`, el `tablero` y el `claude` del usuario: el
   // resolvedor de binarios los buscaría) y, si `HOME` es el de verdad, uno vacío y temporal (`os.homedir()` y los XDG).
