@@ -2,6 +2,11 @@
 
 ## Sin publicar
 
+## 0.2.51
+
+- Clic derecho en el ícono de un proyecto (riel y lista): Renombrar, Cambiar logo y Volver al automático.
+- Buscador en Ajustes > Proyectos para encontrar uno sin recorrer la lista.
+- Un comando o herramienta largo que no suelta salida ya no se muestra como pausa ni «Sin novedades»: la tarjeta sigue como trabajando y dice hace cuánto no sale nada.
 - Una corrida terminada ya no figura «en cola» semanas después: el `.pid` sólo cuenta si es de verdad esa corrida (un proceso, no un hilo ajeno, que arrancó antes que el archivo). `Parar` y «Cerrar y parar todo» ya no pueden señalar a un programa ajeno que reciclara ese número.
 
 ## 0.2.50
