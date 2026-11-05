@@ -153,6 +153,44 @@ test("nombres: dos cambios a la vez, recién arrancado, se guardan los dos", asy
   assert.deepEqual(b.titulos, { s1: "Login" });
 });
 
+test("nombres: guarda de a una y en orden, aunque la primera escritura tarde más que las siguientes", async () => {
+  const f = path.join(tmp(), "nombres.json");
+  const disco = new Map<string, string>();
+  let enCurso = 0;
+  let maximo = 0;
+  let llamadas = 0;
+  const a = almacenNombres(f, async (arch, t) => {
+    maximo = Math.max(maximo, ++enCurso);
+    // Cada escritura tarda menos que la anterior: sin orden, la más vieja queda última en el disco.
+    for (let vueltas = 8 - llamadas++; vueltas > 0; vueltas--) await new Promise(setImmediate);
+    disco.set(arch, t);
+    enCurso--;
+  });
+  await Promise.all([a.proyecto("s1", "atlas"), a.proyecto("s2", "omc"), a.titulo("s1", "Login"), a.proyecto("s3", "brote", true)]);
+  assert.equal(maximo, 1);
+  const j = JSON.parse(disco.get(f)!);
+  assert.deepEqual(j.proyectos, { s1: "atlas", s2: "omc" });
+  assert.deepEqual(j.fijadas, { s3: "brote" });
+  assert.deepEqual(j.titulos, { s1: "Login" });
+  assert.equal(disco.get(`${f}.bak`), disco.get(f));
+});
+
+test("nombres: una escritura que falla se dice y no traba las siguientes", async () => {
+  const f = path.join(tmp(), "nombres.json");
+  let primera = true;
+  const a = almacenNombres(f, async (arch, t) => {
+    if (primera) {
+      primera = false;
+      throw new Error("disco ocupado");
+    }
+    await writeFile(arch, t);
+  });
+  const [mala, buena] = await Promise.allSettled([a.proyecto("s1", "atlas"), a.proyecto("s2", "omc")]);
+  assert.equal(mala.status, "rejected");
+  assert.equal(buena.status, "fulfilled");
+  assert.deepEqual((await almacenNombres(f, writeFile).leer()).proyectos, { s1: "atlas", s2: "omc" });
+});
+
 test("nombres: una carpeta fijada nunca pisa la elegida a mano, y soltar la olvida", async () => {
   const f = path.join(tmp(), "nombres.json");
   const a = almacenNombres(f, writeFile);

@@ -118,12 +118,21 @@ export function almacenNombres(archivo: string, escribir: (archivo: string, text
     return c.n;
   }
 
-  const guardar = async (n: Nombres) => {
-    const texto = JSON.stringify({ version: VERSION, ...n });
-    await escribir(archivo, texto);
-    // El respaldo es igual a lo último que se escribió bien: si el archivo se rompe después (cortado a medias, truncado),
-    // se vuelve a eso sin perder lo elegido a mano.
-    await escribir(`${archivo}.bak`, texto).catch(() => {});
+  /**
+   * Una escritura a la vez y en orden: dos cambios juntos no pueden pisarse en disco ni ganar el más viejo, cualquiera sea `escribir`.
+   * El texto se arma recién al escribir: lleva todo lo cambiado hasta ahí. Una escritura que falla se la dice a quien la pidió y no traba las siguientes.
+   */
+  let cola: Promise<void> = Promise.resolve();
+  const guardar = (n: Nombres): Promise<void> => {
+    const esta = cola.then(async () => {
+      const texto = JSON.stringify({ version: VERSION, ...n });
+      await escribir(archivo, texto);
+      // El respaldo es igual a lo último que se escribió bien: si el archivo se rompe después (cortado a medias, truncado),
+      // se vuelve a eso sin perder lo elegido a mano.
+      await escribir(`${archivo}.bak`, texto).catch(() => {});
+    });
+    cola = esta.catch(() => {});
+    return esta;
   };
 
   return {

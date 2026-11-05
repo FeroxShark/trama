@@ -89,7 +89,9 @@ test("rutas rechazadas: ../, fuera del temporal, sin tasks/, otra extensión, re
   writeFileSync(otraCarpeta, "x");
   assert.equal(await leer(otraCarpeta), null);
   assert.equal(await leer(path.join(tareas, "buena.txt")), null);
-  assert.equal(await leer(salida("x", "a").replace(/^\//, "")), null);
+  // La misma ruta, ya sin su raíz (`/` o `C:\`): relativa en las dos plataformas.
+  const absoluta = salida("x", "a");
+  assert.equal(await leer(absoluta.slice(path.parse(absoluta).root.length)), null);
   for (const raro of [null, undefined, 5, {}, "", "buena.output", "/etc/passwd", "/etc/passwd.output", buena + "\0", "a".repeat(5000)]) assert.equal(await leer(raro), null);
 });
 
@@ -117,6 +119,12 @@ test("un enlace simbólico se resuelve antes de validar: no sirve para leer otro
   assert.deepEqual(await leer(ln3), { texto: "ok", recortado: false });
 });
 
+test("leerSalidaTarea en Windows: una ruta relativa o de unidad sin raíz no pasa, sin importar dónde corra", async () => {
+  for (const r of ["Users\\ana\\claude\\p\\sid\\tasks\\b1.output", "C:claude\\p\\sid\\tasks\\b1.output", "claude/p/sid/tasks/b1.output", "C:\\t\\claude\\p\\..\\sid\\tasks\\b1.output"]) {
+    assert.equal(await leerSalidaTarea(r, "win32", "C:\\t"), null, r);
+  }
+});
+
 test("esSalidaDeTarea: Windows (sin distinguir mayúsculas) y Linux", () => {
   const w = "C:\\Users\\Ana Perez\\AppData\\Local\\Temp";
   assert.equal(esSalidaDeTarea(`${w}\\claude\\C--proyecto\\sid\\tasks\\b1.output`, [w], "win32"), true);
@@ -125,6 +133,12 @@ test("esSalidaDeTarea: Windows (sin distinguir mayúsculas) y Linux", () => {
   assert.equal(esSalidaDeTarea(`${w}\\claude\\C--proyecto\\sid\\tasks\\..\\..\\..\\..\\..\\x.output`, [w], "win32"), false);
   assert.equal(esSalidaDeTarea(`${w}\\otra\\C--proyecto\\sid\\tasks\\b1.output`, [w], "win32"), false);
   assert.equal(esSalidaDeTarea(`${w}\\claude\\C--proyecto\\sid\\tasks\\b1.txt`, [w], "win32"), false);
+  // Barras `/` de una ruta buena: es la misma ruta. Otra unidad, una carpeta hermana del temporal o una relativa, no.
+  assert.equal(esSalidaDeTarea(`${w.replace(/\\/g, "/")}/claude/C--proyecto/sid/tasks/b1.output`, [w], "win32"), true);
+  assert.equal(esSalidaDeTarea(`D${w.slice(1)}\\claude\\C--proyecto\\sid\\tasks\\b1.output`, [w], "win32"), false);
+  assert.equal(esSalidaDeTarea(`${w}2\\claude\\C--proyecto\\sid\\tasks\\b1.output`, [w], "win32"), false);
+  assert.equal(esSalidaDeTarea("claude\\C--proyecto\\sid\\tasks\\b1.output", [w], "win32"), false);
+  assert.equal(esSalidaDeTarea("C:claude\\C--proyecto\\sid\\tasks\\b1.output", ["C:\\"], "win32"), false);
   assert.equal(esSalidaDeTarea("/tmp/claude-1000/-home-ana/sid/tasks/b1.output", ["/tmp"], "linux"), true);
   assert.equal(esSalidaDeTarea("/tmp/claude-1000/tasks/b1.output", ["/tmp"], "linux"), false);
   assert.equal(esSalidaDeTarea("/tmp/claude-xx/-home-ana/sid/tasks/b1.output", ["/tmp"], "linux"), false);

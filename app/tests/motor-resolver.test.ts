@@ -2,81 +2,86 @@
 // `<app>/../motor`, que sólo existe en un checkout; en la instalación de escritorio (`~/.local/share/trama/{app,fuente/motor}`)
 // `reparto` "no existía", todo caía a Sonnet, el tablero y los hooks (latido) quedaban mudos.
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
-import { avisarFalta, resolverMotor, type Pa } from "../electron/cli/pa/entorno.ts";
+import { avisarFalta, resolverMotor, type OpcionesMotor, type Pa } from "../electron/cli/pa/entorno.ts";
 import { settingsWorker } from "../electron/cli/pa/lanzar.ts";
 
-const toque = (f: string) => {
-  mkdirSync(path.dirname(f), { recursive: true });
-  writeFileSync(f, "");
-};
-/** Un motor completo en `<dir>`: bin/pa, bin/reparto, bin/tablero, hooks/latido.sh. */
-const motorEn = (dir: string) => {
-  for (const f of ["bin/pa", "bin/reparto", "bin/tablero", "hooks/latido.sh"]) toque(path.join(dir, f));
-};
 const tmp = () => mkdtempSync(path.join(os.tmpdir(), "motor-resolver-"));
+
+// Las formas de instalar de Linux se prueban con rutas POSIX y un disco falso, no con el temporal: con `plat: "linux"` y una ruta real de
+// Windows (`C:\…`), `path.posix` no entiende la carpeta y la prueba miente en esa máquina. La plataforma es lo que se inyecta; la real va abajo.
+const MOTOR = ["bin/pa", "bin/reparto", "bin/tablero", "hooks/latido.sh"];
+/** Un disco falso: los archivos, lo anotado (primera línea) y los enlaces (`readlink -f`). */
+const disco = (archivos: string[], o: { lineas?: Record<string, string>; enlaces?: Record<string, string> } = {}): OpcionesMotor => {
+  const hay = new Set(archivos);
+  return { existe: (f) => hay.has(f), leer: (f) => o.lineas?.[f] ?? null, real: (f) => o.enlaces?.[f] ?? null };
+};
+const motorEn = (dir: string) => MOTOR.map((f) => path.posix.join(dir, f));
 /** La carpeta `electron/cli/pa` (o `dist-electron/cli/pa`) de una app dentro de `<app>`. */
-const cliPa = (app: string) => path.join(app, "dist-electron", "cli", "pa");
+const cliPa = (app: string) => path.posix.join(app, "dist-electron", "cli", "pa");
 
 test("instalación de escritorio: app en ~/.local/share/trama/app y motor en ../fuente/motor", () => {
-  const raiz = tmp();
-  try {
-    const share = path.join(raiz, ".local", "share", "trama");
-    motorEn(path.join(share, "fuente", "motor"));
-    mkdirSync(cliPa(path.join(share, "app")), { recursive: true });
-    const m = resolverMotor({}, { desde: cliPa(path.join(share, "app")), home: raiz, plat: "linux" });
-    assert.equal(m.dir, path.join(share, "fuente", "motor"));
-    assert.equal(m.bin, path.join(share, "fuente", "motor", "bin"));
-    assert.equal(m.hooks, path.join(share, "fuente", "motor", "hooks"));
-    assert.equal(m.via, "fuente");
-    assert.ok(m.binOk && m.hooksOk);
-  } finally {
-    rmSync(raiz, { recursive: true, force: true });
-  }
+  const share = "/home/ana/.local/share/trama";
+  const m = resolverMotor({}, { desde: cliPa(`${share}/app`), home: "/home/ana", plat: "linux", ...disco(motorEn(`${share}/fuente/motor`)) });
+  assert.equal(m.dir, `${share}/fuente/motor`);
+  assert.equal(m.bin, `${share}/fuente/motor/bin`);
+  assert.equal(m.hooks, `${share}/fuente/motor/hooks`);
+  assert.equal(m.via, "fuente");
+  assert.ok(m.binOk && m.hooksOk);
 });
 
 test("checkout (y worktree): motor/ al lado de app/", () => {
-  const raiz = tmp();
-  try {
-    motorEn(path.join(raiz, "motor"));
-    mkdirSync(cliPa(path.join(raiz, "app")), { recursive: true });
-    const m = resolverMotor({}, { desde: cliPa(path.join(raiz, "app")), home: path.join(raiz, "h"), plat: "linux" });
-    assert.equal(m.dir, path.join(raiz, "motor"));
-    assert.equal(m.via, "checkout");
-  } finally {
-    rmSync(raiz, { recursive: true, force: true });
-  }
+  const m = resolverMotor({}, { desde: cliPa("/src/trama/app"), home: "/home/ana", plat: "linux", ...disco(motorEn("/src/trama/motor")) });
+  assert.equal(m.dir, "/src/trama/motor");
+  assert.equal(m.via, "checkout");
 });
 
 test("app en una carpeta suelta: sigue el checkout anotado por instalar-producto.sh y, si no, el enlace de ~/.local/bin/pa", () => {
+  const home = "/home/ana";
+  const o = { desde: cliPa("/suelta/app"), home, plat: "linux" as const };
+  const motor = "/donde/motor";
+  // sin nada que lo guíe: no está, y se dice (binOk/hooksOk en false)
+  const nada = resolverMotor({}, { ...o, ...disco(motorEn(motor)) });
+  assert.equal(nada.binOk, false);
+  assert.equal(nada.hooksOk, false);
+  // el enlace de ~/.local/bin/pa
+  const enlaces = { [`${home}/.local/bin/pa`]: `${motor}/bin/pa` };
+  const porEnlace = resolverMotor({}, { ...o, ...disco(motorEn(motor), { enlaces }) });
+  assert.equal(porEnlace.dir, motor);
+  assert.equal(porEnlace.via, "enlace de pa");
+  // el checkout anotado gana al enlace
+  const lineas = { [`${home}/.config/trama/checkout`]: "/otro" };
+  const anotado = resolverMotor({}, { ...o, ...disco([...motorEn(motor), ...motorEn("/otro/motor")], { lineas, enlaces }) });
+  assert.equal(anotado.dir, "/otro/motor");
+  assert.equal(anotado.via, "checkout anotado");
+});
+
+test("con el disco de verdad, en la plataforma que corre: checkout e instalación con fuente/ se encuentran", () => {
   const raiz = tmp();
   try {
+    const copiar = (dir: string) => {
+      for (const f of MOTOR) {
+        const r = path.join(dir, ...f.split("/"));
+        mkdirSync(path.dirname(r), { recursive: true });
+        writeFileSync(r, "");
+      }
+    };
     const home = path.join(raiz, "h");
-    const app = path.join(raiz, "suelta", "app");
-    mkdirSync(cliPa(app), { recursive: true });
-    const motor = path.join(raiz, "donde", "motor");
-    motorEn(motor);
-    // sin nada que lo guíe: no está, y se dice (binOk/hooksOk en false)
-    const nada = resolverMotor({}, { desde: cliPa(app), home, plat: "linux" });
-    assert.equal(nada.binOk, false);
-    assert.equal(nada.hooksOk, false);
-    // el enlace de ~/.local/bin/pa
-    mkdirSync(path.join(home, ".local", "bin"), { recursive: true });
-    symlinkSync(path.join(motor, "bin", "pa"), path.join(home, ".local", "bin", "pa"));
-    const porEnlace = resolverMotor({}, { desde: cliPa(app), home, plat: "linux" });
-    assert.equal(porEnlace.dir, motor);
-    assert.equal(porEnlace.via, "enlace de pa");
-    // el checkout anotado gana al enlace
-    const otro = path.join(raiz, "otro");
-    motorEn(path.join(otro, "motor"));
-    toque(path.join(home, ".config", "trama", "checkout"));
-    writeFileSync(path.join(home, ".config", "trama", "checkout"), `${otro}\n`);
-    const anotado = resolverMotor({}, { desde: cliPa(app), home, plat: "linux" });
-    assert.equal(anotado.dir, path.join(otro, "motor"));
-    assert.equal(anotado.via, "checkout anotado");
+    const instalada = path.join(raiz, "instalada");
+    copiar(path.join(instalada, "fuente", "motor"));
+    const m1 = resolverMotor({}, { desde: path.join(instalada, "app", "dist-electron", "cli", "pa"), home });
+    assert.equal(m1.dir, path.join(instalada, "fuente", "motor"));
+    assert.equal(m1.bin, path.join(instalada, "fuente", "motor", "bin"));
+    assert.equal(m1.via, "fuente");
+    assert.ok(m1.binOk && m1.hooksOk);
+    const checkout = path.join(raiz, "checkout");
+    copiar(path.join(checkout, "motor"));
+    const m2 = resolverMotor({}, { desde: path.join(checkout, "app", "dist-electron", "cli", "pa"), home });
+    assert.equal(m2.dir, path.join(checkout, "motor"));
+    assert.equal(m2.via, "checkout");
   } finally {
     rmSync(raiz, { recursive: true, force: true });
   }
@@ -101,6 +106,20 @@ test("Windows nativo: <raíz>\\{app,bin,node}: los .cmd en bin\\ y los hooks .mj
   assert.ok(m.binOk && m.hooksOk);
 });
 
+test("Windows nativo: un checkout (`motor\\` al lado de `app\\`) y, desde una carpeta suelta, la instalación de %LOCALAPPDATA%", () => {
+  const desdeCheckout = new Set(["C:\\src\\trama\\motor\\bin\\pa", "C:\\src\\trama\\motor\\hooks\\latido.mjs"]);
+  const c = resolverMotor({}, { desde: "C:\\src\\trama\\app\\dist-electron\\cli\\pa", home: "C:\\Users\\f", plat: "win32", existe: (f) => desdeCheckout.has(f) });
+  assert.equal(c.via, "checkout");
+  assert.equal(c.bin, "C:\\src\\trama\\motor\\bin");
+  assert.ok(c.binOk && c.hooksOk);
+  const instalada = new Set(["D:\\datos\\trama\\bin\\reparto.cmd", "D:\\datos\\trama\\app\\hooks\\latido.mjs"]);
+  const i = resolverMotor({ LOCALAPPDATA: "D:\\datos" }, { desde: "C:\\suelta\\app\\dist-electron\\cli\\pa", home: "C:\\Users\\f", plat: "win32", existe: (f) => instalada.has(f) });
+  assert.equal(i.via, "instalación");
+  assert.equal(i.bin, "D:\\datos\\trama\\bin");
+  assert.equal(i.hooks, "D:\\datos\\trama\\app\\hooks");
+  assert.ok(i.binOk && i.hooksOk);
+});
+
 const paDe = (motor: ReturnType<typeof resolverMotor>, err: string[]): Pa =>
   ({
     env: { PATH: "" },
@@ -122,26 +141,30 @@ const paDe = (motor: ReturnType<typeof resolverMotor>, err: string[]): Pa =>
   }) as Pa;
 
 test("un hook que no se encuentra se ve por stderr (una sola vez), y el settings apunta a los hooks del motor resuelto", () => {
-  const raiz = tmp();
-  try {
-    const share = path.join(raiz, "share");
-    motorEn(path.join(share, "fuente", "motor"));
-    const bien = resolverMotor({}, { desde: cliPa(path.join(share, "app")), home: raiz, plat: "linux" });
-    const e1: string[] = [];
-    const s = JSON.parse(settingsWorker(paDe(bien, e1), { hb: "/e/hb", leer: false }));
-    assert.deepEqual(e1, []);
-    assert.match(JSON.stringify(s.hooks), new RegExp(`${path.join(share, "fuente", "motor", "hooks").replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}/latido\\.sh`));
-    // un motor sin hooks
-    const roto = resolverMotor({ TRAMA_MOTOR_DIR: path.join(raiz, "vacio") }, { home: raiz, plat: "linux" });
-    const e2: string[] = [];
-    const pa = paDe(roto, e2);
-    settingsWorker(pa, { hb: "/e/hb", leer: false });
-    settingsWorker(pa, { hb: "/e/hb", leer: false });
-    assert.equal(e2.length, 1);
-    assert.match(e2[0]!, /pa: no encuentro los hooks del worker \(latido, destructive-guard\).*vía TRAMA_MOTOR_DIR/);
-  } finally {
-    rmSync(raiz, { recursive: true, force: true });
-  }
+  const bien = resolverMotor({}, { desde: cliPa("/share/app"), home: "/home/ana", plat: "linux", ...disco(motorEn("/share/fuente/motor")) });
+  const e1: string[] = [];
+  const s = JSON.parse(settingsWorker(paDe(bien, e1), { hb: "/e/hb", leer: false }));
+  assert.deepEqual(e1, []);
+  assert.match(JSON.stringify(s.hooks), /\/share\/fuente\/motor\/hooks\/latido\.sh/);
+  // un motor sin hooks
+  const roto = resolverMotor({ TRAMA_MOTOR_DIR: "/home/ana/vacio" }, { home: "/home/ana", plat: "linux", ...disco([]) });
+  const e2: string[] = [];
+  const pa = paDe(roto, e2);
+  settingsWorker(pa, { hb: "/e/hb", leer: false });
+  settingsWorker(pa, { hb: "/e/hb", leer: false });
+  assert.equal(e2.length, 1);
+  assert.match(e2[0]!, /pa: no encuentro los hooks del worker \(latido, destructive-guard\).*vía TRAMA_MOTOR_DIR/);
+});
+
+test("Windows nativo: el settings del worker lanza los hooks .mjs del motor resuelto, no bash", () => {
+  const dentro = new Set(["C:\\t\\bin\\pa.cmd", "C:\\t\\app\\hooks\\latido.mjs"]);
+  const m = resolverMotor({}, { desde: "C:\\t\\app\\dist-electron\\cli\\pa", home: "C:\\Users\\f", plat: "win32", existe: (f) => dentro.has(f) });
+  const e: string[] = [];
+  const pa = { ...paDe(m, e), plat: "win32", home: "C:\\Users\\f" } as Pa;
+  const comandos = JSON.stringify(JSON.parse(settingsWorker(pa, { hb: "C:\\e\\hb", leer: false, node: "C:\\t\\node\\node.exe" })).hooks);
+  assert.deepEqual(e, []);
+  assert.match(comandos, /C:\/t\/app\/hooks\/latido\.mjs/);
+  assert.doesNotMatch(comandos, /bash|latido\.sh/);
 });
 
 test("avisarFalta: una vez por pieza, con dónde se buscó", () => {

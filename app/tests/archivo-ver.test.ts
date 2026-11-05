@@ -64,6 +64,12 @@ test("candidatasArchivo: rutas de Windows sólo en Windows (o por /mnt en WSL); 
   assert.deepEqual(candidatasArchivo("C:\\proy\\a.txt", "darwin"), []);
   assert.deepEqual(candidatasArchivo("/tmp/a.txt", "linux"), ["/tmp/a.txt"]);
   assert.deepEqual(candidatasArchivo("/tmp/a.txt", "win32"), []);
+  // En Windows sale con barras nativas: es lo que recibe shell.openPath, venga de un mensaje con `/` o de expandir `~`.
+  assert.deepEqual(candidatasArchivo("C:/proy/sub/", "win32"), ["C:\\proy\\sub\\"]);
+  assert.deepEqual(candidatasArchivo("C:\\Users\\ana/carpetas/hija/", "win32"), ["C:\\Users\\ana\\carpetas\\hija\\"]);
+  assert.deepEqual(candidatasArchivo("file:///C:/a%20b/c.pdf", "win32"), ["C:\\a b\\c.pdf"]);
+  // Normalizar no abre la puerta a subir de carpeta.
+  assert.deepEqual(candidatasArchivo("C:/proy/../secreto.txt", "win32"), []);
 });
 
 test("esSecreto: claves y credenciales no se muestran", () => {
@@ -90,7 +96,7 @@ test("abrirCarpeta: abre una carpeta que existe, también con ~; un archivo, una
   assert.equal(await abrirCarpeta(hija, abrir, dir), true);
   assert.equal(await abrirCarpeta("~/carpetas/hija/", abrir, dir), true);
   assert.equal(await abrirCarpeta("~", abrir, dir), true);
-  assert.deepEqual(abiertas, [hija, path.join(dir, "carpetas", "hija") + "/", dir]);
+  assert.deepEqual(abiertas, [hija, path.join(dir, "carpetas", "hija") + path.sep, dir]);
   abiertas.length = 0;
   for (const no of [archivo, path.join(dir, "no-esta"), "carpetas/hija", "~otro/x", `${hija}/../hija`, 42, null]) assert.equal(await abrirCarpeta(no, abrir, dir), false, String(no));
   assert.deepEqual(abiertas, []);
