@@ -340,16 +340,16 @@ test("probar: si llama-server contesta otro n_ctx no es un éxito", async () => 
 
 test("probar: una sola a la vez, y valida antes de tocar nada", async () => {
   const e = await entorno();
+  let suelta: (() => void) | undefined;
   try {
     await assert.rejects(probarLocal({ id: "modelo-local-ejemplo", ctx: 3 }, e.d), /localCtxInvalido/);
     assert.equal(e.llamadas.length, 0);
-    let suelta!: () => void;
     const lenta: Deps = { ...e.d, ejecutar: (bin, args, o) => (bin.endsWith("mi-conmutador") ? new Promise((ok) => (suelta = () => ok(""))) : e.d.ejecutar(bin, args, o)) };
     const primera = probarLocal({ id: "modelo-local-ejemplo", ctx: 65536 }, lenta);
     // Esperar a que la primera ya esté cargando (mi-conmutador llamado), no un tiempo fijo: bajo carga los 20 ms no alcanzan.
     await esperarHasta(() => suelta !== undefined);
     await assert.rejects(probarLocal({ id: "modelo-local-chico", ctx: 65536 }, e.d), /localOcupado/);
-    suelta();
+    suelta!();
     assert.equal((await primera).ok, true);
   } finally {
     // Si el test falla antes de soltarla, la primera queda colgada y el lock `probando` se queda tomado para los demás tests.
