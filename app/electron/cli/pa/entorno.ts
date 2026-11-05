@@ -148,6 +148,7 @@ export interface Pa {
   io: Io;
   plat: Plataforma;
   home: string;
+  esEjecutable?: (f: string) => boolean;
   /** `$STATE`: PA_STATE o el estado de pa de la plataforma. */
   state: string;
   lockdir: string;

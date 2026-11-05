@@ -10,8 +10,8 @@ import { existsSync, lstatSync, mkdirSync, rmSync, statSync, symlinkSync, writeF
 import path from "node:path";
 import { escribirAtomico } from "../base/archivo.ts";
 import { correr } from "../base/proc.ts";
-import { enPath, esEjecutable } from "../base/buscar.ts";
-import { entornoCmd } from "../../binario.ts";
+import { esEjecutable } from "../base/buscar.ts";
+import { entornoCmd, paraLanzar, resolverClaude } from "../../binario.ts";
 import { prefijoDe, repartoProceso } from "./programas.ts";
 import { type DeProyecto, type Proyecto as ProyectoCli } from "./cli.ts";
 import { argsHijo, lanzarAsync } from "./async.ts";
@@ -105,8 +105,9 @@ export function seguirCompactada(pa: Pa, dir: string, sfile: string, runId: stri
 
 /** `claude_sano`: `claude --version` (30 s). Devuelve el error si no anda. */
 export async function claudeSano(pa: Pa, claude?: string): Promise<{ ok: boolean; error: string }> {
-  const bin = claude ?? enPath("claude", [], pa.env, pa.plat) ?? "claude";
-  const r = await correr(bin, ["--version"], { env: pa.env, timeoutMs: 30_000, killAfterMs: 1000, plat: pa.plat });
+  const bin = claude ?? resolverClaude(pa.env, pa.home, pa.esEjecutable ?? ((f) => esEjecutable(f, pa.plat)), pa.plat);
+  const l = paraLanzar(bin, ["--version"], pa.env, pa.plat);
+  const r = await correr(l.file, l.args, { env: pa.env, timeoutMs: 30_000, killAfterMs: 1000, plat: pa.plat, verbatim: l.verbatim });
   return { ok: r.codigo === 0, error: `${r.salida}${r.errores}`.replace(/\n+$/, "") };
 }
 

@@ -217,12 +217,12 @@ export function resolverNpm(nombre: string, env: Env, home: string, extra: strin
 }
 
 /** El `claude` de la app: `HILOS_CLAUDE`, el del PATH o `~/.local/bin` (`claude.exe`), y en Windows el `claude.cmd` de npm. Sin nada: `claude` pelado. */
-export function resolverClaude(env: Env, home: string, esEjecutable?: (f: string) => boolean, plat: Plataforma = plataformaActual()): string {
+export function resolverClaude(env: Env, home: string, esEjecutable: (f: string) => boolean = ejecutable, plat: Plataforma = plataformaActual()): string {
   const r = resolverBinario("claude", "HILOS_CLAUDE", env, home, esEjecutable, plat);
   if (r !== "claude" || plat !== "win32") return r;
   // El instalador nativo de Claude Code deja `claude.exe` en `%USERPROFILE%\.local\bin`, que no siempre está en el PATH de la app.
   const propio = path.win32.join(home, ".local", "bin", "claude.exe");
-  if ((esEjecutable ?? (() => false))(propio)) return propio;
+  if ((esEjecutable ?? ejecutable)(propio)) return propio;
   return resolverNpm("claude", env, home, [carpetaBin(env, home, plat)], esEjecutable, plat);
 }
 

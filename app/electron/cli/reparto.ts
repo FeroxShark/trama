@@ -11,7 +11,7 @@ import { spawnSync, type SpawnSyncReturns } from "node:child_process";
 import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { hallarAgy } from "../binario.ts";
+import { hallarAgy, resolverClaude } from "../binario.ts";
 import { enPath, esEjecutable } from "./base/buscar.ts";
 import { tomar } from "./base/lock.ts";
 import { esPrincipal } from "./base/principal.ts";
@@ -1586,7 +1586,7 @@ function dshOfertas(cfg: Obj, now: Date): [string, string, string, boolean][] {
 function claudeInstalado(): boolean {
   if (E.REPARTO_CLAUDE === "0") return false;
   if (E.REPARTO_CUPOS_FIJOS) return true;
-  return !!enPath("claude") || [path.join(home(), ".local", "bin", "claude"), path.join(home(), ".claude", "local", "claude")].some(accesoX);
+  return resolverClaude(E, home(), accesoX) !== "claude" || [path.join(home(), ".local", "bin", "claude"), path.join(home(), ".claude", "local", "claude")].some(accesoX);
 }
 
 function rateLimitsCodex(now: Date): Obj {

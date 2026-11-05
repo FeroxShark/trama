@@ -13,7 +13,8 @@ import { randomUUID } from "node:crypto";
 import { closeSync, existsSync, mkdirSync, openSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { agregarLinea, escribirAtomico } from "../base/archivo.ts";
-import { enPath, esEjecutable } from "../base/buscar.ts";
+import { esEjecutable } from "../base/buscar.ts";
+import { paraLanzar, resolverClaude } from "../../binario.ts";
 import { tomar } from "../base/lock.ts";
 import { matarArbol } from "../base/proc.ts";
 import { comandoHook, entreComillas, type VarianteHook } from "../hooks.ts";
@@ -654,7 +655,7 @@ const NUM_SENAL: Record<string, number> = { SIGHUP: 1, SIGINT: 2, SIGQUIT: 3, SI
 /** Corre el claude con `l.args` en el worktree, stdout a `<ts>.json` y stderr a `<ts>.err`. Devuelve el código (127 si no se pudo lanzar). */
 export function correrClaude(l: Lanzamiento, o: { claude?: string; alArrancar?: (pid: number) => void } = {}): Promise<number> {
   const env = entornoClaude(l);
-  const bin = o.claude ?? enPath("claude", [], env, l.pa.plat) ?? "claude";
+  const bin = o.claude ?? resolverClaude(env, l.pa.home, l.pa.esEjecutable ?? ((f) => esEjecutable(f, l.pa.plat)), l.pa.plat);
   const fo = openSync(l.out, "w");
   const fe = openSync(l.err, "w");
   return new Promise((resolve) => {
@@ -667,7 +668,8 @@ export function correrClaude(l: Lanzamiento, o: { claude?: string; alArrancar?: 
     try {
       // un guion de node (el claude falso de las pruebas) no se ejecuta solo en Windows: se corre con este node
       const guion = /\.m?js$/i.test(bin);
-      const h = spawn(guion ? process.execPath : bin, guion ? [bin, ...l.args] : l.args, { cwd: l.c.rutaTrabajo, env: env as NodeJS.ProcessEnv, stdio: ["ignore", fo, fe], windowsHide: true });
+      const lanz = guion ? { file: process.execPath, args: [bin, ...l.args], verbatim: false } : paraLanzar(bin, l.args, env, l.pa.plat);
+      const h = spawn(lanz.file, lanz.args, { cwd: l.c.rutaTrabajo, env: env as NodeJS.ProcessEnv, stdio: ["ignore", fo, fe], windowsHide: true, ...(lanz.verbatim ? { windowsVerbatimArguments: true } : {}) });
       h.on("error", (e) => {
         try {
           writeFileSync(l.err, `pa: no pude lanzar ${bin}: ${e.message}\n`, { flag: "a" });
@@ -706,17 +708,20 @@ export const CLAUDE_ARREGLO = "node ~/.local/lib/node_modules/@anthropic-ai/clau
 
 /** `claude_rc`: 84 si claude existe pero no está en el PATH de este proceso, 81 si está roto. */
 export function claudeRc(pa: Pa): 81 | 84 {
-  const conocido = pa.env.CLAUDE_CONOCIDO || path.join(pa.home, ".local", "bin", "claude");
-  return !enPath("claude", [], pa.env, pa.plat) && esEjecutable(conocido, pa.plat) ? 84 : 81;
+  const cam = caminoDe(pa.plat);
+  const conocido = pa.env.CLAUDE_CONOCIDO || cam.join(pa.home, ".local", "bin", pa.plat === "win32" ? "claude.exe" : "claude");
+  const ejec = pa.esEjecutable ?? ((f: string) => esEjecutable(f, pa.plat));
+  return resolverClaude(pa.env, pa.home, ejec, pa.plat) === "claude" && ejec(conocido) ? 84 : 81;
 }
 
 /** `claude_falla`: el mensaje de 81 (roto) u 84 (fuera del PATH). */
 export function claudeFalla(pa: Pa, rc: 81 | 84, error: string): string {
-  const conocido = pa.env.CLAUDE_CONOCIDO || path.join(pa.home, ".local", "bin", "claude");
+  const cam = caminoDe(pa.plat);
+  const conocido = pa.env.CLAUDE_CONOCIDO || cam.join(pa.home, ".local", "bin", pa.plat === "win32" ? "claude.exe" : "claude");
   if (rc === 84) {
     return (
       `pa: claude no está en el PATH de este proceso (PATH=${pa.env.PATH ?? ""}). No está roto: existe en ${conocido}.\n` +
-      `pa: agregá ${path.dirname(conocido)} al PATH del servicio/timer/cron que llama a pa. NO hace falta reinstalar claude.\n`
+      `pa: agregá ${cam.dirname(conocido)} al PATH del servicio/timer/cron que llama a pa. NO hace falta reinstalar claude.\n`
     );
   }
   let s = "pa: la instalación de claude está ROTA. No es un fallo del worker ni del proyecto.\n";

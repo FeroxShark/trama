@@ -9,7 +9,8 @@
 import { appendFileSync, copyFileSync, mkdirSync, readFileSync, renameSync, rmSync, unlinkSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { plataformaActual, type Plataforma } from "../../rutas.ts";
-import { enPath } from "../base/buscar.ts";
+import { esEjecutable } from "../base/buscar.ts";
+import { resolverClaude } from "../../binario.ts";
 import { git } from "../base/git.ts";
 import { main as proyectoRutaMain, resolverProyecto } from "../proyecto-ruta.ts";
 import { AYUDA } from "./ayuda.ts";
@@ -93,6 +94,7 @@ export interface Deps {
   motores?: Partial<Motores> | ((pa: Pa) => Partial<Motores>);
   /** Corre otro `pa` con esos argumentos y variables extra (los intentos de -m a,b,c); devuelve su código. */
   relanzar?: (argv: string[], extra: Env) => number | Promise<number>;
+  esEjecutable?: (f: string) => boolean;
   plat?: Plataforma;
   /** El modo Objetivo (`--objetivo`): con qué se relanza `pa` para --async y cuánto esperar a que tome puesto (los tests lo ajustan). */
   objetivo?: Partial<Pick<DepsObjetivo, "comando" | "vueltasAsync" | "pausaAsyncMs">>;
@@ -258,6 +260,7 @@ export async function main(argv: string[], env: Env, io: Io, deps: Deps = {}): P
 async function correrPa(argv: string[], env: Env, io: Io, deps: Deps): Promise<number> {
   const plat = deps.plat ?? plataformaActual();
   const pa = prologo(argv, env, io, plat);
+  if (deps.esEjecutable) pa.esEjecutable = deps.esEjecutable;
   const modelos = new Modelos(env, io, pa.home, plat);
   const reparto = (deps.reparto ?? repartoProceso)(pa);
   const global = (k: keyof Globales, flag: string, args: string[]) => {
@@ -375,7 +378,7 @@ async function correrPa(argv: string[], env: Env, io: Io, deps: Deps): Promise<n
         return null;
       }
     },
-    claudeEnPath: () => enPath("claude", [], env, plat) !== null,
+    claudeEnPath: () => resolverClaude(env, pa.home, pa.esEjecutable ?? ((f) => esEjecutable(f, plat)), plat) !== "claude",
   };
   await aplicarPolitica(l, pa, depsPol);
   // Un líder de agy (Gemini) corta lo que sigue vivo al terminar la llamada de su herramienta de comandos o el turno: un worker en primer plano
