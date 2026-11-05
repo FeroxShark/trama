@@ -1,5 +1,10 @@
 # Cambios
 
+## 0.2.52
+
+- Pastilla arriba de la caja con lo que el líder dejó corriendo de fondo y hace cuánto. Al tocarla, la lista.
+- El resumen del turno dice «lanzó» una tarea de fondo mientras sigue corriendo, no «terminó».
+
 ## Sin publicar
 
 ## 0.2.51
