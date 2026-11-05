@@ -18,6 +18,7 @@ falta, está en `motor/docs/traspaso.md`.
 - **Sin consolas ni programas ajenos en Windows:** todo `spawn`/`execFile`/`fork` lleva `windowsHide: true` (en `app/electron`, `windows/src` y
   `motor/**/*.mjs`; lo controla `tests/rutas.test.ts`, con la lista `aPropósito` de excepciones). Y Trama nunca ejecuta `ollama`
   en Windows (su cliente puede abrir «Welcome to Ollama»): del servidor sólo se sondea el puerto y se mira `where`.
+- **Binarios de terceros en Windows (`agy`, `claude`):** buscalos con `resolverAgy`/`resolverClaude` (PATH, `%USERPROFILE%\.local\bin`, prefijo de npm; puede ser `.exe` o `.cmd`) y lanzalos con `paraLanzar`, nunca `execFile`/`spawn` directo. Ningún texto de la interfaz nombra Ubuntu ni WSL (la carcasa es siempre nativa). Lo controla `tests/cuentas-windows.test.ts`.
 - **Cuentas:** no rotar cuentas de Claude ni de OpenCode para esquivar límites.
 - **PR:** no se abren salvo que el dueño lo pida. Sin nombres de modelos de IA en commits ni en PR.
 - **Antes de cada commit**, desde `app/`: `npx tsc -p tsconfig.json --noEmit`, `npx tsc -p tsconfig.electron.json --noEmit`,
