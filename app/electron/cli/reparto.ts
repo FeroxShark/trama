@@ -11,6 +11,7 @@ import { spawnSync, type SpawnSyncReturns } from "node:child_process";
 import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { hallarAgy } from "../binario.ts";
 import { enPath, esEjecutable } from "./base/buscar.ts";
 import { tomar } from "./base/lock.ts";
 import { esPrincipal } from "./base/principal.ts";
@@ -253,11 +254,13 @@ function sumaPy(xs: number[]): number {
 }
 /** `subprocess.run(..., capture_output=True, text=True, timeout=s)`: el resultado de spawnSync (`error` si no se pudo o venció). */
 function correrCapturado(cmd: string, args: string[], o: { timeoutS: number; cwd?: string; env?: NodeJS.ProcessEnv }): SpawnSyncReturns<string> {
-  let ejecutable = cmd;
+  // agy se busca con el resolvedor de la app (npm, %LOCALAPPDATA%, /usr/local/bin); el resto, como antes.
+  const exe = cmd === "agy" ? (hallarAgy(E, home()) ?? cmd) : cmd;
+  let ejecutable = exe;
   let argv = args;
   let extra = {};
   if (process.platform === "win32") {
-    const r = enPath(cmd) ?? cmd;
+    const r = cmd === "agy" ? exe : (enPath(cmd) ?? cmd);
     if (/\.(cmd|bat)$/i.test(r)) {
       ejecutable = E.ComSpec || "cmd.exe";
       argv = ["/d", "/s", "/c", `"${[r, ...args].map((x) => `"${x}"`).join(" ")}"`];
@@ -1274,7 +1277,7 @@ const codexHome = () => E.CODEX_HOME || path.join(home(), ".codex");
 function agyDisponible(): boolean {
   if (E.REPARTO_AGY === "0") return false;
   if (E.REPARTO_CUPOS_FIJOS) return true;
-  return !!enPath("agy");
+  return hallarAgy(E, home()) !== null;
 }
 
 function codexDisponible(): boolean {

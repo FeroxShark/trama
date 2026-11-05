@@ -4,7 +4,7 @@
 import { spawnSync, type SpawnSyncOptions, type SpawnSyncReturns } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
-import { paraLanzar } from "../../../binario.ts";
+import { hallarAgy, paraLanzar } from "../../../binario.ts";
 import { caminoDe, carpetaApp, configTrama, homeDe, plataformaActual, type Plataforma } from "../../../rutas.ts";
 import { enPath, esEjecutable } from "../../base/buscar.ts";
 import { instalarPluginAgy } from "../../plugin-agy.ts";
@@ -191,7 +191,8 @@ export function chequearAgy(d: DatosChequeo): string {
   const plat = d.plat ?? plataformaActual();
   const m = privacidadDe(d.proyecto, d.tarea, "Google", d.env);
   if (m) return m;
-  const bin = (d.buscar ?? ((n) => enPath(n, [], d.env, plat)))("agy");
+  // El mismo resolvedor que la app (npm, %LOCALAPPDATA%, /usr/local/bin): si no está, null.
+  const bin = d.buscar ? d.buscar("agy") : hallarAgy(d.env, homeDe(d.env, plat), (f) => esEjecutable(f, plat), plat);
   if (!bin) return "agy no está en el PATH";
   const s = Number(d.env.PA_AGY_CHEQUEO_S) > 0 ? Number(d.env.PA_AGY_CHEQUEO_S) : 40;
   const hooks = () => String(correr(bin, ["-p", "/hooks", "--output-format", "json"], { env: d.envCuenta ?? d.env, encoding: "utf8", timeout: s * 1000, stdio: ["ignore", "pipe", "ignore"] }, d, plat).stdout ?? "");
