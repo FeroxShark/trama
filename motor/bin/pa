@@ -4974,6 +4974,13 @@ brief_avisar() {   # $1 = tarea
   echo "pa: aviso: a la tarea le falta ${lista}. Sin eso el worker adivina y vos no podés comprobar su trabajo. Brief: Objetivo / Archivos / Listo cuando / Cómo verificar / No tocar (plantilla: pa --brief; desde un archivo: --brief-archivo F). No bloqueo." >&2
 }
 
+# Con el perfil ahorro o agresivo (modelos.json) reparto elige el modelo más barato que alcance, a veces uno chico: se lo recordamos al jefe al lanzar.
+aviso_perfil_ahorro() {   # $1 = tarea (no se usa: el recordatorio es siempre el mismo)
+  local p; modelos_cargar && p="$(jq -r '.perfil // ""' <<<"$MODELOS_TXT")" || return 0
+  [[ "$p" == @(ahorro|agresivo) ]] || return 0
+  echo "pa: aviso: perfil $p: reparto elige el modelo más barato que alcance, a veces uno chico. El brief tiene que llevar pasos numerados, los archivos, \"Listo cuando\" y el comando de chequeo; si el worker falla el chequeo, subí un escalón una sola vez (skill trama-orquestar)." >&2
+}
+
 # La sección VERIFICACION de un RESULTADO (stdin -> stdout). Acepta VERIFICACIÓN, mayúsculas o no, con
 # ** o # adelante; termina en el próximo encabezado conocido.
 verificacion_de() {
@@ -6212,6 +6219,7 @@ fi
 # en primer plano o el padre de --async, no el hijo.
 if (( lanza && ! leer )) && [[ -z "$actualizar" && -z "${PA_ASYNC:-}" ]]; then
   (( seguir )) || brief_avisar "$tarea"
+  (( seguir )) || aviso_perfil_ahorro
   if modelo_flojo "$modelo"; then
     echo "pa: aviso: '$modelo' tiene inteligencia $calidad_modelo (< $CALIDAD_BAJA, reparto --tabla): dale pasos numerados, comandos explícitos, un solo archivo o área, y partí lo grande en varias tareas. El worker recibe además la consigna de trabajar en pasos chicos y verificar tras cada cambio." >&2
   fi

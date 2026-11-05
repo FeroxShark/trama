@@ -146,6 +146,13 @@ export function avisarBrief(io: Io, tarea: string): void {
   );
 }
 
+/** El perfil de reparto de modelos.json (`perfil`), o "" sin archivo válido. Sin avisos: los da quien carga el archivo de verdad. */
+export const perfilDeReparto = (pa: Pa): string => new Modelos(pa.env, { out: () => {}, err: () => {} }, pa.home, pa.plat).clave("perfil");
+
+/** El recordatorio de `pa` al lanzar con el perfil ahorro o agresivo (el reparto puede elegir un modelo chico); espejo de `aviso_perfil_ahorro` del bash. */
+export const avisoPerfilAhorro = (perfil: string): string =>
+  `pa: aviso: perfil ${perfil}: reparto elige el modelo más barato que alcance, a veces uno chico. El brief tiene que llevar pasos numerados, los archivos, "Listo cuando" y el comando de chequeo; si el worker falla el chequeo, subí un escalón una sola vez (skill trama-orquestar).\n`;
+
 /** `ruta="$(proyecto-ruta "$proyecto")"` con `set -e`: la ruta, o el error de proyecto-ruta y `exit` con su código. */
 function rutaOSalir(pa: Pa, proyecto: string): string {
   let out = "";
@@ -439,6 +446,8 @@ async function correrPa(argv: string[], env: Env, io: Io, deps: Deps): Promise<n
   l.flojo = calidad !== null;
   if (l.lanza && !l.leer && !l.actualizar && !env.PA_ASYNC) {
     if (!l.seguir && !l.retomaDe) avisarBrief(io, l.tarea);
+    const perfil = perfilDeReparto(pa);
+    if (!l.seguir && !l.retomaDe && (perfil === "ahorro" || perfil === "agresivo")) io.err(avisoPerfilAhorro(perfil));
     if (calidad !== null)
       io.err(
         `pa: aviso: '${l.modelo}' tiene inteligencia ${calidad} (< ${env.PA_CALIDAD_BAJA || "46"}, reparto --tabla): dale pasos numerados, comandos explícitos, un solo archivo o área, y partí lo grande en varias tareas. El worker recibe además la consigna de trabajar en pasos chicos y verificar tras cada cambio.\n`,

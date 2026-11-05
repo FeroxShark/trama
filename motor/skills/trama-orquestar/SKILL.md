@@ -144,6 +144,11 @@ las sugerencias de `reparto` pasan a modelos gratis o de Google (y vos también:
 pierde si no se gasta). El perfil (`perfil` en `modelos.json`, o Ajustes > Plan y cupos) lo gradúa: `ahorro` casi siempre gratis/Google y
 guarda el 35 % de la semana de Claude para vos (`reserva_lider`), `equilibrado` es el de siempre, `rendimiento` prioriza la calidad.
 
+**Perfiles `ahorro` y `agresivo`:** `reparto` elige un modelo barato y a veces chico (`agresivo`: el más barato que supere el piso del tipo; un gratis
+sin historial en `pa --rinde` no escribe código, y Flash sólo lee). Por eso el brief va más armado que nunca: pasos numerados, los archivos, «Listo cuando»
+y el comando de chequeo (`pa` te lo recuerda al lanzar). **Si el worker falla el chequeo, subí un escalón UNA vez** (`-m` al siguiente modelo, o `--tipo` más
+exigente) con lo que falló en la tarea; si vuelve a fallar, no escales más: partí la tarea o resolvela vos.
+
 El usuario te avisa lo que `reparto` no puede saber; **vos lo anotás**, no esperes a que te lo pida como comando:
 
 | El usuario dice | Corré |
