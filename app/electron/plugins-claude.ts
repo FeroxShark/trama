@@ -8,11 +8,11 @@
 import { execFile } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { paraLanzar, resolverBinario, resolverNpm } from "./binario.ts";
+import { paraLanzar, resolverClaude } from "./binario.ts";
 import { resumir, rutasClaude, type Rutas } from "./conectores-claude.ts";
 import { errorT } from "./errores.ts";
 import { entornoLider } from "./lider-arma.ts";
-import { carpetaBin, homeDe, plataformaActual, type Plataforma } from "./rutas.ts";
+import { homeDe, plataformaActual, type Plataforma } from "./rutas.ts";
 import { cuentasClaude } from "./uso-cuentas.ts";
 
 type Env = Record<string, string | undefined>;
@@ -163,15 +163,8 @@ export async function estadoCatalogos(d: DepsPlugins): Promise<EstadoCatalogos> 
 
 // --- Correr `claude` --------------------------------------------------------------------------------------------------------------------
 
-/** El `claude` de la app: `HILOS_CLAUDE`, el del PATH o `~/.local/bin` (`claude.exe`), y en Windows el `claude.cmd` de npm. Sin nada: `claude` pelado. */
-export function resolverClaude(env: Env, home: string, esEjecutable?: (f: string) => boolean, plat: Plataforma = plataformaActual()): string {
-  const r = resolverBinario("claude", "HILOS_CLAUDE", env, home, esEjecutable, plat);
-  if (r !== "claude" || plat !== "win32") return r;
-  // El instalador nativo de Claude Code deja `claude.exe` en `%USERPROFILE%\.local\bin`, que no siempre está en el PATH de la app.
-  const propio = path.win32.join(home, ".local", "bin", "claude.exe");
-  if ((esEjecutable ?? (() => false))(propio)) return propio;
-  return resolverNpm("claude", env, home, [carpetaBin(env, home, plat)], esEjecutable, plat);
-}
+/** El `claude` de la app: el resolvedor compartido (`binario.ts`), también lo usan trama-estado y cuentas. */
+export { resolverClaude } from "./binario.ts";
 
 const correrReal: NonNullable<DepsPlugins["correr"]> = (file, args, env, verbatim, timeout) =>
   new Promise((ok) => {

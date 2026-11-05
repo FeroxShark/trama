@@ -173,6 +173,12 @@ export function resolverAgy(env: Env, home: string, esEjecutable: (f: string) =>
   return r;
 }
 
+/** `agy` como `resolverAgy`, pero null si no está (no devuelve el nombre pelado): lo usan trama-estado, cuentas, chequeo y reparto. */
+export const hallarAgy = (env: Env, home: string, esEjecutable: (f: string) => boolean = ejecutable, plat: Plataforma = plataformaActual()): string | null => {
+  const r = resolverAgy(env, home, esEjecutable, plat);
+  return r === "agy" ? null : r;
+};
+
 /**
  * `tailscale`: lo de `resolverBinario` y, en Windows (el instalador no lo pone en el PATH de un servicio), el `tailscale.exe` de
  * `Program Files\Tailscale` (también el x86). Si no aparece queda `tailscale` pelado.
@@ -209,6 +215,22 @@ export function resolverNpm(nombre: string, env: Env, home: string, extra: strin
   for (const d of dirs) for (const n of nombres) if (esEjecutable(c.join(d, n))) return c.join(d, n);
   return nombre;
 }
+
+/** El `claude` de la app: `HILOS_CLAUDE`, el del PATH o `~/.local/bin` (`claude.exe`), y en Windows el `claude.cmd` de npm. Sin nada: `claude` pelado. */
+export function resolverClaude(env: Env, home: string, esEjecutable?: (f: string) => boolean, plat: Plataforma = plataformaActual()): string {
+  const r = resolverBinario("claude", "HILOS_CLAUDE", env, home, esEjecutable, plat);
+  if (r !== "claude" || plat !== "win32") return r;
+  // El instalador nativo de Claude Code deja `claude.exe` en `%USERPROFILE%\.local\bin`, que no siempre está en el PATH de la app.
+  const propio = path.win32.join(home, ".local", "bin", "claude.exe");
+  if ((esEjecutable ?? (() => false))(propio)) return propio;
+  return resolverNpm("claude", env, home, [carpetaBin(env, home, plat)], esEjecutable, plat);
+}
+
+/** `claude` como `hallarAgy`: la ruta, o null si no está (no devuelve el nombre pelado). */
+export const hallarClaude = (env: Env, home: string, esEjecutable: (f: string) => boolean = ejecutable, plat: Plataforma = plataformaActual()): string | null => {
+  const r = resolverClaude(env, home, esEjecutable, plat);
+  return r === "claude" ? null : r;
+};
 
 const ES_CMD = /\.(cmd|bat)$/i;
 

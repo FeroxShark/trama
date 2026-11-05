@@ -6,7 +6,7 @@
 //
 // {"version":1,
 //  "claude":{"instalado":bool,"logueado":bool},
-//  "agy":{"instalado":bool,"logueado":bool},
+//  "agy":{"instalado":bool,"logueado":bool,"ruta":str (si está),"error":str (si no contestó: primera línea, sin tokens)},
 //  "dsh":{"instalado":bool,"version":str|null,"ruta":str|null,"claves":{"opencode":bool,"deepseek":bool}},
 //  "opencode":{"instalado":bool,"version":str|null,"ruta":str|null,"logueado":bool},
 //  "ollama":{"url":str,"responde":bool,"modelos":[str]},
@@ -18,9 +18,9 @@
 // (otro modelos.json), TRAMA_PUERTO (puerto del motor, default 8791), OLLAMA_HOST (si modelos.json no dice).
 import http from "node:http";
 import https from "node:https";
-import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
-import { carpetasNpm, paraLanzar } from "../binario.ts";
+import { carpetasNpm, hallarAgy, hallarClaude, paraLanzar } from "../binario.ts";
 import { prefijoDsh } from "../dsh.ts";
 import { configTrama, esWindows, estadoHilos, homeDe } from "../rutas.ts";
 import { enPath, esEjecutable } from "./base/buscar.ts";
@@ -64,19 +64,19 @@ export async function salida(cmd: string[], espera = 10, env: Env = process.env)
 
 const enPathCon = (c: Contexto, nombre: string, extra: string[] = []) => enPath(nombre, [path.join(c.home, ".local", "bin"), ...extra], c.env);
 
-function dirsAgy(c: Contexto): string[] {
-  // donde cae agy si no está en el PATH: /usr/local/bin y el ~/.antigravity*/bin del instalador
-  let hallados: string[] = [];
-  try {
-    hallados = readdirSync(c.home).filter((n) => n.startsWith(".antigravity") && existsSync(path.join(c.home, n, "bin"))).sort().map((n) => path.join(c.home, n, "bin"));
-  } catch {
-    /* sin home legible */
-  }
-  return ["/usr/local/bin", ...hallados];
+// Los binarios de terceros se buscan con el MISMO resolvedor que la app (binario.ts: PATH, carpetas de npm, %LOCALAPPDATA% en Windows,
+// /usr/local/bin y ~/.antigravity* en Linux). Las variables TRAMA_CLAUDE / TRAMA_AGY (para probar) siguen siendo nombre o ruta.
+const rutaClaude = (c: Contexto) => (c.env.TRAMA_CLAUDE ? enPathCon(c, c.env.TRAMA_CLAUDE) : hallarClaude(c.env, c.home, esEjecutable));
+const rutaAgy = (c: Contexto) => (c.env.TRAMA_AGY ? enPathCon(c, c.env.TRAMA_AGY) : hallarAgy(c.env, c.home, esEjecutable));
+
+/** La primera línea de un error de programa, sin códigos de color, sin tokens que se parezcan a una clave y recortada. */
+export function primeraLineaError(texto: string): string {
+  const l = texto.replace(/\x1b\[[0-9;]*[A-Za-z]/g, "").split(SALTOS).map((x) => x.trim()).find((x) => x) ?? "";
+  return l.replace(/[A-Za-z0-9_\-.\/+=]{24,}/g, "…").slice(0, 160);
 }
 
 async function claude(c: Contexto) {
-  const ruta = enPathCon(c, c.env.TRAMA_CLAUDE || "claude");
+  const ruta = rutaClaude(c);
   if (!ruta) return { instalado: false, logueado: false };
   let logueado = false;
   const [rc, out] = await salida([ruta, "auth", "status", "--json"], 10, c.env);
@@ -97,12 +97,19 @@ async function claude(c: Contexto) {
 }
 
 async function agy(c: Contexto) {
-  const ruta = enPathCon(c, c.env.TRAMA_AGY || "agy", dirsAgy(c));
+  const ruta = rutaAgy(c);
   if (!ruta) return { instalado: false, logueado: false };
   // agy guarda el login de Google en el llavero del sistema (no hay archivo que mirar): con sesión lista modelos.
-  // Colgado: salida() corta a los 15 s y devuelve "" (queda en false).
-  const [, out] = await salida([ruta, "models"], 15, c.env);
-  return { instalado: true, logueado: out.split(SALTOS).some((l) => MODELO_AGY.test(l)) };
+  // Colgado: corta a los 15 s y no devuelve salida (queda en false). `ruta` y `error` (primera línea) son para diagnosticar.
+  const l = paraLanzar(ruta, ["models"], c.env);
+  const r = await correr(l.file, l.args, { timeoutMs: 15_000, env: c.env, input: "", verbatim: l.verbatim });
+  const out = r.error || r.agotado ? "" : r.salida;
+  const logueado = out.split(SALTOS).some((x) => MODELO_AGY.test(x));
+  let error: string | undefined;
+  if (r.error) error = primeraLineaError(r.error.message);
+  else if (r.agotado) error = "no contestó en 15 s";
+  else if (r.codigo !== 0) error = primeraLineaError(r.errores || r.salida);
+  return { instalado: true, logueado, ruta, ...(error ? { error } : {}) };
 }
 
 /** ¿Hay key? El entorno o claves.env (líneas NOMBRE=valor). Sólo un booleano: el valor no sale de acá. */

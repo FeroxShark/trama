@@ -7,6 +7,7 @@
 import { spawn } from "node:child_process";
 import { chmodSync, closeSync, copyFileSync, existsSync, lstatSync, mkdirSync, openSync, readdirSync, readFileSync, realpathSync, renameSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import { hallarAgy, hallarClaude, paraLanzar } from "../binario.ts";
 import { homeDe, plataformaActual } from "../rutas.ts";
 import { unirEnlace } from "./base/compartir.ts";
 import { borrarSinSeguir, type OpcionesEnlace } from "./base/enlaces.ts";
@@ -289,8 +290,10 @@ class Cuentas {
   async logueado(c: Cuenta, verificar = false): Promise<boolean | null> {
     const p = c.proveedor;
     if (p === "claude") {
-      if (verificar && enPath("claude", [], this.env)) {
-        const r = await correr("claude", ["auth", "status", "--json"], { env: this.envDe(c), timeoutMs: 20_000, input: "" });
+      const claude = hallarClaude(this.env, this.homeReal());
+      if (verificar && claude) {
+        const l = paraLanzar(claude, ["auth", "status", "--json"], this.env);
+        const r = await correr(l.file, l.args, { env: this.envDe(c), timeoutMs: 20_000, input: "", verbatim: l.verbatim });
         if (!r.error && !r.agotado) {
           try {
             const j = JSON.parse(r.salida);
@@ -305,8 +308,10 @@ class Cuentas {
     }
     if (p === "chatgpt") return existsSync(path.join(c.dir || this.env.CODEX_HOME || path.join(this.homeReal(), ".codex"), "auth.json"));
     if (p === "opencode") return this.logueadoOpencode(c, verificar);
-    if (verificar && enPath("agy", [], this.env)) {
-      const r = await correr("agy", ["models"], { env: this.envDe(c), timeoutMs: 20_000, input: "", cwd: this.cwdTmp() });
+    const agy = hallarAgy(this.env, this.homeReal());
+    if (verificar && agy) {
+      const l = paraLanzar(agy, ["models"], this.env);
+      const r = await correr(l.file, l.args, { env: this.envDe(c), timeoutMs: 20_000, input: "", cwd: this.cwdTmp(), verbatim: l.verbatim });
       if (r.error || r.agotado) return false;
       return r.salida.split(/\r\n|\r|\n/).some((l) => MODELO_AGY.test(l));
     }
@@ -686,10 +691,13 @@ class Cuentas {
     }
     const i = cmd[0] === "env" ? cmd.findIndex((x, k) => k > 0 && !x.includes("=") && !x.startsWith("-u")) : 0;
     const prog = cmd[i]!;
-    if (!enPath(prog, [], this.env)) return this.err(`no está instalado el CLI de ${c.proveedor}`), 1;
+    // claude y agy se buscan con el resolvedor de la app (npm, %LOCALAPPDATA%); el .cmd de npm va por paraLanzar.
+    const bin = prog === "agy" ? hallarAgy(this.env, this.homeReal()) : prog === "claude" ? hallarClaude(this.env, this.homeReal()) : enPath(prog, [], this.env);
+    if (!bin) return this.err(`no está instalado el CLI de ${c.proveedor}`), 1;
+    const l = paraLanzar(bin, cmd.slice(i + 1), this.env);
     // Python hacía `exec`; acá el login corre como hijo con la terminal heredada y su código es el nuestro
     return new Promise<number>((resolve) => {
-      const h = spawn(prog, cmd.slice(i + 1), { stdio: "inherit", env: this.envDe(c) as NodeJS.ProcessEnv });
+      const h = spawn(l.file, l.args, { stdio: "inherit", env: this.envDe(c) as NodeJS.ProcessEnv, windowsHide: true, windowsVerbatimArguments: l.verbatim });
       h.on("error", () => resolve(127));
       h.on("close", (code, senal) => resolve(code ?? (senal ? 128 : 1)));
     });
