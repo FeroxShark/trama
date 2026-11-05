@@ -9,9 +9,9 @@ export type Cuentas = CuentasOk | { error: string };
 export type Proveedor = "claude" | "gemini";
 
 type Carcasa = {
-  /** Qué cuentas están conectadas ahora (`trama-estado` en Ubuntu). */
+  /** Qué cuentas están conectadas ahora (`trama-estado`). */
   cuentas(): Promise<Cuentas>;
-  /** Abre una consola de Ubuntu con el CLI del proveedor para iniciar sesión. */
+  /** Abre una consola con el CLI del proveedor para iniciar sesión. */
   conectar(proveedor: Proveedor): Promise<{ error?: string } | undefined>;
 };
 

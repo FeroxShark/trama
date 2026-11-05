@@ -6,10 +6,12 @@
 //   un renglón por modelo. Es una consulta al servicio, no un turno: no gasta cupo. Sin red tampoco trae nada, y eso se dice
 //   como error (no como "sin conectar") cuando el CLI sale con código ≠ 0 o no contesta a tiempo.
 // Cada vez que se pregunta se mira de nuevo (sin caché); el binario se busca en el PATH, en `~/.local/bin` y donde lo dejan
-// sus instaladores (`resolverAgy`): bajo systemd o WSL el PATH viene pelado. Sin `electron`: lo prueba tests/cuentas.test.ts.
+// sus instaladores (`resolverAgy`; en Windows también `.cmd` de npm): bajo systemd el PATH viene pelado. Sin `electron`: lo prueba tests/cuentas.test.ts.
 import { execFile } from "node:child_process";
 import os from "node:os";
-import { pathConLocal, resolverAgy, resolverBinario } from "./binario.ts";
+import { paraLanzar, pathConLocal, resolverAgy, resolverBinario, resolverNpm } from "./binario.ts";
+import { resolverClaude } from "./plugins-claude.ts";
+import { type Plataforma } from "./rutas.ts";
 
 export type Cuenta = {
   instalado: boolean;
@@ -27,6 +29,8 @@ export type Deps = {
   env: Record<string, string | undefined>;
   home: string;
   esEjecutable?: (f: string) => boolean;
+  /** La plataforma (para probar Windows desde Linux); por defecto la real. */
+  plat?: Plataforma;
   correr: (bin: string, args: string[], env: NodeJS.ProcessEnv, timeoutMs: number) => Promise<Salida>;
 };
 
@@ -40,8 +44,8 @@ const ultimaLinea = (t: string) => t.trim().split(/\r?\n/).filter(Boolean).slice
 const esModelo = (l: string) => /^[a-z0-9][a-z0-9._:]*(?:-[a-z0-9._:]+)+\s+\S/i.test(l.trim());
 
 export async function sondearAgy(d: Deps): Promise<Cuenta> {
-  const bin = resolverAgy(d.env, d.home, d.esEjecutable);
-  const r = await d.correr(bin, ["models"], { ...d.env, PATH: pathConLocal(d.env, d.home) }, TOPE_AGY);
+  const bin = resolverAgy(d.env, d.home, d.esEjecutable, d.plat);
+  const r = await d.correr(bin, ["models"], { ...d.env, PATH: pathConLocal(d.env, d.home, d.plat) }, TOPE_AGY);
   if (r.noExiste) return sin(false);
   if (r.tiempo) return sin(true, "agy no contestó a tiempo");
   const modelos = r.stdout.split(/\r?\n/).filter(esModelo);
@@ -51,8 +55,8 @@ export async function sondearAgy(d: Deps): Promise<Cuenta> {
 }
 
 export async function sondearClaude(d: Deps): Promise<Cuenta> {
-  const bin = resolverBinario("claude", "HILOS_CLAUDE", d.env, d.home, d.esEjecutable);
-  const r = await d.correr(bin, ["auth", "status"], { ...d.env, PATH: pathConLocal(d.env, d.home) }, TOPE_CLAUDE);
+  const bin = resolverClaude(d.env, d.home, d.esEjecutable, d.plat);
+  const r = await d.correr(bin, ["auth", "status"], { ...d.env, PATH: pathConLocal(d.env, d.home, d.plat) }, TOPE_CLAUDE);
   if (r.noExiste) return sin(false);
   if (r.tiempo) return sin(true, "claude no contestó a tiempo");
   // `claude auth status` sale con 1 y dice el JSON igual cuando no hay sesión.
@@ -71,8 +75,10 @@ export async function sondearClaude(d: Deps): Promise<Cuenta> {
  * «Not logged in». Puede no estar instalado (`noExiste`): es lo normal en una máquina que no lo usa, no un error.
  */
 export async function sondearCodex(d: Deps): Promise<Cuenta> {
-  const bin = resolverBinario("codex", "HILOS_CODEX", d.env, d.home, d.esEjecutable);
-  const r = await d.correr(bin, ["login", "status"], { ...d.env, PATH: pathConLocal(d.env, d.home) }, TOPE_CLAUDE);
+  const r0 = resolverBinario("codex", "HILOS_CODEX", d.env, d.home, d.esEjecutable, d.plat);
+  // Windows: el `codex.cmd` de npm.
+  const bin = r0 === "codex" && d.plat === "win32" ? resolverNpm("codex", d.env, d.home, [], d.esEjecutable, d.plat) : r0;
+  const r = await d.correr(bin, ["login", "status"], { ...d.env, PATH: pathConLocal(d.env, d.home, d.plat) }, TOPE_CLAUDE);
   if (r.noExiste) return sin(false);
   if (r.tiempo) return sin(true, "codex no contestó a tiempo");
   const dicho = `${r.stdout}\n${r.stderr}`;
@@ -88,7 +94,9 @@ export async function estadoCuentas(d: Deps): Promise<EstadoCuentas> {
 
 export const correrReal: Deps["correr"] = (bin, args, env, timeout) =>
   new Promise((ok) => {
-    const hijo = execFile(bin, args, { env, timeout, maxBuffer: 1 << 20, windowsHide: true }, (e, stdout, stderr) => {
+    // Windows: un `.cmd` de npm (agy, claude) no se lanza directo; `paraLanzar` lo pasa por cmd.exe. En Linux no cambia nada.
+    const l = paraLanzar(bin, args, env);
+    const hijo = execFile(l.file, l.args, { env, timeout, maxBuffer: 1 << 20, windowsHide: true, windowsVerbatimArguments: l.verbatim }, (e, stdout, stderr) => {
       const err = e as (NodeJS.ErrnoException & { killed?: boolean; code?: number | string }) | null;
       ok({
         code: err ? (typeof err.code === "number" ? err.code : null) : 0,

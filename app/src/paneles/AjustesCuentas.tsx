@@ -1,6 +1,6 @@
 // Ajustes > Cuentas: si Claude Code y Gemini (agy) están conectados, con quién, o por qué no se pudo saber; y los botones
 // para conectar, reconectar y comprobar. El estado lo da el motor preguntándole a cada CLI (`fuente.cuentas`, electron/cuentas.ts),
-// no un archivo. Sólo existe en el .exe de Windows (`src/carcasa.ts`): ahí "Conectar" abre una consola de Ubuntu para iniciar
+// no un archivo. Sólo existe en el .exe de Windows (`src/carcasa.ts`): ahí "Conectar" abre una consola para iniciar
 // sesión (Trama nunca ve la contraseña). Se vuelve a mirar al volver a la ventana (cuando se cierra la consola) o con Comprobar;
 // sin reloj. Si Gemini quedó disponible después de abrir la app, la tabla de modelos se pone al día (el selector de líder nuevo).
 import { useCallback, useEffect, useRef, useState } from "react";

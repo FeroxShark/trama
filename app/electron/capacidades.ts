@@ -4,6 +4,7 @@
 import { accessSync, constants } from "node:fs";
 import os from "node:os";
 import { resolverAgy, resolverBinario, resolverTailscale } from "./binario.ts";
+import { resolverClaude } from "./plugins-claude.ts";
 import { resolverDsh } from "./dsh.ts";
 import { type Plataforma, plataformaActual } from "./rutas.ts";
 
@@ -45,20 +46,20 @@ export function capacidades(env: Env = process.env, home = os.homedir(), existe:
  * ponen un camino inexistente para apagarlo, o `scripts/agy-falso.mjs` para prenderlo). En una captura sin `HILOS_AGY`
  * no se prende solo para no alterar las referencias visuales.
  */
-export function hayAgy(env: Env = process.env, home = os.homedir(), existe: (f: string) => boolean = ejecutable): boolean {
+export function hayAgy(env: Env = process.env, home = os.homedir(), existe: (f: string) => boolean = ejecutable, plat: Plataforma = plataformaActual()): boolean {
   if (env.HILOS_AGY !== undefined) return !!env.HILOS_AGY && existe(env.HILOS_AGY);
   if (env.HILOS_CAPTURA) return false;
-  return resolverAgy(env, home, existe) !== "agy";
+  return resolverAgy(env, home, existe, plat) !== "agy";
 }
 
 /**
  * ¿Está instalado `claude` (Claude Code)? Sin él, con `agy`, Trama es de Gemini solo. `HILOS_CLAUDE` (el falso de las
  * pruebas) vale si apunta a un ejecutable; en una captura se supone que sí, para no alterar las referencias visuales.
  */
-export function hayClaude(env: Env = process.env, home = os.homedir(), existe: (f: string) => boolean = ejecutable): boolean {
+export function hayClaude(env: Env = process.env, home = os.homedir(), existe: (f: string) => boolean = ejecutable, plat: Plataforma = plataformaActual()): boolean {
   if (env.HILOS_CLAUDE !== undefined) return !!env.HILOS_CLAUDE && existe(env.HILOS_CLAUDE);
   if (env.HILOS_CAPTURA) return true;
-  return resolverBinario("claude", "HILOS_CLAUDE", env, home, existe) !== "claude";
+  return resolverClaude(env, home, existe, plat) !== "claude";
 }
 
 /**

@@ -16,13 +16,13 @@
 // `~/.claude/projects`, aparte para que no entren al consumo ni al historial de Claude) y su
 // `sessions/<pid>.json` (la barra lo ve vivo; `pa` busca al jefe de un worker subiendo por los padres hasta un pid
 // con ese archivo: sin él, los workers de un líder de Gemini quedarían sueltos).
-import { execFileSync, spawn, type ChildProcess } from "node:child_process";
+import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, unlinkSync, writeFileSync } from "node:fs";
 import { createInterface } from "node:readline";
 import path from "node:path";
 import os from "node:os";
-import { resolverAgy, entornoAgy } from "./binario.ts";
+import { resolverAgy, entornoAgy, paraLanzar } from "./binario.ts";
 import { llamadaAgy } from "./agy-llamada.ts";
 import { comandosPluginAgy, Traductor } from "./agy-stream.ts";
 import { cortesDeEntorno, sinCortadas } from "./cortes.ts";
@@ -317,7 +317,9 @@ function correrAgy(prompt: string, conversacion: string | null, tr: Traductor): 
     // El prompt por stdin, no por argv: en Windows la línea de comandos tiene tope (ENAMETOOLONG con un relevo largo).
     const { args, stdin } = llamadaAgy({ prompt, modelo: modeloAgy(modelo), conversacion, timeout: TIMEOUT_TURNO });
     // Su propio grupo (Linux): al interrumpir caen también los comandos que lanzó. En Windows sin `detached` (ver hijoEnGrupo): consola oculta heredable.
-    const p = spawn(AGY, args, { cwd, env: ENTORNO, stdio: ["pipe", "pipe", "pipe"], detached: hijoEnGrupo(), windowsHide: true });
+    // Windows: un `agy.cmd` de npm va por cmd.exe (`paraLanzar`); un `.exe` o Linux, tal cual.
+    const l = paraLanzar(AGY, args, ENTORNO);
+    const p = spawn(l.file, l.args, { cwd, env: ENTORNO, stdio: ["pipe", "pipe", "pipe"], detached: hijoEnGrupo(), windowsHide: true, windowsVerbatimArguments: l.verbatim });
     hijo = p;
     // Si agy muere antes de leer, el EPIPE no debe tirar la app: el cierre se entera por `close`/`error`.
     p.stdin!.on("error", () => {});
@@ -622,7 +624,10 @@ let comandosCache: ReturnType<typeof comandosPluginAgy> | null = null;
 function comandosDeAgy() {
   if (comandosCache) return comandosCache;
   try {
-    const out = execFileSync(AGY, ["plugin", "list", "--json"], { env: ENTORNO, encoding: "utf8", timeout: 3000, stdio: ["ignore", "pipe", "ignore"], windowsHide: true });
+    const l = paraLanzar(AGY, ["plugin", "list", "--json"], ENTORNO);
+    const r = spawnSync(l.file, l.args, { env: ENTORNO, encoding: "utf8", timeout: 3000, stdio: ["ignore", "pipe", "ignore"], windowsHide: true, windowsVerbatimArguments: l.verbatim });
+    if (r.error || r.status !== 0) throw r.error ?? new Error("agy plugin list falló");
+    const out = String(r.stdout);
     comandosCache = comandosPluginAgy(out);
   } catch {
     comandosCache = [];

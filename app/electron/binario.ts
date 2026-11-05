@@ -155,12 +155,19 @@ export function lanzarCmd(
 }
 
 /**
- * `agy` (Antigravity CLI): lo de `resolverBinario` y, si no aparece, las carpetas donde sus instaladores lo dejan fuera del PATH de una
+ * `agy` (Antigravity CLI): lo de `resolverBinario` y, si no aparece (en Windows: `.cmd`/`.exe` en el PATH, el prefijo de npm y sus carpetas), las carpetas donde sus instaladores lo dejan fuera del PATH de una
  * unidad de systemd o de WSL (`/usr/local/bin`, `/usr/bin`, `~/.antigravity/bin`…). Si no está en ningún lado queda `agy` pelado.
  */
 export function resolverAgy(env: Env, home: string, esEjecutable: (f: string) => boolean = ejecutable, plat: Plataforma = plataformaActual()): string {
   const r = resolverBinario("agy", "HILOS_AGY", env, home, esEjecutable, plat);
-  if (r !== "agy" || plat === "win32") return r;
+  if (r !== "agy") return r;
+  if (plat === "win32") {
+    // Windows: `agy` puede ser un `.cmd` (npm) o un `.exe` fuera del PATH de la app; se mira el PATH, el prefijo de npm y las carpetas de sus instaladores.
+    const c = path.win32;
+    const local = env.LOCALAPPDATA ?? c.join(home, "AppData", "Local");
+    const extra = [c.join(home, ".local", "bin"), carpetaBin(env, home, plat), c.join(home, ".antigravity", "bin"), c.join(home, ".antigravity-cli", "bin"), c.join(home, ".gemini", "antigravity-cli", "bin"), c.join(local, "Programs", "Antigravity", "bin"), c.join(local, "Antigravity", "bin")];
+    return resolverNpm("agy", env, home, extra, esEjecutable, plat);
+  }
   const donde = ["/usr/local/bin", "/usr/bin", path.join(home, ".antigravity", "bin"), path.join(home, ".antigravity-cli", "bin"), path.join(home, ".gemini", "antigravity-cli", "bin")];
   for (const d of donde) if (esEjecutable(path.join(d, "agy"))) return path.join(d, "agy");
   return r;
