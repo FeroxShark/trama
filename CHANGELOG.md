@@ -1,5 +1,11 @@
 # Cambios
 
+## 0.2.55
+
+- Actualizar: la ventana se relanza si el build cambió, aunque no haya oído el aviso del motor. Antes podía quedar con el proceso viejo y la página nueva.
+- Abrir una carpeta desde un mensaje: si falla porque la app no pudo pedirlo, dice que hay que reiniciar Trama, no que «no es una carpeta».
+- Pastilla de fondo: se cierra cuando la tarea termina a mitad de un turno, y una salida que nombra un proceso de fondo ya no cuenta como tarea.
+
 ## 0.2.54
 
 - Ahorro: perfil `agresivo` en `reparto` (el modelo más barato que supere el piso de cada tipo). El perfil activo se ve y se cambia desde la barra de cupos.
