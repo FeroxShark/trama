@@ -86,6 +86,7 @@ falta, está en `motor/docs/traspaso.md`.
   Nada de `path.join(…, "..", "motor")` suelto. Si un worker sale siempre con el modelo por defecto, mirá primero el aviso «pa: no encuentro …».
 - **Líder → workers:** se delega con `--tipo` y SIN `-m` ni `--effort` (los elige `reparto`); `-m` sólo con motivo (skill `trama-orquestar`). Si `reparto` falla,
   el resultado del worker lo dice («— reparto NO eligió el modelo», archivo `<id>.reparto-fallo`).
+- **Limpieza de ramas y worktrees:** vive en `app/src/paneles/AjustesLimpieza.tsx` (`LimpiezaPa`) y se ve en dos lugares: Ajustes > Proyectos y el panel de Ramas (botón «Limpiar ramas y puestos viejos», captura `ramas-limpieza`). Un solo componente, nunca una copia; tirar siempre pasa por «Ver qué se borraría» y luego «Borrar lo de la lista». Lo controla `tests/ramas-limpieza-acceso.test.ts`. Los textos de Conectores llaman «conector» a lo que técnicamente es un servidor MCP (no «servidor propio»: suena a otra máquina).
 
 ## Mapa rápido
 
