@@ -1933,7 +1933,7 @@ export const es: { [K in keyof typeof en]: string } = {
   "tbl.tipo.pregunta": "Preguntas",
   "tbl.tipo.idea": "Ideas",
   "tbl.soloSug": "Sólo lo desactualizado",
-  "tbl.resumen": "Desactualizado: {retirado} de proyectos retirados, {integrada} con la rama ya integrada y {vieja} pruebas de una versión vieja.",
+  "tbl.resumen": "Se sugieren por: proyecto retirado ({retirado}), rama ya integrada ({integrada}) y prueba de una versión vieja ({vieja}).",
   "tbl.motivo.retirado": "Proyecto retirado",
   "tbl.motivo.integrada": "Rama integrada",
   "tbl.motivo.vieja": "Prueba vieja",

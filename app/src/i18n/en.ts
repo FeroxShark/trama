@@ -1946,7 +1946,7 @@ export const en = {
   "tbl.tipo.pregunta": "Questions",
   "tbl.tipo.idea": "Ideas",
   "tbl.soloSug": "Only what is out of date",
-  "tbl.resumen": "Out of date: {retirado} from retired projects, {integrada} whose branch is already merged and {vieja} tests of an old version.",
+  "tbl.resumen": "Suggested because of: retired project ({retirado}), branch already merged ({integrada}) and test of an old version ({vieja}).",
   "tbl.motivo.retirado": "Retired project",
   "tbl.motivo.integrada": "Branch merged",
   "tbl.motivo.vieja": "Old test",

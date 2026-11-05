@@ -19,7 +19,7 @@ if (!bin) {
 }
 const tmp = mkdtempSync(path.join(os.tmpdir(), "hilos-tablero-"));
 const puerto = 9300 + Math.floor(Math.random() * 600);
-for (const d of ["pa", "sesiones", "proy/atlas"]) mkdirSync(path.join(tmp, d), { recursive: true });
+for (const d of ["pa", "sesiones", "proy/atlas", "proy/viejo"]) mkdirSync(path.join(tmp, d), { recursive: true });
 writeFileSync(path.join(tmp, "registry.json"), JSON.stringify({ projects: [{ name: "atlas", path: path.join(tmp, "proy", "atlas"), desc: "La web" }] }));
 
 const env = {
@@ -270,6 +270,68 @@ try {
     Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set.call(el, "");
     el.dispatchEvent(new Event("input", { bubbles: true }));
   });
+
+  // --- Limpiar en masa y Deshacer (todo en el tablero temporal: se cierra a tirado, nunca se borra) ---
+  // `viejo` pasa a retirado en el registry temporal; la corrida 55555 la da por integrada el `pa` falso; la prueba nombra una versión vieja.
+  writeFileSync(
+    path.join(tmp, "registry.json"),
+    JSON.stringify({ projects: [{ name: "atlas", path: path.join(tmp, "proy", "atlas"), desc: "La web" }, { name: "viejo", path: path.join(tmp, "proy", "viejo"), desc: "Ya no", estado: "retirado" }] }),
+  );
+  const L1 = Number(tablero("agregar", "--proyecto=viejo", "--", "Algo de un proyecto retirado"));
+  const L2 = Number(tablero("agregar", "--columna=ideas", "--proyecto=viejo", "--", "Una idea de un proyecto retirado"));
+  const L3 = Number(tablero("agregar", "--proyecto=atlas", "--origen=pa", "--clave=pa:20261003-090000-55555", "--", "Decidir sobre una rama ya integrada"));
+  const L4 = Number(tablero("agregar", "--proyecto=atlas", "--prueba=atlas --version", "--", "Probar la exportación en v0.2.1"));
+  const L5 = Number(tablero("agregar", "--proyecto=atlas", "--", "Esto sigue vigente"));
+  const extra = Array.from({ length: 30 }, (_, i) => Number(tablero("agregar", "--proyecto=viejo", "--", `Pendiente suelto ${i + 1} de lo retirado`)));
+  const sugeridos = [L1, L3, L4, ...extra];
+  const antes = enDisco().length;
+  ok(await hasta(() => !!document.querySelector(".tbl-boton"), "el botón Limpiar"), "el Tablero tiene el botón «Limpiar»");
+  await en(() => document.querySelector(".tbl-boton").click());
+  ok(await hasta(() => !!document.querySelector("[data-limpiar-tablero] [role=dialog]"), "el diálogo"), "Limpiar abre un diálogo propio");
+  // Con `useFoco`: el foco entra al diálogo y Tab no se escapa de él.
+  ok(await en(() => document.querySelector("[data-limpiar-tablero] [role=dialog]").contains(document.activeElement)), "el foco queda adentro del diálogo");
+  ok(await hasta(() => document.querySelectorAll("[data-limpiar-fila]").length === 34, "las sugeridas"), "lista lo desactualizado: lo de un proyecto retirado, la rama integrada y la prueba vieja");
+  const filas = await en(() => [...document.querySelectorAll("[data-limpiar-fila]")].map((f) => f.dataset.limpiarFila));
+  ok(!filas.includes(String(L5)) && !filas.includes(String(A)), "y no lo que sigue vigente");
+  ok(await en((a, b, c) => {
+    const t = (id) => document.querySelector(`[data-limpiar-fila="${id}"]`)?.textContent ?? "";
+    return t(a).includes("Proyecto retirado") && t(b).includes("Rama integrada") && t(c).includes("Prueba vieja");
+  }, L1, L3, L4), "cada fila dice el motivo con palabra");
+  ok(await en((l2) => !!document.querySelector(`[data-limpiar-fila="${l2}"]`), L2), "la idea de un proyecto retirado también entra");
+  const botonCerrar = () => en(() => document.querySelector("[data-limpiar-tablero] .lim-archivar")?.textContent ?? "");
+  ok((await botonCerrar()) === "Cerrar 34", `el botón dice cuántos cierra (${await botonCerrar()})`);
+  // Sacar una casilla (la idea) baja la cuenta.
+  await en((l2) => document.querySelector(`[data-limpiar-fila="${l2}"] input`).click(), L2);
+  ok(await hasta(() => document.querySelector("[data-limpiar-tablero] .lim-archivar")?.textContent === "Cerrar 33", "cuenta 33"), "destildar una baja el número del botón");
+  // Filtro por tipo: sin «Ideas» la idea se va de la lista.
+  await en(() => [...document.querySelectorAll("[data-limpiar-tablero] .lim-seg-b[aria-pressed]")].find((b) => b.textContent.includes("Ideas")).click());
+  ok(await hasta((l2) => !document.querySelector(`[data-limpiar-fila="${l2}"]`), "sin la idea", L2), "el filtro de tipo saca las ideas");
+  await en(() => [...document.querySelectorAll("[data-limpiar-tablero] .lim-seg-b[aria-pressed]")].find((b) => b.textContent.includes("Ideas")).click());
+  // Sin «Sólo lo desactualizado» entra todo lo abierto, pero lo que no se sugirió viene sin marcar.
+  await en(() => document.querySelector("[data-limpiar-tablero] .tbl-solo input").click());
+  ok(await hasta((l5) => !!document.querySelector(`[data-limpiar-fila="${l5}"]`), "toda la lista", L5), "sin «sólo lo desactualizado» se ve todo lo abierto");
+  ok(await en((l5) => !document.querySelector(`[data-limpiar-fila="${l5}"] input`).checked, L5), "y lo no sugerido viene sin marcar");
+  ok((await botonCerrar()) === "Cerrar 33", "el botón sigue en 33");
+  await en(() => document.querySelector("[data-limpiar-tablero] .tbl-solo input").click());
+  // Cerrar: `tablero tirar` por item; la interfaz sigue viva y se ve el avance.
+  await en(() => document.querySelector("[data-limpiar-tablero] .lim-archivar").click());
+  const vioProgreso = await hasta(() => !!document.querySelector(".tbl-prog") || !document.querySelector("[data-limpiar-tablero]"), "el progreso");
+  ok(vioProgreso, "mientras cierra, la interfaz contesta");
+  ok(await hastaDisco(() => sugeridos.every((id) => item(id).columna === "tirado"), "tirar la tanda"), "Cerrar manda cada marcado a `tirado` en el CLI");
+  ok(item(L2).columna === "ideas", "lo destildado no se tocó");
+  ok(enDisco().length === antes, "no se borró nada: los mismos items siguen en el tablero");
+  ok(await hasta(() => !document.querySelector("[data-limpiar-tablero]"), "el diálogo cerrado"), "el diálogo se cierra al terminar");
+  ok(await hasta(() => !!document.querySelector("[data-aviso-limpieza] .tbl-deshacer"), "Deshacer"), "queda el aviso con «Deshacer»");
+  ok(await en(() => document.querySelector("[data-aviso-limpieza]").textContent.includes("33")), "que dice cuántos se cerraron");
+  ok(await hasta((l1) => !document.querySelector(`.tb-card[data-id="${l1}"]`), "sin la tirada", L1), "y lo cerrado sale del tablero");
+  // Deshacer: reabre cada uno en la columna de donde salió.
+  await en(() => document.querySelector("[data-aviso-limpieza] .tbl-deshacer").click());
+  ok(await hastaDisco(() => sugeridos.every((id) => item(id).columna === "bandeja" && !item(id).cerrado), "deshacer"), "Deshacer reabre lo de esa tanda en su columna de antes");
+  ok(enDisco().length === antes, "y sigue sin faltar ni sobrar ningún item");
+  ok(await hasta(() => document.querySelector("[data-aviso-limpieza]")?.textContent.includes("Se reabrieron 33") && !document.querySelector("[data-aviso-limpieza] .tbl-deshacer"), "reabiertos"), "el aviso dice que se reabrieron y ya no ofrece deshacer");
+  ok(await hasta((l1) => !!document.querySelector(`.tb-card[data-id="${l1}"]`), "vuelve a verse", L1), "lo reabierto vuelve a verse en el tablero");
+  await en(() => document.querySelector("[data-aviso-limpieza] .tbl-ocultar").click());
+  ok(await hasta(() => !document.querySelector("[data-aviso-limpieza]"), "aviso oculto"), "Ocultar saca el aviso");
 
   // --- Proyectos ---
   await en(() => document.querySelectorAll(".tb .tb-vistas button")[1].click());
