@@ -105,7 +105,8 @@ testPosix("chequearAgy: privacidad primero, después agy y su plugin", () => {
   assert.equal(chequearAgy({ proyecto: "demo", tarea: "nada", env: m.env }), "");
   const sin = mundo({ agy: "echo '{}'" });
   assert.match(chequearAgy({ proyecto: "demo", tarea: "nada", env: sin.env }), /plugin pa-worker/);
-  assert.equal(chequearAgy({ proyecto: "demo", tarea: "nada", env: mundo({}).env }), "agy no está en el PATH");
+  // Sin agy en ninguna carpeta que mire el resolvedor (en esta máquina hay un /usr/bin/agy real: por eso se inyecta el buscador).
+  assert.equal(chequearAgy({ proyecto: "demo", tarea: "nada", env: mundo({}).env, buscar: () => null }), "agy no está en el PATH");
 });
 
 testPosix("chequearCodex: OpenAI en el motivo, codex en el PATH y su login", () => {
