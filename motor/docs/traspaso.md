@@ -174,6 +174,14 @@ historia (force push); se puede subir directo y mergear sin esperar el CI.
   Lo que estaba en camino al cerrarse la app se verifica contra el transcript: si entró no se repite, si no vuelve al frente, y si no se puede saber queda con error y Reintentar.
   Lo ya pasado al stdin no se puede retirar: queda en la solapa como «En camino», sin Editar ni Borrar.
 
+## Hecho: chats viejos (actividad, reinicio, Limpiar chats)
+
+- La `actividad` de un líder de la app (`statusline.ts` → `actividadApp`, `electron/actividad-lider.ts`) es su último turno real (`ultimo`, o `creado` sin turnos):
+  levantar el proceso (el `--resume`, la sesión o el statusline recién escritos) no la mueve; sí lo hace estar respondiendo o pidiendo un permiso. Terminales sin cambio.
+- `reanudarDormidos(escalonMs, ctx)` sólo levanta a los dormidos con un turno en las últimas 24 h, o workers vivos (`pa --hilos`, `jefe_id`), o algo en la cola
+  (`nucleo.ts` → `contextoReanudar`; sin lista de `pa` en 15 s se levanta por las dudas). Los demás quedan sin proceso, sin Murió; el próximo mensaje hace `--resume`.
+- «Limpiar chats»: `src/barra/Limpiar.tsx` + `limpiar-logica.ts` (menú de Recientes/A-Z y menú de cada carpeta). Tests: `actividad-lider`, `limpiar-chats`, `lider-reinicio`.
+
 ## Hecho: los modelos de agy salen de la cuenta
 
 - `reparto --agy-modelos [--refrescar] [--cuenta C] [--json]` lee `agy models` (caché 6 h, `REPARTO_AGY_MODELOS_S`; si agy falla usa la última lista). `reparto` elige sólo entre esos modelos; los que `FAMILIAS` no conoce entran como candidatos `agy:<id>` con la calidad de su familia en `low` (o 0 si no tiene familia) y origen `estimada`.

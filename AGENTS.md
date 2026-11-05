@@ -54,6 +54,11 @@ falta, está en `motor/docs/traspaso.md`.
   terminar el turno. Ya no hay "Mandar ya" aparte: Ctrl+Enter es un Enter más. El mensaje no está en el chat hasta que entra: vive en la solapa de arriba de la caja, con Editar, Borrar y «Enviar ahora» (corta el paso, siempre preguntando).
   Nunca se pierde: en disco está todo lo que no entró, con su error e imágenes (`camino`, cada imagen en su archivo). Lo ya pasado al stdin no se puede retirar: queda en la solapa como «En camino». Detalle en `motor/docs/traspaso.md`.
 
+- **Reinicio y actividad de los líderes (`app/electron/actividad-lider.ts`):** la `actividad` de un líder de la app es su último turno real, nunca
+  que se haya levantado su proceso. `reanudarDormidos` sólo levanta a los dormidos con un turno en las últimas 24 h, o workers vivos, o cola; el resto
+  queda sin proceso y su próximo mensaje hace `--resume`. «Limpiar chats» (`src/barra/Limpiar.tsx`, lógica en `limpiar-logica.ts`) archiva los quietos.
+  (En este repo no hay `docs/estado/`: lo que ve el usuario de esto está en `src/barra/CONVENCIONES.md`.)
+
 ## Mapa rápido
 
 - `app/`: Electron + React 19 + Vite + TS.
