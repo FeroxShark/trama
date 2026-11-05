@@ -14,7 +14,7 @@ import { pintorHace } from "../tiempo";
 import { Boton, Chip } from "../ui/componentes";
 import { aArchivar, candidatosLimpiar, DIAS_DEFECTO, DIAS_LIMPIAR, type CandidatoLimpiar, type EntradaLimpiar } from "./limpiar-logica";
 import "../hilo/seguir-dialogo.css";
-import "./limpiar.css";
+import "./limpiar-chats.css";
 
 type Props = {
   /** Los líderes a la vista de la barra (`entradasLimpiar`); se mira en vivo: lo que se archivó o cambió sale o entra. */
