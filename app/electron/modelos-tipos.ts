@@ -43,11 +43,11 @@ export type SinClaude = (typeof SIN_CLAUDE)[number];
 /** Qué hace `pa` si el modelo que eligió el reparto no tiene cupo (`sin_cupo`, de cualquier proveedor): lanzar otro, esperar o fallar. */
 export const SIN_CUPO = ["otro", "esperar", "fallar"] as const;
 export type SinCupo = (typeof SIN_CUPO)[number];
-/** Perfil de reparto (`perfil` de modelos.json, lo lee `reparto`): equilibrado (el de siempre), ahorro (workers a gratis/Google) o rendimiento. */
-export const PERFILES = ["equilibrado", "ahorro", "rendimiento"] as const;
+/** Perfil de reparto (`perfil` de modelos.json, lo lee `reparto`): equilibrado (el de siempre), ahorro (workers a gratis/Google), agresivo (el modelo más barato que supere el piso del tipo) o rendimiento. */
+export const PERFILES = ["equilibrado", "ahorro", "agresivo", "rendimiento"] as const;
 export type Perfil = (typeof PERFILES)[number];
 /** Lo que el perfil guarda de la semana de Claude para el líder cuando modelos.json no dice `reserva_lider` (igual que `reparto`). */
-export const RESERVA_LIDER_PERFIL: Record<Perfil, number> = { equilibrado: 0, ahorro: 0.35, rendimiento: 0 };
+export const RESERVA_LIDER_PERFIL: Record<Perfil, number> = { equilibrado: 0, ahorro: 0.35, agresivo: 0.35, rendimiento: 0 };
 /** El `gemini.sin_claude` de antes dice lo mismo con otro nombre para el primero (`claude` = `otro`). */
 export const sinCupoDe = (v: SinClaude): SinCupo => (v === "claude" ? "otro" : v);
 /** Cuánto del cupo de Claude no tocan los workers cuando el archivo no dice nada (`RESERVA` de `reparto`: 15 % libre = tope de 85 %). */

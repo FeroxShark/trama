@@ -4600,8 +4600,8 @@ modelos_cargar() {   # 0 si hay un modelos.json válido (lo deja en MODELOS_TXT)
                then "efforts_permitidos \($c.efforts_permitidos | tojson) (un objeto familia o id → lista de low, medium, high, xhigh, max)" else empty end),
             (if $c | has("permitir_max") and ($c.permitir_max | type) != "boolean"
                then "permitir_max \($c.permitir_max | tojson) (true o false)" else empty end),
-            (if $c.perfil != null and ($c.perfil | tostring | test("^(equilibrado|ahorro|rendimiento)$") | not)
-               then "perfil \($c.perfil | tojson) (equilibrado, ahorro o rendimiento)" else empty end),
+            (if $c.perfil != null and ($c.perfil | tostring | test("^(equilibrado|ahorro|agresivo|rendimiento)$") | not)
+               then "perfil \($c.perfil | tojson) (equilibrado, ahorro, agresivo o rendimiento)" else empty end),
             (if $c.reserva_lider != null and (($c.reserva_lider | type) != "number" or $c.reserva_lider < 0 or $c.reserva_lider >= 1)
                then "reserva_lider \($c.reserva_lider | tojson) (un número de 0 a 1 o null)" else empty end),
             (if $c.sin_cupo != null and ($c.sin_cupo | tostring | test("^(otro|esperar|fallar)$") | not)

@@ -46,6 +46,7 @@ const SIN_CUPO_CLAVES: Record<SinCupo, { nombre: ClaveSola; que: ClaveSola }> = 
 const PERFIL_CLAVES: Record<Perfil, { nombre: ClaveSola; que: ClaveSola }> = {
   equilibrado: { nombre: "cu.perfilEquilibrado", que: "cu.perfilEquilibradoQue" },
   ahorro: { nombre: "cu.perfilAhorro", que: "cu.perfilAhorroQue" },
+  agresivo: { nombre: "cu.perfilAgresivo", que: "cu.perfilAgresivoQue" },
   rendimiento: { nombre: "cu.perfilRendimiento", que: "cu.perfilRendimientoQue" },
 };
 

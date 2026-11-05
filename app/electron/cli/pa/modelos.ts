@@ -121,7 +121,7 @@ export function problemaModelos(c: Json): string {
     if (!ok) return `efforts_permitidos ${tojson(ep)} (un objeto familia o id → lista de low, medium, high, xhigh, max)`;
   }
   if ("permitir_max" in c && typeof c.permitir_max !== "boolean") return `permitir_max ${tojson(c.permitir_max)} (true o false)`;
-  if (!nulo(c.perfil) && !/^(equilibrado|ahorro|rendimiento)$/.test(tostring(c.perfil))) return `perfil ${tojson(c.perfil)} (equilibrado, ahorro o rendimiento)`;
+  if (!nulo(c.perfil) && !/^(equilibrado|ahorro|agresivo|rendimiento)$/.test(tostring(c.perfil))) return `perfil ${tojson(c.perfil)} (equilibrado, ahorro, agresivo o rendimiento)`;
   if (!nulo(c.reserva_lider) && (typeof c.reserva_lider !== "number" || c.reserva_lider < 0 || c.reserva_lider >= 1))
     return `reserva_lider ${tojson(c.reserva_lider)} (un número de 0 a 1 o null)`;
   if (!nulo(c.sin_cupo) && !/^(otro|esperar|fallar)$/.test(tostring(c.sin_cupo))) return `sin_cupo ${tojson(c.sin_cupo)} (otro, esperar o fallar)`;

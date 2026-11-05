@@ -29,4 +29,4 @@ export function ritmoSemanal(pct: number | null, vuelve: number | null, ahora: n
 }
 
 /** Lo que el perfil guarda de la semana de Claude (igual que `PERFILES` de reparto). */
-export const reservaDePerfil = (p: Perfil | undefined): number => (p === "ahorro" ? 0.35 : 0);
+export const reservaDePerfil = (p: Perfil | undefined): number => (p === "ahorro" || p === "agresivo" ? 0.35 : 0);

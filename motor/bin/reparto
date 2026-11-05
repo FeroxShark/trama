@@ -55,7 +55,8 @@ lo que se estima por interpolación (ver `fuente_por_effort`: api | suplemento |
 Ritmo y perfil (2026-10-26): cada ventana SEMANAL de una suscripción tiene un ritmo = usado / esperado; "esperado" = qué fracción de la
 semana (ponderada por los días de trabajo del plan) ya pasó. Pasarse del ritmo resta puntos; ir por debajo y cerca del reinicio suma.
 modelos.json `perfil` = equilibrado (default) | ahorro (workers a gratis/Google casi siempre, Claude sólo si nada más llega o si va
-atrasado) | rendimiento (calidad primero); `reserva_lider` = fracción de la semana de Claude que queda para el líder (ver RITMO abajo).
+atrasado) | agresivo (el más barato que supere el piso
+de `minimo_por_tipo`, que no se relaja; un gratis sin historial en `pa --rinde` no escribe y Flash sólo lee; reserva del líder 0,35) | rendimiento (calidad primero); `reserva_lider` = fracción de la semana de Claude que queda para el líder (ver RITMO abajo).
 
 Dónde deja de usarse cada proveedor (2026-10-27): `topes_uso` {"google": 90, "google:claude-gpt": 80, "openai": 95} = desde qué % USADO de una ventana no se elige
 (el del grupo gana al del proveedor; sin entrada, `llena`: 97 %). Claude se dice con `reserva` ({"5h": 0.2, "7d": 0.2} = lo que se guarda libre; sin ella, 97 %
