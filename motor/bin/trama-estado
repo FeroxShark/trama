@@ -71,14 +71,33 @@ def claude():
     return {"instalado": True, "logueado": logueado}
 
 
+def primera_linea_error(texto):
+    # Como primeraLineaError de cli/trama-estado.ts: sin color, sin tokens que parezcan claves, recortada a 160.
+    texto = re.sub(r"\x1b\[[0-9;]*[A-Za-z]", "", texto or "")
+    linea = next((x.strip() for x in texto.splitlines() if x.strip()), "")
+    return re.sub(r"[A-Za-z0-9_\-./+=]{24,}", "…", linea)[:160]
+
+
 def agy():
     ruta = en_path(os.environ.get("TRAMA_AGY", "agy"), dirs_agy())
     if not ruta:
         return {"instalado": False, "logueado": False}
     # agy guarda el login de Google en el llavero del sistema (no hay archivo que mirar): con sesión lista modelos.
-    # Colgado: salida() corta a los 15 s y devuelve "" (queda en false).
-    _, out = salida([ruta, "models"], 15)
-    return {"instalado": True, "logueado": any(MODELO_AGY.match(l) for l in out.splitlines())}
+    # Colgado: corta a los 15 s y no devuelve salida (queda en false). `ruta` y `error` (primera línea) son para diagnosticar.
+    error = None
+    try:
+        p = subprocess.run([ruta, "models"], capture_output=True, text=True, timeout=15, stdin=subprocess.DEVNULL)
+        out = p.stdout
+        if p.returncode != 0:
+            error = primera_linea_error(p.stderr or p.stdout)
+    except subprocess.TimeoutExpired:
+        out, error = "", "no contestó en 15 s"
+    except Exception as e:
+        out, error = "", primera_linea_error(str(e))
+    r = {"instalado": True, "logueado": any(MODELO_AGY.match(l) for l in out.splitlines()), "ruta": ruta}
+    if error:
+        r["error"] = error
+    return r
 
 
 def clave_dsh(nombre):
