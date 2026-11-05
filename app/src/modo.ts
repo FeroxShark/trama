@@ -93,6 +93,8 @@ const CAPTURAS = [
   "contexto-abierto",
   // Lo de sistema en la conversación, en un líder y en un worker; `HILOS_VARIANTE=ocho`: la tanda de avisos con ocho workers (dos decisiones, una falla, cinco terminados).
   "lider-sistema",
+  // Las tarjetas «Te dejé esto en el tablero» del chat: una que dejó el líder y las de un worker suyo; `HILOS_VARIANTE=respondida` | `cerrada` cambia su estado, `muchas` suma más de las que caben.
+  "lider-tablero-dejado",
   // Seguir la conversación con un modelo de otro motor: la raya en el historial; variante `menu` el selector con todas las columnas, `confirmar` la nota para confirmar.
   "lider-cambio-motor",
   "cuenta-lider",

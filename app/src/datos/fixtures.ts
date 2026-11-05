@@ -1082,6 +1082,27 @@ export function charlaSistema(sid: string, ocho = false): Mensaje[] {
   return crudos.map((x, i) => ({ ...x, i, ts: ts((crudos.length - i) * MIN) }));
 }
 
+/** Captura `lider-tablero-dejado`: el líder deja una pregunta en el tablero (devuelve el id 9001) y un worker suyo termina pidiendo una decisión. */
+export function charlaDejado(sid: string): Mensaje[] {
+  const l = LIDERES.lideres.find((x) => x.id === sid);
+  if (!l) return [];
+  const ts = (s: number) => new Date((l.actividad - s) * 1000).toISOString();
+  const cmd = 'tablero agregar "¿Publico la 0.3 o espero a probarla?" --tipo pregunta --proyecto atlas';
+  const crudos: Omit<Mensaje, "i" | "ts">[] = [
+    { rol: "user", texto: "Revisá el contrato con un worker y dejame anotado lo de publicar la 0.3.", herramientas: [], modelo: null },
+    {
+      rol: "assistant",
+      texto: "Lancé el worker del contrato y dejé la pregunta de la 0.3 para que la contestes cuando puedas.",
+      herramientas: [`Bash: ${cmd}`],
+      modelo: l.modelo,
+      det: [{ nombre: "Bash", entrada: { command: cmd, description: "Deja la pregunta en el tablero" }, resultado: { texto: "9001", error: false } }],
+    },
+    { rol: "user", texto: "[Aviso automático de Trama] Worker «revisar el contrato» terminó pidiendo una decisión. Id: 7. Revisalo con `pa --hilo 7`.", herramientas: [], modelo: null },
+    { rol: "assistant", texto: "El worker terminó y dejó una decisión y una prueba en el tablero.", herramientas: [], modelo: l.modelo },
+  ];
+  return crudos.map((x, i) => ({ ...x, i, ts: ts((crudos.length - i) * MIN) }));
+}
+
 /** La charla de un líder que siguió con un modelo de otro motor (captura `lider-cambio-motor`): lo de Claude, la raya y lo de Gemini. */
 export function charlaCambio(sid: string): Mensaje[] {
   const l = LIDERES.lideres.find((x) => x.id === sid);

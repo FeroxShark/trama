@@ -191,3 +191,23 @@ export function pendientesFijos(ahora: number): unknown[] {
     }),
   ];
 }
+
+/**
+ * Captura `lider-tablero-dejado`: lo que dejaron en el tablero el líder (el item 9001, que devolvió su `tablero agregar`) y un worker suyo
+ * (el 7, que terminó pidiendo una decisión: su DECISION `pa:7` y un PROBAR `pa:7:p1`). `variante`: `respondida` (el 9001 ya tiene respuesta),
+ * `cerrada` (el 9001 pasó a hecho y el DECISION del worker también) o `muchas` (el worker dejó cinco preguntas).
+ */
+export function conDejados(crudo: unknown, ahora: number, variante: string | undefined): unknown {
+  const t = crudo as { vista: { columnas: Record<string, unknown[]> }; hecho: unknown[] };
+  const iso = (min: number) => new Date(ahora - min * 60_000).toISOString();
+  const base = { columna: "espera-dueno", proyecto: "atlas", detalle: "", prueba: "", origen: "pa", head: null, creado: iso(6), tocado: iso(6), cerrado: null, hasta: null, opciones: [], por_defecto: null, contexto: "" };
+  const propio = { ...base, id: 9001, origen: "jefe", clave: "", tipo: "pregunta", titulo: "¿Publico la 0.3 o espero a probarla?", titulo_simple: "¿Publico la 0.3 o espero a probarla?", opciones: [{ id: "a", texto: "Publicar ya" }, { id: "b", texto: "Esperar a probarla" }], por_defecto: "b" };
+  const decision = { ...base, id: 9002, clave: "pa:7", tipo: "pregunta", titulo: "Decidir si el contrato nuevo reemplaza al viejo", titulo_simple: "¿El contrato nuevo reemplaza al viejo en toda la barra lateral y en los avisos de los workers?" };
+  const prueba = { ...base, id: 9003, clave: "pa:7:p1", tipo: "prueba", titulo: "Probar: abrir la barra a 360 px", titulo_simple: "Probar: abrir la barra a 360 px", prueba: "Abrir la barra a 360 px" };
+  const muchas = variante === "muchas" ? [3, 4, 5].map((n) => ({ ...base, id: 9003 + n, clave: `pa:7:${n}`, tipo: "pregunta", titulo: `Pregunta ${n} del worker`, titulo_simple: `¿Ajusto el paso ${n} como quedó en la captura?` })) : [];
+  const cerrada = variante === "cerrada";
+  const respondida = variante === "respondida" ? { texto: "Esperar a probarla", opcion: "b", opcion_texto: "Esperar a probarla", fecha: iso(1) } : null;
+  const abiertos = cerrada ? [] : [{ ...propio, respuesta: respondida }, decision, prueba, ...muchas];
+  const hechos = cerrada ? [{ ...propio, columna: "hecho", cerrado: iso(2) }, { ...decision, columna: "hecho", cerrado: iso(3) }, { ...prueba, columna: "hecho", cerrado: iso(3) }] : [];
+  return { ...t, vista: { ...t.vista, columnas: { ...t.vista.columnas, "espera-dueno": [...abiertos, ...t.vista.columnas["espera-dueno"]] } }, hecho: [...hechos, ...t.hecho] };
+}

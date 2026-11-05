@@ -4,7 +4,7 @@
 import { MODO } from "../modo";
 import { t } from "../i18n";
 import { main, mensaje } from "../puente";
-import { tableroFijo } from "./fixtures-tablero";
+import { conDejados, tableroFijo } from "./fixtures-tablero";
 import { ErrorTablero, validar, type Abierta, type ItemId, type Tablero } from "./tablero";
 import type { RespuestaCli } from "../../electron/tablero";
 
@@ -74,7 +74,7 @@ const fija: FuenteTablero = (() => {
   // Sin tablero todavía (`tablero-vacio`): la vista no existe, como en una instalación nueva.
   const sinVista = MODO.captura === "tablero-vacio";
   return {
-    leer: async () => mirado(sinVista ? { version: 1, vista: null, hecho: [], proyectos: [], pospuestosLista: [], aviso: null } : tableroFijo(ahora, conPendientes, conMaquinas)),
+    leer: async () => mirado(sinVista ? { version: 1, vista: null, hecho: [], proyectos: [], pospuestosLista: [], aviso: null } : MODO.captura === "lider-tablero-dejado" ? conDejados(tableroFijo(ahora, conPendientes, conMaquinas), ahora, MODO.variante ?? undefined) : tableroFijo(ahora, conPendientes, conMaquinas)),
     guardado: () => ultimo,
     alCambiar: () => () => {},
     mover: accion,
