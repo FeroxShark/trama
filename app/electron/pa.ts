@@ -63,6 +63,14 @@ let tmps = 0;
  * orden y cada una con su tmp: con un tmp compartido, los dos `writeFile` se
  * pisaban y podía quedar un JSON mezclado (y `lideres.json` se leía vacío).
  */
+/**
+ * Espera las escrituras atómicas pendientes (las que se dispararon sin esperarlas: `void guardar()`). Al cerrar un líder, sin
+ * esto un tmp o un rename caían después del cierre: el `rmSync` de la casa de pruebas daba ENOTEMPTY sobre `estado/`.
+ */
+export async function esperarEscrituras(): Promise<void> {
+  while (escribiendo.size) await Promise.allSettled([...escribiendo.values()]);
+}
+
 export function escribirAtomico(archivo: string, texto: string): Promise<void> {
   const antes = escribiendo.get(archivo) ?? Promise.resolve();
   const esta = antes

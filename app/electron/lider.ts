@@ -74,7 +74,7 @@ import { pedidoDe } from "./cache.ts";
 import { convDe } from "./conv-cache.ts";
 import { guardada, igual, juntar, lecturaDe, oficialDe, type Lectura } from "./uso.ts";
 import { errorT } from "./errores.ts";
-import { ESTADO, escribirAtomico, PA_STATE } from "./pa.js";
+import { ESTADO, escribirAtomico, esperarEscrituras, PA_STATE } from "./pa.js";
 import { asegurarCuenta } from "./cli/cuentas.ts";
 import { archivoUsoCuenta, cuentaConConversacion, cuentasClaude, entornoCuenta, preferidaClaude, usoParaReparto } from "./uso-cuentas.ts";
 import { esElProceso, sesionesVivas, type Sesion } from "./sesiones.js";
@@ -2060,6 +2060,8 @@ export async function cerrarTodos(forzar: boolean, topeMs: number = TOPE_SALIDA_
   const tarde = new Promise<boolean>((ok) => (reloj = setTimeout(() => ok(true), topeMs)));
   const pasoElTope = await Promise.race([todos.then(() => false), tarde]);
   clearTimeout(reloj);
+  // Lo que los líderes que salieron dejaron escribiéndose (guardar, uso, relevos): antes de devolver, para que nada caiga después.
+  await esperarEscrituras();
   if (!pasoElTope) return [];
   const sin = vivos.filter(([sid]) => !hechos.has(sid));
   for (const [, p] of sin) if (p.p.exitCode === null && p.p.signalCode === null) p.p.kill("SIGTERM");
