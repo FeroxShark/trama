@@ -736,6 +736,7 @@ export const en = {
   "modo.fijoAgy": "Gemini runs without asking for permissions: its mode can't be changed. Only Claude leaders have modes",
   "modo.fijoDsh": "OpenCode and DeepSeek Harness edit without asking, only inside the project folder: their mode can't be changed. Only Claude leaders have modes",
   "modo.tip": "Mode: {modo} (Shift+Tab to change)",
+  "modo.cambio": "Mode changed: {modo}",
   "comando.menu": "Commands",
   "comando.plan": "Plan mode: it plans and asks before touching anything",
   "comando.default": "Default mode: asks before each tool",

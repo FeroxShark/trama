@@ -725,6 +725,7 @@ export const es: { [K in keyof typeof en]: string } = {
   "modo.fijoAgy": "Gemini corre sin pedir permisos: su modo no se cambia. Sólo los líderes de Claude tienen modos",
   "modo.fijoDsh": "OpenCode y DeepSeek Harness editan sin preguntar, sólo dentro de la carpeta del proyecto: su modo no se cambia. Sólo los líderes de Claude tienen modos",
   "modo.tip": "Modo: {modo} (Shift+Tab lo cambia)",
+  "modo.cambio": "Modo cambiado: {modo}",
   "comando.menu": "Comandos",
   "comando.plan": "Plan mode: planea y pregunta antes de tocar nada",
   "comando.default": "Modo default: pregunta antes de cada herramienta",

@@ -37,6 +37,7 @@ import {
   lineaModo,
   lineaParar,
   lineaPermiso,
+  aplicarModo,
   autoaprueba,
   lineaUsuario,
   lineaUso,
@@ -674,8 +675,8 @@ function lanzar(g: Guardado, resume: boolean, local?: Local, extra: Extra = {}):
           alEv(g.sid, { tipo: "estado", ocupado: false, vivo: true });
           alCambio();
           for (const f of x.libre.splice(0)) f();
-        } else if (e.tipo === "permiso" && autoaprueba(g.modo, e.herramienta)) {
-          console.warn(`trama: ${e.herramienta} autoaprobado en bypass (decision_reason: ${e.razon ?? "-"}, blocked_path: ${e.ruta ?? "-"})`);
+        } else if (e.tipo === "permiso" && autoaprueba(g.modo, e.herramienta, g.modoPrevio)) {
+          console.warn(`trama: ${e.herramienta} autoaprobado en ${g.modo === "plan" ? "plan (venía de bypass)" : "bypass"} (decision_reason: ${e.razon ?? "-"}, blocked_path: ${e.ruta ?? "-"})`);
           p.stdin!.write(lineaPermiso(e.id, { behavior: "allow", updatedInput: e.input }, e.tool_use_id));
         } else if (e.tipo === "permiso") {
           const { input, ...resto } = e;
@@ -711,8 +712,7 @@ function lanzar(g: Guardado, resume: boolean, local?: Local, extra: Extra = {}):
             else if (!e.lista) x.estilo = null;
             recordarEstilos(e.actual, e.lista);
           }
-          if (e.tipo === "modo" && g.modo !== e.modo) {
-            g.modo = e.modo;
+          if (e.tipo === "modo" && aplicarModo(g, e.modo)) {
             void guardar();
           }
           // El parser no conoce al líder: la cuenta de antes (si Trama la cambió) la pone acá.
@@ -1935,7 +1935,7 @@ export async function cambiarModo(sid: string, m: unknown): Promise<void> {
     p.p.stdin!.write(lineaModo(idPedido(), modo));
     return;
   }
-  g.modo = modo;
+  aplicarModo(g, modo);
   await guardar();
   alEv(sid, { tipo: "modo", modo });
 }

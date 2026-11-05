@@ -9,6 +9,7 @@ import os from "node:os";
 import path from "node:path";
 import {
   argvLider,
+  aplicarModo,
   autoaprueba,
   conversacionDe,
   cortar,
@@ -443,6 +444,40 @@ test("bypass: los pedidos de permiso se contestan solos, salvo ExitPlanMode y As
   );
   assert.equal((e as { razon?: string }).razon, "regla x");
   assert.equal((e as { ruta?: string }).ruta, "/tmp/x");
+});
+
+test("plan que venía de bypass: se autoaprueba todo salvo ExitPlanMode, AskUserQuestion y lo que edita; sin modo previo se pregunta", () => {
+  for (const h of ["Bash", "Read", "Grep", "WebFetch", "Agent"]) assert.equal(autoaprueba("plan", h, "bypassPermissions"), true, h);
+  for (const h of ["ExitPlanMode", "AskUserQuestion", "Edit", "MultiEdit", "Write", "NotebookEdit"]) assert.equal(autoaprueba("plan", h, "bypassPermissions"), false, h);
+  for (const previo of [undefined, null, "default", "acceptEdits"]) assert.equal(autoaprueba("plan", "Bash", previo), false, String(previo));
+  // El modo previo no cuenta fuera de plan.
+  assert.equal(autoaprueba("default", "Bash", "bypassPermissions"), false);
+  // Bypass sigue como siempre (también con Edit).
+  assert.equal(autoaprueba("bypassPermissions", "Edit"), true);
+});
+
+test("modoPrevio: se anota al entrar en plan, se borra al salir y sobrevive a reiniciar el líder (lideres.json)", () => {
+  const g: Guardado = { sid: SID, nombre: "trama-0a1b", modelo: "claude-opus-5-5", effort: "high", creado: 10, ultimo: 20, cache_ttl_s: 3600, modo: "bypassPermissions" };
+  assert.equal(aplicarModo(g, "plan"), true);
+  assert.equal(g.modoPrevio, "bypassPermissions");
+  // plan → plan (el init del `claude` retomado repite el modo): no pisa el previo.
+  assert.equal(aplicarModo(g, "plan"), false);
+  assert.equal(g.modoPrevio, "bypassPermissions");
+  // Reinicio: se escribe y se vuelve a leer.
+  const [leido] = leerGuardados(escribirGuardados([g]));
+  assert.equal(leido.modo, "plan");
+  assert.equal(leido.modoPrevio, "bypassPermissions");
+  assert.equal(autoaprueba(leido.modo, "Bash", leido.modoPrevio), true);
+  // Salir de plan (ExitPlanMode → bypass) lo borra.
+  assert.equal(aplicarModo(leido, "bypassPermissions"), true);
+  assert.equal("modoPrevio" in leido, false);
+  assert.equal("modoPrevio" in leerGuardados(escribirGuardados([leido]))[0], false);
+  // Uno que venía de acceptEdits guarda ese previo y no autoaprueba; un modoPrevio suelto (sin plan) o raro se descarta.
+  const h: Guardado = { ...g, modo: "acceptEdits" };
+  aplicarModo(h, "plan");
+  assert.equal(leerGuardados(escribirGuardados([h]))[0].modoPrevio, "acceptEdits");
+  assert.equal("modoPrevio" in leerGuardados(JSON.stringify({ version: 1, lideres: [{ ...g, modoPrevio: "bypassPermissions" }] }))[0], false);
+  assert.equal("modoPrevio" in leerGuardados(JSON.stringify({ version: 1, lideres: [{ ...g, modo: "plan", modoPrevio: "auto" }] }))[0], false);
 });
 
 test("claude falso (B13): set_permission_mode a plan, ExitPlanMode → negar sigue en plan, aprobar vuelve a bypass", async () => {

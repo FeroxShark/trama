@@ -682,6 +682,8 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
   const cambiarModo = (m: Modo) => {
     if (!puede) return;
     if (modoFijo) return setNota(tr(modoFijo));
+    // El chip se achica a un símbolo en angosto (default y plan comparten ícono): el cambio se dice con palabras.
+    setNota(tr("modo.cambio", { modo: tr(ASPECTO[m].clave) }));
     if (!l || !app) return setModoNuevo(m);
     const antes = modo;
     ponerModo(l.id, m);

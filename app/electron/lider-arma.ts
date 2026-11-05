@@ -330,12 +330,33 @@ export const lineaPermiso = (id: string, r: Respuesta, toolUseID: string | null)
     response: { subtype: "success", request_id: id, response: toolUseID ? { ...r, toolUseID } : r },
   }) + "\n";
 
+/** Lo que nunca se contesta solo: esperan a la persona (el plan, una pregunta) o, en plan, tocan archivos. */
+const SIEMPRE_PREGUNTA = ["ExitPlanMode", "AskUserQuestion"];
+const EDITAN = ["Edit", "MultiEdit", "Write", "NotebookEdit"];
+
 /**
  * En bypass, `claude` igual pide permiso para algunos Bash: se contestan solos.
  * ExitPlanMode y AskUserQuestion no: esperan una respuesta de verdad.
+ * En plan, si el líder venía de bypass (`previo`, ver `modoPrevio`), también se contesta solo todo (Bash incluido) salvo esas dos
+ * y las que editan archivos (Edit, Write, NotebookEdit): un líder que no venía de bypass sigue preguntando.
  */
-export const autoaprueba = (modo: string, herramienta: string) =>
-  modo === "bypassPermissions" && herramienta !== "ExitPlanMode" && herramienta !== "AskUserQuestion";
+export const autoaprueba = (modo: string, herramienta: string, previo?: string | null) => {
+  if (SIEMPRE_PREGUNTA.includes(herramienta)) return false;
+  if (modo === "bypassPermissions") return true;
+  return modo === "plan" && previo === "bypassPermissions" && !EDITAN.includes(herramienta);
+};
+
+/**
+ * Anota un cambio de modo en el líder: al entrar en plan guarda de qué modo venía (`modoPrevio`, sobrevive a un reinicio porque
+ * va en `lideres.json`); al salir de plan lo borra. Plan → plan no toca nada. Devuelve si algo cambió (hay que guardar).
+ */
+export function aplicarModo(g: Pick<Guardado, "modo" | "modoPrevio">, nuevo: Modo): boolean {
+  if (g.modo === nuevo) return false;
+  if (nuevo === "plan") g.modoPrevio = g.modo;
+  else delete g.modoPrevio;
+  g.modo = nuevo;
+  return true;
+}
 
 // --- Herramientas ------------------------------------------------------------
 
@@ -836,6 +857,8 @@ export type Guardado = {
   cache_ttl_s: number | null;
   /** El último modo de permisos que se le vio (con el que se retoma). */
   modo: Modo;
+  /** Sólo en plan: el modo en que estaba antes de entrar (si era bypass, en plan se autoaprueba como en bypass; ver `autoaprueba`). */
+  modoPrevio?: Modo;
   /** "analista": el chat de Ramas (B22), que no va en la barra con los demás. */
   rol?: "analista";
   /** Dónde corre, si no es el home: uno que nació en una terminal y se retomó desde la app. */
@@ -923,6 +946,7 @@ export function leerGuardados(texto: string): Guardado[] {
         ultimo: Number(l.ultimo) || 0,
         cache_ttl_s: typeof l.cache_ttl_s === "number" ? l.cache_ttl_s : null,
         modo: esModo(l.modo) ? l.modo : MODO_DEFAULT,
+        ...(l.modo === "plan" && esModo(l.modoPrevio) && l.modoPrevio !== "plan" ? { modoPrevio: l.modoPrevio as Modo } : {}),
         ...(l.rol === "analista" ? { rol: "analista" as const } : {}),
         ...(typeof l.cwd === "string" && path.isAbsolute(l.cwd) ? { cwd: l.cwd } : {}),
         ...(Number(l.retomado) > 0 ? { retomado: Number(l.retomado) } : {}),
