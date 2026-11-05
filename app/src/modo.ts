@@ -54,6 +54,8 @@ const CAPTURAS = [
   "ramas",
   "ramas-confirmar",
   "ramas-analista",
+  // Ramas con la limpieza de worktrees y ramas viejos abierta (el mismo bloque de Ajustes > Proyectos).
+  "ramas-limpieza",
   // Una rama que chocó con main (80): su fila ofrece Actualizar; el paso previo de lanzarlo (modelo, esfuerzo, texto), y con el error de pa.
   "ramas-conflicto",
   "ramas-lanzar",

@@ -11,7 +11,7 @@
 import { createPortal } from "react-dom";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode, type Ref } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { Check, ChevronDown, CircleCheck, CircleHelp, CircleX, Eye, GitMerge, ListChecks, Loader, Minus, ShieldAlert, Skull, Sparkles, Trash2, RotateCcw, MoreHorizontal, Archive, Hourglass, X, type LucideIcon } from "lucide-react";
+import { Brush, Check, ChevronDown, CircleCheck, CircleHelp, CircleX, Eye, GitMerge, ListChecks, Loader, Minus, ShieldAlert, Skull, Sparkles, Trash2, RotateCcw, MoreHorizontal, Archive, Hourglass, X, type LucideIcon } from "lucide-react";
 import { RESORTE } from "../barra/Fila";
 import { Reloj, tareaDe, tipoDe } from "../barra/piezas";
 import { errorCorto } from "../barra/arbol";
@@ -33,6 +33,7 @@ import { conTexto, type Eleccion } from "./lanzar";
 import { analisisVigente, conCuenta, correrLote, cuentas, filtroVigente, leerAnalisis, pasa, pasosDe, planAplicar, resumenLote, type Analisis, type FiltroRama, type PasoLote, type PlanLote } from "./ramas-vista";
 import { alCambiarAplicarAuto, aplicarAuto, cambiarAplicarAuto } from "./aplicar-auto";
 import { useNombreProyecto } from "../datos/proyectos";
+import { LimpiezaPa } from "./AjustesLimpieza";
 import "./ramas-tarjetas.css";
 
 /** El ícono de cada veredicto: nunca sólo color. */
@@ -167,6 +168,8 @@ export function Ramas({ hilos, optimista, errores, enCurso, alActuar, alAbrir, a
     return () => clearTimeout(t);
   }, [armado]);
   const [auto, prenderAuto] = useAuto();
+  // La limpieza de worktrees y ramas viejos: la misma de Ajustes > Proyectos (AjustesLimpieza), a un clic de acá. Tirar sigue pidiendo confirmar ahí.
+  const [limpiando, setLimpiando] = useState(MODO.captura === "ramas-limpieza");
   const sanas = useSalud();
   const [filtro, setFiltro] = useState<FiltroRama>("todas");
   // Los proyectos plegados (clic en su encabezado).
@@ -382,6 +385,27 @@ export function Ramas({ hilos, optimista, errores, enCurso, alActuar, alAbrir, a
         ) : null}
       </div>
       {auto ? <div className="pn-nota pn-auto-nota">{tr("ramas.autoExplica", { estado: tr(auto.prendido ? "ramas.autoOn" : "ramas.autoOff") })}</div> : null}
+
+      <div className="pn-limpiar">
+        <button
+          type="button"
+          className="pn-analista-btn pn-limpiar-btn"
+          data-limpiar-ramas
+          aria-expanded={limpiando}
+          aria-controls="pn-limpieza"
+          data-tip={tr("ramas.limpiarQue")}
+          onClick={() => setLimpiando((a) => !a)}
+        >
+          <Brush size={13} strokeWidth={1.8} aria-hidden="true" />
+          {tr("ramas.limpiar")}
+          <ChevronDown className="pn-limpiar-flecha" size={13} strokeWidth={1.8} aria-hidden="true" />
+        </button>
+        {limpiando ? (
+          <section id="pn-limpieza" className="pn-sec pn-limpieza" data-limpieza-ramas>
+            <LimpiezaPa />
+          </section>
+        ) : null}
+      </div>
 
       <section ref={seccionAnalista} className="pn-analista" data-abierto={abierto && an ? "" : undefined}>
         <div className="pn-analista-cab">

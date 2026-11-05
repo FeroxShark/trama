@@ -272,3 +272,27 @@
     animation: none;
   }
 }
+
+/* Limpiar ramas y puestos viejos (Ramas): el mismo bloque de Ajustes > Proyectos, plegado bajo un botón. */
+.pn-limpiar {
+  margin: var(--esp-2) 0 var(--esp-3);
+}
+.pn-limpiar-btn .pn-limpiar-flecha {
+  transition: transform var(--t-snappy);
+}
+.pn-limpiar-btn[aria-expanded="true"] .pn-limpiar-flecha {
+  transform: rotate(180deg);
+}
+.pn-limpieza {
+  margin-top: var(--esp-3);
+}
+@media (max-width: 640px), (pointer: coarse) {
+  .pn-limpiar-btn {
+    min-height: 44px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pn-limpiar-btn .pn-limpiar-flecha {
+    transition: none;
+  }
+}

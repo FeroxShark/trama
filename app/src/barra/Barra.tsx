@@ -1349,7 +1349,7 @@ export function Barra() {
     if (pg) setPanel(pg.panel);
     if (c === "estadisticas" || c === "estadisticas-30" || c === "estadisticas-medido" || c === "estadisticas-vacia") setPanel("estadisticas");
     if (c.startsWith("tablero") && c !== "tablero-nuevo-chat") setPanel("tablero");
-    if (c === "ramas" || c === "ramas-confirmar" || c === "ramas-analista" || c === "ramas-conflicto" || c === "ramas-lanzar" || c === "ramas-lanzar-error") setPanel("ramas");
+    if (c === "ramas" || c === "ramas-confirmar" || c === "ramas-analista" || c === "ramas-limpieza" || c === "ramas-conflicto" || c === "ramas-lanzar" || c === "ramas-lanzar-error") setPanel("ramas");
     if (c === "ramas-conflicto" || c === "ramas-lanzar" || c === "ramas-lanzar-error") {
       // Una rama que chocó con main: su fila ofrece Actualizar, y el paso previo se ve abierto (con el error de pa en la última).
       const quieta = ramas(hilos, new Map()).pendientes.flatMap((g) => g.filas).find((f) => f.estado !== "trabajando" && f.estado !== "colgado");
