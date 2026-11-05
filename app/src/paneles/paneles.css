@@ -3238,6 +3238,24 @@
   color: var(--texto-7);
   font-size: var(--letra-3);
 }
+/* Filtro por categoría y orden de la tienda: dos campos que se apilan en 360 px y miden 44 px de alto para el dedo. */
+.pl-filtros {
+  align-items: flex-end;
+}
+.pl-filtro {
+  display: flex;
+  flex: 1 1 10rem;
+  flex-direction: column;
+  gap: var(--esp-1);
+  min-width: 0;
+  color: var(--texto-7);
+  font-size: var(--letra-3);
+}
+.pl-filtro .pn-campo {
+  min-height: 2.75rem;
+  min-width: 0;
+  width: 100%;
+}
 .pl-otro {
   display: flex;
   flex-wrap: wrap;

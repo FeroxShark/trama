@@ -153,3 +153,52 @@ export function nombreHook(c: Conector): string {
 
 /** ¿Lo instala o lo maneja Trama? Un hook de su motor, o el servidor MCP `trama`. */
 export const esDeTrama = (c: Conector): boolean => (c.tipo === "hook" && DE_TRAMA.test(c.destino ?? "")) || (c.tipo === "mcp" && c.nombre.toLowerCase() === "trama");
+
+// --- Tienda de plugins: orden y filtro por categoría ---------------------------------------------------------------------------------------
+
+export type OrdenPlugins = "nombre" | "recientes" | "instalados";
+export const ORDENES_PLUGINS: readonly OrdenPlugins[] = ["nombre", "recientes", "instalados"];
+
+/** El valor de «todas las categorías» del filtro, y el de los plugins que no traen categoría (el valor de una categoria real lleva el prefijo `c:`). */
+export const CAT_TODAS = "";
+export const CAT_NINGUNA = "-";
+
+type DePlugin = { nombre: string; categoria: string; instalaciones?: number | null; actualizado?: number | null };
+
+/** El valor del filtro que le toca a un plugin. */
+export const claveCategoria = (p: { categoria: string }): string => (p.categoria.trim() ? `c:${p.categoria.trim()}` : CAT_NINGUNA);
+
+/** Las categorías que hay entre los plugins (por nombre) y si alguno no trae ninguna: de ahí salen las opciones del filtro. */
+export function categoriasDe(plugins: { categoria: string }[]): { claves: string[]; haySin: boolean } {
+  const set = new Set<string>();
+  let haySin = false;
+  for (const p of plugins) {
+    const k = claveCategoria(p);
+    if (k === CAT_NINGUNA) haySin = true;
+    else set.add(k);
+  }
+  return { claves: [...set].sort((a, b) => a.localeCompare(b)), haySin };
+}
+
+/** Los plugins de una categoría (`CAT_TODAS`: todos). */
+export function filtrarCategoria<T extends { categoria: string }>(plugins: T[], clave: string): T[] {
+  return clave === CAT_TODAS ? plugins : plugins.filter((p) => claveCategoria(p) === clave);
+}
+
+const dato = (n: number | null | undefined): number | null => (typeof n === "number" && Number.isFinite(n) ? n : null);
+
+/**
+ * Ordena sin tocar la lista que llega: «recientes» por última actualización (el más nuevo primero) y «instalados» por instalaciones (el de más
+ * primero). Lo que no trae dato va siempre al final, por nombre, para que «sin dato» no se mezcle con un cero. Empata por nombre.
+ */
+export function ordenarPlugins<T extends DePlugin>(plugins: T[], orden: OrdenPlugins): T[] {
+  const campo = (p: T) => dato(orden === "recientes" ? p.actualizado : p.instalaciones);
+  return [...plugins].sort((a, b) => {
+    if (orden !== "nombre") {
+      const x = campo(a);
+      const y = campo(b);
+      if (x !== y) return x === null ? 1 : y === null ? -1 : y - x;
+    }
+    return a.nombre.localeCompare(b.nombre);
+  });
+}

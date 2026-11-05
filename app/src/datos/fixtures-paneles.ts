@@ -540,9 +540,9 @@ export const CATALOGOS_FIJOS = (variante: string | null): EstadoCatalogos => {
         conocido: true,
         agregado: true,
         plugins: [
-          { nombre: "claude-api", descripcion: "Armar apps con la API de Claude: modelos, herramientas y caché.", categoria: "", instalado: false },
-          { nombre: "document-skills", descripcion: "Crear y editar documentos de Word, planillas de Excel, presentaciones de PowerPoint y PDF.", categoria: "", instalado: true },
-          { nombre: "example-skills", descripcion: "Ejemplos de skills: arte generativo, diseño de temas, servidores MCP y más.", categoria: "", instalado: false },
+          { nombre: "claude-api", descripcion: "Armar apps con la API de Claude: modelos, herramientas y caché.", categoria: "", instalado: false, instalaciones: 48_210, actualizado: Date.UTC(2026, 9, 21) },
+          { nombre: "document-skills", descripcion: "Crear y editar documentos de Word, planillas de Excel, presentaciones de PowerPoint y PDF.", categoria: "", instalado: true, instalaciones: 112_940, actualizado: Date.UTC(2026, 10, 2) },
+          { nombre: "example-skills", descripcion: "Ejemplos de skills: arte generativo, diseño de temas, servidores MCP y más.", categoria: "", instalado: false, instalaciones: null, actualizado: null },
         ],
       },
       sinAgregar,
@@ -551,7 +551,7 @@ export const CATALOGOS_FIJOS = (variante: string | null): EstadoCatalogos => {
         repo: "ana/plugins",
         conocido: false,
         agregado: true,
-        plugins: [{ nombre: "estilo", descripcion: "Textos más claros y cortos.", categoria: "escritura", instalado: false }],
+        plugins: [{ nombre: "estilo", descripcion: "Textos más claros y cortos.", categoria: "escritura", instalado: false, instalaciones: 310, actualizado: Date.UTC(2026, 7, 9) }],
       },
     ],
   };

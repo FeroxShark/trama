@@ -5,14 +5,14 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Download, Loader, Plus, Trash2 } from "lucide-react";
 import { fuentePaneles, type Catalogo, type EstadoCatalogos, type PluginCatalogo } from "../datos/paneles";
-import { t, textoMain } from "../i18n";
+import { locale, t, textoMain } from "../i18n";
 import { MODO } from "../modo";
 import { mensaje } from "../puente";
 import { Boton } from "../ui/componentes";
 import { Estado } from "./AjustesDsh";
 import { FilaAjuste, GrupoAjustes } from "./AjustesPiezas";
 import { PanelCargando } from "./PanelCargando";
-import { buscarPlugins } from "./conectores-vista";
+import { buscarPlugins, CAT_NINGUNA, CAT_TODAS, categoriasDe, filtrarCategoria, ORDENES_PLUGINS, ordenarPlugins, type OrdenPlugins } from "./conectores-vista";
 
 /** Cuántos plugins se ven de entrada en cada catálogo si no se busca nada (el oficial trae más de trescientos). */
 const VISIBLES = 6;
@@ -20,17 +20,30 @@ const VISIBLES = 6;
 const nombreCatalogo = (c: Catalogo) => (c.repo === "anthropics/skills" ? t("plugins.catSkills") : c.repo === "anthropics/claude-plugins-official" ? t("plugins.catOficial") : c.id);
 const queCatalogo = (c: Catalogo) => (c.repo === "anthropics/skills" ? t("plugins.catSkillsQue") : c.repo === "anthropics/claude-plugins-official" ? t("plugins.catOficialQue") : "");
 
+/** «3.448 instalaciones» y «Actualizado 12 may 2026»; lo que la caché de Claude Code no trae dice «sin dato» (nunca queda en blanco ni en cero). */
+export const datosPlugin = (p: PluginCatalogo): { instalaciones: string; actualizado: string } => ({
+  instalaciones: p.instalaciones === null || p.instalaciones === undefined ? t("plugins.instalacionesSin") : t("plugins.instalaciones", { n: p.instalaciones.toLocaleString(locale()) }),
+  actualizado:
+    p.actualizado === null || p.actualizado === undefined
+      ? t("plugins.actualizadoSin")
+      : t("plugins.actualizado", { f: new Date(p.actualizado).toLocaleDateString(locale(), { day: "numeric", month: "short", year: "numeric" }).replace(/\./g, "").replace(/ de /g, " ") }),
+});
+
 type Ocupado = { clave: string; texto: string } | null;
 
 function FilaPlugin({ c, p, ocupado, alAccionar }: { c: Catalogo; p: PluginCatalogo; ocupado: Ocupado; alAccionar: (c: Catalogo, p: PluginCatalogo) => void }) {
   const mio = ocupado?.clave === `${p.nombre}@${c.id}`;
+  const d = datosPlugin(p);
   return (
     <FilaAjuste
       className="cn-fila"
       titulo={p.nombre}
       ayuda={
         <>
-          {p.categoria ? <span className="cn-origen">{p.categoria}</span> : null}
+          <span className="cn-origen">{p.categoria || t("plugins.sinCategoria")}</span>
+          <span className="cn-origen" data-datos-plugin>
+            {d.instalaciones} · {d.actualizado}
+          </span>
           {p.descripcion ? <span className="cn-desc">{p.descripcion}</span> : null}
         </>
       }
@@ -86,6 +99,8 @@ export function CatalogosPlugins({ alCambiar }: { alCambiar: () => void }) {
   const [error, setError] = useState<string | null>(null);
   const [ocupado, setOcupado] = useState<Ocupado>(null);
   const [busca, setBusca] = useState("");
+  const [orden, setOrden] = useState<OrdenPlugins>("nombre");
+  const [categoria, setCategoria] = useState(CAT_TODAS);
   const [repo, setRepo] = useState("");
   const [cuenta, setCuenta] = useState("");
   const vivo = useRef(true);
@@ -137,7 +152,11 @@ export function CatalogosPlugins({ alCambiar }: { alCambiar: () => void }) {
   if (falla) return <div className="pn-aviso" data-error>{textoMain(falla)}</div>;
   if (!est) return <PanelCargando />;
 
-  const buscando = busca.trim() !== "";
+  const cats = categoriasDe(est.catalogos.flatMap((c) => c.plugins));
+  // Si la categoría elegida ya no está (se cambió el catálogo), se vuelve a «todas» en vez de dejar la lista vacía.
+  const filtro = categoria === CAT_NINGUNA ? (cats.haySin ? categoria : CAT_TODAS) : cats.claves.includes(categoria) ? categoria : CAT_TODAS;
+  const buscando = busca.trim() !== "" || filtro !== CAT_TODAS;
+  const verPlugins = (c: Catalogo) => ordenarPlugins(filtrarCategoria(buscarPlugins(c.plugins, busca), filtro), orden);
   return (
     <div className="cn-inv" data-plugins-catalogo ref={raiz}>
       <p className="pn-nota pn-intro">{t("plugins.intro")}</p>
@@ -158,10 +177,34 @@ export function CatalogosPlugins({ alCambiar }: { alCambiar: () => void }) {
           </label>
         ) : null}
       </div>
+      <div className="cn-barra pl-filtros" data-plugins-filtros>
+        <label className="pl-filtro">
+          <span>{t("plugins.categoria")}</span>
+          <select className="pn-campo" value={filtro} onChange={(ev) => setCategoria(ev.target.value)}>
+            <option value={CAT_TODAS}>{t("plugins.categoriaTodas")}</option>
+            {cats.claves.map((k) => (
+              <option key={k} value={k}>
+                {k.slice(2)}
+              </option>
+            ))}
+            {cats.haySin ? <option value={CAT_NINGUNA}>{t("plugins.sinCategoria")}</option> : null}
+          </select>
+        </label>
+        <label className="pl-filtro">
+          <span>{t("plugins.orden")}</span>
+          <select className="pn-campo" value={orden} onChange={(ev) => setOrden(ev.target.value as OrdenPlugins)}>
+            {ORDENES_PLUGINS.map((o) => (
+              <option key={o} value={o}>
+                {t(`plugins.orden.${o}`)}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
       {ocupado ? <p className="ol-nota" role="status">{ocupado.texto}</p> : null}
       {error ? <div className="pn-error dsh-err" role="alert">{textoMain(error)}</div> : null}
       {est.catalogos.map((c) => (
-        <BloqueCatalogo key={c.repo || c.id} c={c} buscando={buscando} plugins={buscarPlugins(c.plugins, busca)} ocupado={ocupado} alAgregar={agregar} alAccionar={accionar} />
+        <BloqueCatalogo key={c.repo || c.id} c={c} buscando={buscando} plugins={verPlugins(c)} ocupado={ocupado} alAgregar={agregar} alAccionar={accionar} />
       ))}
       <form className="pl-otro" onSubmit={agregarOtro} data-plugins-otro>
         <label className="mcp-campo">

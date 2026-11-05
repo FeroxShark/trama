@@ -23,7 +23,16 @@ export const CATALOGOS_CONOCIDOS: readonly { repo: string; id: string }[] = [
   { repo: "anthropics/claude-plugins-official", id: "claude-plugins-official" },
 ];
 
-export type PluginCatalogo = { nombre: string; descripcion: string; categoria: string; instalado: boolean };
+export type PluginCatalogo = {
+  nombre: string;
+  descripcion: string;
+  categoria: string;
+  instalado: boolean;
+  /** Instalaciones únicas, de la caché del catálogo de Claude Code; `null` si no hay dato. */
+  instalaciones: number | null;
+  /** Última actualización (ms desde 1970), de esa misma caché; `null` si no hay dato. */
+  actualizado: number | null;
+};
 export type Catalogo = {
   /** El nombre del catálogo (el del `marketplace.json`): es el que va después de la `@` en `plugin@catalogo`. */
   id: string;
@@ -95,7 +104,27 @@ async function instaladosDelUsuario(rutas: Rutas): Promise<Set<string>> {
   return r;
 }
 
-async function pluginsDe(instalacion: string, id: string, instalados: Set<string>): Promise<PluginCatalogo[]> {
+export type DatosCache = { instalaciones: number | null; actualizado: number | null };
+
+/**
+ * Lo que Claude Code guarda de cada plugin en `~/.claude/plugins/plugin-catalog-cache.json` (`catalog.plugins["plugin@catálogo"]`): instalaciones únicas
+ * (`unique_installs`) y última actualización (`last_updated`). Es una caché interna que Claude Code puede cambiar o no tener: sólo se lee, y si falta
+ * el archivo, está roto o un campo no sirve, ese dato queda en `null` ("sin dato") y nada se rompe.
+ */
+export async function datosDeCache(rutas: Rutas): Promise<Map<string, DatosCache>> {
+  const j = await leerJson(path.join(rutas.claude, "plugins", "plugin-catalog-cache.json"));
+  const cat = esObj(j?.catalog) ? (j!.catalog as Json) : {};
+  const r = new Map<string, DatosCache>();
+  for (const [clave, v] of Object.entries(esObj(cat.plugins) ? (cat.plugins as Json) : {})) {
+    if (!esObj(v)) continue;
+    const n = v.unique_installs;
+    const f = typeof v.last_updated === "string" ? Date.parse(v.last_updated) : NaN;
+    r.set(clave, { instalaciones: typeof n === "number" && Number.isFinite(n) && n >= 0 ? Math.round(n) : null, actualizado: Number.isFinite(f) ? f : null });
+  }
+  return r;
+}
+
+async function pluginsDe(instalacion: string, id: string, instalados: Set<string>, datos: Map<string, DatosCache>): Promise<PluginCatalogo[]> {
   const ruta = instalacion.endsWith(".json") ? instalacion : path.join(instalacion, ".claude-plugin", "marketplace.json");
   const mercado = await leerJson(ruta);
   const r: PluginCatalogo[] = [];
@@ -103,7 +132,9 @@ async function pluginsDe(instalacion: string, id: string, instalados: Set<string
   for (const p of Array.isArray(mercado?.plugins) ? mercado!.plugins : []) {
     if (!esObj(p) || !NOMBRE.test(texto(p.name)) || vistos.has(texto(p.name))) continue;
     vistos.add(texto(p.name));
-    r.push({ nombre: texto(p.name), descripcion: resumir(texto(p.description)), categoria: texto(p.category), instalado: instalados.has(`${p.name}@${id}`) });
+    const clave = `${p.name}@${id}`;
+    const d = datos.get(clave);
+    r.push({ nombre: texto(p.name), descripcion: resumir(texto(p.description)), categoria: texto(p.category).trim(), instalado: instalados.has(clave), instalaciones: d?.instalaciones ?? null, actualizado: d?.actualizado ?? null });
   }
   return r.sort((a, b) => a.nombre.localeCompare(b.nombre));
 }
@@ -113,6 +144,7 @@ export async function estadoCatalogos(d: DepsPlugins): Promise<EstadoCatalogos> 
   const rutas = d.rutas ?? rutasClaude(d.env, d.plat ?? plataformaActual());
   const conocidos = await leerJson(path.join(rutas.claude, "plugins", "known_marketplaces.json"));
   const instalados = await instaladosDelUsuario(rutas);
+  const datos = await datosDeCache(rutas);
   const agregados: Catalogo[] = [];
   for (const [id, v] of Object.entries(conocidos ?? {})) {
     if (!esObj(v) || !NOMBRE.test(id)) continue;
@@ -121,7 +153,7 @@ export async function estadoCatalogos(d: DepsPlugins): Promise<EstadoCatalogos> 
     if (texto(origen.source) === "claudeai") continue;
     const repo = texto(origen.source) === "github" ? (normalizarRepo(origen.repo) ?? "") : "";
     const conocido = CATALOGOS_CONOCIDOS.some((c) => c.repo.toLowerCase() === repo.toLowerCase());
-    agregados.push({ id, repo, conocido, agregado: true, plugins: texto(v.installLocation) ? await pluginsDe(texto(v.installLocation), id, instalados) : [] });
+    agregados.push({ id, repo, conocido, agregado: true, plugins: texto(v.installLocation) ? await pluginsDe(texto(v.installLocation), id, instalados, datos) : [] });
   }
   const faltan: Catalogo[] = CATALOGOS_CONOCIDOS.filter((c) => !agregados.some((a) => a.repo.toLowerCase() === c.repo.toLowerCase())).map((c) => ({ id: c.id, repo: c.repo, conocido: true, agregado: false, plugins: [] }));
   const orden = (c: Catalogo) => (c.conocido ? CATALOGOS_CONOCIDOS.findIndex((k) => k.repo.toLowerCase() === c.repo.toLowerCase()) : CATALOGOS_CONOCIDOS.length);
