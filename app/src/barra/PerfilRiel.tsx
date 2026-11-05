@@ -22,8 +22,8 @@ const CLAVES: Record<Perfil, { nombre: ClaveSola; que: ClaveSola }> = {
   rendimiento: { nombre: "cu.perfilRendimiento", que: "cu.perfilRendimientoQue" },
 };
 
-/** La captura `normal` con la variante `perfil-menu` deja el menú abierto. */
-const VER_ABIERTO = MODO.variante === "perfil-menu";
+/** La captura `perfil-riel` deja el menú abierto. */
+const VER_ABIERTO = MODO.captura === "perfil-riel";
 
 export function PerfilRiel({ alAbrir }: { alAbrir?: () => void }) {
   useIdioma();
@@ -65,9 +65,11 @@ export function PerfilRiel({ alAbrir }: { alAbrir?: () => void }) {
 
   const cerrar = useCallback(() => setAbierto(false), []);
 
-  // Al abrir se vuelve a mirar el archivo (puede haberse editado a mano).
+  // Al abrir se vuelve a mirar el archivo (puede haberse editado a mano) y el foco va a la opción activa.
   useEffect(() => {
-    if (abierto) leer();
+    if (!abierto) return;
+    leer();
+    (menu.current?.querySelector<HTMLElement>('[aria-checked="true"]') ?? menu.current?.querySelector<HTMLElement>("button"))?.focus({ preventScroll: true });
   }, [abierto, leer]);
 
   useEffect(() => {

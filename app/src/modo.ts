@@ -11,6 +11,8 @@ const CAPTURAS = [
   "uso",
   "uso-sin-hora",
   "uso-sin-dato",
+  // El menú del perfil de reparto en la barra de cupos (src/barra/PerfilRiel.tsx), abierto.
+  "perfil-riel",
   "colapsado",
   "cerrados",
   "modelo",
