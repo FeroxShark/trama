@@ -1156,3 +1156,10 @@
   color: var(--txt-4);
   font-size: var(--letra-3);
 }
+
+/* Con un panel del pie abierto (Ajustes, Tablero, Ramas, Estadísticas) el panel de consumo no ocupa lugar ni se ve su botón,
+   a ningún ancho (`data-sin-consumo`, lo pone la barra). Sigue montado: volver al chat no lo recarga ni lo anima. */
+.app[data-sin-consumo] > .cs,
+.app[data-sin-consumo] > .ctx-boton {
+  display: none;
+}

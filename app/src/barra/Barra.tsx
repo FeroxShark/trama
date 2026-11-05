@@ -53,6 +53,7 @@ import { apariencia, LETRA_DEF } from "../tipografia";
 import { esAngosto, useAngosto, useAtras, useMedio } from "../angosto";
 import { correrGuionPaneles } from "../paneles/guion";
 import { Panel, PANELES, type CualPanel } from "../paneles/Panel";
+import { consumoALaVista } from "./consumo-logica";
 import { alPedirAjustes, alPedirRamas } from "../paneles/ajustes-nav";
 import { panelDeCaptura } from "../guia/registro";
 import { PanelContexto } from "../paneles/PanelContexto";
@@ -393,7 +394,9 @@ export function Barra() {
   // Con ancho intermedio el panel de consumo no cabe al lado de la conversación: la reemplaza (CSS, `data-consumo`) y
   // abrir otra cosa lo suelta (sin tocar lo guardado: con la ventana ancha vuelve al costado).
   const medio = useMedio();
-  const tapa = consumo && medio;
+  // Con Ajustes, Tablero, Ramas o Estadísticas abiertos el panel no se ve (queda montado, escondido por CSS: volver no lo recarga).
+  const consumoVisible = consumoALaVista(consumo, panel);
+  const tapa = consumoVisible && medio;
   const abierto = useRef({ activa, panel });
   useEffect(() => {
     const a = abierto.current;
@@ -1890,6 +1893,7 @@ export function Barra() {
         data-oculta={abierta ? undefined : ""}
         data-panel={panel ?? undefined}
         data-consumo={tapa ? "solo" : undefined}
+        data-sin-consumo={consumoVisible || !consumo ? undefined : ""}
         data-reinicio={reinicio.hay ? "" : undefined}
       >
         <aside className="barra" aria-label={tr("barra.aria")} inert={!abierta}>
