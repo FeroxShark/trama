@@ -385,11 +385,10 @@ export function encabezadoSkill(md: string): { nombre: string | null; descripcio
       const k = /^([A-Za-z_-]+):\s*(.*)$/.exec(lineas[i]!);
       if (!k) continue;
       let v = k[2]!.trim();
-      if (/^[>|][+-]?$/.test(v) || v === "") {
-        const trozos: string[] = [];
-        while (i + 1 < lineas.length && /^\s+\S/.test(lineas[i + 1]!)) trozos.push(lineas[++i]!.trim());
-        v = trozos.join(" ");
-      }
+      // Los bloques `>` / `|` y los valores partidos en varias líneas sangradas se juntan con un espacio.
+      const trozos: string[] = /^[>|][+-]?$/.test(v) ? [] : v ? [v] : [];
+      while (i + 1 < lineas.length && /^\s+\S/.test(lineas[i + 1]!)) trozos.push(lineas[++i]!.trim());
+      v = trozos.join(" ");
       r[k[1]!.toLowerCase()] = v.replace(/^(["'])([\s\S]*)\1$/, "$2");
     }
   }
@@ -528,9 +527,10 @@ export async function catalogo(actualizar: unknown, d: DepsDescubrir): Promise<C
 
 // --- Instalar -------------------------------------------------------------------------------------------------------------------------
 
+const porRuta = (a: { ruta: string }, b: { ruta: string }) => (a.ruta < b.ruta ? -1 : a.ruta > b.ruta ? 1 : 0);
 const huellaDe = (archivos: ArchivoSkill[]) =>
   createHash("sha256")
-    .update([...archivos].sort((a, b) => a.ruta.localeCompare(b.ruta)).map((a) => `${a.ruta}\0${a.sha}\0${a.tam}`).join("\n"))
+    .update([...archivos].sort(porRuta).map((a) => `${a.ruta}\0${a.sha}\0${a.tam}`).join("\n"))
     .digest("hex")
     .slice(0, 16);
 
@@ -574,7 +574,7 @@ export async function previa(id: unknown, d: DepsDescubrir): Promise<Previa> {
       id: `skill:${x.skill.nombre}`,
       nombre: x.skill.nombre,
       destino: `~/.claude/skills/${x.skill.nombre}`,
-      archivos: archivos.map((a) => ({ ruta: a.ruta, tam: a.tam })).sort((a, b) => a.ruta.localeCompare(b.ruta)),
+      archivos: archivos.map((a) => ({ ruta: a.ruta, tam: a.tam })).sort(porRuta),
       total: archivos.reduce((n, a) => n + a.tam, 0),
       scripts: archivos.filter(esScript).map((a) => a.ruta).sort(),
       huella: huellaDe(archivos),
