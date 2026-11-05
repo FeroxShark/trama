@@ -55,6 +55,7 @@ import { correrGuionPaneles } from "../paneles/guion";
 import { Panel, PANELES, type CualPanel } from "../paneles/Panel";
 import { consumoALaVista } from "./consumo-logica";
 import { alPedirAjustes, alPedirRamas } from "../paneles/ajustes-nav";
+import { alPedirItem } from "../paneles/tablero-abrir";
 import { panelDeCaptura } from "../guia/registro";
 import { PanelContexto } from "../paneles/PanelContexto";
 import { usePedidoSub } from "../paneles/contexto-pedido";
@@ -386,6 +387,15 @@ export function Barra() {
       alPedirRamas(() => {
         if (esAngosto()) setAbierta(false);
         setPanel("ramas");
+      }),
+    [],
+  );
+  // La tarjeta «Te dejé esto en el tablero» de un chat abre el tablero (él muestra el item, paneles/TableroNuevo.tsx).
+  useEffect(
+    () =>
+      alPedirItem(() => {
+        if (esAngosto()) setAbierta(false);
+        setPanel("tablero");
       }),
     [],
   );

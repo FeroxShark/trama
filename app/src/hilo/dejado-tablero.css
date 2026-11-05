@@ -1,0 +1,99 @@
+/* «Te dejé esto en el tablero» (DejadoTablero.tsx): renglones calmos debajo del turno que los dejó. Sin fondo propio fuerte ni sombra:
+   un paso de tono (--capa-card), el borde de la tarjeta de aviso y el texto apagado; sólo el título va en blanco. */
+.dejado {
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-1);
+  margin: 0 0 var(--esp-2);
+  padding: 0;
+  list-style: none;
+}
+.dejado-c {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-2);
+  width: 100%;
+  min-height: var(--alto-boton);
+  padding: var(--esp-1-5) var(--esp-2-5);
+  border: 1px solid var(--borde-2);
+  border-radius: var(--r-md);
+  background: var(--capa-card);
+  color: var(--apagado);
+  font: inherit;
+  font-size: var(--letra-4);
+  line-height: 1.45;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--t-snappy);
+}
+.dejado-c:hover {
+  background: var(--capa-hover);
+}
+.dejado-c:focus-visible {
+  outline: 2px solid var(--acento);
+  outline-offset: 2px;
+}
+.dejado-i,
+.dejado-f,
+.dejado-e svg {
+  flex: none;
+}
+.dejado-f {
+  color: var(--inactivo);
+}
+/* El título se corta con elipsis en una línea; lo entero va en el nombre accesible y se lee en el tablero. */
+.dejado-t {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dejado-t b {
+  color: var(--texto);
+  font-weight: 600;
+}
+.dejado-e {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--esp-1);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.dejado-c[data-estado="abierto"] .dejado-e {
+  color: var(--decision-texto);
+}
+.dejado-c[data-estado="respondido"] .dejado-e,
+.dejado-c[data-estado="cerrado"] .dejado-e {
+  color: var(--ok);
+}
+.dejado-c[data-estado="cerrado"] .dejado-t b {
+  color: var(--apagado);
+}
+/* Angosto o con dedo: el renglón se parte en dos (frase y título arriba, estado debajo) y mide 44 px. */
+@media (pointer: coarse), (max-width: 40rem) {
+  .dejado-c {
+    flex-wrap: wrap;
+    min-height: 2.75rem;
+    row-gap: var(--esp-0-5);
+  }
+  .dejado-t {
+    flex: 1 1 calc(100% - 3rem);
+    white-space: normal;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+  }
+  .dejado-e {
+    order: 3;
+    flex-basis: 100%;
+    padding-left: calc(14px + var(--esp-2));
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dejado-c {
+    transition: none;
+  }
+}

@@ -6,6 +6,7 @@
 import type { Mensaje } from "../datos/contrato";
 import { agrupar, usosDe, type Uso } from "./herramientas.ts";
 import { sistemaDe, type Sistema } from "./sistema-logica.ts";
+import { dejadosDeMensaje, type RefDejado } from "./tablero-dejado.ts";
 
 /** Un renglón del trabajo: un texto suelto del worker y las herramientas que usó después (B19). */
 export type Paso = { texto: string; usos: Uso[] };
@@ -37,6 +38,8 @@ export type Item =
       pensamientos?: string[];
       /** Dónde se puede volver, editar o ramificar (acciones por mensaje); falta si no se sabe. */
       punto?: Punto;
+      /** Lo que este turno dejó en el tablero para la persona (`tablero agregar` que devolvió su id): el chat lo dice con una tarjeta debajo. Falta si no dejó nada. */
+      dejados?: RefDejado[];
     };
 
 /**
@@ -129,11 +132,19 @@ export function turnos(mensajes: Mensaje[], transcript: string | null = null): I
       hasta: epoch(tanda[tanda.length - 1].ts),
       pensado: tanda.map((x) => x.pensado).filter(Boolean).join("\n\n") || null,
       pensamientos: tanda.map((x) => x.pensado?.trim() ?? "").filter(Boolean),
+      ...dejadosDe(tanda),
       ...(tanda[tanda.length - 1].uuid ? { punto: { uuid: tanda[tanda.length - 1].uuid!, n: tanda[tanda.length - 1].i + 1, antes: tanda[tanda.length - 1].i, ...(tanda[tanda.length - 1].previa ? { previa: true as const } : {}) } } : {}),
     });
     i = j;
   }
   return items;
+}
+
+/** Lo que dejó una tanda de mensajes del líder en el tablero (sin repetir un id entre mensajes), listo para esparcir en el turno. */
+function dejadosDe(tanda: Mensaje[]): { dejados?: RefDejado[] } {
+  const vistos = new Set<number>();
+  const dejados = tanda.flatMap((x) => dejadosDeMensaje(x.det)).filter((r) => r.por === "llamada" && !vistos.has(r.id) && !!vistos.add(r.id));
+  return dejados.length ? { dejados } : {};
 }
 
 /** El paso en curso, en una línea: la herramienta y su descripción (`nombre: null`: sólo texto). */

@@ -514,3 +514,22 @@
     position: relative;
   }
 }
+
+/* El item que abrió una tarjeta del chat («Te dejé esto en el tablero»): un halo que se apaga solo, una vez. El borde queda con palabra aparte
+   en la tarjeta (su título y su estado), no depende de este color. */
+.pd-card[data-foco] {
+  scroll-margin-block: var(--esp-4);
+}
+@keyframes pd-foco {
+  from {
+    box-shadow: 0 0 0 2px var(--acento);
+  }
+  to {
+    box-shadow: 0 0 0 2px transparent;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .pd-card[data-foco] {
+    animation: pd-foco 1.6s ease-out 1;
+  }
+}

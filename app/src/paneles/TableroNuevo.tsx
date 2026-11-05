@@ -33,6 +33,7 @@ import { MODO } from "../modo";
 import { useNombreProyecto } from "../datos/proyectos";
 import type { PropsTablero } from "./Tablero";
 import { AvisoLimpieza, LimpiarTablero, type Resultado } from "./LimpiarTablero";
+import { alPedirItem, hayPedido, tomarPedido } from "./tablero-abrir";
 import "./pendientes.css";
 import "./tablero-vista.css";
 import "./limpiar-tablero.css";
@@ -70,6 +71,20 @@ export function TableroNuevo({ todo, carpetas, lideres, alRedactar, avisar }: Pr
   const [limpieza, setLimpieza] = useState<Resultado | null>(null);
   const tocado = useTocado();
   const pedidas = useRef(0);
+  /** El item que pidió abrir una tarjeta del chat («Te dejé esto en el tablero»): su proyecto se abre y él queda a la vista, resaltado. */
+  const [foco, setFoco] = useState<ItemId | null>(null);
+
+  /** Aplica un pedido de abrir un item (con el tablero ya leído): si espera a la persona, su proyecto; si no, la pestaña «Todo». */
+  const abrirPedido = (d: Tablero) => {
+    const p = tomarPedido();
+    if (!p) return;
+    const pend = d.columnas["espera-dueno"].find((i) => i.id === p.id);
+    if (pend) {
+      setPestana("esperan");
+      setAbierto(pend.proyecto);
+      setFoco(pend.id);
+    } else setPestana("todo");
+  };
 
   const leer = () => {
     const n = ++pedidas.current;
@@ -78,6 +93,7 @@ export function TableroNuevo({ todo, carpetas, lideres, alRedactar, avisar }: Pr
         if (n !== pedidas.current) return;
         setDatos(nuevo);
         setErrorLeer(null);
+        abrirPedido(nuevo);
       },
       (e: Error) => {
         if (n === pedidas.current) setErrorLeer(e.message);
@@ -87,7 +103,13 @@ export function TableroNuevo({ todo, carpetas, lideres, alRedactar, avisar }: Pr
   useEffect(() => {
     cargarTocado();
     void leer();
-    return fuenteTablero.alCambiar(() => void leer());
+    const sueltaCambio = fuenteTablero.alCambiar(() => void leer());
+    // Con el panel ya abierto: el pedido se aplica contra una lectura fresca (el item recién cargado puede no estar en la anterior).
+    const sueltaPedido = alPedirItem(() => hayPedido() && void leer());
+    return () => {
+      sueltaCambio();
+      sueltaPedido();
+    };
   }, []);
 
   const proyectos = useMemo(() => (datos ? armarProyectos(datos, Date.now()) : []), [datos]);
@@ -214,7 +236,9 @@ export function TableroNuevo({ todo, carpetas, lideres, alRedactar, avisar }: Pr
           mandando={mandando}
           cands={(q) => candidatos(q.item, carpetas, avisar.lideres, avisar.jefeDe)}
           alAvisar={(q, l) => void responderYAvisar(proyecto, q, l)}
+          foco={foco}
           alVolver={() => {
+            setFoco(null);
             setAbierto(null);
             setFalla(null);
             setAvisado(null);
@@ -230,7 +254,7 @@ export function TableroNuevo({ todo, carpetas, lideres, alRedactar, avisar }: Pr
           {activos.length ? (
             <ul className="pd-lista">
               {activos.map((p) => (
-                <Fila key={p.nombre} p={p} alAbrir={() => setAbierto(p.nombre)} />
+                <Fila key={p.nombre} p={p} alAbrir={() => (setFoco(null), setAbierto(p.nombre))} />
               ))}
             </ul>
           ) : (
@@ -249,7 +273,7 @@ export function TableroNuevo({ todo, carpetas, lideres, alRedactar, avisar }: Pr
               {verParados ? (
                 <ul className="pd-lista" data-parados="">
                   {parados.map((p) => (
-                    <Fila key={p.nombre} p={p} alAbrir={() => setAbierto(p.nombre)} />
+                    <Fila key={p.nombre} p={p} alAbrir={() => (setFoco(null), setAbierto(p.nombre))} />
                   ))}
                 </ul>
               ) : null}
@@ -308,6 +332,7 @@ function Proyecto({
   mandando,
   cands,
   alAvisar,
+  foco,
   alVolver,
   alMandar,
   alVolverAContestar,
@@ -323,18 +348,28 @@ function Proyecto({
   /** A qué líderes vivos se les puede avisar de la respuesta a esa pregunta (el primero es el que originó la pregunta, o el más reciente). */
   cands: (q: Pend) => LiderAviso[];
   alAvisar: (q: Pend, l: LiderAviso) => void;
+  /** El item que pidió abrir una tarjeta del chat: queda a la vista y resaltado (`null`: ninguno). */
+  foco: ItemId | null;
   alVolver: () => void;
   alMandar: () => void;
   alVolverAContestar: (id: ItemId) => void;
 }) {
   const c = cuenta(p, r);
   const nom = useNombreProyecto();
-  const [verMandadas, setVerMandadas] = useState(MODO.variante === "mandadas");
+  const [verMandadas, setVerMandadas] = useState(MODO.variante === "mandadas" || (foco !== null && p.mandadas.some((m) => m.id === foco)));
   // Para las capturas (`HILOS_VARIANTE=abajo`): la lista abierta hasta el final, donde están las pruebas.
   const scroll = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if ((MODO.variante === "abajo" || MODO.variante === "mandadas") && scroll.current) scroll.current.scrollTop = scroll.current.scrollHeight;
   }, []);
+  // Viene de una tarjeta del chat: el item a la vista (se mueve esta lista, nunca la conversación).
+  useEffect(() => {
+    if (foco === null) return;
+    if (p.mandadas.some((m) => m.id === foco)) setVerMandadas(true);
+    const el = scroll.current?.querySelector(`[data-item-id="${String(foco)}"]`);
+    el?.setAttribute("data-foco", "");
+    el?.scrollIntoView({ block: "center" });
+  }, [foco]);
   return (
     <section className="pd-proy">
       <header className="pd-cab">
@@ -371,7 +406,7 @@ function Proyecto({
             </button>
             {verMandadas
               ? p.mandadas.map((m) => (
-                  <article key={m.id} className="pd-card" data-mandada="">
+                  <article key={m.id} className="pd-card" data-item-id={String(m.id)} data-mandada="">
                     <div className="pd-card-t">
                       <h4 className="pd-tit">{m.titulo}</h4>
                       <button type="button" className="pd-dejar" onClick={() => alVolverAContestar(m.id)}>
@@ -419,7 +454,7 @@ function Pregunta({ q, x, cands, ocupado, alAvisar }: { q: Pend; x: RespPregunta
   const [elegido, setElegido] = useState<string>();
   const lider = elegirAviso(cands, elegido);
   return (
-    <article className="pd-card" data-hecha={ok ? "" : undefined}>
+    <article className="pd-card" data-item-id={String(q.id)} data-hecha={ok ? "" : undefined}>
       <div className="pd-card-t">
         <h4 className="pd-tit">{q.titulo}</h4>
         {ok ? (
@@ -479,7 +514,7 @@ function Pregunta({ q, x, cands, ocupado, alAvisar }: { q: Pend; x: RespPregunta
 
 function Prueba({ u, x }: { u: Pend; x: RespPrueba }) {
   return (
-    <article className="pd-card" data-hecha={x.res ? "" : undefined} data-res={x.res ?? undefined}>
+    <article className="pd-card" data-item-id={String(u.id)} data-hecha={x.res ? "" : undefined} data-res={x.res ?? undefined}>
       <h4 className="pd-tit">{u.titulo}</h4>
       {u.que ? (
         <div className="pd-que">

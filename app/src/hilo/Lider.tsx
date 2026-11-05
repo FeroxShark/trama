@@ -72,6 +72,8 @@ import { MotorCapacidades } from "./MotorCapacidades";
 import { Compactando, Pasando, relevoEn, Sigue } from "./Posta";
 import { juntar, turnos, type Item, type Punto } from "./turnos";
 import { AccionesMensaje, cerrarSobreFuera, EditorMensaje, sobreMensaje, type Acciones } from "./AccionesMensaje";
+import { DejadoTablero } from "./DejadoTablero";
+import { dejadosDeAviso } from "./tablero-dejado.ts";
 import { anotar, bajar, seguir } from "./seguir";
 import { anotarScroll, faltaLlegar, guardarAncla, restaurarScroll, retomarScroll, soltarScroll } from "./scrollGuardado";
 import { useCompactando } from "./compactando";
@@ -1678,6 +1680,8 @@ const Mensajes = memo(function Mensajes({ items, ultimoTurno, ultimoLimite, alSe
           <Fragment key={x.key}>
             <Marca k={x.key} />
             <Sistema s={x.s} nombre={nombre} alAbrirHilo={alAbrirHilo} alSeguir={i === ultimoLimite ? alSeguir : undefined} />
+            {/* Un worker suyo que terminó puede haber dejado una DECISION o un PROBAR en el tablero. */}
+            {x.s.tipo === "linea" && x.s.clase === "aviso" ? <DejadoTablero refs={dejadosDeAviso(x.s.aviso)} /> : null}
           </Fragment>
         ) : (
           <Fragment key={x.key}>
@@ -1686,6 +1690,8 @@ const Mensajes = memo(function Mensajes({ items, ultimoTurno, ultimoLimite, alSe
             <Turno t={x} vivo={!app && ocupado && i === ultimoTurno && !pasando} enCurso={ocupado && i === ultimoTurno} pensando={pensando && i === ultimoTurno} razon={razon} fin={i === ultimoTurno && fin && fin.estado !== "error" ? { estado: fin.estado, dura: fin.dura } : undefined} />
             {app && !(ocupado && i === ultimoTurno) ? <PuntoDelTurno sid={sid} puntos={puntos} desde={x.desde} ocupado={ocupado} alVolver={alVolverPunto} /> : null}
             {x.texto && !(ocupado && i === ultimoTurno) ? <AccionesMensaje texto={x.texto} punto={x.punto} propio={false} acciones={acciones} /> : null}
+            {/* Lo que este turno dejó en el tablero para la persona (`tablero agregar` que devolvió su id). */}
+            {x.dejados ? <DejadoTablero refs={x.dejados} /> : null}
             {relevo?.hecho && relevo.k === i ? (
               <Sigue nombre={sigue?.nombre ?? nombre ?? null} alAbrir={sigue && alAbrirLider ? () => alAbrirLider(sigue.id) : null} />
             ) : null}
