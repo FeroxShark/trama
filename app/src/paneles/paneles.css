@@ -3366,8 +3366,25 @@
 }
 /* 360 px y dedo: los controles de la fila y del panel miden 44 px y se apilan; el panel ocupa todo el ancho. */
 @media (max-width: 35rem), (pointer: coarse) {
+  .ds-raiz .aj-fila-cuerpo {
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+  .ds-raiz .aj-fila-txt {
+    flex: 1 1 100%;
+  }
+  .ds-raiz .aj-fila-ctrl {
+    width: 100%;
+    justify-content: flex-start;
+    margin-left: 0;
+    margin-top: var(--esp-2);
+  }
   .ds-raiz .cn-ctrl {
     justify-content: flex-start;
+  }
+  .ds-raiz .mdl-estado {
+    white-space: normal;
+    max-width: 100%;
   }
   .ds-raiz .ui-btn,
   .ds-raiz .mdl-enlace {

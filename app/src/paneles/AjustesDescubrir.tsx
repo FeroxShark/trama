@@ -53,6 +53,7 @@ function Etiquetas({ i }: { i: ItemDescubrir }) {
         ) : null}
         {i.tipo === "mcp" && i.remoto ? <span className="cn-origen">{i.remoto.seguro ? t("descubrir.remotoDe", { d: i.remoto.dominio }) : t("descubrir.sinHttps")}</span> : null}
         {i.tipo === "mcp" && !i.remoto && i.paquete ? <span className="cn-origen">{t("descubrir.enPc")}</span> : null}
+        {i.tipo === "mcp" && !i.remoto && !i.paquete ? <span className="cn-origen">{t("descubrir.sinForma")}</span> : null}
         {i.tipo === "mcp" && i.cabeceras.length ? <span className="cn-origen">{t("descubrir.pideCab", { c: i.cabeceras.join(", ") })}</span> : null}
       </span>
     </>
@@ -149,11 +150,9 @@ function Fila({ i, a, bloqueado, alAbrir, alConfirmar, alCerrar }: { i: ItemDesc
       ayuda={<Etiquetas i={i} />}
       control={
         <span className="cn-ctrl">
-          {accion === "paquete" ? (
-            <Estado ok={false} texto={t("descubrir.enPc")} />
-          ) : accion === "ninguna" ? (
-            <Estado ok={false} texto={t(i.tipo === "mcp" && i.remoto ? "descubrir.sinHttps" : "descubrir.sinForma")} />
-          ) : (
+          {accion === "ninguna" ? (
+            <Estado ok={false} texto={t("descubrir.noAgregable")} />
+          ) : accion === "paquete" ? null : (
             <Estado ok={esta} texto={t(skill ? (esta ? "descubrir.instalada" : "descubrir.noInstalada") : esta ? "descubrir.agregado" : "descubrir.noAgregado")} />
           )}
           {accion !== "ninguna" && !(accion !== "paquete" && esta) ? (

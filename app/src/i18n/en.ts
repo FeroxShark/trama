@@ -3405,6 +3405,7 @@ export const en = {
   "descubrir.enPc": "Runs on your computer",
   "descubrir.sinHttps": "Can't be added: its address isn't https",
   "descubrir.sinForma": "It has no address or package that Trama knows how to show",
+  "descubrir.noAgregable": "Can't be added",
   "descubrir.instalada": "Installed",
   "descubrir.noInstalada": "Not installed",
   "descubrir.agregado": "Added",

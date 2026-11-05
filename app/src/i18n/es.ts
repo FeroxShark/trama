@@ -3391,6 +3391,7 @@ export const es: { [K in keyof typeof en]: string } = {
   "descubrir.enPc": "Corre en tu computadora",
   "descubrir.sinHttps": "No se puede agregar: su dirección no es https",
   "descubrir.sinForma": "No trae una dirección ni un paquete que Trama sepa mostrar",
+  "descubrir.noAgregable": "No se puede agregar",
   "descubrir.instalada": "Instalada",
   "descubrir.noInstalada": "No instalada",
   "descubrir.agregado": "Agregado",
