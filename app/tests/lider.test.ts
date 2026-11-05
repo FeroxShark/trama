@@ -476,7 +476,7 @@ test("modoPrevio: se anota al entrar en plan, se borra al salir y sobrevive a re
   const h: Guardado = { ...g, modo: "acceptEdits" };
   aplicarModo(h, "plan");
   assert.equal(leerGuardados(escribirGuardados([h]))[0].modoPrevio, "acceptEdits");
-  assert.equal("modoPrevio" in leerGuardados(JSON.stringify({ version: 1, lideres: [{ ...g, modoPrevio: "bypassPermissions" }] }))[0], false);
+  assert.equal("modoPrevio" in leerGuardados(JSON.stringify({ version: 1, lideres: [{ ...g, modo: "default", modoPrevio: "bypassPermissions" }] }))[0], false);
   assert.equal("modoPrevio" in leerGuardados(JSON.stringify({ version: 1, lideres: [{ ...g, modo: "plan", modoPrevio: "auto" }] }))[0], false);
 });
 
