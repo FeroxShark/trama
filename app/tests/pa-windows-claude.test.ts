@@ -106,9 +106,15 @@ test("Windows: correrClaude con npm claude.cmd usa paraLanzar y no intenta claud
     } as unknown as Lanzamiento;
 
     const rc = await correrClaude(lz);
-    assert.equal(rc, 127);
     const errText = readFileSync(err, "utf8");
-    assert.ok(errText.includes(cmd), `se esperaba claude.cmd en: ${errText}`);
+    if (process.platform === "win32") {
+      // Windows de verdad: cmd.exe arranca y no encuentra el .cmd inventado (sale 1, con un texto que depende del idioma).
+      assert.notEqual(rc, 0);
+    } else {
+      // Sin cmd.exe, el error de lanzarlo nombra lo que iba a correr.
+      assert.equal(rc, 127);
+      assert.ok(errText.includes(cmd), `se esperaba claude.cmd en: ${errText}`);
+    }
     assert.ok(!errText.includes("pa: no pude lanzar claude:"), "no debe intentar claude pelado");
   } finally {
     rmSync(tmp, { recursive: true, force: true });

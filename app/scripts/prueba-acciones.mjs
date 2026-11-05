@@ -368,9 +368,10 @@ try {
   ok(await hasta(() => !!document.querySelector(".pn-nota") && document.querySelectorAll(".pn-dato").length >= 8, "datos de Ajustes"), "Settings trae sus datos");
   const geometria = () =>
     [".pn-nota", ".pn-sec", ".pn-dato", ".pn-nom", ".pn-que", ".pn-h", ".pn .pbtn", ".pn-volver", ".usos", ".uso", ".releer", ".pie button", ".buscar, .busca"]
-      .flatMap((s) => [...document.querySelectorAll(s)].map((e) => {
+      // Sólo lo que se ve: lo de una categoría oculta mide 0×0, no se mueve, y si sus datos llegan entre las dos fotos correría la comparación.
+      .flatMap((s) => [...document.querySelectorAll(s)].flatMap((e) => {
         const r = e.getBoundingClientRect();
-        return `${s} ${r.x.toFixed(1)},${r.y.toFixed(1)} ${r.width.toFixed(1)}×${r.height.toFixed(1)}`;
+        return r.width || r.height ? [`${s} ${r.x.toFixed(1)},${r.y.toFixed(1)} ${r.width.toFixed(1)}×${r.height.toFixed(1)}`] : [];
       }))
       .join("\n");
   await espera(300); // que termine la entrada del panel (transform)
@@ -380,7 +381,7 @@ try {
   await espera(100);
   const geoEs = await en(geometria);
   const distintas = geoEn.split("\n").flatMap((l, i) => (l === geoEs.split("\n")[i] ? [] : [`${l} → ${geoEs.split("\n")[i]}`]));
-  ok(geoEn.split("\n").length > 30 && distintas.length === 0, `ES ↔ EN no mueve nada (${geoEn.split("\n").length} cajas): ${distintas.slice(0, 3).join(" | ")}`);
+  ok(geoEn.split("\n").length > 30 && geoEs.split("\n").length === geoEn.split("\n").length && distintas.length === 0, `ES ↔ EN no mueve nada (${geoEn.split("\n").length} cajas): ${distintas.slice(0, 3).join(" | ")}`);
   ok((await en(fila55)) === "decidir", "la barra cambia al toque (chip decidir)");
   // Repinta en español: «hace N m» / «ayer» (no «ahora», que es el achique del Riel, ver CONVENCIONES.md).
   const relojesEs = await hasta(() => {
