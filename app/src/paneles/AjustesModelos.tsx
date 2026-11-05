@@ -8,6 +8,7 @@ import { Plus, X } from "lucide-react";
 import { Interruptor } from "../ui/componentes";
 import { VERSION, type Uso } from "../datos/contrato";
 import { fuente } from "../datos/fuente";
+import { avisarPerfil, EVENTO_PERFIL, perfilDe, type Perfil } from "../datos/perfil-reparto";
 import { fuentePaneles, type Bajada, type EntornoOllama, type EstadoModelos, type Sondeo } from "../datos/paneles";
 import { defDe, EMPRESAS, type Empresa } from "../hilo/modelos";
 import { Logo } from "../hilo/Logos";
@@ -237,6 +238,21 @@ export function AjustesModelos({ Dato, plan = null }: { Dato: FilaDato; plan?: s
     return fuente.alCambiarUso((u) => vivo.current && setUso(u));
   }, []);
 
+  // La barra de cupos guardó otro perfil de reparto: Ajustes lo muestra ya (sin tocar lo que haya a medio editar fuera del perfil).
+  useEffect(() => {
+    const alAvisar = (ev: Event) => {
+      const p = (ev as CustomEvent<Perfil>).detail;
+      const poner = <T extends { perfil?: Perfil }>(x: T): T => {
+        const { perfil: _, ...resto } = x;
+        return (p === "equilibrado" ? resto : { ...resto, perfil: p }) as T;
+      };
+      setE((x) => (x ? { ...x, config: poner(x.config) } : x));
+      setB((x) => (x ? poner(x) : x));
+    };
+    window.addEventListener(EVENTO_PERFIL, alAvisar);
+    return () => window.removeEventListener(EVENTO_PERFIL, alAvisar);
+  }, []);
+
   /** Pregunta a Ollama qué tiene: no carga nada. */
   async function detectar(url: string) {
     setAg({ url, sondeo: "comprobando" });
@@ -329,6 +345,8 @@ export function AjustesModelos({ Dato, plan = null }: { Dato: FilaDato; plan?: s
       setB(borradorDe(nuevo));
       setOk(true);
       pedirEfectivo();
+      // La barra de cupos muestra el perfil guardado.
+      avisarPerfil(perfilDe(nuevo.config));
     } catch (x) {
       if (vivo.current) setError(mensaje(x));
     } finally {

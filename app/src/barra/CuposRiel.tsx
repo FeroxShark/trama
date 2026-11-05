@@ -19,6 +19,7 @@ import { VIEJO_S, cuandoFuturo, pintorHace, pintorVisto } from "../tiempo";
 import { AMBAR_DESDE, bloquesMotores, cuentasClaude, lineasCuentas, nivelCupo, type LineaRiel, type VentanaRiel } from "./cupos-riel-logica";
 import { textoVuelve } from "./cuposNota";
 import { ElegirCuenta, useCuentasBarra } from "./ElegirCuenta";
+import { PerfilRiel } from "./PerfilRiel";
 import { Reloj } from "./piezas";
 import { formatearFalta, type Unidades } from "./usoFila";
 
@@ -283,6 +284,7 @@ export function CuposRiel() {
         <Anillo v={enUso.h5} etiqueta={t("cupos.w5h")} ventana={t("riel.cinco")} ts={enUso.ts} />
         <Anillo v={enUso.sem} etiqueta={t("riel.sem")} ventana={t("riel.semana")} ts={enUso.ts} />
       </button>
+      <PerfilRiel alAbrir={() => setAbierto(false)} />
       {abierto ? (
         <section className="vuelo" role="dialog" aria-label={t("cupos.titulo")}>
           <header className="v-cab">

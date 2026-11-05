@@ -303,6 +303,107 @@
   color: var(--fallo-texto);
 }
 
+/* El perfil de reparto, bajo los anillos: un ícono (cada perfil el suyo) que abre el menú con los cuatro. Con el equilibrado va apagado; con otro,
+   en el acento sobre un relleno: el ícono distinto es lo que lo dice, el color sólo lo refuerza. Alto de dedo (2.75rem). */
+.perfil-riel {
+  display: flex;
+  justify-content: center;
+}
+.perfil-btn {
+  display: grid;
+  width: 2.5rem;
+  height: 2.75rem;
+  flex: none;
+  place-items: center;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--apagado);
+  cursor: pointer;
+  transition: background-color var(--t-snappy);
+}
+.perfil-btn[data-perfil="ahorro"],
+.perfil-btn[data-perfil="agresivo"],
+.perfil-btn[data-perfil="rendimiento"] {
+  background: var(--acento-tinte);
+  color: var(--acento);
+}
+.perfil-btn:hover,
+.perfil-btn[aria-expanded="true"] {
+  background: var(--capa-hover);
+}
+.perfil-menu {
+  gap: var(--esp-2);
+}
+.perfil-menu h2 {
+  margin: 0;
+  font-size: var(--letra-5);
+  font-weight: 600;
+}
+.perfil-ops {
+  display: grid;
+  gap: var(--esp-1);
+}
+.perfil-op {
+  display: grid;
+  min-height: 2.75rem;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  column-gap: var(--esp-2-5);
+  padding: var(--esp-2) var(--esp-2-5);
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--texto);
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--t-snappy);
+}
+.perfil-op > svg:first-child {
+  margin-top: 0.125rem;
+  color: var(--apagado);
+}
+.perfil-op:hover:not(:disabled) {
+  background: var(--capa-hover);
+}
+.perfil-op[aria-checked="true"] {
+  background: var(--acento-tinte);
+}
+.perfil-op[aria-checked="true"] svg {
+  color: var(--acento);
+}
+.perfil-op:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.perfil-op-t {
+  display: grid;
+  min-width: 0;
+  gap: var(--esp-0-5);
+}
+.perfil-op-t b {
+  font-size: var(--letra-4);
+  font-weight: 600;
+}
+.perfil-op-t small {
+  color: var(--apagado);
+  font-size: var(--letra-3);
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+.perfil-error {
+  margin: 0;
+  color: var(--fallo-texto);
+  font-size: var(--letra-4);
+  font-weight: 500;
+}
+@media (prefers-reduced-motion: reduce) {
+  .perfil-btn,
+  .perfil-op {
+    transition: none;
+  }
+}
+
 /* La navegación, abajo del riel. */
 .riel .pie {
   display: flex;
