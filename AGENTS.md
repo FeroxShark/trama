@@ -114,3 +114,9 @@ falta, está en `motor/docs/traspaso.md`.
   (`catalog.plugins["plugin@catálogo"].unique_installs` / `.last_updated`), una caché interna de Claude Code: sólo se lee, y un archivo o campo que falta o no sirve es
   `null` = «sin dato» (nunca 0 ni error; en el orden va siempre al final). La categoría es la del `marketplace.json`; sin ella, «Sin categoría». Filtro y orden son puros
   (`conectores-vista.ts`: `ordenarPlugins`, `filtrarCategoria`, `categoriasDe`). Los tests arman un catálogo falso en un tmp (`tests/plugins-tienda.test.ts`) y nunca llaman a `claude`.
+- **«Te dejé esto en el tablero» (`app/src/hilo/tablero-dejado.ts`, `DejadoTablero.tsx`):** el chat de un líder muestra una tarjeta discreta (sin toast ni sonido, sin mover el scroll) cuando
+  él o un worker suyo dejó algo para la persona. Líder: una llamada a Bash con `tablero agregar` (`--tipo pregunta|prueba`, `--prueba` o `--columna espera-dueno`) que DEVOLVIÓ el id
+  (el CLI imprime sólo el id: sin id, con error o sólo nombrando el comando no cuenta; se arma en `turnos()` → `dejados`). Worker: el aviso de Trama al líder (enrutado por `jefe_id`)
+  trae el id del worker, y sus items son los de clave `pa:<id>`, `pa:<id>:<n>`, `pa:<id>:p1`. El estado (te espera / ya respondiste / ya se cerró) sale del tablero leído, una lectura
+  compartida (`tablero-dejado-fuente.ts`). Abrir = `pedirItem` (`paneles/tablero-abrir.ts`): la barra abre el panel y `TableroNuevo` muestra el item. Captura `lider-tablero-dejado`
+  (`HILOS_VARIANTE=respondida|cerrada|muchas`); lo controla `tests/tablero-dejado.test.ts`. Límite: un `pa --seguir` anota con el id de la corrida original, que puede no ser el del aviso.
