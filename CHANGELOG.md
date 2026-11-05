@@ -1,5 +1,19 @@
 # Cambios
 
+## 0.2.54
+
+- Ahorro: perfil `agresivo` en `reparto` (el modelo más barato que supere el piso de cada tipo). El perfil activo se ve y se cambia desde la barra de cupos.
+- Borrar proyecto: en el menú de la carpeta. Lo quita de Trama, manda la carpeta a la papelera con guardas y se puede deshacer; no deja borrar con trabajo vivo.
+- Tablero: «Limpiar» en masa con filtros y sugeridos desactualizados; cierra sin borrar y se puede deshacer.
+- Chat: tarjeta «Te dejé esto en el tablero» cuando un líder o un worker suyo deja una pregunta o una prueba.
+- Panel de contexto: tras compactar deja de mostrar lo de antes.
+- Conectores: orden por uso, más «Descubrir»: catálogo de skills y conectores MCP, siempre con confirmación antes de instalar.
+- Tienda de plugins: filtro por categoría y orden por recientes y más instalados.
+- Limpieza de ramas y puestos viejos desde el panel de Ramas; textos más claros en conectores y guías al día con lo nuevo.
+- Workers `--leer` de Gemini: pueden buscar y leer en internet.
+- Windows: `pa`, `orquesta`, `lanzar`, `reparto`, `trama-estado` y Cuentas buscan `agy` y `claude` igual, también fuera del PATH y como `.cmd` de npm.
+- Trama espera las escrituras pendientes al cerrar; tests más estables y CI en verde en Linux y Windows.
+
 ## 0.2.53
 
 - Workers: `pa` vuelve a encontrar `reparto`, `tablero`, `cuentas` y sus hooks en toda instalación. Antes todos caían en silencio a Sonnet; ahora eligen según calidad y cupo, y si falta una pieza se ve.
