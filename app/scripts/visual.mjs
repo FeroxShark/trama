@@ -68,6 +68,8 @@ const VARIANTES = [
   { estado: "ajustes", variante: "celular" },
   { estado: "ajustes", variante: "editando" },
   { estado: "ajustes", variante: "editando-mal" },
+  { estado: "ajustes", variante: "mcp-uso" },
+  { estado: "ajustes", variante: "mcp-muchas" },
   { estado: "estadisticas", variante: "error" },
   { estado: "tablero-nuevo-avisar", variante: "elegir" },
   { estado: "tablero-nuevo-avisar", variante: "sin" },

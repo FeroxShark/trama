@@ -367,3 +367,11 @@ test("pedir: una pasada sola, sin reloj que quede, y no más de una por hora", a
   for (let i = 0; i < 200 && existe() === primera; i++) await espera(10);
   assert.ok(existe() > primera);
 });
+
+test("la consulta: el último día de uso de cada skill, /comando y servidor MCP (sólo nombres y días)", async () => {
+  const c = await historial.consultar(DIA1, DIA2);
+  assert.deepEqual(c.ultimo, { skills: { "brujula:norte": DIA1, suelta: DIA2 }, comandos: { resumir: DIA2 }, mcp: { correo: DIA1 } });
+  // Recortado al rango: lo del segundo día no aparece si se pide sólo el primero.
+  assert.deepEqual((await historial.consultar(DIA1, DIA1)).ultimo, { skills: { "brujula:norte": DIA1 }, comandos: {}, mcp: { correo: DIA1 } });
+  assert.deepEqual((await historial.consultar(DIA2, DIA2)).ultimo.mcp, {});
+});

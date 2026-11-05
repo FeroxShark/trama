@@ -141,6 +141,11 @@ export type Consulta = {
   subagentes: Record<string, number>;
   /** Los `/comandos` que escribió la persona en el rango (así se invoca una skill a mano). */
   comandos: Record<string, number>;
+  /**
+   * El último día (`AAAA-MM-DD`, local) del rango en que se usó cada cosa: skills (nombre tal cual lo invocaron), `/comandos` y servidores MCP (por
+   * el nombre del servidor). Sólo nombres y días, nunca texto. Lo que no aparece no se usó en el rango (no es "nunca": el rango es de 7 o 30 días).
+   */
+  ultimo: { skills: Record<string, string>; comandos: Record<string, string>; mcp: Record<string, string> };
   /** Lo que no se sabe: nunca un número inventado en su lugar. */
   sinDato: {
     /** Sesiones sin primer mensaje: no se sabe cuánto pesó su arranque. */
@@ -483,6 +488,7 @@ export function crearHistorial(o: {
       herramientas: {},
       subagentes: {},
       comandos: {},
+      ultimo: { skills: {}, comandos: {}, mcp: {} },
       sinDato: { sinArranque: 0, sinCalibrar: 0, lineas: 0, parserViejo: 0, meses: 0 },
     };
     type Junta = { clase: ClaseConsulta; nombre: string; sesiones: number; chars: number; peso: number; pesoPorTurnos: number; despues: number; ganchos: number };
@@ -491,6 +497,13 @@ export function crearHistorial(o: {
     const mcp: Record<string, number> = {};
     const contar = (en: Record<string, number>, de: Record<string, number>) => {
       for (const [k, n] of Object.entries(de)) en[k] = (en[k] ?? 0) + n;
+    };
+    // El día más reciente en que aparece cada nombre (los días son `AAAA-MM-DD`: se comparan como texto).
+    const ultimoDia = (en: Record<string, string>, de: Record<string, number>, d: string, nombre: (k: string) => string | null = (k) => k) => {
+      for (const k of Object.keys(de)) {
+        const n = nombre(k);
+        if (n && (en[n] ?? "") < d) en[n] = d;
+      }
     };
     const primero = mesesAntes(desde.slice(0, 7), MESES_ATRAS);
     const ultimo = hasta.slice(0, 7);
@@ -512,8 +525,11 @@ export function crearHistorial(o: {
         }
         let mensajes = 0;
         const rol = c.roles[s.rol] ?? c.roles.lider;
-        for (const [, d] of dias) {
+        for (const [dd, d] of dias) {
           mensajes += d.mensajes;
+          ultimoDia(c.ultimo.skills, d.usos.skills, dd);
+          ultimoDia(c.ultimo.comandos, d.usos.comandos ?? {}, dd);
+          ultimoDia(c.ultimo.mcp, d.usos.mcp, dd, servidorMcp);
           c.compactaciones += d.compactaciones;
           sumar(c.modelos, d.modelos);
           sumar(rol.modelos, d.modelos);

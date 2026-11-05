@@ -398,7 +398,13 @@ export function historialFalso(dias: 7 | 30, rol?: "lider" | "worker" | "subagen
     piezas,
     herramientas: { Bash: n(480), Read: n(350), Edit: n(190) },
     subagentes: { Explore: n(14) },
-    comandos: {},
+    // Skills que se invocaron a mano (`/diseno`…): son las del inventario de Conectores (CONECTORES_FIJOS), con el último día de uso.
+    comandos: { diseno: n(6), "estilo:tono": n(2), "design:design-critique": n(1) },
+    ultimo: {
+      skills: { simplify: "2026-10-13", "code-review": "2026-10-12", "frontend-design:frontend-design": "2026-10-08" },
+      comandos: { diseno: "2026-10-12", "estilo:tono": "2026-10-09", "design:design-critique": dias === 7 ? "2026-10-07" : "2026-09-18" },
+      mcp: { tablero: "2026-10-13" },
+    },
     sinDato: { sinArranque: 0, sinCalibrar: dias === 7 ? 0 : 2, lineas: 0, parserViejo: 0, meses: 0 },
   };
 }
@@ -502,6 +508,7 @@ export const CONECTORES_FIJOS = (variante: string | null): Inventario => {
     { id: "skill|plugin|estilo@mercado||tono", tipo: "skill", nombre: "tono", origen: "plugin", de: "estilo@mercado", descripcion: "Ajusta el tono de los textos largos.", activo: true, conmutable: false },
     { id: "plugin|estilo@mercado|", tipo: "plugin", nombre: "estilo", origen: "usuario", de: "mercado", descripcion: "Textos más claros y cortos.", activo: true, conmutable: true, clase: "1.2.0" },
     { id: "plugin|graficos@mercado|", tipo: "plugin", nombre: "graficos", origen: "usuario", de: "mercado", descripcion: "Gráficos y tableros a partir de datos.", activo: false, conmutable: true, clase: "0.9.1" },
+    { id: "mcp|usuario|tablero", tipo: "mcp", nombre: "tablero", origen: "usuario", de: "", descripcion: "", activo: true, conmutable: false, clase: "stdio", destino: "node ~/.local/share/trama/app/mcp/tablero.mjs", variables: [] },
     { id: "mcp|usuario|archivos", tipo: "mcp", nombre: "archivos", origen: "usuario", de: "", descripcion: "", activo: true, conmutable: false, clase: "stdio", destino: "npx -y @modelcontextprotocol/server-filesystem /home/ana/docs", variables: [] },
     { id: `mcp|proyecto|${p}|calendario`, tipo: "mcp", nombre: "calendario", origen: "proyecto", de: p, descripcion: "", activo: true, conmutable: true, clase: "http", destino: "https://mcp.ejemplo.com/calendario", variables: ["Authorization"] },
     { id: `mcp|proyecto|${p}|base`, tipo: "mcp", nombre: "base", origen: "proyecto", de: p, descripcion: "", activo: false, conmutable: true, clase: "stdio", destino: "node servidor.js --token ••••", variables: ["DB_PASSWORD"] },
@@ -509,8 +516,13 @@ export const CONECTORES_FIJOS = (variante: string | null): Inventario => {
     { id: "skill|claudeai|cuenta-1|design|design-critique", tipo: "skill", nombre: "design-critique", origen: "claudeai", de: "design", descripcion: "Devolución estructurada sobre un diseño.", activo: true, conmutable: false },
     { id: "mcp|claudeai|claude.ai Correo", tipo: "mcp", nombre: "Correo", origen: "claudeai", de: "", descripcion: "", activo: false, conmutable: false, clase: "http" },
     { id: "hook|usuario||settings.json|0", tipo: "hook", nombre: "PreToolUse · Bash", origen: "usuario", de: "", descripcion: "", activo: true, conmutable: false, clase: "PreToolUse", destino: "bash ~/.claude/hooks/guardia.sh" },
+    { id: "hook|usuario||settings.json|1", tipo: "hook", nombre: "SessionStart", origen: "usuario", de: "", descripcion: "", activo: true, conmutable: false, clase: "SessionStart", destino: "node ~/.local/share/trama/app/hooks/latido.mjs" },
     { id: "hook|plugin|estilo@mercado||0", tipo: "hook", nombre: "SessionStart", origen: "plugin", de: "estilo@mercado", descripcion: "Cargando el estilo…", activo: true, conmutable: false, clase: "SessionStart", destino: "node estilo/arranque.js" },
   ];
+  // `mcp-muchas`: 307 skills más, para ver cómo se comporta una lista larga (se dibuja por bloques desde las 200).
+  if (variante === "mcp-muchas")
+    for (let i = 0; i < 300; i++)
+      items.push({ id: `skill|usuario|extra-${i}`, tipo: "skill", nombre: `extra-${String(i).padStart(3, "0")}`, origen: i % 3 === 0 ? "proyecto" : "usuario", de: i % 3 === 0 ? p : "", descripcion: `Skill de muestra ${i}: hace una cosa puntual y lo explica en una línea.`, activo: true, conmutable: false });
   return { version: 1, items, proyectos: [p] };
 };
 

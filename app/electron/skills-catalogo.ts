@@ -5,6 +5,7 @@
 import type { Apagados } from "./apagados.ts";
 import type { Conector, Inventario } from "./conectores-claude.ts";
 import { tokensAprox } from "./contexto-desglose.ts";
+import { claveSkill } from "./usos-historial.ts";
 
 export type EstadoSkill = "activa" | "apagada" | "plugin-apagado";
 
@@ -22,20 +23,12 @@ export type SkillCatalogo = {
   estado: EstadoSkill;
 };
 
-/** El nombre del plugin de una skill de plugin (lo que va antes de `:` en su nombre completo). */
-function pluginDe(c: Conector): string | null {
-  if (c.origen === "plugin") return c.de.split("@")[0] || null;
-  if (c.origen === "claudeai") return c.de || null;
-  return null;
-}
-
 /** El catálogo, ordenado por lo que más pesa. `exactos`: tokens por clave que dijo un líder vivo (`get_context_usage`). */
 export function catalogoSkills(inv: Inventario, apagados: Apagados, exactos: Map<string, number> = new Map()): SkillCatalogo[] {
   const r: SkillCatalogo[] = [];
   for (const c of inv.items) {
     if (c.tipo !== "skill") continue;
-    const p = pluginDe(c);
-    const clave = p && !c.nombre.includes(":") ? `${p}:${c.nombre}` : c.nombre;
+    const clave = claveSkill(c);
     const exacto = exactos.get(clave) ?? exactos.get(c.nombre);
     const estado: EstadoSkill = apagados.skills.includes(clave) || apagados.skills.includes(c.nombre) ? "apagada" : c.activo ? "activa" : "plugin-apagado";
     r.push({
@@ -66,30 +59,5 @@ export function buscarSkills(lista: SkillCatalogo[], q: unknown): SkillCatalogo[
   });
 }
 
-/** Qué skills se usaron en las sesiones recientes de Claude de la persona (todas, no sólo la abierta). */
-export type UsosCatalogo = {
-  dias: number;
-  /** Sesiones con actividad en esos días. */
-  sesiones: number;
-  /** skill (por su clave o su nombre, como la invocó la persona o el modelo) → veces: la herramienta Skill más los `/comandos`. */
-  skills: Record<string, number>;
-  /** Claves de skills que un hook mete al contexto solo (un plugin con hooks activos cuya skill lleva su nombre). */
-  porHook: string[];
-};
-
-/** Los días que miran los usos del catálogo. */
-export const DIAS_USOS = 30;
-
-/** De lo que indexó el historial a lo que usa el catálogo. Una consulta con error o vacía no dice nada: `null`, nunca "no se usó". */
-export function usosDeHistorial(c: unknown, lista: Pick<SkillCatalogo, "clave" | "nombre" | "origen" | "de">[]): UsosCatalogo | null {
-  const q = c as { sesiones?: unknown; piezas?: { clase: string; nombre: string; usos: number | null; ganchos: number }[]; comandos?: Record<string, number>; error?: unknown } | null;
-  if (!q || q.error || typeof q.sesiones !== "number" || !Array.isArray(q.piezas) || q.sesiones <= 0) return null;
-  const skills: Record<string, number> = {};
-  for (const p of q.piezas) if (p.clase === "skill" && (p.usos ?? 0) > 0) skills[p.nombre] = (skills[p.nombre] ?? 0) + (p.usos ?? 0);
-  for (const [n, v] of Object.entries(q.comandos ?? {})) skills[n] = (skills[n] ?? 0) + v;
-  const ganchos = new Set(q.piezas.filter((p) => p.clase === "plugin" && p.ganchos > 0).map((p) => p.nombre));
-  const porHook = lista
-    .filter((s) => (s.origen === "plugin" || s.origen === "claudeai") && ganchos.has(s.de.split("@")[0]) && s.nombre.split(":").pop() === s.de.split("@")[0])
-    .map((s) => s.clave);
-  return { dias: DIAS_USOS, sesiones: q.sesiones, skills, porHook };
-}
+// Los usos de lo conectado viven aparte (puros, sin Node) para que Ajustes > Conectores los use desde la interfaz.
+export { DIAS_USOS, usosDeHistorial, type UsosCatalogo } from "./usos-historial.ts";
