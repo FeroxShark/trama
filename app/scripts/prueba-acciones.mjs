@@ -328,7 +328,7 @@ try {
   await hasta(() => !!document.querySelector('[role="menu"] [data-accion]'), "menú de carpeta");
   const opsC = (await opciones()).join(" ");
   // De fábrica el orden de la barra es por prioridad: la carpeta ofrece "Orden fijo"; Subir / Bajar siguen (lo caliente sale de su carpeta, el resto se acomoda igual).
-  ok(opsC === "nueva ocultar subir prioridad", `la carpeta ofrece Nueva tarea aquí, Ocultar terminados, Subir y Orden fijo (de fábrica, por prioridad): ${opsC}`);
+  ok(opsC === "nueva ocultar limpiar subir prioridad renombrar logo", `la carpeta ofrece Nueva tarea aquí, Ocultar terminados, Limpiar chats, Subir, Orden fijo (de fábrica, por prioridad), Renombrar y Logo: ${opsC}`);
   await tecla("Escape");
   ok(await hasta(() => !document.querySelector('[role="menu"]'), "cerrado"), "Esc cierra el menú");
   // --- Claude Code nuevo: el falso dice 2.1.287, el npm falso 2.1.300 -------------------
