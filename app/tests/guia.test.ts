@@ -112,7 +112,7 @@ test("candidatas: el selector abierto manda, un panel trae el suyo y Ajustes sum
   assert.deepEqual(reg.candidatas({ panel: "ramas", categoria: null, menuModelo: false }), ["ramas", "ramas-analisis"]);
   assert.deepEqual(reg.candidatas({ panel: "tablero", categoria: null, menuModelo: false }), ["tablero"]);
   assert.deepEqual(reg.candidatas({ panel: null, categoria: null, menuModelo: false }), ["principal", "lider", "caja", "worker"]);
-  for (const c of ["general", "modelos", "cupos", "proyectos", "guia"] as const) assert.ok(reg.guiaPorId(`ajustes-${c}`), c);
+  for (const c of ["general", "modelos", "cupos", "proyectos", "guia", "conectores"] as const) assert.ok(reg.guiaPorId(`ajustes-${c}`), c);
 });
 
 test("el registro: ids únicos, versiones coherentes y cada paso con su texto en español e inglés", () => {
@@ -139,10 +139,71 @@ test("el registro: ids únicos, versiones coherentes y cada paso con su texto en
 });
 
 test("las anclas data-guia del registro existen en el código", () => {
-  const src = ["src/barra/Barra.tsx", "src/barra/Riel.tsx", "src/barra/CuposRiel.tsx"].map((f) => readFileSync(path.join(import.meta.dirname, "..", f), "utf8")).join("\n");
+  const archivos = [
+    "src/barra/Barra.tsx",
+    "src/barra/Riel.tsx",
+    "src/barra/CuposRiel.tsx",
+    "src/hilo/Lider.tsx",
+    "src/hilo/CuentaLider.tsx",
+    "src/hilo/Selector.tsx",
+    "src/hilo/DejadoTablero.tsx",
+    "src/hilo/Fondo.tsx",
+    "src/paneles/TableroNuevo.tsx",
+    "src/paneles/Ramas.tsx",
+    "src/paneles/AjustesConectoresInventario.tsx",
+    "src/paneles/AjustesPlugins.tsx",
+    "src/paneles/AjustesDescubrir.tsx",
+  ];
+  const src = archivos.map((f) => readFileSync(path.join(import.meta.dirname, "..", f), "utf8")).join("\n");
   const usadas = reg.GUIAS.flatMap((g) => g.pasos.map((p) => /^\[data-guia="([\w-]+)"\]$/.exec(p.ancla)?.[1])).filter(Boolean);
-  assert.ok(usadas.length >= 4);
-  for (const a of usadas) assert.match(src, new RegExp(`data-guia="${a}"`), a);
+  assert.ok(usadas.length >= 10);
+  for (const a of usadas) {
+    if (a === "perfil-riel") continue;
+    assert.match(src, new RegExp(`data-guia="${a}"`), a);
+  }
+});
+
+test("las novedades de la tanda están registradas con sus versiones y anclas", () => {
+  const princ = reg.guiaPorId("principal");
+  assert.equal(princ?.version, 3);
+  assert.ok(princ?.pasos.some((p) => p.id === "limpiar" && p.desde === 3 && p.ancla === `[data-guia="limpiar-chats"]`));
+  assert.ok(princ?.pasos.some((p) => p.id === "perfil" && p.desde === 3 && p.ancla === `[data-guia="perfil-riel"]`));
+
+  const lid = reg.guiaPorId("lider");
+  assert.equal(lid?.version, 2);
+  assert.ok(lid?.pasos.some((p) => p.id === "tablero" && p.desde === 2 && p.ancla === `[data-guia="dejado-tablero"]`));
+  assert.ok(lid?.pasos.some((p) => p.id === "fondo" && p.desde === 2 && p.ancla === `[data-guia="fondo"]`));
+  assert.ok(lid?.pasos.some((p) => p.id === "cuenta" && p.desde === 2 && p.ancla === `[data-guia="cuenta-lider"]`));
+
+  const caj = reg.guiaPorId("caja");
+  assert.equal(caj?.version, 2);
+  assert.ok(caj?.pasos.some((p) => p.id === "carpeta" && p.desde === 2 && p.ancla === `[data-guia="carpeta-auto"]`));
+
+  const tab = reg.guiaPorId("tablero");
+  assert.equal(tab?.version, 2);
+  assert.ok(tab?.pasos.some((p) => p.id === "limpiar" && p.desde === 2 && p.ancla === `[data-guia="tablero-limpiar"]`));
+
+  const ram = reg.guiaPorId("ramas");
+  assert.equal(ram?.version, 2);
+  assert.ok(ram?.pasos.some((p) => p.id === "limpiar" && p.desde === 2 && p.ancla === `[data-guia="limpiar-ramas"]`));
+
+  const con = reg.guiaPorId("ajustes-conectores");
+  assert.equal(con?.version, 1);
+  assert.ok(con?.pasos.some((p) => p.id === "orden" && p.ancla === `[data-guia="conectores-orden"]`));
+  assert.ok(con?.pasos.some((p) => p.id === "plugins" && p.ancla === `[data-guia="plugins-catalogo"]`));
+  assert.ok(con?.pasos.some((p) => p.id === "descubrir" && p.ancla === `[data-guia="descubrir"]`));
+});
+
+test("perfil-riel: el paso se declara en principal y se saltea cuando el ancla no está en pantalla", () => {
+  const g = reg.guiaPorId("principal");
+  assert.ok(g);
+  const pasoPerfil = g.pasos.find((p) => p.id === "perfil");
+  assert.ok(pasoPerfil);
+  assert.equal(pasoPerfil.ancla, `[data-guia="perfil-riel"]`);
+  const sinPerfil = (p: reg.Paso) => p.ancla !== `[data-guia="perfil-riel"]`;
+  const p = reg.pendientes(g, VACIO, sinPerfil);
+  assert.ok(p);
+  assert.ok(!p.pasos.some((x) => x.id === "perfil"));
 });
 
 test("guiaDeCaptura y panelDeCaptura", () => {
