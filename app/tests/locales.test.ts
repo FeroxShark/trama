@@ -1,6 +1,7 @@
 // electron/locales.ts con dependencias falsas: nunca corre nvidia-smi, systemctl ni mi-conmutador de verdad, y los
 // archivos son un HOME temporal (ni ~/.dsh ni las unidades de Ana).
 import { test } from "node:test";
+import { esperarHasta } from "./esperar.ts";
 import assert from "node:assert/strict";
 import { mkdtemp, readFile, rm, writeFile, mkdir } from "node:fs/promises";
 import os from "node:os";
@@ -345,11 +346,14 @@ test("probar: una sola a la vez, y valida antes de tocar nada", async () => {
     let suelta!: () => void;
     const lenta: Deps = { ...e.d, ejecutar: (bin, args, o) => (bin.endsWith("mi-conmutador") ? new Promise((ok) => (suelta = () => ok(""))) : e.d.ejecutar(bin, args, o)) };
     const primera = probarLocal({ id: "modelo-local-ejemplo", ctx: 65536 }, lenta);
-    await new Promise((ok) => setTimeout(ok, 20));
+    // Esperar a que la primera ya esté cargando (mi-conmutador llamado), no un tiempo fijo: bajo carga los 20 ms no alcanzan.
+    await esperarHasta(() => suelta !== undefined);
     await assert.rejects(probarLocal({ id: "modelo-local-chico", ctx: 65536 }, e.d), /localOcupado/);
     suelta();
     assert.equal((await primera).ok, true);
   } finally {
+    // Si el test falla antes de soltarla, la primera queda colgada y el lock `probando` se queda tomado para los demás tests.
+    suelta?.();
     await e.limpiar();
   }
 });
