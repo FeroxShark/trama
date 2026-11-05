@@ -89,6 +89,12 @@ falta, está en `motor/docs/traspaso.md`.
   el resultado del worker lo dice («— reparto NO eligió el modelo», archivo `<id>.reparto-fallo`).
 - **Limpieza de ramas y worktrees:** vive en `app/src/paneles/AjustesLimpieza.tsx` (`LimpiezaPa`) y se ve en dos lugares: Ajustes > Proyectos y el panel de Ramas (botón «Limpiar ramas y puestos viejos», captura `ramas-limpieza`). Un solo componente, nunca una copia; tirar siempre pasa por «Ver qué se borraría» y luego «Borrar lo de la lista». Lo controla `tests/ramas-limpieza-acceso.test.ts`. Los textos de Conectores llaman «conector» a lo que técnicamente es un servidor MCP (no «servidor propio»: suena a otra máquina).
 
+- **Perfil de reparto `agresivo` (`PERFILES` en `motor/bin/reparto` y su par `app/electron/cli/reparto.ts`; el TS es el que corre por defecto, `TRAMA_REPARTO=py` fuerza el python):** gana el más barato (`costo` relativo: gratis 0, el resto el de su familia) entre lo que supera `minimo_por_tipo`,
+  que sigue siendo piso duro (no se relaja como en `ahorro`); el puntaje sólo desempata. Reserva del líder 0,35 como `ahorro`. Un modelo que no gasta cupo (local, dsh/OpenCode) sin historial propio sólo entra en `lectura`/`mecanico` hasta tener
+  5 corridas con dato y ≥ 50 % sin retrabajo en ESE tipo (medicion.tsv de los últimos 60 días, el mismo criterio de `pa --rinde`; `REPARTO_MEDICION` lo redirige en los tests); si no queda nada más, vuelve a entrar y el motivo lo dice. Flash
+  sólo lee. `rendimiento` y `equilibrado` dan lo mismo con ritmo normal: la banda de calidad (`PESO_SOBRA`, `PREFERIDO_POR_TIPO`) ya decide. `reparto --tipo --json` suma `perfil_info` y, por candidato, `costo` e `historial` (`{n, ok_pct}`) para la interfaz.
+  Con `ahorro` o `agresivo`, `pa` avisa por stderr al lanzar (`avisoPerfilAhorro` en `cli/pa/cli.ts`, `aviso_perfil_ahorro` en el bash) que el brief lleve pasos, archivos, «Listo cuando» y chequeo. Lo cubre `tests/reparto-agresivo.test.ts`.
+
 ## Mapa rápido
 
 - `app/`: Electron + React 19 + Vite + TS.
