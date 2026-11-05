@@ -480,10 +480,13 @@ async function arrancar() {
     // El motor tiene el núcleo, la cola, los líderes, el remoto y el cartel del build nuevo: acá sólo la ventana.
     logAparte("ventana.log");
     const { armarCliente } = await import("./ventana-cliente.js");
+    const { selloDe } = await import("./relanzar.js");
     cliente = await armarCliente({
       sock,
       recargar: () => recargarVentana(),
       irse: irseDelTodo,
+      // La huella del build con que arrancó este proceso (la misma raíz que mira el cartel de build nuevo, reinicio.ts).
+      sello: () => selloDe(process.env.HILOS_BUILD || path.join(aqui, "..")),
       // El motor se va por un build nuevo: se anota cómo estaba la ventana, y cuando el motor nuevo contesta se relanza
       // este proceso también (la ventana queda en Reconectando entre uno y otro, sin cortar nada).
       motorSaliendo: () => {

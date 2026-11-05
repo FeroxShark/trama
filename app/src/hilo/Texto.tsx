@@ -6,6 +6,8 @@ import { Fragment, memo, useEffect, useMemo, useRef, useState, type ReactNode } 
 import { Check, Copy, FolderOpen, FolderX } from "lucide-react";
 import { copiarConAviso } from "../copiar";
 import { fuente } from "../datos/fuente";
+import { resultadoCarpeta, type ResultadoCarpeta } from "../datos/carpeta-abrir";
+import { detalleDe, reportar } from "../errores";
 import { t } from "../i18n";
 import { useIdioma } from "../i18n/react";
 import { esVentana } from "../puente";
@@ -44,11 +46,20 @@ function Imagen({ x }: { x: Extract<Trozo, { tipo: "img" }> }) {
 /** Una carpeta nombrada en un mensaje: un clic la abre en el explorador de archivos. Si no se pudo (no existe, o es un archivo), lo dice el ícono y el aviso. */
 function Carpeta({ ruta }: { ruta: string }) {
   useIdioma();
-  const [fallo, setFallo] = useState(false);
-  const dice = t(fallo ? "archivo.carpetaNoAbrio" : "archivo.carpetaAbrir", { ruta });
+  const [res, setRes] = useState<ResultadoCarpeta | null>(null);
+  const fallo = res !== null && res !== "abierta";
+  const clave = res === "app" ? "archivo.carpetaReiniciar" : res === "no-carpeta" ? "archivo.carpetaNoAbrio" : "archivo.carpetaAbrir";
+  const dice = t(clave, { ruta });
   const Ico = fallo ? FolderX : FolderOpen;
   return (
-    <button type="button" className="ruta-carpeta" data-fallo={fallo ? "" : undefined} aria-label={dice} data-tip={dice} onClick={() => void fuente.carpetaAbrir(ruta).then((ok) => setFallo(!ok))}>
+    <button
+      type="button"
+      className="ruta-carpeta"
+      data-fallo={fallo ? "" : undefined}
+      aria-label={dice}
+      data-tip={dice}
+      onClick={() => void resultadoCarpeta(() => fuente.carpetaAbrir(ruta), (e) => reportar("carpeta", detalleDe(e))).then(setRes)}
+    >
       <code data-ruta="">{ruta}</code>
       <Ico size={12} strokeWidth={2} aria-hidden="true" />
     </button>

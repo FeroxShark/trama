@@ -12,6 +12,7 @@ import { randomBytes } from "node:crypto";
 import http from "node:http";
 import { cerrarDelTodo } from "./cierre.js";
 import { log, silencio } from "./log.js";
+import { vueltaDelMotor } from "./relanzar.js";
 import { armarCanalesVentana, iconosVentana, ventanas } from "./ventana-canales.js";
 
 /** El pedido del socket que devuelve los canales del núcleo (`CANALES` en nucleo.ts; acá no se carga el núcleo). */
@@ -44,9 +45,12 @@ function binarios(this: Record<string, unknown>, k: string, v: unknown) {
  * un pedido sin manejador fallaría). `recargar` vuelve a cargar la página (un motor nuevo).
  * Con un build nuevo el motor avisa `saliendo` (el cartel, `reinicio:cambio`): `motorSaliendo` anota cómo estaba la
  * ventana y, cuando contesta el motor nuevo, `motorNuevo` relanza el proceso en vez de sólo recargar la página.
+ * `sello` (la huella del build, relanzar.ts `selloDe`) se toma acá, al arrancar: si el motor vuelve con `resinc` sin
+ * haber dicho `saliendo` y el build en disco ya no es ése, se relanza igual que con un build nuevo (`vueltaDelMotor`).
  */
-export async function armarCliente(o: { sock: string; recargar: () => void; irse: () => void; motorSaliendo?: () => void; motorNuevo?: () => void }): Promise<Cliente> {
+export async function armarCliente(o: { sock: string; recargar: () => void; irse: () => void; motorSaliendo?: () => void; motorNuevo?: () => void; sello?: () => string | null }): Promise<Cliente> {
   const id = randomBytes(12).toString("hex");
+  const selloAlArrancar = o.sello?.() ?? null;
   let conectado = false;
   let caida = false;
   let fallos = 0;
@@ -187,6 +191,12 @@ export async function armarCliente(o: { sock: string; recargar: () => void; irse
     if (tipo === "resinc") {
       // Otro motor (o se perdió algo que ya no se puede reponer): se empieza de nuevo, y la página se pone al día.
       ultimo = "";
+      // Un build nuevo sin el `saliendo` (esta ventana no lo oyó): si el disco ya no es el que cargó, se relanza como con ese aviso.
+      if (!motorSeVa && o.motorNuevo && o.sello && vueltaDelMotor(selloAlArrancar, o.sello()) === "relanzar") {
+        motorSeVa = true;
+        log.escribir("info", "cliente", "el build en disco cambió sin aviso: se relanza la ventana");
+        o.motorSaliendo?.();
+      }
       if (motorSeVa && o.motorNuevo) {
         if (!relanzando) {
           relanzando = true;

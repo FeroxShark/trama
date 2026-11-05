@@ -3638,4 +3638,5 @@ export const en = {
   "riel.perfilGuardando": "Saving…",
   "riel.perfilFallo": "Couldn't save the profile, it's still \"{perfil}\": {motivo}",
   "riel.perfilLeerFallo": "Couldn't read the delegation profile: {motivo}",
+  "archivo.carpetaReiniciar": "Couldn't ask to open {ruta}: restart Trama so the window catches up",
 } as const;

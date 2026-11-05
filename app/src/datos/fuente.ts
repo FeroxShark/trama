@@ -184,7 +184,7 @@ export interface Fuente {
   tareaSalida(ruta: string): Promise<SalidaTarea | null>;
   /** Lo abre con la app del sistema (sólo la ventana de la PC); `false` si no se pudo. */
   archivoAbrir(ruta: string): Promise<boolean>;
-  /** Abre una carpeta en el explorador de archivos (sólo la ventana de la PC); `false` si no se pudo. */
+  /** Abre una carpeta en el explorador de archivos (sólo la ventana de la PC); `false` si no es una carpeta. Rechaza si el pedido no llegó (datos/carpeta-abrir.ts). */
   carpetaAbrir(ruta: string): Promise<boolean>;
   /**
    * Retomar un líder sin proceso (`Lider.caido`): pasa a ser de la app y queda listo para
@@ -2622,7 +2622,8 @@ const conPa = (m: NonNullable<typeof main>): Fuente => ({
     return (await m.archivo?.abrir(ruta).catch(() => false)) === true;
   },
   async carpetaAbrir(ruta) {
-    return (await m.archivo?.abrirCarpeta(ruta).catch(() => false)) === true;
+    // Sin `catch`: un rechazo (el canal no existe en el main que corre) lo ve quien pidió, no se toma por «no es una carpeta».
+    return (await m.archivo?.abrirCarpeta(ruta)) === true;
   },
   async liderRetomar(sid, x) {
     return retomadoDe(

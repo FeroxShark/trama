@@ -96,6 +96,15 @@ export function lideresConWorkers(hilos: readonly { estado?: unknown; en_cola?: 
   return [...con];
 }
 
+/**
+ * Un motor que avisó `resinc` sin decir `saliendo` (ventana-cliente.ts): si el build que hay en disco ya no es el que
+ * cargó este proceso al arrancar, la ventana se relanza como con un build nuevo; si es el mismo, sólo recarga la página.
+ * Sin huella de alguno de los dos lados (build a medias o sin hacer) se recarga como antes: nunca un relanzo a ciegas.
+ */
+export function vueltaDelMotor(inicial: string | null, ahora: string | null): "relanzar" | "recargar" {
+  return inicial !== null && ahora !== null && inicial !== ahora ? "relanzar" : "recargar";
+}
+
 /** Hace cuánto no pasa nada (`ultima`, ms) como para ofrecer "Reiniciar igual". */
 export const sinEventos = (ultima: number, ahora: number, ms: number = COLGADO_MS) => ahora - ultima >= ms;
 
