@@ -3,8 +3,8 @@
 // con "Unificar en AGENTS.md" (vista previa y confirmación) y un editor de AGENTS.md. Arriba, un resumen de los que tienen las instrucciones
 // repartidas y "Unificar todos": aplica directo sólo los casos mecánicos (unificar-clase.ts) y deja los que hay que fusionar para su tarjeta.
 // Los datos: src/datos/proyectos.ts.
-import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
-import { AlertTriangle, Bot, Check, FileText, GitBranch, ImagePlus, Merge, PencilLine, RotateCcw, Sparkles, X } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { AlertTriangle, Bot, Check, FileText, GitBranch, ImagePlus, Merge, PencilLine, RotateCcw, Search, Sparkles, X } from "lucide-react";
 import { NOMBRE_MAX, validarNombre } from "../../electron/proyectos-nombre";
 import { fuenteProyectos, recargarProyectos, useProyectos, type EstadoMd, type PlanMd, type ProyectoNombre } from "../datos/proyectos";
 import { t, textoMain, type Clave } from "../i18n";
@@ -28,6 +28,8 @@ const CAPTURA = MODO.variante?.startsWith("proyectos-") ? MODO.variante : null;
 /** Lo que pasó con un proyecto en "Unificar todos". */
 type Resultado = { ok: true; backup: string } | { ok: false; fusion: true } | { ok: false; error: string };
 
+const sinTildes = (x: string) => x.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+
 export function Proyectos() {
   useIdioma();
   const lista = useProyectos();
@@ -35,6 +37,7 @@ export function Proyectos() {
   const [error, setError] = useState<string | null>(null);
   const [estados, setEstados] = useState<Record<string, EstadoMd | string>>({});
   const [resultados, setResultados] = useState<Record<string, Resultado>>({});
+  const [buscar, setBuscar] = useState("");
   useEffect(() => {
     let vivo = true;
     recargarProyectos().then(
@@ -57,6 +60,11 @@ export function Proyectos() {
     for (const p of lista) leerMd(p.slug);
   }, [slugs]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // El buscador: por nombre mostrado, nombre, slug, ruta o alias, sin mayúsculas ni tildes.
+  const visibles = useMemo(() => {
+    const q = sinTildes(buscar.trim());
+    return q ? lista.filter((p) => sinTildes([p.titulo ?? "", p.nombre, p.slug, p.ruta, ...p.alias].join(" ")).includes(q)) : lista;
+  }, [lista, buscar]);
   const repartidos = lista.filter((p) => p.existe && typeof estados[p.slug] === "object" && (estados[p.slug] as EstadoMd).porUnificar);
   return (
     <Cat id="proyectos">
@@ -64,6 +72,12 @@ export function Proyectos() {
         <h2 className="pn-h">{t("pry.titulo")}</h2>
         <p className="pn-nota">{t("pry.intro")}</p>
         <p className="pn-nota">{t("pry.instruccionesQue")}</p>
+        {lista.length ? (
+          <div className="aj-busca">
+            <Search className="aj-busca-i" size={15} strokeWidth={2} aria-hidden="true" />
+            <input type="search" className="aj-busca-c" value={buscar} placeholder={t("pry.buscarPh")} aria-label={t("pry.buscar")} onChange={(e) => setBuscar(e.target.value)} />
+          </div>
+        ) : null}
         {error ? <p className="pn-error" role="alert">{tv("pry.error", { e: textoMain(error) })}</p> : null}
         {cargando && !lista.length ? <p className="pn-nota">{t("pry.cargando")}</p> : null}
         {!cargando && !lista.length && !error ? <p className="pn-nota">{t("pry.sinProyectos")}</p> : null}
@@ -81,8 +95,9 @@ export function Proyectos() {
             />
           ) : null}
         </div>
+        {buscar.trim() && !visibles.length ? <p className="pn-nota" role="status">{tv("pry.sinResultados", { q: buscar.trim() })}</p> : null}
         <div className="pry">
-          {lista.map((p, i) => (
+          {visibles.map((p, i) => (
             <div key={p.slug} className="pry-fila" data-proyecto={p.slug} data-nombre-fila data-md-fila>
               <FilaNombre p={p} todos={lista} abierto={CAPTURA === "proyectos-renombrar" && i === 0} />
               <FilaInstrucciones

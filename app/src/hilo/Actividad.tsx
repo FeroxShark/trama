@@ -212,6 +212,8 @@ type Props = {
   crudo?: string | null;
   /** Hace 2 min que no llega nada: desde cuándo (ms). */
   quieto?: number | null;
+  /** Una herramienta andando sin soltar nada desde hace tanto (ms): no es un cuelgue, la tarjeta sigue como trabajando y lo dice en neutro. */
+  callado?: number | null;
   /** "Ver todo" abierto (lo guarda quien la monta: sigue abierto en el próximo turno). */
   abierto: boolean;
   alAbrir: (abierto: boolean) => void;
@@ -228,13 +230,14 @@ const estadoVisible = (quieto: boolean, fallo: boolean) => (fallo ? "fallo" : qu
  * que hace; abajo, la salida (o el comando) en una línea que se funde, "Ver todo" y el modelo. Un solo estado: el punto que late y el tiempo.
  * Parar queda sólo en la caja: siempre a la vista, aunque se suba por la conversación.
  */
-export function Actividad({ act, hace, pasos, pasosN, desde, tokens, tierno, razon, modelo, effort, salida, crudo, quieto = null, abierto, alAbrir, fallo, saliendo }: Props) {
+export function Actividad({ act, hace, pasos, pasosN, desde, tokens, tierno, razon, modelo, effort, salida, crudo, quieto = null, callado = null, abierto, alAbrir, fallo, saliendo }: Props) {
   // El latido (el punto y la escena) corre mientras la tarjeta está viva.
   const viva = !fallo && !saliendo;
   useEffect(() => (viva ? latir() : undefined), [viva]);
   const [todos, setTodos] = useState(false);
   const dura = useMemo(() => (desde !== null ? pintorDura(desde) : null), [desde]);
   const sinNovedad = useMemo(() => (quieto !== null ? pintorDura(quieto / 1000, () => `${t("hz.quieto")} `) : null), [quieto]);
+  const sinSalida = useMemo(() => (callado !== null ? pintorDura(callado / 1000, () => `${t("hz.callado")} `) : null), [callado]);
   const conRazon = !!razon && !fallo;
   const frase = fraseDe({ act, hace, pasos, salida, pensando: razon?.pensando, fallo: !!fallo });
   const lineas = pasos.map((p) => ({ l: lineaPaso(p), i: iconoDe(p.hace) })).filter((x): x is { l: string; i: Icono } => x.l !== null);
@@ -282,6 +285,12 @@ export function Actividad({ act, hace, pasos, pasosN, desde, tokens, tierno, raz
               <span className="tv-est" aria-label={t("estado.trabajando")}>
                 <i className={saliendo ? "tv-punto" : "tv-punto late"} />
                 <Reloj pintor={dura} className="tv-x" />
+                {sinSalida ? (
+                  <>
+                    <span aria-hidden="true">·</span>
+                    <Reloj pintor={sinSalida} className="tv-x" />
+                  </>
+                ) : null}
               </span>
             ) : null}
           </div>

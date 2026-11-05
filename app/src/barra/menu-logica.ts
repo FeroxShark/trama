@@ -18,7 +18,9 @@ export type Accion =
   | "subir"
   | "bajar"
   | "defecto"
-  | "prioridad";
+  | "prioridad"
+  | "logo"
+  | "logoQuitar";
 
 /** Una opción del menú. `confirmar`: el primer Enter/clic sólo pregunta (en el mismo ítem); `peligro`: en rojo. */
 export type Opcion = { a: Accion; confirmar?: boolean; peligro?: boolean };
@@ -75,5 +77,13 @@ export function accionesLider(l: Pick<Lider, "origen" | "ocupado">, settle: numb
   ];
 }
 
-/** Una carpeta: un líder nuevo que ya nace en ella, esconder (o volver a mostrar) sus workers terminados y su lugar en el orden. */
-export const accionesCarpeta = (oculta: boolean, lugar?: LugarMenu): Opcion[] => [{ a: "nueva" }, { a: oculta ? "mostrar" : "ocultar" }, ...delOrden(lugar)];
+/**
+ * Una carpeta: un líder nuevo que ya nace en ella, esconder (o volver a mostrar) sus workers terminados y su lugar en el orden.
+ * `logo` (sólo si es un proyecto con registro: no el home ni «otras»): renombrarlo, cambiar el logo a mano y, si ya tiene uno elegido, volver al automático.
+ */
+export const accionesCarpeta = (oculta: boolean, lugar?: LugarMenu, logo?: { propio: boolean }): Opcion[] => [
+  { a: "nueva" },
+  { a: oculta ? "mostrar" : "ocultar" },
+  ...delOrden(lugar),
+  ...(logo ? [{ a: "renombrar" } as const, { a: "logo" } as const, ...(logo.propio ? [{ a: "logoQuitar" } as const] : [])] : []),
+];

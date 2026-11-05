@@ -188,7 +188,7 @@ const QUIETO_FIJO = Date.now() - SIN_NOVEDADES_MS - 5000;
  * Hace 2 min que no llega salida ni tokens: desde cuándo (ms); si no, `null`. No repinta con cada delta (el valor no cambia mientras hay
  * novedades); un timer lo vuelve a mirar cuando vence el plazo, porque justamente no va a llegar ningún evento que avise.
  */
-export function useQuietoDesde(sid: string): number | null {
+function useSilencioDesde(sid: string): number | null {
   const [, mirar] = useReducer((n: number) => n + 1, 0);
   const desde = useSyncExternalStore(
     useCallback((fn: () => void) => suscribir(sid, fn), [sid]),
@@ -204,6 +204,19 @@ export function useQuietoDesde(sid: string): number | null {
   return desde;
 }
 
+/**
+ * Un comando o herramienta andando puede tardar muchos minutos sin soltar nada (un build, una descarga): eso no es un cuelgue, así que no
+ * va como «Sin novedades» (pausa, Parar resaltado). Queda `quieto` sólo para lo demás (el modelo callado) y `callado` para la herramienta:
+ * la tarjeta sigue como trabajando y agrega, en neutro, hace cuánto no sale nada.
+ */
+export function useSilencio(sid: string): { quieto: number | null; callado: number | null } {
+  const d = useSilencioDesde(sid);
+  const herramienta = enCurso(sid).ind.hace?.que === "herramienta";
+  return { quieto: herramienta ? null : d, callado: herramienta ? d : null };
+}
+
+export const useQuietoDesde = (sid: string): number | null => useSilencio(sid).quieto;
+
 const MS_PLIEGUE = 200;
 const reducido = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -217,7 +230,7 @@ export function HaceChat({ sid, modelo, effort, piensa = false, error }: { sid: 
   const salida = useSyncExternalStore(sub, () => enCurso(sid).salida);
   const crudo = useSyncExternalStore(sub, () => comandoCrudo(sid));
   const fin = useSyncExternalStore(sub, () => enCurso(sid).fin);
-  const quieto = useQuietoDesde(sid);
+  const { quieto, callado } = useSilencio(sid);
   // Un motor que deja ver su razonamiento (Gemini, o Claude con el suyo; se sabe por el modelo o porque ya llegó uno): el progreso
   // del turno en "Ver todo" (pensamientos plegados y herramientas, en orden), en vez de la frase tierna. Los que no lo traen siguen como siempre.
   const razonaYa = useRazona(sid);
@@ -290,6 +303,7 @@ export function HaceChat({ sid, modelo, effort, piensa = false, error }: { sid: 
     salida,
     crudo,
     quieto: pide.length ? null : quieto,
+    callado: pide.length ? null : callado,
     abierto,
     alAbrir: setAbierto,
   };

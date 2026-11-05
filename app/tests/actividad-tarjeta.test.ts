@@ -159,6 +159,18 @@ test("sin novedades: ámbar con la palabra, sin punto que late", () => {
   cambiarIdioma("es");
 });
 
+test("un comando largo y callado no es un cuelgue: sigue como trabajando, con el punto que late y hace cuánto no sale nada", () => {
+  cambiarIdioma("es");
+  const html = tarjeta({ hace: bash("make build", "Compilando"), callado: Date.now() - 360_000 });
+  assert.match(html, /data-estado="corre"/);
+  assert.match(html, /tv-punto late/);
+  assert.doesNotMatch(html, /data-estado="quieto"/);
+  assert.equal(pintorDura(AHORA - 360, () => `${t("hz.callado")} `)(AHORA).texto, "sin salida hace 6 m");
+  cambiarIdioma("en");
+  assert.equal(pintorDura(AHORA - 360, () => `${t("hz.callado")} `)(AHORA).texto, "no output for 6 m");
+  cambiarIdioma("es");
+});
+
 test("un permiso: Te necesita, con qué", () => {
   cambiarIdioma("es");
   const pide = { id: "p1", nombre: "Bash", detalle: "git push origin main", tipo: "permiso" };

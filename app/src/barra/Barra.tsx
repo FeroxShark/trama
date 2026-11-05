@@ -30,7 +30,7 @@ import { leerBorrador, llenarBorrador, soltarBorrador } from "../hilo/borradores
 import { BORRADOR_LIDER } from "../hilo/Lider";
 import { llanaRuta } from "../hilo/carpeta-nueva";
 import { ponerSeleccion } from "../hilo/carpeta-nueva-estado";
-import { useProyectos } from "../datos/proyectos";
+import { fuenteProyectos, useProyectos } from "../datos/proyectos";
 import { fantasma, MODELO_DEFAULT, MODELOS, MODELOS_WORKER, modeloDe, primeraLinea } from "../hilo/opciones";
 import { SeguirCon } from "../hilo/SeguirCon";
 import { ClaudeCode } from "./ClaudeCode";
@@ -195,6 +195,8 @@ type Renombrando = {
   caja: { left: number; top: number; width: number; height: number };
   letra: string;
   origen: HTMLElement | null;
+  /** Es el nombre de un proyecto (no el título de un hilo): se guarda con `fuenteProyectos.renombrar` por su slug. */
+  proyecto?: boolean;
 };
 
 const NOMBRES0: Nombres = { titulos: {}, proyectos: {}, ocultos: [], orden: ORDEN0 };
@@ -1482,6 +1484,46 @@ export function Barra() {
     setMenu({ x, y, de, origen });
   };
 
+  /** Al proyecto se le puede poner logo si es una carpeta de verdad (no el home ni «otras») y hay selector de archivos (la ventana). */
+  const puedeLogo = (proyecto: string) => proyecto !== GENERAL && proyecto !== OTRAS && !!main?.archivo;
+
+  /** Clic derecho en el ícono del riel: el mismo menú de la carpeta, abierto junto al ícono. */
+  const menuDeRiel = (proyecto: string, e: RatonReact) => {
+    e.preventDefault();
+    const origen = e.currentTarget as HTMLElement;
+    const r = origen.getBoundingClientRect();
+    setRenombrando(null);
+    setMenu({ x: r.right + 4, y: r.top, de: { tipo: "carpeta", proyecto }, origen });
+  };
+
+  /** Renombrar un proyecto (sólo cambia cómo se muestra): el campo aparece sobre el ícono o el encabezado desde el que se abrió el menú. */
+  const renombrarProyecto = (slug: string, origen: HTMLElement | null) => {
+    setMenu(null);
+    if (!origen) return;
+    const reg = proyectosReg.find((x) => x.slug === slug);
+    const r = origen.getBoundingClientRect();
+    setRenombrando({
+      id: slug,
+      valor: reg?.titulo ?? reg?.nombre ?? slug,
+      original: reg?.nombre ?? slug,
+      caja: { left: r.left, top: r.top, width: Math.max(r.width, 200), height: Math.max(r.height, 32) },
+      letra: getComputedStyle(origen).font,
+      origen,
+      proyecto: true,
+    });
+  };
+
+  /** Elegir el logo a mano (selector nativo) o volver al automático; el resultado se ve al toque en el riel. */
+  const cambiarLogo = async (proyecto: string, quitar: boolean) => {
+    try {
+      if (quitar) return void (await fuenteProyectos.logo(proyecto, null));
+      const url = await main?.archivo?.elegirLogo();
+      if (url) await fuenteProyectos.logo(proyecto, url);
+    } catch {
+      // Si no se pudo, queda el logo de antes; el detalle del motivo está en Ajustes > Proyectos.
+    }
+  };
+
   const cerrarMenu = () => {
     menu?.origen?.focus();
     setMenu(null);
@@ -1502,6 +1544,10 @@ export function Barra() {
     setRenombrando(null);
     r.origen?.focus();
     const t = primeraLinea(texto).slice(0, 200);
+    if (r.proyecto) {
+      if (t !== r.valor) void fuenteProyectos.renombrar(r.id, !t || t === r.original ? null : t).catch(() => {});
+      return;
+    }
     const quitar = !t || t === r.original;
     if (t === r.valor || (quitar && !nombres.titulos[r.id])) return;
     setNombres((n) => {
@@ -1670,7 +1716,10 @@ export function Barra() {
       return;
     }
     listo();
-    if (o.a === "subir" || o.a === "bajar") asentarOrden(pasoOrden(m.de, o.a === "subir" ? -1 : 1));
+    if (o.a === "renombrar") return renombrarProyecto(p, m.origen);
+    if (o.a === "logo") void cambiarLogo(p, false);
+    else if (o.a === "logoQuitar") void cambiarLogo(p, true);
+    else if (o.a === "subir" || o.a === "bajar") asentarOrden(pasoOrden(m.de, o.a === "subir" ? -1 : 1));
     else if (o.a === "defecto") ordenPorDefecto();
     else if (o.a === "prioridad") alternarPrioridad();
     else if (o.a === "ocultar" || o.a === "mostrar") ocultarTerminados(p, o.a === "ocultar");
@@ -1750,7 +1799,7 @@ export function Barra() {
         ocupado = l.ocupado;
         ops = accionesLider(l, s, lugarMenu(de));
       }
-    } else ops = accionesCarpeta(ocultos.has(de.proyecto), lugarMenu(de));
+    } else ops = accionesCarpeta(ocultos.has(de.proyecto), lugarMenu(de), puedeLogo(de.proyecto) ? { propio: !!proyectosReg.find((x) => x.slug === de.proyecto)?.logo } : undefined);
     const texto: Record<Opcion["a"], string> = {
       renombrar: tr("menu.renombrar"),
       mover: tr("menu.mover"),
@@ -1767,6 +1816,8 @@ export function Barra() {
       bajar: tr("menu.bajar"),
       defecto: tr("menu.ordenDefecto"),
       prioridad: tr(porPrioridad ? "menu.ordenFijo" : "menu.ordenPrioridad"),
+      logo: tr("pry.logoCambiar"),
+      logoQuitar: tr("pry.logoQuitar"),
     };
     const seguro: Partial<Record<Opcion["a"], string>> = {
       settle: tr(settle > 0 ? "menu.settleSeguro" : "menu.archivarLiderSeguro", { n: settle }),
@@ -1821,6 +1872,7 @@ export function Barra() {
               filtro={filtroVigente}
               viendo={carpetaActiva ?? null}
               alFiltrar={setFiltroProy}
+              alMenu={menuDeRiel}
               alOcultar={alternarBarra}
               cupos={<CuposRiel />}
               pie={

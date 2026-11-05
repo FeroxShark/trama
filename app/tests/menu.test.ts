@@ -53,3 +53,8 @@ test("orden a mano: Subir y Bajar sólo si hay adónde, Orden por defecto sólo 
   assert.deepEqual(as(accionesCarpeta(false, prendido)), ["nueva", "ocultar", "subir", "bajar", "defecto", "prioridad"]);
   assert.deepEqual(as(accionesCarpeta(true)), ["nueva", "mostrar"]);
 });
+
+test("carpeta con logo: cambiar siempre, y volver al automático sólo si ya tiene uno elegido", () => {
+  assert.deepEqual(as(accionesCarpeta(false, undefined, { propio: false })), ["nueva", "ocultar", "renombrar", "logo"]);
+  assert.deepEqual(as(accionesCarpeta(false, undefined, { propio: true })), ["nueva", "ocultar", "renombrar", "logo", "logoQuitar"]);
+});

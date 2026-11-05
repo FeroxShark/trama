@@ -2,7 +2,7 @@
 // proyecto que filtra la lista (× si algo falló, ? si algo te espera y un punto que late si algo corre: siempre con su nombre en el tooltip
 // y su frase en el aria-label), los dos anillos de cupos y los íconos de los paneles. Una pestaña del color del proyecto, del lado del
 // borde, dice cuál se está filtrando y cuál se está mirando: el hilo que sale del riel hacia la lista.
-import { useEffect, type CSSProperties, type ReactNode } from "react";
+import { useEffect, type CSSProperties, type MouseEvent, type ReactNode } from "react";
 import { Folders, Home, PanelLeft } from "lucide-react";
 import { GENERAL } from "../datos/contrato";
 import { MODO } from "../modo";
@@ -26,6 +26,8 @@ type Props = {
   viendo: string | null;
   alFiltrar: (proyecto: string | null) => void;
   alOcultar: () => void;
+  /** Clic derecho en el ícono de un proyecto. */
+  alMenu: (proyecto: string, e: MouseEvent<HTMLButtonElement>) => void;
   /** Los anillos de cupos. */
   cupos: ReactNode;
   /** Los íconos de los paneles. */
@@ -35,7 +37,7 @@ type Props = {
 /** El color de un proyecto, el mismo en su cuadrado del riel y en su encabezado de la lista. */
 export const estiloProyecto = (proyecto: string): CSSProperties => ({ "--h": tonoRiel(proyecto) }) as CSSProperties;
 
-export function Riel({ items, filtro, viendo, alFiltrar, alOcultar, cupos, pie }: Props) {
+export function Riel({ items, filtro, viendo, alFiltrar, alMenu, alOcultar, cupos, pie }: Props) {
   useIdioma();
   const titulos = useTitulos();
   const iconos = useIconos();
@@ -71,6 +73,7 @@ export function Riel({ items, filtro, viendo, alFiltrar, alOcultar, cupos, pie }
               aria-label={aria}
               data-tip={nombre}
               onClick={() => alFiltrar(filtro === it.proyecto ? null : it.proyecto)}
+              onContextMenu={(e) => alMenu(it.proyecto, e)}
             >
               {otras ? (
                 <Folders size={15} strokeWidth={2} aria-hidden="true" />
