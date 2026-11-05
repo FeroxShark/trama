@@ -52,30 +52,36 @@ function guia(id: string, version: number, pasos: Paso[], requiere?: string): Gu
 
 export const GUIAS: readonly Guia[] = [
   // La pantalla de siempre: la barra de la izquierda.
-  guia("principal", 2, [
+  guia("principal", 3, [
     paso("principal", "uso", dg("uso"), { lado: "derecha" }),
     paso("principal", "riel", dg("riel"), { lado: "derecha", desde: 2 }),
+    paso("principal", "perfil", dg("perfil-riel"), { lado: "derecha", desde: 3 }),
     paso("principal", "proyectos", ".lista .proy", { lado: "derecha" }),
     paso("principal", "nueva", dg("nueva"), { lado: "abajo" }),
+    paso("principal", "limpiar", dg("limpiar-chats"), { lado: "abajo", desde: 3 }),
     paso("principal", "pie", dg("pie"), { lado: "derecha" }),
   ]),
   // El primer chat con un líder.
   guia(
     "lider",
-    1,
+    2,
     [
       paso("lider", "cabecera", ".hilo .migas", { lado: "abajo" }),
       paso("lider", "charla", ".hilo .conv-zona", { lado: "izquierda" }),
+      paso("lider", "tablero", dg("dejado-tablero"), { lado: "arriba", desde: 2 }),
+      paso("lider", "fondo", dg("fondo"), { lado: "arriba", desde: 2 }),
       paso("lider", "contexto", ".caja .ctx", { lado: "arriba" }),
+      paso("lider", "cuenta", dg("cuenta-lider"), { lado: "arriba", desde: 2 }),
     ],
     ".hilo .caja .ctx",
   ),
   // La caja donde se escribe (líder nuevo o abierto).
   guia(
     "caja",
-    1,
+    2,
     [
       paso("caja", "texto", ".caja textarea", { lado: "arriba" }),
+      paso("caja", "carpeta", dg("carpeta-auto"), { lado: "arriba", desde: 2 }),
       paso("caja", "modo", ".caja .modo", { lado: "arriba" }),
       paso("caja", "modelo", ".caja .pick", { indice: 0, lado: "arriba" }),
       paso("caja", "esfuerzo", ".caja .pick", { indice: 1, lado: "arriba" }),
@@ -118,13 +124,22 @@ export const GUIAS: readonly Guia[] = [
     paso("ajustes-proyectos", "nombres", op("proyectos", "pry.nombres"), { lado: "abajo" }),
     paso("ajustes-proyectos", "agents", op("proyectos", "pry.instrucciones"), { lado: "abajo" }),
   ]),
+  guia("ajustes-conectores", 1, [
+    paso("ajustes-conectores", "orden", dg("conectores-orden"), { lado: "abajo" }),
+    paso("ajustes-conectores", "plugins", dg("plugins-catalogo"), { lado: "abajo" }),
+    paso("ajustes-conectores", "descubrir", dg("descubrir"), { lado: "abajo" }),
+  ]),
   guia("ajustes-guia", 1, [
     paso("ajustes-guia", "guias", op("guia", "tour.mostrar"), { lado: "abajo" }),
     paso("ajustes-guia", "temas", `[data-cat="guia"] .gu-tema`, { lado: "abajo" }),
     paso("ajustes-guia", "agents", op("guia", "guia.agents"), { lado: "abajo" }),
   ]),
   // Los paneles del pie.
-  guia("ramas", 1, [paso("ramas", "rama", ".pn-ramas .pn-rama", { lado: "abajo" }), paso("ramas", "auto", ".pn-ramas-cab .pn-llave", { lado: "abajo" })]),
+  guia("ramas", 2, [
+    paso("ramas", "rama", ".pn-ramas .pn-rama", { lado: "abajo" }),
+    paso("ramas", "auto", ".pn-ramas-cab .pn-llave", { lado: "abajo" }),
+    paso("ramas", "limpiar", dg("limpiar-ramas"), { lado: "abajo", desde: 2 }),
+  ]),
   // Lo de Ramas que sólo existe después de que el analista contestó: su propia guía, para que no se dé por vista antes de poder verse.
   guia(
     "ramas-analisis",
@@ -142,8 +157,9 @@ export const GUIAS: readonly Guia[] = [
     paso("estadisticas", "dias", ".pn-barras", { lado: "arriba" }),
     paso("estadisticas", "tendencia", ".pn-tabla", { lado: "arriba" }),
   ]),
-  guia("tablero", 1, [
+  guia("tablero", 2, [
     paso("tablero", "vistas", ".tb-vistas", { lado: "abajo" }),
+    paso("tablero", "limpiar", dg("tablero-limpiar"), { lado: "abajo", desde: 2 }),
     paso("tablero", "esperan", ".pd-lista", { lado: "abajo" }),
     paso("tablero", "fila", ".pd-lista .pd-fila", { lado: "abajo" }),
     paso("tablero", "lecciones", ".lc-aviso", { lado: "abajo" }),
