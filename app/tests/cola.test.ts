@@ -10,7 +10,7 @@ const SID = "5a1f0c1d-0000-4000-8000-00000000c01a";
 const tic = () => new Promise((r) => setImmediate(r));
 
 /** Una cola con un líder de mentira: su estado a mano, y lo que se trae, manda, guarda y avisa queda anotado. */
-function armar({ disp = "ocupado" as Disponible, falla = false, canal = false, fallaTurno = false } = {}) {
+function armar({ disp = "ocupado" as Disponible, falla = false, canal = false, fallaTurno = false, agrupar = 5 } = {}) {
   const e = { disp, falla, canal, fallaTurno, motivo: null as string | null };
   const mandados: string[] = [];
   /** Lo que entró a mitad de un turno (sin interrumpir). */
@@ -44,7 +44,7 @@ function armar({ disp = "ocupado" as Disponible, falla = false, canal = false, f
       if (e.fallaTurno) throw new Error("sin canal");
       enTurnos.push(x);
     },
-    agrupar: 5,
+    agrupar,
   });
   /** El `mandar` en curso contesta (o falla). */
   const contestar = async () => {
@@ -58,7 +58,7 @@ function armar({ disp = "ocupado" as Disponible, falla = false, canal = false, f
     await tic();
   };
   /** Pasa el rato de agrupar a mitad de un turno. */
-  const pausa = () => new Promise((r) => setTimeout(r, 30));
+  const pausa = () => new Promise((r) => setTimeout(r, agrupar + 25));
   return { e, cola, mandados, enTurnos, traidos, avisos, contestar, finDeTurno, pausa, guardado: () => guardado };
 }
 
@@ -94,7 +94,8 @@ test("ocupado + enviar = en cola; sin canal a mitad de turno, todo sale junto al
 });
 
 test("con canal a mitad de turno: dos encolados salen en UN solo mensaje, sin interrumpir ni esperar al fin del turno", async () => {
-  const a = armar({ canal: true });
+  // Este mira qué pasa ANTES de que venza la espera: con 5 ms, en un CI cargado vence antes del primer `tic`.
+  const a = armar({ canal: true, agrupar: 500 });
   a.cola.encolar(SID, x("uno"));
   a.cola.encolar(SID, x("dos"));
   await tic();

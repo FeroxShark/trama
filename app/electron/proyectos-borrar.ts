@@ -47,7 +47,8 @@ export async function contarVivos(
   hilos: readonly { proyecto?: unknown; estado?: unknown; en_cola?: unknown }[],
   plat: Plataforma = plataformaActual(),
 ): Promise<Vivos> {
-  const raiz = claveRuta(p.ruta, plat);
+  // Las dos puntas con realpath: la ruta del registry puede venir por un enlace o, en Windows, con su nombre corto (RUNNER~1), y un líder vivo no se contaría.
+  const raiz = claveRuta(await real(p.ruta), plat);
   const sep = plat === "win32" ? "\\" : "/";
   let n = 0;
   for (const l of lideres) {

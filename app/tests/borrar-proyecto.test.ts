@@ -1,7 +1,7 @@
 // «Borrar proyecto…» (electron/proyectos-borrar.ts): quitar de Trama, deshacer, negarse con trabajo vivo y cada guarda de la ruta antes de la papelera.
 // Registry y HOME temporales, `trash` falso inyectado: no se manda nada real a ninguna papelera, ni se toca el `pa` ni los líderes de verdad.
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync as realpathJs, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -14,6 +14,8 @@ import { contarVivos, motivoPapelera, papeleraProyecto, quitarProyecto, reactiva
 import { mapaQuitados, mapaReemplazos } from "../electron/reemplazos.ts";
 import { textoT } from "../electron/errores.ts";
 
+// El nativo, como el de `real`: en Windows expande el nombre corto de la carpeta temporal (RUNNER~1).
+const realpathSync = realpathJs.native;
 const tmp = realpathSync(mkdtempSync(path.join(os.tmpdir(), "borrar-")));
 test.after(() => rmSync(tmp, { recursive: true, force: true }));
 
@@ -111,6 +113,7 @@ test("se niega con líderes con proceso o workers de pa vivos: el registry no ca
 
 test("contarVivos: líderes con proceso dentro de la carpeta y workers vivos del proyecto (trabajando, colgado o en cola)", async () => {
   const ruta = carpeta("atlas");
+  mkdirSync(path.join(ruta, "src"), { recursive: true });
   const hilos = [
     { proyecto: "atlas", estado: "trabajando" },
     { proyecto: "atlas", estado: "colgado" },
@@ -121,6 +124,14 @@ test("contarVivos: líderes con proceso dentro de la carpeta y workers vivos del
   ];
   const lideres = [{ cwd: ruta }, { cwd: path.join(ruta, "src") }, { cwd: carpeta("duna") }, {}];
   assert.deepEqual(await contarVivos({ slug: "atlas", ruta }, lideres, hilos), { lideres: 2, workers: 3 });
+  // La ruta del registry por un enlace: el líder, que corre en la carpeta real, cuenta igual.
+  const enlace = path.join(tmp, "enlace-atlas");
+  try {
+    symlinkSync(ruta, enlace, "junction");
+    assert.equal((await contarVivos({ slug: "atlas", ruta: enlace }, [{ cwd: ruta }], [])).lideres, 1);
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code !== "EPERM") throw e;
+  }
   // Una carpeta con el mismo prefijo (atlas-2) no cuenta.
   assert.deepEqual(await contarVivos({ slug: "atlas", ruta }, [{ cwd: `${ruta}-2` }], []), { lideres: 0, workers: 0 });
 });
