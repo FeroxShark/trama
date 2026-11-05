@@ -401,9 +401,10 @@ test("probar: un reinicio nuevo (NRestarts sube) también cuenta como caída, au
 test("probar: mientras carga sin caerse no la corta, aunque llama.cpp avise que no le queda margen", async () => {
   // active/running y el aviso del primer segundo: sigue esperando a mi-conmutador, que acá termina bien.
   const e = await entorno({ cuelga: { show: "ActiveState=active\nSubState=running\nNRestarts=0\n", journal: JOURNAL_OOM.split("\n")[0] } });
+  const r = probarLocal({ id: "modelo-local-ejemplo", ctx: 65536 }, e.d);
   try {
-    const r = probarLocal({ id: "modelo-local-ejemplo", ctx: 65536 }, e.d);
-    await new Promise((ok) => setTimeout(ok, 30));
+    // Esperar la parada de antes de cargar (no un tiempo fijo: bajo carga el probe tarda más que 30 ms en llegar a ella).
+    await esperarHasta(() => e.acciones().some((a) => a.includes("stop")));
     assert.equal(e.acciones().filter((a) => a.includes("stop")).length, 1, "sólo la parada de antes de cargar");
     // Ninguna parada la suelta: se la suelta a mano, como si mi-conmutador hubiera visto el /health.
     await e.d.ejecutar("systemctl", ["--user", "stop", "x"], {});
@@ -411,6 +412,9 @@ test("probar: mientras carga sin caerse no la corta, aunque llama.cpp avise que 
     // El falso la suelta con error: lo que importa es que no la cortó el vigía.
     assert.equal(res.ok, false);
   } finally {
+    // Si falló antes de soltarla, se suelta acá: el probe no queda colgado (ni el lock `probando`) ni escribe en la carpeta que se borra.
+    await e.d.ejecutar("systemctl", ["--user", "stop", "x"], {}).catch(() => {});
+    await r.catch(() => {});
     await e.limpiar();
   }
 });
