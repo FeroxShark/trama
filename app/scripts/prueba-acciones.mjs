@@ -1071,6 +1071,16 @@ try {
     "Retomar abre un líder con el prompt (mirar la rama, --seguir)",
   );
   ok(arranques().length === antesR + 1, "Retomar lanza un líder nuevo");
+
+  // --- Carpeta Auto de punta a punta: el mensaje nombra un proyecto del registry y el líder corre en su carpeta ---
+  const antesAuto = arranques().length;
+  await tecla("N", CTRL | SHIFT);
+  ok(await hasta(() => document.querySelector(".migas .ruta b")?.textContent.includes("Nuevo líder"), "chat nuevo"), "se abre otro líder nuevo");
+  ok(/Auto/.test(await en(() => document.querySelector(".caja-zona .caja-carpeta")?.textContent ?? "")), "vuelve a arrancar en Auto (lo elegido a mano no se arrastra)");
+  ok(await mandar("revisá el build de brote"), "Mandar nombrando un proyecto");
+  ok(await hasta(() => [...document.querySelectorAll(".conv .el")].some((e) => e.textContent.includes("eco: revisá el build de brote")), "eco auto"), "contesta");
+  const delAuto = arranques().slice(antesAuto);
+  ok(delAuto.length === 1 && delAuto[0].cwd === path.join(tmp, "proy", "brote"), `Auto: el líder corre en la carpeta del proyecto que nombra el mensaje (${delAuto[0]?.cwd})`);
 } catch (e) {
   ok(false, String(e?.stack ?? e));
 } finally {
