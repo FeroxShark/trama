@@ -46,6 +46,8 @@ test("las tareas de fondo van aparte, con las cortadas", () => {
   assert.equal(resumenPasos([uso("Bash", {}, ok), fondo(mal)]), "Ran a command, finished a background task (1 stopped)");
   assert.equal(resumenPasos([fondo(ok), fondo(ok)]), "Finished 2 background tasks");
   assert.equal(resumenPasos([fondo()]), "Started a background task");
+  // El acuse no es el final: "lanzó", no "terminó".
+  assert.equal(resumenPasos([fondo({ texto: "Command running in background with ID: b1.", error: false })]), "Started a background task");
   cambiarIdioma("es");
   assert.equal(resumenPasos([uso("Bash", {}, ok), fondo(mal), fondo(ok)]), "Corrió un comando, terminó 2 tareas de fondo (1 cortada)");
   cambiarIdioma("en");

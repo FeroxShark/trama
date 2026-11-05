@@ -1,0 +1,80 @@
+/* Lo que corre de fondo: una pastilla arriba de la caja, y su lista. */
+.bgt {
+  min-width: 0;
+  margin-bottom: var(--esp-1-5);
+}
+.bgt-p {
+  display: inline-flex;
+  max-width: 100%;
+  min-width: 0;
+  align-items: center;
+  gap: var(--esp-1-5);
+  padding: var(--esp-1) var(--esp-3);
+  border: 0;
+  border-radius: var(--r-md);
+  background: var(--sup-3);
+  color: var(--texto-2);
+  font: inherit;
+  font-size: var(--letra-5);
+  cursor: pointer;
+}
+.bgt-p > svg {
+  flex: none;
+}
+.bgt-n {
+  flex: none;
+  font-weight: 600;
+}
+.bgt-que {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bgt-t {
+  flex: none;
+  color: var(--texto-7);
+  font-variant-numeric: tabular-nums;
+}
+.bgt-p[aria-expanded="true"] > .bgt-v {
+  transform: rotate(180deg);
+}
+.bgt-gira {
+  animation: bgt-gira 1.4s linear infinite;
+}
+@keyframes bgt-gira {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .bgt-gira {
+    animation: none;
+  }
+}
+.bgt-l {
+  display: grid;
+  max-height: 11rem;
+  gap: var(--esp-1-5);
+  margin: var(--esp-1) 0 0;
+  padding: var(--esp-2) var(--esp-3);
+  overflow-y: auto;
+  border-radius: var(--r-md);
+  background: var(--sup-3);
+  font-size: var(--letra-5);
+  list-style: none;
+}
+.bgt-l > li {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0 var(--esp-3);
+}
+.bgt-l code {
+  grid-column: 1 / -1;
+  overflow: hidden;
+  color: var(--texto-7);
+  font-family: var(--font-mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

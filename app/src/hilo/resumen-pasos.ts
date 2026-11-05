@@ -3,6 +3,7 @@
 // fondo (Bash con `run_in_background`, un Agent en segundo plano) van aparte: "terminó una tarea de fondo (1 cortada)". Puro: lo prueba
 // `tests/resumen-pasos.test.ts`.
 import { t } from "../i18n/index.ts";
+import { esAcuseFondo } from "./fondo-logica.ts";
 import type { Uso } from "./herramientas.ts";
 
 export type Conteo = {
@@ -34,7 +35,7 @@ export function contar(usos: Uso[]): Conteo {
   for (const u of usos) {
     if (enFondo(u)) {
       const r = u.det?.resultado;
-      if (!r) c.fondoVivas++;
+      if (!r || (!r.error && esAcuseFondo(r.texto))) c.fondoVivas++;
       else {
         c.fondoListas++;
         if (r.error) c.fondoCortadas++;

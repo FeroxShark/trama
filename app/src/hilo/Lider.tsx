@@ -80,6 +80,7 @@ import { directo, ESTILOS_FABRICA, menuEn, moverSel, parsearComando, reemplazar,
 import { esVentana, main, mensaje } from "../puente";
 import { agregarAdjuntos, archivosDe, archivosDeDatos, type Adjunto, ErrorAdjunto, escucharAdjuntos, imagenesDe, leerAdjuntos, pegadoSinTexto, prepararAdjunto, quitarAdjunto, textoConArchivos, vaciarAdjuntos } from "./adjuntos";
 import { Bandeja } from "./Bandeja";
+import { Fondo } from "./Fondo";
 import { Adjuntos, Miniaturas } from "./Imagenes";
 import { Dictar } from "./Dictar";
 import { Logo } from "./Logos";
@@ -1270,6 +1271,7 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
           </div>
         ) : null}
         {l ? <Bandeja key={l.id} sid={l.id} ajeno={ajeno} directo={puedeDirecto} ocupado={ocupado} ind={vivo.ind} parando={vivo.parando} alParar={app ? parar : null} alAbrirHilo={alAbrirHilo} alError={setError} /> : null}
+        {l && !l.caido ? <Fondo mensajes={mensajes} /> : null}
         {puede ? (
           <div className="caja" data-arrastra={arrastra ? "" : undefined}>
             {menu.length ? (

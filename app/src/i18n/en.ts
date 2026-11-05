@@ -1577,6 +1577,7 @@ export const en = {
   "archivo.cargando": "Loading file…",
   "archivo.noDisponible": "File no longer available: {nombre}",
   "archivo.noAbrio": "Couldn't open it with the system app",
+  "fondo.cuantas": "{n} in background",
   "archivo.carpetaAbrir": "Open the folder {ruta}",
   "archivo.carpetaNoAbrio": "Couldn't open {ruta}: it isn't a folder on this machine",
   "archivo.sistema": "Open with the system app",

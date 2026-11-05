@@ -1565,6 +1565,7 @@ export const es: { [K in keyof typeof en]: string } = {
   "archivo.cargando": "Cargando archivo…",
   "archivo.noDisponible": "Archivo ya no disponible: {nombre}",
   "archivo.noAbrio": "No se pudo abrir con la app del sistema",
+  "fondo.cuantas": "{n} de fondo",
   "archivo.carpetaAbrir": "Abrir la carpeta {ruta}",
   "archivo.carpetaNoAbrio": "No se pudo abrir {ruta}: no es una carpeta de esta máquina",
   "archivo.sistema": "Abrir con la app del sistema",

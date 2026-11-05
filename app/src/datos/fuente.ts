@@ -808,7 +808,21 @@ function charlaImagenes(sid: string): Mensaje[] {
     ts,
     modelo: c[0]?.modelo ?? null,
   };
-  return [yo, ...c, veo].map((m, i) => ({ ...m, i }));
+  // HILOS_VARIANTE=fondo: dos tareas siguen corriendo de fondo (src/hilo/Fondo.tsx).
+  const hace = (min: number) => new Date(Date.now() - min * 60_000).toISOString();
+  const fondo: Mensaje = {
+    i: 0,
+    rol: "assistant",
+    texto: "Dejé los tests y el build corriendo.",
+    herramientas: ["Bash", "Bash"],
+    ts: hace(4),
+    modelo: c[0]?.modelo ?? null,
+    det: [
+      { nombre: "Bash", entrada: { command: "npm test", description: "Corre todos los tests", run_in_background: true }, resultado: { texto: "Command running in background with ID: b1.", error: false } },
+      { nombre: "Bash", entrada: { command: "npx vite build", run_in_background: true }, resultado: { texto: "Command running in background with ID: b2.", error: false } },
+    ],
+  };
+  return [yo, ...c, veo, ...(MODO.variante === "fondo" ? [fondo] : [])].map((m, i) => ({ ...m, i }));
 }
 
 /** Captura `lider-editar`: el pedido de siempre con dos capturas y un archivo (el de `lider-imagenes`, con ruta inventada). */
