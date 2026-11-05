@@ -181,7 +181,7 @@ test("orden: lo raro no se guarda; un nombres.json de antes (sin orden) se lee v
   const f = path.join(mkdtempSync(path.join(os.tmpdir(), "hilos-orden-")), "nombres.json");
   writeFileSync(f, JSON.stringify({ version: 1, titulos: { x: "y" }, proyectos: {}, ocultos: [] }));
   const a = almacenNombres(f, writeFile);
-  assert.deepEqual(await a.leer(), { titulos: { x: "y" }, proyectos: {}, ocultos: [], orden: { carpetas: [], lideres: {} } });
+  assert.deepEqual(await a.leer(), { titulos: { x: "y" }, proyectos: {}, fijadas: {}, ocultos: [], orden: { carpetas: [], lideres: {} } });
   await a.orden({ carpetas: ["atlas", 3, "", "atlas", null, "brote"], lideres: { atlas: ["a1", "a1", 7], brote: "no", zeta: [], general: ["g2"] }, otra: 1 });
   const b = await almacenNombres(f, writeFile).leer();
   assert.deepEqual(b.orden, { carpetas: ["atlas", "brote"], lideres: { atlas: ["a1"], general: ["g2"] } });
