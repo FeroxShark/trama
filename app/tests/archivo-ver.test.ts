@@ -104,6 +104,20 @@ test("abrirCarpeta: abre una carpeta que existe, también con ~; un archivo, una
   assert.equal(await abrirCarpeta(hija, async () => Promise.reject(new Error("x")), dir), false);
 });
 
+test("abrirCarpeta: un archivo con `mostrar` abre su carpeta con el archivo marcado; sin `mostrar`, no", async () => {
+  const archivo = en("carpetas/bin/agy", "#!/bin/sh");
+  const abiertas: string[] = [];
+  const mostrados: string[] = [];
+  const abrir = async (r: string) => (abiertas.push(r), "");
+  assert.equal(await abrirCarpeta(archivo, abrir, dir, process.platform, (r) => mostrados.push(r)), true);
+  assert.equal(await abrirCarpeta("~/carpetas/bin/agy", abrir, dir, process.platform, (r) => mostrados.push(r)), true);
+  assert.deepEqual(mostrados, [archivo, archivo]);
+  assert.deepEqual(abiertas, []);
+  assert.equal(await abrirCarpeta(archivo, abrir, dir), false);
+  assert.equal(await abrirCarpeta(path.join(dir, "no-esta"), abrir, dir, process.platform, (r) => mostrados.push(r)), false);
+  assert.equal(mostrados.length, 2);
+});
+
 test("abrirArchivo: abre un archivo que existe y es abrible; el resto, no", async () => {
   const abiertos: string[] = [];
   const abrir = async (r: string) => (abiertos.push(r), "");

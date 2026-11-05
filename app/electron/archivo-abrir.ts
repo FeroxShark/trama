@@ -19,12 +19,21 @@ export async function abrirArchivo(x: unknown, abrir: (ruta: string) => Promise<
   return false;
 }
 
-/** Abre la carpeta `x` (absoluta, o con `~` al principio) en el explorador de archivos con `abrir`; `true` si se abrió. Nunca lanza. */
-export async function abrirCarpeta(x: unknown, abrir: (ruta: string) => Promise<string>, home: string, plataforma: NodeJS.Platform = process.platform): Promise<boolean> {
+/**
+ * Abre la carpeta `x` (absoluta, o con `~` al principio) en el explorador de archivos con `abrir`; `true` si se abrió. Nunca lanza.
+ * Si `x` es un archivo (un mensaje nombra `/usr/bin/agy`: sin extensión parece carpeta) y hay `mostrar`, abre su carpeta con el
+ * archivo marcado (en Electron, `shell.showItemInFolder`): nunca lo ejecuta ni lo abre con otra app.
+ */
+export async function abrirCarpeta(x: unknown, abrir: (ruta: string) => Promise<string>, home: string, plataforma: NodeJS.Platform = process.platform, mostrar?: (archivo: string) => void): Promise<boolean> {
   const conHome = typeof x === "string" ? x.trim().replace(/^~(?=$|[\\/])/, home) : x;
   for (const ruta of candidatasArchivo(conHome, plataforma)) {
     try {
-      if (!(await stat(ruta)).isDirectory()) continue;
+      const st = await stat(ruta);
+      if (st.isFile() && mostrar) {
+        mostrar(ruta);
+        return true;
+      }
+      if (!st.isDirectory()) continue;
       return (await abrir(ruta)) === "";
     } catch {
       /* no está: la siguiente */
