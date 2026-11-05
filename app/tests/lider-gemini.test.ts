@@ -66,8 +66,10 @@ const textos = (sid: string) => de(sid, "mensaje").map((m) => m.texto as string)
 test("un líder de Gemini contesta: modelo con su esfuerzo en agy, el prefacio con sus CLAUDE.md, y la barra lo ve vivo", { timeout: 60_000 }, async () => {
   const sid = await lider.nuevo({ modelo: "gemini-3.8-flash", effort: "low", texto: "herramienta hola despacio" });
   // Mientras trabaja, el puente anota su sesión (la barra y `pa` la buscan ahí).
-  await hasta(() => existsSync(process.env.HILOS_SESIONES!) && readdirSync(process.env.HILOS_SESIONES!).length > 0);
-  const [archivo] = readdirSync(process.env.HILOS_SESIONES!);
+  // Sólo los `.json`: la escritura atómica deja un temporal un instante, y leerlo hacía fallar la comparación de abajo de vez en cuando.
+  const sesiones = () => readdirSync(process.env.HILOS_SESIONES!).filter((f) => f.endsWith(".json"));
+  await hasta(() => existsSync(process.env.HILOS_SESIONES!) && sesiones().length > 0);
+  const [archivo] = sesiones();
   const ses = JSON.parse(readFileSync(path.join(process.env.HILOS_SESIONES!, archivo!), "utf8"));
   assert.equal(ses.sessionId, sid);
   assert.equal(String(ses.pid), archivo!.replace(".json", ""));
