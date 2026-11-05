@@ -548,6 +548,8 @@ export interface PedidoAsync {
   hijoArgs: string[];
   /** PA_REPARTO_TIPO / PA_FALLBACK_RESTO para el hijo (lo que eligió el padre). */
   repartoTipo?: string;
+  /** Por qué reparto no eligió (si falló): el hijo lo deja en `<id>.reparto-fallo` para que lo muestre el resultado. */
+  repartoFallo?: string;
   fallbackResto?: string;
   /** Con qué se relanza `pa` (default: este mismo node con este mismo script). */
   comando?: string[];
@@ -579,7 +581,7 @@ export async function lanzarAsync(pa: Pa, p: PedidoAsync): Promise<string> {
   const jefeIdV = jefeId(pa);
   if (!p.leer) writeFileSync(x("jefe"), `jefe=${jefe}\njefe_id=${jefeIdV}\n`);
   const cmd = p.comando ?? [process.execPath, process.argv[1]!];
-  const env: Env = { ...pa.env, PA_TS: ts, PA_JEFE: jefe, PA_JEFE_ID: jefeIdV, PA_ASYNC: "1", PA_REPARTO_TIPO: p.repartoTipo ?? "", PA_FALLBACK_RESTO: p.fallbackResto ?? "" };
+  const env: Env = { ...pa.env, PA_TS: ts, PA_JEFE: jefe, PA_JEFE_ID: jefeIdV, PA_ASYNC: "1", PA_REPARTO_TIPO: p.repartoTipo ?? "", PA_REPARTO_FALLO: p.repartoFallo ?? "", PA_FALLBACK_RESTO: p.fallbackResto ?? "" };
   let lanzado: number | undefined;
   try {
     lanzado = lanzarSuelto(cmd[0]!, [...cmd.slice(1), ...p.hijoArgs], { env, log, plat: pa.plat });

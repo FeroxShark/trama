@@ -22,7 +22,7 @@ import { caminoDe, configTrama } from "../../rutas.ts";
 import { sumarFragmento } from "../../apagados.ts";
 import { terminalAgentesGuardada } from "../../preferencias.ts";
 import { envTerminalAgentes } from "../../terminal-agentes.ts";
-import { conDueno, type Env, type Pa } from "./entorno.ts";
+import { avisarFalta, conDueno, type Env, type Pa } from "./entorno.ts";
 import {
   campoJson,
   decisionDe,
@@ -221,7 +221,9 @@ export function settingsWorker(
 ): string {
   const variante = o.variante ?? (pa.plat === "win32" ? "mjs" : "sh");
   const cam = caminoDe(pa.plat);
-  const hooks = cam.join(cam.dirname(pa.bin), "hooks");
+  const hooks = pa.hooks ?? cam.join(cam.dirname(pa.bin), "hooks");
+  // sin latido no hay `colgado`, y sin la guardia el worker corre sin freno: que se vea (stderr), nunca callado
+  if (pa.motor ? !pa.motor.hooksOk : !existsSync(cam.join(hooks, `latido.${variante}`))) avisarFalta(pa, "los hooks del worker (latido, destructive-guard)", hooks);
   const opc = { node: o.node, plataforma: pa.plat === "win32" ? ("win32" as const) : ("linux" as const) };
   const guard = comandoHook("destructive-guard", variante, hooks, opc);
   const latido = comandoHook("latido", variante, hooks, opc);

@@ -6,6 +6,7 @@ import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { git } from "../base/git.ts";
 import { esCarpeta, leerCampo, listar } from "./corridas.ts";
+import { avisoReparto } from "./resultado-lanzar.ts";
 import { type Pa } from "./entorno.ts";
 
 const ENCABEZADO = /^[*#> \t-]*(RESULTADO|ARCHIVOS|DECISI[^:*]{1,2}N|SIGUE|PROBAR|PREGUNTA|FREN(O|Ó))[*]*:/i;
@@ -176,6 +177,7 @@ export async function mostrarResultado(pa: Pa, json: string): Promise<void> {
     );
   }
   pa.io.out(statsResultado(pa, j));
+  pa.io.out(avisoReparto(base));
   pa.io.out(await lineaRama(pa, json));
 }
 

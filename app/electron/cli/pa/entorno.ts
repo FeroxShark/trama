@@ -1,11 +1,11 @@
 // Lo que `pa` arma antes de mirar los argumentos (el prólogo de motor/bin/pa): dónde está el estado, el plan, los topes, los
 // candados de worker y de modelo local, y quién es el dueño y el jefe. Sin estado global: todo cuelga de un `Pa` que se arma una
 // vez por llamada y se pasa a los subcomandos.
-import { existsSync, mkdirSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, realpathSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { estadoPa, homeDe, plataformaActual, type Plataforma } from "../../rutas.ts";
+import { caminoDe, carpetaApp, carpetaBin, estadoPa, homeDe, plataformaActual, type Plataforma } from "../../rutas.ts";
 import { campos, listarPares } from "../base/proc.ts";
 
 export type Env = Record<string, string | undefined>;
@@ -25,11 +25,119 @@ export const salir = (codigo: number): never => {
   throw new Salida(codigo);
 };
 
-/** La carpeta `motor/` del checkout (al lado de `app/`): de acá salen `bin/reparto`, `bin/cuentas`, los hooks y los runners. */
+/** Dónde están las herramientas y los hooks del motor que `pa` lanza (`reparto`, `tablero`, `cuentas`, `latido`…) y cómo se los encontró. */
+export interface Motor {
+  /** La raíz: `motor/` (checkout, árbol exportado) o la carpeta de instalación (Windows nativo). */
+  dir: string;
+  /** Donde están `reparto`, `tablero`, `cuentas`, `repos-empujar` (Windows: los `.cmd` de `bin\`). */
+  bin: string;
+  /** Donde están `latido` y `destructive-guard` (`.sh` o `.mjs`). */
+  hooks: string;
+  /** De dónde salió: `TRAMA_MOTOR_DIR`, `checkout`, `payload`, `fuente`, `checkout anotado`, `enlace de pa` o `instalación`. */
+  via: string;
+  /** `bin` existe y trae `pa` o `reparto`. */
+  binOk: boolean;
+  /** `hooks` existe y trae `latido`. */
+  hooksOk: boolean;
+  /** Las carpetas que se miraron, en orden (para el aviso cuando no aparece ninguna). */
+  buscado: string[];
+}
+
+export interface OpcionesMotor {
+  /** La carpeta de este archivo (`…/app/electron/cli/pa` o `…/app/dist-electron/cli/pa`). */
+  desde?: string;
+  plat?: Plataforma;
+  home?: string;
+  existe?: (ruta: string) => boolean;
+  /** Primera línea de un archivo de texto, o null. */
+  leer?: (ruta: string) => string | null;
+  /** `readlink -f`, o null si no se puede. */
+  real?: (ruta: string) => string | null;
+}
+
+const BIN_MARCAS = ["pa", "pa.cmd", "reparto", "reparto.cmd"];
+const HOOKS_MARCAS = ["latido.mjs", "latido.sh"];
+
+/**
+ * Dónde está el motor, en todas las formas de instalar. `electron/cli/pa/` y `dist-electron/cli/pa/` están a la misma profundidad
+ * dentro de `app/`, pero lo de al lado de `app/` cambia: en un checkout (y en un worktree) es `motor/`; en la instalación de
+ * escritorio de Linux la app compilada vive en `~/.local/share/trama/app` y el motor en `~/.local/share/trama/fuente/motor`; en el
+ * payload nativo de Windows no hay `motor/` (`<raíz>\{app,bin,node}`: los `.cmd` en `bin\`, los hooks en `app\hooks`). Gana la
+ * primera forma que tiene lo que `pa` necesita (`bin` con `pa`/`reparto` y `hooks` con `latido`); si ninguna lo tiene vuelve la
+ * primera con `bin` y, si tampoco, la del checkout, con `binOk`/`hooksOk` en false para que quien llama lo avise.
+ * `TRAMA_MOTOR_DIR` manda sin buscar más.
+ */
+export function resolverMotor(env: Env = process.env, o: OpcionesMotor = {}): Motor {
+  const plat = o.plat ?? plataformaActual();
+  const c = caminoDe(plat);
+  const home = o.home ?? homeDe(env, plat);
+  const existe = o.existe ?? existsSync;
+  const leer =
+    o.leer ??
+    ((f: string) => {
+      try {
+        return (readFileSync(f, "utf8").split("\n")[0] ?? "").trim() || null;
+      } catch {
+        return null;
+      }
+    });
+  const real =
+    o.real ??
+    ((f: string) => {
+      try {
+        return realpathSync(f);
+      } catch {
+        return null;
+      }
+    });
+  const desde = o.desde ?? path.dirname(fileURLToPath(import.meta.url));
+  const app = c.join(desde, "..", "..", "..");
+  const raiz = c.dirname(app);
+  const cand: { via: string; dir: string; bin: string; hooks: string }[] = [];
+  const delMotor = (via: string, m: string) => cand.push({ via, dir: m, bin: c.join(m, "bin"), hooks: c.join(m, "hooks") });
+  if (env.TRAMA_MOTOR_DIR) delMotor("TRAMA_MOTOR_DIR", env.TRAMA_MOTOR_DIR);
+  else {
+    delMotor("checkout", c.join(raiz, "motor"));
+    cand.push({ via: "payload", dir: raiz, bin: c.join(raiz, "bin"), hooks: c.join(app, "hooks") });
+    delMotor("fuente", c.join(raiz, "fuente", "motor"));
+    if (plat === "win32") cand.push({ via: "instalación", dir: c.dirname(carpetaApp(env, home, plat)), bin: carpetaBin(env, home, plat), hooks: c.join(carpetaApp(env, home, plat), "hooks") });
+    else {
+      // lo que dejó instalar-producto.sh: el checkout anotado y el enlace de ~/.local/bin/pa
+      const conf = env.XDG_CONFIG_HOME || c.join(home, ".config");
+      const anotado = leer(c.join(conf, "trama", "checkout"));
+      if (anotado) delMotor("checkout anotado", c.join(anotado, "motor"));
+      const enlace = real(c.join(carpetaBin(env, home, plat), "pa"));
+      if (enlace) delMotor("enlace de pa", c.dirname(c.dirname(enlace)));
+    }
+  }
+  const tiene = (d: string, marcas: string[]) => marcas.some((m) => existe(c.join(d, m)));
+  const lista = cand.map((x) => ({ ...x, binOk: tiene(x.bin, BIN_MARCAS), hooksOk: tiene(x.hooks, HOOKS_MARCAS) }));
+  const buscado = lista.map((x) => x.bin);
+  const elegida = lista.find((x) => x.binOk && x.hooksOk) ?? lista.find((x) => x.binOk) ?? lista[0]!;
+  return { dir: elegida.dir, bin: elegida.bin, hooks: elegida.hooks, via: elegida.via, binOk: elegida.binOk, hooksOk: elegida.hooksOk, buscado };
+}
+
+/** La raíz del motor (ver `resolverMotor`): de acá salen `opencode/`, `dsh/`, `codex/` y `datos/`. */
 export function carpetaMotor(env: Env = process.env): string {
-  if (env.TRAMA_MOTOR_DIR) return env.TRAMA_MOTOR_DIR;
-  // electron/cli/pa/*.ts y dist-electron/cli/pa/*.js están a la misma profundidad dentro de app/.
-  return path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "..", "motor");
+  return resolverMotor(env).dir;
+}
+
+/** Texto para decir dónde se buscó y no se encontró (`pa: no encuentro …`). */
+export const dondeSeBusco = (m: Motor): string => m.buscado.join(", ");
+
+const avisados = new WeakMap<object, Set<string>>();
+
+/**
+ * Una pieza del motor que `pa` necesita y no está (`reparto`, `tablero`, `cuentas`, los hooks del worker): lo dice por stderr, una vez por
+ * corrida y por pieza, con dónde se buscó. Nunca se cae callado a lo de siempre.
+ */
+export function avisarFalta(pa: Pick<Pa, "io" | "motor" | "bin">, que: string, ruta: string): void {
+  let ya = avisados.get(pa);
+  if (!ya) avisados.set(pa, (ya = new Set()));
+  if (ya.has(que)) return;
+  ya.add(que);
+  const m = pa.motor;
+  pa.io.err(`pa: no encuentro ${que} (${ruta}).${m ? ` Motor: ${m.dir} (vía ${m.via}); busqué en ${dondeSeBusco(m)}. TRAMA_MOTOR_DIR lo fuerza.` : ""}\n`);
 }
 
 /** `app/package.json` (la versión de Trama). */
@@ -45,6 +153,10 @@ export interface Pa {
   lockdir: string;
   /** `motor/bin` (el `_BIN` del bash). */
   bin: string;
+  /** Donde están los hooks del worker (`latido`, `destructive-guard`); sin él, `bin/../hooks`. */
+  hooks?: string;
+  /** Cómo se encontró el motor (para avisar cuando falta algo). */
+  motor?: Motor;
   plan: "pro" | "max";
   /** Tokens de `PA_AUTOCOMPACT` si valen (`null`: no pisa nada, el de modelos.json o la ventana nativa; `"nativo"` fuerza sin tope). */
   autocompact: number | "nativo" | null;
@@ -150,6 +262,7 @@ export function prologo(argv: string[], env: Env, io: Io, plat: Plataforma = pla
     salir(88);
   }
 
+  const motor = resolverMotor(env, { plat, home });
   return {
     env,
     io,
@@ -157,7 +270,9 @@ export function prologo(argv: string[], env: Env, io: Io, plat: Plataforma = pla
     home,
     state,
     lockdir,
-    bin: path.join(carpetaMotor(env), "bin"),
+    bin: motor.bin,
+    hooks: motor.hooks,
+    motor,
     plan,
     autocompact,
     puestos: Number(puestos),

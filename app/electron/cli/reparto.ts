@@ -3113,7 +3113,7 @@ function resumen(cfg: Obj, cupos: Obj, now: Date): Obj[] {
 function textoResumen(filas: Obj[], now: Date, caminos = ""): string {
   const L = [
     ...(caminos ? [caminos] : []),
-    "Modelos habilitados hoy (reparto --resumen; se refresca con ese comando). Elegí vos con `-m <id>` y `--effort <e>` según el tamaño real de la tarea y lo que cuesta un error.",
+    "Modelos habilitados hoy (reparto --resumen; se refresca con ese comando). Delegá con `--tipo` y sin `-m`: reparto elige. Fijá `-m <id>` y `--effort <e>` sólo con motivo (segunda opinión, base crítica, tras un fallo).",
     "int. = índice de inteligencia de Artificial Analysis por effort (~ = estimado); costo relativo a Opus = 1,0; cupo = libre ahora (y cuándo vuelve).",
   ];
   for (const r of filas.slice(0, RESUMEN_MAX)) {

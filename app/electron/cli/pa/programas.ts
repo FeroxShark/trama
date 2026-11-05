@@ -6,7 +6,7 @@ import path from "node:path";
 import { comandoPropio, entornoCmd, HERRAMIENTAS_PROPIAS } from "../../binario.ts";
 import { esEjecutable } from "../base/buscar.ts";
 import { correr } from "../base/proc.ts";
-import type { Env, Pa } from "./entorno.ts";
+import { avisarFalta, type Env, type Pa } from "./entorno.ts";
 
 export interface Reparto {
   /** La ruta que se nombra en los mensajes (`$REPARTO`). */
@@ -124,6 +124,10 @@ export function cuentasProceso(pa: Pa): Cuentas {
   const prefijo = prefijoDe(pa, "cuentas", pa.env.PA_CUENTAS_BIN, pa.env.PA_CUENTAS_BIN || path.join(pa.bin, "cuentas"));
   return {
     async env(id) {
+      if (!esEjecutable(prefijo[prefijo.length - 1]!, pa.plat)) {
+        avisarFalta(pa, "cuentas", prefijo[prefijo.length - 1]!);
+        return { rc: 127, salida: `no encuentro cuentas (${prefijo[prefijo.length - 1]!})` };
+      }
       const r = await correr(prefijo[0]!, [...prefijo.slice(1), "env", id, "--json"], { env: entornoCmd(prefijo, pa.env), input: "" });
       return { rc: r.codigo, salida: recortar(r.salida + r.errores) };
     },

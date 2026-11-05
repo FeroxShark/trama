@@ -17,7 +17,7 @@ import { type DeProyecto, type Proyecto as ProyectoCli } from "./cli.ts";
 import { argsHijo, lanzarAsync } from "./async.ts";
 import { armarActualizar } from "./auditar.ts";
 import { esArchivo, idCorrida, leerCampo, leerTexto, listar } from "./corridas.ts";
-import { jefeId, jefeNombre, type Env, type Pa } from "./entorno.ts";
+import { avisarFalta, jefeId, jefeNombre, type Env, type Pa } from "./entorno.ts";
 import { carpetaProyectos, claudeFalla, claudeRc, correrClaude, escapar, limiteDe, lanzarClaude, type Corrida, type Ganchos, type OpcionesLanzar } from "./lanzar.ts";
 import { TIPOS_VALIDOS } from "./modelos.ts";
 import { Admision, avisarParalelo, otrosWriters, runningVivo } from "./puestos.ts";
@@ -113,8 +113,11 @@ export async function claudeSano(pa: Pa, claude?: string): Promise<{ ok: boolean
 /** `tablero_mudo 2 ficha <slug> --corta`: la ficha del proyecto, o "" (sin tablero, si falla, si tarda más de 2 s). */
 async function fichaDe(pa: Pa, slug: string): Promise<string> {
   const tb = prefijoDe(pa, "tablero", pa.env.PA_TABLERO, pa.env.PA_TABLERO || path.join(pa.bin, "tablero"));
-  if (!esEjecutable(tb[tb.length - 1]!, pa.plat)) return "";
   if (!pa.env.TABLERO_DIR && pa.env.PA_STATE) return "";
+  if (!esEjecutable(tb[tb.length - 1]!, pa.plat)) {
+    avisarFalta(pa, "tablero", tb[tb.length - 1]!);
+    return "";
+  }
   try {
     const r = await correr(tb[0]!, [...tb.slice(1), "ficha", slug, "--corta"], { env: entornoCmd(tb, pa.env), timeoutMs: 2000, killAfterMs: 1000, plat: pa.plat });
     return r.codigo === 0 ? r.salida.replace(/\n+$/, "") : "";
@@ -319,6 +322,7 @@ async function orquestar(l: Llamada, pa: Pa, p: ProyectoCli, o: OpcionesOrquesta
         effortPedido: l.esfuerzoPedido,
       }),
       repartoTipo: l.repartoTipoRelanzable,
+      repartoFallo: l.repartoFallo,
       fallbackResto: l.fbResto,
       comando: o.comandoAsync,
       avisarParalelo: (ts) => avisarParalelo({ ...x0, ts }, ts),
@@ -330,6 +334,13 @@ async function orquestar(l: Llamada, pa: Pa, p: ProyectoCli, o: OpcionesOrquesta
 
   // --- puesto
   const ts = env.PA_TS || idCorrida();
+  // reparto no eligió (falló): queda anotado junto a la corrida y el resultado lo muestra; el default no es una elección de reparto
+  const falloReparto = l.repartoFallo || env.PA_REPARTO_FALLO || "";
+  delete env.PA_REPARTO_FALLO;
+  if (falloReparto) {
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(path.join(dir, `${ts}.reparto-fallo`), `${falloReparto}\nmodelo=${l.modelo}\n`);
+  }
   const tareaJefe = l.tarea;
   const lanzo = /^[a-z0-9_-]+$/.test(env.PA_ORIGEN || "jefe") ? env.PA_ORIGEN || "jefe" : "jefe";
   const xw: ProyectoWt = { pa, proyecto: l.proyecto, ruta, slug, dir, ts, motor };

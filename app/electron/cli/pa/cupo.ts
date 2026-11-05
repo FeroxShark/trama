@@ -10,7 +10,7 @@ import { correr } from "../base/proc.ts";
 import { git } from "../base/git.ts";
 import { esEjecutable } from "../base/buscar.ts";
 import { entornoCmd } from "../../binario.ts";
-import type { Pa } from "./entorno.ts";
+import { avisarFalta, type Pa } from "./entorno.ts";
 import { carpetaProyectos, contratoClaude, escapar, hiloPoner, limiteDe, type Corrida, type Ganchos, type Lanzamiento } from "./lanzar.ts";
 import { Modelos, esCodex, esDsh, esGemini, esLocal } from "./modelos.ts";
 import { cuentaProveedor, modeloFlojo, proveedorDe, type DepsPolitica, type Llamada } from "./politica.ts";
@@ -26,7 +26,9 @@ const num = (s: string | undefined, def: number) => (s !== undefined && s !== ""
 function comandoReparto(pa: Pa): string[] | null {
   const ruta = pa.env.PA_REPARTO && pa.env.PA_REPARTO !== "0" ? pa.env.PA_REPARTO : path.join(pa.bin, "reparto");
   const prefijo = prefijoDe(pa, "reparto", pa.env.PA_REPARTO, ruta);
-  return esEjecutable(prefijo[prefijo.length - 1]!, pa.plat) ? prefijo : null;
+  if (esEjecutable(prefijo[prefijo.length - 1]!, pa.plat)) return prefijo;
+  avisarFalta(pa, "reparto", prefijo[prefijo.length - 1]!);
+  return null;
 }
 
 /** `reparto <args>` con REPARTO_STATE y PA_STATE; `tope` = el `timeout ${PA_REPARTO_TIMEOUT_S:-15}`. Nunca tira: una falla vuelve como código. */

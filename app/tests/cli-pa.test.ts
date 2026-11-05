@@ -267,6 +267,16 @@ test("política: reparto todo lleno con sin_cupo=fallar sale 96; reparto colgado
   assert.match(s.e, /pa: reparto falló \(timeout tras 15s\); sigo con claude-sonnet-5-5\./);
 });
 
+test("política: reparto que no se encuentra (127) se dice con dónde se buscó, y sin -m ya no se le pide al líder que elija -m", async () => {
+  const d = sandbox();
+  const rep = { ...repartoFalso({ elegir: { rc: 127, salida: "" } }), ruta: "/falso/motor/bin/reparto" };
+  const r = await pa(["demo", "--tipo", "debug", "Listo cuando: x. Cómo verificar: y"], d.env, { reparto: () => rep });
+  assert.equal(r.rc, 0, r.e);
+  assert.match(r.e, /pa: reparto falló \(no existe \/falso\/motor\/bin\/reparto; motor .* \(vía .*\), busqué en .*\); sigo con claude-sonnet-5-5\./);
+  assert.match(r.e, /pa: aviso: sin -m\. Sigo con claude-sonnet-5-5/);
+  assert.doesNotMatch(r.e, /elegí vos|-m <id> --effort/);
+});
+
 test("política: -m sin cupo avisa y sugiere otro; con sin_cupo=fallar no lanza", async () => {
   const d = sandbox();
   const f = path.join(d.raiz, "m.json");

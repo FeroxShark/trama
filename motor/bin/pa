@@ -68,7 +68,7 @@
 #                                        si no queda ninguno). Sale con el código del último intento. Con --async: lo que falla al lanzar (95/96)
 #                                        pasa al siguiente, y un 97 de la corrida ya lanzada relanza sola con el siguiente en esa misma corrida
 #                                        (mismo id; --esperar --id trae el del último intento; sólo si el intento no dejó commits ni cambios)
-#   pa <proyecto> -m <modelo> "<tarea>"  elegir modelo: el jefe lo elige (con --effort) según el tamaño real de la tarea
+#   pa <proyecto> -m <modelo> "<tarea>"  fijar el modelo a mano (sin -m lo elige reparto según --tipo y el cupo)
 #                                        (`reparto --resumen` lista las opciones); con -m, reparto sólo avisa si ese modelo no
 #                                        tiene cupo y sugiere otro (sin_cupo=fallar: sale 96). Sin -m pa avisa y sigue con lo
 #                                        que sugiere `reparto` según --tipo y el cupo de cada
@@ -5811,11 +5811,10 @@ if [[ -z "$modelo" ]]; then
   if [[ "$tipo" == mecanico ]] && (( ! leer && ! seguir )); then modelo="claude-haiku-5-5"; fi
 fi
 [[ -n "$reparto_fallo" ]] && echo "pa: reparto falló ($reparto_fallo); sigo con $modelo." >&2
-# El jefe elige modelo y effort según lo que leyó del pedido (skill trama-orquestar): una elección por tabla no mira el tamaño real de la tarea.
-# Sin -m, pa sigue con lo que sugiere reparto, pero lo avisa. Con -m, reparto sólo interviene si ese modelo no tiene cupo: avisa y sugiere otro.
+# Sin -m, pa sigue con lo que elige reparto (skill trama-orquestar: --tipo sin -m) y lo avisa. Con -m, reparto sólo interviene si ese modelo no tiene cupo: avisa y sugiere otro.
 if (( lanza && ! seguir )) && [[ -z "${PA_ASYNC:-}" ]]; then
   if [[ -z "$modelo_pedido" ]]; then
-    echo "pa: aviso: sin -m. Sigo con $modelo${esfuerzo:+ effort $esfuerzo} (lo sugirió la tabla), pero elegí vos modelo y effort según el tamaño real de la tarea: -m <id> --effort <e>. 'reparto --resumen' lista las opciones con inteligencia, costo y cupo." >&2
+    echo "pa: aviso: sin -m. Sigo con $modelo${esfuerzo:+ effort $esfuerzo} (lo sugirió la tabla). 'reparto --resumen' lista las opciones con inteligencia, costo y cupo." >&2
   elif [[ -x "$REPARTO" ]] && [[ "$(modelos_reparto)" == auto ]]; then
     calidad_de_modelo "$modelo" >/dev/null   # deja la tabla de reparto en $TABLA_JSON (una consulta por pa)
     # "sin" + cuándo vuelve si el id está en la tabla y ninguna de sus cuentas tiene cupo; nada si hay cupo o no se lo conoce.

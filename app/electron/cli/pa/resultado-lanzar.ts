@@ -212,6 +212,18 @@ export async function lineaRama(out: string, env: Env, solapamiento?: Solapamien
   return s;
 }
 
+/** Si reparto no pudo elegir el modelo de esta corrida (`<id>.reparto-fallo`), lo dice: el modelo salió del default, no de reparto. */
+export function avisoReparto(base: string): string {
+  let t: string;
+  try {
+    t = readFileSync(`${base}.reparto-fallo`, "utf8");
+  } catch {
+    return "";
+  }
+  const [motivo = "", modelo = ""] = t.split("\n");
+  return `— reparto NO eligió el modelo (${motivo}); corrió con ${modelo.replace(/^modelo=/, "") || "el default"}. Arreglá reparto antes de lanzar más.\n`;
+}
+
 /** `mostrar_resultado`: el resultado del worker, el aviso de SIN VERIFICAR, las stats y la rama. Es lo que va por stdout. */
 export async function mostrarResultado(out: string, o: { proj: string; env: Env; solapamiento?: Solapamiento }): Promise<string> {
   const j = leerSalida(out);
@@ -222,6 +234,7 @@ export async function mostrarResultado(out: string, o: { proj: string; env: Env;
     s += `— SIN VERIFICAR: el RESULTADO no trae VERIFICACION (comando + salida). No lo des por bueno: pedile la evidencia con pa '${path.basename(path.dirname(out))}' --seguir --id ${path.basename(out, ".json")} 'corré la verificación y pegá la salida'.\n`;
   }
   s += statsResultado(j, o.proj);
+  s += avisoReparto(out.replace(/\.json$/, ""));
   s += await lineaRama(out, o.env, o.solapamiento);
   return s;
 }

@@ -19,7 +19,7 @@ import { tomar, type Lock } from "../base/lock.ts";
 import { registroProyectos } from "../../rutas.ts";
 import { resolverProyecto } from "../proyecto-ruta.ts";
 import { pidCorridaVivo } from "./corridas.ts";
-import { prologo, Salida, salir, v, type Env, type Io, type Pa } from "./entorno.ts";
+import { avisarFalta, prologo, Salida, salir, v, type Env, type Io, type Pa } from "./entorno.ts";
 import {
   adoptarHuerfanas,
   archivosCon,
@@ -190,8 +190,11 @@ export function decisionEsNada(s: string): boolean {
 /** `tablero_mudo`: corre bin/tablero con tope, sin stdin ni stderr; con un PA_STATE de mentira y sin TABLERO_DIR no se llama. */
 export async function tableroMudo(pa: Pa, topeS: number, args: string[]): Promise<boolean> {
   const tb = prefijoDe(pa, "tablero", pa.env.PA_TABLERO, pa.env.PA_TABLERO || path.join(pa.bin, "tablero"));
-  if (!esEjecutable(tb[tb.length - 1]!, pa.plat)) return false;
   if (!pa.env.TABLERO_DIR && pa.env.PA_STATE) return false;
+  if (!esEjecutable(tb[tb.length - 1]!, pa.plat)) {
+    avisarFalta(pa, "tablero (las DECISION y los SIGUE no entran al tablero)", tb[tb.length - 1]!);
+    return false;
+  }
   const r = await correr(tb[0]!, [...tb.slice(1), ...args], { env: entornoCmd(tb, pa.env), timeoutMs: topeS * 1000, killAfterMs: 1000, plat: pa.plat });
   return r.codigo === 0;
 }
@@ -222,7 +225,7 @@ export async function sigueAlTablero(x: Proy, id: string, head: string): Promise
 export async function empujarMain(x: Proy, ruta: string): Promise<void> {
   const { pa } = x;
   const emp = pa.env.PA_EMPUJAR || path.join(pa.bin, "repos-empujar");
-  if (!esEjecutable(emp, pa.plat)) return;
+  const hay = esEjecutable(emp, pa.plat);
   let remotos = v(pa.env, "PA_EMPUJE_REMOTOS");
   let etq = v(pa.env, "PA_EMPUJE_ETIQUETA");
   if (!remotos) {
@@ -237,6 +240,11 @@ export async function empujarMain(x: Proy, ruta: string): Promise<void> {
     if (!etq && typeof j?.etiqueta === "string") etq = j.etiqueta;
   }
   if (!remotos) return;
+  if (!hay) {
+    // hay remotos configurados y no está la herramienta: main no se empuja (que se vea, no que quede en silencio)
+    if (!pa.env.PA_STATE || pa.env.PA_EMPUJAR) avisarFalta(pa, "repos-empujar (main no se empuja al remoto)", emp);
+    return;
+  }
   let tope = Number(v(pa.env, "PA_EMPUJE_MAX", "10"));
   if (!/^[0-9]+$/.test(v(pa.env, "PA_EMPUJE_MAX", "10")) || tope <= 0) tope = 10;
   const rs = new Set((await gs(x, ruta, ["remote"])).split("\n"));

@@ -118,11 +118,12 @@ test("reparto --tipo sigue igual (lo usan pa y otros)", () => {
   assert.ok(JSON.parse(r.out).modelo);
 });
 
-test("pa sin -m: sigue con la sugerencia de reparto pero avisa que elija -m y --effort", () => {
+test("pa sin -m: sigue con la sugerencia de reparto y avisa, sin pedirle al líder que elija -m", () => {
   const r = pa([], cupos(0.2));
   assert.equal(r.rc, 0, r.err);
   assert.match(r.err, /pa: reparto \(codigo-acotado\) → /);
-  assert.match(r.err, /pa: aviso: sin -m\. Sigo con \S+.*elegí vos modelo y effort.*-m <id> --effort <e>.*reparto --resumen/);
+  assert.match(r.err, /pa: aviso: sin -m\. Sigo con \S+.*reparto --resumen/);
+  assert.doesNotMatch(r.err, /elegí vos|-m <id> --effort/, "pedirle al líder que elija -m contradice la skill: --tipo sin -m");
 });
 
 test("pa con -m y cupo: no avisa nada de cupo ni de -m", () => {

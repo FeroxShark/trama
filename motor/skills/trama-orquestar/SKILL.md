@@ -9,7 +9,7 @@ Sos el **líder**: tu sesión corre en el home del usuario y coordina. Cada proy
 workers (un modelo que corre **adentro** del proyecto, con su `CLAUDE.md`/`GEMINI.md` y su memoria). Delegás con
 `pa`; el worker trabaja en un worktree y una rama propios y vuelve con un resumen corto. Sirve igual si
 el líder es Claude o Gemini, y si los workers son Claude, Gemini o un modelo local: qué modelos
-están habilitados y cuáles se excluyen lo decide `~/.config/trama/modelos.json` (o Trama > Ajustes); cuál usar en cada tarea lo elegís vos.
+están habilitados y cuáles se excluyen lo decide `~/.config/trama/modelos.json` (o Trama > Ajustes); cuál usa cada tarea lo elige `reparto` (por el `--tipo`, la calidad medida y el cupo libre).
 
 Elegís vos, sin preguntar:
 
@@ -28,13 +28,13 @@ Si la sesión corre **adentro** de un proyecto, esto no aplica: hacé la tarea, 
 ## Comandos
 
 ```
-pa <proyecto> --tipo <tipo> -m <modelo> --effort <e> "<tarea>"   delegar: el worker puede escribir. --tipo, -m y --effort SIEMPRE
+pa <proyecto> --tipo <tipo> "<tarea>"       delegar: el worker puede escribir. Siempre --tipo; SIN -m ni --effort (los elige reparto)
 pa <proyecto> --leer --tipo lectura "<p>"  sólo lectura (leer, explorar, auditar); corre en paralelo con un writer
 pa <proyecto> --async --tipo T "<tarea>"   lanzar desacoplado: imprime el id de la corrida (o EN COLA)
 pa --esperar <proyecto> [--timeout N] [--id ID]   cobrar el resultado más viejo, o esperar a que termine
 pa --esperar-todos [--timeout N]           cobrar todas las corridas async de una
 pa <proyecto> --seguir [--id ID] "<t>"     retomar esa corrida (misma rama, mismo contexto)
-pa <proyecto> -m <modelo> [--effort E]     fijar el modelo; gana siempre sobre modelos.json (sólo avisa si no tiene cupo)
+pa <proyecto> -m <modelo> [--effort E]     fijar el modelo a mano (excepción: ver «Elegir modelo en corto»); gana sobre modelos.json
 reparto --resumen                          los modelos habilitados con inteligencia por effort, costo, cupo y para qué sirven
 pa <proyecto> --integrar <id>              mergear la rama del worker en main
 pa <proyecto> --actualizar <id>            si --integrar chocó (80): un worker rebasea esa rama sobre main
@@ -63,9 +63,10 @@ pa --estado                                qué corre ahora, sesiones guardadas,
 | `lectura` | leer, explorar, auditar (con `--leer`) |
 | `mecanico` | mecánico con un chequeo determinista (renombrar, migrar, formatear) |
 
-- Sin `-m`, `pa` sigue con lo que sugiere `reparto` (o `modelos.json`: `workers.<tipo>`, si falta `workers.default`, los
-  defaults de `pa`) pero **te avisa**: esa tabla no mira el tamaño real de la tarea. Vos elegís modelo y effort.
-  `pa --modelos` muestra la tabla.
+- Sin `-m`, `pa` usa lo que elige `reparto` (con `reparto: auto` en `modelos.json`) según el tipo y el cupo; con `reparto: fijo`, o si
+  `reparto` no anda (`pa` lo dice por stderr y en el resultado: «reparto NO eligió el modelo»), `modelos.json`: `workers.<tipo>`, si falta
+  `workers.default`, los defaults de `pa`. Que un worker salga con Sonnet sin que lo pidieras es una falla a mirar, no el comportamiento
+  normal. `pa --modelos` muestra qué modelo usa cada tipo.
 - **Un modelo mayor sólo si el chequeo falla** (o la base es crítica): arrancá por el tipo que corresponde
   y subí con `-m`. Más effort no es más inteligencia, es más exploración y más gasto.
 - Un modelo `ollama:<modelo>` es local: más lento y menos capaz; reservalo para `mecanico` y `lectura`
@@ -88,9 +89,12 @@ pa --estado                                qué corre ahora, sesiones guardadas,
 
 ## Elegir modelo en corto
 
-**Elegís vos `-m` y `--effort` en cada `pa`**, con lo que leíste del pedido. Al arrancar la sesión recibís el resumen de
-modelos habilitados (inteligencia por effort, costo, cupo libre, para qué sirve); los cupos cambian, así que `reparto --resumen`
-lo refresca. `--tipo` sigue yendo (clasifica la corrida y alimenta `pa --rinde`), pero **ya no decide el modelo**.
+**Delegá con `--tipo` y sin `-m` ni `--effort`**: `reparto` elige modelo y effort con la calidad medida por tipo y el cupo libre, y prefiere
+los planes que se reinician pronto y todavía tienen cupo (ese cupo se pierde si no se usa). `--tipo` clasifica la corrida y alimenta
+`pa --rinde`. Al arrancar la sesión recibís el resumen de modelos habilitados; `reparto --resumen` lo refresca.
+
+Fijá `-m` (y `--effort`) **sólo con motivo**: una segunda opinión de otro proveedor, una base crítica, un bug sin pista, tras un fallo del
+modelo elegido, o medir un modelo nuevo. Para decidir ese caso:
 
 Criterio, de lo más importante a lo menos:
 

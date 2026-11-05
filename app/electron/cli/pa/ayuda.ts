@@ -70,7 +70,7 @@ export const AYUDA: readonly string[] = [
   "                                       si no queda ninguno). Sale con el código del último intento. Con --async: lo que falla al lanzar (95/96)",
   "                                       pasa al siguiente, y un 97 de la corrida ya lanzada relanza sola con el siguiente en esa misma corrida",
   "                                       (mismo id; --esperar --id trae el del último intento; sólo si el intento no dejó commits ni cambios)",
-  "  pa <proyecto> -m <modelo> \"<tarea>\"  elegir modelo: el jefe lo elige (con --effort) según el tamaño real de la tarea",
+  "  pa <proyecto> -m <modelo> \"<tarea>\"  fijar el modelo a mano (sin -m lo elige reparto según --tipo y el cupo)",
   "                                       (`reparto --resumen` lista las opciones); con -m, reparto sólo avisa si ese modelo no",
   "                                       tiene cupo y sugiere otro (sin_cupo=fallar: sale 96). Sin -m pa avisa y sigue con lo",
   "                                       que sugiere `reparto` según --tipo y el cupo de cada",

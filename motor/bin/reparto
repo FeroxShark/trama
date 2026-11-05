@@ -3300,7 +3300,7 @@ def resumen(cfg, cupos, now):
 
 
 def texto_resumen(filas, now, caminos=""):
-    L = ([caminos] if caminos else []) + ["Modelos habilitados hoy (reparto --resumen; se refresca con ese comando). Elegí vos con `-m <id>` y `--effort <e>` según el tamaño real de la tarea y lo que cuesta un error.",
+    L = ([caminos] if caminos else []) + ["Modelos habilitados hoy (reparto --resumen; se refresca con ese comando). Delegá con `--tipo` y sin `-m`: reparto elige. Fijá `-m <id>` y `--effort <e>` sólo con motivo (segunda opinión, base crítica, tras un fallo).",
          "int. = índice de inteligencia de Artificial Analysis por effort (~ = estimado); costo relativo a Opus = 1,0; cupo = libre ahora (y cuándo vuelve)."]
     for r in filas[:RESUMEN_MAX]:
         if r["intel"]:

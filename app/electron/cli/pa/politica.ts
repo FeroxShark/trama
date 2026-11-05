@@ -5,7 +5,7 @@
 import { readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { ahoraS, leerTexto } from "./corridas.ts";
-import { salir, conDueno, type Pa } from "./entorno.ts";
+import { salir, conDueno, dondeSeBusco, type Pa } from "./entorno.ts";
 import { limiteDe } from "./lanzar.ts";
 import {
   CODEX_MODELOS, DSH_MODELOS, GEMINI_MODELOS, OC_MODELOS, TIPOS_VALIDOS, calza, esCodex, esDsh, esGemini, esLocal, esOpencode,
@@ -432,8 +432,8 @@ export async function aplicarPolitica(l: Llamada, pa: Pa, deps: DepsPolitica): P
       }
     } else if (noDisp.length) return false;
     else if (r.rc === 124 || r.rc === 137) l.repartoFallo = `timeout tras ${topeReparto(env)}s`;
-    else if (r.rc === 127) l.repartoFallo = `no existe ${reparto.ruta}`;
-    else l.repartoFallo = `rc ${r.rc}`;
+    else if (r.rc === 127) l.repartoFallo = `no existe ${reparto.ruta}${pa.motor ? `; motor ${pa.motor.dir} (vía ${pa.motor.via}), busqué en ${dondeSeBusco(pa.motor)}` : ""}`;
+    else l.repartoFallo = `rc ${r.rc}${r.salida ? `: ${r.salida.split("\n")[0]!.slice(0, 160)}` : ""}`;
     return Boolean(mRep);
   };
   if (!l.modelo && l.lanza && modelos.reparto() === "auto") {
@@ -478,7 +478,7 @@ export async function aplicarPolitica(l: Llamada, pa: Pa, deps: DepsPolitica): P
   if (l.lanza && !l.seguir && !env.PA_ASYNC) {
     if (!l.modeloPedido) {
       io.err(
-        `pa: aviso: sin -m. Sigo con ${l.modelo}${conEffort()} (lo sugirió la tabla), pero elegí vos modelo y effort según el tamaño real de la tarea: -m <id> --effort <e>. 'reparto --resumen' lista las opciones con inteligencia, costo y cupo.\n`,
+        `pa: aviso: sin -m. Sigo con ${l.modelo}${conEffort()} (lo sugirió la tabla). 'reparto --resumen' lista las opciones con inteligencia, costo y cupo.\n`,
       );
     } else if (reparto.ejecutable() && modelos.reparto() === "auto") {
       const vuelve = sinCupoHasta(await tablaReparto(deps), l.modelo);
