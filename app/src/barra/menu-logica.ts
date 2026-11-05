@@ -13,6 +13,7 @@ export type Accion =
   | "borrar"
   | "descartar"
   | "nueva"
+  | "limpiar"
   | "ocultar"
   | "mostrar"
   | "subir"
@@ -78,12 +79,13 @@ export function accionesLider(l: Pick<Lider, "origen" | "ocupado">, settle: numb
 }
 
 /**
- * Una carpeta: un líder nuevo que ya nace en ella, esconder (o volver a mostrar) sus workers terminados y su lugar en el orden.
+ * Una carpeta: un líder nuevo que ya nace en ella, esconder (o volver a mostrar) sus workers terminados, limpiar sus chats viejos y su lugar en el orden.
  * `logo` (sólo si es un proyecto con registro: no el home ni «otras»): renombrarlo, cambiar el logo a mano y, si ya tiene uno elegido, volver al automático.
  */
 export const accionesCarpeta = (oculta: boolean, lugar?: LugarMenu, logo?: { propio: boolean }): Opcion[] => [
   { a: "nueva" },
   { a: oculta ? "mostrar" : "ocultar" },
+  { a: "limpiar" },
   ...delOrden(lugar),
   ...(logo ? [{ a: "renombrar" } as const, { a: "logo" } as const, ...(logo.propio ? [{ a: "logoQuitar" } as const] : [])] : []),
 ];

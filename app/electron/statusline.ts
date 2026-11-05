@@ -9,6 +9,7 @@
 import { readdir, readFile, stat } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { actividadApp } from "./actividad-lider.ts";
 import { cacheDe } from "./cache.ts";
 import { textoT } from "./errores.ts";
 import { ESTADO, escribirAtomico, PA_STATE } from "./pa.js";
@@ -287,7 +288,10 @@ export async function leerStatusline(): Promise<Statusline> {
       // La de su cwd; la barra la corrige con el proyecto de sus workers.
       proyecto: s.cwd ? proyectoDe(await real(s.cwd), rutas) : GENERAL,
       titulo: modeloLindo(modelo ?? ""),
-      actividad: Math.max(s.actividad, g?.ultimo ?? 0, typeof a?.ts === "number" ? a.ts : 0),
+      // Uno de la app: su último turno real. Que se haya levantado el proceso (`--resume`, un statusline por arrancar) no cuenta (actividad-lider.ts).
+      actividad: mia
+        ? actividadApp({ ultimo: g.ultimo, creado: g.creado, enCurso: p.ocupado || p.pide, delProceso: [s.actividad, typeof a?.ts === "number" ? a.ts : 0] })
+        : Math.max(s.actividad, g?.ultimo ?? 0, typeof a?.ts === "number" ? a.ts : 0),
       creado: creadoEn(t.creado, g?.creado, s.inicio, s.actividad),
       // El statusline de uno que se trajo a la app quedó viejo: vale lo último que se vio, de cualquiera de los dos.
       ...cacheDe(cacheSl(a), g ? { ultimo: g.ultimo, pedido: p?.pedido ?? 0, ttl: g.cache_ttl_s } : null, modelo),

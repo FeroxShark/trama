@@ -36,8 +36,8 @@ test("líder: los de la app se paran y se borran; los de la terminal no se tocan
 });
 
 test("carpeta: nueva tarea aquí y ocultar/mostrar terminados", () => {
-  assert.deepEqual(as(accionesCarpeta(false)), ["nueva", "ocultar"]);
-  assert.deepEqual(as(accionesCarpeta(true)), ["nueva", "mostrar"]);
+  assert.deepEqual(as(accionesCarpeta(false)), ["nueva", "ocultar", "limpiar"]);
+  assert.deepEqual(as(accionesCarpeta(true)), ["nueva", "mostrar", "limpiar"]);
 });
 
 test("orden a mano: Subir y Bajar sólo si hay adónde, Orden por defecto sólo si hay algo puesto; los workers no", () => {
@@ -46,12 +46,12 @@ test("orden a mano: Subir y Bajar sólo si hay adónde, Orden por defecto sólo 
   assert.deepEqual(as(accionesLider(l, 0, todo)), ["renombrar", "mover", "subir", "bajar", "defecto", "prioridad", "settle?", "seguir", "copiar", "borrar?"]);
   assert.deepEqual(as(accionesLider(l, 0, { sube: false, baja: true, defecto: false })), ["renombrar", "mover", "bajar", "prioridad", "settle?", "seguir", "copiar", "borrar?"]);
   assert.deepEqual(as(accionesLider(l, 0, { sube: false, baja: false, defecto: false })), [...as(accionesLider(l, 0)).slice(0, 2), "prioridad", ...as(accionesLider(l, 0)).slice(2)]);
-  assert.deepEqual(as(accionesCarpeta(false, { sube: true, baja: false, defecto: true })), ["nueva", "ocultar", "subir", "defecto", "prioridad"]);
+  assert.deepEqual(as(accionesCarpeta(false, { sube: true, baja: false, defecto: true })), ["nueva", "ocultar", "limpiar", "subir", "defecto", "prioridad"]);
   // Con "Activas" prendido el orden a mano sigue (arrastrar, Subir y Bajar): la opción de prioridad no lo esconde.
   const prendido = { sube: true, baja: true, defecto: true, prioridad: true };
   assert.deepEqual(as(accionesLider(l, 0, prendido)), as(accionesLider(l, 0, todo)));
-  assert.deepEqual(as(accionesCarpeta(false, prendido)), ["nueva", "ocultar", "subir", "bajar", "defecto", "prioridad"]);
-  assert.deepEqual(as(accionesCarpeta(true)), ["nueva", "mostrar"]);
+  assert.deepEqual(as(accionesCarpeta(false, prendido)), ["nueva", "ocultar", "limpiar", "subir", "bajar", "defecto", "prioridad"]);
+  assert.deepEqual(as(accionesCarpeta(true)), ["nueva", "mostrar", "limpiar"]);
 });
 
 test("carpeta con logo: cambiar siempre, y volver al automático sólo si ya tiene uno elegido", () => {

@@ -84,6 +84,7 @@ import { terminalAgentesGuardada } from "./preferencias.js";
 import { envTerminalAgentes, lineaTerminalAgentes } from "./terminal-agentes.ts";
 import { anotarCarpeta, anotarCarpetas } from "./proyectos-auto.ts";
 import { plataformaActual } from "./rutas.ts";
+import { debeLevantarse } from "./actividad-lider.ts";
 
 const HOME = os.homedir();
 const ARCHIVO = path.join(ESTADO, "lideres.json");
@@ -2076,18 +2077,33 @@ async function levantar(g: Guardado): Promise<boolean> {
   return true;
 }
 
+/** Lo que `reanudarDormidos` necesita saber de afuera para decidir a quién levantar. Sin esto (o sin saberlo) se levanta a todos, como antes. */
+export type ContextoReanudar = {
+  /** Epoch s de "ahora" (para las pruebas). */
+  ahora?: number;
+  /** Tiene workers de `pa` vivos. `undefined` si no se pudo leer la lista: se lo levanta por las dudas. */
+  conWorkers?: (sid: string) => boolean | undefined;
+  /** Tiene algo en la cola de mensajes o en camino. */
+  enCola?: (sid: string) => boolean;
+};
+
 /**
  * Al arrancar: levanta de nuevo (`--resume`) a los líderes de la app que tenían proceso cuando trama se cerró
- * (`dormido`, lo anota `cerrarTodos`). Uno que nunca tuvo un turno no tiene transcript: se lo lanza con
- * `--session-id`, no con `--resume`. Sin mandarles nada (no gasta tokens). Los de una terminal (`ajeno`) no se tocan. El que no se pueda
- * levantar queda Murió con el motivo (`lanzar`: `fin`), nunca callado. Escalonado: no son N `claude` arrancando juntos.
- * Devuelve los sids que quedaron con proceso.
+ * (`dormido`, lo anota `cerrarTodos`), pero sólo a los que lo piden (`debeLevantarse`, actividad-lider.ts): con un turno en las
+ * últimas 24 h, con workers vivos o con algo en la cola. Los demás quedan sin proceso, en la barra con su caja, sin Murió ni conversación
+ * perdida: su próximo mensaje hace el `--resume`. Así un reinicio no deja decenas de `claude` ociosos (~186 MB cada uno) de chats de hace
+ * días. Uno que nunca tuvo un turno no tiene transcript: se lo lanza con `--session-id`, no con `--resume`. Sin mandarles nada (no gasta
+ * tokens). Los de una terminal (`ajeno`) no se tocan. El que no se pueda levantar queda sin proceso y retomable (`lanzar`: `fin`).
+ * Escalonado: no son N `claude` arrancando juntos. Devuelve los sids que quedaron con proceso.
  */
-export async function reanudarDormidos(escalonMs = 150): Promise<string[]> {
+export async function reanudarDormidos(escalonMs = 150, ctx: ContextoReanudar = {}): Promise<string[]> {
   const ls = (await lideresApp()).filter((g) => g.dormido);
+  const ahora = ctx.ahora ?? Math.floor(Date.now() / 1000);
   const hechos: string[] = [];
   for (const g of ls) {
     delete g.dormido;
+    const conWorkers = ctx.conWorkers?.(g.sid) ?? true;
+    if (!debeLevantarse({ ultimo: g.ultimo, creado: g.creado, conWorkers, enCola: ctx.enCola?.(g.sid) ?? false }, ahora)) continue;
     if (!(await levantar(g))) continue;
     // Hasta que conteste algo, si se cae no es un líder que murió (`Proc.arranque`).
     const x = procs.get(g.sid);

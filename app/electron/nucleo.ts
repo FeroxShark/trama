@@ -387,6 +387,19 @@ const avisosL = crearAvisosPendientes({
   filas: () => ultimosHilos as readonly FilaHilo[],
   procesoVivo: (h) => procesoVivoDe(PA_STATE, h),
 });
+/**
+ * A quién levanta `reanudarDormidos` al arrancar: lo que tiene workers vivos (`pa --hilos`) o algo en la cola. Si la lista de `pa` no
+ * llega en 15 s (o falla), de los workers no se sabe nada y se levanta por las dudas (`conWorkers` undefined).
+ */
+async function contextoReanudar(): Promise<import("./lider.js").ContextoReanudar> {
+  await leerCola();
+  const tope = new Promise<null>((ok) => setTimeout(() => ok(null), 15_000).unref());
+  const l = await Promise.race([leerHilos().catch(() => null), tope]);
+  const datos = l && "datos" in l ? (l.datos as { version?: unknown; hilos?: unknown }) : null;
+  const hilos = datos?.version === 1 && Array.isArray(datos.hilos) ? (datos.hilos as readonly { estado?: unknown; en_cola?: unknown; jefe_id?: unknown }[]) : null;
+  const con = hilos ? new Set(lideresConWorkers(hilos, hilos.map((h) => h.jefe_id).filter((j): j is string => typeof j === "string"))) : null;
+  return { conWorkers: (sid) => (con ? con.has(sid) : undefined), enCola: (sid) => cola.lista(sid).length > 0 || cola.camino(sid).length > 0 };
+}
 /** Lo guardado de la vez anterior (avisos y cola de mensajes), leído una sola vez; lo encolado que ya no está en la cola vuelve a pendiente. */
 let avisosLeidos: Promise<void> | null = null;
 const leerAvisos = () =>
@@ -802,7 +815,8 @@ export function armarNucleo() {
   void lider
     .marcarCortados()
     .catch(silencio("lider"))
-    .then(() => lider.reanudarDormidos())
+    .then(contextoReanudar)
+    .then((ctx) => lider.reanudarDormidos(150, ctx))
     .catch(silencio("lider"));
   // Las carpetas donde ya trabajan líderes (nuevos, retomados, traídos de Claude Code) quedan como proyectos, sin pasos manuales.
   void lider.anotarProyectosDeLideres().catch(silencio("proyectos"));

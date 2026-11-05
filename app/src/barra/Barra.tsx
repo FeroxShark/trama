@@ -109,6 +109,8 @@ import { useRecientes } from "./useRecientes";
 import type { Recientes } from "./recientes";
 import { usePrioridad } from "./usePrioridad";
 import { useTitulos } from "./titulos";
+import { Limpiar } from "./Limpiar";
+import { entradasLimpiar } from "./limpiar-logica";
 import { accionesCarpeta, accionesLider, accionesWorker, type LugarMenu, type Opcion } from "./menu-logica";
 import { Menu, Renombre, type ItemMenu } from "./Menu";
 import { armarTips } from "./tooltip";
@@ -348,6 +350,8 @@ export function Barra() {
   const [menu, setMenu] = useState<MenuAbierto | null>(null);
   // El menú de "Recientes" (cómo se ordena y qué muestra la barra), y los filtros: un proyecto del riel y las píldoras de arriba.
   const [menuOrden, setMenuOrden] = useState<{ x: number; y: number; origen: HTMLElement } | null>(null);
+  // «Limpiar chats»: el diálogo abierto, de toda la barra o de una carpeta (`proyecto`).
+  const [limpiando, setLimpiando] = useState<{ proyecto?: string; origen: HTMLElement | null } | null>(null);
   const [filtroProy, setFiltroProy] = useState<string | null>(null);
   const [filtroVer, setFiltroVer] = useState<Atencion | null>(null);
   const [renombrando, setRenombrando] = useState<Renombrando | null>(null);
@@ -1708,6 +1712,11 @@ export function Barra() {
       return;
     }
     const p = m.de.proyecto;
+    if (o.a === "limpiar") {
+      setMenu(null);
+      setLimpiando({ proyecto: p, origen: m.origen });
+      return;
+    }
     if (o.a === "nueva") {
       setMenu(null);
       abrirLiderNuevo();
@@ -1810,6 +1819,7 @@ export function Barra() {
       borrar: tr("menu.borrar"),
       descartar: tr("menu.descartar"),
       nueva: tr("menu.nueva"),
+      limpiar: tr("limpiar.menu"),
       ocultar: tr("menu.ocultar"),
       mostrar: tr("menu.mostrar"),
       subir: tr("menu.subir"),
@@ -2121,7 +2131,22 @@ export function Barra() {
               menuOrden.origen.focus();
               setMenuOrden(null);
             }}
-            items={MODOS.map(([m, etq]) => ({ clave: m, fijo: true, texto: tr(etq), marcado: !hayOrdenManual(nombres.orden) && modoOrden(nombres.orden) === m, alElegir: () => { ponerModo(m); setMenuOrden(null); } }))}
+            items={[
+              ...MODOS.map(([m, etq]) => ({ clave: m, fijo: true, texto: tr(etq), marcado: !hayOrdenManual(nombres.orden) && modoOrden(nombres.orden) === m, alElegir: () => { ponerModo(m); setMenuOrden(null); } })),
+              { clave: "limpiar", fijo: true, texto: tr("limpiar.menu"), alElegir: () => { setLimpiando({ origen: menuOrden.origen }); setMenuOrden(null); } },
+            ]}
+          />
+        ) : null}
+        {limpiando ? (
+          <Limpiar
+            entradas={entradasLimpiar(arbolSinBuscar)}
+            {...(limpiando.proyecto !== undefined ? { proyecto: limpiando.proyecto } : {})}
+            nombreCarpeta={(p) => nombreCarpeta(p, MODO.usuario, tr("barra.home"), titulosReg[p])}
+            alArchivar={(sids) => sids.forEach(settleLiderYa)}
+            alCerrar={() => {
+              limpiando.origen?.focus();
+              setLimpiando(null);
+            }}
           />
         ) : null}
         {menu ? (

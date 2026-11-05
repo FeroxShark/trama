@@ -1,0 +1,178 @@
+/* «Limpiar chats» (Limpiar.tsx). Sobre el diálogo de «Seguir con otro modelo» (.seg-*, seguir-dialogo.css) y los componentes de src/ui/.
+   La lista es de casillas con el nombre, la carpeta y hace cuánto; el estado (Murió, Cerrado, Quieto) va con ícono y palabra.
+   Usable a 360 px y con el dedo: filas de 2.75 rem y casillas grandes en pantallas táctiles. Sólo tokens de tokens.css. */
+.lim {
+  gap: var(--esp-3);
+}
+
+/* El plazo: un grupo de opciones en cápsula, como el de Ajustes. */
+.lim-plazo {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--esp-2) var(--esp-3);
+}
+.lim-plazo-t {
+  color: var(--apagado);
+  font-size: var(--letra-4);
+}
+.lim-seg {
+  display: inline-flex;
+  overflow: hidden;
+  border-radius: var(--r-cap);
+  background: var(--capa-track);
+}
+.lim-seg-b {
+  display: inline-flex;
+  min-height: 2rem;
+  align-items: center;
+  gap: var(--esp-1);
+  padding: 0 var(--esp-3);
+  border: 0;
+  background: transparent;
+  color: var(--texto-4);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--letra-4);
+  white-space: nowrap;
+}
+.lim-seg-b[aria-checked="true"] {
+  background: var(--acento-tinte);
+  color: var(--acento);
+  font-weight: 600;
+}
+
+/* Cuántos hay marcados y marcar o desmarcar todos. */
+.lim-barra {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--esp-3);
+  color: var(--apagado);
+  font-size: var(--letra-4);
+}
+.lim-todos {
+  min-height: 2rem;
+  padding: 0 var(--esp-2);
+  border: 0;
+  border-radius: var(--r-cap);
+  background: transparent;
+  color: var(--acento);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--letra-4);
+  font-weight: 600;
+}
+.lim-todos:hover {
+  background: var(--acento-tinte);
+}
+
+/* La lista: se desplaza sola; el título, el plazo y los botones quedan a la vista. */
+.lim-lista {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--esp-0-5);
+  margin: 0;
+  padding: 0;
+  overflow: hidden auto;
+  list-style: none;
+  scrollbar-width: thin;
+}
+.lim-fila {
+  flex: none;
+  border-radius: var(--r-sm);
+}
+.lim-fila[data-marcado] {
+  background: var(--capa-input);
+}
+.lim-label {
+  display: flex;
+  min-height: 2.75rem;
+  align-items: center;
+  gap: var(--esp-3);
+  padding: var(--esp-2) var(--esp-2-5);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+}
+.lim-label:hover {
+  background: var(--capa-tile);
+}
+.lim-label:has(.lim-chk:focus-visible) {
+  box-shadow: inset 0 0 0 1.5px var(--ajustes-acento-borde);
+}
+.lim-chk {
+  flex: none;
+  width: 1.125rem;
+  height: 1.125rem;
+  margin: 0;
+  accent-color: var(--acento);
+  cursor: pointer;
+}
+.lim-txt {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+}
+.lim-nombre {
+  overflow: hidden;
+  color: var(--texto);
+  font-size: var(--letra-5);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lim-meta {
+  overflow: hidden;
+  color: var(--apagado);
+  font-size: var(--letra-4);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lim-label .ui-chip {
+  flex: none;
+  white-space: nowrap;
+}
+.lim-label .ui-chip svg {
+  vertical-align: -0.125rem;
+}
+
+.lim-nota {
+  flex: none;
+  margin: 0;
+  color: var(--apagado);
+  font-size: var(--letra-4);
+  line-height: 1.5;
+}
+.lim-pie {
+  gap: var(--esp-2);
+}
+.lim-archivar {
+  height: var(--alto-chip);
+  padding: 0 var(--esp-4);
+  font-size: var(--letra-4);
+}
+
+@media (pointer: coarse) {
+  .lim-seg-b,
+  .lim-todos {
+    min-height: 2.75rem;
+  }
+  .lim-chk {
+    width: 1.5rem;
+    height: 1.5rem;
+  }
+  .lim-pie .ui-btn {
+    height: 2.75rem;
+  }
+}
+@media (max-width: 30rem) {
+  .lim-label {
+    gap: var(--esp-2);
+    padding-inline: var(--esp-2);
+  }
+}

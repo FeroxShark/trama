@@ -67,17 +67,28 @@ test("reiniciar con un líder ocupado, uno quieto y uno sin turnos: los tres vue
   const roto = await antes.nuevo({ ...M, texto: "hola" });
   await hasta(() => eventosAntes.some((x) => x.sid === roto && x.tipo === "fin"));
 
+  // Tres más, de hace 5 días: uno sin nada, uno con un worker vivo y uno con un mensaje en la cola. Sólo los dos últimos vuelven.
+  const viejo = await antes.nuevo({ ...M, texto: "hola" });
+  await hasta(() => eventosAntes.some((x) => x.sid === viejo && x.tipo === "fin"));
+  const conWorkers = await antes.nuevo({ ...M, texto: "hola" });
+  await hasta(() => eventosAntes.some((x) => x.sid === conWorkers && x.tipo === "fin"));
+  const conCola = await antes.nuevo({ ...M, texto: "hola" });
+  await hasta(() => eventosAntes.some((x) => x.sid === conCola && x.tipo === "fin"));
+
   // Como los transcripts de verdad (el falso no los escribe): los que tuvieron turnos.
-  for (const sid of [quieto, ocupado, roto]) {
+  for (const sid of [quieto, ocupado, roto, viejo, conWorkers, conCola]) {
     const t = antes.transcriptPorDefecto(sid);
     mkdirSync(path.dirname(t), { recursive: true });
     writeFileSync(t, JSON.stringify({ type: "user", cwd: os.homedir(), message: { role: "user", content: "hola" } }) + "\n");
   }
-  // Viejos (de hace días): cuando no tienen proceso, la barra los esconde, salvo que sigan `dormido`.
-  const viejo = Math.floor(Date.now() / 1000) - 5 * 86400;
+  // El último turno de cada uno: de hace una hora (los que vuelven por reciente) o de hace 5 días.
+  const ahora = Math.floor(Date.now() / 1000);
+  const hace1h = ahora - 3600;
+  const hace5d = ahora - 5 * 86400;
+  const viejos = new Set([viejo, conWorkers, conCola]);
   for (const g of await antes.lideresApp()) {
-    g.creado = viejo;
-    g.ultimo = g.sid === sinTurnos ? 0 : viejo;
+    g.creado = viejos.has(g.sid) ? hace5d : hace1h;
+    g.ultimo = g.sid === sinTurnos ? 0 : viejos.has(g.sid) ? hace5d : hace1h;
   }
   (await antes.lideresApp()).find((g) => g.sid === roto)!.cwd = path.join(tmp, "no-existe");
 
@@ -87,16 +98,19 @@ test("reiniciar con un líder ocupado, uno quieto y uno sin turnos: los tres vue
   // El cortado sale por la señal: su `exit` llega un instante después.
   await hasta(() => antes.conProceso().length === 0);
   const enDisco = () => JSON.parse(readFileSync(path.join(tmp, "estado", "lideres.json"), "utf8")).lideres as { sid: string; dormido?: number; murio?: number; motivo?: string }[];
-  for (const sid of [quieto, ocupado, sinTurnos, roto]) assert.ok(enDisco().find((g) => g.sid === sid)!.dormido, "anotado como dormido, en disco");
+  const todosLosDormidos = [quieto, ocupado, sinTurnos, roto, viejo, conWorkers, conCola];
+  for (const sid of todosLosDormidos) assert.ok(enDisco().find((g) => g.sid === sid)!.dormido, "anotado como dormido, en disco");
   // Hasta que alguien los levante, ninguno desaparece de la barra aunque su último turno sea de hace días.
   const ids = () => leerStatusline().then((s) => s.lideres.lideres.map((l) => l.id));
-  for (const sid of [quieto, ocupado, sinTurnos, roto]) assert.ok((await ids()).includes(sid), `${sid} sigue en la barra`);
+  for (const sid of todosLosDormidos) assert.ok((await ids()).includes(sid), `${sid} sigue en la barra`);
 
   // === Arranca la trama nueva ===
   despues = (await import("../electron/lider.ts?arranque=2")) as typeof antes;
   assert.equal(despues.conProceso().length, 0, "otra copia del módulo: nada vivo todavía");
-  const vueltos = await despues.reanudarDormidos(0);
-  assert.deepEqual([...vueltos].sort(), [quieto, ocupado, sinTurnos, roto].sort());
+  // Vuelven los del último día, el que tiene un worker vivo y el que tiene algo en la cola; el de hace 5 días sin nada queda sin proceso.
+  const vueltos = await despues.reanudarDormidos(0, { conWorkers: (sid) => sid === conWorkers, enCola: (sid) => sid === conCola });
+  assert.deepEqual([...vueltos].sort(), [quieto, ocupado, sinTurnos, roto, conWorkers, conCola].sort());
+  assert.equal(despues.procDe(viejo), null, "el de hace 5 días no se levanta solo");
   for (const sid of [quieto, ocupado, sinTurnos]) assert.ok(despues.procDe(sid)?.pid, `${sid} volvió con proceso`);
   // (El falso anota su arranque un instante después de lanzarlo.)
   await hasta(() => [quieto, ocupado, sinTurnos].every((sid) => lanzamientos(sid).length === 2));
@@ -105,6 +119,16 @@ test("reiniciar con un líder ocupado, uno quieto y uno sin turnos: los tres vue
   assert.ok(lanzamientos(sinTurnos).at(-1)!.args.includes("--session-id"), "el que no tuvo turnos: --session-id");
   assert.equal(lanzamientos(sinTurnos).at(-1)!.args.includes("--resume"), false);
   assert.equal(enDisco().some((g) => g.dormido), false, "ya no quedan dormidos");
+
+  // El que no se levantó: sigue en la barra, con su caja, sin Murió, y su actividad es la de su último turno. El que sí se levantó (proceso nuevo,
+  // statusline y sesión de ahora) también: levantar el proceso no mueve la actividad.
+  const ve = async (sid: string) => (await leerStatusline()).lideres.lideres.find((l) => l.id === sid)!;
+  assert.equal(enDisco().find((g) => g.sid === viejo)!.murio, undefined, "no queda Murió");
+  assert.equal((await ve(viejo)).caido, undefined);
+  assert.equal((await ve(viejo)).actividad, hace5d, "actividad = su último turno");
+  assert.equal((await ve(quieto)).actividad, hace1h, "levantar el proceso no la mueve a ahora");
+  assert.equal((await ve(conWorkers)).actividad, hace5d);
+  assert.equal(lanzamientos(viejo).length, 1, "ni se lanzó");
 
   // El que no se pudo levantar al arrancar Trama: nadie le pidió nada, así que NO es un líder que murió. Queda sin proceso pero retomable (con el motivo
   // en el log) y sigue en la lista; su próximo mensaje lo relanza y, si sigue fallando, ahí sí queda Murió con el motivo.
@@ -116,6 +140,11 @@ test("reiniciar con un líder ocupado, uno quieto y uno sin turnos: los tres vue
   await despues.mandar({ sid: roto, texto: "hola", ...M }).catch(() => {});
   await hasta(() => enDisco().find((x) => x.sid === roto)?.murio !== undefined);
   assert.ok(enDisco().find((x) => x.sid === roto)!.motivo && /ENOENT|no-existe/.test(enDisco().find((x) => x.sid === roto)!.motivo!), "pedido a mano, el fallo real se muestra");
+
+  // Escribirle al que quedó sin proceso lo retoma con --resume, sin perder la conversación.
+  await despues.mandar({ sid: viejo, texto: "volví", ...M });
+  await hasta(() => lanzamientos(viejo).length === 2);
+  assert.ok(lanzamientos(viejo).at(-1)!.args.includes("--resume"), "el próximo mensaje hace --resume");
 
   // Y un mensaje a uno que volvió anda como siempre.
   await despues.mandar({ sid: quieto, texto: "seguimos", ...M });
