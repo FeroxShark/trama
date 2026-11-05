@@ -1977,6 +1977,7 @@ export function Barra() {
                 <button
                   type="button"
                   className="orden"
+                  data-guia="limpiar-chats"
                   aria-haspopup="menu"
                   aria-expanded={menuOrden !== null}
                   aria-label={tr("orden.aria")}

@@ -205,7 +205,7 @@ export function TableroNuevo({ todo, carpetas, lideres, alRedactar, avisar }: Pr
           ))}
         </div>
         {datos && !datos.sinVista ? (
-          <button type="button" className="tbl-boton" aria-label={t("tbl.botonAria")} onClick={() => setLimpiando(true)}>
+          <button type="button" className="tbl-boton" data-guia="tablero-limpiar" aria-label={t("tbl.botonAria")} onClick={() => setLimpiando(true)}>
             <Brush size={13} strokeWidth={2.2} aria-hidden="true" />
             {t("tbl.boton")}
           </button>

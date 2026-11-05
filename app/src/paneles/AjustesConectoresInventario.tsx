@@ -215,7 +215,7 @@ export function InventarioConectores() {
           <Search size={14} strokeWidth={2} aria-hidden />
           <input className="pn-campo" type="search" value={busca} spellCheck={false} autoComplete="off" placeholder={t("conectores.buscar")} aria-label={t("conectores.buscar")} onChange={(ev) => setBusca(ev.target.value)} />
         </label>
-        <label className="cn-orden">
+        <label className="cn-orden" data-guia="conectores-orden">
           <span>{t("conectores.ordenar")}</span>
           <select className="pn-campo" value={orden} onChange={(ev) => setOrden(ev.target.value as Orden)}>
             {ORDENES.map((o) => (

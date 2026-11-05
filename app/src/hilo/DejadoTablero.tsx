@@ -28,7 +28,7 @@ export function DejadoTablero({ refs }: { refs: readonly RefDejado[] }) {
   if (!lista.length) return null;
   const vistas = lista.slice(0, MAX);
   return (
-    <ul className="dejado" aria-label={t("dejado.frase")}>
+    <ul className="dejado" data-guia="dejado-tablero" aria-label={t("dejado.frase")}>
       {vistas.map((c) => (
         <Fila key={c.key} c={c} />
       ))}

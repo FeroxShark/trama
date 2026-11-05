@@ -103,7 +103,7 @@ export const Fondo = memo(function Fondo({ mensajes }: { mensajes: readonly Mens
   const primera = tareas[0];
   const tiempo = hace(primera, ahora);
   return (
-    <div className="bgt">
+    <div className="bgt" data-guia="fondo">
       <button type="button" className="bgt-p" aria-expanded={abierta} onClick={() => setAbierta((x) => !x)}>
         <LoaderCircle className="bgt-gira" size={13} strokeWidth={2} aria-hidden="true" />
         <span className="bgt-n">{t("fondo.cuantas", { n: tareas.length })}</span>

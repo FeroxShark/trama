@@ -158,7 +158,7 @@ export function CatalogosPlugins({ alCambiar }: { alCambiar: () => void }) {
   const buscando = busca.trim() !== "" || filtro !== CAT_TODAS;
   const verPlugins = (c: Catalogo) => ordenarPlugins(filtrarCategoria(buscarPlugins(c.plugins, busca), filtro), orden);
   return (
-    <div className="cn-inv" data-plugins-catalogo ref={raiz}>
+    <div className="cn-inv" data-plugins-catalogo data-guia="plugins-catalogo" ref={raiz}>
       <p className="pn-nota pn-intro">{t("plugins.intro")}</p>
       <p className="pn-nota pn-intro" data-nota-claudeai>{t("plugins.notaClaudeai")}</p>
       <div className="cn-barra">

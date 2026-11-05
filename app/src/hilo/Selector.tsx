@@ -107,6 +107,7 @@ type Props = {
   buscar?: string;
   /** Para las capturas: nace con esta búsqueda escrita (junto con `abierto`). */
   busquedaInicial?: string;
+  "data-guia"?: string;
 };
 
 /** El nombre de una opción, en su fuente si trae una. */
@@ -153,7 +154,7 @@ function colocar(boton: HTMLElement, menu: HTMLElement) {
 /** Desde cuántas opciones el menú en columnas trae la búsqueda. */
 const CON_BUSQUEDA = 8;
 
-export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, abierto: deEntrada = false, reserva, columnas = false, confirmar, sufijo, cupos, cuposColumnas, pie, confirmando, senalAbrir = 0, pestana = null, pendiente, pendienteCompacto, enteras = false, esfuerzo, buscar, busquedaInicial }: Props) {
+export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, abierto: deEntrada = false, reserva, columnas = false, confirmar, sufijo, cupos, cuposColumnas, pie, confirmando, senalAbrir = 0, pestana = null, pendiente, pendienteCompacto, enteras = false, esfuerzo, buscar, busquedaInicial, "data-guia": dataGuia }: Props) {
   const [abierto, setAbierto] = useState(deEntrada || !!confirmando);
   const [pend, setPend] = useState<{ id: string; datos: DatosCambio } | null>(() => {
     const d = confirmando && confirmar ? confirmar(confirmando) : null;
@@ -540,7 +541,7 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
   ) : null;
 
   return (
-    <div className="pick">
+    <div className="pick" data-guia={dataGuia}>
       <button
         ref={boton}
         type="button"

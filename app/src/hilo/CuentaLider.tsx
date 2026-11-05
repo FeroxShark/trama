@@ -51,5 +51,5 @@ export function CuentaLider({ valor, alElegir, disabled, abierto }: { valor: str
   );
   if (!opciones.length) return null;
   const elegida = valor && opciones.some((o) => o.id === valor) ? valor : (cuentas.find((c) => c.preferida) ?? cuentas[0]).id;
-  return <Selector etiqueta={tr("cuenta.lider.etiqueta")} opciones={opciones} valor={elegida} alElegir={alElegir} disabled={disabled} abierto={abierto} />;
+  return <Selector data-guia="cuenta-lider" etiqueta={tr("cuenta.lider.etiqueta")} opciones={opciones} valor={elegida} alElegir={alElegir} disabled={disabled} abierto={abierto} />;
 }

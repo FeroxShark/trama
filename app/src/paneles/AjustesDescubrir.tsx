@@ -252,7 +252,7 @@ export function Descubrir({ alCambiar }: { alCambiar: () => void }) {
   const ver = buscando || todos ? visibles : visibles.slice(0, VISIBLES_DESCUBRIR);
   const cuando = cat.actualizado ? new Date(cat.actualizado).toLocaleString(locale(), { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : null;
   return (
-    <div className="cn-inv ds-raiz" data-descubrir ref={raiz}>
+    <div className="cn-inv ds-raiz" data-descubrir data-guia="descubrir" ref={raiz}>
       <p className="pn-nota pn-intro">{t("descubrir.intro")}</p>
       <p className="ol-nota" data-nota-skills>{t("descubrir.notaSkills")}</p>
       <p className="ol-nota">{t("descubrir.notaMcp")}</p>

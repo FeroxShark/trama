@@ -391,6 +391,7 @@ export function Ramas({ hilos, optimista, errores, enCurso, alActuar, alAbrir, a
           type="button"
           className="pn-analista-btn pn-limpiar-btn"
           data-limpiar-ramas
+          data-guia="limpiar-ramas"
           aria-expanded={limpiando}
           aria-controls="pn-limpieza"
           data-tip={tr("ramas.limpiarQue")}

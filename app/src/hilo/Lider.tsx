@@ -1365,7 +1365,7 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
               onPaste={pegar}
             />
             {!l ? (
-              <div className="caja-carpeta" data-carpeta>
+              <div className="caja-carpeta" data-carpeta data-guia="carpeta-auto">
                 <Folder size={13} strokeWidth={2} aria-hidden />
                 <span className="caja-carpeta-t">{tr("lider.carpeta")}</span>
                 <Selector
