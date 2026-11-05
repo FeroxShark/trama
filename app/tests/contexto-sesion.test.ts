@@ -7,6 +7,7 @@ import {
   desdeClaude,
   desdeTranscript,
   medirConRespaldo,
+  ultimaCompactacion,
   usosDe,
   type Desglose,
   type Medicion,
@@ -283,4 +284,32 @@ test("herramientas: si la respuesta no trae la lista (modo summary), salen del p
   // El desglose estimado también las lista.
   const e = desdeTranscript(TRANSCRIPT, { tipo: "worker", id: "w", motor: "claude", memoria: [], skills: [] });
   assert.ok(e.herramientas.some((h) => h.nombre === "WebFetch" && h.diferida && h.tokens === null));
+});
+
+const borde = (timestamp: string, postTokens?: number) => JSON.stringify({ type: "system", subtype: "compact_boundary", timestamp, compactMetadata: { trigger: "manual", preTokens: 265_978, ...(postTokens ? { postTokens } : {}) } });
+const pedido = (id: string, n: number) => JSON.stringify({ type: "assistant", message: { id, model: "claude-opus-5-5", usage: { input_tokens: n, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 } } });
+const compactar = { tipo: "lider" as const, id: "s", motor: "claude", memoria: [], skills: [] };
+
+test("compactar: el panel estimado dice con cuánto quedó, no lo de antes", () => {
+  const d = desdeTranscript([pedido("a", 20_000), pedido("b", 262_863), borde("2026-11-05T07:29:55.244Z", 25_578)], compactar);
+  assert.equal(d.usado, 25_578);
+  assert.ok(d.categorias.reduce((n, c) => n + c.tokens, 0) <= 25_578);
+  // Con el pedido siguiente vuelve a mandar el `usage`.
+  assert.equal(desdeTranscript([pedido("a", 20_000), borde("2026-11-05T07:29:55.244Z", 25_578), pedido("c", 31_000)], compactar).usado, 31_000);
+  // Sin `postTokens` no se sabe: nunca el número viejo.
+  assert.equal(desdeTranscript([pedido("a", 262_863), borde("2026-11-05T07:29:55.244Z")], compactar).usado, null);
+});
+
+test("compactar: una medición de antes de compactar no sirve de respaldo", async () => {
+  const cache = new Map<string, Medicion>();
+  const compacto = ultimaCompactacion([pedido("a", 262_863), borde("2026-11-05T07:29:55.244Z", 25_578)]);
+  assert.deepEqual(compacto, { en: Date.parse("2026-11-05T07:29:55.244Z"), pendiente: true, tokens: 25_578 });
+  const en = compacto!.en;
+  await medirConRespaldo(cache, "s", async () => RESPUESTA, () => en - 30_000);
+  assert.equal(await medirConRespaldo(cache, "s", async () => null, () => en + 10_000, en), null);
+  // Medida después de compactar, sí.
+  await medirConRespaldo(cache, "s", async () => RESPUESTA, () => en + 5_000);
+  assert.equal((await medirConRespaldo(cache, "s", async () => null, () => en + 10_000, en))?.viejo, true);
+  assert.equal(ultimaCompactacion([pedido("a", 1)]), null);
+  assert.equal(ultimaCompactacion([borde("2026-11-05T07:29:55.244Z", 25_578), pedido("c", 31_000)])?.pendiente, false);
 });

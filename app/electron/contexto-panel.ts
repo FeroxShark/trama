@@ -9,10 +9,11 @@ import { inventario, rutasClaude } from "./conectores-claude.ts";
 import { capturarBase } from "./contexto-base.ts";
 import { skillsDeSesion, vistaPrevia, type VistaPrevia } from "./contexto-previa.ts";
 import { sidDeWorker, transcriptDe as transcriptPorSid, TRANSCRIPTS } from "./consumo.ts";
-import { cwdDe, desdeClaude, desdeTranscript, medirConRespaldo, memoriaDeSesion, sinDesglose, usosDe, type Desglose, type Medicion } from "./contexto-desglose.ts";
+import { cwdDe, desdeClaude, desdeTranscript, medirConRespaldo, memoriaDeSesion, sinDesglose, ultimaCompactacion, usosDe, type Desglose, type Medicion } from "./contexto-desglose.ts";
 import { leerTranscript, type Transcript } from "./contexto-jsonl.ts";
 import { leerSesion } from "./contexto-sesion.ts";
 import { errorT } from "./errores.ts";
+import { log } from "./log.ts";
 import { sinLado, ventanaSub, type GastoSubagentes } from "./subagentes-gasto.ts";
 import { carpetaDeSubagentes, crearGastos } from "./subagentes-gasto-disco.ts";
 import type { Subagentes } from "./subagentes.ts";
@@ -102,8 +103,10 @@ async function calcularDesglose(o: Record<string, unknown>, clave: string, fresc
     const firma = tr && t ? firmaDe(t, tr, apagados) : null;
     const previo = guardado(clave, firma, fresco);
     if (previo) return previo;
-    const vivo = l && !l.local ? await medirConRespaldo(ultimaMedicion, sid, () => contextoVivo(sid)) : null;
-    if (vivo) return recordar(clave, firma, desdeClaude(vivo.resp, { id: sid, usos: usosDe(ls), info: leerSesion(ls), medidoEn: vivo.en, desactualizado: vivo.viejo }));
+    const vivo = l && !l.local ? await medirConRespaldo(ultimaMedicion, sid, () => contextoVivo(sid), Date.now, ultimaCompactacion(ls)?.en ?? null) : null;
+    if (vivo?.viejo) log.escribir("info", "contexto", `el líder ${sid} no contestó get_context_usage: queda la medición de ${new Date(vivo.en).toISOString()}`);
+    // Lo que no es medición nueva no se guarda con la firma: el próximo refresco le vuelve a preguntar aunque el transcript no haya cambiado.
+    if (vivo) return recordar(clave, vivo.viejo ? null : firma, desdeClaude(vivo.resp, { id: sid, usos: usosDe(ls), info: leerSesion(ls), medidoEn: vivo.en, desactualizado: vivo.viejo }));
     if (!ls.length) return sinDesglose({ tipo: "lider", id: sid, motor, modelo: l?.modelo, motivo: "sin-transcript" });
     const cwd = cwdDe(ls) ?? l?.cwd ?? os.homedir();
     const memoria = await memoriaDeSesion({ cwd, claudeDir, excludes: apagados.memoria });

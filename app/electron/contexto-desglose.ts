@@ -357,6 +357,8 @@ export async function medirConRespaldo(
   sid: string,
   leer: () => Promise<unknown | null>,
   ahora: () => number = Date.now,
+  /** Cuándo compactó por última vez: lo medido antes describe una conversación que ya no está. */
+  compactoEn: number | null = null,
 ): Promise<{ resp: unknown; en: number; viejo: boolean } | null> {
   const nueva = await leer().catch(() => null);
   if (nueva) {
@@ -366,6 +368,10 @@ export async function medirConRespaldo(
     return { resp: nueva, en: ahora(), viejo: false };
   }
   const antes = cache.get(sid);
+  if (antes && compactoEn !== null && antes.en <= compactoEn) {
+    cache.delete(sid);
+    return null;
+  }
   if (antes && ahora() - antes.en <= MEDICION_VIGENTE_MS) return { resp: antes.resp, en: antes.en, viejo: true };
   return null;
 }
@@ -397,6 +403,34 @@ export function pedidosDe(lineas: string[]): Pedido[] {
     if (total > 0) r.push({ total, modelo: str(o.message.model) });
   }
   return r;
+}
+
+/**
+ * La última compactación de un transcript: cuándo fue y, si todavía no hubo un pedido al modelo después, con cuántos tokens quedó
+ * (`postTokens`; `null` si esa versión de `claude` no lo anota). `pendiente`: el último `usage` todavía es el de antes de compactar.
+ */
+export function ultimaCompactacion(lineas: string[]): { en: number; pendiente: boolean; tokens: number | null } | null {
+  let pendiente = true;
+  for (let i = lineas.length - 1; i >= 0; i--) {
+    const l = lineas[i];
+    const borde = l.includes('"compact_boundary"');
+    if (!borde && !l.includes('"usage"')) continue;
+    let o: J;
+    try {
+      const x = JSON.parse(l);
+      if (!obj(x)) continue;
+      o = x;
+    } catch {
+      continue;
+    }
+    if (o.isSidechain === true) continue;
+    if (o.type === "assistant" && obj(o.message) && obj(o.message.usage)) pendiente = false;
+    if (o.type !== "system" || o.subtype !== "compact_boundary") continue;
+    const en = Date.parse(str(o.timestamp) ?? "");
+    if (!Number.isFinite(en)) return null;
+    return { en, pendiente, tokens: pendiente && obj(o.compactMetadata) ? num(o.compactMetadata.postTokens) : null };
+  }
+  return null;
 }
 
 /** La carpeta de trabajo que anotó Claude Code en el transcript (cada línea trae `cwd`): la primera. */
@@ -435,6 +469,7 @@ export function desdeTranscript(
   const usosBase = usosDe(lineas);
   const info = leerSesion(lineas);
   const pedidos = pedidosDe(lineas);
+  const compactada = ultimaCompactacion(lineas);
   const porHook = skillsPorHook(info.hooks, x.skills.map((s) => s.nombre));
   const usos: Usos = { ...usosBase, hook: porHook };
   const skills: FilaSkill[] = x.skills.map((s) => ({ ...s, estimado: true, usos: usos.skills[s.nombre] ?? 0, hook: porHook[s.nombre] ?? 0 }));
@@ -495,9 +530,10 @@ export function desdeTranscript(
     desactualizado: false,
     sinUso: { herramientas: [] as string[], mcp: [] as string[], skills: skills.filter((s) => s.usos === 0 && s.hook === 0).map((s) => s.nombre) },
   };
-  if (!pedidos.length)
+  // Compactó y no hubo otro pedido: el último `usage` es de la conversación que ya no está. Sin `postTokens` no se sabe, nunca el número viejo.
+  if (!pedidos.length || (compactada?.pendiente && compactada.tokens === null))
     return { ...base, sistema: [], fuente: "transcript", estimado: true, modelo, usado: null, ventana: x.ventana ?? null, ventanaEstimada: x.ventana == null, categorias: [], motivo: "sin-uso" };
-  const usado = pedidos[pedidos.length - 1].total;
+  const usado = compactada?.pendiente && compactada.tokens !== null ? compactada.tokens : pedidos[pedidos.length - 1].total;
   const fijo = pedidos[0].total;
   const sumaMem = memoria.reduce((a, m) => a + m.tokens, 0);
   const sumaSk = x.skills.reduce((a, s) => a + s.tokens, 0);
