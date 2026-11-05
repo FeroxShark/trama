@@ -1,5 +1,9 @@
 # Cambios
 
+## 0.2.50
+
+- Las carpetas que nombra un mensaje se abren con un clic en el explorador de archivos.
+
 ## 0.2.49
 
 - Windows: ya no se abre un CMD un instante al actualizar los usos ni con otras tareas de fondo.
