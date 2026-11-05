@@ -382,7 +382,7 @@ contextBridge.exposeInMainWorld("hilos", {
   /** El selector nativo de carpetas (el campo "Carpeta" de un líder nuevo); sólo la ventana de la PC. */
   carpeta: { elegir: (): Promise<string | null> => invocar("carpeta:elegir") },
   /** El selector nativo de una imagen para el logo de un proyecto: la imagen ya achicada a 64 px (data URL) o `null` si se canceló; sólo la ventana de la PC. */
-  archivo: { elegirLogo: (): Promise<string | null> => invocar("archivo:elegirLogo"), abrir: (ruta: string): Promise<boolean> => invocar("archivo:abrir", ruta) },
+  archivo: { elegirLogo: (): Promise<string | null> => invocar("archivo:elegirLogo"), abrir: (ruta: string): Promise<boolean> => invocar("archivo:abrir", ruta), abrirCarpeta: (ruta: string): Promise<boolean> => invocar("archivo:abrirCarpeta", ruta) },
   /** Vuelve a cargar la ventana (el cartel de error); sólo en la ventana de la PC. */
   recargar: (): Promise<void> => invocar("app:recargar"),
   /** Un error del renderer, al log del main (electron/log.ts). */

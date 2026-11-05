@@ -3,13 +3,15 @@
 // y lo de adentro de un renglón) y el resaltado de los bloques, de resaltar.ts;
 // los saltos de línea se respetan por CSS.
 import { Fragment, memo, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Check, Copy } from "lucide-react";
+import { Check, Copy, FolderOpen, FolderX } from "lucide-react";
 import { copiarConAviso } from "../copiar";
+import { fuente } from "../datos/fuente";
 import { t } from "../i18n";
 import { useIdioma } from "../i18n/react";
+import { esVentana } from "../puente";
 import { esComodin, rutaImagen } from "../../electron/imagen-ruta";
 import { ImagenInsertada, ImagenLocal, VerImagenLocal } from "./Imagenes";
-import { bloques, esRuta, sueltas, trozos, type Bloque, type Lista, type Trozo } from "./markdown";
+import { bloques, esRuta, rutaCarpeta, sueltas, trozos, type Bloque, type Lista, type Trozo } from "./markdown";
 import { resaltar } from "./resaltar";
 
 // Un enlace sale de la app: en la ventana lo abre el navegador del sistema (el main, que sólo
@@ -39,10 +41,26 @@ function Imagen({ x }: { x: Extract<Trozo, { tipo: "img" }> }) {
   return <ImagenLocal ruta={x.url} alt={x.texto} />;
 }
 
+/** Una carpeta nombrada en un mensaje: un clic la abre en el explorador de archivos. Si no se pudo (no existe, o es un archivo), lo dice el ícono y el aviso. */
+function Carpeta({ ruta }: { ruta: string }) {
+  useIdioma();
+  const [fallo, setFallo] = useState(false);
+  const dice = t(fallo ? "archivo.carpetaNoAbrio" : "archivo.carpetaAbrir", { ruta });
+  const Ico = fallo ? FolderX : FolderOpen;
+  return (
+    <button type="button" className="ruta-carpeta" data-fallo={fallo ? "" : undefined} aria-label={dice} data-tip={dice} onClick={() => void fuente.carpetaAbrir(ruta).then((ok) => setFallo(!ok))}>
+      <code data-ruta="">{ruta}</code>
+      <Ico size={12} strokeWidth={2} aria-hidden="true" />
+    </button>
+  );
+}
+
 function enLinea(texto: string, op: { vivo?: boolean; enlaces?: boolean } = {}): ReactNode[] {
   const adentro = (s: string) => enLinea(s, { enlaces: op.enlaces });
   return trozos(texto, op).map((x, i) =>
-    x.tipo === "code" ? (
+    x.tipo === "code" && op.enlaces !== false && esVentana() && rutaCarpeta(x.texto) ? (
+      <Carpeta key={i} ruta={rutaCarpeta(x.texto)!} />
+    ) : x.tipo === "code" ? (
       <Fragment key={i}>
         <code data-ruta={esRuta(x.texto) ? "" : undefined}>{x.texto}</code>
         {rutaImagen(x.texto) ? <VerImagenLocal ruta={x.texto} /> : null}

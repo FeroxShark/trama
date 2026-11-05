@@ -149,6 +149,20 @@ test("archivo:abrir: abre con la app de Windows un archivo que existe y no es un
   }
 });
 
+test("archivo:abrirCarpeta: sólo una carpeta con unidad que exista", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "carpeta-"));
+  const c = carcasa();
+  const abrir = (r) => c.manejadores["archivo:abrirCarpeta"]({ sender: {} }, r);
+  for (const no of ["/tmp/", "relativa\\x", "C:\\proy\\..\\x", "C:\\ya-no-esta\\", 42, null]) assert.equal(await abrir(no), false);
+  assert.deepEqual(c.llamadas.filter((l) => l[0] === "abrirArchivo"), []);
+  if (process.platform === "win32") {
+    assert.equal(await abrir(dir), true);
+    assert.deepEqual(c.llamadas.filter((l) => l[0] === "abrirArchivo"), [["abrirArchivo", dir]]);
+    fs.writeFileSync(path.join(dir, "a.txt"), "x");
+    assert.equal(await abrir(path.join(dir, "a.txt")), false);
+  }
+});
+
 test("portapapeles:texto: el texto del sistema, o vacío si no se puede leer", () => {
   assert.equal(carcasa({ texto: "hola" }).manejadores["portapapeles:texto"](), "hola");
   assert.equal(carcasa({ texto: null }).manejadores["portapapeles:texto"](), "");

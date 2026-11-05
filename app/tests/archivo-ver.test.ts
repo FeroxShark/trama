@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { abrirArchivo } from "../electron/archivo-abrir.ts";
+import { abrirArchivo, abrirCarpeta } from "../electron/archivo-abrir.ts";
 import { candidatasArchivo } from "../electron/archivo-candidatas.ts";
 import { archivoVistoDe, abribleConSistema } from "../electron/archivo-ruta.ts";
 import { esSecreto, leerArchivoVisto, TOPES_ARCHIVO } from "../electron/archivo-ver.ts";
@@ -80,6 +80,22 @@ test("leerArchivoVisto: un secreto es null aunque exista", async () => {
 test("abribleConSistema: documentos y medios sí; programas, scripts y texto no", () => {
   for (const r of ["/p/a.pdf", "C:\\p\\a.docx", "/p/a.xlsx", "/p/a.png", "/p/a.mp4", "/p/a.zip", "/p/a.md"]) assert.equal(abribleConSistema(r), true, r);
   for (const r of ["C:\\p\\setup.exe", "/p/run.sh", "C:\\p\\a.bat", "/p/a.py", "/p/a.docm", "/p/a.svg", "/p/a.desktop", "/p/sin-extension", "/p/a.ts"]) assert.equal(abribleConSistema(r), false, r);
+});
+
+test("abrirCarpeta: abre una carpeta que existe, también con ~; un archivo, una relativa o lo que falta, no", async () => {
+  const abiertas: string[] = [];
+  const abrir = async (r: string) => (abiertas.push(r), "");
+  const archivo = en("carpetas/hija/nota.txt", "x");
+  const hija = path.dirname(archivo);
+  assert.equal(await abrirCarpeta(hija, abrir, dir), true);
+  assert.equal(await abrirCarpeta("~/carpetas/hija/", abrir, dir), true);
+  assert.equal(await abrirCarpeta("~", abrir, dir), true);
+  assert.deepEqual(abiertas, [hija, path.join(dir, "carpetas", "hija") + "/", dir]);
+  abiertas.length = 0;
+  for (const no of [archivo, path.join(dir, "no-esta"), "carpetas/hija", "~otro/x", `${hija}/../hija`, 42, null]) assert.equal(await abrirCarpeta(no, abrir, dir), false, String(no));
+  assert.deepEqual(abiertas, []);
+  assert.equal(await abrirCarpeta(hija, async () => "no se pudo", dir), false);
+  assert.equal(await abrirCarpeta(hija, async () => Promise.reject(new Error("x")), dir), false);
 });
 
 test("abrirArchivo: abre un archivo que existe y es abrible; el resto, no", async () => {

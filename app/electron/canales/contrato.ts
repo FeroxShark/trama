@@ -272,6 +272,7 @@ export const CANALES = [
   ["carpeta:elegir", "invoke", "ventana"],
   ["archivo:elegirLogo", "invoke", "ventana"],
   ["archivo:abrir", "invoke", "ventana"],
+  ["archivo:abrirCarpeta", "invoke", "ventana"],
   ["bitacora:escribir", "invoke"],
   ["workers:aviso", "on"],
   ["workers:relanzar", "invoke"],

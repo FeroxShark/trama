@@ -2810,6 +2810,37 @@ html[data-titulo-nativo] #root::after {
 :is(.yo, .el, .pregunta) code[data-ruta] {
   color: var(--ruta);
 }
+/* Una carpeta: abre el explorador de archivos. El ícono dice que se puede tocar, sin depender del color. */
+.ruta-carpeta {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--esp-1);
+  max-width: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radio-2);
+  background: none;
+  color: var(--ruta);
+  font: inherit;
+  text-align: inherit;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+.ruta-carpeta > code {
+  min-width: 0;
+}
+.ruta-carpeta > svg {
+  flex: none;
+  align-self: center;
+}
+.ruta-carpeta:hover > code {
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}
+.ruta-carpeta[data-fallo],
+:is(.yo, .el, .pregunta) .ruta-carpeta[data-fallo] > code {
+  color: var(--rojo);
+}
 :is(.yo, .el, .pregunta) b {
   font-weight: 600;
   color: var(--texto-1);

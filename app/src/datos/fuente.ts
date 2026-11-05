@@ -179,6 +179,8 @@ export interface Fuente {
   archivoVisto(ruta: string): Promise<ArchivoVisto | null>;
   /** Lo abre con la app del sistema (sólo la ventana de la PC); `false` si no se pudo. */
   archivoAbrir(ruta: string): Promise<boolean>;
+  /** Abre una carpeta en el explorador de archivos (sólo la ventana de la PC); `false` si no se pudo. */
+  carpetaAbrir(ruta: string): Promise<boolean>;
   /**
    * Retomar un líder sin proceso (`Lider.caido`): pasa a ser de la app y queda listo para
    * escribirle. No lanza nada ni le manda nada: sale con el primer mensaje del usuario.
@@ -799,6 +801,8 @@ function charlaImagenes(sid: string): Mensaje[] {
       "![Panel corrido](C:\\Users\\ana\\Pictures\\captura 1.png)",
       "",
       "La otra está en `/tmp/trama/panel.png`, y de esta no encuentro el archivo: ![Antes](C:\\Users\\ana\\Pictures\\falta.png)",
+      "",
+      "Las capturas quedaron en `~/Imágenes/trama/` y las viejas en `/tmp/no-esta/`.",
     ].join("\n"),
     herramientas: [],
     ts,
@@ -1799,6 +1803,9 @@ const fija: Fuente = {
   async archivoAbrir() {
     return true;
   },
+  async carpetaAbrir(ruta) {
+    return !ruta.includes("no-esta");
+  },
   async liderRetomar(sid, x) {
     // `HILOS_VARIANTE=no`: la conversación ya no está en disco.
     if (MODO.variante === "no") return { ok: false, motivo: "sinSesion" };
@@ -2568,6 +2575,9 @@ const conPa = (m: NonNullable<typeof main>): Fuente => ({
   },
   async archivoAbrir(ruta) {
     return (await m.archivo?.abrir(ruta).catch(() => false)) === true;
+  },
+  async carpetaAbrir(ruta) {
+    return (await m.archivo?.abrirCarpeta(ruta).catch(() => false)) === true;
   },
   async liderRetomar(sid, x) {
     return retomadoDe(

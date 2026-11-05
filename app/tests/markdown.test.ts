@@ -4,7 +4,7 @@
 // todavía está llegando (`vivo`).
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { bloques, esRuta, sueltas, trozos, type Bloque } from "../src/hilo/markdown.ts";
+import { bloques, esRuta, rutaCarpeta, sueltas, trozos, type Bloque } from "../src/hilo/markdown.ts";
 
 type Tabla = Extract<Bloque, { tipo: "tabla" }>;
 const tabla = (texto: string): Tabla => {
@@ -315,6 +315,11 @@ test("vivo: letra por letra, un bloque ya cerrado no cambia de forma", () => {
     antes = ahora;
   }
   assert.deepEqual(bloques(texto, { vivo: true }), final);
+});
+
+test("rutaCarpeta: absoluta o con ~, con barra final o sin extensión; lo demás no se abre", () => {
+  for (const si of ["~", "~/", "~/Música/audio-visitas-2026-10-30/", "~/Proyectos/trama", "~/.config", "/tmp/", "/home/ana/x", "/home/ana/Mi carpeta/", "C:\\Users\\Ana\\", "C:\\Users\\Ana\\Mis cosas", "C:/x/y"]) assert.equal(rutaCarpeta(si), si, si);
+  for (const no of ["", "/", "/orquestar", "npm test", "a/b/", "src/hilo", "../x/", "~/x/../y", "/home/ana/../b/", "~/a.txt", "/tmp/a.m4a", "~/a.ts:12", "/home/ana/x:3", "/usr/bin/x --y", "docs/*.md", "~/d/*/", "https://example.com/a/", "//srv/x/", "~ana/x", "C:\\a\\b.pdf", "1/2"]) assert.equal(rutaCarpeta(no), null, no);
 });
 
 test("esRuta: el código en línea que es un archivo", () => {

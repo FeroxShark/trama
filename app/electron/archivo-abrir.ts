@@ -1,6 +1,7 @@
 // "Abrir con la app del sistema" un archivo que nombra la actividad de un worker, de un subagente o de un líder
 // (canal `archivo:abrir`, sólo de la ventana). La ruta tiene que ser absoluta, existir como archivo de esta máquina y ser de un
-// tipo que no se ejecuta (archivo-ruta.ts `abribleConSistema`): lo que llega por IPC no es de fiar.
+// tipo que no se ejecuta (archivo-ruta.ts `abribleConSistema`): lo que llega por IPC no es de fiar. Una carpeta (canal `archivo:abrirCarpeta`)
+// va aparte: acepta `~` y sólo abre lo que de verdad es una carpeta, así un archivo nunca pasa por acá sin ese filtro.
 import { stat } from "node:fs/promises";
 import { candidatasArchivo } from "./archivo-candidatas.ts";
 import { abribleConSistema } from "./archivo-ruta.ts";
@@ -10,6 +11,20 @@ export async function abrirArchivo(x: unknown, abrir: (ruta: string) => Promise<
   for (const ruta of candidatasArchivo(x, plataforma)) {
     try {
       if (!abribleConSistema(ruta) || !(await stat(ruta)).isFile()) continue;
+      return (await abrir(ruta)) === "";
+    } catch {
+      /* no está: la siguiente */
+    }
+  }
+  return false;
+}
+
+/** Abre la carpeta `x` (absoluta, o con `~` al principio) en el explorador de archivos con `abrir`; `true` si se abrió. Nunca lanza. */
+export async function abrirCarpeta(x: unknown, abrir: (ruta: string) => Promise<string>, home: string, plataforma: NodeJS.Platform = process.platform): Promise<boolean> {
+  const conHome = typeof x === "string" ? x.trim().replace(/^~(?=$|[\\/])/, home) : x;
+  for (const ruta of candidatasArchivo(conHome, plataforma)) {
+    try {
+      if (!(await stat(ruta)).isDirectory()) continue;
       return (await abrir(ruta)) === "";
     } catch {
       /* no está: la siguiente */

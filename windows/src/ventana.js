@@ -5,6 +5,7 @@
 // Pura: lo de Electron entra por `o.electron`, así lo prueban tests/ventana.test.js y app/tests sin Electron.
 
 const fs = require("node:fs/promises");
+const os = require("node:os");
 const path = require("node:path");
 
 // Igual que ID_VALIDO de app/electron/cuentas-varias.ts: el id va a una línea de comando de cmd.exe.
@@ -149,6 +150,17 @@ function crearCanalesVentana(o) {
       try {
         if (!(await fs.stat(r)).isFile()) return false;
         return (await shell.openPath(r)) === "";
+      } catch {
+        return false;
+      }
+    },
+    // Una carpeta que nombra un mensaje, en el Explorador (app/electron/archivo-abrir.ts): sólo si existe y es una carpeta.
+    "archivo:abrirCarpeta": async (_e, ruta) => {
+      const s = typeof ruta === "string" ? ruta.trim().replace(/^~(?=$|[\\/])/, os.homedir()) : "";
+      if (!s || s.length > 1024 || /[\u0000-\u001f]/.test(s) || !/^[A-Za-z]:[\\/]/.test(s) || s.split(/[\\/]/).includes("..")) return false;
+      try {
+        if (!(await fs.stat(s)).isDirectory()) return false;
+        return (await shell.openPath(s)) === "";
       } catch {
         return false;
       }

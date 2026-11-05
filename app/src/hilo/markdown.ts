@@ -393,6 +393,25 @@ const EXTENSIONES =
 const ARCHIVO = new RegExp(`^[\\w.@+-]+\\.(?:${EXTENSIONES})(?::\\d+(?:[:-]\\d+)?)?$`, "i");
 const CARPETAS = /^(?:~|\.{1,2})?\/?[\w.@+-]+(?:\/[\w.@+*-]+)+\/?(?::\d+(?:[:-]\d+)?)?$/;
 
+/**
+ * El `código` en línea que parece una carpeta de esta máquina y se puede abrir: absoluta o con `~`, con la barra final o sin extensión.
+ * Relativas no (no se sabe de dónde), ni `/orquestar` (un comando), ni `~/a.txt:3`. Si de verdad es una carpeta lo decide el main al abrirla.
+ */
+export function rutaCarpeta(t: string): string | null {
+  const s = t.trim();
+  if (!s || s.length > 1024 || /[\u0000-\u001f*?]/.test(s) || s.includes("://") || /:\d+(?:[:-]\d+)?$/.test(s) || s.split(/[\\/]/).includes("..")) return null;
+  const win = /^[A-Za-z]:[\\/]/.test(s);
+  if (!win && !/^(?:~(?:[\\/]|$)|\/(?!\/))/.test(s)) return null;
+  if (/^~[\\/]?$/.test(s)) return s;
+  if (!/\p{L}/u.test(s.replace(/^[A-Za-z]:/, ""))) return null;
+  if (/[\\/]$/.test(s)) return s;
+  // Sin barra final: una línea de comando (`/usr/bin/x --y`) no es una carpeta; en Windows una carpeta con espacios es lo común.
+  if (!win && /\s/.test(s)) return null;
+  const partes = s.split(/[\\/]/).filter(Boolean);
+  if (s.startsWith("/") && partes.length < 2) return null;
+  return /[^.]\.[A-Za-z0-9]+$/.test(partes.at(-1) ?? "") ? null : s;
+}
+
 /** Un `código` en línea que es una ruta de archivo (`src/hilo/Texto.tsx:12`, `~/x`, `package.json`): se pinta distinto. */
 export function esRuta(t: string): boolean {
   if (t.length > 200 || /\s/.test(t) || t.includes("://") || !/[a-z]/i.test(t)) return false;

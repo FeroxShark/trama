@@ -271,6 +271,7 @@ export const RUTAS: Readonly<Record<string, Ruta>> = {
   "carpeta:elegir": "local",
   "archivo:elegirLogo": "local",
   "archivo:abrir": "local",
+  "archivo:abrirCarpeta": "local",
   "app:recargar": "local",
   "volver:leer": "local",
   "volver:guardar": "local",
