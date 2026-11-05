@@ -440,6 +440,7 @@ type Opciones = {
    * carpeta que no es retirada manda sobre todo esto.
    */
   reemplazos?: ReadonlyMap<string, string>;
+  /**
    * Las carpetas ya decididas por inferencia (session_id → carpeta, `nombres.json`): una vez decidida, la carpeta de un líder
    * no se recalcula (ni por un worker que aparece o se va, ni por un registry que no se pudo leer, ni por otro primer
    * mensaje tras compactar o retomar). Sólo `mover` (lo que eligió el usuario) la pisa.
