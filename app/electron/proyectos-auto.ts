@@ -90,6 +90,11 @@ const existePorDefecto = (p: string) => stat(p).then((s) => s.isDirectory(), () 
 /** Para que dos altas a la vez (varios líderes que arrancan juntos) no se pisen leyendo y escribiendo el mismo archivo. */
 let cola: Promise<unknown> = Promise.resolve();
 
+/** Resuelve cuando las altas pedidas hasta ahora terminaron (las de `nuevo` van sin esperar). Lo usan las pruebas antes de tocar el registry. */
+export function esperarRegistros(): Promise<unknown> {
+  return cola;
+}
+
 /**
  * Anota en el registry las carpetas que todavía no estén. Devuelve los nombres que agregó (vacío si no había nada nuevo). Si el archivo
  * falta lo crea; si existe pero no se puede leer como registry, no lo toca (la persona lo arregla). Deja `registry.json.bak`.

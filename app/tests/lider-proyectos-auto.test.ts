@@ -28,6 +28,7 @@ process.env.PROYECTOS_REGISTRY = path.join(tmp, "registry.json");
 process.env.HILOS_CLAUDE = path.join(import.meta.dirname, "..", "scripts", "claude-falso.mjs");
 
 const lider = await import("../electron/lider.ts");
+const { esperarRegistros } = await import("../electron/proyectos-auto.ts");
 after(() => lider.cerrarTodos(true));
 
 
@@ -41,6 +42,9 @@ test("un líder nuevo en una carpeta la deja anotada como proyecto, una sola vez
   await lider.nuevo({ ...base, carpeta: mi + "/" });
   await lider.nuevo(base); // en el home: nada
   await esperarHasta(() => proyectos().length === 1);
+  // Las altas de `nuevo` van sin esperar: hay que dejar que terminen (la de la segunda carpeta también escribe) antes de que
+  // la siguiente prueba reemplace el registry; si no, esa escritura tardía vuelve a anotar mi-app y la otra prueba ve [].
+  await esperarRegistros();
   assert.deepEqual(proyectos(), [{ name: "mi-app", path: mi }]);
 });
 
