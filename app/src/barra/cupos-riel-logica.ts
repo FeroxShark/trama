@@ -85,6 +85,9 @@ export type LineaRiel = {
   gratis?: boolean;
   /** La cuenta del control «En uso» / «Usar primero», sólo en el primer renglón de cada una. */
   cuenta?: { proveedor: string; id: string };
+  /** Las dos ventanas de una cuenta de Claude, juntas: si falta una se dice «sin dato», nunca queda el renglón vacío. */
+  h5?: VentanaRiel;
+  sem?: VentanaRiel;
 };
 
 /** Las otras cuentas de Claude como renglones: el número es lo más lleno de sus dos ventanas. */
@@ -104,8 +107,35 @@ export function lineasCuentas(cuentas: readonly CuentaRiel[]): LineaRiel[] {
         vuelve: lleno && peor?.hasta ? peor.hasta : null,
         cuando: (peor?.pct ?? 0) > 0 && peor?.hasta ? peor.hasta : null,
         cuenta: { proveedor: "claude", id: c.id },
+        h5: c.h5,
+        sem: c.sem,
       };
     });
+}
+
+/** Lo que se ofrece cuando la cuenta de un chat está en el tope: cuál es, qué ventana pesa y a qué otra cuenta se puede pasar. */
+export type OfertaCambio = { actual: CuentaRiel; nivel: "ambar" | "rojo"; ventana: "5h" | "7d"; otra: CuentaRiel };
+
+const mayor = (c: CuentaRiel) => Math.max(c.h5.pct ?? 0, c.sem.pct ?? 0);
+const conDato = (c: CuentaRiel) => c.h5.pct !== null || c.sem.pct !== null;
+
+/**
+ * Con la cuenta del chat en el tope (desde `AMBAR_DESDE` % en alguna ventana), la cuenta con más lugar para pasarlo: sin ninguna ventana en el tope
+ * y con algún dato. `null` si el chat está bien, si su cuenta no se conoce o si no hay a dónde pasar. Sólo ofrece: quien llama no cambia nada solo.
+ */
+export function ofertaDeCambio(cuentas: readonly CuentaRiel[], idDelChat: string): OfertaCambio | null {
+  const actual = cuentas.find((c) => c.id === idDelChat);
+  if (!actual) return null;
+  const a = nivelCupo(actual.h5.pct);
+  const b = nivelCupo(actual.sem.pct);
+  const nivel = a === "rojo" || b === "rojo" ? "rojo" : a || b;
+  if (!nivel) return null;
+  // Manda la semana (con ella llena, la de 5 h no cuenta); si no, la ventana más llena.
+  const ventana = b && (b === nivel || a !== "rojo") ? "7d" : "5h";
+  const libres = cuentas.filter((c) => c.id !== actual.id && conDato(c) && !nivelCupo(c.h5.pct) && !nivelCupo(c.sem.pct));
+  if (!libres.length) return null;
+  const otra = libres.reduce((m, c) => (mayor(c) < mayor(m) ? c : m));
+  return { actual, nivel, ventana, otra };
 }
 
 /** Una suscripción de otro motor con sus renglones: Google (Gemini, Argon, «Claude y GPT por Google»), ChatGPT, OpenCode… */

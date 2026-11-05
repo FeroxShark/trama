@@ -1,0 +1,44 @@
+/* La oferta de pasar el chat a otra cuenta de Claude con lugar (OfertaCuenta.tsx): ícono, frase y botón; en angosto el botón baja a todo el ancho. */
+.oferta-cuenta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--esp-2) var(--esp-3);
+  padding: var(--esp-2) var(--esp-3);
+  margin-bottom: var(--esp-2);
+  border-radius: var(--r-md);
+  background: var(--capa-tile);
+  font-size: var(--letra-4);
+  line-height: 1.45;
+}
+.oferta-cuenta > svg {
+  flex: none;
+  color: var(--decision-texto);
+}
+.oferta-cuenta[data-nivel="rojo"] > svg {
+  color: var(--fallo-texto);
+}
+.oferta-cuenta p {
+  min-width: 0;
+  flex: 1 1 14rem;
+  margin: 0;
+  color: var(--texto);
+}
+.oferta-cuenta b {
+  font-weight: 600;
+}
+.oferta-cuenta-pasar {
+  flex: none;
+  min-height: 2rem;
+  white-space: normal;
+}
+@media (pointer: coarse), (max-width: 40rem) {
+  .oferta-cuenta-pasar {
+    min-height: 2.75rem;
+  }
+}
+@media (max-width: 40rem) {
+  .oferta-cuenta-pasar {
+    width: 100%;
+  }
+}

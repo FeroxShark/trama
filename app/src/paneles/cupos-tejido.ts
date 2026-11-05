@@ -1,7 +1,7 @@
 // Ajustes > Plan y cupos, la tela: qué dice cada renglón de cuenta (cuántos hilos prende cada carril, el estado en palabras) y el aviso de arriba
 // cuando a la cuenta en uso se le acaba el cupo y otra tiene lugar. Puro, sin React ni textos: lo prueba tests/cupos-tejido.test.ts.
 import type { GrupoCupo, SuscripcionCupo, VentanaCupo } from "../datos/contrato";
-import { masUsado } from "../barra/cuposVista.ts";
+import { columnas, masUsado } from "../barra/cuposVista.ts";
 
 /** Cuántos hilos tiene un carril. */
 export const HILOS = 37;
@@ -70,4 +70,13 @@ export function hallazgo(filas: readonly FilaResumen[]): Hallazgo | null {
   const libres = filas.filter((f) => !f.enUso && f.estado.nivel === "ok");
   const otra = libres.length ? libres.reduce((a, f) => (usoMayor(f.ventanas) < usoMayor(a.ventanas) ? f : a)) : null;
   return { nombre: uso.nombre, nivel: uso.estado.nivel, ventana: uso.estado.ventana, otra: otra?.nombre ?? null };
+}
+
+/**
+ * Los dos carriles de una cuenta, completos: si falta la ventana de 5 h o la de la semana se devuelve una sin dato (`pct: null`), para que el renglón
+ * nunca quede vacío ni con una sola ventana. Un proveedor con otra ventana (mensual) no se completa con las que no tiene (ese lugar queda `null`).
+ */
+export function carrilesCompletos(ventanas: VentanaCupo[]): [VentanaCupo | null, VentanaCupo | null] {
+  const [a, b] = columnas(ventanas);
+  return [a ?? (!b || b.id === "7d" ? { id: "5h", pct: null, vuelve: null } : null), b ?? (!a || a.id === "5h" ? { id: "7d", pct: null, vuelve: null } : null)];
 }

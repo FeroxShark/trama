@@ -45,7 +45,10 @@ import { Selector, type Opcion } from "./Selector";
 import { AUTO, carpetaDeEnvio, ofrecidos, OTRA, opcionDe, PERSONAL, rutaPedida } from "./carpeta-nueva";
 import { pedirCarpeta, usePedida } from "./carpeta-nueva-estado";
 import { useProyectos } from "../datos/proyectos";
-import { CuentaLider, nombreCuentaClaude, useCuentasClaude } from "./CuentaLider";
+import { CuentaLider, cuentasDeClaude, nombreCuentaClaude, useCuentasClaude } from "./CuentaLider";
+import { filasDeCupos } from "../datos/cuentas";
+import { OfertaCuenta } from "./OfertaCuenta";
+import { cuentasClaude, ofertaDeCambio } from "../barra/cupos-riel-logica";
 import { opcionesEnTurno, pendienteDe } from "./pendiente";
 import { DialogoCambio, type DatosCambio } from "./DialogoCambio";
 import { DialogoCache } from "./DialogoCache";
@@ -832,6 +835,15 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
       (err) => setErrorCaja(mensaje(err)),
     );
   };
+  // Con la cuenta de este chat en el tope y otra con lugar, se ofrece pasar (sólo ofrece: el chat no cambia solo).
+  const cuentaDelChat = l ? (l.cuenta ?? "claude") : null;
+  const ofertaCuenta = useMemo(() => {
+    if (!l || cuentaDelChat === null || !app || maquinaDe || familiaDe(modelo) !== "claude" || esLocal(modelo)) return null;
+    if (!cuentasDeClaude(listaCuentas).length) return null;
+    const datos = uso && !("error" in uso) ? uso : null;
+    const cupos = filasDeCupos(datos?.suscripciones, datos?.claudeNombre, tr("cuentas.principal"));
+    return ofertaDeCambio(cuentasClaude(datos, cupos.filas, cupos.claudeCorto ?? datos?.claudeNombre ?? tr("uso.claude"), listaCuentas), cuentaDelChat);
+  }, [l, cuentaDelChat, app, maquinaDe, modelo, listaCuentas, uso]);
   const propsAvisos = { volverA: (id: string) => nombreCuentaClaude(listaCuentas, id), alVolver: elegirCuenta, alSeguir: l && !ocupado ? () => setSeguirCon(true) : undefined, deshabilitado: ocupado || !app };
 
   // Con la caché vencida y un contexto grande, el primer mensaje espera a que la persona elija (cache-pregunta.ts, DialogoCache.tsx).
@@ -1547,6 +1559,7 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
           </div>
         )}
         {errorCaja ? <div className="caja-error" role="alert">{errorCaja}</div> : null}
+        {ofertaCuenta ? <OfertaCuenta oferta={ofertaCuenta} alPasar={() => elegirCuenta(ofertaCuenta.otra.id)} deshabilitado={ocupado} /> : null}
         {cruceDatos ? (
           <DialogoCambio
             datos={cruceDatos}

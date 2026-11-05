@@ -64,6 +64,10 @@ falta, está en `motor/docs/traspaso.md`.
   terminar el turno. Ya no hay "Mandar ya" aparte: Ctrl+Enter es un Enter más. El mensaje no está en el chat hasta que entra: vive en la solapa de arriba de la caja, con Editar, Borrar y «Enviar ahora» (corta el paso, siempre preguntando).
   Nunca se pierde: en disco está todo lo que no entró, con su error e imágenes (`camino`, cada imagen en su archivo). Lo ya pasado al stdin no se puede retirar: queda en la solapa como «En camino». Detalle en `motor/docs/traspaso.md`.
 
+- **Cuenta de cada chat (Claude):** «Usar en nuevos» (riel y Plan y cupos) sólo vale para los chats nuevos; cada chat guarda su cuenta (`Guardado.cuenta`) y se cambia desde el chat
+  (`CuentaLider`, `lider:cuenta`). Con la cuenta del chat en el tope (≥ 80 %), `OfertaCuenta` (`ofertaDeCambio` en `barra/cupos-riel-logica.ts`) ofrece pasar a otra con lugar: sólo
+  ofrece, nunca cambia sola. Toda cuenta muestra 5 h y semana juntas, y «sin dato» si falta una (`carrilesCompletos`, `Mini` del riel): nunca el renglón vacío. Lo controla `tests/oferta-cuenta.test.ts`.
+
 - **Reinicio y actividad de los líderes (`app/electron/actividad-lider.ts`):** la `actividad` de un líder de la app es su último turno real, nunca
   que se haya levantado su proceso. `reanudarDormidos` sólo levanta a los dormidos con un turno en las últimas 24 h, o workers vivos, o cola; el resto
   queda sin proceso y su próximo mensaje hace `--resume`. «Limpiar chats» (`src/barra/Limpiar.tsx`, lógica en `limpiar-logica.ts`) archiva los quietos.

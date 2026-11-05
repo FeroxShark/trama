@@ -486,6 +486,43 @@
   white-space: normal;
   overflow-wrap: anywhere;
 }
+/* Una cuenta de Claude con sus dos ventanas juntas (5 h y semana), una debajo de la otra y con las columnas alineadas. */
+.v-lin[data-dos] {
+  grid-template-columns: minmax(0, 1fr);
+  row-gap: var(--esp-1);
+  padding-block: var(--esp-1);
+}
+.v-dos {
+  display: grid;
+  gap: var(--esp-1);
+}
+.v-mini {
+  display: grid;
+  min-height: 1.5rem;
+  grid-template-columns: 3.25rem minmax(0, 1fr) 3.75rem;
+  align-items: center;
+  column-gap: var(--esp-2);
+}
+.v-mini > span {
+  color: var(--apagado);
+}
+.v-mini b {
+  font-weight: 500;
+  text-align: right;
+  white-space: nowrap;
+}
+.v-mini[data-sin] b {
+  color: var(--apagado);
+  font-weight: 400;
+}
+.v-mini[data-nivel="ambar"] b,
+.v-sub[data-nivel="ambar"] {
+  color: var(--cupo-poco-texto);
+}
+.v-mini[data-nivel="rojo"] b,
+.v-sub[data-nivel="rojo"] {
+  color: var(--fallo-texto);
+}
 .v-sub {
   grid-column: 1 / -1;
   padding-bottom: var(--esp-1);

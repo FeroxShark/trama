@@ -5,11 +5,10 @@ import { Check, CircleX, Clock, TriangleAlert, Unplug, X } from "lucide-react";
 import type { ReactNode } from "react";
 import type { VentanaCupo } from "../datos/contrato";
 import type { PerfilCuenta } from "../datos/cuentas";
-import { columnas } from "../barra/cuposVista";
 import { t } from "../i18n";
 import { cuandoFuturoCorto } from "../tiempo";
 import { AvisosCuenta, Nombre, useAccionesCuenta } from "./CuentasVarias";
-import { HILOS, hilosPrendidos, nivelCarril, type EstadoCuenta, type Hallazgo } from "./cupos-tejido";
+import { HILOS, carrilesCompletos, hilosPrendidos, nivelCarril, type EstadoCuenta, type Hallazgo } from "./cupos-tejido";
 import "./cupos-tela.css";
 
 const nombreCarril = (id: string) => (id === "5h" ? t("cu.tj.5h") : id === "7d" ? t("cu.tj.7d") : id === "1m" ? t("cu.tj.1m") : id);
@@ -59,10 +58,12 @@ function Carril({ v }: { v: VentanaCupo }) {
   );
 }
 
-/** Los dos carriles de una cuenta, juntos: son una sola pieza. */
+/**
+ * Los dos carriles de una cuenta, juntos: son una sola pieza. Si falta uno (5 h o semana) se pinta igual con «sin dato»; nunca queda el renglón
+ * vacío ni una sola ventana que parezca la cuenta entera. Un proveedor con otra ventana (mensual) no se completa con las que no tiene.
+ */
 export function Carriles({ ventanas }: { ventanas: VentanaCupo[] }) {
-  const [a, b] = columnas(ventanas);
-  if (!a && !b) return <div className="cu-par-sin">{t("uso.sinDatoCupo")}</div>;
+  const [a, b] = carrilesCompletos(ventanas);
   return (
     <div className="cu-par">
       {a ? <Carril v={a} /> : null}

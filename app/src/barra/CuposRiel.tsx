@@ -117,6 +117,18 @@ function Ventana({ nombre, v, ts }: { nombre: string; v: VentanaRiel; ts: number
 /** Los hilos del panel de Ajustes hablan de «poco» y «sin»: el ámbar y el rojo de acá. */
 const nivelHilos = (n: "ambar" | "rojo" | undefined) => (n === "rojo" ? "sin" : n === "ambar" ? "poco" : "ok");
 
+/** Una de las dos ventanas de una cuenta (5 h o semana): nombre, hilos y cifra, o «sin dato» en palabras si falta; nunca queda vacía. */
+function Mini({ nombre, v }: { nombre: string; v: VentanaRiel }) {
+  const nivel = nivelCupo(v.pct);
+  return (
+    <div className="v-mini" data-nivel={nivel} data-sin={v.pct === null ? "" : undefined}>
+      <span>{nombre}</span>
+      <Hilos pct={v.pct} nivel={nivelHilos(nivel)} total={HILOS_RENGLON} />
+      <b>{v.pct === null ? t("riel.sinDato") : `${Math.round(v.pct)} %`}</b>
+    </div>
+  );
+}
+
 /**
  * Un renglón del detalle: nombre, hilos y número, y debajo cuándo vuelve (ninguna con 0 % usado). Lo agotado, en palabras y en rojo, sólo en su
  * renglón. `titulo`: la suscripción tiene un solo renglón y se llama igual que ella: el renglón hace de título. `control`: «En uso» / «Usar primero».
@@ -135,12 +147,19 @@ function Linea({ l, cuentas, alCambiar, titulo }: { l: LineaRiel; cuentas: Lista
         ? t("riel.quedaPoco", { vuelve: t("cu.w.vuelve", { cuando: cuandoFuturo(l.cuando) }) })
         : t("cu.w.vuelve", { cuando: cuandoFuturo(l.cuando) })
       : null;
+  const dos = l.h5 && l.sem ? ([[t("cu.tj.5h"), l.h5], [t("cu.tj.7d"), l.sem]] as const) : null;
   const tip = l.gratis ? [l.quien, t("riel.sinLimiteTip"), l.pedidos !== undefined ? t("riel.pedidos", { n: l.pedidos.toLocaleString() }) : ""].filter(Boolean).join(" · ") : l.quien;
   return (
     <>
-      <div className="v-lin" data-nivel={nivel} data-lleno={lleno ? "" : undefined} data-palabra={palabra ? "" : undefined} data-titulo={titulo ? "" : undefined} data-tip={tip}>
+      <div className="v-lin" data-nivel={dos ? undefined : nivel} data-lleno={lleno ? "" : undefined} data-palabra={palabra && !dos ? "" : undefined} data-dos={dos ? "" : undefined} data-titulo={titulo ? "" : undefined} data-tip={tip}>
         <span className="v-ln">{l.nombre}</span>
-        {palabra ? (
+        {dos ? (
+          <div className="v-dos">
+            {dos.map(([nom, v]) => (
+              <Mini key={nom} nombre={nom} v={v} />
+            ))}
+          </div>
+        ) : palabra ? (
           <b>{l.gratis ? `${t("riel.gratis")} · ${t("riel.sinLimiteConocido")}` : l.sinLimite ? t("riel.sinLimite") : l.pedidos !== undefined ? t("riel.pedidos", { n: l.pedidos.toLocaleString() }) : "—"}</b>
         ) : (
           <>
@@ -148,7 +167,11 @@ function Linea({ l, cuentas, alCambiar, titulo }: { l: LineaRiel; cuentas: Lista
             <b>{l.estado === "marcado" ? "" : `${lleno ? 100 : l.pct} %`}</b>
           </>
         )}
-        {vuelve ? <small className="v-sub">{vuelve}</small> : null}
+        {vuelve ? (
+          <small className="v-sub" data-nivel={dos ? nivel : undefined}>
+            {vuelve}
+          </small>
+        ) : null}
       </div>
       {perfil ? (
         <div className="g-acc">
