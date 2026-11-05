@@ -11,7 +11,8 @@
 import { cpSync, existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { carpetaApp, homeDe, nodeWindows, plataformaActual, registroProyectos } from "../rutas.ts";
-import { enPath } from "./base/buscar.ts";
+import { esEjecutable } from "./base/buscar.ts";
+import { hallarAgy } from "../binario.ts";
 import { esPrincipal } from "./base/principal.ts";
 import { registrarEnArchivo } from "./hooks.ts";
 import { instalarPluginAgy } from "./plugin-agy.ts";
@@ -45,7 +46,7 @@ export function opcionesDe(env: Env = process.env): OpcionesInstalar {
     node: plat === "win32" ? nodeWindows(env, home) : process.execPath,
     registro: registroProyectos(env, home, plat),
     plataforma: plat,
-    agy: enPath("agy", [], env, plat) !== null || existsSync(path.join(home, ".gemini")),
+    agy: hallarAgy(env, home, (f) => esEjecutable(f, plat), plat) !== null || existsSync(path.join(home, ".gemini")),
   };
 }
 
