@@ -1220,7 +1220,7 @@ def quota_agy(state_dir, now, cuenta=None):
     except Exception:
         pass
     try:
-        r = subprocess.run(["agy", "-p", "/quota", "--output-format", "json"], capture_output=True,
+        r = subprocess.run([agy_ruta() or "agy", "-p", "/quota", "--output-format", "json"], capture_output=True,
                            text=True, timeout=float(os.environ.get("REPARTO_AGY_S", "40")),
                            stdin=subprocess.DEVNULL, cwd=os.environ.get("TMPDIR", "/tmp"), env=env_cuenta(cuenta))
         j = json.loads(r.stdout)
@@ -1306,7 +1306,7 @@ def modelos_agy(state_dir, cuenta=None, refrescar=False):
     except Exception:
         pass
     try:
-        r = subprocess.run(["agy", "models"], capture_output=True, text=True, stdin=subprocess.DEVNULL,
+        r = subprocess.run([agy_ruta() or "agy", "models"], capture_output=True, text=True, stdin=subprocess.DEVNULL,
                            timeout=float(os.environ.get("REPARTO_AGY_MODELOS_ESPERA", "20")),
                            cwd=os.environ.get("TMPDIR", "/tmp"), env=env_cuenta(cuenta))
         ms = agy_parsear_modelos(r.stdout)
@@ -1371,15 +1371,35 @@ def codex_home():
     return os.environ.get("CODEX_HOME") or os.path.expanduser("~/.codex")
 
 
+def agy_ruta():
+    """Ruta de agy: el PATH y, en Windows, las mismas carpetas que binario.ts (resolverAgy): el prefijo de npm, ~/.local/bin,
+    ~/.antigravity*/bin y %LOCALAPPDATA%\\Programs\\Antigravity\\bin. None si no está."""
+    import shutil
+    r = shutil.which("agy")
+    if r or os.name != "nt":
+        return r
+    home = os.path.expanduser("~")
+    local = os.environ.get("LOCALAPPDATA") or os.path.join(home, "AppData", "Local")
+    appdata = os.environ.get("APPDATA") or os.path.join(home, "AppData", "Roaming")
+    dirs = [os.environ.get("npm_config_prefix") or "", os.path.join(appdata, "npm"), os.path.join(home, ".local", "bin"),
+            os.path.join(home, ".antigravity", "bin"), os.path.join(home, ".antigravity-cli", "bin"), os.path.join(home, ".gemini", "antigravity-cli", "bin"),
+            os.path.join(local, "Programs", "Antigravity", "bin"), os.path.join(local, "Antigravity", "bin")]
+    for d in dirs:
+        for n in ("agy.cmd", "agy.exe", "agy"):
+            p = os.path.join(d, n) if d else ""
+            if p and os.path.isfile(p):
+                return p
+    return None
+
+
 def agy_disponible():
-    """agy en el PATH. Sin él no hay suscripción de Google que ofrecer (ni /quota que leer). Con cupos fijos
+    """agy en el PATH (o en las carpetas de agy_ruta). Sin él no hay suscripción de Google que ofrecer (ni /quota que leer). Con cupos fijos
     (REPARTO_CUPOS_FIJOS, tests) manda el archivo; REPARTO_AGY=0 lo apaga."""
     if os.environ.get("REPARTO_AGY") == "0":
         return False
     if os.environ.get("REPARTO_CUPOS_FIJOS"):
         return True
-    import shutil
-    return bool(shutil.which("agy"))
+    return agy_ruta() is not None
 
 
 def codex_disponible():
