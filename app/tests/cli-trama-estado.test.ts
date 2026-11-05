@@ -129,10 +129,22 @@ test("programas falsos: versión, keys, sesión de claude/agy/opencode", { skip:
   const env = { ...t.env, HILOS_DSH: path.join(bin, "dsh"), HILOS_OPENCODE: path.join(bin, "opencode"), TRAMA_AGY: path.join(bin, "agy"), TRAMA_CLAUDE: path.join(bin, "claude"), DEEPSEEK_API_KEY: "valor-falso" };
   const est = await estado(env);
   assert.deepEqual(est.claude, { instalado: true, logueado: true });
-  assert.deepEqual(est.agy, { instalado: true, logueado: true });
+  assert.deepEqual(est.agy, { instalado: true, logueado: true, ruta: path.join(bin, "agy") });
   assert.deepEqual(est.dsh, { instalado: true, version: "dsh 9.9.9 extra", ruta: path.join(bin, "dsh"), claves: { opencode: false, deepseek: true } });
   assert.deepEqual(est.opencode, { instalado: true, version: "opencode 1.2.3", ruta: path.join(bin, "opencode"), logueado: true });
   assert.ok(!JSON.stringify(est).includes("valor-falso"), "el valor de la key no sale nunca");
+});
+
+test("agy: si no contesta, error con la primera línea (sin tokens) y ruta", { skip: soloPosix("scripts de shell") }, async () => {
+  const t = sandbox();
+  const bin = path.join(t.raiz, "bin");
+  // stderr con algo que parece una clave: sale recortado y el token no aparece entero.
+  t.escribir(path.join(bin, "agy"), "#!/bin/sh\necho \"no hay sesión sk-ant-abcdefghijklmnopqrstuvwxyz0123\" >&2\necho segunda >&2\nexit 3\n", 0o755);
+  const est = await estado({ ...t.env, TRAMA_AGY: path.join(bin, "agy") });
+  assert.equal(est.agy.instalado, true);
+  assert.equal(est.agy.logueado, false);
+  assert.equal(est.agy.ruta, path.join(bin, "agy"));
+  assert.equal(est.agy.error, "no hay sesión …");
 });
 
 test("claude: sin JSON usa el archivo de credenciales; si falla no hay fallback", { skip: soloPosix("scripts de shell") }, async () => {
