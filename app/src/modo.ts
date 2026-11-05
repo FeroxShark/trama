@@ -176,6 +176,8 @@ const CAPTURAS = [
   // "Responder y avisar" en las preguntas de atlas ya contestadas: a un líder (su terminal), a elegir entre dos (el que originó la pregunta y el de la carpeta)
   // (`HILOS_VARIANTE=elegir` abre el selector, `sin` abre baliza, sin ningún líder: ni botón).
   "tablero-nuevo-avisar",
+  // «Limpiar» del Tablero: el diálogo abierto con lo desactualizado sugerido y marcado (proyecto retirado, rama integrada, prueba vieja).
+  "tablero-nuevo-limpiar",
   // El teclado: el anillo de foco en una fila de la barra y en un control de la caja del líder, y la lista de atajos (`?`).
   "foco-barra",
   "foco-caja",

@@ -6,7 +6,7 @@
 // "Mandadas" del proyecto hasta que el líder cierra el item. El kanban de hoy es la pestaña "Todo" (`todo`).
 // Reusa las opciones del chat (`.pq-op`, `.pq-otro`, src/hilo/Preguntas.tsx) y las pestañas del kanban (`.tb-vistas`).
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { ArrowLeft, Check, ChevronRight, CircleHelp, Copy, FlaskConical, Inbox, Send, X } from "lucide-react";
+import { ArrowLeft, Brush, Check, ChevronRight, CircleHelp, Copy, FlaskConical, Inbox, Send, X } from "lucide-react";
 import { armarAviso, candidatos, elegirAviso, type LiderAviso } from "../datos/avisar";
 import { fuenteTablero } from "../datos/fuenteTablero";
 import { agrupar, destinoDe } from "../datos/iniciar";
@@ -32,8 +32,10 @@ import { Selector, type Opcion } from "../hilo/Selector";
 import { MODO } from "../modo";
 import { useNombreProyecto } from "../datos/proyectos";
 import type { PropsTablero } from "./Tablero";
+import { AvisoLimpieza, LimpiarTablero, type Resultado } from "./LimpiarTablero";
 import "./pendientes.css";
 import "./tablero-vista.css";
+import "./limpiar-tablero.css";
 
 type Props = Pick<PropsTablero, "carpetas" | "lideres" | "alRedactar" | "avisar"> & {
   /** El kanban de hoy, entero: la pestaña "Todo". */
@@ -63,6 +65,9 @@ export function TableroNuevo({ todo, carpetas, lideres, alRedactar, avisar }: Pr
   const [mandando, setMandando] = useState(false);
   /** Lo que salió bien al avisar a un líder (una línea en el pie); se va con la próxima acción. */
   const [avisado, setAvisado] = useState<string | null>(null);
+  // «Limpiar»: el diálogo abierto y lo que dijo la última limpieza (junto a «Deshacer», que guarda su tanda aparte).
+  const [limpiando, setLimpiando] = useState(MODO.captura === "tablero-nuevo-limpiar");
+  const [limpieza, setLimpieza] = useState<Resultado | null>(null);
   const tocado = useTocado();
   const pedidas = useRef(0);
 
@@ -177,7 +182,24 @@ export function TableroNuevo({ todo, carpetas, lideres, alRedactar, avisar }: Pr
             </button>
           ))}
         </div>
+        {datos && !datos.sinVista ? (
+          <button type="button" className="tbl-boton" aria-label={t("tbl.botonAria")} onClick={() => setLimpiando(true)}>
+            <Brush size={13} strokeWidth={2.2} aria-hidden="true" />
+            {t("tbl.boton")}
+          </button>
+        ) : null}
       </div>
+      <AvisoLimpieza resultado={limpieza} alOcultar={() => setLimpieza(null)} alCambiar={() => void leer()} />
+      {limpiando && datos ? (
+        <LimpiarTablero
+          datos={datos}
+          alCerrar={(r) => {
+            setLimpiando(false);
+            if (r) setLimpieza(r);
+            void leer();
+          }}
+        />
+      ) : null}
       {pestana === "todo" ? (
         <div className="pd-todo">{todo}</div>
       ) : !datos ? (

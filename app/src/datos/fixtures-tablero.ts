@@ -69,6 +69,14 @@ export function tableroFijo(ahora: number, conPendientes = false, conMaquinas = 
   };
   const columnas = Object.fromEntries(CUANTOS.map(([c, cuantos]) => [c, Array.from({ length: cuantos }, (_, n) => item(c, n))]));
   if (conPendientes) columnas["espera-dueno"] = pendientesFijos(ahora) as ReturnType<typeof item>[];
+  if (conPendientes) {
+    // Para «Limpiar»: unos de un proyecto retirado, dos con la rama ya integrada (fixtures.ts) y una prueba de una versión vieja.
+    const b = columnas["bandeja"];
+    for (const n of [3, 4, 5]) b[n].proyecto = "viejo";
+    b[7].clave = "pa:20261001-162208-31045";
+    b[8].clave = "pa:20261002-141530-52210";
+    Object.assign(b[10], { titulo: "Probar la exportación en v0.2.12", prueba: "atlas --exportar ejemplo.csv" });
+  }
   const hecho = Array.from({ length: 14 }, (_, n) => ({ ...item("hecho", n), cerrado: iso(ahora - (n * 9 + 1) * 3_600_000) }));
   const abiertos = (p: string) => Object.values(columnas).reduce((s, l) => s + l.filter((i) => i.proyecto === p).length, 0);
   const proyectos = PROYECTOS.map((p, n) => ({
