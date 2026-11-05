@@ -1,5 +1,5 @@
 // Cuando la cuenta con que corre un chat llega al tope (ámbar desde 80 %, rojo sin cupo) y otra cuenta de Claude tiene lugar, el chat lo dice y ofrece
-// pasar a esa. Sólo ofrece: el chat sigue con su cuenta hasta que la persona toca el botón (Trama no cambia de cuenta sola). Va arriba de la caja,
+// pasar a esa. Sólo ofrece: el chat sigue con su cuenta hasta que la persona toca el botón (Trama no cambia de cuenta sola). Va pegada a la caja de escritura,
 // con ícono y palabras (no sólo el color); el botón mide 44 px con dedo. La cuenta que se ofrece sale de `ofertaDeCambio` (barra/cupos-riel-logica.ts).
 import { CircleX, TriangleAlert } from "lucide-react";
 import { Boton } from "../ui/componentes";
