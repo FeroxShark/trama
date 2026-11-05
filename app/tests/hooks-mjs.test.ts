@@ -391,6 +391,24 @@ test("agy-pa: en un worker aplica privacidad, allowlist, git y las guardias de l
   });
 });
 
+test("agy-pa: --leer deja buscar y leer en internet (search_web, read_url_content); curl sigue bloqueado; un escritor no las tiene", () => {
+  conTemporal((dir) => {
+    const raiz = "/work/wt";
+    const env = entorno(dir, { PA_AGY_HB: path.join(dir, "agy.heartbeat"), PA_AGY_RAIZ: raiz, PA_AGY_RAMA: "rama-x", PA_AGY_MODO: "leer", PA_MAX_TURNS: "30" });
+    const pre = (obj: unknown, extra: Record<string, string> = {}) => {
+      const r = correr("agy-pa", ["pre"], obj, { ...env, ...extra });
+      assert.equal(r.rc, 0);
+      return r.stdout ? JSON.parse(r.stdout) : null;
+    };
+    const razon = (obj: unknown, extra?: Record<string, string>) => pre(obj, extra)?.reason as string | undefined;
+    assert.equal(pre(llamada("search_web", { query: "gemini 4 precios" })), null, "WebSearch en --leer");
+    assert.equal(pre(llamada("read_url_content", { Url: "https://example.com/doc" })), null, "WebFetch en --leer");
+    assert.match(razon(llamada("run_command", { CommandLine: "curl https://example.com" }))!, /sin red/);
+    assert.match(razon(llamada("search_web", { query: "x" }), { PA_AGY_MODO: "" })!, /no está permitida/, "un escritor no busca en internet");
+    assert.match(razon(llamada("read_url_content", { Url: "https://example.com" }), { PA_AGY_MODO: "" })!, /no está permitida/);
+  });
+});
+
 test("agy-pa: PostInvocation avisa cerca del tope y termina pasado el tope", () => {
   conTemporal((dir) => {
     const env = entorno(dir, { PA_AGY_HB: path.join(dir, "agy.heartbeat"), PA_MAX_TURNS: "30" });

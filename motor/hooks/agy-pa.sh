@@ -68,6 +68,8 @@ case "$herramienta" in
   view_file) nombre=Read ;;
   grep_search) nombre=Grep ;;
   find_by_name|list_dir) nombre=Glob ;;
+  search_web) nombre=WebSearch ;;
+  read_url_content) nombre=WebFetch ;;
   *) nombre="$herramienta" ;;
 esac
 claude_json="$(jq -cn --arg t "$nombre" --arg c "$cmd" --arg f "$archivo" \
@@ -91,13 +93,16 @@ leer=0; [[ "${PA_AGY_MODO:-}" == leer ]] && leer=1
 # Allowlist de herramientas: lo que no está acá no corre. Afuera quedan el navegador (es el del
 # usuario), call_mcp_tool (Claude corre sin MCP por default), subagentes (el worker no delega),
 # schedule/run_workflow, send_message/manage_inbox, ask_* (headless: nadie contesta),
-# generate_image, delete_knowledge, el marketplace y la red (read_url_content, search_web: una URL
-# es una vía para sacar datos; sólo sale a la red lo que agy necesita para hablar con el modelo).
+# generate_image, delete_knowledge, el marketplace y la red por run_command (curl, wget…: sólo sale a la
+# red lo que agy necesita para hablar con el modelo). La excepción es --leer: search_web y read_url_content
+# (WebSearch/WebFetch de Claude) sí, porque el worker de investigación no puede contestar sin internet.
+# Un escritor no las tiene.
 lectura='view_file|list_dir|find_by_name|grep_search|run_command|command_status|wait|wait_5_seconds|finish'
 escritura='write_to_file|replace_file_content|multi_replace_file_content|sed_file|notebook_edit|send_command_input|manage_task'
+web='search_web|read_url_content'   # internet: sólo en --leer (curl/wget siguen bloqueados por run_command)
 if (( leer )); then
-  [[ "$herramienta" =~ ^($lectura)$ ]] \
-    || negar "BLOQUEADO: estás en modo LECTURA (pa --leer): '$herramienta' no está permitida. Para leer: view_file, list_dir, find_by_name, grep_search, y run_command sólo con git de lectura."
+  [[ "$herramienta" =~ ^($lectura|$web)$ ]] \
+    || negar "BLOQUEADO: estás en modo LECTURA (pa --leer): '$herramienta' no está permitida. Para leer: view_file, list_dir, find_by_name, grep_search, y run_command sólo con git de lectura. Para internet: search_web y read_url_content (nada de curl ni wget)."
 else
   [[ "$herramienta" =~ ^($lectura|$escritura)$ ]] \
     || negar "BLOQUEADO: '$herramienta' no está permitida en un worker de pa (ni navegador, ni MCP, ni subagentes, ni mensajes, ni tareas programadas). Hacé el trabajo con los archivos y la terminal; si de verdad hace falta, decilo en DECISION."

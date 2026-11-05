@@ -135,6 +135,8 @@ const NOMBRES = {
   grep_search: "Grep",
   find_by_name: "Glob",
   list_dir: "Glob",
+  search_web: "WebSearch",
+  read_url_content: "WebFetch",
 };
 const nombre = Object.hasOwn(NOMBRES, herramienta) ? NOMBRES[herramienta] : herramienta;
 const claudeJson = JSON.stringify({
@@ -160,9 +162,11 @@ const leer = env.PA_AGY_MODO === "leer";
 // Allowlist de herramientas: lo que no está acá no corre.
 const lectura = "view_file|list_dir|find_by_name|grep_search|run_command|command_status|wait|wait_5_seconds|finish";
 const escritura = "write_to_file|replace_file_content|multi_replace_file_content|sed_file|notebook_edit|send_command_input|manage_task";
+// Internet: sólo en --leer (search_web = WebSearch, read_url_content = WebFetch). curl/wget siguen bloqueados por run_command.
+const web = "search_web|read_url_content";
 if (leer) {
-  if (!new RegExp(`^(${lectura})$`).test(herramienta)) {
-    negar(`BLOQUEADO: estás en modo LECTURA (pa --leer): '${herramienta}' no está permitida. Para leer: view_file, list_dir, find_by_name, grep_search, y run_command sólo con git de lectura.`);
+  if (!new RegExp(`^(${lectura}|${web})$`).test(herramienta)) {
+    negar(`BLOQUEADO: estás en modo LECTURA (pa --leer): '${herramienta}' no está permitida. Para leer: view_file, list_dir, find_by_name, grep_search, y run_command sólo con git de lectura. Para internet: search_web y read_url_content (nada de curl ni wget).`);
   }
 } else if (!new RegExp(`^(${lectura}|${escritura})$`).test(herramienta)) {
   negar(`BLOQUEADO: '${herramienta}' no está permitida en un worker de pa (ni navegador, ni MCP, ni subagentes, ni mensajes, ni tareas programadas). Hacé el trabajo con los archivos y la terminal; si de verdad hace falta, decilo en DECISION.`);

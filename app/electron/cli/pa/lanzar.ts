@@ -285,8 +285,17 @@ export function leccionesBloque(dir: string): string {
 
 const TXT_FLOJO =
   'Trabajá en pasos chicos: un cambio por vez, corré la verificación después de CADA cambio y commiteá cuando pase antes de seguir con el próximo. Si algo falla, arreglalo antes de tocar otra cosa. Quedate en los archivos de la tarea: nada de refactors ni de "ya que estoy". Si la tarea es más grande de lo que pinta, hacé la parte que cierra, commiteala y decí en DECISION cómo partir el resto.';
-const TXT_LEER =
-  "Modo LECTURA: no escribís nada. Bash existe SOLO para git de lectura (log, diff, show, status, rev-list, rev-parse, merge-base, ls-files, ls-tree, blame, shortlog, describe, cat-file, grep, branch --list, worktree list, stash list/show), con -C <ruta> en vez de cd, y a lo sumo un pipe a head/tail/grep/wc/cut. Nada de ;, &&, redirecciones ni $(...): un hook bloquea todo lo demás. Para buscar en internet tenés WebSearch y WebFetch (no Bash: nada de curl).";
+/** El contrato de `--leer`. La terminal se llama Bash en Claude y run_command en agy; la búsqueda, WebSearch/WebFetch o search_web/read_url_content. */
+const txtLeer = (motor: string): string => {
+  const agy = motor === "agy";
+  const terminal = agy ? "run_command" : "Bash";
+  const web = agy ? "search_web y read_url_content" : "WebSearch y WebFetch";
+  return (
+    `Modo LECTURA: no escribís nada. ${terminal} existe SOLO para git de lectura (log, diff, show, status, rev-list, rev-parse, merge-base, ls-files, ls-tree, blame, shortlog, describe, cat-file, grep, branch --list, worktree list, stash list/show), con -C <ruta> en vez de cd, y a lo sumo un pipe a head/tail/grep/wc/cut. Nada de ;, &&, redirecciones ni $(...): un hook bloquea todo lo demás. ` +
+    `Para buscar en internet tenés ${web} (nada de curl ni wget). ` +
+    "Si una herramienta te la bloquea un hook, decilo en DECISION: no afirmes que abriste, leíste o comprobaste lo que no pudiste abrir (nada de «URLs comprobadas» sin haberlas leído)."
+  );
+};
 const TXT_PRO =
   "Modo ahorro (la suscripción es chica): leé SOLO lo que la tarea necesita; si te dieron rutas, empezá por ahí y no recorras el repo. Buscá con Grep/Glob antes de abrir archivos enteros, y leé rangos (offset/limit) en archivos largos. Filtrá la salida de los comandos (`| tail -n 40`, `| grep -E 'FAIL|error'`): todo lo que entra al contexto se vuelve a pagar en cada turno. Verificá con el test más acotado que pruebe tu cambio, no la suite entera, salvo que la tarea lo pida. No lances subagentes. Si la tarea resulta mucho más grande de lo que pinta, hacé la parte que cierra, commiteala y decí en DECISION cómo partir el resto.";
 const TXT_ABANICO =
@@ -358,7 +367,7 @@ export function contratoClaude(pa: Pa, c: Corrida): string {
   if (!c.leer && paralelos) {
     k += `\nEn este mismo proyecto están corriendo AHORA otros workers, cada uno en su worktree y su rama:\n${paralelos}\nComparten con vos el target de cargo, node_modules/.venv y lo que corra en la máquina (puertos, bases locales). No mates procesos que no lanzaste vos. Un puerto ocupado o un "Blocking waiting for file lock" de cargo puede ser el otro: esperá y reintentá, no lo 'arregles'. No instales ni saques dependencias (un hook lo bloquea): si hace falta, decilo en DECISION. No coordines con ellos ni toques sus ramas: si tocan lo mismo, se resuelve al integrar.`;
   }
-  if (c.leer) k += `\n${TXT_LEER}`;
+  if (c.leer) k += `\n${txtLeer(c.motor ?? "claude")}`;
   if (pa.plan === "pro") k += `\n${TXT_PRO}`;
   if (pa.plan !== "pro" && !c.leer && (c.motor ?? "claude") === "claude") k += `\n${TXT_ABANICO}`;
   return k;
