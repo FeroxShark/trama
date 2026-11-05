@@ -159,6 +159,36 @@ export const tourEn = {
   "tour.tablero.fila.b": "Answer there, then send everything to the lead in one message.",
   "tour.tablero.lecciones.t": "Lessons to prune",
   "tour.tablero.lecciones.b": "When a project's lessons file grows too long, it asks you to trim it so the leads keep reading what matters.",
+
+  "tour.g.ajustes-conectores": "Settings: Connectors",
+
+  "tour.principal.perfil.t": "Savings profile",
+  "tour.principal.perfil.b": "Switch the routing profile right from the quota bar to balance usage between free and paid models.",
+  "tour.principal.limpiar.t": "Clean up chats",
+  "tour.principal.limpiar.b": "Bulk-archive chats that have been quiet for days. Pick the timeframe and they stay on disk without losing anything.",
+
+  "tour.lider.tablero.t": "Left on the board",
+  "tour.lider.tablero.b": "Shows up when the lead or a worker left you a question or test. Click it to jump straight to that item on the Board.",
+  "tour.lider.fondo.t": "Live background output",
+  "tour.lider.fondo.b": "Follow what the lead left running in the background: open the pill to see the latest lines of live output.",
+  "tour.lider.cuenta.t": "Chat account",
+  "tour.lider.cuenta.b": "Each chat shows which account it runs on and lets you change it here. \"Use for new\" only sets the account for upcoming chats.",
+
+  "tour.caja.carpeta.t": "Chat folder",
+  "tour.caja.carpeta.b": "Starts on Auto and picks the project you mention in your message. You can also pick a folder manually.",
+
+  "tour.tablero.limpiar.t": "Clean up board",
+  "tour.tablero.limpiar.b": "Bulk-closes outdated items to \"dropped\" and lets you undo the batch. Nothing is deleted from disk.",
+
+  "tour.ramas.limpiar.t": "Clean up branches",
+  "tour.ramas.limpiar.b": "Review and remove old branches and worktrees from finished workers to free disk space without touching active ones.",
+
+  "tour.ajustes-conectores.orden.t": "Order by usage",
+  "tour.ajustes-conectores.orden.b": "Sort your connectors and skills by most used, least used, or by the date they were last used in the past 30 days.",
+  "tour.ajustes-conectores.plugins.t": "Plugin catalog",
+  "tour.ajustes-conectores.plugins.b": "Install official Claude Code skills and plugins or add other GitHub repositories without touching the terminal.",
+  "tour.ajustes-conectores.descubrir.t": "Discover skills and servers",
+  "tour.ajustes-conectores.descubrir.b": "Search and install skills and connectors from the official MCP registry, with file previews and permissions before installing.",
 } as const;
 
 export const tourEs: Record<keyof typeof tourEn, string> = {
@@ -317,4 +347,36 @@ export const tourEs: Record<keyof typeof tourEn, string> = {
   "tour.tablero.fila.b": "Contestás ahí y mandás todo junto al líder en un solo mensaje.",
   "tour.tablero.lecciones.t": "Lecciones por podar",
   "tour.tablero.lecciones.b": "Cuando el archivo de lecciones de un proyecto se alarga, te pide podarlo para que los líderes lean lo que importa.",
+
+  "tour.g.ajustes-conectores": "Ajustes: Conectores",
+
+  "tour.principal.perfil.t": "Perfil de ahorro",
+  "tour.principal.perfil.b": "Cambiá el perfil de reparto directo desde la barra de cupos para equilibrar el uso entre modelos gratis y de pago.",
+  "tour.principal.limpiar.t": "Limpiar chats",
+  "tour.principal.limpiar.b": "Archivá en lote los chats que llevan días sin actividad. Elegís el plazo y se guardan en disco sin perder nada.",
+
+  "tour.lider.tablero.t": "Te dejé esto en el tablero",
+  "tour.lider.tablero.b": "Aparece cuando el líder o un worker te dejaron una pregunta o prueba. Tocala para ir directo a ese item en el Tablero.",
+  "tour.lider.fondo.t": "Salida de tareas de fondo",
+  "tour.lider.fondo.b": "Seguí lo que el líder dejó corriendo en segundo plano: abrí la pastilla para ver las últimas líneas de salida en vivo.",
+  "tour.lider.cuenta.t": "Cuenta del chat",
+  "tour.lider.cuenta.b": "Cada chat muestra con qué cuenta corre y podés cambiarla acá. «Usar en nuevos» sólo define con qué cuenta arrancan los próximos.",
+
+  "tour.caja.carpeta.t": "Carpeta del chat",
+  "tour.caja.carpeta.b": "Arranca en Auto y elige el proyecto que nombres en tu mensaje. También podés elegir una carpeta a mano.",
+
+  "tour.tablero.limpiar.t": "Limpiar tablero",
+  "tour.tablero.limpiar.b": "Cierra en masa a «tirado» lo desactualizado y permite deshacer la tanda. Nada se borra del disco.",
+
+  "tour.ramas.limpiar.t": "Limpiar ramas y puestos",
+  "tour.ramas.limpiar.b": "Revisá y borrá ramas y carpetas de trabajo viejas de workers terminados para liberar espacio sin tocar lo activo.",
+
+  "tour.ajustes-conectores.orden.t": "Orden por uso",
+  "tour.ajustes-conectores.orden.b": "Ordená tus conectores y skills por los más usados, los menos usados o por la fecha de su último uso en los últimos 30 días.",
+
+  "tour.ajustes-conectores.plugins.t": "Tienda de plugins",
+  "tour.ajustes-conectores.plugins.b": "Instalá skills y plugins oficiales de Claude Code o agregá otros repositorios de GitHub sin tocar la terminal.",
+
+  "tour.ajustes-conectores.descubrir.t": "Descubrir skills y servidores",
+  "tour.ajustes-conectores.descubrir.b": "Buscá e instalá skills y conectores del registro oficial de MCP, con vista previa de archivos y permisos antes de instalar.",
 };
