@@ -14,6 +14,7 @@ import { PanelCargando } from "./PanelCargando";
 import type { FilaDato } from "./AjustesEditar";
 import { Estado } from "./AjustesDsh";
 import { InventarioConectores } from "./AjustesConectoresInventario";
+import { Descubrir } from "./AjustesDescubrir";
 
 type Tipo = VistaServidorMcp["tipo"];
 type VariableBorrador = { nombre: string; valor: string; hay: boolean };
@@ -239,16 +240,25 @@ function ServidoresPropios({ Dato }: { Dato: FilaDato }) {
 }
 
 export function AjustesConectores({ Dato }: { Dato: FilaDato }) {
+  // Instalar algo desde «Descubrir» cambia lo que hay arriba (el inventario de Claude Code) y abajo (los conectores propios): se vuelven a leer.
+  const [lectura, setLectura] = useState(0);
   return (
     <Cat id="conectores">
       <section className="pn-sec">
-        <InventarioConectores />
+        <InventarioConectores key={lectura} />
+      </section>
+      <div className="aj-grupo-cab cn-propios">
+        <h3 className="aj-grupo-tit">{t("descubrir.titulo")}</h3>
+        <p className="aj-grupo-sub">{t("descubrir.sub")}</p>
+      </div>
+      <section className="pn-sec">
+        <Descubrir alCambiar={() => setLectura((n) => n + 1)} />
       </section>
       <div className="aj-grupo-cab cn-propios">
         <h3 className="aj-grupo-tit">{t("conectores.propiosTit")}</h3>
         <p className="aj-grupo-sub">{t("conectores.propiosSub")}</p>
       </div>
-      <ServidoresPropios Dato={Dato} />
+      <ServidoresPropios key={lectura} Dato={Dato} />
     </Cat>
   );
 }

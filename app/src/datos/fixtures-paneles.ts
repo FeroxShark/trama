@@ -1,6 +1,7 @@
 // Datos falsos de los paneles del pie (Ajustes y Estadísticas), para el bench
 // y las capturas. Ramas sale de los hilos de fixtures.ts. Todo inventado.
 import { MODO } from "../modo";
+import { textoT } from "../../electron/errores";
 import { resumir } from "../paneles/resumen";
 import type { EstadoModelos } from "../../electron/modelos-config";
 import type { EntornoOllama } from "../../electron/ollama-entorno";
@@ -10,6 +11,7 @@ import type { EstadoMcp } from "../../electron/mcp";
 import type { VistaServidorMcp } from "../../electron/mcp-config";
 import type { Conector, Inventario } from "../../electron/conectores-claude";
 import type { EstadoCatalogos } from "../../electron/plugins-claude";
+import type { CatalogoDescubrir } from "../../electron/descubrir";
 import type { EstadoOpencodeUi } from "../../electron/opencode-ajustes";
 import type { VistaPlanGo } from "../../electron/opencode-go";
 import type { FilaTabla, TablaReparto } from "../../electron/reparto-tabla";
@@ -555,6 +557,28 @@ export const CATALOGOS_FIJOS = (variante: string | null): EstadoCatalogos => {
       },
     ],
   };
+};
+
+/** El catálogo «Descubrir» de las capturas (todo inventado). `descubrir-vacio`: sin nada bajado todavía; `descubrir-falla`: el registro MCP no contestó. */
+export const DESCUBRIR_FIJO = (variante: string | null): CatalogoDescubrir => {
+  const base: CatalogoDescubrir = {
+    actualizado: Date.UTC(2026, 10, 5, 12, 0),
+    errores: { skills: null, mcp: null },
+    skills: [
+      { id: "skill:theme-factory", tipo: "skill", nombre: "theme-factory", descripcion: "Aplicar un tema (colores y tipografías) a documentos, presentaciones y páginas.", origen: "anthropics/skills", enlace: "https://github.com/anthropics/skills/tree/main/skills/theme-factory", fecha: null, archivos: 14, scripts: false, instalado: false },
+      { id: "skill:webapp-testing", tipo: "skill", nombre: "webapp-testing", descripcion: "Probar aplicaciones web locales con Playwright: capturas, registros del navegador y clics.", origen: "anthropics/skills", enlace: "https://github.com/anthropics/skills/tree/main/skills/webapp-testing", fecha: null, archivos: 6, scripts: true, instalado: false },
+      { id: "skill:claude-api", tipo: "skill", nombre: "claude-api", descripcion: null, origen: "anthropics/skills", enlace: "https://github.com/anthropics/skills/tree/main/skills/claude-api", fecha: null, archivos: 31, scripts: false, instalado: true },
+    ],
+    mcp: [
+      { id: "mcp:io.github.ana/notas", tipo: "mcp", nombre: "io.github.ana/notas", titulo: "Notas de Ana", descripcion: "Buscar y crear notas desde el asistente.", origen: "registry.modelcontextprotocol.io", enlace: "https://notas.example.com/", fecha: "2026-10-30T10:00:00.000Z", version: "1.2.0", remoto: { url: "https://mcp.notas.example.com/mcp", dominio: "mcp.notas.example.com", seguro: true }, cabeceras: [], paquete: null, agregado: false },
+      { id: "mcp:com.example/agenda", tipo: "mcp", nombre: "com.example/agenda", titulo: null, descripcion: "Consultar una agenda compartida. Pide una cabecera Authorization.", origen: "registry.modelcontextprotocol.io", enlace: null, fecha: null, version: null, remoto: { url: "https://agenda.example.com/mcp", dominio: "agenda.example.com", seguro: true }, cabeceras: ["Authorization"], paquete: null, agregado: true },
+      { id: "mcp:io.github.luis/archivos", tipo: "mcp", nombre: "io.github.luis/archivos", titulo: "Archivos locales", descripcion: "Leer archivos de una carpeta. Se corre en tu computadora.", origen: "registry.modelcontextprotocol.io", enlace: "https://www.npmjs.com/package/archivos-mcp", fecha: "2026-09-12T08:00:00.000Z", version: "0.4.1", remoto: null, cabeceras: [], paquete: { tipo: "npm", identificador: "archivos-mcp", version: "0.4.1", comando: "npx -y archivos-mcp@0.4.1", enlace: "https://www.npmjs.com/package/archivos-mcp" }, agregado: false },
+      { id: "mcp:dev.local/prueba", tipo: "mcp", nombre: "dev.local/prueba", titulo: null, descripcion: null, origen: "registry.modelcontextprotocol.io", enlace: null, fecha: "2026-08-01T00:00:00.000Z", version: null, remoto: { url: "http://prueba.example.com/mcp", dominio: "prueba.example.com", seguro: false }, cabeceras: [], paquete: null, agregado: false },
+    ],
+  };
+  if (variante === "descubrir-vacio") return { skills: [], mcp: [], actualizado: null, errores: { skills: null, mcp: null } };
+  if (variante === "descubrir-falla") return { ...base, mcp: [], errores: { skills: null, mcp: textoT("main.descubrirTiempo") } };
+  return base;
 };
 
 /** Los conectores apagados para el proyecto del líder en las capturas (`mcp-vacio`: ninguno). */

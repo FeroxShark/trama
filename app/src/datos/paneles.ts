@@ -12,7 +12,7 @@ import { promptArreglar } from "./arreglar";
 import { salud as saludDe, type EstadoSalud } from "./salud";
 import type { Hilo } from "./contrato";
 import { claveCalidad } from "../paneles/modelos-workers";
-import { ACCESOS_FALSOS, AJUSTES, AUTO, ENTORNO_OLLAMA, ESTADO_DSH, ESTADO_NIM, CATALOGOS_FIJOS, CONECTORES_FIJOS, ESTADO_MCP, ESTADO_MCP_APAGADOS, ESTADO_MCP_FIJOS, ESTADO_OPENCODE, MODELOS_FIJOS, PLAN_GO, TABLA_REPARTO, OLLAMA_FALSO, arranqueMedidoFalso, historialFalso, MEDICION, REMOTO, SALUD, URL_REMOTO_FALSA } from "./fixtures-paneles";
+import { ACCESOS_FALSOS, AJUSTES, AUTO, ENTORNO_OLLAMA, ESTADO_DSH, ESTADO_NIM, CATALOGOS_FIJOS, CONECTORES_FIJOS, DESCUBRIR_FIJO, ESTADO_MCP, ESTADO_MCP_APAGADOS, ESTADO_MCP_FIJOS, ESTADO_OPENCODE, MODELOS_FIJOS, PLAN_GO, TABLA_REPARTO, OLLAMA_FALSO, arranqueMedidoFalso, historialFalso, MEDICION, REMOTO, SALUD, URL_REMOTO_FALSA } from "./fixtures-paneles";
 import type { EstadoAuto } from "../../electron/autointegrar";
 import type { Consulta, PiezaConsulta } from "../../electron/historial";
 import type { Arranque, Medido } from "../../electron/arranque";
@@ -25,6 +25,7 @@ import type { EstadoMcp } from "../../electron/mcp";
 import type { EntradaMcp, VistaServidorMcp } from "../../electron/mcp-config";
 import type { Conector, Inventario } from "../../electron/conectores-claude";
 import type { Catalogo, EstadoCatalogos, PluginCatalogo } from "../../electron/plugins-claude";
+import type { CatalogoDescubrir, Previa, ResultadoInstalar } from "../../electron/descubrir";
 import type { NombreClave } from "../../electron/claves";
 import type { EstadoOpencodeUi } from "../../electron/opencode-ajustes";
 import type { VistaPlanGo } from "../../electron/opencode-go";
@@ -39,7 +40,7 @@ export type { DatosAgentsMd, LeccionesPendiente };
 export type AgentsMd = DatosAgentsMd & { proyecto: string; ruta: string | null };
 /** Un worker de rama para auditar: `pa <proy> --auditar <id> -m <modelo> --async` (sólo Claude). */
 export type PedidoAuditar = { id: string; proyecto: string; modelo: string };
-export type { Catalogo, Conector, EntradaMcp, EstadoCatalogos, EstadoMcp, Inventario, PluginCatalogo, VistaServidorMcp };
+export type { CatalogoDescubrir, Previa, ResultadoInstalar, Catalogo, Conector, EntradaMcp, EstadoCatalogos, EstadoMcp, Inventario, PluginCatalogo, VistaServidorMcp };
 export type { Arranque, Bajada, ConfigModelos, Consulta, EntornoOllama, EstadoAuto, EstadoDsh, EstadoNim, PruebaNim, EstadoModelos, EstadoOpencodeUi, EstadoSalud, Medido, NombreClave, PiezaConsulta, Prueba, Sondeo, VistaPlanGo };
 
 /** Los proveedores de DeepSeek Harness que se pueden probar desde Ajustes. */
@@ -203,6 +204,12 @@ export interface FuentePaneles {
   instalarPlugin(plugin: string, catalogo: string, cuenta?: string): Promise<EstadoCatalogos>;
   /** `claude plugin uninstall <plugin>@<catálogo>`; devuelve los catálogos. */
   quitarPlugin(plugin: string, catalogo: string, cuenta?: string): Promise<EstadoCatalogos>;
+  /** Ajustes > Conectores > Descubrir: skills de `anthropics/skills` y conectores del registro MCP. De la caché, o bajado si no hay de hoy o con `actualizar`. */
+  catalogoDescubrir(actualizar?: boolean): Promise<CatalogoDescubrir>;
+  /** Lo que pasaría al instalar un item (archivos y scripts de una skill; dominio de un conector), para la confirmación. */
+  previaDescubrir(id: string): Promise<Previa>;
+  /** Instala un item ya confirmado (la huella viene de la previa de una skill). Rechaza con el motivo; nunca ejecuta un paquete. */
+  instalarDescubrir(id: string, huella?: string): Promise<ResultadoInstalar>;
   /** `reparto --tabla --json`: los modelos que reparto conoce con su inteligencia y cupo; `null` si no hay `reparto` (o es uno viejo). */
   repartoTabla(): Promise<TablaReparto | null>;
   /** La caché de Artificial Analysis se actualizó de fondo: conviene volver a pedir la tabla. */
@@ -294,6 +301,7 @@ let mcpFijo: VistaServidorMcp[] = ESTADO_MCP_FIJOS(MODO.variante);
 let mcpApagadosFijo: string[] = ESTADO_MCP_APAGADOS(MODO.variante);
 let conectoresFijos: Inventario = CONECTORES_FIJOS(MODO.variante);
 let catalogosFijos: EstadoCatalogos = CATALOGOS_FIJOS(MODO.variante);
+let descubrirFijo: CatalogoDescubrir = DESCUBRIR_FIJO(MODO.variante);
 const cambiarPluginFijo = async (plugin: string, catalogo: string, instalado: boolean) => {
   await espera(500);
   const p = catalogosFijos.catalogos.find((c: Catalogo) => c.id === catalogo)?.plugins.find((x: PluginCatalogo) => x.nombre === plugin);
@@ -449,6 +457,40 @@ const fija: FuentePaneles = {
   },
   async instalarPlugin(plugin, catalogo) {
     return cambiarPluginFijo(plugin, catalogo, true);
+  },
+  async catalogoDescubrir(actualizar) {
+    await espera(actualizar ? 600 : 80);
+    return structuredClone(descubrirFijo);
+  },
+  async previaDescubrir(id) {
+    await espera(200);
+    const s = descubrirFijo.skills.find((x) => x.id === id);
+    if (s)
+      return {
+        tipo: "skill",
+        id,
+        nombre: s.nombre,
+        destino: `~/.claude/skills/${s.nombre}`,
+        archivos: [{ ruta: "SKILL.md", tam: 4_210 }, { ruta: "LICENSE.txt", tam: 11_345 }, ...(s.scripts ? [{ ruta: "scripts/servidor.py", tam: 3_870 }] : [])],
+        total: 19_425,
+        scripts: s.scripts ? ["scripts/servidor.py"] : [],
+        huella: "fijo",
+      };
+    const m = descubrirFijo.mcp.find((x) => x.id === id);
+    if (!m?.remoto?.seguro) throw new Error(textoT("main.descubrirHttps"));
+    return { tipo: "mcp", id, nombre: m.nombre, url: m.remoto.url, dominio: m.remoto.dominio, cabeceras: m.cabeceras };
+  },
+  async instalarDescubrir(id) {
+    await espera(600);
+    const s = descubrirFijo.skills.find((x) => x.id === id);
+    if (s) {
+      s.instalado = true;
+      return { tipo: "skill", nombre: s.nombre, carpeta: `~/.claude/skills/${s.nombre}`, archivos: s.archivos };
+    }
+    const m = descubrirFijo.mcp.find((x) => x.id === id);
+    if (!m) throw new Error(textoT("main.descubrirNoExiste"));
+    m.agregado = true;
+    return { tipo: "mcp", nombre: m.nombre.split("/").pop() ?? m.nombre };
   },
   async quitarPlugin(plugin, catalogo) {
     return cambiarPluginFijo(plugin, catalogo, false);
@@ -868,6 +910,15 @@ const conPa = (m: NonNullable<typeof main>): FuentePaneles => ({
   },
   async quitarPlugin(plugin, catalogo, cuenta) {
     return (await m.paneles.quitarPlugin(plugin, catalogo, cuenta).catch(fallar)) as EstadoCatalogos;
+  },
+  async catalogoDescubrir(actualizar) {
+    return (await m.paneles.catalogoDescubrir(actualizar).catch(fallar)) as CatalogoDescubrir;
+  },
+  async previaDescubrir(id) {
+    return (await m.paneles.previaDescubrir(id).catch(fallar)) as Previa;
+  },
+  async instalarDescubrir(id, huella) {
+    return (await m.paneles.instalarDescubrir(id, huella).catch(fallar)) as ResultadoInstalar;
   },
   async apagadosMcp() {
     return (await m.paneles.apagadosMcp().catch(fallar)) as string[];

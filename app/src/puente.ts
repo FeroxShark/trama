@@ -324,6 +324,12 @@ type Main = {
     instalarPlugin(plugin: string, catalogo: string, cuenta?: string): Promise<unknown>;
     /** `claude plugin uninstall <plugin>@<catálogo>`; devuelve los catálogos. Sólo desde la PC. */
     quitarPlugin(plugin: string, catalogo: string, cuenta?: string): Promise<unknown>;
+    /** El catálogo para descubrir skills y conectores MCP (electron/descubrir.ts): de la caché, o bajado si no hay de hoy o con `actualizar`. */
+    catalogoDescubrir(actualizar?: boolean): Promise<unknown>;
+    /** Qué pasaría al instalar un item del catálogo (para la confirmación). */
+    previaDescubrir(id: string): Promise<unknown>;
+    /** Instala un item ya confirmado (una skill pide además la huella de la previa). Sólo desde la PC. */
+    instalarDescubrir(id: string, huella?: string): Promise<unknown>;
     /** `reparto --tabla --json`: cada modelo que reparto conoce con su inteligencia, cupo y si está permitido; `null` sin `reparto` o con uno viejo. */
     repartoTabla(): Promise<unknown>;
     /** Artificial Analysis: si hay key (nunca el valor) y de cuándo es la caché de inteligencias. */

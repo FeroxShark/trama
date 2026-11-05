@@ -166,6 +166,10 @@ export const RUTAS: Readonly<Record<string, Ruta>> = {
   "plugins:agregarCatalogo": "local",
   "plugins:instalar": "local",
   "plugins:quitar": "local",
+  // Descubrir skills y conectores MCP (descubrir.ts): baja, cachea e instala en esta máquina.
+  "descubrir:catalogo": "local",
+  "descubrir:previa": "local",
+  "descubrir:instalar": "local",
   "reparto:tabla": "local",
   "aa:estado": "local",
   "aa:refrescar": "local",

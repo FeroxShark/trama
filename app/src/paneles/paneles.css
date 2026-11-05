@@ -3279,6 +3279,105 @@
   }
 }
 
+/* Ajustes > Conectores > Descubrir (AjustesDescubrir.tsx): marcas de cada item y el panel de confirmación que se abre bajo la fila. */
+.ds-marcas {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--esp-1) var(--esp-3);
+}
+.ds-marca {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--esp-1);
+  font-size: var(--letra-3);
+}
+.ds-marca[data-aviso] {
+  color: var(--texto);
+  font-weight: 600;
+}
+.ds-confirma {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-2);
+  padding: var(--esp-3);
+  border-radius: var(--r-md);
+  background: var(--capa-card);
+  border: 1px solid var(--capa-div);
+  min-width: 0;
+}
+.ds-confirma:focus-visible {
+  outline: 2px solid var(--acento);
+  outline-offset: 2px;
+}
+.ds-confirma-tit {
+  overflow-wrap: anywhere;
+}
+.ds-texto {
+  margin: 0;
+  overflow-wrap: anywhere;
+  line-height: 1.45;
+}
+.ds-alerta {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--esp-2);
+  font-weight: 600;
+}
+.ds-alerta svg {
+  flex: none;
+  margin-top: 0.2em;
+}
+.ds-comando {
+  display: block;
+  padding: var(--esp-2);
+  border-radius: var(--r-md);
+  background: var(--capa-div);
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  user-select: all;
+}
+.ds-acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--esp-2);
+}
+.ds-archivos summary {
+  cursor: pointer;
+  min-height: 2.75rem;
+  display: flex;
+  align-items: center;
+}
+.ds-archivos ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 12rem;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-1);
+}
+.ds-archivos li {
+  overflow-wrap: anywhere;
+}
+.ds-hecho {
+  margin: 0;
+}
+/* 360 px y dedo: los controles de la fila y del panel miden 44 px y se apilan; el panel ocupa todo el ancho. */
+@media (max-width: 35rem), (pointer: coarse) {
+  .ds-raiz .cn-ctrl {
+    justify-content: flex-start;
+  }
+  .ds-raiz .ui-btn,
+  .ds-raiz .mdl-enlace {
+    min-height: 2.75rem;
+  }
+  .ds-acciones > * {
+    flex: 1 1 8rem;
+  }
+}
+
 [data-mcp] .pn-dato {
   grid-template-columns: minmax(0, 1fr);
   gap: var(--esp-2);

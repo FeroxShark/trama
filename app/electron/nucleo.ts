@@ -75,6 +75,7 @@ import { estadoMcp } from "./mcp.ts";
 import { configActiva, fijarApagado, leerApagados } from "./mcp-apagados.ts";
 import { alternar as alternarConector, inventario as inventarioConectores } from "./conectores-claude.ts";
 import { capturarBaseContexto, catalogoContexto, desgloseContexto, previaContexto, fijarApagadoPanel, gastoSubagentes, leerApagadosPanel } from "./contexto-panel.ts";
+import { catalogo as catalogoDescubrir, instalar as instalarDescubrir, previa as previaDescubrir, type DepsDescubrir } from "./descubrir.ts";
 import { agregarCatalogo, estadoCatalogos, instalarPlugin, quitarPlugin, type DepsPlugins } from "./plugins-claude.ts";
 import { guardarServidor, quitarServidor, vistaMcp } from "./mcp-config.ts";
 import { crearLectorTabla, leerTabla } from "./reparto-tabla.ts";
@@ -133,7 +134,7 @@ const manejadores = new Map<string, Manejador>();
  * Lo que cambia la máquina (reescribe `~/CLAUDE.md`, los ajustes, borra una cuenta, libera la GPU, actualiza `claude`): desde la
  * tailnet (el celular) no. Los `modelos:*` y `remoto:guardar` tienen su propio chequeo, con su mensaje, en el manejador.
  */
-export const SOLO_PC_TAILNET: ReadonlySet<string> = new Set(["routing:guardar", "ajustes:guardar", "orq:leccionesGuardar", "limpieza:guardar", "limpieza:aplicar", "orq:mdAplicar", "orq:agentsGuardar", "orq:mdFusionar", "proyectos:renombrar", "proyectos:logo", "cuentas:quitar", "vram:liberar", "locales:prender", "locales:apagar", "claude:actualizar", "trama:actualizar", "trama:cancelarEspera", "trama:limpiar", "dsh:clave", "dsh:instalar", "dsh:probar", "aa:refrescar", "mcp:guardar", "mcp:quitar", "mcp:fijarApagado", "conectores:alternar", "apagados:fijar", "contexto:capturarBase", "plugins:agregarCatalogo", "plugins:instalar", "plugins:quitar", "opencode:planGuardar", "nvidia:modelos", "nvidia:probar"]);
+export const SOLO_PC_TAILNET: ReadonlySet<string> = new Set(["routing:guardar", "ajustes:guardar", "orq:leccionesGuardar", "limpieza:guardar", "limpieza:aplicar", "orq:mdAplicar", "orq:agentsGuardar", "orq:mdFusionar", "proyectos:renombrar", "proyectos:logo", "cuentas:quitar", "vram:liberar", "locales:prender", "locales:apagar", "claude:actualizar", "trama:actualizar", "trama:cancelarEspera", "trama:limpiar", "dsh:clave", "dsh:instalar", "dsh:probar", "aa:refrescar", "mcp:guardar", "mcp:quitar", "mcp:fijarApagado", "conectores:alternar", "apagados:fijar", "contexto:capturarBase", "plugins:agregarCatalogo", "plugins:instalar", "plugins:quitar", "descubrir:instalar", "opencode:planGuardar", "nvidia:modelos", "nvidia:probar"]);
 
 /** Anota (o reemplaza) el manejador de un canal. */
 export function manejar(canal: string, fn: Manejador) {
@@ -1109,6 +1110,12 @@ export function armarNucleo() {
   manejar("plugins:agregarCatalogo", (_e, repo: unknown, cuenta: unknown) => agregarCatalogo(repo, cuenta, depsPlugins()));
   manejar("plugins:instalar", (_e, plugin: unknown, catalogo: unknown, cuenta: unknown) => instalarPlugin(plugin, catalogo, cuenta, depsPlugins()));
   manejar("plugins:quitar", (_e, plugin: unknown, catalogo: unknown, cuenta: unknown) => quitarPlugin(plugin, catalogo, cuenta, depsPlugins()));
+  // Descubrir skills y conectores MCP (Ajustes > Conectores, descubrir.ts): bajar el catálogo (sólo al abrir sin caché de hoy o con «Actualizar»), ver qué pasaría
+  // al instalar y, tras la confirmación, instalar. Sólo viaja un id: lo que se instala sale de lo que el main guardó. Instalar es sólo de la PC.
+  const depsDescubrir = (): DepsDescubrir => ({ env: process.env, home: os.homedir(), estado: ESTADO });
+  manejar("descubrir:catalogo", (_e, actualizar: unknown) => catalogoDescubrir(actualizar, depsDescubrir()));
+  manejar("descubrir:previa", (_e, id: unknown) => previaDescubrir(id, depsDescubrir()));
+  manejar("descubrir:instalar", (_e, id: unknown, huella: unknown) => instalarDescubrir(id, huella, depsDescubrir()));
   // OpenCode (el programa `opencode`: los modelos gratis sólo andan por él): instalado, versión, login y modelos; «Actualizar modelos» vuelve a listarlos.
   // La tabla de `reparto --tabla --json` (Ajustes > Modelos > Modelos para workers): sólo lee. Guardar el permitido y la inteligencia
   // va por `modelos:guardar` (excluir / calidad de modelos.json), que ya rechaza a quien entra por la tailnet.
