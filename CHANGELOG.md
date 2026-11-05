@@ -1,13 +1,22 @@
 # Cambios
 
+## 0.2.53
+
+- Workers: `pa` vuelve a encontrar `reparto`, `tablero`, `cuentas` y sus hooks en toda instalación. Antes todos caían en silencio a Sonnet; ahora eligen según calidad y cupo, y si falta una pieza se ve.
+- Un worker ya no queda como «trabajando» (ni sumando horas) si su proceso murió: el `.running` huérfano sólo cuenta si su pid es de verdad esa corrida (no un pid reciclado ni un hilo ajeno). La fila pasa a «murió» y `Parar` cierra el rastro en vez de decir que la corrida no existe.
+- Los workers `--leer` pueden buscar en internet.
+- Un líder en bypass que pasa a modo plan ya no pide permiso por cada comando (sí por `ExitPlanMode`, preguntas y edición), y Shift+Tab dice en palabras a qué modo pasó.
+- Barra: la actividad de un chat es su último turno real, un reinicio sólo levanta lo reciente y hay Limpiar chats.
+- Chat nuevo: carpeta Auto por defecto. La carpeta de un chat y un título ya mostrado no cambian solos; lo puesto a mano manda.
+- Cuentas: «Usar en nuevos» dice que vale para los chats nuevos, el chat ofrece pasar a otra cuenta si la suya está en el tope, y cada cuenta muestra 5 h y semana juntas.
+- La pastilla de fondo muestra en vivo las últimas líneas de la salida de cada tarea.
+- El panel de consumo no ocupa lugar en Ajustes, Tablero, Ramas ni Estadísticas.
+- Windows: `agy` y `claude` fuera del PATH o como `.cmd` cuentan como instalados, Cuentas no nombra Ubuntu, Trama ya no ejecuta `ollama` y el motor oculta sus consolas.
+
 ## 0.2.52
 
 - Pastilla arriba de la caja con lo que el líder dejó corriendo de fondo y hace cuánto. Al tocarla, la lista.
 - El resumen del turno dice «lanzó» una tarea de fondo mientras sigue corriendo, no «terminó».
-
-## Sin publicar
-
-- Un worker ya no queda como «trabajando» (ni sumando horas) si su proceso murió: el `.running` huérfano sólo cuenta si su pid es de verdad esa corrida (no un pid reciclado ni un hilo ajeno). La fila pasa a «murió» y `Parar` cierra el rastro en vez de decir que la corrida no existe.
 
 ## 0.2.51
 
