@@ -103,6 +103,25 @@ test("brief: sin 'Listo cuando' ni 'Cómo verificar' avisa por stderr y NO bloqu
   assert.doesNotMatch(completo.err, /aviso: a la tarea le falta/);
 });
 
+test("perfil ahorro o agresivo: pa recuerda al lanzar el brief armado (pasos, archivos, listo cuando, chequeo); equilibrado o sin perfil, no; lo mismo en el respaldo bash", () => {
+  const conPerfil = (perfil: string) => {
+    const f = path.join(tmp, `modelos-${perfil}.json`);
+    writeFileSync(f, JSON.stringify({ version: 1, perfil }));
+    return f;
+  };
+  for (const motor of ["ts", "bash"]) {
+    for (const perfil of ["ahorro", "agresivo"]) {
+      const r = paClaude(["--tipo", "codigo-acotado"], BRIEF, { TRAMA_MODELOS: conPerfil(perfil), TRAMA_PA: motor });
+      assert.equal(r.rc, 0, r.err);
+      assert.match(r.err, new RegExp(`aviso: perfil ${perfil}: .*pasos numerados.*"Listo cuando".*comando de chequeo.*subí un escalón una sola vez`), `${motor}/${perfil}: ${r.err}`);
+    }
+    const eq = paClaude(["--tipo", "codigo-acotado"], BRIEF, { TRAMA_MODELOS: conPerfil("equilibrado"), TRAMA_PA: motor });
+    assert.doesNotMatch(eq.err, /aviso: perfil/, motor);
+    const sin = paClaude(["--tipo", "codigo-acotado"], BRIEF, { TRAMA_PA: motor });
+    assert.doesNotMatch(sin.err, /aviso: perfil/, motor);
+  }
+});
+
 test("brief: el contrato trae VERIFICACION y las secciones del brief; --brief imprime la plantilla; --brief-archivo lee la tarea de un archivo", () => {
   const tpl = pa(["--brief"]);
   assert.equal(tpl.rc, 0);

@@ -161,6 +161,7 @@ const TIPOS = ["debug", "diseno", "codigo-multi", "frontend", "final", "codigo-a
 /** modelos.json que tocan los umbrales y las reglas del reparto. */
 const MODELOS: [string, unknown][] = [
   ["perfil ahorro", { perfil: "ahorro" }],
+  ["perfil agresivo", { perfil: "agresivo" }],
   ["perfil rendimiento y reserva", { perfil: "rendimiento", reserva: 0.3 }],
   ["reserva por ventana y reserva_lider", { reserva: { "5h": 0.85, "7d": 0.4 }, reserva_lider: 0.2 }],
   ["topes_uso", { topes_uso: { google: 50, "google:gemini": 5, openai: 90 } }],
