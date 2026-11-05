@@ -92,3 +92,8 @@ falta, está en `motor/docs/traspaso.md`.
   resuelta (`realpath.native`) antes de validar: un enlace o un `../` fuera de eso es `null`. El canal también lo llama el celular, así que NUNCA se le agrega lectura de
   rutas libres. La salida de un Agent es un enlace al transcript (fuera del temporal): queda "sin salida todavía" a propósito. Sin polling en reposo: el `setTimeout`
   (2 s) vive sólo mientras la fila está desplegada y la ventana visible. Variantes de captura: `HILOS_VARIANTE=fondo` / `fondo-abierto` en `lider-imagenes`.
+- **Títulos de los chats (líderes) estables (`app/electron/titulo-estable.ts`, instancia en `titulo-fijo.ts`, `titulos-fijos.json`):** un título ya mostrado no se
+  recalcula en un arranque, reinicio del motor ni relectura del transcript. Lo puesto a mano en Claude Code (`/rename`, `name` de la sesión) manda y no se
+  pierde si deja de verse; el recorte del primer mensaje (provisorio) sólo lo reemplaza el primer título bueno (`ai-title` o generado), y ése queda. El rename desde
+  Trama vive en `nombres.json` (`titulos`) y gana en la barra. Cualquier reparación de títulos (`corregirBasura`) sólo toca lo automático (`tienePropio`).
+  Un título nuevo del líder pasa por `titulosFijos.titulo`, no por `tituloLider` a secas. Lo controla `tests/titulo-estable.test.ts`.

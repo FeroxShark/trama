@@ -18,7 +18,8 @@ import { claseDeModelo, familiaDeModelo } from "./modelos-config.js";
 import { real, registro, rutasDeBarra, vivosDe, type Proyecto } from "./registro.js";
 import { sesiones, type Sesion } from "./sesiones.js";
 import { cargarGenerados, generadoDe, generarSiHaceFalta } from "./titulo-chat.js";
-import { creadoEn, proyectoEnTexto, temaDe, tituloDeRama, tituloLider } from "./tema.js";
+import { titulosFijos } from "./titulo-fijo.js";
+import { creadoEn, proyectoEnTexto, temaDe, tituloDeRama } from "./tema.js";
 import { hayClaves, leerClavesSync } from "./claves.ts";
 import { cuposActuales, type SuscripcionCupo } from "./cupos.js";
 import { modelosNim, TOPE_NIM_MIN } from "./nvidia-nim.ts";
@@ -160,7 +161,8 @@ async function deQueTrata(sid: string, cwd: string | null, sesion: string, regs:
   // El título corto de Haiku, si ya llegó; mientras tanto (o sin modelo) vale el recorte del primer mensaje (`tituloCorto`).
   await cargarGenerados();
   generarSiHaceFalta(sid, t, sesion);
-  return { nombre: tituloDeRama(tituloLider(t, sesion, generadoDe(sid)), origen), inferido: t.primero ? proyectoEnTexto(t.primero, regs, home) : null, creado: t.creado };
+  // Lo ya mostrado no se recalcula (titulo-estable.ts): un /rename lo reemplaza, un título automático mejor sólo si todavía era el recorte.
+  return { nombre: tituloDeRama(await titulosFijos.titulo(sid, t, sesion, generadoDe(sid)), origen), inferido: t.primero ? proyectoEnTexto(t.primero, regs, home) : null, creado: t.creado };
 }
 
 

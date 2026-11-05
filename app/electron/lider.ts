@@ -79,6 +79,7 @@ import { archivoUsoCuenta, cuentaConConversacion, cuentasClaude, entornoCuenta, 
 import { esElProceso, sesionesVivas, type Sesion } from "./sesiones.js";
 import { log, silencio } from "./log.js";
 import { temaDe, tituloLider } from "./tema.js";
+import { titulosFijos } from "./titulo-fijo.js";
 import { resumenDeTranscript } from "./resumen-traspaso.ts";
 import { terminalAgentesGuardada } from "./preferencias.js";
 import { envTerminalAgentes, lineaTerminalAgentes } from "./terminal-agentes.ts";
@@ -1630,7 +1631,8 @@ export async function ramificar(x: { sid: string; uuid: string; modelo: string; 
   if (cwd && !(await stat(cwd).then((s) => s.isDirectory(), () => false))) throw errorT("main.rebobinarSinSesion");
   // Un punto anterior a la última compactación se bifurca de una copia de la cadena, no del archivo de origen.
   const de = (await copiarHasta(t, uuid)) ?? sid;
-  const tituloOrigen = tituloLider(await temaDe(sid, t), origen?.nombre ?? "");
+  await titulosFijos.cargar();
+  const tituloOrigen = titulosFijos.visto(sid) ?? tituloLider(await temaDe(sid, t), origen?.nombre ?? "");
   const ls = await lideresApp();
   const g: Guardado = {
     sid: randomUUID(),
@@ -1711,7 +1713,8 @@ async function ramificarRelevo(sid: string, uuid: string, modelo: string, effort
     await mkdir(path.dirname(archivo), { recursive: true });
     await writeFile(archivo, relevo.texto + "\n", { mode: 0o600 });
   }
-  const tituloOrigen = tituloLider(await temaDe(sid, await transcriptDe(sid, origen?.cwd)), origen?.nombre ?? "");
+  await titulosFijos.cargar();
+  const tituloOrigen = titulosFijos.visto(sid) ?? tituloLider(await temaDe(sid, await transcriptDe(sid, origen?.cwd)), origen?.nombre ?? "");
   const ls = await lideresApp();
   const g: Guardado = {
     sid: nuevo,
