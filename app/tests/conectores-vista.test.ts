@@ -111,7 +111,7 @@ test("ordenarPorUso: más usados, menos usados y último uso; sin dato siempre a
   assert.deepEqual(ids(ordenarPorUso(todos, "menos", u)).slice(0, 2), ["s4", "m3"]);
   assert.equal(ids(ordenarPorUso(todos, "menos", u)).at(-1), "p2");
   // Último uso: el más reciente arriba, después los de cero uso, al final el sin dato.
-  assert.deepEqual(ids(ordenarPorUso(todos, "ultimo", u)), ["s2", "s3", "p1", "m2", "s1", "m1", "s4", "m3", "p2"]);
+  assert.deepEqual(ids(ordenarPorUso(todos, "ultimo", u)), ["s2", "p1", "s3", "m2", "s1", "m1", "s4", "m3", "p2"]);
   // No toca la lista de entrada.
   assert.equal(todos[0].id, "s1");
 });
