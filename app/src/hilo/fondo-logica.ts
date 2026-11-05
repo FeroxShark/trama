@@ -58,6 +58,8 @@ export function tareasDeFondo(mensajes: readonly Mensaje[]): TareaFondo[] {
       const salida = bash ? (RUTA_SALIDA.exec(r.texto)?.[1] ?? null) : null;
       abiertas.set(id, { id, que: texto(h.entrada.description) || comando || id, comando, desde: Number.isNaN(desde) ? null : desde, salida });
     }
+    // Después de sus herramientas: un cierre de este mismo mensaje sólo puede ser de algo lanzado antes.
+    for (const id of m.cierres ?? []) abiertas.delete(id);
   }
   return [...abiertas.values()];
 }

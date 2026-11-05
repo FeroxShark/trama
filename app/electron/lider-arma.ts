@@ -1037,6 +1037,8 @@ export type Crudo = {
   imagenes?: Imagen[];
   /** Su razonamiento (los bloques `thinking` con texto), si el transcript lo trae. */
   pensado?: string;
+  /** Ids de procesos de fondo que cerraron justo después de este mensaje (adjunto `task-notification`, no es un mensaje). */
+  cierres?: string[];
 };
 
 type Marcas = {
@@ -1069,6 +1071,9 @@ export type Pagina = { n?: number; antes?: number | null };
 
 /** El directorio de `~/.claude/projects` de una sesión abierta en `cwd` ("/Users/ana" → "-Users-ana"). */
 export const dirProyecto = (cwd: string) => cwd.replace(/[^A-Za-z0-9]/g, "-");
+
+/** Un `<task-id>` de un `<task-notification>` (el cierre de un proceso de fondo). */
+const CIERRE_FONDO = /<task-id>\s*([^<\s]+)\s*<\/task-id>/g;
 
 /** Lo que se va sabiendo de una conversación mientras se lee su transcript: sigue de donde quedó (`avanzarConv`). */
 export type EstadoConv = {
@@ -1148,6 +1153,14 @@ export function avanzarConv(est: EstadoConv, texto: string): void {
         est.cola = uuid;
         est.posDe.set(uuid, todos.length - 1);
       }
+      continue;
+    }
+    // El aviso de un proceso de fondo que terminó a mitad de un turno: otro adjunto `queued_command`, con `commandMode: "task-notification"`.
+    // No es un mensaje del usuario ni tiene `uuid` propio: cierra su tarea en el mensaje anterior (`cierres`). No toca `cola` ni `posDe`.
+    if (o.type === "attachment" && o.attachment?.type === "queued_command" && o.attachment.commandMode === "task-notification") {
+      const ids = [...textoDeContenido(o.attachment.prompt).matchAll(CIERRE_FONDO)].map((c) => c[1]);
+      const ult = todos[todos.length - 1];
+      if (ult && ids.length) ult.cierres = [...(ult.cierres ?? []), ...ids];
       continue;
     }
     if (o.type !== "user" && o.type !== "assistant") continue;
@@ -1270,6 +1283,7 @@ export function paginaDe(est: EstadoConv, id: string, transcript: string | null,
       ...(m.det.length ? { det: m.det } : {}),
       ...(m.imagenes ? { imagenes: m.imagenes } : {}),
       ...(m.pensado ? { pensado: m.pensado } : {}),
+      ...(m.cierres ? { cierres: m.cierres } : {}),
       ts: m.ts,
       modelo: m.modelo,
       ...m.marcas,
