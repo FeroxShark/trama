@@ -115,14 +115,20 @@ const PTS_POR_AA = 3.0;
 const PESO_URGENCIA = 20.0;
 const PESO_COSTO = 15.0;
 const PESO_CARGA = 12.0;
-type Perfil = { ritmo: number; sesgo: number; costo: number; reserva_lider: number; relaja: boolean };
+type Perfil = { ritmo: number; sesgo: number; costo: number; reserva_lider: number; relaja: boolean; costo_primero: boolean };
 const PERFILES: Record<string, Perfil> = {
-  equilibrado: { ritmo: 1.0, sesgo: 0.0, costo: 1.0, reserva_lider: 0.0, relaja: false },
-  ahorro: { ritmo: 2.5, sesgo: 25.0, costo: 1.0, reserva_lider: 0.35, relaja: true },
-  rendimiento: { ritmo: 0.25, sesgo: 0.0, costo: 0.5, reserva_lider: 0.0, relaja: false },
+  equilibrado: { ritmo: 1.0, sesgo: 0.0, costo: 1.0, reserva_lider: 0.0, relaja: false, costo_primero: false },
+  ahorro: { ritmo: 2.5, sesgo: 25.0, costo: 1.0, reserva_lider: 0.35, relaja: true, costo_primero: false },
+  agresivo: { ritmo: 2.5, sesgo: 25.0, costo: 1.0, reserva_lider: 0.35, relaja: false, costo_primero: true },
+  rendimiento: { ritmo: 0.25, sesgo: 0.0, costo: 0.5, reserva_lider: 0.0, relaja: false, costo_primero: false },
 };
 const PERFIL_DEFECTO = "equilibrado";
-const RELAJA_AHORRO: Obj = { "codigo-acotado": "haiku", lectura: 50, mecanico: 50 };
+const RELAJA_AHORRO: Obj = { lectura: 50, mecanico: 50 };
+const TIPOS_GRATIS_SIN_DATOS = ["lectura", "mecanico"];
+const TIPOS_FLASH_AGRESIVO = ["lectura"];
+const RINDE_MIN_N = 5;
+const RINDE_MIN_OK = 50;
+const RINDE_DIAS = 60;
 const PESO_RITMO = 18.0;
 const PESO_BONO_RITMO = 10.0;
 const TOPE_EXCESO = 1.5;
@@ -443,7 +449,7 @@ function invalido(j: Obj): string | null {
   const r = get(j, "reserva");
   if (r !== null && !num(r) && !(esDict(r) && Object.keys(r).length && Object.keys(r).every((k) => k === "5h" || k === "7d") && Object.values(r).every(num)))
     return `reserva ${dump("reserva")} (un número de 0 a 1, {"5h":…,"7d":…} o null)`;
-  if (get(j, "perfil") !== null && !(j.perfil in PERFILES)) return `perfil ${dump("perfil")} (equilibrado, ahorro o rendimiento)`;
+  if (get(j, "perfil") !== null && !(j.perfil in PERFILES)) return `perfil ${dump("perfil")} (equilibrado, ahorro, agresivo o rendimiento)`;
   const rl = get(j, "reserva_lider");
   if (rl !== null && !num(rl)) return `reserva_lider ${dump("reserva_lider")} (un número de 0 a 1 o null)`;
   const tu = get(j, "topes_uso");
@@ -2195,6 +2201,66 @@ function minimoRelajado(cfg: Obj, tipo: string, minimo: number, _minimoFam: unkn
   return q < minimo ? [q, true] : [minimo, false];
 }
 
+/** `rinde_de_modelos`: {tipo\tmodelo → [con_dato, ok]} de los últimos RINDE_DIAS días de medicion.tsv (el criterio de `pa --rinde`). REPARTO_MEDICION lo cambia (tests). */
+function rindeDeModelos(now: Date): Map<string, [number, number]> {
+  const out = new Map<string, [number, number]>();
+  try {
+    const f = E.REPARTO_MEDICION || path.join(E.PA_STATE || path.join(os.homedir(), ".local", "state", "pa"), "medicion.tsv");
+    const desde = iso(new Date(now.getTime() - RINDE_DIAS * 86400_000))!.slice(0, 10);
+    let cols: Record<string, number> | null = null;
+    for (const linea of readFileSync(f, "utf8").split("\n")) {
+      if (linea === "") continue;
+      const c = linea.split("\t");
+      if (cols === null) {
+        cols = {};
+        c.forEach((n, i) => (cols![n] = i));
+        continue;
+      }
+      const v = (n: string) => (n in cols! && cols![n]! < c.length ? c[cols![n]!]! : "");
+      if (c.length < 5 || !/^[0-9]{4}-/.test(c[0]!) || c[0]!.slice(0, 10) < desde) continue;
+      const [i, r] = [v("integrada"), v("retrabajo")];
+      if (!(i === "0" || (i === "1" && (r === "0" || r === "1")))) continue;
+      const k = `${v("tipo")}\t${v("modelo")}`;
+      const [d, ok] = out.get(k) ?? [0, 0];
+      out.set(k, [d + 1, ok + (i === "1" && r === "0" ? 1 : 0)]);
+    }
+  } catch {
+    return new Map();
+  }
+  return out;
+}
+
+/** `costo_relativo`: cuánto cuesta gastar este candidato (perfil agresivo): lo gratis 0; Go y DeepSeek, su costo de modelos.json; el resto, el de su familia. */
+function costoRelativo(c: Obj, cfg: Obj): number {
+  if (c.proveedor === "local") return 0.0;
+  if (c.proveedor === "dsh") {
+    if (c.gratis) return 0.0;
+    return verdad(c.plan_go) ? get(cfg.costo, "opencode-go", COSTO_GO) : get(cfg.costo, "dsh-pago", COSTO_DSH_PAGO);
+  }
+  return get(cfg.costo, c.familia, 0.3);
+}
+
+/** `aplicar_agresivo`: a cada candidato su costo, y dos reglas duras sobre `minimo_por_tipo`: Flash nunca escribe, y lo que no gasta cupo sin historial propio sólo entra en TIPOS_GRATIS_SIN_DATOS (vuelve si no queda nada más). */
+function aplicarAgresivo(out: Obj[], tipo: string, cfg: Obj, now: Date): void {
+  const rinde = rindeDeModelos(now);
+  for (const c of out) {
+    c.costo = costoRelativo(c, cfg);
+    conFloat(c, "costo");
+    if (c.proveedor === "local" || c.proveedor === "dsh") {
+      const [d, ok] = rinde.get(`${tipo}\t${c.modelo}`) ?? [0, 0];
+      c.historial = { n: d, ok_pct: d ? pyRound(100 * ok / d, 0) : null };
+      if (c.descartado_por || TIPOS_GRATIS_SIN_DATOS.includes(tipo)) continue;
+      if (d < RINDE_MIN_N || 100 * ok < RINDE_MIN_OK * d) {
+        c.descartado_por = `sin historial en ${tipo}: ${c.nombre} no gasta cupo pero tiene ${d} corridas con dato (${d ? `${c.historial.ok_pct} % ok` : "sin dato"}), y para tareas que escriben el perfil agresivo pide ${RINDE_MIN_N} o más con ${RINDE_MIN_OK} % o más sin retrabajo (pa --rinde)`;
+        c.duro = c.duro_historial = true;
+      }
+    } else if (c.familia === "flash" && !TIPOS_FLASH_AGRESIVO.includes(tipo) && !c.descartado_por) {
+      c.descartado_por = `Flash no escribe en el perfil agresivo (sólo ${TIPOS_FLASH_AGRESIVO.join(" y ")})`;
+      c.duro = true;
+    }
+  }
+}
+
 const efectivo = (_base: string, cfgEffort: string[], eTipo: string) => (cfgEffort.includes(eTipo) ? eTipo : cfgEffort[cfgEffort.length - 1]!);
 const utilDe = (q: number, minimo: number) => PTS_POR_AA * (q <= minimo + MARGEN ? q : minimo + MARGEN - (q - minimo - MARGEN) * PESO_SOBRA);
 const tipoEn = (tipo: string, pats: string[]) => pats.some((p) => fnmatchcase(tipo, p));
@@ -2522,13 +2588,14 @@ function armarCandidatos(tipo: string, cfg: Obj, cupos: Obj, now: Date, effort: 
     if (gratis) conFloat(cand, "cupo_libre");
     out.push(cand);
   }
+  if (perfil.costo_primero) aplicarAgresivo(out, tipo, cfg, now);
   return [out, minimo, minimoFam];
 }
 
 /** El candidato limpio para el JSON (con sus marcas de float). */
 function limpio(c: Obj): Obj {
   const o: Obj = {};
-  for (const k of ["modelo", "effort", "nombre", "calidad", "cupo_libre", "vuelve", "puntaje", "descartado_por", "aviso", "grupo", "carga", "cuenta", "estimada", "ritmo", "ritmo_pts", "calidad_mejor", "calidad_por_effort", "effort_calidad"]) if (k in c) o[k] = c[k];
+  for (const k of ["modelo", "effort", "nombre", "calidad", "cupo_libre", "vuelve", "puntaje", "descartado_por", "aviso", "grupo", "carga", "cuenta", "estimada", "ritmo", "ritmo_pts", "calidad_mejor", "calidad_por_effort", "effort_calidad", "costo", "historial"]) if (k in c) o[k] = c[k];
   return copiarMarcas(c, o);
 }
 
@@ -2553,7 +2620,7 @@ function elegir(tipo0: string, cfg: Obj, cupos: Obj, now: Date, mismoProveedor: 
   let relajado = false;
   if (!cands.some((c) => !c.duro)) {
     for (const c of cands) {
-      if (c.duro_calidad) {
+      if (c.duro_calidad || c.duro_historial) {
         c.descartado_por = null;
         delete c.duro;
         c.relajado = true;
@@ -2586,7 +2653,7 @@ function elegir(tipo0: string, cfg: Obj, cupos: Obj, now: Date, mismoProveedor: 
         break;
       }
     }
-    if (cfg._relajado) pref = null;
+    if (cfg._relajado || PERFILES[cfg.perfil]!.costo_primero) pref = null;
     if (pref !== null && typeof pref === "string" && pref in cfg.calidad) {
       const ePref = get(cfg.effort_por_tipo, tipo, "high");
       const q0 = calidadEnEffort(mapaEfforts(cfg, pref), ePref === "max" ? "xhigh" : ePref, cfg.calidad[pref]);
@@ -2608,14 +2675,16 @@ function elegir(tipo0: string, cfg: Obj, cupos: Obj, now: Date, mismoProveedor: 
     const vs = pool.filter((c) => parseIso(get(c, "vuelve"))).map((c) => parseIso(c.vuelve)!);
     extra.vuelve_antes = vs.length ? iso(new Date(Math.min(...vs.map((d) => d.getTime())))) : null;
   } else {
-    gana = maxPor(pool, (c) => [c.puntaje, c.calidad]);
+    gana = PERFILES[cfg.perfil]!.costo_primero ? minPor(pool, (c) => [c.costo, -c.puntaje, -c.calidad]) : maxPor(pool, (c) => [c.puntaje, c.calidad]);
     const g0 = gana;
     gana = maxPor(pool.filter((c) => c.modelo === g0.modelo), (c) => [c.cupo_libre !== null ? c.cupo_libre : -1.0, !suf(get(c, "cuenta")), c.puntaje]);
   }
   let motivo = motivoDe(gana, pool, tipo, minimo, minimoFam, todoLleno, now, cands);
   if (gana.nota_effort) motivo += ` Effort ${gana.effort || gana.modelo.split("-").pop()}: ${gana.nota_effort} (calidad ${fn(gana.calidad)}).`;
-  if (relajado && gana.relajado) motivo += ` Ningún modelo llega a la calidad ${fn(minimo)} que pide ${tipo}: uso el mejor que hay (calidad ${fn(gana.calidad)}, ajustable con "calidad" en modelos.json).`;
+  if (relajado && gana.relajado && gana.duro_historial) motivo += ` No queda ningún otro modelo que sirva: entra ${gana.nombre} aunque no tiene historial en ${tipo} (perfil agresivo).`;
+  else if (relajado && gana.relajado) motivo += ` Ningún modelo llega a la calidad ${fn(minimo)} que pide ${tipo}: uso el mejor que hay (calidad ${fn(gana.calidad)}, ajustable con "calidad" en modelos.json).`;
   if (primeroGratis) motivo += ` Con chequeo, ${tipo} ofrece primero los gratis de OpenCode (cupo entero, no gastan Claude ni agy).`;
+  if (PERFILES[cfg.perfil]!.costo_primero && !todoLleno && !gana.duro_historial) motivo += ` Perfil agresivo: de los que pasan el piso de ${tipo}, el más barato (costo relativo ${fmtG(gana.costo)}).`;
   if (banda) motivo += ` Para ${tipo} se prefiere la calidad de ${banda}: los modelos más caros o menos parejos sólo entran si no queda cupo de esa banda.`;
   const ritmoInfo = !contra ? resumenRitmo(cfg, cupos, now) : [];
   if (!contra && !todoLleno) motivo += cambioPorRitmo(tipo, cfg, cupos, now, gana, cands, mismoProveedor, soloCuenta);
@@ -2625,6 +2694,8 @@ function elegir(tipo0: string, cfg: Obj, cupos: Obj, now: Date, mismoProveedor: 
     candidatos: ordenarPor(cands, (c) => [c.descartado_por !== null, -(c.puntaje || 0)]).map(limpio),
     avisos, tipo, perfil: cfg.perfil, ritmo: ritmoInfo, ...extra,
   };
+  const pf = PERFILES[cfg.perfil]!;
+  r.perfil_info = { id: cfg.perfil, costo_primero: pf.costo_primero, reserva_lider_pct: pyRound(100 * reservaLiderDe(cfg), 0), relaja: pf.relaja };
   if (E.REPARTO_RESERVAR === "1" && !contra) Object.defineProperty(r, "_reservar", { value: get(gana, "clave", gana.grupo), enumerable: false });
   return r;
 }

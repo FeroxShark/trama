@@ -219,14 +219,27 @@ PESO_CARGA = 12.0         # puntos que resta cada worker vivo (o recién reparti
 #                       justo después de una ausencia es más urgente hoy).
 #   sesgo del perfil (sólo Claude oficial, perfil ahorro): -SESGO_AHORRO × (1 - max(s_ritmo, urgencia7d)): el atraso o la urgencia lo levantan.
 # Perfiles: equilibrado = lo de siempre más el ritmo; ahorro = ritmo ×2,5 + sesgo contra Claude + reserva_lider 0,35 + mínimos de
-# codigo-acotado/lectura/mecanico una banda más abajo; rendimiento = ritmo ×0,25 y costo ×0,5 (la calidad manda).
+# lectura/mecanico una banda más abajo; rendimiento = ritmo ×0,25 y costo ×0,5 (la calidad manda); agresivo = el más barato que
+# supere el piso (`minimo_por_tipo`, duro: no se relaja) con la reserva del líder del ahorro; el puntaje sólo desempata (ver elegir).
+# rendimiento y equilibrado dan lo mismo con el ritmo normal: sólo cambian el peso del ritmo (que casi no pesa
+# mientras ninguna suscripción vaya muy adelantada o atrasada) y el del costo (unos pocos puntos); la banda de calidad (PESO_SOBRA y
+# PREFERIDO_POR_TIPO) ya decide y es la misma.
 PERFILES = {
-    "equilibrado": {"ritmo": 1.0, "sesgo": 0.0, "costo": 1.0, "reserva_lider": 0.0, "relaja": False},
-    "ahorro":      {"ritmo": 2.5, "sesgo": 25.0, "costo": 1.0, "reserva_lider": 0.35, "relaja": True},
-    "rendimiento": {"ritmo": 0.25, "sesgo": 0.0, "costo": 0.5, "reserva_lider": 0.0, "relaja": False},
+    "equilibrado": {"ritmo": 1.0, "sesgo": 0.0, "costo": 1.0, "reserva_lider": 0.0, "relaja": False, "costo_primero": False},
+    "ahorro":      {"ritmo": 2.5, "sesgo": 25.0, "costo": 1.0, "reserva_lider": 0.35, "relaja": True, "costo_primero": False},
+    "agresivo":    {"ritmo": 2.5, "sesgo": 25.0, "costo": 1.0, "reserva_lider": 0.35, "relaja": False, "costo_primero": True},
+    "rendimiento": {"ritmo": 0.25, "sesgo": 0.0, "costo": 0.5, "reserva_lider": 0.0, "relaja": False, "costo_primero": False},
 }
 PERFIL_DEFECTO = "equilibrado"
-RELAJA_AHORRO = {"codigo-acotado": "haiku", "lectura": 50, "mecanico": 50}   # una banda menos (familia o calidad) en el perfil ahorro
+RELAJA_AHORRO = {"lectura": 50, "mecanico": 50}   # una banda menos (calidad) en el perfil ahorro; codigo-acotado ya pide Haiku, no hay banda más baja
+# Perfil agresivo: lo que no gasta cupo de nadie (locales y dsh/OpenCode) y no tiene historial propio sólo entra en lo que no escribe
+# (TIPOS_GRATIS_SIN_DATOS) hasta tener RINDE_MIN_N corridas con dato y RINDE_MIN_OK % o más sin retrabajo en `pa --rinde` (medicion.tsv,
+# últimos RINDE_DIAS días) para ESE tipo. Flash (Google) nunca escribe: sólo lectura.
+TIPOS_GRATIS_SIN_DATOS = ["lectura", "mecanico"]
+TIPOS_FLASH_AGRESIVO = ["lectura"]
+RINDE_MIN_N = 5
+RINDE_MIN_OK = 50
+RINDE_DIAS = 60
 PESO_RITMO = 18.0          # puntos que resta ir 2× por encima del ritmo (ratio 2 -> exceso 1)
 PESO_BONO_RITMO = 10.0     # puntos máximos por ir atrasado respecto del ritmo (más allá de la urgencia)
 TOPE_EXCESO = 1.5
@@ -960,7 +973,7 @@ def invalido(j):
                                              and all(num(v) for v in r.values())):
         return "reserva %s (un número de 0 a 1, {\"5h\":…,\"7d\":…} o null)" % json.dumps(r)
     if j.get("perfil") is not None and j["perfil"] not in PERFILES:
-        return "perfil %s (equilibrado, ahorro o rendimiento)" % json.dumps(j["perfil"])
+        return "perfil %s (equilibrado, ahorro, agresivo o rendimiento)" % json.dumps(j["perfil"])
     rl = j.get("reserva_lider")
     if rl is not None and not num(rl):
         return "reserva_lider %s (un número de 0 a 1 o null)" % json.dumps(rl)
@@ -2363,6 +2376,67 @@ def minimo_relajado(cfg, tipo, minimo, minimo_fam, e_tipo):
     return (q, True) if q < minimo else (minimo, False)
 
 
+def rinde_de_modelos(now):
+    """{(tipo, modelo): (con_dato, ok)} de los últimos RINDE_DIAS días de medicion.tsv (el mismo criterio que `pa --rinde`: `dato` = integrada=0,
+    o integrada=1 con retrabajo 0/1; `ok` = integrada=1 y retrabajo=0). REPARTO_MEDICION lo cambia (tests); <PA_STATE>/medicion.tsv por defecto.
+    Un archivo que falta o no se puede leer: vacío (sin historial). Nunca rompe."""
+    f = os.environ.get("REPARTO_MEDICION") or os.path.join(os.environ.get("PA_STATE") or os.path.expanduser("~/.local/state/pa"), "medicion.tsv")
+    out = {}
+    try:
+        desde = iso(now - timedelta(days=RINDE_DIAS))
+        with open(f, encoding="utf-8", errors="replace") as fh:
+            cols = None
+            for linea in fh:
+                c = linea.rstrip("\n").split("\t")
+                if cols is None:
+                    cols = {n: i for i, n in enumerate(c)}
+                    continue
+                v = lambda n: c[cols[n]] if n in cols and cols[n] < len(c) else ""
+                if len(c) < 5 or not re.match(r"[0-9]{4}-", c[0]) or c[0][:10] < desde[:10]:
+                    continue
+                i, r = v("integrada"), v("retrabajo")
+                if not (i == "0" or (i == "1" and r in ("0", "1"))):
+                    continue
+                k = (v("tipo"), v("modelo"))
+                d, ok = out.get(k, (0, 0))
+                out[k] = (d + 1, ok + (1 if i == "1" and r == "0" else 0))
+    except (OSError, ValueError):
+        return {}
+    return out
+
+
+def costo_relativo(c, cfg):
+    """Cuánto cuesta gastar este candidato (para el perfil agresivo): lo gratis 0; Go y DeepSeek, su costo de modelos.json; el resto, el de su familia."""
+    if c.get("proveedor") == "local":
+        return 0.0
+    if c.get("proveedor") == "dsh":
+        if c.get("gratis"):
+            return 0.0
+        return float(cfg["costo"].get("opencode-go", COSTO_GO) if c.get("plan_go") else cfg["costo"].get("dsh-pago", COSTO_DSH_PAGO))
+    return float(cfg["costo"].get(c["familia"], 0.3))
+
+
+def aplicar_agresivo(out, tipo, cfg, now):
+    """Perfil agresivo: a cada candidato su costo, y dos reglas duras sobre `minimo_por_tipo` (que ya filtró): Flash nunca escribe, y lo que no
+    gasta cupo (locales, dsh/OpenCode) sin historial propio sólo entra en TIPOS_GRATIS_SIN_DATOS. Lo segundo vuelve si no queda nada más (elegir)."""
+    rinde = rinde_de_modelos(now)
+    for c in out:
+        c["costo"] = costo_relativo(c, cfg)
+        if c.get("proveedor") in ("local", "dsh"):
+            d, ok = rinde.get((tipo, c["modelo"]), (0, 0))
+            c["historial"] = {"n": d, "ok_pct": round(100 * ok / d) if d else None}
+            if c["descartado_por"] or tipo in TIPOS_GRATIS_SIN_DATOS:
+                continue
+            if d < RINDE_MIN_N or 100 * ok < RINDE_MIN_OK * d:
+                c["descartado_por"] = ("sin historial en %s: %s no gasta cupo pero tiene %d corridas con dato (%s), y para tareas que escriben el perfil agresivo "
+                                       "pide %d o más con %d %% o más sin retrabajo (pa --rinde)") % (
+                    tipo, c["nombre"], d, "%d %% ok" % c["historial"]["ok_pct"] if d else "sin dato", RINDE_MIN_N, RINDE_MIN_OK)
+                c["duro"] = c["duro_historial"] = True
+        elif c.get("familia") == "flash" and tipo not in TIPOS_FLASH_AGRESIVO and not c["descartado_por"]:
+            c["descartado_por"] = "Flash no escribe en el perfil agresivo (sólo %s)" % " y ".join(TIPOS_FLASH_AGRESIVO)
+            c["duro"] = True
+
+
 def efectivo(base, cfg_effort, e_tipo):
     return e_tipo if e_tipo in cfg_effort else cfg_effort[-1]
 
@@ -2685,6 +2759,8 @@ def armar_candidatos(tipo, cfg, cupos, now, effort=None):
         cand["puntaje"] = round(util + (0.5 * cfg["peso_urgencia"] if gratis else costo)
                                 - cfg["peso_carga"] * cand["carga"], 2)
         out.append(cand)
+    if perfil["costo_primero"]:
+        aplicar_agresivo(out, tipo, cfg, now)
     return out, minimo, minimo_fam
 
 
@@ -2708,7 +2784,7 @@ def elegir(tipo, cfg, cupos, now, mismo_proveedor=None, solo_cuenta=None, _contr
         # Nada llega a la calidad que pide el tipo (típico: una máquina sin Claude, Gemini ni Codex, sólo con dsh). Mejor un modelo
         # gratis que nada: los de dsh que sólo quedaron afuera por calidad vuelven a entrar, y gana el de mejor puntaje.
         for c in cands:
-            if c.get("duro_calidad"):
+            if c.get("duro_calidad") or c.get("duro_historial"):
                 c["descartado_por"] = None
                 c.pop("duro", None)
                 c["relajado"] = True
@@ -2735,8 +2811,8 @@ def elegir(tipo, cfg, cupos, now, mismo_proveedor=None, solo_cuenta=None, _contr
     if vivos:
         pool = vivos
         pref = next((v for p, v in cfg["preferido_por_tipo"].items() if fnmatch.fnmatchcase(tipo, p)), None)
-        if cfg.get("_relajado"):
-            pref = None   # perfil ahorro con el mínimo bajado: no se encierra al tipo en la banda de arriba; decide el puntaje
+        if cfg.get("_relajado") or PERFILES[cfg["perfil"]]["costo_primero"]:
+            pref = None   # perfil ahorro con el mínimo bajado, o agresivo: no se encierra al tipo en la banda de arriba; decide el puntaje o el costo
         if pref in cfg["calidad"]:
             e_pref = cfg["effort_por_tipo"].get(tipo, "high")
             q0 = calidad_en_effort(mapa_efforts(cfg, pref), "xhigh" if e_pref == "max" else e_pref, cfg["calidad"][pref])
@@ -2760,7 +2836,11 @@ def elegir(tipo, cfg, cupos, now, mismo_proveedor=None, solo_cuenta=None, _contr
         vs = [parse_iso(c["vuelve"]) for c in pool if parse_iso(c.get("vuelve"))]
         extra["vuelve_antes"] = iso(min(vs)) if vs else None
     else:
-        gana = max(pool, key=lambda c: (c["puntaje"], c["calidad"]))
+        if PERFILES[cfg["perfil"]]["costo_primero"]:
+            # agresivo: el más barato de los que pasan el piso; el puntaje (ritmo, urgencia, carga) sólo desempata
+            gana = min(pool, key=lambda c: (c["costo"], -c["puntaje"], -c["calidad"]))
+        else:
+            gana = max(pool, key=lambda c: (c["puntaje"], c["calidad"]))
         # el mismo modelo en varias cuentas: la que tiene más cupo libre (sin dato cuenta como el menos libre;
         # empate: la de siempre)
         gana = max([c for c in pool if c["modelo"] == gana["modelo"]],
@@ -2769,10 +2849,14 @@ def elegir(tipo, cfg, cupos, now, mismo_proveedor=None, solo_cuenta=None, _contr
     motivo = motivo_de(gana, pool, tipo, minimo, minimo_fam, todo_lleno, now, cands)
     if gana.get("nota_effort"):
         motivo += " Effort %s: %s (calidad %s)." % (gana.get("effort") or gana["modelo"].rsplit("-", 1)[-1], gana["nota_effort"], fn(gana["calidad"]))
-    if relajado and gana.get("relajado"):
+    if relajado and gana.get("relajado") and gana.get("duro_historial"):
+        motivo += " No queda ningún otro modelo que sirva: entra %s aunque no tiene historial en %s (perfil agresivo)." % (gana["nombre"], tipo)
+    elif relajado and gana.get("relajado"):
         motivo += " Ningún modelo llega a la calidad %s que pide %s: uso el mejor que hay (calidad %s, ajustable con \"calidad\" en modelos.json)." % (fn(minimo), tipo, fn(gana["calidad"]))
     if primero_gratis:
         motivo += " Con chequeo, %s ofrece primero los gratis de OpenCode (cupo entero, no gastan Claude ni agy)." % tipo
+    if PERFILES[cfg["perfil"]]["costo_primero"] and not todo_lleno and not gana.get("duro_historial"):
+        motivo += " Perfil agresivo: de los que pasan el piso de %s, el más barato (costo relativo %g)." % (tipo, gana["costo"])
     if banda:
         motivo += " Para %s se prefiere la calidad de %s: los modelos más caros o menos parejos sólo entran si no queda cupo de esa banda." % (tipo, banda)
     ritmo_info = resumen_ritmo(cfg, cupos, now) if not _contra else []
@@ -2787,6 +2871,8 @@ def elegir(tipo, cfg, cupos, now, mismo_proveedor=None, solo_cuenta=None, _contr
          "candidatos": [limpio(c) for c in sorted(cands, key=lambda c: (c["descartado_por"] is not None, -(c["puntaje"] or 0)))],
          "avisos": avisos, "tipo": tipo, "perfil": cfg["perfil"], "ritmo": ritmo_info}
     r.update(extra)
+    pf = PERFILES[cfg["perfil"]]
+    r["perfil_info"] = {"id": cfg["perfil"], "costo_primero": pf["costo_primero"], "reserva_lider_pct": round(100 * reserva_lider_de(cfg)), "relaja": pf["relaja"]}
     return r
 
 
@@ -2864,7 +2950,7 @@ def avisos_de_uso(cupos, now):
 
 def limpio(c):
     return {k: c[k] for k in ("modelo", "effort", "nombre", "calidad", "cupo_libre", "vuelve", "puntaje",
-                              "descartado_por", "aviso", "grupo", "carga", "cuenta", "estimada", "ritmo", "ritmo_pts", "calidad_mejor", "calidad_por_effort", "effort_calidad") if k in c}
+                              "descartado_por", "aviso", "grupo", "carga", "cuenta", "estimada", "ritmo", "ritmo_pts", "calidad_mejor", "calidad_por_effort", "effort_calidad", "costo", "historial") if k in c}
 
 
 def pct(f):
