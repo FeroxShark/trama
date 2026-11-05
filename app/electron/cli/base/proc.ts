@@ -298,11 +298,50 @@ export function pidDeCorrida(archivoPid: string, o: OpcionesPidDeCorrida = {}): 
     return null;
   }
   if (!/^\d+$/.test(texto)) return null;
-  const pid = Number(texto);
+  return pidValido(Number(texto), mtime, o);
+}
+
+/** ¿`pid` es un proceso real (vivo, no zombie, no un hilo) que arrancó a más tardar `MARGEN_PID_MS` después de `escritoMs`? Si sí, el pid; si no, null. */
+function pidValido(pid: number, escritoMs: number, o: OpcionesPidDeCorrida): number | null {
   if (!vivo(pid, undefined, o) || !esProceso(pid, o)) return null;
   const ini = (o.inicioMs ?? ((p) => inicioMsDe(p, o)))(pid);
-  if (ini !== undefined && ini > mtime + MARGEN_PID_MS) return null;
+  if (ini !== undefined && ini > escritoMs + MARGEN_PID_MS) return null;
   return pid;
+}
+
+/**
+ * El pid de un `<proyecto>.running` (`pid=` del claude o, antes del fork, `pa_pid=`) SI de verdad es esa corrida; si no, null.
+ * Mismo criterio que `pidDeCorrida`: un `.running` huérfano (pa matado con -9, reinicio, cuota agotada) lleva un número que otro
+ * programa puede haber reciclado, o que hoy es el TID de un hilo ajeno. pa reescribe el `.running` cada vez que cambia el pid
+ * (`escribir_running`), así que el mtime del archivo es siempre posterior al arranque del proceso. Nunca señala: sólo lee.
+ */
+export function pidDeRunning(archivoRunning: string, o: OpcionesPidDeCorrida = {}): number | null {
+  let texto: string;
+  let mtime: number;
+  try {
+    texto = (o.leerArchivo ?? ((r) => readFileSync(r, "utf8")))(archivoRunning);
+    mtime = (o.mtimeMs ?? ((r) => statSync(r).mtimeMs))(archivoRunning);
+  } catch {
+    return null;
+  }
+  const pid = campoNumerico(texto, "pid") ?? campoNumerico(texto, "pa_pid");
+  return pid ? pidValido(Number(pid), mtime, o) : null;
+}
+
+const campoNumerico = (texto: string, k: string) => new RegExp(`^${k}=(\\d+)\\s*$`, "m").exec(texto)?.[1];
+
+/** Como `pidDeRunning` pero de UN campo (`pid` o `pa_pid`): para bajar a cada uno sólo si de verdad es suyo. */
+export function pidDeCampoRunning(archivoRunning: string, campo: "pid" | "pa_pid", o: OpcionesPidDeCorrida = {}): number | null {
+  let texto: string;
+  let mtime: number;
+  try {
+    texto = (o.leerArchivo ?? ((r) => readFileSync(r, "utf8")))(archivoRunning);
+    mtime = (o.mtimeMs ?? ((r) => statSync(r).mtimeMs))(archivoRunning);
+  } catch {
+    return null;
+  }
+  const pid = campoNumerico(texto, campo);
+  return pid ? pidValido(Number(pid), mtime, o) : null;
 }
 
 /** Cierra un árbol: TERM a todos (el árbol se lista ANTES de señalar: un hijo con setsid ya no está en el grupo), espera `graceMs` y KILL a los que sigan. Windows: `taskkill /T /F` directo. */

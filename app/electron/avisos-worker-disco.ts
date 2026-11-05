@@ -4,6 +4,7 @@
 // worker listado como `murio` todavía no se cortó.
 import { open, readdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
+import { pidDeRunning } from "./cli/base/proc.ts";
 
 const ID = /^\d{8}-\d{6}-\d+$/;
 const SLUG = /^[A-Za-z0-9._][A-Za-z0-9._-]*$/;
@@ -46,18 +47,6 @@ export async function rastroDeWorker(raiz: string, h: { id: string; proyecto: st
   return [err, resultado].filter(Boolean).join("\n");
 }
 
-/** Un pid que responde: vivo (o de otro usuario, EPERM). `pid` vacío o no numérico, no. */
-function pidVivo(pid: string | undefined): boolean {
-  const n = Number(pid);
-  if (!/^\d+$/.test(pid ?? "") || n <= 0) return false;
-  try {
-    process.kill(n, 0);
-    return true;
-  } catch (e) {
-    return (e as NodeJS.ErrnoException).code === "EPERM";
-  }
-}
-
 /**
  * ¿Sigue corriendo `h`? Su `.running` (en la raíz, `<slug>*.running`, con `id=` de la corrida) con el pid vivo (el del claude;
  * sin él, el de pa, como `pid_vivo` de pa), o su `.json` vacío recién creado. Sin nada de eso, no: se cortó.
@@ -68,12 +57,9 @@ export async function procesoVivoDe(raiz: string, h: { id: string; proyecto: str
   if (json?.size === 0 && ahoraMs - json.mtimeMs < JSON_RECIEN_MS) return true;
   for (const f of await readdir(raiz).catch(() => [] as string[])) {
     if (!f.endsWith(".running")) continue;
-    const campos = new Map<string, string>();
-    for (const l of (await readFile(path.join(raiz, f), "utf8").catch(() => "")).split("\n")) {
-      const i = l.indexOf("=");
-      if (i > 0) campos.set(l.slice(0, i), l.slice(i + 1));
-    }
-    if (campos.get("id") === h.id && pidVivo(campos.get("pid") || campos.get("pa_pid"))) return true;
+    const crudo = await readFile(path.join(raiz, f), "utf8").catch(() => "");
+    // el pid cuenta sólo si de verdad es esa corrida (no un pid reciclado ni un hilo ajeno): ver `pidDeRunning`
+    if (new RegExp(`^id=${h.id}\\s*$`, "m").test(crudo) && pidDeRunning(path.join(raiz, f)) !== null) return true;
   }
   return false;
 }

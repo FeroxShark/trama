@@ -14,7 +14,7 @@ import { esEjecutable } from "../base/buscar.ts";
 import { entornoCmd } from "../../binario.ts";
 import { prefijoDe } from "./programas.ts";
 import { esPrincipal } from "../base/principal.ts";
-import { correr, matarArbol, vivo } from "../base/proc.ts";
+import { correr, matarArbol, pidDeRunning } from "../base/proc.ts";
 import { tomar, type Lock } from "../base/lock.ts";
 import { registroProyectos } from "../../rutas.ts";
 import { resolverProyecto } from "../proyecto-ruta.ts";
@@ -786,9 +786,6 @@ export function usarId(pa: Pa, id: string): Proy {
   return fijarProyecto(pa, proyecto, (r as { ruta: string }).ruta);
 }
 
-/** El pid de un `.running` (`pid=` o, antes del fork, `pa_pid=`). */
-const pidDe = (f: string) => Number(leerCampo(f, "pid") || leerCampo(f, "pa_pid")) || undefined;
-
 /** `running_de_id`: el `.running` vivo de esa corrida, o "". */
 export function runningDeId(x: Proy, id: string): string {
   const st = x.pa.state;
@@ -799,7 +796,7 @@ export function runningDeId(x: Proy, id: string): string {
     arr = [];
   }
   for (const r of [path.join(st, `${x.slug}.running`), ...arr.map((n) => path.join(st, n)), path.join(st, `${x.slug}.leer-${id}.running`)]) {
-    if (existsSync(r) && leerCampo(r, "id") === id && vivo(pidDe(r))) return r;
+    if (existsSync(r) && leerCampo(r, "id") === id && pidDeRunning(r) !== null) return r;
   }
   return "";
 }

@@ -2523,7 +2523,9 @@ cmd_limpiar() {
 }
 
 pid_vivo() { local p; p="$(leer_campo "$1" pid)"; [[ -n "$p" ]] || p="$(leer_campo "$1" pa_pid)"; printf %s "$p"; }
-vivo() { local pid; pid="$(pid_vivo "$1")"; [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; }
+# Vivo de verdad: el pid de un `.running` huérfano puede haberlo reciclado otro programa (o ser el TID de un hilo ajeno): se exige
+# proceso real, no zombie y arrancado antes de que se escribiera el archivo (`vive` y `pid_de_corrida`, más abajo).
+vivo() { local pid; pid="$(pid_vivo "$1")"; [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null && vive "$pid" && pid_de_corrida "$pid" "$1"; }
 
 transcurrido() {
   local s=$(( $(date +%s) - ${1:-0} ))

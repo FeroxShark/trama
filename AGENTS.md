@@ -53,6 +53,11 @@ falta, está en `motor/docs/traspaso.md`.
   que corrió ahí se ve en la carpeta de su `reemplazado_por` (`app/electron/reemplazos.ts`; el `proyecto` del hilo no se toca: es el de `pa`).
   El riel ubica a un líder por worker, primer mensaje o lo movido a mano, nunca por su cwd. Detalle en `docs/estado/carpeta-auto-y-retirados.md`.
 - **Carpeta de un líder en la barra (`armarArbol`):** `mover` (a mano) > Shark > `fijadas` > primer worker > `inferido` > general. Lo que se decide solo se fija con el líder (`nombres.json.fijadas`, vía `Arbol.decididas`) y no se recalcula; lo elegido a mano no se pierde (`nombres.json.bak`). No hagas depender la carpeta de algo que cambia por sondeo. Detalle en `docs/estado/carpeta-estable.md`; lo controla `tests/carpeta-estable.test.ts`.
+- **`<proyecto>.running` de un worker:** mismo criterio que el `.pid`, y sólo por `pidDeRunning` / `pidDeCampoRunning` (`cli/base/proc.ts`; atajo `runningVivo` en
+  `cli/pa/corridas.ts`; respaldo bash: `vivo` en `motor/bin/pa`). Nunca `kill0`/`vivo` sobre el `pid=` o `pa_pid=` a secas: un `.running` huérfano (pa o Trama
+  muertos a lo bruto, en Windows `taskkill /F` no corre el trap) lleva un número que otro programa recicló. Sin proceso real la fila dice `murio`, `pa --parar` cierra el
+  rastro (anota `fin=`, borra el `.running`) y `--matar` nunca señala un pid no validado. El límite de sesión (76) NO deja zombis: `pa` sale limpio (el trap borra el
+  `.running`, deja `.listo` y `fin`), escribe `limite-<cuenta>` y nada reanuda solo cuando vuelve la cuota; sólo `-m a,b,c` pasa al siguiente modelo en esa misma corrida.
 - **Cola de mensajes del líder (`app/electron/cola.ts`, se ve en `app/src/hilo/Bandeja.tsx`):** lo encolado con el líder trabajando sale TODO JUNTO en un solo
   mensaje (`juntar`), nunca uno por turno. Por defecto se entrega a mitad del turno, sin interrumpir, en el próximo límite de
   herramienta (`lider.mandarDirecto`, tras `AGRUPAR_MS`, 8 s, que deja editar antes de que salga y se reinicia con cada cambio); los motores sin ese canal (locales) lo entregan al

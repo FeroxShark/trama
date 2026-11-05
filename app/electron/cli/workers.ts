@@ -18,7 +18,7 @@ import { estadoPa, homeDe } from "../rutas.ts";
 import { enPath } from "./base/buscar.ts";
 import { git } from "./base/git.ts";
 import { esPrincipal } from "./base/principal.ts";
-import { vivo as pidVivo } from "./base/proc.ts";
+import { pidDeRunning, vivo as pidVivo } from "./base/proc.ts";
 import { resolverProyecto } from "./proyecto-ruta.ts";
 import { CON_COLOR, SIN_COLOR, crearFormateador, formatoDe, type Colores, type Formato } from "./workers-formato.ts";
 
@@ -110,9 +110,9 @@ export function transcurrido(ahora: number, inicio: number): string {
 function pidDe(f: (k: string) => string): string {
   return f("pid") || f("pa_pid");
 }
-function estaVivo(f: (k: string) => string): boolean {
-  const p = pidDe(f);
-  return /^\d+$/.test(p) && pidVivo(Number(p));
+/** El `.running` tiene a alguien vivo de verdad (un pid reciclado o el hilo de otro programa no cuenta: ver `pidDeRunning`). */
+function estaVivo(archivo: string): boolean {
+  return pidDeRunning(archivo) !== null;
 }
 
 const escapar = (s: string) => s.replace(/[^A-Za-z0-9]/g, "-");
@@ -249,7 +249,7 @@ export async function listar(x: Contexto): Promise<void> {
     const f = leerCampos(archivo);
     const slug = f("proyecto");
     hubo = true;
-    if (!estaVivo(f)) {
+    if (!estaVivo(archivo)) {
       x.io.out(`${B}${padFin(slug, 18)}${R} ${C_WARN}HUÉRFANO${R}  (el claude murió; el próximo \`pa ${slug}\` lo limpia solo)\n`);
       continue;
     }
@@ -317,7 +317,7 @@ export function listarJson(x: Contexto): void {
   const objetos: unknown[] = [];
   for (const archivo of archivosCon(x.estado, ".running")) {
     const f = leerCampos(archivo);
-    if (!estaVivo(f)) continue;
+    if (!estaVivo(archivo)) continue;
     const leer = f("leer") === "1";
     // puesto: "1".."N" o "aca" (tree principal) para un writer; null para un --leer
     const puesto = leer ? "" : f("puesto") || "1";
@@ -361,7 +361,7 @@ export function elegirRunning(pedido: string, x: Contexto): Elegido {
   const encontrados: { archivo: string; f: (k: string) => string }[] = [];
   for (const archivo of archivosCon(x.estado, ".running")) {
     const f = leerCampos(archivo);
-    if (!estaVivo(f)) continue;
+    if (!estaVivo(archivo)) continue;
     if (pedido) {
       if (f("proyecto").includes(pedido.toLowerCase()) || f("id") === pedido) encontrados.push({ archivo, f });
     } else encontrados.push({ archivo, f });

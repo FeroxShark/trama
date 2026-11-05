@@ -7,6 +7,8 @@
 
 ## Sin publicar
 
+- Un worker ya no queda como «trabajando» (ni sumando horas) si su proceso murió: el `.running` huérfano sólo cuenta si su pid es de verdad esa corrida (no un pid reciclado ni un hilo ajeno). La fila pasa a «murió» y `Parar` cierra el rastro en vez de decir que la corrida no existe.
+
 ## 0.2.51
 
 - Clic derecho en el ícono de un proyecto (riel y lista): Renombrar, Cambiar logo y Volver al automático.

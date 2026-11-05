@@ -13,7 +13,7 @@ import { readFileSync, readdirSync, rmSync } from "node:fs";
 import path from "node:path";
 import { plataformaActual, type Plataforma } from "../../rutas.ts";
 import { consultar } from "../base/lock.ts";
-import { arbol, listarPares } from "../base/proc.ts";
+import { arbol, listarPares, pidDeCampoRunning } from "../base/proc.ts";
 import { anotarFin, dormir, esArchivo, evento, fijarProyecto, leerCampo, listar, pidCorridaVivo, runningVivo, usarId, vive } from "./corridas.ts";
 import { jefeId, salir, type Pa } from "./entorno.ts";
 
@@ -159,7 +159,6 @@ export async function matarArbolPa(sid: string, paciente: number | undefined, pi
   return vivos(unicos([...todos, ...delSid(sid)])).sort((a, b) => a - b);
 }
 
-const num = (s: string) => (/^[0-9]+$/.test(s) ? Number(s) : undefined);
 
 /** El lock de un puesto (`lock_de_puesto`): `lock/<slug>` el 1, `lock/<slug>@N` los demás. */
 export const lockDePuesto = (lockdir: string, slug: string, puesto: string) => path.join(lockdir, `${slug}${!puesto || puesto === "1" ? "" : `@${puesto}`}`);
@@ -168,14 +167,16 @@ export const lockDePuesto = (lockdir: string, slug: string, puesto: string) => p
 export async function matarRun(pa: Pa, run: string, o: OpcionesMatar = {}): Promise<number> {
   const slug = leerCampo(run, "proyecto");
   const pid = leerCampo(run, "pid");
-  const paPid = leerCampo(run, "pa_pid");
+  // Sólo se señala un pid que de verdad es de esta corrida: en un `.running` huérfano pueden ser de otro programa o el TID de un hilo.
+  const pidReal = pidDeCampoRunning(run, "pid", { plat: pa.plat });
+  const paPidReal = pidDeCampoRunning(run, "pa_pid", { plat: pa.plat });
   const sid = leerCampo(run, "sid");
   const leer = leerCampo(run, "leer") === "1";
   const que = leer ? `worker --leer ${leerCampo(run, "id")}` : "worker";
   const puesto = leerCampo(run, "puesto");
   const canal = !leer && puesto !== "aca" ? lockDePuesto(pa.lockdir, slug, puesto) : undefined;
   // el pa primero (padres primero): matar sólo al claude hacía que el pa viejo lo relanzara
-  const quedan = await matarArbolPa(sid, num(paPid), [num(paPid), num(pid)].filter((x): x is number => x !== undefined), { plat: pa.plat, canal, ...o });
+  const quedan = await matarArbolPa(sid, paPidReal ?? undefined, [paPidReal, pidReal].filter((x): x is number => x !== null), { plat: pa.plat, canal, ...o });
   if (!quedan.length) {
     await anotarFin(path.join(pa.state, slug), leerCampo(run, "id"));
     const base = run.replace(/\.running$/, "");
@@ -194,6 +195,16 @@ export function runningDeId(pa: Pa, slug: string, id: string): string {
   for (const c of cands) {
     const r = path.join(pa.state, c);
     if (leerCampo(r, "id") === id && runningVivo(r)) return r;
+  }
+  return "";
+}
+
+/** El `.running` de esa corrida aunque su proceso ya no exista (o sea de otro programa): lo que queda de una muerte que nadie vio. */
+function runningObsoletoDeId(pa: Pa, slug: string, id: string): string {
+  const cands = [`${slug}.running`, ...listar(pa.state, (n) => n.startsWith(`${slug}@`) && n.endsWith(".running")), `${slug}.leer-${id}.running`];
+  for (const c of cands) {
+    const r = path.join(pa.state, c);
+    if (esArchivo(r) && leerCampo(r, "id") === id) return r;
   }
   return "";
 }
@@ -223,6 +234,17 @@ export async function cmdParar(pa: Pa, id: string | undefined, o: OpcionesMatar 
     }
     pa.io.err(`pa: NO pude bajar la corrida ${id} de '${p.slug}': siguen vivos ${quedan.join(" ")}.\n`);
     return 85;
+  }
+  // Un `.running` de esta corrida cuyo proceso ya no existe (o es de otro programa) es rastro de una muerte que nadie vio:
+  // se cierra con la hora de ahora para que la fila diga `murió` y no `trabajando` para siempre. No se señala a nadie.
+  const viejo = runningObsoletoDeId(pa, p.slug, id);
+  if (viejo) {
+    await anotarFin(p.dir, id);
+    const base = viejo.replace(/\.running$/, "");
+    for (const f of [viejo, `${base}.heartbeat`, `${base}.heartbeat.turnos`]) rmSync(f, { force: true });
+    await evento(pa, "parar", id, p.slug);
+    pa.io.out(`pa: la corrida ${id} de '${p.slug}' ya no tenía ningún proceso (murió sin avisar); cerré su rastro.\n`);
+    return 0;
   }
   pa.io.err(`pa: la corrida ${id} de '${p.slug}' no está corriendo ni en cola.\n`);
   return 1;

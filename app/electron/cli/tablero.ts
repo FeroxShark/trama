@@ -15,7 +15,7 @@ import { conReintentoSync } from "./base/archivo.ts";
 import { esPrincipal } from "./base/principal.ts";
 import { git } from "./base/git.ts";
 import { tomar } from "./base/lock.ts";
-import { pidDeCorrida, vivo } from "./base/proc.ts";
+import { pidDeCorrida, pidDeRunning } from "./base/proc.ts";
 import { jsonPy } from "./trama-estado.ts";
 import { rutaReal } from "./proyecto-ruta.ts";
 import { MARCA_DUENO } from "./tablero-ayuda.ts";
@@ -656,8 +656,7 @@ class Tablero {
         continue;
       }
       if (campos.id !== cid) continue;
-      const pid = enteroPy(campos.pid || campos.pa_pid || "");
-      if (pid !== null && vivo(pid)) return true;
+      if (pidDeRunning(path.join(this.paState, n)) !== null) return true;
     }
     return false;
   }

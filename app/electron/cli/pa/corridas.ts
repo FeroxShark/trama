@@ -8,7 +8,7 @@ import path from "node:path";
 import { registroProyectos, type Plataforma } from "../../rutas.ts";
 import { agregarLinea } from "../base/archivo.ts";
 import { tomar } from "../base/lock.ts";
-import { pidDeCorrida, vivo as vivoProc } from "../base/proc.ts";
+import { pidDeCampoRunning, pidDeCorrida, pidDeRunning, vivo as vivoProc } from "../base/proc.ts";
 import { resolverProyecto, rutaReal } from "../proyecto-ruta.ts";
 import { salir, type Pa } from "./entorno.ts";
 
@@ -120,8 +120,10 @@ export function corridaEnCola(dir: string, id: string, plat?: Plataforma): boole
 export function pidVivo(running: string): string {
   return leerCampo(running, "pid") || leerCampo(running, "pa_pid");
 }
-/** `vivo`: el `.running` tiene a alguien vivo. */
-export const runningVivo = (running: string) => kill0(pidVivo(running));
+/** El pid de un `.running` si de verdad es esa corrida (proceso, no hilo; vivo; arrancó antes que el archivo): ver `pidDeRunning`. */
+export const pidRunningVivo = (running: string, plat?: Plataforma): number | null => pidDeRunning(running, { plat });
+/** `vivo`: el `.running` tiene a alguien VIVO de verdad. Un `.running` huérfano con el pid reciclado o de un hilo ajeno no cuenta. */
+export const runningVivo = (running: string): boolean => pidRunningVivo(running) !== null;
 
 // ---------------------------------------------------------------- tiempo
 
@@ -281,11 +283,9 @@ export function workersSueltos(state: string): number {
   let n = 0;
   for (const f of listar(state, (x) => x.endsWith(".running"))) {
     const r = path.join(state, f);
-    const c = leerCampo(r, "pid");
-    const p = leerCampo(r, "pa_pid");
-    if (!/^[0-9]+$/.test(c) || !/^[0-9]+$/.test(p)) continue;
-    if (kill0(p)) continue;
-    if (kill0(c)) n++;
+    if (!/^[0-9]+$/.test(leerCampo(r, "pid")) || !/^[0-9]+$/.test(leerCampo(r, "pa_pid"))) continue;
+    if (pidDeCampoRunning(r, "pa_pid") !== null) continue;
+    if (pidDeCampoRunning(r, "pid") !== null) n++;
   }
   return n;
 }

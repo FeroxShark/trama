@@ -12,6 +12,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, w
 import os from "node:os";
 import path from "node:path";
 import { tomar, probar, type AlMensaje, type Lock } from "../base/lock.ts";
+import { pidDeCampoRunning, pidDeRunning } from "../base/proc.ts";
 import { salir } from "./entorno.ts";
 import { leerCampo, puestoParaRetomar, sufPuesto, tieneHead, tocar, type Proyecto } from "./worktrees.ts";
 
@@ -30,10 +31,9 @@ export function existe(pid: number): boolean {
   }
 }
 
-/** `vivo`: el pid del `.running` (el del claude, o el de pa si todavía no hay) existe. */
+/** `vivo`: el pid del `.running` (el del claude, o el de pa si todavía no hay) es de verdad esa corrida (ver `pidDeRunning`). */
 export function runningVivo(run: string): boolean {
-  const p = leerCampo(run, "pid") || leerCampo(run, "pa_pid");
-  return /^[0-9]+$/.test(p) && existe(Number(p));
+  return pidDeRunning(run) !== null;
 }
 
 /** Segundos enteros de ahora (`date +%s`). */
@@ -127,11 +127,9 @@ export function describirVivos(state: string): string {
 export function workersSueltos(state: string): number {
   let n = 0;
   for (const f of runnings(state)) {
-    const c = leerCampo(f, "pid");
-    const p = leerCampo(f, "pa_pid");
-    if (!/^[0-9]+$/.test(c) || !/^[0-9]+$/.test(p)) continue;
-    if (existe(Number(p))) continue;
-    if (existe(Number(c))) n++;
+    if (!/^[0-9]+$/.test(leerCampo(f, "pid")) || !/^[0-9]+$/.test(leerCampo(f, "pa_pid"))) continue;
+    if (pidDeCampoRunning(f, "pa_pid") !== null) continue;
+    if (pidDeCampoRunning(f, "pid") !== null) n++;
   }
   return n;
 }

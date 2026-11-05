@@ -15,7 +15,7 @@ import { enPath, esEjecutable } from "./base/buscar.ts";
 import { tomar } from "./base/lock.ts";
 import { esPrincipal } from "./base/principal.ts";
 import { estadoHilos, estadoPa, plataformaActual, type Plataforma } from "../rutas.ts";
-import { lanzarSuelto, pidDeCorrida } from "./base/proc.ts";
+import { lanzarSuelto, pidDeCorrida, pidDeRunning } from "./base/proc.ts";
 import { carpetaMotor } from "./pa/entorno.ts";
 import {
   conFloat,
@@ -244,15 +244,6 @@ function sumaPy(xs: number[]): number {
   }
   if (c && Number.isFinite(c)) f += c;
   return f;
-}
-/** `os.kill(pid, 0)` sin excepción. */
-function existePid(pid: number): boolean {
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch {
-    return false;
-  }
 }
 /** `subprocess.run(..., capture_output=True, text=True, timeout=s)`: el resultado de spawnSync (`error` si no se pudo o venció). */
 function correrCapturado(cmd: string, args: string[], o: { timeoutS: number; cwd?: string; env?: NodeJS.ProcessEnv }): SpawnSyncReturns<string> {
@@ -1745,8 +1736,7 @@ function cargaPorGrupo(now: Date): Obj {
         const [k, v] = i < 0 ? [ln, ""] : [ln.slice(0, i), ln.slice(i + 1)];
         if (!(k in c)) c[k] = v;
       }
-      const pid = pyInt(c.pid || c.pa_pid || "");
-      if (!existePid(pid)) continue;
+      if (pidDeRunning(path.join(base, n)) === null) continue; // pa matado, un hilo ajeno o un pid reciclado: no es un worker
     } catch {
       continue;
     }
