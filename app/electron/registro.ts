@@ -48,12 +48,16 @@ export type Proyecto = {
 /** El nombre que trae `reemplazado_por`, mientras no se resuelve a un slug (ver `registro`). */
 type ConReemplazoCrudo = Proyecto & { reemplazoCrudo?: string | null };
 
+/** La última lectura buena del registry (ver `registro`). */
+let ultimoBueno: { archivo: string; proyectos: Proyecto[] } | null = null;
+
 /**
  * Los proyectos del registry, uno por carpeta real (varios nombres para la misma
  * carpeta son alias: gana el que coincide con el slug, si no el más corto). Sin
  * home ni "/". La ruta más larga primero (proyectos anidados).
  */
 export async function registro(): Promise<Proyecto[]> {
+  const archivo = rutaRegistry();
   let regs: {
     name?: unknown;
     path?: unknown;
@@ -69,8 +73,12 @@ export async function registro(): Promise<Proyecto[]> {
     aliases?: unknown;
   }[] = [];
   try {
-    regs = JSON.parse(await readFile(rutaRegistry(), "utf8")).projects ?? [];
-  } catch {}
+    regs = JSON.parse(await readFile(archivo, "utf8")).projects ?? [];
+  } catch (e) {
+    // Sin archivo: no hay proyectos. Pero uno bloqueado un instante (Windows, mientras `pa` o un antivirus lo pisan) o a medias
+    // no es "sin proyectos": vale la última lectura buena. Si no, todos los líderes perdían su carpeta (`inferido`) hasta el próximo sondeo.
+    if ((e as NodeJS.ErrnoException)?.code !== "ENOENT" && ultimoBueno?.archivo === archivo) return ultimoBueno.proyectos.map((p) => ({ ...p, alias: [...p.alias] }));
+  }
   const casa = await real(os.homedir());
   const porRuta = new Map<string, ConReemplazoCrudo>();
   for (const r of regs) {
@@ -136,7 +144,9 @@ export async function registro(): Promise<Proyecto[]> {
     p.reemplazadoPor = slugDeReemplazo(p.reemplazoCrudo, todos, p.slug);
     delete p.reemplazoCrudo;
   }
-  return (todos as Proyecto[]).sort((a, b) => b.ruta.length - a.ruta.length);
+  const salida = (todos as Proyecto[]).sort((a, b) => b.ruta.length - a.ruta.length);
+  ultimoBueno = { archivo, proyectos: salida.map((p) => ({ ...p, alias: [...p.alias] })) };
+  return salida;
 }
 
 /** El slug del proyecto que nombra `reemplazado_por` (por nombre, slug o alias, sin distinguir mayúsculas), sin ser el mismo; `null` si no está. */

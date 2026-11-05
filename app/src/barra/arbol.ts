@@ -90,6 +90,11 @@ export type Arbol = {
   aCargo: Set<string>;
   /** Los reemplazos con que se armó (retirado → reemplazo): para ubicar por carpeta un hilo cuyo `proyecto` es el de `pa`. */
   reemplazos?: ReadonlyMap<string, string>;
+  /**
+   * Las carpetas que se decidieron en esta pasada sin que nadie las eligiera (por los workers o por el primer mensaje) y
+   * todavía no están en `fijadas`: quien arma la barra las guarda con el líder y a partir de ahí no se recalculan.
+   */
+  decididas: Map<string, string>;
 };
 
 /** Cuándo terminó (o empezó, si sigue); lo que murió, cuándo lo vio morir la app (si lo vio). */
@@ -435,6 +440,11 @@ type Opciones = {
    * carpeta que no es retirada manda sobre todo esto.
    */
   reemplazos?: ReadonlyMap<string, string>;
+   * Las carpetas ya decididas por inferencia (session_id → carpeta, `nombres.json`): una vez decidida, la carpeta de un líder
+   * no se recalcula (ni por un worker que aparece o se va, ni por un registry que no se pudo leer, ni por otro primer
+   * mensaje tras compactar o retomar). Sólo `mover` (lo que eligió el usuario) la pisa.
+   */
+  fijadas?: ReadonlyMap<string, string>;
   /** Carpetas con los workers terminados escondidos (B20): todo lo que no trabaja va al "+N" o a "N terminadas". */
   ocultos?: ReadonlySet<string>;
   /** El `titulo` del registry de cada proyecto (slug → título): la carpeta se busca también por él. */
@@ -466,7 +476,7 @@ type Opciones = {
  * coinciden. Lo que no trabaja se pliega igual que sin buscar, y lo cerrado
  * también (en su carpeta, no en "Cerrados").
  */
-export function armarArbol(hilos: Hilo[], { optimista, lideres: todos, settleados, busqueda = "", mover, reemplazos, ocultos, titulos, caidos, orden, prioridad, recientes, sinActivas, ahora }: Opciones): Arbol {
+export function armarArbol(hilos: Hilo[], { optimista, lideres: todos, settleados, busqueda = "", mover, reemplazos, fijadas, ocultos, titulos, caidos, orden, prioridad, recientes, sinActivas, ahora }: Opciones): Arbol {
   const rem = (p: string) => dondeSeVe(p, reemplazos);
   // La carpeta donde se ve un worker. Su `proyecto` no se toca: sigue siendo el de `pa` (integrar, actualizar y demás van a ése).
   const deHilo = (h: Hilo) => rem(h.proyecto);
@@ -483,7 +493,8 @@ export function armarArbol(hilos: Hilo[], { optimista, lideres: todos, settleado
 
   // Cada líder va a la carpeta que eligió el usuario; si no, a la de su primer worker;
   // sin workers, a la del proyecto que nombra su primer mensaje (`inferido`, del
-  // main) y si no nombra ninguno, a "general". El primero y no el más nuevo: un
+  // main) y si no nombra ninguno, a "general". Lo que se decidió así (workers o primer mensaje) se fija con el líder (`fijadas`,
+  // `decididas`): no se recalcula, así que no salta de carpeta cuando un worker aparece o se va. El primero y no el más nuevo: un
   // líder que reparte trabajo en varios proyectos no salta de carpeta con cada worker.
   // Shark (el asistente de voz) va siempre a su carpeta propia, con sus workers, salvo que el usuario lo mueva.
   const primero = new Map<string, Hilo>();
@@ -494,10 +505,14 @@ export function armarArbol(hilos: Hilo[], { optimista, lideres: todos, settleado
     if (!y || h.inicio < y.inicio || (h.inicio === y.inicio && h.id < y.id)) primero.set(h.jefe_id, h);
   }
   const lid = new Map<string, Lider>();
+  const decididas = new Map<string, string>();
   for (const l of lideres) {
-    // Lo movido a mano manda (a un retirado con reemplazo, no: esa carpeta ya no existe); si no, el worker y lo que nombra el primer mensaje.
+    // Lo movido a mano manda (a un retirado con reemplazo, no: esa carpeta ya no existe); si no, lo ya fijado, y si no, el worker y lo que nombra el primer mensaje.
     const aMano = mover?.get(l.id);
-    const proyecto = (aMano !== undefined ? rem(aMano) : undefined) ?? (esShark(l) ? SHARK : undefined) ?? (primero.has(l.id) ? deHilo(primero.get(l.id)!) : undefined) ?? (l.inferido ? rem(l.inferido) : undefined) ?? GENERAL;
+    const sola = primero.get(l.id)?.proyecto ?? l.inferido ?? undefined;
+    const fijada = fijadas?.get(l.id);
+    const proyecto = (aMano !== undefined ? rem(aMano) : undefined) ?? (esShark(l) ? SHARK : undefined) ?? (fijada !== undefined ? rem(fijada) : undefined) ?? (sola !== undefined ? rem(sola) : undefined) ?? GENERAL;
+    if (sola && aMano === undefined && !esShark(l) && fijada === undefined) decididas.set(l.id, sola);
     lid.set(l.id, l.proyecto === proyecto ? l : { ...l, proyecto });
   }
 
@@ -638,7 +653,7 @@ export function armarArbol(hilos: Hilo[], { optimista, lideres: todos, settleado
   cerrados.sort((a, b) => fin(b.h) - fin(a.h));
   const aCargo = new Set<string>();
   for (const l of lid.values()) if (!l.caido) aCargo.add(l.id);
-  return { activas, carpetas: orden1.map((x) => x.c), cerrados, lideres: lid, aCargo, ...(reemplazos?.size ? { reemplazos } : {}) };
+  return { activas, carpetas: orden1.map((x) => x.c), cerrados, lideres: lid, aCargo, decididas, ...(reemplazos?.size ? { reemplazos } : {}) };
 }
 
 /**

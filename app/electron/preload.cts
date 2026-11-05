@@ -47,7 +47,7 @@ contextBridge.exposeInMainWorld("hilos", {
   nombres: {
     leer: (): Promise<unknown> => invocar("nombres:leer"),
     titulo: (id: string, titulo: string): Promise<void> => invocar("nombres:titulo", id, titulo),
-    proyecto: (sid: string, slug: string | null): Promise<void> => invocar("nombres:proyecto", sid, slug),
+    proyecto: (sid: string, slug: string | null, fijada?: boolean): Promise<void> => invocar("nombres:proyecto", sid, slug, fijada),
     oculto: (slug: string, si: boolean): Promise<void> => invocar("nombres:oculto", slug, si),
     orden: (orden: unknown): Promise<void> => invocar("nombres:orden", orden),
     alOrden: oir("nombres:orden"),

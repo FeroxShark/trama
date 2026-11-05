@@ -13,7 +13,7 @@ const tmp = () => path.join(mkdtempSync(path.join(os.tmpdir(), "hilos-nombres-")
 test("nombres: renombrar persiste y sobrevive a un arranque nuevo", async () => {
   const f = tmp();
   const a = almacenNombres(f, writeFile);
-  assert.deepEqual(await a.leer(), { titulos: {}, proyectos: {}, ocultos: [], orden: { carpetas: [], lideres: {} } });
+  assert.deepEqual(await a.leer(), { titulos: {}, proyectos: {}, fijadas: {}, ocultos: [], orden: { carpetas: [], lideres: {} } });
   await a.titulo("20990101-000000-1", "  Login\n  roto  ");
   await a.titulo("sesion-a", "omc v2");
   await a.proyecto("sesion-a", "omc");
@@ -23,6 +23,7 @@ test("nombres: renombrar persiste y sobrevive a un arranque nuevo", async () => 
   assert.deepEqual(await b.leer(), {
     titulos: { "20990101-000000-1": "Login roto", "sesion-a": "omc v2" },
     proyectos: { "sesion-a": "omc" },
+    fijadas: {},
     ocultos: ["atlas"],
     orden: { carpetas: [], lideres: {} },
   });

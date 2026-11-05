@@ -63,6 +63,8 @@ export interface Fuente {
   guardarTitulo(id: string, titulo: string): void;
   /** Mover un líder a otra carpeta; `null` lo deja donde caiga. */
   guardarProyecto(sid: string, slug: string | null): void;
+  /** Fijar la carpeta que decidió la barra para un líder (por sus workers o su primer mensaje): ya no se recalcula. No pisa una elegida a mano. */
+  guardarFijada(sid: string, slug: string): void;
   guardarOculto(slug: string, si: boolean): void;
   /** El orden de la barra tras arrastrar (carpetas, y líderes por carpeta): se guarda entero. */
   guardarOrden(orden: Orden): void;
@@ -1565,8 +1567,12 @@ const fija: Fuente = {
     else delete nombresFijos.titulos[id];
   },
   guardarProyecto(sid, slug) {
+    delete nombresFijos.fijadas?.[sid];
     if (slug) nombresFijos.proyectos[sid] = slug;
     else delete nombresFijos.proyectos[sid];
+  },
+  guardarFijada(sid, slug) {
+    if (!nombresFijos.proyectos[sid]) (nombresFijos.fijadas ??= {})[sid] = slug;
   },
   guardarOculto(slug, si) {
     nombresFijos.ocultos = nombresFijos.ocultos.filter((x) => x !== slug).concat(si ? [slug] : []);
@@ -2294,6 +2300,7 @@ const conPa = (m: NonNullable<typeof main>): Fuente => ({
     return {
       titulos: mapa(j?.titulos),
       proyectos: mapa(j?.proyectos),
+      fijadas: mapa(j?.fijadas),
       ocultos: Array.isArray(j?.ocultos) ? j.ocultos.filter((x): x is string => typeof x === "string") : [],
       orden: ordenDe(j?.orden),
     };
@@ -2303,6 +2310,9 @@ const conPa = (m: NonNullable<typeof main>): Fuente => ({
   },
   guardarProyecto(sid, slug) {
     void m.nombres.proyecto(sid, slug).catch(() => {});
+  },
+  guardarFijada(sid, slug) {
+    void m.nombres.proyecto(sid, slug, true).catch(() => {});
   },
   guardarOculto(slug, si) {
     void m.nombres.oculto(slug, si).catch(() => {});

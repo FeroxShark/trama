@@ -45,7 +45,8 @@ type Main = {
   nombres: {
     leer(): Promise<unknown>;
     titulo(id: string, titulo: string): Promise<void>;
-    proyecto(sid: string, slug: string | null): Promise<void>;
+    /** `fijada`: no es una elección sino la carpeta que decidió la barra (no se recalcula); no pisa lo elegido a mano. */
+    proyecto(sid: string, slug: string | null, fijada?: boolean): Promise<void>;
     oculto(slug: string, si: boolean): Promise<void>;
     /** El orden entero que quedó tras arrastrar. */
     orden(orden: unknown): Promise<void>;

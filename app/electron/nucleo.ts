@@ -1178,7 +1178,7 @@ export function armarNucleo() {
   const nombres = almacenNombres(path.join(ESTADO, "nombres.json"), escribirAtomico);
   manejar("nombres:leer", () => nombres.leer());
   manejar("nombres:titulo", (_e, id: unknown, titulo: unknown) => nombres.titulo(id, titulo));
-  manejar("nombres:proyecto", (_e, sid: unknown, slug: unknown) => nombres.proyecto(sid, slug));
+  manejar("nombres:proyecto", (_e, sid: unknown, slug: unknown, fijada?: unknown) => nombres.proyecto(sid, slug, fijada));
   manejar("nombres:oculto", (_e, slug: unknown, si: unknown) => nombres.oculto(slug, si));
   // El orden que se puso arrastrando: se le avisa a la ventana y al celular, así ninguno pisa al otro con uno viejo.
   manejar("nombres:orden", async (_e, orden: unknown) => enviar("nombres:orden", (await nombres.orden(orden)).orden));

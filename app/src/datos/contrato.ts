@@ -425,7 +425,7 @@ export type Leidos = Record<string, number>;
  * nombre; `proyectos`: session_id → carpeta a la que movió un líder; `ocultos`:
  * carpetas con los workers terminados escondidos; `orden`: lo que reordenó arrastrando.
  */
-export type Nombres = { titulos: Record<string, string>; proyectos: Record<string, string>; ocultos: string[]; orden: Orden };
+export type Nombres = { titulos: Record<string, string>; proyectos: Record<string, string>; /** Carpetas que la barra decidió sola y ya no recalcula (`armarArbol`). */ fijadas?: Record<string, string>; ocultos: string[]; orden: Orden };
 
 /**
  * El orden puesto a mano (arrastrando en la barra): `carpetas`, los proyectos en el orden

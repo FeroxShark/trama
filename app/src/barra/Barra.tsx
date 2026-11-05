@@ -345,6 +345,8 @@ export function Barra() {
   const [leidos, setLeidos] = useState<Leidos>({});
   // B20: títulos, carpetas elegidas y terminados ocultos (nombres.json), el menú del clic derecho y el renombrar en línea.
   const [nombres, setNombres] = useState<Nombres>(NOMBRES0);
+  // `nombres.json` ya se leyó: antes de eso no se fija ninguna carpeta (se pisaría lo ya fijado).
+  const [nombresListos, setNombresListos] = useState(false);
   const [carpetasReg, setCarpetasReg] = useState<string[]>([]);
   // Con qué nombre anota el tablero cada carpeta (nombre del registry → slug): se lee al abrir el Tablero.
   const [slugsReg, setSlugsReg] = useState<Record<string, string>>({});
@@ -414,7 +416,11 @@ export function Barra() {
       setHilos(r.hilos);
     });
     void fuente.leidos().then((l) => vivo && setLeidos({ ...l }));
-    void fuente.nombres().then((n) => vivo && setNombres(n));
+    void fuente.nombres().then((n) => {
+      if (!vivo) return;
+      setNombres(n);
+      setNombresListos(true);
+    });
     // El orden que se cambió arrastrando desde el otro lado (la ventana o el celular).
     const soltarOrden = fuente.alCambiarOrden((orden) => setNombres((n) => ({ ...n, orden })));
     void fuente.carpetas().then((c) => vivo && setCarpetasReg(c));
@@ -512,6 +518,7 @@ export function Barra() {
     return sinPospuestas(todosLideres, pospuestos);
   }, [lideres, todos, caidos, optimista, nombres.titulos, subagentes, ticSub, pospuestos]);
   const mover = useMemo(() => new Map(Object.entries(nombres.proyectos)), [nombres.proyectos]);
+  const fijadas = useMemo(() => new Map(Object.entries(nombres.fijadas ?? {})), [nombres.fijadas]);
   const ocultos = useMemo(() => new Set(nombres.ocultos), [nombres.ocultos]);
   // El `titulo` del registry de cada carpeta: se ve y se busca por él.
   const titulosReg = useTitulos();
@@ -538,9 +545,17 @@ export function Barra() {
   const recientes = useRecientes(true, lideresVistos, todos, convsCC, congelada);
   // Sin polling: "en espera hace 30 min" se recalcula cuando cambia algo (datos, líderes, búsqueda).
   const arbolBruto = useMemo(
-    () => armarArbol(todos, { optimista, lideres: lideresVistos, settleados, busqueda, mover, reemplazos, ocultos, titulos, caidos, orden: nombres.orden, prioridad, recientes, sinActivas: true, ahora: Math.floor(Date.now() / 1000) }),
-    [todos, optimista, busqueda, lideresVistos, settleados, mover, reemplazos, ocultos, titulos, caidos, nombres.orden, prioridad, recientes],
+    () => armarArbol(todos, { optimista, lideres: lideresVistos, settleados, busqueda, mover, reemplazos, fijadas, ocultos, titulos, caidos, orden: nombres.orden, prioridad, recientes, sinActivas: true, ahora: Math.floor(Date.now() / 1000) }),
+    [todos, optimista, busqueda, lideresVistos, settleados, mover, reemplazos, fijadas, ocultos, titulos, caidos, nombres.orden, prioridad, recientes],
   );
+  // La carpeta que la barra decide sola (por los workers o el primer mensaje) se guarda con el líder y ya no se recalcula: no salta
+  // cuando un worker aparece o se va, ni cuando el registry o el transcript no se pudieron leer un instante. Sólo con las listas ya cargadas.
+  useEffect(() => {
+    if (!listosPa || !listosLideres || !nombresListos || arbolBruto.decididas.size === 0) return;
+    const nuevas = [...arbolBruto.decididas];
+    setNombres((n) => ({ ...n, fijadas: { ...n.fijadas, ...Object.fromEntries(nuevas) } }));
+    for (const [sid, slug] of nuevas) fuente.guardarFijada(sid, slug);
+  }, [arbolBruto.decididas, listosPa, listosLideres, nombresListos]);
   // Lo ya resuelto (relanzado, integrado, descartado, visto, contestado) no pide atención: `atencion-vigente.ts`.
   const resueltos = useMemo(() => resueltosDe(todos.map((h) => ({ h, estado: estadoVisto(h, optimista.get(h.id)) })), leidos), [todos, optimista, leidos]);
   const buscando = busqueda.trim() !== "";
@@ -556,7 +571,7 @@ export function Barra() {
   // El riel se arma sin buscar: buscando se apagan los proyectos sin resultados, no se van.
   const arbolSinBuscar = useMemo(() => {
     if (!buscando) return arbol;
-    const a = armarArbol(todos, { optimista, lideres: lideresVistos, settleados, mover, reemplazos, ocultos, titulos, caidos, orden: nombres.orden, prioridad, recientes, sinActivas: true, ahora: Math.floor(Date.now() / 1000) });
+    const a = armarArbol(todos, { optimista, lideres: lideresVistos, settleados, mover, reemplazos, fijadas, ocultos, titulos, caidos, orden: nombres.orden, prioridad, recientes, sinActivas: true, ahora: Math.floor(Date.now() / 1000) });
     const b = aRiel(plegarTerminados(a), resueltos);
     // Buscando, el riel conserva el orden que traía: los proyectos no saltan de lugar al escribir.
     return porPrioridad ? { ...b, carpetas: segunLista(b.carpetas, ordenProyectos.current) } : b;
@@ -1569,7 +1584,8 @@ export function Barra() {
       const proyectos = { ...n.proyectos };
       if (slug) proyectos[sid] = slug;
       else delete proyectos[sid];
-      return { ...n, proyectos };
+      const { [sid]: _, ...fijadas } = n.fijadas ?? {};
+      return { ...n, proyectos, fijadas };
     });
     fuente.guardarProyecto(sid, slug);
   };
