@@ -54,7 +54,7 @@
 }
 .bgt-l {
   display: grid;
-  max-height: 11rem;
+  max-height: 16rem;
   gap: var(--esp-1-5);
   margin: var(--esp-1) 0 0;
   padding: var(--esp-2) var(--esp-3);
@@ -67,14 +67,73 @@
 .bgt-l > li {
   display: grid;
   min-width: 0;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 0 var(--esp-3);
+  gap: var(--esp-1);
+}
+/* La fila de una tarea: tocarla despliega su salida en vivo. */
+.bgt-f {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0 var(--esp-1-5);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.bgt-c {
+  flex: none;
+  transition: transform var(--t-snappy) ease;
+}
+.bgt-f[aria-expanded="true"] > .bgt-c {
+  transform: rotate(90deg);
 }
 .bgt-l code {
-  grid-column: 1 / -1;
   overflow: hidden;
+  padding-left: calc(0.8125rem + var(--esp-1-5));
   color: var(--texto-7);
   font-family: var(--font-mono);
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+/* Lo que escribe la tarea: las últimas líneas, con scroll propio que sigue el fondo (seguir.ts). */
+.bgt-s {
+  max-height: 9rem;
+  margin: 0;
+  padding: var(--esp-1-5) var(--esp-2);
+  overflow: auto;
+  border-radius: var(--r-md);
+  background: var(--sup-1);
+  color: var(--texto-2);
+  font-family: var(--font-mono);
+  font-size: var(--letra-5);
+  line-height: 1.45;
+  overscroll-behavior: contain;
+  white-space: pre;
+}
+.bgt-vacia {
+  margin: 0;
+  padding-left: calc(0.8125rem + var(--esp-1-5));
+  color: var(--texto-7);
+}
+@media (prefers-reduced-motion: reduce) {
+  .bgt-c {
+    transition: none;
+  }
+}
+/* Angosto (360 px): la salida parte las líneas largas en vez de empujar el ancho. */
+@media (max-width: 35rem) {
+  .bgt-s {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+}
+/* Dedo: la fila se toca con el pulgar. */
+@media (pointer: coarse) {
+  .bgt-f {
+    min-height: 2.75rem;
+  }
 }

@@ -125,6 +125,8 @@ export const RUTAS: Readonly<Record<string, Ruta>> = {
   "imagen:leer": "local",
   // Un archivo de la actividad de un worker (archivo-ver.ts): también se lee de esta máquina.
   "archivo:ver": "local",
+  // Las últimas líneas de la salida de una tarea de fondo del líder (tarea-salida.ts): también se lee de esta máquina.
+  "tarea:salida": "local",
   "historial:consultar": "local",
   "historial:arranque": "local",
   "historial:medir": "local",

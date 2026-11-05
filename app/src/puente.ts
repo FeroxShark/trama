@@ -139,6 +139,8 @@ type Main = {
   };
   /** Un archivo que nombra la actividad de un worker (electron/archivo-ver.ts), sin validar; `null` si ya no está. */
   archivoVer(ruta: string): Promise<unknown>;
+  /** Las últimas líneas de la salida de una tarea de fondo (electron/tarea-salida.ts), sin validar; `null` si no hay. */
+  tareaSalida(ruta: string): Promise<unknown>;
   /** Los líderes: los de la app se manejan desde acá; los de la terminal se leen (electron/lider.ts). */
   lider: {
     /** Un líder nuevo con su primer mensaje; devuelve su session_id. */

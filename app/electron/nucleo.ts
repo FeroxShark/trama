@@ -5,6 +5,7 @@
 // La ventana lo usa por ipc.ts, que le suma lo que es sólo de la pantalla de la PC.
 import { guardarArchivo, limpiarAdjuntos } from "./archivos.js";
 import { leerArchivoVisto } from "./archivo-ver.js";
+import { leerSalidaTarea } from "./tarea-salida.js";
 import { leerImagenLocal } from "./imagen-local.js";
 import { modelosDictado, transcribir } from "./dictado.ts";
 import { MODELO_TURBO } from "./dictado-modelos.ts";
@@ -1271,6 +1272,8 @@ export function armarNucleo() {
   manejar("imagen:leer", (_e, ruta: unknown) => leerImagenLocal(ruta));
   // Un archivo que leyó, escribió o editó un worker, un subagente o un líder, para el visor (archivo-ver.ts): ruta absoluta, sólo lectura; `null` si ya no está.
   manejar("archivo:ver", (_e, ruta: unknown) => leerArchivoVisto(ruta));
+  // El final de la salida de una tarea de fondo (tarea-salida.ts): sólo archivos `tasks/*.output` del harness, con tope de bytes; `null` si no hay.
+  manejar("tarea:salida", (_e, ruta: unknown) => leerSalidaTarea(ruta));
   manejar("lider:archivo", (_e, x: unknown) => guardarArchivo(path.join(ESTADO, "adjuntos"), x));
   // Dictar: el WAV de la caja (16 kHz mono) → `handy --transcribe-file`; el texto vuelve al borrador, no se manda solo.
   // Con el modelo elegido en Ajustes (`--model`); sin elegir, Turbo si Handy lo tiene bajado (dictado-modelos.ts).

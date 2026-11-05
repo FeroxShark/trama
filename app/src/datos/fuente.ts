@@ -3,6 +3,7 @@
 import type { Compactando } from "../../electron/compactando";
 import type { Subagente, Subagentes } from "../../electron/subagentes";
 import { archivoVistoDe, tipoDeArchivo, type ArchivoVisto } from "../../electron/archivo-ruta";
+import { salidaDe, type SalidaTarea } from "../hilo/fondo-logica";
 import { imagenDe, type Imagen } from "../../electron/imagenes";
 import type { EstadoLocales, ResultadoProbar } from "../../electron/locales";
 import type { ModeloDetectado, ResultadoDeteccion, ServidorLocal } from "../../electron/locales-deteccion";
@@ -179,6 +180,8 @@ export interface Fuente {
   imagenLocal(ruta: string): Promise<Imagen | null>;
   /** Un archivo que leyó, escribió o editó un worker, un subagente o un líder (ruta absoluta), para el visor; `null` si ya no está o no se puede mostrar. */
   archivoVisto(ruta: string): Promise<ArchivoVisto | null>;
+  /** Las últimas líneas de la salida de una tarea de fondo del líder (`Fondo.tsx`); `null` si todavía no hay (o la ruta no es de una tarea). */
+  tareaSalida(ruta: string): Promise<SalidaTarea | null>;
   /** Lo abre con la app del sistema (sólo la ventana de la PC); `false` si no se pudo. */
   archivoAbrir(ruta: string): Promise<boolean>;
   /** Abre una carpeta en el explorador de archivos (sólo la ventana de la PC); `false` si no se pudo. */
@@ -820,11 +823,11 @@ function charlaImagenes(sid: string): Mensaje[] {
     ts: hace(4),
     modelo: c[0]?.modelo ?? null,
     det: [
-      { nombre: "Bash", entrada: { command: "npm test", description: "Corre todos los tests", run_in_background: true }, resultado: { texto: "Command running in background with ID: b1.", error: false } },
-      { nombre: "Bash", entrada: { command: "npx vite build", run_in_background: true }, resultado: { texto: "Command running in background with ID: b2.", error: false } },
+      { nombre: "Bash", entrada: { command: "npm test", description: "Corre todos los tests", run_in_background: true }, resultado: { texto: "Command running in background with ID: b1. Output is being written to: /tmp/claude-1000/-home-ana-trama/s1/tasks/b1.output", error: false } },
+      { nombre: "Bash", entrada: { command: "npx vite build", run_in_background: true }, resultado: { texto: "Command running in background with ID: b2. Output is being written to: /tmp/claude-1000/-home-ana-trama/s1/tasks/b2.output", error: false } },
     ],
   };
-  return [yo, ...c, veo, ...(MODO.variante === "fondo" ? [fondo] : [])].map((m, i) => ({ ...m, i }));
+  return [yo, ...c, veo, ...((MODO.variante ?? "").startsWith("fondo") ? [fondo] : [])].map((m, i) => ({ ...m, i }));
 }
 
 /** Captura `lider-editar`: el pedido de siempre con dos capturas y un archivo (el de `lider-imagenes`, con ruta inventada). */
@@ -1288,6 +1291,17 @@ const PLAN_FIJO = `# Settle en lote
 /** Conversaciones de Claude Code inventadas (con fixtures): de atlas, de la carpeta personal y de carpetas sueltas (una ya borrada y una de otra cuenta). */
 /** Un PNG de 24×15 (un degradé) para las muestras. */
 // Un PDF de una página con la palabra «Informe», inventado: para ver el visor de archivos en las capturas.
+/** Lo que "escribió" una tarea de fondo de muestra (variante `fondo`): el final de una corrida de tests. */
+const SALIDA_TAREA_MUESTRA = [
+  "✔ lee las cuentas del disco (12 ms)",
+  "✔ suma el gasto por proveedor (4 ms)",
+  "✔ ordena los hilos por último mensaje (7 ms)",
+  "✔ descarta una línea cortada al principio (3 ms)",
+  "✔ no sigue enlaces fuera de la carpeta (9 ms)",
+  "▶ cola de mensajes",
+  "  ✔ junta lo encolado en un solo mensaje (21 ms)",
+  "  ✔ no pierde lo que no entró (15 ms)",
+].join("\n");
 const PDF_MUESTRA = "JVBERi0xLjQKMSAwIG9iajw8L1R5cGUvQ2F0YWxvZy9QYWdlcyAyIDAgUj4+ZW5kb2JqCjIgMCBvYmo8PC9UeXBlL1BhZ2VzL0tpZHNbMyAwIFJdL0NvdW50IDE+PmVuZG9iagozIDAgb2JqPDwvVHlwZS9QYWdlL1BhcmVudCAyIDAgUi9NZWRpYUJveFswIDAgMzAwIDIwMF0vQ29udGVudHMgNCAwIFIvUmVzb3VyY2VzPDwvRm9udDw8L0YxIDUgMCBSPj4+Pj4+ZW5kb2JqCjQgMCBvYmo8PC9MZW5ndGggNDQ+PnN0cmVhbQpCVCAvRjEgMjQgVGYgNDAgMTAwIFRkIChJbmZvcm1lKSBUaiBFVAplbmRzdHJlYW0KZW5kb2JqCjUgMCBvYmo8PC9UeXBlL0ZvbnQvU3VidHlwZS9UeXBlMS9CYXNlRm9udC9IZWx2ZXRpY2E+PmVuZG9iagp0cmFpbGVyPDwvUm9vdCAxIDAgUi9TaXplIDY+PgolJUVPRgo=";
 const IMAGEN_MUESTRA =
   "iVBORw0KGgoAAAANSUhEUgAAABgAAAAPCAIAAABxxpiMAAACfUlEQVR42g3MocquMACA4XM5fzKZbCaTyba0pEVWXJEFYSAsCAPDMAzLsLyWmXZ753su4Pn3J6gEtaARtIJO0AsGgRBIwSiYBYtgFWyCXXAITsEluAWP4BV8giL49yepJLWkkbSSTtJLBomQSMkomSWLZJVskl1ySE7JJbklj+SVfJIif9FENVFPNBPtRDfRTwwTYkJOjBPzxDKxTmwT+8QxcU5cE/fEM/FOfBNl+kWKSlErGkWr6BS9YlAIhVSMilmxKFbFptgVh+JUXIpb8Shexaco6hdpKk2taTStptP0mkEjNFIzambNolk1m2bXHJpTc2luzaN5NZ+m6F9kqAy1oTG0hs7QGwaDMEjDaJgNi2E1bIbdcBhOw2W4DY/hNXyGYn6RpbLUlsbSWjpLbxkswiIto2W2LJbVsll2y2E5LZfltjyW1/JZiv1FjspROxpH6+gcvWNwCId0jI7ZsThWx+bYHYfjdFyO2/E4XsfnKO4XeSpP7Wk8rafz9J7BIzzSM3pmz+JZPZtn9xye03N5bs/jeT2fp/hfFKgCdaAJtIEu0AeGgAjIwBiYA0tgDWyBPXAEzsAVuANP4A18gRJ+UaSK1JEm0ka6SB8ZIiIiI2NkjiyRNbJF9sgROSNX5I48kTfyRUr8RYkqUSeaRJvoEn1iSIiETIyJObEk1sSW2BNH4kxciTvxJN7ElyjpF0EFNTTQQgc9DCBAwggzLLDCBjsccMIFNzzwwgeFX5SpMnWmybSZLtNnhozIyMyYmTNLZs1smT1zZM7MlbkzT+bNfJmSf1GhKtSFptAWukJfGAqiIAtjYS4shbWwFfbCUTgLV+EuPIW38BVK4T/RtEuzVZSmRAAAAABJRU5ErkJggg==";
@@ -1811,6 +1825,10 @@ const fija: Fuente = {
   // Muestras: toda ruta existe menos las que dicen "falta" (para ver el "Imagen no disponible").
   async imagenLocal(ruta) {
     return /falta/i.test(ruta) ? null : { tipo: "image/png", datos: IMAGEN_MUESTRA };
+  },
+  // Muestras: la salida de la primera tarea de fondo ya trae renglones; la segunda todavía no escribió nada (variante `fondo`).
+  async tareaSalida(ruta) {
+    return /b2\.output$/.test(ruta) ? null : { texto: SALIDA_TAREA_MUESTRA, recortado: true };
   },
   // Muestras: por tipo; las que dicen "falta" no están (el "Archivo ya no disponible").
   async archivoVisto(ruta) {
@@ -2596,6 +2614,9 @@ const conPa = (m: NonNullable<typeof main>): Fuente => ({
   },
   async archivoVisto(ruta) {
     return archivoVistoDe(await m.archivoVer(ruta).catch(() => null));
+  },
+  async tareaSalida(ruta) {
+    return salidaDe(await m.tareaSalida(ruta).catch(() => null));
   },
   async archivoAbrir(ruta) {
     return (await m.archivo?.abrir(ruta).catch(() => false)) === true;

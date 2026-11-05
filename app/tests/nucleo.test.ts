@@ -53,7 +53,7 @@ test("no importa Electron", () => {
 test("armado: los canales del núcleo, sin los de la pantalla de la PC", () => {
   nucleo.armarNucleo();
   const canales = new Set(nucleo.manejadoresAnotados().map(([c]) => c));
-  for (const c of ["statusline:leer", "hilos:leer", "lider:mandar", "lider:encolar", "tablero:leer", "proyectos:iconos", "borradores:guardar", "consumo:mirar", "reinicio:pedir"])
+  for (const c of ["statusline:leer", "hilos:leer", "lider:mandar", "lider:encolar", "tablero:leer", "tarea:salida", "proyectos:iconos", "borradores:guardar", "consumo:mirar", "reinicio:pedir"])
     assert.ok(canales.has(c), c);
   for (const c of ["app:salir", "app:recargar", "volver:leer", "volver:guardar", "volver:anotar", "lider:ir", "lider:ubicable", "claude:changelog"]) assert.ok(!canales.has(c), c);
 });

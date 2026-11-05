@@ -56,6 +56,8 @@ const VARIANTES = [
   { estado: "lider-formato", variante: "pegado" },
   { estado: "lider-formato", variante: "larga" },
   { estado: "lider-imagenes", variante: "visor" },
+  { estado: "lider-imagenes", variante: "fondo" },
+  { estado: "lider-imagenes", variante: "fondo-abierto" },
   { estado: "lider-dictado", variante: "grabando" },
   { estado: "lider-dictado", variante: "transcribiendo" },
   { estado: "lider-dictado", variante: "error" },
