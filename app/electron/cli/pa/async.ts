@@ -27,6 +27,7 @@ import {
   leerTexto,
   listar,
   masViejoQue,
+  pidCorridaVivo,
   ramAlcanza,
   rutaDeProyecto,
   runningVivo,
@@ -80,10 +81,10 @@ export async function cmdEstado(pa: Pa): Promise<void> {
       const x = (e: string) => path.join(d, `${ts}.${e}`);
       if (existsSync(x("puesto")) || existsSync(x("corrida"))) continue;
       if (existsSync(x("listo")) || existsSync(x("entregado"))) continue;
-      const pid = leerTexto(path.join(d, n));
+      const enCola = pidCorridaVivo(path.join(d, n)) !== null;
       if (existsSync(x("leer"))) {
         // --leer no toma puesto: espera lugar del tope (`.cola`), está arrancando (ya sale como CORRIENDO) o murió antes de arrancar
-        if (kill0(pid)) {
+        if (enCola) {
           if (existsSync(path.join(state, `${slug}.leer-${ts}.running`))) continue;
           if (!existsSync(x("cola"))) continue;
           hubo = true;
@@ -95,7 +96,7 @@ export async function cmdEstado(pa: Pa): Promise<void> {
         continue;
       }
       hubo = true;
-      if (kill0(pid)) io.out(`EN COLA    ${pad(slug, 20)} (id: ${ts}, ${existsSync(x("cola")) ? leerTexto(x("cola")) : "esperando un puesto libre"})\n`);
+      if (enCola) io.out(`EN COLA    ${pad(slug, 20)} (id: ${ts}, ${existsSync(x("cola")) ? leerTexto(x("cola")) : "esperando un puesto libre"})\n`);
       else io.out(`MURIÓ EN COLA ${pad(slug, 17)} (id: ${ts}, nunca tomó puesto; mirá ${x("log")})\n`);
     }
   }
@@ -331,7 +332,7 @@ export async function cmdEsperar(pa: Pa, args: string[], oe: OpcionesEsperar = {
   ].map((n) => path.join(state, n));
   // Viva = su `$ts.pid` (async: en cola o corriendo) vive, o hay un `.running` vivo con ese id (primer plano).
   const corridaViva = (t: string) => {
-    if (kill0(leerTexto(path.join(d, `${t}.pid`)))) return true;
+    if (pidCorridaVivo(path.join(d, `${t}.pid`)) !== null) return true;
     return runnings(true).some((r) => esArchivo(r) && leerCampo(r, "id") === t && runningVivo(r));
   };
   // Writers de MI jefe que siguen vivos (corriendo o en cola): lo que espera el pelado.
@@ -347,7 +348,7 @@ export async function cmdEsperar(pa: Pa, args: string[], oe: OpcionesEsperar = {
     for (const n of listar(d, (x) => x.endsWith(".pid"))) {
       const t = n.slice(0, -".pid".length);
       if (["leer", "listo", "entregado"].some((e) => existsSync(path.join(d, `${t}.${e}`)))) continue;
-      if (!kill0(leerTexto(path.join(d, n)))) continue;
+      if (pidCorridaVivo(path.join(d, n)) === null) continue;
       if (!esMia(t)) continue;
       return true;
     }
@@ -432,7 +433,7 @@ export async function cmdEsperarTodos(pa: Pa, args: string[], oe: OpcionesEspera
       const listo = path.join(d, `${t}.listo`);
       if (existsSync(listo)) {
         if (masViejoQue(listo, 1440)) continue; // vencido
-      } else if (!kill0(leerTexto(p))) continue; // ni resultado ni vivo
+      } else if (pidCorridaVivo(p) === null) continue; // ni resultado ni vivo
       if (yo) {
         const j = leerCampo(path.join(d, `${t}.corrida`), "jefe_id") || leerCampo(path.join(d, `${t}.jefe`), "jefe_id");
         if (j && j !== yo) continue;

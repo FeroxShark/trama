@@ -3,7 +3,7 @@
 import { existsSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { notasDeJefe } from "./cli.ts";
-import { esArchivo, fechaHora, kill0, leerCampo, leerTexto, listar, masViejoQue, nombreRegistry, runningVivo, transcurrido, esCarpeta } from "./corridas.ts";
+import { esArchivo, fechaHora, pidCorridaVivo, leerCampo, listar, masViejoQue, nombreRegistry, runningVivo, transcurrido, esCarpeta } from "./corridas.ts";
 import { jefeId, jefeNombre, nombreDueno, type Pa } from "./entorno.ts";
 import { commitsPendientes } from "./ramas-base.ts";
 
@@ -97,7 +97,7 @@ export async function cmdTraspaso(pa: Pa): Promise<number> {
   }
   for (const { d, t, f } of deCarpetas(".pid")) {
     if ([".corrida", ".listo", ".entregado"].some((e) => existsSync(path.join(d, t + e)))) continue;
-    if (!kill0(leerTexto(f))) continue;
+    if (pidCorridaVivo(f) === null) continue;
     if (!esMia(d, t)) continue;
     hubo = true;
     p(`- ${nombreDe(path.basename(d))} · id ${t} · EN COLA`);

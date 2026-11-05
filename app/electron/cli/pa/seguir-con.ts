@@ -5,7 +5,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { resumenDeTranscript, resumenTraspaso } from "../../resumen-traspaso.ts";
-import { esArchivo, kill0, leerCampo, leerTexto, listar } from "./corridas.ts";
+import { esArchivo, pidCorridaVivo, leerCampo, leerTexto, listar } from "./corridas.ts";
 import type { Pa } from "./entorno.ts";
 import { carpetaProyectos, escapar } from "./lanzar.ts";
 
@@ -45,7 +45,7 @@ export async function armarSeguirCon(pa: Pa, x: { slug: string; dir: string }, i
   const corrida = path.join(x.dir, `${id}.corrida`);
   if (!existsSync(corrida)) return error(`pa: no hay una corrida '${id}' de '${x.slug}' (falta ${corrida}). El id lo imprime pa --async; ver también: pa --estado.\n`);
   const pid = path.join(x.dir, `${id}.pid`);
-  if (esArchivo(pid) && kill0(leerTexto(pid))) return error(`pa: la corrida '${id}' sigue viva: esperala (pa --esperar) o bajala (pa '${x.slug}' --matar --id ${id}) antes de seguir con otro modelo.\n`, 75);
+  if (esArchivo(pid) && pidCorridaVivo(pid) !== null) return error(`pa: la corrida '${id}' sigue viva: esperala (pa --esperar) o bajala (pa '${x.slug}' --matar --id ${id}) antes de seguir con otro modelo.\n`, 75);
   const hilo = path.join(x.dir, `${id}.hilo`);
   const o = { modeloAnterior: leerCampo(hilo, "modelo") || undefined, motivo: `seguís con ${modelo}`, pedido: extra };
   const sidF = path.join(x.dir, `${id}.sid`);

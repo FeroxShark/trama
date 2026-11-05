@@ -1,5 +1,9 @@
 # Cambios
 
+## Sin publicar
+
+- Una corrida terminada ya no figura «en cola» semanas después: el `.pid` sólo cuenta si es de verdad esa corrida (un proceso, no un hilo ajeno, que arrancó antes que el archivo). `Parar` y «Cerrar y parar todo» ya no pueden señalar a un programa ajeno que reciclara ese número.
+
 ## 0.2.50
 
 - Las carpetas que nombra un mensaje se abren con un clic en el explorador de archivos.

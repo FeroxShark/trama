@@ -15,7 +15,7 @@ import { enPath, esEjecutable } from "./base/buscar.ts";
 import { tomar } from "./base/lock.ts";
 import { esPrincipal } from "./base/principal.ts";
 import { estadoHilos, estadoPa, plataformaActual, type Plataforma } from "../rutas.ts";
-import { lanzarSuelto } from "./base/proc.ts";
+import { lanzarSuelto, pidDeCorrida } from "./base/proc.ts";
 import { carpetaMotor } from "./pa/entorno.ts";
 import {
   conFloat,
@@ -1719,8 +1719,7 @@ function cargaPorGrupo(now: Date): Obj {
       let m: string | null = null;
       let cu: string | null = null;
       try {
-        const pid = pyInt(readFileSync(pidf, "utf8").trim());
-        process.kill(pid, 0);
+        if (pidDeCorrida(pidf) === null) continue; // muerto, un hilo o un pid reciclado
         for (const ln of lineasTexto(readFileSync(pidf.slice(0, -4) + ".hilo", "latin1"))) {
           if (ln.startsWith("modelo=")) m = ln.slice(7).trim();
           else if (ln.startsWith("cuenta=")) cu = ln.slice(7).trim();

@@ -1785,7 +1785,7 @@ running_de_id() {   # $1 = id (usa $slug)
 # Viva = corriendo (su .running) o en cola (el pid de `$ts.pid` vive).
 corrida_id_viva() {   # $1 = id (usa $slug, $dir)
   [[ -n "$(running_de_id "$1")" ]] && return 0
-  [[ -f "$dir/$1.pid" ]] && vive "$(cat "$dir/$1.pid" 2>/dev/null)"
+  [[ -f "$dir/$1.pid" ]] && vive "$(cat "$dir/$1.pid" 2>/dev/null)" && pid_de_corrida "$(cat "$dir/$1.pid")" "$dir/$1.pid"
 }
 negar_si_viva() {   # $1 = id, $2 = verbo
   corrida_id_viva "$1" || return 0
@@ -1807,7 +1807,7 @@ cmd_parar() {
     return "$rc"
   fi
   p="$(cat "$dir/$t.pid" 2>/dev/null || true)"
-  if [[ -n "$p" ]] && vive "$p"; then
+  if [[ -n "$p" ]] && vive "$p" && pid_de_corrida "$p" "$dir/$t.pid"; then
     if quedan="$(matar_arbol "" "" "$p")"; then
       anotar_fin "$dir" "$t"
       evento parar "$t" "$slug"
@@ -1911,7 +1911,7 @@ ruta_ppal() {   # $1 = slug -> REPLY
 
 # Viva en cola: el pid de `$ts.pid` vive pero no hay `.running` (kill -0 primero: `vive` es un ps).
 pid_en_cola() {   # $1 = dir, $2 = id
-  linea_rapida "$1/$2.pid" && [[ "$REPLY" =~ ^[0-9]+$ ]] && kill -0 "$REPLY" 2>/dev/null && vive "$REPLY"
+  linea_rapida "$1/$2.pid" && [[ "$REPLY" =~ ^[0-9]+$ ]] && kill -0 "$REPLY" 2>/dev/null && vive "$REPLY" && pid_de_corrida "$REPLY" "$1/$2.pid"
 }
 
 # La ventana default: lo vivo, lo no cobrado (.listo), lo que tiene una rama viva sin integrar ni
@@ -3873,6 +3873,16 @@ pids_del_sid() {
 }
 # Un zombie contesta `kill -0`: el launcher muerto que su padre todavía no recogió no es un vivo.
 vive() { local s; s="$(ps -o stat= -p "$1" 2>/dev/null)"; [[ -n "$s" && "$s" != Z* ]]; }
+# El pid de un `.pid` es de verdad esa corrida y no uno reciclado: el proceso arrancó a más tardar 2 s después de que se escribió el
+# archivo (el padre lo escribe DESPUÉS de lanzar al hijo). `ps` no ve hilos, así que el TID de un hilo ajeno ya no pasa `vive`.
+pid_de_corrida() {   # $1 = pid, $2 = archivo .pid
+  local et mt ahora
+  et="$(ps -o etimes= -p "$1" 2>/dev/null)"; et="${et//[[:space:]]/}"
+  [[ "$et" =~ ^[0-9]+$ ]] || return 0   # sin dato, no se descarta
+  mt="$(stat -c %Y "$2" 2>/dev/null)" || return 0
+  printf -v ahora '%(%s)T' -1
+  (( ahora - et <= mt + 2 ))
+}
 vivos_de() { local p; for p in "$@"; do vive "$p" && echo "$p"; done; return 0; }
 
 # matar_arbol <sid> <paciente> <pid>...  TERM a todo el árbol de los pids (más lo que lleve el

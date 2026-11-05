@@ -14,7 +14,7 @@ import path from "node:path";
 import { plataformaActual, type Plataforma } from "../../rutas.ts";
 import { consultar } from "../base/lock.ts";
 import { arbol, listarPares } from "../base/proc.ts";
-import { anotarFin, dormir, esArchivo, evento, fijarProyecto, leerCampo, leerTexto, listar, runningVivo, usarId, vive } from "./corridas.ts";
+import { anotarFin, dormir, esArchivo, evento, fijarProyecto, leerCampo, listar, pidCorridaVivo, runningVivo, usarId, vive } from "./corridas.ts";
 import { jefeId, salir, type Pa } from "./entorno.ts";
 
 /** El mensaje que el pa de una corrida atiende en el canal de control de su lock de puesto para salir por las suyas. */
@@ -211,9 +211,10 @@ export async function cmdParar(pa: Pa, id: string | undefined, o: OpcionesMatar 
     if (rc === 0) await evento(pa, "parar", id, p.slug);
     return rc;
   }
-  const enCola = leerTexto(path.join(p.dir, `${id}.pid`));
-  if (enCola && vive(enCola, pa.plat)) {
-    const quedan = await matarArbolPa("", undefined, [Number(enCola)], { plat: pa.plat, ...o });
+  // Sólo si el pid es de verdad esa corrida: uno reciclado o el TID de un hilo ajeno no se señala nunca.
+  const enCola = pidCorridaVivo(path.join(p.dir, `${id}.pid`), pa.plat);
+  if (enCola !== null) {
+    const quedan = await matarArbolPa("", undefined, [enCola], { plat: pa.plat, ...o });
     if (!quedan.length) {
       await anotarFin(p.dir, id);
       await evento(pa, "parar", id, p.slug);

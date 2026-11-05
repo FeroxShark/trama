@@ -7,7 +7,7 @@ import path from "node:path";
 import { registroProyectos } from "../../rutas.ts";
 import { git } from "../base/git.ts";
 import { resolverProyecto } from "../proyecto-ruta.ts";
-import { carpetasDeProyecto, esArchivo, kill0, leerCampo, listar, nombreRegistry, runningVivo, vive } from "./corridas.ts";
+import { carpetasDeProyecto, corridaEnCola, esArchivo, leerCampo, listar, nombreRegistry, runningVivo } from "./corridas.ts";
 import type { Pa } from "./entorno.ts";
 import { carpetaProyectosClaude } from "./worktrees.ts";
 
@@ -281,10 +281,9 @@ class Hilos {
   }
   tieneRef = (slug: string, rama: string) => this.refsDe.has(`${slug}/${rama}`);
 
-  /** `pid_en_cola`: el pid de `$id.pid` vive pero no hay `.running`. */
+  /** `pid_en_cola`: el pid de `$id.pid` es de verdad esa corrida (no un hilo ni un pid reciclado) y no hay `.listo` ni `.entregado`. */
   enCola(d: string, id: string): boolean {
-    const l = leerLinea(path.join(d, `${id}.pid`));
-    return l !== null && /^[0-9]+$/.test(l) && kill0(l) && vive(l);
+    return corridaEnCola(d, id);
   }
 
   /** `en_ventana`: lo vivo, lo no cobrado, lo que tiene una rama viva sin integrar ni descartar ni archivar, y los últimos 7 días. */

@@ -8,7 +8,7 @@ import path from "node:path";
 import { registroProyectos, type Plataforma } from "../../rutas.ts";
 import { agregarLinea } from "../base/archivo.ts";
 import { tomar } from "../base/lock.ts";
-import { vivo as vivoProc } from "../base/proc.ts";
+import { pidDeCorrida, vivo as vivoProc } from "../base/proc.ts";
 import { resolverProyecto, rutaReal } from "../proyecto-ruta.ts";
 import { salir, type Pa } from "./entorno.ts";
 
@@ -106,6 +106,15 @@ export const vive = (pid: string | number | undefined, plat?: Plataforma): boole
   const n = typeof pid === "number" ? pid : /^[0-9]+$/.test(pid ?? "") ? Number(pid) : 0;
   return vivoProc(n, undefined, { plat });
 };
+
+/** El pid de `<id>.pid` si de verdad es esa corrida (proceso, no hilo; vivo; arrancó antes que el archivo): ver `pidDeCorrida`. */
+export const pidCorridaVivo = (archivoPid: string, plat?: Plataforma): number | null => pidDeCorrida(archivoPid, { plat });
+
+/** Una corrida en cola o viva por su `<id>.pid`. Con `.listo` o `.entregado` ya terminó: no está en cola aunque ese número lo ocupe otro. */
+export function corridaEnCola(dir: string, id: string, plat?: Plataforma): boolean {
+  if (existsSync(path.join(dir, `${id}.listo`)) || existsSync(path.join(dir, `${id}.entregado`))) return false;
+  return pidCorridaVivo(path.join(dir, `${id}.pid`), plat) !== null;
+}
 
 /** `pid_vivo`: el pid del claude de un `.running`, o el de su pa si todavía no lo tiene (el `.running` de antes del fork). */
 export function pidVivo(running: string): string {

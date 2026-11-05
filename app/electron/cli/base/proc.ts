@@ -8,7 +8,7 @@
 // `vivo` acepta la hora de arranque; (2) un proceso que terminó con código 259 (STILL_ACTIVE) se ve vivo; (3) una verificación
 // real en Windows queda para la etapa 17 (CI windows-latest): acá sólo se probó la lógica con la plataforma inyectada.
 import { execFile, execFileSync, spawn, spawnSync, type ChildProcess, type SpawnOptions } from "node:child_process";
-import { closeSync, existsSync, openSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { closeSync, existsSync, openSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { matarArbol } from "../../procesos.ts";
@@ -228,6 +228,81 @@ export function vivo(pid: number | undefined, inicio?: string, o: OpcionesVivo =
     if (real !== undefined && real !== inicio) return false;
   }
   return true;
+}
+
+/** Margen entre la hora de arranque del proceso y la del `.pid` (el padre lo escribe apenas lanza al hijo; el reloj de ticks tiene décimas de error). */
+export const MARGEN_PID_MS = 2000;
+
+export type OpcionesPidDeCorrida = OpcionesVivo & {
+  /** Linux: lee /proc/<pid>/status (para distinguir un proceso de un hilo). */
+  leerStatus?: (pid: number) => string;
+  /** Hora de arranque del proceso en ms desde 1970, o undefined si no se puede saber (entonces no se descarta). */
+  inicioMs?: (pid: number) => number | undefined;
+  /** mtime del archivo, inyectable. */
+  mtimeMs?: (ruta: string) => number;
+  leerArchivo?: (ruta: string) => string;
+};
+
+const cacheInicioWin = new Map<number, { ms: number; en: number }>();
+
+/** Hora de arranque en ms desde 1970. Linux: starttime (ticks de 10 ms desde el boot) + el boot sacado de `os.uptime()`. Windows: `StartTime` de `inicioDe`. */
+export function inicioMsDe(pid: number, o: OpcionesPidDeCorrida = {}): number | undefined {
+  const plat = o.plat ?? plataformaActual();
+  try {
+    if (plat === "linux") {
+      const c = campos((o.leerStat ?? ((p) => readFileSync(`/proc/${p}/stat`, "utf8")))(pid));
+      if (!c) return undefined;
+      return Date.now() - os.uptime() * 1000 + Number(c[19]) * 10;
+    }
+    if (plat === "win32") {
+      // PowerShell cuesta ~300 ms: sin inyección se recuerda un minuto (la hora de arranque de un pid vivo no cambia)
+      const hit = o.inicioDe ? undefined : cacheInicioWin.get(pid);
+      if (hit && Date.now() - hit.en < 60_000) return hit.ms;
+      const t = (o.inicioDe ?? ((p) => inicioDe(p, { plat })))(pid);
+      const ms = t && /^\d+$/.test(t) ? Number(t) / 10_000 - 11_644_473_600_000 : undefined; // FILETIME (100 ns desde 1601) -> ms desde 1970
+      if (!o.inicioDe && ms !== undefined) cacheInicioWin.set(pid, { ms, en: Date.now() });
+      return ms;
+    }
+  } catch {
+    /* sin dato */
+  }
+  return undefined;
+}
+
+/** ¿`pid` es un proceso y no un hilo? Linux: /proc/<n>/status con Tgid == Pid (`kill(tid, 0)` y /proc/<tid>/stat andan con el TID de un hilo ajeno). Otros: sí. */
+export function esProceso(pid: number, o: OpcionesPidDeCorrida = {}): boolean {
+  if ((o.plat ?? plataformaActual()) !== "linux") return true;
+  try {
+    const st = (o.leerStatus ?? ((p) => readFileSync(`/proc/${p}/status`, "utf8")))(pid);
+    const tgid = /^Tgid:\s*(\d+)/m.exec(st)?.[1];
+    const id = /^Pid:\s*(\d+)/m.exec(st)?.[1];
+    return !tgid || !id || tgid === id;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * El pid de `<id>.pid` SI de verdad es esa corrida; si no, null. Un número suelto en un archivo que lleva semanas puede ser el pid
+ * reciclado de otro programa o el TID de un hilo ajeno: sólo es de la corrida si (1) es un proceso vivo y no zombie, (2) es un
+ * proceso y no un hilo y (3) arrancó a más tardar `MARGEN_PID_MS` después de escribirse el archivo (el padre lo escribe DESPUÉS de
+ * lanzar al hijo; un pid reciclado arranca después). Sin datos de arranque no se descarta. Nunca señala: sólo lee.
+ */
+export function pidDeCorrida(archivoPid: string, o: OpcionesPidDeCorrida = {}): number | null {
+  let texto: string;
+  let mtime: number;
+  try {
+    texto = (o.leerArchivo ?? ((r) => readFileSync(r, "utf8")))(archivoPid).trim();
+    mtime = (o.mtimeMs ?? ((r) => statSync(r).mtimeMs))(archivoPid);
+  } catch {
+    return null;
+  }
+  if (!/^\d+$/.test(texto)) return null;
+  const pid = Number(texto);
+  if (!vivo(pid, undefined, o) || !esProceso(pid, o)) return null;
+  const ini = (o.inicioMs ?? ((p) => inicioMsDe(p, o)))(pid);
+  if (ini !== undefined && ini > mtime + MARGEN_PID_MS) return null;
+  return pid;
 }
 
 /** Cierra un árbol: TERM a todos (el árbol se lista ANTES de señalar: un hijo con setsid ya no está en el grupo), espera `graceMs` y KILL a los que sigan. Windows: `taskkill /T /F` directo. */

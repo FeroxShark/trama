@@ -18,6 +18,7 @@ import { correr, matarArbol, vivo } from "../base/proc.ts";
 import { tomar, type Lock } from "../base/lock.ts";
 import { registroProyectos } from "../../rutas.ts";
 import { resolverProyecto } from "../proyecto-ruta.ts";
+import { pidCorridaVivo } from "./corridas.ts";
 import { prologo, Salida, salir, v, type Env, type Io, type Pa } from "./entorno.ts";
 import {
   adoptarHuerfanas,
@@ -798,12 +799,7 @@ export function runningDeId(x: Proy, id: string): string {
 /** `corrida_id_viva`: corriendo (su `.running`) o en cola (el pid de `$id.pid` vive). */
 export function corridaIdViva(x: Proy, id: string): boolean {
   if (runningDeId(x, id)) return true;
-  try {
-    const pid = Number(readFileSync(path.join(x.dir, `${id}.pid`), "utf8").trim());
-    return pid > 0 && vivo(pid);
-  } catch {
-    return false;
-  }
+  return pidCorridaVivo(path.join(x.dir, `${id}.pid`)) !== null;
 }
 
 /** `cmd_descartar_id`: `pa --descartar <id>`; se niega (92) con el worker vivo. */

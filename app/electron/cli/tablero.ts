@@ -15,7 +15,7 @@ import { conReintentoSync } from "./base/archivo.ts";
 import { esPrincipal } from "./base/principal.ts";
 import { git } from "./base/git.ts";
 import { tomar } from "./base/lock.ts";
-import { vivo } from "./base/proc.ts";
+import { pidDeCorrida, vivo } from "./base/proc.ts";
 import { jsonPy } from "./trama-estado.ts";
 import { rutaReal } from "./proyecto-ruta.ts";
 import { MARCA_DUENO } from "./tablero-ayuda.ts";
@@ -631,12 +631,7 @@ class Tablero {
   }
 
   private pidVivoArchivo(ruta: string): boolean {
-    try {
-      const n = enteroPy(strip(readFileSync(ruta, "utf8")));
-      return n !== null && vivo(n);
-    } catch {
-      return false;
-    }
+    return pidDeCorrida(ruta) !== null;
   }
 
   /** La corrida `cid` de `slug` sigue viva: su `<id>.pid` (sólo --async lo escribe) o un `.running` con ese id y un pid vivo. */
