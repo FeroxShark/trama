@@ -216,7 +216,7 @@ test('detectarArneses busca ollama con `where` en Windows (no hay `which`)', asy
     ejecutar: async (bin, args) => {
       llamadas.push(bin);
       if (bin === 'where' && args[0] === 'ollama') return 'C:\\Program Files\\Ollama\\ollama.exe\r\n';
-      if (bin === 'ollama' && args[0] === '--version') return 'ollama version is 0.5.1\r\n';
+      if (bin === 'ollama') throw new Error('en Windows no se corre ollama: puede abrir su app');
       return '';
     },
     leer: async () => null,
@@ -229,7 +229,8 @@ test('detectarArneses busca ollama con `where` en Windows (no hay `which`)', asy
   const arneses = await detectarArneses(fakeDeps, 'win32');
   const ollama = arneses.find((a) => a.id === 'ollama');
   assert.equal(ollama?.instalado, true);
-  assert.equal(ollama?.version, '0.5.1');
+  assert.equal(ollama?.version, null);
+  assert.ok(!llamadas.includes('ollama'));
   assert.ok(llamadas.includes('where'));
   assert.ok(!llamadas.includes('which'));
 });

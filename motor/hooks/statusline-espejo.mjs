@@ -175,7 +175,7 @@ try {
 
 const comando = process.argv.slice(2);
 if (comando.length === 0) process.exit(0);
-const r = spawnSync(comando[0], comando.slice(1), { input: entrada, stdio: ["pipe", "inherit", "inherit"] });
+const r = spawnSync(comando[0], comando.slice(1), { input: entrada, stdio: ["pipe", "inherit", "inherit"], windowsHide: true });
 if (r.error) {
   process.stderr.write(`statusline-espejo: no pude correr ${comando[0]}: ${r.error.message}\n`);
   process.exit(127);

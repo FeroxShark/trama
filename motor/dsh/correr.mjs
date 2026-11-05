@@ -119,7 +119,7 @@ async function main() {
   const maxPasos = Number.parseInt(a["max-pasos"] ?? "", 10) > 0 ? Number.parseInt(a["max-pasos"], 10) : 0;
   let truncado = 0;
   const l = lanzarDsh(dsh, ["--profile", "headless", "--patch", parche, "--json", "-"], env);
-  const hijo = spawn(l.file, l.args, { cwd: a.cwd, env, stdio: ["pipe", "pipe", "pipe"], windowsVerbatimArguments: l.verbatim });
+  const hijo = spawn(l.file, l.args, { cwd: a.cwd, env, stdio: ["pipe", "pipe", "pipe"], windowsHide: true, windowsVerbatimArguments: l.verbatim });
   const eventos = [];
   let resto = "";
   let stderr = "";

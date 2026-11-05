@@ -91,7 +91,7 @@ const cmd = campo("toolCall", "args", "CommandLine");
 /** Corre una guardia (.mjs con node, lo demás con bash). Devuelve {status, stdout, stderr}. */
 function correrHook(archivo, args, input) {
   const [programa, base] = archivo.endsWith(".mjs") ? [process.execPath, [archivo]] : ["bash", [archivo]];
-  const r = spawnSync(programa, [...base, ...args], { input, encoding: "utf8", stdio: ["pipe", "pipe", "pipe"] });
+  const r = spawnSync(programa, [...base, ...args], { input, encoding: "utf8", stdio: ["pipe", "pipe", "pipe"], windowsHide: true });
   return { status: r.status, stdout: r.stdout ?? "", stderr: r.stderr ?? "" };
 }
 

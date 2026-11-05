@@ -165,7 +165,7 @@ async function main() {
   // Con plan Go, los topes por modelo (go-topes.mjs → caché en el estado de trama; los lee también reparto y la app) se mantienen al día: aparte, sin esperar ni fallar.
   if (planOpencode(process.env, os.homedir()) !== "gratis" && process.env.TRAMA_GO_SIN_RED !== "1") {
     try {
-      spawn(process.execPath, [fileURLToPath(new URL("./go-topes.mjs", import.meta.url)), "--refrescar", "--si-viejo"], { detached: true, stdio: "ignore" }).on("error", () => {}).unref();
+      spawn(process.execPath, [fileURLToPath(new URL("./go-topes.mjs", import.meta.url)), "--refrescar", "--si-viejo"], { detached: true, stdio: "ignore", windowsHide: true }).on("error", () => {}).unref();
     } catch {
       /* sin topes frescos queda el caché o el respaldo */
     }
@@ -180,7 +180,7 @@ async function main() {
   // El esfuerzo (--effort) es el `--variant` de opencode; vacío o con pinta rara: no se pasa (el modelo usa el suyo).
   // Cada versión de opencode trae otros flags en `run` (2.x no tiene --dir): sólo se pasan los que su --help nombra.
   // El directorio ya va por cwd y PWD; --dir es redundante donde existe.
-  const ayuda = spawnSync(bin, ["run", "--help"], { encoding: "utf8", timeout: 10_000 });
+  const ayuda = spawnSync(bin, ["run", "--help"], { encoding: "utf8", timeout: 10_000, windowsHide: true });
   const textoAyuda = `${ayuda.stdout ?? ""}${ayuda.stderr ?? ""}`;
   const tiene = (f) => !textoAyuda.trim() || new RegExp(`(^|\\s)${f}(\\s|=|,|$)`, "m").test(textoAyuda);
   const variante = /^[A-Za-z][A-Za-z0-9_-]{0,23}$/.test(a.effort ?? "") && tiene("--variant") ? ["--variant", a.effort] : [];
@@ -189,7 +189,7 @@ async function main() {
   // proceso (el `permission.external_directory` de conPermisoFuera); con él, un worker escribía fuera de su carpeta. Sin ese flag (opencode 1.x,
   // sin servicio) no hace falta.
   const aparte = tiene("--standalone") ? ["--standalone"] : [];
-  const hijo = spawn(bin, ["run", "--format", "json", ...aparte, ...pensar, "-m", prov.valor, ...variante], { cwd: a.cwd, env, stdio: ["pipe", "pipe", "pipe"] });
+  const hijo = spawn(bin, ["run", "--format", "json", ...aparte, ...pensar, "-m", prov.valor, ...variante], { cwd: a.cwd, env, stdio: ["pipe", "pipe", "pipe"], windowsHide: true });
   const eventos = [];
   let resto = "";
   let stderr = "";

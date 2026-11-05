@@ -480,7 +480,9 @@ export async function detectarArneses(d: DepsDeteccion, plat: Plataforma = plata
     // Windows no tiene `which`: `where` dice lo mismo (y sale con error si no está).
     const out = await d.ejecutar(plat === 'win32' ? 'where' : 'which', ['ollama'], { timeout: 1000 });
     ollamaInstalado = Boolean(out.trim());
-    if (ollamaInstalado) {
+    // En Windows no se corre `ollama`: el cliente puede arrancar «Ollama app» (la ventana «Welcome to Ollama») si el servidor no anda.
+    // Sólo se mira que esté (`where`); la versión queda sin mostrar.
+    if (ollamaInstalado && plat !== 'win32') {
       const v = await d.ejecutar('ollama', ['--version'], { timeout: 1000 });
       ollamaVersion = v.trim().replace(new RegExp('^ollama version is ', 'i'), '') || null;
     }

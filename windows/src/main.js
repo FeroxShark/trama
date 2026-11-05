@@ -166,7 +166,7 @@ function cargarMotor(url) {
 }
 
 // Windows no deja a una app robar el foco; subirla un instante «siempre encima» sí la trae al frente.
-// Sirve cuando «Welcome to Ollama» (de Ollama, no nuestra) la tapó.
+// Sirve cuando otra app (por ejemplo, una ventana de bienvenida ajena) la tapó. Trama no arranca ningún programa por su cuenta.
 function traerAlFrente() {
   if (!ventana || ventana.isDestroyed() || enMotor || !guardiaFoco.puedeTraer()) return;
   if (ventana.isMinimized()) ventana.restore();

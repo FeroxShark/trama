@@ -116,6 +116,42 @@ test("hijoEnGrupo: Linux sí (kill(-pid)); Windows no: `detached` le quitaría l
   }
 });
 
+test("Windows: lo que lanza la carcasa (windows/src), el motor (motor/*.mjs) y los .cts también oculta la consola (`windowsHide`)", () => {
+  // Excepciones a propósito: el principio de la llamada. Hoy no hay ninguna; una consola a la vista se anota acá con su motivo.
+  const aPropósito: string[] = [];
+  const raices = [new URL("../../windows/src/", import.meta.url), new URL("../../motor/", import.meta.url), new URL("../electron/", import.meta.url)];
+  const faltan: string[] = [];
+  for (const raiz of raices) {
+    for (const f of readdirSync(raiz, { recursive: true, encoding: "utf8" })) {
+      if (!/\.(js|mjs|cjs|cts)$/.test(f) || /(^|[\\/])(node_modules|payload|dist[\w-]*)[\\/]/.test(f)) continue;
+      const src = readFileSync(new URL(f, raiz), "utf8");
+      // `proc.spawn(`, `cp.execFile(`… (los `.exec(` de las regex no cuentan: sólo spawn/execFile/fork).
+      for (const m of src.matchAll(/(?<![\w$])(?:[\w$]+\.)?(?:spawn|spawnSync|execFile|execFileSync|fork)\(/g)) {
+        let i = m.index + m[0].length;
+        for (let abiertos = 1; abiertos > 0 && i < src.length; i++) abiertos += src[i] === "(" ? 1 : src[i] === ")" ? -1 : 0;
+        const llamada = src.slice(m.index, i);
+        if (llamada.includes("windowsHide") || aPropósito.some((p) => llamada.startsWith(p))) continue;
+        faltan.push(`${raiz.pathname.split("/").slice(-3).join("/")}${f}: ${llamada.slice(0, 80)}`);
+      }
+    }
+  }
+  assert.deepEqual(faltan, []);
+});
+
+test("Trama no arranca Ollama: nada ejecuta el binario `ollama` ni su app (sólo se sondea el puerto y se mira `where`)", () => {
+  const raiz = new URL("../electron/", import.meta.url);
+  const culpables: string[] = [];
+  for (const f of readdirSync(raiz, { recursive: true, encoding: "utf8" })) {
+    if (!f.endsWith(".ts") || f === "locales-deteccion.ts") continue; // esa se controla abajo: sólo corre `ollama` fuera de Windows
+    const src = readFileSync(new URL(f, raiz), "utf8");
+    // Ejecutar `ollama` (o «ollama app») como programa: en Windows su cliente abre la ventana «Welcome to Ollama».
+    if (/(?:ejecutar|spawn|spawnSync|execFile|execFileSync|correr|lanzarSuelto)\(\s*['"`](?:ollama|[^'"`]*ollama app)/i.test(src)) culpables.push(f);
+  }
+  assert.deepEqual(culpables, []);
+  const src = readFileSync(new URL("../electron/locales-deteccion.ts", import.meta.url), "utf8");
+  assert.match(src, /ollamaInstalado && plat !== 'win32'/, "locales-deteccion: en Windows no se corre `ollama --version`");
+});
+
 test("Windows: ningún proceso de fondo abre una consola visible (sin `windowsHide`, cada `claude` o `git` de fondo muestra un CMD un instante)", () => {
   // Sólo Linux: nunca corren en Windows.
   const soloLinux = new Set(["bench.ts", "dictado.ts", "pc-estado.ts", "remoto-armar.ts", "terminal.ts", "volver.ts"]);

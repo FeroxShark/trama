@@ -774,6 +774,7 @@ function initDeImagen(exe, imagen, solo = false) {
         encoding: "utf8",
         timeout: 3000,
         stdio: ["ignore", "pipe", "pipe"],
+        windowsHide: true,
       });
       if (r.error || r.status !== 0) continue;
       const salida = r.stdout.trim();
