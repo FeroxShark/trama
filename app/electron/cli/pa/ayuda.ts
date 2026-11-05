@@ -15,7 +15,7 @@ export const AYUDA: readonly string[] = [
   "",
   "Uso:",
   "  pa <proyecto> \"<tarea>\"              delegar (el worker puede escribir)",
-  "  pa <proyecto> --leer \"<pregunta>\"    sólo lectura (Read/Grep/Glob + git de lectura por Bash, sin Edit)",
+  "  pa <proyecto> --leer \"<pregunta>\"    sólo lectura (Read/Grep/Glob + git de lectura por Bash + WebSearch/WebFetch, sin Edit)",
   "                                       NO toma el lock: corre en paralelo con el que escribe y con otros --leer",
   "                                       (pero sí cuenta para el tope global, PA_TOPE)",
   "  pa <proyecto> --seguir \"<tarea>\"     retomar la conversación guardada (default: limpia)",

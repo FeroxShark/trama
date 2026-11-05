@@ -9,7 +9,7 @@ import path from "node:path";
 import { test } from "node:test";
 import { testPosix } from "./plataforma.ts";
 import type { Pa } from "../electron/cli/pa/entorno.ts";
-import { alSalir, argsCierre, armarLanzamiento, contratoClaude, envDeLaLlamada, lineaSkillsDiseno, settingsWorker, skillsDisenoInstaladas, type Corrida } from "../electron/cli/pa/lanzar.ts";
+import { alSalir, argsCierre, argsClaude, armarLanzamiento, contratoClaude, envDeLaLlamada, lineaSkillsDiseno, settingsWorker, skillsDisenoInstaladas, type Corrida } from "../electron/cli/pa/lanzar.ts";
 import { campoDe, decisionEsNada, epochReset, verificadoDe } from "../electron/cli/pa/resultado-lanzar.ts";
 
 const PA = path.join(import.meta.dirname, "..", "..", "motor", "bin", "pa");
@@ -191,4 +191,23 @@ test("agyResetHasta: «Resets in 149h» / «6d 5h 3m» y lo mismo que el agy_res
   assert.equal(agyResetHasta("quota reached, resets after 6d 5h 3m.", 0), 6 * 86400 + 5 * 3600 + 3 * 60);
   assert.equal(agyResetHasta("RESOURCE_EXHAUSTED sin hora", 0), null);
   assert.ok(agySinCupo("Individual quota reached") && agySinCupo("HTTP 429 Too Many") && !agySinCupo("error 4290"));
+});
+
+test("herramientas: un --leer puede buscar en internet (WebSearch/WebFetch) sin poder escribir; un escritor no restringe herramientas", () => {
+  const raiz = mkdtempSync(path.join(os.tmpdir(), "lanzar-web-"));
+  const pa = paFalso(raiz);
+  const o = { contrato: "k", settings: "{}", nombre: "n" };
+  const tools = (a: string[]) => a[a.indexOf("--tools") + 1]?.split(",");
+  const leer = tools(argsClaude(pa, corrida(raiz, { leer: true }), o));
+  assert.ok(leer, "--leer lleva --tools");
+  for (const t of ["WebSearch", "WebFetch", "Read", "Grep", "Bash"]) assert.ok(leer.includes(t), t);
+  for (const t of ["Edit", "Write", "NotebookEdit"]) assert.ok(!leer.includes(t), `--leer no debe tener ${t}`);
+  // Un escritor no pasa --tools (tiene todas las de claude, web incluida) ni las baja con --disallowedTools.
+  const esc = argsClaude(pa, corrida(raiz), o);
+  assert.equal(esc.includes("--tools"), false);
+  assert.ok(!esc.join(" ").match(/--disallowedTools\s+\S*Web/));
+  // El contrato de --leer le avisa que tiene la web y que no es por curl.
+  assert.match(contratoClaude(pa, corrida(raiz, { leer: true })), /WebSearch y WebFetch/);
+  // El bash (respaldo en Linux) pasa la misma lista.
+  assert.ok(readFileSync(PA, "utf8").includes(`--tools "${leer.join(",")}"`), "motor/bin/pa debe pasar la misma lista");
 });

@@ -284,7 +284,7 @@ export function leccionesBloque(dir: string): string {
 const TXT_FLOJO =
   'Trabajá en pasos chicos: un cambio por vez, corré la verificación después de CADA cambio y commiteá cuando pase antes de seguir con el próximo. Si algo falla, arreglalo antes de tocar otra cosa. Quedate en los archivos de la tarea: nada de refactors ni de "ya que estoy". Si la tarea es más grande de lo que pinta, hacé la parte que cierra, commiteala y decí en DECISION cómo partir el resto.';
 const TXT_LEER =
-  "Modo LECTURA: no escribís nada. Bash existe SOLO para git de lectura (log, diff, show, status, rev-list, rev-parse, merge-base, ls-files, ls-tree, blame, shortlog, describe, cat-file, grep, branch --list, worktree list, stash list/show), con -C <ruta> en vez de cd, y a lo sumo un pipe a head/tail/grep/wc/cut. Nada de ;, &&, redirecciones ni $(...): un hook bloquea todo lo demás.";
+  "Modo LECTURA: no escribís nada. Bash existe SOLO para git de lectura (log, diff, show, status, rev-list, rev-parse, merge-base, ls-files, ls-tree, blame, shortlog, describe, cat-file, grep, branch --list, worktree list, stash list/show), con -C <ruta> en vez de cd, y a lo sumo un pipe a head/tail/grep/wc/cut. Nada de ;, &&, redirecciones ni $(...): un hook bloquea todo lo demás. Para buscar en internet tenés WebSearch y WebFetch (no Bash: nada de curl).";
 const TXT_PRO =
   "Modo ahorro (la suscripción es chica): leé SOLO lo que la tarea necesita; si te dieron rutas, empezá por ahí y no recorras el repo. Buscá con Grep/Glob antes de abrir archivos enteros, y leé rangos (offset/limit) en archivos largos. Filtrá la salida de los comandos (`| tail -n 40`, `| grep -E 'FAIL|error'`): todo lo que entra al contexto se vuelve a pagar en cada turno. Verificá con el test más acotado que pruebe tu cambio, no la suite entera, salvo que la tarea lo pida. No lances subagentes. Si la tarea resulta mucho más grande de lo que pinta, hacé la parte que cierra, commiteala y decí en DECISION cómo partir el resto.";
 const TXT_ABANICO =
@@ -373,6 +373,9 @@ export const nombreWorker = (c: Pick<Corrida, "slug" | "leer" | "puesto">) => `p
 const mcpApagado = ["--strict-mcp-config", "--mcp-config", '{"mcpServers":{}}'];
 const sinMcp = (c: Pick<Corrida, "leer" | "conMcp">) => c.leer && !c.conMcp;
 
+/** Las únicas herramientas de un `--leer`: leer, git de lectura por Bash y buscar en internet (WebSearch/WebFetch no escriben archivos). */
+export const HERRAMIENTAS_LEER = "Read,Grep,Glob,Bash,ToolSearch,ListAgents,SendMessage,WebSearch,WebFetch";
+
 /** El argv de `claude` para la corrida (el `args` de `armar_llamada`). */
 export function argsClaude(pa: Pa, c: Corrida, o: { contrato: string; settings: string; nombre: string }): string[] {
   let prompt = c.tarea;
@@ -383,7 +386,7 @@ export function argsClaude(pa: Pa, c: Corrida, o: { contrato: string; settings: 
   if (c.autocompact) a.push("--autocompact", c.autocompact);
   a.push("--settings", o.settings, "--name", o.nombre);
   if (sinMcp(c)) a.push(...mcpApagado);
-  if (c.leer) a.push("--tools", "Read,Grep,Glob,Bash,ToolSearch,ListAgents,SendMessage");
+  if (c.leer) a.push("--tools", HERRAMIENTAS_LEER);
   if (!c.leer && pa.plan === "pro") a.push("--disallowedTools", "Agent");
   if (c.maxTurns) a.push("--max-turns", c.maxTurns);
   if (c.maxBudget) a.push("--max-budget-usd", c.maxBudget);

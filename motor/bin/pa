@@ -13,7 +13,7 @@
 #
 # Uso:
 #   pa <proyecto> "<tarea>"              delegar (el worker puede escribir)
-#   pa <proyecto> --leer "<pregunta>"    sólo lectura (Read/Grep/Glob + git de lectura por Bash, sin Edit)
+#   pa <proyecto> --leer "<pregunta>"    sólo lectura (Read/Grep/Glob + git de lectura por Bash + WebSearch/WebFetch, sin Edit)
 #                                        NO toma el lock: corre en paralelo con el que escribe y con otros --leer
 #                                        (pero sí cuenta para el tope global, PA_TOPE)
 #   pa <proyecto> --seguir "<tarea>"     retomar la conversación guardada (default: limpia)
@@ -6813,7 +6813,7 @@ $paralelos
 Comparten con vos el target de cargo, node_modules/.venv y lo que corra en la máquina (puertos, bases locales). No mates procesos que no lanzaste vos. Un puerto ocupado o un \"Blocking waiting for file lock\" de cargo puede ser el otro: esperá y reintentá, no lo 'arregles'. No instales ni saques dependencias (un hook lo bloquea): si hace falta, decilo en DECISION. No coordines con ellos ni toques sus ramas: si tocan lo mismo, se resuelve al integrar."
   fi
 fi
-(( leer )) && contrato+=$'\n'"Modo LECTURA: no escribís nada. Bash existe SOLO para git de lectura (log, diff, show, status, rev-list, rev-parse, merge-base, ls-files, ls-tree, blame, shortlog, describe, cat-file, grep, branch --list, worktree list, stash list/show), con -C <ruta> en vez de cd, y a lo sumo un pipe a head/tail/grep/wc/cut. Nada de ;, &&, redirecciones ni \$(...): un hook bloquea todo lo demás."
+(( leer )) && contrato+=$'\n'"Modo LECTURA: no escribís nada. Bash existe SOLO para git de lectura (log, diff, show, status, rev-list, rev-parse, merge-base, ls-files, ls-tree, blame, shortlog, describe, cat-file, grep, branch --list, worktree list, stash list/show), con -C <ruta> en vez de cd, y a lo sumo un pipe a head/tail/grep/wc/cut. Nada de ;, &&, redirecciones ni \$(...): un hook bloquea todo lo demás. Para buscar en internet tenés WebSearch y WebFetch (no Bash: nada de curl)."
 # Plan pro: el worker gasta lo mínimo. Lo que más pesa en una corrida no es lo que escribe sino lo
 # que RELEE: cada turno reenvía todo el contexto, así que cada archivo leído de más y cada salida
 # de comando sin filtrar se paga una vez por cada turno que queda.
@@ -6864,8 +6864,8 @@ fi
 # En modo lectura le sacamos las herramientas de escritura en vez de confiar en que se porte
 # bien. Bash va, pero atado: `hooks/latido.sh ... leer` sólo deja pasar git de lectura (allowlist,
 # no denylist). Sin Bash no había git, los objetos de git están comprimidos y Read/Grep no los
-# tocan: `pa --leer 'auditá la rama X'` —la receta de NightLoop del ~/CLAUDE.md— nunca anduvo.
-(( leer )) && args+=( --tools "Read,Grep,Glob,Bash,ToolSearch,ListAgents,SendMessage" )
+# tocan (WebSearch/WebFetch van también: buscar en internet no escribe archivos): `pa --leer 'auditá la rama X'` —la receta de NightLoop del ~/CLAUDE.md— nunca anduvo.
+(( leer )) && args+=( --tools "Read,Grep,Glob,Bash,ToolSearch,ListAgents,SendMessage,WebSearch,WebFetch" )
 # Plan pro: sin subagentes. Cada uno arranca en frío (system prompt, tools, CLAUDE.md) y en una
 # suscripción chica el total de tokens es lo que importa, no el contexto del worker.
 (( ! leer )) && [[ "$PLAN" == pro ]] && args+=( --disallowedTools "Agent" )
