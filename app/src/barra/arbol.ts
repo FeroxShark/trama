@@ -7,6 +7,7 @@ import { fraseConocida, t } from "../i18n/index.ts";
 import { compararActivas, flotar, repartir, type Foto } from "./activas.ts";
 import { modoOrden, porManual, type ModoOrden } from "./orden.ts";
 import type { Recientes } from "./recientes.ts";
+import { dondeSeVe } from "../../electron/reemplazos.ts";
 
 /** Un líder sin workers a la vista, sin responder y sin actividad en esto, va plegado en "N líderes en espera". */
 export const ESPERA_S = 30 * 60;
@@ -87,6 +88,8 @@ export type Arbol = {
   lideres: Map<string, Lider>;
   /** Los que se hacen cargo de sus workers: todos menos los que quedaron sin proceso (`caido`). */
   aCargo: Set<string>;
+  /** Los reemplazos con que se armó (retirado → reemplazo): para ubicar por carpeta un hilo cuyo `proyecto` es el de `pa`. */
+  reemplazos?: ReadonlyMap<string, string>;
 };
 
 /** Cuándo terminó (o empezó, si sigue); lo que murió, cuándo lo vio morir la app (si lo vio). */
@@ -426,6 +429,12 @@ type Opciones = {
   busqueda?: string;
   /** Líderes que el usuario movió a otra carpeta (B20, "Mover a proyecto…"): session_id → carpeta. */
   mover?: ReadonlyMap<string, string>;
+  /**
+   * Los proyectos retirados que tienen reemplazo (slug → slug del reemplazo, `mapaReemplazos`): lo que corrió ahí, y los líderes con ese cwd
+   * o ese nombre, se ven en la carpeta del reemplazo. Un retirado sin reemplazo no está acá: conserva la suya. Lo movido a mano a una
+   * carpeta que no es retirada manda sobre todo esto.
+   */
+  reemplazos?: ReadonlyMap<string, string>;
   /** Carpetas con los workers terminados escondidos (B20): todo lo que no trabaja va al "+N" o a "N terminadas". */
   ocultos?: ReadonlySet<string>;
   /** El `titulo` del registry de cada proyecto (slug → título): la carpeta se busca también por él. */
@@ -457,7 +466,10 @@ type Opciones = {
  * coinciden. Lo que no trabaja se pliega igual que sin buscar, y lo cerrado
  * también (en su carpeta, no en "Cerrados").
  */
-export function armarArbol(hilos: Hilo[], { optimista, lideres: todos, settleados, busqueda = "", mover, ocultos, titulos, caidos, orden, prioridad, recientes, sinActivas, ahora }: Opciones): Arbol {
+export function armarArbol(hilos: Hilo[], { optimista, lideres: todos, settleados, busqueda = "", mover, reemplazos, ocultos, titulos, caidos, orden, prioridad, recientes, sinActivas, ahora }: Opciones): Arbol {
+  const rem = (p: string) => dondeSeVe(p, reemplazos);
+  // La carpeta donde se ve un worker. Su `proyecto` no se toca: sigue siendo el de `pa` (integrar, actualizar y demás van a ése).
+  const deHilo = (h: Hilo) => rem(h.proyecto);
   const lideres = settleados?.size ? todos.filter((l) => !(l.actividad <= (settleados.get(l.id) ?? -1))) : todos;
   const q = normal(busqueda.trim());
   const buscando = q !== "";
@@ -483,7 +495,9 @@ export function armarArbol(hilos: Hilo[], { optimista, lideres: todos, settleado
   }
   const lid = new Map<string, Lider>();
   for (const l of lideres) {
-    const proyecto = mover?.get(l.id) ?? (esShark(l) ? SHARK : undefined) ?? primero.get(l.id)?.proyecto ?? l.inferido ?? GENERAL;
+    // Lo movido a mano manda (a un retirado con reemplazo, no: esa carpeta ya no existe); si no, el worker y lo que nombra el primer mensaje.
+    const aMano = mover?.get(l.id);
+    const proyecto = (aMano !== undefined ? rem(aMano) : undefined) ?? (esShark(l) ? SHARK : undefined) ?? (primero.has(l.id) ? deHilo(primero.get(l.id)!) : undefined) ?? (l.inferido ? rem(l.inferido) : undefined) ?? GENERAL;
     lid.set(l.id, l.proyecto === proyecto ? l : { ...l, proyecto });
   }
 
@@ -530,7 +544,7 @@ export function armarArbol(hilos: Hilo[], { optimista, lideres: todos, settleado
     const it: Item = { h, estado: estadoVisto(h, optimista?.get(h.id)) };
     const l = h.jefe_id ? lid.get(h.jefe_id) : undefined;
     // Un hilo coincide por su título (o porque su carpeta coincide), no por la rama ni el id.
-    if (buscando && !(l && traen.has(l.id)) && !deCarpeta(l?.proyecto ?? h.proyecto) && !coincide(q, h.tarea)) continue;
+    if (buscando && !(l && traen.has(l.id)) && !deCarpeta(l?.proyecto ?? deHilo(h)) && !coincide(q, h.tarea)) continue;
     if (l) {
       // Lo que `pa` ya cerró no queda colgando: va a "Cerrados" (buscando, plegado en su carpeta).
       // Lo viejo de un líder sin proceso tampoco, como lo de un huérfano.
@@ -545,12 +559,12 @@ export function armarArbol(hilos: Hilo[], { optimista, lideres: todos, settleado
         sueltos.push(it);
         continue;
       }
-      const r = carpeta(h.proyecto).huerfanos;
-      (plegar(it, h.proyecto, false) ? r.viejas : r.vivas).push(it);
+      const r = carpeta(deHilo(h)).huerfanos;
+      (plegar(it, deHilo(h), false) ? r.viejas : r.vivas).push(it);
     } else if (cerrado(it.estado) && !buscando) sueltos.push(it);
     else {
-      const r = carpeta(h.proyecto).sueltas;
-      (plegar(it, h.proyecto, false) ? r.viejas : r.vivas).push(it);
+      const r = carpeta(deHilo(h)).sueltas;
+      (plegar(it, deHilo(h), false) ? r.viejas : r.vivas).push(it);
     }
   }
 
@@ -624,7 +638,7 @@ export function armarArbol(hilos: Hilo[], { optimista, lideres: todos, settleado
   cerrados.sort((a, b) => fin(b.h) - fin(a.h));
   const aCargo = new Set<string>();
   for (const l of lid.values()) if (!l.caido) aCargo.add(l.id);
-  return { activas, carpetas: orden1.map((x) => x.c), cerrados, lideres: lid, aCargo };
+  return { activas, carpetas: orden1.map((x) => x.c), cerrados, lideres: lid, aCargo, ...(reemplazos?.size ? { reemplazos } : {}) };
 }
 
 /**

@@ -31,6 +31,16 @@ after(() => lider.cerrarTodos(true));
 const casa = path.join(tmp, "casa");
 const proyecto = path.join(casa, "mi-app");
 mkdirSync(proyecto, { recursive: true });
+const otro = path.join(casa, "otro");
+const viejo = path.join(casa, "viejo-repo");
+mkdirSync(otro, { recursive: true });
+mkdirSync(viejo, { recursive: true });
+// El registry de la máquina: un proyecto vivo y uno retirado.
+writeFileSync(
+  path.join(tmp, "registry.json"),
+  JSON.stringify({ projects: [{ name: "mi-app", path: proyecto }, { name: "viejo-repo", path: viejo, estado: "retirado", reemplazado_por: "mi-app" }] }),
+);
+process.env.PROYECTOS_REGISTRY = path.join(tmp, "registry.json");
 const archivo = path.join(casa, "nota.txt");
 writeFileSync(archivo, "x");
 const motivo = (e: unknown) => String((e as Error).message);
@@ -59,4 +69,18 @@ test("nuevo con carpeta: queda anotada como cwd del líder; con una mala no nace
   assert.equal(lideres().length, antes, "no quedó un líder sin carpeta");
   const sinCarpeta = await lider.nuevo(base);
   assert.equal(lideres().find((l) => l.sid === sinCarpeta)?.cwd, undefined);
+});
+
+test("nuevo con auto: sin carpeta a mano va al proyecto que nombra el mensaje, sin ninguno a ~; la carpeta a mano manda; un retirado no se infiere", { timeout: 30_000 }, async () => {
+  const lideres = () => JSON.parse(readFileSync(path.join(process.env.HILOS_STATE!, "lideres.json"), "utf8")).lideres as { sid: string; cwd?: string }[];
+  const cwdDe = (sid: string) => lideres().find((l) => l.sid === sid)?.cwd;
+  const base = { modelo: "claude-opus-5-5", effort: "high" };
+  assert.equal(cwdDe(await lider.nuevo({ ...base, texto: "Revisá el build de mi-app", auto: true })), proyecto);
+  assert.equal(cwdDe(await lider.nuevo({ ...base, texto: "contame un chiste", auto: true })), undefined);
+  // Sin `auto` no se infiere nada, aunque el mensaje nombre el proyecto.
+  assert.equal(cwdDe(await lider.nuevo({ ...base, texto: "Revisá el build de mi-app" })), undefined);
+  // A mano manda, aunque el mensaje nombre otro proyecto.
+  assert.equal(cwdDe(await lider.nuevo({ ...base, texto: "Revisá el build de mi-app", auto: true, carpeta: otro })), otro);
+  // Retirado: nombrado en el mensaje, no se infiere.
+  assert.equal(cwdDe(await lider.nuevo({ ...base, texto: "mirá el viejo-repo", auto: true })), undefined);
 });

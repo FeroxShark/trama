@@ -15,7 +15,7 @@ import { textoT } from "./errores.ts";
 import { ESTADO, escribirAtomico, PA_STATE } from "./pa.js";
 import { lideresApp, procDe, transcriptDe, transcriptDsh, transcriptFamilia, transcriptGemini, transcriptOpencode, transcriptPorDefecto, usoVisto } from "./lider.js";
 import { claseDeModelo, familiaDeModelo } from "./modelos-config.js";
-import { real, registro, type Proyecto } from "./registro.js";
+import { real, registro, rutasDeBarra, vivosDe, type Proyecto } from "./registro.js";
 import { sesiones, type Sesion } from "./sesiones.js";
 import { cargarGenerados, generadoDe, generarSiHaceFalta } from "./titulo-chat.js";
 import { creadoEn, proyectoEnTexto, temaDe, tituloDeRama, tituloLider } from "./tema.js";
@@ -269,8 +269,10 @@ export async function leerStatusline(): Promise<Statusline> {
   const porSesion = new Map<string, any>();
   for (const a of archivos) if (typeof a.session_id === "string" && !porSesion.has(a.session_id)) porSesion.set(a.session_id, a);
   // Ruta real → nombre en `pa`, del registry. La más larga primero (proyectos anidados).
-  const regs = await registro();
-  const rutas = regs.map((p): [string, string] => [p.ruta, p.slug]);
+  const todosRegs = await registro();
+  // Para ubicar un cwd: un retirado con reemplazo cae en la carpeta del reemplazo. Para inferir de qué trata un chat: sin retirados.
+  const rutas = rutasDeBarra(todosRegs);
+  const regs = vivosDe(todosRegs);
   const lideres: Lider[] = [];
   const home = await real(os.homedir());
   const casa = proyectoDe(home, rutas);

@@ -42,9 +42,8 @@ import { t as tr } from "../i18n";
 import { useIdioma } from "../i18n/react";
 import { contextoGasto, GastoSubagentesCtx, useGastoSubagentes } from "./gasto-sub";
 import { Selector, type Opcion } from "./Selector";
-import { carpetaPorDefecto, OTRA, opcionDe, PERSONAL } from "./carpeta-nueva";
-import { guardarUltima, leerUltima, useSeleccion } from "./carpeta-nueva-estado";
-import { detectarProyecto } from "./detectar-proyecto";
+import { AUTO, carpetaDeEnvio, ofrecidos, OTRA, opcionDe, PERSONAL, rutaPedida } from "./carpeta-nueva";
+import { pedirCarpeta, usePedida } from "./carpeta-nueva-estado";
 import { useProyectos } from "../datos/proyectos";
 import { CuentaLider, nombreCuentaClaude, useCuentasClaude } from "./CuentaLider";
 import { opcionesEnTurno, pendienteDe } from "./pendiente";
@@ -220,11 +219,10 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
   const [maquinaNueva, setMaquinaNueva] = useState<string | null>(null);
   // La cuenta de Claude de un líder nuevo, si la persona eligió una (sin elegir, el main usa la que se usa primero).
   const [cuentaNueva, setCuentaNueva] = useState<string | null>(null);
-  // La carpeta donde arranca un líder nuevo: siempre visible en la caja (el selector de proyecto). Sin tocarla arranca en el proyecto
-  // seleccionado en la barra o, si no, en el último donde se mandó un primer mensaje (`carpeta-nueva.ts`); la carpeta personal (`""`, `~`)
-  // sólo si la persona la elige o no hay ninguna pista. Se puede escribir otra ruta; en la ventana de la PC también se elige con el selector nativo.
+  // La carpeta donde arranca un líder nuevo: siempre visible en la caja (el selector de proyecto). Arranca en "Auto" (`carpeta-nueva.ts`): al mandar
+  // el primer mensaje el main elige el proyecto que nombra, o la carpeta personal si no nombra ninguno. Lo que se elige a mano (un proyecto, la
+  // personal, otra ruta) manda y nada lo pisa. Se puede escribir otra ruta; en la ventana de la PC también se elige con el selector nativo.
   const proyectos = useProyectos();
-  const seleccionada = useSeleccion();
   // Las cuentas de Claude (la liviana): el nombre de la cuenta de antes, si sigue conectada (aviso de otra cuenta).
   const listaCuentas = useCuentasClaude();
   const [carpeta, setCarpeta] = useState(MODO.captura === "lider-nuevo-carpeta" ? "/srv/proyectos/mi-app" : "");
@@ -241,28 +239,39 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
     );
   };
   const maquinaDe = l ? l.maquina : maquinaNueva && maquinaNueva !== maquinas.esta.id ? maquinaNueva : undefined;
-  // Lo que nombra el pedido manda sobre la carpeta de siempre (#1877): si nombra un proyecto (por nombre o título, `detectar-proyecto.ts`),
-  // su carpeta arranca sola y el chip dice "automático". Hasta que la persona elige una a mano; sin nombre, la de siempre.
-  // Los proyectos son de esta PC: en otra máquina no se rellena nada y la carpeta se escribe a mano (vacía: su `~`).
-  const rutaNombrada = !l && !carpetaAMano && !maquinaDe ? (detectarProyecto(texto, proyectos.filter((p) => p.existe))?.ruta ?? null) : null;
+  // "Nueva tarea aquí" en un proyecto de la barra (o una tarea del tablero) pide su carpeta una vez: es lo mismo que elegirla a mano.
+  const pedida = usePedida();
   useEffect(() => {
-    if (l || carpetaAMano || maquinaDe) return;
-    setCarpeta(rutaNombrada ?? carpetaPorDefecto({ seleccion: seleccionada, ultima: leerUltima(), proyectos }));
-  }, [l, carpetaAMano, maquinaDe, seleccionada, proyectos, rutaNombrada]);
+    if (l || !pedida || !proyectos.length) return;
+    const ruta = rutaPedida(pedida, proyectos);
+    if (ruta) {
+      setCarpeta(ruta);
+      setCarpetaAMano(true);
+      setOtraAbierta(false);
+    }
+    pedirCarpeta(null);
+  }, [l, pedida, proyectos]);
   // Captura `lider-nuevo-carpeta` con `HILOS_VARIANTE=buscar` (filtrado con "trama") o `buscar-nada` (sin coincidencias): el selector abierto con la búsqueda.
   const capturaBuscar = MODO.captura === "lider-nuevo-carpeta" && (MODO.variante === "buscar" || MODO.variante === "buscar-nada");
   const opcionesCarpeta = useMemo<Opcion[]>(
     () => [
-      ...(maquinaDe ? [] : proyectos.filter((p) => p.existe).map((p) => ({ id: p.ruta, nombre: p.titulo ?? p.nombre, desc: p.ruta }))),
+      { id: AUTO, nombre: tr("lider.carpetaAutoNombre"), desc: tr("lider.carpetaAutoDesc") },
+      ...(maquinaDe ? [] : ofrecidos(proyectos).map((p) => ({ id: p.ruta, nombre: p.titulo ?? p.nombre, desc: p.ruta }))),
       { id: PERSONAL, nombre: tr("lider.carpetaPersonal"), desc: tr("lider.carpetaPersonalDesc") },
       // Fija: la búsqueda del selector no la esconde (ver `Selector`, `buscar`).
       { id: OTRA, nombre: tr("lider.carpetaOtra"), desc: tr("lider.carpetaOtraDesc"), fija: true },
     ],
     [proyectos, maquinaDe],
   );
-  const opcionCarpeta = opcionDe(carpeta, maquinaDe ? [] : proyectos);
+  const opcionCarpeta = opcionDe(carpeta, carpetaAMano, maquinaDe ? [] : proyectos);
   const [otraAbierta, setOtraAbierta] = useState(MODO.captura === "lider-nuevo-carpeta");
   const eligioCarpeta = (id: string) => {
+    if (id === AUTO) {
+      setCarpetaAMano(false);
+      setOtraAbierta(false);
+      setCarpeta("");
+      return;
+    }
     setCarpetaAMano(true);
     if (id === OTRA) {
       setOtraAbierta(true);
@@ -894,8 +903,7 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
     };
     // El de la terminal: también si ya hay algo esperando (no se le adelanta a lo que está en la cola).
     if (l && (ocupado || (!app && encolados.length > 0))) return aLaCola(l.id, l.nombre);
-    const e: EnvioLider = { texto: t, modelo, effort, ...(imagenes ? { imagenes } : {}), ...(l ? {} : { modo: modoNuevoYa ?? modoNuevo, ...(maquinaDe ? { maquina: maquinaDe } : {}), ...(cuentaNueva && familiaDe(modelo) === "claude" && !esLocal(modelo) ? { cuenta: cuentaNueva } : {}), ...(carpeta.trim() ? { carpeta: carpeta.trim() } : {}) }) };
-    if (!l) guardarUltima(carpeta, carpetaAMano);
+    const e: EnvioLider = { texto: t, modelo, effort, ...(imagenes ? { imagenes } : {}), ...(l ? {} : { modo: modoNuevoYa ?? modoNuevo, ...(maquinaDe ? { maquina: maquinaDe } : {}), ...(cuentaNueva && familiaDe(modelo) === "claude" && !esLocal(modelo) ? { cuenta: cuentaNueva } : {}), ...carpetaDeEnvio(carpeta, carpetaAMano) }) };
     setEnviando(true);
     setErrorCaja(null);
     ponerBorrador(clave, { texto: crudo, error: null });
@@ -1355,7 +1363,6 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
                   abierto={capturaBuscar}
                   busquedaInicial={capturaBuscar ? (MODO.variante === "buscar-nada" ? "zzz" : "trama") : undefined}
                 />
-                {rutaNombrada && opcionCarpeta === rutaNombrada ? <span className="caja-carpeta-auto">{tr("lider.carpetaAuto")}</span> : null}
                 {otraAbierta ? (
                   <>
                     <label className="oculto" htmlFor={idCarpeta}>

@@ -1,46 +1,52 @@
-// La carpeta con que arranca un líder nuevo: el proyecto seleccionado, el último usado, y la personal sólo si se la elige (rutas inventadas de Linux y Windows).
+// La carpeta con que arranca un líder nuevo: "Auto" siempre (también con un proyecto filtrado en la barra), lo elegido a mano manda y un
+// proyecto retirado no se ofrece (rutas inventadas de Linux y Windows). La inferencia en sí: tests/carpeta-auto.test.ts.
 import assert from "node:assert/strict";
 import test from "node:test";
-import { carpetaPorDefecto, opcionDe, OTRA, PERSONAL, type ProyectoCarpeta } from "../src/hilo/carpeta-nueva.ts";
+import { AUTO, carpetaDeEnvio, ofrecidos, opcionDe, OTRA, PERSONAL, rutaPedida, type ProyectoCarpeta } from "../src/hilo/carpeta-nueva.ts";
 
 const linux: ProyectoCarpeta[] = [
   { slug: "atlas", ruta: "/home/ana/proyectos/atlas", existe: true },
-  { slug: "duna", ruta: "/home/ana/proyectos/duna", existe: true },
+  { slug: "duna", ruta: "/home/ana/proyectos/duna", existe: true, estado: "activo" },
   { slug: "vieja", ruta: "/home/ana/proyectos/vieja", existe: false },
+  { slug: "hilos", ruta: "/home/ana/proyectos/hilos", existe: true, estado: "retirado" },
 ];
 const windows: ProyectoCarpeta[] = [
   { slug: "atlas", ruta: "C:\\Users\\ana\\proyectos\\atlas", existe: true },
   { slug: "duna", ruta: "C:\\Users\\ana\\proyectos\\Duna", existe: true },
 ];
 
-test("el proyecto seleccionado en la barra manda sobre el último usado", () => {
-  assert.equal(carpetaPorDefecto({ seleccion: "duna", ultima: "/home/ana/proyectos/atlas", proyectos: linux }), "/home/ana/proyectos/duna");
-  assert.equal(carpetaPorDefecto({ seleccion: "atlas", ultima: null, proyectos: windows }), "C:\\Users\\ana\\proyectos\\atlas");
+test("sin elegir nada a mano la opción es Auto, tenga o no la caja algo escrito en la carpeta", () => {
+  assert.equal(opcionDe("", false, linux), AUTO);
+  assert.equal(opcionDe("/home/ana/proyectos/atlas", false, linux), AUTO);
+  assert.equal(opcionDe("", false, []), AUTO);
 });
 
-test("sin selección, el último usado (en Windows sin distinguir mayúsculas, / ni \\)", () => {
-  assert.equal(carpetaPorDefecto({ seleccion: null, ultima: "/home/ana/proyectos/atlas", proyectos: linux }), "/home/ana/proyectos/atlas");
-  assert.equal(carpetaPorDefecto({ seleccion: null, ultima: "c:/users/ANA/proyectos/duna/", proyectos: windows }), "C:\\Users\\ana\\proyectos\\Duna");
+test("a mano: la personal, un proyecto (en Windows sin distinguir mayúsculas, / ni \\) u otra carpeta", () => {
+  assert.equal(opcionDe("", true, linux), PERSONAL);
+  assert.equal(opcionDe("  ", true, windows), PERSONAL);
+  assert.equal(opcionDe("/home/ana/proyectos/atlas/", true, linux), "/home/ana/proyectos/atlas");
+  assert.equal(opcionDe("c:\\users\\ana\\PROYECTOS\\atlas", true, windows), "C:\\Users\\ana\\proyectos\\atlas");
+  assert.equal(opcionDe("c:/users/ANA/proyectos/duna/", true, windows), "C:\\Users\\ana\\proyectos\\Duna");
+  assert.equal(opcionDe("/home/ana/proyectos/vieja", true, linux), OTRA);
+  assert.equal(opcionDe("/tmp/otra", true, linux), OTRA);
 });
 
-test("lo que no sirve (general, un slug que no está, una carpeta borrada, el último ya no es proyecto) cae al siguiente", () => {
-  assert.equal(carpetaPorDefecto({ seleccion: "general", ultima: "/home/ana/proyectos/duna", proyectos: linux }), "/home/ana/proyectos/duna");
-  assert.equal(carpetaPorDefecto({ seleccion: "vieja", ultima: "/home/ana/proyectos/atlas", proyectos: linux }), "/home/ana/proyectos/atlas");
-  assert.equal(carpetaPorDefecto({ seleccion: "nada", ultima: "/home/ana/proyectos/vieja", proyectos: linux }), "");
-  assert.equal(carpetaPorDefecto({ seleccion: null, ultima: "/home/ana/suelta", proyectos: linux }), "");
+test("un proyecto retirado no se ofrece, ni se reconoce como proyecto aunque la ruta sea la suya", () => {
+  assert.deepEqual(ofrecidos(linux).map((p) => p.slug), ["atlas", "duna"]);
+  assert.equal(opcionDe("/home/ana/proyectos/hilos", true, linux), OTRA);
 });
 
-test("la carpeta personal sólo si no hay ninguna pista, o si se la eligió a mano la última vez", () => {
-  assert.equal(carpetaPorDefecto({ seleccion: null, ultima: null, proyectos: linux }), "");
-  assert.equal(carpetaPorDefecto({ seleccion: null, ultima: PERSONAL, proyectos: linux }), "");
-  assert.equal(carpetaPorDefecto({ seleccion: null, ultima: null, proyectos: [] }), "");
+test("lo que se manda: Auto pide inferir; a mano va tal cual; la personal elegida a mano no manda carpeta ni Auto", () => {
+  assert.deepEqual(carpetaDeEnvio("", false), { auto: true });
+  // Aunque haya una ruta escrita, sin elegirla a mano sigue siendo Auto.
+  assert.deepEqual(carpetaDeEnvio("/home/ana/proyectos/atlas", false), { auto: true });
+  assert.deepEqual(carpetaDeEnvio(" /home/ana/proyectos/atlas ", true), { carpeta: "/home/ana/proyectos/atlas" });
+  assert.deepEqual(carpetaDeEnvio("", true), {});
 });
 
-test("opcionDe: personal, un proyecto o otra carpeta", () => {
-  assert.equal(opcionDe("", linux), PERSONAL);
-  assert.equal(opcionDe("  ", windows), PERSONAL);
-  assert.equal(opcionDe("/home/ana/proyectos/atlas/", linux), "/home/ana/proyectos/atlas");
-  assert.equal(opcionDe("c:\\users\\ana\\PROYECTOS\\atlas", windows), "C:\\Users\\ana\\proyectos\\atlas");
-  assert.equal(opcionDe("/home/ana/proyectos/vieja", linux), OTRA);
-  assert.equal(opcionDe("/tmp/otra", linux), OTRA);
+test("la carpeta pedida desde la barra o el tablero: sólo si el proyecto se ofrece", () => {
+  assert.equal(rutaPedida("duna", linux), "/home/ana/proyectos/duna");
+  assert.equal(rutaPedida("vieja", linux), null);
+  assert.equal(rutaPedida("hilos", linux), null);
+  assert.equal(rutaPedida("nada", linux), null);
 });

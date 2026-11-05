@@ -32,7 +32,7 @@ const logClaude = path.join(tmp, "claude-falso.log");
 const logNpm = path.join(tmp, "npm-falso.log");
 const puerto = 9300 + Math.floor(Math.random() * 600);
 // "Atlas Web" vive en la carpeta atlas: `pa --hilos` dice "atlas", `pa <proy>` necesita "Atlas Web".
-for (const d of ["atlas", "brote"]) mkdirSync(path.join(tmp, "proy", d), { recursive: true });
+for (const d of ["atlas", "brote", "viejo"]) mkdirSync(path.join(tmp, "proy", d), { recursive: true });
 // El PA_STATE de mentira existe desde antes: la app mira su eventos.jsonl desde que arranca.
 mkdirSync(path.join(tmp, "pa"));
 // Un statusline de mentira (de una sesión que no vive: sólo da el uso del plan). 5 h sin color (74 %) y la
@@ -52,6 +52,8 @@ writeFileSync(
     projects: [
       { name: "Atlas Web", path: path.join(tmp, "proy", "atlas"), desc: "La web", tests: "npm test" },
       { name: "brote", path: path.join(tmp, "proy", "brote"), desc: "El jardín" },
+      // Retirado con reemplazo: no se ofrece como carpeta de un líder nuevo.
+      { name: "viejo", path: path.join(tmp, "proy", "viejo"), estado: "retirado", reemplazado_por: "Atlas Web" },
     ],
   }),
 );
@@ -663,6 +665,15 @@ try {
     hasta(() => !!document.querySelector(".caja-zona textarea:not([readonly])") && !document.querySelector(".caja-zona .barra-c .btn2"), "libre");
   const chip = () => en(() => document.querySelector(".caja-zona .modo")?.textContent ?? "");
   ok((await chip()).endsWith("bypass permissions on"), `un líder nuevo arranca en bypass: ${await chip()}`);
+  // La carpeta arranca en "Auto" aunque la barra venga mirando un proyecto (carpeta-nueva.ts): atlas ya se miró más arriba.
+  const carpetaCaja = () => en(() => document.querySelector(".caja-zona .caja-carpeta")?.textContent ?? "");
+  ok(/Auto/.test(await carpetaCaja()), `la carpeta de un líder nuevo arranca en Auto: ${await carpetaCaja()}`);
+  // Elegir una carpeta a mano manda: el selector la cambia a atlas (el retirado de más abajo del registry no se ofrece) y Auto ya no la pisa.
+  await en(() => document.querySelector(".caja-zona .caja-carpeta .pick > .pbtn")?.click());
+  await hasta(() => !!document.querySelector('[role="option"]'), "carpetas");
+  ok(!(await en(() => [...document.querySelectorAll('[role="option"]')].some((o) => o.textContent.includes("viejo")))), "un proyecto retirado no se ofrece en el selector de carpeta");
+  ok(await clic('[role="option"]', "Atlas Web"), "se elige la carpeta de atlas");
+  ok(await hasta(() => /Atlas/.test(document.querySelector(".caja-zona .caja-carpeta")?.textContent ?? ""), "carpeta atlas"), "la carpeta elegida a mano queda en el selector");
   // B13: Enter manda (Shift+Enter no).
   await escribir(".caja-zona textarea", "usá una herramienta");
   await tecla("Enter", SHIFT);
@@ -706,8 +717,8 @@ try {
       /^trama-[0-9a-f]{4}$/.test(ar[ar.indexOf("--name") + 1]),
     `argv del líder: ${ar.join(" ")}`,
   );
-  // Un líder nuevo arranca en el proyecto que se miraba en la barra (carpeta-nueva.ts): acá el worker de atlas de más arriba.
-  ok(c?.cwd === path.join(tmp, "proy", "atlas"), `el líder corre en la carpeta del proyecto que se miraba (${c?.cwd})`);
+  // Lo elegido a mano manda: el líder corre en atlas aunque el mensaje no lo nombre.
+  ok(c?.cwd === path.join(tmp, "proy", "atlas"), `el líder corre en la carpeta elegida a mano (${c?.cwd})`);
   ok(!c?.env.some((k) => /^(CLAUDE|ANTHROPIC_)/.test(k)), "sin variables CLAUDE*/ANTHROPIC_*");
   const sid = ar[ar.indexOf("--session-id") + 1];
   // El claude de verdad deja el transcript de la sesión en ~/.claude/projects/<carpeta>/<sid>.jsonl; el falso no. Sin él, Retomar

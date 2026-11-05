@@ -145,3 +145,9 @@ test("tituloLider: sin las líneas de archivo adjunto; si no hay texto, el nombr
   assert.equal(proyectoEnTexto(solo, REG, HOME), null);
   assert.equal(proyectoEnTexto(`mirá omc\n\n${solo}`, REG, HOME), "omc");
 });
+
+test("proyectoEnTexto: el título del registry también nombra al proyecto", () => {
+  const reg = [{ nombre: "baliza", slug: "baliza", ruta: "/srv/baliza", titulo: "Baliza Android" }];
+  assert.equal(proyectoEnTexto("arreglá el login de Baliza Android", reg, HOME), "baliza");
+  assert.equal(proyectoEnTexto("arreglá el login de Android", reg, HOME), null);
+});

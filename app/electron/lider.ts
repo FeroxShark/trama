@@ -83,6 +83,7 @@ import { resumenDeTranscript } from "./resumen-traspaso.ts";
 import { terminalAgentesGuardada } from "./preferencias.js";
 import { envTerminalAgentes, lineaTerminalAgentes } from "./terminal-agentes.ts";
 import { anotarCarpeta, anotarCarpetas } from "./proyectos-auto.ts";
+import { carpetaAuto } from "./carpeta-auto.ts";
 import { plataformaActual } from "./rutas.ts";
 import { debeLevantarse } from "./actividad-lider.ts";
 
@@ -1040,12 +1041,16 @@ export async function carpetaDe(v: unknown, home = HOME): Promise<string | undef
   return c === path.resolve(home) ? undefined : c;
 }
 
-/** Un líder nuevo con su primer mensaje (en `carpeta` si viene, si no en `~`). Devuelve su session_id. */
-export async function nuevo(x: { modelo: string; effort: string; texto: string; imagenes?: unknown; modo?: string; rol?: string; carpeta?: unknown; cuenta?: unknown }): Promise<string> {
+/**
+ * Un líder nuevo con su primer mensaje. Carpeta: la que viene en `carpeta` (elegida a mano, manda siempre); si no viene y `auto` es
+ * `true`, el proyecto que nombra el mensaje (`carpeta-auto.ts`, con el registry de esta máquina); si tampoco, `~`. Devuelve su session_id.
+ */
+export async function nuevo(x: { modelo: string; effort: string; texto: string; imagenes?: unknown; modo?: string; rol?: string; carpeta?: unknown; auto?: unknown; cuenta?: unknown }): Promise<string> {
   const imagenes = imagenesDe(x.imagenes);
   const texto = textoDe(x.texto, imagenes);
   const modo = modoDe(x.modo);
-  const cwd = await carpetaDe(x.carpeta);
+  const aMano = await carpetaDe(x.carpeta);
+  const cwd = aMano ?? (x.auto === true && !(typeof x.carpeta === "string" && x.carpeta.trim()) ? await carpetaAuto(texto, HOME).catch(() => undefined) : undefined);
   const { modelo, effort } = normalizar(sueltoDe("modelo", x.modelo), sueltoDe("effort", x.effort));
   // La cuenta: la que se eligió en la caja o, sin elegir, la preferida de ahora (`cuentas preferir`). Nunca se cambia sola después.
   const cuenta = x.cuenta === undefined ? preferidaClaude(process.env, HOME) : cuentaPedida(x.cuenta);

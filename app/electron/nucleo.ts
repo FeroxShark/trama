@@ -66,7 +66,7 @@ import { crearAvisosWorker, REVISAR_MS } from "./avisos-worker.js";
 import { crearAvisosPendientes, type FilaHilo } from "./avisos-pendientes.js";
 import { procesoVivoDe, rastroDeWorker } from "./avisos-worker-disco.js";
 import { errorT, textoT } from "./errores.ts";
-import { destinos, real, registro, slugsPorNombre } from "./registro.js";
+import { destinos, real, registro, rutasDeBarra, slugsPorNombre } from "./registro.js";
 import { plataformaActual, registroProyectos } from "./rutas.ts";
 import { capacidades, hayAgy, hayDsh } from "./capacidades.js";
 import { estadoDsh, instalarDsh, probarProveedor } from "./dsh-ajustes.ts";
@@ -957,7 +957,7 @@ export function armarNucleo() {
     const [apps, pa, reg] = await Promise.all([lider.lideresApp(), sidsDePa(PA_STATE), registro()]);
     return vistaConvs(convs, {
       excluidas: new Set([...apps.map((l) => l.sid), ...pa]),
-      rutas: reg.map((p): [string, string] => [p.ruta, p.slug]),
+      rutas: rutasDeBarra(reg),
       casa: await real(os.homedir()),
       real,
       existe: (p) => statArchivo(p).then((s) => s.isDirectory(), () => false),
@@ -1238,8 +1238,8 @@ export function armarNucleo() {
     void avisarSl();
     cambioLider();
   });
-  manejar("lider:nuevo", (_e, x: { modelo: string; effort: string; texto: string; imagenes?: unknown; modo?: string; rol?: string; carpeta?: unknown; cuenta?: unknown }) =>
-    lider.nuevo({ modelo: x?.modelo, effort: x?.effort, texto: x?.texto, imagenes: x?.imagenes, modo: x?.modo, rol: x?.rol, carpeta: x?.carpeta, cuenta: x?.cuenta }),
+  manejar("lider:nuevo", (_e, x: { modelo: string; effort: string; texto: string; imagenes?: unknown; modo?: string; rol?: string; carpeta?: unknown; auto?: unknown; cuenta?: unknown }) =>
+    lider.nuevo({ modelo: x?.modelo, effort: x?.effort, texto: x?.texto, imagenes: x?.imagenes, modo: x?.modo, rol: x?.rol, carpeta: x?.carpeta, auto: x?.auto, cuenta: x?.cuenta }),
   );
   manejar("lider:mandar", (_e, x: { sid: string; texto: string; imagenes?: unknown; modelo: string; effort: string; empezar?: unknown }) => {
     verEspera(String(x?.sid));

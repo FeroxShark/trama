@@ -1,5 +1,6 @@
 // La lógica de la barra con riel (rediseño 0.4), sin React: qué marca lleva cada proyecto del riel, qué queda a la vista con
 // los filtros, cómo se resalta lo buscado y cómo se cuenta. Pura: lo prueba `tests/riel.test.ts`.
+import { dondeSeVe } from "../../electron/reemplazos.ts";
 import { activo, atencionItem, liderEspera, normal, type Arbol, type Atencion, type Carpeta, type Item, type Rama } from "./arbol.ts";
 
 const porInicio = (a: Item, b: Item) => b.h.inicio - a.h.inicio;
@@ -78,7 +79,7 @@ export function filtrarArbol(a: Arbol, { proyecto, ver, resueltos }: { proyecto:
     .filter((c) => !proyecto || c.proyecto === proyecto)
     .map((c) => ({ ...c, ramas: lista(c.ramas), espera: lista(c.espera), dormidos: lista(c.dormidos) }))
     .filter((c) => !ver || c.ramas.length + c.espera.length + c.dormidos.length > 0);
-  return { ...a, carpetas, activas: [], cerrados: ver ? [] : a.cerrados.filter((it) => it.h.proyecto === proyecto) };
+  return { ...a, carpetas, activas: [], cerrados: ver ? [] : a.cerrados.filter((it) => dondeSeVe(it.h.proyecto, a.reemplazos) === proyecto) };
 }
 
 /** Los hilos de un proyecto: líderes y workers. */

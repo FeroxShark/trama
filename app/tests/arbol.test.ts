@@ -925,3 +925,36 @@ test("atención: falló (no frenado) y pide decisión resaltan; un líder que re
   assert.equal(pendientes(a).fallos[0].viva, true);
   assert.ok(todo.fallos[0].abrir.includes("atlas"));
 });
+
+test("retirados: lo que corrió en un retirado con reemplazo se ve en la carpeta del reemplazo, sin tocar el `proyecto` del hilo", () => {
+  const reemplazos = new Map([["hilos", "trama"]]);
+  const conInferido = (id: string, inferido: string | null): Lider => ({ ...lider(id, AHORA), inferido });
+  const w = hilo({ proyecto: "hilos", estado: "trabajando", ...deL("a") });
+  const suelto = hilo({ proyecto: "hilos", estado: "decision", origen: "app" });
+  const a = armarArbol([w, suelto], { lideres: [conInferido("a", null), conInferido("b", "hilos"), conInferido("c", "atlas")], reemplazos, ahora: AHORA });
+  // No hay carpeta "hilos": ni por sus workers, ni por lo que nombra un líder, ni por lo suelto.
+  assert.ok(!nombres(a).includes("hilos"));
+  assert.equal(a.lideres.get("a")!.proyecto, "trama");
+  assert.equal(a.lideres.get("b")!.proyecto, "trama");
+  // Lo que no es retirado queda donde estaba.
+  assert.equal(a.lideres.get("c")!.proyecto, "atlas");
+  const trama = a.carpetas.find((c) => c.proyecto === "trama")!;
+  assert.deepEqual(ids(trama.ramas.find((r) => r.lider?.id === "a")!.vivas), [w.id]);
+  assert.deepEqual(ids(trama.ramas.find((r) => r.tipo === "sueltas")!.vivas), [suelto.id]);
+  // El hilo sigue siendo de `hilos` para `pa` (integrar, actualizar…).
+  assert.equal(w.proyecto, "hilos");
+  assert.equal(trama.ramas.find((r) => r.lider?.id === "a")!.vivas[0].h.proyecto, "hilos");
+});
+
+test("retirados: lo movido a mano manda sobre el reemplazo; sin reemplazo, el retirado conserva su carpeta", () => {
+  const reemplazos = new Map([["hilos", "trama"]]);
+  const w = hilo({ proyecto: "hilos", estado: "trabajando", ...deL("a") });
+  const l = { ...lider("a", AHORA), inferido: "hilos" };
+  assert.equal(armarArbol([w], { lideres: [l], reemplazos, mover: new Map([["a", "atlas"]]), ahora: AHORA }).lideres.get("a")!.proyecto, "atlas");
+  // Movido a mano a un retirado que ya no tiene carpeta: va a la del reemplazo.
+  assert.equal(armarArbol([w], { lideres: [l], reemplazos, mover: new Map([["a", "hilos"]]), ahora: AHORA }).lideres.get("a")!.proyecto, "trama");
+  // Sin mapa (un retirado sin reemplazo, o sin registry): como siempre.
+  const sin = armarArbol([w], { lideres: [l], ahora: AHORA });
+  assert.equal(sin.lideres.get("a")!.proyecto, "hilos");
+  assert.ok(nombres(sin).includes("hilos"));
+});

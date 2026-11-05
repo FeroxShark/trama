@@ -9,14 +9,14 @@ import { errorT } from "./errores.ts";
 import { validarLogo } from "./iconos.ts";
 import { NOMBRE_MAX, validarNombre, type NombreUsado } from "./proyectos-nombre.ts";
 import { claveRuta } from "./proyectos-auto.ts";
-import { real, slug as slugDe } from "./registro.ts";
+import { real, slug as slugDe, slugDeReemplazo } from "./registro.ts";
 import { esWorktreePa } from "./worktrees-pa.ts";
 
 const SLUG = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 
 const expandir = (p: string) => (p === "~" ? os.homedir() : p.startsWith("~/") ? path.join(os.homedir(), p.slice(2)) : p);
 
-type Cruda = { i: number; nombre: string; ruta: string; slug: string; titulo: string | null; alias: string[]; logo: boolean };
+type Cruda = { i: number; nombre: string; ruta: string; slug: string; titulo: string | null; alias: string[]; logo: boolean; estado: string | null; reemplazo: string | null };
 
 const textos = (x: unknown): string[] =>
   (Array.isArray(x) ? x : typeof x === "string" ? [x] : []).filter((a): a is string => typeof a === "string" && a.trim() !== "").map((a) => a.trim());
@@ -42,6 +42,8 @@ async function entradas(archivo: string): Promise<{ json: { projects: Record<str
       titulo: typeof r.titulo === "string" && r.titulo.trim() ? r.titulo.trim() : null,
       alias: [...textos(r.alias), ...textos(r.aliases)],
       logo: typeof r.logo === "string" && r.logo !== "",
+      estado: typeof r.estado === "string" && r.estado.trim() ? r.estado.trim().toLowerCase() : null,
+      reemplazo: typeof r.reemplazado_por === "string" && r.reemplazado_por.trim() ? r.reemplazado_por.trim() : null,
     });
   }
   return { json, lista };
@@ -62,6 +64,10 @@ export type ProyectoNombre = {
   existe: boolean;
   /** Tiene un logo elegido a mano (campo `logo`); si no, se ve el que encuentre solo `electron/iconos.ts` o el monograma. */
   logo: boolean;
+  /** Campo `estado` del registry ("activo", "infra", "retirado"…); `null` si no lo trae. Un retirado no se ofrece para un líder nuevo. */
+  estado: string | null;
+  /** El slug del proyecto que lo reemplaza (campo `reemplazado_por`); lo que corrió en un retirado se ve en la carpeta de éste. */
+  reemplazadoPor: string | null;
 };
 
 /** Un proyecto por carpeta (varios nombres para la misma son uno), los de la carpeta más corta primero no: por nombre. */
@@ -87,8 +93,12 @@ export async function listarProyectos(archivo: string): Promise<ProyectoNombre[]
       alias: [...new Set(es.flatMap((e) => e.alias))],
       existe: !!(await stat(ruta).catch(() => null)),
       logo: es.some((e) => e.logo),
+      estado: principal.estado ?? es.find((e) => e.estado)?.estado ?? null,
+      reemplazadoPor: es.find((e) => e.reemplazo)?.reemplazo ?? null,
     });
   }
+  // `reemplazado_por` es un nombre, un slug o un alias: queda el slug (o nada si no está en el registry).
+  for (const p of salida) p.reemplazadoPor = slugDeReemplazo(p.reemplazadoPor, salida, p.slug);
   return salida.sort((a, b) => (a.titulo ?? a.nombre).localeCompare(b.titulo ?? b.nombre, "es", { sensitivity: "base" }));
 }
 

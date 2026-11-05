@@ -269,3 +269,13 @@ test("enMarcha: cuenta líderes que responden y workers corriendo; lo que está 
   assert.equal(enMarcha(carpeta("atlas", [rama("l", lider("l", "atlas"), [cola], [listo])])), 0);
   assert.equal(enMarcha(carpeta("atlas", [rama("l", { ...responde, caido: "murio" }, [])])), 0);
 });
+
+test("retirados: el riel no tiene entrada del retirado con reemplazo, y filtrar por el reemplazo trae también sus cerrados", () => {
+  const reemplazos = new Map([["hilos", "trama"]]);
+  const viejo = hilo({ proyecto: "hilos", estado: "trabajando", origen: "app" });
+  const cerrado = hilo({ proyecto: "hilos", estado: "integrado", origen: "app" });
+  const a = armarArbol([viejo, cerrado], { lideres: [], reemplazos, ahora: AHORA });
+  assert.deepEqual(itemsRiel(a.carpetas, null).map((x) => x.proyecto), ["trama"]);
+  assert.equal(filtrarArbol(a, { proyecto: "trama", ver: null }).cerrados.length, a.cerrados.length);
+  assert.equal(filtrarArbol(a, { proyecto: "trama", ver: null }).cerrados.length, 1);
+});

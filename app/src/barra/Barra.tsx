@@ -29,8 +29,9 @@ import { useIdioma } from "../i18n/react";
 import { leerBorrador, llenarBorrador, soltarBorrador } from "../hilo/borradores";
 import { BORRADOR_LIDER } from "../hilo/Lider";
 import { llanaRuta } from "../hilo/carpeta-nueva";
-import { ponerSeleccion } from "../hilo/carpeta-nueva-estado";
+import { pedirCarpeta } from "../hilo/carpeta-nueva-estado";
 import { fuenteProyectos, useProyectos } from "../datos/proyectos";
+import { dondeSeVe, mapaReemplazos } from "../../electron/reemplazos";
 import { fantasma, MODELO_DEFAULT, MODELOS, MODELOS_WORKER, modeloDe, primeraLinea } from "../hilo/opciones";
 import { SeguirCon } from "../hilo/SeguirCon";
 import { ClaudeCode } from "./ClaudeCode";
@@ -515,6 +516,9 @@ export function Barra() {
   // El `titulo` del registry de cada carpeta: se ve y se busca por él.
   const titulosReg = useTitulos();
   const titulos = useMemo(() => new Map(Object.entries(titulosReg)), [titulosReg]);
+  // Los proyectos del registry (ruta y slug), y de ellos los retirados con reemplazo: lo que corrió ahí se ve en la carpeta del reemplazo.
+  const proyectosReg = useProyectos();
+  const reemplazos = useMemo(() => mapaReemplazos(proyectosReg), [proyectosReg]);
   // Los líderes settleados (en `leidos.json` con el prefijo `settle:`): no se ven hasta que tengan actividad nueva.
   const settleados = useMemo(
     () => new Map(Object.entries(leidos).flatMap(([k, ts]) => (k.startsWith(SETTLE) ? [[k.slice(SETTLE.length), ts] as const] : []))),
@@ -525,8 +529,8 @@ export function Barra() {
   const porPrioridad = prioridadPrendida(nombres.orden);
   // Los workers que siguen en marcha: un líder con alguno es de "Activas", y su proyecto flota aunque no tenga líder caliente.
   const trabajadores = useMemo<Trabajador[]>(
-    () => todos.map((h) => ({ jefe_id: h.jefe_id ?? null, proyecto: h.proyecto, vivo: workerVivo({ estado: estadoVisto(h, optimista.get(h.id)), en_cola: h.en_cola }) })).filter((w) => w.vivo),
-    [todos, optimista],
+    () => todos.map((h) => ({ jefe_id: h.jefe_id ?? null, proyecto: dondeSeVe(h.proyecto, reemplazos), vivo: workerVivo({ estado: estadoVisto(h, optimista.get(h.id)), en_cola: h.en_cola }) })).filter((w) => w.vivo),
+    [todos, optimista, reemplazos],
   );
   const congelada = diferir({ ...mirando, menu: menu !== null });
   const prioridad = usePrioridad(porPrioridad, lideresVistos, trabajadores, congelada);
@@ -534,8 +538,8 @@ export function Barra() {
   const recientes = useRecientes(true, lideresVistos, todos, convsCC, congelada);
   // Sin polling: "en espera hace 30 min" se recalcula cuando cambia algo (datos, líderes, búsqueda).
   const arbolBruto = useMemo(
-    () => armarArbol(todos, { optimista, lideres: lideresVistos, settleados, busqueda, mover, ocultos, titulos, caidos, orden: nombres.orden, prioridad, recientes, sinActivas: true, ahora: Math.floor(Date.now() / 1000) }),
-    [todos, optimista, busqueda, lideresVistos, settleados, mover, ocultos, titulos, caidos, nombres.orden, prioridad, recientes],
+    () => armarArbol(todos, { optimista, lideres: lideresVistos, settleados, busqueda, mover, reemplazos, ocultos, titulos, caidos, orden: nombres.orden, prioridad, recientes, sinActivas: true, ahora: Math.floor(Date.now() / 1000) }),
+    [todos, optimista, busqueda, lideresVistos, settleados, mover, reemplazos, ocultos, titulos, caidos, nombres.orden, prioridad, recientes],
   );
   // Lo ya resuelto (relanzado, integrado, descartado, visto, contestado) no pide atención: `atencion-vigente.ts`.
   const resueltos = useMemo(() => resueltosDe(todos.map((h) => ({ h, estado: estadoVisto(h, optimista.get(h.id)) })), leidos), [todos, optimista, leidos]);
@@ -552,11 +556,11 @@ export function Barra() {
   // El riel se arma sin buscar: buscando se apagan los proyectos sin resultados, no se van.
   const arbolSinBuscar = useMemo(() => {
     if (!buscando) return arbol;
-    const a = armarArbol(todos, { optimista, lideres: lideresVistos, settleados, mover, ocultos, titulos, caidos, orden: nombres.orden, prioridad, recientes, sinActivas: true, ahora: Math.floor(Date.now() / 1000) });
+    const a = armarArbol(todos, { optimista, lideres: lideresVistos, settleados, mover, reemplazos, ocultos, titulos, caidos, orden: nombres.orden, prioridad, recientes, sinActivas: true, ahora: Math.floor(Date.now() / 1000) });
     const b = aRiel(plegarTerminados(a), resueltos);
     // Buscando, el riel conserva el orden que traía: los proyectos no saltan de lugar al escribir.
     return porPrioridad ? { ...b, carpetas: segunLista(b.carpetas, ordenProyectos.current) } : b;
-  }, [buscando, arbol, porPrioridad, todos, optimista, lideresVistos, settleados, mover, ocultos, titulos, caidos, nombres.orden, prioridad, recientes, resueltos]);
+  }, [buscando, arbol, porPrioridad, todos, optimista, lideresVistos, settleados, mover, reemplazos, ocultos, titulos, caidos, nombres.orden, prioridad, recientes, resueltos]);
   // Lo que pide atención (falló, pide decisión, un líder que espera): las píldoras de arriba de la lista. Buscando no cambian: siguen diciendo lo que hay.
   const pend = useMemo(() => pendientes(arbolSinBuscar, resueltos), [arbolSinBuscar, resueltos]);
   // Un filtro por algo que ya no existe no filtra (se integró el último, ya no falla nada).
@@ -765,6 +769,7 @@ export function Barra() {
 
   const abrirLiderNuevo = useCallback(() => {
     nuevaEn.current = null;
+    pedirCarpeta(null);
     alFrente();
     setPanel(null);
     setActiva(LIDER_NUEVO);
@@ -960,14 +965,13 @@ export function Barra() {
         abrirLiderNuevo();
         // Después de abrir: abrir un líder nuevo suelta la carpeta que quedó pedida.
         nuevaEn.current = carpeta;
-        ponerSeleccion(carpeta);
+        pedirCarpeta(carpeta);
       }
     },
     [abrirLider, abrirLiderNuevo],
   );
 
-  // Los proyectos del registry (ruta y slug): un líder nuevo que arranca en la carpeta de uno ya se ve en ese proyecto.
-  const proyectosReg = useProyectos();
+  // Un líder nuevo que arranca en la carpeta de un proyecto ya se ve en ese proyecto.
   const proyectosRef = useRef(proyectosReg);
   proyectosRef.current = proyectosReg;
 
@@ -1427,11 +1431,8 @@ export function Barra() {
     : subActivo?.lider
       ? subActivo.lider.proyecto
       : hiloActivo && !cerrados.some((it) => it.h.id === hiloActivo.id)
-      ? (arbol.lideres.get(hiloActivo.jefe_id ?? "")?.proyecto ?? hiloActivo.proyecto)
+      ? (arbol.lideres.get(hiloActivo.jefe_id ?? "")?.proyecto ?? dondeSeVe(hiloActivo.proyecto, reemplazos))
       : null;
-
-  // Lo que se mira en la barra es el proyecto donde arranca el próximo líder nuevo (hilo/carpeta-nueva.ts).
-  useEffect(() => ponerSeleccion(carpetaActiva), [carpetaActiva]);
 
   // El líder que se está viendo queda siempre a la vista: al elegirlo, o cuando cambia de carpeta
   // (uno nuevo arranca en el home y pasa a la de su proyecto), se abre la suya aunque estuviera
@@ -1721,7 +1722,7 @@ export function Barra() {
       setMenu(null);
       abrirLiderNuevo();
       nuevaEn.current = p;
-      ponerSeleccion(p);
+      pedirCarpeta(p);
       return;
     }
     listo();

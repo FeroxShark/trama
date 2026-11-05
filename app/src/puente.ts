@@ -141,7 +141,7 @@ type Main = {
   /** Los líderes: los de la app se manejan desde acá; los de la terminal se leen (electron/lider.ts). */
   lider: {
     /** Un líder nuevo con su primer mensaje; devuelve su session_id. */
-    nuevo(x: { modelo: string; effort: string; texto: string; imagenes?: Imagen[]; modo?: string; rol?: "analista"; carpeta?: string; cuenta?: string }): Promise<string>;
+    nuevo(x: { modelo: string; effort: string; texto: string; imagenes?: Imagen[]; modo?: string; rol?: "analista"; carpeta?: string; auto?: boolean; cuenta?: string }): Promise<string>;
     /** `empezar: "resumen"`: sesión fresca con el relevo compacto (caché vencida); devuelve el sid del líder nuevo si lo hubo. */
     mandar(x: { sid: string; texto: string; imagenes?: Imagen[]; modelo: string; effort: string; empezar?: "resumen" }): Promise<string | null>;
     mandarYa(x: { sid: string; texto: string; imagenes?: Imagen[]; modelo: string; effort: string }): Promise<void>;

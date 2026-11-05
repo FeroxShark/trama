@@ -150,7 +150,7 @@ export function tituloDeTexto(s: string): string {
 }
 
 /** Lo que hace falta de un proyecto del registry para reconocerlo en un texto. */
-export type ProyectoTexto = { nombre: string; slug: string; ruta: string; alias?: string[] };
+export type ProyectoTexto = { nombre: string; slug: string; ruta: string; alias?: string[]; /** El nombre para mostrar del registry (`titulo`): también cuenta como nombre del proyecto. */ titulo?: string | null };
 
 const escapar = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
@@ -178,7 +178,7 @@ export function proyectoEnTexto(texto: string, proyectos: ProyectoTexto[], home:
   for (const p of proyectos) {
     const rutas = [p.ruta, p.ruta.startsWith(home + "/") ? "~" + p.ruta.slice(home.length) : null].filter((x): x is string => !!x);
     const alias = [...(p.alias ?? []), ...(ALIAS_DEFECTO[p.slug] ?? ALIAS_DEFECTO[p.nombre] ?? [])];
-    const nombres = [...new Set([p.nombre, p.slug, path.basename(p.ruta), ...alias])].filter((x) => x.length >= 2);
+    const nombres = [...new Set([p.nombre, p.slug, path.basename(p.ruta), ...(p.titulo ? [p.titulo] : []), ...alias])].filter((x) => x.length >= 2);
 
     for (const r of rutas) {
       const re = new RegExp(escapar(r.toLowerCase()) + "(?![\\w.-])", "g");

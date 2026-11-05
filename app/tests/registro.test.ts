@@ -73,3 +73,37 @@ test("registro: campo `alias` opcional en registry.json y alias por defecto de T
   assert.equal(s["album"], "fotos");
   assert.equal(s["imagenes"], "fotos");
 });
+
+test("registro: `estado` y `reemplazado_por` (por nombre, slug o alias) resuelto al slug; destinos y rutasDeBarra dejan de lado al retirado", async () => {
+  const tmp3 = mkdtempSync(path.join(os.tmpdir(), "hilos-reg3-"));
+  for (const d of ["hilos", "trama", "suelto"]) mkdirSync(path.join(tmp3, d));
+  writeFileSync(
+    path.join(tmp3, "registry.json"),
+    JSON.stringify({
+      projects: [
+        { name: "hilos", path: path.join(tmp3, "hilos"), estado: "Retirado", reemplazado_por: "Trama-App" },
+        { name: "trama", path: path.join(tmp3, "trama"), estado: "activo", alias: ["Trama-App"] },
+        { name: "suelto", path: path.join(tmp3, "suelto"), estado: "retirado" },
+      ],
+    }),
+  );
+  process.env.PROYECTOS_REGISTRY = path.join(tmp3, "registry.json");
+  try {
+    const { registro: leer, rutasDeBarra, destinos, vivosDe } = await import("../electron/registro.ts");
+    const regs = await leer();
+    const por = new Map(regs.map((p) => [p.slug, p]));
+    assert.equal(por.get("hilos")?.estado, "retirado");
+    assert.equal(por.get("hilos")?.reemplazadoPor, "trama");
+    assert.equal(por.get("trama")?.reemplazadoPor, null);
+    assert.equal(por.get("suelto")?.reemplazadoPor, null);
+    assert.deepEqual(vivosDe(regs).map((p) => p.slug), ["trama"]);
+    // Un cwd en el retirado con reemplazo se ve en el reemplazo; el retirado sin reemplazo conserva el suyo.
+    const rutas = new Map(rutasDeBarra(regs).map(([r, s]) => [path.basename(r), s]));
+    assert.equal(rutas.get("hilos"), "trama");
+    assert.equal(rutas.get("trama"), "trama");
+    assert.equal(rutas.get("suelto"), "suelto");
+    assert.deepEqual(await destinos(), ["trama"]);
+  } finally {
+    process.env.PROYECTOS_REGISTRY = path.join(tmp, "registry.json");
+  }
+});

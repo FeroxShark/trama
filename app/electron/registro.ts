@@ -5,6 +5,7 @@ import { readFile, realpath, stat } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { claveRuta } from "./proyectos-auto.ts";
+import { dondeSeVe, esRetirado, mapaReemplazos } from "./reemplazos.ts";
 import { registroProyectos } from "./rutas.ts";
 import { esWorktreePa, WORKTREE_PA } from "./worktrees-pa.ts";
 
@@ -40,7 +41,12 @@ export type Proyecto = {
   estado: string | null;
   /** Alias opcionales del proyecto para reconocerlo en mensajes (campo `alias` o `aliases` en el registry, o alias fijos de Trama). */
   alias: string[];
+  /** El slug del proyecto que lo reemplaza (campo `reemplazado_por` del registry, un nombre, slug o alias); `null` si no lo trae o no está en el registry. */
+  reemplazadoPor: string | null;
 };
+
+/** El nombre que trae `reemplazado_por`, mientras no se resuelve a un slug (ver `registro`). */
+type ConReemplazoCrudo = Proyecto & { reemplazoCrudo?: string | null };
 
 /**
  * Los proyectos del registry, uno por carpeta real (varios nombres para la misma
@@ -58,6 +64,7 @@ export async function registro(): Promise<Proyecto[]> {
     tests?: unknown;
     titulo?: unknown;
     estado?: unknown;
+    reemplazado_por?: unknown;
     alias?: unknown;
     aliases?: unknown;
   }[] = [];
@@ -65,7 +72,7 @@ export async function registro(): Promise<Proyecto[]> {
     regs = JSON.parse(await readFile(rutaRegistry(), "utf8")).projects ?? [];
   } catch {}
   const casa = await real(os.homedir());
-  const porRuta = new Map<string, Proyecto>();
+  const porRuta = new Map<string, ConReemplazoCrudo>();
   for (const r of regs) {
     if (typeof r.path !== "string" || typeof r.name !== "string" || !r.name) continue;
     const ruta = await real(expandir(r.path));
@@ -83,7 +90,10 @@ export async function registro(): Promise<Proyecto[]> {
     const aliasPropios = rawAlias.filter((x): x is string => typeof x === "string" && x.trim().length > 0).map((x) => x.trim());
     const s = slug(ruta);
     const defecto = ALIAS_DEFECTO[s] ?? ALIAS_DEFECTO[r.name] ?? [];
-    const p: Proyecto = {
+    const reemplazoCrudo = typeof r.reemplazado_por === "string" && r.reemplazado_por.trim() ? r.reemplazado_por.trim() : null;
+    const p: ConReemplazoCrudo = {
+      reemplazoCrudo,
+      reemplazadoPor: null,
       nombre: r.name,
       slug: s,
       ruta,
@@ -106,6 +116,8 @@ export async function registro(): Promise<Proyecto[]> {
         logo: p.logo ?? ya?.logo ?? null,
         tests: p.tests ?? ya?.tests ?? null,
         titulo: p.titulo ?? ya?.titulo ?? null,
+        estado: p.estado ?? ya?.estado ?? null,
+        reemplazoCrudo: p.reemplazoCrudo ?? ya?.reemplazoCrudo ?? null,
         alias: aliasCombinados.filter((a) => a !== p.nombre),
       });
     } else {
@@ -113,11 +125,38 @@ export async function registro(): Promise<Proyecto[]> {
       if (!ya.logo && logo) ya.logo = logo;
       if (!ya.tests && tests) ya.tests = tests;
       if (!ya.titulo && titulo) ya.titulo = titulo;
+      if (!ya.estado && estado) ya.estado = estado;
+      if (!ya.reemplazoCrudo && reemplazoCrudo) ya.reemplazoCrudo = reemplazoCrudo;
       const aliasCombinados = [...new Set([...ya.alias, ...p.alias, p.nombre])].filter((a) => a !== ya.nombre);
       ya.alias = aliasCombinados;
     }
   }
-  return [...porRuta.values()].sort((a, b) => b.ruta.length - a.ruta.length);
+  const todos = [...porRuta.values()];
+  for (const p of todos) {
+    p.reemplazadoPor = slugDeReemplazo(p.reemplazoCrudo, todos, p.slug);
+    delete p.reemplazoCrudo;
+  }
+  return (todos as Proyecto[]).sort((a, b) => b.ruta.length - a.ruta.length);
+}
+
+/** El slug del proyecto que nombra `reemplazado_por` (por nombre, slug o alias, sin distinguir mayúsculas), sin ser el mismo; `null` si no está. */
+export function slugDeReemplazo(nombre: string | null | undefined, ps: readonly { nombre: string; slug: string; alias: string[] }[], propio: string): string | null {
+  const q = nombre?.trim().toLowerCase();
+  if (!q) return null;
+  const otro = ps.find((x) => x.slug !== propio && (x.nombre.toLowerCase() === q || x.slug === q || x.alias.some((a) => a.toLowerCase() === q)));
+  return otro?.slug ?? null;
+}
+
+/** Los proyectos que valen para inferir o para ofrecer un líder nuevo: sin los retirados. */
+export const vivosDe = <T extends { estado: string | null }>(ps: readonly T[]): T[] => ps.filter((p) => !esRetirado(p));
+
+/**
+ * [ruta real, slug donde se ve] de cada proyecto, para ubicar un cwd en la barra: la ruta de un retirado con reemplazo da el slug del
+ * reemplazo (lo que corrió ahí se ve en esa carpeta); un retirado sin reemplazo conserva el suyo. Orden de `registro()` (la ruta más larga primero).
+ */
+export function rutasDeBarra(ps: readonly Proyecto[]): [string, string][] {
+  const mapa = mapaReemplazos(ps);
+  return ps.map((p): [string, string] => [p.ruta, dondeSeVe(p.slug, mapa)]);
 }
 
 /**
@@ -129,7 +168,7 @@ export async function destinos(): Promise<string[]> {
   const buenos: string[] = [];
   await Promise.all(
     (await registro()).map(async (p) => {
-      if (p.estado === "retirado" || WORKTREE_PA.test(p.ruta)) return;
+      if (esRetirado(p) || WORKTREE_PA.test(p.ruta)) return;
       if (await stat(p.ruta).catch(() => null)) buenos.push(p.slug);
     }),
   );
