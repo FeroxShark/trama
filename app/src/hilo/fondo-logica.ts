@@ -25,7 +25,8 @@ export function salidaDe(x: unknown): SalidaTarea | null {
   return o && typeof o === "object" && typeof o.texto === "string" ? { texto: o.texto, recortado: o.recortado === true } : null;
 }
 
-const ID_BASH = /(?:running in background with ID|moved to the background \(ID): ?([\w-]+)/;
+// Sólo la primera línea: un comando en primer plano puede imprimir esta misma frase (por ejemplo, al leer un transcript) y no por eso quedó de fondo.
+const ID_BASH = /^[^\n]*?(?:running in background with ID|moved to the background \(ID): ?([\w-]+)/;
 // La ruta puede llevar espacios (el temporal de un usuario de Windows): se corta en el `.output`.
 const RUTA_SALIDA = /Output is being written to: ?(\S.*?\.output)(?=$|[\s"'`)\]]|\.(?:\s|$))/;
 const ID_AGENT = /\bagentId: ?([\w-]+)/;

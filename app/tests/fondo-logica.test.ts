@@ -2,7 +2,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { Herramienta, Mensaje } from "../src/datos/contrato.ts";
-import { salidaDe, tareasDeFondo } from "../src/hilo/fondo-logica.ts";
+import { esAcuseFondo, salidaDe, tareasDeFondo } from "../src/hilo/fondo-logica.ts";
 
 const TS = "2026-11-05T10:00:00.000Z";
 const msj = (rol: Mensaje["rol"], texto: string, det?: Herramienta[], extra: Partial<Mensaje> = {}): Mensaje => ({ i: 0, rol, texto, herramientas: [], ts: TS, modelo: null, det, ...extra });
@@ -50,4 +50,10 @@ test("salidaDe valida lo que cruzó el canal", () => {
   assert.deepEqual(salidaDe({ texto: "a\nb", recortado: true }), { texto: "a\nb", recortado: true });
   assert.deepEqual(salidaDe({ texto: "" }), { texto: "", recortado: false });
   for (const raro of [null, undefined, "x", 3, {}, { texto: 5 }]) assert.equal(salidaDe(raro), null);
+});
+
+test("una salida en primer plano que imprime la frase del acuse no abre una tarea", () => {
+  const salida = "resultado de un grep\nCommand running in background with ID: bfalso. Output is being written to: /tmp/x/bfalso.output";
+  assert.equal(esAcuseFondo(salida), false);
+  assert.equal(esAcuseFondo("Command running in background with ID: breal. Output is being written to: /tmp/x/breal.output"), true);
 });
