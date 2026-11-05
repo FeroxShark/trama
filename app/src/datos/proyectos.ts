@@ -5,12 +5,14 @@ import { useMemo, useSyncExternalStore } from "react";
 import { MODO } from "../modo";
 import { recargarIconos } from "../barra/Logo";
 import { main, mensaje } from "../puente";
+import { textoT } from "../../electron/errores";
 import { mapaNombres } from "../../electron/proyectos-nombre";
 import type { ProyectoNombre } from "../../electron/proyectos-alias";
+import type { ResultadoBorrar, VistaBorrar } from "../../electron/proyectos-borrar";
 import type { Aplicado, EstadoMd, PlanMd } from "../../electron/unificar-md";
 import { AGENTS_FALSO, ESTADOS_MD_FALSOS, PROYECTOS_FALSOS, planFalso } from "./fixtures-proyectos";
 
-export type { Aplicado, EstadoMd, PlanMd, ProyectoNombre };
+export type { Aplicado, EstadoMd, PlanMd, ProyectoNombre, ResultadoBorrar, VistaBorrar };
 export type MedidaAgents = { caracteres: number; tope: number; truncado: boolean };
 
 export interface FuenteProyectos {
@@ -19,6 +21,14 @@ export interface FuenteProyectos {
   renombrar(slug: string, nombre: string | null): Promise<ProyectoNombre>;
   /** Guarda el logo elegido a mano (la imagen achicada que devolvió `main.archivo.elegirLogo`); `null`: vuelve al automático. */
   logo(slug: string, logo: string | null): Promise<ProyectoNombre>;
+  /** «Borrar proyecto…»: lo que muestra el diálogo (ruta, qué lo impide, estado de git). No cambia nada. */
+  borrarVista(slug: string): Promise<VistaBorrar>;
+  /** Quitar de Trama (`estado: retirado`); rechaza con el motivo si hay líderes o workers vivos. */
+  quitar(slug: string): Promise<ProyectoNombre>;
+  /** Deshacer el quitar. */
+  reactivar(slug: string): Promise<ProyectoNombre>;
+  /** Quitar y mandar la carpeta a la papelera del sistema (sólo la PC); `nombre`: el nombre escrito para confirmar. */
+  papelera(slug: string, nombre: string): Promise<ResultadoBorrar>;
   mdEstado(slug: string): Promise<EstadoMd>;
   mdPlan(slug: string): Promise<PlanMd>;
   /** Escribe lo que dice el plan que se vio (`huella`); rechaza si los archivos cambiaron desde entonces. */
@@ -51,6 +61,42 @@ const fija: FuenteProyectos = {
     if (!p) throw new Error(slug);
     p.logo = logo !== null;
     return { ...p };
+  },
+  async borrarVista(slug) {
+    await espera(150);
+    const p = falsos.find((x) => x.slug === slug);
+    if (!p) throw new Error(slug);
+    const vivos = MODO.variante === "vivos";
+    return {
+      slug,
+      nombre: p.titulo ?? p.nombre,
+      ruta: p.ruta,
+      existe: p.existe,
+      quitado: p.estado === "retirado",
+      negado: vivos ? textoT("main.borrar.vivos", { lideres: 1, workers: 2 }) : null,
+      papeleraNegada: p.existe ? null : textoT("main.borrar.noExiste"),
+      git: p.existe ? { sinCommitear: 3, sinEmpujar: 2 } : null,
+    };
+  },
+  async quitar(slug) {
+    await espera(150);
+    const p = falsos.find((x) => x.slug === slug);
+    if (!p) throw new Error(slug);
+    p.estado = "retirado";
+    p.retiradoEl = "2026-11-05T12:00:00.000Z";
+    return { ...p };
+  },
+  async reactivar(slug) {
+    await espera(150);
+    const p = falsos.find((x) => x.slug === slug);
+    if (!p) throw new Error(slug);
+    p.estado = null;
+    p.retiradoEl = null;
+    return { ...p };
+  },
+  async papelera(slug) {
+    const proyecto = await fija.quitar(slug);
+    return { proyecto, papelera: "ok" };
   },
   async mdEstado(slug) {
     return ESTADOS_MD_FALSOS[slug] ?? ESTADOS_MD_FALSOS.baliza;
@@ -103,6 +149,18 @@ const conMain = (m: NonNullable<typeof main>): FuenteProyectos => ({
   },
   async logo(slug, logo) {
     return (await m.proyectosNombres.logo(slug, logo).catch(rechazo)) as ProyectoNombre;
+  },
+  async borrarVista(slug) {
+    return (await m.proyectosNombres.borrarVista(slug).catch(rechazo)) as VistaBorrar;
+  },
+  async quitar(slug) {
+    return (await m.proyectosNombres.quitar(slug).catch(rechazo)) as ProyectoNombre;
+  },
+  async reactivar(slug) {
+    return (await m.proyectosNombres.reactivar(slug).catch(rechazo)) as ProyectoNombre;
+  },
+  async papelera(slug, nombre) {
+    return (await m.proyectosNombres.papelera(slug, nombre).catch(rechazo)) as ResultadoBorrar;
   },
   async mdEstado(slug) {
     return (await m.paneles.mdEstado(slug).catch(rechazo)) as EstadoMd;
@@ -161,6 +219,24 @@ export const fuenteProyectos: FuenteProyectos = {
     const r = await base.logo(slug, logo);
     await Promise.all([recargarProyectos(), recargarIconos()]);
     return r;
+  },
+  async quitar(slug) {
+    const r = await base.quitar(slug);
+    await recargarProyectos();
+    return r;
+  },
+  async reactivar(slug) {
+    const r = await base.reactivar(slug);
+    await recargarProyectos();
+    return r;
+  },
+  async papelera(slug, nombre) {
+    // Aun si la papelera falla, el proyecto ya quedó quitado: la lista se relee igual.
+    try {
+      return await base.papelera(slug, nombre);
+    } finally {
+      await recargarProyectos();
+    }
   },
 };
 

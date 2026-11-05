@@ -31,7 +31,7 @@ import { BORRADOR_LIDER } from "../hilo/Lider";
 import { llanaRuta } from "../hilo/carpeta-nueva";
 import { pedirCarpeta } from "../hilo/carpeta-nueva-estado";
 import { fuenteProyectos, useProyectos } from "../datos/proyectos";
-import { dondeSeVe, mapaReemplazos } from "../../electron/reemplazos";
+import { dondeSeVe, mapaQuitados, mapaReemplazos } from "../../electron/reemplazos";
 import { fantasma, MODELO_DEFAULT, MODELOS, MODELOS_WORKER, modeloDe, primeraLinea } from "../hilo/opciones";
 import { SeguirCon } from "../hilo/SeguirCon";
 import { ClaudeCode } from "./ClaudeCode";
@@ -112,6 +112,7 @@ import { useRecientes } from "./useRecientes";
 import type { Recientes } from "./recientes";
 import { usePrioridad } from "./usePrioridad";
 import { useTitulos } from "./titulos";
+import { BorrarProyecto } from "./BorrarProyecto";
 import { Limpiar } from "./Limpiar";
 import { entradasLimpiar } from "./limpiar-logica";
 import { accionesCarpeta, accionesLider, accionesWorker, type LugarMenu, type Opcion } from "./menu-logica";
@@ -357,6 +358,8 @@ export function Barra() {
   const [menuOrden, setMenuOrden] = useState<{ x: number; y: number; origen: HTMLElement } | null>(null);
   // «Limpiar chats»: el diálogo abierto, de toda la barra o de una carpeta (`proyecto`).
   const [limpiando, setLimpiando] = useState<{ proyecto?: string; origen: HTMLElement | null } | null>(null);
+  // «Borrar proyecto…»: el diálogo abierto para un proyecto (slug). En la captura `borrar-proyecto` nace abierto.
+  const [borrando, setBorrando] = useState<{ slug: string; origen: HTMLElement | null } | null>(MODO.captura === "borrar-proyecto" ? { slug: "atlas", origen: null } : null);
   const [filtroProy, setFiltroProy] = useState<string | null>(null);
   const [filtroVer, setFiltroVer] = useState<Atencion | null>(null);
   const [renombrando, setRenombrando] = useState<Renombrando | null>(null);
@@ -538,7 +541,7 @@ export function Barra() {
   const titulos = useMemo(() => new Map(Object.entries(titulosReg)), [titulosReg]);
   // Los proyectos del registry (ruta y slug), y de ellos los retirados con reemplazo: lo que corrió ahí se ve en la carpeta del reemplazo.
   const proyectosReg = useProyectos();
-  const reemplazos = useMemo(() => mapaReemplazos(proyectosReg), [proyectosReg]);
+  const reemplazos = useMemo(() => new Map([...mapaQuitados(proyectosReg, GENERAL), ...mapaReemplazos(proyectosReg)]), [proyectosReg]);
   // Los líderes settleados (en `leidos.json` con el prefijo `settle:`): no se ven hasta que tengan actividad nueva.
   const settleados = useMemo(
     () => new Map(Object.entries(leidos).flatMap(([k, ts]) => (k.startsWith(SETTLE) ? [[k.slice(SETTLE.length), ts] as const] : []))),
@@ -1518,6 +1521,8 @@ export function Barra() {
   };
 
   /** Al proyecto se le puede poner logo si es una carpeta de verdad (no el home ni «otras») y hay selector de archivos (la ventana). */
+  /** «Borrar proyecto…» sólo para un proyecto del registry (no el home ni «otras»). */
+  const puedeBorrar = (proyecto: string) => proyecto !== GENERAL && proyecto !== OTRAS && proyectosReg.some((x) => x.slug === proyecto);
   const puedeLogo = (proyecto: string) => proyecto !== GENERAL && proyecto !== OTRAS && !!main?.archivo;
 
   /** Clic derecho en el ícono del riel: el mismo menú de la carpeta, abierto junto al ícono. */
@@ -1747,6 +1752,11 @@ export function Barra() {
       setLimpiando({ proyecto: p, origen: m.origen });
       return;
     }
+    if (o.a === "borrarProyecto") {
+      setMenu(null);
+      setBorrando({ slug: p, origen: m.origen });
+      return;
+    }
     if (o.a === "nueva") {
       setMenu(null);
       abrirLiderNuevo();
@@ -1838,7 +1848,7 @@ export function Barra() {
         ocupado = l.ocupado;
         ops = accionesLider(l, s, lugarMenu(de));
       }
-    } else ops = accionesCarpeta(ocultos.has(de.proyecto), lugarMenu(de), puedeLogo(de.proyecto) ? { propio: !!proyectosReg.find((x) => x.slug === de.proyecto)?.logo } : undefined);
+    } else ops = accionesCarpeta(ocultos.has(de.proyecto), lugarMenu(de), puedeLogo(de.proyecto) ? { propio: !!proyectosReg.find((x) => x.slug === de.proyecto)?.logo } : undefined, puedeBorrar(de.proyecto));
     const texto: Record<Opcion["a"], string> = {
       renombrar: tr("menu.renombrar"),
       mover: tr("menu.mover"),
@@ -1858,6 +1868,7 @@ export function Barra() {
       prioridad: tr(porPrioridad ? "menu.ordenFijo" : "menu.ordenPrioridad"),
       logo: tr("pry.logoCambiar"),
       logoQuitar: tr("pry.logoQuitar"),
+      borrarProyecto: tr("menu.borrarProyecto"),
     };
     const seguro: Partial<Record<Opcion["a"], string>> = {
       settle: tr(settle > 0 ? "menu.settleSeguro" : "menu.archivarLiderSeguro", { n: settle }),
@@ -2178,6 +2189,16 @@ export function Barra() {
             alCerrar={() => {
               limpiando.origen?.focus();
               setLimpiando(null);
+            }}
+          />
+        ) : null}
+        {borrando ? (
+          <BorrarProyecto
+            slug={borrando.slug}
+            nombre={nombreCarpeta(borrando.slug, MODO.usuario, tr("barra.home"), titulosReg[borrando.slug])}
+            alCerrar={() => {
+              borrando.origen?.focus();
+              setBorrando(null);
             }}
           />
         ) : null}

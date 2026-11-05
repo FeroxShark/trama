@@ -32,7 +32,10 @@ const sinTildes = (x: string) => x.normalize("NFD").replace(/[\u0300-\u036f]/g, 
 
 export function Proyectos() {
   useIdioma();
-  const lista = useProyectos();
+  const todos = useProyectos();
+  // Los que se quitaron de Trama («Borrar proyecto…») no tienen tarjeta: van aparte, con «Reactivar».
+  const lista = useMemo(() => todos.filter((p) => !estaQuitado(p)), [todos]);
+  const quitados = useMemo(() => todos.filter(estaQuitado), [todos]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [estados, setEstados] = useState<Record<string, EstadoMd | string>>({});
@@ -111,10 +114,59 @@ export function Proyectos() {
           ))}
         </div>
       </section>
+      {quitados.length ? <Quitados lista={quitados} /> : null}
       <section className="pn-sec" data-opc="lmp.titulo">
         <LimpiezaPa />
       </section>
     </Cat>
+  );
+}
+
+/** Se quitó de Trama con «Borrar proyecto…» (`estado: retirado` + `retirado_el`). */
+const estaQuitado = (p: ProyectoNombre) => p.estado === "retirado" && !!p.retiradoEl;
+
+/** Los proyectos quitados de Trama, una fila mínima cada uno con «Reactivar» (vuelven a la barra y a los selectores; la carpeta nunca se tocó). */
+function Quitados({ lista }: { lista: ProyectoNombre[] }) {
+  useIdioma();
+  const [haciendo, setHaciendo] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const reactivar = async (slug: string) => {
+    setHaciendo(slug);
+    setError(null);
+    try {
+      await fuenteProyectos.reactivar(slug);
+    } catch (e) {
+      setError(mensaje(e));
+    } finally {
+      setHaciendo(null);
+    }
+  };
+  const fecha = (iso: string | null) => (iso && !Number.isNaN(Date.parse(iso)) ? new Date(iso).toLocaleDateString() : "");
+  return (
+    <section className="pn-sec" data-opc="bp.quitados" data-quitados>
+      <h2 className="pn-h">{t("bp.quitados")}</h2>
+      <p className="pn-nota">{t("bp.quitadosDesc")}</p>
+      {error ? <p className="pn-error" role="alert">{textoMain(error)}</p> : null}
+      <ul className="pry-quitados">
+        {lista.map((p) => {
+          const nombre = p.titulo ?? p.nombre;
+          return (
+            <li key={p.slug} className="pry-quitado" data-proyecto={p.slug}>
+              <span className="pry-quitado-txt">
+                <span className="pry-quitado-n">{nombre}</span>
+                <span className="pry-quitado-m" title={p.ruta}>
+                  {p.ruta}
+                  {p.retiradoEl ? ` · ${tv("bp.quitadoEl", { f: fecha(p.retiradoEl) })}` : ""}
+                </span>
+              </span>
+              <button type="button" className="pry-quitado-b" disabled={haciendo !== null} aria-label={tv("bp.reactivarDe", { p: nombre })} onClick={() => void reactivar(p.slug)}>
+                <RotateCcw size={13} strokeWidth={2.2} aria-hidden="true" /> {haciendo === p.slug ? t("bp.reactivando") : t("bp.reactivar")}
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
   );
 }
 

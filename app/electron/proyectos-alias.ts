@@ -12,17 +12,17 @@ import { claveRuta } from "./proyectos-auto.ts";
 import { real, slug as slugDe, slugDeReemplazo } from "./registro.ts";
 import { esWorktreePa } from "./worktrees-pa.ts";
 
-const SLUG = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
+export const SLUG = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 
 const expandir = (p: string) => (p === "~" ? os.homedir() : p.startsWith("~/") ? path.join(os.homedir(), p.slice(2)) : p);
 
-type Cruda = { i: number; nombre: string; ruta: string; slug: string; titulo: string | null; alias: string[]; logo: boolean; estado: string | null; reemplazo: string | null };
+export type Cruda = { i: number; nombre: string; ruta: string; slug: string; titulo: string | null; alias: string[]; logo: boolean; estado: string | null; reemplazo: string | null; retiradoEl: string | null };
 
 const textos = (x: unknown): string[] =>
   (Array.isArray(x) ? x : typeof x === "string" ? [x] : []).filter((a): a is string => typeof a === "string" && a.trim() !== "").map((a) => a.trim());
 
 /** Las entradas del registry tal cual (una por nombre, con su lugar en el arreglo), con la ruta real y el slug de cada una. */
-async function entradas(archivo: string): Promise<{ json: { projects: Record<string, unknown>[] } & Record<string, unknown>; lista: Cruda[] }> {
+export async function entradas(archivo: string): Promise<{ json: { projects: Record<string, unknown>[] } & Record<string, unknown>; lista: Cruda[] }> {
   let json: { projects: Record<string, unknown>[] } & Record<string, unknown>;
   try {
     json = JSON.parse(await readFile(archivo, "utf8"));
@@ -44,6 +44,7 @@ async function entradas(archivo: string): Promise<{ json: { projects: Record<str
       logo: typeof r.logo === "string" && r.logo !== "",
       estado: typeof r.estado === "string" && r.estado.trim() ? r.estado.trim().toLowerCase() : null,
       reemplazo: typeof r.reemplazado_por === "string" && r.reemplazado_por.trim() ? r.reemplazado_por.trim() : null,
+      retiradoEl: typeof r.retirado_el === "string" && r.retirado_el.trim() ? r.retirado_el.trim() : null,
     });
   }
   return { json, lista };
@@ -68,6 +69,8 @@ export type ProyectoNombre = {
   estado: string | null;
   /** El slug del proyecto que lo reemplaza (campo `reemplazado_por`); lo que corrió en un retirado se ve en la carpeta de éste. */
   reemplazadoPor: string | null;
+  /** Cuándo se lo quitó de Trama (campo `retirado_el`, ISO) con «Borrar proyecto…»; `null`: no se quitó así. Con `estado: retirado` es un «quitado»: no se ve en el riel y se puede reactivar. */
+  retiradoEl: string | null;
 };
 
 /** Un proyecto por carpeta (varios nombres para la misma son uno), los de la carpeta más corta primero no: por nombre. */
@@ -95,6 +98,7 @@ export async function listarProyectos(archivo: string): Promise<ProyectoNombre[]
       logo: es.some((e) => e.logo),
       estado: principal.estado ?? es.find((e) => e.estado)?.estado ?? null,
       reemplazadoPor: es.find((e) => e.reemplazo)?.reemplazo ?? null,
+      retiradoEl: es.find((e) => e.retiradoEl)?.retiradoEl ?? null,
     });
   }
   // `reemplazado_por` es un nombre, un slug o un alias: queda el slug (o nada si no está en el registry).
@@ -103,7 +107,7 @@ export async function listarProyectos(archivo: string): Promise<ProyectoNombre[]
 }
 
 /** Escribe el registry entero con `registry.json.bak` de respaldo, por un archivo temporal para no dejarlo a medias. */
-async function escribir(archivo: string, json: unknown) {
+export async function escribir(archivo: string, json: unknown) {
   const tmp = `${archivo}.trama-${process.pid}.tmp`;
   try {
     await copyFile(archivo, `${archivo}.bak`).catch(() => {});

@@ -107,7 +107,7 @@ type Main = {
   /** slug → `titulo` del registry, sin validar. */
   titulos(): Promise<unknown>;
   /** Los proyectos con su nombre para mostrar (electron/proyectos-alias.ts); `renombrar(slug, null)` lo saca. */
-  proyectosNombres: { lista(): Promise<unknown>; renombrar(slug: string, nombre: string | null): Promise<unknown>; logo(slug: string, logo: string | null): Promise<unknown> };
+  proyectosNombres: { lista(): Promise<unknown>; renombrar(slug: string, nombre: string | null): Promise<unknown>; logo(slug: string, logo: string | null): Promise<unknown>; borrarVista(slug: string): Promise<unknown>; quitar(slug: string): Promise<unknown>; reactivar(slug: string): Promise<unknown>; papelera(slug: string, nombre: string): Promise<unknown> };
   /** slug → data URL del logo de cada proyecto que tiene uno. */
   iconos(): Promise<Record<string, string>>;
   /** Dictar (electron/dictado.ts): un WAV 16 kHz mono de hasta 5 min → el texto que dijo (Handy, en la máquina del motor). */

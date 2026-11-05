@@ -258,6 +258,8 @@ const CAPTURAS = [
   "guia-ramas-analisis",
   "guia-estadisticas",
   "guia-tablero",
+  // «Borrar proyecto…» abierto para atlas (`HILOS_VARIANTE=vivos`: se niega por trabajo en marcha; `papelera`: con la papelera tildada, la ruta y el aviso de git).
+  "borrar-proyecto",
 ] as const;
 
 export type Captura = (typeof CAPTURAS)[number];

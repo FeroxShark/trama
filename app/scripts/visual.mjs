@@ -76,6 +76,8 @@ const VARIANTES = [
   { estado: "estadisticas", variante: "error" },
   { estado: "tablero-nuevo-avisar", variante: "elegir" },
   { estado: "tablero-nuevo-avisar", variante: "sin" },
+  { estado: "borrar-proyecto", variante: "vivos" },
+  { estado: "borrar-proyecto", variante: "papelera" },
   { estado: "leyendo", variante: "lider" },
   { estado: "frenado", variante: "lideres" },
 ];

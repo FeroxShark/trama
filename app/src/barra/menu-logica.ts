@@ -21,7 +21,8 @@ export type Accion =
   | "defecto"
   | "prioridad"
   | "logo"
-  | "logoQuitar";
+  | "logoQuitar"
+  | "borrarProyecto";
 
 /** Una opción del menú. `confirmar`: el primer Enter/clic sólo pregunta (en el mismo ítem); `peligro`: en rojo. */
 export type Opcion = { a: Accion; confirmar?: boolean; peligro?: boolean };
@@ -80,12 +81,14 @@ export function accionesLider(l: Pick<Lider, "origen" | "ocupado">, settle: numb
 
 /**
  * Una carpeta: un líder nuevo que ya nace en ella, esconder (o volver a mostrar) sus workers terminados, limpiar sus chats viejos y su lugar en el orden.
- * `logo` (sólo si es un proyecto con registro: no el home ni «otras»): renombrarlo, cambiar el logo a mano y, si ya tiene uno elegido, volver al automático.
+ * `borrar`: «Borrar proyecto…» (también sólo un proyecto con registro). `logo` (sólo si es un proyecto con registro: no el home ni «otras»): renombrarlo, cambiar el logo a mano y, si ya tiene uno elegido, volver al automático.
  */
-export const accionesCarpeta = (oculta: boolean, lugar?: LugarMenu, logo?: { propio: boolean }): Opcion[] => [
+export const accionesCarpeta = (oculta: boolean, lugar?: LugarMenu, logo?: { propio: boolean }, borrar?: boolean): Opcion[] => [
   { a: "nueva" },
   { a: oculta ? "mostrar" : "ocultar" },
   { a: "limpiar" },
   ...delOrden(lugar),
   ...(logo ? [{ a: "renombrar" } as const, { a: "logo" } as const, ...(logo.propio ? [{ a: "logoQuitar" } as const] : [])] : []),
+  // «Borrar proyecto…» abre un diálogo propio (sin doble clic): es lo último del menú y no depende de poder elegir un logo.
+  ...(borrar ? [{ a: "borrarProyecto", peligro: true } as const] : []),
 ];

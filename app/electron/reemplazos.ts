@@ -38,3 +38,12 @@ export function mapaReemplazos(ps: readonly Reemplazable[]): Map<string, string>
 
 /** El slug donde se ve `slug` con los reemplazos de `mapa` (lo que no está en él queda igual). */
 export const dondeSeVe = (slug: string, mapa: ReadonlyMap<string, string> | undefined): string => mapa?.get(slug) ?? slug;
+
+/**
+ * Los proyectos que se «quitaron de Trama» (`estado: retirado` con `retirado_el`, «Borrar proyecto…») y no tienen reemplazo: slug → `destino` (la carpeta
+ * general). Su carpeta no sale en el riel y lo suyo que sigue en pantalla (chats sin proceso, historial) se ve ahí, sin perderse. Un retirado con
+ * reemplazo sigue por `mapaReemplazos`; uno que `pa` retiró sin `retirado_el` conserva su carpeta, como siempre.
+ */
+export function mapaQuitados(ps: readonly (Reemplazable & { retiradoEl?: string | null })[], destino: string): Map<string, string> {
+  return new Map(ps.filter((p) => esRetirado(p) && !!p.retiradoEl).map((p) => [p.slug, destino]));
+}

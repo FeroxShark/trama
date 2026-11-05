@@ -4,11 +4,11 @@ import type { EstadoMd, PlanMd } from "../../electron/unificar-md";
 import { MODO } from "../modo";
 
 export const PROYECTOS_FALSOS: ProyectoNombre[] = [
-  { nombre: "asistente-voz", slug: "asistente-voz", ruta: "~/Proyectos/asistente-voz", titulo: "Shark", existe: true, alias: [], logo: false, estado: null, reemplazadoPor: null },
-  { nombre: "atlas", slug: "atlas", ruta: "~/Proyectos/atlas", titulo: null, existe: true, alias: [], logo: true, estado: null, reemplazadoPor: null },
-  { nombre: "duna", slug: "duna", ruta: "~/Proyectos/duna", titulo: "Duna Studio", existe: true, alias: [], logo: false, estado: null, reemplazadoPor: null },
-  { nombre: "hilos", slug: "hilos", ruta: "~/Proyectos/hilos", titulo: "trama", existe: true, alias: [], logo: false, estado: null, reemplazadoPor: null },
-  { nombre: "baliza", slug: "baliza", ruta: "~/Proyectos/baliza", titulo: "Baliza Android", existe: false, alias: [], logo: false, estado: null, reemplazadoPor: null },
+  { nombre: "asistente-voz", slug: "asistente-voz", ruta: "~/Proyectos/asistente-voz", titulo: "Shark", existe: true, alias: [], logo: false, estado: null, reemplazadoPor: null, retiradoEl: null },
+  { nombre: "atlas", slug: "atlas", ruta: "~/Proyectos/atlas", titulo: null, existe: true, alias: [], logo: true, estado: null, reemplazadoPor: null, retiradoEl: null },
+  { nombre: "duna", slug: "duna", ruta: "~/Proyectos/duna", titulo: "Duna Studio", existe: true, alias: [], logo: false, estado: null, reemplazadoPor: null, retiradoEl: null },
+  { nombre: "hilos", slug: "hilos", ruta: "~/Proyectos/hilos", titulo: "trama", existe: true, alias: [], logo: false, estado: null, reemplazadoPor: null, retiradoEl: null },
+  { nombre: "baliza", slug: "baliza", ruta: "~/Proyectos/baliza", titulo: "Baliza Android", existe: false, alias: [], logo: false, estado: null, reemplazadoPor: null, retiradoEl: null },
 ];
 
 const fila = (archivo: "AGENTS.md" | "CLAUDE.md" | "GEMINI.md", tipo: EstadoMd["archivos"][number]["tipo"], caracteres = 0) => ({ archivo, tipo, bytes: caracteres, caracteres });

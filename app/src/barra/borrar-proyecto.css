@@ -1,0 +1,160 @@
+/* «Borrar proyecto…» (BorrarProyecto.tsx). Sobre el diálogo de «Seguir con otro modelo» (.seg-*, seguir-dialogo.css) y los componentes de src/ui/.
+   Dos niveles: Quitar de Trama (siempre) y la papelera (apagada, con su ruta, el aviso de git y el nombre a escribir). Lo que advierte lleva ícono
+   y palabra, nunca sólo el color. Usable a 360 px: una columna, botones que envuelven. Sólo tokens de tokens.css. */
+.bp {
+  gap: var(--esp-3);
+}
+.bp-ico {
+  background: var(--critico-tinte);
+  color: var(--critico);
+}
+.bp-cuerpo {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  gap: var(--esp-3);
+  overflow: hidden auto;
+  scrollbar-width: thin;
+}
+.bp-nivel,
+.bp-papelera {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-1);
+  padding: var(--esp-2-5) var(--esp-3);
+  border-radius: var(--r-sm);
+  background: var(--capa-input);
+}
+.bp-papelera[data-activa] {
+  box-shadow: inset 0 0 0 1.5px var(--fallo-borde);
+}
+.bp-nivel-t {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--esp-1);
+  color: var(--texto);
+  font-size: var(--letra-5);
+  font-weight: 600;
+}
+.bp-nivel-d {
+  color: var(--apagado);
+  font-size: var(--letra-4);
+  line-height: 1.5;
+}
+
+/* El motivo de la negativa: ícono y palabras. */
+.bp-negado {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--esp-2);
+  margin: 0;
+  padding: var(--esp-2-5) var(--esp-3);
+  border-radius: var(--r-sm);
+  background: var(--fallo-fondo);
+  color: var(--texto);
+  font-size: var(--letra-4);
+  line-height: 1.5;
+}
+.bp-negado svg {
+  flex: none;
+  margin-top: 0.125rem;
+  color: var(--critico);
+}
+
+.bp-chk-fila {
+  display: flex;
+  min-height: 2.75rem;
+  align-items: center;
+  gap: var(--esp-3);
+  cursor: pointer;
+}
+.bp-chk {
+  flex: none;
+  width: 1.125rem;
+  height: 1.125rem;
+  margin: 0;
+  accent-color: var(--critico);
+  cursor: pointer;
+}
+.bp-chk:disabled {
+  cursor: default;
+}
+.bp-chk-fila:has(.bp-chk:focus-visible) {
+  border-radius: var(--r-sm);
+  box-shadow: inset 0 0 0 1.5px var(--ajustes-acento-borde);
+}
+
+.bp-ruta {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--esp-0-5);
+  margin: var(--esp-1) 0 0;
+}
+.bp-ruta-t {
+  color: var(--apagado);
+  font-size: var(--letra-4);
+}
+.bp-ruta code {
+  overflow: hidden;
+  color: var(--texto);
+  font-size: var(--letra-4);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bp-git {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-0-5);
+  margin: 0;
+  color: var(--apagado);
+  font-size: var(--letra-4);
+  line-height: 1.5;
+}
+.bp-git[data-sucio] {
+  padding: var(--esp-2) var(--esp-2-5);
+  border-radius: var(--r-sm);
+  background: var(--aviso-tinte);
+  color: var(--texto);
+}
+.bp-git-t {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--esp-1);
+  font-weight: 600;
+}
+
+.bp-escribir {
+  margin-top: var(--esp-1);
+  color: var(--texto);
+  font-size: var(--letra-4);
+}
+.bp-campo {
+  min-width: 0;
+  height: var(--alto-boton);
+  padding: 0 var(--esp-3);
+  border: 0;
+  border-radius: var(--r-cap);
+  background: var(--capa-tile);
+  color: var(--texto);
+  font: inherit;
+  font-size: var(--letra-5);
+  outline: none;
+}
+.bp-campo:focus {
+  box-shadow: inset 0 0 0 1.5px var(--ajustes-acento-borde);
+}
+
+.bp-pie {
+  flex-wrap: wrap;
+  gap: var(--esp-2);
+}
+.bp-confirmar[data-peligro] {
+  background: var(--critico);
+  color: var(--fondo);
+}
+.bp-confirmar[data-peligro]:disabled {
+  background: var(--capa-tile);
+  color: var(--inactivo);
+}

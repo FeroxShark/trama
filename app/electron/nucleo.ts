@@ -46,6 +46,7 @@ import { guardarRouting, type Cambio } from "./routing.js";
 import { argvAuditar, datosAgentsMd, guardarLecciones, leccionesPendientes, leerLecciones, textoPoda } from "./orquestacion.ts";
 import { aplicarUnificar, estadoMd, guardarAgents, leerAgents, planUnificar } from "./unificar-md.ts";
 import { listarProyectos, logoProyecto, renombrarProyecto } from "./proyectos-alias.ts";
+import { contarVivos, papeleraProyecto, quitarProyecto, reactivarProyecto, vistaBorrar, type Deps as DepsBorrar } from "./proyectos-borrar.ts";
 import { guardarAjustes } from "./ajustes-editar.js";
 import { crearBajadas } from "./ollama-bajar.ts";
 import { agyOfrecidos } from "./agy-ofrecidos.ts";
@@ -134,7 +135,7 @@ const manejadores = new Map<string, Manejador>();
  * Lo que cambia la máquina (reescribe `~/CLAUDE.md`, los ajustes, borra una cuenta, libera la GPU, actualiza `claude`): desde la
  * tailnet (el celular) no. Los `modelos:*` y `remoto:guardar` tienen su propio chequeo, con su mensaje, en el manejador.
  */
-export const SOLO_PC_TAILNET: ReadonlySet<string> = new Set(["routing:guardar", "ajustes:guardar", "orq:leccionesGuardar", "limpieza:guardar", "limpieza:aplicar", "orq:mdAplicar", "orq:agentsGuardar", "orq:mdFusionar", "proyectos:renombrar", "proyectos:logo", "cuentas:quitar", "vram:liberar", "locales:prender", "locales:apagar", "claude:actualizar", "trama:actualizar", "trama:cancelarEspera", "trama:limpiar", "dsh:clave", "dsh:instalar", "dsh:probar", "aa:refrescar", "mcp:guardar", "mcp:quitar", "mcp:fijarApagado", "conectores:alternar", "apagados:fijar", "contexto:capturarBase", "plugins:agregarCatalogo", "plugins:instalar", "plugins:quitar", "descubrir:instalar", "opencode:planGuardar", "nvidia:modelos", "nvidia:probar"]);
+export const SOLO_PC_TAILNET: ReadonlySet<string> = new Set(["routing:guardar", "ajustes:guardar", "orq:leccionesGuardar", "limpieza:guardar", "limpieza:aplicar", "orq:mdAplicar", "orq:agentsGuardar", "orq:mdFusionar", "proyectos:renombrar", "proyectos:logo", "proyectos:papelera", "cuentas:quitar", "vram:liberar", "locales:prender", "locales:apagar", "claude:actualizar", "trama:actualizar", "trama:cancelarEspera", "trama:limpiar", "dsh:clave", "dsh:instalar", "dsh:probar", "aa:refrescar", "mcp:guardar", "mcp:quitar", "mcp:fijarApagado", "conectores:alternar", "apagados:fijar", "contexto:capturarBase", "plugins:agregarCatalogo", "plugins:instalar", "plugins:quitar", "descubrir:instalar", "opencode:planGuardar", "nvidia:modelos", "nvidia:probar"]);
 
 /** Anota (o reemplaza) el manejador de un canal. */
 export function manejar(canal: string, fn: Manejador) {
@@ -1043,6 +1044,20 @@ export function armarNucleo() {
   manejar("proyectos:renombrar", (_e, slug: unknown, nombre: unknown) => renombrarProyecto(registroProyectos(), slug, nombre));
   // El logo elegido a mano (ya achicado por la ventana; `null`: vuelve al automático): se guarda en el registry, junto al nombre propio.
   manejar("proyectos:logo", (_e, slug: unknown, logo: unknown) => logoProyecto(registroProyectos(), slug, logo));
+  // «Borrar proyecto…» (proyectos-borrar.ts): quitar de Trama (`retirado`) y reactivar valen también desde el celular; mandar la carpeta a la papelera,
+  // sólo desde la PC (SOLO_PC_TAILNET). Se niega con líderes de proceso vivo o workers de `pa` vivos del proyecto.
+  const depsBorrar: DepsBorrar = {
+    vivos: async (p) =>
+      contarVivos(
+        p,
+        (await lider.lideresApp()).filter((g) => lider.conProceso().includes(g.sid)),
+        ultimosHilos as readonly { proyecto?: unknown; estado?: unknown; en_cola?: unknown }[],
+      ),
+  };
+  manejar("proyectos:borrarVista", (_e, slug: unknown) => vistaBorrar(registroProyectos(), slug, depsBorrar));
+  manejar("proyectos:quitar", (_e, slug: unknown) => quitarProyecto(registroProyectos(), slug, depsBorrar));
+  manejar("proyectos:reactivar", (_e, slug: unknown) => reactivarProyecto(registroProyectos(), slug));
+  manejar("proyectos:papelera", (_e, slug: unknown, nombre: unknown) => papeleraProyecto(registroProyectos(), slug, nombre, depsBorrar));
   manejar("routing:guardar", (_e, cambios: Cambio[]) =>
     guardarRouting((Array.isArray(cambios) ? cambios : []).map((c) => ({ rol: c?.rol, modelo: c?.modelo ?? null, effort: c?.effort ?? null }))),
   );

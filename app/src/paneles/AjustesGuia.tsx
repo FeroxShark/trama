@@ -116,6 +116,7 @@ function ControlGuias() {
 function CrearAgentsMd() {
   const lista = useProyectos();
   const proyectos: Opcion[] = [...lista]
+    .filter((p) => !(p.estado === "retirado" && p.retiradoEl))
     .map((p) => ({ id: p.slug, nombre: p.titulo ?? p.nombre, desc: p.titulo ? p.nombre : "" }))
     .sort((a, b) => a.nombre.localeCompare(b.nombre));
   const [elegido, setElegido] = useState(MODO.variante === "guia-unificar" ? "asistente-voz" : "");

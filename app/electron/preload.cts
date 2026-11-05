@@ -98,6 +98,11 @@ contextBridge.exposeInMainWorld("hilos", {
     renombrar: (slug: string, nombre: string | null): Promise<unknown> => invocar("proyectos:renombrar", slug, nombre),
     /** Guarda el logo elegido a mano (la data URL que devolvió `elegirLogo`); `null`: vuelve al automático. */
     logo: (slug: string, logo: string | null): Promise<unknown> => invocar("proyectos:logo", slug, logo),
+    /** «Borrar proyecto…»: lo que muestra el diálogo, quitar de Trama, deshacerlo, y quitar + carpeta a la papelera (nombre escrito; sólo PC). */
+    borrarVista: (slug: string): Promise<unknown> => invocar("proyectos:borrarVista", slug),
+    quitar: (slug: string): Promise<unknown> => invocar("proyectos:quitar", slug),
+    reactivar: (slug: string): Promise<unknown> => invocar("proyectos:reactivar", slug),
+    papelera: (slug: string, nombre: string): Promise<unknown> => invocar("proyectos:papelera", slug, nombre),
   },
   /** slug → data URL del logo de cada proyecto que tiene uno (electron/iconos.ts). */
   iconos: (): Promise<unknown> => invocar("proyectos:iconos"),

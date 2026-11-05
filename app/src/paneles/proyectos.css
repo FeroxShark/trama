@@ -414,3 +414,63 @@
   font-size: var(--letra-3);
   overflow-wrap: anywhere;
 }
+
+/* «Quitados de Trama»: una fila mínima cada uno (nombre, ruta y fecha) con «Reactivar». A 360 px la fila se apila. */
+.pry-quitados {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.pry-quitado {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--esp-2) var(--esp-3);
+  padding: var(--esp-2) var(--esp-3);
+  border-radius: var(--r-sm);
+  background: var(--capa-input);
+}
+.pry-quitado-txt {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 12rem;
+  flex-direction: column;
+}
+.pry-quitado-n {
+  overflow: hidden;
+  color: var(--texto);
+  font-size: var(--letra-5);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pry-quitado-m {
+  overflow: hidden;
+  color: var(--apagado);
+  font-size: var(--letra-4);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pry-quitado-b {
+  display: inline-flex;
+  min-height: 2.25rem;
+  align-items: center;
+  gap: var(--esp-1);
+  padding: 0 var(--esp-3);
+  border: 0;
+  border-radius: var(--r-cap);
+  background: var(--acento-tinte);
+  color: var(--acento);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--letra-4);
+  font-weight: 600;
+}
+.pry-quitado-b:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
