@@ -3640,4 +3640,8 @@ export const en = {
   "riel.perfilLeerFallo": "Couldn't read the delegation profile: {motivo}",
   "archivo.carpetaReiniciar": "Couldn't ask to open {ruta}: restart Trama so the window catches up",
   "riel.perfilEscala": "From most saving (top) to best quality (bottom).",
+  "pregunta.plegar": "Hide questions",
+  "pregunta.desplegar": "Show questions",
+  "pregunta.pendientes": "{n} questions pending",
+  "pregunta.pendientes1": "1 question pending",
 } as const;

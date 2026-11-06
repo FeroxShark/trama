@@ -144,3 +144,32 @@ test("respondidas: lee el tool_result del CLI (las dos formas), con comillas ade
   assert.equal(respondidas(undefined, real), null);
   assert.equal(respondidas(INPUT, null), null);
 });
+
+// El panel de preguntas se pliega a una línea "N preguntas pendientes" y la conversación sigue a la vista.
+import { alternarPlegado, aparecioTanda, contarPendientes, estaPlegado, olvidarPlegado } from "../src/hilo/preguntas-logica.ts";
+
+test("contarPendientes suma las preguntas de todas las tandas", () => {
+  assert.equal(contarPendientes([]), 0);
+  assert.equal(contarPendientes([{ preguntas: [1, 2, 3, 4] }, { preguntas: [1, 2] }]), 6);
+});
+
+test("plegar y desplegar un pedido no toca a los demás ni al conjunto anterior", () => {
+  const vacio = new Set<string>();
+  const uno = alternarPlegado(vacio, "a");
+  assert.equal(estaPlegado(uno, "a"), true);
+  assert.equal(estaPlegado(uno, "b"), false);
+  assert.equal(vacio.size, 0);
+  assert.equal(estaPlegado(alternarPlegado(uno, "a"), "a"), false);
+  const dos = alternarPlegado(uno, "b");
+  assert.equal(olvidarPlegado(dos, "a").has("b"), true);
+  assert.equal(olvidarPlegado(dos, "a").has("a"), false);
+  assert.equal(olvidarPlegado(dos, "z"), dos);
+});
+
+test("aparecioTanda: sólo cuando llega un pedido distinto del que ya estaba", () => {
+  assert.equal(aparecioTanda(null, "a"), true);
+  assert.equal(aparecioTanda("a", "a"), false);
+  assert.equal(aparecioTanda("a", "b"), true);
+  assert.equal(aparecioTanda("a", null), false);
+  assert.equal(aparecioTanda(undefined, undefined), false);
+});

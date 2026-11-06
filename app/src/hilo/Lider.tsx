@@ -89,7 +89,7 @@ import { Adjuntos, Miniaturas } from "./Imagenes";
 import { Dictar } from "./Dictar";
 import { Logo } from "./Logos";
 import { PedidoPreguntas } from "./Preguntas";
-import { tandasPendientes } from "./preguntas-logica";
+import { aparecioTanda, contarPendientes, tandasPendientes } from "./preguntas-logica";
 import { ARCHIVO_MAX, IMAGENES_MAX, type Imagen } from "../../electron/imagenes";
 import { separarAdjuntos } from "../../electron/adjunto";
 
@@ -475,6 +475,15 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
   const pidiendo = useRef(false);
   // Pegado al fondo mientras llega contenido; si el usuario sube, se suelta (src/hilo/seguir.ts).
   const seg = useSeguir(zona);
+  // Aparece una tanda de preguntas: el panel le saca alto a la lista, y lo último que dijo el líder queda pegado al fondo,
+  // justo arriba del panel (sin scroll animado). Si el panel sólo se pliega o crece, lo sigue el observador de la zona.
+  const tandaId = tandas[0]?.id ?? null;
+  const tandaVista = useRef<string | null>(null);
+  useLayoutEffect(() => {
+    const z = zona.current;
+    if (z && aparecioTanda(tandaVista.current, tandaId)) bajar(z, seg);
+    tandaVista.current = tandaId;
+  }, [tandaId, seg]);
   // Uno de terminal: que compacta lo dice la marca del hook (uno de la app lo dice en su stream, HaceChat).
   const compacta = useCompactando(l && !app && !l.caido ? l.id : null);
   const id = useId();
@@ -1278,7 +1287,7 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
         {...soltable}
       >
         {app && sid ? vivo.pide.filter((p) => !p.preguntas?.length).map((p) => <PedidoPermiso key={p.id} sid={sid} p={p} />) : null}
-        {app && sid && tandas[0] ? <PedidoPreguntas key={tandas[0].id} sid={sid} p={tandas[0]} preguntas={tandas[0].preguntas} n={1} total={tandas.length} /> : null}
+        {app && sid && tandas[0] ? <PedidoPreguntas key={tandas[0].id} sid={sid} p={tandas[0]} preguntas={tandas[0].preguntas} n={1} total={tandas.length} pendientes={contarPendientes(tandas)} /> : null}
         {ajeno ? (
           <div className="caja-ajeno" data-espera={enEspera ? "" : undefined}>
             <span>{tr(enEspera ? "lider.ajenoEspera" : ocupado ? "lider.ajenoOcupado" : "lider.ajenoNota")}</span>

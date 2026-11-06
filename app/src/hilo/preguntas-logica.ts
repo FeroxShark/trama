@@ -99,3 +99,36 @@ export const resumenRespondidas = (rs: readonly Respondida[]) => rs.map((r) => (
  */
 export const tandasPendientes = <T extends { preguntas: Pregunta[] | null }>(pide: readonly T[]): (T & { preguntas: Pregunta[] })[] =>
   pide.filter((p): p is T & { preguntas: Pregunta[] } => !!p.preguntas?.length);
+
+/**
+ * Cuántas preguntas esperan a la persona en total (todas las tandas pendientes): es el número del renglón
+ * con el panel plegado ("3 preguntas pendientes").
+ */
+export const contarPendientes = (tandas: readonly { preguntas: readonly unknown[] }[]) => tandas.reduce((n, t) => n + t.preguntas.length, 0);
+
+/** Pedidos con el panel plegado (por id del pedido: cambiar de líder y volver no lo desplega). */
+export type Plegados = ReadonlySet<string>;
+
+export const estaPlegado = (p: Plegados, id: string) => p.has(id);
+
+/** Plegar o desplegar un pedido; devuelve un conjunto nuevo. */
+export function alternarPlegado(p: Plegados, id: string): Plegados {
+  const n = new Set(p);
+  if (!n.delete(id)) n.add(id);
+  return n;
+}
+
+/** El pedido ya se contestó (o se negó): no queda nada que recordar de él. */
+export function olvidarPlegado(p: Plegados, id: string): Plegados {
+  if (!p.has(id)) return p;
+  const n = new Set(p);
+  n.delete(id);
+  return n;
+}
+
+/**
+ * Hay que dejar la conversación pegada al fondo cuando aparece una tanda nueva (otro id que el anterior):
+ * el panel le saca alto a la lista y lo último que dijo el líder tiene que quedar justo arriba. Que el
+ * mismo panel se pliegue o crezca lo sigue el observador del alto de la zona, no esto.
+ */
+export const aparecioTanda = (anterior: string | null | undefined, actual: string | null | undefined) => !!actual && actual !== anterior;

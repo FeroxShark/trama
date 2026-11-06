@@ -3,18 +3,21 @@
 // con etiqueta y descripción, una o varias, "Otro" con texto libre) y Enviar;
 // ya contestada, la llamada en el trabajo del turno es un renglón con lo elegido.
 // Lo puro (armar la respuesta, leer el resultado) está en ./preguntas-logica.ts.
-import { memo, useState, type KeyboardEvent } from "react";
-import { ChevronRight } from "lucide-react";
+import { memo, useId, useState, type KeyboardEvent } from "react";
+import { ChevronDown, ChevronRight, ChevronUp } from "lucide-react";
 import type { Pregunta } from "../datos/contrato";
 import { fuente } from "../datos/fuente";
 import { t as tr } from "../i18n";
 import { useIdioma } from "../i18n/react";
 import { mensaje } from "../puente";
-import { alternar, alternarOtro, armar, completo, escribirOtro, NADA, resumenRespondidas, type Eleccion, type Respondida } from "./preguntas-logica";
+import { alternar, alternarOtro, alternarPlegado, armar, completo, escribirOtro, estaPlegado, NADA, olvidarPlegado, resumenRespondidas, type Eleccion, type Plegados, type Respondida } from "./preguntas-logica";
 import { contestado, type Pedido } from "./vivo";
 
 /** Lo elegido en cada pedido sin mandar: cambiar de líder y volver no lo pierde. */
 const elecciones = new Map<string, Eleccion[]>();
+
+/** Los pedidos con el panel plegado: cambiar de líder y volver no lo desplega. */
+let plegados: Plegados = new Set();
 
 /** Lo que lee el modelo si el usuario no contesta (como Esc en la terminal). */
 const NO_CONTESTA = "The user declined to answer the questions.";
@@ -73,7 +76,15 @@ function UnaPregunta({ q, e, cambiar, mandar }: { q: Pregunta; e: Eleccion; camb
 
 /** La tarjeta del pedido: se manda con todas contestadas; "No contestar" lo niega. */
 /** `n` de `total`: cuál de las tandas pendientes es (sólo se muestra una a la vez). */
-export function PedidoPreguntas({ sid, p, preguntas, n = 1, total = 1 }: { sid: string; p: Pedido; preguntas: Pregunta[]; n?: number; total?: number }) {
+/** `pendientes`: cuántas preguntas esperan en total (todas las tandas): es lo que dice el renglón plegado. */
+export function PedidoPreguntas({ sid, p, preguntas, n = 1, total = 1, pendientes = preguntas.length }: { sid: string; p: Pedido; preguntas: Pregunta[]; n?: number; total?: number; pendientes?: number }) {
+  useIdioma();
+  const idCuerpo = useId();
+  const [plegado, setPlegado] = useState(() => estaPlegado(plegados, p.id));
+  const alternarPanel = () => {
+    plegados = alternarPlegado(plegados, p.id);
+    setPlegado(estaPlegado(plegados, p.id));
+  };
   const [es, setEs] = useState<Eleccion[]>(() => elecciones.get(p.id) ?? preguntas.map(() => NADA));
   const [mandando, setMandando] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -91,6 +102,7 @@ export function PedidoPreguntas({ sid, p, preguntas, n = 1, total = 1 }: { sid: 
       .liderPermiso(sid, p.id, ok, ok ? undefined : NO_CONTESTA, ok ? armar(preguntas, es) : undefined)
       .then(() => {
         elecciones.delete(p.id);
+        plegados = olvidarPlegado(plegados, p.id);
         contestado(sid, p.id);
       })
       .catch((e) => {
@@ -98,18 +110,26 @@ export function PedidoPreguntas({ sid, p, preguntas, n = 1, total = 1 }: { sid: 
         setError(mensaje(e));
       });
   };
+  // Plegado: queda una línea que lo vuelve a abrir. El cuerpo sigue montado (`hidden`): lo elegido y lo escrito no se pierden.
+  const Chev = plegado ? ChevronUp : ChevronDown;
   return (
-    <div className="pide" data-preguntas="">
-      <div className="pide-t">
-        {tr("pregunta.titulo")}
-        {total > 1 ? <span className="pide-n">{tr("pregunta.tanda", { n, total })}</span> : null}
-      </div>
-      <div className="pide-cuerpo">
+    <div className="pide" data-preguntas="" data-plegado={plegado ? "" : undefined}>
+      <button type="button" className="pide-t pide-plega" aria-expanded={!plegado} aria-controls={idCuerpo} onClick={alternarPanel}>
+        <span className="pide-tt">
+          {plegado ? tr(pendientes === 1 ? "pregunta.pendientes1" : "pregunta.pendientes", { n: pendientes }) : tr("pregunta.titulo")}
+          {!plegado && total > 1 ? <span className="pide-n">{tr("pregunta.tanda", { n, total })}</span> : null}
+        </span>
+        <span className="pide-acc">
+          {tr(plegado ? "pregunta.desplegar" : "pregunta.plegar")}
+          <Chev size={14} strokeWidth={2} aria-hidden="true" />
+        </span>
+      </button>
+      <div className="pide-cuerpo" id={idCuerpo} hidden={plegado}>
         {preguntas.map((q, i) => (
           <UnaPregunta key={q.question} q={q} e={es[i] ?? NADA} cambiar={(e) => cambiar(i, e)} mandar={() => contestar(true)} />
         ))}
       </div>
-      <div className="pide-b">
+      <div className="pide-b" hidden={plegado}>
         <button type="button" className="prim" data-texto="" disabled={!listo || mandando} data-tip={listo ? undefined : tr("pregunta.falta")} onClick={() => contestar(true)}>
           {tr("pregunta.enviar")}
         </button>

@@ -3626,4 +3626,8 @@ export const es: { [K in keyof typeof en]: string } = {
   "riel.perfilLeerFallo": "No se pudo leer el perfil de reparto: {motivo}",
   "archivo.carpetaReiniciar": "No se pudo pedir abrir {ruta}: reiniciá Trama para que la ventana se ponga al día",
   "riel.perfilEscala": "De más ahorro (arriba) a más calidad (abajo).",
+  "pregunta.plegar": "Ocultar preguntas",
+  "pregunta.desplegar": "Mostrar preguntas",
+  "pregunta.pendientes": "{n} preguntas pendientes",
+  "pregunta.pendientes1": "1 pregunta pendiente",
 };

@@ -5123,7 +5123,8 @@ summary.sis-div-t:hover,
    La tarjeta de preguntas reusa `.pide`; cada pregunta, chip con el header y
    opciones como filas (radio o casilla). Sin transiciones en el hover. */
 .pide[data-preguntas] {
-  max-height: min(40rem, 75vh);
+  /* Tope de alto: nunca más de poco más de la mitad de la vista, para que la conversación (y el último mensaje del líder) quede a la vista arriba. */
+  max-height: min(40rem, 55vh);
   border-left-color: var(--azul);
 }
 /* La tarjeta nunca scrollea entera: crece hasta el tope y ahí scrollea sólo el cuerpo; el pie (Enviar) queda a la vista. */
@@ -6749,4 +6750,55 @@ button.mcx-main:hover {
 }
 .ll-fila > .ll-b {
   min-width: 0;
+}
+
+/* --- Preguntas del líder: plegar el panel (src/hilo/Preguntas.tsx) ---------------
+   El encabezado es el botón que pliega y despliega. Plegado queda una sola línea con
+   "N preguntas pendientes" (el cuerpo sigue montado, escondido). Sin movimiento propio. */
+.pide [hidden] {
+  display: none;
+}
+.pide-plega {
+  min-height: 1.75rem;
+  align-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radio-2);
+  background: transparent;
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+}
+.pide-plega:hover .pide-acc {
+  color: var(--texto-3);
+}
+.pide-tt {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  gap: var(--esp-2);
+}
+.pide-acc {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--esp-1);
+  color: var(--texto-6);
+  font-size: var(--letra-3);
+}
+.pide[data-plegado] {
+  gap: 0;
+}
+.pide[data-plegado] .pide-tt {
+  color: var(--texto-1);
+}
+@media (max-width: 35rem) {
+  .pide-plega {
+    min-height: 2.75rem;
+  }
+}
+@media (pointer: coarse) {
+  .pide-plega {
+    min-height: 2.75rem;
+  }
 }
