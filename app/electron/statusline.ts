@@ -19,7 +19,7 @@ import { real, registro, rutasDeBarra, vivosDe, type Proyecto } from "./registro
 import { sesiones, type Sesion } from "./sesiones.js";
 import { cargarGenerados, generadoDe, generarSiHaceFalta } from "./titulo-chat.js";
 import { titulosFijos } from "./titulo-fijo.js";
-import { creadoEn, proyectoEnTexto, temaDe, tituloDeRama } from "./tema.js";
+import { creadoEn, proyectoEnTexto, proyectoPorUso, temaDe, tituloDeRama } from "./tema.js";
 import { hayClaves, leerClavesSync } from "./claves.ts";
 import { cuposActuales, type SuscripcionCupo } from "./cupos.js";
 import { modelosNim, TOPE_NIM_MIN } from "./nvidia-nim.ts";
@@ -66,7 +66,10 @@ type Lider = {
   modo?: string;
   /** La cuenta agregada de Claude con que corre un líder de la app (id de `cuentas.json`); sin ella, la de siempre. */
   cuenta?: string;
-  /** El proyecto (slug) que nombra su primer mensaje, si nombra uno (B20). */
+  /**
+   * El proyecto (slug) que nombra su primer mensaje, si nombra uno (B20); si no, y sólo para un líder que arrancó en el home, el que
+   * muestra lo que hizo: lanzó `pa <proyecto>` o editó casi todo ahí (`proyectoPorUso`). Nunca pisa lo movido a mano (`armarArbol`).
+   */
   inferido: string | null;
   /** Lo mataron y nadie lo retomó: sin proceso y sin caja hasta que el usuario lo retome (`lider.retomar`). */
   caido?: "murio";
@@ -162,7 +165,7 @@ async function deQueTrata(sid: string, cwd: string | null, sesion: string, regs:
   await cargarGenerados();
   generarSiHaceFalta(sid, t, sesion);
   // Lo ya mostrado no se recalcula (titulo-estable.ts): un /rename lo reemplaza, un título automático mejor sólo si todavía era el recorte.
-  return { nombre: tituloDeRama(await titulosFijos.titulo(sid, t, sesion, generadoDe(sid)), origen), inferido: t.primero ? proyectoEnTexto(t.primero, regs, home) : null, creado: t.creado };
+  return { nombre: tituloDeRama(await titulosFijos.titulo(sid, t, sesion, generadoDe(sid)), origen), inferido: (t.primero ? proyectoEnTexto(t.primero, regs, home) : null) ?? (cwd === null || cwd === home ? proyectoPorUso(t.usos, regs, home) : null), creado: t.creado };
 }
 
 

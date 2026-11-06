@@ -25,6 +25,12 @@ Si la sesión corre **adentro** de un proyecto, esto no aplica: hacé la tarea, 
 (`{"projects":[{"name":"mi-app","path":"/ruta/absoluta"}]}`; el nombre puede ser un fragmento único).
 `proyecto-ruta --listar` muestra los nombres. Un proyecto nuevo se agrega a ese archivo.
 
+**Proyecto nuevo en `~/Proyectos`: registralo vos, sin que te lo pidan.** Apenas creás la carpeta (y su repo), agregá la entrada a
+`registry.json` (no hay comando: se edita el archivo, con `jq` y un archivo temporal para no dejarlo a medias):
+`jq --arg n NOMBRE --arg p "~/Proyectos/NOMBRE" --arg d "una línea de qué es" '.projects += [{name:$n, desc:$d, path:$p, estado:"esqueleto"}]' ~/.config/proyectos/registry.json > /tmp/reg.json && mv /tmp/reg.json ~/.config/proyectos/registry.json`
+(si ya existe ese `name`, no lo dupliques). Después seguí con `pa NOMBRE …`: Trama mueve solo este chat a la carpeta del proyecto
+cuando lanzás `pa NOMBRE` o editás ahí (nunca si el usuario lo puso a mano en «Mover a proyecto…»).
+
 ## Comandos
 
 ```

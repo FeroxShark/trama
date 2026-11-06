@@ -14,7 +14,38 @@ import { ALIAS_DEFECTO } from "./registro.ts";
  * Lo que se sabe de un transcript leído hasta `bytes`. `resto`: la última línea, si quedó a medias.
  * `creado`: la hora (epoch) de su primera línea fechada, o sea cuándo empezó la conversación.
  */
-export type Tema = { custom: string | null; ai: string | null; primero: string | null; creado: number | null; bytes: number; resto: string; respondio?: boolean };
+export type Tema = { custom: string | null; ai: string | null; primero: string | null; creado: number | null; bytes: number; resto: string; respondio?: boolean; usos?: Usos };
+
+/**
+ * Lo que el líder hizo y dice dónde trabaja (de sus `tool_use`): los comandos Bash que lanzan `pa` y los archivos que editó
+ * (ruta → veces). Acotado: un transcript enorme no lo infla. Con eso y el registry se reubica un líder de la carpeta de inicio
+ * (`proyectoPorUso`).
+ */
+export type Usos = { pa: string[]; rutas: Record<string, number> };
+const USOS0: Usos = { pa: [], rutas: {} };
+const PA_MAX = 40;
+const RUTAS_MAX = 300;
+const HERRAMIENTAS_ARCHIVO = new Set(["Edit", "Write", "MultiEdit", "NotebookEdit"]);
+
+/** Suma los `tool_use` de una línea del modelo a `usos` (los de subagentes, no). */
+function sumarUsos(usos: Usos | undefined, o: any): Usos | undefined {
+  if (o?.type !== "assistant" || o.isSidechain === true || !Array.isArray(o.message?.content)) return usos;
+  let u = usos;
+  for (const b of o.message.content) {
+    if (b?.type !== "tool_use") continue;
+    const e = b.input;
+    if (b.name === "Bash" && typeof e?.command === "string" && /(?:^|[\s;&|(])pa\s/.test(e.command)) {
+      if ((u ?? USOS0).pa.length < PA_MAX) u = { ...(u ?? USOS0), pa: [...(u ?? USOS0).pa, e.command.slice(0, 400)] };
+    } else if (HERRAMIENTAS_ARCHIVO.has(b.name)) {
+      const f = e?.file_path ?? e?.notebook_path;
+      if (typeof f !== "string" || !f) continue;
+      const base = u ?? USOS0;
+      if (!(f in base.rutas) && Object.keys(base.rutas).length >= RUTAS_MAX) continue;
+      u = { ...base, rutas: { ...base.rutas, [f]: (base.rutas[f] ?? 0) + 1 } };
+    }
+  }
+  return u;
+}
 
 export const TEMA0: Tema = { custom: null, ai: null, primero: null, creado: null, bytes: 0, resto: "" };
 
@@ -48,13 +79,15 @@ export function avanzarTema(t: Tema, pedazo: string, n: number = Buffer.byteLeng
   const resto = lineas.pop() ?? "";
   let { custom, ai, primero, creado } = t;
   let respondio = t.respondio ?? false;
+  let usos = t.usos;
   for (const l of lineas) {
     // El primer intercambio ya pasó cuando hay una línea del modelo después del primer mensaje (el título generado espera a esto).
     if (!respondio && primero !== null && l.includes('"type":"assistant"')) respondio = true;
     // Sin parsear lo que seguro no sirve: casi todo el transcript, una vez que se tiene el primer mensaje.
     const titulo = l.includes('"custom-title"') || l.includes('"ai-title"');
     const fechada = creado === null && l.includes('"timestamp"');
-    if (!titulo && !fechada && (primero !== null || !l.includes('"user"'))) continue;
+    const hace = l.includes('"type":"tool_use"') && (l.includes('"name":"Bash"') || l.includes('"file_path"') || l.includes('"notebook_path"'));
+    if (!titulo && !fechada && !hace && (primero !== null || !l.includes('"user"'))) continue;
     let o: any;
     try {
       o = JSON.parse(l);
@@ -68,8 +101,9 @@ export function avanzarTema(t: Tema, pedazo: string, n: number = Buffer.byteLeng
     if (o?.type === "custom-title" && typeof o.customTitle === "string") custom = o.customTitle.trim() || null;
     else if (o?.type === "ai-title" && typeof o.aiTitle === "string") ai = o.aiTitle.trim() || null;
     else if (o?.type === "user" && primero === null) primero = textoUsuario(o)?.slice(0, PRIMERO_MAX) ?? null;
+    else if (hace) usos = sumarUsos(usos, o);
   }
-  return { custom, ai, primero, creado, bytes: t.bytes + n, resto, respondio };
+  return { custom, ai, primero, creado, bytes: t.bytes + n, resto, respondio, ...(usos ? { usos } : {}) };
 }
 
 /**
@@ -170,6 +204,11 @@ type Coincidencia = {
   peso: number;
 };
 
+const nombresDe = (p: ProyectoTexto) => {
+  const alias = [...(p.alias ?? []), ...(ALIAS_DEFECTO[p.slug] ?? ALIAS_DEFECTO[p.nombre] ?? [])];
+  return [...new Set([p.nombre, p.slug, path.basename(p.ruta), ...(p.titulo ? [p.titulo] : []), ...alias])].filter((x) => x.length >= 2);
+};
+
 export function proyectoEnTexto(texto: string, proyectos: ProyectoTexto[], home: string): string | null {
   let mejor: Coincidencia | null = null;
   const textoLimpio = separarAdjuntos(texto).texto;
@@ -177,8 +216,7 @@ export function proyectoEnTexto(texto: string, proyectos: ProyectoTexto[], home:
 
   for (const p of proyectos) {
     const rutas = [p.ruta, p.ruta.startsWith(home + "/") ? "~" + p.ruta.slice(home.length) : null].filter((x): x is string => !!x);
-    const alias = [...(p.alias ?? []), ...(ALIAS_DEFECTO[p.slug] ?? ALIAS_DEFECTO[p.nombre] ?? [])];
-    const nombres = [...new Set([p.nombre, p.slug, path.basename(p.ruta), ...(p.titulo ? [p.titulo] : []), ...alias])].filter((x) => x.length >= 2);
+    const nombres = nombresDe(p);
 
     for (const r of rutas) {
       const re = new RegExp(escapar(r.toLowerCase()) + "(?![\\w.-])", "g");
@@ -209,6 +247,57 @@ export function proyectoEnTexto(texto: string, proyectos: ProyectoTexto[], home:
     }
   }
   return mejor?.slug ?? null;
+}
+
+// --- Reubicar un líder por lo que hace --------------------------------------------
+
+/** Flags de `pa` que llevan un valor: ese valor no es el proyecto. */
+const FLAGS_CON_VALOR = new Set(["--tipo", "-m", "--model", "--effort", "-e", "--id", "--cuenta", "--fase", "--tarea", "--subtarea", "--titulo", "--rubrica", "--leccion", "--integrar", "--descartar", "--actualizar", "--auditar", "--decisiones", "--nota", "--brief-archivo"]);
+
+/** El proyecto que nombra un comando que lanza `pa` (`pa puente-usb --tipo …`, `pa --leer puente-usb "…"`): el primer argumento suelto que es un nombre del registry. */
+export function proyectoDeComandoPa(cmd: string, proyectos: ProyectoTexto[]): string | null {
+  for (const m of cmd.matchAll(/(?:^|[\s;&|(])pa\s+([^\n;&|]*)/g)) {
+    const toks = m[1].split(/\s+/).filter(Boolean);
+    for (let i = 0; i < toks.length; i++) {
+      const t = toks[i];
+      if (/^["'`$]/.test(t)) break;
+      if (t.startsWith("-")) {
+        if (FLAGS_CON_VALOR.has(t)) i++;
+        continue;
+      }
+      const bajo = t.toLowerCase();
+      const p = proyectos.find((x) => nombresDe(x).some((n) => n.toLowerCase() === bajo));
+      if (p) return p.slug;
+    }
+  }
+  return null;
+}
+
+/**
+ * El proyecto del registry donde trabaja un líder, por lo que hizo y no por lo que dijo su primer mensaje: el primero al que
+ * lanzó `pa`, o aquel donde cayó la mayoría de sus Edit/Write (al menos 2 y más de la mitad). Sin evidencia clara, `null`.
+ * Sólo vale para un líder que arrancó en el home: lo decide quien llama.
+ */
+export function proyectoPorUso(usos: Usos | undefined, proyectos: ProyectoTexto[], home: string): string | null {
+  if (!usos) return null;
+  for (const c of usos.pa) {
+    const slug = proyectoDeComandoPa(c, proyectos);
+    if (slug) return slug;
+  }
+  const veces = new Map<string, number>();
+  let total = 0;
+  for (const [f, n] of Object.entries(usos.rutas)) {
+    total += n;
+    const abs = f.startsWith("~/") ? home + f.slice(1) : f;
+    // El más específico: un proyecto dentro de otro (la ruta más larga que contiene el archivo).
+    let mejor: ProyectoTexto | null = null;
+    for (const p of proyectos) if ((abs === p.ruta || abs.startsWith(p.ruta + "/")) && (!mejor || p.ruta.length > mejor.ruta.length) && p.ruta !== home) mejor = p;
+    if (mejor) veces.set(mejor.slug, (veces.get(mejor.slug) ?? 0) + n);
+  }
+  let ganador: string | null = null;
+  let max = 0;
+  for (const [slug, n] of veces) if (n > max) [ganador, max] = [slug, n];
+  return ganador && max >= 2 && max * 2 > total ? ganador : null;
 }
 
 // --- Del disco, con caché por sesión ----------------------------------------------
