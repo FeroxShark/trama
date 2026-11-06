@@ -44,7 +44,8 @@ export type SinClaude = (typeof SIN_CLAUDE)[number];
 export const SIN_CUPO = ["otro", "esperar", "fallar"] as const;
 export type SinCupo = (typeof SIN_CUPO)[number];
 /** Perfil de reparto (`perfil` de modelos.json, lo lee `reparto`): equilibrado (el de siempre), ahorro (workers a gratis/Google), agresivo (el modelo más barato que supere el piso del tipo) o rendimiento. */
-export const PERFILES = ["equilibrado", "ahorro", "agresivo", "rendimiento"] as const;
+// En orden de escala, de más ahorro a más calidad: así los listan la barra de cupos y Ajustes.
+export const PERFILES = ["agresivo", "ahorro", "equilibrado", "rendimiento"] as const;
 export type Perfil = (typeof PERFILES)[number];
 /** Lo que el perfil guarda de la semana de Claude para el líder cuando modelos.json no dice `reserva_lider` (igual que `reparto`). */
 export const RESERVA_LIDER_PERFIL: Record<Perfil, number> = { equilibrado: 0, ahorro: 0.35, agresivo: 0.35, rendimiento: 0 };

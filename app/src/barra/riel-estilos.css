@@ -340,6 +340,12 @@
   font-size: var(--letra-5);
   font-weight: 600;
 }
+.perfil-escala {
+  margin: 0;
+  color: var(--apagado);
+  font-size: var(--letra-3);
+  line-height: 1.35;
+}
 .perfil-ops {
   display: grid;
   gap: var(--esp-1);

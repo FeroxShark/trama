@@ -3625,4 +3625,5 @@ export const es: { [K in keyof typeof en]: string } = {
   "riel.perfilFallo": "No se pudo guardar el perfil, sigue «{perfil}»: {motivo}",
   "riel.perfilLeerFallo": "No se pudo leer el perfil de reparto: {motivo}",
   "archivo.carpetaReiniciar": "No se pudo pedir abrir {ruta}: reiniciá Trama para que la ventana se ponga al día",
+  "riel.perfilEscala": "De más ahorro (arriba) a más calidad (abajo).",
 };

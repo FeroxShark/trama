@@ -146,6 +146,7 @@ export function PerfilRiel({ alAbrir }: { alAbrir?: () => void }) {
       {abierto ? (
         <section ref={menu} className="vuelo perfil-menu" role="dialog" aria-label={t("riel.perfil")} tabIndex={-1}>
           <h2>{t("riel.perfil")}</h2>
+          <p className="perfil-escala">{t("riel.perfilEscala")}</p>
           <div className="perfil-ops" role="radiogroup" aria-label={t("riel.perfil")} onKeyDown={flechas}>
             {PERFILES.map((id) => {
               const Ic = ICONOS[id];
