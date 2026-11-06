@@ -1,5 +1,12 @@
 # Cambios
 
+## 0.2.56
+
+- Preguntas de un líder: el panel ya no tapa la conversación. Tiene tope de alto con scroll propio y se pliega a «N preguntas pendientes».
+- Un chat que arranca en la carpeta de inicio pasa solo al proyecto donde trabaja (lanza `pa <proyecto>` o edita ahí), salvo que lo hayas movido a mano.
+- Rutas de archivo en un mensaje (por ejemplo `/usr/bin/agy`): se abren mostrando el archivo en su carpeta.
+- Perfiles de ahorro ordenados de más ahorro a más calidad, con una línea que lo explica.
+
 ## 0.2.55
 
 - Actualizar: la ventana se relanza si el build cambió, aunque no haya oído el aviso del motor. Antes podía quedar con el proceso viejo y la página nueva.
