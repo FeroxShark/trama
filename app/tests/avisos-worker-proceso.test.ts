@@ -3,7 +3,6 @@ import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { spawnSync } from "node:child_process";
 import { crearAvisosWorker, textoParaLider, type AvisoWorker, type FilaWorker } from "../electron/avisos-worker.ts";
 import { procesoVivoDe, rastroDeWorker } from "../electron/avisos-worker-disco.ts";
 
@@ -12,7 +11,8 @@ const ID = "20261028-013200-1000007";
 const OTRO_ID = "20261028-013200-1000008";
 const PROY = "proyecto-falso";
 /** Un pid que ya no existe: el de un hijo que salió. */
-const PID_MUERTO = spawnSync(process.execPath, ["-e", "0"]).pid as number;
+// Un pid que no puede existir: el de un hijo recién terminado lo reusa Windows enseguida (el test fallaba ahí).
+const PID_MUERTO = 2147483640;
 
 const fila = (estado: string, extra: Partial<FilaWorker> = {}): FilaWorker => ({ id: ID, proyecto: PROY, estado, tarea: "Objetivo: tarea falsa", modelo: "claude-a", jefe_id: "jefe-1", jefe: "ana", ...extra });
 
