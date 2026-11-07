@@ -1,0 +1,617 @@
+/* Ajustes > Conectores como tienda (AjustesConectores.tsx y las Tienda*.tsx). Look de Trama (vidrio quieto, cápsulas, acento celeste, grilla de 4 px),
+   estructura de la página «Customize» de claude.ai: pestañas, «Tuyos | Descubrir», buscador, filtros, tarjetas en grilla, detalle y secciones.
+   Sólo tokens de tokens.css y todo en rem. Cada estado lleva ícono y palabra, nunca sólo color. 360 px y dedo: bloques al final. */
+.ti-raiz {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-3);
+  min-width: 0;
+  container-type: inline-size;
+}
+
+/* --- Pestañas --- */
+.ti-pestanas {
+  display: flex;
+  gap: var(--esp-1);
+  align-self: flex-start;
+  max-width: 100%;
+  padding: var(--esp-1);
+  overflow-x: auto;
+  border-radius: var(--r-cap);
+  background: var(--capa-card);
+  scrollbar-width: none;
+}
+.ti-pestana {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--esp-1-5);
+  min-height: var(--alto-boton);
+  padding: 0 var(--esp-3-5);
+  border: 0;
+  border-radius: var(--r-cap);
+  background: transparent;
+  color: var(--apagado);
+  font: inherit;
+  font-size: var(--letra-5);
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.ti-pestana:hover {
+  background: var(--capa-hover);
+  color: var(--texto);
+}
+.ti-pestana[aria-selected="true"] {
+  background: var(--acento-tinte);
+  box-shadow: inset 0 0 0 1.5px var(--acento);
+  color: var(--texto);
+}
+.ti-pestana:focus-visible,
+.ti-seg-op:focus-visible,
+.ti-cat:focus-visible {
+  outline: 2px solid var(--acento);
+  outline-offset: 2px;
+}
+.ti-pestana-n {
+  color: var(--texto-7);
+  font-size: var(--letra-4);
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+}
+.ti-que {
+  max-width: 48rem;
+  margin: 0;
+  color: var(--apagado);
+  font-size: var(--letra-5);
+  line-height: 1.5;
+}
+
+/* --- Barra: Tuyos | Descubrir, buscador, categoría, orden, volver a leer y Agregar --- */
+.ti-barra {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--esp-2);
+}
+.ti-seg {
+  display: inline-flex;
+  flex: none;
+  padding: var(--esp-1);
+  border-radius: var(--r-cap);
+  background: var(--capa-card);
+}
+.ti-seg-op {
+  min-height: calc(var(--alto-boton) - var(--esp-2));
+  padding: 0 var(--esp-4);
+  border: 0;
+  border-radius: var(--r-cap);
+  background: transparent;
+  color: var(--apagado);
+  font: inherit;
+  font-size: var(--letra-5);
+  font-weight: 600;
+  cursor: pointer;
+}
+.ti-seg-op:hover {
+  color: var(--texto);
+}
+.ti-seg-op[aria-pressed="true"] {
+  background: var(--capa-track);
+  box-shadow: inset 0 0 0 1.5px var(--acento);
+  color: var(--texto);
+}
+.ti-buscar {
+  position: relative;
+  display: flex;
+  flex: 1 1 12rem;
+  align-items: center;
+  min-width: 0;
+  color: var(--texto-7);
+}
+.ti-buscar svg {
+  position: absolute;
+  left: var(--esp-3);
+  pointer-events: none;
+}
+.ti-raiz .ti-buscar .pn-campo {
+  height: var(--alto-boton);
+  padding-left: var(--esp-8);
+}
+.ti-campo {
+  display: inline-flex;
+  flex: 0 1 auto;
+  align-items: center;
+  gap: var(--esp-2);
+  color: var(--apagado);
+  font-size: var(--letra-4);
+}
+.ti-campo .pn-campo {
+  width: auto;
+  min-width: 8rem;
+  max-width: 14rem;
+  height: var(--alto-boton);
+}
+.ti-act {
+  width: var(--alto-boton);
+  padding: 0;
+}
+.ti-agregar-btn {
+  flex: none;
+}
+/* Los íconos de los botones cuadrados no se achican con el flex. */
+.ti-act svg,
+.ti-mas svg,
+.ti-x svg {
+  flex: none;
+}
+
+/* --- Panel de Agregar --- */
+.ti-agregar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-3);
+  padding: var(--esp-4);
+  border-radius: var(--r-md);
+  background: var(--capa-card);
+  box-shadow: inset 0 0 0 1px var(--capa-div);
+}
+.ti-agregar-t {
+  margin: 0;
+  color: var(--texto);
+  font-size: var(--letra-7);
+  font-weight: 600;
+}
+.ti-agregar-d {
+  max-width: 44rem;
+  margin: 0;
+  color: var(--apagado);
+  font-size: var(--letra-5);
+  line-height: 1.5;
+}
+
+/* --- Panel de contenido --- */
+.ti-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-4);
+  min-width: 0;
+}
+.ti-estado {
+  margin: 0;
+  color: var(--apagado);
+  font-size: var(--letra-4);
+  line-height: 1.5;
+}
+.ti-sin-agregar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--esp-3);
+  padding: var(--esp-3) var(--esp-4);
+  border-radius: var(--r-md);
+  background: var(--capa-card);
+  box-shadow: inset 0 0 0 1px var(--capa-div);
+}
+.ti-sin-agregar-txt {
+  display: flex;
+  flex: 1 1 16rem;
+  flex-direction: column;
+  gap: var(--esp-0-5);
+  min-width: 0;
+  font-size: var(--letra-4);
+}
+.ti-sin-agregar-txt strong {
+  color: var(--texto);
+  font-size: var(--letra-5);
+}
+.ti-sin-agregar-txt span {
+  color: var(--apagado);
+}
+.ti-vacio {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--esp-3);
+  padding: var(--esp-5) var(--esp-4);
+  border-radius: var(--r-md);
+  background: var(--capa-card);
+}
+.ti-vacio p {
+  margin: 0;
+  color: var(--apagado);
+  font-size: var(--letra-5);
+}
+.ti-plana {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-3);
+}
+.ti-plana-cab {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--esp-3);
+}
+.ti-mas {
+  display: flex;
+  justify-content: center;
+}
+.ti-sin-res {
+  padding: var(--esp-3) 0;
+}
+
+/* --- Tarjetas --- */
+.ti-rejilla {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--esp-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ti-tarj {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-rows: auto 1fr auto;
+  grid-template-areas:
+    "ico cab acc"
+    "desc desc desc"
+    "dato dato dato";
+  column-gap: var(--esp-3);
+  row-gap: var(--esp-2);
+  min-width: 0;
+  padding: var(--esp-3) var(--esp-4);
+  border-radius: var(--r-md);
+  background: var(--capa-card);
+  box-shadow: inset 0 0 0 1px var(--capa-div);
+  transition: background var(--t-snappy) ease;
+}
+.ti-tarj:hover {
+  background: var(--capa-hover);
+}
+.ti-tarj[data-apagado] .ti-ico,
+.ti-tarj[data-apagado] .ti-desc {
+  opacity: 0.7;
+}
+.ti-ico {
+  display: grid;
+  grid-area: ico;
+  width: 2.5rem;
+  height: 2.5rem;
+  place-items: center;
+  border-radius: var(--r-sm);
+  background: var(--acento-tinte);
+  color: var(--acento);
+}
+.ti-cab {
+  display: flex;
+  grid-area: cab;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+}
+.ti-nombre {
+  display: block;
+  max-width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--texto);
+  font: inherit;
+  font-size: var(--letra-6);
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+/* Toda la tarjeta es del botón del nombre: el resto de los controles quedan encima. */
+.ti-nombre::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: var(--r-md);
+}
+.ti-nombre:focus-visible {
+  outline: none;
+}
+.ti-nombre:focus-visible::after {
+  outline: 2px solid var(--acento);
+  outline-offset: -2px;
+}
+.ti-nombre-t {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ti-origen {
+  overflow: hidden;
+  color: var(--texto-7);
+  font-size: var(--letra-4);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ti-accion {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  grid-area: acc;
+  align-items: center;
+}
+.ti-ctrl {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--esp-1-5);
+}
+.ti-ctrl .ui-sw {
+  position: relative;
+}
+.ti-ctrl .ui-sw::before {
+  content: "";
+  position: absolute;
+  inset: -0.625rem -0.25rem;
+}
+.ti-mas {
+  width: 2.25rem;
+  height: 2.25rem;
+  padding: 0;
+  background: var(--acento-tinte);
+  color: var(--acento);
+  box-shadow: inset 0 0 0 1.5px var(--acento);
+}
+.ti-mas:hover {
+  background: var(--acento);
+  color: var(--acento-texto);
+}
+/* «Apagado» y «No se puede agregar» son estados quietos, no alarmas: ícono y palabra, sin el rojo de un fallo. */
+.ti-tarj .mdl-estado[data-estado="no"] {
+  background: var(--capa-tile);
+  box-shadow: none;
+  color: var(--apagado);
+}
+.ti-desc {
+  display: -webkit-box;
+  grid-area: desc;
+  margin: 0;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  color: var(--txt-2);
+  font-size: var(--letra-5);
+  line-height: 1.45;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+.ti-desc[data-sin] {
+  color: var(--texto-7);
+}
+.ti-dato {
+  grid-area: dato;
+  margin: 0;
+  color: var(--apagado);
+  font-size: var(--letra-4);
+  font-variant-numeric: tabular-nums;
+}
+.ti-dato[data-tono="falta"] {
+  color: var(--texto-7);
+}
+
+/* --- Descubrir por secciones --- */
+.ti-secciones {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-6);
+}
+.ti-sec {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-3);
+}
+.ti-sec-cab {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--esp-2);
+}
+.ti-sec-txt {
+  min-width: 0;
+}
+.ti-sec-t {
+  margin: 0;
+  color: var(--texto);
+  font-size: var(--letra-8);
+  font-weight: 600;
+}
+.ti-sec-d {
+  margin: var(--esp-0-5) 0 0;
+  color: var(--apagado);
+  font-size: var(--letra-4);
+}
+.ti-ver {
+  height: 2rem;
+  padding: 0 var(--esp-3);
+}
+.ti-ver-n {
+  color: var(--texto-7);
+  font-variant-numeric: tabular-nums;
+}
+.ti-cats {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr));
+  gap: var(--esp-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ti-cat {
+  display: flex;
+  width: 100%;
+  min-height: 2.75rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--esp-2);
+  padding: 0 var(--esp-3-5);
+  border: 0;
+  border-radius: var(--r-md);
+  background: var(--capa-card);
+  box-shadow: inset 0 0 0 1px var(--capa-div);
+  color: var(--texto);
+  font: inherit;
+  font-size: var(--letra-5);
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+.ti-cat:hover {
+  background: var(--capa-hover);
+}
+.ti-cat-n {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ti-cat-c {
+  flex: none;
+  min-width: 1.5rem;
+  padding: 0 var(--esp-2);
+  border-radius: var(--r-cap);
+  background: var(--capa-tile);
+  color: var(--apagado);
+  font-size: var(--letra-4);
+  font-variant-numeric: tabular-nums;
+  line-height: var(--alto-chip);
+  text-align: center;
+}
+
+/* --- Detalle --- */
+.ti-det {
+  width: min(38rem, 100%);
+  max-height: min(46rem, 100%);
+}
+.ti-det .seg-cab {
+  align-items: center;
+}
+.ti-det .seg-txt {
+  flex: 1;
+}
+.ti-x {
+  flex: none;
+  width: var(--alto-boton);
+  padding: 0;
+}
+.ti-det-cuerpo {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--esp-3);
+  overflow: hidden auto;
+  scrollbar-width: thin;
+}
+.ti-det-desc {
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: var(--txt-1);
+  font-size: var(--letra-6);
+  line-height: 1.55;
+  white-space: pre-line;
+}
+.ti-det-desc[data-sin] {
+  color: var(--texto-7);
+}
+.ti-meta {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: var(--esp-2) var(--esp-4);
+  margin: 0;
+  font-size: var(--letra-5);
+}
+.ti-meta dt {
+  color: var(--texto-7);
+}
+.ti-meta dd {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--texto);
+}
+.ti-enlace {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--esp-1);
+  color: var(--acento);
+}
+.ti-det-estado {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--esp-3);
+}
+.ti-det-pie {
+  justify-content: flex-end;
+}
+
+/* --- Angosto (el contenedor de la tienda) y dedo: una columna, objetivos de 44 px --- */
+@container (max-width: 42rem) {
+  .ti-rejilla {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (max-width: 35rem), (pointer: coarse) {
+  .ti-pestana,
+  .ti-seg-op,
+  .ti-raiz .ui-btn,
+  .ti-raiz .mdl-enlace,
+  .ti-det .ui-btn,
+  .ti-det .mdl-enlace {
+    min-height: 2.75rem;
+  }
+  .ti-raiz .ti-buscar .pn-campo,
+  .ti-campo .pn-campo,
+  .ti-agregar .pn-campo {
+    min-height: 2.75rem;
+  }
+  .ti-seg-op {
+    flex: 1;
+  }
+  .ti-seg {
+    flex: 1 1 100%;
+  }
+  .ti-mas,
+  .ti-act,
+  .ti-x {
+    width: 2.75rem;
+    height: 2.75rem;
+  }
+  .ti-ver {
+    height: 2.75rem;
+  }
+  .ti-det-pie > * {
+    flex: 1 1 8rem;
+  }
+  .ti-det .seg {
+    padding: var(--esp-3);
+  }
+  .ti-meta {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--esp-0-5);
+  }
+  .ti-meta dd {
+    margin-bottom: var(--esp-2);
+  }
+  .ti-ctrl .mdl-estado,
+  .ti-accion .mdl-estado {
+    white-space: normal;
+    max-width: 100%;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ti-tarj {
+    transition: none;
+  }
+}

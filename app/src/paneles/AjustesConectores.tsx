@@ -1,264 +1,489 @@
-// Ajustes > Conectores: arriba todo lo que tiene conectado Claude Code (AjustesConectoresInventario.tsx); abajo los servidores MCP propios de Trama (Notion, un Gmail propio, lo que sea): nombre, tipo (programa por comando o servidor
-// por URL) y sus variables. Se guardan en `~/.config/trama/mcp.json`; los valores secretos (tokens, cabeceras) van a `claves.env` y NUNCA vuelven
-// a esta pantalla: sólo se ve si hay uno guardado. Le llegan a los líderes de Claude, DeepSeek Harness y OpenCode (no a los workers ni a Gemini).
-// Al toque, sin la barra de Guardar; sólo desde la PC. Cada estado se dice con ícono y palabra, no sólo con color.
-import { useEffect, useRef, useState, type FormEvent } from "react";
-import { ExternalLink, Plus, Trash2 } from "lucide-react";
-import { fuentePaneles, type EntradaMcp, type VistaServidorMcp } from "../datos/paneles";
-import { t, textoMain } from "../i18n";
-import { Fijo } from "../i18n/Fijo";
+// Ajustes > Conectores, armado como la página «Customize» de claude.ai: pestañas (Skills, Conectores MCP, Plugins, Hooks), un segmentado
+// «Tuyos | Descubrir», buscador, filtro por categoría, orden y «Agregar», y debajo tarjetas en grilla (TiendaTarjetas.tsx). Tocar una tarjeta abre su
+// detalle (TiendaDetalle.tsx); «Descubrir» se reparte en secciones y categorías (TiendaDescubrir.tsx). La lógica pura (armar, buscar, ordenar, secciones)
+// vive en tienda-logica.ts y los datos en tienda-datos.ts. Todo sale de las fuentes que ya había: el inventario de Claude Code, los conectores propios de
+// Trama, los catálogos de plugins y el catálogo de Descubrir; lo que una fuente no trae dice «sin dato». Se guarda al toque, sin la barra de Guardar;
+// sólo desde la PC. Los valores secretos de un conector propio van a `claves.env` y NUNCA vuelven a esta pantalla.
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { ChevronLeft, Plus, RefreshCw, Search, Loader } from "lucide-react";
+import { DIAS_USOS } from "../../electron/usos-historial";
+import { fuentePaneles, type Catalogo } from "../datos/paneles";
+import { locale, t, textoMain, type ClaveSola } from "../i18n";
+import { MODO } from "../modo";
 import { mensaje } from "../puente";
 import { Boton } from "../ui/componentes";
+import "./tienda.css";
 import { Cat } from "./AjustesNav";
 import { PanelCargando } from "./PanelCargando";
-import type { FilaDato } from "./AjustesEditar";
-import { Estado } from "./AjustesDsh";
-import { InventarioConectores } from "./AjustesConectoresInventario";
-import { Descubrir } from "./AjustesDescubrir";
+import { aBorrador, PanelAgregar, type Borrador } from "./TiendaAgregar";
+import { SeccionesDescubrir } from "./TiendaDescubrir";
+import { DetalleTienda, type AccionesDetalle } from "./TiendaDetalle";
+import { ICONO, Rejilla, TarjetaTienda } from "./TiendaTarjetas";
+import { useTiendaDatos } from "./tienda-datos";
+import {
+  buscarTarjetas,
+  categoriasDeTarjetas,
+  conteoTuyos,
+  filtrarCategoria,
+  listaDeSeccion,
+  ordenarTarjetas,
+  ordenesDe,
+  PESTANAS,
+  seccionesDescubrir,
+  tarjetasDescubrirMcp,
+  tarjetasDescubrirPlugins,
+  tarjetasDescubrirSkills,
+  tarjetasTuyos,
+  VISTAS,
+  type Orden,
+  type Pestana,
+  type SeccionId,
+  type Tarjeta,
+  type Vista,
+} from "./tienda-logica";
 
-type Tipo = VistaServidorMcp["tipo"];
-type VariableBorrador = { nombre: string; valor: string; hay: boolean };
-type Borrador = { nombre: string; tipo: Tipo; comando: string; args: string; url: string; variables: VariableBorrador[]; nuevo: boolean };
+/** Cuántas tarjetas se dibujan de entrada en una lista plana (el registro MCP trae cientos y hay quien tiene más de trescientas skills). */
+const PAGINA = 24;
 
-const vacio = (): Borrador => ({ nombre: "", tipo: "http", comando: "", args: "", url: "", variables: [], nuevo: true });
-
-const aBorrador = (s: VistaServidorMcp): Borrador => ({
-  nombre: s.nombre,
-  tipo: s.tipo,
-  comando: s.comando ?? "",
-  args: (s.args ?? []).join("\n"),
-  url: s.url ?? "",
-  variables: s.variables.map((v) => ({ nombre: v.nombre, valor: "", hay: v.hay })),
-  nuevo: false,
-});
-
-/** Lo que se manda al main: un valor vacío conserva el guardado (`valor` ausente). */
-export const aEntrada = (b: Borrador): EntradaMcp => {
-  const tipoVar = b.tipo === "stdio" ? "env" : "cabecera";
-  return {
-    nombre: b.nombre.trim(),
-    tipo: b.tipo,
-    ...(b.tipo === "stdio" ? { comando: b.comando.trim(), args: b.args.split(/\r?\n/).map((a) => a.trim()).filter(Boolean) } : { url: b.url.trim() }),
-    variables: b.variables
-      .filter((v) => v.nombre.trim())
-      .map((v) => ({ tipo: tipoVar, nombre: v.nombre.trim(), ...(v.valor.trim() ? { valor: v.valor.trim() } : {}) })),
-  };
+const TEXTO_ORDEN: Record<Orden, ClaveSola> = {
+  origen: "tienda.o.origen",
+  mas: "conectores.ordenMas",
+  menos: "conectores.ordenMenos",
+  ultimo: "conectores.ordenUltimo",
+  instalados: "plugins.orden.instalados",
+  recientes: "plugins.orden.recientes",
+  nombre: "plugins.orden.nombre",
 };
 
-const destino = (s: VistaServidorMcp) => (s.tipo === "stdio" ? [s.comando, ...(s.args ?? [])].join(" ") : (s.url ?? ""));
+const nombreCatalogo = (c: Catalogo) => (c.repo === "anthropics/skills" ? t("plugins.catSkills") : c.repo === "anthropics/claude-plugins-official" ? t("plugins.catOficial") : c.id);
 
-function Formulario({ b, cambiar, ocupado, alGuardar, alCancelar }: { b: Borrador; cambiar: (b: Borrador) => void; ocupado: boolean; alGuardar: () => void; alCancelar: () => void }) {
-  const stdio = b.tipo === "stdio";
-  const enviar = (ev: FormEvent) => {
-    ev.preventDefault();
-    if (!ocupado) alGuardar();
-  };
-  const ponerVar = (i: number, p: Partial<VariableBorrador>) => cambiar({ ...b, variables: b.variables.map((v, j) => (j === i ? { ...v, ...p } : v)) });
-  return (
-    <form className="mcp-form" onSubmit={enviar} data-mcp-form>
-      <label className="mcp-campo">
-        <span>{t("conectores.nombre")}</span>
-        <input className="pn-campo" value={b.nombre} disabled={!b.nuevo} spellCheck={false} autoComplete="off" placeholder={t("conectores.nombrePh")} onChange={(ev) => cambiar({ ...b, nombre: ev.target.value })} />
-      </label>
-      <label className="mcp-campo">
-        <span>{t("conectores.tipo")}</span>
-        <select className="pn-campo" value={b.tipo} onChange={(ev) => cambiar({ ...b, tipo: ev.target.value as Tipo, variables: [] })}>
-          <option value="http">{t("conectores.tipoHttp")}</option>
-          <option value="sse">{t("conectores.tipoSse")}</option>
-          <option value="stdio">{t("conectores.tipoStdio")}</option>
-        </select>
-      </label>
-      {stdio ? (
-        <>
-          <label className="mcp-campo">
-            <span>{t("conectores.comando")}</span>
-            <input className="pn-campo" value={b.comando} spellCheck={false} autoComplete="off" placeholder="npx" onChange={(ev) => cambiar({ ...b, comando: ev.target.value })} />
-          </label>
-          <label className="mcp-campo">
-            <span>{t("conectores.args")}</span>
-            <textarea className="pn-campo" rows={3} value={b.args} spellCheck={false} placeholder={"-y\n@modelcontextprotocol/server-filesystem"} onChange={(ev) => cambiar({ ...b, args: ev.target.value })} />
-          </label>
-        </>
-      ) : (
-        <label className="mcp-campo">
-          <span>{t("conectores.url")}</span>
-          <input className="pn-campo" type="url" value={b.url} spellCheck={false} autoComplete="off" placeholder="https://mcp.example.com/mcp" onChange={(ev) => cambiar({ ...b, url: ev.target.value })} />
-        </label>
-      )}
-      <fieldset className="mcp-vars">
-        <legend>{t(stdio ? "conectores.varsEnv" : "conectores.varsCab")}</legend>
-        {b.variables.map((v, i) => (
-          <div className="mcp-var" key={i}>
-            <input
-              className="pn-campo"
-              value={v.nombre}
-              spellCheck={false}
-              autoComplete="off"
-              aria-label={t("conectores.varNombre")}
-              placeholder={stdio ? "NOTION_TOKEN" : "Authorization"}
-              onChange={(ev) => ponerVar(i, { nombre: ev.target.value, hay: false })}
-            />
-            <input
-              className="pn-campo"
-              type="password"
-              value={v.valor}
-              autoComplete="off"
-              autoCapitalize="none"
-              spellCheck={false}
-              aria-label={t("conectores.varValor")}
-              placeholder={v.hay ? t("conectores.varGuardadaPh") : stdio ? "secret_…" : "Bearer …"}
-              onChange={(ev) => ponerVar(i, { valor: ev.target.value })}
-            />
-            <Boton aria-label={t("conectores.varQuitar")} onClick={() => cambiar({ ...b, variables: b.variables.filter((_, j) => j !== i) })}>
-              <Trash2 size={14} strokeWidth={2} aria-hidden />
-            </Boton>
-          </div>
-        ))}
-        <Boton onClick={() => cambiar({ ...b, variables: [...b.variables, { nombre: "", valor: "", hay: false }] })}>
-          <Plus size={14} strokeWidth={2} aria-hidden /> <Fijo k="conectores.varAgregar" />
-        </Boton>
-        <p className="ol-nota">{t("conectores.varNota")}</p>
-      </fieldset>
-      <div className="mcp-acciones">
-        <Boton type="submit" primario disabled={ocupado || !b.nombre.trim()}>
-          <Fijo k="conectores.guardar" />
-        </Boton>
-        <Boton onClick={alCancelar} disabled={ocupado}>
-          <Fijo k="ajustes.cancelar" />
-        </Boton>
-      </div>
-    </form>
-  );
+/** Qué abre cada variante de captura (`HILOS_VARIANTE`) para que la foto caiga en lo que se quiere ver. */
+function deVariante(v: string | null): { pestana: Pestana; vista: Vista; orden?: Orden; agregar?: boolean; detalle?: boolean; categoria?: boolean } {
+  switch (v) {
+    case "mcp-uso":
+      return { pestana: "skills", vista: "tuyos", orden: "mas" };
+    case "mcp-muchas":
+      return { pestana: "skills", vista: "tuyos" };
+    case "plugins":
+    case "plugins-vacio":
+    case "tienda-plugins":
+      return { pestana: "plugins", vista: "descubrir" };
+    case "tienda-plugins-tuyos":
+      return { pestana: "plugins", vista: "tuyos" };
+    case "tienda-detalle":
+      return { pestana: "plugins", vista: "descubrir", detalle: true };
+    case "tienda-categoria":
+      return { pestana: "plugins", vista: "descubrir", categoria: true };
+    case "tienda-agregar":
+      return { pestana: "mcp", vista: "tuyos", agregar: true };
+    case "descubrir":
+    case "descubrir-vacio":
+      return { pestana: "skills", vista: "descubrir" };
+    case "descubrir-falla":
+    case "tienda-mcp":
+      return { pestana: "mcp", vista: "descubrir" };
+    case "tienda-hooks":
+      return { pestana: "hooks", vista: "tuyos" };
+    default:
+      return v?.startsWith("mcp") ? { pestana: "mcp", vista: "tuyos" } : { pestana: "skills", vista: "tuyos" };
+  }
 }
 
-function ServidoresPropios({ Dato }: { Dato: FilaDato }) {
-  const [lista, setLista] = useState<VistaServidorMcp[] | null>(null);
-  const [falla, setFalla] = useState<string | null>(null);
-  const [edita, setEdita] = useState<Borrador | null>(null);
+export function AjustesConectores() {
+  const arranque = useRef(deVariante(MODO.variante)).current;
+  const [pestana, setPestana] = useState<Pestana>(arranque.pestana);
+  const [vista, setVista] = useState<Vista>(arranque.vista);
+  const [busca, setBusca] = useState("");
+  const [categoria, setCategoria] = useState<string | null>(null);
+  const [orden, setOrden] = useState<Orden>(arranque.orden ?? ordenesDe(arranque.pestana, arranque.vista)[0] ?? "nombre");
+  const [seccion, setSeccion] = useState<SeccionId | null>(null);
+  const [visibles, setVisibles] = useState(PAGINA);
+  const [detalle, setDetalle] = useState<{ clave: string; confirmar: boolean } | null>(null);
+  const [agregar, setAgregar] = useState<{ editar: Borrador | null } | null>(arranque.agregar ? { editar: null } : null);
+  const [cuenta, setCuenta] = useState("");
+  const [enCurso, setEnCurso] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [ocupado, setOcupado] = useState(false);
+  const [aviso, setAviso] = useState<string | null>(null);
+  const [actualizando, setActualizando] = useState(false);
   const vivo = useRef(true);
+  const raiz = useRef<HTMLDivElement>(null);
   useEffect(() => {
     vivo.current = true;
-    void fuentePaneles.listaMcp().then(
-      (r) => vivo.current && setLista(r),
-      (x) => vivo.current && setFalla(mensaje(x)),
-    );
     return () => void (vivo.current = false);
   }, []);
 
-  const correr = async (f: () => Promise<VistaServidorMcp[]>, alTerminar?: () => void) => {
-    setOcupado(true);
+  const d = useTiendaDatos(pestana, vista);
+  const { inv, propios, catalogos, descubrir } = d;
+
+  // ---- Las tarjetas --------------------------------------------------------------------------------------------------------------------------
+  const todos = inv.datos?.items ?? [];
+  const tuyos = useMemo(
+    () => tarjetasTuyos(pestana, todos, d.uso, { propios: propios.datos ?? [], catalogos: catalogos.datos?.catalogos }),
+    [pestana, inv.datos, d.uso, propios.datos, catalogos.datos],
+  );
+  const deDescubrir = useMemo(() => {
+    if (vista !== "descubrir") return [];
+    if (pestana === "skills") return tarjetasDescubrirSkills(descubrir.datos?.skills ?? []);
+    if (pestana === "mcp") return tarjetasDescubrirMcp(descubrir.datos?.mcp ?? []);
+    if (pestana === "plugins") return tarjetasDescubrirPlugins(catalogos.datos?.catalogos ?? []);
+    return [];
+  }, [vista, pestana, descubrir.datos, catalogos.datos]);
+  const base = vista === "tuyos" ? tuyos : deDescubrir;
+  const conteos = useMemo(() => conteoTuyos(todos, propios.datos ?? []), [inv.datos, propios.datos]);
+
+  const ordenes = ordenesDe(pestana, vista);
+  const ordenActual = ordenes.includes(orden) ? orden : (ordenes[0] ?? "nombre");
+  const categorias = useMemo(() => categoriasDeTarjetas(base), [base]);
+  const catActual = categoria !== null && categorias.some((c) => c.nombre === categoria) ? categoria : null;
+  const buscando = busca.trim() !== "";
+  const hayEstructura = vista === "descubrir" && !buscando && catActual === null && seccion === null && seccionesDescubrir(base).secciones.length > 0;
+  const lista = useMemo(() => {
+    const delOrden = seccion && vista === "descubrir" ? listaDeSeccion(base, seccion) : ordenarTarjetas(base, ordenActual);
+    return filtrarCategoria(buscarTarjetas(delOrden, busca), catActual);
+  }, [base, busca, catActual, ordenActual, seccion, vista]);
+  const vivas = (clave: string) => base.find((x) => x.clave === clave) ?? null;
+  const abierta = detalle ? vivas(detalle.clave) : null;
+  const conectorDe = (x: Tarjeta) => (x.fuente.tipo === "conector" ? (todos.find((c) => c.id === (x.fuente as { id: string }).id) ?? null) : null);
+  const propioDe = (x: Tarjeta) => (x.fuente.tipo === "propio" ? ((propios.datos ?? []).find((s) => s.nombre === (x.fuente as { nombre: string }).nombre) ?? null) : null);
+
+  // Captura `tienda-detalle` / `tienda-categoria`: abre lo que se quiere ver en cuanto hay datos.
+  const hecho = useRef(false);
+  useEffect(() => {
+    if (hecho.current || (!arranque.detalle && !arranque.categoria) || !deDescubrir.length) return;
+    hecho.current = true;
+    if (arranque.detalle) setDetalle({ clave: deDescubrir[0]!.clave, confirmar: false });
+    if (arranque.categoria) setCategoria(categoriasDeTarjetas(deDescubrir)[0]?.nombre ?? null);
+  }, [deDescubrir]);
+
+  // ---- Moverse ---------------------------------------------------------------------------------------------------------------------------------
+  const reiniciar = (p: Pestana, v: Vista) => {
+    setPestana(p);
+    setVista(v);
+    setCategoria(null);
+    setSeccion(null);
+    setVisibles(PAGINA);
+    setOrden(ordenesDe(p, v)[0] ?? "nombre");
+    setAgregar(null);
+    setDetalle(null);
     setError(null);
-    try {
-      const r = await f();
-      if (!vivo.current) return;
-      setLista(r);
-      alTerminar?.();
-    } catch (x) {
-      if (vivo.current) setError(mensaje(x));
-    } finally {
-      if (vivo.current) setOcupado(false);
-    }
+    setAviso(null);
+  };
+  const flechas = (ev: KeyboardEvent<HTMLDivElement>) => {
+    const i = PESTANAS.indexOf(pestana);
+    const n = ev.key === "ArrowRight" ? i + 1 : ev.key === "ArrowLeft" ? i - 1 : ev.key === "Home" ? 0 : ev.key === "End" ? PESTANAS.length - 1 : null;
+    if (n === null) return;
+    ev.preventDefault();
+    const nueva = PESTANAS[(n + PESTANAS.length) % PESTANAS.length]!;
+    reiniciar(nueva, nueva === "hooks" ? "tuyos" : vista);
+    requestAnimationFrame(() => raiz.current?.querySelector<HTMLElement>(`[data-pestana-btn="${nueva}"]`)?.focus());
   };
 
-  if (falla) return <div className="pn-aviso" data-error>{textoMain(falla)}</div>;
-  if (!lista) return <PanelCargando />;
+  // ---- Acciones --------------------------------------------------------------------------------------------------------------------------------
+  /** Corre una acción de escritura: marca lo que está en curso, dice el error en palabras y lo vuelve a lanzar para quien necesite saber que falló. */
+  const correr = async (clave: string, f: () => Promise<void>) => {
+    setEnCurso(clave);
+    setError(null);
+    setAviso(null);
+    try {
+      await f();
+    } catch (x) {
+      if (vivo.current) setError(mensaje(x));
+      throw x;
+    } finally {
+      if (vivo.current) setEnCurso(null);
+    }
+  };
+  const conmutar = (x: Tarjeta, v: boolean) =>
+    correr(x.clave, async () => {
+      if (x.fuente.tipo !== "conector") return;
+      const r = await fuentePaneles.alternarConector(x.fuente.id, v);
+      if (vivo.current) inv.poner(r);
+    });
+  const instalarPlugin = (x: Tarjeta) =>
+    correr(x.clave, async () => {
+      if (x.fuente.tipo !== "plugin") return;
+      const r = await fuentePaneles.instalarPlugin(x.fuente.plugin, x.fuente.catalogo, cuenta);
+      if (!vivo.current) return;
+      catalogos.poner(r);
+      inv.cargar();
+    });
+  const quitarPlugin = (plugin: string, catalogo: string) =>
+    correr(`${plugin}@${catalogo}`, async () => {
+      const r = await fuentePaneles.quitarPlugin(plugin, catalogo, cuenta);
+      if (!vivo.current) return;
+      catalogos.poner(r);
+      inv.cargar();
+    });
+  const quitarPropio = (nombre: string) =>
+    correr(`propio|${nombre}`, async () => {
+      const r = await fuentePaneles.quitarMcp(nombre);
+      if (vivo.current) propios.poner(r);
+    });
+  const alInstalado = (texto: string) => {
+    setAviso(texto);
+    descubrir.cargar();
+    inv.cargar();
+    propios.cargar();
+  };
+  const acciones: AccionesDetalle = {
+    bloqueado: enCurso !== null,
+    error,
+    conmutar,
+    instalarPlugin,
+    quitarPlugin,
+    quitarPropio,
+    editarPropio: (nombre) => {
+      const s = (propios.datos ?? []).find((x) => x.nombre === nombre);
+      if (!s) return;
+      setDetalle(null);
+      setAgregar({ editar: aBorrador(s) });
+    },
+    alInstalado,
+  };
+  const anadir = (x: Tarjeta) => {
+    if (x.fuente.tipo === "plugin") void instalarPlugin(x).catch(() => {});
+    else setDetalle({ clave: x.clave, confirmar: x.accion !== "comando" });
+  };
+  const actualizar = async () => {
+    setError(null);
+    if (vista === "descubrir" && (pestana === "skills" || pestana === "mcp")) {
+      setActualizando(true);
+      try {
+        descubrir.poner(await fuentePaneles.catalogoDescubrir(true));
+      } catch (x) {
+        if (vivo.current) setError(mensaje(x));
+      } finally {
+        if (vivo.current) setActualizando(false);
+      }
+      return;
+    }
+    inv.cargar();
+    propios.cargar();
+    catalogos.cargar();
+  };
 
-  return (
-    <>
-      <section className="pn-sec pn-edita" data-mcp>
-        <Fijo k="conectores.intro" bloque className="pn-nota pn-intro" />
-
-        <Dato nombre="conectores.propios" que="conectores.propiosQue">
-          {lista.length ? (
-            <ul className="mcp-lista">
-              {lista.map((s) => (
-                <li key={s.nombre} className="mcp-fila" data-servidor={s.nombre}>
-                  <div className="mcp-datos">
-                    <strong>{s.nombre}</strong>
-                    <span className="mcp-tipo">{t(s.tipo === "stdio" ? "conectores.tipoStdioCorto" : s.tipo === "sse" ? "conectores.tipoSse" : "conectores.tipoHttp")}</span>
-                    <code className="mcp-destino">{destino(s)}</code>
-                    {s.variables.length ? (
-                      <span className="mcp-vars-estado">
-                        {s.variables.map((v) => (
-                          <Estado key={`${v.tipo}:${v.nombre}`} ok={v.hay} texto={`${v.nombre}: ${t(v.hay ? "conectores.guardada" : "conectores.faltaValor")}`} />
-                        ))}
-                      </span>
-                    ) : null}
-                  </div>
-                  <div className="mcp-acciones">
-                    <Boton aria-label={t("conectores.editarDe", { n: s.nombre })} onClick={() => (setError(null), setEdita(aBorrador(s)))} disabled={ocupado}>
-                      <Fijo k="conectores.editar" />
-                    </Boton>
-                    <Boton aria-label={t("conectores.quitarDe", { n: s.nombre })} onClick={() => void correr(() => fuentePaneles.quitarMcp(s.nombre))} disabled={ocupado}>
-                      <Fijo k="conectores.quitar" />
-                    </Boton>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="ol-nota">{t("conectores.ninguno")}</p>
-          )}
-          {edita ? (
-            <Formulario
-              b={edita}
-              cambiar={setEdita}
-              ocupado={ocupado}
-              alCancelar={() => (setEdita(null), setError(null))}
-              alGuardar={() => void correr(() => fuentePaneles.guardarMcp(aEntrada(edita)), () => setEdita(null))}
-            />
-          ) : (
-            <Boton onClick={() => (setError(null), setEdita(vacio()))} disabled={ocupado}>
-              <Plus size={14} strokeWidth={2} aria-hidden /> <Fijo k="conectores.agregar" />
-            </Boton>
-          )}
-          {error ? <div className="pn-error dsh-err" role="alert">{textoMain(error)}</div> : null}
-        </Dato>
-
-        <Dato nombre="conectores.motores" que="conectores.motoresQue">
-          <ul className="mcp-motores">
-            <li><Estado ok texto={t("conectores.mClaude")} /></li>
-            <li><Estado ok texto={t("conectores.mDsh")} /></li>
-            <li><Estado ok texto={t("conectores.mOpencode")} /></li>
-            <li><Estado ok={false} texto={t("conectores.mGemini")} /></li>
-            <li><Estado ok={false} texto={t("conectores.mWorkers")} /></li>
-          </ul>
-          <p className="ol-nota">{t("conectores.motoresNota")}</p>
-        </Dato>
-
-        <Dato nombre="conectores.claudeai" que="conectores.claudeaiQue">
-          <a className="ui-btn mdl-enlace" href="https://claude.ai/settings/connectors" target="_blank" rel="noopener noreferrer">
-            <ExternalLink size={14} strokeWidth={2} aria-hidden /> <Fijo k="conectores.claudeaiAbrir" />
-          </a>
-          <p className="ol-nota">{t("conectores.claudeaiNota")}</p>
-        </Dato>
-      </section>
-    </>
+  const dibujar = (x: Tarjeta) => (
+    <TarjetaTienda key={x.clave} x={x} hoy={d.hoy} enCurso={enCurso === x.clave} bloqueado={enCurso !== null} alAbrir={(y) => setDetalle({ clave: y.clave, confirmar: false })} alAnadir={anadir} alConmutar={(y, v) => void conmutar(y, v).catch(() => {})} />
   );
-}
 
-export function AjustesConectores({ Dato }: { Dato: FilaDato }) {
-  // Instalar algo desde «Descubrir» cambia lo que hay arriba (el inventario de Claude Code) y abajo (los conectores propios): se vuelven a leer.
-  const [lectura, setLectura] = useState(0);
+  // ---- Lo que se dice arriba de las tarjetas ---------------------------------------------------------------------------------------------------
+  const cargandoVista = vista === "tuyos" ? false : pestana === "plugins" ? catalogos.datos === null && !catalogos.falla : pestana === "hooks" ? false : descubrir.datos === null && !descubrir.falla;
+  const falla = inv.falla ?? (vista === "descubrir" ? (pestana === "plugins" ? catalogos.falla : descubrir.falla) : null);
+  const usoOrden = vista === "tuyos" && (ordenActual === "mas" || ordenActual === "menos" || ordenActual === "ultimo");
+  const cuando = descubrir.datos?.actualizado ? new Date(descubrir.datos.actualizado).toLocaleString(locale(), { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : null;
+  const estado = actualizando
+    ? t("descubrir.actualizando")
+    : usoOrden
+      ? d.usoCargando
+        ? t("conectores.usoCargando")
+        : d.usos
+          ? t("conectores.usoNota", { dias: DIAS_USOS, n: d.usos.sesiones })
+          : t("conectores.usoNoHay")
+      : vista === "descubrir" && (pestana === "skills" || pestana === "mcp")
+        ? cuando
+          ? t("descubrir.bajado", { f: cuando })
+          : t("descubrir.nuncaBajado")
+        : null;
+  const noAgregados = vista === "descubrir" && pestana === "plugins" ? (catalogos.datos?.catalogos ?? []).filter((c) => !c.agregado) : [];
+  const avisosDescubrir = vista === "descubrir" && (pestana === "skills" || pestana === "mcp") ? [descubrir.datos?.errores.skills && pestana === "skills" ? t("descubrir.fallaSkills", { m: textoMain(descubrir.datos.errores.skills) }) : null, descubrir.datos?.errores.mcp && pestana === "mcp" ? t("descubrir.fallaMcp", { m: textoMain(descubrir.datos.errores.mcp) }) : null].filter(Boolean) : [];
+  const ver = lista.slice(0, visibles);
+  const sinNada = !cargandoVista && !falla && base.length === 0;
+
   return (
     <Cat id="conectores">
-      <section className="pn-sec">
-        <InventarioConectores key={lectura} />
-      </section>
-      <div className="aj-grupo-cab cn-propios">
-        <h3 className="aj-grupo-tit">{t("descubrir.titulo")}</h3>
-        <p className="aj-grupo-sub">{t("descubrir.sub")}</p>
+      <div className="ti-raiz" data-opc="conectores.tienda" data-tienda ref={raiz}>
+        <div className="ti-pestanas" role="tablist" aria-label={t("tienda.pestanas")} onKeyDown={flechas}>
+          {PESTANAS.map((p) => {
+            const Icono = ICONO[p];
+            return (
+              <button
+                key={p}
+                type="button"
+                role="tab"
+                id={`ti-tab-${p}`}
+                aria-selected={p === pestana}
+                aria-controls="ti-panel"
+                tabIndex={p === pestana ? 0 : -1}
+                className="ti-pestana"
+                data-pestana-btn={p}
+                data-guia={p === "plugins" ? "plugins-catalogo" : undefined}
+                onClick={() => reiniciar(p, p === "hooks" ? "tuyos" : vista)}
+              >
+                <Icono size={15} strokeWidth={2} aria-hidden />
+                <span>{t(`tienda.t.${p}`)}</span>
+                <span className="ti-pestana-n">{inv.datos ? conteos[p] : ""}</span>
+              </button>
+            );
+          })}
+        </div>
+        <p className="ti-que" id="ti-que">{t(`tienda.q.${pestana}`)}</p>
+
+        <div className="ti-barra">
+          {pestana !== "hooks" ? (
+            <div className="ti-seg" role="group" aria-label={t("tienda.vistaAria")} data-guia="descubrir">
+              {VISTAS.map((v) => (
+                <button key={v} type="button" className="ti-seg-op" aria-pressed={v === vista} data-vista-btn={v} onClick={() => reiniciar(pestana, v)}>
+                  {t(`tienda.v.${v}`)}
+                </button>
+              ))}
+            </div>
+          ) : null}
+          <label className="ti-buscar">
+            <Search size={14} strokeWidth={2} aria-hidden />
+            <input
+              className="pn-campo"
+              type="search"
+              value={busca}
+              spellCheck={false}
+              autoComplete="off"
+              placeholder={t("tienda.buscar")}
+              aria-label={t("tienda.buscar")}
+              onChange={(ev) => {
+                setBusca(ev.target.value);
+                setVisibles(PAGINA);
+              }}
+            />
+          </label>
+          {categorias.length ? (
+            <label className="ti-campo">
+              <span className="ti-campo-t">{t("plugins.categoria")}</span>
+              <select
+                className="pn-campo"
+                value={catActual ?? ""}
+                onChange={(ev) => {
+                  setCategoria(ev.target.value || null);
+                  setVisibles(PAGINA);
+                }}
+              >
+                <option value="">{t("plugins.categoriaTodas")}</option>
+                {categorias.map((c) => (
+                  <option key={c.nombre} value={c.nombre}>{`${c.nombre} (${c.n})`}</option>
+                ))}
+              </select>
+            </label>
+          ) : null}
+          {ordenes.length > 1 && !seccion ? (
+            <label className="ti-campo" data-guia="conectores-orden">
+              <span className="ti-campo-t">{t("conectores.ordenar")}</span>
+              <select className="pn-campo" value={ordenActual} onChange={(ev) => (setOrden(ev.target.value as Orden), setVisibles(PAGINA))}>
+                {ordenes.map((o) => (
+                  <option key={o} value={o}>{t(TEXTO_ORDEN[o])}</option>
+                ))}
+              </select>
+            </label>
+          ) : null}
+          <Boton className="ti-act" onClick={() => void actualizar()} disabled={actualizando} aria-label={t(vista === "descubrir" && pestana !== "plugins" ? "descubrir.actualizar" : "conectores.actualizar")} title={t(vista === "descubrir" && pestana !== "plugins" ? "descubrir.actualizar" : "conectores.actualizar")}>
+            {actualizando ? <Loader size={14} strokeWidth={2} aria-hidden className="pl-gira" /> : <RefreshCw size={16} strokeWidth={2} aria-hidden />}
+          </Boton>
+          {pestana !== "hooks" ? (
+            <Boton primario className="ti-agregar-btn" onClick={() => setAgregar((a) => (a ? null : { editar: null }))} aria-expanded={agregar !== null} aria-controls="ti-agregar-panel" data-agregar-btn>
+              <Plus size={14} strokeWidth={2.4} aria-hidden /> <span>{t("tienda.agregar")}</span>
+            </Boton>
+          ) : null}
+        </div>
+
+        {agregar && pestana !== "hooks" ? (
+          <div id="ti-agregar-panel">
+            <PanelAgregar
+              key={agregar.editar?.nombre ?? "nuevo"}
+              pestana={pestana}
+              editar={agregar.editar}
+              cuentas={catalogos.datos?.cuentas ?? []}
+              cuenta={cuenta}
+              alElegirCuenta={setCuenta}
+              alExplorar={() => reiniciar(pestana, "descubrir")}
+              alCerrar={() => setAgregar(null)}
+              alCambiar={(c) => {
+                if (c.propios) propios.poner(c.propios);
+                if (c.catalogos) {
+                  catalogos.poner(c.catalogos);
+                  inv.cargar();
+                }
+              }}
+            />
+          </div>
+        ) : null}
+
+        <div id="ti-panel" role="tabpanel" aria-labelledby={`ti-tab-${pestana}`} className="ti-panel" aria-busy={cargandoVista || undefined}>
+          {estado ? <p className="ti-estado" role="status">{estado}</p> : null}
+          {avisosDescubrir.map((m) => (
+            <div key={m} className="pn-error dsh-err" role="alert">{m}</div>
+          ))}
+          {error ? <div className="pn-error dsh-err" role="alert">{textoMain(error)}</div> : null}
+          {aviso ? <div className="pn-aviso ds-hecho" role="status" data-hecho-descubrir>{aviso}</div> : null}
+          {noAgregados.map((c) => (
+            <div key={c.id + c.repo} className="ti-sin-agregar" data-catalogo-sin-agregar={c.repo}>
+              <div className="ti-sin-agregar-txt">
+                <strong>{nombreCatalogo(c)}</strong>
+                <span>{t("plugins.sinAgregarAyuda")}</span>
+              </div>
+              <Boton
+                primario
+                disabled={enCurso !== null}
+                aria-label={t("plugins.agregarDe", { n: nombreCatalogo(c) })}
+                onClick={() =>
+                  void correr(`catalogo:${c.repo}`, async () => {
+                    const r = await fuentePaneles.agregarCatalogoPlugins(c.repo, cuenta);
+                    if (vivo.current) catalogos.poner(r);
+                  }).catch(() => {})
+                }
+              >
+                {enCurso === `catalogo:${c.repo}` ? <Loader size={14} strokeWidth={2} aria-hidden className="pl-gira" /> : <Plus size={14} strokeWidth={2.4} aria-hidden />} <span>{enCurso === `catalogo:${c.repo}` ? t("plugins.agregando") : t("plugins.agregar")}</span>
+              </Boton>
+            </div>
+          ))}
+
+          {falla ? (
+            <div className="pn-aviso" data-error>{textoMain(falla)}</div>
+          ) : !inv.datos || cargandoVista ? (
+            <PanelCargando />
+          ) : sinNada ? (
+            <div className="ti-vacio" data-vacio>
+              <p>{t(vista === "tuyos" ? `tienda.vacio.${pestana}` : pestana === "plugins" ? "plugins.sinPlugins" : "descubrir.vacio")}</p>
+              {vista === "tuyos" && pestana !== "hooks" ? (
+                <Boton onClick={() => reiniciar(pestana, "descubrir")}>
+                  <Search size={14} strokeWidth={2} aria-hidden /> <span>{t("tienda.irADescubrir")}</span>
+                </Boton>
+              ) : null}
+            </div>
+          ) : hayEstructura ? (
+            <SeccionesDescubrir
+              tarjetas={base}
+              dibujar={dibujar}
+              alVerTodo={(id) => (setSeccion(id), setVisibles(PAGINA))}
+              alCategoria={(c) => (setCategoria(c), setVisibles(PAGINA))}
+            />
+          ) : (
+            <section className="ti-plana" data-plana>
+              {seccion || catActual !== null ? (
+                <div className="ti-plana-cab">
+                  <Boton onClick={() => (setSeccion(null), setCategoria(null))}>
+                    <ChevronLeft size={14} strokeWidth={2.2} aria-hidden /> <span>{t("tienda.volver")}</span>
+                  </Boton>
+                  <h3 className="ti-sec-t">{seccion ? t(`tienda.sec.${seccion}`) : catActual}</h3>
+                </div>
+              ) : null}
+              <p className="ti-estado" role="status">{t("conectores.cuenta", { n: lista.length, total: base.length })}</p>
+              {lista.length ? (
+                <>
+                  <Rejilla etiqueta={t(`tienda.t.${pestana}`)}>{ver.map(dibujar)}</Rejilla>
+                  {lista.length > ver.length ? (
+                    <div className="ti-mas">
+                      <Boton onClick={() => setVisibles((n) => n + PAGINA)}>{t("tienda.verMas", { n: Math.min(PAGINA, lista.length - ver.length), resto: lista.length - ver.length })}</Boton>
+                    </div>
+                  ) : null}
+                </>
+              ) : (
+                <p className="ol-nota ti-sin-res">{t("conectores.sinResultados")}</p>
+              )}
+            </section>
+          )}
+        </div>
       </div>
-      <section className="pn-sec">
-        <Descubrir alCambiar={() => setLectura((n) => n + 1)} />
-      </section>
-      <div className="aj-grupo-cab cn-propios">
-        <h3 className="aj-grupo-tit">{t("conectores.propiosTit")}</h3>
-        <p className="aj-grupo-sub">{t("conectores.propiosSub")}</p>
-      </div>
-      <ServidoresPropios key={lectura} Dato={Dato} />
+
+      {abierta ? (
+        <DetalleTienda key={abierta.clave} x={abierta} conector={conectorDe(abierta)} propio={propioDe(abierta)} hoy={d.hoy} confirmar={detalle?.confirmar ?? false} acciones={acciones} alCerrar={() => setDetalle(null)} />
+      ) : null}
     </Cat>
   );
 }

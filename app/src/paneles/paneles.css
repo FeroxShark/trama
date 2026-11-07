@@ -3130,132 +3130,17 @@
   flex: 1 1 10rem;
   min-width: 0;
 }
-/* Ajustes > Conectores: el inventario de Claude Code (AjustesConectoresInventario.tsx). */
-.cn-inv {
-  display: flex;
-  flex-direction: column;
-  gap: var(--esp-3);
-}
-.cn-barra {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--esp-2);
-}
-.cn-buscar {
-  display: flex;
-  flex: 1 1 14rem;
-  align-items: center;
-  gap: var(--esp-2);
-  min-width: 0;
-  color: var(--texto-7);
-}
-.cn-buscar .pn-campo {
-  flex: 1;
-  min-width: 0;
-}
-.cn-cuenta {
-  color: var(--texto-7);
-  font-size: var(--letra-3);
-}
-.cn-fila .aj-fila-ayuda {
-  white-space: normal;
-  overflow: visible;
-  display: flex;
-  flex-direction: column;
-  gap: var(--esp-0-5);
-  min-width: 0;
-}
+/* Ajustes > Conectores (tienda.css es la tienda): el origen y el destino que dice el detalle (TiendaDetalle.tsx). */
 .cn-origen {
   color: var(--texto-7);
   font-size: var(--letra-3);
-}
-.cn-desc {
-  overflow-wrap: anywhere;
 }
 .cn-destino {
   overflow-wrap: anywhere;
   color: var(--texto-7);
   font-size: var(--letra-3);
 }
-.cn-ctrl {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: flex-end;
-  gap: var(--esp-2);
-}
-/* Ordenar por uso: etiqueta y selector juntos; en el celular el selector llena la fila y tiene alto de dedo. */
-.cn-orden {
-  display: flex;
-  flex: 0 1 auto;
-  align-items: center;
-  gap: var(--esp-2);
-  color: var(--texto-7);
-  font-size: var(--letra-3);
-}
-.cn-orden .pn-campo {
-  width: auto;
-  min-width: 9rem;
-}
-.cn-uso {
-  color: var(--texto-7);
-  font-size: var(--letra-3);
-  font-variant-numeric: tabular-nums;
-}
-.cn-uso[data-uso="usado"] {
-  color: var(--texto);
-}
-.cn-nota-uso {
-  margin: 0;
-}
-/* Los bloques de una lista larga (virtual): la línea entre filas también cruza de un bloque al siguiente. */
-.cn-bloque + .cn-bloque > .aj-fila:first-child {
-  border-top: 1px solid var(--capa-div);
-}
-@media (max-width: 35rem), (pointer: coarse) {
-  .cn-orden {
-    flex: 1 1 100%;
-  }
-  .cn-orden .pn-campo {
-    flex: 1;
-    height: 2.75rem;
-  }
-}
-.cn-mas,
-.cn-vacio {
-  margin: 0;
-  padding: var(--esp-2) var(--esp-4);
-}
-.cn-propios {
-  margin-top: var(--esp-4);
-}
-/* Catálogos de plugins (AjustesPlugins.tsx): el selector de cuenta, el alta de otro catálogo y el ícono de «en curso» que gira. */
-.pl-cuenta {
-  display: flex;
-  align-items: center;
-  gap: var(--esp-2);
-  color: var(--texto-7);
-  font-size: var(--letra-3);
-}
-/* Filtro por categoría y orden de la tienda: dos campos que se apilan en 360 px y miden 44 px de alto para el dedo. */
-.pl-filtros {
-  align-items: flex-end;
-}
-.pl-filtro {
-  display: flex;
-  flex: 1 1 10rem;
-  flex-direction: column;
-  gap: var(--esp-1);
-  min-width: 0;
-  color: var(--texto-7);
-  font-size: var(--letra-3);
-}
-.pl-filtro .pn-campo {
-  min-height: 2.75rem;
-  min-width: 0;
-  width: 100%;
-}
+/* Catálogos de plugins (TiendaAgregar.tsx): el alta de otro catálogo y el ícono de «en curso» que gira. */
 .pl-otro {
   display: flex;
   flex-wrap: wrap;
@@ -3279,13 +3164,7 @@
   }
 }
 
-/* Ajustes > Conectores > Descubrir (AjustesDescubrir.tsx): marcas de cada item y el panel de confirmación que se abre bajo la fila. */
-.ds-marcas {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--esp-1) var(--esp-3);
-}
+/* Ajustes > Conectores > Descubrir (TiendaDetalle.tsx): marcas y el panel de confirmación de lo que se instala. */
 .ds-marca {
   display: inline-flex;
   align-items: center;
@@ -3364,45 +3243,11 @@
 .ds-hecho {
   margin: 0;
 }
-/* 360 px y dedo: los controles de la fila y del panel miden 44 px y se apilan; el panel ocupa todo el ancho. */
+/* 360 px y dedo: los botones de la confirmación se reparten el ancho. */
 @media (max-width: 35rem), (pointer: coarse) {
-  .ds-raiz .aj-fila-cuerpo {
-    flex-wrap: wrap;
-    align-items: flex-start;
-  }
-  .ds-raiz .aj-fila-txt {
-    flex: 1 1 100%;
-  }
-  .ds-raiz .aj-fila-ctrl {
-    width: 100%;
-    justify-content: flex-start;
-    margin-left: 0;
-    margin-top: var(--esp-2);
-  }
-  .ds-raiz .cn-ctrl {
-    justify-content: flex-start;
-  }
-  .ds-raiz .mdl-estado {
-    white-space: normal;
-    max-width: 100%;
-  }
-  .ds-raiz .ui-btn,
-  .ds-raiz .mdl-enlace {
-    min-height: 2.75rem;
-  }
   .ds-acciones > * {
     flex: 1 1 8rem;
   }
-}
-
-[data-mcp] .pn-dato {
-  grid-template-columns: minmax(0, 1fr);
-  gap: var(--esp-2);
-}
-[data-mcp] .pn-val {
-  font-family: var(--font-sans);
-  text-align: left;
-  white-space: normal;
 }
 
 /* OpenCode Go (Plan y cupos): los topes por modelo en una tabla; el agotado dice «Agotado» con ícono, no sólo color. */

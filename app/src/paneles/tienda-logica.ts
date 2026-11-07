@@ -62,6 +62,8 @@ export type Tarjeta = {
   accion: Accion;
   /** Dónde vive (carpeta, archivo, URL o `plugin@catálogo`); `null` si no se sabe. */
   donde: string | null;
+  /** Una página para saber más (sólo http/https); `null` si la fuente no trae. */
+  enlace: string | null;
   trae: Trae | null;
   fuente: Fuente;
 };
@@ -88,6 +90,9 @@ export function autorDeNombreMcp(nombre: string): string {
   if (ns.startsWith("io.github.") && partes[2]) return partes.slice(2).join(".");
   return (partes.length > 1 ? partes[1] : partes[0]) ?? nombre;
 }
+
+/** Sólo se ofrece un enlace http/https (lo que trae un catálogo de terceros no es de fiar). */
+const enlaceWeb = (u: string | null | undefined): string | null => (u && /^https?:\/\//i.test(u) ? u : null);
 
 const nombreComando = (s: VistaServidorMcp) => (s.tipo === "stdio" ? [s.comando, ...(s.args ?? [])].filter(Boolean).join(" ") : (s.url ?? ""));
 
@@ -150,6 +155,7 @@ export function tarjetasTuyos(pestana: Pestana, todos: Conector[], uso: Map<stri
       conmutable: c.conmutable,
       accion: "ninguna",
       donde: dondeDeConector(c),
+      enlace: null,
       trae,
       fuente: { tipo: "conector", id: c.id },
     });
@@ -176,6 +182,7 @@ export function tarjetasTuyos(pestana: Pestana, todos: Conector[], uso: Map<stri
         conmutable: false,
         accion: "ninguna",
         donde: "~/.config/trama/mcp.json",
+        enlace: null,
         trae: null,
         fuente: { tipo: "propio", nombre: s.nombre },
       });
@@ -217,6 +224,7 @@ export function tarjetasDescubrirSkills(items: ItemSkill[]): Tarjeta[] {
     conmutable: false,
     accion: "instalar",
     donde: `~/.claude/skills/${i.nombre}`,
+    enlace: enlaceWeb(i.enlace),
     trae: null,
     fuente: { tipo: "descubrir", id: i.id },
   }));
@@ -243,6 +251,7 @@ export function tarjetasDescubrirMcp(items: ItemMcp[]): Tarjeta[] {
     conmutable: false,
     accion: i.remoto?.seguro ? "agregar" : i.paquete ? "comando" : "ninguna",
     donde: i.remoto?.seguro ? i.remoto.url : (i.paquete?.comando ?? null),
+    enlace: enlaceWeb(i.paquete?.enlace ?? i.enlace),
     trae: null,
     fuente: { tipo: "descubrir", id: i.id },
   }));
@@ -274,6 +283,7 @@ export function tarjetasDescubrirPlugins(catalogos: Catalogo[]): Tarjeta[] {
         conmutable: false,
         accion: "instalar",
         donde: `${p.nombre}@${c.id}`,
+        enlace: null,
         trae: null,
         fuente: { tipo: "plugin", plugin: p.nombre, catalogo: c.id },
       });

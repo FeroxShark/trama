@@ -695,7 +695,7 @@ export function AjustesModelos({ Dato, plan = null }: { Dato: FilaDato; plan?: s
 
       <AjustesDsh Dato={Dato} />
 
-      <AjustesConectores Dato={Dato} />
+      <AjustesConectores />
 
       <Cat id="cupos" orden={1}>
         <CuposTarjetas b={b} uso={uso} plan={plan} />

@@ -150,16 +150,14 @@ test("las anclas data-guia del registro existen en el código", () => {
     "src/hilo/Fondo.tsx",
     "src/paneles/TableroNuevo.tsx",
     "src/paneles/Ramas.tsx",
-    "src/paneles/AjustesConectoresInventario.tsx",
-    "src/paneles/AjustesPlugins.tsx",
-    "src/paneles/AjustesDescubrir.tsx",
+    "src/paneles/AjustesConectores.tsx",
   ];
   const src = archivos.map((f) => readFileSync(path.join(import.meta.dirname, "..", f), "utf8")).join("\n");
   const usadas = reg.GUIAS.flatMap((g) => g.pasos.map((p) => /^\[data-guia="([\w-]+)"\]$/.exec(p.ancla)?.[1])).filter(Boolean);
   assert.ok(usadas.length >= 10);
   for (const a of usadas) {
     if (a === "perfil-riel") continue;
-    assert.match(src, new RegExp(`data-guia="${a}"`), a);
+    assert.match(src, new RegExp(`data-guia=(?:"${a}"|\\{[^}]*"${a}")`), a);
   }
 });
 

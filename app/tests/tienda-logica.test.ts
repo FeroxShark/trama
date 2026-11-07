@@ -87,6 +87,8 @@ test("Descubrir: la acción de cada tarjeta y de quién es (el «+», el comando
   assert.equal(s[0]!.accion, "instalar");
   assert.equal(s[0]!.puesto, true);
   assert.deepEqual(s[0]!.origen, { clase: "anthropic" });
+  assert.equal(s[0]!.enlace, "https://x");
+  assert.equal(tarjetasDescubrirSkills([skill("raro", { enlace: "javascript:alert(1)" })])[0]!.enlace, null, "sólo se ofrece un enlace http/https");
   const m = tarjetasDescubrirMcp([
     mcp("io.github.ana/notas", { titulo: "Notas de Ana", remoto: { url: "https://n.example.com/mcp", dominio: "n.example.com", seguro: true }, fecha: "2026-10-01T00:00:00Z" }),
     mcp("io.github.luis/archivos", { paquete: { tipo: "npm", identificador: "x", version: null, comando: "npx -y x", enlace: null } }),
