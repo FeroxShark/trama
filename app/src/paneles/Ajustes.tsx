@@ -25,6 +25,7 @@ import { alCambiarAplicarAuto, aplicarAuto, cambiarAplicarAuto } from "./aplicar
 import { IcApariencia, IcAtajos, IcAviso, IcCodigo, ICONO, IcIdioma, IcLetra, IcTiernos, IcTipografia } from "../ui/iconos";
 import { carcasaActualiza } from "../carcasa";
 import { Carcasa } from "./AjustesCarcasa";
+import { Novedades } from "./AjustesNovedades";
 import { AjustesMarco, Cat } from "./AjustesNav";
 import { ErrorCarga } from "./ErrorCarga";
 import { useIdioma } from "../i18n/react";
@@ -386,6 +387,7 @@ export function Ajustes() {
         <Celular Dato={Dato} />
         <Cat id="actualizaciones">
           {carcasaActualiza ? <Carcasa Dato={Dato} /> : <TramaActualizaciones Dato={Dato} />}
+          <Novedades Dato={Dato} />
         </Cat>
         <Proyectos />
         <Guia />

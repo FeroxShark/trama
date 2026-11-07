@@ -13,6 +13,7 @@ import { aplicarOpGuias, normalizarGuias, type EstadoGuias } from "./guias-estad
 import type { ModoAvisoLider } from "./avisos-worker.ts";
 import { CONFIG_LIMPIEZA_DEFAULT, configLimpieza, type ConfigLimpieza } from "./limpieza-pa.ts";
 import { esPrefCache, type PrefCache } from "./cache-pregunta.ts";
+import { compararVersiones, versionNormal } from "./novedades-cambios.ts";
 import { esTerminalAgentes, TERMINAL_AGENTES_DEFAULT, type TerminalAgentes } from "./terminal-agentes.ts";
 
 const ARCHIVO = path.join(ESTADO, "preferencias.json");
@@ -49,6 +50,8 @@ export type Preferencias = {
   consumo?: boolean;
   dictadoModelo?: string;
   bienvenida?: boolean;
+  /** `novedades`: la última versión cuyas novedades se cerraron con «Listo» (X.Y.Z); sin el campo, ninguna (src/datos/novedades.ts). */
+  novedades?: string;
   /** `guias`: qué guías de pantalla ya se vieron (versión por id) y si están apagadas (src/guia); sin el campo, todas por ver. */
   guias?: EstadoGuias;
   /** `limpieza`: la limpieza de worktrees y ramas viejos de `pa` (limpieza-pa.ts): pasada automática (por defecto APAGADA) y días de antigüedad (7). */
@@ -83,6 +86,7 @@ function desde(j: {
   consumo?: unknown;
   dictadoModelo?: unknown;
   bienvenida?: unknown;
+  novedades?: unknown;
   guias?: unknown;
   limpieza?: unknown;
 }): Preferencias {
@@ -103,6 +107,7 @@ function desde(j: {
   if (typeof j.consumo === "boolean") p.consumo = j.consumo;
   if (esModeloDictado(j.dictadoModelo)) p.dictadoModelo = j.dictadoModelo;
   if (typeof j.bienvenida === "boolean") p.bienvenida = j.bienvenida;
+  if (versionNormal(j.novedades)) p.novedades = versionNormal(j.novedades)!;
   if (j.guias && typeof j.guias === "object") p.guias = normalizarGuias(j.guias);
   if (j.limpieza && typeof j.limpieza === "object") p.limpieza = configLimpieza(CONFIG_LIMPIEZA_DEFAULT, j.limpieza);
   return p;
@@ -337,6 +342,39 @@ export async function guardarBienvenida(si: unknown) {
   const p = await leerPreferencias();
   if ((p.bienvenida === true) === si) return;
   p.bienvenida = si;
+  await guardar(p);
+}
+
+/** Una corrida de prueba (bench, captura, pruebas, fixtures): ninguna abre avisos ni guardas por su cuenta. */
+const corridaDePrueba = () => {
+  const e = process.env;
+  return !!(e.HILOS_BENCH || e.HILOS_CAPTURA || e.HILOS_CAPTURA_PNG || e.HILOS_PRUEBA || e.HILOS_GUION || e.HILOS_FIXTURES === "1");
+};
+
+/**
+ * La última versión de la que se cerraron las novedades (`vista`), para decidir qué mostrar al arrancar con `actual`.
+ * Primera instalación (la bienvenida sin ver y nada guardado): se anota `actual` y no hay nada que contar. Ya usaba Trama antes de
+ * que existieran las novedades: `null` (se muestra sólo la de ahora). Una corrida de prueba dice que ya está vista.
+ */
+export async function novedadesVista(actual: string | null): Promise<string | null> {
+  const a = versionNormal(actual);
+  if (!a) return null;
+  if (corridaDePrueba()) return a;
+  const p = await leerPreferencias();
+  if (p.novedades) return p.novedades;
+  if (p.bienvenida === true) return null;
+  p.novedades = a;
+  await guardar(p);
+  return a;
+}
+
+/** «Listo»: las novedades hasta esa versión ya se vieron. Nunca retrocede (volver a una versión vieja no las reabre). */
+export async function guardarNovedadesVista(v: unknown) {
+  const n = versionNormal(v);
+  if (!n) return;
+  const p = await leerPreferencias();
+  if (p.novedades && compararVersiones(p.novedades, n) >= 0) return;
+  p.novedades = n;
   await guardar(p);
 }
 

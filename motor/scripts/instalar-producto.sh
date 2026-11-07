@@ -358,6 +358,9 @@ construir_app() {
     # Un archivo que la versión anterior traía y la nueva ya no tiene queda huérfano en $dst y rompe
     # la compilación (tsc compila todo src/). tar no borra: hay que sacarlos a mano.
     borrar_huerfanos_app "$src" "$dst"
+    # Las novedades de cada versión: vite (vite.config.ts) lee ../CHANGELOG.md de donde compila, y .build-nuevo cuelga de $dst. Va DESPUÉS
+    # de borrar_huerfanos_app (el CHANGELOG está en la raíz de la fuente, no en app/) y no entra en la huella (cambia con la versión).
+    [[ -f "$src/../CHANGELOG.md" ]] && cp -f "$src/../CHANGELOG.md" "$dst/CHANGELOG.md" 2>/dev/null || true
   fi
   hecho "app: instalando dependencias y compilando en $dst (unos minutos)"
   : >"$dst/.build.log"

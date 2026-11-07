@@ -60,6 +60,8 @@ export const CANALES = [
   ["preferencias:bienvenida", "invoke"],
   ["preferencias:guias", "invoke"],
   ["preferencias:guiasOp", "invoke"],
+  ["novedades:leer", "invoke"],
+  ["novedades:cerrar", "invoke"],
   ["consumo:mirar", "invoke", "ventana-menos-local"],
   ["consumo:soltar", "invoke", "ventana-menos-local"],
   ["consumo:cambio", "on"],

@@ -85,6 +85,11 @@ type Main = {
     guias(): Promise<unknown>;
     guiasOp(op: unknown): Promise<unknown>;
   };
+  /** Las novedades de cada versión (electron/novedades.ts): lo que contesta va sin validar (`novedadesDe`). */
+  novedades: {
+    leer(): Promise<unknown>;
+    cerrar(version: string): Promise<void>;
+  };
   /** El panel de consumo (electron/consumo.ts): lo que contesta va sin validar (`consumoDe`). */
   consumo: {
     mirar(pedido: { lideres: string[]; workers: string[] }): Promise<unknown>;

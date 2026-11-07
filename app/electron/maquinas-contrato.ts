@@ -210,6 +210,9 @@ export const RUTAS: Readonly<Record<string, Ruta>> = {
   "preferencias:bienvenida": "local",
   "preferencias:guias": "local",
   "preferencias:guiasOp": "local",
+  // Las novedades de la versión de esta Trama (su CHANGELOG y lo que ya se cerró): cada motor las suyas.
+  "novedades:leer": "local",
+  "novedades:cerrar": "local",
   "consumo:mirar": "local",
   "consumo:soltar": "local",
   // Los pasos de un worker, de su transcript: el de esta máquina (el de otra se pediría a su motor, todavía no).

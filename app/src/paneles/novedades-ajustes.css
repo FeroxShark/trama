@@ -1,0 +1,81 @@
+/* Ajustes > Actualizaciones > Novedades (AjustesNovedades.tsx): una fila plegable por versión, la más nueva arriba. Las separa el paso
+   de tono de cada fila, no una línea. Alto de dedo en pantallas táctiles y en 360 px la fila baja el recuento de cambios. */
+.nov-lista {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-1-5);
+}
+.nov-ver {
+  border-radius: var(--r-md);
+  background: var(--capa-div);
+}
+.nov-ver > summary {
+  display: flex;
+  min-height: 2.5rem;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--esp-1) var(--esp-3);
+  padding: var(--esp-2) var(--esp-4);
+  border-radius: var(--r-md);
+  cursor: pointer;
+  list-style: none;
+}
+.nov-ver > summary::-webkit-details-marker {
+  display: none;
+}
+/* El triángulo de plegado es del texto, no un color: gira con el estado. */
+.nov-ver > summary::before {
+  content: "";
+  width: 0.4rem;
+  height: 0.4rem;
+  flex: none;
+  border-right: 2px solid var(--txt-3);
+  border-bottom: 2px solid var(--txt-3);
+  transform: rotate(-45deg);
+  transition: transform 0.15s;
+}
+.nov-ver[open] > summary::before {
+  transform: rotate(45deg);
+}
+.nov-ver > summary:hover {
+  background: var(--capa-hover);
+}
+.nov-ver > summary:focus-visible {
+  outline: 2px solid var(--azul);
+  outline-offset: -2px;
+}
+.nov-v {
+  color: var(--texto);
+  font-size: var(--letra-5);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.nov-ahora {
+  padding: 0 var(--esp-2);
+  border-radius: var(--r-cap);
+  background: var(--capa-tile);
+  color: var(--txt-2);
+  font-size: var(--letra-3);
+}
+.nov-n {
+  margin-left: auto;
+  color: var(--apagado);
+  font-size: var(--letra-4);
+}
+.nov-ver > .vin {
+  padding: var(--esp-1) var(--esp-4) var(--esp-4) var(--esp-8);
+}
+.nov-vacio {
+  color: var(--apagado);
+  font-size: var(--letra-4);
+}
+@media (pointer: coarse) {
+  .nov-ver > summary {
+    min-height: 2.75rem;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .nov-ver > summary::before {
+    transition: none;
+  }
+}

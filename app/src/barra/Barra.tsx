@@ -119,6 +119,7 @@ import { accionesCarpeta, accionesLider, accionesWorker, type LugarMenu, type Op
 import { Menu, Renombre, type ItemMenu } from "./Menu";
 import { armarTips } from "./tooltip";
 import { AvisoClaude } from "./AvisoClaude";
+import { AvisoNovedades } from "./AvisoNovedades";
 import { AvisoVuelta } from "./AvisoVuelta";
 import { AvisoSetup } from "./AvisoSetup";
 import { AvisoWorkers } from "./AvisoWorkers";
@@ -2135,6 +2136,7 @@ export function Barra() {
             <AvisoClaude cual="agy" />
             {/* En la carcasa de Windows el .exe se actualiza con lo suyo (Ajustes > Trama para Windows): acá no. */}
             {carcasa() || carcasaActualiza ? null : <AvisoClaude cual="trama" />}
+            <AvisoNovedades />
             <AvisoWorkers />
             <AvisoProgramados />
             <AvisoVuelta />

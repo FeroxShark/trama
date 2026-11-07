@@ -1,0 +1,38 @@
+/* Las novedades de la versión (AvisoNovedades.tsx): la pastilla y el globito son los del resto de los avisos del pie (`.avc`, index.css);
+   acá sólo lo propio: el globito un poco más ancho, el cuerpo con su scroll y los botones al tamaño del dedo. */
+.avn-g {
+  width: min(21rem, calc(100% - 1.5rem));
+  max-height: min(26rem, 70vh);
+}
+.avn-cuerpo {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  gap: var(--esp-3);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.avn-ver {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-1-5);
+}
+.avn-v {
+  margin: 0;
+  color: var(--txt-1);
+  font-size: var(--letra-4);
+  font-weight: 500;
+}
+.avn-g .avc-a {
+  justify-content: flex-end;
+  flex: none;
+}
+@media (pointer: coarse) {
+  .avn .avc-b {
+    height: 2.75rem;
+  }
+  .avn-g .avc-a button {
+    min-width: 5rem;
+    height: 2.75rem;
+  }
+}

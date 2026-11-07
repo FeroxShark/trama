@@ -11,6 +11,7 @@ import type { EstadoVram, ResultadoLiberar } from "../../electron/vram";
 import { MODELO_LARGE_V3, MODELO_TURBO, type ModelosDictado } from "../../electron/dictado-modelos";
 import type { PrefCache } from "../../electron/cache-pregunta";
 import { aplicarOpGuias, GUIAS_VACIO, normalizarGuias, type EstadoGuias, type OpGuias } from "../../electron/guias-estado";
+import { versionNormal } from "../../electron/novedades-cambios";
 import { main, mensaje, type Lectura } from "../puente";
 import { aplicarDif, esDif } from "./hilos-dif";
 import { MODO } from "../modo";
@@ -108,6 +109,10 @@ export interface Fuente {
   guardarBienvenida(si: boolean): void;
   /** Las guías de pantalla (src/guia): el estado guardado en preferencias.json; sin motor (navegador), el del almacenamiento local. */
   guias(): Promise<EstadoGuias>;
+  /** Las novedades de cada versión: el CHANGELOG del build, la versión que corre y la última cerrada con «Listo». */
+  novedades(): Promise<EstadoNovedades>;
+  /** «Listo»: las novedades hasta esa versión ya se vieron (no vuelven a avisar). */
+  cerrarNovedades(version: string): void;
   /** Un cambio de las guías (vista, apagar/prender, reiniciar); devuelve el estado que quedó. */
   guardarGuias(op: OpGuias): Promise<EstadoGuias>;
   /** Empieza a mirar el consumo de esos líderes y workers (o cambia cuáles) y contesta cómo está. */
@@ -903,6 +908,37 @@ let cacheFija: PrefCache = "preguntar";
 
 /** Las guías sin motor (el navegador): en el almacenamiento local, si hay; si no (ventana privada, bloqueado) valen sólo mientras la página siga abierta. Las capturas no recuerdan nada. */
 let guiasMemoria: EstadoGuias = GUIAS_VACIO;
+/** Lo que contesta `novedades:leer`, validado: sin texto no hay novedades, y una versión que no es X.Y.Z es "no sé". */
+export type EstadoNovedades = { texto: string; actual: string | null; vista: string | null };
+export const novedadesDe = (x: unknown): EstadoNovedades => {
+  const o = (x && typeof x === "object" ? x : {}) as Record<string, unknown>;
+  return { texto: typeof o.texto === "string" ? o.texto : "", actual: versionNormal(o.actual), vista: versionNormal(o.vista) };
+};
+
+/** Con fixtures: un CHANGELOG corto de muestra. Sólo sus capturas (`novedades*`) llegan con novedades sin ver; el resto, todo visto. */
+const CAMBIOS_FIJOS = `# Cambios
+
+## 0.2.57
+
+- Conectores como tienda: pestañas Skills, Conectores, Plugins y Hooks; «Tuyos | Descubrir», con buscador, categoría y orden.
+- Selector de modelo: también las versiones anteriores, debajo de **Anteriores** y con su esfuerzo válido.
+- Barra: cada carpeta de proyecto muestra su logo chiquito al lado del nombre.
+
+## 0.2.56
+
+- Preguntas de un líder: el panel ya no tapa la conversación. Tiene tope de alto con scroll propio y se pliega a «N preguntas pendientes».
+- Rutas de archivo en un mensaje (por ejemplo \`/usr/bin/agy\`): se abren mostrando el archivo en su carpeta.
+
+## 0.2.55
+
+- Actualizar: la ventana se relanza si el build cambió, aunque no haya oído el aviso del motor.
+- Pastilla de fondo: se cierra cuando la tarea termina a mitad de un turno.
+`;
+function novedadesFijas(): EstadoNovedades {
+  const nuevas = MODO.captura === "novedades" || (MODO.captura === "ajustes" && MODO.variante === "novedades");
+  return { texto: CAMBIOS_FIJOS, actual: "0.2.57", vista: nuevas ? "0.2.55" : "0.2.57" };
+}
+
 function guiasLocal(op?: OpGuias): EstadoGuias {
   const clave = "trama.guias";
   if (!MODO.datosFijos) {
@@ -1644,6 +1680,10 @@ const fija: Fuente = {
   async guias() {
     return guiasLocal();
   },
+  async novedades() {
+    return novedadesFijas();
+  },
+  cerrarNovedades() {},
   async guardarGuias(op) {
     return guiasLocal(op);
   },
@@ -2417,6 +2457,12 @@ const conPa = (m: NonNullable<typeof main>): Fuente => ({
   },
   async guias() {
     return normalizarGuias(await m.preferencias.guias().catch(() => null));
+  },
+  async novedades() {
+    return novedadesDe(await m.novedades.leer().catch(() => null));
+  },
+  cerrarNovedades(version) {
+    void m.novedades.cerrar(version).catch(() => {});
   },
   async guardarGuias(op) {
     return normalizarGuias(await m.preferencias.guiasOp(op).catch(() => null));

@@ -1,0 +1,39 @@
+/* Las viñetas de las novedades de una versión (Vinetas.tsx): lista simple, un punto chico y sangría; el código en la tipografía de código. */
+.vin {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-1-5);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.vin li {
+  position: relative;
+  padding-left: var(--esp-3);
+  color: var(--txt-2);
+  font-size: var(--letra-3);
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+.vin li::before {
+  content: "";
+  position: absolute;
+  top: 0.55em;
+  left: 0;
+  width: 0.25rem;
+  height: 0.25rem;
+  border-radius: 50%;
+  background: var(--txt-3);
+}
+.vin strong {
+  color: var(--txt-1);
+  font-weight: 600;
+}
+.vin code {
+  padding: 0 var(--esp-1);
+  border-radius: var(--r-sm);
+  background: var(--capa-card);
+  color: var(--txt-1);
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+}

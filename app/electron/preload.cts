@@ -73,6 +73,11 @@ contextBridge.exposeInMainWorld("hilos", {
     guias: (): Promise<unknown> => invocar("preferencias:guias"),
     guiasOp: (op: unknown): Promise<unknown> => invocar("preferencias:guiasOp", op),
   },
+  /** Las novedades de cada versión: el CHANGELOG del build y la última que se cerró con «Listo». */
+  novedades: {
+    leer: (): Promise<unknown> => invocar("novedades:leer"),
+    cerrar: (version: string): Promise<void> => invocar("novedades:cerrar", version),
+  },
   /** El panel de consumo (a la derecha): lo que consumió cada modelo y cómo va cada sesión. */
   consumo: {
     mirar: (pedido: unknown): Promise<unknown> => invocar("consumo:mirar", pedido),

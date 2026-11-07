@@ -40,6 +40,7 @@ import { guardarYa, leerLeidos, marcarLeido } from "./leidos.js";
 import { almacenNombres } from "./nombres.js";
 import { almacenPendientes } from "./pendientes.js";
 import { guardarApariencia, guardarAutoIntegrar, guardarAvisarEspera, guardarAvisarWorkers, guardarAvisoLider, avisoLiderGuardado, guardarCacheVencida, bienvenidaPendiente, guardarBienvenida, guardarConsumo, guardarDictadoModelo, guardarEffort, guardarGuias, guardarIdioma, guardarTerminalAgentes, guardarTiernos, guiasEstado, guardarLimpieza, leerLimpieza, leerPreferencias } from "./preferencias.js";
+import { cerrarNovedades, leerNovedades } from "./novedades.js";
 import { aplicarLimpieza, pasadaAutomatica, programarPasadas, verLimpieza } from "./limpieza-pa.js";
 import { accionRama, arreglarDatos, briefRamas, enCola, ejecutar, lanzarRama, lanzarTareaMd, leerAjustes, leerMedicion, pasarALider, relanzarWorker, retomarDatos, seguirConWorker, tareaMdEnCurso, type AccionRama, type TipoTareaMd } from "./paneles.js";
 import { guardarRouting, type Cambio } from "./routing.js";
@@ -1226,6 +1227,9 @@ export function armarNucleo() {
   manejar("preferencias:bienvenida", (_e, si: unknown) => guardarBienvenida(si));
   manejar("preferencias:guias", () => guiasEstado());
   manejar("preferencias:guiasOp", (_e, op: unknown) => guardarGuias(op));
+  // Las novedades de cada versión (CHANGELOG.md del build + la última que se cerró con «Listo»): ventana y celular.
+  manejar("novedades:leer", () => leerNovedades());
+  manejar("novedades:cerrar", (_e, version: unknown) => cerrarNovedades(version));
   // El panel de consumo: qué líderes y workers mira; al ocultarlo se suelta todo.
   manejar("consumo:mirar", (_e, pedido: unknown) => consumo.mirar(pedido));
   manejar("consumo:soltar", () => consumo.soltar());

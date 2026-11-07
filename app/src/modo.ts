@@ -81,6 +81,8 @@ const CAPTURAS = [
   // Lo mismo con trabajo en curso (Actualizar cuando terminen / ya) y con la Trama nueva ya instalada.
   "trama-ocupado",
   "trama-instalada",
+  // Las novedades de la versión recién instalada en el pie: cerrada y abierta (`HILOS_VARIANTE=abierto`).
+  "novedades",
   // "Falta configurar" en el pie (Handy y Ollama por instalar), cerrada y abierta.
   "setup",
   "setup-abierto",
