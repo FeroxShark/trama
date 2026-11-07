@@ -1,5 +1,9 @@
 # Cambios
 
+## 0.2.58
+
+- Novedades: al actualizar, un aviso con lo que trajo la versión nueva (y las intermedias si saltaste varias). En Ajustes, la lista de todas las versiones.
+
 ## 0.2.57
 
 - Conectores como tienda: pestañas Skills, Conectores, Plugins y Hooks; «Tuyos | Descubrir»; buscador, categoría, orden y «Agregar»; tarjetas con qué hace cada cosa, de dónde viene y su uso o instalaciones, y un detalle. En Plugins, Descubrir trae Para vos, Nuevos, Más instalados y Categorías.
