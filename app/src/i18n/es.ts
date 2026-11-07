@@ -3706,4 +3706,5 @@ export const es: { [K in keyof typeof en]: string } = {
   "tienda.agregarPlugins": "Agregar un catálogo de plugins",
   "tienda.agregarPluginsQue": "Un catálogo es un repositorio de GitHub con plugins; los de Anthropic ya están. Escribí usuario/repo para sumar otro.",
   "tienda.explorarPlugins": "Explorar los plugins",
+  "modelo.anteriores": "Anteriores",
 };

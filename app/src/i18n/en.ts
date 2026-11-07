@@ -3720,4 +3720,5 @@ export const en = {
   "tienda.agregarPlugins": "Add a plugin catalog",
   "tienda.agregarPluginsQue": "A catalog is a GitHub repository with plugins; Anthropic's are already there. Type user/repo to add another.",
   "tienda.explorarPlugins": "Browse the plugins",
+  "modelo.anteriores": "Previous",
 } as const;

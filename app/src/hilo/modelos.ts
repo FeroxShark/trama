@@ -11,6 +11,9 @@ export const EFFORTS_CLAUDE = ["low", "medium", "high", "xhigh", "max"] as const
  */
 export const EFFORTS_LOCAL = ["off", "low", "medium", "xhigh"] as const;
 
+/** Los de Opus 4.6 y Sonnet 4.6: sin `xhigh` (nace en Opus 4.7). Salen del catálogo del `claude` instalado (capacidades `effort` + `max_effort`). */
+export const EFFORTS_CLAUDE_46 = ["low", "medium", "high", "max"] as const;
+
 /** Quién hace el modelo: el menú los agrupa por empresa, con su nombre como divisor y su logo (`src/hilo/Logos.tsx`) junto a cada uno. */
 export type Empresa = "anthropic" | "google" | "local" | "ollama" | "dsh" | "opencode";
 /** El nombre de cada empresa, tal cual se escribe (un nombre propio: no se traduce). `local`: lo pone cada modelo (`empresaNombre`). */
@@ -42,6 +45,8 @@ export type ModeloDef = {
   soloLider?: boolean;
   /** Un líder con este modelo no puede delegar con `pa` (Ollama: `pa` se niega bajo un endpoint local). La caja lo avisa. */
   sinWorkers?: boolean;
+  /** Una generación anterior que el `claude` instalado todavía conoce: va debajo de los últimos, bajo el divisor «Anteriores». Siempre `soloLider`. */
+  anterior?: boolean;
   /** Los niveles de esfuerzo que tiene, del más bajo al más alto. */
   efforts: readonly string[];
   /** Con el que arranca si el usuario no eligió otro para este modelo (ante la duda entre dos, el más alto en Claude). */
@@ -57,6 +62,23 @@ const tabla: ModeloDef[] = [
   { id: "claude-opus-5-5", clave: "opus", empresa: "anthropic", nombre: "Opus 5.5", desc: "modelo.opus", rec: true, efforts: EFFORTS_CLAUDE, effortDefecto: "high" },
   { id: "claude-sonnet-5-5", clave: "sonnet", empresa: "anthropic", nombre: "Sonnet 5.5", desc: "modelo.sonnet", efforts: EFFORTS_CLAUDE, effortDefecto: "high" },
   { id: "claude-haiku-5-5", clave: "haiku", empresa: "anthropic", nombre: "Haiku 5.5", desc: "modelo.haiku", efforts: EFFORTS_CLAUDE, effortDefecto: "high" },
+  ...[
+    // Las generaciones anteriores de Anthropic (docs/estado/modelos-todos.md: de dónde sale cada una). Sólo de líder: `reparto` y `pa -m` no las conocen.
+    // El `clave` es el id entero (más largo que el de los últimos: `porClave` elige el más específico). Opus 4 y Sonnet 4 se sirven como `…-4-2025…`.
+    ["claude-fable-5", "claude-fable-5", "Fable 5", "modelo.fable", EFFORTS_CLAUDE, "high"],
+    ["claude-opus-5", "claude-opus-5", "Opus 5", "modelo.opus", EFFORTS_CLAUDE, "high"],
+    ["claude-opus-4-8", "claude-opus-4-8", "Opus 4.8", "modelo.opus", EFFORTS_CLAUDE, "high"],
+    ["claude-opus-4-7", "claude-opus-4-7", "Opus 4.7", "modelo.opus", EFFORTS_CLAUDE, "xhigh"],
+    ["claude-opus-4-6", "claude-opus-4-6", "Opus 4.6", "modelo.opus", EFFORTS_CLAUDE_46, "high"],
+    ["claude-opus-4-5", "claude-opus-4-5", "Opus 4.5", "modelo.opus", [], "high"],
+    ["claude-opus-4-1", "claude-opus-4-1", "Opus 4.1", "modelo.opus", [], "high"],
+    ["claude-opus-4-0", "claude-opus-4", "Opus 4", "modelo.opus", [], "high"],
+    ["claude-sonnet-5", "claude-sonnet-5", "Sonnet 5", "modelo.sonnet", EFFORTS_CLAUDE, "high"],
+    ["claude-sonnet-4-6", "claude-sonnet-4-6", "Sonnet 4.6", "modelo.sonnet", EFFORTS_CLAUDE_46, "high"],
+    ["claude-sonnet-4-5", "claude-sonnet-4-5", "Sonnet 4.5", "modelo.sonnet", [], "high"],
+    ["claude-sonnet-4-0", "claude-sonnet-4", "Sonnet 4", "modelo.sonnet", [], "high"],
+    ["claude-haiku-4-5", "claude-haiku-4-5", "Haiku 4.5", "modelo.haiku", [], "high"],
+  ].map(([id, clave, nombre, desc, efforts, effortDefecto]) => ({ id, clave, nombre, desc, efforts, effortDefecto, empresa: "anthropic", anterior: true, soloLider: true }) as ModeloDef),
 ];
 
 /**
@@ -229,9 +251,24 @@ export const defDe = (modelo: string | null | undefined): ModeloDef | undefined 
   const prefijo = /^(?:ollama|agy|dsh|opencode):/.exec(modelo)?.[0];
   return (
     TABLA.find((m) => m.id === modelo || m.id === base) ??
-    TABLA.find((m) => (prefijo ? m.id.startsWith(prefijo) : !/^(?:ollama|agy|dsh|opencode):/.test(m.id)) && modelo.includes(m.clave))
+    porClave(
+      TABLA.filter((m) => (prefijo ? m.id.startsWith(prefijo) : !/^(?:ollama|agy|dsh|opencode):/.test(m.id))),
+      modelo,
+    )
   );
 };
+
+/**
+ * Entre las filas cuyo `clave` está dentro del id de un hilo, la más específica (la clave más larga). Una clave de id entero
+ * (`claude-opus-5`) no vale si sigue un número de versión (`claude-opus-5-5`: ése es otro modelo); una fecha (`-20250805`) sí.
+ */
+export function porClave<T extends { clave: string }>(filas: readonly T[], modelo: string): T | undefined {
+  const dentro = (clave: string) => {
+    const i = modelo.indexOf(clave);
+    return i >= 0 && !(clave.startsWith("claude-") && /^-\d{1,2}(?!\d)/.test(modelo.slice(i + clave.length)));
+  };
+  return filas.filter((m) => dentro(m.clave)).reduce<T | undefined>((mejor, m) => (!mejor || m.clave.length > mejor.clave.length ? m : mejor), undefined);
+}
 
 export const esLocal = (modelo: string | null | undefined) => defDe(modelo)?.local === true;
 

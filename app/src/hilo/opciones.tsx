@@ -5,7 +5,7 @@
 import { t, type ClaveSola } from "../i18n";
 import type { Opcion } from "./Selector";
 import { GENERAL, type Lider } from "../datos/contrato";
-import { defDe, effortDeModelo, effortsDe, EMPRESAS, type Empresa, partirGeminiId, ponerConfig, TABLA, type ConfigModelos, type ModeloDef } from "./modelos";
+import { defDe, effortDeModelo, effortsDe, EMPRESAS, type Empresa, partirGeminiId, ponerConfig, porClave, TABLA, type ConfigModelos, type ModeloDef } from "./modelos";
 import { Logo } from "./Logos";
 
 // La descripción se dice al leerla: cambia con el idioma sin rearmar las listas.
@@ -42,10 +42,12 @@ const opcionDe = (m: ModeloDef) =>
     },
     m.desc,
   );
-export const MODELOS: (Opcion & { clave: string })[] = TABLA.map(opcionDe);
+/** Las generaciones anteriores llevan el divisor «Anteriores» (se dice al leerlo, por el idioma): sólo en el menú, el modelo sigue siendo de su empresa (`col`). */
+const conDivisor = (o: ReturnType<typeof opcionDe>, m: ModeloDef) => (m.anterior ? Object.defineProperty(o, "grupo", { get: () => t("modelo.anteriores"), enumerable: true }) : o);
+export const MODELOS: (Opcion & { clave: string })[] = TABLA.map((m) => conDivisor(opcionDe(m), m));
 
 /** Los modelos de un worker de `pa` (`-m`): los mismos, sin los que sólo corren en un líder (los locales, Gemini, Ollama). */
-export const MODELOS_WORKER: (Opcion & { clave: string })[] = MODELOS.filter((m) => !m.local);
+export const MODELOS_WORKER: (Opcion & { clave: string })[] = MODELOS.filter((m) => !defDe(m.id)?.local && !defDe(m.id)?.soloLider);
 
 /**
  * `modelos.json` (src/datos/modelos-config.ts): las filas de Gemini y de Ollama que pide, y el líder por defecto. Cambia los arreglos
@@ -53,7 +55,7 @@ export const MODELOS_WORKER: (Opcion & { clave: string })[] = MODELOS.filter((m)
  */
 export function aplicarModelos(c: ConfigModelos | null) {
   const lider = ponerConfig(c);
-  MODELOS.splice(0, MODELOS.length, ...TABLA.map(opcionDe));
+  MODELOS.splice(0, MODELOS.length, ...TABLA.map((m) => conDivisor(opcionDe(m), m)));
   MODELOS_WORKER.splice(0, MODELOS_WORKER.length, ...MODELOS.filter((m) => !defDe(m.id)?.local && !defDe(m.id)?.soloLider));
   MODELO_DEFAULT = lider?.modelo ?? "claude-opus-5-5";
 }
@@ -94,7 +96,10 @@ export const modeloDe = (m: string | null | undefined) => {
   return (
     (
       MODELOS.find((x) => x.id === m || x.id === base) ??
-      MODELOS.find((x) => (prefijo ? x.id.startsWith(prefijo) : !/^(?:ollama|agy|dsh):/.test(x.id)) && m.includes(x.clave))
+      porClave(
+        MODELOS.filter((x) => (prefijo ? x.id.startsWith(prefijo) : !/^(?:ollama|agy|dsh):/.test(x.id))),
+        m,
+      )
     )?.id ?? null
   );
 };
