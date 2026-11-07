@@ -110,7 +110,7 @@ export interface Fuente {
   /** Las guías de pantalla (src/guia): el estado guardado en preferencias.json; sin motor (navegador), el del almacenamiento local. */
   guias(): Promise<EstadoGuias>;
   /** Las novedades de cada versión: el CHANGELOG del build, la versión que corre y la última cerrada con «Listo». */
-  novedades(): Promise<EstadoNovedades>;
+  novedades(id?: string): Promise<EstadoNovedades>;
   /** «Listo»: las novedades hasta esa versión ya se vieron (no vuelven a avisar). */
   cerrarNovedades(version: string): void;
   /** Un cambio de las guías (vista, apagar/prender, reiniciar); devuelve el estado que quedó. */
@@ -934,9 +934,28 @@ const CAMBIOS_FIJOS = `# Cambios
 - Actualizar: la ventana se relanza si el build cambió, aunque no haya oído el aviso del motor.
 - Pastilla de fondo: se cierra cuando la tarea termina a mitad de un turno.
 `;
-function novedadesFijas(): EstadoNovedades {
+const CAMBIOS_FIJOS_EN = `# Changes
+
+## 0.2.57
+
+- Connectors store: Skills, Connectors, Plugins and Hooks tabs; «Yours | Discover», with search, category and sorting.
+- Model picker: previous versions as well, under **Previous** and with valid effort.
+- Sidebar: each project folder shows its small logo next to the name.
+
+## 0.2.56
+
+- Lead questions: the panel no longer covers the chat. Has max height with its own scroll and folds to «N pending questions».
+- File paths in a message (for example \`/usr/bin/agy\`): open revealing the file in its folder.
+
+## 0.2.55
+
+- Update: window restarts if the build changed, even without hearing the engine signal.
+- Background pill: closes when the task finishes mid-turn.
+`;
+function novedadesFijas(id?: string): EstadoNovedades {
+  const lang = id ?? idioma();
   const nuevas = MODO.captura === "novedades" || (MODO.captura === "ajustes" && MODO.variante === "novedades");
-  return { texto: CAMBIOS_FIJOS, actual: "0.2.57", vista: nuevas ? "0.2.55" : "0.2.57" };
+  return { texto: lang === "en" ? CAMBIOS_FIJOS_EN : CAMBIOS_FIJOS, actual: "0.2.57", vista: nuevas ? "0.2.55" : "0.2.57" };
 }
 
 function guiasLocal(op?: OpGuias): EstadoGuias {
@@ -1680,8 +1699,8 @@ const fija: Fuente = {
   async guias() {
     return guiasLocal();
   },
-  async novedades() {
-    return novedadesFijas();
+  async novedades(id?: string) {
+    return novedadesFijas(id);
   },
   cerrarNovedades() {},
   async guardarGuias(op) {
@@ -2458,8 +2477,8 @@ const conPa = (m: NonNullable<typeof main>): Fuente => ({
   async guias() {
     return normalizarGuias(await m.preferencias.guias().catch(() => null));
   },
-  async novedades() {
-    return novedadesDe(await m.novedades.leer().catch(() => null));
+  async novedades(id?: string) {
+    return novedadesDe(await m.novedades.leer(id ?? idioma()).catch(() => null));
   },
   cerrarNovedades(version) {
     void m.novedades.cerrar(version).catch(() => {});

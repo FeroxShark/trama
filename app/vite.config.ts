@@ -18,6 +18,11 @@ const cambios = (): Plugin => ({
     } catch {
       this.warn("no encontré ../CHANGELOG.md: este build no lleva las novedades de cada versión");
     }
+    try {
+      this.emitFile({ type: "asset", fileName: "CHANGELOG.en.md", source: readFileSync(new URL("../CHANGELOG.en.md", import.meta.url), "utf8") });
+    } catch {
+      this.warn("no encontré ../CHANGELOG.en.md: este build no lleva las novedades en inglés");
+    }
   },
 });
 

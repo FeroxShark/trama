@@ -184,11 +184,49 @@ test("leerCambios: el primero que exista; ninguno, vacío", async () => {
 test("el CHANGELOG viaja con el build: vite lo emite en dist/ y dist/ va entero al AppImage, al .exe nativo y a la instalación", () => {
   const aqui = (...p: string[]) => path.join(import.meta.dirname, "..", ...p);
   const vite = readFileSync(aqui("vite.config.ts"), "utf8");
-  assert.ok(/fileName:\s*"CHANGELOG\.md"/.test(vite) && vite.includes("../CHANGELOG.md"), "vite.config.ts emite CHANGELOG.md");
+  assert.ok(/fileName:\s*"CHANGELOG\.md"/.test(vite) && vite.includes("../CHANGELOG.md") && vite.includes("../CHANGELOG.en.md") && /fileName:\s*"CHANGELOG\.en\.md"/.test(vite), "vite.config.ts emite CHANGELOG.md");
   assert.ok(/plugins:\s*\[[^\]]*cambios\(\)/.test(vite), "el plugin está puesto");
   assert.ok(/-\s*dist\/\*\*\/\*/.test(readFileSync(aqui("electron-builder.yml"), "utf8")), "el AppImage lleva dist/**/*");
   assert.ok(readFileSync(aqui("..", "windows", "src", "payload-nativo.js"), "utf8").includes('["app/dist", "app/dist"'), "el .exe nativo copia app/dist entero");
   const instalador = readFileSync(aqui("..", "motor", "scripts", "instalar-producto.sh"), "utf8");
   assert.ok(/\$src\/\.\.\/CHANGELOG\.md.*\$dst\/CHANGELOG\.md/.test(instalador), "el instalador de Linux deja el CHANGELOG donde vite lo busca");
+  assert.ok(/\$src\/\.\.\/CHANGELOG\.en\.md.*\$dst\/CHANGELOG\.en\.md/.test(instalador), "el instalador de Linux deja el CHANGELOG.en.md donde vite lo busca");
   assert.ok(readFileSync(aqui("electron", "novedades.ts"), "utf8").includes('"../dist/CHANGELOG.md"'), "el motor lo lee de dist/");
+  assert.ok(readFileSync(aqui("electron", "novedades.ts"), "utf8").includes('"../dist/CHANGELOG.en.md"'), "el motor lo lee de dist/ en inglés");
+});
+
+test("cada versión de CHANGELOG.md existe en CHANGELOG.en.md con la misma cantidad de viñetas", () => {
+  const realEs = readFileSync(new URL("../../CHANGELOG.md", import.meta.url), "utf8");
+  const realEn = readFileSync(new URL("../../CHANGELOG.en.md", import.meta.url), "utf8");
+  const es = nov.parsearCambios(realEs);
+  const en = nov.parsearCambios(realEn);
+  assert.equal(en.length, es.length, "misma cantidad de versiones");
+  for (let i = 0; i < es.length; i++) {
+    assert.equal(en[i].version, es[i].version, "versión " + i);
+    assert.equal(en[i].items.length, es[i].items.length, "viñetas en v" + es[i].version);
+  }
+  const soloEs = "## 9.9.9\n- nueva solo en es\n" + realEs;
+  const esExtra = nov.parsearCambios(soloEs);
+  assert.notEqual(en.length, esExtra.length, "falla si se agrega una versión sólo en español");
+});
+
+test("el lector devuelve inglés con idioma en", async () => {
+  const en = await lector.leerCambios("en");
+  assert.ok(en.includes("What's new") || en.includes("Settings"), "devuelve contenido en inglés");
+  const novEn = await lector.leerNovedades("en");
+  assert.ok(novEn.texto.includes("What's new") || novEn.texto.includes("Settings"), "leerNovedades devuelve inglés con idioma en");
+  const es = await lector.leerCambios("es");
+  assert.ok(es.includes("Novedades:"), "devuelve contenido en español");
+});
+
+test("combinarCambios: si a una versión le falta la traducción, cae al español de esa versión", () => {
+  const es = "## 0.2.58\n- viñeta en es 58\n\n## 0.2.57\n- viñeta en es 57\n";
+  const enIncompleto = "## 0.2.58\n- bullet in en 58\n";
+  const combinado = nov.combinarCambios(enIncompleto, es);
+  const parsed = nov.parsearCambios(combinado);
+  assert.equal(parsed.length, 2);
+  assert.equal(parsed[0].version, "0.2.58");
+  assert.equal(parsed[0].items[0], "bullet in en 58");
+  assert.equal(parsed[1].version, "0.2.57");
+  assert.equal(parsed[1].items[0], "viñeta en es 57");
 });

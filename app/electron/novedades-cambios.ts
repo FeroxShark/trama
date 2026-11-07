@@ -91,3 +91,27 @@ export function trozos(md: string): Trozo[] {
   if (desde < md.length) salida.push({ tipo: "texto", texto: md.slice(desde) });
   return salida;
 }
+
+export function combinarCambios(textoEn: string, textoEs: string): string {
+  if (!textoEn.trim()) return textoEs;
+  if (!textoEs.trim()) return textoEn;
+  const es = parsearCambios(textoEs);
+  const en = parsearCambios(textoEn);
+  const mapaEn = new Map(en.map((e) => [e.version, e]));
+  const mapaEs = new Map(es.map((e) => [e.version, e]));
+  const faltan = es.some((e) => !mapaEn.has(e.version));
+  const sobran = en.some((e) => !mapaEs.has(e.version));
+  if (!faltan && !sobran) return textoEn;
+  const combinadas: Entrada[] = [];
+  const vistas = new Set<string>();
+  for (const e of es) {
+    vistas.add(e.version);
+    combinadas.push(mapaEn.get(e.version) ?? e);
+  }
+  for (const e of en) {
+    if (!vistas.has(e.version)) combinadas.push(e);
+  }
+  return combinadas
+    .map((e) => "## " + e.version + "\n\n" + e.items.map((it) => "- " + it).join("\n") + "\n")
+    .join("\n");
+}

@@ -22,6 +22,7 @@ falta, está en `motor/docs/traspaso.md`.
 - **Build nuevo con motor:** la ventana cliente compara la huella del build (`selloDe`) al arrancar; un `resinc` sin `saliendo` con build cambiado relanza la ventana (`vueltaDelMotor`, `electron/relanzar.ts`), y si no se puede saber, sólo recarga la página. Un canal nuevo del main que la ventana vieja no tiene hace rechazar el pedido: `resultadoCarpeta` lo distingue de «no es una carpeta» y dice que hay que reiniciar Trama.
 - **Cuentas:** no rotar cuentas de Claude ni de OpenCode para esquivar límites.
 - **PR:** no se abren salvo que el dueño lo pida. Sin nombres de modelos de IA en commits ni en PR.
+- **Novedades y CHANGELOG:** cada versión nueva va en los dos CHANGELOG (`CHANGELOG.md` y `CHANGELOG.en.md`), con las mismas viñetas y el mismo markdown.
 - **Antes de cada commit**, desde `app/`: `npx tsc -p tsconfig.json --noEmit`, `npx tsc -p tsconfig.electron.json --noEmit`,
   `npx vite build`, `npm test`. Si se toca el motor que se está portando: `npm run test:paridad`.
 - **Chequeo rápido para workers:** desde `app/`, `npm run check:changed` (`app/scripts/check-changed.mjs`). Compara contra main

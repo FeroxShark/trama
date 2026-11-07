@@ -41,5 +41,5 @@ búsqueda). Capturas: `scripts/captura.sh novedades` y `HILOS_VARIANTE=novedades
 
 ## Límites
 
-- El contenido del CHANGELOG queda en español, tal cual, también con la interfaz en inglés.
-- Cada versión nueva necesita su `## X.Y.Z` en el CHANGELOG: sin entrada, el aviso no aparece para esa versión.
+- La interfaz en inglés lee CHANGELOG.en.md (con fallback por versión a CHANGELOG.md si falta traducción).
+- Cada versión nueva va en los dos CHANGELOG (CHANGELOG.md y CHANGELOG.en.md); sin entrada, el aviso no aparece para esa versión.

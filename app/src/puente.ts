@@ -87,7 +87,7 @@ type Main = {
   };
   /** Las novedades de cada versión (electron/novedades.ts): lo que contesta va sin validar (`novedadesDe`). */
   novedades: {
-    leer(): Promise<unknown>;
+    leer(idioma?: string): Promise<unknown>;
     cerrar(version: string): Promise<void>;
   };
   /** El panel de consumo (electron/consumo.ts): lo que contesta va sin validar (`consumoDe`). */

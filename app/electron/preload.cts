@@ -75,7 +75,7 @@ contextBridge.exposeInMainWorld("hilos", {
   },
   /** Las novedades de cada versión: el CHANGELOG del build y la última que se cerró con «Listo». */
   novedades: {
-    leer: (): Promise<unknown> => invocar("novedades:leer"),
+    leer: (idioma?: string): Promise<unknown> => invocar("novedades:leer", idioma),
     cerrar: (version: string): Promise<void> => invocar("novedades:cerrar", version),
   },
   /** El panel de consumo (a la derecha): lo que consumió cada modelo y cómo va cada sesión. */

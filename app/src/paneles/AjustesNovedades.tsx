@@ -6,19 +6,21 @@ import { useEffect, useState } from "react";
 import { fuente } from "../datos/fuente";
 import { parsearCambios, versionNormal, type Entrada } from "../../electron/novedades-cambios";
 import { t } from "../i18n";
+import { useIdioma } from "../i18n/react";
 import { Vinetas } from "../ui/Vinetas";
 import type { FilaDato } from "./AjustesEditar";
 import "./novedades-ajustes.css";
 
 export function Novedades({ Dato }: { Dato: FilaDato }) {
+  const id = useIdioma();
   const [lista, setLista] = useState<{ entradas: Entrada[]; actual: string | null } | null>(null);
   useEffect(() => {
     let vivo = true;
-    void fuente.novedades().then((n) => vivo && setLista({ entradas: parsearCambios(n.texto), actual: versionNormal(n.actual) }));
+    void fuente.novedades(id).then((n) => vivo && setLista({ entradas: parsearCambios(n.texto), actual: versionNormal(n.actual) }));
     return () => {
       vivo = false;
     };
-  }, []);
+  }, [id]);
 
   return (
     <section className="pn-sec nov-sec">

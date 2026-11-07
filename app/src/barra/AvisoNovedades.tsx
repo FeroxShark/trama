@@ -14,7 +14,7 @@ import { Vinetas } from "../ui/Vinetas";
 import "./novedades.css";
 
 export const AvisoNovedades = memo(function AvisoNovedades() {
-  useIdioma();
+  const id = useIdioma();
   const [estado, setEstado] = useState<{ version: string; entradas: Entrada[] } | null>(null);
   const [abierto, setAbierto] = useState(MODO.captura === "novedades");
   const caja = useRef<HTMLDivElement>(null);
@@ -23,7 +23,7 @@ export const AvisoNovedades = memo(function AvisoNovedades() {
 
   useEffect(() => {
     let vivo = true;
-    void fuente.novedades().then((n) => {
+    void fuente.novedades(id).then((n) => {
       if (!vivo || !n.actual) return;
       const entradas = versionesAMostrar(parsearCambios(n.texto), n.vista, n.actual);
       if (entradas.length > 0) setEstado({ version: n.actual, entradas });
@@ -31,7 +31,7 @@ export const AvisoNovedades = memo(function AvisoNovedades() {
     return () => {
       vivo = false;
     };
-  }, []);
+  }, [id]);
 
   const alCerrar = useCallback(() => setAbierto(false), []);
   useFoco(globo, { activo: abierto, alCerrar, devolver: () => boton.current });

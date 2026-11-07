@@ -1228,7 +1228,7 @@ export function armarNucleo() {
   manejar("preferencias:guias", () => guiasEstado());
   manejar("preferencias:guiasOp", (_e, op: unknown) => guardarGuias(op));
   // Las novedades de cada versión (CHANGELOG.md del build + la última que se cerró con «Listo»): ventana y celular.
-  manejar("novedades:leer", () => leerNovedades());
+  manejar("novedades:leer", (_e, idioma: unknown) => leerNovedades(typeof idioma === "string" ? idioma : undefined));
   manejar("novedades:cerrar", (_e, version: unknown) => cerrarNovedades(version));
   // El panel de consumo: qué líderes y workers mira; al ocultarlo se suelta todo.
   manejar("consumo:mirar", (_e, pedido: unknown) => consumo.mirar(pedido));
