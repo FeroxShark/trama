@@ -1,5 +1,10 @@
 # Changes
 
+## 0.2.60
+
+- Lead folder picker: each project shows its logo.
+- Model picker: Opus 4.1, Opus 4 and Sonnet 4 removed. Tested one by one: the first two are served by Opus 5.5 and the third returns an error.
+
 ## 0.2.59
 
 - What's new follows the interface language: with Trama in English, the notice and Settings > What's new are in English.

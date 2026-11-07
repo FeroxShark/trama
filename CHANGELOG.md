@@ -1,5 +1,10 @@
 # Cambios
 
+## 0.2.60
+
+- Selector de carpeta del líder: cada proyecto con su logo.
+- Selector de modelo: fuera Opus 4.1, Opus 4 y Sonnet 4. Probados uno por uno: los dos primeros los atiende Opus 5.5 y el tercero da error.
+
 ## 0.2.59
 
 - Novedades en el idioma de la interfaz: con Trama en inglés, el aviso y Ajustes > Novedades salen en inglés.
