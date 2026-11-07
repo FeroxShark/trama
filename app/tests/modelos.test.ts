@@ -14,8 +14,8 @@ ponerConfig(CON);
 const ULTIMOS = ["claude-fable-5-1", "claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5"];
 /** Las generaciones anteriores, en su orden (catálogo del `claude` instalado: docs/estado/modelos-todos.md). */
 const ANTERIORES = [
-  "claude-fable-5", "claude-opus-5", "claude-opus-4-8", "claude-opus-4-7", "claude-opus-4-6", "claude-opus-4-5", "claude-opus-4-1", "claude-opus-4-0",
-  "claude-sonnet-5", "claude-sonnet-4-6", "claude-sonnet-4-5", "claude-sonnet-4-0", "claude-haiku-4-5",
+  "claude-fable-5", "claude-opus-5", "claude-opus-4-8", "claude-opus-4-7", "claude-opus-4-6", "claude-opus-4-5",
+  "claude-sonnet-5", "claude-sonnet-4-6", "claude-sonnet-4-5", "claude-haiku-4-5",
 ];
 
 test("sin locales declarados la tabla son los cuatro últimos de Claude y, debajo, los anteriores", () => {
@@ -94,21 +94,18 @@ test("los anteriores de Anthropic: están en la tabla con su esfuerzo (el del ca
   // Con xhigh y max desde Opus 4.7 / Fable 5 / Opus 5 / Sonnet 5; sin xhigh en 4.6; sin esfuerzo antes.
   for (const id of ["claude-fable-5", "claude-opus-5", "claude-opus-4-8", "claude-opus-4-7", "claude-sonnet-5"]) assert.deepEqual(effortsDe(id), EFFORTS_CLAUDE, id);
   for (const id of ["claude-opus-4-6", "claude-sonnet-4-6"]) assert.deepEqual(effortsDe(id), ["low", "medium", "high", "max"], id);
-  for (const id of ["claude-opus-4-5", "claude-opus-4-1", "claude-opus-4-0", "claude-sonnet-4-5", "claude-sonnet-4-0", "claude-haiku-4-5"]) assert.deepEqual(effortsDe(id), [], id);
+  for (const id of ["claude-opus-4-5", "claude-sonnet-4-5", "claude-haiku-4-5"]) assert.deepEqual(effortsDe(id), [], id);
   assert.equal(effortPara("claude-opus-4-7", {}), "xhigh");
   assert.equal(effortPara("claude-opus-4-6", { "claude-opus-4-6": "xhigh" }), "high", "xhigh no existe en 4.6");
   // El default sigue siendo Opus 5.5.
   assert.equal(TABLA.find((m) => m.rec)?.id, "claude-opus-5-5");
 });
 
-test("el id de un hilo (con fecha o [1m]) cae en SU fila: Opus 5.5 no es Opus 5, ni Opus 4.1 es Opus 4", () => {
+test("el id de un hilo (con fecha o [1m]) cae en SU fila: Opus 5.5 no es Opus 5", () => {
   const casos: Record<string, string> = {
     "claude-opus-5-5-20261101": "claude-opus-5-5",
     "claude-opus-5[1m]": "claude-opus-5",
     "claude-opus-4-8[1m]": "claude-opus-4-8",
-    "claude-opus-4-1-20250805": "claude-opus-4-1",
-    "claude-opus-4-20250514": "claude-opus-4-0",
-    "claude-sonnet-4-20250514": "claude-sonnet-4-0",
     "claude-sonnet-4-5-20250929": "claude-sonnet-4-5",
     "claude-sonnet-5-5[1m]": "claude-sonnet-5-5",
     "claude-haiku-4-5-20251001": "claude-haiku-4-5",

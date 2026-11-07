@@ -64,19 +64,16 @@ const tabla: ModeloDef[] = [
   { id: "claude-haiku-5-5", clave: "haiku", empresa: "anthropic", nombre: "Haiku 5.5", desc: "modelo.haiku", efforts: EFFORTS_CLAUDE, effortDefecto: "high" },
   ...[
     // Las generaciones anteriores de Anthropic (docs/estado/modelos-todos.md: de dónde sale cada una). Sólo de líder: `reparto` y `pa -m` no las conocen.
-    // El `clave` es el id entero (más largo que el de los últimos: `porClave` elige el más específico). Opus 4 y Sonnet 4 se sirven como `…-4-2025…`.
+    // El `clave` es el id entero (más largo que el de los últimos: `porClave` elige el más específico). Opus 4.1, Opus 4 y Sonnet 4 no están: probados el 2026-11-07, el primero y el segundo los sirve Opus 5.5 y el tercero da error.
     ["claude-fable-5", "claude-fable-5", "Fable 5", "modelo.fable", EFFORTS_CLAUDE, "high"],
     ["claude-opus-5", "claude-opus-5", "Opus 5", "modelo.opus", EFFORTS_CLAUDE, "high"],
     ["claude-opus-4-8", "claude-opus-4-8", "Opus 4.8", "modelo.opus", EFFORTS_CLAUDE, "high"],
     ["claude-opus-4-7", "claude-opus-4-7", "Opus 4.7", "modelo.opus", EFFORTS_CLAUDE, "xhigh"],
     ["claude-opus-4-6", "claude-opus-4-6", "Opus 4.6", "modelo.opus", EFFORTS_CLAUDE_46, "high"],
     ["claude-opus-4-5", "claude-opus-4-5", "Opus 4.5", "modelo.opus", [], "high"],
-    ["claude-opus-4-1", "claude-opus-4-1", "Opus 4.1", "modelo.opus", [], "high"],
-    ["claude-opus-4-0", "claude-opus-4", "Opus 4", "modelo.opus", [], "high"],
     ["claude-sonnet-5", "claude-sonnet-5", "Sonnet 5", "modelo.sonnet", EFFORTS_CLAUDE, "high"],
     ["claude-sonnet-4-6", "claude-sonnet-4-6", "Sonnet 4.6", "modelo.sonnet", EFFORTS_CLAUDE_46, "high"],
     ["claude-sonnet-4-5", "claude-sonnet-4-5", "Sonnet 4.5", "modelo.sonnet", [], "high"],
-    ["claude-sonnet-4-0", "claude-sonnet-4", "Sonnet 4", "modelo.sonnet", [], "high"],
     ["claude-haiku-4-5", "claude-haiku-4-5", "Haiku 4.5", "modelo.haiku", [], "high"],
   ].map(([id, clave, nombre, desc, efforts, effortDefecto]) => ({ id, clave, nombre, desc, efforts, effortDefecto, empresa: "anthropic", anterior: true, soloLider: true }) as ModeloDef),
 ];

@@ -19,12 +19,9 @@ dentro del binario (`~/.local/share/claude/versions/2.1.319`, extraído con `str
 | claude-opus-4-7 | Opus 4.7 | low…max (5), arranca en xhigh | ídem; `default_effort: xhigh` |
 | claude-opus-4-6 | Opus 4.6 | low, medium, high, max | `effort` + `max_effort`, sin `xhigh_effort` |
 | claude-opus-4-5 | Opus 4.5 | ninguno | sin capacidad `effort` en el catálogo |
-| claude-opus-4-1 | Opus 4.1 | ninguno | ídem |
-| claude-opus-4-0 | Opus 4 | ninguno | ídem (se sirve como `claude-opus-4-20250514`) |
 | claude-sonnet-5 | Sonnet 5 | low…max (5) | `effort`, `max_effort`, `xhigh_effort` |
 | claude-sonnet-4-6 | Sonnet 4.6 | low, medium, high, max | `effort` + `max_effort` |
 | claude-sonnet-4-5 | Sonnet 4.5 | ninguno | sin `effort` |
-| claude-sonnet-4-0 | Sonnet 4 | ninguno | ídem (`claude-sonnet-4-20250514`) |
 | claude-haiku-4-5 | Haiku 4.5 | ninguno | ídem (`claude-haiku-4-5-20251001`) |
 
 Los ids son los de alias del catálogo (`claude --model <id>` los acepta). Un modelo sin esfuerzo no muestra selector
@@ -47,3 +44,8 @@ Los anteriores son `soloLider: true`: no entran en `MODELOS_WORKER` (ni el inici
 `porClave` (en `modelos.ts`, lo usan `defDe` y `modeloDe`): entre las filas cuya clave está dentro del id, gana la más
 larga; una clave de id entero (`claude-opus-5`) no vale si sigue otro número de versión (`claude-opus-5-5`), pero sí si
 sigue una fecha (`claude-opus-4-1-20250805`). Test: `app/tests/modelos.test.ts`.
+
+
+## Probado de verdad (2026-11-07)
+
+Una llamada mínima por modelo (`claude -p ... --model <id>`, mirando `modelUsage`). Opus 4.1 y Opus 4 contestan, pero los sirve Opus 5.5: se sacaron. Sonnet 4 da error de modelo: se sacó. El resto contesta con su propio id.
