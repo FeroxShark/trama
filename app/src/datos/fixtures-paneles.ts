@@ -496,7 +496,7 @@ export const ESTADO_MCP_FIJOS = (variante: string | null): VistaServidorMcp[] =>
     ? []
     : [
         { nombre: "notion", tipo: "http", url: "https://mcp.notion.com/mcp", variables: [{ tipo: "cabecera", nombre: "Authorization", hay: true }] },
-        { nombre: "archivos", tipo: "stdio", comando: "npx", args: ["-y", "@modelcontextprotocol/server-filesystem", "/home/ana/docs"], variables: [] },
+        { nombre: "documentos", tipo: "stdio", comando: "npx", args: ["-y", "@modelcontextprotocol/server-filesystem", "/home/ana/docs"], variables: [] },
       ];
 
 /** Lo que tiene conectado Claude Code en la máquina de las capturas (todo inventado): un poco de cada tipo, prendido y apagado. */
@@ -542,9 +542,9 @@ export const CATALOGOS_FIJOS = (variante: string | null): EstadoCatalogos => {
         conocido: true,
         agregado: true,
         plugins: [
-          { nombre: "claude-api", descripcion: "Armar apps con la API de Claude: modelos, herramientas y caché.", categoria: "", instalado: false, instalaciones: 48_210, actualizado: Date.UTC(2026, 9, 21) },
-          { nombre: "document-skills", descripcion: "Crear y editar documentos de Word, planillas de Excel, presentaciones de PowerPoint y PDF.", categoria: "", instalado: true, instalaciones: 112_940, actualizado: Date.UTC(2026, 10, 2) },
-          { nombre: "example-skills", descripcion: "Ejemplos de skills: arte generativo, diseño de temas, servidores MCP y más.", categoria: "", instalado: false, instalaciones: null, actualizado: null },
+          { nombre: "claude-api", descripcion: "Armar apps con la API de Claude: modelos, herramientas y caché.", categoria: "desarrollo", instalado: false, instalaciones: 48_210, actualizado: Date.UTC(2026, 9, 21) },
+          { nombre: "document-skills", descripcion: "Crear y editar documentos de Word, planillas de Excel, presentaciones de PowerPoint y PDF.", categoria: "productividad", instalado: true, instalaciones: 112_940, actualizado: Date.UTC(2026, 10, 2) },
+          { nombre: "example-skills", descripcion: "Ejemplos de skills: arte generativo, diseño de temas, servidores MCP y más.", categoria: "productividad", instalado: false, instalaciones: null, actualizado: null },
         ],
       },
       sinAgregar,
@@ -553,7 +553,13 @@ export const CATALOGOS_FIJOS = (variante: string | null): EstadoCatalogos => {
         repo: "ana/plugins",
         conocido: false,
         agregado: true,
-        plugins: [{ nombre: "estilo", descripcion: "Textos más claros y cortos.", categoria: "escritura", instalado: false, instalaciones: 310, actualizado: Date.UTC(2026, 7, 9) }],
+        plugins: [
+          { nombre: "estilo", descripcion: "Textos más claros y cortos.", categoria: "escritura", instalado: false, instalaciones: 310, actualizado: Date.UTC(2026, 7, 9) },
+          { nombre: "graficos", descripcion: "Gráficos y tableros a partir de datos.", categoria: "datos", instalado: false, instalaciones: 1_870, actualizado: Date.UTC(2026, 9, 30) },
+          { nombre: "revisor", descripcion: "Revisa un cambio antes de commitear: errores, nombres y pruebas que faltan.", categoria: "desarrollo", instalado: false, instalaciones: 22_450, actualizado: Date.UTC(2026, 10, 2) },
+          { nombre: "tesis", descripcion: "Ordena notas y citas para un trabajo largo.", categoria: "escritura", instalado: false, instalaciones: 940, actualizado: Date.UTC(2026, 6, 14) },
+          { nombre: "paleta", descripcion: "Arma paletas y escalas de color que se leen bien.", categoria: "diseño", instalado: false, instalaciones: 6_310, actualizado: Date.UTC(2026, 10, 4) },
+        ],
       },
     ],
   };

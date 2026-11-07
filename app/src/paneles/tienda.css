@@ -557,7 +557,7 @@
 }
 
 /* --- Angosto (el contenedor de la tienda) y dedo: una columna, objetivos de 44 px --- */
-@container (max-width: 42rem) {
+@container (max-width: 34rem) {
   .ti-rejilla {
     grid-template-columns: minmax(0, 1fr);
   }
