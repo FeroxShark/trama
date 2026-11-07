@@ -11,10 +11,17 @@ const LLAMA = [
 const CON = { gemini: false, locales: [], llama: LLAMA, lider: null };
 ponerConfig(CON);
 
-test("sin locales declarados la tabla son los cuatro de Claude", () => {
+const ULTIMOS = ["claude-fable-5-1", "claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5"];
+/** Las generaciones anteriores, en su orden (catálogo del `claude` instalado: docs/estado/modelos-todos.md). */
+const ANTERIORES = [
+  "claude-fable-5", "claude-opus-5", "claude-opus-4-8", "claude-opus-4-7", "claude-opus-4-6", "claude-opus-4-5", "claude-opus-4-1", "claude-opus-4-0",
+  "claude-sonnet-5", "claude-sonnet-4-6", "claude-sonnet-4-5", "claude-sonnet-4-0", "claude-haiku-4-5",
+];
+
+test("sin locales declarados la tabla son los cuatro últimos de Claude y, debajo, los anteriores", () => {
   try {
     assert.equal(ponerConfig(null), null);
-    assert.deepEqual(TABLA.map((m) => m.id), ["claude-fable-5-1", "claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5"]);
+    assert.deepEqual(TABLA.map((m) => m.id), [...ULTIMOS, ...ANTERIORES]);
     assert.equal(esLocal("modelo-local-ejemplo"), false);
   } finally {
     ponerConfig(CON);
@@ -30,9 +37,9 @@ test("los locales de una misma empresa quedan juntos en la tabla", () => {
   }
 });
 
-test("la tabla, en el orden de los selectores: Fable, Opus, Sonnet, Haiku y después los locales declarados; ningún Haiku 4.5", () => {
+test("la tabla, en el orden de los selectores: los cuatro últimos, los anteriores y después los locales declarados", () => {
   const ids = TABLA.map((m) => m.id);
-  assert.deepEqual(ids, ["claude-fable-5-1", "claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5", "modelo-local-ejemplo", "modelo-local-chico"]);
+  assert.deepEqual(ids, [...ULTIMOS, ...ANTERIORES, "modelo-local-ejemplo", "modelo-local-chico"]);
   // El default sigue siendo Opus (routing), aunque no vaya primero.
   assert.equal(TABLA.find((m) => m.rec)?.id, "claude-opus-5-5");
   // Los locales, juntos al final.
@@ -41,7 +48,7 @@ test("la tabla, en el orden de los selectores: Fable, Opus, Sonnet, Haiku y desp
   assert.equal(defDe("claude-haiku-5-5")?.nombre, "Haiku 5.5");
   assert.equal(defDe("modelo-local-ejemplo")?.nombre, "Modelo local de ejemplo");
   assert.equal(defDe("modelo-local-chico")?.nombre, "Modelo local chico");
-  assert.ok(!JSON.stringify(TABLA).includes("4.5") && !JSON.stringify(TABLA).includes("4-5"));
+  assert.equal(defDe("claude-haiku-4-5")?.nombre, "Haiku 4.5");
   assert.equal(TABLA.filter((m) => m.rec).length, 1);
 });
 
@@ -56,7 +63,7 @@ test("el menú agrupa por empresa: cada una en filas contiguas, Anthropic primer
   assert.deepEqual(EMPRESAS, { anthropic: "Anthropic", google: "Google", local: "Local", ollama: "Ollama", dsh: "DeepSeek Harness", opencode: "OpenCode" });
   assert.deepEqual(TABLA.filter((m) => m.local).map((m) => m.empresaNombre), ["Empresa de ejemplo", "Otra empresa"]);
   assert.deepEqual(
-    TABLA.filter((m) => m.empresa === "anthropic").map((m) => m.clave),
+    TABLA.filter((m) => m.empresa === "anthropic" && !m.anterior).map((m) => m.clave),
     ["fable", "opus", "sonnet", "haiku"],
   );
   assert.ok(TABLA.filter((m) => m.empresa !== "anthropic").every((m) => m.local), "lo que no es de Anthropic corre en la GPU local");
@@ -71,7 +78,44 @@ test("cada modelo tiene sus niveles: los de Claude no cambian y los locales trae
   assert.ok(!effortsDe("modelo-local-ejemplo").includes("high") && !effortsDe("modelo-local-ejemplo").includes("max"));
   assert.ok(!effortsDe("claude-sonnet-5-5").includes("off"));
   // El default de cada fila existe en su lista.
-  for (const m of TABLA) assert.ok(m.efforts.includes(m.effortDefecto), m.id);
+  for (const m of TABLA.filter((m) => m.efforts.length)) assert.ok(m.efforts.includes(m.effortDefecto), m.id);
+});
+
+test("los anteriores de Anthropic: están en la tabla con su esfuerzo (el del catálogo de claude), sólo de líder y fuera de los workers", () => {
+  const ant = TABLA.filter((m) => m.anterior);
+  assert.deepEqual(ant.map((m) => m.id), ANTERIORES);
+  // Después de los últimos y antes de cualquier otra empresa: el divisor «Anteriores» queda contiguo.
+  assert.deepEqual(TABLA.slice(0, 4 + ANTERIORES.length).map((m) => m.empresa), Array(4 + ANTERIORES.length).fill("anthropic"));
+  for (const m of ant) {
+    assert.equal(m.soloLider, true, `${m.id}: pa -m / reparto no lo conocen`);
+    assert.equal(m.rec, undefined, m.id);
+    assert.equal(sinWorkers(m.id), false, m.id);
+  }
+  // Con xhigh y max desde Opus 4.7 / Fable 5 / Opus 5 / Sonnet 5; sin xhigh en 4.6; sin esfuerzo antes.
+  for (const id of ["claude-fable-5", "claude-opus-5", "claude-opus-4-8", "claude-opus-4-7", "claude-sonnet-5"]) assert.deepEqual(effortsDe(id), EFFORTS_CLAUDE, id);
+  for (const id of ["claude-opus-4-6", "claude-sonnet-4-6"]) assert.deepEqual(effortsDe(id), ["low", "medium", "high", "max"], id);
+  for (const id of ["claude-opus-4-5", "claude-opus-4-1", "claude-opus-4-0", "claude-sonnet-4-5", "claude-sonnet-4-0", "claude-haiku-4-5"]) assert.deepEqual(effortsDe(id), [], id);
+  assert.equal(effortPara("claude-opus-4-7", {}), "xhigh");
+  assert.equal(effortPara("claude-opus-4-6", { "claude-opus-4-6": "xhigh" }), "high", "xhigh no existe en 4.6");
+  // El default sigue siendo Opus 5.5.
+  assert.equal(TABLA.find((m) => m.rec)?.id, "claude-opus-5-5");
+});
+
+test("el id de un hilo (con fecha o [1m]) cae en SU fila: Opus 5.5 no es Opus 5, ni Opus 4.1 es Opus 4", () => {
+  const casos: Record<string, string> = {
+    "claude-opus-5-5-20261101": "claude-opus-5-5",
+    "claude-opus-5[1m]": "claude-opus-5",
+    "claude-opus-4-8[1m]": "claude-opus-4-8",
+    "claude-opus-4-1-20250805": "claude-opus-4-1",
+    "claude-opus-4-20250514": "claude-opus-4-0",
+    "claude-sonnet-4-20250514": "claude-sonnet-4-0",
+    "claude-sonnet-4-5-20250929": "claude-sonnet-4-5",
+    "claude-sonnet-5-5[1m]": "claude-sonnet-5-5",
+    "claude-haiku-4-5-20251001": "claude-haiku-4-5",
+    "claude-fable-5-1[1m]": "claude-fable-5-1",
+    "claude-fable-5": "claude-fable-5",
+  };
+  for (const [hilo, esperado] of Object.entries(casos)) assert.equal(defDe(hilo)?.id, esperado, hilo);
 });
 
 test("un modelo que la tabla no conoce usa los niveles de Claude; el id de un hilo (con fecha o [1m]) se reconoce por su clave", () => {
@@ -112,7 +156,7 @@ test("reajustarEffort: al cambiar de modelo vuelve el que le toca a ese modelo, 
   assert.equal(reajustarEffort("modelo-local-chico", "max", { "modelo-local-chico": "low" }), "low");
   assert.equal(reajustarEffort("claude-opus-5-5", "off", {}), "high");
   assert.equal(reajustarEffort("claude-haiku-5-5", "off", { "claude-haiku-5-5": "medium" }), "medium");
-  for (const m of TABLA) for (const e of [...EFFORTS_CLAUDE, ...EFFORTS_LOCAL, null]) assert.ok(m.efforts.includes(reajustarEffort(m.id, e, {})), `${m.id} ← ${e}`);
+  for (const m of TABLA.filter((m) => m.efforts.length)) for (const e of [...EFFORTS_CLAUDE, ...EFFORTS_LOCAL, null]) assert.ok(m.efforts.includes(reajustarEffort(m.id, e, {})), `${m.id} ← ${e}`);
 });
 
 test("modelos.json agrega Gemini y Ollama (cada empresa contigua), mueve el default y se deshace con null", () => {
@@ -142,7 +186,7 @@ test("modelos.json agrega Gemini y Ollama (cada empresa contigua), mueve el defa
     assert.match(defDe("agy:gpt-oss-120b")?.nombre ?? "", /por Google/);
     assert.equal(effortPara("agy:gpt-oss-120b", {}), "medium");
     ponerConfig({ gemini: true, locales: [], llama: LLAMA, lider: null });
-    assert.equal(TABLA.length, 11);
+    assert.equal(TABLA.length, 11 + ANTERIORES.length);
     assert.equal(TABLA.find((m) => m.rec)?.id, "claude-opus-5-5");
   } finally {
     ponerConfig(CON);
