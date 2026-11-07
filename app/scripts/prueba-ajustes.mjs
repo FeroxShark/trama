@@ -89,8 +89,8 @@ async function foto(nombre) {
   const r = await cdp("Page.captureScreenshot", { format: "png" });
   writeFileSync(path.join(fotos, `${nombre}.png`), Buffer.from(r.result.data, "base64"));
 }
-/** Abre o cierra Ajustes: el primer botón del pie. */
-const alternar = () => en(() => document.querySelectorAll(".pie button")[0]?.click());
+/** Abre o cierra Ajustes: su botón del pie, por `data-panel` (no por posición: el orden del pie cambia). */
+const alternar = () => en(() => document.querySelector('.pie button[data-panel="ajustes"]')?.click());
 /** Escribe en un campo como lo haría el teclado (React escucha `input`). */
 const escribir = (sel, valor) =>
   en(
@@ -129,7 +129,8 @@ const elegirAcceso = async (txt) => {
 
 async function abrir() {
   await alternar();
-  return hasta(() => !!document.querySelector(".pn-barra") && !!document.querySelector(".pn-nuevo"), 8);
+  // Ajustes muestra una categoría a la vez y la barra de Guardar sólo aparece con cambios: se espera la barra lateral.
+  return hasta(() => !!document.querySelector(".aj-it[data-cat]"), 8);
 }
 async function reabrir() {
   await alternar();
@@ -139,43 +140,44 @@ async function reabrir() {
 
 try {
   ok(await hasta(() => !!document.querySelector(".pie button"), 15), "la app abrió");
-  ok(await abrir(), "Ajustes abre con la compactación y el acceso del celular");
+  ok(await abrir(), "Ajustes abre con su barra de categorías");
 
   // --- La compactación (General): un selector de topes, borrador, cancelar y guardar -----------------------------------
   const COMP = "[data-opc='ajustes.compactar']";
-  const tope = () => en((c) => document.querySelector(`${c} button`)?.textContent ?? "", COMP);
+  // El tope es un campo en miles de tokens con atajos (100 k … 300 k) y «Sin tope»: se lee el campo, o «Sin tope» si ese atajo está marcado.
+  const tope = () =>
+    en((c) => (document.querySelector(`${c} .pn-chips button:last-child`)?.getAttribute("aria-pressed") === "true" ? "Sin tope" : (document.querySelector(`${c} input`)?.value ?? "")), COMP);
+  const atajos = () => en((c) => [...document.querySelectorAll(`${c} .pn-chips button`)].map((o) => o.textContent.replace(/\s+/g, " ").trim()), COMP);
   const elegirTope = async (txt) => {
-    await en((c) => document.querySelector(`${c} button`)?.click(), COMP);
-    ok(await hasta(() => document.querySelectorAll("[role=option]").length > 0, 3), "el selector de topes abre");
-    const lista = await en(() => [...document.querySelectorAll("[role=option]")].map((o) => o.textContent.replace(/\s+/g, " ")));
-    await en((txt) => [...document.querySelectorAll("[role=option]")].find((o) => o.textContent.includes(txt))?.click(), txt);
+    const lista = await atajos();
+    await en((c, txt) => [...document.querySelectorAll(`${c} .pn-chips button`)].find((o) => o.textContent.includes(txt))?.click(), COMP, txt);
     await espera(150);
     return lista;
   };
   await en(() => document.querySelector(".aj-it[data-cat='general']")?.click());
   ok(await hasta(() => !!document.querySelector(".aj-cat:not([hidden]) [data-opc='ajustes.compactar']"), 3), "la compactación está en General");
-  ok(/300.000 tokens/.test(await tope()), "el selector muestra lo guardado (300 000, que no está en la lista fija)");
+  ok((await tope()) === "300", "el campo muestra lo guardado (300 mil tokens)");
   ok(await en(() => !document.querySelector(".pn-barra")), "sin cambios, la barra no se muestra");
   const opciones = await elegirTope("150");
   ok(["100", "150", "200", "300", "Sin tope"].every((x) => opciones.some((o) => o.includes(x))), "ofrece 100k, 150k, 200k, 300k y sin tope");
-  ok(opciones.filter((o) => /default|por defecto/i.test(o)).length === 1 && /200.000/.test(opciones.find((o) => /default|por defecto/i.test(o)) ?? ""), "y marca el de 200 000 como default");
-  ok(/150.000 tokens/.test(await tope()), "elegir uno lo pone en el botón");
+  ok((await en((c) => document.querySelector(`${c} input`)?.placeholder, COMP)) === "200", "y el default (200 mil) es lo que dice el campo vacío");
+  ok((await tope()) === "150", "elegir un atajo lo pone en el campo");
   ok(/sin guardar/i.test(await aviso(0)) && !(await apagado(0, GUARDAR)), "con un cambio, la barra dice 'Cambios sin guardar' y Guardar se puede apretar");
   ok(await en(() => { const r = document.querySelector(".pn-barra")?.getBoundingClientRect(); return !!r && r.bottom <= innerHeight + 1 && r.top >= 0; }), "y la barra está a la vista");
   await foto("ajustes-compactar-editando");
   await boton(0, CANCELAR);
   await espera(150);
-  ok(/300.000 tokens/.test(await tope()) && (await hasta(() => !document.querySelector(".pn-barra"), 3)), "Cancelar vuelve a lo guardado y la barra desaparece");
+  ok((await tope()) === "300" && (await hasta(() => !document.querySelector(".pn-barra"), 3)), "Cancelar vuelve a lo guardado y la barra desaparece");
   await elegirTope("150");
   await reabrir();
   await en(() => document.querySelector(".aj-it[data-cat='general']")?.click());
-  ok(/300.000 tokens/.test(await tope()), "lo elegido y no guardado no sobrevive: al reabrir sigue lo de antes");
+  ok((await tope()) === "300", "lo elegido y no guardado no sobrevive: al reabrir sigue lo de antes");
   await elegirTope("Sin tope");
   await boton(0, GUARDAR);
   ok(await hasta(() => !document.querySelector(".pn-barra"), 5), "Guardar guarda y la barra desaparece");
   await reabrir();
   await en(() => document.querySelector(".aj-it[data-cat='general']")?.click());
-  ok(/Sin tope/.test(await tope()), "y lo guardado vuelve al reabrir");
+  ok((await tope()) === "Sin tope", "y lo guardado vuelve al reabrir");
   await foto("ajustes-compactar-guardado");
   await en(() => document.querySelector(".aj-it[data-cat='modelos']")?.click());
 
@@ -190,7 +192,7 @@ try {
   ok((await errores()).some((x) => /entre/.test(x)), "un puerto que no se puede abrir se rechaza en línea, sin mandarlo");
   await escribir(PUERTO, "8791");
   await escribir(NUEVO, "mi-tablet");
-  ok(/Sin cambios/.test(await aviso()), "el celular no pasa por la barra de Guardar: lo escrito no la ensucia");
+  ok(await en(() => !document.querySelector(".pn-barra")), "el celular no pasa por la barra de Guardar: lo escrito no la ensucia (sin cambios no hay barra)");
   await reabrir();
   await en(() => document.querySelector(".aj-it[data-cat='celular']")?.click());
   ok(await hasta(() => !!document.querySelector("[data-celular] .pn-nuevo"), 3), "la categoría Celular se abre");
@@ -259,7 +261,7 @@ try {
   const activa = () => en(() => document.querySelector(".aj-it[aria-current='page']")?.dataset.cat ?? null);
   const visibles = () => en(() => [...new Set([...document.querySelectorAll(".aj-cat:not([hidden])")].map((c) => c.dataset.cat))].join(","));
   const ir = (c) => en((c) => document.querySelector(`.aj-it[data-cat="${c}"]`)?.click(), c);
-  ok((await cats()) === "modelos,cupos,locales,celular,general", "la barra lateral lista las categorías de esta máquina (sin Cuentas ni Actualizaciones: son del .exe de Windows)");
+  ok((await cats()) === "modelos,cupos,locales,opencode,dsh,conectores,celular,actualizaciones,proyectos,general,guia", "la barra lateral lista las categorías de esta máquina (sin Cuentas: es del .exe de Windows)");
   ok((await activa()) === "modelos" && (await visibles()) === "modelos", "arranca en Modelos y sólo se ve esa categoría");
   ok(await en(() => [...document.querySelectorAll(".aj-it")].every((b) => b.querySelector("svg"))), "cada categoría lleva su ícono");
   await ir("cupos");
@@ -273,7 +275,7 @@ try {
   await elegirTope("100");
   await ir("cupos");
   await ir("general");
-  ok(!(await apagado(0, GUARDAR)) && /100.000 tokens/.test(await tope()), "un borrador sin guardar sobrevive a cambiar de categoría y la barra de abajo sigue a la vista");
+  ok(!(await apagado(0, GUARDAR)) && (await tope()) === "100", "un borrador sin guardar sobrevive a cambiar de categoría y la barra de abajo sigue a la vista");
   await boton(0, CANCELAR);
 
   // El buscador: por título, por sinónimo en otro idioma, sin resultados, Esc, y saltar a la fila resaltándola.
@@ -288,7 +290,7 @@ try {
   await escribir(BUSCA, "zzzxqy");
   ok(await hasta(() => !!document.querySelector(".aj-res-vacio"), 3), "sin resultados lo dice en una línea");
   await en(() => document.querySelector(".aj-busca-c")?.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
-  ok((await valor(BUSCA)) === "" && (await en(() => !!document.querySelector(".aj-busca-c") && !!document.querySelector(".pn-ajustes"))), "Esc borra lo escrito y no cierra el panel");
+  ok((await hasta(() => document.querySelector(".aj-busca-c")?.value === "", 3)) && (await en(() => !!document.querySelector(".aj-busca-c") && !!document.querySelector(".pn-ajustes"))), "Esc borra lo escrito y no cierra el panel");
   await en(() => document.querySelector(".aj-busca-c")?.focus());
   await escribir(BUSCA, "idioma");
   await hasta(() => document.querySelectorAll(".aj-res-f").length > 0, 3);

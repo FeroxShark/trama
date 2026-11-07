@@ -1935,6 +1935,7 @@ export function Barra() {
                   {BOTONES_PIE.map(([cual, icono]) => (
                     <BotonPie
                       key={cual}
+                      panel={cual}
                       icono={icono}
                       etq={tr(PANELES[cual])}
                       activo={panel === cual}
@@ -1946,6 +1947,7 @@ export function Barra() {
                     />
                   ))}
                   <BotonPie
+                    panel="ajustes"
                     icono={Settings}
                     etq={tr(PANELES.ajustes)}
                     activo={panel === "ajustes"}
@@ -2621,11 +2623,11 @@ function Pendientes({ p, ver, alVer }: { p: ReturnType<typeof pendientes>; ver: 
   );
 }
 
-type PropsBotonPie = { icono: LucideIcon; etq: string; activo: boolean; alClic: () => void; n?: number };
+type PropsBotonPie = { panel: string; icono: LucideIcon; etq: string; activo: boolean; alClic: () => void; n?: number };
 
-function BotonPie({ icono: I, etq, activo, alClic, n = 0 }: PropsBotonPie) {
+function BotonPie({ panel, icono: I, etq, activo, alClic, n = 0 }: PropsBotonPie) {
   return (
-    <button type="button" aria-label={n > 0 ? `${etq}: ${tr("pd.pieEsperan", { n })}` : etq} data-tip={etq} aria-pressed={activo} onClick={alClic}>
+    <button type="button" aria-label={n > 0 ? `${etq}: ${tr("pd.pieEsperan", { n })}` : etq} data-tip={etq} data-panel={panel} aria-pressed={activo} onClick={alClic}>
       <I size={16} strokeWidth={1.8} />
       {n > 0 ? (
         <span className="pie-n" aria-hidden="true">
