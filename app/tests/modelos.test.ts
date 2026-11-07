@@ -191,7 +191,7 @@ test("modelos.json agrega Gemini y Ollama (cada empresa contigua), mueve el defa
   } finally {
     ponerConfig(CON);
   }
-  assert.equal(TABLA.length, 6);
+  assert.equal(TABLA.length, 6 + ANTERIORES.length);
   assert.equal(TABLA.find((m) => m.rec)?.id, "claude-opus-5-5");
   assert.equal(effortPara("claude-opus-5-5", {}), "high");
 });
