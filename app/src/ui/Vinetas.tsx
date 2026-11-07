@@ -1,7 +1,7 @@
 // Las viñetas de una versión del CHANGELOG (electron/novedades-cambios.ts): cada una con su `código` y **negrita** dibujados como
 // elementos (nunca como HTML), para el aviso del pie y para Ajustes > Actualizaciones.
 import { trozos } from "../../electron/novedades-cambios";
-import "./vinetas.css";
+import "./lista-novedades.css";
 
 export function Vinetas({ items }: { items: readonly string[] }) {
   return (
