@@ -1,5 +1,11 @@
 # Cambios
 
+## 0.2.57
+
+- Conectores como tienda: pestañas Skills, Conectores, Plugins y Hooks; «Tuyos | Descubrir»; buscador, categoría, orden y «Agregar»; tarjetas con qué hace cada cosa, de dónde viene y su uso o instalaciones, y un detalle. En Plugins, Descubrir trae Para vos, Nuevos, Más instalados y Categorías.
+- Selector de modelo: también las versiones anteriores de Anthropic y de Google, debajo de «Anteriores» y con su esfuerzo válido.
+- Barra: cada carpeta de proyecto muestra su logo chiquito al lado del nombre.
+
 ## 0.2.56
 
 - Preguntas de un líder: el panel ya no tapa la conversación. Tiene tope de alto con scroll propio y se pliega a «N preguntas pendientes».
