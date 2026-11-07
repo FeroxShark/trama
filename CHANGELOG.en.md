@@ -1,5 +1,9 @@
 # Changes
 
+## 0.2.59
+
+- What's new follows the interface language: with Trama in English, the notice and Settings > What's new are in English.
+
 ## 0.2.58
 
 - What's new: after updating, a notice with what the new version brought (and intermediate ones if you skipped several). In Settings, the full version history.

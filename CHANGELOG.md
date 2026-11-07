@@ -1,5 +1,9 @@
 # Cambios
 
+## 0.2.59
+
+- Novedades en el idioma de la interfaz: con Trama en inglés, el aviso y Ajustes > Novedades salen en inglés.
+
 ## 0.2.58
 
 - Novedades: al actualizar, un aviso con lo que trajo la versión nueva (y las intermedias si saltaste varias). En Ajustes, la lista de todas las versiones.
