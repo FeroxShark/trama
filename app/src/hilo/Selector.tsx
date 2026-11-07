@@ -46,6 +46,8 @@ export type Opcion = {
   colMarca?: ReactNode;
   /** En columnas: el lugar de la columna (menor, antes); sin esto, el orden en que aparecen. */
   colOrden?: number;
+  /** Un logo a la izquierda de la fila entera (nombre y descripción quedan a su derecha): el selector de carpeta. */
+  logo?: ReactNode;
   /** Con `buscar`: se ve siempre, aunque la búsqueda no la deje (la salida "Otra carpeta…"). */
   fija?: boolean;
 };
@@ -437,6 +439,7 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
       type="button"
       role="option"
       className="op"
+      data-logo={o.logo ? "" : undefined}
       tabIndex={-1}
       disabled={o.deshabilitada}
       aria-selected={o.id === actual.id}
@@ -450,6 +453,7 @@ export function Selector({ etiqueta, opciones, valor, alElegir, chip, disabled, 
         alElegirOpcion(o.id);
       }}
     >
+      {o.logo ? <span className="op-logo">{o.logo}</span> : null}
       <span className="on1">
         {o.marca}
         {o.fuente ? <span style={{ fontFamily: o.fuente }}>{o.nombre}</span> : <span className="on-n">{o.nombre}</span>}

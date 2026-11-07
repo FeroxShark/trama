@@ -845,11 +845,12 @@
 .barra-col .proy-nom[aria-expanded="false"] .chevron {
   transform: rotate(-90deg);
 }
-/* El logo chico de la carpeta (mismo ícono o iniciales que el riel): 1 rem, a la izquierda del nombre, sin mover el resto de la fila. */
-.barra-col .proy-nom .proy-logo {
+/* El logo chico de la carpeta (mismo ícono o iniciales que el riel): 1 rem, a la izquierda del nombre, sin mover el resto de la fila. También en el
+   selector de carpeta del líder (`--logo-tam`: 1.5 rem). */
+.proy-logo {
   display: grid;
-  width: 1rem;
-  height: 1rem;
+  width: var(--logo-tam, 1rem);
+  height: var(--logo-tam, 1rem);
   flex: none;
   place-items: center;
   overflow: hidden;
@@ -861,7 +862,7 @@
   letter-spacing: -0.01em;
   line-height: 1;
 }
-.barra-col .proy-nom .proy-logo img {
+.proy-logo img {
   width: 100%;
   height: 100%;
   object-fit: cover;

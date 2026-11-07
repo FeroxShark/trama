@@ -2,7 +2,7 @@
 // main encontró uno (electron/iconos.ts) o su monograma (logo-logica.ts). Los íconos
 // se piden una vez y los comparten todas las carpetas.
 import { useSyncExternalStore } from "react";
-import { Home } from "lucide-react";
+import { Folder, Folders, Home } from "lucide-react";
 import { GENERAL } from "../datos/contrato";
 import { fuente } from "../datos/fuente";
 import { monograma, tono } from "./logo-logica";
@@ -58,6 +58,30 @@ export function Logo({ proyecto, titulo }: { proyecto: string; titulo?: string |
   return (
     <span className="logo" style={{ background: tono(proyecto) }} aria-hidden="true">
       {monograma(titulo || proyecto)}
+    </span>
+  );
+}
+
+/**
+ * El logo chico de una carpeta (cabecera de la barra y selector de carpeta del líder): el mismo ícono del riel y, sin ícono, sus iniciales sobre el
+ * tono del proyecto (`--h`, de `estiloProyecto`). Decorativo: el nombre siempre está al lado. `otras`: la carpeta que junta varias; `generico`: algo
+ * que no es un proyecto del registry (Auto, Otra carpeta…), con la carpeta genérica. `icono`: el tamaño (px) de los íconos de respaldo.
+ */
+export function LogoCab({ proyecto, titulo, otras = false, generico = false, personal = false, icono = 11 }: { proyecto?: string; titulo?: string | null; otras?: boolean; generico?: boolean; personal?: boolean; icono?: number }) {
+  const src = useIconos()?.[proyecto ?? ""];
+  return (
+    <span className="proy-logo" aria-hidden="true">
+      {otras ? (
+        <Folders size={icono} strokeWidth={2} />
+      ) : personal || proyecto === GENERAL ? (
+        <Home size={icono} strokeWidth={2} />
+      ) : generico || !proyecto ? (
+        <Folder size={icono} strokeWidth={2} />
+      ) : src ? (
+        <img src={src} alt="" draggable={false} />
+      ) : (
+        monograma(titulo || proyecto).toLowerCase()
+      )}
     </span>
   );
 }

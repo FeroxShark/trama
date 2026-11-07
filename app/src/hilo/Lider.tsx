@@ -25,6 +25,8 @@ import { VERSION, type Lider, type Mensaje, type MotivoRetomar, type MotivoTraer
 import { fuente, type EnvioLider } from "../datos/fuente";
 import { ChipSubagentes } from "../barra/Fila";
 import { Reloj } from "../barra/piezas";
+import { LogoCab } from "../barra/Logo";
+import { estiloProyecto } from "../barra/Riel";
 import { Leyendo } from "./Leyendo";
 import { PanelMcp } from "./PanelMcp";
 import { Programar } from "./Programar";
@@ -260,11 +262,23 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
   const capturaBuscar = MODO.captura === "lider-nuevo-carpeta" && (MODO.variante === "buscar" || MODO.variante === "buscar-nada");
   const opcionesCarpeta = useMemo<Opcion[]>(
     () => [
-      { id: AUTO, nombre: tr("lider.carpetaAutoNombre"), desc: tr("lider.carpetaAutoDesc") },
-      ...(maquinaDe ? [] : ofrecidos(proyectos).map((p) => ({ id: p.ruta, nombre: p.titulo ?? p.nombre, desc: p.ruta }))),
-      { id: PERSONAL, nombre: tr("lider.carpetaPersonal"), desc: tr("lider.carpetaPersonalDesc") },
+      { id: AUTO, nombre: tr("lider.carpetaAutoNombre"), desc: tr("lider.carpetaAutoDesc"), logo: <LogoCab generico icono={16} /> },
+      ...(maquinaDe
+        ? []
+        : ofrecidos(proyectos).map((p) => ({
+            id: p.ruta,
+            nombre: p.titulo ?? p.nombre,
+            desc: p.ruta,
+            // El logo del proyecto, el mismo de la cabecera de su carpeta en la barra (ícono o iniciales sobre su tono).
+            logo: (
+              <span style={estiloProyecto(p.slug)}>
+                <LogoCab proyecto={p.slug} titulo={p.titulo ?? p.nombre} icono={16} />
+              </span>
+            ),
+          }))),
+      { id: PERSONAL, nombre: tr("lider.carpetaPersonal"), desc: tr("lider.carpetaPersonalDesc"), logo: <LogoCab personal icono={16} /> },
       // Fija: la búsqueda del selector no la esconde (ver `Selector`, `buscar`).
-      { id: OTRA, nombre: tr("lider.carpetaOtra"), desc: tr("lider.carpetaOtraDesc"), fija: true },
+      { id: OTRA, nombre: tr("lider.carpetaOtra"), desc: tr("lider.carpetaOtraDesc"), fija: true, logo: <LogoCab generico icono={16} /> },
     ],
     [proyectos, maquinaDe],
   );

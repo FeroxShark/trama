@@ -18,7 +18,7 @@ import {
   type Ref,
 } from "react";
 import { AnimatePresence, motion, MotionConfig } from "motion/react";
-import { BarChart3, ChevronDown, Crown, Folders, Home, GitBranch, PanelRight, Plus, Search, Settings, SquareKanban, X, CircleQuestionMark, type LucideIcon } from "lucide-react";
+import { BarChart3, ChevronDown, Crown, GitBranch, PanelRight, Plus, Search, Settings, SquareKanban, X, CircleQuestionMark, type LucideIcon } from "lucide-react";
 import { cerrable, cerrado, comoSettle, GENERAL, VERSION, type Caido, type ConvClaudeCode, type Estado, type EventoPa, type Hilo, type Leidos, type Lider, type Nombres, type Orden, type RespuestaLideres } from "../datos/contrato";
 import { compactarFijo, escenaFija, fuente } from "../datos/fuente";
 import { ARRANCANDO, EN_COLA, FRENADO, imagenFija } from "../datos/fixtures";
@@ -144,8 +144,7 @@ import { Glifo } from "./Glifo";
 import { latir } from "./latido";
 import { estiloProyecto, Riel } from "./Riel";
 import { aRiel, atencionCarpeta, enMarcha, filtrarArbol, hilosArbol, hilosCarpeta, itemsRiel, ordenAtencion, QUIETOS_VISTA, quietosDe, segunLista } from "./riel-logica";
-import { useIconos } from "./Logo";
-import { monograma } from "./logo-logica";
+import { LogoCab } from "./Logo";
 import { LoBuscado, Resalte } from "./Resalte";
 import { pintorHace } from "../tiempo";
 import { Reloj } from "./piezas";
@@ -2312,24 +2311,6 @@ type PropsCarpeta = {
 };
 
 const SIN_CONVS: ConvClaudeCode[] = [];
-
-/** El logo chico a la izquierda del nombre: el mismo ícono del riel, y sin ícono sus iniciales sobre el tono del proyecto (`--h`). Decorativo: el nombre ya está al lado. */
-function LogoCab({ proyecto, titulo, otras }: { proyecto: string; titulo?: string | null; otras: boolean }) {
-  const src = useIconos()?.[proyecto];
-  return (
-    <span className="proy-logo" aria-hidden="true">
-      {otras ? (
-        <Folders size={11} strokeWidth={2} />
-      ) : proyecto === GENERAL ? (
-        <Home size={11} strokeWidth={2} />
-      ) : src ? (
-        <img src={src} alt="" draggable={false} />
-      ) : (
-        monograma(titulo || proyecto).toLowerCase()
-      )}
-    </span>
-  );
-}
 
 /**
  * Un proyecto: el encabezado (fijo al scrollear, con el color de su monograma), sus líderes y workers. Lo quieto (en espera o dormido) se ve de a

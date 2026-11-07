@@ -139,6 +139,36 @@
 .menu[data-enteras] .op:is(:hover, :focus-visible, [aria-selected="true"]) .md {
   color: var(--apagado);
 }
+/* Fila con logo (selector de carpeta): el logo ocupa las dos líneas a la izquierda; nombre y ruta quedan alineados a su derecha. */
+.menu .op[data-logo] {
+  grid-template-columns: 1.5rem minmax(0, 1fr) 0.875rem;
+  column-gap: var(--esp-3);
+}
+.menu .op[data-logo] .op-logo {
+  --logo-tam: 1.5rem;
+  display: grid;
+  grid-row: 1 / span 2;
+  grid-column: 1;
+  place-items: center;
+}
+.menu .op[data-logo] .op-logo .proy-logo {
+  border-radius: var(--r-sm);
+  font-size: var(--letra-3);
+}
+.menu .op[data-logo] .on1,
+.menu .op[data-logo] .md {
+  grid-column: 2;
+  min-width: 0;
+}
+.menu .op[data-logo] .on-n,
+.menu .op[data-logo] .md {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.menu .op[data-logo] .ok {
+  grid-column: 3;
+}
 .menu .op:disabled {
   color: var(--inactivo);
 }
