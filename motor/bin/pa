@@ -3295,7 +3295,7 @@ cmd_rinde() {
                 | {($por): (if .[0] == "~" then "?" else .[0] end), modelo: .[1], effort: .[2],
                    cuenta: (if .[3] == "" then null else .[3] end),
                    n: (.[4] | n), con_dato: (.[5] | n), ok: (.[6] | n), pct_ok: (.[7] | n),
-                   turnos_mediana: (.[8] | n), costo_medio_usd: (.[9] | n), pct_compacto: (.[10] | n), usd_por_exito: (.[11] | n)}],
+                   turnos_mediana: (.[8] | n), costo_medio_usd: (.[9] | n), pct_compacto: (.[11] | n), usd_por_exito: (.[10] | n)}],
        frenos: $frenos} + (if ($sus | length) > 0 then {sustituciones: $sus} else {} end)' <<<"$celdas"
     return 0
   fi
