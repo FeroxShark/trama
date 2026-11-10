@@ -1,6 +1,6 @@
 # Cambios
 
-## Sin publicar
+## 0.2.65
 
 - Skill del líder: la guía de orquestar quedó mucho más chica (de 20 KB a 7 KB) y con una tabla de decisión por caso, para gastar menos: los workers en paralelo se lanzan en una sola llamada y se cobran de una, y el effort sale del permitido en Ajustes.
 - Medición: el «retrabajo» ya no cuenta el pisado de otra corrida que estaba corriendo en paralelo. Ahora es 1 sólo si alguien retomó la corrida con `--seguir` después de integrarla, si se revirtió, o si otra corrida que arrancó después de integrarla (o cuya tarea la nombra) le reescribió las líneas; cuando la que la pisó ya corría en paralelo, la corrida queda con retrabajo 0 y en la columna nueva `pisado`. `pa --rinde` suma el «% pisado».
@@ -9,6 +9,16 @@
 - Barra lateral: cada carpeta tiene un botón «+» en su encabezado que abre un chat nuevo en ese proyecto.
 - Windows: los adjuntos y la carpeta del líder se reconocen con las rutas de Windows (las que empiezan con «C:\» o con «\\servidor»). Antes no se veían ni como archivos ni como proyecto.
 - Reparto: el costo de cada modelo sale de lo medido en las corridas (medicion.tsv) y no de los pesos fijos; el perfil agresivo ordena por el «US$ por éxito» (el costo por cada corrida integrada sin retrabajo). `pa --rinde` suma la columna «US$/éxito».
+- Workers: arrancan más livianos y gastan menos. Los que escriben ya no cargan los conectores (MCP) ni los comandos de slash (salvo frontend y diseño), no lanzan subagentes, y su texto fijo es igual en cada corrida para aprovechar la caché. Cada tipo de tarea tiene un tope de turnos.
+- Reparto: en el perfil ahorro, un modelo gratis sin historial propio sólo lee o hace tareas mecánicas hasta probar que rinde en ese tipo; diseño arranca en Sonnet, y Opus no arranca de cero en frontend ni en código de varias partes.
+- Sin cupo: cuando Claude se queda sin cupo y el reparto ofrece Gemini, Codex o dsh, `pa` sigue la corrida con ese motor en vez de darla por fallada.
+- `pa --seguir` con la caché vencida arranca con el resumen de lo que hizo la corrida, no sólo con el pedido nuevo.
+- Modo Objetivo: `--integrar-si-pasa` integra la rama sola cuando el verificador pasa.
+- Aviso de Trama al líder: trae el resultado del worker (resumido) y dice si la rama se integró sola o qué espera.
+- Integrar: los restos sin commitear de otra corrida ya no se commitean encima del trabajo: van a un parche en `rescates/`.
+- Ajustes > Modelos: los modelos de Claude que tu cuenta tiene y una regla deja afuera (como Fable 5.2) se ven en su grupo, apagados.
+- Actualizar en Linux: con gnome-terminal o konsole, la ventana de la actualización ya no se da por cerrada al instante.
+- Mensajes en cola: si su archivo no se puede leer, se guarda una copia antes de seguir. Algunos errores que salían sólo en español ahora salen en el idioma de la app.
 
 ## 0.2.64
 

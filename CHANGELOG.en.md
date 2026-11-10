@@ -1,6 +1,6 @@
 # Changes
 
-## Unreleased
+## 0.2.65
 
 - Leader skill: the orchestration guide got much smaller (from 20 KB to 7 KB) and gained a decision table per case, to spend less: parallel workers are launched in a single call and collected in one, and the effort comes from the allowed ones in Settings.
 - Measurement: "retrabajo" (rework) no longer counts the stomping of another run that was already running in parallel. It is 1 only if someone resumed the run with `--seguir` after it was integrated, if it was reverted, or if another run that started after the integration (or whose task names it) rewrote its lines; when the run that stomped it was already running in parallel, the run gets rework 0 and the new `pisado` column. `pa --rinde` adds the "% pisado".
@@ -9,6 +9,16 @@
 - Sidebar: each folder has a "+" button in its header that opens a new chat in that project.
 - Windows: attached files and the leader's folder are now recognized with Windows paths (the ones starting with "C:\" or with "\\server"). Before they were not shown, neither as files nor as a project.
 - Model picking: each model's cost now comes from what the runs actually measured (medicion.tsv) instead of fixed weights; the aggressive profile orders by "US$ per success" (the cost of every run that was integrated without rework). `pa --rinde` adds the "US$/success" column.
+- Workers: they start lighter and spend less. Writers no longer load connectors (MCP) or slash commands (except frontend and design), don't launch subagents, and their fixed text is the same on every run so the cache is reused. Each task type has a turn cap.
+- Splitter: in the saving profile, a free model with no history of its own only reads or does mechanical tasks until it proves itself in that type; design starts on Sonnet, and Opus doesn't start from scratch on frontend or multi-part code.
+- Out of quota: when Claude runs out of quota and the splitter offers Gemini, Codex or dsh, `pa` continues the run with that engine instead of marking it failed.
+- `pa --seguir` with an expired cache starts with a summary of what the run did, not just the new request.
+- Goal mode: `--integrar-si-pasa` merges the branch on its own when the verifier passes.
+- Trama's notice to the lead: it carries the worker's result (summarized) and says whether the branch merged on its own or what it's waiting for.
+- Merge: uncommitted leftovers from another run are no longer committed on top of the work: they go to a patch in `rescates/`.
+- Settings > Models: Claude models your account has that a rule leaves out (like Fable 5.2) show in their group, turned off.
+- Update on Linux: with gnome-terminal or konsole, the update window is no longer treated as closed right away.
+- Queued messages: if their file can't be read, a copy is saved before going on. Some errors that only came out in Spanish now use the app's language.
 
 ## 0.2.64
 
