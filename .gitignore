@@ -11,3 +11,6 @@ windows/.cache/
 windows/dist/
 windows/dist-nativo/
 app/dist-appimage/
+
+# Worktrees de subagentes nativos de Claude Code
+.claude/

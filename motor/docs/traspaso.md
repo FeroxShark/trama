@@ -408,7 +408,7 @@ la interfaz la hace otro worker encima. Todo vale para Linux y Windows (el worke
 
 ## Pendiente (en orden sugerido)
 
-1. **Mergear** la rama `claude/elegant-sagan-gvgbq5` a `main` e instalar.
+1. ~~Mergear `claude/elegant-sagan-gvgbq5`~~: ya está absorbida en `main` (rama borrada el 2026-11-10).
 2. **Probar varias cuentas de OpenCode con un login real** (punto 2 de arriba) y confirmar la detección del plan con Go.
 3. **Revisión completa de experiencia de usuario** antes de seguir sumando cosas: ver `motor/docs/ux-pendientes.md`.
 4. **Port a Windows**, etapas 5 a 17 + W (prueba en un Windows real). Estimado: 3 a 5 días de agentes. Ideas a tomar del PR de
