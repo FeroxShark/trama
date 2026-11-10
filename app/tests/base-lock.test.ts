@@ -1,15 +1,23 @@
 // cli/base/lock.ts: nombres por plataforma (inyectada), tomar/probar/esperar, canal de control y, con dos procesos reales,
 // que el lock se suelta solo si el que lo tiene muere con SIGKILL.
-import { test } from "node:test";
+import { after, test } from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, rmSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { claveDe, consultar, nombreLock, probar, tomar } from "../electron/cli/base/lock.ts";
 
-const unica = () => path.join(mkdtempSync(path.join(os.tmpdir(), "base-lock-")), "lock", "puesto@2");
+const creadas: string[] = [];
+const unica = () => {
+  const d = mkdtempSync(path.join(os.tmpdir(), "base-lock-"));
+  creadas.push(d);
+  return path.join(d, "lock", "puesto@2");
+};
+after(() => {
+  for (const d of creadas) rmSync(d, { recursive: true, force: true });
+});
 const LOCK_URL = pathToFileURL(path.resolve("electron/cli/base/lock.ts")).href;
 
 test("nombres: abstracto en Linux, named pipe con usuario en Windows; la misma ruta da el mismo nombre", () => {
