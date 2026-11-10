@@ -15,9 +15,16 @@ que sigue siendo piso duro (no se relaja como en `ahorro`); el puntaje sólo des
 sólo lee. `rendimiento` y `equilibrado` dan lo mismo con ritmo normal: la banda de calidad (`PESO_SOBRA`, `PREFERIDO_POR_TIPO`) ya decide. `reparto --tipo --json` suma `perfil_info` y, por candidato, `costo` e `historial` (`{n, ok_pct}`) para la interfaz.
 Con `ahorro` o `agresivo`, `pa` avisa por stderr al lanzar (`avisoPerfilAhorro` en `cli/pa/cli.ts`, `aviso_perfil_ahorro` en el bash) que el brief lleve pasos, archivos, «Listo cuando» y chequeo. Lo cubre `tests/reparto-agresivo.test.ts`.
 
+## Política de modelos (2026-11-10, sólo en el TS)
+
+- **`ahorro` exige historial como `agresivo`:** la misma función (`exigirHistorialSinCupo` en `app/electron/cli/reparto.ts`): un modelo que no gasta cupo (local, dsh/OpenCode) sin 5 corridas con dato y ≥ 50 % sin retrabajo en ESE tipo sólo entra en `lectura`/`mecanico` (si no queda nada más, vuelve a entrar). Pasaba que un gratis sin historial (minimax-m3.1-flash-free) tomaba `frontend`/`codigo-multi` sólo por pasar el piso de calidad. Cada candidato suma `historial`.
+- **Mínimo de `diseno`:** `sonnet` (antes `argon`; medido: sonnet high 79 % ok a US$ 1,36).
+- **Opus no arranca de cero en `frontend` ni `codigo-multi`** (`TIPOS_SIN_OPUS`; medido: US$ 5,7 por corrida y 12-26 % ok): se descarta como candidato en cualquier perfil. Sólo entra por `-m` o `--seguir`, que no pasan por `reparto --tipo`.
+- El python de `reparto` está congelado y NO sigue esta política: los casos de paridad afectados llevan `divergenciaSalida` (`tests/paridad/casos-reparto.ts`) y `tests/reparto-agresivo.test.ts` corre sólo el TS en diseno/frontend/codigo-multi y en ahorro.
+
 ## Perfil de reparto en el riel
 
 - **Perfil de reparto en el riel (`app/src/barra/PerfilRiel.tsx`, datos en `src/datos/perfil-reparto.ts`):** el ícono bajo los anillos de cupos (`data-guia="perfil-riel"`, un ícono por perfil, nunca sólo color) abre un menú con los cuatro perfiles; elegir uno
 guarda al toque en `modelos.json` por `guardarModelos` (relee lo guardado y cambia SÓLO `perfil`, así no pisa lo que Ajustes tenga a medio editar), sin barra de Guardar; si falla vuelve al anterior y dice el motivo. Vale para los workers nuevos (`reparto` lee el archivo
 en cada lanzamiento). Riel y Ajustes se avisan con el evento `trama:perfil-reparto` (`EVENTO_PERFIL`): Ajustes lo escucha en `AjustesModelos.tsx` y avisa al guardar. Los textos de cada perfil son los de `cu.perfil*` (los mismos en Ajustes); el de `agresivo` tiene que decir lo que hace
-`aplicar_agresivo` en `motor/bin/reparto`. Captura `perfil-riel` (menú abierto). Lo cubre `tests/perfil-riel.test.ts`. Ojo: en un worktree dentro de `~/.local/state/pa/worktrees/` `npm run visual` falla en todos los casos (`aislar.ts` ve `motor/opencode/go-topes.mjs` como «de la persona»), también en `normal`.
+`aplicarAgresivo` y el de `ahorro` lo que hace `aplicarAhorro` (`app/electron/cli/reparto.ts`). Captura `perfil-riel` (menú abierto). Lo cubre `tests/perfil-riel.test.ts`. Ojo: en un worktree dentro de `~/.local/state/pa/worktrees/` `npm run visual` falla en todos los casos (`aislar.ts` ve `motor/opencode/go-topes.mjs` como «de la persona»), también en `normal`.

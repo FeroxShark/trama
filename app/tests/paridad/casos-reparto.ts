@@ -156,6 +156,11 @@ const conMarcas = (c: Contexto) => {
   escribir(path.join(c.estado, "plan.json"), { version: 1, actualizado: "2026-10-26T10:00:00Z", ausente: ["2026-10-27", "2026-10-28", "2020-01-01", "malo"], hoy: { fecha: "2026-10-26", modo: "ahorrar" } });
 };
 
+/** La política de modelos (2026-11-10) vive sólo en el TS: el reparto de python está congelado y elige distinto en diseno (piso sonnet), frontend y codigo-multi (sin Opus) y, con `ahorro`, en lo que escribe sin historial. */
+const DIVERGE_POLITICA = "política de modelos nueva sólo en el TS (reparto de python congelado): diseno con piso sonnet, sin Opus en frontend/codigo-multi, historial exigido en ahorro";
+const TIPOS_DIVERGENTES = ["diseno", "codigo-multi", "frontend"];
+const divergePolitica = (c: Caso): Caso => ({ ...c, divergenciaSalida: DIVERGE_POLITICA });
+
 const TIPOS = ["debug", "diseno", "codigo-multi", "frontend", "final", "codigo-acotado", "lectura", "mecanico"];
 
 /** modelos.json que tocan los umbrales y las reglas del reparto. */
@@ -182,9 +187,10 @@ const MODELOS: [string, unknown][] = [
 
 const casosModelos: Caso[] = MODELOS.flatMap(([nombre, modelos], i) => {
   const o: Opciones = { modelos, cupos: i % 2 ? CUPOS_RAROS : CUPOS };
+  const d = nombre === "perfil ahorro" ? divergePolitica : (c: Caso) => c;
   return [
-    rp(`modelos.json (${nombre}): --tipo lectura --json`, ["--tipo", "lectura", "--json"], 0, o),
-    rp(`modelos.json (${nombre}): --tipo debug --explicar`, ["--tipo", "debug", "--explicar"], 0, o),
+    d(rp(`modelos.json (${nombre}): --tipo lectura --json`, ["--tipo", "lectura", "--json"], 0, o)),
+    d(rp(`modelos.json (${nombre}): --tipo debug --explicar`, ["--tipo", "debug", "--explicar"], 0, o)),
     rp(`modelos.json (${nombre}): --resumen`, ["--resumen"], 0, o),
     rp(`modelos.json (${nombre}): --tabla --json`, ["--tabla", "--json"], 0, o),
   ];
@@ -322,8 +328,8 @@ export const casosReparto: Caso[] = [
   rp("--resumen sin caché de AA (sólo el suplemento)", ["--resumen"], 0, { env: (c) => ({ REPARTO_AA: path.join(c.aux, "no-hay-aa.json") }) }),
 
   // elección por tipo
-  ...TIPOS.map((t) => rp(`--tipo ${t} --json`, ["--tipo", t, "--json"], 0)),
-  ...TIPOS.map((t) => rp(`--tipo ${t} (texto)`, ["--tipo", t], 0, { cupos: CUPOS_RAROS })),
+  ...TIPOS.map((t) => (TIPOS_DIVERGENTES.includes(t) ? divergePolitica : (c: Caso) => c)(rp(`--tipo ${t} --json`, ["--tipo", t, "--json"], 0))),
+  ...TIPOS.map((t) => (TIPOS_DIVERGENTES.includes(t) ? divergePolitica : (c: Caso) => c)(rp(`--tipo ${t} (texto)`, ["--tipo", t], 0, { cupos: CUPOS_RAROS }))),
   rp("--tipo final --explicar", ["--tipo", "final", "--explicar"], 0),
   // pa dice qué no sirve ahora (plugin de agy sin cargar, un Claude con el límite a la vista): reparto lo saltea y da el siguiente.
   rp("REPARTO_NO_DISPONIBLE: agy y gemini fuera (--tipo codigo-acotado --json)", ["--tipo", "codigo-acotado", "--json"], 0, { env: { REPARTO_NO_DISPONIBLE: "agy:*, gemini-*" } }),
@@ -331,7 +337,7 @@ export const casosReparto: Caso[] = [
   rp("REPARTO_NO_DISPONIBLE: dsh y locales fuera (--tipo lectura --json)", ["--tipo", "lectura", "--json"], 0, { env: { REPARTO_NO_DISPONIBLE: "dsh:*,ollama:*,opencode:*" } }),
   rp("--tipo codigo-multi --explicar con cupos raros", ["--tipo", "codigo-multi", "--explicar"], 0, { cupos: CUPOS_RAROS }),
   rp("--tipo desconocido", ["--tipo", "raro", "--json"], 0),
-  rp("--tipo con eñe y mayúsculas", ["--tipo", "Diseño"], 0),
+  divergePolitica(rp("--tipo con eñe y mayúsculas", ["--tipo", "Diseño"], 0)),
   rp("--tipo --mismo-proveedor google", ["--tipo", "lectura", "--mismo-proveedor", "google", "--json"], 0),
   rp("--tipo --mismo-proveedor claude --explicar", ["--tipo", "lectura", "--mismo-proveedor", "claude", "--explicar"], 0),
   rp("--tipo --cuenta trabajo", ["--tipo", "debug", "--cuenta", "trabajo", "--json"], 0, { cupos: CUPOS_RAROS }),

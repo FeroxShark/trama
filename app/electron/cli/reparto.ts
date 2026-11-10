@@ -99,7 +99,7 @@ const CALIDAD: Obj = {
   "opencode:nvidia/deepseek-ai/deepseek-v4.1-flash": 60,
 };
 const MINIMO_POR_TIPO: Obj = {
-  debug: "argon", diseno: "argon",
+  debug: "argon", diseno: "sonnet",
   "codigo-multi": "sonnet", frontend: "sonnet",
   final: "argon",
   "codigo-acotado": "haiku",
@@ -139,6 +139,8 @@ const PERFIL_DEFECTO = "equilibrado";
 const RELAJA_AHORRO: Obj = { lectura: 50, mecanico: 50 };
 const TIPOS_GRATIS_SIN_DATOS = ["lectura", "mecanico"];
 const TIPOS_FLASH_AGRESIVO = ["lectura"];
+// Opus no arranca de cero en estos tipos (medido: US$ 5,7 por corrida y 12-26 % ok): sólo entra por -m o --seguir, que no pasan por reparto.
+const TIPOS_SIN_OPUS = ["frontend", "codigo-multi"];
 const RINDE_MIN_N = 5;
 const RINDE_MIN_OK = 50;
 const RINDE_DIAS = 60;
@@ -2337,6 +2339,28 @@ function aplicarCostoCandidato(cand: Obj, costo: CostoCandidato | null): void {
   if (costo.porExito !== null) Object.defineProperty(cand, "_costo_exito", { value: costo.porExito, enumerable: false, writable: true, configurable: true });
 }
 
+/** Lo que no gasta cupo (local, dsh/OpenCode) sin historial propio en ESE tipo sólo entra en TIPOS_GRATIS_SIN_DATOS (vuelve si no queda nada más). Lo comparten `ahorro` y `agresivo`. */
+function exigirHistorialSinCupo(c: Obj, tipo: string, rinde: Map<string, [number, number]>, perfil: string): void {
+  if (c.proveedor !== "local" && c.proveedor !== "dsh") return;
+  const [d, ok] = rinde.get(`${tipo}\t${c.modelo}`) ?? [0, 0];
+  c.historial = { n: d, ok_pct: d ? pyRound(100 * ok / d, 0) : null };
+  if (c.descartado_por || TIPOS_GRATIS_SIN_DATOS.includes(tipo)) return;
+  if (d < RINDE_MIN_N || 100 * ok < RINDE_MIN_OK * d) {
+    c.descartado_por = `sin historial en ${tipo}: ${c.nombre} no gasta cupo pero tiene ${d} corridas con dato (${d ? `${c.historial.ok_pct} % ok` : "sin dato"}), y para tareas que escriben el perfil ${perfil} pide ${RINDE_MIN_N} o más con ${RINDE_MIN_OK} % o más sin retrabajo (pa --rinde)`;
+    c.duro = c.duro_historial = true;
+  }
+}
+
+/** Opus no arranca de cero en frontend ni codigo-multi (cualquier perfil): se descarta como candidato; `-m` y `--seguir` no pasan por acá. */
+function sinOpusDeCero(out: Obj[], tipo: string): void {
+  if (!TIPOS_SIN_OPUS.includes(tipo)) return;
+  for (const c of out) {
+    if (c.familia !== "opus" || c.descartado_por) continue;
+    c.descartado_por = `Opus no arranca ${tipo} de cero (medido: US$ 5,7 por corrida y 12-26 % ok); sólo por -m o --seguir`;
+    c.duro = true;
+  }
+}
+
 /** `aplicar_agresivo`: a cada candidato su costo, y dos reglas duras sobre `minimo_por_tipo`: Flash nunca escribe, y lo que no gasta cupo sin historial propio sólo entra en TIPOS_GRATIS_SIN_DATOS (vuelve si no queda nada más). */
 function aplicarAgresivo(out: Obj[], tipo: string, cfg: Obj, now: Date): void {
   const rinde = rindeDeModelos(now);
@@ -2345,18 +2369,18 @@ function aplicarAgresivo(out: Obj[], tipo: string, cfg: Obj, now: Date): void {
     c.costo = typeof c._costo_exito === "number" ? (c._costo_exito as number) : costoRelativo(c, cfg);
     conFloat(c, "costo");
     if (c.proveedor === "local" || c.proveedor === "dsh") {
-      const [d, ok] = rinde.get(`${tipo}\t${c.modelo}`) ?? [0, 0];
-      c.historial = { n: d, ok_pct: d ? pyRound(100 * ok / d, 0) : null };
-      if (c.descartado_por || TIPOS_GRATIS_SIN_DATOS.includes(tipo)) continue;
-      if (d < RINDE_MIN_N || 100 * ok < RINDE_MIN_OK * d) {
-        c.descartado_por = `sin historial en ${tipo}: ${c.nombre} no gasta cupo pero tiene ${d} corridas con dato (${d ? `${c.historial.ok_pct} % ok` : "sin dato"}), y para tareas que escriben el perfil agresivo pide ${RINDE_MIN_N} o más con ${RINDE_MIN_OK} % o más sin retrabajo (pa --rinde)`;
-        c.duro = c.duro_historial = true;
-      }
+      exigirHistorialSinCupo(c, tipo, rinde, "agresivo");
     } else if (c.familia === "flash" && !TIPOS_FLASH_AGRESIVO.includes(tipo) && !c.descartado_por) {
       c.descartado_por = `Flash no escribe en el perfil agresivo (sólo ${TIPOS_FLASH_AGRESIVO.join(" y ")})`;
       c.duro = true;
     }
   }
+}
+
+/** `ahorro`: la misma regla de historial que `agresivo` para lo que no gasta cupo (un modelo flojo no escribe código sólo porque su índice pasa el piso). */
+function aplicarAhorro(out: Obj[], tipo: string, now: Date): void {
+  const rinde = rindeDeModelos(now);
+  for (const c of out) exigirHistorialSinCupo(c, tipo, rinde, "ahorro");
 }
 
 const efectivo = (_base: string, cfgEffort: string[], eTipo: string) => (cfgEffort.includes(eTipo) ? eTipo : cfgEffort[cfgEffort.length - 1]!);
@@ -2698,6 +2722,8 @@ function armarCandidatos(tipo: string, cfg: Obj, cupos: Obj, now: Date, effort: 
     out.push(cand);
   }
   if (perfil.costo_primero) aplicarAgresivo(out, tipo, cfg, now);
+  else if (cfg.perfil === "ahorro") aplicarAhorro(out, tipo, now);
+  sinOpusDeCero(out, tipo);
   return [out, minimo, minimoFam];
 }
 
@@ -2791,7 +2817,7 @@ function elegir(tipo0: string, cfg: Obj, cupos: Obj, now: Date, mismoProveedor: 
   }
   let motivo = motivoDe(gana, pool, tipo, minimo, minimoFam, todoLleno, now, cands);
   if (gana.nota_effort) motivo += ` Effort ${gana.effort || gana.modelo.split("-").pop()}: ${gana.nota_effort} (calidad ${fn(gana.calidad)}).`;
-  if (relajado && gana.relajado && gana.duro_historial) motivo += ` No queda ningún otro modelo que sirva: entra ${gana.nombre} aunque no tiene historial en ${tipo} (perfil agresivo).`;
+  if (relajado && gana.relajado && gana.duro_historial) motivo += ` No queda ningún otro modelo que sirva: entra ${gana.nombre} aunque no tiene historial en ${tipo} (perfil ${cfg.perfil}).`;
   else if (relajado && gana.relajado) motivo += ` Ningún modelo llega a la calidad ${fn(minimo)} que pide ${tipo}: uso el mejor que hay (calidad ${fn(gana.calidad)}, ajustable con "calidad" en modelos.json).`;
   if (primeroGratis) motivo += ` Con chequeo, ${tipo} ofrece primero los gratis de OpenCode (cupo entero, no gastan Claude ni agy).`;
   if (PERFILES[cfg.perfil]!.costo_primero && !todoLleno && !gana.duro_historial) {

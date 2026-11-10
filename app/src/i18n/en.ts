@@ -2737,7 +2737,7 @@ export const en = {
   "cu.perfilEquilibrado": "Balanced",
   "cu.perfilEquilibradoQue": "Balanced quality and quota: only throttles Claude if you exceed the weekly pace.",
   "cu.perfilAhorro": "Saving",
-  "cu.perfilAhorroQue": "Prioritizes free and Google models; reserves Claude for your chat.",
+  "cu.perfilAhorroQue": "Prioritizes free and Google models; reserves Claude for your chat. Local and OpenCode models with no track record only do reading and mechanical tasks.",
   "cu.perfilAgresivo": "Aggressive",
   "cu.perfilAgresivoQue": "Picks the cheapest model that is good enough for each task, never below the quality floor, and protects your Claude quota like Saving. Flash only reads; local and OpenCode models with no track record only do reading and mechanical tasks.",
   "cu.perfilRendimiento": "Performance",

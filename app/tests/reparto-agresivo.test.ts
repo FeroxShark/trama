@@ -7,7 +7,7 @@ import { after, beforeEach } from "node:test";
 import { testPosix as test } from "./plataforma.ts";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
@@ -79,9 +79,15 @@ function correr(motor: "ts" | "py", t: string, fijos: string, mod: string, med: 
   assert.equal(r.status, 0, r.stderr + r.stdout);
   return { sal: JSON.parse(r.stdout) as Sal, crudo: r.stdout, err: r.stderr };
 }
-/** Corre en TS y en python, exige la misma salida y devuelve una. */
+/**
+ * Corre en TS y en python, exige la misma salida y devuelve una. La política de modelos de 2026-11-10 vive sólo en el TS (el python está
+ * congelado): diseno con piso sonnet, sin Opus en frontend/codigo-multi y, con `ahorro`, historial exigido a lo que no gasta cupo (y `historial` en cada candidato). Ahí corre sólo el TS.
+ */
+const DIVERGEN_DEL_PY = ["diseno", "frontend", "codigo-multi"];
 function tipo(t: string, fijos: string, mod: string, med = SIN_HISTORIAL) {
   const ts = correr("ts", t, fijos, mod, med);
+  const ahorro = JSON.parse(readFileSync(mod, "utf8")).perfil === "ahorro";
+  if (DIVERGEN_DEL_PY.includes(t) || ahorro) return { ...ts, py: ts };
   const py = correr("py", t, fijos, mod, med);
   assert.equal(ts.crudo, py.crudo, `ts y python difieren en ${t}`);
   return { ...ts, py };
@@ -105,9 +111,10 @@ test("tabla perfil × tipo con las mismas cuentas: agresivo difiere de ahorro do
   for (const p of PERFILES) for (const t of TIPOS) assert.equal(filas[p]![t]!.perfil, p);
   // Sin el perfil, reparto lo rechazaría y caería al equilibrado: acá es el suyo.
   assert.deepEqual(filas.agresivo!.lectura!.perfil_info, { id: "agresivo", costo_primero: true, reserva_lider_pct: 35, relaja: false });
-  // Donde escribe: ahorro y equilibrado dejan que el gratis sin historial (big-pickle) haga código-acotado; agresivo no, y elige el más barato que queda.
-  assert.equal(filas.ahorro!["codigo-acotado"]!.modelo, BIG);
+  // Donde escribe: equilibrado deja que el gratis sin historial (big-pickle) haga código-acotado; ahorro y agresivo no, y eligen el más barato que queda.
   assert.equal(filas.equilibrado!["codigo-acotado"]!.modelo, BIG);
+  assert.notEqual(filas.ahorro!["codigo-acotado"]!.modelo, BIG);
+  assert.match(cand(filas.ahorro!["codigo-acotado"]!, BIG).descartado_por ?? "", /el perfil ahorro pide 5 o más/);
   assert.equal(filas.agresivo!["codigo-acotado"]!.modelo, "claude-haiku-5-5");
   assert.match(cand(filas.agresivo!["codigo-acotado"]!, BIG).descartado_por ?? "", /^sin historial en codigo-acotado: .* 0 corridas con dato \(sin dato\)/);
   // En lo que no escribe el gratis sigue entrando sin historial.
@@ -208,4 +215,51 @@ test("validación: modelos.json acepta perfil agresivo y rechaza uno que no exis
     assert.match(mal.err, /perfil "feroz" \(equilibrado, ahorro, agresivo o rendimiento\)/, motor);
     assert.equal(mal.sal.perfil, "equilibrado");
   }
+});
+
+test("ahorro exige el mismo historial que agresivo a lo que no gasta cupo: sin 5 corridas con dato y 50 % sin retrabajo en ESE tipo no escribe", () => {
+  const f = cuposFijos();
+  const mod = modelos({ perfil: "ahorro" });
+  const con = (t: string, n: number, ok: number, tm = t) => tipo(t, f, mod, medicion([{ tipo: tm, modelo: BIG, n, ok }])).sal;
+  for (const t of ["codigo-acotado"]) { // (big-pickle no llega al piso de codigo-multi ni frontend: ahí lo frena la calidad antes)
+    const sin = con(t, 0, 0);
+    assert.notEqual(sin.modelo, BIG, `${t}: ${sin.motivo}`);
+    assert.deepEqual(cand(sin, BIG).historial, { n: 0, ok_pct: null });
+    assert.match(cand(sin, BIG).descartado_por ?? "", new RegExp(`^sin historial en ${t}: .* el perfil ahorro pide 5 o más con 50 %`));
+    assert.equal(cand(con(t, 8, 3), BIG).descartado_por === null, false, `${t}: 38 % no alcanza`);
+    assert.equal(cand(con(t, 4, 4), BIG).descartado_por === null, false, `${t}: 4 corridas no alcanzan`);
+    assert.equal(cand(con(t, 5, 3), BIG).descartado_por === null || /calidad/.test(cand(con(t, 5, 3), BIG).descartado_por!), true, `${t}: 5 al 60 % pasa la regla de historial`);
+  }
+  // lectura y mecanico siguen entrando sin historial
+  for (const t of ["lectura", "mecanico"]) assert.equal(con(t, 0, 0).modelo, BIG, t);
+  // las corridas de otro tipo no cuentan
+  assert.notEqual(con("codigo-acotado", 10, 9, "debug").modelo, BIG);
+  // con 6 corridas buenas en ESE tipo entra otra vez
+  assert.equal(con("codigo-acotado", 6, 5).modelo, BIG);
+  // sin nada más, vuelve a entrar y el motivo dice el perfil
+  const solo = arch({ version: 1, leido: AHORA, suscripciones: [] });
+  const r = correr("ts", "codigo-acotado", solo, modelos({ perfil: "ahorro", excluir: ["claude-*", "gemini-*", "agy:*"] }), SIN_HISTORIAL);
+  assert.equal(r.sal.modelo, BIG, r.sal.motivo);
+  assert.match(r.sal.motivo, /aunque no tiene historial en codigo-acotado \(perfil ahorro\)/);
+});
+
+test("diseno pide sonnet de piso (no argon) y Opus no arranca frontend ni codigo-multi en ningún perfil", () => {
+  const f = cuposFijos();
+  for (const p of PERFILES) {
+    const mod = modelos({ perfil: p });
+    const d = tipo("diseno", f, mod).sal;
+    const sonnet = d.candidatos.find((c) => c.modelo === "claude-sonnet-5-5")!;
+    assert.equal(sonnet.descartado_por === null || !/calidad/.test(sonnet.descartado_por), true, `${p}: sonnet pasa el piso de diseno: ${sonnet.descartado_por}`);
+    for (const t of ["frontend", "codigo-multi"]) {
+      const s = tipo(t, f, mod).sal;
+      assert.ok(!s.modelo.includes("opus"), `${p}/${t}: ${s.modelo}`);
+      const opus = s.candidatos.filter((c) => c.modelo.includes("opus"));
+      assert.ok(opus.length > 0 && opus.every((c) => /^Opus no arranca /.test(c.descartado_por ?? "")), `${p}/${t}: ${JSON.stringify(opus.map((c) => c.descartado_por))}`);
+    }
+    // en los demás tipos Opus sigue siendo candidato
+    const dbg = tipo("debug", f, mod).sal;
+    assert.ok(dbg.candidatos.filter((c) => c.modelo.includes("opus")).every((c) => !/^Opus no arranca /.test(c.descartado_por ?? "")));
+  }
+  // con el rendimiento (calidad primero) y diseno, el ganador ya no es Opus por piso: sigue habiendo candidatos de diseno
+  assert.ok(tipo("diseno", f, modelos({ perfil: "equilibrado" })).sal.modelo);
 });

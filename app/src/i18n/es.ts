@@ -2723,7 +2723,7 @@ export const es: { [K in keyof typeof en]: string } = {
   "cu.perfilEquilibrado": "Equilibrado",
   "cu.perfilEquilibradoQue": "Calidad y cupo parejos: frena a Claude sólo si te pasás del ritmo de la semana.",
   "cu.perfilAhorro": "Ahorro",
-  "cu.perfilAhorroQue": "Prioriza modelos gratis y de Google; reserva Claude para tu conversación.",
+  "cu.perfilAhorroQue": "Prioriza modelos gratis y de Google; reserva Claude para tu conversación. Los locales y de OpenCode sin historial sólo hacen lectura y tareas mecánicas.",
   "cu.perfilAgresivo": "Agresivo",
   "cu.perfilAgresivoQue": "Elige el modelo más barato que alcance para cada tarea, sin bajar del mínimo de calidad, y cuida tu cupo de Claude como Ahorro. Flash sólo lee; los locales y de OpenCode sin historial, sólo lectura y tareas mecánicas.",
   "cu.perfilRendimiento": "Rendimiento",
