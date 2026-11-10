@@ -9,7 +9,7 @@ import path from "node:path";
 import { test } from "node:test";
 import { testPosix } from "./plataforma.ts";
 import type { Pa } from "../electron/cli/pa/entorno.ts";
-import { alSalir, argsCierre, argsClaude, armarLanzamiento, contratoClaude, envDeLaLlamada, lineaSkillsDiseno, settingsWorker, skillsDisenoInstaladas, type Corrida } from "../electron/cli/pa/lanzar.ts";
+import { alSalir, argsCierre, argsClaude, armarLanzamiento, configClaudeDe, contratoClaude, envDeLaLlamada, lineaSkillsDiseno, promptDe, settingsWorker, skillsDisenoInstaladas, type Corrida } from "../electron/cli/pa/lanzar.ts";
 import { campoDe, decisionEsNada, epochReset, verificadoDe } from "../electron/cli/pa/resultado-lanzar.ts";
 
 const PA = path.join(import.meta.dirname, "..", "..", "motor", "bin", "pa");
@@ -162,12 +162,12 @@ test("al_salir: .ultimo con el lock, .listo sólo en async, y el rastro vivo se 
   }
 });
 
-test("MCP: un worker hereda los del usuario (sin --strict-mcp-config); sólo un --leer va sin ellos y --mcp se los devuelve", () => {
+test("MCP: el worker va sin MCP por defecto (escritores y --leer); --mcp se los devuelve", () => {
   const raiz = mkdtempSync(path.join(os.tmpdir(), "lanzar-mcp-"));
   const pa = paFalso(raiz);
   const estricto = (a: string[]) => a.includes("--strict-mcp-config") && a.includes("--mcp-config");
   for (const [o, sin] of [
-    [{}, false],
+    [{}, true],
     [{ conMcp: true }, false],
     [{ leer: true }, true],
     [{ leer: true, conMcp: true }, false],
@@ -176,6 +176,72 @@ test("MCP: un worker hereda los del usuario (sin --strict-mcp-config); sólo un 
     assert.equal(estricto(l.args), sin, JSON.stringify(o));
     assert.equal(estricto(argsCierre(pa, l.c, { contrato: "k", settings: "{}", nombre: "n", sid: l.c.sid })), sin, `cierre ${JSON.stringify(o)}`);
   }
+});
+
+test("argv: sin subagentes, sin comandos de slash (salvo diseño), y las secciones de la máquina fuera del system prompt", () => {
+  const raiz = mkdtempSync(path.join(os.tmpdir(), "lanzar-argv-"));
+  const pa = paFalso(raiz);
+  const o = { contrato: "k", settings: "{}", nombre: "n" };
+  const escritor = argsClaude(pa, corrida(raiz), o);
+  assert.ok(escritor.includes("--disallowedTools"), "el escritor no lanza subagentes");
+  assert.equal(escritor[escritor.indexOf("--disallowedTools") + 1], "Agent");
+  assert.ok(escritor.includes("--disable-slash-commands"), "sin comandos de slash");
+  assert.ok(escritor.includes("--exclude-dynamic-system-prompt-sections"), "las secciones de la máquina salen del system prompt");
+  // un --leer tampoco usa subagentes ni comandos de slash
+  const lector = argsClaude(pa, corrida(raiz, { leer: true }), o);
+  assert.ok(lector.includes("--disable-slash-commands"));
+  assert.ok(!lector.includes("--disallowedTools"), "un --leer no lanza subagentes de todas formas");
+  // el worker de diseño carga las skills: no se le apagan los comandos
+  for (const tipo of ["frontend", "diseno"]) {
+    const a = argsClaude(pa, corrida(raiz, { tipo }), o);
+    assert.ok(!a.includes("--disable-slash-commands"), tipo);
+    assert.ok(a.includes("--disallowedTools"), tipo);
+  }
+  // el cierre: mismo criterio
+  const cierre = argsCierre(pa, corrida(raiz), { contrato: "k", settings: "{}", nombre: "n", sid: "x" });
+  assert.ok(cierre.includes("--disable-slash-commands"));
+  assert.ok(cierre.includes("--disallowedTools"));
+});
+
+test("el system prompt es idéntico entre corridas y lo que cambia va al final del prompt", () => {
+  const raiz = mkdtempSync(path.join(os.tmpdir(), "lanzar-contrato-"));
+  const pa = paFalso(raiz);
+  const c1 = corrida(raiz, { rama: "pa/demo/1", rutaTrabajo: path.join(raiz, "wt1"), usaWorktree: true, paralelos: "- 20260101-000000-2 (puesto 2): otra cosa" });
+  const c2 = corrida(raiz, { rama: "pa/demo/2", rutaTrabajo: path.join(raiz, "wt2"), usaWorktree: true, jefe: "otro-jefe" });
+  const k1 = contratoClaude(pa, c1);
+  const k2 = contratoClaude(pa, c2);
+  assert.equal(k1, k2, "el system prompt no cambia entre corridas");
+  assert.ok(!k1.includes("wt1"), "el worktree no está en el system prompt");
+  assert.ok(!k1.includes("pa/demo/1"), "la rama no está en el system prompt");
+  const p1 = promptDe(pa, c1);
+  assert.ok(p1.includes("wt1"), "el worktree va en el prompt");
+  assert.ok(p1.includes("pa/demo/1"), "la rama va en el prompt");
+  assert.ok(p1.includes("20260101-000000-2"), "los otros writers van en el prompt");
+  assert.ok(promptDe(pa, c2).includes("otro-jefe"), "el jefe va en el prompt");
+  assert.ok(p1.trimEnd().endsWith("se resuelve al integrar."), "el bloque variable va al final del prompt");
+});
+
+test("PA_RECORTE: 150 en plan pro y 300 en max", () => {
+  const raiz = mkdtempSync(path.join(os.tmpdir(), "lanzar-recorte-"));
+  const pa = paFalso(raiz);
+  assert.equal(envDeLaLlamada(pa, corrida(raiz)).PA_RECORTE, "150");
+  assert.equal(envDeLaLlamada({ ...pa, plan: "max" }, corrida(raiz)).PA_RECORTE, "300");
+  assert.equal(envDeLaLlamada({ ...pa, plan: "max", env: { ...pa.env, PA_RECORTE: "42" } }, corrida(raiz)).PA_RECORTE, "42");
+});
+
+test("la guardia: si el settings del usuario ya la tiene, la nuestra no se registra (corre una vez por Bash)", () => {
+  const raiz = mkdtempSync(path.join(os.tmpdir(), "lanzar-guard-"));
+  const pa = paFalso(raiz);
+  const conGuard = (c: Corrida) => JSON.parse(settingsWorker(pa, { hb: "/e/hb", leer: false, configClaude: configClaudeDe(pa, c) })).hooks.PreToolUse as { matcher?: string; hooks: { command: string }[] }[];
+  const sinGuard = conGuard(corrida(raiz));
+  assert.ok(sinGuard.some((g) => g.matcher === "Bash" && /destructive-guard/.test(g.hooks[0]!.command)), "sin el del usuario, el nuestro");
+  // el usuario tiene uno en su settings.json: no se registra el nuestro
+  const claude = path.join(pa.home, ".claude");
+  mkdirSync(claude, { recursive: true });
+  writeFileSync(path.join(claude, "settings.json"), JSON.stringify({ hooks: { PreToolUse: [{ matcher: "Bash", hooks: [{ type: "command", command: "bash '/home/x/.claude/hooks/destructive-guard.sh'" }] }] } }));
+  const conOtro = conGuard(corrida(raiz));
+  assert.ok(!conOtro.some((g) => /destructive-guard/.test(g.hooks[0]?.command ?? "")), "el del usuario alcanza");
+  assert.ok(conOtro.some((g) => /latido/.test(g.hooks[0]?.command ?? "")), "el latido sigue");
 });
 
 test("MCP: la búsqueda diferida de herramientas queda activa en el worker, salvo que el usuario fije la suya", () => {

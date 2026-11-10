@@ -5,17 +5,21 @@ import { spawnSync } from "node:child_process";
 import { statSync } from "node:fs";
 import path from "node:path";
 import { delimitadorDe, homeDe, plataformaActual, type Plataforma } from "../../../rutas.ts";
-import { CONTRATO, CONTRATO_AGY, CONTRATO_CODEX, SIN_JEFE, conJefe } from "../contrato.ts";
+import { CONTRATO, CONTRATO_AGY, CONTRATO_CODEX, SIN_JEFE } from "../contrato.ts";
 import type { Env, Io } from "../entorno.ts";
 import { codexShims, dshBin, dshClave, dshCorrer, localDe, opencodeBin, opencodeCorrer, type Local } from "./chequeo.ts";
 import { dshModeloDe, dshProveedor, esNvidia, esOpencode, type Motor } from "./modelos.ts";
 import { claudeMdDueno, promptOtroMotor } from "./prompt.ts";
 
-/** El contrato de un motor antes de `conDueno`: agy y codex/dsh tienen el suyo y corren sin jefe (no tienen SendMessage). */
-export function contratoBase(motor: Motor, jefe: string): string {
+/**
+ * El contrato de un motor antes de `conDueno`: agy y codex/dsh tienen el suyo y corren sin jefe (no tienen SendMessage).
+ * El de Claude NO lleva el bloque del jefe: ése cambia de una sesión a otra y va al final del prompt (el system prompt tiene
+ * que quedar idéntico byte a byte entre corridas del mismo plan, para que el caché del prompt se reutilice).
+ */
+export function contratoBase(motor: Motor): string {
   if (motor === "agy") return `${CONTRATO_AGY}\n${SIN_JEFE}`;
   if (motor === "codex" || motor === "dsh") return `${CONTRATO_CODEX}\n${SIN_JEFE}`;
-  return jefe ? `${CONTRATO}\n${conJefe(jefe)}` : `${CONTRATO}\n${SIN_JEFE}`;
+  return CONTRATO;
 }
 
 /** El entorno de la cuenta (`cuentas env <id> --json`: `sacar` y `poner`), sólo para el proceso del worker. */

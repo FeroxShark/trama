@@ -11,7 +11,7 @@ import { chequearAgy, chequearCodex, chequearDsh, chequearOpencode, dshBin, loca
 import { armarLlamada, conCuenta, contratoBase, entornoOllama, type DatosLlamada } from "../electron/cli/pa/motores/llamada.ts";
 import { motorDe, validarOtroMotor, type FlagsLanzar } from "../electron/cli/pa/motores/modelos.ts";
 import { arreglarJsonOllama, escribirAgyJson, escribirCodexJson, escribirLatido } from "../electron/cli/pa/motores/salida.ts";
-import { CONTRATO_AGY, CONTRATO_CODEX, SIN_JEFE } from "../electron/cli/pa/contrato.ts";
+import { CONTRATO, CONTRATO_AGY, CONTRATO_CODEX, SIN_JEFE } from "../electron/cli/pa/contrato.ts";
 import { comandoOriginal, correr } from "./paridad/arnes.ts";
 import { testPosix } from "./plataforma.ts";
 
@@ -64,11 +64,11 @@ test("validarOtroMotor: normaliza y dice el motor; un Claude es null", () => {
   assert.equal(motorDe("claude-opus-5-5"), "claude");
 });
 
-test("contratoBase: agy y codex/dsh sin jefe; claude con o sin jefe", () => {
-  assert.equal(contratoBase("agy", "jefe-1"), `${CONTRATO_AGY}\n${SIN_JEFE}`);
-  assert.equal(contratoBase("dsh", "jefe-1"), `${CONTRATO_CODEX}\n${SIN_JEFE}`);
-  assert.match(contratoBase("claude", "jefe-1"), /llamada "jefe-1"/);
-  assert.ok(contratoBase("ollama", "").endsWith(SIN_JEFE));
+test("contratoBase: agy y codex/dsh sin jefe; claude sin el bloque del jefe (va al final del prompt)", () => {
+  assert.equal(contratoBase("agy"), `${CONTRATO_AGY}\n${SIN_JEFE}`);
+  assert.equal(contratoBase("dsh"), `${CONTRATO_CODEX}\n${SIN_JEFE}`);
+  assert.equal(contratoBase("claude"), CONTRATO);
+  assert.ok(!contratoBase("claude").includes("llamada"), "el bloque del jefe no está en el system prompt");
 });
 
 // ---------------------------------------------------------------- chequeos

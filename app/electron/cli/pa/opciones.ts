@@ -33,6 +33,10 @@ export interface Opciones {
   async: boolean;
   /** "" = sin tope (--max-turns 0). */
   maxTurns: string;
+  /** ¿El jefe pasó `--max-turns`? Si no, el tope sale del tipo (ver `topeDeTurnos`). */
+  maxTurnsDado: boolean;
+  /** El plan de la suscripción (pro|max): el tope por tipo se recorta a 100 en pro. */
+  plan: "pro" | "max";
   maxBudget: string;
   runId: string;
   sucioMio: boolean;
@@ -83,6 +87,27 @@ export interface Opciones {
 export const OBJETIVO_INTENTOS = 3;
 export const OBJETIVO_TOPE_CUPO = 10;
 
+/**
+ * El tope de turnos por tipo cuando el jefe NO pasó `--max-turns`: una corrida corta no necesita 150 turnos, y cada turno
+ * paga el contexto entero. Un worker de diseño o de código grande tiene más margen; uno mecánico, menos.
+ */
+export const TOPE_POR_TIPO: Record<string, number> = {
+  mecanico: 30,
+  lectura: 40,
+  "codigo-acotado": 50,
+  debug: 80,
+  frontend: 90,
+  "codigo-multi": 90,
+  diseno: 90,
+  final: 120,
+};
+/** El tope de turnos de un tipo (sin tipo: el de lectura o el de codigo-acotado). En plan pro, el menor entre el del tipo y 100. */
+export function topeDeTurnos(tipo: string, plan: "pro" | "max", leer = false): number {
+  const t = (tipo || (leer ? "lectura" : "codigo-acotado")).toLowerCase().replace("diseño", "diseno");
+  const n = TOPE_POR_TIPO[t] ?? TOPE_POR_TIPO["codigo-acotado"]!;
+  return plan === "pro" ? Math.min(n, 100) : n;
+}
+
 /** Los valores antes de mirar las opciones (lo que el bash toma del entorno y del plan). */
 export function opcionesIniciales(proyecto: string, env: Env, plan: "pro" | "max"): Opciones {
   return {
@@ -98,7 +123,9 @@ export function opcionesIniciales(proyecto: string, env: Env, plan: "pro" | "max
     matar: false,
     conMcp: false,
     async: false,
-    maxTurns: plan === "pro" ? "100" : "150",
+    maxTurns: "",
+    maxTurnsDado: false,
+    plan,
     maxBudget: "",
     runId: "",
     sucioMio: false,
@@ -320,6 +347,7 @@ export function parsearOpciones(args: string[], o: Opciones, ctx: CtxParseo): Op
         if (!/^[0-9]+$/.test(valor)) error(`pa: --max-turns quiere un entero (0 = sin tope), no '${valor}'.`);
         o.maxTurns = BigInt(valor).toString();
         if (o.maxTurns === "0") o.maxTurns = "";
+        o.maxTurnsDado = true;
         dos();
         break;
       case "--id": o.runId = valor; dos(); break;
@@ -436,5 +464,7 @@ export function parsearOpciones(args: string[], o: Opciones, ctx: CtxParseo): Op
   }
   if (o.integrarSiPasa && !o.objetivo) error("pa: --integrar-si-pasa va con el modo Objetivo: pa <proy> --objetivo \"<meta>\" --verificar \"<comando>\" --integrar-si-pasa");
   if (o.decisiones && !o.auditar) error("pa: --decisiones sólo va con --auditar (lo lee el auditor).");
+  // Sin --max-turns, el tope sale del tipo: una corrida corta no necesita 150 turnos.
+  if (!o.maxTurnsDado) o.maxTurns = String(topeDeTurnos(o.tipo, o.plan, o.leer));
   return o;
 }

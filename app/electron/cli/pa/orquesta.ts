@@ -21,6 +21,7 @@ import { esArchivo, idCorrida, leerCampo, leerTexto, listar } from "./corridas.t
 import { avisarFalta, jefeId, jefeNombre, type Env, type Pa } from "./entorno.ts";
 import { carpetaProyectos, claudeFalla, claudeRc, correrClaude, escapar, limiteDe, lanzarClaude, type Corrida, type Ganchos, type OpcionesLanzar } from "./lanzar.ts";
 import { TIPOS_VALIDOS } from "./modelos.ts";
+import { topeDeTurnos } from "./opciones.ts";
 import { Admision, avisarParalelo, otrosWriters, runningVivo } from "./puestos.ts";
 import { esperarCupo, relanzarPorCupo, relanzarPorFallback } from "./cupo.ts";
 import { ganchosDe } from "./ganchos.ts";
@@ -464,6 +465,8 @@ async function orquestar(l: Llamada, pa: Pa, p: ProyectoCli, o: OpcionesOrquesta
       subtarea ||= leerCampo(hRet, "subtarea");
       if (!l.rubrica && !rubrica) rubrica = leerCampo(hRet, "rubrica");
     }
+    // El tipo definitivo (puede venir de la corrida que retoma): el tope por tipo se recalcula con él.
+    if (!l.maxTurnsDado) l.maxTurns = String(topeDeTurnos(tipo, pa.plan, leer));
 
     // --- la ficha va en la TAREA (no en el contrato: el contrato es el prefijo del caché)
     // (a un agy, codex u opencode no: son los pendientes del dueño y lo que va a otra empresa no se recupera; dsh:ollama es local)

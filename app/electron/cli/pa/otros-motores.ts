@@ -9,7 +9,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { enPath } from "../base/buscar.ts";
 import type { Env, Pa } from "./entorno.ts";
-import { mapaDe, type Corrida, type Lanzamiento, type OpcionesLanzar } from "./lanzar.ts";
+import { mapaDe, promptDe, type Corrida, type Lanzamiento, type OpcionesLanzar } from "./lanzar.ts";
 import { chequearAgy, chequearCodex, chequearDsh, localEstado, type Local } from "./motores/chequeo.ts";
 import { armarLlamada, conCuenta, type EntornoCuenta, type Llamada } from "./motores/llamada.ts";
 import { esOpencode, Modelos } from "./modelos.ts";
@@ -46,7 +46,7 @@ function cuentaDe(c: Corrida): EntornoCuenta | undefined {
 /** La llamada del motor para esta corrida (`armar_llamada`): programa, argv, entorno y rutas. */
 export function llamadaDe(l: Lanzamiento): Llamada {
   const { pa, c } = l;
-  const prompt = !c.resume && c.ficha ? `${c.tarea}\n\nDónde quedó este proyecto:\n${c.ficha}` : c.tarea;
+  const prompt = promptDe(pa, c);
   return armarLlamada({
     motor: c.motor as MotorOtro,
     modelo: c.modelo,

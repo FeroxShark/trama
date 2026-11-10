@@ -291,7 +291,7 @@ async function correrPa(argv: string[], env: Env, io: Io, deps: Deps): Promise<n
       if (sub === "pro" || sub === "max") {
         writeFileSync(path.join(pa.state, "plan"), `${sub}\n`);
         io.out(
-          `pa: plan ${sub} guardado en ${path.join(pa.state, "plan")}${sub === "pro" ? " (modo ahorro: opus effort medium, tope 100 turnos)" : " (opus con el effort de settings, tope 150)"}.\n`,
+          `pa: plan ${sub} guardado en ${path.join(pa.state, "plan")}${sub === "pro" ? " (modo ahorro: opus effort medium, tope de turnos hasta 100)" : " (opus con el effort de settings, tope de turnos por tipo: 30 a 120)"}.\n`,
         );
         if (env.PA_PLAN && env.PA_PLAN.toLowerCase() !== sub) io.err(`pa: ojo, PA_PLAN=${env.PA_PLAN} en este entorno le gana al archivo.\n`);
         return 0;

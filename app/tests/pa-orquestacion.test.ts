@@ -266,12 +266,15 @@ test("lecciones: --leccion anota, no repite; se inyectan al contrato; --leccione
   assert.match(lineas[0]!, /^- \d{4}-\d{2}-\d{2} no uses npm install/);
   assert.match(pa(["demo", "--lecciones"]).out, /puerto 3000 libre/);
 
-  // inyectadas al contrato de un writer
+  // inyectadas al prompt de un writer (no al system prompt: éste tiene que ser idéntico entre corridas)
   const r = paClaude(["--tipo", "codigo-acotado"], BRIEF);
   assert.equal(r.rc, 0, r.err);
   const c = contratoClaude();
-  assert.match(c, /Lecciones de corridas anteriores en este proyecto/);
-  assert.match(c, /no uses npm install/);
+  assert.doesNotMatch(c, /Lecciones de corridas anteriores/, "las lecciones no van en el system prompt");
+  const prompt = readFileSync(argvFile, "utf8").split("\0");
+  const tarea = prompt[prompt.indexOf("-p") + 1] ?? "";
+  assert.match(tarea, /Lecciones de corridas anteriores en este proyecto/);
+  assert.match(tarea, /no uses npm install/);
 
   // tope blando: 30 líneas -> necesita-poda; --estado lo informa; --lecciones-podar sólo imprime la instrucción
   assert.equal(existsSync(path.join(estado, "proy", "lecciones.necesita-poda")), false);

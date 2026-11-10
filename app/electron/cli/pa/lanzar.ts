@@ -18,7 +18,8 @@ import { paraLanzar, resolverClaude } from "../../binario.ts";
 import { tomar } from "../base/lock.ts";
 import { matarArbol } from "../base/proc.ts";
 import { comandoHook, entreComillas, type VarianteHook } from "../hooks.ts";
-import { CIERRE_TAREA, CIERRE_TURNOS } from "./contrato.ts";
+import { CIERRE_TAREA, CIERRE_TURNOS, SIN_JEFE, conJefe } from "./contrato.ts";
+import { contratoActualizar } from "./auditar.ts";
 import { caminoDe, configTrama } from "../../rutas.ts";
 import { sumarFragmento } from "../../apagados.ts";
 import { terminalAgentesGuardada } from "../../preferencias.ts";
@@ -215,10 +216,34 @@ export function rastroDe(pa: Pa, c: Pick<Corrida, "slug" | "ts" | "leer" | "pues
 
 // ---------------------------------------------------------------- settings del worker
 
+/** La carpeta de configuración de Claude que ve el worker: la de la cuenta (`CLAUDE_CONFIG_DIR`) o `~/.claude`. */
+export function configClaudeDe(pa: Pa, c?: Pick<Corrida, "cuentaEnv">): string {
+  return c?.cuentaEnv?.poner?.CLAUDE_CONFIG_DIR || pa.env.CLAUDE_CONFIG_DIR || path.join(pa.home, ".claude");
+}
+
+/**
+ * ¿El `settings.json` del usuario ya registra el `destructive-guard`? (el instalador de Trama lo deja ahí). Si está, el nuestro
+ * sobra: los dos hooks corren en cada llamada a Bash y el guard decide dos veces lo mismo. Se queda el del usuario (es el mismo
+ * guard: el de `~/.claude/hooks` es un enlace al del motor) y el nuestro se registra sólo cuando el usuario no tiene ninguno:
+ * el guard nunca deja de estar.
+ */
+export function guardEnSettings(configClaude: string): boolean {
+  try {
+    const j = JSON.parse(readFileSync(path.join(configClaude, "settings.json"), "utf8")) as { hooks?: { PreToolUse?: unknown } };
+    const grupos = Array.isArray(j.hooks?.PreToolUse) ? j.hooks.PreToolUse : [];
+    return grupos.some((g) => {
+      const hs = g && typeof g === "object" && Array.isArray((g as { hooks?: unknown }).hooks) ? ((g as { hooks: unknown[] }).hooks as unknown[]) : [];
+      return hs.some((h) => typeof (h as { command?: unknown })?.command === "string" && /destructive-guard\.(sh|mjs)/.test((h as { command: string }).command));
+    });
+  } catch {
+    return false;
+  }
+}
+
 /** El JSON de `--settings` del worker: latido y guardia como hooks, el plugin caveman apagado y el deny del espejo. */
 export function settingsWorker(
   pa: Pa,
-  o: { hb: string; leer: boolean; espejo?: string; variante?: VarianteHook; node?: string },
+  o: { hb: string; leer: boolean; espejo?: string; variante?: VarianteHook; node?: string; configClaude?: string },
 ): string {
   const variante = o.variante ?? (pa.plat === "win32" ? "mjs" : "sh");
   const cam = caminoDe(pa.plat);
@@ -236,13 +261,15 @@ export function settingsWorker(
     const r = `~${d.startsWith(pa.home) ? d.slice(pa.home.length) : d}`;
     deny = [`Read(/${d}/**)`, `Bash(*${d}*)`, `Bash(*${r}*)`];
   }
+  // La guardia del usuario y la nuestra no se registran las dos: si él ya tiene una, el guard corre una vez por Bash.
+  const guardOtro = guardEnSettings(o.configClaude ?? path.join(pa.home, ".claude"));
   const s: Record<string, unknown> = {
     crossSessionInbound: "accept",
     claudeMdExcludes: [pa.plat === "win32" ? path.win32.join(pa.home, "CLAUDE.md") : `${pa.home}/CLAUDE.md`],
     enabledPlugins: { "caveman@caveman": false },
     hooks: {
       PreToolUse: [
-        { matcher: "Bash", hooks: [{ type: "command", command: guard }] },
+        ...(guardOtro ? [] : [{ matcher: "Bash", hooks: [{ type: "command", command: guard }] }]),
         { hooks: [{ type: "command", command: `${latido} ${hb} pre${modo}` }] },
       ],
       PostToolUse: [{ hooks: [{ type: "command", command: `${latido} ${hb} post` }] }],
@@ -299,8 +326,6 @@ const txtLeer = (motor: string): string => {
 };
 const TXT_PRO =
   "Modo ahorro (la suscripción es chica): leé SOLO lo que la tarea necesita; si te dieron rutas, empezá por ahí y no recorras el repo. Buscá con Grep/Glob antes de abrir archivos enteros, y leé rangos (offset/limit) en archivos largos. Filtrá la salida de los comandos (`| tail -n 40`, `| grep -E 'FAIL|error'`): todo lo que entra al contexto se vuelve a pagar en cada turno. Verificá con el test más acotado que pruebe tu cambio, no la suite entera, salvo que la tarea lo pida. No lances subagentes. Si la tarea resulta mucho más grande de lo que pinta, hacé la parte que cierra, commiteala y decí en DECISION cómo partir el resto.";
-const TXT_ABANICO =
-  'Abanico de Haikus: cuando muchos intentos verificables valen más que uno pensado (buscar algo que un grep no encuentra, revisar muchos archivos o candidatos, probar variantes contra un test o chequeo), repartilo en paralelo entre subagentes (Agent con model "haiku" y effort xhigh si se puede; hasta ~10, un pedazo cada uno, que devuelvan algo verificable) y verificá vos. No para diseño, decisiones ni código donde un intento malo cuesta caro. Esos subagentes no son delegar: siguen siendo tu trabajo.';
 
 /** Las skills de diseño que un worker de frontend o diseño carga al empezar, si están instaladas (la misma lista que `motor/bin/pa`). */
 export const SKILLS_DISENO = ["frontend-design:frontend-design", "ui-ux-pro-max", "taste-skill"];
@@ -343,9 +368,13 @@ export function lineaSkillsDiseno(instaladas: string[]): string {
 /** El bloque del proyecto en el mapa de interconexiones (`mapa_proy`; PA_MAPA_DIR sólo para los tests). */
 export const mapaDe = (pa: Pa, slug: string) => path.join(pa.env.PA_MAPA_DIR || path.join(pa.env.XDG_CONFIG_HOME || path.join(pa.home, ".config"), "trama", "mapa"), `${slug}.md`);
 
-/** El texto de `--append-system-prompt` de un worker de claude (el `contrato` de `armar_llamada`). */
+/**
+ * El texto de `--append-system-prompt` de un worker (el system prompt): lo ESTABLE, idéntico byte a byte entre corridas del
+ * mismo plan, para que el caché del prompt se reutilice (si cambia una letra, se vuelve a pagar todo el prefijo). Lo que
+ * cambia en cada corrida (el jefe, el worktree, las lecciones, los otros writers, el mapa) va al final del prompt: `bloqueVariable`.
+ */
 export function contratoClaude(pa: Pa, c: Corrida): string {
-  let k = contratoBase(c.motor ?? "claude", c.jefe);
+  let k = contratoBase(c.motor ?? "claude");
   k = conDueno(k, pa.env, pa.home).replace(/\n+$/, "");
   if (!c.leer && c.modeloFlojo) k += `\n${TXT_FLOJO}`;
   // Un worker de frontend o diseño carga las skills de diseño instaladas al empezar (la herramienta Skill sólo existe en claude).
@@ -353,53 +382,89 @@ export function contratoClaude(pa: Pa, c: Corrida): string {
     const linea = lineaSkillsDiseno(skillsDisenoInstaladas(pa.home));
     if (linea) k += `\n${linea}`;
   }
-  if (!c.leer) k += leccionesBloque(path.join(pa.state, c.slug));
-  if (c.actualizar) {
-    const sha = c.actualizar.shaMain;
-    k += `\nEstás en la rama ${c.rama} de un worktree propio (${c.rutaTrabajo}). Tu tarea es rebasearla: \`git rebase ${sha}\` está AUTORIZADO, igual que \`git add <archivo>\`, \`git rebase --continue\` y \`git rebase --abort\`. No cambies a otra rama, no mergees, no toques el tree principal: integra el jefe. Los editores de git están apagados (GIT_EDITOR=true): el mensaje de cada commit queda como estaba.`;
-  } else if (c.usaWorktree) {
-    k += `\nEstás en la rama ${c.rama} de un worktree propio (${c.rutaTrabajo}), sacada del HEAD del tree principal del proyecto. Commiteá ahí, archivo por archivo. No cambies de rama, no mergees, no toques el tree principal: integra el jefe.`;
-  }
-  const mapa = mapaDe(pa, c.slug);
-  if (!c.leer && !c.actualizar && existsSync(mapa) && statSync(mapa).isFile()) {
-    k += `\nSi tu cambio modificó lo que este proyecto expone, consume o escribe para OTROS proyectos (CLIs, puertos, archivos compartidos, units), actualizá su bloque del mapa en ${mapa} y poné la fecha de hoy en su \`verificado:\`. Sólo ese archivo: no abras el índice general del mapa (es generado) ni los bloques de otros proyectos. Si no cambió nada de eso, no lo toques.`;
-  }
-  const paralelos = (c.paralelos ?? "").replace(/\n+$/, "");
-  if (!c.leer && paralelos) {
-    k += `\nEn este mismo proyecto están corriendo AHORA otros workers, cada uno en su worktree y su rama:\n${paralelos}\nComparten con vos el target de cargo, node_modules/.venv y lo que corra en la máquina (puertos, bases locales). No mates procesos que no lanzaste vos. Un puerto ocupado o un "Blocking waiting for file lock" de cargo puede ser el otro: esperá y reintentá, no lo 'arregles'. No instales ni saques dependencias (un hook lo bloquea): si hace falta, decilo en DECISION. No coordines con ellos ni toques sus ramas: si tocan lo mismo, se resuelve al integrar.`;
-  }
   if (c.leer) k += `\n${txtLeer(c.motor ?? "claude")}`;
   if (pa.plan === "pro") k += `\n${TXT_PRO}`;
-  if (pa.plan !== "pro" && !c.leer && (c.motor ?? "claude") === "claude") k += `\n${TXT_ABANICO}`;
   return k;
+}
+
+/** El aviso de que el worker está en su propio worktree (con su rama): lo que cambia en cada corrida. */
+export const avisoWorktree = (c: Pick<Corrida, "rama" | "rutaTrabajo">): string =>
+  `Estás en la rama ${c.rama} de un worktree propio (${c.rutaTrabajo}), sacada del HEAD del tree principal del proyecto. Commiteá ahí, archivo por archivo. No cambies de rama, no mergees, no toques el tree principal: integra el jefe.`;
+
+/**
+ * El bloque que cambia en cada corrida: el jefe (o la falta de él), las lecciones del proyecto, el worktree, el mapa y los
+ * otros writers. Va al FINAL del prompt (`-p`), no en el system prompt: así el prefijo que se cachea es siempre el mismo.
+ */
+export function bloqueVariable(pa: Pa, c: Corrida): string {
+  const p: string[] = [];
+  // El jefe (o la falta de él): cambia de una sesión a otra.
+  if ((c.motor ?? "claude") === "claude" || c.motor === "ollama") p.push(c.jefe ? conJefe(c.jefe) : SIN_JEFE);
+  // Las lecciones del proyecto (las últimas 12): cambian cuando alguien anota una.
+  if (!c.leer) {
+    const l = leccionesBloque(path.join(pa.state, c.slug));
+    if (l) p.push(l.trim());
+  }
+  // El worktree (o la rama que hay que rebasear).
+  if (c.actualizar) p.push(contratoActualizar(c.rama, c.rutaTrabajo, c.actualizar.shaMain).trim());
+  else if (c.usaWorktree) p.push(avisoWorktree(c));
+  // El mapa de interconexiones del proyecto.
+  const mapa = mapaDe(pa, c.slug);
+  if (!c.leer && !c.actualizar && existsSync(mapa) && statSync(mapa).isFile()) {
+    p.push(
+      `Si tu cambio modificó lo que este proyecto expone, consume o escribe para OTROS proyectos (CLIs, puertos, archivos compartidos, units), actualizá su bloque del mapa en ${mapa} y poné la fecha de hoy en su \`verificado:\`. Sólo ese archivo: no abras el índice general del mapa (es generado) ni los bloques de otros proyectos. Si no cambió nada de eso, no lo toques.`,
+    );
+  }
+  // Los otros writers del proyecto.
+  const paralelos = (c.paralelos ?? "").replace(/\n+$/, "");
+  if (!c.leer && paralelos) {
+    p.push(
+      `En este mismo proyecto están corriendo AHORA otros workers, cada uno en su worktree y su rama:\n${paralelos}\nComparten con vos el target de cargo, node_modules/.venv y lo que corra en la máquina (puertos, bases locales). No mates procesos que no lanzaste vos. Un puerto ocupado o un "Blocking waiting for file lock" de cargo puede ser el otro: esperá y reintentá, no lo 'arregles'. No instales ni saques dependencias (un hook lo bloquea): si hace falta, decilo en DECISION. No coordines con ellos ni toques sus ramas: si tocan lo mismo, se resuelve al integrar.`,
+    );
+  }
+  return p.join("\n");
 }
 
 /** El nombre con el que el jefe le escribe al worker: `pa/<slug>`, `pa/<slug>@k`, `pa/<slug>@aca`. */
 export const nombreWorker = (c: Pick<Corrida, "slug" | "leer" | "puesto">) => `pa/${c.slug}${c.leer ? "" : sufPuesto(c.puesto)}`;
 
 /**
- * Sin MCP: `--strict-mcp-config` con una config vacía. Sólo para un `--leer` (un worker "de sólo lectura" con Notion o Gmail
- * podría mandar un mail o editar una página; `--mcp` se lo devuelve). El resto hereda los MCP del usuario en modo diferido
- * (ver `ENABLE_TOOL_SEARCH` en `envDeLaLlamada`): al contexto sólo entran los nombres hasta que el worker busca una herramienta.
+ * Sin MCP: `--strict-mcp-config` con una config vacía. Apagado por defecto, también en los escritores (un worker con Notion o
+ * Gmail podría mandar un mail o editar una página): `--mcp` se lo devuelve. Apagado también apaga los conectores de claude.ai
+ * (Notion, Gmail, Google Docs): con `--strict-mcp-config` no entra ninguna herramienta `mcp__`.
  */
 const mcpApagado = ["--strict-mcp-config", "--mcp-config", '{"mcpServers":{}}'];
-const sinMcp = (c: Pick<Corrida, "leer" | "conMcp">) => c.leer && !c.conMcp;
+const sinMcp = (c: Pick<Corrida, "conMcp">) => !c.conMcp;
 
 /** Las únicas herramientas de un `--leer`: leer, git de lectura por Bash y buscar en internet (WebSearch/WebFetch no escriben archivos). */
 export const HERRAMIENTAS_LEER = "Read,Grep,Glob,Bash,ToolSearch,ListAgents,SendMessage,WebSearch,WebFetch";
 
+/** ¿Este worker usa las skills (frontend y diseño las cargan con la herramienta Skill)? Entonces no se le apagan los comandos. */
+export const usaSkills = (c: Pick<Corrida, "tipo">): boolean => c.tipo === "frontend" || c.tipo === "diseno";
+
+/** El prompt de la corrida: la tarea, la ficha del proyecto y al final lo que cambia en cada corrida. */
+export function promptDe(pa: Pa, c: Corrida): string {
+  let p = c.tarea;
+  if (!c.resume && c.ficha) p += `\n\nDónde quedó este proyecto:\n${c.ficha}`;
+  const v = bloqueVariable(pa, c);
+  if (v) p += `\n\n${v}`;
+  return p;
+}
+
 /** El argv de `claude` para la corrida (el `args` de `armar_llamada`). */
 export function argsClaude(pa: Pa, c: Corrida, o: { contrato: string; settings: string; nombre: string }): string[] {
-  let prompt = c.tarea;
-  if (!c.resume && c.ficha) prompt += `\n\nDónde quedó este proyecto:\n${c.ficha}`;
-  const a = ["-p", prompt, "--model", c.local?.modelo ?? c.modelo];
+  const a = ["-p", promptDe(pa, c), "--model", c.local?.modelo ?? c.modelo];
   if (c.esfuerzo) a.push("--effort", c.esfuerzo);
   a.push("--output-format", "json", "--append-system-prompt", o.contrato, "--permission-mode", "bypassPermissions");
   if (c.autocompact) a.push("--autocompact", c.autocompact);
   a.push("--settings", o.settings, "--name", o.nombre);
   if (sinMcp(c)) a.push(...mcpApagado);
   if (c.leer) a.push("--tools", HERRAMIENTAS_LEER);
-  if (!c.leer && pa.plan === "pro") a.push("--disallowedTools", "Agent");
+  // Sin subagentes (el abanico de Haikus ya no aplica) y sin las skills y comandos: sólo el worker de diseño los carga.
+  if (!c.leer) a.push("--disallowedTools", "Agent");
+  if (!usaSkills(c)) a.push("--disable-slash-commands");
+  // Las secciones de la máquina (cwd, entorno, estado de git) salen del system prompt al primer mensaje: el prefijo que se
+  // cachea es el mismo en todas las corridas y el caché se reutiliza.
+  a.push("--exclude-dynamic-system-prompt-sections");
   if (c.maxTurns) a.push("--max-turns", c.maxTurns);
   if (c.maxBudget) a.push("--max-budget-usd", c.maxBudget);
   if (c.resume) a.push("--resume", c.sid);
@@ -408,21 +473,26 @@ export function argsClaude(pa: Pa, c: Corrida, o: { contrato: string; settings: 
 }
 
 /** El argv del auto-cierre de una corrida que se quedó sin turnos: un resume corto con CIERRE_TAREA. */
-export function argsCierre(pa: Pa, c: Corrida, o: { contrato: string; settings: string; nombre: string; sid: string }): string[] {
+export function argsCierre(_pa: Pa, c: Corrida, o: { contrato: string; settings: string; nombre: string; sid: string }): string[] {
   const a = ["-p", CIERRE_TAREA, "--model", c.local?.modelo ?? c.modelo];
   if (c.esfuerzo) a.push("--effort", c.esfuerzo);
   a.push("--output-format", "json", "--append-system-prompt", o.contrato, "--permission-mode", "bypassPermissions");
   if (c.autocompact) a.push("--autocompact", c.autocompact);
   a.push("--settings", o.settings, "--name", o.nombre, "--resume", o.sid, "--max-turns", String(CIERRE_TURNOS));
   if (sinMcp(c)) a.push(...mcpApagado);
-  if (pa.plan === "pro") a.push("--disallowedTools", "Agent");
+  if (!c.leer) a.push("--disallowedTools", "Agent");
+  if (!usaSkills(c)) a.push("--disable-slash-commands");
   if (c.maxBudget) a.push("--max-budget-usd", c.maxBudget);
   return a;
 }
 
-/** El env de más para el claude según el plan y el tope de turnos (los `export PA_RECORTE / PA_MAX_TURNS` del bash). */
+/**
+ * El env de más para el claude según el plan y el tope de turnos (los `export PA_RECORTE / PA_MAX_TURNS` del bash).
+ * PA_RECORTE es cuántas líneas de la salida de los tests se dejan pasar al modelo: 150 en plan pro y 300 en max (antes 0:
+ * apagado). Recortar la salida de los tests es lo que más abarata un worker: lo que no entra al contexto no se vuelve a pagar.
+ */
 export function envDeLaLlamada(pa: Pa, c: Corrida): Env {
-  const e: Env = { PA_RECORTE: pa.plan === "pro" ? pa.env.PA_RECORTE || "150" : "0" };
+  const e: Env = { PA_RECORTE: pa.plan === "pro" ? pa.env.PA_RECORTE || "150" : pa.env.PA_RECORTE || "300" };
   // Búsqueda diferida de herramientas siempre activa (el default "auto" la prende recién al pasar el 10% del contexto): con los MCP
   // del usuario heredados, sólo los nombres entran al contexto hasta que el worker los busca con ToolSearch. Lo que el usuario
   // fijó en su entorno manda.
@@ -435,7 +505,7 @@ export function envDeLaLlamada(pa: Pa, c: Corrida): Env {
 export function armarLanzamiento(pa: Pa, c: Corrida, o: OpcionesLanzar = {}): Lanzamiento {
   const dir = path.join(pa.state, c.slug);
   const { run, hb } = rastroDe(pa, c);
-  const settings = settingsWorker(pa, { hb, leer: c.leer, espejo: c.espejo, variante: o.hooks?.variante, node: o.hooks?.node });
+  const settings = settingsWorker(pa, { hb, leer: c.leer, espejo: c.espejo, variante: o.hooks?.variante, node: o.hooks?.node, configClaude: configClaudeDe(pa, c) });
   const contrato = contratoClaude(pa, c);
   const nombre = nombreWorker(c);
   return {

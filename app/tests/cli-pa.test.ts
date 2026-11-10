@@ -81,10 +81,17 @@ async function pa(argv: string[], env: Env, deps: Deps = {}): Promise<{ rc: numb
 
 // ------------------------------------------------------------------------------------------- textos del bash
 
-testPosix("la ayuda es la del encabezado de motor/bin/pa", () => {
+testPosix("la ayuda es la del encabezado de motor/bin/pa (salvo el tope de turnos: ahora sale del tipo)", () => {
   const r = spawnSync(PA_BASH, ["--ayuda"], { encoding: "utf8", env: { ...sandbox().env } as NodeJS.ProcessEnv });
   assert.equal(r.status, 0, r.stderr);
-  assert.equal(`${AYUDA.join("\n")}\n`, r.stdout);
+  // el bash está congelado: la entrada del tope de turnos ya no es la misma (sin --max-turns sale del tipo)
+  const sinBloque = (ls: string[]) => {
+    const i = ls.findIndex((l) => l.includes("--max-turns N"));
+    assert.ok(i >= 0, "no encontré la entrada del tope de turnos");
+    const j = ls.findIndex((l, k) => k >= i && l.includes("Al llegar:"));
+    return [...ls.slice(0, i), ...ls.slice(j + 1)];
+  };
+  assert.deepEqual(sinBloque(`${AYUDA.join("\n")}\n`.split("\n")), sinBloque(r.stdout.split("\n")));
 });
 
 testPosix("el contrato y sus variantes son copia literal del bash", () => {
@@ -129,7 +136,29 @@ test("parseo: valores, flags que exportan y la tarea", () => {
   assert.equal(p.maxTurns, "");
   assert.ok(p.okDueno);
   assert.equal(p.tarea, "-a b");
-  assert.equal(opcionesIniciales("demo", {}, "pro").maxTurns, "100");
+});
+
+test("el tope de turnos: sin --max-turns sale del tipo (y en plan pro, hasta 100)", () => {
+  const tope = (args: string[], plan: "pro" | "max" = "max") =>
+    parsearOpciones(args, opcionesIniciales("demo", {}, plan), { env: {}, io: captura(), dueno: "Gonza", anotar: () => {} }).maxTurns;
+  assert.equal(tope(["--tipo", "mecanico"]), "30");
+  assert.equal(tope(["--tipo", "lectura"]), "40");
+  assert.equal(tope(["--tipo", "codigo-acotado"]), "50");
+  assert.equal(tope(["--tipo", "debug"]), "80");
+  assert.equal(tope(["--tipo", "frontend"]), "90");
+  assert.equal(tope(["--tipo", "codigo-multi"]), "90");
+  assert.equal(tope(["--tipo", "diseno"]), "90");
+  assert.equal(tope(["--tipo", "diseño"]), "90");
+  assert.equal(tope(["--tipo", "final"]), "120");
+  // sin tipo: el de lectura si es --leer, si no el de codigo-acotado
+  assert.equal(tope([]), "50");
+  assert.equal(tope(["--leer"]), "40");
+  // plan pro: el menor entre el del tipo y 100
+  assert.equal(tope(["--tipo", "final"], "pro"), "100");
+  assert.equal(tope(["--tipo", "mecanico"], "pro"), "30");
+  // el jefe manda: --max-turns gana (y 0 = sin tope)
+  assert.equal(tope(["--tipo", "mecanico", "--max-turns", "77"]), "77");
+  assert.equal(tope(["--tipo", "mecanico", "--max-turns", "0"]), "");
 });
 
 test("parseo: el escaneo de -m mira sólo la zona de flags", () => {
@@ -233,7 +262,7 @@ test("política: plan pro, opus sin --effort va medium y avisa el brief incomple
   assert.equal(r.rc, 0, r.e);
   assert.equal(r.l?.esfuerzo, "medium");
   assert.equal(r.l?.motor, "claude");
-  assert.equal(r.l?.maxTurns, "100");
+  assert.equal(r.l?.maxTurns, "50", "sin --max-turns, el tope sale del tipo (sin tipo: codigo-acotado)");
   assert.equal(r.l?.cuentaUsada, "claude");
   assert.match(r.e, /a la tarea le falta "Listo cuando" .* y "Cómo verificar"/);
 });
