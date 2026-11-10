@@ -89,6 +89,7 @@ function rutaAbrible(x) {
  *  - abrirLogin(id): abre la consola para `cuentas login <id>` (sólo la carcasa nativa sabe hacerlo).
  *  - abrirAviso(sid): el usuario tocó la notificación de un líder: la ventana se trae y la página abre ese líder.
  *  - versionAnterior: el servicio de Actualizar seguro (version-anterior.js): qué versión anterior hay, volver a ella, el aviso de que se volvió.
+ *  - ocupados(): cuántos líderes están respondiendo (se lo pregunta al motor); `null` si no contesta (entonces no se frena la salida).
  *  - log(texto): lo que no se puede mostrar al usuario.
  */
 function crearCanalesVentana(o) {
@@ -111,15 +112,31 @@ function crearCanalesVentana(o) {
     n.show();
   }
 
+  /** Líderes respondiendo según el motor. Con `forzar`, el motor caído o mudo (`null`, 0 o algo raro) no frena: se sale como siempre. */
+  async function ocupadosSinForzar(forzar) {
+    if (forzar || !o.ocupados) return 0;
+    try {
+      const n = await o.ocupados();
+      return Number.isInteger(n) && n > 0 ? n : 0;
+    } catch {
+      return 0;
+    }
+  }
+
   return {
     // "Cerrar del todo" (la página): con "seguir" la carcasa queda en la bandeja; si no, sale y el motor se apaga con ella.
-    "app:salir": (_e, x) => {
+    // Igual que Linux: con líderes respondiendo y sin `forzar` no hace nada y devuelve cuántos son (la página pide confirmar).
+    "app:salir": async (_e, x) => {
+      const n = await ocupadosSinForzar(x?.forzar === true);
+      if (n > 0) return n;
       if (x?.modo === "seguir") for (const v of BrowserWindow.getAllWindows()) v.hide();
       else app.quit();
       return 0;
     },
-    // Lo que "parar todo" hace en la PC (workers y líderes): la carcasa sale igual que el Salir de la bandeja. No pregunta por los líderes ocupados.
-    "app:pararTodo": () => {
+    // Lo que "parar todo" hace en la PC (workers y líderes): la carcasa sale igual que el Salir de la bandeja; con líderes respondiendo y sin `forzar`, devuelve cuántos son.
+    "app:pararTodo": async (_e, forzar) => {
+      const n = await ocupadosSinForzar(forzar === true);
+      if (n > 0) return n;
       app.quit();
       return 0;
     },

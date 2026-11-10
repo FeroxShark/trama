@@ -13,7 +13,7 @@ const preload = fuente("preload.cts");
 const usados = (re: RegExp) => [...preload.matchAll(re)].map((m) => m[1]);
 const de = (tipo: string) => CANALES.filter((e) => e[1] === tipo).map((e) => e[0]);
 // Se atiende en el main pero la página lo pide por otro camino (no por el preload).
-const SIN_PRELOAD = new Set(["app:pararTodo"]);
+const SIN_PRELOAD = new Set(["app:pararTodo", "lider:ocupados"]);
 
 test("contrato: sin canales repetidos (un mismo nombre puede ser de pedido y de aviso) y cada uno con tipo conocido", () => {
   const nombres = CANALES.map((e) => `${e[0]} ${e[1]}`);

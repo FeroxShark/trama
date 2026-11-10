@@ -254,6 +254,11 @@ const versionAnterior = crearVersionAnterior({
 const canalesVentana = crearCanalesVentana({
   electron: { app, BrowserWindow, dialog, clipboard, shell, Notification, nativeImage },
   changelog: CHANGELOG,
+  // Cuántos líderes responden, preguntado al motor (`lider:ocupados`); sin respuesta, `null` y la salida no se frena.
+  ocupados: async () => {
+    const r = await nativo.llamarRpc({ canal: "lider:ocupados", token: () => nativo.leerToken(rutasNativas.token), timeoutMs: 3000 })();
+    return r.ok ? (r.valor ?? null) : null;
+  },
   bandeja: {
     textos(t) {
       textosBandeja = t;

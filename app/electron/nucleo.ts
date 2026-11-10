@@ -1428,6 +1428,8 @@ export function armarNucleo() {
     await leerCola();
     return cola.todas();
   });
+  // Cuántos líderes están respondiendo: lo pregunta la carcasa de Windows (otro proceso) antes de salir (windows/src/ventana.js).
+  manejar("lider:ocupados", () => lider.ocupados());
   manejar("lider:colaYa", (_e, x: { sid: string; cortar?: boolean }) => void cola.ya(String(x?.sid), x?.cortar === true));
   // Mensajes programados y conversaciones pospuestas (programados.ts).
   manejar("programados:leer", () => programados.estado());

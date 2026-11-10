@@ -270,11 +270,16 @@ function crearSupervisor(deps) {
 // ---------- lo que toca Windows de verdad ----------
 
 /** POST /rpc `maquina:saludo` con el token de la instalación: el motor contesta solo si su event loop anda. */
-function chequearRpc({ puerto = PUERTO, token = () => null, timeoutMs = 5000 } = {}) {
+function chequearRpc(o = {}) {
+  return llamarRpc({ ...o, canal: "maquina:saludo" });
+}
+
+/** POST /rpc de un canal cualquiera del motor con el token de la instalación: `() => Promise<{ ok, valor? , motivo? }>` (nunca rechaza). */
+function llamarRpc({ canal, args = [], puerto = PUERTO, token = () => null, timeoutMs = 5000 } = {}) {
   const cliente = crypto.randomBytes(8).toString("hex");
   return () =>
     new Promise((resolver) => {
-      const cuerpo = JSON.stringify({ canal: "maquina:saludo", args: [] });
+      const cuerpo = JSON.stringify({ canal, args });
       const t = token();
       // Sin pool (agent: false): un socket keep-alive que el motor ya cerró se reusaría y daría «socket hang up» en vez de «no escucha».
       const req = http.request(
@@ -313,7 +318,7 @@ function respuestaRpc(codigo, texto) {
   if (codigo !== 200) return { ok: false, motivo: `/rpc contestó ${codigo}` };
   try {
     const j = JSON.parse(texto);
-    return j && j.ok === true ? { ok: true } : { ok: false, motivo: `/rpc: ${j?.error || "respuesta sin ok"}` };
+    return j && j.ok === true ? { ok: true, ...("valor" in j ? { valor: j.valor } : {}) } : { ok: false, motivo: `/rpc: ${j?.error || "respuesta sin ok"}` };
   } catch {
     return { ok: false, motivo: "/rpc contestó algo que no es JSON" };
   }
@@ -485,6 +490,7 @@ module.exports = {
   entornoMotor,
   crearSupervisor,
   chequearRpc,
+  llamarRpc,
   respuestaRpc,
   leerToken,
   lanzarMotor,

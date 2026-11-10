@@ -121,6 +121,7 @@ export const CANALES = [
   ["lider:colaOrden", "invoke"],
   ["lider:colaRetener", "invoke"],
   ["lider:colas", "invoke"],
+  ["lider:ocupados", "invoke"],
   ["lider:colaYa", "invoke"],
   ["lider:cola", "on"],
   ["programados:leer", "invoke"],
