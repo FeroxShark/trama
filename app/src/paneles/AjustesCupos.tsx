@@ -26,7 +26,8 @@ import { nombreGrupo, nombreGrupoCorto, queGrupo } from "../barra/cuposNombres";
 import { textoEstado, textoSusc } from "../barra/cuposTextos";
 import { carcasa } from "../carcasa";
 import { cuentasDe, AgregarCuenta, useCuentas } from "./CuentasVarias";
-import { parteCuenta, suscripcionDe, type PerfilCuenta, type ProveedorCuenta } from "../datos/cuentas";
+import { parteCuenta, suscripcionDe, type PerfilCuenta, type PlanCuentaClaude, type ProveedorCuenta } from "../datos/cuentas";
+import { EVENTO_PLAN_CLAUDE, esPlanClaude, planDeCuenta } from "./plan-claude";
 import type { FilaDato } from "./AjustesEditar";
 import { avisosTope } from "./cupos-aviso";
 import { cambiado, fabricaDe, poner, restaurar, topeDe, TOPE_MAX, TOPE_MIN, type IdTope } from "./cupos-topes";
@@ -318,7 +319,7 @@ function filasDeProveedor(perfiles: PerfilCuenta[], deCuenta: (p: PerfilCuenta) 
  * el pie (`pie`: ayuda y conectar otra). `sinLista`: el comando `cuentas` no está y hay una sola cuenta, que no se puede tocar. `detalle`: lo que no entra en un
  * renglón (cada grupo, el plan), plegado.
  */
-function Tela({ id, nombre, estado, perfiles, deCuenta, sinLista, notas, pie, detalle, alCambiar }: {
+function Tela({ id, nombre, estado, perfiles, deCuenta, sinLista, notas, pie, detalle, alCambiar, extraDe }: {
   id: Proveedor;
   nombre: string;
   estado: EstadoProv | null;
@@ -329,6 +330,8 @@ function Tela({ id, nombre, estado, perfiles, deCuenta, sinLista, notas, pie, de
   pie: ReactNode;
   detalle?: ReactNode;
   alCambiar: () => void;
+  /** Lo que va bajo el renglón de cada cuenta (el plan de las de Claude). */
+  extraDe?: (p: PerfilCuenta) => ReactNode;
 }) {
   const filas = filasDeProveedor(perfiles, deCuenta);
   const varias = filas.length > 1;
@@ -352,7 +355,7 @@ function Tela({ id, nombre, estado, perfiles, deCuenta, sinLista, notas, pie, de
         {sinLista && !filas.length ? (
           <FilaFija nombre={t("cu.tj.tuCuenta")} estado={estadoCuenta(sinLista.ventanas, undefined, null, Date.now() / 1000)} ventanas={sinLista.ventanas} />
         ) : (
-          filas.map((f) => <FilaCuenta key={f.id} perfil={f.perfil} nombre={f.nombre} enUso={f.enUso} solo={!varias} estado={f.estado} ventanas={f.ventanas} alCambiar={alCambiar} />)
+          filas.map((f) => <FilaCuenta key={f.id} perfil={f.perfil} nombre={f.nombre} enUso={f.enUso} solo={!varias} estado={f.estado} ventanas={f.ventanas} alCambiar={alCambiar} extra={extraDe?.(f.perfil)} />)
         )}
       </ul>
       <div className="cu-pie">
@@ -367,6 +370,71 @@ function Tela({ id, nombre, estado, perfiles, deCuenta, sinLista, notas, pie, de
           </div>
         ) : null}
       </div>
+    </div>
+  );
+}
+
+/**
+ * El plan de una cuenta de Claude, bajo su renglón: Pro | Max. La de siempre lo guarda como `pa --plan` (el mismo campo de «Plan de la cuenta de
+ * siempre»; los dos se avisan por `EVENTO_PLAN_CLAUDE`); una agregada, con `cuentas plan` (si no eligió, vale el de la de siempre y lo dice). El elegido
+ * lleva tilde además del color. Los workers usan el plan de la cuenta en uso.
+ */
+function PlanClaudeCuenta({ perfil, planDeSiempre, alCambiar }: { perfil: PerfilCuenta; planDeSiempre: string | null; alCambiar: () => void }) {
+  useIdioma();
+  const [siempre, setSiempre] = useState(planDeSiempre);
+  const [guardando, setGuardando] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const vivo = useRef(true);
+  useEffect(() => {
+    vivo.current = true;
+    return () => void (vivo.current = false);
+  }, []);
+  useEffect(() => setSiempre(planDeSiempre), [planDeSiempre]);
+  useEffect(() => {
+    const leer = (e: Event) => {
+      const p = (e as CustomEvent<string>).detail;
+      if (esPlanClaude(p)) setSiempre(p);
+    };
+    window.addEventListener(EVENTO_PLAN_CLAUDE, leer);
+    return () => window.removeEventListener(EVENTO_PLAN_CLAUDE, leer);
+  }, []);
+  const { plan, propio } = planDeCuenta(perfil, siempre);
+  if (!plan && perfil.defecto) return null;
+  const elegir = async (p: PlanCuentaClaude) => {
+    if (guardando || (propio && p === plan)) return;
+    setGuardando(true);
+    setError(null);
+    try {
+      if (perfil.defecto) {
+        const nuevo = await fuentePaneles.guardarAjustes({ plan: p });
+        if (!vivo.current) return;
+        if (!esPlanClaude(nuevo.plan)) throw new Error(t("comun.sinDato"));
+        window.dispatchEvent(new CustomEvent(EVENTO_PLAN_CLAUDE, { detail: nuevo.plan }));
+      } else {
+        const r = await fuente.planCuenta(perfil.id, p).catch(() => ({ ok: false as const, error: "main.cuentasFallo" }));
+        if (!vivo.current) return;
+        if (!r.ok) throw new Error(textoMain(r.error));
+        alCambiar();
+      }
+    } catch (e) {
+      if (vivo.current) setError(mensaje(e));
+    } finally {
+      if (vivo.current) setGuardando(false);
+    }
+  };
+  return (
+    <div className="cu-plan-cta" data-cuenta-plan={perfil.id}>
+      <span className="cu-plan-cta-n" title={t("cu.planCuentaQue")}>{t("cu.planCuenta")}</span>
+      <div className="pn-letra oc-plan" role="radiogroup" aria-label={t("cu.planCuentaGrupo", { nombre: perfil.nombre })}>
+        {(["pro", "max"] as const).map((p) => (
+          <button key={p} type="button" role="radio" aria-checked={propio && p === plan} data-plan-id={p} disabled={guardando} onClick={() => void elegir(p)}>
+            {propio && p === plan ? <Check size={14} strokeWidth={2.4} aria-hidden="true" /> : null}
+            {p === "pro" ? "Pro" : "Max"}
+          </button>
+        ))}
+      </div>
+      {!propio && plan ? <span className="cu-nota">{t("cu.planCuentaHereda", { plan: plan === "pro" ? "Pro" : "Max" })}</span> : null}
+      {error ? <span className="pn-error" role="alert">{error}</span> : null}
     </div>
   );
 }
@@ -478,7 +546,8 @@ export function CuposTarjetas({ b, uso, plan }: { b: Borrador; uso: Uso | null; 
         <div data-opc="cu.claude" data-ancho="">
           <Tela
             id="claude"
-            nombre={planClaude(plan)}
+            nombre={planClaude(enUsoClaude ? planDeCuenta(enUsoClaude, plan).plan : plan)}
+            extraDe={lista ? (p) => <PlanClaudeCuenta perfil={p} planDeSiempre={plan} alCambiar={alCambiarCuentas} /> : undefined}
             estado={estadoVarias(pClaude, cuentas?.claude)}
             perfiles={pClaude}
             deCuenta={claudeDe}

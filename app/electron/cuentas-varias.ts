@@ -14,6 +14,8 @@ export type ProveedorCuenta = "claude" | "google" | "chatgpt" | "opencode";
 export const PROVEEDORES_CUENTA: readonly ProveedorCuenta[] = ["claude", "google", "chatgpt", "opencode"];
 const PLANES_OC = ["gratis", "go", "go-plus"] as const;
 export type PlanCuentaOc = (typeof PLANES_OC)[number];
+const PLANES_CLAUDE = ["pro", "max"] as const;
+export type PlanCuentaClaude = (typeof PLANES_CLAUDE)[number];
 
 /**
  * Una cuenta tal como la lista `cuentas --json`. `defecto`: la de siempre (su id es el del proveedor). `logueado`: `null` = no se preguntó o no se sabe.
@@ -21,7 +23,7 @@ export type PlanCuentaOc = (typeof PLANES_OC)[number];
  * `planDetectado`: el que dijo `opencode models` (`plan_detectado`, sólo con `--verificar`; no distingue Go de Go Plus).
  * `preferida`: la que usan primero los líderes y workers nuevos de su proveedor (`cuentas preferir`; una por proveedor, sin elegir es la de siempre).
  */
-export type PerfilCuenta = { id: string; proveedor: ProveedorCuenta; nombre: string; defecto: boolean; preferida: boolean; logueado: boolean | null; plan?: PlanCuentaOc; planDetectado?: PlanCuentaOc };
+export type PerfilCuenta = { id: string; proveedor: ProveedorCuenta; nombre: string; defecto: boolean; preferida: boolean; logueado: boolean | null; plan?: PlanCuentaOc; planDetectado?: PlanCuentaOc; planClaude?: PlanCuentaClaude };
 export type ListaCuentas = { version: 1; cuentas: PerfilCuenta[] };
 
 type Env = Record<string, string | undefined>;
@@ -97,6 +99,7 @@ export function parsearCuentas(salida: string): ListaCuentas | null {
       logueado: typeof x.logueado === "boolean" ? x.logueado : null,
       ...(x.proveedor === "opencode" && x.id !== "opencode" ? { plan: (PLANES_OC as readonly unknown[]).includes(x.plan) ? (x.plan as PlanCuentaOc) : "gratis" } : {}),
       ...(x.proveedor === "opencode" && (PLANES_OC as readonly unknown[]).includes(x.plan_detectado) ? { planDetectado: x.plan_detectado as PlanCuentaOc } : {}),
+      ...(x.proveedor === "claude" && x.id !== "claude" && (PLANES_CLAUDE as readonly unknown[]).includes(x.plan) ? { planClaude: x.plan as PlanCuentaClaude } : {}),
     });
   }
   return cuentas.length ? { version: 1, cuentas } : null;
@@ -138,9 +141,13 @@ export async function preferirCuenta(d: DepsVarias, id: unknown): Promise<void> 
   await cli(d, ["preferir", id], TOPE_RAPIDO);
 }
 
-/** El plan de OpenCode de una cuenta agregada de OpenCode (`cuentas plan`). La de siempre no: su plan es `opencode_plan` de modelos.json. */
+/**
+ * El plan de una cuenta agregada (`cuentas plan`): el de OpenCode (gratis / go / go-plus) o el de Claude (pro / max). La de siempre no:
+ * el de OpenCode es `opencode_plan` de modelos.json y el de Claude `pa --plan` (Ajustes > Plan y cupos).
+ */
 export async function planCuenta(d: DepsVarias, id: unknown, plan: unknown): Promise<void> {
-  if (!idValido(id) || id === "opencode" || !(PLANES_OC as readonly unknown[]).includes(plan)) throw new Error(marca("main.cuentasDato"));
+  const valido = (PLANES_OC as readonly unknown[]).includes(plan) || (PLANES_CLAUDE as readonly unknown[]).includes(plan);
+  if (!idValido(id) || id === "opencode" || id === "claude" || !valido) throw new Error(marca("main.cuentasDato"));
   await cli(d, ["plan", id, plan as string], TOPE_RAPIDO);
 }
 

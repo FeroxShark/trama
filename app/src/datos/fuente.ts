@@ -18,7 +18,7 @@ import { MODO } from "../modo";
 import { idioma, t, textoMain } from "../i18n";
 import { comoSettle, convsClaudeCodeDe, GENERAL, type AvisoWorker, type ConvClaudeCode, type ComandoClaude, type Estilos, type EventoLider, type EventoPa, type Hilo, type Leidos, type Mensaje, type Nombres, type Orden, type PuntoControl, puntosValidos, type RespuestaHilo, type RespuestaHilos, type RespuestaLideres, type Retomado, retomadoDe, type Statusline, type Traido, traidoDe, type Tokens, type Uso } from "./contrato";
 import { hiloDePa } from "./paHilo";
-import { listaValida, resultadoValido, type ListaCuentas, type PerfilCuenta, type PlanCuentaOc, type ProveedorCuenta, type ResultadoCuenta } from "./cuentas";
+import { listaValida, resultadoValido, type ListaCuentas, type PerfilCuenta, type PlanCuentaClaude, type PlanCuentaOc, type ProveedorCuenta, type ResultadoCuenta } from "./cuentas";
 import { ordenDe } from "../barra/orden";
 import { consumoDe, consumoFijo, type Consumo, type Pedido } from "./consumo";
 import { cambioDe, vistaDe, type CambioPasos, type VistaPasos } from "./pasos";
@@ -352,8 +352,8 @@ export interface Fuente {
   quitarCuenta(id: string, borrarCredenciales: boolean): Promise<ResultadoCuenta>;
   /** El inicio de sesión de esa cuenta en una terminal de la PC; vuelve cuando la persona termina. */
   loginCuenta(id: string): Promise<ResultadoCuenta>;
-  /** El plan de OpenCode (gratis / go / go-plus) de una cuenta agregada de OpenCode (`cuentas plan`). */
-  planCuenta(id: string, plan: PlanCuentaOc): Promise<ResultadoCuenta>;
+  /** El plan de una cuenta agregada: el de OpenCode (gratis / go / go-plus) o el de Claude (pro / max), con `cuentas plan`. */
+  planCuenta(id: string, plan: PlanCuentaOc | PlanCuentaClaude): Promise<ResultadoCuenta>;
   /** Deja a esa cuenta como la que se usa primero en su proveedor: los líderes y workers nuevos la usan, lo que ya corre no cambia. */
   preferirCuenta(id: string): Promise<ResultadoCuenta>;
   /** Relanzar con la versión nueva los líderes que no están respondiendo. */
@@ -1081,9 +1081,10 @@ function cuentasFijas() {
       lista = lista.map((c) => (c.id === id ? { ...c, logueado: true } : c));
       return ok;
     },
-    async planCuenta(id: string, plan: PlanCuentaOc): Promise<ResultadoCuenta> {
-      if (!lista.some((c) => c.id === id && c.proveedor === "opencode" && !c.defecto)) return falta();
-      lista = lista.map((c) => (c.id === id ? { ...c, plan } : c));
+    async planCuenta(id: string, plan: PlanCuentaOc | PlanCuentaClaude): Promise<ResultadoCuenta> {
+      const claude = plan === "pro" || plan === "max";
+      if (!lista.some((c) => c.id === id && c.proveedor === (claude ? "claude" : "opencode") && !c.defecto)) return falta();
+      lista = lista.map((c) => (c.id === id ? (claude ? { ...c, planClaude: plan } : { ...c, plan: plan as PlanCuentaOc }) : c));
       return ok;
     },
     async preferirCuenta(id: string): Promise<ResultadoCuenta> {

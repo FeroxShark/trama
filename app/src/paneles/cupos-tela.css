@@ -577,3 +577,20 @@
     min-height: 2.75rem;
   }
 }
+
+/* El plan (Pro | Max) de una cuenta de Claude, bajo su renglón: el nombre, los dos botones (el elegido con tilde) y, si hereda, una nota. */
+.cu-plan-cta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--esp-2) var(--esp-3);
+}
+.cu-plan-cta-n {
+  color: var(--apagado);
+  font-size: var(--letra-5);
+}
+.cu-plan-cta .pn-letra button {
+  min-width: 3.5rem;
+  height: 1.75rem;
+  justify-content: center;
+}

@@ -32,6 +32,8 @@ const PROVEEDORES: Record<string, [string, string]> = {
   opencode: ["OpenCode", "opencode"],
 };
 const PLANES_OPENCODE = ["gratis", "go", "go-plus"];
+/** El plan de una cuenta AGREGADA de Claude; el de la de siempre es `pa --plan` (`<estado>/plan`). */
+const PLANES_CLAUDE = ["pro", "max"];
 const ID_OK = /^[a-z0-9][a-z0-9-]{0,39}\n?$/;
 const DBUS_ROTO = "unix:path=/nonexistent/trama-sin-llavero";
 const MARCA_DIR = ".trama-cuenta"; // la deja `agregar`/`login`: sólo se borra una carpeta que la lleva (o que cuelga de la carpeta de cuentas)
@@ -148,6 +150,7 @@ class Cuentas {
       const d = expandir(verdad(c.dir) ? String(c.dir) : this.dirDefault(c.id), homeDe(this.env));
       const cu: Cuenta = { id: c.id, proveedor: c.proveedor, motor: PROVEEDORES[c.proveedor]![1], nombre: verdad(c.nombre) ? c.nombre : c.id, dir: path.resolve(d), defecto: false };
       if (c.proveedor === "opencode") cu.plan = PLANES_OPENCODE.includes(c.plan) ? c.plan : "gratis";
+      else if (c.proveedor === "claude" && PLANES_CLAUDE.includes(c.plan)) cu.plan = c.plan;
       out.push(cu);
     }
     const pref = this.leerPreferidas();
@@ -740,7 +743,23 @@ class Cuentas {
       this.print(`${a[0]}: ${plan}`);
       return 0;
     }
-    if (a.length !== 2 || !PLANES_OPENCODE.includes(a[1]!)) return this.err("uso: cuentas plan ID gratis|go|go-plus|--detectar"), 2;
+    if (a.length === 2 && PLANES_CLAUDE.includes(a[1]!)) {
+      // El plan (pro | max) de una cuenta agregada de Claude: `pa` toma el de la cuenta en uso. El de la de siempre es `pa --plan`.
+      const [cid, plan] = a as [string, string];
+      if (cid === "claude") return this.err("el plan de la cuenta de siempre de Claude se cambia con `pa --plan pro|max` (Ajustes > Plan y cupos)"), 2;
+      const r = await this.conCandado(() => {
+        const c = this.buscar(cid);
+        if (!c || c.proveedor !== "claude") return this.err(`no hay ninguna cuenta de Claude ${cid}`), 1;
+        const ent = this.leerArchivo();
+        for (const e of ent) if (e.id === cid) e.plan = plan;
+        this.guardar(ent);
+        return 0;
+      });
+      if (r) return r;
+      this.print(`${cid}: ${plan}`);
+      return 0;
+    }
+    if (a.length !== 2 || !PLANES_OPENCODE.includes(a[1]!)) return this.err("uso: cuentas plan ID gratis|go|go-plus|--detectar (OpenCode) | cuentas plan ID pro|max (Claude)"), 2;
     const [cid, plan] = a as [string, string];
     if (cid === "opencode") return this.err("el plan de la cuenta de siempre de OpenCode es `opencode_plan` de modelos.json (Ajustes > Plan y cupos)"), 2;
     const r = await this.conCandado(() => {

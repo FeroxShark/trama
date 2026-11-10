@@ -280,10 +280,12 @@ mkdir -p "$STATE" "$LOCKDIR"
 # --- plan de la suscripción (2026-10-02) --------------------------------------------------
 # `pro` = modo ahorro: un punto menos de effort (opus medium), menos turnos, sin subagentes y sin el
 # SendMessage del resultado (cada mensaje le abre al jefe un turno con TODO su contexto). `max` =
-# opus con el effort de settings y 150 turnos. Sale de PA_PLAN, si no de `$STATE/plan`, si no `pro`.
+# opus con el effort de settings y 150 turnos. Sale de PA_PLAN, si no del plan de la cuenta de Claude en uso (si es agregada y lo tiene), si no de `$STATE/plan`, si no `pro`.
 # Volver a Max: `pa --plan max` (lo corre el jefe cuando el dueño avisa que cambió de suscripción).
 plan_de() {
-  local p="${PA_PLAN:-}"
+  local p="${PA_PLAN:-}" cj="${TRAMA_CUENTAS:-${TRAMA_CUENTAS_HOME:-$HOME}/.config/trama/cuentas.json}"
+  # El plan de la cuenta de Claude en uso (`cuentas preferir`) si es una agregada con plan propio (`cuentas plan ID pro|max`); la de siempre usa $STATE/plan.
+  [[ -z "$p" && -f "$cj" ]] && p="$(jq -r '(.preferidas.claude // empty | strings) as $i | first(.cuentas[]? | select(.id == $i and .proveedor == "claude" and $i != "claude") | .plan | strings) // empty' "$cj" 2>/dev/null || true)"
   [[ -z "$p" && -f "$STATE/plan" ]] && p="$(head -n1 "$STATE/plan" | tr -d '[:space:]')"
   p="${p,,}"; printf '%s' "${p:-pro}"
 }

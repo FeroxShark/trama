@@ -129,7 +129,7 @@ export function FilaFija({ nombre, estado, ventanas }: { nombre: string; estado:
  * El renglón de una cuenta: nombre editable y estado, sus dos carriles y, con más de una cuenta, «En uso» (con tilde) o «Usar». `solo`: es la única, no hay
  * nada que elegir y los carriles ganan el ancho. Quitar aparece al pasar o enfocar el renglón (la de siempre no se quita).
  */
-export function FilaCuenta({ perfil, nombre, enUso, solo, estado, ventanas, alCambiar }: { perfil: PerfilCuenta; nombre: string; enUso: boolean; solo: boolean; estado: EstadoCuenta; ventanas: VentanaCupo[]; alCambiar: () => void }) {
+export function FilaCuenta({ perfil, nombre, enUso, solo, estado, ventanas, alCambiar, extra }: { perfil: PerfilCuenta; nombre: string; enUso: boolean; solo: boolean; estado: EstadoCuenta; ventanas: VentanaCupo[]; alCambiar: () => void; /** Lo que va bajo el renglón (el plan de la cuenta de Claude). */ extra?: ReactNode }) {
   const acc = useAccionesCuenta(perfil, alCambiar);
   return (
     <li className="cu-renglon" data-cuenta={perfil.id}>
@@ -165,6 +165,7 @@ export function FilaCuenta({ perfil, nombre, enUso, solo, estado, ventanas, alCa
           </div>
         )}
       </div>
+      {extra}
       <AvisosCuenta perfil={perfil} acc={acc} />
     </li>
   );

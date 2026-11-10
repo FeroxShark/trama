@@ -176,8 +176,8 @@ export const en = {
   "ajustes.idioma": "Language",
   "ajustes.idiomaQue": "The app's language. What workers and leads reply isn't translated.",
   "ajustes.plan": "Plan",
-  "ajustes.planSus": "Subscription plan",
-  "ajustes.planQue": "The Claude plan everything runs on.",
+  "ajustes.planSus": "Original account plan",
+  "ajustes.planQue": "The plan of your original Claude account. Each account you added has its own, on the Claude card (Plan and quotas).",
   "ajustes.sinDefinir": "not set in settings.json",
 
   // Ramas
@@ -2890,6 +2890,10 @@ export const en = {
   "cu.usarPrimeroDe": "Use {nombre} for new chats",
   "cu.usarPrimeroQue": "Applies to new chats (leaders and workers), and to the ones you resume or bring from a terminal. Chats that already exist keep their account: change it from each chat, in the account selector next to the model. Trama never switches to another account on its own when the limit runs out.",
   "cu.enUso": "In use",
+  "cu.planCuenta": "Plan",
+  "cu.planCuentaGrupo": "{nombre} plan",
+  "cu.planCuentaQue": "Workers that run with this account use this plan. Pro saves (medium effort, shorter turns); Max uses the effort set in settings.",
+  "cu.planCuentaHereda": "Not chosen: uses the original account's plan ({plan}).",
   "cu.enUsoQue": "New chats use this account. Each existing chat keeps its own.",
   "cu.cuentaNueva": "The account was created, but the sign-in didn't finish. Use Connect to try again.",
   "main.cuentasNo": "The accounts command isn't installed",

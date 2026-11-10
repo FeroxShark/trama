@@ -183,9 +183,28 @@ function primeraLinea(f: string): string {
 /** `${p,,}` de bash (minúsculas; para lo que es ASCII alcanza con toLowerCase). */
 export const minus = (s: string) => s.toLowerCase();
 
-/** El plan de la suscripción: PA_PLAN, si no `$STATE/plan`, si no `pro`; uno inválido avisa y sigue como pro. */
-export function planDe(env: Env, state: string, io: Io): "pro" | "max" {
+/**
+ * El plan (pro | max) de la cuenta de Claude en uso: la elegida con `cuentas preferir`, si es una agregada con plan propio
+ * (`cuentas plan ID pro|max`, en cuentas.json). `null`: la en uso es la de siempre, o no tiene plan propio, o no hay cuentas.json.
+ */
+export function planDeCuentaEnUso(env: Env, home: string): "pro" | "max" | null {
+  const f = env.TRAMA_CUENTAS || path.join(env.TRAMA_CUENTAS_HOME || home, ".config", "trama", "cuentas.json");
+  try {
+    const j = JSON.parse(readFileSync(f, "utf8")) as { cuentas?: unknown; preferidas?: { claude?: unknown } | null };
+    const id = j.preferidas?.claude;
+    if (typeof id !== "string" || id === "claude" || !Array.isArray(j.cuentas)) return null;
+    const c = (j.cuentas as Array<Record<string, unknown>>).find((x) => x && x.id === id && x.proveedor === "claude");
+    const plan = typeof c?.plan === "string" ? c.plan.toLowerCase() : "";
+    return plan === "pro" || plan === "max" ? plan : null;
+  } catch {
+    return null;
+  }
+}
+
+/** El plan de la suscripción: PA_PLAN, si no el de la cuenta de Claude en uso (si lo tiene), si no `$STATE/plan`, si no `pro`; uno inválido avisa y sigue como pro. */
+export function planDe(env: Env, state: string, io: Io, home?: string): "pro" | "max" {
   let p = env.PA_PLAN ?? "";
+  if (!p && home !== undefined) p = planDeCuentaEnUso(env, home) ?? "";
   if (!p && existsSync(path.join(state, "plan"))) p = primeraLinea(path.join(state, "plan"));
   p = minus(p) || "pro";
   if (p === "pro" || p === "max") return p;
@@ -214,7 +233,7 @@ export function prologo(argv: string[], env: Env, io: Io, plat: Plataforma = pla
   const state = estadoPa(env, home, plat);
   const lockdir = path.join(state, "lock");
   mkdirSync(lockdir, { recursive: true });
-  const plan = planDe(env, state, io);
+  const plan = planDe(env, state, io, home);
 
   let autocompact: number | "nativo" | null = null;
   const ac = v(env, "PA_AUTOCOMPACT");

@@ -17,6 +17,8 @@
   cuentas plan ID --detectar                   lo detecta por `opencode models` (con `opencode-go/*` es go, si no gratis; Go Plus no se
                                                distingue de Go) y, en una agregada, lo guarda; rc 3 si no se pudo saber
   (`cuentas --json --verificar` suma `plan_detectado` a cada cuenta de OpenCode)
+  cuentas plan ID pro|max                      el plan de Claude de una cuenta agregada de Claude (el de la de siempre es `pa --plan`);
+                                               `pa` toma el de la cuenta en uso (`preferir`) y sale como `plan` en `--json`
   cuentas importar-perfiles [--dir D] [--nativa F] [--json]
                                                importa las cuentas de Claude de una Trama vieja, de dos formatos: (1) la carpeta de
                                                perfiles (<home>/.local/state/hilos/perfiles_claude, o D: perfiles.json + una carpeta por
@@ -66,6 +68,7 @@ PROVEEDORES = {   # id: (nombre de la cuenta de siempre, motor que la usa)
     "opencode": ("OpenCode", "opencode"),
 }
 PLANES_OPENCODE = ("gratis", "go", "go-plus")
+PLANES_CLAUDE = ("pro", "max")   # el plan de una cuenta AGREGADA de Claude; el de la de siempre es `pa --plan` (<estado>/plan)
 ID_OK = re.compile(r"^[a-z0-9][a-z0-9-]{0,39}$")
 DBUS_ROTO = "unix:path=/nonexistent/trama-sin-llavero"
 LINKS = {   # proveedor: rutas relativas al home de verdad -> misma ruta relativa en la carpeta de la cuenta
@@ -149,6 +152,8 @@ def cargar():
               "nombre": c.get("nombre") or c["id"], "dir": os.path.abspath(d), "defecto": False}
         if c["proveedor"] == "opencode":
             cu["plan"] = c.get("plan") if c.get("plan") in PLANES_OPENCODE else "gratis"
+        elif c["proveedor"] == "claude" and c.get("plan") in PLANES_CLAUDE:
+            cu["plan"] = c["plan"]
         out.append(cu)
     pref = leer_preferidas()
     elegida = {p: pref[p] for p in pref if any(x["id"] == pref[p] and x["proveedor"] == p for x in out)}
@@ -651,8 +656,26 @@ def cmd_plan(a):
             return cmd_plan([a[0], plan])
         print("%s: %s" % (a[0], plan))
         return 0
+    if len(a) == 2 and a[1] in PLANES_CLAUDE:
+        # El plan (pro | max) de una cuenta agregada de Claude: `pa` toma el de la cuenta en uso. El de la de siempre es `pa --plan`.
+        cid, plan = a
+        if cid == "claude":
+            err("el plan de la cuenta de siempre de Claude se cambia con `pa --plan pro|max` (Ajustes > Plan y cupos)")
+            return 2
+        with Candado():
+            c = buscar(cid)
+            if not c or c["proveedor"] != "claude":
+                err("no hay ninguna cuenta de Claude %s" % cid)
+                return 1
+            ent = leer_archivo()
+            for e in ent:
+                if e["id"] == cid:
+                    e["plan"] = plan
+            guardar(ent)
+        print("%s: %s" % (cid, plan))
+        return 0
     if len(a) != 2 or a[1] not in PLANES_OPENCODE:
-        err("uso: cuentas plan ID gratis|go|go-plus|--detectar")
+        err("uso: cuentas plan ID gratis|go|go-plus|--detectar (OpenCode) | cuentas plan ID pro|max (Claude)")
         return 2
     cid, plan = a
     if cid == "opencode":

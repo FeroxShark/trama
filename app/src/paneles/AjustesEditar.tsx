@@ -20,6 +20,7 @@ import { MODO } from "../modo";
 import { mensaje } from "../puente";
 import { cancelarTodo, guardarTodo, publicar, resumen, suscribir } from "./ajustes-barra";
 import { agregarDispositivo, alternarAcceso, numDesde, numPara, quitarAplicando, remotoDesde, remotoPara, type BorradorNum, type BorradorRemoto } from "./ajustes-borrador";
+import { EVENTO_PLAN_CLAUDE, esPlanClaude } from "./plan-claude";
 
 /** Las partes de una fila de Ajustes (la misma de Ajustes.tsx, que la pasa para no repetirla). */
 export type FilaDato = (p: { nombre: ClaveSola; que: ClaveSola; icono?: ReactNode; children: ReactNode }) => ReactNode;
@@ -141,6 +142,18 @@ export function PlanYRed({
   const r = numPara(g, b);
   const valido = r.error === null;
 
+  // El renglón de la cuenta de siempre (Plan y cupos) guarda el mismo plan: se refleja acá sin pisar la red de seguridad a medio editar.
+  useEffect(() => {
+    const leer = (e: Event) => {
+      const p = (e as CustomEvent<string>).detail;
+      if (!esPlanClaude(p)) return;
+      setG((x) => ({ ...x, plan: p }));
+      setB((x) => ({ ...x, plan: p }));
+    };
+    window.addEventListener(EVENTO_PLAN_CLAUDE, leer);
+    return () => window.removeEventListener(EVENTO_PLAN_CLAUDE, leer);
+  }, []);
+
   const cambiar = (nuevo: BorradorNum) => {
     setB(nuevo);
     setError(null);
@@ -157,6 +170,7 @@ export function PlanYRed({
       setG(nuevo);
       setB(numDesde(nuevo));
       setOk(true);
+      if (r.cambio.plan !== undefined && esPlanClaude(nuevo.plan)) window.dispatchEvent(new CustomEvent(EVENTO_PLAN_CLAUDE, { detail: nuevo.plan }));
     } catch (e) {
       if (vivo.current) setError(mensaje(e));
     } finally {

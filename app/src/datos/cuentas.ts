@@ -10,6 +10,9 @@ export const MARCA: Record<ProveedorCuenta, string> = { claude: "Claude", google
 
 export type PlanCuentaOc = "gratis" | "go" | "go-plus";
 const PLANES_OC: readonly string[] = ["gratis", "go", "go-plus"];
+/** El plan de una cuenta de Claude: el que usan los workers cuando esa cuenta es la que está en uso. */
+export type PlanCuentaClaude = "pro" | "max";
+const PLANES_CLAUDE: readonly string[] = ["pro", "max"];
 
 /**
  * `logueado`: `null` = no se preguntó (o el CLI no lo sabe). `defecto`: la de siempre, cuyo id es el del proveedor. `plan`: el de OpenCode de una
@@ -17,7 +20,7 @@ const PLANES_OC: readonly string[] = ["gratis", "go", "go-plus"];
  * (sólo en la lista verificada; no distingue Go de Go Plus); ausente = no se preguntó o no se pudo saber. `preferida`: la que usan primero los
  * líderes y workers nuevos de su proveedor (una por proveedor).
  */
-export type PerfilCuenta = { id: string; proveedor: ProveedorCuenta; nombre: string; defecto: boolean; preferida: boolean; logueado: boolean | null; plan?: PlanCuentaOc; planDetectado?: PlanCuentaOc };
+export type PerfilCuenta = { id: string; proveedor: ProveedorCuenta; nombre: string; defecto: boolean; preferida: boolean; logueado: boolean | null; plan?: PlanCuentaOc; planDetectado?: PlanCuentaOc; /** El de una cuenta AGREGADA de Claude (`cuentas plan ID pro|max`); ausente: no eligió (vale el de la de siempre, `pa --plan`). */ planClaude?: PlanCuentaClaude };
 export type ListaCuentas = { version: 1; cuentas: PerfilCuenta[] };
 export type ResultadoCuenta = { ok: true; id?: string } | { ok: false; error: string };
 
@@ -40,6 +43,7 @@ export function listaValida(x: unknown): ListaCuentas | null {
       logueado: typeof p.logueado === "boolean" ? p.logueado : null,
       ...(p.proveedor === "opencode" && p.id !== "opencode" ? { plan: PLANES_OC.includes(p.plan as string) ? (p.plan as PlanCuentaOc) : "gratis" } : {}),
       ...(p.proveedor === "opencode" && PLANES_OC.includes(p.plan_detectado as string) ? { planDetectado: p.plan_detectado as PlanCuentaOc } : {}),
+      ...(p.proveedor === "claude" && p.id !== "claude" && PLANES_CLAUDE.includes(p.plan as string) ? { planClaude: p.plan as PlanCuentaClaude } : {}),
     });
   }
   return cuentas.length ? { version: 1, cuentas } : null;
