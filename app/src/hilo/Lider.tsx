@@ -41,6 +41,7 @@ import { effortDe, effortsOpciones, MODELO_DEFAULT, MODELOS, modeloDe, nombreMod
 import { effortsDe, esAgy, esDsh, esOpencode, esLocal, familiaDe, motorNombre, reajustarEffort, sinWorkers } from "./modelos";
 import { ContextoLocal } from "./ContextoLocal";
 import { t as tr } from "../i18n";
+import { useCorrector } from "../paneles/ajustes-corrector";
 import { useIdioma } from "../i18n/react";
 import { contextoGasto, GastoSubagentesCtx, useGastoSubagentes } from "./gasto-sub";
 import { Selector, type Opcion } from "./Selector";
@@ -148,6 +149,7 @@ const textoCaptura = () =>
   MODO.captura === "lider-comandos" ? "/" : MODO.captura === "programar" ? "Seguí con el paso 2 y avisame cuando termine" : MODO.captura === "lider-valores" ? "/output-style " : MODO.captura === "lider-nuevo-proyecto" ? "Revisá el build de atlas" : null;
 
 export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrirHilo, mirar = true, alRespuesta, mostrar, archivar }: Props) {
+  const corrige = useCorrector();
   const sid = l?.id ?? "";
   const clave = l ? `lider:${l.id}` : BORRADOR_LIDER;
   const vivo = useSyncExternalStore(
@@ -1367,6 +1369,7 @@ export function ChatLider({ l, alCreado, alNuevo, lideres, alAbrirLider, alAbrir
               id={id}
               ref={caja}
               rows={1}
+              spellCheck={corrige}
               value={texto}
               readOnly={enviando}
               // Con el dedo, enfocar abre el teclado y tapa lo que se vino a leer: se toca la caja.
@@ -1783,6 +1786,7 @@ const Yo = memo(function Yo({ texto, imagenes }: { texto: string; imagenes?: rea
 });
 
 function PedidoPermiso({ sid, p }: { sid: string; p: Pedido }) {
+  const corrige = useCorrector();
   const [planear, setPlanear] = useState(false);
   const [nota, setNota] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -1831,6 +1835,7 @@ function PedidoPermiso({ sid, p }: { sid: string; p: Pedido }) {
           <textarea
             rows={1}
             autoFocus
+            spellCheck={corrige}
             value={nota}
             placeholder={tr("plan.notaPh")}
             aria-label={tr("plan.seguir")}

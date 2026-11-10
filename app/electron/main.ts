@@ -3,13 +3,14 @@
 // Dos modos: todo en uno (el núcleo corre acá: pruebas, capturas, bench, dev, y sin motor) o cliente del
 // motor (electron/ventana-cliente.ts), si el motor responde en el socket local y `dueno` lo confirma.
 import { codigoSalida } from "./aislar.js"; // primero: en una corrida de prueba, ningún módulo toca los datos del usuario sin que quede anotado
-import { app, BrowserWindow, ipcMain, Menu, nativeImage, shell, Tray } from "electron";
+import { app, BrowserWindow, ipcMain, Menu, nativeImage, session, shell, Tray } from "electron";
 import { execFile } from "node:child_process";
 import { readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { armarBench } from "./bench.js";
 import { armarBandeja, type Bandeja } from "./bandeja.js";
+import { armarCorrector } from "./corrector.js";
 import { conPunto } from "./espera-aviso.js";
 import { crearTope } from "./bitacora.js";
 import { CODIGO_CERRADO, esconderAlCerrar, preguntarSalida } from "./cierre.js";
@@ -522,6 +523,8 @@ async function arrancar() {
   }
   if (residente) log.escribir("info", "main", `trama arrancó (pid ${process.pid}, electron ${process.versions.electron}${cliente ? ", cliente del motor" : ""})`);
   await electronListo;
+  // Corrector en español e inglés (Chromium trae sólo el idioma del sistema); el interruptor de Ajustes sólo apaga el subrayado.
+  armarCorrector(session.defaultSession);
   crearVentana();
   armarLaBandeja();
   // El cartel del build nuevo: en modo cliente lo tiene el motor (la ventana se relanza cuando vuelve).

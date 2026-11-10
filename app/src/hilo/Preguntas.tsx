@@ -10,6 +10,7 @@ import { fuente } from "../datos/fuente";
 import { t as tr } from "../i18n";
 import { useIdioma } from "../i18n/react";
 import { mensaje } from "../puente";
+import { useCorrector } from "../paneles/ajustes-corrector";
 import { alternar, alternarOtro, alternarPlegado, armar, completo, escribirOtro, estaPlegado, NADA, olvidarPlegado, resumenRespondidas, type Eleccion, type Plegados, type Respondida } from "./preguntas-logica";
 import { contestado, type Pedido } from "./vivo";
 
@@ -23,6 +24,7 @@ let plegados: Plegados = new Set();
 const NO_CONTESTA = "The user declined to answer the questions.";
 
 function UnaPregunta({ q, e, cambiar, mandar }: { q: Pregunta; e: Eleccion; cambiar: (e: Eleccion) => void; mandar: () => void }) {
+  const corrige = useCorrector();
   const tecla = (ev: KeyboardEvent<HTMLTextAreaElement>) => {
     if (ev.nativeEvent.isComposing) return;
     if (ev.key === "Enter" && !ev.shiftKey) {
@@ -63,6 +65,7 @@ function UnaPregunta({ q, e, cambiar, mandar }: { q: Pregunta; e: Eleccion; camb
           className="pq-otro"
           rows={1}
           autoFocus
+          spellCheck={corrige}
           value={e.otro}
           placeholder={tr("pregunta.otroPh")}
           aria-label={tr("pregunta.otro")}

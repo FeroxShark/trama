@@ -228,6 +228,8 @@ export const es: { [K in keyof typeof en]: string } = {
   "ramas.aplicarNoArranco": "No arrancó",
   "ramas.aplicarAutoCorto": "Aplicar solo",
   "ramas.aplicarAutoQue": "Después de cada análisis, aplicar los veredictos sin preguntar (integrar y retomar). Los descartes siempre piden una confirmación por tanda.",
+  "ajustes.corrector": "Corrector ortográfico",
+  "ajustes.correctorQue": "Subraya las faltas al escribir en español e inglés, sea cual sea el idioma de la interfaz. Prendido de fábrica.",
   "ajustes.aplicarAuto": "Aplicar los veredictos solos tras analizar",
   "ajustes.aplicarAutoQue": "En Ramas, cuando el analista contesta, integra y retoma solo y muestra un resumen. Descartar siempre pide una confirmación por tanda. Apagado de fábrica.",
   "lec.titulo": "Lecciones por podar",

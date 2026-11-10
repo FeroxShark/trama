@@ -5,12 +5,13 @@
 // todo listo y sólo entonces carga la página; acá sólo se conecta con Windows. Todo lo que la página le pide al main sale del
 // contrato único de canales (app/electron/canales/contrato.ts, vía canales.json): ver ventana.js.
 
-const { app, BrowserWindow, ipcMain, shell, Menu, Tray, dialog, clipboard, Notification, nativeImage, powerMonitor } = require("electron");
+const { app, BrowserWindow, ipcMain, session, shell, Menu, Tray, dialog, clipboard, Notification, nativeImage, powerMonitor } = require("electron");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 const { ErrorPaso, MOTOR_URL } = require("./pasos-comun");
 const { entornoWindows } = require("./entorno-windows");
+const { armarCorrector } = require("./corrector");
 const { crearGuardiaFoco } = require("./foco");
 const { iniciarActualizador } = require("./actualizar");
 const { crearLimpieza } = require("./limpieza");
@@ -342,6 +343,8 @@ async function desinstalar() {
 
 function arrancar() {
   Menu.setApplicationMenu(null);
+  // Corrector en español e inglés (Chromium trae sólo el idioma del sistema); el interruptor de Ajustes sólo apaga el subrayado.
+  armarCorrector(session.defaultSession);
   ventana = new BrowserWindow({
     width: 1180,
     height: 760,

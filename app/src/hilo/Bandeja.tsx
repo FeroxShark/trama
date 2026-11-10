@@ -14,6 +14,7 @@ import { MODO } from "../modo";
 import { urlDe } from "./adjuntos";
 import { aplicarOrden, cabecera, canalDe, confirmacion, corrimiento, destinoArrastre, mover, pasoDe, type IconoTab } from "./bandeja-logica";
 import type { Encolado } from "./cola";
+import { useCorrector } from "../paneles/ajustes-corrector";
 import { Visor } from "./Imagenes";
 import { Sistema } from "./Sistema";
 import { lineaAviso } from "./sistema-logica";
@@ -564,6 +565,7 @@ const Minis = memo(function Minis({ imagenes }: { imagenes: readonly Imagen[] })
 
 /** Editar en su lugar: Enter guarda, Shift+Enter baja de línea, Esc cancela. Las imágenes se pueden sacar. */
 function Editor({ sid, x, inicial, archivos, alCerrar }: { sid: string; x: Encolado; inicial: string; archivos: readonly { nombre: string; ruta: string }[]; alCerrar: () => void }) {
+  const corrige = useCorrector();
   const [texto, setTexto] = useState(inicial.trim());
   const [sin, setSin] = useState<readonly number[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -619,6 +621,7 @@ function Editor({ sid, x, inicial, archivos, alCerrar }: { sid: string; x: Encol
         ref={campo}
         className="band-campo"
         rows={1}
+        spellCheck={corrige}
         value={texto}
         aria-label={t("cola.editarCampo")}
         onChange={(e) => setTexto(e.target.value)}

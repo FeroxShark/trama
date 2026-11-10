@@ -21,6 +21,7 @@ import { TramaActualizaciones } from "./AjustesTrama";
 import { Guia } from "./AjustesGuia";
 import { VolverVersion } from "./AjustesVolver";
 import { Proyectos } from "./AjustesProyectos";
+import { alCambiarCorrector, cambiarCorrector, corrector as correctorPref } from "./ajustes-corrector";
 import { alCambiarAplicarAuto, aplicarAuto, cambiarAplicarAuto } from "./aplicar-auto";
 import { IcApariencia, IcAtajos, IcAviso, IcCodigo, ICONO, IcIdioma, IcLetra, IcTiernos, IcTipografia } from "../ui/iconos";
 import { carcasaActualiza } from "../carcasa";
@@ -212,6 +213,7 @@ export function Ajustes() {
   const cacheVencida = useSyncExternalStore(alCambiarCacheEleccion, cacheEleccion);
   const termAgentes = useSyncExternalStore(alCambiarTerminalAgentes, terminalAgentes);
   const aplicarSolo = useSyncExternalStore(alCambiarAplicarAuto, aplicarAuto);
+  const corrige = useSyncExternalStore(alCambiarCorrector, correctorPref);
   const [intento, setIntento] = useState(0);
 
   useEffect(() => {
@@ -335,6 +337,20 @@ export function Ajustes() {
             ]}
             valor={aplicarSolo ? "si" : "no"}
             alElegir={(id) => cambiarAplicarAuto(id === "si")}
+            reserva={[...enOtros("ajustes.tiernosSi"), ...enOtros("ajustes.tiernosNo")]}
+          />
+        </div>
+      </Dato>
+      <Dato nombre="ajustes.corrector" que="ajustes.correctorQue" icono={<IcIdioma {...ICONO} />}>
+        <div className="pn-sel">
+          <Selector
+            etiqueta={t("ajustes.corrector")}
+            opciones={[
+              { id: "si", nombre: t("ajustes.tiernosSi"), desc: "" },
+              { id: "no", nombre: t("ajustes.tiernosNo"), desc: "" },
+            ]}
+            valor={corrige ? "si" : "no"}
+            alElegir={(id) => cambiarCorrector(id === "si")}
             reserva={[...enOtros("ajustes.tiernosSi"), ...enOtros("ajustes.tiernosNo")]}
           />
         </div>

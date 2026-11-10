@@ -238,6 +238,8 @@ export const en = {
   "ramas.aplicarNoArranco": "It did not start",
   "ramas.aplicarAutoCorto": "Apply automatically",
   "ramas.aplicarAutoQue": "After each analysis, apply the verdicts without asking (integrate and pick up). Discards always ask for one confirmation per batch.",
+  "ajustes.corrector": "Spell checker",
+  "ajustes.correctorQue": "Underlines mistakes while you type, in Spanish and English, whatever language the interface uses. On by default.",
   "ajustes.aplicarAuto": "Apply verdicts automatically after analysis",
   "ajustes.aplicarAutoQue": "In Branches, when the analyst answers it integrates and picks up on its own and shows a summary. Discarding always asks for one confirmation per batch. Off by default.",
   "lec.titulo": "Lessons need pruning",
