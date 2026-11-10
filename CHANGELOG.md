@@ -1,5 +1,9 @@
 # Cambios
 
+## 0.2.61
+
+- Selector de modelo: Fable 5.2, si tu cuenta de Claude lo tiene. La lista de modelos de Claude ahora sale del catálogo de tu cuenta: un modelo nuevo aparece solo, sin esperar una versión de Trama; Fable 5.1 pasa a «Anteriores».
+
 ## 0.2.60
 
 - Selector de carpeta del líder: cada proyecto con su logo.

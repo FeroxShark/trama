@@ -1,5 +1,9 @@
 # Changes
 
+## 0.2.61
+
+- Model picker: Fable 5.2, if your Claude account has it. The Claude model list now comes from your account's catalog: a new model shows up on its own, without waiting for a Trama release; Fable 5.1 moves to "Previous".
+
 ## 0.2.60
 
 - Lead folder picker: each project shows its logo.
