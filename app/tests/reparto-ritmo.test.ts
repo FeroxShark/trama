@@ -151,10 +151,10 @@ test("perfil ahorro con uso de Pro: workers a gratis/Google; Claude sólo donde 
   const ahorro = modelos({ perfil: "ahorro" });
   assert.ok(tipo("lectura", f, ahorro).modelo.startsWith("opencode:"));
   assert.ok(tipo("mecanico", f, ahorro).modelo.startsWith("opencode:"));
-  // codigo-acotado ya pide Haiku (2026-10-27): el gratis de 43 alcanza, y en el ahorro el motivo lo dice. codigo-multi sigue pidiendo Sonnet en ambos perfiles.
+  // codigo-acotado pide Haiku (calidad 43): el gratis lo alcanza, pero desde 2026-11-10 el ahorro le exige historial en ese tipo (5 corridas, 50 % sin retrabajo) y acá no tiene: queda Claude.
   const ca = tipo("codigo-acotado", f, ahorro);
-  assert.ok(ca.modelo.startsWith("opencode:"), ca.modelo);
-  assert.match(ca.motivo, /codigo-acotado pide calidad 43 o más/);
+  assert.ok(esClaude(ca.modelo), ca.modelo);
+  assert.ok(ca.candidatos.some((c) => c.modelo.startsWith("opencode:") && /^sin historial en codigo-acotado: .*el perfil ahorro pide/.test(c.descartado_por ?? "")));
   assert.ok(esClaude(tipo("codigo-multi", f, modelos()).modelo));
   assert.ok(esClaude(tipo("codigo-multi", f, ahorro).modelo));
   // debug pide Argon-88: ningún gratis llega, queda Claude (con un 50 % usado de 65 % disponibles todavía hay cupo para workers).
