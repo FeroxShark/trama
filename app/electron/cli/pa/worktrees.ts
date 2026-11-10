@@ -20,6 +20,7 @@ import { enlazarArchivo, enlazarDir, borrarSinSeguir, esLink } from "../base/enl
 import { git, parsearWorktrees } from "../base/git.ts";
 import { tomar, type Lock } from "../base/lock.ts";
 import type { Pa } from "./entorno.ts";
+import { rescatarSiAjeno } from "./rescate.ts";
 
 /** Lo que `pa <proyecto>` deja armado antes de tocar puestos y worktrees. */
 export interface Proyecto {
@@ -499,6 +500,22 @@ export async function commitearHuerfano(x: Proyecto, wt: string): Promise<void> 
     await g(x, wt, ["checkout", "-qB", anterior]);
   }
   const fuera = await dirsDeBuild(x, wt);
+  if (!baseH) {
+    const parche = await rescatarSiAjeno({
+      git: async (a) => {
+        const r = await g(x, wt, a);
+        return { codigo: r.codigo, salida: r.salida };
+      },
+      wt,
+      rama: anterior,
+      slug: x.slug,
+      dir: x.dir,
+      sucios: await suciosDe(x, wt),
+      excluidos: fuera,
+      err: (m) => x.pa.io.err(m),
+    });
+    if (parche) return;
+  }
   await g(x, wt, ["add", "-A", "--", ".", ...fuera.map((r) => `:(exclude,literal)${r}`)]);
   if (fuera.length) x.pa.io.err(`pa: no commiteo artefactos de build del huérfano: ${fuera.join(" ")}\n`);
   await excluirSymlinksExternos(x, wt);

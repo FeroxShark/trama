@@ -8,6 +8,7 @@ import { borrarSinSeguir, enlazarArchivo, enlazarDir, esLink } from "../base/enl
 import { probar, tomar, type Lock } from "../base/lock.ts";
 import { rutaReal } from "../proyecto-ruta.ts";
 import type { Pa } from "./entorno.ts";
+import { rescatarSiAjeno } from "./rescate.ts";
 
 /** Un proyecto ya resuelto (lo que deja `fijar_proyecto` del bash): nombre como lo dijo el que llama, ruta real, slug y su carpeta de estado. */
 export interface Proy {
@@ -406,6 +407,22 @@ export async function commitearHuerfano(x: Proy, wt: string, ts = ""): Promise<v
     await g(x, wt, ["checkout", "-qB", anterior]);
   }
   const fuera = await dirsDeBuildOk(x, wt);
+  if (!baseH) {
+    const parche = await rescatarSiAjeno({
+      git: async (a) => {
+        const r = await g(x, wt, a);
+        return { codigo: r.codigo, salida: r.salida };
+      },
+      wt,
+      rama: anterior,
+      slug: x.slug,
+      dir: x.dir,
+      sucios: await suciosDe(x, wt),
+      excluidos: fuera,
+      err: (m) => x.pa.io.err(m),
+    });
+    if (parche) return;
+  }
   await g(x, wt, ["add", "-A", "--", ".", ...fuera.map((r) => `:(exclude,literal)${r}`)]);
   if (fuera.length) x.pa.io.err(`pa: no commiteo artefactos de build del huérfano: ${fuera.join(" ")}\n`);
   await excluirSymlinksExternos(x, wt);

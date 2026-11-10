@@ -3,11 +3,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, readlinkSync, realpathSync, rmSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { testPosix } from "./plataforma.ts";
 import { prologo, type Env, type Pa } from "../electron/cli/pa/entorno.ts";
+import { commitearHuerfano as commitearHuerfanoBase, fijarProyecto } from "../electron/cli/pa/ramas-base.ts";
 import {
   adoptarHuerfanas,
   desenlazarCaches,
@@ -160,6 +161,72 @@ testPosix("huérfano: lo que dejó un worker muerto se commitea en su rama, sin 
   const archivos = s.git(s.ruta, "show", "--name-only", "--format=", "pa/demo/20261028-100000-1").stdout.trim().split("\n");
   assert.deepEqual(archivos, ["trabajo.txt"]);
   assert.equal(s.git(s.ruta, "log", "-1", "--format=%s", "pa/demo/20261028-100000-1").stdout.trim(), "pa: huérfano de pa/demo/20261028-100000-1");
+});
+
+/** Los parches que dejó el rescate de sucios ajenos. */
+const rescates = (s: ReturnType<typeof armar>) => {
+  const d = path.join(s.state, "demo", "rescates");
+  return existsSync(d) ? readdirSync(d).map((n) => path.join(d, n)) : [];
+};
+const hace = (ruta: string) => utimesSync(ruta, new Date("2020-01-01T00:00:00Z"), new Date("2020-01-01T00:00:00Z"));
+
+testPosix("huérfano superado: restos más viejos que la punta de la rama (otra corrida commiteó después) van a un parche, no a un commit", async () => {
+  const s = armar();
+  const a = await prepararWorktree(s.proy("20261110-043331-1"), "", "1");
+  const wt = a.rutaTrabajo;
+  // la corrida vieja dejó esto sin commitear...
+  writeFileSync(path.join(wt, "viejo.txt"), "medio hecho\n");
+  hace(path.join(wt, "viejo.txt"));
+  // ...y una corrida posterior (--seguir-con) commiteó después en la misma rama
+  writeFileSync(path.join(wt, "bueno.txt"), "rehecho\n");
+  s.git(wt, "add", "bueno.txt");
+  s.git(wt, "commit", "-q", "-m", "la corrida nueva");
+  writeFileSync(path.join(wt, "viejo.txt"), "medio hecho\n");
+  hace(path.join(wt, "viejo.txt"));
+  const b = await prepararWorktree(s.proy("20261110-064406-2"), "", "1");
+  assert.equal(b.codigo, 0);
+  assert.equal(s.git(s.ruta, "log", "-1", "--format=%s", a.rama).stdout.trim(), "la corrida nueva");
+  assert.doesNotMatch(s.git(s.ruta, "log", "--format=%s", a.rama).stdout, /huérfano/);
+  const parches = rescates(s);
+  assert.equal(parches.length, 1);
+  assert.match(path.basename(parches[0]!), /^\d{8}-\d{6}-pa-demo-20261110-043331-1\.patch$/);
+  assert.match(readFileSync(parches[0]!, "utf8"), /\+medio hecho/);
+  assert.match(s.err(), /más viejos que la punta de 'pa\/demo\/20261110-043331-1'.*quedaron como parche en .*rescates/);
+  assert.equal(s.git(wt, "status", "--porcelain").stdout, "");
+});
+
+testPosix("huérfano sin dueño conocido: un puesto parado en una rama que no es de pa no commitea sus restos ahí; quedan como parche", async () => {
+  const s = armar();
+  const a = await prepararWorktree(s.proy("20261110-043331-1"), "", "1");
+  const wt = a.rutaTrabajo;
+  s.git(wt, "checkout", "-q", "-B", "otra/cosa");
+  writeFileSync(path.join(wt, "resto.txt"), "de quién sabe\n");
+  const antes = s.git(s.ruta, "rev-parse", "otra/cosa").stdout.trim();
+  const b = await prepararWorktree(s.proy("20261110-064406-2"), "", "1");
+  assert.equal(b.codigo, 0);
+  assert.equal(s.git(s.ruta, "rev-parse", "otra/cosa").stdout.trim(), antes);
+  const parches = rescates(s);
+  assert.equal(parches.length, 1);
+  assert.match(path.basename(parches[0]!), /-otra-cosa\.patch$/);
+  assert.match(readFileSync(parches[0]!, "utf8"), /\+de quién sabe/);
+  assert.match(s.err(), /estaba en 'otra\/cosa' \(no es una rama de pa\).*quedaron como parche en/);
+  assert.equal(existsSync(path.join(b.rutaTrabajo, "resto.txt")), false);
+});
+
+testPosix("huérfano superado, también en ramas-base (el que usa --integrar)", async () => {
+  const s = armar();
+  const a = await prepararWorktree(s.proy("20261110-043331-1"), "", "1");
+  const wt = a.rutaTrabajo;
+  writeFileSync(path.join(wt, "bueno.txt"), "rehecho\n");
+  s.git(wt, "add", "bueno.txt");
+  s.git(wt, "commit", "-q", "-m", "la corrida nueva");
+  writeFileSync(path.join(wt, "viejo.txt"), "medio hecho\n");
+  hace(path.join(wt, "viejo.txt"));
+  await commitearHuerfanoBase(fijarProyecto(s.pa, "demo", s.ruta), wt);
+  assert.equal(s.git(s.ruta, "log", "-1", "--format=%s", a.rama).stdout.trim(), "la corrida nueva");
+  assert.equal(rescates(s).length, 1);
+  assert.match(s.err(), /quedaron como parche en/);
+  assert.equal(s.git(wt, "status", "--porcelain").stdout, "");
 });
 
 testPosix("huérfano en HEAD suelto: rama pa/<slug>/huerfano-<ts> con su .corrida; adoptar las que no la tienen", async () => {
