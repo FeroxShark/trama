@@ -11,11 +11,21 @@ export const PREFIJOS_ADJUNTO = ["Attached file (read it with Read): ", "Archivo
 
 export type ArchivoAdjunto = { nombre: string; ruta: string };
 
+/**
+ * ¿La ruta es absoluta? De POSIX ("/home/ana/x"), de Windows ("C:\Users\Ana\x",
+ * "C:/Users/Ana/x") o UNC ("\\servidor\compartir\x"). Las tres cuentan: en
+ * Windows los adjuntos y las ediciones del líder vienen con "\\" y no con "/".
+ */
+export const esRutaAbsoluta = (ruta: string): boolean => ruta.startsWith("/") || /^[A-Za-z]:[\\/]/.test(ruta) || ruta.startsWith("\\\\");
+
+/** El nombre de un archivo: lo último de su ruta, sea con "/" o con "\\". */
+export const nombreDeRuta = (ruta: string): string => ruta.split(/[\\/]/).pop() || ruta;
+
 /** La ruta de una línea de archivo; `null` si no es una. */
 function rutaDe(linea: string): string | null {
   const p = PREFIJOS_ADJUNTO.find((x) => linea.startsWith(x));
   const ruta = p ? linea.slice(p.length).trim() : "";
-  return ruta.startsWith("/") ? ruta : null;
+  return esRutaAbsoluta(ruta) ? ruta : null;
 }
 
 /** El texto sin las líneas de archivo del final, y los archivos que nombraban (en orden). */
@@ -24,7 +34,7 @@ export function separarAdjuntos(texto: string): { texto: string; archivos: Archi
   const archivos: ArchivoAdjunto[] = [];
   for (let ruta = rutaDe(lineas.at(-1) ?? ""); ruta !== null; ruta = rutaDe(lineas.at(-1) ?? "")) {
     lineas.pop();
-    archivos.unshift({ nombre: ruta.split("/").pop() || ruta, ruta });
+    archivos.unshift({ nombre: nombreDeRuta(ruta), ruta });
   }
   return archivos.length ? { texto: lineas.join("\n").trimEnd(), archivos } : { texto, archivos };
 }

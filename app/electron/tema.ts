@@ -9,6 +9,8 @@ import { open, stat } from "node:fs/promises";
 import path from "node:path";
 import { separarAdjuntos } from "./adjunto.ts";
 import { ALIAS_DEFECTO } from "./registro.ts";
+import { claveRuta } from "./proyectos-auto.ts";
+import { caminoDe, plataformaActual, type Plataforma } from "./rutas.ts";
 
 /**
  * Lo que se sabe de un transcript leído hasta `bytes`. `resto`: la última línea, si quedó a medias.
@@ -189,6 +191,27 @@ export type ProyectoTexto = { nombre: string; slug: string; ruta: string; alias?
 const escapar = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 /**
+ * La plataforma que parece tener una ruta: de Windows si tiene unidad ("C:\…") o es UNC ("\\servidor\…"); de POSIX si
+ * arranca con "/"; si no, la de acá. Un transcript puede traer rutas de otra máquina: la forma de la ruta manda.
+ */
+const platDeRuta = (ruta: string, plat: Plataforma): Plataforma => {
+  if (/^[A-Za-z]:[\\/]/.test(ruta) || ruta.startsWith("\\\\")) return "win32";
+  if (ruta.startsWith("/")) return plat === "win32" ? "linux" : plat;
+  return plat;
+};
+
+/** La ruta del proyecto con "~" en vez del home, si está dentro de él (`null` si no). En Windows, sin distinguir mayúsculas. */
+const conTilde = (ruta: string, home: string, plat: Plataforma): string | null => {
+  const h = home.replace(/[\\/]+$/, "");
+  if (!h || ruta.length <= h.length) return null;
+  const igual = plat === "win32" ? (a: string, b: string) => a.toLowerCase() === b.toLowerCase() : (a: string, b: string) => a === b;
+  if (!igual(ruta.slice(0, h.length), h)) return null;
+  const c = ruta[h.length];
+  if (c !== caminoDe(plat).sep && c !== "/") return null;
+  return "~" + ruta.slice(h.length);
+};
+
+/**
  * El proyecto del que habla un mensaje: el que aparece primero, por nombre del
  * registry, slug o ruta (la real, con `~/` o por el último pedazo). Devuelve el
  * slug (la carpeta de la barra) o `null`. Un nombre suelto cuenta como palabra
@@ -215,7 +238,8 @@ export function proyectoEnTexto(texto: string, proyectos: ProyectoTexto[], home:
   const bajo = textoLimpio.toLowerCase();
 
   for (const p of proyectos) {
-    const rutas = [p.ruta, p.ruta.startsWith(home + "/") ? "~" + p.ruta.slice(home.length) : null].filter((x): x is string => !!x);
+    const plat = platDeRuta(p.ruta, plataformaActual());
+    const rutas = [p.ruta, conTilde(p.ruta, home, plat)].filter((x): x is string => !!x);
     const nombres = nombresDe(p);
 
     for (const r of rutas) {
@@ -278,7 +302,7 @@ export function proyectoDeComandoPa(cmd: string, proyectos: ProyectoTexto[]): st
  * lanzó `pa`, o aquel donde cayó la mayoría de sus Edit/Write (al menos 2 y más de la mitad). Sin evidencia clara, `null`.
  * Sólo vale para un líder que arrancó en el home: lo decide quien llama.
  */
-export function proyectoPorUso(usos: Usos | undefined, proyectos: ProyectoTexto[], home: string): string | null {
+export function proyectoPorUso(usos: Usos | undefined, proyectos: ProyectoTexto[], home: string, plat: Plataforma = plataformaActual()): string | null {
   if (!usos) return null;
   for (const c of usos.pa) {
     const slug = proyectoDeComandoPa(c, proyectos);
@@ -289,9 +313,23 @@ export function proyectoPorUso(usos: Usos | undefined, proyectos: ProyectoTexto[
   for (const [f, n] of Object.entries(usos.rutas)) {
     total += n;
     const abs = f.startsWith("~/") ? home + f.slice(1) : f;
+    // La plataforma de la ruta (una de Windows en una máquina de Linux, o al revés): el separador y las mayúsculas mandan.
+    const p = platDeRuta(abs, plat);
+    const sep = caminoDe(p).sep;
+    const kAbs = claveRuta(abs, p);
+    const kHome = platDeRuta(home, plat) === p ? claveRuta(home, p) : null;
     // El más específico: un proyecto dentro de otro (la ruta más larga que contiene el archivo).
     let mejor: ProyectoTexto | null = null;
-    for (const p of proyectos) if ((abs === p.ruta || abs.startsWith(p.ruta + "/")) && (!mejor || p.ruta.length > mejor.ruta.length) && p.ruta !== home) mejor = p;
+    let mejorLargo = 0;
+    for (const pr of proyectos) {
+      const kRuta = claveRuta(pr.ruta, p);
+      if (kRuta === kHome) continue;
+      if (kAbs !== kRuta && !kAbs.startsWith(kRuta + sep)) continue;
+      if (!mejor || kRuta.length > mejorLargo) {
+        mejor = pr;
+        mejorLargo = kRuta.length;
+      }
+    }
     if (mejor) veces.set(mejor.slug, (veces.get(mejor.slug) ?? 0) + n);
   }
   let ganador: string | null = null;
