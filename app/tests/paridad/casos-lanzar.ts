@@ -24,6 +24,17 @@ export interface CasoLanzar extends Caso {
   guion: Respuesta[];
   /** Lo que pa decidió antes de lanzar y no queda en el estado: el tope de turnos, --mcp y --max-budget-usd. */
   lanzar: { maxTurns: string; conMcp?: boolean; maxBudget?: string };
+  /**
+   * El argv del TS difiere del bash congelado A PROPÓSITO (el bash no se toca: es el respaldo de una versión). Por eso la
+   * comparación de estos casos no mira el argv: mira el código, la salida y el estado que queda. Lo que cambió:
+   *   - el MCP va apagado por defecto (también en los escritores) y `--mcp` lo devuelve;
+   *   - `--disable-slash-commands` (salvo en diseño) y `--disallowedTools Agent` en todos los escritores;
+   *   - `--exclude-dynamic-system-prompt-sections`;
+   *   - el system prompt (`--append-system-prompt`) es idéntico entre corridas y lo que cambia en cada una (jefe, worktree,
+   *     lecciones, otros writers, mapa) va al final del prompt (`-p`).
+   * La forma nueva del argv la comprueban los tests de app/tests (cli-pa-lanzar.test.ts).
+   */
+  divergencia?: string;
 }
 
 /** Deja el guion y cambia el `claude` del sandbox por el del guion. */
@@ -47,6 +58,7 @@ const caso = (nombre: string, args: string[], rc: number, guion: Respuesta[], la
   env,
   guion,
   lanzar,
+  divergencia: "el argv del TS difiere del bash congelado a propósito (MCP apagado, sin comandos de slash, sin subagentes, system prompt estable)",
   preparar: (c) => ponerGuion(c, guion),
 });
 
@@ -70,7 +82,7 @@ export const casosLanzar: CasoLanzar[] = [
   ]),
   caso("fallo con stderr y sin result", ["demo", "--sin-jefe", "--aca", "-m", M, BRIEF], 1, [{ err: "Error: algo se rompió\nen la línea 2\n", rc: 1 }]),
   caso("instalación de claude rota", ["demo", "--sin-jefe", "--aca", "-m", M, BRIEF], 81, [{ err: "Error: claude native binary not installed\n", rc: 1 }]),
-  caso("plan max: abanico y sin tope de Agent", ["demo", "--sin-jefe", "--aca", "-m", M, BRIEF], 0, [ok(BLOQUE)], { maxTurns: "150" }, { PA_PLAN: "max" }),
+  caso("plan max: sin abanico y sin subagentes", ["demo", "--sin-jefe", "--aca", "-m", M, BRIEF], 0, [ok(BLOQUE)], { maxTurns: "150" }, { PA_PLAN: "max" }),
   caso("--mcp, --max-budget-usd y --max-turns", ["demo", "--sin-jefe", "--aca", "--mcp", "--max-budget-usd", "2", "--max-turns", "9", "-m", M, BRIEF], 0, [ok(BLOQUE)], { maxTurns: "9", conMcp: true, maxBudget: "2" }),
   {
     ...caso("apagado global de Trama: skills, MCP, herramientas y memoria al --settings", ["demo", "--sin-jefe", "--aca", "--mcp", "-m", M, BRIEF], 0, [ok(BLOQUE)], { maxTurns: "100", conMcp: true }),

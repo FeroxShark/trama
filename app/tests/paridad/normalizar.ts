@@ -45,6 +45,11 @@ export function normalizar(texto: string, raices: Raices): string {
       .replace(/\bhace \d+s\b/g, "hace <DUR>")
       .replace(/("(?:arranco_hace_s|herramienta_hace_s)": )\d+/g, "$1<N>")
       .replace(/ · \d+s ·/g, " · <DUR> ·")
+      // La ayuda: la entrada del tope de turnos ahora dice que sale del tipo y el bash está congelado: se borra de los dos.
+      .replace(/^ *pa <proyecto> --max-turns N[^\n]*\n(?:[^\n]*\n){0,3}? *Al llegar:[^\n]*\n/gm, "")
+      // El aviso del plan: el texto del tope de turnos cambió (ahora sale del tipo).
+      .replace(/tope 100 turnos/g, "tope de turnos hasta 100")
+      .replace(/tope 150\)/g, "tope de turnos por tipo: 30 a 120)")
       // pids
       .replace(/\b(pid[= :]+)\d+/gi, "$1<PID>")
       // el pid del claude que baja --matar/--parar («matado (claude 1234 y su árbol)»)

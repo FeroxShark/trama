@@ -90,6 +90,11 @@ export interface Caso {
   preparar?: (c: Contexto) => void;
   /** Subárboles del estado a comparar (default: todo salvo lock/, worktrees/ y *.log). */
   estadoIgnorar?: RegExp[];
+  /**
+   * El caso diverge a propósito del original (el bash está congelado y el TS hace otra cosa): no se compara el argv de claude,
+   * sólo el código, la salida y el estado. El motivo va acá, para que quede escrito por qué.
+   */
+  divergencia?: string;
 }
 
 export interface Resultado {
@@ -273,24 +278,29 @@ function ejecutar(caso: Caso, pa: string[], c: Contexto): Resultado {
   return res;
 }
 
-/** Las diferencias entre dos resultados, en texto legible; "" si son iguales. */
-export function diferencias(a: Resultado, b: Resultado): string {
+/** Las diferencias entre dos resultados, en texto legible; "" si son iguales. `ignorar` aparta una sección (argv, pasos, estado). */
+export function diferencias(a: Resultado, b: Resultado, o: { ignorar?: ("argv" | "pasos" | "estado")[] } = {}): string {
   const out: string[] = [];
-  const n = Math.max(a.pasos.length, b.pasos.length);
-  for (let i = 0; i < n; i++) {
-    const x = a.pasos[i];
-    const y = b.pasos[i];
-    if (!x || !y) { out.push(`paso ${i + 1}: falta en uno de los dos`); continue; }
-    if (x.rc !== y.rc) out.push(`paso ${i + 1}: código de salida ${x.rc} vs ${y.rc}`);
-    if (x.stdout !== y.stdout) out.push(`paso ${i + 1}: stdout\n--- A\n${x.stdout}\n--- B\n${y.stdout}`);
-    if (x.stderr !== y.stderr) out.push(`paso ${i + 1}: stderr\n--- A\n${x.stderr}\n--- B\n${y.stderr}`);
+  const ignorar = new Set(o.ignorar ?? []);
+  if (!ignorar.has("pasos")) {
+    const n = Math.max(a.pasos.length, b.pasos.length);
+    for (let i = 0; i < n; i++) {
+      const x = a.pasos[i];
+      const y = b.pasos[i];
+      if (!x || !y) { out.push(`paso ${i + 1}: falta en uno de los dos`); continue; }
+      if (x.rc !== y.rc) out.push(`paso ${i + 1}: código de salida ${x.rc} vs ${y.rc}`);
+      if (x.stdout !== y.stdout) out.push(`paso ${i + 1}: stdout\n--- A\n${x.stdout}\n--- B\n${y.stdout}`);
+      if (x.stderr !== y.stderr) out.push(`paso ${i + 1}: stderr\n--- A\n${x.stderr}\n--- B\n${y.stderr}`);
+    }
   }
-  if (JSON.stringify(a.argvClaude) !== JSON.stringify(b.argvClaude)) out.push(`argv de claude\n--- A\n${a.argvClaude.join("\n==\n")}\n--- B\n${b.argvClaude.join("\n==\n")}`);
-  const ks = new Set([...Object.keys(a.estado), ...Object.keys(b.estado)]);
-  for (const k of [...ks].sort()) {
-    if (a.estado[k] === undefined) out.push(`estado: ${k} sólo en B`);
-    else if (b.estado[k] === undefined) out.push(`estado: ${k} sólo en A`);
-    else if (a.estado[k] !== b.estado[k]) out.push(`estado: ${k} difiere\n--- A\n${a.estado[k]}\n--- B\n${b.estado[k]}`);
+  if (!ignorar.has("argv") && JSON.stringify(a.argvClaude) !== JSON.stringify(b.argvClaude)) out.push(`argv de claude\n--- A\n${a.argvClaude.join("\n==\n")}\n--- B\n${b.argvClaude.join("\n==\n")}`);
+  if (!ignorar.has("estado")) {
+    const ks = new Set([...Object.keys(a.estado), ...Object.keys(b.estado)]);
+    for (const k of [...ks].sort()) {
+      if (a.estado[k] === undefined) out.push(`estado: ${k} sólo en B`);
+      else if (b.estado[k] === undefined) out.push(`estado: ${k} sólo en A`);
+      else if (a.estado[k] !== b.estado[k]) out.push(`estado: ${k} difiere\n--- A\n${a.estado[k]}\n--- B\n${b.estado[k]}`);
+    }
   }
   return out.join("\n");
 }

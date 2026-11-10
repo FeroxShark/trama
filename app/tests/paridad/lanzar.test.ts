@@ -115,7 +115,8 @@ for (const caso of casosLanzar) {
       if (caso.rc !== undefined) assert.equal(a.pasos[0]?.rc, caso.rc, `el bash dio otro código: ${a.pasos[0]?.stderr}`);
       for (const k of Object.keys(a.estado)) if (SOLO_BASH.some((re) => re.test(k))) delete a.estado[k];
       const b = await correrB(caso, c);
-      const dif = diferencias(a, b);
+      // el argv del TS difiere del bash congelado a propósito (ver `divergencia` en casos-lanzar.ts): se compara el resto.
+      const dif = diferencias(a, b, { ignorar: caso.divergencia ? ["argv"] : [] });
       assert.equal(dif, "", `bash y lanzar.ts difieren:\n${dif}`);
     } finally {
       borrarSandbox(c);

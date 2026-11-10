@@ -24,7 +24,8 @@ for (const caso of casos) {
       if (rc !== undefined) assert.equal(a.pasos[i]?.rc, rc, `el original dio otro código en el paso ${i + 1}: ${a.pasos[i]?.stderr}`);
     });
     const b = correr(caso, comandoBDe(caso.herramienta));
-    const dif = diferencias(a, b);
+    // el caso puede divergir a propósito del original (el bash está congelado): entonces no se compara el argv de claude.
+    const dif = diferencias(a, b, { ignorar: caso.divergencia ? ["argv"] : [] });
     assert.equal(dif, "", `A (original) y B difieren:\n${dif}`);
   });
 }
