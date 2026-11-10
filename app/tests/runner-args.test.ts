@@ -2,6 +2,8 @@
 // y nunca corre todo. Corre el runner sobre scripts/fixtures/dos (TRAMA_TEST_DIR), con dos archivos.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
+import { mkdtempSync } from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 
@@ -51,4 +53,10 @@ test("uno bueno y uno malo también cortan: no corre el bueno solo", () => {
 test("un archivo de otra carpeta no se toma por homónimo", () => {
   const r = runner(["tests/uno.test.ts"]);
   assert.equal(r.codigo, 2);
+});
+
+test("un archivo cortado por su tope hace salir al runner con 124", () => {
+  const r = runner([], { TRAMA_TEST_DIR: path.join(raiz, "scripts", "fixtures", "cuelga"), TRAMA_TEST_ARCHIVO_S: "2", TRAMA_TEST_PIDS: path.join(mkdtempSync(path.join(os.tmpdir(), "trama-args-")), "pids.json") });
+  assert.equal(r.codigo, 124);
+  assert.match(r.salida, /cuelga\.test\.ts: sin terminar tras 2 s/);
 });

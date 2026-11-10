@@ -291,5 +291,5 @@ console.log(`\n${archivos.length - fallas.length}/${archivos.length} archivos si
 console.log(Object.entries(totales).map(([k, v]) => `# ${k} ${v}`).join("\n"));
 if (fallas.length) {
   console.log(`Con fallas:\n  ${fallas.join("\n  ")}`);
-  process.exit(1);
+  process.exit(fallas.some((f) => f.endsWith("(colgado)")) ? 124 : 1); // 124: como `timeout`, algo se cortó por su tope
 }

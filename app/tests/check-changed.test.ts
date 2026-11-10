@@ -17,6 +17,11 @@ const grafo = [
   f("tests/paridad/casos.ts"),
   f("tests/paridad/paridad.test.ts", ["tests/paridad/casos.ts", "tests/plataforma.ts"]),
   f("tests/plataforma.ts"),
+  f("electron/cli/pa.ts", ["electron/cli/pa/rinde.ts"]),
+  f("electron/cli/pa/rinde.ts", ["electron/cli/base/git.ts"]),
+  f("electron/cli/base/git.ts"),
+  f("electron/cli/tablero.ts", ["electron/cli/base/git.ts"]),
+  f("electron/cli/instalar-nativo.ts"),
   f("tests/usa-plataforma.test.ts", ["tests/plataforma.ts"]),
 ];
 
@@ -54,17 +59,32 @@ test("la documentación del motor no corre paridad", () => {
   assert.equal(elegir(["motor/docs/traspaso.md"], grafo).paridad, null);
 });
 
-test("un archivo del motor sin tabla, o tocar tests/paridad, corre toda la paridad", () => {
-  assert.equal(elegir(["motor/bin/clasificar"], grafo).paridad, "todas");
-  assert.equal(elegir(["app/electron/cli/instalar-nativo.ts"], grafo).paridad, "todas");
+test("un archivo de cli/pa/ corre sólo la paridad de las herramientas que lo importan, no toda", () => {
+  assert.deepEqual(elegir(["app/electron/cli/pa/rinde.ts"], grafo).paridad, ["pa", "pa-async", "pa-cli"]);
+  assert.deepEqual(elegir(["app/electron/cli/base/git.ts"], grafo).paridad, ["pa", "pa-async", "pa-cli", "tablero"]);
+});
+
+test("lo del motor que ninguna herramienta usa no corre paridad y queda anotado en sinTabla", () => {
+  const motor = elegir(["motor/bin/clasificar"], grafo);
+  assert.equal(motor.paridad, null);
+  assert.deepEqual(motor.sinTabla, ["motor/bin/clasificar"]);
+  const suelto = elegir(["app/electron/cli/instalar-nativo.ts"], grafo);
+  assert.equal(suelto.paridad, null);
+  assert.deepEqual(suelto.sinTabla, ["app/electron/cli/instalar-nativo.ts"]);
+  assert.deepEqual(elegir(["app/electron/cli/pa/rinde.ts"], grafo).sinTabla, []);
+});
+
+test("toda la paridad sólo con paridadCompleta o tocando tests/paridad", () => {
+  assert.equal(elegir(["app/electron/cli/pa/rinde.ts"], grafo, { paridadCompleta: true }).paridad, "todas");
+  assert.equal(elegir([], grafo, { paridadCompleta: true }).paridad, "todas");
   assert.equal(elegir(["app/tests/paridad/casos.ts"], grafo).paridad, "todas");
   assert.equal(elegir(["app/tests/plataforma.ts"], grafo).paridad, "todas");
 });
 
-test("tocar la casa de las pruebas corre todo (tests y paridad)", () => {
+test("tocar la casa de las pruebas corre todos los tests, pero no toda la paridad", () => {
   const r = elegir(["app/scripts/test.mjs"], grafo);
   assert.equal(r.completo, true);
-  assert.equal(r.paridad, "todas");
+  assert.equal(r.paridad, null);
   assert.equal(r.pruebas.length, grafo.filter((x) => /^tests\/[^/]+\.test\.ts$/.test(x.ruta)).length);
 });
 
