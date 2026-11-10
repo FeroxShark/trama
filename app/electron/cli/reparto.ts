@@ -2789,6 +2789,9 @@ function elegir(tipo0: string, cfg: Obj, cupos: Obj, now: Date, mismoProveedor: 
       }
     }
     if (cfg._relajado || PERFILES[cfg.perfil]!.costo_primero) pref = null;
+    // la banda se ancla en el preferido sólo si está vivo: uno agotado o sin cupo no puede dejar afuera
+    // a los más baratos (un gratis de OpenCode sin cupo hacía ganar a Sonnet en vez de Haiku); sólo en el TS
+    if (pref !== null && !vivos.some((c) => c.modelo === pref || c.familia === pref)) pref = null;
     if (pref !== null && typeof pref === "string" && pref in cfg.calidad) {
       const ePref = get(cfg.effort_por_tipo, tipo, "high");
       const q0 = calidadEnEffort(mapaEfforts(cfg, pref), ePref === "max" ? "xhigh" : ePref, cfg.calidad[pref]);
