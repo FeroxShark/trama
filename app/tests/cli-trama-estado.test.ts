@@ -3,10 +3,11 @@
 import assert from "node:assert/strict";
 import { chmodSync, mkdirSync, mkdtempSync, realpathSync, writeFileSync } from "node:fs";
 import http from "node:http";
-import type { AddressInfo } from "node:net";
+import net, { type AddressInfo } from "node:net";
 import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
+import { socketMotor } from "../electron/rutas.ts";
 import { MODELO_AGY, claveDsh, enPalabras, estado, jsonPy, main, pedir } from "../electron/cli/trama-estado.ts";
 import { soloPosix } from "./plataforma.ts";
 
@@ -28,6 +29,7 @@ function sandbox() {
     TRAMA_MODELOS: path.join(raiz, "no-modelos.json"),
     TRAMA_CLAVES: path.join(raiz, "no-claves.env"),
     HILOS_STATE: path.join(raiz, "hilos"),
+    HILOS_LOCAL: path.join(raiz, "local-motor"),
     XDG_DATA_HOME: path.join(raiz, "datos"),
     CLAUDE_CONFIG_DIR: path.join(raiz, "claude"),
   };
@@ -75,7 +77,7 @@ test("estado: sin nada instalado todo da false y el JSON mantiene el contrato", 
     dsh: { instalado: false, version: null, ruta: null, claves: { opencode: false, deepseek: false } },
     opencode: { instalado: false, version: null, ruta: null, logueado: false },
     ollama: { url: "http://127.0.0.1:1", responde: false, modelos: [] },
-    motor: { vivo: false, url: "http://127.0.0.1:1", proceso: false },
+    motor: { vivo: false, url: "http://127.0.0.1:1", proceso: false, via: null },
   });
   assert.match(enPalabras(est), /^claude {3}instalado: no · sesión: no\nagy {6}instalado: no/);
   assert.match(enPalabras(est), /ollama {3}http:\/\/127\.0\.0\.1:1 · responde: no · modelos: ninguno\nmotor {4}http:\/\/127\.0\.0\.1:1 · vivo: no\n$/);
@@ -100,13 +102,44 @@ test("ollama y motor: responden por HTTP; un 404 también cuenta como vivo", asy
     t.escribir(path.join(t.env.HILOS_STATE!, "dueno"), JSON.stringify({ pid: process.pid }));
     const est = await estado({ ...t.env, OLLAMA_HOST: `127.0.0.1:${ol.puerto}`, TRAMA_PUERTO: String(mo.puerto) });
     assert.deepEqual(est.ollama, { url: `http://127.0.0.1:${ol.puerto}`, responde: true, modelos: ["llama3", "qwen"] });
-    assert.deepEqual(est.motor, { vivo: true, url: `http://127.0.0.1:${mo.puerto}`, proceso: true });
+    assert.deepEqual(est.motor, { vivo: true, url: `http://127.0.0.1:${mo.puerto}`, proceso: true, via: `127.0.0.1:${mo.puerto}` });
     assert.deepEqual(await pedir(`http://127.0.0.1:${mo.puerto}/`), [404, ""]);
     // modelos.json manda sobre OLLAMA_HOST
     t.escribir(t.env.TRAMA_MODELOS!, JSON.stringify({ locales: [{ nombre: "x" }, { url: `http://127.0.0.1:${ol.puerto}///` }] }));
     assert.equal((await estado({ ...t.env })).ollama.responde, true);
   } finally {
     ol.cerrar();
+    mo.cerrar();
+  }
+});
+
+test("motor: contesta por el socket sin loopback (TRAMA_LOCAL=0) y el texto dice por dónde", async () => {
+  const t = sandbox();
+  const carpeta = t.env.HILOS_LOCAL!;
+  mkdirSync(carpeta, { recursive: true });
+  // En Windows la «ruta» es una named pipe; en POSIX, un socket unix: `socketMotor` elige.
+  const sock = socketMotor(carpeta, t.env);
+  const srv = net.createServer((c) => c.end()).listen(sock);
+  await new Promise((ok) => srv.once("listening", ok));
+  try {
+    const est = await estado(t.env); // TRAMA_PUERTO=1: el loopback no contesta
+    assert.deepEqual(est.motor, { vivo: true, url: "http://127.0.0.1:1", proceso: false, via: "socket" });
+    assert.match(enPalabras(est), /motor {4}http:\/\/127\.0\.0\.1:1 · vivo: sí \(socket\)\n$/);
+  } finally {
+    srv.close();
+  }
+  // Cerrado el socket: no contesta nadie.
+  const sin = await estado(t.env);
+  assert.deepEqual(sin.motor, { vivo: false, url: "http://127.0.0.1:1", proceso: false, via: null });
+});
+
+test("motor: el loopback sigue valiendo si no hay socket, y el texto lo dice", async () => {
+  const mo = await servidor((_req, res) => res.writeHead(404).end());
+  try {
+    const t = sandbox();
+    const est = await estado({ ...t.env, TRAMA_PUERTO: String(mo.puerto) });
+    assert.match(enPalabras(est), new RegExp(`vivo: sí \\(127\\.0\\.0\\.1:${mo.puerto}\\)\\n$`));
+  } finally {
     mo.cerrar();
   }
 });

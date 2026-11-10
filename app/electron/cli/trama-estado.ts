@@ -10,7 +10,7 @@
 //  "dsh":{"instalado":bool,"version":str|null,"ruta":str|null,"claves":{"opencode":bool,"deepseek":bool}},
 //  "opencode":{"instalado":bool,"version":str|null,"ruta":str|null,"logueado":bool},
 //  "ollama":{"url":str,"responde":bool,"modelos":[str]},
-//  "motor":{"vivo":bool,"url":str}}   (+ "proceso":bool, extra: el proceso existe aunque no atienda HTTP)
+//  "motor":{"vivo":bool,"url":str}}   (+ "proceso":bool, extra: el proceso existe aunque no atienda; "via":"socket"|"127.0.0.1:<puerto>"|null, por dónde contestó)
 //
 // Nunca falla por algo que no encuentra: lo que falta sale en false. Las keys de dsh (OPENCODE_API_KEY, DEEPSEEK_API_KEY) se
 // miran en el entorno y en claves.env (TRAMA_CLAVES lo redirige): sólo se dice si están, NUNCA su valor.
@@ -22,7 +22,8 @@ import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { carpetasNpm, hallarAgy, hallarClaude, paraLanzar } from "../binario.ts";
 import { prefijoDsh } from "../dsh.ts";
-import { configTrama, esWindows, estadoHilos, homeDe } from "../rutas.ts";
+import { hayMotor } from "../motor-socket.ts";
+import { carpetaMotor, configTrama, esWindows, estadoHilos, homeDe, socketMotor } from "../rutas.ts";
 import { enPath, esEjecutable } from "./base/buscar.ts";
 import { esPrincipal } from "./base/principal.ts";
 import { correr, vivo } from "./base/proc.ts";
@@ -242,9 +243,13 @@ async function ollama(c: Contexto) {
 }
 
 async function motor(c: Contexto) {
-  const url = `http://127.0.0.1:${c.env.TRAMA_PUERTO || "8791"}`;
-  const [cod] = await pedir(url + "/");
-  // `proceso`: el motor (su `dueno` en el estado de hilos) está vivo aunque no atienda HTTP todavía.
+  const host = `127.0.0.1:${c.env.TRAMA_PUERTO || "8791"}`;
+  const url = `http://${host}`;
+  // `via`: por dónde contestó. Primero el socket (en Windows, la named pipe): el loopback sólo existe con TRAMA_LOCAL=1.
+  let via: string | null = null;
+  if (await hayMotor(socketMotor(carpetaMotor(c.env), c.env))) via = "socket";
+  else if ((await pedir(url + "/"))[0] !== null) via = host;
+  // `proceso`: el motor (su `dueno` en el estado de hilos) está vivo aunque no atienda todavía.
   let proceso = false;
   try {
     const j: unknown = JSON.parse(readFileSync(path.join(estadoHilos(c.env, c.home), "dueno"), "utf8"));
@@ -253,7 +258,7 @@ async function motor(c: Contexto) {
   } catch {
     proceso = false;
   }
-  return { vivo: cod !== null, url, proceso };
+  return { vivo: via !== null, url, proceso, via };
 }
 
 export async function estado(env: Env = process.env) {
@@ -275,7 +280,7 @@ export function enPalabras(est: Estado): string {
       `dsh      instalado: ${si(d.instalado)}${d.version ? ` (${d.version})` : ""} · keys: OpenCode ${si(d.claves.opencode)}, DeepSeek ${si(d.claves.deepseek)}`,
       `opencode instalado: ${si(oc.instalado)}${oc.version ? ` (${oc.version})` : ""} · sesión: ${si(oc.logueado)}`,
       `ollama   ${o.url} · responde: ${si(o.responde)} · modelos: ${o.modelos.join(", ") || "ninguno"}`,
-      `motor    ${est.motor.url} · vivo: ${si(est.motor.vivo)}`,
+      `motor    ${est.motor.url} · vivo: ${si(est.motor.vivo)}${est.motor.via ? ` (${est.motor.via})` : ""}`,
     ].join("\n") + "\n"
   );
 }
@@ -294,7 +299,7 @@ export async function main(argv: string[], env: Env = process.env, out: (s: stri
         dsh: { instalado: false, version: null, ruta: null, claves: { opencode: false, deepseek: false } },
         opencode: { instalado: false, version: null, ruta: null, logueado: false },
         ollama: { url: "", responde: false, modelos: [] },
-        motor: { vivo: false, url: "", proceso: false },
+        motor: { vivo: false, url: "", proceso: false, via: null },
         error: String((e as Error)?.message ?? e),
       }) + "\n",
     );

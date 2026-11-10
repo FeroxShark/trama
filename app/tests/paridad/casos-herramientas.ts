@@ -85,6 +85,7 @@ const te = (nombre: string, args: string[], preparar?: Caso["preparar"], env?: C
     HILOS_DSH: path.join(c.aux, "no-hay-dsh"),
     HILOS_OPENCODE: path.join(c.aux, "no-hay-opencode"),
     TRAMA_PUERTO: "1",
+    HILOS_LOCAL: path.join(c.aux, "no-hay-socket"),
     OLLAMA_HOST: "127.0.0.1:1",
     XDG_DATA_HOME: path.join(c.home, ".local", "share"),
     CLAUDE_CONFIG_DIR: path.join(c.home, ".claude"),

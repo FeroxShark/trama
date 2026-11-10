@@ -6,11 +6,11 @@
 // Sin `electron`: lo prueba tests/local.test.ts.
 import { chmodSync, lstatSync, mkdirSync, readFileSync, rmSync } from "node:fs";
 import http from "node:http";
-import net from "node:net";
 import os from "node:os";
 import path from "node:path";
 import { crearCanal, negar, type OpcionesCanal } from "./remoto.js";
 import { errorT } from "./errores.ts";
+import { hayMotor } from "./motor-socket.ts";
 import { carpetaMotor, esPipe, esWindows, socketMotor } from "./rutas.ts";
 
 /**
@@ -52,21 +52,7 @@ export function prepararCarpeta(carpeta: string) {
   if ((st.mode & 0o777) !== 0o700) chmodSync(carpeta, 0o700);
 }
 
-/** ¿Hay alguien escuchando en ese socket? Un archivo que quedó de un motor que murió no contesta. */
-export function hayMotor(sock: string, ms = 1000): Promise<boolean> {
-  return new Promise((ok) => {
-    const c = net.connect(sock);
-    const fin = (si: boolean) => {
-      clearTimeout(t);
-      c.destroy();
-      ok(si);
-    };
-    // Un socket que acepta y no contesta igual es de alguien: mejor no pisarlo.
-    const t = setTimeout(() => fin(true), ms);
-    c.once("connect", () => fin(true));
-    c.once("error", () => fin(false));
-  });
-}
+export { hayMotor };
 
 /** El arranque de un proceso (`/proc/<pid>/stat`, campo 22): con el pid, dice que es éste y no otro que reusó el número. */
 export function arranqueDe(pid: number): string | null {

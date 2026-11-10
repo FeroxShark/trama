@@ -10,7 +10,7 @@
 #  "dsh":{"instalado":bool,"version":str|null,"ruta":str|null,"claves":{"opencode":bool,"deepseek":bool}},
 #  "opencode":{"instalado":bool,"version":str|null,"ruta":str|null,"logueado":bool},
 #  "ollama":{"url":str,"responde":bool,"modelos":[str]},
-#  "motor":{"vivo":bool,"url":str}}   (+ "proceso":bool, extra: el proceso existe aunque no atienda HTTP)
+#  "motor":{"vivo":bool,"url":str}}   (+ "proceso":bool, extra: el proceso existe aunque no atienda; "via":"socket"|"127.0.0.1:<puerto>"|null, por dónde contestó)
 #
 # Sólo biblioteca estándar. Nunca falla por algo que no encuentra: lo que falta sale en false.
 # Las keys de dsh (OPENCODE_API_KEY, DEEPSEEK_API_KEY) se miran en el entorno y en ~/.config/trama/claves.env (TRAMA_CLAVES lo redirige):
@@ -22,8 +22,10 @@ import json
 import os
 import re
 import shutil
+import socket
 import subprocess
 import sys
+import tempfile
 import urllib.request
 
 HOME = os.path.expanduser("~")
@@ -204,10 +206,40 @@ def ollama():
     return {"url": url, "responde": cod == 200, "modelos": nombres}
 
 
+def socket_motor():
+    """El socket del motor: <carpeta>/motor.sock (rutas.ts: carpetaMotor y socketMotor)."""
+    carpeta = os.environ.get("HILOS_LOCAL")
+    if not carpeta:
+        base = os.environ.get("XDG_RUNTIME_DIR") or os.path.join(tempfile.gettempdir(), "trama-%d" % os.getuid())
+        carpeta = os.path.join(base, "trama")
+    return os.path.join(carpeta, "motor.sock")
+
+
+def hay_motor(sock, seg=1.0):
+    """¿Alguien escucha en el socket? Un archivo que quedó de un motor que murió no contesta; uno que acepta y calla, sí."""
+    s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    s.settimeout(seg)
+    try:
+        s.connect(sock)
+        return True
+    except socket.timeout:
+        return True
+    except Exception:
+        return False
+    finally:
+        s.close()
+
+
 def motor():
-    url = "http://127.0.0.1:%s" % (os.environ.get("TRAMA_PUERTO") or "8791")
-    cod, _ = pedir(url + "/")
-    # `proceso`: el motor (su `dueno` en ~/.local/state/hilos) está vivo aunque no atienda HTTP todavía.
+    host = "127.0.0.1:%s" % (os.environ.get("TRAMA_PUERTO") or "8791")
+    url = "http://" + host
+    # `via`: por dónde contestó. Primero el socket (el motor de siempre); el loopback sólo existe con TRAMA_LOCAL=1.
+    via = None
+    if hay_motor(socket_motor()):
+        via = "socket"
+    elif pedir(url + "/")[0] is not None:
+        via = host
+    # `proceso`: el motor (su `dueno` en ~/.local/state/hilos) está vivo aunque no atienda todavía.
     proceso = False
     try:
         with open(os.path.join(os.environ.get("HILOS_STATE") or os.path.join(HOME, ".local", "state", "hilos"), "dueno")) as f:
@@ -215,7 +247,7 @@ def motor():
         proceso = True
     except Exception:
         pass
-    return {"vivo": cod is not None, "url": url, "proceso": proceso}
+    return {"vivo": via is not None, "url": url, "proceso": proceso, "via": via}
 
 
 def main():
@@ -233,7 +265,8 @@ def main():
     print("opencode instalado: %s%s · sesión: %s" % (si(oc["instalado"]), " (%s)" % oc["version"] if oc["version"] else "", si(oc["logueado"])))
     o = est["ollama"]
     print("ollama   %s · responde: %s · modelos: %s" % (o["url"], si(o["responde"]), ", ".join(o["modelos"]) or "ninguno"))
-    print("motor    %s · vivo: %s" % (est["motor"]["url"], si(est["motor"]["vivo"])))
+    m = est["motor"]
+    print("motor    %s · vivo: %s%s" % (m["url"], si(m["vivo"]), " (%s)" % m["via"] if m["via"] else ""))
     return 0
 
 
@@ -244,5 +277,5 @@ if __name__ == "__main__":
         print(json.dumps({"version": 1, "claude": {"instalado": False, "logueado": False}, "agy": {"instalado": False, "logueado": False},
                           "dsh": {"instalado": False, "version": None, "ruta": None, "claves": {"opencode": False, "deepseek": False}},
                           "opencode": {"instalado": False, "version": None, "ruta": None, "logueado": False},
-                          "ollama": {"url": "", "responde": False, "modelos": []}, "motor": {"vivo": False, "url": "", "proceso": False}, "error": str(e)}))
+                          "ollama": {"url": "", "responde": False, "modelos": []}, "motor": {"vivo": False, "url": "", "proceso": False, "via": None}, "error": str(e)}))
         sys.exit(0)
