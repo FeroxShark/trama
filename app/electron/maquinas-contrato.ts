@@ -277,6 +277,7 @@ export const RUTAS: Readonly<Record<string, Ruta>> = {
   // La pantalla de la PC (ventana-canales.ts, bench.ts): no existen en un motor sin ventana.
   "app:salir": "local",
   "app:pararTodo": "local",
+  "lider:ocupados": "local",
   "bandeja:textos": "local",
   "espera:estado": "local",
   "espera:notificar": "local",
