@@ -1,5 +1,5 @@
 // `pa --bien <id> si|no|parcial` y `pa --bien-auto` (cmd_bien, cmd_bien_auto y reescribe_lineas de motor/bin/pa): las columnas `bien`,
-// `integrada` y `retrabajo` de medicion.tsv. Mismas salidas, mismos códigos y mismo archivo que el bash; el awk de allá pasa a
+// `integrada`, `retrabajo` y `pisado` de medicion.tsv. Mismas salidas, mismos códigos y mismo archivo que el bash; el awk de allá pasa a
 // código (con sus reglas de comparación de números y de campos), el flock al lock de base/lock y `git` a base/git.
 import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
@@ -135,39 +135,105 @@ export async function cmdBien(pa: Pa, args: string[]): Promise<number> {
 /**
  * `reescribe_lineas`: ¿la integración a2..b2 cambió o borró alguna línea que escribieron los commits de a1..b1? (en el repo r).
  * 0 = sí, 1 = no, 2 = no se puede saber (falta algún commit).
+ *
+ * El cache (opcional) guarda lo que git responde: los commits de una corrida, los archivos que tocó y quién escribió las
+ * líneas que otra integración cambió. Sin él cada par de corridas repetía los mismos `git diff` y `git blame` (el cálculo de una
+ * tanda entera son decenas de miles); con él cada cosa se mira una vez. Los resultados son los mismos.
  */
-export async function reescribeLineas(r: string, a1: string, b1: string, a2: string, b2: string, env: NodeJS.ProcessEnv): Promise<0 | 1 | 2> {
-  const g = (args: string[]) => git(["-C", r, ...args], { env });
-  for (const x of [a1, b1, a2, b2]) if ((await g(["cat-file", "-e", `${x}^{commit}`])).codigo !== 0) return 2;
-  const rl = await g(["rev-list", `${a1}..${b1}`]);
-  if (rl.codigo !== 0) return 2;
-  const mios = new Set(rl.salida.split("\n").filter(Boolean));
+export interface CacheGit {
+  /** `${repo}\0${sha}` → si ese commit existe. */
+  existe: Map<string, boolean>;
+  /** `${repo}\0${a}\0${b}` → los commits de a..b (null si no se pudo mirar). */
+  commits: Map<string, Set<string> | null>;
+  /** `${repo}\0${a}\0${b}` → los archivos que cambió a..b. */
+  archivos: Map<string, string[]>;
+  /** `${repo}\0${a}\0${b}\0${archivo}` → los commits que escribieron las líneas que b cambió en ese archivo (null si no se pudo). */
+  autores: Map<string, Set<string> | null>;
+}
+
+/** Un cache nuevo (el de una tanda de `pa --bien-auto`). */
+export function nuevoCacheGit(): CacheGit {
+  return { existe: new Map(), commits: new Map(), archivos: new Map(), autores: new Map() };
+}
+const clave = (...partes: string[]) => partes.join("\u0000");
+
+/** ¿Existe ese commit? (cacheado: `git cat-file -e`). */
+async function existeCommit(r: string, sha: string, env: NodeJS.ProcessEnv, c: CacheGit): Promise<boolean> {
+  const k = clave(r, sha);
+  const guardado = c.existe.get(k);
+  if (guardado !== undefined) return guardado;
+  const ok = (await git(["-C", r, "cat-file", "-e", `${sha}^{commit}`], { env })).codigo === 0;
+  c.existe.set(k, ok);
+  return ok;
+}
+
+/** Los commits de a..b (null si falta alguno o el rev-list falla). */
+async function commitsDe(r: string, a: string, b: string, env: NodeJS.ProcessEnv, c: CacheGit): Promise<Set<string> | null> {
+  const k = clave(r, a, b);
+  const guardado = c.commits.get(k);
+  if (guardado !== undefined) return guardado;
+  let salida: Set<string> | null = null;
+  const rl = await git(["-C", r, "rev-list", `${a}..${b}`], { env });
+  if (rl.codigo === 0) salida = new Set(rl.salida.split("\n").filter(Boolean));
+  c.commits.set(k, salida);
+  return salida;
+}
+
+/** Los archivos que cambió a..b (`git diff --name-only`). */
+async function archivosDe(r: string, a: string, b: string, env: NodeJS.ProcessEnv, c: CacheGit): Promise<string[]> {
+  const k = clave(r, a, b);
+  const guardado = c.archivos.get(k);
+  if (guardado !== undefined) return guardado;
+  const d = await git(["-C", r, "-c", "core.quotePath=false", "diff", "--name-only", a, b], { env });
+  const salida = d.salida.split("\n").filter(Boolean);
+  c.archivos.set(k, salida);
+  return salida;
+}
+
+/**
+ * Los commits que escribieron las líneas que la integración a..b cambió en el archivo f: el `git blame` de las líneas
+ * agregadas, en el estado anterior (a). Null si no hay líneas agregadas o el blame falla.
+ */
+async function autoresDe(r: string, a: string, b: string, f: string, env: NodeJS.ProcessEnv, c: CacheGit): Promise<Set<string> | null> {
+  const k = clave(r, a, b, f);
+  const guardado = c.autores.get(k);
+  if (guardado !== undefined) return guardado;
+  const d = await git(["--literal-pathspecs", "-C", r, "diff", "-U0", a, b, "--", f], { env });
+  const rangos: string[] = [];
+  for (const l of d.salida.split("\n")) {
+    if (!l.startsWith("@@ ")) continue;
+    const campo2 = l.split(/[ \t]+/)[1] ?? "";
+    const [p1, p2] = campo2.split(",");
+    const s = mas0((p1 ?? "").slice(1));
+    const cant = p2 === undefined || p2 === "" ? 1 : mas0(p2);
+    if (cant > 0) rangos.push(`-L${s},+${cant}`);
+  }
+  let autores: Set<string> | null = null;
+  if (rangos.length) {
+    const bl = await git(["--literal-pathspecs", "-C", r, "blame", "--porcelain", ...rangos, a, "--", f], { env });
+    if (bl.codigo === 0) {
+      autores = new Set<string>();
+      for (const l of bl.salida.split("\n")) {
+        const m = /^([0-9a-f]{40}) [0-9]/.exec(l);
+        if (m) autores.add(m[1]!);
+      }
+    }
+  }
+  c.autores.set(k, autores);
+  return autores;
+}
+
+export async function reescribeLineas(r: string, a1: string, b1: string, a2: string, b2: string, env: NodeJS.ProcessEnv, cache?: CacheGit): Promise<0 | 1 | 2> {
+  const c = cache ?? nuevoCacheGit();
+  for (const x of [a1, b1, a2, b2]) if (!(await existeCommit(r, x, env, c))) return 2;
+  const mios = await commitsDe(r, a1, b1, env, c);
+  if (!mios) return 2;
   if (!mios.size) return 1;
-  const nombres = async (a: string, b: string) => {
-    const d = await g(["-c", "core.quotePath=false", "diff", "--name-only", a, b]);
-    return d.salida.split("\n").filter(Boolean);
-  };
-  const dos = new Set(await nombres(a2, b2));
-  const comunes = [...new Set(await nombres(a1, b1))].filter((n) => dos.has(n)).sort();
+  const dos = new Set(await archivosDe(r, a2, b2, env, c));
+  const comunes = [...new Set(await archivosDe(r, a1, b1, env, c))].filter((n) => dos.has(n)).sort();
   for (const f of comunes) {
-    const d = await git(["--literal-pathspecs", "-C", r, "diff", "-U0", a2, b2, "--", f], { env });
-    const rangos: string[] = [];
-    for (const l of d.salida.split("\n")) {
-      if (!l.startsWith("@@ ")) continue;
-      const campo2 = l.split(/[ \t]+/)[1] ?? "";
-      const [p1, p2] = campo2.split(",");
-      const s = mas0((p1 ?? "").slice(1));
-      const c = p2 === undefined || p2 === "" ? 1 : mas0(p2);
-      if (c > 0) rangos.push(`-L${s},+${c}`);
-    }
-    if (!rangos.length) continue;
-    const b = await git(["--literal-pathspecs", "-C", r, "blame", "--porcelain", ...rangos, a2, "--", f], { env });
-    if (b.codigo !== 0) continue;
-    const autores = new Set<string>();
-    for (const l of b.salida.split("\n")) {
-      const m = /^([0-9a-f]{40}) [0-9]/.exec(l);
-      if (m) autores.add(m[1]!);
-    }
+    const autores = await autoresDe(r, a2, b2, f, env, c);
+    if (!autores) continue;
     if ([...autores].some((a) => mios.has(a))) return 0;
   }
   return 1;
@@ -178,6 +244,8 @@ interface FilaHilo {
   origen: string;
   inicio: string;
   rama: string;
+  /** El texto de la tarea (para saber si una corrida nombra a otra). */
+  tarea: string;
 }
 interface FilaInteg {
   id: string;
@@ -216,11 +284,12 @@ function leerHilos(state: string): FilaHilo[] {
       if (t === null) continue;
       const ls = registros(t);
       if (!ls.length) continue; // awk no abre un registro en un archivo vacío
-      const h: FilaHilo = { id: n.replace(/\.hilo$/, ""), origen: "", inicio: "", rama: "" };
+      const h: FilaHilo = { id: n.replace(/\.hilo$/, ""), origen: "", inicio: "", rama: "", tarea: "" };
       for (const l of ls) {
         if (l.startsWith("origen=")) h.origen = l.slice(7);
         else if (l.startsWith("inicio=")) h.inicio = l.slice(7);
         else if (l.startsWith("rama=")) h.rama = l.slice(5);
+        else if (l.startsWith("tarea=")) h.tarea = l.slice(6);
       }
       salida.push(h);
     }
@@ -281,7 +350,8 @@ export async function cmdBienAuto(pa: Pa): Promise<number> {
   const org = new Map<string, string>();
   for (const h of hilos) org.set(h.id, h.origen);
 
-  // Retrabajo por líneas: sólo las integradas que todavía tienen una fila con `retrabajo` vacío (header de hoy o el del archivo).
+  // Retrabajo por líneas: las integradas cuya ventana de 48 h sigue abierta (alguien puede pisarlas todavía) y las
+  // que ya tienen veredicto (o no) con la ventana cerrada (el veredicto final, que se recalcula).
   const medLs = registros(medTexto);
   const col = (h: string): Record<string, number> => {
     const c: Record<string, number> = {};
@@ -293,21 +363,42 @@ export async function cmdBienAuto(pa: Pa): Promise<number> {
   for (const l of medLs.slice(1)) {
     const c = l.split("\t");
     if (c.length < 13 || esUno(c[5])) continue;
-    const cr = cH.retrabajo ?? 0;
-    if (cr && cr <= c.length && c[cr - 1] !== "") continue;
     const k = org.get(c[1]!) || c[1]!;
-    if (acc.get(k) === "integrada") falta.add(k);
+    if (acc.get(k) !== "integrada") continue;
+    const e = epi.get(k);
+    if (e === undefined) continue;
+    const abierto = ahora <= e + ven;
+    const cp = cH.pisado ?? 0;
+    const pis = cp && cp <= c.length ? c[cp - 1]! : "";
+    // Con la columna `pisado` puesta el veredicto ya está; sin ella (un archivo viejo) se recalcula lo que tenga retrabajo=1.
+    const cr = cH.retrabajo ?? 0;
+    const ret = cr && cr <= c.length ? c[cr - 1]! : "";
+    if (abierto || pis === "" || (cp === 0 && ret === "1")) falta.add(k);
   }
-  const par: { k: string; pj: string; a1: string; b1: string; a2: string; b2: string }[] = [];
+  const par: { k: string; j: string; pj: string; a1: string; b1: string; a2: string; b2: string }[] = [];
   for (const k of falta) {
     const m = js[ult.get(k)!]!;
     if (m.a === m.b) continue;
-    for (const j of js) if (j.id !== k && j.pr === m.pr && j.ep > m.ep && j.ep <= m.ep + ven && j.a !== j.b) par.push({ k, pj: m.pr, a1: m.a, b1: m.b, a2: j.a, b2: j.b });
+    for (const j of js) if (j.id !== k && j.pr === m.pr && j.ep > m.ep && j.ep <= m.ep + ven && j.a !== j.b) par.push({ k, j: j.id, pj: m.pr, a1: m.a, b1: m.b, a2: j.a, b2: j.b });
   }
+  // La corrida que reescribió las líneas de otra: retrabajo (arrancó cuando la otra ya estaba integrada, o su tarea
+  // la nombra) o pisado (ya corría en paralelo cuando la otra se integró). "?" = no se puede saber (no hay .hilo).
+  const hiloDe = new Map(hilos.map((h) => [h.id, h] as const));
+  const claseDe = (k: string, j: string): "retrabajo" | "pisado" | "?" => {
+    const hj = hiloDe.get(j);
+    if (!hj) return "?";
+    if (hj.tarea.includes(k)) return "retrabajo";
+    const arranque = mas0(hj.inicio);
+    if (arranque === 0) return "?";
+    return arranque >= (epi.get(k) ?? 0) ? "retrabajo" : "pisado";
+  };
   const rutaDe = new Map<string, string>();
   const visto = new Map<string, string>();
+  const pisado = new Map<string, string>();
+  const cache = nuevoCacheGit();
   for (const p of par) {
-    if (!p.k || visto.get(p.k) === "1") continue;
+    if (!p.k) continue;
+    if (visto.get(p.k) === "1") continue; // ya sabemos que es retrabajo
     if (!rutaDe.has(p.pj)) {
       let r = "";
       try {
@@ -320,16 +411,21 @@ export async function cmdBienAuto(pa: Pa): Promise<number> {
     }
     const r = rutaDe.get(p.pj)!;
     let rc: 0 | 1 | 2 = 2;
-    if (r && esDirectorio(r)) rc = await reescribeLineas(r, p.a1, p.b1, p.a2, p.b2, pa.env as NodeJS.ProcessEnv);
-    if (rc === 0) visto.set(p.k, "1");
-    else if (rc === 2 && !visto.has(p.k)) visto.set(p.k, "?");
+    if (r && esDirectorio(r)) rc = await reescribeLineas(r, p.a1, p.b1, p.a2, p.b2, pa.env as NodeJS.ProcessEnv, cache);
+    if (rc === 0) {
+      const clase = claseDe(p.k, p.j);
+      if (clase === "retrabajo") visto.set(p.k, "1");
+      else if (clase === "pisado") {
+        if (visto.get(p.k) !== "1") pisado.set(p.k, "1");
+      } else if (!visto.has(p.k) && !pisado.has(p.k)) visto.set(p.k, "?");
+    } else if (rc === 2 && !visto.has(p.k) && !pisado.has(p.k)) visto.set(p.k, "?");
   }
 
   let cuenta = "";
   try {
     cuenta = await conLock(pa, f, () => {
       headerAlDia(f);
-      return reescribirMedicion(f, { acc, ep, epi, hilos, visto, lim, ahora, ven });
+      return reescribirMedicion(f, { acc, ep, epi, hilos, visto, pisado, lim, ahora, ven });
     });
   } catch {
     pa.io.err(`pa: --bien-auto no pudo reescribir ${f}.\n`);
@@ -358,7 +454,10 @@ interface Datos {
   ep: Map<string, number>;
   epi: Map<string, number>;
   hilos: FilaHilo[];
+  /** Por corrida: "1" = el retrabajo es de otra corrida que la reescribió después de integrarla; "?" = no se pudo mirar. */
   visto: Map<string, string>;
+  /** Por corrida: "1" = otra corrida que ya corría en paralelo le reescribió las líneas (pisado, no retrabajo). */
+  pisado: Map<string, string>;
   lim: number;
   ahora: number;
   ven: number;
@@ -366,7 +465,7 @@ interface Datos {
 
 /** El awk principal de cmd_bien_auto sobre medicion.tsv (ya con el header al día): reescribe el archivo y devuelve el resumen. */
 function reescribirMedicion(f: string, d: Datos): string {
-  const { acc, ep, epi, visto, lim, ahora, ven } = d;
+  const { acc, ep, epi, visto, pisado, lim, ahora, ven } = d;
   const ini = new Map<string, string>();
   const rama = new Map<string, string>();
   const seg = new Map<string, string>();
@@ -387,6 +486,7 @@ function reescribirMedicion(f: string, d: Datos): string {
   const salida: string[] = [];
   let ci = 0;
   let cr = 0;
+  let cp = 0;
   const n: Record<string, number> = { si: 0, parcial: 0, no: 0 };
   let t = 0;
   let m = 0;
@@ -396,6 +496,7 @@ function reescribirMedicion(f: string, d: Datos): string {
       linea.split("\t").forEach((k, i) => (c[k] = i + 1));
       ci = c.integrada ?? 0;
       cr = c.retrabajo ?? 0;
+      cp = c.pisado ?? 0;
       salida.push(linea);
       return;
     }
@@ -425,8 +526,10 @@ function reescribirMedicion(f: string, d: Datos): string {
     if (ci && cr && !esUno(campos[5])) {
       const vi = ci <= campos.length ? campos[ci - 1]! : "";
       const vr = cr <= campos.length ? campos[cr - 1]! : "";
+      const vp = cp && cp <= campos.length ? campos[cp - 1]! : "";
       let ni = vi;
       let nr = vr;
+      let np = vp;
       if (cub) {
         const a = acc.get(k);
         if (a === "descartada") {
@@ -436,16 +539,37 @@ function reescribirMedicion(f: string, d: Datos): string {
           nr = "1";
         } else if (a === "integrada") {
           ni = "1";
-          if (vr === "") {
-            if (visto.get(k) === "1" || rs.has(k)) nr = "1";
-            else if (visto.get(k) !== "?" && ahora > (epi.get(k) ?? 0) + ven) nr = "0";
+          // El retrabajo es propio si alguien la retomó con --seguir después de integrarla, si se revirtió, o si
+          // otra corrida que arrancó después de integrarla (o cuya tarea la nombra) le reescribió las líneas. Si la
+          // que la pisó ya corría en paralelo, no es retrabajo: va a la columna `pisado`.
+          const cerrado = ahora > (epi.get(k) ?? 0) + ven;
+          const v = visto.get(k);
+          const esPisado = pisado.get(k) === "1";
+          const sabe = v !== "?";
+          if (v === "1" || rs.has(k)) {
+            if (vr === "") nr = "1";
+            // un 1 viejo no se baja, salvo que ahora sepamos que fue el pisado de otra corrida en paralelo
+            else if (esPisado && cerrado && !rs.has(k)) {
+              nr = "0";
+              np = "1";
+            }
+          } else if (esPisado) {
+            if (cerrado) {
+              nr = "0";
+              np = "1";
+            }
+          } else if (cerrado && sabe) {
+            if (vr === "") nr = "0";
           }
+          // La columna `pisado` marca el veredicto final: con la ventana cerrada no cambia más (1 = pisada, 0 = no).
+          if (cp && cerrado && sabe && np === "") np = esPisado ? "1" : "0";
         }
       } else if (!acc.has(k) && vi === "" && (rama.get(id) ?? "") !== "" && i0 > 0 && ahora > i0 + ven) ni = "0";
-      if (ni !== vi || nr !== vr) {
-        while (campos.length < Math.max(ci, cr)) campos.push("");
+      if (ni !== vi || nr !== vr || np !== vp) {
+        while (campos.length < Math.max(ci, cr, cp)) campos.push("");
         campos[ci - 1] = ni;
         campos[cr - 1] = nr;
+        if (cp) campos[cp - 1] = np;
         m++;
         cambio = true;
       }

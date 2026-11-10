@@ -72,7 +72,9 @@ interface Celda {
   n: number;
   dato: number;
   ok: number;
+  pis: number;
   pct: string;
+  pctPis: string;
   med: string;
   costo: string;
   /** El US$ por éxito: el costo medio dividido por la tasa de acierto (integrada sin retrabajo). */
@@ -99,7 +101,7 @@ const esNum = (x: string) => /^[0-9]+(\.[0-9]+)?([eE][-+]?[0-9]+)?$/.test(x);
 const conDato = (i: string, r: string) => i === "0" || (i === "1" && (r === "0" || r === "1"));
 
 function celdasPor(texto: string, desde: string, por: string): Celda[] {
-  const g = new Map<string, { t: string; m: string; e: string; cu: string; n: number; dato: number; ok: number; tur: number[]; usd: number; nu: number; nc: number; comp: number }>();
+  const g = new Map<string, { t: string; m: string; e: string; cu: string; n: number; dato: number; ok: number; pis: number; tur: number[]; usd: number; nu: number; nc: number; comp: number }>();
   for (const v of filasDe(texto, desde)) {
     let t = v(por);
     if (t === "") t = "~";
@@ -109,13 +111,14 @@ function celdasPor(texto: string, desde: string, por: string): Celda[] {
     if (cu === "claude" || cu === "google" || cu === "chatgpt") cu = "";
     const k = [t, v("modelo"), e, cu].join("\t");
     let a = g.get(k);
-    if (!a) g.set(k, (a = { t, m: v("modelo"), e, cu, n: 0, dato: 0, ok: 0, tur: [], usd: 0, nu: 0, nc: 0, comp: 0 }));
+    if (!a) g.set(k, (a = { t, m: v("modelo"), e, cu, n: 0, dato: 0, ok: 0, pis: 0, tur: [], usd: 0, nu: 0, nc: 0, comp: 0 }));
     a.n++;
     const i = v("integrada");
     const r = v("retrabajo");
     if (conDato(i, r)) {
       a.dato++;
       if (i === "1" && r === "0") a.ok++;
+      if (v("pisado") === "1") a.pis++;
     }
     let x = v("num_turns");
     if (esNum(x)) a.tur.push(Number(x));
@@ -143,7 +146,9 @@ function celdasPor(texto: string, desde: string, por: string): Celda[] {
       n: a.n,
       dato: a.dato,
       ok: a.ok,
+      pis: a.pis,
       pct: a.dato ? fijo((100 * a.ok) / a.dato, 0) : "",
+      pctPis: a.dato ? fijo((100 * a.pis) / a.dato, 0) : "",
       med,
       costo: a.nu ? fijo(a.usd / a.nu, 2) : "",
       exito: a.nu && a.ok ? fijo(a.usd / a.nu / (a.ok / a.dato), 2) : "",
@@ -335,6 +340,8 @@ export function sustitucionesDe(pa: Pa, dias: number): Sustitucion[] {
 }
 
 function salidaPor(pa: Pa, dias: string, desde: string, json: boolean, por: string, celdas: Celda[], frenos: FrenoGrupo[], sustituciones: Sustitucion[]): number {
+  // La columna `pisado` (la pisó otra corrida en paralelo) sólo aparece si hay alguna corrida pisada en la ventana.
+  const conPisado = celdas.some((c) => c.pis > 0);
   if (json) {
     pa.io.out(
       `${jsonJq({
@@ -351,6 +358,7 @@ function salidaPor(pa: Pa, dias: string, desde: string, json: boolean, por: stri
           con_dato: n(String(c.dato)),
           ok: n(String(c.ok)),
           pct_ok: n(c.pct),
+          ...(conPisado ? { pisado: n(String(c.pis)), pct_pisado: n(c.pctPis) } : {}),
           turnos_mediana: n(c.med),
           costo_medio_usd: n(c.costo),
           pct_compacto: n(c.comp),
@@ -366,11 +374,20 @@ function salidaPor(pa: Pa, dias: string, desde: string, json: boolean, por: stri
     pa.io.out(`pa: ninguna corrida en los últimos ${dias} días.\n`);
     return 0;
   }
-  pa.io.out("últimos " + dias + " días · ok% = integrada sin retrabajo, sobre las que ya tienen dato (pa --bien-auto) · turnos = mediana · US$ = costo medio · US$/éxito = costo por cada corrida integrada sin retrabajo · comp% = compactaron\n");
-  const fila = (a: string[]) => `${rellenar(a[0]!, 15)} ${rellenar(a[1]!, 18)} ${rellenar(a[2]!, 8)} ${izq(a[3]!, 4)} ${izq(a[4]!, 5)} ${izq(a[5]!, 5)} ${izq(a[6]!, 7)} ${izq(a[7]!, 8)} ${izq(a[8]!, 9)} ${izq(a[9]!, 6)}\n`;
-  pa.io.out(fila([por, "modelo", "effort", "n", "dato", "ok%", "turnos", "US$", "US$/éxito", "comp%"]));
+  pa.io.out(
+    "últimos " +
+      dias +
+      " días · ok% = integrada sin retrabajo, sobre las que ya tienen dato (pa --bien-auto)" +
+      (conPisado ? " · pis% = pisadas por otra corrida en paralelo" : "") +
+      " · turnos = mediana · US$ = costo medio · US$/éxito = costo por cada corrida integrada sin retrabajo · comp% = compactaron\n",
+  );
+  const anchos = conPisado ? [15, 18, 8, 4, 5, 5, 5, 7, 8, 9, 6] : [15, 18, 8, 4, 5, 5, 7, 8, 9, 6];
+  const fila = (a: string[]) => a.map((x, i) => (i < 3 ? rellenar(x, anchos[i]!) : izq(x, anchos[i]!))).join(" ") + "\n";
+  pa.io.out(fila(conPisado ? [por, "modelo", "effort", "n", "dato", "ok%", "pis%", "turnos", "US$", "US$/éxito", "comp%"] : [por, "modelo", "effort", "n", "dato", "ok%", "turnos", "US$", "US$/éxito", "comp%"]));
   for (const c of celdas) {
-    pa.io.out(fila([c.tipo === "~" ? "?" : c.tipo, c.cuenta ? `${c.modelo}@${c.cuenta}` : c.modelo, c.effort, String(c.n), String(c.dato), c.pct || "-", c.med || "-", c.costo || "-", c.exito || "-", c.comp || "-"]));
+    const base = [c.tipo === "~" ? "?" : c.tipo, c.cuenta ? `${c.modelo}@${c.cuenta}` : c.modelo, c.effort, String(c.n), String(c.dato), c.pct || "-"];
+    const resto = [c.med || "-", c.costo || "-", c.exito || "-", c.comp || "-"];
+    pa.io.out(fila(conPisado ? [...base, c.pctPis || "-", ...resto] : [...base, ...resto]));
   }
   if (frenos.length) {
     pa.io.out(`frenos por proyecto · últimos ${dias} días · los parecidos van juntos; top 3 por proyecto\n`);

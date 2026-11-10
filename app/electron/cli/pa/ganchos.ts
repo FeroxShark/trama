@@ -12,7 +12,9 @@ import { isoSegundos, tableroMudo } from "./ramas.ts";
 import { contarCompactaciones, decisionDe, decisionEsNada, frenoDe, leerSalida, sigueDe, textoResultado, transcriptDe } from "./resultado-lanzar.ts";
 
 export const MEDICION_HEADER_VIEJO = "fecha\tid\tproyecto\tmodelo\teffort\tleer\tseguir\tis_error\tnum_turns\tduration_s\ttokens\tcosto_usd\tbien";
-export const MEDICION_HEADER = `${MEDICION_HEADER_VIEJO}\tplan\tcompactaciones\tautocompact\torigen\tcache_read\tcache_creation\tephemeral_1h\tephemeral_5m\ttipo\tintegrada\tretrabajo\tcuenta\tfase\ttarea\trubrica\trub_fila\trub_modelo\trub_effort\tfreno\tespera_s`;
+// La última columna es `pisado`: 1 = otra corrida que ya corría en paralelo cuando esta se integró le reescribió
+// las líneas (no es retrabajo de esta). Va al final para que un archivo viejo (sin la columna) siga leyéndose.
+export const MEDICION_HEADER = `${MEDICION_HEADER_VIEJO}\tplan\tcompactaciones\tautocompact\torigen\tcache_read\tcache_creation\tephemeral_1h\tephemeral_5m\ttipo\tintegrada\tretrabajo\tcuenta\tfase\ttarea\trubrica\trub_fila\trub_modelo\trub_effort\tfreno\tespera_s\tpisado`;
 export const ESTADO_HEADER = "subtarea\tintento\tid\tmodelo\teffort\texit\tgate\tusd";
 
 type Obj = Record<string, unknown>;
