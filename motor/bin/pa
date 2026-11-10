@@ -3246,7 +3246,7 @@ cmd_rinde() {
   (( rub )) && { cmd_rinde_rubrica "$dias" "$json"; return $?; }
   local MEDICION="$STATE/medicion.tsv" desde celdas=""
   desde="$(date -d "-$dias days" -Iseconds)"
-  # tipo \t modelo \t effort \t n \t dato \t ok \t ok% \t mediana de turnos \t costo medio \t % compactó
+  # tipo \t modelo \t effort \t n \t dato \t ok \t ok% \t mediana de turnos \t costo medio \t US$ por éxito \t % compactó
   # (`~` = sin tipo, para que ordene al final; se muestra `?`)
   [[ -f "$MEDICION" ]] && celdas="$(awk -F'\t' -v OFS='\t' -v desde="$desde" -v por="$por" '
     function v(n) { return ((n in c) && c[n] <= NF) ? $c[n] : "" }
@@ -3272,7 +3272,8 @@ cmd_rinde() {
           if (tur[k, b] < tur[k, a]) { s = tur[k, a]; tur[k, a] = tur[k, b]; tur[k, b] = s }
         med = (m == 0) ? "" : (m % 2 ? tur[k, (m + 1) / 2] : (tur[k, m / 2] + tur[k, m / 2 + 1]) / 2)
         print k, n[k], dato[k] + 0, ok[k] + 0, (dato[k] ? sprintf("%.0f", 100 * ok[k] / dato[k]) : ""), med, \
-          (nu[k] ? sprintf("%.2f", usd[k] / nu[k]) : ""), (nc[k] ? sprintf("%.0f", 100 * comp[k] / nc[k]) : "")
+          (nu[k] ? sprintf("%.2f", usd[k] / nu[k]) : ""), (nu[k] && ok[k] ? sprintf("%.2f", (usd[k] / nu[k]) / (ok[k] / dato[k])) : ""), \
+          (nc[k] ? sprintf("%.0f", 100 * comp[k] / nc[k]) : "")
       }
     }' "$MEDICION" | LC_ALL=C sort -t$'\t' -k1,1 -k2,2 -k3,3 -k4,4)"
   # Los FRENÓ de la ventana, por proyecto: los 3 grupos más frecuentes de cada uno (frenos_de). Van a la sección de abajo y al
@@ -3294,18 +3295,18 @@ cmd_rinde() {
                 | {($por): (if .[0] == "~" then "?" else .[0] end), modelo: .[1], effort: .[2],
                    cuenta: (if .[3] == "" then null else .[3] end),
                    n: (.[4] | n), con_dato: (.[5] | n), ok: (.[6] | n), pct_ok: (.[7] | n),
-                   turnos_mediana: (.[8] | n), costo_medio_usd: (.[9] | n), pct_compacto: (.[10] | n)}],
+                   turnos_mediana: (.[8] | n), costo_medio_usd: (.[9] | n), pct_compacto: (.[10] | n), usd_por_exito: (.[11] | n)}],
        frenos: $frenos} + (if ($sus | length) > 0 then {sustituciones: $sus} else {} end)' <<<"$celdas"
     return 0
   fi
   [[ -n "$celdas" ]] || { echo "pa: ninguna corrida en los últimos $dias días."; return 0; }
-  echo "últimos $dias días · ok% = integrada sin retrabajo, sobre las que ya tienen dato (pa --bien-auto) · turnos = mediana · US\$ = costo medio · comp% = compactaron"
-  printf '%-15s %-18s %-8s %4s %5s %5s %7s %8s %6s\n' "$por" modelo effort n dato 'ok%' turnos 'US$' 'comp%'
-  local t mo e cu n d o p tu us co
-  while IFS='|' read -r t mo e cu n d o p tu us co; do
+  echo "últimos $dias días · ok% = integrada sin retrabajo, sobre las que ya tienen dato (pa --bien-auto) · turnos = mediana · US\$ = costo medio · US\$/éxito = costo por cada corrida integrada sin retrabajo · comp% = compactaron"
+  printf '%-15s %-18s %-8s %4s %5s %5s %7s %8s %9s %6s\n' "$por" modelo effort n dato 'ok%' turnos 'US$' 'US$/éxito' 'comp%'
+  local t mo e cu n d o p tu us ex co
+  while IFS='|' read -r t mo e cu n d o p tu us ex co; do
     [[ "$t" == "~" ]] && t="?"
     [[ -n "$cu" ]] && mo="$mo@$cu"   # una cuenta que no es la de siempre
-    printf '%-15s %-18s %-8s %4s %5s %5s %7s %8s %6s\n' "$t" "$mo" "$e" "$n" "$d" "${p:--}" "${tu:--}" "${us:--}" "${co:--}"
+    printf '%-15s %-18s %-8s %4s %5s %5s %7s %8s %9s %6s\n' "$t" "$mo" "$e" "$n" "$d" "${p:--}" "${tu:--}" "${us:--}" "${ex:--}" "${co:--}"
   done < <(tr '\t' '|' <<<"$celdas")
   if [[ -n "$frenos" ]]; then
     echo "frenos por proyecto · últimos $dias días · los parecidos van juntos; top 3 por proyecto"
