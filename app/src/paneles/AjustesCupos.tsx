@@ -489,7 +489,7 @@ function ResumenChica({ s, plan, sinDatos }: { s: SuscripcionCupo | undefined; p
     <>
       {partes.map((p, i) => (
         <Fragment key={i}>
-          {i > 0 ? " · " : null}
+          {i > 0 ? " · " : null}
           {p}
         </Fragment>
       ))}
