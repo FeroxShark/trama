@@ -4,7 +4,7 @@
 // el mismo puesto y la misma rama, con sesión limpia, el modelo elegido y el resumen de la anterior como tarea.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
@@ -188,4 +188,52 @@ testPosix("recorrido entero con claude con guion: el --seguir-con cae en el mism
   assert.equal(campo(path.join(dir, `${id2}.corrida`), "puesto"), puesto1, "el mismo puesto");
   assert.equal(campo(path.join(dir, `${id2}.corrida`), "origen"), id1, "anotada como seguida de la primera");
   assert.equal(campo(path.join(dir, `${id2}.hilo`), "modelo"), "claude-haiku-5-5");
+});
+
+testPosix("--seguir en caché frío: la sesión nueva recibe el resumen de traspaso antes del pedido (en caliente retoma la sesión sin resumen)", async () => {
+  const s = sandbox();
+  const aux = path.join(s.raiz, "aux");
+  mkdirSync(aux, { recursive: true });
+  mkdirSync(path.join(s.raiz, "shim"), { recursive: true });
+  const log = path.join(s.raiz, "claude-argv.jsonl");
+  const respuesta = (result: string) => ({ json: { type: "result", subtype: "success", is_error: false, result, session_id: "@SID@", num_turns: 3, duration_ms: 1000, total_cost_usd: 0.1 } });
+  writeFileSync(path.join(aux, "guion.json"), JSON.stringify([respuesta("RESULTADO: uno.\nSIGUE: el test"), respuesta("RESULTADO: dos.\nSIGUE: nada"), respuesta("RESULTADO: tres.\nSIGUE: nada")]));
+  const shim = path.join(s.raiz, "shim", "claude");
+  writeFileSync(shim, `#!/bin/sh\nGUION_DIR='${aux}' GUION_PROY='${s.proyecto}' exec "${process.execPath}" "${GUION}" "$@"\n`);
+  chmodSync(shim, 0o755);
+  const env: Env = { ...s.env, PATH: `${path.join(s.raiz, "shim")}${path.delimiter}${s.env.PATH ?? ""}`, TRAMA_FALSO_LOG: log, PA_RAM_MIN_MB: "0" };
+  const BRIEF = "Objetivo: arreglar a.ts\nArchivos: a.ts\nListo cuando: pasa el test\nCómo verificar: npm test\nNo tocar: b.ts";
+  const dir = path.join(s.estado, "demo");
+
+  const io1 = captura();
+  assert.equal(await main(["demo", "--sin-jefe", "-m", "claude-sonnet-5-5", BRIEF], { ...env, PA_TS: "20261101-130000-1" }, io1, { ...depsReales, reparto: () => repartoFalso() }), 0, io1.e);
+  const id1 = readdirSync(dir).find((f) => f.endsWith(".corrida"))!.replace(/\.corrida$/, "");
+  const rt1 = readFileSync(path.join(dir, `${id1}.corrida`), "utf8").split("\n").find((l) => l.startsWith("ruta_trabajo="))!.slice("ruta_trabajo=".length);
+  const sid1 = readFileSync(path.join(dir, `${id1}.sid`), "utf8").trim();
+  const transcript = path.join(s.proj, escapar(rt1), `${sid1}.jsonl`);
+  mkdirSync(path.dirname(transcript), { recursive: true });
+  writeFileSync(transcript, `${TRANSCRIPT}\n`);
+  const argvs = () => readFileSync(log, "utf8").trim().split("\n").map((l) => (JSON.parse(l) as { args: string[] }).args);
+
+  // en caliente: retoma la sesión y no hay resumen
+  const io2 = captura();
+  assert.equal(await main(["demo", "--sin-jefe", "--seguir", "--id", id1, "Seguí con el test."], { ...env, PA_TS: "20261101-130000-2" }, io2, { ...depsReales, reparto: () => repartoFalso() }), 0, io2.e);
+  const caliente = argvs()[1]!;
+  assert.ok(caliente.includes("--resume"), "caliente: retoma la sesión");
+  assert.ok(!caliente.join("\n").includes("# Traspaso"), "caliente: sin resumen");
+
+  // en frío (la sesión pasó la hora): sesión nueva con el resumen y el pedido al final
+  const vieja = new Date(Date.now() - 3 * 3600 * 1000);
+  utimesSync(transcript, vieja, vieja);
+  const io3 = captura();
+  assert.equal(await main(["demo", "--sin-jefe", "--seguir", "--id", id1, "Cerrá el test de a.ts."], { ...env, PA_TS: "20261101-130000-3" }, io3, { ...depsReales, reparto: () => repartoFalso() }), 0, io3.e);
+  assert.match(io3.e, /caché frío/);
+  const frio = argvs()[2]!;
+  assert.ok(!frio.includes("--resume"), "frío: sesión nueva");
+  const texto = frio.join("\n");
+  assert.match(texto, /# Traspaso/);
+  assert.match(texto, /caché frío: sesión nueva/);
+  assert.match(texto, /Arreglá a\.ts del proyecto demo/, "lleva el pedido original de la sesión fría");
+  assert.match(texto, /- Falta: el test de a\.ts\./);
+  assert.ok(texto.indexOf("# Traspaso") < texto.indexOf("Cerrá el test de a.ts."), "el resumen va antes del pedido");
 });

@@ -16,6 +16,7 @@ import { prefijoDe, repartoProceso } from "./programas.ts";
 import { type DeProyecto, type Proyecto as ProyectoCli } from "./cli.ts";
 import { argsHijo, lanzarAsync } from "./async.ts";
 import { armarActualizar } from "./auditar.ts";
+import { armarSeguirCon } from "./seguir-con.ts";
 import { esArchivo, idCorrida, leerCampo, leerTexto, listar } from "./corridas.ts";
 import { avisarFalta, jefeId, jefeNombre, type Env, type Pa } from "./entorno.ts";
 import { carpetaProyectos, claudeFalla, claudeRc, correrClaude, escapar, limiteDe, lanzarClaude, type Corrida, type Ganchos, type OpcionesLanzar } from "./lanzar.ts";
@@ -200,6 +201,7 @@ async function orquestar(l: Llamada, pa: Pa, p: ProyectoCli, o: OpcionesOrquesta
 
   // --- --seguir sobre una sesión de caché frío
   let frio = false;
+  let frioId = ""; // la corrida de la sesión fría: de ella sale el resumen de traspaso
   let frioMin = Number(/^[0-9]+$/.test(env.PA_CACHE_FRIO_MIN || "55") ? env.PA_CACHE_FRIO_MIN || "55" : "55");
   if (!Number.isFinite(frioMin)) frioMin = 55;
   if (l.seguir && frioMin > 0) {
@@ -216,6 +218,7 @@ async function orquestar(l: Llamada, pa: Pa, p: ProyectoCli, o: OpcionesOrquesta
       const edad = sesionEdadMin(pa, fsid, farch);
       if (edad !== null && edad > frioMin) {
         frio = true;
+        frioId = l.runId || leerTexto(`${sfile}.ts`);
         io.err(`pa: sesión de hace ${edad >= 120 ? `${Math.floor(edad / 60)}h` : `${edad}min`}: caché frío, arranco nueva.\n`);
       }
     }
@@ -430,6 +433,13 @@ async function orquestar(l: Llamada, pa: Pa, p: ProyectoCli, o: OpcionesOrquesta
       const r = await armarActualizar(fijarProy(pa, l.proyecto, ruta), l.actualizar, { rama: t.rama, base: t.base, extra: tarea });
       tarea = r.tarea;
       actualizar = { shaMain: r.shaMain };
+    }
+
+    // --- --seguir en caché frío: la sesión es nueva, así que lleva el mismo resumen de traspaso que --seguir-con (sin él sólo vería el texto corto)
+    if (frio && frioId && !l.actualizar && !l.retomaDe) {
+      const r = await armarSeguirCon(pa, { slug, dir }, frioId, "", tarea, "caché frío: sesión nueva");
+      if (r.ok) tarea = r.tarea;
+      else io.err(`pa: (no pude armar el resumen de la sesión fría: ${r.mensaje.replace(/^pa: /, "").trim()} Va sólo el pedido.)\n`);
     }
 
     // --- lo que hereda un --seguir (o --actualizar) de la corrida que retoma

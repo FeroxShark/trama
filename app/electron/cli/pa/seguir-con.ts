@@ -39,7 +39,7 @@ function lineasDeRespaldo(dir: string, id: string): string[] {
   return out;
 }
 
-export async function armarSeguirCon(pa: Pa, x: { slug: string; dir: string }, id: string, modelo: string, extra: string): Promise<ResultadoSeguirCon> {
+export async function armarSeguirCon(pa: Pa, x: { slug: string; dir: string }, id: string, modelo: string, extra: string, motivo = `seguís con ${modelo}`): Promise<ResultadoSeguirCon> {
   const error = (mensaje: string, codigo = 2): ResultadoSeguirCon => ({ ok: false, mensaje, codigo });
   if (!/^[A-Za-z0-9._-]+$/.test(id)) return error(`pa: el id '${id}' no es un id de corrida.\n`);
   const corrida = path.join(x.dir, `${id}.corrida`);
@@ -47,7 +47,7 @@ export async function armarSeguirCon(pa: Pa, x: { slug: string; dir: string }, i
   const pid = path.join(x.dir, `${id}.pid`);
   if (esArchivo(pid) && pidCorridaVivo(pid) !== null) return error(`pa: la corrida '${id}' sigue viva: esperala (pa --esperar) o bajala (pa '${x.slug}' --matar --id ${id}) antes de seguir con otro modelo.\n`, 75);
   const hilo = path.join(x.dir, `${id}.hilo`);
-  const o = { modeloAnterior: leerCampo(hilo, "modelo") || undefined, motivo: `seguís con ${modelo}`, pedido: extra };
+  const o = { modeloAnterior: leerCampo(hilo, "modelo") || undefined, motivo, pedido: extra };
   const sidF = path.join(x.dir, `${id}.sid`);
   const sid = esArchivo(sidF) ? leerTexto(sidF) : "";
   const transcript = sid ? transcriptDe(pa, sid, leerCampo(corrida, "ruta_trabajo")) : null;
