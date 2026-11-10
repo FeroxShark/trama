@@ -75,6 +75,7 @@ export const es: { [K in keyof typeof en]: string } = {
   "barra.terminado1": "{n} terminado",
   "barra.terminadosN": "{n} terminados",
   "barra.enMarcha": "{n} en marcha",
+  "barra.nuevaEn": "Chat nuevo en {p}",
   "barra.ocultarTerminados": "Ocultar terminados",
   "fila.trabadoSinAvance": "Trabado · sin avance ",
   "ficha.proyecto": "Proyecto: {v}",

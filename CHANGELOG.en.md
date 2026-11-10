@@ -1,5 +1,9 @@
 # Changes
 
+## Unreleased
+
+- Sidebar: each folder has a "+" button in its header that opens a new chat in that project.
+
 ## 0.2.64
 
 - Plan and quotas: removed the "original account plan" row at the top (it didn't save); each account's plan is chosen on its own card, and the card title follows the choice.

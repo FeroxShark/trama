@@ -78,6 +78,7 @@ export const en = {
   "barra.terminado1": "{n} done",
   "barra.terminadosN": "{n} done",
   "barra.enMarcha": "{n} running",
+  "barra.nuevaEn": "New chat in {p}",
   "barra.ocultarTerminados": "Hide done",
   "fila.trabadoSinAvance": "Stuck · no progress ",
   "ficha.proyecto": "Project: {v}",

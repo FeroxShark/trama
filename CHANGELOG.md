@@ -1,5 +1,9 @@
 # Cambios
 
+## Sin publicar
+
+- Barra lateral: cada carpeta tiene un botón «+» en su encabezado que abre un chat nuevo en ese proyecto.
+
 ## 0.2.64
 
 - Plan y cupos: se sacó el renglón «Plan de la cuenta de siempre» de arriba (no guardaba); el plan de cada cuenta se elige en su propia tarjeta, y el título de la tarjeta sigue lo elegido.

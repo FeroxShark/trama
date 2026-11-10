@@ -93,6 +93,7 @@ Cuelga de su líder por el hilo del proyecto. Se abre tocando cualquier parte de
 | **Riel de monogramas** (o el logo) | Filtra o salta a un proyecto. `✕` si algo falló, `?` si algo te espera, punto que late si algo corre. Tooltip y `aria-label` con la frase. | Lista de todo el alto, sin scrollear. | igual (del Riel) |
 | Pestaña en el borde del riel | Qué proyecto se está filtrando o mirando. | | igual |
 | Encabezado resaltado (`data-viendo`) | Lo que tenés abierto a la derecha es de acá. | | igual |
+| **`+` en el encabezado de cada carpeta** (`Chat nuevo en <proyecto>`, `aria-label` y tooltip) | Abre un chat nuevo ya con esa carpeta (lo mismo que «Nueva tarea aquí» del menú). Va a la derecha del todo; no está en `Otras carpetas`. | Empezar algo en un proyecto sin pasar por el selector de carpeta. | nueva |
 | `4 en marcha` | Cuántos trabajan ahora en el proyecto. | Se ve aunque esté plegado. | igual (del Riel) |
 | Glifo `✕`/`?` en el encabezado plegado | Adentro hay algo que mirar. | Plegar no esconde lo urgente. | igual |
 | `N terminados` / `N terminadas` | Lo terminado se pliega solo, bajo su líder o sin líder. Sólo la palabra y la flecha. | La montaña de terminados no ocupa la barra; el botón va antes de la lista y, abierto, queda pegado bajo el encabezado del proyecto para no bajar hasta el fondo. | recuperada sin el ✓ |

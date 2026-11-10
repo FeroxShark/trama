@@ -268,3 +268,16 @@ test("el detalle de cupos (#1924): anillos con tooltip, ámbar a los 80, rojo s�
   const conv = leer("../src/barra/CONVENCIONES.md");
   for (const frase of ["5 horas: 5 % usado", "Gratis · sin límite conocido", "Actualizado hace 2 m", "Ver Plan y cupos"]) assert.ok(conv.includes(frase), frase);
 });
+
+test("el encabezado de cada carpeta tiene el + de chat nuevo, con su nombre accesible y su foco, y está escrito en las convenciones", () => {
+  const barra = leer("../src/barra/Barra.tsx");
+  const boton = barra.match(/<button[^>]*className="proy-nueva"[\s\S]*?<\/button>/)?.[0] ?? "";
+  assert.ok(boton, "el botón .proy-nueva está en el encabezado de Carpeta");
+  assert.match(boton, /aria-label=\{tr\("barra\.nuevaEn", \{ p: nombre \}\)\}/, "aria-label con barra.nuevaEn");
+  assert.match(boton, /onClick=\{\(\) => alNueva\(g\.proyecto\)\}/, "abre el chat nuevo de ese proyecto");
+  assert.match(barra, /alNueva && !otras/, "no sale en «Otras carpetas»");
+  assert.match(leer("../src/i18n/es.ts"), /"barra\.nuevaEn": "Chat nuevo en \{p\}"/);
+  assert.match(leer("../src/i18n/en.ts"), /"barra\.nuevaEn": "New chat in \{p\}"/);
+  assert.match(leer("../src/barra/riel-estilos.css"), /\.proy-nueva:focus-visible \{[^}]*outline:/, "foco visible con teclado");
+  assert.ok(leer("../src/barra/CONVENCIONES.md").includes("Chat nuevo en <proyecto>"), "documentado en CONVENCIONES.md");
+});

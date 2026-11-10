@@ -808,6 +808,16 @@ export function Barra() {
     setActiva(LIDER_NUEVO);
   }, []);
 
+  // Un chat nuevo ya con la carpeta de este proyecto (menú "Nueva tarea aquí" y el + de su encabezado).
+  const nuevaAqui = useCallback(
+    (p: string) => {
+      abrirLiderNuevo();
+      nuevaEn.current = p;
+      pedirCarpeta(p);
+    },
+    [abrirLiderNuevo],
+  );
+
   // Cerrar un líder de la app: sale de la barra cuando lideres.json cambia (statusline). `motivo` va al log (`MOTIVOS`, electron/lider.ts).
   const cerrarLider = useCallback((sid: string, motivo: string = "cerrar") => {
     setFantasmas((m) => {
@@ -1761,9 +1771,7 @@ export function Barra() {
     }
     if (o.a === "nueva") {
       setMenu(null);
-      abrirLiderNuevo();
-      nuevaEn.current = p;
-      pedirCarpeta(p);
+      nuevaAqui(p);
       return;
     }
     listo();
@@ -2052,6 +2060,7 @@ export function Barra() {
                       mueve={!buscando && !filtroVigente && !verVigente && !MODO.captura}
                       claude={buscando ? SIN_CONVS : (porCarpetaCC.get(g.proyecto) ?? SIN_CONVS)}
                       alAbrirClaude={abrirClaude}
+                      alNueva={nuevaAqui}
                     />
                   ))}
                   {extrasCC.map((k) => (
@@ -2308,6 +2317,8 @@ type PropsCarpeta = {
   /** Sus conversaciones de Claude Code (las que no son de Trama), de la más reciente a la más vieja. */
   claude: ConvClaudeCode[];
   alAbrirClaude: (c: ConvClaudeCode) => Promise<string | null>;
+  /** El + del encabezado: un chat nuevo en esta carpeta. Sin él (Otras carpetas), no hay botón. */
+  alNueva?: (proyecto: string) => void;
 };
 
 const SIN_CONVS: ConvClaudeCode[] = [];
@@ -2333,6 +2344,7 @@ function Carpeta({
   mueve,
   claude,
   alAbrirClaude,
+  alNueva,
 }: PropsCarpeta) {
   const abierto = desplegada(g.proyecto);
   const titulo = useTitulos()[g.proyecto];
@@ -2392,6 +2404,17 @@ function Carpeta({
         {abierto && (resto > 0 || (verQuietos && hayMas)) ? (
           <button type="button" className="proy-mas" aria-expanded={verQuietos} data-tip={tipQuietos(g)} onClick={alternarQuietos}>
             {verQuietos ? tr("barra.verMenos") : tr("barra.verMas", { n: resto })}
+          </button>
+        ) : null}
+        {alNueva && !otras ? (
+          <button
+            type="button"
+            className="proy-nueva"
+            aria-label={tr("barra.nuevaEn", { p: nombre })}
+            data-tip={tr("barra.nuevaEn", { p: nombre })}
+            onClick={() => alNueva(g.proyecto)}
+          >
+            <Plus size={13} strokeWidth={2.2} />
           </button>
         ) : null}
       </div>
