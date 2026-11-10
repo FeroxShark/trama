@@ -253,14 +253,14 @@ describe("el líder (opencode acp) y la cuenta", () => {
   it("falla cerrado: cuenta que no existe, que no es de OpenCode, sin carpetas propias, relativa o con un id raro", () => {
     const pedir = (salida: string | Error, id = "trabajo") =>
       conCuentaOpencode({ TRAMA_OPENCODE_CUENTA: id }, { leer: () => { if (salida instanceof Error) throw salida; return salida; } });
-    assert.throws(() => pedir(new Error("no hay ninguna cuenta trabajo")), /no pude leer la cuenta.*trabajo/);
-    assert.throws(() => pedir("no es json"), /JSON/);
-    assert.throws(() => pedir(JSON.stringify({ ...trabajo, proveedor: "claude" })), /no es una cuenta agregada de OpenCode/);
-    assert.throws(() => pedir(JSON.stringify({ ...trabajo, defecto: true })), /no es una cuenta agregada/);
-    assert.throws(() => pedir(JSON.stringify({ ...trabajo, poner: { ...trabajo.poner, XDG_STATE_HOME: "relativa" } })), /carpetas propias/);
-    assert.throws(() => pedir(JSON.stringify({ ...trabajo, poner: { ...trabajo.poner, XDG_STATE_HOME: trabajo.poner.XDG_DATA_HOME } })), /carpetas propias/);
-    assert.throws(() => pedir(JSON.stringify({ ...trabajo, poner: { ...trabajo.poner, TRAMA_OPENCODE_CUENTA: "otra" } })), /no se identifica/);
-    assert.throws(() => pedir("{}", "../mal"), /no es un id de cuenta válido/);
+    assert.throws(() => pedir(new Error("no hay ninguna cuenta trabajo")), /i18n:main\.ocCuentaNoLeida.*trabajo/);
+    assert.throws(() => pedir("no es json"), /i18n:main\.ocCuentaNoJson/);
+    assert.throws(() => pedir(JSON.stringify({ ...trabajo, proveedor: "claude" })), /i18n:main\.ocCuentaNoAgregada/);
+    assert.throws(() => pedir(JSON.stringify({ ...trabajo, defecto: true })), /i18n:main\.ocCuentaNoAgregada/);
+    assert.throws(() => pedir(JSON.stringify({ ...trabajo, poner: { ...trabajo.poner, XDG_STATE_HOME: "relativa" } })), /i18n:main\.ocCuentaSinCarpetas/);
+    assert.throws(() => pedir(JSON.stringify({ ...trabajo, poner: { ...trabajo.poner, XDG_STATE_HOME: trabajo.poner.XDG_DATA_HOME } })), /i18n:main\.ocCuentaSinCarpetas/);
+    assert.throws(() => pedir(JSON.stringify({ ...trabajo, poner: { ...trabajo.poner, TRAMA_OPENCODE_CUENTA: "otra" } })), /i18n:main\.ocCuentaNoIdentificada/);
+    assert.throws(() => pedir("{}", "../mal"), /i18n:main\.ocCuentaIdInvalido/);
     assert.deepEqual(entornoDeSalida(JSON.stringify(trabajo), "trabajo").TRAMA_OPENCODE_PLAN, "go");
   });
 

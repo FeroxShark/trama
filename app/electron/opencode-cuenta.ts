@@ -9,6 +9,7 @@
 // Node puro (sin `electron`): lo prueba tests/opencode-cuenta.test.ts.
 import os from "node:os";
 import { entornoPa, lanzarPropioSync } from "./binario.ts";
+import { errorT } from "./errores.ts";
 
 type Env = Record<string, string | undefined>;
 
@@ -32,15 +33,15 @@ export function entornoDeSalida(salida: string, id: string): Record<string, stri
   try {
     o = JSON.parse(salida);
   } catch {
-    throw new Error(`la cuenta de OpenCode «${id}»: \`cuentas env\` no devolvió un JSON`);
+    throw errorT("main.ocCuentaNoJson", { v: id });
   }
-  if (!o || o.id !== id || o.proveedor !== "opencode" || o.defecto === true) throw new Error(`«${id}» no es una cuenta agregada de OpenCode`);
+  if (!o || o.id !== id || o.proveedor !== "opencode" || o.defecto === true) throw errorT("main.ocCuentaNoAgregada", { v: id });
   const poner = (o.poner ?? {}) as Record<string, unknown>;
   const out: Record<string, string> = {};
   for (const k of CLAVES_CUENTA_OPENCODE) if (typeof poner[k] === "string" && poner[k]) out[k] = poner[k] as string;
   if (!out.XDG_DATA_HOME?.startsWith("/") || !out.XDG_STATE_HOME?.startsWith("/") || out.XDG_DATA_HOME === out.XDG_STATE_HOME)
-    throw new Error(`la cuenta de OpenCode «${id}» no trae carpetas propias (XDG_DATA_HOME y XDG_STATE_HOME)`);
-  if (out.TRAMA_OPENCODE_CUENTA !== id) throw new Error(`la cuenta de OpenCode «${id}» no se identifica bien`);
+    throw errorT("main.ocCuentaSinCarpetas", { v: id });
+  if (out.TRAMA_OPENCODE_CUENTA !== id) throw errorT("main.ocCuentaNoIdentificada", { v: id });
   if (out.TRAMA_OPENCODE_PLAN && !PLANES.includes(out.TRAMA_OPENCODE_PLAN)) delete out.TRAMA_OPENCODE_PLAN;
   return out;
 }
@@ -67,7 +68,7 @@ export function conCuentaOpencode(env: Env, deps: DepsCuentaOpencode = {}): Env 
   const id = cuentaAgregadaDe(env);
   if (!id) {
     // Una variable con basura no se deja pasar: opencode correría con la cuenta de siempre creyendo que es otra.
-    if (env.TRAMA_OPENCODE_CUENTA && env.TRAMA_OPENCODE_CUENTA !== "opencode") throw new Error(`TRAMA_OPENCODE_CUENTA no es un id de cuenta válido`);
+    if (env.TRAMA_OPENCODE_CUENTA && env.TRAMA_OPENCODE_CUENTA !== "opencode") throw errorT("main.ocCuentaIdInvalido");
     return env;
   }
   const home = deps.home ?? os.homedir();
@@ -75,7 +76,8 @@ export function conCuentaOpencode(env: Env, deps: DepsCuentaOpencode = {}): Env 
   try {
     salida = (deps.leer ?? leerReal)(id, env, home);
   } catch (e) {
-    throw new Error(`no pude leer la cuenta de OpenCode «${id}» (\`cuentas env\`): ${String((e as Error)?.message ?? e).split("\n")[0].slice(0, 200)}`);
+    const porque = String((e as Error)?.message ?? e).split("\n")[0].slice(0, 200);
+    throw errorT("main.ocCuentaNoLeida", { v: id, m: porque });
   }
   return { ...env, ...entornoDeSalida(salida, id) };
 }

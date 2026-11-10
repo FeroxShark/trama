@@ -79,11 +79,11 @@ export async function guardarLecciones(estado: string, slug: unknown, texto: unk
   const s = slugDe(slug);
   if (typeof texto !== "string" || texto.length > LECCIONES_MAX_CARS) throw errorT("main.leccionesTexto");
   const dir = path.join(estado, s);
-  try {
-    if (!(await stat(dir)).isDirectory()) throw new Error("no es una carpeta");
-  } catch {
-    throw errorT("main.proyectoRaro", { v: s });
-  }
+  const esCarpeta = await stat(dir).then(
+    (x) => x.isDirectory(),
+    () => false,
+  );
+  if (!esCarpeta) throw errorT("main.proyectoRaro", { v: s });
   const limpio = texto.replace(/\r\n/g, "\n");
   const f = path.join(dir, "lecciones.md");
   const tmp = `${f}.trama-${process.pid}.tmp`;

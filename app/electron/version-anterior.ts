@@ -13,6 +13,7 @@ import { copyFile, chmod, cp, mkdir, readdir, rename, rm, stat } from "node:fs/p
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { alArrancar, alSalirAProposito, alTiempoAgotado, alVentanaLista, alVolver, ARRANQUE_MAX_MS, conRespaldo, sinAviso, type Almacen, type Aviso, type Copia, type Motivo } from "./arranque-seguro.ts";
+import { errorT } from "./errores.ts";
 
 export type Instalacion = { tipo: "appimage"; ruta: string } | { tipo: "carpeta"; app: string };
 type Env = NodeJS.ProcessEnv;
@@ -77,16 +78,16 @@ export async function podar(base: string, vivas: (Copia | null)[]): Promise<void
 
 /** Pone la copia en lugar de lo instalado (el AppImage o las partes de la carpeta). Si algo falla a la mitad deja lo que había. */
 export async function restaurar(inst: Instalacion, c: Copia): Promise<void> {
-  if (!(await copiaExiste(c))) throw new Error("la copia de la versión anterior ya no está");
+  if (!(await copiaExiste(c))) throw errorT("main.anteriorNoEsta");
   if (inst.tipo === "appimage") {
-    if (c.tipo !== "appimage") throw new Error("la copia no es un AppImage");
+    if (c.tipo !== "appimage") throw errorT("main.anteriorNoAppImage");
     const tmp = `${inst.ruta}.volver`;
     await copyFile(c.ruta, tmp);
     await chmod(tmp, 0o755);
     await rename(tmp, inst.ruta);
     return;
   }
-  if (c.tipo !== "carpeta") throw new Error("la copia no es una carpeta de la app");
+  if (c.tipo !== "carpeta") throw errorT("main.anteriorNoCarpeta");
   const hechas: string[] = [];
   try {
     for (const p of PARTES) {

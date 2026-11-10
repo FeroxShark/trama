@@ -10,6 +10,7 @@ import net from "node:net";
 import os from "node:os";
 import path from "node:path";
 import { crearCanal, negar, type OpcionesCanal } from "./remoto.js";
+import { errorT } from "./errores.ts";
 import { carpetaMotor, esPipe, esWindows, socketMotor } from "./rutas.ts";
 
 /**
@@ -35,8 +36,8 @@ function prepararPadreTmp(carpeta: string) {
     if ((e as NodeJS.ErrnoException).code !== "EEXIST") throw e;
   }
   const st = lstatSync(padre);
-  if (!st.isDirectory() || st.isSymbolicLink()) throw new Error(`${padre} no es una carpeta`);
-  if (typeof process.getuid === "function" && st.uid !== process.getuid()) throw new Error(`${padre} es de otro usuario`);
+  if (!st.isDirectory() || st.isSymbolicLink()) throw errorT("main.localNoCarpeta", { v: padre });
+  if (typeof process.getuid === "function" && st.uid !== process.getuid()) throw errorT("main.localOtroUsuario", { v: padre });
   if ((st.mode & 0o077) !== 0) chmodSync(padre, 0o700);
 }
 
@@ -46,8 +47,8 @@ export function prepararCarpeta(carpeta: string) {
   mkdirSync(carpeta, { recursive: true, mode: 0o700 });
   if (esWindows()) return; // sin uid ni modos: la carpeta es del perfil del usuario y la pipe se nombra, no se archiva
   const st = lstatSync(carpeta);
-  if (!st.isDirectory() || st.isSymbolicLink()) throw new Error(`${carpeta} no es una carpeta`);
-  if (typeof process.getuid === "function" && st.uid !== process.getuid()) throw new Error(`${carpeta} es de otro usuario`);
+  if (!st.isDirectory() || st.isSymbolicLink()) throw errorT("main.localNoCarpeta", { v: carpeta });
+  if (typeof process.getuid === "function" && st.uid !== process.getuid()) throw errorT("main.localOtroUsuario", { v: carpeta });
   if ((st.mode & 0o777) !== 0o700) chmodSync(carpeta, 0o700);
 }
 

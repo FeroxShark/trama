@@ -60,7 +60,7 @@ test("restaurar sin copia entera falla sin tocar lo instalado", async () => {
   const casa = nuevaCasa();
   const app = appEn(casa, "0.2.26");
   const falsa = { version: "0.2.25", tipo: "carpeta" as const, ruta: path.join(casa, "no-hay"), cuando: 1 };
-  await assert.rejects(restaurar({ tipo: "carpeta", app }, falsa), /ya no está/);
+  await assert.rejects(restaurar({ tipo: "carpeta", app }, falsa), /i18n:main\.anteriorNoEsta/);
   assert.equal(leer(app, "dist-electron", "motor.js"), "main 0.2.26");
 });
 

@@ -3,7 +3,7 @@
 // La fila no existe donde la ventana no maneja versiones (el navegador, el celular): `versionAnterior()` contesta null.
 import { useEffect, useRef, useState } from "react";
 import { fuente } from "../datos/fuente";
-import { t } from "../i18n";
+import { t, textoMain } from "../i18n";
 import type { FilaDato } from "./AjustesEditar";
 
 type Paso = { paso: "quieta" } | { paso: "confirmar" } | { paso: "volviendo" } | { paso: "error"; texto: string };
@@ -25,7 +25,8 @@ export function VolverVersion({ Dato }: { Dato: FilaDato }) {
     void fuente.volverAVersionAnterior().then((r) => {
       if (!vivo.current) return;
       // Si salió bien Trama se reinicia: esta página se va sola.
-      if (!r.ok) setEstado({ paso: "error", texto: t("ajustes.volverError", { m: r.error || "?" }) });
+      // El motivo lo arma el main con una clave de i18n (`errorT`): se traduce acá.
+      if (!r.ok) setEstado({ paso: "error", texto: t("ajustes.volverError", { m: textoMain(r.error || "?") }) });
     });
   };
 

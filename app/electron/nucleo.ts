@@ -147,7 +147,6 @@ export function manejar(canal: string, fn: Manejador) {
     canal,
     SOLO_PC_TAILNET.has(canal)
       ? (e, ...args) => {
-          // TODO i18n: no hay clave genérica en src/i18n (app/src es de otro dueño por ahora); mientras, el texto va en español.
           if (tailnet(e)) throw errorT("main.soloPc");
           return fn(e, ...args);
         }
@@ -569,11 +568,10 @@ const programados = crearProgramados({
   },
   avisar: (a) => enviar("programados:cambio", a),
 });
-/** Lo que quedó de la vez anterior, leído una sola vez. */
 let enviarEventos: Promise<unknown> = Promise.resolve();
 /**
- * La cola se lee una sola vez por proceso. Si la carga falla, la promesa no puede quedar rechazada para siempre (el que llame después
- * recibiría siempre el mismo error): se suelta (vuelve a intentarlo) y se anota en el log.
+ * Lo que quedó de la vez anterior, leído una sola vez por proceso. Si la carga falla, la promesa no puede quedar rechazada para siempre (el
+ * que llame después recibiría siempre el mismo error): se suelta (vuelve a intentarlo) y se anota en el log.
  */
 const leerCola = crearLecturaCola({
   leer: () => readFile(ARCHIVO_COLA, "utf8"),

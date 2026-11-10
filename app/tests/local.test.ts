@@ -205,7 +205,7 @@ test("prepararCarpeta: el /tmp/trama-<uid> intermedio tiene que ser una carpeta 
   const otro = mkdtempSync(path.join(os.tmpdir(), "otro-"));
   try {
     symlinkSync(otro, padre);
-    assert.throws(() => prepararCarpeta(path.join(padre, "trama")), /no es una carpeta/);
+    assert.throws(() => prepararCarpeta(path.join(padre, "trama")), /i18n:main\.localNoCarpeta/);
     rmSync(padre, { force: true });
     prepararCarpeta(path.join(padre, "trama"));
     assert.equal(statSync(padre).mode & 0o777, 0o700);
