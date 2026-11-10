@@ -75,6 +75,8 @@ export interface Opciones {
   verificar: string;
   intentos: number;
   topeCupo: number;
+  /** `--integrar-si-pasa` (con --objetivo): si el verificador pasa, corre `--integrar <último intento> --tests`. */
+  integrarSiPasa: boolean;
 }
 
 /** Los intentos y el cupo mínimo del modo Objetivo cuando no se piden. */
@@ -135,6 +137,7 @@ export function opcionesIniciales(proyecto: string, env: Env, plan: "pro" | "max
     verificar: "",
     intentos: OBJETIVO_INTENTOS,
     topeCupo: OBJETIVO_TOPE_CUPO,
+    integrarSiPasa: false,
   };
 }
 
@@ -347,6 +350,7 @@ export function parsearOpciones(args: string[], o: Opciones, ctx: CtxParseo): Op
         o.topeCupo = Number(valor);
         dos();
         break;
+      case "--integrar-si-pasa": o.integrarSiPasa = true; i++; break;
       case "--ramas": o.ramas = true; i++; break;
       case "--force": o.force = true; i++; break;
       case "--nota": ctx.anotar(valor); dos(); break; // la nota del jefe va pegada a esta llamada
@@ -430,6 +434,7 @@ export function parsearOpciones(args: string[], o: Opciones, ctx: CtxParseo): Op
     if (o.leer || o.seguir || o.seguirCon || o.auditar || o.retomaDe || o.integrar || o.descartar || o.matar || o.olvidar || o.ramas)
       error("pa: --objetivo no va con --leer, --seguir, --seguir-con, --auditar, --integrar, --descartar, --matar, --olvidar ni --ramas: lanza un worker que escribe y lo relanza solo.");
   }
+  if (o.integrarSiPasa && !o.objetivo) error("pa: --integrar-si-pasa va con el modo Objetivo: pa <proy> --objetivo \"<meta>\" --verificar \"<comando>\" --integrar-si-pasa");
   if (o.decisiones && !o.auditar) error("pa: --decisiones sólo va con --auditar (lo lee el auditor).");
   return o;
 }

@@ -5606,7 +5606,7 @@ while [[ $# -gt 0 ]]; do
     --tests)           integrar_tests=1; shift ;;
     --descartar)       descartar="$2"; shift 2 ;;
     --actualizar)      actualizar="$2"; shift 2 ;;
-    --seguir-con|--retoma-de|--objetivo|--verificar|--intentos|--tope-cupo) echo "pa: $1 sólo está en el pa de TypeScript (compilá app/ con npx tsc -p tsconfig.electron.json y sacá TRAMA_PA=bash)." >&2; exit 2 ;;
+    --seguir-con|--retoma-de|--objetivo|--verificar|--intentos|--tope-cupo|--integrar-si-pasa) echo "pa: $1 sólo está en el pa de TypeScript (compilá app/ con npx tsc -p tsconfig.electron.json y sacá TRAMA_PA=bash)." >&2; exit 2 ;;
     --ramas)           ramas=1; shift ;;
     --force)           force=1; shift ;;
     --nota)            anotar "$2"; shift 2 ;;   # la nota del jefe va pegada a esta llamada (ver anotar)

@@ -32,6 +32,8 @@ export interface DepsObjetivo {
   reparto: Reparto;
   /** Con qué se relanza `pa` para --async (default: este mismo node con este mismo script) y cuánto esperar a que tome puesto. */
   comando?: string[];
+  /** Integra la rama de un intento (`--integrar <id> --tests`); default: relanza este mismo `pa` con eso. Los tests lo inyectan. */
+  integrar?: (id: string) => number | Promise<number>;
   vueltasAsync?: number;
   pausaAsyncMs?: number;
 }
@@ -77,6 +79,7 @@ export function argvObjetivo(l: Llamada): string[] {
     "--verificar", l.verificar,
     "--intentos", String(l.intentos),
     "--tope-cupo", String(l.topeCupo),
+    ...(l.integrarSiPasa ? ["--integrar-si-pasa"] : []),
     ...(l.tarea ? ["--", l.tarea] : []),
   ];
 }
@@ -230,7 +233,13 @@ export async function correrObjetivo(l: Llamada, pa: Pa, p: Proyecto, d: DepsObj
     usados.add(ts);
   }
 
-  const texto = resultadoFinal(l, { cumplido, motivo, intentos, ultimo });
+  let linea = "";
+  if (l.integrarSiPasa) {
+    const r = cumplido ? await integrarIntento(l, d, intentos[intentos.length - 1]!.ts) : { rc: codigo, motivo: "el objetivo no se cumplió" };
+    linea = lineaIntegracion(r.rc, r.motivo, cumplido);
+    if (cumplido) codigo = r.rc;
+  }
+  const texto = resultadoFinal(l, { cumplido, motivo, intentos, ultimo }) + linea;
   decir(`${texto}\n`);
   // Para `pa --esperar`: el resultado como un .json de una línea y el .listo con el código (sólo el hijo de --async tiene quien lo espere).
   if (hijoAsync) {
@@ -243,6 +252,35 @@ export async function correrObjetivo(l: Llamada, pa: Pa, p: Proyecto, d: DepsObj
     }
   }
   return codigo;
+}
+
+/** Por qué se negó `--integrar` según su código de salida (los de `pa --ayuda`). */
+export function motivoIntegracion(rc: number): string {
+  switch (rc) {
+    case 93: return "los tests del registry dieron rojo sobre la rama rebaseada";
+    case 79: return "--integrar se negó";
+    case 80: return "--integrar chocó con lo que entró a la rama principal";
+    case 83: return "la rama trae un symlink peligroso";
+    case 86: return "la corrida dejó trabajo sin commitear en su worktree";
+    default: return "--integrar no terminó bien (el motivo está en su salida de arriba)";
+  }
+}
+
+/** Integra con lo existente: `pa <proy> --integrar <id> --tests` (inyectable). */
+async function integrarIntento(l: Llamada, d: DepsObjetivo, id: string): Promise<{ rc: number; motivo: string }> {
+  const integrar = d.integrar ?? ((i: string) => d.relanzar!([l.proyecto, "--integrar", i, "--tests"], { PA_TS: "", PA_ASYNC: "" }));
+  let rc: number;
+  try {
+    rc = await integrar(id);
+  } catch (e) {
+    return { rc: 1, motivo: `--integrar falló: ${e instanceof Error ? e.message : String(e)}` };
+  }
+  return { rc, motivo: rc === 0 ? "" : motivoIntegracion(rc) };
+}
+
+/** La última línea: «integrada» o «no integrada: rc N, motivo». */
+export function lineaIntegracion(rc: number, motivo: string, cumplido = true): string {
+  return rc === 0 && cumplido ? "\nintegrada" : `\nno integrada: rc ${rc}, ${motivo}`;
 }
 
 const ultimaSalida = (s: string) => ultimasLineas(s, LINEAS_VERIFICADOR);

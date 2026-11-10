@@ -234,3 +234,65 @@ test("piezas: últimas líneas, mensaje de falla y resultado", () => {
   assert.match(mensajeDeFalla(l, 1, "salida"), /^El verificador falló \(código 1\), arreglalo\.\nMeta: meta\nComando que verifica \(corre en tu worktree\): npm test/);
   assert.match(resultadoFinal(l, { cumplido: false, motivo: "m", intentos: [{ ts: "a", rc: 0 }], ultimo: null }), /\(1 intento de 3\)/);
 });
+
+test("--integrar-si-pasa: si el verificador pasa integra el último intento y deja «integrada»", async () => {
+  const s = sandbox();
+  const v = verificador(s.raiz, 2);
+  const m = motorFalso(s);
+  const integrados: string[] = [];
+  const r = await pa(["demo", "--objetivo", "x", "--verificar", v.cmd, "--integrar-si-pasa"], s, {
+    relanzar: m.relanzar,
+    objetivo: { integrar: (id) => void integrados.push(id) ?? 0 },
+  });
+  assert.equal(r.rc, 0, r.e);
+  assert.deepEqual(integrados, [m.llamados[1]!.extra.PA_TS]);
+  assert.match(r.o, /RESULTADO: objetivo cumplido/);
+  assert.ok(r.o.trimEnd().endsWith("\nintegrada"), r.o);
+});
+
+test("--integrar-si-pasa: si la integración se niega, «no integrada: rc N, motivo» y sale con ese rc", async () => {
+  const s = sandbox();
+  const m = motorFalso(s);
+  const r = await pa(["demo", "--objetivo", "x", "--verificar", verificador(s.raiz, 1).cmd, "--integrar-si-pasa"], s, {
+    relanzar: m.relanzar,
+    objetivo: { integrar: () => 93 },
+  });
+  assert.equal(r.rc, 93);
+  assert.match(r.o.trimEnd().split("\n").pop()!, /^no integrada: rc 93, los tests del registry dieron rojo/);
+});
+
+test("--integrar-si-pasa: sin integrador inyectado relanza `pa <proy> --integrar <id> --tests`", async () => {
+  const s = sandbox();
+  const m = motorFalso(s);
+  const r = await pa(["demo", "--objetivo", "x", "--verificar", verificador(s.raiz, 1).cmd, "--integrar-si-pasa"], s, { relanzar: m.relanzar });
+  assert.equal(r.rc, 0, r.e);
+  const ult = m.llamados[m.llamados.length - 1]!;
+  assert.deepEqual(ult.argv, ["demo", "--integrar", m.llamados[0]!.extra.PA_TS, "--tests"]);
+  assert.match(r.o, /\nintegrada\n$/);
+});
+
+test("--integrar-si-pasa: si el objetivo no se cumple no integra y lo dice", async () => {
+  const s = sandbox();
+  const m = motorFalso(s);
+  let llamado = false;
+  const r = await pa(["demo", "--objetivo", "x", "--verificar", verificador(s.raiz, 0).cmd, "--intentos", "1", "--integrar-si-pasa"], s, {
+    relanzar: m.relanzar,
+    objetivo: { integrar: () => void (llamado = true) ?? 0 },
+  });
+  assert.equal(r.rc, 94);
+  assert.equal(llamado, false);
+  assert.match(r.o.trimEnd().split("\n").pop()!, /^no integrada: rc 94, el objetivo no se cumplió/);
+});
+
+test("sin --integrar-si-pasa no integra ni agrega línea; y el flag solo, sin --objetivo, se rechaza", async () => {
+  const s = sandbox();
+  const m = motorFalso(s);
+  let llamado = false;
+  const r = await pa(["demo", "--objetivo", "x", "--verificar", verificador(s.raiz, 1).cmd], s, { relanzar: m.relanzar, objetivo: { integrar: () => void (llamado = true) ?? 0 } });
+  assert.equal(r.rc, 0);
+  assert.equal(llamado, false);
+  assert.ok(!/integrada/.test(r.o));
+  const x = await pa(["demo", "--integrar-si-pasa", "tarea"], s);
+  assert.equal(x.rc, 2);
+  assert.match(x.e, /--integrar-si-pasa va con el modo Objetivo/);
+});
