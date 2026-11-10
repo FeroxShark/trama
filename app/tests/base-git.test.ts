@@ -1,8 +1,8 @@
 // cli/base/git.ts: config fija por entorno, parseo porcelain (\r\n, rutas de Windows) y worktrees contra un repo real.
-import { test } from "node:test";
+import { after, test } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, realpathSync, writeFileSync } from "node:fs";
+import { mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { argvWorktreeAdd, entornoGit, git, gitOk, parsearWorktrees, worktreeAdd, worktreeList, worktreeRemove } from "../electron/cli/base/git.ts";
@@ -41,8 +41,14 @@ test("argvWorktreeAdd: rama nueva, rama existente, detach", () => {
   assert.deepEqual(argvWorktreeAdd("/w", { detach: true, desde: "abc" }), ["worktree", "add", "--detach", "/w", "abc"]);
 });
 
+const creadas: string[] = [];
+after(() => {
+  for (const d of creadas) rmSync(d, { recursive: true, force: true });
+});
+
 test("repo real: worktreeAdd / list / remove, y la config fija llega a git", async () => {
   const base = realpathSync.native(mkdtempSync(path.join(os.tmpdir(), "base-git-")));
+  creadas.push(base);
   const repo = path.join(base, "repo");
   execFileSync("git", ["init", "-q", "-b", "main", repo]);
   const env = { ...process.env, GIT_AUTHOR_NAME: "t", GIT_AUTHOR_EMAIL: "t@t", GIT_COMMITTER_NAME: "t", GIT_COMMITTER_EMAIL: "t@t", GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_SYSTEM: "/dev/null" };
