@@ -410,8 +410,8 @@ export const MARCA_AVISO_TRAMA = "[Aviso automático de Trama]";
 
 /** Lo más que ocupa el resultado de un worker en el aviso al líder. */
 export const TOPE_RESUMEN = 1500;
-/** Lo que se queda de cada parte del bloque del worker (suman `TOPE_RESUMEN`). */
-const PARTES_RESUMEN: readonly (readonly [string, number])[] = [["RESULTADO", 600], ["VERIFICACION", 500], ["DECISION", 250], ["SIGUE", 150]];
+/** Lo que se queda de cada parte del bloque del worker (con los saltos de línea suman `TOPE_RESUMEN`). */
+const PARTES_RESUMEN: readonly (readonly [string, number])[] = [["RESULTADO", 600], ["VERIFICACION", 500], ["DECISION", 250], ["SIGUE", 146]];
 /** Cualquier encabezado del bloque del worker (`RESULTADO:`, `ARCHIVOS:`, `FRENÓ:`…): corta la parte anterior. */
 const ENCABEZADO = /^\s*\**(RESULTADO|ARCHIVOS|VERIFICACI[OÓ]N|DECISI[OÓ]N|SIGUE|FREN[OÓ]|PROBAR|PREGUNTA|CONTEXTO|OPCION|DEFECTO)\**:\**[ \t]*/;
 
