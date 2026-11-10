@@ -64,6 +64,8 @@ import * as lider from "./lider.js";
 import { nombreDueno } from "./dueno.ts";
 import { entornoLider } from "./lider-arma.js";
 import { crearCola, entroEn } from "./cola.js";
+import { crearLecturaCola } from "./cola-lectura.ts";
+import { respaldarCola } from "./cola-respaldo.ts";
 import { crearEspera } from "./espera.js";
 import { crearAvisosWorker, REVISAR_MS } from "./avisos-worker.js";
 import { crearAvisosPendientes, type FilaHilo } from "./avisos-pendientes.js";
@@ -345,6 +347,15 @@ const rutaColaImagen = (a: string) => {
   if (!ARCHIVO_COLA_IMAGEN.test(a)) throw new Error("archivo raro");
   return path.join(DIR_COLA_IMAGENES, a);
 };
+/**
+ * El archivo de la cola no se pudo leer (o es de otra versión): se copia a `cola.json.bak-<fecha>` antes de seguir con la cola vacía, para que
+ * lo que había no se pierda (la cola nunca se pierde).
+ */
+const respaldoDeCola = async (motivo: "ilegible" | "version") => {
+  const r = await respaldarCola(ARCHIVO_COLA, motivo);
+  if (r.ok) log.escribir("info", "cola", `respaldo de la cola (${r.motivo}): ${r.archivo}`);
+  else if (r.porque === "noSePudo") log.escribir("aviso", "cola", `no pude respaldar la cola (${r.motivo})`);
+};
 const cola = crearCola({
   disponible: async (sid) => (saliendo ? "ocupado" : lider.disponible(sid)),
   traer: (sid, x, cortar) => lider.traer({ sid, modelo: x.modelo, effort: x.effort, nombre: x.nombre, modo: x.modo, cortar }),
@@ -355,6 +366,8 @@ const cola = crearCola({
   enTurno: (sid, x) => lider.mandarDirecto({ sid, texto: x.texto, imagenes: x.imagenes, modelo: x.modelo, effort: x.effort }),
   textoError: (x) => ("motivo" in x ? (NO_TRAE[x.motivo] ?? NO_TRAE.abierto) : String((x.error as Error)?.message ?? x.error)),
   guardar: (json) => escribirAtomico(ARCHIVO_COLA, json).catch(silencio("cola")),
+  // El archivo no se pudo leer (o es de otra versión): se copia a un respaldo antes de seguir con la cola vacía.
+  respaldo: (motivo) => respaldoDeCola(motivo),
   adjuntos: {
     guardar: async (a, datos) => {
       await mkdir(DIR_COLA_IMAGENES, { recursive: true });
@@ -557,9 +570,16 @@ const programados = crearProgramados({
   avisar: (a) => enviar("programados:cambio", a),
 });
 /** Lo que quedó de la vez anterior, leído una sola vez. */
-let colaLeida: Promise<void> | null = null;
 let enviarEventos: Promise<unknown> = Promise.resolve();
-const leerCola = () => (colaLeida ??= readFile(ARCHIVO_COLA, "utf8").then(cola.cargar, () => cola.cargar(null)));
+/**
+ * La cola se lee una sola vez por proceso. Si la carga falla, la promesa no puede quedar rechazada para siempre (el que llame después
+ * recibiría siempre el mismo error): se suelta (vuelve a intentarlo) y se anota en el log.
+ */
+const leerCola = crearLecturaCola({
+  leer: () => readFile(ARCHIVO_COLA, "utf8"),
+  cargar: (json) => cola.cargar(json),
+  alFallar: silencio("cola"),
+});
 
 // --- Statusline -----------------------------------------------------------------
 

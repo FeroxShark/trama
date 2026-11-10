@@ -91,6 +91,11 @@ export type Deps = {
   verificar?: (sid: string, texto: string, desde: number | null) => Promise<boolean | null>;
   /** Corta el turno de un líder de la app («Cortar y enviar ahora»): al terminar, la cola sigue sola. */
   cortar?: (sid: string) => void | Promise<void>;
+  /**
+   * El archivo de la cola no se pudo leer (o es de otra versión): antes de seguir con la cola vacía se copia a un respaldo
+   * (`cola.json.bak-<fecha>`), para que lo que había no se pierda (la cola nunca se pierde). Sin esto (fixtures, pruebas), nada.
+   */
+  respaldo?: (motivo: "ilegible" | "version") => void | Promise<void>;
   avisar: (a: AvisoCola) => void;
   /** ¿Se le puede mandar algo a mitad de su turno (un `claude` de la app ocupado que acepta mensajes)? Sin esto, todo espera al fin del turno. */
   puedeEnTurno?: (sid: string) => boolean | Promise<boolean>;
@@ -513,6 +518,12 @@ export function crearCola(d: Deps) {
     return r.length ? { ...sin, imagenes: r } : sin;
   }
 
+  /**
+   * El archivo de la cola no se pudo leer (o es de otra versión): antes de seguir con la cola vacía se copia a un respaldo
+   * (`cola.json.bak-<fecha>`), para que lo que había no se pierda. Sin `Deps.respaldo` (fixtures, pruebas), nada.
+   */
+  const respaldar = (motivo: "ilegible" | "version"): void | Promise<void> => d.respaldo?.(motivo);
+
   return {
     lista,
     error,
@@ -530,11 +541,13 @@ export function crearCola(d: Deps) {
       let j: Disco;
       try {
         j = JSON.parse(json ?? "");
-        if ((j as { version?: number })?.version !== 1 || typeof j.colas !== "object" || !j.colas) return;
       } catch {
-        // Sin archivo, o roto: cola vacía.
-        return;
+        // Sin archivo, o roto: cola vacía. Lo que había se copia a un respaldo antes: la cola nunca se pierde.
+        return respaldar("ilegible");
       }
+      // Otra versión: esta no la entiende. Se copia a un respaldo antes de seguir con la cola vacía (nada se pierde).
+      if ((j as { version?: number })?.version !== 1) return respaldar("version");
+      if (typeof j.colas !== "object" || !j.colas) return respaldar("ilegible");
       const leidas = Object.entries(j.colas).map(([sid, c]) => [sid, Array.isArray(c) ? c.filter(esEncolado) : []] as const).filter(([, c]) => c.length);
       const sueltos = Object.entries(j.camino ?? {}).flatMap(([sid, c]) => (Array.isArray(c) ? c : []).map((x) => ({ sid, x: x as { lote?: unknown; texto?: unknown; modelo?: unknown; effort?: unknown; total?: unknown; enTurno?: unknown } })));
       const contar = (c: readonly Encolado[]) => c.forEach((e) => (n = Math.max(n, e.id)));
