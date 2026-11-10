@@ -422,15 +422,26 @@ APP_FUENTE="$APP"
 if [[ -n "$APP" && -f "$APP/package.json" ]]; then construir_app "$APP" || true; fi
 
 # --- el motor --------------------------------------------------------------------------------------------
-# Barato: un GET (o un connect) al puerto del motor, no el trama-estado entero (que además pregunta a claude, agy y ollama) 20 veces.
-# Cualquier respuesta HTTP, aun un 4xx, cuenta como vivo (igual que trama-estado).
+# Barato: un GET (o un connect) al motor, no el trama-estado entero (que además pregunta a claude, agy y ollama) 20 veces.
+# Primero el socket (`$XDG_RUNTIME_DIR/trama/motor.sock`, rutas.ts: carpetaMotor): el loopback sólo existe con TRAMA_LOCAL=1.
+# Cualquier respuesta HTTP, aun un 4xx, cuenta como vivo (igual que trama-estado). Deja en MOTOR_VIA por dónde contestó.
+MOTOR_VIA=""
 motor_arriba() {
-  local puerto="${TRAMA_PUERTO:-8791}"
-  if command -v curl >/dev/null 2>&1; then
-    [[ "$(curl -s -o /dev/null --max-time 2 -w '%{http_code}' "http://127.0.0.1:$puerto/" 2>/dev/null)" != 000 ]]
-  else
-    ( exec 3<>"/dev/tcp/127.0.0.1/$puerto" ) 2>/dev/null
+  local puerto="${TRAMA_PUERTO:-8791}" sock="${HILOS_LOCAL:-${XDG_RUNTIME_DIR:-${TMPDIR:-/tmp}/trama-$(id -u)}/trama}/motor.sock"
+  MOTOR_VIA=""
+  if [[ -S "$sock" ]]; then
+    if command -v curl >/dev/null 2>&1; then
+      [[ "$(curl -s -o /dev/null --max-time 2 --unix-socket "$sock" -w '%{http_code}' "http://localhost/" 2>/dev/null)" != 000 ]] && { MOTOR_VIA="socket"; return 0; }
+    elif command -v python3 >/dev/null 2>&1; then
+      python3 -c 'import socket,sys; s=socket.socket(socket.AF_UNIX); s.settimeout(2); s.connect(sys.argv[1])' "$sock" 2>/dev/null && { MOTOR_VIA="socket"; return 0; }
+    fi
   fi
+  if command -v curl >/dev/null 2>&1; then
+    [[ "$(curl -s -o /dev/null --max-time 2 -w '%{http_code}' "http://127.0.0.1:$puerto/" 2>/dev/null)" != 000 ]] || return 1
+  else
+    ( exec 3<>"/dev/tcp/127.0.0.1/$puerto" ) 2>/dev/null || return 1
+  fi
+  MOTOR_VIA="127.0.0.1:$puerto"
 }
 if [[ -z "$APP" || ! -f "$APP/dist-electron/motor.js" ]]; then
   aviso "no encontré la app (dist-electron/motor.js) en '${APP:-?}': pasala con --app DIR; sin ella no se instala la unit del motor"
@@ -483,7 +494,7 @@ EOF
       trama-motor start >/dev/null 2>&1 || aviso "trama-motor start falló"
     fi
     for _ in $(seq 1 20); do motor_arriba && break; sleep 1; done
-    motor_arriba && ok "motor vivo en http://127.0.0.1:${TRAMA_PUERTO:-8791}" || aviso "el motor no responde todavía en http://127.0.0.1:${TRAMA_PUERTO:-8791}"
+    motor_arriba && ok "motor vivo (${MOTOR_VIA})" || aviso "el motor no responde todavía (ni por el socket ni en http://127.0.0.1:${TRAMA_PUERTO:-8791})"
   fi
 fi
 
