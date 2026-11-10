@@ -75,6 +75,8 @@ interface Celda {
   pct: string;
   med: string;
   costo: string;
+  /** El US$ por éxito: el costo medio dividido por la tasa de acierto (integrada sin retrabajo). */
+  exito: string;
   comp: string;
 }
 
@@ -144,6 +146,7 @@ function celdasPor(texto: string, desde: string, por: string): Celda[] {
       pct: a.dato ? fijo((100 * a.ok) / a.dato, 0) : "",
       med,
       costo: a.nu ? fijo(a.usd / a.nu, 2) : "",
+      exito: a.nu && a.ok ? fijo(a.usd / a.nu / (a.ok / a.dato), 2) : "",
       comp: a.nc ? fijo((100 * a.comp) / a.nc, 0) : "",
     });
   }
@@ -351,6 +354,7 @@ function salidaPor(pa: Pa, dias: string, desde: string, json: boolean, por: stri
           turnos_mediana: n(c.med),
           costo_medio_usd: n(c.costo),
           pct_compacto: n(c.comp),
+          usd_por_exito: n(c.exito),
         })),
         frenos: frenos.map((f) => ({ proyecto: f.proyecto, n: f.n, freno: f.freno })),
         ...(sustituciones.length ? { sustituciones: sustituciones.map((x) => ({ de: x.de, a: x.a, n: new Literal(String(x.n)) })) } : {}),
@@ -362,11 +366,11 @@ function salidaPor(pa: Pa, dias: string, desde: string, json: boolean, por: stri
     pa.io.out(`pa: ninguna corrida en los últimos ${dias} días.\n`);
     return 0;
   }
-  pa.io.out("últimos " + dias + " días · ok% = integrada sin retrabajo, sobre las que ya tienen dato (pa --bien-auto) · turnos = mediana · US$ = costo medio · comp% = compactaron\n");
-  const fila = (a: string[]) => `${rellenar(a[0]!, 15)} ${rellenar(a[1]!, 18)} ${rellenar(a[2]!, 8)} ${izq(a[3]!, 4)} ${izq(a[4]!, 5)} ${izq(a[5]!, 5)} ${izq(a[6]!, 7)} ${izq(a[7]!, 8)} ${izq(a[8]!, 6)}\n`;
-  pa.io.out(fila([por, "modelo", "effort", "n", "dato", "ok%", "turnos", "US$", "comp%"]));
+  pa.io.out("últimos " + dias + " días · ok% = integrada sin retrabajo, sobre las que ya tienen dato (pa --bien-auto) · turnos = mediana · US$ = costo medio · US$/éxito = costo por cada corrida integrada sin retrabajo · comp% = compactaron\n");
+  const fila = (a: string[]) => `${rellenar(a[0]!, 15)} ${rellenar(a[1]!, 18)} ${rellenar(a[2]!, 8)} ${izq(a[3]!, 4)} ${izq(a[4]!, 5)} ${izq(a[5]!, 5)} ${izq(a[6]!, 7)} ${izq(a[7]!, 8)} ${izq(a[8]!, 9)} ${izq(a[9]!, 6)}\n`;
+  pa.io.out(fila([por, "modelo", "effort", "n", "dato", "ok%", "turnos", "US$", "US$/éxito", "comp%"]));
   for (const c of celdas) {
-    pa.io.out(fila([c.tipo === "~" ? "?" : c.tipo, c.cuenta ? `${c.modelo}@${c.cuenta}` : c.modelo, c.effort, String(c.n), String(c.dato), c.pct || "-", c.med || "-", c.costo || "-", c.comp || "-"]));
+    pa.io.out(fila([c.tipo === "~" ? "?" : c.tipo, c.cuenta ? `${c.modelo}@${c.cuenta}` : c.modelo, c.effort, String(c.n), String(c.dato), c.pct || "-", c.med || "-", c.costo || "-", c.exito || "-", c.comp || "-"]));
   }
   if (frenos.length) {
     pa.io.out(`frenos por proyecto · últimos ${dias} días · los parecidos van juntos; top 3 por proyecto\n`);
