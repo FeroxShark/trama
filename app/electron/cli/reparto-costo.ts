@@ -141,16 +141,3 @@ export function usdPorExito(m: Muestra): number | null {
   if (c === null || t === null || m.dato < MIN_N_EXITO || t <= 0) return null;
   return c / t;
 }
-
-/** La tasa de acierto de un tipo (todas las corridas de ese tipo): con la que se estima a los que no tienen medida. */
-export function tasaDeTipo(filas: Fila[], tipo: string, desde: string): number | null {
-  let ok = 0;
-  let dato = 0;
-  for (const f of filas) {
-    if (f.fecha < desde || f.tipo !== tipo) continue;
-    if (!conDato(f.integrada, f.retrabajo)) continue;
-    dato++;
-    if (f.integrada === "1" && f.retrabajo === "0") ok++;
-  }
-  return dato >= MIN_N_EXITO ? ok / dato : null;
-}

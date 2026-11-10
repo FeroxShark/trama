@@ -22,7 +22,6 @@ import {
   muestra,
   muestraModelo,
   pesoDe,
-  tasaDeTipo,
   tasaOk,
   usdPorExito,
   type Fila,
@@ -2269,11 +2268,11 @@ function filasDeMedicion(): Fila[] {
   }
 }
 
-/** Lo que hace falta para costingar un tipo: las filas, el ancla (el US$ por corrida de Opus) y la tasa de acierto del tipo. */
-type ContextoCosto = { filas: Fila[]; desde: string; anclaUsd: number; anclaExito: number; tasaTipo: number | null };
+/** Lo que hace falta para costingar un tipo: las filas, el ancla (el US$ por corrida de Opus) y su US$ por éxito. */
+type ContextoCosto = { filas: Fila[]; desde: string; anclaUsd: number; anclaExito: number };
 
-/** El contexto de costo de un tipo: null si no hay medición (o si no hay Opus para anclar los pesos). */
-function contextoCosto(tipo: string, now: Date): ContextoCosto | null {
+/** El contexto de costo (medicion.tsv): null si no hay medición (o si no hay Opus para anclar los pesos). */
+function contextoCosto(now: Date): ContextoCosto | null {
   const filas = filasDeMedicion();
   if (!filas.length) return null;
   const desde = iso(new Date(now.getTime() - DIAS_COSTO * 86400_000))!.slice(0, 10);
@@ -2281,13 +2280,7 @@ function contextoCosto(tipo: string, now: Date): ContextoCosto | null {
   const anclaUsd = costoMedio(ancla);
   if (anclaUsd === null) return null; // sin Opus no hay con qué comparar los pesos
   const tasaAncla = tasaOk(ancla);
-  return {
-    filas,
-    desde,
-    anclaUsd,
-    anclaExito: anclaUsd / (tasaAncla !== null && tasaAncla > 0 ? tasaAncla : 1),
-    tasaTipo: tasaDeTipo(filas, tipo, desde),
-  };
+  return { filas, desde, anclaUsd, anclaExito: anclaUsd / (tasaAncla !== null && tasaAncla > 0 ? tasaAncla : 1) };
 }
 
 /** El costo de un candidato: el medido (US$ por corrida y US$ por éxito) y, si no hay medida, la estimación con los pesos corregidos. */
@@ -2309,8 +2302,8 @@ function costoDeCandidato(ctx: ContextoCosto | null, tipo: string, cand: Obj, cf
   const medido = costoMedio(m);
   // sin medida: el peso corregido de la familia (Opus = 1) por el costo medio medido de Opus
   const usd = medido !== null ? medido : costoRelativoCorregido(cand, cfg) * ctx.anclaUsd;
-  const exitoMedido = usdPorExito(m);
-  const exito = exitoMedido !== null ? exitoMedido : ctx.tasaTipo !== null && ctx.tasaTipo > 0 ? usd / ctx.tasaTipo : null;
+  // el US$ por éxito necesita corrida con dato (10 o más): sin eso no se cree
+  const exito = usdPorExito(m);
   return { usd, exito, relativo: exito !== null ? exito / ctx.anclaExito : null };
 }
 
@@ -2402,8 +2395,8 @@ function armarCandidatos(tipo: string, cfg: Obj, cupos: Obj, now: Date, effort: 
 
   const agyClaudeOk = googles.some((g) => claudeDeGoogleOk(g));
 
-  // El costo real medido de este tipo (medicion.tsv): null si no hay medición.
-  const ctxCosto = contextoCosto(tipo, now);
+  // El costo real medido (medicion.tsv): null si no hay medición.
+  const ctxCosto = contextoCosto(now);
 
   const hacer = (c: Familia, cuentaS: Obj) => {
     const [base, fam, nombre0, sus, gid, agyBase, efs0] = c;
