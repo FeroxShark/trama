@@ -160,6 +160,9 @@ const conMarcas = (c: Contexto) => {
 const DIVERGE_POLITICA = "política de modelos nueva sólo en el TS (reparto de python congelado): diseno con piso sonnet, sin Opus en frontend/codigo-multi, historial exigido en ahorro";
 const TIPOS_DIVERGENTES = ["diseno", "codigo-multi", "frontend"];
 const divergePolitica = (c: Caso): Caso => ({ ...c, divergenciaSalida: DIVERGE_POLITICA });
+/** Sólo en el TS (2026-11-10): la banda de `preferido_por_tipo` se ancla en el preferido sólo si está vivo. En estos casos el preferido de codigo-acotado (haiku) no tiene cupo: elige el mismo modelo, pero el python suma al motivo «se prefiere la calidad de haiku». */
+const DIVERGE_PREFERIDO = "la banda del preferido sólo vale si el preferido está vivo (sólo en el TS; reparto de python congelado)";
+const divergePreferido = (c: Caso): Caso => ({ ...c, divergenciaSalida: DIVERGE_PREFERIDO });
 
 const TIPOS = ["debug", "diseno", "codigo-multi", "frontend", "final", "codigo-acotado", "lectura", "mecanico"];
 
@@ -305,7 +308,7 @@ export const casosReparto: Caso[] = [
   // los modelos de agy dependen de la cuenta: sólo se elige entre los que la cuenta ofrece
   rp("agy de otra cuenta: --tabla", ["--tabla"], 0, { cupos: CUPOS_AGY_B }),
   rp("agy de otra cuenta: --tabla --json", ["--tabla", "--json"], 0, { cupos: CUPOS_AGY_B }),
-  ...["lectura", "codigo-acotado", "debug"].map((t) => rp(`agy de otra cuenta: --tipo ${t} --explicar`, ["--tipo", t, "--explicar"], 0, { cupos: CUPOS_AGY_B, env: { REPARTO_NO_DISPONIBLE: "claude-*" } })),
+  ...["lectura", "codigo-acotado", "debug"].map((t) => (t === "codigo-acotado" ? divergePreferido : (c: Caso) => c)(rp(`agy de otra cuenta: --tipo ${t} --explicar`, ["--tipo", t, "--explicar"], 0, { cupos: CUPOS_AGY_B, env: { REPARTO_NO_DISPONIBLE: "claude-*" } }))),
   rp("agy de otra cuenta: --resumen", ["--resumen"], 0, { cupos: CUPOS_AGY_B }),
   rp("agy de otra cuenta: --agotar de un modelo que la tabla no conoce", ["--agotar", "agy:claude-sonnet-4-6-thinking"], 0, { cupos: CUPOS_AGY_B }),
   rp("agy de otra cuenta: --resolver", ["--resolver", "agy:claude-sonnet-4-6-thinking", "--json"], 0),
@@ -329,11 +332,11 @@ export const casosReparto: Caso[] = [
 
   // elección por tipo
   ...TIPOS.map((t) => (TIPOS_DIVERGENTES.includes(t) ? divergePolitica : (c: Caso) => c)(rp(`--tipo ${t} --json`, ["--tipo", t, "--json"], 0))),
-  ...TIPOS.map((t) => (TIPOS_DIVERGENTES.includes(t) ? divergePolitica : (c: Caso) => c)(rp(`--tipo ${t} (texto)`, ["--tipo", t], 0, { cupos: CUPOS_RAROS }))),
+  ...TIPOS.map((t) => (TIPOS_DIVERGENTES.includes(t) ? divergePolitica : t === "codigo-acotado" ? divergePreferido : (c: Caso) => c)(rp(`--tipo ${t} (texto)`, ["--tipo", t], 0, { cupos: CUPOS_RAROS }))),
   rp("--tipo final --explicar", ["--tipo", "final", "--explicar"], 0),
   // pa dice qué no sirve ahora (plugin de agy sin cargar, un Claude con el límite a la vista): reparto lo saltea y da el siguiente.
   rp("REPARTO_NO_DISPONIBLE: agy y gemini fuera (--tipo codigo-acotado --json)", ["--tipo", "codigo-acotado", "--json"], 0, { env: { REPARTO_NO_DISPONIBLE: "agy:*, gemini-*" } }),
-  rp("REPARTO_NO_DISPONIBLE: claude oficial fuera (--tipo codigo-acotado --explicar)", ["--tipo", "codigo-acotado", "--explicar"], 0, { env: { REPARTO_NO_DISPONIBLE: "claude-*" } }),
+  divergePreferido(rp("REPARTO_NO_DISPONIBLE: claude oficial fuera (--tipo codigo-acotado --explicar)", ["--tipo", "codigo-acotado", "--explicar"], 0, { env: { REPARTO_NO_DISPONIBLE: "claude-*" } })),
   rp("REPARTO_NO_DISPONIBLE: dsh y locales fuera (--tipo lectura --json)", ["--tipo", "lectura", "--json"], 0, { env: { REPARTO_NO_DISPONIBLE: "dsh:*,ollama:*,opencode:*" } }),
   rp("--tipo codigo-multi --explicar con cupos raros", ["--tipo", "codigo-multi", "--explicar"], 0, { cupos: CUPOS_RAROS }),
   rp("--tipo desconocido", ["--tipo", "raro", "--json"], 0),
