@@ -251,8 +251,10 @@ test("subagentes en la fila del líder: dice qué son, no un número suelto", ()
   assert.match(pintaLider(lider({ subagentes: 2 })), /2 sub\./);
 });
 
-test("la regla está escrita: AGENTS.md manda leer las convenciones antes de rediseñar", () => {
-  assert.match(leer("../../AGENTS.md"), /Antes de rediseñar la barra, leer app\/src\/barra\/CONVENCIONES\.md/);
+test("la regla está escrita: hay que leer las convenciones antes de rediseñar la barra", () => {
+  // La regla vive en docs/reglas/barra.md (la movió el recorte de AGENTS.md) y AGENTS.md manda a leerla.
+  assert.match(leer("../../docs/reglas/barra.md"), /Antes de rediseñar la barra, leer app\/src\/barra\/CONVENCIONES\.md/);
+  assert.match(leer("../../AGENTS.md"), /docs\/reglas\/barra\.md/);
   assert.ok(existsSync(fileURLToPath(new URL("../src/barra/CONVENCIONES.md", import.meta.url))));
 });
 
