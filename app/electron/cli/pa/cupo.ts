@@ -1,10 +1,10 @@
 // Falta de cupo con reparto (lo que orquesta.ts dejaba en noPortado): esperar cupo con sin_cupo=esperar (el hijo de --async hace cola
 // sin puesto) y relanzar, en la misma corrida y el mismo id, con el candidato que reparto ofrece cuando el Claude oficial dice límite
 // (sin_cupo=otro, hasta 3 veces). Port del bloque `reparto_esperar` y del `while (( reintentos_cupo < 3 ))` de motor/bin/pa.
-// Sólo corre Claude: si el candidato es de agy, codex o dsh, el pa de TypeScript lo dice y sigue como si reparto no hubiera ofrecido
-// otro (el bash cambia de motor; eso es de quien porte esos motores).
+// Si el candidato es de agy, codex o dsh, la corrida cambia de motor (`pasarAOtroMotor`, el `cambiar_de_modelo` del bash) y el
+// `ejecutar` de orquesta.ts la lanza con ése; antes pasa por el mismo chequeo del motor que el primer candidato.
 import { randomUUID } from "node:crypto";
-import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { correr } from "../base/proc.ts";
 import { git } from "../base/git.ts";
@@ -13,10 +13,10 @@ import { entornoCmd } from "../../binario.ts";
 import { avisarFalta, type Pa } from "./entorno.ts";
 import { carpetaProyectos, contratoClaude, escapar, hiloPoner, limiteDe, type Corrida, type Ganchos, type Lanzamiento } from "./lanzar.ts";
 import { Modelos, esCodex, esDsh, esGemini, esLocal } from "./modelos.ts";
-import { cuentaProveedor, modeloFlojo, proveedorDe, type DepsPolitica, type Llamada } from "./politica.ts";
+import { cuentaProveedor, modeloFlojo, proveedorDe, type DepsPolitica, type Llamada, type Motores } from "./politica.ts";
 import type { Admision } from "./puestos.ts";
 import { cuentasProceso, prefijoDe, repartoProceso, topeReparto } from "./programas.ts";
-import { motoresDe } from "./otros-motores.ts";
+import { localesDe, motoresDe } from "./otros-motores.ts";
 import { leerSalida, epochReset, textoResultado } from "./resultado-lanzar.ts";
 
 const dormirMs = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
@@ -233,6 +233,46 @@ async function pasarAClaude(pa: Pa, lz: Lanzamiento, mRep: string, effort: strin
 }
 
 /**
+ * cambiar_de_modelo (agy, codex, dsh): la corrida que era de Claude sigue con el modelo de otro motor. Sin effort ni sesión de Claude; los
+ * enlaces de secretos del worktree (.env, CLAUDE.local.md, .claude/settings.local.json) eran del intento anterior y a este motor no le sirven.
+ * El lanzamiento lo hace el `ejecutar` de orquesta.ts, que decide por el motor de ahora.
+ */
+async function pasarAOtroMotor(pa: Pa, lz: Lanzamiento, mRep: string, cuenta: { cuenta: string; env: NonNullable<Corrida["cuentaEnv"]> } | null): Promise<void> {
+  const c = lz.c;
+  c.motor = esDsh(mRep) ? "dsh" : esCodex(mRep) ? "codex" : "agy";
+  c.modelo = mRep;
+  c.esfuerzo = "";
+  c.efVacio = "-";
+  c.cuenta = cuenta?.cuenta ?? "";
+  c.cuentaEnv = cuenta?.env;
+  const modelos = new Modelos(pa.env, pa.io, pa.home, pa.plat);
+  if (c.motor === "dsh") c.locales = localesDe(modelos);
+  if (c.usaWorktree)
+    for (const f of [".env", "CLAUDE.local.md", path.join(".claude", "settings.local.json")]) {
+      const ruta = path.join(c.rutaTrabajo, f);
+      try {
+        if (lstatSync(ruta).isSymbolicLink()) rmSync(ruta, { force: true });
+      } catch {
+        /* no estaba */
+      }
+    }
+  if (!c.leer) c.modeloFlojo = (await modeloFlojo(pa, { reparto: repartoProceso(pa) } as DepsPolitica, mRep)) !== null;
+  lz.contrato = contratoClaude(pa, c);
+  if (existsSync(path.join(lz.dir, `${c.ts}.hilo`))) {
+    await hiloPoner(lz.dir, c.ts, "modelo", mRep);
+    await hiloPoner(lz.dir, c.ts, "effort", "-");
+    await hiloPoner(lz.dir, c.ts, "cuenta", c.cuenta);
+  }
+}
+
+/** El `env -u A K=V …` de la cuenta, como lo lee `Llamada.cuentaEnv` (lo que mira el chequeo del motor). */
+const cuentaEnvArgs = (e: NonNullable<Corrida["cuentaEnv"]>): string[] => [
+  "env",
+  ...(e.quitar ?? []).flatMap((k) => ["-u", k]),
+  ...Object.entries(e.poner ?? {}).map(([k, x]) => `${k}=${x}`),
+];
+
+/**
  * Un `-m` a mano (o sustituido por agy) que agy corta por cupo al arrancar, sin trabajo hecho y sin tipo de reparto para elegir otro: ese
  * camino queda agotado hasta el reset que diga agy (`reparto --agotar`) y, con sin_cupo=otro, la corrida sigue con el MISMO modelo por el
  * Claude oficial (`reparto --otro-camino`), sin tocar de cuenta de Claude. null = no es este caso; false = no se pudo relanzar; true = cambió.
@@ -284,7 +324,7 @@ async function relanzarPorOtroCamino(pa: Pa, l: Llamada, lz: Lanzamiento): Promi
  * elegido reparto, marca agotado el grupo hasta su reset y cambia la corrida al candidato que reparto ofrece ahora, con la misma sesión
  * de pa y el mismo id. true si cambió y hay que correr de nuevo.
  */
-export function relanzarPorCupo(pa: Pa, l: Llamada): NonNullable<Ganchos["relanzarPorCupo"]> {
+export function relanzarPorCupo(pa: Pa, l: Llamada, motores: Partial<Motores> = motoresDe(pa)): NonNullable<Ganchos["relanzarPorCupo"]> {
   return async (lz: Lanzamiento) => {
     const rechazo = await relanzarPorModeloAgy(pa, l, lz);
     if (rechazo !== null) return rechazo;
@@ -323,19 +363,27 @@ export function relanzarPorCupo(pa: Pa, l: Llamada): NonNullable<Ganchos["relanz
       sinOtro();
       return false;
     }
-    if (esGemini(mRep) || esCodex(mRep) || esDsh(mRep)) {
-      io.err(`pa: ${quien} (sin cupo) con ${mAnt}; reparto ofrece ${mRep}, pero este pa de TypeScript sólo corre Claude; sigo como falló.\n`);
-      return false;
-    }
-    const cuenta = await prepararCuenta(pa, cRep, pRep);
+    // dsh no usa cuenta de Claude: el resto, la de reparto (o la de siempre del proveedor) si es del proveedor del modelo.
+    const otroMotor = esGemini(mRep) || esCodex(mRep) || esDsh(mRep);
+    const cuenta = esDsh(mRep) ? { cuenta: "", env: { poner: {}, quitar: [] } } : await prepararCuenta(pa, cRep, pRep);
     if (!cuenta) {
       sinOtro();
       return false;
     }
-    const cTxt = cuenta.cuenta !== cAnt && !["claude", "google", "chatgpt"].includes(cuenta.cuenta) ? ` (cuenta ${cuenta.cuenta})` : "";
+    if (otroMotor) {
+      // el candidato pasa por los mismos candados que el primero (privacidad, el programa en el PATH, la sesión, la key)
+      const chequeo = esCodex(mRep) ? motores.chequearCodex : esDsh(mRep) ? motores.chequearDsh : motores.chequearGemini;
+      const motivo = (await chequeo?.(mRep, { ...l, cuentaEnv: cuentaEnvArgs(cuenta.env) })) ?? "";
+      if (motivo) {
+        io.err(`pa: ${quien} (sin cupo) con ${mAnt}; reparto ofrece ${mRep} pero no puede correr (${motivo}); sigo como falló.\n`);
+        return false;
+      }
+    }
+    const cTxt = cuenta.cuenta !== cAnt && !["", "claude", "google", "chatgpt"].includes(cuenta.cuenta) ? ` (cuenta ${cuenta.cuenta})` : "";
     io.err(`pa: ${quien} (sin cupo) con ${mAnt}: lo marco agotado hasta que vuelva y relanzo con ${mRep}${cand.effort ? ` effort ${cand.effort}` : ""}${cTxt}: ${cand.motivo}\n`);
 
-    await pasarAClaude(pa, lz, mRep, cand.effort, cuenta);
+    if (otroMotor) await pasarAOtroMotor(pa, lz, mRep, cuenta.cuenta ? cuenta : null);
+    else await pasarAClaude(pa, lz, mRep, cand.effort, cuenta);
     return true;
   };
 }

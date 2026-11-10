@@ -34,7 +34,7 @@ import { dshProveedor, esNvidia, esOpencode, horasEnfriar } from "./motores/mode
 import { cuentaEnvDe, ejecutarOtro, esMotorOtro, localesDe } from "./otros-motores.ts";
 
 
-/** `ejecutar` de los motores de otro: decide por el motor DE AHORA, porque `relanzarPorCupo` puede pasar una corrida de agy a Claude (otro camino). */
+/** `ejecutar` de todos los motores: decide por el motor DE AHORA, porque `relanzarPorCupo` puede pasar una corrida de agy a Claude (otro camino) o de Claude a agy, codex o dsh. */
 const ejecutarOtraVez = (claude?: string): NonNullable<OpcionesLanzar["ejecutar"]> => (lz, op) =>
   esMotorOtro(lz.c.motor) ? ejecutarOtro(lz, op) : correrClaude(lz, { claude, alArrancar: op.alArrancar });
 
@@ -531,7 +531,7 @@ async function orquestar(l: Llamada, pa: Pa, p: ProyectoCli, o: OpcionesOrquesta
       },
     });
     // pa --parar / --matar: en Windows por el canal de control del lock; en Linux, SIGTERM
-    const rc = await lanzarClaude(paRun, c, { ...o, ganchos: g, senal: o.senal ?? parar.signal, ejecutar: o.ejecutar ?? (esMotorOtro(motor) ? ejecutarOtraVez(o.claude) : undefined) });
+    const rc = await lanzarClaude(paRun, c, { ...o, ganchos: g, senal: o.senal ?? parar.signal, ejecutar: o.ejecutar ?? ejecutarOtraVez(o.claude) });
     return rc;
   } finally {
     await adm.soltarTodo();
