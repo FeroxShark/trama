@@ -1,5 +1,16 @@
 # Changes
 
+## 0.2.67
+
+- Safe start: Trama no longer rolls back to the previous version on its own when an install closes it from outside. A signal (SIGTERM, SIGINT, SIGHUP) counts as an intentional exit, a start cut short during an install doesn't count as a failure, and `arranque.json` is written under a lock. Every start and exit is logged in `trama.log` with version, failures and how long ago the previous one started.
+- `trama-estado` and the installer check the engine socket first and the local port second: they no longer say "engine not responding" while it's running, and they say which way it answered.
+- Routing: a preferred model with no quota left no longer drags the pick toward a pricier one; if it isn't available, the pick follows the profile as usual.
+- Spell checker in Spanish and English at once, with a toggle in Settings > General (on by default).
+- Claude is always found and launched through the same resolver (on Windows too, with `.exe` or `.cmd` from the npm prefix); a test prevents launching it bare again.
+- Windows: closing with leaders still answering asks first, as on Linux.
+- Plan & quotas: the out-of-quota notice is a single, separated sentence, without repeating itself.
+- Tests: the base tests no longer leave folders in `/tmp`, and `pa` help passes parity again.
+
 ## 0.2.66
 
 - Workers: the ones that write turn off 13 Claude Code tools they never use (scheduling tasks, worktrees, notebooks, todo list, among others). Each run's startup drops from 20.5k to 9.7k tokens.

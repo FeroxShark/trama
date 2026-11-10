@@ -1,5 +1,16 @@
 # Cambios
 
+## 0.2.67
+
+- Arranque seguro: Trama ya no vuelve sola a la versión anterior cuando una instalación la cierra desde afuera. Una señal (SIGTERM, SIGINT, SIGHUP) cuenta como salida a propósito, un arranque cortado mientras se instala no suma falla, y `arranque.json` se escribe con candado. Cada arranque y cada salida quedan en `trama.log` con versión, fallas y hace cuánto arrancó el anterior.
+- `trama-estado` y el instalador miran primero el socket del motor y después el puerto local: ya no dicen «motor no responde» con el motor andando, y dicen por dónde contestó.
+- Reparto: un modelo preferido sin cupo ya no arrastra la elección hacia uno más caro; si no está disponible, se elige normal según el perfil.
+- Corrector ortográfico en español e inglés a la vez, con un interruptor en Ajustes > General (prendido por defecto).
+- Claude se busca y se lanza siempre con el mismo resolvedor (también en Windows, con `.exe` o `.cmd` del prefijo de npm); un test impide volver a lanzarlo pelado.
+- Windows: al cerrar con líderes respondiendo, la carcasa pregunta antes, como en Linux.
+- Plan y cupos: el aviso de cupo agotado sale en una sola frase separada, sin repetirse.
+- Tests: los de la base ya no dejan carpetas en `/tmp`, y la ayuda de `pa` vuelve a pasar la paridad.
+
 ## 0.2.66
 
 - Workers: los que escriben apagan 13 herramientas de Claude Code que nunca usan (programar tareas, worktrees, notebooks, lista de pendientes, entre otras). El arranque de cada corrida baja de 20,5k a 9,7k tokens.
