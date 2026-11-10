@@ -100,7 +100,7 @@ const PUENTE_DSH = path.join(import.meta.dirname, `dsh-puente${path.extname(impo
 /** `claude` por `resolverClaude` + `paraLanzar` (en Windows un `.cmd` de npm no se lanza directo). */
 const spawnClaude = (args: string[], op: SpawnOptions): ChildProcess => {
   const l = paraLanzar(CLAUDE, args);
-  return spawn(l.file, l.args, { ...op, ...(l.verbatim ? { windowsVerbatimArguments: true } : {}) });
+  return spawn(l.file, l.args, { ...op, windowsHide: true, ...(l.verbatim ? { windowsVerbatimArguments: true } : {}) });
 };
 const PROYECTOS = path.join(process.env.CLAUDE_CONFIG_DIR ?? path.join(HOME, ".claude"), "projects");
 /** Si el interrupt no contesta en esto, SIGINT. */

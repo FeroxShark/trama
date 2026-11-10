@@ -81,7 +81,7 @@ const destinoDe = (s: ServidorMcp) => (s.tipo === "stdio" ? [s.comando, ...(s.ar
 /** `claude` por `paraLanzar`: un `.cmd` de npm en Windows va por `cmd.exe /d /s /c` (Node no lo lanza directo). */
 const execClaude = (bin: string, args: string[], op: ExecFileOptions, fin: (err: ExecFileException | null, out: string | Buffer) => void) => {
   const l = paraLanzar(bin, args, op.env as NodeJS.ProcessEnv | undefined);
-  return execFile(l.file, l.args, { ...op, ...(l.verbatim ? { windowsVerbatimArguments: true } : {}) }, (e, out) => fin(e, out));
+  return execFile(l.file, l.args, { ...op, windowsHide: true, ...(l.verbatim ? { windowsVerbatimArguments: true } : {}) }, (e, out) => fin(e, out));
 };
 let cache: { en: number; r: { servidores: ServidorVisto[]; error: string | null } } | null = null;
 const VIGENCIA_MS = 30_000;

@@ -34,7 +34,7 @@ export function entorno(): NodeJS.ProcessEnv {
 /** `execFile` con `paraLanzar`: un `.cmd` de npm en Windows va por `cmd.exe /d /s /c` (Node no lo lanza directo). */
 const execLanzable = (bin: string, args: string[], op: ExecFileOptions, fin: (err: ExecFileException | null, stdout: string | Buffer, stderr: string | Buffer) => void) => {
   const l = paraLanzar(bin, args);
-  return execFile(l.file, l.args, { ...op, ...(l.verbatim ? { windowsVerbatimArguments: true } : {}) }, fin);
+  return execFile(l.file, l.args, { ...op, windowsHide: true, ...(l.verbatim ? { windowsVerbatimArguments: true } : {}) }, fin);
 };
 
 /** Lo que imprime el comando, normalizado a "x.y.z"; null si falló o no se entiende. */
