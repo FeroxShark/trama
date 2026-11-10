@@ -5,7 +5,7 @@
 import { app, ipcMain } from "electron";
 import * as nucleo from "./nucleo.js";
 import { cerrarDelTodo } from "./cierre.js";
-import { armarCanalesVentana, iconosVentana, ocultar, ventanas } from "./ventana-canales.js";
+import { armarCanalesVentana, iconosVentana, ocultar, salirAProposito, ventanas } from "./ventana-canales.js";
 
 export { pedirVista, ponerAnotadorDeVista, ponerRecarga, ponerRelanzo, ponerVistas } from "./ventana-canales.js";
 
@@ -38,7 +38,10 @@ export function armarIpc(irse: () => void) {
     if (!espera) return;
     e.preventDefault();
     // Red de última instancia: si algo más se cuelga al cerrar, a los 3 s del tope se sale igual.
-    setTimeout(() => app.exit(0), nucleo.TOPE_SALIDA_MS + 3000).unref();
+    setTimeout(() => {
+      salirAProposito("tope de salida");
+      app.exit(0);
+    }, nucleo.TOPE_SALIDA_MS + 3000).unref();
     void espera.then(
       () => app.quit(),
       () => app.quit(),

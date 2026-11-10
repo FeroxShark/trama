@@ -21,7 +21,7 @@ const { ENTRADAS_NATIVO } = require("./manifiesto-nativo");
 const { crearCanalesVentana } = require("./ventana");
 const { crearAlmacen } = require("./arranque-seguro");
 const discoInstalacion = require("./disco-instalacion");
-const { crearVersionAnterior, fsCrudo, instalacionDe, lanzarRestauracion } = require("./version-anterior");
+const { atenderSenales, crearVersionAnterior, fsCrudo, instalacionDe, lanzarRestauracion } = require("./version-anterior");
 
 // TRAMA_CAPTURA=<png> (sólo para la prueba de arranque sin Windows): offscreen, foto a los 4 s y sale.
 const CAPTURA = process.env.TRAMA_CAPTURA || "";
@@ -449,7 +449,7 @@ function crearBandeja() {
 app.on("second-instance", () => mostrarVentana());
 app.on("before-quit", (e) => {
   if (saliendo) return;
-  versionAnterior.alSalir();
+  versionAnterior.alSalir("before-quit");
   // Se baja el motor antes de salir (sin systemd, nadie más lo haría): una sola vez, y después se sale de verdad.
   saliendo = true;
   e.preventDefault();
@@ -470,6 +470,9 @@ app.whenReady().then(async () => {
     }
     return;
   }
+  // Una señal (Ctrl+C, la consola que se cierra) es una salida a propósito, no «se cerró sola»: se anota antes de `alArrancar`.
+  // `app.quit` pasa por before-quit, que baja el motor.
+  atenderSenales(process, (s) => versionAnterior.alSalir(s), () => app.quit());
   // Una versión recién instalada que ya se cerró sola dos veces no abre nada: vuelve a la anterior y esta Trama se va.
   if (await versionAnterior.alArrancar()) return;
   crearBandeja();

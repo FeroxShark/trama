@@ -21,8 +21,8 @@ import { log, logAparte } from "./log.js";
 import { ESTADO } from "./estado.js";
 import { baseConsulta, crearConsulta } from "./consulta.js";
 import { pedirSalida, pedirVista, ponerAnotadorDeVista, ponerEstadoEspera, ponerRecarga, ponerRelanzo, ponerTextosBandeja, ponerVersionAnterior, ponerVistas, ventanas } from "./ventana-canales.js";
-import { crearAlmacen } from "./arranque-seguro.js";
-import { carpetaCopias, crearVersionAnterior, instalacionDe, type VersionAnterior } from "./version-anterior.js";
+import { crearAlmacen, instalandoAhora } from "./arranque-seguro.js";
+import { atenderSenales, carpetaCopias, crearVersionAnterior, instalacionDe, type VersionAnterior } from "./version-anterior.js";
 import type { Cliente } from "./ventana-cliente.js";
 import { acomodar, crearGuardadoVolver, guardarVolver, leerVolver, lugarDeVentana, type Ventana, type Volver } from "./volver.js";
 import { silencio } from "./log.js";
@@ -155,6 +155,8 @@ const armarVersionAnterior = () => crearVersionAnterior({
   version: app.getVersion(),
   inst: residente ? instalacionDe(process.env, path.join(aqui, ".."), os.homedir()) : null,
   base: carpetaCopias(os.homedir()),
+  // Mientras Actualizar instala (o recién terminó), un arranque cortado lo cortó el instalador: no cuenta como cierre solo.
+  instalando: () => instalandoAhora(path.join(ESTADO, "trama-actualizacion.json"), Date.now()),
   async reiniciar(inst) {
     if (inst.tipo === "carpeta") await new Promise<void>((listo) => execFile("systemctl", ["--user", "restart", "trama-motor.service"], { timeout: 30_000 }, () => listo()));
     if (inst.tipo === "appimage") app.relaunch({ execPath: inst.ruta, args: [] });
@@ -437,6 +439,18 @@ if (residente && !app.requestSingleInstanceLock()) {
 async function arrancar() {
   versionAnterior = armarVersionAnterior();
   ponerVersionAnterior(versionAnterior);
+  // Una señal (el SIGTERM de `systemctl try-restart` al instalar, Ctrl+C, la sesión que se cierra) es una salida a propósito, no
+  // «se cerró sola»: se anota antes de `alArrancar`, así un arranque cortado desde afuera no empuja a volver a la versión anterior.
+  if (residente)
+    atenderSenales(
+      process,
+      (s) => versionAnterior.alSalir(s),
+      () => {
+        saliendo = true;
+        if (app.isReady()) app.quit();
+        else app.exit(0);
+      },
+    );
   // Una versión recién instalada que ya se cerró sola dos veces no abre nada: vuelve a la anterior y este proceso se va.
   if (await versionAnterior.alArrancar()) return;
   if (residente) {
@@ -449,7 +463,7 @@ async function arrancar() {
   vigilarProceso(log);
   app.on("before-quit", () => {
     saliendo = true;
-    versionAnterior.alSalir();
+    versionAnterior.alSalir("before-quit");
     guardadoVolver?.ahora();
   });
   app.on("window-all-closed", () => app.quit());

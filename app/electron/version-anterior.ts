@@ -12,7 +12,7 @@
 import { copyFile, chmod, cp, mkdir, readdir, rename, rm, stat } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import path from "node:path";
-import { alArrancar, alSalirAProposito, alTiempoAgotado, alVentanaLista, alVolver, ARRANQUE_MAX_MS, conRespaldo, sinAviso, type Almacen, type Aviso, type Copia, type Motivo } from "./arranque-seguro.ts";
+import { alArrancar, alSalirAProposito, alTiempoAgotado, alVentanaLista, alVolver, ARRANQUE_MAX_MS, conRespaldo, resumen, sinAviso, type Almacen, type Aviso, type Copia, type Estado, type Motivo } from "./arranque-seguro.ts";
 import { errorT } from "./errores.ts";
 
 export type Instalacion = { tipo: "appimage"; ruta: string } | { tipo: "carpeta"; app: string };
@@ -126,8 +126,30 @@ export type Deps = {
   topeMs?: number;
   /** Cuándo arrancó este proceso (ms): un AppImage más nuevo que eso ya no es éste y no se copia como si lo fuera. */
   inicio?: number;
+  /** ¿Se está instalando ahora? (en Electron, `instalandoAhora` sobre `trama-actualizacion.json`): un arranque sin terminar no cuenta. */
+  instalando?: () => boolean;
   log?: (m: string) => void;
 };
+
+/** Las señales con las que alguien de afuera (systemd, la terminal, la sesión) cierra el proceso: no es «se cerró sola». */
+export const SENALES = ["SIGTERM", "SIGINT", "SIGHUP"] as const;
+/**
+ * Atiende las señales: anota la salida a propósito (síncrono, antes de que el proceso se vaya) y después `irse`. Se pone antes de
+ * `alArrancar`, así un arranque cortado por el instalador no queda como cierre solo. Devuelve cómo sacarlas (para las pruebas).
+ */
+export function atenderSenales(proc: Pick<NodeJS.Process, "on" | "off">, salir: (motivo: string) => void, irse: (senal: NodeJS.Signals) => void): () => void {
+  const oyentes = SENALES.map((s) => {
+    const f = () => {
+      salir(s);
+      irse(s);
+    };
+    proc.on(s, f);
+    return [s, f] as const;
+  });
+  return () => {
+    for (const [s, f] of oyentes) proc.off(s, f);
+  };
+}
 
 export function crearVersionAnterior(d: Deps) {
   const ahora = d.ahora ?? Date.now;
@@ -139,6 +161,9 @@ export function crearVersionAnterior(d: Deps) {
   });
   let reloj: { cancelar(): void } | null = null;
   let volviendo: Promise<Volvio> | null = null;
+  /** El arranque de este proceso (ms), si anotó uno: una salida a propósito sólo limpia el suyo. */
+  let miArranque: number | null = null;
+  let salio = false;
 
   /** Restaura `c`, anota que se volvió y reinicia. Nunca rechaza; una sola vez a la vez. */
   function volver(c: Copia, motivo: Motivo): Promise<Volvio> {
@@ -148,7 +173,7 @@ export function crearVersionAnterior(d: Deps) {
       reloj?.cancelar();
       try {
         await restaurar(inst, c);
-        d.almacen.cambiar((e) => alVolver(e, c, motivo));
+        await d.almacen.cambiar((e) => alVolver(e, c, motivo));
         log(`volví a la ${c.version} (${motivo})`);
         await d.reiniciar(inst);
         return { ok: true };
@@ -163,8 +188,18 @@ export function crearVersionAnterior(d: Deps) {
   /** Al arrancar el proceso: anota el arranque y, si esta versión a prueba ya falló, vuelve (true: este proceso se va). */
   async function alArrancarProceso(): Promise<boolean> {
     if (!d.inst) return false;
-    const r = alArrancar(d.almacen.leer(), d.version, ahora());
-    d.almacen.cambiar(() => r.estado);
+    const t = ahora();
+    const instalando = d.instalando?.() ?? false;
+    const hecho: { antes?: Estado; r?: ReturnType<typeof alArrancar> } = {};
+    // Leer y escribir con el candado: el motor (Actualizar) no pisa la cuenta entre medio.
+    await d.almacen.cambiar((e) => {
+      hecho.antes = e;
+      hecho.r = alArrancar(e, d.version, t, { instalando });
+      return hecho.r.estado;
+    });
+    miArranque = t;
+    const { antes, r } = hecho as Required<typeof hecho>;
+    log(`arranco la ${d.version} (pid ${process.pid}); antes: ${resumen(antes, t)}; ahora: fallas ${r.estado.fallas}, buena ${r.estado.buena ? "sí" : "no"}${instalando ? "; se está instalando: un arranque sin terminar no cuenta" : ""}`);
     if (r.decision.accion === "volver") return (await volver(r.decision.a, r.decision.motivo)).ok;
     // Sin ventana lista a tiempo, vuelve (si hay a dónde).
     reloj = despues(() => {
@@ -178,7 +213,7 @@ export function crearVersionAnterior(d: Deps) {
   async function alVentanaListaProceso(): Promise<void> {
     if (!d.inst) return;
     reloj?.cancelar();
-    d.almacen.cambiar(alVentanaLista);
+    await d.almacen.cambiar(alVentanaLista);
     await guardarAntes();
   }
 
@@ -190,7 +225,7 @@ export function crearVersionAnterior(d: Deps) {
       if (d.inst.tipo === "appimage" && (await stat(d.inst.ruta)).mtimeMs > (d.inicio ?? Date.now() - process.uptime() * 1000) + 2000) return;
       if (e.respaldo?.version === d.version && (await copiaExiste(e.respaldo))) return;
       const c = await guardarCopia(d.inst, d.version, d.base, ahora());
-      const s = d.almacen.cambiar((x) => conRespaldo(x, c));
+      const s = await d.almacen.cambiar((x) => conRespaldo(x, c));
       await podar(d.base, [s.respaldo, s.anterior]);
     } catch (e) {
       log(`no pude guardar la versión que corre: ${e instanceof Error ? e.message : String(e)}`);
@@ -200,8 +235,17 @@ export function crearVersionAnterior(d: Deps) {
   return {
     alArrancar: alArrancarProceso,
     alVentanaLista: alVentanaListaProceso,
-    /** Salió a propósito (Cerrar del todo): un arranque sin terminar no cuenta como cierre solo. */
-    alSalir: () => void (d.inst && d.almacen.cambiar(alSalirAProposito)),
+    /**
+     * Salió a propósito (Cerrar del todo, una señal, `motivo`): un arranque sin terminar de este proceso no cuenta como cierre solo.
+     * Síncrono y sin candado (puede venir de una señal, con el proceso por irse); una sola vez.
+     */
+    alSalir(motivo = "salir"): void {
+      if (!d.inst || salio) return;
+      salio = true;
+      reloj?.cancelar();
+      const s = d.almacen.cambiarYa((e) => alSalirAProposito(e, miArranque));
+      log(`salgo a propósito (${motivo}, pid ${process.pid}): ${resumen(s, ahora())}`);
+    },
     guardarAntes,
     /** La versión anterior que hay para volver (con su copia entera en disco), o null. */
     async disponible(): Promise<string | null> {
@@ -215,11 +259,11 @@ export function crearVersionAnterior(d: Deps) {
       return volver(a, "manual");
     },
     /** Lo que la ventana cuenta al abrir tras volver; se gasta al leerlo. */
-    leerAviso(): Aviso | null {
-      const e = d.almacen.leer();
-      if (!e.aviso) return null;
-      d.almacen.cambiar(sinAviso);
-      return e.aviso;
+    async leerAviso(): Promise<Aviso | null> {
+      if (!d.almacen.leer().aviso) return null;
+      let aviso: Aviso | null = null;
+      await d.almacen.cambiar((e) => ((aviso = e.aviso), sinAviso(e)));
+      return aviso;
     },
     /** La versión desechada, para que el aviso de "hay una Trama nueva" no la ofrezca otra vez. */
     rechazada: (): string | null => d.almacen.leer().rechazada,

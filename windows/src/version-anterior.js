@@ -13,7 +13,7 @@
 const fsp = require("node:fs/promises");
 const { promisify } = require("node:util");
 const path = require("node:path");
-const { alArrancar, alSalirAProposito, alTiempoAgotado, alVentanaLista, alVolver, ARRANQUE_MAX_MS, conRespaldo, sinAviso } = require("./arranque-seguro");
+const { alArrancar, alSalirAProposito, alTiempoAgotado, alVentanaLista, alVolver, ARRANQUE_MAX_MS, conRespaldo, resumen, sinAviso } = require("./arranque-seguro");
 
 /** La instalación de este proceso: la carpeta de Trama.exe. Sólo existe empaquetada (en desarrollo no hay qué guardar). */
 function instalacionDe({ empaquetada, execPath }) {
@@ -128,8 +128,28 @@ async function lanzarRestauracion(o, { escribir = fsp.writeFile, lanzar = requir
 }
 
 /**
+ * Las señales con las que alguien de afuera cierra la carcasa en Windows: Ctrl+C (SIGINT), Ctrl+Break (SIGBREAK), la consola que se
+ * cierra (SIGHUP). SIGTERM no llega nunca en Windows (Node lo acepta igual), y un TerminateProcess (`taskkill /F`) no se puede atender.
+ */
+const SENALES = ["SIGTERM", "SIGINT", "SIGHUP", "SIGBREAK"];
+/** Atiende las señales: anota la salida a propósito (síncrono) y después `irse`. Se pone antes de `alArrancar`. Devuelve cómo sacarlas. */
+function atenderSenales(proc, salir, irse) {
+  const oyentes = SENALES.map((s) => {
+    const f = () => {
+      salir(s);
+      irse(s);
+    };
+    proc.on(s, f);
+    return [s, f];
+  });
+  return () => {
+    for (const [s, f] of oyentes) proc.off(s, f);
+  };
+}
+
+/**
  * El servicio de la carcasa. `d`: { almacen, version, inst, base, restaurar(inst, copia), salir(), copiarAlEstarLista?, ahora?, despues?,
- * topeMs?, log? }. `restaurar` deja la restauración en marcha (en Windows, el guion suelto) y `salir` cierra esta Trama.
+ * topeMs?, log?, instalando? }. `restaurar` deja la restauración en marcha (en Windows, el guion suelto) y `salir` cierra esta Trama.
  */
 function crearVersionAnterior(d) {
   const ahora = d.ahora ?? Date.now;
@@ -144,6 +164,9 @@ function crearVersionAnterior(d) {
   let reloj = null;
   let volviendo = null;
   let guardando = null;
+  // El arranque de este proceso (ms), si anotó uno: una salida a propósito sólo limpia el suyo.
+  let miArranque = null;
+  let salio = false;
 
   /** Anota que se vuelve, deja la restauración en marcha y sale. Nunca rechaza; una sola vez a la vez. */
   function volver(c, motivo) {
@@ -188,8 +211,13 @@ function crearVersionAnterior(d) {
     /** Al arrancar el proceso: anota el arranque y, si esta versión a prueba ya falló, vuelve (true: este proceso se va). */
     async alArrancar() {
       if (!d.inst) return false;
-      const r = alArrancar(d.almacen.leer(), d.version, ahora());
+      const t = ahora();
+      const instalando = d.instalando?.() ?? false;
+      const antes = d.almacen.leer();
+      const r = alArrancar(antes, d.version, t, { instalando });
       d.almacen.cambiar(() => r.estado);
+      miArranque = t;
+      log(`arranco la ${d.version} (pid ${process.pid}); antes: ${resumen(antes, t)}; ahora: fallas ${r.estado.fallas}, buena ${r.estado.buena ? "sí" : "no"}${instalando ? "; se está instalando: un arranque sin terminar no cuenta" : ""}`);
       if (r.decision.accion === "volver") return (await volver(r.decision.a, r.decision.motivo)).ok;
       reloj = despues(() => {
         const t = alTiempoAgotado(d.almacen.leer());
@@ -204,8 +232,14 @@ function crearVersionAnterior(d) {
       d.almacen.cambiar(alVentanaLista);
       if (d.copiarAlEstarLista) await guardarAntes();
     },
-    /** Salió a propósito (Salir de la bandeja): un arranque sin terminar no cuenta como cierre solo. */
-    alSalir: () => void (d.inst && d.almacen.cambiar(alSalirAProposito)),
+    /** Salió a propósito (Salir de la bandeja, una señal, `motivo`): un arranque sin terminar de este proceso no cuenta como cierre solo. Una sola vez. */
+    alSalir(motivo = "salir") {
+      if (!d.inst || salio) return;
+      salio = true;
+      reloj?.cancelar();
+      const s = d.almacen.cambiarYa((e) => alSalirAProposito(e, miArranque));
+      log(`salgo a propósito (${motivo}, pid ${process.pid}): ${resumen(s, ahora())}`);
+    },
     guardarAntes,
     /** La versión anterior que hay para volver (con su copia entera en disco), o null. */
     async disponible() {
@@ -230,4 +264,4 @@ function crearVersionAnterior(d) {
   };
 }
 
-module.exports = { instalacionDe, copiaExiste, fsCrudo, guardarCopia, podar, guionDeRestauracion, lanzarRestauracion, crearVersionAnterior };
+module.exports = { SENALES, atenderSenales, instalacionDe, copiaExiste, fsCrudo, guardarCopia, podar, guionDeRestauracion, lanzarRestauracion, crearVersionAnterior };

@@ -38,6 +38,8 @@ let versionAnterior: VersionAnterior | null = null;
 export function ponerVersionAnterior(v: VersionAnterior | null) {
   versionAnterior = v;
 }
+/** Una salida a propósito que no pasa por `before-quit` (un `app.exit` directo): el arranque sin terminar no cuenta como cierre solo. */
+export const salirAProposito = (motivo: string) => versionAnterior?.alSalir(motivo);
 
 export const ventanas = () => BrowserWindow.getAllWindows();
 export const ocultar = () => {
