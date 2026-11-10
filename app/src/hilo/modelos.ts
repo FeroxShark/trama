@@ -47,6 +47,8 @@ export type ModeloDef = {
   sinWorkers?: boolean;
   /** Una generación anterior que el `claude` instalado todavía conoce: va debajo de los últimos, bajo el divisor «Anteriores». Siempre `soloLider`. */
   anterior?: boolean;
+  /** Sólo se ofrece si el catálogo de la cuenta de Claude lo lista (Fable 5.2); sin catálogo no aparece. */
+  soloCuenta?: boolean;
   /** Los niveles de esfuerzo que tiene, del más bajo al más alto. */
   efforts: readonly string[];
   /** Con el que arranca si el usuario no eligió otro para este modelo (ante la duda entre dos, el más alto en Claude). */
@@ -57,8 +59,10 @@ export type ModeloDef = {
  * En el orden de los selectores (pedido del usuario, 2026-10-18): Fable, Opus, Sonnet, Haiku y después los locales. El menú
  * agrupa por empresa (Anthropic y las que traen los locales: las filas de una empresa van juntas) y marca con un chip a los locales. El default (`rec`) sigue siendo Opus, el de routing: el orden no lo cambia.
  */
-const tabla: ModeloDef[] = [
-  { id: "claude-fable-5-1", clave: "fable", empresa: "anthropic", nombre: "Fable 5.1", desc: "modelo.fable", efforts: EFFORTS_CLAUDE, effortDefecto: "high" },
+const CLAUDE: ModeloDef[] = [
+  // Fable 5.2: sólo si la cuenta lo tiene (catálogo del `claude`, `claudeModelos`). Fable 5.1 y 5.2 llevan el id entero de clave: si no, un hilo de uno se leería como el otro.
+  { id: "claude-fable-5-2", clave: "claude-fable-5-2", empresa: "anthropic", nombre: "Fable 5.2", desc: "modelo.fable", soloCuenta: true, efforts: EFFORTS_CLAUDE, effortDefecto: "high" },
+  { id: "claude-fable-5-1", clave: "claude-fable-5-1", empresa: "anthropic", nombre: "Fable 5.1", desc: "modelo.fable", efforts: EFFORTS_CLAUDE, effortDefecto: "high" },
   { id: "claude-opus-5-5", clave: "opus", empresa: "anthropic", nombre: "Opus 5.5", desc: "modelo.opus", rec: true, efforts: EFFORTS_CLAUDE, effortDefecto: "high" },
   { id: "claude-sonnet-5-5", clave: "sonnet", empresa: "anthropic", nombre: "Sonnet 5.5", desc: "modelo.sonnet", efforts: EFFORTS_CLAUDE, effortDefecto: "high" },
   { id: "claude-haiku-5-5", clave: "haiku", empresa: "anthropic", nombre: "Haiku 5.5", desc: "modelo.haiku", efforts: EFFORTS_CLAUDE, effortDefecto: "high" },
@@ -77,6 +81,49 @@ const tabla: ModeloDef[] = [
     ["claude-haiku-4-5", "claude-haiku-4-5", "Haiku 4.5", "modelo.haiku", [], "high"],
   ].map(([id, clave, nombre, desc, efforts, effortDefecto]) => ({ id, clave, nombre, desc, efforts, effortDefecto, empresa: "anthropic", anterior: true, soloLider: true }) as ModeloDef),
 ];
+/** La tabla antes de leer el catálogo de la cuenta: sin lo que sólo existe si la cuenta lo tiene. */
+const tabla: ModeloDef[] = CLAUDE.filter((m) => !m.soloCuenta);
+
+const FAMILIAS_ORDEN = ["fable", "opus", "sonnet", "haiku"];
+const familiaClaude = (id: string) => /^claude-([a-z]+)/.exec(id)?.[1] ?? "";
+const DESC_FAMILIA: Record<string, ModeloDef["desc"]> = { fable: "modelo.fable", opus: "modelo.opus", sonnet: "modelo.sonnet", haiku: "modelo.haiku" };
+
+/** El catálogo de la cuenta de Claude: lo que el `claude` instalado dice que esta cuenta puede usar (`electron/claude-catalogo.ts`). */
+export type ModeloClaudeCuenta = { id: string; nombre: string; principal: boolean; efforts: string[]; familia: string };
+
+/**
+ * Las filas de Claude según el catálogo de la cuenta: los modelos `main` van arriba (en el orden de siempre: Fable, Opus, Sonnet,
+ * Haiku), los `overflow` debajo como «Anteriores», uno que el código no conoce entra con lo que dice el catálogo, y un último que el
+ * catálogo no lista no se ofrece. Una generación anterior que el catálogo no nombra se queda (se probó con el `claude` instalado).
+ */
+export function claudeDeCuenta(base: readonly ModeloDef[], cat: readonly ModeloClaudeCuenta[]): ModeloDef[] {
+  const dueña = (r: ModeloDef) => cat.find((c) => c.id === r.id || new RegExp(`^${r.id}-\\d{8}$`).test(c.id));
+  const peso = (m: ModeloDef) => {
+    const f = FAMILIAS_ORDEN.indexOf(familiaClaude(m.id));
+    return [f < 0 ? FAMILIAS_ORDEN.length : f, base.findIndex((r) => r.id === m.id)] as const;
+  };
+  const filas: ModeloDef[] = [];
+  for (const r of base.filter((m) => m.empresa === "anthropic")) {
+    const c = dueña(r);
+    if (!c) {
+      if (r.anterior) filas.push({ ...r });
+      continue;
+    }
+    const { soloCuenta: _s, ...fila } = r;
+    filas.push(c.principal ? { ...fila, anterior: false, soloLider: r.anterior ? false : r.soloLider } : { ...fila, anterior: true, soloLider: true });
+  }
+  for (const c of cat) {
+    if (filas.some((f) => dueña(f)?.id === c.id)) continue;
+    const fam = c.familia || familiaClaude(c.id);
+    filas.push({
+      id: c.id, clave: c.id, empresa: "anthropic", nombre: c.nombre, desc: DESC_FAMILIA[fam] ?? "modelo.claudeCuenta",
+      ...(c.principal ? {} : { anterior: true, soloLider: true }),
+      efforts: c.efforts, effortDefecto: c.efforts.includes("high") ? "high" : (c.efforts[0] ?? "high"),
+    });
+  }
+  const ordenar = (xs: ModeloDef[]) => xs.map((m, k) => ({ m, k, p: peso(m) })).sort((a, b) => a.p[0] - b.p[0] || a.p[1] - b.p[1] || a.k - b.k).map((x) => x.m);
+  return [...ordenar(filas.filter((f) => !f.anterior)), ...ordenar(filas.filter((f) => f.anterior))];
+}
 
 /**
  * Lo que `~/.config/trama/modelos.json` y `locales.json` agregan: sin esos archivos la tabla es la de arriba, igual que siempre. Gemini (`agy`) está
@@ -131,7 +178,7 @@ const opencode = (valor: string, niveles: readonly string[] = [], planGo = false
     effortDefecto: niveles.includes("medium") ? "medium" : (niveles[0] ?? "high"),
   };
 };
-const BASE = tabla.slice();
+const BASE = CLAUDE.slice();
 export const TABLA: readonly ModeloDef[] = tabla;
 
 export type ConfigModelos = {
@@ -143,6 +190,8 @@ export type ConfigModelos = {
   opencode?: string[];
   /** Los modelos que ofrece el `agy` de esta cuenta (ids de pa: `gemini-3.8-flash-high`, `agy:claude-opus-4-6-thinking`). Sin la lista, los de Gemini son los de siempre. */
   agyModelos?: { id: string; nombre: string }[];
+  /** Los modelos de Claude que ofrece esta cuenta (catálogo del `claude`). Sin la lista, los de siempre menos los `soloCuenta`. */
+  claudeModelos?: ModeloClaudeCuenta[];
   /** Los niveles de esfuerzo de esos modelos (`opencode/xxx` → `["low","medium","high"]`); el que no figura no razona. */
   opencodeEfforts?: Record<string, string[]>;
   /** El plan de OpenCode Go prendido en Ajustes (`go` o `go-plus`); ausente: apagado, los modelos de OpenCode se ven como siempre. */
@@ -226,7 +275,7 @@ export function ponerConfig(c: ConfigModelos | null): { modelo: string; effort: 
   // Gratis primero y, con el plan Go prendido, los de Go enseguida; el resto de Zen / proveedores propios al final.
   const ordenOc = (v: string) => (esGratisOpencode(v) ? 0 : planGo && esGoOpencode(v) ? 1 : 2);
   const opencodeTodos = [...valores].sort((a, b) => ordenOc(a) - ordenOc(b)).map((v) => opencode(v, c?.opencodeEfforts?.[v] ?? [], planGo));
-  const base = BASE.map((m) => ({ ...m }));
+  const base = c?.claudeModelos?.length ? claudeDeCuenta(BASE, c.claudeModelos) : BASE.filter((m) => !m.soloCuenta).map((m) => ({ ...m }));
   tabla.length = 0;
   tabla.push(...base, ...llama, ...(c?.gemini ? (c.agyModelos?.length ? agyDeCuenta(c.agyModelos) : GEMINI.map((m) => ({ ...m }))) : []), ...ollama, ...dshTodos, ...opencodeTodos);
   const lider = c?.lider ?? null;

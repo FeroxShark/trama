@@ -64,7 +64,7 @@ test("el menú agrupa por empresa: cada una en filas contiguas, Anthropic primer
   assert.deepEqual(TABLA.filter((m) => m.local).map((m) => m.empresaNombre), ["Empresa de ejemplo", "Otra empresa"]);
   assert.deepEqual(
     TABLA.filter((m) => m.empresa === "anthropic" && !m.anterior).map((m) => m.clave),
-    ["fable", "opus", "sonnet", "haiku"],
+    ["claude-fable-5-1", "opus", "sonnet", "haiku"],
   );
   assert.ok(TABLA.filter((m) => m.empresa !== "anthropic").every((m) => m.local), "lo que no es de Anthropic corre en la GPU local");
   assert.ok(TABLA.filter((m) => m.empresa === "anthropic").every((m) => !m.local));
@@ -303,4 +303,48 @@ test("un modelo de opencode o dsh que la tabla no conoce no hereda los niveles d
   assert.deepEqual(effortsDe("opencode:opencode/nuevo-que-no-esta"), []);
   assert.deepEqual(effortsDe("dsh:nube/raro"), []);
   assert.deepEqual(effortsDe("claude-raro-9"), EFFORTS_CLAUDE);
+});
+
+// --- Los modelos de Claude de la cuenta (catálogo del `claude`): Fable 5.2 sólo si la cuenta lo tiene ---
+const CAT = (ids: Array<[string, boolean]>) => ids.map(([id, principal]) => ({ id, nombre: id, principal, efforts: ["low", "medium", "high", "xhigh", "max"], familia: "" }));
+const CAT_5_2: Array<[string, boolean]> = [["claude-opus-5-5", true], ["claude-fable-5-2", true], ["claude-sonnet-5-5", true], ["claude-haiku-5-5", true], ["claude-fable-5-1", false], ["claude-haiku-4-5-20251001", false], ["claude-opus-4-8", false]];
+
+test("sin catálogo de la cuenta no se ofrece Fable 5.2", () => {
+  ponerConfig(CON);
+  assert.equal(TABLA.some((m) => m.id === "claude-fable-5-2"), false);
+});
+
+test("con Fable 5.2 en el catálogo va primero, Fable 5.1 baja a Anteriores y nada se pierde", () => {
+  try {
+    ponerConfig({ ...CON, claudeModelos: CAT(CAT_5_2) });
+    const claude = TABLA.filter((m) => m.empresa === "anthropic");
+    assert.deepEqual(claude.filter((m) => !m.anterior).map((m) => m.id), ["claude-fable-5-2", "claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5"]);
+    const f51 = claude.find((m) => m.id === "claude-fable-5-1")!;
+    assert.equal(f51.anterior, true);
+    assert.equal(f51.soloLider, true);
+    assert.equal(claude.find((m) => m.id === "claude-fable-5-2")?.nombre, "Fable 5.2");
+    assert.equal(claude.find((m) => m.id === "claude-fable-5-2")?.soloLider, undefined);
+    // Las anteriores que el catálogo no nombra (Opus 4.5) siguen; Haiku 4.5 con fecha es la misma fila de siempre.
+    assert.ok(claude.some((m) => m.id === "claude-opus-4-5"));
+    assert.equal(claude.filter((m) => m.id.startsWith("claude-haiku-4-5")).length, 1);
+    assert.equal(TABLA.find((m) => m.rec)?.id, "claude-opus-5-5");
+    assert.equal(defDe("claude-fable-5-2[1m]")?.nombre, "Fable 5.2");
+    assert.equal(defDe("claude-fable-5-1")?.nombre, "Fable 5.1");
+  } finally {
+    ponerConfig(CON);
+  }
+});
+
+test("un modelo de Claude que el código no conoce entra con lo que dice el catálogo; uno que la cuenta no lista no se ofrece", () => {
+  try {
+    ponerConfig({ ...CON, claudeModelos: CAT([["claude-opus-5-5", true], ["claude-sonnet-5-5", true], ["claude-nuevo-6", true], ["claude-viejo-1", false]]) });
+    const ids = TABLA.filter((m) => m.empresa === "anthropic").map((m) => m.id);
+    assert.ok(ids.includes("claude-nuevo-6") && ids.includes("claude-viejo-1"));
+    assert.equal(ids.includes("claude-haiku-5-5"), false);
+    assert.equal(ids.includes("claude-fable-5-1"), false);
+    assert.equal(defDe("claude-nuevo-6")?.anterior, undefined);
+    assert.equal(defDe("claude-viejo-1")?.anterior, true);
+  } finally {
+    ponerConfig(CON);
+  }
 });

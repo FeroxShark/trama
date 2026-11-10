@@ -27,6 +27,7 @@ export type Tokens = { entrada: number; salida: number; cacheLeido: number; cach
 export const PRECIO_MAX = 1000;
 
 export const PRECIOS_PUBLICOS: Tabla = {
+  "claude-fable-5-2": { entrada: 10, salida: 50, cacheLeido: 0.25, cacheEscrito: 12.5 },
   "claude-fable-5-1": { entrada: 10, salida: 50, cacheLeido: 0.25, cacheEscrito: 12.5 },
   "claude-mythos-5-1": { entrada: 10, salida: 50, cacheLeido: 0.25, cacheEscrito: 12.5 },
   "claude-fable-5": { entrada: 10, salida: 50, cacheLeido: 1, cacheEscrito: 12.5 },

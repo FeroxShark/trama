@@ -81,6 +81,7 @@ import { catalogo as catalogoDescubrir, instalar as instalarDescubrir, previa as
 import { agregarCatalogo, estadoCatalogos, instalarPlugin, quitarPlugin, type DepsPlugins } from "./plugins-claude.ts";
 import { guardarServidor, quitarServidor, vistaMcp } from "./mcp-config.ts";
 import { crearLectorTabla, leerTabla } from "./reparto-tabla.ts";
+import { modelosClaudeCuenta } from "./claude-catalogo.ts";
 import { actualizarOpencode, effortsOpencode, modelosOpencode, vistaOpencode } from "./opencode-ajustes.ts";
 import { estadoNim, guardarModelosNim, probarNim } from "./nvidia-nim.ts";
 import { guardarPlanOpencode, mantenerTopesGo, planOpencode, vistaPlanGo } from "./opencode-go.ts";
@@ -931,7 +932,7 @@ export function armarNucleo() {
   // Los paneles del pie: Ajustes, Estadísticas y las acciones de Ramas.
   // Con agy, los modelos son los que ofrece SU cuenta (`reparto --agy-modelos`, con caché); se calienta al arrancar para que el primer pedido no espere.
   if (hayAgy()) void agyOfrecidos();
-  manejar("modelos:config", async () => vistaModelos(modelosConfig(), hayAgy(), vistaLocales(), hayDsh(), modelosOpencode(), effortsOpencode(), planOpencode(), hayAgy() ? ((await agyOfrecidos()) ?? []) : []));
+  manejar("modelos:config", async () => vistaModelos(modelosConfig(), hayAgy(), vistaLocales(), hayDsh(), modelosOpencode(), effortsOpencode(), planOpencode(), hayAgy() ? ((await agyOfrecidos()) ?? []) : [], modelosClaudeCuenta()));
   manejar("dueno:nombre", () => nombreDueno());
   manejar("ajustes:leer", () => leerAjustes());
   // Ajustes editable: el plan y la red de seguridad (ajustes-editar.ts) y el acceso desde el celular (remoto-config.ts).

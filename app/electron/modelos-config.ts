@@ -10,6 +10,7 @@ import { mkdir, readFile, realpath, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { configTrama } from "./rutas.ts";
 import { hayAgy, hayClaude } from "./capacidades.ts";
+import type { ModeloClaudeCuenta } from "./claude-catalogo.ts";
 import { leerDestrabos, type CuentaDestrabos } from "./destrabar-registro.ts";
 import { errorT, textoT } from "./errores.ts";
 import { destrabarActivo, leerConfig, unir, urlOllama, validarConfig, TIPOS, type ConfigModelos, type Eleccion, type Tipo } from "./modelos-tipos.ts";
@@ -288,11 +289,13 @@ export const localOllama = (id: string, cfg: ModelosConfig | null = modelosConfi
  * Lo que sabe el renderer: sin url ni nada que no sea para mostrar (`src/datos/modelos-config.ts`). Gemini está si el archivo
  * lo habilita o es el líder por defecto. `null`: no hay archivo y todo es como siempre (ni `agy`, ni `dsh`, ni modelos locales).
  */
-export function vistaModelos(cfg: ModelosConfig | null = modelosConfig(), agy = false, llama: { id: string; nombre: string; empresa: string }[] = [], dsh = false, opencode: string[] = [], opencodeEfforts: Record<string, string[]> = {}, opencodePlan: string = "gratis", agyModelos: { id: string; nombre: string }[] = []) {
+export function vistaModelos(cfg: ModelosConfig | null = modelosConfig(), agy = false, llama: { id: string; nombre: string; empresa: string }[] = [], dsh = false, opencode: string[] = [], opencodeEfforts: Record<string, string[]> = {}, opencodePlan: string = "gratis", agyModelos: { id: string; nombre: string }[] = [], claudeModelos: ModeloClaudeCuenta[] | null = null) {
   // El plan de OpenCode Go sólo viaja si está prendido (go / go-plus): el selector rotula así sus modelos. Sin plan Go, nada cambia.
   // Los modelos que `agy models` ofrece en esta cuenta (ids de pa); sin la lista, el selector muestra los de siempre.
   const ag = agy && agyModelos.length ? { agyModelos } : {};
-  const ef = { ...ag, ...(opencode.length && Object.keys(opencodeEfforts).length ? { opencodeEfforts } : {}), ...(opencode.length && (opencodePlan === "go" || opencodePlan === "go-plus") ? { opencodePlan } : {}) };
+  // Los de Claude que ofrece la cuenta (catálogo del `claude`); sin catálogo, la tabla de siempre.
+  const cl = claudeModelos?.length ? { claudeModelos } : {};
+  const ef = { ...ag, ...cl, ...(opencode.length && Object.keys(opencodeEfforts).length ? { opencodeEfforts } : {}), ...(opencode.length && (opencodePlan === "go" || opencodePlan === "go-plus") ? { opencodePlan } : {}) };
   if (!cfg) return agy || llama.length || dsh || opencode.length ? { version: 1, gemini: agy, dsh, ...(opencode.length ? { opencode } : {}), ...ef, locales: [], llama, lider: null } : null;
   return {
     version: 1,
