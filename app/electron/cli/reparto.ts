@@ -21,6 +21,7 @@ import {
   leerMedicion,
   muestra,
   muestraModelo,
+  muestraTipo,
   pesoDe,
   tasaOk,
   usdPorExito,
@@ -2268,15 +2269,17 @@ function filasDeMedicion(): Fila[] {
   }
 }
 
-/** Lo que hace falta para costingar un tipo: las filas, el ancla (el US$ por corrida de Opus) y su US$ por éxito. */
+/** Lo que hace falta para costingar un tipo: las filas y el ancla (el Opus del tipo: su US$ por corrida y su US$ por éxito). */
 type ContextoCosto = { filas: Fila[]; desde: string; anclaUsd: number; anclaExito: number };
 
 /** El contexto de costo (medicion.tsv): null si no hay medición (o si no hay Opus para anclar los pesos). */
-function contextoCosto(now: Date): ContextoCosto | null {
+function contextoCosto(tipo: string, now: Date): ContextoCosto | null {
   const filas = filasDeMedicion();
   if (!filas.length) return null;
   const desde = iso(new Date(now.getTime() - DIAS_COSTO * 86400_000))!.slice(0, 10);
-  const ancla = muestraModelo(filas, MODELOS_OPUS, desde);
+  // el ancla es el Opus del tipo; si ese tipo no tiene corrida de Opus, el Opus de todos los tipos
+  let ancla = muestraTipo(filas, tipo, MODELOS_OPUS, desde);
+  if (costoMedio(ancla) === null) ancla = muestraModelo(filas, MODELOS_OPUS, desde);
   const anclaUsd = costoMedio(ancla);
   if (anclaUsd === null) return null; // sin Opus no hay con qué comparar los pesos
   const tasaAncla = tasaOk(ancla);
@@ -2284,7 +2287,14 @@ function contextoCosto(now: Date): ContextoCosto | null {
 }
 
 /** El costo de un candidato: el medido (US$ por corrida y US$ por éxito) y, si no hay medida, la estimación con los pesos corregidos. */
-type CostoCandidato = { usd: number; exito: number | null; relativo: number | null };
+type CostoCandidato = { usd: number; exito: number | null; porCorrida: number | null; porExito: number | null };
+
+/** El peso corregido de la familia (Opus = 1): el medido, salvo que modelos.json haya puesto otro costo. */
+function pesoCorregido(c: Obj, cfg: Obj): number {
+  const fam = c.familia;
+  const propio = fam in cfg.costo && cfg.costo[fam] !== COSTO[fam];
+  return propio ? (cfg.costo[fam] as number) : pesoDe(fam);
+}
 
 /** El costo relativo corregido (Opus = 1): el de la familia con los pesos medidos; los locales y los de OpenCode/DeepSeek, el suyo. */
 function costoRelativoCorregido(c: Obj, cfg: Obj): number {
@@ -2293,7 +2303,7 @@ function costoRelativoCorregido(c: Obj, cfg: Obj): number {
     if (c.gratis) return 0.0;
     return verdad(c.plan_go) ? get(cfg.costo, "opencode-go", COSTO_GO) : get(cfg.costo, "dsh-pago", COSTO_DSH_PAGO);
   }
-  return pesoDe(c.familia);
+  return pesoCorregido(c, cfg);
 }
 
 function costoDeCandidato(ctx: ContextoCosto | null, tipo: string, cand: Obj, cfg: Obj): CostoCandidato | null {
@@ -2304,10 +2314,17 @@ function costoDeCandidato(ctx: ContextoCosto | null, tipo: string, cand: Obj, cf
   const usd = medido !== null ? medido : costoRelativoCorregido(cand, cfg) * ctx.anclaUsd;
   // el US$ por éxito necesita corrida con dato (10 o más): sin eso no se cree
   const exito = usdPorExito(m);
-  return { usd, exito, relativo: exito !== null ? exito / ctx.anclaExito : null };
+  return {
+    usd,
+    exito,
+    // lo que cuesta una corrida, relativo a Opus (la escala de los pesos de la tabla): lo que entra en el puntaje
+    porCorrida: medido !== null ? medido / ctx.anclaUsd : costoRelativoCorregido(cand, cfg),
+    // lo que cuesta un éxito, relativo a Opus: lo que ordena en el perfil agresivo
+    porExito: exito !== null ? exito / ctx.anclaExito : null,
+  };
 }
 
-/** Le pone a un candidato su costo real: `costo_real` y `usd_por_exito` en US$; `_costo_real` (relativo a Opus) es el que ordena. */
+/** Le pone a un candidato su costo real: `costo_real` y `usd_por_exito` en US$; `_costo_run` y `_costo_exito` son los relativos a Opus. */
 function aplicarCostoCandidato(cand: Obj, costo: CostoCandidato | null): void {
   if (!costo) return;
   cand.costo_real = costo.usd;
@@ -2316,15 +2333,16 @@ function aplicarCostoCandidato(cand: Obj, costo: CostoCandidato | null): void {
     cand.usd_por_exito = costo.exito;
     conFloat(cand, "usd_por_exito");
   }
-  if (costo.relativo !== null) Object.defineProperty(cand, "_costo_real", { value: costo.relativo, enumerable: false, writable: true, configurable: true });
+  if (costo.porCorrida !== null) Object.defineProperty(cand, "_costo_run", { value: costo.porCorrida, enumerable: false, writable: true, configurable: true });
+  if (costo.porExito !== null) Object.defineProperty(cand, "_costo_exito", { value: costo.porExito, enumerable: false, writable: true, configurable: true });
 }
 
 /** `aplicar_agresivo`: a cada candidato su costo, y dos reglas duras sobre `minimo_por_tipo`: Flash nunca escribe, y lo que no gasta cupo sin historial propio sólo entra en TIPOS_GRATIS_SIN_DATOS (vuelve si no queda nada más). */
 function aplicarAgresivo(out: Obj[], tipo: string, cfg: Obj, now: Date): void {
   const rinde = rindeDeModelos(now);
   for (const c of out) {
-    // el costo real medido si lo hay (relativo a Opus, la escala de los pesos de la tabla); si no, el de la familia
-    c.costo = typeof c._costo_real === "number" ? (c._costo_real as number) : costoRelativo(c, cfg);
+    // el costo real medido si lo hay (el US$ por éxito relativo a Opus: lo que ordena); si no, el de la familia
+    c.costo = typeof c._costo_exito === "number" ? (c._costo_exito as number) : costoRelativo(c, cfg);
     conFloat(c, "costo");
     if (c.proveedor === "local" || c.proveedor === "dsh") {
       const [d, ok] = rinde.get(`${tipo}\t${c.modelo}`) ?? [0, 0];
@@ -2396,7 +2414,7 @@ function armarCandidatos(tipo: string, cfg: Obj, cupos: Obj, now: Date, effort: 
   const agyClaudeOk = googles.some((g) => claudeDeGoogleOk(g));
 
   // El costo real medido (medicion.tsv): null si no hay medición.
-  const ctxCosto = contextoCosto(now);
+  const ctxCosto = contextoCosto(tipo, now);
 
   const hacer = (c: Familia, cuentaS: Obj) => {
     const [base, fam, nombre0, sus, gid, agyBase, efs0] = c;
@@ -2454,7 +2472,7 @@ function armarCandidatos(tipo: string, cfg: Obj, cupos: Obj, now: Date, effort: 
       cand.duro = true;
     }
     // El costo real de este candidato: lo medido en las corridas (medicion.tsv) y, si no hay medida, la estimación con los
-    // pesos corregidos. `costo_real` y `usd_por_exito` van en US$; `_costo_real` (relativo a Opus) es el que ordena.
+    // pesos corregidos. `costo_real` y `usd_por_exito` van en US$; los relativos a Opus ordenan.
     aplicarCostoCandidato(cand, costoDeCandidato(ctxCosto, tipo, cand, cfg));
     cand.clave = cand.grupo + suf(cuenta);
     let vents: Obj[];
@@ -2567,8 +2585,9 @@ function armarCandidatos(tipo: string, cfg: Obj, cupos: Obj, now: Date, effort: 
     cand.urgencia = pyRound(urg, 3);
     cand.carga = get(carga, cand.clave, 0);
     const multCosto = sinRitmo ? 1.0 : perfil.costo;
-    // El costo que entra en el puntaje: el real medido (relativo a Opus, la escala de los pesos) si lo hay; si no, el de la familia.
-    const costoPuntaje = typeof cand._costo_real === "number" ? (cand._costo_real as number) : get(cfg.costo, fam, 0.3);
+    // El costo que entra en el puntaje: el real medido por corrida (relativo a Opus, la escala de los pesos) si lo hay;
+    // si no, el de la familia (los pesos corregidos sólo cuando hay medición).
+    const costoPuntaje = typeof cand._costo_run === "number" ? (cand._costo_run as number) : get(cfg.costo, fam, 0.3);
     let pts = pyRound(util + cfg.peso_urgencia * urg - multCosto * cfg.peso_costo * costoPuntaje - cfg.peso_carga * cand.carga, 2);
     if (rt) {
       let [pR, sR] = puntosRitmo(rt, urg7 || 0.0, cfg.peso_ritmo, cfg.peso_bono_ritmo, perfil.ritmo);
@@ -2762,7 +2781,7 @@ function elegir(tipo0: string, cfg: Obj, cupos: Obj, now: Date, mismoProveedor: 
   let gana: Obj;
   if (todoLleno) {
     // el más barato: el costo real medido si lo hay, si no el de la familia (los locales, gratis)
-    gana = minPor(pool, (c) => [typeof c._costo_real === "number" ? (c._costo_real as number) : c.familia !== "local" ? get(cfg.costo, c.familia, 0.3) : 0.0, verdad(c.vuelve) ? horasHasta(c.vuelve, now) : 1e9, -c.calidad]);
+    gana = minPor(pool, (c) => [typeof c._costo_exito === "number" ? (c._costo_exito as number) : c.familia !== "local" ? get(cfg.costo, c.familia, 0.3) : 0.0, verdad(c.vuelve) ? horasHasta(c.vuelve, now) : 1e9, -c.calidad]);
     const vs = pool.filter((c) => parseIso(get(c, "vuelve"))).map((c) => parseIso(c.vuelve)!);
     extra.vuelve_antes = vs.length ? iso(new Date(Math.min(...vs.map((d) => d.getTime())))) : null;
   } else {
@@ -2777,7 +2796,7 @@ function elegir(tipo0: string, cfg: Obj, cupos: Obj, now: Date, mismoProveedor: 
   if (primeroGratis) motivo += ` Con chequeo, ${tipo} ofrece primero los gratis de OpenCode (cupo entero, no gastan Claude ni agy).`;
   if (PERFILES[cfg.perfil]!.costo_primero && !todoLleno && !gana.duro_historial) {
     // con medición, el costo es el real medido (y el US$ por éxito, que es lo que se compara)
-    const medido = typeof gana._costo_real === "number";
+    const medido = typeof gana._costo_exito === "number";
     const porExito = medido && typeof gana.usd_por_exito === "number" ? `, US$ ${fmtG(gana.usd_por_exito as number)} por éxito` : "";
     motivo += ` Perfil agresivo: de los que pasan el piso de ${tipo}, el más barato (costo relativo ${fmtG(gana.costo)}${medido ? ", medido" : ""}${porExito}).`;
   }

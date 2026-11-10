@@ -124,6 +124,26 @@ export function muestraModelo(filas: Fila[], modelos: string[], desde: string): 
   return m;
 }
 
+/** La muestra de un tipo con los modelos dados (cualquier esfuerzo): el ancla de ese tipo. */
+export function muestraTipo(filas: Fila[], tipo: string, modelos: string[], desde: string): Muestra {
+  const ids = new Set(modelos.map((x) => x.toLowerCase()));
+  const m: Muestra = { n: 0, usd: 0, ok: 0, dato: 0 };
+  for (const f of filas) {
+    if (f.fecha < desde) continue;
+    if (f.tipo !== tipo) continue;
+    if (!ids.has(f.modelo.toLowerCase())) continue;
+    if (f.costo !== null) {
+      m.n++;
+      m.usd += f.costo;
+    }
+    if (conDato(f.integrada, f.retrabajo)) {
+      m.dato++;
+      if (f.integrada === "1" && f.retrabajo === "0") m.ok++;
+    }
+  }
+  return m;
+}
+
 /** El costo medio por corrida (US$): null si no hay suficientes corridas. */
 export function costoMedio(m: Muestra): number | null {
   return m.n >= MIN_N_COSTO ? m.usd / m.n : null;
