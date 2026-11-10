@@ -4,6 +4,8 @@
 // (el /rename y el de la barra, `nombres.json`, ganan siempre) y `generarSiHaceFalta` ni llama si ya hay uno propio. Lo puro lo
 // prueba `tests/titulo-chat.test.ts`.
 import { spawn } from "node:child_process";
+import os from "node:os";
+import { paraLanzar, resolverClaude } from "./binario.ts";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { ESTADO, escribirAtomico } from "./pa.ts";
@@ -64,9 +66,11 @@ export const leerTitulosAuto = async (ruta = RUTA): Promise<TitulosAuto> => {
 /** `claude -p` con Haiku, un turno, sin herramientas ni sesión guardada: lo mínimo que gasta una llamada. Rechaza si falla o tarda. */
 export function correrBarato(prompt: string): Promise<string> {
   return new Promise((ok, no) => {
-    const p = spawn(process.env.HILOS_CLAUDE ?? "claude", ["-p", "--model", MODELO_BARATO, "--max-turns", "1", "--tools", "", "--no-session-persistence", "--disable-slash-commands"], {
+    const l = paraLanzar(resolverClaude(process.env, os.homedir()), ["-p", "--model", MODELO_BARATO, "--max-turns", "1", "--tools", "", "--no-session-persistence", "--disable-slash-commands"]);
+    const p = spawn(l.file, l.args, {
       stdio: ["pipe", "pipe", "ignore"],
       windowsHide: true,
+      ...(l.verbatim ? { windowsVerbatimArguments: true } : {}),
     });
     let out = "";
     const t = setTimeout(() => {

@@ -10,7 +10,7 @@
 // se lo trae (`traer`): se cierra ese `claude`, por su pid exacto, y sigue acá.
 import { imagenesDe, type Imagen } from "./imagenes.ts";
 import { inputRespondido, respuestasValidas, type Pregunta } from "./preguntas.ts";
-import { spawn, type ChildProcess } from "node:child_process";
+import { spawn, type ChildProcess, type SpawnOptions } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { access, mkdir, open, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
@@ -65,7 +65,7 @@ import { fragmentoVigente } from "./apagados.ts";
 import { conClaves } from "./claves.ts";
 import { anotarTramaEnAgy, anotarTramaEnClaude, archivoMcpClaudeSync, servidorTramaApp, tramaParaAcp } from "./mcp.ts";
 import { paraAcp, resueltos } from "./mcp-config.ts";
-import { resolverPa } from "./binario.ts";
+import { paraLanzar, resolverClaude, resolverPa } from "./binario.ts";
 import { hijoEnGrupo, interrumpir, matarArbol } from "./procesos.ts";
 import { claseDeModelo, familiaDeModelo, idAgy, localDeModelo, localOllama, partirGemini, type Clase } from "./modelos-config.js";
 import { parsearModelo } from "./dsh.ts";
@@ -92,11 +92,16 @@ import { debeLevantarse } from "./actividad-lider.ts";
 const HOME = os.homedir();
 const ARCHIVO = path.join(ESTADO, "lideres.json");
 /** `claude` real, o el falso para las pruebas. */
-const CLAUDE = process.env.HILOS_CLAUDE ?? "claude";
+const CLAUDE = resolverClaude(process.env, HOME);
 /** El puente de un líder de Gemini (electron/agy-puente.ts): habla como `claude -p` y por dentro corre `agy`. Mismo tipo de archivo que éste (`.js` compilado, `.ts` en las pruebas). */
 const PUENTE_AGY = path.join(import.meta.dirname, `agy-puente${path.extname(import.meta.filename)}`);
 /** El puente de un líder de DeepSeek Harness (electron/dsh-puente.ts): habla como `claude -p` y por dentro corre `dsh --profile acp`. */
 const PUENTE_DSH = path.join(import.meta.dirname, `dsh-puente${path.extname(import.meta.filename)}`);
+/** `claude` por `resolverClaude` + `paraLanzar` (en Windows un `.cmd` de npm no se lanza directo). */
+const spawnClaude = (args: string[], op: SpawnOptions): ChildProcess => {
+  const l = paraLanzar(CLAUDE, args);
+  return spawn(l.file, l.args, { ...op, ...(l.verbatim ? { windowsVerbatimArguments: true } : {}) });
+};
 const PROYECTOS = path.join(process.env.CLAUDE_CONFIG_DIR ?? path.join(HOME, ".claude"), "projects");
 /** Si el interrupt no contesta en esto, SIGINT. */
 const PARAR_MS = 3000;
@@ -605,7 +610,7 @@ function lanzar(g: Guardado, resume: boolean, local?: Local, extra: Extra = {}):
   } catch (e) {
     silencio("apagados-lanzar")(e);
   }
-  const bin = clase === "gemini" ? "agy" : clase === "dsh" ? "dsh" : clase === "opencode" ? "opencode" : path.basename(CLAUDE);
+  const bin = clase === "gemini" ? "agy" : clase === "dsh" ? "dsh" : clase === "opencode" ? "opencode" : path.basename(CLAUDE).replace(/\.(exe|cmd|bat)$/i, "");
   const p =
     clase === "opencode"
       ? spawn(
@@ -629,7 +634,7 @@ function lanzar(g: Guardado, resume: boolean, local?: Local, extra: Extra = {}):
           // El mismo Electron/Node que el motor, como Node pelado; el prefacio (agy no lee CLAUDE.md) va por el entorno.
           { ...opciones, env: { ...base.env, ...cortesPuente, ELECTRON_RUN_AS_NODE: "1", TRAMA_AGY_PREFACIO: extra.prefacio ?? "", ...(relevo ? { TRAMA_AGY_RELEVO: relevo } : {}) } },
         )
-      : spawn(CLAUDE, argvLider({ modelo: g.modelo, effort: g.effort, sid: g.sid, nombre: g.nombre, resume, modo: g.modo, local, ollama: extra.ollama, desde: extra.desde, rama: g.rama, relevo, mcpConfig: mcpClaude, apagados, lineaSistema: lineaTerminalAgentes(plat, terminal) ?? undefined }), { ...opciones, env: { ...opciones.env, ...envTerminalAgentes(plat, terminal) } });
+      : spawnClaude(argvLider({ modelo: g.modelo, effort: g.effort, sid: g.sid, nombre: g.nombre, resume, modo: g.modo, local, ollama: extra.ollama, desde: extra.desde, rama: g.rama, relevo, mcpConfig: mcpClaude, apagados, lineaSistema: lineaTerminalAgentes(plat, terminal) ?? undefined }), { ...opciones, env: { ...opciones.env, ...envTerminalAgentes(plat, terminal) } });
   const x: Proc = { p, modelo: g.modelo, effort: g.effort, clase, local, ...(cuenta ? { cuenta: cuenta.id } : {}), ocupado: false, directos: [], pedido: 0, avisado: 0, resto: "", stderr: "", adrede: false, libre: [], pedidos: new Map(), controles: new Map(), estilo: null };
   procs.set(g.sid, x);
   p.stdout!.setEncoding("utf8");
@@ -857,7 +862,7 @@ function usoDeUnRato(dir?: string, alLeer: (l: Lectura) => void = anotarUso): Pr
     let p: ChildProcess;
     try {
       const op = opcionesLider(process.env, HOME) as { cwd: string; env: NodeJS.ProcessEnv };
-      p = spawn(CLAUDE, argvUso(), { ...op, ...(dir ? { env: entornoCuenta(op.env, dir) } : {}), stdio: ["pipe", "pipe", "ignore"], windowsHide: true });
+      p = spawnClaude(argvUso(), { ...op, ...(dir ? { env: entornoCuenta(op.env, dir) } : {}), stdio: ["pipe", "pipe", "ignore"], windowsHide: true });
     } catch (e) {
       log.escribir("aviso", "lider", `get_usage: ${(e as Error).message}`);
       return listo();

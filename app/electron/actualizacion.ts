@@ -16,11 +16,12 @@ import path from "node:path";
 import { ESTADO } from "./pa.js";
 import { crearActualizador, versionDe, type Actualizado } from "./actualizador.js";
 import { entornoLider } from "./lider-arma.js";
+import { resolverClaude } from "./binario.ts";
 
 export type { Actualizado };
 
 const HOME = os.homedir();
-const CLAUDE = process.env.HILOS_CLAUDE ?? "claude";
+const CLAUDE = resolverClaude(process.env, HOME);
 const NPM = process.env.HILOS_NPM ?? "npm";
 const PAQUETE = "@anthropic-ai/claude-code";
 export const CHANGELOG = "https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md";

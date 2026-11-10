@@ -4,6 +4,8 @@
 // `HILOS_SETUP=1`: en una instalación propia o en un servidor hay otras cosas y no se molesta con lo que a propósito no tienen.
 // Cada falta se descarta aparte y queda en `$HILOS_STATE/setup.json`. Sin `electron`: lo prueba tests/setup.test.ts.
 import { execFile } from "node:child_process";
+import os from "node:os";
+import { paraLanzar, resolverClaude } from "./binario.ts";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { hayAgy } from "./capacidades.ts";
@@ -82,7 +84,7 @@ const sondasReales = (): Sondas => ({
   agy: () => hayAgy(),
   ollama: async () => (await sondearOllama(URL_OLLAMA, 1500).catch(() => ({ ok: false }))).ok,
   login: async () => {
-    const claude = process.env.HILOS_CLAUDE ?? "claude";
+    const claude = resolverClaude(process.env, os.homedir());
     try {
       return loginDe(await correrTexto(claude, ["auth", "status"], 8000));
     } catch (e) {
@@ -96,7 +98,8 @@ const sondasReales = (): Sondas => ({
 });
 
 function correrTexto(bin: string, args: string[], timeout: number): Promise<string> {
-  return new Promise((ok, mal) => execFile(bin, args, { timeout, maxBuffer: 1 << 20, windowsHide: true }, (e, stdout) => (e ? mal(Object.assign(e, { stdout: String(stdout) })) : ok(String(stdout)))));
+  const l = paraLanzar(bin, args);
+  return new Promise((ok, mal) => execFile(l.file, l.args, { timeout, maxBuffer: 1 << 20, windowsHide: true, ...(l.verbatim ? { windowsVerbatimArguments: true } : {}) }, (e, stdout) => (e ? mal(Object.assign(e, { stdout: String(stdout) })) : ok(String(stdout)))));
 }
 
 export const setupDeEstaMaquina = () => estadoSetup(sondasReales());

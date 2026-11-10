@@ -1,7 +1,8 @@
 // `/mcp` y Ajustes > Conectores en el main: qué servidores MCP ve un líder y en qué estado. Claude: lo que dice `claude mcp list` (los
 // de su config, los de sus plugins y los conectores de claude.ai), que tarda porque prueba cada uno; más los propios de Trama
 // (`mcp-config.ts`), que le llegan al líder de cada motor que los soporta. Node puro: los tests inyectan el ejecutable y las rutas.
-import { execFile } from "node:child_process";
+import { execFile, type ExecFileException, type ExecFileOptions } from "node:child_process";
+import { paraLanzar, resolverClaude } from "./binario.ts";
 import { chmodSync, existsSync, mkdirSync, renameSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -77,6 +78,11 @@ type Deps = {
 
 const destinoDe = (s: ServidorMcp) => (s.tipo === "stdio" ? [s.comando, ...(s.args ?? [])].join(" ") : (s.url ?? ""));
 
+/** `claude` por `paraLanzar`: un `.cmd` de npm en Windows va por `cmd.exe /d /s /c` (Node no lo lanza directo). */
+const execClaude = (bin: string, args: string[], op: ExecFileOptions, fin: (err: ExecFileException | null, out: string | Buffer) => void) => {
+  const l = paraLanzar(bin, args, op.env as NodeJS.ProcessEnv | undefined);
+  return execFile(l.file, l.args, { ...op, ...(l.verbatim ? { windowsVerbatimArguments: true } : {}) }, (e, out) => fin(e, out));
+};
 let cache: { en: number; r: { servidores: ServidorVisto[]; error: string | null } } | null = null;
 const VIGENCIA_MS = 30_000;
 
@@ -86,7 +92,7 @@ const listarDeVerdad = (): Promise<string> =>
     // De la cuenta activa (la preferida), la misma de la que se leen los conectores apagados.
     const activa = configActiva(process.env, home);
     const env = activa.cuenta ? entornoCuenta(entornoLider(process.env, home), activa.dir) : entornoLider(process.env, home);
-    execFile(process.env.HILOS_CLAUDE ?? "claude", ["mcp", "list"], { timeout: 40_000, cwd: home, env, maxBuffer: 1024 * 1024, windowsHide: true }, (err, out) => {
+    execClaude(resolverClaude(process.env, home), ["mcp", "list"], { timeout: 40_000, cwd: home, env, maxBuffer: 1024 * 1024, windowsHide: true }, (err, out) => {
       // `claude mcp list` sale con 0 aunque haya servidores caídos; un error de verdad (no está claude, se pasó el tiempo) es otra cosa.
       if (err && !String(out).trim()) mal(err);
       else ok(String(out));
@@ -173,6 +179,6 @@ export function anotarTramaEnClaude(s: LanzarTrama, claude: string, env: NodeJS.
   return (claudeAnotado ??= registrarEnClaude(
     archivoClaudeJson(env, homeDe(env), plataformaActual()),
     s,
-    (args) => new Promise((resolve) => execFile(claude, args, { env, timeout: 30_000, windowsHide: true }, (e) => resolve(e ? (typeof e.code === "number" ? e.code : 1) : 0))),
+    (args) => new Promise((resolve) => execClaude(claude, args, { env, timeout: 30_000, windowsHide: true }, (e) => resolve(e ? (typeof e.code === "number" ? e.code : 1) : 0))),
   ));
 }

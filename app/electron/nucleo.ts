@@ -31,6 +31,7 @@ import { crearSubagentes } from "./subagentes.js";
 import { crearConsumo, TRANSCRIPTS } from "./consumo.ts";
 import { crearPasos } from "./pasos-worker.ts";
 import { crearArranque } from "./arranque.ts";
+import { resolverClaude } from "./binario.ts";
 import { crearHistorial } from "./historial.ts";
 import { crearIndiceClaudeCode, sidsDePa, vistaConvs } from "./claude-code.ts";
 import { cuentasClaude } from "./uso-cuentas.ts";
@@ -318,7 +319,7 @@ const claudeCode = crearIndiceClaudeCode({
   cache: path.join(ESTADO, "claude-code.json"),
 });
 /** "Medir exacto" el peso de arrancar (arranque.ts): a pedido, con el mismo `claude` y entorno que los líderes. */
-const arranque = crearArranque({ claude: process.env.HILOS_CLAUDE ?? "claude", cwd: os.homedir(), env: entornoLider(process.env, os.homedir()), estado: ESTADO });
+const arranque = crearArranque({ claude: resolverClaude(process.env, os.homedir()), cwd: os.homedir(), env: entornoLider(process.env, os.homedir()), estado: ESTADO });
 const sinHistorial =
   process.env.HILOS_HISTORIAL === "0" ||
   !!(process.env.HILOS_BENCH || process.env.HILOS_CAPTURA || process.env.HILOS_CAPTURA_PNG || (process.env.HILOS_FIXTURES && process.env.HILOS_FIXTURES !== "0"));

@@ -10,6 +10,7 @@
 // Lo medido se guarda en `$HILOS_STATE/arranque-medido.json` y se sigue mostrando, con su fecha, hasta
 // que se mide de nuevo. Sin Electron: `tests/arranque.test.ts`.
 import { execFile } from "node:child_process";
+import { paraLanzar } from "./binario.ts";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { escribirAtomico } from "./pa.ts";
@@ -90,10 +91,11 @@ export function crearArranque(o: OpcionesArranque) {
 
   const correr = (extra: readonly string[]) =>
     new Promise<string>((listo, falla) => {
+      const l = paraLanzar(o.claude, ["-p", MENSAJE, "--output-format", "json", "--no-session-persistence", ...extra]);
       execFile(
-        o.claude,
-        ["-p", MENSAJE, "--output-format", "json", "--no-session-persistence", ...extra],
-        { cwd: o.cwd, env: o.env, timeout: TOPE_MS, maxBuffer: 16 * 1024 * 1024, windowsHide: true },
+        l.file,
+        l.args,
+        { cwd: o.cwd, env: o.env, timeout: TOPE_MS, maxBuffer: 16 * 1024 * 1024, windowsHide: true, ...(l.verbatim ? { windowsVerbatimArguments: true } : {}) },
         (err, stdout, stderr) => (err ? falla(new Error(String(stderr || err.message).trim().split("\n").pop())) : listo(String(stdout))),
       );
     });
