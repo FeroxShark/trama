@@ -47,6 +47,8 @@ export function normalizar(texto: string, raices: Raices): string {
       .replace(/ · \d+s ·/g, " · <DUR> ·")
       // La ayuda: la entrada del tope de turnos ahora dice que sale del tipo y el bash está congelado: se borra de los dos.
       .replace(/^ *pa <proyecto> --max-turns N[^\n]*\n(?:[^\n]*\n){0,3}? *Al llegar:[^\n]*\n/gm, "")
+      // La ayuda: --mcp ahora vale para todos los workers (por defecto van sin MCP) y el bash está congelado: se unifica la línea.
+      .replace(/^( *pa <proyecto> --mcp "<tarea>" +)[^\n]*$/gm, "$1<MCP>")
       // El aviso del plan: el texto del tope de turnos cambió (ahora sale del tipo).
       .replace(/tope 100 turnos/g, "tope de turnos hasta 100")
       .replace(/tope 150\)/g, "tope de turnos por tipo: 30 a 120)")

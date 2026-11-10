@@ -85,6 +85,7 @@ const caso = (
   },
   env: entorno(o.env),
   pasos: o.pasos,
+  divergencia: "el argv de claude del TS difiere del bash congelado a propósito (MCP apagado, sin comandos de slash, sin subagentes, system prompt estable)",
 });
 
 const lanzar = (rc: number, ...extra: string[]): Paso => ({ args: ["demo", "--sin-jefe", "--tipo", "codigo-acotado", ...extra, BRIEF], rc });
