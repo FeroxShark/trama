@@ -155,6 +155,7 @@ if [[ -n "$plan" ]]; then
     if [[ ! -d "$bwt" ]]; then
       git -C "$repo" worktree add --detach "$bwt" "$main_ref" >/dev/null 2>&1 || fatal "no pude sacar $main_ref en $bwt"
     fi
+    desechables+=("$bwt")
     enlazar_deps "$bwt"
   fi
   python3 -I - "$repo" "$main_ref" "$sha" "$plan_md" "$plan" "$json" "$bwt" <<'PY'
@@ -436,6 +437,7 @@ else
     if [[ ! -d "$bwt" ]]; then
       git -C "$repo" worktree add --detach "$bwt" "$main_ref" >/dev/null 2>&1 || fatal "no pude sacar $main_ref en $bwt"
     fi
+    desechables+=("$bwt")
     mkdir -p "$(dirname "$base")"
     enlazar_deps "$bwt"
     (cd "$bwt" && bash -c "$rojos" 2>&1) | sort -u >"$base.tmp" && mv -f "$base.tmp" "$base"
