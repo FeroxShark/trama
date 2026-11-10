@@ -5,6 +5,7 @@
 - Leader skill: the orchestration guide got much smaller (from 20 KB to 7 KB) and gained a decision table per case, to spend less: parallel workers are launched in a single call and collected in one, and the effort comes from the allowed ones in Settings.
 - Sidebar: each folder has a "+" button in its header that opens a new chat in that project.
 - Windows: attached files and the leader's folder are now recognized with Windows paths (the ones starting with "C:\" or with "\\server"). Before they were not shown, neither as files nor as a project.
+- Model picking: each model's cost now comes from what the runs actually measured (medicion.tsv) instead of fixed weights; the aggressive profile orders by "US$ per success" (the cost of every run that was integrated without rework). `pa --rinde` adds the "US$/success" column.
 
 ## 0.2.64
 

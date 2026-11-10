@@ -5,6 +5,7 @@
 - Skill del líder: la guía de orquestar quedó mucho más chica (de 20 KB a 7 KB) y con una tabla de decisión por caso, para gastar menos: los workers en paralelo se lanzan en una sola llamada y se cobran de una, y el effort sale del permitido en Ajustes.
 - Barra lateral: cada carpeta tiene un botón «+» en su encabezado que abre un chat nuevo en ese proyecto.
 - Windows: los adjuntos y la carpeta del líder se reconocen con las rutas de Windows (las que empiezan con «C:\» o con «\\servidor»). Antes no se veían ni como archivos ni como proyecto.
+- Reparto: el costo de cada modelo sale de lo medido en las corridas (medicion.tsv) y no de los pesos fijos; el perfil agresivo ordena por el «US$ por éxito» (el costo por cada corrida integrada sin retrabajo). `pa --rinde` suma la columna «US$/éxito».
 
 ## 0.2.64
 

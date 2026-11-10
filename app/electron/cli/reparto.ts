@@ -2761,7 +2761,8 @@ function elegir(tipo0: string, cfg: Obj, cupos: Obj, now: Date, mismoProveedor: 
   }
   let gana: Obj;
   if (todoLleno) {
-    gana = minPor(pool, (c) => [c.familia !== "local" ? get(cfg.costo, c.familia, 0.3) : 0.0, verdad(c.vuelve) ? horasHasta(c.vuelve, now) : 1e9, -c.calidad]);
+    // el más barato: el costo real medido si lo hay, si no el de la familia (los locales, gratis)
+    gana = minPor(pool, (c) => [typeof c._costo_real === "number" ? (c._costo_real as number) : c.familia !== "local" ? get(cfg.costo, c.familia, 0.3) : 0.0, verdad(c.vuelve) ? horasHasta(c.vuelve, now) : 1e9, -c.calidad]);
     const vs = pool.filter((c) => parseIso(get(c, "vuelve"))).map((c) => parseIso(c.vuelve)!);
     extra.vuelve_antes = vs.length ? iso(new Date(Math.min(...vs.map((d) => d.getTime())))) : null;
   } else {
