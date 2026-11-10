@@ -120,12 +120,13 @@ test("repos-empujar: si el motor no la tiene, se busca en el PATH", () => {
   assert.equal(s.pa.plat === "win32" ? enc?.toLowerCase() : enc, s.pa.plat === "win32" ? falso.toLowerCase() : falso);
   // PA_EMPUJAR gana sobre todo
   assert.equal(rutaEmpujar({ ...pa, env: { ...pa.env, PA_EMPUJAR: "/opt/otro/repos-empujar" } }), "/opt/otro/repos-empujar");
-  // y la del motor, si está, gana sobre el PATH
+  // y la del motor, si está, gana sobre el PATH (el motor la trae sin extensión: en Windows no hay una del motor)
+  if (s.pa.plat === "win32") return;
   const motor = path.join(s.raiz, "motor-bin");
   mkdirSync(motor, { recursive: true });
-  const delMotor = path.join(motor, s.pa.plat === "win32" ? "repos-empujar.cmd" : "repos-empujar");
+  const delMotor = path.join(motor, "repos-empujar");
   writeFileSync(delMotor, "echo motor\n");
-  if (s.pa.plat !== "win32") chmodSync(delMotor, 0o755);
+  chmodSync(delMotor, 0o755);
   assert.equal(rutaEmpujar({ ...pa, bin: motor }), delMotor);
 });
 
