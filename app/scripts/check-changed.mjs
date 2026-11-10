@@ -133,6 +133,7 @@ const git = (...args) => {
 
 /** La base contra la que se compara: el punto donde la rama se separó de main; si la rama es main, el commit anterior. */
 function baseDeComparacion() {
+  if (process.env.TRAMA_CHECK_BASE) return git("rev-parse", "--verify", "-q", process.env.TRAMA_CHECK_BASE); // para medir o probar contra otro commit
   const head = git("rev-parse", "HEAD");
   const bifurcacion = git("merge-base", "HEAD", "main");
   if (bifurcacion && head && bifurcacion !== head) return bifurcacion;

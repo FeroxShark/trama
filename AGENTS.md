@@ -27,12 +27,9 @@ en Windows (su cliente puede abrir «Welcome to Ollama»): del servidor sólo se
 - **Antes de cada commit**, desde `app/`: `npx tsc -p tsconfig.json --noEmit`, `npx tsc -p tsconfig.electron.json --noEmit`,
 `npx vite build`, `npm test`. Si se toca el motor que se está portando: `npm run test:paridad`.
 - **Chequeo rápido para workers:** desde `app/`, `npm run check:changed` (`app/scripts/check-changed.mjs`). Compara contra main
-(o contra `HEAD~1` si la rama es main) y corre sólo lo afectado: tsc de la interfaz y de electron; los tests que importan
-lo cambiado (directo o por cadena de imports), lo nombran o escriben su ruta; la paridad de las herramientas del motor
-(o de su port en `electron/cli`) que cambiaron (`TRAMA_PARIDAD_HERRAMIENTA`); y `windows/` si tocó algo ahí. Corre todo si
-cambia `scripts/test.mjs`, `package.json`, los tsconfig o `vite.config.ts`, si toca `tests/paridad/`, o si cambia algo de
-`motor/` o `electron/cli/` que no está en su tabla. No reemplaza el chequeo completo de arriba antes de un commit a main:
-no corre `vite build` ni el smoke de `humo-motor.mjs`.
+(o contra `HEAD~1` si la rama es main) y corre sólo lo afectado: tsc, los tests que importan lo cambiado y la paridad de las
+herramientas tocadas (nunca toda: eso es `--paridad-completa`). Imprime al empezar cuántos archivos corre y una estimación;
+un archivo colgado sale con 124. Un solo test: `node scripts/test.mjs tests/x.test.ts`. Detalle: `docs/reglas/tests.md`.
 
 - **Motor congelado:** el `pa` de bash (`motor/bin/pa`) y el `reparto` de python (`motor/bin/reparto`) están congelados
   desde 2026-11-10: sin funciones nuevas; corre el TS (`app/electron/cli`). `test:paridad` vale para lo ya portado.
