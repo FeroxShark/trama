@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Leader skill: the orchestration guide got much smaller (from 20 KB to 7 KB) and gained a decision table per case, to spend less: parallel workers are launched in a single call and collected in one, and the effort comes from the allowed ones in Settings.
 - Sidebar: each folder has a "+" button in its header that opens a new chat in that project.
 - Windows: attached files and the leader's folder are now recognized with Windows paths (the ones starting with "C:\" or with "\\server"). Before they were not shown, neither as files nor as a project.
 
