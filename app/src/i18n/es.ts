@@ -3035,7 +3035,7 @@ export const es: { [K in keyof typeof en]: string } = {
   "ajustes.mdlWkSin": "No pude leer la lista del reparto (hace falta un reparto más nuevo). Las reglas de abajo siguen valiendo.",
   "ajustes.mdlWkNada": "Ningún modelo coincide con la búsqueda.",
   "ajustes.mdlWkPermitir": "Permitir {modelo}",
-  "ajustes.mdlWkRegla": "La regla «{regla}» lo deja afuera: si lo prendés, se saca esa regla (lo demás que ella sacaba sigue afuera).",
+  "ajustes.mdlWkRegla": "La regla «{regla}» lo deja afuera: si lo prendés, se saca esa regla (y queda permitido todo lo que ella sacaba).",
   "ajustes.mdlWkInteligencia": "Inteligencia de {modelo}",
   "ajustes.mdlWkInteligenciaQue": "Índice de inteligencia de Artificial Analysis, al esfuerzo con que el reparto lo usaría",
   "ajustes.mdlWkEstimada": "estimada",
