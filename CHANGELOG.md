@@ -4,6 +4,8 @@
 
 - Skill del líder: la guía de orquestar quedó mucho más chica (de 20 KB a 7 KB) y con una tabla de decisión por caso, para gastar menos: los workers en paralelo se lanzan en una sola llamada y se cobran de una, y el effort sale del permitido en Ajustes.
 - Medición: el «retrabajo» ya no cuenta el pisado de otra corrida que estaba corriendo en paralelo. Ahora es 1 sólo si alguien retomó la corrida con `--seguir` después de integrarla, si se revirtió, o si otra corrida que arrancó después de integrarla (o cuya tarea la nombra) le reescribió las líneas; cuando la que la pisó ya corría en paralelo, la corrida queda con retrabajo 0 y en la columna nueva `pisado`. `pa --rinde` suma el «% pisado».
+- Integrar: `--integrar` ya no compite con los workers por un puesto: si los N puestos están ocupados, integra igual (rebasea en un puesto reservado aparte, con su propio candado para que dos integraciones no se pisen).
+- Empuje de `main`: la herramienta que empuja `main` al remoto se busca también en el PATH (no sólo en el motor), así que `main` se vuelve a empujar aunque no sea del repo.
 - Barra lateral: cada carpeta tiene un botón «+» en su encabezado que abre un chat nuevo en ese proyecto.
 - Windows: los adjuntos y la carpeta del líder se reconocen con las rutas de Windows (las que empiezan con «C:\» o con «\\servidor»). Antes no se veían ni como archivos ni como proyecto.
 - Reparto: el costo de cada modelo sale de lo medido en las corridas (medicion.tsv) y no de los pesos fijos; el perfil agresivo ordena por el «US$ por éxito» (el costo por cada corrida integrada sin retrabajo). `pa --rinde` suma la columna «US$/éxito».

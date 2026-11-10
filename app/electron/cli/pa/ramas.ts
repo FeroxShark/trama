@@ -10,7 +10,7 @@ import { spawn } from "node:child_process";
 import { appendFileSync, closeSync, existsSync, mkdirSync, openSync, readdirSync, readFileSync, rmSync, statSync } from "node:fs";
 import path from "node:path";
 import { agregarLinea } from "../base/archivo.ts";
-import { esEjecutable } from "../base/buscar.ts";
+import { esEjecutable, enPath } from "../base/buscar.ts";
 import { entornoCmd } from "../../binario.ts";
 import { prefijoDe } from "./programas.ts";
 import { esPrincipal } from "../base/principal.ts";
@@ -38,9 +38,9 @@ import {
   leerCampo,
   limpiarBuild,
   lockDePuesto,
-  puestoDeCorrida,
   puestoDeRuta,
   puestoLibre,
+  PUESTO_INTEGRAR,
   realpathM,
   rutaPorcelain,
   slugDe,
@@ -55,6 +55,12 @@ import {
 
 const soltar = async (...ls: (Lock | null | undefined)[]) => {
   for (const l of ls) await l?.liberar();
+};
+
+/** Cuánto espera `--integrar` por el puesto reservado de integrar, si hay otro `--integrar` corriendo (ms). */
+const esperaIntegrar = (pa: Pa): number => {
+  const s = v(pa.env, "PA_INTEGRAR_ESPERA_S", "60");
+  return /^[0-9]+$/.test(s) ? Number(s) * 1000 : 60_000;
 };
 
 /** `date -Iseconds` (hora local con su desvío, `+00:00`). */
@@ -221,10 +227,22 @@ export async function sigueAlTablero(x: Proy, id: string, head: string): Promise
   if (r && !decisionEsNada(r)) await tableroMudo(x.pa, 5, ["sigue", x.slug, r, "--head", head]).catch(() => false);
 }
 
+/**
+ * La herramienta que empuja `main` al remoto: la del motor (`bin/repos-empujar`) o, si el motor no la trae, la que esté en el PATH
+ * (`~/.local/bin`, etc.): `repos-empujar` no es del repo (vive en la instalación del dueño), así que buscarlo sólo en el motor lo
+ * daba por perdido y `main` no se empujaba nunca. `PA_EMPUJAR` (otra ruta) gana.
+ */
+export function rutaEmpujar(pa: Pa): string {
+  if (pa.env.PA_EMPUJAR) return pa.env.PA_EMPUJAR;
+  const delMotor = path.join(pa.bin, "repos-empujar");
+  if (esEjecutable(delMotor, pa.plat)) return delMotor;
+  return enPath("repos-empujar", [path.join(pa.home, ".local", "bin")], pa.env, pa.plat) ?? delMotor;
+}
+
 /** `empujar_main`: después de integrar, `main` al remoto configurado por bin/repos-empujar (con tope; nunca frena). */
 export async function empujarMain(x: Proy, ruta: string): Promise<void> {
   const { pa } = x;
-  const emp = pa.env.PA_EMPUJAR || path.join(pa.bin, "repos-empujar");
+  const emp = rutaEmpujar(pa);
   const hay = esEjecutable(emp, pa.plat);
   let remotos = v(pa.env, "PA_EMPUJE_REMOTOS");
   let etq = v(pa.env, "PA_EMPUJE_ETIQUETA");
@@ -459,23 +477,36 @@ export async function cmdIntegrar(x: Proy, t: string, o: { tests?: boolean } = {
       return 2;
     }
   }
+  // --- el puesto donde rebasear
+  // Si la rama está checkouteada en un worktree, se rebasea ahí (es el de la corrida). Si no está en ninguno, se rebasea en el
+  // PUESTO RESERVADO de integrar (`<slug>@integrar`): uno aparte de los de los workers, para que integrar no compita con ellos
+  // (aunque los N puestos estén ocupados, entra) y con su propio candado, para que dos --integrar no se pisen.
+  const wr = await wtDeRama(x, r);
+  let p = "";
+  let l9: Lock | null = null;
+  let prestado = false;
+  let lReservado: Lock | null = null;
+  if (!wr) {
+    // el candado del puesto reservado se toma ANTES del de git: así dos --integrar se esperan en vez de cruzarse
+    lReservado = await tomarLock(x, lockDePuesto(x, PUESTO_INTEGRAR), esperaIntegrar(pa));
+    if (!lReservado) {
+      io.err(`pa: otro --integrar de '${x.slug}' está usando el puesto de integrar (${wtDePuesto(x, PUESTO_INTEGRAR)}). Esperá a que termine y volvé a correr.\n`);
+      return 75;
+    }
+  }
   let lg = await tomarGit(x, 60_000);
   if (!lg) {
+    await soltar(lReservado);
     io.err(`pa: el candado de git de '${x.slug}' sigue ocupado después de 60s (otro --integrar/--descartar o un worker arrancando). Reintentá.\n`);
     return 75;
   }
   // El tree principal se toma mientras dure: ningún --aca arranca a mitad del ff-only.
   let l7 = await tomarLock(x, lockDePuesto(x, "aca"));
   if (!l7) {
-    await soltar(lg);
+    await soltar(lReservado, lg);
     io.err(`pa: hay un worker --aca corriendo en el tree principal de '${x.slug}'; integrar le movería los archivos abajo. Esperalo y volvé a correr --integrar.\n`);
     return 75;
   }
-  // --- el puesto donde rebasear
-  const wr = await wtDeRama(x, r);
-  let p = "";
-  let l9: Lock | null = null;
-  let prestado = false;
   if (wr) {
     p = puestoDeRuta(x, wr);
     if (p === "aca") {
@@ -486,24 +517,17 @@ export async function cmdIntegrar(x: Proy, t: string, o: { tests?: boolean } = {
     l9 = await tomarLock(x, lockDePuesto(x, p));
     if (!l9) {
       await soltar(l7, lg);
-      io.err(`pa: la rama ${r} la está usando un worker en el puesto ${p} (¿un --seguir o --actualizar?). Esperalo y volvé a correr --integrar.\n`);
+      io.err(
+        p === PUESTO_INTEGRAR
+          ? `pa: otro --integrar de '${x.slug}' está usando el puesto de integrar. Esperá a que termine y volvé a correr --integrar.\n`
+          : `pa: la rama ${r} la está usando un worker en el puesto ${p} (¿un --seguir o --actualizar?). Esperalo y volvé a correr --integrar.\n`,
+      );
       return 75;
     }
   } else {
-    const candidatos = [puestoDeCorrida(x, c), ...Array.from({ length: pa.puestos }, (_, i) => String(i + 1))];
-    for (const k of candidatos) {
-      if (k === "aca") continue;
-      l9 = await tomarLock(x, lockDePuesto(x, k));
-      if (l9) {
-        p = k;
-        break;
-      }
-    }
-    if (!p) {
-      await soltar(l7, lg);
-      io.err(`pa: los ${pa.puestos} puestos de '${x.slug}' están ocupados y --integrar necesita uno libre para rebasear. Esperá uno y volvé a correr.\n`);
-      return 75;
-    }
+    p = PUESTO_INTEGRAR;
+    l9 = lReservado;
+    lReservado = null;
     prestado = true;
   }
   const wt = wtDePuesto(x, p);

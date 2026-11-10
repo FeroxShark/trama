@@ -110,6 +110,13 @@ export const sufPuesto = (p: string) => (p === "" || p === "1" ? "" : `@${p}`);
 export const wtDePuesto = (x: Proy, p: string) => path.join(x.pa.state, "worktrees", x.slug + sufPuesto(p));
 export const lockDePuesto = (x: Proy, p: string) => path.join(x.pa.lockdir, x.slug + sufPuesto(p));
 
+/**
+ * El puesto reservado para integrar (`<slug>@integrar`): el que usa `--integrar` cuando la rama no está checkouteada en ningún
+ * worktree. Es aparte de los puestos de los workers: integrar no compite con ellos (aunque los N estén ocupados, entra) y tiene su
+ * propio candado, así dos `--integrar` del mismo proyecto se esperan en vez de pisarse.
+ */
+export const PUESTO_INTEGRAR = "integrar";
+
 /** `puesto_de_ruta`: 1, k o `aca` (cualquier ruta que no sea un puesto de pa). */
 export function puestoDeRuta(x: Proy, r: string): string {
   const base = path.join(x.pa.state, "worktrees", x.slug);

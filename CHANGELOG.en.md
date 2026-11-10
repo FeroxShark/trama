@@ -4,6 +4,8 @@
 
 - Leader skill: the orchestration guide got much smaller (from 20 KB to 7 KB) and gained a decision table per case, to spend less: parallel workers are launched in a single call and collected in one, and the effort comes from the allowed ones in Settings.
 - Measurement: "retrabajo" (rework) no longer counts the stomping of another run that was already running in parallel. It is 1 only if someone resumed the run with `--seguir` after it was integrated, if it was reverted, or if another run that started after the integration (or whose task names it) rewrote its lines; when the run that stomped it was already running in parallel, the run gets rework 0 and the new `pisado` column. `pa --rinde` adds the "% pisado".
+- Integrate: `--integrar` no longer competes with the workers for a slot: if all N slots are busy it still integrates (it rebases in a separate reserved slot, with its own lock so two integrations don't collide).
+- Pushing `main`: the tool that pushes `main` to the remote is now also looked up in the PATH (not only in the engine), so `main` gets pushed again even though the tool is not part of the repo.
 - Sidebar: each folder has a "+" button in its header that opens a new chat in that project.
 - Windows: attached files and the leader's folder are now recognized with Windows paths (the ones starting with "C:\" or with "\\server"). Before they were not shown, neither as files nor as a project.
 - Model picking: each model's cost now comes from what the runs actually measured (medicion.tsv) instead of fixed weights; the aggressive profile orders by "US$ per success" (the cost of every run that was integrated without rework). `pa --rinde` adds the "US$/success" column.
