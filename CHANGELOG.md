@@ -1,5 +1,9 @@
 # Cambios
 
+## 0.2.63
+
+- Plan y cupos: cada cuenta de Claude tiene su propio plan, Pro o Max, con un selector bajo su renglón (también la de siempre). Los workers usan el plan de la cuenta que está en uso; si una cuenta no eligió, vale el de la de siempre.
+
 ## 0.2.62
 
 - Actualizar: la actualización ya no vuelve sola a la versión anterior cuando todo salió bien (le pasó a 0.2.61). Trae Fable 5.2 y los modelos de Claude según tu cuenta.

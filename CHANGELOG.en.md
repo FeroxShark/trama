@@ -1,5 +1,9 @@
 # Changes
 
+## 0.2.63
+
+- Plan and quotas: each Claude account has its own plan, Pro or Max, with a selector under its row (the original account too). Workers use the plan of the account in use; if an account hasn't chosen one, the original account's plan applies.
+
 ## 0.2.62
 
 - Update: updating no longer rolls back to the previous version when everything went fine (it happened with 0.2.61). Brings Fable 5.2 and the Claude models your account offers.
