@@ -31,10 +31,28 @@ const raiz = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 // `npm run test:paridad` = `node scripts/test.mjs --paridad`: los archivos de tests/paridad, con la misma casa y el mismo aislamiento.
 const paridad = process.argv.includes("--paridad");
 const dir = path.resolve(raiz, process.env.TRAMA_TEST_DIR || (paridad ? "tests/paridad" : "tests"));
-// TRAMA_TEST_SOLO=<archivo.test.ts,...> corre sólo esos archivos (lo usa `npm run check:changed`).
-const solo = process.env.TRAMA_TEST_SOLO?.split(",").map((s) => s.trim()).filter(Boolean);
-const archivos = readdirSync(dir)
-  .filter((f) => f.endsWith(".test.ts") && (!solo || solo.includes(f)))
+// TRAMA_TEST_SOLO=<archivo.test.ts,...> corre sólo esos archivos (lo usa `npm run check:changed`). Una ruta o un nombre suelto en
+// argv (`node scripts/test.mjs tests/rutas.test.ts`) vale lo mismo: se suma a TRAMA_TEST_SOLO. Un argumento que parece archivo
+// (termina en .ts o lleva una barra) y no existe en la carpeta de pruebas corta con código 2 y su nombre: nunca corre todo por error.
+const esRutaDeTest = (a) => !a.startsWith("-") && (/\.[cm]?tsx?$/.test(a) || /[\\/]/.test(a));
+const pedidos = [...(process.env.TRAMA_TEST_SOLO?.split(",") ?? []), ...process.argv.slice(2).filter(esRutaDeTest)].map((s) => s.trim()).filter(Boolean);
+const enCarpeta = readdirSync(dir).filter((f) => f.endsWith(".test.ts"));
+const faltan = [];
+const solo = pedidos.length ? new Set() : undefined;
+for (const p of pedidos) {
+  const nombre = path.basename(p);
+  const abs = path.isAbsolute(p) ? p : [path.resolve(p), path.resolve(raiz, p)].find((c) => existsSync(c)) ?? path.resolve(raiz, p);
+  // Mismo nombre y misma carpeta (o un nombre pelado, que se busca en la carpeta de pruebas).
+  const deLaCarpeta = path.dirname(abs) === dir || (!/[\\/]/.test(p) && !existsSync(abs));
+  if (enCarpeta.includes(nombre) && deLaCarpeta) solo.add(nombre);
+  else faltan.push(p);
+}
+if (faltan.length) {
+  process.stderr.write(`test.mjs: no hay ${faltan.length > 1 ? "estos archivos" : "ese archivo"} en ${path.relative(raiz, dir) || "."}: ${faltan.join(", ")}${paridad ? "" : " (los de tests/paridad se piden con --paridad)"}\n`);
+  process.exit(2);
+}
+const archivos = enCarpeta
+  .filter((f) => !solo || solo.has(f))
   .sort()
   .map((f) => path.relative(raiz, path.join(dir, f)));
 
@@ -100,7 +118,7 @@ env.HILOS_AISLAR_PERMITE = [process.env.HILOS_AISLAR_PERMITE, path.dirname(raiz)
 // La paridad completa (~1100 casos, bash contra TS, en serie dentro de su archivo) tarda unos 8 min: no entra en los 300 s.
 const TOPE_MS = Math.max(1, Number(env.TRAMA_TEST_ARCHIVO_S) || (paridad ? 900 : 300)) * 1000;
 const PARALELO = Math.max(1, Number(env.TRAMA_TEST_PARALELO) || Math.max(1, (os.availableParallelism?.() ?? os.cpus().length) - 1));
-const extra = process.argv.slice(2).filter((a) => a !== "--paridad");
+const extra = process.argv.slice(2).filter((a) => a !== "--paridad" && !esRutaDeTest(a));
 
 /** Linux: los pids cuyo entorno cumple `coincide` (los hijos heredan la marca; un zombie no tiene entorno). */
 function marcados(coincide) {
