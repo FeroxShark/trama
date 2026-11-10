@@ -144,8 +144,8 @@ test("la nueva no llega a ventana lista a tiempo: vuelve sola, reinicia y deja e
   assert.equal(almacen.leer().actual, "0.2.25");
   const nueva = armar("0.2.25");
   assert.equal(await nueva.alArrancar(), false, "la que volvió arranca normal");
-  assert.deepEqual(nueva.leerAviso(), { de: "0.2.26", a: "0.2.25", motivo: "lento" });
-  assert.equal(nueva.leerAviso(), null, "el aviso se gasta al leerlo");
+  assert.deepEqual((await nueva.leerAviso()), { de: "0.2.26", a: "0.2.25", motivo: "lento" });
+  assert.equal((await nueva.leerAviso()), null, "el aviso se gasta al leerlo");
   assert.equal(nueva.rechazada(), "0.2.26");
 });
 
@@ -181,7 +181,7 @@ test("el botón vuelve a la anterior aunque la nueva ande; sin anterior dice que
   await v1.alArrancar();
   assert.equal(await v1.disponible(), null);
   assert.deepEqual(await v1.volverManual(), { ok: false, error: "no hay una versión anterior guardada" });
-  assert.equal(v1.leerAviso()?.motivo, "manual");
+  assert.equal((await v1.leerAviso())?.motivo, "manual");
 });
 
 test("una copia anterior que se borró del disco no se ofrece", async () => {
