@@ -330,9 +330,11 @@ borrar_huerfanos_app() {
   while IFS= read -r rel; do
     [[ -n "$rel" ]] || continue
     [[ -e "$src/$rel" ]] && continue
-    rm -f -- "$dst/$rel" 2>/dev/null && aviso "app: saqué $rel (ya no está en esta versión)"
+    # `ok`, no `aviso`: la app lee toda línea «AVISO  app…» como instalación fallida (falloDelInstalador) y vuelve atrás.
+    rm -f -- "$dst/$rel" 2>/dev/null && ok "app: saqué $rel (ya no está en esta versión)"
   done < <(find "$dst" \( "${podar[@]}" \) -prune -o -type f \
-             ! -name '.build-huella' ! -name '.build.log' -printf '%P\n' 2>/dev/null)
+             ! -name '.build-huella' ! -name '.build.log' ! -path "$dst/CHANGELOG.md" ! -path "$dst/CHANGELOG.en.md" \
+             -printf '%P\n' 2>/dev/null)
   # dirs que quedaron vacíos al sacar los huérfanos (nunca el propio $dst)
   find "$dst" \( "${podar[@]}" \) -prune -o -mindepth 1 -type d -empty -exec rmdir {} + 2>/dev/null || true
 }

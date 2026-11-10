@@ -112,6 +112,8 @@ test("falloDelInstalador: las líneas AVISO app… del instalador (que sale 0) s
   assert.equal(m.falloDelInstalador("AVISO  app de escritorio: sin node"), "app de escritorio: sin node");
   assert.equal(m.falloDelInstalador("AVISO  apt-get update falló\nok  todo"), null);
   assert.equal(m.falloDelInstalador("listo."), null);
+  // Sacar un archivo viejo de la app no es falla (2026-11-10: 0.2.61 volvió atrás por «saqué CHANGELOG.md»).
+  assert.equal(m.falloDelInstalador("AVISO  app: saqué CHANGELOG.md (ya no está en esta versión)\nok     app compilada"), null);
 });
 
 // --- el checkout que anota el instalador ---

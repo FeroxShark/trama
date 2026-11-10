@@ -143,9 +143,12 @@ function correrSuelto(p: Parameters<Correr>[0]): Promise<Corrida> {
 /** La última línea con algo (el motivo corto de una falla). */
 export const ultimaLinea = (s: string) => s.split("\n").map((l) => l.trim()).filter(Boolean).pop()?.slice(0, 200) ?? null;
 
-/** El instalador sale 0 aunque algo no se haya podido: las líneas `AVISO  app…` son la app que no quedó. */
+/**
+ * El instalador sale 0 aunque algo no se haya podido: las líneas `AVISO  app…` son la app que no quedó. «saqué X (ya no está en esta
+ * versión)» es sólo informativo (instaladores hasta 0.2.61 lo marcaban AVISO): no es falla. Incidente 2026-11-10: 0.2.61 volvió atrás por eso.
+ */
 export const falloDelInstalador = (salida: string): string | null => {
-  const l = salida.split("\n").find((x) => /^AVISO\s+app/.test(x));
+  const l = salida.split("\n").find((x) => /^AVISO\s+app/.test(x) && !/^AVISO\s+app: saqué /.test(x));
   return l ? l.replace(/^AVISO\s+/, "").trim().slice(0, 200) : null;
 };
 
