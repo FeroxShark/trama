@@ -115,7 +115,9 @@ test("repos-empujar: si el motor no la tiene, se busca en el PATH", () => {
   writeFileSync(falso, "echo falso\n");
   if (s.pa.plat !== "win32") chmodSync(falso, 0o755);
   const pa = paConPath(s, bin);
-  assert.equal(rutaEmpujar(pa), falso);
+  // Windows: el PATH no distingue mayúsculas (puede volver «.CMD» por PATHEXT)
+  const enc = rutaEmpujar(pa);
+  assert.equal(s.pa.plat === "win32" ? enc?.toLowerCase() : enc, s.pa.plat === "win32" ? falso.toLowerCase() : falso);
   // PA_EMPUJAR gana sobre todo
   assert.equal(rutaEmpujar({ ...pa, env: { ...pa.env, PA_EMPUJAR: "/opt/otro/repos-empujar" } }), "/opt/otro/repos-empujar");
   // y la del motor, si está, gana sobre el PATH

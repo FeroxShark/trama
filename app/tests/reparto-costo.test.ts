@@ -3,6 +3,7 @@
 // poner `costo_real` y `usd_por_exito` en cada candidato y para ordenar a los del perfil agresivo por el US$ por éxito.
 // El python de motor/bin/reparto queda congelado: estos casos son sólo del TS.
 import { test } from "node:test";
+import { testPosix } from "./plataforma.ts";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -199,7 +200,7 @@ const MEDICION = medicion([
   ...corridas("claude-haiku-5-5", "codigo-acotado", 12, 1, "0.20"),
 ]);
 
-test("reparto --tipo --json: cada candidato lleva su costo real y su US$ por éxito", () => {
+testPosix("reparto --tipo --json: cada candidato lleva su costo real y su US$ por éxito", () => {
   const s = correr("codigo-acotado", modelos({ perfil: "agresivo" }), MEDICION);
   const sonnet = cand(s, "claude-sonnet-5-5");
   assert.equal(sonnet.costo_real, 1);
@@ -212,7 +213,7 @@ test("reparto --tipo --json: cada candidato lleva su costo real y su US$ por éx
   assert.equal(opus.usd_por_exito, 8, "4 US$ por corrida ÷ la mitad de acierto");
 });
 
-test("perfil agresivo: ordena por el US$ por éxito medido (Sonnet le gana a Haiku, que sale más barato por corrida)", () => {
+testPosix("perfil agresivo: ordena por el US$ por éxito medido (Sonnet le gana a Haiku, que sale más barato por corrida)", () => {
   const s = correr("codigo-acotado", modelos({ perfil: "agresivo" }), MEDICION);
   assert.equal(s.modelo, "claude-sonnet-5-5", s.motivo);
   // con los pesos fijos ganaba Haiku (0,12 contra 0,35): el que gana es el más barato por éxito
@@ -221,7 +222,7 @@ test("perfil agresivo: ordena por el US$ por éxito medido (Sonnet le gana a Hai
   assert.match(s.motivo, /Perfil agresivo: de los que pasan el piso de codigo-acotado, el más barato \(costo relativo [^)]+, medido, US\$ [^ ]+ por éxito\)/);
 });
 
-test("sin dato suficiente: el costo real es la estimación con los pesos corregidos y no hay US$ por éxito", () => {
+testPosix("sin dato suficiente: el costo real es la estimación con los pesos corregidos y no hay US$ por éxito", () => {
   // sólo 4 corridas de Sonnet: no hay costo medio medido (hacen falta 5) → se estima con el peso (0,29) por el Opus medido
   const med = medicion([...corridas("claude-opus-5-5", "codigo-acotado", 12, 6, "4.00"), ...corridas("claude-sonnet-5-5", "codigo-acotado", 4, 4, "1.00")]);
   const s = correr("codigo-acotado", modelos({ perfil: "agresivo" }), med);
@@ -233,7 +234,7 @@ test("sin dato suficiente: el costo real es la estimación con los pesos corregi
   assert.equal(s.modelo, "claude-haiku-5-5", s.motivo);
 });
 
-test("sin medición no hay costo real: el reparto queda como siempre", () => {
+testPosix("sin medición no hay costo real: el reparto queda como siempre", () => {
   const s = correr("codigo-acotado", modelos({ perfil: "agresivo" }), medicion([]));
   assert.equal(s.candidatos.every((c) => c.costo_real === undefined && c.usd_por_exito === undefined), true);
   assert.equal(s.modelo, "claude-haiku-5-5", "sin dato, gana el más barato por los pesos de siempre");
