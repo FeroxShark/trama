@@ -184,7 +184,14 @@ test("argv: sin subagentes, sin comandos de slash (salvo diseño), y las seccion
   const o = { contrato: "k", settings: "{}", nombre: "n" };
   const escritor = argsClaude(pa, corrida(raiz), o);
   assert.ok(escritor.includes("--disallowedTools"), "el escritor no lanza subagentes");
-  assert.equal(escritor[escritor.indexOf("--disallowedTools") + 1], "Agent");
+  const apagadas = (a: string[]) => a[a.indexOf("--disallowedTools") + 1].split(",");
+  // La lista queda fija: sólo herramientas que los workers no usan (medido en transcripts), nunca las de trabajo ni Skill ni la web.
+  assert.deepEqual(apagadas(escritor), [
+    "Agent", "Workflow", "CronCreate", "CronDelete", "CronList", "ScheduleWakeup", "RemoteTrigger",
+    "EnterWorktree", "ExitWorktree", "NotebookEdit", "DesignSync", "ReportFindings", "TodoWrite",
+  ]);
+  for (const t of ["Bash", "Read", "Edit", "Write", "Grep", "Glob", "Skill", "ToolSearch", "SendMessage", "Monitor", "TaskStop", "WebFetch", "WebSearch"])
+    assert.ok(!apagadas(escritor).includes(t), `no se baja ${t}`);
   assert.ok(escritor.includes("--disable-slash-commands"), "sin comandos de slash");
   assert.ok(escritor.includes("--exclude-dynamic-system-prompt-sections"), "las secciones de la máquina salen del system prompt");
   // un --leer tampoco usa subagentes ni comandos de slash
@@ -200,7 +207,8 @@ test("argv: sin subagentes, sin comandos de slash (salvo diseño), y las seccion
   // el cierre: mismo criterio
   const cierre = argsCierre(pa, corrida(raiz), { contrato: "k", settings: "{}", nombre: "n", sid: "x" });
   assert.ok(cierre.includes("--disable-slash-commands"));
-  assert.ok(cierre.includes("--disallowedTools"));
+  assert.equal(apagadas(cierre).join(","), apagadas(escritor).join(","), "el cierre apaga lo mismo");
+  assert.ok(!apagadas(argsClaude(pa, corrida(raiz, { tipo: "frontend" }), o)).includes("Skill"), "frontend conserva Skill");
 });
 
 test("el system prompt es idéntico entre corridas y lo que cambia va al final del prompt", () => {

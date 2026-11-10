@@ -441,6 +441,31 @@ export const HERRAMIENTAS_LEER = "Read,Grep,Glob,Bash,ToolSearch,ListAgents,Send
 /** ¿Este worker usa las skills (frontend y diseño las cargan con la herramienta Skill)? Entonces no se le apagan los comandos. */
 export const usaSkills = (c: Pick<Corrida, "tipo">): boolean => c.tipo === "frontend" || c.tipo === "diseno";
 
+/**
+ * Herramientas de claude que un worker escritor no usa: se apagan con `--disallowedTools` porque cada definición pesa en el
+ * primer turno (medido con haiku y los mismos args: 20531 tokens de cache_creation con sólo `Agent` apagado, 9740 con esta lista).
+ * Salen: subagentes y workflows (Agent, Workflow), tareas programadas (Cron*, ScheduleWakeup, RemoteTrigger), worktrees
+ * (EnterWorktree/ExitWorktree: pa ya le da el suyo), notebooks, DesignSync, ReportFindings y TodoWrite. Quedan Bash, Read,
+ * Edit, Write, ToolSearch, SendMessage, ListAgents, Monitor, TaskStop, WebFetch y WebSearch: los transcripts de workers de las
+ * últimas dos semanas los usan. `Skill` no se baja nunca: sin skills (`--disable-slash-commands`) ya no existe, y frontend/diseño
+ * la necesitan.
+ */
+export const HERRAMIENTAS_APAGADAS = [
+  "Agent",
+  "Workflow",
+  "CronCreate",
+  "CronDelete",
+  "CronList",
+  "ScheduleWakeup",
+  "RemoteTrigger",
+  "EnterWorktree",
+  "ExitWorktree",
+  "NotebookEdit",
+  "DesignSync",
+  "ReportFindings",
+  "TodoWrite",
+].join(",");
+
 /** El prompt de la corrida: la tarea, la ficha del proyecto y al final lo que cambia en cada corrida. */
 export function promptDe(pa: Pa, c: Corrida): string {
   let p = c.tarea;
@@ -460,7 +485,7 @@ export function argsClaude(pa: Pa, c: Corrida, o: { contrato: string; settings: 
   if (sinMcp(c)) a.push(...mcpApagado);
   if (c.leer) a.push("--tools", HERRAMIENTAS_LEER);
   // Sin subagentes (el abanico de Haikus ya no aplica) y sin las skills y comandos: sólo el worker de diseño los carga.
-  if (!c.leer) a.push("--disallowedTools", "Agent");
+  if (!c.leer) a.push("--disallowedTools", HERRAMIENTAS_APAGADAS);
   if (!usaSkills(c)) a.push("--disable-slash-commands");
   // Las secciones de la máquina (cwd, entorno, estado de git) salen del system prompt al primer mensaje: el prefijo que se
   // cachea es el mismo en todas las corridas y el caché se reutiliza.
@@ -480,7 +505,7 @@ export function argsCierre(_pa: Pa, c: Corrida, o: { contrato: string; settings:
   if (c.autocompact) a.push("--autocompact", c.autocompact);
   a.push("--settings", o.settings, "--name", o.nombre, "--resume", o.sid, "--max-turns", String(CIERRE_TURNOS));
   if (sinMcp(c)) a.push(...mcpApagado);
-  if (!c.leer) a.push("--disallowedTools", "Agent");
+  if (!c.leer) a.push("--disallowedTools", HERRAMIENTAS_APAGADAS);
   if (!usaSkills(c)) a.push("--disable-slash-commands");
   if (c.maxBudget) a.push("--max-budget-usd", c.maxBudget);
   return a;

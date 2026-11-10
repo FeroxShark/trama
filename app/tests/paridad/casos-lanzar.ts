@@ -28,7 +28,7 @@ export interface CasoLanzar extends Caso {
    * El argv del TS difiere del bash congelado A PROPÓSITO (el bash no se toca: es el respaldo de una versión). Por eso la
    * comparación de estos casos no mira el argv: mira el código, la salida y el estado que queda. Lo que cambió:
    *   - el MCP va apagado por defecto (también en los escritores) y `--mcp` lo devuelve;
-   *   - `--disable-slash-commands` (salvo en diseño) y `--disallowedTools Agent` en todos los escritores;
+   *   - `--disable-slash-commands` (salvo en diseño) y `--disallowedTools` (Agent y las herramientas sin uso, ver HERRAMIENTAS_APAGADAS) en todos los escritores;
    *   - `--exclude-dynamic-system-prompt-sections`;
    *   - el system prompt (`--append-system-prompt`) es idéntico entre corridas y lo que cambia en cada una (jefe, worktree,
    *     lecciones, otros writers, mapa) va al final del prompt (`-p`).
