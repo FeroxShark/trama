@@ -443,6 +443,7 @@ motor_arriba() {
   fi
   MOTOR_VIA="127.0.0.1:$puerto"
 }
+echo "paso   motor"   # marca para la app (actualizacion-trama.ts, pasoDesdeLog): empieza el paso «motor»
 if [[ -z "$APP" || ! -f "$APP/dist-electron/motor.js" ]]; then
   aviso "no encontré la app (dist-electron/motor.js) en '${APP:-?}': pasala con --app DIR; sin ella no se instala la unit del motor"
 else
@@ -503,6 +504,7 @@ fi
 # actualizar es esto y nada más. Todo lo que falle es aviso: el motor ya quedó instalado.
 escritorio_app() {
   local dst="$HOME/.local/share/trama/app" ele lock huella inst
+  echo "paso   ventana"   # marca para la app (pasoDesdeLog): empieza el paso «ventana»
   [[ "$APP" == "$dst" && -f "$dst/dist/index.html" ]] || { aviso "app de escritorio: la app no está compilada en $dst"; return 1; }
   [[ -n "$NODE" ]] || { aviso "app de escritorio: sin node"; return 1; }
   ele="$dst/node_modules/electron"

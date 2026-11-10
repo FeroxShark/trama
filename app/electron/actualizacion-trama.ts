@@ -159,11 +159,35 @@ export type Actualizado = { ok: true; version: string } | { ok: false; error: st
 /** Lo que un reinicio del motor cortaría: líderes con un turno o un mensaje saliendo, workers vivos, integraciones; `leyendo`: la lista de workers se está releyendo (no se sabe). */
 export type Ocupacion = { lideres: number; workers: number; otras: number; leyendo: boolean };
 export const total = (o: Ocupacion) => o.lideres + o.workers + o.otras + (o.leyendo ? 1 : 0);
+/**
+ * En qué paso real va la instalación (`instalando`): bajando (git + lo que baja el instalador), compilando (npm ci + build de la app),
+ * motor (la unit del motor) y ventana (Electron + lanzador). `desde`: ms desde epoch en que empezó ese paso. Ambos opcionales: un JSON viejo no los trae.
+ */
+export type PasoAct = "bajando" | "compilando" | "motor" | "ventana";
+export const PASOS_ACT: readonly PasoAct[] = ["bajando", "compilando", "motor", "ventana"];
+export const pasoActValido = (x: unknown): x is PasoAct => typeof x === "string" && (PASOS_ACT as readonly string[]).includes(x);
+
+/**
+ * El último paso que marca el log del instalador (`trama-actualizacion.log`): `hecho  app: instalando dependencias y compilando…` abre
+ * «compilando», y `paso   motor` / `paso   ventana` (los `echo` de instalar-producto.sh) abren los otros dos. Sin marca: null (todavía
+ * «bajando»; lo decide quien llama). El log no trae hora: `desde` es la de `previo` si el paso no cambió, y si no `ahora` (el momento en que se lo vio).
+ */
+export function pasoDesdeLog(texto: string, previo?: { paso?: PasoAct; desde?: number }, ahora: number = Date.now()): { paso: PasoAct; desde: number } | null {
+  let paso: PasoAct | null = null;
+  for (const l of texto.split("\n")) {
+    if (/^hecho\s+app: instalando dependencias y compilando/.test(l)) paso = "compilando";
+    else if (/^paso\s+motor\s*$/.test(l.trim())) paso = "motor";
+    else if (/^paso\s+ventana\s*$/.test(l.trim())) paso = "ventana";
+  }
+  if (!paso) return null;
+  return { paso, desde: previo?.paso === paso && typeof previo.desde === "number" ? previo.desde : ahora };
+}
+
 /** En qué anda Actualizar (sobrevive al reinicio del motor, ver arriba). */
 export type EstadoAct =
   | { fase: "nada" }
   | { fase: "esperando"; version: string }
-  | { fase: "instalando"; version: string }
+  | { fase: "instalando"; version: string; paso?: PasoAct; desde?: number }
   | { fase: "hecho"; version: string }
   | { fase: "error"; error: string };
 export type Modo = "ya" | "esperar";
@@ -190,6 +214,8 @@ export type Deps = {
   registro?: string;
   /** ¿Sigue vivo ese pid? */
   vivo?: (pid: number) => boolean;
+  /** Cada cuánto mira el log del instalador para saber en qué paso va (ms; default 2000). */
+  pasoMs?: number;
   /** Cada cuánto mira la espera (ms); tiene que ver `quietas` miradas seguidas sin nada ocupado. */
   esperaMs?: number;
   quietas?: number;
@@ -432,7 +458,7 @@ export function crearActualizacionTrama(deps: Deps = {}) {
       const v = typeof j.version === "string" ? j.version : "";
       const pid = typeof j.pid === "number" ? j.pid : undefined;
       if (j.fase === "esperando" && v) act = { fase: "esperando", version: v };
-      else if (j.fase === "instalando" && v) act = { fase: "instalando", version: v, ...(pid ? { pid } : {}) };
+      else if (j.fase === "instalando" && v) act = { fase: "instalando", version: v, ...(pid ? { pid } : {}), ...(pasoActValido(j.paso) ? { paso: j.paso } : {}), ...(typeof j.desde === "number" && Number.isFinite(j.desde) ? { desde: j.desde } : {}) };
       else if (j.fase === "hecho" && v) act = { fase: "hecho", version: v };
       else if (j.fase === "error" && typeof j.error === "string") act = { fase: "error", error: j.error };
       else act = { fase: "nada" };
@@ -553,19 +579,32 @@ export function crearActualizacionTrama(deps: Deps = {}) {
         return { ok: false, error: v.error };
       }
       const { checkout, tag } = v;
-      await poner({ fase: "instalando", version: versionDeTag(tag) });
+      const version = versionDeTag(tag);
+      // El estado que se va armando mientras instala: el pid y el paso (git baja primero; el log del instalador marca los demás).
+      let pidAct: number | undefined;
+      let pasoAct: { paso: PasoAct; desde: number } = { paso: "bajando", desde: Date.now() };
+      const instalando = () => poner({ fase: "instalando", version, ...(pidAct ? { pid: pidAct } : {}), ...pasoAct });
+      await instalando();
       // Actualizar seguro: la versión que corre queda guardada antes de pisarla (si algo sale mal, no frena la actualización).
       await antes().catch(silencio("actualizacion-trama"));
       const fallo = async (error: string): Promise<Actualizado> => (await poner({ fase: "error", error }), { ok: false, error });
       for (const paso of pasosActualizar(tag, checkout, registro)) {
         // El instalador reinicia al motor: este proceso puede morir acá. El pid queda anotado para que el motor nuevo sepa si sigue.
-        const r = await correr({ ...paso, alPid: (pid) => void poner({ fase: "instalando", version: versionDeTag(tag), pid }) });
+        // Con el instalador corriendo se mira su log cada tanto: si marcó otro paso, se anota con la hora en que se lo vio.
+        const mirar = paso.registro ? setInterval(() => {
+          void readFile(paso.registro!, "utf8").then((t) => {
+            const n = pasoDesdeLog(t, pasoAct);
+            if (n && n.paso !== pasoAct.paso) { pasoAct = n; void instalando(); }
+          }).catch(silencio("actualizacion-trama"));
+        }, deps.pasoMs ?? 2000) : null;
+        mirar?.unref();
+        const r = await correr({ ...paso, alPid: (pid) => { pidAct = pid; void instalando(); } }).finally(() => { if (mirar) clearInterval(mirar); });
         if (r.code !== 0) return fallo(ultimaLinea(r.salida) ?? `${paso.cmd} ${paso.args[0]}`);
         const falla = paso.cmd === "bash" ? falloDelInstalador(r.salida) : null;
         if (falla) return fallo(falla);
       }
-      await poner({ fase: "hecho", version: versionDeTag(tag) });
-      return { ok: true, version: versionDeTag(tag) };
+      await poner({ fase: "hecho", version });
+      return { ok: true, version };
     })()
       .catch(async (e: unknown): Promise<Actualizado> => {
         const error = e instanceof Error ? e.message : String(e);
