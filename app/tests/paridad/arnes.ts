@@ -217,6 +217,41 @@ function sinDuracion(tsv: string): string {
   return [cab, ...filas.map((f) => (f ? f.split("\t").map((c, j) => (idx.includes(j) ? "<N>" : c)).join("\t") : f))].join("\n");
 }
 
+/**
+ * medicion.tsv: la columna `pisado` la agrega el de TypeScript (el bash está congelado y no la tiene): sale de los dos
+ * lados para comparar el resto. Sin esto el header y las filas difieren sólo por esa columna.
+ */
+function sinPisado(tsv: string): string {
+  const [cab = "", ...filas] = tsv.split("\n");
+  const cols = cab.split("\t");
+  const i = cols.indexOf("pisado");
+  if (i < 0) return tsv;
+  const quitar = (f: string) => {
+    if (!f) return f;
+    const c = f.split("\t");
+    if (c.length <= i) return f;
+    c.splice(i, 1);
+    return c.join("\t");
+  };
+  return [cols.filter((_, j) => j !== i).join("\t"), ...filas.map(quitar)].join("\n");
+}
+
+/**
+ * medicion.tsv: las filas se completan hasta el ancho del header. El awk del bash las deja como estaban (y al
+ * reescribirlas pierde un vacío final) y el de TypeScript las completa: un vacío al final no es información.
+ */
+function completaFilas(tsv: string): string {
+  const [cab = "", ...filas] = tsv.split("\n");
+  const n = cab.split("\t").length;
+  const completar = (f: string) => {
+    if (!f) return f;
+    const c = f.split("\t");
+    while (c.length < n) c.push("");
+    return c.join("\t");
+  };
+  return [cab, ...filas.map(completar)].join("\n");
+}
+
 /** `.hilo`: `espera=` son los segundos de cola de la corrida (un cruce de segundo, 0 o 1, según la carga): se marca fijo. */
 const sinEspera = (hilo: string) => hilo.replace(/^espera=\d+$/m, "espera=<N>");
 
@@ -233,7 +268,7 @@ export function recolectarEstado(dir: string, ignorar: RegExp[], r: Raices): Rec
       else if (/\.pid$/.test(nombre)) salida[normalizar(rr, r)] = "<PID>";
       else if (st.size <= 256 * 1024) {
         const texto = normalizar(readFileSync(abs, "utf8"), r);
-        salida[normalizar(rr, r)] = rr === "medicion.tsv" ? sinDuracion(texto) : nombre.endsWith(".hilo") ? sinEspera(texto) : texto;
+        salida[normalizar(rr, r)] = rr === "medicion.tsv" ? sinPisado(sinDuracion(completaFilas(texto))) : nombre.endsWith(".hilo") ? sinEspera(texto) : texto;
       }
     }
   };
