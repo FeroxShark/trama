@@ -1,13 +1,21 @@
 // cli/base/archivo.ts: escritura atómica con reintento (EPERM simulado), append bajo lock, JSON tolerante, siempre "\n".
-import { test } from "node:test";
+import { after, test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { rename } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { agregarLinea, conLF, escribirAtomico, escribirAtomicoSync, escribirJson, leerJson, leerJsonSync } from "../electron/cli/base/archivo.ts";
 
-const dir = () => mkdtempSync(path.join(os.tmpdir(), "base-archivo-"));
+const creadas: string[] = [];
+const dir = () => {
+  const d = mkdtempSync(path.join(os.tmpdir(), "base-archivo-"));
+  creadas.push(d);
+  return d;
+};
+after(() => {
+  for (const d of creadas) rmSync(d, { recursive: true, force: true });
+});
 const err = (code: string) => Object.assign(new Error(code), { code });
 
 test("escribirAtomico: crea carpetas, normaliza a \\n y no deja .tmp", async () => {
