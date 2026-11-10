@@ -191,6 +191,12 @@ export type ProyectoTexto = { nombre: string; slug: string; ruta: string; alias?
 const escapar = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 /**
+ * El patrón de una ruta: los separadores valen "/" o "\" (en Windows la app las guarda con "\" y el texto puede traerlas con
+ * "/", o al revés). El resto va escapado.
+ */
+const patronDeRuta = (ruta: string): string => ruta.split(/[\\/]/).map(escapar).join("[\\\\/]");
+
+/**
  * La plataforma que parece tener una ruta: de Windows si tiene unidad ("C:\…") o es UNC ("\\servidor\…"); de POSIX si
  * arranca con "/"; si no, la de acá. Un transcript puede traer rutas de otra máquina: la forma de la ruta manda.
  */
@@ -243,7 +249,7 @@ export function proyectoEnTexto(texto: string, proyectos: ProyectoTexto[], home:
     const nombres = nombresDe(p);
 
     for (const r of rutas) {
-      const re = new RegExp(escapar(r.toLowerCase()) + "(?![\\w.-])", "g");
+      const re = new RegExp(patronDeRuta(r.toLowerCase()) + "(?![\\w.-])", "g");
       for (const m of bajo.matchAll(re)) {
         if (m.index === undefined) continue;
         const largo = m[0].length;

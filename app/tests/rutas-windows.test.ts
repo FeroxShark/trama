@@ -54,8 +54,8 @@ test("separarAdjuntos: reconoce las rutas de Windows y saca el nombre del archiv
   assert.deepEqual(separarAdjuntos(texto), {
     texto: "mirá esto",
     archivos: [
-      { nombre: "b.pdf", ruta: unc },
       { nombre: "diagnostico-sistema.md", ruta: win },
+      { nombre: "b.pdf", ruta: unc },
     ],
   });
   // Sin ruta absoluta no es una línea de archivo (ni "C:notas.md", que es relativa a la unidad).
