@@ -160,18 +160,23 @@ function datosLineas(c: Contexto) {
     return r.stdout.trim();
   };
   const escribir = (txt: string) => writeFileSync(path.join(c.proyecto, "f.txt"), txt);
+  // Sin `git commit -a`: el guardia de git de los workers lo bloquea (y el caso quedaba sin commits, sin probar nada).
+  const commitear = (mensaje: string) => {
+    git("add", "f.txt");
+    git("commit", "-q", "-m", mensaje);
+  };
   escribir("uno\ndos\ntres\n");
   git("add", "f.txt");
   git("commit", "-q", "-m", "base");
   const c0 = git("rev-parse", "HEAD");
   escribir("uno\nDOS\ntres\n");
-  git("commit", "-q", "-am", "primera");
+  commitear("primera");
   const c1 = git("rev-parse", "HEAD");
   escribir("uno\nDOS 2\ntres\n");
-  git("commit", "-q", "-am", "segunda");
+  commitear("segunda");
   const c2 = git("rev-parse", "HEAD");
   escribir("uno\nDOS 2\ntres\ncuatro\n");
-  git("commit", "-q", "-am", "tercera");
+  commitear("tercera");
   const c3 = git("rev-parse", "HEAD");
   medicion(
     filaT({ fecha: iso(hace(24 * 3)), id: "g1", proyecto: "proy", modelo: M, effort: "high", leer: 0, seguir: 0 }),
