@@ -1,14 +1,17 @@
 // Qué terminal abrir para correr una orden que pide contraseña o muestra algo (Actualizar): la que dice `HILOS_TERMINAL`,
 // después `$TERMINAL` y, si no, la primera que haya de las conocidas. Cada una pide la orden de una forma distinta
 // (`-e`, `--`, o nada). Node puro: lo prueba tests/terminal-lanzar.test.ts con un PATH de mentira.
-import { accessSync, constants } from "node:fs";
+import { accessSync, constants, realpathSync } from "node:fs";
 import { caminoDe, delimitadorDe, type Plataforma, plataformaActual } from "./rutas.ts";
 
 /** Cómo le pasa la orden cada terminal conocida: la bandera que va antes (vacía: la orden sigue directo). */
 const BANDERA: Record<string, string[]> = {
   "x-terminal-emulator": ["-e"],
-  "gnome-terminal": ["--"],
-  konsole: ["-e"],
+  // gnome-terminal entrega la orden al servidor y sale al instante; con --wait el proceso vive lo que la ventana. konsole
+  // forkea y vuelve: --nofork lo deja en primer plano. Sin eso Trama creía cerrada la terminal y borraba la marca con la orden corriendo.
+  "gnome-terminal": ["--wait", "--"],
+  "gnome-terminal.wrapper": ["--wait", "--"],
+  konsole: ["--nofork", "-e"],
   kitty: [],
   alacritty: ["-e"],
   foot: [],
@@ -67,8 +70,29 @@ export const envoltorioWindows = (): string =>
     "",
   ].join("\r\n");
 
+const realDe = (f: string) => {
+  try {
+    return realpathSync(f);
+  } catch {
+    return f;
+  }
+};
+
+/** `x-terminal-emulator` es un enlace (alternatives): la bandera es la de la terminal a la que resuelve (gnome-terminal.wrapper, konsole…). */
+function banderaDe(nombre: string, ruta: string, base: (p: string) => string, real: (f: string) => string): string[] {
+  const propia = BANDERA[base(nombre)];
+  if (base(nombre) !== "x-terminal-emulator") return propia ?? [];
+  const destino = BANDERA[base(real(ruta))];
+  return destino && destino.length ? destino : propia ?? [];
+}
+
 /** El ejecutable y lo que va antes de la orden (`[<terminal>, ...bandera]`), o `null` si no hay ninguna terminal. */
-export function resolverTerminal(env: NodeJS.ProcessEnv = process.env, esEjecutable: (f: string) => boolean = ejecutable, plat: Plataforma = plataformaActual()): string[] | null {
+export function resolverTerminal(
+  env: NodeJS.ProcessEnv = process.env,
+  esEjecutable: (f: string) => boolean = ejecutable,
+  plat: Plataforma = plataformaActual(),
+  real: (f: string) => string = realDe,
+): string[] | null {
   const base = caminoDe(plat).basename;
   // Lo elegido a mano va tal cual, haya o no (si no existe, el error dice cuál era); no se cae a otra en silencio.
   const elegida = env.HILOS_TERMINAL?.trim();
@@ -80,7 +104,7 @@ export function resolverTerminal(env: NodeJS.ProcessEnv = process.env, esEjecuta
   const candidatas = [env.TERMINAL?.trim(), ...CONOCIDAS].filter((t): t is string => !!t);
   for (const c of candidatas) {
     const ruta = enElPath(c, env, esEjecutable, plat);
-    if (ruta) return [ruta, ...(BANDERA[base(c)] ?? [])];
+    if (ruta) return [ruta, ...banderaDe(c, ruta, base, real)];
   }
   return null;
 }
