@@ -3,7 +3,7 @@
 // pasa a ser una tela como la de Claude. Abajo, lo que se escribe en `modelos.json` (guardar un % para mis sesiones y qué hace `pa` si un proveedor se
 // queda sin cupo). Trabaja sobre el borrador de AjustesModelos (nada se escribe hasta Guardar). Los textos que cambian con el tiempo ("vuelve en 20 h") los
 // escribe el reloj, no React.
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { Ban, CalendarClock, Check, ChevronDown, Clock, Info, Minus, TrendingDown, TrendingUp, TriangleAlert } from "lucide-react";
 import { Boton, Chip } from "../ui/componentes";
 import { LogoCaja, type Proveedor } from "../ui/logos";
@@ -21,7 +21,7 @@ import { enOtros } from "../i18n/Fijo";
 import { useIdioma } from "../i18n/react";
 import { Reloj } from "../barra/piezas";
 import { cuandoFuturo, fechaCorta, pintorVuelve } from "../tiempo";
-import { estadoVentana, resumenGrupo, resumenSusc } from "../barra/cuposVista";
+import { estadoVentana, resumenGrupo, resumenSusc, type ResumenSusc } from "../barra/cuposVista";
 import { nombreGrupo, nombreGrupoCorto, queGrupo } from "../barra/cuposNombres";
 import { textoEstado, textoSusc } from "../barra/cuposTextos";
 import { carcasa } from "../carcasa";
@@ -442,39 +442,57 @@ function PlanClaudeCuenta({ perfil, planDeSiempre, alCambiar }: { perfil: Perfil
 /** Si alguna cuenta está conectada, la suscripción lo está (cada renglón dice lo suyo); si no, lo que diga el proveedor. */
 const estadoVarias = (perfiles: PerfilCuenta[], c: CuentaEstado | undefined): EstadoProv => (perfiles.length > 1 && perfiles.some((p) => p.logueado) ? { texto: t("cu.conectado"), tono: "ok" } : estadoProv(c));
 
-/** Una suscripción en una línea: "Gemini 6 %, Flash 88 %." o "5 h 24 %, semana 9 %."; sin nada que decir, `null`. */
-function cupoEnUnaLinea(s: SuscripcionCupo | undefined): string | null {
+/**
+ * Una suscripción en una línea: "Gemini 6 %, Flash 88 %" o "5 h 24 %, semana 9 %"; sin nada que decir, `null`. Los grupos que la frase de arriba
+ * ya nombra como agotados (`r`) no se repiten acá: sólo sale lo que todavía tiene cupo.
+ */
+function cupoEnUnaLinea(s: SuscripcionCupo | undefined, r: ResumenSusc | null): string | null {
   if (!s) return null;
   const ahora = Date.now() / 1000;
+  const nombrado = (id: string) => r?.nivel === "lleno" || (r?.nivel === "parcial" && r.agotados.some((a) => a.id === id));
   const partes = s.grupos?.length
     ? s.grupos.flatMap((g) => {
-        const r = resumenGrupo(g, ahora);
+        const rg = resumenGrupo(g, ahora);
         const n = nombreGrupoCorto(g);
-        if (r.estado === "lleno" || r.estado === "marcado") return [t("cu.tj.resGrupoSin", { nombre: n })];
-        if (r.pct !== null) return [t("cu.tj.resVentana", { ventana: n, pct: Math.round(r.pct) })];
-        return r.pedidos !== undefined ? [`${n}: ${t("cu.tj.pedidos", { n: r.pedidos.toLocaleString() })}`] : [];
+        if (rg.estado === "lleno" || rg.estado === "marcado") return nombrado(g.id) ? [] : [t("cu.tj.resGrupoSin", { nombre: n })];
+        if (rg.pct !== null) return [t("cu.tj.resVentana", { ventana: n, pct: Math.round(rg.pct) })];
+        return rg.pedidos !== undefined ? [`${n}: ${t("cu.tj.pedidos", { n: rg.pedidos.toLocaleString() })}`] : [];
       })
     : (s.ventanas ?? []).flatMap((v) => {
         if (v.pct !== null) return [t("cu.tj.resVentana", { ventana: nombreVentanaMin(v.id), pct: Math.round(v.pct) })];
         return v.pedidos !== undefined ? [t("cu.tj.pedidos", { n: v.pedidos.toLocaleString() })] : [];
       });
-  return partes.length ? `${partes.join(", ")}.` : null;
+  return partes.length ? partes.join(", ") : null;
 }
 
-/** Lo que va en la línea de una tarjeta chica: lo agotado primero, con ícono y en palabras, y después el cupo. */
+/**
+ * Lo que va en la línea de una tarjeta chica, en una sola línea separada con « · »: lo agotado primero (con ícono y en palabras), después el cupo
+ * que queda y el plan. Lo agotado no se repite en el cupo, y un «sin datos» no sale junto a un «agotado».
+ */
 function ResumenChica({ s, plan, sinDatos }: { s: SuscripcionCupo | undefined; plan?: string; sinDatos: string }) {
   const r = s ? resumenSusc(s, Date.now() / 1000) : null;
-  const linea = cupoEnUnaLinea(s);
+  const agotado = r !== null && (r.nivel === "lleno" || r.nivel === "parcial");
+  const cupo = cupoEnUnaLinea(s, r);
+  const partes: ReactNode[] = [];
+  if (agotado) {
+    partes.push(
+      <span key="agotado" className="cu-chica-sin">
+        <Ban size={12} strokeWidth={2.2} aria-hidden="true" />
+        {textoSusc(r, s?.grupos)}
+      </span>,
+    );
+  }
+  if (cupo) partes.push(cupo);
+  else if (!agotado && !plan) partes.push(sinDatos);
+  if (plan) partes.push(t("cu.tj.resPlan", { plan }));
   return (
     <>
-      {r && (r.nivel === "lleno" || r.nivel === "parcial") ? (
-        <span className="cu-chica-sin">
-          <Ban size={12} strokeWidth={2.2} aria-hidden="true" />
-          {textoSusc(r, s?.grupos)}{" "}
-        </span>
-      ) : null}
-      {linea ?? (plan ? null : sinDatos)}
-      {plan ? ` ${t("cu.tj.resPlan", { plan })}` : null}
+      {partes.map((p, i) => (
+        <Fragment key={i}>
+          {i > 0 ? " · " : null}
+          {p}
+        </Fragment>
+      ))}
     </>
   );
 }
