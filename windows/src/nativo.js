@@ -271,11 +271,11 @@ function crearSupervisor(deps) {
 
 /** POST /rpc `maquina:saludo` con el token de la instalación: el motor contesta solo si su event loop anda. */
 function chequearRpc(o = {}) {
-  return llamarRpc({ ...o, canal: "maquina:saludo" });
+  return llamarRpc({ ...o, canal: "maquina:saludo", conValor: false });
 }
 
 /** POST /rpc de un canal cualquiera del motor con el token de la instalación: `() => Promise<{ ok, valor? , motivo? }>` (nunca rechaza). */
-function llamarRpc({ canal, args = [], puerto = PUERTO, token = () => null, timeoutMs = 5000 } = {}) {
+function llamarRpc({ canal, args = [], conValor = true, puerto = PUERTO, token = () => null, timeoutMs = 5000 } = {}) {
   const cliente = crypto.randomBytes(8).toString("hex");
   return () =>
     new Promise((resolver) => {
@@ -302,7 +302,7 @@ function llamarRpc({ canal, args = [], puerto = PUERTO, token = () => null, time
         (res) => {
           const partes = [];
           res.on("data", (b) => partes.push(b));
-          res.on("end", () => resolver(respuestaRpc(res.statusCode, Buffer.concat(partes).toString("utf8"))));
+          res.on("end", () => resolver(respuestaRpc(res.statusCode, Buffer.concat(partes).toString("utf8"), conValor)));
           res.on("error", (e) => resolver({ ok: false, motivo: e.message }));
         },
       );
@@ -313,12 +313,12 @@ function llamarRpc({ canal, args = [], puerto = PUERTO, token = () => null, time
 }
 
 /** Cómo leer lo que contestó /rpc. Un 401 (token que no coincide) igual prueba que el motor atiende. */
-function respuestaRpc(codigo, texto) {
+function respuestaRpc(codigo, texto, conValor = false) {
   if (codigo === 401) return { ok: true, sinToken: true };
   if (codigo !== 200) return { ok: false, motivo: `/rpc contestó ${codigo}` };
   try {
     const j = JSON.parse(texto);
-    return j && j.ok === true ? { ok: true, ...("valor" in j ? { valor: j.valor } : {}) } : { ok: false, motivo: `/rpc: ${j?.error || "respuesta sin ok"}` };
+    return j && j.ok === true ? { ok: true, ...(conValor ? { valor: j.valor } : {}) } : { ok: false, motivo: `/rpc: ${j?.error || "respuesta sin ok"}` };
   } catch {
     return { ok: false, motivo: "/rpc contestó algo que no es JSON" };
   }

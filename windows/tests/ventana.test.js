@@ -185,16 +185,16 @@ test("cuentas:login: sólo ids de cuenta (nada que cmd.exe interprete)", () => {
   assert.match("cuenta-2", ID_VALIDO);
 });
 
-test("app:salir: 'seguir' esconde la ventana (el motor sigue en la bandeja) y 'parar' sale", () => {
+test("app:salir: 'seguir' esconde la ventana (el motor sigue en la bandeja) y 'parar' sale", async () => {
   const c = carcasa();
-  c.manejadores["app:salir"](null, { modo: "seguir", forzar: false });
-  c.manejadores["app:salir"](null, { modo: "parar", forzar: true });
+  await c.manejadores["app:salir"](null, { modo: "seguir", forzar: false });
+  await c.manejadores["app:salir"](null, { modo: "parar", forzar: true });
   assert.deepEqual(c.llamadas, ["ocultar", "salir"]);
 });
 
-test("app:pararTodo sale como el Salir de la bandeja", () => {
+test("app:pararTodo sale como el Salir de la bandeja", async () => {
   const c = carcasa();
-  assert.equal(c.manejadores["app:pararTodo"](null, false), 0);
+  assert.equal(await c.manejadores["app:pararTodo"](null, false), 0);
   assert.deepEqual(c.llamadas, ["salir"]);
 });
 
