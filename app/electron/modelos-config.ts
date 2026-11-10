@@ -272,6 +272,15 @@ export function modelosConfig(): ModelosConfig | null {
   }
 }
 
+/** La lista de `excluir` del archivo guardado (la que miran `reparto` y el panel de Ajustes); vacía si no hay archivo o no se entiende. */
+export function excluirGuardado(): string[] {
+  try {
+    return leerConfig(JSON.parse(readFileSync(rutaModelos(), "utf8"))).excluir;
+  } catch {
+    return [];
+  }
+}
+
 /** ¿«Destrabar solo cuando se repite» está prendido para este modelo? Lo mira el puente de agy en cada turno (sin archivo o roto: la fábrica). */
 export function destrabarModelo(modelo: string): boolean {
   try {

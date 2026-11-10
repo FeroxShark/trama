@@ -2,7 +2,11 @@
 // inteligencia, si son gratis, el cupo libre y cuándo se reinicia, y si modelos.json los permite). Es EL lector de esa salida;
 // el puntaje no se recalcula acá: lo que se muestra sale de las mismas funciones que `reparto --tipo`. Node puro.
 import { homedir } from "node:os";
+import { leerCacheAA } from "./artificial-analysis.ts";
 import { comandoPropio, entornoPa, lanzarCmd } from "./binario.ts";
+import { modelosClaudeCuenta } from "./claude-catalogo.ts";
+import { excluirGuardado } from "./modelos-config.ts";
+import { sumarClaudeCuenta } from "./reparto-claude.ts";
 
 /** Una ventana de cupo de un modelo: cuánto queda libre (0..100) y cuándo vuelve (epoch ms, `null`: no se sabe). */
 export type VentanaTabla = { id: string; libre: number; vuelve: number | null };
@@ -189,7 +193,11 @@ export async function leerTabla(): Promise<TablaReparto | null> {
     const env = entornoPa(process.env, homedir()) as NodeJS.ProcessEnv;
     const cmd = comandoPropio("reparto", process.env, homedir());
     const stdout = await new Promise<string>((ok, mal) => lanzarCmd(cmd, ["--tabla", "--json"], { env, timeout: 15000, maxBuffer: 2 * 1024 * 1024 }, (e, o) => (e ? mal(e) : ok(o))));
-    return parsearTabla(stdout);
+    const t = parsearTabla(stdout);
+    if (!t) return null;
+    // Los modelos de Claude que la cuenta tiene y el reparto no conoce (Fable 5.2): entran en su grupo, con el cupo de la cuenta.
+    const aa = await leerCacheAA();
+    return { ...t, modelos: sumarClaudeCuenta(t.modelos, modelosClaudeCuenta(), aa, excluirGuardado()) };
   } catch {
     return null;
   }

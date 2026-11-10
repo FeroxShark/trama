@@ -136,7 +136,6 @@ function Fila({ f, b, cambiar, dom }: { f: FilaTabla; b: Borrador; cambiar: (n: 
     <li className="wk-fila" data-id={f.id} data-off={est.permitido ? undefined : ""} style={est.permitido ? undefined : { opacity: 0.55 }}>
       <Interruptor
         activo={est.permitido}
-        disabled={est.regla !== null}
         data-tip={est.regla !== null ? t("ajustes.mdlWkRegla", { regla: est.regla }) : undefined}
         aria-label={t("ajustes.mdlWkPermitir", { modelo: f.nombre })}
         alCambiar={(v) => cambiar(ponerPermitido(b, f, v))}

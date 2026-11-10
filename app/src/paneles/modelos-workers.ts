@@ -1,7 +1,7 @@
 // Ajustes > Modelos > «Modelos para workers»: la lógica de la tabla sin React. Cada fila sale de `reparto --tabla --json`
 // (electron/reparto-tabla.ts); lo que se edita es el borrador de modelos.json: `excluir` por id exacto (el interruptor) y `calidad`
 // (la inteligencia). Una regla de `excluir` por familia o patrón sigue valiendo y se ve aparte: el interruptor de un modelo que
-// saca una de esas reglas no se puede prender desde acá (se saca la regla).
+// saca una de esas reglas se puede prender igual, y al prenderlo se saca esa regla (lo demás que ella sacaba sigue afuera).
 import { EFFORTS_CALIDAD, type EffortCalidad } from "../../electron/efforts-calidad";
 import type { FilaTabla } from "../../electron/reparto-tabla";
 import type { Empresa } from "../hilo/modelos";
@@ -61,10 +61,13 @@ export function estadoDe(f: FilaTabla, b: Borrador): Estado {
   return { permitido: r === null, regla: r !== null && r !== f.id.toLowerCase() ? r : null };
 }
 
-/** Prender o apagar un modelo: apagar anota su id exacto en `excluir`; prender saca ese id (una regla de familia no se toca). */
+/** Prender o apagar un modelo: apagar anota su id exacto en `excluir`; prender saca lo que lo deja afuera (su id o la regla que lo saca: una familia o un patrón). */
 export function ponerPermitido(b: Borrador, f: FilaTabla, on: boolean): Borrador {
   const id = f.id.toLowerCase();
-  if (on) return { ...b, excluir: b.excluir.filter((x) => x !== id) };
+  if (on) {
+    const regla = reglaQueExcluye(f, b.excluir);
+    return regla === null ? b : { ...b, excluir: b.excluir.filter((x) => x !== regla) };
+  }
   return b.excluir.includes(id) || b.excluir.length >= EXCLUIR_MAX ? b : { ...b, excluir: [...b.excluir, id] };
 }
 

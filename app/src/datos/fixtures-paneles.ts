@@ -16,6 +16,7 @@ import type { EstadoOpencodeUi } from "../../electron/opencode-ajustes";
 import type { VistaPlanGo } from "../../electron/opencode-go";
 import type { FilaTabla, TablaReparto } from "../../electron/reparto-tabla";
 import { viejaAAa } from "../../electron/calidad-migracion";
+import { sumarClaudeCuenta } from "../../electron/reparto-claude";
 import type { Ajustes, Consulta, Medido, Corrida, EstadoAuto, EstadoSalud, Medicion, Muestra, PiezaConsulta } from "./paneles";
 
 const AHORA = Math.floor(Date.now() / 1000);
@@ -487,8 +488,16 @@ export const TABLA_REPARTO = (aa = false): TablaReparto => {
     return q[f.id] === undefined ? f : { ...f, calidad: q[f.id]!, effortUsado: por[f.id] ? "high" : null, ...(por[f.id] ?? {}), origen: "artificial-analysis", aaFecha: ayer };
   };
   const usuario = (f: FilaTabla): FilaTabla => (aa && f.familia === "sonnet" ? { ...f, calidad: 52.2, origen: "usuario" } : f);
-  return { version: 1, leido: Date.now(), modelos: modelos.map(conAA).map(usuario) };
+  // La cuenta de las capturas tiene Fable 5.2, que el reparto no conoce: entra en el grupo de Anthropic con el cupo de la cuenta.
+  const conFable = sumarClaudeCuenta(modelos.map(conAA).map(usuario), CATALOGO_CLAUDE, aa ? AA_FABLE : null, ["fable"]);
+  return { version: 1, leido: Date.now(), modelos: conFable };
 };
+
+/** El catálogo de la cuenta de las capturas: tiene Fable 5.2 (el reparto no la conoce). */
+const CATALOGO_CLAUDE = [{ id: "claude-fable-5-2", nombre: "Fable 5.2", principal: true, efforts: ["low", "medium", "high", "xhigh", "max"], familia: "fable" }];
+
+/** Artificial Analysis de las capturas: Fable 5.2 medida en low, medium y max (como la de la cuenta). */
+const AA_FABLE = { fetched: new Date(Date.now() - 20 * 3_600_000).toISOString(), modelos: [{ slug: "claude-fable-5-2-low", intelligence: 46.8 }, { slug: "claude-fable-5-2-medium", intelligence: 48.9 }, { slug: "claude-fable-5-2", intelligence: 53.4 }] };
 
 /** Los servidores MCP propios de la máquina de las capturas: `mcp-vacio` ninguno; si no, uno por URL (con cabecera guardada) y uno por comando. */
 export const ESTADO_MCP_FIJOS = (variante: string | null): VistaServidorMcp[] =>

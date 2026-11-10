@@ -3049,7 +3049,7 @@ export const en = {
   "ajustes.mdlWkSin": "Couldn't read the splitter's list (a newer reparto is needed). The rules below still apply.",
   "ajustes.mdlWkNada": "No model matches the search.",
   "ajustes.mdlWkPermitir": "Allow {modelo}",
-  "ajustes.mdlWkRegla": "The rule “{regla}” leaves it out: remove it under Rules by family or pattern.",
+  "ajustes.mdlWkRegla": "The rule “{regla}” leaves it out: if you turn it on, that rule is removed (everything else it left out stays out).",
   "ajustes.mdlWkInteligencia": "Intelligence of {modelo}",
   "ajustes.mdlWkInteligenciaQue": "Artificial Analysis intelligence index, at the effort the splitter would use",
   "ajustes.mdlWkEstimada": "estimated",

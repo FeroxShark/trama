@@ -21,6 +21,7 @@ registerHooks({
 });
 
 const { parsearTabla } = await import("../electron/reparto-tabla.ts");
+const { sumarClaudeCuenta } = await import("../electron/reparto-claude.ts");
 const { fechaCorta, nombreVisible, origenDe, agrupar, calidadEscrita, claveCalidad, estadoDe, filasUnicas, filtrar, inteligenciaDe, ponerInteligencia, ponerPermitido, reglasSueltas } = await import("../src/paneles/modelos-workers.ts");
 const { borradorDe, configDe, sucio } = await import("../src/paneles/modelos-borrador.ts");
 const { guardarModelos, leerModelos } = await import("../electron/modelos-config.ts");
@@ -65,7 +66,7 @@ test("filasUnicas: un modelo en varias cuentas es una fila (la de más cupo libr
   assert.equal(u.find((f) => f.id === "claude-sonnet-5-5")!.libre, 90);
 });
 
-test("interruptor: apagar anota el id exacto en excluir, prender lo saca; una regla de familia deja el interruptor sin poder prenderse", () => {
+test("interruptor: apagar anota el id exacto en excluir, prender lo saca; una regla de familia también se saca al prender", () => {
   const f = filas()[3]!;
   const apagado = ponerPermitido(borrador(), f, false);
   assert.deepEqual(apagado.excluir, ["opencode:opencode/zeta-ultra-free"]);
@@ -76,9 +77,15 @@ test("interruptor: apagar anota el id exacto en excluir, prender lo saca; una re
   const fam = borrador({ excluir: ["opus"] });
   const o = filas()[0]!;
   assert.deepEqual(estadoDe(o, fam), { permitido: false, regla: "opus" });
-  assert.deepEqual(ponerPermitido(fam, o, true).excluir, ["opus"], "la familia sigue: se saca en Reglas");
+  assert.deepEqual(ponerPermitido(fam, o, true).excluir, [], "prenderlo saca la regla que lo dejaba afuera");
   // una regla con * y una de prefijo
   assert.equal(estadoDe(f, borrador({ excluir: ["opencode:*"] })).permitido, false);
+});
+
+test("el interruptor de un modelo que una regla deja afuera se puede prender (no queda bloqueado)", () => {
+  const src = readFileSync(path.join(import.meta.dirname, "..", "src", "paneles", "AjustesWorkers.tsx"), "utf8");
+  assert.doesNotMatch(src, /disabled=\{est\.regla/, "el interruptor no se bloquea: al prenderlo se saca la regla");
+  assert.match(src, /ponerPermitido\(b, f, v\)/);
 });
 
 test("inteligencia: se fija en calidad por familia (Claude) o por id (OpenCode), 'estimada' hasta que se fija, y vaciar la devuelve a la estimada", () => {
@@ -112,6 +119,54 @@ test("agrupar y filtrar: por empresa en orden fijo, sin grupos vacíos; la búsq
 
 test("reglasSueltas: las familias y los patrones siguen a la vista; los ids de la tabla no", () => {
   assert.deepEqual(reglasSueltas(["fable", "opencode:opencode/beam-free", "agy:*"], filas()), ["fable", "agy:*"]);
+});
+
+test("los modelos de Claude que la cuenta tiene y el reparto no conoce entran en su grupo (Fable 5.2)", () => {
+  const catalogo = [{ id: "claude-fable-5-2", nombre: "Fable 5.2", principal: true, efforts: ["low", "medium", "high", "xhigh", "max"], familia: "fable" }];
+  const aa = { fetched: "2026-10-25T08:00:00Z", modelos: [{ slug: "claude-fable-5-2-low", intelligence: 46.8 }, { slug: "claude-fable-5-2", intelligence: 53.4 }] };
+  const conFable = sumarClaudeCuenta(filas(), catalogo, aa, ["fable"]);
+  const fable = conFable.find((f) => f.id === "claude-fable-5-2");
+  assert.ok(fable, "Fable 5.2 está en la tabla");
+  assert.equal(fable.nombre, "Claude Fable 5.2");
+  assert.equal(fable.proveedor, "claude");
+  assert.equal(fable.familia, "fable");
+  assert.equal(fable.familiaExcluir, "fable", "la regla «fable» lo alcanza");
+  assert.equal(fable.libre, 90, "el cupo es el de la cuenta");
+  assert.deepEqual(fable.calidadPorEffort, { low: 46.8, max: 53.4 });
+  assert.deepEqual(fable.effortsEstimados, ["medium", "high", "xhigh"]);
+  assert.equal(fable.origen, "artificial-analysis");
+  assert.equal(fable.aaFecha, "2026-10-25");
+  assert.equal(fable.permitido, false, "la regla «fable» del archivo lo deja afuera");
+  assert.equal(fable.excluidoPor, "fable");
+  // sin Artificial Analysis: una sola cifra estimada (nadie la midió)
+  const sinAA = sumarClaudeCuenta(filas(), catalogo, null, []).find((f) => f.id === "claude-fable-5-2")!;
+  assert.equal(sinAA.origen, "estimada");
+  assert.equal(sinAA.estimada, true);
+  assert.deepEqual(sinAA.calidadPorEffort, {});
+  assert.ok(sinAA.calidad > 0, "tiene un número (estimado)");
+  assert.equal(sinAA.permitido, true, "sin reglas, el modelo está permitido");
+  // sin catálogo (o con un modelo que la tabla ya tiene) no se agrega nada
+  assert.equal(sumarClaudeCuenta(filas(), null, aa, []).length, filas().length);
+  assert.equal(sumarClaudeCuenta(filas(), [{ ...catalogo[0]!, id: "claude-opus-5-5" }], aa, []).length, filas().length);
+  // una generación anterior (overflow) no entra
+  assert.equal(sumarClaudeCuenta(filas(), [{ ...catalogo[0]!, id: "claude-fable-5-1", principal: false }], aa, []).length, filas().length);
+});
+
+test("el grupo de Anthropic cuenta el modelo que una regla deja afuera: 3 de 4 permitidos", () => {
+  const catalogo = [{ id: "claude-fable-5-2", nombre: "Fable 5.2", principal: true, efforts: ["low", "medium", "high", "xhigh", "max"], familia: "fable" }];
+  // La cuenta con los cuatro modelos de Claude: Opus, Sonnet, Haiku y Fable 5.2.
+  const conHaiku = [...filas(), { ...filas()[0]!, id: "claude-haiku-5-5", nombre: "Claude Haiku 5.5", familia: "haiku", familiaExcluir: "haiku", calidad: 60 }];
+  const conFable = sumarClaudeCuenta(conHaiku, catalogo, null, ["fable"]);
+  const b = borrador({ excluir: ["fable"] });
+  const g = agrupar(filasUnicas(conFable), b).find((x) => x.grupo === "anthropic")!;
+  assert.equal(g.filas.length, 4, "opus, sonnet, haiku y fable");
+  assert.equal(g.permitidos, 3, "fable queda afuera");
+  const fable = g.filas.find((f) => f.id === "claude-fable-5-2")!;
+  assert.deepEqual(estadoDe(fable, b), { permitido: false, regla: "fable" });
+  const prendido = ponerPermitido(b, fable, true);
+  assert.deepEqual(prendido.excluir, [], "prender el interruptor saca el modelo de excluir");
+  assert.deepEqual(estadoDe(fable, prendido), { permitido: true, regla: null });
+  assert.equal(agrupar(filasUnicas(conFable), prendido).find((x) => x.grupo === "anthropic")!.permitidos, 4);
 });
 
 test("calidad viaja por modelos.json: se valida, se escribe sin perder lo demás y el borrador la ve sucia hasta guardar", async () => {
