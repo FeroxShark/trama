@@ -3,6 +3,7 @@
 ## Sin publicar
 
 - Barra lateral: cada carpeta tiene un botón «+» en su encabezado que abre un chat nuevo en ese proyecto.
+- Windows: los adjuntos y la carpeta del líder se reconocen con las rutas de Windows (las que empiezan con «C:\» o con «\\servidor»). Antes no se veían ni como archivos ni como proyecto.
 
 ## 0.2.64
 

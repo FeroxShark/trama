@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Sidebar: each folder has a "+" button in its header that opens a new chat in that project.
+- Windows: attached files and the leader's folder are now recognized with Windows paths (the ones starting with "C:\" or with "\\server"). Before they were not shown, neither as files nor as a project.
 
 ## 0.2.64
 
