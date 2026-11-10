@@ -1,13 +1,21 @@
 // cli/base/enlaces.ts: symlink real en Linux; junction / hardlink / copia por plataforma inyectada; borrar sin atravesar enlaces.
-import { test } from "node:test";
+import { after, test } from "node:test";
 import assert from "node:assert/strict";
-import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { borrarSinSeguir, enlazarArchivo, enlazarDir } from "../electron/cli/base/enlaces.ts";
 
 const posix = process.platform !== "win32";
-const dir = () => mkdtempSync(path.join(os.tmpdir(), "base-enlaces-"));
+const creadas: string[] = [];
+const dir = () => {
+  const d = mkdtempSync(path.join(os.tmpdir(), "base-enlaces-"));
+  creadas.push(d);
+  return d;
+};
+after(() => {
+  for (const d of creadas) rmSync(d, { recursive: true, force: true });
+});
 
 test("win32 (inyectado): carpeta = junction con destino absoluto; archivo = hardlink, y copia si no se puede enlazar", () => {
   const llamadas: unknown[][] = [];
