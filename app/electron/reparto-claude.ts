@@ -14,10 +14,11 @@ export type CacheAAMinima = { fetched: string; modelos: { slug: string; intellig
 /** Las familias de Claude que Trama conoce (las mismas que `excluir` acepta). */
 const FAMILIAS_CLAUDE = ["fable", "opus", "sonnet", "haiku"];
 
-/** La familia de un id de Claude ("claude-fable-5-2" → "fable"); "" si no es de una familia conocida (igual que la vista). */
+/** La familia de un id de Claude ("claude-fable-5-2" → "fable"); "" si no es de una familia conocida. */
 export function familiaClaude(id: string): string {
-  const p = /^claude-([a-z]+)/.exec(id.toLowerCase())?.[1] ?? "";
-  return (FAMILIAS_CLAUDE as readonly string[]).includes(p) ? p : "";
+  const m = id.toLowerCase();
+  for (const f of FAMILIAS_CLAUDE) if (m.includes(f)) return f;
+  return "";
 }
 
 /** La regla de `excluir` que saca a ese id (familia, id exacto, prefijo o patrón con `*`): la misma que la vista. */
