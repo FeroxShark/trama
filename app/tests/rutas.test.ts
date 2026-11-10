@@ -174,7 +174,8 @@ test("Windows: ningún proceso de fondo abre una consola visible (sin `windowsHi
   for (const f of readdirSync(raiz, { recursive: true, encoding: "utf8" })) {
     if (!f.endsWith(".ts") || soloLinux.has(f)) continue;
     const src = readFileSync(new URL(f, raiz), "utf8");
-    for (const m of src.matchAll(/(?<![.\w])(?:spawn|spawnSync|execFile|execFileSync)\(/g)) {
+    // Sin el punto delante: `cp.spawn(` y `child_process.execFile(` también cuentan (antes se colaban).
+    for (const m of src.matchAll(/(?<![\w])(?:spawn|spawnSync|execFile|execFileSync)\(/g)) {
       let i = m.index + m[0].length;
       for (let abiertos = 1; abiertos > 0 && i < src.length; i++) abiertos += src[i] === "(" ? 1 : src[i] === ")" ? -1 : 0;
       const llamada = src.slice(m.index, i);
