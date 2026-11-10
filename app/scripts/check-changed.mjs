@@ -186,21 +186,25 @@ function leerArchivos() {
 const TOPE_PARIDAD_S = Number(process.env.TRAMA_CHECK_TOPE_S) || 0; // tope por archivo de la paridad (0 = el de abajo)
 const SEG_POR_CASO = 0.5; // medido en esta máquina sin carga: la paridad completa (~1200 casos) tarda ~9 min
 const SEG_POR_PRUEBA = 4; // un archivo de app/tests, con la compilación y el arranque repartidos
+const PARTES = Math.max(1, Number(process.env.TRAMA_CHECK_PARTES) || Math.min(4, Math.floor((os.availableParallelism?.() ?? 4) / 3))); // procesos de paridad a la vez
 const SEG_TSC = 40; // los dos tsc
 
 /** Corre un paso mostrando su salida; devuelve { ok, codigo, colgados }. `colgados`: archivos que test.mjs cortó por su tope. */
-function correr(titulo, cmd, args, { cwd = APP, env = {} } = {}) {
+function correr(titulo, cmd, args, { cwd = APP, env = {}, junto = false } = {}) {
   process.stdout.write(`\n== ${titulo}\n`);
   return new Promise((resolve) => {
     const hijo = spawn(cmd, args, { cwd, stdio: ["inherit", "pipe", "inherit"], env: { ...process.env, ...env } });
     let cola = "";
     const colgados = [];
+    const todo = []; // junto: varios pasos a la vez no mezclan líneas; cada uno imprime entero al terminar
     hijo.stdout.on("data", (d) => {
-      process.stdout.write(d);
+      if (junto) todo.push(d);
+      else process.stdout.write(d);
       cola = (cola + d.toString("utf8")).split("\n").slice(-200).join("\n");
     });
     hijo.on("error", () => resolve({ ok: false, codigo: 1, colgados }));
     hijo.on("close", (codigo) => {
+      if (junto) process.stdout.write(`\n-- ${titulo}\n${Buffer.concat(todo).toString("utf8")}`);
       for (const m of cola.matchAll(/^##\[error\](.+?): sin terminar tras (\d+) s/gm)) colgados.push(`${m[1]} (${m[2]} s)`);
       resolve({ ok: codigo === 0, codigo: codigo ?? 1, colgados });
     });
@@ -234,7 +238,7 @@ async function main() {
   const porHerramienta = paridad ? await casosPorHerramienta() : {};
   const nCasos = paridad === "todas" ? Object.values(porHerramienta).reduce((a, b) => a + b, 0) : (paridad ?? []).reduce((a, h) => a + (porHerramienta[h] ?? 0), 0);
   const carga = Math.max(1, os.loadavg()[0] / (os.availableParallelism?.() ?? os.cpus().length));
-  const estimado = (SEG_TSC + nPruebas * SEG_POR_PRUEBA / Math.max(1, (os.availableParallelism?.() ?? 4) - 1) + nCasos * SEG_POR_CASO) * carga;
+  const estimado = (SEG_TSC + nPruebas * SEG_POR_PRUEBA / Math.max(1, (os.availableParallelism?.() ?? 4) - 1) + (nCasos * SEG_POR_CASO) / Math.max(1, Math.min(PARTES, nCasos))) * carga;
   process.stdout.write(`cambiados: ${cambiados ? cambiados.length : "?"} · pruebas: ${completo ? "todas" : pruebas.length} · paridad: ${paridad === "todas" ? "toda" : Array.isArray(paridad) ? paridad.join(",") : "no"} · windows: ${windows ? "sí" : "no"}\n`);
   process.stdout.write(`va a correr: ${nPruebas} archivos de prueba${nCasos ? ` + ${nCasos} casos de paridad` : ""}${windows ? " + windows" : ""}; estimación ~${minutos(estimado)}${carga > 1.5 ? ` (máquina cargada x${carga.toFixed(1)})` : ""}\n`);
   if (estimado > 480) process.stdout.write("  OJO: pasa de ~8 min; el tool del worker corta a los 10. Partilo (--paridad-completa sola, o un archivo con `node scripts/test.mjs <ruta>`).\n");
@@ -265,12 +269,32 @@ async function main() {
     process.stdout.write("\n== pruebas: ninguna afectada\n");
   }
 
-  if (paridad === "todas") {
-    const tope = String(TOPE_PARIDAD_S || 900);
-    if ((rc = await paso("paridad (toda)", [testMjs, "--paridad"], { env: { TRAMA_TEST_ARCHIVO_S: tope } }))) return rc;
-  } else if (paridad) {
-    const env = { TRAMA_TEST_SOLO: "paridad.test.ts", TRAMA_PARIDAD_HERRAMIENTA: paridad.join(","), TRAMA_TEST_ARCHIVO_S: String(TOPE_PARIDAD_S || 540) };
-    if ((rc = await paso(`paridad (${paridad.join(", ")})`, [testMjs, "--paridad"], { env }))) return rc;
+  if (paridad) {
+    // La paridad va en PARTES procesos a la vez (cada uno con su casa): serie son ~5 min para pa, pa-async y pa-cli.
+    const todas = paridad === "todas";
+    const tope = String(TOPE_PARIDAD_S || (todas ? 900 : 540));
+    const partes = Math.max(1, Math.min(PARTES, nCasos));
+    const base = todas ? {} : { TRAMA_TEST_SOLO: "paridad.test.ts", TRAMA_PARIDAD_HERRAMIENTA: paridad.join(",") };
+    const nombre = todas ? "paridad (toda)" : `paridad (${paridad.join(", ")})`;
+    if (partes === 1) {
+      if ((rc = await paso(nombre, [testMjs, "--paridad"], { env: { ...base, TRAMA_TEST_ARCHIVO_S: tope } }))) return rc;
+    } else {
+      process.stdout.write(`\n== ${nombre} en ${partes} partes a la vez\n`);
+      const rs = await Promise.all(
+        Array.from({ length: partes }, (_, i) =>
+          correr(`parte ${i + 1}/${partes}`, process.execPath, [testMjs, "--paridad"], {
+            env: { TRAMA_TEST_SOLO: "paridad.test.ts", ...base, TRAMA_PARIDAD_PARTE: `${i}/${partes}`, TRAMA_TEST_ARCHIVO_S: tope },
+            junto: true,
+          }),
+        ),
+      );
+      const colgados = rs.flatMap((r) => r.colgados);
+      if (colgados.length) {
+        process.stdout.write(`\ncheck:changed: tope en «${nombre}», colgó: ${colgados.join(", ")}\n`);
+        return 124;
+      }
+      if (rs.some((r) => !r.ok)) return rs.find((r) => !r.ok).codigo || 1;
+    }
   }
 
   if (windows) {
