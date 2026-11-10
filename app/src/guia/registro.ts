@@ -114,7 +114,6 @@ export const GUIAS: readonly Guia[] = [
     paso("ajustes-modelos", "dictado", op("modelos", "ajustes.dictado"), { lado: "abajo" }),
   ]),
   guia("ajustes-cupos", 1, [
-    paso("ajustes-cupos", "plan", op("cupos", "ajustes.planSus"), { lado: "abajo" }),
     paso("ajustes-cupos", "ventanas", op("cupos", "cu.claude"), { lado: "abajo" }),
     paso("ajustes-cupos", "ritmo", `[data-cat="cupos"] .cu-ritmo`, { lado: "abajo" }),
     paso("ajustes-cupos", "perfil", op("cupos", "ajustes.cuposPerfil"), { lado: "abajo" }),

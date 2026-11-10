@@ -13,7 +13,7 @@ import { MODO } from "../modo";
 import { cambiarIdioma, esIdioma, idioma, t, textoMain, type ClaveSola } from "../i18n";
 import { abrirAtajos } from "./Atajos";
 import { abrirBienvenida } from "./Bienvenida";
-import { BarraGuardar, Celular, PlanYRed } from "./AjustesEditar";
+import { BarraGuardar, Celular } from "./AjustesEditar";
 import { AjustesCuentas } from "./AjustesCuentas";
 import { AjustesModelos } from "./AjustesModelos";
 import { Compactar } from "./AjustesCompactar";
@@ -459,9 +459,6 @@ function Dictado() {
 function Numeros({ a }: { a: Datos }) {
   return (
     <>
-      <Cat id="cupos">
-        <PlanYRed inicial={a} Dato={Dato} />
-      </Cat>
       <Cat id="general" orden={2}>
         <Compactar inicial={a} Dato={Dato} />
       </Cat>

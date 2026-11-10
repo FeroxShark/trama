@@ -12,15 +12,14 @@ import { Plus, X } from "lucide-react";
 import { type Aplicando, detalleAcceso, EstadoEscucha, PasosCelular } from "./CelularGuia";
 import { PUERTO_MAX, PUERTO_MIN } from "../../electron/valida-ajustes";
 import { VERSION } from "../datos/contrato";
-import { fuentePaneles, type Ajustes as Datos, type EstadoRemoto } from "../datos/paneles";
+import { fuentePaneles, type EstadoRemoto } from "../datos/paneles";
 import { Selector, type Opcion } from "../hilo/Selector";
-import { locale, t, textoError, textoMain, type Clave, type ClaveSola } from "../i18n";
+import { locale, t, textoMain, type Clave, type ClaveSola } from "../i18n";
 import { enOtros, Fijo } from "../i18n/Fijo";
 import { MODO } from "../modo";
 import { mensaje } from "../puente";
 import { cancelarTodo, guardarTodo, publicar, resumen, suscribir } from "./ajustes-barra";
-import { agregarDispositivo, alternarAcceso, numDesde, numPara, quitarAplicando, remotoDesde, remotoPara, type BorradorNum, type BorradorRemoto } from "./ajustes-borrador";
-import { EVENTO_PLAN_CLAUDE, esPlanClaude } from "./plan-claude";
+import { agregarDispositivo, alternarAcceso, quitarAplicando, remotoDesde, remotoPara, type BorradorRemoto } from "./ajustes-borrador";
 
 /** Las partes de una fila de Ajustes (la misma de Ajustes.tsx, que la pasa para no repetirla). */
 export type FilaDato = (p: { nombre: ClaveSola; que: ClaveSola; icono?: ReactNode; children: ReactNode }) => ReactNode;
@@ -105,101 +104,6 @@ export function BarraGuardar() {
         </motion.div>
       ) : null}
     </AnimatePresence>
-  );
-}
-
-const PLANES: Opcion[] = [
-  { id: "pro", nombre: "Pro", desc: "" },
-  { id: "max", nombre: "Max", desc: "" },
-];
-
-/**
- * El plan y la red de seguridad. Guardar manda sólo lo que cambió; lo que vuelve es Ajustes como quedó (con el plan que
- * dice `pa` de verdad, no el que se creía), y de ahí sale lo guardado.
- */
-export function PlanYRed({
-  inicial,
-  Dato,
-}: {
-  inicial: Datos;
-  Dato: FilaDato;
-}) {
-  const [g, setG] = useState(inicial);
-  const [b, setB] = useState<BorradorNum>(() => {
-    const base = numDesde(inicial);
-    if (EDITANDO) return { plan: "pro", red: base.red };
-    return base;
-  });
-  const [guardando, setGuardando] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [ok, setOk] = useState(false);
-  const vivo = useRef(true);
-  useEffect(() => {
-    vivo.current = true;
-    return () => void (vivo.current = false);
-  }, []);
-
-  const r = numPara(g, b);
-  const valido = r.error === null;
-
-  // El renglón de la cuenta de siempre (Plan y cupos) guarda el mismo plan: se refleja acá sin pisar la red de seguridad a medio editar.
-  useEffect(() => {
-    const leer = (e: Event) => {
-      const p = (e as CustomEvent<string>).detail;
-      if (!esPlanClaude(p)) return;
-      setG((x) => ({ ...x, plan: p }));
-      setB((x) => ({ ...x, plan: p }));
-    };
-    window.addEventListener(EVENTO_PLAN_CLAUDE, leer);
-    return () => window.removeEventListener(EVENTO_PLAN_CLAUDE, leer);
-  }, []);
-
-  const cambiar = (nuevo: BorradorNum) => {
-    setB(nuevo);
-    setError(null);
-    setOk(false);
-  };
-  const guardar = async () => {
-    if (!valido || !r.sucio) return;
-    setGuardando(true);
-    setError(null);
-    try {
-      const nuevo = await fuentePaneles.guardarAjustes(r.cambio);
-      if (!vivo.current) return;
-      if (nuevo.version !== VERSION) throw new Error(t("error.version", { que: t("panel.ajustes"), v: nuevo.version, conozco: VERSION }));
-      setG(nuevo);
-      setB(numDesde(nuevo));
-      setOk(true);
-      if (r.cambio.plan !== undefined && esPlanClaude(nuevo.plan)) window.dispatchEvent(new CustomEvent(EVENTO_PLAN_CLAUDE, { detail: nuevo.plan }));
-    } catch (e) {
-      if (vivo.current) setError(mensaje(e));
-    } finally {
-      if (vivo.current) setGuardando(false);
-    }
-  };
-
-  return (
-    <>
-      <section className="pn-sec cu-plan">
-        <h2 className="pn-h">{t("ajustes.plan")}</h2>
-        <Dato nombre="ajustes.planSus" que="ajustes.planQue">
-          {g.plan && b.plan ? (
-            <div className="pn-sel">
-              <Selector
-                etiqueta={t("ajustes.planSus")}
-                opciones={PLANES.map((o) => ({ ...o, desc: t(o.id === "pro" ? "ajustes.planProQue" : "ajustes.planMaxQue") }))}
-                valor={b.plan}
-                alElegir={(plan) => cambiar({ ...b, plan: plan === "pro" ? "pro" : "max" })}
-                reserva={[]}
-              />
-            </div>
-          ) : (
-            <span className="pn-falta">{g.plan_error ? textoError(g.plan_error) : t("comun.sinDato")}</span>
-          )}
-        </Dato>
-        <Acciones id="plan" sucio={r.sucio} valido={valido} guardando={guardando} ok={ok} error={error} alGuardar={guardar} alCancelar={() => cambiar(numDesde(g))} />
-      </section>
-    </>
   );
 }
 

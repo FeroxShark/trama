@@ -108,8 +108,6 @@ export const tourEn = {
   "tour.ajustes-modelos.dictado.t": "Dictation model",
   "tour.ajustes-modelos.dictado.b": "The model that transcribes your voice in the message box. It applies from the next recording.",
 
-  "tour.ajustes-cupos.plan.t": "Your plan",
-  "tour.ajustes-cupos.plan.b": "The Claude plan everything runs on. It sets how much quota you have.",
   "tour.ajustes-cupos.ventanas.t": "Quota windows",
   "tour.ajustes-cupos.ventanas.b": "Your subscription's 5-hour window and weekly one, and when each comes back.",
   "tour.ajustes-cupos.ritmo.t": "Pace",
@@ -296,8 +294,6 @@ export const tourEs: Record<keyof typeof tourEn, string> = {
   "tour.ajustes-modelos.dictado.t": "Modelo de dictado",
   "tour.ajustes-modelos.dictado.b": "El modelo que transcribe tu voz en la caja de mensaje. Rige desde la próxima grabación.",
 
-  "tour.ajustes-cupos.plan.t": "Tu plan",
-  "tour.ajustes-cupos.plan.b": "El plan de Claude con el que corre todo. De él depende cuánto cupo tenés.",
   "tour.ajustes-cupos.ventanas.t": "Ventanas de cupo",
   "tour.ajustes-cupos.ventanas.b": "La ventana de 5 horas y la semanal de tu suscripción, y cuándo vuelve cada una.",
   "tour.ajustes-cupos.ritmo.t": "Ritmo",

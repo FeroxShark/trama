@@ -1,5 +1,10 @@
 # Changes
 
+## 0.2.64
+
+- Plan and quotas: removed the "original account plan" row at the top (it didn't save); each account's plan is chosen on its own card, and the card title follows the choice.
+- Install: Trama's launcher no longer crashes at startup when the desktop hands it a Wayland display that doesn't exist; it uses whichever is there. That crash was what rolled the update back to the old version.
+
 ## 0.2.63
 
 - Plan and quotas: each Claude account has its own plan, Pro or Max, with a selector under its row (the original account too). Workers use the plan of the account in use; if an account hasn't chosen one, the original account's plan applies.

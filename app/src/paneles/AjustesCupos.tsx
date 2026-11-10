@@ -501,6 +501,17 @@ export function CuposTarjetas({ b, uso, plan }: { b: Borrador; uso: Uso | null; 
     return () => window.removeEventListener("focus", mirar);
   }, [mirar]);
 
+  // El plan de la cuenta de siempre: el que trajo Ajustes, y el que se acaba de elegir en su renglón (sin esperar a que Ajustes lo relea).
+  const [planSiempre, setPlanSiempre] = useState(plan);
+  useEffect(() => setPlanSiempre(plan), [plan]);
+  useEffect(() => {
+    const leer = (e: Event) => {
+      const p = (e as CustomEvent<string>).detail;
+      if (esPlanClaude(p)) setPlanSiempre(p);
+    };
+    window.addEventListener(EVENTO_PLAN_CLAUDE, leer);
+    return () => window.removeEventListener(EVENTO_PLAN_CLAUDE, leer);
+  }, []);
   const { lista, mirar: mirarCuentas } = useCuentas();
   const alCambiarCuentas = useCallback(() => {
     mirarCuentas();
@@ -546,8 +557,8 @@ export function CuposTarjetas({ b, uso, plan }: { b: Borrador; uso: Uso | null; 
         <div data-opc="cu.claude" data-ancho="">
           <Tela
             id="claude"
-            nombre={planClaude(enUsoClaude ? planDeCuenta(enUsoClaude, plan).plan : plan)}
-            extraDe={lista ? (p) => <PlanClaudeCuenta perfil={p} planDeSiempre={plan} alCambiar={alCambiarCuentas} /> : undefined}
+            nombre={planClaude(enUsoClaude ? planDeCuenta(enUsoClaude, planSiempre).plan : planSiempre)}
+            extraDe={lista ? (p) => <PlanClaudeCuenta perfil={p} planDeSiempre={planSiempre} alCambiar={alCambiarCuentas} /> : undefined}
             estado={estadoVarias(pClaude, cuentas?.claude)}
             perfiles={pClaude}
             deCuenta={claudeDe}

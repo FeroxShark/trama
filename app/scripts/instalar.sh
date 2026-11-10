@@ -67,6 +67,16 @@ if [ -z "\$TRAMA_UNIDAD" ] && [ \$# -eq 0 ] && systemctl --user is-enabled -q tr
   mkdir -p "\$estado" && echo foco >"\$estado/mostrar"
   systemctl --user start trama.service && exit 0
 fi
+# --- wayland
+# Una unidad puede heredar un WAYLAND_DISPLAY viejo (otro compositor, otra sesión). Sin ese socket Electron se cae al iniciar, y esos cierres
+# seguidos hacen que «Actualizar» dé la versión nueva por mala y vuelva atrás (2026-11-10: 0.2.61, 0.2.62 y 0.2.63). Si el socket no existe, se usa el que haya.
+sock_dir="\${XDG_RUNTIME_DIR:-/run/user/\$(id -u)}"
+if [ -n "\$WAYLAND_DISPLAY" ] && [ "\${WAYLAND_DISPLAY#/}" = "\$WAYLAND_DISPLAY" ] && [ ! -S "\$sock_dir/\$WAYLAND_DISPLAY" ]; then
+  for s in "\$sock_dir"/wayland-[0-9]*; do
+    if [ -S "\$s" ]; then WAYLAND_DISPLAY="\${s##*/}"; export WAYLAND_DISPLAY; break; fi
+  done
+fi
+# --- fin wayland
 exec "\$electron" "\$raiz" "\$@"
 EOF
 chmod +x "$bin"

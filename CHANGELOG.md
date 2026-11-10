@@ -1,5 +1,10 @@
 # Cambios
 
+## 0.2.64
+
+- Plan y cupos: se sacó el renglón «Plan de la cuenta de siempre» de arriba (no guardaba); el plan de cada cuenta se elige en su propia tarjeta, y el título de la tarjeta sigue lo elegido.
+- Instalación: el lanzador de Trama ya no se cae al arrancar cuando el escritorio le pasa una pantalla Wayland que no existe; usa la que haya. Era lo que hacía volver sola a la versión vieja.
+
 ## 0.2.63
 
 - Plan y cupos: cada cuenta de Claude tiene su propio plan, Pro o Max, con un selector bajo su renglón (también la de siempre). Los workers usan el plan de la cuenta que está en uso; si una cuenta no eligió, vale el de la de siempre.

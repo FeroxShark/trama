@@ -33,7 +33,6 @@ export const ITEMS: readonly Item[] = [
   { cat: "modelos", nombre: "ajustes.mdlPermitirMax", que: "ajustes.mdlPermitirMaxQue", sin: "max esfuerzo effort permitir gasta cupo" },
   { cat: "modelos", nombre: "ajustes.dictado", que: "ajustes.dictadoQue", sin: "dictar dictation voz voice microfono microphone transcribir transcribe stt whisper turbo handy" },
 
-  { cat: "cupos", nombre: "ajustes.planSus", que: "ajustes.planQue", sin: "suscripcion subscription pro max plan precio" },
   { cat: "cupos", nombre: "cu.claude", que: "cu.claudeQue", sin: "claude anthropic suscripcion subscription plan cupo quota ventana window 5h semana week conectar connect login" },
   { cat: "cupos", nombre: "cu.google", que: "cu.googleQue", sin: "google gemini agy ai pro suscripcion subscription plan cupo quota ventana window conectar connect login" },
   { cat: "cupos", nombre: "cu.opencode", que: "cu.opencodeQue", sin: "opencode open code gratis free cupo quota agotado exhausted limite limit compartido shared cuenta account conectar connect login pedidos requests uso usage" },
