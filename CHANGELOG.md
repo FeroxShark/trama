@@ -1,5 +1,9 @@
 # Cambios
 
+## 0.2.62
+
+- Actualizar: la actualización ya no vuelve sola a la versión anterior cuando todo salió bien (le pasó a 0.2.61). Trae Fable 5.2 y los modelos de Claude según tu cuenta.
+
 ## 0.2.61
 
 - Selector de modelo: Fable 5.2, si tu cuenta de Claude lo tiene. La lista de modelos de Claude ahora sale del catálogo de tu cuenta: un modelo nuevo aparece solo, sin esperar una versión de Trama; Fable 5.1 pasa a «Anteriores».

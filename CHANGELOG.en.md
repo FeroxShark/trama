@@ -1,5 +1,9 @@
 # Changes
 
+## 0.2.62
+
+- Update: updating no longer rolls back to the previous version when everything went fine (it happened with 0.2.61). Brings Fable 5.2 and the Claude models your account offers.
+
 ## 0.2.61
 
 - Model picker: Fable 5.2, if your Claude account has it. The Claude model list now comes from your account's catalog: a new model shows up on its own, without waiting for a Trama release; Fable 5.1 moves to "Previous".
