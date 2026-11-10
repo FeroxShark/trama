@@ -473,23 +473,24 @@ function ResumenChica({ s, plan, sinDatos }: { s: SuscripcionCupo | undefined; p
   const r = s ? resumenSusc(s, Date.now() / 1000) : null;
   const agotado = r !== null && (r.nivel === "lleno" || r.nivel === "parcial");
   const cupo = cupoEnUnaLinea(s, r);
-  const partes: ReactNode[] = [];
-  if (agotado) {
-    partes.push(
-      <span key="agotado" className="cu-chica-sin">
-        <Ban size={12} strokeWidth={2.2} aria-hidden="true" />
-        {textoSusc(r, s?.grupos)}
-      </span>,
-    );
-  }
-  if (cupo) partes.push(cupo);
-  else if (!agotado && !plan) partes.push(sinDatos);
-  if (plan) partes.push(t("cu.tj.resPlan", { plan }));
+  // Lo que sigue a lo agotado, en texto: el cupo que queda y el plan.
+  const resto: string[] = [];
+  if (cupo) resto.push(cupo);
+  else if (!agotado && !plan) resto.push(sinDatos);
+  if (plan) resto.push(t("cu.tj.resPlan", { plan }));
+  // El « ·» va pegado a lo agotado, dentro de su tramo: así una línea que se parte no deja el separador al principio de la siguiente.
   return (
     <>
-      {partes.map((p, i) => (
+      {agotado ? (
+        <span className="cu-chica-sin">
+          <Ban size={12} strokeWidth={2.2} aria-hidden="true" />
+          {textoSusc(r, s?.grupos)}
+          {resto.length ? "\u00a0·" : null}
+        </span>
+      ) : null}
+      {resto.map((p, i) => (
         <Fragment key={i}>
-          {i > 0 ? " · " : null}
+          {i === 0 ? (agotado ? " " : null) : "\u00a0· "}
           {p}
         </Fragment>
       ))}
