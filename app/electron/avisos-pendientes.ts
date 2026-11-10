@@ -13,7 +13,7 @@
 //  - `descubrir` rescata a los workers de un líder que terminaron mientras Trama estaba apagada (nadie los vio terminar).
 // Sin Electron, sin disco propio ni reloj: lo de afuera se inyecta. Lo prueba tests/avisos-pendientes.test.ts.
 
-import { motivoDe, tareaCorta, textoParaLider, vivo, type AvisoWorker, type FilaWorker } from "./avisos-worker.ts";
+import { compactarResultado, motivoDe, tareaCorta, textoParaLider, vivo, type AvisoWorker, type FilaWorker } from "./avisos-worker.ts";
 
 /** Una fila de `pa --hilos` con lo que hace falta para saber cuándo terminó. */
 export type FilaHilo = FilaWorker & { inicio?: number | null; duracion_s?: number | null; archivado?: boolean | null };
@@ -46,6 +46,10 @@ export type Deps = {
   encolar: (sid: string, x: ParaCola) => void;
   /** La última lista buena de `pa --hilos`. */
   filas: () => readonly FilaHilo[];
+  /** `descubrir`: el `result` completo de un worker que terminó (para su resultado compacto en el aviso). Sin esto, el aviso va sin él. */
+  leerResultado?: (h: FilaWorker) => Promise<string>;
+  /** Cómo está la integración de un worker que terminó, al momento de decírselo al líder («integrada sola» o «espera integración: …»). */
+  integracion?: (id: string) => string | undefined;
   /** `descubrir`: ¿un worker listado `murio` sigue corriendo? Sin esto, no. */
   procesoVivo?: (h: FilaWorker) => Promise<boolean>;
   ahora?: () => number;
@@ -233,7 +237,10 @@ export function crearAvisosPendientes(d: Deps) {
         // El último aviso de cada worker: un cupo y después su fin dicen lo mismo con lo último.
         const ultimos = new Map<string, Entrada>();
         for (const e of [...pend].sort((a, b) => a.ts - b.ts)) ultimos.set(e.worker, e);
-        const lineas = [...ultimos.values()].map((e) => e.aviso);
+        const lineas = [...ultimos.values()].map((e) => {
+          const integracion = e.aviso.tipo === "fin" ? d.integracion?.(e.worker) : undefined;
+          return integracion ? { ...e.aviso, integracion } : e.aviso;
+        });
         const base = lineas[0];
         const aviso: AvisoWorker = {
           tipo: "tanda",
@@ -277,6 +284,7 @@ export function crearAvisosPendientes(d: Deps) {
         if (entradas.some((e) => e.worker === h.id && e.ts >= fin * 1000)) continue;
         if (h.estado === "murio" && (await d.procesoVivo?.(h).catch(() => false))) continue;
         const detalle = motivoDe(h.resultado ?? "");
+        const resumen = h.estado === "murio" ? { texto: "", recortado: false } : compactarResultado(await d.leerResultado?.(h).catch(() => "") ?? "");
         const a: AvisoWorker = {
           tipo: h.estado === "murio" ? "falla" : "fin",
           clave: `${h.id}:${h.estado === "murio" ? "falla" : "fin"}`,
@@ -289,6 +297,7 @@ export function crearAvisosPendientes(d: Deps) {
           motivo: h.estado === "murio" ? detalle : "",
           ...(h.estado === "decision" ? { decision: true } : {}),
           ...(h.sin_arrancar ? { sinArrancar: true } : {}),
+          ...(resumen.texto ? { resumen: resumen.texto, ...(resumen.recortado ? { recortado: true } : {}) } : {}),
           ts: ahora(),
         };
         registrar(a);

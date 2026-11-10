@@ -47,22 +47,29 @@ export type Contexto = {
 };
 
 /**
+ * Por qué una rama NO se integra sola, en pocas palabras (`null`: es segura). Es la fuente de `esSeguro`: un solo lugar para la
+ * regla y para decírsela al líder (electron/autointegrar.ts, `integracionDe`).
+ */
+export function motivoNoSeguro(h: HiloSeguro, ultima: HiloSeguro | undefined, ctx: Contexto): string | null {
+  if (!h.rama) return "no tiene rama";
+  if (ultima && ultima.id !== h.id) return "su rama tiene una corrida más nueva";
+  if (h.estado !== "listo" && h.estado !== "decision") return "no terminó bien";
+  if (h.decision_nada !== true) return "pide una decisión";
+  if (h.rc != null && h.rc !== 0) return `salió con código ${h.rc}`;
+  if (!((h.commits ?? 0) > 0)) return "no tiene commits";
+  if (vivo(h)) return "sigue corriendo";
+  if (!ctx.tests(h.proyecto)) return "el proyecto no tiene tests registrados";
+  if (h.jefe_id && ctx.liderVivo(h.jefe_id)) return "la integra el líder que la lanzó";
+  return null;
+}
+
+/**
  * Seguro = terminó bien y no pide nada (listo o decision con "DECISION: nada"),
  * rc 0 si se sabe, con commits, el worker ya no corre, el proyecto tiene `tests`
  * (`--integrar --tests` es la red) y no lo lanzó un líder que siga vivo. Se
  * mira la última corrida de su rama (`ultima`): si es otra, tiene que ser ella.
  */
-export function esSeguro(h: HiloSeguro, ultima: HiloSeguro | undefined, ctx: Contexto): boolean {
-  if (!h.rama || (ultima && ultima.id !== h.id)) return false;
-  if (h.estado !== "listo" && h.estado !== "decision") return false;
-  if (h.decision_nada !== true) return false;
-  if (h.rc != null && h.rc !== 0) return false;
-  if (!((h.commits ?? 0) > 0)) return false;
-  if (vivo(h)) return false;
-  if (!ctx.tests(h.proyecto)) return false;
-  if (h.jefe_id && ctx.liderVivo(h.jefe_id)) return false;
-  return true;
-}
+export const esSeguro = (h: HiloSeguro, ultima: HiloSeguro | undefined, ctx: Contexto): boolean => motivoNoSeguro(h, ultima, ctx) === null;
 
 /** Las ramas que se pueden integrar solas, en orden de llegada (lo más viejo primero). */
 export function seguras<H extends HiloSeguro>(hilos: H[], ctx: Contexto): H[] {

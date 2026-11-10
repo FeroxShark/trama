@@ -116,3 +116,17 @@ test("los workers salen del aviso que Trama le manda a ese líder (por jefe_id),
     { por: "worker", worker: "w-3" },
   ]);
 });
+
+test("un aviso con el resultado compacto y la integración debajo sigue dando los mismos workers (sin inventar los de lo que cita el resultado)", () => {
+  const a = avisoDeTexto(
+    "[Aviso automático de Trama] Terminaron los 2 workers que lanzaste:\n- «hacer A» (w-1): terminó pidiendo una decisión.\n    Integración: espera integración: pide una decisión\n    RESULTADO: listo\n    DECISION: - «cuál» (w-9): terminó\n- «hacer B» (w-3): terminó.\n    Integración: integrada sola\nLo que falte, con `pa --hilo <id>`.",
+  );
+  assert.ok(a);
+  assert.deepEqual(a.trabajos.map((t) => t.id), ["w-1", "w-3"]);
+  assert.deepEqual(dejadosDeAviso(a), [
+    { por: "worker", worker: "w-1" },
+    { por: "worker", worker: "w-3" },
+  ]);
+  const uno = avisoDeTexto("[Aviso automático de Trama] Worker «hacer A» terminó. Id: w-1.\n    Integración: integrada sola\n    RESULTADO: hecho");
+  assert.deepEqual(uno?.trabajos, [{ tarea: "hacer A", id: "w-1", falla: false, estado: "termino" }]);
+});

@@ -21,7 +21,7 @@ import os from "node:os";
 import path from "node:path";
 import { almacenBorradores } from "./borradores.js";
 import { crearProgramados } from "./programados.js";
-import { alCambiarAuto, barrer, cambioPrendido, estadoAuto } from "./autointegrar.js";
+import { alCambiarAuto, barrer, cambioPrendido, estadoAuto, integracionDe } from "./autointegrar.js";
 import { alCambiarSalud, barrerSalud, cortarChequeos, estadoSalud, integrando, integrandoDesde, mientrasIntegra } from "./salud.js";
 import { actualizar, alCambiarAviso, descartar, leerAviso } from "./actualizacion.js";
 import { actualizarAgy, alCambiarAvisoAgy, descartarAgy, leerAvisoAgy } from "./actualizacion-agy.js";
@@ -69,7 +69,7 @@ import { respaldarCola } from "./cola-respaldo.ts";
 import { crearEspera } from "./espera.js";
 import { crearAvisosWorker, REVISAR_MS } from "./avisos-worker.js";
 import { crearAvisosPendientes, type FilaHilo } from "./avisos-pendientes.js";
-import { procesoVivoDe, rastroDeWorker } from "./avisos-worker-disco.js";
+import { procesoVivoDe, rastroDeWorker, resultadoDeWorker } from "./avisos-worker-disco.js";
 import { errorT, textoT } from "./errores.ts";
 import { destinos, real, registro, rutasDeBarra, slugsPorNombre } from "./registro.js";
 import { plataformaActual, registroProyectos } from "./rutas.ts";
@@ -403,6 +403,8 @@ const avisosL = crearAvisosPendientes({
   encolar: (sid, x) => void leerCola().then(() => cola.encolar(sid, x), silencio("cola")),
   filas: () => ultimosHilos as readonly FilaHilo[],
   procesoVivo: (h) => procesoVivoDe(PA_STATE, h),
+  leerResultado: (h) => resultadoDeWorker(PA_STATE, h),
+  integracion: (id) => integracionDe(id),
 });
 /**
  * A quién levanta `reanudarDormidos` al arrancar: lo que tiene workers vivos (`pa --hilos`) o algo en la cola. Si la lista de `pa` no
@@ -433,6 +435,7 @@ const avisosW = crearAvisosWorker({
     return rastroDeWorker(PA_STATE, h);
   },
   procesoVivo: (h) => procesoVivoDe(PA_STATE, h),
+  leerResultado: (h) => resultadoDeWorker(PA_STATE, h),
   cupos: () => cuposActuales(),
   emitir: (a) => enviar("workers:aviso", a),
   registrar: (a) => conAvisos(() => avisosL.registrar(a)),

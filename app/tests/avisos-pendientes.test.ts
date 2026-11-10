@@ -28,7 +28,7 @@ const fila = (id: string, estado: string, extra: Partial<FilaHilo> = {}): FilaHi
 const lista = (id: string, estado: string, ini: number, dur = 60, extra: Partial<FilaHilo> = {}) => fila(id, estado, { inicio: ini, duracion_s: dur, ...extra });
 
 /** Trama arrancando: lo que haya en `disco` se carga, como hace el main. `lider` es el estado (compartido) del líder de mentira. */
-function arrancar(disco: Disco, lider: Lider, reloj: { ms: number }, modo: "tanda" | "worker" = "tanda") {
+function arrancar(disco: Disco, lider: Lider, reloj: { ms: number }, modo: "tanda" | "worker" = "tanda", ext: { leerResultado?: (h: { id: string }) => Promise<string>; integracion?: (id: string) => string | undefined } = {}) {
   const e = { filas: [] as FilaHilo[] };
   const mandados: string[] = [];
   // Reloj falso: los temporizadores sólo corren cuando el test hace `pasar`.
@@ -40,6 +40,7 @@ function arrancar(disco: Disco, lider: Lider, reloj: { ms: number }, modo: "tand
     puedeEnTurno: (sid) => lider.proc && lider.enTurno && sid === JEFE,
     encolar: (sid, x) => void cola.encolar(sid, x),
     filas: () => e.filas,
+    ...ext,
     ahora: () => reloj.ms,
     temporizar: (f, ms) => {
       const x = { en: reloj.ms + ms, f, vivo: true };
@@ -72,6 +73,7 @@ function arrancar(disco: Disco, lider: Lider, reloj: { ms: number }, modo: "tand
   avisos.reconciliar(avisos.clavesDe(cola.todas()));
   const w = crearAvisosWorker({
     leerRastro: async () => "",
+    leerResultado: ext.leerResultado,
     emitir: () => {},
     registrar: (a: AvisoWorker) => avisos.registrar(a),
     alLider: (a) => {
@@ -418,4 +420,37 @@ test("un worker que volvió a andar (--seguir) o que se integró antes de entreg
   await t.cambio();
   assert.deepEqual(t.llegado(), []);
   assert.deepEqual(t.estados(), { "a:fin": "descartado", "b:fin": "descartado" });
+});
+
+test("el aviso al líder lleva el resultado compacto del worker y el estado de su integración en el momento de entregarlo", async () => {
+  const disco = nuevoDisco();
+  const lider: Lider = { proc: true, enTurno: true, mandarFalla: false };
+  const reloj = { ms: (T0 + 100) * 1000 };
+  const bloque = (id: string) => `RESULTADO: hice ${id}.\nARCHIVOS: x.ts\nVERIFICACION: npm test\nok 3\nDECISION: nada\nSIGUE: nada`;
+  const t = arrancar(disco, lider, reloj, "tanda", { leerResultado: async (h) => bloque(h.id), integracion: (id) => (id === "a" ? "integrada sola" : "espera integración: pide una decisión") });
+  await t.leer([fila("a", "trabajando"), fila("b", "trabajando")]);
+  await t.leer([lista("a", "entregado", T0), lista("b", "decision", T0)]);
+  assert.equal(t.llegado().length, 1);
+  const texto = t.llegado()[0];
+  assert.match(texto, /\(a\): terminó\.\n    Integración: integrada sola\n    RESULTADO: hice a\.\n    VERIFICACION: npm test\n    ok 3\n    DECISION: nada\n/);
+  assert.match(texto, /\(b\): terminó pidiendo una decisión\.\n    Integración: espera integración: pide una decisión\n    RESULTADO: hice b\./);
+  assert.doesNotMatch(texto, /ARCHIVOS|SIGUE/);
+  // Lo guardado no lleva la integración (se calcula al entregar, no al anotar).
+  assert.doesNotMatch(disco.avisos ?? "", /integrada sola/);
+});
+
+test("un worker que se descubre al arrancar (Trama apagada) también lleva su resultado compacto", async () => {
+  const disco = nuevoDisco();
+  const lider: Lider = { proc: true, enTurno: true, mandarFalla: false };
+  const reloj = { ms: (T0 + 100) * 1000 };
+  const antes = arrancar(disco, lider, reloj);
+  await antes.leer([fila("w1", "trabajando", { inicio: T0 })]);
+  lider.proc = false;
+  lider.enTurno = false;
+  reloj.ms += 3_600_000;
+  const t = arrancar(disco, lider, reloj, "tanda", { leerResultado: async () => "RESULTADO: listo el w1.\nDECISION: nada" });
+  await t.leer([lista("w1", "listo", T0, 300)]);
+  lider.proc = true;
+  await t.cambio();
+  assert.match(t.llegado()[0], /\(w1\): terminó\.\n    RESULTADO: listo el w1\.\n    DECISION: nada/);
 });

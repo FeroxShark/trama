@@ -53,6 +53,11 @@ export type AvisoWorker = {
   decision?: boolean;
   /** `fin`: terminó sin el bloque RESULTADO, pero con commits y el repo limpio (el trabajo está). */
   sinResumen?: boolean;
+  /** `fin`: su resultado compacto (`compactarResultado`: RESULTADO, VERIFICACION, DECISION y SIGUE, ≤ 1500 caracteres); `recortado`: se cortó. */
+  resumen?: string;
+  recortado?: boolean;
+  /** `fin`: cómo está su integración, al momento de decírselo al líder («integrada sola» o «espera integración: <motivo>»; `integracionDe` de autointegrar.ts). */
+  integracion?: string;
   /** `cupo`: el proveedor y cuándo vuelve (epoch s; `null`: no se sabe). */
   proveedor?: string;
   vuelve?: number | null;
@@ -160,6 +165,8 @@ export function motivoDe(texto: string, tope = 140): string {
 }
 
 export type Deps = {
+  /** El `result` completo de un worker que terminó (su `.json`); sin acceso, `""`. Sale compacto en el aviso al líder (`compactarResultado`). */
+  leerResultado?: (h: FilaWorker) => Promise<string>;
   /** El texto crudo para entender por qué murió (el final de su `.err` y su resultado); sin acceso, `""`. */
   leerRastro: (h: FilaWorker) => Promise<string>;
   /** ¿Sigue corriendo (su `.running` con el pid vivo, o su `.json` vacío recién creado)? Sin dato: no. */
@@ -230,6 +237,12 @@ export function crearAvisosWorker(d: Deps) {
     tandaDe(a.jefe_id ?? "").lineas.set(a.id, aviso);
   }
 
+  /** El resultado compacto de un worker que terminó bien, para el aviso del líder (nada si no se puede leer). */
+  async function conResumen(h: FilaWorker): Promise<Pick<AvisoWorker, "resumen" | "recortado">> {
+    const r = compactarResultado(await d.leerResultado?.(h).catch(() => "") ?? "");
+    return r.texto ? { resumen: r.texto, ...(r.recortado ? { recortado: true } : {}) } : {};
+  }
+
   const base_ = (h: FilaWorker) => ({
     id: h.id,
     proyecto: h.proyecto,
@@ -264,13 +277,13 @@ export function crearAvisosWorker(d: Deps) {
         // Sin el bloque RESULTADO pero con commits y el repo limpio: el trabajo está, no es una falla (se lo dice «terminó sin resumen»).
         const rastro = await d.leerRastro(h).catch(() => "");
         if (rc === RC_SIN_RESUMEN && (h.commits ?? 0) > 0 && REPO_LIMPIO.test(rastro)) {
-          avisarWorker({ ...base_(h), tipo: "fin", motivo: "", ...extra, sinResumen: true });
+          avisarWorker({ ...base_(h), tipo: "fin", motivo: "", ...extra, sinResumen: true, ...(await conResumen(h)) });
           return false;
         }
         await falla(h, rc, rastro);
         return true;
       }
-      avisarWorker({ ...base_(h), tipo: "fin", motivo: "", ...extra });
+      avisarWorker({ ...base_(h), tipo: "fin", motivo: "", ...extra, ...(await conResumen(h)) });
     }
     return false;
   }
@@ -395,9 +408,58 @@ function comoTermino(a: AvisoWorker): string {
  */
 export const MARCA_AVISO_TRAMA = "[Aviso automático de Trama]";
 
+/** Lo más que ocupa el resultado de un worker en el aviso al líder. */
+export const TOPE_RESUMEN = 1500;
+/** Lo que se queda de cada parte del bloque del worker (suman `TOPE_RESUMEN`). */
+const PARTES_RESUMEN: readonly (readonly [string, number])[] = [["RESULTADO", 600], ["VERIFICACION", 500], ["DECISION", 250], ["SIGUE", 150]];
+/** Cualquier encabezado del bloque del worker (`RESULTADO:`, `ARCHIVOS:`, `FRENÓ:`…): corta la parte anterior. */
+const ENCABEZADO = /^\s*\**(RESULTADO|ARCHIVOS|VERIFICACI[OÓ]N|DECISI[OÓ]N|SIGUE|FREN[OÓ]|PROBAR|PREGUNTA|CONTEXTO|OPCION|DEFECTO)\**:\**[ \t]*/;
+
+/**
+ * El bloque que dejó un worker (`result` de su `.json`) en poco: RESULTADO, VERIFICACION, DECISION y SIGUE, cada uno con su tope
+ * (juntos, `TOPE_RESUMEN`); lo que se pasa se corta con «…» y `recortado` lo dice. Sin bloque RESULTADO: vacío.
+ */
+export function compactarResultado(result: string): { texto: string; recortado: boolean } {
+  const partes = new Map<string, string[]>();
+  let actual: string[] | null = null;
+  for (let linea of result.replace(/\x1b\[[0-9;]*m/g, "").split("\n")) {
+    const m = linea.match(ENCABEZADO);
+    if (m) {
+      const nombre = m[1].replace("Ó", "O");
+      actual = partes.has(nombre) ? null : [];
+      if (actual) partes.set(nombre, actual);
+      linea = linea.slice(m[0].length);
+    }
+    if (actual) actual.push(linea.trimEnd());
+  }
+  if (!partes.has("RESULTADO")) return { texto: "", recortado: false };
+  let recortado = false;
+  const lineas: string[] = [];
+  for (const [nombre, tope] of PARTES_RESUMEN) {
+    const cuerpo = (partes.get(nombre) ?? []).join("\n").trim();
+    if (!cuerpo || (nombre === "SIGUE" && /^nada\.?$/i.test(cuerpo))) continue;
+    const encabezado = `${nombre}: `;
+    const lugar = tope - encabezado.length;
+    if (cuerpo.length > lugar) recortado = true;
+    lineas.push(encabezado + (cuerpo.length > lugar ? cuerpo.slice(0, lugar - 1).trimEnd() + "…" : cuerpo));
+  }
+  return { texto: lineas.join("\n"), recortado };
+}
+
+/** Las líneas de más de un aviso `fin` con resultado: su integración y su resultado compacto, con sangría (así no se confunden con la línea del worker). */
+function detalleDe(a: AvisoWorker, sangria: string): string[] {
+  const extra: string[] = [];
+  if (a.integracion) extra.push(`Integración: ${a.integracion}`);
+  if (a.resumen) extra.push(...a.resumen.split("\n"));
+  if (a.resumen && a.recortado) extra.push(`(recortado; el resto: \`pa --hilo ${a.id}\`)`);
+  return extra.map((l) => sangria + l);
+}
+
 /**
  * El mensaje para el líder que lanzó a los workers. Va en español y en un solo lugar (es una instrucción para un modelo, no texto
  * de la interfaz). Un worker: una línea con su id. Una tanda: una línea por worker, con su id, y cuántos fallaron. Vacío si no hay nada.
+ * Un worker que terminó trae además (con sangría, debajo de su línea) su resultado compacto y el estado de su integración, para que
+ * el líder no gaste turnos en `pa --hilo` y `pa --integrar` para enterarse.
  */
 export function textoParaLider(a: AvisoWorker): string {
   if (a.tipo === "tanda") {
@@ -408,9 +470,11 @@ export function textoParaLider(a: AvisoWorker): string {
     const cabeza = a.retomado
       ? `${MARCA_AVISO_TRAMA} Mientras no estabas terminaron ${lineas.length} ${lineas.length === 1 ? "worker" : "workers"} de los que lanzaste y no se revisaron${fallas ? `, ${fallas} con falla` : ""}:`
       : `${MARCA_AVISO_TRAMA} Terminaron los ${lineas.length} workers que lanzaste${fallas ? `, ${fallas} con falla` : ""}:`;
-    return [cabeza, ...lineas.map((l) => `- «${l.tarea || l.id}» (${l.id}): ${comoTermino(l)}`), "Revisá cada uno con `pa --hilo <id>`."].join("\n");
+    const cuerpo = lineas.flatMap((l) => [`- «${l.tarea || l.id}» (${l.id}): ${comoTermino(l)}`, ...detalleDe(l, "    ")]);
+    return [cabeza, ...cuerpo, lineas.every((l) => l.resumen) ? "Lo que falte, con `pa --hilo <id>`." : "Revisá cada uno con `pa --hilo <id>`."].join("\n");
   }
-  return `${MARCA_AVISO_TRAMA} Worker «${a.tarea || a.id}» ${comoTermino(a)} Id: ${a.id}. Revisalo con \`pa --hilo ${a.id}\`.`;
+  const cabeza = `${MARCA_AVISO_TRAMA} Worker «${a.tarea || a.id}» ${comoTermino(a)} Id: ${a.id}.${a.resumen ? "" : ` Revisalo con \`pa --hilo ${a.id}\`.`}`;
+  return [cabeza, ...detalleDe(a, "    ")].join("\n");
 }
 
 /** Cómo quedó un worker en un aviso: terminó, terminó pidiendo una decisión, terminó sin resumen, o falló. */

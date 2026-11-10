@@ -1,7 +1,7 @@
 // "Integrar solo lo seguro" (B22): el predicado de electron/seguro.ts.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { esSeguro, idLanzado, seguras, ultimasPorRama, type HiloSeguro } from "../electron/seguro.ts";
+import { esSeguro, idLanzado, motivoNoSeguro, seguras, ultimasPorRama, type HiloSeguro } from "../electron/seguro.ts";
 
 const ctx = { tests: (p: string) => p === "atlas", liderVivo: (sid: string) => sid === "vivo" };
 
@@ -70,4 +70,15 @@ test("idLanzado lee el id de lo que imprime `pa … --async`", () => {
   assert.equal(idLanzado("pa: 'Atlas Web' lanzado en background en el puesto 1 (id: 20261003-230401-2389243, log: /tmp/x.log)."), "20261003-230401-2389243");
   assert.equal(idLanzado("pa: 'x' lanzado en background, EN COLA: 2 (id: 20261003-230401-9, log: /tmp/y)."), "20261003-230401-9");
   assert.equal(idLanzado("nada"), null);
+});
+
+test("motivoNoSeguro: dice en pocas palabras por qué una rama no se integra sola (null si es segura)", () => {
+  assert.equal(motivoNoSeguro(h(), undefined, ctx), null);
+  assert.equal(motivoNoSeguro(h({ decision_nada: false }), undefined, ctx), "pide una decisión");
+  assert.equal(motivoNoSeguro(h({ commits: 0 }), undefined, ctx), "no tiene commits");
+  assert.equal(motivoNoSeguro(h({ proyecto: "otro" }), undefined, ctx), "el proyecto no tiene tests registrados");
+  assert.equal(motivoNoSeguro(h({ jefe_id: "vivo" }), undefined, ctx), "la integra el líder que la lanzó");
+  assert.equal(motivoNoSeguro(h({ rc: 3 }), undefined, ctx), "salió con código 3");
+  assert.equal(motivoNoSeguro(h({ estado: "murio" }), undefined, ctx), "no terminó bien");
+  assert.equal(motivoNoSeguro(h(), h({ id: "otra" }), ctx), "su rama tiene una corrida más nueva");
 });

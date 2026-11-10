@@ -47,6 +47,19 @@ export async function rastroDeWorker(raiz: string, h: { id: string; proyecto: st
   return [err, resultado].filter(Boolean).join("\n");
 }
 
+/** El `result` completo de `h` (su `.json`), para armar su resultado compacto en el aviso al líder; sin archivo o sin resultado, `""`. */
+export async function resultadoDeWorker(raiz: string, h: { id: string; proyecto: string }): Promise<string> {
+  if (!ID.test(h.id) || !SLUG.test(h.proyecto)) return "";
+  const json = path.join(raiz, h.proyecto, `${h.id}.json`);
+  if (((await stat(json).catch(() => null))?.size ?? Infinity) > TOPE_JSON) return "";
+  try {
+    const j = JSON.parse(await readFile(json, "utf8"));
+    return typeof j?.result === "string" ? j.result : "";
+  } catch {
+    return "";
+  }
+}
+
 /**
  * ¿Sigue corriendo `h`? Su `.running` (en la raíz, `<slug>*.running`, con `id=` de la corrida) con el pid vivo (el del claude;
  * sin él, el de pa, como `pid_vivo` de pa), o su `.json` vacío recién creado. Sin nada de eso, no: se cortó.

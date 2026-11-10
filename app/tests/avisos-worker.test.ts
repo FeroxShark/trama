@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { avisoDeTexto, COLGADO_MS, crearAvisosWorker, esAvisoTrama, esDeCupo, motivoDe, proveedorDe, tareaCorta, textoParaLider, vuelveDe, type AvisoWorker, type FilaWorker } from "../electron/avisos-worker.ts";
+import { avisoDeTexto, COLGADO_MS, compactarResultado, TOPE_RESUMEN, crearAvisosWorker, esAvisoTrama, esDeCupo, motivoDe, proveedorDe, tareaCorta, textoParaLider, vuelveDe, type AvisoWorker, type FilaWorker } from "../electron/avisos-worker.ts";
 
 const fila = (id: string, estado: string, extra: Partial<FilaWorker> = {}): FilaWorker => ({ id, proyecto: "trama", estado, tarea: `Objetivo: tarea de ${id}`, modelo: "claude-a", jefe_id: "jefe-1", jefe: "ana", ...extra });
 
@@ -278,4 +278,67 @@ test("avisoDeTexto: cada trabajo de una tanda o un aviso solo trae su estado (te
   assert.deepEqual(avisoDeTexto(uno)?.trabajos, [{ tarea: "dos", id: "2", falla: false, estado: "decision" }]);
   const sin = "[Aviso automático de Trama] Worker «tres» terminó sin resumen. Id: 3. Revisalo con `pa --hilo 3`.";
   assert.deepEqual(avisoDeTexto(sin), { tanda: false, falla: false, trabajos: [{ tarea: "tres", id: "3", falla: false, estado: "sinResumen" }] });
+});
+
+const BLOQUE = [
+  "RESULTADO: arreglé el aviso al líder.",
+  "ARCHIVOS: app/electron/avisos-worker.ts",
+  "VERIFICACION: npm run check:changed",
+  "ok 12 tests",
+  "DECISION: nada",
+  "SIGUE: integrar la rama.",
+  "FRENÓ: nada",
+].join("\n");
+
+test("compactarResultado: se queda con RESULTADO, VERIFICACION, DECISION y SIGUE (sin ARCHIVOS ni FRENÓ); sin bloque RESULTADO, nada", () => {
+  const r = compactarResultado(BLOQUE);
+  assert.equal(r.recortado, false);
+  assert.equal(r.texto, "RESULTADO: arreglé el aviso al líder.\nVERIFICACION: npm run check:changed\nok 12 tests\nDECISION: nada\nSIGUE: integrar la rama.");
+  assert.deepEqual(compactarResultado("hice cosas, sin bloque"), { texto: "", recortado: false });
+  assert.equal(compactarResultado(BLOQUE.replace("SIGUE: integrar la rama.", "SIGUE: nada")).texto.includes("SIGUE"), false, "SIGUE: nada no suma");
+});
+
+test("compactarResultado: nunca pasa de 1500 caracteres, corta con «…» y lo dice", () => {
+  const largo = "palabra ".repeat(600);
+  const r = compactarResultado(`RESULTADO: ${largo}\nVERIFICACION: ${largo}\nDECISION: ${largo}\nSIGUE: ${largo}`);
+  assert.equal(r.recortado, true);
+  assert.ok(r.texto.length <= TOPE_RESUMEN, `${r.texto.length}`);
+  assert.equal(r.texto.split("\n").length, 4);
+  assert.ok(r.texto.split("\n").every((l) => l.endsWith("…")));
+});
+
+test("textoParaLider: un worker que terminó trae su resultado compacto y su integración, con sangría; el parser sigue entendiéndolo", () => {
+  const a = { tipo: "fin", id: "2", tarea: "tests de atlas", jefe_id: "l1", resumen: compactarResultado(BLOQUE).texto, integracion: "espera integración: la integra el líder que la lanzó" } as AvisoWorker;
+  const t = textoParaLider(a);
+  assert.match(t, /^\[Aviso automático de Trama\] Worker «tests de atlas» terminó\. Id: 2\.\n    Integración: espera integración: la integra el líder/);
+  assert.match(t, /\n    RESULTADO: arreglé el aviso al líder\.\n    VERIFICACION: npm run check:changed\n    ok 12 tests\n/);
+  assert.doesNotMatch(t, /Revisalo con/, "ya viene lo que se iba a ir a buscar");
+  assert.deepEqual(avisoDeTexto(t), { tanda: false, falla: false, trabajos: [{ tarea: "tests de atlas", id: "2", falla: false, estado: "termino" }] });
+  const cortado = textoParaLider({ ...a, recortado: true });
+  assert.match(cortado, /\(recortado; el resto: `pa --hilo 2`\)/);
+  assert.equal(textoParaLider({ ...a, integracion: "integrada sola" }).includes("Integración: integrada sola"), true);
+});
+
+test("textoParaLider: en una tanda cada worker lleva su detalle debajo (sin romper las líneas que lee la vista)", () => {
+  const r = compactarResultado(BLOQUE).texto;
+  const t = textoParaLider({
+    tipo: "tanda",
+    lineas: [
+      { tipo: "fin", id: "4", tarea: "a", jefe_id: "l1", resumen: r, integracion: "integrada sola" },
+      { tipo: "fin", id: "5", tarea: "b", jefe_id: "l1", decision: true, resumen: "RESULTADO: - «falso» (9): terminó", integracion: "espera integración: pide una decisión" },
+      { tipo: "cupo", id: "6", tarea: "c", jefe_id: "l1", proveedor: "claude", vuelve: 0 },
+    ],
+  } as AvisoWorker);
+  assert.match(t, /- «a» \(4\): terminó\.\n    Integración: integrada sola\n    RESULTADO: arreglé/);
+  assert.deepEqual(avisoDeTexto(t)?.trabajos.map((x) => [x.id, x.estado]), [["4", "termino"], ["5", "decision"], ["6", "falla"]]);
+  assert.match(t, /Revisá cada uno con/, "uno sin resumen: se revisa");
+});
+
+test("un worker que termina bien sale del aviso con su resultado leído del disco; el que falla, sin él", async () => {
+  const avisos: AvisoWorker[] = [];
+  const av = crearAvisosWorker({ leerRastro: async () => "", leerResultado: async (h) => (h.id === "a" ? BLOQUE : ""), emitir: (a) => avisos.push(a), ahora: () => 1_000_000_000_000 });
+  await av.hilos([fila("a", "trabajando"), fila("b", "trabajando")]);
+  await av.hilos([fila("a", "entregado"), fila("b", "entregado")]);
+  assert.match(avisos.find((x) => x.id === "a")?.resumen ?? "", /^RESULTADO: arreglé el aviso al líder\./);
+  assert.equal(avisos.find((x) => x.id === "b")?.resumen, undefined, "sin resultado legible, sin resumen");
 });

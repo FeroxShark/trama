@@ -13,7 +13,7 @@ import { argvIntegrarPa, ENV, ESTADO, escribirAtomico, nombrePa } from "./pa.js"
 import { enCola, ejecutar } from "./paneles.js";
 import { registro } from "./registro.js";
 import { mientrasIntegra } from "./salud.js";
-import { idLanzado, RC_CONFLICTO, RESUELTO, seguras, ultimasPorRama, vivo, type HiloSeguro } from "./seguro.js";
+import { idLanzado, motivoNoSeguro, RC_CONFLICTO, RESUELTO, seguras, ultimasPorRama, vivo, type Contexto, type HiloSeguro } from "./seguro.js";
 import { sesionesVivas } from "./sesiones.js";
 import { silencio } from "./log.js";
 
@@ -84,6 +84,8 @@ export function cambioPrendido() {
 }
 
 let ultimaLista: HiloAuto[] | null = null;
+/** Lo que se supo del registro y de los líderes vivos en la última barrida con el toggle prendido (para decir por qué una rama espera). */
+let ultimoContexto: Contexto | null = null;
 const ahora = () => Math.floor(Date.now() / 1000);
 
 async function fallo(e: EnCurso & { proyecto: string }, rc: number, dijo: string) {
@@ -161,9 +163,27 @@ export async function barrer(hilos: HiloAuto[]) {
   const [reg, sesiones] = await Promise.all([registro(), sesionesVivas()]);
   const conTests = new Set(reg.filter((p) => p.tests).flatMap((p) => [p.slug, p.nombre]));
   const vivas = new Set(sesiones.map((s) => s.id));
+  const ctx: Contexto = { tests: (p) => conTests.has(p), liderVivo: (sid) => vivas.has(sid) };
+  ultimoContexto = ctx;
   const yaFallo = new Set(g.fallas.map((f) => f.rama));
-  for (const h of seguras(hilos, { tests: (p) => conTests.has(p), liderVivo: (sid) => vivas.has(sid) })) {
+  for (const h of seguras(hilos, ctx)) {
     if (enCurso.has(h.rama!) || yaFallo.has(h.rama!) || g.integradas.some((x) => x.id === h.id)) continue;
     void integrar(h, false);
   }
+}
+
+/**
+ * Cómo está la integración de la rama de un worker, para el aviso al líder (electron/avisos-worker.ts): «integrada sola» si esto
+ * la integró, o «espera integración: <motivo corto>». Sólo lo que ya se sabe (no lee disco ni lanza nada).
+ */
+export function integracionDe(id: string): string {
+  if (guardado?.integradas.some((x) => x.id === id)) return "integrada sola";
+  const curso = [...enCurso.values()].find((e) => e.id === id);
+  if (curso) return `espera integración: ${curso.fase === "integrando" ? "se está integrando sola" : "se está actualizando contra main para integrarla sola"}`;
+  const falla = guardado?.fallas.find((f) => f.id === id);
+  if (falla) return `espera integración: la integración sola falló (${(falla.error || `rc ${falla.rc}`).replace(/\s+/g, " ").slice(0, 80)})`;
+  if (apagado() || !prendido) return "espera integración: integrar solo está apagado";
+  const h = ultimaLista?.find((x) => x.id === id);
+  const motivo = h && ultimoContexto ? motivoNoSeguro(h, ultimasPorRama(ultimaLista!).get(h.rama ?? ""), ultimoContexto) : null;
+  return `espera integración: ${motivo ?? (h ? "la barrida todavía no la tomó" : "la integra el líder (`pa --integrar`)")}`;
 }
