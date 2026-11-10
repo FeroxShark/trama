@@ -1,5 +1,9 @@
 # Changes
 
+## 0.2.66
+
+- Workers: the ones that write turn off 13 Claude Code tools they never use (scheduling tasks, worktrees, notebooks, todo list, among others). Each run's startup drops from 20.5k to 9.7k tokens.
+
 ## 0.2.65
 
 - Leader skill: the orchestration guide got much smaller (from 20 KB to 7 KB) and gained a decision table per case, to spend less: parallel workers are launched in a single call and collected in one, and the effort comes from the allowed ones in Settings.

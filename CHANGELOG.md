@@ -1,5 +1,9 @@
 # Cambios
 
+## 0.2.66
+
+- Workers: los que escriben apagan 13 herramientas de Claude Code que nunca usan (programar tareas, worktrees, notebooks, lista de pendientes, entre otras). El arranque de cada corrida baja de 20,5k a 9,7k tokens.
+
 ## 0.2.65
 
 - Skill del líder: la guía de orquestar quedó mucho más chica (de 20 KB a 7 KB) y con una tabla de decisión por caso, para gastar menos: los workers en paralelo se lanzan en una sola llamada y se cobran de una, y el effort sale del permitido en Ajustes.
