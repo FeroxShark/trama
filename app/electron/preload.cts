@@ -287,6 +287,8 @@ contextBridge.exposeInMainWorld("hilos", {
   salud: {
     leer: (): Promise<unknown> => invocar("salud:leer"),
     arreglar: (h: unknown): Promise<unknown> => invocar("salud:arreglar", h),
+    /** Lo que le pasó a Trama los últimos `dias` días (electron/salud-eventos.ts). */
+    eventos: (dias: number): Promise<unknown> => invocar("salud:eventos", dias),
     alCambiar: oir("salud:cambio"),
   },
   /** "Integrar solo lo seguro" de Ramas (electron/autointegrar.ts). */

@@ -115,6 +115,8 @@ export const RUTAS: Readonly<Record<string, Ruta>> = {
   "dueno:nombre": "local",
   "statusline:sincronizar": "local",
   "salud:leer": "local",
+  // Lo que le pasó a Trama en esta máquina (electron/salud-eventos.ts).
+  "salud:eventos": "local",
   "auto:leer": "local",
   "auto:prender": "local",
   // Ajustes y el acceso del celular: el plan, la red de seguridad y remoto.json son de esta máquina.

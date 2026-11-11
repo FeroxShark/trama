@@ -108,6 +108,7 @@ import { HUELLA, PROTOCOLO, RUTAS, type Saludo } from "./maquinas-contrato.ts";
 import { SOLO_VENTANA as SOLO_VENTANA_CONTRATO, SOLO_VENTANA_LOCAL as SOLO_VENTANA_LOCAL_CONTRATO } from "./canales/contrato.ts";
 import { crearMaquinas, type Maquinas } from "./maquinas.ts";
 import { crearPc, type Pc } from "./pc-estado.ts";
+import { leer as leerEventosSalud } from "./salud-eventos.ts";
 export { compatible, EVENTOS, PROTOCOLO, RUTAS, type Ruta, type Saludo } from "./maquinas-contrato.ts";
 
 const DEBOUNCE_MS = 150;
@@ -919,6 +920,7 @@ export function armarNucleo() {
   });
   alCambiarSalud((e) => enviar("salud:cambio", e));
   manejar("salud:leer", () => estadoSalud());
+  manejar("salud:eventos", (_e, dias: unknown) => leerEventosSalud(Number.isFinite(Number(dias)) ? Number(dias) : 7));
   manejar("salud:arreglar", (_e, h: Parameters<typeof arreglarDatos>[0]) =>
     arreglarDatos({ id: h?.id, proyecto: h?.proyecto, rama: h?.rama ?? null }),
   );

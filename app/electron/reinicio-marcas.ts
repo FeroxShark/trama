@@ -11,6 +11,7 @@ import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import path from "node:path";
 import { ESTADO } from "./estado.js";
 import { log } from "./log.js";
+import { anotar as anotarSalud } from "./salud-eventos.js";
 
 export const MARCAS = path.join(ESTADO, "reinicio-marcas");
 /** Un reinicio más viejo que esto no cuenta: es de otro día, no de la ventana que está arrancando. */
@@ -121,6 +122,7 @@ export function marcar(quien: Quien, paso: string, archivo = MARCAS, t = Date.no
   anotar(archivo, c.t0, quien, paso, t);
   const ms = t - c.t0;
   log.escribir("info", "reinicio", `+${ms} ms ${quien} ${paso}`);
+  if (paso === "lista") anotarSalud({ tipo: "reinicio", ms });
   if (paso === "lista") log.escribir("info", "reinicio", resumen({ ...c, lista: true, marcas: [...c.marcas, { t, quien, pid: process.pid, paso }] }));
   return ms;
 }

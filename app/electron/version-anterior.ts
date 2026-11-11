@@ -14,6 +14,7 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import { alArrancar, alSalirAProposito, alTiempoAgotado, alVentanaLista, alVolver, ARRANQUE_MAX_MS, conRespaldo, resumen, sinAviso, type Almacen, type Aviso, type Copia, type Estado, type Motivo } from "./arranque-seguro.ts";
 import { errorT } from "./errores.ts";
+import { anotar as anotarSalud } from "./salud-eventos.ts";
 
 export type Instalacion = { tipo: "appimage"; ruta: string } | { tipo: "carpeta"; app: string };
 type Env = NodeJS.ProcessEnv;
@@ -175,6 +176,7 @@ export function crearVersionAnterior(d: Deps) {
         await restaurar(inst, c);
         await d.almacen.cambiar((e) => alVolver(e, c, motivo));
         log(`volví a la ${c.version} (${motivo})`);
+        anotarSalud({ tipo: "vuelta-version", version: c.version, motivo });
         await d.reiniciar(inst);
         return { ok: true };
       } catch (e) {

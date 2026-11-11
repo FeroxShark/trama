@@ -406,6 +406,8 @@ type Main = {
     leer(): Promise<unknown>;
     /** Lo que lleva "Mandar a verificar y arreglar" (electron/paneles.ts, `arreglarDatos`); el texto, src/datos/arreglar.ts. */
     arreglar(h: { id: string; proyecto: string; rama: string | null }): Promise<unknown>;
+    /** Los eventos de salud de Trama de los últimos `dias` días: `{ t, tipo, ...datos }`, sin validar (electron/salud-eventos.ts). */
+    eventos(dias: number): Promise<unknown>;
     alCambiar(fn: (e: unknown) => void): Soltar;
   };
   /** "Integrar solo lo seguro" de Ramas (B22, electron/autointegrar.ts), sin validar. */

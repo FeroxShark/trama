@@ -215,6 +215,7 @@ export const CANALES = [
   ["salud:leer", "invoke"],
   ["salud:arreglar", "invoke"],
   ["salud:cambio", "on"],
+  ["salud:eventos", "invoke"],
   ["auto:leer", "invoke"],
   ["auto:prender", "invoke"],
   ["auto:cambio", "on"],

@@ -79,6 +79,7 @@ import { asegurarCuenta } from "./cli/cuentas.ts";
 import { archivoUsoCuenta, cuentaConConversacion, cuentasClaude, entornoCuenta, preferidaClaude, usoParaReparto } from "./uso-cuentas.ts";
 import { esElProceso, sesionesVivas, type Sesion } from "./sesiones.js";
 import { log, silencio } from "./log.js";
+import { anotar as anotarSalud } from "./salud-eventos.js";
 import { temaDe, tituloLider } from "./tema.js";
 import { titulosFijos } from "./titulo-fijo.js";
 import { resumenDeTranscript } from "./resumen-traspaso.ts";
@@ -2056,10 +2057,15 @@ export async function cerrarTodos(forzar: boolean, topeMs: number = TOPE_SALIDA_
   }
   if (marcados) await guardar();
   const hechos = new Set<string>();
+  /** Los que recibieron SIGTERM en esta salida (cortados a propósito o por no cerrar a tiempo): va a la salud (salud-eventos.ts). */
+  const cortados = new Set<string>();
   const todos = Promise.all(
     vivos.map(async ([sid, p]) => {
       p.adrede = true;
-      if (forzar && p.ocupado) p.p.kill("SIGTERM");
+      if (forzar && p.ocupado) {
+        p.p.kill("SIGTERM");
+        cortados.add(sid);
+      }
       if (!p.ocupado || forzar) await terminar(p, p.ocupado ? GRACIA_EOF_MS : GRACIA_EOF_OCIOSO_MS);
       else await new Promise<void>((ok) => p.libre.push(() => void terminar(p).then(ok)));
       hechos.add(sid);
@@ -2071,9 +2077,17 @@ export async function cerrarTodos(forzar: boolean, topeMs: number = TOPE_SALIDA_
   clearTimeout(reloj);
   // Lo que los líderes que salieron dejaron escribiéndose (guardar, uso, relevos): antes de devolver, para que nada caiga después.
   if (!(await esperarEscrituras(TOPE_ESCRITURAS_MS))) log.escribir("aviso", "salida", `las escrituras pendientes no terminaron en ${TOPE_ESCRITURAS_MS / 1000} s; se sigue sin esperarlas`);
-  if (!pasoElTope) return [];
+  if (!pasoElTope) {
+    if (cortados.size) anotarSalud({ tipo: "lideres-cortados", n: cortados.size });
+    return [];
+  }
   const sin = vivos.filter(([sid]) => !hechos.has(sid));
-  for (const [, p] of sin) if (p.p.exitCode === null && p.p.signalCode === null) p.p.kill("SIGTERM");
+  for (const [sid, p] of sin)
+    if (p.p.exitCode === null && p.p.signalCode === null) {
+      p.p.kill("SIGTERM");
+      cortados.add(sid);
+    }
+  if (cortados.size) anotarSalud({ tipo: "lideres-cortados", n: cortados.size });
   const nombres = sin.map(([sid]) => nombreDe(sid) ?? sid.slice(0, 8));
   log.escribir("aviso", "salida", `${nombres.length} líder(es) no cerraron en ${topeMs / 1000} s y se cortaron: ${nombres.join(", ")}`);
   return nombres;

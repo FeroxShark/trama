@@ -13,6 +13,7 @@
 //  - `descubrir` rescata a los workers de un líder que terminaron mientras Trama estaba apagada (nadie los vio terminar).
 // Sin Electron, sin disco propio ni reloj: lo de afuera se inyecta. Lo prueba tests/avisos-pendientes.test.ts.
 
+import { anotar as anotarSalud } from "./salud-eventos.ts";
 import { compactarResultado, motivoDe, tareaCorta, textoParaLider, vivo, type AvisoWorker, type FilaWorker } from "./avisos-worker.ts";
 
 /** Una fila de `pa --hilos` con lo que hace falta para saber cuándo terminó. */
@@ -117,6 +118,18 @@ export function crearAvisosPendientes(d: Deps) {
     return cambio;
   };
 
+  /** Lo encolado que alguien sacó de la cola: pasa a descartado y queda anotado en la salud. */
+  const descartar = (claves: readonly string[], motivo: string) => {
+    let cambio = false;
+    for (const e of entradas)
+      if (claves.includes(e.clave) && e.estado === "encolado") {
+        e.estado = "descartado";
+        anotarSalud({ tipo: "aviso-descartado", motivo });
+        cambio = true;
+      }
+    return cambio;
+  };
+
   /** ¿Ya no tiene sentido decírselo? El worker lo cerró alguien, o volvió a andar, o el colgado ya se movió. */
   function revisado(e: Entrada): boolean {
     const lista = d.filas();
@@ -192,7 +205,7 @@ export function crearAvisosPendientes(d: Deps) {
     /** La cola de mensajes dice qué pasó con lo que llevaba (`Deps.salida` de cola.ts). */
     salida(_sid: string, claves: readonly string[], que: "entregado" | "quitado" | "vaciado") {
       const cambio =
-        que === "entregado" ? cambiar(claves, "encolado", "entregado") : que === "quitado" ? cambiar(claves, "encolado", "descartado") : cambiar(claves, "encolado", "pendiente", { ausente: true });
+        que === "entregado" ? cambiar(claves, "encolado", "entregado") : que === "quitado" ? descartar(claves, "quitado") : cambiar(claves, "encolado", "pendiente", { ausente: true });
       if (cambio) guardar();
     },
 
@@ -213,6 +226,7 @@ export function crearAvisosPendientes(d: Deps) {
         for (const e of todos)
           if (revisado(e)) {
             e.estado = "descartado";
+            anotarSalud({ tipo: "aviso-descartado", motivo: "revisado" });
             cambio = true;
           }
         const pend = todos.filter((e) => e.estado === "pendiente");
