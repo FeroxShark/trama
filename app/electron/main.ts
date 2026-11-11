@@ -27,7 +27,8 @@ import { atenderSenales, carpetaCopias, crearVersionAnterior, instalacionDe, typ
 import type { Cliente } from "./ventana-cliente.js";
 import { acomodar, crearGuardadoVolver, guardarVolver, leerVolver, lugarDeVentana, type Ventana, type Volver } from "./volver.js";
 import { silencio } from "./log.js";
-import { enMarcha, marcar, type Corrida } from "./reinicio-marcas.js";
+import { empezar, enMarcha, marcar, type Corrida } from "./reinicio-marcas.js";
+import { reiniciarVentana } from "./reiniciar-ventana.js";
 
 // `trama --version`: imprime la versión y sale antes de abrir nada (Electron no la maneja solo; el AppImage de CI lo usa).
 if (process.argv.includes("--version")) {
@@ -285,7 +286,17 @@ function crearVentana() {
     cargar(ventana);
   });
   // "Reiniciar la ventana" tras instalar una Trama nueva: se anota cómo estaba y vuelve este proceso, ya con el build nuevo.
-  ponerRelanzo(() => (residente ? void anotarVolver().then(relanzarProceso) : recargarVentana()));
+  // Por el mismo camino que un build nuevo (electron/reiniciar-ventana.ts): abre la corrida, así la ventana nueva lleva el cartel.
+  ponerRelanzo(() =>
+    void reiniciarVentana({
+      residente,
+      empezar: () => empezar("ventana", "ventana"),
+      marcar: (paso) => void marcar("ventana", paso),
+      anotar: anotarVolver,
+      relanzar: relanzarProceso,
+      recargar: recargarVentana,
+    }),
+  );
 
   if (png) {
     // Al crearla, Electron la recorta al monitor primario; para la foto no hace falta.
