@@ -6,6 +6,7 @@ import path from "node:path";
 import { type Pa } from "./entorno.ts";
 import { fijo, imprimirAwk, leerArchivo, registros } from "./medicion.ts";
 import { isoSegundos } from "./ramas.ts";
+import { canonico, cuentaCanonica } from "./modelo-canonico.ts";
 
 const USO = "uso: pa --rinde [--dias N] [--json] [--por tipo|fase|tarea | --rubrica]";
 
@@ -64,7 +65,7 @@ function cmpVersion(a: string, b: string): number {
 const rellenar = (s: string, w: number) => s.padEnd(w);
 const izq = (s: string, w: number) => s.padStart(w);
 
-interface Celda {
+export interface Celda {
   tipo: string;
   modelo: string;
   effort: string;
@@ -100,18 +101,18 @@ function filasDe(texto: string, desde: string): ((nombre: string) => string)[] {
 const esNum = (x: string) => /^[0-9]+(\.[0-9]+)?([eE][-+]?[0-9]+)?$/.test(x);
 const conDato = (i: string, r: string) => i === "0" || (i === "1" && (r === "0" || r === "1"));
 
-function celdasPor(texto: string, desde: string, por: string): Celda[] {
+export function celdasPor(texto: string, desde: string, por: string): Celda[] {
   const g = new Map<string, { t: string; m: string; e: string; cu: string; n: number; dato: number; ok: number; pis: number; tur: number[]; usd: number; nu: number; nc: number; comp: number }>();
   for (const v of filasDe(texto, desde)) {
     let t = v(por);
     if (t === "") t = "~";
-    let e = v("effort");
-    if (e === "") e = "settings";
-    let cu = v("cuenta");
-    if (cu === "claude" || cu === "google" || cu === "chatgpt") cu = "";
-    const k = [t, v("modelo"), e, cu].join("\t");
+    // un solo nombre por modelo (alias, effort pegado al nombre, settings/-/""): divergencia a propósito con el bash congelado
+    const can = canonico(v("modelo"), v("effort"));
+    const e = can.effort === "" ? "settings" : can.effort;
+    const cu = cuentaCanonica(v("cuenta"));
+    const k = [t, can.modelo, e, cu].join("\t");
     let a = g.get(k);
-    if (!a) g.set(k, (a = { t, m: v("modelo"), e, cu, n: 0, dato: 0, ok: 0, pis: 0, tur: [], usd: 0, nu: 0, nc: 0, comp: 0 }));
+    if (!a) g.set(k, (a = { t, m: can.modelo, e, cu, n: 0, dato: 0, ok: 0, pis: 0, tur: [], usd: 0, nu: 0, nc: 0, comp: 0 }));
     a.n++;
     const i = v("integrada");
     const r = v("retrabajo");

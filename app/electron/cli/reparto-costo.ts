@@ -1,6 +1,7 @@
 // El costo REAL de cada modelo: lo que se midió en las corridas (medicion.tsv) en vez de los pesos fijos de la tabla.
 // Todo puro: entra el texto de medicion.tsv y salen las muestras por tipo × modelo × effort de los últimos 60 días.
 // Lo usa electron/cli/reparto.ts (el reparto de TypeScript); el python de motor/bin/reparto queda como está.
+import { canonico, effortCanonico } from "./pa/modelo-canonico.ts";
 
 /** Los días que se mira para atrás (la misma ventana que `pa --rinde`). */
 export const DIAS_COSTO = 60;
@@ -17,10 +18,9 @@ export const PESOS: Record<string, number> = {
 /** El peso corregido de una familia (Opus = 1); 0,3 si no se conoce (como el reparto). */
 export const pesoDe = (familia: string | null | undefined): number => (familia && familia in PESOS ? PESOS[familia]! : 0.3);
 
-/** El effort de una corrida: "-" y "" son lo mismo (no lo anotó). */
+/** El effort de una corrida: "-", "settings" y "" son lo mismo (no lo anotó). */
 export function normalizarEffort(e: string): string {
-  const t = e.trim();
-  return t === "" || t === "-" ? "" : t;
+  return effortCanonico(e);
 }
 
 /** Un número tal como lo toma awk de un campo: null si el campo no parece un número. */
@@ -53,10 +53,12 @@ export function leerMedicion(texto: string): Fila[] {
     const v = (n: string) => (n in cols && cols[n]! < c.length ? c[cols[n]!]! : "");
     const fecha = v("fecha").trim();
     if (!/^\d{4}-\d{2}-\d{2}/.test(fecha)) continue;
+    // un solo nombre por modelo: el alias corto, el effort pegado al nombre y settings/-/"" se unifican al leer
+    const can = canonico(v("modelo"), v("effort"));
     salida.push({
       fecha: fecha.slice(0, 10),
-      modelo: v("modelo").trim(),
-      effort: normalizarEffort(v("effort")),
+      modelo: can.modelo,
+      effort: can.effort,
       leer: v("leer").trim() === "1",
       tipo: v("tipo").trim(),
       integrada: v("integrada").trim(),
@@ -83,8 +85,10 @@ const conDato = (integrada: string, retrabajo: string): boolean => integrada ===
 
 /** La muestra de un tipo × modelo × effort: las corridas desde `desde` (YYYY-MM-DD). */
 export function muestra(filas: Fila[], q: { tipo: string; modelo: string; effort?: string | null }, desde: string): Muestra {
-  const modelo = (q.modelo || "").trim().toLowerCase();
-  const effort = q.effort ? normalizarEffort(q.effort) : null;
+  // la consulta pasa por el mismo nombre que las filas (un candidato `agy:…-high` busca `agy:…` con effort high)
+  const can = canonico(q.modelo, q.effort);
+  const modelo = can.modelo;
+  const effort = q.effort || can.effort ? can.effort : null;
   const m: Muestra = { n: 0, usd: 0, ok: 0, dato: 0 };
   for (const f of filas) {
     if (f.fecha < desde) continue;
@@ -107,7 +111,7 @@ export function muestra(filas: Fila[], q: { tipo: string; modelo: string; effort
 
 /** La muestra de un modelo (cualquier tipo y esfuerzo): sirve para el ancla (Opus = 1). */
 export function muestraModelo(filas: Fila[], modelos: string[], desde: string): Muestra {
-  const ids = new Set(modelos.map((x) => x.toLowerCase()));
+  const ids = new Set(modelos.map((x) => canonico(x).modelo));
   const m: Muestra = { n: 0, usd: 0, ok: 0, dato: 0 };
   for (const f of filas) {
     if (f.fecha < desde) continue;
@@ -126,7 +130,7 @@ export function muestraModelo(filas: Fila[], modelos: string[], desde: string): 
 
 /** La muestra de un tipo con los modelos dados (cualquier esfuerzo): el ancla de ese tipo. */
 export function muestraTipo(filas: Fila[], tipo: string, modelos: string[], desde: string): Muestra {
-  const ids = new Set(modelos.map((x) => x.toLowerCase()));
+  const ids = new Set(modelos.map((x) => canonico(x).modelo));
   const m: Muestra = { n: 0, usd: 0, ok: 0, dato: 0 };
   for (const f of filas) {
     if (f.fecha < desde) continue;

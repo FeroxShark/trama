@@ -30,6 +30,7 @@ import {
 import { estadoHilos, estadoPa, plataformaActual, type Plataforma } from "../rutas.ts";
 import { lanzarSuelto, pidDeCorrida, pidDeRunning } from "./base/proc.ts";
 import { carpetaMotor } from "./pa/entorno.ts";
+import { canonico } from "./pa/modelo-canonico.ts";
 import {
   conFloat,
   copiarMarcas,
@@ -2237,7 +2238,8 @@ function rindeDeModelos(now: Date): Map<string, [number, number]> {
       if (c.length < 5 || !/^[0-9]{4}-/.test(c[0]!) || c[0]!.slice(0, 10) < desde) continue;
       const [i, r] = [v("integrada"), v("retrabajo")];
       if (!(i === "0" || (i === "1" && (r === "0" || r === "1")))) continue;
-      const k = `${v("tipo")}\t${v("modelo")}`;
+      // un solo nombre por modelo (sin el effort: la regla de historial es por modelo); el python congelado agrupa crudo
+      const k = `${v("tipo")}\t${canonico(v("modelo"), v("effort")).modelo}`;
       const [d, ok] = out.get(k) ?? [0, 0];
       out.set(k, [d + 1, ok + (i === "1" && r === "0" ? 1 : 0)]);
     }
@@ -2342,7 +2344,7 @@ function aplicarCostoCandidato(cand: Obj, costo: CostoCandidato | null): void {
 /** Lo que no gasta cupo (local, dsh/OpenCode) sin historial propio en ESE tipo sólo entra en TIPOS_GRATIS_SIN_DATOS (vuelve si no queda nada más). Lo comparten `ahorro` y `agresivo`. */
 function exigirHistorialSinCupo(c: Obj, tipo: string, rinde: Map<string, [number, number]>, perfil: string): void {
   if (c.proveedor !== "local" && c.proveedor !== "dsh") return;
-  const [d, ok] = rinde.get(`${tipo}\t${c.modelo}`) ?? [0, 0];
+  const [d, ok] = rinde.get(`${tipo}\t${canonico(c.modelo, c.effort).modelo}`) ?? [0, 0];
   c.historial = { n: d, ok_pct: d ? pyRound(100 * ok / d, 0) : null };
   if (c.descartado_por || TIPOS_GRATIS_SIN_DATOS.includes(tipo)) return;
   if (d < RINDE_MIN_N || 100 * ok < RINDE_MIN_OK * d) {
