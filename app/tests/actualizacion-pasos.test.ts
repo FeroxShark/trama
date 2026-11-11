@@ -94,7 +94,10 @@ test("actualizar: trama-actualizacion.json lleva `paso` y `desde` y avanza con e
   assert.equal(j.version, "0.1.4");
   assert.equal(m.pasoActValido(j.paso), true);
   assert.ok(Number.isFinite(j.desde as number));
-  assert.deepEqual(await act.estadoActual(), { fase: "instalando", version: "0.1.4", paso: "ventana", desde: j.desde });
+  // `ultima` (la última línea nueva del log) y `registro` (su ruta, para «Ver registro») viajan con el estado.
+  assert.ok(Number.isFinite(j.ultima as number));
+  assert.equal(j.registro, registro);
+  assert.deepEqual(await act.estadoActual(), { fase: "instalando", version: "0.1.4", paso: "ventana", desde: j.desde, ultima: j.ultima, registro });
   soltar();
   assert.deepEqual(await fin, { ok: true, version: "0.1.4" });
 
